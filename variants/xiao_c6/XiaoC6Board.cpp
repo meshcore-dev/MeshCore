@@ -1,7 +1,10 @@
 #include <Arduino.h>
 #include "target.h"
+#ifdef USE_MESHIMI_BOARD
+#include "MeshimiSensors.h"
+#endif
 
-XiaoC6Board board;
+BOARD_CLASS board;
 
 #if defined(P_LORA_SCLK)
   static SPIClass spi(0);
@@ -14,7 +17,11 @@ WRAPPER_CLASS radio_driver(radio, board);
 
 ESP32RTCClock fallback_clock;
 AutoDiscoverRTCClock rtc_clock(fallback_clock);
+#ifdef USE_MESHIMI_BOARD
+MeshimiSensorManager sensors;
+#else
 SensorManager sensors;
+#endif
 
 bool radio_init() {
   fallback_clock.begin();
