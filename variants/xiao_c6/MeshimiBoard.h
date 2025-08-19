@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include "XiaoC6Board.h"
+#include <helpers/PowerManager.h>
 
 // Meshimi-specific board implementation for Xiao ESP32-C6
 class MeshimiBoard : public XiaoC6Board {
@@ -13,6 +14,8 @@ public:
   const char* getManufacturerName() const override {
     return "Meshimi";
   }
+private:
+  PowerManager power;
 };
 
 
