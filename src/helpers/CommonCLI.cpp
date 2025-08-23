@@ -3,6 +3,176 @@
 #include "TxtDataHelpers.h"
 #include <RTClib.h>
 
+// ---------- Command and key registry for zero-maintenance `help` ----------
+// Define command strings once, use everywhere, and list them for help output.
+static constexpr const char* CMD_REBOOT        = "reboot";
+static constexpr const char* CMD_ADVERT        = "advert";
+static constexpr const char* CMD_CLOCK         = "clock";
+static constexpr const char* CMD_CLOCK_SYNC    = "clock sync";
+static constexpr const char* CMD_START_OTA     = "start ota";
+static constexpr const char* CMD_NEIGHBORS     = "neighbors";
+static constexpr const char* CMD_TEMPRADIO     = "tempradio";
+static constexpr const char* CMD_PASSWORD      = "password";
+static constexpr const char* CMD_CLEAR_STATS   = "clear stats";
+static constexpr const char* CMD_GET           = "get";
+static constexpr const char* CMD_SET           = "set";
+static constexpr const char* CMD_ERASE         = "erase";
+static constexpr const char* CMD_VER           = "ver";
+static constexpr const char* CMD_LOG_START     = "log start";
+static constexpr const char* CMD_LOG_STOP      = "log stop";
+static constexpr const char* CMD_LOG_ERASE     = "log erase";
+static constexpr const char* CMD_LOG_DUMP      = "log";
+static constexpr const char* CMD_HELP          = "help";
+
+// Config keys supported by get/set. Listed once for help, used in comparisons.
+static constexpr const char* KEY_AF                    = "af";
+static constexpr const char* KEY_INT_THRESH            = "int.thresh";
+static constexpr const char* KEY_AGC_RESET_INTERVAL    = "agc.reset.interval";
+static constexpr const char* KEY_MULTI_ACKS            = "multi.acks";
+static constexpr const char* KEY_ALLOW_READ_ONLY       = "allow.read.only";
+static constexpr const char* KEY_FLOOD_ADV_INT         = "flood.advert.interval";
+static constexpr const char* KEY_ADVERT_INTERVAL       = "advert.interval";
+static constexpr const char* KEY_GUEST_PASSWORD        = "guest.password";
+static constexpr const char* KEY_NAME                  = "name";
+static constexpr const char* KEY_REPEAT                = "repeat";
+static constexpr const char* KEY_LAT                   = "lat";
+static constexpr const char* KEY_LON                   = "lon";
+static constexpr const char* KEY_RADIO                 = "radio"; 
+static constexpr const char* KEY_RXDELAY               = "rxdelay";
+static constexpr const char* KEY_TXDELAY               = "txdelay";
+static constexpr const char* KEY_DIRECT_TXDELAY        = "direct.txdelay";
+static constexpr const char* KEY_FLOOD_MAX             = "flood.max";
+static constexpr const char* KEY_TX                    = "tx";
+static constexpr const char* KEY_FREQ                  = "freq";
+static constexpr const char* KEY_PUBLIC_KEY            = "public.key";
+static constexpr const char* KEY_ROLE                  = "role";
+
+// Help messages are small, so cannot include parameter detail
+// which is why this is being split into sub-sections
+
+static constexpr const char* HELP_DEVICE_CMDS[] = {
+  CMD_REBOOT, CMD_CLOCK, CMD_CLOCK_SYNC, CMD_START_OTA, CMD_ERASE
+}
+static constexpr const char* HELP_DEVICE_KEYS[] = {
+  KEY_NAME, KEY_LAT, KEY_LON, KEY_ROLE
+}
+
+static constexpr const char* HELP_RADIO_CMDS[] = {
+  CMD_TEMPRADIO
+}
+static constexpr const char* HELP_RADIO_KEYS_STANDARD[] = {
+  KEY_RADIO, KEY_TX, KEY_FREQ
+}
+static constexpr const char* HELP_RADIO_KEYS_ADVANCED[] = {
+  KEY_AF, KEY_INT_THRESH, KEY_AGC_RESET_INTERVAL, KEY_RXDELAY, KEY_TXDELAY, KEY_DIRECT_TXDELAY
+}
+
+static constexpr const char* HELP_MESH_CMDS[] = {
+  CMD_ADVERT
+}
+static constexpr const char* HELP_MESH_KEYS[] = {
+  KEY_MULTI_ACKS, KEY_FLOOD_ADV_INT, KEY_ADVERT_INTERVAL, KEY_REPEAT, KEY_ALLOW_READ_ONLY, KEY_FLOOD_MAX
+}
+
+static constexpr const char* HELP_AUTH_CMDS[] = {
+  CMD_PASSWORD
+}
+static constexpr const char* HELP_AUTH_KEYS[] = {
+  KEY_GUEST_PASSWORD, KEY_PUBLIC_KEY
+}
+
+static constexpr const char* HELP_DEBUG_CMDS[] = {
+  CMD_CLEAR_STATS, CMD_VER, CMD_LOG_START, CMD_LOG_STOP, CMD_LOG_ERASE, CMD_LOG_DUMP, CMD_NEIGHBORS
+}
+
+
+// ---- Split help formatters to keep replies short ----
+static void format_help_overview(char* reply) {
+  // Tiny overview that always fits typical reply buffers
+  // Themes are: device, radio, mesh, auth, debug
+  sprintf(reply, "help <theme> [cmds|keys].\n Theme can be: device, radio, mesh, auth, debug\n");
+}
+
+// Theme: device
+static void format_help_device_cmds(char* reply) {
+  char* p = reply;
+  p += sprintf(p, "Commands: ");
+  for (size_t i = 0; i < (sizeof(HELP_DEVICE_CMDS) / sizeof(HELP_DEVICE_CMDS[0])); ++i) {
+    p += sprintf(p, "%s%s", HELP_DEVICE_CMDS[i], "\n");
+  }
+}
+static void format_help_device_keys(char* reply) {
+  char* p = reply;
+  p += sprintf(p, "Keys (for get /set): ");
+  for (size_t i = 0; i < (sizeof(HELP_DEVICE_KEYS) / sizeof(HELP_DEVICE_KEYS[0])); ++i) {
+    p += sprintf(p, "%s%s", HELP_DEVICE_KEYS[i], "\n");
+  }
+}
+
+// Theme: radio
+static void format_help_radio_cmds(char* reply) {
+  char* p = reply;
+  p += sprintf(p, "Help for radio is in 3 sections: radio_cmds, radio_keys_standard, radio_keys_advanced.");
+  for (size_t i = 0; i < (sizeof(HELP_RADIO_CMDS) / sizeof(HELP_RADIO_CMDS[0])); ++i) {
+    p += sprintf(p, "%s%s", HELP_RADIO_CMDS[i], "\n");
+  }
+}
+static void format_help_radio_standard_keys(char* reply) {
+  char* p = reply;
+  p += sprintf(p, "Keys (for get /set): ");
+  for (size_t i = 0; i < (sizeof(HELP_RADIO_KEYS_STANDARD) / sizeof(HELP_RADIO_KEYS_STANDARD[0])); ++i) {
+    p += sprintf(p, "%s%s", HELP_RADIO_KEYS_STANDARD[i], "\n");
+  }
+}
+static void format_help_radio_advanced_keys(char* reply) {
+  char* p = reply;
+  p += sprintf(p, "Keys (for get /set): ");
+  for (size_t i = 0; i < (sizeof(HELP_RADIO_KEYS_ADVANCED) / sizeof(HELP_RADIO_KEYS_ADVANCED[0])); ++i) {
+    p += sprintf(p, "%s%s", HELP_RADIO_KEYS_ADVANCED[i], "\n");
+  }
+}
+
+// Theme: mesh
+static void format_help_mesh_cmds(char* reply) {
+  char* p = reply;
+  p += sprintf(p, "Commands: ");
+  for (size_t i = 0; i < (sizeof(HELP_MESH_CMDS) / sizeof(HELP_MESH_CMDS[0])); ++i) {
+    p += sprintf(p, "%s%s", HELP_MESH_CMDS[i], "\n");
+  }
+}
+static void format_help_mesh_keys(char* reply) {
+  char* p = reply;
+  p += sprintf(p, "Keys (for get /set): ");
+  for (size_t i = 0; i < (sizeof(HELP_MESH_KEYS) / sizeof(HELP_MESH_KEYS[0])); ++i) {
+    p += sprintf(p, "%s%s", HELP_MESH_KEYS[i], "\n");
+  }
+}
+
+// Theme: auth
+static void format_help_auth_cmds(char* reply) {
+  char* p = reply;
+  p += sprintf(p, "Commands: ");
+  for (size_t i = 0; i < (sizeof(HELP_AUTH_CMDS) / sizeof(HELP_AUTH_CMDS[0])); ++i) {
+    p += sprintf(p, "%s%s", HELP_AUTH_CMDS[i], "\n");
+  }
+}
+static void format_help_auth_keys(char* reply) {
+  char* p = reply;
+  p += sprintf(p, "Keys (for get /set): ");
+  for (size_t i = 0; i < (sizeof(HELP_AUTH_KEYS) / sizeof(HELP_AUTH_KEYS[0])); ++i) {
+    p += sprintf(p, "%s%s", HELP_AUTH_KEYS[i], "\n");
+  }
+}
+
+// Theme: debug
+static void format_help_debug_cmds(char* reply) {
+  char* p = reply;
+  p += sprintf(p, "Commands: ");
+  for (size_t i = 0; i < (sizeof(HELP_DEBUG_CMDS) / sizeof(HELP_DEBUG_CMDS[0])); ++i) {
+    p += sprintf(p, "%s%s", HELP_DEBUG_CMDS[i], "\n");
+  }
+}
+
 // Believe it or not, this std C function is busted on some platforms!
 static uint32_t _atoi(const char* sp) {
   uint32_t n = 0;
@@ -129,12 +299,28 @@ void CommonCLI::savePrefs() {
 }
 
 void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, char* reply) {
-    if (memcmp(command, "reboot", 6) == 0) {
+    // Split help to keep messages short
+    // device, radio, mesh, auth, debug
+    if (memcmp(command, CMD_HELP, 4) == 0) {
+      if (memcmp(command, "help device cmds", 16) == 0) { format_help_device_cmds(reply); return; }
+      if (memcmp(command, "help device keys", 16) == 0) { format_help_device_keys(reply); return; }
+      if (memcmp(command, "help radio cmds", 15)  == 0) { format_help_radio_cmds(reply);  return; }
+      if (memcmp(command, "help radio std keys", 19)  == 0) { format_help_radio_standard_keys(reply);  return; }
+      if (memcmp(command, "help radio adv keys", 19)  == 0) { format_help_radio_advanced_keys(reply);  return; }
+      if (memcmp(command, "help mesh cmds", 14)  == 0) { format_help_mesh_cmds(reply);  return; }
+      if (memcmp(command, "help mesh keys", 14)  == 0) { format_help_mesh_keys(reply);  return; }
+      if (memcmp(command, "help auth cmds", 14)  == 0) { format_help_auth_cmds(reply);  return; }
+      if (memcmp(command, "help auth keys", 14)  == 0) { format_help_auth_keys(reply);  return; }
+      if (memcmp(command, "help debug", 10)  == 0) { format_help_debug_cmds(reply);  return; }
+      format_help_overview(reply);
+      return;
+    }
+    if (memcmp(command, CMD_REBOOT, 6) == 0) {
       _board->reboot();  // doesn't return
-    } else if (memcmp(command, "advert", 6) == 0) {
+    } else if (memcmp(command, CMD_ADVERT, 6) == 0) {
       _callbacks->sendSelfAdvertisement(1500);  // longer delay, give CLI response time to be sent first
       strcpy(reply, "OK - Advert sent");
-    } else if (memcmp(command, "clock sync", 10) == 0) {
+    } else if (memcmp(command, CMD_CLOCK_SYNC, 10) == 0) {
       uint32_t curr = getRTCClock()->getCurrentTime();
       if (sender_timestamp > curr) {
         getRTCClock()->setCurrentTime(sender_timestamp + 1);
@@ -144,11 +330,11 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
       } else {
         strcpy(reply, "ERR: clock cannot go backwards");
       }
-    } else if (memcmp(command, "start ota", 9) == 0) {
+    } else if (memcmp(command, CMD_START_OTA, 9) == 0) {
       if (!_board->startOTAUpdate(_prefs->node_name, reply)) {
         strcpy(reply, "Error");
       }
-    } else if (memcmp(command, "clock", 5) == 0) {
+    } else if (memcmp(command, CMD_CLOCK, 5) == 0) {
       uint32_t now = getRTCClock()->getCurrentTime();
       DateTime dt = DateTime(now);
       sprintf(reply, "%02d:%02d - %d/%d/%d UTC", dt.hour(), dt.minute(), dt.day(), dt.month(), dt.year());
@@ -163,9 +349,9 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
       } else {
         strcpy(reply, "(ERR: clock cannot go backwards)");
       }
-    } else if (memcmp(command, "neighbors", 9) == 0) {
+    } else if (memcmp(command, CMD_NEIGHBORS, 9) == 0) {
       _callbacks->formatNeighborsReply(reply);
-    } else if (memcmp(command, "tempradio ", 10) == 0) {
+    } else if (memcmp(command, CMD_TEMPRADIO, 10) == 0) {
       strcpy(tmp, &command[10]);
       const char *parts[5];
       int num = mesh::Utils::parseTextParts(tmp, parts, 5);
@@ -180,88 +366,88 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
       } else {
         strcpy(reply, "Error, invalid params");
       }
-    } else if (memcmp(command, "password ", 9) == 0) {
+    } else if (memcmp(command, CMD_PASSWORD, 9) == 0) {
       // change admin password
       StrHelper::strncpy(_prefs->password, &command[9], sizeof(_prefs->password));
       savePrefs();
       sprintf(reply, "password now: %s", _prefs->password);   // echo back just to let admin know for sure!!
-    } else if (memcmp(command, "clear stats", 11) == 0) {
+    } else if (memcmp(command, CMD_CLEAR_STATS, 11) == 0) {
       _callbacks->clearStats();
       strcpy(reply, "(OK - stats reset)");
-    } else if (memcmp(command, "get ", 4) == 0) {
+    } else if (memcmp(command, CMD_GET, 4) == 0) {
       const char* config = &command[4];
-      if (memcmp(config, "af", 2) == 0) {
+      if (memcmp(config, KEY_AF, 2) == 0) {
         sprintf(reply, "> %s", StrHelper::ftoa(_prefs->airtime_factor));
-      } else if (memcmp(config, "int.thresh", 10) == 0) {
+      } else if (memcmp(config, KEY_INT_THRESH, 10) == 0) {
         sprintf(reply, "> %d", (uint32_t) _prefs->interference_threshold);
-      } else if (memcmp(config, "agc.reset.interval", 18) == 0) {
+      } else if (memcmp(config, KEY_AGC_RESET_INTERVAL, 18) == 0) {
         sprintf(reply, "> %d", ((uint32_t) _prefs->agc_reset_interval) * 4);
-      } else if (memcmp(config, "multi.acks", 10) == 0) {
+      } else if (memcmp(config, KEY_MULTI_ACKS, 10) == 0) {
         sprintf(reply, "> %d", (uint32_t) _prefs->multi_acks);
-      } else if (memcmp(config, "allow.read.only", 15) == 0) {
+      } else if (memcmp(config, KEY_ALLOW_READ_ONLY, 15) == 0) {
         sprintf(reply, "> %s", _prefs->allow_read_only ? "on" : "off");
-      } else if (memcmp(config, "flood.advert.interval", 21) == 0) {
+      } else if (memcmp(config, KEY_FLOOD_ADV_INT, 21) == 0) {
         sprintf(reply, "> %d", ((uint32_t) _prefs->flood_advert_interval));
-      } else if (memcmp(config, "advert.interval", 15) == 0) {
+      } else if (memcmp(config, KEY_ADVERT_INTERVAL, 15) == 0) {
         sprintf(reply, "> %d", ((uint32_t) _prefs->advert_interval) * 2);
-      } else if (memcmp(config, "guest.password", 14) == 0) {
+      } else if (memcmp(config, KEY_GUEST_PASSWORD, 14) == 0) {
         sprintf(reply, "> %s", _prefs->guest_password);
-      } else if (memcmp(config, "name", 4) == 0) {
+      } else if (memcmp(config, KEY_NAME, 4) == 0) {
         sprintf(reply, "> %s", _prefs->node_name);
-      } else if (memcmp(config, "repeat", 6) == 0) {
+      } else if (memcmp(config, KEY_REPEAT, 6) == 0) {
         sprintf(reply, "> %s", _prefs->disable_fwd ? "off" : "on");
-      } else if (memcmp(config, "lat", 3) == 0) {
+      } else if (memcmp(config, KEY_LAT, 3) == 0) {
         sprintf(reply, "> %s", StrHelper::ftoa(_prefs->node_lat));
-      } else if (memcmp(config, "lon", 3) == 0) {
+      } else if (memcmp(config, KEY_LON, 3) == 0) {
         sprintf(reply, "> %s", StrHelper::ftoa(_prefs->node_lon));
-      } else if (memcmp(config, "radio", 5) == 0) {
+      } else if (memcmp(config, KEY_RADIO, 5) == 0) {
         char freq[16], bw[16];
         strcpy(freq, StrHelper::ftoa(_prefs->freq));
         strcpy(bw, StrHelper::ftoa(_prefs->bw));
         sprintf(reply, "> %s,%s,%d,%d", freq, bw, (uint32_t)_prefs->sf, (uint32_t)_prefs->cr);
-      } else if (memcmp(config, "rxdelay", 7) == 0) {
+      } else if (memcmp(config, KEY_RXDELAY, 7) == 0) {
         sprintf(reply, "> %s", StrHelper::ftoa(_prefs->rx_delay_base));
-      } else if (memcmp(config, "txdelay", 7) == 0) {
+      } else if (memcmp(config, KEY_TXDELAY, 7) == 0) {
         sprintf(reply, "> %s", StrHelper::ftoa(_prefs->tx_delay_factor));
-      } else if (memcmp(config, "flood.max", 9) == 0) {
+      } else if (memcmp(config, KEY_FLOOD_MAX, 9) == 0) {
         sprintf(reply, "> %d", (uint32_t)_prefs->flood_max);
-      } else if (memcmp(config, "direct.txdelay", 14) == 0) {
+      } else if (memcmp(config, KEY_DIRECT_TXDELAY, 14) == 0) {
         sprintf(reply, "> %s", StrHelper::ftoa(_prefs->direct_tx_delay_factor));
-      } else if (memcmp(config, "tx", 2) == 0 && (config[2] == 0 || config[2] == ' ')) {
+      } else if (memcmp(config, KEY_TX, 2) == 0 && (config[2] == 0 || config[2] == ' ')) {
         sprintf(reply, "> %d", (uint32_t) _prefs->tx_power_dbm);
-      } else if (memcmp(config, "freq", 4) == 0) {
+      } else if (memcmp(config, KEY_FREQ, 4) == 0) {
         sprintf(reply, "> %s", StrHelper::ftoa(_prefs->freq));
-      } else if (memcmp(config, "public.key", 10) == 0) {
+      } else if (memcmp(config, KEY_PUBLIC_KEY, 10) == 0) {
         strcpy(reply, "> ");
         mesh::Utils::toHex(&reply[2], _callbacks->getSelfIdPubKey(), PUB_KEY_SIZE);
-      } else if (memcmp(config, "role", 4) == 0) {
+      } else if (memcmp(config, KEY_ROLE, 4) == 0) {
         sprintf(reply, "> %s", _callbacks->getRole());
       } else {
         sprintf(reply, "??: %s", config);
       }
-    } else if (memcmp(command, "set ", 4) == 0) {
+    } else if (memcmp(command, CMD_SET, 4) == 0) {
       const char* config = &command[4];
-      if (memcmp(config, "af ", 3) == 0) {
+      if (memcmp(config, KEY_AF " ", 3) == 0) {
         _prefs->airtime_factor = atof(&config[3]);
         savePrefs();
         strcpy(reply, "OK");
-      } else if (memcmp(config, "int.thresh ", 11) == 0) {
+      } else if (memcmp(config, KEY_INT_THRESH " ", 11) == 0) {
         _prefs->interference_threshold = atoi(&config[11]);
         savePrefs();
         strcpy(reply, "OK");
-      } else if (memcmp(config, "agc.reset.interval ", 19) == 0) {
+      } else if (memcmp(config, KEY_AGC_RESET_INTERVAL " ", 19) == 0) {
         _prefs->agc_reset_interval = atoi(&config[19]) / 4;
         savePrefs();
         strcpy(reply, "OK");
-      } else if (memcmp(config, "multi.acks ", 11) == 0) {
+      } else if (memcmp(config, KEY_MULTI_ACKS " ", 11) == 0) {
         _prefs->multi_acks = atoi(&config[11]);
         savePrefs();
         strcpy(reply, "OK");
-      } else if (memcmp(config, "allow.read.only ", 16) == 0) {
+      } else if (memcmp(config, KEY_ALLOW_READ_ONLY " ", 16) == 0) {
         _prefs->allow_read_only = memcmp(&config[16], "on", 2) == 0;
         savePrefs();
         strcpy(reply, "OK");
-      } else if (memcmp(config, "flood.advert.interval ", 22) == 0) {
+      } else if (memcmp(config, KEY_FLOOD_ADV_INT " ", 22) == 0) {
         int hours = _atoi(&config[22]);
         if ((hours > 0 && hours < 3) || (hours > 48)) {
           strcpy(reply, "Error: interval range is 3-48 hours");
@@ -271,7 +457,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
           savePrefs();
           strcpy(reply, "OK");
         }
-      } else if (memcmp(config, "advert.interval ", 16) == 0) {
+      } else if (memcmp(config, KEY_ADVERT_INTERVAL " ", 16) == 0) {
         int mins = _atoi(&config[16]);
         if ((mins > 0 && mins < MIN_LOCAL_ADVERT_INTERVAL) || (mins > 240)) {
           sprintf(reply, "Error: interval range is %d-240 minutes", MIN_LOCAL_ADVERT_INTERVAL);
@@ -281,19 +467,19 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
           savePrefs();
           strcpy(reply, "OK");
         }
-      } else if (memcmp(config, "guest.password ", 15) == 0) {
+      } else if (memcmp(config, KEY_GUEST_PASSWORD " ", 15) == 0) {
         StrHelper::strncpy(_prefs->guest_password, &config[15], sizeof(_prefs->guest_password));
         savePrefs();
         strcpy(reply, "OK");
-      } else if (memcmp(config, "name ", 5) == 0) {
+      } else if (memcmp(config, KEY_NAME " ", 5) == 0) {
         StrHelper::strncpy(_prefs->node_name, &config[5], sizeof(_prefs->node_name));
         savePrefs();
         strcpy(reply, "OK");
-      } else if (memcmp(config, "repeat ", 7) == 0) {
+      } else if (memcmp(config, KEY_REPEAT " ", 7) == 0) {
         _prefs->disable_fwd = memcmp(&config[7], "off", 3) == 0;
         savePrefs();
         strcpy(reply, _prefs->disable_fwd ? "OK - repeat is now OFF" : "OK - repeat is now ON");
-      } else if (memcmp(config, "radio ", 6) == 0) {
+      } else if (memcmp(config, KEY_RADIO " ", 6) == 0) {
         strcpy(tmp, &config[6]);
         const char *parts[4];
         int num = mesh::Utils::parseTextParts(tmp, parts, 4);
@@ -311,15 +497,15 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         } else {
           strcpy(reply, "Error, invalid radio params");
         }
-      } else if (memcmp(config, "lat ", 4) == 0) {
+      } else if (memcmp(config, KEY_LAT " ", 4) == 0) {
         _prefs->node_lat = atof(&config[4]);
         savePrefs();
         strcpy(reply, "OK");
-      } else if (memcmp(config, "lon ", 4) == 0) {
+      } else if (memcmp(config, KEY_LON " ", 4) == 0) {
         _prefs->node_lon = atof(&config[4]);
         savePrefs();
         strcpy(reply, "OK");
-      } else if (memcmp(config, "rxdelay ", 8) == 0) {
+      } else if (memcmp(config, KEY_RXDELAY " ", 8) == 0) {
         float db = atof(&config[8]);
         if (db >= 0) {
           _prefs->rx_delay_base = db;
@@ -328,7 +514,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         } else {
           strcpy(reply, "Error, cannot be negative");
         }
-      } else if (memcmp(config, "txdelay ", 8) == 0) {
+      } else if (memcmp(config, KEY_TXDELAY " ", 8) == 0) {
         float f = atof(&config[8]);
         if (f >= 0) {
           _prefs->tx_delay_factor = f;
@@ -337,7 +523,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         } else {
           strcpy(reply, "Error, cannot be negative");
         }
-      } else if (memcmp(config, "flood.max ", 10) == 0) {
+      } else if (memcmp(config, KEY_FLOOD_MAX " ", 10) == 0) {
         uint8_t m = atoi(&config[10]);
         if (m <= 64) {
           _prefs->flood_max = m;
@@ -346,7 +532,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         } else {
           strcpy(reply, "Error, max 64");
         }
-      } else if (memcmp(config, "direct.txdelay ", 15) == 0) {
+      } else if (memcmp(config, KEY_DIRECT_TXDELAY " ", 15) == 0) {
         float f = atof(&config[15]);
         if (f >= 0) {
           _prefs->direct_tx_delay_factor = f;
@@ -355,33 +541,33 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         } else {
           strcpy(reply, "Error, cannot be negative");
         }
-      } else if (memcmp(config, "tx ", 3) == 0) {
+      } else if (memcmp(config, KEY_TX " ", 3) == 0) {
         _prefs->tx_power_dbm = atoi(&config[3]);
         savePrefs();
         _callbacks->setTxPower(_prefs->tx_power_dbm);
         strcpy(reply, "OK");
-      } else if (sender_timestamp == 0 && memcmp(config, "freq ", 5) == 0) {
+      } else if (sender_timestamp == 0 && memcmp(config, KEY_FREQ " ", 5) == 0) {
         _prefs->freq = atof(&config[5]);
         savePrefs();
         strcpy(reply, "OK - reboot to apply");
       } else {
         sprintf(reply, "unknown config: %s", config);
       }
-    } else if (sender_timestamp == 0 && strcmp(command, "erase") == 0) {
+    } else if (sender_timestamp == 0 && strcmp(command, CMD_ERASE) == 0) {
       bool s = _callbacks->formatFileSystem();
       sprintf(reply, "File system erase: %s", s ? "OK" : "Err");
-    } else if (memcmp(command, "ver", 3) == 0) {
+    } else if (memcmp(command, CMD_VER, 3) == 0) {
       sprintf(reply, "%s (Build: %s)", _callbacks->getFirmwareVer(), _callbacks->getBuildDate());
-    } else if (memcmp(command, "log start", 9) == 0) {
+    } else if (memcmp(command, CMD_LOG_START, 9) == 0) {
       _callbacks->setLoggingOn(true);
       strcpy(reply, "   logging on");
-    } else if (memcmp(command, "log stop", 8) == 0) {
+    } else if (memcmp(command, CMD_LOG_STOP, 8) == 0) {
       _callbacks->setLoggingOn(false);
       strcpy(reply, "   logging off");
-    } else if (memcmp(command, "log erase", 9) == 0) {
+    } else if (memcmp(command, CMD_LOG_ERASE, 9) == 0) {
       _callbacks->eraseLogFile();
       strcpy(reply, "   log erased");
-    } else if (sender_timestamp == 0 && memcmp(command, "log", 3) == 0) {
+    } else if (sender_timestamp == 0 && memcmp(command, CMD_LOG_DUMP, 3) == 0) {
       _callbacks->dumpLogFile();
       strcpy(reply, "   EOF");
     } else {
