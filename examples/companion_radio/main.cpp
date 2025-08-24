@@ -104,7 +104,20 @@ void setup() {
   }
 #endif
 
-  if (!radio_init()) { halt(); }
+  if (!radio_init()) {
+#ifdef DISPLAY_CLASS
+  if (disp != NULL) {
+    disp->startFrame();
+    disp->clear();
+    disp->setCursor(0, 0);
+    disp->print("Radio init failure!");
+    disp->setCursor(0, 12);
+    disp->print("Device might be flashed with incompatible firmware.");
+    disp->endFrame();
+  }
+#endif
+    halt();
+  }
 
   fast_rng.begin(radio_get_rng_seed());
 
