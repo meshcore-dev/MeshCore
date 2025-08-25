@@ -4,7 +4,7 @@
 #include <Wire.h>
 #include <SPI.h>
 #include <Adafruit_GFX.h>
-#include <ST7789Spi.h>
+#include "ST7789Spi.h"
 
 class ST7789Display : public DisplayDriver {
   ST7789Spi display;
