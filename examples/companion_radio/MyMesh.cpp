@@ -1530,27 +1530,65 @@ void MyMesh::checkCLIRescueCmd() {
       if(root){
         File file = root.openNextFile();
         while (file) {
-
+          
+          #if defined(EXTRAFS) || defined(QSPIFLASH)
+          if (file.isDirectory()) {
+            Serial.printf("[dir]  /FS1/%s\n", file.name());
+          } else {
+            Serial.printf("[file] /FS1/%s (%d bytes)\n", file.name(), file.size());
+          }
+          #else
           if (file.isDirectory()) {
             Serial.printf("[dir] %s\n", file.name());
           } else {
             Serial.printf("[file] %s (%d bytes)\n", file.name(), file.size());
           }
-
+          #endif
           // move to next file
           file = root.openNextFile();
 
         }
         root.close();
       }
+      #if defined(EXTRAFS) || defined(QSPIFLASH)
+        root = _store->openRead(_store->getSecondaryFS(), path);
+        if(root){
+          File file = root.openNextFile();
+          while (file) {
+
+            if (file.isDirectory()) {
+              Serial.printf("[dir]  /FS2/%s\n", file.name());
+            } else {
+              Serial.printf("[file] /FS2/%s (%d bytes)\n", file.name(), file.size());
+            }
+
+            // move to next file
+            file = root.openNextFile();
+
+          }
+        root.close();
+      }
+      #endif
 
     } else if (memcmp(cli_command, "cat", 3) == 0) {
 
       // get path from command e.g: "cat /contacts3"
       const char *path = &cli_command[4];
       
+      // 
+      bool is_fs2 = false;
+      if (memcmp(path, "FS1/", 4) == 0) {
+        path += 3; // skip "FS1"
+      } else if (memcmp(path, "FS2/", 4) == 0) {
+        path += 3; // skip "FS2"
+        is_fs2 = true;
+      }
+
       // log file content as hex
       File file = _store->openRead(path);
+      if (is_fs2 == true) {
+        file = _store->openRead(_store->getSecondaryFS(), path);
+      }
       if(file){
 
         // get file content
@@ -1570,14 +1608,28 @@ void MyMesh::checkCLIRescueCmd() {
 
       // get path from command e.g: "rm /adv_blobs"
       const char *path = &cli_command[4];
-
+      MESH_DEBUG_PRINTLN("Removing file: %s", path);
       // ensure path is not empty, or root dir
       if(!path || strlen(path) == 0 || strcmp(path, "/") == 0){
         Serial.println("Invalid path provided");
       } else {
+        bool is_fs2 = false;
+        if (memcmp(path, "FS1/", 4) == 0) {
+          path += 3; // skip "FS1"
+        } else if (memcmp(path, "FS2/", 4) == 0) {
+          path += 3; // skip "FS2"
+          is_fs2 = true;
+        }
 
         // remove file
-        bool removed = _store->removeFile(path);
+        bool removed;
+        if (is_fs2) {
+          MESH_DEBUG_PRINTLN("Removing file from FS2: %s", path);
+          removed = _store->removeFile(_store->getSecondaryFS(), path);
+        } else {
+          MESH_DEBUG_PRINTLN("Removing file from FS1: %s", path);
+          removed = _store->removeFile(path);
+        }
         if(removed){
           Serial.println("File removed");
         } else {
