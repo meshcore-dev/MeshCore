@@ -719,6 +719,17 @@ public:
     *dp = 0;  // null terminator
   }
 
+  void removeNeighbor(const uint8_t* pubkey, int key_len) override {
+#if MAX_NEIGHBOURS
+    for (int i = 0; i < MAX_NEIGHBOURS; i++) {
+      NeighbourInfo* neighbour = &neighbours[i];
+      if(memcmp(neighbour->id.pub_key, pubkey, key_len) == 0){
+        neighbours[i] = {}; // clear neighbour entry
+      }
+    }
+#endif
+  }
+
   mesh::LocalIdentity& getSelfId() override { return self_id; }
 
   void clearStats() override {

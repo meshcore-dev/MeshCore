@@ -165,6 +165,17 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
       }
     } else if (memcmp(command, "neighbors", 9) == 0) {
       _callbacks->formatNeighborsReply(reply);
+    } else if (memcmp(command, "neighbor.remove ", 16) == 0) {
+      const char* hex = &command[16];
+      uint8_t pubkey[PUB_KEY_SIZE];
+      int hex_len = min(strlen(hex), PUB_KEY_SIZE*2);
+      int pubkey_len = hex_len / 2;
+      if (mesh::Utils::fromHex(pubkey, pubkey_len, hex)) {
+        _callbacks->removeNeighbor(pubkey, pubkey_len);
+        strcpy(reply, "OK");
+      } else {
+        strcpy(reply, "ERR: bad pubkey");
+      }
     } else if (memcmp(command, "tempradio ", 10) == 0) {
       strcpy(tmp, &command[10]);
       const char *parts[5];

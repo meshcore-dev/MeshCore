@@ -43,6 +43,7 @@ public:
   virtual void dumpLogFile() = 0;
   virtual void setTxPower(uint8_t power_dbm) = 0;
   virtual void formatNeighborsReply(char *reply) = 0;
+  virtual void removeNeighbor(const uint8_t* pubkey, int key_len) = 0;
   virtual mesh::LocalIdentity& getSelfId() = 0;
   virtual void clearStats() = 0;
   virtual void applyTempRadioParams(float freq, float bw, uint8_t sf, uint8_t cr, int timeout_mins) = 0;
