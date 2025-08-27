@@ -58,6 +58,7 @@ bool radio_init() {
   if (status != RADIOLIB_ERR_NONE) {
     Serial.print("ERROR: radio init failed: ");
     Serial.println(status);
+    SPI.end();
     return false;  // fail
   }
   
@@ -71,6 +72,8 @@ bool radio_init() {
   radio.setRxBoostedGainMode(RX_BOOSTED_GAIN);
 #endif
 
+  radio.sleep();
+
   return true;  // success
 }
 
@@ -79,23 +82,34 @@ uint32_t radio_get_rng_seed() {
 }
 
 void radio_set_params(float freq, float bw, uint8_t sf, uint8_t cr) {
+  radio.standby();
+  delayMicroseconds(100);
   radio.setFrequency(freq);
   radio.setSpreadingFactor(sf);
   radio.setBandwidth(bw);
   radio.setCodingRate(cr);
+  radio.sleep();
 }
 
 void radio_set_tx_power(uint8_t dbm) {
+  radio.standby();
+  delayMicroseconds(100);
   radio.setOutputPower(dbm);
+  radio.sleep();
 }
 
 mesh::LocalIdentity radio_new_identity() {
+  radio.standby();
+  delayMicroseconds(100);
   RadioNoiseListener rng(radio);
-  return mesh::LocalIdentity(&rng);  // create new random identity
+  mesh::LocalIdentity identity = mesh::LocalIdentity(&rng);  // create new random identity
+  radio.sleep();
+  return identity;
 }
 
 void T1000SensorManager::start_gps() {
   gps_active = true;
+  Serial1.begin(115200);
   //_nmea->begin();
   // this init sequence should be better 
   // comes from seeed examples and deals with all gps pins
@@ -132,6 +146,7 @@ void T1000SensorManager::sleep_gps() {
 
 void T1000SensorManager::stop_gps() {
   gps_active = false;
+  Serial1.end();
   digitalWrite(GPS_VRTC_EN, LOW);
   digitalWrite(GPS_EN, LOW);
   digitalWrite(GPS_RESET, HIGH);
@@ -144,9 +159,6 @@ void T1000SensorManager::stop_gps() {
 
 
 bool T1000SensorManager::begin() {
-  // init GPS
-  Serial1.begin(115200);
-
   // make sure gps pin are off
   digitalWrite(GPS_VRTC_EN, LOW);
   digitalWrite(GPS_RESET, LOW);

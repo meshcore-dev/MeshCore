@@ -63,14 +63,12 @@ const uint32_t g_ADigitalPinMap[PINS_COUNT + 1] =
 
 void initVariant()
 {
-  // All pins output HIGH by default.
-  // https://github.com/Seeed-Studio/Adafruit_nRF52_Arduino/blob/fab7d30a997a1dfeef9d1d59bfb549adda73815a/cores/nRF5/wiring.c#L65-L69
-
-  pinMode(BATTERY_PIN, INPUT);
-  pinMode(EXT_CHRG_DETECT, INPUT);
-  pinMode(EXT_PWR_DETECT, INPUT);
-  pinMode(GPS_RESETB, INPUT);
-  pinMode(PIN_BUTTON1, INPUT);
+  // Battery optimization: Input pins with appropriate pull resistors to prevent floating
+  pinMode(BATTERY_PIN, INPUT);               // ADC input, no pull needed
+  pinMode(EXT_CHRG_DETECT, INPUT_PULLDOWN);  // Battery optimization: Pull down to prevent floating
+  pinMode(EXT_PWR_DETECT, INPUT_PULLDOWN);   // Battery optimization: Pull down to prevent floating
+  pinMode(GPS_RESETB, INPUT_PULLUP);         // Battery optimization: Pull up for GPS reset
+  pinMode(PIN_BUTTON1, INPUT_PULLUP);        // Battery optimization: Pull up for button (active low)
 
   pinMode(PIN_3V3_EN, OUTPUT);
   pinMode(PIN_3V3_ACC_EN, OUTPUT);

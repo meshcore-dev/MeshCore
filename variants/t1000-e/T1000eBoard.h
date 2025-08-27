@@ -40,7 +40,8 @@ public:
     digitalWrite(PIN_3V3_EN, LOW);
    #endif
 
-    analogReference(AR_DEFAULT);  // put back to default
+    // reset ADC reference to default to save power
+    analogReference(AR_DEFAULT);
     analogReadResolution(10);
 
     return volts * 1000;
@@ -87,6 +88,9 @@ public:
     #ifdef LED_PIN
     digitalWrite(LED_PIN, LOW);
     #endif
+
+    radio.sleep();
+
     #ifdef BUTTON_PIN
     nrf_gpio_cfg_sense_input(digitalPinToInterrupt(BUTTON_PIN), NRF_GPIO_PIN_NOPULL, NRF_GPIO_PIN_SENSE_HIGH);
     #endif

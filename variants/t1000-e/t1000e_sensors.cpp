@@ -99,6 +99,10 @@ float t1000e_get_temperature( void )
     digitalWrite(PIN_3V3_EN, LOW);
     digitalWrite(SENSOR_EN, LOW);
 
+    // reset ADC reference to default to save power
+    analogReference(AR_DEFAULT);
+    analogReadResolution(10);
+
     return get_heater_temperature (vcc_v, ntc_v);
 }
 
@@ -114,6 +118,10 @@ uint32_t t1000e_get_light( void )
     lux_v = 1000 * analogRead(LUX_SENSOR) * AREF_VOLTAGE / 4096;
     lux = get_light_lv( lux_v );
     digitalWrite(SENSOR_EN, LOW);
+
+    // reset ADC reference to default to save power
+    analogReference(AR_DEFAULT);
+    analogReadResolution(10);
  
     return lux;
 }
