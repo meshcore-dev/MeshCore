@@ -1,35 +1,10 @@
 #include "SensorMesh.h"
-
+#include "Defaults.h"
 /* ------------------------------ Config -------------------------------- */
 
-#ifndef LORA_FREQ
-  #define LORA_FREQ   915.0
-#endif
-#ifndef LORA_BW
-  #define LORA_BW     250
-#endif
-#ifndef LORA_SF
-  #define LORA_SF     10
-#endif
-#ifndef LORA_CR
-  #define LORA_CR      5
-#endif
-#ifndef LORA_TX_POWER
-  #define LORA_TX_POWER  20
-#endif
 
 #ifndef ADVERT_NAME
   #define  ADVERT_NAME   "sensor"
-#endif
-#ifndef ADVERT_LAT
-  #define  ADVERT_LAT  0.0
-#endif
-#ifndef ADVERT_LON
-  #define  ADVERT_LON  0.0
-#endif
-
-#ifndef ADMIN_PASSWORD
-  #define  ADMIN_PASSWORD  "password"
 #endif
 
 #ifndef SERVER_RESPONSE_DELAY

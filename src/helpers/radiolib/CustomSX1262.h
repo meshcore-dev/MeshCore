@@ -1,6 +1,7 @@
 #pragma once
 
 #include <RadioLib.h>
+#include "Defaults.h"
 
 #define SX126X_IRQ_HEADER_VALID                     0b0000010000  //  4     4     valid LoRa header received
 #define SX126X_IRQ_PREAMBLE_DETECTED           0x04
@@ -21,33 +22,29 @@ class CustomSX1262 : public SX1262 {
       float tcxo = 1.6f;
   #endif
 
-  #ifdef LORA_CR
-      uint8_t cr = LORA_CR;
-  #else
-      uint8_t cr = 5;
-  #endif
-
   #if defined(P_LORA_SCLK)
     #ifdef NRF52_PLATFORM
       if (spi) { spi->setPins(P_LORA_MISO, P_LORA_SCLK, P_LORA_MOSI); spi->begin(); }
     #elif defined(RP2040_PLATFORM)
       if (spi) {
-        spi->setMISO(P_LORA_MISO);
+        spi->setRX(P_LORA_MISO);
+        //spi->setMISO(P_LORA_MISO);
         //spi->setCS(P_LORA_NSS); // Setting CS results in freeze
         spi->setSCK(P_LORA_SCLK);
-        spi->setMOSI(P_LORA_MOSI);
-        spi->begin();
+        spi->setTX(P_LORA_MOSI);
+        //spi->setMOSI(P_LORA_MOSI);
+        spi->begin(false);
       }
     #else
       if (spi) spi->begin(P_LORA_SCLK, P_LORA_MISO, P_LORA_MOSI);
     #endif
   #endif
-      int status = begin(LORA_FREQ, LORA_BW, LORA_SF, cr, RADIOLIB_SX126X_SYNC_WORD_PRIVATE, LORA_TX_POWER, 16, tcxo);
-      // if radio init fails with -707/-706, try again with tcxo voltage set to 0.0f
+      int status = begin(LORA_FREQ, LORA_BW, LORA_SF, LORA_CR, RADIOLIB_SX126X_SYNC_WORD_PRIVATE, LORA_TX_POWER, LORA_PREAMBLE, tcxo);
+      // if radio init fais with -707/-706, try again with tcxo voltage set to 0.0f
       if (status == RADIOLIB_ERR_SPI_CMD_FAILED || status == RADIOLIB_ERR_SPI_CMD_INVALID) {
         #define SX126X_DIO3_TCXO_VOLTAGE (0.0f);
         tcxo = SX126X_DIO3_TCXO_VOLTAGE;
-        status = begin(LORA_FREQ, LORA_BW, LORA_SF, cr, RADIOLIB_SX126X_SYNC_WORD_PRIVATE, LORA_TX_POWER, 16, tcxo);
+        status = begin(LORA_FREQ, LORA_BW, LORA_SF, LORA_CR, RADIOLIB_SX126X_SYNC_WORD_PRIVATE, LORA_TX_POWER, LORA_PREAMBLE, tcxo);
       }
       if (status != RADIOLIB_ERR_NONE) {
         Serial.print("ERROR: radio init failed: ");

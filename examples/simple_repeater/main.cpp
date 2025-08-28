@@ -18,46 +18,15 @@
 #include <helpers/CommonCLI.h>
 #include <RTClib.h>
 #include <target.h>
-
+#include "Defaults.h"
 /* ------------------------------ Config -------------------------------- */
 
-#ifndef FIRMWARE_BUILD_DATE
-  #define FIRMWARE_BUILD_DATE   "24 Jul 2025"
-#endif
 
-#ifndef FIRMWARE_VERSION
-  #define FIRMWARE_VERSION   "v1.7.4"
-#endif
-
-#ifndef LORA_FREQ
-  #define LORA_FREQ   915.0
-#endif
-#ifndef LORA_BW
-  #define LORA_BW     250
-#endif
-#ifndef LORA_SF
-  #define LORA_SF     10
-#endif
-#ifndef LORA_CR
-  #define LORA_CR      5
-#endif
-#ifndef LORA_TX_POWER
-  #define LORA_TX_POWER  20
-#endif
 
 #ifndef ADVERT_NAME
   #define  ADVERT_NAME   "repeater"
 #endif
-#ifndef ADVERT_LAT
-  #define  ADVERT_LAT  0.0
-#endif
-#ifndef ADVERT_LON
-  #define  ADVERT_LON  0.0
-#endif
 
-#ifndef ADMIN_PASSWORD
-  #define  ADMIN_PASSWORD  "password"
-#endif
 
 #ifndef SERVER_RESPONSE_DELAY
   #define SERVER_RESPONSE_DELAY   300
@@ -73,8 +42,6 @@
 #endif
 
 #define FIRMWARE_ROLE "repeater"
-
-#define PACKET_LOG_FILE  "/packet_log"
 
 /* ------------------------------ Code -------------------------------- */
 

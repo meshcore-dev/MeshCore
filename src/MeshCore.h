@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdint.h>
+#include "Defaults.h"
 
 #define MAX_HASH_SIZE        8
 #define PUB_KEY_SIZE        32

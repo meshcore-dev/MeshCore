@@ -1,6 +1,7 @@
 #pragma once
 
 #include <RadioLib.h>
+#include "Defaults.h"
 
 #define RH_RF95_MODEM_STATUS_CLEAR               0x10
 #define RH_RF95_MODEM_STATUS_HEADER_INFO_VALID   0x08
@@ -18,11 +19,6 @@ class CustomSX1276 : public SX1276 {
     bool std_init(SPIClass* spi = NULL)
   #endif
     {
-  #ifdef LORA_CR
-      uint8_t cr = LORA_CR;
-  #else
-      uint8_t cr = 5;
-  #endif
 
   #if defined(P_LORA_SCLK)
     #ifdef NRF52_PLATFORM
@@ -39,7 +35,7 @@ class CustomSX1276 : public SX1276 {
       if (spi) spi->begin(P_LORA_SCLK, P_LORA_MISO, P_LORA_MOSI);
     #endif
   #endif
-      int status = begin(LORA_FREQ, LORA_BW, LORA_SF, cr, RADIOLIB_SX126X_SYNC_WORD_PRIVATE, LORA_TX_POWER, 16);
+      int status = begin(LORA_FREQ, LORA_BW, LORA_SF, LORA_CR, RADIOLIB_SX126X_SYNC_WORD_PRIVATE, LORA_TX_POWER, LORA_PREAMBLE);
       // if radio init fails with -707/-706, try again with tcxo voltage set to 0.0f
       if (status != RADIOLIB_ERR_NONE) {
         Serial.print("ERROR: radio init failed: ");
