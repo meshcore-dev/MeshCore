@@ -33,7 +33,26 @@ class Mesh : public Dispatcher {
   //void routeRecvAcks(Packet* packet, uint32_t delay_millis);
   DispatcherAction forwardMultipartDirect(Packet* pkt);
 
+public:
+  /**
+   * \brief  Check critical traffic queues to determine if there is
+   *         pending work which should prevent the CPU from entering a
+   *         sleep state
+  */
+  virtual bool hasTimingCriticalWork();
+
+  /**
+   * \brief  Check whether there is work that needs to be performed
+   *         right now
+  */
+  virtual bool hasImmediateWork() const;
+
+
 protected:
+  using Dispatcher::next_tx_time;
+  using Dispatcher::_mgr;
+  using Dispatcher::_ms;
+
   DispatcherAction onRecvPacket(Packet* pkt) override;
 
   virtual uint32_t getCADFailRetryDelay() const override;

@@ -198,10 +198,65 @@ void setup() {
 #endif
 }
 
+static uint32_t last_activity_time = 0;
+
+bool hasPendingWork() {
+  uint32_t now = millis();
+
+  // check for pending serial data
+  if (Serial.available() > 0) {
+    last_activity_time = now;
+    return true;
+  }
+
+#ifdef BLE_PIN_CODE
+  if (serial_interface.isWriteBusy()) {
+    last_activity_time = now;
+    return true;
+  }
+#endif
+
+  // check for immediate mesh work pending
+  if (the_mesh.hasImmediateWork()) {
+    last_activity_time = now;
+    return true;
+  }
+
+  if (the_mesh.hasTimingCriticalWork()) {
+    return true; // no activity time update, this indicates future
+                 // activity, not something that's happening right now
+  }
+
+  // stay fully awake for 1s after most recent activity, just in case
+  if (now - last_activity_time < 1000) {
+    return true;
+  }
+
+#ifdef DISPLAY_CLASS
+  // watch out for pending UI updates
+  if (ui_task.hasPendingUpdates()) {
+    return true;
+  }
+#endif
+
+  return false;
+}
+ 
 void loop() {
   the_mesh.loop();
   sensors.loop();
 #ifdef DISPLAY_CLASS
   ui_task.loop();
+#endif
+#ifdef HELTEC_T114 // limit sleep mode to t114 for now
+  /* sleep if no pending work
+   * will wake on:
+   * - SysTick every 1ms (used for millis() function)
+   * - Radio/BLE interrupts
+   * - button interrupt
+   */
+  if (!hasPendingWork()) {
+    __WFE();
+  }
 #endif
 }
