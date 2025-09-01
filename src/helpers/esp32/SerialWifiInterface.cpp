@@ -44,7 +44,18 @@ bool SerialWifiInterface::isWriteBusy() const {
 }
 
 size_t SerialWifiInterface::checkRecvFrame(uint8_t dest[]) {
-  if (!client) client = server.available();
+  // check if new client connected
+  auto newClient = server.available();
+  if (newClient) {
+
+    // disconnect existing client
+    deviceConnected = false;
+    client.stop();
+
+    // switch active connection to new client
+    client = newClient;
+    
+  }
 
   if (client.connected()) {
     if (!deviceConnected) {

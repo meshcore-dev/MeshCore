@@ -8,11 +8,11 @@
 #define FIRMWARE_VER_CODE 7
 
 #ifndef FIRMWARE_BUILD_DATE
-#define FIRMWARE_BUILD_DATE "24 Jul 2025"
+#define FIRMWARE_BUILD_DATE "1 Sep 2025"
 #endif
 
 #ifndef FIRMWARE_VERSION
-#define FIRMWARE_VERSION "v1.7.4"
+#define FIRMWARE_VERSION "v1.8.1"
 #endif
 
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)

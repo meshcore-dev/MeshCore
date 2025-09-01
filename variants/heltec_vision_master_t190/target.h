@@ -3,16 +3,16 @@
 #define RADIOLIB_STATIC_ONLY 1
 #include <RadioLib.h>
 #include <helpers/radiolib/RadioLibWrappers.h>
-#include <HeltecE290Board.h>
+#include <HeltecT190Board.h>
 #include <helpers/radiolib/CustomSX1262Wrapper.h>
 #include <helpers/AutoDiscoverRTCClock.h>
 #include <helpers/SensorManager.h>
 #ifdef DISPLAY_CLASS
-#include <helpers/ui/E290Display.h>
+#include <helpers/ui/ST7789Display.h>
 #include <helpers/ui/MomentaryButton.h>
 #endif
 
-extern HeltecE290Board board;
+extern HeltecT190Board board;
 extern WRAPPER_CLASS radio_driver;
 extern AutoDiscoverRTCClock rtc_clock;
 extern SensorManager sensors;

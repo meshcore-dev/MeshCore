@@ -1,7 +1,7 @@
 #include "target.h"
 #include <Arduino.h>
 
-HeltecE213Board board;
+HeltecT190Board board;
 
 #if defined(P_LORA_SCLK)
   static SPIClass spi(FSPI);

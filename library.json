@@ -1,6 +1,6 @@
 {
     "name": "MeshCore",
-    "version" : "1.7.4",
+    "version" : "1.8.0",
     "dependencies": {
         "SPI": "*",
         "Wire": "*",

@@ -49,11 +49,11 @@ struct ContactInfo {
 };
 
 #ifndef FIRMWARE_BUILD_DATE
-  #define FIRMWARE_BUILD_DATE   "24 Jul 2025"
+  #define FIRMWARE_BUILD_DATE   "1 Sep 2025"
 #endif
 
 #ifndef FIRMWARE_VERSION
-  #define FIRMWARE_VERSION   "v1.7.4"
+  #define FIRMWARE_VERSION   "v1.8.1"
 #endif
 
 #define FIRMWARE_ROLE "sensor"
@@ -89,6 +89,7 @@ public:
     strcpy(reply, "not supported");
   }
   mesh::LocalIdentity& getSelfId() override { return self_id; }
+  void saveIdentity(const mesh::LocalIdentity& new_id) override;
   void clearStats() override { }
   void applyTempRadioParams(float freq, float bw, uint8_t sf, uint8_t cr, int timeout_mins) override;
 

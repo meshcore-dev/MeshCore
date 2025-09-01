@@ -18,10 +18,6 @@ MASensorManager sensors = MASensorManager(nmea);
   DISPLAY_CLASS display;
 #endif
 
-#ifndef LORA_CR
-  #define LORA_CR      5
-#endif
-
 bool radio_init() {
   fallback_clock.begin();
   rtc_clock.begin(Wire);

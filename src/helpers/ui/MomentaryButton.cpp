@@ -8,16 +8,29 @@ MomentaryButton::MomentaryButton(int8_t pin, int long_press_millis, bool reverse
   prev = _reverse ? HIGH : LOW;
   cancel = 0;
   _long_millis = long_press_millis;
+  _threshold = 0;
+}
+
+MomentaryButton::MomentaryButton(int8_t pin, int long_press_millis, int analog_threshold) {
+  _pin = pin;
+  _reverse = false;
+  _pull = false;
+  down_at = 0;
+  prev = LOW;
+  cancel = 0;
+  _long_millis = long_press_millis;
+  _threshold = analog_threshold;
 }
 
 void MomentaryButton::begin() {
-  if (_pin >= 0) {
+  if (_pin >= 0 && _threshold == 0) {
     pinMode(_pin, _pull ? (_reverse ? INPUT_PULLUP : INPUT_PULLDOWN) : INPUT);
   }
 }
 
 bool  MomentaryButton::isPressed() const {
-  return isPressed(digitalRead(_pin));
+  int btn = _threshold > 0 ? (analogRead(_pin) < _threshold) : digitalRead(_pin);
+  return isPressed(btn);
 }
 
 void MomentaryButton::cancelClick() {
@@ -25,6 +38,9 @@ void MomentaryButton::cancelClick() {
 }
 
 bool MomentaryButton::isPressed(int level) const {
+  if (_threshold > 0) {
+    return level;
+  }
   if (_reverse) {
     return level == LOW;
   } else {
@@ -36,7 +52,7 @@ int MomentaryButton::check(bool repeat_click) {
   if (_pin < 0) return BUTTON_EVENT_NONE;
 
   int event = BUTTON_EVENT_NONE;
-  int btn = digitalRead(_pin);
+  int btn = _threshold > 0 ? (analogRead(_pin) < _threshold) : digitalRead(_pin);
   if (btn != prev) {
     if (isPressed(btn)) {
       down_at = millis();

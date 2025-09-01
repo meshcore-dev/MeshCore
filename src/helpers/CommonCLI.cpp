@@ -165,6 +165,17 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
       }
     } else if (memcmp(command, "neighbors", 9) == 0) {
       _callbacks->formatNeighborsReply(reply);
+    } else if (memcmp(command, "neighbor.remove ", 16) == 0) {
+      const char* hex = &command[16];
+      uint8_t pubkey[PUB_KEY_SIZE];
+      int hex_len = min((int)strlen(hex), PUB_KEY_SIZE*2);
+      int pubkey_len = hex_len / 2;
+      if (mesh::Utils::fromHex(pubkey, pubkey_len, hex)) {
+        _callbacks->removeNeighbor(pubkey, pubkey_len);
+        strcpy(reply, "OK");
+      } else {
+        strcpy(reply, "ERR: bad pubkey");
+      }
     } else if (memcmp(command, "tempradio ", 10) == 0) {
       strcpy(tmp, &command[10]);
       const char *parts[5];
@@ -257,7 +268,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
       } else if (memcmp(config, "agc.reset.interval ", 19) == 0) {
         _prefs->agc_reset_interval = atoi(&config[19]) / 4;
         savePrefs();
-        strcpy(reply, "OK");
+        sprintf(reply, "OK - interval rounded to %d", ((uint32_t) _prefs->agc_reset_interval) * 4);
       } else if (memcmp(config, "multi.acks ", 11) == 0) {
         _prefs->multi_acks = atoi(&config[11]);
         savePrefs();
@@ -294,7 +305,9 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         uint8_t prv_key[PRV_KEY_SIZE];
         bool success = mesh::Utils::fromHex(prv_key, PRV_KEY_SIZE, &config[8]);
         if (success) {
-          _callbacks->getSelfId().readFrom(prv_key, PRV_KEY_SIZE);
+          mesh::LocalIdentity new_id;
+          new_id.readFrom(prv_key, PRV_KEY_SIZE);
+          _callbacks->saveIdentity(new_id);
           strcpy(reply, "OK");
         } else {
           strcpy(reply, "Error, invalid key");

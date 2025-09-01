@@ -22,11 +22,11 @@
 /* ------------------------------ Config -------------------------------- */
 
 #ifndef FIRMWARE_BUILD_DATE
-  #define FIRMWARE_BUILD_DATE   "24 Jul 2025"
+  #define FIRMWARE_BUILD_DATE   "1 Sep 2025"
 #endif
 
 #ifndef FIRMWARE_VERSION
-  #define FIRMWARE_VERSION   "v1.7.4"
+  #define FIRMWARE_VERSION   "v1.8.1"
 #endif
 
 #ifndef LORA_FREQ
@@ -719,7 +719,32 @@ public:
     *dp = 0;  // null terminator
   }
 
+  void removeNeighbor(const uint8_t* pubkey, int key_len) override {
+#if MAX_NEIGHBOURS
+    for (int i = 0; i < MAX_NEIGHBOURS; i++) {
+      NeighbourInfo* neighbour = &neighbours[i];
+      if(memcmp(neighbour->id.pub_key, pubkey, key_len) == 0){
+        neighbours[i] = NeighbourInfo(); // clear neighbour entry
+      }
+    }
+#endif
+  }
+
   mesh::LocalIdentity& getSelfId() override { return self_id; }
+
+  void saveIdentity(const mesh::LocalIdentity& new_id) override {
+    self_id = new_id;
+#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
+    IdentityStore store(*_fs, "");
+#elif defined(ESP32)
+    IdentityStore store(*_fs, "/identity");
+#elif defined(RP2040_PLATFORM)
+    IdentityStore store(*_fs, "/identity");
+#else
+    #error "need to define saveIdentity()"
+#endif
+    store.save("_main", self_id);
+  }
 
   void clearStats() override {
     radio_driver.resetStats();

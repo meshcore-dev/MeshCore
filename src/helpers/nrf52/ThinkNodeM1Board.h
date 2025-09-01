@@ -57,6 +57,14 @@ public:
   }
 
   void powerOff() override {
+
+    // turn off all leds, sd_power_system_off will not do this for us
+    #ifdef P_LORA_TX_LED
+    digitalWrite(P_LORA_TX_LED, LOW);
+    #endif
+
+    // power off board
     sd_power_system_off();
+
   }
 };

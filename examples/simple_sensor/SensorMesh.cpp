@@ -837,6 +837,20 @@ bool SensorMesh::formatFileSystem() {
 #endif
 }
 
+void SensorMesh::saveIdentity(const mesh::LocalIdentity& new_id) {
+  self_id = new_id;
+#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
+  IdentityStore store(*_fs, "");
+#elif defined(ESP32)
+  IdentityStore store(*_fs, "/identity");
+#elif defined(RP2040_PLATFORM)
+  IdentityStore store(*_fs, "/identity");
+#else
+  #error "need to define saveIdentity()"
+#endif
+  store.save("_main", self_id);
+}
+
 void SensorMesh::applyTempRadioParams(float freq, float bw, uint8_t sf, uint8_t cr, int timeout_mins) {
   set_radio_at = futureMillis(2000);   // give CLI reply some time to be sent back, before applying temp radio params
   pending_freq = freq;

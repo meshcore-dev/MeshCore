@@ -354,6 +354,9 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
 #if defined(PIN_USER_BTN)
   user_btn.begin();
 #endif
+#if defined(PIN_USER_BTN_ANA)
+  analog_btn.begin();
+#endif
 
   _node_prefs = node_prefs;
   if (_display != NULL) {
@@ -508,6 +511,14 @@ void UITask::loop() {
     c = handleLongPress(KEY_RIGHT);
   }
 #endif
+#if defined(PIN_USER_BTN_ANA)
+  ev = analog_btn.check();
+  if (ev == BUTTON_EVENT_CLICK) {
+    c = checkDisplayOn(KEY_SELECT);
+  } else if (ev == BUTTON_EVENT_LONG_PRESS) {
+    c = handleLongPress(KEY_ENTER);
+  }
+#endif
 
   if (c != 0 && curr) {
     curr->handleInput(c);
@@ -551,7 +562,22 @@ void UITask::loop() {
   if (millis() > next_batt_chck) {
     uint16_t milliVolts = getBattMilliVolts();
     if (milliVolts > 0 && milliVolts < AUTO_SHUTDOWN_MILLIVOLTS) {
+
+      // show low battery shutdown alert
+      // we should only do this for eink displays, which will persist after power loss
+      #ifdef THINKNODE_M1
+      if (_display != NULL) {
+        _display->startFrame();
+        _display->setTextSize(2);
+        _display->setColor(DisplayDriver::RED);
+        _display->drawTextCentered(_display->width() / 2, 20, "Low Battery.");
+        _display->drawTextCentered(_display->width() / 2, 40, "Shutting Down!");
+        _display->endFrame();
+      }
+      #endif
+
       shutdown();
+
     }
     next_batt_chck = millis() + 8000;
   }
