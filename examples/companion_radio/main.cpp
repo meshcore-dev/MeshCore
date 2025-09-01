@@ -110,13 +110,13 @@ void setup() {
     disp->drawTextCentered(disp->width() / 2, 28, "Loading...");
     disp->endFrame();
   }
-#endif
+#endif // DISPLAY_CLASS
 
   if (!radio_init()) { halt(); }
 
   fast_rng.begin(radio_get_rng_seed());
 
-#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
+#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM) // determine platform
   InternalFS.begin();
   store.begin();
   the_mesh.begin(
@@ -133,9 +133,10 @@ void setup() {
   serial_interface.begin(dev_name, the_mesh.getBLEPin());
 #else
   serial_interface.begin(Serial);
-#endif
+#endif // BLE_PIN_CODE
   the_mesh.startInterface(serial_interface);
-#elif defined(RP2040_PLATFORM)
+
+#elif defined(RP2040_PLATFORM) // determine platform
   LittleFS.begin();
   store.begin();
   the_mesh.begin(
@@ -161,7 +162,8 @@ void setup() {
     serial_interface.begin(Serial);
   #endif
     the_mesh.startInterface(serial_interface);
-#elif defined(ESP32)
+
+#elif defined(ESP32) // determine platform
   SPIFFS.begin(true);
   store.begin();
   the_mesh.begin(
@@ -175,21 +177,22 @@ void setup() {
 #ifdef WIFI_SSID
   WiFi.begin(WIFI_SSID, WIFI_PWD);
   serial_interface.begin(TCP_PORT);
-#elif defined(BLE_PIN_CODE)
+#elif defined(BLE_PIN_CODE) // WIFI_SSID
   char dev_name[32+16];
   sprintf(dev_name, "%s%s", BLE_NAME_PREFIX, the_mesh.getNodeName());
   serial_interface.begin(dev_name, the_mesh.getBLEPin());
-#elif defined(SERIAL_RX)
+#elif defined(SERIAL_RX) // WIFI_SSID
   companion_serial.setPins(SERIAL_RX, SERIAL_TX);
   companion_serial.begin(115200);
   serial_interface.begin(companion_serial);
-#else
+#else // WIFI_SSID
   serial_interface.begin(Serial);
-#endif
+#endif // WIFI_SSID
   the_mesh.startInterface(serial_interface);
-#else
+
+#else // determine platform
   #error "need to define filesystem"
-#endif
+#endif // determine platform
 
   sensors.begin();
 
@@ -198,42 +201,45 @@ void setup() {
 #endif
 }
 
+
 static uint32_t last_activity_time = 0;
 
 bool hasPendingWork() {
   uint32_t now = millis();
-
-  // check for pending serial data
-  if (Serial.available() > 0) {
-    last_activity_time = now;
-    return true;
-  }
 
 #ifdef BLE_PIN_CODE
   if (serial_interface.isWriteBusy()) {
     last_activity_time = now;
     return true;
   }
+#else
+  // TODO: arduino Serial.available() call wakes from sleep every time.
+  // this should be based on a lighter-weight register check or ISR,
+  // but the Serial module already registers the ISR we want to use.
+  // this means that this check negates sleep mode completely, but is
+  // required for reasonable operation of a repeater/room, without more
+  // testing.
+  if (Serial.available() > 0) {
+    last_activity_time = now;
+    return true;
 #endif
 
-  // check for immediate mesh work pending
   if (the_mesh.hasImmediateWork()) {
     last_activity_time = now;
     return true;
   }
 
   if (the_mesh.hasTimingCriticalWork()) {
-    return true; // no activity time update, this indicates future
-                 // activity, not something that's happening right now
+    return true;
   }
 
-  // stay fully awake for 1s after most recent activity, just in case
-  if (now - last_activity_time < 1000) {
+  // stay fully awake for 20ms after most recent activity, just in case
+  if (now - last_activity_time < 20) {
     return true;
   }
 
 #ifdef DISPLAY_CLASS
-  // watch out for pending UI updates
+  // this is currently only stubbed out, always returns false
   if (ui_task.hasPendingUpdates()) {
     return true;
   }
