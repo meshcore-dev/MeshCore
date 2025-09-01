@@ -101,6 +101,9 @@ public:
 
   int  getRecentlyHeard(AdvertPath dest[], int max_num);
 
+  bool isContactsDirty() const { return contacts_dirty; }
+  void flushContactsIfDirty() { saveContactsIfDirty(); }
+
 protected:
   float getAirtimeBudgetFactor() const override;
   int getInterferenceThreshold() const override;
@@ -136,6 +139,15 @@ protected:
   uint32_t calcDirectTimeoutMillisFor(uint32_t pkt_airtime_millis, uint8_t path_len) const override;
   void onSendTimeout() override;
 
+  bool hasDirtyContacts() const { return contacts_dirty; }
+  void saveContactsIfDirty() {
+    if (contacts_dirty) {
+      saveContacts();
+      contacts_dirty = false;
+      contacts_last_change = contacts_first_change = 0;
+    }
+  }
+
   // DataStoreHost methods
   bool onContactLoaded(const ContactInfo& contact) override { return addContact(contact); }
   bool getContactForSave(uint32_t idx, ContactInfo& contact) override { return getContactByIdx(idx, contact); }
@@ -147,6 +159,7 @@ protected:
   }
 
 private:
+  void markContactsChanged();
   void writeOKFrame();
   void writeErrFrame(uint8_t err_code);
   void writeDisabledFrame();
@@ -189,7 +202,10 @@ private:
   uint8_t app_target_ver;
   uint8_t *sign_data;
   uint32_t sign_data_len;
-  unsigned long dirty_contacts_expiry;
+  
+  bool contacts_dirty;
+  unsigned long contacts_last_change;
+  unsigned long contacts_first_change;
 
   uint8_t cmd_frame[MAX_FRAME_SIZE + 1];
   uint8_t out_frame[MAX_FRAME_SIZE + 1];
