@@ -32,6 +32,12 @@ class UITask : public AbstractUITask {
   UIScreen* msg_preview;
   UIScreen* curr;
 
+#ifdef PIN_STATUS_LED
+int status_led_state = 0;
+int next_status_led_change = 0;
+int last_status_led_increment = 0;
+#endif
+
   void userLedHandler();
   
   // Button action handlers

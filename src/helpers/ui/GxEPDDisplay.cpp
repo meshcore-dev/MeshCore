@@ -28,7 +28,7 @@ bool GxEPDDisplay::begin() {
 
 void GxEPDDisplay::turnOn() {
   if (!_init) begin();
-#if defined(DISP_BACKLIGHT) && !defined(BACLIGHT_BTN)
+#if defined(DISP_BACKLIGHT) && !defined(BACKLIGHT_BTN)
   digitalWrite(DISP_BACKLIGHT, HIGH);
 #endif
   _isOn = true;

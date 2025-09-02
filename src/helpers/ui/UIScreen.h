@@ -13,9 +13,13 @@
 class UIScreen {
 protected:
   UIScreen() { }
+  bool _changed = true;
+  bool _entered = true;
 public:
   virtual int render(DisplayDriver& display) =0;   // return value is number of millis until next render
   virtual bool handleInput(char c) { return false; }
   virtual void poll() { }
+  virtual void enter () { _entered = true; }
+  bool has_changed () { return _changed; } 
 };
 

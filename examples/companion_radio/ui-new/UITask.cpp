@@ -3,7 +3,9 @@
 #include "../MyMesh.h"
 #include "target.h"
 
+#ifndef AUTO_OFF_MILLIS
 #define AUTO_OFF_MILLIS     15000   // 15 seconds
+#endif
 #define BOOT_SCREEN_MILLIS   3000   // 3 seconds
 
 #ifdef PIN_STATUS_LED
@@ -56,7 +58,7 @@ public:
     display.setTextSize(1);
     display.drawTextCentered(display.width()/2, 42, FIRMWARE_BUILD_DATE);
 
-    return 1000;
+    return BOOT_SCREEN_MILLIS;
   }
 
   void poll() override {
@@ -84,6 +86,15 @@ class HomeScreen : public UIScreen {
   uint8_t _page;
   bool _shutdown_init;
   AdvertPath recent[UI_RECENT_LIST_SIZE];
+
+  // Previous values for some UI fields
+  uint16_t batt_prev = 0;
+  uint8_t page_prev = -1;
+  int msg_count_prev = 0;
+  bool has_connection_prev = false;
+  int secs_prev [UI_RECENT_LIST_SIZE] = {0};
+  int noise_floor_prev;
+  bool ble_prev;
 
   void renderBatteryIndicator(DisplayDriver& display, uint16_t batteryMilliVolts) {
     // Convert millivolts to percentage
@@ -122,6 +133,8 @@ public:
   }
 
   int render(DisplayDriver& display) override {
+    _changed = _entered;
+    _entered = false;
     char tmp[80];
     // node name
     display.setCursor(0, 0);
@@ -130,7 +143,10 @@ public:
     display.print(_node_prefs->node_name);
 
     // battery voltage
-    renderBatteryIndicator(display, _task->getBattMilliVolts());
+    uint16_t batt = _task->getBattMilliVolts();
+    renderBatteryIndicator(display, batt);
+    _changed = _changed || (abs(batt_prev - batt) > 20);
+    batt_prev = batt;
 
     // curr page indicator
     int y = 14;
@@ -143,13 +159,21 @@ public:
       }
     }
 
+    _changed = _changed || (page_prev != _page);
+    page_prev = _page;
     if (_page == HomePage::FIRST) {
+      int msg_count = _task->getMsgCount();
+      _changed = _changed || (msg_count_prev != msg_count);
+      msg_count_prev = msg_count;
       display.setColor(DisplayDriver::YELLOW);
       display.setTextSize(2);
-      sprintf(tmp, "MSG: %d", _task->getMsgCount());
+      sprintf(tmp, "MSG: %d", msg_count);
       display.drawTextCentered(display.width() / 2, 20, tmp);
 
-      if (_task->hasConnection()) {
+      bool has_connection = _task->hasConnection();
+      _changed = _changed || (has_connection != has_connection_prev);
+      has_connection_prev = has_connection;
+      if (has_connection) {
         display.setColor(DisplayDriver::GREEN);
         display.setTextSize(1);
         display.drawTextCentered(display.width() / 2, 43, "< Connected >");
@@ -170,16 +194,22 @@ public:
         display.print(a->name);
         int secs = _rtc->getCurrentTime() - a->recv_timestamp;
         if (secs < 60) {
+          _changed = true;
           sprintf(tmp, "%ds", secs);
         } else if (secs < 60*60) {
+          _changed = _changed || (secs / 60 != secs_prev[i] / 60);
           sprintf(tmp, "%dm", secs / 60);
         } else {
+          _changed = _changed || (secs / (60*60) != secs_prev[i] / (60*60));
           sprintf(tmp, "%dh", secs / (60*60));
         }
         display.setCursor(display.width() - display.getTextWidth(tmp) - 1, y);
         display.print(tmp);
+        secs_prev[i] = secs;
       }
     } else if (_page == HomePage::RADIO) {
+      // changes to main params are not frequent, don't test for now
+      // only noise floor is updated (for e-ink)
       display.setColor(DisplayDriver::YELLOW);
       display.setTextSize(1);
       // freq / sf
@@ -196,10 +226,16 @@ public:
       sprintf(tmp, "TX: %ddBm", _node_prefs->tx_power_dbm);
       display.print(tmp);
       display.setCursor(0, 53);
-      sprintf(tmp, "Noise floor: %d", radio_driver.getNoiseFloor());
+      int noise_floor = radio_driver.getNoiseFloor();
+      _changed = _changed || (noise_floor != noise_floor_prev);
+      noise_floor_prev = noise_floor;
+      sprintf(tmp, "Noise floor: %d", noise_floor);
       display.print(tmp);
     } else if (_page == HomePage::BLUETOOTH) {
       display.setColor(DisplayDriver::GREEN);
+      bool ble = _task->isSerialEnabled();
+      _changed = _changed || (ble != ble_prev);
+      ble_prev = ble;
       display.drawXbm((display.width() - 32) / 2, 18, 
           _task->isSerialEnabled() ? bluetooth_on : bluetooth_off, 
           32, 32);
@@ -213,6 +249,7 @@ public:
       display.setColor(DisplayDriver::GREEN);
       display.setTextSize(1);
       if (_shutdown_init) {
+        _changed = true;
         display.drawTextCentered(display.width() / 2, 34, "hibernating...");
       } else {
         display.drawXbm((display.width() - 32) / 2, 18, power_icon, 32, 32);
@@ -274,6 +311,9 @@ class MsgPreviewScreen : public UIScreen {
   int num_unread;
   MsgEntry unread[MAX_UNREAD_MSGS];
 
+  // previous values for fields
+  int secs_prev = 0;
+
 public:
   MsgPreviewScreen(UITask* task, mesh::RTCClock* rtc) : _task(task), _rtc(rtc) { num_unread = 0; }
 
@@ -291,6 +331,8 @@ public:
   }
 
   int render(DisplayDriver& display) override {
+    _changed = _entered;
+    _entered = false;
     char tmp[16];
     display.setCursor(0, 0);
     display.setTextSize(1);
@@ -302,12 +344,17 @@ public:
 
     int secs = _rtc->getCurrentTime() - p->timestamp;
     if (secs < 60) {
+      _changed = true;
       sprintf(tmp, "%ds", secs);
     } else if (secs < 60*60) {
+      _changed = _changed || (secs / 60 != secs_prev / 60);
       sprintf(tmp, "%dm", secs / 60);
     } else {
+      _changed = _changed || (secs / (60*60) != secs_prev / (60*60));
       sprintf(tmp, "%dh", secs / (60*60));
     }
+    secs_prev = secs;
+
     display.setCursor(display.width() - display.getTextWidth(tmp) - 2, 0);
     display.print(tmp);
 
@@ -321,7 +368,11 @@ public:
     display.setColor(DisplayDriver::LIGHT);
     display.printWordWrap(p->msg, display.width());
 
-    return 1000;  // next render after 1000 ms
+  #ifdef EINK_SCREEN
+    return 10000; // next render in 10s
+  #else
+    return 1000;  // next render after 1 s
+  #endif
   }
 
   bool handleInput(char c) override {
@@ -418,39 +469,35 @@ void UITask::newMsg(uint8_t path_len, const char* from_name, const char* text, i
 
   if (_display != NULL) {
     if (!_display->isOn()) _display->turnOn();
-    _auto_off = millis() + AUTO_OFF_MILLIS;  // extend the auto-off timer
-    _next_refresh = 0;  // trigger refresh
+    _auto_off = millis() + AUTO_OFF_MILLIS;  // extend the auto-off timer    _next_refresh = 100;  // trigger refresh (+100ms not to be too quick)
   }
 }
 
 void UITask::userLedHandler() {
 #ifdef PIN_STATUS_LED
-  static int state = 0;
-  static int next_change = 0;
-  static int last_increment = 0;
-
   int cur_time = millis();
   if (cur_time > next_change) {
     if (state == 0) {
       state = 1;
       if (_msgcount > 0) {
-        last_increment = LED_ON_MSG_MILLIS;
+        last_status_led_increment = LED_ON_MSG_MILLIS;
       } else {
-        last_increment = LED_ON_MILLIS;
+        last_status_led_increment = LED_ON_MILLIS;
       }
-      next_change = cur_time + last_increment;
+      next_status_led_change = cur_time + last_status_led_increment;
     } else {
       state = 0;
-      next_change = cur_time + LED_CYCLE_MILLIS - last_increment;
+      next_status_led_change = cur_time + LED_CYCLE_MILLIS - last_increment;
     }
-    digitalWrite(PIN_STATUS_LED, state);
+    digitalWrite(PIN_STATUS_LED, status_led_state);
   }
 #endif
 }
 
 void UITask::setCurrScreen(UIScreen* c) {
   curr = c;
-  _next_refresh = 0;
+  c->enter();
+  _next_refresh = 100;
 }
 
 /* 
@@ -487,6 +534,8 @@ bool UITask::isButtonPressed() const {
 #endif
 }
 
+int next_backlight_btn_check = 0;
+
 void UITask::loop() {
   char c = 0;
 #if defined(PIN_USER_BTN)
@@ -520,18 +569,17 @@ void UITask::loop() {
   }
 #endif
 #if defined(DISP_BACKLIGHT) && defined(BACKLIGHT_BTN)
-  static int next_btn_check = 0;
-  if (millis() > next_btn_check) {
+  if (millis() > next_backlight_btn_check) {
     bool touch_state = digitalRead(PIN_BUTTON2);
     digitalWrite(DISP_BACKLIGHT, !touch_state);
-    next_btn_check = millis() + 300;
+    next_backlight_btn_check = millis() + 300;
   }
 #endif
 
   if (c != 0 && curr) {
     curr->handleInput(c);
     _auto_off = millis() + AUTO_OFF_MILLIS;   // extend auto-off timer
-    _next_refresh = 0;  // trigger refresh
+    _next_refresh = 100;  // trigger refresh
   }
 
   userLedHandler();
@@ -556,14 +604,22 @@ void UITask::loop() {
         _display->drawRect(p, y, _display->width() - p*2, y);
         _display->drawTextCentered(_display->width() / 2, y + p*3, _alert);
         _next_refresh = _alert_expiry;   // will need refresh when alert is dismissed
+        curr->enter(); // enter again to trigger refresh
+        _display->endFrame();
       } else {
         _next_refresh = millis() + delay_millis;
+#ifdef EINK_SCREEN // could be enabled for everybody, but there maybe some edge cases ;)
+        if (curr->has_changed()) _display->endFrame();
+#else
+        _display->endFrame();
+#endif
       }
-      _display->endFrame();
     }
+#if AUTO_OFF_MILLIS > 0
     if (millis() > _auto_off) {
       _display->turnOff();
     }
+#endif
   }
 
 #ifdef AUTO_SHUTDOWN_MILLIVOLTS
@@ -599,7 +655,7 @@ char UITask::checkDisplayOn(char c) {
       c = 0;
     }
     _auto_off = millis() + AUTO_OFF_MILLIS;   // extend auto-off timer
-    _next_refresh = 0;  // trigger refresh
+    _next_refresh = 100;  // trigger refresh
   }
   return c;
 }
