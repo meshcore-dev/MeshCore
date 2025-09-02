@@ -1,0 +1,44 @@
+{
+    "build": {
+      "arduino": {
+        "ldscript": "esp32c3_out.ld"
+      },
+      "core": "esp32",
+      "extra_flags": [
+        "-DARDUINO_SUPER_MINI_ESP32C3",
+        "-DARDUINO_USB_MODE=1",
+        "-DARDUINO_USB_CDC_ON_BOOT=1"
+      ],
+      "f_cpu": "160000000L",
+      "f_flash": "80000000L",
+      "flash_mode": "qio",
+      "hwids": [
+        [
+          "0x303a",
+          "0x1001"
+        ]
+      ],
+      "mcu": "esp32c3",
+      "variant": "super_mini_esp32c3"
+    },
+    "connectivity": [
+      "wifi"
+    ],
+    "debug": {
+      "openocd_target": "esp32c3.cfg"
+    },
+    "frameworks": [
+      "arduino",
+      "espidf"
+    ],
+    "name": "ESP32C3-SuperMini",
+    "upload": {
+      "flash_size": "4MB",
+      "maximum_ram_size": 327680,
+      "maximum_size": 4194304,
+      "require_upload_port": true,
+      "speed": 460800
+    },
+    "url": "https://wiki.icbbuy.com/doku.php?id=developmentboard:esp32-c3mini#esp32-c3mini",
+    "vendor": "ICBbuy"
+  }
