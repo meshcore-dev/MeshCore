@@ -1,6 +1,7 @@
 #include <Arduino.h>   // needed for PlatformIO
 #include <Mesh.h>
 #include "MyMesh.h"
+#include <target.h>
 
 // Believe it or not, this std C function is busted on some platforms!
 static uint32_t _atoi(const char* sp) {
@@ -262,6 +263,9 @@ void loop() {
    * - button interrupt
    */
   if (!hasPendingWork()) {
+    //radio_standby(); // this doesn't work, probably far too
+    //aggressive about putting the radio into standby. need to add an
+    //activity standoff time before calling it.
     __WFE();
   }
 #endif
