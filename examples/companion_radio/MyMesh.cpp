@@ -726,6 +726,7 @@ NodePrefs *MyMesh::getNodePrefs() {
   return &_prefs;
 }
 uint32_t MyMesh::getBLEPin() {
+  Serial.printf("BLE PIN: %06d\n", _active_ble_pin);
   return _active_ble_pin;
 }
 
