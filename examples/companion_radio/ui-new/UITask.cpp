@@ -87,6 +87,47 @@ class HomeScreen : public UIScreen {
   bool _shutdown_init;
   AdvertPath recent[UI_RECENT_LIST_SIZE];
 
+  // filter non-ASCII characters
+  void filterName(char* dest, const char* src, size_t dest_size) {
+    size_t j = 0;
+    for (size_t i = 0; src[i] != 0 && j < dest_size - 1; i++) {
+      unsigned char c = (unsigned char)src[i];
+      if (c >= 32 && c <= 126) {
+        dest[j++] = c;  // ASCII printable
+      } else if (c >= 0x80) {
+        dest[j++] = '\xDB';  // CP437 full block █
+        while (src[i+1] && (src[i+1] & 0xC0) == 0x80) 
+          i++;  // skip UTF-8 continuation bytes
+      }
+    }
+    dest[j] = 0;
+  }
+
+  // truncate text with ellipsis if needed
+  void truncateWithEllipsis(DisplayDriver& display, char* text, int max_width) {
+    if (display.getTextWidth(text) <= max_width) return;
+    
+    // for variable-width fonts (GxEPD), add space after ellipsis
+    // for fixed-width fonts (OLED), keep tight spacing to save precious characters
+    const char* ellipsis;
+    // use a simple heuristic: if 'i' and 'l' have different widths, it's variable-width
+    int i_width = display.getTextWidth("i");
+    int l_width = display.getTextWidth("l");
+    if (i_width != l_width) {
+      ellipsis = "... ";  // variable-width fonts: add space
+    } else {
+      ellipsis = "...";   // fixed-width fonts: no space
+    }
+    
+    int ellipsis_width = display.getTextWidth(ellipsis);
+    int len = strlen(text);
+    
+    while (len > 0 && display.getTextWidth(text) > max_width - ellipsis_width) {
+      text[--len] = 0;
+    }
+    strcat(text, ellipsis);
+  }
+
   void renderBatteryIndicator(DisplayDriver& display, uint16_t batteryMilliVolts) {
     // Convert millivolts to percentage
     const int minMilliVolts = 3000; // Minimum voltage (e.g., 3.0V)
@@ -129,7 +170,9 @@ public:
     display.setCursor(0, 0);
     display.setTextSize(1);
     display.setColor(DisplayDriver::GREEN);
-    display.print(_node_prefs->node_name);
+    char filtered_name[sizeof(_node_prefs->node_name)];
+    filterName(filtered_name, _node_prefs->node_name, sizeof(filtered_name));
+    display.print(filtered_name);
 
     // battery voltage
     renderBatteryIndicator(display, _task->getBattMilliVolts());
@@ -168,8 +211,6 @@ public:
       for (int i = 0; i < UI_RECENT_LIST_SIZE; i++, y += 11) {
         auto a = &recent[i];
         if (a->name[0] == 0) continue;  // empty slot
-        display.setCursor(0, y);
-        display.print(a->name);
         int secs = _rtc->getCurrentTime() - a->recv_timestamp;
         if (secs < 60) {
           sprintf(tmp, "%ds", secs);
@@ -178,7 +219,16 @@ public:
         } else {
           sprintf(tmp, "%dh", secs / (60*60));
         }
-        display.setCursor(display.width() - display.getTextWidth(tmp) - 1, y);
+        
+        int timestamp_width = display.getTextWidth(tmp);
+        int max_name_width = display.width() - timestamp_width - 1;
+        
+        display.setCursor(0, y);
+        char filtered_recent_name[sizeof(a->name)];
+        filterName(filtered_recent_name, a->name, sizeof(filtered_recent_name));
+        truncateWithEllipsis(display, filtered_recent_name, max_name_width);
+        display.print(filtered_recent_name);
+        display.setCursor(display.width() - timestamp_width - 1, y);
         display.print(tmp);
       }
     } else if (_page == HomePage::RADIO) {
