@@ -24,9 +24,17 @@ void setFlag(void) {
   state |= STATE_INT_READY;
 }
 
+void RadioLibWrapper::notifyISR() {
+  state |= STATE_INT_READY;
+}
+
 void RadioLibWrapper::begin() {
   _radio->setPacketReceivedAction(setFlag);  // this is also SentComplete interrupt
   state = STATE_IDLE;
+
+  #if defined(SX127X_USE_POLLING)
+    MESH_DEBUG_PRINTLN("RadioLibWrapper: begin, polling=1");
+  #endif
 
   if (_board->getStartupReason() == BD_STARTUP_RX_PACKET) {  // received a LoRa packet (while in deep sleep)
     setFlag(); // LoRa packet is already received
@@ -38,6 +46,10 @@ void RadioLibWrapper::begin() {
   // start average out some samples
   _num_floor_samples = 0;
   _floor_sample_sum = 0;
+  
+  #if defined(SX127X_USE_POLLING)
+    startRecv();
+  #endif
 }
 
 void RadioLibWrapper::idle() {
@@ -63,6 +75,10 @@ void RadioLibWrapper::resetAGC() {
 }
 
 void RadioLibWrapper::loop() {
+  #if defined(SX127X_USE_POLLING)
+    pollIrq();
+  #endif
+
   if (state == STATE_RX && _num_floor_samples < NUM_NOISE_FLOOR_SAMPLES) {
     if (!isReceivingPacket()) {
       int rssi = getCurrentRSSI();
@@ -86,6 +102,7 @@ void RadioLibWrapper::startRecv() {
   int err = _radio->startReceive();
   if (err == RADIOLIB_ERR_NONE) {
     state = STATE_RX;
+    MESH_DEBUG_PRINTLN("RadioLibWrapper: startReceive OK");
   } else {
     MESH_DEBUG_PRINTLN("RadioLibWrapper: error: startReceive(%d)", err);
   }
@@ -133,6 +150,7 @@ bool RadioLibWrapper::startSendRaw(const uint8_t* bytes, int len) {
   int err = _radio->startTransmit((uint8_t *) bytes, len);
   if (err == RADIOLIB_ERR_NONE) {
     state = STATE_TX_WAIT;
+    MESH_DEBUG_PRINTLN("RadioLibWrapper: startTransmit len=%d", len);
     return true;
   }
   MESH_DEBUG_PRINTLN("RadioLibWrapper: error: startTransmit(%d)", err);
