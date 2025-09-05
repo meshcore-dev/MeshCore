@@ -22,6 +22,12 @@ void Dispatcher::begin() {
 
   _radio->begin();
   prev_isrecv_mode = _radio->isInRecvMode();
+
+  #ifdef ENABLE_BRIDGES
+  if(_bridge){
+    _bridge->start();
+  }
+  #endif
 }
 
 float Dispatcher::getAirtimeBudgetFactor() const {
@@ -106,6 +112,10 @@ void Dispatcher::loop() {
   }
   checkRecv();
   checkSend();
+
+  #ifdef ENABLE_BRIDGES
+  checkBridge();
+  #endif
 }
 
 void Dispatcher::checkRecv() {
@@ -140,6 +150,7 @@ void Dispatcher::checkRecv() {
           pkt->transport_codes[0] = pkt->transport_codes[1] = 0;
         }
         pkt->path_len = raw[i++];
+        pkt->_source = PACKET_SOURCE_LORA;
 
         if (pkt->path_len > MAX_PATH_SIZE || i + pkt->path_len > len) {
           MESH_DEBUG_PRINTLN("%s Dispatcher::checkRecv(): partial or corrupt packet received, len=%d", getLogDateTime(), len);
@@ -168,6 +179,9 @@ void Dispatcher::checkRecv() {
     }
   }
   if (pkt) {
+
+    onPacketRx(pkt);
+
     #if MESH_PACKET_LOGGING
     Serial.print(getLogDateTime());
     Serial.printf(": RX, len=%d (type=%d, route=%s, payload_len=%d) SNR=%d RSSI=%d score=%d time=%d", 
@@ -209,6 +223,59 @@ void Dispatcher::checkRecv() {
   }
 }
 
+#ifdef ENABLE_BRIDGES
+void Dispatcher::setBridge(Bridge* bridge){
+
+  this->_bridge = bridge;
+
+}
+
+void Dispatcher::checkBridge() {
+  if(_bridge){
+    _bridge->loop();
+  }
+}
+#endif
+
+void Dispatcher::onPacketRx(Packet* pkt) {
+  #ifdef ENABLE_BRIDGES
+  if(this->_bridge){
+    this->_bridge->onMeshPacketRx(pkt);
+  }
+  #endif
+}
+
+
+void Dispatcher::onPacketTx(Packet* pkt) {
+  #ifdef ENABLE_BRIDGES
+  if(this->_bridge){
+    this->_bridge->onMeshPacketTx(pkt);
+  }
+  #endif
+}
+
+void Dispatcher::processBridgePacket(Packet* pkt) {
+
+  #ifdef ENABLE_BRIDGES
+  mesh::DispatcherAction action = onRecvPacket(pkt);
+    if (action == ACTION_RELEASE) {
+      Serial.println("release udp packet");
+      _mgr->free(pkt);
+    } else if (action == ACTION_MANUAL_HOLD) {
+      Serial.println("hold");
+      // sub-class is wanting to manually hold Packet instance, and call releasePacket() at appropriate time
+    } else {   // ACTION_RETRANSMIT*
+      uint8_t priority = (action >> 24) - 1;
+      uint32_t _delay = action & 0xFFFFFF;
+
+      Serial.println("bridging udp packet to mesh");
+
+      _mgr->queueOutbound(pkt, priority, futureMillis(_delay));
+    }
+  #endif
+}
+
+
 void Dispatcher::processRecvPacket(Packet* pkt) {
   DispatcherAction action = onRecvPacket(pkt);
   if (action == ACTION_RELEASE) {
@@ -246,6 +313,7 @@ void Dispatcher::checkSend() {
 
   outbound = _mgr->getNextOutbound(_ms->getMillis());
   if (outbound) {
+    onPacketTx(outbound);
     int len = 0;
     uint8_t raw[MAX_TRANS_UNIT];
 
@@ -303,6 +371,7 @@ Packet* Dispatcher::obtainNewPacket() {
   } else {
     pkt->payload_len = pkt->path_len = 0;
     pkt->_snr = 0;
+    pkt->_source = PACKET_SOURCE_NONE;
   }
   return pkt;
 }

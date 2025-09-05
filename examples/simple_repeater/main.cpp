@@ -1,13 +1,24 @@
 #include <Arduino.h>   // needed for PlatformIO
 #include <Mesh.h>
 
+
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
   #include <InternalFileSystem.h>
 #elif defined(RP2040_PLATFORM)
   #include <LittleFS.h>
 #elif defined(ESP32)
   #include <SPIFFS.h>
+  #include <AsyncUDP.h>
+  #include <Packet.h>
+  #include <Dispatcher.h>
+  #endif
+  
+  
+  #if defined(ESP32) && ENABLE_BRIDGES
+  #include <Vector.h>
+  #include <bridges/UdpBridge.h>
 #endif
+
 
 #include <helpers/ArduinoHelpers.h>
 #include <helpers/StaticPoolPacketManager.h>
@@ -18,6 +29,7 @@
 #include <helpers/CommonCLI.h>
 #include <RTClib.h>
 #include <target.h>
+
 
 /* ------------------------------ Config -------------------------------- */
 
@@ -57,6 +69,34 @@
 
 #ifndef ADMIN_PASSWORD
   #define  ADMIN_PASSWORD  "password"
+#endif
+
+#ifndef WIFI_ENABLE
+  #define WIFI_ENABLE false
+#endif
+
+#ifndef WIFI_AP_ENABLE
+  #define WIFI_AP_ENABLE false
+#endif
+
+#ifndef WIFI_BRIDGE_SSID
+  #define WIFI_BRIDGE_SSID "meshcore-bridge"
+#endif
+
+#ifndef WIFI_BRIDGE_PASSWORD
+  #define WIFI_BRIDGE_PASSWORD "password"
+#endif
+
+#ifndef UDP_SERVER_ENABLE
+  #define UDP_SERVER_ENABLE false
+#endif
+
+#ifndef UDP_SERVER_PORT
+  #define UDP_SERVER_PORT 8000
+#endif
+
+#ifndef UDP_PACKET_BUFFER_SIZE
+  #define UDP_PACKET_BUFFER_SIZE 10
 #endif
 
 #ifndef SERVER_RESPONSE_DELAY
@@ -251,6 +291,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
     return _fs->open(fname, "a", true);
   #endif
   }
+
 
 protected:
   float getAirtimeBudgetFactor() const override {
@@ -569,6 +610,7 @@ public:
     next_local_advert = next_flood_advert = 0;
     set_radio_at = revert_radio_at = 0;
     _logging = false;
+    
 
   #if MAX_NEIGHBOURS
     memset(neighbours, 0, sizeof(neighbours));
@@ -591,7 +633,34 @@ public:
     _prefs.advert_interval = 1;  // default to 2 minutes for NEW installs
     _prefs.flood_advert_interval = 12;   // 12 hours
     _prefs.flood_max = 64;
+    
     _prefs.interference_threshold = 0;  // disabled
+    
+    _prefs.wifi_enable = WIFI_ENABLE;
+    _prefs.wifi_ap_enable = WIFI_AP_ENABLE;
+    StrHelper::strncpy(_prefs.wifi_ssid, WIFI_BRIDGE_SSID, sizeof(_prefs.wifi_ssid));
+    StrHelper::strncpy(_prefs.wifi_password, WIFI_BRIDGE_PASSWORD, sizeof(_prefs.wifi_password));
+
+    #if defined(ESP32) && ENABLE_BRIDGES
+    
+    _prefs.udpBridge.flags.network_bridge = true;
+    _prefs.udpBridge.flags.rx_bridge = false;
+    _prefs.udpBridge.flags.tx_bridge = true;
+    _prefs.udpBridge.flags.ip_version = UDP_BRIDGE_IPV4;
+    _prefs.udpBridge.flags.mode = UDP_BRIDGE_MODE_BROADCAST;
+    _prefs.udpBridge.port = 8000;
+    memset( _prefs.udpBridge.ipv6, 0x0, sizeof( _prefs.udpBridge.ipv6 ));
+
+    bool udpEnabled = _prefs.udpBridge.flags.network_bridge || 
+                      _prefs.udpBridge.flags.rx_bridge ||
+                      _prefs.udpBridge.flags.tx_bridge;
+
+    if(udpEnabled){
+      mesh::UdpBridge* udpBridge = new mesh::UdpBridge( &_prefs, &this->self_id, this, getRTCClock() );
+      setBridge( udpBridge );
+    }
+
+    #endif
   }
 
   void begin(FILESYSTEM* fs) {
@@ -605,6 +674,27 @@ public:
 
     updateAdvertTimer();
     updateFloodAdvertTimer();
+
+    #if defined(ESP32)
+
+    if(_prefs.wifi_enable){
+
+      Serial.println("wifi enabled, starting");
+
+      board.startWiFi(
+        _prefs.wifi_ssid,
+        _prefs.wifi_password,
+        _prefs.wifi_ap_enable
+      );
+
+    } else {
+
+      Serial.println("board has wifi but config disabled wifi");
+      
+    }
+
+    
+    #endif
   }
 
   const char* getFirmwareVer() override { return FIRMWARE_VERSION; }
@@ -808,6 +898,7 @@ void halt() {
 }
 
 static char command[160];
+
 
 void setup() {
   Serial.begin(115200);
