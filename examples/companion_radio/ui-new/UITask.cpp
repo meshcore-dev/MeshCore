@@ -75,6 +75,7 @@ class HomeScreen : public UIScreen {
     RADIO,
     BLUETOOTH,
     ADVERT,
+    SENSORS,
     SHUTDOWN,
     Count    // keep as last
   };
@@ -113,9 +114,32 @@ class HomeScreen : public UIScreen {
     display.fillRect(iconX + 2, iconY + 2, fillWidth, iconHeight - 4);
   }
 
+  DynamicJsonDocument _sensors_doc;
+  JsonArray _sensors_arr;
+  bool scroll = false;
+  int scroll_offset = 0;
+  int next_sensors_refresh = 0;
+
+  void refresh_sensors() {
+    CayenneLPP lpp(200);
+    if (millis() > next_sensors_refresh) {
+      lpp.addVoltage(TELEM_CHANNEL_SELF, (float)board.getBattMilliVolts() / 1000.0f);
+      sensors.querySensors(0xFF, lpp);
+      _sensors_arr.clear();
+      lpp.decode(lpp.getBuffer(), lpp.getSize(), _sensors_arr);
+      scroll = _sensors_arr.size() > UI_RECENT_LIST_SIZE; // there is a status line
+#if AUTO_OFF_MILLIS > 0
+      next_sensors_refresh = millis() + 5000; // refresh sensor values every 5 sec
+#else
+      next_sensors_refresh = millis() + 60000; // refresh sensor values every 1 min
+#endif
+    }
+  }
+
 public:
   HomeScreen(UITask* task, mesh::RTCClock* rtc, SensorManager* sensors, NodePrefs* node_prefs)
-     : _task(task), _rtc(rtc), _sensors(sensors), _node_prefs(node_prefs), _page(0), _shutdown_init(false) { }
+     : _task(task), _rtc(rtc), _sensors(sensors), _node_prefs(node_prefs), _page(0), 
+       _shutdown_init(false), _sensors_doc(2048) { _sensors_arr=_sensors_doc.to<JsonArray>(); }
 
   void poll() override {
     if (_shutdown_init && !_task->isButtonPressed()) {  // must wait for USR button to be released
@@ -211,6 +235,34 @@ public:
       display.setColor(DisplayDriver::GREEN);
       display.drawXbm((display.width() - 32) / 2, 18, advert_icon, 32, 32);
       display.drawTextCentered(display.width() / 2, 64 - 11, "advert: " PRESS_LABEL);
+    } else if (_page == HomePage::SENSORS) {
+      int y = 18;
+      refresh_sensors();
+      char buf[100];
+      int s_size = _sensors_arr.size();
+      for (int i = 0; i < (scroll?UI_RECENT_LIST_SIZE:s_size); i++) {
+        JsonObject v = _sensors_arr[(i+scroll_offset)%s_size];
+        display.setCursor(0, y);
+        switch (v["type"].as<int>()) {
+          case 136: // GPS
+            sprintf(buf, "%.4f %.4f",
+              v["value"]["latitude"].as<float>(),
+              v["value"]["longitude"].as<float>());
+            break;
+          default: // will be a float for now
+            sprintf(buf, "%.02f",
+              v["value"].as<float>());
+        }
+        display.setCursor(0, y);
+        display.print(v["name"].as<JsonString>().c_str());
+        display.setCursor(
+          display.width()-display.getTextWidth(buf)-1, y
+        );
+        display.print(buf);
+        y = y + 12;
+      }
+      if (scroll) scroll_offset = (scroll_offset+1)%s_size;
+      else scroll_offset = 0;
     } else if (_page == HomePage::SHUTDOWN) {
       display.setColor(DisplayDriver::GREEN);
       display.setTextSize(1);
@@ -253,6 +305,11 @@ public:
       } else {
         _task->showAlert("Advert failed..", 1000);
       }
+      return true;
+    }
+    if (c == KEY_ENTER && _page == HomePage::SENSORS) {
+      _task->toggleGPS();
+      next_sensors_refresh=0;
       return true;
     }
     if (c == KEY_ENTER && _page == HomePage::SHUTDOWN) {
