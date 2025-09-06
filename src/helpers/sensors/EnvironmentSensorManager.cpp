@@ -66,8 +66,8 @@ static Adafruit_INA260 INA260;
 #endif
 
 #if ENV_INCLUDE_INA226
-#define TELEM_INA226_ADDRESS    0x44 
-#define TELEM_INA226_SHUNT_VALUE 0.100 
+#define TELEM_INA226_ADDRESS    0x44
+#define TELEM_INA226_SHUNT_VALUE 0.100
 #define TELEM_INA226_MAX_AMP 0.8
 #include <INA226.h>
 static INA226 INA226(TELEM_INA226_ADDRESS);
@@ -85,7 +85,11 @@ static Adafruit_MLX90614 MLX90614;
 static Adafruit_VL53L0X VL53L0X;
 #endif
 
-#if ENV_INCLUDE_GPS && RAK_BOARD
+#if ENV_INCLUDE_GPS && defined(RAK_BOARD) && !defined(RAK_WISMESH_TAG)
+#define RAK_WISBLOCK_GPS
+#endif
+
+#ifdef RAK_WISBLOCK_GPS
 static uint32_t gpsResetPin = 0;
 static bool i2cGPSFlag = false;
 static bool serialGPSFlag = false;
@@ -96,7 +100,7 @@ static SFE_UBLOX_GNSS ublox_GNSS;
 
 bool EnvironmentSensorManager::begin() {
   #if ENV_INCLUDE_GPS
-  #if RAK_BOARD
+  #ifdef RAK_WISBLOCK_GPS
   rakGPSInit();   //probe base board/sockets for GPS
   #else
   initBasicGPS();
@@ -457,7 +461,7 @@ void EnvironmentSensorManager::initBasicGPS() {
   gps_active = false; //Set GPS visibility off until setting is changed
 }
 
-#ifdef RAK_BOARD
+#ifdef RAK_WISBLOCK_GPS
 void EnvironmentSensorManager::rakGPSInit(){
 
   Serial1.setPins(PIN_GPS_TX, PIN_GPS_RX);
@@ -531,7 +535,7 @@ bool EnvironmentSensorManager::gpsIsAwake(uint8_t ioPin){
 
 void EnvironmentSensorManager::start_gps() {
   gps_active = true;
-  #ifdef RAK_BOARD
+  #ifdef RAK_WISBLOCK_GPS
     pinMode(gpsResetPin, OUTPUT);
     digitalWrite(gpsResetPin, HIGH);
     return;
@@ -547,7 +551,7 @@ void EnvironmentSensorManager::start_gps() {
 
 void EnvironmentSensorManager::stop_gps() {
   gps_active = false;
-  #ifdef RAK_BOARD
+  #ifdef RAK_WISBLOCK_GPS
     pinMode(gpsResetPin, OUTPUT);
     digitalWrite(gpsResetPin, LOW);
     return;
@@ -568,13 +572,7 @@ void EnvironmentSensorManager::loop() {
 
   if (millis() > next_gps_update) {
     if(gps_active){
-    #ifndef RAK_BOARD
-    if (_location->isValid()) {
-      node_lat = ((double)_location->getLatitude())/1000000.;
-      node_lon = ((double)_location->getLongitude())/1000000.;
-      MESH_DEBUG_PRINTLN("lat %f lon %f", node_lat, node_lon);
-    }
-    #else
+    #ifdef RAK_WISBLOCK_GPS
     if(i2cGPSFlag){
       node_lat = ((double)ublox_GNSS.getLatitude())/10000000.;
       node_lon = ((double)ublox_GNSS.getLongitude())/10000000.;
@@ -585,8 +583,12 @@ void EnvironmentSensorManager::loop() {
       node_lon = ((double)_location->getLongitude())/1000000.;
       MESH_DEBUG_PRINTLN("lat %f lon %f", node_lat, node_lon);
     }
-    //else
-    //MESH_DEBUG_PRINTLN("No valid GPS data");
+    #else
+    if (_location->isValid()) {
+      node_lat = ((double)_location->getLatitude())/1000000.;
+      node_lon = ((double)_location->getLongitude())/1000000.;
+      MESH_DEBUG_PRINTLN("lat %f lon %f", node_lat, node_lon);
+    }
     #endif
     }
     next_gps_update = millis() + 1000;
