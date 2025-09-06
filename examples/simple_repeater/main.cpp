@@ -78,6 +78,10 @@
 
 /* ------------------------------ Code -------------------------------- */
 
+#ifdef WITH_RS232_BRIDGE
+#include "helpers/bridges/RS232Bridge.h"
+#endif
+
 #define REQ_TYPE_GET_STATUS          0x01   // same as _GET_STATS
 #define REQ_TYPE_KEEP_ALIVE          0x02
 #define REQ_TYPE_GET_TELEMETRY_DATA  0x03
@@ -112,6 +116,10 @@ struct ClientInfo {
 
 #ifndef MAX_CLIENTS
   #define MAX_CLIENTS           32
+#endif
+
+#ifdef WITH_RS232_BRIDGE
+AbstractBridge* bridge;
 #endif
 
 struct NeighbourInfo {
@@ -300,6 +308,9 @@ protected:
     }
   }
   void logTx(mesh::Packet* pkt, int len) override {
+#ifdef WITH_RS232_BRIDGE
+    bridge->onPacketTransmitted(pkt);
+#endif
     if (_logging) {
       File f = openAppend(PACKET_LOG_FILE);
       if (f) {
@@ -364,9 +375,9 @@ protected:
       } else if (strcmp((char *) &data[4], _prefs.guest_password) == 0) {  // check guest password
         is_admin = false;
       } else {
-    #if MESH_DEBUG
+#if MESH_DEBUG
         MESH_DEBUG_PRINTLN("Invalid password: %s", &data[4]);
-    #endif
+#endif
         return;
       }
 
@@ -384,15 +395,15 @@ protected:
 
       uint32_t now = getRTCClock()->getCurrentTimeUnique();
       memcpy(reply_data, &now, 4);   // response packets always prefixed with timestamp
-    #if 0
+#if 0
       memcpy(&reply_data[4], "OK", 2);   // legacy response
-    #else
+#else
       reply_data[4] = RESP_SERVER_LOGIN_OK;
       reply_data[5] = 0;  // NEW: recommended keep-alive interval (secs / 16)
       reply_data[6] = is_admin ? 1 : 0;
       reply_data[7] = 0;  // FUTURE: reserved
       getRNG()->random(&reply_data[8], 4);   // random blob to help packet-hash uniqueness
-  #endif
+#endif
 
       if (packet->isRouteFlood()) {
         // let this sender know path TO here, so they can use sendDirect(), and ALSO encode the response
@@ -565,14 +576,17 @@ public:
      : mesh::Mesh(radio, ms, rng, rtc, *new StaticPoolPacketManager(32), tables),
       _cli(board, rtc, &_prefs, this), telemetry(MAX_PACKET_PAYLOAD - 4)
   {
+#ifdef WITH_RS232_BRIDGE
+    bridge = new RS232Bridge(WITH_RS232_BRIDGE, _mgr, &rtc);
+#endif
     memset(known_clients, 0, sizeof(known_clients));
     next_local_advert = next_flood_advert = 0;
     set_radio_at = revert_radio_at = 0;
     _logging = false;
 
-  #if MAX_NEIGHBOURS
+#if MAX_NEIGHBOURS
     memset(neighbours, 0, sizeof(neighbours));
-  #endif
+#endif
 
     // defaults
     memset(&_prefs, 0, sizeof(_prefs));
@@ -765,6 +779,10 @@ public:
   }
 
   void loop() {
+#ifdef WITH_RS232_BRIDGE
+    bridge->loop();
+#endif
+
     mesh::Mesh::loop();
 
     if (next_flood_advert && millisHasNowPassed(next_flood_advert)) {
@@ -813,6 +831,10 @@ void setup() {
   Serial.begin(115200);
   delay(1000);
 
+#ifdef WITH_RS232_BRIDGE
+  bridge->begin();
+#endif
+
   board.begin();
 
 #ifdef DISPLAY_CLASS
@@ -824,7 +846,9 @@ void setup() {
   }
 #endif
 
-  if (!radio_init()) { halt(); }
+  if (!radio_init()) {
+    halt();
+  }
 
   fast_rng.begin(radio_get_rng_seed());
 
