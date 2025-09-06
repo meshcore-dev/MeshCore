@@ -25,10 +25,28 @@ void SerialBLEInterface::begin(const char* device_name, uint32_t pin_code) {
   char charpin[20];
   sprintf(charpin, "%d", pin_code);
 
-  Bluefruit.configPrphBandwidth(BANDWIDTH_MAX);
-  Bluefruit.configPrphConn(250, BLE_GAP_EVENT_LENGTH_MIN, 16, 16);  // increase MTU
+  Bluefruit.configPrphBandwidth(
+#ifdef BLE_LOW_POWER
+    BANDWIDTH_NORMAL
+#else
+    BANDWIDTH_MAX
+#endif
+  );
+  Bluefruit.configPrphConn(
+#ifdef BLE_LOW_POWER
+    400, BLE_GAP_EVENT_LENGTH_MIN, 8, 8
+#else
+    250, BLE_GAP_EVENT_LENGTH_MIN, 16, 16  // increase MTU
+#endif
+  );
   Bluefruit.begin();
-  Bluefruit.setTxPower(4);    // Check bluefruit.h for supported values
+  Bluefruit.setTxPower(
+#ifdef BLE_LOW_POWER
+    0
+#else
+    4
+#endif
+  );    // Check bluefruit.h for supported values
   Bluefruit.setName(device_name);
 
   Bluefruit.Security.setMITM(true);
@@ -80,7 +98,13 @@ void SerialBLEInterface::startAdv() {
    * https://developer.apple.com/library/content/qa/qa1931/_index.html   
    */
   Bluefruit.Advertising.restartOnDisconnect(false); // don't restart automatically as we handle it in onDisconnect
-  Bluefruit.Advertising.setInterval(32, 244);    // in unit of 0.625 ms
+  Bluefruit.Advertising.setInterval(
+#ifdef BLE_LOW_POWER
+    160, 1600
+#else
+    32, 244
+#endif
+  );    // in unit of 0.625 ms
   Bluefruit.Advertising.setFastTimeout(30);      // number of seconds in fast mode
   Bluefruit.Advertising.start(0);                // 0 = Don't stop advertising after n seconds
 
