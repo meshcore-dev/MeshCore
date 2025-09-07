@@ -118,6 +118,7 @@ void BaseChatMesh::onAdvertRecv(mesh::Packet* packet, const mesh::Identity& id, 
   from->lastmod = getRTCClock()->getCurrentTime();
 
   onDiscoveredContact(*from, is_new, packet->path_len, packet->path);       // let UI know
+  onContactDataChanged(*from);
 }
 
 int BaseChatMesh::searchPeersByHash(const uint8_t* hash) {
@@ -183,6 +184,7 @@ void BaseChatMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender
     } else if (flags == TXT_TYPE_SIGNED_PLAIN) {
       if (timestamp > from.sync_since) {  // make sure 'sync_since' is up-to-date
         from.sync_since = timestamp;
+        onContactDataChanged(from);
       }
       onSignedMessageRecv(from, packet, timestamp, &data[5], (const char *) &data[9]);  // let UI know
 
@@ -245,6 +247,7 @@ bool BaseChatMesh::onContactPathRecv(ContactInfo& from, uint8_t* in_path, uint8_
   from.lastmod = getRTCClock()->getCurrentTime();
 
   onContactPathUpdated(from);
+  onContactDataChanged(from);
 
   if (extra_type == PAYLOAD_TYPE_ACK && extra_len >= 4) {
     // also got an encoded ACK!
