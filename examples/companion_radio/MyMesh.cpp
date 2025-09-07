@@ -297,6 +297,10 @@ void MyMesh::onDiscoveredContact(ContactInfo &contact, bool is_new, uint8_t path
     p->path_len = path_len;
     memcpy(p->path, path, p->path_len);
   }
+
+  if (isAutoAddEnabled()) {
+    markContactsChanged();
+  }
 }
 
 static int sort_by_recent(const void *a, const void *b) {
@@ -317,6 +321,7 @@ void MyMesh::onContactPathUpdated(const ContactInfo &contact) {
   out_frame[0] = PUSH_CODE_PATH_UPDATED;
   memcpy(&out_frame[1], contact.id.pub_key, PUB_KEY_SIZE);
   _serial->writeFrame(out_frame, 1 + PUB_KEY_SIZE); // NOTE: app may not be connected
+  markContactsChanged();
 }
 
 ContactInfo*  MyMesh::processAck(const uint8_t *data) {
@@ -400,6 +405,7 @@ void MyMesh::onSignedMessageRecv(const ContactInfo &from, mesh::Packet *pkt, uin
                                  const uint8_t *sender_prefix, const char *text) {
   markConnectionActive(from);
   queueMessage(from, TXT_TYPE_SIGNED_PLAIN, pkt, sender_timestamp, sender_prefix, 4, text);
+  markContactsChanged();
 }
 
 void MyMesh::onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packet *pkt, uint32_t timestamp,
