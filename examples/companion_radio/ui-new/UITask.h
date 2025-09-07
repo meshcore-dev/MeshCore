@@ -10,6 +10,9 @@
 #ifdef PIN_BUZZER
   #include <helpers/ui/buzzer.h>
 #endif
+#ifdef PIN_VIBRATION
+  #include <helpers/ui/vibration.h>
+#endif
 
 #include "../AbstractUITask.h"
 #include "../NodePrefs.h"
@@ -19,6 +22,9 @@ class UITask : public AbstractUITask {
   SensorManager* _sensors;
 #ifdef PIN_BUZZER
   genericBuzzer buzzer;
+#endif
+#ifdef PIN_VIBRATION
+  genericVibration vibration;
 #endif
   unsigned long _next_refresh, _auto_off;
   NodePrefs* _node_prefs;
@@ -71,6 +77,9 @@ public:
   void msgRead(int msgcount) override;
   void newMsg(uint8_t path_len, const char* from_name, const char* text, int msgcount) override;
   void soundBuzzer(UIEventType bet = UIEventType::none) override;
+#ifdef PIN_VIBRATION
+  void triggerVibration() override;
+#endif
   void loop() override;
 
   void shutdown(bool restart = false);

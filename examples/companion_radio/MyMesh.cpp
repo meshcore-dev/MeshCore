@@ -244,6 +244,11 @@ void MyMesh::onDiscoveredContact(ContactInfo &contact, bool is_new, uint8_t path
   } else {
 #ifdef DISPLAY_CLASS
     if (_ui) _ui->soundBuzzer(UIEventType::newContactMessage);
+    if (_ui) {
+#ifdef PIN_VIBRATION
+      if (is_new) _ui->triggerVibration();
+#endif
+    }
 #endif
   }
 
