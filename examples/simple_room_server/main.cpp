@@ -16,6 +16,7 @@
 #include <helpers/AdvertDataHelpers.h>
 #include <helpers/TxtDataHelpers.h>
 #include <helpers/CommonCLI.h>
+#include <helpers/sensors/TimeSyncHelper.h>
 #include <RTClib.h>
 #include <target.h>
 
@@ -1038,12 +1039,25 @@ void setup() {
 
   the_mesh.begin(fs);
 
+#ifdef ENV_INCLUDE_GPS
+  TimeSyncHelper::init();
+  TimeSyncHelper::process();
+#endif
+
 #ifdef DISPLAY_CLASS
   ui_task.begin(the_mesh.getNodePrefs(), FIRMWARE_BUILD_DATE, FIRMWARE_VERSION);
 #endif
 
-  // send out initial Advertisement to the mesh
+// send out initial Advertisement to the mesh
+#ifdef ENV_INCLUDE_GPS
+  while (!TimeSyncHelper::isInitialSyncCompleted()) {
+    TimeSyncHelper::process();
+    delay(100);
+  }
   the_mesh.sendSelfAdvertisement(16000);
+#else
+  the_mesh.sendSelfAdvertisement(16000);
+#endif
 }
 
 void loop() {
@@ -1071,6 +1085,9 @@ void loop() {
     command[0] = 0;  // reset command buffer
   }
 
+#ifdef ENV_INCLUDE_GPS
+  TimeSyncHelper::process(); // call it in the main loop because it's neither truly sensor nor exactly mesh related
+#endif
   the_mesh.loop();
   sensors.loop();
 }
