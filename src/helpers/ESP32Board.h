@@ -8,6 +8,7 @@
 #include <rom/rtc.h>
 #include <sys/time.h>
 #include <Wire.h>
+#include <WiFi.h>
 
 class ESP32Board : public mesh::MainBoard {
 protected:
@@ -87,6 +88,7 @@ public:
   }
 
   bool startOTAUpdate(const char* id, char reply[]) override;
+  bool startWiFi(char* ssid, char* password, bool apMode=false) override;
 };
 
 class ESP32RTCClock : public mesh::RTCClock {

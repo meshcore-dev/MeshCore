@@ -35,6 +35,10 @@ namespace mesh {
 #define PAYLOAD_VER_3       0x02   // FUTURE
 #define PAYLOAD_VER_4       0x03   // FUTURE
 
+#define PACKET_SOURCE_NONE        0x00
+#define PACKET_SOURCE_LORA        0x01
+#define PACKET_SOURCE_UDP_BRIDGE  0x02
+
 /**
  * \brief  The fundamental transmission unit.
 */
@@ -48,6 +52,7 @@ public:
   uint8_t path[MAX_PATH_SIZE];
   uint8_t payload[MAX_PACKET_PAYLOAD];
   int8_t _snr;
+  uint8_t _source;
 
   /**
    * \brief calculate the hash of payload + type

@@ -2,6 +2,13 @@
 #include "CommonCLI.h"
 #include "TxtDataHelpers.h"
 #include <RTClib.h>
+#include <bridges/UdpBridgeDetails.h>
+
+#if defined(ESP_PLATFORM)
+#include <IPAddress.h>
+#include <WiFi.h>
+#include <IPv6Address.h>
+#endif
 
 // Believe it or not, this std C function is busted on some platforms!
 static uint32_t _atoi(const char* sp) {
@@ -57,7 +64,16 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     file.read(pad, 3);   // 121
     file.read((uint8_t *) &_prefs->flood_max, sizeof(_prefs->flood_max));   // 124
     file.read((uint8_t *) &_prefs->flood_advert_interval, sizeof(_prefs->flood_advert_interval));  // 125
+
     file.read((uint8_t *) &_prefs->interference_threshold, sizeof(_prefs->interference_threshold));  // 126
+
+    file.read((uint8_t*) &_prefs->wifi_enable, sizeof(_prefs->wifi_enable));         //127
+    file.read((uint8_t*) &_prefs->wifi_ap_enable, sizeof(_prefs->wifi_ap_enable));   //128
+    file.read((uint8_t*) &_prefs->wifi_ssid, sizeof(_prefs->wifi_ssid));             //129
+    file.read((uint8_t*) &_prefs->wifi_password, sizeof(_prefs->wifi_password));     //161
+    
+    file.read((uint8_t*) &_prefs->udpBridge, sizeof(_prefs->udpBridge));             //193 ( 19bytes = 1+2+16)
+
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -113,7 +129,15 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write(pad, 3);   // 121
     file.write((uint8_t *) &_prefs->flood_max, sizeof(_prefs->flood_max));   // 124
     file.write((uint8_t *) &_prefs->flood_advert_interval, sizeof(_prefs->flood_advert_interval));  // 125
+    
     file.write((uint8_t *) &_prefs->interference_threshold, sizeof(_prefs->interference_threshold));  // 126
+
+    file.write((uint8_t*) &_prefs->wifi_enable, sizeof(_prefs->wifi_enable));         //127
+    file.write((uint8_t*) &_prefs->wifi_ap_enable, sizeof(_prefs->wifi_ap_enable));   //128
+    file.write((uint8_t*) &_prefs->wifi_ssid, sizeof(_prefs->wifi_ssid));             //129
+    file.write((uint8_t*) &_prefs->wifi_password, sizeof(_prefs->wifi_password));     //161
+
+    file.write((uint8_t*) &_prefs->udpBridge, sizeof(_prefs->udpBridge)); //193 ( 19bytes = 1+2+16)    
 
     file.close();
   }
@@ -241,6 +265,75 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         sprintf(reply, "> %s", StrHelper::ftoa(_prefs->tx_delay_factor));
       } else if (memcmp(config, "flood.max", 9) == 0) {
         sprintf(reply, "> %d", (uint32_t)_prefs->flood_max);
+      } else if (memcmp(config, "wifi.enable", 11) == 0) {
+        sprintf(reply, "> %s", _prefs->wifi_enable ? "on" : "off");
+      } else if (memcmp(config, "wifi.ap_enable", 14) == 0) {
+        sprintf(reply, "> %s", _prefs->wifi_ap_enable ? "on" : "off");
+      } else if (memcmp(config, "wifi.ssid", 9) == 0) {
+        sprintf(reply, "> %s", _prefs->wifi_ssid);
+      } else if (memcmp(config, "wifi.password", 13) == 0) {
+        sprintf(reply, "> %s", _prefs->wifi_password);
+      }
+      
+#if defined(ESP_PLATFORM)
+      
+      else if (memcmp(config, "wifi.info", 9) == 0) {
+
+
+        sprintf(reply, "> %s %s %s %s",
+          WiFi.getHostname(),
+          WiFi.localIP().toString().c_str(),
+          WiFi.localIPv6().toString().c_str(),
+          WiFi.macAddress().c_str()
+        );
+      }
+#endif
+
+      else if (memcmp(config, "udp.network_bridge", 18) == 0) {
+        sprintf(reply, "> %s", _prefs->udpBridge.flags.network_bridge ? "on" : "off");
+      } else if (memcmp(config, "udp.rx_bridge", 13) == 0) {
+        sprintf(reply, "> %s", _prefs->udpBridge.flags.rx_bridge ? "on" : "off");
+      } else if (memcmp(config, "udp.tx_bridge", 13) == 0) {
+        sprintf(reply, "> %s", _prefs->udpBridge.flags.tx_bridge ? "on" : "off");
+      } else if (memcmp(config, "udp.ip_version", 14) == 0) {
+        switch(_prefs->udpBridge.flags.ip_version){
+          case UDP_BRIDGE_IPV4:
+            sprintf(reply, "> ipv4");
+            break;
+          case UDP_BRIDGE_IPV6:
+            sprintf(reply, "> ipv6");
+            break;
+          default:
+            sprintf(reply, "> ERROR - Unsupported");
+            break;
+        }
+      } else if (memcmp(config, "udp.mode", 8) == 0) {
+        switch(_prefs->udpBridge.flags.mode){
+          case UDP_BRIDGE_MODE_BROADCAST:
+            sprintf(reply, "> broadcast");
+            break;
+          case UDP_BRIDGE_MODE_MULTICAST:
+            sprintf(reply, "> multicast");
+            break;
+          /*case UDP_BRIDGE_MODE_DIRECT:
+            sprintf(reply, "> direct");
+            break;*/
+          default:
+            sprintf(reply, "> ERROR - Unsupported");
+            break;
+        }
+      } else if (memcmp(config, "udp.port", 8) == 0) {
+        sprintf(reply, "> %d", (uint32_t) _prefs->udpBridge.port);
+      } else if (memcmp(config, "udp.address", 11) == 0) {
+        if(_prefs->udpBridge.flags.ip_version == UDP_BRIDGE_IPV4){
+          IPAddress address( (uint8_t*) &_prefs->udpBridge.ipv4 );
+
+          sprintf(reply, "> %s", address.toString().c_str());
+        } else {
+          IPv6Address address( (uint8_t*) &_prefs->udpBridge.ipv6 );
+
+          sprintf(reply, "> %s", address.toString().c_str());
+        }
       } else if (memcmp(config, "direct.txdelay", 14) == 0) {
         sprintf(reply, "> %s", StrHelper::ftoa(_prefs->direct_tx_delay_factor));
       } else if (memcmp(config, "tx", 2) == 0 && (config[2] == 0 || config[2] == ' ')) {
@@ -373,6 +466,101 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         } else {
           strcpy(reply, "Error, max 64");
         }
+      } else if (memcmp(config, "wifi.enable ", 12) == 0) {
+        _prefs->wifi_enable = memcmp(&config[12], "on", 2) == 0;
+        savePrefs();
+        strcpy(reply, _prefs->wifi_enable ? "OK - Reboot to apply wifi ON" : "OK - Reboot to apply wifi OFF");
+      } else if (memcmp(config, "wifi.ap_enable ", 15) == 0) {
+        _prefs->wifi_ap_enable = memcmp(&config[15], "on", 2) == 0;
+        savePrefs();
+        strcpy(reply, _prefs->wifi_ap_enable ? "OK - Reboot to apply wifi AP ON" : "OK - Reboot to apply wifi AP OFF");
+      } else if (memcmp(config, "wifi.ssid ", 10) == 0) {
+        StrHelper::strncpy(_prefs->wifi_ssid, &config[10], sizeof(_prefs->wifi_ssid));
+        savePrefs();
+        strcpy(reply, "OK - Reboot to apply");
+      } else if (memcmp(config, "wifi.password ", 14) == 0) {
+        StrHelper::strncpy(_prefs->wifi_password, &config[14], sizeof(_prefs->wifi_password));
+        savePrefs();
+        strcpy(reply, "OK - Reboot to apply");
+      } else if (memcmp(config, "udp.network_bridge ", 19) == 0) {
+        
+        _prefs->udpBridge.flags.network_bridge = memcmp(&config[19], "on", 2) == 0;
+        savePrefs();
+        strcpy(reply, _prefs->udpBridge.flags.network_bridge ? "OK - udp network_bridge is now ON" : "OK - udp network_bridge is now OFF");
+
+      } else if (memcmp(config, "udp.rx_bridge ", 14) == 0) {
+        
+        _prefs->udpBridge.flags.rx_bridge = memcmp(&config[14], "on", 2) == 0;
+        savePrefs();
+        strcpy(reply, _prefs->udpBridge.flags.rx_bridge ? "OK - udp rx_bridge is now ON" : "OK - udp rx_bridge is now OFF");
+      
+      } else if (memcmp(config, "udp.tx_bridge ", 14) == 0) {
+
+        _prefs->udpBridge.flags.tx_bridge = memcmp(&config[14], "on", 2) == 0;
+        savePrefs();
+        strcpy(reply, _prefs->udpBridge.flags.tx_bridge ? "OK - udp tx_bridge is now ON" : "OK - udp tx_bridge is now OFF");
+      
+      } else if (memcmp(config, "udp.ip_version ", 15) == 0) {
+
+        _prefs->udpBridge.flags.ip_version = memcmp(&config[15], "ipv6", 4) == 0;
+        savePrefs();
+        strcpy(reply, _prefs->udpBridge.flags.ip_version ? "OK - udp ip_version is now ipv4" : "OK - udp ip_version is now ipv6");
+      
+      } else if (memcmp(config, "udp.mode ", 9) == 0) {
+
+        bool udpBroadcast = memcmp(&config[9], "broadcast", 9) ==0;
+        bool udpMulticast = memcmp(&config[9], "multicast", 9) == 0;
+        bool udpDirect = memcmp(&config[9], "direct", 6) == 0;
+
+        if(udpBroadcast){
+          _prefs->udpBridge.flags.mode = UDP_BRIDGE_MODE_BROADCAST;
+        } else if(udpMulticast){
+          _prefs->udpBridge.flags.mode = UDP_BRIDGE_MODE_MULTICAST;
+        /*} else if(udpDirect){
+          _prefs->udpBridge.flags.mode = UDP_BRIDGE_MODE_DIRECT;*/
+        } else {
+          strcpy(reply, "ERROR - Unsupported option");
+          return;
+        }
+
+        savePrefs();
+        strcpy(reply, "OK - reboor required");
+
+      } else if (memcmp(config, "udp.port ", 9) == 0) {
+
+        _prefs->udpBridge.port = atoi(&config[9]);
+        savePrefs();
+        strcpy(reply,"OK");
+      
+      } else if (memcmp(config, "udp.address ", 12) == 0) {
+
+        if( _prefs->udpBridge.flags.ip_version == UDP_BRIDGE_IPV4){
+
+          IPAddress address;
+          bool success = address.fromString(&config[12]);
+
+          if(success){
+            uint32_t ip = address;
+            memcpy( _prefs->udpBridge.ipv4, (const uint8_t*)&ip,  4);
+  
+            savePrefs();
+            strcpy(reply, "OK");
+          } else {  strcpy(reply, "ERROR - failed to parse ipv4 address"); }
+
+        } else {
+
+          IPv6Address address;
+          bool success = address.fromString(&config[12]);
+
+          if(success){
+            memcpy( _prefs->udpBridge.ipv6, (const uint8_t*)address,  16);
+  
+            savePrefs();
+            strcpy(reply, "OK");
+          } else {  strcpy(reply, "ERROR - failed to parse ipv6 address"); }
+
+        }
+
       } else if (memcmp(config, "direct.txdelay ", 15) == 0) {
         float f = atof(&config[15]);
         if (f >= 0) {

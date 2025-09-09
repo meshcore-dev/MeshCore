@@ -3,7 +3,6 @@
 #include "ESP32Board.h"
 
 #if defined(ADMIN_PASSWORD) && !defined(DISABLE_WIFI_OTA)   // Repeater or Room Server only
-#include <WiFi.h>
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <AsyncElegantOTA.h>
@@ -37,9 +36,54 @@ bool ESP32Board::startOTAUpdate(const char* id, char reply[]) {
   return true;
 }
 
+WiFiEvent_t last_event = ARDUINO_EVENT_MAX;
+
+void WiFiEvent(WiFiEvent_t event){
+
+  if(last_event != event){
+    Serial.printf("WiFi event %i\n\r", event);
+  }
+
+  switch(event){
+    case ARDUINO_EVENT_WIFI_STA_CONNECTED:
+      WiFi.enableIpV6();
+      break;
+    default:
+      break;
+  }
+
+  last_event = event;
+}
+
+bool ESP32Board::startWiFi(char* ssid, char* password, bool apMode){
+
+  WiFi.onEvent(WiFiEvent);
+
+  if(apMode){
+    
+    WiFi.mode(WIFI_MODE_AP);
+    WiFi.disconnect(true);
+    WiFi.softAPenableIpV6();
+    WiFi.softAP(ssid, password);
+  
+  } else {
+
+    WiFi.mode(WIFI_MODE_STA);
+    WiFi.disconnect(true);
+    WiFi.begin(ssid, password);
+
+  }
+
+  return true;
+}
+
 #else
 bool ESP32Board::startOTAUpdate(const char* id, char reply[]) {
   return false; // not supported
+}
+
+bool ESP32Board::startWiFi(char* ssid, char* password, bool apMode){
+  return false; //not supported
 }
 #endif
 
