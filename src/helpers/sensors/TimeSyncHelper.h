@@ -21,8 +21,6 @@ public:
     static bool isInitialSyncCompleted();
 
 private:
-    static char _nmeaBuffer[100];
-    static MicroNMEA _nmea;
     static unsigned long _lastSyncTime;
     static unsigned long _rolloverCount;
     static bool _gpsWasOnBeforeSync;
@@ -34,11 +32,7 @@ private:
         SYNC_WAITING_FOR_LOCK
     } _syncState;
     static unsigned long _syncStartTime;
-    static int _lockFixCount;
     static int _initialSyncTimeoutCounter;
-    
-    static bool isGPSValid();
-    static long getGPSTimestamp();
 };
 
 #endif
