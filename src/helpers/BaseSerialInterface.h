@@ -9,6 +9,7 @@ protected:
   BaseSerialInterface() { }
 
 public:
+  virtual void begin(const char* device_name, uint32_t pin_code) { }
   virtual void enable() = 0;
   virtual void disable() = 0;
   virtual bool isEnabled() const = 0;
