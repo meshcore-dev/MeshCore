@@ -84,6 +84,8 @@
 
 #define RESP_SERVER_LOGIN_OK      0   // response to ANON_REQ
 
+// Define the on-air structures with explicit packing
+#pragma pack(push, 1)
 struct RepeaterStats {
   uint16_t batt_milli_volts;
   uint16_t curr_tx_queue_len;
@@ -100,6 +102,10 @@ struct RepeaterStats {
   uint16_t n_direct_dups, n_flood_dups;
   uint32_t total_rx_air_time_secs;
 };
+#pragma pack(pop)
+
+// Ensure RepeaterStats size is what we expect
+static_assert(sizeof(RepeaterStats) == 40, "RepeaterStats size must be 40 bytes");
 
 struct ClientInfo {
   mesh::Identity id;
@@ -144,18 +150,27 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   ClientInfo* putClient(const mesh::Identity& id) {
     uint32_t min_time = 0xFFFFFFFF;
     ClientInfo* oldest = &known_clients[0];
+    int empty_slot = -1;
+    
+    // First try to find existing client or empty slot
     for (int i = 0; i < MAX_CLIENTS; i++) {
+      if (known_clients[i].last_activity == 0) {
+        // Found empty slot
+        empty_slot = i;
+      }
       if (known_clients[i].last_activity < min_time) {
         oldest = &known_clients[i];
         min_time = oldest->last_activity;
       }
       if (id.matches(known_clients[i].id)) return &known_clients[i];  // already known
     }
-
-    oldest->id = id;
-    oldest->out_path_len = -1;  // initially out_path is unknown
-    oldest->last_timestamp = 0;
-    return oldest;
+    
+    // Use empty slot if available, otherwise use oldest
+    ClientInfo* client = (empty_slot >= 0) ? &known_clients[empty_slot] : oldest;
+    client->id = id;
+    client->out_path_len = -1;  // initially out_path is unknown
+    client->last_timestamp = 0;
+    return client;
   }
 
   void putNeighbour(const mesh::Identity& id, uint32_t timestamp, float snr) {
@@ -224,6 +239,10 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
         sensors.querySensors((sender->is_admin ? 0xFF : 0x00) & perm_mask, telemetry);
 
         uint8_t tlen = telemetry.getSize();
+        // Safety bounds check before copying
+        if (tlen > sizeof(reply_data) - 4) {
+          tlen = sizeof(reply_data) - 4; // Clamp to available space
+        }
         memcpy(&reply_data[4], telemetry.getBuffer(), tlen);
         return 4 + tlen;  // reply_len
       }
@@ -242,14 +261,32 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
    return createAdvert(self_id, app_data, app_data_len);
   }
 
+  // File handle for packet logging to reduce open/close operations
+  File _log_file;
+  bool _log_file_open = false;
+  
   File openAppend(const char* fname) {
   #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
-    return _fs->open(fname, FILE_O_WRITE);
+    return _fs->open(fname, FILE_O_WRITE | FILE_O_APPEND);  // ensure append mode
   #elif defined(RP2040_PLATFORM)
     return _fs->open(fname, "a");
   #else
     return _fs->open(fname, "a", true);
   #endif
+  }
+  
+  void openLogFileIfNeeded() {
+    if (_logging && !_log_file_open) {
+      _log_file = openAppend(PACKET_LOG_FILE);
+      _log_file_open = _log_file;
+    }
+  }
+  
+  void closeLogFile() {
+    if (_log_file_open) {
+      _log_file.close();
+      _log_file_open = false;
+    }
   }
 
 protected:
@@ -282,49 +319,49 @@ protected:
 
   void logRx(mesh::Packet* pkt, int len, float score) override {
     if (_logging) {
-      File f = openAppend(PACKET_LOG_FILE);
-      if (f) {
-        f.print(getLogDateTime());
-        f.printf(": RX, len=%d (type=%d, route=%s, payload_len=%d) SNR=%d RSSI=%d score=%d",
+      openLogFileIfNeeded();
+      if (_log_file_open) {
+        _log_file.print(getLogDateTime());
+        _log_file.printf(": RX, len=%d (type=%d, route=%s, payload_len=%d) SNR=%d RSSI=%d score=%d",
           len, pkt->getPayloadType(), pkt->isRouteDirect() ? "D" : "F", pkt->payload_len,
           (int)_radio->getLastSNR(), (int)_radio->getLastRSSI(), (int)(score*1000));
 
         if (pkt->getPayloadType() == PAYLOAD_TYPE_PATH || pkt->getPayloadType() == PAYLOAD_TYPE_REQ
           || pkt->getPayloadType() == PAYLOAD_TYPE_RESPONSE || pkt->getPayloadType() == PAYLOAD_TYPE_TXT_MSG) {
-          f.printf(" [%02X -> %02X]\n", (uint32_t)pkt->payload[1], (uint32_t)pkt->payload[0]);
+          _log_file.printf(" [%02X -> %02X]\n", (uint32_t)pkt->payload[1], (uint32_t)pkt->payload[0]);
         } else {
-          f.printf("\n");
+          _log_file.printf("\n");
         }
-        f.close();
+        // Don't close file - it will be reused
       }
     }
   }
   void logTx(mesh::Packet* pkt, int len) override {
     if (_logging) {
-      File f = openAppend(PACKET_LOG_FILE);
-      if (f) {
-        f.print(getLogDateTime());
-        f.printf(": TX, len=%d (type=%d, route=%s, payload_len=%d)",
+      openLogFileIfNeeded();
+      if (_log_file_open) {
+        _log_file.print(getLogDateTime());
+        _log_file.printf(": TX, len=%d (type=%d, route=%s, payload_len=%d)",
           len, pkt->getPayloadType(), pkt->isRouteDirect() ? "D" : "F", pkt->payload_len);
 
         if (pkt->getPayloadType() == PAYLOAD_TYPE_PATH || pkt->getPayloadType() == PAYLOAD_TYPE_REQ
           || pkt->getPayloadType() == PAYLOAD_TYPE_RESPONSE || pkt->getPayloadType() == PAYLOAD_TYPE_TXT_MSG) {
-          f.printf(" [%02X -> %02X]\n", (uint32_t)pkt->payload[1], (uint32_t)pkt->payload[0]);
+          _log_file.printf(" [%02X -> %02X]\n", (uint32_t)pkt->payload[1], (uint32_t)pkt->payload[0]);
         } else {
-          f.printf("\n");
+          _log_file.printf("\n");
         }
-        f.close();
+        // Don't close file - it will be reused
       }
     }
   }
   void logTxFail(mesh::Packet* pkt, int len) override {
     if (_logging) {
-      File f = openAppend(PACKET_LOG_FILE);
-      if (f) {
-        f.print(getLogDateTime());
-        f.printf(": TX FAIL!, len=%d (type=%d, route=%s, payload_len=%d)\n",
+      openLogFileIfNeeded();
+      if (_log_file_open) {
+        _log_file.print(getLogDateTime());
+        _log_file.printf(": TX FAIL!, len=%d (type=%d, route=%s, payload_len=%d)\n",
           len, pkt->getPayloadType(), pkt->isRouteDirect() ? "D" : "F", pkt->payload_len);
-        f.close();
+        // Don't close file - it will be reused
       }
     }
   }
@@ -352,21 +389,40 @@ protected:
     return _prefs.multi_acks;
   }
 
+  // Track failed login attempts
+  unsigned long _last_failed_login_time = 0;
+  uint8_t _failed_login_count = 0;
+  
   void onAnonDataRecv(mesh::Packet* packet, const uint8_t* secret, const mesh::Identity& sender, uint8_t* data, size_t len) override {
     if (packet->getPayloadType() == PAYLOAD_TYPE_ANON_REQ) {  // received an initial request by a possible admin client (unknown at this stage)
       uint32_t timestamp;
       memcpy(&timestamp, data, 4);
+      
+      // Basic rate limiting for login attempts
+      unsigned long now = millis();
+      if (_failed_login_count >= 5 && (now - _last_failed_login_time) < 60000) {
+        // If we've had 5+ failed attempts in the last minute, ignore this request
+        MESH_DEBUG_PRINTLN("Login rate limit exceeded");
+        return;
+      }
 
       bool is_admin;
       data[len] = 0;  // ensure null terminator
       if (strcmp((char *) &data[4], _prefs.password) == 0) {  // check for valid password
         is_admin = true;
+        // Reset failed login tracking on success
+        _failed_login_count = 0;
       } else if (strcmp((char *) &data[4], _prefs.guest_password) == 0) {  // check guest password
         is_admin = false;
+        // Reset failed login tracking on success
+        _failed_login_count = 0;
       } else {
     #if MESH_DEBUG
         MESH_DEBUG_PRINTLN("Invalid password: %s", &data[4]);
     #endif
+        // Track failed login attempts
+        _failed_login_count++;
+        _last_failed_login_time = now;
         return;
       }
 
@@ -544,16 +600,61 @@ protected:
     }
   }
 
+  // Track last received path messages to prevent replay attacks
+  struct PathMessage {
+    uint8_t hash[4]; // Hash of the path message
+    uint32_t timestamp; // When it was received
+  };
+  static const int MAX_PATH_HISTORY = 8;
+  PathMessage _recent_paths[MAX_PATH_HISTORY];
+  int _path_history_index = 0;
+  
+  bool isPathReplay(const uint8_t* path, uint8_t path_len) {
+    // Calculate hash of this path
+    uint8_t path_hash[4];
+    mesh::Utils::sha256(path_hash, sizeof(path_hash), path, path_len, nullptr, 0);
+    
+    // Check if we've seen this path recently
+    unsigned long now = millis();
+    for (int i = 0; i < MAX_PATH_HISTORY; i++) {
+      if (_recent_paths[i].timestamp > 0 &&
+          now - _recent_paths[i].timestamp < 300000 && // Within last 5 minutes 
+          memcmp(_recent_paths[i].hash, path_hash, sizeof(path_hash)) == 0) {
+        return true; // Path replay detected
+      }
+    }
+    
+    // Store this path in history
+    memcpy(_recent_paths[_path_history_index].hash, path_hash, sizeof(path_hash));
+    _recent_paths[_path_history_index].timestamp = now;
+    _path_history_index = (_path_history_index + 1) % MAX_PATH_HISTORY;
+    
+    return false; // Not a replay
+  }
+  
   bool onPeerPathRecv(mesh::Packet* packet, int sender_idx, const uint8_t* secret, uint8_t* path, uint8_t path_len, uint8_t extra_type, uint8_t* extra, uint8_t extra_len) override {
-    // TODO: prevent replay attacks
+    // Check for path replay attacks
+    if (isPathReplay(path, path_len)) {
+      MESH_DEBUG_PRINTLN("Path replay attack detected!");
+      return false;
+    }
+    
     int i = matching_peer_indexes[sender_idx];
 
     if (i >= 0 && i < MAX_CLIENTS) {  // get from our known_clients table (sender SHOULD already be known in this context)
       MESH_DEBUG_PRINTLN("PATH to client, path_len=%d", (uint32_t) path_len);
       auto client = &known_clients[i];
-      memcpy(client->out_path, path, client->out_path_len = path_len);  // store a copy of path, for sendDirect()
+      
+      // Only update path if it's valid (not too long)
+      if (path_len > 0 && path_len <= MAX_PATH_SIZE) {
+        memcpy(client->out_path, path, client->out_path_len = path_len);  // store a copy of path, for sendDirect()
+      } else {
+        MESH_DEBUG_PRINTLN("Invalid path length: %d", (uint32_t)path_len);
+        return false;
+      }
     } else {
       MESH_DEBUG_PRINTLN("onPeerPathRecv: invalid peer idx: %d", i);
+      return false;
     }
 
     // NOTE: no reciprocal path send!!
@@ -566,9 +667,15 @@ public:
       _cli(board, rtc, &_prefs, this), telemetry(MAX_PACKET_PAYLOAD - 4)
   {
     memset(known_clients, 0, sizeof(known_clients));
+    memset(_recent_paths, 0, sizeof(_recent_paths));
+    _path_history_index = 0;
+    
     next_local_advert = next_flood_advert = 0;
     set_radio_at = revert_radio_at = 0;
     _logging = false;
+    _log_file_open = false;
+    _failed_login_count = 0;
+    _last_failed_login_time = 0;
 
   #if MAX_NEIGHBOURS
     memset(neighbours, 0, sizeof(neighbours));
@@ -666,7 +773,12 @@ public:
     }
   }
 
-  void setLoggingOn(bool enable) override { _logging = enable; }
+  void setLoggingOn(bool enable) override { 
+    _logging = enable; 
+    if (!enable) {
+      closeLogFile();
+    }
+  }
 
   void eraseLogFile() override {
     _fs->remove(PACKET_LOG_FILE);
@@ -694,27 +806,41 @@ public:
 
   void formatNeighborsReply(char *reply) override {
     char *dp = reply;
+    size_t remaining = 134; // Maximum size for the reply
 
 #if MAX_NEIGHBOURS
-    for (int i = 0; i < MAX_NEIGHBOURS && dp - reply < 134; i++) {
+    for (int i = 0; i < MAX_NEIGHBOURS && remaining > 1; i++) {
       NeighbourInfo* neighbour = &neighbours[i];
       if (neighbour->heard_timestamp == 0) continue;    // skip empty slots
 
       // add new line if not first item
-      if (i > 0) *dp++ = '\n';
+      if (i > 0 && remaining > 1) {
+        *dp++ = '\n';
+        remaining--;
+      }
 
       char hex[10];
       // get 4 bytes of neighbour id as hex
       mesh::Utils::toHex(hex, neighbour->id.pub_key, 4);
 
-      // add next neighbour
+      // add next neighbour with bounds checking
       uint32_t secs_ago = getRTCClock()->getCurrentTime() - neighbour->heard_timestamp;
-      sprintf(dp, "%s:%d:%d", hex, secs_ago, neighbour->snr);
-      while (*dp) dp++;   // find end of string
+      int written = snprintf(dp, remaining, "%s:%d:%d", hex, secs_ago, neighbour->snr);
+      
+      // Handle buffer safety
+      if (written >= 0 && written < (int)remaining) {
+        dp += written;
+        remaining -= written;
+      } else {
+        // Not enough space, truncate here
+        dp[remaining-1] = 0;
+        break;
+      }
     }
 #endif
     if (dp == reply) {   // no neighbours, need empty response
-      strcpy(dp, "-none-"); dp += 6;
+      strncpy(dp, "-none-", remaining);
+      dp += min(6, (int)remaining-1);
     }
     *dp = 0;  // null terminator
   }
@@ -766,6 +892,14 @@ public:
 
   void loop() {
     mesh::Mesh::loop();
+    
+    // Periodically sync log file to storage (every ~30 seconds)
+    static unsigned long last_sync_time = 0;
+    unsigned long now = millis();
+    if (_log_file_open && (now - last_sync_time > 30000)) {
+      _log_file.flush();  // Sync data to storage
+      last_sync_time = now;
+    }
 
     if (next_flood_advert && millisHasNowPassed(next_flood_advert)) {
       mesh::Packet* pkt = createSelfAdvert();
@@ -809,11 +943,29 @@ void halt() {
 
 static char command[160];
 
+// Helper to safely write little-endian values
+static inline void wr16le(uint8_t* p, uint16_t v) { 
+  p[0] = v & 0xFF; 
+  p[1] = v >> 8; 
+}
+
+static inline void wr32le(uint8_t* p, uint32_t v) { 
+  wr16le(p, (uint16_t)(v & 0xFFFF)); 
+  wr16le(p + 2, (uint16_t)(v >> 16)); 
+}
+
 void setup() {
   Serial.begin(115200);
   delay(1000);
 
   board.begin();
+  
+  // Warn if default password is being used
+  #if defined(ADMIN_PASSWORD) 
+  if (strcmp(ADMIN_PASSWORD, "password") == 0) {
+    Serial.println("WARNING: Default ADMIN_PASSWORD in use!");
+  }
+  #endif
 
 #ifdef DISPLAY_CLASS
   if (display.begin()) {
@@ -871,9 +1023,21 @@ void setup() {
   the_mesh.sendSelfAdvertisement(16000);
 }
 
-void loop() {
+// Function to safely handle serial input with bounds checking
+void safe_serial_read() {
   int len = strlen(command);
-  while (Serial.available() && len < sizeof(command)-1) {
+  int max_read = sizeof(command) - 1 - len; // Max chars we can safely read
+  
+  if (max_read <= 0) {
+    // Buffer is full, mark as complete and return
+    command[sizeof(command)-1] = '\r';
+    return;
+  }
+  
+  // Only read available characters up to our limit
+  int chars_to_read = min(Serial.available(), max_read);
+  
+  for (int i = 0; i < chars_to_read; i++) {
     char c = Serial.read();
     if (c != '\n') {
       command[len++] = c;
@@ -881,10 +1045,19 @@ void loop() {
     }
     Serial.print(c);
   }
-  if (len == sizeof(command)-1) {  // command buffer full
+  
+  // If we filled the buffer, mark it as complete
+  if (len == sizeof(command)-1) {
     command[sizeof(command)-1] = '\r';
   }
+}
 
+void loop() {
+  if (Serial.available()) {
+    safe_serial_read();
+  }
+  
+  int len = strlen(command);
   if (len > 0 && command[len - 1] == '\r') {  // received complete line
     command[len - 1] = 0;  // replace newline with C string null terminator
     char reply[160];
