@@ -252,7 +252,7 @@ bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, Cayen
   next_available_channel = TELEM_CHANNEL_SELF + 1;
 
   if (requester_permissions & TELEM_PERM_LOCATION && gps_active) {
-    telemetry.addGPS(TELEM_CHANNEL_SELF, node_lat, node_lon, 0.0f); // allow lat/lon via telemetry even if no GPS is detected
+    telemetry.addGPS(TELEM_CHANNEL_SELF, node_lat, node_lon, node_altitude); // allow lat/lon via telemetry even if no GPS is detected
   }
 
   if (requester_permissions & TELEM_PERM_ENVIRONMENT) {
@@ -577,17 +577,23 @@ void EnvironmentSensorManager::loop() {
       node_lat = ((double)ublox_GNSS.getLatitude())/10000000.;
       node_lon = ((double)ublox_GNSS.getLongitude())/10000000.;
       MESH_DEBUG_PRINTLN("lat %f lon %f", node_lat, node_lon);
+      node_altitude = ((double)ublox_GNSS.getAltitude()) / 1000.0;
+      MESH_DEBUG_PRINTLN("lat %f lon %f alt %f", node_lat, node_lon, node_altitude);
     }
     else if (serialGPSFlag && _location->isValid()) {
       node_lat = ((double)_location->getLatitude())/1000000.;
       node_lon = ((double)_location->getLongitude())/1000000.;
       MESH_DEBUG_PRINTLN("lat %f lon %f", node_lat, node_lon);
+      node_altitude = ((double)_location->getAltitude()) / 1000.0;
+      MESH_DEBUG_PRINTLN("lat %f lon %f alt %f", node_lat, node_lon, node_altitude);
     }
     #else
     if (_location->isValid()) {
       node_lat = ((double)_location->getLatitude())/1000000.;
       node_lon = ((double)_location->getLongitude())/1000000.;
       MESH_DEBUG_PRINTLN("lat %f lon %f", node_lat, node_lon);
+      node_altitude = ((double)_location->getAltitude()) / 1000.0;
+      MESH_DEBUG_PRINTLN("lat %f lon %f alt %f", node_lat, node_lon, node_altitude);
     }
     #endif
     }

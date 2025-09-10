@@ -6,6 +6,7 @@
 #include <helpers/SensorManager.h>
 #include <helpers/BaseSerialInterface.h>
 #include <Arduino.h>
+#include <helpers/sensors/LPPDataHelpers.h>
 
 #ifdef PIN_BUZZER
   #include <helpers/ui/buzzer.h>

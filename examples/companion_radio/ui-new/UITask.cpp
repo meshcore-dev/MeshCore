@@ -75,6 +75,9 @@ class HomeScreen : public UIScreen {
     RADIO,
     BLUETOOTH,
     ADVERT,
+#if UI_SENSORS_PAGE == 1
+    SENSORS,
+#endif
     SHUTDOWN,
     Count    // keep as last
   };
@@ -113,9 +116,37 @@ class HomeScreen : public UIScreen {
     display.fillRect(iconX + 2, iconY + 2, fillWidth, iconHeight - 4);
   }
 
+  CayenneLPP sensors_lpp;
+  int sensors_nb = 0;
+  bool sensors_scroll = false;
+  int sensors_scroll_offset = 0;
+  int next_sensors_refresh = 0;
+
+  void refresh_sensors() {
+    if (millis() > next_sensors_refresh) {
+      sensors_lpp.reset();
+      sensors_nb = 0;
+      sensors_lpp.addVoltage(TELEM_CHANNEL_SELF, (float)board.getBattMilliVolts() / 1000.0f);
+      sensors.querySensors(0xFF, sensors_lpp);
+      LPPReader reader (sensors_lpp.getBuffer(), sensors_lpp.getSize());
+      uint8_t channel, type;
+      while(reader.readHeader(channel, type)) {
+        reader.skipData(type);
+        sensors_nb ++;
+      }
+      sensors_scroll = sensors_nb > UI_RECENT_LIST_SIZE;
+#if AUTO_OFF_MILLIS > 0
+      next_sensors_refresh = millis() + 5000; // refresh sensor values every 5 sec
+#else
+      next_sensors_refresh = millis() + 60000; // refresh sensor values every 1 min
+#endif
+    }
+  }
+
 public:
   HomeScreen(UITask* task, mesh::RTCClock* rtc, SensorManager* sensors, NodePrefs* node_prefs)
-     : _task(task), _rtc(rtc), _sensors(sensors), _node_prefs(node_prefs), _page(0), _shutdown_init(false) { }
+     : _task(task), _rtc(rtc), _sensors(sensors), _node_prefs(node_prefs), _page(0), 
+       _shutdown_init(false), sensors_lpp(200) {  }
 
   void poll() override {
     if (_shutdown_init && !_task->isButtonPressed()) {  // must wait for USR button to be released
@@ -211,6 +242,78 @@ public:
       display.setColor(DisplayDriver::GREEN);
       display.drawXbm((display.width() - 32) / 2, 18, advert_icon, 32, 32);
       display.drawTextCentered(display.width() / 2, 64 - 11, "advert: " PRESS_LABEL);
+#if UI_SENSORS_PAGE == 1
+    } else if (_page == HomePage::SENSORS) {
+      int y = 18;
+      refresh_sensors();
+      char buf[30];
+      char name[30];
+      LPPReader r(sensors_lpp.getBuffer(), sensors_lpp.getSize());
+
+      for (int i = 0; i < sensors_scroll_offset; i++) {
+        uint8_t channel, type;
+        r.readHeader(channel, type);
+        r.skipData(type);
+      }
+
+      for (int i = 0; i < (sensors_scroll?UI_RECENT_LIST_SIZE:sensors_nb); i++) {
+        uint8_t channel, type;
+        if (!r.readHeader(channel, type)) { // reached end, reset
+          r.reset();
+          r.readHeader(channel, type);
+        }
+
+        display.setCursor(0, y);
+        float v;
+        switch (type) {
+          case LPP_GPS: // GPS
+            float lat, lon, alt;
+            r.readGPS(lat, lon, alt);
+            strcpy(name, "gps"); sprintf(buf, "%.4f %.4f", lat, lon);
+            break;
+          case LPP_VOLTAGE:
+            r.readVoltage(v);
+            strcpy(name, "voltage"); sprintf(buf, "%6.2f", v);
+            break;
+          case LPP_CURRENT:
+            r.readCurrent(v);
+            strcpy(name, "current"); sprintf(buf, "%.3f", v);
+            break;
+          case LPP_TEMPERATURE:
+            r.readTemperature(v);
+            strcpy(name, "temperature"); sprintf(buf, "%.2f", v);
+            break;
+          case LPP_RELATIVE_HUMIDITY:
+            r.readRelativeHumidity(v);
+            strcpy(name, "humidity"); sprintf(buf, "%.2f", v);
+            break;
+          case LPP_BAROMETRIC_PRESSURE:
+            r.readPressure(v);
+            strcpy(name, "pressure"); sprintf(buf, "%.2f", v);
+            break;
+          case LPP_ALTITUDE:
+            r.readAltitude(v);
+            strcpy(name, "altitude"); sprintf(buf, "%.0f", v);
+            break;
+          case LPP_POWER:
+            r.readPower(v);
+            strcpy(name, "power"); sprintf(buf, "%6.2f", v);
+            break;
+          default:
+            r.skipData(type);
+            strcpy(name, "unk"); sprintf(buf, "");
+        }
+        display.setCursor(0, y);
+        display.print(name);
+        display.setCursor(
+          display.width()-display.getTextWidth(buf)-1, y
+        );
+        display.print(buf);
+        y = y + 12;
+      }
+      if (sensors_scroll) sensors_scroll_offset = (sensors_scroll_offset+1)%sensors_nb;
+      else sensors_scroll_offset = 0;
+#endif
     } else if (_page == HomePage::SHUTDOWN) {
       display.setColor(DisplayDriver::GREEN);
       display.setTextSize(1);
@@ -255,6 +358,13 @@ public:
       }
       return true;
     }
+#if UI_SENSORS_PAGE == 1
+    if (c == KEY_ENTER && _page == HomePage::SENSORS) {
+      _task->toggleGPS();
+      next_sensors_refresh=0;
+      return true;
+    }
+#endif
     if (c == KEY_ENTER && _page == HomePage::SHUTDOWN) {
       _shutdown_init = true;  // need to wait for button to be released
       return true;
