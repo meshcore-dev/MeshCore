@@ -60,6 +60,10 @@ public:
   void reboot() override {
     NVIC_SystemReset();
   }
+  
+  void powerOff() override {
+    sd_power_system_off();
+  }
 
   bool startOTAUpdate(const char* id, char reply[]) override;
 };

@@ -3,6 +3,10 @@
 #include "../BaseSerialInterface.h"
 #include <bluefruit.h>
 
+#ifndef BLE_TX_POWER
+#define BLE_TX_POWER 4
+#endif
+
 class SerialBLEInterface : public BaseSerialInterface {
   BLEUart bleuart;
   bool _isEnabled;

@@ -1524,33 +1524,72 @@ void MyMesh::checkCLIRescueCmd() {
 
       // get path from command e.g: "ls /adafruit"
       const char *path = &cli_command[3];
-      
+
+      bool is_fs2 = false;
+      if (memcmp(path, "UserData/", 9) == 0) {
+        path += 8; // skip "UserData"
+      } else if (memcmp(path, "ExtraFS/", 8) == 0) {
+        path += 7; // skip "ExtraFS"
+        is_fs2 = true;
+      }
+      Serial.printf("Listing files in %s\n", path);
+
       // log each file and directory
       File root = _store->openRead(path);
-      if(root){
-        File file = root.openNextFile();
-        while (file) {
-
-          if (file.isDirectory()) {
-            Serial.printf("[dir] %s\n", file.name());
-          } else {
-            Serial.printf("[file] %s (%d bytes)\n", file.name(), file.size());
+      if (is_fs2 == false) {
+        if (root) {
+          File file = root.openNextFile();
+          while (file) {
+            if (file.isDirectory()) {
+              Serial.printf("[dir]  UserData%s/%s\n", path, file.name());
+            } else {
+              Serial.printf("[file] UserData%s/%s (%d bytes)\n", path, file.name(), file.size());
+            }
+            // move to next file
+            file = root.openNextFile();
           }
-
-          // move to next file
-          file = root.openNextFile();
-
+          root.close();
         }
-        root.close();
       }
 
+      if (is_fs2 == true || strlen(path) == 0 || strcmp(path, "/") == 0) {
+        if (_store->getSecondaryFS() != nullptr) {
+          File root2 = _store->openRead(_store->getSecondaryFS(), path);
+          File file = root2.openNextFile();
+          while (file) {
+            if (file.isDirectory()) {
+              Serial.printf("[dir]  ExtraFS%s/%s\n", path, file.name());
+            } else {
+              Serial.printf("[file] ExtraFS%s/%s (%d bytes)\n", path, file.name(), file.size());
+            }
+            // move to next file
+            file = root2.openNextFile();
+          }
+          root2.close();
+        }
+      }
     } else if (memcmp(cli_command, "cat", 3) == 0) {
 
       // get path from command e.g: "cat /contacts3"
       const char *path = &cli_command[4];
       
+      bool is_fs2 = false;
+      if (memcmp(path, "UserData/", 9) == 0) {
+        path += 8; // skip "UserData"
+      } else if (memcmp(path, "ExtraFS/", 8) == 0) {
+        path += 7; // skip "ExtraFS"
+        is_fs2 = true;
+      } else {
+        Serial.println("Invalid path provided, must start with UserData/ or ExtraFS/");
+        cli_command[0] = 0;
+        return;
+      }
+
       // log file content as hex
       File file = _store->openRead(path);
+      if (is_fs2 == true) {
+        file = _store->openRead(_store->getSecondaryFS(), path);
+      }
       if(file){
 
         // get file content
@@ -1567,17 +1606,30 @@ void MyMesh::checkCLIRescueCmd() {
       }
 
     } else if (memcmp(cli_command, "rm ", 3) == 0) {
-
       // get path from command e.g: "rm /adv_blobs"
-      const char *path = &cli_command[4];
-
+      const char *path = &cli_command[3];
+      MESH_DEBUG_PRINTLN("Removing file: %s", path);
       // ensure path is not empty, or root dir
       if(!path || strlen(path) == 0 || strcmp(path, "/") == 0){
         Serial.println("Invalid path provided");
       } else {
+      bool is_fs2 = false;
+      if (memcmp(path, "UserData/", 9) == 0) {
+        path += 8; // skip "UserData"
+      } else if (memcmp(path, "ExtraFS/", 8) == 0) {
+        path += 7; // skip "ExtraFS"
+        is_fs2 = true;
+      }
 
         // remove file
-        bool removed = _store->removeFile(path);
+        bool removed;
+        if (is_fs2) {
+          MESH_DEBUG_PRINTLN("Removing file from ExtraFS: %s", path);
+          removed = _store->removeFile(_store->getSecondaryFS(), path);
+        } else {
+          MESH_DEBUG_PRINTLN("Removing file from UserData: %s", path);
+          removed = _store->removeFile(path);
+        }
         if(removed){
           Serial.println("File removed");
         } else {

@@ -146,15 +146,6 @@ void T1000SensorManager::stop_gps() {
 bool T1000SensorManager::begin() {
   // init GPS
   Serial1.begin(115200);
-
-  // make sure gps pin are off
-  digitalWrite(GPS_VRTC_EN, LOW);
-  digitalWrite(GPS_RESET, LOW);
-  digitalWrite(GPS_SLEEP_INT, LOW);
-  digitalWrite(GPS_RTC_INT, LOW);
-  pinMode(GPS_RESETB, OUTPUT);
-  digitalWrite(GPS_RESETB, LOW);
-
   return true;
 }
 
