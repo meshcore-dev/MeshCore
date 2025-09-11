@@ -238,11 +238,9 @@ bool hasPendingWork() {
   }
 #else
   // TODO: arduino Serial.available() call wakes from sleep every time.
-  // this should be based on a lighter-weight register check or ISR,
-  // but the Serial module already registers the ISR we want to use.
-  // this means that this check negates sleep mode completely, but is
-  // required for reasonable operation of a repeater/room, without more
-  // testing.
+  // need to find a less intrusive way to check this.  not a big deal, as
+  // this should only be needed for USB companion, which doesn't need every
+  // mW of power savings, with external power available.
   if (Serial.available() > 0) {
     last_activity_time = now;
     return true;
@@ -253,12 +251,7 @@ bool hasPendingWork() {
     return true;
   }
 
-  if (the_mesh.hasTimingCriticalWork()) {
-    return true;
-  }
-
-  // stay fully awake for 20ms after most recent activity, just in case
-  if (now - last_activity_time < 20) {
+  if (the_mesh.hasTimingCriticalWork() || now - last_activity_time < 20) {
     return true;
   }
 
@@ -286,9 +279,6 @@ void loop() {
    * - button interrupt
    */
   if (!hasPendingWork()) {
-    //radio_standby(); // this doesn't work, probably far too
-    //aggressive about putting the radio into standby. need to add an
-    //activity standoff time before calling it.
     __WFE();
   }
 #endif

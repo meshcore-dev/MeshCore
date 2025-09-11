@@ -44,10 +44,6 @@ void radio_standby() {
     radio.standby();
 }
 
-void radio_start_receive() {
-    radio.startReceive();
-}
-
 mesh::LocalIdentity radio_new_identity() {
   RadioNoiseListener rng(radio);
   return mesh::LocalIdentity(&rng);  // create new random identity
