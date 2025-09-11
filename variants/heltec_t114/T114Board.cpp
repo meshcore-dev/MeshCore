@@ -28,7 +28,7 @@ void T114Board::begin() {
   sd_power_mode_set(NRF_POWER_MODE_LOWPWR);
 
   // Enable DC/DC converter for better efficiency (REG1 stage)
-  sd_power_dcdc_mode_set(NRF_POWER_DCDC_ENABLE)
+  sd_power_dcdc_mode_set(NRF_POWER_DCDC_ENABLE);
 
   // Power down unused communication peripherals
   // UART1 - Not used on T114
