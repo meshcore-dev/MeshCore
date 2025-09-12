@@ -106,9 +106,15 @@ class HomeScreen : public UIScreen {
     // battery "cap"
     display.fillRect(iconX + iconWidth, iconY + (iconHeight / 4), 3, iconHeight / 2);
 
-    // fill the battery based on the percentage
+    // fill the battery based on the percentage as a small bar
     int fillWidth = (batteryPercentage * (iconWidth - 4)) / 100;
-    display.fillRect(iconX + 2, iconY + 2, fillWidth, iconHeight - 4);
+    display.fillRect(iconX + 2, iconY + 8, fillWidth, iconHeight - 8);
+
+    // write the voltage inside the battery icon
+    char voltStr[10];
+    snprintf(voltStr, sizeof(voltStr), "%.1fV", batteryMilliVolts / 1000.0f);
+    display.drawTextCentered(iconX + (iconWidth / 2), iconY, voltStr);
+
   }
 
 public:
