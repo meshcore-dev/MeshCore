@@ -593,10 +593,8 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         strcpy(reply, "gps toggle not found");
       }
     } else if (memcmp(command, "gps sync", 8) == 0) {
-      LocationProvider * l = sensors.getLocationProvider();
-      if (l != NULL) {
-        l->syncTime();
-      }
+      sensors.getGps()->syncTime();
+      strcpy(reply, "sync requested");
     } else if (memcmp(command, "gps setloc", 10) == 0) {
       _prefs->node_lat = sensors.node_lat;
       _prefs->node_lon = sensors.node_lon;
@@ -633,22 +631,24 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         strcpy(reply, "error");
       }
     } else if (memcmp(command, "gps", 3) == 0) {
-      LocationProvider * l = sensors.getLocationProvider();
-      if (l != NULL) {
-        bool enabled = l->isEnabled(); // is EN pin on ?
-        bool fix = l->isValid();       // has fix ?
-        int sats = l->satellitesCount();
-        bool active = !strcmp(sensors.getSettingByKey("gps"), "1");
-        if (enabled) {
-          sprintf(reply, "on, %s, %s, %d sats",
-            active?"active":"deactivated", 
-            fix?"fix":"no fix", 
+      LocationProvider* gps = sensors.getGps();
+      if (gps && gps->isDetected()) {
+        bool enabled = gps->isEnabled();
+        bool hardware_on = gps->isHardwareOn();
+        bool fix = gps->hasValidFix();
+        int sats = gps->getSatelliteCount();
+
+        if (!enabled) {
+          strcpy(reply, "disabled");
+        } else if (hardware_on) {
+          sprintf(reply, "awake, %s, %d sats",
+            fix?"fix":"no fix",
             sats);
         } else {
-          strcpy(reply, "off");
+          strcpy(reply, "sleeping (duty cycling)");
         }
       } else {
-        strcpy(reply, "Can't find GPS");
+        strcpy(reply, "not detected");
       }
 #endif
     } else if (memcmp(command, "log start", 9) == 0) {

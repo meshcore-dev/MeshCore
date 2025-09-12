@@ -2,7 +2,10 @@
 
 #include <Mesh.h>
 #include <helpers/SensorManager.h>
-#include <helpers/sensors/LocationProvider.h>
+
+#if ENV_INCLUDE_GPS
+#include <helpers/sensors/location/LocationProvider.h>
+#endif
 
 class EnvironmentSensorManager : public SensorManager {
 protected:
@@ -22,25 +25,15 @@ protected:
   bool SHT4X_initialized = false;
   bool BME680_initialized = false;
 
-  bool gps_detected = false;
-  bool gps_active = false;
-
   #if ENV_INCLUDE_GPS
-  LocationProvider* _location;
-  void start_gps();
-  void stop_gps();
-  void initBasicGPS();
-  #ifdef RAK_BOARD
-  void rakGPSInit();
-  bool gpsIsAwake(uint8_t ioPin);
-  #endif
+  LocationProvider* _gps;
   #endif
 
 
 public:
   #if ENV_INCLUDE_GPS
-  EnvironmentSensorManager(LocationProvider &location): _location(&location){};
-  LocationProvider* getLocationProvider() { return _location; }
+  EnvironmentSensorManager(): _gps(new LocationProvider(nullptr)){};
+  LocationProvider* getGps() { return _gps; }
   #else
   EnvironmentSensorManager(){};
   #endif

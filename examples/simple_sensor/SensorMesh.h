@@ -152,6 +152,11 @@ private:
   #if ENV_INCLUDE_GPS == 1
   void applyGpsPrefs() {
     sensors.setSettingByKey("gps", _prefs.gps_enabled?"1":"0");
+    if (_prefs.gps_interval > 0) {
+      char interval_str[16];
+      snprintf(interval_str, sizeof(interval_str), "%u", _prefs.gps_interval * 1000);  // Convert seconds to ms
+      sensors.setSettingByKey("gps_interval", interval_str);
+    }
   }
 #endif
 };
