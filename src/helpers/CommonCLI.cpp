@@ -132,7 +132,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
     if (memcmp(command, "reboot", 6) == 0) {
       _board->reboot();  // doesn't return
     } else if (memcmp(command, "advert", 6) == 0) {
-      _callbacks->sendSelfAdvertisement(400);
+      _callbacks->sendSelfAdvertisement(1500);  // longer delay, give CLI response time to be sent first
       strcpy(reply, "OK - Advert sent");
     } else if (memcmp(command, "clock sync", 10) == 0) {
       uint32_t curr = getRTCClock()->getCurrentTime();
@@ -165,6 +165,32 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
       }
     } else if (memcmp(command, "neighbors", 9) == 0) {
       _callbacks->formatNeighborsReply(reply);
+    } else if (memcmp(command, "neighbor.remove ", 16) == 0) {
+      const char* hex = &command[16];
+      uint8_t pubkey[PUB_KEY_SIZE];
+      int hex_len = min((int)strlen(hex), PUB_KEY_SIZE*2);
+      int pubkey_len = hex_len / 2;
+      if (mesh::Utils::fromHex(pubkey, pubkey_len, hex)) {
+        _callbacks->removeNeighbor(pubkey, pubkey_len);
+        strcpy(reply, "OK");
+      } else {
+        strcpy(reply, "ERR: bad pubkey");
+      }
+    } else if (memcmp(command, "tempradio ", 10) == 0) {
+      strcpy(tmp, &command[10]);
+      const char *parts[5];
+      int num = mesh::Utils::parseTextParts(tmp, parts, 5);
+      float freq  = num > 0 ? atof(parts[0]) : 0.0f;
+      float bw    = num > 1 ? atof(parts[1]) : 0.0f;
+      uint8_t sf  = num > 2 ? atoi(parts[2]) : 0;
+      uint8_t cr  = num > 3 ? atoi(parts[3]) : 0;
+      int temp_timeout_mins  = num > 4 ? atoi(parts[4]) : 0;
+      if (freq >= 300.0f && freq <= 2500.0f && sf >= 7 && sf <= 12 && cr >= 5 && cr <= 8 && bw >= 7.0f && bw <= 500.0f && temp_timeout_mins > 0) {
+        _callbacks->applyTempRadioParams(freq, bw, sf, cr, temp_timeout_mins);
+        sprintf(reply, "OK - temp params for %d mins", temp_timeout_mins);
+      } else {
+        strcpy(reply, "Error, invalid params");
+      }
     } else if (memcmp(command, "password ", 9) == 0) {
       // change admin password
       StrHelper::strncpy(_prefs->password, &command[9], sizeof(_prefs->password));
@@ -191,6 +217,11 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         sprintf(reply, "> %d", ((uint32_t) _prefs->advert_interval) * 2);
       } else if (memcmp(config, "guest.password", 14) == 0) {
         sprintf(reply, "> %s", _prefs->guest_password);
+      } else if (sender_timestamp == 0 && memcmp(config, "prv.key", 7) == 0) {  // from serial command line only
+        uint8_t prv_key[PRV_KEY_SIZE];
+        int len = _callbacks->getSelfId().writeTo(prv_key, PRV_KEY_SIZE);
+        mesh::Utils::toHex(tmp, prv_key, len);
+        sprintf(reply, "> %s", tmp);
       } else if (memcmp(config, "name", 4) == 0) {
         sprintf(reply, "> %s", _prefs->node_name);
       } else if (memcmp(config, "repeat", 6) == 0) {
@@ -218,7 +249,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         sprintf(reply, "> %s", StrHelper::ftoa(_prefs->freq));
       } else if (memcmp(config, "public.key", 10) == 0) {
         strcpy(reply, "> ");
-        mesh::Utils::toHex(&reply[2], _callbacks->getSelfIdPubKey(), PUB_KEY_SIZE);
+        mesh::Utils::toHex(&reply[2], _callbacks->getSelfId().pub_key, PUB_KEY_SIZE);
       } else if (memcmp(config, "role", 4) == 0) {
         sprintf(reply, "> %s", _callbacks->getRole());
       } else {
@@ -237,7 +268,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
       } else if (memcmp(config, "agc.reset.interval ", 19) == 0) {
         _prefs->agc_reset_interval = atoi(&config[19]) / 4;
         savePrefs();
-        strcpy(reply, "OK");
+        sprintf(reply, "OK - interval rounded to %d", ((uint32_t) _prefs->agc_reset_interval) * 4);
       } else if (memcmp(config, "multi.acks ", 11) == 0) {
         _prefs->multi_acks = atoi(&config[11]);
         savePrefs();
@@ -270,6 +301,17 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         StrHelper::strncpy(_prefs->guest_password, &config[15], sizeof(_prefs->guest_password));
         savePrefs();
         strcpy(reply, "OK");
+      } else if (sender_timestamp == 0 && memcmp(config, "prv.key ", 8) == 0) {  // from serial command line only
+        uint8_t prv_key[PRV_KEY_SIZE];
+        bool success = mesh::Utils::fromHex(prv_key, PRV_KEY_SIZE, &config[8]);
+        if (success) {
+          mesh::LocalIdentity new_id;
+          new_id.readFrom(prv_key, PRV_KEY_SIZE);
+          _callbacks->saveIdentity(new_id);
+          strcpy(reply, "OK");
+        } else {
+          strcpy(reply, "Error, invalid key");
+        }
       } else if (memcmp(config, "name ", 5) == 0) {
         StrHelper::strncpy(_prefs->node_name, &config[5], sizeof(_prefs->node_name));
         savePrefs();

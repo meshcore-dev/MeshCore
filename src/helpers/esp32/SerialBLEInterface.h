@@ -13,6 +13,7 @@ class SerialBLEInterface : public BaseSerialInterface, BLESecurityCallbacks, BLE
   bool deviceConnected;
   bool oldDeviceConnected;
   bool _isEnabled;
+  uint16_t last_conn_id;
   uint32_t _pin_code;
   unsigned long _last_write;
   unsigned long adv_restart_time;
@@ -56,6 +57,7 @@ public:
     adv_restart_time = 0;
     _isEnabled = false;
     _last_write = 0;
+    last_conn_id = 0;
     send_queue_len = recv_queue_len = 0;
   }
 

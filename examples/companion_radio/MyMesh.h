@@ -2,19 +2,17 @@
 
 #include <Arduino.h>
 #include <Mesh.h>
-#ifdef DISPLAY_CLASS
-#include "UITask.h"
-#endif
+#include "AbstractUITask.h"
 
 /*------------ Frame Protocol --------------*/
 #define FIRMWARE_VER_CODE 7
 
 #ifndef FIRMWARE_BUILD_DATE
-#define FIRMWARE_BUILD_DATE "15 Jul 2025"
+#define FIRMWARE_BUILD_DATE "1 Sep 2025"
 #endif
 
 #ifndef FIRMWARE_VERSION
-#define FIRMWARE_VERSION "v1.7.3"
+#define FIRMWARE_VERSION "v1.8.1"
 #endif
 
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
@@ -77,9 +75,17 @@
 #define REQ_TYPE_KEEP_ALIVE             0x02
 #define REQ_TYPE_GET_TELEMETRY_DATA     0x03
 
+struct AdvertPath {
+  uint8_t pubkey_prefix[7];
+  uint8_t path_len;
+  char    name[32];
+  uint32_t recv_timestamp;
+  uint8_t path[MAX_PATH_SIZE];
+};
+
 class MyMesh : public BaseChatMesh, public DataStoreHost {
 public:
-  MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMeshTables &tables, DataStore& store);
+  MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMeshTables &tables, DataStore& store, AbstractUITask* ui=NULL);
 
   void begin(bool has_display);
   void startInterface(BaseSerialInterface &serial);
@@ -93,6 +99,8 @@ public:
   bool advert();
   void enterCLIRescue();
 
+  int  getRecentlyHeard(AdvertPath dest[], int max_num);
+
 protected:
   float getAirtimeBudgetFactor() const override;
   int getInterferenceThreshold() const override;
@@ -101,6 +109,7 @@ protected:
 
   void logRxRaw(float snr, float rssi, const uint8_t raw[], int len) override;
   bool isAutoAddEnabled() const override;
+  bool onContactPathRecv(ContactInfo& from, uint8_t* in_path, uint8_t in_path_len, uint8_t* out_path, uint8_t out_path_len, uint8_t extra_type, uint8_t* extra, uint8_t extra_len) override;
   void onDiscoveredContact(ContactInfo &contact, bool is_new, uint8_t path_len, const uint8_t* path) override;
   void onContactPathUpdated(const ContactInfo &contact) override;
   bool processAck(const uint8_t *data) override;
@@ -133,12 +142,16 @@ protected:
   bool onChannelLoaded(uint8_t channel_idx, const ChannelDetails& ch) override { return setChannel(channel_idx, ch); }
   bool getChannelForSave(uint8_t channel_idx, ChannelDetails& ch) override { return getChannel(channel_idx, ch); }
 
+  void clearPendingReqs() {
+    pending_login = pending_status = pending_telemetry = pending_discovery = pending_req = 0;
+  }
+
 private:
   void writeOKFrame();
   void writeErrFrame(uint8_t err_code);
   void writeDisabledFrame();
   void writeContactRespFrame(uint8_t code, const ContactInfo &contact);
-  void updateContactFromFrame(ContactInfo &contact, const uint8_t *frame, int len);
+  void updateContactFromFrame(ContactInfo &contact, uint32_t& last_mod, const uint8_t *frame, int len);
   void addToOfflineQueue(const uint8_t frame[], int len);
   int getFromOfflineQueue(uint8_t frame[]);
   int getBlobByKey(const uint8_t key[], int key_len, uint8_t dest_buf[]) override { 
@@ -161,9 +174,10 @@ private:
   NodePrefs _prefs;
   uint32_t pending_login;
   uint32_t pending_status;
-  uint32_t pending_telemetry;   // pending _TELEMETRY_REQ
+  uint32_t pending_telemetry, pending_discovery;   // pending _TELEMETRY_REQ
   uint32_t pending_req;   // pending _BINARY_REQ
   BaseSerialInterface *_serial;
+  AbstractUITask* _ui;
 
   ContactsIterator _iter;
   uint32_t _iter_filter_since;
@@ -196,17 +210,8 @@ private:
   AckTableEntry expected_ack_table[EXPECTED_ACK_TABLE_SIZE]; // circular table
   int next_ack_idx;
 
-  struct AdvertPath {
-    uint8_t pubkey_prefix[7];
-    uint8_t path_len;
-    uint32_t recv_timestamp;
-    uint8_t path[MAX_PATH_SIZE];
-  };
   #define ADVERT_PATH_TABLE_SIZE   16
   AdvertPath advert_paths[ADVERT_PATH_TABLE_SIZE]; // circular table
 };
 
 extern MyMesh the_mesh;
-#ifdef DISPLAY_CLASS
-extern UITask ui_task;
-#endif

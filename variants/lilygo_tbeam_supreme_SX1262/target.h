@@ -11,6 +11,8 @@
 #ifdef DISPLAY_CLASS
   #include <helpers/ui/SH1106Display.h>
   extern DISPLAY_CLASS display;
+  #include <helpers/ui/MomentaryButton.h>
+  extern MomentaryButton user_btn;
 #endif
 
 extern TBeamBoard board;

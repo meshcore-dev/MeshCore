@@ -31,13 +31,14 @@ author: https://github.com/LitBomb<!-- omit from toc -->
   - [4.2. Q: Why is my T-Deck Plus not getting any satellite lock?](#42-q-why-is-my-t-deck-plus-not-getting-any-satellite-lock)
   - [4.3. Q: Why is my OG (non-Plus) T-Deck not getting any satellite lock?](#43-q-why-is-my-og-non-plus-t-deck-not-getting-any-satellite-lock)
   - [4.4. Q: What size of SD card does the T-Deck support?](#44-q-what-size-of-sd-card-does-the-t-deck-support)
-  - [4.5. Q: How do I get maps on T-Deck?](#45-q-how-do-i-get-maps-on-t-deck)
-  - [4.6. Q: Where do the map tiles go?](#46-q-where-do-the-map-tiles-go)
-  - [4.7. Q: How to unlock deeper map zoom and server management features on T-Deck?](#47-q-how-to-unlock-deeper-map-zoom-and-server-management-features-on-t-deck)
-  - [4.8. Q: How to decipher the diagnostics screen on T-Deck?](#48-q-how-to-decipher-the-diagnostics-screen-on-t-deck)
-  - [4.9. Q: The T-Deck sound is too loud?](#49-q-the-t-deck-sound-is-too-loud)
-  - [4.10. Q: Can you customize the sound?](#410-q-can-you-customize-the-sound)
-  - [4.11. Q: What is the 'Import from Clipboard' feature on the t-deck and is there a way to manually add nodes without having to receive adverts?](#411-q-what-is-the-import-from-clipboard-feature-on-the-t-deck-and-is-there-a-way-to-manually-add-nodes-without-having-to-receive-adverts)
+  - [4.5. Q: What is the public key for the default public channel?](#45-q-what-is-the-public-key-for-the-default-public-channel)
+  - [4.6. Q: How do I get maps on T-Deck?](#46-q-how-do-i-get-maps-on-t-deck)
+  - [4.7. Q: Where do the map tiles go?](#47-q-where-do-the-map-tiles-go)
+  - [4.8. Q: How to unlock deeper map zoom and server management features on T-Deck?](#48-q-how-to-unlock-deeper-map-zoom-and-server-management-features-on-t-deck)
+  - [4.9. Q: How to decipher the diagnostics screen on T-Deck?](#49-q-how-to-decipher-the-diagnostics-screen-on-t-deck)
+  - [4.10. Q: The T-Deck sound is too loud?](#410-q-the-t-deck-sound-is-too-loud)
+  - [4.11. Q: Can you customize the sound?](#411-q-can-you-customize-the-sound)
+  - [4.12. Q: What is the 'Import from Clipboard' feature on the t-deck and is there a way to manually add nodes without having to receive adverts?](#412-q-what-is-the-import-from-clipboard-feature-on-the-t-deck-and-is-there-a-way-to-manually-add-nodes-without-having-to-receive-adverts)
 - [5. General](#5-general)
   - [5.1. Q: What are BW, SF, and CR?](#51-q-what-are-bw-sf-and-cr)
   - [5.2. Q: Do MeshCore clients repeat?](#52-q-do-meshcore-clients-repeat)
@@ -62,21 +63,24 @@ author: https://github.com/LitBomb<!-- omit from toc -->
   - [6.1. Q: My client says another client or a repeater or a room server was last seen many, many days ago.](#61-q-my-client-says-another-client-or-a-repeater-or-a-room-server-was-last-seen-many-many-days-ago)
   - [6.2. Q: A repeater or a client or a room server I expect to see on my discover list (on T-Deck) or contact list (on a smart device client) are not listed.](#62-q-a-repeater-or-a-client-or-a-room-server-i-expect-to-see-on-my-discover-list-on-t-deck-or-contact-list-on-a-smart-device-client-are-not-listed)
   - [6.3. Q: How to connect to a repeater via BLE (Bluetooth)?](#63-q-how-to-connect-to-a-repeater-via-ble-bluetooth)
-  - [6.4. Q: I can't connect via Bluetooth, what is the Bluetooth pairing code?](#64-q-i-cant-connect-via-bluetooth-what-is-the-bluetooth-pairing-code)
-  - [6.5. Q: My Heltec V3 keeps disconnecting from my smartphone.  It can't hold a solid Bluetooth connection.](#65-q-my-heltec-v3-keeps-disconnecting-from-my-smartphone--it-cant-hold-a-solid-bluetooth-connection)
-  - [6.6. Q: My RAK/T1000-E/xiao\_nRF52 device seems to be corrupted, how do I wipe it clean to start fresh?](#66-q-my-rakt1000-exiao_nrf52-device-seems-to-be-corrupted-how-do-i-wipe-it-clean-to-start-fresh)
-  - [6.7. Q: WebFlasher fails on Linux with failed to open](#67-q-webflasher-fails-on-Linux-with-failed-to-open)
-
+  - [6.4. Q: My companion isn't showing up over Bluetooth?](#64-q-my-companion-isnt-showing-up-over-bluetooth)
+  - [6.5. Q: I can't connect via Bluetooth, what is the Bluetooth pairing code?](#64-q-i-cant-connect-via-bluetooth-what-is-the-bluetooth-pairing-code)
+  - [6.6. Q: My Heltec V3 keeps disconnecting from my smartphone.  It can't hold a solid Bluetooth connection.](#65-q-my-heltec-v3-keeps-disconnecting-from-my-smartphone--it-cant-hold-a-solid-bluetooth-connection)
+  - [6.7. Q: My RAK/T1000-E/xiao\_nRF52 device seems to be corrupted, how do I wipe it clean to start fresh?](#66-q-my-rakt1000-exiao_nrf52-device-seems-to-be-corrupted-how-do-i-wipe-it-clean-to-start-fresh)
+  - [6.8. Q: WebFlasher fails on Linux with failed to open](#67-q-webflasher-fails-on-linux-with-failed-to-open)
 - [7. Other Questions:](#7-other-questions)
   - [7.1 Q: How to update nRF (RAK, T114, Seed XIAO) repeater and room server firmware over the air using the new simpler DFU app?](#71-q-how-to-update-nrf-rak-t114-seed-xiao-repeater-and-room-server-firmware-over-the-air-using-the-new-simpler-dfu-app)
   - [7.2 Q: How to update ESP32-based devices over the air?](#72-q-how-to-update-esp32-based-devices-over-the-air)
   - [7.3 Q: Is there a way to lower the chance of a failed OTA device firmware update (DFU)?](#73-q-is-there-a-way-to-lower-the-chance-of-a-failed-ota-device-firmware-update-dfu)
+  - [7.4 Q are the MeshCore logo and font available?](#74-q-are-the-meshcore-logo-and-font-available)
 
 ## 1. Introduction
 
 ### 1.1. Q: What is MeshCore?
 
-**A:** MeshCore is free and open source
+**A:** MeshCore is a multi platform system for enabling secure text based communications utilising LoRa radio hardware. It can be used for Off-Grid Communication, Emergency Response & Disaster Recovery, Outdoor Activities, Tactical Security including law enforcement and private security and also IoT sensor networks. ([source](https://meshcore.co.uk/))
+
+MeshCore is free and open source:
 * MeshCore is the routing and firmware etc, available on GitHub under MIT license
 * There are clients made by the community, such as the web clients, these are free to use, and some are open source too
 * The cross platform mobile app developed by [Liam Cottle](https://liamcottle.net) for Android/iOS/PC etc is free to download and use
@@ -176,7 +180,7 @@ The T-Deck firmware is free to download and most features are available without 
 
 In UK and EU, 867.5MHz is not allowed to use 250kHz bandwidth and it only allows 2.5% duty cycle for clients.  869.525Mhz allows an airtime of 10%, 250KHz bandwidth, and a higher EIRP, therefore MeshCore nodes can send more often and with more power. That is why this frequency is chosen for UK and EU.  This is also why Meshtastic also uses this frequency.  
 
-[Source]([https://](https://discord.com/channels/826570251612323860/1330643963501351004/1356540643853209641))
+[Source](https://discord.com/channels/826570251612323860/1330643963501351004/1356540643853209641)
 
 the rest of the radio settings are the same for all frequencies:  
 - Spread Factor (SF): 11  
@@ -268,7 +272,7 @@ You can get the latitude and longitude from Google Maps by right-clicking the lo
 
 GPS on T-Deck is always enabled.  You can skip the "GPS clock sync" and the T-Deck will continue to try to get a GPS lock.  You can go to the `GPS Info` screen; you should see the `Sentences:` counter increasing if the baud rate is correct.
 
-[Source]([https://](https://discord.com/channels/826570251612323860/1330643963501351004/1356609240302616689))
+[Source](https://discord.com/channels/826570251612323860/1330643963501351004/1356609240302616689)
 
 ### 4.3. Q: Why is my OG (non-Plus) T-Deck not getting any satellite lock?
 **A:** The OG (non-Plus) T-Deck doesn't come with a GPS. If you added a GPS to your OG T-Deck, please refer to the manual of your GPS to see what baud rate it requires. Alternatively, you can try to set the baud rate from 9600, 19200, etc., and up to 115200 to see which one works.
@@ -276,7 +280,18 @@ GPS on T-Deck is always enabled.  You can skip the "GPS clock sync" and the T-De
 ### 4.4. Q: What size of SD card does the T-Deck support?
 **A:** Users have had no issues using 16GB or 32GB SD cards. Format the SD card to **FAT32**.
 
-### 4.5. Q: How do I get maps on T-Deck?
+### 4.5. Q: what is the public key for the default public channel?
+**A:** 
+T-Deck uses the same key the smartphone apps use but in base64 
+`izOH6cXN6mrJ5e26oRXNcg==`
+The third character is the capital letter 'O', not zero `0`
+
+The smartphone app key is in hex:
+` 8b3387e9c5cdea6ac9e5edbaa115cd72`
+
+[Source](https://discord.com/channels/826570251612323860/1330643963501351004/1354194409213792388)
+
+### 4.6. Q: How do I get maps on T-Deck?
 **A:** You need map tiles. You can get pre-downloaded map tiles here (a good way to support development):  
 - <https://buymeacoffee.com/ripplebiz/e/342543> (Europe)  
 - <https://buymeacoffee.com/ripplebiz/e/342542> (US)
@@ -290,14 +305,14 @@ There is also a modified script that adds additional error handling and parallel
 UK map tiles are available separately from Andy Kirby on his discord server:  
 <https://discord.com/channels/826570251612323860/1330643963501351004/1331346597367386224>
 
-### 4.6. Q: Where do the map tiles go?
+### 4.7. Q: Where do the map tiles go?
 Once you have the tiles downloaded, copy the `\tiles` folder to the root of your T-Deck's SD card.
 
-### 4.7. Q: How to unlock deeper map zoom and server management features on T-Deck?
+### 4.8. Q: How to unlock deeper map zoom and server management features on T-Deck?
 **A:** You can download, install, and use the T-Deck firmware for free, but it has some features (map zoom, server administration) that are enabled if you purchase an unlock code for \$10 per T-Deck device.  
 Unlock page: <https://buymeacoffee.com/ripplebiz/e/249834>
 
-### 4.8. Q: How to decipher the diagnostics screen on T-Deck?
+### 4.9. Q: How to decipher the diagnostics screen on T-Deck?
 
 **A: ** Space is tight on T-Deck's screen, so the information is a bit cryptic.  The format is :
 `{hops} l:{packet-length}({payload-len}) t:{packet-type} snr:{n} rssi:{n}`
@@ -316,12 +331,12 @@ See here for packet-type: [https://github.com/ripplebiz/MeshCore/blob/main/src/P
 
 [Source](https://discord.com/channels/1343693475589263471/1343693475589263474/1350611321040932966)
 
-### 4.9. Q: The T-Deck sound is too loud?
-### 4.10. Q: Can you customize the sound?
+### 4.10. Q: The T-Deck sound is too loud?
+### 4.11. Q: Can you customize the sound?
 
 **A:** You can customise the sounds on the T-Deck, just by placing `.mp3` files onto the `root` dir of the SD card. `startup.mp3`, `alert.mp3` and `new-advert.mp3`
 
-### 4.11. Q: What is the 'Import from Clipboard' feature on the t-deck and is there a way to manually add nodes without having to receive adverts?
+### 4.12. Q: What is the 'Import from Clipboard' feature on the t-deck and is there a way to manually add nodes without having to receive adverts?
 
 **A:** 'Import from Clipboard' is for importing a contact via a file named 'clipboard.txt' on the SD card. The opposite, is in the Identity screen, the 'Card to Clipboard' menu, which writes to 'clipboard.txt' so you can share yourself (call these 'biz cards', that start with "meshcore://...")
 
@@ -382,7 +397,7 @@ The third character is the capital letter 'O', not zero `0`
 - Firmware repo: <https://github.com/ripplebiz/MeshCore>  
 
 ### 5.8. Q: How can I support MeshCore?
-**A:** Provide your honest feedback on GitHub and on AndyKirby's Discord server <http://discord.com/invite/H62Re4DCeD>. Spread the word of MeshCore to your friends and communities; help them get started with MeshCore. Support Scott's MeshCore development at <https://buymeacoffee.com/ripplebiz>.
+**A:** Provide your honest feedback on GitHub and on [MeshCore Discord server](https://discord.gg/BMwCtwHj5V). Spread the word of MeshCore to your friends and communities; help them get started with MeshCore. Support Scott's MeshCore development at <https://buymeacoffee.com/ripplebiz>.
 
 Support Liam Cottle's smartphone client development by unlocking the server administration wait gate with in-app purchase
 
@@ -450,45 +465,65 @@ This could change in the future if MeshCore develops a client firmware that repe
 
 ### 5.13. Q: Can I use a Raspberry Pi to update a MeshCore radio?
 ** A:** Yes.
-You will need to install picocom on the pi.
-`sudo apt install picocom`
+Below are the instructions to flash firmware onto a supported LoRa device using a Raspberry Pi over USB serial.
 
-Then run the following commands to setup the repeater.
-```
-picocom -b 115200 /dev/ttyUSB0 --imap lfcrlf
-set name your_repeater_name
-time epoch_time
-password your_unique_password
-set advert.interval 240
-advert
-```
-Note: If using a RAK the path will most likely be /dev/ttyACM0
+> Instructions for nRF devices like RAK, T1000-E, T114 are immediately after the ESP instructions
 
-Epoch time comes from https://www.epochconverter.com/
+For ESP-based devices (e.g. Heltec V3) you need:
+- Download firmware file from flasher.meshcore.co.uk
+    - Go to the web site on a browser, find the section that has the firmware up need
+    - Click the Download button, right click on the file you need, for example,
+        - `Heltec_V3_companion_radio_ble-v1.7.1-165fb33.bin` 
+            - Non-merged bin keeps the existing Bluetooth pairing database
+        - `Heltec_v3_companion_radio_usb-v1.7.1-165fb33-merged.bin`
+            - Merged bin overwrites everything including the bootloader, existing Bluetooth pairing database, but keeps configurations.
+        - Right click on the file name and copy the link and note it for later use here is an example: `https://flasher.meshcore.dev/releases/download/companion-v1.7.1/Heltec_v3_companion_radio_ble-v1.7.1-165fb33.bin`
+        - Run:
+            - `wget https://flasher.meshcore.dev/releases/download/companion-v1.7.1/Heltec_v3_companion_radio_ble-v1.7.1-165fb33.bin` to download the firmware file for your device type. or the version you need  - USB, BLE, Repeater, Room Server, merged bin or non-merged bin
+            - If the above wget command only downloads a very small file (10K bytes instead of more than 100K byte, use this command instead:
+                - `wget --user-agent="Mozilla/5.0" --content-disposition "https://flasher.meshcore.dev/releases/download/companion-v1.7.1/Heltec_v3_companion_radio_usb-v1.7.1-165fb33.bin"`
+    - Confirm the `ttyXXXX` device path on your Raspberry Pi:
+        - Go to `/dev` directory, run ls command to find confirm your device path
+        - They are usually `/dev/ttyUSB0` for ESP devices
+        - For ESP-based devices, install esptool from the shell:
+            - `pip install esptool --break-system-packages`
+    - To flash, use the following command:
+        - For non-merged bin:
+            - `esptool.py -p /dev/ttyUSB0 --chip esp32-s3 write_flash 0x10000 <non-merged_firmware>.bin`
+        - For merged bin:
+            - `esptool.py -p /dev/ttyUSB0 --chip esp32-s3 write_flash 0x00000 <merged_firmware>.bin`
+	
 
-You can also flash the repeater using esptool.  You will need to install esptool with the following command...
 
-`pip install esptool --break-system-packages`
+**Instructions for nRF devices:**
 
-Then to flash the firmware to Heltec, obtain the .bin file from https://flasher.meshcore.co.uk/ (download all firmware link)
+For nRF devices (e.g. RAK, Heltec T114) you need the following:
+- Download firmware file from flasher.meshcore.co.uk
+    - Go to the web site on a browser, find the section that has the firmware up need
+    - You need the ZIP version for the adafruit flash tool (below)
+    - Click the Download button, right click on the ZIP file, for example:
+        - `RAK_4631_companion_radio_ble-v1.7.1-165fb33.zip`
+        - Right click on the file name and copy the link and note it for later use here is an example: `https://flasher.meshcore.dev/releases/download/companion-v1.7.1/RAK_4631_companion_radio_ble-v1.7.1-165fb33.zip`
+        - Run:
+        - `wget https://flasher.meshcore.dev/releases/download/companion-v1.7.1/RAK_4631_companion_radio_ble-v1.7.1-165fb33.zip` to download the firmware file for your device type. or the version you need  - USB, BLE, Repeater, Room Server, ZIP file only
+    - Confirm the `ttyXXXX` device path on your Raspberry Pi:
+        - Go to `/dev` directory, run ls command to find confirm your device path
+        - They are usually `/dev/ttyACM0` for nRF devices
+    - For nRF-based devices, install adafruit-nrfutil
+        - `pip install adafruit-nrfutil --break-system-packages`
+        - Use this command to flash the nRF device:
+            - `adafruit-nrfutil --verbose dfu serial --package RAK_4631_companion_radio_usb-v1.7.1-165fb33.zip -p /dev/ttyACM0 -b 115200 --singlebank --touch 1200`
+		
+		
+To manage a repeater or room server connected to a Pi over USB serial using shell commands, you need to install `picocom`.  To install `picocom`, run the following command:
+- `sudo apt install picocom`
 
-For Heltec:
-`esptool.py -p /dev/ttyUSB0 --chip esp32-s3 write_flash 0x00000 firmware.bin`
+To start managing your USB serial-connected device using picocom, use the following command:
+    - `picocom -b 115200 /dev/ttyUSB0 --imap lfcrlf`
 
-If flashing a visual studio code build bin file, flash with the following offset:
-`esptool.py -p /dev/ttyUSB0 --chip esp32-s3 write_flash 0x10000 firmware.bin`
+From here, reference repeater and room server command line commands on MeshCore github wiki here: 
+    - https://github.com/ripplebiz/MeshCore/wiki/Repeater-&-Room-Server-CLI-Reference
 
-For Pi
-Download the zip from the online flasher website and use the following command:
-
-Note: Requires adafruit-nrfutil command which can be installed as follows.
-`pip install adafruit-nrfutil --break-system-packages`
-
-```
-adafruit-nrfutil --verbose dfu serial --package t1000_e_bootloader-0.9.1-5-g488711a_s140_7.3.0.zip -p /dev/ttyACM0 -b 115200 --singlebank --touch 1200
-```
-
-[Source](https://discord.com/channels/826570251612323860/1330643963501351004/1342120825251299388)
   
 ### 5.14. Q: Are there are projects built around MeshCore?
 
@@ -529,21 +564,25 @@ You can get the epoch time on <https://www.epochconverter.com/> and use it to se
 ### 6.3. Q: How to connect to a repeater via BLE (Bluetooth)?
 **A:** You can't connect to a device running repeater firmware  via Bluetooth.  Devices running the BLE companion firmware you can connect to it via Bluetooth using the android app
 
-### 6.4. Q: I can't connect via Bluetooth, what is the Bluetooth pairing code?
+### 6.4. Q: My companion isn't showing up over Bluetooth?
+
+**A:** make sure that you flashed the Bluetooth companion firmware and not the USB-only companion firmware.
+
+### 6.5. Q: I can't connect via Bluetooth, what is the Bluetooth pairing code?
 
 **A:** the default Bluetooth pairing code is `123456`
 
-### 6.5. Q: My Heltec V3 keeps disconnecting from my smartphone.  It can't hold a solid Bluetooth connection.
+### 6.6. Q: My Heltec V3 keeps disconnecting from my smartphone.  It can't hold a solid Bluetooth connection.
 
 **A:** Heltec V3 has a very small coil antenna on its PCB for Wi-Fi and Bluetooth connectivity.  It has a very short range, only a few feet.  It is possible to remove the coil antenna  and replace it with a 31mm wire.  The BT range is much improved with the modification.
 
-### 6.6. Q: My RAK/T1000-E/xiao_nRF52 device seems to be corrupted, how do I wipe it clean to start fresh?
+### 6.7. Q: My RAK/T1000-E/xiao_nRF52 device seems to be corrupted, how do I wipe it clean to start fresh?
 
 **A:** 
 1. Connect USB-C cable to your device, per your device's instruction, get it to flash mode:
-    - For RAK, double click its reset button
-    - For T1000-e, quickly disconnect and reconnect the magnetic side of the cable from the device TWICE
-    - For Heltec T114, click the reset button once (the bottom button)
+    - For RAK, click the reset button **TWICE**
+    - For T1000-e, quickly disconnect and reconnect the magnetic side of the cable from the device **TWICE**
+    - For Heltec T114, click the reset button **TWICE** (the bottom button)
     - For Xiao nRF52, click the reset button once.  If that doesn't work, quickly double click the reset button twice.  If that doesn't work, disconnection the board from your PC and reconnect again ([seeed studio wiki](https://wiki.seeedstudio.com/XIAO_BLE/#access-the-swd-pins-for-debugging-and-reflashing-bootloader))
 5. A new folder will appear on your computer's desktop
 6. Download the `flash_erase*.uf2` file for your device on flasher.meshcore.co.uk 
@@ -557,8 +596,7 @@ You can get the epoch time on <https://www.epochconverter.com/> and use it to se
 
 Separately, starting in firmware version 1.7.0, there is a CLI Rescue mode.  If your device has a user button (e.g. some RAK, T114), you can activate the rescue mode by hold down the user button of the device within 8 seconds of boot.  Then you can use the 'Console' on flasher.meshcore.co.uk 
 
-
-### 6.7. Q: WebFlasher fails on Linux with failed to open
+### 6.8. Q: WebFlasher fails on Linux with failed to open
 
 **A:** If the usb port doesn't have the right ownership for this task, the process fails with the following error:
 `NetworkError: Failed to execute 'open' on 'SerialPort': Failed to open serial port.`
@@ -612,7 +650,9 @@ Currently, the following boards are supported:
 - Seeed Studio XIAO nRF52840 BLE SENSE
 - RAK 4631
 
+### 7.4 Q are the MeshCore logo and font available?
 
+**A:** Yes, it is on the MeshCore github repo here: https://github.com/ripplebiz/MeshCore/tree/main/logo
 
 
 ---

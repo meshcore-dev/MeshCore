@@ -34,6 +34,8 @@ void NanoG2Ultra::begin()
   pinMode(EXT_NOTIFY_OUT, OUTPUT);
   digitalWrite(EXT_NOTIFY_OUT, LOW);
 
+  pinMode(GPS_EN, OUTPUT); // Initialize GPS power pin
+  
   Wire.begin();
   pinMode(SX126X_POWER_EN, OUTPUT);
   digitalWrite(SX126X_POWER_EN, HIGH);

@@ -43,8 +43,13 @@ public:
   virtual void dumpLogFile() = 0;
   virtual void setTxPower(uint8_t power_dbm) = 0;
   virtual void formatNeighborsReply(char *reply) = 0;
-  virtual const uint8_t* getSelfIdPubKey() = 0;
+  virtual void removeNeighbor(const uint8_t* pubkey, int key_len) {
+    // no op by default
+  };
+  virtual mesh::LocalIdentity& getSelfId() = 0;
+  virtual void saveIdentity(const mesh::LocalIdentity& new_id) = 0;
   virtual void clearStats() = 0;
+  virtual void applyTempRadioParams(float freq, float bw, uint8_t sf, uint8_t cr, int timeout_mins) = 0;
 };
 
 class CommonCLI {
@@ -52,7 +57,7 @@ class CommonCLI {
   NodePrefs* _prefs;
   CommonCLICallbacks* _callbacks;
   mesh::MainBoard* _board;
-  char tmp[80];
+  char tmp[PRV_KEY_SIZE*2 + 4];
 
   mesh::RTCClock* getRTCClock() { return _rtc; }
   void savePrefs();

@@ -50,7 +50,7 @@ void halt() {
   while (1) ;
 }
 
-static char command[120];
+static char command[160];
 
 void setup() {
   Serial.begin(115200);

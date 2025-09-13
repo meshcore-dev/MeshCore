@@ -96,8 +96,9 @@ bool RadioLibWrapper::isInRecvMode() const {
 }
 
 int RadioLibWrapper::recvRaw(uint8_t* bytes, int sz) {
+  int len = 0;
   if (state & STATE_INT_READY) {
-    int len = _radio->getPacketLength();
+    len = _radio->getPacketLength();
     if (len > 0) {
       if (len > sz) { len = sz; }
       int err = _radio->readData(bytes, len);
@@ -110,7 +111,6 @@ int RadioLibWrapper::recvRaw(uint8_t* bytes, int sz) {
       }
     }
     state = STATE_IDLE;   // need another startReceive()
-    return len;
   }
 
   if (state != STATE_RX) {
@@ -121,7 +121,7 @@ int RadioLibWrapper::recvRaw(uint8_t* bytes, int sz) {
       MESH_DEBUG_PRINTLN("RadioLibWrapper: error: startReceive(%d)", err);
     }
   }
-  return 0;
+  return len;
 }
 
 uint32_t RadioLibWrapper::getEstAirtimeFor(int len_bytes) {

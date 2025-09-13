@@ -9,6 +9,7 @@
 #include <helpers/SensorManager.h>
 #ifdef DISPLAY_CLASS
   #include <helpers/ui/SSD1306Display.h>
+  #include <helpers/ui/MomentaryButton.h>
 #endif
 
 extern ESP32Board board;
@@ -18,6 +19,7 @@ extern SensorManager sensors;
 
 #ifdef DISPLAY_CLASS
   extern DISPLAY_CLASS display;
+  extern MomentaryButton user_btn;
 #endif
 
 bool radio_init();

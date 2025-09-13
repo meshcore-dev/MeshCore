@@ -49,11 +49,11 @@ struct ContactInfo {
 };
 
 #ifndef FIRMWARE_BUILD_DATE
-  #define FIRMWARE_BUILD_DATE   "2 Jul 2025"
+  #define FIRMWARE_BUILD_DATE   "1 Sep 2025"
 #endif
 
 #ifndef FIRMWARE_VERSION
-  #define FIRMWARE_VERSION   "v1.7.2"
+  #define FIRMWARE_VERSION   "v1.8.1"
 #endif
 
 #define FIRMWARE_ROLE "sensor"
@@ -88,8 +88,10 @@ public:
   void formatNeighborsReply(char *reply) override {
     strcpy(reply, "not supported");
   }
-  const uint8_t* getSelfIdPubKey() override { return self_id.pub_key; }
+  mesh::LocalIdentity& getSelfId() override { return self_id; }
+  void saveIdentity(const mesh::LocalIdentity& new_id) override;
   void clearStats() override { }
+  void applyTempRadioParams(float freq, float bw, uint8_t sf, uint8_t cr, int timeout_mins) override;
 
   float getTelemValue(uint8_t channel, uint8_t type);
 
@@ -139,7 +141,8 @@ protected:
   void onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender_idx, const uint8_t* secret, uint8_t* data, size_t len) override;
   bool onPeerPathRecv(mesh::Packet* packet, int sender_idx, const uint8_t* secret, uint8_t* path, uint8_t path_len, uint8_t extra_type, uint8_t* extra, uint8_t extra_len) override;
   void onAckRecv(mesh::Packet* packet, uint32_t ack_crc) override;
-
+  virtual bool handleIncomingMsg(ContactInfo& from, uint32_t timestamp, uint8_t* data, uint flags, size_t len);
+  void sendAckTo(const ContactInfo& dest, uint32_t ack_hash);
 private:
   FILESYSTEM* _fs;
   unsigned long next_local_advert, next_flood_advert;
@@ -154,6 +157,11 @@ private:
   int matching_peer_indexes[MAX_SEARCH_RESULTS];
   int num_alert_tasks;
   Trigger* alert_tasks[MAX_CONCURRENT_ALERTS];
+  unsigned long set_radio_at, revert_radio_at;
+  float pending_freq;
+  float pending_bw;
+  uint8_t pending_sf;
+  uint8_t pending_cr;
 
   void loadContacts();
   void saveContacts();

@@ -16,6 +16,9 @@ WioTrackerL1SensorManager sensors = WioTrackerL1SensorManager(nmea);
 
 #ifdef DISPLAY_CLASS
   DISPLAY_CLASS display;
+  MomentaryButton user_btn(PIN_USER_BTN, 1000, true);
+  MomentaryButton joystick_left(JOYSTICK_LEFT, 1000, true);
+  MomentaryButton joystick_right(JOYSTICK_RIGHT, 1000, true);
 #endif
 
 bool radio_init() {

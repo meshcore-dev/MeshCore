@@ -244,10 +244,12 @@ uint8_t SensorMesh::handleRequest(uint8_t perms, uint32_t sender_timestamp, uint
   memcpy(reply_data, &sender_timestamp, 4);   // reflect sender_timestamp back in response packet (kind of like a 'tag')
 
   if (req_type == REQ_TYPE_GET_TELEMETRY_DATA) {  // allow all
+    uint8_t perm_mask = ~(payload[0]);    // NEW: first reserved byte (of 4), is now inverse mask to apply to permissions
+
     telemetry.reset();
     telemetry.addVoltage(TELEM_CHANNEL_SELF, (float)board.getBattMilliVolts() / 1000.0f);
     // query other sensors -- target specific
-    sensors.querySensors(0xFF, telemetry);  // allow all telemetry permissions for admin or guest
+    sensors.querySensors(0xFF & perm_mask, telemetry);  // allow all telemetry permissions for admin or guest
     // TODO: let requester know permissions they have:  telemetry.addPresence(TELEM_CHANNEL_SELF, perms);
 
     uint8_t tlen = telemetry.getSize();
@@ -545,7 +547,26 @@ void SensorMesh::handleCommand(uint32_t sender_timestamp, char* command, char* r
       Serial.printf("\n");
     }
     reply[0] = 0;
-  } else {
+  } else if (memcmp(command, "io ", 2) == 0) { // io {value}: write, io: read 
+    if (command[2] == ' ') { // it's a write
+      uint32_t val;
+      uint32_t g = board.getGpio();
+      if (command[3] == 'r') { // reset bits
+        sscanf(&command[4], "%x", &val);
+        val = g & ~val;    
+      } else if (command[3] == 's') { // set bits
+        sscanf(&command[4], "%x", &val);
+        val |= g;    
+      } else if (command[3] == 't') { // toggle bits
+        sscanf(&command[4], "%x", &val);
+        val ^= g;    
+      } else { // set value
+        sscanf(&command[3], "%x", &val);
+      }
+      board.setGpio(val);
+    }
+    sprintf(reply, "%x", board.getGpio());
+  } else{
     _cli.handleCommand(sender_timestamp, command, reply);  // common CLI commands
   }
 }
@@ -592,6 +613,23 @@ void SensorMesh::getPeerSharedSecret(uint8_t* dest_secret, int peer_idx) {
   }
 }
 
+void SensorMesh::sendAckTo(const ContactInfo& dest, uint32_t ack_hash) {
+  if (dest.out_path_len < 0) {
+    mesh::Packet* ack = createAck(ack_hash);
+    if (ack) sendFlood(ack, TXT_ACK_DELAY);
+  } else {
+    uint32_t d = TXT_ACK_DELAY;
+    if (getExtraAckTransmitCount() > 0) {
+      mesh::Packet* a1 = createMultiAck(ack_hash, 1);
+      if (a1) sendDirect(a1, dest.out_path, dest.out_path_len, d);
+      d += 300;
+    }
+
+    mesh::Packet* a2 = createAck(ack_hash);
+    if (a2) sendDirect(a2, dest.out_path, dest.out_path_len, d);
+  }
+}
+
 void SensorMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender_idx, const uint8_t* secret, uint8_t* data, size_t len) {
   int i = matching_peer_indexes[sender_idx];
   if (i < 0 || i >= num_contacts) {
@@ -635,43 +673,69 @@ void SensorMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender_i
     memcpy(&sender_timestamp, data, 4);  // timestamp (by sender's RTC clock - which could be wrong)
     uint flags = (data[4] >> 2);   // message attempt number, and other flags
 
-    if (!(flags == TXT_TYPE_CLI_DATA)) {
-      MESH_DEBUG_PRINTLN("onPeerDataRecv: unsupported text type received: flags=%02x", (uint32_t)flags);
-    } else if (sender_timestamp > from.last_timestamp) {  // prevent replay attacks
-      from.last_timestamp = sender_timestamp;
-      from.last_activity = getRTCClock()->getCurrentTime();
+    if (sender_timestamp > from.last_timestamp) {  // prevent replay attacks
+      if (flags == TXT_TYPE_PLAIN) {
+        bool handled = handleIncomingMsg(from, sender_timestamp, &data[5], flags, len - 5);
+        if (handled) { // if msg was handled then send an ack
+          uint32_t ack_hash;    // calc truncated hash of the message timestamp + text + sender pub_key, to prove to sender that we got it
+          mesh::Utils::sha256((uint8_t *) &ack_hash, 4, data, 5 + strlen((char *)&data[5]), from.id.pub_key, PUB_KEY_SIZE);
 
-      // len can be > original length, but 'text' will be padded with zeroes
-      data[len] = 0; // need to make a C string again, with null terminator
-
-      uint8_t temp[166];
-      char *command = (char *) &data[5];
-      char *reply = (char *) &temp[5];
-      handleCommand(sender_timestamp, command, reply);
-
-      int text_len = strlen(reply);
-      if (text_len > 0) {
-        uint32_t timestamp = getRTCClock()->getCurrentTimeUnique();
-        if (timestamp == sender_timestamp) {
-          // WORKAROUND: the two timestamps need to be different, in the CLI view
-          timestamp++;
-        }
-        memcpy(temp, &timestamp, 4);   // mostly an extra blob to help make packet_hash unique
-        temp[4] = (TXT_TYPE_CLI_DATA << 2);
-
-        auto reply = createDatagram(PAYLOAD_TYPE_TXT_MSG, from.id, secret, temp, 5 + text_len);
-        if (reply) {
-          if (from.out_path_len < 0) {
-            sendFlood(reply, CLI_REPLY_DELAY_MILLIS);
+          if (packet->isRouteFlood()) {
+            // let this sender know path TO here, so they can use sendDirect(), and ALSO encode the ACK
+            mesh::Packet* path = createPathReturn(from.id, secret, packet->path, packet->path_len,
+                                                    PAYLOAD_TYPE_ACK, (uint8_t *) &ack_hash, 4);
+            if (path) sendFlood(path, TXT_ACK_DELAY);
           } else {
-            sendDirect(reply, from.out_path, from.out_path_len, CLI_REPLY_DELAY_MILLIS);
+            sendAckTo(from, ack_hash);
+          }          
+        }
+      } else if (flags == TXT_TYPE_CLI_DATA) {  
+        from.last_timestamp = sender_timestamp;
+        from.last_activity = getRTCClock()->getCurrentTime();
+
+        // len can be > original length, but 'text' will be padded with zeroes
+        data[len] = 0; // need to make a C string again, with null terminator
+
+        uint8_t temp[166];
+        char *command = (char *) &data[5];
+        char *reply = (char *) &temp[5];
+        handleCommand(sender_timestamp, command, reply);
+
+        int text_len = strlen(reply);
+        if (text_len > 0) {
+          uint32_t timestamp = getRTCClock()->getCurrentTimeUnique();
+          if (timestamp == sender_timestamp) {
+            // WORKAROUND: the two timestamps need to be different, in the CLI view
+            timestamp++;
+          }
+          memcpy(temp, &timestamp, 4);   // mostly an extra blob to help make packet_hash unique
+          temp[4] = (TXT_TYPE_CLI_DATA << 2);
+
+          auto reply = createDatagram(PAYLOAD_TYPE_TXT_MSG, from.id, secret, temp, 5 + text_len);
+          if (reply) {
+            if (from.out_path_len < 0) {
+              sendFlood(reply, CLI_REPLY_DELAY_MILLIS);
+            } else {
+              sendDirect(reply, from.out_path, from.out_path_len, CLI_REPLY_DELAY_MILLIS);
+            }
           }
         }
+      } else {
+        MESH_DEBUG_PRINTLN("onPeerDataRecv: unsupported text type received: flags=%02x", (uint32_t)flags);
       }
     } else {
       MESH_DEBUG_PRINTLN("onPeerDataRecv: possible replay attack detected");
     }
   }
+}
+
+bool SensorMesh::handleIncomingMsg(ContactInfo& from, uint32_t timestamp, uint8_t* data, uint flags, size_t len) {
+  MESH_DEBUG_PRINT("handleIncomingMsg: unhandled msg from ");
+  #ifdef MESH_DEBUG
+  mesh::Utils::printHex(Serial, from.id.pub_key, PUB_KEY_SIZE);
+  Serial.printf(": %s\n", data);
+  #endif
+  return false;
 }
 
 bool SensorMesh::onPeerPathRecv(mesh::Packet* packet, int sender_idx, const uint8_t* secret, uint8_t* path, uint8_t path_len, uint8_t extra_type, uint8_t* extra, uint8_t extra_len) {
@@ -722,6 +786,7 @@ SensorMesh::SensorMesh(mesh::MainBoard& board, mesh::Radio& radio, mesh::Millise
   dirty_contacts_expiry = 0;
   last_read_time = 0;
   num_alert_tasks = 0;
+  set_radio_at = revert_radio_at = 0;
 
   // defaults
   memset(&_prefs, 0, sizeof(_prefs));
@@ -770,6 +835,30 @@ bool SensorMesh::formatFileSystem() {
     #error "need to implement file system erase"
     return false;
 #endif
+}
+
+void SensorMesh::saveIdentity(const mesh::LocalIdentity& new_id) {
+  self_id = new_id;
+#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
+  IdentityStore store(*_fs, "");
+#elif defined(ESP32)
+  IdentityStore store(*_fs, "/identity");
+#elif defined(RP2040_PLATFORM)
+  IdentityStore store(*_fs, "/identity");
+#else
+  #error "need to define saveIdentity()"
+#endif
+  store.save("_main", self_id);
+}
+
+void SensorMesh::applyTempRadioParams(float freq, float bw, uint8_t sf, uint8_t cr, int timeout_mins) {
+  set_radio_at = futureMillis(2000);   // give CLI reply some time to be sent back, before applying temp radio params
+  pending_freq = freq;
+  pending_bw = bw;
+  pending_sf = sf;
+  pending_cr = cr;
+
+  revert_radio_at = futureMillis(2000 + timeout_mins*60*1000);   // schedule when to revert radio params
 }
 
 void SensorMesh::sendSelfAdvertisement(int delay_millis) {
@@ -845,6 +934,18 @@ void SensorMesh::loop() {
     if (pkt) sendZeroHop(pkt);
 
     updateAdvertTimer();   // schedule next local advert
+  }
+
+  if (set_radio_at && millisHasNowPassed(set_radio_at)) {   // apply pending (temporary) radio params
+    set_radio_at = 0;  // clear timer
+    radio_set_params(pending_freq, pending_bw, pending_sf, pending_cr);
+    MESH_DEBUG_PRINTLN("Temp radio params");
+  }
+
+  if (revert_radio_at && millisHasNowPassed(revert_radio_at)) {   // revert radio params to orig
+    revert_radio_at = 0;  // clear timer
+    radio_set_params(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
+    MESH_DEBUG_PRINTLN("Radio params restored");
   }
 
   uint32_t curr = getRTCClock()->getCurrentTime();

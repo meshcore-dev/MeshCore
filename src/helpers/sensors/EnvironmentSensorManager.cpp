@@ -51,6 +51,12 @@ static Adafruit_BMP280 BMP280;
 static Adafruit_SHTC3 SHTC3;
 #endif
 
+#if ENV_INCLUDE_SHT4X
+#define TELEM_SHT4X_ADDRESS 0x44  //0x44 - 0x46
+#include <SensirionI2cSht4x.h>
+static SensirionI2cSht4x SHT4X;
+#endif
+
 #if ENV_INCLUDE_LPS22HB
 #include <Arduino_LPS22HB.h>
 #endif
@@ -69,6 +75,20 @@ static Adafruit_INA3221 INA3221;
 static Adafruit_INA219 INA219(TELEM_INA219_ADDRESS);
 #endif
 
+#if ENV_INCLUDE_INA260
+#define TELEM_INA260_ADDRESS    0x41      // INA260 single channel current sensor I2C address
+#include <Adafruit_INA260.h>
+static Adafruit_INA260 INA260;
+#endif
+
+#if ENV_INCLUDE_INA226
+#define TELEM_INA226_ADDRESS    0x44
+#define TELEM_INA226_SHUNT_VALUE 0.100
+#define TELEM_INA226_MAX_AMP 0.8
+#include <INA226.h>
+static INA226 INA226(TELEM_INA226_ADDRESS);
+#endif
+
 #if ENV_INCLUDE_MLX90614
 #define TELEM_MLX90614_ADDRESS 0x5A      // MLX90614 IR temperature sensor I2C address
 #include <Adafruit_MLX90614.h>
@@ -81,7 +101,11 @@ static Adafruit_MLX90614 MLX90614;
 static Adafruit_VL53L0X VL53L0X;
 #endif
 
-#if ENV_INCLUDE_GPS && RAK_BOARD
+#if ENV_INCLUDE_GPS && defined(RAK_BOARD) && !defined(RAK_WISMESH_TAG)
+#define RAK_WISBLOCK_GPS
+#endif
+
+#ifdef RAK_WISBLOCK_GPS
 static uint32_t gpsResetPin = 0;
 static bool i2cGPSFlag = false;
 static bool serialGPSFlag = false;
@@ -92,7 +116,7 @@ static SFE_UBLOX_GNSS ublox_GNSS;
 
 bool EnvironmentSensorManager::begin() {
   #if ENV_INCLUDE_GPS
-  #if RAK_BOARD
+  #ifdef RAK_WISBLOCK_GPS
   rakGPSInit();   //probe base board/sockets for GPS
   #else
   initBasicGPS();
@@ -190,6 +214,21 @@ bool EnvironmentSensorManager::begin() {
   }
   #endif
 
+
+  #if ENV_INCLUDE_SHT4X
+  SHT4X.begin(*TELEM_WIRE, TELEM_SHT4X_ADDRESS);
+  uint32_t serialNumber = 0;
+  int16_t sht4x_error;
+  sht4x_error = SHT4X.serialNumber(serialNumber);
+  if (sht4x_error == 0) {
+    MESH_DEBUG_PRINTLN("Found SHT4X at address: %02X", TELEM_SHT4X_ADDRESS);
+    SHT4X_initialized = true;
+  } else {
+    SHT4X_initialized = false;
+    MESH_DEBUG_PRINTLN("SHT4X was not found at I2C address %02X", TELEM_SHT4X_ADDRESS);
+  }
+  #endif
+
   #if ENV_INCLUDE_LPS22HB
   if (BARO.begin()) {
     MESH_DEBUG_PRINTLN("Found sensor: LPS22HB");
@@ -225,6 +264,27 @@ bool EnvironmentSensorManager::begin() {
   }
   #endif
 
+  #if ENV_INCLUDE_INA260
+  if (INA260.begin(TELEM_INA260_ADDRESS, TELEM_WIRE)) {
+    MESH_DEBUG_PRINTLN("Found INA260 at address: %02X", TELEM_INA260_ADDRESS);
+    INA260_initialized = true;
+  } else {
+    INA260_initialized = false;
+    MESH_DEBUG_PRINTLN("INA260 was not found at I2C address %02X", TELEM_INA219_ADDRESS);
+  }
+  #endif
+
+  #if ENV_INCLUDE_INA226
+  if (INA226.begin()) {
+    MESH_DEBUG_PRINTLN("Found INA226 at address: %02X", TELEM_INA226_ADDRESS);
+    INA226.setMaxCurrentShunt(TELEM_INA226_MAX_AMP, TELEM_INA226_SHUNT_VALUE);
+    INA226_initialized = true;
+  } else {
+    INA226_initialized = false;
+    MESH_DEBUG_PRINTLN("INA226 was not found at I2C address %02X", TELEM_INA226_ADDRESS);
+  }
+  #endif
+
   #if ENV_INCLUDE_MLX90614
   if (MLX90614.begin(TELEM_MLX90614_ADDRESS, TELEM_WIRE)) {
     MESH_DEBUG_PRINTLN("Found MLX90614 at address: %02X", TELEM_MLX90614_ADDRESS);
@@ -252,7 +312,7 @@ bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, Cayen
   next_available_channel = TELEM_CHANNEL_SELF + 1;
 
   if (requester_permissions & TELEM_PERM_LOCATION && gps_active) {
-    telemetry.addGPS(TELEM_CHANNEL_SELF, node_lat, node_lon, 0.0f); // allow lat/lon via telemetry even if no GPS is detected
+    telemetry.addGPS(TELEM_CHANNEL_SELF, node_lat, node_lon, node_altitude); // allow lat/lon via telemetry even if no GPS is detected
   }
 
   if (requester_permissions & TELEM_PERM_ENVIRONMENT) {
@@ -289,7 +349,7 @@ bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, Cayen
     if (BMP280_initialized) {
       telemetry.addTemperature(TELEM_CHANNEL_SELF, BMP280.readTemperature());
       telemetry.addBarometricPressure(TELEM_CHANNEL_SELF, BMP280.readPressure()/100);
-      telemetry.addAltitude(TELEM_CHANNEL_SELF, BME280.readAltitude(TELEM_BME280_SEALEVELPRESSURE_HPA));
+      telemetry.addAltitude(TELEM_CHANNEL_SELF, BMP280.readAltitude(TELEM_BMP280_SEALEVELPRESSURE_HPA));
     }
     #endif
 
@@ -300,6 +360,18 @@ bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, Cayen
 
       telemetry.addTemperature(TELEM_CHANNEL_SELF, temp.temperature);
       telemetry.addRelativeHumidity(TELEM_CHANNEL_SELF, humidity.relative_humidity);
+    }
+    #endif
+
+    #if ENV_INCLUDE_SHT4X
+    if (SHT4X_initialized) {
+      float sht4x_humidity, sht4x_temperature;
+      int16_t sht4x_error;
+      sht4x_error = SHT4X.measureLowestPrecision(sht4x_temperature, sht4x_humidity);
+      if (sht4x_error == 0) {
+        telemetry.addTemperature(TELEM_CHANNEL_SELF, sht4x_temperature);
+        telemetry.addRelativeHumidity(TELEM_CHANNEL_SELF, sht4x_humidity);
+      }
     }
     #endif
 
@@ -331,6 +403,24 @@ bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, Cayen
       telemetry.addVoltage(next_available_channel, INA219.getBusVoltage_V());
       telemetry.addCurrent(next_available_channel, INA219.getCurrent_mA() / 1000);
       telemetry.addPower(next_available_channel, INA219.getPower_mW() / 1000);
+      next_available_channel++;
+    }
+    #endif
+
+    #if ENV_INCLUDE_INA260
+    if (INA260_initialized) {
+      telemetry.addVoltage(next_available_channel, INA260.readBusVoltage() / 1000);
+      telemetry.addCurrent(next_available_channel, INA260.readCurrent() / 1000);
+      telemetry.addPower(next_available_channel, INA260.readPower() / 1000);
+      next_available_channel++;
+    }
+    #endif
+
+    #if ENV_INCLUDE_INA226
+    if (INA226_initialized) {
+      telemetry.addVoltage(next_available_channel, INA226.getBusVoltage());
+      telemetry.addCurrent(next_available_channel, INA226.getCurrent_mA() / 1000.0);
+      telemetry.addPower(next_available_channel, INA226.getPower_mW() / 1000.0);
       next_available_channel++;
     }
     #endif
@@ -530,7 +620,7 @@ void EnvironmentSensorManager::initBasicGPS() {
   gps_active = false; //Set GPS visibility off until setting is changed
 }
 
-#ifdef RAK_BOARD
+#ifdef RAK_WISBLOCK_GPS
 void EnvironmentSensorManager::rakGPSInit(){
 
   Serial1.setPins(PIN_GPS_TX, PIN_GPS_RX);
@@ -604,7 +694,7 @@ bool EnvironmentSensorManager::gpsIsAwake(uint8_t ioPin){
 
 void EnvironmentSensorManager::start_gps() {
   gps_active = true;
-  #ifdef RAK_BOARD
+  #ifdef RAK_WISBLOCK_GPS
     pinMode(gpsResetPin, OUTPUT);
     digitalWrite(gpsResetPin, HIGH);
     return;
@@ -620,7 +710,7 @@ void EnvironmentSensorManager::start_gps() {
 
 void EnvironmentSensorManager::stop_gps() {
   gps_active = false;
-  #ifdef RAK_BOARD
+  #ifdef RAK_WISBLOCK_GPS
     pinMode(gpsResetPin, OUTPUT);
     digitalWrite(gpsResetPin, LOW);
     return;
@@ -655,22 +745,28 @@ void EnvironmentSensorManager::loop() {
 
   if (millis() > next_update) {
     if(gps_active){
-    #ifndef RAK_BOARD
-    if (_location->isValid()) {
-      node_lat = ((double)_location->getLatitude())/1000000.;
-      node_lon = ((double)_location->getLongitude())/1000000.;
-      MESH_DEBUG_PRINTLN("lat %f lon %f", node_lat, node_lon);
-    }
-    #else
+    #ifdef RAK_WISBLOCK_GPS
     if(i2cGPSFlag){
       node_lat = ((double)ublox_GNSS.getLatitude())/10000000.;
       node_lon = ((double)ublox_GNSS.getLongitude())/10000000.;
       MESH_DEBUG_PRINTLN("lat %f lon %f", node_lat, node_lon);
+      node_altitude = ((double)ublox_GNSS.getAltitude()) / 1000.0;
+      MESH_DEBUG_PRINTLN("lat %f lon %f alt %f", node_lat, node_lon, node_altitude);
     }
     else if (serialGPSFlag && _location->isValid()) {
       node_lat = ((double)_location->getLatitude())/1000000.;
       node_lon = ((double)_location->getLongitude())/1000000.;
       MESH_DEBUG_PRINTLN("lat %f lon %f", node_lat, node_lon);
+      node_altitude = ((double)_location->getAltitude()) / 1000.0;
+      MESH_DEBUG_PRINTLN("lat %f lon %f alt %f", node_lat, node_lon, node_altitude);
+    }
+    #else
+    if (_location->isValid()) {
+      node_lat = ((double)_location->getLatitude())/1000000.;
+      node_lon = ((double)_location->getLongitude())/1000000.;
+      MESH_DEBUG_PRINTLN("lat %f lon %f", node_lat, node_lon);
+      node_altitude = ((double)_location->getAltitude()) / 1000.0;
+      MESH_DEBUG_PRINTLN("lat %f lon %f alt %f", node_lat, node_lon, node_altitude);
     }
     #endif
     }

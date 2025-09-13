@@ -30,7 +30,7 @@
 #define PIN_BUTTON3             (26) // Joystick Down
 #define PIN_BUTTON4             (27) // Joystick Left
 #define PIN_BUTTON5             (28) // Joystick Right
-#define PIN_BUTTON6             (28) // Joystick Press
+#define PIN_BUTTON6             (29) // Joystick Press
 #define PIN_USER_BTN            PIN_BUTTON1
 #define JOYSTICK_UP             PIN_BUTTON2
 #define JOYSTICK_DOWN           PIN_BUTTON3
@@ -91,12 +91,12 @@
 #define PIN_GPS_EN              (18)
 
 // QSPI Pins
-#define PIN_QSPI_SCK            (21)
-#define PIN_QSPI_CS             (22)
-#define PIN_QSPI_IO0            (23)
-#define PIN_QSPI_IO1            (24)
-#define PIN_QSPI_IO2            (25)
-#define PIN_QSPI_IO3            (26)
+#define PIN_QSPI_SCK            (19)
+#define PIN_QSPI_CS             (20)
+#define PIN_QSPI_IO0            (21)
+#define PIN_QSPI_IO1            (22)
+#define PIN_QSPI_IO2            (23)
+#define PIN_QSPI_IO3            (24)
 
 #define EXTERNAL_FLASH_DEVICES P25Q16H
 #define EXTERNAL_FLASH_USE_QSPI

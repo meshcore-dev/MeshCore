@@ -235,9 +235,13 @@ bool BaseChatMesh::onPeerPathRecv(mesh::Packet* packet, int sender_idx, const ui
 
   ContactInfo& from = contacts[i];
 
-  // NOTE: for this impl, we just replace the current 'out_path' regardless, whenever sender sends us a new out_path.
+  return onContactPathRecv(from, packet->path, packet->path_len, path, path_len, extra_type, extra, extra_len);
+}
+
+bool BaseChatMesh::onContactPathRecv(ContactInfo& from, uint8_t* in_path, uint8_t in_path_len, uint8_t* out_path, uint8_t out_path_len, uint8_t extra_type, uint8_t* extra, uint8_t extra_len) {
+  // NOTE: default impl, we just replace the current 'out_path' regardless, whenever sender sends us a new out_path.
   // FUTURE: could store multiple out_paths per contact, and try to find which is the 'best'(?)
-  memcpy(from.out_path, path, from.out_path_len = path_len);  // store a copy of path, for sendDirect()
+  memcpy(from.out_path, out_path, from.out_path_len = out_path_len);  // store a copy of path, for sendDirect()
   from.lastmod = getRTCClock()->getCurrentTime();
 
   onContactPathUpdated(from);

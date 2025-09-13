@@ -9,6 +9,7 @@
 #include <helpers/ArduinoHelpers.h>
 #ifdef DISPLAY_CLASS
   #include <helpers/ui/SH1106Display.h>
+  #include <helpers/ui/MomentaryButton.h>
 #endif
 #include <helpers/sensors/EnvironmentSensorManager.h>
 
@@ -38,6 +39,9 @@ extern AutoDiscoverRTCClock rtc_clock;
 extern WioTrackerL1SensorManager sensors;
 #ifdef DISPLAY_CLASS
   extern DISPLAY_CLASS display;
+  extern MomentaryButton user_btn;
+  extern MomentaryButton joystick_left;
+  extern MomentaryButton joystick_right;
 #endif
 
 bool radio_init();

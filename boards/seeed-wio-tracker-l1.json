@@ -40,8 +40,8 @@
   ],
   "name": "Seeed Wio Tracker L1",
   "upload": {
-    "maximum_ram_size": 248832,
-    "maximum_size": 815104,
+    "maximum_ram_size": 237568,
+    "maximum_size": 811008,
     "protocol": "nrfutil",
     "speed": 115200,
     "protocols": [

@@ -1,13 +1,15 @@
 #pragma once
 
 #define RADIOLIB_STATIC_ONLY 1
-#include <RadioLib.h>
 #include "nano-g2.h"
-#include <helpers/radiolib/RadioLibWrappers.h>
-#include <helpers/radiolib/CustomSX1262Wrapper.h>
+
+#include <RadioLib.h>
 #include <helpers/AutoDiscoverRTCClock.h>
 #include <helpers/SensorManager.h>
+#include <helpers/radiolib/CustomSX1262Wrapper.h>
+#include <helpers/radiolib/RadioLibWrappers.h>
 #ifdef DISPLAY_CLASS
+#include <helpers/ui/MomentaryButton.h>
 #include <helpers/ui/SH1106Display.h>
 #endif
 #include <helpers/sensors/LocationProvider.h>
@@ -37,6 +39,7 @@ extern NanoG2UltraSensorManager sensors;
 
 #ifdef DISPLAY_CLASS
 extern DISPLAY_CLASS display;
+extern MomentaryButton user_btn;
 #endif
 
 bool radio_init();

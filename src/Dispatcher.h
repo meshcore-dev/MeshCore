@@ -114,7 +114,7 @@ typedef uint32_t  DispatcherAction;
 */
 class Dispatcher {
   Packet* outbound;  // current outbound packet
-  unsigned long outbound_expiry, outbound_start, total_air_time;
+  unsigned long outbound_expiry, outbound_start, total_air_time, rx_air_time;
   unsigned long next_tx_time;
   unsigned long cad_busy_start;
   unsigned long radio_nonrx_start;
@@ -134,7 +134,9 @@ protected:
   Dispatcher(Radio& radio, MillisecondClock& ms, PacketManager& mgr)
     : _radio(&radio), _ms(&ms), _mgr(&mgr)
   {
-    outbound = NULL; total_air_time = 0; next_tx_time = 0;
+    outbound = NULL;
+    total_air_time = rx_air_time = 0;
+    next_tx_time = 0;
     cad_busy_start = 0;
     next_floor_calib_time = next_agc_reset_time = 0;
     _err_flags = 0;
@@ -167,6 +169,7 @@ public:
   void sendPacket(Packet* packet, uint8_t priority, uint32_t delay_millis=0);
 
   unsigned long getTotalAirTime() const { return total_air_time; }  // in milliseconds
+  unsigned long getReceiveAirTime() const {return rx_air_time; }
   uint32_t getNumSentFlood() const { return n_sent_flood; }
   uint32_t getNumSentDirect() const { return n_sent_direct; }
   uint32_t getNumRecvFlood() const { return n_recv_flood; }

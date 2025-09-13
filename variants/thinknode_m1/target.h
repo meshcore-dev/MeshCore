@@ -3,13 +3,14 @@
 #define RADIOLIB_STATIC_ONLY 1
 #include <RadioLib.h>
 #include <helpers/radiolib/RadioLibWrappers.h>
-#include <helpers/nrf52/ThinkNodeM1Board.h>
+#include <ThinkNodeM1Board.h>
 #include <helpers/radiolib/CustomSX1262Wrapper.h>
 #include <helpers/AutoDiscoverRTCClock.h>
 #include <helpers/SensorManager.h>
 #include <helpers/sensors/LocationProvider.h>
 #ifdef DISPLAY_CLASS
   #include <helpers/ui/GxEPDDisplay.h>
+  #include <helpers/ui/MomentaryButton.h>
 #endif
 
 class ThinkNodeM1SensorManager : public SensorManager {
@@ -37,6 +38,7 @@ extern ThinkNodeM1SensorManager sensors;
 
 #ifdef DISPLAY_CLASS
   extern DISPLAY_CLASS display;
+  extern MomentaryButton user_btn;
 #endif
 
 bool radio_init();
