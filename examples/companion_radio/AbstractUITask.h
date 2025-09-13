@@ -42,5 +42,8 @@ public:
   virtual void msgRead(int msgcount) = 0;
   virtual void newMsg(uint8_t path_len, const char* from_name, const char* text, int msgcount) = 0;
   virtual void soundBuzzer(UIEventType bet = UIEventType::none) = 0;
+#ifdef PIN_VIBRATION
+  virtual void triggerVibration() = 0;
+#endif
   virtual void loop() = 0;
 };

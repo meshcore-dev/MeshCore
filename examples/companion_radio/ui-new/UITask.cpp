@@ -483,6 +483,10 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
   buzzer.begin();
 #endif
 
+#ifdef PIN_VIBRATION
+  vibration.begin();
+#endif
+
   ui_started_at = millis();
   _alert_expiry = 0;
 
@@ -519,6 +523,12 @@ switch(bet){
 #endif
 }
 
+#ifdef PIN_VIBRATION
+void UITask::triggerVibration() {
+  vibration.trigger();
+}
+#endif
+
 void UITask::msgRead(int msgcount) {
   _msgcount = msgcount;
   if (msgcount == 0) {
@@ -531,6 +541,10 @@ void UITask::newMsg(uint8_t path_len, const char* from_name, const char* text, i
 
   ((MsgPreviewScreen *) msg_preview)->addPreview(path_len, from_name, text);
   setCurrScreen(msg_preview);
+
+#ifdef PIN_VIBRATION
+  triggerVibration();
+#endif
 
   if (_display != NULL) {
     if (!_display->isOn()) _display->turnOn();
@@ -686,6 +700,10 @@ void UITask::loop() {
     }
 #endif
   }
+
+#ifdef PIN_VIBRATION
+  vibration.loop();
+#endif
 
 #ifdef AUTO_SHUTDOWN_MILLIVOLTS
   if (millis() > next_batt_chck) {
