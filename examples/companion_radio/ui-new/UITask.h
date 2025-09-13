@@ -63,6 +63,7 @@ public:
   int  getMsgCount() const { return _msgcount; }
   bool hasDisplay() const { return _display != NULL; }
   bool isButtonPressed() const;
+  bool hasPendingUpdates() const { return false; }
 
   void toggleBuzzer();
   void toggleGPS();
