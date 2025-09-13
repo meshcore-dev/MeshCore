@@ -71,7 +71,7 @@ public:
    * \param  secret OUT - the 'shared secret' (must be PUB_KEY_SIZE bytes)
    * \param  other_pub_key IN - the public key of second party in the exchange (must be PUB_KEY_SIZE bytes)
   */
-  void calcSharedSecret(uint8_t* secret, const uint8_t* other_pub_key);
+  void calcSharedSecret(uint8_t* secret, const uint8_t* other_pub_key) const;
 
   bool readFrom(Stream& s);
   bool writeTo(Stream& s) const;

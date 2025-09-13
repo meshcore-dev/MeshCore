@@ -20,14 +20,9 @@
 #include <helpers/AdvertDataHelpers.h>
 #include <helpers/TxtDataHelpers.h>
 #include <helpers/CommonCLI.h>
+#include <helpers/ClientACL.h>
 #include <RTClib.h>
 #include <target.h>
-
-#define PERM_ACL_ROLE_MASK     3   // lower 2 bits
-#define PERM_ACL_GUEST         0
-#define PERM_ACL_READ_ONLY     1
-#define PERM_ACL_READ_WRITE    2
-#define PERM_ACL_ADMIN         3
 
 #define PERM_RESERVED1         (1 << 2)
 #define PERM_RESERVED2         (1 << 3)
@@ -35,18 +30,6 @@
 #define PERM_RESERVED4         (1 << 5)
 #define PERM_RECV_ALERTS_LO    (1 << 6)   // low priority alerts
 #define PERM_RECV_ALERTS_HI    (1 << 7)   // high priority alerts
-
-struct ContactInfo {
-  mesh::Identity id;
-  uint8_t permissions;
-  int8_t out_path_len;
-  uint8_t out_path[MAX_PATH_SIZE];
-  uint8_t shared_secret[PUB_KEY_SIZE];
-  uint32_t last_timestamp;   // by THEIR clock  (transient)
-  uint32_t last_activity;    // by OUR clock    (transient)
-
-  bool isAdmin() const { return (permissions & PERM_ACL_ROLE_MASK) == PERM_ACL_ADMIN; }
-};
 
 #ifndef FIRMWARE_BUILD_DATE
   #define FIRMWARE_BUILD_DATE   "1 Sep 2025"
@@ -57,8 +40,6 @@ struct ContactInfo {
 #endif
 
 #define FIRMWARE_ROLE "sensor"
-
-#define MAX_CONTACTS           20
 
 #define MAX_SEARCH_RESULTS      8
 #define MAX_CONCURRENT_ALERTS   4
@@ -141,16 +122,15 @@ protected:
   void onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender_idx, const uint8_t* secret, uint8_t* data, size_t len) override;
   bool onPeerPathRecv(mesh::Packet* packet, int sender_idx, const uint8_t* secret, uint8_t* path, uint8_t path_len, uint8_t extra_type, uint8_t* extra, uint8_t extra_len) override;
   void onAckRecv(mesh::Packet* packet, uint32_t ack_crc) override;
-  virtual bool handleIncomingMsg(ContactInfo& from, uint32_t timestamp, uint8_t* data, uint flags, size_t len);
-  void sendAckTo(const ContactInfo& dest, uint32_t ack_hash);
+  virtual bool handleIncomingMsg(ClientInfo& from, uint32_t timestamp, uint8_t* data, uint flags, size_t len);
+  void sendAckTo(const ClientInfo& dest, uint32_t ack_hash);
 private:
   FILESYSTEM* _fs;
   unsigned long next_local_advert, next_flood_advert;
   NodePrefs _prefs;
   CommonCLI _cli;
   uint8_t reply_data[MAX_PACKET_PAYLOAD];
-  ContactInfo contacts[MAX_CONTACTS];
-  int num_contacts;
+  ClientACL  acl;
   unsigned long dirty_contacts_expiry;
   CayenneLPP telemetry;
   uint32_t last_read_time;
@@ -163,15 +143,10 @@ private:
   uint8_t pending_sf;
   uint8_t pending_cr;
 
-  void loadContacts();
-  void saveContacts();
   uint8_t handleLoginReq(const mesh::Identity& sender, const uint8_t* secret, uint32_t sender_timestamp, const uint8_t* data);
   uint8_t handleRequest(uint8_t perms, uint32_t sender_timestamp, uint8_t req_type, uint8_t* payload, size_t payload_len);
   mesh::Packet* createSelfAdvert();
-  ContactInfo* getContact(const uint8_t* pubkey, int key_len);
-  ContactInfo* putContact(const mesh::Identity& id, uint8_t init_perms);
-  bool applyContactPermissions(const uint8_t* pubkey, int key_len, uint8_t perms);
 
-  void sendAlert(ContactInfo* c, Trigger* t);
+  void sendAlert(const ClientInfo* c, Trigger* t);
 
 };
