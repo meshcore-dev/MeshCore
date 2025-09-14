@@ -229,8 +229,7 @@ Repeater or room server can be administered with one of the options below:
   
 - After a repeater or room server firmware is flashed on to a LoRa device, go to <https://config.meshcore.dev> and use the web user interface to connect to the LoRa device via USB serial.  From there you can set the name of the server, its frequency and other related settings, location, passwords etc.
 
-![image](https://github.com/user-attachments/assets/bec28ff3-a7d6-4a1e-8602-cb6b290dd150)
-
+![image](https://github.com/user-attachments/assets/2a9d9894-e34d-4dbe-b57c-fc3c250a2d34)
  
 - Connect the server device using a USB cable to a computer running Chrome on https://flasher.meshcore.co.uk/, then use the `console` feature to connect to the device
 
