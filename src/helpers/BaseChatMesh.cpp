@@ -158,6 +158,7 @@ void BaseChatMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender
     data[len] = 0; // need to make a C string again, with null terminator
 
     if (flags == TXT_TYPE_PLAIN) {
+      from.lastmod = getRTCClock()->getCurrentTime(); // update last heard time
       onMessageRecv(from, packet, timestamp, (const char *) &data[5]);  // let UI know
 
       uint32_t ack_hash;    // calc truncated hash of the message timestamp + text + sender pub_key, to prove to sender that we got it
@@ -184,6 +185,7 @@ void BaseChatMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender
       if (timestamp > from.sync_since) {  // make sure 'sync_since' is up-to-date
         from.sync_since = timestamp;
       }
+      from.lastmod = getRTCClock()->getCurrentTime(); // update last heard time
       onSignedMessageRecv(from, packet, timestamp, &data[5], (const char *) &data[9]);  // let UI know
 
       uint32_t ack_hash;    // calc truncated hash of the message timestamp + text + OUR pub_key, to prove to sender that we got it
@@ -223,6 +225,10 @@ void BaseChatMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender
     }
   } else if (type == PAYLOAD_TYPE_RESPONSE && len > 0) {
     onContactResponse(from, data, len);
+    if (packet->isRouteFlood() && from.out_path_len >= 0) {
+      // we have direct path, but other node is still sending flood response, so maybe they didn't receive reciprocal path properly(?)
+      handleReturnPathRetry(from, packet->path, packet->path_len);
+    }
   }
 }
 
@@ -248,7 +254,7 @@ bool BaseChatMesh::onContactPathRecv(ContactInfo& from, uint8_t* in_path, uint8_
 
   if (extra_type == PAYLOAD_TYPE_ACK && extra_len >= 4) {
     // also got an encoded ACK!
-    if (processAck(extra)) {
+    if (processAck(extra) != NULL) {
       txt_send_timeout = 0;   // matched one we're waiting for, cancel timeout timer
     }
   } else if (extra_type == PAYLOAD_TYPE_RESPONSE && extra_len > 0) {
@@ -258,10 +264,23 @@ bool BaseChatMesh::onContactPathRecv(ContactInfo& from, uint8_t* in_path, uint8_
 }
 
 void BaseChatMesh::onAckRecv(mesh::Packet* packet, uint32_t ack_crc) {
-  if (processAck((uint8_t *)&ack_crc)) {
+  ContactInfo* from;
+  if ((from = processAck((uint8_t *)&ack_crc)) != NULL) {
     txt_send_timeout = 0;   // matched one we're waiting for, cancel timeout timer
     packet->markDoNotRetransmit();   // ACK was for this node, so don't retransmit
+
+    if (packet->isRouteFlood() && from->out_path_len >= 0) {
+      // we have direct path, but other node is still sending flood, so maybe they didn't receive reciprocal path properly(?)
+      handleReturnPathRetry(*from, packet->path, packet->path_len);
+    }
   }
+}
+
+void BaseChatMesh::handleReturnPathRetry(const ContactInfo& contact, const uint8_t* path, uint8_t path_len) {
+  // NOTE: simplest impl is just to re-send a reciprocal return path to sender (DIRECTLY)
+  //        override this method in various firmwares, if there's a better strategy
+  mesh::Packet* rpath = createPathReturn(contact.id, contact.shared_secret, path, path_len, 0, NULL, 0);
+  if (rpath) sendDirect(rpath, contact.out_path, contact.out_path_len, 3000);   // 3 second delay
 }
 
 #ifdef MAX_GROUP_CHANNELS
@@ -550,7 +569,7 @@ void BaseChatMesh::markConnectionActive(const ContactInfo& contact) {
   }
 }
 
-bool BaseChatMesh::checkConnectionsAck(const uint8_t* data) {
+ContactInfo* BaseChatMesh::checkConnectionsAck(const uint8_t* data) {
   for (int i = 0; i < MAX_CONNECTIONS; i++) {
     if (connections[i].keep_alive_millis > 0 && memcmp(&connections[i].expected_ack, data, 4) == 0) {
       // yes, got an ack for our keep_alive request!
@@ -559,10 +578,12 @@ bool BaseChatMesh::checkConnectionsAck(const uint8_t* data) {
 
       // re-schedule next KEEP_ALIVE, now that we have heard from server
       connections[i].next_ping = futureMillis(connections[i].keep_alive_millis);
-      return true;  // yes, a match
+
+      auto id = &connections[i].server_id;
+      return lookupContactByPubKey(id->pub_key, PUB_KEY_SIZE);  // yes, a match
     }
   }
-  return false;  /// no match
+  return NULL;  /// no match
 }
 
 void BaseChatMesh::checkConnections() {

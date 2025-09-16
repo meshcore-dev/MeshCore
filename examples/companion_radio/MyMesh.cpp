@@ -294,7 +294,7 @@ void MyMesh::onContactPathUpdated(const ContactInfo &contact) {
   dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY);
 }
 
-bool MyMesh::processAck(const uint8_t *data) {
+ContactInfo*  MyMesh::processAck(const uint8_t *data) {
   // see if matches any in a table
   for (int i = 0; i < EXPECTED_ACK_TABLE_SIZE; i++) {
     if (memcmp(data, &expected_ack_table[i].ack, 4) == 0) { // got an ACK from recipient
@@ -306,7 +306,7 @@ bool MyMesh::processAck(const uint8_t *data) {
 
       // NOTE: the same ACK can be received multiple times!
       expected_ack_table[i].ack = 0; // clear expected hash, now that we have received ACK
-      return true;
+      return expected_ack_table[i].contact;
     }
   }
   return checkConnectionsAck(data);
@@ -825,6 +825,7 @@ void MyMesh::handleCmdFrame(size_t len) {
         if (expected_ack) {
           expected_ack_table[next_ack_idx].msg_sent = _ms->getMillis(); // add to circular table
           expected_ack_table[next_ack_idx].ack = expected_ack;
+          expected_ack_table[next_ack_idx].contact = recipient;
           next_ack_idx = (next_ack_idx + 1) % EXPECTED_ACK_TABLE_SIZE;
         }
 
