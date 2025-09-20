@@ -1,12 +1,3 @@
-**MeshCore-FAQ**<!-- omit from toc -->
-A list of frequently-asked questions and answers for MeshCore
-
-The current version of this MeshCore FAQ is at https://github.com/meshcore-dev/MeshCore/blob/main/docs/faq.md.  
-This MeshCore FAQ is also mirrored at https://github.com/LitBomb/MeshCore-FAQ and might have newer updates if pull requests on Scott's MeshCore repo are not approved yet.
-
-author: https://github.com/LitBomb<!-- omit from toc -->
----
-
 - [1. Introduction](#1-introduction)
   - [1.1. Q: What is MeshCore?](#11-q-what-is-meshcore)
   - [1.2. Q: What do you need to start using MeshCore?](#12-q-what-do-you-need-to-start-using-meshcore)
@@ -223,7 +214,7 @@ As of Aug 20 2025, a pending PR on github will change the flood advert to 12 hou
 
 ### 3.1. Q: How do you configure a repeater or a room server?
 
-**A:** - When MeshCore is flashed onto a LoRa device is for the first time, it is necessary to set the server device's frequency to make it utilize the frequency that is legal in your country or region.  
+**A:** - When MeshCore is flashed onto a LoRa device is for the first time, it is necessary to set the device's frequency to make it utilize the frequency that is legal in your country or region.
 
 Repeater or room server can be administered with one of the options below:
   
@@ -242,7 +233,7 @@ Repeater or room server can be administered with one of the options below:
   
 
 ### 3.2. Q: Do I need to set the location for a repeater?
-**A:** With location set for a repeater, it can show up on a MeshCore map in the future. Set location with the following commands:
+**A:** While not required, with location set for a repeater it will show up on the MeshCore map in the future. Set location with the following commands:
 
 `set lat <GPS Lat> set long <GPS Lon>`
 
@@ -376,6 +367,7 @@ https://github.com/meshcore-dev/MeshCore/blob/main/src/Packet.h#L19
 **SF is spreading factor** - how much should the communication spread in time
 
 **CR is coding rate** - https://www.thethingsnetwork.org/docs/lorawan/fec-and-code-rate/
+
 Making the bandwidth 2x wider (from BW125 to BW250) allows you to send 2x more bytes in the same time. Making the spreading factor 1 step lower (from SF10 to SF9) allows you to send 2x more bytes in the same time. 
 
 Lowering the spreading factor makes it more difficult for the gateway to receive a transmission, as it will be more sensitive to noise. You could compare this to two people taking in a noisy place (a bar for example). If you’re far from each other, you have to talk slow (SF10), but if you’re close, you can talk faster (SF7)
