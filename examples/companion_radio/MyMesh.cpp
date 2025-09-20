@@ -243,7 +243,7 @@ void MyMesh::onDiscoveredContact(ContactInfo &contact, bool is_new, uint8_t path
     }
   } else {
 #ifdef DISPLAY_CLASS
-    if (_ui) _ui->soundBuzzer(UIEventType::newContactMessage);
+    if (_ui) _ui->notify(UIEventType::newContactMessage);
 #endif
   }
 
@@ -353,7 +353,7 @@ void MyMesh::queueMessage(const ContactInfo &from, uint8_t txt_type, mesh::Packe
   if (should_display && _ui) {
     _ui->newMsg(path_len, from.name, text, offline_queue_len);
     if (!_serial->isConnected()) {
-      _ui->soundBuzzer(UIEventType::contactMessage);
+      _ui->notify(UIEventType::contactMessage);
     }
   }
 #endif
@@ -412,7 +412,7 @@ void MyMesh::onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packe
     _serial->writeFrame(frame, 1);
   } else {
 #ifdef DISPLAY_CLASS
-    if (_ui) _ui->soundBuzzer(UIEventType::channelMessage);
+    if (_ui) _ui->notify(UIEventType::channelMessage);
 #endif
   }
 #ifdef DISPLAY_CLASS

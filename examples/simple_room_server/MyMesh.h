@@ -18,6 +18,7 @@
 #include <helpers/AdvertDataHelpers.h>
 #include <helpers/TxtDataHelpers.h>
 #include <helpers/CommonCLI.h>
+#include <helpers/ClientACL.h>
 #include <RTClib.h>
 #include <target.h>
 
@@ -61,10 +62,6 @@
   #define  ADMIN_PASSWORD  "password"
 #endif
 
-#ifndef MAX_CLIENTS
- #define MAX_CLIENTS           32
-#endif
-
 #ifndef MAX_UNSYNCED_POSTS
   #define MAX_UNSYNCED_POSTS    32
 #endif
@@ -81,27 +78,6 @@
 
 #define PACKET_LOG_FILE  "/packet_log"
 
-enum RoomPermission {
-  ADMIN,
-  GUEST,
-  READ_ONLY
-};
-
-struct ClientInfo {
-  mesh::Identity id;
-  uint32_t last_timestamp;  // by THEIR clock
-  uint32_t last_activity;   // by OUR clock
-  uint32_t sync_since;  // sync messages SINCE this timestamp (by OUR clock)
-  uint32_t pending_ack;
-  uint32_t push_post_timestamp;
-  unsigned long ack_timeout;
-  RoomPermission  permission;
-  uint8_t  push_failures;
-  uint8_t  secret[PUB_KEY_SIZE];
-  int      out_path_len;
-  uint8_t  out_path[MAX_PATH_SIZE];
-};
-
 #define MAX_POST_TEXT_LEN    (160-9)
 
 struct PostInfo {
@@ -116,9 +92,9 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   bool _logging;
   NodePrefs _prefs;
   CommonCLI _cli;
+  ClientACL acl;
+  unsigned long dirty_contacts_expiry;
   uint8_t reply_data[MAX_PACKET_PAYLOAD];
-  int num_clients;
-  ClientInfo known_clients[MAX_CLIENTS];
   unsigned long next_push;
   uint16_t _num_posted, _num_post_pushes;
   int next_client_idx;  // for round-robin polling
@@ -132,8 +108,6 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   uint8_t pending_cr;
   int  matching_peer_indexes[MAX_CLIENTS];
 
-  ClientInfo* putClient(const mesh::Identity& id);
-  void  evict(ClientInfo* client);
   void addPost(ClientInfo* client, const char* postData);
   void pushPostToClient(ClientInfo* client, PostInfo& post);
   uint8_t getUnsyncedCount(ClientInfo* client);
@@ -212,6 +186,8 @@ public:
   }
 
   mesh::LocalIdentity& getSelfId() override { return self_id; }
+
+  static bool saveFilter(ClientInfo* client);
 
   void saveIdentity(const mesh::LocalIdentity& new_id) override;
   void clearStats() override;

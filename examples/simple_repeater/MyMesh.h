@@ -18,6 +18,7 @@
 #include <helpers/IdentityStore.h>
 #include <helpers/AdvertDataHelpers.h>
 #include <helpers/TxtDataHelpers.h>
+#include <helpers/ClientACL.h>
 #include <RTClib.h>
 #include <target.h>
 
@@ -52,15 +53,6 @@ struct RepeaterStats {
   uint32_t total_rx_air_time_secs;
 };
 
-struct ClientInfo {
-  mesh::Identity id;
-  uint32_t last_timestamp, last_activity;
-  uint8_t secret[PUB_KEY_SIZE];
-  bool    is_admin;
-  int8_t  out_path_len;
-  uint8_t out_path[MAX_PATH_SIZE];
-};
-
 #ifndef MAX_CLIENTS
   #define MAX_CLIENTS           32
 #endif
@@ -91,7 +83,8 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   NodePrefs _prefs;
   CommonCLI _cli;
   uint8_t reply_data[MAX_PACKET_PAYLOAD];
-  ClientInfo known_clients[MAX_CLIENTS];
+  ClientACL  acl;
+  unsigned long dirty_contacts_expiry;
 #if MAX_NEIGHBOURS
   NeighbourInfo neighbours[MAX_NEIGHBOURS];
 #endif
@@ -108,8 +101,8 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   ESPNowBridge bridge;
 #endif
 
-  ClientInfo* putClient(const mesh::Identity& id);
   void putNeighbour(const mesh::Identity& id, uint32_t timestamp, float snr);
+  uint8_t handleLoginReq(const mesh::Identity& sender, const uint8_t* secret, uint32_t sender_timestamp, const uint8_t* data);
   int handleRequest(ClientInfo* sender, uint32_t sender_timestamp, uint8_t* payload, size_t payload_len);
   mesh::Packet* createSelfAdvert();
 

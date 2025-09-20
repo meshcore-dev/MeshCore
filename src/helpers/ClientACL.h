@@ -18,7 +18,16 @@ struct ClientInfo {
   uint8_t shared_secret[PUB_KEY_SIZE];
   uint32_t last_timestamp;   // by THEIR clock  (transient)
   uint32_t last_activity;    // by OUR clock    (transient)
-
+  union  {
+    struct {
+      uint32_t sync_since;  // sync messages SINCE this timestamp (by OUR clock)
+      uint32_t pending_ack;
+      uint32_t push_post_timestamp;
+      unsigned long ack_timeout;
+      uint8_t  push_failures;
+    } room;
+  } extra;
+  
   bool isAdmin() const { return (permissions & PERM_ACL_ROLE_MASK) == PERM_ACL_ADMIN; }
 };
 
@@ -36,7 +45,7 @@ public:
     num_clients = 0;
   }
   void load(FILESYSTEM* _fs);
-  void save(FILESYSTEM* _fs);
+  void save(FILESYSTEM* _fs, bool (*filter)(ClientInfo*)=NULL);
 
   ClientInfo* getClient(const uint8_t* pubkey, int key_len);
   ClientInfo* putClient(const mesh::Identity& id, uint8_t init_perms);

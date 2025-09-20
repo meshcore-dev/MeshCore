@@ -24,16 +24,17 @@ void ClientACL::load(FILESYSTEM* _fs) {
       while (!full) {
         ClientInfo c;
         uint8_t pub_key[32];
-        uint8_t unused[6];
+        uint8_t unused[2];
+
+        memset(&c, 0, sizeof(c));
 
         bool success = (file.read(pub_key, 32) == 32);
         success = success && (file.read((uint8_t *) &c.permissions, 1) == 1);
-        success = success && (file.read(unused, 6) == 6);
+        success = success && (file.read((uint8_t *) &c.extra.room.sync_since, 4) == 4);
+        success = success && (file.read(unused, 2) == 2);
         success = success && (file.read((uint8_t *)&c.out_path_len, 1) == 1);
         success = success && (file.read(c.out_path, 64) == 64);
         success = success && (file.read(c.shared_secret, PUB_KEY_SIZE) == PUB_KEY_SIZE);
-        c.last_timestamp = 0;  // transient
-        c.last_activity = 0;
 
         if (!success) break; // EOF
 
@@ -49,19 +50,20 @@ void ClientACL::load(FILESYSTEM* _fs) {
   }
 }
 
-void ClientACL::save(FILESYSTEM* _fs) {
+void ClientACL::save(FILESYSTEM* _fs, bool (*filter)(ClientInfo*)) {
   File file = openWrite(_fs, "/s_contacts");
   if (file) {
-    uint8_t unused[6];
+    uint8_t unused[2];
     memset(unused, 0, sizeof(unused));
 
     for (int i = 0; i < num_clients; i++) {
       auto c = &clients[i];
-      if (c->permissions == 0) continue;    // skip deleted entries
+      if (c->permissions == 0 || (filter && !filter(c))) continue;    // skip deleted entries, or by filter function
 
       bool success = (file.write(c->id.pub_key, 32) == 32);
       success = success && (file.write((uint8_t *) &c->permissions, 1) == 1);
-      success = success && (file.write(unused, 6) == 6);
+      success = success && (file.write((uint8_t *) &c->extra.room.sync_since, 4) == 4);
+      success = success && (file.write(unused, 2) == 2);
       success = success && (file.write((uint8_t *)&c->out_path_len, 1) == 1);
       success = success && (file.write(c->out_path, 64) == 64);
       success = success && (file.write(c->shared_secret, PUB_KEY_SIZE) == PUB_KEY_SIZE);

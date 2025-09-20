@@ -90,6 +90,7 @@ class HomeScreen : public UIScreen {
   bool _shutdown_init;
   AdvertPath recent[UI_RECENT_LIST_SIZE];
 
+
   void renderBatteryIndicator(DisplayDriver& display, uint16_t batteryMilliVolts) {
     // Convert millivolts to percentage
     const int minMilliVolts = 3000; // Minimum voltage (e.g., 3.0V)
@@ -157,10 +158,12 @@ public:
   int render(DisplayDriver& display) override {
     char tmp[80];
     // node name
-    display.setCursor(0, 0);
     display.setTextSize(1);
     display.setColor(DisplayDriver::GREEN);
-    display.print(_node_prefs->node_name);
+    char filtered_name[sizeof(_node_prefs->node_name)];
+    display.translateUTF8ToBlocks(filtered_name, _node_prefs->node_name, sizeof(filtered_name));
+    display.setCursor(0, 0);
+    display.print(filtered_name);
 
     // battery voltage
     renderBatteryIndicator(display, _task->getBattMilliVolts());
@@ -199,8 +202,6 @@ public:
       for (int i = 0; i < UI_RECENT_LIST_SIZE; i++, y += 11) {
         auto a = &recent[i];
         if (a->name[0] == 0) continue;  // empty slot
-        display.setCursor(0, y);
-        display.print(a->name);
         int secs = _rtc->getCurrentTime() - a->recv_timestamp;
         if (secs < 60) {
           sprintf(tmp, "%ds", secs);
@@ -209,7 +210,14 @@ public:
         } else {
           sprintf(tmp, "%dh", secs / (60*60));
         }
-        display.setCursor(display.width() - display.getTextWidth(tmp) - 1, y);
+        
+        int timestamp_width = display.getTextWidth(tmp);
+        int max_name_width = display.width() - timestamp_width - 1;
+        
+        char filtered_recent_name[sizeof(a->name)];
+        display.translateUTF8ToBlocks(filtered_recent_name, a->name, sizeof(filtered_recent_name));
+        display.drawTextEllipsized(0, y, max_name_width, filtered_recent_name);
+        display.setCursor(display.width() - timestamp_width - 1, y);
         display.print(tmp);
       }
     } else if (_page == HomePage::RADIO) {
@@ -348,9 +356,7 @@ public:
       return true;
     }
     if (c == KEY_ENTER && _page == HomePage::ADVERT) {
-  #ifdef PIN_BUZZER
-      _task->soundBuzzer(UIEventType::ack);
-  #endif
+      _task->notify(UIEventType::ack);
       if (the_mesh.advert()) {
         _task->showAlert("Advert sent!", 1000);
       } else {
@@ -427,11 +433,15 @@ public:
 
     display.setCursor(0, 14);
     display.setColor(DisplayDriver::YELLOW);
-    display.print(p->origin);
+    char filtered_origin[sizeof(p->origin)];
+    display.translateUTF8ToBlocks(filtered_origin, p->origin, sizeof(filtered_origin));
+    display.print(filtered_origin);
 
     display.setCursor(0, 25);
     display.setColor(DisplayDriver::LIGHT);
-    display.printWordWrap(p->msg, display.width());
+    char filtered_msg[sizeof(p->msg)];
+    display.translateUTF8ToBlocks(filtered_msg, p->msg, sizeof(filtered_msg));
+    display.printWordWrap(filtered_msg, display.width());
 
 #if AUTO_OFF_MILLIS==0 // probably e-ink
     return 10000; // 10 s
@@ -483,6 +493,10 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
   buzzer.begin();
 #endif
 
+#ifdef PIN_VIBRATION
+  vibration.begin();
+#endif
+
   ui_started_at = millis();
   _alert_expiry = 0;
 
@@ -497,9 +511,9 @@ void UITask::showAlert(const char* text, int duration_millis) {
   _alert_expiry = millis() + duration_millis;
 }
 
-void UITask::soundBuzzer(UIEventType bet) {
+void UITask::notify(UIEventType t) {
 #if defined(PIN_BUZZER)
-switch(bet){
+switch(t){
   case UIEventType::contactMessage:
     // gemini's pick
     buzzer.play("MsgRcv3:d=4,o=6,b=200:32e,32g,32b,16c7");
@@ -517,7 +531,15 @@ switch(bet){
     break;
 }
 #endif
+
+#ifdef PIN_VIBRATION
+  // Trigger vibration for all UI events except none
+  if (t != UIEventType::none) {
+    vibration.trigger();
+  }
+#endif
 }
+
 
 void UITask::msgRead(int msgcount) {
   _msgcount = msgcount;
@@ -687,6 +709,10 @@ void UITask::loop() {
 #endif
   }
 
+#ifdef PIN_VIBRATION
+  vibration.loop();
+#endif
+
 #ifdef AUTO_SHUTDOWN_MILLIVOLTS
   if (millis() > next_batt_chck) {
     uint16_t milliVolts = getBattMilliVolts();
@@ -755,11 +781,11 @@ void UITask::toggleGPS() {
       if (strcmp(_sensors->getSettingName(i), "gps") == 0) {
         if (strcmp(_sensors->getSettingValue(i), "1") == 0) {
           _sensors->setSettingValue("gps", "0");
-          soundBuzzer(UIEventType::ack);
+          notify(UIEventType::ack);
           showAlert("GPS: Disabled", 800);
         } else {
           _sensors->setSettingValue("gps", "1");
-          soundBuzzer(UIEventType::ack);
+          notify(UIEventType::ack);
           showAlert("GPS: Enabled", 800);
         }
         _next_refresh = 0;
@@ -774,7 +800,7 @@ void UITask::toggleBuzzer() {
   #ifdef PIN_BUZZER
     if (buzzer.isQuiet()) {
       buzzer.quiet(false);
-      soundBuzzer(UIEventType::ack);
+      notify(UIEventType::ack);
       showAlert("Buzzer: ON", 800);
     } else {
       buzzer.quiet(true);
