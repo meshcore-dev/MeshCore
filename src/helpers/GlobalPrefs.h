@@ -1,11 +1,11 @@
 #pragma once
 
-// Vorwärtsdeklaration – kein Include-Rattenschwanz.
+// Forward declaration – prevents include cascades.
 struct NodePrefs;
 
-// Globaler Zeiger auf DEINE eine NodePrefs-Instanz.
+// Global pointer to YOUR single NodePrefs instance.
 extern NodePrefs* g_nodePrefs;
 
-// Bequeme Getter:
+// Convenient getters:
 inline NodePrefs& prefs()       { return *g_nodePrefs; }
 inline const NodePrefs& cprefs(){ return *g_nodePrefs; }

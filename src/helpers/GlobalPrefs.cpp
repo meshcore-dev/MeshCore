@@ -1,4 +1,4 @@
 #include "GlobalPrefs.h"
 
-// Einzige Definition des Symbols:
+// Single Definition of Symbol:
 NodePrefs* g_nodePrefs = nullptr;
