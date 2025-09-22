@@ -2,6 +2,7 @@
 
 #include "Mesh.h"
 #include <helpers/IdentityStore.h>
+#include "GlobalPrefs.h"
 
 struct NodePrefs {  // persisted to file
     float airtime_factor;

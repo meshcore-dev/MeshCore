@@ -72,6 +72,8 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     _prefs->multi_acks = constrain(_prefs->multi_acks, 0, 1);
 
     file.close();
+
+    g_nodePrefs = _prefs; 
   }
 }
 
@@ -116,6 +118,8 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *) &_prefs->interference_threshold, sizeof(_prefs->interference_threshold));  // 126
 
     file.close();
+    g_nodePrefs = _prefs; 
+
   }
 }
 
