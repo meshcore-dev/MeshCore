@@ -29,7 +29,7 @@ void RadioLibWrapper::begin() {
   state = STATE_IDLE;
 
   if (_board->getStartupReason() == BD_STARTUP_RX_PACKET) {  // received a LoRa packet (while in deep sleep)
-    setFlag(); // LoRa packet is already received
+    state = (STATE_RX | STATE_INT_READY);
   }
 
   _noise_floor = 0;
@@ -97,7 +97,7 @@ bool RadioLibWrapper::isInRecvMode() const {
 
 int RadioLibWrapper::recvRaw(uint8_t* bytes, int sz) {
   int len = 0;
-  if (state & STATE_INT_READY) {
+  if ((state & STATE_INT_READY) && ((state & ~STATE_INT_READY) == STATE_RX)) {
     len = _radio->getPacketLength();
     if (len > 0) {
       if (len > sz) { len = sz; }
@@ -141,7 +141,7 @@ bool RadioLibWrapper::startSendRaw(const uint8_t* bytes, int len) {
 }
 
 bool RadioLibWrapper::isSendComplete() {
-  if (state & STATE_INT_READY) {
+  if ((state & STATE_INT_READY) && ((state & ~STATE_INT_READY) == STATE_TX_WAIT)) {
     state = STATE_IDLE;
     n_sent++;
     return true;
