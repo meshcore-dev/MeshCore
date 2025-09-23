@@ -67,4 +67,9 @@ class CustomLR1110 : public LR1110 {
       bool detected = ((irq & LR1110_IRQ_HEADER_VALID) || (irq & LR1110_IRQ_HAS_PREAMBLE));
       return detected;
     }
+
+    int16_t readData(uint8_t* data, size_t len) override {
+      clearIrqState(0xFFFF);
+      return LR1110::readData(data, len);
+    }
 };
