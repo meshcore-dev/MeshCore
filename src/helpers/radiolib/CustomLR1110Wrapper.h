@@ -9,6 +9,11 @@ public:
   bool isReceivingPacket() override { 
     return ((CustomLR1110 *)_radio)->isReceiving();
   }
+  bool canReadPacketNow() override {
+    uint16_t irq = ((CustomLR1110 *)_radio)->getIrqStatus();
+    const uint16_t RX_DONE = (1u << 3);
+    return (irq & RX_DONE) != 0;
+  }
   float getCurrentRSSI() override {
     float rssi = -110;
     ((CustomLR1110 *)_radio)->getRssiInst(&rssi);
