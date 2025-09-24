@@ -7,7 +7,7 @@
 #define  P_LORA_DIO_1   22    // GPIO22 (ESP32 pin 36 -> IO6/DIO1)
 #define  P_LORA_NSS     32    // GPIO32 (ESP32 pin 8 -> SPI_CS)
 #define  P_LORA_RESET   23    // GPIO23 (ESP32 pin 37 -> IO4/NRESET)
-#define  P_LORA_BUSY    RADIOLIB_NC
+#define  P_LORA_BUSY    13    // GPIO13 (ESP32 pin 16 -> IO5)
 #define  P_LORA_SCLK    33    // GPIO33 (ESP32 pin 9 -> SPI_SCK)
 #define  P_LORA_MISO    35    // GPIO35 (ESP32 pin 7 -> SPI_MISO)
 #define  P_LORA_MOSI    25    // GPIO25 (ESP32 pin 10 -> SPI_MOSI)
