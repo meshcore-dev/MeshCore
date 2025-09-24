@@ -28,7 +28,7 @@ uint16_t RAK11200Board::getBattMilliVolts() {
   }
   raw = raw / BATTERY_SAMPLES;
 
-  return (ADC_MULTIPLIER * raw * 1000) / 4096;
+  return (ADC_MULTIPLIER * raw) / 4096;
 }
 
 const char* RAK11200Board::getManufacturerName() const {
