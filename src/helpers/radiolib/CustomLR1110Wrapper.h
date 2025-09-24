@@ -12,13 +12,8 @@ public:
   bool canReadPacketNow() override {
     uint16_t irq = ((CustomLR1110 *)_radio)->getIrqStatus();
     const uint16_t RX_DONE = (1u << 3);
-    bool has_packet = (irq & RX_DONE) != 0;
     
-    if (has_packet) {
-      ((CustomLR1110 *)_radio)->clearIrqState(RX_DONE);
-    }
-    
-    return has_packet;
+    return (irq & RX_DONE) != 0;
   }
   float getCurrentRSSI() override {
     float rssi = -110;

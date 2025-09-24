@@ -69,7 +69,11 @@ class CustomLR1110 : public LR1110 {
     }
 
     int16_t readData(uint8_t* data, size_t len) override {
-      clearIrqState(0xFFFF);
-      return LR1110::readData(data, len);
+      int16_t res = LR1110::readData(data, len);
+      if (res == RADIOLIB_ERR_NONE) {
+        const uint16_t RX_DONE = (1u << 3);
+        clearIrqState(RX_DONE);
+      }
+      return res;
     }
 };
