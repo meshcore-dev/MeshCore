@@ -57,7 +57,7 @@ Appdata Flags
 
 # Acknowledgement
 
-An acknowledgement that a message was received. Note that for returned path messages, an acknowledgement will be sent in the "extra" payload (see [Returned Path](#returned-path)) and not as a discrete ackowledgement. CLI commands do not require an acknowledgement, neither discrete nor extra.
+An acknowledgement that a message was received. Note that for returned path messages, an acknowledgement will be sent in the "extra" payload (see [Returned Path](#returned-path)) and not as a discrete acknowledgement. CLI commands do not require an acknowledgement, neither discrete nor extra.
 
 | Field    | Size (bytes) | Description                                                |
 |----------|--------------|------------------------------------------------------------|
