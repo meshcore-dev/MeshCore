@@ -66,6 +66,12 @@ public:
   void begin() override;
 
   /**
+   * Stops the RS232 bridge
+   *
+   */
+  void end() override;
+
+  /**
    * @brief Main loop handler for processing incoming serial data
    *
    * Implements a state machine for packet reception:

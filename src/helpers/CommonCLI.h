@@ -3,29 +3,35 @@
 #include "Mesh.h"
 #include <helpers/IdentityStore.h>
 
-struct NodePrefs {  // persisted to file
-    float airtime_factor;
-    char node_name[32];
-    double node_lat, node_lon;
-    char password[16];
-    float freq;
-    uint8_t tx_power_dbm;
-    uint8_t disable_fwd;
-    uint8_t advert_interval;   // minutes / 2
-    uint8_t flood_advert_interval;   // hours
-    float rx_delay_base;
-    float tx_delay_factor;
-    char guest_password[16];
-    float direct_tx_delay_factor;
-    uint32_t guard;
-    uint8_t sf;
-    uint8_t cr;
-    uint8_t allow_read_only;
-    uint8_t multi_acks;
-    float bw;
-    uint8_t flood_max;
-    uint8_t interference_threshold;
-    uint8_t agc_reset_interval;   // secs / 4
+#if defined(WITH_RS232_BRIDGE) || defined(WITH_ESPNOW_BRIDGE)
+#define WITH_BRIDGE
+#endif
+
+struct NodePrefs { // persisted to file
+  float airtime_factor;
+  char node_name[32];
+  double node_lat, node_lon;
+  char password[16];
+  float freq;
+  uint8_t tx_power_dbm;
+  uint8_t disable_fwd;
+  uint8_t advert_interval;       // minutes / 2
+  uint8_t flood_advert_interval; // hours
+  float rx_delay_base;
+  float tx_delay_factor;
+  char guest_password[16];
+  float direct_tx_delay_factor;
+  uint32_t guard;
+  uint8_t sf;
+  uint8_t cr;
+  uint8_t allow_read_only;
+  uint8_t multi_acks;
+  float bw;
+  uint8_t flood_max;
+  uint8_t interference_threshold;
+  uint8_t agc_reset_interval; // secs / 4
+  uint8_t bridge_enabled;     // boolean
+  uint8_t bridge_channel;     // 1-14
 };
 
 class CommonCLICallbacks {
@@ -50,6 +56,11 @@ public:
   virtual void saveIdentity(const mesh::LocalIdentity& new_id) = 0;
   virtual void clearStats() = 0;
   virtual void applyTempRadioParams(float freq, float bw, uint8_t sf, uint8_t cr, int timeout_mins) = 0;
+
+#ifdef WITH_ESPNOW_BRIDGE
+  virtual void setBridgeState(bool enable) = 0;
+  virtual void updateBridgeChannel(int ch) = 0;
+#endif
 };
 
 class CommonCLI {

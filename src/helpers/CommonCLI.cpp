@@ -32,32 +32,34 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
   if (file) {
     uint8_t pad[8];
 
-    file.read((uint8_t *) &_prefs->airtime_factor, sizeof(_prefs->airtime_factor));  // 0
-    file.read((uint8_t *) &_prefs->node_name, sizeof(_prefs->node_name));  // 4
-    file.read(pad, 4);   // 36
-    file.read((uint8_t *) &_prefs->node_lat, sizeof(_prefs->node_lat));  // 40
-    file.read((uint8_t *) &_prefs->node_lon, sizeof(_prefs->node_lon));  // 48
-    file.read((uint8_t *) &_prefs->password[0], sizeof(_prefs->password));  // 56
-    file.read((uint8_t *) &_prefs->freq, sizeof(_prefs->freq));   // 72
-    file.read((uint8_t *) &_prefs->tx_power_dbm, sizeof(_prefs->tx_power_dbm));  // 76
-    file.read((uint8_t *) &_prefs->disable_fwd, sizeof(_prefs->disable_fwd));  // 77
-    file.read((uint8_t *) &_prefs->advert_interval, sizeof(_prefs->advert_interval));  // 78
-    file.read((uint8_t *) pad, 1);  // 79  was 'unused'
-    file.read((uint8_t *) &_prefs->rx_delay_base, sizeof(_prefs->rx_delay_base));  // 80
-    file.read((uint8_t *) &_prefs->tx_delay_factor, sizeof(_prefs->tx_delay_factor));  // 84
-    file.read((uint8_t *) &_prefs->guest_password[0], sizeof(_prefs->guest_password));  // 88
-    file.read((uint8_t *) &_prefs->direct_tx_delay_factor, sizeof(_prefs->direct_tx_delay_factor));  // 104
-    file.read(pad, 4);   // 108
-    file.read((uint8_t *) &_prefs->sf, sizeof(_prefs->sf));  // 112
-    file.read((uint8_t *) &_prefs->cr, sizeof(_prefs->cr));  // 113
-    file.read((uint8_t *) &_prefs->allow_read_only, sizeof(_prefs->allow_read_only));  // 114
-    file.read((uint8_t *) &_prefs->multi_acks, sizeof(_prefs->multi_acks));  // 115
-    file.read((uint8_t *) &_prefs->bw, sizeof(_prefs->bw));  // 116
-    file.read((uint8_t *) &_prefs->agc_reset_interval, sizeof(_prefs->agc_reset_interval));  // 120
-    file.read(pad, 3);   // 121
-    file.read((uint8_t *) &_prefs->flood_max, sizeof(_prefs->flood_max));   // 124
-    file.read((uint8_t *) &_prefs->flood_advert_interval, sizeof(_prefs->flood_advert_interval));  // 125
-    file.read((uint8_t *) &_prefs->interference_threshold, sizeof(_prefs->interference_threshold));  // 126
+    file.read((uint8_t *)&_prefs->airtime_factor, sizeof(_prefs->airtime_factor));    // 0
+    file.read((uint8_t *)&_prefs->node_name, sizeof(_prefs->node_name));              // 4
+    file.read(pad, 4);                                                                // 36
+    file.read((uint8_t *)&_prefs->node_lat, sizeof(_prefs->node_lat));                // 40
+    file.read((uint8_t *)&_prefs->node_lon, sizeof(_prefs->node_lon));                // 48
+    file.read((uint8_t *)&_prefs->password[0], sizeof(_prefs->password));             // 56
+    file.read((uint8_t *)&_prefs->freq, sizeof(_prefs->freq));                        // 72
+    file.read((uint8_t *)&_prefs->tx_power_dbm, sizeof(_prefs->tx_power_dbm));        // 76
+    file.read((uint8_t *)&_prefs->disable_fwd, sizeof(_prefs->disable_fwd));          // 77
+    file.read((uint8_t *)&_prefs->advert_interval, sizeof(_prefs->advert_interval));  // 78
+    file.read((uint8_t *)pad, 1);                                                     // 79  was 'unused'
+    file.read((uint8_t *)&_prefs->rx_delay_base, sizeof(_prefs->rx_delay_base));      // 80
+    file.read((uint8_t *)&_prefs->tx_delay_factor, sizeof(_prefs->tx_delay_factor));  // 84
+    file.read((uint8_t *)&_prefs->guest_password[0], sizeof(_prefs->guest_password)); // 88
+    file.read((uint8_t *)&_prefs->direct_tx_delay_factor, sizeof(_prefs->direct_tx_delay_factor)); // 104
+    file.read(pad, 4);                                                                             // 108
+    file.read((uint8_t *)&_prefs->sf, sizeof(_prefs->sf));                                         // 112
+    file.read((uint8_t *)&_prefs->cr, sizeof(_prefs->cr));                                         // 113
+    file.read((uint8_t *)&_prefs->allow_read_only, sizeof(_prefs->allow_read_only));               // 114
+    file.read((uint8_t *)&_prefs->multi_acks, sizeof(_prefs->multi_acks));                         // 115
+    file.read((uint8_t *)&_prefs->bw, sizeof(_prefs->bw));                                         // 116
+    file.read((uint8_t *)&_prefs->agc_reset_interval, sizeof(_prefs->agc_reset_interval));         // 120
+    file.read(pad, 3);                                                                             // 121
+    file.read((uint8_t *)&_prefs->flood_max, sizeof(_prefs->flood_max));                           // 124
+    file.read((uint8_t *)&_prefs->flood_advert_interval, sizeof(_prefs->flood_advert_interval));   // 125
+    file.read((uint8_t *)&_prefs->interference_threshold, sizeof(_prefs->interference_threshold)); // 126
+    file.read((uint8_t *)&_prefs->bridge_enabled, sizeof(_prefs->bridge_enabled));                 // 127
+    file.read((uint8_t *)&_prefs->bridge_channel, sizeof(_prefs->bridge_channel));                 // 128
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -70,6 +72,8 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     _prefs->cr = constrain(_prefs->cr, 5, 8);
     _prefs->tx_power_dbm = constrain(_prefs->tx_power_dbm, 1, 30);
     _prefs->multi_acks = constrain(_prefs->multi_acks, 0, 1);
+    _prefs->bridge_enabled = constrain(_prefs->bridge_enabled, 0, 1);
+    _prefs->bridge_channel = constrain(_prefs->bridge_channel, 0, 14);
 
     file.close();
   }
@@ -88,32 +92,34 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     uint8_t pad[8];
     memset(pad, 0, sizeof(pad));
 
-    file.write((uint8_t *) &_prefs->airtime_factor, sizeof(_prefs->airtime_factor));  // 0
-    file.write((uint8_t *) &_prefs->node_name, sizeof(_prefs->node_name));  // 4
-    file.write(pad, 4);   // 36
-    file.write((uint8_t *) &_prefs->node_lat, sizeof(_prefs->node_lat));  // 40
-    file.write((uint8_t *) &_prefs->node_lon, sizeof(_prefs->node_lon));  // 48
-    file.write((uint8_t *) &_prefs->password[0], sizeof(_prefs->password));  // 56
-    file.write((uint8_t *) &_prefs->freq, sizeof(_prefs->freq));   // 72
-    file.write((uint8_t *) &_prefs->tx_power_dbm, sizeof(_prefs->tx_power_dbm));  // 76
-    file.write((uint8_t *) &_prefs->disable_fwd, sizeof(_prefs->disable_fwd));  // 77
-    file.write((uint8_t *) &_prefs->advert_interval, sizeof(_prefs->advert_interval));  // 78
-    file.write((uint8_t *) pad, 1);  // 79  was 'unused'
-    file.write((uint8_t *) &_prefs->rx_delay_base, sizeof(_prefs->rx_delay_base));  // 80
-    file.write((uint8_t *) &_prefs->tx_delay_factor, sizeof(_prefs->tx_delay_factor));  // 84
-    file.write((uint8_t *) &_prefs->guest_password[0], sizeof(_prefs->guest_password));  // 88
-    file.write((uint8_t *) &_prefs->direct_tx_delay_factor, sizeof(_prefs->direct_tx_delay_factor));  // 104
-    file.write(pad, 4);   // 108
-    file.write((uint8_t *) &_prefs->sf, sizeof(_prefs->sf));  // 112
-    file.write((uint8_t *) &_prefs->cr, sizeof(_prefs->cr));  // 113
-    file.write((uint8_t *) &_prefs->allow_read_only, sizeof(_prefs->allow_read_only));  // 114
-    file.write((uint8_t *) &_prefs->multi_acks, sizeof(_prefs->multi_acks));  // 115
-    file.write((uint8_t *) &_prefs->bw, sizeof(_prefs->bw));  // 116
-    file.write((uint8_t *) &_prefs->agc_reset_interval, sizeof(_prefs->agc_reset_interval));  // 120
-    file.write(pad, 3);   // 121
-    file.write((uint8_t *) &_prefs->flood_max, sizeof(_prefs->flood_max));   // 124
-    file.write((uint8_t *) &_prefs->flood_advert_interval, sizeof(_prefs->flood_advert_interval));  // 125
-    file.write((uint8_t *) &_prefs->interference_threshold, sizeof(_prefs->interference_threshold));  // 126
+    file.write((uint8_t *)&_prefs->airtime_factor, sizeof(_prefs->airtime_factor));    // 0
+    file.write((uint8_t *)&_prefs->node_name, sizeof(_prefs->node_name));              // 4
+    file.write(pad, 4);                                                                // 36
+    file.write((uint8_t *)&_prefs->node_lat, sizeof(_prefs->node_lat));                // 40
+    file.write((uint8_t *)&_prefs->node_lon, sizeof(_prefs->node_lon));                // 48
+    file.write((uint8_t *)&_prefs->password[0], sizeof(_prefs->password));             // 56
+    file.write((uint8_t *)&_prefs->freq, sizeof(_prefs->freq));                        // 72
+    file.write((uint8_t *)&_prefs->tx_power_dbm, sizeof(_prefs->tx_power_dbm));        // 76
+    file.write((uint8_t *)&_prefs->disable_fwd, sizeof(_prefs->disable_fwd));          // 77
+    file.write((uint8_t *)&_prefs->advert_interval, sizeof(_prefs->advert_interval));  // 78
+    file.write((uint8_t *)pad, 1);                                                     // 79  was 'unused'
+    file.write((uint8_t *)&_prefs->rx_delay_base, sizeof(_prefs->rx_delay_base));      // 80
+    file.write((uint8_t *)&_prefs->tx_delay_factor, sizeof(_prefs->tx_delay_factor));  // 84
+    file.write((uint8_t *)&_prefs->guest_password[0], sizeof(_prefs->guest_password)); // 88
+    file.write((uint8_t *)&_prefs->direct_tx_delay_factor, sizeof(_prefs->direct_tx_delay_factor)); // 104
+    file.write(pad, 4);                                                                             // 108
+    file.write((uint8_t *)&_prefs->sf, sizeof(_prefs->sf));                                         // 112
+    file.write((uint8_t *)&_prefs->cr, sizeof(_prefs->cr));                                         // 113
+    file.write((uint8_t *)&_prefs->allow_read_only, sizeof(_prefs->allow_read_only));               // 114
+    file.write((uint8_t *)&_prefs->multi_acks, sizeof(_prefs->multi_acks));                         // 115
+    file.write((uint8_t *)&_prefs->bw, sizeof(_prefs->bw));                                         // 116
+    file.write((uint8_t *)&_prefs->agc_reset_interval, sizeof(_prefs->agc_reset_interval));         // 120
+    file.write(pad, 3);                                                                             // 121
+    file.write((uint8_t *)&_prefs->flood_max, sizeof(_prefs->flood_max));                           // 124
+    file.write((uint8_t *)&_prefs->flood_advert_interval, sizeof(_prefs->flood_advert_interval));   // 125
+    file.write((uint8_t *)&_prefs->interference_threshold, sizeof(_prefs->interference_threshold)); // 126
+    file.write((uint8_t *)&_prefs->bridge_enabled, sizeof(_prefs->bridge_enabled));                 // 127
+    file.write((uint8_t *)&_prefs->bridge_channel, sizeof(_prefs->bridge_channel));                 // 128
 
     file.close();
   }
@@ -252,11 +258,41 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         mesh::Utils::toHex(&reply[2], _callbacks->getSelfId().pub_key, PUB_KEY_SIZE);
       } else if (memcmp(config, "role", 4) == 0) {
         sprintf(reply, "> %s", _callbacks->getRole());
+#ifdef WITH_BRIDGE
+      } else if (memcmp(config, "bridge.enabled", 14) == 0) {
+        sprintf(reply, "> %s", _prefs->bridge_enabled ? "on" : "off");
+#ifdef WITH_ESPNOW_BRIDGE
+      } else if (memcmp(config, "bridge.channel", 14) == 0) {
+        sprintf(reply, "> %d", (uint32_t)_prefs->bridge_channel);
+#endif
+#endif
       } else {
         sprintf(reply, "??: %s", config);
       }
     } else if (memcmp(command, "set ", 4) == 0) {
       const char* config = &command[4];
+#ifdef WITH_BRIDGE
+      if (memcmp(config, "bridge.enabled ", 15) == 0) {
+        _prefs->bridge_enabled = memcmp(&config[15], "on", 2) == 0;
+        _callbacks->setBridgeState(_prefs->bridge_enabled);
+        savePrefs();
+        strcpy(reply, "OK");
+      }
+      else 
+#ifdef WITH_ESPNOW_BRIDGE
+      if (memcmp(config, "bridge.channel ", 15) == 0) {
+        int ch = atoi(&config[15]);
+        if (ch > 0 && ch < 15) {
+          _prefs->bridge_channel = (uint8_t)ch;
+          _callbacks->updateBridgeChannel(ch);
+          savePrefs();
+          strcpy(reply, "OK");
+        } else {
+          strcpy(reply, "Error: channel must be 0 (AUTO) or 1-14");
+        }
+      } else
+#endif
+#endif
       if (memcmp(config, "af ", 3) == 0) {
         _prefs->airtime_factor = atof(&config[3]);
         savePrefs();
@@ -301,7 +337,8 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         StrHelper::strncpy(_prefs->guest_password, &config[15], sizeof(_prefs->guest_password));
         savePrefs();
         strcpy(reply, "OK");
-      } else if (sender_timestamp == 0 && memcmp(config, "prv.key ", 8) == 0) {  // from serial command line only
+      } else if (sender_timestamp == 0 &&
+                 memcmp(config, "prv.key ", 8) == 0) { // from serial command line only
         uint8_t prv_key[PRV_KEY_SIZE];
         bool success = mesh::Utils::fromHex(prv_key, PRV_KEY_SIZE, &config[8]);
         if (success) {

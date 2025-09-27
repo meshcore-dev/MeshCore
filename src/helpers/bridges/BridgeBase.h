@@ -22,6 +22,13 @@ public:
   virtual ~BridgeBase() = default;
 
   /**
+   * @brief Gets the current state of the bridge.
+   *
+   * @return true if the bridge is initialized and running, false otherwise.
+   */
+  bool getState() const override;
+
+  /**
    * @brief Common magic number used by all bridge implementations for packet identification
    *
    * This magic number is placed at the beginning of bridge packets to identify
@@ -50,6 +57,9 @@ public:
   static constexpr uint16_t BRIDGE_DELAY = 500; // TODO: maybe too high ?
 
 protected:
+  /** Tracks bridge state */
+  bool _initialized = false;
+  
   /** Packet manager for allocating and queuing mesh packets */
   mesh::PacketManager *_mgr;
 

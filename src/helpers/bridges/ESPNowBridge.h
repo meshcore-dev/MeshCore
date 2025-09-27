@@ -81,6 +81,12 @@ private:
   const char *_secret = WITH_ESPNOW_BRIDGE_SECRET;
 
   /**
+   * Channel for ESP-NOW communication
+   * Valid 2.4GHz channels: 1-14
+   */
+  int _channel = 0;
+
+  /**
    * Performs XOR encryption/decryption of data
    *
    * Uses WITH_ESPNOW_BRIDGE_SECRET as the key in a simple XOR operation.
@@ -131,6 +137,16 @@ public:
   void begin() override;
 
   /**
+   * Stops the ESP-NOW bridge
+   *
+   * - Removes broadcast peer
+   * - Unregisters callbacks
+   * - Deinitializes ESP-NOW protocol
+   * - Turns off WiFi to release radio resources
+   */
+  void end() override;
+
+  /**
    * Main loop handler
    * ESP-NOW is callback-based, so this is currently empty
    */
@@ -151,6 +167,20 @@ public:
    * @param packet The mesh packet to transmit
    */
   void onPacketTransmitted(mesh::Packet *packet) override;
+
+  /**
+   * Gets the current channel
+   *
+   * @return The current channel (0 = AUTO, 1-14 = valid channel)
+   */
+  int getChannel() const { return _channel; }
+
+  /**
+   * Sets the channel for ESP-NOW communication
+   *
+   * @param ch The channel to set (0 = AUTO, 1-14 = valid channel)
+   */
+  void setChannel(int ch) { _channel = ch; }
 };
 
 #endif

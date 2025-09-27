@@ -27,8 +27,16 @@ ESPNowBridge::ESPNowBridge(mesh::PacketManager *mgr, mesh::RTCClock *rtc)
 }
 
 void ESPNowBridge::begin() {
+  Serial.printf("%s: ESPNOW BRIDGE: Initializing...\n", getLogDateTime());
+
   // Initialize WiFi in station mode
   WiFi.mode(WIFI_STA);
+  
+  // Set wifi channel
+  if (esp_wifi_set_channel(_channel, WIFI_SECOND_CHAN_NONE) != ESP_OK) {
+    Serial.printf("%s: ESPNOW BRIDGE: Error setting WIFI channel to %d\n", getLogDateTime(), _channel);
+    return;
+  }
 
   // Initialize ESP-NOW
   if (esp_now_init() != ESP_OK) {
@@ -44,13 +52,41 @@ void ESPNowBridge::begin() {
   esp_now_peer_info_t peerInfo = {};
   memset(&peerInfo, 0, sizeof(peerInfo));
   memset(peerInfo.peer_addr, 0xFF, ESP_NOW_ETH_ALEN); // Broadcast address
-  peerInfo.channel = 0;
+  peerInfo.channel = _channel;
   peerInfo.encrypt = false;
 
   if (esp_now_add_peer(&peerInfo) != ESP_OK) {
     Serial.printf("%s: ESPNOW BRIDGE: Failed to add broadcast peer\n", getLogDateTime());
     return;
   }
+
+  // Update bridge state
+  _initialized = true;
+}
+
+void ESPNowBridge::end() {
+  Serial.printf("%s: ESPNOW BRIDGE: Stopping...\n", getLogDateTime());
+
+  // Remove broadcast peer
+  uint8_t broadcastAddress[] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
+  if (esp_now_del_peer(broadcastAddress) != ESP_OK) {
+    Serial.printf("%s: ESPNOW BRIDGE: Error removing broadcast peer\n", getLogDateTime());
+  }
+
+  // Unregister callbacks
+  esp_now_register_recv_cb(nullptr);
+  esp_now_register_send_cb(nullptr);
+
+  // Deinitialize ESP-NOW
+  if (esp_now_deinit() != ESP_OK) {
+    Serial.printf("%s: ESPNOW BRIDGE: Error deinitializing ESP-NOW\n", getLogDateTime());
+  }
+
+  // Turn off WiFi
+  WiFi.mode(WIFI_OFF);
+
+  // Update bridge state
+  _initialized = false;
 }
 
 void ESPNowBridge::loop() {
@@ -130,11 +166,13 @@ void ESPNowBridge::onDataSent(const uint8_t *mac_addr, esp_now_send_status_t sta
   // Could add transmission error handling here if needed
 }
 
-void ESPNowBridge::onPacketReceived(mesh::Packet *packet) {
-  handleReceivedPacket(packet);
-}
-
 void ESPNowBridge::onPacketTransmitted(mesh::Packet *packet) {
+  // Guard against uninitialized state
+  if (_initialized == false) {
+    Serial.printf("%s: ESPNOW BRIDGE: TX packet attempted before initialization\n", getLogDateTime());
+    return;
+  }
+
   // First validate the packet pointer
   if (!packet) {
 #if MESH_PACKET_LOGGING
@@ -144,7 +182,6 @@ void ESPNowBridge::onPacketTransmitted(mesh::Packet *packet) {
   }
 
   if (!_seen_packets.hasSeen(packet)) {
-
     // Create a temporary buffer just for size calculation and reuse for actual writing
     uint8_t sizingBuffer[MAX_PAYLOAD_SIZE];
     uint16_t meshPacketLen = packet->writeTo(sizingBuffer);
@@ -191,6 +228,10 @@ void ESPNowBridge::onPacketTransmitted(mesh::Packet *packet) {
     }
 #endif
   }
+}
+
+void ESPNowBridge::onPacketReceived(mesh::Packet *packet) {
+  handleReceivedPacket(packet);
 }
 
 #endif

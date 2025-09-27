@@ -2,6 +2,10 @@
 
 #include <Arduino.h>
 
+bool BridgeBase::getState() const {
+  return _initialized;
+}
+
 const char *BridgeBase::getLogDateTime() {
   static char tmp[32];
   uint32_t now = _rtc->getCurrentTime();
@@ -28,6 +32,13 @@ bool BridgeBase::validateChecksum(const uint8_t *data, size_t len, uint16_t rece
 }
 
 void BridgeBase::handleReceivedPacket(mesh::Packet *packet) {
+  // Guard against uninitialized state
+  if (_initialized == false) {
+    Serial.printf("%s: BRIDGE: RX packet received before initialization\n", getLogDateTime());
+    _mgr->free(packet);
+    return;
+  }
+
   if (!_seen_packets.hasSeen(packet)) {
     _mgr->queueInbound(packet, millis() + BRIDGE_DELAY);
   } else {

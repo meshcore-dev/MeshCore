@@ -613,6 +613,8 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.flood_advert_interval = 12; // 12 hours
   _prefs.flood_max = 64;
   _prefs.interference_threshold = 0; // disabled
+  _prefs.bridge_enabled = 1;         // enabled
+  _prefs.bridge_channel = 0;         // auto
 }
 
 void MyMesh::begin(FILESYSTEM *fs) {
@@ -623,8 +625,13 @@ void MyMesh::begin(FILESYSTEM *fs) {
 
   acl.load(_fs);
 
-#ifdef WITH_BRIDGE
-  bridge.begin();
+#if defined(WITH_ESPNOW_BRIDGE)
+  bridge.setChannel(_prefs.bridge_channel);
+#endif
+#if defined(WITH_BRIDGE)
+  if (_prefs.bridge_enabled) {
+    bridge.begin();
+  }
 #endif
 
   radio_set_params(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
