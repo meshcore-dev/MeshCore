@@ -115,7 +115,6 @@ typedef uint32_t  DispatcherAction;
 class Dispatcher {
   Packet* outbound;  // current outbound packet
   unsigned long outbound_expiry, outbound_start, total_air_time, rx_air_time;
-  unsigned long next_tx_time;
   unsigned long cad_busy_start;
   unsigned long radio_nonrx_start;
   unsigned long next_floor_calib_time, next_agc_reset_time;
@@ -130,6 +129,7 @@ protected:
   Radio* _radio;
   MillisecondClock* _ms;
   uint16_t _err_flags;
+  unsigned long next_tx_time;
 
   Dispatcher(Radio& radio, MillisecondClock& ms, PacketManager& mgr)
     : _radio(&radio), _ms(&ms), _mgr(&mgr)
