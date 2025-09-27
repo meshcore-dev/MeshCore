@@ -1,6 +1,7 @@
 #pragma once
 
 #include <CayenneLPP.h>
+#include "sensors/LocationProvider.h"
 
 #define TELEM_PERM_BASE         0x01   // 'base' permission includes battery
 #define TELEM_PERM_LOCATION     0x02
@@ -21,4 +22,5 @@ public:
   virtual const char* getSettingName(int i) const { return NULL; }
   virtual const char* getSettingValue(int i) const { return NULL; }
   virtual bool setSettingValue(const char* name, const char* value) { return false; }
+  virtual LocationProvider* getLocationProvider() { return NULL; }
 };

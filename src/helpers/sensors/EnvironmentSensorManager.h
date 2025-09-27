@@ -39,6 +39,7 @@ protected:
 public:
   #if ENV_INCLUDE_GPS
   EnvironmentSensorManager(LocationProvider &location): _location(&location){};
+  LocationProvider* getLocationProvider() { return _location; }
   #else
   EnvironmentSensorManager(){};
   #endif

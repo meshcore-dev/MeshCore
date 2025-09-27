@@ -71,6 +71,7 @@ public:
   bool isButtonPressed() const;
 
   void toggleBuzzer();
+  bool getGPSState();
   void toggleGPS();
 
 
