@@ -61,22 +61,23 @@ author: https://github.com/LitBomb<!-- omit from toc -->
     - [5.14.3. Python MeshCore](#5143-python-meshcore)
     - [5.14.4. meshcore-cli](#5144-meshcore-cli)
     - [5.14.5. meshcore.js](#5145-meshcorejs)
+    - [5.14.6. pyMC\_core](#5146-pymc_core)
 - [6. Troubleshooting](#6-troubleshooting)
   - [6.1. Q: My client says another client or a repeater or a room server was last seen many, many days ago.](#61-q-my-client-says-another-client-or-a-repeater-or-a-room-server-was-last-seen-many-many-days-ago)
   - [6.2. Q: A repeater or a client or a room server I expect to see on my discover list (on T-Deck) or contact list (on a smart device client) are not listed.](#62-q-a-repeater-or-a-client-or-a-room-server-i-expect-to-see-on-my-discover-list-on-t-deck-or-contact-list-on-a-smart-device-client-are-not-listed)
   - [6.3. Q: How to connect to a repeater via BLE (Bluetooth)?](#63-q-how-to-connect-to-a-repeater-via-ble-bluetooth)
   - [6.4. Q: My companion isn't showing up over Bluetooth?](#64-q-my-companion-isnt-showing-up-over-bluetooth)
-  - [6.5. Q: I can't connect via Bluetooth, what is the Bluetooth pairing code?](#64-q-i-cant-connect-via-bluetooth-what-is-the-bluetooth-pairing-code)
-  - [6.6. Q: My Heltec V3 keeps disconnecting from my smartphone.  It can't hold a solid Bluetooth connection.](#65-q-my-heltec-v3-keeps-disconnecting-from-my-smartphone--it-cant-hold-a-solid-bluetooth-connection)
-  - [6.7. Q: My RAK/T1000-E/xiao\_nRF52 device seems to be corrupted, how do I wipe it clean to start fresh?](#66-q-my-rakt1000-exiao_nrf52-device-seems-to-be-corrupted-how-do-i-wipe-it-clean-to-start-fresh)
-  - [6.8. Q: WebFlasher fails on Linux with failed to open](#67-q-webflasher-fails-on-linux-with-failed-to-open)
+  - [6.5. Q: I can't connect via Bluetooth, what is the Bluetooth pairing code?](#65-q-i-cant-connect-via-bluetooth-what-is-the-bluetooth-pairing-code)
+  - [6.6. Q: My Heltec V3 keeps disconnecting from my smartphone.  It can't hold a solid Bluetooth connection.](#66-q-my-heltec-v3-keeps-disconnecting-from-my-smartphone--it-cant-hold-a-solid-bluetooth-connection)
+  - [6.7. Q: My RAK/T1000-E/xiao\_nRF52 device seems to be corrupted, how do I wipe it clean to start fresh?](#67-q-my-rakt1000-exiao_nrf52-device-seems-to-be-corrupted-how-do-i-wipe-it-clean-to-start-fresh)
+  - [6.8. Q: WebFlasher fails on Linux with failed to open](#68-q-webflasher-fails-on-linux-with-failed-to-open)
 - [7. Other Questions:](#7-other-questions)
   - [7.1. Q: How to update nRF (RAK, T114, Seed XIAO) repeater and room server firmware over the air using the new simpler DFU app?](#71-q-how-to-update-nrf-rak-t114-seed-xiao-repeater-and-room-server-firmware-over-the-air-using-the-new-simpler-dfu-app)
   - [7.2. Q: How to update ESP32-based devices over the air?](#72-q-how-to-update-esp32-based-devices-over-the-air)
   - [7.3. Q: Is there a way to lower the chance of a failed OTA device firmware update (DFU)?](#73-q-is-there-a-way-to-lower-the-chance-of-a-failed-ota-device-firmware-update-dfu)
   - [7.4. Q: are the MeshCore logo and font available?](#74-q-are-the-meshcore-logo-and-font-available)
   - [7.5. Q: What is the format of a contact or channel QR code?](#75-q-what-is-the-format-of-a-contact-or-channel-qr-code)
-  - [7.6. Q: How do I connect to the companion via WIFI, e.g. using a heltec v3?](#76-q-how-do-i-connect-to-the-comnpanion-via-wifi-eg-using-a-heltec-v3)
+  - [7.6. Q: How do I connect to the companion via WIFI, e.g. using a heltec v3?](#76-q-how-do-i-connect-to-the-companion-via-wifi-eg-using-a-heltec-v3)
 
 ## 1. Introduction
 
@@ -180,22 +181,17 @@ The T-Deck firmware is free to download and most features are available without 
 
 
 ### 2.3. Q: What frequencies are supported by MeshCore?
-**A:** It supports the 868MHz range in the UK/EU and the 915MHz range in New Zealand, Australia, and the USA. Countries and regions in these two frequency ranges are also supported. The firmware and client allow users to set their preferred frequency.  
-- Australia and New Zealand are on **915.8MHz**
-- UK and EU are on **869.525MHz**
-- Canada and USA are on **910.525MHz**
-- For other regions and countries, please check your local LoRa frequency
+**A:** It supports the 868MHz range in the UK/EU and the 915MHz range in New Zealand, Australia, and the USA. Countries and regions in these two frequency ranges are also supported. 
 
-In UK and EU, 867.5MHz is not allowed to use 250kHz bandwidth and it only allows 2.5% duty cycle for clients.  869.525Mhz allows an airtime of 10%, 250KHz bandwidth, and a higher Effective Isotropic Radiated Power (EIRP), therefore MeshCore nodes can send more often and with more power. That is why this frequency is chosen for UK and EU.  This is also why Meshtastic also uses this frequency.  
+Use the smartphone client or the repeater setup feature on there web flasher to set your radios' RF settings by choosing the preset for your regions.  
 
-[Source](https://discord.com/channels/826570251612323860/1330643963501351004/1356540643853209641)
+Recently, as of October 2025, many regions have moved to the "narrow" setting, aka using BW62.5 and a lower SF number (instead of the original SF11).  For example, USA/Canada (Recommended) preset is 910.525MHz, SF7, BW62.5, CR5.  
 
-the rest of the radio settings are the same for all frequencies:  
-- Spread Factor (SF): 11  
-- Coding Rate (CR): 5  
-- Bandwidth (BW): 250.00  
+After extensive testing, many regions have switched or about to switch over to BW62.5 and SF7, 8, or 9.  Narrower bandwidth setting and lower SF setting allow MeshCore's radio signals to fit between interference in the ISM band, provide for a lower noise floor, better SNR, and faster transmissions.
 
-(Originally MeshCore started with SF 10.  recently (as of late April 2025) the community has advocated SF 11 also a viable option for longer range but a little slower transmission. Currently there are MeshCore meshes with SF 10 and SF 11.  Liam Cottle's smartphone app's presets now recommend SF 10 for Australia and SF 11 for all other regions and countries.  EU and UK has SF 10 and SF 11 presets.  Work with your local meshers on deciding with SF number is best for your use cases.  In the future, there may be bridge nodes that can bridge SF 10 and SF 11 (or even different frequencies) traffic.)
+If you have consensus from your community in your region to update your region's preset recommendation, please post your update request on  the [#meshcore-app](https://discord.com/channels/1343693475589263471/1391681655911088241) channel on the [MeshCore Discord server ](https://discord.gg/cYtQNYCCRK) to let Liam Cottle know.
+
+
 
 ### 2.4. Q: What is an "advert" in MeshCore?
 **A:** 
@@ -376,7 +372,23 @@ https://github.com/meshcore-dev/MeshCore/blob/main/src/Packet.h#L19
 
 **SF is spreading factor** - how much should the communication spread in time
 
-**CR is coding rate** - https://www.thethingsnetwork.org/docs/lorawan/fec-and-code-rate/
+**CR is coding rate** - from: https://www.thethingsnetwork.org/docs/lorawan/fec-and-code-rate/
+
+TL;DR: default CR to 5 for good stable links.  If it is not a solid link and is intermittent, change to CR to 7 or 8.  
+
+Forward Error Correction is a process of adding redundant bits to the data to be transmitted. During the transmission, data may get corrupted by interference (changes from 0 to 1 / 1 to 0). These error correction bits are used at the receivers for restoring corrupted bits.
+
+The Code Rate of a forward error correction expresses the proportion of bits in a data stream that actually carry useful information.
+
+There are 4 code rates used in LoRaWAN:
+
+4/5
+4/6
+5/7
+4/8
+
+For example, if the code rate is 5/7, for every 5 bits of useful information, the coder generates a total of 7 bits of data, of which 2 bits are redundant.
+
 Making the bandwidth 2x wider (from BW125 to BW250) allows you to send 2x more bytes in the same time. Making the spreading factor 1 step lower (from SF10 to SF9) allows you to send 2x more bytes in the same time. 
 
 Lowering the spreading factor makes it more difficult for the gateway to receive a transmission, as it will be more sensitive to noise. You could compare this to two people taking in a noisy place (a bar for example). If you’re far from each other, you have to talk slow (SF10), but if you’re close, you can talk faster (SF7)
@@ -558,7 +570,8 @@ From here, reference repeater and room server command line commands on MeshCore 
 **A:** Yes.  See the following:
 
 #### 5.14.1. meshcoremqtt
-A Python script to send meshcore debug and packet capture data to MQTT for analysis
+A Python script to send meshcore debug and packet capture data to MQTT for analysis.  Cisien's version is a fork of Andrew-a-g's and is being used to to collect data for https://map.w0z.is/messages and https://analyzer.letsme.sh/
+https://github.com/Cisien/meshcoretomqtt
 https://github.com/Andrew-a-g/meshcoretomqtt
 
 #### 5.14.2. MeshCore for Home Assistant
@@ -576,6 +589,10 @@ CLI interface to MeshCore companion radio over BLE, TCP, or serial.  Uses Python
 #### 5.14.5. meshcore.js
 A JavaScript library for interacting with a MeshCore device running the companion radio firmware
 https://github.com/liamcottle/meshcore.js
+
+#### 5.14.6. pyMC_core
+pyMC_Core is a Python port of MeshCore, designed for Raspberry Pi and similar hardware, it talks to LoRa modules over SPI.
+https://github.com/rightup/pyMC_core
 
 ---
 
