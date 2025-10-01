@@ -815,7 +815,7 @@ void MyMesh::loop() {
       if (c->extra.room.pending_ack && millisHasNowPassed(c->extra.room.ack_timeout)) {
         c->extra.room.push_failures++;
         c->extra.room.pending_ack = 0; // reset  (TODO: keep prev expected_ack's in a list, incase they arrive LATER, after we retry)
-        MESH_DEBUG_PRINTLN("pending ACK timed out: push_failures: %d", (uint32_t)c->push_failures);
+        MESH_DEBUG_PRINTLN("pending ACK timed out: push_failures: %d", (uint32_t)c->extra.room.push_failures);
       }
     }
     // check next Round-Robin client, and sync next new post
