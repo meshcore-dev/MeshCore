@@ -178,11 +178,29 @@ size_t SerialBLEInterface::checkRecvFrame(uint8_t dest[]) {
       send_queue[i] = send_queue[i + 1];
     }
   } else {
-    int len = bleuart.available();
-    if (len > 0) {
-      bleuart.readBytes(dest, len);
-      BLE_DEBUG_PRINTLN("readBytes: sz=%d, hdr=%d", len, (uint32_t) dest[0]);
-      return len;
+    int avail = bleuart.available();
+    if (avail > 0) {
+      // Cap read to avoid overflowing caller's buffer (MAX_FRAME_SIZE)
+      int to_read = avail > MAX_FRAME_SIZE ? MAX_FRAME_SIZE : avail;
+      int got = bleuart.readBytes(dest, to_read);
+
+      // If more data is pending than we can safely store, drain the excess
+      if (avail > MAX_FRAME_SIZE) {
+        int remaining = avail - to_read;
+        uint8_t discard[32];
+        int drained_total = 0;
+        while (remaining > 0) {
+          int chunk = remaining > (int)sizeof(discard) ? (int)sizeof(discard) : remaining;
+          int drained = bleuart.readBytes(discard, chunk);
+          if (drained <= 0) break;
+          drained_total += drained;
+          remaining -= drained;
+        }
+        BLE_DEBUG_PRINTLN("WARN: BLE RX overflow: avail=%d, read=%d, drained=%d", avail, got, drained_total);
+      }
+
+      BLE_DEBUG_PRINTLN("readBytes: sz=%d, hdr=%d", got, (uint32_t) dest[0]);
+      return got;
     }
   }
   return 0;
