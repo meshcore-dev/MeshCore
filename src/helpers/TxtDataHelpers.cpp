@@ -19,6 +19,30 @@ void StrHelper::strzcpy(char* dest, const char* src, size_t buf_sz) {
   }
 }
 
+bool StrHelper::isPrintableASCII(const char* s) {
+  if (!s) return false;
+  while (*s) {
+    unsigned char c = static_cast<unsigned char>(*s++);
+    if (c < 0x20 || c > 0x7E) return false;
+  }
+  return true;
+}
+
+void StrHelper::filterToPrintableASCII(char* dest, const char* src, size_t buf_sz) {
+  if (buf_sz == 0) return;
+  if (!src) { *dest = 0; return; }
+  while (buf_sz > 1 && *src) {
+    unsigned char c = static_cast<unsigned char>(*src++);
+    if (c >= 0x20 && c <= 0x7E) {
+      *dest++ = (char)c;
+    } else {
+      *dest++ = '_';
+    }
+    buf_sz--;
+  }
+  *dest = 0;
+}
+
 #include <Arduino.h>
 
 union int32_Float_t 
