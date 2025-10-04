@@ -3,6 +3,10 @@
 #include "TxtDataHelpers.h"
 #include <RTClib.h>
 
+#ifndef MAX_LORA_TX_POWER
+#define MAX_LORA_TX_POWER LORA_TX_POWER
+#endif
+
 // Believe it or not, this std C function is busted on some platforms!
 static uint32_t _atoi(const char* sp) {
   uint32_t n = 0;
@@ -244,7 +248,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
       } else if (memcmp(config, "direct.txdelay", 14) == 0) {
         sprintf(reply, "> %s", StrHelper::ftoa(_prefs->direct_tx_delay_factor));
       } else if (memcmp(config, "tx", 2) == 0 && (config[2] == 0 || config[2] == ' ')) {
-        sprintf(reply, "> %d", (uint32_t) _prefs->tx_power_dbm);
+        sprintf(reply, "> %d (max: %d)", (uint32_t) _prefs->tx_power_dbm, MAX_LORA_TX_POWER);
       } else if (memcmp(config, "freq", 4) == 0) {
         sprintf(reply, "> %s", StrHelper::ftoa(_prefs->freq));
       } else if (memcmp(config, "public.key", 10) == 0) {
@@ -383,10 +387,15 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
           strcpy(reply, "Error, cannot be negative");
         }
       } else if (memcmp(config, "tx ", 3) == 0) {
-        _prefs->tx_power_dbm = atoi(&config[3]);
-        savePrefs();
-        _callbacks->setTxPower(_prefs->tx_power_dbm);
-        strcpy(reply, "OK");
+        uint8_t requested_power = atoi(&config[3]);
+        if (requested_power > MAX_LORA_TX_POWER) {
+          sprintf(reply, "Error: max TX power is %d", MAX_LORA_TX_POWER);
+        } else {
+          _prefs->tx_power_dbm = requested_power;
+          savePrefs();
+          _callbacks->setTxPower(_prefs->tx_power_dbm);
+          strcpy(reply, "OK");
+        }
       } else if (sender_timestamp == 0 && memcmp(config, "freq ", 5) == 0) {
         _prefs->freq = atof(&config[5]);
         savePrefs();
