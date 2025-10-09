@@ -645,4 +645,30 @@ void Mesh::sendZeroHop(Packet* packet, uint32_t delay_millis) {
   sendPacket(packet, 0, delay_millis);
 }
 
+bool Mesh::hasTimingCriticalWork() {
+    uint32_t now = _ms->getMillis();
+
+    // check whether the next scheduled transmission will be within 50 ms
+    if (next_tx_time > 0 && now + 50 >= next_tx_time) {
+        return true;
+    }
+
+    // check whether there are pending outbound packets within 100 ms
+    if (_mgr->getOutboundCount(now + 100) > 0) {
+        return true;
+    }
+
+    // check whether there are inbound packets within 50 ms
+    if (_mgr->getNextInbound(now + 50) != NULL) {
+        return true;
+    }
+
+    return false;
 }
+
+bool Mesh::hasImmediateWork() const {
+    return _mgr->getOutboundCount(_ms->getMillis()) > 0 ||
+           _mgr->getNextInbound(_ms->getMillis()) != NULL;
+}
+
+} // end namespace mesh
