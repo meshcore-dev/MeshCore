@@ -85,6 +85,14 @@ static Adafruit_MLX90614 MLX90614;
 static Adafruit_VL53L0X VL53L0X;
 #endif
 
+#if ENV_INCLUDE_DHT11
+#ifndef TELEM_DHT11_PIN
+#define TELEM_DHT11_PIN 4      // DHT11 data pin
+#endif
+#include <DHT.h>
+static DHT DHT11_SENSOR(TELEM_DHT11_PIN, DHT11);
+#endif
+
 #if ENV_INCLUDE_GPS && defined(RAK_BOARD) && !defined(RAK_WISMESH_TAG)
 #define RAK_WISBLOCK_GPS
 #endif
@@ -251,6 +259,11 @@ bool EnvironmentSensorManager::begin() {
   }
   #endif
 
+  #if ENV_INCLUDE_DHT11
+  DHT11_SENSOR.begin();
+  DHT11_initialized = true;
+  #endif
+
   return true;
 }
 
@@ -376,6 +389,19 @@ bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, Cayen
         telemetry.addDistance(TELEM_CHANNEL_SELF, measure.RangeMilliMeter / 1000.0f); // convert mm to m
       } else {
         telemetry.addDistance(TELEM_CHANNEL_SELF, 0.0f); // no valid measurement
+      }
+    }
+    #endif
+
+    #if ENV_INCLUDE_DHT11
+    if (DHT11_initialized) {
+      float temperature = DHT11_SENSOR.readTemperature();
+      if (!isnan(temperature)) {
+        telemetry.addTemperature(TELEM_CHANNEL_SELF, temperature);
+      }
+      float humidity = DHT11_SENSOR.readHumidity();
+      if (!isnan(humidity)) {
+        telemetry.addRelativeHumidity(TELEM_CHANNEL_SELF, humidity);
       }
     }
     #endif
