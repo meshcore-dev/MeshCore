@@ -854,6 +854,18 @@ void MyMesh::loop() {
 
   mesh::Mesh::loop();
 
+  // Handle serial CLI frames if serial interface is enabled
+  if (_serial) {
+    size_t len = _serial->checkRecvFrame(cmd_frame);
+    if (len > 0) {
+      char reply[160] = {0};
+      handleCommand(0, (char*)cmd_frame, reply);
+      if (reply[0]) {
+        _serial->writeFrame((const uint8_t*)reply, strlen(reply));
+      }
+    }
+  }
+
   if (next_flood_advert && millisHasNowPassed(next_flood_advert)) {
     mesh::Packet *pkt = createSelfAdvert();
     if (pkt) sendFlood(pkt);

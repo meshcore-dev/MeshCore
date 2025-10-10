@@ -19,6 +19,29 @@ void halt() {
 
 static char command[160];
 
+#ifdef ESP32
+  #ifdef WIFI_SSID
+    #include <helpers/esp32/SerialWifiInterface.h>
+    SerialWifiInterface serial_interface;
+    #ifndef TCP_PORT
+      #define TCP_PORT 5000
+    #endif
+  #elif defined(BLE_PIN_CODE)
+    #include <helpers/esp32/SerialBLEInterface.h>
+    SerialBLEInterface serial_interface;
+  #elif defined(SERIAL_RX)
+    #include <helpers/ArduinoSerialInterface.h>
+    ArduinoSerialInterface serial_interface;
+    HardwareSerial companion_serial(1);
+  #else
+    #include <helpers/ArduinoSerialInterface.h>
+    ArduinoSerialInterface serial_interface;
+  #endif
+#else
+  #include <helpers/ArduinoSerialInterface.h>
+  ArduinoSerialInterface serial_interface;
+#endif
+
 void setup() {
   Serial.begin(115200);
   delay(1000);
@@ -82,33 +105,29 @@ void setup() {
 
   // send out initial Advertisement to the mesh
   the_mesh.sendSelfAdvertisement(16000);
+
+#ifdef ESP32
+#ifdef WIFI_SSID
+  WiFi.begin(WIFI_SSID, WIFI_PWD);
+  serial_interface.begin(TCP_PORT);
+#elif defined(BLE_PIN_CODE)
+  char dev_name[32+16];
+  sprintf(dev_name, "%s%s", BLE_NAME_PREFIX, the_mesh.getNodeName());
+  serial_interface.begin(dev_name, the_mesh.getBLEPin());
+#elif defined(SERIAL_RX)
+  companion_serial.setPins(SERIAL_RX, SERIAL_TX);
+  companion_serial.begin(115200);
+  serial_interface.begin(companion_serial);
+#else
+  serial_interface.begin(Serial);
+#endif
+#else
+  serial_interface.begin(Serial);
+#endif
+  the_mesh.startInterface(serial_interface);
 }
 
 void loop() {
-  int len = strlen(command);
-  while (Serial.available() && len < sizeof(command)-1) {
-    char c = Serial.read();
-    if (c != '\n') {
-      command[len++] = c;
-      command[len] = 0;
-    }
-    Serial.print(c);
-  }
-  if (len == sizeof(command)-1) {  // command buffer full
-    command[sizeof(command)-1] = '\r';
-  }
-
-  if (len > 0 && command[len - 1] == '\r') {  // received complete line
-    command[len - 1] = 0;  // replace newline with C string null terminator
-    char reply[160];
-    the_mesh.handleCommand(0, command, reply);  // NOTE: there is no sender_timestamp via serial!
-    if (reply[0]) {
-      Serial.print("  -> "); Serial.println(reply);
-    }
-
-    command[0] = 0;  // reset command buffer
-  }
-
   the_mesh.loop();
   sensors.loop();
 #ifdef DISPLAY_CLASS

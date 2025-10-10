@@ -31,6 +31,7 @@
 #include <helpers/SimpleMeshTables.h>
 #include <helpers/StaticPoolPacketManager.h>
 #include <helpers/TxtDataHelpers.h>
+#include <helpers/BaseSerialInterface.h>
 
 #ifdef WITH_BRIDGE
 extern AbstractBridge* bridge;
@@ -100,6 +101,8 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
 #elif defined(WITH_ESPNOW_BRIDGE)
   ESPNowBridge bridge;
 #endif
+  BaseSerialInterface *_serial = nullptr;
+  uint8_t cmd_frame[MAX_PACKET_PAYLOAD+1];
 
   void putNeighbour(const mesh::Identity& id, uint32_t timestamp, float snr);
   uint8_t handleLoginReq(const mesh::Identity& sender, const uint8_t* secret, uint32_t sender_timestamp, const uint8_t* data);
@@ -182,6 +185,11 @@ public:
   void clearStats() override;
   void handleCommand(uint32_t sender_timestamp, char* command, char* reply);
   void loop();
+
+  void startInterface(BaseSerialInterface &serial) {
+    _serial = &serial;
+    serial.enable();
+  }
 
 #if defined(WITH_BRIDGE)
   void setBridgeState(bool enable) override {

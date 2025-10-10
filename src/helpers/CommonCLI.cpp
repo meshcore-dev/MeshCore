@@ -517,6 +517,6 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
       _callbacks->dumpLogFile();
       strcpy(reply, "   EOF");
     } else {
-      strcpy(reply, "Unknown command");
+      sprintf(reply, "Unknown command: %s", command);
     }
 }
