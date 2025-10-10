@@ -303,7 +303,7 @@ void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const m
       if (strcmp((char *)&data[8], _prefs.password) == 0) { // check for valid admin password
         perm = PERM_ACL_ADMIN;
       } else {
-        if (strcmp((char *)&data[8], _prefs.guest_password) == 0) {   // check the room/public password
+        if (strlen(_prefs.guest_password) == 0 || strcmp((char *)&data[8], _prefs.guest_password) == 0) {   // check the room/public password
           perm = PERM_ACL_READ_WRITE;
         } else if (_prefs.allow_read_only) {
           perm = PERM_ACL_GUEST;
