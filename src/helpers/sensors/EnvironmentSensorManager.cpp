@@ -21,6 +21,22 @@ static Adafruit_AHTX0 AHTX0;
 static Adafruit_BME280 BME280;
 #endif
 
+#if ENV_INCLUDE_BME680
+#ifndef TELEM_BME680_ADDRESS
+#define TELEM_BME680_ADDRESS    0x76      // BME680 environmental sensor I2C address
+#endif
+static Bsec2 BME680;
+#define SAMPLING_RATE		BSEC_SAMPLE_RATE_ULP
+static float rawPressure = 0;
+static float rawTemperature = 0;
+static float compTemperature = 0;
+static float rawHumidity = 0;
+static float compHumidity = 0;
+static float readIAQ = 0;
+static float readStaticIAQ = 0;
+static float readCO2 = 0;
+#endif
+
 #if ENV_INCLUDE_BMP280
 #ifndef TELEM_BMP280_ADDRESS
 #define TELEM_BMP280_ADDRESS    0x76      // BMP280 environmental sensor I2C address
@@ -137,6 +153,50 @@ bool EnvironmentSensorManager::begin() {
     BME280_initialized = false;
     MESH_DEBUG_PRINTLN("BME280 was not found at I2C address %02X", TELEM_BME280_ADDRESS);
   }
+  #endif
+
+  #if ENV_INCLUDE_BME680
+  bsecSensor sensorList[5] = {
+    BSEC_OUTPUT_IAQ,
+  //  BSEC_OUTPUT_RAW_TEMPERATURE,
+    BSEC_OUTPUT_RAW_PRESSURE,
+  //  BSEC_OUTPUT_RAW_HUMIDITY,
+  //  BSEC_OUTPUT_RAW_GAS,
+  //  BSEC_OUTPUT_STABILIZATION_STATUS,
+  //  BSEC_OUTPUT_RUN_IN_STATUS,
+    BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_TEMPERATURE,
+    BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_HUMIDITY,
+  //  BSEC_OUTPUT_STATIC_IAQ,
+    BSEC_OUTPUT_CO2_EQUIVALENT,
+  //  BSEC_OUTPUT_BREATH_VOC_EQUIVALENT,
+  //  BSEC_OUTPUT_GAS_PERCENTAGE,
+  //  BSEC_OUTPUT_COMPENSATED_GAS
+  };
+
+  if(!BME680.begin(TELEM_BME680_ADDRESS, Wire)){
+    checkBMEStatus(BME680);
+    BME680_initialized = false;
+    return false;
+  }
+    
+  MESH_DEBUG_PRINTLN("Found BME680 at address: %02X", TELEM_BME680_ADDRESS);
+  BME680_initialized = true;
+
+  if (SAMPLING_RATE == BSEC_SAMPLE_RATE_ULP)
+	{
+	  BME680.setTemperatureOffset(BSEC_SAMPLE_RATE_ULP);
+	}
+  else if (SAMPLING_RATE == BSEC_SAMPLE_RATE_LP)
+	{
+	  BME680.setTemperatureOffset(TEMP_OFFSET_LP);
+	}
+
+  if (!BME680.updateSubscription(sensorList, ARRAY_LEN(sensorList), SAMPLING_RATE))
+  {
+    checkBMEStatus(BME680);
+  }
+
+  BME680.attachCallback(newDataCallback);
   #endif
 
   #if ENV_INCLUDE_BMP280
@@ -281,6 +341,16 @@ bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, Cayen
     }
     #endif
 
+    #if ENV_INCLUDE_BME680
+    if (BME680_initialized) {
+      telemetry.addTemperature(TELEM_CHANNEL_SELF, compTemperature);
+      telemetry.addRelativeHumidity(TELEM_CHANNEL_SELF, compHumidity);
+      telemetry.addBarometricPressure(TELEM_CHANNEL_SELF, rawPressure);
+      telemetry.addGenericSensor(TELEM_CHANNEL_SELF+1, readIAQ);
+      telemetry.addConcentration(TELEM_CHANNEL_SELF+1, readCO2);
+    }
+    #endif
+
     #if ENV_INCLUDE_BMP280
     if (BMP280_initialized) {
       telemetry.addTemperature(TELEM_CHANNEL_SELF, BMP280.readTemperature());
@@ -385,7 +455,6 @@ bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, Cayen
   return true;
 }
 
-
 int EnvironmentSensorManager::getNumSettings() const {
   #if ENV_INCLUDE_GPS
     return gps_detected ? 1 : 0;  // only show GPS setting if GPS is detected
@@ -424,6 +493,96 @@ bool EnvironmentSensorManager::setSettingValue(const char* name, const char* val
   #endif
   return false;  // not supported
 }
+
+#if ENV_INCLUDE_BME680
+void EnvironmentSensorManager::checkBMEStatus(Bsec2 bsec) {
+  if (bsec.status < BSEC_OK)
+  {
+    MESH_DEBUG_PRINTLN("BSEC error code : %f", float(bsec.status));
+  }
+  else if (bsec.status > BSEC_OK)
+  {
+    MESH_DEBUG_PRINTLN("BSEC warning code : %f", float(bsec.status));
+  }
+
+  if (bsec.sensor.status < BME68X_OK)
+  {
+    MESH_DEBUG_PRINTLN("BME68X error code : %f", bsec.sensor.status);
+  }
+  else if (bsec.sensor.status > BME68X_OK)
+  {
+    MESH_DEBUG_PRINTLN("BME68X warning code : %f", bsec.sensor.status);
+  }
+}
+
+void EnvironmentSensorManager::newDataCallback(const bme68xData data, const bsecOutputs outputs, Bsec2 bsec) {
+  if (!outputs.nOutputs) {
+    MESH_DEBUG_PRINTLN("No new data to report out");
+    return;
+  }
+
+  MESH_DEBUG_PRINTLN("BSEC outputs:\n\tTime stamp = %f", (int) (outputs.output[0].time_stamp / INT64_C(1000000)));
+  for (uint8_t i = 0; i < outputs.nOutputs; i++) {
+    const bsecData output  = outputs.output[i];
+    switch (output.sensor_id)
+    {
+      case BSEC_OUTPUT_IAQ:
+        readIAQ = output.signal;
+        MESH_DEBUG_PRINTLN("\tIAQ = %f", output.signal);
+        MESH_DEBUG_PRINTLN("\tIAQ accuracy = %f", output.accuracy);
+        break;
+      case BSEC_OUTPUT_RAW_TEMPERATURE:
+        rawTemperature = output.signal;
+        MESH_DEBUG_PRINTLN("\tTemperature = %f", output.signal);
+        break;
+      case BSEC_OUTPUT_RAW_PRESSURE:
+        rawPressure = output.signal;
+        MESH_DEBUG_PRINTLN("\tPressure = %f", output.signal);
+        break;
+      case BSEC_OUTPUT_RAW_HUMIDITY:
+        rawHumidity = output.signal;
+        MESH_DEBUG_PRINTLN("\tHumidity = %f", output.signal);
+        break;
+      case BSEC_OUTPUT_RAW_GAS:
+        MESH_DEBUG_PRINTLN("\tGas resistance = %f", output.signal);
+        break;
+      case BSEC_OUTPUT_STABILIZATION_STATUS:
+        MESH_DEBUG_PRINTLN("\tStabilization status = %f", output.signal);
+        break;
+      case BSEC_OUTPUT_RUN_IN_STATUS:
+        MESH_DEBUG_PRINTLN("\tRun in status = %f", output.signal);
+        break;
+      case BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_TEMPERATURE:
+        compTemperature = output.signal;
+        MESH_DEBUG_PRINTLN("\tCompensated temperature = %f", output.signal);
+        break;
+      case BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_HUMIDITY:
+        compHumidity = output.signal;
+        MESH_DEBUG_PRINTLN("\tCompensated humidity = %f", output.signal);
+        break;
+      case BSEC_OUTPUT_STATIC_IAQ:
+        readStaticIAQ = output.signal;
+        MESH_DEBUG_PRINTLN("\tStatic IAQ = %f", output.signal);
+        break;
+      case BSEC_OUTPUT_CO2_EQUIVALENT:
+        readCO2 = output.signal;
+        MESH_DEBUG_PRINTLN("\tCO2 Equivalent = %f", output.signal);
+        break;
+      case BSEC_OUTPUT_BREATH_VOC_EQUIVALENT:
+        MESH_DEBUG_PRINTLN("\tbVOC equivalent = %f", output.signal);
+        break;
+      case BSEC_OUTPUT_GAS_PERCENTAGE:
+        MESH_DEBUG_PRINTLN("\tGas percentage = %f", output.signal);
+        break;
+      case BSEC_OUTPUT_COMPENSATED_GAS:
+        MESH_DEBUG_PRINTLN("\tCompensated gas = %f", output.signal);
+        break;
+      default:
+        break;
+    }
+  }
+}
+#endif
 
 #if ENV_INCLUDE_GPS
 void EnvironmentSensorManager::initBasicGPS() {
@@ -567,13 +726,27 @@ void EnvironmentSensorManager::stop_gps() {
   MESH_DEBUG_PRINTLN("Stop GPS is N/A on this board. Actual GPS state unchanged");
   #endif
 }
+#endif
 
+#ifndef ENV_INCLUDE_GPS && defined(ENV_INCLUDE_BME680)  //if there is no gps but there is bme680
 void EnvironmentSensorManager::loop() {
-  static long next_gps_update = 0;
+  static long next_update = 0;
+
+    if(BME680_initialized){
+      if (!BME680.run()){
+        checkBMEStatus(BME680);
+      }
+     }
+    next_update = millis() + 1000;
+  }
+#endif
+#if defined(ENV_INCLUDE_GPS) && defined(ENV_INCLUDE_BME680) //if there is both gps and bme680
+void EnvironmentSensorManager::loop() {
+  static long next_update = 0;
 
   _location->loop();
 
-  if (millis() > next_gps_update) {
+  if (millis() > next_update) {
     if(gps_active){
     #ifdef RAK_WISBLOCK_GPS
     if(i2cGPSFlag){
@@ -600,7 +773,44 @@ void EnvironmentSensorManager::loop() {
     }
     #endif
     }
-    next_gps_update = millis() + 1000;
+
+    if(BME680_initialized){
+      if (!BME680.run()){
+        checkBMEStatus(BME680);
+      }
+     }
+    next_update = millis() + 1000;
+  }
+}
+#endif
+#ifndef ENV_INCLUDE_BME680 && defined(ENV_INCLUDE_GPS)  //if there is no bme680 but there is gps
+void EnvironmentSensorManager::loop() {
+  static long next_update = 0;
+
+  _location->loop();
+
+  if (millis() > next_update) {
+    if(gps_active){
+    #ifndef RAK_BOARD
+    if (_location->isValid()) {
+      node_lat = ((double)_location->getLatitude())/1000000.;
+      node_lon = ((double)_location->getLongitude())/1000000.;
+      MESH_DEBUG_PRINTLN("lat %f lon %f", node_lat, node_lon);
+    }
+    #else
+    if(i2cGPSFlag){
+      node_lat = ((double)ublox_GNSS.getLatitude())/10000000.;
+      node_lon = ((double)ublox_GNSS.getLongitude())/10000000.;
+      MESH_DEBUG_PRINTLN("lat %f lon %f", node_lat, node_lon);
+    }
+    else if (serialGPSFlag && _location->isValid()) {
+      node_lat = ((double)_location->getLatitude())/1000000.;
+      node_lon = ((double)_location->getLongitude())/1000000.;
+      MESH_DEBUG_PRINTLN("lat %f lon %f", node_lat, node_lon);
+    }
+    #endif
+    }
+    next_update = millis() + 1000;
   }
 }
 #endif
