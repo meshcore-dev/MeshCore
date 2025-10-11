@@ -697,6 +697,10 @@ void SensorMesh::begin(FILESYSTEM* fs) {
 
   updateAdvertTimer();
   updateFloodAdvertTimer();
+
+#if ENV_INCLUDE_GPS == 1
+  applyGpsPrefs();
+#endif
 }
 
 bool SensorMesh::formatFileSystem() {

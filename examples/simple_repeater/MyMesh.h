@@ -135,6 +135,12 @@ protected:
     return _prefs.multi_acks;
   }
 
+#if ENV_INCLUDE_GPS == 1
+  void applyGpsPrefs() {
+    sensors.setSettingByKey("gps", _prefs.gps_enabled?"1":"0");
+  }
+#endif
+
   void onAnonDataRecv(mesh::Packet* packet, const uint8_t* secret, const mesh::Identity& sender, uint8_t* data, size_t len) override;
   int searchPeersByHash(const uint8_t* hash) override;
   void getPeerSharedSecret(uint8_t* dest_secret, int peer_idx) override;

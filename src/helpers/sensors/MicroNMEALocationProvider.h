@@ -78,6 +78,16 @@ public :
         }        
     }
 
+    bool isEnabled() override {
+        // directly read the enable pin if present as gps can be
+        // activated/deactivated outside of here ...
+        if (_pin_en != -1) {
+            return digitalRead(_pin_en) == PIN_GPS_EN_ACTIVE;
+        } else {
+            return true; // no enable so must be active
+        }
+    }
+
     void syncTime() override { nmea.clear(); LocationProvider::syncTime(); }
     long getLatitude() override { return nmea.getLatitude(); }
     long getLongitude() override { return nmea.getLongitude(); }

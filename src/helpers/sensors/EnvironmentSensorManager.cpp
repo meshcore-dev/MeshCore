@@ -387,27 +387,34 @@ bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, Cayen
 
 
 int EnvironmentSensorManager::getNumSettings() const {
+  int settings = 0;
   #if ENV_INCLUDE_GPS
-    return gps_detected ? 1 : 0;  // only show GPS setting if GPS is detected
-  #else
-    return 0;
+    if (gps_detected) settings++;  // only show GPS setting if GPS is detected
   #endif
+  return settings;
 }
 
 const char* EnvironmentSensorManager::getSettingName(int i) const {
+  int settings = 0;
   #if ENV_INCLUDE_GPS
-    return (gps_detected && i == 0) ? "gps" : NULL;
-  #else
-    return NULL;
+    if (gps_detected && i == settings++) {
+      return "gps";
+    }
   #endif
+  // convenient way to add params (needed for some tests)
+//  if (i == settings++) return "param.2";
+  return NULL;
 }
 
 const char* EnvironmentSensorManager::getSettingValue(int i) const {
+  int settings = 0;
   #if ENV_INCLUDE_GPS
-  if (gps_detected && i == 0) {
-    return gps_active ? "1" : "0";
-  }
+    if (gps_detected && i == settings++) {
+      return gps_active ? "1" : "0";
+    }
   #endif
+  // convenient way to add params ...
+//  if (i == settings++) return "2";
   return NULL;
 }
 
