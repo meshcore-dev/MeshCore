@@ -3,11 +3,6 @@
 #include <helpers/ESP32Board.h>
 #include <Arduino.h>
 
-// LoRa radio module pins for custom Seeduino XiaoC3 build
-// #define  P_LORA_SCLK     D8
-// #define  P_LORA_MISO     D9
-// #define  P_LORA_MOSI    D10
-
 #include <driver/rtc_io.h>
 #include <driver/uart.h>
 
