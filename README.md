@@ -93,6 +93,14 @@ Here are some general principals you should try to adhere to:
 * No dynamic memory allocation, except during setup/begin functions.
 * Use the same brace and indenting style that's in the core source modules. (A .clang-format is prob going to be added soon, but please do NOT retroactively re-format existing code. This just creates unnecessary diffs that make finding problems harder)
 
+### Running unit tests
+
+To run unit tests, run the following command:
+
+```bash
+pio test --environment native --verbose
+```
+
 ## Road-Map / To-Do
 
 There are a number of fairly major features in the pipeline, with no particular time-frames attached yet. In very rough chronological order:
