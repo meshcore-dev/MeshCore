@@ -218,6 +218,12 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
     } else if (memcmp(command, "clear stats", 11) == 0) {
       _callbacks->clearStats();
       strcpy(reply, "(OK - stats reset)");
+    } else if (memcmp(command, "stats", 5) == 0) {
+      if (command[5] == '.' && command[6]) {
+        _callbacks->formatStatsReply(reply, &command[6]);
+      } else {
+        _callbacks->formatStatsReply(reply, nullptr);
+      }
     /*
      * GET commands
      */
@@ -519,4 +525,6 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
     } else {
       sprintf(reply, "Unknown command: %s", command);
     }
+    // Clear the command buffer after processing
+    if (command) memset((char*)command, 0, strlen(command) + 1);
 }
