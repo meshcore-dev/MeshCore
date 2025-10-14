@@ -1,21 +1,11 @@
 #pragma once
 
 #include <Arduino.h>
-
-// LoRa radio module pins for Heltec V2
-#define  P_LORA_DIO_1   26    // DIO0
-#define  P_LORA_NSS     18
-#define  P_LORA_RESET   RADIOLIB_NC  // 14
-#define  P_LORA_BUSY    RADIOLIB_NC
-#define  P_LORA_SCLK     5
-#define  P_LORA_MISO    19
-#define  P_LORA_MOSI    27
+#include <helpers/ESP32Board.h>
 
 // built-ins
 #define  PIN_VBAT_READ   37
 #define  PIN_LED_BUILTIN 25
-
-#include "ESP32Board.h"
 
 #include <driver/rtc_io.h>
 
@@ -39,7 +29,7 @@ public:
   void enterDeepSleep(uint32_t secs, int pin_wake_btn = -1) {
     esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
 
-    // Make sure the DIO1 and NSS GPIOs are hold on required levels during deep sleep 
+    // Make sure the DIO1 and NSS GPIOs are hold on required levels during deep sleep
     rtc_gpio_set_direction((gpio_num_t)P_LORA_DIO_1, RTC_GPIO_MODE_INPUT_ONLY);
     rtc_gpio_pulldown_en((gpio_num_t)P_LORA_DIO_1);
 
