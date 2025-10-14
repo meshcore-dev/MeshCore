@@ -149,4 +149,9 @@ private:
 
   void sendAlert(const ClientInfo* c, Trigger* t);
 
+  #if ENV_INCLUDE_GPS == 1
+  void applyGpsPrefs() {
+    sensors.setSettingByKey("gps", _prefs.gps_enabled?"1":"0");
+  }
+#endif
 };

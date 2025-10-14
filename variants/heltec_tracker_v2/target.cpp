@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #include "target.h"
 
-XiaoC3Board board;
+HeltecTrackerV2Board board;
 
 #if defined(P_LORA_SCLK)
   static SPIClass spi;
@@ -17,18 +17,22 @@ AutoDiscoverRTCClock rtc_clock(fallback_clock);
 
 #if ENV_INCLUDE_GPS
   #include <helpers/sensors/MicroNMEALocationProvider.h>
-  MicroNMEALocationProvider nmea = MicroNMEALocationProvider(Serial1);
+  MicroNMEALocationProvider nmea = MicroNMEALocationProvider(Serial1, NULL, GPS_RESET, GPS_EN, &board.periph_power);
   EnvironmentSensorManager sensors = EnvironmentSensorManager(nmea);
 #else
   EnvironmentSensorManager sensors;
 #endif
 
+#ifdef DISPLAY_CLASS
+  DISPLAY_CLASS display(&board.periph_power);   // peripheral power pin is shared
+  MomentaryButton user_btn(PIN_USER_BTN, 1000, true);
+#endif
+
 bool radio_init() {
   fallback_clock.begin();
   rtc_clock.begin(Wire);
-
+  
 #if defined(P_LORA_SCLK)
-  spi.begin(P_LORA_SCLK, P_LORA_MISO, P_LORA_MOSI);
   return radio.std_init(&spi);
 #else
   return radio.std_init();
