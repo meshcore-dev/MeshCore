@@ -23,4 +23,25 @@ public:
   virtual const char* getSettingValue(int i) const { return NULL; }
   virtual bool setSettingValue(const char* name, const char* value) { return false; }
   virtual LocationProvider* getLocationProvider() { return NULL; }
+
+  // Helper functions to manage setting by keys (useful in many places ...)
+  const char* getSettingByKey(const char* key) {
+    int num = getNumSettings();
+    for (int i = 0; i < num; i++) {
+      if (strcmp(getSettingName(i), key) == 0) {
+        return getSettingValue(i);
+      }
+    }
+    return NULL;
+  }
+
+  bool setSettingByKey(const char* key, const char* value) {
+    int num = getNumSettings();
+    for (int i = 0; i < num; i++) {
+      if (strcmp(getSettingName(i), key) == 0) {
+        return setSettingValue(key, value);
+      }
+    }
+    return false;
+  }
 };

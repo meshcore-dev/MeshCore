@@ -24,14 +24,21 @@ bool ST7735Display::begin() {
     digitalWrite(PIN_TFT_LEDA_CTL, HIGH);
     digitalWrite(PIN_TFT_RST, HIGH);
 
+#if defined(HELTEC_TRACKER_V2)
+    display.initR(INITR_MINI160x80);
+    display.setRotation(DISPLAY_ROTATION);
+    uint8_t madctl = ST77XX_MADCTL_MY | ST77XX_MADCTL_MV |ST7735_MADCTL_BGR;//Adjust color to BGR
+    display.sendCommand(ST77XX_MADCTL, &madctl, 1);
+#else
     display.initR(INITR_MINI160x80_PLUGIN);
     display.setRotation(DISPLAY_ROTATION);
+#endif
     display.setSPISpeed(40000000);
     display.fillScreen(ST77XX_BLACK);
     display.setTextColor(ST77XX_WHITE);
     display.setTextSize(2); 
     display.cp437(true);         // Use full 256 char 'Code Page 437' font
-  
+    
     _isOn = true;
   }
   return true;

@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include "CommonCLI.h"
 #include "TxtDataHelpers.h"
+#include "AdvertDataHelpers.h"
 #include <RTClib.h>
 
 // Believe it or not, this std C function is busted on some platforms!
@@ -62,8 +63,13 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     file.read((uint8_t *)&_prefs->bridge_delay, sizeof(_prefs->bridge_delay));                     // 128
     file.read((uint8_t *)&_prefs->bridge_pkt_src, sizeof(_prefs->bridge_pkt_src));                 // 130
     file.read((uint8_t *)&_prefs->bridge_baud, sizeof(_prefs->bridge_baud));                       // 131
-    file.read((uint8_t *)&_prefs->bridge_channel, sizeof(_prefs->bridge_channel));                 // 132
-    file.read((uint8_t *)&_prefs->bridge_secret, sizeof(_prefs->bridge_secret));                   // 133
+    file.read((uint8_t *)&_prefs->bridge_channel, sizeof(_prefs->bridge_channel));                 // 135
+    file.read((uint8_t *)&_prefs->bridge_secret, sizeof(_prefs->bridge_secret));                   // 136
+    file.read(pad, 4);                                                                             // 152
+    file.read((uint8_t *)&_prefs->gps_enabled, sizeof(_prefs->gps_enabled));                       // 156
+    file.read((uint8_t *)&_prefs->gps_interval, sizeof(_prefs->gps_interval));                     // 157
+    file.read((uint8_t *)&_prefs->advert_loc_policy, sizeof (_prefs->advert_loc_policy));          // 161
+    // 162
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -83,6 +89,9 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     _prefs->bridge_pkt_src = constrain(_prefs->bridge_pkt_src, 0, 1);
     _prefs->bridge_baud = constrain(_prefs->bridge_baud, 9600, 115200);
     _prefs->bridge_channel = constrain(_prefs->bridge_channel, 0, 14);
+
+    _prefs->gps_enabled = constrain(_prefs->gps_enabled, 0, 1);
+    _prefs->advert_loc_policy = constrain(_prefs->advert_loc_policy, 0, 2);
 
     file.close();
   }
@@ -131,8 +140,13 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->bridge_delay, sizeof(_prefs->bridge_delay));                     // 128
     file.write((uint8_t *)&_prefs->bridge_pkt_src, sizeof(_prefs->bridge_pkt_src));                 // 130
     file.write((uint8_t *)&_prefs->bridge_baud, sizeof(_prefs->bridge_baud));                       // 131
-    file.write((uint8_t *)&_prefs->bridge_channel, sizeof(_prefs->bridge_channel));                 // 132
-    file.write((uint8_t *)&_prefs->bridge_secret, sizeof(_prefs->bridge_secret));                   // 133
+    file.write((uint8_t *)&_prefs->bridge_channel, sizeof(_prefs->bridge_channel));                 // 135
+    file.write((uint8_t *)&_prefs->bridge_secret, sizeof(_prefs->bridge_secret));                   // 136
+    file.write(pad, 4);                                                                             // 152
+    file.write((uint8_t *)&_prefs->gps_enabled, sizeof(_prefs->gps_enabled));                       // 156
+    file.write((uint8_t *)&_prefs->gps_interval, sizeof(_prefs->gps_interval));                     // 157
+    file.write((uint8_t *)&_prefs->advert_loc_policy, sizeof(_prefs->advert_loc_policy));           // 161
+    // 162
 
     file.close();
   }
@@ -145,6 +159,19 @@ void CommonCLI::savePrefs() {
     _prefs->advert_interval = 0;  // turn it off, now that device has been manually configured
   }
   _callbacks->savePrefs();
+}
+
+uint8_t CommonCLI::buildAdvertData(uint8_t node_type, uint8_t* app_data) {
+  if (_prefs->advert_loc_policy == ADVERT_LOC_NONE) {
+    AdvertDataBuilder builder(node_type, _prefs->node_name);
+    return builder.encodeTo(app_data);
+  } else if (_prefs->advert_loc_policy == ADVERT_LOC_SHARE) {
+    AdvertDataBuilder builder(node_type, _prefs->node_name, sensors.node_lat, sensors.node_lon);
+    return builder.encodeTo(app_data);
+  } else {
+    AdvertDataBuilder builder(node_type, _prefs->node_name, _prefs->node_lat, _prefs->node_lon);
+    return builder.encodeTo(app_data);
+  }
 }
 
 void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, char* reply) {
@@ -510,6 +537,126 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
       sprintf(reply, "%s (Build: %s)", _callbacks->getFirmwareVer(), _callbacks->getBuildDate());
     } else if (memcmp(command, "board", 5) == 0) {
       sprintf(reply, "%s", _board->getManufacturerName());
+    } else if (memcmp(command, "sensor get ", 11) == 0) {
+      const char* key = command + 11;
+      const char* val = sensors.getSettingByKey(key);
+      if (val != NULL) {
+        sprintf(reply, "> %s", val);
+      } else {
+        strcpy(reply, "null");
+      }
+    } else if (memcmp(command, "sensor set ", 11) == 0) {
+      strcpy(tmp, &command[11]);
+      const char *parts[2]; 
+      int num = mesh::Utils::parseTextParts(tmp, parts, 2, ' ');
+      const char *key = (num > 0) ? parts[0] : "";
+      const char *value = (num > 1) ? parts[1] : "null";
+      if (sensors.setSettingByKey(key, value)) {
+        strcpy(reply, "ok");
+      } else {
+        strcpy(reply, "can't find custom var");
+      }
+    } else if (memcmp(command, "sensor list", 11) == 0) {
+      char* dp = reply;
+      int start = 0;
+      int end = sensors.getNumSettings();
+      if (strlen(command) > 11) {
+        start = _atoi(command+12);
+      }
+      if (start >= end) {
+        strcpy(reply, "no custom var");
+      } else {
+        sprintf(dp, "%d vars\n", end);
+        dp = strchr(dp, 0);
+        int i;
+        for (i = start; i < end && (dp-reply < 134); i++) {
+          sprintf(dp, "%s=%s\n", 
+            sensors.getSettingName(i),
+            sensors.getSettingValue(i));
+          dp = strchr(dp, 0);
+        }
+        if (i < end) {
+          sprintf(dp, "... next:%d", i);
+        } else {
+          *(dp-1) = 0; // remove last CR
+        }
+      }
+#if ENV_INCLUDE_GPS == 1
+    } else if (memcmp(command, "gps on", 6) == 0) {
+      if (sensors.setSettingByKey("gps", "1")) {
+        _prefs->gps_enabled = 1;
+        savePrefs();
+        strcpy(reply, "ok");
+      } else {
+        strcpy(reply, "gps toggle not found");
+      }
+    } else if (memcmp(command, "gps off", 7) == 0) {
+      if (sensors.setSettingByKey("gps", "0")) {
+        _prefs->gps_enabled = 0;
+        savePrefs();
+        strcpy(reply, "ok");
+      } else {
+        strcpy(reply, "gps toggle not found");
+      }
+    } else if (memcmp(command, "gps sync", 8) == 0) {
+      LocationProvider * l = sensors.getLocationProvider();
+      if (l != NULL) {
+        l->syncTime();
+      }
+    } else if (memcmp(command, "gps setloc", 10) == 0) {
+      _prefs->node_lat = sensors.node_lat;
+      _prefs->node_lon = sensors.node_lon;
+      savePrefs();
+      strcpy(reply, "ok");
+    } else if (memcmp(command, "gps advert", 10) == 0) {
+      if (strlen(command) == 10) {
+        switch (_prefs->advert_loc_policy) {
+          case ADVERT_LOC_NONE:
+            strcpy(reply, "> none");
+            break;
+          case ADVERT_LOC_PREFS:
+            strcpy(reply, "> prefs");
+            break;
+          case ADVERT_LOC_SHARE:
+            strcpy(reply, "> share");
+            break;
+          default:
+            strcpy(reply, "error");
+        }
+      } else if (memcmp(command+11, "none", 4) == 0) {
+        _prefs->advert_loc_policy = ADVERT_LOC_NONE;
+        savePrefs();
+        strcpy(reply, "ok");
+      } else if (memcmp(command+11, "share", 5) == 0) {
+        _prefs->advert_loc_policy = ADVERT_LOC_SHARE;
+        savePrefs();
+        strcpy(reply, "ok");
+      } else if (memcmp(command+11, "prefs", 4) == 0) {
+        _prefs->advert_loc_policy = ADVERT_LOC_PREFS;
+        savePrefs();
+        strcpy(reply, "ok");
+      } else {
+        strcpy(reply, "error");
+      }
+    } else if (memcmp(command, "gps", 3) == 0) {
+      LocationProvider * l = sensors.getLocationProvider();
+      if (l != NULL) {
+        bool enabled = l->isEnabled(); // is EN pin on ?
+        bool fix = l->isValid();       // has fix ?
+        int sats = l->satellitesCount();
+        bool active = !strcmp(sensors.getSettingByKey("gps"), "1");
+        if (enabled) {
+          sprintf(reply, "on, %s, %s, %d sats",
+            active?"active":"deactivated", 
+            fix?"fix":"no fix", 
+            sats);
+        } else {
+          strcpy(reply, "off");
+        }
+      } else {
+        strcpy(reply, "Can't find GPS");
+      }
+#endif
     } else if (memcmp(command, "log start", 9) == 0) {
       _callbacks->setLoggingOn(true);
       strcpy(reply, "   logging on");

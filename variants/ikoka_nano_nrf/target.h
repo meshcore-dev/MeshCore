@@ -3,12 +3,20 @@
 #define RADIOLIB_STATIC_ONLY 1
 #include <RadioLib.h>
 #include <helpers/radiolib/RadioLibWrappers.h>
-#include <XiaoC3Board.h>
+#include <IkokaNanoNRFBoard.h>
 #include <helpers/radiolib/CustomSX1262Wrapper.h>
 #include <helpers/AutoDiscoverRTCClock.h>
+#include <helpers/ArduinoHelpers.h>
 #include <helpers/sensors/EnvironmentSensorManager.h>
 
-extern XiaoC3Board board;
+#ifdef DISPLAY_CLASS
+  #include <helpers/ui/NullDisplayDriver.h>
+  #include <helpers/ui/MomentaryButton.h>
+  extern DISPLAY_CLASS display;
+  // extern MomentaryButton user_btn;
+#endif
+
+extern IkokaNanoNRFBoard board;
 extern WRAPPER_CLASS radio_driver;
 extern AutoDiscoverRTCClock rtc_clock;
 extern EnvironmentSensorManager sensors;

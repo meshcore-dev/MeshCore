@@ -239,11 +239,7 @@ uint8_t SensorMesh::handleRequest(uint8_t perms, uint32_t sender_timestamp, uint
 
 mesh::Packet* SensorMesh::createSelfAdvert() {
   uint8_t app_data[MAX_ADVERT_DATA_SIZE];
-  uint8_t app_data_len;
-  {
-    AdvertDataBuilder builder(ADV_TYPE_SENSOR, _prefs.node_name, _prefs.node_lat, _prefs.node_lon);
-    app_data_len = builder.encodeTo(app_data);
-  }
+  uint8_t app_data_len = _cli.buildAdvertData(ADV_TYPE_SENSOR, app_data);
 
   return createAdvert(self_id, app_data, app_data_len);
 }
@@ -682,6 +678,11 @@ SensorMesh::SensorMesh(mesh::MainBoard& board, mesh::Radio& radio, mesh::Millise
   _prefs.disable_fwd = true;
   _prefs.flood_max = 64;
   _prefs.interference_threshold = 0;  // disabled
+
+  // GPS defaults
+  _prefs.gps_enabled = 0;
+  _prefs.gps_interval = 0;
+  _prefs.advert_loc_policy = ADVERT_LOC_PREFS;
 }
 
 void SensorMesh::begin(FILESYSTEM* fs) {
@@ -697,6 +698,10 @@ void SensorMesh::begin(FILESYSTEM* fs) {
 
   updateAdvertTimer();
   updateFloodAdvertTimer();
+
+#if ENV_INCLUDE_GPS == 1
+  applyGpsPrefs();
+#endif
 }
 
 bool SensorMesh::formatFileSystem() {

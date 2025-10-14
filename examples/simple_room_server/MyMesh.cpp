@@ -114,11 +114,7 @@ bool MyMesh::processAck(const uint8_t *data) {
 
 mesh::Packet *MyMesh::createSelfAdvert() {
   uint8_t app_data[MAX_ADVERT_DATA_SIZE];
-  uint8_t app_data_len;
-  {
-    AdvertDataBuilder builder(ADV_TYPE_ROOM, _prefs.node_name, _prefs.node_lat, _prefs.node_lon);
-    app_data_len = builder.encodeTo(app_data);
-  }
+  uint8_t app_data_len = _cli.buildAdvertData(ADV_TYPE_ROOM, app_data);
 
   return createAdvert(self_id, app_data, app_data_len);
 }
@@ -290,7 +286,7 @@ void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const m
     data[len] = 0;                                        // ensure null terminator
 
     ClientInfo* client = NULL;
-    if (data[8] == 0 && !_prefs.allow_read_only) {   // blank password, just check if sender is in ACL
+    if (data[8] == 0) {   // blank password, just check if sender is in ACL
       client = acl.getClient(sender.pub_key, PUB_KEY_SIZE);
       if (client == NULL) {
       #if MESH_DEBUG
@@ -326,6 +322,7 @@ void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const m
       client->extra.room.push_failures = 0;
 
       client->last_activity = getRTCClock()->getCurrentTime();
+      client->permissions &= ~0x03;
       client->permissions |= perm;
       memcpy(client->shared_secret, secret, PUB_KEY_SIZE);
 
@@ -612,6 +609,11 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   StrHelper::strncpy(_prefs.guest_password, ROOM_PASSWORD, sizeof(_prefs.guest_password));
 #endif
 
+  // GPS defaults
+  _prefs.gps_enabled = 0;
+  _prefs.gps_interval = 0;
+  _prefs.advert_loc_policy = ADVERT_LOC_PREFS;
+
   next_post_idx = 0;
   next_client_idx = 0;
   next_push = 0;
@@ -632,6 +634,10 @@ void MyMesh::begin(FILESYSTEM *fs) {
 
   updateAdvertTimer();
   updateFloodAdvertTimer();
+
+#if ENV_INCLUDE_GPS == 1
+  applyGpsPrefs();
+#endif
 }
 
 void MyMesh::applyTempRadioParams(float freq, float bw, uint8_t sf, uint8_t cr, int timeout_mins) {

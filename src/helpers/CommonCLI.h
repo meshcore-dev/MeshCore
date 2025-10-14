@@ -2,10 +2,15 @@
 
 #include "Mesh.h"
 #include <helpers/IdentityStore.h>
+#include <target.h>
 
 #if defined(WITH_RS232_BRIDGE) || defined(WITH_ESPNOW_BRIDGE)
 #define WITH_BRIDGE
 #endif
+
+#define ADVERT_LOC_NONE       0
+#define ADVERT_LOC_SHARE      1
+#define ADVERT_LOC_PREFS      2
 
 struct NodePrefs { // persisted to file
   float airtime_factor;
@@ -37,6 +42,10 @@ struct NodePrefs { // persisted to file
   uint32_t bridge_baud;   // 9600, 19200, 38400, 57600, 115200 (default 115200)
   uint8_t bridge_channel; // 1-14 (ESP-NOW only)
   char bridge_secret[16]; // for XOR encryption of bridge packets (ESP-NOW only)
+  // Gps settings
+  uint8_t gps_enabled;
+  uint32_t gps_interval; // in seconds
+  uint8_t advert_loc_policy;
 };
 
 class CommonCLICallbacks {
@@ -90,4 +99,5 @@ public:
   void loadPrefs(FILESYSTEM* _fs);
   void savePrefs(FILESYSTEM* _fs);
   void handleCommand(uint32_t sender_timestamp, const char* command, char* reply);
+  uint8_t buildAdvertData(uint8_t node_type, uint8_t* app_data);
 };

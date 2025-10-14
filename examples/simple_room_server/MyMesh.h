@@ -149,6 +149,12 @@ protected:
   bool onPeerPathRecv(mesh::Packet* packet, int sender_idx, const uint8_t* secret, uint8_t* path, uint8_t path_len, uint8_t extra_type, uint8_t* extra, uint8_t extra_len) override;
   void onAckRecv(mesh::Packet* packet, uint32_t ack_crc) override;
 
+#if ENV_INCLUDE_GPS == 1
+  void applyGpsPrefs() {
+    sensors.setSettingByKey("gps", _prefs.gps_enabled?"1":"0");
+  }
+#endif
+
 public:
   MyMesh(mesh::MainBoard& board, mesh::Radio& radio, mesh::MillisecondClock& ms, mesh::RNG& rng, mesh::RTCClock& rtc, mesh::MeshTables& tables);
 
