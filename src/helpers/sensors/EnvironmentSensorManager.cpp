@@ -588,6 +588,7 @@ void EnvironmentSensorManager::loop() {
       node_lon = ((double)ublox_GNSS.getLongitude())/10000000.;
       MESH_DEBUG_PRINTLN("lat %f lon %f", node_lat, node_lon);
       node_altitude = ((double)ublox_GNSS.getAltitude()) / 1000.0;
+      satellites_count = ublox_GNSS.getSIV();
       MESH_DEBUG_PRINTLN("lat %f lon %f alt %f", node_lat, node_lon, node_altitude);
     }
     else if (serialGPSFlag && _location->isValid()) {
@@ -595,6 +596,7 @@ void EnvironmentSensorManager::loop() {
       node_lon = ((double)_location->getLongitude())/1000000.;
       MESH_DEBUG_PRINTLN("lat %f lon %f", node_lat, node_lon);
       node_altitude = ((double)_location->getAltitude()) / 1000.0;
+      satellites_count = _location->satellitesCount();
       MESH_DEBUG_PRINTLN("lat %f lon %f alt %f", node_lat, node_lon, node_altitude);
     }
     #else
@@ -603,6 +605,7 @@ void EnvironmentSensorManager::loop() {
       node_lon = ((double)_location->getLongitude())/1000000.;
       MESH_DEBUG_PRINTLN("lat %f lon %f", node_lat, node_lon);
       node_altitude = ((double)_location->getAltitude()) / 1000.0;
+      satellites_count = _location->satellitesCount();
       MESH_DEBUG_PRINTLN("lat %f lon %f alt %f", node_lat, node_lon, node_altitude);
     }
     #endif
