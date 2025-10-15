@@ -80,7 +80,8 @@
 #define FLOOD_SEND_TIMEOUT_FACTOR       16.0f
 #define DIRECT_SEND_PERHOP_FACTOR       6.0f
 #define DIRECT_SEND_PERHOP_EXTRA_MILLIS 250
-#define LAZY_CONTACTS_WRITE_DELAY       5000
+#define CONTACTS_SAVE_QUIET_WINDOW_MS   60000   // save after this period (1 minute) of no structural changes
+#define CONTACTS_SAVE_MAX_WINDOW_MS     300000  // but never delay beyond this total coalesce window (5 minutes)
 
 #define PUBLIC_GROUP_PSK                "izOH6cXN6mrJ5e26oRXNcg=="
 
@@ -125,6 +126,15 @@ void MyMesh::writeDisabledFrame() {
   uint8_t buf[1];
   buf[0] = RESP_CODE_DISABLED;
   _serial->writeFrame(buf, 1);
+}
+
+void MyMesh::markContactsChanged() {
+  unsigned long now = _ms->getMillis();
+  contacts_last_change = now;
+  if (!contacts_dirty) {
+    contacts_dirty = true;
+    contacts_first_change = now;
+  }
 }
 
 void MyMesh::writeContactRespFrame(uint8_t code, const ContactInfo &contact) {
@@ -287,8 +297,6 @@ void MyMesh::onDiscoveredContact(ContactInfo &contact, bool is_new, uint8_t path
     p->path_len = path_len;
     memcpy(p->path, path, p->path_len);
   }
-
-  dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY);
 }
 
 static int sort_by_recent(const void *a, const void *b) {
@@ -309,8 +317,10 @@ void MyMesh::onContactPathUpdated(const ContactInfo &contact) {
   out_frame[0] = PUSH_CODE_PATH_UPDATED;
   memcpy(&out_frame[1], contact.id.pub_key, PUB_KEY_SIZE);
   _serial->writeFrame(out_frame, 1 + PUB_KEY_SIZE); // NOTE: app may not be connected
+}
 
-  dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY);
+void MyMesh::onContactDataChanged(const ContactInfo& contact) {
+  markContactsChanged();
 }
 
 ContactInfo*  MyMesh::processAck(const uint8_t *data) {
@@ -393,8 +403,6 @@ void MyMesh::onCommandDataRecv(const ContactInfo &from, mesh::Packet *pkt, uint3
 void MyMesh::onSignedMessageRecv(const ContactInfo &from, mesh::Packet *pkt, uint32_t sender_timestamp,
                                  const uint8_t *sender_prefix, const char *text) {
   markConnectionActive(from);
-  // from.sync_since change needs to be persisted
-  dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY);
   queueMessage(from, TXT_TYPE_SIGNED_PLAIN, pkt, sender_timestamp, sender_prefix, 4, text);
 }
 
@@ -661,7 +669,8 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
   clearPendingReqs();
   next_ack_idx = 0;
   sign_data = NULL;
-  dirty_contacts_expiry = 0;
+  contacts_dirty = false;
+  contacts_last_change = contacts_first_change = 0;
   memset(advert_paths, 0, sizeof(advert_paths));
 
   // defaults
@@ -961,8 +970,7 @@ void MyMesh::handleCmdFrame(size_t len) {
     ContactInfo *recipient = lookupContactByPubKey(pub_key, PUB_KEY_SIZE);
     if (recipient) {
       recipient->out_path_len = -1;
-      // recipient->lastmod = ??   shouldn't be needed, app already has this version of contact
-      dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY);
+      markContactsChanged();
       writeOKFrame();
     } else {
       writeErrFrame(ERR_CODE_NOT_FOUND); // unknown contact
@@ -974,7 +982,7 @@ void MyMesh::handleCmdFrame(size_t len) {
     if (recipient) {
       updateContactFromFrame(*recipient, last_mod, cmd_frame, len);
       recipient->lastmod = last_mod;
-      dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY);
+      markContactsChanged();
       writeOKFrame();
     } else {
       ContactInfo contact;
@@ -982,7 +990,7 @@ void MyMesh::handleCmdFrame(size_t len) {
       contact.lastmod = last_mod;
       contact.sync_since = 0;
       if (addContact(contact)) {
-        dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY);
+        markContactsChanged();
         writeOKFrame();
       } else {
         writeErrFrame(ERR_CODE_TABLE_FULL);
@@ -992,7 +1000,7 @@ void MyMesh::handleCmdFrame(size_t len) {
     uint8_t *pub_key = &cmd_frame[1];
     ContactInfo *recipient = lookupContactByPubKey(pub_key, PUB_KEY_SIZE);
     if (recipient && removeContact(*recipient)) {
-      dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY);
+      markContactsChanged();
       writeOKFrame();
     } else {
       writeErrFrame(ERR_CODE_NOT_FOUND); // not found, or unable to remove
@@ -1137,9 +1145,7 @@ void MyMesh::handleCmdFrame(size_t len) {
     savePrefs();
     writeOKFrame();
   } else if (cmd_frame[0] == CMD_REBOOT && memcmp(&cmd_frame[1], "reboot", 6) == 0) {
-    if (dirty_contacts_expiry) { // is there are pending dirty contacts write needed?
-      saveContacts();
-    }
+    saveContactsIfDirty();
     board.reboot();
   } else if (cmd_frame[0] == CMD_GET_BATT_AND_STORAGE) {
     uint8_t reply[11];
@@ -1660,6 +1666,7 @@ void MyMesh::checkCLIRescueCmd() {
       }
 
     } else if (strcmp(cli_command, "reboot") == 0) {
+      saveContactsIfDirty();
       board.reboot();  // doesn't return
     } else {
       Serial.println("  Error: unknown command");
@@ -1705,10 +1712,16 @@ void MyMesh::loop() {
     checkSerialInterface();
   }
 
-  // is there are pending dirty contacts write needed?
-  if (dirty_contacts_expiry && millisHasNowPassed(dirty_contacts_expiry)) {
-    saveContacts();
-    dirty_contacts_expiry = 0;
+  // Debounced save
+  if (contacts_dirty) {
+    unsigned long now = _ms->getMillis();
+    bool quiet_met = (now - contacts_last_change) >= CONTACTS_SAVE_QUIET_WINDOW_MS;
+    bool max_reached = (now - contacts_first_change) >= CONTACTS_SAVE_MAX_WINDOW_MS;
+    if (quiet_met || max_reached) {
+      saveContacts();
+      contacts_dirty = false;
+      contacts_last_change = contacts_first_change = 0;
+    }
   }
 
 #ifdef DISPLAY_CLASS

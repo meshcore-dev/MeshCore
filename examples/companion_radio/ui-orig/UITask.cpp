@@ -292,10 +292,13 @@ void UITask::shutdown(bool restart){
 
   #endif // PIN_BUZZER
 
-  if (restart)
+  if (restart) {
+    the_mesh.flushContactsIfDirty();
     _board->reboot();
-  else
+  } else {
+    the_mesh.flushContactsIfDirty();
     _board->powerOff();
+  }
 }
 
 void UITask::loop() {
