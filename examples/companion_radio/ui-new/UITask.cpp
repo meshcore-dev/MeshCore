@@ -650,6 +650,7 @@ void UITask::loop() {
   }
 #endif
 #if defined(PIN_USER_BTN_ANA)
+  delay(10);
   ev = analog_btn.check();
   if (ev == BUTTON_EVENT_CLICK) {
     c = checkDisplayOn(KEY_NEXT);
