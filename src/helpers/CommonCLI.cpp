@@ -59,7 +59,16 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     file.read((uint8_t *) &_prefs->flood_advert_interval, sizeof(_prefs->flood_advert_interval));  // 125
     file.read((uint8_t *) &_prefs->interference_threshold, sizeof(_prefs->interference_threshold));  // 126
 
-    // sanitise bad pref values
+    // sanitize loaded node_name to printable ASCII (defense against legacy invalid values)
+    {
+      char filtered[sizeof(_prefs->node_name)];
+      StrHelper::filterToPrintableASCII(filtered, _prefs->node_name, sizeof(filtered));
+      if (strcmp(filtered, _prefs->node_name) != 0) {
+        StrHelper::strncpy(_prefs->node_name, filtered, sizeof(_prefs->node_name));
+      }
+    }
+
+    // sanitise bad pref numeric values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
     _prefs->tx_delay_factor = constrain(_prefs->tx_delay_factor, 0, 2.0f);
     _prefs->direct_tx_delay_factor = constrain(_prefs->direct_tx_delay_factor, 0, 2.0f);
@@ -313,9 +322,17 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
           strcpy(reply, "Error, invalid key");
         }
       } else if (memcmp(config, "name ", 5) == 0) {
-        StrHelper::strncpy(_prefs->node_name, &config[5], sizeof(_prefs->node_name));
-        savePrefs();
-        strcpy(reply, "OK");
+        const char* new_name = &config[5];
+        size_t n = strlen(new_name);
+        if (n == 0 || n >= sizeof(_prefs->node_name)) {
+          strcpy(reply, "Error: name length must be 1-31");
+        } else if (!StrHelper::isPrintableASCII(new_name)) {
+          strcpy(reply, "Error: name must be printable ASCII (0x20-0x7E)");
+        } else {
+          StrHelper::strncpy(_prefs->node_name, new_name, sizeof(_prefs->node_name));
+          savePrefs();
+          strcpy(reply, "OK");
+        }
       } else if (memcmp(config, "repeat ", 7) == 0) {
         _prefs->disable_fwd = memcmp(&config[7], "off", 3) == 0;
         savePrefs();
