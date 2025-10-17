@@ -2,16 +2,7 @@
 
 #include <Arduino.h>
 #include <helpers/RefCountedDigitalPin.h>
-
-// LoRa radio module pins for Heltec V3
-// Also for Heltec Wireless Tracker/Paper
-#define  P_LORA_DIO_1   14
-#define  P_LORA_NSS      8
-#define  P_LORA_RESET   RADIOLIB_NC
-#define  P_LORA_BUSY    13
-#define  P_LORA_SCLK     9
-#define  P_LORA_MISO    11
-#define  P_LORA_MOSI    10
+#include <helpers/ESP32Board.h>
 
 // built-ins
 #ifndef PIN_VBAT_READ              // set in platformio.ini for boards like Heltec Wireless Paper (20)
@@ -22,9 +13,6 @@
 #endif
 #define  PIN_ADC_CTRL_ACTIVE    LOW
 #define  PIN_ADC_CTRL_INACTIVE  HIGH
-//#define  PIN_LED_BUILTIN 35
-
-#include "ESP32Board.h"
 
 #include <driver/rtc_io.h>
 
@@ -43,7 +31,7 @@ public:
     // Auto-detect correct ADC_CTRL pin polarity (different for boards >3.2)
     pinMode(PIN_ADC_CTRL, INPUT);
     adc_active_state = !digitalRead(PIN_ADC_CTRL);
-    
+
     pinMode(PIN_ADC_CTRL, OUTPUT);
     digitalWrite(PIN_ADC_CTRL, !adc_active_state); // Initially inactive
 
@@ -64,7 +52,7 @@ public:
   void enterDeepSleep(uint32_t secs, int pin_wake_btn = -1) {
     esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
 
-    // Make sure the DIO1 and NSS GPIOs are hold on required levels during deep sleep 
+    // Make sure the DIO1 and NSS GPIOs are hold on required levels during deep sleep
     rtc_gpio_set_direction((gpio_num_t)P_LORA_DIO_1, RTC_GPIO_MODE_INPUT_ONLY);
     rtc_gpio_pulldown_en((gpio_num_t)P_LORA_DIO_1);
 
