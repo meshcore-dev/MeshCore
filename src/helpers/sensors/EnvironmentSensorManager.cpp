@@ -21,6 +21,15 @@ static Adafruit_AHTX0 AHTX0;
 static Adafruit_BME280 BME280;
 #endif
 
+#if ENV_INCLUDE_BME680
+#ifndef TELEM_BME680_ADDRESS
+#define TELEM_BME680_ADDRESS   0x76
+#endif
+#define TELEM_BME680_SEALEVELPRESSURE_HPA (1013.25)
+#include <Adafruit_BME680.h>
+static Adafruit_BME680 BME680;
+#endif
+
 #if ENV_INCLUDE_BMP280
 #ifndef TELEM_BMP280_ADDRESS
 #define TELEM_BMP280_ADDRESS    0x76      // BMP280 environmental sensor I2C address
@@ -174,6 +183,22 @@ bool EnvironmentSensorManager::begin() {
   }
   #endif
 
+  #if ENV_INCLUDE_BME680
+  if (BME680.begin(TELEM_BME680_ADDRESS)) {
+    BME680.setTemperatureOversampling(BME680_OS_8X);
+    BME680.setHumidityOversampling(BME680_OS_2X);
+    BME680.setPressureOversampling(BME680_OS_4X);
+    BME680.setIIRFilterSize(BME680_FILTER_SIZE_3);
+    BME680.setGasHeater(360, 150); // 320*C for 150ms
+
+    MESH_DEBUG_PRINTLN("Found BME680 at address: %02X", TELEM_BME680_ADDRESS);
+    BME680_initialized = true;
+  } else {
+    BME680_initialized = false;
+    MESH_DEBUG_PRINTLN("BME680 was not found at I2C address %02X", TELEM_BME280_ADDRESS);
+  }
+  #endif
+
   #if ENV_INCLUDE_BMP280
   if (BMP280.begin(TELEM_BMP280_ADDRESS)) {
     MESH_DEBUG_PRINTLN("Found BMP280 at address: %02X", TELEM_BMP280_ADDRESS);
@@ -313,6 +338,16 @@ bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, Cayen
       telemetry.addRelativeHumidity(TELEM_CHANNEL_SELF, BME280.readHumidity());
       telemetry.addBarometricPressure(TELEM_CHANNEL_SELF, BME280.readPressure()/100);
       telemetry.addAltitude(TELEM_CHANNEL_SELF, BME280.readAltitude(TELEM_BME280_SEALEVELPRESSURE_HPA));
+    }
+    #endif
+
+    #if ENV_INCLUDE_BME680
+    if (BME680_initialized) {
+      telemetry.addTemperature(TELEM_CHANNEL_SELF, BME680.readTemperature());
+      telemetry.addRelativeHumidity(TELEM_CHANNEL_SELF, BME680.readHumidity());
+      telemetry.addBarometricPressure(TELEM_CHANNEL_SELF, BME680.readPressure() / 100);
+      telemetry.addGenericSensor(TELEM_CHANNEL_SELF, BME680.readGas() / 1000.0); // KOhms
+      telemetry.addAltitude(TELEM_CHANNEL_SELF, BME680.readAltitude(TELEM_BME680_SEALEVELPRESSURE_HPA));
     }
     #endif
 

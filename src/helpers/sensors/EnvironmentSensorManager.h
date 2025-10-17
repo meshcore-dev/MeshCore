@@ -10,6 +10,7 @@ protected:
 
   bool AHTX0_initialized = false;
   bool BME280_initialized = false;
+  bool BME680_initialized = false;
   bool BMP280_initialized = false;
   bool INA3221_initialized = false;
   bool INA219_initialized = false;
