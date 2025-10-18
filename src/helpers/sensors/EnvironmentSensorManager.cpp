@@ -1,4 +1,5 @@
 #include "EnvironmentSensorManager.h"
+#include <target.h>
 
 #if ENV_PIN_SDA && ENV_PIN_SCL
 #define TELEM_WIRE &Wire1  // Use Wire1 as the I2C bus for Environment Sensors
@@ -105,7 +106,7 @@ static Adafruit_VL53L0X VL53L0X;
 bool EnvironmentSensorManager::begin() {
   #if ENV_INCLUDE_GPS
   GpsDriver* driver = LocationProvider::detectDriver();
-  _gps = new LocationProvider(driver);
+  _gps = new LocationProvider(driver, &rtc_clock);
   _gps->begin();
   #endif
 

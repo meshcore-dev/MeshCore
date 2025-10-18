@@ -635,17 +635,23 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
       if (gps && gps->isDetected()) {
         bool enabled = gps->isEnabled();
         bool hardware_on = gps->isHardwareOn();
-        bool fix = gps->hasValidFix();
         int sats = gps->getSatelliteCount();
+
+        // Get last known position info
+        double lat = gps->node_lat;
+        double lon = gps->node_lon;
+        bool has_position = (lat != 0.0 || lon != 0.0);
 
         if (!enabled) {
           strcpy(reply, "disabled");
         } else if (hardware_on) {
           sprintf(reply, "awake, %s, %d sats",
-            fix?"fix":"no fix",
+            has_position ? "fix" : "no fix",
             sats);
         } else {
-          strcpy(reply, "sleeping (duty cycling)");
+          sprintf(reply, "sleeping, last: %s, %d sats",
+            has_position ? "fix" : "no fix",
+            sats);
         }
       } else {
         strcpy(reply, "not detected");

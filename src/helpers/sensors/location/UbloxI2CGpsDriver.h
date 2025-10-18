@@ -93,15 +93,12 @@ public:
   void sync() override {
     if (!_initialized) return;
 
-    // Request fresh PVT data from GPS (UBX binary protocol)
     if (_gnss.getPVT(500)) {
       _lat = _gnss.getLatitude() / 10;
       _lng = _gnss.getLongitude() / 10;
       _alt = _gnss.getAltitude();
       _sats = _gnss.getSIV();
       _epoch = _gnss.getUnixEpoch();
-
-      MESH_DEBUG_PRINTLN("u-blox GPS sync: lat %ld lon %ld alt %ld sats %d", _lat, _lng, _alt, _sats);
     }
   }
 

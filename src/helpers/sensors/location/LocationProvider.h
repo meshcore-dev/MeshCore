@@ -2,18 +2,20 @@
 
 #include "GpsDriver.h"
 #include <Mesh.h>
+#include <MeshCore.h>
 
 #ifndef GPS_CYCLE_INTERVAL_MS
   #define GPS_CYCLE_INTERVAL_MS 300000  // 5 minutes default
 #endif
 
 #ifndef GPS_WAKE_TIMEOUT_MS
-  #define GPS_WAKE_TIMEOUT_MS 30000     // 30 seconds default
+  #define GPS_WAKE_TIMEOUT_MS 120000     // 2 minutes default
 #endif
 
 class LocationProvider {
 private:
   GpsDriver* _driver = nullptr;
+  mesh::RTCClock* _clock = nullptr;
 
   // Configuration
   bool _enabled = false;
@@ -27,6 +29,11 @@ private:
   long _next_cycle = 0;
   long _wake_time = 0;
   bool _reading_phase = false;
+  long _last_loop_run = 0;
+
+  // RTC sync state
+  bool _time_sync_needed = true;
+  uint8_t _time_valid_count = 0;
 
 public:
   double node_lat = 0;
@@ -36,7 +43,7 @@ public:
 
   static GpsDriver* detectDriver();
 
-  LocationProvider(GpsDriver* driver) : _driver(driver) {}
+  LocationProvider(GpsDriver* driver, mesh::RTCClock* clock = nullptr) : _driver(driver), _clock(clock) {}
 
   bool begin();
   void loop();

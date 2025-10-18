@@ -1,9 +1,10 @@
 #include "LocationProvider.h"
 #include <Arduino.h>
 
-// Include available drivers
 #include "UbloxI2CGpsDriver.h"
 #include "MicroNMEAGpsDriver.h"
+
+const long LOOP_THROTTLE_MS = 1000;
 
 GpsDriver* LocationProvider::detectDriver() {
   GpsDriver* driver = nullptr;
@@ -97,6 +98,11 @@ bool LocationProvider::updateLocation() {
   MESH_DEBUG_PRINTLN("GPS: valid fix - lat=%f lon=%f alt=%f sats=%d",
     node_lat, node_lon, node_altitude, sats);
 
+  // Sync RTC clock with GPS time
+  if (_clock != nullptr) {
+    _clock->setCurrentTime((uint32_t)node_timestamp);
+  }
+
   return true;
 }
 
@@ -109,6 +115,13 @@ void LocationProvider::syncTime() {
 }
 
 void LocationProvider::loop() {
+  // Throttle loop to run at most once per second
+  long now = millis();
+  if (now - _last_loop_run < LOOP_THROTTLE_MS) {
+    return;
+  }
+  _last_loop_run = now;
+
   if (!_detected) {
     return;
   }
