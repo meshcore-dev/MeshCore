@@ -663,6 +663,12 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
     } else if (sender_timestamp == 0 && memcmp(command, "log", 3) == 0) {
       _callbacks->dumpLogFile();
       strcpy(reply, "   EOF");
+    } else if (sender_timestamp == 0 && memcmp(command, "stats-radio", 11) == 0) {
+      _callbacks->formatRadioStatsReply(reply);
+    } else if (sender_timestamp == 0 && memcmp(command, "stats-packets", 13) == 0) {
+      _callbacks->formatPacketStatsReply(reply);
+    } else if (sender_timestamp == 0 && memcmp(command, "stats", 5) == 0) {
+      _callbacks->formatStatsReply(reply);
     } else {
       strcpy(reply, "Unknown command");
     }

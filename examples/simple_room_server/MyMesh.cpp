@@ -727,6 +727,19 @@ void MyMesh::clearStats() {
   ((SimpleMeshTables *)getTables())->resetStats();
 }
 
+void MyMesh::formatStatsReply(char *reply) {
+  StatsFormatHelper::formatCoreStats(reply, board, *_ms, _err_flags, _mgr);
+}
+
+void MyMesh::formatRadioStatsReply(char *reply) {
+  StatsFormatHelper::formatRadioStats(reply, _radio, radio_driver, getTotalAirTime(), getReceiveAirTime());
+}
+
+void MyMesh::formatPacketStatsReply(char *reply) {
+  StatsFormatHelper::formatPacketStats(reply, radio_driver, getNumSentFlood(), getNumSentDirect(), 
+                                       getNumRecvFlood(), getNumRecvDirect());
+}
+
 void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply) {
   while (*command == ' ')
     command++; // skip leading spaces

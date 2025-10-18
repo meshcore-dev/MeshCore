@@ -69,6 +69,15 @@ public:
   void formatNeighborsReply(char *reply) override {
     strcpy(reply, "not supported");
   }
+  void formatStatsReply(char *reply) override {
+    strcpy(reply, "not supported");
+  }
+  void formatRadioStatsReply(char *reply) override {
+    strcpy(reply, "not supported");
+  }
+  void formatPacketStatsReply(char *reply) override {
+    strcpy(reply, "not supported");
+  }
   mesh::LocalIdentity& getSelfId() override { return self_id; }
   void saveIdentity(const mesh::LocalIdentity& new_id) override;
   void clearStats() override { }
