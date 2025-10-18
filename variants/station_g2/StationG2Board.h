@@ -1,22 +1,7 @@
 #pragma once
 
 #include <Arduino.h>
-
-// LoRa radio module pins for Station G2
-#define  P_LORA_DIO_1   48
-#define  P_LORA_NSS     11
-#define  P_LORA_RESET   21
-#define  P_LORA_BUSY    47
-#define  P_LORA_SCLK    12
-#define  P_LORA_MISO    14
-#define  P_LORA_MOSI    13
-
-// built-ins
-//#define  PIN_LED_BUILTIN 35
-//#define  PIN_VEXT_EN     36
-
-#include "ESP32Board.h"
-
+#include <helpers/ESP32Board.h>
 #include <driver/rtc_io.h>
 
 class StationG2Board : public ESP32Board {
