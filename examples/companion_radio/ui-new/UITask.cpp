@@ -683,6 +683,10 @@ void UITask::loop() {
   } else if (ev == BUTTON_EVENT_LONG_PRESS) {
     c = handleLongPress(KEY_RIGHT);
   }
+  ev = back_btn.check();
+  if (ev == BUTTON_EVENT_TRIPLE_CLICK) {
+    c = handleTripleClick(KEY_SELECT);
+  }
 #elif defined(PIN_USER_BTN)
   int ev = user_btn.check();
   if (ev == BUTTON_EVENT_CLICK) {
