@@ -396,12 +396,27 @@ int MyMesh::calcRxDelay(float score, uint32_t air_time) const {
 }
 
 uint32_t MyMesh::getRetransmitDelay(const mesh::Packet *packet) {
+  if(_prefs.tx_delay_factor == 0) {
+    MESH_DEBUG_PRINTLN("getRetransmitDelay: Total tx delay: %d", _prefs.tx_delay_factor);
+    return 5;
+  }
+  
   uint32_t t = (_radio->getEstAirtimeFor(packet->path_len + packet->payload_len + 2) * _prefs.tx_delay_factor);
-  return getRNG()->nextInt(0, 6) * t;
+  uint32_t total_delay = getRNG()->nextInt(5, t);
+  MESH_DEBUG_PRINTLN("getRetransmitDelay: Total tx delay: %d", total_delay);
+  return total_delay;
 }
+
 uint32_t MyMesh::getDirectRetransmitDelay(const mesh::Packet *packet) {
+  if(_prefs.direct_tx_delay_factor == 0) {
+    MESH_DEBUG_PRINTLN("getDirectRetransmitDelay: Total tx delay: %d", _prefs.direct_tx_delay_factor);
+    return 5;
+  }
+
   uint32_t t = (_radio->getEstAirtimeFor(packet->path_len + packet->payload_len + 2) * _prefs.direct_tx_delay_factor);
-  return getRNG()->nextInt(0, 6) * t;
+  uint32_t total_delay = getRNG()->nextInt(5, t);
+  MESH_DEBUG_PRINTLN("getDirectRetransmitDelay: Total tx delay: %d", total_delay);
+  return total_delay;
 }
 
 void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const mesh::Identity &sender,

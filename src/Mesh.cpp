@@ -17,7 +17,9 @@ bool Mesh::allowPacketForward(const mesh::Packet* packet) {
 uint32_t Mesh::getRetransmitDelay(const mesh::Packet* packet) { 
   uint32_t t = (_radio->getEstAirtimeFor(packet->getRawLength()) * 52 / 50) / 2;
 
-  return _rng->nextInt(0, 5)*t;
+  uint32_t total_delay = getRNG()->nextInt(5, t);
+  MESH_DEBUG_PRINTLN("getRetransmitDelay: Total tx delay: %d", total_delay);
+  return total_delay;
 }
 uint32_t Mesh::getDirectRetransmitDelay(const Packet* packet) {
   return 0;  // by default, no delay
