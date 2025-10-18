@@ -586,7 +586,7 @@ bool MyMesh::onPeerPathRecv(mesh::Packet *packet, int sender_idx, const uint8_t 
 MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondClock &ms, mesh::RNG &rng,
                mesh::RTCClock &rtc, mesh::MeshTables &tables)
     : mesh::Mesh(radio, ms, rng, rtc, *new StaticPoolPacketManager(32), tables),
-      _cli(board, rtc, &_prefs, this), telemetry(MAX_PACKET_PAYLOAD - 4)
+      _cli(board, rtc, sensors, &_prefs, this), telemetry(MAX_PACKET_PAYLOAD - 4)
 #if defined(WITH_RS232_BRIDGE)
       , bridge(&_prefs, WITH_RS232_BRIDGE, _mgr, &rtc)
 #endif

@@ -2,7 +2,7 @@
 
 #include "Mesh.h"
 #include <helpers/IdentityStore.h>
-#include <target.h>
+#include <helpers/SensorManager.h>
 
 #if defined(WITH_RS232_BRIDGE) || defined(WITH_ESPNOW_BRIDGE)
 #define WITH_BRIDGE
@@ -85,6 +85,7 @@ class CommonCLI {
   NodePrefs* _prefs;
   CommonCLICallbacks* _callbacks;
   mesh::MainBoard* _board;
+  SensorManager* _sensors;
   char tmp[PRV_KEY_SIZE*2 + 4];
 
   mesh::RTCClock* getRTCClock() { return _rtc; }
@@ -92,8 +93,8 @@ class CommonCLI {
   void loadPrefsInt(FILESYSTEM* _fs, const char* filename);
 
 public:
-  CommonCLI(mesh::MainBoard& board, mesh::RTCClock& rtc, NodePrefs* prefs, CommonCLICallbacks* callbacks)
-      : _board(&board), _rtc(&rtc), _prefs(prefs), _callbacks(callbacks) { }
+  CommonCLI(mesh::MainBoard& board, mesh::RTCClock& rtc, SensorManager& sensors, NodePrefs* prefs, CommonCLICallbacks* callbacks)
+      : _board(&board), _rtc(&rtc), _sensors(&sensors), _prefs(prefs), _callbacks(callbacks) { }
 
   void loadPrefs(FILESYSTEM* _fs);
   void savePrefs(FILESYSTEM* _fs);

@@ -166,7 +166,7 @@ uint8_t CommonCLI::buildAdvertData(uint8_t node_type, uint8_t* app_data) {
     AdvertDataBuilder builder(node_type, _prefs->node_name);
     return builder.encodeTo(app_data);
   } else if (_prefs->advert_loc_policy == ADVERT_LOC_SHARE) {
-    AdvertDataBuilder builder(node_type, _prefs->node_name, sensors.node_lat, sensors.node_lon);
+    AdvertDataBuilder builder(node_type, _prefs->node_name, _sensors->node_lat, _sensors->node_lon);
     return builder.encodeTo(app_data);
   } else {
     AdvertDataBuilder builder(node_type, _prefs->node_name, _prefs->node_lat, _prefs->node_lon);
@@ -533,7 +533,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
       sprintf(reply, "%s", _board->getManufacturerName());
     } else if (memcmp(command, "sensor get ", 11) == 0) {
       const char* key = command + 11;
-      const char* val = sensors.getSettingByKey(key);
+      const char* val = _sensors->getSettingByKey(key);
       if (val != NULL) {
         sprintf(reply, "> %s", val);
       } else {
@@ -545,7 +545,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
       int num = mesh::Utils::parseTextParts(tmp, parts, 2, ' ');
       const char *key = (num > 0) ? parts[0] : "";
       const char *value = (num > 1) ? parts[1] : "null";
-      if (sensors.setSettingByKey(key, value)) {
+      if (_sensors->setSettingByKey(key, value)) {
         strcpy(reply, "ok");
       } else {
         strcpy(reply, "can't find custom var");
@@ -553,7 +553,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
     } else if (memcmp(command, "sensor list", 11) == 0) {
       char* dp = reply;
       int start = 0;
-      int end = sensors.getNumSettings();
+      int end = _sensors->getNumSettings();
       if (strlen(command) > 11) {
         start = _atoi(command+12);
       }
@@ -565,8 +565,8 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         int i;
         for (i = start; i < end && (dp-reply < 134); i++) {
           sprintf(dp, "%s=%s\n", 
-            sensors.getSettingName(i),
-            sensors.getSettingValue(i));
+            _sensors->getSettingName(i),
+            _sensors->getSettingValue(i));
           dp = strchr(dp, 0);
         }
         if (i < end) {
@@ -577,7 +577,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
       }
 #if ENV_INCLUDE_GPS == 1
     } else if (memcmp(command, "gps on", 6) == 0) {
-      if (sensors.setSettingByKey("gps", "1")) {
+      if (_sensors->setSettingByKey("gps", "1")) {
         _prefs->gps_enabled = 1;
         savePrefs();
         strcpy(reply, "ok");
@@ -585,7 +585,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         strcpy(reply, "gps toggle not found");
       }
     } else if (memcmp(command, "gps off", 7) == 0) {
-      if (sensors.setSettingByKey("gps", "0")) {
+      if (_sensors->setSettingByKey("gps", "0")) {
         _prefs->gps_enabled = 0;
         savePrefs();
         strcpy(reply, "ok");
@@ -593,13 +593,13 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         strcpy(reply, "gps toggle not found");
       }
     } else if (memcmp(command, "gps sync", 8) == 0) {
-      LocationProvider * l = sensors.getLocationProvider();
+      LocationProvider * l = _sensors->getLocationProvider();
       if (l != NULL) {
         l->syncTime();
       }
     } else if (memcmp(command, "gps setloc", 10) == 0) {
-      _prefs->node_lat = sensors.node_lat;
-      _prefs->node_lon = sensors.node_lon;
+      _prefs->node_lat = _sensors->node_lat;
+      _prefs->node_lon = _sensors->node_lon;
       savePrefs();
       strcpy(reply, "ok");
     } else if (memcmp(command, "gps advert", 10) == 0) {
@@ -633,12 +633,12 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         strcpy(reply, "error");
       }
     } else if (memcmp(command, "gps", 3) == 0) {
-      LocationProvider * l = sensors.getLocationProvider();
+      LocationProvider * l = _sensors->getLocationProvider();
       if (l != NULL) {
         bool enabled = l->isEnabled(); // is EN pin on ?
         bool fix = l->isValid();       // has fix ?
         int sats = l->satellitesCount();
-        bool active = !strcmp(sensors.getSettingByKey("gps"), "1");
+        bool active = !strcmp(_sensors->getSettingByKey("gps"), "1");
         if (enabled) {
           sprintf(reply, "on, %s, %s, %d sats",
             active?"active":"deactivated", 
