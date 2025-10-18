@@ -15,6 +15,7 @@ private:
   int _sats = 0;
   long _epoch = 0;
   bool _initialized = false;
+  bool _running = false;
   int _enable_pin = -1;
 
   bool probePin(uint8_t ioPin) {
@@ -48,6 +49,15 @@ public:
 
   // Wake GPS
   void begin() override {
+    _running = true;
+
+    // Clear cached position data to get fresh reading
+    _lat = 0;
+    _lng = 0;
+    _alt = 0;
+    _sats = 0;
+    _epoch = 0;
+
     if (_enable_pin != -1) {
 
       //set initial waking state
@@ -60,6 +70,7 @@ public:
       if (_gnss.begin(Wire) != true) {
         MESH_DEBUG_PRINTLN("u-blox I2C GPS not responding!");
         _initialized = false;
+        _running = false;
         return;
       }
 
@@ -84,6 +95,7 @@ public:
 
   // Stop GPS (pull enable pin LOW)
   void stop() override {
+    _running = false;
     if (_enable_pin != -1) {
       pinMode(_enable_pin, OUTPUT);
       digitalWrite(_enable_pin, LOW);
@@ -91,7 +103,7 @@ public:
   }
 
   void sync() override {
-    if (!_initialized) return;
+    if (!_initialized || !_running) return;
 
     if (_gnss.getPVT(500)) {
       _lat = _gnss.getLatitude() / 10;

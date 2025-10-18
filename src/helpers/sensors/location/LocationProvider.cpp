@@ -1,7 +1,9 @@
 #include "LocationProvider.h"
 #include <Arduino.h>
 
-#include "UbloxI2CGpsDriver.h"
+#ifdef GPS_UBLOX_I2C
+  #include "UbloxI2CGpsDriver.h"
+#endif
 #include "MicroNMEAGpsDriver.h"
 
 const long LOOP_THROTTLE_MS = 1000;
@@ -9,7 +11,8 @@ const long LOOP_THROTTLE_MS = 1000;
 GpsDriver* LocationProvider::detectDriver() {
   GpsDriver* driver = nullptr;
 
-  // Try u-blox I2C GPS first
+#ifdef GPS_UBLOX_I2C
+  // Try u-blox I2C GPS first (if supported on this platform)
   MESH_DEBUG_PRINTLN("Trying u-blox I2C GPS...");
   driver = new UbloxI2CGpsDriver();
   if (driver->init()) {
@@ -17,6 +20,7 @@ GpsDriver* LocationProvider::detectDriver() {
     return driver;
   }
   delete driver;
+#endif
 
   // Try serial NMEA GPS
   MESH_DEBUG_PRINTLN("Trying NMEA GPS...");
@@ -74,9 +78,6 @@ bool LocationProvider::hasValidFix() const {
 bool LocationProvider::updateLocation() {
   if (!_hardware_on) return false;
 
-  // Sync latest data from GPS hardware
-  _driver->sync();
-
   // Get raw data from provider
   long lat = _driver->getLatitude();
   long lon = _driver->getLongitude();
@@ -115,7 +116,8 @@ void LocationProvider::syncTime() {
 }
 
 void LocationProvider::loop() {
-  // Throttle loop to run at most once per second
+  _driver->sync();
+
   long now = millis();
   if (now - _last_loop_run < LOOP_THROTTLE_MS) {
     return;

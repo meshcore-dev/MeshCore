@@ -95,13 +95,6 @@ static Adafruit_MLX90614 MLX90614;
 static Adafruit_VL53L0X VL53L0X;
 #endif
 
-#if ENV_INCLUDE_GPS && defined(RAK_BOARD) && !defined(RAK_WISMESH_TAG)
-#define RAK_WISBLOCK_GPS
-#endif
-
-#ifdef RAK_WISBLOCK_GPS
-#include "location/UbloxI2CGpsDriver.h"
-#endif
 
 bool EnvironmentSensorManager::begin() {
   #if ENV_INCLUDE_GPS
