@@ -785,6 +785,84 @@ void MyMesh::removeNeighbor(const uint8_t *pubkey, int key_len) {
 #endif
 }
 
+void MyMesh::formatStatsReply(char* reply, const char* subcommand) {
+  RepeaterStats stats;
+  stats.batt_milli_volts = board.getBattMilliVolts();
+  stats.curr_tx_queue_len = _mgr->getOutboundCount(0xFFFFFFFF);
+  stats.noise_floor = (int16_t)_radio->getNoiseFloor();
+  stats.last_rssi = (int16_t)radio_driver.getLastRSSI();
+  stats.n_packets_recv = radio_driver.getPacketsRecv();
+  stats.n_packets_sent = radio_driver.getPacketsSent();
+  stats.total_air_time_secs = getTotalAirTime() / 1000;
+  stats.total_up_time_secs = _ms->getMillis() / 1000;
+  stats.n_sent_flood = getNumSentFlood();
+  stats.n_sent_direct = getNumSentDirect();
+  stats.n_recv_flood = getNumRecvFlood();
+  stats.n_recv_direct = getNumRecvDirect();
+  stats.err_events = _err_flags;
+  stats.last_snr = (int16_t)(radio_driver.getLastSNR() * 4);
+  stats.n_direct_dups = ((SimpleMeshTables *)getTables())->getNumDirectDups();
+  stats.n_flood_dups = ((SimpleMeshTables *)getTables())->getNumFloodDups();
+  stats.total_rx_air_time_secs = getReceiveAirTime() / 1000;
+
+  if (subcommand) {
+    if (strcmp(subcommand, "sent") == 0) {
+      snprintf(reply, 128, "{\"sent\":\"%lu/%lu\"}", stats.n_sent_flood, stats.n_sent_direct);
+    } else if (strcmp(subcommand, "recv") == 0) {
+      snprintf(reply, 128, "{\"recv\":\"%lu/%lu\"}", stats.n_recv_flood, stats.n_recv_direct);
+    } else if (strcmp(subcommand, "uptime") == 0) {
+      snprintf(reply, 128, "{\"uptime\":%lu}", stats.total_up_time_secs);
+    } else if (strcmp(subcommand, "batt") == 0) {
+      snprintf(reply, 128, "{\"batt\":%u}", stats.batt_milli_volts);
+    } else if (strcmp(subcommand, "queue") == 0) {
+      snprintf(reply, 128, "{\"queue\":%u}", stats.curr_tx_queue_len);
+    } else if (strcmp(subcommand, "noise") == 0) {
+      snprintf(reply, 128, "{\"noise\":%d}", stats.noise_floor);
+    } else if (strcmp(subcommand, "rssi") == 0) {
+      snprintf(reply, 128, "{\"rssi\":%d}", stats.last_rssi);
+    } else if (strcmp(subcommand, "snr") == 0) {
+      snprintf(reply, 128, "{\"snr\":%.2f}", stats.last_snr / 4.0f);
+    } else if (strcmp(subcommand, "errors") == 0) {
+      snprintf(reply, 128, "{\"errors\":%u}", stats.err_events);
+    } else if (strcmp(subcommand, "airtime") == 0) {
+      snprintf(reply, 128, "{\"airtime\":%lu}", stats.total_air_time_secs);
+    } else if (strcmp(subcommand, "rxairtime") == 0) {
+      snprintf(reply, 128, "{\"rxairtime\":%lu}", stats.total_rx_air_time_secs);
+    } else {
+      snprintf(reply, 128, "{\"error\":\"Unknown stat: %s\"}", subcommand+1);
+    }
+    return;
+  }
+
+  // Default: full stats as JSON
+  snprintf(reply, 512,
+    "{"
+      "\"sent\":\"%lu/%lu\","
+      "\"recv\":\"%lu/%lu\","
+      "\"uptime\":%lu,"
+      "\"batt\":%u,"
+      "\"queue\":%u,"
+      "\"noise\":%d,"
+      "\"rssi\":%d,"
+      "\"snr\":%.2f,"
+      "\"errors\":%u,"
+      "\"airtime\":%lu,"
+      "\"rxairtime\":%lu"
+    "}",
+    stats.n_sent_flood, stats.n_sent_direct,
+    stats.n_recv_flood, stats.n_recv_direct,
+    stats.total_up_time_secs,
+    stats.batt_milli_volts,
+    stats.curr_tx_queue_len,
+    stats.noise_floor,
+    stats.last_rssi,
+    stats.last_snr / 4.0f,
+    stats.err_events,
+    stats.total_air_time_secs,
+    stats.total_rx_air_time_secs
+  );
+}
+
 void MyMesh::saveIdentity(const mesh::LocalIdentity &new_id) {
   self_id = new_id;
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
@@ -860,6 +938,18 @@ void MyMesh::loop() {
 #endif
 
   mesh::Mesh::loop();
+
+  // Handle serial CLI frames if serial interface is enabled
+  if (_serial) {
+    size_t len = _serial->checkRecvFrame(cmd_frame);
+    if (len > 0) {
+      char reply[160] = {0};
+      handleCommand(0, (char*)cmd_frame, reply);
+      if (reply[0]) {
+        _serial->writeFrame((const uint8_t*)reply, strlen(reply));
+      }
+    }
+  }
 
   if (next_flood_advert && millisHasNowPassed(next_flood_advert)) {
     mesh::Packet *pkt = createSelfAdvert();

@@ -63,6 +63,7 @@ public:
   virtual void dumpLogFile() = 0;
   virtual void setTxPower(uint8_t power_dbm) = 0;
   virtual void formatNeighborsReply(char *reply) = 0;
+  virtual void formatStatsReply(char *reply, const char* subcommand) = 0;
   virtual void removeNeighbor(const uint8_t* pubkey, int key_len) {
     // no op by default
   };
