@@ -1,12 +1,45 @@
 #!/usr/bin/env bash
 
-# usage
-# sh build.sh build-firmware RAK_4631_Repeater
-# sh build.sh build-firmwares
-# sh build.sh build-matching-firmwares RAK_4631
-# sh build.sh build-companion-firmwares
-# sh build.sh build-repeater-firmwares
-# sh build.sh build-room-server-firmwares
+global_usage() {
+  cat - <<EOF
+Usage:
+sh build.sh <command> [target]
+
+Commands:
+  help|usage|-h|--help: Shows this message.
+  build-firmware <target>: Build the firmware for the given build target.
+  build-firmwares: Build all firmwares for all targets.
+  build-matching-firmwares <build-match-spec>: Build all firmwares for build targets containing the string given for <build-match-spec>.
+  build-companion-firmwares: Build all companion firmwares for all build targets.
+  build-repeater-firmwares: Build all repeater firmwares for all build targets.
+  build-room-server-firmwares: Build all chat room server firmwares for all build targets.
+
+Examples:
+Build firmware for the "RAK_4631_Repeater" device target
+$ sh build.sh build-firmware RAK_4631_Repeater
+
+Build all firmwares for device targets containing the string "RAK_4631"
+$ sh build.sh build-matching-firmwares <build-match-spec>
+
+Build all companion firmwares
+$ sh build.sh build-companion-firmwares
+
+Build all repeater firmwares
+$ sh build.sh build-repeater-firmwares
+
+Build all chat room server firmwares
+$ sh build.sh build-room-server-firmwares
+EOF
+}
+
+# Catch cries for help before doing anything else.
+case $1 in
+  help|usage|-h|--help)
+    global_usage
+    exit 1
+    ;;
+esac
+
 
 # get a list of pio env names that start with "env:"
 get_pio_envs() {
