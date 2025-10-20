@@ -4,10 +4,11 @@
 
 #ifdef WITH_RS232_BRIDGE
 
-RS232Bridge::RS232Bridge(Stream &serial, mesh::PacketManager *mgr, mesh::RTCClock *rtc)
-    : BridgeBase(mgr, rtc), _serial(&serial) {}
+RS232Bridge::RS232Bridge(NodePrefs *prefs, Stream &serial, mesh::PacketManager *mgr, mesh::RTCClock *rtc)
+    : BridgeBase(prefs, mgr, rtc), _serial(&serial) {}
 
 void RS232Bridge::begin() {
+  BRIDGE_DEBUG_PRINTLN("Initializing at %d baud...\n", _prefs->bridge_baud);
 #if !defined(WITH_RS232_BRIDGE_RX) || !defined(WITH_RS232_BRIDGE_TX)
 #error "WITH_RS232_BRIDGE_RX and WITH_RS232_BRIDGE_TX must be defined"
 #endif
@@ -25,53 +26,26 @@ void RS232Bridge::begin() {
 #else
 #error RS232Bridge was not tested on the current platform
 #endif
-  ((HardwareSerial *)_serial)->begin(115200);
+  ((HardwareSerial *)_serial)->begin(_prefs->bridge_baud);
+
+  // Update bridge state
+  _initialized = true;
 }
 
-void RS232Bridge::onPacketTransmitted(mesh::Packet *packet) {
-  // First validate the packet pointer
-  if (!packet) {
-#if MESH_PACKET_LOGGING
-    Serial.printf("%s: RS232 BRIDGE: TX invalid packet pointer\n", getLogDateTime());
-#endif
-    return;
-  }
+void RS232Bridge::end() {
+  BRIDGE_DEBUG_PRINTLN("Stopping...\n");
+  ((HardwareSerial *)_serial)->end();
 
-  if (!_seen_packets.hasSeen(packet)) {
-
-    uint8_t buffer[MAX_SERIAL_PACKET_SIZE];
-    uint16_t len = packet->writeTo(buffer + 4);
-
-    // Check if packet fits within our maximum payload size
-    if (len > (MAX_TRANS_UNIT + 1)) {
-#if MESH_PACKET_LOGGING
-      Serial.printf("%s: RS232 BRIDGE: TX packet too large (payload=%d, max=%d)\n", getLogDateTime(), len,
-                    MAX_TRANS_UNIT + 1);
-#endif
-      return;
-    }
-
-    // Build packet header
-    buffer[0] = (BRIDGE_PACKET_MAGIC >> 8) & 0xFF; // Magic high byte
-    buffer[1] = BRIDGE_PACKET_MAGIC & 0xFF;        // Magic low byte
-    buffer[2] = (len >> 8) & 0xFF;                 // Length high byte
-    buffer[3] = len & 0xFF;                        // Length low byte
-
-    // Calculate checksum over the payload
-    uint16_t checksum = fletcher16(buffer + 4, len);
-    buffer[4 + len] = (checksum >> 8) & 0xFF; // Checksum high byte
-    buffer[5 + len] = checksum & 0xFF;        // Checksum low byte
-
-    // Send complete packet
-    _serial->write(buffer, len + SERIAL_OVERHEAD);
-
-#if MESH_PACKET_LOGGING
-    Serial.printf("%s: RS232 BRIDGE: TX, len=%d crc=0x%04x\n", getLogDateTime(), len, checksum);
-#endif
-  }
+  // Update bridge state
+  _initialized = false;
 }
 
 void RS232Bridge::loop() {
+  // Guard against uninitialized state
+  if (_initialized == false) {
+    return;
+  }
+
   while (_serial->available()) {
     uint8_t b = _serial->read();
 
@@ -97,9 +71,7 @@ void RS232Bridge::loop() {
 
         // Validate length field
         if (len > (MAX_TRANS_UNIT + 1)) {
-#if MESH_PACKET_LOGGING
-          Serial.printf("%s: RS232 BRIDGE: RX invalid length %d, resetting\n", getLogDateTime(), len);
-#endif
+          BRIDGE_DEBUG_PRINTLN("RX invalid length %d, resetting\n", len);
           _rx_buffer_pos = 0; // Invalid length, reset
           continue;
         }
@@ -108,35 +80,67 @@ void RS232Bridge::loop() {
           uint16_t received_checksum = (_rx_buffer[4 + len] << 8) | _rx_buffer[5 + len];
 
           if (validateChecksum(_rx_buffer + 4, len, received_checksum)) {
-#if MESH_PACKET_LOGGING
-            Serial.printf("%s: RS232 BRIDGE: RX, len=%d crc=0x%04x\n", getLogDateTime(), len,
-                          received_checksum);
-#endif
+            BRIDGE_DEBUG_PRINTLN("RX, len=%d crc=0x%04x\n", len, received_checksum);
             mesh::Packet *pkt = _mgr->allocNew();
             if (pkt) {
               if (pkt->readFrom(_rx_buffer + 4, len)) {
                 onPacketReceived(pkt);
               } else {
-#if MESH_PACKET_LOGGING
-                Serial.printf("%s: RS232 BRIDGE: RX failed to parse packet\n", getLogDateTime());
-#endif
+                BRIDGE_DEBUG_PRINTLN("RX failed to parse packet\n");
                 _mgr->free(pkt);
               }
             } else {
-#if MESH_PACKET_LOGGING
-              Serial.printf("%s: RS232 BRIDGE: RX failed to allocate packet\n", getLogDateTime());
-#endif
+              BRIDGE_DEBUG_PRINTLN("RX failed to allocate packet\n");
             }
           } else {
-#if MESH_PACKET_LOGGING
-            Serial.printf("%s: RS232 BRIDGE: RX checksum mismatch, rcv=0x%04x\n", getLogDateTime(),
-                          received_checksum);
-#endif
+            BRIDGE_DEBUG_PRINTLN("RX checksum mismatch, rcv=0x%04x\n", received_checksum);
           }
           _rx_buffer_pos = 0; // Reset for next packet
         }
       }
     }
+  }
+}
+
+void RS232Bridge::sendPacket(mesh::Packet *packet) {
+  // Guard against uninitialized state
+  if (_initialized == false) {
+    return;
+  }
+
+  // First validate the packet pointer
+  if (!packet) {
+    BRIDGE_DEBUG_PRINTLN("TX invalid packet pointer\n");
+    return;
+  }
+
+  if (!_seen_packets.hasSeen(packet)) {
+
+    uint8_t buffer[MAX_SERIAL_PACKET_SIZE];
+    uint16_t len = packet->writeTo(buffer + 4);
+
+    // Check if packet fits within our maximum payload size
+    if (len > (MAX_TRANS_UNIT + 1)) {
+      BRIDGE_DEBUG_PRINTLN("TX packet too large (payload=%d, max=%d)\n", len,
+                           MAX_TRANS_UNIT + 1);
+      return;
+    }
+
+    // Build packet header
+    buffer[0] = (BRIDGE_PACKET_MAGIC >> 8) & 0xFF; // Magic high byte
+    buffer[1] = BRIDGE_PACKET_MAGIC & 0xFF;        // Magic low byte
+    buffer[2] = (len >> 8) & 0xFF;                 // Length high byte
+    buffer[3] = len & 0xFF;                        // Length low byte
+
+    // Calculate checksum over the payload
+    uint16_t checksum = fletcher16(buffer + 4, len);
+    buffer[4 + len] = (checksum >> 8) & 0xFF; // Checksum high byte
+    buffer[5 + len] = checksum & 0xFF;        // Checksum low byte
+
+    // Send complete packet
+    _serial->write(buffer, len + SERIAL_OVERHEAD);
+
+    BRIDGE_DEBUG_PRINTLN("TX, len=%d crc=0x%04x\n", len, checksum);
   }
 }
 

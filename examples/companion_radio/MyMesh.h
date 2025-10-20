@@ -8,11 +8,11 @@
 #define FIRMWARE_VER_CODE 7
 
 #ifndef FIRMWARE_BUILD_DATE
-#define FIRMWARE_BUILD_DATE "1 Sep 2025"
+#define FIRMWARE_BUILD_DATE "2 Oct 2025"
 #endif
 
 #ifndef FIRMWARE_VERSION
-#define FIRMWARE_VERSION "v1.8.1"
+#define FIRMWARE_VERSION "v1.9.1"
 #endif
 
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
@@ -198,6 +198,8 @@ private:
   struct Frame {
     uint8_t len;
     uint8_t buf[MAX_FRAME_SIZE];
+
+    bool isChannelMsg() const;
   };
   int offline_queue_len;
   Frame offline_queue[OFFLINE_QUEUE_SIZE];

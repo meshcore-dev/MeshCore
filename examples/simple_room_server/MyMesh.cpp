@@ -10,7 +10,7 @@
 
 #define POST_SYNC_DELAY_SECS        6
 
-#define CLIENT_KEEP_ALIVE_SECS      0 // Now Disabled (was 128)
+#define FIRMWARE_VER_LEVEL       1
 
 #define REQ_TYPE_GET_STATUS         0x01 // same as _GET_STATS
 #define REQ_TYPE_KEEP_ALIVE         0x02
@@ -114,11 +114,7 @@ bool MyMesh::processAck(const uint8_t *data) {
 
 mesh::Packet *MyMesh::createSelfAdvert() {
   uint8_t app_data[MAX_ADVERT_DATA_SIZE];
-  uint8_t app_data_len;
-  {
-    AdvertDataBuilder builder(ADV_TYPE_ROOM, _prefs.node_name, _prefs.node_lat, _prefs.node_lon);
-    app_data_len = builder.encodeTo(app_data);
-  }
+  uint8_t app_data_len = _cli.buildAdvertData(ADV_TYPE_ROOM, app_data);
 
   return createAdvert(self_id, app_data, app_data_len);
 }
@@ -289,16 +285,16 @@ void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const m
 
     data[len] = 0;                                        // ensure null terminator
 
-    ClientInfo* client;
-    if (data[8] == 0 && !_prefs.allow_read_only) {   // blank password, just check if sender is in ACL
+    ClientInfo* client = NULL;
+    if (data[8] == 0) {   // blank password, just check if sender is in ACL
       client = acl.getClient(sender.pub_key, PUB_KEY_SIZE);
       if (client == NULL) {
       #if MESH_DEBUG
         MESH_DEBUG_PRINTLN("Login, sender not in ACL");
       #endif
-        return;
       }
-    } else {
+    }
+    if (client == NULL) {
       uint8_t perm;
       if (strcmp((char *)&data[8], _prefs.password) == 0) { // check for valid admin password
         perm = PERM_ACL_ADMIN;
@@ -326,6 +322,7 @@ void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const m
       client->extra.room.push_failures = 0;
 
       client->last_activity = getRTCClock()->getCurrentTime();
+      client->permissions &= ~0x03;
       client->permissions |= perm;
       memcpy(client->shared_secret, secret, PUB_KEY_SIZE);
 
@@ -336,22 +333,22 @@ void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const m
     memcpy(reply_data, &now, 4); // response packets always prefixed with timestamp
     // TODO: maybe reply with count of messages waiting to be synced for THIS client?
     reply_data[4] = RESP_SERVER_LOGIN_OK;
-    reply_data[5] = (CLIENT_KEEP_ALIVE_SECS >> 4); // NEW: recommended keep-alive interval (secs / 16)
+    reply_data[5] = 0; // Legacy: was recommended keep-alive interval (secs / 16)
     reply_data[6] = (client->isAdmin() ? 1 : (client->permissions == 0 ? 2 : 0));
     // LEGACY: reply_data[7] = getUnsyncedCount(client);
     reply_data[7] = client->permissions; // NEW
     getRNG()->random(&reply_data[8], 4);   // random blob to help packet-hash uniqueness
-    // LEGACY: memcpy(&reply_data[8], "OK", 2);
+    reply_data[12] = FIRMWARE_VER_LEVEL;  // New field
 
     next_push = futureMillis(PUSH_NOTIFY_DELAY_MILLIS); // delay next push, give RESPONSE packet time to arrive first
 
     if (packet->isRouteFlood()) {
       // let this sender know path TO here, so they can use sendDirect(), and ALSO encode the response
       mesh::Packet *path = createPathReturn(sender, client->shared_secret, packet->path, packet->path_len,
-                                            PAYLOAD_TYPE_RESPONSE, reply_data, 12);
+                                            PAYLOAD_TYPE_RESPONSE, reply_data, 13);
       if (path) sendFlood(path, SERVER_RESPONSE_DELAY);
     } else {
-      mesh::Packet *reply = createDatagram(PAYLOAD_TYPE_RESPONSE, sender, client->shared_secret, reply_data, 12);
+      mesh::Packet *reply = createDatagram(PAYLOAD_TYPE_RESPONSE, sender, client->shared_secret, reply_data, 13);
       if (reply) {
         if (client->out_path_len >= 0) { // we have an out_path, so send DIRECT
           sendDirect(reply, client->out_path, client->out_path_len, SERVER_RESPONSE_DELAY);
@@ -583,7 +580,7 @@ void MyMesh::onAckRecv(mesh::Packet *packet, uint32_t ack_crc) {
 MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondClock &ms, mesh::RNG &rng,
                mesh::RTCClock &rtc, mesh::MeshTables &tables)
     : mesh::Mesh(radio, ms, rng, rtc, *new StaticPoolPacketManager(32), tables),
-      _cli(board, rtc, &_prefs, this), telemetry(MAX_PACKET_PAYLOAD - 4) {
+      _cli(board, rtc, sensors, &_prefs, this), telemetry(MAX_PACKET_PAYLOAD - 4) {
   next_local_advert = next_flood_advert = 0;
   dirty_contacts_expiry = 0;
   _logging = false;
@@ -612,6 +609,11 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   StrHelper::strncpy(_prefs.guest_password, ROOM_PASSWORD, sizeof(_prefs.guest_password));
 #endif
 
+  // GPS defaults
+  _prefs.gps_enabled = 0;
+  _prefs.gps_interval = 0;
+  _prefs.advert_loc_policy = ADVERT_LOC_PREFS;
+
   next_post_idx = 0;
   next_client_idx = 0;
   next_push = 0;
@@ -632,6 +634,10 @@ void MyMesh::begin(FILESYSTEM *fs) {
 
   updateAdvertTimer();
   updateFloodAdvertTimer();
+
+#if ENV_INCLUDE_GPS == 1
+  applyGpsPrefs();
+#endif
 }
 
 void MyMesh::applyTempRadioParams(float freq, float bw, uint8_t sf, uint8_t cr, int timeout_mins) {

@@ -1,4 +1,5 @@
 #include "MyMesh.h"
+#include <algorithm>
 
 /* ------------------------------ Config -------------------------------- */
 
@@ -40,10 +41,13 @@
   #define TXT_ACK_DELAY 200
 #endif
 
+#define FIRMWARE_VER_LEVEL       1
+
 #define REQ_TYPE_GET_STATUS         0x01 // same as _GET_STATS
 #define REQ_TYPE_KEEP_ALIVE         0x02
 #define REQ_TYPE_GET_TELEMETRY_DATA 0x03
 #define REQ_TYPE_GET_ACCESS_LIST    0x05
+#define REQ_TYPE_GET_NEIGHBOURS     0x06
 
 #define RESP_SERVER_LOGIN_OK        0 // response to ANON_REQ
 
@@ -79,16 +83,16 @@ void MyMesh::putNeighbour(const mesh::Identity &id, uint32_t timestamp, float sn
 }
 
 uint8_t MyMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* secret, uint32_t sender_timestamp, const uint8_t* data) {
-  ClientInfo* client;
+  ClientInfo* client = NULL;
   if (data[0] == 0) {   // blank password, just check if sender is in ACL
     client = acl.getClient(sender.pub_key, PUB_KEY_SIZE);
     if (client == NULL) {
     #if MESH_DEBUG
       MESH_DEBUG_PRINTLN("Login, sender not in ACL");
     #endif
-      return 0;
     }
-  } else {
+  }
+  if (client == NULL) {
     uint8_t perms;
     if (strcmp((char *)data, _prefs.password) == 0) { // check for valid admin password
       perms = PERM_ACL_ADMIN;
@@ -110,21 +114,25 @@ uint8_t MyMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* secr
     MESH_DEBUG_PRINTLN("Login success!");
     client->last_timestamp = sender_timestamp;
     client->last_activity = getRTCClock()->getCurrentTime();
+    client->permissions &= ~0x03;
     client->permissions |= perms;
     memcpy(client->shared_secret, secret, PUB_KEY_SIZE);
 
-    dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY);
+    if (perms != PERM_ACL_GUEST) {   // keep number of FS writes to a minimum
+      dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY);
+    }
   }
 
   uint32_t now = getRTCClock()->getCurrentTimeUnique();
   memcpy(reply_data, &now, 4);   // response packets always prefixed with timestamp
   reply_data[4] = RESP_SERVER_LOGIN_OK;
-  reply_data[5] = 0;  // NEW: recommended keep-alive interval (secs / 16)
+  reply_data[5] = 0;  // Legacy: was recommended keep-alive interval (secs / 16)
   reply_data[6] = client->isAdmin() ? 1 : 0;
   reply_data[7] = client->permissions;
   getRNG()->random(&reply_data[8], 4);   // random blob to help packet-hash uniqueness
+  reply_data[12] = FIRMWARE_VER_LEVEL;  // New field
 
-  return 12;  // reply length
+  return 13;  // reply length
 }
 
 int MyMesh::handleRequest(ClientInfo *sender, uint32_t sender_timestamp, uint8_t *payload, size_t payload_len) {
@@ -182,16 +190,105 @@ int MyMesh::handleRequest(ClientInfo *sender, uint32_t sender_timestamp, uint8_t
       return ofs;
     }
   }
+  if (payload[0] == REQ_TYPE_GET_NEIGHBOURS) {
+    uint8_t request_version = payload[1];
+    if (request_version == 0) {
+
+      // reply data offset (after response sender_timestamp/tag)
+      int reply_offset = 4;
+
+      // get request params
+      uint8_t count = payload[2]; // how many neighbours to fetch (0-255)
+      uint16_t offset;
+      memcpy(&offset, &payload[3], 2); // offset from start of neighbours list (0-65535)
+      uint8_t order_by = payload[5]; // how to order neighbours. 0=newest_to_oldest, 1=oldest_to_newest, 2=strongest_to_weakest, 3=weakest_to_strongest
+      uint8_t pubkey_prefix_length = payload[6]; // how many bytes of neighbour pub key we want
+      // we also send a 4 byte random blob in payload[7...10] to help packet uniqueness
+
+      MESH_DEBUG_PRINTLN("REQ_TYPE_GET_NEIGHBOURS count=%d, offset=%d, order_by=%d, pubkey_prefix_length=%d", count, offset, order_by, pubkey_prefix_length);
+
+      // clamp pub key prefix length to max pub key length
+      if(pubkey_prefix_length > PUB_KEY_SIZE){
+        pubkey_prefix_length = PUB_KEY_SIZE;
+        MESH_DEBUG_PRINTLN("REQ_TYPE_GET_NEIGHBOURS invalid pubkey_prefix_length=%d clamping to %d", pubkey_prefix_length, PUB_KEY_SIZE);
+      }
+
+      // create copy of neighbours list, skipping empty entries so we can sort it separately from main list
+      int16_t neighbours_count = 0;
+      NeighbourInfo* sorted_neighbours[MAX_NEIGHBOURS];
+      for (int i = 0; i < MAX_NEIGHBOURS; i++) {
+        auto neighbour = &neighbours[i];
+        if (neighbour->heard_timestamp > 0) {
+          sorted_neighbours[neighbours_count] = neighbour;
+          neighbours_count++;
+        }
+      }
+
+      // sort neighbours based on order
+      if (order_by == 0) {
+        // sort by newest to oldest
+        MESH_DEBUG_PRINTLN("REQ_TYPE_GET_NEIGHBOURS sorting newest to oldest");
+        std::sort(sorted_neighbours, sorted_neighbours + neighbours_count, [](const NeighbourInfo* a, const NeighbourInfo* b) {
+          return a->heard_timestamp > b->heard_timestamp; // desc
+        });
+      } else if (order_by == 1) {
+        // sort by oldest to newest
+        MESH_DEBUG_PRINTLN("REQ_TYPE_GET_NEIGHBOURS sorting oldest to newest");
+        std::sort(sorted_neighbours, sorted_neighbours + neighbours_count, [](const NeighbourInfo* a, const NeighbourInfo* b) {
+          return a->heard_timestamp < b->heard_timestamp; // asc
+        });
+      } else if (order_by == 2) {
+        // sort by strongest to weakest
+        MESH_DEBUG_PRINTLN("REQ_TYPE_GET_NEIGHBOURS sorting strongest to weakest");
+        std::sort(sorted_neighbours, sorted_neighbours + neighbours_count, [](const NeighbourInfo* a, const NeighbourInfo* b) {
+          return a->snr > b->snr; // desc
+        });
+      } else if (order_by == 3) {
+        // sort by weakest to strongest
+        MESH_DEBUG_PRINTLN("REQ_TYPE_GET_NEIGHBOURS sorting weakest to strongest");
+        std::sort(sorted_neighbours, sorted_neighbours + neighbours_count, [](const NeighbourInfo* a, const NeighbourInfo* b) {
+          return a->snr < b->snr; // asc
+        });
+      }
+
+      // build results buffer
+      int results_count = 0;
+      int results_offset = 0;
+      uint8_t results_buffer[130];
+      for(int index = 0; index < count && index + offset < neighbours_count; index++){
+        
+        // stop if we can't fit another entry in results
+        int entry_size = pubkey_prefix_length + 4 + 1;
+        if(results_offset + entry_size > sizeof(results_buffer)){
+          MESH_DEBUG_PRINTLN("REQ_TYPE_GET_NEIGHBOURS no more entries can fit in results buffer");
+          break;
+        }
+
+        // add next neighbour to results
+        auto neighbour = sorted_neighbours[index + offset];
+        uint32_t heard_seconds_ago = getRTCClock()->getCurrentTime() - neighbour->heard_timestamp;
+        memcpy(&results_buffer[results_offset], neighbour->id.pub_key, pubkey_prefix_length); results_offset += pubkey_prefix_length;
+        memcpy(&results_buffer[results_offset], &heard_seconds_ago, 4); results_offset += 4;
+        memcpy(&results_buffer[results_offset], &neighbour->snr, 1); results_offset += 1;
+        results_count++;
+
+      }
+
+      // build reply
+      MESH_DEBUG_PRINTLN("REQ_TYPE_GET_NEIGHBOURS neighbours_count=%d results_count=%d", neighbours_count, results_count);
+      memcpy(&reply_data[reply_offset], &neighbours_count, 2); reply_offset += 2;
+      memcpy(&reply_data[reply_offset], &results_count, 2); reply_offset += 2;
+      memcpy(&reply_data[reply_offset], &results_buffer, results_offset); reply_offset += results_offset;
+
+      return reply_offset;
+    }
+  }
   return 0; // unknown command
 }
 
 mesh::Packet *MyMesh::createSelfAdvert() {
   uint8_t app_data[MAX_ADVERT_DATA_SIZE];
-  uint8_t app_data_len;
-  {
-    AdvertDataBuilder builder(ADV_TYPE_REPEATER, _prefs.node_name, _prefs.node_lat, _prefs.node_lon);
-    app_data_len = builder.encodeTo(app_data);
-  }
+  uint8_t app_data_len = _cli.buildAdvertData(ADV_TYPE_REPEATER, app_data);
 
   return createAdvert(self_id, app_data, app_data_len);
 }
@@ -231,6 +328,12 @@ void MyMesh::logRxRaw(float snr, float rssi, const uint8_t raw[], int len) {
 }
 
 void MyMesh::logRx(mesh::Packet *pkt, int len, float score) {
+#ifdef WITH_BRIDGE
+  if (_prefs.bridge_pkt_src == 1) {
+    bridge.sendPacket(pkt);
+  }
+#endif
+
   if (_logging) {
     File f = openAppend(PACKET_LOG_FILE);
     if (f) {
@@ -252,8 +355,11 @@ void MyMesh::logRx(mesh::Packet *pkt, int len, float score) {
 
 void MyMesh::logTx(mesh::Packet *pkt, int len) {
 #ifdef WITH_BRIDGE
-  bridge.onPacketTransmitted(pkt);
+  if (_prefs.bridge_pkt_src == 0) {
+    bridge.sendPacket(pkt);
+  }
 #endif
+
   if (_logging) {
     File f = openAppend(PACKET_LOG_FILE);
     if (f) {
@@ -305,6 +411,7 @@ void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const m
     uint32_t timestamp;
     memcpy(&timestamp, data, 4);
 
+    data[len] = 0;  // ensure null terminator
     uint8_t reply_len = handleLoginReq(sender, secret, timestamp, &data[4]);
 
     if (reply_len == 0) return;   // invalid request
@@ -479,11 +586,12 @@ bool MyMesh::onPeerPathRecv(mesh::Packet *packet, int sender_idx, const uint8_t 
 MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondClock &ms, mesh::RNG &rng,
                mesh::RTCClock &rtc, mesh::MeshTables &tables)
     : mesh::Mesh(radio, ms, rng, rtc, *new StaticPoolPacketManager(32), tables),
-      _cli(board, rtc, &_prefs, this), telemetry(MAX_PACKET_PAYLOAD - 4)
+      _cli(board, rtc, sensors, &_prefs, this), telemetry(MAX_PACKET_PAYLOAD - 4)
 #if defined(WITH_RS232_BRIDGE)
-      , bridge(WITH_RS232_BRIDGE, _mgr, &rtc)
-#elif defined(WITH_ESPNOW_BRIDGE)
-      , bridge(_mgr, &rtc)
+      , bridge(&_prefs, WITH_RS232_BRIDGE, _mgr, &rtc)
+#endif
+#if defined(WITH_ESPNOW_BRIDGE)
+      , bridge(&_prefs, _mgr, &rtc)
 #endif
 {
   next_local_advert = next_flood_advert = 0;
@@ -513,6 +621,20 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.flood_advert_interval = 12; // 12 hours
   _prefs.flood_max = 64;
   _prefs.interference_threshold = 0; // disabled
+
+  // bridge defaults
+  _prefs.bridge_enabled = 1;    // enabled
+  _prefs.bridge_delay   = 500;  // milliseconds
+  _prefs.bridge_pkt_src = 0;    // logTx
+  _prefs.bridge_baud = 115200;  // baud rate
+  _prefs.bridge_channel = 1;    // channel 1
+
+  StrHelper::strncpy(_prefs.bridge_secret, "LVSITANOS", sizeof(_prefs.bridge_secret));
+
+  // GPS defaults
+  _prefs.gps_enabled = 0;
+  _prefs.gps_interval = 0;
+  _prefs.advert_loc_policy = ADVERT_LOC_PREFS;
 }
 
 void MyMesh::begin(FILESYSTEM *fs) {
@@ -523,8 +645,10 @@ void MyMesh::begin(FILESYSTEM *fs) {
 
   acl.load(_fs);
 
-#ifdef WITH_BRIDGE
-  bridge.begin();
+#if defined(WITH_BRIDGE)
+  if (_prefs.bridge_enabled) {
+    bridge.begin();
+  }
 #endif
 
   radio_set_params(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
@@ -532,6 +656,10 @@ void MyMesh::begin(FILESYSTEM *fs) {
 
   updateAdvertTimer();
   updateFloodAdvertTimer();
+
+#if ENV_INCLUDE_GPS == 1
+  applyGpsPrefs();
+#endif
 }
 
 void MyMesh::applyTempRadioParams(float freq, float bw, uint8_t sf, uint8_t cr, int timeout_mins) {
@@ -606,9 +734,24 @@ void MyMesh::formatNeighborsReply(char *reply) {
   char *dp = reply;
 
 #if MAX_NEIGHBOURS
-  for (int i = 0; i < MAX_NEIGHBOURS && dp - reply < 134; i++) {
-    NeighbourInfo *neighbour = &neighbours[i];
-    if (neighbour->heard_timestamp == 0) continue; // skip empty slots
+  // create copy of neighbours list, skipping empty entries so we can sort it separately from main list
+  int16_t neighbours_count = 0;
+  NeighbourInfo* sorted_neighbours[MAX_NEIGHBOURS];
+  for (int i = 0; i < MAX_NEIGHBOURS; i++) {
+    auto neighbour = &neighbours[i];
+    if (neighbour->heard_timestamp > 0) {
+      sorted_neighbours[neighbours_count] = neighbour;
+      neighbours_count++;
+    }
+  }
+
+  // sort neighbours newest to oldest
+  std::sort(sorted_neighbours, sorted_neighbours + neighbours_count, [](const NeighbourInfo* a, const NeighbourInfo* b) {
+    return a->heard_timestamp > b->heard_timestamp; // desc
+  });
+
+  for (int i = 0; i < neighbours_count && dp - reply < 134; i++) {
+    NeighbourInfo *neighbour = sorted_neighbours[i];
 
     // add new line if not first item
     if (i > 0) *dp++ = '\n';

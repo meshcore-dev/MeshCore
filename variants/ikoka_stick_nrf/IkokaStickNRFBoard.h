@@ -5,7 +5,7 @@
 
 #ifdef XIAO_NRF52
 
-class ikoka_stick_nrf_board : public mesh::MainBoard {
+class IkokaStickNRFBoard : public mesh::MainBoard {
 protected:
   uint8_t startup_reason;
 
@@ -16,9 +16,17 @@ public:
 #if defined(P_LORA_TX_LED)
   void onBeforeTransmit() override {
     digitalWrite(P_LORA_TX_LED, LOW);   // turn TX LED on
+    #if defined(LED_BLUE)
+       // turn off that annoying blue LED before transmitting
+       digitalWrite(LED_BLUE, HIGH);
+    #endif
   }
   void onAfterTransmit() override {
     digitalWrite(P_LORA_TX_LED, HIGH);   // turn TX LED off
+    #if defined(LED_BLUE)
+       // do it after transmitting too, just in case
+       digitalWrite(LED_BLUE, HIGH);
+    #endif
   }
 #endif
 
@@ -38,15 +46,15 @@ public:
     return (adcvalue * ADC_MULTIPLIER * AREF_VOLTAGE) / 4.096;
   }
 
-  const char* getManufacturerName() const override {
-    return "Ikoka Stick (Xiao-nrf52)";
+  const char *getManufacturerName() const override {
+    return MANUFACTURER_STRING;
   }
 
   void reboot() override {
     NVIC_SystemReset();
   }
 
-  bool startOTAUpdate(const char* id, char reply[]) override;
+  bool startOTAUpdate(const char *id, char reply[]) override;
 };
 
 #endif

@@ -32,6 +32,15 @@ public:
     setCursor(mid_x - w/2, y);
     print(str);
   }
+  virtual void drawTextRightAlign(int x_anch, int y, const char* str) {
+    int w = getTextWidth(str);
+    setCursor(x_anch - w, y);
+    print(str);
+  }
+  virtual void drawTextLeftAlign(int x_anch, int y, const char* str) {
+    setCursor(x_anch, y);
+    print(str);
+  }
   
   // convert UTF-8 characters to displayable block characters for compatibility
   virtual void translateUTF8ToBlocks(char* dest, const char* src, size_t dest_size) {

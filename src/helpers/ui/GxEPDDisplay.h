@@ -12,19 +12,13 @@
 #include <Fonts/FreeSans9pt7b.h>
 #include <Fonts/FreeSansBold12pt7b.h>
 #include <Fonts/FreeSans18pt7b.h>
-
-#include <epd/GxEPD2_150_BN.h>  // 1.54" b/w
-#include <epd/GxEPD2_213_B74.h> // 2.13" b/w
 #include <CRC32.h>
 
 #include "DisplayDriver.h"
 
-//GxEPD2_BW<GxEPD2_150_BN, 200> display(GxEPD2_150_BN(DISP_CS, DISP_DC, DISP_RST, DISP_BUSY)); // DEPG0150BN 200x200, SSD1681, TTGO T5 V2.4.1
-
-
 class GxEPDDisplay : public DisplayDriver {
 
-#if defined(HELTEC_MESH_POCKET)
+#if defined(EINK_DISPLAY_MODEL)
   GxEPD2_BW<EINK_DISPLAY_MODEL, EINK_DISPLAY_MODEL::HEIGHT> display;
   const float scale_x  = EINK_SCALE_X; 
   const float scale_y  = EINK_SCALE_Y;
@@ -44,8 +38,7 @@ class GxEPDDisplay : public DisplayDriver {
   int last_display_crc_value = 0;
 
 public:
-  // there is a margin in y...
-#if defined(HELTEC_MESH_POCKET)
+#if defined(EINK_DISPLAY_MODEL)
   GxEPDDisplay() : DisplayDriver(128, 128), display(EINK_DISPLAY_MODEL(PIN_DISPLAY_CS, PIN_DISPLAY_DC, PIN_DISPLAY_RST, PIN_DISPLAY_BUSY)) {}
 #else
   GxEPDDisplay() : DisplayDriver(128, 128), display(GxEPD2_150_BN(DISP_CS, DISP_DC, DISP_RST, DISP_BUSY)) {}

@@ -9,7 +9,10 @@ MeshCore provides the ability to create wireless mesh networks, similar to Mesht
 
 ## ⚡ Key Features
 
-* Multi-Hop Packet Routing – Devices can forward messages across multiple nodes, extending range beyond a single radio's reach. MeshCore supports up to a configurable number of hops to balance network efficiency and prevent excessive traffic.
+* Multi-Hop Packet Routing
+  * Devices can forward messages across multiple nodes, extending range beyond a single radio's reach.
+  * Supports up to a configurable number of hops to balance network efficiency and prevent excessive traffic.
+  * Nodes use fixed roles where "Companion" nodes are not repeating messages at all to prevent adverse routing paths from being used.
 * Supports LoRa Radios – Works with Heltec, RAK Wireless, and other LoRa-based hardware.
 * Decentralized & Resilient – No central server or internet required; the network is self-healing.
 * Low Power Consumption – Ideal for battery-powered or solar-powered devices.
@@ -89,6 +92,21 @@ Here are some general principals you should try to adhere to:
 * Keep it simple. Please, don't think like a high-level lang programmer. Think embedded, and keep code concise, without any unecessary layers.
 * No dynamic memory allocation, except during setup/begin functions.
 * Use the same brace and indenting style that's in the core source modules. (A .clang-format is prob going to be added soon, but please do NOT retroactively re-format existing code. This just creates unnecessary diffs that make finding problems harder)
+
+## Road-Map / To-Do
+
+There are a number of fairly major features in the pipeline, with no particular time-frames attached yet. In very rough chronological order:
+- [X] Companion radio: UI redesign
+- [ ] Repeater + Room Server: add ACL's (like Sensor Node has)
+- [ ] Standardise Bridge mode for repeaters
+- [ ] Repeater/Bridge: Standardise the Transport Codes for zoning/filtering
+- [ ] Core + Repeater: enhanced zero-hop neighbour discovery
+- [ ] Core: round-trip manual path support
+- [ ] Companion + Apps: support for multiple sub-meshes (and 'off-grid' client repeat mode)
+- [ ] Core + Apps: support for LZW message compression
+- [ ] Core: dynamic CR (Coding Rate) for weak vs strong hops
+- [ ] Core: new framework for hosting multiple virtual nodes on one physical device
+- [ ] V2 protocol spec: discussion and concensus around V2 packet protocol, including path hashes, new encryption specs, etc
 
 ## 📞 Get Support
 

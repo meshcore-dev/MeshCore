@@ -1,6 +1,7 @@
 #pragma once
 
 #include "helpers/AbstractBridge.h"
+#include "helpers/CommonCLI.h"
 #include "helpers/SimpleMeshTables.h"
 
 #include <RTClib.h>
@@ -22,6 +23,13 @@ public:
   virtual ~BridgeBase() = default;
 
   /**
+   * @brief Gets the current state of the bridge.
+   *
+   * @return true if the bridge is initialized and running, false otherwise.
+   */
+  bool isRunning() const override;
+
+  /**
    * @brief Common magic number used by all bridge implementations for packet identification
    *
    * This magic number is placed at the beginning of bridge packets to identify
@@ -41,20 +49,18 @@ public:
   static constexpr uint16_t BRIDGE_LENGTH_SIZE = sizeof(uint16_t);
   static constexpr uint16_t BRIDGE_CHECKSUM_SIZE = sizeof(uint16_t);
 
-  /**
-   * @brief Default delay in milliseconds for scheduling inbound packet processing
-   *
-   * It provides a buffer to prevent immediate processing conflicts in the mesh network.
-   * Used in handleReceivedPacket() as: millis() + BRIDGE_DELAY
-   */
-  static constexpr uint16_t BRIDGE_DELAY = 500; // TODO: maybe too high ?
-
 protected:
+  /** Tracks bridge state */
+  bool _initialized = false;
+
   /** Packet manager for allocating and queuing mesh packets */
   mesh::PacketManager *_mgr;
 
   /** RTC clock for timestamping debug messages */
   mesh::RTCClock *_rtc;
+
+  /** Node preferences for configuration settings */
+  NodePrefs *_prefs;
 
   /** Tracks seen packets to prevent loops in broadcast communications */
   SimpleMeshTables _seen_packets;
@@ -62,10 +68,12 @@ protected:
   /**
    * @brief Constructs a BridgeBase instance
    *
+   * @param prefs Node preferences for configuration settings
    * @param mgr PacketManager for allocating and queuing packets
    * @param rtc RTCClock for timestamping debug messages
    */
-  BridgeBase(mesh::PacketManager *mgr, mesh::RTCClock *rtc) : _mgr(mgr), _rtc(rtc) {}
+  BridgeBase(NodePrefs *prefs, mesh::PacketManager *mgr, mesh::RTCClock *rtc)
+      : _prefs(prefs), _mgr(mgr), _rtc(rtc) {}
 
   /**
    * @brief Gets formatted date/time string for logging

@@ -1,12 +1,45 @@
 #!/usr/bin/env bash
 
-# usage
-# sh build.sh build-firmware RAK_4631_Repeater
-# sh build.sh build-firmwares
-# sh build.sh build-matching-firmwares RAK_4631
-# sh build.sh build-companion-firmwares
-# sh build.sh build-repeater-firmwares
-# sh build.sh build-room-server-firmwares
+global_usage() {
+  cat - <<EOF
+Usage:
+sh build.sh <command> [target]
+
+Commands:
+  help|usage|-h|--help: Shows this message.
+  build-firmware <target>: Build the firmware for the given build target.
+  build-firmwares: Build all firmwares for all targets.
+  build-matching-firmwares <build-match-spec>: Build all firmwares for build targets containing the string given for <build-match-spec>.
+  build-companion-firmwares: Build all companion firmwares for all build targets.
+  build-repeater-firmwares: Build all repeater firmwares for all build targets.
+  build-room-server-firmwares: Build all chat room server firmwares for all build targets.
+
+Examples:
+Build firmware for the "RAK_4631_Repeater" device target
+$ sh build.sh build-firmware RAK_4631_Repeater
+
+Build all firmwares for device targets containing the string "RAK_4631"
+$ sh build.sh build-matching-firmwares <build-match-spec>
+
+Build all companion firmwares
+$ sh build.sh build-companion-firmwares
+
+Build all repeater firmwares
+$ sh build.sh build-repeater-firmwares
+
+Build all chat room server firmwares
+$ sh build.sh build-room-server-firmwares
+EOF
+}
+
+# Catch cries for help before doing anything else.
+case $1 in
+  help|usage|-h|--help)
+    global_usage
+    exit 1
+    ;;
+esac
+
 
 # get a list of pio env names that start with "env:"
 get_pio_envs() {
@@ -21,6 +54,17 @@ get_pio_envs_containing_string() {
       if [[ "$env" == *${1}* ]]; then
         echo $env
       fi
+  done
+}
+
+# $1 should be the string to find (case insensitive)
+get_pio_envs_ending_with_string() {
+  shopt -s nocasematch
+  envs=($(get_pio_envs))
+  for env in "${envs[@]}"; do
+    if [[ "$env" == *${1} ]]; then
+      echo $env
+    fi
   done
 }
 
@@ -47,8 +91,8 @@ build_firmware() {
   # e.g: RAK_4631_Repeater-v1.0.0-SHA
   FIRMWARE_FILENAME="$1-${FIRMWARE_VERSION_STRING}"
 
-  # export build flags for pio so we can inject firmware version info
-  export PLATFORMIO_BUILD_FLAGS="-DFIRMWARE_BUILD_DATE='\"${FIRMWARE_BUILD_DATE}\"' -DFIRMWARE_VERSION='\"${FIRMWARE_VERSION_STRING}\"'"
+  # add firmware version info to end of existing platformio build flags in environment vars
+  export PLATFORMIO_BUILD_FLAGS="${PLATFORMIO_BUILD_FLAGS} -DFIRMWARE_BUILD_DATE='\"${FIRMWARE_BUILD_DATE}\"' -DFIRMWARE_VERSION='\"${FIRMWARE_VERSION_STRING}\"'"
 
   # build firmware target
   pio run -e $1
@@ -60,7 +104,7 @@ build_firmware() {
 
   # build .uf2 for nrf52 boards
   if [[ -f .pio/build/$1/firmware.zip && -f .pio/build/$1/firmware.hex ]]; then
-    python bin/uf2conv/uf2conv.py .pio/build/$1/firmware.hex -c -o .pio/build/$1/firmware.uf2 -f 0xADA52840
+    python3 bin/uf2conv/uf2conv.py .pio/build/$1/firmware.hex -c -o .pio/build/$1/firmware.uf2 -f 0xADA52840
   fi
 
   # copy .bin, .uf2, and .zip to out folder
@@ -85,6 +129,14 @@ build_all_firmwares_matching() {
   done
 }
 
+# firmwares ending with $1 will be built
+build_all_firmwares_by_suffix() {
+  envs=($(get_pio_envs_ending_with_string "$1"))
+  for env in "${envs[@]}"; do
+    build_firmware $env
+  done
+}
+
 build_repeater_firmwares() {
 
 #  # build specific repeater firmwares
@@ -96,7 +148,7 @@ build_repeater_firmwares() {
 #  build_firmware "RAK_4631_Repeater"
 
   # build all repeater firmwares
-  build_all_firmwares_matching "repeater"
+  build_all_firmwares_by_suffix "_repeater"
 
 }
 
@@ -115,8 +167,8 @@ build_companion_firmwares() {
 #  build_firmware "t1000e_companion_radio_ble"
 
   # build all companion firmwares
-  build_all_firmwares_matching "companion_radio_usb"
-  build_all_firmwares_matching "companion_radio_ble"
+  build_all_firmwares_by_suffix "_companion_radio_usb"
+  build_all_firmwares_by_suffix "_companion_radio_ble"
 
 }
 
@@ -127,7 +179,7 @@ build_room_server_firmwares() {
 #  build_firmware "RAK_4631_room_server"
 
   # build all room server firmwares
-  build_all_firmwares_matching "room_server"
+  build_all_firmwares_by_suffix "_room_server"
 
 }
 
@@ -143,8 +195,11 @@ mkdir -p out
 
 # handle script args
 if [[ $1 == "build-firmware" ]]; then
-  if [ "$2" ]; then
-    build_firmware $2
+  TARGETS=${@:2}
+  if [ "$TARGETS" ]; then
+    for env in $TARGETS; do
+      build_firmware $env
+    done
   else
     echo "usage: $0 build-firmware <target>"
     exit 1

@@ -1,25 +1,15 @@
 #pragma once
 
 #include <Arduino.h>
-
-// LoRa radio module pins for Station G2
-#define  P_LORA_DIO_1   48
-#define  P_LORA_NSS     11
-#define  P_LORA_RESET   21
-#define  P_LORA_BUSY    47
-#define  P_LORA_SCLK    12
-#define  P_LORA_MISO    14
-#define  P_LORA_MOSI    13
+#include <helpers/ESP32Board.h>
 
 // built-ins
-//#define  PIN_LED_BUILTIN 35
-//#define  PIN_VEXT_EN     36
-
-#include "ESP32Board.h"
+#define  PIN_VBAT_READ   37
+#define  PIN_LED_BUILTIN 25
 
 #include <driver/rtc_io.h>
 
-class StationG2Board : public ESP32Board {
+class HeltecV2Board : public ESP32Board {
 public:
   void begin() {
     ESP32Board::begin();
@@ -60,10 +50,18 @@ public:
   }
 
   uint16_t getBattMilliVolts() override {
-    return 0;
+    analogReadResolution(10);
+
+    uint32_t raw = 0;
+    for (int i = 0; i < 8; i++) {
+      raw += analogRead(PIN_VBAT_READ);
+    }
+    raw = raw / 8;
+
+    return (1.98 * (2 / 1024.0) * raw) * 1000;
   }
 
   const char* getManufacturerName() const override {
-    return "Station G2";
+    return "Heltec V2";
   }
 };

@@ -1,28 +1,26 @@
 #ifdef XIAO_NRF52
 
 #include <Arduino.h>
-#include "ikoka_stick_nrf_board.h"
+#include "IkokaStickNRFBoard.h"
 
 #include <bluefruit.h>
 #include <Wire.h>
 
 static BLEDfu bledfu;
 
-static void connect_callback(uint16_t conn_handle)
-{
+static void connect_callback(uint16_t conn_handle) {
   (void)conn_handle;
   MESH_DEBUG_PRINTLN("BLE client connected");
 }
 
-static void disconnect_callback(uint16_t conn_handle, uint8_t reason)
-{
+static void disconnect_callback(uint16_t conn_handle, uint8_t reason) {
   (void)conn_handle;
   (void)reason;
 
   MESH_DEBUG_PRINTLN("BLE client disconnected");
 }
 
-void ikoka_stick_nrf_board::begin() {
+void IkokaStickNRFBoard::begin() {
   // for future use, sub-classes SHOULD call this from their begin()
   startup_reason = BD_STARTUP_NORMAL;
 
@@ -50,7 +48,7 @@ void ikoka_stick_nrf_board::begin() {
   delay(10);   // give sx1262 some time to power up
 }
 
-bool ikoka_stick_nrf_board::startOTAUpdate(const char* id, char reply[]) {
+bool IkokaStickNRFBoard::startOTAUpdate(const char *id, char reply[]) {
   // Config the peripheral connection with maximum bandwidth
   // more SRAM required by SoftDevice
   // Note: All config***() function must be called before begin()
@@ -91,9 +89,6 @@ bool ikoka_stick_nrf_board::startOTAUpdate(const char* id, char reply[]) {
 
   strcpy(reply, "OK - started");
   return true;
-
-
-  return false;
 }
 
 #endif

@@ -46,6 +46,7 @@
     "speed": 115200,
     "protocols": [
       "jlink",
+      "stlink",
       "nrfjprog",
       "nrfutil",
       "cmsis-dap",

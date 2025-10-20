@@ -2,6 +2,10 @@
 
 #include <Arduino.h>
 
+bool BridgeBase::isRunning() const {
+  return _initialized;
+}
+
 const char *BridgeBase::getLogDateTime() {
   static char tmp[32];
   uint32_t now = _rtc->getCurrentTime();
@@ -28,8 +32,16 @@ bool BridgeBase::validateChecksum(const uint8_t *data, size_t len, uint16_t rece
 }
 
 void BridgeBase::handleReceivedPacket(mesh::Packet *packet) {
+  // Guard against uninitialized state
+  if (_initialized == false) {
+    BRIDGE_DEBUG_PRINTLN("RX packet received before initialization\n");
+    _mgr->free(packet);
+    return;
+  }
+
   if (!_seen_packets.hasSeen(packet)) {
-    _mgr->queueInbound(packet, millis() + BRIDGE_DELAY);
+    // bridge_delay provides a buffer to prevent immediate processing conflicts in the mesh network.
+    _mgr->queueInbound(packet, millis() + _prefs->bridge_delay);
   } else {
     _mgr->free(packet);
   }

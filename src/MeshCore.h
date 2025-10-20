@@ -28,6 +28,12 @@
   #define MESH_DEBUG_PRINTLN(...) {}
 #endif
 
+#if BRIDGE_DEBUG && ARDUINO
+#define BRIDGE_DEBUG_PRINTLN(F, ...) Serial.printf("%s BRIDGE: " F, getLogDateTime(), ##__VA_ARGS__)
+#else
+#define BRIDGE_DEBUG_PRINTLN(...) {}
+#endif
+
 namespace mesh {
 
 #define  BD_STARTUP_NORMAL     0  // getStartupReason() codes

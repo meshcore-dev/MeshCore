@@ -49,11 +49,12 @@ public:
   /**
    * @brief Constructs an RS232Bridge instance
    *
+   * @param prefs Node preferences for configuration settings
    * @param serial The hardware serial port to use
    * @param mgr PacketManager for allocating and queuing packets
    * @param rtc RTCClock for timestamping debug messages
    */
-  RS232Bridge(Stream &serial, mesh::PacketManager *mgr, mesh::RTCClock *rtc);
+  RS232Bridge(NodePrefs *prefs, Stream &serial, mesh::PacketManager *mgr, mesh::RTCClock *rtc);
 
   /**
    * Initializes the RS232 bridge
@@ -64,6 +65,12 @@ public:
    * - Platform-specific pin configuration methods are used
    */
   void begin() override;
+
+  /**
+   * Stops the RS232 bridge
+   *
+   */
+  void end() override;
 
   /**
    * @brief Main loop handler for processing incoming serial data
@@ -90,7 +97,7 @@ public:
    *
    * @param packet The mesh packet to transmit
    */
-  void onPacketTransmitted(mesh::Packet *packet) override;
+  void sendPacket(mesh::Packet *packet) override;
 
   /**
    * @brief Called when a complete valid packet has been received from serial
