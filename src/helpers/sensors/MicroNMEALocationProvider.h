@@ -79,7 +79,8 @@ public :
         if (_pin_en != -1) {
             digitalWrite(_pin_en, !PIN_GPS_EN_ACTIVE);
         }
-        if (_peripher_power) _peripher_power->release();  
+        if (_peripher_power) _peripher_power->release();
+        LocationProvider::stop();
     }
 
     bool isEnabled() override {
