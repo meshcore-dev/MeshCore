@@ -597,6 +597,32 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
       if (l != NULL) {
         l->syncTime();
       }
+    } else if (memcmp(command, "gps autosync", 12) == 0) {
+      if (strlen(command) == 12) {
+        if (_prefs->gps_autosync_enabled) {
+          strcpy(reply, "on");
+        } else {
+          strcpy(reply, "off");
+        }
+      } else if (memcmp(command + 12, " on", 3) == 0) {
+        _prefs->gps_autosync_enabled = 1;
+        LocationProvider * l = _sensors->getLocationProvider();
+        if (l != NULL) {
+          l->setAutosyncEnabled(true);
+        }
+        savePrefs();
+        strcpy(reply, "ok");
+      } else if (memcmp(command + 12, " off", 4) == 0) {
+        _prefs->gps_autosync_enabled = 0;
+        LocationProvider * l = _sensors->getLocationProvider();
+        if (l != NULL) {
+          l->setAutosyncEnabled(false);
+        }
+        savePrefs();
+        strcpy(reply, "ok");
+      } else {
+        strcpy(reply, "usage: gps autosync [on|off]");
+      }
     } else if (memcmp(command, "gps setloc", 10) == 0) {
       _prefs->node_lat = _sensors->node_lat;
       _prefs->node_lon = _sensors->node_lon;
