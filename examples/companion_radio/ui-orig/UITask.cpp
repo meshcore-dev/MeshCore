@@ -414,6 +414,7 @@ void UITask::handleButtonQuadruplePress() {
           notify(UIEventType::ack);
           MESH_DEBUG_PRINTLN("GPS: Enabled");
         }
+        gpsFound = true;
         break;
       }
     }
