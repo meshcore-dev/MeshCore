@@ -55,7 +55,7 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
   sprintf(_version_info, "%s (%s)", version, FIRMWARE_BUILD_DATE);
 
 #ifdef PIN_BUZZER
-  buzzer.begin();
+  buzzer.begin(/*quiet=*/true);
 #endif
 
   // Initialize digital button if available
@@ -312,7 +312,7 @@ void UITask::loop() {
   userLedHandler();
 
 #ifdef PIN_BUZZER
-  if (buzzer.isPlaying())  buzzer.loop();
+  if (buzzer.isPlaying()) buzzer.loop();
 #endif
 
   if (_display != NULL && _display->isOn()) {
@@ -374,10 +374,8 @@ void UITask::handleButtonDoublePress() {
   #endif
   if (the_mesh.advert()) {
     MESH_DEBUG_PRINTLN("Advert sent!");
-    sprintf(_alert, "Advert sent!");
   } else {
     MESH_DEBUG_PRINTLN("Advert failed!");
-    sprintf(_alert, "Advert failed..");
   }
   _need_refresh = true;
 }
@@ -389,10 +387,10 @@ void UITask::handleButtonTriplePress() {
     if (buzzer.isQuiet()) {
       buzzer.quiet(false);
       notify(UIEventType::ack);
-      sprintf(_alert, "Buzzer: ON");
+      MESH_DEBUG_PRINTLN("Buzzer: ON");
     } else {
       buzzer.quiet(true);
-      sprintf(_alert, "Buzzer: OFF");
+      MESH_DEBUG_PRINTLN("Buzzer: OFF");
     }
     _need_refresh = true;
   #endif
@@ -400,24 +398,28 @@ void UITask::handleButtonTriplePress() {
 
 void UITask::handleButtonQuadruplePress() {
   MESH_DEBUG_PRINTLN("UITask: quad press triggered");
+  bool gpsFound = false;
   if (_sensors != NULL) {
     // toggle GPS on/off
     int num = _sensors->getNumSettings();
     for (int i = 0; i < num; i++) {
+      MESH_DEBUG_PRINTLN("Found sensor: %s", _sensors->getSettingName(i));
       if (strcmp(_sensors->getSettingName(i), "gps") == 0) {
         if (strcmp(_sensors->getSettingValue(i), "1") == 0) {
           _sensors->setSettingValue("gps", "0");
           notify(UIEventType::ack);
-          sprintf(_alert, "GPS: Disabled");
+          MESH_DEBUG_PRINTLN("GPS: Disabled");
         } else {
           _sensors->setSettingValue("gps", "1");
           notify(UIEventType::ack);
-          sprintf(_alert, "GPS: Enabled");
+          MESH_DEBUG_PRINTLN("GPS: Enabled");
         }
         break;
       }
     }
   }
+  if (!gpsFound)
+    MESH_DEBUG_PRINTLN("NO GPS SENSOR!");
   _need_refresh = true;
 }
 
