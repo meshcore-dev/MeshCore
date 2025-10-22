@@ -1,0 +1,56 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.unixWrite = void 0;
+const fs_1 = require("fs");
+const debug_1 = __importDefault(require("debug"));
+const util_1 = require("util");
+const logger = (0, debug_1.default)('serialport/bindings-cpp/unixWrite');
+const writeAsync = (0, util_1.promisify)(fs_1.write);
+const writable = (binding) => {
+    return new Promise((resolve, reject) => {
+        binding.poller.once('writable', err => (err ? reject(err) : resolve()));
+    });
+};
+const unixWrite = async ({ binding, buffer, offset = 0, fsWriteAsync = writeAsync }) => {
+    const bytesToWrite = buffer.length - offset;
+    logger('Starting write', buffer.length, 'bytes offset', offset, 'bytesToWrite', bytesToWrite);
+    if (!binding.isOpen || !binding.fd) {
+        throw new Error('Port is not open');
+    }
+    try {
+        const { bytesWritten } = await fsWriteAsync(binding.fd, buffer, offset, bytesToWrite);
+        logger('write returned: wrote', bytesWritten, 'bytes');
+        if (bytesWritten + offset < buffer.length) {
+            if (!binding.isOpen) {
+                throw new Error('Port is not open');
+            }
+            return (0, exports.unixWrite)({ binding, buffer, offset: bytesWritten + offset, fsWriteAsync });
+        }
+        logger('Finished writing', bytesWritten + offset, 'bytes');
+    }
+    catch (err) {
+        logger('write errored', err);
+        if (err.code === 'EAGAIN' || err.code === 'EWOULDBLOCK' || err.code === 'EINTR') {
+            if (!binding.isOpen) {
+                throw new Error('Port is not open');
+            }
+            logger('waiting for writable because of code:', err.code);
+            await writable(binding);
+            return (0, exports.unixWrite)({ binding, buffer, offset, fsWriteAsync });
+        }
+        const disconnectError = err.code === 'EBADF' || // Bad file number means we got closed
+            err.code === 'ENXIO' || // No such device or address probably usb disconnect
+            err.code === 'UNKNOWN' ||
+            err.errno === -1; // generic error
+        if (disconnectError) {
+            err.disconnect = true;
+            logger('disconnecting', err);
+        }
+        logger('error', err);
+        throw err;
+    }
+};
+exports.unixWrite = unixWrite;

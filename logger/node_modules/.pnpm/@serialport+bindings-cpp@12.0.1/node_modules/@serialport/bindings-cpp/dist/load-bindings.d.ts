@@ -1,0 +1,11 @@
+export declare const asyncClose: Function;
+export declare const asyncDrain: Function;
+export declare const asyncFlush: Function;
+export declare const asyncGet: Function;
+export declare const asyncGetBaudRate: Function;
+export declare const asyncList: Function;
+export declare const asyncOpen: Function;
+export declare const asyncSet: Function;
+export declare const asyncUpdate: Function;
+export declare const asyncRead: Function;
+export declare const asyncWrite: Function;
