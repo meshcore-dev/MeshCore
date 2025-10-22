@@ -33,132 +33,173 @@ export function decodeFrame(frame: Frame): ResponseMessage {
   const code = frame.code;
   const payload = frame.payload;
 
-  // Response codes (0-23)
-  if (code === ResponseCode.RESP_CODE_OK) {
-    return { type: 'ok' };
-  }
+  switch (code) {
+    // Response codes (0-23)
+    case ResponseCode.RESP_CODE_OK:
+      return { type: 'ok', rawPayload: payload };
 
-  if (code === ResponseCode.RESP_CODE_ERR) {
-    const errorCode = payload.length > 0 ? payload[0] : 0;
-    const errorMessage = getErrorCodeMessage(errorCode);
-    return { type: 'error', errorCode, errorMessage };
-  }
+    case ResponseCode.RESP_CODE_ERR: {
+      const errorCode = payload.length > 0 ? payload[0] : 0;
+      const errorMessage = getErrorCodeMessage(errorCode);
+      return { type: 'error', errorCode, errorMessage, rawPayload: payload };
+    }
 
-  if (code === ResponseCode.RESP_CODE_DISABLED) {
-    return { type: 'disabled' };
-  }
+    case ResponseCode.RESP_CODE_DISABLED:
+      return { type: 'disabled', rawPayload: payload };
 
-  if (code === ResponseCode.RESP_CODE_DEVICE_INFO) {
-    return { type: 'deviceInfo', data: decodeDeviceInfo(payload) };
-  }
+    case ResponseCode.RESP_CODE_DEVICE_INFO:
+      return { type: 'deviceInfo', data: decodeDeviceInfo(payload), rawPayload: payload };
 
-  if (code === ResponseCode.RESP_CODE_CURR_TIME) {
-    return { type: 'deviceTime', data: decodeDeviceTime(payload) };
-  }
+    case ResponseCode.RESP_CODE_CURR_TIME:
+      return { type: 'deviceTime', data: decodeDeviceTime(payload), rawPayload: payload };
 
-  if (code === ResponseCode.RESP_CODE_BATT_AND_STORAGE) {
-    return {
-      type: 'batteryAndStorage',
-      data: decodeBatteryAndStorage(payload),
-    };
-  }
+    case ResponseCode.RESP_CODE_BATT_AND_STORAGE:
+      return {
+        type: 'batteryAndStorage',
+        data: decodeBatteryAndStorage(payload),
+        rawPayload: payload,
+      };
 
-  if (code === ResponseCode.RESP_CODE_CONTACT) {
-    return { type: 'contact', data: decodeContact(payload) };
-  }
+    case ResponseCode.RESP_CODE_CONTACT:
+      try {
+        return { type: 'contact', data: decodeContact(payload), rawPayload: payload };
+      } catch (e) {
+        return { type: 'unknown', code, payload, rawPayload: payload };
+      }
 
-  if (code === ResponseCode.RESP_CODE_CONTACTS_START) {
-    const totalCount = payload.readUInt32LE(0);
-    return { type: 'contactsStart', totalCount };
-  }
+    case ResponseCode.RESP_CODE_CONTACTS_START: {
+      const totalCount = payload.readUInt32LE(0);
+      return { type: 'contactsStart', totalCount, rawPayload: payload };
+    }
 
-  if (code === ResponseCode.RESP_CODE_END_OF_CONTACTS) {
-    return { type: 'endOfContacts' };
-  }
+    case ResponseCode.RESP_CODE_END_OF_CONTACTS:
+      return { type: 'endOfContacts', rawPayload: payload };
 
-  if (code === ResponseCode.RESP_CODE_NO_MORE_MESSAGES) {
-    return { type: 'noMoreMessages' };
-  }
+    case ResponseCode.RESP_CODE_NO_MORE_MESSAGES:
+      return { type: 'noMoreMessages', rawPayload: payload };
 
-  if (
-    code === ResponseCode.RESP_CODE_CONTACT_MSG_RECV ||
-    code === ResponseCode.RESP_CODE_CONTACT_MSG_RECV_V3
-  ) {
-    return { type: 'contactMessage', data: decodeContactMessage(payload, code) };
-  }
+    case ResponseCode.RESP_CODE_CONTACT_MSG_RECV:
+    case ResponseCode.RESP_CODE_CONTACT_MSG_RECV_V3:
+      return { type: 'contactMessage', data: decodeContactMessage(payload, code), rawPayload: payload };
 
-  if (
-    code === ResponseCode.RESP_CODE_CHANNEL_MSG_RECV ||
-    code === ResponseCode.RESP_CODE_CHANNEL_MSG_RECV_V3
-  ) {
-    return { type: 'channelMessage', data: decodeChannelMessage(payload, code) };
-  }
+    case ResponseCode.RESP_CODE_CHANNEL_MSG_RECV:
+    case ResponseCode.RESP_CODE_CHANNEL_MSG_RECV_V3:
+      return { type: 'channelMessage', data: decodeChannelMessage(payload, code), rawPayload: payload };
 
-  if (code === ResponseCode.RESP_CODE_CHANNEL_INFO) {
-    return { type: 'channelInfo', data: decodeChannelInfo(payload) };
-  }
+    case ResponseCode.RESP_CODE_CHANNEL_INFO:
+      return { type: 'channelInfo', data: decodeChannelInfo(payload), rawPayload: payload };
 
-  if (code === ResponseCode.RESP_CODE_ADVERT_PATH) {
-    return { type: 'advertPath', data: decodeAdvertPath(payload) };
-  }
+    case ResponseCode.RESP_CODE_ADVERT_PATH:
+      return { type: 'advertPath', data: decodeAdvertPath(payload), rawPayload: payload };
 
-  if (code === ResponseCode.RESP_CODE_SIGNATURE) {
-    return { type: 'signature', data: decodeSignature(payload) };
-  }
+    case ResponseCode.RESP_CODE_SIGNATURE:
+      return { type: 'signature', data: decodeSignature(payload), rawPayload: payload };
 
-  if (code === ResponseCode.RESP_CODE_SENT) {
-    return decodeSent(payload);
-  }
+    case ResponseCode.RESP_CODE_SENT: {
+      const sent = decodeSent(payload);
+      return { ...sent, rawPayload: payload };
+    }
 
-  if (code === ResponseCode.RESP_CODE_CUSTOM_VARS) {
-    const vars = decodeCustomVars(payload);
-    return { type: 'customVars', vars };
-  }
+    case ResponseCode.RESP_CODE_CUSTOM_VARS: {
+      const vars = decodeCustomVars(payload);
+      return { type: 'customVars', vars, rawPayload: payload };
+    }
 
-  if (code === ResponseCode.RESP_CODE_PRIVATE_KEY) {
-    const key = payload.subarray(0, 64);
-    return { type: 'privateKey', key };
-  }
+    case ResponseCode.RESP_CODE_PRIVATE_KEY: {
+      const key = payload.subarray(0, 64);
+      return { type: 'privateKey', key, rawPayload: payload };
+    }
 
-  if (code === ResponseCode.RESP_CODE_SIGN_START) {
-    const maxDataLen = payload.readUInt32LE(1);
-    return { type: 'signStart', maxDataLen };
-  }
+    case ResponseCode.RESP_CODE_SIGN_START: {
+      const maxDataLen = payload.readUInt32LE(1);
+      return { type: 'signStart', maxDataLen, rawPayload: payload };
+    }
 
-  if (code === ResponseCode.RESP_CODE_SELF_INFO) {
-    return { type: 'ok' }; // Placeholder
-  }
+    case ResponseCode.RESP_CODE_SELF_INFO:
+      return { type: 'ok', rawPayload: payload }; // Placeholder
 
-  if (code === ResponseCode.RESP_CODE_EXPORT_CONTACT) {
-    return { type: 'contact', data: decodeContact(payload) };
-  }
+    case ResponseCode.RESP_CODE_EXPORT_CONTACT:
+      try {
+        return { type: 'contact', data: decodeContact(payload), rawPayload: payload };
+      } catch (e) {
+        return { type: 'unknown', code, payload, rawPayload: payload };
+      }
 
-  // Push codes (0x80-0x8D)
-  if (code === PushCode.PUSH_CODE_PATH_UPDATED) {
-    const pubKey = payload.subarray(0, PUB_KEY_SIZE);
-    return { type: 'pathUpdated', pubKey };
-  }
+    // Push codes (0x80-0x8D)
+    case PushCode.PUSH_CODE_ADVERT: {
+      // Simple advert: just a public key (32 bytes)
+      if (payload.length === PUB_KEY_SIZE) {
+        return { type: 'simpleAdvert', pubKey: payload, rawPayload: payload };
+      }
+      // Otherwise try to parse as full contact
+      try {
+        return { type: 'contact', data: decodeContact(payload), rawPayload: payload };
+      } catch (e) {
+        return { type: 'unknown', code, payload, rawPayload: payload };
+      }
+    }
 
-  if (code === PushCode.PUSH_CODE_SEND_CONFIRMED) {
-    const ack = payload.subarray(0, 4);
-    const tripTimeMs = payload.readUInt32LE(4);
-    return { type: 'sendConfirmed', ack, tripTimeMs };
-  }
+    case PushCode.PUSH_CODE_PATH_UPDATED: {
+      const pubKey = payload.subarray(0, PUB_KEY_SIZE);
+      return { type: 'pathUpdated', pubKey, rawPayload: payload };
+    }
 
-  if (code === PushCode.PUSH_CODE_MSG_WAITING) {
-    return { type: 'messageWaiting' };
-  }
+    case PushCode.PUSH_CODE_SEND_CONFIRMED: {
+      const ack = payload.subarray(0, 4);
+      const tripTimeMs = payload.readUInt32LE(4);
+      return { type: 'sendConfirmed', ack, tripTimeMs, rawPayload: payload };
+    }
 
-  if (code === PushCode.PUSH_CODE_NEW_ADVERT) {
-    return { type: 'contact', data: decodeContact(payload) };
-  }
+    case PushCode.PUSH_CODE_MSG_WAITING:
+      return { type: 'messageWaiting', rawPayload: payload };
 
-  if (code === PushCode.PUSH_CODE_ADVERT) {
-    return { type: 'contact', data: decodeContact(payload) };
-  }
+    case PushCode.PUSH_CODE_RAW_DATA:
+      return { type: 'unknown', code, payload, rawPayload: payload };
 
-  // Unknown code
-  return { type: 'unknown', code, payload };
+    case PushCode.PUSH_CODE_LOGIN_SUCCESS:
+      return { type: 'unknown', code, payload, rawPayload: payload };
+
+    case PushCode.PUSH_CODE_LOGIN_FAIL:
+      return { type: 'unknown', code, payload, rawPayload: payload };
+
+    case PushCode.PUSH_CODE_STATUS_RESPONSE:
+      return { type: 'unknown', code, payload, rawPayload: payload };
+
+    case PushCode.PUSH_CODE_LOG_RX_DATA: {
+      // Format: [0x88][SNR*4 as int8][RSSI as int8][raw packet data...]
+      if (payload.length >= 3) {
+        const snrRaw = payload.readInt8(0);
+        const rssi = payload.readInt8(1);
+        const snr = snrRaw / 4;
+        const rawPacket = payload.subarray(2);
+        return { type: 'logRxData', snr, rssi, rawPacket, rawPayload: payload };
+      }
+      return { type: 'unknown', code, payload, rawPayload: payload };
+    }
+
+    case PushCode.PUSH_CODE_TRACE_DATA:
+      return { type: 'unknown', code, payload, rawPayload: payload };
+
+    case PushCode.PUSH_CODE_NEW_ADVERT:
+      try {
+        return { type: 'contact', data: decodeContact(payload), rawPayload: payload };
+      } catch (e) {
+        return { type: 'unknown', code, payload, rawPayload: payload };
+      }
+
+    case PushCode.PUSH_CODE_TELEMETRY_RESPONSE:
+      return { type: 'unknown', code, payload, rawPayload: payload };
+
+    case PushCode.PUSH_CODE_BINARY_RESPONSE:
+      return { type: 'unknown', code, payload, rawPayload: payload };
+
+    case PushCode.PUSH_CODE_PATH_DISCOVERY_RESPONSE:
+      return { type: 'unknown', code, payload, rawPayload: payload };
+
+    // Unknown code
+    default:
+      return { type: 'unknown', code, payload, rawPayload: payload };
+  }
 }
 
 // ============================================================================
@@ -345,6 +386,65 @@ function decodeAdvertPath(payload: Buffer): AdvertPath {
   const path = payload.subarray(i, i + pathLen);
 
   return { timestamp, pathLen, path };
+}
+
+/**
+ * Parse advert data embedded in a contact or raw advert payload
+ * Advert data format (from firmware AdvertDataBuilder::encodeTo):
+ * [flags/type][optional lat/lon (8 bytes)][optional extra1 (2 bytes)][optional extra2 (2 bytes)][optional name...]
+ * Flags: bit 0-3 = type, bit 4 = ADV_LATLON_MASK, bit 5 = ADV_FEAT1_MASK, bit 6 = ADV_FEAT2_MASK, bit 7 = ADV_NAME_MASK
+ */
+export interface ParsedAdvertData {
+  type: number;
+  name?: string;
+  latitude?: number; // in degrees
+  longitude?: number; // in degrees
+  hasLocation: boolean;
+}
+
+function parseAdvertData(advertData: Buffer): ParsedAdvertData | null {
+  if (advertData.length < 1) return null;
+
+  const flags = advertData[0];
+  const type = flags & 0x0F;
+  let offset = 1;
+  let latitude: number | undefined;
+  let longitude: number | undefined;
+  let hasLocation = false;
+
+  // ADV_LATLON_MASK = 0x10
+  if (flags & 0x10) {
+    if (offset + 8 > advertData.length) return null;
+    const latInt = advertData.readInt32LE(offset);
+    offset += 4;
+    const lonInt = advertData.readInt32LE(offset);
+    offset += 4;
+    latitude = latInt / 1e6;
+    longitude = lonInt / 1e6;
+    hasLocation = true;
+  }
+
+  // ADV_FEAT1_MASK = 0x20
+  if (flags & 0x20) {
+    offset += 2;
+  }
+
+  // ADV_FEAT2_MASK = 0x40
+  if (flags & 0x40) {
+    offset += 2;
+  }
+
+  let name: string | undefined;
+  // ADV_NAME_MASK = 0x80
+  if (flags & 0x80 && offset < advertData.length) {
+    name = advertData
+      .subarray(offset)
+      .toString('utf-8')
+      .replace(/\0/g, '')
+      .trim();
+  }
+
+  return { type, name, latitude, longitude, hasLocation };
 }
 
 function decodeSignature(payload: Buffer): SignatureInfo {

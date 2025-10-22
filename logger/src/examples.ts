@@ -41,7 +41,7 @@ async function example_MonitorMessagesWithFiltering() {
 
 async function example_RequestResponse(): Promise<Contact[]> {
   const radio = new RadioClient();
-  await radio.connect('/dev/ttyUSB0');
+  await radio.connect('/dev/ttyACM0');
 
   const contacts: Contact[] = [];
   let done = false;
@@ -63,6 +63,9 @@ async function example_RequestResponse(): Promise<Contact[]> {
     await new Promise(resolve => setTimeout(resolve, 100));
     waited += 100;
   }
+  console.log(`Retrieved ${contacts.length} contacts`);
+  console.log(`Waited ${waited} ms for contacts retrieval`);
+  console.log(contacts);
 
   radio.disconnect();
   return contacts;

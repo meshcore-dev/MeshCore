@@ -282,7 +282,12 @@ export interface Frame {
 // RESPONSE WRAPPER TYPES
 // ============================================================================
 
-export type ResponseMessage =
+// Base message with raw payload for debugging
+interface BaseMessage {
+  rawPayload?: Buffer;
+}
+
+export type ResponseMessage = BaseMessage & (
   | { type: 'ok' }
   | { type: 'error'; errorCode: number; errorMessage: string }
   | { type: 'deviceInfo'; data: DeviceInfo }
@@ -305,7 +310,10 @@ export type ResponseMessage =
   | { type: 'sendConfirmed'; ack: Buffer; tripTimeMs: number }
   | { type: 'messageWaiting' }
   | { type: 'signStart'; maxDataLen: number }
-  | { type: 'unknown'; code: number; payload: Buffer };
+  | { type: 'logRxData'; snr: number; rssi: number; rawPacket: Buffer }
+  | { type: 'simpleAdvert'; pubKey: Buffer }
+  | { type: 'unknown'; code: number; payload: Buffer }
+);
 
 // ============================================================================
 // MESSAGE SUBSCRIPTION TYPE

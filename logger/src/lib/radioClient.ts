@@ -4,6 +4,7 @@
  * Provides command sending and message subscription functionality
  */
 
+import { createHash } from 'crypto';
 import { SerialPort } from 'serialport';
 import { EventEmitter } from 'events';
 import {
@@ -28,6 +29,7 @@ export class RadioClient extends EventEmitter {
   private frameParser = new FrameParser();
   private messageHandlers: MessageHandler[] = [];
   private errorHandlers: ErrorHandler[] = [];
+  private channels: Map<number, { name: string; secret: Buffer }> = new Map();
 
   /**
    * Find available radio ports on the system
@@ -244,13 +246,24 @@ export class RadioClient extends EventEmitter {
    * @param text Message text
    */
   public sendChannelMessage(channelIndex: number, text: string): void {
-    const payload = Buffer.alloc(1 + 1 + text.length);
+    // Command format: [CMD][TXT_TYPE][CHANNEL_IDX][TIMESTAMP_4BYTES][TEXT]
+    // TXT_TYPE_PLAIN = 0
+    const textBytes = Buffer.from(text, 'utf-8');
+    const payload = Buffer.alloc(1 + 1 + 1 + 4 + textBytes.length);
     let i = 0;
     payload[i++] = CommandCode.CMD_SEND_CHANNEL_TXT_MSG;
+    payload[i++] = 0; // TXT_TYPE_PLAIN
     payload[i++] = channelIndex & 0xff;
-    i += payload.write(text, i, 'utf-8');
+    
+    // Write current Unix timestamp (seconds)
+    const timestamp = Math.floor(Date.now() / 1000);
+    payload.writeUInt32LE(timestamp, i);
+    i += 4;
+    
+    // Write message text
+    textBytes.copy(payload, i);
 
-    this.sendCommand(payload.subarray(0, i));
+    this.sendCommand(payload);
   }
 
   /**
@@ -318,6 +331,9 @@ export class RadioClient extends EventEmitter {
       throw new Error('Channel secret must be at least 16 bytes');
     }
 
+    // Store channel info locally for name resolution
+    this.channels.set(channelIndex, { name, secret: secret.subarray(0, 16) });
+
     const nameBuffer = Buffer.alloc(32);
     nameBuffer.write(name);
 
@@ -329,6 +345,40 @@ export class RadioClient extends EventEmitter {
     i += 32;
     secret.subarray(0, 16).copy(payload, i);
 
+    this.sendCommand(payload);
+  }
+
+  /**
+   * Get the name of a channel by its index
+   * @param channelIndex Channel index
+   * @returns Channel name or undefined if not found
+   */
+  public getChannelName(channelIndex: number): string | undefined {
+    return this.channels.get(channelIndex)?.name;
+  }
+
+  /**
+   * Subscribe to a hash channel (hashtag channel)
+   * @param hashtag The hashtag string (e.g., "#aqua-test")
+   * @param channelIndex Channel index to store at (default 0)
+   */
+  public subscribeHashChannel(hashtag: string, channelIndex: number = 0): void {
+    // Generate SHA256 hash of the hashtag string (truncated to 16 bytes for channel secret)
+    const hash = createHash('sha256').update(hashtag).digest();
+    const secret = hash.subarray(0, 16);
+    
+    // Set the channel with the hashtag as name and the hash as secret
+    this.setChannel(channelIndex, hashtag, secret);
+  }
+
+  /**
+   * Enable or disable automatic addition of discovered contacts
+   * @param enabled true to enable auto-add, false for manual add
+   */
+  public setAutoAddContacts(enabled: boolean): void {
+    const payload = Buffer.alloc(2);
+    payload[0] = CommandCode.CMD_SET_OTHER_PARAMS;
+    payload[1] = enabled ? 0 : 1; // 0 = auto-add enabled, 1 = manual add (auto-add disabled)
     this.sendCommand(payload);
   }
 
