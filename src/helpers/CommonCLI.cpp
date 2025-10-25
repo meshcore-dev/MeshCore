@@ -245,6 +245,11 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
     } else if (memcmp(command, "clear stats", 11) == 0) {
       _callbacks->clearStats();
       strcpy(reply, "(OK - stats reset)");
+    } else if (memcmp(command, "regeneratekeys", 14) == 0) {
+      // regenerate key pair
+      MESH_DEBUG_PRINTLN("Generating new keypair");
+      _callbacks->regenerateKeys();
+      _board->reboot();  // doesn't return
     /*
      * GET commands
      */

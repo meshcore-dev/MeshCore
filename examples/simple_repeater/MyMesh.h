@@ -188,6 +188,7 @@ public:
 
   void saveIdentity(const mesh::LocalIdentity& new_id) override;
   void clearStats() override;
+  void regenerateKeys() override;  
   void handleCommand(uint32_t sender_timestamp, char* command, char* reply);
   void loop();
 
