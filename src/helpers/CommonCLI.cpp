@@ -245,11 +245,29 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
     } else if (memcmp(command, "clear stats", 11) == 0) {
       _callbacks->clearStats();
       strcpy(reply, "(OK - stats reset)");
-    } else if (memcmp(command, "regeneratekeys", 14) == 0) {
+    } else if (memcmp(command, "regeneratekeys ", 15) == 0) {
+      // Parse first hex digit
+      int value = 0;
+      if (command[15] >= '0' && command[15] <= '9')
+          value = (command[15] - '0') << 4;
+      else if (command[15] >= 'a' && command[15] <= 'f')
+          value = (command[15] - 'a' + 10) << 4;
+      else if (command[15] >= 'A' && command[15] <= 'F')
+          value = (command[15] - 'A' + 10) << 4;
+      // Parse second hex digit
+      if (command[16] >= '0' && command[16] <= '9')
+          value |= (command[16] - '0');
+      else if (command[16] >= 'a' && command[16] <= 'f')
+          value |= (command[16] - 'a' + 10);
+      else if (command[16] >= 'A' && command[16] <= 'F')
+          value |= (command[16] - 'A' + 10);
       // regenerate key pair
       MESH_DEBUG_PRINTLN("Generating new keypair");
-      _callbacks->regenerateKeys();
-      _board->reboot();  // doesn't return
+      if ((value > 0) && (value < 0xff)){
+        _callbacks->regenerateKeys(value);
+        _board->reboot();  // doesn't return
+      }
+      sprintf(reply, "> ERROR");
     /*
      * GET commands
      */

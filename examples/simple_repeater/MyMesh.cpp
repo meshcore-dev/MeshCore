@@ -807,17 +807,16 @@ void MyMesh::clearStats() {
   ((SimpleMeshTables *)getTables())->resetStats();
 }
 
-void MyMesh::regenerateKeys() {
-  MESH_DEBUG_PRINTLN("Generating new keypair");
-  mesh::LocalIdentity new_id = radio_new_identity();
-  
-  int count = 0;
-  while (count < 10 && (new_id.pub_key[0] == 0x00 || new_id.pub_key[0] == 0xFF)) {
-    new_id = radio_new_identity();
-    count++;
+void MyMesh::regenerateKeys(uint8_t byte) { 
+  if (byte >0 && byte < 0xff){
+    MESH_DEBUG_PRINTLN("Generating new keypair");
+    mesh::LocalIdentity new_id = radio_new_identity();
+    
+    while (new_id.pub_key[0] != byte) {
+      new_id = radio_new_identity();
+    }
+    saveIdentity(new_id);
   }
-  
-  saveIdentity(new_id);
 }
 
 void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply) {

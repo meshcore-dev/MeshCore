@@ -69,7 +69,7 @@ public:
   virtual mesh::LocalIdentity& getSelfId() = 0;
   virtual void saveIdentity(const mesh::LocalIdentity& new_id) = 0;
   virtual void clearStats() = 0;
-  virtual void regenerateKeys() = 0; 
+  virtual void regenerateKeys(uint8_t byte) = 0; 
   virtual void applyTempRadioParams(float freq, float bw, uint8_t sf, uint8_t cr, int timeout_mins) = 0;
 
   virtual void setBridgeState(bool enable) {
