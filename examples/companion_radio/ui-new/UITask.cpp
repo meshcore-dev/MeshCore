@@ -4,7 +4,7 @@
 #include "target.h"
 
 #ifndef AUTO_OFF_MILLIS
-  #define AUTO_OFF_MILLIS     15000   // 15 seconds
+  #define AUTO_OFF_MILLIS    15000  // 15 seconds
 #endif
 #define BOOT_SCREEN_MILLIS   3000   // 3 seconds
 
@@ -663,52 +663,51 @@ bool UITask::isButtonPressed() const {
 }
 
 void UITask::loop() {
-  char c = 0;
 #if UI_HAS_JOYSTICK
   int ev = user_btn.check();
   if (ev == BUTTON_EVENT_CLICK) {
-    c = checkDisplayOn(KEY_ENTER);
+    handleSingleClick(KEY_ENTER);
   } else if (ev == BUTTON_EVENT_LONG_PRESS) {
-    c = handleLongPress(KEY_ENTER);  // REVISIT: could be mapped to different key code
+    handleLongPress(KEY_ENTER);  // REVISIT: could be mapped to different key code
   }
   ev = joystick_left.check();
   if (ev == BUTTON_EVENT_CLICK) {
-    c = checkDisplayOn(KEY_LEFT);
+    handleSingleClick(KEY_LEFT);
   } else if (ev == BUTTON_EVENT_LONG_PRESS) {
-    c = handleLongPress(KEY_LEFT);
+    handleLongPress(KEY_LEFT);
   }
   ev = joystick_right.check();
   if (ev == BUTTON_EVENT_CLICK) {
-    c = checkDisplayOn(KEY_RIGHT);
+    handleSingleClick(KEY_RIGHT);
   } else if (ev == BUTTON_EVENT_LONG_PRESS) {
-    c = handleLongPress(KEY_RIGHT);
+    handleLongPress(KEY_RIGHT);
   }
   ev = back_btn.check();
   if (ev == BUTTON_EVENT_TRIPLE_CLICK) {
-    c = handleTripleClick(KEY_SELECT);
+    handleTripleClick(KEY_SELECT);
   }
 #elif defined(PIN_USER_BTN)
   int ev = user_btn.check();
   if (ev == BUTTON_EVENT_CLICK) {
-    c = checkDisplayOn(KEY_NEXT);
+    handleSingleClick(KEY_NEXT);
   } else if (ev == BUTTON_EVENT_LONG_PRESS) {
-    c = handleLongPress(KEY_ENTER);
+    handleLongPress(KEY_ENTER);
   } else if (ev == BUTTON_EVENT_DOUBLE_CLICK) {
-    c = handleDoubleClick(KEY_PREV);
+    handleDoubleClick(KEY_PREV);
   } else if (ev == BUTTON_EVENT_TRIPLE_CLICK) {
-    c = handleTripleClick(KEY_SELECT);
+    handleTripleClick(KEY_SELECT);
   }
 #endif
 #if defined(PIN_USER_BTN_ANA)
   ev = analog_btn.check();
   if (ev == BUTTON_EVENT_CLICK) {
-    c = checkDisplayOn(KEY_NEXT);
+    handleSingleClick(KEY_NEXT);
   } else if (ev == BUTTON_EVENT_LONG_PRESS) {
-    c = handleLongPress(KEY_ENTER);
+    handleLongPress(KEY_ENTER);
   } else if (ev == BUTTON_EVENT_DOUBLE_CLICK) {
-    c = handleDoubleClick(KEY_PREV);
+    handleDoubleClick(KEY_PREV);
   } else if (ev == BUTTON_EVENT_TRIPLE_CLICK) {
-    c = handleTripleClick(KEY_SELECT);
+    handleTripleClick(KEY_SELECT);
   }
 #endif
 #if defined(DISP_BACKLIGHT) && defined(BACKLIGHT_BTN)
@@ -718,12 +717,6 @@ void UITask::loop() {
     next_backlight_btn_check = millis() + 300;
   }
 #endif
-
-  if (c != 0 && curr) {
-    curr->handleInput(c);
-    _auto_off = millis() + AUTO_OFF_MILLIS;   // extend auto-off timer
-    _next_refresh = 100;  // trigger refresh
-  }
 
   userLedHandler();
 
@@ -792,35 +785,49 @@ void UITask::loop() {
 char UITask::checkDisplayOn(char c) {
   if (_display != NULL) {
     if (!_display->isOn()) {
-      _display->turnOn();   // turn display on and consume event
+      _display->turnOn();  // turn display on and consume event
       c = 0;
     }
-    _auto_off = millis() + AUTO_OFF_MILLIS;   // extend auto-off timer
+    _auto_off = millis() + AUTO_OFF_MILLIS;  // extend auto-off timer
     _next_refresh = 0;  // trigger refresh
   }
   return c;
 }
 
-char UITask::handleLongPress(char c) {
-  if (millis() - ui_started_at < 8000) {   // long press in first 8 seconds since startup -> CLI/rescue
+void UITask::handleLongPress(char c) {
+  if (millis() - ui_started_at < 8000) {  // long press in first 8 seconds since startup -> CLI/rescue
     the_mesh.enterCLIRescue();
-    c = 0;   // consume event
+  } else {
+    MESH_DEBUG_PRINTLN("UITask: long press triggered");
+    uiHandleKey(c);
   }
-  return c;
 }
 
-char UITask::handleDoubleClick(char c) {
+void UITask::handleSingleClick(char c) {
+  MESH_DEBUG_PRINTLN("UITask: single click triggered");
+  uiHandleKey(c);
+}
+
+void UITask::handleDoubleClick(char c) {
   MESH_DEBUG_PRINTLN("UITask: double click triggered");
-  checkDisplayOn(c);
-  return c;
+  uiHandleKey(c);
 }
 
-char UITask::handleTripleClick(char c) {
+void UITask::handleTripleClick(char c) {
   MESH_DEBUG_PRINTLN("UITask: triple click triggered");
-  checkDisplayOn(c);
-  toggleBuzzer();
-  c = 0;
-  return c;
+  if (!uiHandleKey(c)) toggleBuzzer();
+}
+
+bool UITask::uiHandleKey(char c) {
+  bool handled = false;
+  c = checkDisplayOn(c);
+
+  if (c != 0 && curr) {
+    handled = curr->handleInput(c);
+    _auto_off = millis() + AUTO_OFF_MILLIS; // extend auto-off timer
+    _next_refresh = 100;  // trigger refresh
+  }
+  return handled;
 }
 
 bool UITask::getGPSState() {

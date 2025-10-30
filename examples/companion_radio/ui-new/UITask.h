@@ -49,9 +49,11 @@ class UITask : public AbstractUITask {
   
   // Button action handlers
   char checkDisplayOn(char c);
-  char handleLongPress(char c);
-  char handleDoubleClick(char c);
-  char handleTripleClick(char c);
+  void handleLongPress(char c);
+  void handleSingleClick(char c);
+  void handleDoubleClick(char c);
+  void handleTripleClick(char c);
+  bool uiHandleKey(char c);
 
   void setCurrScreen(UIScreen* c);
 
