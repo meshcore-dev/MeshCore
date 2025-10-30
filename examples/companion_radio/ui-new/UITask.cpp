@@ -782,16 +782,20 @@ void UITask::loop() {
 #endif
 }
 
-char UITask::checkDisplayOn(char c) {
+bool UITask::checkDisplayOn() {
+  // ensures that the display is on and the timer is reset
+  // returns false if the display was previously off
+  bool display_on = false;
   if (_display != NULL) {
     if (!_display->isOn()) {
-      _display->turnOn();  // turn display on and consume event
-      c = 0;
+      _display->turnOn();  // turn display on
+    } else {
+      display_on = true;
     }
     _auto_off = millis() + AUTO_OFF_MILLIS;  // extend auto-off timer
     _next_refresh = 0;  // trigger refresh
   }
-  return c;
+  return display_on;
 }
 
 void UITask::handleLongPress(char c) {
@@ -820,9 +824,9 @@ void UITask::handleTripleClick(char c) {
 
 bool UITask::uiHandleKey(char c) {
   bool handled = false;
-  c = checkDisplayOn(c);
+  bool display_on = checkDisplayOn();
 
-  if (c != 0 && curr) {
+  if (c != 0 && display_on && curr) {
     handled = curr->handleInput(c);
     _auto_off = millis() + AUTO_OFF_MILLIS; // extend auto-off timer
     _next_refresh = 100;  // trigger refresh

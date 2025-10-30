@@ -48,7 +48,7 @@ class UITask : public AbstractUITask {
   void userLedHandler();
   
   // Button action handlers
-  char checkDisplayOn(char c);
+  bool checkDisplayOn();
   void handleLongPress(char c);
   void handleSingleClick(char c);
   void handleDoubleClick(char c);
