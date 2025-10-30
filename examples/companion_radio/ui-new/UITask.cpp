@@ -4,7 +4,7 @@
 #include "target.h"
 
 #ifndef AUTO_OFF_MILLIS
-  #define AUTO_OFF_MILLIS    15000  // 15 seconds
+  #define AUTO_OFF_MILLIS     15000   // 15 seconds
 #endif
 #define BOOT_SCREEN_MILLIS   3000   // 3 seconds
 
