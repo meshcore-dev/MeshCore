@@ -41,7 +41,7 @@ class UITask : public AbstractUITask {
 #endif
 
 #ifdef PIN_USER_BTN_ANA
-  unsigned long _analogue_pin_read_millis;
+  unsigned long _analogue_pin_read_millis = millis();
 #endif
 
   UIScreen* splash;
