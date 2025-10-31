@@ -1,0 +1,37 @@
+#pragma once
+
+#include "UITask.h"
+
+#if UI_QUICK_MSG
+#include <helpers/ChannelDetails.h>
+#include <helpers/ui/UIScreen.h>
+
+class QuickMsgScreen : public UIScreen {
+  enum Row {
+    MSG,
+    CHANNEL,
+    SEND,
+    Count
+  };
+
+  UITask* _task;
+  uint8_t _msg_ix = 0;
+  uint8_t _channel_ix = 0;
+  uint8_t _row = 0;
+  uint8_t _row_defs[Row::Count] { 20, 35, 50 };
+  char _channel_name[32];  // see ChannelDetails.h
+
+  void nextMessage();
+  void nextChannel();
+  void sendMessage();
+
+  const char* getMessageText();
+  const char* getChannelName();
+
+public:
+  QuickMsgScreen(UITask* task);
+  int render(DisplayDriver& display) override;
+  bool handleInput(char c) override;
+};
+
+#endif

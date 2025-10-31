@@ -3,6 +3,10 @@
 #include "../MyMesh.h"
 #include "target.h"
 
+#if UI_QUICK_MSG
+#include "QuickMsg.h"
+#endif
+
 #ifndef AUTO_OFF_MILLIS
   #define AUTO_OFF_MILLIS     15000   // 15 seconds
 #endif
@@ -18,12 +22,6 @@
 
 #ifndef UI_RECENT_LIST_SIZE
   #define UI_RECENT_LIST_SIZE 4
-#endif
-
-#if UI_HAS_JOYSTICK
-  #define PRESS_LABEL "press Enter"
-#else
-  #define PRESS_LABEL "long press"
 #endif
 
 #include "icons.h"
@@ -84,6 +82,9 @@ class HomeScreen : public UIScreen {
 #endif
 #if UI_SENSORS_PAGE == 1
     SENSORS,
+#endif
+#if UI_QUICK_MSG
+    QUICK_MSG,
 #endif
     SHUTDOWN,
     Count    // keep as last
@@ -357,6 +358,14 @@ public:
       if (sensors_scroll) sensors_scroll_offset = (sensors_scroll_offset+1)%sensors_nb;
       else sensors_scroll_offset = 0;
 #endif
+#if UI_QUICK_MSG
+    } else if (_page == HomePage::QUICK_MSG) {
+      display.setColor(DisplayDriver::YELLOW);
+      display.setTextSize(2);
+      display.drawTextCentered(display.width() / 2, 24, "quick messages");
+      display.setTextSize(1);
+      display.drawTextCentered(display.width() / 2, 40, "enter/exit: " PRESS_LABEL);
+#endif
     } else if (_page == HomePage::SHUTDOWN) {
       display.setColor(DisplayDriver::GREEN);
       display.setTextSize(1);
@@ -364,7 +373,7 @@ public:
         display.drawTextCentered(display.width() / 2, 34, "hibernating...");
       } else {
         display.drawXbm((display.width() - 32) / 2, 18, power_icon, 32, 32);
-        display.drawTextCentered(display.width() / 2, 64 - 11, "hibernate:" PRESS_LABEL);
+        display.drawTextCentered(display.width() / 2, 64 - 11, "hibernate: " PRESS_LABEL);
       }
     }
     return 5000;   // next render after 5000 ms
@@ -409,6 +418,12 @@ public:
     if (c == KEY_ENTER && _page == HomePage::SENSORS) {
       _task->toggleGPS();
       next_sensors_refresh=0;
+      return true;
+    }
+#endif
+#if UI_QUICK_MSG
+    if (c == KEY_ENTER && _page == HomePage::QUICK_MSG) {
+      _task->gotoQuickMsgScreen();
       return true;
     }
 #endif
@@ -544,6 +559,9 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
   splash = new SplashScreen(this);
   home = new HomeScreen(this, &rtc_clock, sensors, node_prefs);
   msg_preview = new MsgPreviewScreen(this, &rtc_clock);
+#if UI_QUICK_MSG
+  quick_msg = new QuickMsgScreen(this);
+#endif
   setCurrScreen(splash);
 }
 
