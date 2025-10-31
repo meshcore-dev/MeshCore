@@ -8,7 +8,8 @@
 #endif
 
 static constexpr const char* messages[] {
-  "ping", "ack", "yes", "no", "test"
+  "test", "ping", "hello", "ack", "yes", "no", "share location",
+  "come to me", "going to you", "help", "SOS"
 };
 static constexpr size_t messages_count = COUNTOF(messages);
 
@@ -74,7 +75,19 @@ bool QuickMsgScreen::handleInput(char c) {
 }
 
 void QuickMsgScreen::nextMessage() {
-  _msg_ix = (_msg_ix + 1) % messages_count;
+  auto msg_count = messages_count;
+  _kind = MsgKind::TEXT;
+  ++_msg_ix;
+
+#if ENV_INCLUDE_GPS
+  // Add a fake index for GPS at the end if enabled.
+  if (_msg_ix == msg_count && _task->getGPSState()) {
+    msg_count += 1;
+    _kind = MsgKind::GPS;
+  }
+#endif
+
+  _msg_ix = _msg_ix % msg_count;
 }
 
 void QuickMsgScreen::nextChannel() {
@@ -116,8 +129,24 @@ void QuickMsgScreen::sendMessage() {
 }
 
 const char* QuickMsgScreen::getMessageText() {
-  // TODO: special messages like GPS position and node name.
-  return messages[_msg_ix];
+#if ENV_INCLUDE_GPS
+  if (_kind == MsgKind::GPS) {
+    LocationProvider* nmea = sensors.getLocationProvider();
+    if (!nmea) {
+      sprintf(_msg_text, "GPS Error");
+    } else {
+      if (nmea->isValid()) {
+        sprintf(_msg_text, "%.4f %.4f", 
+          nmea->getLatitude()/1000000., nmea->getLongitude()/1000000.);
+      } else {
+        sprintf(_msg_text, "No GPS fix");
+      }
+    }
+    return _msg_text;
+  }
+#endif
+
+  return _msg_ix < messages_count ? messages[_msg_ix] : "???";
 }
 
 const char* QuickMsgScreen::getChannelName() {
