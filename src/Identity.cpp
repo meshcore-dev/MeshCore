@@ -50,6 +50,7 @@ LocalIdentity::LocalIdentity(RNG* rng) {
 bool LocalIdentity::readFrom(Stream& s) {
   bool success = (s.readBytes(pub_key, PUB_KEY_SIZE) == PUB_KEY_SIZE);
   success = success && (s.readBytes(prv_key, PRV_KEY_SIZE) == PRV_KEY_SIZE);
+  memset(seed, 0, SEED_SIZE);
   if (success) {
     s.readBytes(seed, SEED_SIZE);
   }
@@ -76,13 +77,13 @@ size_t LocalIdentity::writePubkeyTo(uint8_t* dest, size_t max_len) {
 
 size_t LocalIdentity::writePrvkeyTo(uint8_t* dest, size_t max_len) {
   if (max_len < PRV_KEY_SIZE) return 0;  // not big enough
-  memcpy(dest, pub_key, PRV_KEY_SIZE);
+  memcpy(dest, prv_key, PRV_KEY_SIZE);
   return PRV_KEY_SIZE;
 }
 
 size_t LocalIdentity::writeSeedTo(uint8_t* dest, size_t max_len) {
   if (max_len < SEED_SIZE) return 0;  // not big enough
-  memcpy(dest, pub_key, SEED_SIZE);
+  memcpy(dest, seed, SEED_SIZE);
   return SEED_SIZE;
 }
 
@@ -90,10 +91,12 @@ void LocalIdentity::readFrom(const uint8_t* src, size_t len) {
   if (len == PRV_KEY_SIZE + PUB_KEY_SIZE) {  // has prv + pub keys
     memcpy(prv_key, src, PRV_KEY_SIZE);
     memcpy(pub_key, &src[PRV_KEY_SIZE], PUB_KEY_SIZE);
+    memset(seed, 0, SEED_SIZE);
   } else if (len == PRV_KEY_SIZE) {
     memcpy(prv_key, src, PRV_KEY_SIZE);
     // now need to re-calculate the pub_key
     ed25519_derive_pub(pub_key, prv_key);
+    memset(seed, 0, SEED_SIZE);
   } else if (len == SEED_SIZE) {
     memcpy(seed, src, SEED_SIZE);
     // re-generate the keypair from the given seed
