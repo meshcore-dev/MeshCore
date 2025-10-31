@@ -80,10 +80,13 @@ void QuickMsgScreen::nextMessage() {
   ++_msg_ix;
 
 #if ENV_INCLUDE_GPS
-  // Add a fake index for GPS at the end if enabled.
-  if (_msg_ix == msg_count && _task->getGPSState()) {
+  if (_task->getGPSState()) {
+    // Index at end of messages, add fake GPS entry.
+    if (_msg_ix == msg_count)
+      _kind = MsgKind::GPS;
+
+    // Account for the fake entry.
     msg_count += 1;
-    _kind = MsgKind::GPS;
   }
 #endif
 
