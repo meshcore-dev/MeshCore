@@ -5,15 +5,11 @@
 #include <helpers/ChannelDetails.h>
 #include "NodePrefs.h"
 
-struct ChannelFlags {
-    bool noStore : 1;
-    uint8_t reserved : 7;  // remaining 7 bits unused
-};
-
 struct ChannelHeader {
-    ChannelFlags flags;
+    mesh::ChannelFlags flags;
     uint8_t unused[3];
 };
+static_assert(sizeof(ChannelHeader) == 4, "ChannelHeader must be 4 bytes");
 
 class DataStoreHost {
 public:
