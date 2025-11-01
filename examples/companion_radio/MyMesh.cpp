@@ -423,7 +423,12 @@ void MyMesh::onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packe
   }
   memcpy(&out_frame[i], text, tlen);
   i += tlen;
-  addToOfflineQueue(out_frame, i);
+
+  if (channel.flags.noStore && !_serial->isConnected()) {
+    MESH_DEBUG_PRINTLN("INFO: not storing message for noStore channel");
+  } else {
+    addToOfflineQueue(out_frame, i);
+  }
 
   if (_serial->isConnected()) {
     uint8_t frame[1];

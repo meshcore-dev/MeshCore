@@ -5,6 +5,16 @@
 #include <helpers/ChannelDetails.h>
 #include "NodePrefs.h"
 
+struct ChannelFlags {
+    bool noStore : 1;
+    uint8_t reserved : 7;  // remaining 7 bits unused
+};
+
+struct ChannelHeader {
+    ChannelFlags flags;
+    uint8_t unused[3];
+};
+
 class DataStoreHost {
 public:
   virtual bool onContactLoaded(const ContactInfo& contact) =0;

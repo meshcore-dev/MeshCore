@@ -4,10 +4,16 @@
 
 namespace mesh {
 
+struct ChannelFlags {
+    bool noStore : 1;
+    uint8_t reserved : 7;  // remaining 7 bits unused
+};
+
 class GroupChannel {
 public:
   uint8_t hash[PATH_HASH_SIZE];
   uint8_t secret[PUB_KEY_SIZE];
+  ChannelFlags flags;
 };
 
 /**
