@@ -53,7 +53,7 @@ bool QuickMsgScreen::handleInput(char c) {
       _row = (_row + 1) % Row::Count;
       return true;
 
-    // Update value/Use button
+    // Next value/Use button
     case KEY_NEXT:
     case KEY_RIGHT:
       if (_row == Row::MSG)
@@ -62,6 +62,16 @@ bool QuickMsgScreen::handleInput(char c) {
         nextChannel();
       else if (_row == Row::SEND)
         sendMessage();
+      else
+        MESH_DEBUG_PRINTLN("Bad row index");
+      return true;
+
+    // Prev value
+    case KEY_SELECT:
+      if (_row == Row::MSG)
+        nextMessage(/*fwd=*/false);
+      else if (_row == Row::CHANNEL)
+        nextChannel(/*fwd=*/false);
       else
         MESH_DEBUG_PRINTLN("Bad row index");
       return true;
@@ -74,39 +84,46 @@ bool QuickMsgScreen::handleInput(char c) {
   return false;
 }
 
-void QuickMsgScreen::nextMessage() {
+void QuickMsgScreen::nextMessage(bool fwd) {
   auto msg_count = messages_count;
-  _kind = MsgKind::TEXT;
-  ++_msg_ix;
 
 #if ENV_INCLUDE_GPS
-  if (_task->getGPSState()) {
-    // Index at end of messages, add fake GPS entry.
-    if (_msg_ix == msg_count)
-      _kind = MsgKind::GPS;
-
-    // Account for the fake entry.
+  // Make fake index for GPS if enabled.
+  if (_task->getGPSState())
     msg_count += 1;
-  }
 #endif
 
-  _msg_ix = _msg_ix % msg_count;
+  _kind = MsgKind::TEXT;
+  _msg_ix = (_msg_ix + (fwd ? 1 : msg_count - 1)) % msg_count;
+
+#if ENV_INCLUDE_GPS
+  // Index at end of messages, add fake GPS entry.
+  if (_msg_ix == messages_count)
+    _kind = MsgKind::GPS;
+#endif
 }
 
-void QuickMsgScreen::nextChannel() {
+void QuickMsgScreen::nextChannel(bool fwd) {
 #ifndef MAX_GROUP_CHANNELS
   _channel_ix = 0;
   return;
 #else
   ChannelDetails details;
-  _channel_ix = _channel_ix + 1 % MAX_GROUP_CHANNELS;
-
+  _channel_ix = (_channel_ix + (fwd ? 1 : MAX_GROUP_CHANNELS - 1)) % MAX_GROUP_CHANNELS;
   the_mesh.getChannel(_channel_ix, details);
 
-  // Channel slots are static, only cycle through valid entries.
-  if (strlen(details.name) == 0)
-    _channel_ix = 0;
-  else
+  if (fwd) {
+    // Moving forward. Reset to 0 on first invalid channel.
+    if (details.name[0] == 0)
+      _channel_ix = 0;
+  } else {
+    // Moving backward. Find a valid channel or 0.
+    while (_channel_ix > 0 && details.name[0] == 0)
+      the_mesh.getChannel(--_channel_ix, details);
+  }
+
+  // Copy valid names to the UI buffer.
+  if (details.name[0] != 0)
     strcpy(_channel_name, details.name);
 #endif
 }

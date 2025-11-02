@@ -32,8 +32,8 @@ class QuickMsgScreen : public UIScreen {
   char _msg_text[32];  // Buffer for dynamic messages.
 #endif
 
-  void nextMessage();
-  void nextChannel();
+  void nextMessage(bool fwd = true);
+  void nextChannel(bool fwd = true);
   void sendMessage();
 
   const char* getMessageText();
