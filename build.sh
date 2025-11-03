@@ -13,6 +13,7 @@ Commands:
   build-companion-firmwares: Build all companion firmwares for all build targets.
   build-repeater-firmwares: Build all repeater firmwares for all build targets.
   build-room-server-firmwares: Build all chat room server firmwares for all build targets.
+  test: Run test on the given target (typically 'native')
 
 Examples:
 Build firmware for the "RAK_4631_repeater" device target
@@ -68,9 +69,7 @@ get_pio_envs_ending_with_string() {
   done
 }
 
-# build firmware for the provided pio env in $1
-build_firmware() {
-
+set_build_env() {
   # get git commit sha
   COMMIT_HASH=$(git rev-parse --short HEAD)
 
@@ -87,12 +86,16 @@ build_firmware() {
   # e.g: v1.0.0-abcdef
   FIRMWARE_VERSION_STRING="${FIRMWARE_VERSION}-${COMMIT_HASH}"
 
+  # add firmware version info to end of existing platformio build flags in environment vars
+  export PLATFORMIO_BUILD_FLAGS="${PLATFORMIO_BUILD_FLAGS} -DFIRMWARE_BUILD_DATE='\"${FIRMWARE_BUILD_DATE}\"' -DFIRMWARE_VERSION='\"${FIRMWARE_VERSION_STRING}\"'"
+}
+
+# build firmware for the provided pio env in $1
+build_firmware() {
+
   # craft filename
   # e.g: RAK_4631_Repeater-v1.0.0-SHA
   FIRMWARE_FILENAME="$1-${FIRMWARE_VERSION_STRING}"
-
-  # add firmware version info to end of existing platformio build flags in environment vars
-  export PLATFORMIO_BUILD_FLAGS="${PLATFORMIO_BUILD_FLAGS} -DFIRMWARE_BUILD_DATE='\"${FIRMWARE_BUILD_DATE}\"' -DFIRMWARE_VERSION='\"${FIRMWARE_VERSION_STRING}\"'"
 
   # build firmware target
   pio run -e $1
@@ -189,6 +192,18 @@ build_firmwares() {
   build_room_server_firmwares
 }
 
+run_tests() {
+  envs=($(get_pio_envs_containing_string "$1"))
+  for env in "${envs[@]}"; do
+      run_test $env
+  done
+}
+
+run_test() {
+  set_build_env
+  pio test -e $1
+}
+
 # clean build dir
 rm -rf out
 mkdir -p out
@@ -219,4 +234,6 @@ elif [[ $1 == "build-repeater-firmwares" ]]; then
   build_repeater_firmwares
 elif [[ $1 == "build-room-server-firmwares" ]]; then
   build_room_server_firmwares
+elif [[ $1 == "test" ]] ; then
+  run_tests "$2"
 fi
