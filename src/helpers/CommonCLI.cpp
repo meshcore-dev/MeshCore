@@ -381,8 +381,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         StrHelper::strncpy(_prefs->guest_password, &config[15], sizeof(_prefs->guest_password));
         savePrefs();
         strcpy(reply, "OK");
-      } else if (sender_timestamp == 0 &&
-                 memcmp(config, "prv.key ", 8) == 0) { // from serial command line only
+      } else if (memcmp(config, "prv.key ", 8) == 0) {
         uint8_t prv_key[PRV_KEY_SIZE];
         bool success = mesh::Utils::fromHex(prv_key, PRV_KEY_SIZE, &config[8]);
         if (success) {
@@ -541,7 +540,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
       }
     } else if (memcmp(command, "sensor set ", 11) == 0) {
       strcpy(tmp, &command[11]);
-      const char *parts[2]; 
+      const char *parts[2];
       int num = mesh::Utils::parseTextParts(tmp, parts, 2, ' ');
       const char *key = (num > 0) ? parts[0] : "";
       const char *value = (num > 1) ? parts[1] : "null";
@@ -564,7 +563,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         dp = strchr(dp, 0);
         int i;
         for (i = start; i < end && (dp-reply < 134); i++) {
-          sprintf(dp, "%s=%s\n", 
+          sprintf(dp, "%s=%s\n",
             _sensors->getSettingName(i),
             _sensors->getSettingValue(i));
           dp = strchr(dp, 0);
@@ -641,8 +640,8 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         bool active = !strcmp(_sensors->getSettingByKey("gps"), "1");
         if (enabled) {
           sprintf(reply, "on, %s, %s, %d sats",
-            active?"active":"deactivated", 
-            fix?"fix":"no fix", 
+            active?"active":"deactivated",
+            fix?"fix":"no fix",
             sats);
         } else {
           strcpy(reply, "off");
