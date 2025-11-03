@@ -110,6 +110,10 @@ void setup() {
 
   board.begin();
 
+  // Companion radio doesn't need to wake up for listening packets after shutdown
+  // since it doesn't perform retransmission functions
+  board.setEnableWakeup(false);
+  
 #ifdef DISPLAY_CLASS
   DisplayDriver* disp = NULL;
   if (display.begin()) {
