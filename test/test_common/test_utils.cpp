@@ -65,6 +65,29 @@ TEST(UtilTests, isHexChar)
   EXPECT_FALSE(mesh::Utils::isHexChar('\x0'));
 }
 
+TEST(UtilTests, parseTextParts)
+{
+  char text[10];
+  memset(text, 0, sizeof(text));
+  const char *parts[10];
+  ASSERT_EQ(mesh::Utils::parseTextParts("", &parts[0], 10, ','), 0);
+
+  strcpy(text, "a");
+  ASSERT_EQ(mesh::Utils::parseTextParts(text, &parts[0], 10, ','), 1);
+  ASSERT_STREQ(parts[0], "a");
+
+  strcpy(text, "b,c");
+  ASSERT_EQ(mesh::Utils::parseTextParts(text, &parts[0], 10, ','), 2);
+  ASSERT_STREQ(parts[0], "b");
+  ASSERT_STREQ(parts[1], "c");
+
+  // This isn't normal string splitter behavior, but it's intentional
+  strcpy(text, "c,d,");
+  ASSERT_EQ(mesh::Utils::parseTextParts(text, &parts[0], 10, ','), 2);
+  ASSERT_STREQ(parts[0], "c");
+  ASSERT_STREQ(parts[1], "d");
+}
+
 #if defined(ARDUINO)
 #include <Arduino.h>
 
