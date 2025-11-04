@@ -5,12 +5,12 @@
 using namespace mesh;
 
 
-TEST(NopTest, UtilTests)
+TEST(UtilTests, NopTest)
 {
     EXPECT_EQ(1, 1);
 }
 
-TEST(SHA256, UtilTests)
+TEST(UtilTests, SHA256)
 {
   uint8_t hash[257];
 	memset(hash, 0, sizeof(hash));
@@ -20,7 +20,7 @@ TEST(SHA256, UtilTests)
 			(char*)"\x2c\x26\xb4\x6b\x68\xff\xc6\x8f\xf9\x9b\x45\x3c\x1d\x30\x41\x34\x13\x42\x2d\x70\x64\x83\xbf\xa0\xf9\x8a\x5e\x88\x62\x66\xe7\xae");
 }
 
-TEST(ToHex, UtilTests)
+TEST(UtilTests, toHex)
 {
   char dst[20];
   uint8_t src[] = "\x01\x7f\x80\xff";
