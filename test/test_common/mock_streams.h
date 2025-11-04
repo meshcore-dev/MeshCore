@@ -24,8 +24,13 @@ public:
     return 1;
   }
 
+  size_t write(const uint8_t *src, size_t size) override {
+    memcpy(buffer, src, size);
+    pos += size;
+    return size;
+  }
+
   MOCK_METHOD(int, available, (), (override));
-  MOCK_METHOD(size_t, write, (const uint8_t *buffer, size_t size), (override));
   MOCK_METHOD(int, availableForWrite, (), (override));
   MOCK_METHOD(int, read, (), (override));
   MOCK_METHOD(int, peek, (), (override));
