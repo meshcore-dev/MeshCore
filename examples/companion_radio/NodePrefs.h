@@ -24,4 +24,5 @@ struct NodePrefs {  // persisted to file
   float rx_delay_base;
   uint32_t ble_pin;
   uint8_t  advert_loc_policy;
+  uint8_t  enable_wakeup;  // 1 = allow wakeup from LoRa/timer, 0 = only RESET button
 };

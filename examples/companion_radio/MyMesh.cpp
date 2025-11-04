@@ -664,6 +664,10 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
   dirty_contacts_expiry = 0;
   memset(advert_paths, 0, sizeof(advert_paths));
 
+  // Auto-sleep initialization
+  auto_sleep_timer = 0;
+  auto_sleep_enabled = false;
+
   // defaults
   memset(&_prefs, 0, sizeof(_prefs));
   _prefs.airtime_factor = 1.0; // one half
@@ -673,6 +677,7 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
   _prefs.bw = LORA_BW;
   _prefs.cr = LORA_CR;
   _prefs.tx_power_dbm = LORA_TX_POWER;
+  _prefs.enable_wakeup = 0;  // not allow wakeup by default
   //_prefs.rx_delay_base = 10.0f;  enable once new algo fixed
 }
 
@@ -737,6 +742,15 @@ void MyMesh::begin(bool has_display) {
 
   radio_set_params(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
   radio_set_tx_power(_prefs.tx_power_dbm);
+
+  // Enable auto-sleep if woken up by LoRa packet reception
+  auto_sleep_enabled = (board.getStartupReason() == BD_STARTUP_RX_PACKET);
+  if (auto_sleep_enabled) {
+    auto_sleep_timer = futureMillis(AUTO_SLEEP_TIMEOUT_MS);
+  }
+
+  // Apply wakeup preference to board
+  board.setEnableWakeup(_prefs.enable_wakeup != 0);
 }
 
 const char *MyMesh::getNodeName() {
@@ -1520,6 +1534,21 @@ void MyMesh::checkCLIRescueCmd() {
         _prefs.ble_pin = atoi(&config[4]);
         savePrefs();
         Serial.printf("  > pin is now %06d\n", _prefs.ble_pin);
+      } else if (memcmp(config, "wakeup ", 7) == 0) {
+        const char* value = &config[7];
+        if (strcmp(value, "on") == 0 || strcmp(value, "1") == 0) {
+          _prefs.enable_wakeup = 1;
+          savePrefs();
+          board.setEnableWakeup(true);  // apply immediately
+          Serial.println("  > wakeup enabled (LoRa can wake device)");
+        } else if (strcmp(value, "off") == 0 || strcmp(value, "0") == 0) {
+          _prefs.enable_wakeup = 0;
+          savePrefs();
+          board.setEnableWakeup(false);  // apply immediately
+          Serial.println("  > wakeup disabled (only RESET button can wake)");
+        } else {
+          Serial.printf("  Error: invalid value '%s', use 'on' or 'off'\n", value);
+        }
       } else {
         Serial.printf("  Error: unknown config: %s\n", config);
       }
@@ -1661,8 +1690,19 @@ void MyMesh::checkCLIRescueCmd() {
 
     } else if (strcmp(cli_command, "reboot") == 0) {
       board.reboot();  // doesn't return
+    } else if (strcmp(cli_command, "help") == 0 || strcmp(cli_command, "?") == 0) {
+      Serial.println("Available commands:");
+      Serial.println("  set pin <code>       - change BLE PIN code");
+      Serial.println("  set wakeup on/off    - enable/disable wakeup from LoRa");
+      Serial.println("  rebuild              - erase and rebuild filesystem");
+      Serial.println("  erase                - erase filesystem");
+      Serial.println("  ls [path]            - list files (UserData/ or ExtraFS/)");
+      Serial.println("  cat <path>           - show file content (hex)");
+      Serial.println("  rm <path>            - remove file");
+      Serial.println("  reboot               - reboot device");
+      Serial.println("  help or ?            - show this help");
     } else {
-      Serial.println("  Error: unknown command");
+      Serial.println("  Error: unknown command (type 'help' for commands)");
     }
 
     cli_command[0] = 0;  // reset command buffer
@@ -1711,9 +1751,25 @@ void MyMesh::loop() {
     dirty_contacts_expiry = 0;
   }
 
+  // check auto-sleep timer
+  if (auto_sleep_enabled && millisHasNowPassed(auto_sleep_timer)) {
+    MESH_DEBUG_PRINTLN("[MyMesh] Auto-sleep timeout, entering deep sleep");
+    board.powerOff();  // enter deep sleep with LoRa wakeup
+  }
+
 #ifdef DISPLAY_CLASS
   if (_ui) _ui->setHasConnection(_serial->isConnected());
 #endif
+}
+
+mesh::DispatcherAction MyMesh::onRecvPacket(mesh::Packet* pkt) {
+  // reset timer on any packet activity
+  if (auto_sleep_enabled) {
+    MESH_DEBUG_PRINTLN("[MyMesh] Packet received, resetting auto-sleep timer");
+    auto_sleep_timer = futureMillis(AUTO_SLEEP_TIMEOUT_MS);
+  }
+
+  return BaseChatMesh::onRecvPacket(pkt);  // call parent implementation
 }
 
 bool MyMesh::advert() {

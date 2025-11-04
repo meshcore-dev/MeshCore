@@ -111,15 +111,17 @@ void setup() {
   board.begin();
 
 #ifdef DISPLAY_CLASS
-  DisplayDriver* disp = NULL;
-  if (display.begin()) {
-    disp = &display;
-    disp->startFrame();
-  #ifdef ST7789
-    disp->setTextSize(2);
-  #endif
-    disp->drawTextCentered(disp->width() / 2, 28, "Loading...");
-    disp->endFrame();
+    DisplayDriver *disp = NULL;
+  if (board.getStartupReason() != BD_STARTUP_RX_PACKET) {
+    if (display.begin()) {
+      disp = &display;
+      disp->startFrame();
+#ifdef ST7789
+      disp->setTextSize(2);
+#endif
+      disp->drawTextCentered(disp->width() / 2, 28, "Loading...");
+      disp->endFrame();
+    }
   }
 #endif
 

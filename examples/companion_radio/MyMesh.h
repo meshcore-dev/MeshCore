@@ -75,6 +75,9 @@
 #define REQ_TYPE_KEEP_ALIVE             0x02
 #define REQ_TYPE_GET_TELEMETRY_DATA     0x03
 
+/*------------ Auto-sleep Configuration --------------*/
+#define AUTO_SLEEP_TIMEOUT_MS 5000  // 5 seconds
+
 struct AdvertPath {
   uint8_t pubkey_prefix[7];
   uint8_t path_len;
@@ -102,6 +105,7 @@ public:
   int  getRecentlyHeard(AdvertPath dest[], int max_num);
 
 protected:
+  mesh::DispatcherAction onRecvPacket(mesh::Packet* pkt) override;
   float getAirtimeBudgetFactor() const override;
   int getInterferenceThreshold() const override;
   int calcRxDelay(float score, uint32_t air_time) const override;
@@ -215,6 +219,10 @@ private:
 
   #define ADVERT_PATH_TABLE_SIZE   16
   AdvertPath advert_paths[ADVERT_PATH_TABLE_SIZE]; // circular table
+
+  // Auto-sleep state
+  unsigned long auto_sleep_timer;
+  bool auto_sleep_enabled;
 };
 
 extern MyMesh the_mesh;
