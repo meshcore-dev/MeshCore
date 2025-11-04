@@ -3,10 +3,10 @@
 #include <Stream.h>
 #include <string>
 
+#include "mock_streams.h"
 #include "Utils.h"
 
 using namespace mesh;
-using ::testing::InSequence;
 
 
 TEST(UtilTests, NopTest)
@@ -102,34 +102,6 @@ TEST(UtilTests, parseTextParts)
   ASSERT_STREQ(parts[0], "f");
   ASSERT_STREQ(parts[1], "g");
 }
-
-class MockStream : public Stream {
-public:
-  uint8_t *buffer;
-  size_t pos;
-  MockStream(uint8_t *b)
-  :buffer(b),pos(0)
-  {
-    buffer[0] = 0;
-  }
-
-  void clear() {
-    pos = 0;
-    buffer[0] = 0;
-  }
-
-  size_t write(uint8_t c) {
-    buffer[pos++] = c;
-    buffer[pos] = 0;
-    return 1;
-  }
-
-  MOCK_METHOD(int, available, (), (override));
-  MOCK_METHOD(size_t, write, (const uint8_t *buffer, size_t size), (override));
-  MOCK_METHOD(int, availableForWrite, (), (override));
-  MOCK_METHOD(int, read, (), (override));
-  MOCK_METHOD(int, peek, (), (override));
-};
 
 TEST(UtilTests, printHex)
 {
