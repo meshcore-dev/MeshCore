@@ -23,6 +23,7 @@ TEST(IdentityTests, Identity)
   ASSERT_TRUE(id.readFrom(cs));
 
   uint8_t buffer[80];
+  memset(buffer, 0, sizeof(buffer));
   MockStream bs(&buffer[0]);
   ASSERT_TRUE(id.writeTo(bs));
   ASSERT_STREQ((const char *)bs.buffer, (const char *)pubhex);
