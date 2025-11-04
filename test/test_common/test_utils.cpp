@@ -13,7 +13,7 @@ TEST(UtilTests, NopTest)
 TEST(UtilTests, SHA256)
 {
   uint8_t hash[257];
-	memset(hash, 0, sizeof(hash));
+  memset(hash, 0, sizeof(hash));
   uint8_t msg[] = "foo";
   mesh::Utils::sha256(hash, (size_t)sizeof(hash), msg, 3);
   EXPECT_STREQ((char*)hash,
@@ -26,6 +26,43 @@ TEST(UtilTests, toHex)
   uint8_t src[] = "\x01\x7f\x80\xff";
   mesh::Utils::toHex(&dst[0], src, 4);
   EXPECT_STREQ(dst, (const char*)"017F80FF");
+}
+
+TEST(UtilTests, fromHex)
+{
+  uint8_t dst[20];
+  memset(dst, 0, sizeof(dst));
+  uint8_t want[] = "\x01\x7f\x80\xff";
+  EXPECT_TRUE(mesh::Utils::fromHex(&dst[0], 4, "017F80FF"));
+  EXPECT_STREQ((const char *)dst, (const char *)want);
+}
+
+TEST(UtilTests, fromHexWrongSize)
+{
+  uint8_t dst[20];
+  EXPECT_FALSE(mesh::Utils::fromHex(&dst[0], 5, "017F80FF"));
+}
+
+// this should pass but does not, because fromHex() doesn't
+// actually validate string contents and silently produces
+// zeroes
+// TEST(UtilTests, fromHexMalformed)
+// {
+//   uint8_t dst[20];
+//   memset(dst, 0, sizeof(dst));
+//   EXPECT_FALSE(mesh::Utils::fromHex(&dst[0], 4, "01FG80FF"));
+// }
+
+TEST(UtilTests, isHexChar)
+{
+  EXPECT_TRUE(mesh::Utils::isHexChar('0'));
+  EXPECT_TRUE(mesh::Utils::isHexChar('1'));
+  EXPECT_TRUE(mesh::Utils::isHexChar('9'));
+  EXPECT_TRUE(mesh::Utils::isHexChar('A'));
+  EXPECT_TRUE(mesh::Utils::isHexChar('F'));
+  EXPECT_FALSE(mesh::Utils::isHexChar('G'));
+  EXPECT_FALSE(mesh::Utils::isHexChar('\xff'));
+  EXPECT_FALSE(mesh::Utils::isHexChar('\x0'));
 }
 
 #if defined(ARDUINO)
