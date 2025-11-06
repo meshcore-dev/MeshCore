@@ -105,10 +105,8 @@ TEST(UtilTests, parseTextParts)
 
 TEST(UtilTests, printHex)
 {
-  uint8_t out[10];
-  MockStream s(&out[0]);
-
+  MockStream s;
   const uint8_t src[] = "\x00\x7f\xab\xff";
   mesh::Utils::printHex(s, src, 4);
-  EXPECT_STREQ((const char *)out, "007FABFF");
+  EXPECT_STREQ((const char *)s.buffer, "007FABFF");
 }
