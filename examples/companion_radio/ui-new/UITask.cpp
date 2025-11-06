@@ -3,6 +3,10 @@
 #include "../MyMesh.h"
 #include "target.h"
 
+#if UI_QUICK_MSG
+#include "QuickMsg.h"
+#endif
+
 #ifndef AUTO_OFF_MILLIS
   #define AUTO_OFF_MILLIS     15000   // 15 seconds
 #endif
@@ -18,12 +22,6 @@
 
 #ifndef UI_RECENT_LIST_SIZE
   #define UI_RECENT_LIST_SIZE 4
-#endif
-
-#if UI_HAS_JOYSTICK
-  #define PRESS_LABEL "press Enter"
-#else
-  #define PRESS_LABEL "long press"
 #endif
 
 #include "icons.h"
@@ -84,6 +82,9 @@ class HomeScreen : public UIScreen {
 #endif
 #if UI_SENSORS_PAGE == 1
     SENSORS,
+#endif
+#if UI_QUICK_MSG
+    QUICK_MSG,
 #endif
     SHUTDOWN,
     Count    // keep as last
@@ -357,6 +358,14 @@ public:
       if (sensors_scroll) sensors_scroll_offset = (sensors_scroll_offset+1)%sensors_nb;
       else sensors_scroll_offset = 0;
 #endif
+#if UI_QUICK_MSG
+    } else if (_page == HomePage::QUICK_MSG) {
+      display.setColor(DisplayDriver::YELLOW);
+      display.setTextSize(2);
+      display.drawTextCentered(display.width() / 2, 24, "quick messages");
+      display.setTextSize(1);
+      display.drawTextCentered(display.width() / 2, 40, "enter/exit: " PRESS_LABEL);
+#endif
     } else if (_page == HomePage::SHUTDOWN) {
       display.setColor(DisplayDriver::GREEN);
       display.setTextSize(1);
@@ -364,7 +373,7 @@ public:
         display.drawTextCentered(display.width() / 2, 34, "hibernating...");
       } else {
         display.drawXbm((display.width() - 32) / 2, 18, power_icon, 32, 32);
-        display.drawTextCentered(display.width() / 2, 64 - 11, "hibernate:" PRESS_LABEL);
+        display.drawTextCentered(display.width() / 2, 64 - 11, "hibernate: " PRESS_LABEL);
       }
     }
     return 5000;   // next render after 5000 ms
@@ -409,6 +418,12 @@ public:
     if (c == KEY_ENTER && _page == HomePage::SENSORS) {
       _task->toggleGPS();
       next_sensors_refresh=0;
+      return true;
+    }
+#endif
+#if UI_QUICK_MSG
+    if (c == KEY_ENTER && _page == HomePage::QUICK_MSG) {
+      _task->gotoQuickMsgScreen();
       return true;
     }
 #endif
@@ -544,6 +559,9 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
   splash = new SplashScreen(this);
   home = new HomeScreen(this, &rtc_clock, sensors, node_prefs);
   msg_preview = new MsgPreviewScreen(this, &rtc_clock);
+#if UI_QUICK_MSG
+  quick_msg = new QuickMsgScreen(this);
+#endif
   setCurrScreen(splash);
 }
 
@@ -663,52 +681,51 @@ bool UITask::isButtonPressed() const {
 }
 
 void UITask::loop() {
-  char c = 0;
 #if UI_HAS_JOYSTICK
   int ev = user_btn.check();
   if (ev == BUTTON_EVENT_CLICK) {
-    c = checkDisplayOn(KEY_ENTER);
+    handleSingleClick(KEY_ENTER);
   } else if (ev == BUTTON_EVENT_LONG_PRESS) {
-    c = handleLongPress(KEY_ENTER);  // REVISIT: could be mapped to different key code
+    handleLongPress(KEY_ENTER);  // REVISIT: could be mapped to different key code
   }
   ev = joystick_left.check();
   if (ev == BUTTON_EVENT_CLICK) {
-    c = checkDisplayOn(KEY_LEFT);
+    handleSingleClick(KEY_LEFT);
   } else if (ev == BUTTON_EVENT_LONG_PRESS) {
-    c = handleLongPress(KEY_LEFT);
+    handleLongPress(KEY_LEFT);
   }
   ev = joystick_right.check();
   if (ev == BUTTON_EVENT_CLICK) {
-    c = checkDisplayOn(KEY_RIGHT);
+    handleSingleClick(KEY_RIGHT);
   } else if (ev == BUTTON_EVENT_LONG_PRESS) {
-    c = handleLongPress(KEY_RIGHT);
+    handleLongPress(KEY_RIGHT);
   }
   ev = back_btn.check();
   if (ev == BUTTON_EVENT_TRIPLE_CLICK) {
-    c = handleTripleClick(KEY_SELECT);
+    handleTripleClick(KEY_SELECT);
   }
 #elif defined(PIN_USER_BTN)
   int ev = user_btn.check();
   if (ev == BUTTON_EVENT_CLICK) {
-    c = checkDisplayOn(KEY_NEXT);
+    handleSingleClick(KEY_NEXT);
   } else if (ev == BUTTON_EVENT_LONG_PRESS) {
-    c = handleLongPress(KEY_ENTER);
+    handleLongPress(KEY_ENTER);
   } else if (ev == BUTTON_EVENT_DOUBLE_CLICK) {
-    c = handleDoubleClick(KEY_PREV);
+    handleDoubleClick(KEY_PREV);
   } else if (ev == BUTTON_EVENT_TRIPLE_CLICK) {
-    c = handleTripleClick(KEY_SELECT);
+    handleTripleClick(KEY_SELECT);
   }
 #endif
 #if defined(PIN_USER_BTN_ANA)
   ev = analog_btn.check();
   if (ev == BUTTON_EVENT_CLICK) {
-    c = checkDisplayOn(KEY_NEXT);
+    handleSingleClick(KEY_NEXT);
   } else if (ev == BUTTON_EVENT_LONG_PRESS) {
-    c = handleLongPress(KEY_ENTER);
+    handleLongPress(KEY_ENTER);
   } else if (ev == BUTTON_EVENT_DOUBLE_CLICK) {
-    c = handleDoubleClick(KEY_PREV);
+    handleDoubleClick(KEY_PREV);
   } else if (ev == BUTTON_EVENT_TRIPLE_CLICK) {
-    c = handleTripleClick(KEY_SELECT);
+    handleTripleClick(KEY_SELECT);
   }
 #endif
 #if defined(DISP_BACKLIGHT) && defined(BACKLIGHT_BTN)
@@ -718,12 +735,6 @@ void UITask::loop() {
     next_backlight_btn_check = millis() + 300;
   }
 #endif
-
-  if (c != 0 && curr) {
-    curr->handleInput(c);
-    _auto_off = millis() + AUTO_OFF_MILLIS;   // extend auto-off timer
-    _next_refresh = 100;  // trigger refresh
-  }
 
   userLedHandler();
 
@@ -789,38 +800,56 @@ void UITask::loop() {
 #endif
 }
 
-char UITask::checkDisplayOn(char c) {
+bool UITask::checkDisplayOn() {
+  // ensures that the display is on and the timer is reset
+  // returns false if the display was previously off
+  bool display_on = false;
   if (_display != NULL) {
     if (!_display->isOn()) {
-      _display->turnOn();   // turn display on and consume event
-      c = 0;
+      _display->turnOn();  // turn display on
+    } else {
+      display_on = true;
     }
-    _auto_off = millis() + AUTO_OFF_MILLIS;   // extend auto-off timer
+    _auto_off = millis() + AUTO_OFF_MILLIS;  // extend auto-off timer
     _next_refresh = 0;  // trigger refresh
   }
-  return c;
+  return display_on;
 }
 
-char UITask::handleLongPress(char c) {
-  if (millis() - ui_started_at < 8000) {   // long press in first 8 seconds since startup -> CLI/rescue
+void UITask::handleLongPress(char c) {
+  if (millis() - ui_started_at < 8000) {  // long press in first 8 seconds since startup -> CLI/rescue
     the_mesh.enterCLIRescue();
-    c = 0;   // consume event
+  } else {
+    MESH_DEBUG_PRINTLN("UITask: long press triggered");
+    uiHandleKey(c);
   }
-  return c;
 }
 
-char UITask::handleDoubleClick(char c) {
+void UITask::handleSingleClick(char c) {
+  MESH_DEBUG_PRINTLN("UITask: single click triggered");
+  uiHandleKey(c);
+}
+
+void UITask::handleDoubleClick(char c) {
   MESH_DEBUG_PRINTLN("UITask: double click triggered");
-  checkDisplayOn(c);
-  return c;
+  uiHandleKey(c);
 }
 
-char UITask::handleTripleClick(char c) {
+void UITask::handleTripleClick(char c) {
   MESH_DEBUG_PRINTLN("UITask: triple click triggered");
-  checkDisplayOn(c);
-  toggleBuzzer();
-  c = 0;
-  return c;
+  if (!uiHandleKey(c)) toggleBuzzer();
+}
+
+bool UITask::uiHandleKey(char c) {
+  bool handled = false;
+  bool display_on = checkDisplayOn();
+
+  if (c != 0 && display_on && curr) {
+    handled = curr->handleInput(c);
+    _auto_off = millis() + AUTO_OFF_MILLIS; // extend auto-off timer
+    _next_refresh = 100;  // trigger refresh
+  }
+  return handled;
 }
 
 bool UITask::getGPSState() {
