@@ -63,8 +63,10 @@ bool T114SensorManager::begin() {
   Serial1.begin(9600);
 
   // Try to detect if GPS is physically connected to determine if we should expose the setting
+  pinMode(VEXT_EN, OUTPUT);
   pinMode(GPS_EN, OUTPUT);
-  digitalWrite(GPS_EN, HIGH);  // Power on GPS
+  digitalWrite(VEXT_EN, HIGH);  // Power on GPS
+  digitalWrite(GPS_EN, HIGH); // GPS_EN is GPS_WAKEUP
 
   // Give GPS a moment to power up and send data
   delay(1500);
@@ -76,6 +78,7 @@ bool T114SensorManager::begin() {
     MESH_DEBUG_PRINTLN("GPS detected");
   } else {
     MESH_DEBUG_PRINTLN("No GPS detected");
+    digitalWrite(VEXT_EN, LOW);
   }
   digitalWrite(GPS_EN, LOW);  // Power off GPS until the setting is changed
 

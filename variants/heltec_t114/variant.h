@@ -115,8 +115,14 @@
 ////////////////////////////////////////////////////////////////////////////////
 // GPS
 
-#define GPS_EN                  (21)
+#define VEXT_EN                 (21)
+
 #define GPS_RESET               (38)
+#define GPS_WAKE_UP             (34)
+#define GPS_PPS                 (36)
+
+// Send GPS to sleep, Vext off still has GPS active
+#define GPS_EN                  GPS_WAKE_UP
 
 ////////////////////////////////////////////////////////////////////////////////
 // TFT
