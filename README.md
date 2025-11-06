@@ -97,10 +97,10 @@ Here are some general principals you should try to adhere to:
 
 There are a number of fairly major features in the pipeline, with no particular time-frames attached yet. In very rough chronological order:
 - [X] Companion radio: UI redesign
-- [ ] Repeater + Room Server: add ACL's (like Sensor Node has)
-- [ ] Standardise Bridge mode for repeaters
+- [X] Repeater + Room Server: add ACL's (like Sensor Node has)
+- [X] Standardise Bridge mode for repeaters
 - [ ] Repeater/Bridge: Standardise the Transport Codes for zoning/filtering
-- [ ] Core + Repeater: enhanced zero-hop neighbour discovery
+- [X] Core + Repeater: enhanced zero-hop neighbour discovery
 - [ ] Core: round-trip manual path support
 - [ ] Companion + Apps: support for multiple sub-meshes (and 'off-grid' client repeat mode)
 - [ ] Core + Apps: support for LZW message compression
