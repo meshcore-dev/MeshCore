@@ -48,8 +48,7 @@ bool QuickMsgScreen::handleInput(char c) {
       return true;
 
     // Move cursor
-    case KEY_PREV:
-    case KEY_LEFT:
+    case KEY_SELECT:
       _row = (_row + 1) % Row::Count;
       return true;
 
@@ -67,7 +66,8 @@ bool QuickMsgScreen::handleInput(char c) {
       return true;
 
     // Prev value
-    case KEY_SELECT:
+    case KEY_PREV:
+    case KEY_LEFT:
       if (_row == Row::MSG)
         nextMessage(/*fwd=*/false);
       else if (_row == Row::CHANNEL)
@@ -113,8 +113,10 @@ void QuickMsgScreen::nextChannel(bool fwd) {
   the_mesh.getChannel(_channel_ix, details);
 
   if (fwd) {
-    // Moving forward. Reset to 0 on first invalid channel.
-    if (details.name[0] == 0)
+    // Moving forward. Find next valid channel or 0.
+    while (_channel_ix < MAX_GROUP_CHANNELS && details.name[0] == 0)
+      the_mesh.getChannel(++_channel_ix, details);
+    if (_channel_ix >= MAX_GROUP_CHANNELS)
       _channel_ix = 0;
   } else {
     // Moving backward. Find a valid channel or 0.
