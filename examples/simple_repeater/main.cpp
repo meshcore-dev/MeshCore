@@ -19,6 +19,11 @@ void halt() {
 
 static char command[160];
 
+#ifdef POWERSAVING_MODE
+  // To keep when the board starts
+  uint32_t boardstart_timestamp = millis();
+#endif
+
 void setup() {
   Serial.begin(115200);
   delay(1000);
@@ -117,4 +122,11 @@ void loop() {
   ui_task.loop();
 #endif
   rtc_clock.tick();
+  
+#ifdef POWERSAVING_MODE
+  // To sleep after working a while
+  if(millis() - boardstart_timestamp > 120000) { // To work for 2 minutes and sleep to save power
+    board.powerOff(); // To sleep and wake up when receiving a LoRa packet
+  }
+#endif
 }
