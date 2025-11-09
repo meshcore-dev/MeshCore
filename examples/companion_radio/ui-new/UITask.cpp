@@ -700,15 +700,18 @@ void UITask::loop() {
   }
 #endif
 #if defined(PIN_USER_BTN_ANA)
-  ev = analog_btn.check();
-  if (ev == BUTTON_EVENT_CLICK) {
-    c = checkDisplayOn(KEY_NEXT);
-  } else if (ev == BUTTON_EVENT_LONG_PRESS) {
-    c = handleLongPress(KEY_ENTER);
-  } else if (ev == BUTTON_EVENT_DOUBLE_CLICK) {
-    c = handleDoubleClick(KEY_PREV);
-  } else if (ev == BUTTON_EVENT_TRIPLE_CLICK) {
-    c = handleTripleClick(KEY_SELECT);
+  if (abs(millis() - _analogue_pin_read_millis) > 10) {
+    ev = analog_btn.check();
+    if (ev == BUTTON_EVENT_CLICK) {
+      c = checkDisplayOn(KEY_NEXT);
+    } else if (ev == BUTTON_EVENT_LONG_PRESS) {
+      c = handleLongPress(KEY_ENTER);
+    } else if (ev == BUTTON_EVENT_DOUBLE_CLICK) {
+      c = handleDoubleClick(KEY_PREV);
+    } else if (ev == BUTTON_EVENT_TRIPLE_CLICK) {
+      c = handleTripleClick(KEY_SELECT);
+    }
+    _analogue_pin_read_millis = millis();
   }
 #endif
 #if defined(DISP_BACKLIGHT) && defined(BACKLIGHT_BTN)

@@ -11,6 +11,7 @@ Inside of each [meshcore packet](./packet_structure.md) is a payload, identified
 * Group text message (unverified).
 * Group datagram (unverified).
 * Multi-part packet
+* Control data packet
 * Custom packet (raw bytes, custom encryption).
 
 This document defines the structure of each of these payload types.
@@ -57,7 +58,7 @@ Appdata Flags
 
 # Acknowledgement
 
-An acknowledgement that a message was received. Note that for returned path messages, an acknowledgement will be sent in the "extra" payload (see [Returned Path](#returned-path)) and not as a discrete ackowledgement. CLI commands do not require an acknowledgement, neither discrete nor extra.
+An acknowledgement that a message was received. Note that for returned path messages, an acknowledgement can be sent in the "extra" payload (see [Returned Path](#returned-path)) instead of as a separate ackowledgement packet. CLI commands do not cause acknowledgement responses, neither discrete nor extra.
 
 | Field    | Size (bytes) | Description                                                |
 |----------|--------------|------------------------------------------------------------|
@@ -140,13 +141,13 @@ Request data about sensors on the node, including battery level.
 
 ## Plain text message
 
-| Field           | Size (bytes)    | Description                                                  |
-|-----------------|-----------------|--------------------------------------------------------------|
-| timestamp       | 4               | send time (unix timestamp)                                   |
-| flags + attempt | 1               | upper six bits are flags (see below), lower two bits are attempt number (0..3) |
-| message         | rest of payload | the message content, see next table                          |
+| Field              | Size (bytes)    | Description                                                  |
+|--------------------|-----------------|--------------------------------------------------------------|
+| timestamp          | 4               | send time (unix timestamp)                                   |
+| txt_type + attempt | 1               | upper six bits are txt_type (see below), lower two bits are attempt number (0..3) |
+| message            | rest of payload | the message content, see next table                          |
 
-Flags
+txt_type
 
 | Value  | Description               | Message content                                            |
 |--------|---------------------------|------------------------------------------------------------|
@@ -163,13 +164,20 @@ Flags
 | cipher MAC       | 2               | MAC for encrypted data in next field      |
 | ciphertext       | rest of payload | encrypted message, see below for details  |
 
-Plaintext message
+## Room server login
 
 | Field          | Size (bytes)    | Description                                                                   |
 |----------------|-----------------|-------------------------------------------------------------------------------|
-| timestamp      | 4               | send time (unix timestamp)                                                    |
-| sync timestamp | 4               | NOTE: room server only! - sender's "sync messages SINCE x" timestamp |
-| password       | rest of message | password for repeater/room                                                    |
+| timestamp      | 4               | sender time (unix timestamp)                                                  |
+| sync timestamp | 4               | sender's "sync messages SINCE x" timestamp                                    |
+| password       | rest of message | password for room                                                             |
+
+## Repeater/Sensor login
+
+| Field          | Size (bytes)    | Description                                                                   |
+|----------------|-----------------|-------------------------------------------------------------------------------|
+| timestamp      | 4               | sender time (unix timestamp)                                                  |
+| password       | rest of message | password for repeater/sensor                                                  |
 
 # Group text message / datagram
 
@@ -182,7 +190,31 @@ Plaintext message
 The plaintext contained in the ciphertext matches the format described in [plain text message](#plain-text-message). Specifically, it consists of a four byte timestamp, a flags byte, and the message. The flags byte will generally be `0x00` because it is a "plain text message". The message will be of the form `<sender name>: <message body>` (eg., `user123: I'm on my way`).
 
 
-TODO: describe what datagram looks like
+# Control data
+
+| Field        | Size (bytes)    | Description                                |
+|--------------|-----------------|--------------------------------------------|
+| flags        | 1               | upper 4 bits is sub_type                   |
+| data         | rest of payload | typically unencrypted data                 |
+
+## DISCOVER_REQ (sub_type)
+
+| Field        | Size (bytes)    | Description                                  |
+|--------------|-----------------|----------------------------------------------|
+| flags        | 1               | 0x8 (upper 4 bits), prefix_only (lowest bit) |
+| type_filter  | 1               | bit for each ADV_TYPE_*                      |
+| tag          | 4               | randomly generate by sender                  |
+| since        | 4               | (optional) epoch timestamp (0 by default)    |
+
+## DISCOVER_RESP (sub_type)
+
+| Field        | Size (bytes)    | Description                                |
+|--------------|-----------------|--------------------------------------------|
+| flags        | 1               | 0x9 (upper 4 bits), node_type (lower 4)    |
+| snr          | 1               | signed, SNR*4                              |
+| tag          | 4               | reflected back from DISCOVER_REQ           |
+| pubkey       | 8 or 32         | node's ID (or prefix)                      |
+
 
 # Custom packet
 

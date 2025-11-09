@@ -50,6 +50,8 @@
 #define CMD_SEND_BINARY_REQ           50
 #define CMD_FACTORY_RESET             51
 #define CMD_SEND_PATH_DISCOVERY_REQ   52
+#define CMD_SET_FLOOD_SCOPE           54   // v8+
+#define CMD_SEND_CONTROL_DATA         55   // v8+
 
 #define RESP_CODE_OK                  0
 #define RESP_CODE_ERR                 1
@@ -99,6 +101,7 @@
 #define PUSH_CODE_TELEMETRY_RESPONSE    0x8B
 #define PUSH_CODE_BINARY_RESPONSE       0x8C
 #define PUSH_CODE_PATH_DISCOVERY_RESPONSE 0x8D
+#define PUSH_CODE_CONTROL_DATA          0x8E   // v8+
 
 #define ERR_CODE_UNSUPPORTED_CMD        1
 #define ERR_CODE_NOT_FOUND              2
@@ -378,6 +381,35 @@ void MyMesh::queueMessage(const ContactInfo &from, uint8_t txt_type, mesh::Packe
 #endif
 }
 
+bool MyMesh::filterRecvFloodPacket(mesh::Packet* packet) {
+  // REVISIT: try to determine which Region (from transport_codes[1]) that Sender is indicating for replies/responses
+  //    if unknown, fallback to finding Region from transport_codes[0], the 'scope' used by Sender
+  return false;
+}
+
+void MyMesh::sendFloodScoped(const ContactInfo& recipient, mesh::Packet* pkt, uint32_t delay_millis) {
+  // TODO: dynamic send_scope, depending on recipient and current 'home' Region
+  if (send_scope.isNull()) {
+    sendFlood(pkt, delay_millis);
+  } else {
+    uint16_t codes[2];
+    codes[0] = send_scope.calcTransportCode(pkt);
+    codes[1] = 0;  // REVISIT: set to 'home' Region, for sender/return region?
+    sendFlood(pkt, codes, delay_millis);
+  }
+}
+void MyMesh::sendFloodScoped(const mesh::GroupChannel& channel, mesh::Packet* pkt, uint32_t delay_millis) {
+  // TODO: have per-channel send_scope
+  if (send_scope.isNull()) {
+    sendFlood(pkt, delay_millis);
+  } else {
+    uint16_t codes[2];
+    codes[0] = send_scope.calcTransportCode(pkt);
+    codes[1] = 0;  // REVISIT: set to 'home' Region, for sender/return region?
+    sendFlood(pkt, codes, delay_millis);
+  }
+}
+
 void MyMesh::onMessageRecv(const ContactInfo &from, mesh::Packet *pkt, uint32_t sender_timestamp,
                            const char *text) {
   markConnectionActive(from); // in case this is from a server, and we have a connection
@@ -601,6 +633,26 @@ bool MyMesh::onContactPathRecv(ContactInfo& contact, uint8_t* in_path, uint8_t i
   return BaseChatMesh::onContactPathRecv(contact, in_path, in_path_len, out_path, out_path_len, extra_type, extra, extra_len);
 }
 
+void MyMesh::onControlDataRecv(mesh::Packet *packet) {
+  if (packet->payload_len + 4 > sizeof(out_frame)) {
+    MESH_DEBUG_PRINTLN("onControlDataRecv(), payload_len too long: %d", packet->payload_len);
+    return;
+  }
+  int i = 0;
+  out_frame[i++] = PUSH_CODE_CONTROL_DATA;
+  out_frame[i++] = (int8_t)(_radio->getLastSNR() * 4);
+  out_frame[i++] = (int8_t)(_radio->getLastRSSI());
+  out_frame[i++] = packet->path_len;
+  memcpy(&out_frame[i], packet->payload, packet->payload_len);
+  i += packet->payload_len;
+
+  if (_serial->isConnected()) {
+    _serial->writeFrame(out_frame, i);
+  } else {
+    MESH_DEBUG_PRINTLN("onControlDataRecv(), data received while app offline");
+  }
+}
+
 void MyMesh::onRawDataRecv(mesh::Packet *packet) {
   if (packet->payload_len + 4 > sizeof(out_frame)) {
     MESH_DEBUG_PRINTLN("onRawDataRecv(), payload_len too long: %d", packet->payload_len);
@@ -668,6 +720,7 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
   sign_data = NULL;
   dirty_contacts_expiry = 0;
   memset(advert_paths, 0, sizeof(advert_paths));
+  memset(send_scope.key, 0, sizeof(send_scope.key));
 
   // defaults
   memset(&_prefs, 0, sizeof(_prefs));
@@ -1489,6 +1542,21 @@ void MyMesh::handleCmdFrame(size_t len) {
       board.reboot();  // doesn't return
     } else {
       writeErrFrame(ERR_CODE_FILE_IO_ERROR);
+    }
+  } else if (cmd_frame[0] == CMD_SET_FLOOD_SCOPE && len >= 2 && cmd_frame[1] == 0) {
+    if (len >= 2 + 16) {
+      memcpy(send_scope.key, &cmd_frame[2], sizeof(send_scope.key));  // set curr scope TransportKey
+    } else {
+      memset(send_scope.key, 0, sizeof(send_scope.key));  // set scope to null
+    }
+    writeOKFrame();
+  } else if (cmd_frame[0] == CMD_SEND_CONTROL_DATA && len >= 2 && (cmd_frame[1] & 0x80) != 0) {
+    auto resp = createControlData(&cmd_frame[1], len - 1);
+    if (resp) {
+      sendZeroHop(resp);
+      writeOKFrame();
+    } else {
+      writeErrFrame(ERR_CODE_TABLE_FULL);
     }
   } else {
     writeErrFrame(ERR_CODE_UNSUPPORTED_CMD);

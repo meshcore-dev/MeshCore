@@ -40,6 +40,10 @@ class UITask : public AbstractUITask {
   int last_led_increment = 0;
 #endif
 
+#ifdef PIN_USER_BTN_ANA
+  unsigned long _analogue_pin_read_millis = millis();
+#endif
+
   UIScreen* splash;
   UIScreen* home;
   UIScreen* msg_preview;

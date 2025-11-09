@@ -15,6 +15,12 @@
 static Adafruit_BME680 BME680;
 #endif
 
+#ifdef ENV_INCLUDE_BMP085
+#define TELEM_BMP085_SEALEVELPRESSURE_HPA (1013.25)
+#include <Adafruit_BMP085.h>
+static Adafruit_BMP085 BMP085;
+#endif
+
 #if ENV_INCLUDE_AHTX0
 #define TELEM_AHTX_ADDRESS      0x38      // AHT10, AHT20 temperature and humidity sensor I2C address
 #include <Adafruit_AHTX0.h>
@@ -305,6 +311,18 @@ bool EnvironmentSensorManager::begin() {
   }
   #endif
 
+  #if ENV_INCLUDE_BMP085
+  // First argument is  MODE (aka oversampling)
+  // choose ULTRALOWPOWER
+  if (BMP085.begin(0, TELEM_WIRE)) {
+    MESH_DEBUG_PRINTLN("Found sensor BMP085");
+    BMP085_initialized = true;
+  } else {
+    BMP085_initialized = false;
+    MESH_DEBUG_PRINTLN("BMP085 was not found at I2C address %02X", 0x77);
+  }
+  #endif
+
   return true;
 }
 
@@ -444,6 +462,14 @@ bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, Cayen
         telemetry.addAnalogInput(next_available_channel, BME680.gas_resistance);
         next_available_channel++;
       }
+    }
+    #endif
+
+    #if ENV_INCLUDE_BMP085
+    if (BMP085_initialized) {
+        telemetry.addTemperature(TELEM_CHANNEL_SELF, BMP085.readTemperature());
+        telemetry.addBarometricPressure(TELEM_CHANNEL_SELF, BMP085.readPressure() / 100);
+        telemetry.addAltitude(TELEM_CHANNEL_SELF, BMP085.readAltitude(TELEM_BMP085_SEALEVELPRESSURE_HPA * 100));
     }
     #endif
 

@@ -50,6 +50,12 @@ protected:
   DispatcherAction routeRecvPacket(Packet* packet);
 
   /**
+   * \brief    Called _before_ the packet is dispatched to the on..Recv() methods.
+   * \returns  true, if given packet should be NOT be processed.
+   */
+  virtual bool filterRecvFloodPacket(Packet* packet) { return false; }
+
+  /**
    * \brief  Check whether this packet should be forwarded (re-transmitted) or not.
    *     Is sub-classes responsibility to make sure given packet is only transmitted ONCE (by this node)
    */
@@ -135,6 +141,11 @@ protected:
   virtual void onPathRecv(Packet* packet, Identity& sender, uint8_t* path, uint8_t path_len, uint8_t extra_type, uint8_t* extra, uint8_t extra_len) { }
 
   /**
+   * \brief  A control packet has been received.
+  */
+  virtual void onControlDataRecv(Packet* packet) { }
+
+  /**
    * \brief  A packet with PAYLOAD_TYPE_RAW_CUSTOM has been received.
   */
   virtual void onRawDataRecv(Packet* packet) { }
@@ -186,11 +197,18 @@ public:
   Packet* createPathReturn(const Identity& dest, const uint8_t* secret, const uint8_t* path, uint8_t path_len, uint8_t extra_type, const uint8_t*extra, size_t extra_len);
   Packet* createRawData(const uint8_t* data, size_t len);
   Packet* createTrace(uint32_t tag, uint32_t auth_code, uint8_t flags = 0);
+  Packet* createControlData(const uint8_t* data, size_t len);
 
   /**
    * \brief  send a locally-generated Packet with flood routing
   */
   void sendFlood(Packet* packet, uint32_t delay_millis=0);
+
+  /**
+   * \brief  send a locally-generated Packet with flood routing
+   * \param transport_codes   array of 2 codes to attach to packet
+  */
+  void sendFlood(Packet* packet, uint16_t* transport_codes, uint32_t delay_millis=0);
 
   /**
    * \brief  send a locally-generated Packet with Direct routing

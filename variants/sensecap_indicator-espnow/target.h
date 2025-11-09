@@ -1,22 +1,21 @@
 #pragma once
 
-#define RADIOLIB_STATIC_ONLY 1
-#include <RadioLib.h>
-#include <helpers/radiolib/RadioLibWrappers.h>
 #include <helpers/ESP32Board.h>
-#include <helpers/radiolib/CustomSX1262Wrapper.h>
-#include <helpers/AutoDiscoverRTCClock.h>
+#include <helpers/esp32/ESPNOWRadio.h>
 #include <helpers/SensorManager.h>
+#include <helpers/sensors/EnvironmentSensorManager.h>
+#ifdef ENV_INCLUDE_GPS
+  #include <helpers/sensors/MicroNMEALocationProvider.h>
+#endif
 #ifdef DISPLAY_CLASS
-  #include <helpers/ui/SSD1306Display.h>
+  #include "SCIndicatorDisplay.h"
   #include <helpers/ui/MomentaryButton.h>
 #endif
-#include "XiaoS3WIOBoard.h"
 
-extern XiaoS3WIOBoard board;
-extern WRAPPER_CLASS radio_driver;
-extern AutoDiscoverRTCClock rtc_clock;
-extern SensorManager sensors;
+extern ESP32Board board;
+extern ESPNOWRadio radio_driver;
+extern ESP32RTCClock rtc_clock;
+extern EnvironmentSensorManager sensors;
 
 #ifdef DISPLAY_CLASS
   extern DISPLAY_CLASS display;
