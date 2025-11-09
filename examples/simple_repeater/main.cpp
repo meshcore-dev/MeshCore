@@ -88,8 +88,7 @@ void setup() {
 #ifdef POWERSAVING_MODE
 // Do not send an Advert after wakeup from deepsleep due to RX
 // Only send in first startup or reset
-esp_reset_reason_t reason = esp_reset_reason();
-if ( reason != ESP_RST_DEEPSLEEP) {  // Not from deepsleep
+if (board.getStartupReason() != BD_STARTUP_RX_PACKET) {
   // send out initial Advertisement to the mesh
   the_mesh.sendSelfAdvertisement(16000);
 }
