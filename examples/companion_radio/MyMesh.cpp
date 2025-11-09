@@ -456,7 +456,9 @@ void MyMesh::onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packe
   memcpy(&out_frame[i], text, tlen);
   i += tlen;
 
-  if (channel.flags.noStore && !_serial->isConnected()) {
+  ChannelDetails channel_details;
+  bool foundDetails = getChannel(channel_idx, channel_details);
+  if (foundDetails && channel_details.flags.noStore && !_serial->isConnected()) {
     MESH_DEBUG_PRINTLN("INFO: not storing message for noStore channel");
   } else {
     addToOfflineQueue(out_frame, i);
@@ -474,8 +476,7 @@ void MyMesh::onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packe
 #ifdef DISPLAY_CLASS
   // Get the channel name from the channel index
   const char *channel_name = "Unknown";
-  ChannelDetails channel_details;
-  if (getChannel(channel_idx, channel_details)) {
+  if (foundDetails) {
     channel_name = channel_details.name;
   }
   if (_ui) _ui->newMsg(path_len, channel_name, text, offline_queue_len);

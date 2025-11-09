@@ -6,7 +6,7 @@
 #include "NodePrefs.h"
 
 struct ChannelHeader {
-    mesh::ChannelFlags flags;
+    ChannelFlags flags;
     uint8_t unused[3];
 };
 static_assert(sizeof(ChannelHeader) == 4, "ChannelHeader must be 4 bytes");
