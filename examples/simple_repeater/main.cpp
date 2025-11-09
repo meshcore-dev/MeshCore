@@ -31,12 +31,23 @@ void setup() {
   board.begin();
 
 #ifdef DISPLAY_CLASS
-  if (display.begin()) {
-    display.startFrame();
-    display.setCursor(0, 0);
-    display.print("Please wait...");
-    display.endFrame();
-  }
+  #ifdef POWERSAVING_MODE
+    if (board.getStartupReason() != BD_STARTUP_RX_PACKET) { // Only display if not waken up from deepsleep
+      if (display.begin()) {
+        display.startFrame();
+        display.setCursor(0, 0);
+        display.print("Please wait...");
+        display.endFrame();
+      }
+    }
+  #else
+    if (display.begin()) {
+      display.startFrame();
+      display.setCursor(0, 0);
+      display.print("Please wait...");
+      display.endFrame();
+    }
+  #endif
 #endif
 
   if (!radio_init()) {
@@ -86,13 +97,13 @@ void setup() {
 #endif
 
 #ifdef POWERSAVING_MODE
-// Do not send an Advert after wakeup from deepsleep due to RX
-// Only send in first startup or reset
-if (board.getStartupReason() != BD_STARTUP_RX_PACKET) {
-  // send out initial Advertisement to the mesh
-  the_mesh.sendSelfAdvertisement(16000);
-}
-#else 
+  // Do not send an Advert after wakeup from deepsleep due to RX
+  // Only send in first startup or reset
+  if (board.getStartupReason() != BD_STARTUP_RX_PACKET) {
+    // send out initial Advertisement to the mesh
+    the_mesh.sendSelfAdvertisement(16000);
+  }
+#else
   // send out initial Advertisement to the mesh
   the_mesh.sendSelfAdvertisement(16000);
 #endif
@@ -128,14 +139,24 @@ void loop() {
   the_mesh.loop();
   sensors.loop();
 #ifdef DISPLAY_CLASS
-  ui_task.loop();
+  #ifdef POWERSAVING_MODE
+    if (board.getStartupReason() != BD_STARTUP_RX_PACKET) { // Only display if not waken up from deepsleep
+      ui_task.loop();
+    }
+  #else
+    ui_task.loop();
+  #endif
 #endif
   rtc_clock.tick();
-  
+
 #ifdef POWERSAVING_MODE
-  // To sleep after working a while
-  if(millis() - boardstart_timestamp > 120000) { // To work for 2 minutes and sleep to save power
-    board.powerOff(); // To sleep and wake up when receiving a LoRa packet
+  // Normal reset / start. To work for 30 seconds to allow sending an advert and sleep to save power
+  if (board.getStartupReason() != BD_STARTUP_RX_PACKET) {
+    if (millis() - boardstart_timestamp > 30000) {
+      board.powerOff(); // To sleep and wake up when receiving a LoRa packet
+    }
+  } else if (millis() - boardstart_timestamp > 5000) { // To work for 5 seconds and sleep to save power
+    board.powerOff();                                  // To sleep and wake up when receiving a LoRa packet
   }
 #endif
 }
