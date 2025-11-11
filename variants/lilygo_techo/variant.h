@@ -139,3 +139,9 @@ extern const int SCK;
 #define GPS_EN                  (34)
 #define PIN_GPS_RESET           (37)
 #define PIN_GPS_PPS             (36)
+
+////////////////////////////////////////////////////////////////////////////////
+// Extension board PLUS
+
+#define PIN_BUZZER              (8)
+#define PIN_VIBRATION           (6)
