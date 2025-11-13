@@ -1,14 +1,14 @@
 {
     "name": "MeshCore",
-    "version" : "1.8.0",
+    "version" : "1.10.0",
     "dependencies": {
         "SPI": "*",
         "Wire": "*",
-        "jgromes/RadioLib": "^7.1.2",
+        "jgromes/RadioLib": "^7.3.0",
         "rweather/Crypto": "^0.4.0",
         "adafruit/RTClib": "^2.1.3",
         "melopero/Melopero RV3028": "^1.1.0",
-        "electroniccats/CayenneLPP": "1.4.0"
+        "electroniccats/CayenneLPP": "1.6.1"
     },
     "build": {
         "extraScript": "build_as_lib.py"

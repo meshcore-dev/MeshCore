@@ -547,7 +547,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
       int num = mesh::Utils::parseTextParts(tmp, parts, 2, ' ');
       const char *key = (num > 0) ? parts[0] : "";
       const char *value = (num > 1) ? parts[1] : "null";
-      if (_sensors->setSettingByKey(key, value)) {
+      if (_sensors->setSettingValue(key, value)) {
         strcpy(reply, "ok");
       } else {
         strcpy(reply, "can't find custom var");
@@ -579,7 +579,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
       }
 #if ENV_INCLUDE_GPS == 1
     } else if (memcmp(command, "gps on", 6) == 0) {
-      if (_sensors->setSettingByKey("gps", "1")) {
+      if (_sensors->setSettingValue("gps", "1")) {
         _prefs->gps_enabled = 1;
         savePrefs();
         strcpy(reply, "ok");
@@ -587,7 +587,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         strcpy(reply, "gps toggle not found");
       }
     } else if (memcmp(command, "gps off", 7) == 0) {
-      if (_sensors->setSettingByKey("gps", "0")) {
+      if (_sensors->setSettingValue("gps", "0")) {
         _prefs->gps_enabled = 0;
         savePrefs();
         strcpy(reply, "ok");
