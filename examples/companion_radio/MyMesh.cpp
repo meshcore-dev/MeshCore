@@ -52,6 +52,8 @@
 #define CMD_SEND_PATH_DISCOVERY_REQ   52
 #define CMD_SET_FLOOD_SCOPE           54   // v8+
 #define CMD_SEND_CONTROL_DATA         55   // v8+
+#define CMD_GET_CHANNEL_FLAG_NOSTORE  56
+#define CMD_SET_CHANNEL_FLAG_NOSTORE  57
 
 #define RESP_CODE_OK                  0
 #define RESP_CODE_ERR                 1
@@ -77,6 +79,7 @@
 #define RESP_CODE_CUSTOM_VARS         21
 #define RESP_CODE_ADVERT_PATH         22
 #define RESP_CODE_TUNING_PARAMS       23
+#define RESP_CODE_CHANNEL_FLAG_NOSTORE 24 // a reply to CMD_GET_CHANNEL_FLAG_NOSTORE
 
 #define SEND_TIMEOUT_BASE_MILLIS        500
 #define FLOOD_SEND_TIMEOUT_FACTOR       16.0f
@@ -1558,6 +1561,30 @@ void MyMesh::handleCmdFrame(size_t len) {
       writeOKFrame();
     } else {
       writeErrFrame(ERR_CODE_TABLE_FULL);
+    }
+  } else if (cmd_frame[0] == CMD_GET_CHANNEL_FLAG_NOSTORE && len >= 2) {
+    uint8_t channel_idx = cmd_frame[1];
+    ChannelDetails channel;
+    if (getChannel(channel_idx, channel)) {
+      out_frame[0] = RESP_CODE_CHANNEL_FLAG_NOSTORE;
+      out_frame[1] = static_cast<uint8_t>(channel.flags.noStore);
+      _serial->writeFrame(out_frame, 2);
+    } else {
+      writeErrFrame(ERR_CODE_NOT_FOUND);
+    }
+  } else if (cmd_frame[0] == CMD_SET_CHANNEL_FLAG_NOSTORE && len >= 3) {
+    uint8_t channel_idx = cmd_frame[1];
+    ChannelDetails channel;
+    if (getChannel(channel_idx, channel)) {
+      channel.flags.noStore = static_cast<bool>(cmd_frame[2]);
+      if (setChannel(channel_idx, channel)) {
+        saveChannels();
+        writeOKFrame();
+      } else {
+        writeErrFrame(ERR_CODE_NOT_FOUND);
+      }
+    } else {
+      writeErrFrame(ERR_CODE_NOT_FOUND);
     }
   } else {
     writeErrFrame(ERR_CODE_UNSUPPORTED_CMD);
