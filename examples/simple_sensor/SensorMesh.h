@@ -33,11 +33,11 @@
 #define PERM_RECV_ALERTS_HI    (1 << 7)   // high priority alerts
 
 #ifndef FIRMWARE_BUILD_DATE
-  #define FIRMWARE_BUILD_DATE   "2 Oct 2025"
+  #define FIRMWARE_BUILD_DATE   "13 Nov 2025"
 #endif
 
 #ifndef FIRMWARE_VERSION
-  #define FIRMWARE_VERSION   "v1.9.1"
+  #define FIRMWARE_VERSION   "v1.10.0"
 #endif
 
 #define FIRMWARE_ROLE "sensor"
@@ -125,6 +125,7 @@ protected:
   void getPeerSharedSecret(uint8_t* dest_secret, int peer_idx) override;
   void onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender_idx, const uint8_t* secret, uint8_t* data, size_t len) override;
   bool onPeerPathRecv(mesh::Packet* packet, int sender_idx, const uint8_t* secret, uint8_t* path, uint8_t path_len, uint8_t extra_type, uint8_t* extra, uint8_t extra_len) override;
+  void onControlDataRecv(mesh::Packet* packet) override;
   void onAckRecv(mesh::Packet* packet, uint32_t ack_crc) override;
   virtual bool handleIncomingMsg(ClientInfo& from, uint32_t timestamp, uint8_t* data, uint flags, size_t len);
   void sendAckTo(const ClientInfo& dest, uint32_t ack_hash);
@@ -155,7 +156,7 @@ private:
 
   #if ENV_INCLUDE_GPS == 1
   void applyGpsPrefs() {
-    sensors.setSettingByKey("gps", _prefs.gps_enabled?"1":"0");
+    sensors.setSettingValue("gps", _prefs.gps_enabled?"1":"0");
   }
 #endif
 };

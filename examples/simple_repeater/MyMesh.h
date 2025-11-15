@@ -68,11 +68,11 @@ struct NeighbourInfo {
 };
 
 #ifndef FIRMWARE_BUILD_DATE
-  #define FIRMWARE_BUILD_DATE   "2 Oct 2025"
+  #define FIRMWARE_BUILD_DATE   "13 Nov 2025"
 #endif
 
 #ifndef FIRMWARE_VERSION
-  #define FIRMWARE_VERSION   "v1.9.1"
+  #define FIRMWARE_VERSION   "v1.10.0"
 #endif
 
 #define FIRMWARE_ROLE "repeater"
@@ -148,7 +148,7 @@ protected:
 
 #if ENV_INCLUDE_GPS == 1
   void applyGpsPrefs() {
-    sensors.setSettingByKey("gps", _prefs.gps_enabled?"1":"0");
+    sensors.setSettingValue("gps", _prefs.gps_enabled?"1":"0");
   }
 #endif
 

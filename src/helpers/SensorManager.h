@@ -34,14 +34,4 @@ public:
     }
     return NULL;
   }
-
-  bool setSettingByKey(const char* key, const char* value) {
-    int num = getNumSettings();
-    for (int i = 0; i < num; i++) {
-      if (strcmp(getSettingName(i), key) == 0) {
-        return setSettingValue(key, value);
-      }
-    }
-    return false;
-  }
 };
