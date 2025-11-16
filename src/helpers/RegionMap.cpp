@@ -17,7 +17,7 @@ static File openWrite(FILESYSTEM* _fs, const char* filename) {
   #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
     _fs->remove(filename);
     return _fs->open(filename, FILE_O_WRITE);
-  #elif defined(RP2040_PLATFORM)
+  #elif defined(RP2040_PLATFORM) || defined(ARCH_PORTDUINO)
     return _fs->open(filename, "w");
   #else
     return _fs->open(filename, "w", true);
@@ -26,7 +26,7 @@ static File openWrite(FILESYSTEM* _fs, const char* filename) {
 
 bool RegionMap::load(FILESYSTEM* _fs) {
   if (_fs->exists("/regions2")) {
-  #if defined(RP2040_PLATFORM)
+  #if defined(RP2040_PLATFORM) || defined(ARCH_PORTDUINO)
     File file = _fs->open("/regions2", "r");
   #else
     File file = _fs->open("/regions2");
