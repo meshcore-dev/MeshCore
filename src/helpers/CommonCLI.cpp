@@ -104,7 +104,7 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
   fs->remove("/com_prefs");
   File file = fs->open("/com_prefs", FILE_O_WRITE);
-#elif defined(RP2040_PLATFORM)
+#elif defined(RP2040_PLATFORM) || defined(ARCH_PORTDUINO)
   File file = fs->open("/com_prefs", "w");
 #else
   File file = fs->open("/com_prefs", "w", true);

@@ -66,7 +66,7 @@
 static File openAppend(FILESYSTEM* _fs, const char* fname) {
   #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
     return _fs->open(fname, FILE_O_WRITE);
-  #elif defined(RP2040_PLATFORM)
+  #elif defined(RP2040_PLATFORM) || defined(ARCH_PORTDUINO)
     return _fs->open(fname, "a");
   #else
     return _fs->open(fname, "a", true);
@@ -756,6 +756,8 @@ bool SensorMesh::formatFileSystem() {
     return InternalFS.format();
 #elif defined(RP2040_PLATFORM)
     return LittleFS.format();
+#elif defined(ARCH_PORTDUINO)
+    return true;
 #elif defined(ESP32)
     return SPIFFS.format();
 #else
@@ -770,7 +772,7 @@ void SensorMesh::saveIdentity(const mesh::LocalIdentity& new_id) {
   IdentityStore store(*_fs, "");
 #elif defined(ESP32)
   IdentityStore store(*_fs, "/identity");
-#elif defined(RP2040_PLATFORM)
+#elif defined(RP2040_PLATFORM) || defined(ARCH_PORTDUINO)
   IdentityStore store(*_fs, "/identity");
 #else
   #error "need to define saveIdentity()"

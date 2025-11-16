@@ -309,7 +309,7 @@ mesh::Packet *MyMesh::createSelfAdvert() {
 File MyMesh::openAppend(const char *fname) {
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
   return _fs->open(fname, FILE_O_WRITE);
-#elif defined(RP2040_PLATFORM)
+#elif defined(RP2040_PLATFORM) || defined(ARCH_PORTDUINO)
   return _fs->open(fname, "a");
 #else
   return _fs->open(fname, "a", true);
@@ -697,11 +697,13 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.node_lat = ADVERT_LAT;
   _prefs.node_lon = ADVERT_LON;
   StrHelper::strncpy(_prefs.password, ADMIN_PASSWORD, sizeof(_prefs.password));
+#ifndef SKIP_CONFIG_OVERWRITE
   _prefs.freq = LORA_FREQ;
   _prefs.sf = LORA_SF;
   _prefs.bw = LORA_BW;
   _prefs.cr = LORA_CR;
   _prefs.tx_power_dbm = LORA_TX_POWER;
+#endif
   _prefs.advert_interval = 1;        // default to 2 minutes for NEW installs
   _prefs.flood_advert_interval = 12; // 12 hours
   _prefs.flood_max = 64;
@@ -767,6 +769,10 @@ bool MyMesh::formatFileSystem() {
   return InternalFS.format();
 #elif defined(RP2040_PLATFORM)
   return LittleFS.format();
+#elif defined(ARCH_PORTDUINO)
+  return true;
+#elif defined(ARCH_PORTDUINO)
+  return true;
 #elif defined(ESP32)
   return SPIFFS.format();
 #else
@@ -801,7 +807,7 @@ void MyMesh::updateFloodAdvertTimer() {
 }
 
 void MyMesh::dumpLogFile() {
-#if defined(RP2040_PLATFORM)
+#if defined(RP2040_PLATFORM) || defined(ARCH_PORTDUINO)
   File f = _fs->open(PACKET_LOG_FILE, "r");
 #else
   File f = _fs->open(PACKET_LOG_FILE);
@@ -894,7 +900,7 @@ void MyMesh::saveIdentity(const mesh::LocalIdentity &new_id) {
   IdentityStore store(*_fs, "");
 #elif defined(ESP32)
   IdentityStore store(*_fs, "/identity");
-#elif defined(RP2040_PLATFORM)
+#elif defined(RP2040_PLATFORM) || defined(ARCH_PORTDUINO)
   IdentityStore store(*_fs, "/identity");
 #else
 #error "need to define saveIdentity()"

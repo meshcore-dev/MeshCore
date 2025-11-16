@@ -1,0 +1,29 @@
+# /etc/systemd/system/meshcored.service
+[Unit]
+Description=Meshcore Daemon (meshcored)
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=meshcore
+Group=meshcore
+ExecStart=/usr/bin/meshcored --fsdir /var/lib/meshcore
+WorkingDirectory=/var/lib/meshcore
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65535
+
+# Security hardening
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+ReadWritePaths=/var/lib/meshcore   # allow writing only to its own data dir
+
+# Create data dir with correct ownership if it doesn't exist
+ExecStartPre=/bin/mkdir -p /var/lib/meshcore
+ExecStartPre=/bin/chown meshcore:meshcore /var/lib/meshcore
+
+[Install]
+WantedBy=multi-user.target
