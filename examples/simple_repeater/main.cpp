@@ -19,6 +19,11 @@ void halt() {
 
 static char command[160];
 
+#ifdef POWERSAVING_MODE
+  unsigned long lastActive = millis();   // mark last active time
+  unsigned long nextSleepinSecs = 30;    // when to go to next sleep in seconds. First time is 30s to allow first advert
+#endif
+
 void setup() {
   Serial.begin(115200);
   delay(1000);
@@ -117,4 +122,12 @@ void loop() {
   ui_task.loop();
 #endif
   rtc_clock.tick();
+
+#ifdef POWERSAVING_MODE
+  if (millis() - lastActive > nextSleepinSecs * 1000) {
+    board.sleep(); // To sleep and wake up when receiving a LoRa packet
+    lastActive = millis();
+    nextSleepinSecs = 5; // Back to default. To sleep every 5s
+  }
+#endif
 }
