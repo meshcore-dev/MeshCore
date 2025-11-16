@@ -1,7 +1,6 @@
 #pragma once
 
 #include <RadioLib.h>
-#include "MeshCore.h"
 
 #define LR1121_IRQ_HAS_PREAMBLE                     0b0000000100  //  4     4     valid LoRa header received
 #define LR1121_IRQ_HEADER_VALID                     0b0000010000  //  4     4     valid LoRa header received
@@ -9,19 +8,6 @@
 class CustomLR1121 : public LR1121 {
   public:
     CustomLR1121(Module *mod) : LR1121(mod) { }
-
-    size_t getPacketLength(bool update) override {
-      size_t len = LR1121::getPacketLength(update);
-      if (len == 0 && getIrqStatus() & RADIOLIB_LR11X0_IRQ_HEADER_ERR) {
-        // we've just recieved a corrupted packet
-        // this may have triggered a bug causing subsequent packets to be shifted
-        // call standby() to return radio to known-good state
-        // recvRaw will call startReceive() to restart rx
-        MESH_DEBUG_PRINTLN("LR1121: got header err, calling standby()");
-        standby();
-      }
-      return len;
-    }
 
     RadioLibTime_t getTimeOnAir(size_t len) override {
   // calculate number of symbols
