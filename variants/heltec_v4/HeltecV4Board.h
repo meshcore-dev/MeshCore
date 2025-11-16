@@ -17,6 +17,8 @@ public:
   void onAfterTransmit(void) override;
   void enterDeepSleep(uint32_t secs, int pin_wake_btn = -1);
   void powerOff() override;
+  void enterLightSleep (uint32_t secs);
+  void sleep() override;
   uint16_t getBattMilliVolts() override;
   const char* getManufacturerName() const override ;
 
