@@ -13,7 +13,8 @@ SimpleMeshTables tables;
 MyMesh the_mesh(board, radio_driver, *new ArduinoMillis(), fast_rng, rtc_clock, tables);
 
 void halt() {
-  while (1) ;
+  delay(10000);
+  board.reboot();
 }
 
 static char command[MAX_POST_TEXT_LEN+1];

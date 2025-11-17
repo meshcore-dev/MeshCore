@@ -102,14 +102,14 @@ MyMesh the_mesh(radio_driver, fast_rng, rtc_clock, tables, store
 /* END GLOBAL OBJECTS */
 
 void halt() {
-  while (1) ;
+  delay(10000);
+  board.reboot();
 }
 
 void setup() {
   Serial.begin(115200);
 
   board.begin();
-
 #ifdef DISPLAY_CLASS
   DisplayDriver* disp = NULL;
   if (display.begin()) {
