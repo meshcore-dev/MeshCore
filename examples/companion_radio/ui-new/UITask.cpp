@@ -532,6 +532,7 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
 
 #ifdef PIN_BUZZER
   buzzer.begin();
+  buzzer.quiet(_node_prefs->buzzer_quiet);
 #endif
 
 #ifdef PIN_VIBRATION
@@ -871,6 +872,9 @@ void UITask::toggleBuzzer() {
       buzzer.quiet(true);
       showAlert("Buzzer: OFF", 800);
     }
+    _node_prefs->buzzer_quiet = buzzer.isQuiet();
+    extern MyMesh the_mesh;
+    the_mesh.savePrefs();
     _next_refresh = 0;  // trigger refresh
   #endif
 }

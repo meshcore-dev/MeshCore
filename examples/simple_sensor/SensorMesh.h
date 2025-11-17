@@ -33,7 +33,7 @@
 #define PERM_RECV_ALERTS_HI    (1 << 7)   // high priority alerts
 
 #ifndef FIRMWARE_BUILD_DATE
-  #define FIRMWARE_BUILD_DATE   "13 Nov 2025"
+  #define FIRMWARE_BUILD_DATE   "17 Nov 2025"
 #endif
 
 #ifndef FIRMWARE_VERSION

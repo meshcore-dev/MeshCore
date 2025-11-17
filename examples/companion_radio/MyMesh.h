@@ -8,7 +8,7 @@
 #define FIRMWARE_VER_CODE 8
 
 #ifndef FIRMWARE_BUILD_DATE
-#define FIRMWARE_BUILD_DATE "13 Nov 2025"
+#define FIRMWARE_BUILD_DATE "17 Nov 2025"
 #endif
 
 #ifndef FIRMWARE_VERSION
@@ -152,6 +152,12 @@ protected:
     pending_login = pending_status = pending_telemetry = pending_discovery = pending_req = 0;
   }
 
+public:
+  // helpers, short-cuts
+  void savePrefs() { _store->savePrefs(_prefs, sensors.node_lat, sensors.node_lon); }
+  void saveChannels() { _store->saveChannels(this); }
+  void saveContacts() { _store->saveContacts(this); }
+
 private:
   void writeOKFrame();
   void writeErrFrame(uint8_t err_code);
@@ -169,11 +175,6 @@ private:
 
   void checkCLIRescueCmd();
   void checkSerialInterface();
-
-  // helpers, short-cuts
-  void savePrefs() { _store->savePrefs(_prefs, sensors.node_lat, sensors.node_lon); }
-  void saveChannels() { _store->saveChannels(this); }
-  void saveContacts() { _store->saveContacts(this); }
 
 private:
   DataStore* _store;
