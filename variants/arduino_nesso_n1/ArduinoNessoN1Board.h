@@ -14,7 +14,10 @@ private:
 public:
   void begin() {
     ESP32Board::begin();
+#ifdef MESH_DEBUG
+    // delay for 2s after boot to ensure early output below makes it to the serial logger
     delay(2000);
+#endif
 
 #ifdef P_LORA_TX_LED
     MESH_DEBUG_PRINTLN("ArduinoNessoN1.begin(): setup TX LED mode");
