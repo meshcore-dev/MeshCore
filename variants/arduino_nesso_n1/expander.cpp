@@ -1,27 +1,27 @@
-#define TwoWire TwoWireInternal
-#define Wire    WireInternal
-#define Wire1   WireInternal1
+// Based off here https://github.com/espressif/arduino-esp32/blob/d1eb62d7c6dda16c254c374504aa93188d7c386b/variants/arduino_nesso_n1/expander.cpp
+// Should be OK based on this? https://opensource.stackexchange.com/a/6406
 
 #include "pins_arduino.h"
-#include "../../libraries/Wire/src/Wire.h"
-#include "../../libraries/Wire/src/Wire.cpp"
+#include <helpers/ESP32Board.h>
+#include <Wire.h>
 
-static bool wireInitialized = false;
+static bool wireInitialized = true; // initialised in ESP32Board.begin() ; ToDo: Remove all these conditions in future
+static bool expanderInitialized = false;
 
 // From https://www.diodes.com/datasheet/download/PI4IOE5V6408.pdf
 static void writeRegister(uint8_t address, uint8_t reg, uint8_t value) {
-  WireInternal.beginTransmission(address);
-  WireInternal.write(reg);
-  WireInternal.write(value);
-  WireInternal.endTransmission();
+  Wire.beginTransmission(address);
+  Wire.write(reg);
+  Wire.write(value);
+  Wire.endTransmission();
 }
 
 static uint8_t readRegister(uint8_t address, uint8_t reg) {
-  WireInternal.beginTransmission(address);
-  WireInternal.write(reg);
-  WireInternal.endTransmission(false);
-  WireInternal.requestFrom(address, 1);
-  return WireInternal.read();
+  Wire.beginTransmission(address);
+  Wire.write(reg);
+  Wire.endTransmission(false);
+  Wire.requestFrom(address, 1);
+  return Wire.read();
 }
 
 static void writeBitRegister(uint8_t address, uint8_t reg, uint8_t bit, uint8_t value) {
@@ -40,9 +40,11 @@ static bool readBitRegister(uint8_t address, uint8_t reg, uint8_t bit) {
 
 void pinMode(ExpanderPin pin, uint8_t mode) {
   if (!wireInitialized) {
-    WireInternal.begin(SDA, SCL);
+    Wire.begin(SDA, SCL);
     wireInitialized = true;
     // reset all registers to default state
+  }
+  if (!expanderInitialized) {
     writeRegister(pin.address, 0x1, 0x1);
     // set all pins as high as default state
     writeRegister(pin.address, 0x9, 0xFF);
@@ -50,6 +52,7 @@ void pinMode(ExpanderPin pin, uint8_t mode) {
     writeRegister(pin.address, 0x11, 0xFF);
     // all input
     writeRegister(pin.address, 0x3, 0);
+    expanderInitialized = true;
   }
   writeBitRegister(pin.address, 0x3, pin.pin, mode == OUTPUT);
   if (mode == OUTPUT) {
@@ -71,7 +74,7 @@ void pinMode(ExpanderPin pin, uint8_t mode) {
 
 void digitalWrite(ExpanderPin pin, uint8_t val) {
   if (!wireInitialized) {
-    WireInternal.begin(SDA, SCL);
+    Wire.begin(SDA, SCL);
     wireInitialized = true;
   }
   writeBitRegister(pin.address, 0x5, pin.pin, val == HIGH);
@@ -79,7 +82,7 @@ void digitalWrite(ExpanderPin pin, uint8_t val) {
 
 int digitalRead(ExpanderPin pin) {
   if (!wireInitialized) {
-    WireInternal.begin(SDA, SCL);
+    Wire.begin(SDA, SCL);
     wireInitialized = true;
   }
   return readBitRegister(pin.address, 0xF, pin.pin);
@@ -89,18 +92,25 @@ void NessoBattery::enableCharge() {
   // AW32001E - address 0x49
   // set CEB bit low (charge enable)
   if (!wireInitialized) {
-    WireInternal.begin(SDA, SCL);
+    Wire.begin(SDA, SCL);
     wireInitialized = true;
   }
+
+  MESH_DEBUG_PRINTLN("NessoBattery::enableCharge()");
+  MESH_DEBUG_PRINTLN("NessoBattery::enableCharge(): Current charge level %u %%", NessoBattery::getChargeLevel());
+  MESH_DEBUG_PRINTLN("NessoBattery::enableCharge(): Current voltage %f V", NessoBattery::getVoltage());
+  MESH_DEBUG_PRINTLN("NessoBattery::enableCharge(): Current voltage %u mV", NessoBattery::getMilliVoltage());
+
   writeBitRegister(0x49, 0x1, 3, false);
 }
 
 float NessoBattery::getVoltage() {
   // BQ27220 - address 0x55
   if (!wireInitialized) {
-    WireInternal.begin(SDA, SCL);
+    Wire.begin(SDA, SCL);
     wireInitialized = true;
   }
+  MESH_DEBUG_PRINTLN("NessoBattery::getVoltage()");
   uint16_t voltage = (readRegister(0x55, 0x9) << 8) | readRegister(0x55, 0x8);
   return (float)voltage / 1000.0f;
 }
@@ -108,9 +118,10 @@ float NessoBattery::getVoltage() {
 uint16_t NessoBattery::getMilliVoltage() {
   // BQ27220 - address 0x55
   if (!wireInitialized) {
-    WireInternal.begin(SDA, SCL);
+    Wire.begin(SDA, SCL);
     wireInitialized = true;
   }
+  MESH_DEBUG_PRINTLN("NessoBattery::getMilliVoltage()");
   uint16_t voltage = (readRegister(0x55, 0x9) << 8) | readRegister(0x55, 0x8);
   return voltage;
 }
@@ -118,7 +129,7 @@ uint16_t NessoBattery::getMilliVoltage() {
 uint16_t NessoBattery::getChargeLevel() {
   // BQ27220 - address 0x55
   if (!wireInitialized) {
-    WireInternal.begin(SDA, SCL);
+    Wire.begin(SDA, SCL);
     wireInitialized = true;
   }
   uint16_t current_capacity = readRegister(0x55, 0x11) << 8 | readRegister(0x55, 0x10);
