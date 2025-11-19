@@ -21,7 +21,7 @@ static char command[160];
 
 #ifdef POWERSAVING_MODE
   unsigned long lastActive = millis();   // mark last active time
-  unsigned long nextSleepinSecs = 30;    // when to go to next sleep in seconds. First time is 30s to allow first advert
+  unsigned long nextSleepinSecs = 120;   // next sleep in seconds. First time is 2m to send advert and do repeater setup.
 #endif
 
 void setup() {
