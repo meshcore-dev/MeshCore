@@ -88,9 +88,9 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
   ui_started_at = millis();
 }
 
-void UITask::soundBuzzer(UIEventType bet) {
+void UITask::notify(UIEventType t) {
 #if defined(PIN_BUZZER)
-switch(bet){
+switch(t){
   case UIEventType::contactMessage:
     // gemini's pick
     buzzer.play("MsgRcv3:d=4,o=6,b=200:32e,32g,32b,16c7");
@@ -108,8 +108,8 @@ switch(bet){
     break;
 }
 #endif
-//  Serial.print("DBG:  Buzzzzzz -> ");
-//  Serial.println((int) bet);
+//  Serial.print("DBG:  Alert user -> ");
+//  Serial.println((int) t);
 }
 
 void UITask::msgRead(int msgcount) {
@@ -370,7 +370,7 @@ void UITask::handleButtonDoublePress() {
   MESH_DEBUG_PRINTLN("UITask: double press triggered, sending advert");
   // ADVERT
   #ifdef PIN_BUZZER
-      soundBuzzer(UIEventType::ack);
+      notify(UIEventType::ack);
   #endif
   if (the_mesh.advert()) {
     MESH_DEBUG_PRINTLN("Advert sent!");
@@ -388,7 +388,7 @@ void UITask::handleButtonTriplePress() {
   #ifdef PIN_BUZZER
     if (buzzer.isQuiet()) {
       buzzer.quiet(false);
-      soundBuzzer(UIEventType::ack);
+      notify(UIEventType::ack);
       sprintf(_alert, "Buzzer: ON");
     } else {
       buzzer.quiet(true);
@@ -407,11 +407,11 @@ void UITask::handleButtonQuadruplePress() {
       if (strcmp(_sensors->getSettingName(i), "gps") == 0) {
         if (strcmp(_sensors->getSettingValue(i), "1") == 0) {
           _sensors->setSettingValue("gps", "0");
-          soundBuzzer(UIEventType::ack);
+          notify(UIEventType::ack);
           sprintf(_alert, "GPS: Disabled");
         } else {
           _sensors->setSettingValue("gps", "1");
-          soundBuzzer(UIEventType::ack);
+          notify(UIEventType::ack);
           sprintf(_alert, "GPS: Enabled");
         }
         break;

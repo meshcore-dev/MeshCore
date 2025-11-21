@@ -144,4 +144,5 @@ void loop() {
 #ifdef DISPLAY_CLASS
   ui_task.loop();
 #endif
+  rtc_clock.tick();
 }

@@ -44,6 +44,10 @@ bit 0 means the lowest bit (1s place)
 | `0x08` | `PAYLOAD_TYPE_PATH`       | Returned path.                                |
 | `0x09` | `PAYLOAD_TYPE_TRACE`      | trace a path, collecting SNI for each hop.    |
 | `0x0A` | `PAYLOAD_TYPE_MULTIPART`  | packet is part of a sequence of packets.      |
+| `0x0B` | `PAYLOAD_TYPE_CONTROL`    | control packet data (unencrypted)             |
+| `0x0C` | .                         | reserved                                      |
+| `0x0D` | .                         | reserved                                      |
+| `0x0E` | .                         | reserved                                      |
 | `0x0F` | `PAYLOAD_TYPE_RAW_CUSTOM` | Custom packet (raw bytes, custom encryption). |
 
 ## Payload Version Values

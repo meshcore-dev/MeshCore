@@ -3,16 +3,15 @@
 #define RADIOLIB_STATIC_ONLY 1
 #include <RadioLib.h>
 #include <helpers/radiolib/RadioLibWrappers.h>
-#include <helpers/XiaoC3Board.h>
+#include <XiaoC3Board.h>
 #include <helpers/radiolib/CustomSX1262Wrapper.h>
-#include <helpers/radiolib/CustomSX1268Wrapper.h>
 #include <helpers/AutoDiscoverRTCClock.h>
-#include <helpers/SensorManager.h>
+#include <helpers/sensors/EnvironmentSensorManager.h>
 
 extern XiaoC3Board board;
 extern WRAPPER_CLASS radio_driver;
 extern AutoDiscoverRTCClock rtc_clock;
-extern SensorManager sensors;
+extern EnvironmentSensorManager sensors;
 
 bool radio_init();
 uint32_t radio_get_rng_seed();

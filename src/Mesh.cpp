@@ -68,6 +68,14 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
     return ACTION_RELEASE;
   }
 
+  if (pkt->isRouteDirect() && pkt->getPayloadType() == PAYLOAD_TYPE_CONTROL && (pkt->payload[0] & 0x80) != 0) {
+    if (pkt->path_len == 0) {
+      onControlDataRecv(pkt);
+    }
+    // just zero-hop control packets allowed (for this subset of payloads)
+    return ACTION_RELEASE;
+  }
+
   if (pkt->isRouteDirect() && pkt->path_len >= PATH_HASH_SIZE) {
     if (self_id.isHashMatch(pkt->path) && allowPacketForward(pkt)) {
       if (pkt->getPayloadType() == PAYLOAD_TYPE_MULTIPART) {
@@ -89,6 +97,8 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
     }
     return ACTION_RELEASE;   // this node is NOT the next hop (OR this packet has already been forwarded), so discard.
   }
+
+  if (pkt->isRouteFlood() && filterRecvFloodPacket(pkt)) return ACTION_RELEASE;
 
   DispatcherAction action = ACTION_RELEASE;
 
@@ -201,9 +211,9 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
       if (i + 2 >= pkt->payload_len) {
         MESH_DEBUG_PRINTLN("%s Mesh::onRecvPacket(): incomplete data packet", getLogDateTime());
       } else if (!_tables->hasSeen(pkt)) {
-        // scan channels DB, for all matching hashes of 'channel_hash' (max 2 matches supported ATM)
-        GroupChannel channels[2];
-        int num = searchChannelsByHash(&channel_hash, channels, 2);
+        // scan channels DB, for all matching hashes of 'channel_hash' (max 4 matches supported ATM)
+        GroupChannel channels[4];
+        int num = searchChannelsByHash(&channel_hash, channels, 4);
         // for each matching channel, try to decrypt data
         for (int j = 0; j < num; j++) {
           // decrypt, checking MAC is valid
@@ -587,6 +597,22 @@ Packet* Mesh::createTrace(uint32_t tag, uint32_t auth_code, uint8_t flags) {
   return packet;
 }
 
+Packet* Mesh::createControlData(const uint8_t* data, size_t len) {
+  if (len > sizeof(Packet::payload)) return NULL;  // invalid arg
+
+  Packet* packet = obtainNewPacket();
+  if (packet == NULL) {
+    MESH_DEBUG_PRINTLN("%s Mesh::createControlData(): error, packet pool empty", getLogDateTime());
+    return NULL;
+  }
+  packet->header = (PAYLOAD_TYPE_CONTROL << PH_TYPE_SHIFT);  // ROUTE_TYPE_* set later
+
+  memcpy(packet->payload, data, len);
+  packet->payload_len = len;
+
+  return packet;
+}
+
 void Mesh::sendFlood(Packet* packet, uint32_t delay_millis) {
   if (packet->getPayloadType() == PAYLOAD_TYPE_TRACE) {
     MESH_DEBUG_PRINTLN("%s Mesh::sendFlood(): TRACE type not suspported", getLogDateTime());
@@ -595,6 +621,31 @@ void Mesh::sendFlood(Packet* packet, uint32_t delay_millis) {
 
   packet->header &= ~PH_ROUTE_MASK;
   packet->header |= ROUTE_TYPE_FLOOD;
+  packet->path_len = 0;
+
+  _tables->hasSeen(packet); // mark this packet as already sent in case it is rebroadcast back to us
+
+  uint8_t pri;
+  if (packet->getPayloadType() == PAYLOAD_TYPE_PATH) {
+    pri = 2;
+  } else if (packet->getPayloadType() == PAYLOAD_TYPE_ADVERT) {
+    pri = 3;   // de-prioritie these
+  } else {
+    pri = 1;
+  }
+  sendPacket(packet, pri, delay_millis);
+}
+
+void Mesh::sendFlood(Packet* packet, uint16_t* transport_codes, uint32_t delay_millis) {
+  if (packet->getPayloadType() == PAYLOAD_TYPE_TRACE) {
+    MESH_DEBUG_PRINTLN("%s Mesh::sendFlood(): TRACE type not suspported", getLogDateTime());
+    return;
+  }
+
+  packet->header &= ~PH_ROUTE_MASK;
+  packet->header |= ROUTE_TYPE_TRANSPORT_FLOOD;
+  packet->transport_codes[0] = transport_codes[0];
+  packet->transport_codes[1] = transport_codes[1];
   packet->path_len = 0;
 
   _tables->hasSeen(packet); // mark this packet as already sent in case it is rebroadcast back to us
@@ -637,6 +688,19 @@ void Mesh::sendDirect(Packet* packet, const uint8_t* path, uint8_t path_len, uin
 void Mesh::sendZeroHop(Packet* packet, uint32_t delay_millis) {
   packet->header &= ~PH_ROUTE_MASK;
   packet->header |= ROUTE_TYPE_DIRECT;
+
+  packet->path_len = 0;  // path_len of zero means Zero Hop
+
+  _tables->hasSeen(packet); // mark this packet as already sent in case it is rebroadcast back to us
+
+  sendPacket(packet, 0, delay_millis);
+}
+
+void Mesh::sendZeroHop(Packet* packet, uint16_t* transport_codes, uint32_t delay_millis) {
+  packet->header &= ~PH_ROUTE_MASK;
+  packet->header |= ROUTE_TYPE_TRANSPORT_DIRECT;
+  packet->transport_codes[0] = transport_codes[0];
+  packet->transport_codes[1] = transport_codes[1];
 
   packet->path_len = 0;  // path_len of zero means Zero Hop
 

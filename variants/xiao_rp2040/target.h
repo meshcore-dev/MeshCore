@@ -7,7 +7,7 @@
 #include <helpers/radiolib/CustomSX1262Wrapper.h>
 #include <helpers/radiolib/RadioLibWrappers.h>
 #include <helpers/SensorManager.h>
-#include <helpers/rp2040/XiaoRP2040Board.h>
+#include <XiaoRP2040Board.h>
 
 extern XiaoRP2040Board board;
 extern WRAPPER_CLASS radio_driver;

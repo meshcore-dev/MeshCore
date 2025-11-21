@@ -92,7 +92,7 @@ void LocalIdentity::sign(uint8_t* sig, const uint8_t* message, int msg_len) cons
   ed25519_sign(sig, message, msg_len, pub_key, prv_key);
 }
 
-void LocalIdentity::calcSharedSecret(uint8_t* secret, const uint8_t* other_pub_key) {
+void LocalIdentity::calcSharedSecret(uint8_t* secret, const uint8_t* other_pub_key) const {
   ed25519_key_exchange(secret, other_pub_key, prv_key);
 }
 
