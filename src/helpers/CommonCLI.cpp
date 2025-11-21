@@ -164,12 +164,12 @@ void CommonCLI::savePrefs() {
 }
 
 uint8_t CommonCLI::buildAdvertData(uint8_t node_type, uint8_t* app_data) {
-  AdvertDataBuilder builder(node_type, _prefs->node_name);
+  AdvertDataBuilder builder(node_type, _prefs->node_name, _prefs->node_lat, _prefs->node_lon);
 
-  if (_prefs->advert_loc_policy == ADVERT_LOC_SHARE) {
+  if (_prefs->advert_loc_policy == ADVERT_LOC_NONE) {
+    builder = AdvertDataBuilder(node_type, _prefs->node_name);
+  } else if (_prefs->advert_loc_policy == ADVERT_LOC_SHARE) {
     builder = AdvertDataBuilder(node_type, _prefs->node_name, _sensors->node_lat, _sensors->node_lon);
-  } else if (_prefs->advert_loc_policy == ADVERT_LOC_PREFS) {
-    builder = AdvertDataBuilder(node_type, _prefs->node_name, _prefs->node_lat, _prefs->node_lon);
   }
 
   uint16_t batt_mv = _board->getBattMilliVolts();
