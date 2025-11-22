@@ -550,15 +550,14 @@ StdRNG fast_rng;
 SimpleMeshTables tables;
 MyMesh the_mesh(radio_driver, fast_rng, rtc_clock, tables);
 
-void delayedReboot(void *d, const char *msg, const uint32_t delayms) {
+void delayedReboot(const char *msg, const uint32_t delayms) {
   #ifdef DISPLAY_CLASS
-    DisplayDriver* disp = (DisplayDriver*)d;
     char tmp[32];
     sprintf(tmp, "Rebooting in %3.1fs", delayms/1000.0);
-    disp->startFrame();
-    disp->drawTextCentered(disp->width() / 2, 24, msg);
-    disp->drawTextCentered(disp->width() / 2, 32, tmp);
-    disp->endFrame();
+    display.startFrame();
+    display.drawTextCentered(display.width() / 2, 24, msg);
+    display.drawTextCentered(display.width() / 2, 32, tmp);
+    display.endFrame();
   #endif
   delay(delayms);
   board.reboot();
@@ -571,9 +570,9 @@ void setup() {
 
   if (!radio_init()) {
     #ifdef DISPLAY_CLASS
-      delayedReboot(disp, "Radio Init Failed!", 5000);
+      delayedReboot("Radio Init Failed!", 5000);
     #else
-      delayedReboot(NULL, "", 5000);
+      delayedReboot("", 5000);
     #endif
   }
 
