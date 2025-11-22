@@ -1,12 +1,11 @@
 #include <Arduino.h>
 #include "target.h"
-#include "pins_arduino.h"
 
 ArduinoNessoN1Board board;
 
 #if defined(P_LORA_SCLK)
   static SPIClass spi(0);
-  // replace P_LORA_RESET with -1 to indicate RESET is handled outside
+  // replace P_LORA_RESET with -1 to indicate RESET is handled elsewhere (which is in ArduinoNessoN1Board.cpp)
   RADIO_CLASS radio = new Module(P_LORA_NSS, P_LORA_DIO_1, -1, P_LORA_BUSY, spi);
 #else
   RADIO_CLASS radio = new Module(P_LORA_NSS, P_LORA_DIO_1, -1, P_LORA_BUSY);
@@ -22,34 +21,6 @@ bool radio_init() {
   MESH_DEBUG_PRINTLN("radio_init()");
   fallback_clock.begin();
   rtc_clock.begin(Wire);
-
-  MESH_DEBUG_PRINTLN("set Nesso N1 pin modes and default states...");
-  pinMode(LORA_ENABLE, OUTPUT); // RESET
-  pinMode(LORA_ANTENNA_SWITCH, OUTPUT); // ANTENNA_SWITCH
-  pinMode(LORA_LNA_ENABLE, OUTPUT); // LNA_ENABLE
-  pinMode(LCD_BACKLIGHT, OUTPUT);
-  pinMode(BEEP_PIN, OUTPUT);
-
-  // Toggle LoRa reset via expander
-  MESH_DEBUG_PRINTLN("Enable LoRa...");
-  digitalWrite(LORA_ENABLE, LOW);
-  delay(10);
-  digitalWrite(LORA_ENABLE, HIGH);
-
-  // Configure antenna switch and LNA
-  digitalWrite(LORA_ANTENNA_SWITCH, HIGH); // enable antenna switch
-  digitalWrite(LORA_LNA_ENABLE, HIGH); // enable LNA
-
-  // Configure initial state of further devices on expander
-  digitalWrite(LCD_BACKLIGHT, LOW);
-  digitalWrite(BEEP_PIN, LOW);
-
-  // Toggle LCD backlight to show the device has powered on until we get the screen working
-  digitalWrite(LCD_BACKLIGHT, HIGH);
-  // digitalWrite(BEEP_PIN, HIGH);
-  delay(2000);
-  digitalWrite(LCD_BACKLIGHT, LOW);
-  // digitalWrite(BEEP_PIN, LOW);
 
   MESH_DEBUG_PRINTLN("radio.std_init() and return...");
 #if defined(P_LORA_SCLK)
