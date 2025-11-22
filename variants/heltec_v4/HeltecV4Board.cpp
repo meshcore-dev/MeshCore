@@ -82,9 +82,9 @@ void HeltecV4Board::begin() {
     esp_light_sleep_start();   // CPU enters light sleep
   }
 
-  void HeltecV4Board::sleep() {
-    if (WiFi.getMode() == WIFI_MODE_NULL) { // WiFi is off ~ No active OTA, can go to sleep
-      enterLightSleep(1800); // To wake up every 30 minutes or when receiving a LoRa packet
+  void HeltecV4Board::sleep(uint32_t secs) {
+    if (WiFi.getMode() == WIFI_MODE_NULL) { // WiFi is off ~ No active OTA, safe to go to sleep
+      enterLightSleep(secs); // To wake up after "secs" seconds or when receiving a LoRa packet
     }
   }
 
