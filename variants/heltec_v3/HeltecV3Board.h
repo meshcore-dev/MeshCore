@@ -88,9 +88,9 @@ public:
     esp_light_sleep_start();   // CPU enters light sleep
   }
 
-  void sleep() override {
-    if (WiFi.getMode() == WIFI_MODE_NULL) { // WiFi is off ~ No active OTA, can go to sleep
-      enterLightSleep(1800); // To wake up every 30 minutes or when receiving a LoRa packet
+  void sleep(uint32_t secs) override {
+    if (WiFi.getMode() == WIFI_MODE_NULL) { // WiFi is off ~ No active OTA, safe to go to sleep
+      enterLightSleep(secs); // To wake up after "secs" seconds or when receiving a LoRa packet
     }
   }
 
