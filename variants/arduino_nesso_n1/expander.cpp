@@ -1,3 +1,4 @@
+#pragma once
 // Based off here https://github.com/espressif/arduino-esp32/blob/d1eb62d7c6dda16c254c374504aa93188d7c386b/variants/arduino_nesso_n1/expander.cpp
 // Should be OK based on this? https://opensource.stackexchange.com/a/6406
 
@@ -25,6 +26,7 @@ static uint8_t readRegister(uint8_t address, uint8_t reg) {
 }
 
 static void writeBitRegister(uint8_t address, uint8_t reg, uint8_t bit, uint8_t value) {
+  MESH_DEBUG_PRINTLN("ExpanderPin writeBitRegister(address=%u, reg=%u, bit=%u, value=%u)", address, reg, bit, value);
   uint8_t val = readRegister(address, reg);
   if (value) {
     writeRegister(address, reg, val | (1 << bit));
@@ -34,6 +36,7 @@ static void writeBitRegister(uint8_t address, uint8_t reg, uint8_t bit, uint8_t 
 }
 
 static bool readBitRegister(uint8_t address, uint8_t reg, uint8_t bit) {
+  MESH_DEBUG_PRINTLN("ExpanderPin readBitRegister(address=%u, reg=%u, bit=%u)", address, reg, bit);
   uint8_t val = readRegister(address, reg);
   return ((val & (1 << bit)) > 0);
 }
@@ -54,6 +57,7 @@ void pinMode(ExpanderPin pin, uint8_t mode) {
     writeRegister(pin.address, 0x3, 0);
     expanderInitialized = true;
   }
+  MESH_DEBUG_PRINTLN("ExpanderPin pinMode(pin=%u, mode=%u)", pin.pin, mode);
   writeBitRegister(pin.address, 0x3, pin.pin, mode == OUTPUT);
   if (mode == OUTPUT) {
     // remove high impedance
@@ -77,6 +81,7 @@ void digitalWrite(ExpanderPin pin, uint8_t val) {
     Wire.begin(SDA, SCL);
     wireInitialized = true;
   }
+  MESH_DEBUG_PRINTLN("ExpanderPin digitalWrite(%u)", pin.pin);
   writeBitRegister(pin.address, 0x5, pin.pin, val == HIGH);
 }
 
@@ -85,6 +90,7 @@ int digitalRead(ExpanderPin pin) {
     Wire.begin(SDA, SCL);
     wireInitialized = true;
   }
+  MESH_DEBUG_PRINTLN("ExpanderPin digitalRead(%u)", pin.pin);
   return readBitRegister(pin.address, 0xF, pin.pin);
 }
 
@@ -132,6 +138,7 @@ uint16_t NessoBattery::getChargeLevel() {
     Wire.begin(SDA, SCL);
     wireInitialized = true;
   }
+  MESH_DEBUG_PRINTLN("NessoBattery::getChargeLevel()");
   uint16_t current_capacity = readRegister(0x55, 0x11) << 8 | readRegister(0x55, 0x10);
   uint16_t total_capacity = readRegister(0x55, 0x13) << 8 | readRegister(0x55, 0x12);
   return (current_capacity * 100) / total_capacity;
