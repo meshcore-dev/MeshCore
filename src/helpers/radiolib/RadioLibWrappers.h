@@ -50,6 +50,8 @@ public:
   virtual float getLastRSSI() const override;
   virtual float getLastSNR() const override;
 
+  virtual void powerOff() { /* no op */ }
+
   float packetScore(float snr, int packet_len) override { return packetScoreInt(snr, 10, packet_len); }  // assume sf=10
 };
 
