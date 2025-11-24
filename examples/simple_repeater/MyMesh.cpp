@@ -710,6 +710,8 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.gps_enabled = 0;
   _prefs.gps_interval = 0;
   _prefs.advert_loc_policy = ADVERT_LOC_PREFS;
+
+  _prefs.adc_multiplier = 0.0f; // 0.0f means use default board multiplier
 }
 
 void MyMesh::begin(FILESYSTEM *fs) {
@@ -732,6 +734,8 @@ void MyMesh::begin(FILESYSTEM *fs) {
 
   updateAdvertTimer();
   updateFloodAdvertTimer();
+
+  board.setAdcMultiplier(_prefs.adc_multiplier);
 
 #if ENV_INCLUDE_GPS == 1
   applyGpsPrefs();

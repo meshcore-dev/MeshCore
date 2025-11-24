@@ -117,6 +117,8 @@
 
 #define GPS_EN                  (21)
 #define GPS_RESET               (38)
+#define PIN_GPS_RX              (39)  // This is for bits going TOWARDS the GPS
+#define PIN_GPS_TX              (37)  // This is for bits going TOWARDS the CPU
 
 ////////////////////////////////////////////////////////////////////////////////
 // TFT

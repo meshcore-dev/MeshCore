@@ -52,6 +52,12 @@
 #define CMD_SEND_PATH_DISCOVERY_REQ   52
 #define CMD_SET_FLOOD_SCOPE           54   // v8+
 #define CMD_SEND_CONTROL_DATA         55   // v8+
+#define CMD_GET_STATS                 56   // v8+, second byte is stats type
+
+// Stats sub-types for CMD_GET_STATS
+#define STATS_TYPE_CORE               0
+#define STATS_TYPE_RADIO              1
+#define STATS_TYPE_PACKETS             2
 
 #define RESP_CODE_OK                  0
 #define RESP_CODE_ERR                 1
@@ -77,6 +83,7 @@
 #define RESP_CODE_CUSTOM_VARS         21
 #define RESP_CODE_ADVERT_PATH         22
 #define RESP_CODE_TUNING_PARAMS       23
+#define RESP_CODE_STATS               24   // v8+, second byte is stats type
 
 #define SEND_TIMEOUT_BASE_MILLIS        500
 #define FLOOD_SEND_TIMEOUT_FACTOR       16.0f
@@ -1128,7 +1135,7 @@ void MyMesh::handleCmdFrame(size_t len) {
     uint8_t sf = cmd_frame[i++];
     uint8_t cr = cmd_frame[i++];
 
-    if (freq >= 300000 && freq <= 2500000 && sf >= 7 && sf <= 12 && cr >= 5 && cr <= 8 && bw >= 7000 &&
+    if (freq >= 300000 && freq <= 2500000 && sf >= 5 && sf <= 12 && cr >= 5 && cr <= 8 && bw >= 7000 &&
         bw <= 500000) {
       _prefs.sf = sf;
       _prefs.cr = cr;
@@ -1528,6 +1535,55 @@ void MyMesh::handleCmdFrame(size_t len) {
       _serial->writeFrame(out_frame, 6 + found->path_len);
     } else {
       writeErrFrame(ERR_CODE_NOT_FOUND);
+    }
+  } else if (cmd_frame[0] == CMD_GET_STATS && len >= 2) {
+    uint8_t stats_type = cmd_frame[1];
+    if (stats_type == STATS_TYPE_CORE) {
+      int i = 0;
+      out_frame[i++] = RESP_CODE_STATS;
+      out_frame[i++] = STATS_TYPE_CORE;
+      uint16_t battery_mv = board.getBattMilliVolts();
+      uint32_t uptime_secs = _ms->getMillis() / 1000;
+      uint8_t queue_len = (uint8_t)_mgr->getOutboundCount(0xFFFFFFFF);
+      memcpy(&out_frame[i], &battery_mv, 2); i += 2;
+      memcpy(&out_frame[i], &uptime_secs, 4); i += 4;
+      memcpy(&out_frame[i], &_err_flags, 2); i += 2;
+      out_frame[i++] = queue_len;
+      _serial->writeFrame(out_frame, i);
+    } else if (stats_type == STATS_TYPE_RADIO) {
+      int i = 0;
+      out_frame[i++] = RESP_CODE_STATS;
+      out_frame[i++] = STATS_TYPE_RADIO;
+      int16_t noise_floor = (int16_t)_radio->getNoiseFloor();
+      int8_t last_rssi = (int8_t)radio_driver.getLastRSSI();
+      int8_t last_snr = (int8_t)(radio_driver.getLastSNR() * 4); // scaled by 4 for 0.25 dB precision
+      uint32_t tx_air_secs = getTotalAirTime() / 1000;
+      uint32_t rx_air_secs = getReceiveAirTime() / 1000;
+      memcpy(&out_frame[i], &noise_floor, 2); i += 2;
+      out_frame[i++] = last_rssi;
+      out_frame[i++] = last_snr;
+      memcpy(&out_frame[i], &tx_air_secs, 4); i += 4;
+      memcpy(&out_frame[i], &rx_air_secs, 4); i += 4;
+      _serial->writeFrame(out_frame, i);
+    } else if (stats_type == STATS_TYPE_PACKETS) {
+      int i = 0;
+      out_frame[i++] = RESP_CODE_STATS;
+      out_frame[i++] = STATS_TYPE_PACKETS;
+      uint32_t recv = radio_driver.getPacketsRecv();
+      uint32_t sent = radio_driver.getPacketsSent();
+      uint32_t n_sent_flood = getNumSentFlood();
+      uint32_t n_sent_direct = getNumSentDirect();
+      uint32_t n_recv_flood = getNumRecvFlood();
+      uint32_t n_recv_direct = getNumRecvDirect();
+      memcpy(&out_frame[i], &recv, 4); i += 4;
+      memcpy(&out_frame[i], &sent, 4); i += 4;
+      memcpy(&out_frame[i], &n_sent_flood, 4); i += 4;
+      memcpy(&out_frame[i], &n_sent_direct, 4); i += 4;
+      memcpy(&out_frame[i], &n_recv_flood, 4); i += 4;
+      memcpy(&out_frame[i], &n_recv_direct, 4); i += 4;
+      _serial->writeFrame(out_frame, i);
+    } else {
+      writeErrFrame(ERR_CODE_ILLEGAL_ARG); // invalid stats sub-type
     }
   } else if (cmd_frame[0] == CMD_FACTORY_RESET && memcmp(&cmd_frame[1], "reset", 5) == 0) {
     bool success = _store->formatFileSystem();

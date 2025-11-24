@@ -47,6 +47,7 @@ struct NodePrefs { // persisted to file
   uint32_t gps_interval; // in seconds
   uint8_t advert_loc_policy;
   uint32_t discovery_mod_timestamp;
+  float adc_multiplier;
 };
 
 class CommonCLICallbacks {
