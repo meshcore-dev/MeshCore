@@ -1,5 +1,4 @@
 #include "HeltecV4Board.h"
-#include <WiFi.h>
 
 void HeltecV4Board::begin() {
     ESP32Board::begin();
@@ -69,23 +68,6 @@ void HeltecV4Board::begin() {
 
   void HeltecV4Board::powerOff()  {
     enterDeepSleep(0);
-  }
-
-  void HeltecV4Board::enterLightSleep (uint32_t secs) {
-    esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
-    esp_sleep_enable_ext1_wakeup( (1L << P_LORA_DIO_1), ESP_EXT1_WAKEUP_ANY_HIGH); // To wake up when receiving a LoRa packet
-
-    if (secs > 0) {
-      esp_sleep_enable_timer_wakeup(secs * 1000000); // To wake up every hour to do periodically jobs
-    }
-
-    esp_light_sleep_start();   // CPU enters light sleep
-  }
-
-  void HeltecV4Board::sleep(uint32_t secs) {
-    if (WiFi.getMode() == WIFI_MODE_NULL) { // WiFi is off ~ No active OTA, safe to go to sleep
-      enterLightSleep(secs); // To wake up after "secs" seconds or when receiving a LoRa packet
-    }
   }
 
   uint16_t HeltecV4Board::getBattMilliVolts()  {
