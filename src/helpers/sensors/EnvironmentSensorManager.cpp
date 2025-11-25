@@ -178,6 +178,16 @@ bool EnvironmentSensorManager::begin() {
   }
   #endif
 
+  #if ENV_INCLUDE_BME680
+  if (BME680.begin(TELEM_BME680_ADDRESS, TELEM_WIRE)) {
+    MESH_DEBUG_PRINTLN("Found BME680 at address: %02X", TELEM_BME680_ADDRESS);
+    BME680_initialized = true;
+  } else {
+    BME680_initialized = false;
+    MESH_DEBUG_PRINTLN("BME680 was not found at I2C address %02X", TELEM_BME680_ADDRESS);
+  }
+  #endif
+
   #if ENV_INCLUDE_BME280
   if (BME280.begin(TELEM_BME280_ADDRESS, TELEM_WIRE)) {
     MESH_DEBUG_PRINTLN("Found BME280 at address: %02X", TELEM_BME280_ADDRESS);
@@ -301,16 +311,6 @@ bool EnvironmentSensorManager::begin() {
   }
   #endif
 
-  #if ENV_INCLUDE_BME680
-  if (BME680.begin(TELEM_BME680_ADDRESS, TELEM_WIRE)) {
-    MESH_DEBUG_PRINTLN("Found BME680 at address: %02X", TELEM_BME680_ADDRESS);
-    BME680_initialized = true;
-  } else {
-    BME680_initialized = false;
-    MESH_DEBUG_PRINTLN("BME680 was not found at I2C address %02X", TELEM_BME680_ADDRESS);
-  }
-  #endif
-
   #if ENV_INCLUDE_BMP085
   // First argument is  MODE (aka oversampling)
   // choose ULTRALOWPOWER
@@ -341,6 +341,19 @@ bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, Cayen
       AHTX0.getEvent(&humidity, &temp);
       telemetry.addTemperature(TELEM_CHANNEL_SELF, temp.temperature);
       telemetry.addRelativeHumidity(TELEM_CHANNEL_SELF, humidity.relative_humidity);
+    }
+    #endif
+
+    #if ENV_INCLUDE_BME680
+    if (BME680_initialized) {
+      if (BME680.performReading()) {
+        telemetry.addTemperature(TELEM_CHANNEL_SELF, BME680.temperature);
+        telemetry.addRelativeHumidity(TELEM_CHANNEL_SELF, BME680.humidity);
+        telemetry.addBarometricPressure(TELEM_CHANNEL_SELF, BME680.pressure / 100);
+        telemetry.addAltitude(TELEM_CHANNEL_SELF, 44330.0 * (1.0 - pow((BME680.pressure / 100) / TELEM_BME680_SEALEVELPRESSURE_HPA, 0.1903)));
+        telemetry.addAnalogInput(next_available_channel, BME680.gas_resistance);
+        next_available_channel++;
+      }
     }
     #endif
 
@@ -452,19 +465,6 @@ bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, Cayen
     }
     #endif
 
-    #if ENV_INCLUDE_BME680
-    if (BME680_initialized) {
-      if (BME680.performReading()) {
-        telemetry.addTemperature(TELEM_CHANNEL_SELF, BME680.temperature);
-        telemetry.addRelativeHumidity(TELEM_CHANNEL_SELF, BME680.humidity);
-        telemetry.addBarometricPressure(TELEM_CHANNEL_SELF, BME680.pressure / 100);
-        telemetry.addAltitude(TELEM_CHANNEL_SELF, 44330.0 * (1.0 - pow((BME680.pressure / 100) / TELEM_BME680_SEALEVELPRESSURE_HPA, 0.1903)));
-        telemetry.addAnalogInput(next_available_channel, BME680.gas_resistance);
-        next_available_channel++;
-      }
-    }
-    #endif
-
     #if ENV_INCLUDE_BMP085
     if (BMP085_initialized) {
         telemetry.addTemperature(TELEM_CHANNEL_SELF, BMP085.readTemperature());
@@ -563,7 +563,7 @@ void EnvironmentSensorManager::initBasicGPS() {
   gps_active = false; //Set GPS visibility off until setting is changed
 }
 
-// gps code for rak might be moved to MicroNMEALoactionProvider 
+// gps code for rak might be moved to MicroNMEALoactionProvider
 // or make a new location provider ...
 #ifdef RAK_WISBLOCK_GPS
 void EnvironmentSensorManager::rakGPSInit(){

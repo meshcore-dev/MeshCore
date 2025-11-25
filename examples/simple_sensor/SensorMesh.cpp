@@ -740,6 +740,8 @@ void SensorMesh::begin(FILESYSTEM* fs) {
   updateAdvertTimer();
   updateFloodAdvertTimer();
 
+   board.setAdcMultiplier(_prefs.adc_multiplier);
+
 #if ENV_INCLUDE_GPS == 1
   applyGpsPrefs();
 #endif

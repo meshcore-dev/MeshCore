@@ -42,6 +42,8 @@ namespace mesh {
 class MainBoard {
 public:
   virtual uint16_t getBattMilliVolts() = 0;
+  virtual bool setAdcMultiplier(float multiplier) { return false; };
+  virtual float getAdcMultiplier() const { return 0.0f; }
   virtual const char* getManufacturerName() const = 0;
   virtual void onBeforeTransmit() { }
   virtual void onAfterTransmit() { }
