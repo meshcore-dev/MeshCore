@@ -43,19 +43,19 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     file.read((uint8_t *)&_prefs->tx_power_dbm, sizeof(_prefs->tx_power_dbm));        // 76
     file.read((uint8_t *)&_prefs->disable_fwd, sizeof(_prefs->disable_fwd));          // 77
     file.read((uint8_t *)&_prefs->advert_interval, sizeof(_prefs->advert_interval));  // 78
-    file.read((uint8_t *)pad, 1);                                                     // 79  was 'unused'
+    file.read((uint8_t *)pad, 1); // 79 : 1 byte unused
     file.read((uint8_t *)&_prefs->rx_delay_base, sizeof(_prefs->rx_delay_base));      // 80
     file.read((uint8_t *)&_prefs->tx_delay_factor, sizeof(_prefs->tx_delay_factor));  // 84
     file.read((uint8_t *)&_prefs->guest_password[0], sizeof(_prefs->guest_password)); // 88
     file.read((uint8_t *)&_prefs->direct_tx_delay_factor, sizeof(_prefs->direct_tx_delay_factor)); // 104
-    file.read(pad, 4);                                                                             // 108
+    file.read(pad, 4); // 108 : 4 bytes unused
     file.read((uint8_t *)&_prefs->sf, sizeof(_prefs->sf));                                         // 112
     file.read((uint8_t *)&_prefs->cr, sizeof(_prefs->cr));                                         // 113
     file.read((uint8_t *)&_prefs->allow_read_only, sizeof(_prefs->allow_read_only));               // 114
     file.read((uint8_t *)&_prefs->multi_acks, sizeof(_prefs->multi_acks));                         // 115
     file.read((uint8_t *)&_prefs->bw, sizeof(_prefs->bw));                                         // 116
     file.read((uint8_t *)&_prefs->agc_reset_interval, sizeof(_prefs->agc_reset_interval));         // 120
-    file.read(pad, 3);                                                                             // 121
+    file.read(pad, 3); // 121 : 3 bytes unused 
     file.read((uint8_t *)&_prefs->flood_max, sizeof(_prefs->flood_max));                           // 124
     file.read((uint8_t *)&_prefs->flood_advert_interval, sizeof(_prefs->flood_advert_interval));   // 125
     file.read((uint8_t *)&_prefs->interference_threshold, sizeof(_prefs->interference_threshold)); // 126
@@ -65,13 +65,16 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     file.read((uint8_t *)&_prefs->bridge_baud, sizeof(_prefs->bridge_baud));                       // 131
     file.read((uint8_t *)&_prefs->bridge_channel, sizeof(_prefs->bridge_channel));                 // 135
     file.read((uint8_t *)&_prefs->bridge_secret, sizeof(_prefs->bridge_secret));                   // 136
-    file.read(pad, 4);                                                                             // 152
+    file.read(pad, 4); // 152 : 4 bytes unused
     file.read((uint8_t *)&_prefs->gps_enabled, sizeof(_prefs->gps_enabled));                       // 156
     file.read((uint8_t *)&_prefs->gps_interval, sizeof(_prefs->gps_interval));                     // 157
     file.read((uint8_t *)&_prefs->advert_loc_policy, sizeof (_prefs->advert_loc_policy));          // 161
     file.read((uint8_t *)&_prefs->discovery_mod_timestamp, sizeof(_prefs->discovery_mod_timestamp)); // 162
-    file.read((uint8_t *)&_prefs->adc_multiplier, sizeof(_prefs->adc_multiplier)); // 166
-    // 170
+    file.read((uint8_t *)&_prefs->adc_multiplier, sizeof(_prefs->adc_multiplier));                 // 166
+    file.read(pad, 4); // 169 : 4 bytes unused
+    file.read((uint8_t *)&_prefs->sx126x_current_limit, sizeof(_prefs->sx126x_current_limit));     // 173
+    file.read((uint8_t *)&_prefs->sx126x_rx_boosted_gain, sizeof(_prefs->sx126x_rx_boosted_gain)); // 174
+    // next: 175
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -95,6 +98,10 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
 
     _prefs->gps_enabled = constrain(_prefs->gps_enabled, 0, 1);
     _prefs->advert_loc_policy = constrain(_prefs->advert_loc_policy, 0, 2);
+
+    // sanitise power settings
+    _prefs->sx126x_current_limit = constrain(_prefs->sx126x_current_limit, 0, 140); // mA
+    _prefs->sx126x_rx_boosted_gain = constrain(_prefs->sx126x_rx_boosted_gain, 0, 1); // boolean
 
     file.close();
   }
@@ -123,19 +130,19 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->tx_power_dbm, sizeof(_prefs->tx_power_dbm));        // 76
     file.write((uint8_t *)&_prefs->disable_fwd, sizeof(_prefs->disable_fwd));          // 77
     file.write((uint8_t *)&_prefs->advert_interval, sizeof(_prefs->advert_interval));  // 78
-    file.write((uint8_t *)pad, 1);                                                     // 79  was 'unused'
+    file.write((uint8_t *)pad, 1); // 79 : 1 byte unused
     file.write((uint8_t *)&_prefs->rx_delay_base, sizeof(_prefs->rx_delay_base));      // 80
     file.write((uint8_t *)&_prefs->tx_delay_factor, sizeof(_prefs->tx_delay_factor));  // 84
     file.write((uint8_t *)&_prefs->guest_password[0], sizeof(_prefs->guest_password)); // 88
     file.write((uint8_t *)&_prefs->direct_tx_delay_factor, sizeof(_prefs->direct_tx_delay_factor)); // 104
-    file.write(pad, 4);                                                                             // 108
+    file.write(pad, 4); // 108 : 4 byte unused
     file.write((uint8_t *)&_prefs->sf, sizeof(_prefs->sf));                                         // 112
     file.write((uint8_t *)&_prefs->cr, sizeof(_prefs->cr));                                         // 113
     file.write((uint8_t *)&_prefs->allow_read_only, sizeof(_prefs->allow_read_only));               // 114
     file.write((uint8_t *)&_prefs->multi_acks, sizeof(_prefs->multi_acks));                         // 115
     file.write((uint8_t *)&_prefs->bw, sizeof(_prefs->bw));                                         // 116
     file.write((uint8_t *)&_prefs->agc_reset_interval, sizeof(_prefs->agc_reset_interval));         // 120
-    file.write(pad, 3);                                                                             // 121
+    file.write(pad, 3); // 121 : 3 bytes unused
     file.write((uint8_t *)&_prefs->flood_max, sizeof(_prefs->flood_max));                           // 124
     file.write((uint8_t *)&_prefs->flood_advert_interval, sizeof(_prefs->flood_advert_interval));   // 125
     file.write((uint8_t *)&_prefs->interference_threshold, sizeof(_prefs->interference_threshold)); // 126
@@ -145,13 +152,16 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->bridge_baud, sizeof(_prefs->bridge_baud));                       // 131
     file.write((uint8_t *)&_prefs->bridge_channel, sizeof(_prefs->bridge_channel));                 // 135
     file.write((uint8_t *)&_prefs->bridge_secret, sizeof(_prefs->bridge_secret));                   // 136
-    file.write(pad, 4);                                                                             // 152
+    file.write(pad, 4); // 152 : 4 bytes unused
     file.write((uint8_t *)&_prefs->gps_enabled, sizeof(_prefs->gps_enabled));                       // 156
     file.write((uint8_t *)&_prefs->gps_interval, sizeof(_prefs->gps_interval));                     // 157
     file.write((uint8_t *)&_prefs->advert_loc_policy, sizeof(_prefs->advert_loc_policy));           // 161
     file.write((uint8_t *)&_prefs->discovery_mod_timestamp, sizeof(_prefs->discovery_mod_timestamp)); // 162
     file.write((uint8_t *)&_prefs->adc_multiplier, sizeof(_prefs->adc_multiplier));                 // 166
-    // 170
+    file.write(pad, 4); // 169 : 4 bytes unused
+    file.write((uint8_t *)&_prefs->sx126x_current_limit, sizeof(_prefs->sx126x_current_limit));     // 173
+    file.write((uint8_t *)&_prefs->sx126x_rx_boosted_gain, sizeof(_prefs->sx126x_rx_boosted_gain)); // 174
+    // next: 175
 
     file.close();
   }
@@ -341,6 +351,14 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         } else {
           sprintf(reply, "> %.3f", adc_mult);
         }
+#ifdef SX126X_CURRENT_LIMIT
+      } else if (memcmp(config, "sx126x.current", 14) == 0) {
+        sprintf(reply, "> %d mA", (uint8_t)_prefs->sx126x_current_limit);
+#endif
+#ifdef SX126X_RX_BOOSTED_GAIN
+      } else if (memcmp(config, "sx126x.rxboost", 14) == 0) {
+        sprintf(reply, "> %s", _prefs->sx126x_rx_boosted_gain ? "on" : "off");
+#endif
       } else {
         sprintf(reply, "??: %s", config);
       }
@@ -546,6 +564,20 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
           _prefs->adc_multiplier = 0.0f;
           strcpy(reply, "Error: unsupported by this board");
         };
+#ifdef SX126X_CURRENT_LIMIT
+      } else if (memcmp(config, "sx126x.current ", 15) == 0) {
+        _prefs->sx126x_current_limit = atoi(&config[15]);
+        strcpy(reply, "OK");
+        savePrefs();
+        _callbacks->setCurrentLimit(_prefs->sx126x_current_limit);
+#endif
+#ifdef SX126X_RX_BOOSTED_GAIN
+      } else if (memcmp(config, "sx126x.rxboost ", 15) == 0) {
+        _prefs->sx126x_rx_boosted_gain = memcmp(&config[15], "on", 2) == 0;
+        strcpy(reply, "OK");
+        savePrefs();
+        _callbacks->setRxBoostedGain(_prefs->sx126x_rx_boosted_gain);
+#endif
       } else {
         sprintf(reply, "unknown config: %s", config);
       }

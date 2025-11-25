@@ -27,4 +27,6 @@ bool radio_init();
 uint32_t radio_get_rng_seed();
 void radio_set_params(float freq, float bw, uint8_t sf, uint8_t cr);
 void radio_set_tx_power(uint8_t dbm);
+void radio_set_current_limit(uint8_t ma);
+void radio_set_rx_boosted_gain(bool enable);
 mesh::LocalIdentity radio_new_identity();

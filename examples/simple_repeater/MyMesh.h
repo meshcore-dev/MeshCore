@@ -225,4 +225,8 @@ public:
     bridge.begin();
   }
 #endif
+
+#if defined(SX126X_CURRENT_LIMIT)
+  void setCurrentLimit(uint8_t ma) { radio_set_current_limit(ma); }
+#endif
 };

@@ -48,6 +48,9 @@ struct NodePrefs { // persisted to file
   uint8_t advert_loc_policy;
   uint32_t discovery_mod_timestamp;
   float adc_multiplier;
+  // Power settings
+  uint8_t sx126x_current_limit;
+  uint8_t sx126x_rx_boosted_gain;
 };
 
 class CommonCLICallbacks {
@@ -81,6 +84,14 @@ public:
   };
 
   virtual void restartBridge() {
+    // no op by default
+  };
+
+  virtual void setCurrentLimit(uint8_t ma) {
+    // no op by default
+  };
+
+  virtual void setRxBoostedGain(bool enable) {
     // no op by default
   };
 };

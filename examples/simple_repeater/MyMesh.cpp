@@ -732,6 +732,14 @@ void MyMesh::begin(FILESYSTEM *fs) {
   radio_set_params(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
   radio_set_tx_power(_prefs.tx_power_dbm);
 
+  // LNA and power settings
+// #ifdef SX126X_CURRENT_LIMIT
+//   setCurrentLimit(SX126X_CURRENT_LIMIT);
+// #endif
+// #ifdef SX126X_RX_BOOSTED_GAIN
+//   setRxBoostedGainMode(SX126X_RX_BOOSTED_GAIN);
+// #endif
+
   updateAdvertTimer();
   updateFloodAdvertTimer();
 
