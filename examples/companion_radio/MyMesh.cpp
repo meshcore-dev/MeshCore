@@ -53,6 +53,8 @@
 #define CMD_SET_FLOOD_SCOPE           54   // v8+
 #define CMD_SEND_CONTROL_DATA         55   // v8+
 #define CMD_GET_STATS                 56   // v8+, second byte is stats type
+#define CMD_GET_CHANNEL_FLAG_NOSTORE  57
+#define CMD_SET_CHANNEL_FLAG_NOSTORE  58
 
 // Stats sub-types for CMD_GET_STATS
 #define STATS_TYPE_CORE               0
@@ -84,6 +86,7 @@
 #define RESP_CODE_ADVERT_PATH         22
 #define RESP_CODE_TUNING_PARAMS       23
 #define RESP_CODE_STATS               24   // v8+, second byte is stats type
+#define RESP_CODE_CHANNEL_FLAG_NOSTORE 25 // a reply to CMD_GET_CHANNEL_FLAG_NOSTORE
 
 #define SEND_TIMEOUT_BASE_MILLIS        500
 #define FLOOD_SEND_TIMEOUT_FACTOR       16.0f
