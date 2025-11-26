@@ -299,7 +299,7 @@ mesh::Packet *MyMesh::createSelfAdvert() {
 File MyMesh::openAppend(const char *fname) {
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
   return _fs->open(fname, FILE_O_WRITE);
-#elif defined(RP2040_PLATFORM) || defined(ARCH_PORTDUINO)
+#elif defined(RP2040_PLATFORM) || defined(PORTDUINO_PLATFORM)
   return _fs->open(fname, "a");
 #else
   return _fs->open(fname, "a", true);
@@ -755,9 +755,7 @@ bool MyMesh::formatFileSystem() {
   return InternalFS.format();
 #elif defined(RP2040_PLATFORM)
   return LittleFS.format();
-#elif defined(ARCH_PORTDUINO)
-  return true;
-#elif defined(ARCH_PORTDUINO)
+#elif defined(PORTDUINO_PLATFORM)
   return true;
 #elif defined(ESP32)
   return SPIFFS.format();
@@ -793,7 +791,7 @@ void MyMesh::updateFloodAdvertTimer() {
 }
 
 void MyMesh::dumpLogFile() {
-#if defined(RP2040_PLATFORM) || defined(ARCH_PORTDUINO)
+#if defined(RP2040_PLATFORM) || defined(PORTDUINO_PLATFORM)
   File f = _fs->open(PACKET_LOG_FILE, "r");
 #else
   File f = _fs->open(PACKET_LOG_FILE);
@@ -886,7 +884,7 @@ void MyMesh::saveIdentity(const mesh::LocalIdentity &new_id) {
   IdentityStore store(*_fs, "");
 #elif defined(ESP32)
   IdentityStore store(*_fs, "/identity");
-#elif defined(RP2040_PLATFORM) || defined(ARCH_PORTDUINO)
+#elif defined(RP2040_PLATFORM) || defined(PORTDUINO_PLATFORM)
   IdentityStore store(*_fs, "/identity");
 #else
 #error "need to define saveIdentity()"

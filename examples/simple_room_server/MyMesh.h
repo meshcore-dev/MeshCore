@@ -7,7 +7,7 @@
   #include <InternalFileSystem.h>
 #elif defined(RP2040_PLATFORM)
   #include <LittleFS.h>
-#elif defined(ARCH_PORTDUINO)
+#elif defined(PORTDUINO_PLATFORM)
   #include <PortduinoFS.h>
 #elif defined(ESP32)
   #include <SPIFFS.h>

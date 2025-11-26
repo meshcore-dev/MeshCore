@@ -10,7 +10,7 @@
 DataStore::DataStore(FILESYSTEM& fs, mesh::RTCClock& clock) : _fs(&fs), _fsExtra(nullptr), _clock(&clock),
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
     identity_store(fs, "")
-#elif defined(RP2040_PLATFORM) || defined(ARCH_PORTDUINO)
+#elif defined(RP2040_PLATFORM) || defined(PORTDUINO_PLATFORM)
     identity_store(fs, "/identity")
 #else
     identity_store(fs, "/identity")
@@ -22,7 +22,7 @@ DataStore::DataStore(FILESYSTEM& fs, mesh::RTCClock& clock) : _fs(&fs), _fsExtra
 DataStore::DataStore(FILESYSTEM& fs, FILESYSTEM& fsExtra, mesh::RTCClock& clock) : _fs(&fs), _fsExtra(&fsExtra), _clock(&clock),
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
     identity_store(fs, "")
-#elif defined(RP2040_PLATFORM) || defined(ARCH_PORTDUINO)
+#elif defined(RP2040_PLATFORM) || defined(PORTDUINO_PLATFORM)
     identity_store(fs, "/identity")
 #else
     identity_store(fs, "/identity")
@@ -35,7 +35,7 @@ static File openWrite(FILESYSTEM* fs, const char* filename) {
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
   fs->remove(filename);
   return fs->open(filename, FILE_O_WRITE);
-#elif defined(RP2040_PLATFORM) || defined(ARCH_PORTDUINO)
+#elif defined(RP2040_PLATFORM) || defined(PORTDUINO_PLATFORM)
   return fs->open(filename, "w");
 #else
   return fs->open(filename, "w", true);
@@ -47,7 +47,7 @@ static File openWrite(FILESYSTEM* fs, const char* filename) {
 #endif
 
 void DataStore::begin() {
-#if defined(RP2040_PLATFORM) || defined(ARCH_PORTDUINO)
+#if defined(RP2040_PLATFORM) || defined(PORTDUINO_PLATFORM)
   identity_store.begin();
 #endif
 
@@ -67,7 +67,7 @@ void DataStore::begin() {
   #include <SPIFFS.h>
 #elif defined(RP2040_PLATFORM)
   #include <LittleFS.h>
-#elif defined(ARCH_PORTDUINO)
+#elif defined(PORTDUINO_PLATFORM)
   #include <PortduinoFS.h>
 #elif defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
   #if defined(QSPIFLASH)
@@ -104,7 +104,7 @@ lfs_ssize_t _getLfsUsedBlockCount(FILESYSTEM* fs) {
 uint32_t DataStore::getStorageUsedKb() const {
 #if defined(ESP32)
   return SPIFFS.usedBytes() / 1024;
-#elif defined(RP2040_PLATFORM) || defined(ARCH_PORTDUINO)
+#elif defined(RP2040_PLATFORM) || defined(PORTDUINO_PLATFORM)
   FSInfo info;
   info.usedBytes = 0;
   _fs->info(info);
@@ -122,7 +122,7 @@ uint32_t DataStore::getStorageUsedKb() const {
 uint32_t DataStore::getStorageTotalKb() const {
 #if defined(ESP32)
   return SPIFFS.totalBytes() / 1024;
-#elif defined(RP2040_PLATFORM) || defined(ARCH_PORTDUINO)
+#elif defined(RP2040_PLATFORM) || defined(PORTDUINO_PLATFORM)
   FSInfo info;
   info.totalBytes = 0;
   _fs->info(info);
@@ -139,7 +139,7 @@ uint32_t DataStore::getStorageTotalKb() const {
 File DataStore::openRead(const char* filename) {
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
   return _fs->open(filename, FILE_O_READ);
-#elif defined(RP2040_PLATFORM) || defined(ARCH_PORTDUINO)
+#elif defined(RP2040_PLATFORM) || defined(PORTDUINO_PLATFORM)
   return _fs->open(filename, "r");
 #else
   return _fs->open(filename, "r", false);
@@ -149,7 +149,7 @@ File DataStore::openRead(const char* filename) {
 File DataStore::openRead(FILESYSTEM* fs, const char* filename) {
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
   return fs->open(filename, FILE_O_READ);
-#elif defined(RP2040_PLATFORM) || defined(ARCH_PORTDUINO)
+#elif defined(RP2040_PLATFORM) || defined(PORTDUINO_PLATFORM)
   return fs->open(filename, "r");
 #else
   return fs->open(filename, "r", false);
@@ -173,7 +173,7 @@ bool DataStore::formatFileSystem() {
   }
 #elif defined(RP2040_PLATFORM)
   return LittleFS.format();
-#elif defined(ARCH_PORTDUINO)
+#elif defined(PORTDUINO_PLATFORM)
   return true;
 #elif defined(ESP32)
   return ((fs::SPIFFSFS *)_fs)->format();
