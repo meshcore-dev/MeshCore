@@ -7,16 +7,15 @@
     ],
     "hwids": [],
     "mcu": "arm64",
-    "variant": "raspberry-pi-zero-2-w"
+    "variant": "linux"
   },
   "connectivity": ["wifi", "bluetooth"],
   "debug": {},
   "frameworks": ["portduino", "linux"],
-  "name": "Raspberry Pi Zero 2 W",
+  "name": "Linux",
   "upload": {
     "maximum_ram_size": 0,
     "maximum_size": 0
   },
-  "url": "https://www.raspberrypi.com/documentation/computers/raspberry-pi.html#raspberry-pi-zero-2-w",
-  "vendor": "RaspberryPi"
+  "vendor": "Linux"
 }

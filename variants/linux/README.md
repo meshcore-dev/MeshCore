@@ -28,7 +28,7 @@ python3 -m venv venv
 source venv/bin/activate
 pip install --no-cache-dir -U platformio
 
-FIRMWARE_VERSION=dev ./build.sh build-firmware rpi_zero_2w_repeater
+FIRMWARE_VERSION=dev ./build.sh build-firmware linux_repeater
 ```
 
 The output should be in `./out/meshcored`
