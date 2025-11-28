@@ -137,7 +137,7 @@ class MyMesh : public BaseChatMesh, ContactVisitor {
   char hex_buf[512];
 
   uint8_t lora_sf;
-  float lora_bw;        // <--- change from uint32_t to float
+  float lora_bw;
 
   // --- Noise floor history (5 minutes, 10s increments) ---
   static constexpr int NOISE_HISTORY_SECONDS = 300; // 5 minutes
@@ -1078,6 +1078,20 @@ public:
     BaseChatMesh::loop();
 
     sampleNoise();
+
+    // Persist last known RTC epoch to NVRAM once per hour
+    {
+      uint32_t rtc_now = getRTCClock()->getCurrentTime();
+      if (rtc_now > 0) {
+        unsigned long now_ms = millis();
+        const unsigned long ONE_HOUR_MS = 3600UL * 1000UL;
+        if ((now_ms - last_epoch_persist_ms) >= ONE_HOUR_MS) {
+          _prefs.last_epoch = (uint64_t)rtc_now;
+          savePrefs();
+          last_epoch_persist_ms = now_ms;
+        }
+      }
+    }
 
     if (terminal.pollInput()) {
       handleCommand(terminal.getCommand());
