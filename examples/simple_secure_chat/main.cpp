@@ -479,11 +479,26 @@ public:
 
     // initialize last-epoch persistence timer
     last_epoch_persist_ms = millis();
+
+    // If we have a saved epoch in NVRAM, use it to initialise the RTC.
+    // Only set the RTC if the saved epoch is non-zero and RTC is unset (0)
+    // or differs by more than one hour.
+    if (_prefs.last_epoch != 0ULL) {
+      uint32_t saved_epoch = (uint32_t)(_prefs.last_epoch & 0xFFFFFFFFUL);
+      uint32_t rtc_now = getRTCClock()->getCurrentTime();
+      if (rtc_now == 0 || (int64_t)rtc_now - (int64_t)saved_epoch > 3600 || (int64_t)saved_epoch - (int64_t)rtc_now > 3600) {
+        getRTCClock()->setCurrentTime(saved_epoch);
+        Serial.printf("   RTC initialised from NVRAM epoch: %lu\n", (unsigned long)saved_epoch);
+      }
+    }
+
     // If RTC has time and prefs had no epoch, persist immediately
-    uint32_t rtc_now = getRTCClock()->getCurrentTime();
-    if (rtc_now > 0 && _prefs.last_epoch == 0ULL) {
-      _prefs.last_epoch = (uint64_t)rtc_now;
-      savePrefs();
+    {
+      uint32_t rtc_now = getRTCClock()->getCurrentTime();
+      if (rtc_now > 0 && _prefs.last_epoch == 0ULL) {
+        _prefs.last_epoch = (uint64_t)rtc_now;
+        savePrefs();
+      }
     }
 
     // --- Load LoRa params from prefs, fallback if not set ---
