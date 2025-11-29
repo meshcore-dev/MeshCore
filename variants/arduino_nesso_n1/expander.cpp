@@ -141,6 +141,7 @@ void NessoBattery::enableCharge() {
 
     bool charge_enable_bit = readBitRegister(AW32001_I2C_CHIP_ADDR, AW32001_REG_PWR_CFG, 3);
     MESH_DEBUG_PRINTLN("NessoBattery::enableCharge(): Current charge setting (low is on): %u", charge_enable_bit);
+    MESH_DEBUG_PRINTLN("NessoBattery::enableCharge(): isCharging(): %u", NessoBattery::isCharging());
     MESH_DEBUG_PRINTLN("NessoBattery::enableCharge(): Current charge level %u %%", NessoBattery::getChargeLevel());
     MESH_DEBUG_PRINTLN("NessoBattery::enableCharge(): Current voltage %f V", NessoBattery::getVoltage());
     MESH_DEBUG_PRINTLN("NessoBattery::enableCharge(): Current voltage %u mV", NessoBattery::getMilliVoltage());
@@ -154,6 +155,34 @@ void NessoBattery::enableCharge() {
 #endif
 }
 
+NessoBattery::ChargeStatus NessoBattery::getChargeStatus(void) {
+  uint8_t reg_value = 0;
+  if (_power_mgmt_init)
+  {
+    reg_value = readRegister(AW32001_I2C_CHIP_ADDR, AW32001_REG_SYS_STA);
+    // Extract bits 4 and 3 for charge status
+    reg_value = (reg_value >> 3) & 0b00000011; // Get bits 4 and 3
+    MESH_DEBUG_PRINTLN("NessoBattery::getChargeStatus(): bits 4 and 3 from register %#02x = %u", AW32001_REG_SYS_STA, reg_value);
+    switch (reg_value)
+    {
+      case 0b00: return CS_NOT_CHARGING; // Not charging
+      case 0b01: return CS_PRE_CHARGE;   // Pre-charge
+      case 0b10: return CS_CHARGE;       // Charging
+      case 0b11: return CS_CHARGE_DONE;  // Charge done
+      default: return CS_UNKNOWN;        // Unknown state
+    }
+  }
+  MESH_DEBUG_PRINTLN("NessoBattery::getChargeStatus(): failed, probably chip wasn't init");
+  return CS_UNKNOWN; // Return unknown if read failed
+}
+
+bool NessoBattery::isCharging(void)
+{
+  ChargeStatus status = getChargeStatus();
+  MESH_DEBUG_PRINTLN("NessoBattery::isCharging(): ChargeStatus = %u; is? false0/true1 = %u", status, (status == CS_PRE_CHARGE || status == CS_CHARGE));
+  return (status == CS_PRE_CHARGE || status == CS_CHARGE);
+}
+
 float NessoBattery::getVoltage() {
   // BQ27220 - address 0x55
   if (!wireInitialized) {
@@ -162,6 +191,7 @@ float NessoBattery::getVoltage() {
   }
   MESH_DEBUG_PRINTLN("NessoBattery::getVoltage()");
   uint16_t voltage = (readRegister(0x55, 0x9) << 8) | readRegister(0x55, 0x8);
+  MESH_DEBUG_PRINTLN("NessoBattery::getVoltage(): %f", voltage / 1000.0f);
   return (float)voltage / 1000.0f;
 }
 
@@ -173,6 +203,7 @@ uint16_t NessoBattery::getMilliVoltage() {
   }
   MESH_DEBUG_PRINTLN("NessoBattery::getMilliVoltage()");
   uint16_t voltage = (readRegister(0x55, 0x9) << 8) | readRegister(0x55, 0x8);
+  MESH_DEBUG_PRINTLN("NessoBattery::getMilliVoltage(): %u", voltage);
   return voltage;
 }
 
@@ -185,6 +216,7 @@ uint16_t NessoBattery::getChargeLevel() {
   MESH_DEBUG_PRINTLN("NessoBattery::getChargeLevel()");
   uint16_t current_capacity = readRegister(0x55, 0x11) << 8 | readRegister(0x55, 0x10);
   uint16_t total_capacity = readRegister(0x55, 0x13) << 8 | readRegister(0x55, 0x12);
+  MESH_DEBUG_PRINTLN("NessoBattery::getChargeLevel(): curr = %u / total = %u; pct = %u %%", current_capacity, total_capacity, ((current_capacity * 100) / total_capacity));
   return (current_capacity * 100) / total_capacity;
 }
 

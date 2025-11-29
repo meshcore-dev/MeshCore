@@ -32,6 +32,12 @@ public:
   }
 
   uint16_t getBattMilliVolts() override {
+#ifdef MESH_DEBUG
+    MESH_DEBUG_PRINTLN("getBattMilliVolts(): isCharging(): %u", battery.isCharging());
+    MESH_DEBUG_PRINTLN("getBattMilliVolts(): Current charge level %u %%", battery.getChargeLevel());
+    MESH_DEBUG_PRINTLN("getBattMilliVolts(): Current voltage %f V", battery.getVoltage());
+    MESH_DEBUG_PRINTLN("getBattMilliVolts(): Current voltage %u mV", battery.getMilliVoltage());
+#endif
     return battery.getMilliVoltage();
   }
 
