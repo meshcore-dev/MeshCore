@@ -15,6 +15,7 @@ void ArduinoNessoN1Board::begin() {
   digitalWrite(P_LORA_TX_LED, HIGH);
 #endif
 
+  battery.begin();
   battery.enableCharge();
 
   MESH_DEBUG_PRINTLN("ArduinoNessoN1.begin(): set Nesso N1 pin modes and default states...");

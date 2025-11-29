@@ -94,20 +94,64 @@ int digitalRead(ExpanderPin pin) {
   return readBitRegister(pin.address, 0xF, pin.pin);
 }
 
-void NessoBattery::enableCharge() {
+void NessoBattery::begin() {
   // AW32001E - address 0x49
-  // set CEB bit low (charge enable)
+  // Spec: https://m5stack.oss-cn-shenzhen.aliyuncs.com/resource/docs/products/core/LLM630%20Computer%20Kit/AW32001E.pdf
   if (!wireInitialized) {
     Wire.begin(SDA, SCL);
     wireInitialized = true;
   }
 
-  MESH_DEBUG_PRINTLN("NessoBattery::enableCharge()");
-  MESH_DEBUG_PRINTLN("NessoBattery::enableCharge(): Current charge level %u %%", NessoBattery::getChargeLevel());
-  MESH_DEBUG_PRINTLN("NessoBattery::enableCharge(): Current voltage %f V", NessoBattery::getVoltage());
-  MESH_DEBUG_PRINTLN("NessoBattery::enableCharge(): Current voltage %u mV", NessoBattery::getMilliVoltage());
+  uint8_t val = 0;
+  val = readRegister(AW32001_I2C_CHIP_ADDR, AW32001_REG_CHIP_ID);
+  // coarsely check if chip is actually the right chip
+  auto res = (val == AW32001_I2C_CHIP_ADDR);
+  if (res) {
+    val = readRegister(AW32001_I2C_CHIP_ADDR, AW32001_REG_CHR_TMR);
+#ifdef MESH_DEBUG
+    // Debug output the WatchDog Timer (wdt) state
+    MESH_DEBUG_PRINTLN("NessoBattery.begin(): CHR_TMR full register; bits 5,6 are for WDT = %#02x", val);
+#endif
+    // disable WatchDog Timer (wdt)
+    // take existing register value AND with 00011111
+    val = val & 0x1f;
+    writeRegister(AW32001_I2C_CHIP_ADDR, AW32001_REG_CHR_TMR, val);
+  }
+#ifdef MESH_DEBUG
+  else {
+    MESH_DEBUG_PRINTLN("NessoBattery.begin(): Register of chip ADDR = %u != I2C of chip %u", AW32001_REG_CHIP_ID, AW32001_I2C_CHIP_ADDR);
+  }
+#endif
 
-  writeBitRegister(0x49, 0x1, 3, false);
+  // store if chip is initiated by whether it passed above checks and had watchdog disabled
+  _power_mgmt_init = res;
+}
+
+void NessoBattery::enableCharge() {
+  // AW32001E - address 0x49
+  // set CEB (charge enable) bit (3) low (0) in AW32001_REG_PWR_CFG (0x01)
+  MESH_DEBUG_PRINTLN("NessoBattery::enableCharge()");
+
+  if (_power_mgmt_init) {
+    MESH_DEBUG_PRINTLN("NessoBattery::enableCharge(): _power_mgmt_init = true");
+    if (!wireInitialized) {
+      Wire.begin(SDA, SCL);
+      wireInitialized = true;
+    }
+
+    bool charge_enable_bit = readBitRegister(AW32001_I2C_CHIP_ADDR, AW32001_REG_PWR_CFG, 3);
+    MESH_DEBUG_PRINTLN("NessoBattery::enableCharge(): Current charge setting (low is on): %u", charge_enable_bit);
+    MESH_DEBUG_PRINTLN("NessoBattery::enableCharge(): Current charge level %u %%", NessoBattery::getChargeLevel());
+    MESH_DEBUG_PRINTLN("NessoBattery::enableCharge(): Current voltage %f V", NessoBattery::getVoltage());
+    MESH_DEBUG_PRINTLN("NessoBattery::enableCharge(): Current voltage %u mV", NessoBattery::getMilliVoltage());
+
+    writeBitRegister(AW32001_I2C_CHIP_ADDR, AW32001_REG_PWR_CFG, 3, false);
+  }
+#ifdef MESH_DEBUG
+  else {
+    MESH_DEBUG_PRINTLN("NessoBattery::enableCharge(): _power_mgmt_init is false, won't enable charge");
+  }
+#endif
 }
 
 float NessoBattery::getVoltage() {

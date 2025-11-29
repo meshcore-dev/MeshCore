@@ -41,6 +41,19 @@ static const uint8_t SYS_IRQ = 3;
 static const uint8_t LCD_CS = 17;
 static const uint8_t LCD_RS = 16;
 
+
+// AW32001 registers
+static constexpr const uint8_t AW32001_REG_PWR_CFG = 0x01; // Power Configuration
+static constexpr const uint8_t AW32001_REG_CHR_CUR = 0x02; // Charging current
+static constexpr const uint8_t AW32001_REG_CHR_VOL = 0x04; // Charge voltage
+static constexpr const uint8_t AW32001_REG_CHR_TMR = 0x05; // Charge timer
+static constexpr const uint8_t AW32001_REG_SYS_STA = 0x08; // System status
+static constexpr const uint8_t AW32001_REG_CHIP_ID = 0x0A; // ChipID
+
+static constexpr const uint8_t AW32001_I2C_CHIP_ADDR = 0x49; // ChipID
+
+
+
 #if !defined(MAIN_ESP32_HAL_GPIO_H_) && defined(__cplusplus)
 /* address: 0x43/0x44 */
 class ExpanderPin {
@@ -51,9 +64,12 @@ public:
 };
 
 class NessoBattery {
+private:
+  bool _power_mgmt_init = false;
 public:
   NessoBattery(){};
-  void enableCharge();        // enable charging
+  void begin(){};             // setup and check power management chip
+  void enableCharge();        // enable charging via power management chip
   float getVoltage();         // get battery voltage in Volts
   uint16_t getMilliVoltage(); // get battery voltage in millivolts
   uint16_t getChargeLevel();  // get battery charge level in percents
