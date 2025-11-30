@@ -42,6 +42,10 @@ public:
   #endif
   }
 
+  float getMCUTemperature() override {
+    return temperatureRead(); // // The default is from the built-in temperature sensor of MCU
+  }
+
   uint8_t getStartupReason() const override { return startup_reason; }
 
 #if defined(P_LORA_TX_LED)
