@@ -46,3 +46,19 @@ mesh::LocalIdentity radio_new_identity() {
   RadioNoiseListener rng(radio);
   return mesh::LocalIdentity(&rng);  // create new random identity
 }
+
+void radio_set_current_limit(uint8_t ma) {
+  radio.setCurrentLimit(ma);
+}
+
+uint8_t radio_get_current_limit() {
+  return radio.getCurrentLimit();
+}
+
+void radio_set_rx_boosted_gain_mode(bool rxbgm) {
+  radio.setRxBoostedGainMode(rxbgm);
+}
+
+bool radio_get_rx_boosted_gain_mode() {
+  return radio.getRxBoostedGainMode();
+}
