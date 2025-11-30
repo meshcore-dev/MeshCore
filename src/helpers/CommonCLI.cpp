@@ -294,10 +294,10 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         sprintf(reply, "> %s", StrHelper::ftoa(_prefs->node_lat));
       } else if (memcmp(config, "lon", 3) == 0) {
         sprintf(reply, "> %s", StrHelper::ftoa(_prefs->node_lon));
-#if (RADIO_CLASS == CustomSX1262) || (RADIO_CLASS == CustomSX1268) || (RADIO_CLASS == CustomSX1276)
+#if defined(USE_SX1262) || defined(USE_SX1268) || defined(USE_SX1276)
       } else if (memcmp(config, "radio.current", 13) == 0) {
         sprintf(reply, "> %d mA", (uint8_t)_prefs->sx12xx_current_limit);
-#if (RADIO_CLASS == CustomSX1262) || (RADIO_CLASS == CustomSX1268)
+#if defined(USE_SX1262) || defined(USE_SX1268)
       } else if (memcmp(config, "radio.rxbgm", 11) == 0) {
         sprintf(reply, "> %s", _prefs->sx126x_rx_boosted_gain ? "on" : "off");
 #endif
@@ -431,13 +431,13 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         _prefs->disable_fwd = memcmp(&config[7], "off", 3) == 0;
         savePrefs();
         strcpy(reply, _prefs->disable_fwd ? "OK - repeat is now OFF" : "OK - repeat is now ON");
-#if (RADIO_CLASS == CustomSX1262) || (RADIO_CLASS == CustomSX1268) || (RADIO_CLASS == CustomSX1276)
+#if defined(USE_SX1262) || defined(USE_SX1268) || defined(USE_SX1276)
       } else if (memcmp(config, "radio.current ", 14) == 0) {
         _prefs->sx12xx_current_limit = atoi(&config[14]);
         strcpy(reply, "OK");
         savePrefs();
         _callbacks->setCurrentLimit(_prefs->sx12xx_current_limit);
-#if (RADIO_CLASS == CustomSX1262) || (RADIO_CLASS == CustomSX1268)
+#if defined(USE_SX1262) || defined(USE_SX1268)
       } else if (memcmp(config, "radio.rxbgm ", 12) == 0) {
         _prefs->sx126x_rx_boosted_gain = memcmp(&config[12], "on", 2) == 0;
         strcpy(reply, "OK");

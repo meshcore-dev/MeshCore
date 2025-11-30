@@ -226,11 +226,11 @@ public:
   }
 #endif
 
-#if (RADIO_CLASS == CustomSX1262) || (RADIO_CLASS == CustomSX1268) || (RADIO_CLASS == CustomSX1276)
+#if defined(USE_SX1262) || defined(USE_SX1268) || defined(USE_SX1276)
   void setCurrentLimit(uint8_t ma) override {
     radio_set_current_limit(ma);
   }
-#if (RADIO_CLASS == CustomSX1262) || (RADIO_CLASS == CustomSX1268)
+#if defined(USE_SX1262) || defined(USE_SX1268)
   void setRxBoostedGain(bool enable) override {
     radio_set_rx_boosted_gain_mode(enable);
   }

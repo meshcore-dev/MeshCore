@@ -8,6 +8,8 @@
 #define RH_RF95_MODEM_STATUS_SIGNAL_SYNCHRONIZED 0x02
 #define RH_RF95_MODEM_STATUS_SIGNAL_DETECTED     0x01
 
+#define USE_SX1276
+
 class CustomSX1276 : public SX1276 {
   public:
     CustomSX1276(Module *mod) : SX1276(mod) { }
@@ -86,5 +88,31 @@ class CustomSX1276 : public SX1276 {
         }
       }
       return 0; // timed out
+    }
+
+    int16_t getCurrentLimit() {
+      // read the OCP register
+      int16_t state = this->mod->SPIgetRegValue(RADIOLIB_SX127X_REG_OCP);
+      if (state < 0) {
+        return (state);
+      }
+      uint8_t regVal = (uint8_t)state;
+
+      // check if OCP is enabled
+      if ((regVal & RADIOLIB_SX127X_OCP_ON) == 0) {
+        return (0);
+      }
+
+      // get the raw value (bits 0-4)
+      uint8_t raw = regVal & 0x1F;
+
+      // determine the current limit based on the raw value
+      if (raw <= 15) {
+        // low range: currentLimit = 45 + raw * 5
+        return (45 + raw * 5);
+      } else {
+        // high range: currentLimit = raw * 10 - 30
+        return (raw * 10 - 30);
+      }
     }
 };
