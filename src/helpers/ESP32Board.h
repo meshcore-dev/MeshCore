@@ -8,6 +8,9 @@
 #include <rom/rtc.h>
 #include <sys/time.h>
 #include <Wire.h>
+#include <WiFi.h>
+#include "driver/rtc_io.h"
+
 
 class ESP32Board : public mesh::MainBoard {
 protected:
@@ -40,6 +43,10 @@ public:
   #else
     Wire.begin();
   #endif
+  }
+
+  float getMCUTemperature() override {
+    return temperatureRead(); // // The default is from the built-in temperature sensor of MCU
   }
 
   uint8_t getStartupReason() const override { return startup_reason; }
