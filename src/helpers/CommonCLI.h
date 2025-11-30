@@ -49,7 +49,7 @@ struct NodePrefs { // persisted to file
   uint32_t discovery_mod_timestamp;
   float adc_multiplier;
   // Power settings
-  uint8_t sx126x_current_limit;
+  uint8_t sx12xx_current_limit;
   uint8_t sx126x_rx_boosted_gain;
 };
 

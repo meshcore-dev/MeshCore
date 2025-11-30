@@ -84,4 +84,10 @@ class CustomSX1268 : public SX1268 {
       bool detected = (irq & SX126X_IRQ_HEADER_VALID) || (irq & SX126X_IRQ_PREAMBLE_DETECTED);
       return detected;
     }
+
+    uint8_t getRxBoostedGainMode() {
+      uint8_t rxGain = 0;
+      readRegister(RADIOLIB_SX126X_REG_RX_GAIN, &rxGain, 1);
+      return rxGain;
+    }
 };

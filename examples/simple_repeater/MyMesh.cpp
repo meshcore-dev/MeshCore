@@ -712,6 +712,23 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.advert_loc_policy = ADVERT_LOC_PREFS;
 
   _prefs.adc_multiplier = 0.0f; // 0.0f means use default board multiplier
+
+#if (RADIO_CLASS == CustomSX1262) || (RADIO_CLASS == CustomSX1268) || (RADIO_CLASS == CustomSX1276)
+#if defined(SX126X_CURRENT_LIMIT)
+_prefs.sx12xx_current_limit = SX126X_CURRENT_LIMIT;
+#elif defined(SX127X_CURRENT_LIMIT)
+_prefs.sx12xx_current_limit = SX127X_CURRENT_LIMIT;
+#else
+_prefs.sx12xx_current_limit = 140; // mA
+#endif
+#if (RADIO_CLASS == CustomSX1262) || (RADIO_CLASS == CustomSX1268)
+#ifdef SX126X_RX_BOOSTED_GAIN
+  _prefs.sx126x_rx_boosted_gain = SX126X_RX_BOOSTED_GAIN;
+#else
+  _prefs.sx126x_rx_boosted_gain = 1; // enabled by default;
+#endif
+#endif
+#endif
 }
 
 void MyMesh::begin(FILESYSTEM *fs) {
@@ -732,13 +749,15 @@ void MyMesh::begin(FILESYSTEM *fs) {
   radio_set_params(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
   radio_set_tx_power(_prefs.tx_power_dbm);
 
-  // LNA and power settings
-// #ifdef SX126X_CURRENT_LIMIT
-//   setCurrentLimit(SX126X_CURRENT_LIMIT);
-// #endif
-// #ifdef SX126X_RX_BOOSTED_GAIN
-//   setRxBoostedGainMode(SX126X_RX_BOOSTED_GAIN);
-// #endif
+#if (RADIO_CLASS == CustomSX1262) || (RADIO_CLASS == CustomSX1268) || (RADIO_CLASS == CustomSX1276)
+  radio_set_current_limit(_prefs.sx12xx_current_limit);
+  MESH_DEBUG_PRINTLN("SX12xx Current Limit: %d mA", radio_get_current_limit());
+#if (RADIO_CLASS == CustomSX1262) || (RADIO_CLASS == CustomSX1268)
+  radio_set_rx_boosted_gain_mode(_prefs.sx126x_rx_boosted_gain);
+  MESH_DEBUG_PRINTLN("SX126x RX Boosted Gain Mode: %s",
+                     radio_get_rx_boosted_gain_mode() ? "Enabled" : "Disabled");
+#endif
+#endif
 
   updateAdvertTimer();
   updateFloodAdvertTimer();
