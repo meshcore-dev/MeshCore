@@ -8,9 +8,6 @@
 #include <rom/rtc.h>
 #include <sys/time.h>
 #include <Wire.h>
-#include <WiFi.h>
-#include "driver/rtc_io.h"
-
 
 class ESP32Board : public mesh::MainBoard {
 protected:
