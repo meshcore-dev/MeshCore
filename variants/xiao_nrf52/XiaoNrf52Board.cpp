@@ -23,10 +23,15 @@ static void disconnect_callback(uint16_t conn_handle, uint8_t reason) {
 void XiaoNrf52Board::begin() {
   // for future use, sub-classes SHOULD call this from their begin()
   startup_reason = BD_STARTUP_NORMAL;
+  NRF_POWER->DCDCEN = 1;
 
   pinMode(PIN_VBAT, INPUT);
   pinMode(VBAT_ENABLE, OUTPUT);
   digitalWrite(VBAT_ENABLE, HIGH);
+
+#ifdef PIN_USER_BTN
+  pinMode(PIN_USER_BTN, INPUT);
+#endif
 
 #if defined(PIN_WIRE_SDA) && defined(PIN_WIRE_SCL)
   Wire.setPins(PIN_WIRE_SDA, PIN_WIRE_SCL);

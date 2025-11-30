@@ -66,7 +66,7 @@
 #define LED_BLUE                (36)
 #define LED_GREEN               (35)
 
-//#define PIN_STATUS_LED          LED_BLUE
+#define PIN_STATUS_LED          LED_BLUE
 #define LED_BUILTIN             LED_GREEN
 #define LED_PIN                 LED_GREEN
 #define LED_STATE_ON            HIGH

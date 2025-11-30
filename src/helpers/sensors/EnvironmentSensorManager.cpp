@@ -548,7 +548,11 @@ void EnvironmentSensorManager::initBasicGPS() {
   delay(1000);
 
   // We'll consider GPS detected if we see any data on Serial1
+#ifdef ENV_SKIP_GPS_DETECT
+  gps_detected = true;
+#else
   gps_detected = (Serial1.available() > 0);
+#endif
 
   if (gps_detected) {
     MESH_DEBUG_PRINTLN("GPS detected");

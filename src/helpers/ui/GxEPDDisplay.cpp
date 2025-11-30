@@ -1,13 +1,26 @@
 
 #include "GxEPDDisplay.h"
 
+#ifdef EXP_PIN_BACKLIGHT
+  #include <PCA9557.h>
+  extern PCA9557 expander;
+#endif
+
 #ifndef DISPLAY_ROTATION
   #define DISPLAY_ROTATION 3
 #endif
 
+#ifdef ESP32
+  SPIClass SPI1 = SPIClass(FSPI);
+#endif
+
 bool GxEPDDisplay::begin() {
   display.epd2.selectSPI(SPI1, SPISettings(4000000, MSBFIRST, SPI_MODE0));
+#ifdef ESP32
+  SPI1.begin(PIN_DISPLAY_SCLK, PIN_DISPLAY_MISO, PIN_DISPLAY_MOSI, PIN_DISPLAY_CS);
+#else
   SPI1.begin();
+#endif
   display.init(115200, true, 2, false);
   display.setRotation(DISPLAY_ROTATION);
   setTextSize(1);  // Default to size 1
@@ -27,6 +40,8 @@ void GxEPDDisplay::turnOn() {
   if (!_init) begin();
 #if defined(DISP_BACKLIGHT) && !defined(BACKLIGHT_BTN)
   digitalWrite(DISP_BACKLIGHT, HIGH);
+#elif defined(EXP_PIN_BACKLIGHT) && !defined(BACKLIGHT_BTN)
+  expander.digitalWrite(EXP_PIN_BACKLIGHT, HIGH);
 #endif
   _isOn = true;
 }
@@ -34,6 +49,8 @@ void GxEPDDisplay::turnOn() {
 void GxEPDDisplay::turnOff() {
 #if defined(DISP_BACKLIGHT) && !defined(BACKLIGHT_BTN)
   digitalWrite(DISP_BACKLIGHT, LOW);
+#elif defined(EXP_PIN_BACKLIGHT) && !defined(BACKLIGHT_BTN)
+  expander.digitalWrite(EXP_PIN_BACKLIGHT, LOW);
 #endif
   _isOn = false;
 }
