@@ -21,6 +21,13 @@ bool radio_init() {
   fallback_clock.begin();
   rtc_clock.begin(Wire);
 
+// Enable TCXO before radio initialization
+#ifdef P_LORA_TCXO_EN
+  pinMode(P_LORA_TCXO_EN, OUTPUT);
+  digitalWrite(P_LORA_TCXO_EN, HIGH);
+  delay(50); // Allow TCXO to stabilize
+#endif
+
 #if defined(P_LORA_SCLK)
   return radio.std_init(&spi);
 #else
