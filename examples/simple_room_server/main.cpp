@@ -47,6 +47,10 @@ void setup() {
   fs = &LittleFS;
   IdentityStore store(LittleFS, "/identity");
   store.begin();
+#elif defined(PORTDUINO_PLATFORM)
+  fs = &PortduinoFS;
+  IdentityStore store(PortduinoFS, "/identity");
+  store.begin();
 #elif defined(ESP32)
   SPIFFS.begin(true);
   fs = &SPIFFS;

@@ -19,7 +19,7 @@ void RS232Bridge::begin() {
   ((Uart *)_serial)->setPins(WITH_RS232_BRIDGE_RX, WITH_RS232_BRIDGE_TX);
 #elif defined(NRF52_PLATFORM)
   ((HardwareSerial *)_serial)->setPins(WITH_RS232_BRIDGE_RX, WITH_RS232_BRIDGE_TX);
-#elif defined(RP2040_PLATFORM)
+#elif defined(RP2040_PLATFORM) || defined(PORTDUINO_PLATFORM)
   ((SerialUART *)_serial)->setRX(WITH_RS232_BRIDGE_RX);
   ((SerialUART *)_serial)->setTX(WITH_RS232_BRIDGE_TX);
 #elif defined(STM32_PLATFORM)
