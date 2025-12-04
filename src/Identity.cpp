@@ -61,8 +61,8 @@ bool LocalIdentity::writeTo(Stream& s) const {
 }
 
 void LocalIdentity::printTo(Stream& s) const {
-  s.print("pub_key: "); Utils::printHex(s, pub_key, PUB_KEY_SIZE); s.println();
-  s.print("prv_key: "); Utils::printHex(s, prv_key, PRV_KEY_SIZE); s.println();
+  s.print("pub_key: "); Utils::printHex(s, pub_key, PUB_KEY_SIZE); s.println("");
+  s.print("prv_key: "); Utils::printHex(s, prv_key, PRV_KEY_SIZE); s.println("");
 }
 
 size_t LocalIdentity::writeTo(uint8_t* dest, size_t max_len) {
