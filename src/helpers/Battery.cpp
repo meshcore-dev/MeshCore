@@ -15,6 +15,11 @@ int batteryPercentFromMilliVolts(uint16_t batteryMilliVolts) {
   const uint8_t stepPct = 10;         // distance between table entries (100 → 90 → ... → 0)
   const size_t n = kOcvTableSize;     // should be 11
 
+  if (NUM_CELLS_IN_SERIES > 1) {
+    // Adjust the input voltage to per-cell basis
+    batteryMilliVolts /= NUM_CELLS_IN_SERIES;
+  }
+
   if (n != 11 || batteryMilliVolts <= 0) {
     // Error: invalid OCV_ARRAY table size or voltage
     return -1;

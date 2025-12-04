@@ -31,6 +31,14 @@
   #endif
 #endif
 
+/**
+ * Number of cells in series (for multi-cell battery packs)
+ * Default to 1 if not defined.
+ */
+#ifndef NUM_CELLS_IN_SERIES
+  #define NUM_CELLS_IN_SERIES 1
+#endif
+
 
 /**
  * Convert a battery voltage (in millivolts) to approximate state-of-charge (%),
