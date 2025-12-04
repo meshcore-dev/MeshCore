@@ -13,8 +13,17 @@ SimpleMeshTables tables;
 
 MyMesh the_mesh(board, radio_driver, *new ArduinoMillis(), fast_rng, rtc_clock, tables);
 
-void halt() {
-  while (1) ;
+void delayedReboot(const char *msg, const uint32_t delayms) {
+  #ifdef DISPLAY_CLASS
+    char tmp[32];
+    sprintf(tmp, "Rebooting in %3.1fs", delayms/1000.0);
+    display.startFrame();
+    display.drawTextCentered(display.width() / 2, 24, msg);
+    display.drawTextCentered(display.width() / 2, 32, tmp);
+    display.endFrame();
+  #endif
+  delay(delayms);
+  board.reboot();
 }
 
 static char command[160];
@@ -35,7 +44,11 @@ void setup() {
 #endif
 
   if (!radio_init()) {
-    halt();
+    #ifdef DISPLAY_CLASS
+      delayedReboot("Radio Init Failed!", 5000);
+    #else
+      delayedReboot("", 5000);
+    #endif
   }
 
   fast_rng.begin(radio_get_rng_seed());
