@@ -125,9 +125,13 @@ void loop() {
 
 #ifdef POWERSAVING_MODE
   if (millis() - lastActive > nextSleepinSecs * 1000) {
-    board.sleep(1800); // To sleep. Wake up after 30 minutes or when receiving a LoRa packet
-    lastActive = millis();
-    nextSleepinSecs = 5; // Default: To work for 5s and sleep again
+    if(the_mesh.getOutboundCount(0xFFFFFFFF) == 0) { // Nothing more to send. Safe to sleep
+      board.sleep(1800); // To sleep. Wake up after 30 minutes or when receiving a LoRa packet
+      lastActive = millis();
+      nextSleepinSecs = 5; // Default: To work for 5s and sleep again
+    } else {
+      nextSleepinSecs += 5; // To give 5 more seconds to send
+    }
   }
 #endif
 }
