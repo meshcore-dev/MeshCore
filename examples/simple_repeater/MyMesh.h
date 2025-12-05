@@ -68,11 +68,11 @@ struct NeighbourInfo {
 };
 
 #ifndef FIRMWARE_BUILD_DATE
-  #define FIRMWARE_BUILD_DATE   "30 Nov 2025"
+  #define FIRMWARE_BUILD_DATE   "03 Dec 2025"
 #endif
 
 #ifndef FIRMWARE_VERSION
-  #define FIRMWARE_VERSION   "v1.11.0"
+  #define FIRMWARE_VERSION   "v1.11.0 - Variant IoTThinks.com - PowerSaving07"
 #endif
 
 #define FIRMWARE_ROLE "repeater"
@@ -225,4 +225,7 @@ public:
     bridge.begin();
   }
 #endif
+
+  // To get the current pending outbound packets at Dispatcher
+  int getOutboundCount (uint32_t now) const;
 };
