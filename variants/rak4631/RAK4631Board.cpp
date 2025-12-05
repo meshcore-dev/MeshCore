@@ -88,3 +88,18 @@ bool RAK4631Board::startOTAUpdate(const char* id, char reply[]) {
 
   return true;
 }
+
+void RAK4631Board::enterLightSleep(uint32_t secs) {
+  // Enable SoftDevice low-power mode
+  sd_power_mode_set(NRF_POWER_MODE_LOWPWR);
+
+  // Enable DC/DC converter- 30% less power conumption
+  NRF_POWER->DCDCEN = 1;
+
+  // Wakeup by events
+  waitForEvent();
+}
+
+void RAK4631Board::sleep(uint32_t secs) {
+  enterLightSleep(secs); // To wake up after "secs" seconds or when receiving a LoRa packet
+}

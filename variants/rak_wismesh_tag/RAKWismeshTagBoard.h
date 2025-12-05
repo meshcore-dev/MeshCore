@@ -2,12 +2,13 @@
 
 #include <MeshCore.h>
 #include <Arduino.h>
+#include <helpers/NRF52Board.h>
 
 // built-ins
 #define  PIN_VBAT_READ    5
 #define  ADC_MULTIPLIER   (3 * 1.73 * 1.187 * 1000)
 
-class RAKWismeshTagBoard : public mesh::MainBoard {
+class RAKWismeshTagBoard : public NRF52Board {
 protected:
   uint8_t startup_reason;
 
