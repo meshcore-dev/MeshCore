@@ -225,4 +225,7 @@ public:
     bridge.begin();
   }
 #endif
+
+  // To get the current pending outbound packets at Dispatcher
+  int getOutboundCount (uint32_t now) const;
 };

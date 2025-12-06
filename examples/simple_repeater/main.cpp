@@ -19,6 +19,11 @@ void halt() {
 
 static char command[160];
 
+#ifdef POWERSAVING_MODE
+  unsigned long lastActive = millis();   // mark last active time
+  unsigned long nextSleepinSecs = 120;   // next sleep in seconds. First time is 2m to send advert and do repeater setup.
+#endif
+
 void setup() {
   Serial.begin(115200);
   delay(1000);
@@ -117,4 +122,16 @@ void loop() {
   ui_task.loop();
 #endif
   rtc_clock.tick();
+
+#ifdef POWERSAVING_MODE
+  if (millis() - lastActive > nextSleepinSecs * 1000) {
+    if(the_mesh.getOutboundCount(0xFFFFFFFF) == 0) { // Nothing more to send. Safe to sleep
+      board.sleep(1800); // To sleep. Wake up after 30 minutes or when receiving a LoRa packet
+      lastActive = millis();
+      nextSleepinSecs = 5; // Default: To work for 5s and sleep again
+    } else {
+      nextSleepinSecs += 5; // To give 5 more seconds to send
+    }
+  }
+#endif
 }
