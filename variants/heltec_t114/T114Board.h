@@ -2,13 +2,14 @@
 
 #include <MeshCore.h>
 #include <Arduino.h>
+#include <helpers/NRF52Board.h>
 
 // built-ins
 #define  PIN_VBAT_READ    4
 #define  PIN_BAT_CTL      6
 #define  MV_LSB   (3000.0F / 4096.0F) // 12-bit ADC with 3.0V input range
 
-class T114Board : public mesh::MainBoard {
+class T114Board : public NRF52Board {
 protected:
   uint8_t startup_reason;
 
