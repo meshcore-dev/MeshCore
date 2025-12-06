@@ -38,7 +38,7 @@ void XiaoNrf52Board::begin() {
   digitalWrite(VBAT_ENABLE, HIGH);
 
 #ifdef PIN_USER_BTN
-  pinMode(PIN_USER_BTN, INPUT);
+  pinMode(PIN_USER_BTN, INPUT_PULLUP);
 #endif
 
 #if defined(PIN_WIRE_SDA) && defined(PIN_WIRE_SCL)
