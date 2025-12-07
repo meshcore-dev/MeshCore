@@ -23,6 +23,9 @@ public:
   bool isHashMatch(const uint8_t* hash) const {
     return memcmp(hash, pub_key, PATH_HASH_SIZE) == 0;
   }
+  bool isHashMatch(const uint8_t* hash, uint8_t len) const {
+    return memcmp(hash, pub_key, len) == 0;
+  }
 
   /**
    * \brief  Performs Ed25519 signature verification.

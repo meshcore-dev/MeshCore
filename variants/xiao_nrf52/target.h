@@ -9,6 +9,11 @@
 #include <helpers/ArduinoHelpers.h>
 #include <helpers/sensors/EnvironmentSensorManager.h>
 
+#ifdef DISPLAY_CLASS
+  #include <helpers/ui/NullDisplayDriver.h>
+  extern DISPLAY_CLASS display;
+#endif
+
 extern XiaoNrf52Board board;
 extern WRAPPER_CLASS radio_driver;
 extern AutoDiscoverRTCClock rtc_clock;

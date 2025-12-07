@@ -140,6 +140,19 @@ const char* StrHelper::ftoa(float f) {
   return tmp;
 }
 
+const char* StrHelper::ftoa3(float f) {
+  static char s[16];
+  int v = (int)(f * 1000.0f + (f >= 0 ? 0.5f : -0.5f)); // rounded ×1000
+  int w = v / 1000;                                     // whole
+  int d = abs(v % 1000);                                // decimals
+  snprintf(s, sizeof(s), "%d.%03d", w, d);
+  for (int i = strlen(s) - 1; i > 0 && s[i] == '0'; i--)
+      s[i] = 0;
+  int L = strlen(s);
+  if (s[L - 1] == '.') s[L - 1] = 0;
+  return s;
+}
+
 uint32_t StrHelper::fromHex(const char* src) {
   uint32_t n = 0;
   while (*src) {

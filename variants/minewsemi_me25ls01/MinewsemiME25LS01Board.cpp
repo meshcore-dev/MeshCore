@@ -11,8 +11,6 @@ void MinewsemiME25LS01Board::begin() {
   
   pinMode(PIN_VBAT_READ, INPUT);
 
-  sd_power_mode_set(NRF_POWER_MODE_LOWPWR);
-
 #ifdef BUTTON_PIN
   pinMode(BUTTON_PIN, INPUT);
   pinMode(LED_PIN, OUTPUT);

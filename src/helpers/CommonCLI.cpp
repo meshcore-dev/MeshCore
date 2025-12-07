@@ -231,8 +231,8 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
       strcpy(tmp, &command[10]);
       const char *parts[5];
       int num = mesh::Utils::parseTextParts(tmp, parts, 5);
-      float freq  = num > 0 ? atof(parts[0]) : 0.0f;
-      float bw    = num > 1 ? atof(parts[1]) : 0.0f;
+      float freq  = num > 0 ? strtof(parts[0], nullptr) : 0.0f;
+      float bw    = num > 1 ? strtof(parts[1], nullptr) : 0.0f;
       uint8_t sf  = num > 2 ? atoi(parts[2]) : 0;
       uint8_t cr  = num > 3 ? atoi(parts[3]) : 0;
       int temp_timeout_mins  = num > 4 ? atoi(parts[4]) : 0;
@@ -287,7 +287,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
       } else if (memcmp(config, "radio", 5) == 0) {
         char freq[16], bw[16];
         strcpy(freq, StrHelper::ftoa(_prefs->freq));
-        strcpy(bw, StrHelper::ftoa(_prefs->bw));
+        strcpy(bw, StrHelper::ftoa3(_prefs->bw));
         sprintf(reply, "> %s,%s,%d,%d", freq, bw, (uint32_t)_prefs->sf, (uint32_t)_prefs->cr);
       } else if (memcmp(config, "rxdelay", 7) == 0) {
         sprintf(reply, "> %s", StrHelper::ftoa(_prefs->rx_delay_base));
@@ -417,8 +417,8 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         strcpy(tmp, &config[6]);
         const char *parts[4];
         int num = mesh::Utils::parseTextParts(tmp, parts, 4);
-        float freq  = num > 0 ? atof(parts[0]) : 0.0f;
-        float bw    = num > 1 ? atof(parts[1]) : 0.0f;
+        float freq  = num > 0 ? strtof(parts[0], nullptr) : 0.0f;
+        float bw    = num > 1 ? strtof(parts[1], nullptr) : 0.0f;
         uint8_t sf  = num > 2 ? atoi(parts[2]) : 0;
         uint8_t cr  = num > 3 ? atoi(parts[3]) : 0;
         if (freq >= 300.0f && freq <= 2500.0f && sf >= 5 && sf <= 12 && cr >= 5 && cr <= 8 && bw >= 7.0f && bw <= 500.0f) {
