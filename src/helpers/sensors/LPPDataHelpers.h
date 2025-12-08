@@ -63,6 +63,45 @@
 #define LPP_ERROR_OVERFLOW 1
 #define LPP_ERROR_UNKOWN_TYPE 2
 
+/**
+ * Get the data size in bytes for a CayenneLPP type
+ * @param type The LPP type code
+ * @return Number of bytes of data for this type
+ */
+static inline uint8_t getLPPDataSize(uint8_t type) {
+  switch (type) {
+    case LPP_GPS:
+      return 9;
+    case LPP_POLYLINE:
+      return 8;  // Minimum size
+    case LPP_GYROMETER:
+    case LPP_ACCELEROMETER:
+      return 6;
+    case LPP_GENERIC_SENSOR:
+    case LPP_FREQUENCY:
+    case LPP_DISTANCE:
+    case LPP_ENERGY:
+    case LPP_UNIXTIME:
+      return 4;
+    case LPP_COLOUR:
+      return 3;
+    case LPP_ANALOG_INPUT:
+    case LPP_ANALOG_OUTPUT:
+    case LPP_LUMINOSITY:
+    case LPP_TEMPERATURE:
+    case LPP_CONCENTRATION:
+    case LPP_BAROMETRIC_PRESSURE:
+    case LPP_ALTITUDE:
+    case LPP_VOLTAGE:
+    case LPP_CURRENT:
+    case LPP_DIRECTION:
+    case LPP_POWER:
+      return 2;
+    default:
+      return 1;  // Digital input/output, presence, humidity, percentage, switch
+  }
+}
+
 class LPPReader {
   const uint8_t* _buf;
   uint8_t _len;
@@ -113,7 +152,7 @@ public:
     return _pos <= _len;
   }
   bool readCurrent(float& amps) {
-    amps = getFloat(&_buf[_pos], 2, 1000, true); _pos += 2;
+    amps = getFloat(&_buf[_pos], 2, 1000, false); _pos += 2;
     return _pos <= _len;
   }
   bool readPower(float& watts) {
@@ -138,37 +177,7 @@ public:
   }
 
   void skipData(uint8_t type) {
-    switch (type) {
-      case LPP_GPS:
-        _pos += 9; break;
-      case LPP_POLYLINE:
-        _pos += 8; break;  // TODO: this is MINIMIUM
-      case LPP_GYROMETER:
-      case LPP_ACCELEROMETER:
-        _pos += 6; break;
-      case LPP_GENERIC_SENSOR:
-      case LPP_FREQUENCY:
-      case LPP_DISTANCE:
-      case LPP_ENERGY:
-      case LPP_UNIXTIME:
-        _pos += 4; break;
-      case LPP_COLOUR:
-        _pos += 3; break;
-      case LPP_ANALOG_INPUT:
-      case LPP_ANALOG_OUTPUT:
-      case LPP_LUMINOSITY:
-      case LPP_TEMPERATURE:
-      case LPP_CONCENTRATION:
-      case LPP_BAROMETRIC_PRESSURE:
-      case LPP_ALTITUDE:
-      case LPP_VOLTAGE:
-      case LPP_CURRENT:
-      case LPP_DIRECTION:
-      case LPP_POWER:
-        _pos += 2; break;
-      default:
-        _pos++;
-    }
+    _pos += getLPPDataSize(type);
   }
 };
 
