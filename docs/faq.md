@@ -67,8 +67,8 @@ author: https://github.com/LitBomb<!-- omit from toc -->
     - [5.14.5. meshcore.js](#5145-meshcorejs)
     - [5.14.6. pyMC\_core](#5146-pymc_core)
     - [5.14.7. MeshCore Packet Decoder](#5147-meshcore-packet-decoder)
-  - [5.15. Q: Are there clientt applications for Windows or Mac?](#515-q-are-there-clientt-applications-for-windows-or-mac)
-  - [5.16. Q: Are there any document that compares MeshCore with other LoRa systems?](#516-q-are-there-any-document-that-compares-meshcore-with-other-lora-systems)
+  - [5.15. Q: Are there client applications for Windows or Mac?](#515-q-are-there-clientt-applications-for-windows-or-mac)
+  - [5.16. Q: Are there any resources that compare MeshCore to other LoRa systems?](#516-q-are-there-any-document-that-compares-meshcore-with-other-lora-systems)
 - [6. Troubleshooting](#6-troubleshooting)
   - [6.1. Q: My client says another client or a repeater or a room server was last seen many, many days ago.](#61-q-my-client-says-another-client-or-a-repeater-or-a-room-server-was-last-seen-many-many-days-ago)
   - [6.2. Q: A repeater or a client or a room server I expect to see on my discover list (on T-Deck) or contact list (on a smart device client) are not listed.](#62-q-a-repeater-or-a-client-or-a-room-server-i-expect-to-see-on-my-discover-list-on-t-deck-or-contact-list-on-a-smart-device-client-are-not-listed)
@@ -284,7 +284,9 @@ Reboot the repeater after `set prv.key <hex>` command for the new private key to
 
 `set agc.reset.interval <number>`
 
-This is a very low cost operation, just setting the readio's state to idle.   The value is incremented by 4.  `set agc.reset.interval 4` works well to cure deafness.
+The `<number>` unit is in seconds and is incremented by 4.  `set agc.reset.interval 4` works well to cure deafness.  
+
+This is a very low cost operation.  AGC reset is done by simply setting `state = STATE_IDLE;` in function `RadioLibWrapper::resetAGC()` in `RadioLibWrappers.cpp`
 
 
 ### 3.8 Q: How do I make my repeater an observer on the mesh
@@ -328,7 +330,7 @@ GPS on T-Deck is always enabled.  You can skip the "GPS clock sync" and the T-De
 T-Deck uses the same key the smartphone apps use but in base64
 `izOH6cXN6mrJ5e26oRXNcg==`
 
-There are no `=` on the T-Deck's hardware keyboard.  You can use the on-screen software keyboard to enter `=`.  Tap the text box to enable the on-screen software keyboard.
+There is no `=` key on the T-Deck's hardware keyboard.  You can use the on-screen software keyboard to enter `=`.  Tap the text box to enable the on-screen software keyboard.
 The third character is the capital letter `O` (Oh), not zero `0`
 
 The smartphone app key is in hex:
@@ -635,13 +637,13 @@ A TypeScript library for decoding MeshCore mesh networking packets with full cry
 https://github.com/michaelhart/meshcore-decoder
 
 
-### 5.15. Q: Are there clientt applications for Windows or Mac?
+### 5.15. Q: Are there client applications for Windows or Mac?
 **A:** Yes, the same iOS and Android client is also available for Windows and Intel Mac (sorry, not available for ARM-based Mac yet).  You can find them together with the Android APK here:
 https://files.liamcottle.net/MeshCore
 
 Both the Windows and Intel Mac versions of the client app are fully unlocked and are free to use.
 
-### 5.16. Q: Are there any document that compares MeshCore with other LoRa systems?
+### 5.16. Q: Are there any resources that compare MeshCore to other LoRa systems?
 
 **A:** Here is a list of MeshCore comparison resources:
 The Comms Channel on YouTube:
