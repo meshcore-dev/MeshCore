@@ -1,6 +1,10 @@
 **MeshCore-FAQ**<!-- omit from toc -->
 A list of frequently-asked questions and answers for MeshCore
 
+The current version of this MeshCore FAQ is at https://github.com/meshcore-dev/MeshCore/blob/main/docs/faq.md.  
+This MeshCore FAQ is also mirrored at https://github.com/LitBomb/MeshCore-FAQ and might have newer updates if pull requests on Scott's MeshCore repo are not approved yet.
+
+author: https://github.com/LitBomb<!-- omit from toc -->
 ---
 
 - [1. Introduction](#1-introduction)
@@ -22,6 +26,10 @@ A list of frequently-asked questions and answers for MeshCore
   - [3.2. Q: Do I need to set the location for a repeater?](#32-q-do-i-need-to-set-the-location-for-a-repeater)
   - [3.3. Q: What is the password to administer a repeater or a room server?](#33-q-what-is-the-password-to-administer-a-repeater-or-a-room-server)
   - [3.4. Q: What is the password to join a room server?](#34-q-what-is-the-password-to-join-a-room-server)
+  - [3.5. Q: Can I retrieve a repeater's private key or set a repeater's private key?](#35-q-can-i-retrieve-a-repeaters-private-key-or-set-a-repeaters-private-key)
+  - [3.6. Q: The first byte of my repeater's public key collides with an exisitng repeater on the mesh.  How do I get a new private key with a matching public key that has its first byte of my choosing?](#36-q-the-first-byte-of-my-repeaters-public-key-collides-with-an-exisitng-repeater-on-the-mesh--how-do-i-get-a-new-private-key-with-a-matching-public-key-that-has-its-first-byte-of-my-choosing)
+  - [3.7. Q: My repeater maybe suffering from deafness due to high power interference near my mesh's frequency, it is not hearing other in-range MeshCore radios.  what can I do?](#37-q-my-repeater-maybe-suffering-from-deafness-due-to-high-power-interference-near-my-meshs-frequency-it-is-not-hearing-other-in-range-meshcore-radios--what-can-i-do)
+  - [3.8 Q: How do I make my repeater an observer on the mesh](#38-q-how-do-i-make-my-repeater-an-observer-on-the-mesh)
 - [4. T-Deck Related](#4-t-deck-related)
   - [4.1. Q: Is there a user guide for T-Deck, T-Pager, T-Watch, or T-Display Pro?](#41-q-is-there-a-user-guide-for-t-deck-t-pager-t-watch-or-t-display-pro)
   - [4.2. Q: What are the steps to get a T-Deck into DFU (Device Firmware Update) mode?](#42-q-what-are-the-steps-to-get-a-t-deck-into-dfu-device-firmware-update-mode)
@@ -58,6 +66,9 @@ A list of frequently-asked questions and answers for MeshCore
     - [5.14.4. meshcore-cli](#5144-meshcore-cli)
     - [5.14.5. meshcore.js](#5145-meshcorejs)
     - [5.14.6. pyMC\_core](#5146-pymc_core)
+    - [5.14.7. MeshCore Packet Decoder](#5147-meshcore-packet-decoder)
+  - [5.15. Q: Are there clientt applications for Windows or Mac?](#515-q-are-there-clientt-applications-for-windows-or-mac)
+  - [5.16. Q: Are there any document that compares MeshCore with other LoRa systems?](#516-q-are-there-any-document-that-compares-meshcore-with-other-lora-systems)
 - [6. Troubleshooting](#6-troubleshooting)
   - [6.1. Q: My client says another client or a repeater or a room server was last seen many, many days ago.](#61-q-my-client-says-another-client-or-a-repeater-or-a-room-server-was-last-seen-many-many-days-ago)
   - [6.2. Q: A repeater or a client or a room server I expect to see on my discover list (on T-Deck) or contact list (on a smart device client) are not listed.](#62-q-a-repeater-or-a-client-or-a-room-server-i-expect-to-see-on-my-discover-list-on-t-deck-or-contact-list-on-a-smart-device-client-are-not-listed)
@@ -69,6 +80,7 @@ A list of frequently-asked questions and answers for MeshCore
   - [6.8. Q: WebFlasher fails on Linux with failed to open](#68-q-webflasher-fails-on-linux-with-failed-to-open)
 - [7. Other Questions:](#7-other-questions)
   - [7.1. Q: How to update nRF (RAK, T114, Seed XIAO) repeater and room server firmware over the air using the new simpler DFU app?](#71-q-how-to-update-nrf-rak-t114-seed-xiao-repeater-and-room-server-firmware-over-the-air-using-the-new-simpler-dfu-app)
+    - [7.1.1 Q: Can I update Seeed Studio Wio Tracker L1 Pro using OTA?](#711-q-can-i-update-seeed-studio-wio-tracker-l1-pro-using-ota)
   - [7.2. Q: How to update ESP32-based devices over the air?](#72-q-how-to-update-esp32-based-devices-over-the-air)
   - [7.3. Q: Is there a way to lower the chance of a failed OTA device firmware update (DFU)?](#73-q-is-there-a-way-to-lower-the-chance-of-a-failed-ota-device-firmware-update-dfu)
   - [7.4. Q: are the MeshCore logo and font available?](#74-q-are-the-meshcore-logo-and-font-available)
@@ -252,6 +264,32 @@ You can get the latitude and longitude from Google Maps by right-clicking the lo
 
 `set guest.password {guest-password}`
 
+### 3.5. Q: Can I retrieve a repeater's private key or set a repeater's private key?
+
+**A:** You can issue these commands to get or set a repeater's private key using a USB serial connection.
+
+`get prv.key` to print a repeater's private key on the serial console
+`set prv.key <hex>` to set a repeater's private key on the serila console
+
+Reboot the repeater after `set prv.key <hex>` command for the new private key to take effect.
+
+### 3.6. Q: The first byte of my repeater's public key collides with an exisitng repeater on the mesh.  How do I get a new private key with a matching public key that has its first byte of my choosing?
+
+**A:** You can generate a new private key and specific the first byte of its public key here:  https://gessaman.com/mc-keygen/
+
+
+### 3.7. Q: My repeater maybe suffering from deafness due to high power interference near my mesh's frequency, it is not hearing other in-range MeshCore radios.  what can I do?
+
+**A:** This may be due to the SX1262 radio's auto gain control feature.  You can use this command to preiodically reset its AGC.  
+
+`set agc.reset.interval <number>`
+
+This is a very low cost operation, just setting the readio's state to idle.   The value is incremented by 4.  `set agc.reset.interval 4` works well to cure deafness.
+
+
+### 3.8 Q: How do I make my repeater an observer on the mesh
+
+**A:** The observer instruction is available here: https://analyzer.letsme.sh/observer/onboard
 
 ---
 
@@ -289,7 +327,9 @@ GPS on T-Deck is always enabled.  You can skip the "GPS clock sync" and the T-De
 **A:**
 T-Deck uses the same key the smartphone apps use but in base64
 `izOH6cXN6mrJ5e26oRXNcg==`
-The third character is the capital letter 'O', not zero `0`
+
+There are no `=` on the T-Deck's hardware keyboard.  You can use the on-screen software keyboard to enter `=`.  Tap the text box to enable the on-screen software keyboard.
+The third character is the capital letter `O` (Oh), not zero `0`
 
 The smartphone app key is in hex:
 ` 8b3387e9c5cdea6ac9e5edbaa115cd72`
@@ -590,6 +630,28 @@ https://github.com/liamcottle/meshcore.js
 pyMC_Core is a Python port of MeshCore, designed for Raspberry Pi and similar hardware, it talks to LoRa modules over SPI.
 https://github.com/rightup/pyMC_core
 
+#### 5.14.7. MeshCore Packet Decoder
+A TypeScript library for decoding MeshCore mesh networking packets with full cryptographic support. Uses WebAssembly (WASM) for Ed25519 key derivation through the orlp/ed25519 library.  It powers the [MeshCore Packet Analyzer](https://analyzer.letsme.sh/packets).
+https://github.com/michaelhart/meshcore-decoder
+
+
+### 5.15. Q: Are there clientt applications for Windows or Mac?
+**A:** Yes, the same iOS and Android client is also available for Windows and Intel Mac (sorry, not available for ARM-based Mac yet).  You can find them together with the Android APK here:
+https://files.liamcottle.net/MeshCore
+
+Both the Windows and Intel Mac versions of the client app are fully unlocked and are free to use.
+
+### 5.16. Q: Are there any document that compares MeshCore with other LoRa systems?
+
+**A:** Here is a list of MeshCore comparison resources:
+The Comms Channel on YouTube:
+https://www.youtube.com/watch?v=guDoKGs02Us
+MeshCore Advantages by MCarper:
+https://github.com/mikecarper/meshfirmware/blob/main/MeshCoreAdvantages.md
+Meshcore vs Meshtastic by austinmesh.org
+https://www.austinmesh.org/learn/meshcore-vs-meshtastic/
+
+
 ---
 
 ## 6. Troubleshooting
@@ -666,6 +728,12 @@ Allow the browser user on it:
 13. If it fails, try turning off and on Bluetooth on your phone.  If that doesn't work, try rebooting your phone.
 14. Wait for the update to complete.  It can take a few minutes.
 
+#### 7.1.1 Q: Can I update Seeed Studio Wio Tracker L1 Pro using OTA?
+**A:**  You can flash this safer bootloader to the Wio Tracker L1 Pro
+https://github.com/oltaco/Adafruit_nRF52_Bootloader_OTAFIX
+
+After this bootloader is flashed onto the device, you can trigger over the air update using bluetooth by holding the button next to the D-Pad and then click the reset button.  The follow the same OTA update instructions above.  You can skip pass the `start ota` instruction and start the update using the DFU app.
+
 
 ### 7.2. Q: How to update ESP32-based devices over the air?
 
@@ -686,10 +754,14 @@ Allow the browser user on it:
 Refer to https://github.com/oltaco/Adafruit_nRF52_Bootloader_OTAFIX for the latest information.
 
 Currently, the following boards are supported:
-- Nologo ProMicro
+- Heltec Automation Mesh Node T114 / HT-nRF5262
+- Nologo ProMicro NRF52840 (aka SuperMini NRF52840)
+- Seeed Studio SenseCAP Card Tracker T1000-E
+- Seeed Studio Wio Tracker L1
 - Seeed Studio XIAO nRF52840 BLE
 - Seeed Studio XIAO nRF52840 BLE SENSE
-- RAK 4631
+- RAK 4631 (See note)
+- RAK WisMesh Tag (new 28/11/2025)
 
 ### 7.4. Q: are the MeshCore logo and font available?
 
