@@ -36,15 +36,10 @@
 #define REAL_VBAT_MV_PER_LSB     (VBAT_DIVIDER_COMP * VBAT_MV_PER_LSB)
 
 class NanoG2Ultra : public NRF52Board {
-protected:
-  uint8_t startup_reason;
-
 public:
   void begin();
   uint16_t getBattMilliVolts() override;
   bool startOTAUpdate(const char *id, char reply[]) override;
-
-  uint8_t getStartupReason() const override { return startup_reason; }
 
   const char *getManufacturerName() const override { return "Nano G2 Ultra"; }
 

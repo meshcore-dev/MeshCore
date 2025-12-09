@@ -19,8 +19,7 @@ static void disconnect_callback(uint16_t conn_handle, uint8_t reason) {
 }
 
 void SenseCapSolarBoard::begin() {
-  // for future use, sub-classes SHOULD call this from their begin()
-  startup_reason = BD_STARTUP_NORMAL;
+  NRF52Board::begin();
 
 #if defined(PIN_WIRE_SDA) && defined(PIN_WIRE_SCL)
   Wire.setPins(PIN_WIRE_SDA, PIN_WIRE_SCL);
