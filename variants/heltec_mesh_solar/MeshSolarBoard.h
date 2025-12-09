@@ -1,7 +1,8 @@
 #pragma once
 
-#include <MeshCore.h>
 #include <Arduino.h>
+#include <MeshCore.h>
+#include <helpers/nrf52/NRF52Board.h>
 
 #ifdef HELTEC_MESH_SOLAR
 #include "meshSolarApp.h"
@@ -19,8 +20,7 @@
 #define SX126X_DIO2_AS_RF_SWITCH  true
 #define SX126X_DIO3_TCXO_VOLTAGE   1.8
 
-
-class MeshSolarBoard : public mesh::MainBoard {
+class MeshSolarBoard : public NRF52Board {
 protected:
   uint8_t startup_reason;
 

@@ -1,11 +1,12 @@
 #pragma once
 
-#include <MeshCore.h>
 #include <Arduino.h>
+#include <MeshCore.h>
+#include <helpers/nrf52/NRF52Board.h>
 
 #ifdef XIAO_NRF52
 
-class IkokaStickNRFBoard : public mesh::MainBoard {
+class IkokaStickNRFBoard : public NRF52Board {
 protected:
   uint8_t startup_reason;
 

@@ -1,9 +1,10 @@
 #pragma once
 
-#include <MeshCore.h>
 #include <Arduino.h>
+#include <MeshCore.h>
+#include <helpers/nrf52/NRF52Board.h>
 
-class T1000eBoard : public mesh::MainBoard {
+class T1000eBoard : public NRF52Board {
 protected:
   uint8_t startup_reason;
   uint8_t btn_prev_state;
@@ -97,4 +98,4 @@ public:
   }
 
 //  bool startOTAUpdate(const char* id, char reply[]) override;
-};
+    };

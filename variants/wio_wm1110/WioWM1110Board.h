@@ -1,7 +1,8 @@
 #pragma once
 
-#include <MeshCore.h>
 #include <Arduino.h>
+#include <MeshCore.h>
+#include <helpers/nrf52/NRF52Board.h>
 
 #ifdef WIO_WM1110
 
@@ -10,7 +11,7 @@
 #endif
 #define Serial Serial1
 
-class WioWM1110Board : public mesh::MainBoard {
+class WioWM1110Board : public NRF52Board {
 protected:
   uint8_t startup_reason;
 

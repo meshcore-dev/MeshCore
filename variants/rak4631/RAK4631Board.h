@@ -1,7 +1,8 @@
 #pragma once
 
-#include <MeshCore.h>
 #include <Arduino.h>
+#include <MeshCore.h>
+#include <helpers/nrf52/NRF52Board.h>
 
 // LoRa radio module pins for RAK4631
 #define  P_LORA_DIO_1   47
@@ -28,7 +29,7 @@
 #define  PIN_VBAT_READ    5
 #define  ADC_MULTIPLIER   (3 * 1.73 * 1.187 * 1000)
 
-class RAK4631Board : public mesh::MainBoard {
+class RAK4631Board : public NRF52Board {
 protected:
   uint8_t startup_reason;
 

@@ -1,9 +1,10 @@
 #pragma once
 
-#include <MeshCore.h>
 #include <Arduino.h>
+#include <MeshCore.h>
+#include <helpers/nrf52/NRF52Board.h>
 
-class SenseCapSolarBoard : public mesh::MainBoard {
+class SenseCapSolarBoard : public NRF52Board {
 protected:
   uint8_t startup_reason;
 
