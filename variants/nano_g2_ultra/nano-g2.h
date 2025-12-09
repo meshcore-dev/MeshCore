@@ -48,8 +48,6 @@ public:
 
   const char *getManufacturerName() const override { return "Nano G2 Ultra"; }
 
-  void reboot() override { NVIC_SystemReset(); }
-
   void powerOff() override {
     // put GPS chip to sleep
     digitalWrite(PIN_GPS_STANDBY, LOW);

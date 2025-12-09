@@ -8,5 +8,6 @@
 class NRF52Board : public mesh::MainBoard {
 public:
   float getMCUTemperature() override;
+  virtual void reboot() override { NVIC_SystemReset(); }
 };
 #endif

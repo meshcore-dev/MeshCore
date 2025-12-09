@@ -41,10 +41,6 @@ public:
     return "Seeed Wio WM1110";
   }
 
-  void reboot() override {
-    NVIC_SystemReset();
-  }
-
   bool startOTAUpdate(const char* id, char reply[]) override;
 
   void enableSensorPower(bool enable) {
