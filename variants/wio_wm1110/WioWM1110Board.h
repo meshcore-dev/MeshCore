@@ -11,7 +11,7 @@
 #endif
 #define Serial Serial1
 
-class WioWM1110Board : public NRF52Board {
+class WioWM1110Board : public NRF52BoardDCDC {
 public:
   void begin();
 

@@ -6,7 +6,7 @@
 
 #ifdef XIAO_NRF52
 
-class XiaoNrf52Board : public NRF52Board {
+class XiaoNrf52Board : public NRF52BoardDCDC {
 public:
   void begin();
 
