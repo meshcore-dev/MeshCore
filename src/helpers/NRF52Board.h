@@ -27,4 +27,13 @@ class NRF52BoardDCDC : virtual public NRF52Board {
 public:
   virtual void begin() override;
 };
+
+class NRF52BoardOTA : virtual public NRF52Board {
+private:
+  char *ota_name;
+
+public:
+  NRF52BoardOTA(char *name) : ota_name(name) {}
+  virtual bool startOTAUpdate(const char *id, char reply[]) override;
+};
 #endif

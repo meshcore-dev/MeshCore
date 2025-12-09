@@ -9,8 +9,9 @@
 #define  PIN_BAT_CTL      6
 #define  MV_LSB   (3000.0F / 4096.0F) // 12-bit ADC with 3.0V input range
 
-class T114Board : public NRF52Board {
+class T114Board : public NRF52BoardOTA {
 public:
+    T114Board() : NRF52BoardOTA("T114_OTA") {}
   void begin();
 
 #if defined(P_LORA_TX_LED)
@@ -50,6 +51,4 @@ public:
     #endif
     sd_power_system_off();
   }
-
-  bool startOTAUpdate(const char* id, char reply[]) override;
 };
