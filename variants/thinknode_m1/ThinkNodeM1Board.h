@@ -40,10 +40,6 @@ public:
     return "Elecrow ThinkNode-M1";
   }
 
-  void reboot() override {
-    NVIC_SystemReset();
-  }
-
   void powerOff() override {
 
     // turn off all leds, sd_power_system_off will not do this for us

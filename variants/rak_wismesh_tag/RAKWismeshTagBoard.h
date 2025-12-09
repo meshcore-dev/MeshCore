@@ -43,10 +43,6 @@ public:
     return "RAK WisMesh Tag";
   }
 
-  void reboot() override {
-    NVIC_SystemReset();
-  }
-
   bool startOTAUpdate(const char* id, char reply[]) override;
 
   void powerOff() override {

@@ -36,9 +36,5 @@ public:
     return "Heltec Mesh Solar";
   }
 
-  void reboot() override {
-    NVIC_SystemReset();
-  }
-
   bool startOTAUpdate(const char* id, char reply[]) override;
 };

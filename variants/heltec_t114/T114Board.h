@@ -44,10 +44,6 @@ public:
     return "Heltec T114";
   }
 
-  void reboot() override {
-    NVIC_SystemReset();
-  }
-
   void powerOff() override {
     #ifdef LED_PIN
     digitalWrite(LED_PIN, HIGH);

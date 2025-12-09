@@ -43,10 +43,6 @@ public:
     return "Ikoka Handheld E22 30dBm (Xiao_nrf52)";
   }
 
-  void reboot() override {
-    NVIC_SystemReset();
-  }
-
   bool startOTAUpdate(const char* id, char reply[]) override;
 };
 

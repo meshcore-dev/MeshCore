@@ -51,10 +51,6 @@ public:
     return MANUFACTURER_STRING;
   }
 
-  void reboot() override {
-    NVIC_SystemReset();
-  }
-
   bool startOTAUpdate(const char *id, char reply[]) override;
 };
 
