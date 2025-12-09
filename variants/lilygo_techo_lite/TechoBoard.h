@@ -9,8 +9,11 @@
 #define VBAT_DIVIDER      (0.5F)          // 150K + 150K voltage divider on VBAT
 #define VBAT_DIVIDER_COMP (2.0F)          // Compensation factor for the VBAT divider
 
-#define PIN_VBAT_READ     (4)
+#define PIN_VBAT_READ     (2)
 #define REAL_VBAT_MV_PER_LSB (VBAT_DIVIDER_COMP * VBAT_MV_PER_LSB)
+
+#define BATTERY_MEASUREMENT_CONTROL _PINNUM(0, 31)
+#define BATTERY_SAMPLES   (8)
 
 class TechoBoard : public mesh::MainBoard {
 protected:
