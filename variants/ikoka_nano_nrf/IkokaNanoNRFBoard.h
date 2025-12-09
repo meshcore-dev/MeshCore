@@ -6,8 +6,9 @@
 
 #ifdef XIAO_NRF52
 
-class IkokaNanoNRFBoard : public NRF52Board {
+class IkokaNanoNRFBoard : public NRF52BoardOTA {
 public:
+  IkokaNanoNRFBoard() : NRF52BoardOTA("XIAO_NRF52_OTA") {}
   void begin();
 
 #if defined(P_LORA_TX_LED)
@@ -46,8 +47,6 @@ public:
   const char *getManufacturerName() const override {
     return MANUFACTURER_STRING;
   }
-
-  bool startOTAUpdate(const char *id, char reply[]) override;
 };
 
 #endif

@@ -4,8 +4,9 @@
 #include <Arduino.h>
 #include <helpers/NRF52Board.h>
 
-class SenseCapSolarBoard : public NRF52Board {
+class SenseCapSolarBoard : public NRF52BoardOTA {
 public:
+  SenseCapSolarBoard() : NRF52BoardOTA("SENSECAP_SOLAR_OTA") {}
   void begin();
 
 #if defined(P_LORA_TX_LED)
@@ -30,6 +31,4 @@ public:
   const char* getManufacturerName() const override {
     return "Seeed SenseCap Solar";
   }
-
-  bool startOTAUpdate(const char* id, char reply[]) override;
 };

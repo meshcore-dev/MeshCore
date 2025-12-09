@@ -4,11 +4,12 @@
 #include <Arduino.h>
 #include <helpers/NRF52Board.h>
 
-class KeepteenLT1Board : public NRF52Board {
+class KeepteenLT1Board : public NRF52BoardOTA {
 protected:
   uint8_t btn_prev_state;
 
 public:
+  KeepteenLT1Board() : NRF52BoardOTA("KeepteenLT1_OTA") {}
   void begin();
 
   #define BATTERY_SAMPLES 8
@@ -40,6 +41,4 @@ public:
   void powerOff() override {
     sd_power_system_off();
   }
-
-  bool startOTAUpdate(const char* id, char reply[]) override;
 };

@@ -4,11 +4,12 @@
 #include <Arduino.h>
 #include <helpers/NRF52Board.h>
 
-class WioTrackerL1Board : public NRF52BoardDCDC {
+class WioTrackerL1Board : public NRF52BoardDCDC, public NRF52BoardOTA {
 protected:
   uint8_t btn_prev_state;
 
 public:
+  WioTrackerL1Board() : NRF52BoardOTA("WioTrackerL1 OTA") {}
   void begin();
 
 #if defined(P_LORA_TX_LED)
@@ -36,6 +37,4 @@ public:
   void powerOff() override {
     sd_power_system_off();
   }
-
-  bool startOTAUpdate(const char* id, char reply[]) override;
 };
