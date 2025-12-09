@@ -4,7 +4,7 @@
 #include "RAK4631Board.h"
 
 void RAK4631Board::begin() {
-  NRF52Board::begin();
+  NRF52BoardDCDC::begin();
   pinMode(PIN_VBAT_READ, INPUT);
 #ifdef PIN_USER_BTN
   pinMode(PIN_USER_BTN, INPUT_PULLUP);
