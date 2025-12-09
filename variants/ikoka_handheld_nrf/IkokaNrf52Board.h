@@ -6,8 +6,9 @@
 
 #ifdef IKOKA_NRF52
 
-class IkokaNrf52Board : public NRF52Board {
+class IkokaNrf52Board : public NRF52BoardOTA {
 public:
+  IkokaNrf52Board() : NRF52BoardOTA("XIAO_NRF52_OTA") {}
   void begin();
 
 #if defined(P_LORA_TX_LED)
@@ -38,8 +39,6 @@ public:
   const char* getManufacturerName() const override {
     return "Ikoka Handheld E22 30dBm (Xiao_nrf52)";
   }
-
-  bool startOTAUpdate(const char* id, char reply[]) override;
 };
 
 #endif

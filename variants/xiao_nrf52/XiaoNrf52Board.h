@@ -6,8 +6,9 @@
 
 #ifdef XIAO_NRF52
 
-class XiaoNrf52Board : public NRF52BoardDCDC {
+class XiaoNrf52Board : public NRF52BoardDCDC, public NRF52BoardOTA {
 public:
+  XiaoNrf52Board() : NRF52BoardOTA("XIAO_NRF52_OTA") {}
   void begin();
 
 #if defined(P_LORA_TX_LED)
@@ -56,8 +57,6 @@ public:
 
     sd_power_system_off();
   }
-
-  bool startOTAUpdate(const char* id, char reply[]) override;
 };
 
 #endif
