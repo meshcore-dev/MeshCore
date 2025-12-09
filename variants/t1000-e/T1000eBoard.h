@@ -4,7 +4,7 @@
 #include <MeshCore.h>
 #include <helpers/nrf52/NRF52Board.h>
 
-class T1000eBoard : public NRF52Board {
+class T1000eBoard : public NRF52BoardDCDC {
 protected:
   uint8_t btn_prev_state;
 

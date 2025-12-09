@@ -8,7 +8,7 @@
 #define  PIN_VBAT_READ    5
 #define  ADC_MULTIPLIER   (3 * 1.73 * 1.187 * 1000)
 
-class RAKWismeshTagBoard : public NRF52Board {
+class RAKWismeshTagBoard : public NRF52BoardDCDC {
 public:
   void begin();
 
