@@ -22,14 +22,11 @@
 
 class PromicroBoard : public NRF52Board {
 protected:
-  uint8_t startup_reason;
   uint8_t btn_prev_state;
   float adc_mult = ADC_MULTIPLIER;
 
 public:
   void begin();
-
-  uint8_t getStartupReason() const override { return startup_reason; }
 
   #define BATTERY_SAMPLES 8
 

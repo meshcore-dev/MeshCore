@@ -19,9 +19,8 @@ static void disconnect_callback(uint16_t conn_handle, uint8_t reason) {
 }
 
 void RAKWismeshTagBoard::begin() {
-  // for future use, sub-classes SHOULD call this from their begin()
-  startup_reason = BD_STARTUP_NORMAL;
-  
+  NRF52Board::begin();
+
   // Enable DC/DC converter for improved power efficiency
   uint8_t sd_enabled = 0;
   sd_softdevice_is_enabled(&sd_enabled);

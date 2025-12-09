@@ -5,8 +5,7 @@
 #include <bluefruit.h>
 
 void T1000eBoard::begin() {
-  // for future use, sub-classes SHOULD call this from their begin()
-  startup_reason = BD_STARTUP_NORMAL;
+  NRF52Board::begin();
   btn_prev_state = HIGH;
 
   // Enable DC/DC converter for improved power efficiency

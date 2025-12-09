@@ -20,8 +20,7 @@ static void disconnect_callback(uint16_t conn_handle, uint8_t reason)
 }
 
 void HeltecMeshPocket::begin() {
-  // for future use, sub-classes SHOULD call this from their begin()
-  startup_reason = BD_STARTUP_NORMAL;
+  NRF52Board::begin();
   Serial.begin(115200);
   pinMode(PIN_VBAT_READ, INPUT);
 

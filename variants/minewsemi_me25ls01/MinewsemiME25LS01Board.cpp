@@ -5,8 +5,7 @@
 #include <bluefruit.h>
 
 void MinewsemiME25LS01Board::begin() {
-  // for future use, sub-classes SHOULD call this from their begin()
-  startup_reason = BD_STARTUP_NORMAL;
+  NRF52Board::begin();
   btn_prev_state = HIGH;
   
   pinMode(PIN_VBAT_READ, INPUT);

@@ -30,12 +30,8 @@
 #define  ADC_MULTIPLIER   (3 * 1.73 * 1.187 * 1000)
 
 class RAK4631Board : public NRF52Board {
-protected:
-  uint8_t startup_reason;
-
 public:
   void begin();
-  uint8_t getStartupReason() const override { return startup_reason; }
 
   #define BATTERY_SAMPLES 8
 

@@ -22,7 +22,6 @@
 
 class MinewsemiME25LS01Board : public NRF52Board {
 protected:
-  uint8_t startup_reason;
   uint8_t btn_prev_state;
 
 public:
@@ -40,8 +39,6 @@ public:
     raw = raw / BATTERY_SAMPLES;
     return (ADC_MULTIPLIER * raw);
   }
-
-  uint8_t getStartupReason() const override { return startup_reason; }
 
   const char* getManufacturerName() const override {
     return "Minewsemi";

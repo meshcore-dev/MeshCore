@@ -12,12 +12,8 @@
 #define Serial Serial1
 
 class WioWM1110Board : public NRF52Board {
-protected:
-  uint8_t startup_reason;
-
 public:
   void begin();
-  uint8_t getStartupReason() const override { return startup_reason; }
 
 #if defined(LED_GREEN)
   void onBeforeTransmit() override {
