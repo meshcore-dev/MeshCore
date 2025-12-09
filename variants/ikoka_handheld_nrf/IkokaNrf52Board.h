@@ -7,12 +7,8 @@
 #ifdef IKOKA_NRF52
 
 class IkokaNrf52Board : public NRF52Board {
-protected:
-  uint8_t startup_reason;
-
 public:
   void begin();
-  uint8_t getStartupReason() const override { return startup_reason; }
 
 #if defined(P_LORA_TX_LED)
   void onBeforeTransmit() override {

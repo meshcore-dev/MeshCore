@@ -21,8 +21,7 @@ static void disconnect_callback(uint16_t conn_handle, uint8_t reason) {
 }
 
 void IkokaNanoNRFBoard::begin() {
-  // for future use, sub-classes SHOULD call this from their begin()
-  startup_reason = BD_STARTUP_NORMAL;
+  NRF52Board::begin();
 
   pinMode(PIN_VBAT, INPUT);
   pinMode(VBAT_ENABLE, OUTPUT);
