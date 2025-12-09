@@ -40,10 +40,6 @@ public:
   }
 #endif
 
-  void reboot() override {
-    NVIC_SystemReset();
-  }
-  
   void powerOff() override {
     sd_power_system_off();
   }

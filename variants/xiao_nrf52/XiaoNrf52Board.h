@@ -43,10 +43,6 @@ public:
     return "Seeed Xiao-nrf52";
   }
 
-  void reboot() override {
-    NVIC_SystemReset();
-  }
-
   void powerOff() override {
     // set led on and wait for button release before poweroff
     digitalWrite(PIN_LED, LOW);

@@ -93,9 +93,5 @@ public:
     sd_power_system_off();
   }
 
-  void reboot() override {
-    NVIC_SystemReset();
-  }
-
 //  bool startOTAUpdate(const char* id, char reply[]) override;
 };

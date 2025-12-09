@@ -49,8 +49,4 @@ public:
     #endif
     sd_power_system_off();
   }
-
-  void reboot() override {
-    NVIC_SystemReset();
-  }
 };

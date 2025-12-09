@@ -35,10 +35,6 @@ public:
     return "Seeed Wio Tracker L1";
   }
 
-  void reboot() override {
-    NVIC_SystemReset();
-  }
-
   void powerOff() override {
     sd_power_system_off();
   }
