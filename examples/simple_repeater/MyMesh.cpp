@@ -628,7 +628,13 @@ bool MyMesh::onPeerPathRecv(mesh::Packet *packet, int sender_idx, const uint8_t 
 #define CTL_TYPE_NODE_DISCOVER_REQ   0x80
 #define CTL_TYPE_NODE_DISCOVER_RESP  0x90
 
+#if !defined(STEALTH_MODE)
 void MyMesh::onControlDataRecv(mesh::Packet* packet) {
+  if (!packet->payload) {
+    MESH_DEBUG_PRINTLN("onControlDataRecv: packet->payload is null");
+    return;
+  }
+
   uint8_t type = packet->payload[0] & 0xF0;    // just test upper 4 bits
   if (type == CTL_TYPE_NODE_DISCOVER_REQ && packet->payload_len >= 6 && discover_limiter.allow(rtc_clock.getCurrentTime())) {
     int i = 1;
@@ -656,6 +662,7 @@ void MyMesh::onControlDataRecv(mesh::Packet* packet) {
     }
   }
 }
+#endif
 
 MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondClock &ms, mesh::RNG &rng,
                mesh::RTCClock &rtc, mesh::MeshTables &tables)

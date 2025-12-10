@@ -80,8 +80,10 @@ void setup() {
   ui_task.begin(the_mesh.getNodePrefs(), FIRMWARE_BUILD_DATE, FIRMWARE_VERSION);
 #endif
 
+#if !defined(STEALTH_MODE)
   // send out initial Zero Hop Advertisement to the mesh
   the_mesh.sendSelfAdvertisement(16000, false);
+#endif
 }
 
 void loop() {
