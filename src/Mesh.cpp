@@ -105,12 +105,17 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
 
   switch (pkt->getPayloadType()) {
     case PAYLOAD_TYPE_ACK: {
+      // Validate packet has enough data for ACK
+      if (pkt->payload_len < 4) {
+        MESH_DEBUG_PRINTLN("%s Mesh::onRecvPacket(): incomplete ACK packet", getLogDateTime());
+        break;
+      }
+      
       int i = 0;
       uint32_t ack_crc;
       memcpy(&ack_crc, &pkt->payload[i], 4); i += 4;
-      if (i > pkt->payload_len) {
-        MESH_DEBUG_PRINTLN("%s Mesh::onRecvPacket(): incomplete ACK packet", getLogDateTime());
-      } else if (!_tables->hasSeen(pkt)) {
+      
+      if (!_tables->hasSeen(pkt)) {
         onAckRecv(pkt, ack_crc);
         action = routeRecvPacket(pkt);
       }
@@ -120,13 +125,19 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
     case PAYLOAD_TYPE_REQ:
     case PAYLOAD_TYPE_RESPONSE:
     case PAYLOAD_TYPE_TXT_MSG: {
+      // Validate packet has minimum required data: dest_hash + src_hash + MAC + at least 1 byte data
+      if (pkt->payload_len < 2 + CIPHER_MAC_SIZE + 1) {
+        MESH_DEBUG_PRINTLN("%s Mesh::onRecvPacket(): incomplete data packet", getLogDateTime());
+        break;
+      }
+      
       int i = 0;
       uint8_t dest_hash = pkt->payload[i++];
       uint8_t src_hash = pkt->payload[i++];
 
       uint8_t* macAndData = &pkt->payload[i];   // MAC + encrypted data 
       if (i + CIPHER_MAC_SIZE >= pkt->payload_len) {
-        MESH_DEBUG_PRINTLN("%s Mesh::onRecvPacket(): incomplete data packet", getLogDateTime());
+        MESH_DEBUG_PRINTLN("%s Mesh::onRecvPacket(): incomplete data packet (internal check)", getLogDateTime());
       } else if (!_tables->hasSeen(pkt)) {
         // NOTE: this is a 'first packet wins' impl. When receiving from multiple paths, the first to arrive wins.
         //       For flood mode, the path may not be the 'best' in terms of hops.
@@ -146,8 +157,21 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
             int len = Utils::MACThenDecrypt(secret, data, macAndData, pkt->payload_len - i);
             if (len > 0) {  // success!
               if (pkt->getPayloadType() == PAYLOAD_TYPE_PATH) {
+                // Validate PATH payload has minimum required data
+                if (len < 2) {  // need at least path_len + extra_type
+                  MESH_DEBUG_PRINTLN("%s Mesh::onRecvPacket(): PATH payload too short", getLogDateTime());
+                  break;
+                }
+                
                 int k = 0;
                 uint8_t path_len = data[k++];
+                
+                // Validate path_len doesn't exceed buffer
+                if (k + path_len >= len) {
+                  MESH_DEBUG_PRINTLN("%s Mesh::onRecvPacket(): PATH path_len exceeds data", getLogDateTime());
+                  break;
+                }
+                
                 uint8_t* path = &data[k]; k += path_len;
                 uint8_t extra_type = data[k++] & 0x0F;   // upper 4 bits reserved for future use
                 uint8_t* extra = &data[k];
@@ -177,13 +201,19 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
       break;
     }
     case PAYLOAD_TYPE_ANON_REQ: {
+      // Validate packet has minimum required data: dest_hash + pub_key + MAC + at least 1 byte data
+      if (pkt->payload_len < 1 + PUB_KEY_SIZE + CIPHER_MAC_SIZE + 1) {
+        MESH_DEBUG_PRINTLN("%s Mesh::onRecvPacket(): incomplete ANON_REQ packet", getLogDateTime());
+        break;
+      }
+      
       int i = 0;
       uint8_t dest_hash = pkt->payload[i++];
       uint8_t* sender_pub_key = &pkt->payload[i]; i += PUB_KEY_SIZE;
 
       uint8_t* macAndData = &pkt->payload[i];   // MAC + encrypted data 
-      if (i + 2 >= pkt->payload_len) {
-        MESH_DEBUG_PRINTLN("%s Mesh::onRecvPacket(): incomplete data packet", getLogDateTime());
+      if (i + CIPHER_MAC_SIZE >= pkt->payload_len) {
+        MESH_DEBUG_PRINTLN("%s Mesh::onRecvPacket(): incomplete data packet (internal check)", getLogDateTime());
       } else if (!_tables->hasSeen(pkt)) {
         if (self_id.isHashMatch(&dest_hash)) {
           Identity sender(sender_pub_key);
@@ -205,12 +235,18 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
     }
     case PAYLOAD_TYPE_GRP_DATA: 
     case PAYLOAD_TYPE_GRP_TXT: {
+      // Validate packet has minimum required data: channel_hash + MAC + at least 1 byte data
+      if (pkt->payload_len < 1 + CIPHER_MAC_SIZE + 1) {
+        MESH_DEBUG_PRINTLN("%s Mesh::onRecvPacket(): incomplete group data packet", getLogDateTime());
+        break;
+      }
+      
       int i = 0;
       uint8_t channel_hash = pkt->payload[i++];
 
       uint8_t* macAndData = &pkt->payload[i];   // MAC + encrypted data 
-      if (i + 2 >= pkt->payload_len) {
-        MESH_DEBUG_PRINTLN("%s Mesh::onRecvPacket(): incomplete data packet", getLogDateTime());
+      if (i + CIPHER_MAC_SIZE >= pkt->payload_len) {
+        MESH_DEBUG_PRINTLN("%s Mesh::onRecvPacket(): incomplete data packet (internal check)", getLogDateTime());
       } else if (!_tables->hasSeen(pkt)) {
         // scan channels DB, for all matching hashes of 'channel_hash' (max 4 matches supported ATM)
         GroupChannel channels[4];
