@@ -184,25 +184,28 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
       _board->reboot();  // doesn't return
     } else if (memcmp(command, "advert", 6) == 0) {
       _callbacks->sendSelfAdvertisement(1500);  // longer delay, give CLI response time to be sent first
-      strcpy(reply, "OK - Advert sent");
+      strncpy(reply, "OK - Advert sent", MAX_SERIAL_MSG_SIZE - 1);
+      reply[MAX_SERIAL_MSG_SIZE - 1] = '\0';
     } else if (memcmp(command, "clock sync", 10) == 0) {
       uint32_t curr = getRTCClock()->getCurrentTime();
       if (sender_timestamp > curr) {
         getRTCClock()->setCurrentTime(sender_timestamp + 1);
         uint32_t now = getRTCClock()->getCurrentTime();
         DateTime dt = DateTime(now);
-        sprintf(reply, "OK - clock set: %02d:%02d - %d/%d/%d UTC", dt.hour(), dt.minute(), dt.day(), dt.month(), dt.year());
+        snprintf(reply, MAX_SERIAL_MSG_SIZE, "OK - clock set: %02d:%02d - %d/%d/%d UTC", dt.hour(), dt.minute(), dt.day(), dt.month(), dt.year());
       } else {
-        strcpy(reply, "ERR: clock cannot go backwards");
+        strncpy(reply, "ERR: clock cannot go backwards", MAX_SERIAL_MSG_SIZE - 1);
+        reply[MAX_SERIAL_MSG_SIZE - 1] = '\0';
       }
     } else if (memcmp(command, "start ota", 9) == 0) {
       if (!_board->startOTAUpdate(_prefs->node_name, reply)) {
-        strcpy(reply, "Error");
+        strncpy(reply, "Error", MAX_SERIAL_MSG_SIZE - 1);
+        reply[MAX_SERIAL_MSG_SIZE - 1] = '\0';
       }
     } else if (memcmp(command, "clock", 5) == 0) {
       uint32_t now = getRTCClock()->getCurrentTime();
       DateTime dt = DateTime(now);
-      sprintf(reply, "%02d:%02d - %d/%d/%d UTC", dt.hour(), dt.minute(), dt.day(), dt.month(), dt.year());
+      snprintf(reply, MAX_SERIAL_MSG_SIZE, "%02d:%02d - %d/%d/%d UTC", dt.hour(), dt.minute(), dt.day(), dt.month(), dt.year());
     } else if (memcmp(command, "time ", 5) == 0) {  // set time (to epoch seconds)
       uint32_t secs = _atoi(&command[5]);
       uint32_t curr = getRTCClock()->getCurrentTime();
@@ -210,9 +213,10 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         getRTCClock()->setCurrentTime(secs);
         uint32_t now = getRTCClock()->getCurrentTime();
         DateTime dt = DateTime(now);
-        sprintf(reply, "OK - clock set: %02d:%02d - %d/%d/%d UTC", dt.hour(), dt.minute(), dt.day(), dt.month(), dt.year());
+        snprintf(reply, MAX_SERIAL_MSG_SIZE, "OK - clock set: %02d:%02d - %d/%d/%d UTC", dt.hour(), dt.minute(), dt.day(), dt.month(), dt.year());
       } else {
-        strcpy(reply, "(ERR: clock cannot go backwards)");
+        strncpy(reply, "ERR: clock cannot go backwards", MAX_SERIAL_MSG_SIZE - 1);
+        reply[MAX_SERIAL_MSG_SIZE - 1] = '\0';
       }
     } else if (memcmp(command, "neighbors", 9) == 0) {
       _callbacks->formatNeighborsReply(reply);
@@ -223,12 +227,15 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
       int pubkey_len = hex_len / 2;
       if (mesh::Utils::fromHex(pubkey, pubkey_len, hex)) {
         _callbacks->removeNeighbor(pubkey, pubkey_len);
-        strcpy(reply, "OK");
+        strncpy(reply, "OK", MAX_SERIAL_MSG_SIZE - 1);
+        reply[MAX_SERIAL_MSG_SIZE - 1] = '\0';
       } else {
-        strcpy(reply, "ERR: bad pubkey");
+        strncpy(reply, "ERR: bad pubkey", MAX_SERIAL_MSG_SIZE - 1);
+        reply[MAX_SERIAL_MSG_SIZE - 1] = '\0';
       }
     } else if (memcmp(command, "tempradio ", 10) == 0) {
-      strcpy(tmp, &command[10]);
+      strncpy(tmp, &command[10], sizeof(tmp) - 1);
+      tmp[sizeof(tmp) - 1] = '\0';
       const char *parts[5];
       int num = mesh::Utils::parseTextParts(tmp, parts, 5);
       float freq  = num > 0 ? strtof(parts[0], nullptr) : 0.0f;
@@ -238,65 +245,70 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
       int temp_timeout_mins  = num > 4 ? atoi(parts[4]) : 0;
       if (freq >= 300.0f && freq <= 2500.0f && sf >= 5 && sf <= 12 && cr >= 5 && cr <= 8 && bw >= 7.0f && bw <= 500.0f && temp_timeout_mins > 0) {
         _callbacks->applyTempRadioParams(freq, bw, sf, cr, temp_timeout_mins);
-        sprintf(reply, "OK - temp params for %d mins", temp_timeout_mins);
+        snprintf(reply, MAX_SERIAL_MSG_SIZE, "OK - temp params for %d mins", temp_timeout_mins);
       } else {
-        strcpy(reply, "Error, invalid params");
+        strncpy(reply, "Error, invalid params", MAX_SERIAL_MSG_SIZE - 1);
+        reply[MAX_SERIAL_MSG_SIZE - 1] = '\0';
       }
     } else if (memcmp(command, "password ", 9) == 0) {
       // change admin password
       StrHelper::strncpy(_prefs->password, &command[9], sizeof(_prefs->password));
       savePrefs();
-      sprintf(reply, "password now: %s", _prefs->password);   // echo back just to let admin know for sure!!
+      strncpy(reply, "OK - password changed", MAX_SERIAL_MSG_SIZE - 1);   // Don't echo password for security
+      reply[MAX_SERIAL_MSG_SIZE - 1] = '\0';
     } else if (memcmp(command, "clear stats", 11) == 0) {
       _callbacks->clearStats();
-      strcpy(reply, "(OK - stats reset)");
+      strncpy(reply, "(OK - stats reset)", MAX_SERIAL_MSG_SIZE - 1);
+      reply[MAX_SERIAL_MSG_SIZE - 1] = '\0';
     /*
      * GET commands
      */
     } else if (memcmp(command, "get ", 4) == 0) {
       const char* config = &command[4];
       if (memcmp(config, "af", 2) == 0) {
-        sprintf(reply, "> %s", StrHelper::ftoa(_prefs->airtime_factor));
+        snprintf(reply, MAX_SERIAL_MSG_SIZE, "> %s", StrHelper::ftoa(_prefs->airtime_factor));
       } else if (memcmp(config, "int.thresh", 10) == 0) {
-        sprintf(reply, "> %d", (uint32_t) _prefs->interference_threshold);
+        snprintf(reply, MAX_SERIAL_MSG_SIZE, "> %d", (uint32_t) _prefs->interference_threshold);
       } else if (memcmp(config, "agc.reset.interval", 18) == 0) {
-        sprintf(reply, "> %d", ((uint32_t) _prefs->agc_reset_interval) * 4);
+        snprintf(reply, MAX_SERIAL_MSG_SIZE, "> %d", ((uint32_t) _prefs->agc_reset_interval) * 4);
       } else if (memcmp(config, "multi.acks", 10) == 0) {
-        sprintf(reply, "> %d", (uint32_t) _prefs->multi_acks);
+        snprintf(reply, MAX_SERIAL_MSG_SIZE, "> %d", (uint32_t) _prefs->multi_acks);
       } else if (memcmp(config, "allow.read.only", 15) == 0) {
-        sprintf(reply, "> %s", _prefs->allow_read_only ? "on" : "off");
+        snprintf(reply, MAX_SERIAL_MSG_SIZE, "> %s", _prefs->allow_read_only ? "on" : "off");
       } else if (memcmp(config, "flood.advert.interval", 21) == 0) {
-        sprintf(reply, "> %d", ((uint32_t) _prefs->flood_advert_interval));
+        snprintf(reply, MAX_SERIAL_MSG_SIZE, "> %d", ((uint32_t) _prefs->flood_advert_interval));
       } else if (memcmp(config, "advert.interval", 15) == 0) {
-        sprintf(reply, "> %d", ((uint32_t) _prefs->advert_interval) * 2);
+        snprintf(reply, MAX_SERIAL_MSG_SIZE, "> %d", ((uint32_t) _prefs->advert_interval) * 2);
       } else if (memcmp(config, "guest.password", 14) == 0) {
-        sprintf(reply, "> %s", _prefs->guest_password);
+        snprintf(reply, MAX_SERIAL_MSG_SIZE, "> %s", _prefs->guest_password);
       } else if (sender_timestamp == 0 && memcmp(config, "prv.key", 7) == 0) {  // from serial command line only
         uint8_t prv_key[PRV_KEY_SIZE];
         int len = _callbacks->getSelfId().writeTo(prv_key, PRV_KEY_SIZE);
         mesh::Utils::toHex(tmp, prv_key, len);
-        sprintf(reply, "> %s", tmp);
+        snprintf(reply, MAX_SERIAL_MSG_SIZE, "> %s", tmp);
       } else if (memcmp(config, "name", 4) == 0) {
-        sprintf(reply, "> %s", _prefs->node_name);
+        snprintf(reply, MAX_SERIAL_MSG_SIZE, "> %s", _prefs->node_name);
       } else if (memcmp(config, "repeat", 6) == 0) {
-        sprintf(reply, "> %s", _prefs->disable_fwd ? "off" : "on");
+        snprintf(reply, MAX_SERIAL_MSG_SIZE, "> %s", _prefs->disable_fwd ? "off" : "on");
       } else if (memcmp(config, "lat", 3) == 0) {
-        sprintf(reply, "> %s", StrHelper::ftoa(_prefs->node_lat));
+        snprintf(reply, MAX_SERIAL_MSG_SIZE, "> %s", StrHelper::ftoa(_prefs->node_lat));
       } else if (memcmp(config, "lon", 3) == 0) {
-        sprintf(reply, "> %s", StrHelper::ftoa(_prefs->node_lon));
+        snprintf(reply, MAX_SERIAL_MSG_SIZE, "> %s", StrHelper::ftoa(_prefs->node_lon));
       } else if (memcmp(config, "radio", 5) == 0) {
         char freq[16], bw[16];
-        strcpy(freq, StrHelper::ftoa(_prefs->freq));
-        strcpy(bw, StrHelper::ftoa3(_prefs->bw));
-        sprintf(reply, "> %s,%s,%d,%d", freq, bw, (uint32_t)_prefs->sf, (uint32_t)_prefs->cr);
+        strncpy(freq, StrHelper::ftoa(_prefs->freq), sizeof(freq) - 1);
+        freq[sizeof(freq) - 1] = '\0';
+        strncpy(bw, StrHelper::ftoa3(_prefs->bw), sizeof(bw) - 1);
+        bw[sizeof(bw) - 1] = '\0';
+        snprintf(reply, MAX_SERIAL_MSG_SIZE, "> %s,%s,%d,%d", freq, bw, (uint32_t)_prefs->sf, (uint32_t)_prefs->cr);
       } else if (memcmp(config, "rxdelay", 7) == 0) {
-        sprintf(reply, "> %s", StrHelper::ftoa(_prefs->rx_delay_base));
+        snprintf(reply, MAX_SERIAL_MSG_SIZE, "> %s", StrHelper::ftoa(_prefs->rx_delay_base));
       } else if (memcmp(config, "txdelay", 7) == 0) {
-        sprintf(reply, "> %s", StrHelper::ftoa(_prefs->tx_delay_factor));
+        snprintf(reply, MAX_SERIAL_MSG_SIZE, "> %s", StrHelper::ftoa(_prefs->tx_delay_factor));
       } else if (memcmp(config, "flood.max", 9) == 0) {
-        sprintf(reply, "> %d", (uint32_t)_prefs->flood_max);
+        snprintf(reply, MAX_SERIAL_MSG_SIZE, "> %d", (uint32_t)_prefs->flood_max);
       } else if (memcmp(config, "direct.txdelay", 14) == 0) {
-        sprintf(reply, "> %s", StrHelper::ftoa(_prefs->direct_tx_delay_factor));
+        snprintf(reply, MAX_SERIAL_MSG_SIZE, "> %s", StrHelper::ftoa(_prefs->direct_tx_delay_factor));
       } else if (memcmp(config, "tx", 2) == 0 && (config[2] == 0 || config[2] == ' ')) {
         sprintf(reply, "> %d", (uint32_t) _prefs->tx_power_dbm);
       } else if (memcmp(config, "freq", 4) == 0) {
