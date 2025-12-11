@@ -175,7 +175,7 @@ int MyMesh::handleRequest(ClientInfo *sender, uint32_t sender_timestamp, uint8_t
     telemetry.addVoltage(TELEM_CHANNEL_SELF, (float)board.getBattMilliVolts() / 1000.0f);
 
     float temperature = (float)board.getMCUTemperature();
-    if(!isnan(temperature) && temperature > -273) { // Supported boards with built-in temperature sensor. ESP32-C3 may return NAN
+    if(!isnan(temperature)) { // Supported boards with built-in temperature sensor. ESP32-C3 may return NAN
       telemetry.addTemperature(TELEM_CHANNEL_SELF, (float)board.getMCUTemperature()); // Built-in MCU Temperature
     }
     
