@@ -60,7 +60,4 @@ public:
   }
 
   bool startOTAUpdate(const char* id, char reply[]) override;
-
-  void enterLightSleep(uint32_t secs);
-  void sleep(uint32_t secs) override;
 };
