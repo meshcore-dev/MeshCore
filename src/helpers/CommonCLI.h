@@ -8,6 +8,8 @@
 #define WITH_BRIDGE
 #endif
 
+#define MAX_SERIAL_MSG_SIZE   160
+
 #define ADVERT_LOC_NONE       0
 #define ADVERT_LOC_SHARE      1
 #define ADVERT_LOC_PREFS      2
