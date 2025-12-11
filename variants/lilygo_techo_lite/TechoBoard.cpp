@@ -32,17 +32,36 @@ void TechoBoard::begin() {
 }
 
 uint16_t TechoBoard::getBattMilliVolts() {
-  int adcvalue = 0;
-
-  analogReference(AR_INTERNAL_3_0);
   analogReadResolution(12);
-  delay(10);
 
-  // ADC range is 0..3000mV and resolution is 12-bit (0..4095)
-  adcvalue = analogRead(PIN_VBAT_READ);
-  // Convert the raw value to compensated mv, taking the resistor-
-  // divider into account (providing the actual LIPO voltage)
-  return (uint16_t)((float)adcvalue * REAL_VBAT_MV_PER_LSB);
+  // Enable control to measure battery
+  pinMode(BATTERY_MEASUREMENT_CONTROL, OUTPUT);
+  digitalWrite(BATTERY_MEASUREMENT_CONTROL, HIGH);
+  delayMicroseconds(50); // To stablize the ADC
+
+  uint16_t adc = 0;
+  for (int i = 0; i < BATTERY_SAMPLES; i++) {
+    adc += analogRead(PIN_VBAT_READ);
+  }
+  adc /= BATTERY_SAMPLES; // To average the adc readings
+
+  // Disable control to measure battery
+  digitalWrite(BATTERY_MEASUREMENT_CONTROL, LOW);
+
+  // It is not a linear function
+  if (adc >= 3430) return 4200;
+  else if(adc >= 3420) return 4100;
+  else if(adc >= 3410) return 4000;
+  else if(adc >= 3400) return 3900;
+  else if(adc >= 3390) return 3800;
+  else if(adc >= 3380) return 3700;
+  else if(adc >= 3360) return 3600;
+  else if(adc >= 3355) return 3400;
+  else if(adc >= 3350) return 3300;
+  else if(adc >= 3250) return 3200;
+  else if(adc >= 3130) return 3100;
+  else if(adc >= 3020) return 3000;
+  else return adc; // From this point, the ADC = mV
 }
 
 bool TechoBoard::startOTAUpdate(const char* id, char reply[]) {
