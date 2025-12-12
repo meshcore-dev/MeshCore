@@ -50,8 +50,14 @@
 ////////////////////////////////////////////////////////////////////////////////
 // I2C pin definition
 
+#define WIRE_INTERFACES_COUNT 2
+
 #define PIN_WIRE_SDA            (26)             // P0.26
 #define PIN_WIRE_SCL            (27)             // P0.27
+
+#define PIN_WIRE1_SDA        (16)                // P0.16
+#define PIN_WIRE1_SCL        (13)                // P0.13
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // SPI pin definition
