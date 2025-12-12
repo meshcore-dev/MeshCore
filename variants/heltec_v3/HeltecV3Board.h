@@ -19,11 +19,12 @@
 class HeltecV3Board : public ESP32Board {
 private:
   bool adc_active_state;
+  bool enable_wakeup;
 
 public:
   RefCountedDigitalPin periph_power;
 
-  HeltecV3Board() : periph_power(PIN_VEXT_EN) { }
+  HeltecV3Board() : periph_power(PIN_VEXT_EN), enable_wakeup(true) { }
 
   void begin() {
     ESP32Board::begin();
@@ -31,7 +32,7 @@ public:
     // Auto-detect correct ADC_CTRL pin polarity (different for boards >3.2)
     pinMode(PIN_ADC_CTRL, INPUT);
     adc_active_state = !digitalRead(PIN_ADC_CTRL);
-
+    
     pinMode(PIN_ADC_CTRL, OUTPUT);
     digitalWrite(PIN_ADC_CTRL, !adc_active_state); // Initially inactive
 
@@ -42,38 +43,48 @@ public:
       long wakeup_source = esp_sleep_get_ext1_wakeup_status();
       if (wakeup_source & (1 << P_LORA_DIO_1)) {  // received a LoRa packet (while in deep sleep)
         startup_reason = BD_STARTUP_RX_PACKET;
+        // DIO1 was configured for wakeup, need to deinit
+        rtc_gpio_deinit((gpio_num_t)P_LORA_DIO_1);
       }
 
+      // NSS hold is always enabled, always need to release it
       rtc_gpio_hold_dis((gpio_num_t)P_LORA_NSS);
-      rtc_gpio_deinit((gpio_num_t)P_LORA_DIO_1);
     }
   }
 
-  void enterDeepSleep(uint32_t secs, int pin_wake_btn = -1) {
+  void enterDeepSleep(uint32_t secs, int pin_wake_btn = -1, bool enable_wakeup = true) {
     esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
 
-    // Make sure the DIO1 and NSS GPIOs are hold on required levels during deep sleep
-    rtc_gpio_set_direction((gpio_num_t)P_LORA_DIO_1, RTC_GPIO_MODE_INPUT_ONLY);
-    rtc_gpio_pulldown_en((gpio_num_t)P_LORA_DIO_1);
-
+    // Make sure NSS GPIO is held at required level during deep sleep
     rtc_gpio_hold_en((gpio_num_t)P_LORA_NSS);
 
-    if (pin_wake_btn < 0) {
-      esp_sleep_enable_ext1_wakeup( (1L << P_LORA_DIO_1), ESP_EXT1_WAKEUP_ANY_HIGH);  // wake up on: recv LoRa packet
-    } else {
-      esp_sleep_enable_ext1_wakeup( (1L << P_LORA_DIO_1) | (1L << pin_wake_btn), ESP_EXT1_WAKEUP_ANY_HIGH);  // wake up on: recv LoRa packet OR wake btn
-    }
+    if (enable_wakeup)
+    {
+      // Configure DIO1 for wakeup on LoRa packet reception
+      rtc_gpio_set_direction((gpio_num_t)P_LORA_DIO_1, RTC_GPIO_MODE_INPUT_ONLY);
+      rtc_gpio_pulldown_en((gpio_num_t)P_LORA_DIO_1);
 
-    if (secs > 0) {
-      esp_sleep_enable_timer_wakeup(secs * 1000000);
+      if (pin_wake_btn < 0) {
+        esp_sleep_enable_ext1_wakeup( (1L << P_LORA_DIO_1), ESP_EXT1_WAKEUP_ANY_HIGH);  // wake up on: recv LoRa packet
+      } else {
+        esp_sleep_enable_ext1_wakeup( (1L << P_LORA_DIO_1) | (1L << pin_wake_btn), ESP_EXT1_WAKEUP_ANY_HIGH);  // wake up on: recv LoRa packet OR wake btn
+      }
+
+      if (secs > 0) {
+        esp_sleep_enable_timer_wakeup(secs * 1000000);
+      }
     }
 
     // Finally set ESP32 into sleep
     esp_deep_sleep_start();   // CPU halts here and never returns!
   }
 
+  void setEnableWakeup(bool enable) override {
+    this->enable_wakeup = enable;
+  }
+
   void powerOff() override {
-    enterDeepSleep(0);
+    enterDeepSleep(0, -1, this->enable_wakeup);
   }
 
   uint16_t getBattMilliVolts() override {
