@@ -9,10 +9,12 @@
 		}
 	},
 	"runArgs": [
-		"--network=host",
 		"--privileged",
-		"--volume",
-		"/dev/bus/usb:/dev/bus/usb"
+		// arch tty* is owned by uucp (986)
+		// debian tty* is owned by uucp (20) - no change needed
+		"--group-add=986",
+		"--network=host",
+		"--volume=/dev/bus/usb:/dev/bus/usb:ro"
 	],
 	"postCreateCommand": {
 		"platformio": "pipx install platformio"
