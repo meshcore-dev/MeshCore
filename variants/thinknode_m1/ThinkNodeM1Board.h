@@ -2,6 +2,7 @@
 
 #include <MeshCore.h>
 #include <Arduino.h>
+#include <helpers/NRF52Board.h>
 
 // built-ins
 #define VBAT_MV_PER_LSB   (0.73242188F)   // 3.0V ADC range and 12-bit ADC resolution = 3000mV/4096
@@ -12,7 +13,7 @@
 #define PIN_VBAT_READ     (4)
 #define REAL_VBAT_MV_PER_LSB (VBAT_DIVIDER_COMP * VBAT_MV_PER_LSB)
 
-class ThinkNodeM1Board : public mesh::MainBoard {
+class ThinkNodeM1Board : public NRF52Board {
 protected:
   uint8_t startup_reason;
 

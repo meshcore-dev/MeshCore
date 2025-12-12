@@ -2,8 +2,9 @@
 
 #include <MeshCore.h>
 #include <Arduino.h>
+#include <helpers/NRF52Board.h>
 
-class SenseCapSolarBoard : public mesh::MainBoard {
+class SenseCapSolarBoard : public NRF52Board {
 protected:
   uint8_t startup_reason;
 
