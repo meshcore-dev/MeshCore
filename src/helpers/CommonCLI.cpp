@@ -167,16 +167,20 @@ void CommonCLI::savePrefs() {
 }
 
 uint8_t CommonCLI::buildAdvertData(uint8_t node_type, uint8_t* app_data) {
+  AdvertDataBuilder builder(node_type, _prefs->node_name, _prefs->node_lat, _prefs->node_lon);
+
   if (_prefs->advert_loc_policy == ADVERT_LOC_NONE) {
-    AdvertDataBuilder builder(node_type, _prefs->node_name);
-    return builder.encodeTo(app_data);
+    builder = AdvertDataBuilder(node_type, _prefs->node_name);
   } else if (_prefs->advert_loc_policy == ADVERT_LOC_SHARE) {
-    AdvertDataBuilder builder(node_type, _prefs->node_name, _sensors->node_lat, _sensors->node_lon);
-    return builder.encodeTo(app_data);
-  } else {
-    AdvertDataBuilder builder(node_type, _prefs->node_name, _prefs->node_lat, _prefs->node_lon);
-    return builder.encodeTo(app_data);
+    builder = AdvertDataBuilder(node_type, _prefs->node_name, _sensors->node_lat, _sensors->node_lon);
   }
+
+  uint16_t batt_mv = _board->getBattMilliVolts();
+  if (batt_mv > 0) {
+    builder.setFeat1(batt_mv);
+  }
+
+  return builder.encodeTo(app_data);
 }
 
 void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, char* reply) {
