@@ -550,16 +550,31 @@ StdRNG fast_rng;
 SimpleMeshTables tables;
 MyMesh the_mesh(radio_driver, fast_rng, rtc_clock, tables);
 
-void halt() {
-  while (1) ;
+void delayedReboot(const char *msg, const uint32_t delayms) {
+  #ifdef DISPLAY_CLASS
+    char tmp[32];
+    sprintf(tmp, "Rebooting in %3.1fs", delayms/1000.0);
+    display.startFrame();
+    display.drawTextCentered(display.width() / 2, 24, msg);
+    display.drawTextCentered(display.width() / 2, 32, tmp);
+    display.endFrame();
+  #endif
+  delay(delayms);
+  board.reboot();
 }
 
 void setup() {
   Serial.begin(115200);
-
+  
   board.begin();
 
-  if (!radio_init()) { halt(); }
+  if (!radio_init()) {
+    #ifdef DISPLAY_CLASS
+      delayedReboot("Radio Init Failed!", 5000);
+    #else
+      delayedReboot("", 5000);
+    #endif
+  }
 
   fast_rng.begin(radio_get_rng_seed());
 
