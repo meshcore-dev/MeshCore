@@ -126,15 +126,10 @@ void loop() {
 #ifdef POWERSAVING_MODE
   if (millis() - lastActive > nextSleepinSecs * 1000) {
     if(the_mesh.getOutboundCount(0xFFFFFFFF) == 0) { // Nothing more to send. Safe to sleep
-      // Serial.println("Nothing more to send. Safe to sleep.");
-      // delay(100); // To remove after debug
       board.sleep(1800); // To sleep. Wake up after 30 minutes or when receiving a LoRa packet
       lastActive = millis();
       nextSleepinSecs = 5; // Default: To work for 5s and sleep again
-      // Serial.println("Waken up to do some work.");
     } else {
-      // Serial.printf("getOutboundCount = %d.\n", the_mesh.getOutboundCount(0xFFFFFFFF));
-      // Serial.println("Delay sleep.");
       nextSleepinSecs += 5; // To give 5 more seconds to send
     }
   }
