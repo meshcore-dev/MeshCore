@@ -2,10 +2,11 @@
 
 #include <MeshCore.h>
 #include <Arduino.h>
+#include <helpers/NRF52Board.h>
 
 #ifdef XIAO_NRF52
 
-class XiaoNrf52Board : public mesh::MainBoard {
+class XiaoNrf52Board : public NRF52Board {
 protected:
   uint8_t startup_reason;
 

@@ -2,13 +2,14 @@
 
 #include <Arduino.h>
 #include <MeshCore.h>
+#include <helpers/NRF52Board.h>
 
 // built-ins
 #define  PIN_VBAT_READ    29
 #define  PIN_BAT_CTL      34
 #define  MV_LSB   (3000.0F / 4096.0F) // 12-bit ADC with 3.0V input range
 
-class HeltecMeshPocket : public mesh::MainBoard {
+class HeltecMeshPocket : public NRF52Board {
 protected:
   uint8_t startup_reason;
 

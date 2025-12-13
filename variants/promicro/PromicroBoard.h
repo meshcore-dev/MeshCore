@@ -2,6 +2,7 @@
 
 #include <MeshCore.h>
 #include <Arduino.h>
+#include <helpers/NRF52Board.h>
 
 #define P_LORA_NSS 13 //P1.13 45
 #define P_LORA_DIO_1 11 //P0.10 10
@@ -19,7 +20,7 @@
 #define  PIN_VBAT_READ 17
 #define  ADC_MULTIPLIER   (1.815f) // dependent on voltage divider resistors. TODO: more accurate battery tracking
 
-class PromicroBoard : public mesh::MainBoard {
+class PromicroBoard : public NRF52Board {
 protected:
   uint8_t startup_reason;
   uint8_t btn_prev_state;

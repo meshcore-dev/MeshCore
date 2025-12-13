@@ -2,8 +2,9 @@
 
 #include <MeshCore.h>
 #include <Arduino.h>
+#include <helpers/NRF52Board.h>
 
-class WioTrackerL1Board : public mesh::MainBoard {
+class WioTrackerL1Board : public NRF52Board {
 protected:
   uint8_t startup_reason;
   uint8_t btn_prev_state;

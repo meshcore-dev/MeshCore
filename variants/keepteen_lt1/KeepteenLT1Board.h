@@ -2,8 +2,9 @@
 
 #include <MeshCore.h>
 #include <Arduino.h>
+#include <helpers/NRF52Board.h>
 
-class KeepteenLT1Board : public mesh::MainBoard {
+class KeepteenLT1Board : public NRF52Board {
 protected:
   uint8_t startup_reason;
   uint8_t btn_prev_state;

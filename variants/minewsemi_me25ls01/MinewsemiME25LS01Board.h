@@ -2,6 +2,7 @@
 
 #include <MeshCore.h>
 #include <Arduino.h>
+#include <helpers/NRF52Board.h>
 
 // LoRa and SPI pins
 
@@ -20,7 +21,7 @@
 #define  ADC_MULTIPLIER   (1.815f) // dependent on voltage divider resistors. TODO: more accurate battery tracking
 
 
-class MinewsemiME25LS01Board : public mesh::MainBoard {
+class MinewsemiME25LS01Board : public NRF52Board {
 protected:
   uint8_t startup_reason;
   uint8_t btn_prev_state;
