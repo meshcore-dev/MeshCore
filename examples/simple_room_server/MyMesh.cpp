@@ -612,7 +612,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.tx_power_dbm = LORA_TX_POWER;
   _prefs.disable_fwd = 1;
   _prefs.advert_interval = 1;        // default to 2 minutes for NEW installs
-  _prefs.flood_advert_interval = 12; // 12 hours
+  _prefs.flood_advert_interval = 48; // 48 hours
   _prefs.flood_max = 64;
   _prefs.interference_threshold = 0; // disabled
 #ifdef ROOM_PASSWORD
@@ -692,7 +692,7 @@ void MyMesh::updateAdvertTimer() {
   }
 }
 void MyMesh::updateFloodAdvertTimer() {
-  if (_prefs.flood_advert_interval > 0) { // schedule flood advert timer
+  if (_prefs.flood_advert_interval > 12) { // schedule flood advert timer
     next_flood_advert = futureMillis(((uint32_t)_prefs.flood_advert_interval) * 60 * 60 * 1000);
   } else {
     next_flood_advert = 0; // stop the timer
