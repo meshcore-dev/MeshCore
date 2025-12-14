@@ -697,7 +697,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.cr = LORA_CR;
   _prefs.tx_power_dbm = LORA_TX_POWER;
   _prefs.advert_interval = 1;        // default to 2 minutes for NEW installs
-  _prefs.flood_advert_interval = 48; // 48 hours
+  _prefs.flood_advert_interval = 48; // 48 hours, minimum is 12h
   _prefs.flood_max = 64;
   _prefs.interference_threshold = 0; // disabled
 
@@ -787,7 +787,7 @@ void MyMesh::updateAdvertTimer() {
 }
 
 void MyMesh::updateFloodAdvertTimer() {
-  if (_prefs.flood_advert_interval > 0) { // schedule flood advert timer
+  if (_prefs.flood_advert_interval > 12) { // schedule flood advert timer, min. 12h
     next_flood_advert = futureMillis(((uint32_t)_prefs.flood_advert_interval) * 60 * 60 * 1000);
   } else {
     next_flood_advert = 0; // stop the timer
