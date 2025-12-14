@@ -30,6 +30,10 @@ uint32_t Mesh::getCADFailRetryDelay() const {
   return _rng->nextInt(1, 4)*120;
 }
 
+uint8_t Mesh::getForwardPriority(const Packet* packet, uint8_t default_priority) {
+  return default_priority;
+}
+
 int Mesh::searchPeersByHash(const uint8_t* hash) {
   return 0;  // not found
 }
@@ -330,8 +334,10 @@ DispatcherAction Mesh::routeRecvPacket(Packet* packet) {
     packet->path_len += self_id.copyHashTo(&packet->path[packet->path_len]);
 
     uint32_t d = getRetransmitDelay(packet);
-    // as this propagates outwards, give it lower and lower priority
-    return ACTION_RETRANSMIT_DELAYED(packet->path_len, d);   // give priority to closer sources, than ones further away
+    // lower priority as this propagates outward (closer sources forwarded first)
+    uint8_t default_priority = packet->path_len;
+    uint8_t priority = getForwardPriority(packet, default_priority);
+    return ACTION_RETRANSMIT_DELAYED(priority, d);
   }
   return ACTION_RELEASE;
 }

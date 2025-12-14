@@ -415,6 +415,30 @@ uint32_t MyMesh::getDirectRetransmitDelay(const mesh::Packet *packet) {
   return getRNG()->nextInt(0, 5*t + 1);
 }
 
+uint8_t MyMesh::getForwardPriority(const mesh::Packet* packet, uint8_t default_priority) {
+  // check admin-relevant packet types only
+  uint8_t type = packet->getPayloadType();
+  if (type != PAYLOAD_TYPE_REQ && 
+      type != PAYLOAD_TYPE_RESPONSE && 
+      type != PAYLOAD_TYPE_TXT_MSG &&
+      type != PAYLOAD_TYPE_PATH) {
+    return default_priority;
+  }
+
+  if (packet->payload_len < 2) return default_priority;
+  uint8_t src_hash = packet->payload[1];  // payload[0] is dest_hash
+
+  // check ACL for admin sender
+  for (int i = 0; i < acl.getNumClients(); i++) {
+    auto client = acl.getClientByIdx(i);
+    if (client->id.isHashMatch(&src_hash) && client->isAdmin()) {
+      return 0;  // highest priority
+    }
+  }
+
+  return default_priority;
+}
+
 bool MyMesh::filterRecvFloodPacket(mesh::Packet* pkt) {
   // just try to determine region for packet (apply later in allowPacketForward())
   if (pkt->getRouteType() == ROUTE_TYPE_TRANSPORT_FLOOD) {

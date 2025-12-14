@@ -71,6 +71,14 @@ protected:
   virtual uint8_t getExtraAckTransmitCount() const;
 
   /**
+   * \brief  Override to adjust packet forwarding priority
+   * \param  packet  packet being routed
+   * \param  default_priority  priority from base routing (lower = higher priority)
+   * \returns  adjusted priority
+   */
+  virtual uint8_t getForwardPriority(const Packet* packet, uint8_t default_priority);
+
+  /**
    * \brief  Perform search of local DB of peers/contacts.
    * \returns  Number of peers with matching hash
    */

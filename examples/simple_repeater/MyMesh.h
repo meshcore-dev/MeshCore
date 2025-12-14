@@ -146,6 +146,8 @@ protected:
     return _prefs.multi_acks;
   }
 
+  uint8_t getForwardPriority(const mesh::Packet* packet, uint8_t default_priority) override;
+
 #if ENV_INCLUDE_GPS == 1
   void applyGpsPrefs() {
     sensors.setSettingValue("gps", _prefs.gps_enabled?"1":"0");
