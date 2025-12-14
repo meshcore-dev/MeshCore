@@ -269,7 +269,7 @@ You can get the latitude and longitude from Google Maps by right-clicking the lo
 **A:** You can issue these commands to get or set a repeater's private key using a USB serial connection.
 
 `get prv.key` to print a repeater's private key on the serial console
-`set prv.key <hex>` to set a repeater's private key on the serila console
+`set prv.key <hex>` to set a repeater's private key on the serial console
 
 Reboot the repeater after `set prv.key <hex>` command for the new private key to take effect.
 
