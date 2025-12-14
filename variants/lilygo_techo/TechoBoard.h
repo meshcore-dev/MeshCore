@@ -32,13 +32,13 @@ public:
 
   void powerOff() override {
     #ifdef LED_RED
-    digitalWrite(LED_RED, LOW);
+    digitalWrite(LED_RED, HIGH);
     #endif
     #ifdef LED_GREEN
-    digitalWrite(LED_GREEN, LOW);
+    digitalWrite(LED_GREEN, HIGH);
     #endif
     #ifdef LED_BLUE
-    digitalWrite(LED_BLUE, LOW);
+    digitalWrite(LED_BLUE, HIGH);
     #endif
     #ifdef DISP_BACKLIGHT
     digitalWrite(DISP_BACKLIGHT, LOW);

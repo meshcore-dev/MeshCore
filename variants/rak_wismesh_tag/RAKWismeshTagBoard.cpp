@@ -21,7 +21,15 @@ static void disconnect_callback(uint16_t conn_handle, uint8_t reason) {
 void RAKWismeshTagBoard::begin() {
   // for future use, sub-classes SHOULD call this from their begin()
   startup_reason = BD_STARTUP_NORMAL;
-  NRF_POWER->DCDCEN = 1;
+  
+  // Enable DC/DC converter for improved power efficiency
+  uint8_t sd_enabled = 0;
+  sd_softdevice_is_enabled(&sd_enabled);
+  if (sd_enabled) {
+    sd_power_dcdc_mode_set(NRF_POWER_DCDC_ENABLE);
+  } else {
+    NRF_POWER->DCDCEN = 1;
+  }
 
   pinMode(PIN_VBAT_READ, INPUT);
   pinMode(PIN_USER_BTN, INPUT_PULLUP);

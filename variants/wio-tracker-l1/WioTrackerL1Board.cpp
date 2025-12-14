@@ -23,6 +23,15 @@ void WioTrackerL1Board::begin() {
   startup_reason = BD_STARTUP_NORMAL;
   btn_prev_state = HIGH;
 
+  // Enable DC/DC converter for improved power efficiency
+  uint8_t sd_enabled = 0;
+  sd_softdevice_is_enabled(&sd_enabled);
+  if (sd_enabled) {
+    sd_power_dcdc_mode_set(NRF_POWER_DCDC_ENABLE);
+  } else {
+    NRF_POWER->DCDCEN = 1;
+  }
+
   pinMode(PIN_VBAT_READ, INPUT); // VBAT ADC input
   // Set all button pins to INPUT_PULLUP
   pinMode(PIN_BUTTON1, INPUT_PULLUP);

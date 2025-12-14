@@ -2,6 +2,9 @@
 #include <helpers/TxtDataHelpers.h>
 #include "../MyMesh.h"
 #include "target.h"
+#ifdef WIFI_SSID
+  #include <WiFi.h>
+#endif
 
 #ifndef AUTO_OFF_MILLIS
   #define AUTO_OFF_MILLIS     15000   // 15 seconds
@@ -129,7 +132,7 @@ class HomeScreen : public UIScreen {
   bool sensors_scroll = false;
   int sensors_scroll_offset = 0;
   int next_sensors_refresh = 0;
-
+  
   void refresh_sensors() {
     if (millis() > next_sensors_refresh) {
       sensors_lpp.reset();
@@ -192,10 +195,17 @@ public:
       sprintf(tmp, "MSG: %d", _task->getMsgCount());
       display.drawTextCentered(display.width() / 2, 20, tmp);
 
+      #ifdef WIFI_SSID
+        IPAddress ip = WiFi.localIP();
+        snprintf(tmp, sizeof(tmp), "IP: %d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
+        display.setTextSize(1);
+        display.drawTextCentered(display.width() / 2, 54, tmp); 
+      #endif
       if (_task->hasConnection()) {
         display.setColor(DisplayDriver::GREEN);
         display.setTextSize(1);
         display.drawTextCentered(display.width() / 2, 43, "< Connected >");
+
       } else if (the_mesh.getBLEPin() != 0) { // BT pin
         display.setColor(DisplayDriver::RED);
         display.setTextSize(2);
@@ -260,13 +270,24 @@ public:
 #if ENV_INCLUDE_GPS == 1
     } else if (_page == HomePage::GPS) {
       LocationProvider* nmea = sensors.getLocationProvider();
+      char buf[50];
       int y = 18;
-      display.drawTextLeftAlign(0, y, _task->getGPSState() ? "gps on" : "gps off");
+      bool gps_state = _task->getGPSState();
+#ifdef PIN_GPS_SWITCH
+      bool hw_gps_state = digitalRead(PIN_GPS_SWITCH);
+      if (gps_state != hw_gps_state) {
+        strcpy(buf, gps_state ? "gps off(hw)" : "gps off(sw)");
+      } else {
+        strcpy(buf, gps_state ? "gps on" : "gps off");
+      }
+#else
+      strcpy(buf, gps_state ? "gps on" : "gps off");
+#endif
+      display.drawTextLeftAlign(0, y, buf);
       if (nmea == NULL) {
         y = y + 12;
         display.drawTextLeftAlign(0, y, "Can't access GPS");
       } else {
-        char buf[50];
         strcpy(buf, nmea->isValid()?"fix":"no fix");
         display.drawTextRightAlign(display.width()-1, y, buf);
         y = y + 12;
@@ -526,6 +547,19 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
 #endif
 
   _node_prefs = node_prefs;
+
+#if ENV_INCLUDE_GPS == 1
+  // Apply GPS preferences from stored prefs
+  if (_sensors != NULL && _node_prefs != NULL) {
+    _sensors->setSettingValue("gps", _node_prefs->gps_enabled ? "1" : "0");
+    if (_node_prefs->gps_interval > 0) {
+      char interval_str[12];  // Max: 24 hours = 86400 seconds (5 digits + null)
+      sprintf(interval_str, "%u", _node_prefs->gps_interval);
+      _sensors->setSettingValue("gps_interval", interval_str);
+    }
+  }
+#endif
+
   if (_display != NULL) {
     _display->turnOn();
   }
@@ -597,9 +631,13 @@ void UITask::newMsg(uint8_t path_len, const char* from_name, const char* text, i
   setCurrScreen(msg_preview);
 
   if (_display != NULL) {
-    if (!_display->isOn()) _display->turnOn();
+    if (!_display->isOn() && !hasConnection()) {
+      _display->turnOn();
+    }
+    if (_display->isOn()) {
     _auto_off = millis() + AUTO_OFF_MILLIS;  // extend the auto-off timer
     _next_refresh = 100;  // trigger refresh
+    }
   }
 }
 
@@ -716,10 +754,14 @@ void UITask::loop() {
     _analogue_pin_read_millis = millis();
   }
 #endif
-#if defined(DISP_BACKLIGHT) && defined(BACKLIGHT_BTN)
+#if defined(BACKLIGHT_BTN)
   if (millis() > next_backlight_btn_check) {
     bool touch_state = digitalRead(PIN_BUTTON2);
+#if defined(DISP_BACKLIGHT)
     digitalWrite(DISP_BACKLIGHT, !touch_state);
+#elif defined(EXP_PIN_BACKLIGHT)
+    expander.digitalWrite(EXP_PIN_BACKLIGHT, !touch_state);
+#endif
     next_backlight_btn_check = millis() + 300;
   }
 #endif
@@ -848,13 +890,16 @@ void UITask::toggleGPS() {
       if (strcmp(_sensors->getSettingName(i), "gps") == 0) {
         if (strcmp(_sensors->getSettingValue(i), "1") == 0) {
           _sensors->setSettingValue("gps", "0");
+          _node_prefs->gps_enabled = 0;
           notify(UIEventType::ack);
           showAlert("GPS: Disabled", 800);
         } else {
           _sensors->setSettingValue("gps", "1");
+          _node_prefs->gps_enabled = 1;
           notify(UIEventType::ack);
           showAlert("GPS: Enabled", 800);
         }
+        the_mesh.savePrefs();
         _next_refresh = 0;
         break;
       }

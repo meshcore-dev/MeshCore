@@ -9,10 +9,14 @@ void T1000eBoard::begin() {
   startup_reason = BD_STARTUP_NORMAL;
   btn_prev_state = HIGH;
 
-  sd_power_mode_set(NRF_POWER_MODE_LOWPWR);
-
   // Enable DC/DC converter for improved power efficiency
-  NRF_POWER->DCDCEN = 1;
+  uint8_t sd_enabled = 0;
+  sd_softdevice_is_enabled(&sd_enabled);
+  if (sd_enabled) {
+    sd_power_dcdc_mode_set(NRF_POWER_DCDC_ENABLE);
+  } else {
+    NRF_POWER->DCDCEN = 1;
+  }
 
 #ifdef BUTTON_PIN
   pinMode(BATTERY_PIN, INPUT);

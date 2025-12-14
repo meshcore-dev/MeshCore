@@ -399,7 +399,7 @@ bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, Cayen
     #if ENV_INCLUDE_LPS22HB
     if (LPS22HB_initialized) {
       telemetry.addTemperature(TELEM_CHANNEL_SELF, BARO.readTemperature());
-      telemetry.addBarometricPressure(TELEM_CHANNEL_SELF, BARO.readPressure());
+      telemetry.addBarometricPressure(TELEM_CHANNEL_SELF, BARO.readPressure() * 10); // convert kPa to hPa
     }
     #endif
 
@@ -521,6 +521,15 @@ bool EnvironmentSensorManager::setSettingValue(const char* name, const char* val
     }
     return true;
   }
+  if (strcmp(name, "gps_interval") == 0) {
+    uint32_t interval_seconds = atoi(value);
+    if (interval_seconds > 0) {
+      gps_update_interval_sec = interval_seconds;
+    } else {
+      gps_update_interval_sec = 1;  // Default to 1 second if 0
+    }
+    return true;
+  }
   #endif
   return false;  // not supported
 }
@@ -548,7 +557,11 @@ void EnvironmentSensorManager::initBasicGPS() {
   delay(1000);
 
   // We'll consider GPS detected if we see any data on Serial1
+#ifdef ENV_SKIP_GPS_DETECT
+  gps_detected = true;
+#else
   gps_detected = (Serial1.available() > 0);
+#endif
 
   if (gps_detected) {
     MESH_DEBUG_PRINTLN("GPS detected");
@@ -683,8 +696,8 @@ void EnvironmentSensorManager::loop() {
 
   #if ENV_INCLUDE_GPS
   _location->loop();
-
   if (millis() > next_gps_update) {
+
     if(gps_active){
     #ifdef RAK_WISBLOCK_GPS
     if ((i2cGPSFlag || serialGPSFlag) && _location->isValid()) {
@@ -704,7 +717,7 @@ void EnvironmentSensorManager::loop() {
     }
     #endif
     }
-    next_gps_update = millis() + 1000;
+    next_gps_update = millis() + (gps_update_interval_sec * 1000);
   }
   #endif
 }
