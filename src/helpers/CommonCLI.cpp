@@ -4,6 +4,64 @@
 #include "AdvertDataHelpers.h"
 #include <RTClib.h>
 
+// Platform-specific fast RNG includes
+#if defined(ESP32)
+  #include <esp_random.h>
+#elif defined(NRF52_PLATFORM)
+  #include <nrf_soc.h>
+#elif defined(STM32_PLATFORM)
+  extern RNG_HandleTypeDef hrng;
+#elif defined(RP2040_PLATFORM)
+  #include <pico/rand.h>
+#endif
+
+// Fast hardware RNG
+class FastRNG : public mesh::RNG {
+public:
+  void random(uint8_t* dest, size_t sz) override {
+#if defined(ESP32)
+    esp_fill_random(dest, sz);
+#elif defined(NRF52_PLATFORM)
+    uint8_t avail = 0;
+    while (sz > 0) {
+      sd_rand_application_bytes_available_get(&avail);
+      if (avail > 0) {
+        uint8_t chunk = (avail < sz) ? avail : sz;
+        sd_rand_application_vector_get(dest, chunk);
+        dest += chunk;
+        sz -= chunk;
+      }
+    }
+#elif defined(STM32_PLATFORM)
+    while (sz >= 4) {
+      uint32_t r;
+      HAL_RNG_GenerateRandomNumber(&hrng, &r);
+      memcpy(dest, &r, 4);
+      dest += 4;
+      sz -= 4;
+    }
+    if (sz > 0) {
+      uint32_t r;
+      HAL_RNG_GenerateRandomNumber(&hrng, &r);
+      memcpy(dest, &r, sz);
+    }
+#elif defined(RP2040_PLATFORM)
+    while (sz > 0) {
+      uint32_t r = get_rand_32();
+      uint8_t chunk = (sz < 4) ? sz : 4;
+      memcpy(dest, &r, chunk);
+      dest += chunk;
+      sz -= chunk;
+    }
+#else
+    //Fallback
+    for (size_t i = 0; i < sz; i++) {
+      dest[i] = ::random(256);
+    }
+#endif
+  }
+};
+
 // Believe it or not, this std C function is busted on some platforms!
 static uint32_t _atoi(const char* sp) {
   uint32_t n = 0;
@@ -556,6 +614,77 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
       sprintf(reply, "%s (Build: %s)", _callbacks->getFirmwareVer(), _callbacks->getBuildDate());
     } else if (memcmp(command, "board", 5) == 0) {
       sprintf(reply, "%s", _board->getManufacturerName());
+    } else if (memcmp(command, "regen key", 9) == 0 && (command[9] == 0 || command[9] == ' ')) {
+      // Parse optional target hash: "regen key" or "regen key XX"
+      uint8_t target_hash = 0;
+      bool has_target = false;
+      if (command[9] == ' ' && command[10] != 0) {
+        // Validate hex characters before parsing
+        if (!mesh::Utils::isHexChar(command[10]) || !mesh::Utils::isHexChar(command[11])) {
+          strcpy(reply, "Error: invalid hex (use 0-9, A-F)");
+          return;
+        }
+        uint8_t parsed[1];
+        if (mesh::Utils::fromHex(parsed, 1, &command[10])) {
+          target_hash = parsed[0];
+          has_target = true;
+          if (target_hash == 0x00 || target_hash == 0xFF) {
+            strcpy(reply, "Error: 00 and FF are reserved hashes");
+            return;
+          }
+        } else {
+          strcpy(reply, "Error: invalid hash (use 2 hex chars, e.g. A3)");
+          return;
+        }
+      }
+
+      Serial.println("Generating key, please wait...");
+      mesh::LocalIdentity new_id;
+      int attempts = 0;
+      int max_attempts = has_target ? 1000 : 50;
+      bool found = false;
+
+#if !defined(RP2040_PLATFORM)
+      FastRNG fast_rng;
+#endif
+      while (attempts < max_attempts) {
+#if defined(RP2040_PLATFORM)
+        new_id = _callbacks->generateNewIdentity();  // use radio noise for RP2040
+#else
+        new_id = mesh::LocalIdentity(&fast_rng);
+#endif
+        uint8_t hash = new_id.pub_key[0];
+        attempts++;
+
+        if (has_target) {
+          if (hash == target_hash) {
+            found = true;
+            break;
+          }
+        } else {
+          if (hash != 0x00 && hash != 0xFF && !_callbacks->hasNeighborWithHash(hash)) {
+            found = true;
+            break;
+          }
+        }
+      }
+
+      if (!found) {
+        if (has_target) {
+          sprintf(reply, "Error: hash %02X not found after %d attempts", target_hash, attempts);
+        } else {
+          strcpy(reply, "Error: could not find non-colliding hash");
+        }
+      } else {
+        _callbacks->saveIdentity(new_id, false);  // save but don't apply until reboot
+        char hex[5];
+        mesh::Utils::toHex(hex, new_id.pub_key, 2);
+        if (has_target && _callbacks->hasNeighborWithHash(new_id.pub_key[0])) {
+          sprintf(reply, "WARNING: collision! new ID: %s (reboot to apply)", hex);
+        } else {
+          sprintf(reply, "OK - new ID: %s (reboot to apply)", hex);
+        }
+      }
     } else if (memcmp(command, "sensor get ", 11) == 0) {
       const char* key = command + 11;
       const char* val = _sensors->getSettingByKey(key);

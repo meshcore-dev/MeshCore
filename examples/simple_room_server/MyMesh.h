@@ -201,7 +201,8 @@ public:
 
   static bool saveFilter(ClientInfo* client);
 
-  void saveIdentity(const mesh::LocalIdentity& new_id) override;
+  void saveIdentity(const mesh::LocalIdentity& new_id, bool apply_now = true) override;
+  mesh::LocalIdentity generateNewIdentity() override { return radio_new_identity(); }
   void clearStats() override;
   void handleCommand(uint32_t sender_timestamp, char* command, char* reply);
   void loop();

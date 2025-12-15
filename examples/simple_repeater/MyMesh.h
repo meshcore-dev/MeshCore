@@ -201,7 +201,14 @@ public:
 
   mesh::LocalIdentity& getSelfId() override { return self_id; }
 
-  void saveIdentity(const mesh::LocalIdentity& new_id) override;
+  void saveIdentity(const mesh::LocalIdentity& new_id, bool apply_now = true) override;
+  mesh::LocalIdentity generateNewIdentity() override { return radio_new_identity(); }
+  bool hasNeighborWithHash(uint8_t hash) override {
+    for (int i = 0; i < MAX_NEIGHBOURS; i++) {
+      if (neighbours[i].heard_timestamp > 0 && neighbours[i].id.pub_key[0] == hash) return true;
+    }
+    return false;
+  }
   void clearStats() override;
   void handleCommand(uint32_t sender_timestamp, char* command, char* reply);
   void loop();
