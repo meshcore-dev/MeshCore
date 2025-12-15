@@ -371,8 +371,8 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         strcpy(reply, "OK");
       } else if (memcmp(config, "flood.advert.interval ", 22) == 0) {
         int hours = _atoi(&config[22]);
-        if ((hours > 0 && hours < 3) || (hours > 48)) {
-          strcpy(reply, "Error: interval range is 3-48 hours");
+        if ((hours > 0 && hours < 12) || (hours > 48)) {
+          strcpy(reply, "Error: interval range is 12-48 hours");
         } else {
           _prefs->flood_advert_interval = (uint8_t)(hours);
           _callbacks->updateFloodAdvertTimer();
