@@ -4,7 +4,23 @@
 #include "ble_gap.h"
 #include "ble_hci.h"
 
+// Magic numbers came from actual testing
 #define BLE_HEALTH_CHECK_INTERVAL  10000  // Advertising watchdog check every 10 seconds
+#define BLE_RETRY_THROTTLE_MS      250    // Throttle retries to 250ms when queue buildup detected
+
+// Connection parameters (units: interval=1.25ms, timeout=10ms)
+#define BLE_MIN_CONN_INTERVAL      12     // 15ms
+#define BLE_MAX_CONN_INTERVAL      24     // 30ms
+#define BLE_SLAVE_LATENCY          4
+#define BLE_CONN_SUP_TIMEOUT       200    // 2000ms
+
+// Advertising parameters
+#define BLE_ADV_INTERVAL_MIN       32     // 20ms (units: 0.625ms)
+#define BLE_ADV_INTERVAL_MAX       244    // 152.5ms (units: 0.625ms)
+#define BLE_ADV_FAST_TIMEOUT       30     // seconds
+
+// RX drain buffer size for overflow protection
+#define BLE_RX_DRAIN_BUF_SIZE      32
 
 static SerialBLEInterface* instance = nullptr;
 
@@ -38,14 +54,18 @@ void SerialBLEInterface::onSecured(uint16_t connection_handle) {
       // Apple: "The product will not read or use the parameters in the Peripheral Preferred Connection Parameters characteristic."
       // So we explicitly set it here to make Android & Apple match
       ble_gap_conn_params_t conn_params;
-      conn_params.min_conn_interval = 12;  // 15ms
-      conn_params.max_conn_interval = 24;  // 30ms
-      conn_params.slave_latency = 0;
-      conn_params.conn_sup_timeout = 200;  // 2000ms
+      conn_params.min_conn_interval = BLE_MIN_CONN_INTERVAL;
+      conn_params.max_conn_interval = BLE_MAX_CONN_INTERVAL;
+      conn_params.slave_latency = BLE_SLAVE_LATENCY;
+      conn_params.conn_sup_timeout = BLE_CONN_SUP_TIMEOUT;
       
       uint32_t err_code = sd_ble_gap_conn_param_update(connection_handle, &conn_params);
       if (err_code == NRF_SUCCESS) {
-        BLE_DEBUG_PRINTLN("Connection parameter update requested: 15-30ms interval, 2s timeout");
+        BLE_DEBUG_PRINTLN("Connection parameter update requested: %u-%ums interval, latency=%u, %ums timeout",
+                         conn_params.min_conn_interval * 5 / 4,  // convert to ms (1.25ms units)
+                         conn_params.max_conn_interval * 5 / 4,
+                         conn_params.slave_latency,
+                         conn_params.conn_sup_timeout * 10);  // convert to ms (10ms units)
       } else {
         BLE_DEBUG_PRINTLN("Failed to request connection parameter update: %lu", err_code);
       }
@@ -116,14 +136,18 @@ void SerialBLEInterface::begin(const char* device_name, uint32_t pin_code) {
   
   // Connection interval units: 1.25ms, supervision timeout units: 10ms
   ble_gap_conn_params_t ppcp_params;
-  ppcp_params.min_conn_interval = 12;  // 15ms
-  ppcp_params.max_conn_interval = 24;  // 30ms
-  ppcp_params.slave_latency = 0;
-  ppcp_params.conn_sup_timeout = 200;  // 2000ms
+  ppcp_params.min_conn_interval = BLE_MIN_CONN_INTERVAL;
+  ppcp_params.max_conn_interval = BLE_MAX_CONN_INTERVAL;
+  ppcp_params.slave_latency = BLE_SLAVE_LATENCY;
+  ppcp_params.conn_sup_timeout = BLE_CONN_SUP_TIMEOUT;
   
   uint32_t err_code = sd_ble_gap_ppcp_set(&ppcp_params);
   if (err_code == NRF_SUCCESS) {
-    BLE_DEBUG_PRINTLN("PPCP set: 15-30ms interval, 2s timeout");
+    BLE_DEBUG_PRINTLN("PPCP set: %u-%ums interval, latency=%u, %ums timeout",
+                     ppcp_params.min_conn_interval * 5 / 4,  // convert to ms (1.25ms units)
+                     ppcp_params.max_conn_interval * 5 / 4,
+                     ppcp_params.slave_latency,
+                     ppcp_params.conn_sup_timeout * 10);  // convert to ms (10ms units)
   } else {
     BLE_DEBUG_PRINTLN("Failed to set PPCP: %lu", err_code);
   }
@@ -153,8 +177,8 @@ void SerialBLEInterface::begin(const char* device_name, uint32_t pin_code) {
 
   Bluefruit.ScanResponse.addName();
 
-  Bluefruit.Advertising.setInterval(32, 244);
-  Bluefruit.Advertising.setFastTimeout(30);
+  Bluefruit.Advertising.setInterval(BLE_ADV_INTERVAL_MIN, BLE_ADV_INTERVAL_MAX);
+  Bluefruit.Advertising.setFastTimeout(BLE_ADV_FAST_TIMEOUT);
 
   Bluefruit.Advertising.restartOnDisconnect(true);
 
@@ -163,6 +187,7 @@ void SerialBLEInterface::begin(const char* device_name, uint32_t pin_code) {
 void SerialBLEInterface::clearBuffers() {
   send_queue_len = 0;
   recv_queue_len = 0;
+  _last_retry_attempt = 0;
   bleuart.flush();
 }
 
@@ -257,21 +282,30 @@ size_t SerialBLEInterface::checkRecvFrame(uint8_t dest[]) {
       BLE_DEBUG_PRINTLN("writeBytes: connection invalid, clearing send queue");
       send_queue_len = 0;
     } else {
-      Frame frame_to_send = send_queue[0];
-      
-      size_t written = bleuart.write(frame_to_send.buf, frame_to_send.len);
-      if (written == frame_to_send.len) {
-        BLE_DEBUG_PRINTLN("writeBytes: sz=%u, hdr=%u", (unsigned)frame_to_send.len, (unsigned)frame_to_send.buf[0]);
-        shiftSendQueueLeft();
-      } else if (written > 0) {
-        BLE_DEBUG_PRINTLN("writeBytes: partial write, sent=%u of %u, dropping corrupted frame", (unsigned)written, (unsigned)frame_to_send.len);
-        shiftSendQueueLeft();
-      } else {
-        if (!isConnected()) {
-          BLE_DEBUG_PRINTLN("writeBytes failed: connection lost, dropping frame");
+      unsigned long now = millis();
+      bool throttle_active = (_last_retry_attempt > 0 && (now - _last_retry_attempt) < BLE_RETRY_THROTTLE_MS);
+
+      if (!throttle_active) {
+        Frame frame_to_send = send_queue[0];
+
+        size_t written = bleuart.write(frame_to_send.buf, frame_to_send.len);
+        if (written == frame_to_send.len) {
+          BLE_DEBUG_PRINTLN("writeBytes: sz=%u, hdr=%u", (unsigned)frame_to_send.len, (unsigned)frame_to_send.buf[0]);
+          _last_retry_attempt = 0;
+          shiftSendQueueLeft();
+        } else if (written > 0) {
+          BLE_DEBUG_PRINTLN("writeBytes: partial write, sent=%u of %u, dropping corrupted frame", (unsigned)written, (unsigned)frame_to_send.len);
+          _last_retry_attempt = 0;
           shiftSendQueueLeft();
         } else {
-          BLE_DEBUG_PRINTLN("writeBytes failed (buffer full), keeping frame for retry");
+          if (!isConnected()) {
+            BLE_DEBUG_PRINTLN("writeBytes failed: connection lost, dropping frame");
+            _last_retry_attempt = 0;
+            shiftSendQueueLeft();
+          } else {
+            BLE_DEBUG_PRINTLN("writeBytes failed (buffer full), keeping frame for retry");
+            _last_retry_attempt = now;
+          }
         }
       }
     }
@@ -329,9 +363,9 @@ void SerialBLEInterface::onBleUartRX(uint16_t conn_handle) {
     
     if (avail > MAX_FRAME_SIZE) {
       BLE_DEBUG_PRINTLN("onBleUartRX: WARN: BLE RX overflow, avail=%d, draining all", avail);
-      uint8_t drain_buf[32];
+      uint8_t drain_buf[BLE_RX_DRAIN_BUF_SIZE];
       while (instance->bleuart.available() > 0) {
-        int chunk = instance->bleuart.available() > 32 ? 32 : instance->bleuart.available();
+        int chunk = instance->bleuart.available() > BLE_RX_DRAIN_BUF_SIZE ? BLE_RX_DRAIN_BUF_SIZE : instance->bleuart.available();
         instance->bleuart.readBytes(drain_buf, chunk);
       }
       continue;
@@ -349,5 +383,5 @@ bool SerialBLEInterface::isConnected() const {
 }
 
 bool SerialBLEInterface::isWriteBusy() const {
-  return send_queue_len >= (FRAME_QUEUE_SIZE - 1);
+  return send_queue_len >= (FRAME_QUEUE_SIZE * 2 / 3);
 }
