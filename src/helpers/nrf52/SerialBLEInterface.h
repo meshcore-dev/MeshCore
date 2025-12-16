@@ -13,6 +13,7 @@ class SerialBLEInterface : public BaseSerialInterface {
   bool _isDeviceConnected;
   uint16_t _conn_handle;
   unsigned long _last_health_check;
+  unsigned long _last_retry_attempt;
 
   struct Frame {
     uint8_t len;
@@ -46,6 +47,7 @@ public:
     _isDeviceConnected = false;
     _conn_handle = BLE_CONN_HANDLE_INVALID;
     _last_health_check = 0;
+    _last_retry_attempt = 0;
     send_queue_len = 0;
     recv_queue_len = 0;
   }
