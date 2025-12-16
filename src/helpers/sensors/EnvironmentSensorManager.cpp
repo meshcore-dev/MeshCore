@@ -653,8 +653,7 @@ bool EnvironmentSensorManager::gpsIsAwake(uint8_t ioPin){
 
     _location = &RAK12500_provider;
     return true;
-  }
-  else if(Serial1){
+  } else if (Serial1.available()) {
     MESH_DEBUG_PRINTLN("Serial GPS init correctly and is turned on");
     if(PIN_GPS_EN){
       gpsResetPin = PIN_GPS_EN;
