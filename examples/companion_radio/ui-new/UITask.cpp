@@ -102,29 +102,50 @@ class HomeScreen : public UIScreen {
 
 
   void renderBatteryIndicator(DisplayDriver& display, uint16_t batteryMilliVolts) {
-    // Convert millivolts to percentage
-    const int minMilliVolts = 3000; // Minimum voltage (e.g., 3.0V)
-    const int maxMilliVolts = 4200; // Maximum voltage (e.g., 4.2V)
+    int minMilliVolts = 3000;
+    #ifdef AUTO_SHUTDOWN_MILLIVOLTS
+      minMilliVolts = AUTO_SHUTDOWN_MILLIVOLTS;
+    #endif
+
+    const int maxMilliVolts = 4200;
     int batteryPercentage = ((batteryMilliVolts - minMilliVolts) * 100) / (maxMilliVolts - minMilliVolts);
-    if (batteryPercentage < 0) batteryPercentage = 0; // Clamp to 0%
-    if (batteryPercentage > 100) batteryPercentage = 100; // Clamp to 100%
+    batteryPercentage = constrain(batteryPercentage, 0, 100);
 
-    // battery icon
-    int iconWidth = 24;
-    int iconHeight = 10;
-    int iconX = display.width() - iconWidth - 5; // Position the icon near the top-right corner
-    int iconY = 0;
-    display.setColor(DisplayDriver::GREEN);
+    #ifdef TEXT_BATTERY
+      // ===== TEXT BATTERY =====
+      int battBackWidth = 24;
+      int battBackHeight = 10;
+      int battBackStartPosY = 0;
+      int battBackStartPosX = display.width() - battBackWidth - 5;
 
-    // battery outline
-    display.drawRect(iconX, iconY, iconWidth, iconHeight);
+      String batteryPercText = String(batteryPercentage) + "%";
+      int battTextStartPosX = display.width() - 5;
 
-    // battery "cap"
-    display.fillRect(iconX + iconWidth, iconY + (iconHeight / 4), 3, iconHeight / 2);
+      display.setColor(DisplayDriver::DARK);
+      display.fillRect(battBackStartPosX, battBackStartPosY, battBackWidth, battBackHeight);
+      display.setTextSize(1);
+      display.setColor(DisplayDriver::GREEN);
+      display.drawTextRightAlign(battTextStartPosX, 1, batteryPercText.c_str());
 
-    // fill the battery based on the percentage
-    int fillWidth = (batteryPercentage * (iconWidth - 4)) / 100;
-    display.fillRect(iconX + 2, iconY + 2, fillWidth, iconHeight - 4);
+    #else
+      // ===== ICON BATTERY =====
+      int iconWidth = 24;
+      int iconHeight = 10;
+      int iconX = display.width() - iconWidth - 5;
+      int iconY = 0;
+
+      display.setColor(DisplayDriver::GREEN);
+
+      // outline
+      display.drawRect(iconX, iconY, iconWidth, iconHeight);
+
+      // cap
+      display.fillRect(iconX + iconWidth, iconY + (iconHeight / 4), 3, iconHeight / 2);
+
+      // fill
+      int fillWidth = (batteryPercentage * (iconWidth - 4)) / 100;
+      display.fillRect(iconX + 2, iconY + 2, fillWidth, iconHeight - 4);
+    #endif
   }
 
   CayenneLPP sensors_lpp;
