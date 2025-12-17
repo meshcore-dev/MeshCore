@@ -61,7 +61,7 @@ static SensirionI2cSht4x SHT4X;
 #endif
 
 #if ENV_INCLUDE_INA3221
-#define TELEM_INA3221_ADDRESS   0x42      // INA3221 3 channel current sensor I2C address
+#define TELEM_INA3221_ADDRESS   0x40      // INA3221 3 channel current sensor I2C address. https://learn.adafruit.com/adafruit-ina3221-breakout/pinouts
 #define TELEM_INA3221_SHUNT_VALUE 0.100 // most variants will have a 0.1 ohm shunts
 #define TELEM_INA3221_NUM_CHANNELS 3
 #include <Adafruit_INA3221.h>
