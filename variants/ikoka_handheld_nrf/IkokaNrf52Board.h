@@ -1,11 +1,12 @@
 #pragma once
 
-#include <MeshCore.h>
 #include <Arduino.h>
+#include <MeshCore.h>
+#include <helpers/NRF52Board.h>
 
 #ifdef IKOKA_NRF52
 
-class IkokaNrf52Board : public mesh::MainBoard {
+class IkokaNrf52Board : public NRF52Board {
 protected:
   uint8_t startup_reason;
 
