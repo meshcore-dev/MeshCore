@@ -12,7 +12,7 @@ protected:
 public:
   virtual void begin();
   virtual uint8_t getStartupReason() const override { return startup_reason; }
-  float getMCUTemperature() override;
+  virtual float getMCUTemperature() override;
   virtual void reboot() override { NVIC_SystemReset(); }
 };
 
