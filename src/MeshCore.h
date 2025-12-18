@@ -51,6 +51,7 @@ public:
   virtual void onAfterTransmit() { }
   virtual void reboot() = 0;
   virtual void powerOff() { /* no op */ }
+  virtual void setEnableWakeup(bool enable) { /* no op - override in subclasses that support wakeup control */ }
   virtual uint32_t getGpio() { return 0; }
   virtual void setGpio(uint32_t values) {}
   virtual uint8_t getStartupReason() const = 0;
