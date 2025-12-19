@@ -20,7 +20,7 @@
 #define  PIN_VBAT_READ BATTERY_PIN
 #define  ADC_MULTIPLIER   (1.815f) // dependent on voltage divider resistors. TODO: more accurate battery tracking
 
-class MinewsemiME25LS01Board : public NRF52BoardOTA {
+class MinewsemiME25LS01Board : public NRF52BoardDCDC, public NRF52BoardOTA {
 protected:
   uint8_t btn_prev_state;
 
