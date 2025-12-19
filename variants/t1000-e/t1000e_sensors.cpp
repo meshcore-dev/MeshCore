@@ -5,7 +5,7 @@
 #define HEATER_NTC_BX 4250   // thermistor coefficient B
 #define HEATER_NTC_RP 8250   // ohm, series resistance to thermistor
 #define HEATER_NTC_KA 273.15 // 25 Celsius at Kelvin
-#define NTC_REF_VCC   3000   // mV, output voltage of LDO
+#define NTC_REF_VCC   3300   // mV, max voltage of 3V3 sensor rail
 #define LIGHT_REF_VCC 2400   //
 
 static unsigned int ntc_res2[136] = {
@@ -54,6 +54,7 @@ static int get_light_lv(unsigned int light_volt) {
   float Vout = 0, Vin = 0, Rt = 0, temp = 0;
   unsigned int light_level = 0;
 
+  // Seeed's firmware maps the photocell reading to a 0-100 % range rather than lux.
   if (light_volt <= 80) {
     light_level = 0;
     return light_level;
@@ -75,7 +76,8 @@ float t1000e_get_temperature(void) {
   analogReference(AR_INTERNAL_3_0);
   analogReadResolution(12);
   delay(10);
-  vcc_v = (1000.0 * (analogRead(BATTERY_PIN) * ADC_MULTIPLIER * AREF_VOLTAGE)) / 4096;
+  unsigned int rail_v = (1000.0 * (analogRead(BATTERY_PIN) * ADC_MULTIPLIER * AREF_VOLTAGE)) / 4096;
+  vcc_v = (rail_v > NTC_REF_VCC) ? NTC_REF_VCC : rail_v;
   ntc_v = (1000.0 * AREF_VOLTAGE * analogRead(TEMP_SENSOR)) / 4096;
   digitalWrite(PIN_3V3_EN, LOW);
   digitalWrite(SENSOR_EN, LOW);
@@ -87,6 +89,7 @@ uint32_t t1000e_get_light(void) {
   int lux = 0;
   unsigned int lux_v = 0;
 
+  digitalWrite(PIN_3V3_EN, HIGH);
   digitalWrite(SENSOR_EN, HIGH);
   analogReference(AR_INTERNAL_3_0);
   analogReadResolution(12);
@@ -94,6 +97,7 @@ uint32_t t1000e_get_light(void) {
   lux_v = 1000 * analogRead(LUX_SENSOR) * AREF_VOLTAGE / 4096;
   lux = get_light_lv(lux_v);
   digitalWrite(SENSOR_EN, LOW);
+  digitalWrite(PIN_3V3_EN, LOW);
 
   return lux;
 }
