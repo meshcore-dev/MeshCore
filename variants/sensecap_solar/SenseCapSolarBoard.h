@@ -4,7 +4,7 @@
 #include <Arduino.h>
 #include <helpers/NRF52Board.h>
 
-class SenseCapSolarBoard : public NRF52BoardOTA {
+class SenseCapSolarBoard : public NRF52BoardDCDC, public NRF52BoardOTA {
 public:
   SenseCapSolarBoard() : NRF52BoardOTA("SENSECAP_SOLAR_OTA") {}
   void begin();
