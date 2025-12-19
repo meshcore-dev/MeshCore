@@ -20,7 +20,7 @@
 #define  PIN_VBAT_READ 17
 #define  ADC_MULTIPLIER   (1.815f) // dependent on voltage divider resistors. TODO: more accurate battery tracking
 
-class PromicroBoard : public NRF52BoardOTA {
+class PromicroBoard : public NRF52BoardDCDC, public NRF52BoardOTA {
 protected:
   uint8_t btn_prev_state;
   float adc_mult = ADC_MULTIPLIER;
