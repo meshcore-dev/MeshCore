@@ -20,7 +20,7 @@
 #define SX126X_DIO2_AS_RF_SWITCH  true
 #define SX126X_DIO3_TCXO_VOLTAGE   1.8
 
-class MeshSolarBoard : public NRF52BoardOTA {
+class MeshSolarBoard : public NRF52BoardDCDC, public NRF52BoardOTA {
 public:
   MeshSolarBoard() : NRF52BoardOTA("MESH_SOLAR_OTA") {}
   void begin();
