@@ -9,7 +9,7 @@
 #define  PIN_BAT_CTL      34
 #define  MV_LSB   (3000.0F / 4096.0F) // 12-bit ADC with 3.0V input range
 
-class HeltecMeshPocket : public NRF52BoardOTA {
+class HeltecMeshPocket : public NRF52BoardDCDC, public NRF52BoardOTA {
 public:
   HeltecMeshPocket() : NRF52BoardOTA("MESH_POCKET_OTA") {}
   void begin();
