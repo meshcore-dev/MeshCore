@@ -6,7 +6,7 @@
 
 #ifdef IKOKA_NRF52
 
-class IkokaNrf52Board : public NRF52BoardOTA {
+class IkokaNrf52Board : public NRF52BoardDCDC, public NRF52BoardOTA {
 public:
   IkokaNrf52Board() : NRF52BoardOTA("XIAO_NRF52_OTA") {}
   void begin();
