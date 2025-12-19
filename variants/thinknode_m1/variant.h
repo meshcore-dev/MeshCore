@@ -111,6 +111,15 @@ extern const int MOSI;
 extern const int SCK;
 
 ////////////////////////////////////////////////////////////////////////////////
+// QSPI
+#define PIN_QSPI_SCK (46)
+#define PIN_QSPI_CS  (47)
+#define PIN_QSPI_IO0 (44)  // MOSI if using two bit interface
+#define PIN_QSPI_IO1 (45)  // MISO if using two bit interface
+#define PIN_QSPI_IO2 (7)   // WP if using two bit interface (i.e. not used)
+#define PIN_QSPI_IO3 (5)   // HOLD if using two bit interface (i.e. not used)
+
+////////////////////////////////////////////////////////////////////////////////
 // Display
 
 #define DISP_MISO               (38)

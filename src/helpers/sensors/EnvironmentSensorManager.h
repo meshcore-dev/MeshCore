@@ -20,6 +20,8 @@ protected:
   bool MLX90614_initialized = false;
   bool VL53L0X_initialized = false;
   bool SHT4X_initialized = false;
+  bool BME680_initialized = false;
+  bool BMP085_initialized = false;
 
   bool gps_detected = false;
   bool gps_active = false;
@@ -39,6 +41,7 @@ protected:
 public:
   #if ENV_INCLUDE_GPS
   EnvironmentSensorManager(LocationProvider &location): _location(&location){};
+  LocationProvider* getLocationProvider() { return _location; }
   #else
   EnvironmentSensorManager(){};
   #endif

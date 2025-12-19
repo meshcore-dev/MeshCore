@@ -10,7 +10,11 @@ RAK4631Board board;
 
 #ifdef DISPLAY_CLASS
   DISPLAY_CLASS display;
-  MomentaryButton user_btn(PIN_USER_BTN, 1000, true);
+  MomentaryButton user_btn(PIN_USER_BTN, 1000, true, true);
+
+  #if defined(PIN_USER_BTN_ANA)
+  MomentaryButton analog_btn(PIN_USER_BTN_ANA, 1000, 20);
+  #endif
 #endif
 
 RADIO_CLASS radio = new Module(P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BUSY, SPI);

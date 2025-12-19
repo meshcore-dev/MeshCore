@@ -3,22 +3,6 @@
 #include <MeshCore.h>
 #include <Arduino.h>
 
-// LoRa and SPI pins
-#define  P_LORA_DIO_1   (32 + 1)  // P1.1
-#define  P_LORA_NSS     (0 + 12)  // P0.12
-#define  P_LORA_RESET   (32 + 10) // P1.10
-#define  P_LORA_BUSY    (0 + 7)   // P0.7
-#define  P_LORA_SCLK    (0 + 11)  // P0.11
-#define  P_LORA_MISO    (32 + 8)  // P1.8
-#define  P_LORA_MOSI    (32 + 9)  // P0.9
- 
-#define LR11X0_DIO_AS_RF_SWITCH  true
-#define LR11X0_DIO3_TCXO_VOLTAGE   1.6
-
-// built-ins
-//#define  PIN_VBAT_READ    5
-//#define  ADC_MULTIPLIER   (3 * 1.73 * 1000)
-
 class T1000eBoard : public mesh::MainBoard {
 protected:
   uint8_t startup_reason;
@@ -72,16 +56,22 @@ public:
         digitalWrite(GPS_RESET, LOW);
         digitalWrite(GPS_SLEEP_INT, LOW);
         digitalWrite(GPS_RTC_INT, LOW);
-        pinMode(GPS_RESETB, OUTPUT);
-        digitalWrite(GPS_RESETB, LOW);
+        digitalWrite(GPS_EN, LOW);
     #endif
-    
+
     #ifdef BUZZER_EN
         digitalWrite(BUZZER_EN, LOW);
     #endif
-    
+
     #ifdef PIN_3V3_EN
         digitalWrite(PIN_3V3_EN, LOW);
+    #endif
+
+    #ifdef PIN_3V3_ACC_EN
+        digitalWrite(PIN_3V3_ACC_EN, LOW);
+    #endif
+    #ifdef SENSOR_EN
+        digitalWrite(SENSOR_EN, LOW);
     #endif
 
     // set led on and wait for button release before poweroff
@@ -96,7 +86,7 @@ public:
     #endif
 
     #ifdef BUTTON_PIN
-    nrf_gpio_cfg_sense_input(digitalPinToInterrupt(BUTTON_PIN), NRF_GPIO_PIN_NOPULL, NRF_GPIO_PIN_SENSE_HIGH);
+    nrf_gpio_cfg_sense_input(BUTTON_PIN, NRF_GPIO_PIN_NOPULL, NRF_GPIO_PIN_SENSE_HIGH);
     #endif
 
     sd_power_system_off();

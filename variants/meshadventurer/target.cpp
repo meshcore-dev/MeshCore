@@ -16,10 +16,7 @@ MASensorManager sensors = MASensorManager(nmea);
 
 #ifdef DISPLAY_CLASS
   DISPLAY_CLASS display;
-#endif
-
-#ifndef LORA_CR
-  #define LORA_CR      5
+  MomentaryButton user_btn(PIN_USER_BTN, 1000, true);
 #endif
 
 bool radio_init() {

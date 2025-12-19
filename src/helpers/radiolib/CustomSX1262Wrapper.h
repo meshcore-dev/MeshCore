@@ -19,4 +19,7 @@ public:
     int sf = ((CustomSX1262 *)_radio)->spreadingFactor;
     return packetScoreInt(snr, sf, packet_len);
   }
+  virtual void powerOff() override {
+    ((CustomSX1262 *)_radio)->sleep(false);
+  }
 };

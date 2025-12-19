@@ -28,6 +28,12 @@
   #define MESH_DEBUG_PRINTLN(...) {}
 #endif
 
+#if BRIDGE_DEBUG && ARDUINO
+#define BRIDGE_DEBUG_PRINTLN(F, ...) Serial.printf("%s BRIDGE: " F, getLogDateTime(), ##__VA_ARGS__)
+#else
+#define BRIDGE_DEBUG_PRINTLN(...) {}
+#endif
+
 namespace mesh {
 
 #define  BD_STARTUP_NORMAL     0  // getStartupReason() codes
@@ -36,6 +42,8 @@ namespace mesh {
 class MainBoard {
 public:
   virtual uint16_t getBattMilliVolts() = 0;
+  virtual bool setAdcMultiplier(float multiplier) { return false; };
+  virtual float getAdcMultiplier() const { return 0.0f; }
   virtual const char* getManufacturerName() const = 0;
   virtual void onBeforeTransmit() { }
   virtual void onAfterTransmit() { }
@@ -65,6 +73,11 @@ public:
    * \param time  current time in UNIX epoch seconds.
   */
   virtual void setCurrentTime(uint32_t time) = 0;
+
+  /**
+   * override in classes that need to periodically update internal state
+   */
+  virtual void tick() { /* no op */}
 
   uint32_t getCurrentTimeUnique() {
     uint32_t t = getCurrentTime();

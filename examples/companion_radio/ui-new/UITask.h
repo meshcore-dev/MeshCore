@@ -6,9 +6,13 @@
 #include <helpers/SensorManager.h>
 #include <helpers/BaseSerialInterface.h>
 #include <Arduino.h>
+#include <helpers/sensors/LPPDataHelpers.h>
 
 #ifdef PIN_BUZZER
   #include <helpers/ui/buzzer.h>
+#endif
+#ifdef PIN_VIBRATION
+  #include <helpers/ui/GenericVibration.h>
 #endif
 
 #include "../AbstractUITask.h"
@@ -20,12 +24,25 @@ class UITask : public AbstractUITask {
 #ifdef PIN_BUZZER
   genericBuzzer buzzer;
 #endif
+#ifdef PIN_VIBRATION
+  GenericVibration vibration;
+#endif
   unsigned long _next_refresh, _auto_off;
   NodePrefs* _node_prefs;
   char _alert[80];
   unsigned long _alert_expiry;
   int _msgcount;
   unsigned long ui_started_at, next_batt_chck;
+  int next_backlight_btn_check = 0;
+#ifdef PIN_STATUS_LED
+  int led_state = 0;
+  int next_led_change = 0;
+  int last_led_increment = 0;
+#endif
+
+#ifdef PIN_USER_BTN_ANA
+  unsigned long _analogue_pin_read_millis = millis();
+#endif
 
   UIScreen* splash;
   UIScreen* home;
@@ -37,6 +54,8 @@ class UITask : public AbstractUITask {
   // Button action handlers
   char checkDisplayOn(char c);
   char handleLongPress(char c);
+  char handleDoubleClick(char c);
+  char handleTripleClick(char c);
 
   void setCurrScreen(UIScreen* c);
 
@@ -55,10 +74,15 @@ public:
   bool hasDisplay() const { return _display != NULL; }
   bool isButtonPressed() const;
 
+  void toggleBuzzer();
+  bool getGPSState();
+  void toggleGPS();
+
+
   // from AbstractUITask
   void msgRead(int msgcount) override;
   void newMsg(uint8_t path_len, const char* from_name, const char* text, int msgcount) override;
-  void soundBuzzer(UIEventType bet = UIEventType::none) override;
+  void notify(UIEventType t = UIEventType::none) override;
   void loop() override;
 
   void shutdown(bool restart = false);

@@ -3,7 +3,7 @@
 #define RADIOLIB_STATIC_ONLY 1
 #include <RadioLib.h>
 #include <helpers/radiolib/RadioLibWrappers.h>
-#include <ikoka_stick_nrf_board.h>
+#include <IkokaStickNRFBoard.h>
 #include <helpers/radiolib/CustomSX1262Wrapper.h>
 #include <helpers/AutoDiscoverRTCClock.h>
 #include <helpers/ArduinoHelpers.h>
@@ -16,7 +16,7 @@
   extern MomentaryButton user_btn;
 #endif
 
-extern ikoka_stick_nrf_board board;
+extern IkokaStickNRFBoard board;
 extern WRAPPER_CLASS radio_driver;
 extern AutoDiscoverRTCClock rtc_clock;
 extern EnvironmentSensorManager sensors;

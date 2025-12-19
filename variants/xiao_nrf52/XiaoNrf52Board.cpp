@@ -1,21 +1,19 @@
 #ifdef XIAO_NRF52
 
 #include <Arduino.h>
-#include "XiaoNrf52Board.h"
-
-#include <bluefruit.h>
 #include <Wire.h>
+#include <bluefruit.h>
+
+#include "XiaoNrf52Board.h"
 
 static BLEDfu bledfu;
 
-static void connect_callback(uint16_t conn_handle)
-{
+static void connect_callback(uint16_t conn_handle) {
   (void)conn_handle;
   MESH_DEBUG_PRINTLN("BLE client connected");
 }
 
-static void disconnect_callback(uint16_t conn_handle, uint8_t reason)
-{
+static void disconnect_callback(uint16_t conn_handle, uint8_t reason) {
   (void)conn_handle;
   (void)reason;
 
@@ -25,10 +23,15 @@ static void disconnect_callback(uint16_t conn_handle, uint8_t reason)
 void XiaoNrf52Board::begin() {
   // for future use, sub-classes SHOULD call this from their begin()
   startup_reason = BD_STARTUP_NORMAL;
+  NRF_POWER->DCDCEN = 1;
 
   pinMode(PIN_VBAT, INPUT);
   pinMode(VBAT_ENABLE, OUTPUT);
   digitalWrite(VBAT_ENABLE, HIGH);
+
+#ifdef PIN_USER_BTN
+  pinMode(PIN_USER_BTN, INPUT);
+#endif
 
 #if defined(PIN_WIRE_SDA) && defined(PIN_WIRE_SCL)
   Wire.setPins(PIN_WIRE_SDA, PIN_WIRE_SCL);
@@ -41,12 +44,12 @@ void XiaoNrf52Board::begin() {
   digitalWrite(P_LORA_TX_LED, HIGH);
 #endif
 
-//  pinMode(SX126X_POWER_EN, OUTPUT);
-//  digitalWrite(SX126X_POWER_EN, HIGH);
-  delay(10);   // give sx1262 some time to power up
+  //  pinMode(SX126X_POWER_EN, OUTPUT);
+  //  digitalWrite(SX126X_POWER_EN, HIGH);
+  delay(10); // give sx1262 some time to power up
 }
 
-bool XiaoNrf52Board::startOTAUpdate(const char* id, char reply[]) {
+bool XiaoNrf52Board::startOTAUpdate(const char *id, char reply[]) {
   // Config the peripheral connection with maximum bandwidth
   // more SRAM required by SoftDevice
   // Note: All config***() function must be called before begin()
@@ -86,10 +89,8 @@ bool XiaoNrf52Board::startOTAUpdate(const char* id, char reply[]) {
   Bluefruit.Advertising.start(0);             // 0 = Don't stop advertising after n seconds
 
   strcpy(reply, "OK - started");
+
   return true;
-
-
-  return false;
 }
 
 #endif

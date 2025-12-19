@@ -7,41 +7,27 @@
 #include <helpers/radiolib/CustomSX1262Wrapper.h>
 #include <helpers/AutoDiscoverRTCClock.h>
 #include <helpers/ArduinoHelpers.h>
+#include <helpers/sensors/EnvironmentSensorManager.h>
 #ifdef DISPLAY_CLASS
-  #include <helpers/ui/SH1106Display.h>
+  #if defined(WIO_TRACKER_L1_EINK)
+    #include <helpers/ui/GxEPDDisplay.h>
+  #else
+    #include <helpers/ui/SH1106Display.h>
+  #endif
   #include <helpers/ui/MomentaryButton.h>
 #endif
 #include <helpers/sensors/EnvironmentSensorManager.h>
 
-class WioTrackerL1SensorManager : public SensorManager
-{
-  bool gps_active = false;
-  LocationProvider *_location;
-
-  void start_gps();
-  void stop_gps();
-
-public:
-  WioTrackerL1SensorManager(LocationProvider &location) : _location(&location) {}
-  bool begin() override;
-  bool querySensors(uint8_t requester_permissions, CayenneLPP &telemetry) override;
-  void loop() override;
-  int getNumSettings() const override;
-  const char *getSettingName(int i) const override;
-  const char *getSettingValue(int i) const override;
-  bool setSettingValue(const char *name, const char *value) override;
-};
-
-
 extern WioTrackerL1Board board;
 extern WRAPPER_CLASS radio_driver;
 extern AutoDiscoverRTCClock rtc_clock;
-extern WioTrackerL1SensorManager sensors;
+extern EnvironmentSensorManager sensors;
 #ifdef DISPLAY_CLASS
   extern DISPLAY_CLASS display;
   extern MomentaryButton user_btn;
   extern MomentaryButton joystick_left;
   extern MomentaryButton joystick_right;
+  extern MomentaryButton back_btn;
 #endif
 
 bool radio_init();

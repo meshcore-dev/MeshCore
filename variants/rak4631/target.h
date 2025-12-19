@@ -13,6 +13,9 @@
   extern DISPLAY_CLASS display;
   #include <helpers/ui/MomentaryButton.h>
   extern MomentaryButton user_btn;
+  #if defined(PIN_USER_BTN_ANA)
+  extern MomentaryButton analog_btn;
+  #endif
 #endif
 
 extern RAK4631Board board;
