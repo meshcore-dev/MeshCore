@@ -2,6 +2,7 @@
 
 #include <MeshCore.h>
 #include <Arduino.h>
+#include <Wire.h>
 #include <helpers/NRF52Board.h>
 
 // built-ins
@@ -26,18 +27,42 @@ public:
   void powerOff() override {
     #ifdef LED_RED
     digitalWrite(LED_RED, HIGH);
+    pinMode(LED_RED, INPUT_PULLUP);
     #endif
     #ifdef LED_GREEN
     digitalWrite(LED_GREEN, HIGH);
+    pinMode(LED_GREEN, INPUT_PULLUP);
     #endif
     #ifdef LED_BLUE
     digitalWrite(LED_BLUE, HIGH);
+    pinMode(LED_BLUE, INPUT_PULLUP);
     #endif
     #ifdef DISP_BACKLIGHT
     digitalWrite(DISP_BACKLIGHT, LOW);
+    pinMode(DISP_BACKLIGHT, INPUT_PULLDOWN);
+    #endif
+    #ifdef GPS_EN
+    digitalWrite(GPS_EN, LOW);
+    pinMode(GPS_EN, INPUT_PULLDOWN);
+    #endif
+    #ifdef PIN_GPS_RESET
+    digitalWrite(PIN_GPS_RESET, LOW);
+    pinMode(PIN_GPS_RESET, INPUT_PULLDOWN);
+    #endif
+    Wire.end();
+    #ifdef PIN_WIRE_SDA
+    pinMode(PIN_WIRE_SDA, INPUT_PULLUP);
+    #endif
+    #ifdef PIN_WIRE_SCL
+    pinMode(PIN_WIRE_SCL, INPUT_PULLUP);
+    #endif
+    #ifdef SX126X_POWER_EN
+    digitalWrite(SX126X_POWER_EN, LOW);
+    pinMode(SX126X_POWER_EN, INPUT);
     #endif
     #ifdef PIN_PWR_EN
     digitalWrite(PIN_PWR_EN, LOW);
+    pinMode(PIN_PWR_EN, INPUT);
     #endif
     sd_power_system_off();
   }

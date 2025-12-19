@@ -55,6 +55,14 @@ void GxEPDDisplay::turnOff() {
   _isOn = false;
 }
 
+void GxEPDDisplay::hibernate() {
+  display.fillScreen(GxEPD_BLACK);
+  display.display(false);
+  display.fillScreen(GxEPD_WHITE);
+  display.display(false);
+  display.hibernate();
+}
+
 void GxEPDDisplay::clear() {
   display.fillScreen(GxEPD_WHITE);
   display.setTextColor(GxEPD_BLACK);
