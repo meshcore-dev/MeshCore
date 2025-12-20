@@ -11,9 +11,9 @@
 #endif
 #define Serial Serial1
 
-class WioWM1110Board : public NRF52BoardDCDC, public NRF52BoardOTA {
+class WioWM1110Board : public NRF52BoardDCDC {
 public:
-  WioWM1110Board() : NRF52BoardOTA("WM1110_OTA") {}
+  WioWM1110Board() : NRF52Board("WM1110_OTA") {}
   void begin();
 
 #if defined(LED_GREEN)

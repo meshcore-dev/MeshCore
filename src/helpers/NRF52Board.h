@@ -8,12 +8,15 @@
 class NRF52Board : public mesh::MainBoard {
 protected:
   uint8_t startup_reason;
+  char *ota_name;
 
 public:
+  NRF52Board(char *otaname) : ota_name(otaname) {}
   virtual void begin();
   virtual uint8_t getStartupReason() const override { return startup_reason; }
   virtual float getMCUTemperature() override;
   virtual void reboot() override { NVIC_SystemReset(); }
+  virtual bool startOTAUpdate(const char *id, char reply[]) override;
 };
 
 /*
@@ -25,15 +28,7 @@ public:
  */
 class NRF52BoardDCDC : virtual public NRF52Board {
 public:
+  NRF52BoardDCDC() {}
   virtual void begin() override;
-};
-
-class NRF52BoardOTA : virtual public NRF52Board {
-private:
-  char *ota_name;
-
-public:
-  NRF52BoardOTA(char *name) : ota_name(name) {}
-  virtual bool startOTAUpdate(const char *id, char reply[]) override;
 };
 #endif
