@@ -7,15 +7,23 @@ void HeltecV4Board::begin() {
     pinMode(PIN_ADC_CTRL, OUTPUT);
     digitalWrite(PIN_ADC_CTRL, LOW); // Initially inactive
 
-    pinMode(P_LORA_PA_POWER, OUTPUT);
-    digitalWrite(P_LORA_PA_POWER,HIGH);
+    // ---- GC1109 RF FRONT END CONFIGURATION ----
+    // The Heltec V4 uses a GC1109 FEM chip with integrated PA and LNA
+    // RF switch control: PA_TX_EN LOW = RX path (LNA), HIGH = TX path (PA)
 
+    // PA_POWER: Power enable for GC1109 chip (always on)
+    pinMode(P_LORA_PA_POWER, OUTPUT);
+    digitalWrite(P_LORA_PA_POWER, HIGH);
+
+    // PA_EN: Main enable for GC1109 (must be HIGH for both RX and TX)
     rtc_gpio_hold_dis((gpio_num_t)P_LORA_PA_EN);
     pinMode(P_LORA_PA_EN, OUTPUT);
-    digitalWrite(P_LORA_PA_EN,HIGH);
-    pinMode(P_LORA_PA_TX_EN, OUTPUT);
-    digitalWrite(P_LORA_PA_TX_EN,LOW);
+    digitalWrite(P_LORA_PA_EN, HIGH);
 
+    // PA_TX_EN: RF switch control (LOW=RX/LNA, HIGH=TX/PA)
+    pinMode(P_LORA_PA_TX_EN, OUTPUT);
+    digitalWrite(P_LORA_PA_TX_EN, LOW);  // Default to RX mode
+    // -------------------------------------------
 
     periph_power.begin();
 
@@ -32,13 +40,13 @@ void HeltecV4Board::begin() {
   }
 
   void HeltecV4Board::onBeforeTransmit(void) {
-    digitalWrite(P_LORA_TX_LED, HIGH);   // turn TX LED on
-    digitalWrite(P_LORA_PA_TX_EN,HIGH);
+    digitalWrite(P_LORA_TX_LED, HIGH);    // Turn TX LED on
+    digitalWrite(P_LORA_PA_TX_EN, HIGH);  // Switch to TX path (PA)
   }
 
   void HeltecV4Board::onAfterTransmit(void) {
-    digitalWrite(P_LORA_TX_LED, LOW);   // turn TX LED off
-    digitalWrite(P_LORA_PA_TX_EN,LOW);
+    digitalWrite(P_LORA_PA_TX_EN, LOW);   // Switch back to RX path (LNA)
+    digitalWrite(P_LORA_TX_LED, LOW);     // Turn TX LED off
   }
 
   void HeltecV4Board::enterDeepSleep(uint32_t secs, int pin_wake_btn) {
@@ -50,7 +58,9 @@ void HeltecV4Board::begin() {
 
     rtc_gpio_hold_en((gpio_num_t)P_LORA_NSS);
 
-    rtc_gpio_hold_en((gpio_num_t)P_LORA_PA_EN); //It also needs to be enabled in receive mode
+    // Hold GC1109 FEM pins during sleep (PA_EN=HIGH, PA_TX_EN=LOW for RX mode)
+    rtc_gpio_hold_en((gpio_num_t)P_LORA_PA_EN);
+    rtc_gpio_hold_en((gpio_num_t)P_LORA_PA_TX_EN);
 
     if (pin_wake_btn < 0) {
       esp_sleep_enable_ext1_wakeup( (1L << P_LORA_DIO_1), ESP_EXT1_WAKEUP_ANY_HIGH);  // wake up on: recv LoRa packet
