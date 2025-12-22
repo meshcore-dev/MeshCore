@@ -63,6 +63,9 @@ public:
     if (WiFi.getMode() == WIFI_MODE_NULL) { // WiFi is off ~ No active OTA, safe to go to sleep
       enterLightSleep(secs); // To wake up after "secs" seconds or when receiving a LoRa packet
     }
+  // Temperature from ESP32 MCU
+  float getMCUTemperature() override {
+    return temperatureRead();
   }
 
   uint8_t getStartupReason() const override { return startup_reason; }

@@ -2,10 +2,10 @@
 
 #include <MeshCore.h>
 #include <Arduino.h>
+#include <helpers/NRF52Board.h>
 
-class T1000eBoard : public mesh::MainBoard {
+class T1000eBoard : public NRF52BoardDCDC {
 protected:
-  uint8_t startup_reason;
   uint8_t btn_prev_state;
 
 public:
@@ -32,8 +32,6 @@ public:
     return 0;
   #endif
   }
-
-  uint8_t getStartupReason() const override { return startup_reason; }
 
   const char* getManufacturerName() const override {
     return "Seeed Tracker T1000-e";
@@ -90,10 +88,6 @@ public:
     #endif
 
     sd_power_system_off();
-  }
-
-  void reboot() override {
-    NVIC_SystemReset();
   }
 
 //  bool startOTAUpdate(const char* id, char reply[]) override;

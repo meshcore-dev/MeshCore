@@ -34,11 +34,12 @@ extern "C"
 #define LED_RED                 (11)
 #define LED_GREEN               (13)
 #define LED_BLUE                (12)
+#define PIN_STATUS_LED          (LED_BLUE)
 
-#define LED_STATE_ON            (1)     // State when LED is litted
+#define LED_STATE_ON            (0)     // State when LED is on
 
 // Buttons
-#define PIN_BUTTON1             (PINS_COUNT)
+#define PIN_BUTTON1             (0)
 
 // Digital PINs
 static const uint8_t D0  = 0 ;

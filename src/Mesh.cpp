@@ -52,14 +52,15 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
       uint32_t auth_code;
       memcpy(&auth_code, &pkt->payload[i], 4); i += 4;
       uint8_t flags = pkt->payload[i++];
+      uint8_t path_sz = flags & 0x03;  // NEW v1.11+: lower 2 bits is path hash size
 
       uint8_t len = pkt->payload_len - i;
-      if (pkt->path_len >= len) {   // TRACE has reached end of given path
+      uint8_t offset = pkt->path_len << path_sz;
+      if (offset >= len) {   // TRACE has reached end of given path
         onTraceRecv(pkt, trace_tag, auth_code, flags, pkt->path, &pkt->payload[i], len);
-      } else if (self_id.isHashMatch(&pkt->payload[i + pkt->path_len]) && allowPacketForward(pkt) && !_tables->hasSeen(pkt)) {
+      } else if (self_id.isHashMatch(&pkt->payload[i + offset], 1 << path_sz) && allowPacketForward(pkt) && !_tables->hasSeen(pkt)) {
         // append SNR (Not hash!)
-        pkt->path[pkt->path_len] = (int8_t) (pkt->getSNR()*4);
-        pkt->path_len += PATH_HASH_SIZE;
+        pkt->path[pkt->path_len++] = (int8_t) (pkt->getSNR()*4);
 
         uint32_t d = getDirectRetransmitDelay(pkt);
         return ACTION_RETRANSMIT_DELAYED(5, d);  // schedule with priority 5 (for now), maybe make configurable?

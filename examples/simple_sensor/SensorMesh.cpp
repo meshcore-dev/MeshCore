@@ -326,7 +326,7 @@ int SensorMesh::getAGCResetInterval() const {
   return ((int)_prefs.agc_reset_interval) * 4000;   // milliseconds
 }
 
-uint8_t SensorMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* secret, uint32_t sender_timestamp, const uint8_t* data) {
+uint8_t SensorMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* secret, uint32_t sender_timestamp, const uint8_t* data, bool is_flood) {
   ClientInfo* client;
   if (data[0] == 0) {   // blank password, just check if sender is in ACL
     client = acl.getClient(sender.pub_key, PUB_KEY_SIZE);
@@ -357,6 +357,10 @@ uint8_t SensorMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* 
     memcpy(client->shared_secret, secret, PUB_KEY_SIZE);
 
     dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY);
+  }
+
+  if (is_flood) {
+    client->out_path_len = -1;  // need to rediscover out_path
   }
 
   uint32_t now = getRTCClock()->getCurrentTimeUnique();
@@ -451,7 +455,7 @@ void SensorMesh::onAnonDataRecv(mesh::Packet* packet, const uint8_t* secret, con
     data[len] = 0;  // ensure null terminator
     uint8_t reply_len;
     if (data[4] == 0 || data[4] >= ' ') {   // is password, ie. a login request
-      reply_len = handleLoginReq(sender, secret, timestamp, &data[4]);
+      reply_len = handleLoginReq(sender, secret, timestamp, &data[4], packet->isRouteFlood());
     //} else if (data[4] == ANON_REQ_TYPE_*) {   // future type codes
       // TODO
     } else {
@@ -550,7 +554,7 @@ void SensorMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender_i
   } else if (type == PAYLOAD_TYPE_TXT_MSG && len > 5 && from->isAdmin()) {   // a CLI command
     uint32_t sender_timestamp;
     memcpy(&sender_timestamp, data, 4);  // timestamp (by sender's RTC clock - which could be wrong)
-    uint flags = (data[4] >> 2);   // message attempt number, and other flags
+    uint8_t flags = (data[4] >> 2);   // message attempt number, and other flags
 
     if (sender_timestamp > from->last_timestamp) {  // prevent replay attacks
       if (flags == TXT_TYPE_PLAIN) {
@@ -608,7 +612,7 @@ void SensorMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender_i
   }
 }
 
-bool SensorMesh::handleIncomingMsg(ClientInfo& from, uint32_t timestamp, uint8_t* data, uint flags, size_t len) {
+bool SensorMesh::handleIncomingMsg(ClientInfo& from, uint32_t timestamp, uint8_t* data, uint8_t flags, size_t len) {
   MESH_DEBUG_PRINT("handleIncomingMsg: unhandled msg from ");
   #ifdef MESH_DEBUG
   mesh::Utils::printHex(Serial, from.id.pub_key, PUB_KEY_SIZE);
@@ -739,6 +743,8 @@ void SensorMesh::begin(FILESYSTEM* fs) {
 
   updateAdvertTimer();
   updateFloodAdvertTimer();
+
+   board.setAdcMultiplier(_prefs.adc_multiplier);
 
 #if ENV_INCLUDE_GPS == 1
   applyGpsPrefs();

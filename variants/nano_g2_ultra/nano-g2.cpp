@@ -24,8 +24,7 @@ static void disconnect_callback(uint16_t conn_handle, uint8_t reason)
 
 void NanoG2Ultra::begin()
 {
-  // for future use, sub-classes SHOULD call this from their begin()
-  startup_reason = BD_STARTUP_NORMAL;
+  NRF52Board::begin();
 
   // set user button
   pinMode(PIN_BUTTON1, INPUT);
