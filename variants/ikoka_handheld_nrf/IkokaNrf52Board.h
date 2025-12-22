@@ -1,17 +1,15 @@
 #pragma once
 
-#include <MeshCore.h>
 #include <Arduino.h>
+#include <MeshCore.h>
+#include <helpers/NRF52Board.h>
 
 #ifdef IKOKA_NRF52
 
-class IkokaNrf52Board : public mesh::MainBoard {
-protected:
-  uint8_t startup_reason;
-
+class IkokaNrf52Board : public NRF52BoardOTA {
 public:
+  IkokaNrf52Board() : NRF52BoardOTA("XIAO_NRF52_OTA") {}
   void begin();
-  uint8_t getStartupReason() const override { return startup_reason; }
 
 #if defined(P_LORA_TX_LED)
   void onBeforeTransmit() override {
@@ -41,12 +39,6 @@ public:
   const char* getManufacturerName() const override {
     return "Ikoka Handheld E22 30dBm (Xiao_nrf52)";
   }
-
-  void reboot() override {
-    NVIC_SystemReset();
-  }
-
-  bool startOTAUpdate(const char* id, char reply[]) override;
 };
 
 #endif

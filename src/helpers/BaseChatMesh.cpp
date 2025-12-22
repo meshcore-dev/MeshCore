@@ -113,8 +113,7 @@ void BaseChatMesh::onAdvertRecv(mesh::Packet* packet, const mesh::Identity& id, 
       from->gps_lon = 0;
       from->sync_since = 0;
 
-      // only need to calculate the shared_secret once, for better performance
-      self_id.calcSharedSecret(from->shared_secret, id);
+      from->shared_secret_valid = false;  // ecdh shared_secret will be calculated later on demand  
     } else {
       MESH_DEBUG_PRINTLN("onAdvertRecv: contacts table is full!");
       return;
@@ -147,8 +146,7 @@ int BaseChatMesh::searchPeersByHash(const uint8_t* hash) {
 void BaseChatMesh::getPeerSharedSecret(uint8_t* dest_secret, int peer_idx) {
   int i = matching_peer_indexes[peer_idx];
   if (i >= 0 && i < num_contacts) {
-    // lookup pre-calculated shared_secret
-    memcpy(dest_secret, contacts[i].shared_secret, PUB_KEY_SIZE);
+    memcpy(dest_secret, contacts[i].getSharedSecret(self_id), PUB_KEY_SIZE);
   } else {
     MESH_DEBUG_PRINTLN("getPeerSharedSecret: Invalid peer idx: %d", i);
   }
@@ -293,7 +291,7 @@ void BaseChatMesh::onAckRecv(mesh::Packet* packet, uint32_t ack_crc) {
 void BaseChatMesh::handleReturnPathRetry(const ContactInfo& contact, const uint8_t* path, uint8_t path_len) {
   // NOTE: simplest impl is just to re-send a reciprocal return path to sender (DIRECTLY)
   //        override this method in various firmwares, if there's a better strategy
-  mesh::Packet* rpath = createPathReturn(contact.id, contact.shared_secret, path, path_len, 0, NULL, 0);
+  mesh::Packet* rpath = createPathReturn(contact.id, contact.getSharedSecret(self_id), path, path_len, 0, NULL, 0);
   if (rpath) sendDirect(rpath, contact.out_path, contact.out_path_len, 3000);   // 3 second delay
 }
 
@@ -342,7 +340,7 @@ mesh::Packet* BaseChatMesh::composeMsgPacket(const ContactInfo& recipient, uint3
     temp[len++] = attempt;  // hide attempt number at tail end of payload
   }
 
-  return createDatagram(PAYLOAD_TYPE_TXT_MSG, recipient.id, recipient.shared_secret, temp, len);
+  return createDatagram(PAYLOAD_TYPE_TXT_MSG, recipient.id, recipient.getSharedSecret(self_id), temp, len);
 }
 
 int  BaseChatMesh::sendMessage(const ContactInfo& recipient, uint32_t timestamp, uint8_t attempt, const char* text, uint32_t& expected_ack, uint32_t& est_timeout) {
@@ -373,7 +371,7 @@ int  BaseChatMesh::sendCommandData(const ContactInfo& recipient, uint32_t timest
   temp[4] = (attempt & 3) | (TXT_TYPE_CLI_DATA << 2);
   memcpy(&temp[5], text, text_len + 1);
 
-  auto pkt = createDatagram(PAYLOAD_TYPE_TXT_MSG, recipient.id, recipient.shared_secret, temp, 5 + text_len);
+  auto pkt = createDatagram(PAYLOAD_TYPE_TXT_MSG, recipient.id, recipient.getSharedSecret(self_id), temp, 5 + text_len);
   if (pkt == NULL) return MSG_SEND_FAILED;
 
   uint32_t t = _radio->getEstAirtimeFor(pkt->getRawLength());
@@ -462,7 +460,7 @@ int BaseChatMesh::sendLogin(const ContactInfo& recipient, const char* password, 
       tlen = 4 + len;
     }
 
-    pkt = createAnonDatagram(PAYLOAD_TYPE_ANON_REQ, self_id, recipient.id, recipient.shared_secret, temp, tlen);
+    pkt = createAnonDatagram(PAYLOAD_TYPE_ANON_REQ, self_id, recipient.id, recipient.getSharedSecret(self_id), temp, tlen);
   }
   if (pkt) {
     uint32_t t = _radio->getEstAirtimeFor(pkt->getRawLength());
@@ -489,7 +487,7 @@ int  BaseChatMesh::sendRequest(const ContactInfo& recipient, const uint8_t* req_
     memcpy(temp, &tag, 4);   // mostly an extra blob to help make packet_hash unique
     memcpy(&temp[4], req_data, data_len);
 
-    pkt = createDatagram(PAYLOAD_TYPE_REQ, recipient.id, recipient.shared_secret, temp, 4 + data_len);
+    pkt = createDatagram(PAYLOAD_TYPE_REQ, recipient.id, recipient.getSharedSecret(self_id), temp, 4 + data_len);
   }
   if (pkt) {
     uint32_t t = _radio->getEstAirtimeFor(pkt->getRawLength());
@@ -516,7 +514,7 @@ int  BaseChatMesh::sendRequest(const ContactInfo& recipient, uint8_t req_type, u
     memset(&temp[5], 0, 4);  // reserved (possibly for 'since' param)
     getRNG()->random(&temp[9], 4);   // random blob to help make packet-hash unique
 
-    pkt = createDatagram(PAYLOAD_TYPE_REQ, recipient.id, recipient.shared_secret, temp, sizeof(temp));
+    pkt = createDatagram(PAYLOAD_TYPE_REQ, recipient.id, recipient.getSharedSecret(self_id), temp, sizeof(temp));
   }
   if (pkt) {
     uint32_t t = _radio->getEstAirtimeFor(pkt->getRawLength());
@@ -639,7 +637,7 @@ void BaseChatMesh::checkConnections() {
       // calc expected ACK reply
       mesh::Utils::sha256((uint8_t *)&connections[i].expected_ack, 4, data, 9, self_id.pub_key, PUB_KEY_SIZE);
 
-      auto pkt = createDatagram(PAYLOAD_TYPE_REQ, contact->id, contact->shared_secret, data, 9);
+      auto pkt = createDatagram(PAYLOAD_TYPE_REQ, contact->id, contact->getSharedSecret(self_id), data, 9);
       if (pkt) {
         sendDirect(pkt, contact->out_path, contact->out_path_len);
       }
@@ -703,9 +701,7 @@ bool BaseChatMesh::addContact(const ContactInfo& contact) {
     auto dest = &contacts[num_contacts++];
     *dest = contact;
 
-    // calc the ECDH shared secret (just once for performance)
-    self_id.calcSharedSecret(dest->shared_secret, contact.id);
-
+    dest->shared_secret_valid = false; // mark shared_secret as needing calculation
     return true;  // success
   }
   return false;

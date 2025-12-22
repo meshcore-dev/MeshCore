@@ -2,6 +2,7 @@
 
 #include <MeshCore.h>
 #include <Arduino.h>
+#include <helpers/NRF52Board.h>
 
 // LoRa radio module pins for RAK4631
 #define  P_LORA_DIO_1   47
@@ -28,13 +29,10 @@
 #define  PIN_VBAT_READ    5
 #define  ADC_MULTIPLIER   (3 * 1.73 * 1.187 * 1000)
 
-class RAK4631Board : public mesh::MainBoard {
-protected:
-  uint8_t startup_reason;
-
+class RAK4631Board : public NRF52BoardDCDC, public NRF52BoardOTA {
 public:
+  RAK4631Board() : NRF52BoardOTA("RAK4631_OTA") {}
   void begin();
-  uint8_t getStartupReason() const override { return startup_reason; }
 
   #define BATTERY_SAMPLES 8
 
@@ -53,10 +51,4 @@ public:
   const char* getManufacturerName() const override {
     return "RAK 4631";
   }
-
-  void reboot() override {
-    NVIC_SystemReset();
-  }
-
-  bool startOTAUpdate(const char* id, char reply[]) override;
 };
