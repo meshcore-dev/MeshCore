@@ -67,8 +67,10 @@ author: https://github.com/LitBomb<!-- omit from toc -->
     - [5.14.5. meshcore.js](#5145-meshcorejs)
     - [5.14.6. pyMC\_core](#5146-pymc_core)
     - [5.14.7. MeshCore Packet Decoder](#5147-meshcore-packet-decoder)
-  - [5.15. Q: Are there client applications for Windows or Mac?](#515-q-are-there-clientt-applications-for-windows-or-mac)
-  - [5.16. Q: Are there any resources that compare MeshCore to other LoRa systems?](#516-q-are-there-any-document-that-compares-meshcore-with-other-lora-systems)
+    - [5.14.8. meshcore-pi](#5148-meshcore-pi)
+    - [5.14.9. pyMC\_Repeater](#5149-pymc_repeater)
+  - [5.15. Q: Are there client applications for Windows or Mac?](#515-q-are-there-client-applications-for-windows-or-mac)
+  - [5.16. Q: Are there any resources that compare MeshCore to other LoRa systems?](#516-q-are-there-any-resources-that-compare-meshcore-to-other-lora-systems)
 - [6. Troubleshooting](#6-troubleshooting)
   - [6.1. Q: My client says another client or a repeater or a room server was last seen many, many days ago.](#61-q-my-client-says-another-client-or-a-repeater-or-a-room-server-was-last-seen-many-many-days-ago)
   - [6.2. Q: A repeater or a client or a room server I expect to see on my discover list (on T-Deck) or contact list (on a smart device client) are not listed.](#62-q-a-repeater-or-a-client-or-a-room-server-i-expect-to-see-on-my-discover-list-on-t-deck-or-contact-list-on-a-smart-device-client-are-not-listed)
@@ -86,6 +88,8 @@ author: https://github.com/LitBomb<!-- omit from toc -->
   - [7.4. Q: are the MeshCore logo and font available?](#74-q-are-the-meshcore-logo-and-font-available)
   - [7.5. Q: What is the format of a contact or channel QR code?](#75-q-what-is-the-format-of-a-contact-or-channel-qr-code)
   - [7.6. Q: How do I connect to the companion via WIFI, e.g. using a heltec v3?](#76-q-how-do-i-connect-to-the-companion-via-wifi-eg-using-a-heltec-v3)
+  - [7.7. Q: I have a Station G2, or a Heltec V4, or an Ikoka Stick, or a radio with a EByte E22-900M30S or a E22-900M33S module, what should their transmit power be set to?](#77-q-i-have-a-station-g2-or-a-heltec-v4-or-an-ikoka-stick-or-a-radio-with-a-ebyte-e22-900m30s-or-a-e22-900m33s-module-what-should-their-transmit-power-be-set-to)
+- [| | High Output | 22 dBm | 28 dBm | |](#--high-output--22-dbm--28-dbm--)
 
 ## 1. Introduction
 
@@ -636,6 +640,14 @@ https://github.com/rightup/pyMC_core
 A TypeScript library for decoding MeshCore mesh networking packets with full cryptographic support. Uses WebAssembly (WASM) for Ed25519 key derivation through the orlp/ed25519 library.  It powers the [MeshCore Packet Analyzer](https://analyzer.letsme.sh/packets).
 https://github.com/michaelhart/meshcore-decoder
 
+#### 5.14.8. meshcore-pi
+meshcore-pi is another Python port of MeshCore, designed for Raspberry Pi and similar hardware, it talks to LoRa modules over SPI or GPIO.
+https://github.com/brianwiddas/meshcore-pi
+
+#### 5.14.9. pyMC_Repeater
+pyMC_Repeater is a repeater daemon in Python built on top of the [`pymc_core`](#5146-pymc_core) library.
+https://github.com/rightup/pyMC_Repeater
+
 
 ### 5.15. Q: Are there client applications for Windows or Mac?
 **A:** Yes, the same iOS and Android client is also available for Windows and Intel Mac (sorry, not available for ARM-based Mac yet).  You can find them together with the Android APK here:
@@ -790,4 +802,22 @@ where `&type` is:
 WiFi firmware requires you to compile it yourself, as you need to set the wifi ssid and password.
 Edit WIFI_SSID and WIFI_PWD in `./variants/heltec_v3/platformio.ini` and then flash it to your device.
 
+### 7.7. Q: I have a Station G2, or a Heltec V4, or an Ikoka Stick, or a radio with a EByte E22-900M30S or a E22-900M33S module, what should their transmit power be set to?
+ **A:**
+For companion radios, you can set these radios' transmit power in the smartphone app.  For repeater and room server radios, you can set their transmit power using the command line command `set tx`.  You can get their current value using command line comand `get tx`
+
+
+> ### ⚠️ **WARNING: Set these values at your own risk. Incorrect power settings can permanently damage your radio hardware.**
+
+| Device / Model | Region / Description | In-App Setting (dBm) | Target Radio Output | Notes |
+| :--- | :--- | :--- | :--- | :--- |
+| **Station G2** <br> [Reference](https://wiki.uniteng.com/en/meshtastic/station-g2) | US915 Max Output | 19 dBm | 26.5 dBm (4.46W) | |
+| | US915 Recommended Max | 16 dBm | 35 dBm (3.16W) | 1dB compression point |
+| | EU868 Recommended Max | 15 dBm | 34.5 dBm (2.82W) | 1dB compression point |
+| | US915 1W Output | 10 dBm | 1W | |
+| | EU868 1W Output | 9 dBm | 1W | |
+| **Ikoka Stick E22-900M30S** | 1W Model | 19 dBm | 1W | **DO NOT EXCEED** (Risk of burn out) |
+| **Ikoka Stick E22-900M33S** | 2W Model | 9 dBm | 2W | **DO NOT EXCEED** (Risk of burn out) |
+| **Heltec V4** | Standard Output | 10 dBm | 22 dBm | |
+| | High Output | 22 dBm | 28 dBm | |
 ---
