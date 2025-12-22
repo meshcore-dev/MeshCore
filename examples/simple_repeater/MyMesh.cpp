@@ -1103,6 +1103,6 @@ void MyMesh::loop() {
 }
 
 // To get the current pending outbound packets at Dispatcher
-int MyMesh::getOutboundCount (uint32_t now) const {
+int MyMesh::hasPendingWork(uint32_t now) const {
   return _mgr->getOutboundCount(0xFFFFFFFF);
 }
