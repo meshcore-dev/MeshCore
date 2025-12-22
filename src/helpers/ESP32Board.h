@@ -104,8 +104,6 @@ public:
   #endif
   }
 
-
-
   const char* getManufacturerName() const override {
     return "Generic ESP32";
   }
