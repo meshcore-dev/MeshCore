@@ -44,8 +44,9 @@ public:
   #endif
   }
 
+  // Temperature from ESP32 MCU
   float getMCUTemperature() override {
-    return temperatureRead(); // // The default is from the built-in temperature sensor of MCU
+    return temperatureRead();
   }
 
   void enterLightSleep(uint32_t secs) {
