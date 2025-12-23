@@ -195,6 +195,12 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
       } else {
         strcpy(reply, "ERR: clock cannot go backwards");
       }
+    } else if (memcmp(command, "clock fsync", 11) == 0) {
+      getRTCClock()->setCurrentTime(sender_timestamp + 1);
+      uint32_t now = getRTCClock()->getCurrentTime();
+      DateTime dt = DateTime(now);
+      sprintf(reply, "OK - forced clock set: %02d:%02d - %d/%d/%d UTC", dt.hour(), dt.minute(), dt.day(),
+              dt.month(), dt.year());
     } else if (memcmp(command, "start ota", 9) == 0) {
       if (!_board->startOTAUpdate(_prefs->node_name, reply)) {
         strcpy(reply, "Error");
