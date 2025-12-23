@@ -43,9 +43,9 @@ namespace mesh {
 class MainBoard {
 public:
   virtual uint16_t getBattMilliVolts() = 0;
+  virtual float getMCUTemperature() { return NAN; }
   virtual bool setAdcMultiplier(float multiplier) { return false; };
   virtual float getAdcMultiplier() const { return 0.0f; }
-  virtual float getMCUTemperature() { return NAN; }
   virtual const char* getManufacturerName() const = 0;
   virtual void onBeforeTransmit() { }
   virtual void onAfterTransmit() { }
