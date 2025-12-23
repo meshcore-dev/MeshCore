@@ -48,6 +48,8 @@ struct NodePrefs { // persisted to file
   uint8_t advert_loc_policy;
   uint32_t discovery_mod_timestamp;
   float adc_multiplier;
+  // Power setting
+  uint8_t powersaving_enabled; // boolean
 };
 
 class CommonCLICallbacks {
