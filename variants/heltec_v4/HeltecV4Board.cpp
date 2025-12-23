@@ -9,20 +9,37 @@ void HeltecV4Board::begin() {
 
     // ---- GC1109 RF FRONT END CONFIGURATION ----
     // The Heltec V4 uses a GC1109 FEM chip with integrated PA and LNA
-    // RF switch control: PA_TX_EN LOW = RX path (LNA), HIGH = TX path (PA)
+    // RF path: SX1262 -> GC1109 PA -> Pi attenuator -> Antenna
+    // Measured net TX gain (non-linear due to PA compression):
+    //   +11dB at 0-15dBm input  (e.g., 10dBm in -> 21dBm out)
+    //   +10dB at 16-17dBm input
+    //   +9dB  at 18-19dBm input
+    //   +7dB  at 21dBm input    (e.g., 21dBm in -> 28dBm out max)
+    // Control logic (from GC1109 datasheet):
+    //   Shutdown:        CSD=0, CTX=X, CPS=X
+    //   Receive LNA:     CSD=1, CTX=0, CPS=X  (17dB gain, 2dB NF)
+    //   Transmit bypass: CSD=1, CTX=1, CPS=0  (~1dB loss, no PA)
+    //   Transmit PA:     CSD=1, CTX=1, CPS=1  (full PA enabled)
+    // Pin mapping:
+    //   CTX (pin 6)  -> SX1262 DIO2: TX/RX path select (automatic via SX126X_DIO2_AS_RF_SWITCH)
+    //   CSD (pin 4)  -> GPIO2: Chip enable (HIGH=on, LOW=shutdown)
+    //   CPS (pin 5)  -> GPIO46: PA mode select (HIGH=full PA, LOW=bypass)
+    //   VCC0/VCC1    -> Vfem via U3 LDO, controlled by GPIO7
 
-    // PA_POWER: Power enable for GC1109 chip (always on)
+    // VFEM_Ctrl (GPIO7): Power enable for GC1109 LDO (U3)
+    rtc_gpio_hold_dis((gpio_num_t)P_LORA_PA_POWER);
     pinMode(P_LORA_PA_POWER, OUTPUT);
     digitalWrite(P_LORA_PA_POWER, HIGH);
 
-    // PA_EN: Main enable for GC1109 (must be HIGH for both RX and TX)
+    // CSD (GPIO2): Chip enable - must be HIGH to enable GC1109
     rtc_gpio_hold_dis((gpio_num_t)P_LORA_PA_EN);
     pinMode(P_LORA_PA_EN, OUTPUT);
     digitalWrite(P_LORA_PA_EN, HIGH);
 
-    // PA_TX_EN: RF switch control (LOW=RX/LNA, HIGH=TX/PA)
+    // CPS (GPIO46): PA mode - LOW for RX (don't care), HIGH during TX for full PA
+    rtc_gpio_hold_dis((gpio_num_t)P_LORA_PA_TX_EN);
     pinMode(P_LORA_PA_TX_EN, OUTPUT);
-    digitalWrite(P_LORA_PA_TX_EN, LOW);  // Default to RX mode
+    digitalWrite(P_LORA_PA_TX_EN, LOW);  // Start in RX-ready state
     // -------------------------------------------
 
     periph_power.begin();
@@ -40,13 +57,15 @@ void HeltecV4Board::begin() {
   }
 
   void HeltecV4Board::onBeforeTransmit(void) {
-    digitalWrite(P_LORA_TX_LED, HIGH);    // Turn TX LED on
-    digitalWrite(P_LORA_PA_TX_EN, HIGH);  // Switch to TX path (PA)
+    digitalWrite(P_LORA_TX_LED, HIGH);     // Turn TX LED on
+    digitalWrite(P_LORA_PA_TX_EN, HIGH);   // CPS=1: Enable full PA mode (+30dBm)
+    // CTX (TX/RX path) handled by SX1262 DIO2 -> GC1109 CTX (hardware)
   }
 
   void HeltecV4Board::onAfterTransmit(void) {
-    digitalWrite(P_LORA_PA_TX_EN, LOW);   // Switch back to RX path (LNA)
-    digitalWrite(P_LORA_TX_LED, LOW);     // Turn TX LED off
+    digitalWrite(P_LORA_PA_TX_EN, LOW);    // CPS=0: Back to RX mode (CPS=X for RX)
+    digitalWrite(P_LORA_TX_LED, LOW);      // Turn TX LED off
+    // CTX (TX/RX path) handled by SX1262 DIO2 -> GC1109 CTX (hardware)
   }
 
   void HeltecV4Board::enterDeepSleep(uint32_t secs, int pin_wake_btn) {
@@ -58,9 +77,11 @@ void HeltecV4Board::begin() {
 
     rtc_gpio_hold_en((gpio_num_t)P_LORA_NSS);
 
-    // Hold GC1109 FEM pins during sleep (PA_EN=HIGH, PA_TX_EN=LOW for RX mode)
-    rtc_gpio_hold_en((gpio_num_t)P_LORA_PA_EN);
-    rtc_gpio_hold_en((gpio_num_t)P_LORA_PA_TX_EN);
+    // Hold GC1109 FEM pins during sleep for RX wake capability
+    // State: CSD=1, CTX=0 (DIO2), CPS=0 -> Receive LNA mode
+    rtc_gpio_hold_en((gpio_num_t)P_LORA_PA_POWER);   // VFEM_Ctrl - keep LDO powered
+    rtc_gpio_hold_en((gpio_num_t)P_LORA_PA_EN);      // CSD=1 - chip enabled
+    rtc_gpio_hold_en((gpio_num_t)P_LORA_PA_TX_EN);   // CPS=0 - RX mode (don't care)
 
     if (pin_wake_btn < 0) {
       esp_sleep_enable_ext1_wakeup( (1L << P_LORA_DIO_1), ESP_EXT1_WAKEUP_ANY_HIGH);  // wake up on: recv LoRa packet
