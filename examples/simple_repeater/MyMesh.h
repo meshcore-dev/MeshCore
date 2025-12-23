@@ -225,4 +225,7 @@ public:
     bridge.begin();
   }
 #endif
+
+  // To get the current pending work
+  int hasPendingWork() const;
 };
