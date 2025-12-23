@@ -1,4 +1,4 @@
-#include <Arduino.h>   // needed for PlatformIO
+#include <Arduino.h> // needed for PlatformIO
 #include <Mesh.h>
 
 #include "MyMesh.h"
@@ -20,8 +20,8 @@ void halt() {
 static char command[160];
 
 #ifdef POWERSAVING_MODE
-  unsigned long lastActive = millis();   // mark last active time
-  unsigned long nextSleepinSecs = 120;   // next sleep in seconds. First time is 2m to send advert and do repeater setup.
+unsigned long lastActive = 0; // mark last active time
+unsigned long nextSleepinSecs = 120; // next sleep in seconds. The first sleep (if enabled) is after 2 minutes from boot
 #endif
 
 void setup() {
@@ -29,6 +29,11 @@ void setup() {
   delay(1000);
 
   board.begin();
+
+#ifdef POWERSAVING_MODE
+  // For power saving
+  lastActive = millis(); // mark last active time since boot
+#endif
 
 #ifdef DISPLAY_CLASS
   if (display.begin()) {
@@ -64,7 +69,7 @@ void setup() {
 #endif
   if (!store.load("_main", the_mesh.self_id)) {
     MESH_DEBUG_PRINTLN("Generating new keypair");
-    the_mesh.self_id = radio_new_identity();   // create new random identity
+    the_mesh.self_id = radio_new_identity(); // create new random identity
     int count = 0;
     while (count < 10 && (the_mesh.self_id.pub_key[0] == 0x00 || the_mesh.self_id.pub_key[0] == 0xFF)) {  // reserved id hashes
       the_mesh.self_id = radio_new_identity(); count++;
@@ -104,16 +109,16 @@ void loop() {
     command[sizeof(command)-1] = '\r';
   }
 
-  if (len > 0 && command[len - 1] == '\r') {  // received complete line
+  if (len > 0 && command[len - 1] == '\r') { // received complete line
     Serial.print('\n');
-    command[len - 1] = 0;  // replace newline with C string null terminator
+    command[len - 1] = 0; // replace newline with C string null terminator
     char reply[160];
-    the_mesh.handleCommand(0, command, reply);  // NOTE: there is no sender_timestamp via serial!
+    the_mesh.handleCommand(0, command, reply); // NOTE: there is no sender_timestamp via serial!
     if (reply[0]) {
       Serial.print("  -> "); Serial.println(reply);
     }
 
-    command[0] = 0;  // reset command buffer
+    command[0] = 0; // reset command buffer
   }
 
   the_mesh.loop();
@@ -124,13 +129,13 @@ void loop() {
   rtc_clock.tick();
 
 #ifdef POWERSAVING_MODE
-  if (millis() - lastActive > nextSleepinSecs * 1000) {
-    if(the_mesh.getOutboundCount(0xFFFFFFFF) == 0) { // Nothing more to send. Safe to sleep
-      board.sleep(1800); // To sleep. Wake up after 30 minutes or when receiving a LoRa packet
+  if (the_mesh.millisHasNowPassed(lastActive + nextSleepinSecs * 1000)) { // To check if it is time to sleep
+    if (the_mesh.hasPendingWork() == 0) { // No pending work. Safe to sleep
+      board.sleep(1800);             // To sleep. Wake up after 30 minutes or when receiving a LoRa packet
       lastActive = millis();
-      nextSleepinSecs = 5; // Default: To work for 5s and sleep again
+      nextSleepinSecs = 5;  // Default: To work for 5s and sleep again
     } else {
-      nextSleepinSecs += 5; // To give 5 more seconds to send
+      nextSleepinSecs += 5; // When there is pending work, to work another 5s
     }
   }
 #endif
