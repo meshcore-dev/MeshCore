@@ -226,6 +226,6 @@ public:
   }
 #endif
 
-  // To get the current pending work
-  int hasPendingWork() const;
+  // To check if there is pending work
+  bool hasPendingWork() const;
 };
