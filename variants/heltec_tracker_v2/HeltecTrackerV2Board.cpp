@@ -6,43 +6,7 @@ void HeltecTrackerV2Board::begin() {
     pinMode(PIN_ADC_CTRL, OUTPUT);
     digitalWrite(PIN_ADC_CTRL, LOW); // Initially inactive
 
-    // ---- GC1109 RF FRONT END CONFIGURATION ----
-    // The Heltec Tracker V2 uses a GC1109 FEM chip with integrated PA and LNA
-    // RF path: SX1262 -> GC1109 PA -> Pi attenuator -> Antenna
-    // Measured net TX gain (non-linear due to PA compression):
-    //   +11dB at 0-15dBm input  (e.g., 10dBm in -> 21dBm out)
-    //   +10dB at 16-17dBm input
-    //   +9dB  at 18-19dBm input
-    //   +7dB  at 21dBm input    (e.g., 21dBm in -> 28dBm out max)
-    // Control logic (from GC1109 datasheet):
-    //   Shutdown:        CSD=0, CTX=X, CPS=X
-    //   Receive LNA:     CSD=1, CTX=0, CPS=X  (17dB gain, 2dB NF)
-    //   Transmit bypass: CSD=1, CTX=1, CPS=0  (~1dB loss, no PA)
-    //   Transmit PA:     CSD=1, CTX=1, CPS=1  (full PA enabled)
-    // Pin mapping:
-    //   CTX (pin 6)  -> SX1262 DIO2: TX/RX path select (automatic via SX126X_DIO2_AS_RF_SWITCH)
-    //   CSD (pin 4)  -> GPIO4: Chip enable (HIGH=on, LOW=shutdown)
-    //   CPS (pin 5)  -> GPIO46: PA mode select (HIGH=full PA, LOW=bypass)
-    //   VCC0/VCC1    -> Vfem via LDO, controlled by GPIO7
-
-    // VFEM_Ctrl (GPIO7): Power enable for GC1109 LDO
-    rtc_gpio_hold_dis((gpio_num_t)P_LORA_PA_POWER);
-    pinMode(P_LORA_PA_POWER, OUTPUT);
-    digitalWrite(P_LORA_PA_POWER, HIGH);
-
-    // CSD (GPIO4): Chip enable - must be HIGH to enable GC1109
-    rtc_gpio_hold_dis((gpio_num_t)P_LORA_PA_EN);
-    pinMode(P_LORA_PA_EN, OUTPUT);
-    digitalWrite(P_LORA_PA_EN, HIGH);
-
-    // CPS (GPIO46): PA mode - LOW for RX (don't care), HIGH during TX for full PA
-    // Note: GPIO46 is NOT an RTC GPIO, so no rtc_gpio_hold_dis needed
-    pinMode(P_LORA_PA_TX_EN, OUTPUT);
-    digitalWrite(P_LORA_PA_TX_EN, LOW);  // Start in RX-ready state
-    // -------------------------------------------
-
-    periph_power.begin();
-
+    // Check if waking from deep sleep
     esp_reset_reason_t reason = esp_reset_reason();
     if (reason == ESP_RST_DEEPSLEEP) {
       long wakeup_source = esp_sleep_get_ext1_wakeup_status();
@@ -50,21 +14,44 @@ void HeltecTrackerV2Board::begin() {
         startup_reason = BD_STARTUP_RX_PACKET;
       }
 
+      // Release RTC holds - pins retain their state, no need to reconfigure
       rtc_gpio_hold_dis((gpio_num_t)P_LORA_NSS);
+      rtc_gpio_hold_dis((gpio_num_t)P_LORA_PA_POWER);
+      rtc_gpio_hold_dis((gpio_num_t)P_LORA_PA_EN);
       rtc_gpio_deinit((gpio_num_t)P_LORA_DIO_1);
+    } else {
+      // Cold boot: Configure GC1109 FEM pins
+      // Control logic (from GC1109 datasheet):
+      //   Receive LNA:  CSD=1, CTX=0, CPS=X  (17dB gain, 2dB NF)
+      //   Transmit PA:  CSD=1, CTX=1, CPS=1  (full PA enabled)
+      // Pin mapping: CTX->DIO2 (auto), CSD->GPIO4, CPS->GPIO46, VFEM->GPIO7
+
+      // VFEM_Ctrl (GPIO7): Power enable for GC1109 LDO
+      pinMode(P_LORA_PA_POWER, OUTPUT);
+      digitalWrite(P_LORA_PA_POWER, HIGH);
+
+      // CSD (GPIO4): Chip enable - must be HIGH for GC1109 to work
+      pinMode(P_LORA_PA_EN, OUTPUT);
+      digitalWrite(P_LORA_PA_EN, HIGH);
     }
+
+    periph_power.begin();
+
+    // Note: GPIO46 (CPS) is a strapping pin - do NOT configure it here.
+    // TX handlers are fully responsible for GPIO46 (see onBeforeTransmit/onAfterTransmit)
   }
 
   void HeltecTrackerV2Board::onBeforeTransmit(void) {
-    digitalWrite(P_LORA_TX_LED, HIGH);     // Turn TX LED on
-    digitalWrite(P_LORA_PA_TX_EN, HIGH);   // CPS=1: Enable full PA mode (+30dBm)
-    // CTX (TX/RX path) handled by SX1262 DIO2 -> GC1109 CTX (hardware)
+    // GPIO46 is a strapping pin - only drive it when actively transmitting
+    pinMode(P_LORA_PA_TX_EN, OUTPUT);
+    digitalWrite(P_LORA_PA_TX_EN, HIGH);   // CPS=1: Enable full PA mode
+    digitalWrite(P_LORA_TX_LED, HIGH);
   }
 
   void HeltecTrackerV2Board::onAfterTransmit(void) {
-    digitalWrite(P_LORA_PA_TX_EN, LOW);    // CPS=0: Back to RX mode (CPS=X for RX)
-    digitalWrite(P_LORA_TX_LED, LOW);      // Turn TX LED off
-    // CTX (TX/RX path) handled by SX1262 DIO2 -> GC1109 CTX (hardware)
+    digitalWrite(P_LORA_PA_TX_EN, LOW);
+    pinMode(P_LORA_PA_TX_EN, INPUT);       // Release strapping pin
+    digitalWrite(P_LORA_TX_LED, LOW);
   }
 
   void HeltecTrackerV2Board::enterDeepSleep(uint32_t secs, int pin_wake_btn) {
