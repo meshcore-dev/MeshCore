@@ -326,6 +326,28 @@ void Mesh::removeSelfFromPath(Packet* pkt) {
 DispatcherAction Mesh::routeRecvPacket(Packet* packet) {
   if (packet->isRouteFlood() && !packet->isMarkedDoNotRetransmit()
     && packet->path_len + PATH_HASH_SIZE <= MAX_PATH_SIZE && allowPacketForward(packet)) {
+    
+    for (int i = 0; i < packet->path_len; i += PATH_HASH_SIZE) {
+      if (self_id.isHashMatch(&packet->path[i])) {
+        // Check for neighbor before our ID
+        if (i >= PATH_HASH_SIZE) {
+          const uint8_t* prev_hop = &packet->path[i - PATH_HASH_SIZE];
+          if (isKnownNeighbor(prev_hop)) {
+            return ACTION_RELEASE;
+          }
+        }
+        // Check for neighbor after our ID
+        if (i + PATH_HASH_SIZE < packet->path_len) {
+          const uint8_t* next_hop = &packet->path[i + PATH_HASH_SIZE];
+          if (isKnownNeighbor(next_hop)) {
+            return ACTION_RELEASE;
+          }
+        }
+        // Found our ID and checked neighbors
+        break;
+      }
+    }
+    
     // append this node's hash to 'path'
     packet->path_len += self_id.copyHashTo(&packet->path[packet->path_len]);
 

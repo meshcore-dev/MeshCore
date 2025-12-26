@@ -165,6 +165,13 @@ protected:
   */
   virtual void onAckRecv(Packet* packet, uint32_t ack_crc) { }
 
+  /**
+   * \brief  Check if a node hash is a known zero-hop (direct) neighbor.
+   * \param  hash  the node hash to check (PATH_HASH_SIZE bytes)
+   * \returns  true if this is a known direct neighbor
+  */
+  virtual bool isKnownNeighbor(const uint8_t* hash) { return false; }
+
   Mesh(Radio& radio, MillisecondClock& ms, RNG& rng, RTCClock& rtc, PacketManager& mgr, MeshTables& tables)
     : Dispatcher(radio, ms, mgr), _rng(&rng), _rtc(&rtc), _tables(&tables)
   {

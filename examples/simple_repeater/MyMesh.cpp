@@ -82,6 +82,17 @@ void MyMesh::putNeighbour(const mesh::Identity &id, uint32_t timestamp, float sn
 #endif
 }
 
+bool MyMesh::isKnownNeighbor(const uint8_t* hash) {
+#if MAX_NEIGHBOURS
+  for (int i = 0; i < MAX_NEIGHBOURS; i++) {
+    if (neighbours[i].heard_timestamp > 0 && neighbours[i].id.isHashMatch(hash)) {
+      return true;
+    }
+  }
+#endif
+  return false;
+}
+
 uint8_t MyMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* secret, uint32_t sender_timestamp, const uint8_t* data, bool is_flood) {
   ClientInfo* client = NULL;
   if (data[0] == 0) {   // blank password, just check if sender is in ACL
