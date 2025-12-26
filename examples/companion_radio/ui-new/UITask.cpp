@@ -63,7 +63,13 @@ public:
     display.drawTextCentered(display.width()/2, 22, _version_info);
 
     display.setTextSize(1);
+#ifdef OLED_RU
+    char filtered_date[sizeof(FIRMWARE_BUILD_DATE)];
+    display.translateUTF8ToBlocks(filtered_date, FIRMWARE_BUILD_DATE, sizeof(filtered_date));
+    display.drawTextCentered(display.width()/2, 42, filtered_date);
+#else
     display.drawTextCentered(display.width()/2, 42, FIRMWARE_BUILD_DATE);
+#endif
 
     return 1000;
   }
@@ -99,7 +105,6 @@ class HomeScreen : public UIScreen {
   uint8_t _page;
   bool _shutdown_init;
   AdvertPath recent[UI_RECENT_LIST_SIZE];
-
 
   void renderBatteryIndicator(DisplayDriver& display, uint16_t batteryMilliVolts) {
     int minMilliVolts = 3000;
@@ -655,14 +660,24 @@ void UITask::newMsg(uint8_t path_len, const char* from_name, const char* text, i
   setCurrScreen(msg_preview);
 
   if (_display != NULL) {
-    if (!_display->isOn() && !hasConnection()) {
-      _display->turnOn();
+
+    #ifdef DISPLAY_TOGGLE
+      if (_displayWakeOnMsg) {
+    #endif
+
+        if (!_display->isOn() && !hasConnection()) {
+          _display->turnOn();
+        }
+
+    #ifdef DISPLAY_TOGGLE
+      }
+    #endif
+
+      if (_display->isOn()) {
+        _auto_off = millis() + AUTO_OFF_MILLIS;
+        _next_refresh = 100;
+      }
     }
-    if (_display->isOn()) {
-    _auto_off = millis() + AUTO_OFF_MILLIS;  // extend the auto-off timer
-    _next_refresh = 100;  // trigger refresh
-    }
-  }
 }
 
 void UITask::userLedHandler() {
@@ -765,16 +780,19 @@ void UITask::loop() {
 #endif
 #if defined(HAS_ENCODER)
   int enc_ev = encoder.check();
-  if (enc_ev == ENC_EVENT_CW){
+  if (enc_ev == ENC_EVENT_CW) {
     c = checkDisplayOn(KEY_RIGHT);
-  } else if (enc_ev == ENC_EVENT_CCW){
+  } else if (enc_ev == ENC_EVENT_CCW) {
     c = checkDisplayOn(KEY_LEFT);
-  } else if (enc_ev == ENC_EVENT_BUTTON){
-    c = checkDisplayOn(KEY_SELECT);
-  } else if (enc_ev == ENC_EVENT_LONG_PRESS){
-    c = handleLongPress(KEY_ENTER);
+  } else if (enc_ev == ENC_EVENT_BUTTON) {
+    toggleDisplayWakeupOnMsg();
+    c = 0; 
+  } else if (enc_ev == ENC_EVENT_LONG_PRESS) {
+    turnOnDisplayWakeupOnMsg();
+    c = 0;
   }
 #endif
+
 #if defined(PIN_USER_BTN_ANA)
   if (abs(millis() - _analogue_pin_read_millis) > 10) {
     ev = analog_btn.check();
@@ -800,6 +818,33 @@ void UITask::loop() {
 #endif
     next_backlight_btn_check = millis() + 300;
   }
+#endif
+
+#if defined(DISPLAY_TOGGLE)
+  bool disp_state = (digitalRead(DISPLAY_TOGGLE) == LOW); // ACTIVE LOW
+
+  // edge: press
+  if (disp_state && !_dispTglPrevState) {
+    _dispTglPressStart  = millis();
+    _dispTglLongHandled = false;
+  }
+
+  // hold → long press
+  if (disp_state && !_dispTglLongHandled) {
+    if (millis() - _dispTglPressStart >= LONG_PRESS_MILLIS) {
+      turnOnDisplayWakeupOnMsg();
+      _dispTglLongHandled = true;
+    }
+  }
+
+  // release → click
+  if (!disp_state && _dispTglPrevState) {
+    if (!_dispTglLongHandled) {
+      toggleDisplayWakeupOnMsg();
+    }
+  }
+
+  _dispTglPrevState = disp_state;
 #endif
 
   if (c != 0 && curr) {
@@ -928,14 +973,13 @@ void UITask::toggleGPS() {
           _sensors->setSettingValue("gps", "0");
           _node_prefs->gps_enabled = 0;
           notify(UIEventType::ack);
-          showAlert("GPS: Disabled", 800);
         } else {
           _sensors->setSettingValue("gps", "1");
           _node_prefs->gps_enabled = 1;
           notify(UIEventType::ack);
-          showAlert("GPS: Enabled", 800);
         }
         the_mesh.savePrefs();
+        showAlert(_node_prefs->gps_enabled ? "GPS: Enabled" : "GPS: Disabled", 800);
         _next_refresh = 0;
         break;
       }
@@ -949,13 +993,49 @@ void UITask::toggleBuzzer() {
     if (buzzer.isQuiet()) {
       buzzer.quiet(false);
       notify(UIEventType::ack);
-      showAlert("Buzzer: ON", 800);
     } else {
       buzzer.quiet(true);
-      showAlert("Buzzer: OFF", 800);
     }
     _node_prefs->buzzer_quiet = buzzer.isQuiet();
     the_mesh.savePrefs();
+    showAlert(buzzer.isQuiet() ? "Buzzer: OFF" : "Buzzer: ON", 800);
     _next_refresh = 0;  // trigger refresh
   #endif
+}
+
+void UITask::toggleDisplayWakeupOnMsg() {
+  if (_display && !_display->isOn()) {
+    // Display is turned off, only wakeup on the first press
+    _display->turnOn();
+    _auto_off = millis() + AUTO_OFF_MILLIS;
+    _next_refresh = 0;
+    return;
+  }
+
+  // Display is on wake, toggle the flag
+  _displayWakeOnMsg = !_displayWakeOnMsg;
+
+  showAlert(
+    _displayWakeOnMsg ? "Msg wake: ON" : "Msg wake: OFF",
+    800
+  );
+  notify(UIEventType::ack);
+
+  _auto_off = millis() + AUTO_OFF_MILLIS;
+  _next_refresh = 0;
+}
+
+void UITask::turnOnDisplayWakeupOnMsg() {
+  // Принудительно включаем wake-on-msg
+  _displayWakeOnMsg = true;
+
+  if (_display && !_display->isOn()) {
+    _display->turnOn();
+  }
+
+  showAlert("Msg wake: ON", 800);
+  notify(UIEventType::ack);
+
+  _auto_off = millis() + AUTO_OFF_MILLIS;
+  _next_refresh = 0;
 }
