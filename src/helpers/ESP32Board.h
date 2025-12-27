@@ -44,7 +44,14 @@ public:
 
   // Temperature from ESP32 MCU
   float getMCUTemperature() override {
-    return temperatureRead();
+    uint32_t raw = 0;
+
+    // To get and average the temperature so it is more accurate, especially in low temperature
+    for (int i = 0; i < 4; i++) {
+      raw += temperatureRead();
+    }
+
+    return raw / 4;
   }
 
   uint8_t getStartupReason() const override { return startup_reason; }
