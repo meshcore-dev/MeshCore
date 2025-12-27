@@ -72,7 +72,7 @@ struct NeighbourInfo {
 #endif
 
 #ifndef FIRMWARE_VERSION
-  #define FIRMWARE_VERSION   "v1.11.0 - Variant IoTThinks.com - PowerSaving08"
+  #define FIRMWARE_VERSION   "v1.11.0 - Variant IoTThinks.com - PowerSaving09"
 #endif
 
 #define FIRMWARE_ROLE "repeater"
@@ -226,6 +226,6 @@ public:
   }
 #endif
 
-  // To get the current pending work
-  int hasPendingWork() const;
+  // To check if there is pending work
+  bool hasPendingWork() const;
 };
