@@ -8,7 +8,7 @@
 
 #ifdef ENV_INCLUDE_BME680
 #ifndef TELEM_BME680_ADDRESS
-#define TELEM_BME680_ADDRESS 0x77
+#define TELEM_BME680_ADDRESS 0x76
 #endif
 #define TELEM_BME680_SEALEVELPRESSURE_HPA (1013.25)
 #include <Adafruit_BME680.h>
@@ -29,7 +29,7 @@ static Adafruit_AHTX0 AHTX0;
 
 #if ENV_INCLUDE_BME280
 #ifndef TELEM_BME280_ADDRESS
-#define TELEM_BME280_ADDRESS    0x77      // BME280 environmental sensor I2C address
+#define TELEM_BME280_ADDRESS    0x76      // BME280 environmental sensor I2C address
 #endif
 #define TELEM_BME280_SEALEVELPRESSURE_HPA (1013.25)    // Athmospheric pressure at sea level
 #include <Adafruit_BME280.h>
@@ -38,7 +38,7 @@ static Adafruit_BME280 BME280;
 
 #if ENV_INCLUDE_BMP280
 #ifndef TELEM_BMP280_ADDRESS
-#define TELEM_BMP280_ADDRESS    0x77      // BMP280 environmental sensor I2C address
+#define TELEM_BMP280_ADDRESS    0x76      // BMP280 environmental sensor I2C address
 #endif
 #define TELEM_BMP280_SEALEVELPRESSURE_HPA (1013.25)    // Athmospheric pressure at sea level
 #include <Adafruit_BMP280.h>
@@ -181,13 +181,6 @@ bool EnvironmentSensorManager::begin() {
   #if ENV_INCLUDE_BME680
   if (BME680.begin(TELEM_BME680_ADDRESS, TELEM_WIRE)) {
     MESH_DEBUG_PRINTLN("Found BME680 at address: %02X", TELEM_BME680_ADDRESS);
-
-    // Set up oversampling and filter initialization
-    BME680.setTemperatureOversampling(BME680_OS_8X);
-    BME680.setHumidityOversampling(BME680_OS_2X);
-    BME680.setPressureOversampling(BME680_OS_4X);
-    BME680.setIIRFilterSize(BME680_FILTER_SIZE_3);
-    BME680.setGasHeater(320, 150); // 320*C for 150 ms
     BME680_initialized = true;
   } else {
     BME680_initialized = false;
