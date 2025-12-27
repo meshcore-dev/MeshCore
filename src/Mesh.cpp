@@ -333,6 +333,7 @@ DispatcherAction Mesh::routeRecvPacket(Packet* packet) {
         if (i >= PATH_HASH_SIZE) {
           const uint8_t* prev_hop = &packet->path[i - PATH_HASH_SIZE];
           if (isKnownNeighbor(prev_hop)) {
+            MESH_DEBUG_PRINTLN("%s Mesh::routeRecvPacket(): dropping flood loop (prev neighbor)", getLogDateTime());
             return ACTION_RELEASE;
           }
         }
@@ -340,6 +341,7 @@ DispatcherAction Mesh::routeRecvPacket(Packet* packet) {
         if (i + PATH_HASH_SIZE < packet->path_len) {
           const uint8_t* next_hop = &packet->path[i + PATH_HASH_SIZE];
           if (isKnownNeighbor(next_hop)) {
+            MESH_DEBUG_PRINTLN("%s Mesh::routeRecvPacket(): dropping flood loop (next neighbor)", getLogDateTime());
             return ACTION_RELEASE;
           }
         }
