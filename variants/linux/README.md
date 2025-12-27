@@ -80,6 +80,14 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now meshcored.service
 ```
 
+The default `meshcored.ini` includes optional GPIO pins you can override without rebuilding:
+```
+lora_nss_pin = 21
+lora_busy_pin = 20
+lora_irq_pin = 16
+lora_reset_pin = 18
+```
+
 ## Logs
 
 TODO: add more logging

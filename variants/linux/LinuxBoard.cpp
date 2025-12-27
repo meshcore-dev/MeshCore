@@ -34,11 +34,32 @@ void LinuxBoard::begin() {
 
   Serial.printf("SPI begin %s\n", config.spidev);
   SPI.begin(config.spidev);
-  if (config.lora_irq_pin != -1) {
+
+  Serial.printf("LoRa pins NSS=%d BUSY=%d IRQ=%d RESET=%d TX=%d RX=%d\n",
+                (int)config.lora_nss_pin,
+                (int)config.lora_busy_pin,
+                (int)config.lora_irq_pin,
+                (int)config.lora_reset_pin,
+                (int)config.lora_rxen_pin,
+                (int)config.lora_txen_pin);
+
+  if (config.lora_nss_pin != RADIOLIB_NC) {
+    initGPIOPin(config.lora_nss_pin, "gpiochip0", config.lora_nss_pin);
+  }
+  if (config.lora_busy_pin != RADIOLIB_NC) {
+    initGPIOPin(config.lora_busy_pin, "gpiochip0", config.lora_busy_pin);
+  }
+  if (config.lora_irq_pin != RADIOLIB_NC) {
     initGPIOPin(config.lora_irq_pin, "gpiochip0", config.lora_irq_pin);
   }
-  if (config.lora_reset_pin != -1) {
+  if (config.lora_reset_pin != RADIOLIB_NC) {
     initGPIOPin(config.lora_reset_pin, "gpiochip0", config.lora_reset_pin);
+  }
+  if (config.lora_rxen_pin != RADIOLIB_NC) {
+    initGPIOPin(config.lora_rxen_pin, "gpiochip0", config.lora_rxen_pin);
+  }
+  if (config.lora_txen_pin != RADIOLIB_NC) {
+    initGPIOPin(config.lora_txen_pin, "gpiochip0", config.lora_txen_pin);
   }
 }
 
@@ -94,9 +115,17 @@ int LinuxConfig::load(const char *filename) {
     else if (strcmp(key, "lora_sf") == 0)   lora_sf = (uint8_t)atoi(value);
     else if (strcmp(key, "lora_cr") == 0)   lora_cr = (uint8_t)atoi(value);
     else if (strcmp(key, "lora_tcxo") == 0) lora_tcxo = atof(value);
+    else if (strcmp(key, "lora_tx_power") == 0)   lora_tx_power = atoi(value);
+    else if (strcmp(key, "current_limit") == 0)  current_limit = atof(value);
+    else if (strcmp(key, "dio2_as_rf_switch") == 0)  dio2_as_rf_switch = value != 0;
+    else if (strcmp(key, "rx_boosted_gain") == 0)  rx_boosted_gain = value != 0;
 
     else if (strcmp(key, "lora_irq_pin") == 0)   lora_irq_pin = atoi(value);
     else if (strcmp(key, "lora_reset_pin") == 0) lora_reset_pin = atoi(value);
+    else if (strcmp(key, "lora_nss_pin") == 0)   lora_nss_pin = atoi(value);
+    else if (strcmp(key, "lora_busy_pin") == 0)  lora_busy_pin = atoi(value);
+    else if (strcmp(key, "lora_rxen_pin") == 0)  lora_rxen_pin = atoi(value);
+    else if (strcmp(key, "lora_txen_pin") == 0)  lora_txen_pin = atoi(value);
 
     else if (strcmp(key, "advert_name") == 0)    advert_name = safe_copy(value, 100);
     else if (strcmp(key, "admin_password") == 0) admin_password = safe_copy(value, 100);

@@ -15,7 +15,7 @@ LinuxBoard board;
 
 SPISettings spiSettings = SPISettings(2000000, MSBFIRST, SPI_MODE0);
 ArduinoHal *hal = new PortduinoHal(SPI, spiSettings);
-RADIO_CLASS radio = new Module(hal, P_LORA_NSS, -1, -1, P_LORA_BUSY);
+RADIO_CLASS radio = new Module(hal, RADIOLIB_NC, RADIOLIB_NC, RADIOLIB_NC, RADIOLIB_NC);
 WRAPPER_CLASS radio_driver(radio, board);
 
 LinuxRTCClock rtc_clock;
@@ -29,7 +29,7 @@ EnvironmentSensorManager sensors;
 bool radio_init() {
   rtc_clock.begin();
 
-  radio = new Module(hal, P_LORA_NSS, board.config.lora_irq_pin, board.config.lora_reset_pin, P_LORA_BUSY);
+  radio = new Module(hal, board.config.lora_nss_pin, board.config.lora_irq_pin, board.config.lora_reset_pin, board.config.lora_busy_pin);
   return radio.std_init(&SPI);
 }
 

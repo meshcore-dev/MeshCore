@@ -4,6 +4,7 @@
 
 #define SX126X_IRQ_HEADER_VALID                     0b0000010000  //  4     4     valid LoRa header received
 #define SX126X_IRQ_PREAMBLE_DETECTED           0x04
+#define SX126X_PREAMBLE_LENGTH 16
 
 extern LinuxBoard board;
 
@@ -16,10 +17,10 @@ class LinuxSX1262 : public SX1262 {
       LinuxConfig config = board.config;
 
       Serial.printf("Radio begin %f %f %d %d %f\n", config.lora_freq, config.lora_bw, config.lora_sf, config.lora_cr, config.lora_tcxo);
-      int status = begin(config.lora_freq, config.lora_bw, config.lora_sf, config.lora_cr, RADIOLIB_SX126X_SYNC_WORD_PRIVATE, LORA_TX_POWER, 16, config.lora_tcxo);
+      int status = begin(config.lora_freq, config.lora_bw, config.lora_sf, config.lora_cr, RADIOLIB_SX126X_SYNC_WORD_PRIVATE, config.lora_tx_power, SX126X_PREAMBLE_LENGTH, config.lora_tcxo);
       // if radio init fails with -707/-706, try again with tcxo voltage set to 0.0f
       if (status == RADIOLIB_ERR_SPI_CMD_FAILED || status == RADIOLIB_ERR_SPI_CMD_INVALID) {
-        status = begin(config.lora_freq, config.lora_bw, config.lora_sf, config.lora_cr, RADIOLIB_SX126X_SYNC_WORD_PRIVATE, LORA_TX_POWER, 16, 0.0f);
+        status = begin(config.lora_freq, config.lora_bw, config.lora_sf, config.lora_cr, RADIOLIB_SX126X_SYNC_WORD_PRIVATE, config.lora_tx_power, SX126X_PREAMBLE_LENGTH, 0.0f);
       }
       if (status != RADIOLIB_ERR_NONE) {
         Serial.print("ERROR: radio init failed: ");
@@ -28,27 +29,15 @@ class LinuxSX1262 : public SX1262 {
       }
 
       setCRC(1);
-  
-  #ifdef SX126X_CURRENT_LIMIT
-      setCurrentLimit(SX126X_CURRENT_LIMIT);
-  #endif
-  #ifdef SX126X_DIO2_AS_RF_SWITCH
-      setDio2AsRfSwitch(SX126X_DIO2_AS_RF_SWITCH);
-  #endif
-  #ifdef SX126X_RX_BOOSTED_GAIN
-      setRxBoostedGainMode(SX126X_RX_BOOSTED_GAIN);
-  #endif
-  #if defined(SX126X_RXEN) || defined(SX126X_TXEN)
-    #ifndef SX126X_RXEN
-      #define SX126X_RXEN RADIOLIB_NC
-    #endif
-    #ifndef SX126X_TXEN
-      #define SX126X_TXEN RADIOLIB_NC
-    #endif
-      setRfSwitchPins(SX126X_RXEN, SX126X_TXEN);
-  #endif 
 
-      return true;  // success
+      setCurrentLimit(config.current_limit);
+      setDio2AsRfSwitch(config.dio2_as_rf_switch);
+      setRxBoostedGainMode(config.rx_boosted_gain);
+      if (config.lora_rxen_pin != RADIOLIB_NC || config.lora_txen_pin != RADIOLIB_NC) {
+        setRfSwitchPins(config.lora_rxen_pin, config.lora_txen_pin);
+      }
+
+      return true;
     }
 
     bool isReceiving() {

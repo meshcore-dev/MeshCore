@@ -3,6 +3,7 @@
 #include <MeshCore.h>
 #include <Arduino.h>
 #include <sys/time.h>
+#include <RadioLib.h>
 
 class LinuxConfig {
 public:
@@ -15,16 +16,21 @@ public:
   uint8_t lora_cr = 5;
 #endif
 
-  uint32_t lora_irq_pin = -1;
-  uint32_t lora_reset_pin = -1;
+  uint32_t lora_irq_pin = RADIOLIB_NC;
+  uint32_t lora_reset_pin = RADIOLIB_NC;
+  uint32_t lora_nss_pin = RADIOLIB_NC;
+  uint32_t lora_busy_pin = RADIOLIB_NC;
+  uint32_t lora_rxen_pin = RADIOLIB_NC;
+  uint32_t lora_txen_pin = RADIOLIB_NC;
+
+  int8_t lora_tx_power = 22;
+  float current_limit = 140;
+  bool dio2_as_rf_switch = false;
+  bool rx_boosted_gain = true;
 
   char* spidev = "/dev/spidev0.0";
 
-#ifdef SX126X_DIO3_TCXO_VOLTAGE
-  float lora_tcxo = SX126X_DIO3_TCXO_VOLTAGE;
-#else
-  float lora_tcxo = 1.6f;
-#endif
+  float lora_tcxo = 1.8f;
 
   char *advert_name = "Linux Repeater";
   char *admin_password = "password";
