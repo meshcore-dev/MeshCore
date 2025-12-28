@@ -72,7 +72,7 @@ sudo chown meshcore:meshcore /var/lib/meshcore
 
 # Install the systemd service file
 
-sudo cp ./variants/linux/meshcored.service /etc/systemd/system/meshcored.service
+sudo cp ./variants/linux/meshcored.service /usr/lib/systemd/system/meshcored.service
 
 # Enable and start the service
 
@@ -89,8 +89,6 @@ lora_reset_pin = 18
 ```
 
 ## Logs
-
-TODO: add more logging
 
 ```
 journalctl -u meshcored

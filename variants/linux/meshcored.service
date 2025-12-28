@@ -1,4 +1,4 @@
-# /etc/systemd/system/meshcored.service
+# /var/lib/systemd/system/meshcored.service
 [Unit]
 Description=Meshcore Daemon (meshcored)
 After=network.target
@@ -8,7 +8,7 @@ Wants=network.target
 Type=simple
 User=meshcore
 Group=meshcore
-ExecStart=/usr/bin/meshcored --fsdir /var/lib/meshcore
+ExecStart=/usr/bin/stdbuf -oL /usr/bin/meshcored --fsdir /var/lib/meshcore
 WorkingDirectory=/var/lib/meshcore
 Restart=on-failure
 RestartSec=5
