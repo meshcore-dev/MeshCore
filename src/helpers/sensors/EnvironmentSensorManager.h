@@ -45,6 +45,7 @@ public:
   #else
   EnvironmentSensorManager(){};
   #endif
+  bool i2c_probe(TwoWire& wire, uint8_t addr) override;
   bool begin() override;
   bool querySensors(uint8_t requester_permissions, CayenneLPP& telemetry) override;
   #if ENV_INCLUDE_GPS
