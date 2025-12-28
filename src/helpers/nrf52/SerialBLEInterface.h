@@ -1,38 +1,25 @@
 #pragma once
 
-#include "../BaseSerialInterface.h"
+#include "../SerialBLECommon.h"
 #include <bluefruit.h>
 
-#ifndef BLE_TX_POWER
-#define BLE_TX_POWER 4
-#endif
-
-class SerialBLEInterface : public BaseSerialInterface {
+class SerialBLEInterface : public SerialBLEInterfaceBase {
   BLEUart bleuart;
-  bool _isEnabled;
-  bool _isDeviceConnected;
-  uint16_t _conn_handle;
-  unsigned long _last_health_check;
-  unsigned long _last_retry_attempt;
 
-  struct Frame {
-    uint8_t len;
-    uint8_t buf[MAX_FRAME_SIZE];
-  };
-
-  #define FRAME_QUEUE_SIZE  12
-  
-  uint8_t send_queue_len;
-  Frame send_queue[FRAME_QUEUE_SIZE];
-  
-  uint8_t recv_queue_len;
-  Frame recv_queue[FRAME_QUEUE_SIZE];
+  static SerialBLEInterface* instance;
 
   void clearBuffers();
-  void shiftSendQueueLeft();
-  void shiftRecvQueueLeft();
   bool isValidConnection(uint16_t handle, bool requireWaitingForSecurity = false) const;
   bool isAdvertising() const;
+  void requestSyncModeConnection();
+  void requestDefaultConnection();
+  void trySendNextFrame();
+  void onTxComplete(uint8_t count);
+
+  // Event-driven TX state
+  uint8_t _tx_pending;    // Notifications in-flight (for debugging/stats only)
+  bool _tx_in_progress;   // Guard against re-entrant trySendNextFrame()
+
   static void onConnect(uint16_t connection_handle);
   static void onDisconnect(uint16_t connection_handle, uint8_t reason);
   static void onSecured(uint16_t connection_handle);
@@ -43,13 +30,9 @@ class SerialBLEInterface : public BaseSerialInterface {
 
 public:
   SerialBLEInterface() {
-    _isEnabled = false;
-    _isDeviceConnected = false;
-    _conn_handle = BLE_CONN_HANDLE_INVALID;
-    _last_health_check = 0;
-    _last_retry_attempt = 0;
-    send_queue_len = 0;
-    recv_queue_len = 0;
+    initCommonState();
+    _tx_pending = 0;
+    _tx_in_progress = false;
   }
 
   /**
@@ -69,12 +52,3 @@ public:
   size_t writeFrame(const uint8_t src[], size_t len) override;
   size_t checkRecvFrame(uint8_t dest[]) override;
 };
-
-#if BLE_DEBUG_LOGGING && ARDUINO
-  #include <Arduino.h>
-  #define BLE_DEBUG_PRINT(F, ...) Serial.printf("BLE: " F, ##__VA_ARGS__)
-  #define BLE_DEBUG_PRINTLN(F, ...) Serial.printf("BLE: " F "\n", ##__VA_ARGS__)
-#else
-  #define BLE_DEBUG_PRINT(...) {}
-  #define BLE_DEBUG_PRINTLN(...) {}
-#endif
