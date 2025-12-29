@@ -57,6 +57,11 @@ public:
   virtual void onSendFinished() = 0;
 
   /**
+   * \brief  optional hook for handling radio TX/RX fault recovery
+  */
+  virtual void onTXRXFault() { }
+
+  /**
    * \brief  do any processing needed on each loop cycle
    */
   virtual void loop() { }
