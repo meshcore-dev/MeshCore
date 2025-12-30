@@ -79,6 +79,7 @@ class HomeScreen : public UIScreen {
     RADIO,
     BLUETOOTH,
     ADVERT,
+    INVERT,
 #if ENV_INCLUDE_GPS == 1
     GPS,
 #endif
@@ -257,6 +258,12 @@ public:
       display.setColor(DisplayDriver::GREEN);
       display.drawXbm((display.width() - 32) / 2, 18, advert_icon, 32, 32);
       display.drawTextCentered(display.width() / 2, 64 - 11, "advert: " PRESS_LABEL);
+    } else if (_page == HomePage::INVERT) {
+      display.setColor(DisplayDriver::GREEN);
+      char buf[24];
+      sprintf(buf, "Invert: %s", _node_prefs->invert_display ? "ON" : "OFF");
+      display.drawTextCentered(display.width() / 2, 32, buf);
+      display.drawTextCentered(display.width() / 2, 64 - 11, "toggle: " PRESS_LABEL);
 #if ENV_INCLUDE_GPS == 1
     } else if (_page == HomePage::GPS) {
       LocationProvider* nmea = sensors.getLocationProvider();
@@ -423,6 +430,10 @@ public:
       return true;
     }
 #endif
+    if (c == KEY_ENTER && _page == HomePage::INVERT) {
+      _task->toggleInvertDisplay();
+      return true;
+    }
     if (c == KEY_ENTER && _page == HomePage::SHUTDOWN) {
       _shutdown_init = true;  // need to wait for button to be released
       return true;
@@ -538,6 +549,7 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
 
   _node_prefs = node_prefs;
   if (_display != NULL) {
+    _display->setInverted(_node_prefs->invert_display);  // apply saved inversion state
     _display->turnOn();
   }
 
@@ -892,4 +904,16 @@ void UITask::toggleBuzzer() {
     the_mesh.savePrefs();
     _next_refresh = 0;  // trigger refresh
   #endif
+}
+
+void UITask::toggleInvertDisplay() {
+  // Toggle display inversion
+  _node_prefs->invert_display = !_node_prefs->invert_display;
+  if (_display != NULL) {
+    _display->setInverted(_node_prefs->invert_display);
+  }
+  notify(UIEventType::ack);
+  showAlert(_node_prefs->invert_display ? "Invert: ON" : "Invert: OFF", 800);
+  the_mesh.savePrefs();
+  _next_refresh = 0;  // trigger immediate refresh
 }

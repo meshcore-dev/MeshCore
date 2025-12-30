@@ -56,15 +56,17 @@ void GxEPDDisplay::turnOff() {
 }
 
 void GxEPDDisplay::clear() {
-  display.fillScreen(GxEPD_WHITE);
-  display.setTextColor(GxEPD_BLACK);
+  display.fillScreen(_inverted ? GxEPD_BLACK : GxEPD_WHITE);
+  display.setTextColor(_inverted ? GxEPD_WHITE : GxEPD_BLACK);
   display_crc.reset();
 }
 
 void GxEPDDisplay::startFrame(Color bkg) {
-  display.fillScreen(GxEPD_WHITE);
-  display.setTextColor(_curr_color = GxEPD_BLACK);
+  // use inverted background if inversion is enabled
+  display.fillScreen(_inverted ? GxEPD_BLACK : GxEPD_WHITE);
+  display.setTextColor(_curr_color = (_inverted ? GxEPD_WHITE : GxEPD_BLACK));
   display_crc.reset();
+  display_crc.update<bool>(_inverted);  // include inversion state in CRC
 }
 
 void GxEPDDisplay::setTextSize(int sz) {
@@ -87,11 +89,13 @@ void GxEPDDisplay::setTextSize(int sz) {
 
 void GxEPDDisplay::setColor(Color c) {
   display_crc.update<Color> (c);
-  // colours need to be inverted for epaper displays
+  // On e-paper: GxEPD_WHITE = white pixels, GxEPD_BLACK = black pixels
+  // Normal mode (white bg): DARK->white (bg), others->black (visible)
+  // Inverted mode (black bg): DARK->black (bg), others->white (visible)
   if (c == DARK) {
-    display.setTextColor(_curr_color = GxEPD_WHITE);
+    display.setTextColor(_curr_color = _inverted ? GxEPD_BLACK : GxEPD_WHITE);
   } else {
-    display.setTextColor(_curr_color = GxEPD_BLACK);
+    display.setTextColor(_curr_color = _inverted ? GxEPD_WHITE : GxEPD_BLACK);
   }
 }
 
@@ -176,4 +180,10 @@ void GxEPDDisplay::endFrame() {
     display.display(true);
     last_display_crc_value = crc;
   }
+}
+
+void GxEPDDisplay::setInverted(bool inv) {
+  _inverted = inv;
+  // Invalidate CRC to force redraw on next frame
+  last_display_crc_value = 0;
 }

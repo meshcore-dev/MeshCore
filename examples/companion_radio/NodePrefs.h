@@ -25,4 +25,5 @@ struct NodePrefs {  // persisted to file
   uint32_t ble_pin;
   uint8_t  advert_loc_policy;
   uint8_t  buzzer_quiet;
+  uint8_t  invert_display;   // 0 = normal (black on white), 1 = inverted (white on black)
 };
