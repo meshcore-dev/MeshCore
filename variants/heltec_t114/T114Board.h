@@ -2,19 +2,17 @@
 
 #include <MeshCore.h>
 #include <Arduino.h>
+#include <helpers/NRF52Board.h>
 
 // built-ins
 #define  PIN_VBAT_READ    4
 #define  PIN_BAT_CTL      6
 #define  MV_LSB   (3000.0F / 4096.0F) // 12-bit ADC with 3.0V input range
 
-class T114Board : public mesh::MainBoard {
-protected:
-  uint8_t startup_reason;
-
+class T114Board : public NRF52BoardOTA {
 public:
+    T114Board() : NRF52BoardOTA("T114_OTA") {}
   void begin();
-  uint8_t getStartupReason() const override { return startup_reason; }
 
 #if defined(P_LORA_TX_LED)
   void onBeforeTransmit() override {
@@ -43,10 +41,6 @@ public:
     return "Heltec T114";
   }
 
-  void reboot() override {
-    NVIC_SystemReset();
-  }
-
   void powerOff() override {
     #ifdef LED_PIN
     digitalWrite(LED_PIN, HIGH);
@@ -57,6 +51,4 @@ public:
     #endif
     sd_power_system_off();
   }
-
-  bool startOTAUpdate(const char* id, char reply[]) override;
 };

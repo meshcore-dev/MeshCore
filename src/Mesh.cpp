@@ -78,6 +78,16 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
   }
 
   if (pkt->isRouteDirect() && pkt->path_len >= PATH_HASH_SIZE) {
+    // check for 'early received' ACK
+    if (pkt->getPayloadType() == PAYLOAD_TYPE_ACK) {
+      int i = 0;
+      uint32_t ack_crc;
+      memcpy(&ack_crc, &pkt->payload[i], 4); i += 4;
+      if (i <= pkt->payload_len) {
+        onAckRecv(pkt, ack_crc);
+      }
+    }
+
     if (self_id.isHashMatch(pkt->path) && allowPacketForward(pkt)) {
       if (pkt->getPayloadType() == PAYLOAD_TYPE_MULTIPART) {
         return forwardMultipartDirect(pkt);

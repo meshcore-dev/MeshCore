@@ -2,16 +2,15 @@
 
 #include <MeshCore.h>
 #include <Arduino.h>
+#include <helpers/NRF52Board.h>
 
-class KeepteenLT1Board : public mesh::MainBoard {
+class KeepteenLT1Board : public NRF52BoardOTA {
 protected:
-  uint8_t startup_reason;
   uint8_t btn_prev_state;
 
 public:
+  KeepteenLT1Board() : NRF52BoardOTA("KeepteenLT1_OTA") {}
   void begin();
-
-  uint8_t getStartupReason() const override { return startup_reason; }
 
   #define BATTERY_SAMPLES 8
 
@@ -39,13 +38,7 @@ public:
   }
 #endif
 
-  void reboot() override {
-    NVIC_SystemReset();
-  }
-  
   void powerOff() override {
     sd_power_system_off();
   }
-
-  bool startOTAUpdate(const char* id, char reply[]) override;
 };

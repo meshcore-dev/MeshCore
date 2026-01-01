@@ -225,4 +225,7 @@ public:
     bridge.begin();
   }
 #endif
+
+  // To check if there is pending work
+  bool hasPendingWork() const;
 };

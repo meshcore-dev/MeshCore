@@ -137,6 +137,7 @@ bool RadioLibWrapper::startSendRaw(const uint8_t* bytes, int len) {
   }
   MESH_DEBUG_PRINTLN("RadioLibWrapper: error: startTransmit(%d)", err);
   idle();   // trigger another startRecv()
+  _board->onAfterTransmit();
   return false;
 }
 

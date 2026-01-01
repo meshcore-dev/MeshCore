@@ -2,16 +2,14 @@
 
 #include <MeshCore.h>
 #include <Arduino.h>
+#include <helpers/NRF52Board.h>
 
 #ifdef XIAO_NRF52
 
-class XiaoNrf52Board : public mesh::MainBoard {
-protected:
-  uint8_t startup_reason;
-
+class XiaoNrf52Board : public NRF52BoardDCDC, public NRF52BoardOTA {
 public:
+  XiaoNrf52Board() : NRF52BoardOTA("XIAO_NRF52_OTA") {}
   void begin();
-  uint8_t getStartupReason() const override { return startup_reason; }
 
 #if defined(P_LORA_TX_LED)
   void onBeforeTransmit() override {
@@ -42,10 +40,6 @@ public:
     return "Seeed Xiao-nrf52";
   }
 
-  void reboot() override {
-    NVIC_SystemReset();
-  }
-
   void powerOff() override {
     // set led on and wait for button release before poweroff
     digitalWrite(PIN_LED, LOW);
@@ -63,8 +57,6 @@ public:
 
     sd_power_system_off();
   }
-
-  bool startOTAUpdate(const char* id, char reply[]) override;
 };
 
 #endif

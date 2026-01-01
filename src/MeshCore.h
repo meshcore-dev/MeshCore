@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <math.h>
 
 #define MAX_HASH_SIZE        8
 #define PUB_KEY_SIZE        32
@@ -42,6 +43,7 @@ namespace mesh {
 class MainBoard {
 public:
   virtual uint16_t getBattMilliVolts() = 0;
+  virtual float getMCUTemperature() { return NAN; }
   virtual bool setAdcMultiplier(float multiplier) { return false; };
   virtual float getAdcMultiplier() const { return 0.0f; }
   virtual const char* getManufacturerName() const = 0;
@@ -49,6 +51,7 @@ public:
   virtual void onAfterTransmit() { }
   virtual void reboot() = 0;
   virtual void powerOff() { /* no op */ }
+  virtual void sleep(uint32_t secs)  { /* no op */ }
   virtual uint32_t getGpio() { return 0; }
   virtual void setGpio(uint32_t values) {}
   virtual uint8_t getStartupReason() const = 0;
