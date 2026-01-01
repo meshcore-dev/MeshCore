@@ -5,6 +5,12 @@
 #include <helpers/ChannelDetails.h>
 #include "NodePrefs.h"
 
+struct ChannelHeader {
+    ChannelFlags flags;
+    uint8_t unused[3];
+};
+static_assert(sizeof(ChannelHeader) == 4, "ChannelHeader must be 4 bytes");
+
 class DataStoreHost {
 public:
   virtual bool onContactLoaded(const ContactInfo& contact) =0;
