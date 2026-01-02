@@ -25,6 +25,5 @@ struct NodePrefs {  // persisted to file
   uint32_t ble_pin;
   uint8_t  advert_loc_policy;
   uint8_t  buzzer_quiet;
-  uint8_t  gps_enabled;      // GPS enabled flag (0=disabled, 1=enabled)
-  uint32_t gps_interval;     // GPS read interval in seconds
+  uint8_t  display_rotation;  // 0=landscape, 1=portrait, 2=landscape flipped, 3=portrait flipped
 };

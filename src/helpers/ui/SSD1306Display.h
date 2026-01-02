@@ -21,6 +21,7 @@ class SSD1306Display : public DisplayDriver {
 
   bool i2c_probe(TwoWire& wire, uint8_t addr);
 public:
+  // Always start in landscape mode (128x64) - user can flip to portrait at runtime
   SSD1306Display() : DisplayDriver(128, 64), display(128, 64, &Wire, PIN_OLED_RESET) { _isOn = false; }
   bool begin();
 
@@ -38,4 +39,9 @@ public:
   void drawXbm(int x, int y, const uint8_t* bits, int w, int h) override;
   uint16_t getTextWidth(const char* str) override;
   void endFrame() override;
+
+  // Runtime rotation support
+  void setRotation(uint8_t r) override;
+  uint8_t getRotation() override;
+  void flipOrientation() override;  // Toggle between portrait and landscape
 };

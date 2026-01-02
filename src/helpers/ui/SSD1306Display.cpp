@@ -75,3 +75,31 @@ uint16_t SSD1306Display::getTextWidth(const char* str) {
 void SSD1306Display::endFrame() {
   display.display();
 }
+
+void SSD1306Display::setRotation(uint8_t r) {
+  display.setRotation(r);
+  // Update width/height based on rotation
+  if (r == 0 || r == 2) {
+    // Landscape: 128x64
+    setDimensions(128, 64);
+  } else {
+    // Portrait: 64x128
+    setDimensions(64, 128);
+  }
+}
+
+uint8_t SSD1306Display::getRotation() {
+  return display.getRotation();
+}
+
+void SSD1306Display::flipOrientation() {
+  // Toggle between portrait (rotation 1) and landscape (rotation 0)
+  uint8_t currentRotation = display.getRotation();
+  if (currentRotation == 0 || currentRotation == 2) {
+    // Currently landscape, switch to portrait
+    setRotation(1);
+  } else {
+    // Currently portrait, switch to landscape
+    setRotation(0);
+  }
+}
