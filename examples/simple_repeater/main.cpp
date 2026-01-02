@@ -114,6 +114,8 @@ void loop() {
     Serial.print('\n');
     command[len - 1] = 0;  // replace newline with C string null terminator
     char reply[160];
+    lastActive = millis();
+    nextSleepinSecs = ACTIVE_TIME_SEC_INUSE;
     the_mesh.handleCommand(0, command, reply);  // NOTE: there is no sender_timestamp via serial!
     if (reply[0]) {
       Serial.print("  -> "); Serial.println(reply);
