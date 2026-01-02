@@ -22,6 +22,11 @@ static
 void setFlag(void) {
   // we sent a packet, set the flag
   state |= STATE_INT_READY;
+
+#ifdef NRF52_PLATFORM
+  // NRF52 uses suspendLoop() for powersaving, resume on RX interrupt here
+  if (state & STATE_RX) resumeLoop();
+#endif
 }
 
 void RadioLibWrapper::begin() {

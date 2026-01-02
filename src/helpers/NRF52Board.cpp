@@ -4,6 +4,7 @@
 #include <bluefruit.h>
 
 static BLEDfu bledfu;
+static SoftwareTimer sleep_timer;
 
 static void connect_callback(uint16_t conn_handle) {
   (void)conn_handle;
@@ -17,8 +18,18 @@ static void disconnect_callback(uint16_t conn_handle, uint8_t reason) {
   MESH_DEBUG_PRINTLN("BLE client disconnected");
 }
 
+static void sleep_timer_callback(TimerHandle_t xTimerID) {
+  resumeLoop();
+}
+
 void NRF52Board::begin() {
   startup_reason = BD_STARTUP_NORMAL;
+}
+
+void NRF52Board::sleep(uint32_t secs) {
+  sleep_timer.begin(secs * 1000, sleep_timer_callback, NULL, false);
+  sleep_timer.start();
+  suspendLoop();
 }
 
 void NRF52BoardDCDC::begin() {
