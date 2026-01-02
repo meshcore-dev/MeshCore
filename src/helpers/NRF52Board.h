@@ -6,6 +6,9 @@
 #if defined(NRF52_PLATFORM)
 
 class NRF52Board : public mesh::MainBoard {
+private:
+  SemaphoreHandle_t rx_wait_sem;
+
 protected:
   uint8_t startup_reason;
 
@@ -14,6 +17,8 @@ public:
   virtual uint8_t getStartupReason() const override { return startup_reason; }
   virtual float getMCUTemperature() override;
   virtual void reboot() override { NVIC_SystemReset(); }
+  virtual void sleep(uint32_t secs) override;
+  virtual void onRXInterrupt() override;
 };
 
 /*

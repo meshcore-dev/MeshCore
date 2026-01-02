@@ -19,6 +19,18 @@ static void disconnect_callback(uint16_t conn_handle, uint8_t reason) {
 
 void NRF52Board::begin() {
   startup_reason = BD_STARTUP_NORMAL;
+  rx_wait_sem = xSemaphoreCreateBinary();
+  xSemaphoreGive(rx_wait_sem);
+  xSemaphoreTake(rx_wait_sem, portMAX_DELAY);
+}
+
+void NRF52Board::sleep(uint32_t secs) {
+  MESH_DEBUG_PRINTLN("Suspending loop for powersaving, set wakeup timer in %u seconds", secs);
+  xSemaphoreTake(rx_wait_sem, pdMS_TO_TICKS(secs * 1000));
+}
+
+void NRF52Board::onRXInterrupt() {
+  xSemaphoreGive(rx_wait_sem);
 }
 
 void NRF52BoardDCDC::begin() {
