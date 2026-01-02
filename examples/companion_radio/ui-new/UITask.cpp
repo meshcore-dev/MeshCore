@@ -301,10 +301,10 @@ public:
             sprintf(tmp, "%dh ago", secs / (60*60));
           }
 
-          // Line 1: name (full width, ellipsized if needed)
+          // Line 1: name (truncated to fit width)
           char filtered_recent_name[sizeof(a->name)];
           display.translateUTF8ToBlocks(filtered_recent_name, a->name, sizeof(filtered_recent_name));
-          display.drawTextEllipsized(0, y, display.width(), filtered_recent_name);
+          display.drawTextEllipsized(0, y, display.width() - 2, filtered_recent_name);
 
           // Line 2: timestamp (right-aligned, slightly indented)
           int timestamp_width = display.getTextWidth(tmp);
