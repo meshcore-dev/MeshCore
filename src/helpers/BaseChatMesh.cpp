@@ -104,13 +104,20 @@ void BaseChatMesh::onAdvertRecv(mesh::Packet* packet, const mesh::Identity& id, 
       return;
     }
 
+    if (isAutoAddLocEnabled() && !parser.hasLatLon()) { return; } // Ignore advert if it has no Location
+
     is_new = true;
     if (num_contacts < MAX_CONTACTS) {
       from = &contacts[num_contacts++];
       from->id = id;
       from->out_path_len = -1;  // initially out_path is unknown
-      from->gps_lat = 0;   // initially unknown GPS loc
-      from->gps_lon = 0;
+      if (!parser.hasLatLon()) {
+        from->gps_lat = 0;   // initially unknown GPS loc
+        from->gps_lon = 0;
+      } else {
+        from->gps_lat = parser.getIntLat();   // if the advert has Lat/Lon add it
+        from->gps_lon = parser.getIntLon();
+      }
       from->sync_since = 0;
 
       // only need to calculate the shared_secret once, for better performance
