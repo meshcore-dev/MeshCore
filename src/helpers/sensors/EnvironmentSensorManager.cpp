@@ -615,6 +615,7 @@ void EnvironmentSensorManager::rakGPSInit(){
     MESH_DEBUG_PRINTLN("No GPS found");
     gps_active = false;
     gps_detected = false;
+    Serial1.end();
     return;
   }
 
@@ -653,8 +654,7 @@ bool EnvironmentSensorManager::gpsIsAwake(uint8_t ioPin){
 
     _location = &RAK12500_provider;
     return true;
-  }
-  else if(Serial1){
+  } else if (Serial1.available()) {
     MESH_DEBUG_PRINTLN("Serial GPS init correctly and is turned on");
     if(PIN_GPS_EN){
       gpsResetPin = PIN_GPS_EN;
@@ -664,6 +664,8 @@ bool EnvironmentSensorManager::gpsIsAwake(uint8_t ioPin){
     gps_detected = true;
     return true;
   }
+
+  pinMode(ioPin, INPUT);
   MESH_DEBUG_PRINTLN("GPS did not init with this IO pin... try the next");
   return false;
 }
