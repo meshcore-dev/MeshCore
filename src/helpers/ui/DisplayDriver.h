@@ -6,12 +6,15 @@
 class DisplayDriver {
   int _w, _h;
 protected:
+  bool _inverted = false;  // display inversion state
   DisplayDriver(int w, int h) { _w = w; _h = h; }
 public:
   enum Color { DARK=0, LIGHT, RED, GREEN, BLUE, YELLOW, ORANGE }; // on b/w screen, colors will be !=0 synonym of light
 
   int width() const { return _w; }
   int height() const { return _h; }
+  bool isInverted() const { return _inverted; }
+  virtual void setInverted(bool inv) { _inverted = inv; }
 
   virtual bool isOn() = 0;
   virtual void turnOn() = 0;
