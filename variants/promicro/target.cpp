@@ -25,7 +25,12 @@ AutoDiscoverRTCClock rtc_clock(fallback_clock);
 
 bool radio_init() {
   rtc_clock.begin(Wire);
-  
+
+#ifdef P_LORA_EN
+  pinMode(P_LORA_EN, OUTPUT);
+  digitalWrite(P_LORA_EN, HIGH);
+#endif
+
   return radio.std_init(&SPI);
 }
 
@@ -48,4 +53,3 @@ mesh::LocalIdentity radio_new_identity() {
   RadioNoiseListener rng(radio);
   return mesh::LocalIdentity(&rng);  // create new random identity
 }
-
