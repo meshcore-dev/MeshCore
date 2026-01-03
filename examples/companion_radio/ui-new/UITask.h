@@ -81,6 +81,7 @@ public:
   void toggleBuzzer();
   bool getGPSState();
   void toggleGPS();
+  void flipDisplay();
 
 
   // from AbstractUITask

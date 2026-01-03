@@ -7,6 +7,7 @@ class DisplayDriver {
   int _w, _h;
 protected:
   DisplayDriver(int w, int h) { _w = w; _h = h; }
+  void setDimensions(int w, int h) { _w = w; _h = h; }
 public:
   enum Color { DARK=0, LIGHT, RED, GREEN, BLUE, YELLOW, ORANGE }; // on b/w screen, colors will be !=0 synonym of light
 
@@ -97,4 +98,9 @@ public:
   }
   
   virtual void endFrame() = 0;
+
+  // Runtime orientation support (optional overrides)
+  virtual void flipOrientation() { }
+  virtual void setRotation(uint8_t r) { }
+  virtual uint8_t getRotation() { return 0; }
 };

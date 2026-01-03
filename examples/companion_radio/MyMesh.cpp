@@ -739,8 +739,6 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
   _prefs.bw = LORA_BW;
   _prefs.cr = LORA_CR;
   _prefs.tx_power_dbm = LORA_TX_POWER;
-  _prefs.gps_enabled = 0;       // GPS disabled by default
-  _prefs.gps_interval = 0;      // No automatic GPS updates by default
   //_prefs.rx_delay_base = 10.0f;  enable once new algo fixed
 }
 
@@ -778,8 +776,7 @@ void MyMesh::begin(bool has_display) {
   _prefs.sf = constrain(_prefs.sf, 5, 12);
   _prefs.cr = constrain(_prefs.cr, 5, 8);
   _prefs.tx_power_dbm = constrain(_prefs.tx_power_dbm, 1, MAX_LORA_TX_POWER);
-  _prefs.gps_enabled = constrain(_prefs.gps_enabled, 0, 1);  // Ensure boolean 0 or 1
-  _prefs.gps_interval = constrain(_prefs.gps_interval, 0, 86400);  // Max 24 hours
+  _prefs.display_rotation = constrain(_prefs.display_rotation, 0, 3);
 
 #ifdef BLE_PIN_CODE // 123456 by default
   if (_prefs.ble_pin == 0) {
@@ -903,7 +900,6 @@ void MyMesh::handleCmdFrame(size_t len) {
       int result;
       uint32_t expected_ack;
       if (txt_type == TXT_TYPE_CLI_DATA) {
-        msg_timestamp = getRTCClock()->getCurrentTimeUnique(); // Use node's RTC instead of app timestamp to avoid tripping replay protection
         result = sendCommandData(*recipient, msg_timestamp, attempt, text, est_timeout);
         expected_ack = 0; // no Ack expected
       } else {
@@ -1239,7 +1235,7 @@ void MyMesh::handleCmdFrame(size_t len) {
     if (_store->saveMainIdentity(identity)) {
       self_id = identity;
       writeOKFrame();
-      // re-load contacts, to invalidate ecdh shared_secrets
+      // re-load contacts, to recalc shared secrets
       resetContacts();
       _store->loadContacts(this);
     } else {
@@ -1526,17 +1522,6 @@ void MyMesh::handleCmdFrame(size_t len) {
       *np++ = 0; // modify 'cmd_frame', replace ':' with null
       bool success = sensors.setSettingValue(sp, np);
       if (success) {
-        #if ENV_INCLUDE_GPS == 1
-        // Update node preferences for GPS settings
-        if (strcmp(sp, "gps") == 0) {
-          _prefs.gps_enabled = (np[0] == '1') ? 1 : 0;
-          savePrefs();
-        } else if (strcmp(sp, "gps_interval") == 0) {
-          uint32_t interval_seconds = atoi(np);
-          _prefs.gps_interval = constrain(interval_seconds, 0, 86400);
-          savePrefs();
-        }
-        #endif
         writeOKFrame();
       } else {
         writeErrFrame(ERR_CODE_ILLEGAL_ARG);
