@@ -24,12 +24,12 @@ static File openWrite(FILESYSTEM* _fs, const char* filename) {
   #endif
 }
 
-bool RegionMap::load(FILESYSTEM* _fs) {
-  if (_fs->exists("/regions2")) {
+bool RegionMap::load(FILESYSTEM* _fs, const char* path) {
+  if (_fs->exists(path ? path : "/regions2")) {
   #if defined(RP2040_PLATFORM)
-    File file = _fs->open("/regions2", "r");
+    File file = _fs->open(path ? path : "/regions2", "r");
   #else
-    File file = _fs->open("/regions2");
+    File file = _fs->open(path ? path : "/regions2");
   #endif
 
     if (file) {
@@ -67,8 +67,8 @@ bool RegionMap::load(FILESYSTEM* _fs) {
   return false;  // failed
 }
 
-bool RegionMap::save(FILESYSTEM* _fs) {
-  File file = openWrite(_fs, "/regions2");
+bool RegionMap::save(FILESYSTEM* _fs, const char* path) {
+  File file = openWrite(_fs, path ? path : "/regions2");
   if (file) {
     uint8_t pad[128];
     memset(pad, 0, sizeof(pad));
@@ -234,4 +234,28 @@ void RegionMap::printChildRegions(int indent, const RegionEntry* parent, Stream&
 
 void RegionMap::exportTo(Stream& out) const {
   printChildRegions(0, &wildcard, out);   // recursive
+}
+
+int RegionMap::exportNamesTo(char *dest, int max_len, uint8_t mask) {
+  char *dp = dest;
+  if ((wildcard.flags & mask) == 0) {
+    *dp++ = '*';
+    *dp++ = ',';
+  }
+
+  for (int i = 0; i < num_regions; i++) {
+    auto region = &regions[i];
+    if ((region->flags & mask) == 0) {   // region allowed? (per 'mask' param)
+      int len = strlen(region->name);
+      if ((dp - dest) + len + 2 < max_len) {   // only append if name will fit
+        memcpy(dp, region->name, len);
+        dp += len;
+        *dp++ = ',';
+      }
+    }
+  }
+  if (dp > dest) { dp--; }   // don't include trailing comma
+
+  *dp = 0;  // set null terminator
+  return dp - dest;   // return length
 }

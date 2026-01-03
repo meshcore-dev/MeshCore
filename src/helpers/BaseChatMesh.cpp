@@ -477,6 +477,31 @@ int BaseChatMesh::sendLogin(const ContactInfo& recipient, const char* password, 
   return MSG_SEND_FAILED;
 }
 
+int BaseChatMesh::sendAnonReq(const ContactInfo& recipient, const uint8_t* data, uint8_t len, uint32_t& tag, uint32_t& est_timeout) {
+  mesh::Packet* pkt;
+  {
+    uint8_t temp[MAX_PACKET_PAYLOAD];
+    tag = getRTCClock()->getCurrentTimeUnique();
+    memcpy(temp, &tag, 4);   // tag to match later (also extra blob to help make packet_hash unique)
+    memcpy(&temp[4], data, len);
+
+    pkt = createAnonDatagram(PAYLOAD_TYPE_ANON_REQ, self_id, recipient.id, recipient.getSharedSecret(self_id), temp, 4 + len);
+  }
+  if (pkt) {
+    uint32_t t = _radio->getEstAirtimeFor(pkt->getRawLength());
+    if (recipient.out_path_len < 0) {
+      sendFloodScoped(recipient, pkt);
+      est_timeout = calcFloodTimeoutMillisFor(t);
+      return MSG_SEND_SENT_FLOOD;
+    } else {
+      sendDirect(pkt, recipient.out_path, recipient.out_path_len);
+      est_timeout = calcDirectTimeoutMillisFor(t, recipient.out_path_len);
+      return MSG_SEND_SENT_DIRECT;
+    }
+  }
+  return MSG_SEND_FAILED;
+}
+
 int  BaseChatMesh::sendRequest(const ContactInfo& recipient, const uint8_t* req_data, uint8_t data_len, uint32_t& tag, uint32_t& est_timeout) {
   if (data_len > MAX_PACKET_PAYLOAD - 16) return MSG_SEND_FAILED;
 

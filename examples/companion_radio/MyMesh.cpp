@@ -53,6 +53,7 @@
 #define CMD_SET_FLOOD_SCOPE           54   // v8+
 #define CMD_SEND_CONTROL_DATA         55   // v8+
 #define CMD_GET_STATS                 56   // v8+, second byte is stats type
+#define CMD_SEND_ANON_REQ             57
 
 // Stats sub-types for CMD_GET_STATS
 #define STATS_TYPE_CORE               0
@@ -1280,6 +1281,27 @@ void MyMesh::handleCmdFrame(size_t len) {
         out_frame[0] = RESP_CODE_SENT;
         out_frame[1] = (result == MSG_SEND_SENT_FLOOD) ? 1 : 0;
         memcpy(&out_frame[2], &pending_login, 4);
+        memcpy(&out_frame[6], &est_timeout, 4);
+        _serial->writeFrame(out_frame, 10);
+      }
+    } else {
+      writeErrFrame(ERR_CODE_NOT_FOUND); // contact not found
+    }
+  } else if (cmd_frame[0] == CMD_SEND_ANON_REQ && len > 1 + PUB_KEY_SIZE) {
+    uint8_t *pub_key = &cmd_frame[1];
+    ContactInfo *recipient = lookupContactByPubKey(pub_key, PUB_KEY_SIZE);
+    uint8_t *data = &cmd_frame[1 + PUB_KEY_SIZE];
+    if (recipient) {
+      uint32_t tag, est_timeout;
+      int result = sendAnonReq(*recipient, data, len - (1 + PUB_KEY_SIZE), tag, est_timeout);
+      if (result == MSG_SEND_FAILED) {
+        writeErrFrame(ERR_CODE_TABLE_FULL);
+      } else {
+        clearPendingReqs();
+        pending_req = tag; // match this to onContactResponse()
+        out_frame[0] = RESP_CODE_SENT;
+        out_frame[1] = (result == MSG_SEND_SENT_FLOOD) ? 1 : 0;
+        memcpy(&out_frame[2], &tag, 4);
         memcpy(&out_frame[6], &est_timeout, 4);
         _serial->writeFrame(out_frame, 10);
       }

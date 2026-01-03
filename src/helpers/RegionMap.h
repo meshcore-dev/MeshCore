@@ -32,8 +32,8 @@ public:
 
   static bool is_name_char(char c);
 
-  bool load(FILESYSTEM* _fs);
-  bool save(FILESYSTEM* _fs);
+  bool load(FILESYSTEM* _fs, const char* path=NULL);
+  bool save(FILESYSTEM* _fs, const char* path=NULL);
 
   RegionEntry* putRegion(const char* name, uint16_t parent_id, uint16_t id = 0);
   RegionEntry* findMatch(mesh::Packet* packet, uint8_t mask);
@@ -47,6 +47,9 @@ public:
   bool clear();
   void resetFrom(const RegionMap& src) { num_regions = 0; next_id = src.next_id; }
   int getCount() const { return num_regions; }
+  const RegionEntry* getByIdx(int i) const { return &regions[i]; }
+  const RegionEntry* getRoot() const { return &wildcard; }
+  int exportNamesTo(char *dest, int max_len, uint8_t mask);
 
   void exportTo(Stream& out) const;
 };

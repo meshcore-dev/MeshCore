@@ -51,6 +51,8 @@
 
 #define RESP_SERVER_LOGIN_OK        0 // response to ANON_REQ
 
+#define ANON_REQ_TYPE_REGIONS      0x01
+
 #define CLI_REPLY_DELAY_MILLIS      600
 
 #define LAZY_CONTACTS_WRITE_DELAY    5000
@@ -137,6 +139,19 @@ uint8_t MyMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* secr
   reply_data[12] = FIRMWARE_VER_LEVEL;  // New field
 
   return 13;  // reply length
+}
+
+uint8_t MyMesh::handleAnonRegionsReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data) {
+  // REVISIT: should there be params like 'since' in request data[] ?
+  if (regions_limiter.allow(rtc_clock.getCurrentTime())) {
+    memcpy(reply_data, &sender_timestamp, 4);   // prefix with sender_timestamp, like a tag
+
+    uint32_t now = getRTCClock()->getCurrentTime();
+    memcpy(&reply_data[4], &now, 4);     // include our clock (for easy clock sync, if this is a trusted node)
+
+    return 8 + region_map.exportNamesTo((char *) &reply_data[8], sizeof(reply_data) - 12, REGION_DENY_FLOOD);   // reply length
+  }
+  return 0;
 }
 
 int MyMesh::handleRequest(ClientInfo *sender, uint32_t sender_timestamp, uint8_t *payload, size_t payload_len) {
@@ -450,8 +465,8 @@ void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const m
     uint8_t reply_len;
     if (data[4] == 0 || data[4] >= ' ') {   // is password, ie. a login request
       reply_len = handleLoginReq(sender, secret, timestamp, &data[4], packet->isRouteFlood());
-    //} else if (data[4] == ANON_REQ_TYPE_*) {   // future type codes
-      // TODO
+    } else if (data[4] == ANON_REQ_TYPE_REGIONS) {
+      reply_len = handleAnonRegionsReq(sender, timestamp, &data[5]);
     } else {
       reply_len = 0;  // unknown request type
     }
@@ -668,7 +683,8 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
                mesh::RTCClock &rtc, mesh::MeshTables &tables)
     : mesh::Mesh(radio, ms, rng, rtc, *new StaticPoolPacketManager(32), tables),
       _cli(board, rtc, sensors, &_prefs, this), telemetry(MAX_PACKET_PAYLOAD - 4), region_map(key_store), temp_map(key_store),
-      discover_limiter(4, 120)  // max 4 every 2 minutes
+      discover_limiter(4, 120),  // max 4 every 2 minutes
+      regions_limiter(4, 180)   // max 4 every 3 minutes
 #if defined(WITH_RS232_BRIDGE)
       , bridge(&_prefs, WITH_RS232_BRIDGE, _mgr, &rtc)
 #endif
