@@ -811,7 +811,7 @@ For companion radios, you can set these radios' transmit power in the smartphone
 
 | Device / Model | Region / Description | In-App Setting (dBm) | Target Radio Output | Notes |
 | :--- | :--- | :--- | :--- | :--- |
-| **Station G2** <br> [Reference](https://wiki.uniteng.com/en/meshtastic/station-g2) | US915 Max Output | 19 dBm | 26.5 dBm (4.46W) | |
+| **Station G2** <br> [Reference](https://wiki.uniteng.com/en/meshtastic/station-g2) | US915 Max Output | 19 dBm | 36.5 dBm (4.46W) | |
 | | US915 Recommended Max | 16 dBm | 35 dBm (3.16W) | 1dB compression point |
 | | EU868 Recommended Max | 15 dBm | 34.5 dBm (2.82W) | 1dB compression point |
 | | US915 1W Output | 10 dBm | 1W | |
