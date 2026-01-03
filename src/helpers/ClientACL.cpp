@@ -1,7 +1,7 @@
 #include "ClientACL.h"
 
 static File openWrite(FILESYSTEM* _fs, const char* filename) {
-  #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
+  #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM) || defined(NATIVE_PLATFORM)
     _fs->remove(filename);
     return _fs->open(filename, FILE_O_WRITE);
   #elif defined(RP2040_PLATFORM)
