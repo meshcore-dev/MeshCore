@@ -1,5 +1,6 @@
 #include "UITask.h"
 #include <helpers/TxtDataHelpers.h>
+#include <helpers/Battery.h>
 #include "../MyMesh.h"
 #include "target.h"
 #ifdef WIFI_SSID
@@ -102,12 +103,7 @@ class HomeScreen : public UIScreen {
 
 
   void renderBatteryIndicator(DisplayDriver& display, uint16_t batteryMilliVolts) {
-    // Convert millivolts to percentage
-    const int minMilliVolts = 3000; // Minimum voltage (e.g., 3.0V)
-    const int maxMilliVolts = 4200; // Maximum voltage (e.g., 4.2V)
-    int batteryPercentage = ((batteryMilliVolts - minMilliVolts) * 100) / (maxMilliVolts - minMilliVolts);
-    if (batteryPercentage < 0) batteryPercentage = 0; // Clamp to 0%
-    if (batteryPercentage > 100) batteryPercentage = 100; // Clamp to 100%
+    int batteryPercentage = batteryPercentFromMilliVolts(batteryMilliVolts);
 
     // battery icon
     int iconWidth = 24;
@@ -336,8 +332,20 @@ public:
             strcpy(name, "gps"); sprintf(buf, "%.4f %.4f", lat, lon);
             break;
           case LPP_VOLTAGE:
-            r.readVoltage(v);
-            strcpy(name, "voltage"); sprintf(buf, "%6.2f", v);
+            r.readVoltage(v);  // v is in volts
+
+            if (channel == TELEM_CHANNEL_SELF) {
+              // This is our own battery voltage
+              uint16_t batteryMilliVolts = (uint16_t)(v * 1000.0f + 0.5f); // convert V -> mV
+              int pct = batteryPercentFromMilliVolts(batteryMilliVolts);
+
+              strcpy(name, "battery");
+              sprintf(buf, "%4.2fV %3d%%", v, pct);
+            } else {
+              // Other voltage sensor
+              strcpy(name, "voltage");
+              sprintf(buf, "%6.2f", v);
+            }
             break;
           case LPP_CURRENT:
             r.readCurrent(v);
