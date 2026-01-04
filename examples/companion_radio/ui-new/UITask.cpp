@@ -63,7 +63,13 @@ public:
     display.drawTextCentered(display.width()/2, 22, _version_info);
 
     display.setTextSize(1);
+#ifdef OLED_RU
+    char filtered_date[sizeof(FIRMWARE_BUILD_DATE)];
+    display.translateUTF8ToBlocks(filtered_date, FIRMWARE_BUILD_DATE, sizeof(filtered_date));
+    display.drawTextCentered(display.width()/2, 42, filtered_date);
+#else
     display.drawTextCentered(display.width()/2, 42, FIRMWARE_BUILD_DATE);
+#endif
 
     return 1000;
   }
