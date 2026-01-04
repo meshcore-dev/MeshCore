@@ -24,6 +24,32 @@ void setFlag(void) {
   state |= STATE_INT_READY;
 }
 
+// Decide which radio TX/RX errors warrant a reset (hardware/timeout), versus logic/parameter errors.
+static bool shouldResetOnTXRXError(int err) {
+#ifdef RADIOLIB_ERR_TX_TIMEOUT
+  if (err == RADIOLIB_ERR_TX_TIMEOUT) return true;
+#endif
+#ifdef RADIOLIB_ERR_SPI_CMD_FAILED
+  if (err == RADIOLIB_ERR_SPI_CMD_FAILED) return true;
+#endif
+#ifdef RADIOLIB_ERR_SPI_CMD_INVALID
+  if (err == RADIOLIB_ERR_SPI_CMD_INVALID) return true;
+#endif
+#ifdef RADIOLIB_ERR_SPI_WRITE_FAILED
+  if (err == RADIOLIB_ERR_SPI_WRITE_FAILED) return true;
+#endif
+#ifdef RADIOLIB_ERR_SPI_READ_FAILED
+  if (err == RADIOLIB_ERR_SPI_READ_FAILED) return true;
+#endif
+#ifdef RADIOLIB_ERR_CHIP_NOT_FOUND
+  if (err == RADIOLIB_ERR_CHIP_NOT_FOUND) return true;
+#endif
+#ifdef RADIOLIB_ERR_DEVICE_BUSY
+  if (err == RADIOLIB_ERR_DEVICE_BUSY) return true;
+#endif
+  return false;
+}
+
 void RadioLibWrapper::begin() {
   _radio->setPacketReceivedAction(setFlag);  // this is also SentComplete interrupt
   state = STATE_IDLE;
@@ -88,6 +114,13 @@ void RadioLibWrapper::startRecv() {
     state = STATE_RX;
   } else {
     MESH_DEBUG_PRINTLN("RadioLibWrapper: error: startReceive(%d)", err);
+    static bool in_rx_recover = false;
+    // Prevent recursive recovery attempts if startReceive keeps failing during re-init.
+    if (!in_rx_recover && shouldResetOnTXRXError(err)) {
+      in_rx_recover = true;
+      onTXRXFault();
+      in_rx_recover = false;
+    }
   }
 }
 
@@ -114,12 +147,7 @@ int RadioLibWrapper::recvRaw(uint8_t* bytes, int sz) {
   }
 
   if (state != STATE_RX) {
-    int err = _radio->startReceive();
-    if (err == RADIOLIB_ERR_NONE) {
-      state = STATE_RX;
-    } else {
-      MESH_DEBUG_PRINTLN("RadioLibWrapper: error: startReceive(%d)", err);
-    }
+    startRecv();
   }
   return len;
 }
@@ -137,6 +165,11 @@ bool RadioLibWrapper::startSendRaw(const uint8_t* bytes, int len) {
   }
   MESH_DEBUG_PRINTLN("RadioLibWrapper: error: startTransmit(%d)", err);
   idle();   // trigger another startRecv()
+  if (shouldResetOnTXRXError(err)) {
+    onTXRXFault();
+  } else {
+    startRecv();
+  }
   _board->onAfterTransmit();
   return false;
 }
