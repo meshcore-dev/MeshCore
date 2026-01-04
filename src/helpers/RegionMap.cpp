@@ -6,7 +6,8 @@ RegionMap::RegionMap(TransportKeyStore& store) : _store(&store) {
   next_id = 1; num_regions = 0; home_id = 0;
   wildcard.id = wildcard.parent = 0;
   wildcard.flags = 0;  // default behaviour, allow flood and direct
-  strcpy(wildcard.name, "*");
+  strncpy(wildcard.name, "*", sizeof(wildcard.name) - 1);
+  wildcard.name[sizeof(wildcard.name) - 1] = '\0';
 }
 
 bool RegionMap::is_name_char(char c) {
