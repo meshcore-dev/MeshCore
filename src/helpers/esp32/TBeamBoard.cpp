@@ -131,7 +131,7 @@ bool TBeamBoard::power_init()
     #else
       PMU = new XPowersAXP2101(PMU_WIRE_PORT, PIN_BOARD_SDA, PIN_BOARD_SCL, I2C_PMU_ADD);
     #endif
-    if (!PMU->init()) {
+    if (!PMU || !PMU->init()) {
         MESH_DEBUG_PRINTLN("Warning: Failed to find AXP2101 power management");
         delete PMU;
         PMU = NULL;
@@ -141,7 +141,7 @@ bool TBeamBoard::power_init()
   }
   if (!PMU) {
     PMU = new XPowersAXP192(PMU_WIRE_PORT, PIN_BOARD_SDA, PIN_BOARD_SCL, I2C_PMU_ADD);
-     if (!PMU->init()) {
+     if (!PMU || !PMU->init()) {
         MESH_DEBUG_PRINTLN("Warning: Failed to find AXP192 power management");
         delete PMU;
         PMU = NULL;
