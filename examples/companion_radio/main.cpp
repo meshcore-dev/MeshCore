@@ -29,6 +29,9 @@ static uint32_t _atoi(const char* sp) {
 #elif defined(RP2040_PLATFORM)
   #include <LittleFS.h>
   DataStore store(LittleFS, rtc_clock);
+#elif defined(PORTDUINO_PLATFORM)
+  #include <PortduinoFS.h>
+  DataStore store(PortduinoFS, rtc_clock);
 #elif defined(ESP32)
   #include <SPIFFS.h>
   DataStore store(SPIFFS, rtc_clock);
@@ -184,6 +187,15 @@ void setup() {
     serial_interface.begin(Serial);
   #endif
     the_mesh.startInterface(serial_interface);
+#elif defined(PORTDUINO_PLATFORM)
+  store.begin();
+  the_mesh.begin(
+    #ifdef DISPLAY_CLASS
+        disp != NULL
+    #else
+        false
+    #endif
+  );
 #elif defined(ESP32)
   SPIFFS.begin(true);
   store.begin();

@@ -102,7 +102,7 @@ static void _ftoa(float f, char *p, int *status)
     *p++ = '0';
   else 
   {
-    ltoa(int_part, p, 10);
+    snprintf(p, 20, "%d", int_part);
     while (*p)
       p++;
   }

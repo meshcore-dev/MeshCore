@@ -5,6 +5,8 @@
   #include <InternalFileSystem.h>
 #elif defined(RP2040_PLATFORM)
   #include <LittleFS.h>
+#elif defined(PORTDUINO_PLATFORM)
+  #include <PortduinoFS.h>
 #elif defined(ESP32)
   #include <SPIFFS.h>
 #endif
@@ -90,7 +92,7 @@ class MyMesh : public BaseChatMesh, ContactVisitor {
 
   void loadContacts() {
     if (_fs->exists("/contacts")) {
-    #if defined(RP2040_PLATFORM)
+    #if defined(RP2040_PLATFORM) || defined(PORTDUINO_PLATFORM)
       File file = _fs->open("/contacts", "r");
     #else
       File file = _fs->open("/contacts");
@@ -129,7 +131,7 @@ class MyMesh : public BaseChatMesh, ContactVisitor {
 #if defined(NRF52_PLATFORM)
     _fs->remove("/contacts");
     File file = _fs->open("/contacts", FILE_O_WRITE);
-#elif defined(RP2040_PLATFORM)
+#elif defined(RP2040_PLATFORM) || defined(PORTDUINO_PLATFORM)
     File file = _fs->open("/contacts", "w");
 #else
     File file = _fs->open("/contacts", "w", true);
@@ -299,7 +301,7 @@ public:
 
   #if defined(NRF52_PLATFORM)
     IdentityStore store(fs, "");
-  #elif defined(RP2040_PLATFORM)
+  #elif defined(RP2040_PLATFORM) || defined(PORTDUINO_PLATFORM)
     IdentityStore store(fs, "/identity");
     store.begin();
   #else
@@ -324,7 +326,7 @@ public:
 
     // load persisted prefs
     if (_fs->exists("/node_prefs")) {
-    #if defined(RP2040_PLATFORM)
+    #if defined(RP2040_PLATFORM) || defined(PORTDUINO_PLATFORM)
       File file = _fs->open("/node_prefs", "r");
     #else
       File file = _fs->open("/node_prefs");
@@ -343,7 +345,7 @@ public:
 #if defined(NRF52_PLATFORM)
     _fs->remove("/node_prefs");
     File file = _fs->open("/node_prefs", FILE_O_WRITE);
-#elif defined(RP2040_PLATFORM)
+#elif defined(RP2040_PLATFORM) || defined(PORTDUINO_PLATFORM)
     File file = _fs->open("/node_prefs", "w");
 #else
     File file = _fs->open("/node_prefs", "w", true);
@@ -569,6 +571,8 @@ void setup() {
 #elif defined(RP2040_PLATFORM)
   LittleFS.begin();
   the_mesh.begin(LittleFS);
+#elif defined(PORTDUINO_PLATFORM)
+  the_mesh.begin(PortduinoFS);
 #elif defined(ESP32)
   SPIFFS.begin(true);
   the_mesh.begin(SPIFFS);
