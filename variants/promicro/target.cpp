@@ -21,6 +21,11 @@ AutoDiscoverRTCClock rtc_clock(fallback_clock);
 #ifdef DISPLAY_CLASS
   DISPLAY_CLASS display;
   MomentaryButton user_btn(PIN_USER_BTN, 1000, true, true);
+  #define UI_HAS_DISPLAY 1
+#endif
+
+#if defined(UI_HAS_DISPLAY) && defined(HAS_ENCODER)
+  EncoderAndButton encoder(PIN_ENC_A, PIN_ENC_B, PIN_ENCODER_BTN, 1200);
 #endif
 
 bool radio_init() {
