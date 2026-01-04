@@ -59,7 +59,7 @@ public:
   virtual const char* getBuildDate() = 0;
   virtual const char* getRole() = 0;
   virtual bool formatFileSystem() = 0;
-  virtual void sendSelfAdvertisement(int delay_millis) = 0;
+  virtual void sendSelfAdvertisement(int delay_millis, bool flood = true) = 0;
   virtual void updateAdvertTimer() = 0;
   virtual void updateFloodAdvertTimer() = 0;
   virtual void setLoggingOn(bool enable) = 0;
