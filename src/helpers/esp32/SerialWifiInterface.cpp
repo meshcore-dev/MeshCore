@@ -108,17 +108,8 @@ size_t SerialWifiInterface::checkRecvFrame(uint8_t dest[]) {
         if(client.available() >= frame_header_length){
 
           // read frame header
-          uint8_t frame_header[3];
-          client.readBytes(frame_header, frame_header_length);
-
-          // parse frame header
-          uint8_t frame_type = frame_header[0];
-          uint16_t frame_length;
-          memcpy(&frame_length, &frame_header[1], 2);
-
-          // we have received a frame header
-          received_frame_header.type = frame_type;
-          received_frame_header.length = frame_length;
+          client.readBytes(&received_frame_header.type, 1);
+          client.readBytes((uint8_t*)&received_frame_header.length, 2);
 
         }
 
@@ -161,12 +152,8 @@ size_t SerialWifiInterface::checkRecvFrame(uint8_t dest[]) {
           return 0;
         }
 
-        // read frame data
-        uint8_t frame_data[MAX_FRAME_SIZE];
-        client.readBytes(frame_data, frame_length);
-
-        // copy frame to provided buffer
-        memcpy(dest, frame_data, frame_length);
+        // read frame data to provided buffer
+        client.readBytes(dest, frame_length);
 
         // ready for next frame
         resetReceivedFrameHeader();
