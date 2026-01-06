@@ -36,7 +36,7 @@ void IkokaNrf52Board::begin() {
   pinMode(VBAT_ENABLE, OUTPUT);
   digitalWrite(VBAT_ENABLE, HIGH);
 
-  // required button pullup is handled as part of button initilization
+  // required button pullup is handled as part of button initialization
   // in target.cpp
 
 #if defined(PIN_WIRE_SDA) && defined(PIN_WIRE_SCL)
