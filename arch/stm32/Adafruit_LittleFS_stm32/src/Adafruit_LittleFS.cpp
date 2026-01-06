@@ -64,7 +64,7 @@ bool Adafruit_LittleFS::begin (struct lfs_config * cfg)
   _lockFS();
 
   bool ret;
-  // not a loop, just an quick way to short-circuit on error
+  // not a loop, just a quick way to short-circuit on error
   do {
     if (_mounted) { ret = true; break; }
     if (cfg) { _lfs_cfg = cfg; }
@@ -102,7 +102,7 @@ bool Adafruit_LittleFS::format (void)
 
   int err = LFS_ERR_OK;
   bool attemptMount = _mounted;
-  // not a loop, just an quick way to short-circuit on error
+  // not a loop, just a quick way to short-circuit on error
   do
   {
     // if already mounted: umount first -> format -> remount
