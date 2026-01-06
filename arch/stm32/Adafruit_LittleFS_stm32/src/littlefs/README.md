@@ -174,4 +174,4 @@ handy.
 
 [littlefs-js](https://github.com/geky/littlefs-js) - A javascript wrapper for
 littlefs. I'm not sure why you would want this, but it is handy for demos.
-You can see it in action [here](http://littlefs.geky.net/demo.html).
+You can [see it in action](http://littlefs.geky.net/demo.html).
