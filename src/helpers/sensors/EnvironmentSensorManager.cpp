@@ -600,7 +600,7 @@ void EnvironmentSensorManager::rakGPSInit(){
     return;
   }
 
-  #ifndef FORCE_GPS_ALIVE // for use with repeaters, until GPS toggle is implimented
+  #ifndef FORCE_GPS_ALIVE // for use with repeaters, until GPS toggle is implemented
   //Now that GPS is found and set up, set to sleep for initial state
   stop_gps();
   #endif
