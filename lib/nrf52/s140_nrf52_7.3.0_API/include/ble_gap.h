@@ -1934,7 +1934,7 @@ SVCALL(SD_BLE_GAP_ADV_SET_CONFIGURE, uint32_t, sd_ble_gap_adv_set_configure(uint
  *                                        tag has been reached; connectable advertiser cannot be started.
  *                                        To increase the number of available connections,
  *                                        use @ref sd_ble_cfg_set with @ref BLE_GAP_CFG_ROLE_COUNT or @ref BLE_CONN_CFG_GAP.
- * @retval ::BLE_ERROR_INVALID_ADV_HANDLE Advertising handle not found. Configure a new adveriting handle with @ref sd_ble_gap_adv_set_configure.
+ * @retval ::BLE_ERROR_INVALID_ADV_HANDLE Advertising handle not found. Configure a new advertising handle with @ref sd_ble_gap_adv_set_configure.
  * @retval ::NRF_ERROR_NOT_FOUND          conn_cfg_tag not found.
  * @retval ::NRF_ERROR_INVALID_PARAM      Invalid parameter(s) supplied:
  *                                        - Invalid configuration of p_adv_params. See @ref ble_gap_adv_params_t.
