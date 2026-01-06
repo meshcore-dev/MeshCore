@@ -450,7 +450,7 @@ In the case if users are moving around frequently, and the paths are breaking, t
 
 ### 5.4. Q: How does a node discovery a path to its destination and then use it to send messages in the future, instead of flooding every message it sends like Meshtastic?
 
-Routes are stored in sender's contact list.  When you send a message the first time, the message first gets to your destination by flood routing. When your destination node gets the message, it will send back a delivery report to the sender with all repeaters that the original message went through. This delivery report is flood-routed back to you the sender and is a basis for future direct path. When you send the next message, the path will get embedded into the packet and be evaluated by repeaters. If the hop and address of the repeater matches, it will retransmit the message; otherwise, it will not retransmit, hence minimizing utilization.
+Routes are stored in sender's contact list.  The first time you send a message, the message first gets to your destination by flood routing. When your destination node gets the message, it will send back a delivery report to the sender with all repeaters that the original message went through. This delivery report is flood-routed back to you the sender and is a basis for future direct path. When you send the next message, the path will get embedded into the packet and be evaluated by repeaters. If the hop and address of the repeater matches, it will retransmit the message; otherwise, it will not retransmit, hence minimizing utilization.
 
 [Source](https://discord.com/channels/826570251612323860/1330643963501351004/1351279141630119996)
 
