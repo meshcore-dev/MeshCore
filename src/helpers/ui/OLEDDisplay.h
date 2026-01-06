@@ -262,7 +262,7 @@ class OLEDDisplay : public Stream {
     // font settings
     uint16_t getStringWidth(const char* text, uint16_t length, bool utf8 = false);
 
-    // Convencience method for the const char version
+    // Convenience method for the const char version
     uint16_t getStringWidth(const String &text);
 
     // Specifies relative to which anchor point
