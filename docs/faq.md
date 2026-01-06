@@ -733,7 +733,7 @@ Allow the browser user on it:
 3. From the MeshCore app, login remotely to the repeater you want to update with admin privilege
 4. Go to the Command Line tab, type `start ota` and hit enter.
 5. you should see `OK` to confirm the repeater device is now in OTA mode
-6. Run the DFU app,tab `Settings` on the top right corner
+6. Run the DFU app, tab `Settings` on the top right corner
 7. Enable `Packets receipt notifications`, and change `Number of Packets` to 10 for RAK, 8 for T114.  8 also works for RAK.
 9. Select the firmware zip file you downloaded
 10. Select the device you want to update. If the device you want to update is not on the list, try enabling`OTA` on the device again
