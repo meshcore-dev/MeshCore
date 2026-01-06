@@ -96,7 +96,7 @@ void SerialBLEInterface::stopAdv() {
 
   BLE_DEBUG_PRINTLN("SerialBLEInterface: stopping advertising");
   
-  // we only want to stop advertising if it's running, otherwise an invalid state error is logged by ble stack
+  // we only want to stop advertising if it's running; otherwise, an invalid state error is logged by ble stack
   if(!Bluefruit.Advertising.isRunning()){
     return;
   }

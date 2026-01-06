@@ -438,7 +438,7 @@ static int lfs_dir_alloc(lfs_t *lfs, lfs_dir_t *dir) {
 
 static int lfs_dir_fetch(lfs_t *lfs,
         lfs_dir_t *dir, const lfs_block_t pair[2]) {
-    // copy out pair, otherwise may be aliasing dir
+    // copy out pair; otherwise, may be aliasing dir
     const lfs_block_t tpair[2] = {pair[0], pair[1]};
     bool valid = false;
 
