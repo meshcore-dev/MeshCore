@@ -273,7 +273,7 @@ __STATIC_INLINE uint32_t sd_nvic_critical_region_enter(uint8_t * p_is_nested_cri
 /**@brief Exit critical region.
  *
  * @pre Application has entered a critical region using ::sd_nvic_critical_region_enter.
- * @post If not in a nested critical region, the application interrupts will restored to the state before ::sd_nvic_critical_region_enter was called.
+ * @post If not in a nested critical region, the application interrupts will be restored to the state before ::sd_nvic_critical_region_enter was called.
  *
  * @param[in] is_nested_critical_region If this is set to 1, the critical region won't be exited. @sa sd_nvic_critical_region_enter.
  *
