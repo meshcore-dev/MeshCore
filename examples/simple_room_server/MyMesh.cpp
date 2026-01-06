@@ -39,7 +39,7 @@ struct ServerStats {
 };
 
 void MyMesh::addPost(ClientInfo *client, const char *postData) {
-  // TODO: suggested postData format: <title>/<descrption>
+  // TODO: suggested postData format: <title>/<description>
   posts[next_post_idx].author = client->id; // add to cyclic queue
   StrHelper::strncpy(posts[next_post_idx].text, postData, MAX_POST_TEXT_LEN);
 
