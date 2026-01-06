@@ -78,7 +78,7 @@ Returned path, request, response, and plain text messages are all formatted in t
 
 ## Returned path
 
-Returned path messages provide a description of the route a packet took from the original author. Receivers will send returned path messages to the author of the original message.
+Returned path messages provide a description of the route that a packet took from the original author. Receivers will send returned path messages to the author of the original message.
 
 | Field       | Size (bytes) | Description                                                                                  |
 |-------------|--------------|----------------------------------------------------------------------------------------------|
