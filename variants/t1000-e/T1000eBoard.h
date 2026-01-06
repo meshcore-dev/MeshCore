@@ -34,7 +34,7 @@ public:
   }
 
   const char* getManufacturerName() const override {
-    return "Seeed Tracker T1000-e";
+    return "Seeed Tracker T1000-E";
   }
 
   int buttonStateChanged() {
