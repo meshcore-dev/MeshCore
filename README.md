@@ -106,7 +106,7 @@ There are a number of fairly major features in the pipeline, with no particular 
 - [ ] Core + Apps: support for LZW message compression
 - [ ] Core: dynamic CR (Coding Rate) for weak vs strong hops
 - [ ] Core: new framework for hosting multiple virtual nodes on one physical device
-- [ ] V2 protocol spec: discussion and concensus around V2 packet protocol, including path hashes, new encryption specs, etc
+- [ ] V2 protocol spec: discussion and consensus around V2 packet protocol, including path hashes, new encryption specs, etc
 
 ## 📞 Get Support
 
