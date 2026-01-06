@@ -317,7 +317,7 @@ class OLEDDisplay : public Stream {
     // Log buffer implementation
 
     // This will define the lines and characters you can
-    // print to the screen. When you exeed the buffer size (lines * chars)
+    // print to the screen. When you exceed the buffer size (lines * chars)
     // the output may be truncated due to the size constraint.
     bool setLogBuffer(uint16_t lines, uint16_t chars);
 
