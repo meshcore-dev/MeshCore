@@ -935,7 +935,7 @@ SVCALL(SD_TEMP_GET, uint32_t, sd_temp_get(int32_t * p_temp));
 * @param[in]  size  Number of 32-bit words to write. Maximum size is the number of words in one
 *                   flash page. See the device's Product Specification for details.
 *
-* @retval ::NRF_ERROR_INVALID_ADDR   Tried to write to a non existing flash address, or p_dst or p_src was unaligned.
+* @retval ::NRF_ERROR_INVALID_ADDR   Tried to write to a nonexistent flash address, or p_dst or p_src was unaligned.
 * @retval ::NRF_ERROR_BUSY           The previous command has not yet completed.
 * @retval ::NRF_ERROR_INVALID_LENGTH Size was 0, or higher than the maximum allowed size.
 * @retval ::NRF_ERROR_FORBIDDEN      Tried to write to an address outside the application flash area.
@@ -968,7 +968,7 @@ SVCALL(SD_FLASH_WRITE, uint32_t, sd_flash_write(uint32_t * p_dst, uint32_t const
 * @param[in]  page_number           Page number of the page to erase
 *
 * @retval ::NRF_ERROR_INTERNAL      If a new session could not be opened due to an internal error.
-* @retval ::NRF_ERROR_INVALID_ADDR  Tried to erase to a non existing flash page.
+* @retval ::NRF_ERROR_INVALID_ADDR  Tried to erase to a nonexistent flash page.
 * @retval ::NRF_ERROR_BUSY          The previous command has not yet completed.
 * @retval ::NRF_ERROR_FORBIDDEN     Tried to erase a page outside the application flash area.
 * @retval ::NRF_SUCCESS             The command was accepted.
