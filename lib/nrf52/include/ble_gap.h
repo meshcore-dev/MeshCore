@@ -1465,7 +1465,7 @@ typedef union
  *       The time taken may be different for each connection and the get operation will
  *       return the previous channel map until the new one has taken effect.
  *
- * @note After setting the channel map, by spec it can not be set again until at least 1 s has passed.
+ * @note After setting the channel map, by spec it cannot be set again until at least 1 s has passed.
  *       See Bluetooth Specification Version 4.1 Volume 2, Part E, Section 7.3.46.
  *
  * @retval ::NRF_SUCCESS Get or set successful.

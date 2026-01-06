@@ -21,7 +21,7 @@ storage on disk is always kept in a valid state.
 
 **Wear leveling** - Since the most common form of embedded storage is erodible
 flash memories, littlefs provides a form of dynamic wear leveling for systems
-that can not fit a full flash translation layer.
+that cannot fit a full flash translation layer.
 
 ## Example
 
@@ -123,7 +123,7 @@ integrity.
 
 If your storage caches writes, make sure that the provided `sync` function
 flushes all the data to memory and ensures that the next read fetches the data
-from memory; otherwise, data integrity can not be guaranteed. If the `write`
+from memory; otherwise, data integrity cannot be guaranteed. If the `write`
 function does not perform caching, and therefore each `read` or `write` call
 hits the memory, the `sync` function can simply return 0.
 

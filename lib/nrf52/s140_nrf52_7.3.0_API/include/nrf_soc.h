@@ -1064,7 +1064,7 @@ SVCALL(SD_FLASH_PAGE_ERASE, uint32_t, sd_flash_page_erase(uint32_t page_number))
  * @param[in]  p_register Pointer to register to be written.
  * @param[in]  value Value to be written to the register.
  *
- * @retval ::NRF_ERROR_INVALID_ADDR This function can not write to the reguested register.
+ * @retval ::NRF_ERROR_INVALID_ADDR This function cannot write to the reguested register.
  * @retval ::NRF_SUCCESS Value successfully written to register.
  *
  */
