@@ -31,7 +31,7 @@
 
  /*
   * TODO Helmut
-  * - test/finish dislplay.printf() on mbed-os
+  * - test/finish display.printf() on mbed-os
   * - Finish _putc with drawLogBuffer when running display
   */
 
