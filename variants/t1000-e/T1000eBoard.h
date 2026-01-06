@@ -36,7 +36,7 @@ public:
   uint8_t getStartupReason() const override { return startup_reason; }
 
   const char* getManufacturerName() const override {
-    return "Seeed Tracker T1000-e";
+    return "Seeed Tracker T1000-E";
   }
 
   int buttonStateChanged() {
