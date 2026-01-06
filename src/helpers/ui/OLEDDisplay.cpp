@@ -842,7 +842,7 @@ void OLEDDisplay::drawLogBuffer(uint16_t xMove, uint16_t yMove) {
   uint16_t lastPos  = 0;
 
   for (uint16_t i=0;i<this->logBufferFilled;i++){
-    // Everytime we have a \n print
+    // Every time we have a \n print
     if (this->logBuffer[i] == 10) {
       length++;
       // Draw string on line `line` from lastPos to length
