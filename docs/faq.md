@@ -518,10 +518,10 @@ Andy also has a video on how to build using VS Code:
 
 ### 5.10. Q: Are there other MeshCore related open source projects?
 
-**A:** [Liam Cottle](https://liamcottle.net)'s MeshCore web client and MeshCore Javascript library are open source under MIT license.
+**A:** [Liam Cottle](https://liamcottle.net)'s MeshCore web client and MeshCore JavaScript library are open source under MIT license.
 
 Web client: https://github.com/liamcottle/meshcore-web
-Javascript: https://github.com/liamcottle/meshcore.js
+JavaScript: https://github.com/liamcottle/meshcore.js
 
 ### 5.11. Q: Does MeshCore support ATAK
 **A:** ATAK is not currently on MeshCore's roadmap.
