@@ -63,14 +63,14 @@ public:
   void sign(uint8_t* sig, const uint8_t* message, int msg_len) const;
 
   /**
-   * \brief  the ECDH key exhange, with Ed25519 public key transposed to Ex25519.
+   * \brief  the ECDH key exchange, with Ed25519 public key transposed to Ex25519.
    * \param  secret OUT - the 'shared secret' (must be PUB_KEY_SIZE bytes)
    * \param  other IN - the second party in the exchange.
   */
   void calcSharedSecret(uint8_t* secret, const Identity& other) const { calcSharedSecret(secret, other.pub_key); }
 
   /**
-   * \brief  the ECDH key exhange, with Ed25519 public key transposed to Ex25519.
+   * \brief  the ECDH key exchange, with Ed25519 public key transposed to Ex25519.
    * \param  secret OUT - the 'shared secret' (must be PUB_KEY_SIZE bytes)
    * \param  other_pub_key IN - the public key of second party in the exchange (must be PUB_KEY_SIZE bytes)
   */
