@@ -118,7 +118,7 @@ External serial flash W25Q16JV_IQ
 // This is used as an *output* from the sx1262 and connected internally to power the tcxo, do not drive from the main CPU?
 #define SX126X_BUSY (32 + 11)
 #define SX126X_RESET (32 + 15)
-//  DIO2 controlls an antenna switch and the TCXO voltage is controlled by DIO3
+//  DIO2 controls an antenna switch and the TCXO voltage is controlled by DIO3
 #define SX126X_DIO2_AS_RF_SWITCH
 #define SX126X_DIO3_TCXO_VOLTAGE 1.8
 
