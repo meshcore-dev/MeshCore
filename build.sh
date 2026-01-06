@@ -46,7 +46,7 @@ get_pio_envs() {
   echo $(pio project config | grep 'env:' | sed 's/env://')
 }
 
-# $1 should be the string to find (case insensitive)
+# $1 should be the string to find (case-insensitive)
 get_pio_envs_containing_string() {
   shopt -s nocasematch
   envs=($(get_pio_envs))
@@ -57,7 +57,7 @@ get_pio_envs_containing_string() {
   done
 }
 
-# $1 should be the string to find (case insensitive)
+# $1 should be the string to find (case-insensitive)
 get_pio_envs_ending_with_string() {
   shopt -s nocasematch
   envs=($(get_pio_envs))
