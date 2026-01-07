@@ -356,8 +356,9 @@ bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
       }
     }
 
-    // Check max hops for advert packets (0 = no limit)
-    if (_prefs.advert_max_hops > 0 && packet->path_len > _prefs.advert_max_hops) {
+    // Check max hops for flood-mode advert packets (0 = no limit)
+    // path_len is only meaningful for flood packets, not direct-mode packets
+    if (packet->isRouteFlood() && _prefs.advert_max_hops > 0 && packet->path_len > _prefs.advert_max_hops) {
       MESH_DEBUG_PRINTLN("allowPacketForward: advert exceeded max hops (%d > %d)",
                         packet->path_len, _prefs.advert_max_hops);
       return false;
