@@ -1,12 +1,13 @@
 #pragma once
 
 #define RADIOLIB_STATIC_ONLY 1
+#include <../heltec_v3/HeltecV3Board.h>
 #include <RadioLib.h>
-#include <helpers/radiolib/RadioLibWrappers.h>
-#include <ThinkNodeM6Board.h>
-#include <helpers/radiolib/CustomSX1262Wrapper.h>
 #include <helpers/AutoDiscoverRTCClock.h>
 #include <helpers/SensorManager.h>
+#include <helpers/radiolib/CustomSX1262Wrapper.h>
+#include <helpers/radiolib/RadioLibWrappers.h>
+#include <ThinkNodeM6Board.h>
 #include <helpers/sensors/EnvironmentSensorManager.h>
 #include <helpers/sensors/LocationProvider.h>
 #ifdef DISPLAY_CLASS
