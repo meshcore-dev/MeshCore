@@ -27,7 +27,7 @@
 #define LED_GREEN               (12)
 #define LED_BLUE                (11)
 
-#define LED_STATE_ON            (1)     // State when LED is litted
+#define LED_STATE_ON            (1)     // State when LED is lit
 
 // Buttons
 #define PIN_BUTTON1             (13)
