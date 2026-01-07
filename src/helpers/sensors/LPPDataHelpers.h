@@ -142,7 +142,7 @@ public:
       case LPP_GPS:
         _pos += 9; break;
       case LPP_POLYLINE:
-        _pos += 8; break;  // TODO: this is MINIMIUM
+        _pos += 8; break;  // TODO: this is MINIMUM
       case LPP_GYROMETER:
       case LPP_ACCELEROMETER:
         _pos += 6; break;
