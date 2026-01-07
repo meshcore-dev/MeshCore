@@ -643,6 +643,18 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
           _prefs->adc_multiplier = 0.0f;
           strcpy(reply, "Error: unsupported by this board");
         };
+      } else if (memcmp(config, "repeat on", 9) == 0) {
+        // Turn all packet types ON (set all bits)
+        _prefs->repeat_packet_types = 0xFFFF;
+        _prefs->disable_fwd = false;  // Sync for downgrade compatibility
+        savePrefs();
+        strcpy(reply, "OK - all packet types will be repeated");
+      } else if (memcmp(config, "repeat off", 10) == 0) {
+        // Turn all packet types OFF (clear all bits)
+        _prefs->repeat_packet_types = 0x0000;
+        _prefs->disable_fwd = true;  // Sync for downgrade compatibility
+        savePrefs();
+        strcpy(reply, "OK - all packet types will not be repeated");
       } else if (memcmp(config, "repeat ", 7) == 0) {
         const char* rest = &config[7];
 
@@ -761,18 +773,6 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
             strcpy(reply, "Error: format is 'set repeat <type> on/off'");
           }
         }
-      } else if (memcmp(config, "repeat on", 9) == 0) {
-        // Turn all packet types ON (set all bits)
-        _prefs->repeat_packet_types = 0xFFFF;
-        _prefs->disable_fwd = false;  // Sync for downgrade compatibility
-        savePrefs();
-        strcpy(reply, "OK - all packet types will be repeated");
-      } else if (memcmp(config, "repeat off", 10) == 0) {
-        // Turn all packet types OFF (clear all bits)
-        _prefs->repeat_packet_types = 0x0000;
-        _prefs->disable_fwd = true;  // Sync for downgrade compatibility
-        savePrefs();
-        strcpy(reply, "OK - all packet types will not be repeated");
       } else {
         sprintf(reply, "unknown config: %s", config);
       }
