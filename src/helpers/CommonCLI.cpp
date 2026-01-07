@@ -695,6 +695,15 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
                 if (adv_type_idx >= 0) {
                 if (memcmp(state, "on", 2) == 0) {
                   _prefs->repeat_advert_types |= (1 << adv_type_idx);
+
+                  // Automatically enable advert packet type if it's off
+                  if ((_prefs->repeat_packet_types & (1 << PAYLOAD_TYPE_ADVERT)) == 0) {
+                    _prefs->repeat_packet_types |= (1 << PAYLOAD_TYPE_ADVERT);
+                  }
+
+                  // Sync disable_fwd for downgrade compatibility
+                  _prefs->disable_fwd = (_prefs->repeat_packet_types != 0xFFFF);
+
                   savePrefs();
                   sprintf(reply, "OK - %s adverts will be repeated", adv_type_name);
                 } else if (memcmp(state, "off", 3) == 0) {
