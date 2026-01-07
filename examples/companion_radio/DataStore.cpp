@@ -522,7 +522,7 @@ bool DataStore::putBlobByKey(const uint8_t key[], int key_len, const uint8_t src
     uint32_t pos = 0, found_pos = 0;
     uint32_t min_timestamp = 0xFFFFFFFF;
 
-    // search for matching key OR evict by oldest timestmap
+    // search for matching key OR evict by oldest timestamp
     BlobRec tmp;
     file.seek(0);
     while (file.read((uint8_t *) &tmp, sizeof(tmp)) == sizeof(tmp)) {
