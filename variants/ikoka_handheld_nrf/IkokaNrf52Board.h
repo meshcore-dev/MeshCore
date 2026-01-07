@@ -23,7 +23,7 @@ public:
 #endif
 
   uint16_t getBattMilliVolts() override {
-    // Please read befor going further ;)
+    // Please read before going further ;)
     // https://wiki.seeedstudio.com/XIAO_BLE#q3-what-are-the-considerations-when-using-xiao-nrf52840-sense-for-battery-charging
 
     // We can't drive VBAT_ENABLE to HIGH as long
