@@ -176,7 +176,7 @@ bool TBeamBoard::power_init()
     PMU->setProtectedChannel(XPOWERS_DCDC1);          //Protect the OLED power rail
     PMU->setProtectedChannel(XPOWERS_DCDC3);          //Protect the ESP32 power rail
 
-    PMU->disablePowerOutput(XPOWERS_DCDC2);           //Disable unsused power rail DC2
+    PMU->disablePowerOutput(XPOWERS_DCDC2);           //Disable unused power rail DC2
 
     PMU->disableIRQ(XPOWERS_AXP192_ALL_IRQ);          //Disable PMU IRQ
 
