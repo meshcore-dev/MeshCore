@@ -556,7 +556,7 @@ void EnvironmentSensorManager::initBasicGPS() {
 
   if (gps_detected) {
     MESH_DEBUG_PRINTLN("GPS detected");
-    #ifdef PERSISTANT_GPS
+    #ifdef PERSISTENT_GPS
       gps_active = true;
       return;
     #endif
