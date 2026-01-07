@@ -179,7 +179,7 @@ class ST7789Spi : public OLEDDisplay {
        }
 
        // If the minBoundY wasn't updated
-       // we can savely assume that buffer_back[pos] == buffer[pos]
+       // we can safely assume that buffer_back[pos] == buffer[pos]
        // holds true for all values of pos
        if (minBoundY == UINT16_MAX) return;
 
