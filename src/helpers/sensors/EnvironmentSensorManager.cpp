@@ -567,7 +567,7 @@ void EnvironmentSensorManager::initBasicGPS() {
   gps_active = false; //Set GPS visibility off until setting is changed
 }
 
-// gps code for rak might be moved to MicroNMEALoactionProvider
+// gps code for rak might be moved to MicroNMEALocationProvider
 // or make a new location provider ...
 #ifdef RAK_WISBLOCK_GPS
 void EnvironmentSensorManager::rakGPSInit(){
