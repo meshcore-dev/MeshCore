@@ -924,7 +924,7 @@ void MyMesh::handleCmdFrame(size_t len) {
     } else {
       writeErrFrame(recipient == NULL
                         ? ERR_CODE_NOT_FOUND
-                        : ERR_CODE_UNSUPPORTED_CMD); // unknown recipient, or unsuported TXT_TYPE_*
+                        : ERR_CODE_UNSUPPORTED_CMD); // unknown recipient, or unsupported TXT_TYPE_*
     }
   } else if (cmd_frame[0] == CMD_SEND_CHANNEL_TXT_MSG) { // send GroupChannel msg
     int i = 1;
