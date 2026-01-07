@@ -61,7 +61,7 @@
 
 #define LPP_ERROR_OK 0
 #define LPP_ERROR_OVERFLOW 1
-#define LPP_ERROR_UNKOWN_TYPE 2
+#define LPP_ERROR_UNKNOWN_TYPE 2
 
 class LPPReader {
   const uint8_t* _buf;
