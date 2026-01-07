@@ -497,7 +497,7 @@ void MyMesh::onAdvertRecv(mesh::Packet *packet, const mesh::Identity &id, uint32
   // if this a zero hop advert (and not via 'Share'), add it to neighbours
   if (packet->path_len == 0 && !isShare(packet)) {
     AdvertDataParser parser(app_data, app_data_len);
-    if (parser.isValid() && parser.getType() == ADV_TYPE_REPEATER) { // just keep neigbouring Repeaters
+    if (parser.isValid() && parser.getType() == ADV_TYPE_REPEATER) { // just keep neighbouring Repeaters
       putNeighbour(id, timestamp, packet->getSNR());
     }
   }
