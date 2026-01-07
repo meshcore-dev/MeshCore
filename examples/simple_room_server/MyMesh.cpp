@@ -284,7 +284,7 @@ void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const m
                                                            // client (unknown at this stage)
     uint32_t sender_timestamp, sender_sync_since;
     memcpy(&sender_timestamp, data, 4);
-    memcpy(&sender_sync_since, &data[4], 4); // sender's "sync messags SINCE x" timestamp
+    memcpy(&sender_sync_since, &data[4], 4); // sender's "sync messages SINCE x" timestamp
 
     data[len] = 0;                                        // ensure null terminator
 
