@@ -213,7 +213,7 @@ bool TBeamBoard::power_init()
       PMU->setPowerChannelVoltage(XPOWERS_ALDO1, 3300);
       PMU->enablePowerOutput(XPOWERS_ALDO1);
 
-      //Set up pwer rail for SD Card
+      //Set up power rail for SD Card
       PMU->setPowerChannelVoltage(XPOWERS_BLDO1, 3300);
       PMU->enablePowerOutput(XPOWERS_BLDO1);
 
