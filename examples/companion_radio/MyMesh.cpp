@@ -24,7 +24,7 @@
 #define CMD_REBOOT                    19
 #define CMD_GET_BATT_AND_STORAGE      20   // was CMD_GET_BATTERY_VOLTAGE
 #define CMD_SET_TUNING_PARAMS         21
-#define CMD_DEVICE_QEURY              22
+#define CMD_DEVICE_QUERY              22
 #define CMD_EXPORT_PRIVATE_KEY        23
 #define CMD_IMPORT_PRIVATE_KEY        24
 #define CMD_SEND_RAW_DATA             25
@@ -72,7 +72,7 @@
 #define RESP_CODE_NO_MORE_MESSAGES    10 // a reply to CMD_SYNC_NEXT_MESSAGE
 #define RESP_CODE_EXPORT_CONTACT      11
 #define RESP_CODE_BATT_AND_STORAGE    12 // a reply to a CMD_GET_BATT_AND_STORAGE
-#define RESP_CODE_DEVICE_INFO         13 // a reply to CMD_DEVICE_QEURY
+#define RESP_CODE_DEVICE_INFO         13 // a reply to CMD_DEVICE_QUERY
 #define RESP_CODE_PRIVATE_KEY         14 // a reply to CMD_EXPORT_PRIVATE_KEY
 #define RESP_CODE_DISABLED            15
 #define RESP_CODE_CONTACT_MSG_RECV_V3 16 // a reply to CMD_SYNC_NEXT_MESSAGE (ver >= 3)
@@ -821,7 +821,7 @@ void MyMesh::startInterface(BaseSerialInterface &serial) {
 }
 
 void MyMesh::handleCmdFrame(size_t len) {
-  if (cmd_frame[0] == CMD_DEVICE_QEURY && len >= 2) { // sent when app establishes connection
+  if (cmd_frame[0] == CMD_DEVICE_QUERY && len >= 2) { // sent when app establishes connection
     app_target_ver = cmd_frame[1];                    // which version of protocol does app understand
 
     int i = 0;
