@@ -2,6 +2,7 @@
 #include "CommonCLI.h"
 #include "TxtDataHelpers.h"
 #include "AdvertDataHelpers.h"
+#include "PacketTypeNames.h"
 #include <RTClib.h>
 
 // Believe it or not, this std C function is busted on some platforms!
@@ -72,7 +73,9 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     file.read((uint8_t *)&_prefs->advert_loc_policy, sizeof (_prefs->advert_loc_policy));          // 161
     file.read((uint8_t *)&_prefs->discovery_mod_timestamp, sizeof(_prefs->discovery_mod_timestamp)); // 162
     file.read((uint8_t *)&_prefs->adc_multiplier, sizeof(_prefs->adc_multiplier)); // 166
-    // 170
+    file.read((uint8_t *)&_prefs->repeat_packet_types, sizeof(_prefs->repeat_packet_types)); // 170
+    file.read((uint8_t *)&_prefs->repeat_advert_types, sizeof(_prefs->repeat_advert_types)); // 172
+    // 173
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -99,7 +102,25 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     _prefs->gps_enabled = constrain(_prefs->gps_enabled, 0, 1);
     _prefs->advert_loc_policy = constrain(_prefs->advert_loc_policy, 0, 2);
 
+    // Validate packet repeat bitmask - ensure no bits set beyond valid packet types
+    uint16_t valid_mask = (1 << mesh::MAX_PACKET_TYPES) - 1;
+    _prefs->repeat_packet_types &= valid_mask;
+
+    // Validate advert repeat bitmask - ensure no bits set beyond valid advert types
+    uint8_t valid_adv_mask = (1 << mesh::MAX_ADVERT_TYPES) - 1;
+    _prefs->repeat_advert_types &= valid_adv_mask;
+
     file.close();
+
+    // Migrate legacy disable_fwd to new granular filtering system
+    if (_prefs->disable_fwd && _prefs->repeat_packet_types == 0xFFFF) {
+      // Old firmware had disable_fwd=true but new filtering not configured yet
+      // Migrate: clear all bits to block all packet types (bit=1 means allow)
+      _prefs->repeat_packet_types = 0x0000;  // Block all packet types
+      savePrefs();  // Persist migration immediately
+    }
+    // Note: We keep disable_fwd in sync with filtering state for downgrade compatibility
+    // If repeat_packet_types != 0xFFFF (any filtering), keep disable_fwd=true for old firmware
   }
 }
 
@@ -155,7 +176,9 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->advert_loc_policy, sizeof(_prefs->advert_loc_policy));           // 161
     file.write((uint8_t *)&_prefs->discovery_mod_timestamp, sizeof(_prefs->discovery_mod_timestamp)); // 162
     file.write((uint8_t *)&_prefs->adc_multiplier, sizeof(_prefs->adc_multiplier));                 // 166
-    // 170
+    file.write((uint8_t *)&_prefs->repeat_packet_types, sizeof(_prefs->repeat_packet_types));       // 170
+    file.write((uint8_t *)&_prefs->repeat_advert_types, sizeof(_prefs->repeat_advert_types));       // 172
+    // 173
 
     file.close();
   }
@@ -282,8 +305,70 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         sprintf(reply, "> %s", tmp);
       } else if (memcmp(config, "name", 4) == 0) {
         sprintf(reply, "> %s", _prefs->node_name);
-      } else if (memcmp(config, "repeat", 6) == 0) {
-        sprintf(reply, "> %s", _prefs->disable_fwd ? "off" : "on");
+      } else if (memcmp(config, "repeat advert", 13) == 0 && (config[13] == 0 || config[13] == ' ')) {
+        // Show which advert sub-types are allowed to repeat
+        reply[0] = '>';
+        reply[1] = ' ';
+        int pos = 2;
+        bool has_any = false;
+
+        for (int i = 0; i < mesh::MAX_ADVERT_TYPES; i++) {
+          if ((_prefs->repeat_advert_types & (1 << i)) != 0) {
+            const char* name = mesh::getAdvertTypeName(i);
+            int len = strlen(name);
+
+            if (pos + (has_any ? 1 : 0) + len + 1 >= 160) {
+              strcpy(&reply[pos], "...");
+              pos += 3;
+              break;
+            }
+
+            if (has_any) {
+              reply[pos++] = ',';
+            }
+            strcpy(&reply[pos], name);
+            pos += len;
+            has_any = true;
+          }
+        }
+
+        if (!has_any) {
+          strcpy(&reply[2], "all filtered");
+        } else {
+          reply[pos] = 0;
+        }
+      } else if (memcmp(config, "repeat", 6) == 0 && (config[6] == 0 || config[6] == ' ')) {
+        // Show which packet types are being repeated
+        reply[0] = '>';
+        reply[1] = ' ';
+        int pos = 2;
+        bool has_any = false;
+
+        for (int i = 0; i < mesh::MAX_PACKET_TYPES; i++) {
+          if ((_prefs->repeat_packet_types & (1 << i)) != 0) {  // If bit set, it's being repeated
+            const char* name = mesh::getPacketTypeName(i);
+            int len = strlen(name);
+
+            if (pos + (has_any ? 1 : 0) + len + 1 >= 160) {
+              strcpy(&reply[pos], "...");
+              pos += 3;
+              break;
+            }
+
+            if (has_any) {
+              reply[pos++] = ',';
+            }
+            strcpy(&reply[pos], name);
+            pos += len;
+            has_any = true;
+          }
+        }
+
+        if (!has_any) {
+          strcpy(&reply[2], "all filtered");
+        } else {
+          reply[pos] = 0;
+        }
       } else if (memcmp(config, "lat", 3) == 0) {
         sprintf(reply, "> %s", StrHelper::ftoa(_prefs->node_lat));
       } else if (memcmp(config, "lon", 3) == 0) {
@@ -413,10 +498,6 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         StrHelper::strncpy(_prefs->node_name, &config[5], sizeof(_prefs->node_name));
         savePrefs();
         strcpy(reply, "OK");
-      } else if (memcmp(config, "repeat ", 7) == 0) {
-        _prefs->disable_fwd = memcmp(&config[7], "off", 3) == 0;
-        savePrefs();
-        strcpy(reply, _prefs->disable_fwd ? "OK - repeat is now OFF" : "OK - repeat is now ON");
       } else if (memcmp(config, "radio ", 6) == 0) {
         strcpy(tmp, &config[6]);
         const char *parts[4];
@@ -550,6 +631,116 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
           _prefs->adc_multiplier = 0.0f;
           strcpy(reply, "Error: unsupported by this board");
         };
+      } else if (memcmp(config, "repeat ", 7) == 0) {
+        const char* rest = &config[7];
+
+        // Check for advert sub-type commands: "repeat advert.sensor on/off"
+        if (memcmp(rest, "advert.", 7) == 0) {
+          const char* adv_type_and_state = &rest[7];
+          // Find space separating type from on/off
+          const char* space_pos = strchr(adv_type_and_state, ' ');
+          if (space_pos != NULL) {
+            int type_len = space_pos - adv_type_and_state;
+            char adv_type_name[16];
+            if (type_len < 16) {
+              memcpy(adv_type_name, adv_type_and_state, type_len);
+              adv_type_name[type_len] = 0;
+
+              const char* state = space_pos + 1;
+              int adv_type_idx = mesh::findAdvertTypeByName(adv_type_name);
+
+              if (adv_type_idx >= 0) {
+                if (memcmp(state, "on", 2) == 0) {
+                  _prefs->repeat_advert_types |= (1 << adv_type_idx);
+                  savePrefs();
+                  sprintf(reply, "OK - %s adverts will be repeated", adv_type_name);
+                } else if (memcmp(state, "off", 3) == 0) {
+                  _prefs->repeat_advert_types &= ~(1 << adv_type_idx);
+                  savePrefs();
+                  sprintf(reply, "OK - %s adverts will not be repeated", adv_type_name);
+                } else {
+                  strcpy(reply, "Error: use 'on' or 'off'");
+                }
+              } else {
+                strcpy(reply, "Error: unknown advert type (use: none,chat,repeater,room,sensor)");
+              }
+            } else {
+              strcpy(reply, "Error: advert type name too long");
+            }
+          } else {
+            strcpy(reply, "Error: format is 'set repeat advert.<type> on/off'");
+          }
+        }
+        // Check for packet type commands: "repeat advert on/off", "repeat grp.txt on/off"
+        else {
+          // Find space separating type from on/off
+          const char* space_pos = strchr(rest, ' ');
+          if (space_pos != NULL) {
+            int type_len = space_pos - rest;
+            char type_name[16];
+            if (type_len < 16) {
+              memcpy(type_name, rest, type_len);
+              type_name[type_len] = 0;
+
+              const char* state = space_pos + 1;
+              int type_idx = mesh::findPacketTypeByName(type_name);
+
+              if (type_idx >= 0) {
+                if (memcmp(state, "on", 2) == 0) {
+                  _prefs->repeat_packet_types |= (1 << type_idx);  // Set bit = repeat ON
+
+                  // Special handling for advert: enable all advert sub-types
+                  if (type_idx == PAYLOAD_TYPE_ADVERT) {
+                    _prefs->repeat_advert_types = (1 << mesh::MAX_ADVERT_TYPES) - 1;  // All bits set
+                  }
+
+                  // Sync disable_fwd for downgrade compatibility
+                  _prefs->disable_fwd = (_prefs->repeat_packet_types != 0xFFFF);
+
+                  savePrefs();
+                  sprintf(reply, "OK - %s packets will be repeated", type_name);
+                } else if (memcmp(state, "off", 3) == 0) {
+                  _prefs->repeat_packet_types &= ~(1 << type_idx);   // Clear bit = repeat OFF
+
+                  // Special handling for advert: clear all advert sub-types
+                  if (type_idx == PAYLOAD_TYPE_ADVERT) {
+                    _prefs->repeat_advert_types = 0x00;  // All bits clear
+                  }
+
+                  // Sync disable_fwd for downgrade compatibility
+                  _prefs->disable_fwd = (_prefs->repeat_packet_types != 0xFFFF);
+
+                  savePrefs();
+                  if (type_idx == PAYLOAD_TYPE_ADVERT) {
+                    sprintf(reply, "OK - %s packets will not be repeated (use 'set repeat advert.<type> on' for exceptions)", type_name);
+                  } else {
+                    sprintf(reply, "OK - %s packets will not be repeated", type_name);
+                  }
+                } else {
+                  strcpy(reply, "Error: use 'on' or 'off'");
+                }
+              } else {
+                strcpy(reply, "Error: unknown type (use: req,resp,txt,ack,advert,grp.txt,grp.data,anon,path,trace,multi,control,raw)");
+              }
+            } else {
+              strcpy(reply, "Error: packet type name too long");
+            }
+          } else {
+            strcpy(reply, "Error: format is 'set repeat <type> on/off'");
+          }
+        }
+      } else if (memcmp(config, "repeat on", 9) == 0) {
+        // Turn all packet types ON (set all bits)
+        _prefs->repeat_packet_types = 0xFFFF;
+        _prefs->disable_fwd = false;  // Sync for downgrade compatibility
+        savePrefs();
+        strcpy(reply, "OK - all packet types will be repeated");
+      } else if (memcmp(config, "repeat off", 10) == 0) {
+        // Turn all packet types OFF (clear all bits)
+        _prefs->repeat_packet_types = 0x0000;
+        _prefs->disable_fwd = true;  // Sync for downgrade compatibility
+        savePrefs();
+        strcpy(reply, "OK - all packet types will not be repeated");
       } else {
         sprintf(reply, "unknown config: %s", config);
       }
