@@ -284,7 +284,7 @@ Reboot the repeater after `set prv.key <hex>` command for the new private key to
 
 ### 3.7. Q: My repeater maybe suffering from deafness due to high power interference near my mesh's frequency, it is not hearing other in-range MeshCore radios.  what can I do?
 
-**A:** This may be due to the SX1262 radio's auto gain control feature.  You can use this command to preiodically reset its AGC.  
+**A:** This may be due to the SX1262 radio's auto gain control feature.  You can use this command to periodically reset its AGC.  
 
 `set agc.reset.interval <number>`
 
