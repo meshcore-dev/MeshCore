@@ -75,7 +75,8 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     file.read((uint8_t *)&_prefs->adc_multiplier, sizeof(_prefs->adc_multiplier)); // 166
     file.read((uint8_t *)&_prefs->repeat_packet_types, sizeof(_prefs->repeat_packet_types)); // 170
     file.read((uint8_t *)&_prefs->repeat_advert_types, sizeof(_prefs->repeat_advert_types)); // 172
-    // 173
+    file.read((uint8_t *)&_prefs->advert_max_hops, sizeof(_prefs->advert_max_hops)); // 173
+    // 174
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -109,6 +110,9 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     // Validate advert repeat bitmask - ensure no bits set beyond valid advert types
     uint8_t valid_adv_mask = (1 << mesh::MAX_ADVERT_TYPES) - 1;
     _prefs->repeat_advert_types &= valid_adv_mask;
+
+    // Validate advert max hops (0 = no limit, otherwise 1-255)
+    // No validation needed since uint8_t naturally constrains to 0-255
 
     file.close();
 
@@ -178,7 +182,8 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->adc_multiplier, sizeof(_prefs->adc_multiplier));                 // 166
     file.write((uint8_t *)&_prefs->repeat_packet_types, sizeof(_prefs->repeat_packet_types));       // 170
     file.write((uint8_t *)&_prefs->repeat_advert_types, sizeof(_prefs->repeat_advert_types));       // 172
-    // 173
+    file.write((uint8_t *)&_prefs->advert_max_hops, sizeof(_prefs->advert_max_hops));               // 173
+    // 174
 
     file.close();
   }
@@ -305,6 +310,13 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         sprintf(reply, "> %s", tmp);
       } else if (memcmp(config, "name", 4) == 0) {
         sprintf(reply, "> %s", _prefs->node_name);
+      } else if (memcmp(config, "repeat advert.max_hops", 22) == 0) {
+        // Show max hops for advert packets
+        if (_prefs->advert_max_hops == 0) {
+          sprintf(reply, "> unlimited");
+        } else {
+          sprintf(reply, "> %d", _prefs->advert_max_hops);
+        }
       } else if (memcmp(config, "repeat advert", 13) == 0 && (config[13] == 0 || config[13] == ' ')) {
         // Show which advert sub-types are allowed to repeat
         reply[0] = '>';
@@ -634,22 +646,41 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
       } else if (memcmp(config, "repeat ", 7) == 0) {
         const char* rest = &config[7];
 
-        // Check for advert sub-type commands: "repeat advert.sensor on/off"
+        // Check for advert sub-type commands: "repeat advert.sensor on/off" or "repeat advert.max_hops <value>"
         if (memcmp(rest, "advert.", 7) == 0) {
           const char* adv_type_and_state = &rest[7];
-          // Find space separating type from on/off
-          const char* space_pos = strchr(adv_type_and_state, ' ');
-          if (space_pos != NULL) {
-            int type_len = space_pos - adv_type_and_state;
-            char adv_type_name[16];
-            if (type_len < 16) {
-              memcpy(adv_type_name, adv_type_and_state, type_len);
-              adv_type_name[type_len] = 0;
 
-              const char* state = space_pos + 1;
-              int adv_type_idx = mesh::findAdvertTypeByName(adv_type_name);
+          // Special handling for max_hops
+          if (memcmp(adv_type_and_state, "max_hops ", 9) == 0) {
+            const char* value_str = &adv_type_and_state[9];
+            int value = atoi(value_str);
+            if (value < 0 || value > 255) {
+              strcpy(reply, "Error: max_hops must be 0-255 (0 = unlimited)");
+            } else {
+              _prefs->advert_max_hops = (uint8_t)value;
+              savePrefs();
+              if (value == 0) {
+                strcpy(reply, "OK - advert max hops set to unlimited");
+              } else {
+                sprintf(reply, "OK - advert max hops set to %d", value);
+              }
+            }
+          }
+          // Handle advert sub-type on/off commands
+          else {
+            // Find space separating type from on/off
+            const char* space_pos = strchr(adv_type_and_state, ' ');
+            if (space_pos != NULL) {
+              int type_len = space_pos - adv_type_and_state;
+              char adv_type_name[16];
+              if (type_len < 16) {
+                memcpy(adv_type_name, adv_type_and_state, type_len);
+                adv_type_name[type_len] = 0;
 
-              if (adv_type_idx >= 0) {
+                const char* state = space_pos + 1;
+                int adv_type_idx = mesh::findAdvertTypeByName(adv_type_name);
+
+                if (adv_type_idx >= 0) {
                 if (memcmp(state, "on", 2) == 0) {
                   _prefs->repeat_advert_types |= (1 << adv_type_idx);
                   savePrefs();
@@ -664,11 +695,12 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
               } else {
                 strcpy(reply, "Error: unknown advert type (use: none,chat,repeater,room,sensor)");
               }
+              } else {
+                strcpy(reply, "Error: advert type name too long");
+              }
             } else {
-              strcpy(reply, "Error: advert type name too long");
+              strcpy(reply, "Error: format is 'set repeat advert.<type> on/off'");
             }
-          } else {
-            strcpy(reply, "Error: format is 'set repeat advert.<type> on/off'");
           }
         }
         // Check for packet type commands: "repeat advert on/off", "repeat grp.txt on/off"

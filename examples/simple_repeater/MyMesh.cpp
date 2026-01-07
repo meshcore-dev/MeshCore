@@ -355,6 +355,13 @@ bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
         }
       }
     }
+
+    // Check max hops for advert packets (0 = no limit)
+    if (_prefs.advert_max_hops > 0 && packet->path_len > _prefs.advert_max_hops) {
+      MESH_DEBUG_PRINTLN("allowPacketForward: advert exceeded max hops (%d > %d)",
+                        packet->path_len, _prefs.advert_max_hops);
+      return false;
+    }
   }
 
   return true;
@@ -760,6 +767,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   // Packet filtering defaults - repeat everything by default
   _prefs.repeat_packet_types = 0xFFFF; // Repeat all packet types by default
   _prefs.repeat_advert_types = 0xFFFF; // Repeat all advert types by default
+  _prefs.advert_max_hops = 0;          // No hop limit by default
 }
 
 void MyMesh::begin(FILESYSTEM *fs) {

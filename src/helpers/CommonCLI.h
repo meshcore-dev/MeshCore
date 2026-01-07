@@ -52,6 +52,7 @@ struct NodePrefs { // persisted to file
   float adc_multiplier;
   uint16_t repeat_packet_types;     // Bitmask: bit=1 means ALLOW repeat (0-15)
   uint8_t repeat_advert_types;      // Bitmask: bit=1 means ALLOW advert type through
+  uint8_t advert_max_hops;          // Max hops for advert packets (0 = no limit)
 };
 
 class CommonCLICallbacks {
