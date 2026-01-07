@@ -846,7 +846,7 @@ void MyMesh::loop() {
     if (did_push) {
       next_push = futureMillis(SYNC_PUSH_INTERVAL);
     } else {
-      // were no unsynced posts for curr client, so proccess next client much quicker! (in next loop())
+      // were no unsynced posts for curr client, so process next client much quicker! (in next loop())
       next_push = futureMillis(SYNC_PUSH_INTERVAL / 8);
     }
   }
