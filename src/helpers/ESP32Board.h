@@ -9,6 +9,7 @@
 #include <sys/time.h>
 #include <Wire.h>
 #include "driver/rtc_io.h"
+#include "driver/gpio.h"
 
 class ESP32Board : public mesh::MainBoard {
 protected:
@@ -56,11 +57,18 @@ public:
     return raw / 4;
   }
 
-  void enterLightSleep(uint32_t secs) {
+  void enterLightSleep(uint32_t secs, int pin_wake_btn = -1) {
 #if defined(CONFIG_IDF_TARGET_ESP32S3) && defined(P_LORA_DIO_1) // Supported ESP32 variants
     if (rtc_gpio_is_valid_gpio((gpio_num_t)P_LORA_DIO_1)) { // Only enter sleep mode if P_LORA_DIO_1 is RTC pin
       esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
-      esp_sleep_enable_ext1_wakeup((1L << P_LORA_DIO_1), ESP_EXT1_WAKEUP_ANY_HIGH); // To wake up when receiving a LoRa packet
+
+      esp_sleep_enable_ext1_wakeup((1L << P_LORA_DIO_1), ESP_EXT1_WAKEUP_ANY_HIGH); // Wake on LoRa packet
+
+      // Wake on button press (active-LOW: pin is HIGH when idle, LOW when pressed)
+      if (pin_wake_btn >= 0) {
+        gpio_wakeup_enable((gpio_num_t)pin_wake_btn, GPIO_INTR_LOW_LEVEL);
+        esp_sleep_enable_gpio_wakeup();
+      }
 
       if (secs > 0) {
         esp_sleep_enable_timer_wakeup(secs * 1000000); // To wake up every hour to do periodically jobs
