@@ -318,12 +318,59 @@ File MyMesh::openAppend(const char *fname) {
 }
 
 bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
-  if (_prefs.disable_fwd) return false;
+  if (_prefs.disable_fwd) {
+    return false;
+  }
+
   if (packet->isRouteFlood() && packet->path_len >= _prefs.flood_max) return false;
   if (packet->isRouteFlood() && recv_pkt_region == NULL) {
     MESH_DEBUG_PRINTLN("allowPacketForward: unknown transport code, or wildcard not allowed for FLOOD packet");
     return false;
   }
+
+  // Check if this packet type is allowed to be repeated
+  uint8_t pkt_type = packet->getPayloadType();
+  if (pkt_type < mesh::MAX_PACKET_TYPES && (_prefs.repeat_packet_types & (1 << pkt_type)) == 0) {
+    // Packet type is not allowed to repeat
+    MESH_DEBUG_PRINTLN("allowPacketForward: packet type %d not allowed to repeat", pkt_type);
+    return false;
+  }
+
+  // For advert packets, check sub-type filtering and max hops
+  if (pkt_type == PAYLOAD_TYPE_ADVERT) {
+    const int app_data_offset = PUB_KEY_SIZE + 4 + SIGNATURE_SIZE;
+
+    // Quick sanity check before parsing
+    if (packet->payload_len > app_data_offset) {
+      const uint8_t* app_data = &packet->payload[app_data_offset];
+      int app_data_len = packet->payload_len - app_data_offset;
+
+      // Only parse if there's actual data
+      if (app_data_len > 0) {
+        // Quick check: read advert type from flags byte (avoid full parse if possible)
+        uint8_t flags = app_data[0];
+        uint8_t adv_type = flags & 0x0F;
+
+        // Check if this advert sub-type is allowed
+        if (adv_type < mesh::MAX_ADVERT_TYPES && (_prefs.repeat_advert_types & (1 << adv_type)) == 0) {
+          MESH_DEBUG_PRINTLN("allowPacketForward: %s advert type not allowed to repeat",
+                            mesh::getAdvertTypeName(adv_type));
+          return false;
+        }
+
+        // Check max hops for flood-mode advert packets (0 = no limit)
+        // path_len is only meaningful for flood packets, not direct-mode packets
+        // CHAT adverts are excluded from hop count filtering
+        if (packet->isRouteFlood() && adv_type != ADV_TYPE_CHAT && _prefs.advert_max_hops > 0 &&
+            packet->path_len > _prefs.advert_max_hops ) {
+          MESH_DEBUG_PRINTLN("allowPacketForward: advert exceeded max hops (%d > %d)",
+                            packet->path_len, _prefs.advert_max_hops);
+          return false;
+        }
+      }
+    }
+  }
+
   return true;
 }
 
@@ -723,6 +770,11 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.advert_loc_policy = ADVERT_LOC_PREFS;
 
   _prefs.adc_multiplier = 0.0f; // 0.0f means use default board multiplier
+
+  // Packet filtering defaults - repeat everything by default
+  _prefs.repeat_packet_types = 0xFFFF; // Repeat all packet types by default
+  _prefs.repeat_advert_types = 0xFFFF; // Repeat all advert types by default
+  _prefs.advert_max_hops = 0;          // No hop limit by default
 }
 
 void MyMesh::begin(FILESYSTEM *fs) {
