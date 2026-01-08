@@ -2,6 +2,7 @@
 
 #include <Mesh.h>
 #include <RadioLib.h>
+#include <Arduino.h>
 
 class RadioLibWrapper : public mesh::Radio {
 protected:
