@@ -8,6 +8,9 @@
 #define ADVERT_LOC_NONE       0
 #define ADVERT_LOC_SHARE      1
 
+#define DISPLAY_WAKE_AUTO    0
+#define DISPLAY_WAKE_MANUAL  1
+
 struct NodePrefs {  // persisted to file
   float airtime_factor;
   char node_name[32];
@@ -25,4 +28,5 @@ struct NodePrefs {  // persisted to file
   uint32_t ble_pin;
   uint8_t  advert_loc_policy;
   uint8_t  buzzer_quiet;
+  uint8_t  display_wake_mode;
 };
