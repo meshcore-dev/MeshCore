@@ -315,7 +315,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         if (_prefs->advert_max_hops == 0) {
           sprintf(reply, "> unlimited");
         } else {
-          sprintf(reply, "> %d", _prefs->advert_max_hops);
+          sprintf(reply, "> %d (excluding companion adverts)", _prefs->advert_max_hops);
         }
       } else if (memcmp(config, "repeat advert", 13) == 0 && (config[13] == 0 || config[13] == ' ')) {
         // Show which advert sub-types are allowed to repeat
@@ -674,7 +674,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
               if (value == 0) {
                 strcpy(reply, "OK - advert max hops set to unlimited");
               } else {
-                sprintf(reply, "OK - advert max hops set to %d", value);
+                sprintf(reply, "OK - advert max hops set to %d (excluding companion adverts)", value);
               }
             }
           }

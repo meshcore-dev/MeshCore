@@ -332,7 +332,7 @@ bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
     return false;
   }
 
-  // For advert packets, also check advert sub-type filtering
+  // For advert packets, check sub-type filtering and max hops
   if (pkt_type == PAYLOAD_TYPE_ADVERT) {
     const int app_data_offset = PUB_KEY_SIZE + 4 + SIGNATURE_SIZE;
 
@@ -353,15 +353,17 @@ bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
                             mesh::getAdvertTypeName(adv_type));
           return false;
         }
-      }
-    }
 
-    // Check max hops for flood-mode advert packets (0 = no limit)
-    // path_len is only meaningful for flood packets, not direct-mode packets
-    if (packet->isRouteFlood() && _prefs.advert_max_hops > 0 && packet->path_len > _prefs.advert_max_hops) {
-      MESH_DEBUG_PRINTLN("allowPacketForward: advert exceeded max hops (%d > %d)",
-                        packet->path_len, _prefs.advert_max_hops);
-      return false;
+        // Check max hops for flood-mode advert packets (0 = no limit)
+        // path_len is only meaningful for flood packets, not direct-mode packets
+        // CHAT adverts are excluded from hop count filtering
+        if (packet->isRouteFlood() && adv_type != ADV_TYPE_CHAT && _prefs.advert_max_hops > 0 &&
+            packet->path_len > _prefs.advert_max_hops ) {
+          MESH_DEBUG_PRINTLN("allowPacketForward: advert exceeded max hops (%d > %d)",
+                            packet->path_len, _prefs.advert_max_hops);
+          return false;
+        }
+      }
     }
   }
 
