@@ -324,6 +324,12 @@ bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
     return false;
   }
 
+  // Check global disable_fwd switch first
+  if (_prefs.disable_fwd) {
+    MESH_DEBUG_PRINTLN("allowPacketForward: forwarding globally disabled");
+    return false;
+  }
+
   // Check if this packet type is allowed to be repeated
   uint8_t pkt_type = packet->getPayloadType();
   if (pkt_type < mesh::MAX_PACKET_TYPES && (_prefs.repeat_packet_types & (1 << pkt_type)) == 0) {

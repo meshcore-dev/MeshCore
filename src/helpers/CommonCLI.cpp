@@ -123,8 +123,7 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
       _prefs->repeat_packet_types = 0x0000;  // Block all packet types
       savePrefs();  // Persist migration immediately
     }
-    // Note: We keep disable_fwd in sync with filtering state for downgrade compatibility
-    // If repeat_packet_types != 0xFFFF (any filtering), keep disable_fwd=true for old firmware
+    // Note: disable_fwd now acts as a global on/off switch that is independent of the bitmask
   }
 }
 
@@ -350,18 +349,32 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
           reply[pos] = 0;
         }
       } else if (memcmp(config, "repeat", 6) == 0 && (config[6] == 0 || config[6] == ' ')) {
-        // Show which packet types are being repeated
+        // Show global repeat state and packet filter configuration
         reply[0] = '>';
         reply[1] = ' ';
         int pos = 2;
-        bool has_any = false;
 
+        // Show global state first
+        if (_prefs->disable_fwd) {
+          strcpy(&reply[pos], "OFF");
+          pos += 3;
+        } else {
+          strcpy(&reply[pos], "ON");
+          pos += 2;
+        }
+
+        // Add separator
+        strcpy(&reply[pos], " (filters: ");
+        pos += 11;
+
+        // Show configured packet types
+        bool has_any = false;
         for (int i = 0; i < mesh::MAX_PACKET_TYPES; i++) {
-          if ((_prefs->repeat_packet_types & (1 << i)) != 0) {  // If bit set, it's being repeated
+          if ((_prefs->repeat_packet_types & (1 << i)) != 0) {  // If bit set, it's configured
             const char* name = mesh::getPacketTypeName(i);
             int len = strlen(name);
 
-            if (pos + (has_any ? 1 : 0) + len + 1 >= 160) {
+            if (pos + (has_any ? 1 : 0) + len + 2 >= 160) {
               strcpy(&reply[pos], "...");
               pos += 3;
               break;
@@ -377,10 +390,12 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         }
 
         if (!has_any) {
-          strcpy(&reply[2], "all filtered");
-        } else {
-          reply[pos] = 0;
+          strcpy(&reply[pos], "none");
+          pos += 4;
         }
+
+        reply[pos++] = ')';
+        reply[pos] = 0;
       } else if (memcmp(config, "lat", 3) == 0) {
         sprintf(reply, "> %s", StrHelper::ftoa(_prefs->node_lat));
       } else if (memcmp(config, "lon", 3) == 0) {
@@ -644,17 +659,15 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
           strcpy(reply, "Error: unsupported by this board");
         };
       } else if (memcmp(config, "repeat on", 9) == 0) {
-        // Turn all packet types ON (set all bits)
-        _prefs->repeat_packet_types = 0xFFFF;
-        _prefs->disable_fwd = false;  // Sync for downgrade compatibility
+        // Enable global repeat switch (bitmask settings are preserved)
+        _prefs->disable_fwd = false;
         savePrefs();
-        strcpy(reply, "OK - all packet types will be repeated");
+        strcpy(reply, "OK - repeating enabled (using configured packet filters)");
       } else if (memcmp(config, "repeat off", 10) == 0) {
-        // Turn all packet types OFF (clear all bits)
-        _prefs->repeat_packet_types = 0x0000;
-        _prefs->disable_fwd = true;  // Sync for downgrade compatibility
+        // Disable global repeat switch (bitmask settings are preserved)
+        _prefs->disable_fwd = true;
         savePrefs();
-        strcpy(reply, "OK - all packet types will not be repeated");
+        strcpy(reply, "OK - repeating disabled (packet filters preserved)");
       } else if (memcmp(config, "repeat ", 7) == 0) {
         const char* rest = &config[7];
 
@@ -701,9 +714,6 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
                     _prefs->repeat_packet_types |= (1 << PAYLOAD_TYPE_ADVERT);
                   }
 
-                  // Sync disable_fwd for downgrade compatibility
-                  _prefs->disable_fwd = (_prefs->repeat_packet_types != 0xFFFF);
-
                   savePrefs();
                   sprintf(reply, "OK - %s adverts will be repeated", adv_type_name);
                 } else if (memcmp(state, "off", 3) == 0) {
@@ -747,9 +757,6 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
                     _prefs->repeat_advert_types = (1 << mesh::MAX_ADVERT_TYPES) - 1;  // All bits set
                   }
 
-                  // Sync disable_fwd for downgrade compatibility
-                  _prefs->disable_fwd = (_prefs->repeat_packet_types != 0xFFFF);
-
                   savePrefs();
                   sprintf(reply, "OK - %s packets will be repeated", type_name);
                 } else if (memcmp(state, "off", 3) == 0) {
@@ -759,9 +766,6 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
                   if (type_idx == PAYLOAD_TYPE_ADVERT) {
                     _prefs->repeat_advert_types = 0x00;  // All bits clear
                   }
-
-                  // Sync disable_fwd for downgrade compatibility
-                  _prefs->disable_fwd = (_prefs->repeat_packet_types != 0xFFFF);
 
                   savePrefs();
                   if (type_idx == PAYLOAD_TYPE_ADVERT) {
