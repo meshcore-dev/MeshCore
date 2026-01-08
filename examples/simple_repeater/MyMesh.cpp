@@ -142,8 +142,13 @@ uint8_t MyMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* secr
 }
 
 uint8_t MyMesh::handleAnonRegionsReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data) {
-  // REVISIT: should there be params like 'since' in request data[] ?
   if (regions_limiter.allow(rtc_clock.getCurrentTime())) {
+    // request data has: {reply-path-len}{reply-path}
+    reply_path_len = *data++ & 0x3F;
+    memcpy(reply_path, data, reply_path_len);
+    // data += reply_path_len;
+    // other params??
+
     memcpy(reply_data, &sender_timestamp, 4);   // prefix with sender_timestamp, like a tag
 
     uint32_t now = getRTCClock()->getCurrentTime();
@@ -463,12 +468,14 @@ void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const m
 
     data[len] = 0;  // ensure null terminator
     uint8_t reply_len;
+
+    reply_path_len = -1;
     if (data[4] == 0 || data[4] >= ' ') {   // is password, ie. a login request
       reply_len = handleLoginReq(sender, secret, timestamp, &data[4], packet->isRouteFlood());
-    } else if (data[4] == ANON_REQ_TYPE_REGIONS) {
+    } else if (data[4] == ANON_REQ_TYPE_REGIONS && packet->isRouteDirect()) {
       reply_len = handleAnonRegionsReq(sender, timestamp, &data[5]);
     } else {
-      reply_len = 0;  // unknown request type
+      reply_len = 0;  // unknown/invalid request type
     }
 
     if (reply_len == 0) return;   // invalid request
@@ -478,9 +485,12 @@ void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const m
       mesh::Packet* path = createPathReturn(sender, secret, packet->path, packet->path_len,
                                             PAYLOAD_TYPE_RESPONSE, reply_data, reply_len);
       if (path) sendFlood(path, SERVER_RESPONSE_DELAY);
-    } else {
+    } else if (reply_path_len < 0) {
       mesh::Packet* reply = createDatagram(PAYLOAD_TYPE_RESPONSE, sender, secret, reply_data, reply_len);
       if (reply) sendFlood(reply, SERVER_RESPONSE_DELAY);
+    } else {
+      mesh::Packet* reply = createDatagram(PAYLOAD_TYPE_RESPONSE, sender, secret, reply_data, reply_len);
+      if (reply) sendDirect(reply, reply_path, reply_path_len, SERVER_RESPONSE_DELAY);
     }
   }
 }
