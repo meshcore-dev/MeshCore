@@ -162,6 +162,7 @@ protected:
 
 public:
   void savePrefs() { _store->savePrefs(_prefs, sensors.node_lat, sensors.node_lon); }
+  bool hasPendingWork() const;
 
 private:
   void writeOKFrame();
