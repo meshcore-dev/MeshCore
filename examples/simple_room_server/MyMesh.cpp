@@ -611,8 +611,8 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.cr = LORA_CR;
   _prefs.tx_power_dbm = LORA_TX_POWER;
   _prefs.disable_fwd = 1;
-  _prefs.advert_interval = 1;        // default to 2 minutes for NEW installs
-  _prefs.flood_advert_interval = 12; // 12 hours
+  _prefs.advert_interval = DEF_LOCAL_ADVERT_INTERVAL;
+  _prefs.flood_advert_interval = DEF_FLOOD_ADVERT_INTERVAL;
   _prefs.flood_max = 64;
   _prefs.interference_threshold = 0; // disabled
 #ifdef ROOM_PASSWORD
@@ -675,10 +675,14 @@ bool MyMesh::formatFileSystem() {
 #endif
 }
 
-void MyMesh::sendSelfAdvertisement(int delay_millis) {
+void MyMesh::sendSelfAdvertisement(int delay_millis, bool flood) {
   mesh::Packet *pkt = createSelfAdvert();
   if (pkt) {
-    sendFlood(pkt, delay_millis);
+    if (flood) {
+      sendFlood(pkt, delay_millis);
+    } else {
+      sendZeroHop(pkt, delay_millis);
+    }
   } else {
     MESH_DEBUG_PRINTLN("ERROR: unable to create advertisement packet!");
   }

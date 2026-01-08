@@ -161,8 +161,6 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
   }
 }
 
-#define MIN_LOCAL_ADVERT_INTERVAL   60
-
 void CommonCLI::savePrefs() {
   if (_prefs->advert_interval * 2 < MIN_LOCAL_ADVERT_INTERVAL) {
     _prefs->advert_interval = 0;  // turn it off, now that device has been manually configured
@@ -187,6 +185,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
     if (memcmp(command, "reboot", 6) == 0) {
       _board->reboot();  // doesn't return
     } else if (memcmp(command, "advert", 6) == 0) {
+      // Keep "advert" as flood for backward compatibility
       _callbacks->sendSelfAdvertisement(1500);  // longer delay, give CLI response time to be sent first
       strcpy(reply, "OK - Advert sent");
     } else if (memcmp(command, "clock sync", 10) == 0) {
@@ -207,7 +206,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
       uint32_t now = getRTCClock()->getCurrentTime();
       DateTime dt = DateTime(now);
       sprintf(reply, "%02d:%02d - %d/%d/%d UTC", dt.hour(), dt.minute(), dt.day(), dt.month(), dt.year());
-    } else if (memcmp(command, "time ", 5) == 0) {  // set time (to epoch seconds)
+    } else if (memcmp(command, "time ", 5) == 0) { // set time (to epoch seconds)
       uint32_t secs = _atoi(&command[5]);
       uint32_t curr = getRTCClock()->getCurrentTime();
       if (secs > curr) {
@@ -375,8 +374,9 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         strcpy(reply, "OK");
       } else if (memcmp(config, "flood.advert.interval ", 22) == 0) {
         int hours = _atoi(&config[22]);
-        if ((hours > 0 && hours < 3) || (hours > 48)) {
-          strcpy(reply, "Error: interval range is 3-48 hours");
+        if ((hours > 0 && hours < MIN_FLOOD_ADVERT_INTERVAL) || (hours > MAX_FLOOD_ADVERT_INTERVAL)) {
+          sprintf(reply, "Error: interval range is %d-%d hours", MIN_FLOOD_ADVERT_INTERVAL,
+                  MAX_FLOOD_ADVERT_INTERVAL);
         } else {
           _prefs->flood_advert_interval = (uint8_t)(hours);
           _callbacks->updateFloodAdvertTimer();
@@ -385,8 +385,9 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         }
       } else if (memcmp(config, "advert.interval ", 16) == 0) {
         int mins = _atoi(&config[16]);
-        if ((mins > 0 && mins < MIN_LOCAL_ADVERT_INTERVAL) || (mins > 240)) {
-          sprintf(reply, "Error: interval range is %d-240 minutes", MIN_LOCAL_ADVERT_INTERVAL);
+        if ((mins > 0 && mins < MIN_LOCAL_ADVERT_INTERVAL) || (mins > MAX_LOCAL_ADVERT_INTERVAL)) {
+          sprintf(reply, "Error: interval range is %d-%d minutes",MIN_LOCAL_ADVERT_INTERVAL,
+                  MAX_LOCAL_ADVERT_INTERVAL);
         } else {
           _prefs->advert_interval = (uint8_t)(mins / 2);
           _callbacks->updateAdvertTimer();
