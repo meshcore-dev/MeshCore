@@ -23,8 +23,8 @@ A list of frequently-asked questions and answers for MeshCore
   - [3.4. Q: What is the password to join a room server?](#34-q-what-is-the-password-to-join-a-room-server)
   - [3.5. Q: Can I retrieve a repeater's private key or set a repeater's private key?](#35-q-can-i-retrieve-a-repeaters-private-key-or-set-a-repeaters-private-key)
   - [3.6. Q: The first byte of my repeater's public key collides with an exisitng repeater on the mesh.  How do I get a new private key with a matching public key that has its first byte of my choosing?](#36-q-the-first-byte-of-my-repeaters-public-key-collides-with-an-exisitng-repeater-on-the-mesh--how-do-i-get-a-new-private-key-with-a-matching-public-key-that-has-its-first-byte-of-my-choosing)
-  - [3.7. Q: My repeater maybe suffering from deafness due to high power interference near my mesh's frequency, it is not hearing other in-range MeshCore radios.  what can I do?](#37-q-my-repeater-maybe-suffering-from-deafness-due-to-high-power-interference-near-my-meshs-frequency-it-is-not-hearing-other-in-range-meshcore-radios--what-can-i-do)
-  - [3.8 Q: How do I make my repeater an observer on the mesh](#38-q-how-do-i-make-my-repeater-an-observer-on-the-mesh)
+  - [3.7. Q: My repeater maybe suffering from deafness due to high power interference near my mesh's frequency, it is not hearing other in-range MeshCore radios.  What can I do?](#37-q-my-repeater-maybe-suffering-from-deafness-due-to-high-power-interference-near-my-meshs-frequency-it-is-not-hearing-other-in-range-meshcore-radios--what-can-i-do)
+  - [3.8. Q: How do I make my repeater an observer on the mesh?](#38-q-how-do-i-make-my-repeater-an-observer-on-the-mesh)
 - [4. T-Deck Related](#4-t-deck-related)
   - [4.1. Q: Is there a user guide for T-Deck, T-Pager, T-Watch, or T-Display Pro?](#41-q-is-there-a-user-guide-for-t-deck-t-pager-t-watch-or-t-display-pro)
   - [4.2. Q: What are the steps to get a T-Deck into DFU (Device Firmware Update) mode?](#42-q-what-are-the-steps-to-get-a-t-deck-into-dfu-device-firmware-update-mode)
@@ -277,9 +277,9 @@ Reboot the repeater after `set prv.key <hex>` command for the new private key to
 **A:** You can generate a new private key and specific the first byte of its public key here:  https://gessaman.com/mc-keygen/
 
 
-### 3.7. Q: My repeater maybe suffering from deafness due to high power interference near my mesh's frequency, it is not hearing other in-range MeshCore radios.  what can I do?
+### 3.7. Q: My repeater maybe suffering from deafness due to high power interference near my mesh's frequency, it is not hearing other in-range MeshCore radios.  What can I do?
 
-**A:** This may be due to the SX1262 radio's auto gain control feature.  You can use this command to preiodically reset its AGC.  
+**A:** This may be due to the SX1262 radio's auto gain control feature.  You can use this command to periodically reset its AGC.  
 
 `set agc.reset.interval <number>`
 
@@ -288,7 +288,7 @@ The `<number>` unit is in seconds and is incremented by 4.  `set agc.reset.inter
 This is a very low cost operation.  AGC reset is done by simply setting `state = STATE_IDLE;` in function `RadioLibWrapper::resetAGC()` in `RadioLibWrappers.cpp`
 
 
-### 3.8 Q: How do I make my repeater an observer on the mesh
+### 3.8. Q: How do I make my repeater an observer on the mesh?
 
 **A:** The observer instruction is available here: https://analyzer.letsmesh.net/observer/onboard
 
