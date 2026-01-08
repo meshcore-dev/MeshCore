@@ -37,9 +37,9 @@
 
 class NanoG2Ultra : public NRF52Board {
 public:
+  NanoG2Ultra() : NRF52Board("NANO_G2_OTA") {}
   void begin();
   uint16_t getBattMilliVolts() override;
-  bool startOTAUpdate(const char *id, char reply[]) override;
 
   const char *getManufacturerName() const override { return "Nano G2 Ultra"; }
 

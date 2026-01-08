@@ -1,13 +1,13 @@
 #pragma once
 
-#include <MeshCore.h>
 #include <Arduino.h>
+#include <MeshCore.h>
+#include <helpers/NRF52Board.h>
 
 #define ADC_FACTOR ((1000.0*ADC_MULTIPLIER*AREF_VOLTAGE)/ADC_MAX)
 
-class ThinknodeM3Board : public mesh::MainBoard {
+class ThinknodeM3Board : public Nrf52BoardDCDC {
 protected:
-  uint8_t startup_reason;
   uint8_t btn_prev_state;
 
 public:
@@ -27,12 +27,10 @@ public:
     return (uint16_t)((float)adcvalue * ADC_FACTOR);
   }
 
-  uint8_t getStartupReason() const override { return startup_reason; }
-
-  #if defined(P_LORA_TX_LED)
-  #if !defined(P_LORA_TX_LED_ON)
-    #define P_LORA_TX_LED_ON HIGH
-  #endif
+#if defined(P_LORA_TX_LED)
+#if !defined(P_LORA_TX_LED_ON)
+#define P_LORA_TX_LED_ON HIGH
+#endif
   void onBeforeTransmit() override {
     digitalWrite(P_LORA_TX_LED, P_LORA_TX_LED_ON);   // turn TX LED on
   }
@@ -56,13 +54,5 @@ public:
     return 0;
   }
 
-  void powerOff() override {
-    sd_power_system_off();
-  }
-
-  void reboot() override {
-    NVIC_SystemReset();
-  }
-
-//  bool startOTAUpdate(const char* id, char reply[]) override;
+  void powerOff() override { sd_power_system_off(); }
 };

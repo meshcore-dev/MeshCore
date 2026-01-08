@@ -4,9 +4,9 @@
 #include <Arduino.h>
 #include <helpers/NRF52Board.h>
 
-class SenseCapSolarBoard : public NRF52BoardOTA {
+class SenseCapSolarBoard : public NRF52BoardDCDC {
 public:
-  SenseCapSolarBoard() : NRF52BoardOTA("SENSECAP_SOLAR_OTA") {}
+  SenseCapSolarBoard() : NRF52Board("SENSECAP_SOLAR_OTA") {}
   void begin();
 
 #if defined(P_LORA_TX_LED)

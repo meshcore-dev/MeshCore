@@ -54,7 +54,7 @@ float NRF52Board::getMCUTemperature() {
   return temp * 0.25f; // Convert to *C
 }
 
-bool NRF52BoardOTA::startOTAUpdate(const char *id, char reply[]) {
+bool NRF52Board::startOTAUpdate(const char *id, char reply[]) {
   // Config the peripheral connection with maximum bandwidth
   // more SRAM required by SoftDevice
   // Note: All config***() function must be called before begin()
