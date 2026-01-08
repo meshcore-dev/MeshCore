@@ -318,15 +318,13 @@ File MyMesh::openAppend(const char *fname) {
 }
 
 bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
-  if (packet->isRouteFlood() && packet->path_len >= _prefs.flood_max) return false;
-  if (packet->isRouteFlood() && recv_pkt_region == NULL) {
-    MESH_DEBUG_PRINTLN("allowPacketForward: unknown transport code, or wildcard not allowed for FLOOD packet");
+  if (_prefs.disable_fwd) {
     return false;
   }
 
-  // Check global disable_fwd switch first
-  if (_prefs.disable_fwd) {
-    MESH_DEBUG_PRINTLN("allowPacketForward: forwarding globally disabled");
+  if (packet->isRouteFlood() && packet->path_len >= _prefs.flood_max) return false;
+  if (packet->isRouteFlood() && recv_pkt_region == NULL) {
+    MESH_DEBUG_PRINTLN("allowPacketForward: unknown transport code, or wildcard not allowed for FLOOD packet");
     return false;
   }
 

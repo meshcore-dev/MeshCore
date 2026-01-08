@@ -364,13 +364,13 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         }
 
         // Add separator
-        strcpy(&reply[pos], " (filters: ");
+        strcpy(&reply[pos], " (allowed: ");
         pos += 11;
 
         // Show configured packet types
         bool has_any = false;
         for (int i = 0; i < mesh::MAX_PACKET_TYPES; i++) {
-          if ((_prefs->repeat_packet_types & (1 << i)) != 0) {  // If bit set, it's configured
+          if ((_prefs->repeat_packet_types & (1 << i)) != 0) {  // If bit set, it's allowed
             const char* name = mesh::getPacketTypeName(i);
             int len = strlen(name);
 
@@ -662,12 +662,12 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         // Enable global repeat switch (bitmask settings are preserved)
         _prefs->disable_fwd = false;
         savePrefs();
-        strcpy(reply, "OK - repeating enabled (using configured packet filters)");
+        strcpy(reply, "OK - repeating enabled");
       } else if (memcmp(config, "repeat off", 10) == 0) {
         // Disable global repeat switch (bitmask settings are preserved)
         _prefs->disable_fwd = true;
         savePrefs();
-        strcpy(reply, "OK - repeating disabled (packet filters preserved)");
+        strcpy(reply, "OK - repeating disabled");
       } else if (memcmp(config, "repeat ", 7) == 0) {
         const char* rest = &config[7];
 
