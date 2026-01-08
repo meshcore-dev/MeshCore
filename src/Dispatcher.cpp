@@ -80,6 +80,7 @@ void Dispatcher::loop() {
       MESH_DEBUG_PRINTLN("%s Dispatcher::loop(): WARNING: outbound packed send timed out!", getLogDateTime());
 
       _radio->onSendFinished();
+      _radio->onTXRXFault();
       logTxFail(outbound, 2 + outbound->path_len + outbound->payload_len);
 
       releasePacket(outbound);  // return to pool
