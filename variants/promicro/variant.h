@@ -78,5 +78,6 @@
 
 #define PIN_BUTTON1          (6)
 #define BUTTON_PIN           PIN_BUTTON1
+#define DISPLAY_TOGGLE       (-1)
 
 
