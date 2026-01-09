@@ -1,42 +1,134 @@
 package com.meshcore.team
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import com.meshcore.team.data.ble.BleConnectionManager
+import com.meshcore.team.data.ble.BleScanner
+import com.meshcore.team.data.database.AppDatabase
+import com.meshcore.team.data.repository.ChannelRepository
+import com.meshcore.team.data.repository.MessageRepository
+import com.meshcore.team.ui.screen.connection.ConnectionScreen
+import com.meshcore.team.ui.screen.connection.ConnectionViewModel
+import com.meshcore.team.ui.screen.messages.MessageScreen
+import com.meshcore.team.ui.screen.messages.MessageViewModel
 import com.meshcore.team.ui.theme.TEAMTheme
+import timber.log.Timber
 
 /**
  * Main Activity for TEAM app
- * Phase 1: Basic UI skeleton and BLE connection setup
+ * Phase 1: BLE connection setup with permission handling
  */
 class MainActivity : ComponentActivity() {
+    
+    private lateinit var bleScanner: BleScanner
+    private lateinit var connectionManager: BleConnectionManager
+    private lateinit var connectionViewModel: ConnectionViewModel
+    private lateinit var messageViewModel: MessageViewModel
+    private var permissionsGranted by mutableStateOf(false)
+    private var currentScreen by mutableStateOf("messages") // Start at messages screen
+    
+    private val permissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        permissionsGranted = permissions.values.all { it }
+        if (permissionsGranted) {
+            Timber.i("All permissions granted")
+        } else {
+            Timber.w("Some permissions denied")
+        }
+    }
+    
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // Initialize BLE components
+        bleScanner = BleScanner(this)
+        connectionManager = BleConnectionManager(this)
+        connectionViewModel = ConnectionViewModel(bleScanner, connectionManager)
+        
+        // Initialize database and repositories
+        val database = AppDatabase.getDatabase(applicationContext)
+        val messageRepository = MessageRepository(
+            database.messageDao(),
+            database.ackRecordDao()
+        )
+        val channelRepository = ChannelRepository(database.channelDao())
+        messageViewModel = MessageViewModel(messageRepository, channelRepository)
+        
+        // Request permissions
+        requestBluetoothPermissions()
+        
         setContent {
             TEAMTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    TEAMApp()
+                    if (permissionsGranted) {
+                        when (currentScreen) {
+                            "messages" -> MessageScreen(
+                                viewModel = messageViewModel,
+                                onNavigateToConnection = { currentScreen = "connection" }
+                            )
+                            "connection" -> ConnectionScreen(
+                                viewModel = connectionViewModel
+                            )
+                        }
+                    } else {
+                        PermissionRequiredScreen(
+                            onRequestPermissions = { requestBluetoothPermissions() }
+                        )
+                    }
                 }
             }
         }
     }
+    
+    private fun requestBluetoothPermissions() {
+        val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            arrayOf(
+                Manifest.permission.BLUETOOTH_SCAN,
+                Manifest.permission.BLUETOOTH_CONNECT,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            )
+        } else {
+            arrayOf(
+                Manifest.permission.BLUETOOTH,
+                Manifest.permission.BLUETOOTH_ADMIN,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            )
+        }
+        
+        val allGranted = permissions.all { permission ->
+            ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
+        }
+        
+        if (allGranted) {
+            permissionsGranted = true
+        } else {
+            permissionLauncher.launch(permissions)
+        }
+    }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TEAMApp() {
+fun PermissionRequiredScreen(onRequestPermissions: () -> Unit) {
     Scaffold(
         topBar = {
-            SmallTopAppBar(
+            TopAppBar(
                 title = { Text("TEAM") }
             )
         }
@@ -50,32 +142,22 @@ fun TEAMApp() {
             verticalArrangement = Arrangement.Center
         ) {
             Text(
-                text = "TEAM - Tactical Emergency Area Messaging",
+                text = "Permissions Required",
                 style = MaterialTheme.typography.headlineMedium
             )
             
             Spacer(modifier = Modifier.height(16.dp))
             
             Text(
-                text = "Phase 1: Foundation",
-                style = MaterialTheme.typography.titleMedium
+                text = "TEAM requires Bluetooth and Location permissions to scan for and connect to MeshCore devices.",
+                style = MaterialTheme.typography.bodyMedium
             )
             
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(24.dp))
             
-            Text(
-                text = "Ready for BLE implementation",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.secondary
-            )
+            Button(onClick = onRequestPermissions) {
+                Text("Grant Permissions")
+            }
         }
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun TEAMAppPreview() {
-    TEAMTheme {
-        TEAMApp()
     }
 }
