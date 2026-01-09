@@ -60,7 +60,7 @@ void initVariant() {
   // https://wiki.seeedstudio.com/XIAO_BLE#q3-what-are-the-considerations-when-using-xiao-nrf52840-sense-for-battery-charging
   pinMode(VBAT_ENABLE, OUTPUT);
   // digitalWrite(VBAT_ENABLE, HIGH);
-  //  This was taken from Seeed github butis not coherent with the doc,
+  //  This was taken from Seeed github but is not coherent with the doc,
   //  VBAT_ENABLE should be kept to LOW to protect P0.14, (1500/500)*(4.2-3.3)+3.3 = 3.9V > 3.6V
   //  This induces a 3mA current in the resistors :( but it's better than burning the nrf
   digitalWrite(VBAT_ENABLE, LOW);
