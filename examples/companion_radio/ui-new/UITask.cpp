@@ -79,6 +79,7 @@ class HomeScreen : public UIScreen {
     RADIO,
     BLUETOOTH,
     ADVERT,
+    DISPLAY_SETTINGS,
 #if ENV_INCLUDE_GPS == 1
     GPS,
 #endif
@@ -257,6 +258,23 @@ public:
       display.setColor(DisplayDriver::GREEN);
       display.drawXbm((display.width() - 32) / 2, 18, advert_icon, 32, 32);
       display.drawTextCentered(display.width() / 2, 64 - 11, "advert: " PRESS_LABEL);
+    } else if (_page == HomePage::DISPLAY_SETTINGS) {
+      display.setColor(DisplayDriver::YELLOW);
+      display.setTextSize(1);
+      display.drawTextCentered(display.width() / 2, 20, "Wake Screen:");
+
+      display.setColor(DisplayDriver::GREEN);
+      display.setTextSize(2);
+      if (_node_prefs->display_wake_mode == DISPLAY_WAKE_MANUAL) {
+          display.drawTextCentered(display.width() / 2, 40, "MANUAL");
+      } else if (_node_prefs->display_wake_mode == DISPLAY_WAKE_ALWAYS_ON) {
+          display.drawTextCentered(display.width() / 2, 40, "ALWAYS ON");
+      } else {
+          display.drawTextCentered(display.width() / 2, 40, "AUTO");
+      }
+      display.setColor(DisplayDriver::LIGHT);
+      display.setTextSize(1);
+      display.drawTextCentered(display.width() / 2, 64 - 11, "change: " PRESS_LABEL);
 #if ENV_INCLUDE_GPS == 1
     } else if (_page == HomePage::GPS) {
       LocationProvider* nmea = sensors.getLocationProvider();
@@ -408,6 +426,20 @@ public:
       } else {
         _task->showAlert("Advert failed..", 1000);
       }
+      return true;
+    }
+    if (c == KEY_ENTER && _page == HomePage::DISPLAY_SETTINGS) {
+      if (_node_prefs->display_wake_mode == DISPLAY_WAKE_AUTO) {
+          _node_prefs->display_wake_mode = DISPLAY_WAKE_MANUAL;
+          _task->showAlert("Wake: Manual", 800);
+      } else if (_node_prefs->display_wake_mode == DISPLAY_WAKE_MANUAL) {
+          _node_prefs->display_wake_mode = DISPLAY_WAKE_ALWAYS_ON;
+          _task->showAlert("Wake: Always On", 800);
+      } else {
+          _node_prefs->display_wake_mode = DISPLAY_WAKE_AUTO;
+          _task->showAlert("Wake: Auto", 800);
+      }
+      the_mesh.savePrefs();
       return true;
     }
 #if ENV_INCLUDE_GPS == 1
@@ -608,7 +640,8 @@ void UITask::newMsg(uint8_t path_len, const char* from_name, const char* text, i
   setCurrScreen(msg_preview);
 
   if (_display != NULL) {
-    if (!_display->isOn()) _display->turnOn();
+    bool shouldWake = (_node_prefs->display_wake_mode == DISPLAY_WAKE_AUTO);
+    if (shouldWake && !_display->isOn()) _display->turnOn();
     _auto_off = millis() + AUTO_OFF_MILLIS;  // extend the auto-off timer
     _next_refresh = 100;  // trigger refresh
   }
@@ -773,7 +806,7 @@ void UITask::loop() {
       _display->endFrame();
     }
 #if AUTO_OFF_MILLIS > 0
-    if (millis() > _auto_off) {
+    if (_node_prefs->display_wake_mode != DISPLAY_WAKE_ALWAYS_ON && millis() > _auto_off) {
       _display->turnOff();
     }
 #endif
