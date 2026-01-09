@@ -41,6 +41,10 @@ namespace mesh {
 #define  BD_STARTUP_RX_PACKET  1
 
 class MainBoard {
+protected:
+  volatile bool prevent_sleep = false;
+  virtual void sleep(uint32_t secs) { /* no op */ }
+
 public:
   virtual uint16_t getBattMilliVolts() = 0;
   virtual float getMCUTemperature() { return NAN; }
@@ -51,7 +55,13 @@ public:
   virtual void onAfterTransmit() { }
   virtual void reboot() = 0;
   virtual void powerOff() { /* no op */ }
-  virtual void sleep(uint32_t secs)  { /* no op */ }
+  virtual void enterSleep(uint32_t secs) {
+    if (prevent_sleep) return;
+
+    MESH_DEBUG_PRINTLN("Entering sleep mode, wakeup scheduled in %u seconds", secs);
+    sleep(secs);
+  }
+  virtual void preventSleep() { prevent_sleep = true; }
   virtual uint32_t getGpio() { return 0; }
   virtual void setGpio(uint32_t values) {}
   virtual uint8_t getStartupReason() const = 0;

@@ -134,7 +134,7 @@ void loop() {
   if (the_mesh.getNodePrefs()->powersaving_enabled &&
       the_mesh.millisHasNowPassed(lastActive + nextSleepinSecs * 1000)) { // To check if it is time to sleep
     if (!the_mesh.hasPendingWork()) { // No pending work. Safe to sleep
-      board.sleep(IDLE_PERIOD_SEC);   // To sleep. Wake up after 30 minutes or when receiving a LoRa packet
+      board.enterSleep(IDLE_PERIOD_SEC); // To sleep. Wake up after 30 minutes or when receiving a LoRa packet
       lastActive = millis();
       nextSleepinSecs = ACTIVE_TIME_SEC_IDLE; // Default: To work for 5s and sleep again
     } else {
