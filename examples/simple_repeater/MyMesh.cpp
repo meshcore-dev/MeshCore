@@ -173,7 +173,7 @@ uint8_t MyMesh::handleAnonVerOwnerReq(const mesh::Identity& sender, uint32_t sen
     uint32_t now = getRTCClock()->getCurrentTime();
     memcpy(&reply_data[4], &now, 4);     // include our clock (for easy clock sync, if this is a trusted node)
 
-    sprintf((char *) &reply_data[8], "%s,%s", FIRMWARE_VERSION, _prefs.owner_info);
+    sprintf((char *) &reply_data[8], "%s,%s,%s", FIRMWARE_VERSION, _prefs.node_name, _prefs.owner_info);
 
     return 8 + strlen((char *) &reply_data[8]);   // reply length
   }
