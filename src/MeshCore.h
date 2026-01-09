@@ -51,6 +51,8 @@ public:
   virtual void onAfterTransmit() { }
   virtual void reboot() = 0;
   virtual void powerOff() { /* no op */ }
+  virtual uint32_t getIRQGpio() { return P_LORA_DIO_1; } // default for SX1262
+  virtual bool safeToSleep() { return false; }
   virtual void sleep(uint32_t secs)  { /* no op */ }
   virtual uint32_t getGpio() { return 0; }
   virtual void setGpio(uint32_t values) {}

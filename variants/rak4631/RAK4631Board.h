@@ -4,6 +4,17 @@
 #include <Arduino.h>
 #include <helpers/NRF52Board.h>
 
+//#define PIN_GPS_SDA       13  //GPS SDA pin (output option)
+//#define PIN_GPS_SCL       14  //GPS SCL pin (output option)
+//#define PIN_GPS_TX        16  //GPS TX pin
+//#define PIN_GPS_RX        15  //GPS RX pin
+#define PIN_GPS_1PPS      17  //GPS PPS pin
+#define GPS_BAUD_RATE   9600
+#define GPS_ADDRESS   0x42  //i2c address for GPS
+ 
+#define SX126X_DIO2_AS_RF_SWITCH  true
+#define SX126X_DIO3_TCXO_VOLTAGE   1.8
+
 // built-ins
 #define  PIN_VBAT_READ    5
 #define  ADC_MULTIPLIER   (3 * 1.73 * 1.187 * 1000)

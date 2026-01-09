@@ -2,17 +2,17 @@
 
 #define RADIOLIB_STATIC_ONLY 1
 //#include <RadioLib.h>
-#include <helpers/radiolib/RadioLibWrappers.h>
-#include <helpers/esp32/TBeamBoard.h>
-#include <helpers/radiolib/CustomSX1276Wrapper.h>
+#include <LilygoTBeamSX1276Board.h>
 #include <helpers/AutoDiscoverRTCClock.h>
+#include <helpers/radiolib/CustomSX1276Wrapper.h>
+#include <helpers/radiolib/RadioLibWrappers.h>
 #include <helpers/sensors/EnvironmentSensorManager.h>
 #ifdef DISPLAY_CLASS
   #include <helpers/ui/SSD1306Display.h>
   #include <helpers/ui/MomentaryButton.h>
 #endif
 
-extern TBeamBoard board;
+extern LilygoTBeamSX1276Board board;
 extern WRAPPER_CLASS radio_driver;
 extern AutoDiscoverRTCClock rtc_clock;
 extern EnvironmentSensorManager sensors;
