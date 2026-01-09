@@ -7,7 +7,7 @@
 // LoRa radio module pins for RAK4631
 #define  P_LORA_DIO_1   47
 #define  P_LORA_NSS     42
-#define  P_LORA_RESET  RADIOLIB_NC   // 38
+#define P_LORA_RESET               38
 #define  P_LORA_BUSY    46
 #define  P_LORA_SCLK    43
 #define  P_LORA_MISO    45

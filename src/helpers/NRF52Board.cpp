@@ -4,6 +4,7 @@
 #include <bluefruit.h>
 
 static BLEDfu bledfu;
+static SoftwareTimer sleep_timer;
 
 static void connect_callback(uint16_t conn_handle) {
   (void)conn_handle;
@@ -17,8 +18,27 @@ static void disconnect_callback(uint16_t conn_handle, uint8_t reason) {
   MESH_DEBUG_PRINTLN("BLE client disconnected");
 }
 
+static void resume() {
+  sleep_timer.stop();
+  resumeLoop();
+}
+
+static void sleep_timer_callback(TimerHandle_t xTimerID) {
+  resume();
+}
+
 void NRF52Board::begin() {
   startup_reason = BD_STARTUP_NORMAL;
+  sleep_timer.begin(5000, sleep_timer_callback, NULL, false);
+}
+
+void NRF52Board::sleep(uint32_t secs) {
+  sleep_timer.setPeriod(secs * 1000);
+  suspendLoop();
+}
+
+void NRF52Board::onRXInterrupt() {
+  resume();
 }
 
 void NRF52BoardDCDC::begin() {
@@ -55,6 +75,7 @@ float NRF52Board::getMCUTemperature() {
 }
 
 bool NRF52BoardOTA::startOTAUpdate(const char *id, char reply[]) {
+  preventSleep();
   // Config the peripheral connection with maximum bandwidth
   // more SRAM required by SoftDevice
   // Note: All config***() function must be called before begin()
