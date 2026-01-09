@@ -230,24 +230,24 @@ static float get_geoidal_separation(double lat, double lon) {
 
   // North America
   if (lat >= 25 && lat <= 70 && lon >= -170 && lon <= -50) {
-    if (lat >= 50) return -10.0;  // Northern Canada/Alaska
-    if (lat >= 35) return -25.0;  // Northern US
-    return -15.0;  // Southern US/Mexico
+    if (lat >= 50) return -10.0; // Northern Canada/Alaska
+    if (lat >= 35) return -25.0; // Northern US
+    return -15.0;                // Southern US/Mexico
   }
 
   // Europe
   if (lat >= 35 && lat <= 72 && lon >= -10 && lon <= 45) {
-    if (lat >= 60) return 25.0;   // Scandinavia
-    if (lat >= 50) return 45.0;   // Netherlands, Germany, Poland
-    if (lat >= 45) return 48.0;   // Central Europe
-    return 50.0;  // Southern Europe
+    if (lat >= 60) return 25.0; // Scandinavia
+    if (lat >= 50) return 45.0; // Netherlands, Germany, Poland
+    if (lat >= 45) return 48.0; // Central Europe
+    return 50.0;                // Southern Europe
   }
 
   // Asia
   if (lat >= -10 && lat <= 75 && lon >= 45 && lon <= 180) {
-    if (lat >= 40) return -10.0;  // Northern Asia/Russia
-    if (lat >= 20) return -5.0;   // Eastern Asia
-    return 0.0;   // Southeast Asia
+    if (lat >= 40) return -10.0; // Northern Asia/Russia
+    if (lat >= 20) return -5.0;  // Eastern Asia
+    return 0.0;                  // Southeast Asia
   }
 
   // Australia/Oceania
@@ -257,16 +257,16 @@ static float get_geoidal_separation(double lat, double lon) {
 
   // South America
   if (lat >= -60 && lat <= 15 && lon >= -85 && lon <= -30) {
-    if (lat >= 0) return 5.0;     // Northern South America
-    if (lat >= -30) return 15.0;  // Central South America
-    return 0.0;   // Southern South America
+    if (lat >= 0) return 5.0;    // Northern South America
+    if (lat >= -30) return 15.0; // Central South America
+    return 0.0;                  // Southern South America
   }
 
   // Africa
   if (lat >= -35 && lat <= 38 && lon >= -20 && lon <= 55) {
-    if (lat >= 20) return 0.0;    // Northern Africa
-    if (lat >= 0) return 5.0;     // Equatorial Africa
-    return 20.0;  // Southern Africa
+    if (lat >= 20) return 0.0; // Northern Africa
+    if (lat >= 0) return 5.0;  // Equatorial Africa
+    return 20.0;               // Southern Africa
   }
 
   // Default fallback
@@ -854,6 +854,8 @@ void EnvironmentSensorManager::initBasicGPS() {
   MESH_DEBUG_PRINTLN("GPS Serial initialized at 9600 baud");
 #endif
 
+  delay(1000); // Give GPS time to initialize
+
   // Try to detect if GPS is physically connected to determine if we should expose the setting
   _location->begin();
   _location->reset();
@@ -871,6 +873,8 @@ void EnvironmentSensorManager::initBasicGPS() {
   gps_detected = (_board != nullptr);
   if (gps_detected) {
     MESH_DEBUG_PRINTLN("Heltec: GPS assumed present (board configured with GPS)");
+    MESH_DEBUG_PRINTLN("GPS detection check: Serial1.available() = %d", Serial1.available());
+
   } else {
     MESH_DEBUG_PRINTLN("Heltec: No board reference, GPS not configured");
   }
@@ -993,19 +997,22 @@ void EnvironmentSensorManager::start_gps() {
     if (_board) {
       _board->periph_power.claim();
       MESH_DEBUG_PRINTLN("Heltec: Claimed peripheral power for GPS");
+      digitalWrite(PIN_GPS_EN, HIGH); // Wake GPS from standby
+
+      delay(1000);
+
+
+      // Send configuration command to Heltec GPS modules
+      Serial1.println("$CFGSYS,h35155*68");
+      MESH_DEBUG_PRINTLN("Heltec: GPS configuration command sent");
+      MESH_DEBUG_PRINTLN("Waiting for gps to power up");
+      delay(1000);
+      gps_active = true;
     }
 #endif
 
-    gps_active = true;
-
     _location->begin();
     _location->reset();
-
-#ifdef HELTEC_LORA_V3
-    // Send configuration command to Heltec GPS modules
-    Serial1.println("$CFGSYS,h35155*68");
-    MESH_DEBUG_PRINTLN("Heltec: GPS configuration command sent");
-#endif
 
 #ifndef PIN_GPS_RESET
     MESH_DEBUG_PRINTLN("Start GPS (no reset pin on this board)");
@@ -1131,7 +1138,7 @@ void EnvironmentSensorManager::loop() {
         if (temp_data.signal != 0 && press_data.signal != 0) {
           bme680_temperature = temp_data.signal;
           bme680_humidity = hum_data.signal;
-          bme680_pressure = press_data.signal / 100.0F;     // Convert Pa to hPa
+          bme680_pressure = press_data.signal / 100.0;      // Convert Pa to hPa
           bme680_gas_resistance = gas_data.signal / 1000.0; // Convert Ohm to kOhm
           bme680_iaq = iaq_data.signal;
           bme680_iaq_accuracy = iaq_data.accuracy;
@@ -1151,9 +1158,10 @@ void EnvironmentSensorManager::loop() {
           } else if (geoid_correction == 0.0 && node_lat != 0.0 && node_lon != 0.0) {
             // Fall back to compile-time advertised location if GPS not available
             geoid_correction = get_geoidal_separation(node_lat, node_lon);
-            MESH_DEBUG_PRINTLN(
-                "Using advertised location geoid: lat=%.2f, lon=%.2f. raw_alt=%.2f, corr_alt=%.02f -> %.1fm",
-                (double)node_lat, (double)node_lon, alt_msl, (alt_msl - geoid_correction), geoid_correction);
+            MESH_DEBUG_PRINTLN("Using advertised location geoid: lat=%.2f, lon=%.2f, alt=%.2f. raw_alt=%.2f, "
+                               "corr_alt=%.02f -> %.1fm",
+                               (double)node_lat, (double)node_lon, (double)node_altitude, alt_msl,
+                               (alt_msl - geoid_correction), geoid_correction);
           }
 #endif
 
