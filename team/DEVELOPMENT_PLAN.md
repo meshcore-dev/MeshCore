@@ -6,6 +6,28 @@
 
 ---
 
+## Current Progress
+
+**Phase**: Messaging (Phase 2)
+**Status**: 🟡 In Progress
+
+**Completed**:
+- ✅ **Phase 1 - BLE Foundation**: Scanner, connection manager, command serialization, response parsing, connection UI, permissions
+- ✅ **Phase 2 - Database Layer**: Message/Node/Channel/AckRecord entities, DAOs, Room database, repositories  
+- ✅ **Phase 2 - Messaging UI**: MessageScreen with channel selector, message bubbles, delivery status indicators, input field
+- ✅ **Navigation**: Two-screen navigation (messages ↔ connection)
+- ✅ **Mock Data Support**: Test messaging without hardware
+- ✅ **Dark Theme**: Default dark theme enabled
+
+**Next Tasks**:
+- [ ] Add persistent navigation bar for easier screen switching
+- [ ] Show sender name/tag on message bubbles
+- [ ] Integrate BLE message sending with CommandSerializer
+- [ ] Implement message polling service (CMD_SYNC_NEXT_MESSAGE)
+- [ ] Add delivery tracking with ACKs (PUSH_CODE_SEND_CONFIRMED)
+
+---
+
 ## Core Features
 
 ### Must-Have Features (Version 1)
@@ -400,6 +422,9 @@ longitude_int = longitude * 1,000,000
     - [ ] Private channels: Required (always ON)
     - [ ] UI toggle for public channel location sharing
     - [ ] Store preference per channel
+- [ ] **UI Improvements**:
+  - [ ] Add persistent navigation bar for easy screen switching
+  - [ ] Add sender name/tag to message bubbles (at top or bottom before timestamp)
 - [ ] **Message sending**:
   - [ ] Implement `CMD_SEND_TXT_MSG` (private)
   - [ ] Implement `CMD_SEND_CHANNEL_TXT_MSG` (group)
