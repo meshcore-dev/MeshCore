@@ -60,6 +60,9 @@ public:
   const char* getResetReasonString(uint32_t reason) override;
   const char* getShutdownReasonString(uint8_t reason) override;
 #endif
+
+  virtual bool safeToSleep() override;
+  virtual void sleep(uint32_t secs) override;
 };
 
 /*
