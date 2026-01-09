@@ -53,6 +53,7 @@ public:
   virtual const char* getManufacturerName() const = 0;
   virtual void onBeforeTransmit() { }
   virtual void onAfterTransmit() { }
+  virtual void onRXInterrupt() {}
   virtual void reboot() = 0;
   virtual void powerOff() { /* no op */ }
   virtual void enterSleep(uint32_t secs) {
