@@ -1,5 +1,18 @@
 #include "EnvironmentSensorManager.h"
 
+// Include board headers for power management
+#ifdef HELTEC_LORA_V3
+#include <helpers/RefCountedDigitalPin.h>
+// Forward declare to avoid circular dependency
+#ifndef HELTEC_V3_BOARD_CLASS_DEFINED
+class HeltecV3Board {
+public:
+  RefCountedDigitalPin periph_power;
+  HeltecV3Board() : periph_power(PIN_VEXT_EN) {}
+};
+#endif
+#endif
+
 #if ENV_PIN_SDA && ENV_PIN_SCL
 #define TELEM_WIRE &Wire1 // Use Wire1 as the I2C bus for Environment Sensors
 #else
@@ -11,6 +24,10 @@
 #define TELEM_BME680_ADDRESS 0x76
 #endif
 #define TELEM_BME680_SEALEVELPRESSURE_HPA (1013.25)
+
+#ifndef BME680_BSEC2_SUPPORTED
+#define BME680_BSEC2_SUPPORTED 0
+#endif
 
 // Geoidal separation (geoid height above WGS84 ellipsoid) for altitude correction
 // This is location-specific. Default is 0, can be overridden in platformio.ini
@@ -191,7 +208,7 @@ static uint8_t read_chip_id(TwoWire *wire, uint8_t address) {
     delay(20);
     return 0x00; // Communication failed
   }
-  
+
   delay(10);
   wire->requestFrom(address, (uint8_t)1);
   if (wire->available()) {
@@ -206,21 +223,18 @@ static uint8_t read_chip_id(TwoWire *wire, uint8_t address) {
 // Get geoidal separation based on GPS coordinates
 // Simple lookup table for common regions - accuracy ~5m
 static float get_geoidal_separation(double lat, double lon) {
-  // If manual override is set, use that
-  if (GEOIDAL_SEPARATION != 0.0) {
-    return GEOIDAL_SEPARATION;
-  }
-  
-  // Coarse regional estimates (latitude-based approximation)
+  // Coarse regional estimates (latitude/longitude-based approximation)
   // For more accuracy, use manual override with exact value for your location
-  
+
+  MESH_DEBUG_PRINTLN("Calculating geoidal separation for lat: %.6f, lon: %.6f", lat, lon);
+
   // North America
   if (lat >= 25 && lat <= 70 && lon >= -170 && lon <= -50) {
     if (lat >= 50) return -10.0;  // Northern Canada/Alaska
     if (lat >= 35) return -25.0;  // Northern US
     return -15.0;  // Southern US/Mexico
   }
-  
+
   // Europe
   if (lat >= 35 && lat <= 72 && lon >= -10 && lon <= 45) {
     if (lat >= 60) return 25.0;   // Scandinavia
@@ -228,33 +242,33 @@ static float get_geoidal_separation(double lat, double lon) {
     if (lat >= 45) return 48.0;   // Central Europe
     return 50.0;  // Southern Europe
   }
-  
+
   // Asia
   if (lat >= -10 && lat <= 75 && lon >= 45 && lon <= 180) {
     if (lat >= 40) return -10.0;  // Northern Asia/Russia
     if (lat >= 20) return -5.0;   // Eastern Asia
     return 0.0;   // Southeast Asia
   }
-  
+
   // Australia/Oceania
   if (lat >= -50 && lat <= -10 && lon >= 110 && lon <= 180) {
     return 10.0;
   }
-  
+
   // South America
   if (lat >= -60 && lat <= 15 && lon >= -85 && lon <= -30) {
     if (lat >= 0) return 5.0;     // Northern South America
     if (lat >= -30) return 15.0;  // Central South America
     return 0.0;   // Southern South America
   }
-  
+
   // Africa
   if (lat >= -35 && lat <= 38 && lon >= -20 && lon <= 55) {
     if (lat >= 20) return 0.0;    // Northern Africa
     if (lat >= 0) return 5.0;     // Equatorial Africa
     return 20.0;  // Southern Africa
   }
-  
+
   // Default fallback
   return 0.0;
 }
@@ -277,16 +291,6 @@ bool EnvironmentSensorManager::begin() {
   Wire1.begin(ENV_PIN_SDA, ENV_PIN_SCL, 100000);
 #endif
   MESH_DEBUG_PRINTLN("Second I2C initialized on pins SDA: %d SCL: %d", ENV_PIN_SDA, ENV_PIN_SCL);
-
-  // Enable peripheral power (VEXT) for sensors on Heltec boards
-  // #ifdef PIN_VEXT_EN
-  //   pinMode(PIN_VEXT_EN, OUTPUT);
-  //   digitalWrite(PIN_VEXT_EN, LOW); // LOW = power ON for Heltec V3 boards
-  //   MESH_DEBUG_PRINTLN("Enabled peripheral power (VEXT) on pin %d", PIN_VEXT_EN);
-  // #endif
-
-  // Give I2C bus and sensors time to power up and stabilize
-  delay(200);
 #endif
 
 #if ENV_INCLUDE_BME680
@@ -294,7 +298,7 @@ bool EnvironmentSensorManager::begin() {
   if (i2c_device_exists(TELEM_WIRE, TELEM_BME680_ADDRESS)) {
     uint8_t chip_id = read_chip_id(TELEM_WIRE, TELEM_BME680_ADDRESS);
     MESH_DEBUG_PRINTLN("Chip ID at address %02X: 0x%02X", TELEM_BME680_ADDRESS, chip_id);
-    
+
     if (chip_id == 0x61) { // BME680 chip ID
       MESH_DEBUG_PRINTLN("Confirmed BME680 chip, initializing...");
       delay(100);
@@ -394,7 +398,7 @@ bool EnvironmentSensorManager::begin() {
   // Check chip ID: BME280=0x60, skip if BME680 (0x61) or BMP280 (0x58)
   if (i2c_device_exists(TELEM_WIRE, TELEM_BME280_ADDRESS)) {
     uint8_t chip_id = read_chip_id(TELEM_WIRE, TELEM_BME280_ADDRESS);
-    
+
     if (chip_id == 0x60) { // BME280 chip ID
       if (BME280.begin(TELEM_BME280_ADDRESS, TELEM_WIRE)) {
         MESH_DEBUG_PRINTLN("Found BME280 at address: %02X (chip ID: 0x60)", TELEM_BME280_ADDRESS);
@@ -417,7 +421,7 @@ bool EnvironmentSensorManager::begin() {
   // Check chip ID: BMP280=0x58, skip if BME680 (0x61) or BME280 (0x60)
   if (i2c_device_exists(TELEM_WIRE, TELEM_BMP280_ADDRESS)) {
     uint8_t chip_id = read_chip_id(TELEM_WIRE, TELEM_BMP280_ADDRESS);
-    
+
     if (chip_id == 0x58) { // BMP280 chip ID
       if (BMP280.begin(TELEM_BMP280_ADDRESS)) {
         MESH_DEBUG_PRINTLN("Found BMP280 at address: %02X (chip ID: 0x58)", TELEM_BMP280_ADDRESS);
@@ -647,12 +651,13 @@ bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, Cayen
       telemetry.addRelativeHumidity(TELEM_CHANNEL_SELF, bme680_humidity);
       telemetry.addBarometricPressure(TELEM_CHANNEL_SELF, bme680_pressure);
       telemetry.addAltitude(TELEM_CHANNEL_SELF, bme680_altitude);
-      telemetry.addAnalogInput(next_available_channel, bme680_gas_resistance);
+      telemetry.addGenericSensor(next_available_channel, bme680_gas_resistance);
 
-      if (BME680_BSEC2_SUPPORTED) {
-        telemetry.addAnalogInput(next_available_channel, bme680_iaq);
-        telemetry.addAnalogInput(next_available_channel, bme680_iaq_accuracy);
-      }
+#ifdef BME680_BSEC2_SUPPORTED
+      next_available_channel++;
+      telemetry.addGenericSensor(next_available_channel, bme680_iaq);
+      telemetry.addGenericSensor(next_available_channel, bme680_iaq_accuracy);
+#endif
       next_available_channel++;
     }
 #endif
@@ -838,13 +843,15 @@ bool EnvironmentSensorManager::setSettingValue(const char *name, const char *val
 
 #if ENV_INCLUDE_GPS
 void EnvironmentSensorManager::initBasicGPS() {
-
-  Serial1.setPins(PIN_GPS_TX, PIN_GPS_RX);
+  // Initialize serial port with correct pins
+  MESH_DEBUG_PRINTLN("PIN_GPS_TX %d, PIN_GPS_RX %d", PIN_GPS_TX, PIN_GPS_RX);
 
 #ifdef GPS_BAUD_RATE
-  Serial1.begin(GPS_BAUD_RATE);
+  Serial1.begin(GPS_BAUD_RATE, SERIAL_8N1, PIN_GPS_RX, PIN_GPS_TX);
+  MESH_DEBUG_PRINTLN("GPS Serial initialized at %d baud", GPS_BAUD_RATE);
 #else
-  Serial1.begin(9600);
+  Serial1.begin(9600, SERIAL_8N1, PIN_GPS_RX, PIN_GPS_TX);
+  MESH_DEBUG_PRINTLN("GPS Serial initialized at 9600 baud");
 #endif
 
   // Try to detect if GPS is physically connected to determine if we should expose the setting
@@ -855,25 +862,39 @@ void EnvironmentSensorManager::initBasicGPS() {
   MESH_DEBUG_PRINTLN("No GPS wake/reset pin found for this board. Continuing on...");
 #endif
 
-  // Give GPS a moment to power up and send data
-  delay(1000);
-
-  // We'll consider GPS detected if we see any data on Serial1
+  // On Heltec boards, assume GPS is present if we have a board pointer
+  // We can't power it on during init because board.begin() hasn't been called yet
 #ifdef ENV_SKIP_GPS_DETECT
   gps_detected = true;
+  MESH_DEBUG_PRINTLN("GPS detection skipped (ENV_SKIP_GPS_DETECT)");
+#elif defined(HELTEC_LORA_V3)
+  gps_detected = (_board != nullptr);
+  if (gps_detected) {
+    MESH_DEBUG_PRINTLN("Heltec: GPS assumed present (board configured with GPS)");
+  } else {
+    MESH_DEBUG_PRINTLN("Heltec: No board reference, GPS not configured");
+  }
 #else
+  // For non-Heltec boards, try to detect GPS by checking for data
+  delay(1000);
   gps_detected = (Serial1.available() > 0);
+  MESH_DEBUG_PRINTLN("GPS detection check: Serial1.available() = %d", Serial1.available());
 #endif
 
   if (gps_detected) {
     MESH_DEBUG_PRINTLN("GPS detected");
 #ifdef PERSISTANT_GPS
-    gps_active = true;
+    // Mark GPS for deferred power-on in persistent mode
+    // Actual power-on happens in loop() after board.begin() has been called
+    gps_active = false; // Not active yet - will be activated in loop()
+    gps_needs_power_on = true;
+    MESH_DEBUG_PRINTLN("GPS marked for persistent mode (deferred power-on in loop)");
     return;
 #endif
   } else {
     MESH_DEBUG_PRINTLN("No GPS detected");
   }
+
   _location->stop();
   gps_active = false; // Set GPS visibility off until setting is changed
 }
@@ -959,34 +980,63 @@ bool EnvironmentSensorManager::gpsIsAwake(uint8_t ioPin) {
 #endif
 
 void EnvironmentSensorManager::start_gps() {
-  gps_active = true;
+  if (!gps_active) {
 #ifdef RAK_WISBLOCK_GPS
-  pinMode(gpsResetPin, OUTPUT);
-  digitalWrite(gpsResetPin, HIGH);
-  return;
+    pinMode(gpsResetPin, OUTPUT);
+    digitalWrite(gpsResetPin, HIGH);
+    gps_active = true;
+    return;
 #endif
 
-  _location->begin();
-  _location->reset();
+#ifdef HELTEC_LORA_V3
+    // Heltec boards: manage peripheral power for GPS
+    if (_board) {
+      _board->periph_power.claim();
+      MESH_DEBUG_PRINTLN("Heltec: Claimed peripheral power for GPS");
+    }
+#endif
+
+    gps_active = true;
+
+    _location->begin();
+    _location->reset();
+
+#ifdef HELTEC_LORA_V3
+    // Send configuration command to Heltec GPS modules
+    Serial1.println("$CFGSYS,h35155*68");
+    MESH_DEBUG_PRINTLN("Heltec: GPS configuration command sent");
+#endif
 
 #ifndef PIN_GPS_RESET
-  MESH_DEBUG_PRINTLN("Start GPS is N/A on this board. Actual GPS state unchanged");
+    MESH_DEBUG_PRINTLN("Start GPS (no reset pin on this board)");
 #endif
+  }
 }
 
 void EnvironmentSensorManager::stop_gps() {
-  gps_active = false;
+  if (gps_active) {
+    gps_active = false;
+
 #ifdef RAK_WISBLOCK_GPS
-  pinMode(gpsResetPin, OUTPUT);
-  digitalWrite(gpsResetPin, LOW);
-  return;
+    pinMode(gpsResetPin, OUTPUT);
+    digitalWrite(gpsResetPin, LOW);
+    return;
 #endif
 
-  _location->stop();
+    _location->stop();
+
+#ifdef HELTEC_LORA_V3
+    // Heltec boards: release peripheral power for GPS
+    if (_board) {
+      _board->periph_power.release();
+      MESH_DEBUG_PRINTLN("Heltec: Released peripheral power for GPS");
+    }
+#endif
 
 #ifndef PIN_GPS_EN
-  MESH_DEBUG_PRINTLN("Stop GPS is N/A on this board. Actual GPS state unchanged");
+    MESH_DEBUG_PRINTLN("Stop GPS (no enable pin on this board)");
 #endif
+  }
 }
 #endif
 
@@ -995,27 +1045,66 @@ void EnvironmentSensorManager::loop() {
   static long next_gps_update = 0;
 
 #if ENV_INCLUDE_GPS
+  // Handle deferred GPS power-on for PERSISTANT_GPS mode
+  // This ensures board.begin() has been called before we use periph_power
+  if (gps_needs_power_on && !gps_active) {
+    MESH_DEBUG_PRINTLN("Activating GPS (deferred from init)...");
+    start_gps();
+    gps_needs_power_on = false;
+  }
+
   _location->loop();
 
   if (millis() > next_gps_update) {
     if (gps_active) {
+      static bool last_valid_state = false;
+      static long last_sat_count = 0;
+      bool currently_valid = _location->isValid();
+      long current_sats = _location->satellitesCount();
+
+      // Log status changes or periodic updates (every 10 seconds when no fix)
+      static unsigned long last_status_log = 0;
+      bool should_log = (currently_valid != last_valid_state) || (current_sats != last_sat_count) ||
+                        (!currently_valid && (millis() - last_status_log > 10000));
+
 #ifdef RAK_WISBLOCK_GPS
       if ((i2cGPSFlag || serialGPSFlag) && _location->isValid()) {
+        if (should_log) {
+          MESH_DEBUG_PRINTLN("GPS FIX ACQUIRED: lat %.6f, lon %.6f, alt %.1fm, sats %ld",
+                             ((double)_location->getLatitude()) / 1000000.,
+                             ((double)_location->getLongitude()) / 1000000.,
+                             ((double)_location->getAltitude()) / 1000.0, current_sats);
+          last_status_log = millis();
+        }
         node_lat = ((double)_location->getLatitude()) / 1000000.;
         node_lon = ((double)_location->getLongitude()) / 1000000.;
-        MESH_DEBUG_PRINTLN("lat %f lon %f", node_lat, node_lon);
         node_altitude = ((double)_location->getAltitude()) / 1000.0;
-        MESH_DEBUG_PRINTLN("lat %f lon %f alt %f", node_lat, node_lon, node_altitude);
+      } else if (should_log) {
+        MESH_DEBUG_PRINTLN("GPS searching... (sats: %ld, valid: %s)", current_sats,
+                           _location->isValid() ? "YES" : "NO");
+        last_status_log = millis();
       }
 #else
       if (_location->isValid()) {
+        if (should_log) {
+          MESH_DEBUG_PRINTLN("GPS FIX ACQUIRED: lat %.6f, lon %.6f, alt %.1fm, sats %ld",
+                             ((double)_location->getLatitude()) / 1000000.,
+                             ((double)_location->getLongitude()) / 1000000.,
+                             ((double)_location->getAltitude()) / 1000.0, current_sats);
+          last_status_log = millis();
+        }
         node_lat = ((double)_location->getLatitude()) / 1000000.;
         node_lon = ((double)_location->getLongitude()) / 1000000.;
-        MESH_DEBUG_PRINTLN("lat %f lon %f", node_lat, node_lon);
         node_altitude = ((double)_location->getAltitude()) / 1000.0;
-        MESH_DEBUG_PRINTLN("lat %f lon %f alt %f", node_lat, node_lon, node_altitude);
+      } else if (should_log) {
+        MESH_DEBUG_PRINTLN("GPS searching... (sats: %ld, valid: %s)", current_sats,
+                           _location->isValid() ? "YES" : "NO");
+        last_status_log = millis();
       }
 #endif
+
+      last_valid_state = currently_valid;
+      last_sat_count = current_sats;
     }
     next_gps_update = millis() + 1000;
   }
@@ -1042,31 +1131,41 @@ void EnvironmentSensorManager::loop() {
         if (temp_data.signal != 0 && press_data.signal != 0) {
           bme680_temperature = temp_data.signal;
           bme680_humidity = hum_data.signal;
-          bme680_pressure = press_data.signal / 100.0;      // Convert Pa to hPa
+          bme680_pressure = press_data.signal / 100.0F;     // Convert Pa to hPa
           bme680_gas_resistance = gas_data.signal / 1000.0; // Convert Ohm to kOhm
           bme680_iaq = iaq_data.signal;
           bme680_iaq_accuracy = iaq_data.accuracy;
 
           // Calculate altitude from pressure + geoidal separation correction
           float alt_msl = 44330.0 * (1.0 - pow(bme680_pressure / TELEM_BME680_SEALEVELPRESSURE_HPA, 0.1903));
-          
-          // Use GPS-based geoidal separation if GPS is active and valid
-#if ENV_INCLUDE_GPS
-          float geoid_correction = (gps_active && node_lat != 0 && node_lon != 0) 
-                                    ? get_geoidal_separation(node_lat, node_lon)
-                                    : GEOIDAL_SEPARATION;
-#else
-          float geoid_correction = GEOIDAL_SEPARATION;
-#endif
-          bme680_altitude = alt_msl + geoid_correction;
 
+          // Determine geoidal separation
+          float geoid_correction = GEOIDAL_SEPARATION; // Default
+
+#if ENV_INCLUDE_GPS
+          // Use GPS coordinates if available (from actual GPS fix)
+          if (gps_active && _location->isValid() && node_lat != 0.0 && node_lon != 0.0) {
+            geoid_correction = get_geoidal_separation(node_lat, node_lon);
+            MESH_DEBUG_PRINTLN("Using GPS geoid: lat=%.2f, lon=%.2f -> %.1fm", node_lat, node_lon,
+                               geoid_correction);
+          } else if (geoid_correction == 0.0 && node_lat != 0.0 && node_lon != 0.0) {
+            // Fall back to compile-time advertised location if GPS not available
+            geoid_correction = get_geoidal_separation(node_lat, node_lon);
+            MESH_DEBUG_PRINTLN(
+                "Using advertised location geoid: lat=%.2f, lon=%.2f. raw_alt=%.2f, corr_alt=%.02f -> %.1fm",
+                (double)node_lat, (double)node_lon, alt_msl, (alt_msl - geoid_correction), geoid_correction);
+          }
+#endif
+
+          bme680_altitude = alt_msl - geoid_correction;
           last_bme680_reading = now;
 
           MESH_DEBUG_PRINTLN(
-              "BME680 (BSEC2): Temp=%.2f°C, Hum=%.2f%%, Press=%.2f hPa, Alt=%.2fm (geoid:%.1fm), Gas=%.0f kOhm, "
+              "BME680 (BSEC2): Temp=%.2f°C, Hum=%.2f%%, Press=%.2f hPa, Raw_Alt=%.2f, Corr_Alt=%.2fm "
+              "(geoid:%.1fm), Gas=%.0f kOhm, "
               "IAQ=%.2f, Acc=%d",
-              bme680_temperature, bme680_humidity, bme680_pressure, bme680_altitude, geoid_correction, 
-              bme680_gas_resistance, bme680_iaq, (int)bme680_iaq_accuracy);
+              bme680_temperature, bme680_humidity, bme680_pressure, alt_msl, bme680_altitude,
+              geoid_correction, bme680_gas_resistance, bme680_iaq, (int)bme680_iaq_accuracy);
         }
       }
     }
@@ -1080,25 +1179,34 @@ void EnvironmentSensorManager::loop() {
         bme680_humidity = BME680.humidity;
         bme680_pressure = BME680.pressure / 100; // Convert Pa to hPa
         bme680_gas_resistance = BME680.gas_resistance;
-        
+
         // Use library's altitude calculation + geoidal separation correction
         float alt_msl = BME680.readAltitude(TELEM_BME680_SEALEVELPRESSURE_HPA);
-        
-        // Use GPS-based geoidal separation if GPS is active and valid
-#if ENV_INCLUDE_GPS
-        float geoid_correction = (gps_active && node_lat != 0 && node_lon != 0) 
-                                  ? get_geoidal_separation(node_lat, node_lon)
-                                  : GEOIDAL_SEPARATION;
-#else
-        float geoid_correction = GEOIDAL_SEPARATION;
-#endif
-        bme680_altitude = alt_msl + geoid_correction;
 
+        // Determine geoidal separation
+        float geoid_correction = GEOIDAL_SEPARATION; // Default
+
+#if ENV_INCLUDE_GPS
+        // Use GPS coordinates if available (from actual GPS fix)
+        if (gps_active && _location->isValid() && node_lat != 0.0 && node_lon != 0.0) {
+          geoid_correction = get_geoidal_separation(node_lat, node_lon);
+          MESH_DEBUG_PRINTLN("Using GPS geoid: lat=%.2f, lon=%.2f -> %.1fm", node_lat, node_lon,
+                             geoid_correction);
+        } else if (geoid_correction == 0.0 && node_lat != 0.0 && node_lon != 0.0) {
+          // Fall back to compile-time advertised location if GPS not available
+          geoid_correction = get_geoidal_separation(node_lat, node_lon);
+          MESH_DEBUG_PRINTLN("Using advertised location geoid: lat=%.2f, lon=%.2f -> %.1fm", (double)node_lat,
+                             (double)node_lon, geoid_correction);
+        }
+#endif
+
+        bme680_altitude = alt_msl - geoid_correction;
         last_bme680_reading = now;
 
-        MESH_DEBUG_PRINTLN(
-            "BME680 (Adafruit): Temp=%.1f°C, Hum=%.1f%%, Press=%.1f hPa, Alt=%.1fm (geoid:%.1fm), Gas=%.0f Ohm",
-            bme680_temperature, bme680_humidity, bme680_pressure, bme680_altitude, geoid_correction, bme680_gas_resistance);
+        MESH_DEBUG_PRINTLN("BME680 (Adafruit): Temp=%.1f°C, Hum=%.1f%%, Press=%.1f hPa, Alt=%.1fm "
+                           "(geoid:%.1fm), Gas=%.0f Ohm",
+                           bme680_temperature, bme680_humidity, bme680_pressure, bme680_altitude,
+                           geoid_correction, bme680_gas_resistance);
       } else {
         MESH_DEBUG_PRINTLN("BME680 reading failed, keeping previous values");
       }
