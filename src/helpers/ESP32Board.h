@@ -57,18 +57,24 @@ public:
   }
 
   void enterLightSleep(uint32_t secs) {
-#if defined(CONFIG_IDF_TARGET_ESP32S3) && defined(P_LORA_DIO_1) // Supported ESP32 variants
-    if (rtc_gpio_is_valid_gpio((gpio_num_t)P_LORA_DIO_1)) { // Only enter sleep mode if P_LORA_DIO_1 is RTC pin
-      esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
-      esp_sleep_enable_ext1_wakeup((1L << P_LORA_DIO_1), ESP_EXT1_WAKEUP_ANY_HIGH); // To wake up when receiving a LoRa packet
-
-      if (secs > 0) {
-        esp_sleep_enable_timer_wakeup(secs * 1000000); // To wake up every hour to do periodically jobs
-      }
-
-      esp_light_sleep_start(); // CPU enters light sleep
-    }
+#if defined(RADIO_SX1276) && defined(P_LORA_DIO_0) // SX1276
+    gpio_num_t wakeupPin = (gpio_num_t) P_LORA_DIO_0;
+#elif defined(P_LORA_DIO_1) // SX1262
+    gpio_num_t wakeupPin = (gpio_num_t) P_LORA_DIO_1;
+#else
+    return; // Not supported
 #endif
+
+    gpio_intr_disable((gpio_num_t) wakeupPin); // To disable ISR for LoRa
+    esp_sleep_enable_gpio_wakeup();
+    gpio_wakeup_enable((gpio_num_t) wakeupPin, GPIO_INTR_HIGH_LEVEL); // To wake up when receiving a LoRa packet
+
+    if (secs > 0) {
+      esp_sleep_enable_timer_wakeup(secs * 1000000); // To wake up periodically to do scheduled jobs
+    }
+
+    esp_light_sleep_start();                    // CPU enters light sleep
+    gpio_intr_enable((gpio_num_t) wakeupPin); // Wakeup. Let ISR to handle LoRa packet as normal
   }
 
   void sleep(uint32_t secs) override {

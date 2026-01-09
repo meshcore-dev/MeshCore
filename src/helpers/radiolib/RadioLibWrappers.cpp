@@ -22,6 +22,18 @@ static
 void setFlag(void) {
   // we sent a packet, set the flag
   state |= STATE_INT_READY;
+
+  // To avoid ISR flood during wakeup due to HIGH LEVEL interrupt
+#if defined(ESP32) && defined(RADIO_SX1276) && defined(P_LORA_DIO_0) // SX1276
+  gpio_set_intr_type((gpio_num_t)P_LORA_DIO_0, GPIO_INTR_POSEDGE);
+#elif defined(ESP32) && defined(P_LORA_DIO_1) // SX1262
+  gpio_set_intr_type((gpio_num_t)P_LORA_DIO_1, GPIO_INTR_POSEDGE);
+#endif
+
+// To wakeup when there is a LoRa message
+#if defined(NRF52_PLATFORM)
+  resumeLoop();
+#endif
 }
 
 void RadioLibWrapper::begin() {
@@ -137,7 +149,6 @@ bool RadioLibWrapper::startSendRaw(const uint8_t* bytes, int len) {
   }
   MESH_DEBUG_PRINTLN("RadioLibWrapper: error: startTransmit(%d)", err);
   idle();   // trigger another startRecv()
-  _board->onAfterTransmit();
   return false;
 }
 
