@@ -12,6 +12,7 @@
 #define SAMPLING_THRESHOLD  14
 
 static volatile uint8_t state = STATE_IDLE;
+static mesh::MainBoard *board;
 
 // this function is called when a complete packet
 // is transmitted by the module
@@ -22,9 +23,12 @@ static
     void radioISR(void) {
   // we sent a packet, set the flag
   state |= STATE_INT_READY;
+
+  if (state & STATE_RX) board->onRXInterrupt();
 }
 
 void RadioLibWrapper::begin() {
+  board = _board;
   _radio->setPacketReceivedAction(radioISR); // this is also SentComplete interrupt
   state = STATE_IDLE;
 
