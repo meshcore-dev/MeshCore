@@ -50,6 +50,7 @@ struct NodePrefs { // persisted to file
   uint8_t advert_loc_policy;
   uint32_t discovery_mod_timestamp;
   float adc_multiplier;
+  char owner_info[120];
 };
 
 class CommonCLICallbacks {

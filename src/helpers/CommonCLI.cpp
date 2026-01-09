@@ -72,7 +72,8 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     file.read((uint8_t *)&_prefs->advert_loc_policy, sizeof (_prefs->advert_loc_policy));          // 161
     file.read((uint8_t *)&_prefs->discovery_mod_timestamp, sizeof(_prefs->discovery_mod_timestamp)); // 162
     file.read((uint8_t *)&_prefs->adc_multiplier, sizeof(_prefs->adc_multiplier)); // 166
-    // 170
+    file.read((uint8_t *)_prefs->owner_info, sizeof(_prefs->owner_info));  // 170
+    // 290
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -155,7 +156,8 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->advert_loc_policy, sizeof(_prefs->advert_loc_policy));           // 161
     file.write((uint8_t *)&_prefs->discovery_mod_timestamp, sizeof(_prefs->discovery_mod_timestamp)); // 162
     file.write((uint8_t *)&_prefs->adc_multiplier, sizeof(_prefs->adc_multiplier));                 // 166
-    // 170
+    file.write((uint8_t *)_prefs->owner_info, sizeof(_prefs->owner_info));  // 170
+    // 290
 
     file.close();
   }
@@ -301,6 +303,15 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         sprintf(reply, "> %d", (uint32_t)_prefs->flood_max);
       } else if (memcmp(config, "direct.txdelay", 14) == 0) {
         sprintf(reply, "> %s", StrHelper::ftoa(_prefs->direct_tx_delay_factor));
+      } else if (memcmp(config, "owner.info", 10) == 0) {
+        *reply++ = '>';
+        *reply++ = ' ';
+        const char* sp = _prefs->owner_info;
+        while (*sp) {
+          *reply++ = (*sp == '\n') ? '|' : *sp;    // translate newline back to orig '|'
+          sp++;
+        }
+        *reply = 0;  // set null terminator
       } else if (memcmp(config, "tx", 2) == 0 && (config[2] == 0 || config[2] == ' ')) {
         sprintf(reply, "> %d", (uint32_t) _prefs->tx_power_dbm);
       } else if (memcmp(config, "freq", 4) == 0) {
@@ -479,6 +490,16 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         } else {
           strcpy(reply, "Error, cannot be negative");
         }
+      } else if (memcmp(config, "owner.info ", 11) == 0) {
+        config += 11;
+        char *dp = _prefs->owner_info;
+        while (*config && dp - _prefs->owner_info < sizeof(_prefs->owner_info)-1) {
+          *dp++ = (*config == '|') ? '\n' : *config;    // translate '|' to newline chars
+          config++;
+        }
+        *dp = 0;
+        savePrefs();
+        strcpy(reply, "OK");
       } else if (memcmp(config, "tx ", 3) == 0) {
         _prefs->tx_power_dbm = atoi(&config[3]);
         savePrefs();
