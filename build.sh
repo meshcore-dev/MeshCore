@@ -119,6 +119,10 @@ build_firmware() {
   cp .pio/build/$1/firmware.uf2 out/${FIRMWARE_FILENAME}.uf2 2>/dev/null || true
   cp .pio/build/$1/firmware.zip out/${FIRMWARE_FILENAME}.zip 2>/dev/null || true
 
+  if [ -f .pio/build/$1/program ]; then
+    cp .pio/build/$1/program out/meshcored 2>/dev/null || true
+  fi
+
 }
 
 # firmwares containing $1 will be built

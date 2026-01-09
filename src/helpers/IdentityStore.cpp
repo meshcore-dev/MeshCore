@@ -49,7 +49,7 @@ bool IdentityStore::save(const char *name, const mesh::LocalIdentity& id) {
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
   _fs->remove(filename);
   File file = _fs->open(filename, FILE_O_WRITE);
-#elif defined(RP2040_PLATFORM)
+#elif defined(RP2040_PLATFORM) || defined(PORTDUINO_PLATFORM)
   File file = _fs->open(filename, "w");
 #else
   File file = _fs->open(filename, "w", true);
@@ -71,7 +71,7 @@ bool IdentityStore::save(const char *name, const mesh::LocalIdentity& id, const 
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
   _fs->remove(filename);
   File file = _fs->open(filename, FILE_O_WRITE);
-#elif defined(RP2040_PLATFORM)
+#elif defined(RP2040_PLATFORM) || defined(PORTDUINO_PLATFORM)
   File file = _fs->open(filename, "w");
 #else
   File file = _fs->open(filename, "w", true);
