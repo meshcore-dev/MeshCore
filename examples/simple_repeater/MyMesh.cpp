@@ -159,14 +159,6 @@ uint8_t MyMesh::handleAnonRegionsReq(const mesh::Identity& sender, uint32_t send
   return 0;
 }
 
-static void sanitiseName(char* dest, const char* src) {
-  while (*src) {
-    *dest++ = (*src == ',') ? ' ' : *src;
-    src++;
-  }
-  *dest = 0;
-}
-
 uint8_t MyMesh::handleAnonVerOwnerReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data) {
   if (anon_limiter.allow(rtc_clock.getCurrentTime())) {
     // request data has: {reply-path-len}{reply-path}
@@ -174,13 +166,10 @@ uint8_t MyMesh::handleAnonVerOwnerReq(const mesh::Identity& sender, uint32_t sen
     memcpy(reply_path, data, reply_path_len);
     // data += reply_path_len;
 
-    char tmp[sizeof(_prefs.node_name)];
-    sanitiseName(tmp, _prefs.node_name);
-
     memcpy(reply_data, &sender_timestamp, 4);   // prefix with sender_timestamp, like a tag
     uint32_t now = getRTCClock()->getCurrentTime();
     memcpy(&reply_data[4], &now, 4);     // include our clock (for easy clock sync, and packet hash uniqueness)
-    sprintf((char *) &reply_data[8], "%s,%s,%s", FIRMWARE_VERSION, tmp, _prefs.owner_info);
+    sprintf((char *) &reply_data[8], "%s\n%s\n%s", FIRMWARE_VERSION, _prefs.node_name, _prefs.owner_info);
 
     return 8 + strlen((char *) &reply_data[8]);   // reply length
   }
