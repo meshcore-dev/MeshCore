@@ -118,6 +118,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   uint8_t handleLoginReq(const mesh::Identity& sender, const uint8_t* secret, uint32_t sender_timestamp, const uint8_t* data, bool is_flood);
   uint8_t handleAnonRegionsReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data);
   uint8_t handleAnonVerOwnerReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data);
+  uint8_t handleAnonVerReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data);
   int handleRequest(ClientInfo* sender, uint32_t sender_timestamp, uint8_t* payload, size_t payload_len);
   mesh::Packet* createSelfAdvert();
 

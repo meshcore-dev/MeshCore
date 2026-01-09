@@ -53,6 +53,7 @@
 
 #define ANON_REQ_TYPE_REGIONS      0x01
 #define ANON_REQ_TYPE_VER_OWNER    0x02
+#define ANON_REQ_TYPE_VER          0x03
 
 #define CLI_REPLY_DELAY_MILLIS      600
 
@@ -148,12 +149,10 @@ uint8_t MyMesh::handleAnonRegionsReq(const mesh::Identity& sender, uint32_t send
     reply_path_len = *data++ & 0x3F;
     memcpy(reply_path, data, reply_path_len);
     // data += reply_path_len;
-    // other params??
 
     memcpy(reply_data, &sender_timestamp, 4);   // prefix with sender_timestamp, like a tag
-
     uint32_t now = getRTCClock()->getCurrentTime();
-    memcpy(&reply_data[4], &now, 4);     // include our clock (for easy clock sync, if this is a trusted node)
+    memcpy(&reply_data[4], &now, 4);     // include our clock (for easy clock sync, and packet hash uniqueness)
 
     return 8 + region_map.exportNamesTo((char *) &reply_data[8], sizeof(reply_data) - 12, REGION_DENY_FLOOD);   // reply length
   }
@@ -166,14 +165,28 @@ uint8_t MyMesh::handleAnonVerOwnerReq(const mesh::Identity& sender, uint32_t sen
     reply_path_len = *data++ & 0x3F;
     memcpy(reply_path, data, reply_path_len);
     // data += reply_path_len;
-    // other params??
 
     memcpy(reply_data, &sender_timestamp, 4);   // prefix with sender_timestamp, like a tag
-
     uint32_t now = getRTCClock()->getCurrentTime();
-    memcpy(&reply_data[4], &now, 4);     // include our clock (for easy clock sync, if this is a trusted node)
-
+    memcpy(&reply_data[4], &now, 4);     // include our clock (for easy clock sync, and packet hash uniqueness)
     sprintf((char *) &reply_data[8], "%s,%s,%s", FIRMWARE_VERSION, _prefs.node_name, _prefs.owner_info);
+
+    return 8 + strlen((char *) &reply_data[8]);   // reply length
+  }
+  return 0;
+}
+
+uint8_t MyMesh::handleAnonVerReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data) {
+  if (anon_limiter.allow(rtc_clock.getCurrentTime())) {
+    // request data has: {reply-path-len}{reply-path}
+    reply_path_len = *data++ & 0x3F;
+    memcpy(reply_path, data, reply_path_len);
+    // data += reply_path_len;
+
+    memcpy(reply_data, &sender_timestamp, 4);   // prefix with sender_timestamp, like a tag
+    uint32_t now = getRTCClock()->getCurrentTime();
+    memcpy(&reply_data[4], &now, 4);     // include our clock (for easy clock sync, and packet hash uniqueness)
+    strcpy((char *) &reply_data[8], FIRMWARE_VERSION);
 
     return 8 + strlen((char *) &reply_data[8]);   // reply length
   }
@@ -497,6 +510,8 @@ void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const m
       reply_len = handleAnonRegionsReq(sender, timestamp, &data[5]);
     } else if (data[4] == ANON_REQ_TYPE_VER_OWNER && packet->isRouteDirect()) {
       reply_len = handleAnonVerOwnerReq(sender, timestamp, &data[5]);
+    } else if (data[4] == ANON_REQ_TYPE_VER && packet->isRouteDirect()) {
+      reply_len = handleAnonVerReq(sender, timestamp, &data[5]);
     } else {
       reply_len = 0;  // unknown/invalid request type
     }
