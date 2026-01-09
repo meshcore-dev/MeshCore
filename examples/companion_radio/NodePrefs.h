@@ -8,8 +8,9 @@
 #define ADVERT_LOC_NONE       0
 #define ADVERT_LOC_SHARE      1
 
-#define DISPLAY_WAKE_AUTO    0
-#define DISPLAY_WAKE_MANUAL  1
+#define DISPLAY_WAKE_AUTO       0
+#define DISPLAY_WAKE_MANUAL     1
+#define DISPLAY_WAKE_ALWAYS_ON  2
 
 struct NodePrefs {  // persisted to file
   float airtime_factor;

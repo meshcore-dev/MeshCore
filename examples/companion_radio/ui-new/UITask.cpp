@@ -262,11 +262,13 @@ public:
       display.setColor(DisplayDriver::YELLOW);
       display.setTextSize(1);
       display.drawTextCentered(display.width() / 2, 20, "Wake Screen:");
-      
+
       display.setColor(DisplayDriver::GREEN);
       display.setTextSize(2);
       if (_node_prefs->display_wake_mode == DISPLAY_WAKE_MANUAL) {
           display.drawTextCentered(display.width() / 2, 40, "MANUAL");
+      } else if (_node_prefs->display_wake_mode == DISPLAY_WAKE_ALWAYS_ON) {
+          display.drawTextCentered(display.width() / 2, 40, "ALWAYS ON");
       } else {
           display.drawTextCentered(display.width() / 2, 40, "AUTO");
       }
@@ -430,6 +432,9 @@ public:
       if (_node_prefs->display_wake_mode == DISPLAY_WAKE_AUTO) {
           _node_prefs->display_wake_mode = DISPLAY_WAKE_MANUAL;
           _task->showAlert("Wake: Manual", 800);
+      } else if (_node_prefs->display_wake_mode == DISPLAY_WAKE_MANUAL) {
+          _node_prefs->display_wake_mode = DISPLAY_WAKE_ALWAYS_ON;
+          _task->showAlert("Wake: Always On", 800);
       } else {
           _node_prefs->display_wake_mode = DISPLAY_WAKE_AUTO;
           _task->showAlert("Wake: Auto", 800);
@@ -801,7 +806,7 @@ void UITask::loop() {
       _display->endFrame();
     }
 #if AUTO_OFF_MILLIS > 0
-    if (millis() > _auto_off) {
+    if (_node_prefs->display_wake_mode != DISPLAY_WAKE_ALWAYS_ON && millis() > _auto_off) {
       _display->turnOff();
     }
 #endif
