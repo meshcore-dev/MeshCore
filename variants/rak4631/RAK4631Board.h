@@ -4,16 +4,6 @@
 #include <Arduino.h>
 #include <helpers/NRF52Board.h>
 
-// LoRa radio module pins for RAK4631
-#define  P_LORA_DIO_1   47
-#define  P_LORA_NSS     42
-#define  P_LORA_RESET  RADIOLIB_NC   // 38
-#define  P_LORA_BUSY    46
-#define  P_LORA_SCLK    43
-#define  P_LORA_MISO    45
-#define  P_LORA_MOSI    44
-#define  SX126X_POWER_EN  37
-
 //#define PIN_GPS_SDA       13  //GPS SDA pin (output option)
 //#define PIN_GPS_SCL       14  //GPS SCL pin (output option)
 //#define PIN_GPS_TX        16  //GPS TX pin

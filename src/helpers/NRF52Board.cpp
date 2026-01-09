@@ -1,5 +1,9 @@
 #if defined(NRF52_PLATFORM)
 #include "NRF52Board.h"
+#include "nrf_sdm.h"
+
+// For PowerSaving
+static SoftwareTimer wakeupTimer;
 
 // Temperature from NRF52 MCU
 float NRF52Board::getMCUTemperature() {
@@ -21,18 +25,36 @@ float NRF52Board::getMCUTemperature() {
   return temp * 0.25f; // Convert to *C
 }
 
+static void wakeUpCallback(TimerHandle_t xTimer) {
+  // To wake up based on timer
+  resumeLoop();
+  wakeupTimer.stop();
+}
+
 void NRF52Board::enterLightSleep(uint32_t secs) {
-  // Enable SoftDevice low-power mode
-  sd_power_mode_set(NRF_POWER_MODE_LOWPWR);
+#if defined(P_LORA_DIO_1)
+  // To prevent to enter suspendLoop when the loop has not processed the pending RX
+  if(digitalRead(P_LORA_DIO_1) == HIGH) {
+    return;
+  }
 
-  // Enable DC/DC converter- 30% less power conumption
-  NRF_POWER->DCDCEN = 1;
+  // To wake up periodically to do scheduled jobs
+  wakeupTimer.stop();
+  wakeupTimer.begin(secs * 1000, wakeUpCallback, nullptr, false);
+  wakeupTimer.start();
 
-  // Wakeup by events
-  waitForEvent();
+  // To pause MCU to sleep
+  suspendLoop();
+#endif
 }
 
 void NRF52Board::sleep(uint32_t secs) {
-  enterLightSleep(secs); // To wake up after "secs" seconds or when receiving a LoRa packet
+  // To check if the BLE is powered and looking for/connected to a phone
+  uint8_t sd_enabled;
+  sd_softdevice_is_enabled(&sd_enabled); // To set sd_enabled to 1 if the BLE stack is active.
+
+  if (!sd_enabled) { // BLE is off ~ No active OTA, safe to go to sleep
+    enterLightSleep(secs); // To wake up after "secs" seconds or when receiving a LoRa packet
+  }
 }
 #endif

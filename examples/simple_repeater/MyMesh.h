@@ -68,11 +68,11 @@ struct NeighbourInfo {
 };
 
 #ifndef FIRMWARE_BUILD_DATE
-  #define FIRMWARE_BUILD_DATE   "21 Dec 2025"
+  #define FIRMWARE_BUILD_DATE   "07 Jan 2026"
 #endif
 
 #ifndef FIRMWARE_VERSION
-  #define FIRMWARE_VERSION   "v1.11.0 - Variant IoTThinks.com - PowerSaving09"
+  #define FIRMWARE_VERSION   "v1.11.0 - Variant IoTThinks.com - PowerSaving11"
 #endif
 
 #define FIRMWARE_ROLE "repeater"
