@@ -275,6 +275,15 @@ uint32_t MyMesh::getDirectRetransmitDelay(const mesh::Packet *packet) {
 bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
   if (_prefs.disable_fwd) return false;
   if (packet->isRouteFlood() && packet->path_len >= _prefs.flood_max) return false;
+
+  // Limit flood advert paket forwarding using a probabilistic reduction defined by P(h) = 0.308^(hops-1)
+  // https://github.com/meshcore-dev/MeshCore/issues/1223
+  double_t roll_dice = (double)rand() / RAND_MAX;
+  double_t forw_prob = pow(0.308, packet->path_len - 1);
+  if (packet->getPayloadType() == PAYLOAD_TYPE_ADVERT && packet->isRouteFlood() && roll_dice > forw_prob)
+    return false;
+
+  // all other packets
   return true;
 }
 
