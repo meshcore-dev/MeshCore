@@ -33,6 +33,7 @@ void HeltecV4Board::begin() {
       // CSD (GPIO2): Chip enable - must be HIGH for GC1109 to work
       pinMode(P_LORA_PA_EN, OUTPUT);
       digitalWrite(P_LORA_PA_EN, HIGH);
+      delay(1);  // Allow GC1109 FEM time to power up
     }
 
     periph_power.begin();
