@@ -16,7 +16,8 @@ public:
   float getLastSNR() const override { return ((CustomSX1276 *)_radio)->getSNR(); }
 
   float packetScore(float snr, int packet_len) override {
-    int sf = ((CustomSX1276 *)_radio)->spreadingFactor;
+    // Use the configured spreading factor macro
+    int sf = LORA_SF;
     return packetScoreInt(snr, sf, packet_len);
   }
 };

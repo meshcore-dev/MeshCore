@@ -133,39 +133,3 @@ lib_deps =
   adafruit/Adafruit MLX90614 Library @ ^2.1.5
   adafruit/Adafruit_VL53L0X @ ^1.2.4
   stevemarple/MicroNMEA @ ^2.0.6
-
-[env:heltec_wifi_lora_32_v1]
-extends = esp32_base
-board = heltec_v1
-framework = arduino
-build_flags =
-  -I variants/heltec_v1
-  -D HELTEC_LORA_V1
-  -D RADIO_CLASS=CustomSX1276
-  -D WRAPPER_CLASS=CustomSX1276Wrapper
-  -D SX127X_CURRENT_LIMIT=120
-  -D LORA_TX_POWER=20
-  -D LORA_SCK=5
-  -D LORA_MISO=19
-  -D LORA_MOSI=27
-  -D LORA_CS=18
-  -D LORA_RST=14
-  -D LORA_DIO0=26
-  -D LORA_DIO1=35
-  -D LORA_DIO2=34
-  -D P_LORA_TX_LED=-1
-  -D PIN_OLED_SDA=4
-  -D PIN_OLED_SCL=15
-  -D PIN_OLED_RESET=16
-  -D PIN_USER_BTN=0
-build_src_filter =
-  +<*>
-  -<src/helpers/nrf52/>
-  -<src/helpers/rp2040/>
-  -<src/helpers/stm32/>
-lib_deps =
-  adafruit/Adafruit SSD1306 @ ^2.5.13
-  jgromes/RadioLib @ ^7.1.2
-  rweather/Crypto @ ^0.4.0
-  adafruit/RTClib @ ^2.1.3
-  ed25519
