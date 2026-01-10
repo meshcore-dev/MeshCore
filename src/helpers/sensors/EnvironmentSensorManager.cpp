@@ -636,7 +636,10 @@ bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, Cayen
 
   if (requester_permissions & TELEM_PERM_LOCATION && gps_active) {
     telemetry.addGPS(TELEM_CHANNEL_SELF, node_lat, node_lon,
-                     node_altitude); // allow lat/lon via telemetry even if no GPS is detected
+                     node_altitude -
+                         get_geoidal_separation(
+                             node_lat, node_lon)); // allow lat/lon via telemetry even if no GPS is detected
+    telemetry.addAnalogOutput(TELEM_CHANNEL_SELF, _location->satellitesCount());
   }
 
   if (requester_permissions & TELEM_PERM_ENVIRONMENT) {
@@ -653,16 +656,15 @@ bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, Cayen
 #if ENV_INCLUDE_BME680
     if (BME680_initialized) {
       // Use cached data from loop()
-      telemetry.addTemperature(TELEM_CHANNEL_SELF, bme680_temperature);
-      telemetry.addRelativeHumidity(TELEM_CHANNEL_SELF, bme680_humidity);
-      telemetry.addBarometricPressure(TELEM_CHANNEL_SELF, bme680_pressure);
-      telemetry.addAltitude(TELEM_CHANNEL_SELF, bme680_altitude);
-      telemetry.addGenericSensor(next_available_channel, bme680_gas_resistance);
+      telemetry.addTemperature(next_available_channel, bme680_temperature);
+      telemetry.addRelativeHumidity(next_available_channel, bme680_humidity);
+      telemetry.addBarometricPressure(next_available_channel, bme680_pressure);
+      telemetry.addAltitude(next_available_channel, bme680_altitude);
+      telemetry.addAnalogOutput(next_available_channel, bme680_gas_resistance);
 
 #ifdef BME680_BSEC2_SUPPORTED
-      next_available_channel++;
-      telemetry.addGenericSensor(next_available_channel, bme680_iaq);
-      telemetry.addGenericSensor(next_available_channel, bme680_iaq_accuracy);
+      telemetry.addGenericSensor(next_available_channel, bme680_iaq); // IAQ index 0-500
+      telemetry.addPresence(next_available_channel, bme680_iaq_accuracy);
 #endif
       next_available_channel++;
     }
@@ -1162,36 +1164,15 @@ void EnvironmentSensorManager::loop() {
           bme680_iaq_accuracy = iaq_data.accuracy;
 
           // Calculate altitude from pressure + geoidal separation correction
-          float alt_msl = 44330.0 * (1.0 - pow(bme680_pressure / TELEM_BME680_SEALEVELPRESSURE_HPA, 0.1903));
-
-          // Determine geoidal separation
-          float geoid_correction = GEOIDAL_SEPARATION; // Default
-
-#if ENV_INCLUDE_GPS
-          // Use GPS coordinates if available (from actual GPS fix)
-          if (gps_active && _location->isValid() && node_lat != 0.0 && node_lon != 0.0) {
-            geoid_correction = get_geoidal_separation(node_lat, node_lon);
-            MESH_DEBUG_PRINTLN("Using GPS geoid: lat=%.2f, lon=%.2f -> %.1fm", node_lat, node_lon,
-                               geoid_correction);
-          } else if (geoid_correction == 0.0 && node_lat != 0.0 && node_lon != 0.0) {
-            // Fall back to compile-time advertised location if GPS not available
-            geoid_correction = get_geoidal_separation(node_lat, node_lon);
-            MESH_DEBUG_PRINTLN("Using advertised location geoid: lat=%.2f, lon=%.2f, alt=%.2f. raw_alt=%.2f, "
-                               "corr_alt=%.02f -> %.1fm",
-                               (double)node_lat, (double)node_lon, (double)node_altitude, alt_msl,
-                               (alt_msl - geoid_correction), geoid_correction);
-          }
-#endif
-
-          bme680_altitude = alt_msl - geoid_correction;
+          bme680_altitude =
+              44330.0 * (1.0 - pow(bme680_pressure / TELEM_BME680_SEALEVELPRESSURE_HPA, 0.1903));
           last_bme680_reading = now;
 
-          MESH_DEBUG_PRINTLN(
-              "BME680 (BSEC2): Temp=%.2f°C, Hum=%.2f%%, Press=%.2f hPa, Raw_Alt=%.2f, Corr_Alt=%.2fm "
-              "(geoid:%.1fm), Gas=%.0f kOhm, "
-              "IAQ=%.2f, Acc=%d",
-              bme680_temperature, bme680_humidity, bme680_pressure, alt_msl, bme680_altitude,
-              geoid_correction, bme680_gas_resistance, bme680_iaq, (int)bme680_iaq_accuracy);
+          MESH_DEBUG_PRINTLN("BME680 (BSEC2): Temp=%.2f°C, Hum=%.2f%%, Press=%.2f hPa, Alt=%.2fm "
+                             "Gas=%.0f kOhm, "
+                             "IAQ=%.2f, Acc=%d",
+                             bme680_temperature, bme680_humidity, bme680_pressure, bme680_altitude,
+                             bme680_gas_resistance, bme680_iaq, (int)bme680_iaq_accuracy);
         }
       }
     }
@@ -1207,32 +1188,12 @@ void EnvironmentSensorManager::loop() {
         bme680_gas_resistance = BME680.gas_resistance;
 
         // Use library's altitude calculation + geoidal separation correction
-        float alt_msl = BME680.readAltitude(TELEM_BME680_SEALEVELPRESSURE_HPA);
-
-        // Determine geoidal separation
-        float geoid_correction = GEOIDAL_SEPARATION; // Default
-
-#if ENV_INCLUDE_GPS
-        // Use GPS coordinates if available (from actual GPS fix)
-        if (gps_active && _location->isValid() && node_lat != 0.0 && node_lon != 0.0) {
-          geoid_correction = get_geoidal_separation(node_lat, node_lon);
-          MESH_DEBUG_PRINTLN("Using GPS geoid: lat=%.2f, lon=%.2f -> %.1fm", node_lat, node_lon,
-                             geoid_correction);
-        } else if (geoid_correction == 0.0 && node_lat != 0.0 && node_lon != 0.0) {
-          // Fall back to compile-time advertised location if GPS not available
-          geoid_correction = get_geoidal_separation(node_lat, node_lon);
-          MESH_DEBUG_PRINTLN("Using advertised location geoid: lat=%.2f, lon=%.2f -> %.1fm", (double)node_lat,
-                             (double)node_lon, geoid_correction);
-        }
-#endif
-
-        bme680_altitude = alt_msl - geoid_correction;
+        bme680_altitude = BME680.readAltitude(TELEM_BME680_SEALEVELPRESSURE_HPA);
         last_bme680_reading = now;
 
-        MESH_DEBUG_PRINTLN("BME680 (Adafruit): Temp=%.1f°C, Hum=%.1f%%, Press=%.1f hPa, Alt=%.1fm "
-                           "(geoid:%.1fm), Gas=%.0f Ohm",
-                           bme680_temperature, bme680_humidity, bme680_pressure, bme680_altitude,
-                           geoid_correction, bme680_gas_resistance);
+        MESH_DEBUG_PRINTLN(
+            "BME680 (Adafruit): Temp=%.1f°C, Hum=%.1f%%, Press=%.1f hPa, Alt=%.1fm, Gas=%.0f Ohm",
+            bme680_temperature, bme680_humidity, bme680_pressure, bme680_altitude, bme680_gas_resistance);
       } else {
         MESH_DEBUG_PRINTLN("BME680 reading failed, keeping previous values");
       }
