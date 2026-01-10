@@ -698,8 +698,6 @@ void MyMesh::handleAdvertResponse(mesh::Packet* packet) {
   if (flags & ADVERT_RESP_FLAG_HAS_LON) {
     memcpy(&lon_i32, &packet->payload[pos], 4); pos += 4;
   }
-  double lat = lat_i32 / 1e6;
-  double lon = lon_i32 / 1e6;
 
   // Optional: node description
   char node_desc[32] = {0};
