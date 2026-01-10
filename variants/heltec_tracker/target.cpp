@@ -16,7 +16,8 @@ WRAPPER_CLASS radio_driver(radio, board);
 
 ESP32RTCClock fallback_clock;
 AutoDiscoverRTCClock rtc_clock(fallback_clock);
-MicroNMEALocationProvider nmea = MicroNMEALocationProvider(Serial1);
+// v1 has no dedicated GPS reset/enable pins - power is shared via VEXT with display
+MicroNMEALocationProvider nmea = MicroNMEALocationProvider(Serial1, &rtc_clock, -1, -1, &board.periph_power);
 HWTSensorManager sensors = HWTSensorManager(nmea);
 
 #ifdef DISPLAY_CLASS
@@ -58,18 +59,16 @@ mesh::LocalIdentity radio_new_identity() {
 
 void HWTSensorManager::start_gps() {
   if (!gps_active) {
-    board.periph_power.claim();
-
+    _location->begin();  // Claims periph_power via RefCountedDigitalPin
     gps_active = true;
-    Serial1.println("$CFGSYS,h35155*68");
+    Serial1.println("$CFGSYS,h35155*68");  // Configure GPS for all constellations
   }
 }
 
 void HWTSensorManager::stop_gps() {
   if (gps_active) {
     gps_active = false;
-
-    board.periph_power.release();
+    _location->stop();  // Releases periph_power via RefCountedDigitalPin
   }
 }
 
