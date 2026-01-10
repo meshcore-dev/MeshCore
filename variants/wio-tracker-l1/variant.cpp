@@ -52,6 +52,15 @@ const uint32_t g_ADigitalPinMap[] = {
 
     // VBAT ENABLE
     4,  // D30 BAT_CTL
+
+    // EINK
+    13, // 31 SCK
+    14, // 32 RST
+    15, // 33 MOSI
+    16, // 34 DC
+    17, // 35 BUSY
+    19, // 36 CS
+    0xFF, // 37 MISO
 };
 
 void initVariant() {

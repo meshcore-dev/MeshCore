@@ -2,7 +2,7 @@
 #include "target.h"
 #include <helpers/ArduinoHelpers.h>
 
-ikoka_stick_nrf_board board;
+IkokaStickNRFBoard board;
 
 #ifdef DISPLAY_CLASS
   DISPLAY_CLASS display;

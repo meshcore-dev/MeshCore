@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include "CommonCLI.h"
 #include "TxtDataHelpers.h"
+#include "AdvertDataHelpers.h"
 #include <RTClib.h>
 
 // Believe it or not, this std C function is busted on some platforms!
@@ -32,32 +33,44 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
   if (file) {
     uint8_t pad[8];
 
-    file.read((uint8_t *) &_prefs->airtime_factor, sizeof(_prefs->airtime_factor));  // 0
-    file.read((uint8_t *) &_prefs->node_name, sizeof(_prefs->node_name));  // 4
-    file.read(pad, 4);   // 36
-    file.read((uint8_t *) &_prefs->node_lat, sizeof(_prefs->node_lat));  // 40
-    file.read((uint8_t *) &_prefs->node_lon, sizeof(_prefs->node_lon));  // 48
-    file.read((uint8_t *) &_prefs->password[0], sizeof(_prefs->password));  // 56
-    file.read((uint8_t *) &_prefs->freq, sizeof(_prefs->freq));   // 72
-    file.read((uint8_t *) &_prefs->tx_power_dbm, sizeof(_prefs->tx_power_dbm));  // 76
-    file.read((uint8_t *) &_prefs->disable_fwd, sizeof(_prefs->disable_fwd));  // 77
-    file.read((uint8_t *) &_prefs->advert_interval, sizeof(_prefs->advert_interval));  // 78
-    file.read((uint8_t *) pad, 1);  // 79  was 'unused'
-    file.read((uint8_t *) &_prefs->rx_delay_base, sizeof(_prefs->rx_delay_base));  // 80
-    file.read((uint8_t *) &_prefs->tx_delay_factor, sizeof(_prefs->tx_delay_factor));  // 84
-    file.read((uint8_t *) &_prefs->guest_password[0], sizeof(_prefs->guest_password));  // 88
-    file.read((uint8_t *) &_prefs->direct_tx_delay_factor, sizeof(_prefs->direct_tx_delay_factor));  // 104
-    file.read(pad, 4);   // 108
-    file.read((uint8_t *) &_prefs->sf, sizeof(_prefs->sf));  // 112
-    file.read((uint8_t *) &_prefs->cr, sizeof(_prefs->cr));  // 113
-    file.read((uint8_t *) &_prefs->allow_read_only, sizeof(_prefs->allow_read_only));  // 114
-    file.read((uint8_t *) &_prefs->multi_acks, sizeof(_prefs->multi_acks));  // 115
-    file.read((uint8_t *) &_prefs->bw, sizeof(_prefs->bw));  // 116
-    file.read((uint8_t *) &_prefs->agc_reset_interval, sizeof(_prefs->agc_reset_interval));  // 120
-    file.read(pad, 3);   // 121
-    file.read((uint8_t *) &_prefs->flood_max, sizeof(_prefs->flood_max));   // 124
-    file.read((uint8_t *) &_prefs->flood_advert_interval, sizeof(_prefs->flood_advert_interval));  // 125
-    file.read((uint8_t *) &_prefs->interference_threshold, sizeof(_prefs->interference_threshold));  // 126
+    file.read((uint8_t *)&_prefs->airtime_factor, sizeof(_prefs->airtime_factor));    // 0
+    file.read((uint8_t *)&_prefs->node_name, sizeof(_prefs->node_name));              // 4
+    file.read(pad, 4);                                                                // 36
+    file.read((uint8_t *)&_prefs->node_lat, sizeof(_prefs->node_lat));                // 40
+    file.read((uint8_t *)&_prefs->node_lon, sizeof(_prefs->node_lon));                // 48
+    file.read((uint8_t *)&_prefs->password[0], sizeof(_prefs->password));             // 56
+    file.read((uint8_t *)&_prefs->freq, sizeof(_prefs->freq));                        // 72
+    file.read((uint8_t *)&_prefs->tx_power_dbm, sizeof(_prefs->tx_power_dbm));        // 76
+    file.read((uint8_t *)&_prefs->disable_fwd, sizeof(_prefs->disable_fwd));          // 77
+    file.read((uint8_t *)&_prefs->advert_interval, sizeof(_prefs->advert_interval));  // 78
+    file.read((uint8_t *)pad, 1);                                                     // 79  was 'unused'
+    file.read((uint8_t *)&_prefs->rx_delay_base, sizeof(_prefs->rx_delay_base));      // 80
+    file.read((uint8_t *)&_prefs->tx_delay_factor, sizeof(_prefs->tx_delay_factor));  // 84
+    file.read((uint8_t *)&_prefs->guest_password[0], sizeof(_prefs->guest_password)); // 88
+    file.read((uint8_t *)&_prefs->direct_tx_delay_factor, sizeof(_prefs->direct_tx_delay_factor)); // 104
+    file.read(pad, 4);                                                                             // 108
+    file.read((uint8_t *)&_prefs->sf, sizeof(_prefs->sf));                                         // 112
+    file.read((uint8_t *)&_prefs->cr, sizeof(_prefs->cr));                                         // 113
+    file.read((uint8_t *)&_prefs->allow_read_only, sizeof(_prefs->allow_read_only));               // 114
+    file.read((uint8_t *)&_prefs->multi_acks, sizeof(_prefs->multi_acks));                         // 115
+    file.read((uint8_t *)&_prefs->bw, sizeof(_prefs->bw));                                         // 116
+    file.read((uint8_t *)&_prefs->agc_reset_interval, sizeof(_prefs->agc_reset_interval));         // 120
+    file.read(pad, 3);                                                                             // 121
+    file.read((uint8_t *)&_prefs->flood_max, sizeof(_prefs->flood_max));                           // 124
+    file.read((uint8_t *)&_prefs->flood_advert_interval, sizeof(_prefs->flood_advert_interval));   // 125
+    file.read((uint8_t *)&_prefs->interference_threshold, sizeof(_prefs->interference_threshold)); // 126
+    file.read((uint8_t *)&_prefs->bridge_enabled, sizeof(_prefs->bridge_enabled));                 // 127
+    file.read((uint8_t *)&_prefs->bridge_delay, sizeof(_prefs->bridge_delay));                     // 128
+    file.read((uint8_t *)&_prefs->bridge_pkt_src, sizeof(_prefs->bridge_pkt_src));                 // 130
+    file.read((uint8_t *)&_prefs->bridge_baud, sizeof(_prefs->bridge_baud));                       // 131
+    file.read((uint8_t *)&_prefs->bridge_channel, sizeof(_prefs->bridge_channel));                 // 135
+    file.read((uint8_t *)&_prefs->bridge_secret, sizeof(_prefs->bridge_secret));                   // 136
+    file.read(pad, 4);                                                                             // 152
+    file.read((uint8_t *)&_prefs->gps_enabled, sizeof(_prefs->gps_enabled));                       // 156
+    file.read((uint8_t *)&_prefs->gps_interval, sizeof(_prefs->gps_interval));                     // 157
+    file.read((uint8_t *)&_prefs->advert_loc_policy, sizeof (_prefs->advert_loc_policy));          // 161
+    file.read((uint8_t *)&_prefs->discovery_mod_timestamp, sizeof(_prefs->discovery_mod_timestamp)); // 162
+    // 166
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -65,11 +78,21 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     _prefs->direct_tx_delay_factor = constrain(_prefs->direct_tx_delay_factor, 0, 2.0f);
     _prefs->airtime_factor = constrain(_prefs->airtime_factor, 0, 9.0f);
     _prefs->freq = constrain(_prefs->freq, 400.0f, 2500.0f);
-    _prefs->bw = constrain(_prefs->bw, 62.5f, 500.0f);
-    _prefs->sf = constrain(_prefs->sf, 7, 12);
+    _prefs->bw = constrain(_prefs->bw, 7.8f, 500.0f);
+    _prefs->sf = constrain(_prefs->sf, 5, 12);
     _prefs->cr = constrain(_prefs->cr, 5, 8);
     _prefs->tx_power_dbm = constrain(_prefs->tx_power_dbm, 1, 30);
     _prefs->multi_acks = constrain(_prefs->multi_acks, 0, 1);
+
+    // sanitise bad bridge pref values
+    _prefs->bridge_enabled = constrain(_prefs->bridge_enabled, 0, 1);
+    _prefs->bridge_delay = constrain(_prefs->bridge_delay, 0, 10000);
+    _prefs->bridge_pkt_src = constrain(_prefs->bridge_pkt_src, 0, 1);
+    _prefs->bridge_baud = constrain(_prefs->bridge_baud, 9600, 115200);
+    _prefs->bridge_channel = constrain(_prefs->bridge_channel, 0, 14);
+
+    _prefs->gps_enabled = constrain(_prefs->gps_enabled, 0, 1);
+    _prefs->advert_loc_policy = constrain(_prefs->advert_loc_policy, 0, 2);
 
     file.close();
   }
@@ -88,32 +111,44 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     uint8_t pad[8];
     memset(pad, 0, sizeof(pad));
 
-    file.write((uint8_t *) &_prefs->airtime_factor, sizeof(_prefs->airtime_factor));  // 0
-    file.write((uint8_t *) &_prefs->node_name, sizeof(_prefs->node_name));  // 4
-    file.write(pad, 4);   // 36
-    file.write((uint8_t *) &_prefs->node_lat, sizeof(_prefs->node_lat));  // 40
-    file.write((uint8_t *) &_prefs->node_lon, sizeof(_prefs->node_lon));  // 48
-    file.write((uint8_t *) &_prefs->password[0], sizeof(_prefs->password));  // 56
-    file.write((uint8_t *) &_prefs->freq, sizeof(_prefs->freq));   // 72
-    file.write((uint8_t *) &_prefs->tx_power_dbm, sizeof(_prefs->tx_power_dbm));  // 76
-    file.write((uint8_t *) &_prefs->disable_fwd, sizeof(_prefs->disable_fwd));  // 77
-    file.write((uint8_t *) &_prefs->advert_interval, sizeof(_prefs->advert_interval));  // 78
-    file.write((uint8_t *) pad, 1);  // 79  was 'unused'
-    file.write((uint8_t *) &_prefs->rx_delay_base, sizeof(_prefs->rx_delay_base));  // 80
-    file.write((uint8_t *) &_prefs->tx_delay_factor, sizeof(_prefs->tx_delay_factor));  // 84
-    file.write((uint8_t *) &_prefs->guest_password[0], sizeof(_prefs->guest_password));  // 88
-    file.write((uint8_t *) &_prefs->direct_tx_delay_factor, sizeof(_prefs->direct_tx_delay_factor));  // 104
-    file.write(pad, 4);   // 108
-    file.write((uint8_t *) &_prefs->sf, sizeof(_prefs->sf));  // 112
-    file.write((uint8_t *) &_prefs->cr, sizeof(_prefs->cr));  // 113
-    file.write((uint8_t *) &_prefs->allow_read_only, sizeof(_prefs->allow_read_only));  // 114
-    file.write((uint8_t *) &_prefs->multi_acks, sizeof(_prefs->multi_acks));  // 115
-    file.write((uint8_t *) &_prefs->bw, sizeof(_prefs->bw));  // 116
-    file.write((uint8_t *) &_prefs->agc_reset_interval, sizeof(_prefs->agc_reset_interval));  // 120
-    file.write(pad, 3);   // 121
-    file.write((uint8_t *) &_prefs->flood_max, sizeof(_prefs->flood_max));   // 124
-    file.write((uint8_t *) &_prefs->flood_advert_interval, sizeof(_prefs->flood_advert_interval));  // 125
-    file.write((uint8_t *) &_prefs->interference_threshold, sizeof(_prefs->interference_threshold));  // 126
+    file.write((uint8_t *)&_prefs->airtime_factor, sizeof(_prefs->airtime_factor));    // 0
+    file.write((uint8_t *)&_prefs->node_name, sizeof(_prefs->node_name));              // 4
+    file.write(pad, 4);                                                                // 36
+    file.write((uint8_t *)&_prefs->node_lat, sizeof(_prefs->node_lat));                // 40
+    file.write((uint8_t *)&_prefs->node_lon, sizeof(_prefs->node_lon));                // 48
+    file.write((uint8_t *)&_prefs->password[0], sizeof(_prefs->password));             // 56
+    file.write((uint8_t *)&_prefs->freq, sizeof(_prefs->freq));                        // 72
+    file.write((uint8_t *)&_prefs->tx_power_dbm, sizeof(_prefs->tx_power_dbm));        // 76
+    file.write((uint8_t *)&_prefs->disable_fwd, sizeof(_prefs->disable_fwd));          // 77
+    file.write((uint8_t *)&_prefs->advert_interval, sizeof(_prefs->advert_interval));  // 78
+    file.write((uint8_t *)pad, 1);                                                     // 79  was 'unused'
+    file.write((uint8_t *)&_prefs->rx_delay_base, sizeof(_prefs->rx_delay_base));      // 80
+    file.write((uint8_t *)&_prefs->tx_delay_factor, sizeof(_prefs->tx_delay_factor));  // 84
+    file.write((uint8_t *)&_prefs->guest_password[0], sizeof(_prefs->guest_password)); // 88
+    file.write((uint8_t *)&_prefs->direct_tx_delay_factor, sizeof(_prefs->direct_tx_delay_factor)); // 104
+    file.write(pad, 4);                                                                             // 108
+    file.write((uint8_t *)&_prefs->sf, sizeof(_prefs->sf));                                         // 112
+    file.write((uint8_t *)&_prefs->cr, sizeof(_prefs->cr));                                         // 113
+    file.write((uint8_t *)&_prefs->allow_read_only, sizeof(_prefs->allow_read_only));               // 114
+    file.write((uint8_t *)&_prefs->multi_acks, sizeof(_prefs->multi_acks));                         // 115
+    file.write((uint8_t *)&_prefs->bw, sizeof(_prefs->bw));                                         // 116
+    file.write((uint8_t *)&_prefs->agc_reset_interval, sizeof(_prefs->agc_reset_interval));         // 120
+    file.write(pad, 3);                                                                             // 121
+    file.write((uint8_t *)&_prefs->flood_max, sizeof(_prefs->flood_max));                           // 124
+    file.write((uint8_t *)&_prefs->flood_advert_interval, sizeof(_prefs->flood_advert_interval));   // 125
+    file.write((uint8_t *)&_prefs->interference_threshold, sizeof(_prefs->interference_threshold)); // 126
+    file.write((uint8_t *)&_prefs->bridge_enabled, sizeof(_prefs->bridge_enabled));                 // 127
+    file.write((uint8_t *)&_prefs->bridge_delay, sizeof(_prefs->bridge_delay));                     // 128
+    file.write((uint8_t *)&_prefs->bridge_pkt_src, sizeof(_prefs->bridge_pkt_src));                 // 130
+    file.write((uint8_t *)&_prefs->bridge_baud, sizeof(_prefs->bridge_baud));                       // 131
+    file.write((uint8_t *)&_prefs->bridge_channel, sizeof(_prefs->bridge_channel));                 // 135
+    file.write((uint8_t *)&_prefs->bridge_secret, sizeof(_prefs->bridge_secret));                   // 136
+    file.write(pad, 4);                                                                             // 152
+    file.write((uint8_t *)&_prefs->gps_enabled, sizeof(_prefs->gps_enabled));                       // 156
+    file.write((uint8_t *)&_prefs->gps_interval, sizeof(_prefs->gps_interval));                     // 157
+    file.write((uint8_t *)&_prefs->advert_loc_policy, sizeof(_prefs->advert_loc_policy));           // 161
+    file.write((uint8_t *)&_prefs->discovery_mod_timestamp, sizeof(_prefs->discovery_mod_timestamp)); // 162
+    // 166
 
     file.close();
   }
@@ -126,6 +161,19 @@ void CommonCLI::savePrefs() {
     _prefs->advert_interval = 0;  // turn it off, now that device has been manually configured
   }
   _callbacks->savePrefs();
+}
+
+uint8_t CommonCLI::buildAdvertData(uint8_t node_type, uint8_t* app_data) {
+  if (_prefs->advert_loc_policy == ADVERT_LOC_NONE) {
+    AdvertDataBuilder builder(node_type, _prefs->node_name);
+    return builder.encodeTo(app_data);
+  } else if (_prefs->advert_loc_policy == ADVERT_LOC_SHARE) {
+    AdvertDataBuilder builder(node_type, _prefs->node_name, _sensors->node_lat, _sensors->node_lon);
+    return builder.encodeTo(app_data);
+  } else {
+    AdvertDataBuilder builder(node_type, _prefs->node_name, _prefs->node_lat, _prefs->node_lon);
+    return builder.encodeTo(app_data);
+  }
 }
 
 void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, char* reply) {
@@ -185,7 +233,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
       uint8_t sf  = num > 2 ? atoi(parts[2]) : 0;
       uint8_t cr  = num > 3 ? atoi(parts[3]) : 0;
       int temp_timeout_mins  = num > 4 ? atoi(parts[4]) : 0;
-      if (freq >= 300.0f && freq <= 2500.0f && sf >= 7 && sf <= 12 && cr >= 5 && cr <= 8 && bw >= 7.0f && bw <= 500.0f && temp_timeout_mins > 0) {
+      if (freq >= 300.0f && freq <= 2500.0f && sf >= 5 && sf <= 12 && cr >= 5 && cr <= 8 && bw >= 7.0f && bw <= 500.0f && temp_timeout_mins > 0) {
         _callbacks->applyTempRadioParams(freq, bw, sf, cr, temp_timeout_mins);
         sprintf(reply, "OK - temp params for %d mins", temp_timeout_mins);
       } else {
@@ -199,6 +247,9 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
     } else if (memcmp(command, "clear stats", 11) == 0) {
       _callbacks->clearStats();
       strcpy(reply, "(OK - stats reset)");
+    /*
+     * GET commands
+     */
     } else if (memcmp(command, "get ", 4) == 0) {
       const char* config = &command[4];
       if (memcmp(config, "af", 2) == 0) {
@@ -252,9 +303,40 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         mesh::Utils::toHex(&reply[2], _callbacks->getSelfId().pub_key, PUB_KEY_SIZE);
       } else if (memcmp(config, "role", 4) == 0) {
         sprintf(reply, "> %s", _callbacks->getRole());
+      } else if (memcmp(config, "bridge.type", 11) == 0) {
+        sprintf(reply, "> %s",
+#ifdef WITH_RS232_BRIDGE
+                "rs232"
+#elif WITH_ESPNOW_BRIDGE
+                "espnow"
+#else
+                "none"
+#endif
+        );
+#ifdef WITH_BRIDGE
+      } else if (memcmp(config, "bridge.enabled", 14) == 0) {
+        sprintf(reply, "> %s", _prefs->bridge_enabled ? "on" : "off");
+      } else if (memcmp(config, "bridge.delay", 12) == 0) {
+        sprintf(reply, "> %d", (uint32_t)_prefs->bridge_delay);
+      } else if (memcmp(config, "bridge.source", 13) == 0) {
+        sprintf(reply, "> %s", _prefs->bridge_pkt_src ? "logRx" : "logTx");
+#endif
+#ifdef WITH_RS232_BRIDGE
+      } else if (memcmp(config, "bridge.baud", 11) == 0) {
+        sprintf(reply, "> %d", (uint32_t)_prefs->bridge_baud);
+#endif
+#ifdef WITH_ESPNOW_BRIDGE
+      } else if (memcmp(config, "bridge.channel", 14) == 0) {
+        sprintf(reply, "> %d", (uint32_t)_prefs->bridge_channel);
+      } else if (memcmp(config, "bridge.secret", 13) == 0) {
+        sprintf(reply, "> %s", _prefs->bridge_secret);
+#endif
       } else {
         sprintf(reply, "??: %s", config);
       }
+    /*
+     * SET commands
+     */
     } else if (memcmp(command, "set ", 4) == 0) {
       const char* config = &command[4];
       if (memcmp(config, "af ", 3) == 0) {
@@ -301,7 +383,8 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         StrHelper::strncpy(_prefs->guest_password, &config[15], sizeof(_prefs->guest_password));
         savePrefs();
         strcpy(reply, "OK");
-      } else if (sender_timestamp == 0 && memcmp(config, "prv.key ", 8) == 0) {  // from serial command line only
+      } else if (sender_timestamp == 0 &&
+                 memcmp(config, "prv.key ", 8) == 0) { // from serial command line only
         uint8_t prv_key[PRV_KEY_SIZE];
         bool success = mesh::Utils::fromHex(prv_key, PRV_KEY_SIZE, &config[8]);
         if (success) {
@@ -328,7 +411,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         float bw    = num > 1 ? atof(parts[1]) : 0.0f;
         uint8_t sf  = num > 2 ? atoi(parts[2]) : 0;
         uint8_t cr  = num > 3 ? atoi(parts[3]) : 0;
-        if (freq >= 300.0f && freq <= 2500.0f && sf >= 7 && sf <= 12 && cr >= 5 && cr <= 8 && bw >= 7.0f && bw <= 500.0f) {
+        if (freq >= 300.0f && freq <= 2500.0f && sf >= 5 && sf <= 12 && cr >= 5 && cr <= 8 && bw >= 7.0f && bw <= 500.0f) {
           _prefs->sf = sf;
           _prefs->cr = cr;
           _prefs->freq = freq;
@@ -391,6 +474,55 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         _prefs->freq = atof(&config[5]);
         savePrefs();
         strcpy(reply, "OK - reboot to apply");
+#ifdef WITH_BRIDGE
+      } else if (memcmp(config, "bridge.enabled ", 15) == 0) {
+        _prefs->bridge_enabled = memcmp(&config[15], "on", 2) == 0;
+        _callbacks->setBridgeState(_prefs->bridge_enabled);
+        savePrefs();
+        strcpy(reply, "OK");
+      } else if (memcmp(config, "bridge.delay ", 13) == 0) {
+        int delay = _atoi(&config[13]);
+        if (delay >= 0 && delay <= 10000) {
+          _prefs->bridge_delay = (uint16_t)delay;
+          savePrefs();
+          strcpy(reply, "OK");
+        } else {
+          strcpy(reply, "Error: delay must be between 0-10000 ms");
+        }
+      } else if (memcmp(config, "bridge.source ", 14) == 0) {
+        _prefs->bridge_pkt_src = memcmp(&config[14], "rx", 2) == 0;
+        savePrefs();
+        strcpy(reply, "OK");
+#endif
+#ifdef WITH_RS232_BRIDGE
+      } else if (memcmp(config, "bridge.baud ", 12) == 0) {
+        uint32_t baud = atoi(&config[12]);
+        if (baud >= 9600 && baud <= 115200) {
+          _prefs->bridge_baud = (uint32_t)baud;
+          _callbacks->restartBridge();
+          savePrefs();
+          strcpy(reply, "OK");
+        } else {
+          strcpy(reply, "Error: baud rate must be between 9600-115200");
+        }
+#endif
+#ifdef WITH_ESPNOW_BRIDGE
+      } else if (memcmp(config, "bridge.channel ", 15) == 0) {
+        int ch = atoi(&config[15]);
+        if (ch > 0 && ch < 15) {
+          _prefs->bridge_channel = (uint8_t)ch;
+          _callbacks->restartBridge();
+          savePrefs();
+          strcpy(reply, "OK");
+        } else {
+          strcpy(reply, "Error: channel must be between 1-14");
+        }
+      } else if (memcmp(config, "bridge.secret ", 14) == 0) {
+        StrHelper::strncpy(_prefs->bridge_secret, &config[14], sizeof(_prefs->bridge_secret));
+        _callbacks->restartBridge();
+        savePrefs();
+        strcpy(reply, "OK");
+#endif
       } else {
         sprintf(reply, "unknown config: %s", config);
       }
@@ -399,6 +531,128 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
       sprintf(reply, "File system erase: %s", s ? "OK" : "Err");
     } else if (memcmp(command, "ver", 3) == 0) {
       sprintf(reply, "%s (Build: %s)", _callbacks->getFirmwareVer(), _callbacks->getBuildDate());
+    } else if (memcmp(command, "board", 5) == 0) {
+      sprintf(reply, "%s", _board->getManufacturerName());
+    } else if (memcmp(command, "sensor get ", 11) == 0) {
+      const char* key = command + 11;
+      const char* val = _sensors->getSettingByKey(key);
+      if (val != NULL) {
+        sprintf(reply, "> %s", val);
+      } else {
+        strcpy(reply, "null");
+      }
+    } else if (memcmp(command, "sensor set ", 11) == 0) {
+      strcpy(tmp, &command[11]);
+      const char *parts[2]; 
+      int num = mesh::Utils::parseTextParts(tmp, parts, 2, ' ');
+      const char *key = (num > 0) ? parts[0] : "";
+      const char *value = (num > 1) ? parts[1] : "null";
+      if (_sensors->setSettingValue(key, value)) {
+        strcpy(reply, "ok");
+      } else {
+        strcpy(reply, "can't find custom var");
+      }
+    } else if (memcmp(command, "sensor list", 11) == 0) {
+      char* dp = reply;
+      int start = 0;
+      int end = _sensors->getNumSettings();
+      if (strlen(command) > 11) {
+        start = _atoi(command+12);
+      }
+      if (start >= end) {
+        strcpy(reply, "no custom var");
+      } else {
+        sprintf(dp, "%d vars\n", end);
+        dp = strchr(dp, 0);
+        int i;
+        for (i = start; i < end && (dp-reply < 134); i++) {
+          sprintf(dp, "%s=%s\n", 
+            _sensors->getSettingName(i),
+            _sensors->getSettingValue(i));
+          dp = strchr(dp, 0);
+        }
+        if (i < end) {
+          sprintf(dp, "... next:%d", i);
+        } else {
+          *(dp-1) = 0; // remove last CR
+        }
+      }
+#if ENV_INCLUDE_GPS == 1
+    } else if (memcmp(command, "gps on", 6) == 0) {
+      if (_sensors->setSettingValue("gps", "1")) {
+        _prefs->gps_enabled = 1;
+        savePrefs();
+        strcpy(reply, "ok");
+      } else {
+        strcpy(reply, "gps toggle not found");
+      }
+    } else if (memcmp(command, "gps off", 7) == 0) {
+      if (_sensors->setSettingValue("gps", "0")) {
+        _prefs->gps_enabled = 0;
+        savePrefs();
+        strcpy(reply, "ok");
+      } else {
+        strcpy(reply, "gps toggle not found");
+      }
+    } else if (memcmp(command, "gps sync", 8) == 0) {
+      LocationProvider * l = _sensors->getLocationProvider();
+      if (l != NULL) {
+        l->syncTime();
+      }
+    } else if (memcmp(command, "gps setloc", 10) == 0) {
+      _prefs->node_lat = _sensors->node_lat;
+      _prefs->node_lon = _sensors->node_lon;
+      savePrefs();
+      strcpy(reply, "ok");
+    } else if (memcmp(command, "gps advert", 10) == 0) {
+      if (strlen(command) == 10) {
+        switch (_prefs->advert_loc_policy) {
+          case ADVERT_LOC_NONE:
+            strcpy(reply, "> none");
+            break;
+          case ADVERT_LOC_PREFS:
+            strcpy(reply, "> prefs");
+            break;
+          case ADVERT_LOC_SHARE:
+            strcpy(reply, "> share");
+            break;
+          default:
+            strcpy(reply, "error");
+        }
+      } else if (memcmp(command+11, "none", 4) == 0) {
+        _prefs->advert_loc_policy = ADVERT_LOC_NONE;
+        savePrefs();
+        strcpy(reply, "ok");
+      } else if (memcmp(command+11, "share", 5) == 0) {
+        _prefs->advert_loc_policy = ADVERT_LOC_SHARE;
+        savePrefs();
+        strcpy(reply, "ok");
+      } else if (memcmp(command+11, "prefs", 4) == 0) {
+        _prefs->advert_loc_policy = ADVERT_LOC_PREFS;
+        savePrefs();
+        strcpy(reply, "ok");
+      } else {
+        strcpy(reply, "error");
+      }
+    } else if (memcmp(command, "gps", 3) == 0) {
+      LocationProvider * l = _sensors->getLocationProvider();
+      if (l != NULL) {
+        bool enabled = l->isEnabled(); // is EN pin on ?
+        bool fix = l->isValid();       // has fix ?
+        int sats = l->satellitesCount();
+        bool active = !strcmp(_sensors->getSettingByKey("gps"), "1");
+        if (enabled) {
+          sprintf(reply, "on, %s, %s, %d sats",
+            active?"active":"deactivated", 
+            fix?"fix":"no fix", 
+            sats);
+        } else {
+          strcpy(reply, "off");
+        }
+      } else {
+        strcpy(reply, "Can't find GPS");
+      }
+#endif
     } else if (memcmp(command, "log start", 9) == 0) {
       _callbacks->setLoggingOn(true);
       strcpy(reply, "   logging on");
@@ -411,6 +665,12 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
     } else if (sender_timestamp == 0 && memcmp(command, "log", 3) == 0) {
       _callbacks->dumpLogFile();
       strcpy(reply, "   EOF");
+    } else if (sender_timestamp == 0 && memcmp(command, "stats-packets", 13) == 0 && (command[13] == 0 || command[13] == ' ')) {
+      _callbacks->formatPacketStatsReply(reply);
+    } else if (sender_timestamp == 0 && memcmp(command, "stats-radio", 11) == 0 && (command[11] == 0 || command[11] == ' ')) {
+      _callbacks->formatRadioStatsReply(reply);
+    } else if (sender_timestamp == 0 && memcmp(command, "stats-core", 10) == 0 && (command[10] == 0 || command[10] == ' ')) {
+      _callbacks->formatStatsReply(reply);
     } else {
       strcpy(reply, "Unknown command");
     }

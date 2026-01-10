@@ -4,10 +4,7 @@ static SerialBLEInterface* instance;
 
 void SerialBLEInterface::onConnect(uint16_t connection_handle) {
   BLE_DEBUG_PRINTLN("SerialBLEInterface: connected");
-  if(instance){
-    instance->_isDeviceConnected = true;
-    // no need to stop advertising on connect, as the ble stack does this automatically
-  }
+  // we now set _isDeviceConnected=true in onSecured callback instead
 }
 
 void SerialBLEInterface::onDisconnect(uint16_t connection_handle, uint8_t reason) {
@@ -15,6 +12,14 @@ void SerialBLEInterface::onDisconnect(uint16_t connection_handle, uint8_t reason
   if(instance){
     instance->_isDeviceConnected = false;
     instance->startAdv();
+  }
+}
+
+void SerialBLEInterface::onSecured(uint16_t connection_handle) {
+  BLE_DEBUG_PRINTLN("SerialBLEInterface: onSecured");
+  if(instance){
+    instance->_isDeviceConnected = true;
+    // no need to stop advertising on connect, as the ble stack does this automatically
   }
 }
 
@@ -27,8 +32,8 @@ void SerialBLEInterface::begin(const char* device_name, uint32_t pin_code) {
 
   Bluefruit.configPrphBandwidth(BANDWIDTH_MAX);
   Bluefruit.configPrphConn(250, BLE_GAP_EVENT_LENGTH_MIN, 16, 16);  // increase MTU
+  Bluefruit.setTxPower(BLE_TX_POWER);
   Bluefruit.begin();
-  Bluefruit.setTxPower(4);    // Check bluefruit.h for supported values
   Bluefruit.setName(device_name);
 
   Bluefruit.Security.setMITM(true);
@@ -36,6 +41,7 @@ void SerialBLEInterface::begin(const char* device_name, uint32_t pin_code) {
 
   Bluefruit.Periph.setConnectCallback(onConnect);
   Bluefruit.Periph.setDisconnectCallback(onDisconnect);
+  Bluefruit.Security.setSecuredCallback(onSecured);
 
   // To be consistent OTA DFU should be added first if it exists
   //bledfu.begin();
@@ -80,7 +86,7 @@ void SerialBLEInterface::startAdv() {
    * https://developer.apple.com/library/content/qa/qa1931/_index.html   
    */
   Bluefruit.Advertising.restartOnDisconnect(false); // don't restart automatically as we handle it in onDisconnect
-  Bluefruit.Advertising.setInterval(32, 244);    // in unit of 0.625 ms
+  Bluefruit.Advertising.setInterval(32, 244);
   Bluefruit.Advertising.setFastTimeout(30);      // number of seconds in fast mode
   Bluefruit.Advertising.start(0);                // 0 = Don't stop advertising after n seconds
 

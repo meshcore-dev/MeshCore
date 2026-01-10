@@ -7,7 +7,7 @@
 #include <helpers/radiolib/CustomSX1262Wrapper.h>
 #include <helpers/radiolib/RadioLibWrappers.h>
 #include <helpers/SensorManager.h>
-#include <helpers/rp2040/WaveshareBoard.h>
+#include <WaveshareBoard.h>
 
 extern WaveshareBoard board;
 extern WRAPPER_CLASS radio_driver;

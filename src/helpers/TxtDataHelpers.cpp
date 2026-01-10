@@ -19,6 +19,13 @@ void StrHelper::strzcpy(char* dest, const char* src, size_t buf_sz) {
   }
 }
 
+bool StrHelper::isBlank(const char* str) {
+  while (*str) {
+    if (*str++ != ' ') return false;
+  }
+  return true;
+}
+
 #include <Arduino.h>
 
 union int32_Float_t 
@@ -131,4 +138,24 @@ const char* StrHelper::ftoa(float f) {
     tmp[1] = 0;
   }
   return tmp;
+}
+
+uint32_t StrHelper::fromHex(const char* src) {
+  uint32_t n = 0;
+  while (*src) {
+    if (*src >= '0' && *src <= '9') {
+      n <<= 4;
+      n |= (*src - '0');
+    } else if (*src >= 'A' && *src <= 'F') {
+      n <<= 4;
+      n |= (*src - 'A' + 10);
+    } else if (*src >= 'a' && *src <= 'f') {
+      n <<= 4;
+      n |= (*src - 'a' + 10);
+    } else {
+      break;  // non-hex char encountered, stop parsing
+    }
+    src++;
+  }
+  return n;
 }

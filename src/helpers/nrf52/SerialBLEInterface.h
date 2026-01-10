@@ -3,6 +3,10 @@
 #include "../BaseSerialInterface.h"
 #include <bluefruit.h>
 
+#ifndef BLE_TX_POWER
+#define BLE_TX_POWER 4
+#endif
+
 class SerialBLEInterface : public BaseSerialInterface {
   BLEUart bleuart;
   bool _isEnabled;
@@ -21,6 +25,7 @@ class SerialBLEInterface : public BaseSerialInterface {
   void clearBuffers() { send_queue_len = 0; }
   static void onConnect(uint16_t connection_handle);
   static void onDisconnect(uint16_t connection_handle, uint8_t reason);
+  static void onSecured(uint16_t connection_handle);
 
 public:
   SerialBLEInterface() {

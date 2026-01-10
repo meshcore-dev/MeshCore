@@ -9,7 +9,10 @@ MeshCore provides the ability to create wireless mesh networks, similar to Mesht
 
 ## ⚡ Key Features
 
-* Multi-Hop Packet Routing – Devices can forward messages across multiple nodes, extending range beyond a single radio's reach. MeshCore supports up to a configurable number of hops to balance network efficiency and prevent excessive traffic.
+* Multi-Hop Packet Routing
+  * Devices can forward messages across multiple nodes, extending range beyond a single radio's reach.
+  * Supports up to a configurable number of hops to balance network efficiency and prevent excessive traffic.
+  * Nodes use fixed roles where "Companion" nodes are not repeating messages at all to prevent adverse routing paths from being used.
 * Supports LoRa Radios – Works with Heltec, RAK Wireless, and other LoRa-based hardware.
 * Decentralized & Resilient – No central server or internet required; the network is self-healing.
 * Low Power Consumption – Ideal for battery-powered or solar-powered devices.
@@ -94,9 +97,14 @@ Here are some general principals you should try to adhere to:
 
 There are a number of fairly major features in the pipeline, with no particular time-frames attached yet. In very rough chronological order:
 - [X] Companion radio: UI redesign
-- [ ] Core + Repeater: enhanced zero-hop neighbour discovery
+- [X] Repeater + Room Server: add ACL's (like Sensor Node has)
+- [X] Standardise Bridge mode for repeaters
+- [ ] Repeater/Bridge: Standardise the Transport Codes for zoning/filtering
+- [X] Core + Repeater: enhanced zero-hop neighbour discovery
 - [ ] Core: round-trip manual path support
 - [ ] Companion + Apps: support for multiple sub-meshes (and 'off-grid' client repeat mode)
+- [ ] Core + Apps: support for LZW message compression
+- [ ] Core: dynamic CR (Coding Rate) for weak vs strong hops
 - [ ] Core: new framework for hosting multiple virtual nodes on one physical device
 - [ ] V2 protocol spec: discussion and concensus around V2 packet protocol, including path hashes, new encryption specs, etc
 
@@ -105,12 +113,3 @@ There are a number of fairly major features in the pipeline, with no particular 
 - Report bugs and request features on the [GitHub Issues](https://github.com/ripplebiz/MeshCore/issues) page.
 - Find additional guides and components on [my site](https://buymeacoffee.com/ripplebiz).
 - Join [MeshCore Discord](https://discord.gg/BMwCtwHj5V) to chat with the developers and get help from the community.
-
-## RAK Wireless Board Support in PlatformIO
-
-Before building/flashing the RAK4631 targets in this project, there is, unfortunately, some patching you have to do to your platformIO packages to make it work. There is a guide here on the process:
-   [RAK Wireless: How to Perform Installation of Board Support Package in PlatformIO](https://learn.rakwireless.com/hc/en-us/articles/26687276346775-How-To-Perform-Installation-of-Board-Support-Package-in-PlatformIO)
-
-After building, you will need to convert the output firmware.hex file into a .uf2 file you can copy over to your RAK4631 device (after doing a full erase) by using the command `uf2conv.py -f 0xADA52840 -c firmware.hex` with the python script available from:
-   [GitHub: Microsoft - uf2](https://github.com/Microsoft/uf2/blob/master/utils/uf2conv.py)
-
