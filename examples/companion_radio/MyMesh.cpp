@@ -298,6 +298,10 @@ void MyMesh::onDiscoveredContact(ContactInfo &contact, bool is_new, uint8_t path
     memcpy(p->path, path, p->path_len);
   }
 
+  // Don't save if this is a new contact but auto-add is off (contact not added to list)
+  if (is_new && !isAutoAddEnabled()) {
+    return;
+  }
   dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY);
 }
 
