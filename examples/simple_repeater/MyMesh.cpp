@@ -753,9 +753,12 @@ void MyMesh::handleAdvertRequest(mesh::Packet* packet) {
   uint32_t timestamp = getRTCClock()->getCurrentTime();
   memcpy(&response[pos], &timestamp, 4); pos += 4;
 
-  // signature (64 bytes)
+  // signature (64 bytes) - sign pubkey + timestamp only (same as regular adverts)
+  uint8_t sig_data[PUB_KEY_SIZE + 4];
+  memcpy(sig_data, self_id.pub_key, PUB_KEY_SIZE);
+  memcpy(sig_data + PUB_KEY_SIZE, &timestamp, 4);
   uint8_t signature[64];
-  self_id.sign(signature, response, pos);  // Sign everything up to this point
+  self_id.sign(signature, sig_data, sizeof(sig_data));
   memcpy(&response[pos], signature, 64); pos += 64;
 
   // flags (indicating which optional fields are present)
@@ -770,8 +773,10 @@ void MyMesh::handleAdvertRequest(mesh::Packet* packet) {
 
     if (lat != 0.0 || lon != 0.0) {
       flags |= ADVERT_RESP_FLAG_HAS_LAT | ADVERT_RESP_FLAG_HAS_LON;
-      memcpy(&response[pos], &lat, 8); pos += 8;
-      memcpy(&response[pos], &lon, 8); pos += 8;
+      int32_t lat_i32 = (int32_t)(lat * 1e6);
+      int32_t lon_i32 = (int32_t)(lon * 1e6);
+      memcpy(&response[pos], &lat_i32, 4); pos += 4;
+      memcpy(&response[pos], &lon_i32, 4); pos += 4;
     }
   }
 

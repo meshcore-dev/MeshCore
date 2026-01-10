@@ -682,10 +682,14 @@ void MyMesh::handleAdvertResponse(mesh::Packet* packet) {
   uint8_t signature[64];
   memcpy(signature, &packet->payload[pos], 64); pos += 64;
 
-  // Verify signature
+  // Verify signature (over pubkey + timestamp, same as regular adverts)
+  uint8_t sig_data[PUB_KEY_SIZE + 4];
+  memcpy(sig_data, pubkey, PUB_KEY_SIZE);
+  memcpy(sig_data + PUB_KEY_SIZE, &timestamp, 4);
+
   mesh::Identity id;
   memcpy(id.pub_key, pubkey, PUB_KEY_SIZE);
-  if (!id.verify(signature, packet->payload + 1, pos - 1 - 64)) {
+  if (!id.verify(signature, sig_data, sizeof(sig_data))) {
     MESH_DEBUG_PRINTLN("handleAdvertResponse: signature verification failed");
     // Clear slot and return
     pending_advert_requests[slot].tag = 0;
@@ -695,14 +699,16 @@ void MyMesh::handleAdvertResponse(mesh::Packet* packet) {
   // Extract flags
   uint8_t flags = packet->payload[pos++];
 
-  // Optional: GPS location
-  double lat = 0.0, lon = 0.0;
+  // Optional: GPS location (stored as int32 * 1e6)
+  int32_t lat_i32 = 0, lon_i32 = 0;
   if (flags & ADVERT_RESP_FLAG_HAS_LAT) {
-    memcpy(&lat, &packet->payload[pos], 8); pos += 8;
+    memcpy(&lat_i32, &packet->payload[pos], 4); pos += 4;
   }
   if (flags & ADVERT_RESP_FLAG_HAS_LON) {
-    memcpy(&lon, &packet->payload[pos], 8); pos += 8;
+    memcpy(&lon_i32, &packet->payload[pos], 4); pos += 4;
   }
+  double lat = lat_i32 / 1e6;
+  double lon = lon_i32 / 1e6;
 
   // Optional: node description
   char node_desc[32] = {0};
@@ -719,16 +725,17 @@ void MyMesh::handleAdvertResponse(mesh::Packet* packet) {
   // Build push notification to app
   int i = 0;
   out_frame[i++] = PUSH_CODE_ADVERT_RESPONSE;
+  memcpy(&out_frame[i], &tag, 4); i += 4;  // Include tag for app matching
   memcpy(&out_frame[i], pubkey, PUB_KEY_SIZE); i += PUB_KEY_SIZE;
   out_frame[i++] = adv_type;
   memcpy(&out_frame[i], node_name, 32); i += 32;
   memcpy(&out_frame[i], &timestamp, 4); i += 4;
   out_frame[i++] = flags;
   if (flags & ADVERT_RESP_FLAG_HAS_LAT) {
-    memcpy(&out_frame[i], &lat, 8); i += 8;
+    memcpy(&out_frame[i], &lat_i32, 4); i += 4;
   }
   if (flags & ADVERT_RESP_FLAG_HAS_LON) {
-    memcpy(&out_frame[i], &lon, 8); i += 8;
+    memcpy(&out_frame[i], &lon_i32, 4); i += 4;
   }
   if (flags & ADVERT_RESP_FLAG_HAS_DESC) {
     memcpy(&out_frame[i], node_desc, 32); i += 32;
@@ -2062,10 +2069,11 @@ void MyMesh::checkPendingAdvertRequests() {
       if (elapsed > ADVERT_REQUEST_TIMEOUT_MILLIS) {
         MESH_DEBUG_PRINTLN("checkPendingAdvertRequests: request timed out, tag=%08X",
                           pending_advert_requests[i].tag);
-        // Send timeout notification to app
+        // Send timeout notification to app (tag + 0xFF marker + target_prefix)
         int j = 0;
         out_frame[j++] = PUSH_CODE_ADVERT_RESPONSE;
-        out_frame[j++] = 0xFF;  // Special marker for timeout
+        memcpy(&out_frame[j], &pending_advert_requests[i].tag, 4); j += 4;  // Include tag for app matching
+        out_frame[j++] = 0xFF;  // Special marker for timeout (in place of adv_type)
         memcpy(&out_frame[j], pending_advert_requests[i].target_prefix, PATH_HASH_SIZE);
         j += PATH_HASH_SIZE;
         _serial->writeFrame(out_frame, j);
