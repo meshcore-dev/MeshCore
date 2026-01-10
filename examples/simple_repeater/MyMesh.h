@@ -83,7 +83,8 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   FILESYSTEM* _fs;
   uint32_t last_millis;
   uint64_t uptime_millis;
-  unsigned long next_local_advert, next_flood_advert;
+  unsigned long next_local_advert;  // zero-hop adverts still active
+  // next_flood_advert removed - repeaters no longer send flood adverts
   bool _logging;
   NodePrefs _prefs;
   CommonCLI _cli;
@@ -121,6 +122,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   uint8_t handleAnonClockReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data);
   int handleRequest(ClientInfo* sender, uint32_t sender_timestamp, uint8_t* payload, size_t payload_len);
   mesh::Packet* createSelfAdvert();
+  void handleAdvertRequest(mesh::Packet* packet);
 
   File openAppend(const char* fname);
 

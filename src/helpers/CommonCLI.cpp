@@ -81,7 +81,9 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     file.read((uint8_t *)&_prefs->discovery_mod_timestamp, sizeof(_prefs->discovery_mod_timestamp)); // 162
     file.read((uint8_t *)&_prefs->adc_multiplier, sizeof(_prefs->adc_multiplier)); // 166
     file.read((uint8_t *)_prefs->owner_info, sizeof(_prefs->owner_info));  // 170
-    // 290
+    file.read((uint8_t *)&_prefs->node_desc, sizeof(_prefs->node_desc));         // 290
+    file.read((uint8_t *)&_prefs->operator_name, sizeof(_prefs->operator_name)); // 322
+    // 354
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -107,6 +109,10 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
 
     _prefs->gps_enabled = constrain(_prefs->gps_enabled, 0, 1);
     _prefs->advert_loc_policy = constrain(_prefs->advert_loc_policy, 0, 2);
+
+    // Ensure null-termination of extended metadata fields
+    _prefs->node_desc[31] = '\0';
+    _prefs->operator_name[31] = '\0';
 
     file.close();
   }
@@ -165,7 +171,9 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->discovery_mod_timestamp, sizeof(_prefs->discovery_mod_timestamp)); // 162
     file.write((uint8_t *)&_prefs->adc_multiplier, sizeof(_prefs->adc_multiplier));                 // 166
     file.write((uint8_t *)_prefs->owner_info, sizeof(_prefs->owner_info));  // 170
-    // 290
+    file.write((uint8_t *)&_prefs->node_desc, sizeof(_prefs->node_desc));         // 290
+    file.write((uint8_t *)&_prefs->operator_name, sizeof(_prefs->operator_name)); // 322
+    // 354
 
     file.close();
   }
@@ -280,7 +288,8 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
       } else if (memcmp(config, "allow.read.only", 15) == 0) {
         sprintf(reply, "> %s", _prefs->allow_read_only ? "on" : "off");
       } else if (memcmp(config, "flood.advert.interval", 21) == 0) {
-        sprintf(reply, "> %d", ((uint32_t) _prefs->flood_advert_interval));
+        // Repeaters no longer send flood adverts
+        strcpy(reply, "> 0 (disabled - repeaters no longer send flood adverts)");
       } else if (memcmp(config, "advert.interval", 15) == 0) {
         sprintf(reply, "> %d", ((uint32_t) _prefs->advert_interval) * 2);
       } else if (memcmp(config, "guest.password", 14) == 0) {
@@ -364,6 +373,18 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         } else {
           sprintf(reply, "> %.3f", adc_mult);
         }
+      } else if (memcmp(config, "node.desc", 9) == 0) {
+        if (_prefs->node_desc[0]) {
+          sprintf(reply, "> %s", _prefs->node_desc);
+        } else {
+          strcpy(reply, "> (not set)");
+        }
+      } else if (memcmp(config, "operator.name", 13) == 0) {
+        if (_prefs->operator_name[0]) {
+          sprintf(reply, "> %s", _prefs->operator_name);
+        } else {
+          strcpy(reply, "> (not set)");
+        }
       } else {
         sprintf(reply, "??: %s", config);
       }
@@ -393,15 +414,8 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         savePrefs();
         strcpy(reply, "OK");
       } else if (memcmp(config, "flood.advert.interval ", 22) == 0) {
-        int hours = _atoi(&config[22]);
-        if ((hours > 0 && hours < 3) || (hours > 48)) {
-          strcpy(reply, "Error: interval range is 3-48 hours");
-        } else {
-          _prefs->flood_advert_interval = (uint8_t)(hours);
-          _callbacks->updateFloodAdvertTimer();
-          savePrefs();
-          strcpy(reply, "OK");
-        }
+        // Repeaters no longer send flood adverts - show error for backwards compatibility
+        strcpy(reply, "Error: Repeaters no longer send flood adverts. Use zero-hop adverts only (advert.interval)");
       } else if (memcmp(config, "advert.interval ", 16) == 0) {
         int mins = _atoi(&config[16]);
         if ((mins > 0 && mins < MIN_LOCAL_ADVERT_INTERVAL) || (mins > 240)) {
@@ -436,6 +450,14 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         } else {
           strcpy(reply, "Error, bad chars");
         }
+      } else if (memcmp(config, "node.desc ", 10) == 0) {
+        StrHelper::strncpy(_prefs->node_desc, &config[10], sizeof(_prefs->node_desc));
+        savePrefs();
+        strcpy(reply, "OK");
+      } else if (memcmp(config, "operator.name ", 14) == 0) {
+        StrHelper::strncpy(_prefs->operator_name, &config[14], sizeof(_prefs->operator_name));
+        savePrefs();
+        strcpy(reply, "OK");
       } else if (memcmp(config, "repeat ", 7) == 0) {
         _prefs->disable_fwd = memcmp(&config[7], "off", 3) == 0;
         savePrefs();

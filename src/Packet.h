@@ -31,6 +31,16 @@ namespace mesh {
 //...
 #define PAYLOAD_TYPE_RAW_CUSTOM   0x0F    // custom packet as raw bytes, for applications with custom encryption, payloads, etc
 
+// Pull-based advert system (control sub-types)
+#define CTL_TYPE_ADVERT_REQUEST   0x90  // Request advert from specific node
+#define CTL_TYPE_ADVERT_RESPONSE  0x91  // Response with full advert + extended metadata
+
+// Advert response flags (optional fields in CTL_TYPE_ADVERT_RESPONSE)
+#define ADVERT_RESP_FLAG_HAS_LAT       0x01
+#define ADVERT_RESP_FLAG_HAS_LON       0x02
+#define ADVERT_RESP_FLAG_HAS_DESC      0x04
+#define ADVERT_RESP_FLAG_HAS_OPERATOR  0x08
+
 #define PAYLOAD_VER_1       0x00   // 1-byte src/dest hashes, 2-byte MAC
 #define PAYLOAD_VER_2       0x01   // FUTURE (eg. 2-byte hashes, 4-byte MAC ??)
 #define PAYLOAD_VER_3       0x02   // FUTURE

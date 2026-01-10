@@ -51,6 +51,9 @@ struct NodePrefs { // persisted to file
   uint32_t discovery_mod_timestamp;
   float adc_multiplier;
   char owner_info[120];
+  // Extended advert metadata (only shared in pull-based responses)
+  char node_desc[32];        // Short description (e.g., "Rooftop 25m, Heltec V3")
+  char operator_name[32];    // Operator name/callsign (e.g., "PA0XXX" or "John")
 };
 
 class CommonCLICallbacks {

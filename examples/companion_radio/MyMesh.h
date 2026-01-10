@@ -148,8 +148,21 @@ protected:
   bool onChannelLoaded(uint8_t channel_idx, const ChannelDetails& ch) override { return setChannel(channel_idx, ch); }
   bool getChannelForSave(uint8_t channel_idx, ChannelDetails& ch) override { return getChannel(channel_idx, ch); }
 
+private:
+  struct PendingAdvertRequest {
+    uint32_t tag;              // Random tag for matching (0 = slot unused)
+    unsigned long created_at;  // Millis when request was created
+    uint8_t target_prefix[PATH_HASH_SIZE];  // Target node prefix
+  };
+  #define MAX_PENDING_ADVERT_REQUESTS 4
+  #define ADVERT_REQUEST_TIMEOUT_MILLIS 30000  // 30 seconds
+
+public:
   void clearPendingReqs() {
     pending_login = pending_status = pending_telemetry = pending_discovery = pending_req = 0;
+    for (int i = 0; i < MAX_PENDING_ADVERT_REQUESTS; i++) {
+      pending_advert_requests[i].tag = 0;
+    }
   }
 
 public:
@@ -163,7 +176,7 @@ private:
   void updateContactFromFrame(ContactInfo &contact, uint32_t& last_mod, const uint8_t *frame, int len);
   void addToOfflineQueue(const uint8_t frame[], int len);
   int getFromOfflineQueue(uint8_t frame[]);
-  int getBlobByKey(const uint8_t key[], int key_len, uint8_t dest_buf[]) override { 
+  int getBlobByKey(const uint8_t key[], int key_len, uint8_t dest_buf[]) override {
     return _store->getBlobByKey(key, key_len, dest_buf);
   }
   bool putBlobByKey(const uint8_t key[], int key_len, const uint8_t src_buf[], int len) override {
@@ -172,6 +185,8 @@ private:
 
   void checkCLIRescueCmd();
   void checkSerialInterface();
+  void handleAdvertResponse(mesh::Packet* packet);
+  void checkPendingAdvertRequests();
 
   // helpers, short-cuts
   void saveChannels() { _store->saveChannels(this); }
@@ -183,6 +198,7 @@ private:
   uint32_t pending_status;
   uint32_t pending_telemetry, pending_discovery;   // pending _TELEMETRY_REQ
   uint32_t pending_req;   // pending _BINARY_REQ
+  PendingAdvertRequest pending_advert_requests[MAX_PENDING_ADVERT_REQUESTS];
   BaseSerialInterface *_serial;
   AbstractUITask* _ui;
 

@@ -710,8 +710,113 @@ bool MyMesh::onPeerPathRecv(mesh::Packet *packet, int sender_idx, const uint8_t 
 #define CTL_TYPE_NODE_DISCOVER_REQ   0x80
 #define CTL_TYPE_NODE_DISCOVER_RESP  0x90
 
+void MyMesh::handleAdvertRequest(mesh::Packet* packet) {
+  // Validate packet length: sub_type(1) + prefix(PATH_HASH_SIZE) + tag(4)
+  if (packet->payload_len < 1 + PATH_HASH_SIZE + 4) {
+    MESH_DEBUG_PRINTLN("handleAdvertRequest: packet too short (%d bytes)", packet->payload_len);
+    return;
+  }
+
+  // Extract target prefix and tag
+  const uint8_t* target_prefix = &packet->payload[1];
+  uint32_t tag;
+  memcpy(&tag, &packet->payload[1 + PATH_HASH_SIZE], 4);
+
+  // Check if request is for us
+  if (memcmp(target_prefix, self_id.pub_key, PATH_HASH_SIZE) != 0) {
+    MESH_DEBUG_PRINTLN("handleAdvertRequest: not for us (prefix mismatch)");
+    return;
+  }
+
+  MESH_DEBUG_PRINTLN("handleAdvertRequest: request for us, tag=%08X", tag);
+
+  // Build response with extended metadata
+  uint8_t response[MAX_PACKET_PAYLOAD];
+  int pos = 0;
+
+  // sub_type
+  response[pos++] = CTL_TYPE_ADVERT_RESPONSE;
+
+  // tag (echo back)
+  memcpy(&response[pos], &tag, 4); pos += 4;
+
+  // pub_key (full 32 bytes)
+  memcpy(&response[pos], self_id.pub_key, PUB_KEY_SIZE); pos += PUB_KEY_SIZE;
+
+  // adv_type
+  response[pos++] = ADV_TYPE_REPEATER;
+
+  // node_name (32 bytes)
+  memcpy(&response[pos], _prefs.node_name, 32); pos += 32;
+
+  // timestamp
+  uint32_t timestamp = getRTCClock()->getCurrentTime();
+  memcpy(&response[pos], &timestamp, 4); pos += 4;
+
+  // signature (64 bytes)
+  uint8_t signature[64];
+  self_id.sign(signature, response, pos);  // Sign everything up to this point
+  memcpy(&response[pos], signature, 64); pos += 64;
+
+  // flags (indicating which optional fields are present)
+  uint8_t flags = 0;
+  int flags_pos = pos;
+  pos++;  // reserve space for flags byte
+
+  // Optional: GPS location (only if configured to share)
+  if (_prefs.advert_loc_policy != ADVERT_LOC_NONE) {
+    double lat = (_prefs.advert_loc_policy == ADVERT_LOC_SHARE) ? sensors.node_lat : _prefs.node_lat;
+    double lon = (_prefs.advert_loc_policy == ADVERT_LOC_SHARE) ? sensors.node_lon : _prefs.node_lon;
+
+    if (lat != 0.0 || lon != 0.0) {
+      flags |= ADVERT_RESP_FLAG_HAS_LAT | ADVERT_RESP_FLAG_HAS_LON;
+      memcpy(&response[pos], &lat, 8); pos += 8;
+      memcpy(&response[pos], &lon, 8); pos += 8;
+    }
+  }
+
+  // Optional: node description
+  if (_prefs.node_desc[0] != '\0') {
+    flags |= ADVERT_RESP_FLAG_HAS_DESC;
+    memcpy(&response[pos], _prefs.node_desc, 32); pos += 32;
+  }
+
+  // Optional: operator name
+  if (_prefs.operator_name[0] != '\0') {
+    flags |= ADVERT_RESP_FLAG_HAS_OPERATOR;
+    memcpy(&response[pos], _prefs.operator_name, 32); pos += 32;
+  }
+
+  // Write flags byte
+  response[flags_pos] = flags;
+
+  MESH_DEBUG_PRINTLN("handleAdvertRequest: sending response, %d bytes, flags=%02X", pos, flags);
+
+  // Create response packet and send using reverse path
+  mesh::Packet* resp_packet = createControlData(response, pos);
+  if (resp_packet) {
+    // Copy and reverse the path
+    uint8_t reversed_path[MAX_PATH_SIZE];
+    for (int i = 0; i < packet->path_len; i++) {
+      reversed_path[i] = packet->path[packet->path_len - 1 - i];
+    }
+    sendDirect(resp_packet, reversed_path, packet->path_len, SERVER_RESPONSE_DELAY);
+  }
+}
+
 void MyMesh::onControlDataRecv(mesh::Packet* packet) {
-  uint8_t type = packet->payload[0] & 0xF0;    // just test upper 4 bits
+  if (packet->payload_len < 1) return;
+
+  uint8_t sub_type = packet->payload[0];
+
+  // Handle pull-based advert request (with rate limiting)
+  if (sub_type == CTL_TYPE_ADVERT_REQUEST && discover_limiter.allow(rtc_clock.getCurrentTime())) {
+    handleAdvertRequest(packet);
+    return;
+  }
+
+  // Handle legacy node discovery
+  uint8_t type = sub_type & 0xF0;    // just test upper 4 bits
   if (type == CTL_TYPE_NODE_DISCOVER_REQ && packet->payload_len >= 6
       && !_prefs.disable_fwd && discover_limiter.allow(rtc_clock.getCurrentTime())
   ) {
@@ -756,7 +861,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
 {
   last_millis = 0;
   uptime_millis = 0;
-  next_local_advert = next_flood_advert = 0;
+  next_local_advert = 0;  // zero-hop adverts still active
   dirty_contacts_expiry = 0;
   set_radio_at = revert_radio_at = 0;
   _logging = false;
@@ -781,8 +886,8 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.bw = LORA_BW;
   _prefs.cr = LORA_CR;
   _prefs.tx_power_dbm = LORA_TX_POWER;
-  _prefs.advert_interval = 1;        // default to 2 minutes for NEW installs
-  _prefs.flood_advert_interval = 12; // 12 hours
+  _prefs.advert_interval = 1;        // default to 2 minutes for NEW installs (zero-hop adverts)
+  _prefs.flood_advert_interval = 0;  // disabled - repeaters no longer send flood adverts
   _prefs.flood_max = 64;
   _prefs.interference_threshold = 0; // disabled
 
@@ -821,8 +926,8 @@ void MyMesh::begin(FILESYSTEM *fs) {
   radio_set_params(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
   radio_set_tx_power(_prefs.tx_power_dbm);
 
-  updateAdvertTimer();
-  updateFloodAdvertTimer();
+  updateAdvertTimer();  // zero-hop adverts still active
+  // updateFloodAdvertTimer() not called - repeaters no longer send flood adverts
 
   board.setAdcMultiplier(_prefs.adc_multiplier);
 
@@ -855,9 +960,10 @@ bool MyMesh::formatFileSystem() {
 }
 
 void MyMesh::sendSelfAdvertisement(int delay_millis) {
+  // Repeaters only send zero-hop adverts (no flood)
   mesh::Packet *pkt = createSelfAdvert();
   if (pkt) {
-    sendFlood(pkt, delay_millis);
+    sendZeroHop(pkt, delay_millis);
   } else {
     MESH_DEBUG_PRINTLN("ERROR: unable to create advertisement packet!");
   }
@@ -872,11 +978,9 @@ void MyMesh::updateAdvertTimer() {
 }
 
 void MyMesh::updateFloodAdvertTimer() {
-  if (_prefs.flood_advert_interval > 0) { // schedule flood advert timer
-    next_flood_advert = futureMillis(((uint32_t)_prefs.flood_advert_interval) * 60 * 60 * 1000);
-  } else {
-    next_flood_advert = 0; // stop the timer
-  }
+  // Repeaters no longer send flood adverts - this function kept for API compatibility
+  // Always ensure flood_advert_interval is disabled
+  _prefs.flood_advert_interval = 0;
 }
 
 void MyMesh::dumpLogFile() {
@@ -1158,13 +1262,8 @@ void MyMesh::loop() {
 
   mesh::Mesh::loop();
 
-  if (next_flood_advert && millisHasNowPassed(next_flood_advert)) {
-    mesh::Packet *pkt = createSelfAdvert();
-    if (pkt) sendFlood(pkt);
-
-    updateFloodAdvertTimer(); // schedule next flood advert
-    updateAdvertTimer();      // also schedule local advert (so they don't overlap)
-  } else if (next_local_advert && millisHasNowPassed(next_local_advert)) {
+  // Periodic zero-hop adverts (local discovery only)
+  if (next_local_advert && millisHasNowPassed(next_local_advert)) {
     mesh::Packet *pkt = createSelfAdvert();
     if (pkt) sendZeroHop(pkt);
 
