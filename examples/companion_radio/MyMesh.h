@@ -148,9 +148,6 @@ protected:
   bool onChannelLoaded(uint8_t channel_idx, const ChannelDetails& ch) override { return setChannel(channel_idx, ch); }
   bool getChannelForSave(uint8_t channel_idx, ChannelDetails& ch) override { return getChannel(channel_idx, ch); }
 
-private:
-  #define ADVERT_REQUEST_TIMEOUT_MILLIS 30000  // 30 seconds
-
 public:
   void clearPendingReqs() {
     pending_login = pending_status = pending_telemetry = pending_discovery = pending_req = 0;
@@ -178,7 +175,6 @@ private:
   void checkCLIRescueCmd();
   void checkSerialInterface();
   void handleAdvertResponse(mesh::Packet* packet);
-  void checkPendingAdvertRequests();
 
   // helpers, short-cuts
   void saveChannels() { _store->saveChannels(this); }
@@ -190,8 +186,7 @@ private:
   uint32_t pending_status;
   uint32_t pending_telemetry, pending_discovery;   // pending _TELEMETRY_REQ
   uint32_t pending_req;   // pending _BINARY_REQ
-  uint32_t pending_advert_request;        // tag for pending advert request (0 = none)
-  unsigned long pending_advert_request_time;  // millis() when request was created
+  uint32_t pending_advert_request;  // tag for pending advert request (0 = none)
   BaseSerialInterface *_serial;
   AbstractUITask* _ui;
 

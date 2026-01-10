@@ -1823,10 +1823,7 @@ void MyMesh::handleCmdFrame(size_t len) {
 
     sendDirect(packet, path, path_len, 0);
 
-    // Track request
     pending_advert_request = tag;
-    pending_advert_request_time = millis();
-
     MESH_DEBUG_PRINTLN("CMD_REQUEST_ADVERT: sent request, tag=%08X", tag);
 
     writeOKFrame();
@@ -2041,24 +2038,6 @@ void MyMesh::checkSerialInterface() {
   }
 }
 
-void MyMesh::checkPendingAdvertRequests() {
-  if (pending_advert_request == 0) return;
-
-  unsigned long elapsed = millis() - pending_advert_request_time;
-  if (elapsed > ADVERT_REQUEST_TIMEOUT_MILLIS) {
-    MESH_DEBUG_PRINTLN("checkPendingAdvertRequests: request timed out, tag=%08X", pending_advert_request);
-
-    // Send timeout notification to app (tag + 0xFF marker)
-    int j = 0;
-    out_frame[j++] = PUSH_CODE_ADVERT_RESPONSE;
-    memcpy(&out_frame[j], &pending_advert_request, 4); j += 4;
-    out_frame[j++] = 0xFF;  // Special marker for timeout
-    _serial->writeFrame(out_frame, j);
-
-    pending_advert_request = 0;
-  }
-}
-
 void MyMesh::loop() {
   BaseChatMesh::loop();
 
@@ -2067,9 +2046,6 @@ void MyMesh::loop() {
   } else {
     checkSerialInterface();
   }
-
-  // Check for timed out advert requests
-  checkPendingAdvertRequests();
 
   // is there are pending dirty contacts write needed?
   if (dirty_contacts_expiry && millisHasNowPassed(dirty_contacts_expiry)) {
