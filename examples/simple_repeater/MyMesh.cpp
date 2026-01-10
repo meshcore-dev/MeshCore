@@ -707,9 +707,6 @@ bool MyMesh::onPeerPathRecv(mesh::Packet *packet, int sender_idx, const uint8_t 
   return false;
 }
 
-#define CTL_TYPE_NODE_DISCOVER_REQ   0x80
-#define CTL_TYPE_NODE_DISCOVER_RESP  0x90
-
 void MyMesh::handleAdvertRequest(mesh::Packet* packet) {
   // Validate packet length: sub_type(1) + prefix(PATH_HASH_SIZE) + tag(4)
   if (packet->payload_len < 1 + PATH_HASH_SIZE + 4) {

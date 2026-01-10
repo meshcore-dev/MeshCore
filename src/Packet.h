@@ -31,9 +31,14 @@ namespace mesh {
 //...
 #define PAYLOAD_TYPE_RAW_CUSTOM   0x0F    // custom packet as raw bytes, for applications with custom encryption, payloads, etc
 
-// Pull-based advert system (control sub-types)
-#define CTL_TYPE_ADVERT_REQUEST   0x90  // Request advert from specific node
-#define CTL_TYPE_ADVERT_RESPONSE  0x91  // Response with full advert + extended metadata
+// Control packet sub-types (used with PAYLOAD_TYPE_CONTROL)
+// Node discovery uses nibble pattern: upper nibble = type, lower nibble = flags/node_type
+#define CTL_TYPE_NODE_DISCOVER_REQ   0x80  // Node discovery request (lower 4 bits = flags)
+#define CTL_TYPE_NODE_DISCOVER_RESP  0x90  // Node discovery response (lower 4 bits = node type)
+
+// Pull-based advert system (uses 0xA0 range to avoid conflict with node discovery)
+#define CTL_TYPE_ADVERT_REQUEST   0xA0  // Request advert from specific node
+#define CTL_TYPE_ADVERT_RESPONSE  0xA1  // Response with full advert + extended metadata
 
 // Advert response flags (optional fields in CTL_TYPE_ADVERT_RESPONSE)
 #define ADVERT_RESP_FLAG_HAS_LAT       0x01
