@@ -744,7 +744,7 @@ void MyMesh::handleAdvertResponse(mesh::Packet* packet) {
 void MyMesh::onControlDataRecv(mesh::Packet *packet) {
   if (packet->payload_len < 1) return;
 
-  uint8_t sub_type = packet->payload[0];
+  uint8_t sub_type = packet->payload[0] & 0xF0;  // upper nibble is subtype
 
   // Handle pull-based advert response
   if (sub_type == CTL_TYPE_ADVERT_RESPONSE) {

@@ -36,9 +36,9 @@ namespace mesh {
 #define CTL_TYPE_NODE_DISCOVER_REQ   0x80  // Node discovery request (lower 4 bits = flags)
 #define CTL_TYPE_NODE_DISCOVER_RESP  0x90  // Node discovery response (lower 4 bits = node type)
 
-// Pull-based advert system (uses 0xA0 range to avoid conflict with node discovery)
+// Pull-based advert system (each uses distinct upper nibble per control subtype convention)
 #define CTL_TYPE_ADVERT_REQUEST   0xA0  // Request advert from specific node
-#define CTL_TYPE_ADVERT_RESPONSE  0xA1  // Response with full advert + extended metadata
+#define CTL_TYPE_ADVERT_RESPONSE  0xB0  // Response with full advert + extended metadata
 
 // Advert response flags (optional fields in CTL_TYPE_ADVERT_RESPONSE)
 #define ADVERT_RESP_FLAG_HAS_LAT       0x01

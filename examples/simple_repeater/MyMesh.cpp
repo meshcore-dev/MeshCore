@@ -809,7 +809,7 @@ void MyMesh::handleAdvertRequest(mesh::Packet* packet) {
 void MyMesh::onControlDataRecv(mesh::Packet* packet) {
   if (packet->payload_len < 1) return;
 
-  uint8_t sub_type = packet->payload[0];
+  uint8_t sub_type = packet->payload[0] & 0xF0;  // upper nibble is subtype
 
   // Handle pull-based advert request (with rate limiting)
   if (sub_type == CTL_TYPE_ADVERT_REQUEST && discover_limiter.allow(rtc_clock.getCurrentTime())) {
@@ -818,8 +818,7 @@ void MyMesh::onControlDataRecv(mesh::Packet* packet) {
   }
 
   // Handle legacy node discovery
-  uint8_t type = sub_type & 0xF0;    // just test upper 4 bits
-  if (type == CTL_TYPE_NODE_DISCOVER_REQ && packet->payload_len >= 6
+  if (sub_type == CTL_TYPE_NODE_DISCOVER_REQ && packet->payload_len >= 6
       && !_prefs.disable_fwd && discover_limiter.allow(rtc_clock.getCurrentTime())
   ) {
     int i = 1;
