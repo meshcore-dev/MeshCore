@@ -376,6 +376,29 @@ Byte 0: 0x14
 
 ---
 
+### 8. Request Advert (Pull-Based)
+
+**Purpose**: Request a full advertisement with extended metadata from a specific node via a known path.
+
+**Command Format**:
+```
+Byte 0: 0x39
+Bytes 1-6: Target Prefix (first 6 bytes of target node's public key)
+Byte 7: Path Length
+Bytes 8+: Path (list of node hash bytes to reach target)
+```
+
+**Example** (request from node with prefix `a1b2c3d4e5f6` via 2-hop path):
+```
+39 a1 b2 c3 d4 e5 f6 02 [path_hash_1] [path_hash_2]
+```
+
+**Response**: `PACKET_OK` (0x00) on success, `PACKET_ERROR` (0x01) if request already pending
+
+**Note**: Only one advert request can be pending at a time. The response arrives asynchronously as `PUSH_CODE_ADVERT_RESPONSE` (0x8F).
+
+---
+
 ## Channel Management
 
 ### Channel Types
@@ -715,6 +738,7 @@ Use the `SEND_CHANNEL_MESSAGE` command (see [Commands](#commands)).
 | 0x82 | PACKET_ACK | Acknowledgment |
 | 0x83 | PACKET_MESSAGES_WAITING | Messages waiting notification |
 | 0x88 | PACKET_LOG_DATA | RF log data (can be ignored) |
+| 0x8F | PUSH_CODE_ADVERT_RESPONSE | Pull-based advert response |
 
 ### Parsing Responses
 
@@ -882,6 +906,82 @@ Byte 0: 0x82
 Bytes 1-6: ACK Code (6 bytes, hex)
 ```
 
+**PUSH_CODE_ADVERT_RESPONSE** (0x8F):
+
+Response to a pull-based advert request containing full advertisement with extended metadata.
+
+```
+Byte 0: 0x8F (packet type)
+Bytes 1-4: Tag (32-bit little-endian, matches request)
+Bytes 5-36: Public Key (32 bytes)
+Byte 37: Advertisement Type (1=chat, 2=repeater, 3=room, 4=sensor)
+Bytes 38-69: Node Name (32 bytes, null-padded)
+Bytes 70-73: Timestamp (32-bit little-endian Unix timestamp)
+Byte 74: Flags (indicates which optional fields are present)
+[Optional fields based on flags]
+```
+
+**Flags**:
+- `0x01`: Latitude present (4 bytes, int32, value * 1e6)
+- `0x02`: Longitude present (4 bytes, int32, value * 1e6)
+- `0x04`: Node description present (32 bytes, null-padded)
+- `0x08`: Operator name present (32 bytes, null-padded)
+
+**Parsing Pseudocode**:
+```python
+def parse_advert_response(data):
+    if len(data) < 75:
+        return None
+
+    offset = 1
+    tag = int.from_bytes(data[offset:offset+4], 'little')
+    offset += 4
+
+    pubkey = data[offset:offset+32].hex()
+    offset += 32
+
+    adv_type = data[offset]
+    offset += 1
+
+    node_name = data[offset:offset+32].decode('utf-8').rstrip('\x00')
+    offset += 32
+
+    timestamp = int.from_bytes(data[offset:offset+4], 'little')
+    offset += 4
+
+    flags = data[offset]
+    offset += 1
+
+    result = {
+        'tag': tag,
+        'pubkey': pubkey,
+        'adv_type': adv_type,
+        'node_name': node_name,
+        'timestamp': timestamp,
+        'flags': flags
+    }
+
+    if flags & 0x01:  # has latitude
+        lat_i32 = int.from_bytes(data[offset:offset+4], 'little', signed=True)
+        result['latitude'] = lat_i32 / 1e6
+        offset += 4
+
+    if flags & 0x02:  # has longitude
+        lon_i32 = int.from_bytes(data[offset:offset+4], 'little', signed=True)
+        result['longitude'] = lon_i32 / 1e6
+        offset += 4
+
+    if flags & 0x04:  # has description
+        result['node_desc'] = data[offset:offset+32].decode('utf-8').rstrip('\x00')
+        offset += 32
+
+    if flags & 0x08:  # has operator
+        result['operator_name'] = data[offset:offset+32].decode('utf-8').rstrip('\x00')
+        offset += 32
+
+    return result
+```
+
 ### Error Codes
 
 **PACKET_ERROR** (0x01) may include an error code in byte 1:
@@ -990,6 +1090,7 @@ def on_notification_received(data):
      - `SEND_CHANNEL_MESSAGE` → `PACKET_MSG_SENT`
      - `GET_MESSAGE` → `PACKET_CHANNEL_MSG_RECV`, `PACKET_CONTACT_MSG_RECV`, or `PACKET_NO_MORE_MSGS`
      - `GET_BATTERY` → `PACKET_BATTERY`
+     - `REQUEST_ADVERT` → `PACKET_OK` (response arrives async as `PUSH_CODE_ADVERT_RESPONSE`)
 
 4. **Timeout Handling**:
    - Default timeout: 5 seconds per command
