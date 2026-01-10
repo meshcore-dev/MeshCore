@@ -34,12 +34,11 @@ extern "C"
 #define LED_RED                 (11)
 #define LED_GREEN               (13)
 #define LED_BLUE                (12)
-#define PIN_STATUS_LED          (LED_BLUE)
 
-#define LED_STATE_ON            (0)     // State when LED is on
+#define LED_STATE_ON            (1)     // State when LED is litted
 
 // Buttons
-#define PIN_BUTTON1             (0)
+#define PIN_BUTTON1             (PINS_COUNT)
 
 // Digital PINs
 static const uint8_t D0  = 0 ;
@@ -58,8 +57,7 @@ static const uint8_t D10 = 10;
                                         // https://wiki.seeedstudio.com/XIAO_BLE#q3-what-are-the-considerations-when-using-xiao-nrf52840-sense-for-battery-charging
 
 #define PIN_CHARGING_CURRENT    (22)    // Battery Charging current
-                                        // https://wiki.seeedstudio.com/XIAO_BLE#battery-charging-current
-
+                                        // https://wiki.seedstudio.com/XIAO_BLE#battery-charging-current
 // Analog pins
 #define PIN_A0                  (0)
 #define PIN_A1                  (1)
@@ -111,11 +109,11 @@ static const uint8_t A5  = PIN_A5;
 // Wire Interfaces
 #define WIRE_INTERFACES_COUNT   (1)
 
-// #define PIN_WIRE_SDA            (17) // 4 and 5 are used for the sx1262 !
-// #define PIN_WIRE_SCL            (16) // use WIRE1_SDA
+#define PIN_WIRE_SDA            (6) // 4 and 5 are used for the sx1262 !
+#define PIN_WIRE_SCL            (7) // use WIRE1_SDA
 
-// static const uint8_t SDA = PIN_WIRE_SDA;
-// static const uint8_t SCL = PIN_WIRE_SCL;
+static const uint8_t SDA = (6);
+static const uint8_t SCL = (7);
 
 //#define PIN_WIRE1_SDA           (17)
 //#define PIN_WIRE1_SCL           (16)

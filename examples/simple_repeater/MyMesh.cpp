@@ -82,7 +82,7 @@ void MyMesh::putNeighbour(const mesh::Identity &id, uint32_t timestamp, float sn
 #endif
 }
 
-uint8_t MyMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* secret, uint32_t sender_timestamp, const uint8_t* data) {
+uint8_t MyMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* secret, uint32_t sender_timestamp, const uint8_t* data, bool is_flood) {
   ClientInfo* client = NULL;
   if (data[0] == 0) {   // blank password, just check if sender is in ACL
     client = acl.getClient(sender.pub_key, PUB_KEY_SIZE);
@@ -121,6 +121,10 @@ uint8_t MyMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* secr
     if (perms != PERM_ACL_GUEST) {   // keep number of FS writes to a minimum
       dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY);
     }
+  }
+
+  if (is_flood) {
+    client->out_path_len = -1;  // need to rediscover out_path
   }
 
   uint32_t now = getRTCClock()->getCurrentTimeUnique();
@@ -438,7 +442,7 @@ void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const m
     data[len] = 0;  // ensure null terminator
     uint8_t reply_len;
     if (data[4] == 0 || data[4] >= ' ') {   // is password, ie. a login request
-      reply_len = handleLoginReq(sender, secret, timestamp, &data[4]);
+      reply_len = handleLoginReq(sender, secret, timestamp, &data[4], packet->isRouteFlood());
     //} else if (data[4] == ANON_REQ_TYPE_*) {   // future type codes
       // TODO
     } else {
@@ -541,7 +545,7 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
   } else if (type == PAYLOAD_TYPE_TXT_MSG && len > 5 && client->isAdmin()) { // a CLI command
     uint32_t sender_timestamp;
     memcpy(&sender_timestamp, data, 4); // timestamp (by sender's RTC clock - which could be wrong)
-    uint flags = (data[4] >> 2);        // message attempt number, and other flags
+    uint8_t flags = (data[4] >> 2);        // message attempt number, and other flags
 
     if (!(flags == TXT_TYPE_PLAIN || flags == TXT_TYPE_CLI_DATA)) {
       MESH_DEBUG_PRINTLN("onPeerDataRecv: unsupported text type received: flags=%02x", (uint32_t)flags);
@@ -710,6 +714,8 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.gps_enabled = 0;
   _prefs.gps_interval = 0;
   _prefs.advert_loc_policy = ADVERT_LOC_PREFS;
+
+  _prefs.adc_multiplier = 0.0f; // 0.0f means use default board multiplier
 }
 
 void MyMesh::begin(FILESYSTEM *fs) {
@@ -732,6 +738,8 @@ void MyMesh::begin(FILESYSTEM *fs) {
 
   updateAdvertTimer();
   updateFloodAdvertTimer();
+
+  board.setAdcMultiplier(_prefs.adc_multiplier);
 
 #if ENV_INCLUDE_GPS == 1
   applyGpsPrefs();

@@ -24,4 +24,5 @@ struct NodePrefs {  // persisted to file
   float rx_delay_base;
   uint32_t ble_pin;
   uint8_t  advert_loc_policy;
+  uint8_t  buzzer_quiet;
 };

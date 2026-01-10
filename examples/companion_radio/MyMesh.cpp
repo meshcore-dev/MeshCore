@@ -52,6 +52,12 @@
 #define CMD_SEND_PATH_DISCOVERY_REQ   52
 #define CMD_SET_FLOOD_SCOPE           54   // v8+
 #define CMD_SEND_CONTROL_DATA         55   // v8+
+#define CMD_GET_STATS                 56   // v8+, second byte is stats type
+
+// Stats sub-types for CMD_GET_STATS
+#define STATS_TYPE_CORE               0
+#define STATS_TYPE_RADIO              1
+#define STATS_TYPE_PACKETS             2
 
 #define RESP_CODE_OK                  0
 #define RESP_CODE_ERR                 1
@@ -77,6 +83,7 @@
 #define RESP_CODE_CUSTOM_VARS         21
 #define RESP_CODE_ADVERT_PATH         22
 #define RESP_CODE_TUNING_PARAMS       23
+#define RESP_CODE_STATS               24   // v8+, second byte is stats type
 
 #define SEND_TIMEOUT_BASE_MILLIS        500
 #define FLOOD_SEND_TIMEOUT_FACTOR       16.0f
@@ -670,6 +677,11 @@ void MyMesh::onRawDataRecv(mesh::Packet *packet) {
 
 void MyMesh::onTraceRecv(mesh::Packet *packet, uint32_t tag, uint32_t auth_code, uint8_t flags,
                          const uint8_t *path_snrs, const uint8_t *path_hashes, uint8_t path_len) {
+  uint8_t path_sz = flags & 0x03;  // NEW v1.11+
+  if (12 + path_len + (path_len >> path_sz) + 1 > sizeof(out_frame)) {
+    MESH_DEBUG_PRINTLN("onTraceRecv(), path_len is too long: %d", (uint32_t)path_len);
+    return;
+  }
   int i = 0;
   out_frame[i++] = PUSH_CODE_TRACE_DATA;
   out_frame[i++] = 0; // reserved
@@ -681,8 +693,9 @@ void MyMesh::onTraceRecv(mesh::Packet *packet, uint32_t tag, uint32_t auth_code,
   i += 4;
   memcpy(&out_frame[i], path_hashes, path_len);
   i += path_len;
-  memcpy(&out_frame[i], path_snrs, path_len);
-  i += path_len;
+
+  memcpy(&out_frame[i], path_snrs, path_len >> path_sz);
+  i += path_len >> path_sz;
   out_frame[i++] = (int8_t)(packet->getSNR() * 4); // extra/final SNR (to this node)
 
   if (_serial->isConnected()) {
@@ -1446,25 +1459,31 @@ void MyMesh::handleCmdFrame(size_t len) {
     } else {
       writeErrFrame(ERR_CODE_BAD_STATE);
     }
-  } else if (cmd_frame[0] == CMD_SEND_TRACE_PATH && len > 10 && len - 10 < MAX_PATH_SIZE) {
-    uint32_t tag, auth;
-    memcpy(&tag, &cmd_frame[1], 4);
-    memcpy(&auth, &cmd_frame[5], 4);
-    auto pkt = createTrace(tag, auth, cmd_frame[9]);
-    if (pkt) {
-      uint8_t path_len = len - 10;
-      sendDirect(pkt, &cmd_frame[10], path_len);
-
-      uint32_t t = _radio->getEstAirtimeFor(pkt->payload_len + pkt->path_len + 2);
-      uint32_t est_timeout = calcDirectTimeoutMillisFor(t, path_len);
-
-      out_frame[0] = RESP_CODE_SENT;
-      out_frame[1] = 0;
-      memcpy(&out_frame[2], &tag, 4);
-      memcpy(&out_frame[6], &est_timeout, 4);
-      _serial->writeFrame(out_frame, 10);
+  } else if (cmd_frame[0] == CMD_SEND_TRACE_PATH && len > 10 && len - 10 < MAX_PACKET_PAYLOAD-5) {
+    uint8_t path_len = len - 10;
+    uint8_t flags = cmd_frame[9];
+    uint8_t path_sz = flags & 0x03;  // NEW v1.11+ 
+    if ((path_len >> path_sz) > MAX_PATH_SIZE || (path_len % (1 << path_sz)) != 0) { // make sure is multiple of path_sz
+      writeErrFrame(ERR_CODE_ILLEGAL_ARG);
     } else {
-      writeErrFrame(ERR_CODE_TABLE_FULL);
+      uint32_t tag, auth;
+      memcpy(&tag, &cmd_frame[1], 4);
+      memcpy(&auth, &cmd_frame[5], 4);
+      auto pkt = createTrace(tag, auth, flags);
+      if (pkt) {
+        sendDirect(pkt, &cmd_frame[10], path_len);
+
+        uint32_t t = _radio->getEstAirtimeFor(pkt->payload_len + pkt->path_len + 2);
+        uint32_t est_timeout = calcDirectTimeoutMillisFor(t, path_len);
+
+        out_frame[0] = RESP_CODE_SENT;
+        out_frame[1] = 0;
+        memcpy(&out_frame[2], &tag, 4);
+        memcpy(&out_frame[6], &est_timeout, 4);
+        _serial->writeFrame(out_frame, 10);
+      } else {
+        writeErrFrame(ERR_CODE_TABLE_FULL);
+      }
     }
   } else if (cmd_frame[0] == CMD_SET_DEVICE_PIN && len >= 5) {
 
@@ -1528,6 +1547,55 @@ void MyMesh::handleCmdFrame(size_t len) {
       _serial->writeFrame(out_frame, 6 + found->path_len);
     } else {
       writeErrFrame(ERR_CODE_NOT_FOUND);
+    }
+  } else if (cmd_frame[0] == CMD_GET_STATS && len >= 2) {
+    uint8_t stats_type = cmd_frame[1];
+    if (stats_type == STATS_TYPE_CORE) {
+      int i = 0;
+      out_frame[i++] = RESP_CODE_STATS;
+      out_frame[i++] = STATS_TYPE_CORE;
+      uint16_t battery_mv = board.getBattMilliVolts();
+      uint32_t uptime_secs = _ms->getMillis() / 1000;
+      uint8_t queue_len = (uint8_t)_mgr->getOutboundCount(0xFFFFFFFF);
+      memcpy(&out_frame[i], &battery_mv, 2); i += 2;
+      memcpy(&out_frame[i], &uptime_secs, 4); i += 4;
+      memcpy(&out_frame[i], &_err_flags, 2); i += 2;
+      out_frame[i++] = queue_len;
+      _serial->writeFrame(out_frame, i);
+    } else if (stats_type == STATS_TYPE_RADIO) {
+      int i = 0;
+      out_frame[i++] = RESP_CODE_STATS;
+      out_frame[i++] = STATS_TYPE_RADIO;
+      int16_t noise_floor = (int16_t)_radio->getNoiseFloor();
+      int8_t last_rssi = (int8_t)radio_driver.getLastRSSI();
+      int8_t last_snr = (int8_t)(radio_driver.getLastSNR() * 4); // scaled by 4 for 0.25 dB precision
+      uint32_t tx_air_secs = getTotalAirTime() / 1000;
+      uint32_t rx_air_secs = getReceiveAirTime() / 1000;
+      memcpy(&out_frame[i], &noise_floor, 2); i += 2;
+      out_frame[i++] = last_rssi;
+      out_frame[i++] = last_snr;
+      memcpy(&out_frame[i], &tx_air_secs, 4); i += 4;
+      memcpy(&out_frame[i], &rx_air_secs, 4); i += 4;
+      _serial->writeFrame(out_frame, i);
+    } else if (stats_type == STATS_TYPE_PACKETS) {
+      int i = 0;
+      out_frame[i++] = RESP_CODE_STATS;
+      out_frame[i++] = STATS_TYPE_PACKETS;
+      uint32_t recv = radio_driver.getPacketsRecv();
+      uint32_t sent = radio_driver.getPacketsSent();
+      uint32_t n_sent_flood = getNumSentFlood();
+      uint32_t n_sent_direct = getNumSentDirect();
+      uint32_t n_recv_flood = getNumRecvFlood();
+      uint32_t n_recv_direct = getNumRecvDirect();
+      memcpy(&out_frame[i], &recv, 4); i += 4;
+      memcpy(&out_frame[i], &sent, 4); i += 4;
+      memcpy(&out_frame[i], &n_sent_flood, 4); i += 4;
+      memcpy(&out_frame[i], &n_sent_direct, 4); i += 4;
+      memcpy(&out_frame[i], &n_recv_flood, 4); i += 4;
+      memcpy(&out_frame[i], &n_recv_direct, 4); i += 4;
+      _serial->writeFrame(out_frame, i);
+    } else {
+      writeErrFrame(ERR_CODE_ILLEGAL_ARG); // invalid stats sub-type
     }
   } else if (cmd_frame[0] == CMD_FACTORY_RESET && memcmp(&cmd_frame[1], "reset", 5) == 0) {
     bool success = _store->formatFileSystem();

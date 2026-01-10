@@ -3,12 +3,9 @@
 #include <MeshCore.h>
 #include <Arduino.h>
 
-// built-ins
-#define  PIN_VBAT_READ    4
-#define  PIN_BAT_CTL      6
-#define  MV_LSB   (3000.0F / 4096.0F) // 12-bit ADC with 3.0V input range
+#ifdef IKOKA_NRF52
 
-class T114Board : public mesh::MainBoard {
+class IkokaNrf52Board : public mesh::MainBoard {
 protected:
   uint8_t startup_reason;
 
@@ -26,37 +23,30 @@ public:
 #endif
 
   uint16_t getBattMilliVolts() override {
+    // Please read befor going further ;)
+    // https://wiki.seeedstudio.com/XIAO_BLE#q3-what-are-the-considerations-when-using-xiao-nrf52840-sense-for-battery-charging
+
+    // We can't drive VBAT_ENABLE to HIGH as long
+    // as we don't know wether we are charging or not ...
+    // this is a 3mA loss (4/1500)
+    digitalWrite(VBAT_ENABLE, LOW);
     int adcvalue = 0;
     analogReadResolution(12);
     analogReference(AR_INTERNAL_3_0);
-    pinMode(PIN_BAT_CTL, OUTPUT);          // battery adc can be read only ctrl pin 6 set to high
-    digitalWrite(PIN_BAT_CTL, 1);
-
     delay(10);
-    adcvalue = analogRead(PIN_VBAT_READ);
-    digitalWrite(6, 0);
-
-    return (uint16_t)((float)adcvalue * MV_LSB * 4.9);
+    adcvalue = analogRead(PIN_VBAT);
+    return (adcvalue * ADC_MULTIPLIER * AREF_VOLTAGE) / 4.096;
   }
 
   const char* getManufacturerName() const override {
-    return "Heltec T114";
+    return "Ikoka Handheld E22 30dBm (Xiao_nrf52)";
   }
 
   void reboot() override {
     NVIC_SystemReset();
   }
 
-  void powerOff() override {
-    #ifdef LED_PIN
-    digitalWrite(LED_PIN, HIGH);
-    #endif
-    #if ENV_INCLUDE_GPS == 1
-    pinMode(GPS_EN, OUTPUT);
-    digitalWrite(GPS_EN, LOW);
-    #endif
-    sd_power_system_off();
-  }
-
   bool startOTAUpdate(const char* id, char reply[]) override;
 };
+
+#endif

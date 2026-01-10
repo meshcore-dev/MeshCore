@@ -23,6 +23,7 @@ class PromicroBoard : public mesh::MainBoard {
 protected:
   uint8_t startup_reason;
   uint8_t btn_prev_state;
+  float adc_mult = ADC_MULTIPLIER;
 
 public:
   void begin();
@@ -39,7 +40,23 @@ public:
       raw += analogRead(PIN_VBAT_READ);
     }
     raw = raw / BATTERY_SAMPLES;
-    return (ADC_MULTIPLIER * raw);
+    return (adc_mult * raw);
+  }
+
+  bool setAdcMultiplier(float multiplier) override {
+    if (multiplier == 0.0f) {
+      adc_mult = ADC_MULTIPLIER;}
+    else {
+      adc_mult = multiplier;
+    }
+    return true;
+  }
+  float getAdcMultiplier() const override {
+    if (adc_mult == 0.0f) {
+      return ADC_MULTIPLIER;
+    } else {
+      return adc_mult;
+    }
   }
 
   const char* getManufacturerName() const override {

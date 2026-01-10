@@ -166,7 +166,7 @@ void BaseChatMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender
   if (type == PAYLOAD_TYPE_TXT_MSG && len > 5) {
     uint32_t timestamp;
     memcpy(&timestamp, data, 4);  // timestamp (by sender's RTC clock - which could be wrong)
-    uint flags = data[4] >> 2;   // message attempt number, and other flags
+    uint8_t flags = data[4] >> 2;   // message attempt number, and other flags
 
     // len can be > original length, but 'text' will be padded with zeroes
     data[len] = 0; // need to make a C string again, with null terminator

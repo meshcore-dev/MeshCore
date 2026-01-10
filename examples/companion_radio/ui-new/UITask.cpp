@@ -260,13 +260,24 @@ public:
 #if ENV_INCLUDE_GPS == 1
     } else if (_page == HomePage::GPS) {
       LocationProvider* nmea = sensors.getLocationProvider();
+      char buf[50];
       int y = 18;
-      display.drawTextLeftAlign(0, y, _task->getGPSState() ? "gps on" : "gps off");
+      bool gps_state = _task->getGPSState();
+#ifdef PIN_GPS_SWITCH
+      bool hw_gps_state = digitalRead(PIN_GPS_SWITCH);
+      if (gps_state != hw_gps_state) {
+        strcpy(buf, gps_state ? "gps off(hw)" : "gps off(sw)");
+      } else {
+        strcpy(buf, gps_state ? "gps on" : "gps off");
+      }
+#else
+      strcpy(buf, gps_state ? "gps on" : "gps off");
+#endif
+      display.drawTextLeftAlign(0, y, buf);
       if (nmea == NULL) {
         y = y + 12;
         display.drawTextLeftAlign(0, y, "Can't access GPS");
       } else {
-        char buf[50];
         strcpy(buf, nmea->isValid()?"fix":"no fix");
         display.drawTextRightAlign(display.width()-1, y, buf);
         y = y + 12;
@@ -532,6 +543,7 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
 
 #ifdef PIN_BUZZER
   buzzer.begin();
+  buzzer.quiet(_node_prefs->buzzer_quiet);
 #endif
 
 #ifdef PIN_VIBRATION
@@ -618,7 +630,7 @@ void UITask::userLedHandler() {
       led_state = 0;
       next_led_change = cur_time + LED_CYCLE_MILLIS - last_led_increment;
     }
-    digitalWrite(PIN_STATUS_LED, led_state);
+    digitalWrite(PIN_STATUS_LED, led_state == LED_STATE_ON);
   }
 #endif
 }
@@ -650,6 +662,7 @@ void UITask::shutdown(bool restart){
     _board->reboot();
   } else {
     _display->turnOff();
+    radio_driver.powerOff();
     _board->powerOff();
   }
 }
@@ -714,10 +727,14 @@ void UITask::loop() {
     _analogue_pin_read_millis = millis();
   }
 #endif
-#if defined(DISP_BACKLIGHT) && defined(BACKLIGHT_BTN)
+#if defined(BACKLIGHT_BTN)
   if (millis() > next_backlight_btn_check) {
     bool touch_state = digitalRead(PIN_BUTTON2);
+#if defined(DISP_BACKLIGHT)
     digitalWrite(DISP_BACKLIGHT, !touch_state);
+#elif defined(EXP_PIN_BACKLIGHT)
+    expander.digitalWrite(EXP_PIN_BACKLIGHT, !touch_state);
+#endif
     next_backlight_btn_check = millis() + 300;
   }
 #endif
@@ -871,6 +888,8 @@ void UITask::toggleBuzzer() {
       buzzer.quiet(true);
       showAlert("Buzzer: OFF", 800);
     }
+    _node_prefs->buzzer_quiet = buzzer.isQuiet();
+    the_mesh.savePrefs();
     _next_refresh = 0;  // trigger refresh
   #endif
 }

@@ -46,6 +46,24 @@ public:
     NVIC_SystemReset();
   }
 
+  void powerOff() override {
+    // set led on and wait for button release before poweroff
+    digitalWrite(PIN_LED, LOW);
+#ifdef PIN_USER_BTN
+    while(digitalRead(PIN_USER_BTN) == LOW);
+#endif
+    digitalWrite(LED_GREEN, HIGH);
+    digitalWrite(LED_BLUE, HIGH);
+    digitalWrite(PIN_LED, HIGH);
+
+#ifdef PIN_USER_BTN
+    // configure button press to wake up when in powered off state
+    nrf_gpio_cfg_sense_input(digitalPinToInterrupt(g_ADigitalPinMap[PIN_USER_BTN]), NRF_GPIO_PIN_NOPULL, NRF_GPIO_PIN_SENSE_LOW);
+#endif
+
+    sd_power_system_off();
+  }
+
   bool startOTAUpdate(const char* id, char reply[]) override;
 };
 

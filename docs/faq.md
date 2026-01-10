@@ -1,6 +1,10 @@
 **MeshCore-FAQ**<!-- omit from toc -->
 A list of frequently-asked questions and answers for MeshCore
 
+The current version of this MeshCore FAQ is at https://github.com/meshcore-dev/MeshCore/blob/main/docs/faq.md.  
+This MeshCore FAQ is also mirrored at https://github.com/LitBomb/MeshCore-FAQ and might have newer updates if pull requests on Scott's MeshCore repo are not approved yet.
+
+author: https://github.com/LitBomb<!-- omit from toc -->
 ---
 
 - [1. Introduction](#1-introduction)
@@ -22,6 +26,10 @@ A list of frequently-asked questions and answers for MeshCore
   - [3.2. Q: Do I need to set the location for a repeater?](#32-q-do-i-need-to-set-the-location-for-a-repeater)
   - [3.3. Q: What is the password to administer a repeater or a room server?](#33-q-what-is-the-password-to-administer-a-repeater-or-a-room-server)
   - [3.4. Q: What is the password to join a room server?](#34-q-what-is-the-password-to-join-a-room-server)
+  - [3.5. Q: Can I retrieve a repeater's private key or set a repeater's private key?](#35-q-can-i-retrieve-a-repeaters-private-key-or-set-a-repeaters-private-key)
+  - [3.6. Q: The first byte of my repeater's public key collides with an exisitng repeater on the mesh.  How do I get a new private key with a matching public key that has its first byte of my choosing?](#36-q-the-first-byte-of-my-repeaters-public-key-collides-with-an-exisitng-repeater-on-the-mesh--how-do-i-get-a-new-private-key-with-a-matching-public-key-that-has-its-first-byte-of-my-choosing)
+  - [3.7. Q: My repeater maybe suffering from deafness due to high power interference near my mesh's frequency, it is not hearing other in-range MeshCore radios.  what can I do?](#37-q-my-repeater-maybe-suffering-from-deafness-due-to-high-power-interference-near-my-meshs-frequency-it-is-not-hearing-other-in-range-meshcore-radios--what-can-i-do)
+  - [3.8 Q: How do I make my repeater an observer on the mesh](#38-q-how-do-i-make-my-repeater-an-observer-on-the-mesh)
 - [4. T-Deck Related](#4-t-deck-related)
   - [4.1. Q: Is there a user guide for T-Deck, T-Pager, T-Watch, or T-Display Pro?](#41-q-is-there-a-user-guide-for-t-deck-t-pager-t-watch-or-t-display-pro)
   - [4.2. Q: What are the steps to get a T-Deck into DFU (Device Firmware Update) mode?](#42-q-what-are-the-steps-to-get-a-t-deck-into-dfu-device-firmware-update-mode)
@@ -58,6 +66,11 @@ A list of frequently-asked questions and answers for MeshCore
     - [5.14.4. meshcore-cli](#5144-meshcore-cli)
     - [5.14.5. meshcore.js](#5145-meshcorejs)
     - [5.14.6. pyMC\_core](#5146-pymc_core)
+    - [5.14.7. MeshCore Packet Decoder](#5147-meshcore-packet-decoder)
+    - [5.14.8. meshcore-pi](#5148-meshcore-pi)
+    - [5.14.9. pyMC\_Repeater](#5149-pymc_repeater)
+  - [5.15. Q: Are there client applications for Windows or Mac?](#515-q-are-there-client-applications-for-windows-or-mac)
+  - [5.16. Q: Are there any resources that compare MeshCore to other LoRa systems?](#516-q-are-there-any-resources-that-compare-meshcore-to-other-lora-systems)
 - [6. Troubleshooting](#6-troubleshooting)
   - [6.1. Q: My client says another client or a repeater or a room server was last seen many, many days ago.](#61-q-my-client-says-another-client-or-a-repeater-or-a-room-server-was-last-seen-many-many-days-ago)
   - [6.2. Q: A repeater or a client or a room server I expect to see on my discover list (on T-Deck) or contact list (on a smart device client) are not listed.](#62-q-a-repeater-or-a-client-or-a-room-server-i-expect-to-see-on-my-discover-list-on-t-deck-or-contact-list-on-a-smart-device-client-are-not-listed)
@@ -69,11 +82,14 @@ A list of frequently-asked questions and answers for MeshCore
   - [6.8. Q: WebFlasher fails on Linux with failed to open](#68-q-webflasher-fails-on-linux-with-failed-to-open)
 - [7. Other Questions:](#7-other-questions)
   - [7.1. Q: How to update nRF (RAK, T114, Seed XIAO) repeater and room server firmware over the air using the new simpler DFU app?](#71-q-how-to-update-nrf-rak-t114-seed-xiao-repeater-and-room-server-firmware-over-the-air-using-the-new-simpler-dfu-app)
+    - [7.1.1 Q: Can I update Seeed Studio Wio Tracker L1 Pro using OTA?](#711-q-can-i-update-seeed-studio-wio-tracker-l1-pro-using-ota)
   - [7.2. Q: How to update ESP32-based devices over the air?](#72-q-how-to-update-esp32-based-devices-over-the-air)
   - [7.3. Q: Is there a way to lower the chance of a failed OTA device firmware update (DFU)?](#73-q-is-there-a-way-to-lower-the-chance-of-a-failed-ota-device-firmware-update-dfu)
   - [7.4. Q: are the MeshCore logo and font available?](#74-q-are-the-meshcore-logo-and-font-available)
   - [7.5. Q: What is the format of a contact or channel QR code?](#75-q-what-is-the-format-of-a-contact-or-channel-qr-code)
   - [7.6. Q: How do I connect to the companion via WIFI, e.g. using a heltec v3?](#76-q-how-do-i-connect-to-the-companion-via-wifi-eg-using-a-heltec-v3)
+  - [7.7. Q: I have a Station G2, or a Heltec V4, or an Ikoka Stick, or a radio with a EByte E22-900M30S or a E22-900M33S module, what should their transmit power be set to?](#77-q-i-have-a-station-g2-or-a-heltec-v4-or-an-ikoka-stick-or-a-radio-with-a-ebyte-e22-900m30s-or-a-e22-900m33s-module-what-should-their-transmit-power-be-set-to)
+- [| | High Output | 22 dBm | 28 dBm | |](#--high-output--22-dbm--28-dbm--)
 
 ## 1. Introduction
 
@@ -252,6 +268,34 @@ You can get the latitude and longitude from Google Maps by right-clicking the lo
 
 `set guest.password {guest-password}`
 
+### 3.5. Q: Can I retrieve a repeater's private key or set a repeater's private key?
+
+**A:** You can issue these commands to get or set a repeater's private key using a USB serial connection.
+
+`get prv.key` to print a repeater's private key on the serial console
+`set prv.key <hex>` to set a repeater's private key on the serial console
+
+Reboot the repeater after `set prv.key <hex>` command for the new private key to take effect.
+
+### 3.6. Q: The first byte of my repeater's public key collides with an exisitng repeater on the mesh.  How do I get a new private key with a matching public key that has its first byte of my choosing?
+
+**A:** You can generate a new private key and specific the first byte of its public key here:  https://gessaman.com/mc-keygen/
+
+
+### 3.7. Q: My repeater maybe suffering from deafness due to high power interference near my mesh's frequency, it is not hearing other in-range MeshCore radios.  what can I do?
+
+**A:** This may be due to the SX1262 radio's auto gain control feature.  You can use this command to preiodically reset its AGC.  
+
+`set agc.reset.interval <number>`
+
+The `<number>` unit is in seconds and is incremented by 4.  `set agc.reset.interval 4` works well to cure deafness.  
+
+This is a very low cost operation.  AGC reset is done by simply setting `state = STATE_IDLE;` in function `RadioLibWrapper::resetAGC()` in `RadioLibWrappers.cpp`
+
+
+### 3.8 Q: How do I make my repeater an observer on the mesh
+
+**A:** The observer instruction is available here: https://analyzer.letsme.sh/observer/onboard
 
 ---
 
@@ -289,7 +333,9 @@ GPS on T-Deck is always enabled.  You can skip the "GPS clock sync" and the T-De
 **A:**
 T-Deck uses the same key the smartphone apps use but in base64
 `izOH6cXN6mrJ5e26oRXNcg==`
-The third character is the capital letter 'O', not zero `0`
+
+There is no `=` key on the T-Deck's hardware keyboard.  You can use the on-screen software keyboard to enter `=`.  Tap the text box to enable the on-screen software keyboard.
+The third character is the capital letter `O` (Oh), not zero `0`
 
 The smartphone app key is in hex:
 ` 8b3387e9c5cdea6ac9e5edbaa115cd72`
@@ -590,6 +636,36 @@ https://github.com/liamcottle/meshcore.js
 pyMC_Core is a Python port of MeshCore, designed for Raspberry Pi and similar hardware, it talks to LoRa modules over SPI.
 https://github.com/rightup/pyMC_core
 
+#### 5.14.7. MeshCore Packet Decoder
+A TypeScript library for decoding MeshCore mesh networking packets with full cryptographic support. Uses WebAssembly (WASM) for Ed25519 key derivation through the orlp/ed25519 library.  It powers the [MeshCore Packet Analyzer](https://analyzer.letsme.sh/packets).
+https://github.com/michaelhart/meshcore-decoder
+
+#### 5.14.8. meshcore-pi
+meshcore-pi is another Python port of MeshCore, designed for Raspberry Pi and similar hardware, it talks to LoRa modules over SPI or GPIO.
+https://github.com/brianwiddas/meshcore-pi
+
+#### 5.14.9. pyMC_Repeater
+pyMC_Repeater is a repeater daemon in Python built on top of the [`pymc_core`](#5146-pymc_core) library.
+https://github.com/rightup/pyMC_Repeater
+
+
+### 5.15. Q: Are there client applications for Windows or Mac?
+**A:** Yes, the same iOS and Android client is also available for Windows and Intel Mac (sorry, not available for ARM-based Mac yet).  You can find them together with the Android APK here:
+https://files.liamcottle.net/MeshCore
+
+Both the Windows and Intel Mac versions of the client app are fully unlocked and are free to use.
+
+### 5.16. Q: Are there any resources that compare MeshCore to other LoRa systems?
+
+**A:** Here is a list of MeshCore comparison resources:
+The Comms Channel on YouTube:
+https://www.youtube.com/watch?v=guDoKGs02Us
+MeshCore Advantages by MCarper:
+https://github.com/mikecarper/meshfirmware/blob/main/MeshCoreAdvantages.md
+Meshcore vs Meshtastic by austinmesh.org
+https://www.austinmesh.org/learn/meshcore-vs-meshtastic/
+
+
 ---
 
 ## 6. Troubleshooting
@@ -666,6 +742,12 @@ Allow the browser user on it:
 13. If it fails, try turning off and on Bluetooth on your phone.  If that doesn't work, try rebooting your phone.
 14. Wait for the update to complete.  It can take a few minutes.
 
+#### 7.1.1 Q: Can I update Seeed Studio Wio Tracker L1 Pro using OTA?
+**A:**  You can flash this safer bootloader to the Wio Tracker L1 Pro
+https://github.com/oltaco/Adafruit_nRF52_Bootloader_OTAFIX
+
+After this bootloader is flashed onto the device, you can trigger over the air update using bluetooth by holding the button next to the D-Pad and then click the reset button.  The follow the same OTA update instructions above.  You can skip pass the `start ota` instruction and start the update using the DFU app.
+
 
 ### 7.2. Q: How to update ESP32-based devices over the air?
 
@@ -686,10 +768,14 @@ Allow the browser user on it:
 Refer to https://github.com/oltaco/Adafruit_nRF52_Bootloader_OTAFIX for the latest information.
 
 Currently, the following boards are supported:
-- Nologo ProMicro
+- Heltec Automation Mesh Node T114 / HT-nRF5262
+- Nologo ProMicro NRF52840 (aka SuperMini NRF52840)
+- Seeed Studio SenseCAP Card Tracker T1000-E
+- Seeed Studio Wio Tracker L1
 - Seeed Studio XIAO nRF52840 BLE
 - Seeed Studio XIAO nRF52840 BLE SENSE
-- RAK 4631
+- RAK 4631 (See note)
+- RAK WisMesh Tag (new 28/11/2025)
 
 ### 7.4. Q: are the MeshCore logo and font available?
 
@@ -716,4 +802,22 @@ where `&type` is:
 WiFi firmware requires you to compile it yourself, as you need to set the wifi ssid and password.
 Edit WIFI_SSID and WIFI_PWD in `./variants/heltec_v3/platformio.ini` and then flash it to your device.
 
+### 7.7. Q: I have a Station G2, or a Heltec V4, or an Ikoka Stick, or a radio with a EByte E22-900M30S or a E22-900M33S module, what should their transmit power be set to?
+ **A:**
+For companion radios, you can set these radios' transmit power in the smartphone app.  For repeater and room server radios, you can set their transmit power using the command line command `set tx`.  You can get their current value using command line comand `get tx`
+
+
+> ### ⚠️ **WARNING: Set these values at your own risk. Incorrect power settings can permanently damage your radio hardware.**
+
+| Device / Model | Region / Description | In-App Setting (dBm) | Target Radio Output | Notes |
+| :--- | :--- | :--- | :--- | :--- |
+| **Station G2** <br> [Reference](https://wiki.uniteng.com/en/meshtastic/station-g2) | US915 Max Output | 19 dBm | 36.5 dBm (4.46W) | |
+| | US915 Recommended Max | 16 dBm | 35 dBm (3.16W) | 1dB compression point |
+| | EU868 Recommended Max | 15 dBm | 34.5 dBm (2.82W) | 1dB compression point |
+| | US915 1W Output | 10 dBm | 1W | |
+| | EU868 1W Output | 9 dBm | 1W | |
+| **Ikoka Stick E22-900M30S** | 1W Model | 19 dBm | 1W | **DO NOT EXCEED** (Risk of burn out) |
+| **Ikoka Stick E22-900M33S** | 2W Model | 9 dBm | 2W | **DO NOT EXCEED** (Risk of burn out) |
+| **Heltec V4** | Standard Output | 10 dBm | 22 dBm | |
+| | High Output | 22 dBm | 28 dBm | |
 ---

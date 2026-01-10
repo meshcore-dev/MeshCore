@@ -33,11 +33,11 @@
 #define PERM_RECV_ALERTS_HI    (1 << 7)   // high priority alerts
 
 #ifndef FIRMWARE_BUILD_DATE
-  #define FIRMWARE_BUILD_DATE   "13 Nov 2025"
+  #define FIRMWARE_BUILD_DATE   "30 Nov 2025"
 #endif
 
 #ifndef FIRMWARE_VERSION
-  #define FIRMWARE_VERSION   "v1.10.0"
+  #define FIRMWARE_VERSION   "v1.11.0"
 #endif
 
 #define FIRMWARE_ROLE "sensor"
@@ -127,7 +127,7 @@ protected:
   bool onPeerPathRecv(mesh::Packet* packet, int sender_idx, const uint8_t* secret, uint8_t* path, uint8_t path_len, uint8_t extra_type, uint8_t* extra, uint8_t extra_len) override;
   void onControlDataRecv(mesh::Packet* packet) override;
   void onAckRecv(mesh::Packet* packet, uint32_t ack_crc) override;
-  virtual bool handleIncomingMsg(ClientInfo& from, uint32_t timestamp, uint8_t* data, uint flags, size_t len);
+  virtual bool handleIncomingMsg(ClientInfo& from, uint32_t timestamp, uint8_t* data, uint8_t flags, size_t len);
   void sendAckTo(const ClientInfo& dest, uint32_t ack_hash);
 private:
   FILESYSTEM* _fs;
@@ -148,7 +148,7 @@ private:
   uint8_t pending_sf;
   uint8_t pending_cr;
 
-  uint8_t handleLoginReq(const mesh::Identity& sender, const uint8_t* secret, uint32_t sender_timestamp, const uint8_t* data);
+  uint8_t handleLoginReq(const mesh::Identity& sender, const uint8_t* secret, uint32_t sender_timestamp, const uint8_t* data, bool is_flood);
   uint8_t handleRequest(uint8_t perms, uint32_t sender_timestamp, uint8_t req_type, uint8_t* payload, size_t payload_len);
   mesh::Packet* createSelfAdvert();
 

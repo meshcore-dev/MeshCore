@@ -1,8 +1,10 @@
-#include <Arduino.h>
-#include "RAKWismeshTagBoard.h"
+#ifdef IKOKA_NRF52
 
-#include <bluefruit.h>
+#include <Arduino.h>
 #include <Wire.h>
+#include <bluefruit.h>
+
+#include "IkokaNrf52Board.h"
 
 static BLEDfu bledfu;
 
@@ -18,23 +20,40 @@ static void disconnect_callback(uint16_t conn_handle, uint8_t reason) {
   MESH_DEBUG_PRINTLN("BLE client disconnected");
 }
 
-void RAKWismeshTagBoard::begin() {
+void IkokaNrf52Board::begin() {
   // for future use, sub-classes SHOULD call this from their begin()
   startup_reason = BD_STARTUP_NORMAL;
-  NRF_POWER->DCDCEN = 1;
 
-  pinMode(PIN_VBAT_READ, INPUT);
-  pinMode(PIN_USER_BTN, INPUT_PULLUP);
+  // ensure we have pull ups on the screen i2c, this isn't always available
+  // in hardware and it should only be 20k ohms. Disable the pullups if we
+  // are using the rotated lcd breakout board
+  #if defined(DISPLAY_CLASS) && DISPLAY_ROTATION == 0
+    pinMode(PIN_WIRE_SDA, INPUT_PULLUP);
+    pinMode(PIN_WIRE_SCL, INPUT_PULLUP);
+  #endif
 
-  Wire.setPins(PIN_BOARD_SDA, PIN_BOARD_SCL);
+  pinMode(PIN_VBAT, INPUT);
+  pinMode(VBAT_ENABLE, OUTPUT);
+  digitalWrite(VBAT_ENABLE, HIGH);
+
+  // required button pullup is handled as part of button initilization
+  // in target.cpp
+
+#if defined(PIN_WIRE_SDA) && defined(PIN_WIRE_SCL)
+  Wire.setPins(PIN_WIRE_SDA, PIN_WIRE_SCL);
+#endif
+
   Wire.begin();
 
-  pinMode(SX126X_POWER_EN, OUTPUT);
-  digitalWrite(SX126X_POWER_EN, HIGH);
-  delay(10);   // give sx1262 some time to power up
+#ifdef P_LORA_TX_LED
+  pinMode(P_LORA_TX_LED, OUTPUT);
+  digitalWrite(P_LORA_TX_LED, HIGH);
+#endif
+
+  delay(10); // give sx1262 some time to power up
 }
 
-bool RAKWismeshTagBoard::startOTAUpdate(const char* id, char reply[]) {
+bool IkokaNrf52Board::startOTAUpdate(const char *id, char reply[]) {
   // Config the peripheral connection with maximum bandwidth
   // more SRAM required by SoftDevice
   // Note: All config***() function must be called before begin()
@@ -45,7 +64,7 @@ bool RAKWismeshTagBoard::startOTAUpdate(const char* id, char reply[]) {
   // Set max power. Accepted values are: -40, -30, -20, -16, -12, -8, -4, 0, 4
   Bluefruit.setTxPower(4);
   // Set the BLE device name
-  Bluefruit.setName("WISMESHTAG_OTA");
+  Bluefruit.setName("XIAO_NRF52_OTA");
 
   Bluefruit.Periph.setConnectCallback(connect_callback);
   Bluefruit.Periph.setDisconnectCallback(disconnect_callback);
@@ -73,11 +92,9 @@ bool RAKWismeshTagBoard::startOTAUpdate(const char* id, char reply[]) {
   Bluefruit.Advertising.setFastTimeout(30);   // number of seconds in fast mode
   Bluefruit.Advertising.start(0);             // 0 = Don't stop advertising after n seconds
 
-  uint8_t mac_addr[6];
-  memset(mac_addr, 0, sizeof(mac_addr));
-  Bluefruit.getAddr(mac_addr);
-  sprintf(reply, "OK - mac: %02X:%02X:%02X:%02X:%02X:%02X",
-      mac_addr[5], mac_addr[4], mac_addr[3], mac_addr[2], mac_addr[1], mac_addr[0]);
+  strcpy(reply, "OK - started");
 
   return true;
 }
+
+#endif
