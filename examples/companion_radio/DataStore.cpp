@@ -271,42 +271,57 @@ void DataStore::savePrefs(const NodePrefs& _prefs, double node_lat, double node_
 }
 
 void DataStore::loadContacts(DataStoreHost* host) {
-File file = openRead(_getContactsChannelsFS(), "/contacts3");
-    if (file) {
-      bool full = false;
-      while (!full) {
-        ContactInfo c;
-        uint8_t pub_key[32];
-        uint8_t unused;
+  FILESYSTEM* fs = _getContactsChannelsFS();
+  File file = openRead(fs, "/contacts3");
 
-        bool success = (file.read(pub_key, 32) == 32);
-        success = success && (file.read((uint8_t *)&c.name, 32) == 32);
-        success = success && (file.read(&c.type, 1) == 1);
-        success = success && (file.read(&c.flags, 1) == 1);
-        success = success && (file.read(&unused, 1) == 1);
-        success = success && (file.read((uint8_t *)&c.sync_since, 4) == 4); // was 'reserved'
-        success = success && (file.read((uint8_t *)&c.out_path_len, 1) == 1);
-        success = success && (file.read((uint8_t *)&c.last_advert_timestamp, 4) == 4);
-        success = success && (file.read(c.out_path, 64) == 64);
-        success = success && (file.read((uint8_t *)&c.lastmod, 4) == 4);
-        success = success && (file.read((uint8_t *)&c.gps_lat, 4) == 4);
-        success = success && (file.read((uint8_t *)&c.gps_lon, 4) == 4);
-
-        if (!success) break; // EOF
-
-        c.id = mesh::Identity(pub_key);
-        if (!host->onContactLoaded(c)) full = true;
-      }
-      file.close();
+  // If main file doesn't exist or is empty, try backup
+  if (!file || file.size() == 0) {
+    if (file) file.close();
+    if (fs->exists("/contacts3.bak")) {
+      MESH_DEBUG_PRINTLN("WARN: contacts3 missing/empty, loading from backup");
+      file = openRead(fs, "/contacts3.bak");
     }
+  }
+
+  if (file) {
+    bool full = false;
+    while (!full) {
+      ContactInfo c;
+      uint8_t pub_key[32];
+      uint8_t unused;
+
+      bool success = (file.read(pub_key, 32) == 32);
+      success = success && (file.read((uint8_t *)&c.name, 32) == 32);
+      success = success && (file.read(&c.type, 1) == 1);
+      success = success && (file.read(&c.flags, 1) == 1);
+      success = success && (file.read(&unused, 1) == 1);
+      success = success && (file.read((uint8_t *)&c.sync_since, 4) == 4); // was 'reserved'
+      success = success && (file.read((uint8_t *)&c.out_path_len, 1) == 1);
+      success = success && (file.read((uint8_t *)&c.last_advert_timestamp, 4) == 4);
+      success = success && (file.read(c.out_path, 64) == 64);
+      success = success && (file.read((uint8_t *)&c.lastmod, 4) == 4);
+      success = success && (file.read((uint8_t *)&c.gps_lat, 4) == 4);
+      success = success && (file.read((uint8_t *)&c.gps_lon, 4) == 4);
+
+      if (!success) break; // EOF
+
+      c.id = mesh::Identity(pub_key);
+      if (!host->onContactLoaded(c)) full = true;
+    }
+    file.close();
+  }
 }
 
 void DataStore::saveContacts(DataStoreHost* host) {
-  File file = openWrite(_getContactsChannelsFS(), "/contacts3");
+  FILESYSTEM* fs = _getContactsChannelsFS();
+
+  // Write to temp file first (atomic write pattern)
+  File file = openWrite(fs, "/contacts3.tmp");
   if (file) {
     uint32_t idx = 0;
     ContactInfo c;
     uint8_t unused = 0;
+    bool write_success = true;
 
     while (host->getContactForSave(idx, c)) {
       bool success = (file.write(c.id.pub_key, 32) == 32);
@@ -322,11 +337,26 @@ void DataStore::saveContacts(DataStoreHost* host) {
       success = success && (file.write((uint8_t *)&c.gps_lat, 4) == 4);
       success = success && (file.write((uint8_t *)&c.gps_lon, 4) == 4);
 
-      if (!success) break; // write failed
+      if (!success) {
+        write_success = false;
+        break; // write failed
+      }
 
       idx++;  // advance to next contact
     }
+    file.flush();
     file.close();
+
+    if (write_success) {
+      // Atomic swap: remove old backup, rename current to backup, rename temp to current
+      fs->remove("/contacts3.bak");
+      fs->rename("/contacts3", "/contacts3.bak");
+      fs->rename("/contacts3.tmp", "/contacts3");
+    } else {
+      // Write failed, remove incomplete temp file
+      fs->remove("/contacts3.tmp");
+      MESH_DEBUG_PRINTLN("ERROR: saveContacts write failed, temp file removed");
+    }
   }
 }
 
