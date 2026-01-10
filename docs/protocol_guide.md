@@ -383,7 +383,7 @@ Byte 0: 0x14
 **Command Format**:
 ```
 Byte 0: 0x39
-Bytes 1: Target Prefix
+Bytes 1: PATH_HASH_SIZE bytes (currently 1)
 Byte 2: Path Length
 Bytes 3+: Path (list of node hash bytes to reach target)
 ```
