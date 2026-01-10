@@ -4,6 +4,12 @@
 #include <Arduino.h>
 #include <helpers/NRF52Board.h>
 
+// Default button polarity: Active-LOW (pressed = LOW)
+// Override with -D USER_BTN_PRESSED=HIGH in platformio.ini for rare active-high devices.
+#ifndef USER_BTN_PRESSED
+#define USER_BTN_PRESSED LOW
+#endif
+
 #ifdef XIAO_NRF52
 
 class XiaoNrf52Board : public NRF52BoardDCDC, public NRF52BoardOTA {
@@ -44,7 +50,7 @@ public:
     // set led on and wait for button release before poweroff
     digitalWrite(PIN_LED, LOW);
 #ifdef PIN_USER_BTN
-    while(digitalRead(PIN_USER_BTN) == LOW);
+    while(digitalRead(PIN_USER_BTN) == USER_BTN_PRESSED);  // wait for button release
 #endif
     digitalWrite(LED_GREEN, HIGH);
     digitalWrite(LED_BLUE, HIGH);
@@ -52,7 +58,11 @@ public:
 
 #ifdef PIN_USER_BTN
     // configure button press to wake up when in powered off state
+  #if USER_BTN_PRESSED == LOW
     nrf_gpio_cfg_sense_input(digitalPinToInterrupt(g_ADigitalPinMap[PIN_USER_BTN]), NRF_GPIO_PIN_NOPULL, NRF_GPIO_PIN_SENSE_LOW);
+  #else
+    nrf_gpio_cfg_sense_input(digitalPinToInterrupt(g_ADigitalPinMap[PIN_USER_BTN]), NRF_GPIO_PIN_NOPULL, NRF_GPIO_PIN_SENSE_HIGH);
+  #endif
 #endif
 
     sd_power_system_off();

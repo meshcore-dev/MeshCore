@@ -3,6 +3,13 @@
 #include <MeshCore.h>
 #include <Arduino.h>
 
+// Default button polarity: Active-LOW (pressed = LOW)
+// Most LoRa boards use GPIO as a boot button that pulls to GND when pressed.
+// Override with -D USER_BTN_PRESSED=HIGH in platformio.ini for rare active-high devices.
+#ifndef USER_BTN_PRESSED
+#define USER_BTN_PRESSED LOW
+#endif
+
 #if defined(ESP_PLATFORM)
 
 #include <rom/rtc.h>
@@ -56,14 +63,26 @@ public:
     return raw / 4;
   }
 
-  void enterLightSleep(uint32_t secs) {
+  void enterLightSleep(uint32_t secs, int pin_wake_btn = -1, bool btn_active_high = true) {
 #if defined(CONFIG_IDF_TARGET_ESP32S3) && defined(P_LORA_DIO_1) // Supported ESP32 variants
     if (rtc_gpio_is_valid_gpio((gpio_num_t)P_LORA_DIO_1)) { // Only enter sleep mode if P_LORA_DIO_1 is RTC pin
       esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
-      esp_sleep_enable_ext1_wakeup((1L << P_LORA_DIO_1), ESP_EXT1_WAKEUP_ANY_HIGH); // To wake up when receiving a LoRa packet
+
+      // Configure wakeup sources: LoRa packet (always active-high) and optionally button
+      if (pin_wake_btn < 0) {
+        // No button - just wake on LoRa packet
+        esp_sleep_enable_ext1_wakeup((1ULL << P_LORA_DIO_1), ESP_EXT1_WAKEUP_ANY_HIGH);
+      } else if (btn_active_high) {
+        // Button is active-high (same as LoRa) - can use single ext1 source
+        esp_sleep_enable_ext1_wakeup((1ULL << P_LORA_DIO_1) | (1ULL << pin_wake_btn), ESP_EXT1_WAKEUP_ANY_HIGH);
+      } else {
+        // Button is active-low (different from LoRa) - use ext0 for button, ext1 for LoRa
+        esp_sleep_enable_ext0_wakeup((gpio_num_t)pin_wake_btn, 0); // Wake when button goes LOW
+        esp_sleep_enable_ext1_wakeup((1ULL << P_LORA_DIO_1), ESP_EXT1_WAKEUP_ANY_HIGH); // Wake on LoRa packet
+      }
 
       if (secs > 0) {
-        esp_sleep_enable_timer_wakeup(secs * 1000000); // To wake up every hour to do periodically jobs
+        esp_sleep_enable_timer_wakeup(secs * 1000000); // To wake up after specified seconds
       }
 
       esp_light_sleep_start(); // CPU enters light sleep
@@ -75,9 +94,18 @@ public:
     // To check for WiFi status to see if there is active OTA
     wifi_mode_t mode;
     esp_err_t err = esp_wifi_get_mode(&mode);
-    
+
     if (err != ESP_OK) {          // WiFi is off ~ No active OTA, safe to go to sleep
-      enterLightSleep(secs);      // To wake up after "secs" seconds or when receiving a LoRa packet
+#ifdef PIN_USER_BTN
+      // Sleep with button wake support (USER_BTN_PRESSED defaults to LOW if not defined)
+  #if USER_BTN_PRESSED == LOW
+      enterLightSleep(secs, PIN_USER_BTN, false); // Button is active-low
+  #else
+      enterLightSleep(secs, PIN_USER_BTN, true);  // Button is active-high
+  #endif
+#else
+      enterLightSleep(secs);
+#endif
     }
   }
 
