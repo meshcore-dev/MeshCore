@@ -639,7 +639,7 @@ bool MyMesh::onContactPathRecv(ContactInfo& contact, uint8_t* in_path, uint8_t i
 }
 
 void MyMesh::handleAdvertResponse(mesh::Packet* packet) {
-  // Minimum: sub_type(1) + tag(4) + pubkey(32) + adv_type(1) + name(32) + timestamp(4) + signature(64) + flags(1) = 139 bytes
+  // Minimum: sub_type(1) + tag(4) + pubkey(32) + timestamp(4) + signature(64) + app_data(1+32+1) = 139 bytes
   if (packet->payload_len < 139) {
     MESH_DEBUG_PRINTLN("handleAdvertResponse: packet too short (%d bytes)", packet->payload_len);
     return;
@@ -659,56 +659,52 @@ void MyMesh::handleAdvertResponse(mesh::Packet* packet) {
 
   MESH_DEBUG_PRINTLN("handleAdvertResponse: matched tag=%08X", tag);
 
-  // Extract pubkey
+  // Extract pubkey, timestamp, signature (new packet order)
   uint8_t pubkey[PUB_KEY_SIZE];
   memcpy(pubkey, &packet->payload[pos], PUB_KEY_SIZE); pos += PUB_KEY_SIZE;
 
-  // Extract adv_type, node_name, timestamp
-  uint8_t adv_type = packet->payload[pos++];
-  char node_name[32];
-  memcpy(node_name, &packet->payload[pos], 32); pos += 32;
   uint32_t timestamp;
   memcpy(&timestamp, &packet->payload[pos], 4); pos += 4;
 
-  // Extract signature
-  uint8_t signature[64];
-  memcpy(signature, &packet->payload[pos], 64); pos += 64;
+  uint8_t signature[SIGNATURE_SIZE];
+  memcpy(signature, &packet->payload[pos], SIGNATURE_SIZE); pos += SIGNATURE_SIZE;
 
-  // Verify signature (over pubkey + timestamp, same as regular adverts)
-  uint8_t sig_data[PUB_KEY_SIZE + 4];
-  memcpy(sig_data, pubkey, PUB_KEY_SIZE);
-  memcpy(sig_data + PUB_KEY_SIZE, &timestamp, 4);
+  // app_data starts here - extract it for signature verification
+  const uint8_t* app_data = &packet->payload[pos];
+  int app_data_len = packet->payload_len - pos;
+
+  // Parse app_data fields
+  int app_pos = 0;
+  uint8_t adv_type = app_data[app_pos++];
+
+  char node_name[32];
+  memcpy(node_name, &app_data[app_pos], 32); app_pos += 32;
+
+  uint8_t flags = app_data[app_pos++];
+
+  int32_t lat_i32 = 0, lon_i32 = 0;
+  if (flags & ADVERT_RESP_FLAG_HAS_LAT) { memcpy(&lat_i32, &app_data[app_pos], 4); app_pos += 4; }
+  if (flags & ADVERT_RESP_FLAG_HAS_LON) { memcpy(&lon_i32, &app_data[app_pos], 4); app_pos += 4; }
+
+  char node_desc[32] = {0};
+  if (flags & ADVERT_RESP_FLAG_HAS_DESC) { memcpy(node_desc, &app_data[app_pos], 32); app_pos += 32; }
+
+  char operator_name[32] = {0};
+  if (flags & ADVERT_RESP_FLAG_HAS_OPERATOR) { memcpy(operator_name, &app_data[app_pos], 32); app_pos += 32; }
+
+  // Verify signature (over pubkey + timestamp + app_data, same as regular adverts)
+  uint8_t message[PUB_KEY_SIZE + 4 + MAX_PACKET_PAYLOAD];
+  int msg_len = 0;
+  memcpy(&message[msg_len], pubkey, PUB_KEY_SIZE); msg_len += PUB_KEY_SIZE;
+  memcpy(&message[msg_len], &timestamp, 4); msg_len += 4;
+  memcpy(&message[msg_len], app_data, app_data_len); msg_len += app_data_len;
 
   mesh::Identity id;
   memcpy(id.pub_key, pubkey, PUB_KEY_SIZE);
-  if (!id.verify(signature, sig_data, sizeof(sig_data))) {
+  if (!id.verify(signature, message, msg_len)) {
     MESH_DEBUG_PRINTLN("handleAdvertResponse: signature verification failed");
     pending_advert_request = 0;
     return;
-  }
-
-  // Extract flags
-  uint8_t flags = packet->payload[pos++];
-
-  // Optional: GPS location (stored as int32 * 1e6)
-  int32_t lat_i32 = 0, lon_i32 = 0;
-  if (flags & ADVERT_RESP_FLAG_HAS_LAT) {
-    memcpy(&lat_i32, &packet->payload[pos], 4); pos += 4;
-  }
-  if (flags & ADVERT_RESP_FLAG_HAS_LON) {
-    memcpy(&lon_i32, &packet->payload[pos], 4); pos += 4;
-  }
-
-  // Optional: node description
-  char node_desc[32] = {0};
-  if (flags & ADVERT_RESP_FLAG_HAS_DESC) {
-    memcpy(node_desc, &packet->payload[pos], 32); pos += 32;
-  }
-
-  // Optional: operator name
-  char operator_name[32] = {0};
-  if (flags & ADVERT_RESP_FLAG_HAS_OPERATOR) {
-    memcpy(operator_name, &packet->payload[pos], 32); pos += 32;
   }
 
   // Build push notification to app
@@ -720,18 +716,10 @@ void MyMesh::handleAdvertResponse(mesh::Packet* packet) {
   memcpy(&out_frame[i], node_name, 32); i += 32;
   memcpy(&out_frame[i], &timestamp, 4); i += 4;
   out_frame[i++] = flags;
-  if (flags & ADVERT_RESP_FLAG_HAS_LAT) {
-    memcpy(&out_frame[i], &lat_i32, 4); i += 4;
-  }
-  if (flags & ADVERT_RESP_FLAG_HAS_LON) {
-    memcpy(&out_frame[i], &lon_i32, 4); i += 4;
-  }
-  if (flags & ADVERT_RESP_FLAG_HAS_DESC) {
-    memcpy(&out_frame[i], node_desc, 32); i += 32;
-  }
-  if (flags & ADVERT_RESP_FLAG_HAS_OPERATOR) {
-    memcpy(&out_frame[i], operator_name, 32); i += 32;
-  }
+  if (flags & ADVERT_RESP_FLAG_HAS_LAT) { memcpy(&out_frame[i], &lat_i32, 4); i += 4; }
+  if (flags & ADVERT_RESP_FLAG_HAS_LON) { memcpy(&out_frame[i], &lon_i32, 4); i += 4; }
+  if (flags & ADVERT_RESP_FLAG_HAS_DESC) { memcpy(&out_frame[i], node_desc, 32); i += 32; }
+  if (flags & ADVERT_RESP_FLAG_HAS_OPERATOR) { memcpy(&out_frame[i], operator_name, 32); i += 32; }
 
   _serial->writeFrame(out_frame, i);
 

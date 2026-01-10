@@ -285,15 +285,17 @@ Response to ADVERT_REQUEST containing full advertisement with extended metadata.
 | sub_type      | 1               | 0xB0                                                |
 | tag           | 4               | echoed from ADVERT_REQUEST                          |
 | pubkey        | 32              | responder's full Ed25519 public key                 |
+| timestamp     | 4               | unix timestamp                                      |
+| signature     | 64              | Ed25519 signature over pubkey + timestamp + app_data |
 | adv_type      | 1               | node type (1=chat, 2=repeater, 3=room, 4=sensor)    |
 | node_name     | 32              | node name, null-padded                              |
-| timestamp     | 4               | unix timestamp                                      |
-| signature     | 64              | Ed25519 signature over pubkey + timestamp           |
 | flags         | 1               | indicates which optional fields are present         |
 | latitude      | 4 (optional)    | if flags & 0x01: decimal latitude * 1000000, int32  |
 | longitude     | 4 (optional)    | if flags & 0x02: decimal longitude * 1000000, int32 |
 | node_desc     | 32 (optional)   | if flags & 0x04: node description, null-padded      |
 | operator_name | 32 (optional)   | if flags & 0x08: operator name, null-padded         |
+
+Note: app_data = adv_type + node_name + flags + optional fields (same pattern as regular adverts).
 
 ADVERT_RESPONSE Flags:
 

@@ -742,70 +742,61 @@ void MyMesh::handleAdvertRequest(mesh::Packet* packet) {
 
   MESH_DEBUG_PRINTLN("handleAdvertRequest: request for us, tag=%08X", tag);
 
-  // Build response with extended metadata
-  uint8_t response[MAX_PACKET_PAYLOAD];
-  int pos = 0;
-
-  // sub_type
-  response[pos++] = CTL_TYPE_ADVERT_RESPONSE;
-
-  // tag (echo back)
-  memcpy(&response[pos], &tag, 4); pos += 4;
-
-  // pub_key (full 32 bytes)
-  memcpy(&response[pos], self_id.pub_key, PUB_KEY_SIZE); pos += PUB_KEY_SIZE;
+  // Build app_data first (needed for signature, same pattern as regular adverts)
+  uint8_t app_data[1 + 32 + 1 + 4 + 4 + 32 + 32];  // adv_type + node_name + flags + lat + lon + desc + operator
+  int app_data_len = 0;
 
   // adv_type
-  response[pos++] = ADV_TYPE_REPEATER;
+  app_data[app_data_len++] = ADV_TYPE_REPEATER;
 
   // node_name (32 bytes)
-  memcpy(&response[pos], _prefs.node_name, 32); pos += 32;
+  memcpy(&app_data[app_data_len], _prefs.node_name, 32); app_data_len += 32;
 
-  // timestamp
-  uint32_t timestamp = getRTCClock()->getCurrentTime();
-  memcpy(&response[pos], &timestamp, 4); pos += 4;
-
-  // signature (64 bytes) - sign pubkey + timestamp only (same as regular adverts)
-  uint8_t sig_data[PUB_KEY_SIZE + 4];
-  memcpy(sig_data, self_id.pub_key, PUB_KEY_SIZE);
-  memcpy(sig_data + PUB_KEY_SIZE, &timestamp, 4);
-  uint8_t signature[64];
-  self_id.sign(signature, sig_data, sizeof(sig_data));
-  memcpy(&response[pos], signature, 64); pos += 64;
-
-  // flags (indicating which optional fields are present)
+  // flags - determine which optional fields are present
   uint8_t flags = 0;
-  int flags_pos = pos;
-  pos++;  // reserve space for flags byte
+  int32_t lat_i32 = 0, lon_i32 = 0;
 
-  // Optional: GPS location (only if configured to share)
   if (_prefs.advert_loc_policy != ADVERT_LOC_NONE) {
     double lat = (_prefs.advert_loc_policy == ADVERT_LOC_SHARE) ? sensors.node_lat : _prefs.node_lat;
     double lon = (_prefs.advert_loc_policy == ADVERT_LOC_SHARE) ? sensors.node_lon : _prefs.node_lon;
-
     if (lat != 0.0 || lon != 0.0) {
       flags |= ADVERT_RESP_FLAG_HAS_LAT | ADVERT_RESP_FLAG_HAS_LON;
-      int32_t lat_i32 = (int32_t)(lat * 1e6);
-      int32_t lon_i32 = (int32_t)(lon * 1e6);
-      memcpy(&response[pos], &lat_i32, 4); pos += 4;
-      memcpy(&response[pos], &lon_i32, 4); pos += 4;
+      lat_i32 = (int32_t)(lat * 1e6);
+      lon_i32 = (int32_t)(lon * 1e6);
     }
   }
+  if (_prefs.node_desc[0] != '\0') flags |= ADVERT_RESP_FLAG_HAS_DESC;
+  if (_prefs.operator_name[0] != '\0') flags |= ADVERT_RESP_FLAG_HAS_OPERATOR;
 
-  // Optional: node description
-  if (_prefs.node_desc[0] != '\0') {
-    flags |= ADVERT_RESP_FLAG_HAS_DESC;
-    memcpy(&response[pos], _prefs.node_desc, 32); pos += 32;
-  }
+  app_data[app_data_len++] = flags;
 
-  // Optional: operator name
-  if (_prefs.operator_name[0] != '\0') {
-    flags |= ADVERT_RESP_FLAG_HAS_OPERATOR;
-    memcpy(&response[pos], _prefs.operator_name, 32); pos += 32;
-  }
+  // Optional fields (order must match receiver)
+  if (flags & ADVERT_RESP_FLAG_HAS_LAT) { memcpy(&app_data[app_data_len], &lat_i32, 4); app_data_len += 4; }
+  if (flags & ADVERT_RESP_FLAG_HAS_LON) { memcpy(&app_data[app_data_len], &lon_i32, 4); app_data_len += 4; }
+  if (flags & ADVERT_RESP_FLAG_HAS_DESC) { memcpy(&app_data[app_data_len], _prefs.node_desc, 32); app_data_len += 32; }
+  if (flags & ADVERT_RESP_FLAG_HAS_OPERATOR) { memcpy(&app_data[app_data_len], _prefs.operator_name, 32); app_data_len += 32; }
 
-  // Write flags byte
-  response[flags_pos] = flags;
+  // Build signature message: pubkey + timestamp + app_data (same as regular adverts)
+  uint32_t timestamp = getRTCClock()->getCurrentTime();
+  uint8_t message[PUB_KEY_SIZE + 4 + sizeof(app_data)];
+  int msg_len = 0;
+  memcpy(&message[msg_len], self_id.pub_key, PUB_KEY_SIZE); msg_len += PUB_KEY_SIZE;
+  memcpy(&message[msg_len], &timestamp, 4); msg_len += 4;
+  memcpy(&message[msg_len], app_data, app_data_len); msg_len += app_data_len;
+
+  uint8_t signature[SIGNATURE_SIZE];
+  self_id.sign(signature, message, msg_len);
+
+  // Now build the response packet
+  uint8_t response[MAX_PACKET_PAYLOAD];
+  int pos = 0;
+
+  response[pos++] = CTL_TYPE_ADVERT_RESPONSE;                           // sub_type
+  memcpy(&response[pos], &tag, 4); pos += 4;                            // tag (echo back)
+  memcpy(&response[pos], self_id.pub_key, PUB_KEY_SIZE); pos += PUB_KEY_SIZE;  // pub_key
+  memcpy(&response[pos], &timestamp, 4); pos += 4;                      // timestamp
+  memcpy(&response[pos], signature, SIGNATURE_SIZE); pos += SIGNATURE_SIZE;    // signature
+  memcpy(&response[pos], app_data, app_data_len); pos += app_data_len;  // app_data
 
   MESH_DEBUG_PRINTLN("handleAdvertRequest: sending response, %d bytes, flags=%02X", pos, flags);
 
