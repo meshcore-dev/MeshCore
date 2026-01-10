@@ -149,20 +149,12 @@ protected:
   bool getChannelForSave(uint8_t channel_idx, ChannelDetails& ch) override { return getChannel(channel_idx, ch); }
 
 private:
-  struct PendingAdvertRequest {
-    uint32_t tag;              // Random tag for matching (0 = slot unused)
-    unsigned long created_at;  // Millis when request was created
-    uint8_t target_prefix[PATH_HASH_SIZE];  // Target node prefix
-  };
-  #define MAX_PENDING_ADVERT_REQUESTS 4
   #define ADVERT_REQUEST_TIMEOUT_MILLIS 30000  // 30 seconds
 
 public:
   void clearPendingReqs() {
     pending_login = pending_status = pending_telemetry = pending_discovery = pending_req = 0;
-    for (int i = 0; i < MAX_PENDING_ADVERT_REQUESTS; i++) {
-      pending_advert_requests[i].tag = 0;
-    }
+    pending_advert_request = 0;
   }
 
 public:
@@ -198,7 +190,8 @@ private:
   uint32_t pending_status;
   uint32_t pending_telemetry, pending_discovery;   // pending _TELEMETRY_REQ
   uint32_t pending_req;   // pending _BINARY_REQ
-  PendingAdvertRequest pending_advert_requests[MAX_PENDING_ADVERT_REQUESTS];
+  uint32_t pending_advert_request;        // tag for pending advert request (0 = none)
+  unsigned long pending_advert_request_time;  // millis() when request was created
   BaseSerialInterface *_serial;
   AbstractUITask* _ui;
 

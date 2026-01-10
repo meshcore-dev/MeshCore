@@ -651,16 +651,8 @@ void MyMesh::handleAdvertResponse(mesh::Packet* packet) {
   uint32_t tag;
   memcpy(&tag, &packet->payload[pos], 4); pos += 4;
 
-  // Find matching pending request
-  int slot = -1;
-  for (int i = 0; i < MAX_PENDING_ADVERT_REQUESTS; i++) {
-    if (pending_advert_requests[i].tag == tag) {
-      slot = i;
-      break;
-    }
-  }
-
-  if (slot == -1) {
+  // Check if tag matches pending request
+  if (pending_advert_request == 0 || pending_advert_request != tag) {
     MESH_DEBUG_PRINTLN("handleAdvertResponse: no matching request for tag=%08X", tag);
     return;
   }
@@ -691,8 +683,7 @@ void MyMesh::handleAdvertResponse(mesh::Packet* packet) {
   memcpy(id.pub_key, pubkey, PUB_KEY_SIZE);
   if (!id.verify(signature, sig_data, sizeof(sig_data))) {
     MESH_DEBUG_PRINTLN("handleAdvertResponse: signature verification failed");
-    // Clear slot and return
-    pending_advert_requests[slot].tag = 0;
+    pending_advert_request = 0;
     return;
   }
 
@@ -746,8 +737,8 @@ void MyMesh::handleAdvertResponse(mesh::Packet* packet) {
 
   _serial->writeFrame(out_frame, i);
 
-  // Clear slot
-  pending_advert_requests[slot].tag = 0;
+  // Clear pending request
+  pending_advert_request = 0;
 
   MESH_DEBUG_PRINTLN("handleAdvertResponse: forwarded to app, %d bytes", i);
 }
@@ -1807,16 +1798,8 @@ void MyMesh::handleCmdFrame(size_t len) {
 
     const uint8_t* path = &cmd_frame[1 + PATH_HASH_SIZE + 1];
 
-    // Find free slot
-    int slot = -1;
-    for (int i = 0; i < MAX_PENDING_ADVERT_REQUESTS; i++) {
-      if (pending_advert_requests[i].tag == 0) {
-        slot = i;
-        break;
-      }
-    }
-
-    if (slot == -1) {
+    // Check if there's already a pending request
+    if (pending_advert_request != 0) {
       writeErrFrame(ERR_CODE_TABLE_FULL);
       return;
     }
@@ -1841,9 +1824,8 @@ void MyMesh::handleCmdFrame(size_t len) {
     sendDirect(packet, path, path_len, 0);
 
     // Track request
-    pending_advert_requests[slot].tag = tag;
-    pending_advert_requests[slot].created_at = millis();
-    memcpy(pending_advert_requests[slot].target_prefix, target_prefix, PATH_HASH_SIZE);
+    pending_advert_request = tag;
+    pending_advert_request_time = millis();
 
     MESH_DEBUG_PRINTLN("CMD_REQUEST_ADVERT: sent request, tag=%08X", tag);
 
@@ -2060,28 +2042,20 @@ void MyMesh::checkSerialInterface() {
 }
 
 void MyMesh::checkPendingAdvertRequests() {
-  unsigned long now = millis();
+  if (pending_advert_request == 0) return;
 
-  for (int i = 0; i < MAX_PENDING_ADVERT_REQUESTS; i++) {
-    if (pending_advert_requests[i].tag != 0) {
-      unsigned long elapsed = now - pending_advert_requests[i].created_at;
+  unsigned long elapsed = millis() - pending_advert_request_time;
+  if (elapsed > ADVERT_REQUEST_TIMEOUT_MILLIS) {
+    MESH_DEBUG_PRINTLN("checkPendingAdvertRequests: request timed out, tag=%08X", pending_advert_request);
 
-      if (elapsed > ADVERT_REQUEST_TIMEOUT_MILLIS) {
-        MESH_DEBUG_PRINTLN("checkPendingAdvertRequests: request timed out, tag=%08X",
-                          pending_advert_requests[i].tag);
-        // Send timeout notification to app (tag + 0xFF marker + target_prefix)
-        int j = 0;
-        out_frame[j++] = PUSH_CODE_ADVERT_RESPONSE;
-        memcpy(&out_frame[j], &pending_advert_requests[i].tag, 4); j += 4;  // Include tag for app matching
-        out_frame[j++] = 0xFF;  // Special marker for timeout (in place of adv_type)
-        memcpy(&out_frame[j], pending_advert_requests[i].target_prefix, PATH_HASH_SIZE);
-        j += PATH_HASH_SIZE;
-        _serial->writeFrame(out_frame, j);
+    // Send timeout notification to app (tag + 0xFF marker)
+    int j = 0;
+    out_frame[j++] = PUSH_CODE_ADVERT_RESPONSE;
+    memcpy(&out_frame[j], &pending_advert_request, 4); j += 4;
+    out_frame[j++] = 0xFF;  // Special marker for timeout
+    _serial->writeFrame(out_frame, j);
 
-        // Clear slot
-        pending_advert_requests[i].tag = 0;
-      }
-    }
+    pending_advert_request = 0;
   }
 }
 
