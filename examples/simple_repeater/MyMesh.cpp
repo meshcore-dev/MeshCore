@@ -390,6 +390,21 @@ bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
     MESH_DEBUG_PRINTLN("allowPacketForward: unknown transport code, or wildcard not allowed for FLOOD packet");
     return false;
   }
+
+  // Don't forward flooded adverts from repeaters
+  if (packet->isRouteFlood() && packet->getPayloadType() == PAYLOAD_TYPE_ADVERT) {
+    int app_data_offset = PUB_KEY_SIZE + 4 + SIGNATURE_SIZE;
+    if (packet->payload_len > app_data_offset) {
+      const uint8_t *app_data = &packet->payload[app_data_offset];
+      int app_data_len = packet->payload_len - app_data_offset;
+      AdvertDataParser parser(app_data, app_data_len);
+      if (parser.isValid() && parser.getType() == ADV_TYPE_REPEATER) {
+        MESH_DEBUG_PRINTLN("allowPacketForward: dropping flooded advert from repeater");
+        return false;
+      }
+    }
+  }
+
   return true;
 }
 
