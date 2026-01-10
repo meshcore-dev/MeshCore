@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:ns1="urn:oasis:names:tc:xliff:document:1.2">
+    <string msgid="6128938260108474660" name="bottom_sheet_collapse_description">"Quyi ekranni yigʻish"</string>
+    <string msgid="1918297411568599192" name="bottom_sheet_dismiss_description">"Quyi ekranni yopish"</string>
+    <string msgid="7772321844937772780" name="bottom_sheet_drag_handle_description">"Surish dastagi"</string>
+    <string msgid="4324434199045499117" name="bottom_sheet_expand_description">"Quyi ekranni yoyish"</string>
+    <string msgid="881409763997275156" name="call_notification_answer_action">"Javob berish"</string>
+    <string msgid="8793775615905189152" name="call_notification_answer_video_action">"Video"</string>
+    <string msgid="3229508546291798546" name="call_notification_decline_action">"Rad etish"</string>
+    <string msgid="2659457946726154263" name="call_notification_hang_up_action">"Tugatish"</string>
+    <string msgid="6107532579223922871" name="call_notification_incoming_text">"Kiruvchi chaqiruv"</string>
+    <string msgid="8623827134497363134" name="call_notification_ongoing_text">"Joriy chaqiruv"</string>
+    <string msgid="59049573811482460" name="call_notification_screening_text">"Kiruvchi chaqiruvni filtrlash"</string>
+    <string msgid="406453423630273620" name="close_drawer">"Navigatsiya menyusini yopish"</string>
+    <string msgid="7573152094250666567" name="close_sheet">"Varaqni yopish"</string>
+    <string msgid="5389587048670450460" name="collapsed">"Yigʻilgan"</string>
+    <string msgid="2523291102206661146" name="common_google_play_services_enable_button">Yoqish</string>
+    <string msgid="227660514972886228" name="common_google_play_services_enable_text">Google Play xizmatlari yoqilmaguncha, %1$s ishlamaydi.</string>
+    <string msgid="5122002158466380389" name="common_google_play_services_enable_title">Google Play xizmatlarini yoqish</string>
+    <string msgid="7153882981874058840" name="common_google_play_services_install_button">O‘rnatish</string>
+    <string name="common_google_play_services_install_text">%1$s ishlashi uchun qurilmangizda Google Play xizmatlarini o‘rnatish lozim.</string>
+    <string msgid="7215213145546190223" name="common_google_play_services_install_title">Google Play xizmatlarini o‘rnatish</string>
+    <string name="common_google_play_services_notification_channel_name">Google Play xizmatlarining mavjudligi</string>
+    <string name="common_google_play_services_notification_ticker">Google Play xizmatlari xatosi</string>
+    <string name="common_google_play_services_unknown_issue">%1$s ilovasini Google Play xizmatlariga ulab bo‘lmadi. Qaytadan urinib ko‘ring.</string>
+    <string name="common_google_play_services_unsupported_text">%1$s ilovasi Google Play xizmatlarisiz ishlamaydi, biroq qurilmangiz ularni qo‘llab-quvvatlamaydi.</string>
+    <string msgid="6556509956452265614" name="common_google_play_services_update_button">Yangilash</string>
+    <string msgid="9053896323427875356" name="common_google_play_services_update_text">Google Play xizmatlari yangilanmaguncha, %1$s ishga tushmaydi.</string>
+    <string msgid="6006316683626838685" name="common_google_play_services_update_title">Google Play xizmatlarini yangilash</string>
+    <string name="common_google_play_services_updating_text">%1$s ilovasining ishlashi uchun zarur Google Play xizmatlari hozirda yangilanmoqda.</string>
+    <string name="common_google_play_services_wear_update_text">Google Play xizmatlarining yangi versiyasi zarur. U o‘zini qisqa vaqt ichida yangilaydi.</string>
+    <string name="common_open_on_phone">Telefonda ochish</string>
+    <string name="common_signin_button_text">Kirish</string>
+    <string name="common_signin_button_text_long">Google orqali kirish</string>
+    <string msgid="3499643850558715142" name="date_input_headline">"Kiritilgan sana"</string>
+    <string msgid="8562356184193964298" name="date_input_headline_description">"Kiritilgan sana: %1$s"</string>
+    <string msgid="5281836720766682161" name="date_input_invalid_for_pattern">"Sana mavjud namunaga mos kelmaydi: %1$s"</string>
+    <string msgid="6114792992433444995" name="date_input_invalid_not_allowed">"Sana xato: %1$s"</string>
+    <string msgid="8434112129235255568" name="date_input_invalid_year_range">"Sana kutilgan yil oraligʻida emas: %1$s – %2$s"</string>
+    <string msgid="5194825853981987218" name="date_input_label">"Sana"</string>
+    <string msgid="5722931102250207748" name="date_input_no_input_description">"Yoʻq"</string>
+    <string msgid="3010396677286327048" name="date_input_title">"Sanani tanlang"</string>
+    <string msgid="2846784065735639969" name="date_picker_headline">"Tanlangan sana"</string>
+    <string msgid="4627306862713137085" name="date_picker_headline_description">"Joriy tanlov: %1$s"</string>
+    <string msgid="5152441868029453612" name="date_picker_navigate_to_year_description">"%1$s-yilga oʻtish"</string>
+    <string msgid="5724377114289981899" name="date_picker_no_selection_description">"Hech biri"</string>
+    <string msgid="8911933542023210271" name="date_picker_scroll_to_earlier_years">"Avvalgi yillarga varaqlang"</string>
+    <string msgid="3226341140390493774" name="date_picker_scroll_to_later_years">"Keyingi yillarga varaqlang"</string>
+    <string msgid="9029369254443419167" name="date_picker_switch_to_calendar_mode">"Taqvim kiritish rejimiga oʻtish"</string>
+    <string msgid="145089358343568971" name="date_picker_switch_to_day_selection">"Yilni tanlash uchun suring yoki kunni tanlashga qaytish uchun tegining"</string>
+    <string msgid="1496750567914156598" name="date_picker_switch_to_input_mode">"Matn kiritish rejimiga oʻtish"</string>
+    <string msgid="8313783187901412102" name="date_picker_switch_to_next_month">"Keyingi oyga oʻzgartirish"</string>
+    <string msgid="7596294429748914881" name="date_picker_switch_to_previous_month">"Avvalgi oyga oʻzgartirish"</string>
+    <string msgid="3412370019845183965" name="date_picker_switch_to_year_selection">"Tanlangan yilga oʻtish"</string>
+    <string msgid="9208721003668059792" name="date_picker_title">"Sanani tanlang"</string>
+    <string msgid="4775802721403526937" name="date_picker_today_description">"Bugun"</string>
+    <string msgid="8140324713311804736" name="date_picker_year_picker_pane_title">"Yil tanlagich ochiq"</string>
+    <string msgid="1891592555781755601" name="date_range_input_invalid_range_input">"Kiritilgan muddat yaroqsiz"</string>
+    <string msgid="2366412111888449406" name="date_range_input_title">"Sanalarni kiriting"</string>
+    <string msgid="9048690781645835833" name="date_range_picker_day_in_range">"Xizmat doirasida"</string>
+    <string msgid="4766270708882012148" name="date_range_picker_end_headline">"Tugash sanasi"</string>
+    <string msgid="51495506931835470" name="date_range_picker_scroll_to_next_month">"Keyingi oyna varaqlang"</string>
+    <string msgid="4371570854614540700" name="date_range_picker_scroll_to_previous_month">"Avvalgi oyga varaqlang"</string>
+    <string msgid="5759491386723090559" name="date_range_picker_start_headline">"Boshlanish sanasi"</string>
+    <string msgid="690080476639943577" name="date_range_picker_title">"Sanalarni tanlang"</string>
+    <string msgid="8038256446254964252" name="default_error_message">"Kiritilgan axborot xato"</string>
+    <string msgid="6312721426453364202" name="default_popup_window_title">"Qalqib chiquvchi oyna"</string>
+    <string msgid="4057925834421392736" name="dialog">"Muloqot oynasi"</string>
+    <string msgid="1890207353314751437" name="dropdown_menu">"Pastga ochiluvchi menyu"</string>
+    <string msgid="5974471714631304645" name="expanded">"Yoyilgan"</string>
+    <string msgid="6827826412747255547" name="in_progress">"Bajarilmoqda"</string>
+    <string msgid="7933458017204019916" name="indeterminate">"Qisman belgilandi"</string>
+    <string msgid="542007171693138492" name="navigation_menu">"Navigatsiya menyusi"</string>
+    <string msgid="6610465462668679431" name="not_selected">"Tanlanmagan"</string>
+    <string msgid="875452955155264703" name="off">"Oʻchiq"</string>
+    <string msgid="8655164131929253426" name="on">"Yoniq"</string>
+    <string msgid="5941395253238309765" name="range_end">"Oraliq oxiri"</string>
+    <string msgid="7097486360902471446" name="range_start">"Oraliq boshi"</string>
+    <string msgid="6420018528474762666" name="search_bar_search">"Qidiruv"</string>
+    <string msgid="6043586758067023" name="selected">"Tanlangan"</string>
+    <string msgid="3962933905051144957" name="snackbar_dismiss">"Yopish"</string>
+    <string msgid="6277540029070332960" name="status_bar_notification_info_overflow">"999+"</string>
+    <string msgid="7189888345201419934" name="suggestions_available">"Takliflar quyida"</string>
+    <string msgid="2561197295334830845" name="switch_role">"Almashtirish"</string>
+    <string msgid="1672349317127674378" name="tab">"Varaq"</string>
+    <string msgid="5946805113151406391" name="template_percent">"<ns1:g id="PERCENTAGE">%1$d</ns1:g> foiz."</string>
+    <string msgid="5096144640014509074" name="time_picker_am">"TO"</string>
+    <string msgid="7241191970823415723" name="time_picker_hour">"Soat"</string>
+    <string msgid="4149641012513526783" name="time_picker_hour_24h_suffix">"%1$d soat"</string>
+    <string msgid="6081676287789101196" name="time_picker_hour_selection">"Soatni tanlang"</string>
+    <string msgid="6952032626122080528" name="time_picker_hour_suffix">"%1$d soat"</string>
+    <string msgid="5298761125390275834" name="time_picker_hour_text_field">"bir soat"</string>
+    <string msgid="6116528647594005945" name="time_picker_minute">"Daqiqa"</string>
+    <string msgid="8494777394375441602" name="time_picker_minute_selection">"Daqiqani tanlang"</string>
+    <string msgid="3206486707779478173" name="time_picker_minute_suffix">"%1$d daqiqa"</string>
+    <string msgid="994099543833979061" name="time_picker_minute_text_field">"bir daqiqa"</string>
+    <string msgid="7352665290700284516" name="time_picker_period_toggle_description">"Tushdan oldin yoki keyinligini tanlang"</string>
+    <string msgid="2232702812657998674" name="time_picker_pm">"TK"</string>
+    <string msgid="2732804537909054941" name="tooltip_long_press_label">"Maslahat oynasini koʻrsatish"</string>
+    <string msgid="8191239805703103845" name="tooltip_pane_description">"Maslahat oynasi"</string>
+</resources>

@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:ns1="urn:oasis:names:tc:xliff:document:1.2">
+    <string msgid="6128938260108474660" name="bottom_sheet_collapse_description">"Contraer panel inferior"</string>
+    <string msgid="1918297411568599192" name="bottom_sheet_dismiss_description">"Pechar panel inferior"</string>
+    <string msgid="7772321844937772780" name="bottom_sheet_drag_handle_description">"Controlador de arrastre"</string>
+    <string msgid="4324434199045499117" name="bottom_sheet_expand_description">"Despregar panel inferior"</string>
+    <string msgid="881409763997275156" name="call_notification_answer_action">"Contestar"</string>
+    <string msgid="8793775615905189152" name="call_notification_answer_video_action">"Vídeo"</string>
+    <string msgid="3229508546291798546" name="call_notification_decline_action">"Rexeitar"</string>
+    <string msgid="2659457946726154263" name="call_notification_hang_up_action">"Colgar"</string>
+    <string msgid="6107532579223922871" name="call_notification_incoming_text">"Chamada entrante"</string>
+    <string msgid="8623827134497363134" name="call_notification_ongoing_text">"Chamada en curso"</string>
+    <string msgid="59049573811482460" name="call_notification_screening_text">"Filtrando chamada entrante"</string>
+    <string msgid="406453423630273620" name="close_drawer">"Pechar menú de navegación"</string>
+    <string msgid="7573152094250666567" name="close_sheet">"Pechar folla"</string>
+    <string msgid="5389587048670450460" name="collapsed">"Contraído"</string>
+    <string msgid="2523291102206661146" name="common_google_play_services_enable_button">Activar</string>
+    <string msgid="227660514972886228" name="common_google_play_services_enable_text">%1$s non funcionará a menos que actives os servizos de Google Play.</string>
+    <string msgid="5122002158466380389" name="common_google_play_services_enable_title">Activar servizos de Google Play</string>
+    <string msgid="7153882981874058840" name="common_google_play_services_install_button">Instalar</string>
+    <string name="common_google_play_services_install_text">%1$s non se executará se o teu dispositivo non ten instalados os servizos de Google Play.</string>
+    <string msgid="7215213145546190223" name="common_google_play_services_install_title">Descargar servizos de Google Play</string>
+    <string name="common_google_play_services_notification_channel_name">Dispoñibilidade dos servizos de Play</string>
+    <string name="common_google_play_services_notification_ticker">Erro nos servizos de Google Play</string>
+    <string name="common_google_play_services_unknown_issue">%1$s ten problemas cos servizos de Google Play. Téntao de novo.</string>
+    <string name="common_google_play_services_unsupported_text">%1$s non se executará sen os servizos de Google Play, que non son compatibles co teu dispositivo.</string>
+    <string msgid="6556509956452265614" name="common_google_play_services_update_button">Actualizar</string>
+    <string msgid="9053896323427875356" name="common_google_play_services_update_text">%1$s non se executará a menos que actualices os servizos de Google Play.</string>
+    <string msgid="6006316683626838685" name="common_google_play_services_update_title">Actualizar os servizos de Google Play</string>
+    <string name="common_google_play_services_updating_text">%1$s non se executará sen os servizos de Google Play, que se están actualizando neste momento.</string>
+    <string name="common_google_play_services_wear_update_text">Necesítase a nova versión dos servizos de Google Play. Actualizarase en breve.</string>
+    <string name="common_open_on_phone">Abrir no teléfono</string>
+    <string name="common_signin_button_text">Iniciar sesión</string>
+    <string name="common_signin_button_text_long">Iniciar sesión con Google</string>
+    <string msgid="3499643850558715142" name="date_input_headline">"Data inserida"</string>
+    <string msgid="8562356184193964298" name="date_input_headline_description">"Data inserida: %1$s"</string>
+    <string msgid="5281836720766682161" name="date_input_invalid_for_pattern">"A data non coincide co padrón esperado: %1$s"</string>
+    <string msgid="6114792992433444995" name="date_input_invalid_not_allowed">"Data non permitida: %1$s"</string>
+    <string msgid="8434112129235255568" name="date_input_invalid_year_range">"A data está fóra do intervalo de anos esperado (%1$s - %2$s)"</string>
+    <string msgid="5194825853981987218" name="date_input_label">"Data"</string>
+    <string msgid="5722931102250207748" name="date_input_no_input_description">"Ningunha"</string>
+    <string msgid="3010396677286327048" name="date_input_title">"Seleccionar data"</string>
+    <string msgid="2846784065735639969" name="date_picker_headline">"Data seleccionada"</string>
+    <string msgid="4627306862713137085" name="date_picker_headline_description">"Selección actual: %1$s"</string>
+    <string msgid="5152441868029453612" name="date_picker_navigate_to_year_description">"Ir ao ano %1$s"</string>
+    <string msgid="5724377114289981899" name="date_picker_no_selection_description">"Ningunha"</string>
+    <string msgid="8911933542023210271" name="date_picker_scroll_to_earlier_years">"Desprázate para mostrar anos anteriores"</string>
+    <string msgid="3226341140390493774" name="date_picker_scroll_to_later_years">"Desprázate para mostrar anos posteriores"</string>
+    <string msgid="9029369254443419167" name="date_picker_switch_to_calendar_mode">"Cambiar ao modo de entrada de calendario"</string>
+    <string msgid="145089358343568971" name="date_picker_switch_to_day_selection">"Pasa o dedo para seleccionar un ano ou toca a pantalla para volver á selección do día"</string>
+    <string msgid="1496750567914156598" name="date_picker_switch_to_input_mode">"Cambiar ao modo de introdución de texto"</string>
+    <string msgid="8313783187901412102" name="date_picker_switch_to_next_month">"Cambiar ao mes seguinte"</string>
+    <string msgid="7596294429748914881" name="date_picker_switch_to_previous_month">"Cambiar ao mes anterior"</string>
+    <string msgid="3412370019845183965" name="date_picker_switch_to_year_selection">"Cambiar a seleccionar un ano"</string>
+    <string msgid="9208721003668059792" name="date_picker_title">"Selecciona a data"</string>
+    <string msgid="4775802721403526937" name="date_picker_today_description">"Hoxe"</string>
+    <string msgid="8140324713311804736" name="date_picker_year_picker_pane_title">"Selector de ano visible"</string>
+    <string msgid="1891592555781755601" name="date_range_input_invalid_range_input">"Indicouse un intervalo de datas que non é válido"</string>
+    <string msgid="2366412111888449406" name="date_range_input_title">"Indica as datas"</string>
+    <string msgid="9048690781645835833" name="date_range_picker_day_in_range">"Dentro do intervalo"</string>
+    <string msgid="4766270708882012148" name="date_range_picker_end_headline">"Data de finalización"</string>
+    <string msgid="51495506931835470" name="date_range_picker_scroll_to_next_month">"Desprázate para mostrar o mes seguinte"</string>
+    <string msgid="4371570854614540700" name="date_range_picker_scroll_to_previous_month">"Desprázate para mostrar o mes anterior"</string>
+    <string msgid="5759491386723090559" name="date_range_picker_start_headline">"Data de inicio"</string>
+    <string msgid="690080476639943577" name="date_range_picker_title">"Selecciona as datas"</string>
+    <string msgid="8038256446254964252" name="default_error_message">"O texto escrito non é válido"</string>
+    <string msgid="6312721426453364202" name="default_popup_window_title">"Ventá emerxente"</string>
+    <string msgid="4057925834421392736" name="dialog">"Cadro de diálogo"</string>
+    <string msgid="1890207353314751437" name="dropdown_menu">"Menú despregable"</string>
+    <string msgid="5974471714631304645" name="expanded">"Despregado"</string>
+    <string msgid="6827826412747255547" name="in_progress">"En curso"</string>
+    <string msgid="7933458017204019916" name="indeterminate">"Marcada parcialmente"</string>
+    <string msgid="542007171693138492" name="navigation_menu">"Menú de navegación"</string>
+    <string msgid="6610465462668679431" name="not_selected">"Non seleccionado"</string>
+    <string msgid="875452955155264703" name="off">"Desactivado"</string>
+    <string msgid="8655164131929253426" name="on">"Activado"</string>
+    <string msgid="5941395253238309765" name="range_end">"Fin do intervalo"</string>
+    <string msgid="7097486360902471446" name="range_start">"Inicio do intervalo"</string>
+    <string msgid="6420018528474762666" name="search_bar_search">"Busca"</string>
+    <string msgid="6043586758067023" name="selected">"Seleccionado"</string>
+    <string msgid="3962933905051144957" name="snackbar_dismiss">"Pechar"</string>
+    <string msgid="6277540029070332960" name="status_bar_notification_info_overflow">">999"</string>
+    <string msgid="7189888345201419934" name="suggestions_available">"Hai suxestións abaixo"</string>
+    <string msgid="2561197295334830845" name="switch_role">"Interruptor"</string>
+    <string msgid="1672349317127674378" name="tab">"Tabulador"</string>
+    <string msgid="5946805113151406391" name="template_percent">"<ns1:g id="PERCENTAGE">%1$d</ns1:g> por cento."</string>
+    <string msgid="5096144640014509074" name="time_picker_am">"am"</string>
+    <string msgid="7241191970823415723" name="time_picker_hour">"Hora"</string>
+    <string msgid="4149641012513526783" name="time_picker_hour_24h_suffix">"%1$d horas"</string>
+    <string msgid="6081676287789101196" name="time_picker_hour_selection">"Seleccionar hora"</string>
+    <string msgid="6952032626122080528" name="time_picker_hour_suffix">"%1$d en pto."</string>
+    <string msgid="5298761125390275834" name="time_picker_hour_text_field">"por hora"</string>
+    <string msgid="6116528647594005945" name="time_picker_minute">"Minuto"</string>
+    <string msgid="8494777394375441602" name="time_picker_minute_selection">"Seleccionar minutos"</string>
+    <string msgid="3206486707779478173" name="time_picker_minute_suffix">"%1$d minutos"</string>
+    <string msgid="994099543833979061" name="time_picker_minute_text_field">"por minuto"</string>
+    <string msgid="7352665290700284516" name="time_picker_period_toggle_description">"Seleccionar a. m. ou p. m."</string>
+    <string msgid="2232702812657998674" name="time_picker_pm">"pm"</string>
+    <string msgid="2732804537909054941" name="tooltip_long_press_label">"Mostrar cadro de información"</string>
+    <string msgid="8191239805703103845" name="tooltip_pane_description">"Cadro de información"</string>
+</resources>

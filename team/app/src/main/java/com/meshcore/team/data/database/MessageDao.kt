@@ -9,10 +9,10 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface MessageDao {
     
-    @Query("SELECT * FROM messages WHERE channelHash = :channelHash ORDER BY timestamp DESC")
+    @Query("SELECT * FROM messages WHERE channelHash = :channelHash ORDER BY timestamp ASC")
     fun getMessagesByChannel(channelHash: Byte): Flow<List<MessageEntity>>
     
-    @Query("SELECT * FROM messages ORDER BY timestamp DESC")
+    @Query("SELECT * FROM messages ORDER BY timestamp ASC")
     fun getAllMessages(): Flow<List<MessageEntity>>
     
     @Query("SELECT * FROM messages WHERE id = :messageId")

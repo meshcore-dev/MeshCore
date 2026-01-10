@@ -104,29 +104,46 @@ object ResponseParser {
     
     /**
      * Parse RESP_CODE_CHANNEL_MSG_RECV_V3 = 17
-     * Channel message received
+     * Channel message received from CMD_SYNC_NEXT_MESSAGE
+     * Format: [resp_code][snr][reserved1][reserved2][channel_idx][path_len][txt_type][timestamp 4 bytes][text]
      */
     fun parseChannelMessage(frame: ByteArray): ChannelMessage? {
         if (frame.isEmpty() || frame[0] != BleConstants.Responses.RESP_CODE_CHANNEL_MSG_RECV_V3) {
             return null
         }
         
-        if (frame.size < 42) { // response code + sender pubkey (32) + channel hash (1) + timestamp (4) + text (at least 1)
-            Timber.e("CHANNEL_MSG frame too short: ${frame.size} bytes")
+        if (frame.size < 11) { // Minimum: resp + snr + res + res + ch_idx + path + type + timestamp
+            Timber.e("CHANNEL_MSG_V3 frame too short: ${frame.size} bytes")
             return null
         }
         
-        val senderPubKey = frame.copyOfRange(1, 33)
-        val channelHash = frame[33]
+        val snr = frame[1]
+        // skip reserved bytes 2-3
+        val channelIdx = frame[4]
+        val pathLen = frame[5]
+        val txtType = frame[6]
         
-        val timestamp = ByteBuffer.wrap(frame, 34, 4)
+        val timestamp = ByteBuffer.wrap(frame, 7, 4)
             .order(ByteOrder.LITTLE_ENDIAN)
             .getInt()
+            .toLong() and 0xFFFFFFFFL // unsigned to long
         
-        val text = String(frame.copyOfRange(38, frame.size), Charsets.UTF_8)
+        val text = if (frame.size > 11) {
+            String(frame.copyOfRange(11, frame.size), Charsets.UTF_8)
+        } else {
+            ""
+        }
         
-        Timber.d("Parsed CHANNEL_MSG: channel=$channelHash, text=$text")
-        return ChannelMessage(senderPubKey, channelHash, timestamp.toLong(), text)
+        Timber.i("Parsed CHANNEL_MSG: idx=$channelIdx, text='$text', timestamp=$timestamp, snr=$snr")
+        return ChannelMessage(
+            channelIdx = channelIdx,
+            channelHash = channelIdx.toByte(), // For now, use idx as hash (need proper mapping later)
+            timestamp = timestamp,
+            text = text,
+            snr = snr.toInt(),
+            pathLen = pathLen.toInt() and 0xFF,
+            senderPubKey = null // V3 format doesn't include sender pubkey in this message
+        )
     }
     
     /**
@@ -205,26 +222,35 @@ data class SendConfirmed(
 }
 
 data class ChannelMessage(
-    val senderPublicKey: ByteArray,
+    val channelIdx: Byte,
     val channelHash: Byte,
     val timestamp: Long,
-    val text: String
+    val text: String,
+    val snr: Int,
+    val pathLen: Int,
+    val senderPubKey: ByteArray?
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (javaClass != other?.javaClass) return false
         other as ChannelMessage
-        return senderPublicKey.contentEquals(other.senderPublicKey) &&
+        return channelIdx == other.channelIdx &&
                 channelHash == other.channelHash &&
                 timestamp == other.timestamp &&
-                text == other.text
+                text == other.text &&
+                snr == other.snr &&
+                pathLen == other.pathLen &&
+                senderPubKey?.contentEquals(other.senderPubKey) ?: (other.senderPubKey == null)
     }
     
     override fun hashCode(): Int {
-        var result = senderPublicKey.contentHashCode()
-        result = 31 * result + channelHash
+        var result = channelIdx.toInt()
+        result = 31 * result + channelHash.toInt()
         result = 31 * result + timestamp.hashCode()
         result = 31 * result + text.hashCode()
+        result = 31 * result + snr
+        result = 31 * result + pathLen
+        result = 31 * result + (senderPubKey?.contentHashCode() ?: 0)
         return result
     }
 }

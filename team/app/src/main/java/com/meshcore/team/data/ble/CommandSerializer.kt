@@ -14,9 +14,20 @@ object CommandSerializer {
     /**
      * CMD_APP_START = 1
      * Initialize connection with device
+     * Format: [cmd][7 reserved bytes][app_name string]
      */
     fun appStart(): ByteArray {
-        return byteArrayOf(BleConstants.Commands.CMD_APP_START)
+        val appName = "TEAM"
+        val frame = ByteArray(1 + 7 + appName.length)
+        var offset = 0
+        
+        frame[offset++] = BleConstants.Commands.CMD_APP_START
+        // 7 reserved bytes (leave as 0x00)
+        offset += 7
+        // App name
+        appName.toByteArray(Charsets.UTF_8).copyInto(frame, offset)
+        
+        return frame
     }
     
     /**
@@ -53,15 +64,16 @@ object CommandSerializer {
     /**
      * CMD_SEND_CHANNEL_TXT_MSG = 3
      * Send channel/group text message
-     * Format: [cmd][1-byte channel hash][4-byte timestamp][text]
+     * Format: [cmd][txt_type][channel_idx][4-byte timestamp][text]
      */
     fun sendChannelTextMessage(channelHash: Byte, timestamp: Int, text: String): ByteArray {
         val textBytes = text.toByteArray(Charsets.UTF_8)
-        val frame = ByteArray(1 + 1 + 4 + textBytes.size)
+        val frame = ByteArray(1 + 1 + 1 + 4 + textBytes.size)
         
         var offset = 0
         frame[offset++] = BleConstants.Commands.CMD_SEND_CHANNEL_TXT_MSG
-        frame[offset++] = channelHash
+        frame[offset++] = 0  // TXT_TYPE_PLAIN = 0
+        frame[offset++] = 0  // channel_idx = 0 (first/public channel)
         
         // Add timestamp (little-endian)
         ByteBuffer.wrap(frame, offset, 4)

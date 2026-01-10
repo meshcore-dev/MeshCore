@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:ns1="urn:oasis:names:tc:xliff:document:1.2">
+    <string msgid="6128938260108474660" name="bottom_sheet_collapse_description">"Kuncupkan helaian bawah"</string>
+    <string msgid="1918297411568599192" name="bottom_sheet_dismiss_description">"Ketepikan helaian bawah"</string>
+    <string msgid="7772321844937772780" name="bottom_sheet_drag_handle_description">"Pemegang seret"</string>
+    <string msgid="4324434199045499117" name="bottom_sheet_expand_description">"Kembangkan helaian bawah"</string>
+    <string msgid="881409763997275156" name="call_notification_answer_action">"Jawab"</string>
+    <string msgid="8793775615905189152" name="call_notification_answer_video_action">"Video"</string>
+    <string msgid="3229508546291798546" name="call_notification_decline_action">"Tolak"</string>
+    <string msgid="2659457946726154263" name="call_notification_hang_up_action">"Tamatkan Panggilan"</string>
+    <string msgid="6107532579223922871" name="call_notification_incoming_text">"Panggilan masuk"</string>
+    <string msgid="8623827134497363134" name="call_notification_ongoing_text">"Panggilan sedang berlangsung"</string>
+    <string msgid="59049573811482460" name="call_notification_screening_text">"Menyaring panggilan masuk"</string>
+    <string msgid="406453423630273620" name="close_drawer">"Tutup menu navigasi"</string>
+    <string msgid="7573152094250666567" name="close_sheet">"Tutup helaian"</string>
+    <string msgid="5389587048670450460" name="collapsed">"Dikuncupkan"</string>
+    <string msgid="2523291102206661146" name="common_google_play_services_enable_button">Dayakan</string>
+    <string msgid="227660514972886228" name="common_google_play_services_enable_text">%1$s tidak akan berfungsi melainkan anda mendayakan perkhidmatan Google Play.</string>
+    <string msgid="5122002158466380389" name="common_google_play_services_enable_title">Dayakan perkhidmatan Google Play</string>
+    <string msgid="7153882981874058840" name="common_google_play_services_install_button">Pasang</string>
+    <string name="common_google_play_services_install_text">%1$s tidak akan berfungsi tanpa perkhidmatan Google Play dan perkhidmatan ini tiada pada peranti anda.</string>
+    <string msgid="7215213145546190223" name="common_google_play_services_install_title">Dapatkan perkhidmatan Google Play</string>
+    <string name="common_google_play_services_notification_channel_name">Ketersediaan perkhidmatan Google Play</string>
+    <string name="common_google_play_services_notification_ticker">Ralat perkhidmatan Google Play</string>
+    <string name="common_google_play_services_unknown_issue">%1$s menghadapi masalah berhubung perkhidmatan Google Play. Sila cuba lagi.</string>
+    <string name="common_google_play_services_unsupported_text">%1$s tidak akan berfungsi tanpa perkhidmatan Google Play dan perkhidmatan ini tidak disokong oleh peranti anda.</string>
+    <string msgid="6556509956452265614" name="common_google_play_services_update_button">Kemas kini</string>
+    <string msgid="9053896323427875356" name="common_google_play_services_update_text">%1$s tidak akan berfungsi kecuali anda mengemas kini perkhidmatan Google Play.</string>
+    <string msgid="6006316683626838685" name="common_google_play_services_update_title">Kemaskinikan perkhidmatan Google Play</string>
+    <string name="common_google_play_services_updating_text">%1$s tidak akan berfungsi tanpa perkhidmatan Google Play dan perkhidmatan ini sedang dikemaskinikan.</string>
+    <string name="common_google_play_services_wear_update_text">Versi baharu perkhidmatan Google Play diperlukan. Kemas kini automatik akan dijalankan sebentar lagi.</string>
+    <string name="common_open_on_phone">Buka pada telefon</string>
+    <string name="common_signin_button_text">Log masuk</string>
+    <string name="common_signin_button_text_long">Log masuk dengan Google</string>
+    <string msgid="3499643850558715142" name="date_input_headline">"Tarikh yang dimasukkan"</string>
+    <string msgid="8562356184193964298" name="date_input_headline_description">"Tarikh yang dimasukkan: %1$s"</string>
+    <string msgid="5281836720766682161" name="date_input_invalid_for_pattern">"Tarikh tidak sepadan dengan corak yang dijangkakan: %1$s"</string>
+    <string msgid="6114792992433444995" name="date_input_invalid_not_allowed">"Tarikh yang tidak dibenarkan: %1$s"</string>
+    <string msgid="8434112129235255568" name="date_input_invalid_year_range">"Tarikh di luar julat tahun yang dijangkakan %1$s - %2$s"</string>
+    <string msgid="5194825853981987218" name="date_input_label">"Tarikh"</string>
+    <string msgid="5722931102250207748" name="date_input_no_input_description">"Tiada"</string>
+    <string msgid="3010396677286327048" name="date_input_title">"Pilih tarikh"</string>
+    <string msgid="2846784065735639969" name="date_picker_headline">"Tarikh dipilih"</string>
+    <string msgid="4627306862713137085" name="date_picker_headline_description">"Pilihan semasa: %1$s"</string>
+    <string msgid="5152441868029453612" name="date_picker_navigate_to_year_description">"Navigasi ke tahun %1$s"</string>
+    <string msgid="5724377114289981899" name="date_picker_no_selection_description">"Tiada"</string>
+    <string msgid="8911933542023210271" name="date_picker_scroll_to_earlier_years">"Tatal untuk menunjukkan tahun terdahulu"</string>
+    <string msgid="3226341140390493774" name="date_picker_scroll_to_later_years">"Tatal untuk menunjukkan tahun kemudian"</string>
+    <string msgid="9029369254443419167" name="date_picker_switch_to_calendar_mode">"Beralih kepada mod input kalendar"</string>
+    <string msgid="145089358343568971" name="date_picker_switch_to_day_selection">"Leret untuk memilih tahun atau ketik untuk bertukar kembali kepada pemilihan hari"</string>
+    <string msgid="1496750567914156598" name="date_picker_switch_to_input_mode">"Beralih kepada mod input teks"</string>
+    <string msgid="8313783187901412102" name="date_picker_switch_to_next_month">"Tukar kepada bulan seterusnya"</string>
+    <string msgid="7596294429748914881" name="date_picker_switch_to_previous_month">"Tukar kepada bulan sebelumnya"</string>
+    <string msgid="3412370019845183965" name="date_picker_switch_to_year_selection">"Beralih kepada pemilihan tahun"</string>
+    <string msgid="9208721003668059792" name="date_picker_title">"Pilih tarikh"</string>
+    <string msgid="4775802721403526937" name="date_picker_today_description">"Hari ini"</string>
+    <string msgid="8140324713311804736" name="date_picker_year_picker_pane_title">"Pemilih tahun kelihatan"</string>
+    <string msgid="1891592555781755601" name="date_range_input_invalid_range_input">"Input julat tarikh tidak sah"</string>
+    <string msgid="2366412111888449406" name="date_range_input_title">"Masukkan tarikh"</string>
+    <string msgid="9048690781645835833" name="date_range_picker_day_in_range">"Dalam liputan"</string>
+    <string msgid="4766270708882012148" name="date_range_picker_end_headline">"Tarikh tamat"</string>
+    <string msgid="51495506931835470" name="date_range_picker_scroll_to_next_month">"Tatal untuk menunjukkan bulan seterusnya"</string>
+    <string msgid="4371570854614540700" name="date_range_picker_scroll_to_previous_month">"Tatal untuk menunjukkan bulan sebelumnya"</string>
+    <string msgid="5759491386723090559" name="date_range_picker_start_headline">"Tarikh mula"</string>
+    <string msgid="690080476639943577" name="date_range_picker_title">"Pilih tarikh"</string>
+    <string msgid="8038256446254964252" name="default_error_message">"Input tidak sah"</string>
+    <string msgid="6312721426453364202" name="default_popup_window_title">"Tetingkap Timbul"</string>
+    <string msgid="4057925834421392736" name="dialog">"Dialog"</string>
+    <string msgid="1890207353314751437" name="dropdown_menu">"Menu lungsur"</string>
+    <string msgid="5974471714631304645" name="expanded">"Dikembangkan"</string>
+    <string msgid="6827826412747255547" name="in_progress">"Dalam proses"</string>
+    <string msgid="7933458017204019916" name="indeterminate">"Sebahagiannya ditandai"</string>
+    <string msgid="542007171693138492" name="navigation_menu">"Menu navigasi"</string>
+    <string msgid="6610465462668679431" name="not_selected">"Tidak dipilih"</string>
+    <string msgid="875452955155264703" name="off">"Mati"</string>
+    <string msgid="8655164131929253426" name="on">"Hidup"</string>
+    <string msgid="5941395253238309765" name="range_end">"Penghujung julat"</string>
+    <string msgid="7097486360902471446" name="range_start">"Permulaan julat"</string>
+    <string msgid="6420018528474762666" name="search_bar_search">"Carian"</string>
+    <string msgid="6043586758067023" name="selected">"Dipilih"</string>
+    <string msgid="3962933905051144957" name="snackbar_dismiss">"Ketepikan"</string>
+    <string msgid="6277540029070332960" name="status_bar_notification_info_overflow">"999+"</string>
+    <string msgid="7189888345201419934" name="suggestions_available">"Cadangan di bawah"</string>
+    <string msgid="2561197295334830845" name="switch_role">"Tukar"</string>
+    <string msgid="1672349317127674378" name="tab">"Tab"</string>
+    <string msgid="5946805113151406391" name="template_percent">"Peratus <ns1:g id="PERCENTAGE">%1$d</ns1:g>."</string>
+    <string msgid="5096144640014509074" name="time_picker_am">"PG"</string>
+    <string msgid="7241191970823415723" name="time_picker_hour">"Jam"</string>
+    <string msgid="4149641012513526783" name="time_picker_hour_24h_suffix">"%1$d jam"</string>
+    <string msgid="6081676287789101196" name="time_picker_hour_selection">"Pilih jam"</string>
+    <string msgid="6952032626122080528" name="time_picker_hour_suffix">"Pukul %1$d"</string>
+    <string msgid="5298761125390275834" name="time_picker_hour_text_field">"selama # jam"</string>
+    <string msgid="6116528647594005945" name="time_picker_minute">"Minit"</string>
+    <string msgid="8494777394375441602" name="time_picker_minute_selection">"Pilih minit"</string>
+    <string msgid="3206486707779478173" name="time_picker_minute_suffix">"%1$d minit"</string>
+    <string msgid="994099543833979061" name="time_picker_minute_text_field">"selama # minit"</string>
+    <string msgid="7352665290700284516" name="time_picker_period_toggle_description">"Pilih PG atau PTG/MLM"</string>
+    <string msgid="2232702812657998674" name="time_picker_pm">"P/M"</string>
+    <string msgid="2732804537909054941" name="tooltip_long_press_label">"Tunjukkan tip alat"</string>
+    <string msgid="8191239805703103845" name="tooltip_pane_description">"Tip alat"</string>
+</resources>

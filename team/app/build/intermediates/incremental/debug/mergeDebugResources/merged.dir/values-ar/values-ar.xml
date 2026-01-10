@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:ns1="urn:oasis:names:tc:xliff:document:1.2">
+    <string msgid="6128938260108474660" name="bottom_sheet_collapse_description">"تصغير البطاقة السفلية"</string>
+    <string msgid="1918297411568599192" name="bottom_sheet_dismiss_description">"إغلاق البطاقة السفلية"</string>
+    <string msgid="7772321844937772780" name="bottom_sheet_drag_handle_description">"مقبض السحب"</string>
+    <string msgid="4324434199045499117" name="bottom_sheet_expand_description">"توسيع البطاقة السفلية"</string>
+    <string msgid="881409763997275156" name="call_notification_answer_action">"ردّ"</string>
+    <string msgid="8793775615905189152" name="call_notification_answer_video_action">"فيديو"</string>
+    <string msgid="3229508546291798546" name="call_notification_decline_action">"رفض"</string>
+    <string msgid="2659457946726154263" name="call_notification_hang_up_action">"قطع الاتصال"</string>
+    <string msgid="6107532579223922871" name="call_notification_incoming_text">"مكالمة واردة"</string>
+    <string msgid="8623827134497363134" name="call_notification_ongoing_text">"مكالمة جارية"</string>
+    <string msgid="59049573811482460" name="call_notification_screening_text">"يتم فحص المكالمة الواردة"</string>
+    <string msgid="406453423630273620" name="close_drawer">"إغلاق قائمة التنقل"</string>
+    <string msgid="7573152094250666567" name="close_sheet">"إغلاق الورقة"</string>
+    <string msgid="5389587048670450460" name="collapsed">"مصغَّر"</string>
+    <string msgid="2523291102206661146" name="common_google_play_services_enable_button">تفعيل</string>
+    <string msgid="227660514972886228" name="common_google_play_services_enable_text">‏لن يعمل %1$s ما لم يتم تفعيل خدمات Google Play.</string>
+    <string msgid="5122002158466380389" name="common_google_play_services_enable_title">‏تفعيل خدمات Google Play</string>
+    <string msgid="7153882981874058840" name="common_google_play_services_install_button">تثبيت</string>
+    <string name="common_google_play_services_install_text">‏لن يتم تشغيل %1$s بدون خدمات Google Play، والتي لا تتوفر على جهازك.</string>
+    <string msgid="7215213145546190223" name="common_google_play_services_install_title">‏الحصول على خدمات Google Play</string>
+    <string name="common_google_play_services_notification_channel_name">‏مدى توفّر خدمات Google Play</string>
+    <string name="common_google_play_services_notification_ticker">‏خطأ في خدمات Google Play</string>
+    <string name="common_google_play_services_unknown_issue">‏لدى %1$s مشكلة في خدمات Google Play. يُرجى إعادة المحاولة.</string>
+    <string name="common_google_play_services_unsupported_text">‏لن يتم تشغيل %1$s بدون خدمات Google Play التي لا يوفرها جهازك.</string>
+    <string msgid="6556509956452265614" name="common_google_play_services_update_button">تحديث</string>
+    <string msgid="9053896323427875356" name="common_google_play_services_update_text">‏لن يتم تشغيل %1$s ما لم يتم تحديث خدمات Google Play.</string>
+    <string msgid="6006316683626838685" name="common_google_play_services_update_title">‏تحديث خدمات Google Play</string>
+    <string name="common_google_play_services_updating_text">‏لن يتم تشغيل %1$s بدون خدمات Google Play، والتي يتم تحديثها حاليًا.</string>
+    <string name="common_google_play_services_wear_update_text">‏يجب توفر إصدار جديد من خدمات Google Play. سيتم تحديثها تلقائيًا قريبًا.</string>
+    <string name="common_open_on_phone">فتح على الهاتف</string>
+    <string name="common_signin_button_text">تسجل الدخول</string>
+    <string name="common_signin_button_text_long">‏تسجيل الدخول عبر Google</string>
+    <string msgid="3499643850558715142" name="date_input_headline">"التاريخ الذي تم إدخاله"</string>
+    <string msgid="8562356184193964298" name="date_input_headline_description">"‏التاريخ الذي تم إدخاله: ‎%1$s"</string>
+    <string msgid="5281836720766682161" name="date_input_invalid_for_pattern">"‏لا يتوافق التاريخ مع النمط المتوقَّع: ‎%1$s"</string>
+    <string msgid="6114792992433444995" name="date_input_invalid_not_allowed">"‏التاريخ غير مسموح به: ‎%1$s"</string>
+    <string msgid="8434112129235255568" name="date_input_invalid_year_range">"‏التاريخ خارج نطاق الأعوام المتوقَّع: ‎%1$s - %2$s"</string>
+    <string msgid="5194825853981987218" name="date_input_label">"التاريخ"</string>
+    <string msgid="5722931102250207748" name="date_input_no_input_description">"بدون تاريخ"</string>
+    <string msgid="3010396677286327048" name="date_input_title">"اختيار تاريخ"</string>
+    <string msgid="2846784065735639969" name="date_picker_headline">"التاريخ المحدَّد"</string>
+    <string msgid="4627306862713137085" name="date_picker_headline_description">"‏التحديد الحالي: %1$s"</string>
+    <string msgid="5152441868029453612" name="date_picker_navigate_to_year_description">"‏الانتقال إلى عام %1$s"</string>
+    <string msgid="5724377114289981899" name="date_picker_no_selection_description">"بدون تاريخ"</string>
+    <string msgid="8911933542023210271" name="date_picker_scroll_to_earlier_years">"انتقِل للأسفل/للأعلى لإظهار السنوات السابقة."</string>
+    <string msgid="3226341140390493774" name="date_picker_scroll_to_later_years">"انتقِل للأسفل/للأعلى لإظهار السنوات التالية."</string>
+    <string msgid="9029369254443419167" name="date_picker_switch_to_calendar_mode">"التبديل إلى وضع \"الإدخال في التقويم\""</string>
+    <string msgid="145089358343568971" name="date_picker_switch_to_day_selection">"مرِّر سريعًا لتحديد عام، أو انقر للرجوع إلى تحديد يوم."</string>
+    <string msgid="1496750567914156598" name="date_picker_switch_to_input_mode">"التبديل إلى وضع \"إدخال النص\""</string>
+    <string msgid="8313783187901412102" name="date_picker_switch_to_next_month">"التغيير إلى الشهر التالي"</string>
+    <string msgid="7596294429748914881" name="date_picker_switch_to_previous_month">"التغيير إلى الشهر السابق"</string>
+    <string msgid="3412370019845183965" name="date_picker_switch_to_year_selection">"التبديل لاختيار سنة"</string>
+    <string msgid="9208721003668059792" name="date_picker_title">"اختيار تاريخ"</string>
+    <string msgid="4775802721403526937" name="date_picker_today_description">"اليوم"</string>
+    <string msgid="8140324713311804736" name="date_picker_year_picker_pane_title">"أداة اختيار الأعوام مرئية"</string>
+    <string msgid="1891592555781755601" name="date_range_input_invalid_range_input">"إدخال نطاق زمني غير صالح"</string>
+    <string msgid="2366412111888449406" name="date_range_input_title">"إدخال التواريخ"</string>
+    <string msgid="9048690781645835833" name="date_range_picker_day_in_range">"في النطاق"</string>
+    <string msgid="4766270708882012148" name="date_range_picker_end_headline">"تاريخ الانتهاء"</string>
+    <string msgid="51495506931835470" name="date_range_picker_scroll_to_next_month">"انتقِل للأسفل/للأعلى لإظهار الشهر التالي."</string>
+    <string msgid="4371570854614540700" name="date_range_picker_scroll_to_previous_month">"انتقِل للأسفل/للأعلى لإظهار الشهر السابق."</string>
+    <string msgid="5759491386723090559" name="date_range_picker_start_headline">"تاريخ البدء"</string>
+    <string msgid="690080476639943577" name="date_range_picker_title">"اختيار التواريخ"</string>
+    <string msgid="8038256446254964252" name="default_error_message">"إدخال غير صالح"</string>
+    <string msgid="6312721426453364202" name="default_popup_window_title">"نافذة منبثقة"</string>
+    <string msgid="4057925834421392736" name="dialog">"مربّع حوار"</string>
+    <string msgid="1890207353314751437" name="dropdown_menu">"قائمة منسدلة"</string>
+    <string msgid="5974471714631304645" name="expanded">"موسَّع"</string>
+    <string msgid="6827826412747255547" name="in_progress">"قيد التقدم"</string>
+    <string msgid="7933458017204019916" name="indeterminate">"تم وضع علامة في المربّع بشكل جزئي"</string>
+    <string msgid="542007171693138492" name="navigation_menu">"قائمة تنقل"</string>
+    <string msgid="6610465462668679431" name="not_selected">"غير محدّد"</string>
+    <string msgid="875452955155264703" name="off">"غير مفعّل"</string>
+    <string msgid="8655164131929253426" name="on">"مفعّل"</string>
+    <string msgid="5941395253238309765" name="range_end">"نهاية النطاق"</string>
+    <string msgid="7097486360902471446" name="range_start">"بداية النطاق"</string>
+    <string msgid="6420018528474762666" name="search_bar_search">"بحث"</string>
+    <string msgid="6043586758067023" name="selected">"محدّد"</string>
+    <string msgid="3962933905051144957" name="snackbar_dismiss">"إغلاق"</string>
+    <string msgid="6277540029070332960" name="status_bar_notification_info_overflow">"999+"</string>
+    <string msgid="7189888345201419934" name="suggestions_available">"إليك الاقتراحات:"</string>
+    <string msgid="2561197295334830845" name="switch_role">"تبديل"</string>
+    <string msgid="1672349317127674378" name="tab">"علامة تبويب"</string>
+    <string msgid="5946805113151406391" name="template_percent">"<ns1:g id="PERCENTAGE">%1$d</ns1:g> في المئة."</string>
+    <string msgid="5096144640014509074" name="time_picker_am">"ص"</string>
+    <string msgid="7241191970823415723" name="time_picker_hour">"ساعة"</string>
+    <string msgid="4149641012513526783" name="time_picker_hour_24h_suffix">"‏%1$d ساعة"</string>
+    <string msgid="6081676287789101196" name="time_picker_hour_selection">"اختيار الساعة"</string>
+    <string msgid="6952032626122080528" name="time_picker_hour_suffix">"‏الساعة %1$d"</string>
+    <string msgid="5298761125390275834" name="time_picker_hour_text_field">"لمدة ساعة"</string>
+    <string msgid="6116528647594005945" name="time_picker_minute">"دقيقة"</string>
+    <string msgid="8494777394375441602" name="time_picker_minute_selection">"اختيار الدقائق"</string>
+    <string msgid="3206486707779478173" name="time_picker_minute_suffix">"‏%1$d دقيقة"</string>
+    <string msgid="994099543833979061" name="time_picker_minute_text_field">"لمدة دقائق"</string>
+    <string msgid="7352665290700284516" name="time_picker_period_toggle_description">"يُرجى اختيار ص (صباحًا) أو م (مساءً)."</string>
+    <string msgid="2232702812657998674" name="time_picker_pm">"م"</string>
+    <string msgid="2732804537909054941" name="tooltip_long_press_label">"إظهار التلميح"</string>
+    <string msgid="8191239805703103845" name="tooltip_pane_description">"تلميح"</string>
+</resources>

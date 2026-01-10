@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:ns1="urn:oasis:names:tc:xliff:document:1.2">
+    <string msgid="6128938260108474660" name="bottom_sheet_collapse_description">"Sutraukti apatinį lapą"</string>
+    <string msgid="1918297411568599192" name="bottom_sheet_dismiss_description">"Atsisakyti apatinio lapo"</string>
+    <string msgid="7772321844937772780" name="bottom_sheet_drag_handle_description">"Vilkimo rankenėlė"</string>
+    <string msgid="4324434199045499117" name="bottom_sheet_expand_description">"Išskleisti apatinį lapą"</string>
+    <string msgid="881409763997275156" name="call_notification_answer_action">"Atsakyti"</string>
+    <string msgid="8793775615905189152" name="call_notification_answer_video_action">"Vaizdo įrašas"</string>
+    <string msgid="3229508546291798546" name="call_notification_decline_action">"Atmesti"</string>
+    <string msgid="2659457946726154263" name="call_notification_hang_up_action">"Baigti pok."</string>
+    <string msgid="6107532579223922871" name="call_notification_incoming_text">"Gaunamasis skambutis"</string>
+    <string msgid="8623827134497363134" name="call_notification_ongoing_text">"Vykstantis skambutis"</string>
+    <string msgid="59049573811482460" name="call_notification_screening_text">"Gaunamojo skambučio tikrinimas"</string>
+    <string msgid="406453423630273620" name="close_drawer">"Uždaryti naršymo meniu"</string>
+    <string msgid="7573152094250666567" name="close_sheet">"Uždaryti lapą"</string>
+    <string msgid="5389587048670450460" name="collapsed">"Sutraukta"</string>
+    <string msgid="2523291102206661146" name="common_google_play_services_enable_button">Įgalinti</string>
+    <string msgid="227660514972886228" name="common_google_play_services_enable_text">„%1$s“ neveiks, jei neįgalinsite „Google Play“ paslaugų.</string>
+    <string msgid="5122002158466380389" name="common_google_play_services_enable_title">Įgalinkite „Google Play“ paslaugas</string>
+    <string msgid="7153882981874058840" name="common_google_play_services_install_button">Įdiegti</string>
+    <string name="common_google_play_services_install_text">Programa „%1$s“ nebus paleidžiama be „Google Play“ paslaugų, kurių nėra įrenginyje.</string>
+    <string msgid="7215213145546190223" name="common_google_play_services_install_title">Gaukite „Google Play“ paslaugas</string>
+    <string name="common_google_play_services_notification_channel_name">„Google Play“ paslaugų pasiekiamumas</string>
+    <string name="common_google_play_services_notification_ticker">„Google Play“ paslaugų klaida</string>
+    <string name="common_google_play_services_unknown_issue">Naudojant programą „%1$s“ kilo problemų dėl „Google Play“ paslaugų. Bandykite dar kartą.</string>
+    <string name="common_google_play_services_unsupported_text">Programa „%1$s“ nebus paleidžiama be „Google Play“ paslaugų, kurių jūsų įrenginys nepalaiko.</string>
+    <string msgid="6556509956452265614" name="common_google_play_services_update_button">Atnaujinti</string>
+    <string msgid="9053896323427875356" name="common_google_play_services_update_text">„%1$s“ nebus paleidžiama, jei neatnaujinsite „Google Play“ paslaugų.</string>
+    <string msgid="6006316683626838685" name="common_google_play_services_update_title">Atnaujinkite „Google Play“ paslaugas</string>
+    <string name="common_google_play_services_updating_text">„%1$s“ nebus paleidžiama be „Google Play“ paslaugų, kurios šiuo metu atnaujinamos.</string>
+    <string name="common_google_play_services_wear_update_text">Reikia naujos versijos „Google Play“ paslaugų. Jos netrukus bus atnaujintos.</string>
+    <string name="common_open_on_phone">Atidaryti telefone</string>
+    <string name="common_signin_button_text">Prisijungti</string>
+    <string name="common_signin_button_text_long">Prisijungti naudojant „Google“</string>
+    <string msgid="3499643850558715142" name="date_input_headline">"Įvesta data"</string>
+    <string msgid="8562356184193964298" name="date_input_headline_description">"Įvesta data: %1$s"</string>
+    <string msgid="5281836720766682161" name="date_input_invalid_for_pattern">"Data neatitinka numatyto šablono: %1$s"</string>
+    <string msgid="6114792992433444995" name="date_input_invalid_not_allowed">"Data neleidžiama: %1$s"</string>
+    <string msgid="8434112129235255568" name="date_input_invalid_year_range">"Data nepatenka į numatytų metų diapazoną: %1$s–%2$s"</string>
+    <string msgid="5194825853981987218" name="date_input_label">"Data"</string>
+    <string msgid="5722931102250207748" name="date_input_no_input_description">"Nėra"</string>
+    <string msgid="3010396677286327048" name="date_input_title">"Pasirinkite datą"</string>
+    <string msgid="2846784065735639969" name="date_picker_headline">"Pasirinkta data"</string>
+    <string msgid="4627306862713137085" name="date_picker_headline_description">"Dabartinis pasirinkimas: %1$s"</string>
+    <string msgid="5152441868029453612" name="date_picker_navigate_to_year_description">"Eiti į %1$s m."</string>
+    <string msgid="5724377114289981899" name="date_picker_no_selection_description">"Nėra"</string>
+    <string msgid="8911933542023210271" name="date_picker_scroll_to_earlier_years">"Slinkite, kol bus rodomi ankstesni metai"</string>
+    <string msgid="3226341140390493774" name="date_picker_scroll_to_later_years">"Slinkite, kol bus rodomi vėlesni metai"</string>
+    <string msgid="9029369254443419167" name="date_picker_switch_to_calendar_mode">"Perjungti į kalendoriaus įvesties režimą"</string>
+    <string msgid="145089358343568971" name="date_picker_switch_to_day_selection">"Perbraukite, kad pasirinktumėte metus, arba palieskite, kad grįžtumėte ir vėl pasirinktumėte dieną"</string>
+    <string msgid="1496750567914156598" name="date_picker_switch_to_input_mode">"Perjungti į teksto įvesties režimą"</string>
+    <string msgid="8313783187901412102" name="date_picker_switch_to_next_month">"Pakeisti į kitą mėnesį"</string>
+    <string msgid="7596294429748914881" name="date_picker_switch_to_previous_month">"Pakeisti į ankstesnį mėnesį"</string>
+    <string msgid="3412370019845183965" name="date_picker_switch_to_year_selection">"Perjungti į metų pasirinkimą"</string>
+    <string msgid="9208721003668059792" name="date_picker_title">"Pasirinkite datą"</string>
+    <string msgid="4775802721403526937" name="date_picker_today_description">"Šiandien"</string>
+    <string msgid="8140324713311804736" name="date_picker_year_picker_pane_title">"Rodomas metų parinkiklis"</string>
+    <string msgid="1891592555781755601" name="date_range_input_invalid_range_input">"Netinkama dienų sekos įvestis"</string>
+    <string msgid="2366412111888449406" name="date_range_input_title">"Įvesti datas"</string>
+    <string msgid="9048690781645835833" name="date_range_picker_day_in_range">"Diapazone"</string>
+    <string msgid="4766270708882012148" name="date_range_picker_end_headline">"Pabaigos data"</string>
+    <string msgid="51495506931835470" name="date_range_picker_scroll_to_next_month">"Slinkite, kol bus rodomas kitas mėnuo"</string>
+    <string msgid="4371570854614540700" name="date_range_picker_scroll_to_previous_month">"Slinkite, kol bus rodomas ankstesnis mėnuo"</string>
+    <string msgid="5759491386723090559" name="date_range_picker_start_headline">"Pradžios data"</string>
+    <string msgid="690080476639943577" name="date_range_picker_title">"Pasirinkite datas"</string>
+    <string msgid="8038256446254964252" name="default_error_message">"Netinkama įvestis"</string>
+    <string msgid="6312721426453364202" name="default_popup_window_title">"Iššokantysis langas"</string>
+    <string msgid="4057925834421392736" name="dialog">"Dialogo langas"</string>
+    <string msgid="1890207353314751437" name="dropdown_menu">"Išskleidžiamasis meniu"</string>
+    <string msgid="5974471714631304645" name="expanded">"Išskleista"</string>
+    <string msgid="6827826412747255547" name="in_progress">"Vyksta"</string>
+    <string msgid="7933458017204019916" name="indeterminate">"Iš dalies pažymėta"</string>
+    <string msgid="542007171693138492" name="navigation_menu">"Naršymo meniu"</string>
+    <string msgid="6610465462668679431" name="not_selected">"Nepasirinkta"</string>
+    <string msgid="875452955155264703" name="off">"Išjungta"</string>
+    <string msgid="8655164131929253426" name="on">"Įjungta"</string>
+    <string msgid="5941395253238309765" name="range_end">"Diapazono pabaiga"</string>
+    <string msgid="7097486360902471446" name="range_start">"Diapazono pradžia"</string>
+    <string msgid="6420018528474762666" name="search_bar_search">"Paieška"</string>
+    <string msgid="6043586758067023" name="selected">"Pasirinkta"</string>
+    <string msgid="3962933905051144957" name="snackbar_dismiss">"Atsisakyti"</string>
+    <string msgid="6277540029070332960" name="status_bar_notification_info_overflow">"999+"</string>
+    <string msgid="7189888345201419934" name="suggestions_available">"Pasiūlymai pateikti toliau"</string>
+    <string msgid="2561197295334830845" name="switch_role">"Jungiklis"</string>
+    <string msgid="1672349317127674378" name="tab">"Tabuliavimo klavišas"</string>
+    <string msgid="5946805113151406391" name="template_percent">"Procentų: <ns1:g id="PERCENTAGE">%1$d</ns1:g>."</string>
+    <string msgid="5096144640014509074" name="time_picker_am">"priešpiet"</string>
+    <string msgid="7241191970823415723" name="time_picker_hour">"Valanda"</string>
+    <string msgid="4149641012513526783" name="time_picker_hour_24h_suffix">"%1$d val."</string>
+    <string msgid="6081676287789101196" name="time_picker_hour_selection">"Pasirinkite valandą"</string>
+    <string msgid="6952032626122080528" name="time_picker_hour_suffix">"%1$d val."</string>
+    <string msgid="5298761125390275834" name="time_picker_hour_text_field">"valandos"</string>
+    <string msgid="6116528647594005945" name="time_picker_minute">"Minutė"</string>
+    <string msgid="8494777394375441602" name="time_picker_minute_selection">"Pasirinkite minutes"</string>
+    <string msgid="3206486707779478173" name="time_picker_minute_suffix">"%d min."</string>
+    <string msgid="994099543833979061" name="time_picker_minute_text_field">"minutės"</string>
+    <string msgid="7352665290700284516" name="time_picker_period_toggle_description">"Pasirinkite „priešpiet“ arba „popiet“"</string>
+    <string msgid="2232702812657998674" name="time_picker_pm">"popiet"</string>
+    <string msgid="2732804537909054941" name="tooltip_long_press_label">"Rodyti patarimą"</string>
+    <string msgid="8191239805703103845" name="tooltip_pane_description">"Patarimas"</string>
+</resources>

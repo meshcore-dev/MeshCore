@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:ns1="urn:oasis:names:tc:xliff:document:1.2">
+    <string msgid="6128938260108474660" name="bottom_sheet_collapse_description">"အောက်ခြေအပိုဆောင်း စာမျက်နှာကို ချုံ့သည်"</string>
+    <string msgid="1918297411568599192" name="bottom_sheet_dismiss_description">"အောက်ခြေအပိုဆောင်း စာမျက်နှာကို ပယ်သည်"</string>
+    <string msgid="7772321844937772780" name="bottom_sheet_drag_handle_description">"ဖိဆွဲအထိန်း"</string>
+    <string msgid="4324434199045499117" name="bottom_sheet_expand_description">"အောက်ခြေအပိုဆောင်း စာမျက်နှာကို ချဲ့သည်"</string>
+    <string msgid="881409763997275156" name="call_notification_answer_action">"ဖုန်းကိုင်ရန်"</string>
+    <string msgid="8793775615905189152" name="call_notification_answer_video_action">"ဗီဒီယို"</string>
+    <string msgid="3229508546291798546" name="call_notification_decline_action">"ငြင်းပယ်ရန်"</string>
+    <string msgid="2659457946726154263" name="call_notification_hang_up_action">"ဖုန်းချရန်"</string>
+    <string msgid="6107532579223922871" name="call_notification_incoming_text">"အဝင်ခေါ်ဆိုမှု"</string>
+    <string msgid="8623827134497363134" name="call_notification_ongoing_text">"လက်ရှိခေါ်ဆိုမှု"</string>
+    <string msgid="59049573811482460" name="call_notification_screening_text">"အဝင်ခေါ်ဆိုမှုကို စစ်ဆေးနေသည်"</string>
+    <string msgid="406453423630273620" name="close_drawer">"လမ်းညွှန် မီနူး ပိတ်ရန်"</string>
+    <string msgid="7573152094250666567" name="close_sheet">"စာမျက်နှာ ပိတ်ရန်"</string>
+    <string msgid="5389587048670450460" name="collapsed">"ခေါက်ထားသည်"</string>
+    <string msgid="2523291102206661146" name="common_google_play_services_enable_button">ဖွင့်ရန်</string>
+    <string msgid="227660514972886228" name="common_google_play_services_enable_text">Google Play ဝန်ဆောင်မှုများကို မဖွင့်သ၍ %1$s သည်အလုပ်လုပ်မည်မဟုတ်ပါ။</string>
+    <string msgid="5122002158466380389" name="common_google_play_services_enable_title">Google Play ဝန်ဆောင်မှုများ ဖွင့်ရန်</string>
+    <string msgid="7153882981874058840" name="common_google_play_services_install_button">ထည့်သွင်းပါ</string>
+    <string name="common_google_play_services_install_text">သင့်တက်ဘလက်တွင် Google Play ဝန်ဆောင်မှုများမရှိသောကြောင့် %1$s ကိုဖွင့်၍မရပါ။</string>
+    <string msgid="7215213145546190223" name="common_google_play_services_install_title">Google Play ဝန်ဆောင်မှုများရယူရန်</string>
+    <string name="common_google_play_services_notification_channel_name">Google Play ဝန်ဆောင်မှုများ ရရှိနိုင်သည်</string>
+    <string name="common_google_play_services_notification_ticker">Google Play ဝန်ဆောင်မှုများ အမှား</string>
+    <string name="common_google_play_services_unknown_issue">%1$s သည် Google Play ဝန်ဆောင်မှုများနှင့် ပြဿနာအနည်းငယ် ရှိနေပါသည်။ ထပ်လုပ်ကြည့်ပါ။</string>
+    <string name="common_google_play_services_unsupported_text">Google Play ဝန်ဆောင်မှုများကို သင့်စက်ပစ္စည်းတွင် ပံ့ပိုးမထားသည့်အတွက် ၎င်းမရှိဘဲ %1$s ကို ဖွင့်၍မရပါ။</string>
+    <string msgid="6556509956452265614" name="common_google_play_services_update_button">အပ်ဒိတ်</string>
+    <string msgid="9053896323427875356" name="common_google_play_services_update_text">Google Play ဝန်ဆောင်မှုများအား အပ်ဒိတ်မလုပ်ပါက %1$s အလုပ်လုပ်မည် မဟုတ်ပါ။</string>
+    <string msgid="6006316683626838685" name="common_google_play_services_update_title">Google Play ဝန်ဆောင်မှုများကို အပ်ဒိတ်လုပ်ရန်</string>
+    <string name="common_google_play_services_updating_text">Google Play ဝန်ဆောင်မှုများကို လက်ရှိအပ်ဒိတ်လုပ်နေသောကြောင့် %1$s ကိုဖွင့်၍ရမည်မဟုတ်ပါ။</string>
+    <string name="common_google_play_services_wear_update_text">Google Play ဝန်ဆောင်မှုဗားရှင်းအသစ်များ လိုအပ်နေသည်။ အချိန်အနည်းငယ်အကြာတွင် ၎င်းကိုယ်တိုင်အပ်ဒိတ်လုပ်ပါ လိမ့်မည်။</string>
+    <string name="common_open_on_phone">ဖုန်းပေါ်မှာ ဖွင့်ပါ</string>
+    <string name="common_signin_button_text">လက်မှတ်ထိုး ဝင်ရန်</string>
+    <string name="common_signin_button_text_long">Google ဖြင့် လက်မှတ်ထိုးဝင်ရေ</string>
+    <string msgid="3499643850558715142" name="date_input_headline">"ထည့်ထားသော ရက်စွဲ"</string>
+    <string msgid="8562356184193964298" name="date_input_headline_description">"ထည့်ထားသော ရက်စွဲ- %1$s"</string>
+    <string msgid="5281836720766682161" name="date_input_invalid_for_pattern">"ရက်စွဲသည် မျှော်မှန်းထားသော ပုံစံနှင့် မကိုက်ညီပါ- %1$s"</string>
+    <string msgid="6114792992433444995" name="date_input_invalid_not_allowed">"ရက်စွဲကို ခွင့်ပြုမထားပါ- %1$s"</string>
+    <string msgid="8434112129235255568" name="date_input_invalid_year_range">"ရက်စွဲသည် မျှော်မှန်းထားသော နှစ်အပိုင်းအခြား %1$s - %2$s တွင် မပါဝင်ပါ"</string>
+    <string msgid="5194825853981987218" name="date_input_label">"ရက်စွဲ"</string>
+    <string msgid="5722931102250207748" name="date_input_no_input_description">"မရှိ"</string>
+    <string msgid="3010396677286327048" name="date_input_title">"ရက်စွဲရွေးရန်"</string>
+    <string msgid="2846784065735639969" name="date_picker_headline">"ရွေးထားသည့် ရက်စွဲ"</string>
+    <string msgid="4627306862713137085" name="date_picker_headline_description">"လက်ရှိ ရွေးချယ်မှု- %1$s"</string>
+    <string msgid="5152441868029453612" name="date_picker_navigate_to_year_description">"%1$s ခုနှစ်သို့ သွားရန်"</string>
+    <string msgid="5724377114289981899" name="date_picker_no_selection_description">"မရှိ"</string>
+    <string msgid="8911933542023210271" name="date_picker_scroll_to_earlier_years">"ယခင်နှစ်များ ပြရန် လှိမ့်ပါ"</string>
+    <string msgid="3226341140390493774" name="date_picker_scroll_to_later_years">"နောက်ပိုင်းနှစ်များ ပြရန် လှိမ့်ပါ"</string>
+    <string msgid="9029369254443419167" name="date_picker_switch_to_calendar_mode">"ပြက္ခဒိန် လက်ကွက်ထည့်သွင်းနည်းသို့ ပြောင်းရန်"</string>
+    <string msgid="145089358343568971" name="date_picker_switch_to_day_selection">"ခုနှစ်ရွေးချယ်ရန် ပွတ်ဆွဲပါ (သို့) ရက်ရွေးချယ်ခြင်းသို့ ပြန်ရန် တို့ပါ"</string>
+    <string msgid="1496750567914156598" name="date_picker_switch_to_input_mode">"စာရိုက်နည်းသို့ ပြောင်းရန်"</string>
+    <string msgid="8313783187901412102" name="date_picker_switch_to_next_month">"နောက်လသို့ ပြောင်းရန်"</string>
+    <string msgid="7596294429748914881" name="date_picker_switch_to_previous_month">"ယခင်လသို့ ပြောင်းရန်"</string>
+    <string msgid="3412370019845183965" name="date_picker_switch_to_year_selection">"နှစ်ရွေးခြင်းသို့ ပြောင်းရန်"</string>
+    <string msgid="9208721003668059792" name="date_picker_title">"ရက်စွဲရွေးရန်"</string>
+    <string msgid="4775802721403526937" name="date_picker_today_description">"ယနေ့"</string>
+    <string msgid="8140324713311804736" name="date_picker_year_picker_pane_title">"ခုနှစ်ရွေးချယ်ရေးစနစ်ကို မြင်ရသည်"</string>
+    <string msgid="1891592555781755601" name="date_range_input_invalid_range_input">"ဒေတာအပိုင်းအခြား ထည့်သွင်းမှု မမှန်ပါ"</string>
+    <string msgid="2366412111888449406" name="date_range_input_title">"ရက်စွဲများထည့်ပါ"</string>
+    <string msgid="9048690781645835833" name="date_range_picker_day_in_range">"အပိုင်းအခြားအတွင်း"</string>
+    <string msgid="4766270708882012148" name="date_range_picker_end_headline">"ပြီးဆုံးရက်"</string>
+    <string msgid="51495506931835470" name="date_range_picker_scroll_to_next_month">"လာမည့်လကို ပြရန် လှိမ့်ပါ"</string>
+    <string msgid="4371570854614540700" name="date_range_picker_scroll_to_previous_month">"ယခင်လကို ပြရန် လှိမ့်ပါ"</string>
+    <string msgid="5759491386723090559" name="date_range_picker_start_headline">"စတင်ရက်"</string>
+    <string msgid="690080476639943577" name="date_range_picker_title">"ရက်စွဲများရွေးပါ"</string>
+    <string msgid="8038256446254964252" name="default_error_message">"ထည့်သွင်းမှု မမှန်ကန်ပါ"</string>
+    <string msgid="6312721426453364202" name="default_popup_window_title">"ပေါ့ပ်အပ် ဝင်းဒိုး"</string>
+    <string msgid="4057925834421392736" name="dialog">"ဒိုင်ယာလော့"</string>
+    <string msgid="1890207353314751437" name="dropdown_menu">"ဆွဲချမီနူး"</string>
+    <string msgid="5974471714631304645" name="expanded">"ချဲ့ထားသည်"</string>
+    <string msgid="6827826412747255547" name="in_progress">"ဆောင်ရွက်နေဆဲ"</string>
+    <string msgid="7933458017204019916" name="indeterminate">"တစ်ဝက်တစ်ပျက် စစ်ဆေးထားသည်"</string>
+    <string msgid="542007171693138492" name="navigation_menu">"လမ်းညွှန် မီနူး"</string>
+    <string msgid="6610465462668679431" name="not_selected">"ရွေးမထားပါ"</string>
+    <string msgid="875452955155264703" name="off">"ပိတ်"</string>
+    <string msgid="8655164131929253426" name="on">"ဖွင့်"</string>
+    <string msgid="5941395253238309765" name="range_end">"အပိုင်းအခြား အဆုံး"</string>
+    <string msgid="7097486360902471446" name="range_start">"အပိုင်းအခြား အစ"</string>
+    <string msgid="6420018528474762666" name="search_bar_search">"ရှာဖွေရန်"</string>
+    <string msgid="6043586758067023" name="selected">"ရွေးထားသည်"</string>
+    <string msgid="3962933905051144957" name="snackbar_dismiss">"ပယ်ရန်"</string>
+    <string msgid="6277540029070332960" name="status_bar_notification_info_overflow">"၉၉၉+"</string>
+    <string msgid="7189888345201419934" name="suggestions_available">"အကြံပြုချက်များ အောက်တွင်ရှိသည်"</string>
+    <string msgid="2561197295334830845" name="switch_role">"ပြောင်းရန်"</string>
+    <string msgid="1672349317127674378" name="tab">"တဘ်"</string>
+    <string msgid="5946805113151406391" name="template_percent">"<ns1:g id="PERCENTAGE">%1$d</ns1:g> ရာခိုင်နှုန်း။"</string>
+    <string msgid="5096144640014509074" name="time_picker_am">"AM"</string>
+    <string msgid="7241191970823415723" name="time_picker_hour">"နာရီ"</string>
+    <string msgid="4149641012513526783" name="time_picker_hour_24h_suffix">"%1$d နာရီ"</string>
+    <string msgid="6081676287789101196" name="time_picker_hour_selection">"နာရီ ရွေးရန်"</string>
+    <string msgid="6952032626122080528" name="time_picker_hour_suffix">"%1$d နာရီ"</string>
+    <string msgid="5298761125390275834" name="time_picker_hour_text_field">"နာရီကြာ"</string>
+    <string msgid="6116528647594005945" name="time_picker_minute">"မိနစ်"</string>
+    <string msgid="8494777394375441602" name="time_picker_minute_selection">"မိနစ် ရွေးရန်"</string>
+    <string msgid="3206486707779478173" name="time_picker_minute_suffix">"%1$d မိနစ်"</string>
+    <string msgid="994099543833979061" name="time_picker_minute_text_field">"မိနစ်ကြာ"</string>
+    <string msgid="7352665290700284516" name="time_picker_period_toggle_description">"AM (သို့) PM ရွေးရန်"</string>
+    <string msgid="2232702812657998674" name="time_picker_pm">"PM"</string>
+    <string msgid="2732804537909054941" name="tooltip_long_press_label">"အကြံပြုချက်ပြ ပေါ့အပ်ဝင်းဒိုး ပြရန်"</string>
+    <string msgid="8191239805703103845" name="tooltip_pane_description">"အကြံပြုချက်ပြ ပေါ့အပ် ဝင်းဒိုး"</string>
+</resources>

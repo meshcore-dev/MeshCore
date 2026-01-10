@@ -8,6 +8,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bluetooth
+import androidx.compose.material.icons.filled.Message
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -65,7 +68,7 @@ class MainActivity : ComponentActivity() {
             database.ackRecordDao()
         )
         val channelRepository = ChannelRepository(database.channelDao())
-        messageViewModel = MessageViewModel(messageRepository, channelRepository)
+        messageViewModel = MessageViewModel(messageRepository, channelRepository, connectionManager)
         
         // Request permissions
         requestBluetoothPermissions()
@@ -77,15 +80,12 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     if (permissionsGranted) {
-                        when (currentScreen) {
-                            "messages" -> MessageScreen(
-                                viewModel = messageViewModel,
-                                onNavigateToConnection = { currentScreen = "connection" }
-                            )
-                            "connection" -> ConnectionScreen(
-                                viewModel = connectionViewModel
-                            )
-                        }
+                        MainScreenWithNavigation(
+                            currentScreen = currentScreen,
+                            onScreenChange = { currentScreen = it },
+                            connectionViewModel = connectionViewModel,
+                            messageViewModel = messageViewModel
+                        )
                     } else {
                         PermissionRequiredScreen(
                             onRequestPermissions = { requestBluetoothPermissions() }
@@ -119,6 +119,46 @@ class MainActivity : ComponentActivity() {
             permissionsGranted = true
         } else {
             permissionLauncher.launch(permissions)
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun MainScreenWithNavigation(
+    currentScreen: String,
+    onScreenChange: (String) -> Unit,
+    connectionViewModel: ConnectionViewModel,
+    messageViewModel: MessageViewModel
+) {
+    Scaffold(
+        bottomBar = {
+            NavigationBar {
+                NavigationBarItem(
+                    selected = currentScreen == "messages",
+                    onClick = { onScreenChange("messages") },
+                    icon = { Icon(Icons.Default.Message, "Messages") },
+                    label = { Text("Messages") }
+                )
+                NavigationBarItem(
+                    selected = currentScreen == "connection",
+                    onClick = { onScreenChange("connection") },
+                    icon = { Icon(Icons.Default.Bluetooth, "Connection") },
+                    label = { Text("Connection") }
+                )
+            }
+        }
+    ) { padding ->
+        Box(modifier = Modifier.padding(padding)) {
+            when (currentScreen) {
+                "messages" -> MessageScreen(
+                    viewModel = messageViewModel,
+                    onNavigateToConnection = { onScreenChange("connection") }
+                )
+                "connection" -> ConnectionScreen(
+                    viewModel = connectionViewModel
+                )
+            }
         }
     }
 }

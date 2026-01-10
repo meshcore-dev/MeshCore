@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:ns1="urn:oasis:names:tc:xliff:document:1.2">
+    <string msgid="6128938260108474660" name="bottom_sheet_collapse_description">"স্ক্রিনের নিচে অ্যাটাচ করা শিট আড়াল করুন"</string>
+    <string msgid="1918297411568599192" name="bottom_sheet_dismiss_description">"স্ক্রিনের নিচে অ্যাটাচ করা শিট বাতিল করুন"</string>
+    <string msgid="7772321844937772780" name="bottom_sheet_drag_handle_description">"টেনে আনার হ্যান্ডেল"</string>
+    <string msgid="4324434199045499117" name="bottom_sheet_expand_description">"স্ক্রিনের নিচে অ্যাটাচ করা শিট বড় করুন"</string>
+    <string msgid="881409763997275156" name="call_notification_answer_action">"উত্তর দিন"</string>
+    <string msgid="8793775615905189152" name="call_notification_answer_video_action">"ভিডিও"</string>
+    <string msgid="3229508546291798546" name="call_notification_decline_action">"বাতিল করুন"</string>
+    <string msgid="2659457946726154263" name="call_notification_hang_up_action">"কল কেটে দিন"</string>
+    <string msgid="6107532579223922871" name="call_notification_incoming_text">"ইনকামিং কল"</string>
+    <string msgid="8623827134497363134" name="call_notification_ongoing_text">"চালু থাকা কল"</string>
+    <string msgid="59049573811482460" name="call_notification_screening_text">"ইনকামিং কল স্ক্রিনিং করা হচ্ছে"</string>
+    <string msgid="406453423630273620" name="close_drawer">"নেভিগেশন মেনু বন্ধ করুন"</string>
+    <string msgid="7573152094250666567" name="close_sheet">"শিট বন্ধ করুন"</string>
+    <string msgid="5389587048670450460" name="collapsed">"আড়াল করা হয়েছে"</string>
+    <string msgid="2523291102206661146" name="common_google_play_services_enable_button">সক্ষম করুন</string>
+    <string msgid="227660514972886228" name="common_google_play_services_enable_text">আপনি Google Play পরিষেবা সক্ষম না করা পর্যন্ত %1$s কাজ করবে না।</string>
+    <string msgid="5122002158466380389" name="common_google_play_services_enable_title">Google Play পরিষেবা সক্ষম করুন</string>
+    <string msgid="7153882981874058840" name="common_google_play_services_install_button">ইনস্টল করুন</string>
+    <string name="common_google_play_services_install_text">Google Play পরিষেবা ছাড়া %1$s চলবে না, যা আপনার ডিভাইসে অনুপস্থিত।</string>
+    <string msgid="7215213145546190223" name="common_google_play_services_install_title">Google Play পরিষেবা পান</string>
+    <string name="common_google_play_services_notification_channel_name">Google Play পরিষেবার উপলভ্যতা</string>
+    <string name="common_google_play_services_notification_ticker">Google Play পরিষেবার ত্রুটি</string>
+    <string name="common_google_play_services_unknown_issue">Google Play পরিষেবাগুলির সাথে %1$s এর সমস্যা হচ্ছে৷ অনুগ্রহ করে আবার চেষ্টা করুন৷</string>
+    <string name="common_google_play_services_unsupported_text">Google Play পরিষেবা ছাড়া %1$s চলবে না, যেটি আপনার ডিভাইসে সমর্থিত নয়৷</string>
+    <string msgid="6556509956452265614" name="common_google_play_services_update_button">আপডেট করুন</string>
+    <string msgid="9053896323427875356" name="common_google_play_services_update_text">আপনি Google Play পরিষেবা আপডেট না করা পর্যন্ত %1$s চলবে না।</string>
+    <string msgid="6006316683626838685" name="common_google_play_services_update_title">Google Play পরিষেবা আপডেট করুন</string>
+    <string name="common_google_play_services_updating_text">Google Play পরিষেবা ছাড়া %1$s চলবে না যা বর্তমানে আপডেট হচ্ছে।</string>
+    <string name="common_google_play_services_wear_update_text">Google Play পরিষেবার নতুন ভার্সন প্রয়োজন৷ খুব শীঘ্রই এটা নিজেই আপডেট হবে৷</string>
+    <string name="common_open_on_phone">ফোনে খুলুন</string>
+    <string name="common_signin_button_text">সাইন-ইন করুন</string>
+    <string name="common_signin_button_text_long">Google এর মাধ্যমে সাইন-ইন করুন</string>
+    <string msgid="3499643850558715142" name="date_input_headline">"উল্লেখ করা তারিখ"</string>
+    <string msgid="8562356184193964298" name="date_input_headline_description">"উল্লেখ করা তারিখ: %1$s"</string>
+    <string msgid="5281836720766682161" name="date_input_invalid_for_pattern">"প্রত্যাশিত প্যাটার্নের সাথে তারিখ মিলছে না: %1$s"</string>
+    <string msgid="6114792992433444995" name="date_input_invalid_not_allowed">"এই তারিখ লেখা যাবে না: %1$s"</string>
+    <string msgid="8434112129235255568" name="date_input_invalid_year_range">"প্রত্যাশিত বছরের রেঞ্জের বাইরের তারিখ %1$s - %2$s"</string>
+    <string msgid="5194825853981987218" name="date_input_label">"তারিখ"</string>
+    <string msgid="5722931102250207748" name="date_input_no_input_description">"কোনওটিই নয়"</string>
+    <string msgid="3010396677286327048" name="date_input_title">"তারিখ বেছে নিন"</string>
+    <string msgid="2846784065735639969" name="date_picker_headline">"বেছে নেওয়া তারিখ"</string>
+    <string msgid="4627306862713137085" name="date_picker_headline_description">"বর্তমানে বেছে নেওয়া হয়েছে: %1$s"</string>
+    <string msgid="5152441868029453612" name="date_picker_navigate_to_year_description">"নেভিগেট করে %1$s বছরে যান"</string>
+    <string msgid="5724377114289981899" name="date_picker_no_selection_description">"কোনওটিই নয়"</string>
+    <string msgid="8911933542023210271" name="date_picker_scroll_to_earlier_years">"আগের বছর দেখতে স্ক্রল করুন"</string>
+    <string msgid="3226341140390493774" name="date_picker_scroll_to_later_years">"পরের বছর দেখতে স্ক্রল করুন"</string>
+    <string msgid="9029369254443419167" name="date_picker_switch_to_calendar_mode">"\'ক্যালেন্ডার ইনপুট\' মোডে বদল করুন"</string>
+    <string msgid="145089358343568971" name="date_picker_switch_to_day_selection">"একটি বছর বেছে নিতে সোয়াইপ করুন অথবা কোনও একটি দিন বাছতে ফিরে গিয়ে সুইচে ট্যাপ করুন"</string>
+    <string msgid="1496750567914156598" name="date_picker_switch_to_input_mode">"\'টেক্সট ইনপুট\' মোডে বদল করুন"</string>
+    <string msgid="8313783187901412102" name="date_picker_switch_to_next_month">"আগামী মাসে পরিবর্তন করুন"</string>
+    <string msgid="7596294429748914881" name="date_picker_switch_to_previous_month">"আগের মাসে পরিবর্তন করুন"</string>
+    <string msgid="3412370019845183965" name="date_picker_switch_to_year_selection">"কোনও একটি বছর বেছে নিতে পাল্টে নিন"</string>
+    <string msgid="9208721003668059792" name="date_picker_title">"তারিখ বেছে নিন"</string>
+    <string msgid="4775802721403526937" name="date_picker_today_description">"আজ"</string>
+    <string msgid="8140324713311804736" name="date_picker_year_picker_pane_title">"বছর বেছে নেওয়ার তালিকা দেখা যাচ্ছে"</string>
+    <string msgid="1891592555781755601" name="date_range_input_invalid_range_input">"তারিখের ব্যাপ্তি সম্পর্কিত ইনপুট ভুল দেওয়া আছে"</string>
+    <string msgid="2366412111888449406" name="date_range_input_title">"তারিখ লিখুন"</string>
+    <string msgid="9048690781645835833" name="date_range_picker_day_in_range">"সীমার মধ্যে"</string>
+    <string msgid="4766270708882012148" name="date_range_picker_end_headline">"শেষ হওয়ার তারিখ"</string>
+    <string msgid="51495506931835470" name="date_range_picker_scroll_to_next_month">"পরের মাস দেখতে স্ক্রল করুন"</string>
+    <string msgid="4371570854614540700" name="date_range_picker_scroll_to_previous_month">"আগের মাস দেখতে স্ক্রল করুন"</string>
+    <string msgid="5759491386723090559" name="date_range_picker_start_headline">"শুরু হওয়ার তারিখ"</string>
+    <string msgid="690080476639943577" name="date_range_picker_title">"তারিখ বেছে নিন"</string>
+    <string msgid="8038256446254964252" name="default_error_message">"ভুল ইনপুট"</string>
+    <string msgid="6312721426453364202" name="default_popup_window_title">"পপ-আপ উইন্ডো"</string>
+    <string msgid="4057925834421392736" name="dialog">"ডায়ালগ বক্স"</string>
+    <string msgid="1890207353314751437" name="dropdown_menu">"ড্রপডাউন মেনু"</string>
+    <string msgid="5974471714631304645" name="expanded">"বড় করা হয়েছে"</string>
+    <string msgid="6827826412747255547" name="in_progress">"কাজ চলছে"</string>
+    <string msgid="7933458017204019916" name="indeterminate">"কয়েকটি বিকল্প বেছে নেওয়া হয়েছে"</string>
+    <string msgid="542007171693138492" name="navigation_menu">"নেভিগেশন মেনু"</string>
+    <string msgid="6610465462668679431" name="not_selected">"বেছে নেওয়া হয়নি"</string>
+    <string msgid="875452955155264703" name="off">"বন্ধ আছে"</string>
+    <string msgid="8655164131929253426" name="on">"চালু আছে"</string>
+    <string msgid="5941395253238309765" name="range_end">"রেঞ্জ শেষ"</string>
+    <string msgid="7097486360902471446" name="range_start">"রেঞ্জ শুরু"</string>
+    <string msgid="6420018528474762666" name="search_bar_search">"সার্চ করুন"</string>
+    <string msgid="6043586758067023" name="selected">"বেছে নেওয়া হয়েছে"</string>
+    <string msgid="3962933905051144957" name="snackbar_dismiss">"বাতিল করুন"</string>
+    <string msgid="6277540029070332960" name="status_bar_notification_info_overflow">"৯৯৯+"</string>
+    <string msgid="7189888345201419934" name="suggestions_available">"নিচে দেওয়া সাজেশন"</string>
+    <string msgid="2561197295334830845" name="switch_role">"সুইচ"</string>
+    <string msgid="1672349317127674378" name="tab">"ট্যাব"</string>
+    <string msgid="5946805113151406391" name="template_percent">"<ns1:g id="PERCENTAGE">%1$d</ns1:g> শতাংশ।"</string>
+    <string msgid="5096144640014509074" name="time_picker_am">"AM"</string>
+    <string msgid="7241191970823415723" name="time_picker_hour">"ঘণ্টা"</string>
+    <string msgid="4149641012513526783" name="time_picker_hour_24h_suffix">"%1$d ঘণ্টা"</string>
+    <string msgid="6081676287789101196" name="time_picker_hour_selection">"ঘণ্টা বেছে নিন"</string>
+    <string msgid="6952032626122080528" name="time_picker_hour_suffix">"%1$d টা"</string>
+    <string msgid="5298761125390275834" name="time_picker_hour_text_field">"এত ঘণ্টার জন্য"</string>
+    <string msgid="6116528647594005945" name="time_picker_minute">"মিনিট"</string>
+    <string msgid="8494777394375441602" name="time_picker_minute_selection">"মিনিট বেছে নিন"</string>
+    <string msgid="3206486707779478173" name="time_picker_minute_suffix">"%1$d মিনিট"</string>
+    <string msgid="994099543833979061" name="time_picker_minute_text_field">"এত মিনিটের জন্য"</string>
+    <string msgid="7352665290700284516" name="time_picker_period_toggle_description">"AM বা PM বেছে নিন"</string>
+    <string msgid="2232702812657998674" name="time_picker_pm">"PM"</string>
+    <string msgid="2732804537909054941" name="tooltip_long_press_label">"টুলটিপ দেখান"</string>
+    <string msgid="8191239805703103845" name="tooltip_pane_description">"টুলটিপ"</string>
+</resources>

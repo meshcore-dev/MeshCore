@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -15,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.meshcore.team.data.ble.ConnectionState
 import com.meshcore.team.data.database.ChannelEntity
 import com.meshcore.team.data.database.DeliveryStatus
 import com.meshcore.team.data.database.MessageEntity
@@ -33,6 +35,8 @@ fun MessageScreen(
     val channels by viewModel.channels.collectAsState()
     val selectedChannel by viewModel.selectedChannel.collectAsState()
     val messages by viewModel.messages.collectAsState()
+    val connectionState by viewModel.connectionState.collectAsState()
+    val connectedDevice by viewModel.connectedDevice.collectAsState()
     
     var showChannelMenu by remember { mutableStateOf(false) }
     var messageText by remember { mutableStateOf("") }
@@ -40,23 +44,40 @@ fun MessageScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { 
-                    Text(selectedChannel?.name ?: "Messages")
+                title = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(selectedChannel?.name ?: "Messages")
+                        
+                        // Connection status indicator
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .background(
+                                    color = when (connectionState) {
+                                        ConnectionState.CONNECTED -> MaterialTheme.colorScheme.primary
+                                        ConnectionState.CONNECTING -> MaterialTheme.colorScheme.tertiary
+                                        else -> MaterialTheme.colorScheme.error
+                                    },
+                                    shape = CircleShape
+                                )
+                        )
+                        
+                        if (connectionState == ConnectionState.CONNECTED) {
+                            Text(
+                                text = connectedDevice?.name ?: "Connected",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                 },
                 actions = {
                     // Channel selector
                     IconButton(onClick = { showChannelMenu = true }) {
                         Icon(Icons.Default.Menu, "Select Channel")
-                    }
-                    
-                    // Connection button
-                    IconButton(onClick = onNavigateToConnection) {
-                        Icon(Icons.Default.Bluetooth, "Connect to Device")
-                    }
-                    
-                    // Test data button (debug)
-                    IconButton(onClick = { viewModel.addMockMessages() }) {
-                        Icon(Icons.Default.Add, "Add Test Messages")
                     }
                 }
             )
@@ -230,9 +251,16 @@ fun MessageBubble(message: MessageEntity) {
             Column(
                 modifier = Modifier.padding(12.dp)
             ) {
-                if (!isSentByMe && message.senderName != null) {
+                // Show sender name/tag for messages from others
+                if (!isSentByMe) {
+                    val senderLabel = message.senderName ?: run {
+                        // Generate short tag from senderId (last 4 bytes as hex)
+                        val hashBytes = message.senderId.takeLast(4)
+                        hashBytes.joinToString("") { "%02X".format(it) }
+                    }
+                    
                     Text(
-                        text = message.senderName,
+                        text = senderLabel,
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary

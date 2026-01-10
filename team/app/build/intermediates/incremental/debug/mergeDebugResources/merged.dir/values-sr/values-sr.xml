@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:ns1="urn:oasis:names:tc:xliff:document:1.2">
+    <string msgid="6128938260108474660" name="bottom_sheet_collapse_description">"Скупи доњу табелу"</string>
+    <string msgid="1918297411568599192" name="bottom_sheet_dismiss_description">"Одбаци доњу табелу"</string>
+    <string msgid="7772321844937772780" name="bottom_sheet_drag_handle_description">"Идентификатор за превлачење"</string>
+    <string msgid="4324434199045499117" name="bottom_sheet_expand_description">"Прошири доњу табелу"</string>
+    <string msgid="881409763997275156" name="call_notification_answer_action">"Одговори"</string>
+    <string msgid="8793775615905189152" name="call_notification_answer_video_action">"Видео"</string>
+    <string msgid="3229508546291798546" name="call_notification_decline_action">"Одбиј"</string>
+    <string msgid="2659457946726154263" name="call_notification_hang_up_action">"Прекини везу"</string>
+    <string msgid="6107532579223922871" name="call_notification_incoming_text">"Долазни позив"</string>
+    <string msgid="8623827134497363134" name="call_notification_ongoing_text">"Позив је у току"</string>
+    <string msgid="59049573811482460" name="call_notification_screening_text">"Проверава се долазни позив"</string>
+    <string msgid="406453423630273620" name="close_drawer">"Затвори мени за навигацију"</string>
+    <string msgid="7573152094250666567" name="close_sheet">"Затворите табелу"</string>
+    <string msgid="5389587048670450460" name="collapsed">"Скупљено је"</string>
+    <string msgid="2523291102206661146" name="common_google_play_services_enable_button">Омогући</string>
+    <string msgid="227660514972886228" name="common_google_play_services_enable_text">%1$s неће функционисати ако не омогућите Google Play услуге.</string>
+    <string msgid="5122002158466380389" name="common_google_play_services_enable_title">Омогућите Google Play услуге</string>
+    <string msgid="7153882981874058840" name="common_google_play_services_install_button">Инсталирај</string>
+    <string name="common_google_play_services_install_text">%1$s не може да се покрене без Google Play услуга, које нису инсталиране на уређају.</string>
+    <string msgid="7215213145546190223" name="common_google_play_services_install_title">Преузмите Google Play услуге</string>
+    <string name="common_google_play_services_notification_channel_name">Доступност Google Play услуга</string>
+    <string name="common_google_play_services_notification_ticker">Грешка Google Play услуга</string>
+    <string name="common_google_play_services_unknown_issue">%1$s има проблема са Google Play услугама. Пробајте поново.</string>
+    <string name="common_google_play_services_unsupported_text">%1$s не може да се покрене без Google Play услуга, које уређај не подржава.</string>
+    <string msgid="6556509956452265614" name="common_google_play_services_update_button">Ажурирај</string>
+    <string msgid="9053896323427875356" name="common_google_play_services_update_text">%1$s не може да се покрене ако не ажурирате Google Play услуге.</string>
+    <string msgid="6006316683626838685" name="common_google_play_services_update_title">Ажурирајте Google Play услуге</string>
+    <string name="common_google_play_services_updating_text">%1$s не може да се покрене без Google Play услуга, које се тренутно ажурирају.</string>
+    <string name="common_google_play_services_wear_update_text">Потребна је нова верзија Google Play услуга. Ускоро ће се ажурирати.</string>
+    <string name="common_open_on_phone">Отвори на телефону</string>
+    <string name="common_signin_button_text">Пријави ме</string>
+    <string name="common_signin_button_text_long">Пријави ме на Google</string>
+    <string msgid="3499643850558715142" name="date_input_headline">"Унети датум"</string>
+    <string msgid="8562356184193964298" name="date_input_headline_description">"Унети датум: %1$s"</string>
+    <string msgid="5281836720766682161" name="date_input_invalid_for_pattern">"Датум не одговара очекиваном шаблону: %1$s"</string>
+    <string msgid="6114792992433444995" name="date_input_invalid_not_allowed">"Датум није дозвољен: %1$s"</string>
+    <string msgid="8434112129235255568" name="date_input_invalid_year_range">"Датум је изван очекиваног опсега година %1$s – %2$s"</string>
+    <string msgid="5194825853981987218" name="date_input_label">"Датум"</string>
+    <string msgid="5722931102250207748" name="date_input_no_input_description">"Ништа"</string>
+    <string msgid="3010396677286327048" name="date_input_title">"Изаберите датум"</string>
+    <string msgid="2846784065735639969" name="date_picker_headline">"Изабрани датум"</string>
+    <string msgid="4627306862713137085" name="date_picker_headline_description">"Актуелни избор: %1$s"</string>
+    <string msgid="5152441868029453612" name="date_picker_navigate_to_year_description">"Идите на годину: %1$s"</string>
+    <string msgid="5724377114289981899" name="date_picker_no_selection_description">"Ништа"</string>
+    <string msgid="8911933542023210271" name="date_picker_scroll_to_earlier_years">"Померајте да би се приказале раније године"</string>
+    <string msgid="3226341140390493774" name="date_picker_scroll_to_later_years">"Померајте да би се приказале касније године"</string>
+    <string msgid="9029369254443419167" name="date_picker_switch_to_calendar_mode">"Пређите на режим уноса у Календару"</string>
+    <string msgid="145089358343568971" name="date_picker_switch_to_day_selection">"Превуците да бисте изабрали годину или додирните да бисте се вратили на избор дана"</string>
+    <string msgid="1496750567914156598" name="date_picker_switch_to_input_mode">"Пређите на режим уноса текста"</string>
+    <string msgid="8313783187901412102" name="date_picker_switch_to_next_month">"Пређите на следећи месец"</string>
+    <string msgid="7596294429748914881" name="date_picker_switch_to_previous_month">"Пређите на претходни месец"</string>
+    <string msgid="3412370019845183965" name="date_picker_switch_to_year_selection">"Пређите на избор године"</string>
+    <string msgid="9208721003668059792" name="date_picker_title">"Изаберите датум"</string>
+    <string msgid="4775802721403526937" name="date_picker_today_description">"Данас"</string>
+    <string msgid="8140324713311804736" name="date_picker_year_picker_pane_title">"Видљив бирач година"</string>
+    <string msgid="1891592555781755601" name="date_range_input_invalid_range_input">"Унос опсега датума је неважећи"</string>
+    <string msgid="2366412111888449406" name="date_range_input_title">"Унесите датуме"</string>
+    <string msgid="9048690781645835833" name="date_range_picker_day_in_range">"У домету"</string>
+    <string msgid="4766270708882012148" name="date_range_picker_end_headline">"Датум завршетка"</string>
+    <string msgid="51495506931835470" name="date_range_picker_scroll_to_next_month">"Померајте да би се приказао следећи месец"</string>
+    <string msgid="4371570854614540700" name="date_range_picker_scroll_to_previous_month">"Померајте да би се приказао претходни месец"</string>
+    <string msgid="5759491386723090559" name="date_range_picker_start_headline">"Датум почетка"</string>
+    <string msgid="690080476639943577" name="date_range_picker_title">"Изаберите датуме"</string>
+    <string msgid="8038256446254964252" name="default_error_message">"Унос је неважећи"</string>
+    <string msgid="6312721426453364202" name="default_popup_window_title">"Искачући прозор"</string>
+    <string msgid="4057925834421392736" name="dialog">"Дијалог"</string>
+    <string msgid="1890207353314751437" name="dropdown_menu">"Падајући мени"</string>
+    <string msgid="5974471714631304645" name="expanded">"Проширено је"</string>
+    <string msgid="6827826412747255547" name="in_progress">"У току"</string>
+    <string msgid="7933458017204019916" name="indeterminate">"Делимично означено"</string>
+    <string msgid="542007171693138492" name="navigation_menu">"Мени за навигацију"</string>
+    <string msgid="6610465462668679431" name="not_selected">"Није изабрано"</string>
+    <string msgid="875452955155264703" name="off">"Искључено"</string>
+    <string msgid="8655164131929253426" name="on">"Укључено"</string>
+    <string msgid="5941395253238309765" name="range_end">"Крај опсега"</string>
+    <string msgid="7097486360902471446" name="range_start">"Почетак опсега"</string>
+    <string msgid="6420018528474762666" name="search_bar_search">"Претрага"</string>
+    <string msgid="6043586758067023" name="selected">"Изабрано"</string>
+    <string msgid="3962933905051144957" name="snackbar_dismiss">"Одбаците"</string>
+    <string msgid="6277540029070332960" name="status_bar_notification_info_overflow">"999+"</string>
+    <string msgid="7189888345201419934" name="suggestions_available">"Предлози су у наставку"</string>
+    <string msgid="2561197295334830845" name="switch_role">"Прекидач"</string>
+    <string msgid="1672349317127674378" name="tab">"Картица"</string>
+    <string msgid="5946805113151406391" name="template_percent">"<ns1:g id="PERCENTAGE">%1$d</ns1:g> посто."</string>
+    <string msgid="5096144640014509074" name="time_picker_am">"пр"</string>
+    <string msgid="7241191970823415723" name="time_picker_hour">"Сат"</string>
+    <string msgid="4149641012513526783" name="time_picker_hour_24h_suffix">"%1$d ч"</string>
+    <string msgid="6081676287789101196" name="time_picker_hour_selection">"Изаберите сат"</string>
+    <string msgid="6952032626122080528" name="time_picker_hour_suffix">"%1$d ч"</string>
+    <string msgid="5298761125390275834" name="time_picker_hour_text_field">"за сате"</string>
+    <string msgid="6116528647594005945" name="time_picker_minute">"Минут"</string>
+    <string msgid="8494777394375441602" name="time_picker_minute_selection">"Изаберите минуте"</string>
+    <string msgid="3206486707779478173" name="time_picker_minute_suffix">"%1$d мин"</string>
+    <string msgid="994099543833979061" name="time_picker_minute_text_field">"за минуте"</string>
+    <string msgid="7352665290700284516" name="time_picker_period_toggle_description">"Изаберите пре подне или по подне"</string>
+    <string msgid="2232702812657998674" name="time_picker_pm">"по"</string>
+    <string msgid="2732804537909054941" name="tooltip_long_press_label">"Прикажи објашњење"</string>
+    <string msgid="8191239805703103845" name="tooltip_pane_description">"Објашњење"</string>
+</resources>

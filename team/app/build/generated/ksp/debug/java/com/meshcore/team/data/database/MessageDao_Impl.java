@@ -260,7 +260,7 @@ public final class MessageDao_Impl implements MessageDao {
 
   @Override
   public Flow<List<MessageEntity>> getMessagesByChannel(final byte channelHash) {
-    final String _sql = "SELECT * FROM messages WHERE channelHash = ? ORDER BY timestamp DESC";
+    final String _sql = "SELECT * FROM messages WHERE channelHash = ? ORDER BY timestamp ASC";
     final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 1);
     int _argIndex = 1;
     _statement.bindLong(_argIndex, channelHash);
@@ -339,7 +339,7 @@ public final class MessageDao_Impl implements MessageDao {
 
   @Override
   public Flow<List<MessageEntity>> getAllMessages() {
-    final String _sql = "SELECT * FROM messages ORDER BY timestamp DESC";
+    final String _sql = "SELECT * FROM messages ORDER BY timestamp ASC";
     final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 0);
     return CoroutinesRoom.createFlow(__db, false, new String[] {"messages"}, new Callable<List<MessageEntity>>() {
       @Override

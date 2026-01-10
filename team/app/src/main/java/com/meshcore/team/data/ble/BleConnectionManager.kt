@@ -8,8 +8,11 @@ import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothProfile
 import android.content.Context
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import timber.log.Timber
 import java.util.UUID
@@ -44,11 +47,30 @@ class BleConnectionManager(private val context: Context) {
     private val _connectedDevice = MutableStateFlow<BluetoothDevice?>(null)
     val connectedDevice: StateFlow<BluetoothDevice?> = _connectedDevice.asStateFlow()
     
+    // Shared flow for incoming messages (hot flow that emits to all collectors)
+    private val _incomingMessages = MutableSharedFlow<ChannelMessage>(extraBufferCapacity = 10)
+    val incomingMessages: SharedFlow<ChannelMessage> = _incomingMessages.asSharedFlow()
+    
     private val gattCallback = object : BluetoothGattCallback() {
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
             when (newState) {
                 BluetoothProfile.STATE_CONNECTED -> {
                     Timber.i("Connected to GATT server")
+                    
+                    // Check if device is bonded (paired)
+                    val device = gatt.device
+                    when (device.bondState) {
+                        BluetoothDevice.BOND_NONE -> {
+                            Timber.i("Device not bonded - pairing will be triggered on first encrypted operation")
+                        }
+                        BluetoothDevice.BOND_BONDING -> {
+                            Timber.i("Device bonding in progress...")
+                        }
+                        BluetoothDevice.BOND_BONDED -> {
+                            Timber.i("Device already bonded - encrypted connection ready")
+                        }
+                    }
+                    
                     _connectionState.value = ConnectionState.CONNECTED
                     _connectedDevice.value = gatt.device
                     // Discover services
@@ -104,7 +126,30 @@ class BleConnectionManager(private val context: Context) {
             value: ByteArray
         ) {
             if (characteristic.uuid == UUID.fromString(BleConstants.TX_CHARACTERISTIC_UUID)) {
-                Timber.d("Received ${value.size} bytes from TX characteristic")
+                Timber.d("Received ${value.size} bytes from TX characteristic: ${value.joinToString(" ") { "%02X".format(it) }}")
+                
+                // Decode response code
+                if (value.isNotEmpty()) {
+                    val responseCode = value[0].toInt() and 0xFF
+                    val responseNames = mapOf(
+                        0 to "OK", 1 to "ERR", 2 to "CONTACTS_START", 3 to "CONTACT",
+                        4 to "END_OF_CONTACTS", 5 to "SELF_INFO", 6 to "SENT",
+                        10 to "NO_MORE_MESSAGES", 16 to "CONTACT_MSG_RECV_V3",
+                        17 to "CHANNEL_MSG_RECV_V3", 18 to "CHANNEL_INFO",
+                        0x82 to "PUSH_SEND_CONFIRMED", 0x83 to "PUSH_MSG_WAITING"
+                    )
+                    Timber.i("Response code: $responseCode (${responseNames[responseCode] ?: "UNKNOWN"})")
+                    
+                    // Parse and emit channel messages
+                    if (responseCode == 17) { // RESP_CODE_CHANNEL_MSG_RECV_V3
+                        val message = ResponseParser.parseChannelMessage(value)
+                        if (message != null) {
+                            Timber.i("📩 Incoming message: '${message.text}'")
+                            _incomingMessages.tryEmit(message)
+                        }
+                    }
+                }
+                
                 _receivedData.value = value
             }
         }
@@ -171,7 +216,7 @@ class BleConnectionManager(private val context: Context) {
     @SuppressLint("MissingPermission")
     fun sendData(data: ByteArray): Boolean {
         if (_connectionState.value != ConnectionState.CONNECTED) {
-            Timber.e("Cannot send data - not connected")
+            Timber.e("Cannot send data - not connected (state: ${_connectionState.value})")
             return false
         }
         
@@ -185,9 +230,29 @@ class BleConnectionManager(private val context: Context) {
             return false
         }
         
-        Timber.d("Sending ${data.size} bytes to RX characteristic")
-        rxCharacteristic?.value = data
-        return bluetoothGatt?.writeCharacteristic(rxCharacteristic) ?: false
+        Timber.d("Sending ${data.size} bytes to RX characteristic: ${data.take(20).joinToString(" ") { "%02X".format(it) }}")
+        
+        return try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                // Android 13+ (API 33+)
+                val result = bluetoothGatt?.writeCharacteristic(
+                    rxCharacteristic!!,
+                    data,
+                    BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+                )
+                Timber.d("Write result: $result")
+                result == BluetoothGatt.GATT_SUCCESS
+            } else {
+                // Older Android versions
+                rxCharacteristic?.value = data
+                val result = bluetoothGatt?.writeCharacteristic(rxCharacteristic)
+                Timber.d("Write initiated: $result")
+                result ?: false
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "Exception during BLE write")
+            false
+        }
     }
     
     /**

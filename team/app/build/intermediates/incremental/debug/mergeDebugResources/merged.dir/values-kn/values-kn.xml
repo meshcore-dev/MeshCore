@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:ns1="urn:oasis:names:tc:xliff:document:1.2">
+    <string msgid="6128938260108474660" name="bottom_sheet_collapse_description">"ಕೆಳಭಾಗದ ಶೀಟ್ ಅನ್ನು ಕುಗ್ಗಿಸಿ"</string>
+    <string msgid="1918297411568599192" name="bottom_sheet_dismiss_description">"ಕೆಳಭಾಗದ ಶೀಟ್ ಅನ್ನು ವಜಾಗೊಳಿಸಿ"</string>
+    <string msgid="7772321844937772780" name="bottom_sheet_drag_handle_description">"ಹ್ಯಾಂಡಲ್ ಡ್ರ್ಯಾಗ್ ಮಾಡಿ"</string>
+    <string msgid="4324434199045499117" name="bottom_sheet_expand_description">"ಕೆಳಭಾಗದ ಶೀಟ್ ಅನ್ನು ವಿಸ್ತರಿಸಿ"</string>
+    <string msgid="881409763997275156" name="call_notification_answer_action">"ಉತ್ತರಿಸಿ"</string>
+    <string msgid="8793775615905189152" name="call_notification_answer_video_action">"ವೀಡಿಯೊ"</string>
+    <string msgid="3229508546291798546" name="call_notification_decline_action">"ನಿರಾಕರಿಸಿ"</string>
+    <string msgid="2659457946726154263" name="call_notification_hang_up_action">"ಕರೆ ಕೊನೆಗೊಳಿಸಿ"</string>
+    <string msgid="6107532579223922871" name="call_notification_incoming_text">"ಒಳಬರುವ ಕರೆ"</string>
+    <string msgid="8623827134497363134" name="call_notification_ongoing_text">"ಚಾಲ್ತಿಯಲ್ಲಿರುವ ಕರೆ"</string>
+    <string msgid="59049573811482460" name="call_notification_screening_text">"ಒಳಬರುವ ಕರೆಯನ್ನು ಸ್ಕ್ರೀನ್ ಮಾಡಲಾಗುತ್ತಿದೆ"</string>
+    <string msgid="406453423630273620" name="close_drawer">"ನ್ಯಾವಿಗೇಷನ್‌ ಮೆನು ಮುಚ್ಚಿರಿ"</string>
+    <string msgid="7573152094250666567" name="close_sheet">"ಶೀಟ್ ಮುಚ್ಚಿರಿ"</string>
+    <string msgid="5389587048670450460" name="collapsed">"ಕುಗ್ಗಿಸಲಾಗಿದೆ"</string>
+    <string msgid="2523291102206661146" name="common_google_play_services_enable_button">ಸಕ್ರಿಯಗೊಳಿಸು</string>
+    <string msgid="227660514972886228" name="common_google_play_services_enable_text">Google Play ಸೇವೆಗಳನ್ನು ನೀವು ಸಕ್ರಿಯಗೊಳಿಸದ ಹೊರತು %1$s ಕಾರ್ಯನಿರ್ವಹಿಸುವುದಿಲ್ಲ.</string>
+    <string msgid="5122002158466380389" name="common_google_play_services_enable_title">Google Play ಸೇವೆಗಳನ್ನು ಸಕ್ರಿಯಗೊಳಿಸಿ</string>
+    <string msgid="7153882981874058840" name="common_google_play_services_install_button">ಇನ್‌ಸ್ಟಾಲ್ ಮಾಡಿ</string>
+    <string name="common_google_play_services_install_text">ನಿಮ್ಮ ಸಾಧನದಿಂದ ಕಾಣೆಯಾಗಿರುವ %1$s, Google Play ಸೇವೆಗಳಿಲ್ಲದೆ ರನ್ ಆಗುವುದಿಲ್ಲ.</string>
+    <string msgid="7215213145546190223" name="common_google_play_services_install_title">Google Play ಸೇವೆಗಳನ್ನು ಪಡೆಯಿರಿ</string>
+    <string name="common_google_play_services_notification_channel_name">Google Play ಸೇವೆಗಳ ಲಭ್ಯತೆ</string>
+    <string name="common_google_play_services_notification_ticker">Google Play ಸೇವೆಗಳ ದೋಷ</string>
+    <string name="common_google_play_services_unknown_issue">Google Play ಸೇವೆಗಳಲ್ಲಿ %1$s ಸಮಸ್ಯೆಯನ್ನು ಹೊಂದಿದೆ. ದಯವಿಟ್ಟು ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.</string>
+    <string name="common_google_play_services_unsupported_text">ನಿಮ್ಮ ಸಾಧನದ ಮೂಲಕ ಬೆಂಬಲಿಸದಿರುವ Google Play ಸೇವೆಗಳಿಲ್ಲದೆ %1$s ರನ್‌ ಆಗುವುದಿಲ್ಲ.</string>
+    <string msgid="6556509956452265614" name="common_google_play_services_update_button">ಅಪ್‌ಡೇಟ್‌ ಮಾಡಿ</string>
+    <string msgid="9053896323427875356" name="common_google_play_services_update_text">ನೀವು Google Play ಸೇವೆಗಳನ್ನು ಅಪ್‍ಡೇಟ್ ಮಾಡದ ಹೊರತು %1$s ರನ್ ಆಗುವುದಿಲ್ಲ.</string>
+    <string msgid="6006316683626838685" name="common_google_play_services_update_title">Google ಪ್ಲೇ ಸೇವೆಗಳನ್ನು ಅಪ್‌ಡೇಟ್‌ ಮಾಡಿ</string>
+    <string name="common_google_play_services_updating_text">Google Play ಸೇವೆಗಳಿಲ್ಲದೆ ಪ್ರಸ್ತುತ ಅಪ್‌ಡೇಟ್ ಆಗುತ್ತಿರುವ %1$s ರನ್ ಆಗುವುದಿಲ್ಲ.</string>
+    <string name="common_google_play_services_wear_update_text">Google Play ಸೇವೆಗಳ ಹೊಸ ಆವೃತ್ತಿ ಅಗತ್ಯವಿದೆ. ಸದ್ಯದಲ್ಲೇ ಅದು ತಾನಾಗಿಯೇ ಅಪ್‌ಡೇಟ್ ಆಗುತ್ತದೆ.</string>
+    <string name="common_open_on_phone">ಫೋನ್‌ನಲ್ಲಿ ತೆರೆಯಿರಿ</string>
+    <string name="common_signin_button_text">ಸೈನ್ ಇನ್</string>
+    <string name="common_signin_button_text_long">Google ಮೂಲಕ ಸೈನ್ ಇನ್ ಮಾಡಿ</string>
+    <string msgid="3499643850558715142" name="date_input_headline">"ನಮೂದಿಸಿದ ದಿನಾಂಕ"</string>
+    <string msgid="8562356184193964298" name="date_input_headline_description">"ನಮೂದಿಸಿದ ದಿನಾಂಕ: %1$s"</string>
+    <string msgid="5281836720766682161" name="date_input_invalid_for_pattern">"ನಿರೀಕ್ಷಿಸಿದ ಪ್ಯಾಟರ್ನ್‌ನೊಂದಿಗೆ ದಿನಾಂಕ ಹೊಂದಾಣಿಕೆಯಾಗುತ್ತಿಲ್ಲ: %1$s"</string>
+    <string msgid="6114792992433444995" name="date_input_invalid_not_allowed">"ದಿನಾಂಕವನ್ನು ಅನುಮತಿಸಲಾಗುವುದಿಲ್ಲ: %1$s"</string>
+    <string msgid="8434112129235255568" name="date_input_invalid_year_range">"ದಿನಾಂಕವು ನಿರೀಕ್ಷಿಸಿದ ವರ್ಷದ ವ್ಯಾಪ್ತಿಯನ್ನು ಮೀರಿದೆ %1$s - %2$s"</string>
+    <string msgid="5194825853981987218" name="date_input_label">"ದಿನಾಂಕ"</string>
+    <string msgid="5722931102250207748" name="date_input_no_input_description">"ಯಾವುದೂ ಅಲ್ಲ"</string>
+    <string msgid="3010396677286327048" name="date_input_title">"ದಿನಾಂಕವನ್ನು ಆಯ್ಕೆಮಾಡಿ"</string>
+    <string msgid="2846784065735639969" name="date_picker_headline">"ದಿನಾಂಕವನ್ನು ಆಯ್ಕೆಮಾಡಲಾಗಿದೆ"</string>
+    <string msgid="4627306862713137085" name="date_picker_headline_description">"ಪ್ರಸ್ತುತ ಆಯ್ಕೆ: %1$s"</string>
+    <string msgid="5152441868029453612" name="date_picker_navigate_to_year_description">"%1$s ವರ್ಷಕ್ಕೆ ನ್ಯಾವಿಗೇಟ್ ಮಾಡಿ"</string>
+    <string msgid="5724377114289981899" name="date_picker_no_selection_description">"ಯಾವುದೂ ಅಲ್ಲ"</string>
+    <string msgid="8911933542023210271" name="date_picker_scroll_to_earlier_years">"ಹಿಂದಿನ ವರ್ಷಗಳನ್ನು ತೋರಿಸಲು ಸ್ಕ್ರಾಲ್‌ ಮಾಡಿ"</string>
+    <string msgid="3226341140390493774" name="date_picker_scroll_to_later_years">"ನಂತರದ ವರ್ಷಗಳನ್ನು ತೋರಿಸಲು ಸ್ಕ್ರಾಲ್ ಮಾಡಿ"</string>
+    <string msgid="9029369254443419167" name="date_picker_switch_to_calendar_mode">"ಕ್ಯಾಲೆಂಡರ್ ಇನ್‌ಪುಟ್ ಮೋಡ್‌ಗೆ ಬದಲಿಸಿ"</string>
+    <string msgid="145089358343568971" name="date_picker_switch_to_day_selection">"ಒಂದು ವರ್ಷವನ್ನು ಆಯ್ಕೆಮಾಡಲು ಸ್ವೈಪ್ ಮಾಡಿ ಅಥವಾ ಒಂದು ದಿನವನ್ನು ಆಯ್ಕೆಮಾಡಲು ಹಿಂತಿರುಗಲು ಟ್ಯಾಪ್ ಮಾಡಿ"</string>
+    <string msgid="1496750567914156598" name="date_picker_switch_to_input_mode">"ಪಠ್ಯ ಇನ್‌ಪುಟ್ ಮೋಡ್‌ಗೆ ಬದಲಿಸಿ"</string>
+    <string msgid="8313783187901412102" name="date_picker_switch_to_next_month">"ಮುಂದಿನ ತಿಂಗಳಿಗೆ ಬದಲಿಸಿ"</string>
+    <string msgid="7596294429748914881" name="date_picker_switch_to_previous_month">"ಹಿಂದಿನ ತಿಂಗಳಿಗೆ ಬದಲಿಸಿ"</string>
+    <string msgid="3412370019845183965" name="date_picker_switch_to_year_selection">"ವರ್ಷವನ್ನು ಆಯ್ಕೆ ಮಾಡಲು ಬದಲಿಸಿ"</string>
+    <string msgid="9208721003668059792" name="date_picker_title">"ದಿನಾಂಕವನ್ನು ಆಯ್ಕೆಮಾಡಿ"</string>
+    <string msgid="4775802721403526937" name="date_picker_today_description">"ಇಂದು"</string>
+    <string msgid="8140324713311804736" name="date_picker_year_picker_pane_title">"ವರ್ಷದ ಪಿಕರ್ ಗೋಚರಿಸುತ್ತದೆ"</string>
+    <string msgid="1891592555781755601" name="date_range_input_invalid_range_input">"ದಿನಾಂಕ ವ್ಯಾಪ್ತಿಯ ಇನ್‌ಪುಟ್ ಅಮಾನ್ಯವಾಗಿದೆ"</string>
+    <string msgid="2366412111888449406" name="date_range_input_title">"ದಿನಾಂಕಗಳನ್ನು ನಮೂದಿಸಿ"</string>
+    <string msgid="9048690781645835833" name="date_range_picker_day_in_range">"ವ್ಯಾಪ್ತಿಯಲ್ಲಿದೆ"</string>
+    <string msgid="4766270708882012148" name="date_range_picker_end_headline">"ಅಂತಿಮ ದಿನಾಂಕ"</string>
+    <string msgid="51495506931835470" name="date_range_picker_scroll_to_next_month">"ಮುಂದಿನ ತಿಂಗಳನ್ನು ತೋರಿಸಲು ಸ್ಕ್ರಾಲ್ ಮಾಡಿ"</string>
+    <string msgid="4371570854614540700" name="date_range_picker_scroll_to_previous_month">"ಹಿಂದಿನ ತಿಂಗಳನ್ನು ತೋರಿಸಲು ಸ್ಕ್ರಾಲ್‌ ಮಾಡಿ"</string>
+    <string msgid="5759491386723090559" name="date_range_picker_start_headline">"ಆರಂಭ ದಿನಾಂಕ"</string>
+    <string msgid="690080476639943577" name="date_range_picker_title">"ದಿನಾಂಕಗಳನ್ನು ಆಯ್ಕೆಮಾಡಿ"</string>
+    <string msgid="8038256446254964252" name="default_error_message">"ಅಮಾನ್ಯ ಇನ್‌ಪುಟ್"</string>
+    <string msgid="6312721426453364202" name="default_popup_window_title">"ಪಾಪ್-ಅಪ್ ವಿಂಡೋ"</string>
+    <string msgid="4057925834421392736" name="dialog">"ಡೈಲಾಗ್"</string>
+    <string msgid="1890207353314751437" name="dropdown_menu">"ಡ್ರಾಪ್‌ಡೌನ್ ಮೆನು"</string>
+    <string msgid="5974471714631304645" name="expanded">"ವಿಸ್ತರಿಸಲಾಗಿದೆ"</string>
+    <string msgid="6827826412747255547" name="in_progress">"ಪ್ರಗತಿಯಲ್ಲಿದೆ"</string>
+    <string msgid="7933458017204019916" name="indeterminate">"ಭಾಗಶಃ ಪರೀಕ್ಷಿಸಲಾಗಿದೆ"</string>
+    <string msgid="542007171693138492" name="navigation_menu">"ನ್ಯಾವಿಗೇಶನ್‌ ಮೆನು"</string>
+    <string msgid="6610465462668679431" name="not_selected">"ಆಯ್ಕೆ ಮಾಡಿಲ್ಲ"</string>
+    <string msgid="875452955155264703" name="off">"ಆಫ್ ಆಗಿದೆ"</string>
+    <string msgid="8655164131929253426" name="on">"ಆನ್ ಆಗಿದೆ"</string>
+    <string msgid="5941395253238309765" name="range_end">"ಶ್ರೇಣಿಯ ಅಂತ್ಯ"</string>
+    <string msgid="7097486360902471446" name="range_start">"ಶ್ರೇಣಿಯ ಪ್ರಾರಂಭ"</string>
+    <string msgid="6420018528474762666" name="search_bar_search">"ಹುಡುಕಿ"</string>
+    <string msgid="6043586758067023" name="selected">"ಆಯ್ಕೆಮಾಡಲಾಗಿದೆ"</string>
+    <string msgid="3962933905051144957" name="snackbar_dismiss">"ವಜಾಗೊಳಿಸಿ"</string>
+    <string msgid="6277540029070332960" name="status_bar_notification_info_overflow">"999+"</string>
+    <string msgid="7189888345201419934" name="suggestions_available">"ಸಲಹೆಗಳನ್ನು ಕೆಳಗೆ ನೀಡಲಾಗಿದೆ"</string>
+    <string msgid="2561197295334830845" name="switch_role">"ಬದಲಿಸಿ"</string>
+    <string msgid="1672349317127674378" name="tab">"ಟ್ಯಾಬ್"</string>
+    <string msgid="5946805113151406391" name="template_percent">"<ns1:g id="PERCENTAGE">%1$d</ns1:g> ಶೇಕಡಾ."</string>
+    <string msgid="5096144640014509074" name="time_picker_am">"AM"</string>
+    <string msgid="7241191970823415723" name="time_picker_hour">"ಗಂಟೆ"</string>
+    <string msgid="4149641012513526783" name="time_picker_hour_24h_suffix">"%1$d ಗಂಟೆ"</string>
+    <string msgid="6081676287789101196" name="time_picker_hour_selection">"ಸಮಯವನ್ನು ಆಯ್ಕೆಮಾಡಿ"</string>
+    <string msgid="6952032626122080528" name="time_picker_hour_suffix">"%1$d ಓ ಕ್ಲಾಕ್"</string>
+    <string msgid="5298761125390275834" name="time_picker_hour_text_field">"ಗಂಟೆಯವರೆಗೆ"</string>
+    <string msgid="6116528647594005945" name="time_picker_minute">"ನಿಮಿಷ"</string>
+    <string msgid="8494777394375441602" name="time_picker_minute_selection">"ನಿಮಿಷಗಳನ್ನು ಆಯ್ಕೆಮಾಡಿ"</string>
+    <string msgid="3206486707779478173" name="time_picker_minute_suffix">"%1$d ನಿಮಿಷಗಳು"</string>
+    <string msgid="994099543833979061" name="time_picker_minute_text_field">"ನಿಮಿಷಗಳವರೆಗೆ"</string>
+    <string msgid="7352665290700284516" name="time_picker_period_toggle_description">"AM ಅಥವಾ PM ಆಯ್ಕೆಮಾಡಿ"</string>
+    <string msgid="2232702812657998674" name="time_picker_pm">"PM"</string>
+    <string msgid="2732804537909054941" name="tooltip_long_press_label">"ಟೂಲ್‌ಟಿಪ್ ಅನ್ನು ತೋರಿಸಿ"</string>
+    <string msgid="8191239805703103845" name="tooltip_pane_description">"ಟೂಲ್‌ಟಿಪ್"</string>
+</resources>

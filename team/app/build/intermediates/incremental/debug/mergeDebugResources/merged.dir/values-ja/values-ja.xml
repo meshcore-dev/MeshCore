@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:ns1="urn:oasis:names:tc:xliff:document:1.2">
+    <string msgid="6128938260108474660" name="bottom_sheet_collapse_description">"ボトムシートを折りたたみます"</string>
+    <string msgid="1918297411568599192" name="bottom_sheet_dismiss_description">"ボトムシートを閉じます"</string>
+    <string msgid="7772321844937772780" name="bottom_sheet_drag_handle_description">"ドラッグ ハンドル"</string>
+    <string msgid="4324434199045499117" name="bottom_sheet_expand_description">"ボトムシートを開きます"</string>
+    <string msgid="881409763997275156" name="call_notification_answer_action">"応答"</string>
+    <string msgid="8793775615905189152" name="call_notification_answer_video_action">"ビデオ"</string>
+    <string msgid="3229508546291798546" name="call_notification_decline_action">"拒否"</string>
+    <string msgid="2659457946726154263" name="call_notification_hang_up_action">"通話終了"</string>
+    <string msgid="6107532579223922871" name="call_notification_incoming_text">"着信"</string>
+    <string msgid="8623827134497363134" name="call_notification_ongoing_text">"通話中"</string>
+    <string msgid="59049573811482460" name="call_notification_screening_text">"着信をスクリーニング中"</string>
+    <string msgid="406453423630273620" name="close_drawer">"ナビゲーションメニューを閉じる"</string>
+    <string msgid="7573152094250666567" name="close_sheet">"シートを閉じる"</string>
+    <string msgid="5389587048670450460" name="collapsed">"閉じています"</string>
+    <string msgid="2523291102206661146" name="common_google_play_services_enable_button">有効にする</string>
+    <string msgid="227660514972886228" name="common_google_play_services_enable_text">%1$sの実行には、Google Play開発者サービスの有効化が必要です。</string>
+    <string msgid="5122002158466380389" name="common_google_play_services_enable_title">Google Play開発者サービスの有効化</string>
+    <string msgid="7153882981874058840" name="common_google_play_services_install_button">インストール</string>
+    <string name="common_google_play_services_install_text">「%1$s」の実行には Google Play 開発者サービスが必要ですが、お使いのデバイスにはインストールされていません。</string>
+    <string msgid="7215213145546190223" name="common_google_play_services_install_title">Google Play開発者サービスの入手</string>
+    <string name="common_google_play_services_notification_channel_name">Google Play 開発者サービスの利用</string>
+    <string name="common_google_play_services_notification_ticker">Google Play開発者サービスのエラー</string>
+    <string name="common_google_play_services_unknown_issue">「%1$s」で Google Play 開発者サービスに問題が発生しています。もう一度お試しください。</string>
+    <string name="common_google_play_services_unsupported_text">「%1$s」の実行には Google Play 開発者サービスが必要ですが、お使いのデバイスではサポートされていません。</string>
+    <string msgid="6556509956452265614" name="common_google_play_services_update_button">更新</string>
+    <string msgid="9053896323427875356" name="common_google_play_services_update_text">%1$sの実行にはGoogle Play開発者サービスの更新が必要です。</string>
+    <string msgid="6006316683626838685" name="common_google_play_services_update_title">Google Play開発者サービスの更新</string>
+    <string name="common_google_play_services_updating_text">%1$sの実行にはGoogle Play開発者サービスが必要ですが、このサービスは現在更新中です。</string>
+    <string name="common_google_play_services_wear_update_text">Google Play開発者サービスの新しいバージョンが必要です。まもなく自動更新されます。</string>
+    <string name="common_open_on_phone">スマートフォンで開く</string>
+    <string name="common_signin_button_text">ログイン</string>
+    <string name="common_signin_button_text_long">Googleにログイン</string>
+    <string msgid="3499643850558715142" name="date_input_headline">"入力された日付"</string>
+    <string msgid="8562356184193964298" name="date_input_headline_description">"入力された日付: %1$s"</string>
+    <string msgid="5281836720766682161" name="date_input_invalid_for_pattern">"想定されるパターンと日付が一致しません: %1$s"</string>
+    <string msgid="6114792992433444995" name="date_input_invalid_not_allowed">"許可されていない日付です: %1$s"</string>
+    <string msgid="8434112129235255568" name="date_input_invalid_year_range">"想定される年の範囲（%1$s～%2$s）から日付が外れています"</string>
+    <string msgid="5194825853981987218" name="date_input_label">"日付"</string>
+    <string msgid="5722931102250207748" name="date_input_no_input_description">"なし"</string>
+    <string msgid="3010396677286327048" name="date_input_title">"日付を選択"</string>
+    <string msgid="2846784065735639969" name="date_picker_headline">"選択した日付"</string>
+    <string msgid="4627306862713137085" name="date_picker_headline_description">"現在の選択: %1$s"</string>
+    <string msgid="5152441868029453612" name="date_picker_navigate_to_year_description">"年に移動 %1$s"</string>
+    <string msgid="5724377114289981899" name="date_picker_no_selection_description">"なし"</string>
+    <string msgid="8911933542023210271" name="date_picker_scroll_to_earlier_years">"これより前の年を表示するにはスクロールしてください"</string>
+    <string msgid="3226341140390493774" name="date_picker_scroll_to_later_years">"これより後の年を表示するにはスクロールしてください"</string>
+    <string msgid="9029369254443419167" name="date_picker_switch_to_calendar_mode">"カレンダー入力モードに切り替え"</string>
+    <string msgid="145089358343568971" name="date_picker_switch_to_day_selection">"スワイプして年を選択するか、タップして日付の選択に戻ります"</string>
+    <string msgid="1496750567914156598" name="date_picker_switch_to_input_mode">"テキスト入力モードに切り替え"</string>
+    <string msgid="8313783187901412102" name="date_picker_switch_to_next_month">"翌月に変更"</string>
+    <string msgid="7596294429748914881" name="date_picker_switch_to_previous_month">"前月に変更"</string>
+    <string msgid="3412370019845183965" name="date_picker_switch_to_year_selection">"年の選択に移行"</string>
+    <string msgid="9208721003668059792" name="date_picker_title">"日付を選択します"</string>
+    <string msgid="4775802721403526937" name="date_picker_today_description">"今日"</string>
+    <string msgid="8140324713311804736" name="date_picker_year_picker_pane_title">"年の選択ツールの表示"</string>
+    <string msgid="1891592555781755601" name="date_range_input_invalid_range_input">"入力された期間は無効です"</string>
+    <string msgid="2366412111888449406" name="date_range_input_title">"日付の入力"</string>
+    <string msgid="9048690781645835833" name="date_range_picker_day_in_range">"範囲内"</string>
+    <string msgid="4766270708882012148" name="date_range_picker_end_headline">"終了日"</string>
+    <string msgid="51495506931835470" name="date_range_picker_scroll_to_next_month">"次の月を表示するにはスクロールしてください"</string>
+    <string msgid="4371570854614540700" name="date_range_picker_scroll_to_previous_month">"前の月を表示するにはスクロールしてください"</string>
+    <string msgid="5759491386723090559" name="date_range_picker_start_headline">"開始日"</string>
+    <string msgid="690080476639943577" name="date_range_picker_title">"日付の選択"</string>
+    <string msgid="8038256446254964252" name="default_error_message">"入力値が無効です"</string>
+    <string msgid="6312721426453364202" name="default_popup_window_title">"ポップアップウィンドウ"</string>
+    <string msgid="4057925834421392736" name="dialog">"ダイアログ"</string>
+    <string msgid="1890207353314751437" name="dropdown_menu">"プルダウン メニュー"</string>
+    <string msgid="5974471714631304645" name="expanded">"開いています"</string>
+    <string msgid="6827826412747255547" name="in_progress">"処理しています"</string>
+    <string msgid="7933458017204019916" name="indeterminate">"一部 ON"</string>
+    <string msgid="542007171693138492" name="navigation_menu">"ナビゲーションメニュー"</string>
+    <string msgid="6610465462668679431" name="not_selected">"未選択"</string>
+    <string msgid="875452955155264703" name="off">"オフ"</string>
+    <string msgid="8655164131929253426" name="on">"オン"</string>
+    <string msgid="5941395253238309765" name="range_end">"範囲の末尾"</string>
+    <string msgid="7097486360902471446" name="range_start">"範囲の先頭"</string>
+    <string msgid="6420018528474762666" name="search_bar_search">"検索"</string>
+    <string msgid="6043586758067023" name="selected">"選択済み"</string>
+    <string msgid="3962933905051144957" name="snackbar_dismiss">"閉じる"</string>
+    <string msgid="6277540029070332960" name="status_bar_notification_info_overflow">"999+"</string>
+    <string msgid="7189888345201419934" name="suggestions_available">"検索候補は次のとおりです"</string>
+    <string msgid="2561197295334830845" name="switch_role">"切り替える"</string>
+    <string msgid="1672349317127674378" name="tab">"タブ"</string>
+    <string msgid="5946805113151406391" name="template_percent">"<ns1:g id="PERCENTAGE">%1$d</ns1:g>パーセント。"</string>
+    <string msgid="5096144640014509074" name="time_picker_am">"AM"</string>
+    <string msgid="7241191970823415723" name="time_picker_hour">"時間"</string>
+    <string msgid="4149641012513526783" name="time_picker_hour_24h_suffix">"%1$d 時間"</string>
+    <string msgid="6081676287789101196" name="time_picker_hour_selection">"時刻を選択"</string>
+    <string msgid="6952032626122080528" name="time_picker_hour_suffix">"%1$d 時"</string>
+    <string msgid="5298761125390275834" name="time_picker_hour_text_field">"（時間単位）"</string>
+    <string msgid="6116528647594005945" name="time_picker_minute">"分"</string>
+    <string msgid="8494777394375441602" name="time_picker_minute_selection">"分を選択"</string>
+    <string msgid="3206486707779478173" name="time_picker_minute_suffix">"%1$d 分"</string>
+    <string msgid="994099543833979061" name="time_picker_minute_text_field">"（分単位）"</string>
+    <string msgid="7352665290700284516" name="time_picker_period_toggle_description">"午前または午後を選択"</string>
+    <string msgid="2232702812657998674" name="time_picker_pm">"PM"</string>
+    <string msgid="2732804537909054941" name="tooltip_long_press_label">"ツールチップを表示します"</string>
+    <string msgid="8191239805703103845" name="tooltip_pane_description">"ツールチップ"</string>
+</resources>

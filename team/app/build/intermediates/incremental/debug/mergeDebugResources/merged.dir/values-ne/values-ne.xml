@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:ns1="urn:oasis:names:tc:xliff:document:1.2">
+    <string msgid="6128938260108474660" name="bottom_sheet_collapse_description">"पुछारको पाना कोल्याप्स गर्नुहोस्"</string>
+    <string msgid="1918297411568599192" name="bottom_sheet_dismiss_description">"पुछारको पाना हटाउनुहोस्"</string>
+    <string msgid="7772321844937772780" name="bottom_sheet_drag_handle_description">"ड्र्याग ह्यान्डल"</string>
+    <string msgid="4324434199045499117" name="bottom_sheet_expand_description">"पुछारको पाना एक्स्पान्ड गर्नुहोस्"</string>
+    <string msgid="881409763997275156" name="call_notification_answer_action">"जवाफ दिनुहोस्"</string>
+    <string msgid="8793775615905189152" name="call_notification_answer_video_action">"भिडियो"</string>
+    <string msgid="3229508546291798546" name="call_notification_decline_action">"काट्नुहोस्"</string>
+    <string msgid="2659457946726154263" name="call_notification_hang_up_action">"फोन राख्नुहोस्"</string>
+    <string msgid="6107532579223922871" name="call_notification_incoming_text">"आगमन कल"</string>
+    <string msgid="8623827134497363134" name="call_notification_ongoing_text">"भइरहेको कल"</string>
+    <string msgid="59049573811482460" name="call_notification_screening_text">"आगमन कल जाँचिँदै छ"</string>
+    <string msgid="406453423630273620" name="close_drawer">"नेभिगेसन मेनु बन्द गर्नुहोस्"</string>
+    <string msgid="7573152094250666567" name="close_sheet">"पाना बन्द गर्नुहोस्"</string>
+    <string msgid="5389587048670450460" name="collapsed">"कोल्याप्स गरियो"</string>
+    <string msgid="2523291102206661146" name="common_google_play_services_enable_button">अन गर्नुहोस्</string>
+    <string msgid="227660514972886228" name="common_google_play_services_enable_text">%1$s ले तपाईँले Google Play सेवाहरू सक्षम नगरेसम्म काम गर्दैन।</string>
+    <string msgid="5122002158466380389" name="common_google_play_services_enable_title">Google Play सेवाहरू सक्षम पार्नुहोस्</string>
+    <string msgid="7153882981874058840" name="common_google_play_services_install_button">स्थापना गर्नुहोस्</string>
+    <string name="common_google_play_services_install_text">%1$s Google Play services बिना सञ्चालन हुने छैन र तपाईँको यन्त्रमा Google Play services उपलब्ध छैनन्।</string>
+    <string msgid="7215213145546190223" name="common_google_play_services_install_title">Google Play सेवाहरू प्राप्त गर्नुहोस्</string>
+    <string name="common_google_play_services_notification_channel_name">Google Play सेवाको उपलब्धता</string>
+    <string name="common_google_play_services_notification_ticker">Google Play सेवाहरूका त्रुटि</string>
+    <string name="common_google_play_services_unknown_issue">%1$s लाई Google Play services सँग सहकार्य गर्न समस्या भइरहेको छ। कृपया फेरि प्रयास गर्नुहोस्।</string>
+    <string name="common_google_play_services_unsupported_text">%1$s Google Play services बिना सञ्चालन हुने छैन र तपाईँको यन्त्रले Google Play services लाई समर्थन गर्दैन।</string>
+    <string msgid="6556509956452265614" name="common_google_play_services_update_button">अपडेट गर्नुहोस्</string>
+    <string msgid="9053896323427875356" name="common_google_play_services_update_text">%1$s तपाईंले Google प्ले सेवाहरू अद्यावधिक नगरेसम्म सञ्चालन हुँदैन।</string>
+    <string msgid="6006316683626838685" name="common_google_play_services_update_title">Google Play सेवाहरू अपडेट गर्नुहोस्</string>
+    <string name="common_google_play_services_updating_text">Google Play सेवाहरू %1$s बिना सञ्‍चालन हुँदैन, जुन हाल अद्यावधिक भइरहेका छन्।</string>
+    <string name="common_google_play_services_wear_update_text">Google Play सेवाहरूको नयाँ संस्करण आवश्यक छ। यो आफै छिट्टै नै अद्यावधिक हुनेछ।</string>
+    <string name="common_open_on_phone">फोनमा खोल्नुहोस्</string>
+    <string name="common_signin_button_text">साइन इन गर्नुहोस्</string>
+    <string name="common_signin_button_text_long">Google मार्फत साइन‍ इन गर्नुहोस्</string>
+    <string msgid="3499643850558715142" name="date_input_headline">"हालिएको मिति"</string>
+    <string msgid="8562356184193964298" name="date_input_headline_description">"हालिएको मिति: %1$s"</string>
+    <string msgid="5281836720766682161" name="date_input_invalid_for_pattern">"हालिएको मितिको ढाँचा अपेक्षित ढाँचासँग मिलेन: %1$s"</string>
+    <string msgid="6114792992433444995" name="date_input_invalid_not_allowed">"यो मिति हाल्न पाइँदैन: %1$s"</string>
+    <string msgid="8434112129235255568" name="date_input_invalid_year_range">"हालिएको मिति सालको अपेक्षित दायरा (%1$s - %2$s) भित्र पर्दैन"</string>
+    <string msgid="5194825853981987218" name="date_input_label">"मिति"</string>
+    <string msgid="5722931102250207748" name="date_input_no_input_description">"कुनै पनि होइन"</string>
+    <string msgid="3010396677286327048" name="date_input_title">"मिति चयन गर्नुहोस्"</string>
+    <string msgid="2846784065735639969" name="date_picker_headline">"चयन गरिएको मिति"</string>
+    <string msgid="4627306862713137085" name="date_picker_headline_description">"हालको छनौट: %1$s"</string>
+    <string msgid="5152441868029453612" name="date_picker_navigate_to_year_description">"साल %1$s मा जानुहोस्"</string>
+    <string msgid="5724377114289981899" name="date_picker_no_selection_description">"कुनै पनि होइन"</string>
+    <string msgid="8911933542023210271" name="date_picker_scroll_to_earlier_years">"विगतका सालहरूको जानकारी हेर्न स्क्रोल गर्नुहोस्"</string>
+    <string msgid="3226341140390493774" name="date_picker_scroll_to_later_years">"आगामी सालहरूको जानकारी हेर्न स्क्रोल गर्नुहोस्"</string>
+    <string msgid="9029369254443419167" name="date_picker_switch_to_calendar_mode">"पात्रोको इनपुट मोड प्रयोग गर्नुहोस्"</string>
+    <string msgid="145089358343568971" name="date_picker_switch_to_day_selection">"कुनै साल छनौट गर्न स्वाइप गर्नुहोस् वा दिन चयन गर्न ट्याप गर्नुहोस्"</string>
+    <string msgid="1496750567914156598" name="date_picker_switch_to_input_mode">"टेक्स्ट इनपुट मोड प्रयोग गर्नुहोस्"</string>
+    <string msgid="8313783187901412102" name="date_picker_switch_to_next_month">"हाल चयन गरिएको महिना परिवर्तन गरी आगामी महिना बनाउनुहोस्"</string>
+    <string msgid="7596294429748914881" name="date_picker_switch_to_previous_month">"हाल चयन गरिएको महिना परिवर्तन गरी अघिल्लो महिना बनाउनुहोस्"</string>
+    <string msgid="3412370019845183965" name="date_picker_switch_to_year_selection">"साल चयन गर्ने फिल्डमा जानुहोस्"</string>
+    <string msgid="9208721003668059792" name="date_picker_title">"मिति चयन गर्नुहोस्"</string>
+    <string msgid="4775802721403526937" name="date_picker_today_description">"आज"</string>
+    <string msgid="8140324713311804736" name="date_picker_year_picker_pane_title">"साल पिकर देखिएको छ"</string>
+    <string msgid="1891592555781755601" name="date_range_input_invalid_range_input">"मितिको अवैध दायरा तोकियो"</string>
+    <string msgid="2366412111888449406" name="date_range_input_title">"मितिहरू हाल्नुहोस्"</string>
+    <string msgid="9048690781645835833" name="date_range_picker_day_in_range">"चयन गरिएका मितिभित्र पर्ने"</string>
+    <string msgid="4766270708882012148" name="date_range_picker_end_headline">"समापन हुने मिति"</string>
+    <string msgid="51495506931835470" name="date_range_picker_scroll_to_next_month">"अर्को महिनाको जानकारी हेर्न स्क्रोल गर्नुहोस्"</string>
+    <string msgid="4371570854614540700" name="date_range_picker_scroll_to_previous_month">"गत महिनाको जानकारी हेर्न स्क्रोल गर्नुहोस्"</string>
+    <string msgid="5759491386723090559" name="date_range_picker_start_headline">"सुरु हुने मिति"</string>
+    <string msgid="690080476639943577" name="date_range_picker_title">"मितिहरू चयन गर्नुहोस्"</string>
+    <string msgid="8038256446254964252" name="default_error_message">"अवैद्य इन्पुट"</string>
+    <string msgid="6312721426453364202" name="default_popup_window_title">"पपअप विन्डो"</string>
+    <string msgid="4057925834421392736" name="dialog">"डायलग"</string>
+    <string msgid="1890207353314751437" name="dropdown_menu">"ड्रपडाउन मेनु"</string>
+    <string msgid="5974471714631304645" name="expanded">"एक्स्पान्ड गरियो"</string>
+    <string msgid="6827826412747255547" name="in_progress">"काम हुँदै छ"</string>
+    <string msgid="7933458017204019916" name="indeterminate">"आंशिक रूपमा जाँच गरिएको"</string>
+    <string msgid="542007171693138492" name="navigation_menu">"नेभिगेसन मेनु"</string>
+    <string msgid="6610465462668679431" name="not_selected">"चयन गरिएको छैन"</string>
+    <string msgid="875452955155264703" name="off">"अफ छ"</string>
+    <string msgid="8655164131929253426" name="on">"अन छ"</string>
+    <string msgid="5941395253238309765" name="range_end">"दायराको अन्तिम बिन्दु"</string>
+    <string msgid="7097486360902471446" name="range_start">"दायराको सुरुवात बिन्दु"</string>
+    <string msgid="6420018528474762666" name="search_bar_search">"खोज्नुहोस्"</string>
+    <string msgid="6043586758067023" name="selected">"चयन गरिएको छ"</string>
+    <string msgid="3962933905051144957" name="snackbar_dismiss">"हटाउनुहोस्"</string>
+    <string msgid="6277540029070332960" name="status_bar_notification_info_overflow">"९९९+"</string>
+    <string msgid="7189888345201419934" name="suggestions_available">"सुझावहरू तल दिइएका छन्"</string>
+    <string msgid="2561197295334830845" name="switch_role">"बदल्नुहोस्"</string>
+    <string msgid="1672349317127674378" name="tab">"ट्याब"</string>
+    <string msgid="5946805113151406391" name="template_percent">"<ns1:g id="PERCENTAGE">%1$d</ns1:g> प्रतिशत।"</string>
+    <string msgid="5096144640014509074" name="time_picker_am">"AM"</string>
+    <string msgid="7241191970823415723" name="time_picker_hour">"घण्टा"</string>
+    <string msgid="4149641012513526783" name="time_picker_hour_24h_suffix">"%1$d घण्टा"</string>
+    <string msgid="6081676287789101196" name="time_picker_hour_selection">"घण्टा चयन गर्नुहोस्"</string>
+    <string msgid="6952032626122080528" name="time_picker_hour_suffix">"%1$d बजे"</string>
+    <string msgid="5298761125390275834" name="time_picker_hour_text_field">"घण्टाका लागि"</string>
+    <string msgid="6116528647594005945" name="time_picker_minute">"मिनेट"</string>
+    <string msgid="8494777394375441602" name="time_picker_minute_selection">"मिनेट चयन गर्नुहोस्"</string>
+    <string msgid="3206486707779478173" name="time_picker_minute_suffix">"%1$d मिनेट"</string>
+    <string msgid="994099543833979061" name="time_picker_minute_text_field">"मिनेटका लागि"</string>
+    <string msgid="7352665290700284516" name="time_picker_period_toggle_description">"पूर्वाह्न वा अपराह्न चयन गर्नुहोस्"</string>
+    <string msgid="2232702812657998674" name="time_picker_pm">"PM"</string>
+    <string msgid="2732804537909054941" name="tooltip_long_press_label">"टुलटिप देखाइयोस्"</string>
+    <string msgid="8191239805703103845" name="tooltip_pane_description">"टुलटिप"</string>
+</resources>

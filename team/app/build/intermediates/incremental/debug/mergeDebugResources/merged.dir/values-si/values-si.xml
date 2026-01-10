@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:ns1="urn:oasis:names:tc:xliff:document:1.2">
+    <string msgid="6128938260108474660" name="bottom_sheet_collapse_description">"පහළම පත්‍රය හකුළන්න"</string>
+    <string msgid="1918297411568599192" name="bottom_sheet_dismiss_description">"පහළම පත්‍රය අස් කරන්න"</string>
+    <string msgid="7772321844937772780" name="bottom_sheet_drag_handle_description">"ඇදීම් හැඬලය"</string>
+    <string msgid="4324434199045499117" name="bottom_sheet_expand_description">"පහළම පත්‍රය දිග හරින්න"</string>
+    <string msgid="881409763997275156" name="call_notification_answer_action">"පිළිතුරු දෙ."</string>
+    <string msgid="8793775615905189152" name="call_notification_answer_video_action">"වීඩියෝ"</string>
+    <string msgid="3229508546291798546" name="call_notification_decline_action">"ප්‍රතික්ෂේප ක"</string>
+    <string msgid="2659457946726154263" name="call_notification_hang_up_action">"විසන්ධි කරන්න"</string>
+    <string msgid="6107532579223922871" name="call_notification_incoming_text">"එන ඇමතුම"</string>
+    <string msgid="8623827134497363134" name="call_notification_ongoing_text">"කරගෙන යන ඇමතුම"</string>
+    <string msgid="59049573811482460" name="call_notification_screening_text">"එන ඇමතුමක් පරීක්ෂා කරන්න"</string>
+    <string msgid="406453423630273620" name="close_drawer">"සංචාලන මෙනුව වසන්න"</string>
+    <string msgid="7573152094250666567" name="close_sheet">"පත්‍රය වසන්න"</string>
+    <string msgid="5389587048670450460" name="collapsed">"හකුළන ලදි"</string>
+    <string msgid="2523291102206661146" name="common_google_play_services_enable_button">සබල කරන්න</string>
+    <string msgid="227660514972886228" name="common_google_play_services_enable_text">ඔබ Google Play සේවා සබල කරන්නේ නම් මිස %1$s වැඩ නොකරනු ඇත.</string>
+    <string msgid="5122002158466380389" name="common_google_play_services_enable_title">Google Play සේවා සබල කරන්න</string>
+    <string msgid="7153882981874058840" name="common_google_play_services_install_button">ස්ථාපනය කරන්න</string>
+    <string name="common_google_play_services_install_text">ඔබගේ ටැබ්ලට් පරිගණකයේ නැති Google Play සේවා නොමැතිව %1$s ධාවනය නොවනු ඇත.</string>
+    <string msgid="7215213145546190223" name="common_google_play_services_install_title">Google Play සේවා ලබා ගන්න</string>
+    <string name="common_google_play_services_notification_channel_name">Google Play සේවාවල ලබා ගත හැකි බව</string>
+    <string name="common_google_play_services_notification_ticker">Google Play සේවා දෝෂය</string>
+    <string name="common_google_play_services_unknown_issue">%1$s හට Google Play සේවා සමගින් ගැටලු ඇත. කරුණාකර නැවත උත්සාහ කරන්න.</string>
+    <string name="common_google_play_services_unsupported_text">ඔබගේ උපාංගය මගින් සහාය නොදක්වන, Google Play සේවා නොමැතිව %1$s ධාවනය නොවනු ඇත.</string>
+    <string msgid="6556509956452265614" name="common_google_play_services_update_button">යාවත්කාලීන කරන්න</string>
+    <string msgid="9053896323427875356" name="common_google_play_services_update_text">Google Play සේවා යාවත්කාලීන කරන්නේ නොමැතිව %1$s ධාවනය නොවේ.</string>
+    <string msgid="6006316683626838685" name="common_google_play_services_update_title">Google Play සේවා යාවත්කාලීන කරන්න</string>
+    <string name="common_google_play_services_updating_text">දැනට යාවත්කාලීන කරමින් ඇති, Google Play සේවා නොමැතිව %1$s ධාවනය නොවනු ඇත.</string>
+    <string name="common_google_play_services_wear_update_text">Google Play සේවාවල නව අනුවාදයක් අවශ්‍යයි. එය මද වේලාවකින් එය විසින්ම යාවත්කාලීන වනු ඇත.</string>
+    <string name="common_open_on_phone">දුරකථනය තුළ විවෘත කරන්න</string>
+    <string name="common_signin_button_text">පුරන්න</string>
+    <string name="common_signin_button_text_long">Google සමගින් පුරන්න</string>
+    <string msgid="3499643850558715142" name="date_input_headline">"ඇතුළු කළ දිනය"</string>
+    <string msgid="8562356184193964298" name="date_input_headline_description">"එක් කරන්න: %1$s"</string>
+    <string msgid="5281836720766682161" name="date_input_invalid_for_pattern">"දිනය අපේක්ෂිත රටාවට නොගැළපෙයි: %1$s"</string>
+    <string msgid="6114792992433444995" name="date_input_invalid_not_allowed">"දිනය ඉඩ නොදෙයි: %1$s"</string>
+    <string msgid="8434112129235255568" name="date_input_invalid_year_range">"දිනය අපේක්ෂිත වසර පරාසයෙන් පිටත වේ %1$s - %2$s"</string>
+    <string msgid="5194825853981987218" name="date_input_label">"දිනය"</string>
+    <string msgid="5722931102250207748" name="date_input_no_input_description">"කිසිවක් නැත"</string>
+    <string msgid="3010396677286327048" name="date_input_title">"දිනය තෝරන්න"</string>
+    <string msgid="2846784065735639969" name="date_picker_headline">"තේරූ දිනය"</string>
+    <string msgid="4627306862713137085" name="date_picker_headline_description">"වත්මන් තේරීම: %1$s"</string>
+    <string msgid="5152441868029453612" name="date_picker_navigate_to_year_description">"%1$s වසර වෙත සංචලන කරන්න"</string>
+    <string msgid="5724377114289981899" name="date_picker_no_selection_description">"කිසිවක් නැත"</string>
+    <string msgid="8911933542023210271" name="date_picker_scroll_to_earlier_years">"පෙර වසර පෙන්වීමට අනුචලන කරන්න"</string>
+    <string msgid="3226341140390493774" name="date_picker_scroll_to_later_years">"පසු වසර පෙන්වීමට අනුචලන කරන්න"</string>
+    <string msgid="9029369254443419167" name="date_picker_switch_to_calendar_mode">"දින දර්ශන ආදාන ප්‍රකාරයට මාරු වන්න"</string>
+    <string msgid="145089358343568971" name="date_picker_switch_to_day_selection">"වසරක් තේරීමට ස්වයිප් කරන්න, නැතහොත් දිනක් තේරීමට ආපසු මාරු වීමට තට්ටු කරන්න"</string>
+    <string msgid="1496750567914156598" name="date_picker_switch_to_input_mode">"පෙළ ආදාන ප්‍රකාරයට මාරු වන්න"</string>
+    <string msgid="8313783187901412102" name="date_picker_switch_to_next_month">"ලබන මාසයට වෙනස් කරන්න"</string>
+    <string msgid="7596294429748914881" name="date_picker_switch_to_previous_month">"කලින් මාසයට වෙනස් කරන්න"</string>
+    <string msgid="3412370019845183965" name="date_picker_switch_to_year_selection">"වසරක් තේරීමට මාරු වන්න"</string>
+    <string msgid="9208721003668059792" name="date_picker_title">"දිනය තෝරන්න"</string>
+    <string msgid="4775802721403526937" name="date_picker_today_description">"අද"</string>
+    <string msgid="8140324713311804736" name="date_picker_year_picker_pane_title">"වසර තෝරකය දෘශ්‍යමානයි"</string>
+    <string msgid="1891592555781755601" name="date_range_input_invalid_range_input">"අවලංගු දින පරාස ආදානය"</string>
+    <string msgid="2366412111888449406" name="date_range_input_title">"දින ඇතුළු කරන්න"</string>
+    <string msgid="9048690781645835833" name="date_range_picker_day_in_range">"පරාසය තුළ"</string>
+    <string msgid="4766270708882012148" name="date_range_picker_end_headline">"අවසාන දිනය"</string>
+    <string msgid="51495506931835470" name="date_range_picker_scroll_to_next_month">"ඊළඟ මාසය පෙන්වීමට අනුචලන කරන්න"</string>
+    <string msgid="4371570854614540700" name="date_range_picker_scroll_to_previous_month">"පෙර මාසය පෙන්වීමට අනුචලන කරන්න"</string>
+    <string msgid="5759491386723090559" name="date_range_picker_start_headline">"ආරම්භක දිනය"</string>
+    <string msgid="690080476639943577" name="date_range_picker_title">"දින තෝරන්න"</string>
+    <string msgid="8038256446254964252" name="default_error_message">"වලංගු නොවන ආදානයකි"</string>
+    <string msgid="6312721426453364202" name="default_popup_window_title">"උත්පතන කවුළුව"</string>
+    <string msgid="4057925834421392736" name="dialog">"සංවාදය"</string>
+    <string msgid="1890207353314751437" name="dropdown_menu">"පතන මෙනුව"</string>
+    <string msgid="5974471714631304645" name="expanded">"දිග හරින ලදි"</string>
+    <string msgid="6827826412747255547" name="in_progress">"ප්‍රගතියේ පවතී"</string>
+    <string msgid="7933458017204019916" name="indeterminate">"අඩ වශයෙන් ලකුණු කළ"</string>
+    <string msgid="542007171693138492" name="navigation_menu">"සංචාලන මෙනුව"</string>
+    <string msgid="6610465462668679431" name="not_selected">"තෝරා නැත"</string>
+    <string msgid="875452955155264703" name="off">"ක්‍රියාවිරහිතයි"</string>
+    <string msgid="8655164131929253426" name="on">"ක්‍රියාත්මකයි"</string>
+    <string msgid="5941395253238309765" name="range_end">"පරාස අන්තය"</string>
+    <string msgid="7097486360902471446" name="range_start">"පරාස ආරම්භය"</string>
+    <string msgid="6420018528474762666" name="search_bar_search">"සෙවීම"</string>
+    <string msgid="6043586758067023" name="selected">"තෝරන ලදි"</string>
+    <string msgid="3962933905051144957" name="snackbar_dismiss">"අස් කරන්න"</string>
+    <string msgid="6277540029070332960" name="status_bar_notification_info_overflow">"999+"</string>
+    <string msgid="7189888345201419934" name="suggestions_available">"පහත යෝජනා"</string>
+    <string msgid="2561197295334830845" name="switch_role">"මාරු කරන්න"</string>
+    <string msgid="1672349317127674378" name="tab">"ටැබය"</string>
+    <string msgid="5946805113151406391" name="template_percent">"සියයට <ns1:g id="PERCENTAGE">%1$d</ns1:g>."</string>
+    <string msgid="5096144640014509074" name="time_picker_am">"පෙ.ව."</string>
+    <string msgid="7241191970823415723" name="time_picker_hour">"පැය"</string>
+    <string msgid="4149641012513526783" name="time_picker_hour_24h_suffix">"පැය %1$d"</string>
+    <string msgid="6081676287789101196" name="time_picker_hour_selection">"පැය තෝරන්න"</string>
+    <string msgid="6952032626122080528" name="time_picker_hour_suffix">"%1$dට"</string>
+    <string msgid="5298761125390275834" name="time_picker_hour_text_field">"පැයක් සඳහා"</string>
+    <string msgid="6116528647594005945" name="time_picker_minute">"විනාඩි"</string>
+    <string msgid="8494777394375441602" name="time_picker_minute_selection">"මිනිත්තු තෝරන්න"</string>
+    <string msgid="3206486707779478173" name="time_picker_minute_suffix">"මිනිත්තු %1$d"</string>
+    <string msgid="994099543833979061" name="time_picker_minute_text_field">"මිනිත්තු ගණනක් සඳහා"</string>
+    <string msgid="7352665290700284516" name="time_picker_period_toggle_description">"පෙ.ව. හෝ ප.ව. තෝරන්න"</string>
+    <string msgid="2232702812657998674" name="time_picker_pm">"ප.ව."</string>
+    <string msgid="2732804537909054941" name="tooltip_long_press_label">"මෙවලම් ඉඟිය පෙන්වන්න"</string>
+    <string msgid="8191239805703103845" name="tooltip_pane_description">"මෙවලම් ඉඟිය"</string>
+</resources>

@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:ns1="urn:oasis:names:tc:xliff:document:1.2">
+    <string msgid="6128938260108474660" name="bottom_sheet_collapse_description">"Tolestu pantailaren behealdean ainguratutako orria"</string>
+    <string msgid="1918297411568599192" name="bottom_sheet_dismiss_description">"Baztertu pantailaren behealdean ainguratutako orria"</string>
+    <string msgid="7772321844937772780" name="bottom_sheet_drag_handle_description">"Arrastatzeko kontrol-puntua"</string>
+    <string msgid="4324434199045499117" name="bottom_sheet_expand_description">"Zabaldu pantailaren behealdean ainguratutako orria"</string>
+    <string msgid="881409763997275156" name="call_notification_answer_action">"Erantzun"</string>
+    <string msgid="8793775615905189152" name="call_notification_answer_video_action">"Bideoa"</string>
+    <string msgid="3229508546291798546" name="call_notification_decline_action">"Baztertu"</string>
+    <string msgid="2659457946726154263" name="call_notification_hang_up_action">"Amaitu deia"</string>
+    <string msgid="6107532579223922871" name="call_notification_incoming_text">"Sarrerako deia"</string>
+    <string msgid="8623827134497363134" name="call_notification_ongoing_text">"Deia abian da"</string>
+    <string msgid="59049573811482460" name="call_notification_screening_text">"Sarrerako dei bat bistaratzen"</string>
+    <string msgid="406453423630273620" name="close_drawer">"Itxi nabigazio-menua"</string>
+    <string msgid="7573152094250666567" name="close_sheet">"Itxi orria"</string>
+    <string msgid="5389587048670450460" name="collapsed">"Tolestuta"</string>
+    <string msgid="2523291102206661146" name="common_google_play_services_enable_button">Gaitu</string>
+    <string msgid="227660514972886228" name="common_google_play_services_enable_text">%1$s aplikazioak ez du funtzionatuko Google Play Services gaitzen ez baduzu.</string>
+    <string msgid="5122002158466380389" name="common_google_play_services_enable_title">Gaitu Google Play Services</string>
+    <string msgid="7153882981874058840" name="common_google_play_services_install_button">Instalatu</string>
+    <string name="common_google_play_services_install_text">%1$s ez da exekutatuko Google Play Services gabe, baina ez dago halakorik gailuan.</string>
+    <string msgid="7215213145546190223" name="common_google_play_services_install_title">Lortu Google Play Services</string>
+    <string name="common_google_play_services_notification_channel_name">Google Play Services-en erabilgarritasuna</string>
+    <string name="common_google_play_services_notification_ticker">Google Play Services-en errorea</string>
+    <string name="common_google_play_services_unknown_issue">%1$s aplikazioak arazoak ditu Google Play Services-ekin. Saiatu berriro.</string>
+    <string name="common_google_play_services_unsupported_text">%1$s aplikazioa ezin da erabili Google Play Services gabe, baina zure gailua ez da harekin bateragarria.</string>
+    <string msgid="6556509956452265614" name="common_google_play_services_update_button">Eguneratu</string>
+    <string msgid="9053896323427875356" name="common_google_play_services_update_text">%1$s ez da exekutatuko Google Play Services eguneratzen ez baduzu.</string>
+    <string msgid="6006316683626838685" name="common_google_play_services_update_title">Eguneratu Google Play Services</string>
+    <string name="common_google_play_services_updating_text">%1$s ez da exekutatuko Google Play Services gabe; zerbitzu hori eguneratzen ari da.</string>
+    <string name="common_google_play_services_wear_update_text">Google Play Services-en bertsio berria behar da. Berehala eguneratuko da automatikoki.</string>
+    <string name="common_open_on_phone">Ireki telefonoan</string>
+    <string name="common_signin_button_text">Hasi saioa</string>
+    <string name="common_signin_button_text_long">Hasi saioa Google-ko kontuarekin</string>
+    <string msgid="3499643850558715142" name="date_input_headline">"Idatzitako data"</string>
+    <string msgid="8562356184193964298" name="date_input_headline_description">"Idatzitako data: %1$s"</string>
+    <string msgid="5281836720766682161" name="date_input_invalid_for_pattern">"Data ez dator bat espero den ereduarekin: %1$s"</string>
+    <string msgid="6114792992433444995" name="date_input_invalid_not_allowed">"Ez da onartzen data: %1$s"</string>
+    <string msgid="8434112129235255568" name="date_input_invalid_year_range">"Espero den urte tartetik (%1$s-%2$s) kanpo dago data"</string>
+    <string msgid="5194825853981987218" name="date_input_label">"Data"</string>
+    <string msgid="5722931102250207748" name="date_input_no_input_description">"Bat ere ez"</string>
+    <string msgid="3010396677286327048" name="date_input_title">"Hautatu data bat"</string>
+    <string msgid="2846784065735639969" name="date_picker_headline">"Hautatutako data"</string>
+    <string msgid="4627306862713137085" name="date_picker_headline_description">"Oraingo hautapena: %1$s"</string>
+    <string msgid="5152441868029453612" name="date_picker_navigate_to_year_description">"Joan %1$s urtera"</string>
+    <string msgid="5724377114289981899" name="date_picker_no_selection_description">"Bat ere ez"</string>
+    <string msgid="8911933542023210271" name="date_picker_scroll_to_earlier_years">"Egin gora/behera iraganeko urteak erakusteko"</string>
+    <string msgid="3226341140390493774" name="date_picker_scroll_to_later_years">"Egin gora/behera etorkizuneko urteak erakusteko"</string>
+    <string msgid="9029369254443419167" name="date_picker_switch_to_calendar_mode">"Aldatu egutegiaren idazketa-metodora"</string>
+    <string msgid="145089358343568971" name="date_picker_switch_to_day_selection">"Pasatu hatza urte bat hautatzeko. Bestela, sakatu hau eguna hautatzeko pantailara itzultzeko."</string>
+    <string msgid="1496750567914156598" name="date_picker_switch_to_input_mode">"Aldatu testua idazteko modura"</string>
+    <string msgid="8313783187901412102" name="date_picker_switch_to_next_month">"Aldatu hurrengo hilabetera"</string>
+    <string msgid="7596294429748914881" name="date_picker_switch_to_previous_month">"Aldatu aurreko hilabetera"</string>
+    <string msgid="3412370019845183965" name="date_picker_switch_to_year_selection">"Joan urte-hautatzailera"</string>
+    <string msgid="9208721003668059792" name="date_picker_title">"Hautatu data bat"</string>
+    <string msgid="4775802721403526937" name="date_picker_today_description">"Gaur"</string>
+    <string msgid="8140324713311804736" name="date_picker_year_picker_pane_title">"Urte-hautatzailea ikusgai dago"</string>
+    <string msgid="1891592555781755601" name="date_range_input_invalid_range_input">"Idatzitako data tarteak ez du balio"</string>
+    <string msgid="2366412111888449406" name="date_range_input_title">"Idatzi datak"</string>
+    <string msgid="9048690781645835833" name="date_range_picker_day_in_range">"Tartean"</string>
+    <string msgid="4766270708882012148" name="date_range_picker_end_headline">"Amaiera-data"</string>
+    <string msgid="51495506931835470" name="date_range_picker_scroll_to_next_month">"Egin gora/behera hurrengo hilabetea erakusteko"</string>
+    <string msgid="4371570854614540700" name="date_range_picker_scroll_to_previous_month">"Egin gora/behera aurreko hilabetea erakusteko"</string>
+    <string msgid="5759491386723090559" name="date_range_picker_start_headline">"Hasiera-data"</string>
+    <string msgid="690080476639943577" name="date_range_picker_title">"Hautatu datak"</string>
+    <string msgid="8038256446254964252" name="default_error_message">"Sarrerak ez du balio"</string>
+    <string msgid="6312721426453364202" name="default_popup_window_title">"Leiho gainerakorra"</string>
+    <string msgid="4057925834421392736" name="dialog">"Leihoa"</string>
+    <string msgid="1890207353314751437" name="dropdown_menu">"Goitibeherako menua"</string>
+    <string msgid="5974471714631304645" name="expanded">"Zabalduta"</string>
+    <string msgid="6827826412747255547" name="in_progress">"Abian"</string>
+    <string msgid="7933458017204019916" name="indeterminate">"Erdi-markatuta"</string>
+    <string msgid="542007171693138492" name="navigation_menu">"Nabigazio-menua"</string>
+    <string msgid="6610465462668679431" name="not_selected">"Hautatu gabe"</string>
+    <string msgid="875452955155264703" name="off">"Desaktibatuta"</string>
+    <string msgid="8655164131929253426" name="on">"Aktibatuta"</string>
+    <string msgid="5941395253238309765" name="range_end">"Barrutiaren amaiera"</string>
+    <string msgid="7097486360902471446" name="range_start">"Barrutiaren hasiera"</string>
+    <string msgid="6420018528474762666" name="search_bar_search">"Bilaketa"</string>
+    <string msgid="6043586758067023" name="selected">"Hautatuta"</string>
+    <string msgid="3962933905051144957" name="snackbar_dismiss">"Baztertu"</string>
+    <string msgid="6277540029070332960" name="status_bar_notification_info_overflow">"999+"</string>
+    <string msgid="7189888345201419934" name="suggestions_available">"Iradokizunak daude behean"</string>
+    <string msgid="2561197295334830845" name="switch_role">"Aldatu"</string>
+    <string msgid="1672349317127674378" name="tab">"Fitxa"</string>
+    <string msgid="5946805113151406391" name="template_percent">"Ehuneko <ns1:g id="PERCENTAGE">%1$d</ns1:g>."</string>
+    <string msgid="5096144640014509074" name="time_picker_am">"AM"</string>
+    <string msgid="7241191970823415723" name="time_picker_hour">"Orduak"</string>
+    <string msgid="4149641012513526783" name="time_picker_hour_24h_suffix">"%1$d"</string>
+    <string msgid="6081676287789101196" name="time_picker_hour_selection">"Hautatu ordua"</string>
+    <string msgid="6952032626122080528" name="time_picker_hour_suffix">"%1$d"</string>
+    <string msgid="5298761125390275834" name="time_picker_hour_text_field">"ordurako"</string>
+    <string msgid="6116528647594005945" name="time_picker_minute">"Minutuak"</string>
+    <string msgid="8494777394375441602" name="time_picker_minute_selection">"Hautatu minutuak"</string>
+    <string msgid="3206486707779478173" name="time_picker_minute_suffix">"%1$d minutu"</string>
+    <string msgid="994099543833979061" name="time_picker_minute_text_field">"minutuetarako"</string>
+    <string msgid="7352665290700284516" name="time_picker_period_toggle_description">"Hautatu AM edo PM"</string>
+    <string msgid="2232702812657998674" name="time_picker_pm">"PM"</string>
+    <string msgid="2732804537909054941" name="tooltip_long_press_label">"Erakutsi aholkua"</string>
+    <string msgid="8191239805703103845" name="tooltip_pane_description">"Aholkua"</string>
+</resources>
