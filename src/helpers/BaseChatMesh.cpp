@@ -115,7 +115,23 @@ void BaseChatMesh::onAdvertRecv(mesh::Packet* packet, const mesh::Identity& id, 
 
       from->shared_secret_valid = false;  // ecdh shared_secret will be calculated later on demand  
     } else {
-      MESH_DEBUG_PRINTLN("onAdvertRecv: contacts table is full!");
+      // Table is full, but still notify app about discovered contact
+      // Use a temporary ContactInfo since we can't add to permanent list
+      // (Connection check happens inside onDiscoveredContact, same as manual-add mode)
+      ContactInfo ci;
+      memset(&ci, 0, sizeof(ci));
+      ci.id = id;
+      ci.out_path_len = -1;  // initially out_path is unknown
+      StrHelper::strncpy(ci.name, parser.getName(), sizeof(ci.name));
+      ci.type = parser.getType();
+      if (parser.hasLatLon()) {
+        ci.gps_lat = parser.getIntLat();
+        ci.gps_lon = parser.getIntLon();
+      }
+      ci.last_advert_timestamp = timestamp;
+      ci.lastmod = getRTCClock()->getCurrentTime();
+      onDiscoveredContact(ci, true, packet->path_len, packet->path);       // let UI know
+      MESH_DEBUG_PRINTLN("onAdvertRecv: contacts table is full, notified app but didn't add contact");
       return;
     }
   }
