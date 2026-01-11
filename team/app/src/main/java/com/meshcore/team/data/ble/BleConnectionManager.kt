@@ -51,6 +51,10 @@ class BleConnectionManager(private val context: Context) {
     private val _incomingMessages = MutableSharedFlow<ChannelMessage>(extraBufferCapacity = 10)
     val incomingMessages: SharedFlow<ChannelMessage> = _incomingMessages.asSharedFlow()
     
+    // Shared flow for message delivery confirmations (ACKs)
+    private val _sendConfirmed = MutableSharedFlow<SendConfirmed>(extraBufferCapacity = 10)
+    val sendConfirmed: SharedFlow<SendConfirmed> = _sendConfirmed.asSharedFlow()
+    
     private val gattCallback = object : BluetoothGattCallback() {
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
             when (newState) {
@@ -73,8 +77,10 @@ class BleConnectionManager(private val context: Context) {
                     
                     _connectionState.value = ConnectionState.CONNECTED
                     _connectedDevice.value = gatt.device
-                    // Discover services
-                    gatt.discoverServices()
+                    
+                    // Request larger MTU for longer messages
+                    Timber.i("Requesting MTU of 185 bytes (172 payload + overhead)")
+                    gatt.requestMtu(185) // 172 byte payload + 13 bytes BLE overhead
                 }
                 BluetoothProfile.STATE_DISCONNECTED -> {
                     Timber.i("Disconnected from GATT server")
@@ -82,6 +88,18 @@ class BleConnectionManager(private val context: Context) {
                     _connectedDevice.value = null
                     cleanup()
                 }
+            }
+        }
+        
+        override fun onMtuChanged(gatt: BluetoothGatt, mtu: Int, status: Int) {
+            if (status == BluetoothGatt.GATT_SUCCESS) {
+                Timber.i("MTU changed to $mtu bytes (payload: ${mtu - 3} bytes)")
+                // Now discover services after MTU is set
+                gatt.discoverServices()
+            } else {
+                Timber.e("MTU change failed with status: $status, using default MTU")
+                // Proceed anyway with default MTU
+                gatt.discoverServices()
             }
         }
         
@@ -126,7 +144,7 @@ class BleConnectionManager(private val context: Context) {
             value: ByteArray
         ) {
             if (characteristic.uuid == UUID.fromString(BleConstants.TX_CHARACTERISTIC_UUID)) {
-                Timber.d("Received ${value.size} bytes from TX characteristic: ${value.joinToString(" ") { "%02X".format(it) }}")
+                Timber.d("🔔 BLE Notification: ${value.size} bytes: ${value.joinToString(" ") { "%02X".format(it) }}")
                 
                 // Decode response code
                 if (value.isNotEmpty()) {
@@ -136,9 +154,9 @@ class BleConnectionManager(private val context: Context) {
                         4 to "END_OF_CONTACTS", 5 to "SELF_INFO", 6 to "SENT",
                         10 to "NO_MORE_MESSAGES", 16 to "CONTACT_MSG_RECV_V3",
                         17 to "CHANNEL_MSG_RECV_V3", 18 to "CHANNEL_INFO",
-                        0x82 to "PUSH_SEND_CONFIRMED", 0x83 to "PUSH_MSG_WAITING"
+                        0x80 to "PUSH_ADVERT", 0x82 to "PUSH_SEND_CONFIRMED", 0x83 to "PUSH_MSG_WAITING"
                     )
-                    Timber.i("Response code: $responseCode (${responseNames[responseCode] ?: "UNKNOWN"})")
+                    Timber.i("📥 Response code: $responseCode (${responseNames[responseCode] ?: "UNKNOWN"})")
                     
                     // Parse and emit channel messages
                     if (responseCode == 17) { // RESP_CODE_CHANNEL_MSG_RECV_V3
@@ -148,6 +166,20 @@ class BleConnectionManager(private val context: Context) {
                             _incomingMessages.tryEmit(message)
                         }
                     }
+                    
+                    // Parse and emit SEND_CONFIRMED notifications (ACKs)
+                    if (responseCode == 0x82) { // PUSH_CODE_SEND_CONFIRMED
+                        Timber.w("🎯🎯🎯 SEND_CONFIRMED DETECTED! Frame size: ${value.size}")
+                        val ack = ResponseParser.parseSendConfirmed(value)
+                        if (ack != null) {
+                            Timber.i("✅ Message ACK received: RTT=${ack.roundTripTimeMs}ms, checksum=${ack.ackChecksum.joinToString("") { "%02X".format(it) }}")
+                            _sendConfirmed.tryEmit(ack)
+                        } else {
+                            Timber.e("❌ Failed to parse SEND_CONFIRMED frame")
+                        }
+                    }
+                } else {
+                    Timber.w("⚠️ Received empty notification from TX characteristic")
                 }
                 
                 _receivedData.value = value

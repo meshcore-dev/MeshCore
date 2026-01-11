@@ -106,4 +106,8 @@
     <string msgid="8191239805703103845" name="tooltip_pane_description">"Descrizione comando"</string>
     <string name="topo">Sentieri</string>
     <string name="unknown">Sconosciuta</string>
+    <string name="zxing_app_name">Barcode Scanner</string>
+    <string name="zxing_button_ok">OK</string>
+    <string name="zxing_msg_camera_framework_bug">Spiacenti, la fotocamera Android ha riscontrato un problema. Potrebbe essere necessario riavviare il dispositivo.</string>
+    <string name="zxing_msg_default_status">Posiziona un codice a barre dentro il mirino rettangolare per la scansione.</string>
 </resources>

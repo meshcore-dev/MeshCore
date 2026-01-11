@@ -2,6 +2,7 @@ package com.meshcore.team.data.repository
 
 import com.meshcore.team.data.database.*
 import kotlinx.coroutines.flow.Flow
+import timber.log.Timber
 import java.util.UUID
 
 /**
@@ -65,7 +66,18 @@ class MessageRepository(
     }
     
     suspend fun updateDeliveryStatus(messageId: String, status: DeliveryStatus, count: Int) {
-        messageDao.updateDeliveryStatus(messageId, status.name, count)
+        val message = messageDao.getMessageById(messageId)
+        Timber.d("updateDeliveryStatus: messageId=$messageId, found=${message != null}, oldStatus=${message?.deliveryStatus}")
+        if (message != null) {
+            val updated = message.copy(
+                deliveryStatus = status.name,
+                heardByCount = count
+            )
+            messageDao.updateMessage(updated)
+            Timber.i("✓ Database updated: messageId=$messageId, status=${status.name}")
+        } else {
+            Timber.e("✗ Message not found in database: $messageId")
+        }
     }
     
     fun getAcksByMessageId(messageId: String): Flow<List<AckRecordEntity>> {
@@ -79,6 +91,8 @@ class MessageRepository(
         roundTripTimeMs: Int,
         isDirect: Boolean
     ) {
+        Timber.i("📥 recordAck called: messageId=$messageId, RTT=${roundTripTimeMs}ms")
+        
         val ack = AckRecordEntity(
             messageId = messageId,
             ackChecksum = ackChecksum,
@@ -88,9 +102,12 @@ class MessageRepository(
             receivedAt = System.currentTimeMillis()
         )
         ackRecordDao.insertAck(ack)
+        Timber.d("✓ ACK inserted into database")
         
         // Update message delivery count
         val count = ackRecordDao.getAckCountForMessage(messageId)
+        Timber.i("🔢 ACK count for message $messageId: $count")
         updateDeliveryStatus(messageId, DeliveryStatus.DELIVERED, count)
+        Timber.i("✅ Message status updated to DELIVERED with count=$count")
     }
 }

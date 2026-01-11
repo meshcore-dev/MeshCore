@@ -65,15 +65,18 @@ object CommandSerializer {
      * CMD_SEND_CHANNEL_TXT_MSG = 3
      * Send channel/group text message
      * Format: [cmd][txt_type][channel_idx][4-byte timestamp][text]
+     * 
+     * NOTE: channelIndex is the firmware's channel slot (0-3), not the hash!
+     * Index 0 = Public channel, 1-3 = private channels in order added
      */
-    fun sendChannelTextMessage(channelHash: Byte, timestamp: Int, text: String): ByteArray {
+    fun sendChannelTextMessage(channelIndex: Byte, timestamp: Int, text: String): ByteArray {
         val textBytes = text.toByteArray(Charsets.UTF_8)
         val frame = ByteArray(1 + 1 + 1 + 4 + textBytes.size)
         
         var offset = 0
         frame[offset++] = BleConstants.Commands.CMD_SEND_CHANNEL_TXT_MSG
         frame[offset++] = 0  // TXT_TYPE_PLAIN = 0
-        frame[offset++] = 0  // channel_idx = 0 (first/public channel)
+        frame[offset++] = channelIndex.toByte()  // channel index (0-3)
         
         // Add timestamp (little-endian)
         ByteBuffer.wrap(frame, offset, 4)
@@ -148,7 +151,7 @@ object CommandSerializer {
      * Create/update channel
      * Format: [cmd][1-byte hash][16-byte key][name string]
      */
-    fun setChannel(hash: Byte, key: ByteArray, name: String): ByteArray {
+    fun setChannelOld(hash: Byte, key: ByteArray, name: String): ByteArray {
         require(key.size == 16) { "Channel key must be 16 bytes" }
         
         val nameBytes = name.toByteArray(Charsets.UTF_8)
@@ -167,5 +170,36 @@ object CommandSerializer {
         
         Timber.d("Serialized CMD_SET_CHANNEL: ${frame.size} bytes")
         return frame
-    }
-}
+    }    
+    /**
+     * CMD_SET_CHANNEL = 32
+     * Register a channel with the companion radio
+     * Format: [cmd][channel_idx][32-byte name][16-byte PSK]
+     */
+    fun setChannel(channelIndex: Byte, name: String, psk: ByteArray): ByteArray {
+        if (psk.size != 16) {
+            throw IllegalArgumentException("PSK must be exactly 16 bytes")
+        }
+        
+        val frame = ByteArray(1 + 1 + 32 + 16)
+        var offset = 0
+        
+        frame[offset++] = BleConstants.Commands.CMD_SET_CHANNEL
+        frame[offset++] = channelIndex
+        
+        // Add channel name (32 bytes, null-padded)
+        val nameBytes = name.toByteArray(Charsets.UTF_8)
+        val nameToCopy = if (nameBytes.size > 32) {
+            nameBytes.copyOfRange(0, 32)
+        } else {
+            nameBytes
+        }
+        nameToCopy.copyInto(frame, offset)
+        offset += 32
+        
+        // Add PSK (16 bytes)
+        psk.copyInto(frame, offset)
+        
+        Timber.d("Serialized CMD_SET_CHANNEL: idx=$channelIndex, name=$name")
+        return frame
+    }}

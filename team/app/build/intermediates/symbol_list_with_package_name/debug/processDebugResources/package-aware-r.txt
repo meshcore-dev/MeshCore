@@ -53,6 +53,16 @@ attr statusBarBackground
 attr targetPackage
 attr ttcIndex
 attr uri
+attr zxing_framing_rect_height
+attr zxing_framing_rect_width
+attr zxing_possible_result_points
+attr zxing_preview_scaling_strategy
+attr zxing_result_view
+attr zxing_scanner_layout
+attr zxing_use_texture_view
+attr zxing_viewfinder_laser
+attr zxing_viewfinder_laser_visibility
+attr zxing_viewfinder_mask
 bool enable_system_alarm_service_default
 bool enable_system_foreground_service_default
 bool enable_system_job_service_default
@@ -83,6 +93,16 @@ color teal_700
 color vector_tint_color
 color vector_tint_theme_color
 color white
+color zxing_custom_possible_result_points
+color zxing_custom_result_view
+color zxing_custom_viewfinder_laser
+color zxing_custom_viewfinder_mask
+color zxing_possible_result_points
+color zxing_result_view
+color zxing_status_text
+color zxing_transparent
+color zxing_viewfinder_laser
+color zxing_viewfinder_mask
 dimen compat_button_inset_horizontal_material
 dimen compat_button_inset_vertical_material
 dimen compat_button_padding_horizontal_material
@@ -222,6 +242,7 @@ id bubble_moreinfo
 id bubble_subdescription
 id bubble_title
 id center
+id centerCrop
 id center_horizontal
 id center_vertical
 id chronometer
@@ -236,6 +257,8 @@ id end
 id fill
 id fill_horizontal
 id fill_vertical
+id fitCenter
+id fitXY
 id forever
 id hide_ime_id
 id hide_in_inspector_tag
@@ -287,6 +310,19 @@ id view_tree_saved_state_registry_owner
 id view_tree_view_model_store_owner
 id wide
 id wrapped_composition_tag
+id zxing_back_button
+id zxing_barcode_scanner
+id zxing_barcode_surface
+id zxing_camera_closed
+id zxing_camera_error
+id zxing_decode
+id zxing_decode_failed
+id zxing_decode_succeeded
+id zxing_possible_result_points
+id zxing_preview_failed
+id zxing_prewiew_size_ready
+id zxing_status_view
+id zxing_viewfinder_view
 integer google_play_services_version
 integer status_bar_notification_info_maxnum
 layout bonuspack_bubble
@@ -299,10 +335,14 @@ layout notification_template_custom_big
 layout notification_template_icon_group
 layout notification_template_part_chronometer
 layout notification_template_part_time
+layout zxing_barcode_scanner
+layout zxing_capture
+raw zxing_beep
 string about
 string about_message
 string androidx_startup
 string app_name
+string app_version
 string base
 string base_nl
 string bing
@@ -383,6 +423,7 @@ string date_range_picker_start_headline
 string date_range_picker_title
 string default_error_message
 string default_popup_window_title
+string define_zxingandroidembedded
 string dialog
 string dropdown_menu
 string expanded
@@ -402,6 +443,15 @@ string format_distance_value_unit
 string hills
 string in_progress
 string indeterminate
+string library_zxingandroidembedded_author
+string library_zxingandroidembedded_authorWebsite
+string library_zxingandroidembedded_isOpenSource
+string library_zxingandroidembedded_libraryDescription
+string library_zxingandroidembedded_libraryName
+string library_zxingandroidembedded_libraryVersion
+string library_zxingandroidembedded_libraryWebsite
+string library_zxingandroidembedded_licenseId
+string library_zxingandroidembedded_repositoryLink
 string m3c_bottom_sheet_pane_title
 string map_mode
 string mapbox
@@ -449,6 +499,10 @@ string tooltip_long_press_label
 string tooltip_pane_description
 string topo
 string unknown
+string zxing_app_name
+string zxing_button_ok
+string zxing_msg_camera_framework_bug
+string zxing_msg_default_status
 style DialogWindowTheme
 style FloatingDialogTheme
 style FloatingDialogWindowTheme
@@ -461,6 +515,7 @@ style Theme_TEAM
 style Widget_Compat_NotificationActionContainer
 style Widget_Compat_NotificationActionText
 style Widget_Support_CoordinatorLayout
+style zxing_CaptureTheme
 styleable ActivityNavigator android_name action data dataPattern targetPackage
 styleable Capability queryPatterns shortcutMatchRequired
 styleable ColorStateListItem android_color android_alpha android_lStar alpha lStar
@@ -479,5 +534,8 @@ styleable NavHost navGraph
 styleable NavInclude graph
 styleable Navigator android_label android_id route
 styleable SignInButton buttonSize colorScheme scopeUris
+styleable zxing_camera_preview zxing_framing_rect_height zxing_framing_rect_width zxing_preview_scaling_strategy zxing_use_texture_view
+styleable zxing_finder zxing_possible_result_points zxing_result_view zxing_viewfinder_laser zxing_viewfinder_laser_visibility zxing_viewfinder_mask
+styleable zxing_view zxing_scanner_layout
 xml backup_rules
 xml data_extraction_rules

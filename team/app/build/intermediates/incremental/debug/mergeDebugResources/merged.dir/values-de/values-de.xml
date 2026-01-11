@@ -107,4 +107,8 @@
     <string msgid="8191239805703103845" name="tooltip_pane_description">"Kurzinfo"</string>
     <string name="topo">Topographisch</string>
     <string name="unknown">Unbekannt</string>
+    <string name="zxing_app_name">Barcode Scanner</string>
+    <string name="zxing_button_ok">OK</string>
+    <string name="zxing_msg_camera_framework_bug">Mit der Android-Kamera ist leider ein Fehler aufgetreten. Es könnte sein, dass Sie das Gerät neu starten müssen.</string>
+    <string name="zxing_msg_default_status">Positionieren Sie den Barcode innerhalb des Rechteckes.</string>
 </resources>

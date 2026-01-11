@@ -98,4 +98,8 @@
     <string msgid="2232702812657998674" name="time_picker_pm">"p.m."</string>
     <string msgid="2732804537909054941" name="tooltip_long_press_label">"Afișează balonul explicativ"</string>
     <string msgid="8191239805703103845" name="tooltip_pane_description">"Balon explicativ"</string>
+    <string name="zxing_app_name">Barcode Scanner</string>
+    <string name="zxing_button_ok">Acceptă</string>
+    <string name="zxing_msg_camera_framework_bug">Probleme cu camera foto. Repornește dispozitivul.</string>
+    <string name="zxing_msg_default_status">Plasează codul de bare în interiorul vizorului pentru a-l scana</string>
 </resources>

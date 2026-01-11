@@ -98,4 +98,8 @@
     <string msgid="2232702812657998674" name="time_picker_pm">"下午"</string>
     <string msgid="2732804537909054941" name="tooltip_long_press_label">"顯示提示"</string>
     <string msgid="8191239805703103845" name="tooltip_pane_description">"提示"</string>
+    <string name="zxing_app_name">條碼掃描器</string>
+    <string name="zxing_button_ok">確定</string>
+    <string name="zxing_msg_camera_framework_bug">很抱歉，Android 相機出現問題，您可能需要重新啟動您的裝置。</string>
+    <string name="zxing_msg_default_status">將條碼置於鏡頭範圍內以進行掃描。</string>
 </resources>

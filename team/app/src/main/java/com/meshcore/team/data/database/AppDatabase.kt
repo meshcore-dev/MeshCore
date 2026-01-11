@@ -16,7 +16,7 @@ import androidx.room.TypeConverters
         ChannelEntity::class,
         AckRecordEntity::class
     ],
-    version = 1,
+    version = 2, // Incremented for channelIndex field addition
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -37,7 +37,9 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "team_database"
-                ).build()
+                )
+                .fallbackToDestructiveMigration() // For development: recreate DB on schema change
+                .build()
                 INSTANCE = instance
                 instance
             }

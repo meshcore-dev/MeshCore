@@ -29,6 +29,9 @@ data class MessageEntity(
         if (id != other.id) return false
         if (!senderId.contentEquals(other.senderId)) return false
         if (channelHash != other.channelHash) return false
+        if (deliveryStatus != other.deliveryStatus) return false
+        if (content != other.content) return false
+        if (heardByCount != other.heardByCount) return false
         return true
     }
 
@@ -36,6 +39,9 @@ data class MessageEntity(
         var result = id.hashCode()
         result = 31 * result + senderId.contentHashCode()
         result = 31 * result + channelHash
+        result = 31 * result + deliveryStatus.hashCode()
+        result = 31 * result + content.hashCode()
+        result = 31 * result + heardByCount
         return result
     }
 }

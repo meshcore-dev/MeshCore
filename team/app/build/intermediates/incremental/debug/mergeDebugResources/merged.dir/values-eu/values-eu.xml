@@ -98,4 +98,8 @@
     <string msgid="2232702812657998674" name="time_picker_pm">"PM"</string>
     <string msgid="2732804537909054941" name="tooltip_long_press_label">"Erakutsi aholkua"</string>
     <string msgid="8191239805703103845" name="tooltip_pane_description">"Aholkua"</string>
+    <string name="zxing_app_name">Barra-kode Eskanerra</string>
+    <string name="zxing_button_ok">Ados</string>
+    <string name="zxing_msg_camera_framework_bug">Barkatu, Android kamerak arazo bat izan du. Behar bada gailua berrabiarazi beharko duzu.</string>
+    <string name="zxing_msg_default_status">Kokatu barra-kode bat laukizuzenaren barruan eskaneatzeko.</string>
 </resources>

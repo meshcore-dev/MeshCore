@@ -98,4 +98,8 @@
     <string msgid="2232702812657998674" name="time_picker_pm">"오후"</string>
     <string msgid="2732804537909054941" name="tooltip_long_press_label">"도움말 표시"</string>
     <string msgid="8191239805703103845" name="tooltip_pane_description">"도움말"</string>
+    <string name="zxing_app_name">바코드 스캐너</string>
+    <string name="zxing_button_ok">확인</string>
+    <string name="zxing_msg_camera_framework_bug">죄송합니다. 기기의 카메라에 오류가 생겼습니다. 기기를 재시작 해야될 수도 있습니다.</string>
+    <string name="zxing_msg_default_status">바코드를 사각형 안에 비춰주세요.</string>
 </resources>

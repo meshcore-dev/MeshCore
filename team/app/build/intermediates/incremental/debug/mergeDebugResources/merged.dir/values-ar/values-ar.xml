@@ -98,4 +98,8 @@
     <string msgid="2232702812657998674" name="time_picker_pm">"م"</string>
     <string msgid="2732804537909054941" name="tooltip_long_press_label">"إظهار التلميح"</string>
     <string msgid="8191239805703103845" name="tooltip_pane_description">"تلميح"</string>
+    <string name="zxing_app_name">ماسح الرمز الشريطي</string>
+    <string name="zxing_button_ok">موافق</string>
+    <string name="zxing_msg_camera_framework_bug">عفوا، حدثت مشكلة في كاميرا جهاز Android. قد تحتاج إلى إعادة تشغيل الجهاز.</string>
+    <string name="zxing_msg_default_status">قم بوضع الرمز الشريطي داخل حدود صورة الكاميرا ليتم مسحه.</string>
 </resources>

@@ -37,15 +37,15 @@ public final class AppDatabase_Impl extends AppDatabase {
   @Override
   @NonNull
   protected SupportSQLiteOpenHelper createOpenHelper(@NonNull final DatabaseConfiguration config) {
-    final SupportSQLiteOpenHelper.Callback _openCallback = new RoomOpenHelper(config, new RoomOpenHelper.Delegate(1) {
+    final SupportSQLiteOpenHelper.Callback _openCallback = new RoomOpenHelper(config, new RoomOpenHelper.Delegate(2) {
       @Override
       public void createAllTables(@NonNull final SupportSQLiteDatabase db) {
         db.execSQL("CREATE TABLE IF NOT EXISTS `messages` (`id` TEXT NOT NULL, `senderId` BLOB NOT NULL, `senderName` TEXT, `channelHash` INTEGER NOT NULL, `content` TEXT NOT NULL, `timestamp` INTEGER NOT NULL, `isPrivate` INTEGER NOT NULL, `ackChecksum` BLOB, `deliveryStatus` TEXT NOT NULL, `heardByCount` INTEGER NOT NULL, `attempt` INTEGER NOT NULL, `isSentByMe` INTEGER NOT NULL, PRIMARY KEY(`id`))");
         db.execSQL("CREATE TABLE IF NOT EXISTS `nodes` (`publicKey` BLOB NOT NULL, `hash` INTEGER NOT NULL, `name` TEXT, `latitude` REAL, `longitude` REAL, `lastSeen` INTEGER NOT NULL, `batteryMilliVolts` INTEGER, `isRepeater` INTEGER NOT NULL, `isRoomServer` INTEGER NOT NULL, `isDirect` INTEGER NOT NULL, PRIMARY KEY(`publicKey`))");
-        db.execSQL("CREATE TABLE IF NOT EXISTS `channels` (`hash` INTEGER NOT NULL, `name` TEXT NOT NULL, `sharedKey` BLOB NOT NULL, `isPublic` INTEGER NOT NULL, `shareLocation` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL, PRIMARY KEY(`hash`))");
+        db.execSQL("CREATE TABLE IF NOT EXISTS `channels` (`hash` INTEGER NOT NULL, `name` TEXT NOT NULL, `sharedKey` BLOB NOT NULL, `isPublic` INTEGER NOT NULL, `shareLocation` INTEGER NOT NULL, `channelIndex` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL, PRIMARY KEY(`hash`))");
         db.execSQL("CREATE TABLE IF NOT EXISTS `ack_records` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `messageId` TEXT NOT NULL, `ackChecksum` BLOB NOT NULL, `devicePublicKey` BLOB NOT NULL, `roundTripTimeMs` INTEGER NOT NULL, `isDirect` INTEGER NOT NULL, `receivedAt` INTEGER NOT NULL)");
         db.execSQL("CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)");
-        db.execSQL("INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '453b8b1fc9d79b280213f13984a36893')");
+        db.execSQL("INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'f08b3105ad03da22a34bd58bbf7d077f')");
       }
 
       @Override
@@ -139,12 +139,13 @@ public final class AppDatabase_Impl extends AppDatabase {
                   + " Expected:\n" + _infoNodes + "\n"
                   + " Found:\n" + _existingNodes);
         }
-        final HashMap<String, TableInfo.Column> _columnsChannels = new HashMap<String, TableInfo.Column>(6);
+        final HashMap<String, TableInfo.Column> _columnsChannels = new HashMap<String, TableInfo.Column>(7);
         _columnsChannels.put("hash", new TableInfo.Column("hash", "INTEGER", true, 1, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsChannels.put("name", new TableInfo.Column("name", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsChannels.put("sharedKey", new TableInfo.Column("sharedKey", "BLOB", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsChannels.put("isPublic", new TableInfo.Column("isPublic", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsChannels.put("shareLocation", new TableInfo.Column("shareLocation", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsChannels.put("channelIndex", new TableInfo.Column("channelIndex", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsChannels.put("createdAt", new TableInfo.Column("createdAt", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         final HashSet<TableInfo.ForeignKey> _foreignKeysChannels = new HashSet<TableInfo.ForeignKey>(0);
         final HashSet<TableInfo.Index> _indicesChannels = new HashSet<TableInfo.Index>(0);
@@ -174,7 +175,7 @@ public final class AppDatabase_Impl extends AppDatabase {
         }
         return new RoomOpenHelper.ValidationResult(true, null);
       }
-    }, "453b8b1fc9d79b280213f13984a36893", "de920fbc3df5e783ebe492b3171b6237");
+    }, "f08b3105ad03da22a34bd58bbf7d077f", "dc1665a58542379e2429d5a8444d2645");
     final SupportSQLiteOpenHelper.Configuration _sqliteConfig = SupportSQLiteOpenHelper.Configuration.builder(config.context).name(config.name).callback(_openCallback).build();
     final SupportSQLiteOpenHelper _helper = config.sqliteOpenHelperFactory.create(_sqliteConfig);
     return _helper;

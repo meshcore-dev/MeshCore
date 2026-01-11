@@ -98,4 +98,8 @@
     <string msgid="2232702812657998674" name="time_picker_pm">"pop."</string>
     <string msgid="2732804537909054941" name="tooltip_long_press_label">"Pokaži opis orodja"</string>
     <string msgid="8191239805703103845" name="tooltip_pane_description">"Opis orodja"</string>
+    <string name="zxing_app_name">Barcode Scanner</string>
+    <string name="zxing_button_ok">V redu</string>
+    <string name="zxing_msg_camera_framework_bug">Oprostite, Android kamera je naletela na težave. Mogoče boste morali ponovno zagnati napravo.</string>
+    <string name="zxing_msg_default_status">Za branje postavite črtno kodo znotraj iskala.</string>
 </resources>

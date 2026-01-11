@@ -2,14 +2,14 @@
 
 **Project Goal**: Create an Android app for position tracking and messaging over MeshCore LoRa mesh network for hunting and tactical use when other networks are unavailable.
 
-**Last Updated**: January 9, 2026
+**Last Updated**: January 10, 2026
 
 ---
 
 ## Current Progress
 
 **Phase**: Messaging (Phase 2)
-**Status**: 🟡 In Progress
+**Status**: ✅ Messaging Complete with ACK Tracking
 
 **Completed**:
 - ✅ **Phase 1 - BLE Foundation**: Scanner, connection manager, command serialization, response parsing, connection UI, permissions
@@ -18,13 +18,45 @@
 - ✅ **Navigation**: Two-screen navigation (messages ↔ connection)
 - ✅ **Mock Data Support**: Test messaging without hardware
 - ✅ **Dark Theme**: Default dark theme enabled
+- ✅ **BLE Message Sending**: Integrated with CommandSerializer, encrypted pairing support
+- ✅ **Message Polling**: Automatic 2-second polling loop (CMD_SYNC_NEXT_MESSAGE)
+- ✅ **Bidirectional Messaging**: Send and receive working with companion radio
+- ✅ **Real-time UI Updates**: Fixed Compose recomposition for instant status updates
+- ✅ **MTU Negotiation**: Request 185-byte MTU for full message frames
+- ✅ **Message Format Parsing**: Parse "SENDERID: MESSAGE" format from MeshCore firmware
+- ✅ **Delivery Status**: Checkmark appears immediately when companion confirms transmission
+- ✅ **ACK Tracking**: PUSH_CODE_SEND_CONFIRMED handling, checksum calculation, delivery count display
+
+**Recent Work (Jan 10, 2026)**:
+- Implemented ACK tracking system for message delivery confirmations
+- Added AckChecksumCalculator (SHA256-based, matches firmware)
+- BleConnectionManager now emits SendConfirmed notifications
+- MessageViewModel listens for ACKs and correlates by checksum
+- UI shows "Delivered (X)" with count of devices that received message
+- Database records ACK details (checksum, RTT, device)
+- **Discovered limitation**: Companion radio firmware only tracks ACKs for direct messages (CMD_SEND_TXT_MSG), not channel messages (CMD_SEND_CHANNEL_TXT_MSG)
+
+**Known Limitations**:
+- ⚠️ **Channel Message ACK Tracking**: Current companion radio firmware doesn't calculate/forward ACKs for group channel messages, only for direct person-to-person messages. This means "Delivered (X)" count only works for direct messages, not public/private channels. Requires firmware enhancement to `examples/companion_radio/MyMesh.cpp` to calculate ACK checksums for channel messages and store them in `expected_ack_table`.
 
 **Next Tasks**:
+- [ ] Add private channel creation and management (name, PSK generation)
+- [ ] Add channel key sharing (QR code/text export for inviting others)
+- [ ] Add contact syncing from companion radio (CMD_GET_CONTACTS)
+- [ ] Add direct messaging to contacts with recipient selection
+- [ ] Test ACK tracking with direct messages
+- [ ] Add sender identification (extract device info from advertisements to replace placeholder keys)
+- [ ] Implement multi-channel support (beyond public channel)
 - [ ] Add persistent navigation bar for easier screen switching
-- [ ] Show sender name/tag on message bubbles
-- [ ] Integrate BLE message sending with CommandSerializer
-- [ ] Implement message polling service (CMD_SYNC_NEXT_MESSAGE)
-- [ ] Add delivery tracking with ACKs (PUSH_CODE_SEND_CONFIRMED)
+- [ ] **Firmware Enhancement** (future): Add channel message ACK tracking to companion radio firmware
+- [ ] **Background Service Implementation**:
+  - [ ] Foreground service for BLE connection maintenance
+  - [ ] Screen-off operation (maintain BLE comms when screen locked)
+  - [ ] Message notifications (push notifications for incoming messages)
+  - [ ] Location polling in background (for position sharing)
+  - [ ] Battery optimization handling (Doze mode exemption)
+  - [ ] Wake locks for critical operations
+- [ ] Begin Phase 3 - Location tracking integration
 
 ---
 
@@ -43,6 +75,12 @@
   - [ ] **Compass heading** on user's own marker
   - [ ] **Distance rings** (configurable, default 500m increments)
 - [ ] Text messaging (public & private channels)
+- [ ] **Background operation & notifications**:
+  - [ ] Foreground service to maintain BLE connection when screen is off
+  - [ ] Push notifications for incoming messages
+  - [ ] Background location polling for position sharing
+  - [ ] Battery optimization handling (prevent Doze from killing service)
+  - [ ] Persistent notification showing connection status
 - [ ] **Message delivery tracking with color-coded markers**:
   - [ ] 🟢 Green = Direct contact (heard directly, no hops)
   - [ ] 🟡 Yellow = Via mesh (received through hops)

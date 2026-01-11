@@ -98,4 +98,8 @@
     <string msgid="2232702812657998674" name="time_picker_pm">"IP"</string>
     <string msgid="2732804537909054941" name="tooltip_long_press_label">"Näytä vihjeteksti"</string>
     <string msgid="8191239805703103845" name="tooltip_pane_description">"Vihjeteksti"</string>
+    <string name="zxing_app_name">Barcode Scanner</string>
+    <string name="zxing_button_ok">OK</string>
+    <string name="zxing_msg_camera_framework_bug">Valitettavasti Androidin kameran toimiinta häiriintyi. Joudut ehkä käynnistämään laitteen uudelleen.</string>
+    <string name="zxing_msg_default_status">Aseta viivakoodi neliön sisälle skannataksesi sen.</string>
 </resources>

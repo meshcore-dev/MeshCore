@@ -47,7 +47,7 @@ public final class ChannelDao_Impl implements ChannelDao {
       @Override
       @NonNull
       protected String createQuery() {
-        return "INSERT OR REPLACE INTO `channels` (`hash`,`name`,`sharedKey`,`isPublic`,`shareLocation`,`createdAt`) VALUES (?,?,?,?,?,?)";
+        return "INSERT OR REPLACE INTO `channels` (`hash`,`name`,`sharedKey`,`isPublic`,`shareLocation`,`channelIndex`,`createdAt`) VALUES (?,?,?,?,?,?,?)";
       }
 
       @Override
@@ -60,7 +60,8 @@ public final class ChannelDao_Impl implements ChannelDao {
         statement.bindLong(4, _tmp);
         final int _tmp_1 = entity.getShareLocation() ? 1 : 0;
         statement.bindLong(5, _tmp_1);
-        statement.bindLong(6, entity.getCreatedAt());
+        statement.bindLong(6, entity.getChannelIndex());
+        statement.bindLong(7, entity.getCreatedAt());
       }
     };
     this.__deletionAdapterOfChannelEntity = new EntityDeletionOrUpdateAdapter<ChannelEntity>(__db) {
@@ -80,7 +81,7 @@ public final class ChannelDao_Impl implements ChannelDao {
       @Override
       @NonNull
       protected String createQuery() {
-        return "UPDATE OR ABORT `channels` SET `hash` = ?,`name` = ?,`sharedKey` = ?,`isPublic` = ?,`shareLocation` = ?,`createdAt` = ? WHERE `hash` = ?";
+        return "UPDATE OR ABORT `channels` SET `hash` = ?,`name` = ?,`sharedKey` = ?,`isPublic` = ?,`shareLocation` = ?,`channelIndex` = ?,`createdAt` = ? WHERE `hash` = ?";
       }
 
       @Override
@@ -93,8 +94,9 @@ public final class ChannelDao_Impl implements ChannelDao {
         statement.bindLong(4, _tmp);
         final int _tmp_1 = entity.getShareLocation() ? 1 : 0;
         statement.bindLong(5, _tmp_1);
-        statement.bindLong(6, entity.getCreatedAt());
-        statement.bindLong(7, entity.getHash());
+        statement.bindLong(6, entity.getChannelIndex());
+        statement.bindLong(7, entity.getCreatedAt());
+        statement.bindLong(8, entity.getHash());
       }
     };
     this.__preparedStmtOfUpdateChannelLocationSharing = new SharedSQLiteStatement(__db) {
@@ -208,6 +210,7 @@ public final class ChannelDao_Impl implements ChannelDao {
           final int _cursorIndexOfSharedKey = CursorUtil.getColumnIndexOrThrow(_cursor, "sharedKey");
           final int _cursorIndexOfIsPublic = CursorUtil.getColumnIndexOrThrow(_cursor, "isPublic");
           final int _cursorIndexOfShareLocation = CursorUtil.getColumnIndexOrThrow(_cursor, "shareLocation");
+          final int _cursorIndexOfChannelIndex = CursorUtil.getColumnIndexOrThrow(_cursor, "channelIndex");
           final int _cursorIndexOfCreatedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "createdAt");
           final List<ChannelEntity> _result = new ArrayList<ChannelEntity>(_cursor.getCount());
           while (_cursor.moveToNext()) {
@@ -226,9 +229,11 @@ public final class ChannelDao_Impl implements ChannelDao {
             final int _tmp_1;
             _tmp_1 = _cursor.getInt(_cursorIndexOfShareLocation);
             _tmpShareLocation = _tmp_1 != 0;
+            final byte _tmpChannelIndex;
+            _tmpChannelIndex = (byte) (_cursor.getShort(_cursorIndexOfChannelIndex));
             final long _tmpCreatedAt;
             _tmpCreatedAt = _cursor.getLong(_cursorIndexOfCreatedAt);
-            _item = new ChannelEntity(_tmpHash,_tmpName,_tmpSharedKey,_tmpIsPublic,_tmpShareLocation,_tmpCreatedAt);
+            _item = new ChannelEntity(_tmpHash,_tmpName,_tmpSharedKey,_tmpIsPublic,_tmpShareLocation,_tmpChannelIndex,_tmpCreatedAt);
             _result.add(_item);
           }
           return _result;
@@ -242,6 +247,57 @@ public final class ChannelDao_Impl implements ChannelDao {
         _statement.release();
       }
     });
+  }
+
+  @Override
+  public Object getAllChannelsOnce(final Continuation<? super List<ChannelEntity>> $completion) {
+    final String _sql = "SELECT * FROM channels ORDER BY createdAt DESC";
+    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 0);
+    final CancellationSignal _cancellationSignal = DBUtil.createCancellationSignal();
+    return CoroutinesRoom.execute(__db, false, _cancellationSignal, new Callable<List<ChannelEntity>>() {
+      @Override
+      @NonNull
+      public List<ChannelEntity> call() throws Exception {
+        final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
+        try {
+          final int _cursorIndexOfHash = CursorUtil.getColumnIndexOrThrow(_cursor, "hash");
+          final int _cursorIndexOfName = CursorUtil.getColumnIndexOrThrow(_cursor, "name");
+          final int _cursorIndexOfSharedKey = CursorUtil.getColumnIndexOrThrow(_cursor, "sharedKey");
+          final int _cursorIndexOfIsPublic = CursorUtil.getColumnIndexOrThrow(_cursor, "isPublic");
+          final int _cursorIndexOfShareLocation = CursorUtil.getColumnIndexOrThrow(_cursor, "shareLocation");
+          final int _cursorIndexOfChannelIndex = CursorUtil.getColumnIndexOrThrow(_cursor, "channelIndex");
+          final int _cursorIndexOfCreatedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "createdAt");
+          final List<ChannelEntity> _result = new ArrayList<ChannelEntity>(_cursor.getCount());
+          while (_cursor.moveToNext()) {
+            final ChannelEntity _item;
+            final byte _tmpHash;
+            _tmpHash = (byte) (_cursor.getShort(_cursorIndexOfHash));
+            final String _tmpName;
+            _tmpName = _cursor.getString(_cursorIndexOfName);
+            final byte[] _tmpSharedKey;
+            _tmpSharedKey = _cursor.getBlob(_cursorIndexOfSharedKey);
+            final boolean _tmpIsPublic;
+            final int _tmp;
+            _tmp = _cursor.getInt(_cursorIndexOfIsPublic);
+            _tmpIsPublic = _tmp != 0;
+            final boolean _tmpShareLocation;
+            final int _tmp_1;
+            _tmp_1 = _cursor.getInt(_cursorIndexOfShareLocation);
+            _tmpShareLocation = _tmp_1 != 0;
+            final byte _tmpChannelIndex;
+            _tmpChannelIndex = (byte) (_cursor.getShort(_cursorIndexOfChannelIndex));
+            final long _tmpCreatedAt;
+            _tmpCreatedAt = _cursor.getLong(_cursorIndexOfCreatedAt);
+            _item = new ChannelEntity(_tmpHash,_tmpName,_tmpSharedKey,_tmpIsPublic,_tmpShareLocation,_tmpChannelIndex,_tmpCreatedAt);
+            _result.add(_item);
+          }
+          return _result;
+        } finally {
+          _cursor.close();
+          _statement.release();
+        }
+      }
+    }, $completion);
   }
 
   @Override
@@ -263,6 +319,7 @@ public final class ChannelDao_Impl implements ChannelDao {
           final int _cursorIndexOfSharedKey = CursorUtil.getColumnIndexOrThrow(_cursor, "sharedKey");
           final int _cursorIndexOfIsPublic = CursorUtil.getColumnIndexOrThrow(_cursor, "isPublic");
           final int _cursorIndexOfShareLocation = CursorUtil.getColumnIndexOrThrow(_cursor, "shareLocation");
+          final int _cursorIndexOfChannelIndex = CursorUtil.getColumnIndexOrThrow(_cursor, "channelIndex");
           final int _cursorIndexOfCreatedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "createdAt");
           final ChannelEntity _result;
           if (_cursor.moveToFirst()) {
@@ -280,9 +337,65 @@ public final class ChannelDao_Impl implements ChannelDao {
             final int _tmp_1;
             _tmp_1 = _cursor.getInt(_cursorIndexOfShareLocation);
             _tmpShareLocation = _tmp_1 != 0;
+            final byte _tmpChannelIndex;
+            _tmpChannelIndex = (byte) (_cursor.getShort(_cursorIndexOfChannelIndex));
             final long _tmpCreatedAt;
             _tmpCreatedAt = _cursor.getLong(_cursorIndexOfCreatedAt);
-            _result = new ChannelEntity(_tmpHash,_tmpName,_tmpSharedKey,_tmpIsPublic,_tmpShareLocation,_tmpCreatedAt);
+            _result = new ChannelEntity(_tmpHash,_tmpName,_tmpSharedKey,_tmpIsPublic,_tmpShareLocation,_tmpChannelIndex,_tmpCreatedAt);
+          } else {
+            _result = null;
+          }
+          return _result;
+        } finally {
+          _cursor.close();
+          _statement.release();
+        }
+      }
+    }, $completion);
+  }
+
+  @Override
+  public Object getChannelByIndex(final byte index,
+      final Continuation<? super ChannelEntity> $completion) {
+    final String _sql = "SELECT * FROM channels WHERE channelIndex = ?";
+    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 1);
+    int _argIndex = 1;
+    _statement.bindLong(_argIndex, index);
+    final CancellationSignal _cancellationSignal = DBUtil.createCancellationSignal();
+    return CoroutinesRoom.execute(__db, false, _cancellationSignal, new Callable<ChannelEntity>() {
+      @Override
+      @Nullable
+      public ChannelEntity call() throws Exception {
+        final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
+        try {
+          final int _cursorIndexOfHash = CursorUtil.getColumnIndexOrThrow(_cursor, "hash");
+          final int _cursorIndexOfName = CursorUtil.getColumnIndexOrThrow(_cursor, "name");
+          final int _cursorIndexOfSharedKey = CursorUtil.getColumnIndexOrThrow(_cursor, "sharedKey");
+          final int _cursorIndexOfIsPublic = CursorUtil.getColumnIndexOrThrow(_cursor, "isPublic");
+          final int _cursorIndexOfShareLocation = CursorUtil.getColumnIndexOrThrow(_cursor, "shareLocation");
+          final int _cursorIndexOfChannelIndex = CursorUtil.getColumnIndexOrThrow(_cursor, "channelIndex");
+          final int _cursorIndexOfCreatedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "createdAt");
+          final ChannelEntity _result;
+          if (_cursor.moveToFirst()) {
+            final byte _tmpHash;
+            _tmpHash = (byte) (_cursor.getShort(_cursorIndexOfHash));
+            final String _tmpName;
+            _tmpName = _cursor.getString(_cursorIndexOfName);
+            final byte[] _tmpSharedKey;
+            _tmpSharedKey = _cursor.getBlob(_cursorIndexOfSharedKey);
+            final boolean _tmpIsPublic;
+            final int _tmp;
+            _tmp = _cursor.getInt(_cursorIndexOfIsPublic);
+            _tmpIsPublic = _tmp != 0;
+            final boolean _tmpShareLocation;
+            final int _tmp_1;
+            _tmp_1 = _cursor.getInt(_cursorIndexOfShareLocation);
+            _tmpShareLocation = _tmp_1 != 0;
+            final byte _tmpChannelIndex;
+            _tmpChannelIndex = (byte) (_cursor.getShort(_cursorIndexOfChannelIndex));
+            final long _tmpCreatedAt;
+            _tmpCreatedAt = _cursor.getLong(_cursorIndexOfCreatedAt);
+            _result = new ChannelEntity(_tmpHash,_tmpName,_tmpSharedKey,_tmpIsPublic,_tmpShareLocation,_tmpChannelIndex,_tmpCreatedAt);
           } else {
             _result = null;
           }

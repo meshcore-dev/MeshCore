@@ -1,4 +1,4 @@
-#Fri Jan 09 23:11:09 EST 2026
+#Sat Jan 10 22:20:38 EST 2026
 base.0=C\:\\Users\\Tom\\Documents\\MeshCore\\team\\app\\build\\intermediates\\dex\\debug\\mergeExtDexDebug\\classes.dex
 base.1=C\:\\Users\\Tom\\Documents\\MeshCore\\team\\app\\build\\intermediates\\dex\\debug\\mergeProjectDexDebug\\0\\classes.dex
 base.2=C\:\\Users\\Tom\\Documents\\MeshCore\\team\\app\\build\\intermediates\\dex\\debug\\mergeProjectDexDebug\\11\\classes.dex
@@ -8,6 +8,7 @@ base.5=C\:\\Users\\Tom\\Documents\\MeshCore\\team\\app\\build\\intermediates\\de
 base.6=C\:\\Users\\Tom\\Documents\\MeshCore\\team\\app\\build\\intermediates\\dex\\debug\\mergeProjectDexDebug\\6\\classes.dex
 base.7=C\:\\Users\\Tom\\Documents\\MeshCore\\team\\app\\build\\intermediates\\dex\\debug\\mergeProjectDexDebug\\8\\classes.dex
 base.8=C\:\\Users\\Tom\\Documents\\MeshCore\\team\\app\\build\\intermediates\\dex\\debug\\mergeExtDexDebug\\classes2.dex
+base.9=C\:\\Users\\Tom\\Documents\\MeshCore\\team\\app\\build\\intermediates\\dex\\debug\\mergeProjectDexDebug\\14\\classes.dex
 path.0=classes.dex
 path.1=0/classes.dex
 path.2=11/classes.dex
@@ -17,6 +18,7 @@ path.5=5/classes.dex
 path.6=6/classes.dex
 path.7=8/classes.dex
 path.8=classes2.dex
+path.9=14/classes.dex
 renamed.0=classes.dex
 renamed.1=classes2.dex
 renamed.2=classes3.dex
@@ -26,3 +28,4 @@ renamed.5=classes6.dex
 renamed.6=classes7.dex
 renamed.7=classes8.dex
 renamed.8=classes9.dex
+renamed.9=classes10.dex

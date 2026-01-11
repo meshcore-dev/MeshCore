@@ -14,6 +14,7 @@ data class ChannelEntity(
     val sharedKey: ByteArray,
     val isPublic: Boolean,
     val shareLocation: Boolean, // Location sharing enabled for this channel
+    val channelIndex: Byte, // Firmware channel slot (0=public, 1-3=private channels)
     val createdAt: Long
 ) {
     override fun equals(other: Any?): Boolean {

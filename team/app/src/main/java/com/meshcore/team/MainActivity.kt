@@ -67,7 +67,7 @@ class MainActivity : ComponentActivity() {
             database.messageDao(),
             database.ackRecordDao()
         )
-        val channelRepository = ChannelRepository(database.channelDao())
+        val channelRepository = ChannelRepository(database.channelDao(), connectionManager)
         messageViewModel = MessageViewModel(messageRepository, channelRepository, connectionManager)
         
         // Request permissions

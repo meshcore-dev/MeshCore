@@ -98,4 +98,8 @@
     <string msgid="2232702812657998674" name="time_picker_pm">"PM"</string>
     <string msgid="2732804537909054941" name="tooltip_long_press_label">"แสดงเคล็ดลับเครื่องมือ"</string>
     <string msgid="8191239805703103845" name="tooltip_pane_description">"เคล็ดลับเครื่องมือ"</string>
+    <string name="zxing_app_name">Barcode Scanner</string>
+    <string name="zxing_button_ok">ตกลง</string>
+    <string name="zxing_msg_camera_framework_bug">ขออภัย พบปัญหาของกล้อง Android คุณอาจจะต้องรีสตาร์ทอุปกรณ์</string>
+    <string name="zxing_msg_default_status">วางบาร์โค้ดภายในสี่เหลี่ยมผืนผ้าที่ช่องมองภาพเพื่อสแกน</string>
 </resources>

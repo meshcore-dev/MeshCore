@@ -1,5 +1,7 @@
 package com.meshcore.team.ui.screen.messages
 
+import android.graphics.Bitmap
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -14,12 +16,15 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.google.zxing.integration.android.IntentIntegrator
 import com.meshcore.team.data.ble.ConnectionState
 import com.meshcore.team.data.database.ChannelEntity
 import com.meshcore.team.data.database.DeliveryStatus
 import com.meshcore.team.data.database.MessageEntity
+import com.meshcore.team.utils.QRCodeGenerator
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -39,6 +44,9 @@ fun MessageScreen(
     val connectedDevice by viewModel.connectedDevice.collectAsState()
     
     var showChannelMenu by remember { mutableStateOf(false) }
+    var showCreateChannelDialog by remember { mutableStateOf(false) }
+    var showImportChannelDialog by remember { mutableStateOf(false) }
+    var showShareChannelDialog by remember { mutableStateOf(false) }
     var messageText by remember { mutableStateOf("") }
     
     Scaffold(
@@ -75,6 +83,15 @@ fun MessageScreen(
                     }
                 },
                 actions = {
+                    // Share channel key button (for private channels)
+                    selectedChannel?.let { channel ->
+                        if (!channel.isPublic) {
+                            IconButton(onClick = { showShareChannelDialog = true }) {
+                                Icon(Icons.Default.Share, "Share Channel Key")
+                            }
+                        }
+                    }
+                    
                     // Channel selector
                     IconButton(onClick = { showChannelMenu = true }) {
                         Icon(Icons.Default.Menu, "Select Channel")
@@ -122,7 +139,55 @@ fun MessageScreen(
                     viewModel.selectChannel(it)
                     showChannelMenu = false
                 },
+                onCreateChannel = {
+                    showChannelMenu = false
+                    showCreateChannelDialog = true
+                },
                 onDismiss = { showChannelMenu = false }
+            )
+        }
+        
+        // Create private channel dialog
+        if (showCreateChannelDialog) {
+            CreateChannelDialog(
+                onConfirm = { name ->
+                    viewModel.createPrivateChannel(name)
+                    showCreateChannelDialog = false
+                },
+                onDismiss = { showCreateChannelDialog = false }
+            )
+        }
+        
+        // Import channel dialog
+        if (showImportChannelDialog) {
+            ImportChannelDialog(
+                onConfirm = { nameOrUrl, keyOrEmpty ->
+                    // Check if first param is a meshcore:// URL
+                    val input = if (nameOrUrl.startsWith("meshcore://")) {
+                        nameOrUrl // URL in first field
+                    } else if (keyOrEmpty.startsWith("meshcore://")) {
+                        keyOrEmpty // URL in second field
+                    } else {
+                        nameOrUrl // Assume legacy format with separate name/key
+                    }
+                    viewModel.importChannel(input, keyOrEmpty) { success ->
+                        if (!success) {
+                            // TODO: Show error toast
+                        }
+                    }
+                    showImportChannelDialog = false
+                },
+                onDismiss = { showImportChannelDialog = false }
+            )
+        }
+        
+        // 
+        // Share channel key dialog
+        if (showShareChannelDialog && selectedChannel != null) {
+            ShareChannelDialog(
+                channel = selectedChannel!!,
+                shareKey = viewModel.getChannelShareKey(selectedChannel!!),
+                onDismiss = { showShareChannelDialog = false }
             )
         }
     }
@@ -222,7 +287,10 @@ fun MessageList(
             contentPadding = PaddingValues(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(messages) { message ->
+            items(
+                items = messages,
+                key = { message -> message.id }
+            ) { message ->
                 MessageBubble(message)
             }
         }
@@ -234,23 +302,25 @@ fun MessageBubble(message: MessageEntity) {
     val isSentByMe = message.isSentByMe
     val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
     
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = if (isSentByMe) Arrangement.End else Arrangement.Start
-    ) {
-        Card(
-            modifier = Modifier.widthIn(max = 280.dp),
-            shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = if (isSentByMe)
-                    MaterialTheme.colorScheme.primaryContainer
-                else
-                    MaterialTheme.colorScheme.surfaceVariant
-            )
+    // Force recomposition when deliveryStatus changes
+    key(message.id, message.deliveryStatus) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = if (isSentByMe) Arrangement.End else Arrangement.Start
         ) {
-            Column(
-                modifier = Modifier.padding(12.dp)
+            Card(
+                modifier = Modifier.widthIn(max = 280.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (isSentByMe)
+                        MaterialTheme.colorScheme.primaryContainer
+                    else
+                        MaterialTheme.colorScheme.surfaceVariant
+                )
             ) {
+                Column(
+                    modifier = Modifier.padding(12.dp)
+                ) {
                 // Show sender name/tag for messages from others
                 if (!isSentByMe) {
                     val senderLabel = message.senderName ?: run {
@@ -273,6 +343,13 @@ fun MessageBubble(message: MessageEntity) {
                     style = MaterialTheme.typography.bodyMedium
                 )
                 
+                // Debug log for received messages
+                if (!isSentByMe) {
+                    androidx.compose.runtime.LaunchedEffect(message.id) {
+                        timber.log.Timber.d("Displaying received message: id=${message.id}, content='${message.content}', length=${message.content.length}")
+                    }
+                }
+                
                 Spacer(modifier = Modifier.height(4.dp))
                 
                 Row(
@@ -294,6 +371,7 @@ fun MessageBubble(message: MessageEntity) {
                 }
             }
         }
+    }
     }
 }
 
@@ -329,9 +407,10 @@ fun DeliveryStatusIcon(status: DeliveryStatus, count: Int) {
                 )
                 if (count > 0) {
                     Text(
-                        text = count.toString(),
+                        text = "($count)",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Medium
                     )
                 }
             }
@@ -385,6 +464,7 @@ fun ChannelSelectionDialog(
     channels: List<ChannelEntity>,
     selectedChannel: ChannelEntity?,
     onChannelSelected: (ChannelEntity) -> Unit,
+    onCreateChannel: () -> Unit,
     onDismiss: () -> Unit
 ) {
     AlertDialog(
@@ -438,9 +518,228 @@ fun ChannelSelectionDialog(
             }
         },
         confirmButton = {
+            TextButton(onClick = onCreateChannel) {
+                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("New Channel")
+            }
+        },
+        dismissButton = {
             TextButton(onClick = onDismiss) {
                 Text("Close")
             }
         }
     )
 }
+
+@Composable
+fun CreateChannelDialog(
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var channelName by remember { mutableStateOf("") }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Create Private Channel") },
+        text = {
+            Column {
+                Text(
+                    text = "Create a private channel with a secure encryption key. You'll be able to share the key with others to invite them.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                OutlinedTextField(
+                    value = channelName,
+                    onValueChange = { channelName = it },
+                    label = { Text("Channel Name") },
+                    placeholder = { Text("e.g., Hunting Team") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(channelName) },
+                enabled = channelName.isNotBlank()
+            ) {
+                Text("Create")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+fun ShareChannelDialog(
+    channel: ChannelEntity,
+    shareKey: String,
+    onDismiss: () -> Unit
+) {
+    // Generate QR code
+    val qrBitmap = remember(shareKey) {
+        QRCodeGenerator.generateQRCode(shareKey, 400)
+    }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Share \"${channel.name}\"") },
+        text = {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "Share this link with others to invite them to this private channel:",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // QR Code
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    ),
+                    modifier = Modifier.padding(8.dp)
+                ) {
+                    Image(
+                        bitmap = qrBitmap.asImageBitmap(),
+                        contentDescription = "Channel Key QR Code",
+                        modifier = Modifier
+                            .size(250.dp)
+                            .padding(16.dp)
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // Text key
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                ) {
+                    Text(
+                        text = shareKey,
+                        modifier = Modifier.padding(12.dp),
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "⚠️ Keep this key secure! Anyone with it can join this channel.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                // TODO: Copy to clipboard
+                onDismiss()
+            }) {
+                Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("Copy Key")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close")
+            }
+        }
+    )
+}
+
+@Composable
+fun ImportChannelDialog(
+    onConfirm: (String, String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var channelName by remember { mutableStateOf("") }
+    var channelKey by remember { mutableStateOf("") }
+    var showScanner by remember { mutableStateOf(false) }
+    
+    if (showScanner) {
+        // QR Scanner will be implemented with CameraX
+        // For now, show a placeholder
+        AlertDialog(
+            onDismissRequest = { showScanner = false },
+            title = { Text("QR Scanner") },
+            text = {
+                Text("QR scanner will be implemented here using CameraX.\n\nFor now, please paste the key manually.")
+            },
+            confirmButton = {
+                TextButton(onClick = { showScanner = false }) {
+                    Text("OK")
+                }
+            }
+        )
+    } else {
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text("Import Channel") },
+            text = {
+                Column {
+                    Text(
+                        text = "Import a private channel using a shared key:",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    OutlinedTextField(
+                        value = channelName,
+                        onValueChange = { channelName = it },
+                        label = { Text("Channel Name") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    
+                    Spacer(modifier = Modifier.height(12.dp))
+                    
+                    OutlinedTextField(
+                        value = channelKey,
+                        onValueChange = { channelKey = it },
+                        label = { Text("Channel URL or Key") },
+                        modifier = Modifier.fillMaxWidth(),
+                        maxLines = 4,
+                        supportingText = { Text("Paste meshcore:// URL or base64/hex key") }
+                    )
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    OutlinedButton(
+                        onClick = { showScanner = true },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.QrCode, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Scan QR Code")
+                    }
+                }
+            },
+            confirmButton = {
+                val hasUrl = channelName.startsWith("meshcore://") || channelKey.startsWith("meshcore://")
+                val hasLegacyFormat = channelName.isNotBlank() && channelKey.isNotBlank()
+                TextButton(
+                    onClick = {
+                        onConfirm(channelName.trim(), channelKey.trim())
+                    },
+                    enabled = hasUrl || hasLegacyFormat
+                ) {
+                    Text("Import")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onDismiss) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+}
+

@@ -98,4 +98,8 @@
     <string msgid="2232702812657998674" name="time_picker_pm">"ÖS"</string>
     <string msgid="2732804537909054941" name="tooltip_long_press_label">"Araç ipucunu göster"</string>
     <string msgid="8191239805703103845" name="tooltip_pane_description">"İpucu"</string>
+    <string name="zxing_app_name">Barkod Tarayıcısı</string>
+    <string name="zxing_button_ok">Tamam</string>
+    <string name="zxing_msg_camera_framework_bug">Üzgünüz, Android kamera bir sorunla karşılaştı. Cihazı yeniden başlatmanız gerekebilir.</string>
+    <string name="zxing_msg_default_status">Barkodu taramak için vizördeki dikdörtgenin içerisine yerleştirin.</string>
 </resources>
