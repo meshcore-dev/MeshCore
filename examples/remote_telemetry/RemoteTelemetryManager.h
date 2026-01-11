@@ -70,7 +70,6 @@ private:
   RepeaterState _repeaters[REMOTE_TELEMETRY_MAX_REPEATERS];
   size_t _repeaterCount;
   bool _debugEnabled;
-  unsigned long _bootMillis;
   unsigned long _nextWifiRetry;
   unsigned long _nextMqttRetry;
   unsigned long _loginRetryMs;
@@ -84,6 +83,8 @@ private:
   bool _timeSyncAttempted;
   unsigned long _nextTimeCheck;
   unsigned long _lastTimeWaitLog;
+  bool _rebootArmed;
+  int _rebootDay;
 
   enum class PendingRequestType : uint8_t {
     None,

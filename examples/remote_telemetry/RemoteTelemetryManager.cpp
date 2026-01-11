@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <sys/time.h>
 
 #include <Utils.h>
 #include <helpers/AdvertDataHelpers.h>
@@ -24,7 +25,6 @@ namespace {
 constexpr unsigned long WIFI_CONNECT_TIMEOUT_MS = 20000UL;
 constexpr unsigned long MQTT_RETRY_INTERVAL_MS = 10000UL;
 constexpr unsigned long REQUEST_GRACE_MS = 10000UL;
-constexpr unsigned long DAILY_REBOOT_INTERVAL_MS = 24UL * 60UL * 60UL * 1000UL;
 constexpr unsigned long MIN_INTERVAL_MS = 5000UL;
 constexpr unsigned long MAX_POLL_INTERVAL_MS = 6UL * 60UL * 60UL * 1000UL;
 constexpr unsigned long MAX_TIMEOUT_INTERVAL_MS = 15UL * 60UL * 1000UL;
@@ -32,13 +32,16 @@ constexpr unsigned long MAX_LOGIN_INTERVAL_MS = 12UL * 60UL * 60UL * 1000UL;
 constexpr unsigned long MIN_REQUEST_GAP_MS = 2000UL;
 constexpr size_t INVALID_REQUEST_INDEX = static_cast<size_t>(-1);
 constexpr size_t INVALID_REPEATER_INDEX = static_cast<size_t>(-1);
+constexpr int SCHEDULED_REBOOT_HOUR = 3;
+constexpr int SCHEDULED_REBOOT_MINUTE = 0;
+constexpr int SCHEDULED_REBOOT_WINDOW_SEC = 30;
 }
 
 RemoteTelemetryManager* RemoteTelemetryManager::_instance = nullptr;
 
 RemoteTelemetryManager::RemoteTelemetryManager(RemoteTelemetryMesh& mesh, PubSubClient& mqttClient, telemetry::Settings& settings)
   : _mesh(mesh), _mqtt(mqttClient), _settings(&settings), _configStore(nullptr), _repeaterCount(0), _debugEnabled(REMOTE_TELEMETRY_DEBUG != 0),
-    _bootMillis(0), _nextWifiRetry(0), _nextMqttRetry(0),
+    _nextWifiRetry(0), _nextMqttRetry(0),
     _loginRetryMs(0),
     _pollIntervalMs(0),
     _timeoutRetryMs(0),
@@ -46,6 +49,7 @@ RemoteTelemetryManager::RemoteTelemetryManager(RemoteTelemetryMesh& mesh, PubSub
     _nextRequestReady(0),
     _ntpConfigured(false), _timeSynced(false), _timeSyncAttempted(false),
     _nextTimeCheck(0), _lastTimeWaitLog(0),
+    _rebootArmed(false), _rebootDay(-1),
     _activeRequestType(PendingRequestType::None),
     _activeRequestIndex(INVALID_REQUEST_INDEX) {
   memset(_repeaters, 0, sizeof(_repeaters));
@@ -91,7 +95,6 @@ void RemoteTelemetryManager::applyIntervals() {
 }
 
 void RemoteTelemetryManager::begin() {
-  _bootMillis = millis();
   _mesh.begin();
   configureRepeaters();
 
@@ -124,6 +127,7 @@ void RemoteTelemetryManager::handleLoginResponse(const ContactInfo& contact, con
 
   LoginMode mode = state.pendingLoginMode;
   state.pendingLoginMode = LoginMode::None;
+  const char* modeLabel = (mode == LoginMode::Admin) ? "Admin" : "Guest";
 
   if (state.lastLoginRequestSent != 0) {
     unsigned long rtt = millis() - state.lastLoginRequestSent;
@@ -133,8 +137,6 @@ void RemoteTelemetryManager::handleLoginResponse(const ContactInfo& contact, con
   markRequestCompleted(PendingRequestType::Login, static_cast<size_t>(idx));
 
   bool success = len >= 6 && (data[4] == REMOTE_RESP_SERVER_LOGIN_OK || memcmp(&data[4], "OK", 2) == 0);
-  const char* modeLabel = (mode == LoginMode::Admin) ? "Admin" : "Guest";
-
   if (!success) {
     RT_INFO_PRINTLN("%s login response without success code for %s", modeLabel, cfg.name.c_str());
     if (mode == LoginMode::Guest) {
@@ -443,6 +445,8 @@ void RemoteTelemetryManager::ensureTimeSync() {
   if (getLocalTime(&timeinfo, 0)) {
     _timeSynced = true;
     _lastTimeWaitLog = 0;
+    _rebootArmed = false;
+    _rebootDay = -1;
     RT_INFO_PRINTLN("Time synchronised via NTP");
   } else {
     _nextTimeCheck = now + 2000UL;
@@ -646,99 +650,147 @@ void RemoteTelemetryManager::publishTelemetry(const RepeaterState& state, uint32
     return;
   }
 
-  StaticJsonDocument<768> doc;
+  (void)tag;
+
+  StaticJsonDocument<896> doc;
   JsonObject root = doc.to<JsonObject>();
-  root["tag"] = tag;
-  root["received"] = millis();
-  root["repeater"]["name"] = cfg.name;
+  root["type"] = "telemetry";
+  root["repeater"] = cfg.name;
 
-  char pubKeyHex[PUB_KEY_SIZE * 2 + 1];
-  mesh::Utils::toHex(pubKeyHex, state.contact->id.pub_key, PUB_KEY_SIZE);
-  root["repeater"]["pubKey"] = pubKeyHex;
+  JsonObject metrics = root.createNestedObject("metrics");
+  JsonArray samples = root.createNestedArray("samples");
 
-  JsonArray fields = root.createNestedArray("measurements");
+  auto makeSample = [&samples](uint8_t sampleChannel, uint8_t sampleType) -> JsonObject {
+    JsonObject sample = samples.createNestedObject();
+    sample["channel"] = sampleChannel;
+    sample["type"] = sampleType;
+    return sample;
+  };
+
   LPPReader reader(payload, len);
   uint8_t channel;
   uint8_t type;
   while (reader.readHeader(channel, type)) {
-    JsonObject meas = fields.createNestedObject();
-    meas["channel"] = channel;
-    meas["type"] = type;
     switch (type) {
       case LPP_VOLTAGE: {
-        float v;
-        if (reader.readVoltage(v)) {
-          meas["label"] = "voltage";
-          meas["value"] = v;
+        float value;
+        JsonObject sample = makeSample(channel, type);
+        if (reader.readVoltage(value)) {
+          sample["value"] = value;
+          metrics["voltage"] = value;
+        } else {
+          sample["error"] = "parse";
         }
         break;
       }
       case LPP_CURRENT: {
-        float a;
-        if (reader.readCurrent(a)) {
-          meas["label"] = "current";
-          meas["value"] = a;
+        float value;
+        JsonObject sample = makeSample(channel, type);
+        if (reader.readCurrent(value)) {
+          sample["value"] = value;
+          metrics["current"] = value;
+        } else {
+          sample["error"] = "parse";
         }
         break;
       }
       case LPP_POWER: {
-        float w;
-        if (reader.readPower(w)) {
-          meas["label"] = "power";
-          meas["value"] = w;
+        float value;
+        JsonObject sample = makeSample(channel, type);
+        if (reader.readPower(value)) {
+          sample["value"] = value;
+          metrics["power"] = value;
+        } else {
+          sample["error"] = "parse";
         }
         break;
       }
       case LPP_TEMPERATURE: {
-        float t;
-        if (reader.readTemperature(t)) {
-          meas["label"] = "temperature";
-          meas["value"] = t;
-        }
-        break;
-      }
-      case LPP_RELATIVE_HUMIDITY: {
-        float h;
-        if (reader.readRelativeHumidity(h)) {
-          meas["label"] = "humidity";
-          meas["value"] = h;
+        float value;
+        JsonObject sample = makeSample(channel, type);
+        if (reader.readTemperature(value)) {
+          sample["value"] = value;
+        } else {
+          sample["error"] = "parse";
         }
         break;
       }
       case LPP_BAROMETRIC_PRESSURE: {
-        float p;
-        if (reader.readPressure(p)) {
-          meas["label"] = "pressure";
-          meas["value"] = p;
+        float value;
+        JsonObject sample = makeSample(channel, type);
+        if (reader.readPressure(value)) {
+          sample["value"] = value;
+        } else {
+          sample["error"] = "parse";
+        }
+        break;
+      }
+      case LPP_RELATIVE_HUMIDITY: {
+        float value;
+        JsonObject sample = makeSample(channel, type);
+        if (reader.readRelativeHumidity(value)) {
+          sample["value"] = value;
+        } else {
+          sample["error"] = "parse";
         }
         break;
       }
       case LPP_ALTITUDE: {
-        float alt;
-        if (reader.readAltitude(alt)) {
-          meas["label"] = "altitude";
-          meas["value"] = alt;
+        float value;
+        JsonObject sample = makeSample(channel, type);
+        if (reader.readAltitude(value)) {
+          sample["value"] = value;
+        } else {
+          sample["error"] = "parse";
         }
         break;
       }
       case LPP_GPS: {
         float lat, lon, alt;
+        JsonObject sample = makeSample(channel, type);
         if (reader.readGPS(lat, lon, alt)) {
-          meas["label"] = "gps";
-          meas["lat"] = lat;
-          meas["lon"] = lon;
-          meas["alt"] = alt;
+          sample["lat"] = lat;
+          sample["lon"] = lon;
+          sample["alt"] = alt;
+        } else {
+          sample["error"] = "parse";
         }
         break;
       }
-      default:
-        meas["label"] = "raw";
+      default: {
+        JsonObject sample = makeSample(channel, type);
+        sample["raw"] = true;
         reader.skipData(type);
         break;
+      }
     }
   }
 
-  char buffer[768];
+  struct timeval tv;
+  if (gettimeofday(&tv, nullptr) == 0) {
+    time_t seconds = tv.tv_sec;
+    struct tm utc_time;
+    gmtime_r(&seconds, &utc_time);
+
+    char iso_base[32];
+    strftime(iso_base, sizeof(iso_base), "%Y-%m-%dT%H:%M:%S", &utc_time);
+    int millis_part = static_cast<int>(tv.tv_usec / 1000);
+
+    char iso_ts[40];
+    snprintf(iso_ts, sizeof(iso_ts), "%s.%03dZ", iso_base, millis_part);
+    root["collectedAt"] = iso_ts;
+
+    struct tm local_time;
+    localtime_r(&seconds, &local_time);
+    char text_ts[40];
+    strftime(text_ts, sizeof(text_ts), "%H:%M on %d/%m/%Y", &local_time);
+    root["collectedAtText"] = text_ts;
+  } else {
+    root["collectedAt"] = "";
+    root["collectedAtText"] = "";
+  }
+
+  char buffer[896];
   size_t written = serializeJson(doc, buffer, sizeof(buffer));
   if (written == 0) {
     RT_INFO_PRINTLN("Failed to serialise telemetry JSON");
@@ -763,8 +815,31 @@ int RemoteTelemetryManager::findRepeaterIndex(const ContactInfo& contact) const 
 }
 
 void RemoteTelemetryManager::checkRebootWindow() {
-  if (millis() - _bootMillis >= DAILY_REBOOT_INTERVAL_MS) {
-    RT_INFO_PRINTLN("Rebooting after 24h watchdog");
+  if (!_timeSynced) {
+    return;
+  }
+
+  struct tm local_time;
+  if (!getLocalTime(&local_time, 0)) {
+    return;
+  }
+
+  if (_rebootDay != local_time.tm_yday) {
+    _rebootDay = local_time.tm_yday;
+    _rebootArmed = local_time.tm_hour < SCHEDULED_REBOOT_HOUR;
+  } else if (!_rebootArmed && local_time.tm_hour < SCHEDULED_REBOOT_HOUR) {
+    _rebootArmed = true;
+  }
+
+  if (!_rebootArmed) {
+    return;
+  }
+
+  if (local_time.tm_hour == SCHEDULED_REBOOT_HOUR &&
+      local_time.tm_min == SCHEDULED_REBOOT_MINUTE &&
+      local_time.tm_sec < SCHEDULED_REBOOT_WINDOW_SEC) {
+    _rebootArmed = false;
+    RT_INFO_PRINTLN("Rebooting at scheduled 03:00 window");
     delay(100);
     esp_restart();
   }
@@ -813,6 +888,7 @@ void RemoteTelemetryManager::handleControlMessage(const uint8_t* payload, size_t
   bool intervalUpdated = false;
   bool timeoutUpdated = false;
   bool loginUpdated = false;
+  bool topicUpdated = false;
 
   if (doc.containsKey("pollIntervalMs")) {
     unsigned long requested = doc["pollIntervalMs"].as<unsigned long>();
@@ -887,7 +963,42 @@ void RemoteTelemetryManager::handleControlMessage(const uint8_t* payload, size_t
     RT_INFO_PRINTLN("Login retry interval updated to %lu ms", _loginRetryMs);
   }
 
-  if (intervalUpdated || timeoutUpdated || loginUpdated) {
+  const char* topicKey = nullptr;
+  if (doc.containsKey("telemetryTopic")) {
+    topicKey = doc["telemetryTopic"].as<const char*>();
+  } else if (doc.containsKey("mqttTelemetryTopic")) {
+    topicKey = doc["mqttTelemetryTopic"].as<const char*>();
+  }
+
+  if (topicKey) {
+    if (!_settings) {
+      publishStatusPayload("control_error", "settings_unavailable");
+      return;
+    }
+    String requested = topicKey;
+    requested.trim();
+    if (requested.length() == 0) {
+      publishStatusPayload("control_error", "telemetry_topic_empty");
+      return;
+    }
+    if (requested != _settings->mqttTelemetryTopic) {
+      String previous = _settings->mqttTelemetryTopic;
+      _settings->mqttTelemetryTopic = requested;
+      RT_INFO_PRINTLN("Telemetry topic updated to %s", _settings->mqttTelemetryTopic.c_str());
+      bool persisted = true;
+      if (_configStore) {
+        persisted = persistSettings("telemetry_topic_update");
+      }
+      if (!persisted) {
+        _settings->mqttTelemetryTopic = previous;
+        publishStatusPayload("control_error", "config_save_failed");
+        return;
+      }
+      topicUpdated = true;
+    }
+  }
+
+  if (intervalUpdated || timeoutUpdated || loginUpdated || topicUpdated) {
     if (loginUpdated) {
       unsigned long now = millis();
       for (size_t i = 0; i < _repeaterCount; i++) {
@@ -901,7 +1012,13 @@ void RemoteTelemetryManager::handleControlMessage(const uint8_t* payload, size_t
       }
     }
     publishStatusEvent("control_update", false);
-  } else {
+  }
+
+  if (topicUpdated) {
+    publishStatusPayload("telemetry_topic_updated", _settings->mqttTelemetryTopic.c_str());
+  }
+
+  if (!(intervalUpdated || timeoutUpdated || loginUpdated || topicUpdated)) {
     publishStatusEvent("control_ack", false);
   }
 }

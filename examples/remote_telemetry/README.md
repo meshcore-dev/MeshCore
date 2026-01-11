@@ -4,13 +4,9 @@ This example targets ESP32-based boards with WiFi (for example the Seeed XIAO ES
 
 ## Configuration
 
-Populate `examples/remote_telemetry/credentials.cpp` (or replace `credentials.h`) with your own values:
-
-- WiFi SSID and password
-- MQTT host, port, username/password and publish topic
-- A list of repeaters with their public keys and passwords (guest or admin)
-
-> Tip: keep the real credentials out of version control by excluding `credentials.cpp` or redefining the structures in a local-only file.
+- On first boot the node starts the WiFiManager portal that captures WiFi, MQTT credentials, telemetry topics and repeater details and saves them to `/telemetry.json` on SPIFFS.
+- The legacy `credentials.cpp` / `credentials.h` pair is no longer referenced by the firmware; you can delete or ignore the stub without affecting runtime behaviour.
+- To change settings later, trigger the configuration portal (e.g. erase `/telemetry.json`) or push updates over MQTT as described below.
 
 ## Building
 
@@ -36,108 +32,116 @@ The node listens for JSON commands on the configured control topic and publishes
 
 ### Commands to the Node
 
-Send these payloads to the MQTT control topic:
+Send JSON payloads to the MQTT control topic (`settings.mqttControlTopic`). Key operations:
 
+#### Repeater management
+
+```json
+{"command": "list_repeaters"}
 ```
+
+```json
 {
-	"command": "list_repeaters"
+  "command": "add_repeater",
+  "repeater": {
+    "name": "IT-Orp-S omni",
+    "password": "",
+    "pubKey": "8f3e2e611bf8469deed5ece8a59249281bca7e891febdd58861a406fbf73a8bc"
+  }
 }
 ```
 
-> Passwords are optional. Supply an empty string (`"password": ""`) when the repeater allows guest logins.
-
-```
+```json
 {
-	"command": "add_repeater",
-	"repeater": {
-		"name": "IT-Orp-S omni",
-		"password": "",
-		"pubKey": "8f3e2e611bf8469deed5ece8a59249281bca7e891febdd58861a406fbf73a8bc"
-	}
+  "command": "update_repeater",
+  "repeater": {
+    "pubKey": "8f3e2e611bf8469deed5ece8a59249281bca7e891febdd58861a406fbf73a8bc",
+    "password": "",
+    "name": "IT-Orp-S omni"
+  }
 }
 ```
 
-```
+```json
 {
-	"command": "update_repeater",
-	"repeater": {
-		"pubKey": "8f3e2e611bf8469deed5ece8a59249281bca7e891febdd58861a406fbf73a8bc",
-		"password": "",
-		"name": "IT-Orp-S omni"
-	}
+  "command": "remove_repeater",
+  "pubKey": "8f3e2e611bf8469deed5ece8a59249281bca7e891febdd58861a406fbf73a8bc"
 }
 ```
 
-```
-{
-	"command": "remove_repeater",
-	"pubKey": "8f3e2e611bf8469deed5ece8a59249281bca7e891febdd58861a406fbf73a8bc"
-}
+#### Runtime tuning
+
+```json
+{"pollIntervalSeconds": 900}
 ```
 
-```
-{
-	"pollIntervalSeconds": 900
-}
+```json
+{"timeoutRetrySeconds": 120}
 ```
 
-```
-{
-	"timeoutRetrySeconds": 120
-}
+```json
+{"loginRetrySeconds": 600}
 ```
 
+```json
+{"telemetryTopic": "meshcore/telemetry"}
 ```
-{
-	"loginRetrySeconds": 600
-}
-```
+
+> The telemetry topic update takes effect immediately and is persisted to `/telemetry.json`. The `mqttTelemetryTopic` key is accepted as an alias.
 
 ### Responses from the Node
 
-Status messages are published to the configured status topic. Examples include:
+Status messages land on `settings.mqttStatusTopic`, for example:
 
-```
+```json
 {
-	"event": "repeater_added",
-	"detail": "RemoteSite",
-	"uptimeMs": 52341,
-	"pollIntervalMs": 1800000,
-	"timeoutRetryMs": 30000,
-	"loginRetryMs": 120000,
-	"node": { "pubKey": "8f3e2e611bf8469deed5ece8a59249281bca7e891febdd58861a406fbf73a8bc" }
+  "event": "repeater_added",
+  "detail": "RemoteSite",
+  "uptimeMs": 52341,
+  "pollIntervalMs": 1800000,
+  "timeoutRetryMs": 30000,
+  "loginRetryMs": 120000,
+  "node": {
+    "pubKey": "8f3e2e611bf8469deed5ece8a59249281bca7e891febdd58861a406fbf73a8bc"
+  }
 }
 ```
 
-```
+```json
 {
-	"event": "repeaters_snapshot",
-	"detail": "repeater_added",
-	"uptimeMs": 53002,
-	"repeaters": [
-		{
-			"name": "IT-Orp-S omni",
-			"password": "guest",
-			"pubKey": "8f3e2e611bf8469deed5ece8a59249281bca7e891febdd58861a406fbf73a8bc"
-		}
-	],
-	"nodePubKey": "cafebabe..."
+  "event": "telemetry_topic_updated",
+  "detail": "meshcore/field/telemetry",
+  "uptimeMs": 54012
 }
 ```
 
-Telemetry payloads appear on the telemetry topic:
+### Telemetry Payloads
 
-```
+Telemetry is published to the current telemetry topic using the normalised format:
+
+```json
 {
-	"tag": 123456,
-	"received": 6789012,
-	"repeater": {
-		"name": "IT-Orp-S omni",
-		"pubKey": "8f3e2e611bf8469deed5ece8a59249281bca7e891febdd58861a406fbf73a8bc"
-	},
-	"measurements": [
-		{ "channel": 1, "type": 0x02, "label": "voltage", "value": 4.12 },
-		{ "channel": 2, "type": 0x67, "label": "temperature", "value": 23.5 }
-	]
+  "type": "telemetry",
+  "repeater": "IT-Orp-S omni",
+  "metrics": {
+    "voltage": 4.05,
+    "current": 0.009,
+    "power": 0.0
+  },
+  "samples": [
+    {"channel": 1, "type": 116, "value": 4.0},
+    {"channel": 2, "type": 116, "value": 4.05},
+    {"channel": 2, "type": 117, "value": 0.009},
+    {"channel": 2, "type": 128, "value": 0.0}
+  ],
+  "collectedAt": "2026-01-11T15:31:43.408Z",
+  "collectedAtText": "15:31 on 11/01/2026"
 }
 ```
+
+`metrics` captures the most recent INA219-style voltage/current/power values when available, while `samples` enumerates the raw Cayenne LPP records forwarded by the repeater.
+
+## Operational Notes
+
+- After NTP synchronisation the node schedules a daily reboot in the 03:00 local-time window to minimise disruption.
+- Guest logins are issued first to discover a direct path; the stored admin credentials are only sent once a unicast route is known.
