@@ -925,7 +925,6 @@ Byte 74: Flags (indicates which optional fields are present)
 - `0x01`: Latitude present (4 bytes, int32, value * 1e6)
 - `0x02`: Longitude present (4 bytes, int32, value * 1e6)
 - `0x04`: Node description present (32 bytes, null-padded)
-- `0x08`: Operator name present (32 bytes, null-padded)
 
 **Parsing Pseudocode**:
 ```python
@@ -973,10 +972,6 @@ def parse_advert_response(data):
 
     if flags & 0x04:  # has description
         result['node_desc'] = data[offset:offset+32].decode('utf-8').rstrip('\x00')
-        offset += 32
-
-    if flags & 0x08:  # has operator
-        result['operator_name'] = data[offset:offset+32].decode('utf-8').rstrip('\x00')
         offset += 32
 
     return result
@@ -1297,6 +1292,6 @@ img.save("channel_qr.png")
 
 ---
 
-**Last Updated**: 2025-01-01
-**Protocol Version**: Based on MeshCore v1.36.0+
+**Last Updated**: 2026-01-11
+**Protocol Version**: Based on MeshCore v1.37.0+
 

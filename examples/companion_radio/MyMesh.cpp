@@ -689,9 +689,6 @@ void MyMesh::handleAdvertResponse(mesh::Packet* packet) {
   char node_desc[32] = {0};
   if (flags & ADVERT_RESP_FLAG_HAS_DESC) { memcpy(node_desc, &app_data[app_pos], 32); app_pos += 32; }
 
-  char operator_name[32] = {0};
-  if (flags & ADVERT_RESP_FLAG_HAS_OPERATOR) { memcpy(operator_name, &app_data[app_pos], 32); app_pos += 32; }
-
   // Verify signature (over pubkey + timestamp + app_data, same as regular adverts)
   uint8_t message[PUB_KEY_SIZE + 4 + MAX_PACKET_PAYLOAD];
   int msg_len = 0;
@@ -719,7 +716,6 @@ void MyMesh::handleAdvertResponse(mesh::Packet* packet) {
   if (flags & ADVERT_RESP_FLAG_HAS_LAT) { memcpy(&out_frame[i], &lat_i32, 4); i += 4; }
   if (flags & ADVERT_RESP_FLAG_HAS_LON) { memcpy(&out_frame[i], &lon_i32, 4); i += 4; }
   if (flags & ADVERT_RESP_FLAG_HAS_DESC) { memcpy(&out_frame[i], node_desc, 32); i += 32; }
-  if (flags & ADVERT_RESP_FLAG_HAS_OPERATOR) { memcpy(&out_frame[i], operator_name, 32); i += 32; }
 
   _serial->writeFrame(out_frame, i);
 
@@ -1784,11 +1780,8 @@ void MyMesh::handleCmdFrame(size_t len) {
 
     const uint8_t* path = &cmd_frame[1 + PATH_HASH_SIZE + 1];
 
-    // Check if there's already a pending request
-    if (pending_advert_request != 0) {
-      writeErrFrame(ERR_CODE_TABLE_FULL);
-      return;
-    }
+    // Clear any stale pending requests (same pattern as other request commands)
+    clearPendingReqs();
 
     // Generate random tag
     uint32_t tag;
@@ -1807,10 +1800,16 @@ void MyMesh::handleCmdFrame(size_t len) {
       return;
     }
 
-    sendDirect(packet, path, path_len, 0);
+    // For CONTROL packets with high-bit set, Mesh.cpp only processes them
+    // if path_len == 0 (zero-hop). For direct neighbors (path_len == 1 and
+    // path matches target prefix), use sendZeroHop.
+    if (path_len == PATH_HASH_SIZE && memcmp(path, target_prefix, PATH_HASH_SIZE) == 0) {
+      sendZeroHop(packet);
+    } else {
+      sendDirect(packet, path, path_len, 0);
+    }
 
     pending_advert_request = tag;
-    MESH_DEBUG_PRINTLN("CMD_REQUEST_ADVERT: sent request, tag=%08X", tag);
 
     writeOKFrame();
   } else {

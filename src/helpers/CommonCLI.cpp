@@ -82,8 +82,7 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     file.read((uint8_t *)&_prefs->adc_multiplier, sizeof(_prefs->adc_multiplier)); // 166
     file.read((uint8_t *)_prefs->owner_info, sizeof(_prefs->owner_info));  // 170
     file.read((uint8_t *)&_prefs->node_desc, sizeof(_prefs->node_desc));         // 290
-    file.read((uint8_t *)&_prefs->operator_name, sizeof(_prefs->operator_name)); // 322
-    // 354
+    // 322
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -110,9 +109,8 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     _prefs->gps_enabled = constrain(_prefs->gps_enabled, 0, 1);
     _prefs->advert_loc_policy = constrain(_prefs->advert_loc_policy, 0, 2);
 
-    // Ensure null-termination of extended metadata fields
+    // Ensure null-termination of extended metadata field
     _prefs->node_desc[31] = '\0';
-    _prefs->operator_name[31] = '\0';
 
     file.close();
   }
@@ -172,8 +170,7 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->adc_multiplier, sizeof(_prefs->adc_multiplier));                 // 166
     file.write((uint8_t *)_prefs->owner_info, sizeof(_prefs->owner_info));  // 170
     file.write((uint8_t *)&_prefs->node_desc, sizeof(_prefs->node_desc));         // 290
-    file.write((uint8_t *)&_prefs->operator_name, sizeof(_prefs->operator_name)); // 322
-    // 354
+    // 322
 
     file.close();
   }
@@ -288,7 +285,6 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
       } else if (memcmp(config, "allow.read.only", 15) == 0) {
         sprintf(reply, "> %s", _prefs->allow_read_only ? "on" : "off");
       } else if (memcmp(config, "flood.advert.interval", 21) == 0) {
-        // Repeaters no longer send flood adverts
         strcpy(reply, "> 0 (disabled - repeaters no longer send flood adverts)");
       } else if (memcmp(config, "advert.interval", 15) == 0) {
         sprintf(reply, "> %d", ((uint32_t) _prefs->advert_interval) * 2);
@@ -379,12 +375,6 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         } else {
           strcpy(reply, "> (not set)");
         }
-      } else if (memcmp(config, "operator.name", 13) == 0) {
-        if (_prefs->operator_name[0]) {
-          sprintf(reply, "> %s", _prefs->operator_name);
-        } else {
-          strcpy(reply, "> (not set)");
-        }
       } else {
         sprintf(reply, "??: %s", config);
       }
@@ -414,7 +404,6 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         savePrefs();
         strcpy(reply, "OK");
       } else if (memcmp(config, "flood.advert.interval ", 22) == 0) {
-        // Repeaters no longer send flood adverts - show error for backwards compatibility
         strcpy(reply, "Error: Repeaters no longer send flood adverts. Use zero-hop adverts only (advert.interval)");
       } else if (memcmp(config, "advert.interval ", 16) == 0) {
         int mins = _atoi(&config[16]);
@@ -452,10 +441,6 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         }
       } else if (memcmp(config, "node.desc ", 10) == 0) {
         StrHelper::strncpy(_prefs->node_desc, &config[10], sizeof(_prefs->node_desc));
-        savePrefs();
-        strcpy(reply, "OK");
-      } else if (memcmp(config, "operator.name ", 14) == 0) {
-        StrHelper::strncpy(_prefs->operator_name, &config[14], sizeof(_prefs->operator_name));
         savePrefs();
         strcpy(reply, "OK");
       } else if (memcmp(config, "repeat ", 7) == 0) {

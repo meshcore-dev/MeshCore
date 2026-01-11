@@ -36,15 +36,15 @@ namespace mesh {
 #define CTL_TYPE_NODE_DISCOVER_REQ   0x80  // Node discovery request (lower 4 bits = flags)
 #define CTL_TYPE_NODE_DISCOVER_RESP  0x90  // Node discovery response (lower 4 bits = node type)
 
-// Pull-based advert system (each uses distinct upper nibble per control subtype convention)
-#define CTL_TYPE_ADVERT_REQUEST   0xA0  // Request advert from specific node
-#define CTL_TYPE_ADVERT_RESPONSE  0xB0  // Response with full advert + extended metadata
+// Pull-based advert system - uses sub-types WITHOUT high bit (0x00-0x7F) to allow
+// multi-hop forwarding by stock firmware. Sub-types with high bit (0x80+) are zero-hop only.
+#define CTL_TYPE_ADVERT_REQUEST   0x20  // Request advert from specific node (multi-hop capable)
+#define CTL_TYPE_ADVERT_RESPONSE  0x30  // Response with full advert + extended metadata
 
 // Advert response flags (optional fields in CTL_TYPE_ADVERT_RESPONSE)
 #define ADVERT_RESP_FLAG_HAS_LAT       0x01
 #define ADVERT_RESP_FLAG_HAS_LON       0x02
 #define ADVERT_RESP_FLAG_HAS_DESC      0x04
-#define ADVERT_RESP_FLAG_HAS_OPERATOR  0x08
 
 #define PAYLOAD_VER_1       0x00   // 1-byte src/dest hashes, 2-byte MAC
 #define PAYLOAD_VER_2       0x01   // FUTURE (eg. 2-byte hashes, 4-byte MAC ??)

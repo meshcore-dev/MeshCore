@@ -83,8 +83,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   FILESYSTEM* _fs;
   uint32_t last_millis;
   uint64_t uptime_millis;
-  unsigned long next_local_advert;  // zero-hop adverts still active
-  // next_flood_advert removed - repeaters no longer send flood adverts
+  unsigned long next_local_advert;
   bool _logging;
   NodePrefs _prefs;
   CommonCLI _cli;
