@@ -3,6 +3,8 @@
 #include <Arduino.h>
 #include <PubSubClient.h>
 #include <WiFi.h>
+#include <ArduinoJson.h>
+#include <time.h>
 
 #if !defined(ESP32)
 #error "Remote telemetry manager requires an ESP32 target with WiFi support"
@@ -10,7 +12,7 @@
 #include <helpers/sensors/LPPDataHelpers.h>
 
 #include "RemoteTelemetryMesh.h"
-#include "credentials.h"
+#include "TelemetryConfig.h"
 
 #ifndef REMOTE_TELEMETRY_DEBUG
 #define REMOTE_TELEMETRY_DEBUG 1
@@ -24,10 +26,13 @@ constexpr size_t REMOTE_TELEMETRY_MAX_REPEATERS = 16;
 
 class RemoteTelemetryManager {
 public:
-  RemoteTelemetryManager(RemoteTelemetryMesh& mesh, PubSubClient& mqttClient);
+  RemoteTelemetryManager(RemoteTelemetryMesh& mesh, PubSubClient& mqttClient, telemetry::Settings& settings);
 
   void begin();
   void loop();
+  void reloadSettings(telemetry::Settings& settings);
+  void attachConfigStore(telemetry::ConfigStore& store);
+  bool timeSynced() const { return _timeSynced; }
 
   void handleLoginResponse(const ContactInfo& contact, const uint8_t* data, uint8_t len);
   void handleTelemetryResponse(const ContactInfo& contact, uint32_t tag, const uint8_t* payload, uint8_t len);
@@ -35,7 +40,7 @@ public:
 
 private:
   struct RepeaterState {
-    const RepeaterCredential* creds;
+    size_t configIndex;
     const ContactInfo* contact;
     bool loginPending;
     bool loggedIn;
@@ -52,6 +57,8 @@ private:
 
   RemoteTelemetryMesh& _mesh;
   PubSubClient& _mqtt;
+  telemetry::Settings* _settings;
+  telemetry::ConfigStore* _configStore;
   RepeaterState _repeaters[REMOTE_TELEMETRY_MAX_REPEATERS];
   size_t _repeaterCount;
   bool _debugEnabled;
@@ -64,6 +71,11 @@ private:
   bool _statusPublished;
   bool _controlSubscribed;
   unsigned long _nextRequestReady;
+  bool _ntpConfigured;
+  bool _timeSynced;
+  bool _timeSyncAttempted;
+  unsigned long _nextTimeCheck;
+  unsigned long _lastTimeWaitLog;
 
   enum class PendingRequestType : uint8_t {
     None,
@@ -75,8 +87,11 @@ private:
   size_t _activeRequestIndex;
 
   void configureRepeaters();
+  void applyIntervals();
+  const telemetry::RepeaterConfig& repeaterConfig(const RepeaterState& state) const;
   void ensureWifi();
   void ensureMqtt();
+  void ensureTimeSync();
   void processRepeaters();
   void scheduleLogin(RepeaterState& state, unsigned long delayMs);
   bool requestTelemetry(RepeaterState& state, size_t index);
@@ -86,7 +101,12 @@ private:
   void onMqttMessage(const char* topic, const uint8_t* payload, size_t length);
   void handleControlMessage(const uint8_t* payload, size_t length);
   bool applyPollInterval(unsigned long intervalMs);
-  bool publishStatusPayload(const char* event);
+  void handleConfigCommand(const char* command, JsonDocument& doc);
+  bool decodeRepeaterConfig(JsonVariantConst obj, telemetry::RepeaterConfig& out, String& error);
+  int findConfigIndexByKey(const std::array<uint8_t, PUB_KEY_SIZE>& key) const;
+  bool persistSettings(const char* context);
+  bool publishRepeatersSnapshot(const char* event, const char* detail);
+  bool publishStatusPayload(const char* event, const char* detail = nullptr);
   void publishStatusEvent(const char* event, bool markBoot);
   static void mqttCallback(char* topic, uint8_t* payload, unsigned int length);
   bool canIssueRequest(unsigned long now) const;

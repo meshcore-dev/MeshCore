@@ -28,13 +28,22 @@
 
 #include "RemoteTelemetryMesh.h"
 #include "RemoteTelemetryManager.h"
+#include "ConfigPortal.h"
+#include "TelemetryConfig.h"
 
 StdRNG fast_rng;
 SimpleMeshTables tables;
 RemoteTelemetryMesh the_mesh(radio_driver, fast_rng, rtc_clock, tables);
 WiFiClient wifiClient;
 PubSubClient mqttClient(wifiClient);
-RemoteTelemetryManager telemetryManager(the_mesh, mqttClient);
+telemetry::Settings telemetrySettings = []() {
+  telemetry::Settings defaults;
+  defaults.applyDefaults();
+  return defaults;
+}();
+RemoteTelemetryManager telemetryManager(the_mesh, mqttClient, telemetrySettings);
+static bool advertScheduled = false;
+telemetry::ConfigStore telemetryConfigStore(SPIFFS, "/telemetry.json");
 
 static void halt() {
   while (true) {
@@ -98,6 +107,31 @@ void setup() {
   Serial.println();
 #endif
 
+  bool configLoaded = telemetryConfigStore.load();
+  if (!configLoaded) {
+#if REMOTE_TELEMETRY_DEBUG
+    Serial.println("No configuration found, starting portal");
+#endif
+    telemetryConfigStore.applyDefaults();
+  }
+
+  ConfigPortal portal(telemetryConfigStore);
+  if (!portal.ensureConfigured(!configLoaded)) {
+#if REMOTE_TELEMETRY_DEBUG
+    Serial.println("Configuration portal aborted");
+#endif
+    halt();
+  }
+
+  if (!telemetryConfigStore.data().isValid()) {
+#if REMOTE_TELEMETRY_DEBUG
+    Serial.println("Configuration invalid after portal");
+#endif
+    halt();
+  }
+
+  telemetryManager.attachConfigStore(telemetryConfigStore);
+
   sensors.begin();
 
   radio_set_params(LORA_FREQ, LORA_BW, LORA_SF, LORA_CR);
@@ -106,14 +140,21 @@ void setup() {
   mqttClient.setBufferSize(768);
 
   telemetryManager.begin();
-
-  the_mesh.sendSelfAdvertisement(16000);
 }
 
 void loop() {
-  the_mesh.loop();
   telemetryManager.loop();
   mqttClient.loop();
+
+  bool synced = telemetryManager.timeSynced();
+  if (synced) {
+    if (!advertScheduled) {
+      the_mesh.sendSelfAdvertisement(16000);
+      advertScheduled = true;
+    }
+    the_mesh.loop();
+  }
+
   sensors.loop();
   rtc_clock.tick();
 }
