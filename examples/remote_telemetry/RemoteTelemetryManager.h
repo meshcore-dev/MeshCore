@@ -16,6 +16,10 @@
 #define REMOTE_TELEMETRY_DEBUG 1
 #endif
 
+#ifndef REQ_TYPE_GET_TELEMETRY_DATA
+#define REQ_TYPE_GET_TELEMETRY_DATA 0x03
+#endif
+
 constexpr size_t REMOTE_TELEMETRY_MAX_REPEATERS = 16;
 
 class RemoteTelemetryManager {
@@ -42,6 +46,8 @@ private:
     unsigned long nextLoginAttempt;
     unsigned long nextTelemetryPoll;
     unsigned long lastLoginSuccess;
+    unsigned long lastLoginRequestSent;
+    unsigned long lastTelemetryRequestSent;
   };
 
   RemoteTelemetryMesh& _mesh;
@@ -52,14 +58,41 @@ private:
   unsigned long _bootMillis;
   unsigned long _nextWifiRetry;
   unsigned long _nextMqttRetry;
+  unsigned long _loginRetryMs;
+  unsigned long _pollIntervalMs;
+  unsigned long _timeoutRetryMs;
+  bool _statusPublished;
+  bool _controlSubscribed;
+  unsigned long _nextRequestReady;
+
+  enum class PendingRequestType : uint8_t {
+    None,
+    Login,
+    Telemetry,
+  };
+
+  PendingRequestType _activeRequestType;
+  size_t _activeRequestIndex;
 
   void configureRepeaters();
   void ensureWifi();
   void ensureMqtt();
   void processRepeaters();
   void scheduleLogin(RepeaterState& state, unsigned long delayMs);
-  void requestTelemetry(RepeaterState& state, bool immediate);
+  bool requestTelemetry(RepeaterState& state, size_t index);
   void publishTelemetry(const RepeaterState& state, uint32_t tag, const uint8_t* payload, uint8_t len);
   int findRepeaterIndex(const ContactInfo& contact) const;
   void checkRebootWindow();
+  void onMqttMessage(const char* topic, const uint8_t* payload, size_t length);
+  void handleControlMessage(const uint8_t* payload, size_t length);
+  bool applyPollInterval(unsigned long intervalMs);
+  bool publishStatusPayload(const char* event);
+  void publishStatusEvent(const char* event, bool markBoot);
+  static void mqttCallback(char* topic, uint8_t* payload, unsigned int length);
+  bool canIssueRequest(unsigned long now) const;
+  void markRequestStarted(PendingRequestType type, size_t index);
+  void markRequestCompleted(PendingRequestType type, size_t index);
+  void deferNextRequest();
+
+  static RemoteTelemetryManager* _instance;
 };

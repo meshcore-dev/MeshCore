@@ -103,6 +103,8 @@ void setup() {
   radio_set_params(LORA_FREQ, LORA_BW, LORA_SF, LORA_CR);
   radio_set_tx_power(LORA_TX_POWER);
 
+  mqttClient.setBufferSize(768);
+
   telemetryManager.begin();
 
   the_mesh.sendSelfAdvertisement(16000);

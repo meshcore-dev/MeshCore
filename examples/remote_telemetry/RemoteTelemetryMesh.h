@@ -14,6 +14,7 @@ public:
   ~RemoteTelemetryMesh();
 
   void begin();
+  void sendSelfAdvertisement(int delay_millis);
   void setManager(RemoteTelemetryManager* manager) { _manager = manager; }
 
 protected:

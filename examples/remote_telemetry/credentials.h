@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <stdint.h>
 
 struct WifiCredentials {
@@ -25,6 +26,11 @@ extern const WifiCredentials WIFI_CREDENTIALS;
 extern const MqttCredentials MQTT_CREDENTIALS;
 extern const RepeaterCredential REPEATER_CREDENTIALS[];
 extern const size_t NUM_REPEATER_CREDENTIALS;
+extern const unsigned long REMOTE_TELEMETRY_LOGIN_RETRY_INTERVAL_MS;
+extern const unsigned long REMOTE_TELEMETRY_POLL_INTERVAL_MS;
+extern const unsigned long REMOTE_TELEMETRY_TIMEOUT_RETRY_INTERVAL_MS;
+extern const char* MQTT_STATUS_TOPIC;
+extern const char* MQTT_CONTROL_TOPIC;
 
 #ifdef REMOTE_TELEMETRY_REQUIRE_CREDENTIALS
 #error "Populate WIFI_CREDENTIALS, MQTT_CREDENTIALS and REPEATER_CREDENTIALS in credentials.cpp or convert this header to contain concrete values before building."

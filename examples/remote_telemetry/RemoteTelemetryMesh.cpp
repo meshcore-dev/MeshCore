@@ -9,6 +9,10 @@
 #define REMOTE_TELEMETRY_DEBUG 1
 #endif
 
+#ifndef REMOTE_TELEMETRY_NODE_NAME
+#define REMOTE_TELEMETRY_NODE_NAME "Remote Telemetry"
+#endif
+
 #if REMOTE_TELEMETRY_DEBUG
 #define RT_DEBUG_PRINTLN(F, ...) Serial.printf("[mesh] " F "\n", ##__VA_ARGS__)
 #else
@@ -35,6 +39,20 @@ RemoteTelemetryMesh::~RemoteTelemetryMesh() {
 
 void RemoteTelemetryMesh::begin() {
   Mesh::begin();
+}
+
+void RemoteTelemetryMesh::sendSelfAdvertisement(int delay_millis) {
+  const char* name = REMOTE_TELEMETRY_NODE_NAME;
+  if (!name || name[0] == '\0') {
+    name = "Remote Telemetry";
+  }
+
+  mesh::Packet* pkt = createSelfAdvert(name);
+  if (pkt) {
+    sendFlood(pkt, delay_millis);
+  } else {
+    RT_DEBUG_PRINTLN("Failed to create self advertisement packet");
+  }
 }
 
 void RemoteTelemetryMesh::onDiscoveredContact(ContactInfo& contact, bool is_new, uint8_t path_len, const uint8_t* path) {

@@ -14,3 +14,4 @@ cmake-*
 .cache
 .ccls
 compile_commands.json
+examples/remote_telemetry/credentials.cpp
