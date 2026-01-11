@@ -117,7 +117,6 @@ void BaseChatMesh::onAdvertRecv(mesh::Packet* packet, const mesh::Identity& id, 
     } else {
       // Table is full, but still notify app about discovered contact
       // Use a temporary ContactInfo since we can't add to permanent list
-      // (Connection check happens inside onDiscoveredContact, same as manual-add mode)
       ContactInfo ci;
       memset(&ci, 0, sizeof(ci));
       ci.id = id;

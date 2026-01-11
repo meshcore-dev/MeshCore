@@ -263,7 +263,7 @@ bool MyMesh::isAutoAddEnabled() const {
 
 void MyMesh::onDiscoveredContact(ContactInfo &contact, bool is_new, uint8_t path_len, const uint8_t* path) {
   if (_serial->isConnected()) {
-    if (!isAutoAddEnabled() && is_new) {
+    if (is_new) {
       writeContactRespFrame(PUSH_CODE_NEW_ADVERT, contact);
     } else {
       out_frame[0] = PUSH_CODE_ADVERT;
