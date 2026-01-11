@@ -688,7 +688,13 @@ void UITask::shutdown(bool restart){
   if (restart) {
     _board->reboot();
   } else {
+    delay(2000);
+    #ifdef DISPLAY_CLASS
+    extern DISPLAY_CLASS display;
+    display.hibernate();
+    #else
     _display->turnOff();
+    #endif
     radio_driver.powerOff();
     _board->powerOff();
   }
