@@ -15,7 +15,6 @@ protected:
   void idle();
   void startRecv();
   float packetScoreInt(float snr, int sf, int packet_len);
-  virtual bool isReceivingPacket() =0;
 
 public:
   RadioLibWrapper(PhysicalLayer& radio, mesh::MainBoard& board) : _radio(&radio), _board(&board) { n_recv = n_sent = 0; }
@@ -28,13 +27,10 @@ public:
   bool isSendComplete() override;
   void onSendFinished() override;
   bool isInRecvMode() const override;
-  bool isChannelActive();
+  bool isChannelActive() override;
 
-  bool isReceiving() override { 
-    if (isReceivingPacket()) return true;
-
-    return isChannelActive();
-  }
+  bool isReceivingPacket() override =0;
+  int scanChannelActivity() override =0;
 
   virtual float getCurrentRSSI() =0;
 

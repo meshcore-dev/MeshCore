@@ -14,4 +14,12 @@ class CustomSTM32WLx : public STM32WLx {
       bool detected = (irq & SX126X_IRQ_HEADER_VALID) || (irq & SX126X_IRQ_PREAMBLE_DETECTED);
       return detected;
     }
+
+    int16_t scanCAD() {
+      int16_t state = scanChannel();
+      if (state == RADIOLIB_LORA_DETECTED) {
+        return 1;
+      }
+      return 0;
+    }
 };

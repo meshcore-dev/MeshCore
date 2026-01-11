@@ -72,19 +72,11 @@ class CustomSX1276 : public SX1276 {
         | RH_RF95_MODEM_STATUS_HEADER_INFO_VALID)) != 0;
     }
 
-    int tryScanChannel() {
-      // start CAD
-      int16_t state = startChannelScan();
-      RADIOLIB_ASSERT(state);
-
-      // wait for channel activity detected or timeout
-      unsigned long timeout = millis() + 16;
-      while(!this->mod->hal->digitalRead(this->mod->getIrq()) && millis() < timeout) {
-        this->mod->hal->yield();
-        if(this->mod->hal->digitalRead(this->mod->getGpio())) {
-          return(RADIOLIB_PREAMBLE_DETECTED);
-        }
+    int16_t scanCAD() {
+      int16_t state = scanChannel();
+      if (state == RADIOLIB_LORA_DETECTED) {
+        return 1;
       }
-      return 0; // timed out
+      return 0;
     }
 };

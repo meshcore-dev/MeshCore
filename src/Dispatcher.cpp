@@ -224,25 +224,33 @@ void Dispatcher::processRecvPacket(Packet* pkt) {
 }
 
 void Dispatcher::checkSend() {
-  if (_mgr->getOutboundCount(_ms->getMillis()) == 0) return;  // nothing waiting to send
-  if (!millisHasNowPassed(next_tx_time)) return;   // still in 'radio silence' phase (from airtime budget setting)
-  if (_radio->isReceiving()) {   // LBT - check if radio is currently mid-receive, or if channel activity
+  if (_mgr->getOutboundCount(_ms->getMillis()) == 0) return;
+  if (!millisHasNowPassed(next_tx_time)) return;
+
+  bool channel_busy = _radio->isReceivingPacket();
+  if (!channel_busy) {
+    int cad_result = _radio->scanChannelActivity();
+    if (cad_result > 0) {
+      channel_busy = true;
+    } else if (_radio->isChannelActive()) {
+      channel_busy = true;
+    }
+  }
+
+  if (channel_busy) {
     if (cad_busy_start == 0) {
-      cad_busy_start = _ms->getMillis();   // record when CAD busy state started
+      cad_busy_start = _ms->getMillis();
     }
 
     if (_ms->getMillis() - cad_busy_start > getCADFailMaxDuration()) {
       _err_flags |= ERR_EVENT_CAD_TIMEOUT;
-
       MESH_DEBUG_PRINTLN("%s Dispatcher::checkSend(): CAD busy max duration reached!", getLogDateTime());
-      // channel activity has gone on too long... (Radio might be in a bad state)
-      // force the pending transmit below...
     } else {
       next_tx_time = futureMillis(getCADFailRetryDelay());
       return;
     }
   }
-  cad_busy_start = 0;  // reset busy state
+  cad_busy_start = 0;
 
   outbound = _mgr->getNextOutbound(_ms->getMillis());
   if (outbound) {

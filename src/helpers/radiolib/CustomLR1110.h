@@ -25,4 +25,12 @@ class CustomLR1110 : public LR1110 {
       bool detected = ((irq & RADIOLIB_LR11X0_IRQ_SYNC_WORD_HEADER_VALID) || (irq & RADIOLIB_LR11X0_IRQ_PREAMBLE_DETECTED));
       return detected;
     }
+
+    int16_t scanCAD() {
+      int16_t state = scanChannel();
+      if (state == RADIOLIB_LORA_DETECTED) {
+        return 1;
+      }
+      return 0;
+    }
 };

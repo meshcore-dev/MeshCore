@@ -6,12 +6,19 @@
 class CustomSX1276Wrapper : public RadioLibWrapper {
 public:
   CustomSX1276Wrapper(CustomSX1276& radio, mesh::MainBoard& board) : RadioLibWrapper(radio, board) { }
+
   bool isReceivingPacket() override { 
     return ((CustomSX1276 *)_radio)->isReceiving();
   }
+
+  int scanChannelActivity() override {
+    return ((CustomSX1276 *)_radio)->scanCAD();
+  }
+
   float getCurrentRSSI() override {
     return ((CustomSX1276 *)_radio)->getRSSI(false);
   }
+
   float getLastRSSI() const override { return ((CustomSX1276 *)_radio)->getRSSI(); }
   float getLastSNR() const override { return ((CustomSX1276 *)_radio)->getSNR(); }
 

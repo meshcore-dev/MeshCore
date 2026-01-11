@@ -69,10 +69,11 @@ public:
 
   virtual bool isInRecvMode() const = 0;
 
-  /**
-   * \returns  true if the radio is currently mid-receive of a packet.
-  */
-  virtual bool isReceiving() { return false; }
+  virtual bool isReceivingPacket() { return false; }
+
+  virtual int scanChannelActivity() { return 0; }
+
+  virtual bool isChannelActive() { return false; }
 
   virtual float getLastRSSI() const { return 0; }
   virtual float getLastSNR() const { return 0; }
