@@ -122,24 +122,61 @@ void RemoteTelemetryManager::handleLoginResponse(const ContactInfo& contact, con
   const auto& cfg = repeaterConfig(state);
   state.loginPending = false;
 
-  if (len >= 6 && (data[4] == REMOTE_RESP_SERVER_LOGIN_OK || memcmp(&data[4], "OK", 2) == 0)) {
-    state.loggedIn = true;
-    state.lastLoginSuccess = millis();
-    RT_INFO_PRINTLN("Login succeeded for %s", cfg.name.c_str());
-    scheduleLogin(state, _pollIntervalMs); // ensure fallback if repeater drops session
-    state.nextTelemetryPoll = millis();
-    if (state.lastLoginRequestSent != 0) {
-      unsigned long rtt = millis() - state.lastLoginRequestSent;
-      RT_DEBUG_PRINTLN("Login RTT for %s was %lu ms", cfg.name.c_str(), rtt);
+  LoginMode mode = state.pendingLoginMode;
+  state.pendingLoginMode = LoginMode::None;
+
+  if (state.lastLoginRequestSent != 0) {
+    unsigned long rtt = millis() - state.lastLoginRequestSent;
+    RT_DEBUG_PRINTLN("Login RTT for %s was %lu ms", cfg.name.c_str(), rtt);
+  }
+  state.lastLoginRequestSent = 0;
+  markRequestCompleted(PendingRequestType::Login, static_cast<size_t>(idx));
+
+  bool success = len >= 6 && (data[4] == REMOTE_RESP_SERVER_LOGIN_OK || memcmp(&data[4], "OK", 2) == 0);
+  const char* modeLabel = (mode == LoginMode::Admin) ? "Admin" : "Guest";
+
+  if (!success) {
+    RT_INFO_PRINTLN("%s login response without success code for %s", modeLabel, cfg.name.c_str());
+    if (mode == LoginMode::Guest) {
+      state.guestRouteEstablished = false;
     }
-    state.lastLoginRequestSent = 0;
-  } else {
-    RT_INFO_PRINTLN("Login response without success code for %s", cfg.name.c_str());
     state.loggedIn = false;
     scheduleLogin(state, _loginRetryMs);
-    state.lastLoginRequestSent = 0;
+    return;
   }
-  markRequestCompleted(PendingRequestType::Login, static_cast<size_t>(idx));
+
+  unsigned long now = millis();
+
+  if (mode == LoginMode::Admin) {
+    state.guestRouteEstablished = true;
+    state.loggedIn = true;
+    state.lastLoginSuccess = now;
+    scheduleLogin(state, _pollIntervalMs);
+    state.nextTelemetryPoll = now;
+    RT_INFO_PRINTLN("Admin login succeeded for %s", cfg.name.c_str());
+    return;
+  }
+
+  bool routeKnown = state.contact && state.contact->out_path_len >= 0;
+  state.guestRouteEstablished = routeKnown;
+
+  if (!routeKnown) {
+    RT_INFO_PRINTLN("Guest login succeeded for %s but route not yet known", cfg.name.c_str());
+    scheduleLogin(state, _loginRetryMs);
+    return;
+  }
+
+  if (cfg.password.length() == 0) {
+    state.loggedIn = true;
+    state.lastLoginSuccess = now;
+    scheduleLogin(state, _pollIntervalMs);
+    state.nextTelemetryPoll = now;
+    RT_INFO_PRINTLN("Guest login established telemetry session for %s", cfg.name.c_str());
+  } else {
+    state.loggedIn = false;
+    state.nextLoginAttempt = now;
+    RT_INFO_PRINTLN("Guest login established route for %s, queuing admin login", cfg.name.c_str());
+  }
 }
 
 void RemoteTelemetryManager::handleTelemetryResponse(const ContactInfo& contact, uint32_t tag, const uint8_t* payload, uint8_t len) {
@@ -196,9 +233,15 @@ void RemoteTelemetryManager::notifySendTimeout() {
       markRequestCompleted(PendingRequestType::Telemetry, i);
     }
     if (state.loginPending && now > state.loginDeadline) {
-      RT_INFO_PRINTLN("Login request timed out for %s", cfg.name.c_str());
+      LoginMode mode = state.pendingLoginMode;
+      state.pendingLoginMode = LoginMode::None;
+      const char* modeLabel = (mode == LoginMode::Admin) ? "Admin" : "Guest";
+      RT_INFO_PRINTLN("%s login request timed out for %s", modeLabel, cfg.name.c_str());
       state.loginPending = false;
       state.loggedIn = false;
+      if (mode == LoginMode::Guest) {
+        state.guestRouteEstablished = false;
+      }
       scheduleLogin(state, _loginRetryMs);
       if (state.lastLoginRequestSent != 0) {
         unsigned long waited = now - state.lastLoginRequestSent;
@@ -219,6 +262,7 @@ void RemoteTelemetryManager::configureRepeaters() {
     state.loggedIn = false;
     state.telemetryPending = false;
     state.pendingTelemetryTag = 0;
+    state.guestRouteEstablished = false;
     state.loginDeadline = 0;
     state.telemetryDeadline = 0;
     state.nextLoginAttempt = now;
@@ -226,6 +270,7 @@ void RemoteTelemetryManager::configureRepeaters() {
     state.lastLoginSuccess = 0;
     state.lastLoginRequestSent = 0;
     state.lastTelemetryRequestSent = 0;
+    state.pendingLoginMode = LoginMode::None;
   }
 
   _repeaterCount = 0;
@@ -431,9 +476,15 @@ void RemoteTelemetryManager::processRepeaters() {
     const auto& cfg = repeaterConfig(state);
 
     if (state.loginPending && now > state.loginDeadline) {
-      RT_INFO_PRINTLN("Login timed out for %s", cfg.name.c_str());
+      LoginMode mode = state.pendingLoginMode;
+      state.pendingLoginMode = LoginMode::None;
+      const char* modeLabel = (mode == LoginMode::Admin) ? "Admin" : "Guest";
+      RT_INFO_PRINTLN("%s login timed out for %s", modeLabel, cfg.name.c_str());
       state.loginPending = false;
       state.loggedIn = false;
+      if (mode == LoginMode::Guest) {
+        state.guestRouteEstablished = false;
+      }
       if (state.lastLoginRequestSent != 0) {
         unsigned long waited = now - state.lastLoginRequestSent;
         RT_DEBUG_PRINTLN("Login timeout after %lu ms for %s", waited, cfg.name.c_str());
@@ -493,9 +544,31 @@ void RemoteTelemetryManager::processRepeaters() {
       continue;
     }
 
-    uint32_t est;
     const auto& cfg = repeaterConfig(state);
-    int result = _mesh.sendLogin(*state.contact, cfg.password.c_str(), est);
+
+    LoginMode nextMode = LoginMode::None;
+    bool adminPasswordPresent = cfg.password.length() > 0;
+
+    if (!state.guestRouteEstablished) {
+      nextMode = LoginMode::Guest;
+    } else if (adminPasswordPresent && !state.loggedIn) {
+      if (state.contact->out_path_len < 0) {
+        nextMode = LoginMode::Guest;
+      } else {
+        nextMode = LoginMode::Admin;
+      }
+    } else if (!adminPasswordPresent && !state.loggedIn) {
+      nextMode = LoginMode::Guest;
+    }
+
+    if (nextMode == LoginMode::None) {
+      continue;
+    }
+
+    const char* password = (nextMode == LoginMode::Admin) ? cfg.password.c_str() : "";
+
+    uint32_t est;
+    int result = _mesh.sendLogin(*state.contact, password, est);
     if (result == MSG_SEND_FAILED) {
       RT_INFO_PRINTLN("Unable to send login to %s", cfg.name.c_str());
       scheduleLogin(state, _loginRetryMs);
@@ -504,9 +577,11 @@ void RemoteTelemetryManager::processRepeaters() {
       state.loginPending = true;
       state.loginDeadline = now + est + REQUEST_GRACE_MS;
       state.lastLoginRequestSent = now;
+      state.pendingLoginMode = nextMode;
       markRequestStarted(PendingRequestType::Login, i);
-      RT_DEBUG_PRINTLN("Login send est=%lu ms deadline=%lu ms for %s", static_cast<unsigned long>(est), static_cast<unsigned long>(state.loginDeadline - now), cfg.name.c_str());
-      RT_INFO_PRINTLN("Login sent to %s (%s)", cfg.name.c_str(), result == MSG_SEND_SENT_DIRECT ? "direct" : "flood");
+      const char* modeLabel = (nextMode == LoginMode::Admin) ? "admin" : "guest";
+      RT_DEBUG_PRINTLN("%s login send est=%lu ms deadline=%lu ms for %s", modeLabel, static_cast<unsigned long>(est), static_cast<unsigned long>(state.loginDeadline - now), cfg.name.c_str());
+      RT_INFO_PRINTLN("%s login sent to %s (%s)", modeLabel, cfg.name.c_str(), result == MSG_SEND_SENT_DIRECT ? "direct" : "flood");
     }
     return;
   }

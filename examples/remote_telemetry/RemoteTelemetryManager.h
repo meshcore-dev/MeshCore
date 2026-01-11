@@ -39,12 +39,19 @@ public:
   void notifySendTimeout();
 
 private:
+  enum class LoginMode : uint8_t {
+    None,
+    Guest,
+    Admin,
+  };
+
   struct RepeaterState {
     size_t configIndex;
     const ContactInfo* contact;
     bool loginPending;
     bool loggedIn;
     bool telemetryPending;
+    bool guestRouteEstablished;
     uint32_t pendingTelemetryTag;
     unsigned long loginDeadline;
     unsigned long telemetryDeadline;
@@ -53,6 +60,7 @@ private:
     unsigned long lastLoginSuccess;
     unsigned long lastLoginRequestSent;
     unsigned long lastTelemetryRequestSent;
+    LoginMode pendingLoginMode;
   };
 
   RemoteTelemetryMesh& _mesh;
