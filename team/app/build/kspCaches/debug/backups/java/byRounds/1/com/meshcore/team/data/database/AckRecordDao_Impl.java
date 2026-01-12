@@ -39,6 +39,8 @@ public final class AckRecordDao_Impl implements AckRecordDao {
 
   private final SharedSQLiteStatement __preparedStmtOfDeleteAcksByMessageId;
 
+  private final SharedSQLiteStatement __preparedStmtOfDeleteAllAcks;
+
   public AckRecordDao_Impl(@NonNull final RoomDatabase __db) {
     this.__db = __db;
     this.__insertionAdapterOfAckRecordEntity = new EntityInsertionAdapter<AckRecordEntity>(__db) {
@@ -79,6 +81,14 @@ public final class AckRecordDao_Impl implements AckRecordDao {
       @NonNull
       public String createQuery() {
         final String _query = "DELETE FROM ack_records WHERE messageId = ?";
+        return _query;
+      }
+    };
+    this.__preparedStmtOfDeleteAllAcks = new SharedSQLiteStatement(__db) {
+      @Override
+      @NonNull
+      public String createQuery() {
+        final String _query = "DELETE FROM ack_records";
         return _query;
       }
     };
@@ -141,6 +151,29 @@ public final class AckRecordDao_Impl implements AckRecordDao {
           }
         } finally {
           __preparedStmtOfDeleteAcksByMessageId.release(_stmt);
+        }
+      }
+    }, $completion);
+  }
+
+  @Override
+  public Object deleteAllAcks(final Continuation<? super Unit> $completion) {
+    return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
+      @Override
+      @NonNull
+      public Unit call() throws Exception {
+        final SupportSQLiteStatement _stmt = __preparedStmtOfDeleteAllAcks.acquire();
+        try {
+          __db.beginTransaction();
+          try {
+            _stmt.executeUpdateDelete();
+            __db.setTransactionSuccessful();
+            return Unit.INSTANCE;
+          } finally {
+            __db.endTransaction();
+          }
+        } finally {
+          __preparedStmtOfDeleteAllAcks.release(_stmt);
         }
       }
     }, $completion);

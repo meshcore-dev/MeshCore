@@ -41,6 +41,8 @@ public final class MessageDao_Impl implements MessageDao {
 
   private final SharedSQLiteStatement __preparedStmtOfDeleteMessagesByChannel;
 
+  private final SharedSQLiteStatement __preparedStmtOfDeleteAllMessages;
+
   private final SharedSQLiteStatement __preparedStmtOfUpdateDeliveryStatus;
 
   public MessageDao_Impl(@NonNull final RoomDatabase __db) {
@@ -135,6 +137,14 @@ public final class MessageDao_Impl implements MessageDao {
         return _query;
       }
     };
+    this.__preparedStmtOfDeleteAllMessages = new SharedSQLiteStatement(__db) {
+      @Override
+      @NonNull
+      public String createQuery() {
+        final String _query = "DELETE FROM messages";
+        return _query;
+      }
+    };
     this.__preparedStmtOfUpdateDeliveryStatus = new SharedSQLiteStatement(__db) {
       @Override
       @NonNull
@@ -223,6 +233,29 @@ public final class MessageDao_Impl implements MessageDao {
           }
         } finally {
           __preparedStmtOfDeleteMessagesByChannel.release(_stmt);
+        }
+      }
+    }, $completion);
+  }
+
+  @Override
+  public Object deleteAllMessages(final Continuation<? super Unit> $completion) {
+    return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
+      @Override
+      @NonNull
+      public Unit call() throws Exception {
+        final SupportSQLiteStatement _stmt = __preparedStmtOfDeleteAllMessages.acquire();
+        try {
+          __db.beginTransaction();
+          try {
+            _stmt.executeUpdateDelete();
+            __db.setTransactionSuccessful();
+            return Unit.INSTANCE;
+          } finally {
+            __db.endTransaction();
+          }
+        } finally {
+          __preparedStmtOfDeleteAllMessages.release(_stmt);
         }
       }
     }, $completion);

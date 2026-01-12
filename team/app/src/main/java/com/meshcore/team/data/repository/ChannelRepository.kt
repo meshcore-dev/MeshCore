@@ -125,12 +125,32 @@ class ChannelRepository(
             var channelName: String
             var psk: ByteArray
             
-            // Check if it's a meshcore:// URL
-            if (nameOrUrl.startsWith("meshcore://channel/add?")) {
-                val uri = android.net.Uri.parse(nameOrUrl)
+            // Check if either parameter is a meshcore:// URL
+            val urlInput = when {
+                nameOrUrl.startsWith("meshcore://channel/add?") -> nameOrUrl
+                keyData.startsWith("meshcore://channel/add?") -> keyData
+                else -> null
+            }
+            
+            if (urlInput != null) {
+                // Parse meshcore:// URL
+                val uri = android.net.Uri.parse(urlInput)
                 channelName = uri.getQueryParameter("name") ?: return null
                 val secret = uri.getQueryParameter("secret") ?: return null
-                psk = Base64.decode(secret, Base64.DEFAULT)
+                
+                // Try to parse as hex first (new format), then fall back to Base64 (legacy)
+                psk = try {
+                    if (secret.length == 32 && secret.matches("[0-9a-fA-F]+".toRegex())) {
+                        // Hex format (new)
+                        secret.lowercase().chunked(2).map { it.toInt(16).toByte() }.toByteArray()
+                    } else {
+                        // Base64 format (legacy)
+                        Base64.decode(secret, Base64.DEFAULT)
+                    }
+                } catch (e: Exception) {
+                    Timber.w(e, "Failed to decode secret from URL")
+                    return null
+                }
             } else {
                 // Legacy format: separate name and key
                 channelName = nameOrUrl

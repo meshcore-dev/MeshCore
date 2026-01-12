@@ -152,7 +152,16 @@ void setup() {
 
 #ifdef BLE_PIN_CODE
   char dev_name[32+16];
+  Serial.print("[DEBUG] BLE_NAME_PREFIX: '");
+  Serial.print(BLE_NAME_PREFIX);
+  Serial.println("'");
+  Serial.print("[DEBUG] getNodeName(): '");
+  Serial.print(the_mesh.getNodeName());
+  Serial.println("'");
   sprintf(dev_name, "%s%s", BLE_NAME_PREFIX, the_mesh.getNodeName());
+  Serial.print("[DEBUG] Final BLE device name: '");
+  Serial.print(dev_name);
+  Serial.println("'");
   serial_interface.begin(dev_name, the_mesh.getBLEPin());
 #else
   serial_interface.begin(Serial);
@@ -200,7 +209,16 @@ void setup() {
   serial_interface.begin(TCP_PORT);
 #elif defined(BLE_PIN_CODE)
   char dev_name[32+16];
+  Serial.print("[DEBUG] BLE_NAME_PREFIX: '");
+  Serial.print(BLE_NAME_PREFIX);
+  Serial.println("'");
+  Serial.print("[DEBUG] getNodeName(): '");
+  Serial.print(the_mesh.getNodeName());
+  Serial.println("'");
   sprintf(dev_name, "%s%s", BLE_NAME_PREFIX, the_mesh.getNodeName());
+  Serial.print("[DEBUG] Final BLE device name: '");
+  Serial.print(dev_name);
+  Serial.println("'");
   serial_interface.begin(dev_name, the_mesh.getBLEPin());
 #elif defined(SERIAL_RX)
   companion_serial.setPins(SERIAL_RX, SERIAL_TX);

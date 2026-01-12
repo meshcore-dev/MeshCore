@@ -7,6 +7,7 @@
 
 #include <rom/rtc.h>
 #include <sys/time.h>
+#include <esp_sleep.h>
 #include <Wire.h>
 
 class ESP32Board : public mesh::MainBoard {
@@ -84,6 +85,14 @@ public:
 
   void reboot() override {
     esp_restart();
+  }
+  
+  void hardReset() override {
+    // Force a hardware-equivalent reset for BLE advertising changes
+    // This mimics the RTS pin reset that happens during firmware flashing
+    // Using deep sleep with minimal time forces hardware reinitialization
+    esp_sleep_enable_timer_wakeup(1000); // 1ms
+    esp_deep_sleep_start();
   }
 
   bool startOTAUpdate(const char* id, char reply[]) override;

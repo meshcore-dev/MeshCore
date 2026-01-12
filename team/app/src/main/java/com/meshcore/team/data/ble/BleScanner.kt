@@ -49,13 +49,24 @@ class BleScanner(private val context: Context) {
         
         val scanCallback = object : ScanCallback() {
             override fun onScanResult(callbackType: Int, result: ScanResult) {
-                Timber.d("Found device: ${result.device.name} [${result.device.address}]")
+                val deviceName = result.device.name
+                val deviceAddress = result.device.address
+                
+                Timber.d("Found device: $deviceName [$deviceAddress]")
+                // Focus on MAC address as primary identifier, name is secondary
+                Timber.i("🔍 Device discovered: '$deviceName' at $deviceAddress (RSSI: ${result.rssi})")
+                
                 trySend(result)
             }
             
             override fun onBatchScanResults(results: List<ScanResult>) {
                 results.forEach { result ->
-                    Timber.d("Found device (batch): ${result.device.name} [${result.device.address}]")
+                    val deviceName = result.device.name
+                    val deviceAddress = result.device.address
+                    
+                    Timber.d("Found device (batch): $deviceName [$deviceAddress]")
+                    Timber.i("🔍 Device discovered (batch): '$deviceName' at $deviceAddress")
+                    
                     trySend(result)
                 }
             }

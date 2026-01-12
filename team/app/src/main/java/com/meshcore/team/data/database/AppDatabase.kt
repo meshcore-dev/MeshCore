@@ -16,7 +16,7 @@ import androidx.room.TypeConverters
         ChannelEntity::class,
         AckRecordEntity::class
     ],
-    version = 2, // Incremented for channelIndex field addition
+    version = 3, // Incremented for hopCount field in NodeEntity
     exportSchema = false
 )
 @TypeConverters(Converters::class)

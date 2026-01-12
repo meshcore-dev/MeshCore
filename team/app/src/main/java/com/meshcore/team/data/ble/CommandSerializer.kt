@@ -202,4 +202,29 @@ object CommandSerializer {
         
         Timber.d("Serialized CMD_SET_CHANNEL: idx=$channelIndex, name=$name")
         return frame
-    }}
+    }
+    
+    /**
+     * CMD_SET_ADVERT_NAME = 8
+     * Set the device name (advertised on mesh network)
+     * Format: [cmd][32-byte name]
+     */
+    fun setAdvertName(name: String): ByteArray {
+        val frame = ByteArray(1 + 32)
+        var offset = 0
+        
+        frame[offset++] = BleConstants.Commands.CMD_SET_ADVERT_NAME
+        
+        // Add device name (32 bytes, null-padded)
+        val nameBytes = name.toByteArray(Charsets.UTF_8)
+        val nameToCopy = if (nameBytes.size > 32) {
+            nameBytes.copyOfRange(0, 32)
+        } else {
+            nameBytes
+        }
+        nameToCopy.copyInto(frame, offset)
+        
+        Timber.d("Serialized CMD_SET_ADVERT_NAME: name=$name")
+        return frame
+    }
+}

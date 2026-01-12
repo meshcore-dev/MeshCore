@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="zxing_app_name">Barcode Scanner</string>
-    <string name="zxing_button_ok">OK</string>
-    <string name="zxing_msg_camera_framework_bug">Maaf, kamera mengalami masalah. Anda mungkin perlu me-restart perangkat.</string>
-    <string name="zxing_msg_default_status">Letakkan barcode di dalam kotak jendela untuk memindai.</string>
-</resources>

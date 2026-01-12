@@ -37,15 +37,15 @@ public final class AppDatabase_Impl extends AppDatabase {
   @Override
   @NonNull
   protected SupportSQLiteOpenHelper createOpenHelper(@NonNull final DatabaseConfiguration config) {
-    final SupportSQLiteOpenHelper.Callback _openCallback = new RoomOpenHelper(config, new RoomOpenHelper.Delegate(2) {
+    final SupportSQLiteOpenHelper.Callback _openCallback = new RoomOpenHelper(config, new RoomOpenHelper.Delegate(3) {
       @Override
       public void createAllTables(@NonNull final SupportSQLiteDatabase db) {
         db.execSQL("CREATE TABLE IF NOT EXISTS `messages` (`id` TEXT NOT NULL, `senderId` BLOB NOT NULL, `senderName` TEXT, `channelHash` INTEGER NOT NULL, `content` TEXT NOT NULL, `timestamp` INTEGER NOT NULL, `isPrivate` INTEGER NOT NULL, `ackChecksum` BLOB, `deliveryStatus` TEXT NOT NULL, `heardByCount` INTEGER NOT NULL, `attempt` INTEGER NOT NULL, `isSentByMe` INTEGER NOT NULL, PRIMARY KEY(`id`))");
-        db.execSQL("CREATE TABLE IF NOT EXISTS `nodes` (`publicKey` BLOB NOT NULL, `hash` INTEGER NOT NULL, `name` TEXT, `latitude` REAL, `longitude` REAL, `lastSeen` INTEGER NOT NULL, `batteryMilliVolts` INTEGER, `isRepeater` INTEGER NOT NULL, `isRoomServer` INTEGER NOT NULL, `isDirect` INTEGER NOT NULL, PRIMARY KEY(`publicKey`))");
+        db.execSQL("CREATE TABLE IF NOT EXISTS `nodes` (`publicKey` BLOB NOT NULL, `hash` INTEGER NOT NULL, `name` TEXT, `latitude` REAL, `longitude` REAL, `lastSeen` INTEGER NOT NULL, `batteryMilliVolts` INTEGER, `isRepeater` INTEGER NOT NULL, `isRoomServer` INTEGER NOT NULL, `isDirect` INTEGER NOT NULL, `hopCount` INTEGER NOT NULL, PRIMARY KEY(`publicKey`))");
         db.execSQL("CREATE TABLE IF NOT EXISTS `channels` (`hash` INTEGER NOT NULL, `name` TEXT NOT NULL, `sharedKey` BLOB NOT NULL, `isPublic` INTEGER NOT NULL, `shareLocation` INTEGER NOT NULL, `channelIndex` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL, PRIMARY KEY(`hash`))");
         db.execSQL("CREATE TABLE IF NOT EXISTS `ack_records` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `messageId` TEXT NOT NULL, `ackChecksum` BLOB NOT NULL, `devicePublicKey` BLOB NOT NULL, `roundTripTimeMs` INTEGER NOT NULL, `isDirect` INTEGER NOT NULL, `receivedAt` INTEGER NOT NULL)");
         db.execSQL("CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)");
-        db.execSQL("INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'f08b3105ad03da22a34bd58bbf7d077f')");
+        db.execSQL("INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'd91afd3b44c24577658ee03747babec0')");
       }
 
       @Override
@@ -119,7 +119,7 @@ public final class AppDatabase_Impl extends AppDatabase {
                   + " Expected:\n" + _infoMessages + "\n"
                   + " Found:\n" + _existingMessages);
         }
-        final HashMap<String, TableInfo.Column> _columnsNodes = new HashMap<String, TableInfo.Column>(10);
+        final HashMap<String, TableInfo.Column> _columnsNodes = new HashMap<String, TableInfo.Column>(11);
         _columnsNodes.put("publicKey", new TableInfo.Column("publicKey", "BLOB", true, 1, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsNodes.put("hash", new TableInfo.Column("hash", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsNodes.put("name", new TableInfo.Column("name", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
@@ -130,6 +130,7 @@ public final class AppDatabase_Impl extends AppDatabase {
         _columnsNodes.put("isRepeater", new TableInfo.Column("isRepeater", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsNodes.put("isRoomServer", new TableInfo.Column("isRoomServer", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsNodes.put("isDirect", new TableInfo.Column("isDirect", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsNodes.put("hopCount", new TableInfo.Column("hopCount", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         final HashSet<TableInfo.ForeignKey> _foreignKeysNodes = new HashSet<TableInfo.ForeignKey>(0);
         final HashSet<TableInfo.Index> _indicesNodes = new HashSet<TableInfo.Index>(0);
         final TableInfo _infoNodes = new TableInfo("nodes", _columnsNodes, _foreignKeysNodes, _indicesNodes);
@@ -175,7 +176,7 @@ public final class AppDatabase_Impl extends AppDatabase {
         }
         return new RoomOpenHelper.ValidationResult(true, null);
       }
-    }, "f08b3105ad03da22a34bd58bbf7d077f", "dc1665a58542379e2429d5a8444d2645");
+    }, "d91afd3b44c24577658ee03747babec0", "67eebafed4d85a35f27c8ba04f70711e");
     final SupportSQLiteOpenHelper.Configuration _sqliteConfig = SupportSQLiteOpenHelper.Configuration.builder(config.context).name(config.name).callback(_openCallback).build();
     final SupportSQLiteOpenHelper _helper = config.sqliteOpenHelperFactory.create(_sqliteConfig);
     return _helper;

@@ -27,6 +27,9 @@ interface NodeDao {
     @Delete
     suspend fun deleteNode(node: NodeEntity)
     
+    @Query("DELETE FROM nodes")
+    suspend fun deleteAllNodes()
+    
     @Query("UPDATE nodes SET latitude = :latitude, longitude = :longitude, lastSeen = :lastSeen WHERE publicKey = :publicKey")
     suspend fun updateNodeLocation(publicKey: ByteArray, latitude: Double, longitude: Double, lastSeen: Long)
     

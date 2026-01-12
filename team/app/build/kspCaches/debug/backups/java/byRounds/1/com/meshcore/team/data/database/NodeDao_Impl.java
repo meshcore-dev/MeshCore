@@ -41,6 +41,8 @@ public final class NodeDao_Impl implements NodeDao {
 
   private final EntityDeletionOrUpdateAdapter<NodeEntity> __updateAdapterOfNodeEntity;
 
+  private final SharedSQLiteStatement __preparedStmtOfDeleteAllNodes;
+
   private final SharedSQLiteStatement __preparedStmtOfUpdateNodeLocation;
 
   private final SharedSQLiteStatement __preparedStmtOfUpdateNodeLastSeen;
@@ -51,7 +53,7 @@ public final class NodeDao_Impl implements NodeDao {
       @Override
       @NonNull
       protected String createQuery() {
-        return "INSERT OR REPLACE INTO `nodes` (`publicKey`,`hash`,`name`,`latitude`,`longitude`,`lastSeen`,`batteryMilliVolts`,`isRepeater`,`isRoomServer`,`isDirect`) VALUES (?,?,?,?,?,?,?,?,?,?)";
+        return "INSERT OR REPLACE INTO `nodes` (`publicKey`,`hash`,`name`,`latitude`,`longitude`,`lastSeen`,`batteryMilliVolts`,`isRepeater`,`isRoomServer`,`isDirect`,`hopCount`) VALUES (?,?,?,?,?,?,?,?,?,?,?)";
       }
 
       @Override
@@ -86,6 +88,7 @@ public final class NodeDao_Impl implements NodeDao {
         statement.bindLong(9, _tmp_1);
         final int _tmp_2 = entity.isDirect() ? 1 : 0;
         statement.bindLong(10, _tmp_2);
+        statement.bindLong(11, entity.getHopCount());
       }
     };
     this.__deletionAdapterOfNodeEntity = new EntityDeletionOrUpdateAdapter<NodeEntity>(__db) {
@@ -105,7 +108,7 @@ public final class NodeDao_Impl implements NodeDao {
       @Override
       @NonNull
       protected String createQuery() {
-        return "UPDATE OR ABORT `nodes` SET `publicKey` = ?,`hash` = ?,`name` = ?,`latitude` = ?,`longitude` = ?,`lastSeen` = ?,`batteryMilliVolts` = ?,`isRepeater` = ?,`isRoomServer` = ?,`isDirect` = ? WHERE `publicKey` = ?";
+        return "UPDATE OR ABORT `nodes` SET `publicKey` = ?,`hash` = ?,`name` = ?,`latitude` = ?,`longitude` = ?,`lastSeen` = ?,`batteryMilliVolts` = ?,`isRepeater` = ?,`isRoomServer` = ?,`isDirect` = ?,`hopCount` = ? WHERE `publicKey` = ?";
       }
 
       @Override
@@ -140,7 +143,16 @@ public final class NodeDao_Impl implements NodeDao {
         statement.bindLong(9, _tmp_1);
         final int _tmp_2 = entity.isDirect() ? 1 : 0;
         statement.bindLong(10, _tmp_2);
-        statement.bindBlob(11, entity.getPublicKey());
+        statement.bindLong(11, entity.getHopCount());
+        statement.bindBlob(12, entity.getPublicKey());
+      }
+    };
+    this.__preparedStmtOfDeleteAllNodes = new SharedSQLiteStatement(__db) {
+      @Override
+      @NonNull
+      public String createQuery() {
+        final String _query = "DELETE FROM nodes";
+        return _query;
       }
     };
     this.__preparedStmtOfUpdateNodeLocation = new SharedSQLiteStatement(__db) {
@@ -210,6 +222,29 @@ public final class NodeDao_Impl implements NodeDao {
           return Unit.INSTANCE;
         } finally {
           __db.endTransaction();
+        }
+      }
+    }, $completion);
+  }
+
+  @Override
+  public Object deleteAllNodes(final Continuation<? super Unit> $completion) {
+    return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
+      @Override
+      @NonNull
+      public Unit call() throws Exception {
+        final SupportSQLiteStatement _stmt = __preparedStmtOfDeleteAllNodes.acquire();
+        try {
+          __db.beginTransaction();
+          try {
+            _stmt.executeUpdateDelete();
+            __db.setTransactionSuccessful();
+            return Unit.INSTANCE;
+          } finally {
+            __db.endTransaction();
+          }
+        } finally {
+          __preparedStmtOfDeleteAllNodes.release(_stmt);
         }
       }
     }, $completion);
@@ -298,6 +333,7 @@ public final class NodeDao_Impl implements NodeDao {
           final int _cursorIndexOfIsRepeater = CursorUtil.getColumnIndexOrThrow(_cursor, "isRepeater");
           final int _cursorIndexOfIsRoomServer = CursorUtil.getColumnIndexOrThrow(_cursor, "isRoomServer");
           final int _cursorIndexOfIsDirect = CursorUtil.getColumnIndexOrThrow(_cursor, "isDirect");
+          final int _cursorIndexOfHopCount = CursorUtil.getColumnIndexOrThrow(_cursor, "hopCount");
           final List<NodeEntity> _result = new ArrayList<NodeEntity>(_cursor.getCount());
           while (_cursor.moveToNext()) {
             final NodeEntity _item;
@@ -343,7 +379,9 @@ public final class NodeDao_Impl implements NodeDao {
             final int _tmp_2;
             _tmp_2 = _cursor.getInt(_cursorIndexOfIsDirect);
             _tmpIsDirect = _tmp_2 != 0;
-            _item = new NodeEntity(_tmpPublicKey,_tmpHash,_tmpName,_tmpLatitude,_tmpLongitude,_tmpLastSeen,_tmpBatteryMilliVolts,_tmpIsRepeater,_tmpIsRoomServer,_tmpIsDirect);
+            final int _tmpHopCount;
+            _tmpHopCount = _cursor.getInt(_cursorIndexOfHopCount);
+            _item = new NodeEntity(_tmpPublicKey,_tmpHash,_tmpName,_tmpLatitude,_tmpLongitude,_tmpLastSeen,_tmpBatteryMilliVolts,_tmpIsRepeater,_tmpIsRoomServer,_tmpIsDirect,_tmpHopCount);
             _result.add(_item);
           }
           return _result;
@@ -383,6 +421,7 @@ public final class NodeDao_Impl implements NodeDao {
           final int _cursorIndexOfIsRepeater = CursorUtil.getColumnIndexOrThrow(_cursor, "isRepeater");
           final int _cursorIndexOfIsRoomServer = CursorUtil.getColumnIndexOrThrow(_cursor, "isRoomServer");
           final int _cursorIndexOfIsDirect = CursorUtil.getColumnIndexOrThrow(_cursor, "isDirect");
+          final int _cursorIndexOfHopCount = CursorUtil.getColumnIndexOrThrow(_cursor, "hopCount");
           final NodeEntity _result;
           if (_cursor.moveToFirst()) {
             final byte[] _tmpPublicKey;
@@ -427,7 +466,9 @@ public final class NodeDao_Impl implements NodeDao {
             final int _tmp_2;
             _tmp_2 = _cursor.getInt(_cursorIndexOfIsDirect);
             _tmpIsDirect = _tmp_2 != 0;
-            _result = new NodeEntity(_tmpPublicKey,_tmpHash,_tmpName,_tmpLatitude,_tmpLongitude,_tmpLastSeen,_tmpBatteryMilliVolts,_tmpIsRepeater,_tmpIsRoomServer,_tmpIsDirect);
+            final int _tmpHopCount;
+            _tmpHopCount = _cursor.getInt(_cursorIndexOfHopCount);
+            _result = new NodeEntity(_tmpPublicKey,_tmpHash,_tmpName,_tmpLatitude,_tmpLongitude,_tmpLastSeen,_tmpBatteryMilliVolts,_tmpIsRepeater,_tmpIsRoomServer,_tmpIsDirect,_tmpHopCount);
           } else {
             _result = null;
           }
@@ -463,6 +504,7 @@ public final class NodeDao_Impl implements NodeDao {
           final int _cursorIndexOfIsRepeater = CursorUtil.getColumnIndexOrThrow(_cursor, "isRepeater");
           final int _cursorIndexOfIsRoomServer = CursorUtil.getColumnIndexOrThrow(_cursor, "isRoomServer");
           final int _cursorIndexOfIsDirect = CursorUtil.getColumnIndexOrThrow(_cursor, "isDirect");
+          final int _cursorIndexOfHopCount = CursorUtil.getColumnIndexOrThrow(_cursor, "hopCount");
           final NodeEntity _result;
           if (_cursor.moveToFirst()) {
             final byte[] _tmpPublicKey;
@@ -507,7 +549,9 @@ public final class NodeDao_Impl implements NodeDao {
             final int _tmp_2;
             _tmp_2 = _cursor.getInt(_cursorIndexOfIsDirect);
             _tmpIsDirect = _tmp_2 != 0;
-            _result = new NodeEntity(_tmpPublicKey,_tmpHash,_tmpName,_tmpLatitude,_tmpLongitude,_tmpLastSeen,_tmpBatteryMilliVolts,_tmpIsRepeater,_tmpIsRoomServer,_tmpIsDirect);
+            final int _tmpHopCount;
+            _tmpHopCount = _cursor.getInt(_cursorIndexOfHopCount);
+            _result = new NodeEntity(_tmpPublicKey,_tmpHash,_tmpName,_tmpLatitude,_tmpLongitude,_tmpLastSeen,_tmpBatteryMilliVolts,_tmpIsRepeater,_tmpIsRoomServer,_tmpIsDirect,_tmpHopCount);
           } else {
             _result = null;
           }

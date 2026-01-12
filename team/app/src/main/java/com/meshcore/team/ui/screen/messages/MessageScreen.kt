@@ -19,7 +19,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.google.zxing.integration.android.IntentIntegrator
 import com.meshcore.team.data.ble.ConnectionState
 import com.meshcore.team.data.database.ChannelEntity
 import com.meshcore.team.data.database.DeliveryStatus
@@ -38,12 +37,16 @@ fun MessageScreen(
     onNavigateToConnection: () -> Unit
 ) {
     val channels by viewModel.channels.collectAsState()
+    val contacts by viewModel.contacts.collectAsState()
     val selectedChannel by viewModel.selectedChannel.collectAsState()
+    val selectedContact by viewModel.selectedContact.collectAsState()
     val messages by viewModel.messages.collectAsState()
     val connectionState by viewModel.connectionState.collectAsState()
     val connectedDevice by viewModel.connectedDevice.collectAsState()
+    val messagingMode by viewModel.messagingMode.collectAsState()
     
     var showChannelMenu by remember { mutableStateOf(false) }
+    var showContactList by remember { mutableStateOf(false) }
     var showCreateChannelDialog by remember { mutableStateOf(false) }
     var showImportChannelDialog by remember { mutableStateOf(false) }
     var showShareChannelDialog by remember { mutableStateOf(false) }
@@ -57,7 +60,28 @@ fun MessageScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text(selectedChannel?.name ?: "Messages")
+                        // Mode indicator
+                        if (messagingMode == "contacts") {
+                            Icon(
+                                Icons.Default.Person,
+                                contentDescription = "Direct Message",
+                                modifier = Modifier.size(20.dp)
+                            )
+                        } else {
+                            Icon(
+                                Icons.Default.Tag,
+                                contentDescription = "Channel",
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        
+                        Text(
+                            if (messagingMode == "contacts") {
+                                selectedContact?.name ?: "Select Contact"
+                            } else {
+                                selectedChannel?.name ?: "Messages"
+                            }
+                        )
                         
                         // Connection status indicator
                         Box(
@@ -84,17 +108,46 @@ fun MessageScreen(
                 },
                 actions = {
                     // Share channel key button (for private channels)
-                    selectedChannel?.let { channel ->
-                        if (!channel.isPublic) {
-                            IconButton(onClick = { showShareChannelDialog = true }) {
-                                Icon(Icons.Default.Share, "Share Channel Key")
+                    if (messagingMode == "channels") {
+                        selectedChannel?.let { channel ->
+                            if (!channel.isPublic) {
+                                IconButton(onClick = { showShareChannelDialog = true }) {
+                                    Icon(Icons.Default.Share, "Share Channel Key")
+                                }
                             }
                         }
                     }
                     
-                    // Channel selector
-                    IconButton(onClick = { showChannelMenu = true }) {
-                        Icon(Icons.Default.Menu, "Select Channel")
+                    // Mode switcher: Channels vs Contacts
+                    IconButton(onClick = {
+                        if (messagingMode == "contacts") {
+                            showChannelMenu = true
+                        } else {
+                            showContactList = true
+                        }
+                    }) {
+                        Icon(
+                            if (messagingMode == "contacts") Icons.Default.Tag else Icons.Default.Person,
+                            contentDescription = if (messagingMode == "contacts") "Switch to Channels" else "Switch to Contacts"
+                        )
+                    }
+                    
+                    // Menu for current mode
+                    IconButton(onClick = {
+                        if (messagingMode == "channels") {
+                            showChannelMenu = true
+                        } else {
+                            showContactList = true
+                        }
+                    }) {
+                        Icon(Icons.Default.Menu, "Menu")
+                    }
+                    
+                    // Debug button (for troubleshooting naming issues)
+                    IconButton(onClick = {
+                        viewModel.clearDatabaseAndResync()
+                    }) {
+                        Icon(Icons.Default.Refresh, "Clear & Resync")
                     }
                 }
             )
@@ -143,11 +196,33 @@ fun MessageScreen(
                     showChannelMenu = false
                     showCreateChannelDialog = true
                 },
+                onImportChannel = {
+                    showChannelMenu = false
+                    showImportChannelDialog = true
+                },
+                onDeleteChannel = { channel ->
+                    viewModel.deleteChannel(channel)
+                },
                 onDismiss = { showChannelMenu = false }
             )
         }
-        
-        // Create private channel dialog
+                // Contact list dialog
+        if (showContactList) {
+            ContactListDialog(
+                contacts = contacts,
+                selectedContact = selectedContact,
+                onContactSelected = { 
+                    viewModel.selectContact(it)
+                    showContactList = false
+                },
+                onSwitchToChannels = {
+                    showContactList = false
+                    showChannelMenu = true
+                },
+                onDismiss = { showContactList = false }
+            )
+        }
+                // Create private channel dialog
         if (showCreateChannelDialog) {
             CreateChannelDialog(
                 onConfirm = { name ->
@@ -162,6 +237,7 @@ fun MessageScreen(
         if (showImportChannelDialog) {
             ImportChannelDialog(
                 onConfirm = { nameOrUrl, keyOrEmpty ->
+                    timber.log.Timber.i("🔍 ImportChannelDialog.onConfirm called: nameOrUrl='$nameOrUrl', keyOrEmpty='$keyOrEmpty'")
                     // Check if first param is a meshcore:// URL
                     val input = if (nameOrUrl.startsWith("meshcore://")) {
                         nameOrUrl // URL in first field
@@ -170,18 +246,21 @@ fun MessageScreen(
                     } else {
                         nameOrUrl // Assume legacy format with separate name/key
                     }
+                    timber.log.Timber.i("🔍 Calling viewModel.importChannel with: input='$input'")
                     viewModel.importChannel(input, keyOrEmpty) { success ->
+                        timber.log.Timber.i("🔍 importChannel callback: success=$success")
+                        // Close dialog AFTER import completes to ensure state updates properly
+                        showImportChannelDialog = false
+                        timber.log.Timber.i("🔍 Import dialog closed")
                         if (!success) {
-                            // TODO: Show error toast
+                            timber.log.Timber.e("❌ Import failed")
                         }
                     }
-                    showImportChannelDialog = false
                 },
                 onDismiss = { showImportChannelDialog = false }
             )
         }
         
-        // 
         // Share channel key dialog
         if (showShareChannelDialog && selectedChannel != null) {
             ShareChannelDialog(
@@ -465,8 +544,36 @@ fun ChannelSelectionDialog(
     selectedChannel: ChannelEntity?,
     onChannelSelected: (ChannelEntity) -> Unit,
     onCreateChannel: () -> Unit,
+    onImportChannel: () -> Unit,
+    onDeleteChannel: (ChannelEntity) -> Unit,
     onDismiss: () -> Unit
 ) {
+    var channelToDelete by remember { mutableStateOf<ChannelEntity?>(null) }
+    
+    // Delete confirmation dialog
+    if (channelToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { channelToDelete = null },
+            title = { Text("Delete Channel?") },
+            text = { Text("Are you sure you want to delete '${channelToDelete!!.name}'? This cannot be undone.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onDeleteChannel(channelToDelete!!)
+                        channelToDelete = null
+                    }
+                ) {
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { channelToDelete = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+    
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Select Channel") },
@@ -476,8 +583,7 @@ fun ChannelSelectionDialog(
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 4.dp)
-                            .clickable { onChannelSelected(channel) },
+                            .padding(vertical = 4.dp),
                         colors = CardDefaults.cardColors(
                             containerColor = if (channel == selectedChannel)
                                 MaterialTheme.colorScheme.primaryContainer
@@ -492,7 +598,11 @@ fun ChannelSelectionDialog(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column {
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable { onChannelSelected(channel) }
+                            ) {
                                 Text(
                                     text = channel.name,
                                     style = MaterialTheme.typography.titleMedium,
@@ -505,12 +615,27 @@ fun ChannelSelectionDialog(
                                 )
                             }
                             
-                            if (channel == selectedChannel) {
-                                Icon(
-                                    imageVector = Icons.Default.Check,
-                                    contentDescription = "Selected",
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                if (channel == selectedChannel) {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = "Selected",
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                                
+                                // Delete button (only for private channels)
+                                if (!channel.isPublic) {
+                                    IconButton(
+                                        onClick = { channelToDelete = channel }
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Delete,
+                                            contentDescription = "Delete Channel",
+                                            tint = MaterialTheme.colorScheme.error
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -518,10 +643,17 @@ fun ChannelSelectionDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onCreateChannel) {
-                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("New Channel")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = onImportChannel) {
+                    Icon(Icons.Default.QrCode, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Import")
+                }
+                TextButton(onClick = onCreateChannel) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("New")
+                }
             }
         },
         dismissButton = {
@@ -664,21 +796,24 @@ fun ImportChannelDialog(
     var channelName by remember { mutableStateOf("") }
     var channelKey by remember { mutableStateOf("") }
     var showScanner by remember { mutableStateOf(false) }
-    
+
     if (showScanner) {
-        // QR Scanner will be implemented with CameraX
-        // For now, show a placeholder
-        AlertDialog(
-            onDismissRequest = { showScanner = false },
-            title = { Text("QR Scanner") },
-            text = {
-                Text("QR scanner will be implemented here using CameraX.\n\nFor now, please paste the key manually.")
-            },
-            confirmButton = {
-                TextButton(onClick = { showScanner = false }) {
-                    Text("OK")
+        com.meshcore.team.ui.components.QrCodeScanner(
+            onQrCodeScanned = { qrText ->
+                timber.log.Timber.i("🔍 QR Code scanned: '$qrText'")
+                showScanner = false
+                // If it's a meshcore:// URL, import immediately
+                if (qrText.startsWith("meshcore://")) {
+                    timber.log.Timber.i("🔍 QR is meshcore URL, calling onConfirm")
+                    // onConfirm will handle closing the dialog after import completes
+                    onConfirm(qrText, "")
+                } else {
+                    timber.log.Timber.i("🔍 QR is raw key, populating field")
+                    // Otherwise populate the key field for manual confirmation
+                    channelKey = qrText
                 }
-            }
+            },
+            onDismiss = { showScanner = false }
         )
     } else {
         AlertDialog(
@@ -740,6 +875,123 @@ fun ImportChannelDialog(
                 }
             }
         )
+    }
+}
+
+@Composable
+fun ContactListDialog(
+    contacts: List<com.meshcore.team.data.database.NodeEntity>,
+    selectedContact: com.meshcore.team.data.database.NodeEntity?,
+    onContactSelected: (com.meshcore.team.data.database.NodeEntity) -> Unit,
+    onSwitchToChannels: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Select Contact") },
+        text = {
+            Column {
+                if (contacts.isEmpty()) {
+                    Text(
+                        text = "No contacts found. Make sure you're connected to your companion radio and it has synced contacts from the mesh network.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    // Filter out contacts with no name
+                    val validContacts = contacts.filter { !it.name.isNullOrBlank() }
+                    
+                    if (validContacts.isEmpty()) {
+                        Text(
+                            text = "No valid contacts found. Contacts will appear here once other devices are discovered on the mesh network.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        validContacts.forEach { contact ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp)
+                                    .clickable { onContactSelected(contact) },
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (contact == selectedContact)
+                                        MaterialTheme.colorScheme.primaryContainer
+                                    else
+                                        MaterialTheme.colorScheme.surface
+                                )
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Text(
+                                            text = contact.name ?: "Unknown",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Row(
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            if (contact.isDirect) {
+                                                Icon(
+                                                    imageVector = Icons.Default.SignalCellularAlt,
+                                                    contentDescription = "Direct",
+                                                    modifier = Modifier.size(14.dp),
+                                                    tint = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
+                                            Text(
+                                                text = "Last seen: ${formatTimestamp(contact.lastSeen)}",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                    
+                                    if (contact == selectedContact) {
+                                        Icon(
+                                            imageVector = Icons.Default.Check,
+                                            contentDescription = "Selected",
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onSwitchToChannels) {
+                Icon(Icons.Default.Tag, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("Switch to Channels")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close")
+            }
+        }
+    )
+}
+
+private fun formatTimestamp(timestamp: Long): String {
+    val now = System.currentTimeMillis()
+    val diff = now - timestamp
+    
+    return when {
+        diff < 60_000 -> "Just now"
+        diff < 3600_000 -> "${diff / 60_000}m ago"
+        diff < 86400_000 -> "${diff / 3600_000}h ago"
+        else -> "${diff / 86400_000}d ago"
     }
 }
 

@@ -7,11 +7,16 @@ import com.meshcore.team.data.ble.BleConnectionManager
 import com.meshcore.team.data.ble.BleScanner
 import com.meshcore.team.data.ble.CommandSerializer
 import com.meshcore.team.data.ble.ConnectionState
+import com.meshcore.team.data.database.ChannelEntity
+import com.meshcore.team.data.preferences.AppPreferences
+import com.meshcore.team.data.repository.ChannelRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import timber.log.Timber
@@ -21,7 +26,9 @@ import timber.log.Timber
  */
 class ConnectionViewModel(
     private val bleScanner: BleScanner,
-    private val connectionManager: BleConnectionManager
+    private val connectionManager: BleConnectionManager,
+    private val appPreferences: AppPreferences,
+    private val channelRepository: ChannelRepository
 ) : ViewModel() {
     
     private val _scannedDevices = MutableStateFlow<List<ScanResult>>(emptyList())
@@ -33,9 +40,62 @@ class ConnectionViewModel(
     val connectionState: StateFlow<ConnectionState> = connectionManager.connectionState
     val connectedDevice = connectionManager.connectedDevice
     
+    // Location source preference
+    val locationSource: StateFlow<String> = appPreferences.locationSource
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = AppPreferences.LOCATION_SOURCE_PHONE
+        )
+    
+    // User alias preference
+    val userAlias: StateFlow<String?> = appPreferences.userAlias
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = null
+        )
+    
+    // Telemetry enabled state
+    val telemetryEnabled: StateFlow<Boolean> = appPreferences.telemetryEnabled
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = false
+        )
+    
+    // Telemetry channel hash
+    val telemetryChannelHash: StateFlow<String?> = appPreferences.telemetryChannelHash
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = null
+        )
+    
+    // Device name from firmware (SELF_INFO)
+    private val _deviceName = MutableStateFlow("Unknown Device")
+    val deviceName: StateFlow<String> = _deviceName.asStateFlow()
+    
+    // All channels (for telemetry channel selection)
+    val channels: StateFlow<List<ChannelEntity>> = channelRepository.getAllChannels()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+    
     private var messagePollingJob: Job? = null
     
     init {
+        // Monitor device info responses to get actual firmware device name
+        viewModelScope.launch {
+            connectionManager.deviceInfo.collect { selfInfo ->
+                Timber.i("📝 Received device name from firmware: '${selfInfo.name}' (was: '${_deviceName.value}')")
+                _deviceName.value = selfInfo.name
+                Timber.i("📝 Device name updated in UI to: '${_deviceName.value}'")
+            }
+        }
+        
         // Monitor connection state and send CMD_APP_START when connected
         viewModelScope.launch {
             connectionManager.connectionState.collect { state ->
@@ -47,6 +107,7 @@ class ConnectionViewModel(
                     val success = connectionManager.sendData(appStartCmd)
                     if (success) {
                         Timber.i("✓ CMD_APP_START sent - companion radio initialized")
+                        // Device name will be updated when SELF_INFO response is received
                         // Start polling for incoming messages
                         startMessagePolling()
                     } else {
@@ -54,6 +115,7 @@ class ConnectionViewModel(
                     }
                 } else {
                     // Stop polling when disconnected
+                    _deviceName.value = "Unknown Device"
                     stopMessagePolling()
                 }
             }
@@ -145,6 +207,50 @@ class ConnectionViewModel(
      */
     fun disconnect() {
         connectionManager.disconnect()
+    }
+    
+    /**
+     * Set the user alias (display name for messages and telemetry)
+     * This is stored locally and doesn't change the device's actual name
+     */
+    fun setUserAlias(alias: String) {
+        viewModelScope.launch {
+            appPreferences.setUserAlias(alias)
+            Timber.i("User alias updated to: '$alias'")
+        }
+    }
+    
+    /**
+     * Set the location source preference
+     */
+    fun setLocationSource(source: String) {
+        viewModelScope.launch {
+            appPreferences.setLocationSource(source)
+            Timber.i("Location source updated to: $source")
+        }
+    }
+    
+    /**
+     * Enable or disable telemetry tracking
+     */
+    fun setTelemetryEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            appPreferences.setTelemetryEnabled(enabled)
+            Timber.i("Telemetry ${if (enabled) "enabled" else "disabled"}")
+        }
+    }
+    
+    /**
+     * Set the channel for telemetry messages
+     */
+    fun setTelemetryChannel(channelHash: String?) {
+        viewModelScope.launch {
+            appPreferences.setTelemetryChannelHash(channelHash)
+            channelHash?.let { hash ->
+                val channel = channels.value.find { it.hash.toString() == hash }
+                Timber.i("Telemetry channel set to: ${channel?.name ?: "Unknown"}")
+            } ?: Timber.i("Telemetry channel cleared")
+        }
     }
     
     override fun onCleared() {

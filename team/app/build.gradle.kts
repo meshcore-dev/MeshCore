@@ -60,6 +60,7 @@ dependencies {
     // Kotlin
     implementation("org.jetbrains.kotlin:kotlin-stdlib:1.9.21")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
     
     // AndroidX Core
     implementation("androidx.core:core-ktx:1.12.0")
@@ -89,6 +90,9 @@ dependencies {
     // DataStore
     implementation("androidx.datastore:datastore-preferences:1.0.0")
     
+    // WorkManager for background tasks
+    implementation("androidx.work:work-runtime-ktx:2.9.0")
+    
     // Bluetooth LE
     implementation("androidx.bluetooth:bluetooth:1.0.0-alpha02")
     
@@ -107,9 +111,16 @@ dependencies {
     // Gson for JSON parsing (waypoints, etc)
     implementation("com.google.code.gson:gson:2.10.1")
     
-    // QR Code generation and scanning
+    // QR Code generation - keep ZXing for generation
     implementation("com.google.zxing:core:3.5.3")
-    implementation("com.journeyapps:zxing-android-embedded:4.3.0")
+    
+    // QR Code scanning - Google ML Kit (much more reliable than ZXing)
+    implementation("com.google.mlkit:barcode-scanning:17.2.0")
+    
+    // CameraX for ML Kit
+    implementation("androidx.camera:camera-camera2:1.3.1")
+    implementation("androidx.camera:camera-lifecycle:1.3.1")
+    implementation("androidx.camera:camera-view:1.3.1")
     
     // Testing
     testImplementation("junit:junit:4.13.2")

@@ -24,6 +24,9 @@ interface AckRecordDao {
     @Query("DELETE FROM ack_records WHERE messageId = :messageId")
     suspend fun deleteAcksByMessageId(messageId: String)
     
+    @Query("DELETE FROM ack_records")
+    suspend fun deleteAllAcks()
+    
     @Query("SELECT COUNT(*) FROM ack_records WHERE messageId = :messageId")
     suspend fun getAckCountForMessage(messageId: String): Int
     

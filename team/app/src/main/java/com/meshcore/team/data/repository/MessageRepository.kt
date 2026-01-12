@@ -110,4 +110,9 @@ class MessageRepository(
         updateDeliveryStatus(messageId, DeliveryStatus.DELIVERED, count)
         Timber.i("✅ Message status updated to DELIVERED with count=$count")
     }
+    
+    suspend fun deleteAllMessages() {
+        messageDao.deleteAllMessages()
+        ackRecordDao.deleteAllAcks()
+    }
 }

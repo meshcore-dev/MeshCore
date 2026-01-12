@@ -48,6 +48,7 @@ public:
   virtual void onBeforeTransmit() { }
   virtual void onAfterTransmit() { }
   virtual void reboot() = 0;
+  virtual void hardReset() { reboot(); } // Default implementation: fallback to regular reboot
   virtual void powerOff() { /* no op */ }
   virtual uint32_t getGpio() { return 0; }
   virtual void setGpio(uint32_t values) {}

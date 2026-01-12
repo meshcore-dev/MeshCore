@@ -62,7 +62,8 @@ class NodeRepository(private val nodeDao: NodeDao) {
                 batteryMilliVolts = null,
                 isRepeater = false,
                 isRoomServer = false,
-                isDirect = isDirect
+                isDirect = isDirect,
+                hopCount = if (isDirect) 0 else 1 // Default: 0 if direct, 1 if relayed
             )
             nodeDao.insertNode(newNode)
         }

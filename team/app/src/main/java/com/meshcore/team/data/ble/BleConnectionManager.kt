@@ -31,8 +31,20 @@ enum class ConnectionState {
 /**
  * Manages BLE connection to MeshCore companion radio
  * Handles connection lifecycle, characteristic discovery, and notifications
+ * Singleton pattern ensures only one connection manager exists
  */
-class BleConnectionManager(private val context: Context) {
+class BleConnectionManager private constructor(private val context: Context) {
+    
+    companion object {
+        @Volatile
+        private var instance: BleConnectionManager? = null
+        
+        fun getInstance(context: Context): BleConnectionManager {
+            return instance ?: synchronized(this) {
+                instance ?: BleConnectionManager(context.applicationContext).also { instance = it }
+            }
+        }
+    }
     
     private var bluetoothGatt: BluetoothGatt? = null
     private var rxCharacteristic: BluetoothGattCharacteristic? = null
@@ -55,14 +67,28 @@ class BleConnectionManager(private val context: Context) {
     private val _sendConfirmed = MutableSharedFlow<SendConfirmed>(extraBufferCapacity = 10)
     val sendConfirmed: SharedFlow<SendConfirmed> = _sendConfirmed.asSharedFlow()
     
+    // Shared flow for contact responses (RESP_CODE_CONTACT)
+    private val _contactResponses = MutableSharedFlow<ByteArray>(extraBufferCapacity = 20)
+    val contactResponses: SharedFlow<ByteArray> = _contactResponses.asSharedFlow()
+    
+    // Shared flow for direct/private messages (RESP_CODE_CONTACT_MSG_RECV_V3)
+    private val _directMessages = MutableSharedFlow<DirectMessage>(extraBufferCapacity = 10)
+    val directMessages: SharedFlow<DirectMessage> = _directMessages.asSharedFlow()
+    
+    // Shared flow for device info (RESP_CODE_SELF_INFO)
+    private val _deviceInfo = MutableSharedFlow<SelfInfo>(replay = 1, extraBufferCapacity = 1)
+    val deviceInfo: SharedFlow<SelfInfo> = _deviceInfo.asSharedFlow()
+    
     private val gattCallback = object : BluetoothGattCallback() {
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
             when (newState) {
                 BluetoothProfile.STATE_CONNECTED -> {
                     Timber.i("Connected to GATT server")
+                    val device = gatt.device
+                    
+                    Timber.i("📱 Connected to device: '${device.name}' [${device.address}]")
                     
                     // Check if device is bonded (paired)
-                    val device = gatt.device
                     when (device.bondState) {
                         BluetoothDevice.BOND_NONE -> {
                             Timber.i("Device not bonded - pairing will be triggered on first encrypted operation")
@@ -77,6 +103,8 @@ class BleConnectionManager(private val context: Context) {
                     
                     _connectionState.value = ConnectionState.CONNECTED
                     _connectedDevice.value = gatt.device
+                    
+                    Timber.i("✅ Device connection established: ${gatt.device.address}")
                     
                     // Request larger MTU for longer messages
                     Timber.i("Requesting MTU of 185 bytes (172 payload + overhead)")
@@ -162,9 +190,35 @@ class BleConnectionManager(private val context: Context) {
                     if (responseCode == 17) { // RESP_CODE_CHANNEL_MSG_RECV_V3
                         val message = ResponseParser.parseChannelMessage(value)
                         if (message != null) {
-                            Timber.i("📩 Incoming message: '${message.text}'")
+                            Timber.i("📩 Incoming channel message: '${message.text}'")
                             _incomingMessages.tryEmit(message)
                         }
+                    }
+                    
+                    // Parse and emit direct messages
+                    if (responseCode == 16) { // RESP_CODE_CONTACT_MSG_RECV_V3
+                        val message = ResponseParser.parseDirectMessage(value)
+                        if (message != null) {
+                            Timber.i("📩 Incoming direct message: '${message.text}'")
+                            _directMessages.tryEmit(message)
+                        }
+                    }
+                    
+                    // Parse and emit device info (SELF_INFO)
+                    if (responseCode == 5) { // RESP_CODE_SELF_INFO
+                        val selfInfo = ResponseParser.parseSelfInfo(value)
+                        if (selfInfo != null) {
+                            Timber.i("� Device self-info: name='${selfInfo.name}'")
+                            _deviceInfo.tryEmit(selfInfo)
+                        } else {
+                            Timber.e("❌ Failed to parse SELF_INFO response")
+                        }
+                    }
+                    
+                    // Emit contact responses for processing
+                    if (responseCode == 3) { // RESP_CODE_CONTACT
+                        Timber.i("👤 Contact response received")
+                        _contactResponses.tryEmit(value)
                     }
                     
                     // Parse and emit SEND_CONFIRMED notifications (ACKs)

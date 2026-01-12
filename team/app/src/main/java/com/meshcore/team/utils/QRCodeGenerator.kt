@@ -6,6 +6,7 @@ import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
+import timber.log.Timber
 
 /**
  * Utility for generating QR codes
@@ -19,8 +20,14 @@ object QRCodeGenerator {
      * @return Bitmap containing the QR code
      */
     fun generateQRCode(text: String, size: Int = 512): Bitmap {
+        Timber.i("🔲 Generating QR Code:")
+        Timber.i("  Text: $text")
+        Timber.i("  Length: ${text.length} chars")
+        Timber.i("  Size: ${size}x${size} pixels")
+        
         val hints = hashMapOf<EncodeHintType, Any>().apply {
             put(EncodeHintType.ERROR_CORRECTION, ErrorCorrectionLevel.M)
+            put(EncodeHintType.CHARACTER_SET, "UTF-8")
             put(EncodeHintType.MARGIN, 1)
         }
         
@@ -37,6 +44,7 @@ object QRCodeGenerator {
             }
         }
         
+        Timber.i("✓ QR Code generated: ${width}x${height}, format: RGB_565")
         return bitmap
     }
 }

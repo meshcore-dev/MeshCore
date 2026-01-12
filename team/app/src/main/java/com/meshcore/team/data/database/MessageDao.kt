@@ -30,6 +30,9 @@ interface MessageDao {
     @Query("DELETE FROM messages WHERE channelHash = :channelHash")
     suspend fun deleteMessagesByChannel(channelHash: Byte)
     
+    @Query("DELETE FROM messages")
+    suspend fun deleteAllMessages()
+    
     @Query("UPDATE messages SET deliveryStatus = :status, heardByCount = :count WHERE id = :messageId")
     suspend fun updateDeliveryStatus(messageId: String, status: String, count: Int)
 }

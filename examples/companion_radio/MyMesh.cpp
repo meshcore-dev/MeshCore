@@ -806,6 +806,9 @@ void MyMesh::begin(bool has_display) {
 }
 
 const char *MyMesh::getNodeName() {
+  Serial.print(\"[DEBUG] getNodeName() returning: '\");
+  Serial.print(_prefs.node_name);
+  Serial.println(\"'\");
   return _prefs.node_name;
 }
 NodePrefs *MyMesh::getNodePrefs() {
@@ -821,6 +824,11 @@ void MyMesh::startInterface(BaseSerialInterface &serial) {
 }
 
 void MyMesh::handleCmdFrame(size_t len) {
+  Serial.print(\"[DEBUG] handleCmdFrame called, command: \");
+  Serial.print(cmd_frame[0]);
+  Serial.print(\", length: \");
+  Serial.println(len);
+  
   if (cmd_frame[0] == CMD_DEVICE_QEURY && len >= 2) { // sent when app establishes connection
     app_target_ver = cmd_frame[1];                    // which version of protocol does app understand
 
@@ -968,12 +976,40 @@ void MyMesh::handleCmdFrame(size_t len) {
       _most_recent_lastmod = 0;
     }
   } else if (cmd_frame[0] == CMD_SET_ADVERT_NAME && len >= 2) {
+    Serial.println("[DEBUG] CMD_SET_ADVERT_NAME received");
     int nlen = len - 1;
     if (nlen > sizeof(_prefs.node_name) - 1) nlen = sizeof(_prefs.node_name) - 1; // max len
+    
+    // Log old name
+    Serial.print("[DEBUG] Old name: '");
+    Serial.print(_prefs.node_name);
+    Serial.println("'");
+    
     memcpy(_prefs.node_name, &cmd_frame[1], nlen);
     _prefs.node_name[nlen] = 0; // null terminator
+    
+    // Log new name
+    Serial.print("[DEBUG] New name: '");
+    Serial.print(_prefs.node_name);
+    Serial.println("'");
+    
+    Serial.println("[DEBUG] Saving preferences...");
     savePrefs();
+    Serial.println("[DEBUG] Sending OK frame...");
     writeOKFrame();
+    Serial.println("[DEBUG] Adding delay before reboot...");
+    delay(100);
+    
+    Serial.println("[DEBUG] Checking dirty contacts...");
+    if (dirty_contacts_expiry) {
+      Serial.println("[DEBUG] Saving dirty contacts...");
+      saveContacts();
+    }
+    
+    Serial.println("[DEBUG] *** CALLING board.hardReset() NOW ***");
+    Serial.flush(); // Ensure all debug output is sent
+    board.hardReset(); // Use hardware reset for BLE advertising name changes
+    Serial.println("[ERROR] This line should never execute - reset failed!");
   } else if (cmd_frame[0] == CMD_SET_ADVERT_LATLON && len >= 9) {
     int32_t lat, lon, alt = 0;
     memcpy(&lat, &cmd_frame[1], 4);

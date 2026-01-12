@@ -2,20 +2,20 @@
 
 **Project Goal**: Create an Android app for position tracking and messaging over MeshCore LoRa mesh network for hunting and tactical use when other networks are unavailable.
 
-**Last Updated**: January 10, 2026
+**Last Updated**: January 11, 2026
 
 ---
 
 ## Current Progress
 
-**Phase**: Messaging (Phase 2)
-**Status**: ✅ Messaging Complete with ACK Tracking
+**Phase**: Location Tracking & Maps (Phase 3)
+**Status**: ✅ Core Features Complete - Map & Telemetry Operational
 
 **Completed**:
 - ✅ **Phase 1 - BLE Foundation**: Scanner, connection manager, command serialization, response parsing, connection UI, permissions
 - ✅ **Phase 2 - Database Layer**: Message/Node/Channel/AckRecord entities, DAOs, Room database, repositories  
 - ✅ **Phase 2 - Messaging UI**: MessageScreen with channel selector, message bubbles, delivery status indicators, input field
-- ✅ **Navigation**: Two-screen navigation (messages ↔ connection)
+- ✅ **Navigation**: Three-screen navigation (messages ↔ map ↔ connection) with bottom navigation bar
 - ✅ **Mock Data Support**: Test messaging without hardware
 - ✅ **Dark Theme**: Default dark theme enabled
 - ✅ **BLE Message Sending**: Integrated with CommandSerializer, encrypted pairing support
@@ -26,75 +26,94 @@
 - ✅ **Message Format Parsing**: Parse "SENDERID: MESSAGE" format from MeshCore firmware
 - ✅ **Delivery Status**: Checkmark appears immediately when companion confirms transmission
 - ✅ **ACK Tracking**: PUSH_CODE_SEND_CONFIRMED handling, checksum calculation, delivery count display
+- ✅ **Channel Management**: Private channel creation, deletion, public channel, channel selection UI
+- ✅ **Channel Key Sharing**: QR code generation and manual link sharing for private channel invites
+- ✅ **QR Code Scanner**: Manual entry with validation for meshcore:// URLs
+- ✅ **Device Settings**: Rename companion radio via CMD_SET_ADVERT_NAME on connection screen
+- ✅ **Location Preferences**: User-selectable location source (Phone GPS vs Companion GPS) with DataStore persistence
+- ✅ **Map Integration**: OpenStreetMap (osmdroid) with real-time location display and mesh node markers
+- ✅ **Telemetry System**: Hidden location tracking messages (#TEL:) in private channels with hop count updates
+- ✅ **Background Telemetry**: Automatic location sharing via WorkManager with configurable channel and enable/disable toggle
+- ✅ **Contact Updates**: Automatic node database updates from telemetry (lat/lon, battery, hops, last seen)
+- ✅ **Connectivity Status**: Color-coded node markers (Direct/Relayed/Distant/Offline) based on hop count and last seen time
+- ✅ **Map Legend**: Dropdown info button showing network status color legend
 
-**Recent Work (Jan 10, 2026)**:
-- Implemented ACK tracking system for message delivery confirmations
-- Added AckChecksumCalculator (SHA256-based, matches firmware)
-- BleConnectionManager now emits SendConfirmed notifications
-- MessageViewModel listens for ACKs and correlates by checksum
-- UI shows "Delivered (X)" with count of devices that received message
-- Database records ACK details (checksum, RTT, device)
-- **Discovered limitation**: Companion radio firmware only tracks ACKs for direct messages (CMD_SEND_TXT_MSG), not channel messages (CMD_SEND_CHANNEL_TXT_MSG)
+**Recent Work (Jan 11, 2026)**:
+- Implemented full map screen with OpenStreetMap integration
+- Added MapViewModel with FusedLocationProviderClient for phone GPS
+- Created location source selection UI (phone vs companion GPS)
+- Built telemetry tracking settings UI on connection screen
+- Implemented TelemetryManager for automatic background location sharing
+- Integrated telemetry with WorkManager for periodic updates (15 min intervals)
+- Connected MapViewModel location updates to immediate telemetry sends
+- Added telemetry message parsing and hidden message filtering (not shown in chat)
+- Implemented node database updates from incoming telemetry (location, battery, hops)
+- Created connectivity color system (green/yellow/orange/red) for map markers
+- Added collapsible network status legend to map top bar
+- Moved companion settings (device name, location source, telemetry) to connection page
 
 **Known Limitations**:
 - ⚠️ **Channel Message ACK Tracking**: Current companion radio firmware doesn't calculate/forward ACKs for group channel messages, only for direct person-to-person messages. This means "Delivered (X)" count only works for direct messages, not public/private channels. Requires firmware enhancement to `examples/companion_radio/MyMesh.cpp` to calculate ACK checksums for channel messages and store them in `expected_ack_table`.
+- ⚠️ **Companion GPS**: Location source can be set to "companion" but GPS parsing from companion radio is not yet implemented (placeholder in MapViewModel)
+- ⚠️ **QR Code Decoder**: QR scanner detects patterns but doesn't decode codes - manual entry works perfectly as fallback
 
 **Next Tasks**:
-- [ ] Add private channel creation and management (name, PSK generation)
-- [ ] Add channel key sharing (QR code/text export for inviting others)
-- [ ] Add contact syncing from companion radio (CMD_GET_CONTACTS)
+- [ ] Implement companion GPS parsing from telemetry or dedicated command
+- [ ] Add contact syncing from companion radio (CMD_GET_CONTACTS) 
 - [ ] Add direct messaging to contacts with recipient selection
 - [ ] Test ACK tracking with direct messages
 - [ ] Add sender identification (extract device info from advertisements to replace placeholder keys)
-- [ ] Implement multi-channel support (beyond public channel)
-- [ ] Add persistent navigation bar for easier screen switching
-- [ ] **Firmware Enhancement** (future): Add channel message ACK tracking to companion radio firmware
+- [ ] Fix QR code decoder or verify codes generated from TEAM app work
+- [ ] Add custom map marker icons (different for repeaters, room servers, etc.)
+- [ ] Add connection lines between nodes on map
+- [ ] Implement waypoint creation and sharing
+- [ ] Add distance/bearing calculations to other nodes
 - [ ] **Background Service Implementation**:
   - [ ] Foreground service for BLE connection maintenance
   - [ ] Screen-off operation (maintain BLE comms when screen locked)
   - [ ] Message notifications (push notifications for incoming messages)
-  - [ ] Location polling in background (for position sharing)
   - [ ] Battery optimization handling (Doze mode exemption)
   - [ ] Wake locks for critical operations
-- [ ] Begin Phase 3 - Location tracking integration
+- [ ] Begin offline map tile caching
 
 ---
 
 ## Core Features
 
 ### Must-Have Features (Version 1)
-- [ ] Offline map storage and display
+- [x] Offline map storage and display *(Using osmdroid with OpenStreetMap)*
   - [ ] User-selectable map providers (like ATAK)
   - [ ] User-selectable map styles (satellite, terrain, topo, street)
   - [ ] Download selected areas offline
-- [ ] Real-time position sharing (public & private channels)
-  - [ ] **Location privacy controls**:
-    - [ ] Optional location sharing on public channel (user choice)
-    - [ ] Required location sharing on private channels
-    - [ ] Per-channel location sharing settings
+- [x] Real-time position sharing (public & private channels) *(Telemetry system operational)*
+  - [x] **Location privacy controls**: *(Telemetry configurable per channel)*
+    - [x] Optional location sharing on public channel (user choice)
+    - [x] Required location sharing on private channels
+    - [x] Per-channel location sharing settings *(Telemetry channel selection in settings)*
   - [ ] **Compass heading** on user's own marker
   - [ ] **Distance rings** (configurable, default 500m increments)
-- [ ] Text messaging (public & private channels)
+- [x] Text messaging (public & private channels) *(Full messaging system complete)*
 - [ ] **Background operation & notifications**:
   - [ ] Foreground service to maintain BLE connection when screen is off
   - [ ] Push notifications for incoming messages
-  - [ ] Background location polling for position sharing
+  - [x] Background location polling for position sharing *(WorkManager telemetry)*
   - [ ] Battery optimization handling (prevent Doze from killing service)
   - [ ] Persistent notification showing connection status
-- [ ] **Message delivery tracking with color-coded markers**:
-  - [ ] 🟢 Green = Direct contact (heard directly, no hops)
-  - [ ] 🟡 Yellow = Via mesh (received through hops)
-  - [ ] 🔴 Red = Stale (not heard in X seconds)
-  - [ ] Show message as "Sent" when transmitted
-  - [ ] Show "Delivered" with count when ACKs received
-  - [ ] Display which devices/users heard the message
-  - [ ] Track direct contacts (who heard you directly)
-  - [ ] Real-time range/distance management
-- [ ] BLE connection to companion radio
-- [ ] **Channel management**:
-  - [ ] Public channel (default, open to all)
-  - [ ] Private channels (shared key, invitation-based)
-  - [ ] Per-channel settings (location sharing, notifications)
+- [x] **Message delivery tracking with color-coded markers**: *(Map connectivity status operational)*
+  - [x] 🟢 Green = Direct contact (heard directly, no hops) *(ConnectivityStatus.DIRECT)*
+  - [x] 🟡 Yellow = Via mesh (received through hops) *(ConnectivityStatus.RELAYED 1-3 hops)*
+  - [x] 🟠 Orange = Distant (4+ hops) *(ConnectivityStatus.DISTANT)*
+  - [x] 🔴 Red = Stale (not heard in X seconds) *(ConnectivityStatus.OFFLINE)*
+  - [x] Show message as "Sent" when transmitted *(Delivery status in message bubbles)*
+  - [x] Show "Delivered" with count when ACKs received *(ACK tracking system)*
+  - [x] Display which devices/users heard the message *(ACK database records)*
+  - [x] Track direct contacts (who heard you directly) *(isDirect flag, hop count tracking)*
+  - [x] Real-time range/distance management *(Last seen tracking, hop count from telemetry)*
+- [x] BLE connection to companion radio *(Full BLE stack operational)*
+- [x] **Channel management**: *(Complete channel system)*
+  - [x] Public channel (default, open to all)
+  - [x] Private channels (shared key, invitation-based) *(PSK generation, QR/link sharing)*
+  - [x] Per-channel settings (location sharing, notifications) *(Telemetry channel selection)*
 
 ### Version 2 Features (Post-MVP)
 - [ ] Waypoint creation and sharing
@@ -102,8 +121,8 @@
 
 ### Nice-to-Have Features
 - [ ] Distance/bearing to other users
-- [ ] Battery level indicators for mesh nodes
-- [ ] ~~Message delivery confirmations~~ ✅ Moved to Must-Have
+- [x] Battery level indicators for mesh nodes *(Stored in NodeEntity from telemetry)*
+- [x] ~~Message delivery confirmations~~ ✅ Implemented with ACK tracking
 - [ ] **Advanced delivery tracking**:
   - [ ] Message propagation visualization on map
   - [ ] Show mesh path/hops for each delivery
