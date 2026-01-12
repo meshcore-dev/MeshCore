@@ -41,14 +41,14 @@
   #define TXT_ACK_DELAY 200
 #endif
 
-#define FIRMWARE_VER_LEVEL       1
+#define FIRMWARE_VER_LEVEL       2
 
 #define REQ_TYPE_GET_STATUS         0x01 // same as _GET_STATS
 #define REQ_TYPE_KEEP_ALIVE         0x02
 #define REQ_TYPE_GET_TELEMETRY_DATA 0x03
 #define REQ_TYPE_GET_ACCESS_LIST    0x05
 #define REQ_TYPE_GET_NEIGHBOURS     0x06
-#define REQ_TYPE_GET_OWNER_INFO     0x07
+#define REQ_TYPE_GET_OWNER_INFO     0x07     // FIRMWARE_VER_LEVEL >= 2
 
 #define RESP_SERVER_LOGIN_OK        0 // response to ANON_REQ
 
@@ -196,6 +196,7 @@ uint8_t MyMesh::handleAnonClockReq(const mesh::Identity& sender, uint32_t sender
     if (_prefs.disable_fwd) {   // is this repeater currently disabled
       reply_data[8] |= 0x80;  // is disabled
     }
+    // TODO:  add some kind of moving-window utilisation metric, so can query 'how busy' is this repeater
     return 9;   // reply length
   }
   return 0;
@@ -359,7 +360,7 @@ int MyMesh::handleRequest(ClientInfo *sender, uint32_t sender_timestamp, uint8_t
       return reply_offset;
     }
   } else if (payload[0] == REQ_TYPE_GET_OWNER_INFO) {
-    sprintf((char *) &reply_data[4], "%s\n%s", FIRMWARE_VERSION, _prefs.owner_info);
+    sprintf((char *) &reply_data[4], "%s\n%s\n%s", FIRMWARE_VERSION, _prefs.node_name, _prefs.owner_info);
     return 4 + strlen((char *) &reply_data[4]);
   }
   return 0; // unknown command
