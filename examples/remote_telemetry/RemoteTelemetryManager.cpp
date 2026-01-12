@@ -25,12 +25,12 @@
 namespace {
 constexpr unsigned long WIFI_CONNECT_TIMEOUT_MS = 20000UL;
 constexpr unsigned long MQTT_RETRY_INTERVAL_MS = 10000UL;
-constexpr unsigned long REQUEST_GRACE_MS = 10000UL;
+constexpr unsigned long REQUEST_GRACE_MS = 5000UL;
 constexpr unsigned long MIN_INTERVAL_MS = 5000UL;
 constexpr unsigned long MAX_POLL_INTERVAL_MS = 6UL * 60UL * 60UL * 1000UL;
 constexpr unsigned long MAX_TIMEOUT_INTERVAL_MS = 15UL * 60UL * 1000UL;
 constexpr unsigned long MAX_LOGIN_INTERVAL_MS = 12UL * 60UL * 60UL * 1000UL;
-constexpr unsigned long MIN_REQUEST_GAP_MS = 2000UL;
+constexpr unsigned long MIN_REQUEST_GAP_MS = 3000UL;
 constexpr size_t INVALID_REQUEST_INDEX = static_cast<size_t>(-1);
 constexpr size_t INVALID_REPEATER_INDEX = static_cast<size_t>(-1);
 constexpr int SCHEDULED_REBOOT_HOUR = 3;
