@@ -1787,12 +1787,15 @@ void MyMesh::handleCmdFrame(size_t len) {
     uint32_t tag;
     getRNG()->random((uint8_t*)&tag, 4);
 
-    // Build request packet
-    uint8_t payload[1 + PATH_HASH_SIZE + 4];
+    // Build request packet - include path in payload for multi-hop response routing
+    // Format: sub_type(1) + target_prefix(1) + tag(4) + path_len(1) + path(N)
+    uint8_t payload[1 + PATH_HASH_SIZE + 4 + 1 + MAX_PATH_SIZE];
     int pos = 0;
     payload[pos++] = CTL_TYPE_ADVERT_REQUEST;
     memcpy(&payload[pos], target_prefix, PATH_HASH_SIZE); pos += PATH_HASH_SIZE;
     memcpy(&payload[pos], &tag, 4); pos += 4;
+    payload[pos++] = path_len;
+    memcpy(&payload[pos], path, path_len); pos += path_len;
 
     mesh::Packet* packet = createControlData(payload, pos);
     if (!packet) {
@@ -1800,14 +1803,7 @@ void MyMesh::handleCmdFrame(size_t len) {
       return;
     }
 
-    // For CONTROL packets with high-bit set, Mesh.cpp only processes them
-    // if path_len == 0 (zero-hop). For direct neighbors (path_len == 1 and
-    // path matches target prefix), use sendZeroHop.
-    if (path_len == PATH_HASH_SIZE && memcmp(path, target_prefix, PATH_HASH_SIZE) == 0) {
-      sendZeroHop(packet);
-    } else {
-      sendDirect(packet, path, path_len, 0);
-    }
+    sendDirect(packet, path, path_len, 0);
 
     pending_advert_request = tag;
 

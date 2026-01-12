@@ -382,7 +382,7 @@ Byte 0: 0x14
 
 **Command Format**:
 ```
-Byte 0: 0x39
+Byte 0: 0x3A
 Bytes 1: PATH_HASH_SIZE bytes (currently 1)
 Byte 2: Path Length
 Bytes 3+: Path (list of node hash bytes to reach target)
@@ -390,7 +390,7 @@ Bytes 3+: Path (list of node hash bytes to reach target)
 
 **Example** (request from node with prefix `a1b2c3d4e5f6` via 2-hop path):
 ```
-39 a1 02 [path_hash_1] [path_hash_2]
+3a a1 02 [path_hash_1] [path_hash_2]
 ```
 
 **Response**: `PACKET_OK` (0x00) on success, `PACKET_ERROR` (0x01) if request already pending

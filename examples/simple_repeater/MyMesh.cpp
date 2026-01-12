@@ -727,16 +727,25 @@ bool MyMesh::onPeerPathRecv(mesh::Packet *packet, int sender_idx, const uint8_t 
 }
 
 void MyMesh::handleAdvertRequest(mesh::Packet* packet) {
-  // Validate packet length: sub_type(1) + prefix(PATH_HASH_SIZE) + tag(4)
-  if (packet->payload_len < 1 + PATH_HASH_SIZE + 4) {
+  // Validate packet length: sub_type(1) + prefix(PATH_HASH_SIZE) + tag(4) + path_len(1)
+  if (packet->payload_len < 1 + PATH_HASH_SIZE + 4 + 1) {
     MESH_DEBUG_PRINTLN("handleAdvertRequest: packet too short (%d bytes)", packet->payload_len);
     return;
   }
 
-  // Extract target prefix and tag
-  const uint8_t* target_prefix = &packet->payload[1];
+  // Extract target prefix, tag, and return path from payload
+  int offset = 1;
+  const uint8_t* target_prefix = &packet->payload[offset]; offset += PATH_HASH_SIZE;
   uint32_t tag;
-  memcpy(&tag, &packet->payload[1 + PATH_HASH_SIZE], 4);
+  memcpy(&tag, &packet->payload[offset], 4); offset += 4;
+  uint8_t return_path_len = packet->payload[offset++];
+  const uint8_t* return_path = &packet->payload[offset];
+
+  // Validate path length
+  if (packet->payload_len < offset + return_path_len) {
+    MESH_DEBUG_PRINTLN("handleAdvertRequest: invalid path_len (%d)", return_path_len);
+    return;
+  }
 
   // Check if request is for us
   if (memcmp(target_prefix, self_id.pub_key, PATH_HASH_SIZE) != 0) {
@@ -744,7 +753,7 @@ void MyMesh::handleAdvertRequest(mesh::Packet* packet) {
     return;
   }
 
-  MESH_DEBUG_PRINTLN("handleAdvertRequest: request for us, tag=%08X", tag);
+  MESH_DEBUG_PRINTLN("handleAdvertRequest: request for us, tag=%08X, return_path_len=%d", tag, return_path_len);
 
   // Build app_data (adv_type + node_name + flags + optional: lat, lon, desc)
   uint8_t app_data[1 + 32 + 1 + 4 + 4 + 32];
@@ -800,19 +809,29 @@ void MyMesh::handleAdvertRequest(mesh::Packet* packet) {
   memcpy(&response[pos], signature, SIGNATURE_SIZE); pos += SIGNATURE_SIZE;    // signature
   memcpy(&response[pos], app_data, app_data_len); pos += app_data_len;  // app_data
 
-  MESH_DEBUG_PRINTLN("handleAdvertRequest: sending response, %d bytes, flags=%02X", pos, flags);
-
-  // Create response packet and send
+  // Create response packet and send using reversed path from payload
   mesh::Packet* resp_packet = createControlData(response, pos);
   if (resp_packet) {
-    if (packet->path_len == 0) {
+    // Exclude ourselves (last element) from the path
+    uint8_t response_path_len = (return_path_len > PATH_HASH_SIZE) ? return_path_len - PATH_HASH_SIZE : 0;
+
+    MESH_DEBUG_PRINTLN("handleAdvertRequest: sending response, %d bytes, flags=%02X, response_path_len=%d", pos, flags, response_path_len);
+
+    if (response_path_len == 0) {
+      // Direct neighbor (or empty path) - send zero-hop
       sendZeroHop(resp_packet);
     } else {
+      // Reverse the path excluding ourselves
       uint8_t reversed_path[MAX_PATH_SIZE];
-      for (int i = 0; i < packet->path_len; i++) {
-        reversed_path[i] = packet->path[packet->path_len - 1 - i];
+      for (int i = 0; i < response_path_len; i++) {
+        reversed_path[i] = return_path[response_path_len - 1 - i];
       }
-      sendDirect(resp_packet, reversed_path, packet->path_len, SERVER_RESPONSE_DELAY);
+      MESH_DEBUG_PRINTLN("handleAdvertRequest: response path = [%02X%s%s%s]",
+        reversed_path[0],
+        response_path_len > 1 ? ", " : "",
+        response_path_len > 1 ? "" : "",
+        response_path_len > 1 ? "..." : "");
+      sendDirect(resp_packet, reversed_path, response_path_len, SERVER_RESPONSE_DELAY);
     }
   }
 }
