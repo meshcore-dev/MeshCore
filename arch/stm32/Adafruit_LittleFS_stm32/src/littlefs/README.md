@@ -139,7 +139,7 @@ with all the nitty-gritty details. Can be useful for developing tooling.
 ## Testing
 
 The littlefs comes with a test suite designed to run on a PC using the
-[emulated block device](emubd/lfs_emubd.h) found in the emubd directory.
+[emulated block device](https://github.com/littlefs-project/littlefs/blob/master/bd/lfs_emubd.h).
 The tests assume a Linux environment and can be started with make:
 
 ``` bash
