@@ -16,7 +16,7 @@ Inside of each [meshcore packet](./packet_structure.md) is a payload, identified
 
 This document defines the structure of each of these payload types.
 
-NOTE: all 16 and 32-bit integer fields are Little Endian.
+NOTE: all 16 and 32-bit integer fields are Little-Endian.
 
 ## Important concepts:
 
