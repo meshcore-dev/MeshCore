@@ -4,7 +4,7 @@
 
 #define STATE_IDLE       0
 #define STATE_RX         1
-#define STATE_TX_WAIT    3
+#define STATE_TX_WAIT    2
 #define STATE_TX_DONE    4
 #define STATE_INT_READY 16
 
