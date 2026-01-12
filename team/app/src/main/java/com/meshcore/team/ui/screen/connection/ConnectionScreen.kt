@@ -85,7 +85,8 @@ fun ConnectionScreen(viewModel: ConnectionViewModel) {
                     telemetryChannel = channels.find { it.hash.toString() == telemetryChannelHash }?.name,
                     onDeviceNameClick = { showDeviceSettings = true },
                     onLocationSourceClick = { showLocationSettings = true },
-                    onTelemetryClick = { showTelemetrySettings = true }
+                    onTelemetryClick = { showTelemetrySettings = true },
+                    onClearContacts = { viewModel.clearAllContacts() }
                 )
             }
             
@@ -185,7 +186,8 @@ fun CompanionSettingsSection(
     telemetryChannel: String?,
     onDeviceNameClick: () -> Unit,
     onLocationSourceClick: () -> Unit,
-    onTelemetryClick: () -> Unit
+    onTelemetryClick: () -> Unit,
+    onClearContacts: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -317,6 +319,25 @@ fun CompanionSettingsSection(
                     tint = if (telemetryEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+        }
+        
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        // Clear contacts button
+        Button(
+            onClick = onClearContacts,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.error
+            )
+        ) {
+            Icon(
+                imageVector = Icons.Default.Delete,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Clear All Contacts")
         }
     }
 }

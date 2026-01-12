@@ -54,7 +54,20 @@ class TelemetryWorker(
             // Find the selected channel or use first private channel as fallback
             val telemetryChannel = selectedChannelHash?.let { hash ->
                 privateChannels.find { it.hash.toString() == hash }
-            } ?: privateChannels.first()
+            } ?: privateChannels.first().also { firstChannel ->
+                // Auto-configure first private channel for telemetry
+                Timber.i("📍 No telemetry channel configured, auto-selecting first private channel: ${firstChannel.name}")
+                appPreferences.setTelemetryChannelHash(firstChannel.hash.toString())
+                
+                // Also enable location sharing for this channel
+                try {
+                    val channelRepository = ChannelRepository(database.channelDao(), bleManager)
+                    channelRepository.updateLocationSharing(firstChannel.hash, true)
+                    Timber.i("📍 Auto-enabled location sharing for channel: ${firstChannel.name}")
+                } catch (e: Exception) {
+                    Timber.w(e, "📍 Failed to auto-enable location sharing, but telemetry will still work")
+                }
+            }
             
             Timber.i("📍 Using telemetry channel: ${telemetryChannel.name} (hash=${telemetryChannel.hash})")
             

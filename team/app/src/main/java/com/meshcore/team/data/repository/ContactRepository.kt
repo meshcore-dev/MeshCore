@@ -24,6 +24,12 @@ class ContactRepository(
         return nodeDao.getAllNodes()
     }
     
+    suspend fun getAllContactsDirect(): List<NodeEntity> {
+        // Direct database query - returns fresh data immediately
+        // Use this when you need guaranteed fresh data bypassing Flow caching
+        return nodeDao.getAllNodesDirect()
+    }
+    
     suspend fun getContactByPublicKey(publicKey: ByteArray): NodeEntity? {
         return nodeDao.getNodeByPublicKey(publicKey)
     }

@@ -36,6 +36,10 @@ class MapViewModel(
     private val _currentLocation = MutableStateFlow<LocationData?>(null)
     val currentLocation: StateFlow<LocationData?> = _currentLocation.asStateFlow()
     
+    // Manually refreshable nodes list
+    private val _nodes = MutableStateFlow<List<NodeEntity>>(emptyList())
+    val nodes: StateFlow<List<NodeEntity>> = _nodes.asStateFlow()
+    
     // Location source preference (phone or companion)
     val locationSource: StateFlow<String> = appPreferences.locationSource
         .stateIn(
@@ -44,24 +48,32 @@ class MapViewModel(
             initialValue = AppPreferences.LOCATION_SOURCE_PHONE
         )
     
-    // All mesh nodes
-    val nodes: StateFlow<List<NodeEntity>> = contactRepository.getAllContacts()
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = emptyList()
-        )
-    
     init {
-        // Debug: Log all contacts when they change
+        // Initial load and auto-refresh from database
         viewModelScope.launch {
-            nodes.collect { nodeList ->
-                Timber.i("📍 Map contacts updated: ${nodeList.size} total contacts")
+            contactRepository.getAllContacts().collect { nodeList ->
+                _nodes.value = nodeList
+                Timber.i("📍 Map contacts updated from Flow: ${nodeList.size} total contacts")
                 nodeList.forEach { node ->
                     Timber.i("📍 Contact: '${node.name}' - lat=${node.latitude}, lon=${node.longitude}, lastSeen=${node.lastSeen}")
                 }
             }
         }
+    }
+    
+    /**
+     * Manually refresh nodes from database
+     * Call this to force fresh data without waiting for Flow emissions
+     * @return Fresh list of nodes directly from database
+     */
+    suspend fun refreshNodes(): List<NodeEntity> {
+        val freshNodes = contactRepository.getAllContactsDirect()
+        _nodes.value = freshNodes
+        Timber.d("📍 Manual refresh: loaded ${freshNodes.size} nodes from database")
+        freshNodes.forEach { node ->
+            Timber.d("📍   - '${node.name}': lastSeen=${node.lastSeen} (${System.currentTimeMillis() - node.lastSeen}ms ago)")
+        }
+        return freshNodes
     }
     
     init {

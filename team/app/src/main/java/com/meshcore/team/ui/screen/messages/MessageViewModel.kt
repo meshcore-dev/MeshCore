@@ -195,7 +195,7 @@ class MessageViewModel(
                                             name = senderName,
                                             lastSeen = System.currentTimeMillis()
                                         )
-                                        contactRepository.getNodeDao().updateNode(updatedContact)
+                                        contactRepository.getNodeDao().insertNode(updatedContact)
                                         Timber.i("✓ Updated existing contact with alias name: '$senderName'")
                                     } catch (e: Exception) {
                                         Timber.e(e, "❌ Failed to update contact with alias name: '$senderName'")
@@ -230,7 +230,7 @@ class MessageViewModel(
                                 try {
                                     Timber.i("🔄 Updating lastSeen for existing contact: '${contact.name}'")
                                     val updatedContact = contact.copy(lastSeen = System.currentTimeMillis())
-                                    contactRepository.getNodeDao().updateNode(updatedContact)
+                                    contactRepository.getNodeDao().insertNode(updatedContact)
                                     Timber.i("✓ Updated contact lastSeen: '${contact.name}'")
                                 } catch (e: Exception) {
                                     Timber.e(e, "❌ Failed to update contact lastSeen: '${contact.name}'")
@@ -849,7 +849,7 @@ class MessageViewModel(
                     hopCount = pathLen,
                     isDirect = pathLen == 0
                 )
-                contactRepository.getNodeDao().updateNode(updatedContact)
+                contactRepository.getNodeDao().insertNode(updatedContact)
                 
                 if (isDeviceIdToAlias) {
                     Timber.i("✓ Updated device ID contact '$oldName' to alias: '$senderName'")
@@ -887,8 +887,10 @@ class MessageViewModel(
                 hopCount = pathLen,
                 isDirect = pathLen == 0
             )
-            contactRepository.getNodeDao().updateNode(updated)
-            Timber.i("✓ Updated contact '$senderName': lat=${telemetry.latitude}, lon=${telemetry.longitude}, hops=$pathLen")
+            Timber.i("📍 Updating contact '$senderName' lastSeen from ${contact.lastSeen} to ${updated.lastSeen}")
+            // Use insertNode with REPLACE strategy instead of updateNode to force Flow emission
+            contactRepository.getNodeDao().insertNode(updated)
+            Timber.i("✓ Updated contact '$senderName': lat=${telemetry.latitude}, lon=${telemetry.longitude}, hops=$pathLen, lastSeen=${updated.lastSeen}")
         }
     }
     

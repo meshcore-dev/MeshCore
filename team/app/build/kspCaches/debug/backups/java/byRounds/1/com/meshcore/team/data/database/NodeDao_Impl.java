@@ -398,6 +398,87 @@ public final class NodeDao_Impl implements NodeDao {
   }
 
   @Override
+  public Object getAllNodesDirect(final Continuation<? super List<NodeEntity>> $completion) {
+    final String _sql = "SELECT * FROM nodes ORDER BY lastSeen DESC";
+    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 0);
+    final CancellationSignal _cancellationSignal = DBUtil.createCancellationSignal();
+    return CoroutinesRoom.execute(__db, false, _cancellationSignal, new Callable<List<NodeEntity>>() {
+      @Override
+      @NonNull
+      public List<NodeEntity> call() throws Exception {
+        final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
+        try {
+          final int _cursorIndexOfPublicKey = CursorUtil.getColumnIndexOrThrow(_cursor, "publicKey");
+          final int _cursorIndexOfHash = CursorUtil.getColumnIndexOrThrow(_cursor, "hash");
+          final int _cursorIndexOfName = CursorUtil.getColumnIndexOrThrow(_cursor, "name");
+          final int _cursorIndexOfLatitude = CursorUtil.getColumnIndexOrThrow(_cursor, "latitude");
+          final int _cursorIndexOfLongitude = CursorUtil.getColumnIndexOrThrow(_cursor, "longitude");
+          final int _cursorIndexOfLastSeen = CursorUtil.getColumnIndexOrThrow(_cursor, "lastSeen");
+          final int _cursorIndexOfBatteryMilliVolts = CursorUtil.getColumnIndexOrThrow(_cursor, "batteryMilliVolts");
+          final int _cursorIndexOfIsRepeater = CursorUtil.getColumnIndexOrThrow(_cursor, "isRepeater");
+          final int _cursorIndexOfIsRoomServer = CursorUtil.getColumnIndexOrThrow(_cursor, "isRoomServer");
+          final int _cursorIndexOfIsDirect = CursorUtil.getColumnIndexOrThrow(_cursor, "isDirect");
+          final int _cursorIndexOfHopCount = CursorUtil.getColumnIndexOrThrow(_cursor, "hopCount");
+          final List<NodeEntity> _result = new ArrayList<NodeEntity>(_cursor.getCount());
+          while (_cursor.moveToNext()) {
+            final NodeEntity _item;
+            final byte[] _tmpPublicKey;
+            _tmpPublicKey = _cursor.getBlob(_cursorIndexOfPublicKey);
+            final byte _tmpHash;
+            _tmpHash = (byte) (_cursor.getShort(_cursorIndexOfHash));
+            final String _tmpName;
+            if (_cursor.isNull(_cursorIndexOfName)) {
+              _tmpName = null;
+            } else {
+              _tmpName = _cursor.getString(_cursorIndexOfName);
+            }
+            final Double _tmpLatitude;
+            if (_cursor.isNull(_cursorIndexOfLatitude)) {
+              _tmpLatitude = null;
+            } else {
+              _tmpLatitude = _cursor.getDouble(_cursorIndexOfLatitude);
+            }
+            final Double _tmpLongitude;
+            if (_cursor.isNull(_cursorIndexOfLongitude)) {
+              _tmpLongitude = null;
+            } else {
+              _tmpLongitude = _cursor.getDouble(_cursorIndexOfLongitude);
+            }
+            final long _tmpLastSeen;
+            _tmpLastSeen = _cursor.getLong(_cursorIndexOfLastSeen);
+            final Integer _tmpBatteryMilliVolts;
+            if (_cursor.isNull(_cursorIndexOfBatteryMilliVolts)) {
+              _tmpBatteryMilliVolts = null;
+            } else {
+              _tmpBatteryMilliVolts = _cursor.getInt(_cursorIndexOfBatteryMilliVolts);
+            }
+            final boolean _tmpIsRepeater;
+            final int _tmp;
+            _tmp = _cursor.getInt(_cursorIndexOfIsRepeater);
+            _tmpIsRepeater = _tmp != 0;
+            final boolean _tmpIsRoomServer;
+            final int _tmp_1;
+            _tmp_1 = _cursor.getInt(_cursorIndexOfIsRoomServer);
+            _tmpIsRoomServer = _tmp_1 != 0;
+            final boolean _tmpIsDirect;
+            final int _tmp_2;
+            _tmp_2 = _cursor.getInt(_cursorIndexOfIsDirect);
+            _tmpIsDirect = _tmp_2 != 0;
+            final int _tmpHopCount;
+            _tmpHopCount = _cursor.getInt(_cursorIndexOfHopCount);
+            _item = new NodeEntity(_tmpPublicKey,_tmpHash,_tmpName,_tmpLatitude,_tmpLongitude,_tmpLastSeen,_tmpBatteryMilliVolts,_tmpIsRepeater,_tmpIsRoomServer,_tmpIsDirect,_tmpHopCount);
+            _result.add(_item);
+          }
+          return _result;
+        } finally {
+          _cursor.close();
+          _statement.release();
+        }
+      }
+    }, $completion);
+  }
+
+  @Override
   public Object getNodeByPublicKey(final byte[] publicKey,
       final Continuation<? super NodeEntity> $completion) {
     final String _sql = "SELECT * FROM nodes WHERE publicKey = ?";

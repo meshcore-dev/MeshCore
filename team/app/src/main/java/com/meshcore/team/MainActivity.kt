@@ -26,6 +26,7 @@ import com.meshcore.team.data.preferences.AppPreferences
 import com.meshcore.team.data.repository.ChannelRepository
 import com.meshcore.team.data.repository.MessageRepository
 import com.meshcore.team.data.service.TelemetryManager
+import com.meshcore.team.service.MeshConnectionService
 import com.meshcore.team.ui.screen.connection.ConnectionScreen
 import com.meshcore.team.ui.screen.connection.ConnectionViewModel
 import com.meshcore.team.ui.screen.map.MapScreen
@@ -84,7 +85,7 @@ class MainActivity : ComponentActivity() {
             connectionManager
         )
         
-        connectionViewModel = ConnectionViewModel(bleScanner, connectionManager, appPreferences, channelRepository)
+        connectionViewModel = ConnectionViewModel(bleScanner, connectionManager, appPreferences, channelRepository, contactRepository)
         
         messageViewModel = MessageViewModel(
             messageRepository, 
@@ -116,6 +117,10 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+        
+        // Start background service for persistent mesh connection
+        MeshConnectionService.startService(this)
+        Timber.i("🔄 Background service started")
         
         // Request permissions
         requestBluetoothPermissions()

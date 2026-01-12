@@ -12,6 +12,9 @@ interface NodeDao {
     @Query("SELECT * FROM nodes ORDER BY lastSeen DESC")
     fun getAllNodes(): Flow<List<NodeEntity>>
     
+    @Query("SELECT * FROM nodes ORDER BY lastSeen DESC")
+    suspend fun getAllNodesDirect(): List<NodeEntity>
+    
     @Query("SELECT * FROM nodes WHERE publicKey = :publicKey")
     suspend fun getNodeByPublicKey(publicKey: ByteArray): NodeEntity?
     

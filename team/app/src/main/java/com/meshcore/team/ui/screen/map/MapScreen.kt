@@ -33,14 +33,81 @@ fun MapScreen(
     viewModel: MapViewModel,
     modifier: Modifier = Modifier
 ) {
+    timber.log.Timber.i("🗺️ MapScreen composing...")
+    
     val context = LocalContext.current
     val currentLocation by viewModel.currentLocation.collectAsState()
     val nodes by viewModel.nodes.collectAsState()
     val locationSource by viewModel.locationSource.collectAsState()
     
+    timber.log.Timber.i("🗺️ MapScreen state: ${nodes.size} nodes, location=$currentLocation")
+    
     var mapView by remember { mutableStateOf<MapView?>(null) }
     var myLocationOverlay by remember { mutableStateOf<MyLocationNewOverlay?>(null) }
     var showLegend by remember { mutableStateOf(false) }
+    
+    // Force map refresh every 30 seconds to update "Last heard" times
+    var refreshTrigger by remember { mutableStateOf(0) }
+    
+    LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(30_000) // 30 seconds
+            refreshTrigger++
+            timber.log.Timber.d("📍 Map refresh triggered to update time displays")
+            
+            // Get fresh data from database and use it directly
+            val freshNodes = viewModel.refreshNodes()
+            
+            // Manually update marker snippets without recreating the map
+            mapView?.let { map ->
+                try {
+                    val currentTime = System.currentTimeMillis()
+                    val markers = map.overlays.filterIsInstance<Marker>()
+                    timber.log.Timber.d("📍 Updating ${markers.size} markers for ${freshNodes.size} nodes")
+                    
+                    markers.forEach { marker ->
+                        // Find matching node by marker title
+                        val node = freshNodes.firstOrNull { it.name == marker.title }
+                        if (node != null) {
+                            val timeDiff = currentTime - node.lastSeen
+                            val minutes = timeDiff / 60_000
+                            val hours = timeDiff / 3_600_000
+                            val days = timeDiff / 86_400_000
+                            
+                            val timeAgo = when {
+                                timeDiff < 60_000 -> "Just now"
+                                minutes <= 5 -> "${minutes}m ago"
+                                minutes < 60 -> "${(minutes / 5) * 5}m ago"
+                                hours < 24 -> "${hours}h ago"
+                                else -> "${days}d ago"
+                            }
+                            
+                            val status = node.getConnectivityStatus()
+                            marker.snippet = buildString {
+                                append("ID: ${node.hash.toInt() and 0xFF}")
+                                append("\nHops: ${node.hopCount}")
+                                append("\nStatus: $status")
+                                append("\nLast heard: $timeAgo")
+                            }
+                            timber.log.Timber.d("📍 Updated marker for '${node.name}': $timeAgo (timeDiff=${timeDiff}ms, lastSeen=${node.lastSeen})")
+                        }
+                    }
+                    map.invalidate()
+                    timber.log.Timber.i("✓ Refreshed ${markers.size} marker snippets")
+                } catch (e: Exception) {
+                    timber.log.Timber.e(e, "❌ Error updating marker snippets")
+                }
+            } ?: timber.log.Timber.w("⚠️ mapView is null, cannot update markers")
+        }
+    }
+    
+    // Debug: Log when nodes change
+    LaunchedEffect(nodes) {
+        timber.log.Timber.i("📍 MapScreen nodes state changed: ${nodes.size} nodes")
+        nodes.forEach { node ->
+            timber.log.Timber.i("📍 Node: '${node.name}' lastSeen=${node.lastSeen} (${System.currentTimeMillis() - node.lastSeen}ms ago)")
+        }
+    }
     
     // Initialize osmdroid configuration
     LaunchedEffect(Unit) {
@@ -139,6 +206,7 @@ fun MapScreen(
         ) {
             // osmdroid MapView
             AndroidView(
+                modifier = Modifier.fillMaxSize(),
                 factory = { ctx ->
                     MapView(ctx).apply {
                         mapView = this
@@ -170,10 +238,9 @@ fun MapScreen(
                     }
                 },
                 update = { view ->
-                    // Update markers when nodes change
+                    // This runs when nodes Flow emits new data (new contacts added/removed)
+                    timber.log.Timber.i("📍 Rebuilding map markers: ${nodes.size} nodes")
                     view.overlays.removeAll { it is Marker }
-                    
-                    timber.log.Timber.i("📍 Updating map with ${nodes.size} nodes")
                     
                     nodes.forEach { node ->
                         if (node.latitude != null && node.longitude != null) {
@@ -188,6 +255,22 @@ fun MapScreen(
                                     append("ID: ${node.hash.toInt() and 0xFF}")
                                     append("\nHops: ${node.hopCount}")
                                     append("\nStatus: $status")
+                                    
+                                    // Add last heard time with custom formatting
+                                    val currentTime = System.currentTimeMillis()
+                                    val timeDiff = currentTime - node.lastSeen
+                                    val minutes = timeDiff / 60_000
+                                    val hours = timeDiff / 3_600_000
+                                    val days = timeDiff / 86_400_000
+                                    
+                                    val timeAgo = when {
+                                        timeDiff < 60_000 -> "Just now"
+                                        minutes <= 5 -> "${minutes}m ago"
+                                        minutes < 60 -> "${(minutes / 5) * 5}m ago" // Round to 5 min intervals (10, 15, 20...)
+                                        hours < 24 -> "${hours}h ago"
+                                        else -> "${days}d ago"
+                                    }
+                                    append("\nLast heard: $timeAgo")
                                 }
                                 
                                 // Set marker icon based on connectivity (person icons with better colors)
@@ -225,8 +308,7 @@ fun MapScreen(
                     
                     timber.log.Timber.i("📍 Map updated with ${view.overlays.count { it is Marker }} markers")
                     view.invalidate()
-                },
-                modifier = Modifier.fillMaxSize()
+                }
             )
         }
     }

@@ -28,7 +28,8 @@ class ConnectionViewModel(
     private val bleScanner: BleScanner,
     private val connectionManager: BleConnectionManager,
     private val appPreferences: AppPreferences,
-    private val channelRepository: ChannelRepository
+    private val channelRepository: ChannelRepository,
+    private val contactRepository: com.meshcore.team.data.repository.ContactRepository
 ) : ViewModel() {
     
     private val _scannedDevices = MutableStateFlow<List<ScanResult>>(emptyList())
@@ -100,6 +101,12 @@ class ConnectionViewModel(
         viewModelScope.launch {
             connectionManager.connectionState.collect { state ->
                 if (state == ConnectionState.CONNECTED) {
+                    // Stop scanning when connected to save battery
+                    if (_isScanning.value) {
+                        Timber.i("🔍 Stopping scan - device connected")
+                        stopScan()
+                    }
+                    
                     // Wait a bit for BLE to stabilize
                     delay(500)
                     // Send CMD_APP_START to initialize the companion radio session
@@ -250,6 +257,20 @@ class ConnectionViewModel(
                 val channel = channels.value.find { it.hash.toString() == hash }
                 Timber.i("Telemetry channel set to: ${channel?.name ?: "Unknown"}")
             } ?: Timber.i("Telemetry channel cleared")
+        }
+    }
+    
+    /**
+     * Clear all contacts from database
+     */
+    fun clearAllContacts() {
+        viewModelScope.launch {
+            try {
+                contactRepository.getNodeDao().deleteAllNodes()
+                Timber.i("✓ All contacts cleared from database")
+            } catch (e: Exception) {
+                Timber.e(e, "❌ Failed to clear contacts")
+            }
         }
     }
     
