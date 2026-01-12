@@ -11,6 +11,7 @@
 #include <Utils.h>
 #include <helpers/AdvertDataHelpers.h>
 #include <helpers/TxtDataHelpers.h>
+#include <helpers/sensors/LPPDataHelpers.h>
 
 #if REMOTE_TELEMETRY_DEBUG
 #define RT_DEBUG_PRINTF(F, ...) Serial.printf("[telemetry] " F, ##__VA_ARGS__)
@@ -37,8 +38,18 @@ constexpr int SCHEDULED_REBOOT_HOUR = 3;
 constexpr int SCHEDULED_REBOOT_MINUTE = 0;
 constexpr int SCHEDULED_REBOOT_WINDOW_SEC = 30;
 
+constexpr float LPP_CURRENT_MAX_POSITIVE = 32767.0f / 1000.0f;
+constexpr float LPP_CURRENT_WRAP = 65536.0f / 1000.0f;
+
 inline float roundTwoDecimals(float value) {
   return roundf(value * 100.0f) / 100.0f;
+}
+
+inline float decodeSignedCurrent(float value) {
+  if (value > LPP_CURRENT_MAX_POSITIVE) {
+    value -= LPP_CURRENT_WRAP;
+  }
+  return value;
 }
 }
 
@@ -693,6 +704,7 @@ void RemoteTelemetryManager::publishTelemetry(const RepeaterState& state, uint32
         float value;
         JsonObject sample = makeSample(channel, type);
         if (reader.readCurrent(value)) {
+          value = decodeSignedCurrent(value);
           value = roundTwoDecimals(value);
           sample["value"] = value;
           metrics["current"] = value;
