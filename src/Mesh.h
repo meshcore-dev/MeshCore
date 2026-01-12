@@ -20,7 +20,7 @@ public:
 };
 
 /**
- * \brief  The next layer in the basic Dispatcher task, Mesh recognises the particular Payload TYPES,
+ * \brief  The next layer in the basic Dispatcher task, Mesh recognizes the particular Payload TYPES,
  *     and provides virtual methods for sub-classes on handling incoming, and also preparing outbound Packets.
 */
 class Mesh : public Dispatcher {
