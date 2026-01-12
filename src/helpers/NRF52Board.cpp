@@ -32,16 +32,25 @@ static void wakeUpCallback(TimerHandle_t xTimer) {
 }
 
 void NRF52Board::enterLightSleep(uint32_t secs) {
+//  uint32_t realFreeHeap = dbgHeapFree();
+//  Serial.printf("Actual Free Heap: %u bytes\n", realFreeHeap);
+//  delay(100);
+
 #if defined(P_LORA_DIO_1)
-  // To prevent to enter suspendLoop when the loop has not processed the pending RX
+  // To set wakeup timer
+  if (wakeupTimer.getHandle() == NULL) {
+    // This block runs ONLY if .begin() has never been called
+    wakeupTimer.begin(secs * 1000, wakeUpCallback, nullptr, false);
+    wakeupTimer.start();
+  } else {
+    // The timer already exists in the Heap, to reset the timer
+    wakeupTimer.reset();
+  }
+
+  // Extra check to prevent to enter suspendLoop when the loop has not processed the pending RX
   if(digitalRead(P_LORA_DIO_1) == HIGH) {
     return;
   }
-
-  // To wake up periodically to do scheduled jobs
-  wakeupTimer.stop();
-  wakeupTimer.begin(secs * 1000, wakeUpCallback, nullptr, false);
-  wakeupTimer.start();
 
   // To pause MCU to sleep
   suspendLoop();
