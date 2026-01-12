@@ -4,6 +4,7 @@
 #include <esp_system.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <sys/time.h>
 
@@ -35,6 +36,10 @@ constexpr size_t INVALID_REPEATER_INDEX = static_cast<size_t>(-1);
 constexpr int SCHEDULED_REBOOT_HOUR = 3;
 constexpr int SCHEDULED_REBOOT_MINUTE = 0;
 constexpr int SCHEDULED_REBOOT_WINDOW_SEC = 30;
+
+inline float roundTwoDecimals(float value) {
+  return roundf(value * 100.0f) / 100.0f;
+}
 }
 
 RemoteTelemetryManager* RemoteTelemetryManager::_instance = nullptr;
@@ -676,6 +681,7 @@ void RemoteTelemetryManager::publishTelemetry(const RepeaterState& state, uint32
         float value;
         JsonObject sample = makeSample(channel, type);
         if (reader.readVoltage(value)) {
+          value = roundTwoDecimals(value);
           sample["value"] = value;
           metrics["voltage"] = value;
         } else {
@@ -687,6 +693,7 @@ void RemoteTelemetryManager::publishTelemetry(const RepeaterState& state, uint32
         float value;
         JsonObject sample = makeSample(channel, type);
         if (reader.readCurrent(value)) {
+          value = roundTwoDecimals(value);
           sample["value"] = value;
           metrics["current"] = value;
         } else {
@@ -698,6 +705,7 @@ void RemoteTelemetryManager::publishTelemetry(const RepeaterState& state, uint32
         float value;
         JsonObject sample = makeSample(channel, type);
         if (reader.readPower(value)) {
+          value = roundTwoDecimals(value);
           sample["value"] = value;
           metrics["power"] = value;
         } else {
@@ -709,7 +717,7 @@ void RemoteTelemetryManager::publishTelemetry(const RepeaterState& state, uint32
         float value;
         JsonObject sample = makeSample(channel, type);
         if (reader.readTemperature(value)) {
-          sample["value"] = value;
+          sample["value"] = roundTwoDecimals(value);
         } else {
           sample["error"] = "parse";
         }
@@ -719,7 +727,7 @@ void RemoteTelemetryManager::publishTelemetry(const RepeaterState& state, uint32
         float value;
         JsonObject sample = makeSample(channel, type);
         if (reader.readPressure(value)) {
-          sample["value"] = value;
+          sample["value"] = roundTwoDecimals(value);
         } else {
           sample["error"] = "parse";
         }
@@ -729,7 +737,7 @@ void RemoteTelemetryManager::publishTelemetry(const RepeaterState& state, uint32
         float value;
         JsonObject sample = makeSample(channel, type);
         if (reader.readRelativeHumidity(value)) {
-          sample["value"] = value;
+          sample["value"] = roundTwoDecimals(value);
         } else {
           sample["error"] = "parse";
         }
@@ -739,7 +747,7 @@ void RemoteTelemetryManager::publishTelemetry(const RepeaterState& state, uint32
         float value;
         JsonObject sample = makeSample(channel, type);
         if (reader.readAltitude(value)) {
-          sample["value"] = value;
+          sample["value"] = roundTwoDecimals(value);
         } else {
           sample["error"] = "parse";
         }
@@ -749,9 +757,9 @@ void RemoteTelemetryManager::publishTelemetry(const RepeaterState& state, uint32
         float lat, lon, alt;
         JsonObject sample = makeSample(channel, type);
         if (reader.readGPS(lat, lon, alt)) {
-          sample["lat"] = lat;
-          sample["lon"] = lon;
-          sample["alt"] = alt;
+          sample["lat"] = roundTwoDecimals(lat);
+          sample["lon"] = roundTwoDecimals(lon);
+          sample["alt"] = roundTwoDecimals(alt);
         } else {
           sample["error"] = "parse";
         }
@@ -864,6 +872,17 @@ void RemoteTelemetryManager::handleControlMessage(const uint8_t* payload, size_t
     RT_INFO_PRINTLN("Received empty control message");
     return;
   }
+
+#if REMOTE_TELEMETRY_DEBUG
+  size_t copyLen = length;
+  if (copyLen > 240) {
+    copyLen = 240;
+  }
+  char raw[241];
+  memcpy(raw, payload, copyLen);
+  raw[copyLen] = '\0';
+  RT_INFO_PRINTLN("Control raw: %s%s", raw, (copyLen < length) ? "..." : "");
+#endif
 
   StaticJsonDocument<1024> doc;
   DeserializationError err = deserializeJson(doc, payload, length);
