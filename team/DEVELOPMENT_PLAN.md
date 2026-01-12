@@ -2,19 +2,20 @@
 
 **Project Goal**: Create an Android app for position tracking and messaging over MeshCore LoRa mesh network for hunting and tactical use when other networks are unavailable.
 
-**Last Updated**: January 11, 2026
+**Last Updated**: January 11, 2026 23:10 EST
 
 ---
 
 ## Current Progress
 
-**Phase**: Location Tracking & Maps (Phase 3)
-**Status**: ✅ Core Features Complete - Map & Telemetry Operational
+**Phase**: Phase 3 Complete - Moving to Phase 4 (Background Services)
+**Status**: ✅ Map, Messaging, and Telemetry Fully Operational
 
 **Completed**:
 - ✅ **Phase 1 - BLE Foundation**: Scanner, connection manager, command serialization, response parsing, connection UI, permissions
 - ✅ **Phase 2 - Database Layer**: Message/Node/Channel/AckRecord entities, DAOs, Room database, repositories  
 - ✅ **Phase 2 - Messaging UI**: MessageScreen with channel selector, message bubbles, delivery status indicators, input field
+- ✅ **Phase 3 - Map & Telemetry**: OpenStreetMap integration, real-time location tracking, telemetry system, connectivity status
 - ✅ **Navigation**: Three-screen navigation (messages ↔ map ↔ connection) with bottom navigation bar
 - ✅ **Mock Data Support**: Test messaging without hardware
 - ✅ **Dark Theme**: Default dark theme enabled
@@ -37,27 +38,38 @@
 - ✅ **Contact Updates**: Automatic node database updates from telemetry (lat/lon, battery, hops, last seen)
 - ✅ **Connectivity Status**: Color-coded node markers (Direct/Relayed/Distant/Offline) based on hop count and last seen time
 - ✅ **Map Legend**: Dropdown info button showing network status color legend
+- ✅ **Auto-refresh Map**: 30-second timer updates "Last heard" times on markers without map recreation
+- ✅ **User Alias System**: Embedded alias in messages for display name propagation
+- ✅ **Clear Contacts**: Debug function on connection page to reset contact database
+- ✅ **BLE Scanner Fix**: Proper Job cancellation to stop scanning when connected
 
-**Recent Work (Jan 11, 2026)**:
-- Implemented full map screen with OpenStreetMap integration
-- Added MapViewModel with FusedLocationProviderClient for phone GPS
-- Created location source selection UI (phone vs companion GPS)
-- Built telemetry tracking settings UI on connection screen
-- Implemented TelemetryManager for automatic background location sharing
-- Integrated telemetry with WorkManager for periodic updates (15 min intervals)
-- Connected MapViewModel location updates to immediate telemetry sends
-- Added telemetry message parsing and hidden message filtering (not shown in chat)
-- Implemented node database updates from incoming telemetry (location, battery, hops)
-- Created connectivity color system (green/yellow/orange/red) for map markers
-- Added collapsible network status legend to map top bar
-- Moved companion settings (device name, location source, telemetry) to connection page
+**Recent Work (Jan 11, 2026 - Evening Session)**:
+- Fixed map marker auto-refresh to show real-time "Last heard" updates (Just now, 1m ago, etc.)
+- Resolved Room Flow emission issues by switching from updateNode() to insertNode() with REPLACE strategy
+- Implemented manual marker snippet updates every 30 seconds without AndroidView recreation
+- Fixed critical BLE scanner bug where scan job wasn't being cancelled (caused 2kHz log spam on Android 16)
+- Added comprehensive debugging logs for MessageViewModel initialization and Flow collection
+- Discovered Android 16 (API 36) beta compatibility issues with Flow collection
+- Added Clear All Contacts button to Connection screen for troubleshooting
+- Identified map screen triggering Samsung Kumiho framework queries (only when map displayed)
 
-**Known Limitations**:
+**Known Issues**:
+- ⚠️ **Android 16 (API 36) Compatibility**: 
+  - Telemetry not being received/processed on Android 16 beta devices
+  - MessageViewModel Flow collection may not be triggering properly
+  - Possible need for `.flowOn()` or alternative dispatcher strategy
+  - Map screen causes excessive Samsung Kumiho system queries (~2kHz when map visible)
 - ⚠️ **Channel Message ACK Tracking**: Current companion radio firmware doesn't calculate/forward ACKs for group channel messages, only for direct person-to-person messages. This means "Delivered (X)" count only works for direct messages, not public/private channels. Requires firmware enhancement to `examples/companion_radio/MyMesh.cpp` to calculate ACK checksums for channel messages and store them in `expected_ack_table`.
 - ⚠️ **Companion GPS**: Location source can be set to "companion" but GPS parsing from companion radio is not yet implemented (placeholder in MapViewModel)
 - ⚠️ **QR Code Decoder**: QR scanner detects patterns but doesn't decode codes - manual entry works perfectly as fallback
 
+**Tested Platforms**:
+- ✅ Android 14 (API 34) - All features working perfectly
+- ⚠️ Android 16 (API 36 Beta) - BLE scanning issue fixed, telemetry reception under investigation
+
 **Next Tasks**:
+- [ ] **PRIORITY**: Debug Android 16 Flow collection issue for telemetry
+- [ ] Investigate/throttle map screen causing Kumiho spam on Android 16
 - [ ] Implement companion GPS parsing from telemetry or dedicated command
 - [ ] Add contact syncing from companion radio (CMD_GET_CONTACTS) 
 - [ ] Add direct messaging to contacts with recipient selection

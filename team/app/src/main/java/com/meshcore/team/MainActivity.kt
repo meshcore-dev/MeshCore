@@ -66,6 +66,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
+        Timber.i("🏁 MainActivity.onCreate() called - Build: SDK_INT=${Build.VERSION.SDK_INT}")
+        
         // Initialize BLE components
         bleScanner = BleScanner(this)
         connectionManager = BleConnectionManager.getInstance(this)

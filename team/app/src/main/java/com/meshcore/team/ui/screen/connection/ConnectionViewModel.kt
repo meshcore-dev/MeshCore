@@ -86,6 +86,7 @@ class ConnectionViewModel(
         )
     
     private var messagePollingJob: Job? = null
+    private var scanJob: Job? = null
     
     init {
         // Monitor device info responses to get actual firmware device name
@@ -174,7 +175,8 @@ class ConnectionViewModel(
         _isScanning.value = true
         _scannedDevices.value = emptyList()
         
-        viewModelScope.launch {
+        scanJob?.cancel() // Cancel any existing scan
+        scanJob = viewModelScope.launch {
             bleScanner.scanForDevices().collect { scanResult ->
                 val currentDevices = _scannedDevices.value.toMutableList()
                 
@@ -198,7 +200,11 @@ class ConnectionViewModel(
      * Stop scanning
      */
     fun stopScan() {
+        Timber.i("🛑 Stopping BLE scan (cancelling scan job)")
+        scanJob?.cancel()
+        scanJob = null
         _isScanning.value = false
+        Timber.i("✓ BLE scan stopped")
     }
     
     /**

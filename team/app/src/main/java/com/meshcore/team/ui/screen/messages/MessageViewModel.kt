@@ -63,6 +63,11 @@ class MessageViewModel(
     private val pendingSentConfirmations = ConcurrentHashMap<String, String>() // messageId -> messageId
     
     init {
+        Timber.i("🚀 MessageViewModel INITIALIZING - this should appear on app startup!")
+        
+        try {
+            Timber.i("📦 Dependencies check: messageRepository=$messageRepository, channelRepository=$channelRepository, contactRepository=$contactRepository")
+        
         // Initialize default public channel
         viewModelScope.launch {
             channelRepository.initializeDefaultChannel()
@@ -100,9 +105,12 @@ class MessageViewModel(
         }
         
         // Listen for incoming channel messages from BLE
-        viewModelScope.launch {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.Main.immediate) {
+            Timber.i("🎧 MessageViewModel: Starting to listen for incoming channel messages... (Scope: $viewModelScope)")
             bleConnectionManager.incomingMessages.collect { channelMessage ->
-                Timber.i("Processing incoming channel message: text='${channelMessage.text}', length=${channelMessage.text.length}")
+                try {
+                    Timber.i("✉️ RECEIVED channel message in ViewModel: text='${channelMessage.text}', length=${channelMessage.text.length}")
+                    Timber.i("Processing incoming channel message: text='${channelMessage.text}', length=${channelMessage.text.length}")
                 
                 // Parse MeshCore format: "SENDERID: MESSAGE"
                 // The firmware prepends sender name/ID with colon separator
@@ -262,6 +270,9 @@ class MessageViewModel(
                 } else {
                     Timber.w("No channel found for index ${channelMessage.channelIdx} - message dropped")
                 }
+                } catch (e: Exception) {
+                    Timber.e(e, "❌ CRITICAL: Exception processing channel message!")
+                }
             }
         }
         
@@ -366,6 +377,13 @@ class MessageViewModel(
                     Timber.w("   This could mean: 1) Message not sent yet, 2) Checksum mismatch, or 3) ACK for someone else's message")
                 }
             }
+        }
+        
+        Timber.i("✅ MessageViewModel initialization complete!")
+        
+        } catch (e: Exception) {
+            Timber.e(e, "❌❌❌ FATAL: MessageViewModel init failed - this causes restart loop!")
+            throw e // Re-throw to see the actual crash
         }
     }
     
