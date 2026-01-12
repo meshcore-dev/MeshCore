@@ -482,7 +482,7 @@ static int lfs_dir_fetch(lfs_t *lfs,
 
         valid = true;
 
-        // setup dir in case it's valid
+        // set up dir in case it's valid
         dir->pair[0] = tpair[(i+0) % 2];
         dir->pair[1] = tpair[(i+1) % 2];
         dir->off = sizeof(dir->d);
