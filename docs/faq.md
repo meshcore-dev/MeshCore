@@ -158,7 +158,7 @@ A room server can be remotely administered using a T-Deck running the MeshCore f
 
 When a client logs into a room server, the client will receive the previously 32 unseen messages.
 
-Although room server can also repeat with the command line command `set repeat on`, it is not recommended nor encouraged.  A room server with repeat set to `on` lacks the full set of repeater and remote administration features that are only available in the repeater firmware.
+Although room server can also repeat with the command line command `set repeat on`, it is neither recommended nor encouraged.  A room server with repeat set to `on` lacks the full set of repeater and remote administration features that are only available in the repeater firmware.
 
 The recommendation is to run repeater and room server on separate devices for the best experience.
 
