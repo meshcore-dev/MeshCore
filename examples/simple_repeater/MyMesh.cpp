@@ -48,12 +48,13 @@
 #define REQ_TYPE_GET_TELEMETRY_DATA 0x03
 #define REQ_TYPE_GET_ACCESS_LIST    0x05
 #define REQ_TYPE_GET_NEIGHBOURS     0x06
+#define REQ_TYPE_GET_OWNER_INFO     0x07
 
 #define RESP_SERVER_LOGIN_OK        0 // response to ANON_REQ
 
 #define ANON_REQ_TYPE_REGIONS      0x01
-#define ANON_REQ_TYPE_VER_OWNER    0x02
-#define ANON_REQ_TYPE_VER          0x03
+#define ANON_REQ_TYPE_OWNER        0x02
+#define ANON_REQ_TYPE_BASIC        0x03   // just remote clock
 
 #define CLI_REPLY_DELAY_MILLIS      600
 
@@ -159,7 +160,7 @@ uint8_t MyMesh::handleAnonRegionsReq(const mesh::Identity& sender, uint32_t send
   return 0;
 }
 
-uint8_t MyMesh::handleAnonVerOwnerReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data) {
+uint8_t MyMesh::handleAnonOwnerReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data) {
   if (anon_limiter.allow(rtc_clock.getCurrentTime())) {
     // request data has: {reply-path-len}{reply-path}
     reply_path_len = *data++ & 0x3F;
@@ -169,14 +170,14 @@ uint8_t MyMesh::handleAnonVerOwnerReq(const mesh::Identity& sender, uint32_t sen
     memcpy(reply_data, &sender_timestamp, 4);   // prefix with sender_timestamp, like a tag
     uint32_t now = getRTCClock()->getCurrentTime();
     memcpy(&reply_data[4], &now, 4);     // include our clock (for easy clock sync, and packet hash uniqueness)
-    sprintf((char *) &reply_data[8], "%s\n%s\n%s", FIRMWARE_VERSION, _prefs.node_name, _prefs.owner_info);
+    sprintf((char *) &reply_data[8], "%s\n%s", _prefs.node_name, _prefs.owner_info);
 
     return 8 + strlen((char *) &reply_data[8]);   // reply length
   }
   return 0;
 }
 
-uint8_t MyMesh::handleAnonVerReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data) {
+uint8_t MyMesh::handleAnonClockReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data) {
   if (anon_limiter.allow(rtc_clock.getCurrentTime())) {
     // request data has: {reply-path-len}{reply-path}
     reply_path_len = *data++ & 0x3F;
@@ -186,9 +187,16 @@ uint8_t MyMesh::handleAnonVerReq(const mesh::Identity& sender, uint32_t sender_t
     memcpy(reply_data, &sender_timestamp, 4);   // prefix with sender_timestamp, like a tag
     uint32_t now = getRTCClock()->getCurrentTime();
     memcpy(&reply_data[4], &now, 4);     // include our clock (for easy clock sync, and packet hash uniqueness)
-    strcpy((char *) &reply_data[8], FIRMWARE_VERSION);
-
-    return 8 + strlen((char *) &reply_data[8]);   // reply length
+    reply_data[8] = 0;  // features
+#ifdef WITH_RS232_BRIDGE
+    reply_data[8] |= 0x01;  // is bridge, type UART
+#elif WITH_ESPNOW_BRIDGE
+    reply_data[8] |= 0x03;  // is bridge, type ESP-NOW
+#endif
+    if (_prefs.disable_fwd) {   // is this repeater currently disabled
+      reply_data[8] |= 0x80;  // is disabled
+    }
+    return 9;   // reply length
   }
   return 0;
 }
@@ -350,6 +358,9 @@ int MyMesh::handleRequest(ClientInfo *sender, uint32_t sender_timestamp, uint8_t
 
       return reply_offset;
     }
+  } else if (payload[0] == REQ_TYPE_GET_OWNER_INFO) {
+    sprintf((char *) &reply_data[4], "%s\n%s", FIRMWARE_VERSION, _prefs.owner_info);
+    return 4 + strlen((char *) &reply_data[4]);
   }
   return 0; // unknown command
 }
@@ -508,10 +519,10 @@ void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const m
       reply_len = handleLoginReq(sender, secret, timestamp, &data[4], packet->isRouteFlood());
     } else if (data[4] == ANON_REQ_TYPE_REGIONS && packet->isRouteDirect()) {
       reply_len = handleAnonRegionsReq(sender, timestamp, &data[5]);
-    } else if (data[4] == ANON_REQ_TYPE_VER_OWNER && packet->isRouteDirect()) {
-      reply_len = handleAnonVerOwnerReq(sender, timestamp, &data[5]);
-    } else if (data[4] == ANON_REQ_TYPE_VER && packet->isRouteDirect()) {
-      reply_len = handleAnonVerReq(sender, timestamp, &data[5]);
+    } else if (data[4] == ANON_REQ_TYPE_OWNER && packet->isRouteDirect()) {
+      reply_len = handleAnonOwnerReq(sender, timestamp, &data[5]);
+    } else if (data[4] == ANON_REQ_TYPE_BASIC && packet->isRouteDirect()) {
+      reply_len = handleAnonClockReq(sender, timestamp, &data[5]);
     } else {
       reply_len = 0;  // unknown/invalid request type
     }
@@ -700,7 +711,9 @@ bool MyMesh::onPeerPathRecv(mesh::Packet *packet, int sender_idx, const uint8_t 
 
 void MyMesh::onControlDataRecv(mesh::Packet* packet) {
   uint8_t type = packet->payload[0] & 0xF0;    // just test upper 4 bits
-  if (type == CTL_TYPE_NODE_DISCOVER_REQ && packet->payload_len >= 6 && discover_limiter.allow(rtc_clock.getCurrentTime())) {
+  if (type == CTL_TYPE_NODE_DISCOVER_REQ && packet->payload_len >= 6
+      && !_prefs.disable_fwd && discover_limiter.allow(rtc_clock.getCurrentTime())
+  ) {
     int i = 1;
     uint8_t  filter = packet->payload[i++];
     uint32_t tag;

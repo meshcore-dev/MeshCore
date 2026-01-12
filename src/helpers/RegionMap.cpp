@@ -9,8 +9,9 @@ RegionMap::RegionMap(TransportKeyStore& store) : _store(&store) {
   strcpy(wildcard.name, "*");
 }
 
-bool RegionMap::is_name_char(char c) {
-  return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' || c == '.' || c == '_' || c == '#';
+bool RegionMap::is_name_char(uint8_t c) {
+  // accept all alpha-num or accented characters, but exclude most punctuation chars
+  return c == '-' || c == '#' || (c >= '0' && c <= '9') || c >= 'A';
 }
 
 static File openWrite(FILESYSTEM* _fs, const char* filename) {

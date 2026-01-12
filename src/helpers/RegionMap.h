@@ -30,7 +30,7 @@ class RegionMap {
 public:
   RegionMap(TransportKeyStore& store);
 
-  static bool is_name_char(char c);
+  static bool is_name_char(uint8_t c);
 
   bool load(FILESYSTEM* _fs, const char* path=NULL);
   bool save(FILESYSTEM* _fs, const char* path=NULL);
