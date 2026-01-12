@@ -6,7 +6,7 @@
 struct ContactInfo {
   mesh::Identity id;
   char name[32];
-  uint8_t type;   // on of ADV_TYPE_*
+  uint8_t type;   // one of ADV_TYPE_*
   uint8_t flags;
   int8_t out_path_len;
   uint8_t out_path[MAX_PATH_SIZE];

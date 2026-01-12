@@ -39,7 +39,7 @@ struct ServerStats {
 };
 
 void MyMesh::addPost(ClientInfo *client, const char *postData) {
-  // TODO: suggested postData format: <title>/<descrption>
+  // TODO: suggested postData format: <title>/<description>
   posts[next_post_idx].author = client->id; // add to cyclic queue
   StrHelper::strncpy(posts[next_post_idx].text, postData, MAX_POST_TEXT_LEN);
 
@@ -284,7 +284,7 @@ void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const m
                                                            // client (unknown at this stage)
     uint32_t sender_timestamp, sender_sync_since;
     memcpy(&sender_timestamp, data, 4);
-    memcpy(&sender_sync_since, &data[4], 4); // sender's "sync messags SINCE x" timestamp
+    memcpy(&sender_sync_since, &data[4], 4); // sender's "sync messages SINCE x" timestamp
 
     data[len] = 0;                                        // ensure null terminator
 
@@ -431,7 +431,7 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
           send_ack = false;
         } else {
           temp[5] = 0;      // no reply
-          send_ack = false; // and no ACK...  user shoudn't be sending these
+          send_ack = false; // and no ACK...  user shouldn't be sending these
         }
       } else { // TXT_TYPE_PLAIN
         if ((client->permissions & PERM_ACL_ROLE_MASK) == PERM_ACL_GUEST) {
@@ -846,7 +846,7 @@ void MyMesh::loop() {
     if (did_push) {
       next_push = futureMillis(SYNC_PUSH_INTERVAL);
     } else {
-      // were no unsynced posts for curr client, so proccess next client much quicker! (in next loop())
+      // were no unsynced posts for curr client, so process next client much quicker! (in next loop())
       next_push = futureMillis(SYNC_PUSH_INTERVAL / 8);
     }
   }

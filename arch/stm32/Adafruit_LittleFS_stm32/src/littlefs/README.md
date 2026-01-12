@@ -21,7 +21,7 @@ storage on disk is always kept in a valid state.
 
 **Wear leveling** - Since the most common form of embedded storage is erodible
 flash memories, littlefs provides a form of dynamic wear leveling for systems
-that can not fit a full flash translation layer.
+that cannot fit a full flash translation layer.
 
 ## Example
 
@@ -123,7 +123,7 @@ integrity.
 
 If your storage caches writes, make sure that the provided `sync` function
 flushes all the data to memory and ensures that the next read fetches the data
-from memory, otherwise data integrity can not be guaranteed. If the `write`
+from memory; otherwise, data integrity cannot be guaranteed. If the `write`
 function does not perform caching, and therefore each `read` or `write` call
 hits the memory, the `sync` function can simply return 0.
 
@@ -139,7 +139,7 @@ with all the nitty-gritty details. Can be useful for developing tooling.
 ## Testing
 
 The littlefs comes with a test suite designed to run on a PC using the
-[emulated block device](emubd/lfs_emubd.h) found in the emubd directory.
+[emulated block device](https://github.com/littlefs-project/littlefs/blob/master/bd/lfs_emubd.h).
 The tests assume a Linux environment and can be started with make:
 
 ``` bash
@@ -174,4 +174,4 @@ handy.
 
 [littlefs-js](https://github.com/geky/littlefs-js) - A javascript wrapper for
 littlefs. I'm not sure why you would want this, but it is handy for demos.
-You can see it in action [here](http://littlefs.geky.net/demo.html).
+You can [see it in action](http://littlefs.geky.net/demo.html).

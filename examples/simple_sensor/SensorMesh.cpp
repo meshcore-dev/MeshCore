@@ -78,7 +78,7 @@ static uint8_t getDataSize(uint8_t type) {
       case LPP_GPS:
         return 9;
       case LPP_POLYLINE:
-        return 8;  // TODO: this is MINIMIUM
+        return 8;  // TODO: this is MINIMUM
       case LPP_GYROMETER:
       case LPP_ACCELEROMETER:
         return 6;

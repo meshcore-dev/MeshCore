@@ -27,7 +27,7 @@ public:
    * \brief  polls for incoming raw packet.
    * \param  bytes  destination to store incoming raw packet.
    * \param  sz   maximum packet size allowed.
-   * \returns 0 if no incoming data, otherwise length of complete packet received.
+   * \returns 0 if no incoming data; otherwise, length of complete packet received.
   */
   virtual int recvRaw(uint8_t* bytes, int sz) = 0;
 

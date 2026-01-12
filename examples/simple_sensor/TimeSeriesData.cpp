@@ -19,7 +19,7 @@ void TimeSeriesData::calcMinMaxAvg(mesh::RTCClock* clock, uint32_t start_secs_ag
   dest->_channel = channel;
   dest->_lpp_type = lpp_type;
 
-  // start at most recet recording, back-track through to oldest
+  // start at most recent recording, back-track through to oldest
   while (n > 0) {
     n--;
     i = (i + num_slots - 1) % num_slots;  // go back by one

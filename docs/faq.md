@@ -27,7 +27,7 @@ author: https://github.com/LitBomb<!-- omit from toc -->
   - [3.3. Q: What is the password to administer a repeater or a room server?](#33-q-what-is-the-password-to-administer-a-repeater-or-a-room-server)
   - [3.4. Q: What is the password to join a room server?](#34-q-what-is-the-password-to-join-a-room-server)
   - [3.5. Q: Can I retrieve a repeater's private key or set a repeater's private key?](#35-q-can-i-retrieve-a-repeaters-private-key-or-set-a-repeaters-private-key)
-  - [3.6. Q: The first byte of my repeater's public key collides with an exisitng repeater on the mesh.  How do I get a new private key with a matching public key that has its first byte of my choosing?](#36-q-the-first-byte-of-my-repeaters-public-key-collides-with-an-exisitng-repeater-on-the-mesh--how-do-i-get-a-new-private-key-with-a-matching-public-key-that-has-its-first-byte-of-my-choosing)
+  - [3.6. Q: The first byte of my repeater's public key collides with an existing repeater on the mesh.  How do I get a new private key with a matching public key that has its first byte of my choosing?](#36-q-the-first-byte-of-my-repeaters-public-key-collides-with-an-existing-repeater-on-the-mesh--how-do-i-get-a-new-private-key-with-a-matching-public-key-that-has-its-first-byte-of-my-choosing)
   - [3.7. Q: My repeater maybe suffering from deafness due to high power interference near my mesh's frequency, it is not hearing other in-range MeshCore radios.  what can I do?](#37-q-my-repeater-maybe-suffering-from-deafness-due-to-high-power-interference-near-my-meshs-frequency-it-is-not-hearing-other-in-range-meshcore-radios--what-can-i-do)
   - [3.8 Q: How do I make my repeater an observer on the mesh](#38-q-how-do-i-make-my-repeater-an-observer-on-the-mesh)
 - [4. T-Deck Related](#4-t-deck-related)
@@ -158,7 +158,7 @@ A room server can be remotely administered using a T-Deck running the MeshCore f
 
 When a client logs into a room server, the client will receive the previously 32 unseen messages.
 
-Although room server can also repeat with the command line command `set repeat on`, it is not recommended nor encouraged.  A room server with repeat set to `on` lacks the full set of repeater and remote administration features that are only available in the repeater firmware.
+Although room server can also repeat with the command line command `set repeat on`, it is neither recommended nor encouraged.  A room server with repeat set to `on` lacks the full set of repeater and remote administration features that are only available in the repeater firmware.
 
 The recommendation is to run repeater and room server on separate devices for the best experience.
 
@@ -277,14 +277,14 @@ You can get the latitude and longitude from Google Maps by right-clicking the lo
 
 Reboot the repeater after `set prv.key <hex>` command for the new private key to take effect.
 
-### 3.6. Q: The first byte of my repeater's public key collides with an exisitng repeater on the mesh.  How do I get a new private key with a matching public key that has its first byte of my choosing?
+### 3.6. Q: The first byte of my repeater's public key collides with an existing repeater on the mesh.  How do I get a new private key with a matching public key that has its first byte of my choosing?
 
 **A:** You can generate a new private key and specific the first byte of its public key here:  https://gessaman.com/mc-keygen/
 
 
 ### 3.7. Q: My repeater maybe suffering from deafness due to high power interference near my mesh's frequency, it is not hearing other in-range MeshCore radios.  what can I do?
 
-**A:** This may be due to the SX1262 radio's auto gain control feature.  You can use this command to preiodically reset its AGC.  
+**A:** This may be due to the SX1262 radio's auto gain control feature.  You can use this command to periodically reset its AGC.  
 
 `set agc.reset.interval <number>`
 
@@ -450,7 +450,7 @@ In the case if users are moving around frequently, and the paths are breaking, t
 
 ### 5.4. Q: How does a node discovery a path to its destination and then use it to send messages in the future, instead of flooding every message it sends like Meshtastic?
 
-Routes are stored in sender's contact list.  When you send a message the first time, the message first gets to your destination by flood routing. When your destination node gets the message, it will send back a delivery report to the sender with all repeaters that the original message went through. This delivery report is flood-routed back to you the sender and is a basis for future direct path. When you send the next message, the path will get embedded into the packet and be evaluated by repeaters. If the hop and address of the repeater matches, it will retransmit the message, otherwise it will not retransmit, hence minimizing utilization.
+Routes are stored in sender's contact list.  The first time you send a message, the message first gets to your destination by flood routing. When your destination node gets the message, it will send back a delivery report to the sender with all repeaters that the original message went through. This delivery report is flood-routed back to you the sender and is a basis for future direct path. When you send the next message, the path will get embedded into the packet and be evaluated by repeaters. If the hop and address of the repeater matches, it will retransmit the message; otherwise, it will not retransmit, hence minimizing utilization.
 
 [Source](https://discord.com/channels/826570251612323860/1330643963501351004/1351279141630119996)
 
@@ -518,10 +518,10 @@ Andy also has a video on how to build using VS Code:
 
 ### 5.10. Q: Are there other MeshCore related open source projects?
 
-**A:** [Liam Cottle](https://liamcottle.net)'s MeshCore web client and MeshCore Javascript library are open source under MIT license.
+**A:** [Liam Cottle](https://liamcottle.net)'s MeshCore web client and MeshCore JavaScript library are open source under MIT license.
 
 Web client: https://github.com/liamcottle/meshcore-web
-Javascript: https://github.com/liamcottle/meshcore.js
+JavaScript: https://github.com/liamcottle/meshcore.js
 
 ### 5.11. Q: Does MeshCore support ATAK
 **A:** ATAK is not currently on MeshCore's roadmap.
@@ -733,7 +733,7 @@ Allow the browser user on it:
 3. From the MeshCore app, login remotely to the repeater you want to update with admin privilege
 4. Go to the Command Line tab, type `start ota` and hit enter.
 5. you should see `OK` to confirm the repeater device is now in OTA mode
-6. Run the DFU app,tab `Settings` on the top right corner
+6. Run the DFU app, tab `Settings` at the top right corner
 7. Enable `Packets receipt notifications`, and change `Number of Packets` to 10 for RAK, 8 for T114.  8 also works for RAK.
 9. Select the firmware zip file you downloaded
 10. Select the device you want to update. If the device you want to update is not on the list, try enabling`OTA` on the device again
@@ -804,7 +804,7 @@ Edit WIFI_SSID and WIFI_PWD in `./variants/heltec_v3/platformio.ini` and then fl
 
 ### 7.7. Q: I have a Station G2, or a Heltec V4, or an Ikoka Stick, or a radio with a EByte E22-900M30S or a E22-900M33S module, what should their transmit power be set to?
  **A:**
-For companion radios, you can set these radios' transmit power in the smartphone app.  For repeater and room server radios, you can set their transmit power using the command line command `set tx`.  You can get their current value using command line comand `get tx`
+For companion radios, you can set these radios' transmit power in the smartphone app.  For repeater and room server radios, you can set their transmit power using the command line command `set tx`.  You can get their current value using command line command `get tx`
 
 
 > ### ⚠️ **WARNING: Set these values at your own risk. Incorrect power settings can permanently damage your radio hardware.**

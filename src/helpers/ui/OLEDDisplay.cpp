@@ -31,7 +31,7 @@
 
  /*
   * TODO Helmut
-  * - test/finish dislplay.printf() on mbed-os
+  * - test/finish display.printf() on mbed-os
   * - Finish _putc with drawLogBuffer when running display
   */
 
@@ -842,11 +842,11 @@ void OLEDDisplay::drawLogBuffer(uint16_t xMove, uint16_t yMove) {
   uint16_t lastPos  = 0;
 
   for (uint16_t i=0;i<this->logBufferFilled;i++){
-    // Everytime we have a \n print
+    // Every time we have a \n print
     if (this->logBuffer[i] == 10) {
       length++;
       // Draw string on line `line` from lastPos to length
-      // Passing 0 as the lenght because we are in TEXT_ALIGN_LEFT
+      // Passing 0 as the length because we are in TEXT_ALIGN_LEFT
       drawStringInternal(xMove, yMove + (line++) * lineHeight, &this->logBuffer[lastPos], length, 0, false);
       // Remember last pos
       lastPos = i;
@@ -924,7 +924,7 @@ size_t OLEDDisplay::write(uint8_t c) {
       if (firstLineEnd > 0) {
         // Calculate the new logBufferFilled value
         this->logBufferFilled = logBufferFilled - firstLineEnd;
-        // Now we move the lines infront of the buffer
+        // Now we move the lines in front of the buffer
         memcpy(this->logBuffer, &this->logBuffer[firstLineEnd], logBufferFilled);
       } else {
         // Let's reuse the buffer if it was full
@@ -1166,7 +1166,7 @@ char DefaultFontTableLookup(const uint8_t ch) {
 	uint8_t last = LASTCHAR;   // get last char
 	LASTCHAR = ch;
 
-	switch (last) {    // conversion depnding on first UTF8-character
+	switch (last) {    // conversion depending on first UTF8-character
 		case 0xC2: return (uint8_t) ch;
 		case 0xC3: return (uint8_t) (ch | 0xC0);
 		case 0x82: if (ch == 0xAC) return (uint8_t) 0x80;    // special case Euro-symbol

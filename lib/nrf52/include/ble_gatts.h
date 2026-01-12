@@ -753,7 +753,7 @@ SVCALL(SD_BLE_GATTS_SYS_ATTR_SET, uint32_t, sd_ble_gatts_sys_attr_set(uint16_t c
  *
  * @details This call is used to retrieve information about values to be stored persistently by the application
  *          during the lifetime of a connection or after it has been terminated. When a new connection is established with the same bonded device,
- *          the system attribute information retrieved with this function should be restored using using @ref sd_ble_gatts_sys_attr_set.
+ *          the system attribute information retrieved with this function should be restored using @ref sd_ble_gatts_sys_attr_set.
  *          If retrieved after disconnection, the data should be read before a new connection established. The connection handle for
  *          the previous, now disconnected, connection will remain valid until a new one is created to allow this API call to refer to it.
  *          Connection handles belonging to active connections can be used as well, but care should be taken since the system attributes

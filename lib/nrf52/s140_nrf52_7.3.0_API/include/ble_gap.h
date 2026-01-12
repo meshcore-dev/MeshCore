@@ -1532,7 +1532,7 @@ typedef union
  *       The time taken may be different for each connection and the get operation will
  *       return the previous channel map until the new one has taken effect.
  *
- * @note After setting the channel map, by spec it can not be set again until at least 1 s has passed.
+ * @note After setting the channel map, by spec it cannot be set again until at least 1 s has passed.
  *       See Bluetooth Specification Version 4.1 Volume 2, Part E, Section 7.3.46.
  *
  * @retval ::NRF_SUCCESS Get or set successful.
@@ -1680,7 +1680,7 @@ typedef struct
 {
   uint8_t  ppi_ch_id;                /**< PPI channel to use. This channel should be regarded as reserved until
                                           connection event PPI task triggering is stopped.
-                                          The PPI channel ID can not be one of the PPI channels reserved by
+                                          The PPI channel ID cannot be one of the PPI channels reserved by
                                           the SoftDevice. See @ref NRF_SOC_SD_PPI_CHANNELS_SD_ENABLED_MSK. */
   uint32_t task_endpoint;            /**< Task Endpoint to trigger. */
   uint16_t conn_evt_counter_start;   /**< The connection event on which the task triggering should start. */
@@ -1934,7 +1934,7 @@ SVCALL(SD_BLE_GAP_ADV_SET_CONFIGURE, uint32_t, sd_ble_gap_adv_set_configure(uint
  *                                        tag has been reached; connectable advertiser cannot be started.
  *                                        To increase the number of available connections,
  *                                        use @ref sd_ble_cfg_set with @ref BLE_GAP_CFG_ROLE_COUNT or @ref BLE_CONN_CFG_GAP.
- * @retval ::BLE_ERROR_INVALID_ADV_HANDLE Advertising handle not found. Configure a new adveriting handle with @ref sd_ble_gap_adv_set_configure.
+ * @retval ::BLE_ERROR_INVALID_ADV_HANDLE Advertising handle not found. Configure a new advertising handle with @ref sd_ble_gap_adv_set_configure.
  * @retval ::NRF_ERROR_NOT_FOUND          conn_cfg_tag not found.
  * @retval ::NRF_ERROR_INVALID_PARAM      Invalid parameter(s) supplied:
  *                                        - Invalid configuration of p_adv_params. See @ref ble_gap_adv_params_t.

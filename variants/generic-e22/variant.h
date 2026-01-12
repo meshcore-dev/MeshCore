@@ -32,7 +32,7 @@
 
 // The E22's TXEN pin is connected to MCU pin, E22's RXEN pin is connected to MCU pin (allows for ramping up PA before transmission
 // Don't define DIO2_AS_RF_SWITCH because we only use DIO2 or an MCU pin mutually exclusively to connect to E22's TXEN (to prevent
-// a short if they are both connected at the same time and there's a slight non-neglibible delay and/or voltage difference between
+// a short if they are both connected at the same time and there's a slight non-negligible delay and/or voltage difference between
 // DIO2 and TXEN).
 #define SX126X_TXEN 13 // Schematic connects EBYTE module's TXEN pin to MCU
 #define SX126X_RXEN 14 // Schematic connects EBYTE module's RXEN pin to MCU

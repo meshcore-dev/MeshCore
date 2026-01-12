@@ -60,7 +60,7 @@ private:
 };
 
 #else
-#error "Unkown operating system"
+#error "Unknown operating system"
 #endif
 
 #include "OLEDDisplayFonts.h"
@@ -160,7 +160,7 @@ class OLEDDisplay : public Print  {
 #elif __MBED__
 class OLEDDisplay : public Stream {
 #else
-#error "Unkown operating system"
+#error "Unknown operating system"
 #endif
 
   public:
@@ -231,13 +231,13 @@ class OLEDDisplay : public Stream {
     void drawVerticalLine(int16_t x, int16_t y, int16_t length);
 
     // Draws a rounded progress bar with the outer dimensions given by width and height. Progress is
-    // a unsigned byte value between 0 and 100
+    // an unsigned byte value between 0 and 100
     void drawProgressBar(uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint8_t progress);
 
     // Draw a bitmap in the internal image format
     void drawFastImage(int16_t x, int16_t y, int16_t width, int16_t height, const uint8_t *image);
 
-    // Draw a XBM
+    // Draw an XBM
     void drawXbm(int16_t x, int16_t y, int16_t width, int16_t height, const uint8_t *xbm);
 
     // Draw icon 16x16 xbm format
@@ -262,7 +262,7 @@ class OLEDDisplay : public Stream {
     // font settings
     uint16_t getStringWidth(const char* text, uint16_t length, bool utf8 = false);
 
-    // Convencience method for the const char version
+    // Convenience method for the const char version
     uint16_t getStringWidth(const String &text);
 
     // Specifies relative to which anchor point
@@ -317,7 +317,7 @@ class OLEDDisplay : public Stream {
     // Log buffer implementation
 
     // This will define the lines and characters you can
-    // print to the screen. When you exeed the buffer size (lines * chars)
+    // print to the screen. When you exceed the buffer size (lines * chars)
     // the output may be truncated due to the size constraint.
     bool setLogBuffer(uint16_t lines, uint16_t chars);
 

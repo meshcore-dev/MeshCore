@@ -438,7 +438,7 @@ static int lfs_dir_alloc(lfs_t *lfs, lfs_dir_t *dir) {
 
 static int lfs_dir_fetch(lfs_t *lfs,
         lfs_dir_t *dir, const lfs_block_t pair[2]) {
-    // copy out pair, otherwise may be aliasing dir
+    // copy out pair; otherwise, may be aliasing dir
     const lfs_block_t tpair[2] = {pair[0], pair[1]};
     bool valid = false;
 
@@ -482,7 +482,7 @@ static int lfs_dir_fetch(lfs_t *lfs,
 
         valid = true;
 
-        // setup dir in case it's valid
+        // set up dir in case it's valid
         dir->pair[0] = tpair[(i+0) % 2];
         dir->pair[1] = tpair[(i+1) % 2];
         dir->off = sizeof(dir->d);
@@ -2328,7 +2328,7 @@ static int lfs_pred(lfs_t *lfs, const lfs_block_t dir[2], lfs_dir_t *pdir) {
         return 0;
     }
 
-    // iterate over all directory directory entries
+    // iterate over all directory entries
     int err = lfs_dir_fetch(lfs, pdir, (const lfs_block_t[2]){0, 1});
     if (err) {
         return err;
@@ -2357,7 +2357,7 @@ static int lfs_parent(lfs_t *lfs, const lfs_block_t dir[2],
     parent->d.tail[0] = 0;
     parent->d.tail[1] = 1;
 
-    // iterate over all directory directory entries
+    // iterate over all directory entries
     while (!lfs_pairisnull(parent->d.tail)) {
         int err = lfs_dir_fetch(lfs, parent, parent->d.tail);
         if (err) {
@@ -2396,7 +2396,7 @@ static int lfs_moved(lfs_t *lfs, const void *e) {
         return err;
     }
 
-    // iterate over all directory directory entries
+    // iterate over all directory entries
     lfs_entry_t entry;
     while (!lfs_pairisnull(cwd.d.tail)) {
         err = lfs_dir_fetch(lfs, &cwd, cwd.d.tail);
@@ -2484,7 +2484,7 @@ int lfs_deorphan(lfs_t *lfs) {
     lfs_dir_t pdir = {.d.size = 0x80000000};
     lfs_dir_t cwd = {.d.tail[0] = 0, .d.tail[1] = 1};
 
-    // iterate over all directory directory entries
+    // iterate over all directory entries
     for (lfs_size_t i = 0; i < lfs->cfg->block_count; i++) {
         if (lfs_pairisnull(cwd.d.tail)) {
             return 0;

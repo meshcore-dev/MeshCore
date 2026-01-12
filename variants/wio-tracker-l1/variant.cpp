@@ -19,7 +19,7 @@ const uint32_t g_ADigitalPinMap[] = {
 
     // D11-D12 - LED outputs
     33, // D11 P1.1 User LED
-    // Buzzzer
+    // Buzzer
     32, // D12 P1.0 Buzzer
 
     // D13 - User input

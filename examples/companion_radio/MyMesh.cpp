@@ -24,7 +24,7 @@
 #define CMD_REBOOT                    19
 #define CMD_GET_BATT_AND_STORAGE      20   // was CMD_GET_BATTERY_VOLTAGE
 #define CMD_SET_TUNING_PARAMS         21
-#define CMD_DEVICE_QEURY              22
+#define CMD_DEVICE_QUERY              22
 #define CMD_EXPORT_PRIVATE_KEY        23
 #define CMD_IMPORT_PRIVATE_KEY        24
 #define CMD_SEND_RAW_DATA             25
@@ -72,7 +72,7 @@
 #define RESP_CODE_NO_MORE_MESSAGES    10 // a reply to CMD_SYNC_NEXT_MESSAGE
 #define RESP_CODE_EXPORT_CONTACT      11
 #define RESP_CODE_BATT_AND_STORAGE    12 // a reply to a CMD_GET_BATT_AND_STORAGE
-#define RESP_CODE_DEVICE_INFO         13 // a reply to CMD_DEVICE_QEURY
+#define RESP_CODE_DEVICE_INFO         13 // a reply to CMD_DEVICE_QUERY
 #define RESP_CODE_PRIVATE_KEY         14 // a reply to CMD_EXPORT_PRIVATE_KEY
 #define RESP_CODE_DISABLED            15
 #define RESP_CODE_CONTACT_MSG_RECV_V3 16 // a reply to CMD_SYNC_NEXT_MESSAGE (ver >= 3)
@@ -280,7 +280,7 @@ void MyMesh::onDiscoveredContact(ContactInfo &contact, bool is_new, uint8_t path
   if (path && path_len <= sizeof(AdvertPath::path)) {  // check path is valid
     AdvertPath* p = advert_paths;
     uint32_t oldest = 0xFFFFFFFF;
-    for (int i = 0; i < ADVERT_PATH_TABLE_SIZE; i++) {   // check if already in table, otherwise evict oldest
+    for (int i = 0; i < ADVERT_PATH_TABLE_SIZE; i++) {   // check if already in table; otherwise, evict oldest
       if (memcmp(advert_paths[i].pubkey_prefix, contact.id.pub_key, sizeof(AdvertPath::pubkey_prefix)) == 0) {
         p = &advert_paths[i];   // found
         break;
@@ -390,7 +390,7 @@ void MyMesh::queueMessage(const ContactInfo &from, uint8_t txt_type, mesh::Packe
 
 bool MyMesh::filterRecvFloodPacket(mesh::Packet* packet) {
   // REVISIT: try to determine which Region (from transport_codes[1]) that Sender is indicating for replies/responses
-  //    if unknown, fallback to finding Region from transport_codes[0], the 'scope' used by Sender
+  //    if unknown, fall back to finding Region from transport_codes[0], the 'scope' used by Sender
   return false;
 }
 
@@ -821,7 +821,7 @@ void MyMesh::startInterface(BaseSerialInterface &serial) {
 }
 
 void MyMesh::handleCmdFrame(size_t len) {
-  if (cmd_frame[0] == CMD_DEVICE_QEURY && len >= 2) { // sent when app establishes connection
+  if (cmd_frame[0] == CMD_DEVICE_QUERY && len >= 2) { // sent when app establishes connection
     app_target_ver = cmd_frame[1];                    // which version of protocol does app understand
 
     int i = 0;
@@ -924,7 +924,7 @@ void MyMesh::handleCmdFrame(size_t len) {
     } else {
       writeErrFrame(recipient == NULL
                         ? ERR_CODE_NOT_FOUND
-                        : ERR_CODE_UNSUPPORTED_CMD); // unknown recipient, or unsuported TXT_TYPE_*
+                        : ERR_CODE_UNSUPPORTED_CMD); // unknown recipient, or unsupported TXT_TYPE_*
     }
   } else if (cmd_frame[0] == CMD_SEND_CHANNEL_TXT_MSG) { // send GroupChannel msg
     int i = 1;

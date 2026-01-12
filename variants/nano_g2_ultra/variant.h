@@ -118,7 +118,7 @@ External serial flash W25Q16JV_IQ
 // This is used as an *output* from the sx1262 and connected internally to power the tcxo, do not drive from the main CPU?
 #define SX126X_BUSY (32 + 11)
 #define SX126X_RESET (32 + 15)
-//  DIO2 controlls an antenna switch and the TCXO voltage is controlled by DIO3
+//  DIO2 controls an antenna switch and the TCXO voltage is controlled by DIO3
 #define SX126X_DIO2_AS_RF_SWITCH
 #define SX126X_DIO3_TCXO_VOLTAGE 1.8
 
@@ -165,7 +165,7 @@ External serial flash W25Q16JV_IQ
 
 // Battery
 // The battery sense is hooked to pin A0 (2)
-// it is defined in the anlaolgue pin section of this file
+// it is defined in the analog pin section of this file
 // and has 12 bit resolution
 #define BATTERY_SENSE_RESOLUTION_BITS 12
 #define BATTERY_SENSE_RESOLUTION 4096.0

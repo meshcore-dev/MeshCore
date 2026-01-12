@@ -61,7 +61,7 @@
 
 #define LPP_ERROR_OK 0
 #define LPP_ERROR_OVERFLOW 1
-#define LPP_ERROR_UNKOWN_TYPE 2
+#define LPP_ERROR_UNKNOWN_TYPE 2
 
 class LPPReader {
   const uint8_t* _buf;
@@ -142,7 +142,7 @@ public:
       case LPP_GPS:
         _pos += 9; break;
       case LPP_POLYLINE:
-        _pos += 8; break;  // TODO: this is MINIMIUM
+        _pos += 8; break;  // TODO: this is MINIMUM
       case LPP_GYROMETER:
       case LPP_ACCELEROMETER:
         _pos += 6; break;

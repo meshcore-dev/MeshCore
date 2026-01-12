@@ -23,11 +23,11 @@ public:
 #endif
 
   uint16_t getBattMilliVolts() override {
-    // Please read befor going further ;)
+    // Please read before going further ;)
     // https://wiki.seeedstudio.com/XIAO_BLE#q3-what-are-the-considerations-when-using-xiao-nrf52840-sense-for-battery-charging
 
     // We can't drive VBAT_ENABLE to HIGH as long
-    // as we don't know wether we are charging or not ...
+    // as we don't know whether we are charging or not ...
     // this is a 3mA loss (4/1500)
     digitalWrite(VBAT_ENABLE, LOW);
     int adcvalue = 0;

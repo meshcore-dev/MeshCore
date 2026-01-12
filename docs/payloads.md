@@ -16,7 +16,7 @@ Inside of each [meshcore packet](./packet_structure.md) is a payload, identified
 
 This document defines the structure of each of these payload types.
 
-NOTE: all 16 and 32-bit integer fields are Little Endian.
+NOTE: all 16 and 32-bit integer fields are Little-Endian.
 
 ## Important concepts:
 
@@ -58,7 +58,7 @@ Appdata Flags
 
 # Acknowledgement
 
-An acknowledgement that a message was received. Note that for returned path messages, an acknowledgement can be sent in the "extra" payload (see [Returned Path](#returned-path)) instead of as a separate ackowledgement packet. CLI commands do not cause acknowledgement responses, neither discrete nor extra.
+An acknowledgement that a message was received. Note that for returned path messages, an acknowledgement can be sent in the "extra" payload (see [Returned Path](#returned-path)) instead of as a separate acknowledgement packet. CLI commands do not cause acknowledgement responses, neither discrete nor extra.
 
 | Field    | Size (bytes) | Description                                                |
 |----------|--------------|------------------------------------------------------------|
@@ -78,7 +78,7 @@ Returned path, request, response, and plain text messages are all formatted in t
 
 ## Returned path
 
-Returned path messages provide a description of the route a packet took from the original author. Receivers will send returned path messages to the author of the original message.
+Returned path messages provide a description of the route that a packet took from the original author. Receivers will send returned path messages to the author of the original message.
 
 | Field       | Size (bytes) | Description                                                                                  |
 |-------------|--------------|----------------------------------------------------------------------------------------------|

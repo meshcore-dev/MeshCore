@@ -276,7 +276,7 @@ typedef struct
  *
  * @note It is recommended to either perform a reset in the fault handler or to let the SoftDevice reset the device.
  *       Otherwise SoC peripherals may behave in an undefined way. For example, the RADIO peripherial may
- *       continously transmit packets.
+ *       continuously transmit packets.
  *
  * @note This callback is executed in HardFault context, thus SVC functions cannot be called from the fault callback.
  *
