@@ -4,9 +4,10 @@
 
 #define STATE_IDLE       0
 #define STATE_RX         1
-#define STATE_TX_WAIT    3
-#define STATE_TX_DONE    4
-#define STATE_INT_READY 16
+#define STATE_TX_WAIT    2
+#define STATE_TX_DONE    3
+
+#define FLAG_INT_READY   (1 << 4)
 
 #define NUM_NOISE_FLOOR_SAMPLES  64
 #define SAMPLING_THRESHOLD  14
@@ -21,7 +22,7 @@ static
 #endif
 void setFlag(void) {
   // we sent a packet, set the flag
-  state |= STATE_INT_READY;
+  state |= FLAG_INT_READY;
 }
 
 void RadioLibWrapper::begin() {
@@ -59,7 +60,7 @@ void RadioLibWrapper::doResetAGC() {
 
 void RadioLibWrapper::resetAGC() {
   // make sure we're not mid-receive of packet!
-  if ((state & STATE_INT_READY) != 0 || isReceivingPacket()) return;
+  if ((state & FLAG_INT_READY) != 0 || isReceivingPacket()) return;
 
   doResetAGC();
   state = STATE_IDLE;   // trigger a startReceive()
@@ -103,12 +104,12 @@ void RadioLibWrapper::startRecv() {
 }
 
 bool RadioLibWrapper::isInRecvMode() const {
-  return (state & ~STATE_INT_READY) == STATE_RX;
+  return (state & ~FLAG_INT_READY) == STATE_RX;
 }
 
 int RadioLibWrapper::recvRaw(uint8_t* bytes, int sz) {
   int len = 0;
-  if (state & STATE_INT_READY) {
+  if (state & FLAG_INT_READY) {
     len = _radio->getPacketLength();
     if (len > 0) {
       if (len > sz) { len = sz; }
@@ -154,7 +155,7 @@ bool RadioLibWrapper::startSendRaw(const uint8_t* bytes, int len) {
 }
 
 bool RadioLibWrapper::isSendComplete() {
-  if (state & STATE_INT_READY) {
+  if (state & FLAG_INT_READY) {
     state = STATE_IDLE;
     n_sent++;
     return true;
