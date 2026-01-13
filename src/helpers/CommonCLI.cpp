@@ -264,6 +264,15 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
     } else if (memcmp(command, "clear stats", 11) == 0) {
       _callbacks->clearStats();
       strcpy(reply, "(OK - stats reset)");
+    #ifdef PIN_GPIO
+    } else if (memcmp(command, "gpio 1", 6) == 0) {
+        digitalWrite(PIN_GPIO, HIGH);
+        strcpy(reply, "(OK - gpio HIGH)");
+    } else if (memcmp(command, "gpio 0", 6) == 0) {
+        digitalWrite(PIN_GPIO, LOW);   
+        strcpy(reply, "(OK - gpio LOW)");
+
+    #endif
     /*
      * GET commands
      */

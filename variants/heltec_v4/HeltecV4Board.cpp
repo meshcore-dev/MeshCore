@@ -16,6 +16,10 @@ void HeltecV4Board::begin() {
     pinMode(P_LORA_PA_TX_EN, OUTPUT);
     digitalWrite(P_LORA_PA_TX_EN,LOW);
 
+    #ifdef PIN_GPIO
+    pinMode(PIN_GPIO, OUTPUT);
+    digitalWrite(PIN_GPIO, LOW);
+    #endif
 
     periph_power.begin();
 
