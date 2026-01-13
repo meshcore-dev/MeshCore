@@ -55,57 +55,50 @@ public:
 #ifdef OLED_RU 		  
 		last_char = 0;
         dest[j++] = c;  // ASCII printable
-	  } else if (c == 0xC2 || c == 0xC3 || c == 0xD0 || c == 0xD1 || c == 0xD2) { // Cyrillic UTF-8 convert
+	  } else if (last_char == 0 && (c == 0xD0 || c == 0xD1 || c == 0xD2)) { // Cyrillic UTF-8 start byte for 2 bytes sequence
 		last_char = c;
-        c = src[++i]; // Get next char
-
-        if (c != 0) { // Not end of a string
-          switch (last_char) {
-            case 0xC3: {
-              cc = (c | 0xC0);
-              break;
-            }
-            // map UTF-8 cyrillic cars to it Windows-1251 (CP-1251) ASCII codes
-            case 0xD0: {
-              if (c == 132)
-                cc = (170); // Є
-              if (c == 134)
-                cc = (178); // І
-              if (c == 135)
-                cc = (175); // Ї
-              if (c == 129)
-                cc = (168); // Ё
-              if (c > 143 && c < 192)
-                cc = (c + 48);
-              break;
-            }
-            case 0xD1: {
-              if (c == 148)
-                cc = (186); // є
-              if (c == 150)
-                cc = (179); // і
-              if (c == 151)
-                cc = (191); // ї
-              if (c == 145)
-                cc = (184); // ё
-              if (c > 127 && c < 144)
-                cc = (c + 112);
-              break;
-            }
-            case 0xD2: {            
-              if (c == 144)
-                cc = (165); // Ґ
-              if (c == 145)
-                cc = (180); // ґ
-              break;
-            }
+	  } else if (last_char > 0) { // Cyrillic UTF-8 next byte
+        cc = 0; // Translated charcode
+        switch (last_char) {
+          // map UTF-8 cyrillic chars to it CP-1251 ASCII codes
+          case 0xD0: {
+            if (c == 132)
+              cc = (170); // Є
+            if (c == 134)
+              cc = (178); // І
+            if (c == 135)
+              cc = (175); // Ї
+            if (c == 129)
+              cc = (168); // Ё
+            if (c > 143 && c < 192)
+              cc = (c + 48);
+            break;
           }
-          if (cc > 0) {
-            dest[j++] = cc;
-		  } else {
-            dest[j++] = '\xAE';  // CP1251 smile emoji replace
-		  }
-		}
+          case 0xD1: {
+            if (c == 148)
+              cc = (186); // є
+            if (c == 150)
+              cc = (179); // і
+            if (c == 151)
+              cc = (191); // ї
+            if (c == 145)
+              cc = (184); // ё
+            if (c > 127 && c < 144)
+              cc = (c + 112);
+            break;
+          }
+          case 0xD2: {            
+            if (c == 144)
+              cc = (165); // Ґ
+            if (c == 145)
+              cc = (180); // ґ
+            break;
+          }
+        }
+        if (cc > 0) {
+          dest[j++] = cc;
+        }
+		last_char = 0;
       } else if (c >= 0x80) {
         last_char = 0;
         dest[j++] = '\xAE';  // CP1251 smile emoji replace
