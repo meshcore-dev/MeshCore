@@ -53,6 +53,7 @@
 #define CMD_SET_FLOOD_SCOPE           54   // v8+
 #define CMD_SEND_CONTROL_DATA         55   // v8+
 #define CMD_GET_STATS                 56   // v8+, second byte is stats type
+#define CMD_SEND_ANON_REQ             57
 
 // Stats sub-types for CMD_GET_STATS
 #define STATS_TYPE_CORE               0
@@ -903,6 +904,7 @@ void MyMesh::handleCmdFrame(size_t len) {
       int result;
       uint32_t expected_ack;
       if (txt_type == TXT_TYPE_CLI_DATA) {
+        msg_timestamp = getRTCClock()->getCurrentTimeUnique(); // Use node's RTC instead of app timestamp to avoid tripping replay protection
         result = sendCommandData(*recipient, msg_timestamp, attempt, text, est_timeout);
         expected_ack = 0; // no Ack expected
       } else {
@@ -1285,6 +1287,27 @@ void MyMesh::handleCmdFrame(size_t len) {
     } else {
       writeErrFrame(ERR_CODE_NOT_FOUND); // contact not found
     }
+  } else if (cmd_frame[0] == CMD_SEND_ANON_REQ && len > 1 + PUB_KEY_SIZE) {
+    uint8_t *pub_key = &cmd_frame[1];
+    ContactInfo *recipient = lookupContactByPubKey(pub_key, PUB_KEY_SIZE);
+    uint8_t *data = &cmd_frame[1 + PUB_KEY_SIZE];
+    if (recipient) {
+      uint32_t tag, est_timeout;
+      int result = sendAnonReq(*recipient, data, len - (1 + PUB_KEY_SIZE), tag, est_timeout);
+      if (result == MSG_SEND_FAILED) {
+        writeErrFrame(ERR_CODE_TABLE_FULL);
+      } else {
+        clearPendingReqs();
+        pending_req = tag; // match this to onContactResponse()
+        out_frame[0] = RESP_CODE_SENT;
+        out_frame[1] = (result == MSG_SEND_SENT_FLOOD) ? 1 : 0;
+        memcpy(&out_frame[2], &tag, 4);
+        memcpy(&out_frame[6], &est_timeout, 4);
+        _serial->writeFrame(out_frame, 10);
+      }
+    } else {
+      writeErrFrame(ERR_CODE_NOT_FOUND); // contact not found
+    }
   } else if (cmd_frame[0] == CMD_SEND_STATUS_REQ && len >= 1 + PUB_KEY_SIZE) {
     uint8_t *pub_key = &cmd_frame[1];
     ContactInfo *recipient = lookupContactByPubKey(pub_key, PUB_KEY_SIZE);
@@ -1613,6 +1636,10 @@ void MyMesh::handleCmdFrame(size_t len) {
       writeErrFrame(ERR_CODE_ILLEGAL_ARG); // invalid stats sub-type
     }
   } else if (cmd_frame[0] == CMD_FACTORY_RESET && memcmp(&cmd_frame[1], "reset", 5) == 0) {
+    if (_serial) {
+      MESH_DEBUG_PRINTLN("Factory reset: disabling serial interface to prevent reconnects (BLE/WiFi)");
+      _serial->disable(); // Phone app disconnects before we can send OK frame so it's safe here
+    }
     bool success = _store->formatFileSystem();
     if (success) {
       writeOKFrame();

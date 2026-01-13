@@ -42,12 +42,15 @@ struct NodePrefs { // persisted to file
   uint32_t bridge_baud;   // 9600, 19200, 38400, 57600, 115200 (default 115200)
   uint8_t bridge_channel; // 1-14 (ESP-NOW only)
   char bridge_secret[16]; // for XOR encryption of bridge packets (ESP-NOW only)
+  // Power setting
+  uint8_t powersaving_enabled; // boolean
   // Gps settings
   uint8_t gps_enabled;
   uint32_t gps_interval; // in seconds
   uint8_t advert_loc_policy;
   uint32_t discovery_mod_timestamp;
   float adc_multiplier;
+  char owner_info[120];
 };
 
 class CommonCLICallbacks {

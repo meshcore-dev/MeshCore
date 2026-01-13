@@ -192,6 +192,13 @@ bool EnvironmentSensorManager::begin() {
   if (BME280.begin(TELEM_BME280_ADDRESS, TELEM_WIRE)) {
     MESH_DEBUG_PRINTLN("Found BME280 at address: %02X", TELEM_BME280_ADDRESS);
     MESH_DEBUG_PRINTLN("BME sensor ID: %02X", BME280.sensorID());
+    // Reduce self-heating: single-shot conversions, light oversampling, long standby.
+    BME280.setSampling(Adafruit_BME280::MODE_FORCED,
+                       Adafruit_BME280::SAMPLING_X1,   // temperature
+                       Adafruit_BME280::SAMPLING_X1,   // pressure
+                       Adafruit_BME280::SAMPLING_X1,   // humidity
+                       Adafruit_BME280::FILTER_OFF,
+                       Adafruit_BME280::STANDBY_MS_1000);
     BME280_initialized = true;
   } else {
     BME280_initialized = false;
@@ -359,10 +366,12 @@ bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, Cayen
 
     #if ENV_INCLUDE_BME280
     if (BME280_initialized) {
-      telemetry.addTemperature(TELEM_CHANNEL_SELF, BME280.readTemperature());
-      telemetry.addRelativeHumidity(TELEM_CHANNEL_SELF, BME280.readHumidity());
-      telemetry.addBarometricPressure(TELEM_CHANNEL_SELF, BME280.readPressure()/100);
-      telemetry.addAltitude(TELEM_CHANNEL_SELF, BME280.readAltitude(TELEM_BME280_SEALEVELPRESSURE_HPA));
+      if (BME280.takeForcedMeasurement()) {  // trigger a fresh reading in forced mode
+        telemetry.addTemperature(TELEM_CHANNEL_SELF, BME280.readTemperature());
+        telemetry.addRelativeHumidity(TELEM_CHANNEL_SELF, BME280.readHumidity());
+        telemetry.addBarometricPressure(TELEM_CHANNEL_SELF, BME280.readPressure()/100);
+        telemetry.addAltitude(TELEM_CHANNEL_SELF, BME280.readAltitude(TELEM_BME280_SEALEVELPRESSURE_HPA));
+      }
     }
     #endif
 
@@ -606,6 +615,7 @@ void EnvironmentSensorManager::rakGPSInit(){
     MESH_DEBUG_PRINTLN("No GPS found");
     gps_active = false;
     gps_detected = false;
+    Serial1.end();
     return;
   }
 
@@ -644,8 +654,7 @@ bool EnvironmentSensorManager::gpsIsAwake(uint8_t ioPin){
 
     _location = &RAK12500_provider;
     return true;
-  }
-  else if(Serial1){
+  } else if (Serial1.available()) {
     MESH_DEBUG_PRINTLN("Serial GPS init correctly and is turned on");
     if(PIN_GPS_EN){
       gpsResetPin = PIN_GPS_EN;
@@ -655,6 +664,8 @@ bool EnvironmentSensorManager::gpsIsAwake(uint8_t ioPin){
     gps_detected = true;
     return true;
   }
+
+  pinMode(ioPin, INPUT);
   MESH_DEBUG_PRINTLN("GPS did not init with this IO pin... try the next");
   return false;
 }
