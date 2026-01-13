@@ -82,7 +82,9 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     file.read((uint8_t *)&_prefs->discovery_mod_timestamp, sizeof(_prefs->discovery_mod_timestamp)); // 162
     file.read((uint8_t *)&_prefs->adc_multiplier, sizeof(_prefs->adc_multiplier)); // 166
     file.read((uint8_t *)_prefs->owner_info, sizeof(_prefs->owner_info));  // 170
-    // 290
+    file.read((uint8_t *)&_prefs->flood_advert_base, sizeof(_prefs->flood_advert_base));                 // 290
+
+    // 294
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -109,6 +111,8 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
 
     _prefs->gps_enabled = constrain(_prefs->gps_enabled, 0, 1);
     _prefs->advert_loc_policy = constrain(_prefs->advert_loc_policy, 0, 2);
+
+    _prefs->flood_advert_base = constrain(_prefs->flood_advert_base, 0, 1);
 
     file.close();
   }
@@ -168,7 +172,9 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->discovery_mod_timestamp, sizeof(_prefs->discovery_mod_timestamp)); // 162
     file.write((uint8_t *)&_prefs->adc_multiplier, sizeof(_prefs->adc_multiplier));                 // 166
     file.write((uint8_t *)_prefs->owner_info, sizeof(_prefs->owner_info));  // 170
-    // 290
+    file.write((uint8_t *)&_prefs->flood_advert_base, sizeof(_prefs->flood_advert_base));                 // 290
+
+    // 294
 
     file.close();
   }
@@ -385,6 +391,8 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         } else {
           sprintf(reply, "> %.3f", adc_mult);
         }
+      } else if (memcmp(config, "flood.advert.base", 17) == 0) {
+          sprintf(reply, "> %s", StrHelper::ftoa(_prefs->flood_advert_base));
       // Power management commands
       } else if (memcmp(config, "pwrmgt.support", 14) == 0) {
 #ifdef NRF52_POWER_MANAGEMENT
@@ -642,6 +650,15 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
           _prefs->adc_multiplier = 0.0f;
           strcpy(reply, "Error: unsupported by this board");
         };
+      } else if (memcmp(config, "flood.advert.base ", 18) == 0) {
+        float f = atof(&config[18]);
+        if((f > 0) || (f<1)) {
+          _prefs->flood_advert_base = f;
+          savePrefs();
+          strcpy(reply, "OK");
+        } else {
+          strcpy(reply, "Error: base must be between 0 and 1");
+      }        
       } else {
         sprintf(reply, "unknown config: %s", config);
       }
