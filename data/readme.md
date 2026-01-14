@@ -1,0 +1,1 @@
+This is required for FS creation and upload for N32R16V boards
