@@ -3,7 +3,7 @@
 #include "CustomSX1262.h"
 #include "RadioLibWrappers.h"
 
-// RSSI_OFFSET is used to compensate for external LNA gain (e.g.Heltec V4)
+// RSSI_OFFSET is used to compensate for external LNA gain (e.g. Heltec V4)
 // Set to a negative value equal to the LNA gain to get true RSSI values
 #ifndef RSSI_OFFSET
   #define RSSI_OFFSET 0
