@@ -11,13 +11,20 @@
 #include "esp_wifi.h"
 #include "driver/rtc_io.h"
 
+#define BROWNOUT_RECOVERY_DELAY_MS  60000
+
 class ESP32Board : public mesh::MainBoard {
 protected:
   uint8_t startup_reason;
 
 public:
   void begin() {
-    // for future use, sub-classes SHOULD call this from their begin()
+    if (esp_reset_reason() == ESP_RST_BROWNOUT) {
+      MESH_DEBUG_PRINTLN("Warning: Device reset due to brownout (low voltage)");
+      esp_sleep_enable_timer_wakeup(BROWNOUT_RECOVERY_DELAY_MS * 1000ULL);
+      esp_deep_sleep_start();
+    }
+
     startup_reason = BD_STARTUP_NORMAL;
 
   #ifdef ESP32_CPU_FREQ
