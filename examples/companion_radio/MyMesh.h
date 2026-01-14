@@ -150,6 +150,7 @@ protected:
 
   void clearPendingReqs() {
     pending_login = pending_status = pending_telemetry = pending_discovery = pending_req = 0;
+    pending_advert_request = 0;
   }
 
 public:
@@ -172,6 +173,7 @@ private:
 
   void checkCLIRescueCmd();
   void checkSerialInterface();
+  void handleAdvertResponse(mesh::Packet* packet);
 
   // helpers, short-cuts
   void saveChannels() { _store->saveChannels(this); }
@@ -183,6 +185,7 @@ private:
   uint32_t pending_status;
   uint32_t pending_telemetry, pending_discovery;   // pending _TELEMETRY_REQ
   uint32_t pending_req;   // pending _BINARY_REQ
+  uint32_t pending_advert_request;  // tag for pending advert request (0 = none)
   BaseSerialInterface *_serial;
   AbstractUITask* _ui;
 

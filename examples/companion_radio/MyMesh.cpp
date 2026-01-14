@@ -54,6 +54,7 @@
 #define CMD_SEND_CONTROL_DATA         55   // v8+
 #define CMD_GET_STATS                 56   // v8+, second byte is stats type
 #define CMD_SEND_ANON_REQ             57
+#define CMD_REQUEST_ADVERT            58   // Request advert from node via pull-based system
 
 // Stats sub-types for CMD_GET_STATS
 #define STATS_TYPE_CORE               0
@@ -110,6 +111,7 @@
 #define PUSH_CODE_BINARY_RESPONSE       0x8C
 #define PUSH_CODE_PATH_DISCOVERY_RESPONSE 0x8D
 #define PUSH_CODE_CONTROL_DATA          0x8E   // v8+
+#define PUSH_CODE_ADVERT_RESPONSE       0x8F   // Pull-based advert response
 
 #define ERR_CODE_UNSUPPORTED_CMD        1
 #define ERR_CODE_NOT_FOUND              2
@@ -636,7 +638,105 @@ bool MyMesh::onContactPathRecv(ContactInfo& contact, uint8_t* in_path, uint8_t i
   return BaseChatMesh::onContactPathRecv(contact, in_path, in_path_len, out_path, out_path_len, extra_type, extra, extra_len);
 }
 
+void MyMesh::handleAdvertResponse(mesh::Packet* packet) {
+  // Minimum: sub_type(1) + tag(4) + pubkey(32) + timestamp(4) + signature(64) + app_data(1+32+1) = 139 bytes
+  if (packet->payload_len < 139) {
+    MESH_DEBUG_PRINTLN("handleAdvertResponse: packet too short (%d bytes)", packet->payload_len);
+    return;
+  }
+
+  int pos = 1; // skip sub_type
+
+  // Extract tag
+  uint32_t tag;
+  memcpy(&tag, &packet->payload[pos], 4); pos += 4;
+
+  // Check if tag matches pending request
+  if (pending_advert_request == 0 || pending_advert_request != tag) {
+    MESH_DEBUG_PRINTLN("handleAdvertResponse: no matching request for tag=%08X", tag);
+    return;
+  }
+
+  MESH_DEBUG_PRINTLN("handleAdvertResponse: matched tag=%08X", tag);
+
+  // Extract pubkey, timestamp, signature (new packet order)
+  uint8_t pubkey[PUB_KEY_SIZE];
+  memcpy(pubkey, &packet->payload[pos], PUB_KEY_SIZE); pos += PUB_KEY_SIZE;
+
+  uint32_t timestamp;
+  memcpy(&timestamp, &packet->payload[pos], 4); pos += 4;
+
+  uint8_t signature[SIGNATURE_SIZE];
+  memcpy(signature, &packet->payload[pos], SIGNATURE_SIZE); pos += SIGNATURE_SIZE;
+
+  // app_data starts here - extract it for signature verification
+  const uint8_t* app_data = &packet->payload[pos];
+  int app_data_len = packet->payload_len - pos;
+
+  // Parse app_data fields
+  int app_pos = 0;
+  uint8_t adv_type = app_data[app_pos++];
+
+  char node_name[32];
+  memcpy(node_name, &app_data[app_pos], 32); app_pos += 32;
+
+  uint8_t flags = app_data[app_pos++];
+
+  int32_t lat_i32 = 0, lon_i32 = 0;
+  if (flags & ADVERT_RESP_FLAG_HAS_LAT) { memcpy(&lat_i32, &app_data[app_pos], 4); app_pos += 4; }
+  if (flags & ADVERT_RESP_FLAG_HAS_LON) { memcpy(&lon_i32, &app_data[app_pos], 4); app_pos += 4; }
+
+  char node_desc[32] = {0};
+  if (flags & ADVERT_RESP_FLAG_HAS_DESC) { memcpy(node_desc, &app_data[app_pos], 32); app_pos += 32; }
+
+  // Verify signature (over pubkey + timestamp + app_data, same as regular adverts)
+  uint8_t message[PUB_KEY_SIZE + 4 + MAX_PACKET_PAYLOAD];
+  int msg_len = 0;
+  memcpy(&message[msg_len], pubkey, PUB_KEY_SIZE); msg_len += PUB_KEY_SIZE;
+  memcpy(&message[msg_len], &timestamp, 4); msg_len += 4;
+  memcpy(&message[msg_len], app_data, app_data_len); msg_len += app_data_len;
+
+  mesh::Identity id;
+  memcpy(id.pub_key, pubkey, PUB_KEY_SIZE);
+  if (!id.verify(signature, message, msg_len)) {
+    MESH_DEBUG_PRINTLN("handleAdvertResponse: signature verification failed");
+    pending_advert_request = 0;
+    return;
+  }
+
+  // Build push notification to app
+  int i = 0;
+  out_frame[i++] = PUSH_CODE_ADVERT_RESPONSE;
+  memcpy(&out_frame[i], &tag, 4); i += 4;  // Include tag for app matching
+  memcpy(&out_frame[i], pubkey, PUB_KEY_SIZE); i += PUB_KEY_SIZE;
+  out_frame[i++] = adv_type;
+  memcpy(&out_frame[i], node_name, 32); i += 32;
+  memcpy(&out_frame[i], &timestamp, 4); i += 4;
+  out_frame[i++] = flags;
+  if (flags & ADVERT_RESP_FLAG_HAS_LAT) { memcpy(&out_frame[i], &lat_i32, 4); i += 4; }
+  if (flags & ADVERT_RESP_FLAG_HAS_LON) { memcpy(&out_frame[i], &lon_i32, 4); i += 4; }
+  if (flags & ADVERT_RESP_FLAG_HAS_DESC) { memcpy(&out_frame[i], node_desc, 32); i += 32; }
+
+  _serial->writeFrame(out_frame, i);
+
+  // Clear pending request
+  pending_advert_request = 0;
+
+  MESH_DEBUG_PRINTLN("handleAdvertResponse: forwarded to app, %d bytes", i);
+}
+
 void MyMesh::onControlDataRecv(mesh::Packet *packet) {
+  if (packet->payload_len < 1) return;
+
+  uint8_t sub_type = packet->payload[0] & 0xF0;  // upper nibble is subtype
+
+  // Handle pull-based advert response
+  if (sub_type == CTL_TYPE_ADVERT_RESPONSE) {
+    handleAdvertResponse(packet);
+    return;
+  }
+
+  // Forward all other control data to app
   if (packet->payload_len + 4 > sizeof(out_frame)) {
     MESH_DEBUG_PRINTLN("onControlDataRecv(), payload_len too long: %d", packet->payload_len);
     return;
@@ -1663,6 +1763,51 @@ void MyMesh::handleCmdFrame(size_t len) {
     } else {
       writeErrFrame(ERR_CODE_TABLE_FULL);
     }
+  } else if (cmd_frame[0] == CMD_REQUEST_ADVERT) {
+    // Format: cmd(1) + prefix(PATH_HASH_SIZE) + path_len(1) + path(variable)
+    if (len < 1 + PATH_HASH_SIZE + 1) {
+      writeErrFrame(ERR_CODE_ILLEGAL_ARG);
+      return;
+    }
+
+    const uint8_t* target_prefix = &cmd_frame[1];
+    uint8_t path_len = cmd_frame[1 + PATH_HASH_SIZE];
+
+    if (len < 1 + PATH_HASH_SIZE + 1 + path_len) {
+      writeErrFrame(ERR_CODE_ILLEGAL_ARG);
+      return;
+    }
+
+    const uint8_t* path = &cmd_frame[1 + PATH_HASH_SIZE + 1];
+
+    // Clear any stale pending requests (same pattern as other request commands)
+    clearPendingReqs();
+
+    // Generate random tag
+    uint32_t tag;
+    getRNG()->random((uint8_t*)&tag, 4);
+
+    // Build request packet - include path in payload for multi-hop response routing
+    // Format: sub_type(1) + target_prefix(1) + tag(4) + path_len(1) + path(N)
+    uint8_t payload[1 + PATH_HASH_SIZE + 4 + 1 + MAX_PATH_SIZE];
+    int pos = 0;
+    payload[pos++] = CTL_TYPE_ADVERT_REQUEST;
+    memcpy(&payload[pos], target_prefix, PATH_HASH_SIZE); pos += PATH_HASH_SIZE;
+    memcpy(&payload[pos], &tag, 4); pos += 4;
+    payload[pos++] = path_len;
+    memcpy(&payload[pos], path, path_len); pos += path_len;
+
+    mesh::Packet* packet = createControlData(payload, pos);
+    if (!packet) {
+      writeErrFrame(ERR_CODE_BAD_STATE);
+      return;
+    }
+
+    sendDirect(packet, path, path_len, 0);
+
+    pending_advert_request = tag;
+
+    writeOKFrame();
   } else {
     writeErrFrame(ERR_CODE_UNSUPPORTED_CMD);
     MESH_DEBUG_PRINTLN("ERROR: unknown command: %02X", cmd_frame[0]);

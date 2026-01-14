@@ -102,6 +102,12 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
       if (!_tables->hasSeen(pkt)) {
         removeSelfFromPath(pkt);
 
+        // If we're the final destination (path exhausted), deliver CONTROL packets locally
+        if (pkt->path_len == 0 && pkt->getPayloadType() == PAYLOAD_TYPE_CONTROL) {
+          onControlDataRecv(pkt);
+          return ACTION_RELEASE;
+        }
+
         uint32_t d = getDirectRetransmitDelay(pkt);
         return ACTION_RETRANSMIT_DELAYED(0, d);  // Routed traffic is HIGHEST priority 
       }
@@ -310,6 +316,15 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
         }
       }
       break;
+
+    case PAYLOAD_TYPE_CONTROL: {
+      // Handle control packets without high bit set (0x00-0x7F)
+      // High-bit sub-types (0x80+) are handled earlier at line 72-78 (zero-hop only)
+      if (!_tables->hasSeen(pkt)) {
+        onControlDataRecv(pkt);
+      }
+      break;
+    }
 
     default:
       MESH_DEBUG_PRINTLN("%s Mesh::onRecvPacket(): unknown payload type, header: %d", getLogDateTime(), (int) pkt->header);
