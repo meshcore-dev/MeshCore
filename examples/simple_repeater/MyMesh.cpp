@@ -1119,5 +1119,5 @@ void MyMesh::loop() {
 
 // To check if there is pending work
 bool MyMesh::hasPendingWork() const {
-  return _mgr->getOutboundCount(0xFFFFFFFF) > 0 || !radio_driver.isInRecvMode();
+  return _mgr->getOutboundCount(0xFFFFFFFF) > 0;
 }
