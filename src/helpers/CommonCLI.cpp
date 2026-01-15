@@ -22,6 +22,13 @@ static bool isValidName(const char *n) {
   return true;
 }
 
+template<typename T>
+static bool clampValue(T& value, T min_val, T max_val) {
+  T original = value;
+  value = constrain(value, min_val, max_val);
+  return value != original;  // true if value was clamped
+}
+
 void CommonCLI::loadPrefs(FILESYSTEM* fs) {
   if (fs->exists("/com_prefs")) {
     loadPrefsInt(fs, "/com_prefs");   // new filename
@@ -84,24 +91,24 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     // 290
 
     // sanitise bad pref values
-    _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
-    _prefs->tx_delay_factor = constrain(_prefs->tx_delay_factor, 0, 2.0f);
-    _prefs->direct_tx_delay_factor = constrain(_prefs->direct_tx_delay_factor, 0, 2.0f);
-    _prefs->airtime_factor = constrain(_prefs->airtime_factor, 0, 9.0f);
-    _prefs->freq = constrain(_prefs->freq, 400.0f, 2500.0f);
-    _prefs->bw = constrain(_prefs->bw, 7.8f, 500.0f);
-    _prefs->sf = constrain(_prefs->sf, 5, 12);
-    _prefs->cr = constrain(_prefs->cr, 5, 8);
-    _prefs->tx_power_dbm = constrain(_prefs->tx_power_dbm, 1, 30);
-    _prefs->multi_acks = constrain(_prefs->multi_acks, 0, 1);
-    _prefs->adc_multiplier = constrain(_prefs->adc_multiplier, 0.0f, 10.0f);
+    _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, PrefsLimits::RX_DELAY_MIN, PrefsLimits::RX_DELAY_MAX);
+    _prefs->tx_delay_factor = constrain(_prefs->tx_delay_factor, PrefsLimits::TX_DELAY_MIN, PrefsLimits::TX_DELAY_MAX);
+    _prefs->direct_tx_delay_factor = constrain(_prefs->direct_tx_delay_factor, PrefsLimits::DIRECT_TX_DELAY_MIN, PrefsLimits::DIRECT_TX_DELAY_MAX);
+    _prefs->airtime_factor = constrain(_prefs->airtime_factor, PrefsLimits::AF_MIN, PrefsLimits::AF_MAX);
+    _prefs->freq = constrain(_prefs->freq, PrefsLimits::FREQ_MIN, PrefsLimits::FREQ_MAX);
+    _prefs->bw = constrain(_prefs->bw, PrefsLimits::BW_MIN, PrefsLimits::BW_MAX);
+    _prefs->sf = constrain(_prefs->sf, PrefsLimits::SF_MIN, PrefsLimits::SF_MAX);
+    _prefs->cr = constrain(_prefs->cr, PrefsLimits::CR_MIN, PrefsLimits::CR_MAX);
+    _prefs->tx_power_dbm = constrain(_prefs->tx_power_dbm, PrefsLimits::TX_POWER_MIN, PrefsLimits::TX_POWER_MAX);
+    _prefs->multi_acks = constrain(_prefs->multi_acks, PrefsLimits::MULTI_ACKS_MIN, PrefsLimits::MULTI_ACKS_MAX);
+    _prefs->adc_multiplier = constrain(_prefs->adc_multiplier, PrefsLimits::ADC_MULT_MIN, PrefsLimits::ADC_MULT_MAX);
 
     // sanitise bad bridge pref values
     _prefs->bridge_enabled = constrain(_prefs->bridge_enabled, 0, 1);
-    _prefs->bridge_delay = constrain(_prefs->bridge_delay, 0, 10000);
+    _prefs->bridge_delay = constrain(_prefs->bridge_delay, PrefsLimits::BRIDGE_DELAY_MIN, PrefsLimits::BRIDGE_DELAY_MAX);
     _prefs->bridge_pkt_src = constrain(_prefs->bridge_pkt_src, 0, 1);
-    _prefs->bridge_baud = constrain(_prefs->bridge_baud, 9600, 115200);
-    _prefs->bridge_channel = constrain(_prefs->bridge_channel, 0, 14);
+    _prefs->bridge_baud = constrain(_prefs->bridge_baud, PrefsLimits::BRIDGE_BAUD_MIN, PrefsLimits::BRIDGE_BAUD_MAX);
+    _prefs->bridge_channel = constrain(_prefs->bridge_channel, PrefsLimits::BRIDGE_CHANNEL_MIN, PrefsLimits::BRIDGE_CHANNEL_MAX);
 
     _prefs->powersaving_enabled = constrain(_prefs->powersaving_enabled, 0, 1);
 
@@ -373,21 +380,39 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
     } else if (memcmp(command, "set ", 4) == 0) {
       const char* config = &command[4];
       if (memcmp(config, "af ", 3) == 0) {
-        _prefs->airtime_factor = atof(&config[3]);
+        float val = atof(&config[3]);
+        bool clamped = clampValue(val, PrefsLimits::AF_MIN, PrefsLimits::AF_MAX);
+        _prefs->airtime_factor = val;
         savePrefs();
-        strcpy(reply, "OK");
+        if (clamped) {
+          sprintf(reply, "OK - clamped to %.1f", val);
+        } else {
+          strcpy(reply, "OK");
+        }
       } else if (memcmp(config, "int.thresh ", 11) == 0) {
-        _prefs->interference_threshold = atoi(&config[11]);
+        uint8_t val = atoi(&config[11]);
+        bool clamped = clampValue(val, PrefsLimits::INT_THRESH_MIN, PrefsLimits::INT_THRESH_MAX);
+        _prefs->interference_threshold = val;
         savePrefs();
-        strcpy(reply, "OK");
+        if (clamped) {
+          sprintf(reply, "OK - clamped to %d", val);
+        } else {
+          strcpy(reply, "OK");
+        }
       } else if (memcmp(config, "agc.reset.interval ", 19) == 0) {
         _prefs->agc_reset_interval = atoi(&config[19]) / 4;
         savePrefs();
         sprintf(reply, "OK - interval rounded to %d", ((uint32_t) _prefs->agc_reset_interval) * 4);
       } else if (memcmp(config, "multi.acks ", 11) == 0) {
-        _prefs->multi_acks = atoi(&config[11]);
+        uint8_t val = atoi(&config[11]);
+        bool clamped = clampValue(val, PrefsLimits::MULTI_ACKS_MIN, PrefsLimits::MULTI_ACKS_MAX);
+        _prefs->multi_acks = val;
         savePrefs();
-        strcpy(reply, "OK");
+        if (clamped) {
+          sprintf(reply, "OK - clamped to %d", val);
+        } else {
+          strcpy(reply, "OK");
+        }
       } else if (memcmp(config, "allow.read.only ", 16) == 0) {
         _prefs->allow_read_only = memcmp(&config[16], "on", 2) == 0;
         savePrefs();
@@ -467,40 +492,44 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         savePrefs();
         strcpy(reply, "OK");
       } else if (memcmp(config, "rxdelay ", 8) == 0) {
-        float db = atof(&config[8]);
-        if (db >= 0) {
-          _prefs->rx_delay_base = db;
-          savePrefs();
-          strcpy(reply, "OK");
+        float val = atof(&config[8]);
+        bool clamped = clampValue(val, PrefsLimits::RX_DELAY_MIN, PrefsLimits::RX_DELAY_MAX);
+        _prefs->rx_delay_base = val;
+        savePrefs();
+        if (clamped) {
+          sprintf(reply, "OK - clamped to %.1f", val);
         } else {
-          strcpy(reply, "Error, cannot be negative");
+          strcpy(reply, "OK");
         }
       } else if (memcmp(config, "txdelay ", 8) == 0) {
-        float f = atof(&config[8]);
-        if (f >= 0) {
-          _prefs->tx_delay_factor = f;
-          savePrefs();
-          strcpy(reply, "OK");
+        float val = atof(&config[8]);
+        bool clamped = clampValue(val, PrefsLimits::TX_DELAY_MIN, PrefsLimits::TX_DELAY_MAX);
+        _prefs->tx_delay_factor = val;
+        savePrefs();
+        if (clamped) {
+          sprintf(reply, "OK - clamped to %.1f", val);
         } else {
-          strcpy(reply, "Error, cannot be negative");
+          strcpy(reply, "OK");
         }
       } else if (memcmp(config, "flood.max ", 10) == 0) {
-        uint8_t m = atoi(&config[10]);
-        if (m <= 64) {
-          _prefs->flood_max = m;
-          savePrefs();
-          strcpy(reply, "OK");
+        uint8_t val = atoi(&config[10]);
+        bool clamped = clampValue(val, PrefsLimits::FLOOD_MAX_MIN, PrefsLimits::FLOOD_MAX_MAX);
+        _prefs->flood_max = val;
+        savePrefs();
+        if (clamped) {
+          sprintf(reply, "OK - clamped to %d", val);
         } else {
-          strcpy(reply, "Error, max 64");
+          strcpy(reply, "OK");
         }
       } else if (memcmp(config, "direct.txdelay ", 15) == 0) {
-        float f = atof(&config[15]);
-        if (f >= 0) {
-          _prefs->direct_tx_delay_factor = f;
-          savePrefs();
-          strcpy(reply, "OK");
+        float val = atof(&config[15]);
+        bool clamped = clampValue(val, PrefsLimits::DIRECT_TX_DELAY_MIN, PrefsLimits::DIRECT_TX_DELAY_MAX);
+        _prefs->direct_tx_delay_factor = val;
+        savePrefs();
+        if (clamped) {
+          sprintf(reply, "OK - clamped to %.1f", val);
         } else {
-          strcpy(reply, "Error, cannot be negative");
+          strcpy(reply, "OK");
         }
       } else if (memcmp(config, "owner.info ", 11) == 0) {
         config += 11;
@@ -513,14 +542,26 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         savePrefs();
         strcpy(reply, "OK");
       } else if (memcmp(config, "tx ", 3) == 0) {
-        _prefs->tx_power_dbm = atoi(&config[3]);
+        uint8_t val = atoi(&config[3]);
+        bool clamped = clampValue(val, PrefsLimits::TX_POWER_MIN, PrefsLimits::TX_POWER_MAX);
+        _prefs->tx_power_dbm = val;
         savePrefs();
         _callbacks->setTxPower(_prefs->tx_power_dbm);
-        strcpy(reply, "OK");
+        if (clamped) {
+          sprintf(reply, "OK - clamped to %d", val);
+        } else {
+          strcpy(reply, "OK");
+        }
       } else if (sender_timestamp == 0 && memcmp(config, "freq ", 5) == 0) {
-        _prefs->freq = atof(&config[5]);
+        float val = atof(&config[5]);
+        bool clamped = clampValue(val, PrefsLimits::FREQ_MIN, PrefsLimits::FREQ_MAX);
+        _prefs->freq = val;
         savePrefs();
-        strcpy(reply, "OK - reboot to apply");
+        if (clamped) {
+          sprintf(reply, "OK - clamped to %.1f, reboot to apply", val);
+        } else {
+          strcpy(reply, "OK - reboot to apply");
+        }
 #ifdef WITH_BRIDGE
       } else if (memcmp(config, "bridge.enabled ", 15) == 0) {
         _prefs->bridge_enabled = memcmp(&config[15], "on", 2) == 0;
@@ -528,13 +569,14 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         savePrefs();
         strcpy(reply, "OK");
       } else if (memcmp(config, "bridge.delay ", 13) == 0) {
-        int delay = _atoi(&config[13]);
-        if (delay >= 0 && delay <= 10000) {
-          _prefs->bridge_delay = (uint16_t)delay;
-          savePrefs();
-          strcpy(reply, "OK");
+        uint16_t val = _atoi(&config[13]);
+        bool clamped = clampValue(val, PrefsLimits::BRIDGE_DELAY_MIN, PrefsLimits::BRIDGE_DELAY_MAX);
+        _prefs->bridge_delay = val;
+        savePrefs();
+        if (clamped) {
+          sprintf(reply, "OK - clamped to %d", val);
         } else {
-          strcpy(reply, "Error: delay must be between 0-10000 ms");
+          strcpy(reply, "OK");
         }
       } else if (memcmp(config, "bridge.source ", 14) == 0) {
         _prefs->bridge_pkt_src = memcmp(&config[14], "rx", 2) == 0;
@@ -543,26 +585,28 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
 #endif
 #ifdef WITH_RS232_BRIDGE
       } else if (memcmp(config, "bridge.baud ", 12) == 0) {
-        uint32_t baud = atoi(&config[12]);
-        if (baud >= 9600 && baud <= 115200) {
-          _prefs->bridge_baud = (uint32_t)baud;
-          _callbacks->restartBridge();
-          savePrefs();
-          strcpy(reply, "OK");
+        uint32_t val = atoi(&config[12]);
+        bool clamped = clampValue(val, PrefsLimits::BRIDGE_BAUD_MIN, PrefsLimits::BRIDGE_BAUD_MAX);
+        _prefs->bridge_baud = val;
+        _callbacks->restartBridge();
+        savePrefs();
+        if (clamped) {
+          sprintf(reply, "OK - clamped to %lu", (unsigned long)val);
         } else {
-          strcpy(reply, "Error: baud rate must be between 9600-115200");
+          strcpy(reply, "OK");
         }
 #endif
 #ifdef WITH_ESPNOW_BRIDGE
       } else if (memcmp(config, "bridge.channel ", 15) == 0) {
-        int ch = atoi(&config[15]);
-        if (ch > 0 && ch < 15) {
-          _prefs->bridge_channel = (uint8_t)ch;
-          _callbacks->restartBridge();
-          savePrefs();
-          strcpy(reply, "OK");
+        uint8_t val = atoi(&config[15]);
+        bool clamped = clampValue(val, PrefsLimits::BRIDGE_CHANNEL_MIN, PrefsLimits::BRIDGE_CHANNEL_MAX);
+        _prefs->bridge_channel = val;
+        _callbacks->restartBridge();
+        savePrefs();
+        if (clamped) {
+          sprintf(reply, "OK - clamped to %d", val);
         } else {
-          strcpy(reply, "Error: channel must be between 1-14");
+          strcpy(reply, "OK");
         }
       } else if (memcmp(config, "bridge.secret ", 14) == 0) {
         StrHelper::strncpy(_prefs->bridge_secret, &config[14], sizeof(_prefs->bridge_secret));
@@ -571,11 +615,15 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         strcpy(reply, "OK");
 #endif
       } else if (memcmp(config, "adc.multiplier ", 15) == 0) {
-        _prefs->adc_multiplier = atof(&config[15]);
+        float val = atof(&config[15]);
+        bool clamped = clampValue(val, PrefsLimits::ADC_MULT_MIN, PrefsLimits::ADC_MULT_MAX);
+        _prefs->adc_multiplier = val;
         if (_board->setAdcMultiplier(_prefs->adc_multiplier)) {
           savePrefs();
           if (_prefs->adc_multiplier == 0.0f) {
             strcpy(reply, "OK - using default board multiplier");
+          } else if (clamped) {
+            sprintf(reply, "OK - clamped to %.3f", val);
           } else {
             sprintf(reply, "OK - multiplier set to %.3f", _prefs->adc_multiplier);
           }

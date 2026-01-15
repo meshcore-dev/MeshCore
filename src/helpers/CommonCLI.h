@@ -12,6 +12,42 @@
 #define ADVERT_LOC_SHARE      1
 #define ADVERT_LOC_PREFS      2
 
+#ifndef MAX_LORA_TX_POWER
+  #define MAX_LORA_TX_POWER 30
+#endif
+
+struct PrefsLimits {
+  // Timing/delay factors
+  static constexpr float AF_MIN = 0.0f, AF_MAX = 9.0f;
+  static constexpr float RX_DELAY_MIN = 0.0f, RX_DELAY_MAX = 20.0f;
+  static constexpr float TX_DELAY_MIN = 0.0f, TX_DELAY_MAX = 2.0f;
+  static constexpr float DIRECT_TX_DELAY_MIN = 0.0f, DIRECT_TX_DELAY_MAX = 2.0f;
+  
+  // Radio parameters
+  static constexpr float FREQ_MIN = 400.0f, FREQ_MAX = 2500.0f;
+  static constexpr float BW_MIN = 7.8f, BW_MAX = 500.0f;
+  static constexpr uint8_t SF_MIN = 5, SF_MAX = 12;
+  static constexpr uint8_t CR_MIN = 5, CR_MAX = 8;
+  static constexpr uint8_t TX_POWER_MIN = 1, TX_POWER_MAX = MAX_LORA_TX_POWER;
+  
+  // Mesh settings
+  static constexpr uint8_t MULTI_ACKS_MIN = 0, MULTI_ACKS_MAX = 1;
+  static constexpr uint8_t FLOOD_MAX_MIN = 0, FLOOD_MAX_MAX = 64;
+  static constexpr uint8_t INT_THRESH_MIN = 0, INT_THRESH_MAX = 255;
+  
+  // Advert intervals
+  static constexpr int ADVERT_INTERVAL_MIN = 60, ADVERT_INTERVAL_MAX = 240;  // minutes
+  static constexpr int FLOOD_ADVERT_INTERVAL_MIN = 3, FLOOD_ADVERT_INTERVAL_MAX = 48;  // hours
+  
+  // Bridge settings
+  static constexpr uint16_t BRIDGE_DELAY_MIN = 0, BRIDGE_DELAY_MAX = 10000;
+  static constexpr uint32_t BRIDGE_BAUD_MIN = 9600, BRIDGE_BAUD_MAX = 115200;
+  static constexpr uint8_t BRIDGE_CHANNEL_MIN = 1, BRIDGE_CHANNEL_MAX = 14;
+  
+  // ADC
+  static constexpr float ADC_MULT_MIN = 0.0f, ADC_MULT_MAX = 10.0f;
+};
+
 struct NodePrefs { // persisted to file
   float airtime_factor;
   char node_name[32];
