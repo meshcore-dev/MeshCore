@@ -1,5 +1,9 @@
 #pragma once
 
+#ifdef ARDUINO_ARCH_RP2040
+  #define ENV_INCLUDE_RP2040_TEMP 1
+#endif
+
 #include <Mesh.h>
 #include <helpers/SensorManager.h>
 #include <helpers/sensors/LocationProvider.h>
@@ -22,6 +26,7 @@ protected:
   bool SHT4X_initialized = false;
   bool BME680_initialized = false;
   bool BMP085_initialized = false;
+  bool RP2040_TEMP_initialized = false;
 
   bool gps_detected = false;
   bool gps_active = false;
