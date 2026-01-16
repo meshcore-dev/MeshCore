@@ -11,8 +11,8 @@ void WaveshareBoard::begin() {
   pinMode(P_LORA_TX_LED, OUTPUT);
 #endif
 
-#ifdef PIN_VBAT_READ
-  pinMode(PIN_VBAT_READ, INPUT);
+#ifdef P_VBAT_READ
+  pinMode(P_VBAT_READ, INPUT);
 #endif
 
 #if defined(PIN_BOARD_SDA) && defined(PIN_BOARD_SCL)
