@@ -70,6 +70,10 @@
 #include <helpers/BaseChatMesh.h>
 #include <helpers/TransportKeyStore.h>
 
+#ifdef ENABLE_BITCHAT
+class BitchatBridge;  // Forward declaration
+#endif
+
 /* -------------------------------------------------------------------------------------- */
 
 #define REQ_TYPE_GET_STATUS             0x01 // same as _GET_STATS
@@ -94,6 +98,11 @@ public:
   const char *getNodeName();
   NodePrefs *getNodePrefs();
   uint32_t getBLEPin();
+
+#ifdef ENABLE_BITCHAT
+  void initBitchat(BitchatBridge* bridge);
+  BitchatBridge* getBitchatBridge() { return _bitchatBridge; }
+#endif
 
   void loop();
   void handleCmdFrame(size_t len);
@@ -224,6 +233,10 @@ private:
 
   #define ADVERT_PATH_TABLE_SIZE   16
   AdvertPath advert_paths[ADVERT_PATH_TABLE_SIZE]; // circular table
+
+#ifdef ENABLE_BITCHAT
+  BitchatBridge* _bitchatBridge;
+#endif
 };
 
 extern MyMesh the_mesh;

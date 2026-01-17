@@ -3,6 +3,10 @@
 #include <Arduino.h> // needed for PlatformIO
 #include <Mesh.h>
 
+#ifdef ENABLE_BITCHAT
+#include <helpers/bitchat/BitchatBridge.h>
+#endif
+
 #define CMD_APP_START                 1
 #define CMD_SEND_TXT_MSG              2
 #define CMD_SEND_CHANNEL_TXT_MSG      3
@@ -439,6 +443,29 @@ void MyMesh::onSignedMessageRecv(const ContactInfo &from, mesh::Packet *pkt, uin
 
 void MyMesh::onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packet *pkt, uint32_t timestamp,
                                   const char *text) {
+#ifdef ENABLE_BITCHAT
+  // Forward to Bitchat bridge if available
+  if (_bitchatBridge != nullptr) {
+    // Text format is "sender: message" - extract sender and message
+    const char* colonPos = strchr(text, ':');
+    if (colonPos != nullptr && colonPos > text) {
+      char senderName[32];
+      size_t senderLen = colonPos - text;
+      if (senderLen >= sizeof(senderName)) senderLen = sizeof(senderName) - 1;
+      memcpy(senderName, text, senderLen);
+      senderName[senderLen] = '\0';
+
+      const char* msgText = colonPos + 1;
+      while (*msgText == ' ') msgText++;  // Skip leading space
+
+      _bitchatBridge->onMeshcoreGroupMessage(channel, timestamp, senderName, msgText);
+    } else {
+      // No colon found, use whole text
+      _bitchatBridge->onMeshcoreGroupMessage(channel, timestamp, "Unknown", text);
+    }
+  }
+#endif
+
   int i = 0;
   if (app_target_ver >= 3) {
     out_frame[i++] = RESP_CODE_CHANNEL_MSG_RECV_V3;
@@ -729,6 +756,10 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
   dirty_contacts_expiry = 0;
   memset(advert_paths, 0, sizeof(advert_paths));
   memset(send_scope.key, 0, sizeof(send_scope.key));
+
+#ifdef ENABLE_BITCHAT
+  _bitchatBridge = NULL;
+#endif
 
   // defaults
   memset(&_prefs, 0, sizeof(_prefs));
@@ -1833,6 +1864,13 @@ void MyMesh::checkSerialInterface() {
 }
 
 void MyMesh::loop() {
+  // Call bitchat loop FIRST - BaseChatMesh::loop() may block on serial/radio
+#ifdef ENABLE_BITCHAT
+  if (_bitchatBridge != nullptr) {
+    _bitchatBridge->loop();
+  }
+#endif
+
   BaseChatMesh::loop();
 
   if (_cli_rescue) {
@@ -1866,3 +1904,9 @@ bool MyMesh::advert() {
     return false;
   }
 }
+
+#ifdef ENABLE_BITCHAT
+void MyMesh::initBitchat(BitchatBridge* bridge) {
+  _bitchatBridge = bridge;
+}
+#endif
