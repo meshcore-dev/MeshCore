@@ -9,10 +9,26 @@ extern "C" {
 #include "fe.h"
 }
 
+// Debug output - Adafruit nRF52 core supports Serial.printf
 #if BITCHAT_DEBUG
-  #define BITCHAT_DEBUG_PRINTLN(F, ...) Serial.printf("BITCHAT_BRIDGE: " F "\n", ##__VA_ARGS__)
+  #define BITCHAT_DEBUG_PRINTLN(...) do { Serial.printf("BITCHAT_BRIDGE: "); Serial.printf(__VA_ARGS__); Serial.println(); } while(0)
 #else
   #define BITCHAT_DEBUG_PRINTLN(...) {}
+#endif
+
+// Verbose packet hex dump macro (separate from BITCHAT_DEBUG for optional verbosity)
+#if BITCHAT_DEBUG_PACKETDUMP
+static void dumpPacketHex(const char* label, const uint8_t* data, size_t len) {
+    Serial.printf("PACKETDUMP [%s] (%u bytes):\n", label, (unsigned)len);
+    for (size_t i = 0; i < len; i++) {
+        Serial.printf("%02X ", data[i]);
+        if ((i + 1) % 16 == 0) Serial.println();
+    }
+    if (len % 16 != 0) Serial.println();
+}
+  #define BITCHAT_PACKETDUMP(label, data, len) dumpPacketHex(label, data, len)
+#else
+  #define BITCHAT_PACKETDUMP(label, data, len) {}
 #endif
 
 // PKCS#7 padding for Bitchat protocol signing (must match Android/iOS)
@@ -99,6 +115,14 @@ BitchatBridge::BitchatBridge(mesh::Mesh& mesh, mesh::LocalIdentity& identity, co
         _messageHistory[i].valid = false;
         _messageHistory[i].addedTimeMs = 0;
     }
+
+    // Initialize pending parts queue
+    for (size_t i = 0; i < MAX_PENDING_PARTS; i++) {
+        _pendingParts[i].valid = false;
+    }
+    _pendingPartsHead = 0;
+    _pendingPartsTail = 0;
+    _lastPartSentTime = 0;
 }
 
 void BitchatBridge::begin() {
@@ -111,7 +135,7 @@ void BitchatBridge::begin() {
     // Configure the #mesh channel for relaying
     configureMeshChannel();
 
-    BITCHAT_DEBUG_PRINTLN("Bridge initialized, peer ID: %llX", _bitchatPeerId);
+    BITCHAT_DEBUG_PRINTLN("Bridge initialized, peer ID: %08lX", (unsigned long)(_bitchatPeerId & 0xFFFFFFFF));
 }
 
 void BitchatBridge::configureMeshChannel() {
@@ -214,8 +238,8 @@ bool BitchatBridge::parseGCSFilter(const uint8_t* payload, size_t len, GCSFilter
         outFilter.m = outFilter.n << outFilter.p;
     }
 
-    BITCHAT_DEBUG_PRINTLN("GCS filter: P=%d, N=%u, M=%u, dataLen=%zu",
-                          outFilter.p, outFilter.n, outFilter.m, outFilter.dataLen);
+    BITCHAT_DEBUG_PRINTLN("GCS filter: P=%d, N=%u, M=%u, dataLen=%u",
+                          outFilter.p, outFilter.n, outFilter.m, (unsigned)outFilter.dataLen);
 
     // Filter is valid if we have all required fields
     return hasP && hasN && hasData && outFilter.n > 0;
@@ -307,7 +331,7 @@ bool BitchatBridge::GCSFilter::mightContain(const uint8_t* packetId16) const {
 }
 
 void BitchatBridge::handleRequestSync(const BitchatMessage& msg) {
-    BITCHAT_DEBUG_PRINTLN("REQUEST_SYNC from %llX", (unsigned long long)msg.getSenderId64());
+    BITCHAT_DEBUG_PRINTLN("REQUEST_SYNC from %08lX", (unsigned long)(msg.getSenderId64() & 0xFFFFFFFF));
 
     // Parse the GCS filter from the REQUEST_SYNC payload
     // The filter tells us which messages the requester already has
@@ -316,6 +340,7 @@ void BitchatBridge::handleRequestSync(const BitchatMessage& msg) {
 
     if (hasFilter) {
         BITCHAT_DEBUG_PRINTLN("REQUEST_SYNC has GCS filter (N=%u elements)", filter.n);
+        BITCHAT_PACKETDUMP("GCS_FILTER", msg.payload, msg.payloadLength);
     } else {
         BITCHAT_DEBUG_PRINTLN("REQUEST_SYNC has no GCS filter - sending all");
     }
@@ -326,7 +351,7 @@ void BitchatBridge::handleRequestSync(const BitchatMessage& msg) {
         if (_messageHistory[i].valid &&
             (now - _messageHistory[i].addedTimeMs) > MESSAGE_EXPIRY_MS) {
             _messageHistory[i].valid = false;
-            BITCHAT_DEBUG_PRINTLN("Expired old message at index %zu", i);
+            BITCHAT_DEBUG_PRINTLN("Expired old message at index %u", (unsigned)i);
         }
     }
 
@@ -340,11 +365,12 @@ void BitchatBridge::handleRequestSync(const BitchatMessage& msg) {
         if (hasFilter) {
             uint8_t packetId[16];
             BitchatProtocol::computePacketId(_messageHistory[i].msg, packetId);
+            BITCHAT_PACKETDUMP("SYNC_CHECK_PACKET_ID", packetId, 16);
 
             if (filter.mightContain(packetId)) {
                 // Requester likely already has this message - skip it
                 skipped++;
-                BITCHAT_DEBUG_PRINTLN("Skipping msg %zu - already in filter", i);
+                BITCHAT_DEBUG_PRINTLN("Skipping msg %u - already in filter", (unsigned)i);
                 continue;
             }
         }
@@ -389,6 +415,9 @@ void BitchatBridge::deriveNoisePublicKey(const uint8_t* ed25519PubKey, uint8_t* 
 void BitchatBridge::loop() {
 #if defined(ESP32) || defined(NRF52_PLATFORM)
     _bleService.loop();
+
+    // Process pending multi-part messages
+    processPendingParts();
 
     uint32_t now = millis();
 
@@ -613,7 +642,7 @@ void BitchatBridge::syncTimeFromPacket(uint64_t packetTimestamp) {
         if (!_timeSynced || abs(newOffset - _timeOffset) > 60000) {  // > 1 minute drift
             _timeOffset = newOffset;
             _timeSynced = true;
-            BITCHAT_DEBUG_PRINTLN("Time synced from Bitchat: offset=%lld ms", (long long)_timeOffset);
+            BITCHAT_DEBUG_PRINTLN("Time synced from Bitchat: offset=%ld ms", (long)(_timeOffset / 1000));
         }
 
         // Also sync the RTC if the difference is significant
@@ -662,7 +691,7 @@ void BitchatBridge::cachePeer(uint64_t peerId, const char* nickname) {
             strncpy(_peerCache[i].nickname, nickname, sizeof(_peerCache[i].nickname) - 1);
             _peerCache[i].nickname[sizeof(_peerCache[i].nickname) - 1] = '\0';
             _peerCache[i].timestamp = now;
-            BITCHAT_DEBUG_PRINTLN("Updated peer cache: %s -> %016llX", nickname, (unsigned long long)peerId);
+            BITCHAT_DEBUG_PRINTLN("Updated peer cache: %s -> %08lX", nickname, (unsigned long)(peerId & 0xFFFFFFFF));
             return;
         }
     }
@@ -687,7 +716,7 @@ void BitchatBridge::cachePeer(uint64_t peerId, const char* nickname) {
     _peerCache[targetIdx].nickname[sizeof(_peerCache[targetIdx].nickname) - 1] = '\0';
     _peerCache[targetIdx].timestamp = now;
     _peerCache[targetIdx].valid = true;
-    BITCHAT_DEBUG_PRINTLN("Cached new peer: %s -> %016llX", nickname, (unsigned long long)peerId);
+    BITCHAT_DEBUG_PRINTLN("Cached new peer: %s -> %08lX", nickname, (unsigned long)(peerId & 0xFFFFFFFF));
 }
 
 const char* BitchatBridge::lookupPeerNickname(uint64_t peerId) {
@@ -734,13 +763,13 @@ static uint64_t getCompileTimeMs() {
     // Calculate Unix timestamp (simplified, ignoring leap years for rough estimate)
     // Days since Unix epoch (Jan 1, 1970)
     int daysPerMonth[] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
-    long days = (year - 1970) * 365 + (year - 1969) / 4;  // Leap year approximation
+    int64_t days = (int64_t)(year - 1970) * 365 + (year - 1969) / 4;  // Leap year approximation
     for (int m = 1; m < month; m++) {
         days += daysPerMonth[m];
     }
     days += day - 1;
 
-    uint64_t seconds = days * 86400ULL + hour * 3600 + minute * 60 + second;
+    uint64_t seconds = (uint64_t)days * 86400ULL + hour * 3600 + minute * 60 + second;
     return seconds * 1000ULL;
 }
 
@@ -751,23 +780,11 @@ uint64_t BitchatBridge::getCurrentTimeMs() {
         return static_cast<uint64_t>(static_cast<int64_t>(millis()) + _timeOffset);
     }
 
-    // Get compile time as minimum valid timestamp
-    static uint64_t compileTimeMs = getCompileTimeMs();
-
-    // Fall back to RTC if available AND recent
-    mesh::RTCClock* rtc = _mesh.getRTCClock();
-    if (rtc != nullptr) {
-        uint32_t rtcTime = rtc->getCurrentTime();
-        uint64_t rtcTimeMs = static_cast<uint64_t>(rtcTime) * 1000ULL;
-        // Only use RTC if it's at least as recent as compile time
-        if (rtcTimeMs >= compileTimeMs) {
-            return rtcTimeMs;
-        }
-    }
-
-    // Use compile time + millis() as fallback
-    // This gives us a timestamp that's at least as recent as when the firmware was built
-    return compileTimeMs + millis();
+    // Fallback: use a hardcoded reasonable timestamp (Jan 1, 2026) + millis
+    // This is just for bootstrapping - we'll sync properly once we hear from Bitchat peers
+    // Jan 1, 2026 00:00:00 UTC = 1767225600 seconds
+    const uint64_t BOOTSTRAP_TIME_MS = 1767225600000ULL;
+    return BOOTSTRAP_TIME_MS + millis();
 #else
     return 0;
 #endif
@@ -777,7 +794,17 @@ void BitchatBridge::sendPeerAnnouncement() {
 #if defined(ESP32) || defined(NRF52_PLATFORM)
     uint64_t timestamp = getCurrentTimeMs();
 
-    BitchatMessage msg;
+#if BITCHAT_DEBUG
+    // Print timestamp in seconds (fits in 32-bit for valid times through 2106)
+    uint32_t timestampSec = (uint32_t)(timestamp / 1000ULL);
+    Serial.print("BITCHAT_BRIDGE: Announce: timestamp_sec=");
+    Serial.print(timestampSec);
+    Serial.print(" (expected ~1767000000 for Jan 2026), synced=");
+    Serial.println(_timeSynced ? 1 : 0);
+#endif
+
+    // Use static message to avoid stack overflow on NRF52
+    static BitchatMessage msg;
     BitchatProtocol::createAnnounce(
         msg,
         _bitchatPeerId,
@@ -791,8 +818,11 @@ void BitchatBridge::sendPeerAnnouncement() {
     // Sign the announce - Android requires signatures
     signMessage(msg);
 
-    _bleService.broadcastMessage(msg);
-    BITCHAT_DEBUG_PRINTLN("Sent peer announcement");
+    if (_bleService.broadcastMessage(msg)) {
+        BITCHAT_DEBUG_PRINTLN("Sent peer announcement");
+    } else {
+        BITCHAT_DEBUG_PRINTLN("FAILED to send peer announcement");
+    }
 #endif
 }
 
@@ -804,14 +834,14 @@ void BitchatBridge::signMessage(BitchatMessage& msg) {
     msg.ttl = 0;  // Fixed TTL for signing (matches SYNC_TTL_HOPS)
     msg.setHasSignature(false);  // Clear signature flag for signing
 
-    // Use larger buffer for padding
-    uint8_t signData[512];
+    // Use static buffer to avoid stack overflow on NRF52
+    static uint8_t signData[512];
     size_t signLen = BitchatProtocol::serializeMessage(msg, signData, sizeof(signData));
     if (signLen > 0) {
         // Apply PKCS#7 padding to match Android/iOS block sizes
         size_t paddedLen = applyPKCS7Padding(signData, signLen, sizeof(signData));
 
-        BITCHAT_DEBUG_PRINTLN("Signing message: %zu bytes (padded from %zu)", paddedLen, signLen);
+        BITCHAT_DEBUG_PRINTLN("Signing message: %u bytes (padded from %u)", (unsigned)paddedLen, (unsigned)signLen);
 
         _identity.sign(msg.signature, signData, paddedLen);
     }
@@ -846,11 +876,27 @@ void BitchatBridge::onBitchatClientDisconnect() {
 #endif
 
 void BitchatBridge::processBitchatMessage(const BitchatMessage& msg) {
+    BITCHAT_PACKETDUMP("BLE_RX", msg.payload, msg.payloadLength);
+
     // Sync time from incoming Bitchat packets (Android sends valid Unix timestamps)
     // This is critical: our announces will be rejected as stale without valid time
     if (msg.timestamp > 0) {
         syncTimeFromPacket(msg.timestamp);
     }
+
+    // Check for duplicates - log the hash inputs for debugging
+#if BITCHAT_DEBUG_PACKETDUMP
+    {
+        uint64_t senderId = msg.getSenderId64();
+        uint32_t timestampSecs = static_cast<uint32_t>(msg.timestamp / 1000ULL);
+        Serial.printf("DEDUP_CHECK: sender=%08lX ts_sec=%lu type=%02X payloadLen=%u\n",
+                      (unsigned long)(senderId & 0xFFFFFFFF), (unsigned long)timestampSecs, msg.type, msg.payloadLength);
+        if (msg.payloadLength > 0) {
+            size_t hashBytes = msg.payloadLength < 16 ? msg.payloadLength : 16;
+            BITCHAT_PACKETDUMP("DEDUP_PAYLOAD_PREFIX", msg.payload, hashBytes);
+        }
+    }
+#endif
 
     // Check for duplicates
     if (_duplicateCache.isDuplicate(msg)) {
@@ -922,6 +968,7 @@ void BitchatBridge::processBitchatMessage(const BitchatMessage& msg) {
 
                 // Add to message history for REQUEST_SYNC responses
                 addToMessageHistory(msg);
+                BITCHAT_DEBUG_PRINTLN("Added message to history cache");
 
                 // Relay to MeshCore #mesh channel
                 BITCHAT_DEBUG_PRINTLN("Relaying message from %s to #mesh", senderNick);
@@ -938,7 +985,7 @@ void BitchatBridge::processBitchatMessage(const BitchatMessage& msg) {
             if (parseAnnounceTLV(msg.payload, msg.payloadLength, nickname, sizeof(nickname))) {
                 uint64_t peerId = msg.getSenderId64();
                 cachePeer(peerId, nickname);
-                BITCHAT_DEBUG_PRINTLN("Cached peer: %s (%llX)", nickname, (unsigned long long)peerId);
+                BITCHAT_DEBUG_PRINTLN("Cached peer: %s (%08lX)", nickname, (unsigned long)(peerId & 0xFFFFFFFF));
             }
             break;
         }
@@ -947,7 +994,8 @@ void BitchatBridge::processBitchatMessage(const BitchatMessage& msg) {
             // Respond with PONG
             BITCHAT_DEBUG_PRINTLN("Received ping, sending pong");
             {
-                BitchatMessage pong;
+                // Static to avoid stack overflow on NRF52
+                static BitchatMessage pong;
                 pong.version = BITCHAT_VERSION;
                 pong.type = BITCHAT_MSG_PONG;
                 pong.ttl = 1;
@@ -976,12 +1024,14 @@ void BitchatBridge::processBitchatMessage(const BitchatMessage& msg) {
 
         case BITCHAT_MSG_REQUEST_SYNC:
             handleRequestSync(msg);
+            Serial.println("BITCHAT_BRIDGE: handleRequestSync() returned OK");
             break;
 
         default:
             BITCHAT_DEBUG_PRINTLN("Unhandled message type: 0x%02X", msg.type);
             break;
     }
+    Serial.println("BITCHAT_BRIDGE: processBitchatMessage() COMPLETE");
 }
 
 bool BitchatBridge::parseBitchatMessageTLV(const uint8_t* payload, size_t payloadLen,
@@ -1104,13 +1154,13 @@ bool BitchatBridge::parseBitchatMessageTLV(const uint8_t* payload, size_t payloa
     return senderNick[0] != '\0';  // At minimum we need a sender
 }
 
-void BitchatBridge::sendSingleMessageToMesh(const char* senderNick, const char* text, uint32_t delay_millis) {
+void BitchatBridge::sendSingleMessageToMesh(const char* senderNick, const char* text) {
     // This is the internal function that sends a single message chunk to the mesh.
     // The caller is responsible for message splitting if needed.
 
     // Must have #mesh channel configured
     if (!_meshChannelConfigured) {
-        Serial.println("BITCHAT: #mesh channel not configured, cannot send to mesh");
+        BITCHAT_DEBUG_PRINTLN("#mesh channel not configured, cannot send to mesh");
         return;
     }
 
@@ -1170,14 +1220,63 @@ void BitchatBridge::sendSingleMessageToMesh(const char* senderNick, const char* 
     // Null terminate
     payload[offset] = '\0';
 
-    // Create and send packet with optional delay (non-blocking queue)
+    BITCHAT_PACKETDUMP("MESH_TX", payload, offset);
+
+    // Create and send packet immediately (no delay - use pending parts queue for multi-part)
     mesh::Packet* pkt = _mesh.createGroupDatagram(PAYLOAD_TYPE_GRP_TXT, targetChannel, payload, offset);
     if (pkt != nullptr) {
-        _mesh.sendFlood(pkt, delay_millis);
+        _mesh.sendFlood(pkt);  // Send immediately (no delay)
         _messagesRelayed++;
-        BITCHAT_DEBUG_PRINTLN("Sent to mesh: %s: %s (delay=%lu)", prefixedSender, text, delay_millis);
+        BITCHAT_DEBUG_PRINTLN("Sent to mesh: %s: %s", prefixedSender, text);
     } else {
-        BITCHAT_DEBUG_PRINTLN("Failed to create mesh packet");
+        BITCHAT_DEBUG_PRINTLN("Failed to create mesh packet (pool may be full)");
+    }
+}
+
+bool BitchatBridge::queueMessagePart(const char* senderNick, const char* text) {
+    // Find next available slot in circular queue
+    size_t nextTail = (_pendingPartsTail + 1) % MAX_PENDING_PARTS;
+    if (nextTail == _pendingPartsHead && _pendingParts[_pendingPartsTail].valid) {
+        // Queue is full
+        BITCHAT_DEBUG_PRINTLN("Pending parts queue full, dropping part");
+        return false;
+    }
+
+    strncpy(_pendingParts[_pendingPartsTail].senderNick, senderNick,
+            sizeof(_pendingParts[_pendingPartsTail].senderNick) - 1);
+    _pendingParts[_pendingPartsTail].senderNick[sizeof(_pendingParts[_pendingPartsTail].senderNick) - 1] = '\0';
+
+    strncpy(_pendingParts[_pendingPartsTail].text, text,
+            sizeof(_pendingParts[_pendingPartsTail].text) - 1);
+    _pendingParts[_pendingPartsTail].text[sizeof(_pendingParts[_pendingPartsTail].text) - 1] = '\0';
+
+    _pendingParts[_pendingPartsTail].valid = true;
+    _pendingPartsTail = nextTail;
+
+    BITCHAT_DEBUG_PRINTLN("Queued message part for delayed sending");
+    return true;
+}
+
+void BitchatBridge::processPendingParts() {
+    // Check if we have pending parts to send
+    if (_pendingPartsHead == _pendingPartsTail && !_pendingParts[_pendingPartsHead].valid) {
+        return;  // Queue is empty
+    }
+
+    // Check if enough time has passed since last part was sent
+    uint32_t now = millis();
+    if (now - _lastPartSentTime < PART_SEND_DELAY_MS) {
+        return;  // Not time yet
+    }
+
+    // Send the next part
+    if (_pendingParts[_pendingPartsHead].valid) {
+        BITCHAT_DEBUG_PRINTLN("Sending queued part: %s", _pendingParts[_pendingPartsHead].text);
+        sendSingleMessageToMesh(_pendingParts[_pendingPartsHead].senderNick,
+                                 _pendingParts[_pendingPartsHead].text);
+        _pendingParts[_pendingPartsHead].valid = false;
+        _pendingPartsHead = (_pendingPartsHead + 1) % MAX_PENDING_PARTS;
+        _lastPartSentTime = now;
     }
 }
 
@@ -1186,7 +1285,7 @@ void BitchatBridge::relayChannelMessageToMesh(const BitchatMessage& msg, const c
     // Find the MeshCore channel for this Bitchat channel
     mesh::GroupChannel targetChannel;
     if (!findMeshChannel(channelName, targetChannel)) {
-        BITCHAT_DEBUG_PRINTLN("No channel mapping for '%s', cannot relay to mesh", channelName);
+        BITCHAT_DEBUG_PRINTLN("No channel mapping for '%s' - check registerChannelMapping()", channelName);
         return;
     }
 
@@ -1201,7 +1300,7 @@ void BitchatBridge::relayChannelMessageToMesh(const BitchatMessage& msg, const c
 
     if (contentLen <= MAX_CHUNK_SIZE) {
         // Single message - no splitting needed
-        sendSingleMessageToMesh(senderNick, text, 0);
+        sendSingleMessageToMesh(senderNick, text);
         return;
     }
 
@@ -1213,10 +1312,8 @@ void BitchatBridge::relayChannelMessageToMesh(const BitchatMessage& msg, const c
 
     BITCHAT_DEBUG_PRINTLN("Splitting message from %s into %d parts (len=%d)", senderNick, numParts, (int)contentLen);
 
-    // Send each part with staggered delays (non-blocking - uses mesh queue)
-    // 2 second delay between parts to avoid flooding the mesh
-    const uint32_t PART_DELAY_MS = 2000;
-
+    // Send part 1 immediately, queue remaining parts for delayed sending
+    // This avoids overwhelming the mesh packet pool which can silently drop delayed packets
     size_t offset = 0;
     for (int part = 0; part < numParts && offset < contentLen; part++) {
         size_t remaining = contentLen - offset;
@@ -1244,11 +1341,18 @@ void BitchatBridge::relayChannelMessageToMesh(const BitchatMessage& msg, const c
         snprintf(chunk, sizeof(chunk), "[%d/%d] %.*s",
                  part + 1, numParts, (int)chunkLen, text + offset);
 
-        BITCHAT_DEBUG_PRINTLN("Part %d/%d: offset=%d, len=%d, delay=%lu",
-                              part + 1, numParts, (int)offset, (int)chunkLen, (unsigned long)(part * PART_DELAY_MS));
+        BITCHAT_DEBUG_PRINTLN("Part %d/%d: offset=%d, len=%d",
+                              part + 1, numParts, (int)offset, (int)chunkLen);
+        BITCHAT_PACKETDUMP("SPLIT_PART", (const uint8_t*)chunk, strlen(chunk));
 
-        // Use staggered delays: 0ms, 2000ms, 4000ms, etc.
-        sendSingleMessageToMesh(senderNick, chunk, part * PART_DELAY_MS);
+        if (part == 0) {
+            // Send first part immediately
+            sendSingleMessageToMesh(senderNick, chunk);
+            _lastPartSentTime = millis();  // Start the timer for subsequent parts
+        } else {
+            // Queue remaining parts for delayed sending via processPendingParts()
+            queueMessagePart(senderNick, chunk);
+        }
 
         offset += chunkLen;
     }
@@ -1314,6 +1418,7 @@ void BitchatBridge::handleFragment(const BitchatMessage& msg) {
     if (buf == nullptr) {
         if (msg.type != BITCHAT_MSG_FRAGMENT_NEW && fragmentIndex != 0) {
             // Missed the first fragment - can't reassemble
+            BITCHAT_DEBUG_PRINTLN("Fragment sequence interrupted - missed first fragment (idx=%u)", fragmentIndex);
             return;
         }
 
@@ -1334,6 +1439,7 @@ void BitchatBridge::handleFragment(const BitchatMessage& msg) {
     }
 
     if (buf == nullptr) {
+        BITCHAT_DEBUG_PRINTLN("Fragment buffer full - cannot reassemble (sender=%08lX)", (unsigned long)(senderId & 0xFFFFFFFF));
         return;
     }
 
@@ -1364,10 +1470,10 @@ void BitchatBridge::handleFragment(const BitchatMessage& msg) {
     uint8_t expectedMask = (1 << totalFragments) - 1;
     if (buf->receivedMask == expectedMask) {
         // Reassembly complete!
-        BITCHAT_DEBUG_PRINTLN("Fragment reassembly complete (%zu bytes)", buf->dataLen);
+        BITCHAT_DEBUG_PRINTLN("Fragment reassembly complete (%u bytes)", (unsigned)buf->dataLen);
 
-        // Create synthetic MESSAGE from reassembled data
-        BitchatMessage reassembled;
+        // Create synthetic MESSAGE from reassembled data - static to avoid stack overflow
+        static BitchatMessage reassembled;
         reassembled.version = msg.version;
         reassembled.type = BITCHAT_MSG_MESSAGE;
         reassembled.ttl = msg.ttl;
@@ -1400,9 +1506,19 @@ void BitchatBridge::handleFragment(const BitchatMessage& msg) {
 void BitchatBridge::onMeshcoreGroupMessage(const mesh::GroupChannel& channel, uint32_t timestamp,
                                             const char* senderName, const char* text) {
 #if defined(ESP32) || defined(NRF52_PLATFORM)
+    Serial.println("BITCHAT_BRIDGE: >>> onMeshcoreGroupMessage() ENTRY <<<");
+    BITCHAT_DEBUG_PRINTLN("MESH_RX: sender=%s text=%s", senderName, text ? text : "(null)");
+    BITCHAT_DEBUG_PRINTLN("MESH_RX: hasClient=%d, BLEactive=%d",
+                          _bleService.hasConnectedClient() ? 1 : 0,
+                          _bleService.isActive() ? 1 : 0);
+    if (text != nullptr) {
+        BITCHAT_PACKETDUMP("MESH_RX", (const uint8_t*)text, strlen(text));
+    }
+
     // IMPORTANT: Only relay #mesh channel messages to Bitchat
     if (!isMeshChannel(channel)) {
         // Not the #mesh channel - don't relay
+        BITCHAT_DEBUG_PRINTLN("Filtering non-#mesh MeshCore group message");
         return;
     }
 
@@ -1418,11 +1534,12 @@ void BitchatBridge::onMeshcoreGroupMessage(const mesh::GroupChannel& channel, ui
 
     // Build simple message content: "<senderName> text"
     // Bitchat displays MESSAGE payload as plain text
-    char fullContent[200];
+    // Use static buffers to avoid stack overflow on NRF52
+    static char fullContent[200];
     snprintf(fullContent, sizeof(fullContent), "<%s> %s", senderName, text);
 
-    // Create Bitchat message
-    BitchatMessage msg;
+    // Create Bitchat message - static to avoid stack overflow
+    static BitchatMessage msg;
     msg.version = BITCHAT_VERSION;
     msg.type = BITCHAT_MSG_MESSAGE;
     msg.ttl = DEFAULT_TTL;
@@ -1444,8 +1561,10 @@ void BitchatBridge::onMeshcoreGroupMessage(const mesh::GroupChannel& channel, ui
     // Add to message history for REQUEST_SYNC responses
     addToMessageHistory(msg);
 
-    _bleService.broadcastMessage(msg);
-    BITCHAT_DEBUG_PRINTLN("TX to Bitchat: %s", senderName);
+    BITCHAT_PACKETDUMP("BLE_TX_FROM_MESH", msg.payload, msg.payloadLength);
+    bool sent = _bleService.broadcastMessage(msg);
+    BITCHAT_DEBUG_PRINTLN("TX to Bitchat: %s (result=%d)", senderName, sent ? 1 : 0);
+    Serial.println("BITCHAT_BRIDGE: <<< onMeshcoreGroupMessage() EXIT <<<");
 #endif
 }
 
@@ -1461,8 +1580,8 @@ void BitchatBridge::onMeshcoreDirectMessage(const uint8_t* senderPubKey, uint32_
         senderId |= (static_cast<uint64_t>(senderPubKey[i]) << (i * 8));
     }
 
-    // Create Bitchat DM
-    BitchatMessage msg;
+    // Create Bitchat DM - static to avoid stack overflow on NRF52
+    static BitchatMessage msg;
     msg.version = BITCHAT_VERSION;
     msg.type = BITCHAT_MSG_MESSAGE;
     msg.ttl = DEFAULT_TTL;
@@ -1477,7 +1596,7 @@ void BitchatBridge::onMeshcoreDirectMessage(const uint8_t* senderPubKey, uint32_
     msg.payloadLength = static_cast<uint16_t>(textLen);
 
     _bleService.broadcastMessage(msg);
-    BITCHAT_DEBUG_PRINTLN("Sent DM to Bitchat from %llX", senderId);
+    BITCHAT_DEBUG_PRINTLN("Sent DM to Bitchat from %08lX", (unsigned long)(senderId & 0xFFFFFFFF));
 #endif
 }
 
@@ -1503,10 +1622,11 @@ void BitchatBridge::onMeshcoreAdvert(const mesh::Identity& id, uint32_t timestam
     }
 
     // Derive Curve25519 key from the peer's Ed25519 key
-    uint8_t peerNoiseKey[32];
+    static uint8_t peerNoiseKey[32];
     deriveNoisePublicKey(id.pub_key, peerNoiseKey);
 
-    BitchatMessage msg;
+    // Static to avoid stack overflow on NRF52
+    static BitchatMessage msg;
     BitchatProtocol::createAnnounce(
         msg,
         peerId,
@@ -1518,7 +1638,7 @@ void BitchatBridge::onMeshcoreAdvert(const mesh::Identity& id, uint32_t timestam
     );
 
     _bleService.broadcastMessage(msg);
-    BITCHAT_DEBUG_PRINTLN("Sent Meshcore advert to Bitchat: %llX", peerId);
+    BITCHAT_DEBUG_PRINTLN("Sent Meshcore advert to Bitchat: %08lX", (unsigned long)(peerId & 0xFFFFFFFF));
 #endif
 }
 

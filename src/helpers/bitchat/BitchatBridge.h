@@ -422,12 +422,39 @@ private:
     const char* lookupPeerNickname(uint64_t peerId);
 
     /**
-     * Send a single message part to the mesh
+     * Send a single message part to the mesh (immediate, no delay)
      * @param senderNick Sender nickname with emoji prefix
      * @param text Message text (may include part indicator)
-     * @param delay_millis Optional delay before sending (for non-blocking message splitting)
      */
-    void sendSingleMessageToMesh(const char* senderNick, const char* text, uint32_t delay_millis = 0);
+    void sendSingleMessageToMesh(const char* senderNick, const char* text);
+
+    // Pending message parts queue for reliable multi-part message delivery
+    // Instead of using mesh's delayed transmission (which can fail silently when pool is exhausted),
+    // we queue parts here and send them one at a time with timer-based delays in loop()
+    struct PendingPart {
+        char senderNick[68];    // Includes emoji prefix
+        char text[180];         // Part text with "[X/Y] " indicator
+        bool valid;
+    };
+    static const size_t MAX_PENDING_PARTS = 8;
+    static const uint32_t PART_SEND_DELAY_MS = 5000;  // Delay between parts
+    PendingPart _pendingParts[MAX_PENDING_PARTS];
+    size_t _pendingPartsHead;        // Next part to send
+    size_t _pendingPartsTail;        // Next slot to queue into
+    uint32_t _lastPartSentTime;      // millis() when last part was sent
+
+    /**
+     * Queue a message part for delayed sending
+     * @param senderNick Sender nickname with emoji prefix
+     * @param text Message text (may include part indicator)
+     * @return true if queued successfully
+     */
+    bool queueMessagePart(const char* senderNick, const char* text);
+
+    /**
+     * Process pending message parts queue (called from loop())
+     */
+    void processPendingParts();
 
     /**
      * Parse BitchatMessage TLV payload structure

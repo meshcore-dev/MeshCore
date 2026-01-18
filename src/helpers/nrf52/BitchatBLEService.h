@@ -104,7 +104,7 @@ private:
     uint32_t _lastWriteTime;
     static const uint32_t WRITE_TIMEOUT_MS = 5000;
 
-    // Message queue for deferred processing
+    // Message queue for deferred processing (incoming)
     static const size_t MESSAGE_QUEUE_SIZE = 8;
     struct QueuedMessage {
         BitchatMessage msg;
@@ -114,9 +114,14 @@ private:
     volatile size_t _queueHead;
     volatile size_t _queueTail;
 
+    // Pending outgoing message (when client not yet subscribed)
+    BitchatMessage _pendingOutgoing;
+    bool _hasPendingOutgoing;
+
     void clearWriteBuffer();
     bool queueMessage(const BitchatMessage& msg);
     void processQueue();
+    void sendPendingOutgoing();
 
     // Static callbacks for Bluefruit (will call instance methods)
     static void onConnect(uint16_t conn_handle);

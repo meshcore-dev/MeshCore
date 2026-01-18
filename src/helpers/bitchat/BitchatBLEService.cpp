@@ -10,6 +10,21 @@
   #define BITCHAT_DEBUG_PRINTLN(...) {}
 #endif
 
+// Verbose packet hex dump macro (separate from BITCHAT_DEBUG for optional verbosity)
+#if BITCHAT_DEBUG_PACKETDUMP
+static void dumpPacketHex(const char* label, const uint8_t* data, size_t len) {
+    Serial.printf("PACKETDUMP [%s] (%zu bytes):\n", label, len);
+    for (size_t i = 0; i < len; i++) {
+        Serial.printf("%02X ", data[i]);
+        if ((i + 1) % 16 == 0) Serial.println();
+    }
+    if (len % 16 != 0) Serial.println();
+}
+  #define BITCHAT_PACKETDUMP(label, data, len) dumpPacketHex(label, data, len)
+#else
+  #define BITCHAT_PACKETDUMP(label, data, len) {}
+#endif
+
 BitchatBLEService::BitchatBLEService()
     : _server(nullptr)
     , _service(nullptr)
@@ -252,9 +267,11 @@ void BitchatBLEService::loop() {
             // Successfully parsed - validate and queue
             if (BitchatProtocol::validateMessage(msg)) {
                 BITCHAT_DEBUG_PRINTLN("Received Bitchat message: type=%02X, len=%d", msg.type, msg.payloadLength);
+                BITCHAT_PACKETDUMP("BLE_SERVICE_RX", msg.payload, msg.payloadLength);
                 queueMessage(msg);
             } else {
                 BITCHAT_DEBUG_PRINTLN("Invalid Bitchat message received");
+                BITCHAT_PACKETDUMP("BLE_SERVICE_RX_INVALID", _writeBuffer, _writeBufferOffset);
             }
             clearWriteBuffer();
         } else if (_writeBufferOffset >= BITCHAT_HEADER_SIZE) {
@@ -345,6 +362,8 @@ bool BitchatBLEService::broadcastMessage(const BitchatMessage& msg) {
     if (len == 0) {
         return false;
     }
+
+    BITCHAT_PACKETDUMP("BLE_SERVICE_TX", buffer, len);
 
     // Set value and notify
     _characteristic->setValue(buffer, len);

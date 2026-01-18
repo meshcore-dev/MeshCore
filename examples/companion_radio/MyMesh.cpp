@@ -444,6 +444,10 @@ void MyMesh::onSignedMessageRecv(const ContactInfo &from, mesh::Packet *pkt, uin
 void MyMesh::onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packet *pkt, uint32_t timestamp,
                                   const char *text) {
 #if defined(ENABLE_BITCHAT) && (defined(ESP32) || defined(NRF52_PLATFORM))
+  Serial.println("MYMESH: onChannelMessageRecv called");
+  Serial.print("MYMESH: _bitchatBridge=");
+  Serial.println(_bitchatBridge != nullptr ? "valid" : "NULL");
+
   // Forward to Bitchat bridge if available
   if (_bitchatBridge != nullptr) {
     // Text format is "sender: message" - extract sender and message
@@ -463,6 +467,7 @@ void MyMesh::onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packe
       // No colon found, use whole text
       _bitchatBridge->onMeshcoreGroupMessage(channel, timestamp, "Unknown", text);
     }
+    Serial.println("MYMESH: bitchat bridge call returned");
   }
 #endif
 
@@ -509,6 +514,7 @@ void MyMesh::onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packe
   }
   if (_ui) _ui->newMsg(path_len, channel_name, text, offline_queue_len);
 #endif
+  Serial.println("MYMESH: onChannelMessageRecv COMPLETE");
 }
 
 uint8_t MyMesh::onContactRequest(const ContactInfo &contact, uint32_t sender_timestamp, const uint8_t *data,
