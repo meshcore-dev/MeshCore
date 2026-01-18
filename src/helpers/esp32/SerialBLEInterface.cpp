@@ -1,7 +1,7 @@
 #include "SerialBLEInterface.h"
 
-#ifdef ENABLE_BITCHAT
-#include "../bitchat/BitchatBLEService.h"
+#ifdef ENABLE_DOGECHAT
+#include "../dogechat/BitchatBLEService.h"
 #endif
 
 // See the following for generating UUIDs:
@@ -102,7 +102,7 @@ void SerialBLEInterface::onDisconnect(BLEServer* pServer) {
     // loop() will detect this on next loop, and set deviceConnected to false
   }
 
-#ifdef ENABLE_BITCHAT
+#ifdef ENABLE_DOGECHAT
   if (_bitchatService != nullptr) {
     _bitchatService->onServerDisconnect();
   }

@@ -6,7 +6,7 @@ MeshCore is a lightweight, portable C++ library that enables multi-hop packet ro
 
 This is a special experimental Bitchat bridge branch.
 
-Read [my blog](https://juraj.bednar.io/en/blog-en/2026/01/18/bridging-bitchat-and-meshcore-resilient-communication-when-you-need-it-most/) and [documentation](docs/bitchat-bridge.md).
+Read [my blog](https://juraj.bednar.io/en/blog-en/2026/01/18/bridging-dogechat-and-meshcore-resilient-communication-when-you-need-it-most/) and [documentation](docs/dogechat-bridge.md).
 
 
 ## 🔍 What is MeshCore?

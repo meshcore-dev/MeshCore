@@ -4,14 +4,14 @@
 
 #include <Arduino.h>
 
-#if BITCHAT_DEBUG
-  #define BITCHAT_DEBUG_PRINTLN(F, ...) Serial.printf("BITCHAT: " F "\n", ##__VA_ARGS__)
+#if DOGECHAT_DEBUG
+  #define DOGECHAT_DEBUG_PRINTLN(F, ...) Serial.printf("DOGECHAT: " F "\n", ##__VA_ARGS__)
 #else
-  #define BITCHAT_DEBUG_PRINTLN(...) {}
+  #define DOGECHAT_DEBUG_PRINTLN(...) {}
 #endif
 
-// Verbose packet hex dump macro (separate from BITCHAT_DEBUG for optional verbosity)
-#if BITCHAT_DEBUG_PACKETDUMP
+// Verbose packet hex dump macro (separate from DOGECHAT_DEBUG for optional verbosity)
+#if DOGECHAT_DEBUG_PACKETDUMP
 static void dumpPacketHex(const char* label, const uint8_t* data, size_t len) {
     Serial.printf("PACKETDUMP [%s] (%zu bytes):\n", label, len);
     for (size_t i = 0; i < len; i++) {
@@ -20,9 +20,9 @@ static void dumpPacketHex(const char* label, const uint8_t* data, size_t len) {
     }
     if (len % 16 != 0) Serial.println();
 }
-  #define BITCHAT_PACKETDUMP(label, data, len) dumpPacketHex(label, data, len)
+  #define DOGECHAT_PACKETDUMP(label, data, len) dumpPacketHex(label, data, len)
 #else
-  #define BITCHAT_PACKETDUMP(label, data, len) {}
+  #define DOGECHAT_PACKETDUMP(label, data, len) {}
 #endif
 
 BitchatBLEService::BitchatBLEService()
@@ -51,7 +51,7 @@ BitchatBLEService::BitchatBLEService()
 
 bool BitchatBLEService::attachToServer(BLEServer* server, BitchatBLECallback* callback) {
     if (server == nullptr || callback == nullptr) {
-        BITCHAT_DEBUG_PRINTLN("attachToServer: null server or callback");
+        DOGECHAT_DEBUG_PRINTLN("attachToServer: null server or callback");
         return false;
     }
 
@@ -59,15 +59,15 @@ bool BitchatBLEService::attachToServer(BLEServer* server, BitchatBLECallback* ca
     _callback = callback;
 
     // Create Bitchat service
-    _service = _server->createService(BITCHAT_SERVICE_UUID);
+    _service = _server->createService(DOGECHAT_SERVICE_UUID);
     if (_service == nullptr) {
-        BITCHAT_DEBUG_PRINTLN("Failed to create Bitchat service");
+        DOGECHAT_DEBUG_PRINTLN("Failed to create Bitchat service");
         return false;
     }
 
     // Create characteristic with READ, WRITE, WRITE_NR, NOTIFY, and INDICATE properties
     _characteristic = _service->createCharacteristic(
-        BITCHAT_CHARACTERISTIC_UUID,
+        DOGECHAT_CHARACTERISTIC_UUID,
         BLECharacteristic::PROPERTY_READ |
         BLECharacteristic::PROPERTY_WRITE |
         BLECharacteristic::PROPERTY_WRITE_NR |
@@ -76,7 +76,7 @@ bool BitchatBLEService::attachToServer(BLEServer* server, BitchatBLECallback* ca
     );
 
     if (_characteristic == nullptr) {
-        BITCHAT_DEBUG_PRINTLN("Failed to create Bitchat characteristic");
+        DOGECHAT_DEBUG_PRINTLN("Failed to create Bitchat characteristic");
         return false;
     }
 
@@ -89,7 +89,7 @@ bool BitchatBLEService::attachToServer(BLEServer* server, BitchatBLECallback* ca
     // Set callbacks
     _characteristic->setCallbacks(this);
 
-    BITCHAT_DEBUG_PRINTLN("Bitchat BLE service attached to server");
+    DOGECHAT_DEBUG_PRINTLN("Bitchat BLE service attached to server");
     return true;
 }
 
@@ -98,7 +98,7 @@ bool BitchatBLEService::attachToServer(BLEServer* server, BitchatBLECallback* ca
 
 void BitchatBLEService::start() {
     if (_service == nullptr) {
-        BITCHAT_DEBUG_PRINTLN("Cannot start: service not created");
+        DOGECHAT_DEBUG_PRINTLN("Cannot start: service not created");
         return;
     }
 
@@ -118,12 +118,12 @@ void BitchatBLEService::start() {
 
         // Set scan response data (will be used when advertising starts)
         BLEAdvertisementData scanResponse;
-        scanResponse.setCompleteServices(BLEUUID(BITCHAT_SERVICE_UUID));
+        scanResponse.setCompleteServices(BLEUUID(DOGECHAT_SERVICE_UUID));
         advertising->setScanResponseData(scanResponse);
 
-        BITCHAT_DEBUG_PRINTLN("Bitchat BLE service started (shared mode)");
+        DOGECHAT_DEBUG_PRINTLN("Bitchat BLE service started (shared mode)");
     } else {
-        BITCHAT_DEBUG_PRINTLN("Bitchat BLE service started");
+        DOGECHAT_DEBUG_PRINTLN("Bitchat BLE service started");
     }
 }
 
@@ -137,7 +137,7 @@ void BitchatBLEService::startServiceOnly() {
 
     _service->start();
     _serviceActive = true;
-    BITCHAT_DEBUG_PRINTLN("Bitchat BLE service started (standalone)");
+    DOGECHAT_DEBUG_PRINTLN("Bitchat BLE service started (standalone)");
 }
 
 void BitchatBLEService::setDeviceName(const char* name) {
@@ -160,7 +160,7 @@ void BitchatBLEService::startAdvertising() {
     // Put full name in scan response instead
     BLEAdvertisementData advData;
     advData.setFlags(ESP_BLE_ADV_FLAG_GEN_DISC | ESP_BLE_ADV_FLAG_BREDR_NOT_SPT);
-    advData.setCompleteServices(BLEUUID(BITCHAT_SERVICE_UUID));
+    advData.setCompleteServices(BLEUUID(DOGECHAT_SERVICE_UUID));
     // Don't set name in main adv - no room with 128-bit UUID
     advertising->setAdvertisementData(advData);
 
@@ -180,7 +180,7 @@ void BitchatBLEService::startAdvertising() {
     advertising->setScanResponseData(scanResponse);
 
     advertising->start();
-    BITCHAT_DEBUG_PRINTLN("BLE advertising started: %s", safeName);
+    DOGECHAT_DEBUG_PRINTLN("BLE advertising started: %s", safeName);
 }
 
 void BitchatBLEService::onServerDisconnect() {
@@ -217,7 +217,7 @@ bool BitchatBLEService::queueMessage(const BitchatMessage& msg) {
 
     // Check if queue is full
     if (nextTail == _queueHead) {
-        BITCHAT_DEBUG_PRINTLN("Message queue full, dropping message");
+        DOGECHAT_DEBUG_PRINTLN("Message queue full, dropping message");
         return false;
     }
 
@@ -259,26 +259,26 @@ void BitchatBLEService::loop() {
     // Wait 100ms after last write before processing to allow multi-chunk messages to arrive
     if (_pendingData && (now - _lastWriteTime >= 100)) {
         _pendingData = false;
-        BITCHAT_DEBUG_PRINTLN("Processing %zu buffered bytes", _writeBufferOffset);
+        DOGECHAT_DEBUG_PRINTLN("Processing %zu buffered bytes", _writeBufferOffset);
 
         // Try to parse as complete message
         BitchatMessage msg;
         if (BitchatProtocol::parseMessage(_writeBuffer, _writeBufferOffset, msg)) {
             // Successfully parsed - validate and queue
             if (BitchatProtocol::validateMessage(msg)) {
-                BITCHAT_DEBUG_PRINTLN("Received Bitchat message: type=%02X, len=%d", msg.type, msg.payloadLength);
-                BITCHAT_PACKETDUMP("BLE_SERVICE_RX", msg.payload, msg.payloadLength);
+                DOGECHAT_DEBUG_PRINTLN("Received Bitchat message: type=%02X, len=%d", msg.type, msg.payloadLength);
+                DOGECHAT_PACKETDUMP("BLE_SERVICE_RX", msg.payload, msg.payloadLength);
                 queueMessage(msg);
             } else {
-                BITCHAT_DEBUG_PRINTLN("Invalid Bitchat message received");
-                BITCHAT_PACKETDUMP("BLE_SERVICE_RX_INVALID", _writeBuffer, _writeBufferOffset);
+                DOGECHAT_DEBUG_PRINTLN("Invalid Bitchat message received");
+                DOGECHAT_PACKETDUMP("BLE_SERVICE_RX_INVALID", _writeBuffer, _writeBufferOffset);
             }
             clearWriteBuffer();
-        } else if (_writeBufferOffset >= BITCHAT_HEADER_SIZE) {
+        } else if (_writeBufferOffset >= DOGECHAT_HEADER_SIZE) {
             // Have enough data to check expected size
             size_t expectedMin = BitchatProtocol::getMessageSize(msg);
             if (_writeBufferOffset > expectedMin + 100) {
-                BITCHAT_DEBUG_PRINTLN("Write buffer contains unparseable data, clearing");
+                DOGECHAT_DEBUG_PRINTLN("Write buffer contains unparseable data, clearing");
                 clearWriteBuffer();
             }
             // If parse fails but buffer size is reasonable, keep waiting for more data
@@ -288,7 +288,7 @@ void BitchatBLEService::loop() {
     // Check for write buffer timeout
     if (_writeBufferOffset > 0) {
         if (now - _lastWriteTime > WRITE_TIMEOUT_MS) {
-            BITCHAT_DEBUG_PRINTLN("Write buffer timeout, clearing");
+            DOGECHAT_DEBUG_PRINTLN("Write buffer timeout, clearing");
             clearWriteBuffer();
         }
     }
@@ -357,19 +357,19 @@ bool BitchatBLEService::broadcastMessage(const BitchatMessage& msg) {
     }
 
     // Serialize message
-    uint8_t buffer[BITCHAT_MAX_MESSAGE_SIZE];
+    uint8_t buffer[DOGECHAT_MAX_MESSAGE_SIZE];
     size_t len = BitchatProtocol::serializeMessage(msg, buffer, sizeof(buffer));
     if (len == 0) {
         return false;
     }
 
-    BITCHAT_PACKETDUMP("BLE_SERVICE_TX", buffer, len);
+    DOGECHAT_PACKETDUMP("BLE_SERVICE_TX", buffer, len);
 
     // Set value and notify
     _characteristic->setValue(buffer, len);
     _characteristic->notify(true);
 
-    BITCHAT_DEBUG_PRINTLN("TX: type=0x%02X, len=%zu", msg.type, len);
+    DOGECHAT_DEBUG_PRINTLN("TX: type=0x%02X, len=%zu", msg.type, len);
     return true;
 }
 

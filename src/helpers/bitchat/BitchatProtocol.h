@@ -5,51 +5,51 @@
 #include <string.h>
 
 // Bitchat Protocol Constants
-#define BITCHAT_HEADER_SIZE 14  // version(1) + type(1) + ttl(1) + timestamp(8) + flags(1) + payloadLength(2)
-#define BITCHAT_SIGNATURE_SIZE 64  // Ed25519 signature
-#define BITCHAT_MAX_WIRE_PAYLOAD_SIZE 245  // Max payload size on wire (compressed/padded)
-#define BITCHAT_MAX_PAYLOAD_SIZE 512   // Max decompressed payload size (reduced from 1024 to prevent stack overflow)
-#define BITCHAT_VERSION 1
-#define BITCHAT_SENDER_ID_SIZE 8
-#define BITCHAT_RECIPIENT_ID_SIZE 8
+#define DOGECHAT_HEADER_SIZE 14  // version(1) + type(1) + ttl(1) + timestamp(8) + flags(1) + payloadLength(2)
+#define DOGECHAT_SIGNATURE_SIZE 64  // Ed25519 signature
+#define DOGECHAT_MAX_WIRE_PAYLOAD_SIZE 245  // Max payload size on wire (compressed/padded)
+#define DOGECHAT_MAX_PAYLOAD_SIZE 512   // Max decompressed payload size (reduced from 1024 to prevent stack overflow)
+#define DOGECHAT_VERSION 1
+#define DOGECHAT_SENDER_ID_SIZE 8
+#define DOGECHAT_RECIPIENT_ID_SIZE 8
 
 // Maximum message size on wire: header(13) + sender(8) + recipient(8) + payload(245) + signature(64) = 338 bytes
-#define BITCHAT_MAX_MESSAGE_SIZE (BITCHAT_HEADER_SIZE + BITCHAT_SENDER_ID_SIZE + BITCHAT_RECIPIENT_ID_SIZE + BITCHAT_MAX_WIRE_PAYLOAD_SIZE + BITCHAT_SIGNATURE_SIZE)
+#define DOGECHAT_MAX_MESSAGE_SIZE (DOGECHAT_HEADER_SIZE + DOGECHAT_SENDER_ID_SIZE + DOGECHAT_RECIPIENT_ID_SIZE + DOGECHAT_MAX_WIRE_PAYLOAD_SIZE + DOGECHAT_SIGNATURE_SIZE)
 
 // BLE Service UUIDs
-#define BITCHAT_SERVICE_UUID "F47B5E2D-4A9E-4C5A-9B3F-8E1D2C3A4B5C"
-#define BITCHAT_CHARACTERISTIC_UUID "A1B2C3D4-E5F6-4A5B-8C9D-0E1F2A3B4C5D"
+#define DOGECHAT_SERVICE_UUID "F47B5E2D-4A9E-4C5A-9B3F-8E1D2C3A4B5C"
+#define DOGECHAT_CHARACTERISTIC_UUID "A1B2C3D4-E5F6-4A5B-8C9D-0E1F2A3B4C5D"
 
 // Duplicate cache configuration
-#define BITCHAT_DUPLICATE_CACHE_SIZE 100
-#define BITCHAT_DUPLICATE_TIME_WINDOW_MS 300000  // 5 minutes
+#define DOGECHAT_DUPLICATE_CACHE_SIZE 100
+#define DOGECHAT_DUPLICATE_TIME_WINDOW_MS 300000  // 5 minutes
 
 // Bitchat Message Types
 enum BitchatMessageType : uint8_t {
-    BITCHAT_MSG_ANNOUNCE = 0x01,
-    BITCHAT_MSG_MESSAGE = 0x02,
-    BITCHAT_MSG_LEAVE = 0x03,
-    BITCHAT_MSG_IDENTITY = 0x04,
-    BITCHAT_MSG_CHANNEL = 0x05,
-    BITCHAT_MSG_PING = 0x06,
-    BITCHAT_MSG_PONG = 0x07,
-    BITCHAT_MSG_NOISE_HANDSHAKE = 0x10,
-    BITCHAT_MSG_NOISE_ENCRYPTED = 0x11,
-    BITCHAT_MSG_FRAGMENT_NEW = 0x20,
-    BITCHAT_MSG_REQUEST_SYNC = 0x21,
-    BITCHAT_MSG_FILE_TRANSFER = 0x22,
-    BITCHAT_MSG_FRAGMENT = 0xFF
+    DOGECHAT_MSG_ANNOUNCE = 0x01,
+    DOGECHAT_MSG_MESSAGE = 0x02,
+    DOGECHAT_MSG_LEAVE = 0x03,
+    DOGECHAT_MSG_IDENTITY = 0x04,
+    DOGECHAT_MSG_CHANNEL = 0x05,
+    DOGECHAT_MSG_PING = 0x06,
+    DOGECHAT_MSG_PONG = 0x07,
+    DOGECHAT_MSG_NOISE_HANDSHAKE = 0x10,
+    DOGECHAT_MSG_NOISE_ENCRYPTED = 0x11,
+    DOGECHAT_MSG_FRAGMENT_NEW = 0x20,
+    DOGECHAT_MSG_REQUEST_SYNC = 0x21,
+    DOGECHAT_MSG_FILE_TRANSFER = 0x22,
+    DOGECHAT_MSG_FRAGMENT = 0xFF
 };
 
 // Bitchat Protocol Flags
-#define BITCHAT_FLAG_HAS_RECIPIENT 0x01
-#define BITCHAT_FLAG_HAS_SIGNATURE 0x02
-#define BITCHAT_FLAG_IS_COMPRESSED 0x04
+#define DOGECHAT_FLAG_HAS_RECIPIENT 0x01
+#define DOGECHAT_FLAG_HAS_SIGNATURE 0x02
+#define DOGECHAT_FLAG_IS_COMPRESSED 0x04
 
 // Announce payload TLV types
-#define BITCHAT_TLV_NICKNAME 0x01
-#define BITCHAT_TLV_NOISE_PUBKEY 0x02
-#define BITCHAT_TLV_ED25519_PUBKEY 0x03
+#define DOGECHAT_TLV_NICKNAME 0x01
+#define DOGECHAT_TLV_NOISE_PUBKEY 0x02
+#define DOGECHAT_TLV_ED25519_PUBKEY 0x03
 
 /**
  * Bitchat Protocol Message Structure
@@ -62,24 +62,24 @@ struct BitchatMessage {
     uint64_t timestamp;  // milliseconds since epoch
     uint8_t flags;
     uint16_t payloadLength;
-    uint8_t senderId[BITCHAT_SENDER_ID_SIZE];
-    uint8_t recipientId[BITCHAT_RECIPIENT_ID_SIZE];
-    uint8_t payload[BITCHAT_MAX_PAYLOAD_SIZE];
-    uint8_t signature[BITCHAT_SIGNATURE_SIZE];
+    uint8_t senderId[DOGECHAT_SENDER_ID_SIZE];
+    uint8_t recipientId[DOGECHAT_RECIPIENT_ID_SIZE];
+    uint8_t payload[DOGECHAT_MAX_PAYLOAD_SIZE];
+    uint8_t signature[DOGECHAT_SIGNATURE_SIZE];
 
-    BitchatMessage() : version(BITCHAT_VERSION), type(0), ttl(0), timestamp(0), flags(0), payloadLength(0) {
+    BitchatMessage() : version(DOGECHAT_VERSION), type(0), ttl(0), timestamp(0), flags(0), payloadLength(0) {
         memset(senderId, 0, sizeof(senderId));
         memset(recipientId, 0, sizeof(recipientId));
         memset(payload, 0, sizeof(payload));
         memset(signature, 0, sizeof(signature));
     }
 
-    bool hasRecipient() const { return (flags & BITCHAT_FLAG_HAS_RECIPIENT) != 0; }
-    bool hasSignature() const { return (flags & BITCHAT_FLAG_HAS_SIGNATURE) != 0; }
-    bool isCompressed() const { return (flags & BITCHAT_FLAG_IS_COMPRESSED) != 0; }
+    bool hasRecipient() const { return (flags & DOGECHAT_FLAG_HAS_RECIPIENT) != 0; }
+    bool hasSignature() const { return (flags & DOGECHAT_FLAG_HAS_SIGNATURE) != 0; }
+    bool isCompressed() const { return (flags & DOGECHAT_FLAG_IS_COMPRESSED) != 0; }
 
-    void setHasRecipient(bool val) { if (val) flags |= BITCHAT_FLAG_HAS_RECIPIENT; else flags &= ~BITCHAT_FLAG_HAS_RECIPIENT; }
-    void setHasSignature(bool val) { if (val) flags |= BITCHAT_FLAG_HAS_SIGNATURE; else flags &= ~BITCHAT_FLAG_HAS_SIGNATURE; }
+    void setHasRecipient(bool val) { if (val) flags |= DOGECHAT_FLAG_HAS_RECIPIENT; else flags &= ~DOGECHAT_FLAG_HAS_RECIPIENT; }
+    void setHasSignature(bool val) { if (val) flags |= DOGECHAT_FLAG_HAS_SIGNATURE; else flags &= ~DOGECHAT_FLAG_HAS_SIGNATURE; }
 
     // Get sender ID as 64-bit integer (little-endian)
     uint64_t getSenderId64() const {
@@ -140,7 +140,7 @@ private:
         CacheEntry() : hash(0), timestamp(0), valid(false) {}
     };
 
-    CacheEntry cache[BITCHAT_DUPLICATE_CACHE_SIZE];
+    CacheEntry cache[DOGECHAT_DUPLICATE_CACHE_SIZE];
     size_t currentIndex;
 
     // FNV-1a hash

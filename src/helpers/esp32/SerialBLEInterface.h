@@ -6,7 +6,7 @@
 #include <BLEUtils.h>
 #include <BLE2902.h>
 
-#ifdef ENABLE_BITCHAT
+#ifdef ENABLE_DOGECHAT
 class BitchatBLEService;
 #endif
 
@@ -81,7 +81,7 @@ public:
   // Expose BLE server for adding additional services (e.g., Bitchat)
   BLEServer* getBLEServer() { return pServer; }
 
-#ifdef ENABLE_BITCHAT
+#ifdef ENABLE_DOGECHAT
   void setBitchatService(BitchatBLEService* service) { _bitchatService = service; }
 private:
   BitchatBLEService* _bitchatService = nullptr;

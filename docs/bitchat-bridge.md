@@ -1,6 +1,6 @@
 # Bitchat Bridge
 
-The Bitchat Bridge enables communication between the [Bitchat](https://bitchat.app) Android app and MeshCore mesh network. Messages sent to the `#mesh` channel in Bitchat are relayed to MeshCore nodes, and vice versa.
+The Bitchat Bridge enables communication between the [Bitchat](https://dogechat.app) Android app and MeshCore mesh network. Messages sent to the `#mesh` channel in Bitchat are relayed to MeshCore nodes, and vice versa.
 
 ## Overview
 
@@ -101,19 +101,19 @@ To enable debug output, use one of these methods:
 
 ```bash
 # Build with debug output enabled
-PLATFORMIO_BUILD_FLAGS="-D BITCHAT_DEBUG=1" pio run -e Heltec_WSL3_companion_radio_usb_bitchat
+PLATFORMIO_BUILD_FLAGS="-D DOGECHAT_DEBUG=1" pio run -e Heltec_WSL3_companion_radio_usb_bitchat
 ```
 
 ### Method 2: Edit platformio.ini (persistent)
 
-Add `-D BITCHAT_DEBUG=1` to your environment's build_flags:
+Add `-D DOGECHAT_DEBUG=1` to your environment's build_flags:
 
 ```ini
 [env:Heltec_WSL3_companion_radio_usb_bitchat]
 build_flags =
   ${Heltec_WSL3_companion_radio_usb.build_flags}
   ${bitchat_base.build_flags}
-  -D BITCHAT_DEBUG=1   ; Enable debug output
+  -D DOGECHAT_DEBUG=1   ; Enable debug output
 ```
 
 This enables detailed logging of:

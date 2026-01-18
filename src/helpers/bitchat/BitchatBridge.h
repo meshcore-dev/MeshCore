@@ -20,7 +20,7 @@ static const uint8_t MESH_CHANNEL_KEY[16] = {
 };
 
 // Bitchat channel name for #mesh (includes the # prefix)
-#define BITCHAT_MESH_CHANNEL "#mesh"
+#define DOGECHAT_MESH_CHANNEL "#mesh"
 
 /**
  * Bitchat Bridge - Translation layer between Bitchat and Meshcore protocols

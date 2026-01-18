@@ -10,14 +10,14 @@ extern "C" {
 }
 
 // Debug output - Adafruit nRF52 core supports Serial.printf
-#if BITCHAT_DEBUG
-  #define BITCHAT_DEBUG_PRINTLN(...) do { Serial.printf("BITCHAT_BRIDGE: "); Serial.printf(__VA_ARGS__); Serial.println(); } while(0)
+#if DOGECHAT_DEBUG
+  #define DOGECHAT_DEBUG_PRINTLN(...) do { Serial.printf("DOGECHAT_BRIDGE: "); Serial.printf(__VA_ARGS__); Serial.println(); } while(0)
 #else
-  #define BITCHAT_DEBUG_PRINTLN(...) {}
+  #define DOGECHAT_DEBUG_PRINTLN(...) {}
 #endif
 
-// Verbose packet hex dump macro (separate from BITCHAT_DEBUG for optional verbosity)
-#if BITCHAT_DEBUG_PACKETDUMP
+// Verbose packet hex dump macro (separate from DOGECHAT_DEBUG for optional verbosity)
+#if DOGECHAT_DEBUG_PACKETDUMP
 static void dumpPacketHex(const char* label, const uint8_t* data, size_t len) {
     Serial.printf("PACKETDUMP [%s] (%u bytes):\n", label, (unsigned)len);
     for (size_t i = 0; i < len; i++) {
@@ -26,9 +26,9 @@ static void dumpPacketHex(const char* label, const uint8_t* data, size_t len) {
     }
     if (len % 16 != 0) Serial.println();
 }
-  #define BITCHAT_PACKETDUMP(label, data, len) dumpPacketHex(label, data, len)
+  #define DOGECHAT_PACKETDUMP(label, data, len) dumpPacketHex(label, data, len)
 #else
-  #define BITCHAT_PACKETDUMP(label, data, len) {}
+  #define DOGECHAT_PACKETDUMP(label, data, len) {}
 #endif
 
 // PKCS#7 padding for Bitchat protocol signing (must match Android/iOS)
@@ -135,7 +135,7 @@ void BitchatBridge::begin() {
     // Configure the #mesh channel for relaying
     configureMeshChannel();
 
-    BITCHAT_DEBUG_PRINTLN("Bridge initialized, peer ID: %08lX", (unsigned long)(_bitchatPeerId & 0xFFFFFFFF));
+    DOGECHAT_DEBUG_PRINTLN("Bridge initialized, peer ID: %08lX", (unsigned long)(_bitchatPeerId & 0xFFFFFFFF));
 }
 
 void BitchatBridge::configureMeshChannel() {
@@ -153,7 +153,7 @@ void BitchatBridge::configureMeshChannel() {
     // Register the mapping for Bitchat <-> MeshCore
     registerChannelMapping("mesh", _meshChannel);
 
-    BITCHAT_DEBUG_PRINTLN("#mesh channel configured for bridging");
+    DOGECHAT_DEBUG_PRINTLN("#mesh channel configured for bridging");
 }
 
 bool BitchatBridge::isMeshChannel(const mesh::GroupChannel& channel) const {
@@ -238,7 +238,7 @@ bool BitchatBridge::parseGCSFilter(const uint8_t* payload, size_t len, GCSFilter
         outFilter.m = outFilter.n << outFilter.p;
     }
 
-    BITCHAT_DEBUG_PRINTLN("GCS filter: P=%d, N=%u, M=%u, dataLen=%u",
+    DOGECHAT_DEBUG_PRINTLN("GCS filter: P=%d, N=%u, M=%u, dataLen=%u",
                           outFilter.p, outFilter.n, outFilter.m, (unsigned)outFilter.dataLen);
 
     // Filter is valid if we have all required fields
@@ -331,7 +331,7 @@ bool BitchatBridge::GCSFilter::mightContain(const uint8_t* packetId16) const {
 }
 
 void BitchatBridge::handleRequestSync(const BitchatMessage& msg) {
-    BITCHAT_DEBUG_PRINTLN("REQUEST_SYNC from %08lX", (unsigned long)(msg.getSenderId64() & 0xFFFFFFFF));
+    DOGECHAT_DEBUG_PRINTLN("REQUEST_SYNC from %08lX", (unsigned long)(msg.getSenderId64() & 0xFFFFFFFF));
 
     // Parse the GCS filter from the REQUEST_SYNC payload
     // The filter tells us which messages the requester already has
@@ -339,10 +339,10 @@ void BitchatBridge::handleRequestSync(const BitchatMessage& msg) {
     bool hasFilter = parseGCSFilter(msg.payload, msg.payloadLength, filter);
 
     if (hasFilter) {
-        BITCHAT_DEBUG_PRINTLN("REQUEST_SYNC has GCS filter (N=%u elements)", filter.n);
-        BITCHAT_PACKETDUMP("GCS_FILTER", msg.payload, msg.payloadLength);
+        DOGECHAT_DEBUG_PRINTLN("REQUEST_SYNC has GCS filter (N=%u elements)", filter.n);
+        DOGECHAT_PACKETDUMP("GCS_FILTER", msg.payload, msg.payloadLength);
     } else {
-        BITCHAT_DEBUG_PRINTLN("REQUEST_SYNC has no GCS filter - sending all");
+        DOGECHAT_DEBUG_PRINTLN("REQUEST_SYNC has no GCS filter - sending all");
     }
 
     // Expire old messages before responding
@@ -351,7 +351,7 @@ void BitchatBridge::handleRequestSync(const BitchatMessage& msg) {
         if (_messageHistory[i].valid &&
             (now - _messageHistory[i].addedTimeMs) > MESSAGE_EXPIRY_MS) {
             _messageHistory[i].valid = false;
-            BITCHAT_DEBUG_PRINTLN("Expired old message at index %u", (unsigned)i);
+            DOGECHAT_DEBUG_PRINTLN("Expired old message at index %u", (unsigned)i);
         }
     }
 
@@ -365,12 +365,12 @@ void BitchatBridge::handleRequestSync(const BitchatMessage& msg) {
         if (hasFilter) {
             uint8_t packetId[16];
             BitchatProtocol::computePacketId(_messageHistory[i].msg, packetId);
-            BITCHAT_PACKETDUMP("SYNC_CHECK_PACKET_ID", packetId, 16);
+            DOGECHAT_PACKETDUMP("SYNC_CHECK_PACKET_ID", packetId, 16);
 
             if (filter.mightContain(packetId)) {
                 // Requester likely already has this message - skip it
                 skipped++;
-                BITCHAT_DEBUG_PRINTLN("Skipping msg %u - already in filter", (unsigned)i);
+                DOGECHAT_DEBUG_PRINTLN("Skipping msg %u - already in filter", (unsigned)i);
                 continue;
             }
         }
@@ -384,7 +384,7 @@ void BitchatBridge::handleRequestSync(const BitchatMessage& msg) {
     // Always send our announcement
     sendPeerAnnouncement();
 
-    BITCHAT_DEBUG_PRINTLN("REQUEST_SYNC response: sent %d messages, skipped %d (filter=%s)",
+    DOGECHAT_DEBUG_PRINTLN("REQUEST_SYNC response: sent %d messages, skipped %d (filter=%s)",
                           sent, skipped, hasFilter ? "yes" : "no");
 }
 
@@ -449,7 +449,7 @@ void BitchatBridge::loop() {
         : ANNOUNCE_INTERVAL_MS;
 
     if (now - _lastAnnounceTime >= interval) {
-        BITCHAT_DEBUG_PRINTLN("Sending periodic announcement (interval=%lu, elapsed=%lu)",
+        DOGECHAT_DEBUG_PRINTLN("Sending periodic announcement (interval=%lu, elapsed=%lu)",
             interval, now - _lastAnnounceTime);
         sendPeerAnnouncement();
         _lastAnnounceTime = now;
@@ -460,7 +460,7 @@ void BitchatBridge::loop() {
 #if defined(ESP32)
 bool BitchatBridge::attachBLEService(BLEServer* server) {
     if (!_bleService.attachToServer(server, this)) {
-        BITCHAT_DEBUG_PRINTLN("Failed to attach BLE service");
+        DOGECHAT_DEBUG_PRINTLN("Failed to attach BLE service");
         return false;
     }
     _bleService.start();
@@ -499,7 +499,7 @@ bool BitchatBridge::beginStandalone(const char* deviceName) {
     sendPeerAnnouncement();
     _lastAnnounceTime = millis();
 
-    BITCHAT_DEBUG_PRINTLN("Standalone mode initialized: %s", deviceName);
+    DOGECHAT_DEBUG_PRINTLN("Standalone mode initialized: %s", deviceName);
     return true;
 }
 
@@ -514,7 +514,7 @@ bool BitchatBridge::hasBitchatClient() const {
 bool BitchatBridge::beginStandalone(const char* deviceName) {
     // Initialize Bluefruit BLE with Bitchat service
     if (!_bleService.beginStandalone(deviceName, this)) {
-        BITCHAT_DEBUG_PRINTLN("Failed to start BLE service");
+        DOGECHAT_DEBUG_PRINTLN("Failed to start BLE service");
         return false;
     }
 
@@ -525,7 +525,7 @@ bool BitchatBridge::beginStandalone(const char* deviceName) {
     sendPeerAnnouncement();
     _lastAnnounceTime = millis();
 
-    BITCHAT_DEBUG_PRINTLN("Standalone mode initialized: %s", deviceName);
+    DOGECHAT_DEBUG_PRINTLN("Standalone mode initialized: %s", deviceName);
     return true;
 }
 
@@ -577,12 +577,12 @@ bool BitchatBridge::registerChannelMapping(const char* bitchatChannelName, const
             _channelMappings[i].bitchatName[sizeof(_channelMappings[i].bitchatName) - 1] = '\0';
             _channelMappings[i].meshChannel = meshChannel;
             _channelMappings[i].configured = true;
-            BITCHAT_DEBUG_PRINTLN("Registered channel mapping: %s", name);
+            DOGECHAT_DEBUG_PRINTLN("Registered channel mapping: %s", name);
             return true;
         }
     }
 
-    BITCHAT_DEBUG_PRINTLN("Channel mapping registry full");
+    DOGECHAT_DEBUG_PRINTLN("Channel mapping registry full");
     return false;
 }
 
@@ -642,7 +642,7 @@ void BitchatBridge::syncTimeFromPacket(uint64_t packetTimestamp) {
         if (!_timeSynced || abs(newOffset - _timeOffset) > 60000) {  // > 1 minute drift
             _timeOffset = newOffset;
             _timeSynced = true;
-            BITCHAT_DEBUG_PRINTLN("Time synced from Bitchat: offset=%ld ms", (long)(_timeOffset / 1000));
+            DOGECHAT_DEBUG_PRINTLN("Time synced from Bitchat: offset=%ld ms", (long)(_timeOffset / 1000));
         }
 
         // Also sync the RTC if the difference is significant
@@ -655,7 +655,7 @@ void BitchatBridge::syncTimeFromPacket(uint64_t packetTimestamp) {
 
             if (abs(timeDiff) > RTC_SYNC_THRESHOLD_SECS) {
                 rtc->setCurrentTime(bitchatTimeSecs);
-                BITCHAT_DEBUG_PRINTLN("RTC synced from Bitchat: %u (was off by %d secs)",
+                DOGECHAT_DEBUG_PRINTLN("RTC synced from Bitchat: %u (was off by %d secs)",
                                       bitchatTimeSecs, timeDiff);
             }
         }
@@ -671,7 +671,7 @@ bool BitchatBridge::parseAnnounceTLV(const uint8_t* payload, size_t len, char* n
         uint8_t length = payload[offset++];
         if (offset + length > len) break;
 
-        if (type == BITCHAT_TLV_NICKNAME && length > 0) {
+        if (type == DOGECHAT_TLV_NICKNAME && length > 0) {
             size_t toCopy = (length < nickLen - 1) ? length : nickLen - 1;
             memcpy(nickname, &payload[offset], toCopy);
             nickname[toCopy] = '\0';
@@ -691,7 +691,7 @@ void BitchatBridge::cachePeer(uint64_t peerId, const char* nickname) {
             strncpy(_peerCache[i].nickname, nickname, sizeof(_peerCache[i].nickname) - 1);
             _peerCache[i].nickname[sizeof(_peerCache[i].nickname) - 1] = '\0';
             _peerCache[i].timestamp = now;
-            BITCHAT_DEBUG_PRINTLN("Updated peer cache: %s -> %08lX", nickname, (unsigned long)(peerId & 0xFFFFFFFF));
+            DOGECHAT_DEBUG_PRINTLN("Updated peer cache: %s -> %08lX", nickname, (unsigned long)(peerId & 0xFFFFFFFF));
             return;
         }
     }
@@ -716,7 +716,7 @@ void BitchatBridge::cachePeer(uint64_t peerId, const char* nickname) {
     _peerCache[targetIdx].nickname[sizeof(_peerCache[targetIdx].nickname) - 1] = '\0';
     _peerCache[targetIdx].timestamp = now;
     _peerCache[targetIdx].valid = true;
-    BITCHAT_DEBUG_PRINTLN("Cached new peer: %s -> %08lX", nickname, (unsigned long)(peerId & 0xFFFFFFFF));
+    DOGECHAT_DEBUG_PRINTLN("Cached new peer: %s -> %08lX", nickname, (unsigned long)(peerId & 0xFFFFFFFF));
 }
 
 const char* BitchatBridge::lookupPeerNickname(uint64_t peerId) {
@@ -794,10 +794,10 @@ void BitchatBridge::sendPeerAnnouncement() {
 #if defined(ESP32) || defined(NRF52_PLATFORM)
     uint64_t timestamp = getCurrentTimeMs();
 
-#if BITCHAT_DEBUG
+#if DOGECHAT_DEBUG
     // Print timestamp in seconds (fits in 32-bit for valid times through 2106)
     uint32_t timestampSec = (uint32_t)(timestamp / 1000ULL);
-    Serial.print("BITCHAT_BRIDGE: Announce: timestamp_sec=");
+    Serial.print("DOGECHAT_BRIDGE: Announce: timestamp_sec=");
     Serial.print(timestampSec);
     Serial.print(" (expected ~1767000000 for Jan 2026), synced=");
     Serial.println(_timeSynced ? 1 : 0);
@@ -819,9 +819,9 @@ void BitchatBridge::sendPeerAnnouncement() {
     signMessage(msg);
 
     if (_bleService.broadcastMessage(msg)) {
-        BITCHAT_DEBUG_PRINTLN("Sent peer announcement");
+        DOGECHAT_DEBUG_PRINTLN("Sent peer announcement");
     } else {
-        BITCHAT_DEBUG_PRINTLN("FAILED to send peer announcement");
+        DOGECHAT_DEBUG_PRINTLN("FAILED to send peer announcement");
     }
 #endif
 }
@@ -841,7 +841,7 @@ void BitchatBridge::signMessage(BitchatMessage& msg) {
         // Apply PKCS#7 padding to match Android/iOS block sizes
         size_t paddedLen = applyPKCS7Padding(signData, signLen, sizeof(signData));
 
-        BITCHAT_DEBUG_PRINTLN("Signing message: %u bytes (padded from %u)", (unsigned)paddedLen, (unsigned)signLen);
+        DOGECHAT_DEBUG_PRINTLN("Signing message: %u bytes (padded from %u)", (unsigned)paddedLen, (unsigned)signLen);
 
         _identity.sign(msg.signature, signData, paddedLen);
     }
@@ -862,7 +862,7 @@ void BitchatBridge::onBitchatMessageReceived(const BitchatMessage& msg) {
 }
 
 void BitchatBridge::onBitchatClientConnect() {
-    BITCHAT_DEBUG_PRINTLN("Client connected");
+    DOGECHAT_DEBUG_PRINTLN("Client connected");
 
     // Send announcement immediately when client connects
     // This is now called from loop() so it's safe to do heavy work
@@ -871,12 +871,12 @@ void BitchatBridge::onBitchatClientConnect() {
 }
 
 void BitchatBridge::onBitchatClientDisconnect() {
-    BITCHAT_DEBUG_PRINTLN("Bitchat client disconnected");
+    DOGECHAT_DEBUG_PRINTLN("Bitchat client disconnected");
 }
 #endif
 
 void BitchatBridge::processBitchatMessage(const BitchatMessage& msg) {
-    BITCHAT_PACKETDUMP("BLE_RX", msg.payload, msg.payloadLength);
+    DOGECHAT_PACKETDUMP("BLE_RX", msg.payload, msg.payloadLength);
 
     // Sync time from incoming Bitchat packets (Android sends valid Unix timestamps)
     // This is critical: our announces will be rejected as stale without valid time
@@ -885,7 +885,7 @@ void BitchatBridge::processBitchatMessage(const BitchatMessage& msg) {
     }
 
     // Check for duplicates - log the hash inputs for debugging
-#if BITCHAT_DEBUG_PACKETDUMP
+#if DOGECHAT_DEBUG_PACKETDUMP
     {
         uint64_t senderId = msg.getSenderId64();
         uint32_t timestampSecs = static_cast<uint32_t>(msg.timestamp / 1000ULL);
@@ -893,7 +893,7 @@ void BitchatBridge::processBitchatMessage(const BitchatMessage& msg) {
                       (unsigned long)(senderId & 0xFFFFFFFF), (unsigned long)timestampSecs, msg.type, msg.payloadLength);
         if (msg.payloadLength > 0) {
             size_t hashBytes = msg.payloadLength < 16 ? msg.payloadLength : 16;
-            BITCHAT_PACKETDUMP("DEDUP_PAYLOAD_PREFIX", msg.payload, hashBytes);
+            DOGECHAT_PACKETDUMP("DEDUP_PAYLOAD_PREFIX", msg.payload, hashBytes);
         }
     }
 #endif
@@ -901,13 +901,13 @@ void BitchatBridge::processBitchatMessage(const BitchatMessage& msg) {
     // Check for duplicates
     if (_duplicateCache.isDuplicate(msg)) {
         _duplicatesDropped++;
-        BITCHAT_DEBUG_PRINTLN("Duplicate message dropped");
+        DOGECHAT_DEBUG_PRINTLN("Duplicate message dropped");
         return;
     }
 
     // Handle based on message type
     switch (msg.type) {
-        case BITCHAT_MSG_MESSAGE: {
+        case DOGECHAT_MSG_MESSAGE: {
             char senderNick[64];
             char content[512];  // Increased to handle decompressed messages (up to ~500 bytes)
             char channelName[32];
@@ -942,9 +942,9 @@ void BitchatBridge::processBitchatMessage(const BitchatMessage& msg) {
 
                 // Plain text messages are assumed to be #mesh channel messages
                 // The outer HAS_RECIPIENT flag doesn't indicate DM for plain text
-                strcpy(channelName, BITCHAT_MESH_CHANNEL);
+                strcpy(channelName, DOGECHAT_MESH_CHANNEL);
 
-                BITCHAT_DEBUG_PRINTLN("Plain text message from %s: %s", senderNick, content);
+                DOGECHAT_DEBUG_PRINTLN("Plain text message from %s: %s", senderNick, content);
                 parsed = true;
             }
 
@@ -955,52 +955,52 @@ void BitchatBridge::processBitchatMessage(const BitchatMessage& msg) {
                 if (chanToCheck[0] == '#') chanToCheck++;
 
                 if (strcmp(chanToCheck, "mesh") != 0) {
-                    BITCHAT_DEBUG_PRINTLN("Ignoring message to channel '%s' (only #mesh)", channelName);
+                    DOGECHAT_DEBUG_PRINTLN("Ignoring message to channel '%s' (only #mesh)", channelName);
                     break;
                 }
 
                 // Ignore DMs - only check for TLV-parsed messages
                 // Plain text messages use outer HAS_RECIPIENT for signing, not for DM indication
                 if (parsedAsTlv && msg.hasRecipient()) {
-                    BITCHAT_DEBUG_PRINTLN("Ignoring DM (only #mesh channel is bridged)");
+                    DOGECHAT_DEBUG_PRINTLN("Ignoring DM (only #mesh channel is bridged)");
                     break;
                 }
 
                 // Add to message history for REQUEST_SYNC responses
                 addToMessageHistory(msg);
-                BITCHAT_DEBUG_PRINTLN("Added message to history cache");
+                DOGECHAT_DEBUG_PRINTLN("Added message to history cache");
 
                 // Relay to MeshCore #mesh channel
-                BITCHAT_DEBUG_PRINTLN("Relaying message from %s to #mesh", senderNick);
+                DOGECHAT_DEBUG_PRINTLN("Relaying message from %s to #mesh", senderNick);
                 relayChannelMessageToMesh(msg, channelName, senderNick, content);
             } else {
-                BITCHAT_DEBUG_PRINTLN("Failed to parse MESSAGE payload (len=%u)", msg.payloadLength);
+                DOGECHAT_DEBUG_PRINTLN("Failed to parse MESSAGE payload (len=%u)", msg.payloadLength);
             }
             break;
         }
 
-        case BITCHAT_MSG_ANNOUNCE: {
+        case DOGECHAT_MSG_ANNOUNCE: {
             // Parse announce to extract and cache peer's nickname
             char nickname[16];
             if (parseAnnounceTLV(msg.payload, msg.payloadLength, nickname, sizeof(nickname))) {
                 uint64_t peerId = msg.getSenderId64();
                 cachePeer(peerId, nickname);
-                BITCHAT_DEBUG_PRINTLN("Cached peer: %s (%08lX)", nickname, (unsigned long)(peerId & 0xFFFFFFFF));
+                DOGECHAT_DEBUG_PRINTLN("Cached peer: %s (%08lX)", nickname, (unsigned long)(peerId & 0xFFFFFFFF));
             }
             break;
         }
 
-        case BITCHAT_MSG_PING:
+        case DOGECHAT_MSG_PING:
             // Respond with PONG
-            BITCHAT_DEBUG_PRINTLN("Received ping, sending pong");
+            DOGECHAT_DEBUG_PRINTLN("Received ping, sending pong");
             {
                 // Static to avoid stack overflow on NRF52
                 static BitchatMessage pong;
-                pong.version = BITCHAT_VERSION;
-                pong.type = BITCHAT_MSG_PONG;
+                pong.version = DOGECHAT_VERSION;
+                pong.type = DOGECHAT_MSG_PONG;
                 pong.ttl = 1;
                 pong.timestamp = getCurrentTimeMs();
-                pong.flags = BITCHAT_FLAG_HAS_RECIPIENT;
+                pong.flags = DOGECHAT_FLAG_HAS_RECIPIENT;
                 pong.setSenderId64(_bitchatPeerId);
                 pong.setRecipientId64(msg.getSenderId64());
                 pong.payloadLength = 0;
@@ -1010,28 +1010,28 @@ void BitchatBridge::processBitchatMessage(const BitchatMessage& msg) {
             }
             break;
 
-        case BITCHAT_MSG_FILE_TRANSFER:
+        case DOGECHAT_MSG_FILE_TRANSFER:
             // File transfers (images, etc.) are not supported on mesh
-            BITCHAT_DEBUG_PRINTLN("Skipping file transfer (not supported)");
+            DOGECHAT_DEBUG_PRINTLN("Skipping file transfer (not supported)");
             break;
 
-        case BITCHAT_MSG_FRAGMENT_NEW:
-        case BITCHAT_MSG_FRAGMENT:
+        case DOGECHAT_MSG_FRAGMENT_NEW:
+        case DOGECHAT_MSG_FRAGMENT:
             // Fragment messages are used for long text messages (>245 bytes)
             // Reassemble and process when complete
             handleFragment(msg);
             break;
 
-        case BITCHAT_MSG_REQUEST_SYNC:
+        case DOGECHAT_MSG_REQUEST_SYNC:
             handleRequestSync(msg);
-            Serial.println("BITCHAT_BRIDGE: handleRequestSync() returned OK");
+            Serial.println("DOGECHAT_BRIDGE: handleRequestSync() returned OK");
             break;
 
         default:
-            BITCHAT_DEBUG_PRINTLN("Unhandled message type: 0x%02X", msg.type);
+            DOGECHAT_DEBUG_PRINTLN("Unhandled message type: 0x%02X", msg.type);
             break;
     }
-    Serial.println("BITCHAT_BRIDGE: processBitchatMessage() COMPLETE");
+    Serial.println("DOGECHAT_BRIDGE: processBitchatMessage() COMPLETE");
 }
 
 bool BitchatBridge::parseBitchatMessageTLV(const uint8_t* payload, size_t payloadLen,
@@ -1149,7 +1149,7 @@ bool BitchatBridge::parseBitchatMessageTLV(const uint8_t* payload, size_t payloa
         channelName[toCopy] = '\0';
     }
 
-    BITCHAT_DEBUG_PRINTLN("TLV parsed: sender='%s' content='%s' channel='%s'", senderNick, content, channelName);
+    DOGECHAT_DEBUG_PRINTLN("TLV parsed: sender='%s' content='%s' channel='%s'", senderNick, content, channelName);
 
     return senderNick[0] != '\0';  // At minimum we need a sender
 }
@@ -1160,7 +1160,7 @@ void BitchatBridge::sendSingleMessageToMesh(const char* senderNick, const char* 
 
     // Must have #mesh channel configured
     if (!_meshChannelConfigured) {
-        BITCHAT_DEBUG_PRINTLN("#mesh channel not configured, cannot send to mesh");
+        DOGECHAT_DEBUG_PRINTLN("#mesh channel not configured, cannot send to mesh");
         return;
     }
 
@@ -1220,16 +1220,16 @@ void BitchatBridge::sendSingleMessageToMesh(const char* senderNick, const char* 
     // Null terminate
     payload[offset] = '\0';
 
-    BITCHAT_PACKETDUMP("MESH_TX", payload, offset);
+    DOGECHAT_PACKETDUMP("MESH_TX", payload, offset);
 
     // Create and send packet immediately (no delay - use pending parts queue for multi-part)
     mesh::Packet* pkt = _mesh.createGroupDatagram(PAYLOAD_TYPE_GRP_TXT, targetChannel, payload, offset);
     if (pkt != nullptr) {
         _mesh.sendFlood(pkt);  // Send immediately (no delay)
         _messagesRelayed++;
-        BITCHAT_DEBUG_PRINTLN("Sent to mesh: %s: %s", prefixedSender, text);
+        DOGECHAT_DEBUG_PRINTLN("Sent to mesh: %s: %s", prefixedSender, text);
     } else {
-        BITCHAT_DEBUG_PRINTLN("Failed to create mesh packet (pool may be full)");
+        DOGECHAT_DEBUG_PRINTLN("Failed to create mesh packet (pool may be full)");
     }
 }
 
@@ -1238,7 +1238,7 @@ bool BitchatBridge::queueMessagePart(const char* senderNick, const char* text) {
     size_t nextTail = (_pendingPartsTail + 1) % MAX_PENDING_PARTS;
     if (nextTail == _pendingPartsHead && _pendingParts[_pendingPartsTail].valid) {
         // Queue is full
-        BITCHAT_DEBUG_PRINTLN("Pending parts queue full, dropping part");
+        DOGECHAT_DEBUG_PRINTLN("Pending parts queue full, dropping part");
         return false;
     }
 
@@ -1253,7 +1253,7 @@ bool BitchatBridge::queueMessagePart(const char* senderNick, const char* text) {
     _pendingParts[_pendingPartsTail].valid = true;
     _pendingPartsTail = nextTail;
 
-    BITCHAT_DEBUG_PRINTLN("Queued message part for delayed sending");
+    DOGECHAT_DEBUG_PRINTLN("Queued message part for delayed sending");
     return true;
 }
 
@@ -1271,7 +1271,7 @@ void BitchatBridge::processPendingParts() {
 
     // Send the next part
     if (_pendingParts[_pendingPartsHead].valid) {
-        BITCHAT_DEBUG_PRINTLN("Sending queued part: %s", _pendingParts[_pendingPartsHead].text);
+        DOGECHAT_DEBUG_PRINTLN("Sending queued part: %s", _pendingParts[_pendingPartsHead].text);
         sendSingleMessageToMesh(_pendingParts[_pendingPartsHead].senderNick,
                                  _pendingParts[_pendingPartsHead].text);
         _pendingParts[_pendingPartsHead].valid = false;
@@ -1285,7 +1285,7 @@ void BitchatBridge::relayChannelMessageToMesh(const BitchatMessage& msg, const c
     // Find the MeshCore channel for this Bitchat channel
     mesh::GroupChannel targetChannel;
     if (!findMeshChannel(channelName, targetChannel)) {
-        BITCHAT_DEBUG_PRINTLN("No channel mapping for '%s' - check registerChannelMapping()", channelName);
+        DOGECHAT_DEBUG_PRINTLN("No channel mapping for '%s' - check registerChannelMapping()", channelName);
         return;
     }
 
@@ -1310,7 +1310,7 @@ void BitchatBridge::relayChannelMessageToMesh(const BitchatMessage& msg, const c
         numParts = 9;  // Cap at 9 parts to keep indicator short
     }
 
-    BITCHAT_DEBUG_PRINTLN("Splitting message from %s into %d parts (len=%d)", senderNick, numParts, (int)contentLen);
+    DOGECHAT_DEBUG_PRINTLN("Splitting message from %s into %d parts (len=%d)", senderNick, numParts, (int)contentLen);
 
     // Send part 1 immediately, queue remaining parts for delayed sending
     // This avoids overwhelming the mesh packet pool which can silently drop delayed packets
@@ -1332,7 +1332,7 @@ void BitchatBridge::relayChannelMessageToMesh(const BitchatMessage& msg, const c
         }
 
         if (chunkLen == 0) {
-            BITCHAT_DEBUG_PRINTLN("Error: Could not find safe UTF-8 split point");
+            DOGECHAT_DEBUG_PRINTLN("Error: Could not find safe UTF-8 split point");
             break;
         }
 
@@ -1341,9 +1341,9 @@ void BitchatBridge::relayChannelMessageToMesh(const BitchatMessage& msg, const c
         snprintf(chunk, sizeof(chunk), "[%d/%d] %.*s",
                  part + 1, numParts, (int)chunkLen, text + offset);
 
-        BITCHAT_DEBUG_PRINTLN("Part %d/%d: offset=%d, len=%d",
+        DOGECHAT_DEBUG_PRINTLN("Part %d/%d: offset=%d, len=%d",
                               part + 1, numParts, (int)offset, (int)chunkLen);
-        BITCHAT_PACKETDUMP("SPLIT_PART", (const uint8_t*)chunk, strlen(chunk));
+        DOGECHAT_PACKETDUMP("SPLIT_PART", (const uint8_t*)chunk, strlen(chunk));
 
         if (part == 0) {
             // Send first part immediately
@@ -1362,7 +1362,7 @@ void BitchatBridge::relayDirectMessageToMesh(const BitchatMessage& msg, const ch
     // For DMs, we need to find the recipient in Meshcore contacts
     // This requires integration with the contact database
     // For now, log and skip
-    BITCHAT_DEBUG_PRINTLN("DM relay not yet implemented - need contact lookup");
+    DOGECHAT_DEBUG_PRINTLN("DM relay not yet implemented - need contact lookup");
 
     // TODO: Implement DM relay
     // 1. Map Bitchat recipient ID to Meshcore Identity
@@ -1416,9 +1416,9 @@ void BitchatBridge::handleFragment(const BitchatMessage& msg) {
 
     // New fragment sequence - find empty buffer
     if (buf == nullptr) {
-        if (msg.type != BITCHAT_MSG_FRAGMENT_NEW && fragmentIndex != 0) {
+        if (msg.type != DOGECHAT_MSG_FRAGMENT_NEW && fragmentIndex != 0) {
             // Missed the first fragment - can't reassemble
-            BITCHAT_DEBUG_PRINTLN("Fragment sequence interrupted - missed first fragment (idx=%u)", fragmentIndex);
+            DOGECHAT_DEBUG_PRINTLN("Fragment sequence interrupted - missed first fragment (idx=%u)", fragmentIndex);
             return;
         }
 
@@ -1439,7 +1439,7 @@ void BitchatBridge::handleFragment(const BitchatMessage& msg) {
     }
 
     if (buf == nullptr) {
-        BITCHAT_DEBUG_PRINTLN("Fragment buffer full - cannot reassemble (sender=%08lX)", (unsigned long)(senderId & 0xFFFFFFFF));
+        DOGECHAT_DEBUG_PRINTLN("Fragment buffer full - cannot reassemble (sender=%08lX)", (unsigned long)(senderId & 0xFFFFFFFF));
         return;
     }
 
@@ -1464,18 +1464,18 @@ void BitchatBridge::handleFragment(const BitchatMessage& msg) {
         buf->dataLen = endPos;
     }
 
-    BITCHAT_DEBUG_PRINTLN("Fragment %d/%d stored", fragmentIndex + 1, totalFragments);
+    DOGECHAT_DEBUG_PRINTLN("Fragment %d/%d stored", fragmentIndex + 1, totalFragments);
 
     // Check if complete
     uint8_t expectedMask = (1 << totalFragments) - 1;
     if (buf->receivedMask == expectedMask) {
         // Reassembly complete!
-        BITCHAT_DEBUG_PRINTLN("Fragment reassembly complete (%u bytes)", (unsigned)buf->dataLen);
+        DOGECHAT_DEBUG_PRINTLN("Fragment reassembly complete (%u bytes)", (unsigned)buf->dataLen);
 
         // Create synthetic MESSAGE from reassembled data - static to avoid stack overflow
         static BitchatMessage reassembled;
         reassembled.version = msg.version;
-        reassembled.type = BITCHAT_MSG_MESSAGE;
+        reassembled.type = DOGECHAT_MSG_MESSAGE;
         reassembled.ttl = msg.ttl;
         reassembled.timestamp = msg.timestamp;
         reassembled.flags = msg.flags;
@@ -1485,8 +1485,8 @@ void BitchatBridge::handleFragment(const BitchatMessage& msg) {
         // Copy reassembled data to payload
         // Note: For very long messages, we may need to split into multiple mesh messages
         size_t copyLen = buf->dataLen;
-        if (copyLen > BITCHAT_MAX_PAYLOAD_SIZE) {
-            copyLen = BITCHAT_MAX_PAYLOAD_SIZE;
+        if (copyLen > DOGECHAT_MAX_PAYLOAD_SIZE) {
+            copyLen = DOGECHAT_MAX_PAYLOAD_SIZE;
         }
         memcpy(reassembled.payload, buf->data, copyLen);
         reassembled.payloadLength = static_cast<uint16_t>(copyLen);
@@ -1506,19 +1506,19 @@ void BitchatBridge::handleFragment(const BitchatMessage& msg) {
 void BitchatBridge::onMeshcoreGroupMessage(const mesh::GroupChannel& channel, uint32_t timestamp,
                                             const char* senderName, const char* text) {
 #if defined(ESP32) || defined(NRF52_PLATFORM)
-    Serial.println("BITCHAT_BRIDGE: >>> onMeshcoreGroupMessage() ENTRY <<<");
-    BITCHAT_DEBUG_PRINTLN("MESH_RX: sender=%s text=%s", senderName, text ? text : "(null)");
-    BITCHAT_DEBUG_PRINTLN("MESH_RX: hasClient=%d, BLEactive=%d",
+    Serial.println("DOGECHAT_BRIDGE: >>> onMeshcoreGroupMessage() ENTRY <<<");
+    DOGECHAT_DEBUG_PRINTLN("MESH_RX: sender=%s text=%s", senderName, text ? text : "(null)");
+    DOGECHAT_DEBUG_PRINTLN("MESH_RX: hasClient=%d, BLEactive=%d",
                           _bleService.hasConnectedClient() ? 1 : 0,
                           _bleService.isActive() ? 1 : 0);
     if (text != nullptr) {
-        BITCHAT_PACKETDUMP("MESH_RX", (const uint8_t*)text, strlen(text));
+        DOGECHAT_PACKETDUMP("MESH_RX", (const uint8_t*)text, strlen(text));
     }
 
     // IMPORTANT: Only relay #mesh channel messages to Bitchat
     if (!isMeshChannel(channel)) {
         // Not the #mesh channel - don't relay
-        BITCHAT_DEBUG_PRINTLN("Filtering non-#mesh MeshCore group message");
+        DOGECHAT_DEBUG_PRINTLN("Filtering non-#mesh MeshCore group message");
         return;
     }
 
@@ -1527,7 +1527,7 @@ void BitchatBridge::onMeshcoreGroupMessage(const mesh::GroupChannel& channel, ui
     if (text != nullptr && strlen(text) >= 4) {
         if ((uint8_t)text[0] == 0xF0 && (uint8_t)text[1] == 0x9F &&
             (uint8_t)text[2] == 0x93 && (uint8_t)text[3] == 0xB1) {
-            BITCHAT_DEBUG_PRINTLN("Skipping relay - message originated from Bitchat");
+            DOGECHAT_DEBUG_PRINTLN("Skipping relay - message originated from Bitchat");
             return;
         }
     }
@@ -1540,8 +1540,8 @@ void BitchatBridge::onMeshcoreGroupMessage(const mesh::GroupChannel& channel, ui
 
     // Create Bitchat message - static to avoid stack overflow
     static BitchatMessage msg;
-    msg.version = BITCHAT_VERSION;
-    msg.type = BITCHAT_MSG_MESSAGE;
+    msg.version = DOGECHAT_VERSION;
+    msg.type = DOGECHAT_MSG_MESSAGE;
     msg.ttl = DEFAULT_TTL;
     msg.timestamp = getCurrentTimeMs();
     msg.flags = 0;  // No special flags - simple channel message
@@ -1549,8 +1549,8 @@ void BitchatBridge::onMeshcoreGroupMessage(const mesh::GroupChannel& channel, ui
 
     // Simple payload format - just copy the text content directly
     size_t contentLen = strlen(fullContent);
-    if (contentLen > BITCHAT_MAX_PAYLOAD_SIZE) {
-        contentLen = BITCHAT_MAX_PAYLOAD_SIZE;
+    if (contentLen > DOGECHAT_MAX_PAYLOAD_SIZE) {
+        contentLen = DOGECHAT_MAX_PAYLOAD_SIZE;
     }
     memcpy(msg.payload, fullContent, contentLen);
     msg.payloadLength = static_cast<uint16_t>(contentLen);
@@ -1561,10 +1561,10 @@ void BitchatBridge::onMeshcoreGroupMessage(const mesh::GroupChannel& channel, ui
     // Add to message history for REQUEST_SYNC responses
     addToMessageHistory(msg);
 
-    BITCHAT_PACKETDUMP("BLE_TX_FROM_MESH", msg.payload, msg.payloadLength);
+    DOGECHAT_PACKETDUMP("BLE_TX_FROM_MESH", msg.payload, msg.payloadLength);
     bool sent = _bleService.broadcastMessage(msg);
-    BITCHAT_DEBUG_PRINTLN("TX to Bitchat: %s (result=%d)", senderName, sent ? 1 : 0);
-    Serial.println("BITCHAT_BRIDGE: <<< onMeshcoreGroupMessage() EXIT <<<");
+    DOGECHAT_DEBUG_PRINTLN("TX to Bitchat: %s (result=%d)", senderName, sent ? 1 : 0);
+    Serial.println("DOGECHAT_BRIDGE: <<< onMeshcoreGroupMessage() EXIT <<<");
 #endif
 }
 
@@ -1582,21 +1582,21 @@ void BitchatBridge::onMeshcoreDirectMessage(const uint8_t* senderPubKey, uint32_
 
     // Create Bitchat DM - static to avoid stack overflow on NRF52
     static BitchatMessage msg;
-    msg.version = BITCHAT_VERSION;
-    msg.type = BITCHAT_MSG_MESSAGE;
+    msg.version = DOGECHAT_VERSION;
+    msg.type = DOGECHAT_MSG_MESSAGE;
     msg.ttl = DEFAULT_TTL;
     msg.timestamp = static_cast<uint64_t>(timestamp) * 1000ULL;
-    msg.flags = BITCHAT_FLAG_HAS_RECIPIENT;
+    msg.flags = DOGECHAT_FLAG_HAS_RECIPIENT;
     msg.setSenderId64(senderId);
     msg.setRecipientId64(_bitchatPeerId);  // Recipient is us (relaying to BLE client)
 
     size_t textLen = strlen(text);
-    if (textLen > BITCHAT_MAX_PAYLOAD_SIZE) textLen = BITCHAT_MAX_PAYLOAD_SIZE;
+    if (textLen > DOGECHAT_MAX_PAYLOAD_SIZE) textLen = DOGECHAT_MAX_PAYLOAD_SIZE;
     memcpy(msg.payload, text, textLen);
     msg.payloadLength = static_cast<uint16_t>(textLen);
 
     _bleService.broadcastMessage(msg);
-    BITCHAT_DEBUG_PRINTLN("Sent DM to Bitchat from %08lX", (unsigned long)(senderId & 0xFFFFFFFF));
+    DOGECHAT_DEBUG_PRINTLN("Sent DM to Bitchat from %08lX", (unsigned long)(senderId & 0xFFFFFFFF));
 #endif
 }
 
@@ -1638,7 +1638,7 @@ void BitchatBridge::onMeshcoreAdvert(const mesh::Identity& id, uint32_t timestam
     );
 
     _bleService.broadcastMessage(msg);
-    BITCHAT_DEBUG_PRINTLN("Sent Meshcore advert to Bitchat: %08lX", (unsigned long)(peerId & 0xFFFFFFFF));
+    DOGECHAT_DEBUG_PRINTLN("Sent Meshcore advert to Bitchat: %08lX", (unsigned long)(peerId & 0xFFFFFFFF));
 #endif
 }
 

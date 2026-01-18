@@ -3,8 +3,8 @@
 #include <Arduino.h> // needed for PlatformIO
 #include <Mesh.h>
 
-#if defined(ENABLE_BITCHAT) && (defined(ESP32) || defined(NRF52_PLATFORM))
-#include <helpers/bitchat/BitchatBridge.h>
+#if defined(ENABLE_DOGECHAT) && (defined(ESP32) || defined(NRF52_PLATFORM))
+#include <helpers/dogechat/BitchatBridge.h>
 #endif
 
 #define CMD_APP_START                 1
@@ -443,7 +443,7 @@ void MyMesh::onSignedMessageRecv(const ContactInfo &from, mesh::Packet *pkt, uin
 
 void MyMesh::onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packet *pkt, uint32_t timestamp,
                                   const char *text) {
-#if defined(ENABLE_BITCHAT) && (defined(ESP32) || defined(NRF52_PLATFORM))
+#if defined(ENABLE_DOGECHAT) && (defined(ESP32) || defined(NRF52_PLATFORM))
   Serial.println("MYMESH: onChannelMessageRecv called");
   Serial.print("MYMESH: _bitchatBridge=");
   Serial.println(_bitchatBridge != nullptr ? "valid" : "NULL");
@@ -467,7 +467,7 @@ void MyMesh::onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packe
       // No colon found, use whole text
       _bitchatBridge->onMeshcoreGroupMessage(channel, timestamp, "Unknown", text);
     }
-    Serial.println("MYMESH: bitchat bridge call returned");
+    Serial.println("MYMESH: dogechat bridge call returned");
   }
 #endif
 
@@ -763,7 +763,7 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
   memset(advert_paths, 0, sizeof(advert_paths));
   memset(send_scope.key, 0, sizeof(send_scope.key));
 
-#if defined(ENABLE_BITCHAT) && (defined(ESP32) || defined(NRF52_PLATFORM))
+#if defined(ENABLE_DOGECHAT) && (defined(ESP32) || defined(NRF52_PLATFORM))
   _bitchatBridge = NULL;
 #endif
 
@@ -1870,8 +1870,8 @@ void MyMesh::checkSerialInterface() {
 }
 
 void MyMesh::loop() {
-  // Call bitchat loop FIRST - BaseChatMesh::loop() may block on serial/radio
-#if defined(ENABLE_BITCHAT) && (defined(ESP32) || defined(NRF52_PLATFORM))
+  // Call dogechat loop FIRST - BaseChatMesh::loop() may block on serial/radio
+#if defined(ENABLE_DOGECHAT) && (defined(ESP32) || defined(NRF52_PLATFORM))
   if (_bitchatBridge != nullptr) {
     _bitchatBridge->loop();
   }
@@ -1911,7 +1911,7 @@ bool MyMesh::advert() {
   }
 }
 
-#if defined(ENABLE_BITCHAT) && (defined(ESP32) || defined(NRF52_PLATFORM))
+#if defined(ENABLE_DOGECHAT) && (defined(ESP32) || defined(NRF52_PLATFORM))
 void MyMesh::initBitchat(BitchatBridge* bridge) {
   _bitchatBridge = bridge;
 }

@@ -2,7 +2,7 @@
 
 #ifdef NRF52_PLATFORM
 
-#include "../bitchat/BitchatProtocol.h"
+#include "../dogechat/BitchatProtocol.h"
 #include <bluefruit.h>
 
 /**

@@ -91,8 +91,8 @@ static uint32_t _atoi(const char* sp) {
   UITask ui_task(&board, &serial_interface);
 #endif
 
-#if defined(ENABLE_BITCHAT) && (defined(ESP32) || defined(NRF52_PLATFORM))
-  #include <helpers/bitchat/BitchatBridge.h>
+#if defined(ENABLE_DOGECHAT) && (defined(ESP32) || defined(NRF52_PLATFORM))
+  #include <helpers/dogechat/BitchatBridge.h>
 #endif
 
 StdRNG fast_rng;
@@ -103,7 +103,7 @@ MyMesh the_mesh(radio_driver, fast_rng, rtc_clock, tables, store
    #endif
 );
 
-#if defined(ENABLE_BITCHAT) && (defined(ESP32) || defined(NRF52_PLATFORM))
+#if defined(ENABLE_DOGECHAT) && (defined(ESP32) || defined(NRF52_PLATFORM))
   BitchatBridge* bitchat_bridge = nullptr;
 #endif
 
@@ -167,7 +167,7 @@ void setup() {
   serial_interface.begin(Serial);
 
   // Standalone Bitchat BLE if enabled (USB serial for MeshCore, BLE for Bitchat)
-  #ifdef ENABLE_BITCHAT
+  #ifdef ENABLE_DOGECHAT
   bitchat_bridge = new BitchatBridge(the_mesh, the_mesh.self_id, the_mesh.getNodeName());
   bitchat_bridge->begin();
   if (bitchat_bridge->beginStandalone(the_mesh.getNodeName())) {
@@ -225,7 +225,7 @@ void setup() {
   serial_interface.begin(dev_name, the_mesh.getBLEPin());
 
   // Initialize Bitchat bridge after BLE server is created
-  #ifdef ENABLE_BITCHAT
+  #ifdef ENABLE_DOGECHAT
   bitchat_bridge = new BitchatBridge(the_mesh, the_mesh.self_id, the_mesh.getNodeName());
   bitchat_bridge->begin();
   if (serial_interface.getBLEServer() != nullptr) {
@@ -245,7 +245,7 @@ void setup() {
   serial_interface.begin(Serial);
 
   // Standalone Bitchat BLE if enabled (no SerialBLEInterface)
-  #ifdef ENABLE_BITCHAT
+  #ifdef ENABLE_DOGECHAT
   bitchat_bridge = new BitchatBridge(the_mesh, the_mesh.self_id, the_mesh.getNodeName());
   bitchat_bridge->begin();
 
@@ -277,7 +277,7 @@ void loop() {
 #endif
   rtc_clock.tick();
 
-#if defined(ENABLE_BITCHAT) && (defined(ESP32) || defined(NRF52_PLATFORM))
+#if defined(ENABLE_DOGECHAT) && (defined(ESP32) || defined(NRF52_PLATFORM))
   if (bitchat_bridge != nullptr) {
     bitchat_bridge->loop();
   }
