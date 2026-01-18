@@ -63,7 +63,7 @@ public:
     /**
      * Check if a Bitchat client is connected
      */
-    bool hasConnectedClient() const { return _bitchatClientCount > 0; }
+    bool hasConnectedClient() const { return _dogechatClientCount > 0; }
 
     /**
      * Broadcast a message to connected Bitchat clients
@@ -91,7 +91,7 @@ private:
     char _deviceName[48];
 
     bool _serviceActive;
-    uint8_t _bitchatClientCount;
+    uint8_t _dogechatClientCount;
     bool _clientSubscribed;
 
     // Flags for deferred processing

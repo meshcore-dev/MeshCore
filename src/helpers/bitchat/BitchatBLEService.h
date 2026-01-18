@@ -85,7 +85,7 @@ public:
      * Check if a Bitchat client is connected
      * Note: This tracks clients that have interacted with the Bitchat characteristic
      */
-    bool hasConnectedClient() const { return _bitchatClientCount > 0; }
+    bool hasConnectedClient() const { return _dogechatClientCount > 0; }
 
     /**
      * Broadcast a message to connected Bitchat clients
@@ -119,7 +119,7 @@ private:
     char _deviceName[48];
 
     bool _serviceActive;
-    uint8_t _bitchatClientCount;      // Number of Bitchat clients that have written
+    uint8_t _dogechatClientCount;      // Number of Bitchat clients that have written
     uint8_t _lastKnownServerCount;    // Track server's total connection count
     bool _clientSubscribed;  // True when client has subscribed to notifications
 

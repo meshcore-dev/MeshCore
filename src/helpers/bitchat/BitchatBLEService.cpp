@@ -31,7 +31,7 @@ BitchatBLEService::BitchatBLEService()
     , _characteristic(nullptr)
     , _callback(nullptr)
     , _serviceActive(false)
-    , _bitchatClientCount(0)
+    , _dogechatClientCount(0)
     , _lastKnownServerCount(0)
     , _clientSubscribed(false)
     , _pendingConnect(false)
@@ -198,11 +198,11 @@ void BitchatBLEService::checkForDisconnects() {
     uint32_t currentServerCount = _server->getConnectedCount();
     if (currentServerCount < _lastKnownServerCount) {
         uint8_t disconnected = _lastKnownServerCount - currentServerCount;
-        _bitchatClientCount = (disconnected >= _bitchatClientCount)
-            ? 0 : _bitchatClientCount - disconnected;
+        _dogechatClientCount = (disconnected >= _dogechatClientCount)
+            ? 0 : _dogechatClientCount - disconnected;
         _lastKnownServerCount = currentServerCount;
 
-        if (_bitchatClientCount == 0) {
+        if (_dogechatClientCount == 0) {
             _clientSubscribed = false;
             clearWriteBuffer();
             if (_callback != nullptr) {
@@ -317,7 +317,7 @@ void BitchatBLEService::onWrite(BLECharacteristic* pCharacteristic) {
         uint32_t currentServerCount = _server->getConnectedCount();
         if (currentServerCount > _lastKnownServerCount) {
             uint8_t newClients = currentServerCount - _lastKnownServerCount;
-            _bitchatClientCount += newClients;
+            _dogechatClientCount += newClients;
             _lastKnownServerCount = currentServerCount;
             if (newClients > 0) {
                 _pendingConnect = true;  // Defer callback to loop()

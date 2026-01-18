@@ -103,8 +103,8 @@ void SerialBLEInterface::onDisconnect(BLEServer* pServer) {
   }
 
 #ifdef ENABLE_DOGECHAT
-  if (_bitchatService != nullptr) {
-    _bitchatService->onServerDisconnect();
+  if (_dogechatService != nullptr) {
+    _dogechatService->onServerDisconnect();
   }
 #endif
 }

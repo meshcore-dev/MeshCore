@@ -101,7 +101,7 @@ public:
 
 #if defined(ENABLE_DOGECHAT) && (defined(ESP32) || defined(NRF52_PLATFORM))
   void initBitchat(BitchatBridge* bridge);
-  BitchatBridge* getBitchatBridge() { return _bitchatBridge; }
+  BitchatBridge* getBitchatBridge() { return _dogechatBridge; }
 #endif
 
   void loop();
@@ -235,7 +235,7 @@ private:
   AdvertPath advert_paths[ADVERT_PATH_TABLE_SIZE]; // circular table
 
 #if defined(ENABLE_DOGECHAT) && (defined(ESP32) || defined(NRF52_PLATFORM))
-  BitchatBridge* _bitchatBridge;
+  BitchatBridge* _dogechatBridge;
 #endif
 };
 

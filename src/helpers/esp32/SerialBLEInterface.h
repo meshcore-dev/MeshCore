@@ -82,9 +82,9 @@ public:
   BLEServer* getBLEServer() { return pServer; }
 
 #ifdef ENABLE_DOGECHAT
-  void setBitchatService(BitchatBLEService* service) { _bitchatService = service; }
+  void setBitchatService(BitchatBLEService* service) { _dogechatService = service; }
 private:
-  BitchatBLEService* _bitchatService = nullptr;
+  BitchatBLEService* _dogechatService = nullptr;
 #endif
 };
 

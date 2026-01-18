@@ -67,7 +67,7 @@ BitchatBridge::BitchatBridge(mesh::Mesh& mesh, mesh::LocalIdentity& identity, co
     : _mesh(mesh)
     , _identity(identity)
     , _nodeName(nodeName)
-    , _bitchatPeerId(0)
+    , _dogechatPeerId(0)
     , _channelConfigured(false)
     , _lastAnnounceTime(0)
     , _pendingAnnounce(false)
@@ -88,7 +88,7 @@ BitchatBridge::BitchatBridge(mesh::Mesh& mesh, mesh::LocalIdentity& identity, co
     // Initialize channel mappings
     for (size_t i = 0; i < MAX_CHANNEL_MAPPINGS; i++) {
         _channelMappings[i].configured = false;
-        memset(_channelMappings[i].bitchatName, 0, sizeof(_channelMappings[i].bitchatName));
+        memset(_channelMappings[i].dogechatName, 0, sizeof(_channelMappings[i].dogechatName));
     }
 
     // Initialize peer cache
@@ -127,7 +127,7 @@ BitchatBridge::BitchatBridge(mesh::Mesh& mesh, mesh::LocalIdentity& identity, co
 
 void BitchatBridge::begin() {
     // Derive Bitchat peer ID from Meshcore identity
-    _bitchatPeerId = derivePeerId(_identity);
+    _dogechatPeerId = derivePeerId(_identity);
 
     // Derive Noise public key (Curve25519) from Ed25519 identity
     deriveNoisePublicKey(_identity.pub_key, _noisePublicKey);
@@ -135,7 +135,7 @@ void BitchatBridge::begin() {
     // Configure the #mesh channel for relaying
     configureMeshChannel();
 
-    DOGECHAT_DEBUG_PRINTLN("Bridge initialized, peer ID: %08lX", (unsigned long)(_bitchatPeerId & 0xFFFFFFFF));
+    DOGECHAT_DEBUG_PRINTLN("Bridge initialized, peer ID: %08lX", (unsigned long)(_dogechatPeerId & 0xFFFFFFFF));
 }
 
 void BitchatBridge::configureMeshChannel() {
@@ -556,15 +556,15 @@ void BitchatBridge::setMeshcoreChannel(const mesh::GroupChannel& channel) {
     _channelConfigured = true;
 }
 
-bool BitchatBridge::registerChannelMapping(const char* bitchatChannelName, const mesh::GroupChannel& meshChannel) {
+bool BitchatBridge::registerChannelMapping(const char* dogechatChannelName, const mesh::GroupChannel& meshChannel) {
     // Skip # prefix if present
-    const char* name = bitchatChannelName;
+    const char* name = dogechatChannelName;
     if (name[0] == '#') name++;
 
     // Check if mapping already exists (update it)
     for (size_t i = 0; i < MAX_CHANNEL_MAPPINGS; i++) {
         if (_channelMappings[i].configured &&
-            strcmp(_channelMappings[i].bitchatName, name) == 0) {
+            strcmp(_channelMappings[i].dogechatName, name) == 0) {
             _channelMappings[i].meshChannel = meshChannel;
             return true;
         }
@@ -573,8 +573,8 @@ bool BitchatBridge::registerChannelMapping(const char* bitchatChannelName, const
     // Find empty slot
     for (size_t i = 0; i < MAX_CHANNEL_MAPPINGS; i++) {
         if (!_channelMappings[i].configured) {
-            strncpy(_channelMappings[i].bitchatName, name, sizeof(_channelMappings[i].bitchatName) - 1);
-            _channelMappings[i].bitchatName[sizeof(_channelMappings[i].bitchatName) - 1] = '\0';
+            strncpy(_channelMappings[i].dogechatName, name, sizeof(_channelMappings[i].dogechatName) - 1);
+            _channelMappings[i].dogechatName[sizeof(_channelMappings[i].dogechatName) - 1] = '\0';
             _channelMappings[i].meshChannel = meshChannel;
             _channelMappings[i].configured = true;
             DOGECHAT_DEBUG_PRINTLN("Registered channel mapping: %s", name);
@@ -594,7 +594,7 @@ bool BitchatBridge::findMeshChannel(const char* channelName, mesh::GroupChannel&
     // Search in registry
     for (size_t i = 0; i < MAX_CHANNEL_MAPPINGS; i++) {
         if (_channelMappings[i].configured &&
-            strcmp(_channelMappings[i].bitchatName, name) == 0) {
+            strcmp(_channelMappings[i].dogechatName, name) == 0) {
             outChannel = _channelMappings[i].meshChannel;
             return true;
         }
@@ -614,7 +614,7 @@ const char* BitchatBridge::getChannelName(const mesh::GroupChannel& channel) {
     for (size_t i = 0; i < MAX_CHANNEL_MAPPINGS; i++) {
         if (_channelMappings[i].configured &&
             memcmp(&_channelMappings[i].meshChannel, &channel, sizeof(mesh::GroupChannel)) == 0) {
-            return _channelMappings[i].bitchatName;
+            return _channelMappings[i].dogechatName;
         }
     }
 
@@ -649,14 +649,14 @@ void BitchatBridge::syncTimeFromPacket(uint64_t packetTimestamp) {
         // This allows other MeshCore components to benefit from Bitchat time sync
         mesh::RTCClock* rtc = _mesh.getRTCClock();
         if (rtc != nullptr) {
-            uint32_t bitchatTimeSecs = static_cast<uint32_t>(packetTimestamp / 1000ULL);
+            uint32_t dogechatTimeSecs = static_cast<uint32_t>(packetTimestamp / 1000ULL);
             uint32_t rtcTime = rtc->getCurrentTime();
-            int32_t timeDiff = static_cast<int32_t>(bitchatTimeSecs) - static_cast<int32_t>(rtcTime);
+            int32_t timeDiff = static_cast<int32_t>(dogechatTimeSecs) - static_cast<int32_t>(rtcTime);
 
             if (abs(timeDiff) > RTC_SYNC_THRESHOLD_SECS) {
-                rtc->setCurrentTime(bitchatTimeSecs);
+                rtc->setCurrentTime(dogechatTimeSecs);
                 DOGECHAT_DEBUG_PRINTLN("RTC synced from Bitchat: %u (was off by %d secs)",
-                                      bitchatTimeSecs, timeDiff);
+                                      dogechatTimeSecs, timeDiff);
             }
         }
     }
@@ -807,7 +807,7 @@ void BitchatBridge::sendPeerAnnouncement() {
     static BitchatMessage msg;
     BitchatProtocol::createAnnounce(
         msg,
-        _bitchatPeerId,
+        _dogechatPeerId,
         _nodeName,
         _noisePublicKey,      // Curve25519 for Noise protocol
         _identity.pub_key,    // Ed25519 for signatures
@@ -1001,7 +1001,7 @@ void BitchatBridge::processBitchatMessage(const BitchatMessage& msg) {
                 pong.ttl = 1;
                 pong.timestamp = getCurrentTimeMs();
                 pong.flags = DOGECHAT_FLAG_HAS_RECIPIENT;
-                pong.setSenderId64(_bitchatPeerId);
+                pong.setSenderId64(_dogechatPeerId);
                 pong.setRecipientId64(msg.getSenderId64());
                 pong.payloadLength = 0;
 #if defined(ESP32) || defined(NRF52_PLATFORM)
@@ -1545,7 +1545,7 @@ void BitchatBridge::onMeshcoreGroupMessage(const mesh::GroupChannel& channel, ui
     msg.ttl = DEFAULT_TTL;
     msg.timestamp = getCurrentTimeMs();
     msg.flags = 0;  // No special flags - simple channel message
-    msg.setSenderId64(_bitchatPeerId);
+    msg.setSenderId64(_dogechatPeerId);
 
     // Simple payload format - just copy the text content directly
     size_t contentLen = strlen(fullContent);
@@ -1588,7 +1588,7 @@ void BitchatBridge::onMeshcoreDirectMessage(const uint8_t* senderPubKey, uint32_
     msg.timestamp = static_cast<uint64_t>(timestamp) * 1000ULL;
     msg.flags = DOGECHAT_FLAG_HAS_RECIPIENT;
     msg.setSenderId64(senderId);
-    msg.setRecipientId64(_bitchatPeerId);  // Recipient is us (relaying to BLE client)
+    msg.setRecipientId64(_dogechatPeerId);  // Recipient is us (relaying to BLE client)
 
     size_t textLen = strlen(text);
     if (textLen > DOGECHAT_MAX_PAYLOAD_SIZE) textLen = DOGECHAT_MAX_PAYLOAD_SIZE;

@@ -59,7 +59,7 @@ BitchatBLEService::BitchatBLEService()
     , _characteristic(DOGECHAT_CHARACTERISTIC_UUID_BYTES)
     , _callback(nullptr)
     , _serviceActive(false)
-    , _bitchatClientCount(0)
+    , _dogechatClientCount(0)
     , _clientSubscribed(false)
     , _pendingConnect(false)
     , _pendingData(false)
@@ -158,11 +158,11 @@ void BitchatBLEService::startAdvertising() {
 }
 
 void BitchatBLEService::onServerDisconnect() {
-    if (_bitchatClientCount > 0) {
-        _bitchatClientCount--;
+    if (_dogechatClientCount > 0) {
+        _dogechatClientCount--;
     }
 
-    if (_bitchatClientCount == 0) {
+    if (_dogechatClientCount == 0) {
         _clientSubscribed = false;
         clearWriteBuffer();
         if (_callback != nullptr) {
@@ -272,7 +272,7 @@ void BitchatBLEService::loop() {
 bool BitchatBLEService::broadcastMessage(const BitchatMessage& msg) {
     Serial.println("BLE_SERVICE: >>> broadcastMessage() ENTRY <<<");
     DOGECHAT_DEBUG_PRINTLN("broadcastMessage: type=0x%02X, active=%d, subscribed=%d, clients=%d",
-                          msg.type, _serviceActive, _clientSubscribed, _bitchatClientCount);
+                          msg.type, _serviceActive, _clientSubscribed, _dogechatClientCount);
 
     if (!_serviceActive) {
         DOGECHAT_DEBUG_PRINTLN("broadcastMessage: service not active");
@@ -292,7 +292,7 @@ bool BitchatBLEService::broadcastMessage(const BitchatMessage& msg) {
     DOGECHAT_DEBUG_PRINTLN("broadcastMessage: set characteristic value (%u bytes)", (unsigned)len);
 
     // If client connected but not yet subscribed, queue for notification later
-    if (_bitchatClientCount > 0 && !_clientSubscribed) {
+    if (_dogechatClientCount > 0 && !_clientSubscribed) {
         DOGECHAT_DEBUG_PRINTLN("broadcastMessage: client not subscribed, queuing notify for later");
         _pendingOutgoing = msg;
         _hasPendingOutgoing = true;
@@ -337,7 +337,7 @@ void BitchatBLEService::sendPendingOutgoing() {
 
 void BitchatBLEService::onConnect(uint16_t conn_handle) {
     if (_instance != nullptr) {
-        _instance->_bitchatClientCount++;
+        _instance->_dogechatClientCount++;
         _instance->_pendingConnect = true;
         DOGECHAT_DEBUG_PRINTLN("BLE client connected");
     }

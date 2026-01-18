@@ -11,28 +11,28 @@ The Bitchat Bridge enables communication between the [Bitchat](https://dogechat.
 
 ## Supported Boards
 
-The following ESP32 boards have `_companion_radio_usb_bitchat` targets:
+The following ESP32 boards have `_companion_radio_usb_dogechat` targets:
 
 | Board | Target Name |
 |-------|-------------|
-| Heltec LoRa32 V2 | `Heltec_v2_companion_radio_usb_bitchat` |
-| Heltec LoRa32 V3 | `Heltec_v3_companion_radio_usb_bitchat` |
-| Heltec Wireless Stick Lite V3 | `Heltec_WSL3_companion_radio_usb_bitchat` |
-| Heltec CT62 | `Heltec_ct62_companion_radio_usb_bitchat` |
-| Heltec Tracker V2 | `heltec_tracker_v2_companion_radio_usb_bitchat` |
-| LilyGo T3-S3 (SX1262) | `LilyGo_T3S3_sx1262_companion_radio_usb_bitchat` |
-| LilyGo T-Deck | `LilyGo_TDeck_companion_radio_usb_bitchat` |
-| LilyGo TLora V2.1 | `LilyGo_TLora_V2_1_1_6_companion_radio_usb_bitchat` |
-| Station G2 | `Station_G2_companion_radio_usb_bitchat` |
-| Seeed Xiao C3 | `Xiao_C3_companion_radio_usb_bitchat` |
-| Seeed Xiao S3 WIO | `Xiao_S3_WIO_companion_radio_usb_bitchat` |
-| Ebyte EoRa-S3 | `Ebyte_EoRa-S3_companion_radio_usb_bitchat` |
+| Heltec LoRa32 V2 | `Heltec_v2_companion_radio_usb_dogechat` |
+| Heltec LoRa32 V3 | `Heltec_v3_companion_radio_usb_dogechat` |
+| Heltec Wireless Stick Lite V3 | `Heltec_WSL3_companion_radio_usb_dogechat` |
+| Heltec CT62 | `Heltec_ct62_companion_radio_usb_dogechat` |
+| Heltec Tracker V2 | `heltec_tracker_v2_companion_radio_usb_dogechat` |
+| LilyGo T3-S3 (SX1262) | `LilyGo_T3S3_sx1262_companion_radio_usb_dogechat` |
+| LilyGo T-Deck | `LilyGo_TDeck_companion_radio_usb_dogechat` |
+| LilyGo TLora V2.1 | `LilyGo_TLora_V2_1_1_6_companion_radio_usb_dogechat` |
+| Station G2 | `Station_G2_companion_radio_usb_dogechat` |
+| Seeed Xiao C3 | `Xiao_C3_companion_radio_usb_dogechat` |
+| Seeed Xiao S3 WIO | `Xiao_S3_WIO_companion_radio_usb_dogechat` |
+| Ebyte EoRa-S3 | `Ebyte_EoRa-S3_companion_radio_usb_dogechat` |
 
 **Note**: NRF52-based boards are not supported because Bitchat message decompression requires the ESP32 ROM miniz library.
 
 ## Build Targets
 
-### USB + Bitchat (`*_companion_radio_usb_bitchat`)
+### USB + Bitchat (`*_companion_radio_usb_dogechat`)
 
 This is the recommended configuration:
 
@@ -47,10 +47,10 @@ This gives the best experience because:
 
 ```bash
 # Build for Heltec Wireless Stick Lite V3
-pio run -e Heltec_WSL3_companion_radio_usb_bitchat
+pio run -e Heltec_WSL3_companion_radio_usb_dogechat
 
 # Flash
-pio run -e Heltec_WSL3_companion_radio_usb_bitchat -t upload
+pio run -e Heltec_WSL3_companion_radio_usb_dogechat -t upload
 ```
 
 ## How It Works
@@ -101,7 +101,7 @@ To enable debug output, use one of these methods:
 
 ```bash
 # Build with debug output enabled
-PLATFORMIO_BUILD_FLAGS="-D DOGECHAT_DEBUG=1" pio run -e Heltec_WSL3_companion_radio_usb_bitchat
+PLATFORMIO_BUILD_FLAGS="-D DOGECHAT_DEBUG=1" pio run -e Heltec_WSL3_companion_radio_usb_dogechat
 ```
 
 ### Method 2: Edit platformio.ini (persistent)
@@ -109,10 +109,10 @@ PLATFORMIO_BUILD_FLAGS="-D DOGECHAT_DEBUG=1" pio run -e Heltec_WSL3_companion_ra
 Add `-D DOGECHAT_DEBUG=1` to your environment's build_flags:
 
 ```ini
-[env:Heltec_WSL3_companion_radio_usb_bitchat]
+[env:Heltec_WSL3_companion_radio_usb_dogechat]
 build_flags =
   ${Heltec_WSL3_companion_radio_usb.build_flags}
-  ${bitchat_base.build_flags}
+  ${dogechat_base.build_flags}
   -D DOGECHAT_DEBUG=1   ; Enable debug output
 ```
 

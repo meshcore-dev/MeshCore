@@ -136,15 +136,15 @@ public:
     /**
      * Get this node's Bitchat peer ID (derived from identity)
      */
-    uint64_t getBitchatPeerId() const { return _bitchatPeerId; }
+    uint64_t getBitchatPeerId() const { return _dogechatPeerId; }
 
     /**
      * Register a channel mapping between Bitchat channel name and MeshCore GroupChannel
-     * @param bitchatChannelName Channel name without # prefix (e.g., "general")
+     * @param dogechatChannelName Channel name without # prefix (e.g., "general")
      * @param meshChannel MeshCore GroupChannel
      * @return true if mapping was added (false if registry full)
      */
-    bool registerChannelMapping(const char* bitchatChannelName, const mesh::GroupChannel& meshChannel);
+    bool registerChannelMapping(const char* dogechatChannelName, const mesh::GroupChannel& meshChannel);
 
     /**
      * Find MeshCore channel for a Bitchat channel name
@@ -197,7 +197,7 @@ private:
     BitchatDuplicateCache _duplicateCache;
 
     // Bitchat peer identity (derived from Meshcore identity)
-    uint64_t _bitchatPeerId;
+    uint64_t _dogechatPeerId;
 
     // Noise public key (Curve25519, derived from Ed25519 identity)
     uint8_t _noisePublicKey[32];
@@ -209,7 +209,7 @@ private:
 
     // Channel registry for bidirectional mapping
     struct ChannelMapping {
-        char bitchatName[32];      // Channel name without # prefix
+        char dogechatName[32];      // Channel name without # prefix
         mesh::GroupChannel meshChannel;
         bool configured;
     };
