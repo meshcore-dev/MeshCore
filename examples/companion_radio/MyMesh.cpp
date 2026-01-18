@@ -3,7 +3,7 @@
 #include <Arduino.h> // needed for PlatformIO
 #include <Mesh.h>
 
-#ifdef ENABLE_BITCHAT
+#if defined(ENABLE_BITCHAT) && (defined(ESP32) || defined(NRF52_PLATFORM))
 #include <helpers/bitchat/BitchatBridge.h>
 #endif
 
@@ -443,7 +443,7 @@ void MyMesh::onSignedMessageRecv(const ContactInfo &from, mesh::Packet *pkt, uin
 
 void MyMesh::onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packet *pkt, uint32_t timestamp,
                                   const char *text) {
-#ifdef ENABLE_BITCHAT
+#if defined(ENABLE_BITCHAT) && (defined(ESP32) || defined(NRF52_PLATFORM))
   // Forward to Bitchat bridge if available
   if (_bitchatBridge != nullptr) {
     // Text format is "sender: message" - extract sender and message
@@ -757,7 +757,7 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
   memset(advert_paths, 0, sizeof(advert_paths));
   memset(send_scope.key, 0, sizeof(send_scope.key));
 
-#ifdef ENABLE_BITCHAT
+#if defined(ENABLE_BITCHAT) && (defined(ESP32) || defined(NRF52_PLATFORM))
   _bitchatBridge = NULL;
 #endif
 
@@ -1865,7 +1865,7 @@ void MyMesh::checkSerialInterface() {
 
 void MyMesh::loop() {
   // Call bitchat loop FIRST - BaseChatMesh::loop() may block on serial/radio
-#ifdef ENABLE_BITCHAT
+#if defined(ENABLE_BITCHAT) && (defined(ESP32) || defined(NRF52_PLATFORM))
   if (_bitchatBridge != nullptr) {
     _bitchatBridge->loop();
   }
@@ -1905,7 +1905,7 @@ bool MyMesh::advert() {
   }
 }
 
-#ifdef ENABLE_BITCHAT
+#if defined(ENABLE_BITCHAT) && (defined(ESP32) || defined(NRF52_PLATFORM))
 void MyMesh::initBitchat(BitchatBridge* bridge) {
   _bitchatBridge = bridge;
 }

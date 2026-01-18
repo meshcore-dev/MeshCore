@@ -70,7 +70,7 @@
 #include <helpers/BaseChatMesh.h>
 #include <helpers/TransportKeyStore.h>
 
-#ifdef ENABLE_BITCHAT
+#if defined(ENABLE_BITCHAT) && (defined(ESP32) || defined(NRF52_PLATFORM))
 class BitchatBridge;  // Forward declaration
 #endif
 
@@ -99,7 +99,7 @@ public:
   NodePrefs *getNodePrefs();
   uint32_t getBLEPin();
 
-#ifdef ENABLE_BITCHAT
+#if defined(ENABLE_BITCHAT) && (defined(ESP32) || defined(NRF52_PLATFORM))
   void initBitchat(BitchatBridge* bridge);
   BitchatBridge* getBitchatBridge() { return _bitchatBridge; }
 #endif
@@ -234,7 +234,7 @@ private:
   #define ADVERT_PATH_TABLE_SIZE   16
   AdvertPath advert_paths[ADVERT_PATH_TABLE_SIZE]; // circular table
 
-#ifdef ENABLE_BITCHAT
+#if defined(ENABLE_BITCHAT) && (defined(ESP32) || defined(NRF52_PLATFORM))
   BitchatBridge* _bitchatBridge;
 #endif
 };

@@ -349,7 +349,7 @@ void BitchatBridge::handleRequestSync(const BitchatMessage& msg) {
             }
         }
 
-#ifdef ESP32
+#if defined(ESP32) || defined(NRF52_PLATFORM)
         _bleService.broadcastMessage(_messageHistory[i].msg);
         sent++;
 #endif
@@ -387,7 +387,7 @@ void BitchatBridge::deriveNoisePublicKey(const uint8_t* ed25519PubKey, uint8_t* 
 }
 
 void BitchatBridge::loop() {
-#ifdef ESP32
+#if defined(ESP32) || defined(NRF52_PLATFORM)
     _bleService.loop();
 
     uint32_t now = millis();
@@ -428,7 +428,7 @@ void BitchatBridge::loop() {
 #endif
 }
 
-#ifdef ESP32
+#if defined(ESP32)
 bool BitchatBridge::attachBLEService(BLEServer* server) {
     if (!_bleService.attachToServer(server, this)) {
         BITCHAT_DEBUG_PRINTLN("Failed to attach BLE service");
@@ -462,6 +462,32 @@ bool BitchatBridge::beginStandalone(const char* deviceName) {
     // Set device name and start service (without touching advertising)
     _bleService.setDeviceName(deviceName);
     _bleService.startServiceOnly();
+
+    // Start advertising with Bitchat UUID in main advertisement
+    _bleService.startAdvertising();
+
+    // Send first announcement
+    sendPeerAnnouncement();
+    _lastAnnounceTime = millis();
+
+    BITCHAT_DEBUG_PRINTLN("Standalone mode initialized: %s", deviceName);
+    return true;
+}
+
+bool BitchatBridge::isBLEActive() const {
+    return _bleService.isActive();
+}
+
+bool BitchatBridge::hasBitchatClient() const {
+    return _bleService.hasConnectedClient();
+}
+#elif defined(NRF52_PLATFORM)
+bool BitchatBridge::beginStandalone(const char* deviceName) {
+    // Initialize Bluefruit BLE with Bitchat service
+    if (!_bleService.beginStandalone(deviceName, this)) {
+        BITCHAT_DEBUG_PRINTLN("Failed to start BLE service");
+        return false;
+    }
 
     // Start advertising with Bitchat UUID in main advertisement
     _bleService.startAdvertising();
@@ -748,7 +774,7 @@ uint64_t BitchatBridge::getCurrentTimeMs() {
 }
 
 void BitchatBridge::sendPeerAnnouncement() {
-#ifdef ESP32
+#if defined(ESP32) || defined(NRF52_PLATFORM)
     uint64_t timestamp = getCurrentTimeMs();
 
     BitchatMessage msg;
@@ -771,7 +797,7 @@ void BitchatBridge::sendPeerAnnouncement() {
 }
 
 void BitchatBridge::signMessage(BitchatMessage& msg) {
-#ifdef ESP32
+#if defined(ESP32) || defined(NRF52_PLATFORM)
     // IMPORTANT: Bitchat protocol signs with TTL=0 and signature flag cleared
     // AND applies PKCS#7 padding to match Android/iOS toBinaryDataForSigning() behavior
     uint8_t originalTtl = msg.ttl;
@@ -800,7 +826,7 @@ void BitchatBridge::signMessage(BitchatMessage& msg) {
 // Bitchat → Meshcore
 // ============================================================================
 
-#ifdef ESP32
+#if defined(ESP32) || defined(NRF52_PLATFORM)
 void BitchatBridge::onBitchatMessageReceived(const BitchatMessage& msg) {
     processBitchatMessage(msg);
 }
@@ -930,7 +956,7 @@ void BitchatBridge::processBitchatMessage(const BitchatMessage& msg) {
                 pong.setSenderId64(_bitchatPeerId);
                 pong.setRecipientId64(msg.getSenderId64());
                 pong.payloadLength = 0;
-#ifdef ESP32
+#if defined(ESP32) || defined(NRF52_PLATFORM)
                 _bleService.broadcastMessage(pong);
 #endif
             }
@@ -1373,7 +1399,7 @@ void BitchatBridge::handleFragment(const BitchatMessage& msg) {
 
 void BitchatBridge::onMeshcoreGroupMessage(const mesh::GroupChannel& channel, uint32_t timestamp,
                                             const char* senderName, const char* text) {
-#ifdef ESP32
+#if defined(ESP32) || defined(NRF52_PLATFORM)
     // IMPORTANT: Only relay #mesh channel messages to Bitchat
     if (!isMeshChannel(channel)) {
         // Not the #mesh channel - don't relay
@@ -1424,7 +1450,7 @@ void BitchatBridge::onMeshcoreGroupMessage(const mesh::GroupChannel& channel, ui
 }
 
 void BitchatBridge::onMeshcoreDirectMessage(const uint8_t* senderPubKey, uint32_t timestamp, const char* text) {
-#ifdef ESP32
+#if defined(ESP32) || defined(NRF52_PLATFORM)
     if (!_bleService.hasConnectedClient()) {
         return;
     }
@@ -1457,7 +1483,7 @@ void BitchatBridge::onMeshcoreDirectMessage(const uint8_t* senderPubKey, uint32_
 
 void BitchatBridge::onMeshcoreAdvert(const mesh::Identity& id, uint32_t timestamp,
                                       const uint8_t* appData, size_t appDataLen) {
-#ifdef ESP32
+#if defined(ESP32) || defined(NRF52_PLATFORM)
     if (!_bleService.hasConnectedClient()) {
         return;
     }
@@ -1497,7 +1523,7 @@ void BitchatBridge::onMeshcoreAdvert(const mesh::Identity& id, uint32_t timestam
 }
 
 void BitchatBridge::broadcastToBitchat(const BitchatMessage& msg) {
-#ifdef ESP32
+#if defined(ESP32) || defined(NRF52_PLATFORM)
     _bleService.broadcastMessage(msg);
 #endif
 }

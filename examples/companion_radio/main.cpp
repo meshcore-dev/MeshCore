@@ -91,7 +91,7 @@ static uint32_t _atoi(const char* sp) {
   UITask ui_task(&board, &serial_interface);
 #endif
 
-#if defined(ENABLE_BITCHAT) && defined(ESP32)
+#if defined(ENABLE_BITCHAT) && (defined(ESP32) || defined(NRF52_PLATFORM))
   #include <helpers/bitchat/BitchatBridge.h>
 #endif
 
@@ -103,7 +103,7 @@ MyMesh the_mesh(radio_driver, fast_rng, rtc_clock, tables, store
    #endif
 );
 
-#if defined(ENABLE_BITCHAT) && defined(ESP32)
+#if defined(ENABLE_BITCHAT) && (defined(ESP32) || defined(NRF52_PLATFORM))
   BitchatBridge* bitchat_bridge = nullptr;
 #endif
 
@@ -163,7 +163,20 @@ void setup() {
   sprintf(dev_name, "%s%s", BLE_NAME_PREFIX, the_mesh.getNodeName());
   serial_interface.begin(dev_name, the_mesh.getBLEPin());
 #else
+  // USB Serial for MeshCore companion
   serial_interface.begin(Serial);
+
+  // Standalone Bitchat BLE if enabled (USB serial for MeshCore, BLE for Bitchat)
+  #ifdef ENABLE_BITCHAT
+  bitchat_bridge = new BitchatBridge(the_mesh, the_mesh.self_id, the_mesh.getNodeName());
+  bitchat_bridge->begin();
+  if (bitchat_bridge->beginStandalone(the_mesh.getNodeName())) {
+    Serial.println("Bitchat BLE service started (standalone mode)");
+  } else {
+    Serial.println("ERROR: Failed to start Bitchat BLE service!");
+  }
+  the_mesh.initBitchat(bitchat_bridge);
+  #endif
 #endif
   the_mesh.startInterface(serial_interface);
 #elif defined(RP2040_PLATFORM)
@@ -264,7 +277,7 @@ void loop() {
 #endif
   rtc_clock.tick();
 
-#if defined(ENABLE_BITCHAT) && defined(ESP32)
+#if defined(ENABLE_BITCHAT) && (defined(ESP32) || defined(NRF52_PLATFORM))
   if (bitchat_bridge != nullptr) {
     bitchat_bridge->loop();
   }

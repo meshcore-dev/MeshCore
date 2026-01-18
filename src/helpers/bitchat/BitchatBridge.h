@@ -2,8 +2,10 @@
 
 #include "BitchatProtocol.h"
 
-#ifdef ESP32
+#if defined(ESP32)
 #include "BitchatBLEService.h"
+#elif defined(NRF52_PLATFORM)
+#include "../nrf52/BitchatBLEService.h"
 #endif
 
 #include <Mesh.h>
@@ -28,7 +30,7 @@ static const uint8_t MESH_CHANNEL_KEY[16] = {
  * The #mesh channel uses a hashtag-derived key: SHA256("#mesh")[0:16]
  */
 class BitchatBridge
-#ifdef ESP32
+#if defined(ESP32) || defined(NRF52_PLATFORM)
     : public BitchatBLECallback
 #endif
 {
@@ -52,7 +54,7 @@ public:
      */
     void loop();
 
-#ifdef ESP32
+#if defined(ESP32)
     /**
      * Attach BLE service to existing server (shared BLE mode)
      * @param server BLE server to attach to
@@ -64,6 +66,19 @@ public:
      * Initialize BLE independently (standalone mode, no SerialBLEInterface)
      * Creates own BLE server with Bitchat service only.
      * Use this when MeshCore companion uses USB serial instead of BLE.
+     * @param deviceName BLE device name for advertising
+     * @return true if successful
+     */
+    bool beginStandalone(const char* deviceName);
+
+    /**
+     * Get the BLE service for disconnect callback registration
+     */
+    BitchatBLEService& getBLEService() { return _bleService; }
+#elif defined(NRF52_PLATFORM)
+    /**
+     * Initialize BLE independently (standalone mode)
+     * For NRF52, this uses Bluefruit BLE stack.
      * @param deviceName BLE device name for advertising
      * @return true if successful
      */
@@ -163,7 +178,7 @@ public:
     uint32_t getDuplicatesDropped() const { return _duplicatesDropped; }
 
 protected:
-#ifdef ESP32
+#if defined(ESP32) || defined(NRF52_PLATFORM)
     // BitchatBLECallback implementation
     void onBitchatMessageReceived(const BitchatMessage& msg) override;
     void onBitchatClientConnect() override;
@@ -175,7 +190,7 @@ private:
     mesh::LocalIdentity& _identity;
     const char* _nodeName;
 
-#ifdef ESP32
+#if defined(ESP32) || defined(NRF52_PLATFORM)
     BitchatBLEService _bleService;
 #endif
 

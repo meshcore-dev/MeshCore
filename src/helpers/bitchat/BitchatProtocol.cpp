@@ -10,9 +10,12 @@
   #include "rom/miniz.h"
   }
   #define BITCHAT_HAS_DECOMPRESSION 1
+#elif defined(NRF52_PLATFORM)
+  // Use portable miniz library for NRF52
+  #include "../miniz/miniz_tinfl.h"
+  #define BITCHAT_HAS_DECOMPRESSION 1
 #else
-  // No decompression support on non-ESP32 platforms for now
-  // TODO: Add portable miniz implementation for NRF52
+  // No decompression support on other platforms
   #define BITCHAT_HAS_DECOMPRESSION 0
 #endif
 
