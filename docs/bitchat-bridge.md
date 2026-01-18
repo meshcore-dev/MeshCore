@@ -1,12 +1,12 @@
-# Bitchat Bridge
+# Dogechat Bridge
 
-The Bitchat Bridge enables communication between the [Bitchat](https://dogechat.app) Android app and MeshCore mesh network. Messages sent to the `#mesh` channel in Bitchat are relayed to MeshCore nodes, and vice versa.
+The Dogechat Bridge enables communication between the [Dogechat](https://dogechat.app) Android app and MeshCore mesh network. Messages sent to the `#mesh` channel in Dogechat are relayed to MeshCore nodes, and vice versa.
 
 ## Overview
 
-- **Bridge Direction**: Bidirectional - messages flow both ways between Bitchat and MeshCore
+- **Bridge Direction**: Bidirectional - messages flow both ways between Dogechat and MeshCore
 - **Channel**: Only the `#mesh` channel is bridged (hardcoded)
-- **Identification**: Messages from Bitchat users appear with a phone emoji prefix on MeshCore nodes
+- **Identification**: Messages from Dogechat users appear with a phone emoji prefix on MeshCore nodes
 - **Platform**: ESP32 only (requires ESP32 ROM miniz for decompression)
 
 ## Supported Boards
@@ -28,20 +28,20 @@ The following ESP32 boards have `_companion_radio_usb_dogechat` targets:
 | Seeed Xiao S3 WIO | `Xiao_S3_WIO_companion_radio_usb_dogechat` |
 | Ebyte EoRa-S3 | `Ebyte_EoRa-S3_companion_radio_usb_dogechat` |
 
-**Note**: NRF52-based boards are not supported because Bitchat message decompression requires the ESP32 ROM miniz library.
+**Note**: NRF52-based boards are not supported because Dogechat message decompression requires the ESP32 ROM miniz library.
 
 ## Build Targets
 
-### USB + Bitchat (`*_companion_radio_usb_dogechat`)
+### USB + Dogechat (`*_companion_radio_usb_dogechat`)
 
 This is the recommended configuration:
 
 - **MeshCore companion app**: Connects via USB serial
-- **Bitchat app**: Connects via standalone BLE
+- **Dogechat app**: Connects via standalone BLE
 
 This gives the best experience because:
 - The MeshCore web app works reliably via USB serial
-- Bitchat has dedicated BLE access without sharing with MeshCore
+- Dogechat has dedicated BLE access without sharing with MeshCore
 
 ### Building
 
@@ -57,29 +57,29 @@ pio run -e Heltec_WSL3_companion_radio_usb_dogechat -t upload
 
 ### Channel Bridging
 
-1. **Bitchat to MeshCore**: When a Bitchat user sends a message to `#mesh`, the bridge:
+1. **Dogechat to MeshCore**: When a Dogechat user sends a message to `#mesh`, the bridge:
    - Receives the message via BLE
-   - Decompresses it (Bitchat uses zlib compression)
+   - Decompresses it (Dogechat uses zlib compression)
    - Extracts the sender nickname and message content
    - Sends it to the MeshCore #mesh with a phone emoji prefix
 
-2. **MeshCore to Bitchat**: When a MeshCore node sends a message to the `#mesh` channel, the bridge:
+2. **MeshCore to Dogechat**: When a MeshCore node sends a message to the `#mesh` channel, the bridge:
    - Receives the mesh packet
-   - Creates a Bitchat MESSAGE packet with the sender name and content
+   - Creates a Dogechat MESSAGE packet with the sender name and content
    - Broadcasts it via BLE
 
 ### Message Format
 
-Messages from Bitchat appear on MeshCore as:
+Messages from Dogechat appear on MeshCore as:
 ```
 <sender>: message content
 ```
 
-Messages from MeshCore appear on Bitchat with the MeshCore sender's name in angle brackets.
+Messages from MeshCore appear on Dogechat with the MeshCore sender's name in angle brackets.
 
 ### Long Messages
 
-MeshCore packets have a ~127-byte payload limit. Long Bitchat messages are automatically split into multiple parts with `[1/N]` indicators.
+MeshCore packets have a ~127-byte payload limit. Long Dogechat messages are automatically split into multiple parts with `[1/N]` indicators.
 
 ## Limitations
 
@@ -87,11 +87,11 @@ MeshCore packets have a ~127-byte payload limit. Long Bitchat messages are autom
 
 2. **Message size**: MeshCore packets are limited to ~127 bytes. Long messages are split into multiple parts.
 
-3. **No end-to-end encryption bridge**: Bitchat's Noise protocol encryption and MeshCore's encryption are separate. Messages are decrypted/re-encrypted at the bridge.
+3. **No end-to-end encryption bridge**: Dogechat's Noise protocol encryption and MeshCore's encryption are separate. Messages are decrypted/re-encrypted at the bridge.
 
-4. **No file/image transfer**: Bitchat file transfers (images, etc.) are not supported on the mesh.
+4. **No file/image transfer**: Dogechat file transfers (images, etc.) are not supported on the mesh.
 
-5. **Time synchronization**: The bridge synchronizes its clock from incoming Bitchat packets. If no Bitchat client connects, timestamps may be inaccurate. Time needs to be accurate for Bitchat to work
+5. **Time synchronization**: The bridge synchronizes its clock from incoming Dogechat packets. If no Dogechat client connects, timestamps may be inaccurate. Time needs to be accurate for Dogechat to work
 
 ## Debugging
 

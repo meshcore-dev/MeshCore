@@ -7,7 +7,7 @@
 #include <BLE2902.h>
 
 #ifdef ENABLE_DOGECHAT
-class BitchatBLEService;
+class DogechatBLEService;
 #endif
 
 class SerialBLEInterface : public BaseSerialInterface, BLESecurityCallbacks, BLEServerCallbacks, BLECharacteristicCallbacks {
@@ -78,13 +78,13 @@ public:
   size_t writeFrame(const uint8_t src[], size_t len) override;
   size_t checkRecvFrame(uint8_t dest[]) override;
 
-  // Expose BLE server for adding additional services (e.g., Bitchat)
+  // Expose BLE server for adding additional services (e.g., Dogechat)
   BLEServer* getBLEServer() { return pServer; }
 
 #ifdef ENABLE_DOGECHAT
-  void setBitchatService(BitchatBLEService* service) { _dogechatService = service; }
+  void setDogechatService(DogechatBLEService* service) { _dogechatService = service; }
 private:
-  BitchatBLEService* _dogechatService = nullptr;
+  DogechatBLEService* _dogechatService = nullptr;
 #endif
 };
 

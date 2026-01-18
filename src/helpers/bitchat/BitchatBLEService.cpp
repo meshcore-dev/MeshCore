@@ -1,4 +1,4 @@
-#include "BitchatBLEService.h"
+#include "DogechatBLEService.h"
 
 #ifdef ESP32
 
@@ -25,7 +25,7 @@ static void dumpPacketHex(const char* label, const uint8_t* data, size_t len) {
   #define DOGECHAT_PACKETDUMP(label, data, len) {}
 #endif
 
-BitchatBLEService::BitchatBLEService()
+DogechatBLEService::DogechatBLEService()
     : _server(nullptr)
     , _service(nullptr)
     , _characteristic(nullptr)
@@ -43,13 +43,13 @@ BitchatBLEService::BitchatBLEService()
 {
     memset(_writeBuffer, 0, sizeof(_writeBuffer));
     memset(_deviceName, 0, sizeof(_deviceName));
-    strcpy(_deviceName, "Bitchat");
+    strcpy(_deviceName, "Dogechat");
     for (size_t i = 0; i < MESSAGE_QUEUE_SIZE; i++) {
         _messageQueue[i].valid = false;
     }
 }
 
-bool BitchatBLEService::attachToServer(BLEServer* server, BitchatBLECallback* callback) {
+bool DogechatBLEService::attachToServer(BLEServer* server, DogechatBLECallback* callback) {
     if (server == nullptr || callback == nullptr) {
         DOGECHAT_DEBUG_PRINTLN("attachToServer: null server or callback");
         return false;
@@ -58,10 +58,10 @@ bool BitchatBLEService::attachToServer(BLEServer* server, BitchatBLECallback* ca
     _server = server;
     _callback = callback;
 
-    // Create Bitchat service
+    // Create Dogechat service
     _service = _server->createService(DOGECHAT_SERVICE_UUID);
     if (_service == nullptr) {
-        DOGECHAT_DEBUG_PRINTLN("Failed to create Bitchat service");
+        DOGECHAT_DEBUG_PRINTLN("Failed to create Dogechat service");
         return false;
     }
 
@@ -76,11 +76,11 @@ bool BitchatBLEService::attachToServer(BLEServer* server, BitchatBLECallback* ca
     );
 
     if (_characteristic == nullptr) {
-        DOGECHAT_DEBUG_PRINTLN("Failed to create Bitchat characteristic");
+        DOGECHAT_DEBUG_PRINTLN("Failed to create Dogechat characteristic");
         return false;
     }
 
-    // Bitchat uses open security (no PIN required)
+    // Dogechat uses open security (no PIN required)
     _characteristic->setAccessPermissions(ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE);
 
     // Add descriptor for notifications
@@ -89,30 +89,30 @@ bool BitchatBLEService::attachToServer(BLEServer* server, BitchatBLECallback* ca
     // Set callbacks
     _characteristic->setCallbacks(this);
 
-    DOGECHAT_DEBUG_PRINTLN("Bitchat BLE service attached to server");
+    DOGECHAT_DEBUG_PRINTLN("Dogechat BLE service attached to server");
     return true;
 }
 
 // MeshCore UART service UUID (for scan response)
 #define MESHCORE_UART_SERVICE_UUID "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"
 
-void BitchatBLEService::start() {
+void DogechatBLEService::start() {
     if (_service == nullptr) {
         DOGECHAT_DEBUG_PRINTLN("Cannot start: service not created");
         return;
     }
 
-    // Request larger MTU to support Bitchat messages (up to 512 bytes padded)
+    // Request larger MTU to support Dogechat messages (up to 512 bytes padded)
     // This overrides the default MAX_FRAME_SIZE (172) used by MeshCore
     BLEDevice::setMTU(517);  // Max BLE MTU
 
     _service->start();
     _serviceActive = true;
 
-    // NOTE: In shared BLE mode (with SerialBLEInterface), we set Bitchat UUID in scan response
+    // NOTE: In shared BLE mode (with SerialBLEInterface), we set Dogechat UUID in scan response
     // to coexist with MeshCore UUID in main advertisement.
     // In standalone mode, caller should use startAdvertising() instead which puts
-    // Bitchat UUID in main advertisement (required for Bitchat app discovery).
+    // Dogechat UUID in main advertisement (required for Dogechat app discovery).
     if (_server != nullptr) {
         BLEAdvertising* advertising = _server->getAdvertising();
 
@@ -121,39 +121,39 @@ void BitchatBLEService::start() {
         scanResponse.setCompleteServices(BLEUUID(DOGECHAT_SERVICE_UUID));
         advertising->setScanResponseData(scanResponse);
 
-        DOGECHAT_DEBUG_PRINTLN("Bitchat BLE service started (shared mode)");
+        DOGECHAT_DEBUG_PRINTLN("Dogechat BLE service started (shared mode)");
     } else {
-        DOGECHAT_DEBUG_PRINTLN("Bitchat BLE service started");
+        DOGECHAT_DEBUG_PRINTLN("Dogechat BLE service started");
     }
 }
 
-void BitchatBLEService::startServiceOnly() {
+void DogechatBLEService::startServiceOnly() {
     if (_service == nullptr) {
         return;
     }
 
-    // Request larger MTU to support Bitchat messages (up to 512 bytes padded)
+    // Request larger MTU to support Dogechat messages (up to 512 bytes padded)
     BLEDevice::setMTU(517);
 
     _service->start();
     _serviceActive = true;
-    DOGECHAT_DEBUG_PRINTLN("Bitchat BLE service started (standalone)");
+    DOGECHAT_DEBUG_PRINTLN("Dogechat BLE service started (standalone)");
 }
 
-void BitchatBLEService::setDeviceName(const char* name) {
+void DogechatBLEService::setDeviceName(const char* name) {
     strncpy(_deviceName, name, sizeof(_deviceName) - 1);
     _deviceName[sizeof(_deviceName) - 1] = '\0';
 }
 
-void BitchatBLEService::startAdvertising() {
+void DogechatBLEService::startAdvertising() {
     if (_server == nullptr) {
         return;
     }
 
     BLEAdvertising* advertising = _server->getAdvertising();
 
-    // Set Bitchat UUID in MAIN advertisement (required for Bitchat app discovery)
-    // The Bitchat Android app filters on service UUID in main advertisement packet
+    // Set Dogechat UUID in MAIN advertisement (required for Dogechat app discovery)
+    // The Dogechat Android app filters on service UUID in main advertisement packet
     // BLE advertisement packet is max 31 bytes:
     //   Flags: 3 bytes, 128-bit UUID: 18 bytes = 21 bytes used
     //   Remaining for name: 10 bytes (2 header + 8 chars max)
@@ -174,7 +174,7 @@ void BitchatBLEService::startAdvertising() {
         }
     }
     safeName[j] = '\0';
-    if (j == 0) strcpy(safeName, "Bitchat");  // Fallback if name was all emoji
+    if (j == 0) strcpy(safeName, "Dogechat");  // Fallback if name was all emoji
     BLEAdvertisementData scanResponse;
     scanResponse.setName(safeName);
     advertising->setScanResponseData(scanResponse);
@@ -183,16 +183,16 @@ void BitchatBLEService::startAdvertising() {
     DOGECHAT_DEBUG_PRINTLN("BLE advertising started: %s", safeName);
 }
 
-void BitchatBLEService::onServerDisconnect() {
+void DogechatBLEService::onServerDisconnect() {
     checkForDisconnects();
 }
 
-void BitchatBLEService::clearWriteBuffer() {
+void DogechatBLEService::clearWriteBuffer() {
     _writeBufferOffset = 0;
     memset(_writeBuffer, 0, sizeof(_writeBuffer));
 }
 
-void BitchatBLEService::checkForDisconnects() {
+void DogechatBLEService::checkForDisconnects() {
     if (_server == nullptr) return;
 
     uint32_t currentServerCount = _server->getConnectedCount();
@@ -206,13 +206,13 @@ void BitchatBLEService::checkForDisconnects() {
             _clientSubscribed = false;
             clearWriteBuffer();
             if (_callback != nullptr) {
-                _callback->onBitchatClientDisconnect();
+                _callback->onDogechatClientDisconnect();
             }
         }
     }
 }
 
-bool BitchatBLEService::queueMessage(const BitchatMessage& msg) {
+bool DogechatBLEService::queueMessage(const DogechatMessage& msg) {
     size_t nextTail = (_queueTail + 1) % MESSAGE_QUEUE_SIZE;
 
     // Check if queue is full
@@ -228,20 +228,20 @@ bool BitchatBLEService::queueMessage(const BitchatMessage& msg) {
     return true;
 }
 
-void BitchatBLEService::processQueue() {
+void DogechatBLEService::processQueue() {
     while (_queueHead != _queueTail) {
         if (_messageQueue[_queueHead].valid) {
             _messageQueue[_queueHead].valid = false;
 
             if (_callback != nullptr) {
-                _callback->onBitchatMessageReceived(_messageQueue[_queueHead].msg);
+                _callback->onDogechatMessageReceived(_messageQueue[_queueHead].msg);
             }
         }
         _queueHead = (_queueHead + 1) % MESSAGE_QUEUE_SIZE;
     }
 }
 
-void BitchatBLEService::loop() {
+void DogechatBLEService::loop() {
     // Check for disconnections (detect when clients drop without callback)
     checkForDisconnects();
 
@@ -251,7 +251,7 @@ void BitchatBLEService::loop() {
     if (_pendingConnect) {
         _pendingConnect = false;
         if (_callback != nullptr) {
-            _callback->onBitchatClientConnect();
+            _callback->onDogechatClientConnect();
         }
     }
 
@@ -262,21 +262,21 @@ void BitchatBLEService::loop() {
         DOGECHAT_DEBUG_PRINTLN("Processing %zu buffered bytes", _writeBufferOffset);
 
         // Try to parse as complete message
-        BitchatMessage msg;
-        if (BitchatProtocol::parseMessage(_writeBuffer, _writeBufferOffset, msg)) {
+        DogechatMessage msg;
+        if (DogechatProtocol::parseMessage(_writeBuffer, _writeBufferOffset, msg)) {
             // Successfully parsed - validate and queue
-            if (BitchatProtocol::validateMessage(msg)) {
-                DOGECHAT_DEBUG_PRINTLN("Received Bitchat message: type=%02X, len=%d", msg.type, msg.payloadLength);
+            if (DogechatProtocol::validateMessage(msg)) {
+                DOGECHAT_DEBUG_PRINTLN("Received Dogechat message: type=%02X, len=%d", msg.type, msg.payloadLength);
                 DOGECHAT_PACKETDUMP("BLE_SERVICE_RX", msg.payload, msg.payloadLength);
                 queueMessage(msg);
             } else {
-                DOGECHAT_DEBUG_PRINTLN("Invalid Bitchat message received");
+                DOGECHAT_DEBUG_PRINTLN("Invalid Dogechat message received");
                 DOGECHAT_PACKETDUMP("BLE_SERVICE_RX_INVALID", _writeBuffer, _writeBufferOffset);
             }
             clearWriteBuffer();
         } else if (_writeBufferOffset >= DOGECHAT_HEADER_SIZE) {
             // Have enough data to check expected size
-            size_t expectedMin = BitchatProtocol::getMessageSize(msg);
+            size_t expectedMin = DogechatProtocol::getMessageSize(msg);
             if (_writeBufferOffset > expectedMin + 100) {
                 DOGECHAT_DEBUG_PRINTLN("Write buffer contains unparseable data, clearing");
                 clearWriteBuffer();
@@ -297,7 +297,7 @@ void BitchatBLEService::loop() {
     processQueue();
 }
 
-void BitchatBLEService::onWrite(BLECharacteristic* pCharacteristic) {
+void DogechatBLEService::onWrite(BLECharacteristic* pCharacteristic) {
     // MINIMAL WORK IN CALLBACK - BLE stack has limited space!
     // Just buffer data and set flags; all processing happens in loop()
 
@@ -312,7 +312,7 @@ void BitchatBLEService::onWrite(BLECharacteristic* pCharacteristic) {
     _lastWriteTime = millis();
     _pendingData = true;  // Flag for loop() to process
 
-    // Detect new Bitchat clients by comparing to server's total connection count
+    // Detect new Dogechat clients by comparing to server's total connection count
     if (_server != nullptr) {
         uint32_t currentServerCount = _server->getConnectedCount();
         if (currentServerCount > _lastKnownServerCount) {
@@ -336,12 +336,12 @@ void BitchatBLEService::onWrite(BLECharacteristic* pCharacteristic) {
     _writeBufferOffset += copyLen;
 }
 
-void BitchatBLEService::onRead(BLECharacteristic* pCharacteristic) {
+void DogechatBLEService::onRead(BLECharacteristic* pCharacteristic) {
     // Currently unused - reads return the last written value
     // NO Serial output here - BLE callback has limited stack
 }
 
-void BitchatBLEService::onStatus(BLECharacteristic* pCharacteristic, Status s, uint32_t code) {
+void DogechatBLEService::onStatus(BLECharacteristic* pCharacteristic, Status s, uint32_t code) {
     // Called when CCCD is written (client subscribes/unsubscribes to notifications)
     // NO Serial output here - BLE callback has limited stack
     if (s == Status::SUCCESS_NOTIFY || s == Status::SUCCESS_INDICATE) {
@@ -351,14 +351,14 @@ void BitchatBLEService::onStatus(BLECharacteristic* pCharacteristic, Status s, u
     }
 }
 
-bool BitchatBLEService::broadcastMessage(const BitchatMessage& msg) {
+bool DogechatBLEService::broadcastMessage(const DogechatMessage& msg) {
     if (!_serviceActive || _characteristic == nullptr) {
         return false;
     }
 
     // Serialize message
     uint8_t buffer[DOGECHAT_MAX_MESSAGE_SIZE];
-    size_t len = BitchatProtocol::serializeMessage(msg, buffer, sizeof(buffer));
+    size_t len = DogechatProtocol::serializeMessage(msg, buffer, sizeof(buffer));
     if (len == 0) {
         return false;
     }

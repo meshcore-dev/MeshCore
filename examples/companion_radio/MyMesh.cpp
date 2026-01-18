@@ -4,7 +4,7 @@
 #include <Mesh.h>
 
 #if defined(ENABLE_DOGECHAT) && (defined(ESP32) || defined(NRF52_PLATFORM))
-#include <helpers/dogechat/BitchatBridge.h>
+#include <helpers/dogechat/DogechatBridge.h>
 #endif
 
 #define CMD_APP_START                 1
@@ -448,7 +448,7 @@ void MyMesh::onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packe
   Serial.print("MYMESH: _dogechatBridge=");
   Serial.println(_dogechatBridge != nullptr ? "valid" : "NULL");
 
-  // Forward to Bitchat bridge if available
+  // Forward to Dogechat bridge if available
   if (_dogechatBridge != nullptr) {
     // Text format is "sender: message" - extract sender and message
     const char* colonPos = strchr(text, ':');
@@ -1912,7 +1912,7 @@ bool MyMesh::advert() {
 }
 
 #if defined(ENABLE_DOGECHAT) && (defined(ESP32) || defined(NRF52_PLATFORM))
-void MyMesh::initBitchat(BitchatBridge* bridge) {
+void MyMesh::initDogechat(DogechatBridge* bridge) {
   _dogechatBridge = bridge;
 }
 #endif

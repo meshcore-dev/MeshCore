@@ -1,11 +1,11 @@
 #pragma once
 
-#include "BitchatProtocol.h"
+#include "DogechatProtocol.h"
 
 #if defined(ESP32)
-#include "BitchatBLEService.h"
+#include "DogechatBLEService.h"
 #elif defined(NRF52_PLATFORM)
-#include "../nrf52/BitchatBLEService.h"
+#include "../nrf52/DogechatBLEService.h"
 #endif
 
 #include <Mesh.h>
@@ -19,19 +19,19 @@ static const uint8_t MESH_CHANNEL_KEY[16] = {
     0x61, 0x21, 0x13, 0xdb, 0x98, 0x06, 0x50, 0xf3
 };
 
-// Bitchat channel name for #mesh (includes the # prefix)
+// Dogechat channel name for #mesh (includes the # prefix)
 #define DOGECHAT_MESH_CHANNEL "#mesh"
 
 /**
- * Bitchat Bridge - Translation layer between Bitchat and Meshcore protocols
+ * Dogechat Bridge - Translation layer between Dogechat and Meshcore protocols
  *
- * This bridge relays messages between Bitchat #mesh channel and MeshCore #mesh channel.
+ * This bridge relays messages between Dogechat #mesh channel and MeshCore #mesh channel.
  * Only #mesh channel messages are relayed - DMs and other channels are ignored.
  * The #mesh channel uses a hashtag-derived key: SHA256("#mesh")[0:16]
  */
-class BitchatBridge
+class DogechatBridge
 #if defined(ESP32) || defined(NRF52_PLATFORM)
-    : public BitchatBLECallback
+    : public DogechatBLECallback
 #endif
 {
 public:
@@ -41,7 +41,7 @@ public:
      * @param identity Reference to this node's LocalIdentity
      * @param nodeName This node's display name
      */
-    BitchatBridge(mesh::Mesh& mesh, mesh::LocalIdentity& identity, const char* nodeName);
+    DogechatBridge(mesh::Mesh& mesh, mesh::LocalIdentity& identity, const char* nodeName);
 
     /**
      * Initialize the bridge
@@ -64,7 +64,7 @@ public:
 
     /**
      * Initialize BLE independently (standalone mode, no SerialBLEInterface)
-     * Creates own BLE server with Bitchat service only.
+     * Creates own BLE server with Dogechat service only.
      * Use this when MeshCore companion uses USB serial instead of BLE.
      * @param deviceName BLE device name for advertising
      * @return true if successful
@@ -74,7 +74,7 @@ public:
     /**
      * Get the BLE service for disconnect callback registration
      */
-    BitchatBLEService& getBLEService() { return _bleService; }
+    DogechatBLEService& getBLEService() { return _bleService; }
 #elif defined(NRF52_PLATFORM)
     /**
      * Initialize BLE independently (standalone mode)
@@ -87,7 +87,7 @@ public:
     /**
      * Get the BLE service for disconnect callback registration
      */
-    BitchatBLEService& getBLEService() { return _bleService; }
+    DogechatBLEService& getBLEService() { return _bleService; }
 #endif
 
     /**
@@ -122,24 +122,24 @@ public:
                           const uint8_t* appData, size_t appDataLen);
 
     /**
-     * Set the default channel name for Bitchat
+     * Set the default channel name for Dogechat
      * @param channelName Channel name without # prefix
      */
     void setDefaultChannel(const char* channelName);
 
     /**
-     * Set the channel for outgoing Bitchat messages
+     * Set the channel for outgoing Dogechat messages
      * @param channel Meshcore GroupChannel to use
      */
     void setMeshcoreChannel(const mesh::GroupChannel& channel);
 
     /**
-     * Get this node's Bitchat peer ID (derived from identity)
+     * Get this node's Dogechat peer ID (derived from identity)
      */
-    uint64_t getBitchatPeerId() const { return _dogechatPeerId; }
+    uint64_t getDogechatPeerId() const { return _dogechatPeerId; }
 
     /**
-     * Register a channel mapping between Bitchat channel name and MeshCore GroupChannel
+     * Register a channel mapping between Dogechat channel name and MeshCore GroupChannel
      * @param dogechatChannelName Channel name without # prefix (e.g., "general")
      * @param meshChannel MeshCore GroupChannel
      * @return true if mapping was added (false if registry full)
@@ -147,7 +147,7 @@ public:
     bool registerChannelMapping(const char* dogechatChannelName, const mesh::GroupChannel& meshChannel);
 
     /**
-     * Find MeshCore channel for a Bitchat channel name
+     * Find MeshCore channel for a Dogechat channel name
      * @param channelName Channel name (with or without # prefix)
      * @param outChannel OUT: MeshCore GroupChannel if found
      * @return true if mapping found
@@ -155,7 +155,7 @@ public:
     bool findMeshChannel(const char* channelName, mesh::GroupChannel& outChannel);
 
     /**
-     * Get Bitchat channel name for a MeshCore channel
+     * Get Dogechat channel name for a MeshCore channel
      * @param channel MeshCore GroupChannel
      * @return Channel name (without #) or nullptr if not found
      */
@@ -167,9 +167,9 @@ public:
     bool isBLEActive() const;
 
     /**
-     * Check if a Bitchat client is connected
+     * Check if a Dogechat client is connected
      */
-    bool hasBitchatClient() const;
+    bool hasDogechatClient() const;
 
     /**
      * Get statistics
@@ -179,10 +179,10 @@ public:
 
 protected:
 #if defined(ESP32) || defined(NRF52_PLATFORM)
-    // BitchatBLECallback implementation
-    void onBitchatMessageReceived(const BitchatMessage& msg) override;
-    void onBitchatClientConnect() override;
-    void onBitchatClientDisconnect() override;
+    // DogechatBLECallback implementation
+    void onDogechatMessageReceived(const DogechatMessage& msg) override;
+    void onDogechatClientConnect() override;
+    void onDogechatClientDisconnect() override;
 #endif
 
 private:
@@ -191,18 +191,18 @@ private:
     const char* _nodeName;
 
 #if defined(ESP32) || defined(NRF52_PLATFORM)
-    BitchatBLEService _bleService;
+    DogechatBLEService _bleService;
 #endif
 
-    BitchatDuplicateCache _duplicateCache;
+    DogechatDuplicateCache _duplicateCache;
 
-    // Bitchat peer identity (derived from Meshcore identity)
+    // Dogechat peer identity (derived from Meshcore identity)
     uint64_t _dogechatPeerId;
 
     // Noise public key (Curve25519, derived from Ed25519 identity)
     uint8_t _noisePublicKey[32];
 
-    // Default channel for Bitchat messages
+    // Default channel for Dogechat messages
     char _defaultChannelName[32];
     mesh::GroupChannel _meshcoreChannel;
     bool _channelConfigured;
@@ -222,7 +222,7 @@ private:
     static const uint32_t ANNOUNCE_INTERVAL_MS = 5000;  // 5 seconds when idle
     static const uint32_t ANNOUNCE_INTERVAL_CONNECTED_MS = 3000;  // 3 seconds when client connected
 
-    // Time synchronization (calibrated from received Bitchat packets)
+    // Time synchronization (calibrated from received Dogechat packets)
     // Android sends Unix timestamps; we sync from them since ESP32 may not have valid RTC
     int64_t _timeOffset;      // Offset to add to millis() to get Unix time (ms)
     bool _timeSynced;         // True after receiving at least one valid timestamp from Android
@@ -242,7 +242,7 @@ private:
     // Message history cache for REQUEST_SYNC
     // Stores recent messages so we can respond to sync requests
     struct CachedMessage {
-        BitchatMessage msg;
+        DogechatMessage msg;
         uint32_t addedTimeMs;  // millis() when message was cached (for expiration)
         bool valid;
     };
@@ -297,13 +297,13 @@ private:
      * Add a message to the history cache
      * @param msg Message to cache
      */
-    void addToMessageHistory(const BitchatMessage& msg);
+    void addToMessageHistory(const DogechatMessage& msg);
 
     /**
      * Handle REQUEST_SYNC by sending cached messages
      * @param msg The REQUEST_SYNC message
      */
-    void handleRequestSync(const BitchatMessage& msg);
+    void handleRequestSync(const DogechatMessage& msg);
 
     // Peer nickname cache (populated from ANNOUNCE messages)
     struct PeerInfo {
@@ -316,7 +316,7 @@ private:
     PeerInfo _peerCache[PEER_CACHE_SIZE];
 
     // Fragment reassembly buffers for long messages
-    // Bitchat fragments messages >245 bytes into multiple FRAGMENT messages
+    // Dogechat fragments messages >245 bytes into multiple FRAGMENT messages
     struct FragmentBuffer {
         uint64_t senderId;
         uint8_t fragmentId;
@@ -335,10 +335,10 @@ private:
      * Handle incoming fragment message
      * Reassembles multi-fragment messages and processes when complete
      */
-    void handleFragment(const BitchatMessage& msg);
+    void handleFragment(const DogechatMessage& msg);
 
     /**
-     * Derive Bitchat peer ID from Meshcore identity
+     * Derive Dogechat peer ID from Meshcore identity
      * Uses first 8 bytes of public key
      */
     uint64_t derivePeerId(const mesh::LocalIdentity& identity);
@@ -350,49 +350,49 @@ private:
     void deriveNoisePublicKey(const uint8_t* ed25519PubKey, uint8_t* curve25519PubKey);
 
     /**
-     * Send peer announcement to connected Bitchat clients
+     * Send peer announcement to connected Dogechat clients
      */
     void sendPeerAnnouncement();
 
     /**
-     * Sign a Bitchat message with the companion's Ed25519 identity
-     * Uses Bitchat protocol signing rules (TTL=0, PKCS#7 padding)
+     * Sign a Dogechat message with the companion's Ed25519 identity
+     * Uses Dogechat protocol signing rules (TTL=0, PKCS#7 padding)
      */
-    void signMessage(BitchatMessage& msg);
+    void signMessage(DogechatMessage& msg);
 
     /**
-     * Process incoming Bitchat message from BLE
+     * Process incoming Dogechat message from BLE
      */
-    void processBitchatMessage(const BitchatMessage& msg);
+    void processDogechatMessage(const DogechatMessage& msg);
 
     /**
-     * Relay Bitchat channel message to Meshcore mesh
-     * @param msg Original Bitchat message
+     * Relay Dogechat channel message to Meshcore mesh
+     * @param msg Original Dogechat message
      * @param channelName Channel name (e.g., "#mesh")
-     * @param senderNick Sender's nickname from Bitchat
+     * @param senderNick Sender's nickname from Dogechat
      * @param text Message content
      */
-    void relayChannelMessageToMesh(const BitchatMessage& msg, const char* channelName,
+    void relayChannelMessageToMesh(const DogechatMessage& msg, const char* channelName,
                                    const char* senderNick, const char* text);
 
     /**
-     * Relay Bitchat DM to Meshcore mesh
+     * Relay Dogechat DM to Meshcore mesh
      */
-    void relayDirectMessageToMesh(const BitchatMessage& msg, const char* text);
+    void relayDirectMessageToMesh(const DogechatMessage& msg, const char* text);
 
     /**
-     * Broadcast Bitchat message to connected BLE clients
+     * Broadcast Dogechat message to connected BLE clients
      */
-    void broadcastToBitchat(const BitchatMessage& msg);
+    void broadcastToDogechat(const DogechatMessage& msg);
 
     /**
-     * Get current time in milliseconds (for Bitchat timestamps)
+     * Get current time in milliseconds (for Dogechat timestamps)
      * Returns synchronized time if available, otherwise falls back to RTC or millis()
      */
     uint64_t getCurrentTimeMs();
 
     /**
-     * Synchronize local time from a received Bitchat packet timestamp
+     * Synchronize local time from a received Dogechat packet timestamp
      * This is critical for proper operation - Android rejects announces with stale timestamps
      */
     void syncTimeFromPacket(uint64_t packetTimestamp);
@@ -457,7 +457,7 @@ private:
     void processPendingParts();
 
     /**
-     * Parse BitchatMessage TLV payload structure
+     * Parse DogechatMessage TLV payload structure
      *
      * The payload contains:
      * [flags:1][timestamp:8][idLen:1][id:N][senderLen:1][sender:N]
@@ -473,7 +473,7 @@ private:
      * @param channelNameLen Capacity of channelName buffer
      * @return true if successfully parsed
      */
-    bool parseBitchatMessageTLV(const uint8_t* payload, size_t payloadLen,
+    bool parseDogechatMessageTLV(const uint8_t* payload, size_t payloadLen,
                                 char* senderNick, size_t senderNickLen,
                                 char* content, size_t contentLen,
                                 char* channelName, size_t channelNameLen);

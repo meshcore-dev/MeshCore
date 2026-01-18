@@ -71,7 +71,7 @@
 #include <helpers/TransportKeyStore.h>
 
 #if defined(ENABLE_DOGECHAT) && (defined(ESP32) || defined(NRF52_PLATFORM))
-class BitchatBridge;  // Forward declaration
+class DogechatBridge;  // Forward declaration
 #endif
 
 /* -------------------------------------------------------------------------------------- */
@@ -100,8 +100,8 @@ public:
   uint32_t getBLEPin();
 
 #if defined(ENABLE_DOGECHAT) && (defined(ESP32) || defined(NRF52_PLATFORM))
-  void initBitchat(BitchatBridge* bridge);
-  BitchatBridge* getBitchatBridge() { return _dogechatBridge; }
+  void initDogechat(DogechatBridge* bridge);
+  DogechatBridge* getDogechatBridge() { return _dogechatBridge; }
 #endif
 
   void loop();
@@ -235,7 +235,7 @@ private:
   AdvertPath advert_paths[ADVERT_PATH_TABLE_SIZE]; // circular table
 
 #if defined(ENABLE_DOGECHAT) && (defined(ESP32) || defined(NRF52_PLATFORM))
-  BitchatBridge* _dogechatBridge;
+  DogechatBridge* _dogechatBridge;
 #endif
 };
 

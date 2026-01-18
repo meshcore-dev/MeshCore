@@ -1,4 +1,4 @@
-#include "BitchatProtocol.h"
+#include "DogechatProtocol.h"
 #include "../../Utils.h"
 
 // Platform-specific miniz includes for DEFLATE decompression
@@ -20,14 +20,14 @@
 #endif
 
 // ============================================================================
-// BitchatDuplicateCache
+// DogechatDuplicateCache
 // ============================================================================
 
-BitchatDuplicateCache::BitchatDuplicateCache() : currentIndex(0) {
+DogechatDuplicateCache::DogechatDuplicateCache() : currentIndex(0) {
     clear();
 }
 
-void BitchatDuplicateCache::clear() {
+void DogechatDuplicateCache::clear() {
     for (size_t i = 0; i < DOGECHAT_DUPLICATE_CACHE_SIZE; i++) {
         cache[i].valid = false;
         cache[i].hash = 0;
@@ -36,7 +36,7 @@ void BitchatDuplicateCache::clear() {
     currentIndex = 0;
 }
 
-uint32_t BitchatDuplicateCache::calculateHash(const BitchatMessage& msg) const {
+uint32_t DogechatDuplicateCache::calculateHash(const DogechatMessage& msg) const {
     // FNV-1a hash algorithm
     uint32_t hash = 2166136261u;  // FNV offset basis
 
@@ -77,7 +77,7 @@ uint32_t BitchatDuplicateCache::calculateHash(const BitchatMessage& msg) const {
     return hash;
 }
 
-bool BitchatDuplicateCache::isDuplicate(const BitchatMessage& msg) {
+bool DogechatDuplicateCache::isDuplicate(const DogechatMessage& msg) {
     uint32_t hash = calculateHash(msg);
     uint32_t ts_sec = static_cast<uint32_t>(msg.timestamp / 1000);
 
@@ -99,7 +99,7 @@ bool BitchatDuplicateCache::isDuplicate(const BitchatMessage& msg) {
     return false;
 }
 
-void BitchatDuplicateCache::addMessage(const BitchatMessage& msg) {
+void DogechatDuplicateCache::addMessage(const DogechatMessage& msg) {
     cache[currentIndex].hash = calculateHash(msg);
     cache[currentIndex].timestamp = static_cast<uint32_t>(msg.timestamp / 1000);
     cache[currentIndex].valid = true;
@@ -108,14 +108,14 @@ void BitchatDuplicateCache::addMessage(const BitchatMessage& msg) {
 }
 
 // ============================================================================
-// BitchatProtocol - Helper functions
+// DogechatProtocol - Helper functions
 // ============================================================================
 
-uint16_t BitchatProtocol::readBE16(const uint8_t* data) {
+uint16_t DogechatProtocol::readBE16(const uint8_t* data) {
     return (static_cast<uint16_t>(data[0]) << 8) | data[1];
 }
 
-uint64_t BitchatProtocol::readBE64(const uint8_t* data) {
+uint64_t DogechatProtocol::readBE64(const uint8_t* data) {
     uint64_t result = 0;
     for (int i = 0; i < 8; i++) {
         result = (result << 8) | data[i];
@@ -123,22 +123,22 @@ uint64_t BitchatProtocol::readBE64(const uint8_t* data) {
     return result;
 }
 
-void BitchatProtocol::writeBE16(uint8_t* data, uint16_t value) {
+void DogechatProtocol::writeBE16(uint8_t* data, uint16_t value) {
     data[0] = static_cast<uint8_t>((value >> 8) & 0xFF);
     data[1] = static_cast<uint8_t>(value & 0xFF);
 }
 
-void BitchatProtocol::writeBE64(uint8_t* data, uint64_t value) {
+void DogechatProtocol::writeBE64(uint8_t* data, uint64_t value) {
     for (int i = 7; i >= 0; i--) {
         data[7 - i] = static_cast<uint8_t>((value >> (i * 8)) & 0xFF);
     }
 }
 
 // ============================================================================
-// BitchatProtocol - Parsing and Serialization
+// DogechatProtocol - Parsing and Serialization
 // ============================================================================
 
-bool BitchatProtocol::parseMessage(const uint8_t* data, size_t length, BitchatMessage& msg) {
+bool DogechatProtocol::parseMessage(const uint8_t* data, size_t length, DogechatMessage& msg) {
     if (length < DOGECHAT_HEADER_SIZE) {
         return false;
     }
@@ -295,7 +295,7 @@ bool BitchatProtocol::parseMessage(const uint8_t* data, size_t length, BitchatMe
     return true;
 }
 
-size_t BitchatProtocol::serializeMessage(const BitchatMessage& msg, uint8_t* buffer, size_t maxLength) {
+size_t DogechatProtocol::serializeMessage(const DogechatMessage& msg, uint8_t* buffer, size_t maxLength) {
     size_t requiredSize = getMessageSize(msg);
     if (maxLength < requiredSize) {
         return 0;
@@ -338,7 +338,7 @@ size_t BitchatProtocol::serializeMessage(const BitchatMessage& msg, uint8_t* buf
     return offset;
 }
 
-bool BitchatProtocol::validateMessage(const BitchatMessage& msg) {
+bool DogechatProtocol::validateMessage(const DogechatMessage& msg) {
     // Check version
     if (msg.version != DOGECHAT_VERSION) {
         return false;
@@ -384,7 +384,7 @@ bool BitchatProtocol::validateMessage(const BitchatMessage& msg) {
     return true;
 }
 
-size_t BitchatProtocol::getMessageSize(const BitchatMessage& msg) {
+size_t DogechatProtocol::getMessageSize(const DogechatMessage& msg) {
     size_t size = DOGECHAT_HEADER_SIZE + DOGECHAT_SENDER_ID_SIZE;
 
     if (msg.hasRecipient()) {
@@ -400,8 +400,8 @@ size_t BitchatProtocol::getMessageSize(const BitchatMessage& msg) {
     return size;
 }
 
-void BitchatProtocol::computePacketId(const BitchatMessage& msg, uint8_t* outId16) {
-    // Compute packet ID matching Android Bitchat:
+void DogechatProtocol::computePacketId(const DogechatMessage& msg, uint8_t* outId16) {
+    // Compute packet ID matching Android Dogechat:
     // SHA-256(type | senderId | timestamp_BE | payload)[0:16]
     //
     // This creates a deterministic unique ID for each message based on its content.
@@ -437,10 +437,10 @@ void BitchatProtocol::computePacketId(const BitchatMessage& msg, uint8_t* outId1
 }
 
 // ============================================================================
-// BitchatProtocol - Message Creation
+// DogechatProtocol - Message Creation
 // ============================================================================
 
-void BitchatProtocol::createAnnounce(BitchatMessage& msg, uint64_t senderId, const char* nickname,
+void DogechatProtocol::createAnnounce(DogechatMessage& msg, uint64_t senderId, const char* nickname,
                                      const uint8_t* noisePublicKey, const uint8_t* signingPublicKey,
                                      uint64_t timestamp, uint8_t ttl) {
     msg.version = DOGECHAT_VERSION;
@@ -492,7 +492,7 @@ void BitchatProtocol::createAnnounce(BitchatMessage& msg, uint64_t senderId, con
     msg.payloadLength = static_cast<uint16_t>(offset);
 }
 
-void BitchatProtocol::createTextMessage(BitchatMessage& msg, uint64_t senderId, uint64_t recipientId,
+void DogechatProtocol::createTextMessage(DogechatMessage& msg, uint64_t senderId, uint64_t recipientId,
                                         const char* channelName, const char* text, size_t textLen,
                                         uint64_t timestamp, uint8_t ttl) {
     msg.version = DOGECHAT_VERSION;

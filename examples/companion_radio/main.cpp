@@ -92,7 +92,7 @@ static uint32_t _atoi(const char* sp) {
 #endif
 
 #if defined(ENABLE_DOGECHAT) && (defined(ESP32) || defined(NRF52_PLATFORM))
-  #include <helpers/dogechat/BitchatBridge.h>
+  #include <helpers/dogechat/DogechatBridge.h>
 #endif
 
 StdRNG fast_rng;
@@ -104,7 +104,7 @@ MyMesh the_mesh(radio_driver, fast_rng, rtc_clock, tables, store
 );
 
 #if defined(ENABLE_DOGECHAT) && (defined(ESP32) || defined(NRF52_PLATFORM))
-  BitchatBridge* dogechat_bridge = nullptr;
+  DogechatBridge* dogechat_bridge = nullptr;
 #endif
 
 /* END GLOBAL OBJECTS */
@@ -166,16 +166,16 @@ void setup() {
   // USB Serial for MeshCore companion
   serial_interface.begin(Serial);
 
-  // Standalone Bitchat BLE if enabled (USB serial for MeshCore, BLE for Bitchat)
+  // Standalone Dogechat BLE if enabled (USB serial for MeshCore, BLE for Dogechat)
   #ifdef ENABLE_DOGECHAT
-  dogechat_bridge = new BitchatBridge(the_mesh, the_mesh.self_id, the_mesh.getNodeName());
+  dogechat_bridge = new DogechatBridge(the_mesh, the_mesh.self_id, the_mesh.getNodeName());
   dogechat_bridge->begin();
   if (dogechat_bridge->beginStandalone(the_mesh.getNodeName())) {
-    Serial.println("Bitchat BLE service started (standalone mode)");
+    Serial.println("Dogechat BLE service started (standalone mode)");
   } else {
-    Serial.println("ERROR: Failed to start Bitchat BLE service!");
+    Serial.println("ERROR: Failed to start Dogechat BLE service!");
   }
-  the_mesh.initBitchat(dogechat_bridge);
+  the_mesh.initDogechat(dogechat_bridge);
   #endif
 #endif
   the_mesh.startInterface(serial_interface);
@@ -224,17 +224,17 @@ void setup() {
   sprintf(dev_name, "%s%s", BLE_NAME_PREFIX, the_mesh.getNodeName());
   serial_interface.begin(dev_name, the_mesh.getBLEPin());
 
-  // Initialize Bitchat bridge after BLE server is created
+  // Initialize Dogechat bridge after BLE server is created
   #ifdef ENABLE_DOGECHAT
-  dogechat_bridge = new BitchatBridge(the_mesh, the_mesh.self_id, the_mesh.getNodeName());
+  dogechat_bridge = new DogechatBridge(the_mesh, the_mesh.self_id, the_mesh.getNodeName());
   dogechat_bridge->begin();
   if (serial_interface.getBLEServer() != nullptr) {
     if (dogechat_bridge->attachBLEService(serial_interface.getBLEServer())) {
-      serial_interface.setBitchatService(&dogechat_bridge->getBLEService());
-      Serial.println("Bitchat BLE service attached");
+      serial_interface.setDogechatService(&dogechat_bridge->getBLEService());
+      Serial.println("Dogechat BLE service attached");
     }
   }
-  the_mesh.initBitchat(dogechat_bridge);
+  the_mesh.initDogechat(dogechat_bridge);
   #endif
 #elif defined(SERIAL_RX)
   companion_serial.setPins(SERIAL_RX, SERIAL_TX);
@@ -244,17 +244,17 @@ void setup() {
   // Default: USB Serial for MeshCore companion
   serial_interface.begin(Serial);
 
-  // Standalone Bitchat BLE if enabled (no SerialBLEInterface)
+  // Standalone Dogechat BLE if enabled (no SerialBLEInterface)
   #ifdef ENABLE_DOGECHAT
-  dogechat_bridge = new BitchatBridge(the_mesh, the_mesh.self_id, the_mesh.getNodeName());
+  dogechat_bridge = new DogechatBridge(the_mesh, the_mesh.self_id, the_mesh.getNodeName());
   dogechat_bridge->begin();
 
   if (dogechat_bridge->beginStandalone(the_mesh.getNodeName())) {
-    Serial.println("Bitchat BLE service started (standalone mode)");
+    Serial.println("Dogechat BLE service started (standalone mode)");
   } else {
-    Serial.println("ERROR: Failed to start Bitchat BLE service!");
+    Serial.println("ERROR: Failed to start Dogechat BLE service!");
   }
-  the_mesh.initBitchat(dogechat_bridge);
+  the_mesh.initDogechat(dogechat_bridge);
   #endif
 #endif
   the_mesh.startInterface(serial_interface);

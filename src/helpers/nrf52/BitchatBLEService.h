@@ -2,52 +2,52 @@
 
 #ifdef NRF52_PLATFORM
 
-#include "../dogechat/BitchatProtocol.h"
+#include "../dogechat/DogechatProtocol.h"
 #include <bluefruit.h>
 
 /**
- * Callback interface for Bitchat BLE events
+ * Callback interface for Dogechat BLE events
  */
-class BitchatBLECallback {
+class DogechatBLECallback {
 public:
-    virtual ~BitchatBLECallback() {}
+    virtual ~DogechatBLECallback() {}
 
     /**
-     * Called when a Bitchat message is received via BLE
+     * Called when a Dogechat message is received via BLE
      * @param msg The received message
      */
-    virtual void onBitchatMessageReceived(const BitchatMessage& msg) = 0;
+    virtual void onDogechatMessageReceived(const DogechatMessage& msg) = 0;
 
     /**
-     * Called when a Bitchat BLE client connects
+     * Called when a Dogechat BLE client connects
      */
-    virtual void onBitchatClientConnect() {}
+    virtual void onDogechatClientConnect() {}
 
     /**
-     * Called when a Bitchat BLE client disconnects
+     * Called when a Dogechat BLE client disconnects
      */
-    virtual void onBitchatClientDisconnect() {}
+    virtual void onDogechatClientDisconnect() {}
 };
 
 /**
- * Bitchat BLE Service for NRF52 (using Bluefruit)
- * Provides a GATT service for Bitchat protocol communication
+ * Dogechat BLE Service for NRF52 (using Bluefruit)
+ * Provides a GATT service for Dogechat protocol communication
  *
- * Note: This uses standalone BLE advertising. For NRF52, when Bitchat is enabled,
- * the MeshCore companion uses USB serial while Bitchat uses BLE independently.
+ * Note: This uses standalone BLE advertising. For NRF52, when Dogechat is enabled,
+ * the MeshCore companion uses USB serial while Dogechat uses BLE independently.
  */
-class BitchatBLEService {
+class DogechatBLEService {
 public:
-    BitchatBLEService();
+    DogechatBLEService();
 
     /**
-     * Initialize BLE and start the Bitchat service in standalone mode
-     * Creates BLE server with Bitchat service only.
+     * Initialize BLE and start the Dogechat service in standalone mode
+     * Creates BLE server with Dogechat service only.
      * @param deviceName BLE device name for advertising
-     * @param callback Callback for Bitchat events
+     * @param callback Callback for Dogechat events
      * @return true if successful
      */
-    bool beginStandalone(const char* deviceName, BitchatBLECallback* callback);
+    bool beginStandalone(const char* deviceName, DogechatBLECallback* callback);
 
     /**
      * Start BLE advertising
@@ -61,16 +61,16 @@ public:
     bool isActive() const { return _serviceActive; }
 
     /**
-     * Check if a Bitchat client is connected
+     * Check if a Dogechat client is connected
      */
     bool hasConnectedClient() const { return _dogechatClientCount > 0; }
 
     /**
-     * Broadcast a message to connected Bitchat clients
+     * Broadcast a message to connected Dogechat clients
      * @param msg Message to send
      * @return true if message was sent
      */
-    bool broadcastMessage(const BitchatMessage& msg);
+    bool broadcastMessage(const DogechatMessage& msg);
 
     /**
      * Process loop - call from main loop
@@ -87,7 +87,7 @@ private:
     // Bluefruit service and characteristic
     BLEService _service;
     BLECharacteristic _characteristic;
-    BitchatBLECallback* _callback;
+    DogechatBLECallback* _callback;
     char _deviceName[48];
 
     bool _serviceActive;
@@ -107,7 +107,7 @@ private:
     // Message queue for deferred processing (incoming)
     static const size_t MESSAGE_QUEUE_SIZE = 8;
     struct QueuedMessage {
-        BitchatMessage msg;
+        DogechatMessage msg;
         bool valid;
     };
     QueuedMessage _messageQueue[MESSAGE_QUEUE_SIZE];
@@ -115,11 +115,11 @@ private:
     volatile size_t _queueTail;
 
     // Pending outgoing message (when client not yet subscribed)
-    BitchatMessage _pendingOutgoing;
+    DogechatMessage _pendingOutgoing;
     bool _hasPendingOutgoing;
 
     void clearWriteBuffer();
-    bool queueMessage(const BitchatMessage& msg);
+    bool queueMessage(const DogechatMessage& msg);
     void processQueue();
     void sendPendingOutgoing();
 
@@ -130,7 +130,7 @@ private:
     static void onCharacteristicCccdWrite(uint16_t conn_handle, BLECharacteristic* chr, uint16_t cccd_value);
 
     // Singleton for static callback access
-    static BitchatBLEService* _instance;
+    static DogechatBLEService* _instance;
 };
 
 #endif // NRF52_PLATFORM

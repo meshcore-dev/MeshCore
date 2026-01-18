@@ -1,7 +1,7 @@
 #include "SerialBLEInterface.h"
 
 #ifdef ENABLE_DOGECHAT
-#include "../dogechat/BitchatBLEService.h"
+#include "../dogechat/DogechatBLEService.h"
 #endif
 
 // See the following for generating UUIDs:

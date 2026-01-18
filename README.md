@@ -2,9 +2,9 @@
 
 MeshCore is a lightweight, portable C++ library that enables multi-hop packet routing for embedded projects using LoRa and other packet radios. It is designed for developers who want to create resilient, decentralized communication networks that work without the internet.
 
-## About the Bitchat Bridge
+## About the Dogechat Bridge
 
-This is a special experimental Bitchat bridge branch.
+This is a special experimental Dogechat bridge branch.
 
 Read [my blog](https://juraj.bednar.io/en/blog-en/2026/01/18/bridging-dogechat-and-meshcore-resilient-communication-when-you-need-it-most/) and [documentation](docs/dogechat-bridge.md).
 

@@ -1,4 +1,4 @@
-#include "BitchatBLEService.h"
+#include "DogechatBLEService.h"
 
 #ifdef NRF52_PLATFORM
 
@@ -36,15 +36,15 @@ extern "C" {
   #define DOGECHAT_DEBUG_PRINTLN(...) {}
 #endif
 
-// Bitchat service UUID: F47B5E2D-4A9E-4C5A-9B3F-8E1D2C3A4B5C
+// Dogechat service UUID: F47B5E2D-4A9E-4C5A-9B3F-8E1D2C3A4B5C
 // Bluefruit uses little-endian byte order for UUIDs
 static const uint8_t DOGECHAT_SERVICE_UUID_BYTES[] = {
     0x5C, 0x4B, 0x3A, 0x2C, 0x1D, 0x8E, 0x3F, 0x9B,
     0x5A, 0x4C, 0x9E, 0x4A, 0x2D, 0x5E, 0x7B, 0xF4
 };
 
-// Bitchat characteristic UUID: A1B2C3D4-E5F6-4A5B-8C9D-0E1F2A3B4C5D
-// (Same as ESP32 DOGECHAT_CHARACTERISTIC_UUID in BitchatProtocol.h)
+// Dogechat characteristic UUID: A1B2C3D4-E5F6-4A5B-8C9D-0E1F2A3B4C5D
+// (Same as ESP32 DOGECHAT_CHARACTERISTIC_UUID in DogechatProtocol.h)
 // Bluefruit uses little-endian byte order for UUIDs
 static const uint8_t DOGECHAT_CHARACTERISTIC_UUID_BYTES[] = {
     0x5D, 0x4C, 0x3B, 0x2A, 0x1F, 0x0E, 0x9D, 0x8C,
@@ -52,9 +52,9 @@ static const uint8_t DOGECHAT_CHARACTERISTIC_UUID_BYTES[] = {
 };
 
 // Singleton instance for static callback access
-BitchatBLEService* BitchatBLEService::_instance = nullptr;
+DogechatBLEService* DogechatBLEService::_instance = nullptr;
 
-BitchatBLEService::BitchatBLEService()
+DogechatBLEService::DogechatBLEService()
     : _service(DOGECHAT_SERVICE_UUID_BYTES)
     , _characteristic(DOGECHAT_CHARACTERISTIC_UUID_BYTES)
     , _callback(nullptr)
@@ -71,7 +71,7 @@ BitchatBLEService::BitchatBLEService()
 {
     memset(_writeBuffer, 0, sizeof(_writeBuffer));
     memset(_deviceName, 0, sizeof(_deviceName));
-    strcpy(_deviceName, "Bitchat");
+    strcpy(_deviceName, "Dogechat");
     for (size_t i = 0; i < MESSAGE_QUEUE_SIZE; i++) {
         _messageQueue[i].valid = false;
     }
@@ -79,7 +79,7 @@ BitchatBLEService::BitchatBLEService()
     _instance = this;
 }
 
-bool BitchatBLEService::beginStandalone(const char* deviceName, BitchatBLECallback* callback) {
+bool DogechatBLEService::beginStandalone(const char* deviceName, DogechatBLECallback* callback) {
     if (callback == nullptr) {
         return false;
     }
@@ -101,7 +101,7 @@ bool BitchatBLEService::beginStandalone(const char* deviceName, BitchatBLECallba
     Bluefruit.Periph.setConnectCallback(onConnect);
     Bluefruit.Periph.setDisconnectCallback(onDisconnect);
 
-    // Bitchat uses open security (no PIN required)
+    // Dogechat uses open security (no PIN required)
     Bluefruit.Security.setMITM(false);
     Bluefruit.Security.setIOCaps(false, false, false);
 
@@ -114,34 +114,34 @@ bool BitchatBLEService::beginStandalone(const char* deviceName, BitchatBLECallba
         }
     }
     safeName[j] = '\0';
-    if (j == 0) strcpy(safeName, "Bitchat");
+    if (j == 0) strcpy(safeName, "Dogechat");
 
     Bluefruit.setName(safeName);
 
-    // Configure the Bitchat service
+    // Configure the Dogechat service
     _service.begin();
 
     // Configure the characteristic with READ, WRITE, WRITE_NR, NOTIFY properties
     _characteristic.setProperties(CHR_PROPS_READ | CHR_PROPS_WRITE | CHR_PROPS_WRITE_WO_RESP | CHR_PROPS_NOTIFY | CHR_PROPS_INDICATE);
     _characteristic.setPermission(SECMODE_OPEN, SECMODE_OPEN);  // Open security
-    _characteristic.setMaxLen(512);  // Support large Bitchat messages
+    _characteristic.setMaxLen(512);  // Support large Dogechat messages
     _characteristic.setWriteCallback(onCharacteristicWrite);
     _characteristic.setCccdWriteCallback(onCharacteristicCccdWrite);
     _characteristic.begin();
 
     _serviceActive = true;
-    DOGECHAT_DEBUG_PRINTLN("Bitchat BLE service initialized: %s", safeName);
+    DOGECHAT_DEBUG_PRINTLN("Dogechat BLE service initialized: %s", safeName);
 
     return true;
 }
 
-void BitchatBLEService::startAdvertising() {
+void DogechatBLEService::startAdvertising() {
     // Clear any previous advertising data
     Bluefruit.Advertising.clearData();
     Bluefruit.ScanResponse.clearData();
 
-    // Set Bitchat UUID in MAIN advertisement (required for Bitchat app discovery)
-    // The Bitchat Android app filters on service UUID in main advertisement packet
+    // Set Dogechat UUID in MAIN advertisement (required for Dogechat app discovery)
+    // The Dogechat Android app filters on service UUID in main advertisement packet
     Bluefruit.Advertising.addFlags(BLE_GAP_ADV_FLAGS_LE_ONLY_GENERAL_DISC_MODE);
     Bluefruit.Advertising.addService(_service);
 
@@ -157,7 +157,7 @@ void BitchatBLEService::startAdvertising() {
     DOGECHAT_DEBUG_PRINTLN("BLE advertising started");
 }
 
-void BitchatBLEService::onServerDisconnect() {
+void DogechatBLEService::onServerDisconnect() {
     if (_dogechatClientCount > 0) {
         _dogechatClientCount--;
     }
@@ -166,17 +166,17 @@ void BitchatBLEService::onServerDisconnect() {
         _clientSubscribed = false;
         clearWriteBuffer();
         if (_callback != nullptr) {
-            _callback->onBitchatClientDisconnect();
+            _callback->onDogechatClientDisconnect();
         }
     }
 }
 
-void BitchatBLEService::clearWriteBuffer() {
+void DogechatBLEService::clearWriteBuffer() {
     _writeBufferOffset = 0;
     memset(_writeBuffer, 0, sizeof(_writeBuffer));
 }
 
-bool BitchatBLEService::queueMessage(const BitchatMessage& msg) {
+bool DogechatBLEService::queueMessage(const DogechatMessage& msg) {
     size_t nextTail = (_queueTail + 1) % MESSAGE_QUEUE_SIZE;
 
     if (nextTail == _queueHead) {
@@ -191,14 +191,14 @@ bool BitchatBLEService::queueMessage(const BitchatMessage& msg) {
     return true;
 }
 
-void BitchatBLEService::processQueue() {
+void DogechatBLEService::processQueue() {
     while (_queueHead != _queueTail) {
         if (_messageQueue[_queueHead].valid) {
             _messageQueue[_queueHead].valid = false;
 
             if (_callback != nullptr) {
                 Serial.println("BLE_SERVICE: processQueue() calling callback...");
-                _callback->onBitchatMessageReceived(_messageQueue[_queueHead].msg);
+                _callback->onDogechatMessageReceived(_messageQueue[_queueHead].msg);
                 Serial.println("BLE_SERVICE: processQueue() callback returned");
             }
         }
@@ -206,14 +206,14 @@ void BitchatBLEService::processQueue() {
     }
 }
 
-void BitchatBLEService::loop() {
+void DogechatBLEService::loop() {
     uint32_t now = millis();
 
     // Handle deferred connect callback
     if (_pendingConnect) {
         _pendingConnect = false;
         if (_callback != nullptr) {
-            _callback->onBitchatClientConnect();
+            _callback->onDogechatClientConnect();
         }
     }
 
@@ -228,19 +228,19 @@ void BitchatBLEService::loop() {
             _writeBufferOffset > 2 ? _writeBuffer[2] : 0,
             _writeBufferOffset > 3 ? _writeBuffer[3] : 0);
 
-        BitchatMessage msg;
-        if (BitchatProtocol::parseMessage(_writeBuffer, _writeBufferOffset, msg)) {
-            if (BitchatProtocol::validateMessage(msg)) {
-                DOGECHAT_DEBUG_PRINTLN("Received Bitchat message: type=%02X, len=%d", msg.type, msg.payloadLength);
+        DogechatMessage msg;
+        if (DogechatProtocol::parseMessage(_writeBuffer, _writeBufferOffset, msg)) {
+            if (DogechatProtocol::validateMessage(msg)) {
+                DOGECHAT_DEBUG_PRINTLN("Received Dogechat message: type=%02X, len=%d", msg.type, msg.payloadLength);
                 queueMessage(msg);
             } else {
-                DOGECHAT_DEBUG_PRINTLN("Invalid Bitchat message received (validation failed)");
+                DOGECHAT_DEBUG_PRINTLN("Invalid Dogechat message received (validation failed)");
             }
             clearWriteBuffer();
         } else {
             DOGECHAT_DEBUG_PRINTLN("Parse failed, have %u bytes, need more or invalid data", (unsigned)_writeBufferOffset);
             if (_writeBufferOffset >= DOGECHAT_HEADER_SIZE) {
-                size_t expectedMin = BitchatProtocol::getMessageSize(msg);
+                size_t expectedMin = DogechatProtocol::getMessageSize(msg);
                 DOGECHAT_DEBUG_PRINTLN("Expected min size: %u", (unsigned)expectedMin);
                 if (_writeBufferOffset > expectedMin + 100) {
                     DOGECHAT_DEBUG_PRINTLN("Write buffer contains unparseable data, clearing");
@@ -269,7 +269,7 @@ void BitchatBLEService::loop() {
     }
 }
 
-bool BitchatBLEService::broadcastMessage(const BitchatMessage& msg) {
+bool DogechatBLEService::broadcastMessage(const DogechatMessage& msg) {
     Serial.println("BLE_SERVICE: >>> broadcastMessage() ENTRY <<<");
     DOGECHAT_DEBUG_PRINTLN("broadcastMessage: type=0x%02X, active=%d, subscribed=%d, clients=%d",
                           msg.type, _serviceActive, _clientSubscribed, _dogechatClientCount);
@@ -281,7 +281,7 @@ bool BitchatBLEService::broadcastMessage(const BitchatMessage& msg) {
 
     // Serialize message - use static buffer to avoid stack overflow
     static uint8_t buffer[DOGECHAT_MAX_MESSAGE_SIZE];
-    size_t len = BitchatProtocol::serializeMessage(msg, buffer, sizeof(buffer));
+    size_t len = DogechatProtocol::serializeMessage(msg, buffer, sizeof(buffer));
     if (len == 0) {
         DOGECHAT_DEBUG_PRINTLN("broadcastMessage: serialize failed");
         return false;
@@ -316,7 +316,7 @@ bool BitchatBLEService::broadcastMessage(const BitchatMessage& msg) {
     return true;
 }
 
-void BitchatBLEService::sendPendingOutgoing() {
+void DogechatBLEService::sendPendingOutgoing() {
     if (!_hasPendingOutgoing || !_clientSubscribed) {
         return;
     }
@@ -326,7 +326,7 @@ void BitchatBLEService::sendPendingOutgoing() {
 
     // Serialize and send the pending message - use static buffer to avoid stack overflow
     static uint8_t buffer[DOGECHAT_MAX_MESSAGE_SIZE];
-    size_t len = BitchatProtocol::serializeMessage(_pendingOutgoing, buffer, sizeof(buffer));
+    size_t len = DogechatProtocol::serializeMessage(_pendingOutgoing, buffer, sizeof(buffer));
     if (len > 0) {
         uint16_t result = _characteristic.notify(buffer, len);
         DOGECHAT_DEBUG_PRINTLN("Pending message notify returned %u", result);
@@ -335,7 +335,7 @@ void BitchatBLEService::sendPendingOutgoing() {
 
 // Static callbacks
 
-void BitchatBLEService::onConnect(uint16_t conn_handle) {
+void DogechatBLEService::onConnect(uint16_t conn_handle) {
     if (_instance != nullptr) {
         _instance->_dogechatClientCount++;
         _instance->_pendingConnect = true;
@@ -343,14 +343,14 @@ void BitchatBLEService::onConnect(uint16_t conn_handle) {
     }
 }
 
-void BitchatBLEService::onDisconnect(uint16_t conn_handle, uint8_t reason) {
+void DogechatBLEService::onDisconnect(uint16_t conn_handle, uint8_t reason) {
     if (_instance != nullptr) {
         _instance->onServerDisconnect();
         DOGECHAT_DEBUG_PRINTLN("BLE client disconnected, reason=0x%02X", reason);
     }
 }
 
-void BitchatBLEService::onCharacteristicWrite(uint16_t conn_handle, BLECharacteristic* chr, uint8_t* data, uint16_t len) {
+void DogechatBLEService::onCharacteristicWrite(uint16_t conn_handle, BLECharacteristic* chr, uint8_t* data, uint16_t len) {
     DOGECHAT_DEBUG_PRINTLN("BLE WRITE received: %u bytes", len);
 
     if (_instance == nullptr || len == 0) {
@@ -373,7 +373,7 @@ void BitchatBLEService::onCharacteristicWrite(uint16_t conn_handle, BLECharacter
     DOGECHAT_DEBUG_PRINTLN("Write buffer now has %u bytes", (unsigned)_instance->_writeBufferOffset);
 }
 
-void BitchatBLEService::onCharacteristicCccdWrite(uint16_t conn_handle, BLECharacteristic* chr, uint16_t cccd_value) {
+void DogechatBLEService::onCharacteristicCccdWrite(uint16_t conn_handle, BLECharacteristic* chr, uint16_t cccd_value) {
     Serial.print("BLE_SERVICE: CCCD write callback, cccd_value=0x");
     Serial.println(cccd_value, HEX);
 
