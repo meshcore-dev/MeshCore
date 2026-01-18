@@ -56,6 +56,7 @@ public:
   virtual void setGpio(uint32_t values) {}
   virtual uint8_t getStartupReason() const = 0;
   virtual bool startOTAUpdate(const char* id, char reply[]) { return false; }   // not supported
+  virtual void tick() { }   // called each loop iteration for board-specific periodic tasks
 };
 
 /**
