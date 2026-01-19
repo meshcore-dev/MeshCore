@@ -21,34 +21,34 @@ float NRF52Board::getMCUTemperature() {
   return temp * 0.25f; // Convert to *C
 }
 
-  uint32_t NRF52Board::getIRQGpio() {
+uint32_t NRF52Board::getIRQGpio() {
 #if defined(RADIO_SX1276) && defined(P_LORA_DIO_0) // SX1276
-    return P_LORA_DIO_0;
+  return P_LORA_DIO_0;
 #elif defined(P_LORA_DIO_1) // SX1262
-    return P_LORA_DIO_1;
+  return P_LORA_DIO_1;
 #else
-    return -1; // Not connected
+  return -1; // Not connected
 #endif
+}
+
+bool NRF52Board::safeToSleep() {
+  // Check for RX status
+  uint32_t wakeupPin = getIRQGpio();
+  if (digitalRead(wakeupPin) == HIGH) {
+    return false;
   }
 
-  bool NRF52Board::safeToSleep() {
-    // Check for RX status
-    uint32_t wakeupPin = getIRQGpio();
-    if (digitalRead(wakeupPin) == HIGH) {
-      return false;
-    }
+  // Check if the BLE is powered and looking for/connected to a phone
+  uint8_t sd_enabled;
+  sd_softdevice_is_enabled(&sd_enabled); // Set sd_enabled to 1 if the BLE stack is active.
 
-    // Check if the BLE is powered and looking for/connected to a phone
-    uint8_t sd_enabled;
-    sd_softdevice_is_enabled(&sd_enabled); // Set sd_enabled to 1 if the BLE stack is active.
-
-    if (sd_enabled) { // BLE is on
-      return false;
-    }
-
-    // Safe to sleep
-    return true;
+  if (sd_enabled) { // BLE is on
+    return false;
   }
+
+  // Safe to sleep
+  return true;
+}
 
 void NRF52Board::sleep(uint32_t secs) {
   // Skip if not safe to sleep
@@ -61,13 +61,37 @@ void NRF52Board::sleep(uint32_t secs) {
 
   // Mark the start of the sleep
   uint32_t startTime = millis();
+  uint32_t timeoutMs = secs * 1000;
 
-  // Wake up when a LoRa packet comes or sleep timeout. Safe to 49-day overflow
-  while (digitalRead(wakeupPin) == LOW && (millis() - startTime < secs * 1000)) {
-    // MCU enters System-on idle
-    __SEV(); // Clear any stale event flag
-    __WFE(); // Consume that event
-    __WFE(); // Actually puts CPU to sleep
+  // Create event when wakeup pin is high
+  nrf_gpio_cfg_sense_input(wakeupPin, NRF_GPIO_PIN_PULLDOWN, NRF_GPIO_PIN_SENSE_HIGH);
+
+  while (true) {
+    // Wakeup timer
+    if ((millis() - startTime) >= timeoutMs) {
+      break;
+    }
+
+    // Clear stale events
+    __SEV();
+    __WFE();
+
+    // Disable ISR servicing
+    noInterrupts();
+
+    if (digitalRead(wakeupPin) == HIGH) {
+      interrupts();
+      break;
+    }
+
+    // Attempt to sleep, wakeup on any events
+    __WFE();
+
+    // Enable ISR servicing
+    interrupts();
   }
+
+  // Disable sense on wakeup pin
+  nrf_gpio_cfg_input(wakeupPin, NRF_GPIO_PIN_PULLDOWN);
 }
 #endif

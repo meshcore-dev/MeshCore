@@ -72,7 +72,7 @@ struct NeighbourInfo {
 #endif
 
 #ifndef FIRMWARE_VERSION
-  #define FIRMWARE_VERSION   "v1.11.0 - Variant IoTThinks.com - PowerSaving11.2.1"
+  #define FIRMWARE_VERSION   "v1.11.0 - Variant IoTThinks.com - PowerSaving11.2.2"
 #endif
 
 #define FIRMWARE_ROLE "repeater"
