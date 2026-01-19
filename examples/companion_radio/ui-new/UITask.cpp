@@ -63,7 +63,13 @@ public:
     display.drawTextCentered(display.width()/2, 22, _version_info);
 
     display.setTextSize(1);
+#ifdef OLED_RU
+    char filtered_date[sizeof(FIRMWARE_BUILD_DATE)];
+    display.translateUTF8ToBlocks(filtered_date, FIRMWARE_BUILD_DATE, sizeof(filtered_date));
+    display.drawTextCentered(display.width()/2, 42, filtered_date);
+#else
     display.drawTextCentered(display.width()/2, 42, FIRMWARE_BUILD_DATE);
+#endif
 
     return 1000;
   }
@@ -100,31 +106,51 @@ class HomeScreen : public UIScreen {
   bool _shutdown_init;
   AdvertPath recent[UI_RECENT_LIST_SIZE];
 
-
   void renderBatteryIndicator(DisplayDriver& display, uint16_t batteryMilliVolts) {
-    // Convert millivolts to percentage
-    const int minMilliVolts = 3000; // Minimum voltage (e.g., 3.0V)
-    const int maxMilliVolts = 4200; // Maximum voltage (e.g., 4.2V)
+    int minMilliVolts = 3000;
+    #ifdef AUTO_SHUTDOWN_MILLIVOLTS
+      minMilliVolts = AUTO_SHUTDOWN_MILLIVOLTS;
+    #endif
+
+    const int maxMilliVolts = 4200;
     int batteryPercentage = ((batteryMilliVolts - minMilliVolts) * 100) / (maxMilliVolts - minMilliVolts);
-    if (batteryPercentage < 0) batteryPercentage = 0; // Clamp to 0%
-    if (batteryPercentage > 100) batteryPercentage = 100; // Clamp to 100%
+    batteryPercentage = constrain(batteryPercentage, 0, 100);
 
-    // battery icon
-    int iconWidth = 24;
-    int iconHeight = 10;
-    int iconX = display.width() - iconWidth - 5; // Position the icon near the top-right corner
-    int iconY = 0;
-    display.setColor(DisplayDriver::GREEN);
+    #ifdef TEXT_BATTERY
+      // ===== TEXT BATTERY =====
+      int battBackWidth = 24;
+      int battBackHeight = 10;
+      int battBackStartPosY = 0;
+      int battBackStartPosX = display.width() - battBackWidth - 5;
 
-    // battery outline
-    display.drawRect(iconX, iconY, iconWidth, iconHeight);
+      String batteryPercText = String(batteryPercentage) + "%";
+      int battTextStartPosX = display.width() - 5;
 
-    // battery "cap"
-    display.fillRect(iconX + iconWidth, iconY + (iconHeight / 4), 3, iconHeight / 2);
+      display.setColor(DisplayDriver::DARK);
+      display.fillRect(battBackStartPosX, battBackStartPosY, battBackWidth, battBackHeight);
+      display.setTextSize(1);
+      display.setColor(DisplayDriver::GREEN);
+      display.drawTextRightAlign(battTextStartPosX, 1, batteryPercText.c_str());
 
-    // fill the battery based on the percentage
-    int fillWidth = (batteryPercentage * (iconWidth - 4)) / 100;
-    display.fillRect(iconX + 2, iconY + 2, fillWidth, iconHeight - 4);
+    #else
+      // ===== ICON BATTERY =====
+      int iconWidth = 24;
+      int iconHeight = 10;
+      int iconX = display.width() - iconWidth - 5;
+      int iconY = 0;
+
+      display.setColor(DisplayDriver::GREEN);
+
+      // outline
+      display.drawRect(iconX, iconY, iconWidth, iconHeight);
+
+      // cap
+      display.fillRect(iconX + iconWidth, iconY + (iconHeight / 4), 3, iconHeight / 2);
+
+      // fill
+      int fillWidth = (batteryPercentage * (iconWidth - 4)) / 100;
+      display.fillRect(iconX + 2, iconY + 2, fillWidth, iconHeight - 4);
+    #endif
   }
 
   CayenneLPP sensors_lpp;
@@ -542,6 +568,9 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
 #if defined(PIN_USER_BTN)
   user_btn.begin();
 #endif
+#if defined(HAS_ENCODER)
+  encoder.begin();
+#endif
 #if defined(PIN_USER_BTN_ANA)
   analog_btn.begin();
 #endif
@@ -631,14 +660,24 @@ void UITask::newMsg(uint8_t path_len, const char* from_name, const char* text, i
   setCurrScreen(msg_preview);
 
   if (_display != NULL) {
-    if (!_display->isOn() && !hasConnection()) {
-      _display->turnOn();
+
+    #ifdef DISPLAY_TOGGLE
+      if (_displayWakeOnMsg) {
+    #endif
+
+        if (!_display->isOn() && !hasConnection()) {
+          _display->turnOn();
+        }
+
+    #ifdef DISPLAY_TOGGLE
+      }
+    #endif
+
+      if (_display->isOn()) {
+        _auto_off = millis() + AUTO_OFF_MILLIS;
+        _next_refresh = 100;
+      }
     }
-    if (_display->isOn()) {
-    _auto_off = millis() + AUTO_OFF_MILLIS;  // extend the auto-off timer
-    _next_refresh = 100;  // trigger refresh
-    }
-  }
 }
 
 void UITask::userLedHandler() {
@@ -739,6 +778,21 @@ void UITask::loop() {
     c = handleTripleClick(KEY_SELECT);
   }
 #endif
+#if defined(HAS_ENCODER)
+  int enc_ev = encoder.check();
+  if (enc_ev == ENC_EVENT_CW) {
+    c = checkDisplayOn(KEY_RIGHT);
+  } else if (enc_ev == ENC_EVENT_CCW) {
+    c = checkDisplayOn(KEY_LEFT);
+  } else if (enc_ev == ENC_EVENT_BUTTON) {
+    toggleDisplayWakeupOnMsg();
+    c = 0; 
+  } else if (enc_ev == ENC_EVENT_LONG_PRESS) {
+    turnOnDisplayWakeupOnMsg();
+    c = 0;
+  }
+#endif
+
 #if defined(PIN_USER_BTN_ANA)
   if (abs(millis() - _analogue_pin_read_millis) > 10) {
     ev = analog_btn.check();
@@ -764,6 +818,33 @@ void UITask::loop() {
 #endif
     next_backlight_btn_check = millis() + 300;
   }
+#endif
+
+#if defined(DISPLAY_TOGGLE)
+  bool disp_state = (digitalRead(DISPLAY_TOGGLE) == LOW); // ACTIVE LOW
+
+  // edge: press
+  if (disp_state && !_dispTglPrevState) {
+    _dispTglPressStart  = millis();
+    _dispTglLongHandled = false;
+  }
+
+  // hold → long press
+  if (disp_state && !_dispTglLongHandled) {
+    if (millis() - _dispTglPressStart >= LONG_PRESS_MILLIS) {
+      turnOnDisplayWakeupOnMsg();
+      _dispTglLongHandled = true;
+    }
+  }
+
+  // release → click
+  if (!disp_state && _dispTglPrevState) {
+    if (!_dispTglLongHandled) {
+      toggleDisplayWakeupOnMsg();
+    }
+  }
+
+  _dispTglPrevState = disp_state;
 #endif
 
   if (c != 0 && curr) {
@@ -920,4 +1001,41 @@ void UITask::toggleBuzzer() {
     showAlert(buzzer.isQuiet() ? "Buzzer: OFF" : "Buzzer: ON", 800);
     _next_refresh = 0;  // trigger refresh
   #endif
+}
+
+void UITask::toggleDisplayWakeupOnMsg() {
+  if (_display && !_display->isOn()) {
+    // Display is turned off, only wakeup on the first press
+    _display->turnOn();
+    _auto_off = millis() + AUTO_OFF_MILLIS;
+    _next_refresh = 0;
+    return;
+  }
+
+  // Display is on wake, toggle the flag
+  _displayWakeOnMsg = !_displayWakeOnMsg;
+
+  showAlert(
+    _displayWakeOnMsg ? "Msg wake: ON" : "Msg wake: OFF",
+    800
+  );
+  notify(UIEventType::ack);
+
+  _auto_off = millis() + AUTO_OFF_MILLIS;
+  _next_refresh = 0;
+}
+
+void UITask::turnOnDisplayWakeupOnMsg() {
+  // Принудительно включаем wake-on-msg
+  _displayWakeOnMsg = true;
+
+  if (_display && !_display->isOn()) {
+    _display->turnOn();
+  }
+
+  showAlert("Msg wake: ON", 800);
+  notify(UIEventType::ack);
+
+  _auto_off = millis() + AUTO_OFF_MILLIS;
+  _next_refresh = 0;
 }

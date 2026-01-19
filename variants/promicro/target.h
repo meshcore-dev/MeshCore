@@ -9,6 +9,12 @@
 #ifdef DISPLAY_CLASS
   #include <helpers/ui/SSD1306Display.h>
   #include <helpers/ui/MomentaryButton.h>
+  #define UI_HAS_DISPLAY 1
+#endif
+
+#if defined(UI_HAS_DISPLAY) && defined(HAS_ENCODER)
+  #include <helpers/ui/EncoderAndButton.h>
+  extern EncoderAndButton encoder;
 #endif
 
 #include <helpers/sensors/EnvironmentSensorManager.h>

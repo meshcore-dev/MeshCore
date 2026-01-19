@@ -48,6 +48,15 @@ class UITask : public AbstractUITask {
   unsigned long _analogue_pin_read_millis = millis();
 #endif
 
+bool _displayWakeOnMsg = true;
+
+#if defined(DISPLAY_TOGGLE)
+  bool _dispTglPrevState = false;
+  uint32_t _dispTglPressStart = 0;
+  bool _dispTglLongHandled = false;
+#endif
+
+
   UIScreen* splash;
   UIScreen* home;
   UIScreen* msg_preview;
@@ -56,6 +65,8 @@ class UITask : public AbstractUITask {
   void userLedHandler();
 
   // Button action handlers
+  void turnOnDisplayWakeupOnMsg();
+  void toggleDisplayWakeupOnMsg();
   char checkDisplayOn(char c);
   char handleLongPress(char c);
   char handleDoubleClick(char c);
