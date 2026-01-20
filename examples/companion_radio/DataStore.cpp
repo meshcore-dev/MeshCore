@@ -31,15 +31,28 @@ DataStore::DataStore(FILESYSTEM& fs, FILESYSTEM& fsExtra, mesh::RTCClock& clock)
 }
 #endif
 
+#define MAX_PATH_LEN 64
+static char _tmpPath[MAX_PATH_LEN + sizeof(".tmp")];
+
 static File openWrite(FILESYSTEM* fs, const char* filename) {
+  snprintf(_tmpPath, sizeof(_tmpPath), "%s.tmp", filename);
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
-  fs->remove(filename);
-  return fs->open(filename, FILE_O_WRITE);
+  fs->remove(_tmpPath);
+  return fs->open(_tmpPath, FILE_O_WRITE);
 #elif defined(RP2040_PLATFORM)
-  return fs->open(filename, "w");
+  return fs->open(_tmpPath, "w");
 #else
-  return fs->open(filename, "w", true);
+  return fs->open(_tmpPath, "w", true);
 #endif
+}
+
+static bool commitWrite(FILESYSTEM* fs, const char* filename, bool ok) {
+  snprintf(_tmpPath, sizeof(_tmpPath), "%s.tmp", filename);
+  if (ok) {
+    return fs->rename(_tmpPath, filename);
+  }
+  fs->remove(_tmpPath);
+  return false;
 }
 
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
@@ -239,32 +252,33 @@ void DataStore::savePrefs(const NodePrefs& _prefs, double node_lat, double node_
     uint8_t pad[8];
     memset(pad, 0, sizeof(pad));
 
-    file.write((uint8_t *)&_prefs.airtime_factor, sizeof(float));                           // 0
-    file.write((uint8_t *)_prefs.node_name, sizeof(_prefs.node_name));                      // 4
-    file.write(pad, 4);                                                                     // 36
-    file.write((uint8_t *)&node_lat, sizeof(node_lat));                                     // 40
-    file.write((uint8_t *)&node_lon, sizeof(node_lon));                                     // 48
-    file.write((uint8_t *)&_prefs.freq, sizeof(_prefs.freq));                               // 56
-    file.write((uint8_t *)&_prefs.sf, sizeof(_prefs.sf));                                   // 60
-    file.write((uint8_t *)&_prefs.cr, sizeof(_prefs.cr));                                   // 61
-    file.write(pad, 1);                                                                     // 62
-    file.write((uint8_t *)&_prefs.manual_add_contacts, sizeof(_prefs.manual_add_contacts)); // 63
-    file.write((uint8_t *)&_prefs.bw, sizeof(_prefs.bw));                                   // 64
-    file.write((uint8_t *)&_prefs.tx_power_dbm, sizeof(_prefs.tx_power_dbm));               // 68
-    file.write((uint8_t *)&_prefs.telemetry_mode_base, sizeof(_prefs.telemetry_mode_base)); // 69
-    file.write((uint8_t *)&_prefs.telemetry_mode_loc, sizeof(_prefs.telemetry_mode_loc));   // 70
-    file.write((uint8_t *)&_prefs.telemetry_mode_env, sizeof(_prefs.telemetry_mode_env));   // 71
-    file.write((uint8_t *)&_prefs.rx_delay_base, sizeof(_prefs.rx_delay_base));             // 72
-    file.write((uint8_t *)&_prefs.advert_loc_policy, sizeof(_prefs.advert_loc_policy));     // 76
-    file.write((uint8_t *)&_prefs.multi_acks, sizeof(_prefs.multi_acks));                   // 77
-    file.write(pad, 2);                                                                     // 78
-    file.write((uint8_t *)&_prefs.ble_pin, sizeof(_prefs.ble_pin));                         // 80
-    file.write((uint8_t *)&_prefs.buzzer_quiet, sizeof(_prefs.buzzer_quiet));               // 84
-    file.write((uint8_t *)&_prefs.gps_enabled, sizeof(_prefs.gps_enabled));                 // 85
-    file.write((uint8_t *)&_prefs.gps_interval, sizeof(_prefs.gps_interval));               // 86
-    file.write((uint8_t *)&_prefs.autoadd_config, sizeof(_prefs.autoadd_config));           // 87
+    bool ok = (file.write((uint8_t *)&_prefs.airtime_factor, sizeof(float)) == sizeof(float));                             // 0
+    ok = ok && (file.write((uint8_t *)_prefs.node_name, sizeof(_prefs.node_name)) == sizeof(_prefs.node_name));             // 4
+    ok = ok && (file.write(pad, 4) == 4);                                                                                   // 36
+    ok = ok && (file.write((uint8_t *)&node_lat, sizeof(node_lat)) == sizeof(node_lat));                                    // 40
+    ok = ok && (file.write((uint8_t *)&node_lon, sizeof(node_lon)) == sizeof(node_lon));                                    // 48
+    ok = ok && (file.write((uint8_t *)&_prefs.freq, sizeof(_prefs.freq)) == sizeof(_prefs.freq));                           // 56
+    ok = ok && (file.write((uint8_t *)&_prefs.sf, sizeof(_prefs.sf)) == sizeof(_prefs.sf));                                 // 60
+    ok = ok && (file.write((uint8_t *)&_prefs.cr, sizeof(_prefs.cr)) == sizeof(_prefs.cr));                                 // 61
+    ok = ok && (file.write(pad, 1) == 1);                                                                                   // 62
+    ok = ok && (file.write((uint8_t *)&_prefs.manual_add_contacts, sizeof(_prefs.manual_add_contacts)) == sizeof(_prefs.manual_add_contacts)); // 63
+    ok = ok && (file.write((uint8_t *)&_prefs.bw, sizeof(_prefs.bw)) == sizeof(_prefs.bw));                                 // 64
+    ok = ok && (file.write((uint8_t *)&_prefs.tx_power_dbm, sizeof(_prefs.tx_power_dbm)) == sizeof(_prefs.tx_power_dbm));   // 68
+    ok = ok && (file.write((uint8_t *)&_prefs.telemetry_mode_base, sizeof(_prefs.telemetry_mode_base)) == sizeof(_prefs.telemetry_mode_base)); // 69
+    ok = ok && (file.write((uint8_t *)&_prefs.telemetry_mode_loc, sizeof(_prefs.telemetry_mode_loc)) == sizeof(_prefs.telemetry_mode_loc));    // 70
+    ok = ok && (file.write((uint8_t *)&_prefs.telemetry_mode_env, sizeof(_prefs.telemetry_mode_env)) == sizeof(_prefs.telemetry_mode_env));    // 71
+    ok = ok && (file.write((uint8_t *)&_prefs.rx_delay_base, sizeof(_prefs.rx_delay_base)) == sizeof(_prefs.rx_delay_base));                   // 72
+    ok = ok && (file.write((uint8_t *)&_prefs.advert_loc_policy, sizeof(_prefs.advert_loc_policy)) == sizeof(_prefs.advert_loc_policy));       // 76
+    ok = ok && (file.write((uint8_t *)&_prefs.multi_acks, sizeof(_prefs.multi_acks)) == sizeof(_prefs.multi_acks));                             // 77
+    ok = ok && (file.write(pad, 2) == 2);                                                                                   // 78
+    ok = ok && (file.write((uint8_t *)&_prefs.ble_pin, sizeof(_prefs.ble_pin)) == sizeof(_prefs.ble_pin));                  // 80
+    ok = ok && (file.write((uint8_t *)&_prefs.buzzer_quiet, sizeof(_prefs.buzzer_quiet)) == sizeof(_prefs.buzzer_quiet));   // 84
+    ok = ok && (file.write((uint8_t *)&_prefs.gps_enabled, sizeof(_prefs.gps_enabled)) == sizeof(_prefs.gps_enabled));      // 85
+    ok = ok && (file.write((uint8_t *)&_prefs.gps_interval, sizeof(_prefs.gps_interval)) == sizeof(_prefs.gps_interval));   // 86
+    ok = ok && (file.write((uint8_t *)&_prefs.autoadd_config, sizeof(_prefs.autoadd_config)) == sizeof(_prefs.autoadd_config)); // 87
 
     file.close();
+    commitWrite(_fs, "/new_prefs", ok);
   }
 }
 
@@ -305,26 +319,25 @@ void DataStore::saveContacts(DataStoreHost* host) {
     uint32_t idx = 0;
     ContactInfo c;
     uint8_t unused = 0;
+    bool ok = true;
 
-    while (host->getContactForSave(idx, c)) {
-      bool success = (file.write(c.id.pub_key, 32) == 32);
-      success = success && (file.write((uint8_t *)&c.name, 32) == 32);
-      success = success && (file.write(&c.type, 1) == 1);
-      success = success && (file.write(&c.flags, 1) == 1);
-      success = success && (file.write(&unused, 1) == 1);
-      success = success && (file.write((uint8_t *)&c.sync_since, 4) == 4);
-      success = success && (file.write((uint8_t *)&c.out_path_len, 1) == 1);
-      success = success && (file.write((uint8_t *)&c.last_advert_timestamp, 4) == 4);
-      success = success && (file.write(c.out_path, 64) == 64);
-      success = success && (file.write((uint8_t *)&c.lastmod, 4) == 4);
-      success = success && (file.write((uint8_t *)&c.gps_lat, 4) == 4);
-      success = success && (file.write((uint8_t *)&c.gps_lon, 4) == 4);
-
-      if (!success) break; // write failed
-
-      idx++;  // advance to next contact
+    while (ok && host->getContactForSave(idx, c)) {
+      ok = ok && (file.write(c.id.pub_key, 32) == 32);
+      ok = ok && (file.write((uint8_t *)&c.name, 32) == 32);
+      ok = ok && (file.write(&c.type, 1) == 1);
+      ok = ok && (file.write(&c.flags, 1) == 1);
+      ok = ok && (file.write(&unused, 1) == 1);
+      ok = ok && (file.write((uint8_t *)&c.sync_since, 4) == 4);
+      ok = ok && (file.write((uint8_t *)&c.out_path_len, 1) == 1);
+      ok = ok && (file.write((uint8_t *)&c.last_advert_timestamp, 4) == 4);
+      ok = ok && (file.write(c.out_path, 64) == 64);
+      ok = ok && (file.write((uint8_t *)&c.lastmod, 4) == 4);
+      ok = ok && (file.write((uint8_t *)&c.gps_lat, 4) == 4);
+      ok = ok && (file.write((uint8_t *)&c.gps_lon, 4) == 4);
+      idx++;
     }
     file.close();
+    commitWrite(_getContactsChannelsFS(), "/contacts3", ok);
   }
 }
 
@@ -360,16 +373,16 @@ void DataStore::saveChannels(DataStoreHost* host) {
     ChannelDetails ch;
     uint8_t unused[4];
     memset(unused, 0, 4);
+    bool ok = true;
 
-    while (host->getChannelForSave(channel_idx, ch)) {
-      bool success = (file.write(unused, 4) == 4);
-      success = success && (file.write((uint8_t *)ch.name, 32) == 32);
-      success = success && (file.write((uint8_t *)ch.channel.secret, 32) == 32);
-
-      if (!success) break; // write failed
+    while (ok && host->getChannelForSave(channel_idx, ch)) {
+      ok = ok && (file.write(unused, 4) == 4);
+      ok = ok && (file.write((uint8_t *)ch.name, 32) == 32);
+      ok = ok && (file.write((uint8_t *)ch.channel.secret, 32) == 32);
       channel_idx++;
     }
     file.close();
+    commitWrite(_getContactsChannelsFS(), "/channels2", ok);
   }
 }
 
@@ -390,119 +403,94 @@ void DataStore::checkAdvBlobFile() {
     if (file) {
       BlobRec zeroes;
       memset(&zeroes, 0, sizeof(zeroes));
-      for (int i = 0; i < MAX_BLOBRECS; i++) {     // pre-allocate to fixed size
-        file.write((uint8_t *) &zeroes, sizeof(zeroes));
+      bool ok = true;
+      for (int i = 0; ok && i < MAX_BLOBRECS; i++) {
+        ok = (file.write((uint8_t *) &zeroes, sizeof(zeroes)) == sizeof(zeroes));
       }
       file.close();
+      commitWrite(_getContactsChannelsFS(), "/adv_blobs", ok);
     }
   }
 }
 
 void DataStore::migrateToSecondaryFS() {
   // migrate old adv_blobs, contacts3 and channels2 files to secondary FS if they don't already exist
-  if (!_fsExtra->exists("/adv_blobs")) {
-    if (_fs->exists("/adv_blobs")) {
-    File oldAdvBlobs = openRead(_fs, "/adv_blobs");
-    File newAdvBlobs = openWrite(_fsExtra, "/adv_blobs");
-
-    if (oldAdvBlobs && newAdvBlobs) {
+  if (!_fsExtra->exists("/adv_blobs") && _fs->exists("/adv_blobs")) {
+    File oldFile = openRead(_fs, "/adv_blobs");
+    File newFile = openWrite(_fsExtra, "/adv_blobs");
+    bool ok = (oldFile && newFile);
+    if (ok) {
       BlobRec rec;
-      size_t count = 0;
-
-      // Copy 20 BlobRecs from old to new
-      while (count < 20 && oldAdvBlobs.read((uint8_t *)&rec, sizeof(rec)) == sizeof(rec)) {
-        newAdvBlobs.seek(count * sizeof(BlobRec));
-        newAdvBlobs.write((uint8_t *)&rec, sizeof(rec));
-        count++;
-      }
-    }
-    if (oldAdvBlobs) oldAdvBlobs.close();
-    if (newAdvBlobs) newAdvBlobs.close();
-    _fs->remove("/adv_blobs");
-    }
-  }
-  if (!_fsExtra->exists("/contacts3")) {
-    if (_fs->exists("/contacts3")) {
-      File oldFile = openRead(_fs, "/contacts3");
-      File newFile = openWrite(_fsExtra, "/contacts3");
-
-      if (oldFile && newFile) {
-        uint8_t buf[64];
-        int n;
-        while ((n = oldFile.read(buf, sizeof(buf))) > 0) {
-          newFile.write(buf, n);
+      for (int i = 0; ok && i < 20; i++) {
+        if (oldFile.read((uint8_t *)&rec, sizeof(rec)) == sizeof(rec)) {
+          ok = (newFile.write((uint8_t *)&rec, sizeof(rec)) == sizeof(rec));
         }
       }
-      if (oldFile) oldFile.close();
-      if (newFile) newFile.close();
-      _fs->remove("/contacts3");
     }
+    if (oldFile) oldFile.close();
+    if (newFile) newFile.close();
+    if (commitWrite(_fsExtra, "/adv_blobs", ok)) _fs->remove("/adv_blobs");
   }
-  if (!_fsExtra->exists("/channels2")) {
-    if (_fs->exists("/channels2")) {
-      File oldFile = openRead(_fs, "/channels2");
-      File newFile = openWrite(_fsExtra, "/channels2");
-
-      if (oldFile && newFile) {
-        uint8_t buf[64];
-        int n;
-        while ((n = oldFile.read(buf, sizeof(buf))) > 0) {
-          newFile.write(buf, n);
-        }
+  if (!_fsExtra->exists("/contacts3") && _fs->exists("/contacts3")) {
+    File oldFile = openRead(_fs, "/contacts3");
+    File newFile = openWrite(_fsExtra, "/contacts3");
+    bool ok = (oldFile && newFile);
+    if (ok) {
+      uint8_t buf[64];
+      int n;
+      while (ok && (n = oldFile.read(buf, sizeof(buf))) > 0) {
+        ok = (newFile.write(buf, n) == n);
       }
-      if (oldFile) oldFile.close();
-      if (newFile) newFile.close();
-      _fs->remove("/channels2");
     }
+    if (oldFile) oldFile.close();
+    if (newFile) newFile.close();
+    if (commitWrite(_fsExtra, "/contacts3", ok)) _fs->remove("/contacts3");
+  }
+  if (!_fsExtra->exists("/channels2") && _fs->exists("/channels2")) {
+    File oldFile = openRead(_fs, "/channels2");
+    File newFile = openWrite(_fsExtra, "/channels2");
+    bool ok = (oldFile && newFile);
+    if (ok) {
+      uint8_t buf[64];
+      int n;
+      while (ok && (n = oldFile.read(buf, sizeof(buf))) > 0) {
+        ok = (newFile.write(buf, n) == n);
+      }
+    }
+    if (oldFile) oldFile.close();
+    if (newFile) newFile.close();
+    if (commitWrite(_fsExtra, "/channels2", ok)) _fs->remove("/channels2");
   }
   // cleanup nodes which have been testing the extra fs, copy _main.id and new_prefs back to primary
   if (_fsExtra->exists("/_main.id")) {
-      if (_fs->exists("/_main.id")) {_fs->remove("/_main.id");}
-      File oldFile = openRead(_fsExtra, "/_main.id");
-      File newFile = openWrite(_fs, "/_main.id");
-
-      if (oldFile && newFile) {
-        uint8_t buf[64];
-        int n;
-        while ((n = oldFile.read(buf, sizeof(buf))) > 0) {
-          newFile.write(buf, n);
-        }
+    File oldFile = openRead(_fsExtra, "/_main.id");
+    File newFile = openWrite(_fs, "/_main.id");
+    bool ok = (oldFile && newFile);
+    if (ok) {
+      uint8_t buf[64];
+      int n;
+      while (ok && (n = oldFile.read(buf, sizeof(buf))) > 0) {
+        ok = (newFile.write(buf, n) == n);
       }
-      if (oldFile) oldFile.close();
-      if (newFile) newFile.close();
-      _fsExtra->remove("/_main.id");
+    }
+    if (oldFile) oldFile.close();
+    if (newFile) newFile.close();
+    if (commitWrite(_fs, "/_main.id", ok)) _fsExtra->remove("/_main.id");
   }
   if (_fsExtra->exists("/new_prefs")) {
-    if (_fs->exists("/new_prefs")) {_fs->remove("/new_prefs");}
-      File oldFile = openRead(_fsExtra, "/new_prefs");
-      File newFile = openWrite(_fs, "/new_prefs");
-
-      if (oldFile && newFile) {
-        uint8_t buf[64];
-        int n;
-        while ((n = oldFile.read(buf, sizeof(buf))) > 0) {
-          newFile.write(buf, n);
-        }
+    File oldFile = openRead(_fsExtra, "/new_prefs");
+    File newFile = openWrite(_fs, "/new_prefs");
+    bool ok = (oldFile && newFile);
+    if (ok) {
+      uint8_t buf[64];
+      int n;
+      while (ok && (n = oldFile.read(buf, sizeof(buf))) > 0) {
+        ok = (newFile.write(buf, n) == n);
       }
-      if (oldFile) oldFile.close();
-      if (newFile) newFile.close();
-      _fsExtra->remove("/new_prefs");
-  }
-  // remove files from where they should not be anymore
-  if (_fs->exists("/adv_blobs")) {
-    _fs->remove("/adv_blobs");
-  }
-  if (_fs->exists("/contacts3")) {
-    _fs->remove("/contacts3");
-  }
-  if (_fs->exists("/channels2")) {
-    _fs->remove("/channels2");
-  }
-  if (_fsExtra->exists("/_main.id")) {
-    _fsExtra->remove("/_main.id");
-  }
-  if (_fsExtra->exists("/new_prefs")) {
-    _fsExtra->remove("/new_prefs");
+    }
+    if (oldFile) oldFile.close();
+    if (newFile) newFile.close();
+    if (commitWrite(_fs, "/new_prefs", ok)) _fsExtra->remove("/new_prefs");
   }
 }
 
@@ -562,7 +550,7 @@ bool DataStore::putBlobByKey(const uint8_t key[], int key_len, const uint8_t src
 }
 #else
 uint8_t DataStore::getBlobByKey(const uint8_t key[], int key_len, uint8_t dest_buf[]) {
-  char path[64];
+  char path[MAX_PATH_LEN];
   char fname[18];
 
   if (key_len > 8) key_len = 8; // just use first 8 bytes (prefix)
@@ -581,7 +569,7 @@ uint8_t DataStore::getBlobByKey(const uint8_t key[], int key_len, uint8_t dest_b
 }
 
 bool DataStore::putBlobByKey(const uint8_t key[], int key_len, const uint8_t src_buf[], uint8_t len) {
-  char path[64];
+  char path[MAX_PATH_LEN];
   char fname[18];
 
   if (key_len > 8) key_len = 8; // just use first 8 bytes (prefix)
@@ -590,12 +578,10 @@ bool DataStore::putBlobByKey(const uint8_t key[], int key_len, const uint8_t src
 
   File f = openWrite(_fs, path);
   if (f) {
-    int n = f.write(src_buf, len);
+    bool ok = (f.write(src_buf, len) == len);
     f.close();
-    if (n == len) return true; // success!
-
-    _fs->remove(path); // blob was only partially written!
+    return commitWrite(_fs, path, ok);
   }
-  return false; // error
+  return false;
 }
 #endif
