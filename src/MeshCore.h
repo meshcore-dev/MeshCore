@@ -12,9 +12,14 @@
 #define CIPHER_KEY_SIZE     16
 #define CIPHER_BLOCK_SIZE   16
 
-// V1
+// V1 (AES-ECB + HMAC)
 #define CIPHER_MAC_SIZE      2
 #define PATH_HASH_SIZE       1
+
+// V2 (ChaCha20-Poly1305)
+#define CHACHA_KEY_SIZE      32
+#define CHACHA_NONCE_SIZE    12
+#define CHACHA_TAG_SIZE      12
 
 #define MAX_PACKET_PAYLOAD  184
 #define MAX_PATH_SIZE        64
