@@ -1,9 +1,20 @@
 #include "Utils.h"
 #include <AES.h>
 #include <SHA256.h>
+#include <ChaChaPoly.h>
 
 #ifdef ARDUINO
   #include <Arduino.h>
+#endif
+
+#ifdef ESP32
+  #include <esp_random.h>
+#endif
+
+#ifdef NRF52_PLATFORM
+  #include <nrf.h>
+  #include <nrf_sdm.h>
+  #include <nrf_soc.h>
 #endif
 
 namespace mesh {
@@ -142,12 +153,213 @@ int Utils::parseTextParts(char* text, const char* parts[], int max_num, char sep
        *sp++ = 0;  // replace the seperator with a null, and skip past it
     }
   }
-  // if we hit the maximum parts, make sure LAST entry does NOT have separator 
+  // if we hit the maximum parts, make sure LAST entry does NOT have separator
   while (*sp && *sp != separator) sp++;
   if (*sp) {
     *sp = 0;  // replace the separator with null
   }
   return num;
+}
+
+// ========== ChaCha20-Poly1305 Implementation ==========
+
+// Encrypt with ChaCha20-Poly1305
+// Returns: total length (nonce + ciphertext + tag)
+int Utils::encryptCHACHA(const uint8_t* key, uint8_t* dest, const uint8_t* nonce,
+                         const uint8_t* plaintext, int plaintext_len,
+                         const uint8_t* aad, int aad_len) {
+    ChaChaPoly chacha;
+
+    // Set key and nonce
+    chacha.setKey(key, CHACHA_KEY_SIZE);
+    chacha.setIV(nonce, CHACHA_NONCE_SIZE);
+
+    // Add AAD if provided
+    if (aad && aad_len > 0) {
+        chacha.addAuthData(aad, aad_len);
+    }
+
+    // Layout: [nonce || ciphertext || tag]
+    memcpy(dest, nonce, CHACHA_NONCE_SIZE);
+
+    // Encrypt in-place
+    chacha.encrypt(dest + CHACHA_NONCE_SIZE, plaintext, plaintext_len);
+
+    // Generate and append authentication tag
+    chacha.computeTag(dest + CHACHA_NONCE_SIZE + plaintext_len, CHACHA_TAG_SIZE);
+
+    return CHACHA_NONCE_SIZE + plaintext_len + CHACHA_TAG_SIZE;
+}
+
+// Decrypt with ChaCha20-Poly1305
+// Returns: plaintext length on success, 0 on authentication failure
+int Utils::decryptCHACHA(const uint8_t* key, uint8_t* dest,
+                         const uint8_t* src, int src_len,
+                         const uint8_t* aad, int aad_len) {
+    // Validate minimum length
+    if (src_len < CHACHA_NONCE_SIZE + CHACHA_TAG_SIZE) {
+        return 0;
+    }
+
+    int ciphertext_len = src_len - CHACHA_NONCE_SIZE - CHACHA_TAG_SIZE;
+
+    // Extract components
+    const uint8_t* nonce = src;
+    const uint8_t* ciphertext = src + CHACHA_NONCE_SIZE;
+    const uint8_t* tag = src + CHACHA_NONCE_SIZE + ciphertext_len;
+
+    ChaChaPoly chacha;
+
+    // Set key and nonce
+    chacha.setKey(key, CHACHA_KEY_SIZE);
+    chacha.setIV(nonce, CHACHA_NONCE_SIZE);
+
+    // Add AAD if provided
+    if (aad && aad_len > 0) {
+        chacha.addAuthData(aad, aad_len);
+    }
+
+    // Decrypt (must be done before checkTag due to library requirements)
+    chacha.decrypt(dest, ciphertext, ciphertext_len);
+
+    // Verify authentication tag (constant-time comparison)
+    if (!chacha.checkTag(tag, CHACHA_TAG_SIZE)) {
+        // SECURITY: Zero output buffer on auth failure to prevent use of
+        // unauthenticated data. Callers must check return value > 0.
+        memset(dest, 0, ciphertext_len);
+        return 0;
+    }
+
+    return ciphertext_len;
+}
+
+// ========== Hardware RNG Implementation ==========
+
+void Utils::getHardwareRandom(uint8_t* dest, size_t size) {
+#ifdef ESP32
+    // ESP32: Use hardware TRNG (very fast, ~1μs)
+    for (size_t i = 0; i < size; i += 4) {
+        uint32_t rand_val = esp_random();
+        size_t bytes_to_copy = (size - i) < 4 ? (size - i) : 4;
+        memcpy(&dest[i], &rand_val, bytes_to_copy);
+    }
+
+#elif defined(NRF52_PLATFORM)
+    // nRF52: Check if SoftDevice is enabled (BLE active)
+    uint8_t sd_enabled = 0;
+    sd_softdevice_is_enabled(&sd_enabled);
+
+    if (sd_enabled) {
+        // SoftDevice is active - must use its API to avoid hardfault
+        size_t remaining = size;
+        size_t offset = 0;
+        while (remaining > 0) {
+            uint8_t available = 0;
+            // Check how many random bytes are available
+            sd_rand_application_bytes_available_get(&available);
+            if (available > 0) {
+                uint8_t to_get = (remaining < available) ? remaining : available;
+                sd_rand_application_vector_get(dest + offset, to_get);
+                offset += to_get;
+                remaining -= to_get;
+            }
+            // If not enough bytes available, wait briefly for RNG to generate more
+            if (remaining > 0 && available == 0) {
+                delayMicroseconds(10);
+            }
+        }
+    } else {
+        // SoftDevice not active - safe to use RNG peripheral directly
+        NRF_RNG->TASKS_START = 1;
+        for (size_t i = 0; i < size; i++) {
+            while (!NRF_RNG->EVENTS_VALRDY);  // Wait for random byte
+            dest[i] = NRF_RNG->VALUE;
+            NRF_RNG->EVENTS_VALRDY = 0;
+        }
+        NRF_RNG->TASKS_STOP = 1;  // Stop RNG to save power
+    }
+
+#elif defined(RP2040_PLATFORM)
+    // RP2040: Use ROSC-based hardware random (fast, ~1μs)
+    for (size_t i = 0; i < size; i += 4) {
+        uint32_t rand_val = rp2040.hwrand32();
+        size_t bytes_to_copy = (size - i) < 4 ? (size - i) : 4;
+        memcpy(&dest[i], &rand_val, bytes_to_copy);
+    }
+
+#elif defined(STM32_PLATFORM)
+    // STM32WL: Use hardware RNG peripheral
+    // Most STM32 variants with LoRa (STM32WL) have hardware RNG
+    #if defined(HAL_RNG_MODULE_ENABLED)
+        extern RNG_HandleTypeDef hrng;
+        for (size_t i = 0; i < size; i += 4) {
+            uint32_t rand_val;
+            HAL_RNG_GenerateRandomNumber(&hrng, &rand_val);
+            size_t bytes_to_copy = (size - i) < 4 ? (size - i) : 4;
+            memcpy(&dest[i], &rand_val, bytes_to_copy);
+        }
+    #else
+        // No hardware RNG - fall back but mix with more entropy sources
+        // WARNING: This path should be avoided for v2 encryption
+        MESH_DEBUG_PRINTLN("WARNING: STM32 without HAL_RNG - using weak entropy!");
+        static uint32_t stm32_entropy_pool = 0xDEADBEEF;
+        for (size_t i = 0; i < size; i += 4) {
+            // Mix multiple sources for better entropy
+            stm32_entropy_pool ^= micros();
+            stm32_entropy_pool ^= (millis() << 16);
+            stm32_entropy_pool = (stm32_entropy_pool * 1103515245) + 12345;  // LCG step
+            uint32_t rand_val = stm32_entropy_pool ^ (i * 0x5DEECE66D);
+            size_t bytes_to_copy = (size - i) < 4 ? (size - i) : 4;
+            memcpy(&dest[i], &rand_val, bytes_to_copy);
+        }
+    #endif
+
+#else
+    // No secure RNG available - FAIL COMPILATION for v2 encryption safety
+    #error "No hardware RNG available. ChaCha20-Poly1305 requires secure nonce generation. \
+            Supported platforms: ESP32, nRF52, RP2040, STM32 with HAL_RNG."
+#endif
+}
+
+void Utils::getHighQualityRandom(RNG* rng, uint8_t* dest, size_t size) {
+    if (rng) {
+        // Use provided RNG (typically RadioNoiseListener for high entropy)
+        rng->random(dest, size);
+    } else {
+        // Fallback to hardware RNG if no RNG provided
+        getHardwareRandom(dest, size);
+    }
+}
+
+// ========== Secure Nonce Generation ==========
+
+// Static state for hybrid nonce generation
+static uint32_t s_nonce_boot_id = 0;
+static uint32_t s_nonce_counter = 0;
+
+void Utils::generateSecureNonce(uint8_t* nonce) {
+    // Hybrid nonce format: [boot_id (4)] [counter (4)] [random (4)]
+    // This ensures uniqueness even if:
+    // - RNG has bias or periodicity
+    // - Many messages sent quickly
+    // - Device reboots (new boot_id)
+
+    // Initialize boot_id once per boot with random value
+    if (s_nonce_boot_id == 0) {
+        getHardwareRandom((uint8_t*)&s_nonce_boot_id, 4);
+        // Ensure non-zero (extremely unlikely, but handle it)
+        if (s_nonce_boot_id == 0) s_nonce_boot_id = 1;
+    }
+
+    // Copy boot_id (bytes 0-3)
+    memcpy(nonce, &s_nonce_boot_id, 4);
+
+    // Copy and increment counter (bytes 4-7)
+    memcpy(nonce + 4, &s_nonce_counter, 4);
+    s_nonce_counter++;
+
+    // Add random salt (bytes 8-11) for additional entropy
+    getHardwareRandom(nonce + 8, 4);
 }
 
 }

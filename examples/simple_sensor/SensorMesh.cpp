@@ -256,7 +256,8 @@ void SensorMesh::sendAlert(const ClientInfo* c, Trigger* t) {
   mesh::Utils::sha256((uint8_t *)&t->expected_acks[t->attempt], 4, data, 5 + text_len, self_id.pub_key, PUB_KEY_SIZE);
   t->attempt++;
 
-  auto pkt = createDatagram(PAYLOAD_TYPE_TXT_MSG, c->id, c->shared_secret, data, 5 + text_len);
+  bool use_v2 = c->supports_chacha;
+  auto pkt = createDatagram(PAYLOAD_TYPE_TXT_MSG, c->id, c->shared_secret, data, 5 + text_len, use_v2);
   if (pkt) {
     if (c->out_path_len >= 0) {  // we have an out_path, so send DIRECT
       sendDirect(pkt, c->out_path, c->out_path_len);
@@ -464,13 +465,14 @@ void SensorMesh::onAnonDataRecv(mesh::Packet* packet, const uint8_t* secret, con
 
     if (reply_len == 0) return;   // invalid request
 
+    bool use_v2 = (packet->getPayloadVer() == PAYLOAD_VER_2);
     if (packet->isRouteFlood()) {
       // let this sender know path TO here, so they can use sendDirect(), and ALSO encode the response
       mesh::Packet* path = createPathReturn(sender, secret, packet->path, packet->path_len,
-                                            PAYLOAD_TYPE_RESPONSE, reply_data, reply_len);
+                                            PAYLOAD_TYPE_RESPONSE, reply_data, reply_len, use_v2);
       if (path) sendFlood(path, SERVER_RESPONSE_DELAY);
     } else {
-      mesh::Packet* reply = createDatagram(PAYLOAD_TYPE_RESPONSE, sender, secret, reply_data, reply_len);
+      mesh::Packet* reply = createDatagram(PAYLOAD_TYPE_RESPONSE, sender, secret, reply_data, reply_len, use_v2);
       if (reply) sendFlood(reply, SERVER_RESPONSE_DELAY);
     }
   }
@@ -493,6 +495,30 @@ void SensorMesh::getPeerSharedSecret(uint8_t* dest_secret, int peer_idx) {
     memcpy(dest_secret, acl.getClientByIdx(i)->shared_secret, PUB_KEY_SIZE);
   } else {
     MESH_DEBUG_PRINTLN("getPeerSharedSecret: Invalid peer idx: %d", i);
+  }
+}
+
+bool SensorMesh::peerSupportsCHACHA(const mesh::Identity& dest) {
+  // Look up client by public key
+  ClientInfo* client = acl.getClient(dest.pub_key, PUB_KEY_SIZE);
+  if (client) {
+    return client->supports_chacha;
+  }
+  // Unknown peer - default to v1 (safe fallback)
+  return false;
+}
+
+void SensorMesh::onAdvertRecv(mesh::Packet *packet, const mesh::Identity &id, uint32_t timestamp,
+                              const uint8_t *app_data, size_t app_data_len) {
+  mesh::Mesh::onAdvertRecv(packet, id, timestamp, app_data, app_data_len); // chain to super impl
+
+  // Update CHACHA capability for known clients
+  AdvertDataParser parser(app_data, app_data_len);
+  if (parser.isValid()) {
+    ClientInfo* client = acl.getClient(id.pub_key, PUB_KEY_SIZE);
+    if (client) {
+      client->supports_chacha = (parser.getFeat1() & ADV_FEAT1_CHACHA_CAPABLE) != 0;
+    }
   }
 }
 
@@ -533,13 +559,14 @@ void SensorMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender_i
       from->last_timestamp = timestamp;
       from->last_activity = getRTCClock()->getCurrentTime();
 
+      bool use_v2 = (packet->getPayloadVer() == PAYLOAD_VER_2);
       if (packet->isRouteFlood()) {
         // let this sender know path TO here, so they can use sendDirect(), and ALSO encode the response
         mesh::Packet* path = createPathReturn(from->id, secret, packet->path, packet->path_len,
-                                              PAYLOAD_TYPE_RESPONSE, reply_data, reply_len);
+                                              PAYLOAD_TYPE_RESPONSE, reply_data, reply_len, use_v2);
         if (path) sendFlood(path, SERVER_RESPONSE_DELAY);
       } else {
-        mesh::Packet* reply = createDatagram(PAYLOAD_TYPE_RESPONSE, from->id, secret, reply_data, reply_len);
+        mesh::Packet* reply = createDatagram(PAYLOAD_TYPE_RESPONSE, from->id, secret, reply_data, reply_len, use_v2);
         if (reply) {
           if (from->out_path_len >= 0) {  // we have an out_path, so send DIRECT
             sendDirect(reply, from->out_path, from->out_path_len, SERVER_RESPONSE_DELAY);
@@ -565,14 +592,15 @@ void SensorMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender_i
 
           if (packet->isRouteFlood()) {
             // let this sender know path TO here, so they can use sendDirect(), and ALSO encode the ACK
+            bool use_v2 = (packet->getPayloadVer() == PAYLOAD_VER_2);
             mesh::Packet* path = createPathReturn(from->id, secret, packet->path, packet->path_len,
-                                                  PAYLOAD_TYPE_ACK, (uint8_t *) &ack_hash, 4);
+                                                  PAYLOAD_TYPE_ACK, (uint8_t *) &ack_hash, 4, use_v2);
             if (path) sendFlood(path, TXT_ACK_DELAY);
           } else {
             sendAckTo(*from, ack_hash);
           }
         }
-      } else if (flags == TXT_TYPE_CLI_DATA) {  
+      } else if (flags == TXT_TYPE_CLI_DATA) {
         from->last_timestamp = sender_timestamp;
         from->last_activity = getRTCClock()->getCurrentTime();
 
@@ -594,7 +622,8 @@ void SensorMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender_i
           memcpy(temp, &timestamp, 4);   // mostly an extra blob to help make packet_hash unique
           temp[4] = (TXT_TYPE_CLI_DATA << 2);
 
-          auto reply = createDatagram(PAYLOAD_TYPE_TXT_MSG, from->id, secret, temp, 5 + text_len);
+          bool use_v2 = (packet->getPayloadVer() == PAYLOAD_VER_2);
+          auto reply = createDatagram(PAYLOAD_TYPE_TXT_MSG, from->id, secret, temp, 5 + text_len, use_v2);
           if (reply) {
             if (from->out_path_len < 0) {
               sendFlood(reply, CLI_REPLY_DELAY_MILLIS);
