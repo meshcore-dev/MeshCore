@@ -63,7 +63,13 @@ public:
     display.drawTextCentered(display.width()/2, 22, _version_info);
 
     display.setTextSize(1);
+#ifdef OLED_RU
+    char filtered_date[sizeof(FIRMWARE_BUILD_DATE)];
+    display.translateUTF8ToBlocks(filtered_date, FIRMWARE_BUILD_DATE, sizeof(filtered_date));
+    display.drawTextCentered(display.width()/2, 42, filtered_date);
+#else
     display.drawTextCentered(display.width()/2, 42, FIRMWARE_BUILD_DATE);
+#endif
 
     return 1000;
   }
@@ -448,7 +454,11 @@ class MsgPreviewScreen : public UIScreen {
   struct MsgEntry {
     uint32_t timestamp;
     char origin[62];
+#ifdef OLED_RU
+    char msg[140];
+#else
     char msg[78];
+#endif
   };
   #define MAX_UNREAD_MSGS   32
   int num_unread;
@@ -503,7 +513,13 @@ public:
     display.setColor(DisplayDriver::LIGHT);
     char filtered_msg[sizeof(p->msg)];
     display.translateUTF8ToBlocks(filtered_msg, p->msg, sizeof(filtered_msg));
+#ifdef OLED_RU
+    char truncated_msg[78];
+    StrHelper::strncpy(truncated_msg, filtered_msg, sizeof(truncated_msg));
+    display.printWordWrap(truncated_msg, display.width());
+#else
     display.printWordWrap(filtered_msg, display.width());
+#endif
 
 #if AUTO_OFF_MILLIS==0 // probably e-ink
     return 10000; // 10 s

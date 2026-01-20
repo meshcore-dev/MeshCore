@@ -1,4 +1,7 @@
 #include "SSD1306Display.h"
+#ifdef OLED_RU
+  #include "glcdfont6x8.h"
+#endif
 
 bool SSD1306Display::i2c_probe(TwoWire& wire, uint8_t addr) {
   wire.beginTransmission(addr);
@@ -31,13 +34,22 @@ void SSD1306Display::clear() {
 void SSD1306Display::startFrame(Color bkg) {
   display.clearDisplay();  // TODO: apply 'bkg'
   _color = SSD1306_WHITE;
+#ifdef OLED_RU
+  display.setFont(&glcdfont6x8);
+#endif
   display.setTextColor(_color);
   display.setTextSize(1);
   display.cp437(true);         // Use full 256 char 'Code Page 437' font
+#ifdef OLED_RU
+  display.setCursor(0, 7);
+#endif
 }
 
 void SSD1306Display::setTextSize(int sz) {
   display.setTextSize(sz);
+#ifdef OLED_RU
+  _size = sz;
+#endif
 }
 
 void SSD1306Display::setColor(Color c) {
@@ -46,7 +58,11 @@ void SSD1306Display::setColor(Color c) {
 }
 
 void SSD1306Display::setCursor(int x, int y) {
+#ifdef OLED_RU
+  display.setCursor(x, y + (_size * 7));
+#else
   display.setCursor(x, y);
+#endif
 }
 
 void SSD1306Display::print(const char* str) {
