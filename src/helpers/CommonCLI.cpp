@@ -196,6 +196,9 @@ uint8_t CommonCLI::buildAdvertData(uint8_t node_type, uint8_t* app_data) {
 void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, char* reply) {
     if (memcmp(command, "reboot", 6) == 0) {
       _board->reboot();  // doesn't return
+    } else if (memcmp(command, "advert 0hop", 11) == 0 && (command[11] == 0 || command[11] == ' ')) {
+      _callbacks->sendSelfAdvertisement(1500, false);  // longer delay, give CLI response time to be sent first
+      strcpy(reply, "OK - 0-hop advert sent");
     } else if (memcmp(command, "advert", 6) == 0) {
       _callbacks->sendSelfAdvertisement(1500);  // longer delay, give CLI response time to be sent first
       strcpy(reply, "OK - Advert sent");
