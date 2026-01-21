@@ -18,4 +18,10 @@ public:
   void tick() override {
     _fallback->tick();   // is typically VolatileRTCClock, which now needs tick()
   }
+
+  /**
+   * \brief Check if a hardware RTC was detected
+   * \returns true if hardware RTC is available, false otherwise
+   */
+  bool hasHardwareRTC() const override;
 };

@@ -271,6 +271,10 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
         if (is_ok) {
           MESH_DEBUG_PRINTLN("%s Mesh::onRecvPacket(): valid advertisement received!", getLogDateTime());
           onAdvertRecv(pkt, id, timestamp, app_data, app_data_len);
+
+          // Collect timestamp for peer-based time synchronization
+          collectPeerTimestamp(timestamp, pkt);
+
           action = routeRecvPacket(pkt);
         } else {
           MESH_DEBUG_PRINTLN("%s Mesh::onRecvPacket(): received advertisement with forged signature! (app_data_len=%d)", getLogDateTime(), app_data_len);
@@ -718,6 +722,18 @@ void Mesh::sendZeroHop(Packet* packet, uint16_t* transport_codes, uint32_t delay
   _tables->hasSeen(packet); // mark this packet as already sent in case it is rebroadcast back to us
 
   sendPacket(packet, 0, delay_millis);
+}
+
+void Mesh::collectPeerTimestamp(uint32_t timestamp, const Packet* packet) {
+  // Calculate estimated airtime per hop based on packet size and radio settings
+  uint32_t airtime_per_hop_ms = _radio->getEstAirtimeFor(packet->getRawLength());
+  uint8_t hop_count = packet->path_len;
+
+  MESH_DEBUG_PRINTLN("Mesh::collectPeerTimestamp: timestamp=%u, hop_count=%d, airtime_per_hop=%ums",
+                     timestamp, hop_count, airtime_per_hop_ms);
+
+  // Call addPeerTimestamp through virtual method (no-op in base RTCClock)
+  _rtc->addPeerTimestamp(timestamp, hop_count, airtime_per_hop_ms);
 }
 
 }

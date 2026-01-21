@@ -89,6 +89,22 @@ public:
     }
     return last_unique = t;
   }
+
+  /**
+   * \brief Add a timestamp from a peer for time synchronization
+   * \param timestamp  The timestamp from the peer's advertisement
+   * \param hop_count  Number of hops the packet has traveled
+   * \param estimated_airtime_per_hop_ms  Estimated airtime per hop in milliseconds (from radio settings)
+   * Override in classes that support peer-based time synchronization
+   */
+  virtual void addPeerTimestamp(uint32_t timestamp, uint8_t hop_count, uint32_t estimated_airtime_per_hop_ms = 1000) { /* no op */ }
+
+  /**
+   * \brief Check if this clock uses hardware RTC
+   * \returns true if hardware RTC is present, false otherwise
+   * Override in classes that can detect hardware RTC
+   */
+  virtual bool hasHardwareRTC() const { return false; }
 };
 
 }
