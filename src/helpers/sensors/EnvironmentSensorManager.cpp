@@ -61,7 +61,9 @@ static SensirionI2cSht4x SHT4X;
 #endif
 
 #if ENV_INCLUDE_INA3221
-#define TELEM_INA3221_ADDRESS   0x42      // INA3221 3 channel current sensor I2C address
+#ifndef TELEM_INA3221_ADDRESS
+#define TELEM_INA3221_ADDRESS   0x42      // INA3221 3 channel current sensor I2C address (0x40-0x43 based on A0 pin)
+#endif
 #define TELEM_INA3221_SHUNT_VALUE 0.100 // most variants will have a 0.1 ohm shunts
 #define TELEM_INA3221_NUM_CHANNELS 3
 #include <Adafruit_INA3221.h>
@@ -268,6 +270,13 @@ bool EnvironmentSensorManager::begin() {
   #endif
 
   #if ENV_INCLUDE_INA219
+  // Skip INA219 if INA3221 is at the same address (they conflict)
+  #if ENV_INCLUDE_INA3221
+  if (INA3221_initialized && TELEM_INA219_ADDRESS == TELEM_INA3221_ADDRESS) {
+    INA219_initialized = false;
+    MESH_DEBUG_PRINTLN("INA219 skipped - INA3221 at same address %02X", TELEM_INA219_ADDRESS);
+  } else
+  #endif
   if (INA219.begin(TELEM_WIRE)) {
     MESH_DEBUG_PRINTLN("Found INA219 at address: %02X", TELEM_INA219_ADDRESS);
     INA219_initialized = true;
