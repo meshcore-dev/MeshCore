@@ -133,7 +133,7 @@ void BaseChatMesh::onAdvertRecv(mesh::Packet* packet, const mesh::Identity& id, 
   }
   putBlobByKey(id.pub_key, PUB_KEY_SIZE, temp_buf, plen);
 
-  bool is_new = false;
+  bool is_new = false; // true = not in contacts[], false = exists in contacts[]
   if (from == NULL) {
     if (!shouldAutoAddContactType(parser.getType())) {
       ContactInfo ci;
@@ -142,7 +142,6 @@ void BaseChatMesh::onAdvertRecv(mesh::Packet* packet, const mesh::Identity& id, 
       return;
     }
 
-    is_new = true;
     from = allocateContactSlot();
     if (from == NULL) {
       ContactInfo ci;
