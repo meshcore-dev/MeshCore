@@ -1185,6 +1185,7 @@ void MyMesh::handleCmdFrame(size_t len) {
     out_frame[i++] = RESP_CODE_TUNING_PARAMS;
     memcpy(&out_frame[i], &rx, 4); i += 4;
     memcpy(&out_frame[i], &af, 4); i += 4;
+    memcpy(&out_frame[i], 0, 8); i += 8; // field specified as reserved in specification
     _serial->writeFrame(out_frame, i);
   } else if (cmd_frame[0] == CMD_SET_OTHER_PARAMS) {
     _prefs.manual_add_contacts = cmd_frame[1];
