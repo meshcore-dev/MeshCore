@@ -7,6 +7,12 @@
   #define MAX_BLOBRECS 20
 #endif
 
+// Atomic writes require ~2x storage for contacts file
+// Only enable on platforms with sufficient flash
+#if !defined(NRF52_PLATFORM) || defined(EXTRAFS) || defined(QSPIFLASH)
+  #define HAS_ATOMIC_WRITE_SUPPORT
+#endif
+
 DataStore::DataStore(FILESYSTEM& fs, mesh::RTCClock& clock) : _fs(&fs), _fsExtra(nullptr), _clock(&clock),
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
     identity_store(fs, "")
@@ -274,6 +280,7 @@ void DataStore::loadContacts(DataStoreHost* host) {
   FILESYSTEM* fs = _getContactsChannelsFS();
   File file = openRead(fs, "/contacts3");
 
+#ifdef HAS_ATOMIC_WRITE_SUPPORT
   // If main file doesn't exist or is empty, try backup
   if (!file || file.size() == 0) {
     if (file) file.close();
@@ -282,6 +289,7 @@ void DataStore::loadContacts(DataStoreHost* host) {
       file = openRead(fs, "/contacts3.bak");
     }
   }
+#endif
 
   if (file) {
     bool full = false;
@@ -315,8 +323,12 @@ void DataStore::loadContacts(DataStoreHost* host) {
 void DataStore::saveContacts(DataStoreHost* host) {
   FILESYSTEM* fs = _getContactsChannelsFS();
 
-  // Write to temp file first (atomic write pattern)
+#ifdef HAS_ATOMIC_WRITE_SUPPORT
   File file = openWrite(fs, "/contacts3.tmp");
+#else
+  File file = openWrite(fs, "/contacts3");
+#endif
+
   if (file) {
     uint32_t idx = 0;
     ContactInfo c;
@@ -347,16 +359,17 @@ void DataStore::saveContacts(DataStoreHost* host) {
     file.flush();
     file.close();
 
+#ifdef HAS_ATOMIC_WRITE_SUPPORT
     if (write_success) {
-      // Atomic swap: remove old backup, rename current to backup, rename temp to current
       fs->remove("/contacts3.bak");
       fs->rename("/contacts3", "/contacts3.bak");
       fs->rename("/contacts3.tmp", "/contacts3");
+      fs->remove("/contacts3.bak");
     } else {
-      // Write failed, remove incomplete temp file
       fs->remove("/contacts3.tmp");
-      MESH_DEBUG_PRINTLN("ERROR: saveContacts write failed, temp file removed");
+      MESH_DEBUG_PRINTLN("ERROR: saveContacts write failed");
     }
+#endif
   }
 }
 
