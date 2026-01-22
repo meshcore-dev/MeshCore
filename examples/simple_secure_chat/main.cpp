@@ -559,6 +559,10 @@ void setup() {
 
   board.begin();
 
+#ifdef HAS_EX_WATCHDOG
+  ex_watchdog.begin();
+#endif
+
   if (!radio_init()) { halt(); }
 
   fast_rng.begin(radio_get_rng_seed());
@@ -588,4 +592,7 @@ void setup() {
 void loop() {
   the_mesh.loop();
   rtc_clock.tick();
+#ifdef HAS_EX_WATCHDOG
+  ex_watchdog.loop();
+#endif
 }
