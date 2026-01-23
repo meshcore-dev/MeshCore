@@ -4,7 +4,7 @@
 
 #define STATE_IDLE       0
 #define STATE_RX         1
-#define STATE_TX_WAIT    3
+#define STATE_TX_WAIT    2
 #define STATE_TX_DONE    4
 #define STATE_INT_READY 16
 
@@ -12,24 +12,28 @@
 #define SAMPLING_THRESHOLD  14
 
 static volatile uint8_t state = STATE_IDLE;
+static mesh::MainBoard *board;
 
 // this function is called when a complete packet
 // is transmitted by the module
-static 
+static
 #if defined(ESP8266) || defined(ESP32)
-  ICACHE_RAM_ATTR
+    ICACHE_RAM_ATTR
 #endif
-void setFlag(void) {
+    void radioISR(void) {
   // we sent a packet, set the flag
   state |= STATE_INT_READY;
+
+  if (state & STATE_RX) board->onRXInterrupt();
 }
 
 void RadioLibWrapper::begin() {
-  _radio->setPacketReceivedAction(setFlag);  // this is also SentComplete interrupt
+  board = _board;
+  _radio->setPacketReceivedAction(radioISR); // this is also SentComplete interrupt
   state = STATE_IDLE;
 
   if (_board->getStartupReason() == BD_STARTUP_RX_PACKET) {  // received a LoRa packet (while in deep sleep)
-    setFlag(); // LoRa packet is already received
+    radioISR();                                              // LoRa packet is already received
   }
 
   _noise_floor = 0;
