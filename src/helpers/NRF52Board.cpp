@@ -3,6 +3,10 @@
 
 #include <bluefruit.h>
 
+#ifdef ENABLE_WATCHDOG
+#include "nrf52/Watchdog.h"
+#endif
+
 static BLEDfu bledfu;
 
 static void connect_callback(uint16_t conn_handle) {
@@ -19,6 +23,15 @@ static void disconnect_callback(uint16_t conn_handle, uint8_t reason) {
 
 void NRF52Board::begin() {
   startup_reason = BD_STARTUP_NORMAL;
+#ifdef ENABLE_WATCHDOG
+  nrf52::Watchdog::begin();
+#endif
+}
+
+void NRF52Board::tick() {
+#ifdef ENABLE_WATCHDOG
+  nrf52::Watchdog::feed();
+#endif
 }
 
 void NRF52BoardDCDC::begin() {

@@ -4,6 +4,10 @@
 #include "AdvertDataHelpers.h"
 #include <RTClib.h>
 
+#if defined(NRF52_PLATFORM) && defined(ENABLE_WATCHDOG)
+#include "nrf52/Watchdog.h"
+#endif
+
 // Believe it or not, this std C function is busted on some platforms!
 static uint32_t _atoi(const char* sp) {
   uint32_t n = 0;
@@ -364,6 +368,10 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         } else {
           sprintf(reply, "> %.3f", adc_mult);
         }
+#if defined(NRF52_PLATFORM) && defined(ENABLE_WATCHDOG)
+      } else if (memcmp(config, "wdt.status", 10) == 0) {
+        sprintf(reply, "> %s", nrf52::Watchdog::isEnabled() ? "enabled" : "disabled");
+#endif
       } else {
         sprintf(reply, "??: %s", config);
       }

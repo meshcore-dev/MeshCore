@@ -224,4 +224,5 @@ void loop() {
   ui_task.loop();
 #endif
   rtc_clock.tick();
+  board.tick();
 }

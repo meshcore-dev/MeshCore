@@ -124,6 +124,7 @@ void loop() {
   ui_task.loop();
 #endif
   rtc_clock.tick();
+  board.tick();
 
   if (the_mesh.getNodePrefs()->powersaving_enabled &&                     // To check if power saving is enabled
       the_mesh.millisHasNowPassed(lastActive + nextSleepinSecs * 1000)) { // To check if it is time to sleep
