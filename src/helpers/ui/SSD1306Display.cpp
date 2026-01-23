@@ -1,16 +1,23 @@
 #include "SSD1306Display.h"
 
+#ifndef USE_SPI_SSD1306
 bool SSD1306Display::i2c_probe(TwoWire& wire, uint8_t addr) {
   wire.beginTransmission(addr);
   uint8_t error = wire.endTransmission();
   return (error == 0);
 }
+#endif
 
 bool SSD1306Display::begin() {
   #ifdef DISPLAY_ROTATION
   display.setRotation(DISPLAY_ROTATION);
   #endif
+#ifdef USE_SPI_SSD1306
+  DISPLAY_SPI.begin(PIN_OLED_SCK, PIN_OLED_MISO, PIN_OLED_MOSI, PIN_OLED_CS);
+  return display.begin(SSD1306_SWITCHCAPVCC, 0, true, false);
+#else
   return display.begin(SSD1306_SWITCHCAPVCC, DISPLAY_ADDRESS, true, false) && i2c_probe(Wire, DISPLAY_ADDRESS);
+#endif
 }
 
 void SSD1306Display::turnOn() {
