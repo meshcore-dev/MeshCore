@@ -2,6 +2,7 @@
 
 #include "../BaseSerialInterface.h"
 #include <WiFi.h>
+#include <vector>
 
 class SerialWifiInterface : public BaseSerialInterface {
   bool deviceConnected;
@@ -10,12 +11,20 @@ class SerialWifiInterface : public BaseSerialInterface {
   unsigned long adv_restart_time;
 
   WiFiServer server;
-  WiFiClient client;
+  std::vector<WiFiClient> clientVc;
+  WiFiClient *curClient;
+
+  struct FrameHeader {
+    uint8_t type;
+    uint16_t length;
+  };
 
   struct Frame {
     uint8_t len;
     uint8_t buf[MAX_FRAME_SIZE];
   };
+
+  FrameHeader received_frame_header;
 
   #define FRAME_QUEUE_SIZE  4
   int recv_queue_len;
@@ -28,11 +37,14 @@ class SerialWifiInterface : public BaseSerialInterface {
 protected:
 
 public:
-  SerialWifiInterface() : server(WiFiServer()), client(WiFiClient()) {
+  SerialWifiInterface() : server(WiFiServer()), clientVc() {
     deviceConnected = false;
     _isEnabled = false;
     _last_write = 0;
     send_queue_len = recv_queue_len = 0;
+    received_frame_header.type = 0;
+    received_frame_header.length = 0;
+    curClient = NULL;
   }
 
   void begin(int port);
@@ -47,6 +59,9 @@ public:
 
   size_t writeFrame(const uint8_t src[], size_t len) override;
   size_t checkRecvFrame(uint8_t dest[]) override;
+
+  bool hasReceivedFrameHeader();
+  void resetReceivedFrameHeader();
 };
 
 #if WIFI_DEBUG_LOGGING && ARDUINO
