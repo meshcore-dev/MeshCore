@@ -1,26 +1,26 @@
 #pragma once
 
+#include <Arduino.h>
 #include <MeshCore.h>
+#include <helpers/BaseSerialInterface.h>
+#include <helpers/SensorManager.h>
+#include <helpers/sensors/LPPDataHelpers.h>
 #include <helpers/ui/DisplayDriver.h>
 #include <helpers/ui/UIScreen.h>
-#include <helpers/SensorManager.h>
-#include <helpers/BaseSerialInterface.h>
-#include <Arduino.h>
-#include <helpers/sensors/LPPDataHelpers.h>
 
 #ifdef PIN_BUZZER
-  #include <helpers/ui/buzzer.h>
+#include <helpers/ui/buzzer.h>
 #endif
 #ifdef PIN_VIBRATION
-  #include <helpers/ui/GenericVibration.h>
+#include <helpers/ui/GenericVibration.h>
 #endif
 
 #include "../AbstractUITask.h"
 #include "../NodePrefs.h"
 
 class UITask : public AbstractUITask {
-  DisplayDriver* _display;
-  SensorManager* _sensors;
+  DisplayDriver *_display;
+  SensorManager *_sensors;
 #ifdef PIN_BUZZER
   genericBuzzer buzzer;
 #endif
@@ -28,7 +28,7 @@ class UITask : public AbstractUITask {
   GenericVibration vibration;
 #endif
   unsigned long _next_refresh, _auto_off;
-  NodePrefs* _node_prefs;
+  NodePrefs *_node_prefs;
   char _alert[80];
   unsigned long _alert_expiry;
   int _msgcount;
@@ -40,37 +40,37 @@ class UITask : public AbstractUITask {
   int last_led_increment = 0;
 #endif
 
-#ifdef PIN_USER_BTN_ANA
+#if defined(PIN_USER_JOYSTICK) || defined(PIN_USER_BTN_ANA)
   unsigned long _analogue_pin_read_millis = millis();
 #endif
 
-  UIScreen* splash;
-  UIScreen* home;
-  UIScreen* msg_preview;
-  UIScreen* curr;
+  UIScreen *splash;
+  UIScreen *home;
+  UIScreen *msg_preview;
+  UIScreen *curr;
 
   void userLedHandler();
-  
+
   // Button action handlers
   char checkDisplayOn(char c);
   char handleLongPress(char c);
   char handleDoubleClick(char c);
   char handleTripleClick(char c);
 
-  void setCurrScreen(UIScreen* c);
+  void setCurrScreen(UIScreen *c);
 
 public:
-
-  UITask(mesh::MainBoard* board, BaseSerialInterface* serial) : AbstractUITask(board, serial), _display(NULL), _sensors(NULL) {
+  UITask(mesh::MainBoard *board, BaseSerialInterface *serial)
+      : AbstractUITask(board, serial), _display(NULL), _sensors(NULL) {
     next_batt_chck = _next_refresh = 0;
     ui_started_at = 0;
     curr = NULL;
   }
-  void begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* node_prefs);
+  void begin(DisplayDriver *display, SensorManager *sensors, NodePrefs *node_prefs);
 
   void gotoHomeScreen() { setCurrScreen(home); }
-  void showAlert(const char* text, int duration_millis);
-  int  getMsgCount() const { return _msgcount; }
+  void showAlert(const char *text, int duration_millis);
+  int getMsgCount() const { return _msgcount; }
   bool hasDisplay() const { return _display != NULL; }
   bool isButtonPressed() const;
 
@@ -78,10 +78,9 @@ public:
   bool getGPSState();
   void toggleGPS();
 
-
   // from AbstractUITask
   void msgRead(int msgcount) override;
-  void newMsg(uint8_t path_len, const char* from_name, const char* text, int msgcount) override;
+  void newMsg(uint8_t path_len, const char *from_name, const char *text, int msgcount) override;
   void notify(UIEventType t = UIEventType::none) override;
   void loop() override;
 

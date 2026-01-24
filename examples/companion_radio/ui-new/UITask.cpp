@@ -1,12 +1,14 @@
 #include "UITask.h"
-#include <helpers/TxtDataHelpers.h>
+
 #include "../MyMesh.h"
 #include "target.h"
 
+#include <helpers/TxtDataHelpers.h>
+
 #ifndef AUTO_OFF_MILLIS
-  #define AUTO_OFF_MILLIS     15000   // 15 seconds
+#define AUTO_OFF_MILLIS 15000 // 15 seconds
 #endif
-#define BOOT_SCREEN_MILLIS   3000   // 3 seconds
+#define BOOT_SCREEN_MILLIS 3000 // 3 seconds
 
 #ifdef PIN_STATUS_LED
 #define LED_ON_MILLIS     20
@@ -14,27 +16,27 @@
 #define LED_CYCLE_MILLIS  4000
 #endif
 
-#define LONG_PRESS_MILLIS   1200
+#define LONG_PRESS_MILLIS 1200
 
 #ifndef UI_RECENT_LIST_SIZE
-  #define UI_RECENT_LIST_SIZE 4
+#define UI_RECENT_LIST_SIZE 4
 #endif
 
-#if UI_HAS_JOYSTICK
-  #define PRESS_LABEL "press Enter"
+#if defined(UI_HAS_JOYSTICK) || defined(PIN_USER_JOYSTICK)
+#define PRESS_LABEL "press Enter"
 #else
-  #define PRESS_LABEL "long press"
+#define PRESS_LABEL "long press"
 #endif
 
 #include "icons.h"
 
 class SplashScreen : public UIScreen {
-  UITask* _task;
+  UITask *_task;
   unsigned long dismiss_after;
   char _version_info[12];
 
 public:
-  SplashScreen(UITask* task) : _task(task) {
+  SplashScreen(UITask *task) : _task(task) {
     // strip off dash and commit hash by changing dash to null terminator
     // e.g: v1.2.3-abcdef -> v1.2.3
     const char *ver = FIRMWARE_VERSION;
@@ -48,7 +50,7 @@ public:
     dismiss_after = millis() + BOOT_SCREEN_MILLIS;
   }
 
-  int render(DisplayDriver& display) override {
+  int render(DisplayDriver &display) override {
     // meshcore logo
     display.setColor(DisplayDriver::BLUE);
     int logoWidth = 128;
@@ -57,10 +59,10 @@ public:
     // version info
     display.setColor(DisplayDriver::LIGHT);
     display.setTextSize(2);
-    display.drawTextCentered(display.width()/2, 22, _version_info);
+    display.drawTextCentered(display.width() / 2, 22, _version_info);
 
     display.setTextSize(1);
-    display.drawTextCentered(display.width()/2, 42, FIRMWARE_BUILD_DATE);
+    display.drawTextCentered(display.width() / 2, 42, FIRMWARE_BUILD_DATE);
 
     return 1000;
   }
@@ -86,24 +88,23 @@ class HomeScreen : public UIScreen {
     SENSORS,
 #endif
     SHUTDOWN,
-    Count    // keep as last
+    Count // keep as last
   };
 
-  UITask* _task;
-  mesh::RTCClock* _rtc;
-  SensorManager* _sensors;
-  NodePrefs* _node_prefs;
+  UITask *_task;
+  mesh::RTCClock *_rtc;
+  SensorManager *_sensors;
+  NodePrefs *_node_prefs;
   uint8_t _page;
   bool _shutdown_init;
   AdvertPath recent[UI_RECENT_LIST_SIZE];
 
-
-  void renderBatteryIndicator(DisplayDriver& display, uint16_t batteryMilliVolts) {
+  void renderBatteryIndicator(DisplayDriver &display, uint16_t batteryMilliVolts) {
     // Convert millivolts to percentage
     const int minMilliVolts = 3000; // Minimum voltage (e.g., 3.0V)
     const int maxMilliVolts = 4200; // Maximum voltage (e.g., 4.2V)
     int batteryPercentage = ((batteryMilliVolts - minMilliVolts) * 100) / (maxMilliVolts - minMilliVolts);
-    if (batteryPercentage < 0) batteryPercentage = 0; // Clamp to 0%
+    if (batteryPercentage < 0) batteryPercentage = 0;     // Clamp to 0%
     if (batteryPercentage > 100) batteryPercentage = 100; // Clamp to 100%
 
     // battery icon
@@ -136,11 +137,11 @@ class HomeScreen : public UIScreen {
       sensors_nb = 0;
       sensors_lpp.addVoltage(TELEM_CHANNEL_SELF, (float)board.getBattMilliVolts() / 1000.0f);
       sensors.querySensors(0xFF, sensors_lpp);
-      LPPReader reader (sensors_lpp.getBuffer(), sensors_lpp.getSize());
+      LPPReader reader(sensors_lpp.getBuffer(), sensors_lpp.getSize());
       uint8_t channel, type;
-      while(reader.readHeader(channel, type)) {
+      while (reader.readHeader(channel, type)) {
         reader.skipData(type);
-        sensors_nb ++;
+        sensors_nb++;
       }
       sensors_scroll = sensors_nb > UI_RECENT_LIST_SIZE;
 #if AUTO_OFF_MILLIS > 0
@@ -152,17 +153,17 @@ class HomeScreen : public UIScreen {
   }
 
 public:
-  HomeScreen(UITask* task, mesh::RTCClock* rtc, SensorManager* sensors, NodePrefs* node_prefs)
-     : _task(task), _rtc(rtc), _sensors(sensors), _node_prefs(node_prefs), _page(0), 
-       _shutdown_init(false), sensors_lpp(200) {  }
+  HomeScreen(UITask *task, mesh::RTCClock *rtc, SensorManager *sensors, NodePrefs *node_prefs)
+      : _task(task), _rtc(rtc), _sensors(sensors), _node_prefs(node_prefs), _page(0), _shutdown_init(false),
+        sensors_lpp(200) {}
 
   void poll() override {
-    if (_shutdown_init && !_task->isButtonPressed()) {  // must wait for USR button to be released
+    if (_shutdown_init && !_task->isButtonPressed()) { // must wait for USR button to be released
       _task->shutdown();
     }
   }
 
-  int render(DisplayDriver& display) override {
+  int render(DisplayDriver &display) override {
     char tmp[80];
     // node name
     display.setTextSize(1);
@@ -177,10 +178,10 @@ public:
 
     // curr page indicator
     int y = 14;
-    int x = display.width() / 2 - 5 * (HomePage::Count-1);
+    int x = display.width() / 2 - 5 * (HomePage::Count - 1);
     for (uint8_t i = 0; i < HomePage::Count; i++, x += 10) {
       if (i == _page) {
-        display.fillRect(x-1, y-1, 3, 3);
+        display.fillRect(x - 1, y - 1, 3, 3);
       } else {
         display.fillRect(x, y, 1, 1);
       }
@@ -208,19 +209,19 @@ public:
       int y = 20;
       for (int i = 0; i < UI_RECENT_LIST_SIZE; i++, y += 11) {
         auto a = &recent[i];
-        if (a->name[0] == 0) continue;  // empty slot
+        if (a->name[0] == 0) continue; // empty slot
         int secs = _rtc->getCurrentTime() - a->recv_timestamp;
         if (secs < 60) {
           sprintf(tmp, "%ds", secs);
-        } else if (secs < 60*60) {
+        } else if (secs < 60 * 60) {
           sprintf(tmp, "%dm", secs / 60);
         } else {
-          sprintf(tmp, "%dh", secs / (60*60));
+          sprintf(tmp, "%dh", secs / (60 * 60));
         }
-        
+
         int timestamp_width = display.getTextWidth(tmp);
         int max_name_width = display.width() - timestamp_width - 1;
-        
+
         char filtered_recent_name[sizeof(a->name)];
         display.translateUTF8ToBlocks(filtered_recent_name, a->name, sizeof(filtered_recent_name));
         display.drawTextEllipsized(0, y, max_name_width, filtered_recent_name);
@@ -248,9 +249,8 @@ public:
       display.print(tmp);
     } else if (_page == HomePage::BLUETOOTH) {
       display.setColor(DisplayDriver::GREEN);
-      display.drawXbm((display.width() - 32) / 2, 18,
-          _task->isSerialEnabled() ? bluetooth_on : bluetooth_off,
-          32, 32);
+      display.drawXbm((display.width() - 32) / 2, 18, _task->isSerialEnabled() ? bluetooth_on : bluetooth_off,
+                      32, 32);
       display.setTextSize(1);
       display.drawTextCentered(display.width() / 2, 64 - 11, "toggle: " PRESS_LABEL);
     } else if (_page == HomePage::ADVERT) {
@@ -259,7 +259,7 @@ public:
       display.drawTextCentered(display.width() / 2, 64 - 11, "advert: " PRESS_LABEL);
 #if ENV_INCLUDE_GPS == 1
     } else if (_page == HomePage::GPS) {
-      LocationProvider* nmea = sensors.getLocationProvider();
+      LocationProvider *nmea = sensors.getLocationProvider();
       char buf[50];
       int y = 18;
       bool gps_state = _task->getGPSState();
@@ -278,21 +278,20 @@ public:
         y = y + 12;
         display.drawTextLeftAlign(0, y, "Can't access GPS");
       } else {
-        strcpy(buf, nmea->isValid()?"fix":"no fix");
-        display.drawTextRightAlign(display.width()-1, y, buf);
+        strcpy(buf, nmea->isValid() ? "fix" : "no fix");
+        display.drawTextRightAlign(display.width() - 1, y, buf);
         y = y + 12;
         display.drawTextLeftAlign(0, y, "sat");
         sprintf(buf, "%d", nmea->satellitesCount());
-        display.drawTextRightAlign(display.width()-1, y, buf);
+        display.drawTextRightAlign(display.width() - 1, y, buf);
         y = y + 12;
         display.drawTextLeftAlign(0, y, "pos");
-        sprintf(buf, "%.4f %.4f", 
-          nmea->getLatitude()/1000000., nmea->getLongitude()/1000000.);
-        display.drawTextRightAlign(display.width()-1, y, buf);
+        sprintf(buf, "%.4f %.4f", nmea->getLatitude() / 1000000., nmea->getLongitude() / 1000000.);
+        display.drawTextRightAlign(display.width() - 1, y, buf);
         y = y + 12;
         display.drawTextLeftAlign(0, y, "alt");
-        sprintf(buf, "%.2f", nmea->getAltitude()/1000.);
-        display.drawTextRightAlign(display.width()-1, y, buf);
+        sprintf(buf, "%.2f", nmea->getAltitude() / 1000.);
+        display.drawTextRightAlign(display.width() - 1, y, buf);
         y = y + 12;
       }
 #endif
@@ -310,7 +309,7 @@ public:
         r.skipData(type);
       }
 
-      for (int i = 0; i < (sensors_scroll?UI_RECENT_LIST_SIZE:sensors_nb); i++) {
+      for (int i = 0; i < (sensors_scroll ? UI_RECENT_LIST_SIZE : sensors_nb); i++) {
         uint8_t channel, type;
         if (!r.readHeader(channel, type)) { // reached end, reset
           r.reset();
@@ -320,53 +319,62 @@ public:
         display.setCursor(0, y);
         float v;
         switch (type) {
-          case LPP_GPS: // GPS
-            float lat, lon, alt;
-            r.readGPS(lat, lon, alt);
-            strcpy(name, "gps"); sprintf(buf, "%.4f %.4f", lat, lon);
-            break;
-          case LPP_VOLTAGE:
-            r.readVoltage(v);
-            strcpy(name, "voltage"); sprintf(buf, "%6.2f", v);
-            break;
-          case LPP_CURRENT:
-            r.readCurrent(v);
-            strcpy(name, "current"); sprintf(buf, "%.3f", v);
-            break;
-          case LPP_TEMPERATURE:
-            r.readTemperature(v);
-            strcpy(name, "temperature"); sprintf(buf, "%.2f", v);
-            break;
-          case LPP_RELATIVE_HUMIDITY:
-            r.readRelativeHumidity(v);
-            strcpy(name, "humidity"); sprintf(buf, "%.2f", v);
-            break;
-          case LPP_BAROMETRIC_PRESSURE:
-            r.readPressure(v);
-            strcpy(name, "pressure"); sprintf(buf, "%.2f", v);
-            break;
-          case LPP_ALTITUDE:
-            r.readAltitude(v);
-            strcpy(name, "altitude"); sprintf(buf, "%.0f", v);
-            break;
-          case LPP_POWER:
-            r.readPower(v);
-            strcpy(name, "power"); sprintf(buf, "%6.2f", v);
-            break;
-          default:
-            r.skipData(type);
-            strcpy(name, "unk"); sprintf(buf, "");
+        case LPP_GPS: // GPS
+          float lat, lon, alt;
+          r.readGPS(lat, lon, alt);
+          strcpy(name, "gps");
+          sprintf(buf, "%.4f %.4f", lat, lon);
+          break;
+        case LPP_VOLTAGE:
+          r.readVoltage(v);
+          strcpy(name, "voltage");
+          sprintf(buf, "%6.2f", v);
+          break;
+        case LPP_CURRENT:
+          r.readCurrent(v);
+          strcpy(name, "current");
+          sprintf(buf, "%.3f", v);
+          break;
+        case LPP_TEMPERATURE:
+          r.readTemperature(v);
+          strcpy(name, "temperature");
+          sprintf(buf, "%.2f", v);
+          break;
+        case LPP_RELATIVE_HUMIDITY:
+          r.readRelativeHumidity(v);
+          strcpy(name, "humidity");
+          sprintf(buf, "%.2f", v);
+          break;
+        case LPP_BAROMETRIC_PRESSURE:
+          r.readPressure(v);
+          strcpy(name, "pressure");
+          sprintf(buf, "%.2f", v);
+          break;
+        case LPP_ALTITUDE:
+          r.readAltitude(v);
+          strcpy(name, "altitude");
+          sprintf(buf, "%.0f", v);
+          break;
+        case LPP_POWER:
+          r.readPower(v);
+          strcpy(name, "power");
+          sprintf(buf, "%6.2f", v);
+          break;
+        default:
+          r.skipData(type);
+          strcpy(name, "unk");
+          sprintf(buf, "");
         }
         display.setCursor(0, y);
         display.print(name);
-        display.setCursor(
-          display.width()-display.getTextWidth(buf)-1, y
-        );
+        display.setCursor(display.width() - display.getTextWidth(buf) - 1, y);
         display.print(buf);
         y = y + 12;
       }
-      if (sensors_scroll) sensors_scroll_offset = (sensors_scroll_offset+1)%sensors_nb;
-      else sensors_scroll_offset = 0;
+      if (sensors_scroll)
+        sensors_scroll_offset = (sensors_scroll_offset + 1) % sensors_nb;
+      else
+        sensors_scroll_offset = 0;
 #endif
     } else if (_page == HomePage::SHUTDOWN) {
       display.setColor(DisplayDriver::GREEN);
@@ -378,7 +386,7 @@ public:
         display.drawTextCentered(display.width() / 2, 64 - 11, "hibernate:" PRESS_LABEL);
       }
     }
-    return 5000;   // next render after 5000 ms
+    return 5000; // next render after 5000 ms
   }
 
   bool handleInput(char c) override {
@@ -394,7 +402,7 @@ public:
       return true;
     }
     if (c == KEY_ENTER && _page == HomePage::BLUETOOTH) {
-      if (_task->isSerialEnabled()) {  // toggle Bluetooth on/off
+      if (_task->isSerialEnabled()) { // toggle Bluetooth on/off
         _task->disableSerial();
       } else {
         _task->enableSerial();
@@ -419,12 +427,12 @@ public:
 #if UI_SENSORS_PAGE == 1
     if (c == KEY_ENTER && _page == HomePage::SENSORS) {
       _task->toggleGPS();
-      next_sensors_refresh=0;
+      next_sensors_refresh = 0;
       return true;
     }
 #endif
     if (c == KEY_ENTER && _page == HomePage::SHUTDOWN) {
-      _shutdown_init = true;  // need to wait for button to be released
+      _shutdown_init = true; // need to wait for button to be released
       return true;
     }
     return false;
@@ -432,35 +440,35 @@ public:
 };
 
 class MsgPreviewScreen : public UIScreen {
-  UITask* _task;
-  mesh::RTCClock* _rtc;
+  UITask *_task;
+  mesh::RTCClock *_rtc;
 
   struct MsgEntry {
     uint32_t timestamp;
     char origin[62];
     char msg[78];
   };
-  #define MAX_UNREAD_MSGS   32
+#define MAX_UNREAD_MSGS 32
   int num_unread;
   MsgEntry unread[MAX_UNREAD_MSGS];
 
 public:
-  MsgPreviewScreen(UITask* task, mesh::RTCClock* rtc) : _task(task), _rtc(rtc) { num_unread = 0; }
+  MsgPreviewScreen(UITask *task, mesh::RTCClock *rtc) : _task(task), _rtc(rtc) { num_unread = 0; }
 
-  void addPreview(uint8_t path_len, const char* from_name, const char* msg) {
-    if (num_unread >= MAX_UNREAD_MSGS) return;  // full
+  void addPreview(uint8_t path_len, const char *from_name, const char *msg) {
+    if (num_unread >= MAX_UNREAD_MSGS) return; // full
 
     auto p = &unread[num_unread++];
     p->timestamp = _rtc->getCurrentTime();
     if (path_len == 0xFF) {
       sprintf(p->origin, "(D) %s:", from_name);
     } else {
-      sprintf(p->origin, "(%d) %s:", (uint32_t) path_len, from_name);
+      sprintf(p->origin, "(%d) %s:", (uint32_t)path_len, from_name);
     }
     StrHelper::strncpy(p->msg, msg, sizeof(p->msg));
   }
 
-  int render(DisplayDriver& display) override {
+  int render(DisplayDriver &display) override {
     char tmp[16];
     display.setCursor(0, 0);
     display.setTextSize(1);
@@ -473,15 +481,15 @@ public:
     int secs = _rtc->getCurrentTime() - p->timestamp;
     if (secs < 60) {
       sprintf(tmp, "%ds", secs);
-    } else if (secs < 60*60) {
+    } else if (secs < 60 * 60) {
       sprintf(tmp, "%dm", secs / 60);
     } else {
-      sprintf(tmp, "%dh", secs / (60*60));
+      sprintf(tmp, "%dh", secs / (60 * 60));
     }
     display.setCursor(display.width() - display.getTextWidth(tmp) - 2, 0);
     display.print(tmp);
 
-    display.drawRect(0, 11, display.width(), 1);  // horiz line
+    display.drawRect(0, 11, display.width(), 1); // horiz line
 
     display.setCursor(0, 14);
     display.setColor(DisplayDriver::YELLOW);
@@ -495,10 +503,10 @@ public:
     display.translateUTF8ToBlocks(filtered_msg, p->msg, sizeof(filtered_msg));
     display.printWordWrap(filtered_msg, display.width());
 
-#if AUTO_OFF_MILLIS==0 // probably e-ink
-    return 10000; // 10 s
+#if AUTO_OFF_MILLIS == 0 // probably e-ink
+    return 10000;        // 10 s
 #else
-    return 1000;  // next render after 1000 ms
+    return 1000; // next render after 1000 ms
 #endif
   }
 
@@ -516,7 +524,7 @@ public:
       return true;
     }
     if (c == KEY_ENTER) {
-      num_unread = 0;  // clear unread queue
+      num_unread = 0; // clear unread queue
       _task->gotoHomeScreen();
       return true;
     }
@@ -524,7 +532,7 @@ public:
   }
 };
 
-void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* node_prefs) {
+void UITask::begin(DisplayDriver *display, SensorManager *sensors, NodePrefs *node_prefs) {
   _display = display;
   _sensors = sensors;
   _auto_off = millis() + AUTO_OFF_MILLIS;
@@ -534,6 +542,9 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
 #endif
 #if defined(PIN_USER_BTN_ANA)
   analog_btn.begin();
+#endif
+#if defined(PIN_USER_JOYSTICK)
+  analog_joystick.begin();
 #endif
 
   _node_prefs = node_prefs;
@@ -559,14 +570,14 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
   setCurrScreen(splash);
 }
 
-void UITask::showAlert(const char* text, int duration_millis) {
+void UITask::showAlert(const char *text, int duration_millis) {
   strcpy(_alert, text);
   _alert_expiry = millis() + duration_millis;
 }
 
 void UITask::notify(UIEventType t) {
 #if defined(PIN_BUZZER)
-switch(t){
+  switch (t) {
   case UIEventType::contactMessage:
     // gemini's pick
     buzzer.play("MsgRcv3:d=4,o=6,b=200:32e,32g,32b,16c7");
@@ -582,7 +593,7 @@ switch(t){
   case UIEventType::none:
   default:
     break;
-}
+  }
 #endif
 
 #ifdef PIN_VIBRATION
@@ -593,7 +604,6 @@ switch(t){
 #endif
 }
 
-
 void UITask::msgRead(int msgcount) {
   _msgcount = msgcount;
   if (msgcount == 0) {
@@ -601,16 +611,16 @@ void UITask::msgRead(int msgcount) {
   }
 }
 
-void UITask::newMsg(uint8_t path_len, const char* from_name, const char* text, int msgcount) {
+void UITask::newMsg(uint8_t path_len, const char *from_name, const char *text, int msgcount) {
   _msgcount = msgcount;
 
-  ((MsgPreviewScreen *) msg_preview)->addPreview(path_len, from_name, text);
+  ((MsgPreviewScreen *)msg_preview)->addPreview(path_len, from_name, text);
   setCurrScreen(msg_preview);
 
   if (_display != NULL) {
     if (!_display->isOn()) _display->turnOn();
-    _auto_off = millis() + AUTO_OFF_MILLIS;  // extend the auto-off timer
-    _next_refresh = 100;  // trigger refresh
+    _auto_off = millis() + AUTO_OFF_MILLIS; // extend the auto-off timer
+    _next_refresh = 100;                    // trigger refresh
   }
 }
 
@@ -635,7 +645,7 @@ void UITask::userLedHandler() {
 #endif
 }
 
-void UITask::setCurrScreen(UIScreen* c) {
+void UITask::setCurrScreen(UIScreen *c) {
   curr = c;
   _next_refresh = 100;
 }
@@ -643,9 +653,9 @@ void UITask::setCurrScreen(UIScreen* c) {
 /*
   hardware-agnostic pre-shutdown activity should be done here
 */
-void UITask::shutdown(bool restart){
+void UITask::shutdown(bool restart) {
 
-  #ifdef PIN_BUZZER
+#ifdef PIN_BUZZER
   /* note: we have a choice here -
      we can do a blocking buzzer.loop() with non-deterministic consequences
      or we can set a flag and delay the shutdown for a couple of seconds
@@ -656,7 +666,7 @@ void UITask::shutdown(bool restart){
   while (buzzer.isPlaying() && (millis() - 2500) < buzzer_timer)
     buzzer.loop();
 
-  #endif // PIN_BUZZER
+#endif // PIN_BUZZER
 
   if (restart) {
     _board->reboot();
@@ -682,7 +692,7 @@ void UITask::loop() {
   if (ev == BUTTON_EVENT_CLICK) {
     c = checkDisplayOn(KEY_ENTER);
   } else if (ev == BUTTON_EVENT_LONG_PRESS) {
-    c = handleLongPress(KEY_ENTER);  // REVISIT: could be mapped to different key code
+    c = handleLongPress(KEY_ENTER); // REVISIT: could be mapped to different key code
   }
   ev = joystick_left.check();
   if (ev == BUTTON_EVENT_CLICK) {
@@ -727,6 +737,33 @@ void UITask::loop() {
     _analogue_pin_read_millis = millis();
   }
 #endif
+#if defined(PIN_USER_JOYSTICK)
+  if ((millis() - _analogue_pin_read_millis) > 10) {
+    uint8_t key = analog_joystick.check();
+    if (key != 0) {
+      // Map joystick directions to key codes and check display
+      switch (key) {
+      case KEY_UP:
+        c = checkDisplayOn(KEY_UP);
+        break;
+      case KEY_DOWN:
+        c = checkDisplayOn(KEY_DOWN);
+        break;
+      case KEY_LEFT:
+        c = checkDisplayOn(KEY_NEXT);
+        break;
+      case KEY_RIGHT:
+        c = checkDisplayOn(KEY_PREV);
+        break;
+      case KEY_SELECT:
+        // For center button, maybe long press support?
+        c = checkDisplayOn(KEY_ENTER);
+        break;
+      }
+    }
+    _analogue_pin_read_millis = millis();
+  }
+#endif
 #if defined(BACKLIGHT_BTN)
   if (millis() > next_backlight_btn_check) {
     bool touch_state = digitalRead(PIN_BUTTON2);
@@ -741,14 +778,14 @@ void UITask::loop() {
 
   if (c != 0 && curr) {
     curr->handleInput(c);
-    _auto_off = millis() + AUTO_OFF_MILLIS;   // extend auto-off timer
-    _next_refresh = 100;  // trigger refresh
+    _auto_off = millis() + AUTO_OFF_MILLIS; // extend auto-off timer
+    _next_refresh = 100;                    // trigger refresh
   }
 
   userLedHandler();
 
 #ifdef PIN_BUZZER
-  if (buzzer.isPlaying())  buzzer.loop();
+  if (buzzer.isPlaying()) buzzer.loop();
 #endif
 
   if (curr) curr->poll();
@@ -757,16 +794,16 @@ void UITask::loop() {
     if (millis() >= _next_refresh && curr) {
       _display->startFrame();
       int delay_millis = curr->render(*_display);
-      if (millis() < _alert_expiry) {  // render alert popup
+      if (millis() < _alert_expiry) { // render alert popup
         _display->setTextSize(1);
         int y = _display->height() / 3;
         int p = _display->height() / 32;
         _display->setColor(DisplayDriver::DARK);
-        _display->fillRect(p, y, _display->width() - p*2, y);
-        _display->setColor(DisplayDriver::LIGHT);  // draw box border
-        _display->drawRect(p, y, _display->width() - p*2, y);
-        _display->drawTextCentered(_display->width() / 2, y + p*3, _alert);
-        _next_refresh = _alert_expiry;   // will need refresh when alert is dismissed
+        _display->fillRect(p, y, _display->width() - p * 2, y);
+        _display->setColor(DisplayDriver::LIGHT); // draw box border
+        _display->drawRect(p, y, _display->width() - p * 2, y);
+        _display->drawTextCentered(_display->width() / 2, y + p * 3, _alert);
+        _next_refresh = _alert_expiry; // will need refresh when alert is dismissed
       } else {
         _next_refresh = millis() + delay_millis;
       }
@@ -788,9 +825,9 @@ void UITask::loop() {
     uint16_t milliVolts = getBattMilliVolts();
     if (milliVolts > 0 && milliVolts < AUTO_SHUTDOWN_MILLIVOLTS) {
 
-      // show low battery shutdown alert
-      // we should only do this for eink displays, which will persist after power loss
-      #if defined(THINKNODE_M1) || defined(LILYGO_TECHO)
+// show low battery shutdown alert
+// we should only do this for eink displays, which will persist after power loss
+#if defined(THINKNODE_M1) || defined(LILYGO_TECHO)
       if (_display != NULL) {
         _display->startFrame();
         _display->setTextSize(2);
@@ -799,10 +836,9 @@ void UITask::loop() {
         _display->drawTextCentered(_display->width() / 2, 40, "Shutting Down!");
         _display->endFrame();
       }
-      #endif
+#endif
 
       shutdown();
-
     }
     next_batt_chck = millis() + 8000;
   }
@@ -812,19 +848,19 @@ void UITask::loop() {
 char UITask::checkDisplayOn(char c) {
   if (_display != NULL) {
     if (!_display->isOn()) {
-      _display->turnOn();   // turn display on and consume event
+      _display->turnOn(); // turn display on and consume event
       c = 0;
     }
-    _auto_off = millis() + AUTO_OFF_MILLIS;   // extend auto-off timer
-    _next_refresh = 0;  // trigger refresh
+    _auto_off = millis() + AUTO_OFF_MILLIS; // extend auto-off timer
+    _next_refresh = 0;                      // trigger refresh
   }
   return c;
 }
 
 char UITask::handleLongPress(char c) {
-  if (millis() - ui_started_at < 8000) {   // long press in first 8 seconds since startup -> CLI/rescue
+  if (millis() - ui_started_at < 8000) { // long press in first 8 seconds since startup -> CLI/rescue
     the_mesh.enterCLIRescue();
-    c = 0;   // consume event
+    c = 0; // consume event
   }
   return c;
 }
@@ -851,12 +887,12 @@ bool UITask::getGPSState() {
         return !strcmp(_sensors->getSettingValue(i), "1");
       }
     }
-  } 
+  }
   return false;
 }
 
 void UITask::toggleGPS() {
-    if (_sensors != NULL) {
+  if (_sensors != NULL) {
     // toggle GPS on/off
     int num = _sensors->getNumSettings();
     for (int i = 0; i < num; i++) {
@@ -878,18 +914,18 @@ void UITask::toggleGPS() {
 }
 
 void UITask::toggleBuzzer() {
-    // Toggle buzzer quiet mode
-  #ifdef PIN_BUZZER
-    if (buzzer.isQuiet()) {
-      buzzer.quiet(false);
-      notify(UIEventType::ack);
-      showAlert("Buzzer: ON", 800);
-    } else {
-      buzzer.quiet(true);
-      showAlert("Buzzer: OFF", 800);
-    }
-    _node_prefs->buzzer_quiet = buzzer.isQuiet();
-    the_mesh.savePrefs();
-    _next_refresh = 0;  // trigger refresh
-  #endif
+  // Toggle buzzer quiet mode
+#ifdef PIN_BUZZER
+  if (buzzer.isQuiet()) {
+    buzzer.quiet(false);
+    notify(UIEventType::ack);
+    showAlert("Buzzer: ON", 800);
+  } else {
+    buzzer.quiet(true);
+    showAlert("Buzzer: OFF", 800);
+  }
+  _node_prefs->buzzer_quiet = buzzer.isQuiet();
+  the_mesh.savePrefs();
+  _next_refresh = 0; // trigger refresh
+#endif
 }

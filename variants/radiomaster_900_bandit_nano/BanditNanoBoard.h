@@ -2,39 +2,33 @@
 
 #include <Arduino.h>
 #include <helpers/ESP32Board.h>
+#include <helpers/ui/AnalogJoystick.h>
 
+#define RADIOMASTER_900_BANDIT_NANO
 /*
   Pin connections from ESP32-D0WDQ6 to SX1276.
 */
-#define P_LORA_DIO_0 22
-#define P_LORA_DIO_1 21
-#define P_LORA_NSS 4
-#define P_LORA_RESET 5
-#define P_LORA_SCLK 18
-#define P_LORA_MISO 19
-#define P_LORA_MOSI 23 
-#define SX176X_TXEN 33
-
-#define MAX_LORA_TX_POWER 30
-#define LORA_TX_POWER 12	// Value not used, LORA module is fixed to 12dbm so PA is not overdriven
-
-#define P_LORA_TX_LED 15	// LED GPIO 15
+#define P_LORA_DIO_0     22
+#define P_LORA_DIO_1     21
+#define P_LORA_NSS       4
+#define P_LORA_RESET     5
+#define P_LORA_SCLK      18
+#define P_LORA_MISO      19
+#define P_LORA_MOSI      23
+#define SX176X_TXEN      33
 
 /*
   I2C SDA and SCL.
 */
-#define PIN_BOARD_SDA 14
-#define PIN_BOARD_SCL 12
-
-#define PIN_USER_BTN 39		// User button Five-way, see JOYSTICK_ADC_VALS
-#define JOYSTICK_ADC_VALS /*UP*/ 3227, /*DOWN*/ 0, /*LEFT*/ 1961, /*RIGHT*/ 2668, /*OK*/ 1290, /*IDLE*/ 4095
+#define PIN_BOARD_SDA    14
+#define PIN_BOARD_SCL    12
 
 /*
   This unit has a FAN built-in.
   FAN is active at 250mW on it's ExpressLRS Firmware.
   Always ON
 */
-#define PA_FAN_EN 2		// FAN on GPIO 2
+#define PA_FAN_EN        2 // FAN on GPIO 2
 
 /*
   This module has Skyworks SKY66122 controlled by dacWrite
@@ -46,62 +40,35 @@
   128 -> 500mW  -> 1.63v
   90  -> 1000mW -> 1.16v
 */
-#define PIN_PA_EN 26		// GPIO 26 enables the PA
-#define PA_DAC_EN		// Used DAC Levels
-#define PA_LEVEL 90		// If power output table is not found, use this value (1000mW)
+#define DAC_PA_PIN       26 // GPIO 26 enables the PA
 
-#define DISPLAY_ROTATION 2	// Display is flipped
+// Configuration - adjust these for your hardware
+#define PA_CONSTANT_GAIN 18 // SKY66122 operates at constant 18dB gain
+#define MIN_OUTPUT_DBM   20 // 100mW minimum
+#define MAX_OUTPUT_DBM   30 // 1000mW maximum
+
+// Calibration points from manufacturer
+struct PowerCalibration {
+  uint8_t output_dbm;
+  int8_t sx1278_dbm;
+  uint8_t dac_value;
+};
+
+// Values are from Radiomaster.
+const PowerCalibration calibration[] = {
+  { 20, 2, 168 }, // 100mW
+  { 24, 6, 148 }, // 250mW
+  { 27, 9, 128 }, // 500mW
+  { 30, 12, 90 }  // 1000mW
+};
+
+const int NUM_CAL_POINTS = sizeof(calibration) / sizeof(calibration[0]);
 
 class BanditNanoBoard : public ESP32Board {
 private:
-
 public:
+  // Return fake battery status, battery/fixed power is not monitored.
+  uint16_t getBattMilliVolts() override { return (5.42 * (3.3 / 1024.0) * 250) * 1000; }
 
-  void begin() {
-    ESP32Board::begin();
-
-    periph_power.begin();
-
-    esp_reset_reason_t reason = esp_reset_reason();
-    if (reason == ESP_RST_DEEPSLEEP) {
-      long wakeup_source = esp_sleep_get_ext1_wakeup_status();
-      if (wakeup_source & (1 << P_LORA_DIO_1)) {  // received a LoRa packet (while in deep sleep)
-        startup_reason = BD_STARTUP_RX_PACKET;
-      }
-
-      rtc_gpio_hold_dis((gpio_num_t)P_LORA_NSS);
-      rtc_gpio_deinit((gpio_num_t)P_LORA_DIO_1);
-    }
-  }
-
-  void enterDeepSleep(uint32_t secs, int pin_wake_btn = -1) {
-    esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
-
-    // Make sure the DIO1 and NSS GPIOs are hold on required levels during deep sleep
-    rtc_gpio_set_direction((gpio_num_t)P_LORA_DIO_1, RTC_GPIO_MODE_INPUT_ONLY);
-    rtc_gpio_pulldown_en((gpio_num_t)P_LORA_DIO_1);
-
-    rtc_gpio_hold_en((gpio_num_t)P_LORA_NSS);
-
-    if (pin_wake_btn < 0) {
-      esp_sleep_enable_ext1_wakeup( (1L << P_LORA_DIO_1), ESP_EXT1_WAKEUP_ANY_HIGH);  // wake up on: recv LoRa packet
-    } else {
-      esp_sleep_enable_ext1_wakeup( (1L << P_LORA_DIO_1) | (1L << pin_wake_btn), ESP_EXT1_WAKEUP_ANY_HIGH);  // wake up on: recv LoRa packet OR wake btn
-    }
-
-    if (secs > 0) {
-      esp_sleep_enable_timer_wakeup(secs * 1000000);
-    }
-
-    // Finally set ESP32 into sleep
-    esp_deep_sleep_start();   // CPU halts here and never returns!
-  }
-
-  void powerOff() override {
-    enterDeepSleep(0);
-  }
-
-  const char* getManufacturerName() const override {
-    return "RadioMaster Bandit Nano";
-  }
+  const char *getManufacturerName() const override { return "RadioMaster Bandit Nano"; }
 };
