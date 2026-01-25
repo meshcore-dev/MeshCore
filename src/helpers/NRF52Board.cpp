@@ -85,6 +85,7 @@ void NRF52Board::sleep(uint32_t secs) {
     // Disable ISR servicing
     noInterrupts();
 
+    // Skip sleep if there is a LoRa packet
     if (digitalRead(wakeupPin) == HIGH) {
       interrupts();
       break;
