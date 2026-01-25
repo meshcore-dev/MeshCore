@@ -45,8 +45,7 @@ class CustomSX1268 : public SX1268 {
       int status = begin(LORA_FREQ, LORA_BW, LORA_SF, cr, RADIOLIB_SX126X_SYNC_WORD_PRIVATE, LORA_TX_POWER, 16, tcxo);
       // if radio init fails with -707/-706, try again with tcxo voltage set to 0.0f
       if (status == RADIOLIB_ERR_SPI_CMD_FAILED || status == RADIOLIB_ERR_SPI_CMD_INVALID) {
-        #define SX126X_DIO3_TCXO_VOLTAGE (0.0f);
-        tcxo = SX126X_DIO3_TCXO_VOLTAGE;
+        tcxo = 0.0f;
         status = begin(LORA_FREQ, LORA_BW, LORA_SF, cr, RADIOLIB_SX126X_SYNC_WORD_PRIVATE, LORA_TX_POWER, 16, tcxo);
       }
       if (status != RADIOLIB_ERR_NONE) {
