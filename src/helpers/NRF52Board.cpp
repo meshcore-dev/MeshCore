@@ -64,15 +64,21 @@ void NRF52Board::sleep(uint32_t secs) {
   uint32_t timeoutMs = secs * 1000;
 
   // Create event when wakeup pin is high
-  nrf_gpio_cfg_sense_input(wakeupPin, NRF_GPIO_PIN_PULLDOWN, NRF_GPIO_PIN_SENSE_HIGH);
+  nrf_gpio_cfg_sense_input(wakeupPin, NRF_GPIO_PIN_NOPULL, NRF_GPIO_PIN_SENSE_HIGH);
 
   while (true) {
+    // Do housekeeping tasks for peripherals (UART...) so they do not block sleep
+    yield();
+
     // Wakeup timer
     if ((millis() - startTime) >= timeoutMs) {
       break;
     }
 
-    // Clear stale events
+    // Clear event noises from Memory Watch Unit
+    NVIC_ClearPendingIRQ(MWU_IRQn);
+
+    // Clear stale events    
     __SEV();
     __WFE();
 
@@ -92,6 +98,9 @@ void NRF52Board::sleep(uint32_t secs) {
   }
 
   // Disable sense on wakeup pin
-  nrf_gpio_cfg_input(wakeupPin, NRF_GPIO_PIN_PULLDOWN);
+  nrf_gpio_cfg_input(wakeupPin, NRF_GPIO_PIN_NOPULL);
+
+  // Clear the latch so the next sleep is fresh and do not remember old events.
+  NRF_GPIO->LATCH = (1 << wakeupPin);
 }
 #endif
