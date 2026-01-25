@@ -750,10 +750,10 @@ void UITask::loop() {
         c = checkDisplayOn(KEY_DOWN);
         break;
       case KEY_LEFT:
-        c = checkDisplayOn(KEY_NEXT);
+        c = checkDisplayOn(KEY_PREV);
         break;
       case KEY_RIGHT:
-        c = checkDisplayOn(KEY_PREV);
+        c = checkDisplayOn(KEY_NEXT);
         break;
       case KEY_SELECT:
         // For center button, maybe long press support?
