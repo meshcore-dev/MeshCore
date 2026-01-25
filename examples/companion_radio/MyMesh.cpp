@@ -53,6 +53,9 @@
 #define CMD_SET_FLOOD_SCOPE           54   // v8+
 #define CMD_SEND_CONTROL_DATA         55   // v8+
 #define CMD_GET_STATS                 56   // v8+, second byte is stats type
+#define CMD_SEND_ANON_REQ             57
+#define CMD_SET_AUTOADD_CONFIG        58
+#define CMD_GET_AUTOADD_CONFIG        59
 
 // Stats sub-types for CMD_GET_STATS
 #define STATS_TYPE_CORE               0
@@ -84,6 +87,7 @@
 #define RESP_CODE_ADVERT_PATH         22
 #define RESP_CODE_TUNING_PARAMS       23
 #define RESP_CODE_STATS               24   // v8+, second byte is stats type
+#define RESP_CODE_AUTOADD_CONFIG      25
 
 #define SEND_TIMEOUT_BASE_MILLIS        500
 #define FLOOD_SEND_TIMEOUT_FACTOR       16.0f
@@ -109,6 +113,8 @@
 #define PUSH_CODE_BINARY_RESPONSE       0x8C
 #define PUSH_CODE_PATH_DISCOVERY_RESPONSE 0x8D
 #define PUSH_CODE_CONTROL_DATA          0x8E   // v8+
+#define PUSH_CODE_CONTACT_DELETED       0x8F // used to notify client app of deleted contact when overwriting oldest
+#define PUSH_CODE_CONTACTS_FULL         0x90 // used to notify client app that contacts storage is full
 
 #define ERR_CODE_UNSUPPORTED_CMD        1
 #define ERR_CODE_NOT_FOUND              2
@@ -118,6 +124,15 @@
 #define ERR_CODE_ILLEGAL_ARG            6
 
 #define MAX_SIGN_DATA_LEN               (8 * 1024) // 8K
+
+// Auto-add config bitmask
+// Bit 0: If set, overwrite oldest non-favourite contact when contacts file is full
+// Bits 1-4: these indicate which contact types to auto-add when manual_contact_mode = 0x01
+#define AUTO_ADD_OVERWRITE_OLDEST (1 << 0)  // 0x01 - overwrite oldest non-favourite when full
+#define AUTO_ADD_CHAT             (1 << 1)  // 0x02 - auto-add Chat (Companion) (ADV_TYPE_CHAT)
+#define AUTO_ADD_REPEATER         (1 << 2)  // 0x04 - auto-add Repeater (ADV_TYPE_REPEATER)
+#define AUTO_ADD_ROOM_SERVER      (1 << 3)  // 0x08 - auto-add Room Server (ADV_TYPE_ROOM)
+#define AUTO_ADD_SENSOR           (1 << 4)  // 0x10 - auto-add Sensor (ADV_TYPE_SENSOR)
 
 void MyMesh::writeOKFrame() {
   uint8_t buf[1];
@@ -261,20 +276,64 @@ bool MyMesh::isAutoAddEnabled() const {
   return (_prefs.manual_add_contacts & 1) == 0;
 }
 
+bool MyMesh::shouldAutoAddContactType(uint8_t contact_type) const {
+  if ((_prefs.manual_add_contacts & 1) == 0) {
+    return true;
+  }
+  
+  uint8_t type_bit = 0;
+  switch (contact_type) {
+    case ADV_TYPE_CHAT:
+      type_bit = AUTO_ADD_CHAT;
+      break;
+    case ADV_TYPE_REPEATER:
+      type_bit = AUTO_ADD_REPEATER;
+      break;
+    case ADV_TYPE_ROOM:
+      type_bit = AUTO_ADD_ROOM_SERVER;
+      break;
+    case ADV_TYPE_SENSOR:
+      type_bit = AUTO_ADD_SENSOR;
+      break;
+    default:
+      return false;  // Unknown type, don't auto-add
+  }
+  
+  return (_prefs.autoadd_config & type_bit) != 0;
+}
+
+bool MyMesh::shouldOverwriteWhenFull() const {
+  return (_prefs.autoadd_config & AUTO_ADD_OVERWRITE_OLDEST) != 0;
+}
+
+void MyMesh::onContactOverwrite(const uint8_t* pub_key) {
+  if (_serial->isConnected()) {
+    out_frame[0] = PUSH_CODE_CONTACT_DELETED;
+    memcpy(&out_frame[1], pub_key, PUB_KEY_SIZE);
+    _serial->writeFrame(out_frame, 1 + PUB_KEY_SIZE);
+  }
+}
+
+void MyMesh::onContactsFull() {
+  if (_serial->isConnected()) {
+    out_frame[0] = PUSH_CODE_CONTACTS_FULL;
+    _serial->writeFrame(out_frame, 1);
+  }
+}
+
 void MyMesh::onDiscoveredContact(ContactInfo &contact, bool is_new, uint8_t path_len, const uint8_t* path) {
   if (_serial->isConnected()) {
-    if (!isAutoAddEnabled() && is_new) {
+    if (is_new) {
       writeContactRespFrame(PUSH_CODE_NEW_ADVERT, contact);
     } else {
       out_frame[0] = PUSH_CODE_ADVERT;
       memcpy(&out_frame[1], contact.id.pub_key, PUB_KEY_SIZE);
       _serial->writeFrame(out_frame, 1 + PUB_KEY_SIZE);
     }
-  } else {
+  } 
 #ifdef DISPLAY_CLASS
-    if (_ui) _ui->notify(UIEventType::newContactMessage);
+  if (_ui && !_prefs.buzzer_quiet) _ui->notify(UIEventType::newContactMessage); //buzz if enabled
 #endif
-  }
 
   // add inbound-path to mem cache
   if (path && path_len <= sizeof(AdvertPath::path)) {  // check path is valid
@@ -298,7 +357,7 @@ void MyMesh::onDiscoveredContact(ContactInfo &contact, bool is_new, uint8_t path
     memcpy(p->path, path, p->path_len);
   }
 
-  dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY);
+  if (!is_new) dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY); // only schedule lazy write for contacts that are in contacts[]
 }
 
 static int sort_by_recent(const void *a, const void *b) {
@@ -381,9 +440,7 @@ void MyMesh::queueMessage(const ContactInfo &from, uint8_t txt_type, mesh::Packe
   bool should_display = txt_type == TXT_TYPE_PLAIN || txt_type == TXT_TYPE_SIGNED_PLAIN;
   if (should_display && _ui) {
     _ui->newMsg(path_len, from.name, text, offline_queue_len);
-    if (!_serial->isConnected()) {
-      _ui->notify(UIEventType::contactMessage);
-    }
+    if (!_prefs.buzzer_quiet) _ui->notify(UIEventType::contactMessage); //buzz if enabled
   }
 #endif
 }
@@ -468,11 +525,8 @@ void MyMesh::onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packe
     uint8_t frame[1];
     frame[0] = PUSH_CODE_MSG_WAITING; // send push 'tickle'
     _serial->writeFrame(frame, 1);
-  } else {
-#ifdef DISPLAY_CLASS
-    if (_ui) _ui->notify(UIEventType::channelMessage);
-#endif
   }
+
 #ifdef DISPLAY_CLASS
   // Get the channel name from the channel index
   const char *channel_name = "Unknown";
@@ -480,7 +534,10 @@ void MyMesh::onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packe
   if (getChannel(channel_idx, channel_details)) {
     channel_name = channel_details.name;
   }
-  if (_ui) _ui->newMsg(path_len, channel_name, text, offline_queue_len);
+  if (_ui) {
+    _ui->newMsg(path_len, channel_name, text, offline_queue_len);
+    if (!_prefs.buzzer_quiet) _ui->notify(UIEventType::channelMessage); //buzz if enabled
+  }
 #endif
 }
 
@@ -739,6 +796,9 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
   _prefs.bw = LORA_BW;
   _prefs.cr = LORA_CR;
   _prefs.tx_power_dbm = LORA_TX_POWER;
+  _prefs.buzzer_quiet = 0;
+  _prefs.gps_enabled = 0;       // GPS disabled by default
+  _prefs.gps_interval = 0;      // No automatic GPS updates by default
   //_prefs.rx_delay_base = 10.0f;  enable once new algo fixed
 }
 
@@ -755,14 +815,14 @@ void MyMesh::begin(bool has_display) {
     _store->saveMainIdentity(self_id);
   }
 
+// if name is provided as a build flag, use that as default node name instead
+#ifdef ADVERT_NAME
+  strcpy(_prefs.node_name, ADVERT_NAME);
+#else
   // use hex of first 4 bytes of identity public key as default node name
   char pub_key_hex[10];
   mesh::Utils::toHex(pub_key_hex, self_id.pub_key, 4);
   strcpy(_prefs.node_name, pub_key_hex);
-
-// if name is provided as a build flag, use that as default node name instead
-#ifdef ADVERT_NAME
-  strcpy(_prefs.node_name, ADVERT_NAME);
 #endif
 
   // load persisted prefs
@@ -776,6 +836,9 @@ void MyMesh::begin(bool has_display) {
   _prefs.sf = constrain(_prefs.sf, 5, 12);
   _prefs.cr = constrain(_prefs.cr, 5, 8);
   _prefs.tx_power_dbm = constrain(_prefs.tx_power_dbm, 1, MAX_LORA_TX_POWER);
+  _prefs.buzzer_quiet = constrain(_prefs.buzzer_quiet, 0, 1);  // Ensure boolean 0 or 1
+  _prefs.gps_enabled = constrain(_prefs.gps_enabled, 0, 1);  // Ensure boolean 0 or 1
+  _prefs.gps_interval = constrain(_prefs.gps_interval, 0, 86400);  // Max 24 hours
 
 #ifdef BLE_PIN_CODE // 123456 by default
   if (_prefs.ble_pin == 0) {
@@ -798,6 +861,7 @@ void MyMesh::begin(bool has_display) {
 
   resetContacts();
   _store->loadContacts(this);
+  bootstrapRTCfromContacts();
   addChannel("Public", PUBLIC_GROUP_PSK); // pre-configure Andy's public channel
   _store->loadChannels(this);
 
@@ -899,6 +963,7 @@ void MyMesh::handleCmdFrame(size_t len) {
       int result;
       uint32_t expected_ack;
       if (txt_type == TXT_TYPE_CLI_DATA) {
+        msg_timestamp = getRTCClock()->getCurrentTimeUnique(); // Use node's RTC instead of app timestamp to avoid tripping replay protection
         result = sendCommandData(*recipient, msg_timestamp, attempt, text, est_timeout);
         expected_ack = 0; // no Ack expected
       } else {
@@ -1229,16 +1294,20 @@ void MyMesh::handleCmdFrame(size_t len) {
 #endif
   } else if (cmd_frame[0] == CMD_IMPORT_PRIVATE_KEY && len >= 65) {
 #if ENABLE_PRIVATE_KEY_IMPORT
-    mesh::LocalIdentity identity;
-    identity.readFrom(&cmd_frame[1], 64);
-    if (_store->saveMainIdentity(identity)) {
-      self_id = identity;
-      writeOKFrame();
-      // re-load contacts, to recalc shared secrets
-      resetContacts();
-      _store->loadContacts(this);
+    if (!mesh::LocalIdentity::validatePrivateKey(&cmd_frame[1])) {
+        writeErrFrame(ERR_CODE_ILLEGAL_ARG); // invalid key
     } else {
-      writeErrFrame(ERR_CODE_FILE_IO_ERROR);
+        mesh::LocalIdentity identity;
+        identity.readFrom(&cmd_frame[1], 64);
+        if (_store->saveMainIdentity(identity)) {
+          self_id = identity;
+          writeOKFrame();
+          // re-load contacts, to invalidate ecdh shared_secrets
+          resetContacts();
+          _store->loadContacts(this);
+        } else {
+          writeErrFrame(ERR_CODE_FILE_IO_ERROR);
+        }
     }
 #else
     writeDisabledFrame();
@@ -1275,6 +1344,27 @@ void MyMesh::handleCmdFrame(size_t len) {
         out_frame[0] = RESP_CODE_SENT;
         out_frame[1] = (result == MSG_SEND_SENT_FLOOD) ? 1 : 0;
         memcpy(&out_frame[2], &pending_login, 4);
+        memcpy(&out_frame[6], &est_timeout, 4);
+        _serial->writeFrame(out_frame, 10);
+      }
+    } else {
+      writeErrFrame(ERR_CODE_NOT_FOUND); // contact not found
+    }
+  } else if (cmd_frame[0] == CMD_SEND_ANON_REQ && len > 1 + PUB_KEY_SIZE) {
+    uint8_t *pub_key = &cmd_frame[1];
+    ContactInfo *recipient = lookupContactByPubKey(pub_key, PUB_KEY_SIZE);
+    uint8_t *data = &cmd_frame[1 + PUB_KEY_SIZE];
+    if (recipient) {
+      uint32_t tag, est_timeout;
+      int result = sendAnonReq(*recipient, data, len - (1 + PUB_KEY_SIZE), tag, est_timeout);
+      if (result == MSG_SEND_FAILED) {
+        writeErrFrame(ERR_CODE_TABLE_FULL);
+      } else {
+        clearPendingReqs();
+        pending_req = tag; // match this to onContactResponse()
+        out_frame[0] = RESP_CODE_SENT;
+        out_frame[1] = (result == MSG_SEND_SENT_FLOOD) ? 1 : 0;
+        memcpy(&out_frame[2], &tag, 4);
         memcpy(&out_frame[6], &est_timeout, 4);
         _serial->writeFrame(out_frame, 10);
       }
@@ -1521,6 +1611,17 @@ void MyMesh::handleCmdFrame(size_t len) {
       *np++ = 0; // modify 'cmd_frame', replace ':' with null
       bool success = sensors.setSettingValue(sp, np);
       if (success) {
+        #if ENV_INCLUDE_GPS == 1
+        // Update node preferences for GPS settings
+        if (strcmp(sp, "gps") == 0) {
+          _prefs.gps_enabled = (np[0] == '1') ? 1 : 0;
+          savePrefs();
+        } else if (strcmp(sp, "gps_interval") == 0) {
+          uint32_t interval_seconds = atoi(np);
+          _prefs.gps_interval = constrain(interval_seconds, 0, 86400);
+          savePrefs();
+        }
+        #endif
         writeOKFrame();
       } else {
         writeErrFrame(ERR_CODE_ILLEGAL_ARG);
@@ -1598,6 +1699,10 @@ void MyMesh::handleCmdFrame(size_t len) {
       writeErrFrame(ERR_CODE_ILLEGAL_ARG); // invalid stats sub-type
     }
   } else if (cmd_frame[0] == CMD_FACTORY_RESET && memcmp(&cmd_frame[1], "reset", 5) == 0) {
+    if (_serial) {
+      MESH_DEBUG_PRINTLN("Factory reset: disabling serial interface to prevent reconnects (BLE/WiFi)");
+      _serial->disable(); // Phone app disconnects before we can send OK frame so it's safe here
+    }
     bool success = _store->formatFileSystem();
     if (success) {
       writeOKFrame();
@@ -1621,6 +1726,15 @@ void MyMesh::handleCmdFrame(size_t len) {
     } else {
       writeErrFrame(ERR_CODE_TABLE_FULL);
     }
+  } else if (cmd_frame[0] == CMD_SET_AUTOADD_CONFIG) {
+    _prefs.autoadd_config = cmd_frame[1];
+    savePrefs();
+    writeOKFrame();  
+  } else if (cmd_frame[0] == CMD_GET_AUTOADD_CONFIG) {
+    int i = 0;
+    out_frame[i++] = RESP_CODE_AUTOADD_CONFIG;
+    out_frame[i++] = _prefs.autoadd_config;
+    _serial->writeFrame(out_frame, i);
   } else {
     writeErrFrame(ERR_CODE_UNSUPPORTED_CMD);
     MESH_DEBUG_PRINTLN("ERROR: unknown command: %02X", cmd_frame[0]);

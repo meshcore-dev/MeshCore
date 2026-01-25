@@ -94,8 +94,8 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   unsigned long next_local_advert, next_flood_advert;
   bool _logging;
   NodePrefs _prefs;
-  CommonCLI _cli;
   ClientACL acl;
+  CommonCLI _cli;
   unsigned long dirty_contacts_expiry;
   uint8_t reply_data[MAX_PACKET_PAYLOAD];
   unsigned long next_push;

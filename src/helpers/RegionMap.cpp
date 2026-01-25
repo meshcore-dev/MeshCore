@@ -9,8 +9,13 @@ RegionMap::RegionMap(TransportKeyStore& store) : _store(&store) {
   strcpy(wildcard.name, "*");
 }
 
-bool RegionMap::is_name_char(char c) {
-  return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' || c == '.' || c == '_' || c == '#';
+bool RegionMap::is_name_char(uint8_t c) {
+  // accept all alpha-num or accented characters, but exclude most punctuation chars
+  return c == '-' || c == '$' || c == '#' || (c >= '0' && c <= '9') || c >= 'A';
+}
+
+static const char* skip_hash(const char* name) {
+  return *name == '#' ? name + 1 : name;
 }
 
 static File openWrite(FILESYSTEM* _fs, const char* filename) {
@@ -24,12 +29,12 @@ static File openWrite(FILESYSTEM* _fs, const char* filename) {
   #endif
 }
 
-bool RegionMap::load(FILESYSTEM* _fs) {
-  if (_fs->exists("/regions2")) {
+bool RegionMap::load(FILESYSTEM* _fs, const char* path) {
+  if (_fs->exists(path ? path : "/regions2")) {
   #if defined(RP2040_PLATFORM)
-    File file = _fs->open("/regions2", "r");
+    File file = _fs->open(path ? path : "/regions2", "r");
   #else
-    File file = _fs->open("/regions2");
+    File file = _fs->open(path ? path : "/regions2");
   #endif
 
     if (file) {
@@ -67,8 +72,8 @@ bool RegionMap::load(FILESYSTEM* _fs) {
   return false;  // failed
 }
 
-bool RegionMap::save(FILESYSTEM* _fs) {
-  File file = openWrite(_fs, "/regions2");
+bool RegionMap::save(FILESYSTEM* _fs, const char* path) {
+  File file = openWrite(_fs, path ? path : "/regions2");
   if (file) {
     uint8_t pad[128];
     memset(pad, 0, sizeof(pad));
@@ -126,11 +131,17 @@ RegionEntry* RegionMap::findMatch(mesh::Packet* packet, uint8_t mask) {
     if ((region->flags & mask) == 0) {   // does region allow this? (per 'mask' param)
       TransportKey keys[4];
       int num;
-      if (region->name[0] == '#') {   // auto hashtag region
+      if (region->name[0] == '$') {   // private region
+        num = _store->loadKeysFor(region->id, keys, 4);
+      } else if (region->name[0] == '#') {   // auto hashtag region
         _store->getAutoKeyFor(region->id, region->name, keys[0]);
         num = 1;
-      } else {
-        num = _store->loadKeysFor(region->id, keys, 4);
+      } else {   // new: implicit auto hashtag region
+        char tmp[sizeof(region->name)];
+        tmp[0] = '#';
+        strcpy(&tmp[1], region->name);
+        _store->getAutoKeyFor(region->id, tmp, keys[0]);
+        num = 1;
       }
       for (int j = 0; j < num; j++) {
         uint16_t code = keys[j].calcTransportCode(packet);
@@ -146,9 +157,10 @@ RegionEntry* RegionMap::findMatch(mesh::Packet* packet, uint8_t mask) {
 RegionEntry* RegionMap::findByName(const char* name) {
   if (strcmp(name, "*") == 0) return &wildcard;
 
+  if (*name == '#') { name++; }  // ignore the '#' when matching by name
   for (int i = 0; i < num_regions; i++) {
     auto region = &regions[i];
-    if (strcmp(name, region->name) == 0) return region;
+    if (strcmp(name, skip_hash(region->name)) == 0) return region;
   }
   return NULL;  // not found
 }
@@ -156,11 +168,12 @@ RegionEntry* RegionMap::findByName(const char* name) {
 RegionEntry* RegionMap::findByNamePrefix(const char* prefix) {
   if (strcmp(prefix, "*") == 0) return &wildcard;
 
+  if (*prefix == '#') { prefix++; }  // ignore the '#' when matching by name
   RegionEntry* partial = NULL;
   for (int i = 0; i < num_regions; i++) {
     auto region = &regions[i];
-    if (strcmp(prefix, region->name) == 0) return region;  // is a complete match, preference this one
-    if (memcmp(prefix, region->name, strlen(prefix)) == 0) {
+    if (strcmp(prefix, skip_hash(region->name)) == 0) return region;  // is a complete match, preference this one
+    if (memcmp(prefix, skip_hash(region->name), strlen(prefix)) == 0) {
       partial = region;
     }
   }
@@ -219,9 +232,9 @@ void RegionMap::printChildRegions(int indent, const RegionEntry* parent, Stream&
   }
 
   if (parent->flags & REGION_DENY_FLOOD) {
-    out.printf("%s%s\n", parent->name, parent->id == home_id ? "^" : "");
+    out.printf("%s%s\n", skip_hash(parent->name), parent->id == home_id ? "^" : "");
   } else {
-    out.printf("%s%s F\n", parent->name, parent->id == home_id ? "^" : "");
+    out.printf("%s%s F\n", skip_hash(parent->name), parent->id == home_id ? "^" : "");
   }
 
   for (int i = 0; i < num_regions; i++) {
@@ -234,4 +247,29 @@ void RegionMap::printChildRegions(int indent, const RegionEntry* parent, Stream&
 
 void RegionMap::exportTo(Stream& out) const {
   printChildRegions(0, &wildcard, out);   // recursive
+}
+
+int RegionMap::exportNamesTo(char *dest, int max_len, uint8_t mask) {
+  char *dp = dest;
+  if ((wildcard.flags & mask) == 0) {
+    *dp++ = '*';
+    *dp++ = ',';
+  }
+
+  for (int i = 0; i < num_regions; i++) {
+    auto region = &regions[i];
+    if ((region->flags & mask) == 0) {   // region allowed? (per 'mask' param)
+      const char* name = skip_hash(region->name);
+      int len = strlen(name);
+      if ((dp - dest) + len + 2 < max_len) {   // only append if name will fit
+        memcpy(dp, name, len);
+        dp += len;
+        *dp++ = ',';
+      }
+    }
+  }
+  if (dp > dest) { dp--; }   // don't include trailing comma
+
+  *dp = 0;  // set null terminator
+  return dp - dest;   // return length
 }

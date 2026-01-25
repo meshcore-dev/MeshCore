@@ -21,10 +21,7 @@ static void disconnect_callback(uint16_t conn_handle, uint8_t reason) {
 }
 
 void WioWM1110Board::begin() {
-  startup_reason = BD_STARTUP_NORMAL;
-
-  sd_power_mode_set(NRF_POWER_MODE_LOWPWR);
-  NRF_POWER->DCDCEN = 1;
+  NRF52BoardDCDC::begin();
 
   pinMode(BATTERY_PIN, INPUT);
   pinMode(LED_GREEN, OUTPUT);

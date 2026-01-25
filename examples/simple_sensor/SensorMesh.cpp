@@ -695,7 +695,7 @@ void SensorMesh::onAckRecv(mesh::Packet* packet, uint32_t ack_crc) {
 
 SensorMesh::SensorMesh(mesh::MainBoard& board, mesh::Radio& radio, mesh::MillisecondClock& ms, mesh::RNG& rng, mesh::RTCClock& rtc, mesh::MeshTables& tables)
      : mesh::Mesh(radio, ms, rng, rtc, *new StaticPoolPacketManager(32), tables),
-      _cli(board, rtc, sensors, &_prefs, this), telemetry(MAX_PACKET_PAYLOAD - 4)
+      _cli(board, rtc, sensors, acl, &_prefs, this), telemetry(MAX_PACKET_PAYLOAD - 4)
 {
   next_local_advert = next_flood_advert = 0;
   dirty_contacts_expiry = 0;
@@ -736,7 +736,7 @@ void SensorMesh::begin(FILESYSTEM* fs) {
   // load persisted prefs
   _cli.loadPrefs(_fs);
 
-  acl.load(_fs);
+  acl.load(_fs, self_id);
 
   radio_set_params(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
   radio_set_tx_power(_prefs.tx_power_dbm);
@@ -765,7 +765,6 @@ bool SensorMesh::formatFileSystem() {
 }
 
 void SensorMesh::saveIdentity(const mesh::LocalIdentity& new_id) {
-  self_id = new_id;
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
   IdentityStore store(*_fs, "");
 #elif defined(ESP32)
@@ -775,7 +774,7 @@ void SensorMesh::saveIdentity(const mesh::LocalIdentity& new_id) {
 #else
   #error "need to define saveIdentity()"
 #endif
-  store.save("_main", self_id);
+  store.save("_main", new_id);
 }
 
 void SensorMesh::applyTempRadioParams(float freq, float bw, uint8_t sf, uint8_t cr, int timeout_mins) {

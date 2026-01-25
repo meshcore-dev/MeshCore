@@ -19,6 +19,11 @@ class SerialWifiInterface : public BaseSerialInterface {
     uint16_t length;
   };
 
+  struct FrameHeader {
+    uint8_t type;
+    uint16_t length;
+  };
+
   struct Frame {
     uint8_t len;
     uint8_t buf[MAX_FRAME_SIZE];
