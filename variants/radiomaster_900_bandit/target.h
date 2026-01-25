@@ -2,25 +2,28 @@
 
 #define RADIOLIB_STATIC_ONLY 1
 // #include <RadioLib.h>
+#include <BanditBoard.h>
 #include <helpers/AutoDiscoverRTCClock.h>
-#include <helpers/ESP32Board.h>
 #include <helpers/SensorManager.h>
 #include <helpers/radiolib/CustomSX1276Wrapper.h>
 #include <helpers/radiolib/RadioLibWrappers.h>
 
 #ifdef DISPLAY_CLASS
-#include <helpers/ui/MomentaryButton.h>
-#include <helpers/ui/SSD1306Display.h>
+#include <helpers/ui/AnalogJoystick.h>
+#include <helpers/ui/SH1115Display.h>
 #endif
 
-extern ESP32Board board;
+extern BanditBoard board;
+
 extern WRAPPER_CLASS radio_driver;
 extern SensorManager sensors;
 extern AutoDiscoverRTCClock rtc_clock;
 
 #ifdef DISPLAY_CLASS
 extern DISPLAY_CLASS display;
-extern MomentaryButton user_btn;
+#if defined(PIN_USER_JOYSTICK)
+extern AnalogJoystick analog_joystick;
+#endif
 #endif
 
 bool radio_init();
