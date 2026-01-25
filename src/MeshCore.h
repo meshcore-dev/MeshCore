@@ -18,7 +18,8 @@
 
 // V2 (ChaCha20-Poly1305)
 #define CHACHA_KEY_SIZE      32
-#define CHACHA_NONCE_SIZE    12
+#define CHACHA_NONCE_SIZE    12   // Internal nonce size (derived from counter + key)
+#define CHACHA_COUNTER_SIZE   4   // Transmitted counter size (full nonce derived via SHA256)
 #define CHACHA_TAG_SIZE       8   // 64-bit tag: sufficient for mesh network (2^64 forgery resistance)
 
 #define MAX_PACKET_PAYLOAD  184

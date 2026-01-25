@@ -138,11 +138,11 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
       uint8_t dest_hash = pkt->payload[i++];
       uint8_t src_hash = pkt->payload[i++];
 
-      uint8_t* encryptedData = &pkt->payload[i];   // encrypted data (v1: MAC + ciphertext, v2: nonce + ciphertext + tag)
+      uint8_t* encryptedData = &pkt->payload[i];   // encrypted data (v1: MAC + ciphertext, v2: counter + ciphertext + tag)
       bool is_v2 = (pkt->getPayloadVer() == PAYLOAD_VER_2);
 
       // Check minimum packet length based on version
-      int min_encrypted_len = is_v2 ? (CHACHA_NONCE_SIZE + CHACHA_TAG_SIZE) : CIPHER_MAC_SIZE;
+      int min_encrypted_len = is_v2 ? (CHACHA_COUNTER_SIZE + CHACHA_TAG_SIZE) : CIPHER_MAC_SIZE;
       if (i + min_encrypted_len >= pkt->payload_len) {
         MESH_DEBUG_PRINTLN("%s Mesh::onRecvPacket(): incomplete data packet", getLogDateTime());
       } else if (!_tables->hasSeen(pkt)) {
@@ -220,11 +220,11 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
       uint8_t dest_hash = pkt->payload[i++];
       uint8_t* sender_pub_key = &pkt->payload[i]; i += PUB_KEY_SIZE;
 
-      uint8_t* encryptedData = &pkt->payload[i];   // encrypted data (v1: MAC + ciphertext, v2: nonce + ciphertext + tag)
+      uint8_t* encryptedData = &pkt->payload[i];   // encrypted data (v1: MAC + ciphertext, v2: counter + ciphertext + tag)
       bool is_v2 = (pkt->getPayloadVer() == PAYLOAD_VER_2);
 
       // Check minimum packet length based on version
-      int min_encrypted_len = is_v2 ? (CHACHA_NONCE_SIZE + CHACHA_TAG_SIZE) : (CIPHER_MAC_SIZE + 1);
+      int min_encrypted_len = is_v2 ? (CHACHA_COUNTER_SIZE + CHACHA_TAG_SIZE) : (CIPHER_MAC_SIZE + 1);
       if (i + min_encrypted_len > pkt->payload_len) {
         MESH_DEBUG_PRINTLN("%s Mesh::onRecvPacket(): incomplete data packet", getLogDateTime());
       } else if (!_tables->hasSeen(pkt)) {
@@ -268,11 +268,11 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
       int i = 0;
       uint8_t channel_hash = pkt->payload[i++];
 
-      uint8_t* encryptedData = &pkt->payload[i];   // encrypted data (v1: MAC + ciphertext, v2: nonce + ciphertext + tag)
+      uint8_t* encryptedData = &pkt->payload[i];   // encrypted data (v1: MAC + ciphertext, v2: counter + ciphertext + tag)
       bool is_v2 = (pkt->getPayloadVer() == PAYLOAD_VER_2);
 
       // Check minimum packet length based on version
-      int min_encrypted_len = is_v2 ? (CHACHA_NONCE_SIZE + CHACHA_TAG_SIZE) : 2;
+      int min_encrypted_len = is_v2 ? (CHACHA_COUNTER_SIZE + CHACHA_TAG_SIZE) : 2;
       if (i + min_encrypted_len >= pkt->payload_len) {
         MESH_DEBUG_PRINTLN("%s Mesh::onRecvPacket(): incomplete data packet", getLogDateTime());
       } else if (!_tables->hasSeen(pkt)) {
@@ -516,8 +516,8 @@ Packet* Mesh::createPathReturn(const uint8_t* dest_hash, const uint8_t* secret, 
   const int prefix_len = 2;
 
   if (use_v2) {
-    // V2: prefix + nonce + ciphertext + tag
-    if (prefix_len + CHACHA_NONCE_SIZE + plain_len + CHACHA_TAG_SIZE > MAX_PACKET_PAYLOAD) return NULL;
+    // V2: prefix + counter + ciphertext + tag
+    if (prefix_len + CHACHA_COUNTER_SIZE + plain_len + CHACHA_TAG_SIZE > MAX_PACKET_PAYLOAD) return NULL;
   } else {
     // V1: prefix + MAC + padded ciphertext
     const int padded_len = (plain_len + (CIPHER_BLOCK_SIZE - 1)) & ~(CIPHER_BLOCK_SIZE - 1);
@@ -557,15 +557,15 @@ Packet* Mesh::createPathReturn(const uint8_t* dest_hash, const uint8_t* secret, 
 
     if (use_v2) {
       // ChaCha20-Poly1305 encryption with AAD
-      uint8_t nonce[CHACHA_NONCE_SIZE];
-      Utils::generateSecureNonce(nonce);
+      uint8_t counter[CHACHA_COUNTER_SIZE];
+      Utils::generateSecureCounter(counter);
       // AAD: dest_hash + src_hash + type + ver
       uint8_t aad[4];
       aad[0] = packet->payload[0];  // dest_hash
       aad[1] = packet->payload[1];  // src_hash
       aad[2] = PAYLOAD_TYPE_PATH;
       aad[3] = PAYLOAD_VER_2;
-      len += Utils::encryptCHACHA(secret, &packet->payload[len], nonce, data, data_len, aad, sizeof(aad));
+      len += Utils::encryptCHACHA(secret, &packet->payload[len], counter, data, data_len, aad, sizeof(aad));
     } else {
       // AES-ECB + HMAC (v1)
       len += Utils::encryptThenMAC(secret, &packet->payload[len], data, data_len);
@@ -582,8 +582,8 @@ Packet* Mesh::createDatagram(uint8_t type, const Identity& dest, const uint8_t* 
     // Payload prefix: dest_hash (1) + src_hash (1)
     const int prefix_len = 2;
     if (use_v2) {
-      // V2: prefix + nonce + ciphertext + tag
-      if (prefix_len + (int)data_len + CHACHA_NONCE_SIZE + CHACHA_TAG_SIZE > MAX_PACKET_PAYLOAD) return NULL;
+      // V2: prefix + counter + ciphertext + tag
+      if (prefix_len + (int)data_len + CHACHA_COUNTER_SIZE + CHACHA_TAG_SIZE > MAX_PACKET_PAYLOAD) return NULL;
     } else {
       // V1: prefix + MAC + padded ciphertext
       const int padded_len = (((int)data_len) + (CIPHER_BLOCK_SIZE - 1)) & ~(CIPHER_BLOCK_SIZE - 1);
@@ -611,15 +611,15 @@ Packet* Mesh::createDatagram(uint8_t type, const Identity& dest, const uint8_t* 
 
   if (use_v2) {
     // ChaCha20-Poly1305 encryption with AAD
-    uint8_t nonce[CHACHA_NONCE_SIZE];
-    Utils::generateSecureNonce(nonce);
+    uint8_t counter[CHACHA_COUNTER_SIZE];
+    Utils::generateSecureCounter(counter);
     // AAD: dest_hash + src_hash + type + ver
     uint8_t aad[4];
     aad[0] = packet->payload[0];  // dest_hash
     aad[1] = packet->payload[1];  // src_hash
     aad[2] = type;
     aad[3] = PAYLOAD_VER_2;
-    len += Utils::encryptCHACHA(secret, &packet->payload[len], nonce, data, data_len, aad, sizeof(aad));
+    len += Utils::encryptCHACHA(secret, &packet->payload[len], counter, data, data_len, aad, sizeof(aad));
   } else {
     // AES-ECB + HMAC (v1)
     len += Utils::encryptThenMAC(secret, &packet->payload[len], data, data_len);
@@ -633,8 +633,8 @@ Packet* Mesh::createDatagram(uint8_t type, const Identity& dest, const uint8_t* 
 Packet* Mesh::createAnonDatagram(uint8_t type, const LocalIdentity& sender, const Identity& dest, const uint8_t* secret, const uint8_t* data, size_t data_len, bool use_v2) {
   if (type == PAYLOAD_TYPE_ANON_REQ) {
     if (use_v2) {
-      // V2: dest_hash + pub_key + nonce + ciphertext + tag
-      if (data_len + 1 + PUB_KEY_SIZE + CHACHA_NONCE_SIZE + CHACHA_TAG_SIZE > MAX_PACKET_PAYLOAD) return NULL;
+      // V2: dest_hash + pub_key + counter + ciphertext + tag
+      if (data_len + 1 + PUB_KEY_SIZE + CHACHA_COUNTER_SIZE + CHACHA_TAG_SIZE > MAX_PACKET_PAYLOAD) return NULL;
     } else {
       // V1: dest_hash + pub_key + MAC + padded ciphertext
       if (data_len + 1 + PUB_KEY_SIZE + CIPHER_MAC_SIZE + CIPHER_BLOCK_SIZE-1 > MAX_PACKET_PAYLOAD) return NULL;
@@ -665,15 +665,15 @@ Packet* Mesh::createAnonDatagram(uint8_t type, const LocalIdentity& sender, cons
 
   if (use_v2) {
     // ChaCha20-Poly1305 encryption with AAD
-    uint8_t nonce[CHACHA_NONCE_SIZE];
-    Utils::generateSecureNonce(nonce);
+    uint8_t counter[CHACHA_COUNTER_SIZE];
+    Utils::generateSecureCounter(counter);
     // AAD: dest_hash + sender_pub_key + type + ver
     uint8_t aad[1 + PUB_KEY_SIZE + 2];
     aad[0] = packet->payload[0];  // dest_hash
     memcpy(&aad[1], sender.pub_key, PUB_KEY_SIZE);
     aad[1 + PUB_KEY_SIZE] = type;
     aad[1 + PUB_KEY_SIZE + 1] = PAYLOAD_VER_2;
-    len += Utils::encryptCHACHA(secret, &packet->payload[len], nonce, data, data_len, aad, sizeof(aad));
+    len += Utils::encryptCHACHA(secret, &packet->payload[len], counter, data, data_len, aad, sizeof(aad));
   } else {
     // AES-ECB + HMAC (v1)
     len += Utils::encryptThenMAC(secret, &packet->payload[len], data, data_len);
@@ -692,8 +692,8 @@ Packet* Mesh::createGroupDatagram(uint8_t type, const GroupChannel& channel, con
   // Payload prefix: channel_hash (PATH_HASH_SIZE, currently 1)
   const int prefix_len = PATH_HASH_SIZE;
   if (use_v2) {
-    // V2: prefix + nonce + ciphertext + tag
-    if (prefix_len + (int)data_len + CHACHA_NONCE_SIZE + CHACHA_TAG_SIZE > MAX_PACKET_PAYLOAD) return NULL;
+    // V2: prefix + counter + ciphertext + tag
+    if (prefix_len + (int)data_len + CHACHA_COUNTER_SIZE + CHACHA_TAG_SIZE > MAX_PACKET_PAYLOAD) return NULL;
   } else {
     // V1: prefix + MAC + padded ciphertext
     const int padded_len = (((int)data_len) + (CIPHER_BLOCK_SIZE - 1)) & ~(CIPHER_BLOCK_SIZE - 1);
@@ -717,14 +717,14 @@ Packet* Mesh::createGroupDatagram(uint8_t type, const GroupChannel& channel, con
 
   if (use_v2) {
     // ChaCha20-Poly1305 encryption with AAD
-    uint8_t nonce[CHACHA_NONCE_SIZE];
-    Utils::generateSecureNonce(nonce);
+    uint8_t counter[CHACHA_COUNTER_SIZE];
+    Utils::generateSecureCounter(counter);
     // AAD: channel_hash + type + ver
     uint8_t aad[3];
     aad[0] = channel.hash[0];  // channel_hash
     aad[1] = type;
     aad[2] = PAYLOAD_VER_2;
-    len += Utils::encryptCHACHA(channel.secret, &packet->payload[len], nonce, data, data_len, aad, sizeof(aad));
+    len += Utils::encryptCHACHA(channel.secret, &packet->payload[len], counter, data, data_len, aad, sizeof(aad));
   } else {
     // AES-ECB + HMAC (v1)
     len += Utils::encryptThenMAC(channel.secret, &packet->payload[len], data, data_len);

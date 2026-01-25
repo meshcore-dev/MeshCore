@@ -163,11 +163,24 @@ int Utils::parseTextParts(char* text, const char* parts[], int max_num, char sep
 
 // ========== ChaCha20-Poly1305 Implementation ==========
 
+// Derive full 12-byte nonce from key and 4-byte counter
+// nonce = SHA256(key || counter)[0:12]
+static void deriveNonce(uint8_t* nonce, const uint8_t* key, const uint8_t* counter) {
+    uint8_t hash_input[CHACHA_KEY_SIZE + CHACHA_COUNTER_SIZE];
+    memcpy(hash_input, key, CHACHA_KEY_SIZE);
+    memcpy(hash_input + CHACHA_KEY_SIZE, counter, CHACHA_COUNTER_SIZE);
+    Utils::sha256(nonce, CHACHA_NONCE_SIZE, hash_input, sizeof(hash_input));
+}
+
 // Encrypt with ChaCha20-Poly1305
-// Returns: total length (nonce + ciphertext + tag)
-int Utils::encryptCHACHA(const uint8_t* key, uint8_t* dest, const uint8_t* nonce,
+// Returns: total length (counter + ciphertext + tag)
+int Utils::encryptCHACHA(const uint8_t* key, uint8_t* dest, const uint8_t* counter,
                          const uint8_t* plaintext, int plaintext_len,
                          const uint8_t* aad, int aad_len) {
+    // Derive full nonce from key and counter
+    uint8_t nonce[CHACHA_NONCE_SIZE];
+    deriveNonce(nonce, key, counter);
+
     ChaChaPoly chacha;
 
     // Set key and nonce
@@ -179,16 +192,16 @@ int Utils::encryptCHACHA(const uint8_t* key, uint8_t* dest, const uint8_t* nonce
         chacha.addAuthData(aad, aad_len);
     }
 
-    // Layout: [nonce || ciphertext || tag]
-    memcpy(dest, nonce, CHACHA_NONCE_SIZE);
+    // Layout: [counter || ciphertext || tag]
+    memcpy(dest, counter, CHACHA_COUNTER_SIZE);
 
-    // Encrypt in-place
-    chacha.encrypt(dest + CHACHA_NONCE_SIZE, plaintext, plaintext_len);
+    // Encrypt
+    chacha.encrypt(dest + CHACHA_COUNTER_SIZE, plaintext, plaintext_len);
 
     // Generate and append authentication tag
-    chacha.computeTag(dest + CHACHA_NONCE_SIZE + plaintext_len, CHACHA_TAG_SIZE);
+    chacha.computeTag(dest + CHACHA_COUNTER_SIZE + plaintext_len, CHACHA_TAG_SIZE);
 
-    return CHACHA_NONCE_SIZE + plaintext_len + CHACHA_TAG_SIZE;
+    return CHACHA_COUNTER_SIZE + plaintext_len + CHACHA_TAG_SIZE;
 }
 
 // Decrypt with ChaCha20-Poly1305
@@ -197,16 +210,20 @@ int Utils::decryptCHACHA(const uint8_t* key, uint8_t* dest,
                          const uint8_t* src, int src_len,
                          const uint8_t* aad, int aad_len) {
     // Validate minimum length
-    if (src_len < CHACHA_NONCE_SIZE + CHACHA_TAG_SIZE) {
+    if (src_len < CHACHA_COUNTER_SIZE + CHACHA_TAG_SIZE) {
         return 0;
     }
 
-    int ciphertext_len = src_len - CHACHA_NONCE_SIZE - CHACHA_TAG_SIZE;
+    int ciphertext_len = src_len - CHACHA_COUNTER_SIZE - CHACHA_TAG_SIZE;
 
     // Extract components
-    const uint8_t* nonce = src;
-    const uint8_t* ciphertext = src + CHACHA_NONCE_SIZE;
-    const uint8_t* tag = src + CHACHA_NONCE_SIZE + ciphertext_len;
+    const uint8_t* counter = src;
+    const uint8_t* ciphertext = src + CHACHA_COUNTER_SIZE;
+    const uint8_t* tag = src + CHACHA_COUNTER_SIZE + ciphertext_len;
+
+    // Derive full nonce from key and counter
+    uint8_t nonce[CHACHA_NONCE_SIZE];
+    deriveNonce(nonce, key, counter);
 
     ChaChaPoly chacha;
 
@@ -331,35 +348,32 @@ void Utils::getHighQualityRandom(RNG* rng, uint8_t* dest, size_t size) {
     }
 }
 
-// ========== Secure Nonce Generation ==========
+// ========== Secure Counter Generation ==========
 
-// Static state for hybrid nonce generation
-static uint32_t s_nonce_boot_id = 0;
-static uint32_t s_nonce_counter = 0;
+// Static state for counter generation
+static uint16_t s_counter_boot_id = 0;
+static uint16_t s_counter_seq = 0;
 
-void Utils::generateSecureNonce(uint8_t* nonce) {
-    // Hybrid nonce format: [boot_id (4)] [counter (4)] [random (4)]
+void Utils::generateSecureCounter(uint8_t* counter) {
+    // Counter format: [boot_id (2)] [sequence (2)]
     // This ensures uniqueness even if:
-    // - RNG has bias or periodicity
     // - Many messages sent quickly
     // - Device reboots (new boot_id)
+    // Full nonce uniqueness comes from SHA256(key || counter) derivation
 
     // Initialize boot_id once per boot with random value
-    if (s_nonce_boot_id == 0) {
-        getHardwareRandom((uint8_t*)&s_nonce_boot_id, 4);
-        // Ensure non-zero (extremely unlikely, but handle it)
-        if (s_nonce_boot_id == 0) s_nonce_boot_id = 1;
+    if (s_counter_boot_id == 0) {
+        getHardwareRandom((uint8_t*)&s_counter_boot_id, 2);
+        // Ensure non-zero (unlikely, but handle it)
+        if (s_counter_boot_id == 0) s_counter_boot_id = 1;
     }
 
-    // Copy boot_id (bytes 0-3)
-    memcpy(nonce, &s_nonce_boot_id, 4);
+    // Copy boot_id (bytes 0-1)
+    memcpy(counter, &s_counter_boot_id, 2);
 
-    // Copy and increment counter (bytes 4-7)
-    memcpy(nonce + 4, &s_nonce_counter, 4);
-    s_nonce_counter++;
-
-    // Add random salt (bytes 8-11) for additional entropy
-    getHardwareRandom(nonce + 8, 4);
+    // Copy and increment sequence (bytes 2-3)
+    memcpy(counter + 2, &s_counter_seq, 2);
+    s_counter_seq++;
 }
 
 }
