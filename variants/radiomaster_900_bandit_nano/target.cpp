@@ -24,7 +24,7 @@ SensorManager sensors;
 
 #ifdef DISPLAY_CLASS
 DISPLAY_CLASS display;
-MomentaryButton user_btn(PIN_USER_BTN, 1000, true);
+// MomentaryButton user_btn(PIN_USER_BTN, 1000, true);
 #if defined(PIN_USER_JOYSTICK)
 static AnalogJoystick::JoyADCMapping joystick_mappings[] = {
   { 0, KEY_DOWN },     { 1290, KEY_SELECT }, { 1961, KEY_LEFT },
@@ -82,22 +82,22 @@ bool setPAOutputPower(uint8_t target_output_dbm, bool clamp_to_range = true) {
   // Validate and clamp range
   if (target_output_dbm < MIN_OUTPUT_DBM) {
     if (clamp_to_range) {
-      Serial.printf("Warning: Target %u dBm too low, clamping to min %u dBm\n", target_output_dbm,
-                    MIN_OUTPUT_DBM);
+      MESH_DEBUG_PRINT("Warning: Target %u dBm too low, clamping to min %u dBm\n", target_output_dbm,
+                       MIN_OUTPUT_DBM);
       target_output_dbm = MIN_OUTPUT_DBM;
     } else {
-      Serial.printf("Error: Target %u dBm below minimum %u dBm\n", target_output_dbm, MIN_OUTPUT_DBM);
+      MESH_DEBUG_PRINT("Error: Target %u dBm below minimum %u dBm\n", target_output_dbm, MIN_OUTPUT_DBM);
       return false;
     }
   }
 
   if (target_output_dbm > MAX_OUTPUT_DBM) {
     if (clamp_to_range) {
-      Serial.printf("Warning: Target %u dBm too high, clamping to max %u dBm\n", target_output_dbm,
-                    MAX_OUTPUT_DBM);
+      MESH_DEBUG_PRINT("Warning: Target %u dBm too high, clamping to max %u dBm\n", target_output_dbm,
+                       MAX_OUTPUT_DBM);
       target_output_dbm = MAX_OUTPUT_DBM;
     } else {
-      Serial.printf("Error: Target %u dBm above maximum %u dBm\n", target_output_dbm, MAX_OUTPUT_DBM);
+      MESH_DEBUG_PRINT("Error: Target %u dBm above maximum %u dBm\n", target_output_dbm, MAX_OUTPUT_DBM);
       return false;
     }
   }
@@ -123,8 +123,8 @@ bool setPAOutputPower(uint8_t target_output_dbm, bool clamp_to_range = true) {
     radio.setOutputPower(sx1278_power, true); // RFO output
     dacWrite(DAC_PA_PIN, dac_value);
 
-    Serial.printf("Set power: %u dBm (SX1278: %d dBm, DAC: %u)\n", target_output_dbm, sx1278_power,
-                  dac_value);
+    MESH_DEBUG_PRINT("Set power: %u dBm (SX1278: %d dBm, DAC: %u)\n", target_output_dbm, sx1278_power,
+                     dac_value);
     return true;
   }
 
@@ -144,7 +144,8 @@ bool setPAOutputPower(uint8_t target_output_dbm, bool clamp_to_range = true) {
   radio.setOutputPower((int8_t)sx1278_power, true); // RFO output
   dacWrite(DAC_PA_PIN, (uint8_t)dac_value);
 
-  Serial.printf("Set power: %u dBm (SX1278: %d dBm, DAC: %u)\n", target_output_dbm, sx1278_power, dac_value);
+  MESH_DEBUG_PRINT("Set power: %u dBm (SX1278: %d dBm, DAC: %u)\n", target_output_dbm, sx1278_power,
+                   dac_value);
 
   return true;
 }

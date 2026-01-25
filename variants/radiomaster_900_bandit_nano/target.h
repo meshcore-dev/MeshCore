@@ -10,7 +10,7 @@
 
 #ifdef DISPLAY_CLASS
 #include <helpers/ui/AnalogJoystick.h>
-#include <helpers/ui/MomentaryButton.h>
+// #include <helpers/ui/MomentaryButton.h>
 #include <helpers/ui/SSD1306Display.h>
 #endif
 
@@ -22,7 +22,7 @@ extern AutoDiscoverRTCClock rtc_clock;
 
 #ifdef DISPLAY_CLASS
 extern DISPLAY_CLASS display;
-extern MomentaryButton user_btn;
+// extern MomentaryButton user_btn;
 #if defined(PIN_USER_JOYSTICK)
 extern AnalogJoystick analog_joystick;
 #endif

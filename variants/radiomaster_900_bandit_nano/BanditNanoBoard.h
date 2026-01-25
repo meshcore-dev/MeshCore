@@ -40,7 +40,7 @@
   128 -> 500mW  -> 1.63v
   90  -> 1000mW -> 1.16v
 */
-#define DAC_PA_PIN       26 // GPIO 26 enables the PA
+#define DAC_PA_PIN       26 // GPIO 26 controls the PA gain.
 
 // Configuration - adjust these for your hardware
 #define PA_CONSTANT_GAIN 18 // SKY66122 operates at constant 18dB gain
