@@ -351,27 +351,29 @@ void Utils::getHighQualityRandom(RNG* rng, uint8_t* dest, size_t size) {
 // ========== Secure Counter Generation ==========
 
 // Static state for counter generation
-static uint16_t s_counter_boot_id = 0;
+// Counter format: [epoch (2 bytes random)] [sequence (2 bytes incrementing)]
+// - epoch: random value, regenerated on boot or sequence wraparound
+// - sequence: 0-65535, increments each message
+// This guarantees uniqueness across devices (different epochs) and
+// within long-running sessions (epoch changes on wraparound)
+static uint16_t s_counter_epoch = 0;
 static uint16_t s_counter_seq = 0;
 
 void Utils::generateSecureCounter(uint8_t* counter) {
-    // Counter format: [boot_id (2)] [sequence (2)]
-    // This ensures uniqueness even if:
-    // - Many messages sent quickly
-    // - Device reboots (new boot_id)
-    // Full nonce uniqueness comes from SHA256(key || counter) derivation
-
-    // Initialize boot_id once per boot with random value
-    if (s_counter_boot_id == 0) {
-        getHardwareRandom((uint8_t*)&s_counter_boot_id, 2);
-        // Ensure non-zero (unlikely, but handle it)
-        if (s_counter_boot_id == 0) s_counter_boot_id = 1;
+    // Initialize epoch on first call
+    if (s_counter_epoch == 0) {
+        getHardwareRandom((uint8_t*)&s_counter_epoch, 2);
+        if (s_counter_epoch == 0) s_counter_epoch = 1;
     }
 
-    // Copy boot_id (bytes 0-1)
-    memcpy(counter, &s_counter_boot_id, 2);
+    // On sequence wraparound, generate new epoch
+    if (s_counter_seq == 0xFFFF) {
+        getHardwareRandom((uint8_t*)&s_counter_epoch, 2);
+        if (s_counter_epoch == 0) s_counter_epoch = 1;
+        s_counter_seq = 0;
+    }
 
-    // Copy and increment sequence (bytes 2-3)
+    memcpy(counter, &s_counter_epoch, 2);
     memcpy(counter + 2, &s_counter_seq, 2);
     s_counter_seq++;
 }
