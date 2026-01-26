@@ -104,10 +104,17 @@ public:
     // Disable CPU interrupt servicing
     noInterrupts();
 
+    // Skip sleep if there is a LoRa packet
+    if (digitalRead(wakeupPin) == HIGH) {
+      interrupts();
+      return;
+    }
+
     // MCU enters light sleep
     esp_light_sleep_start();
 
     // Avoid ISR flood during wakeup due to HIGH LEVEL interrupt
+    gpio_wakeup_disable(wakeupPin);
     gpio_set_intr_type(wakeupPin, GPIO_INTR_POSEDGE);
 
      // Enable CPU interrupt servicing
