@@ -189,8 +189,18 @@ bool EnvironmentSensorManager::begin() {
   #endif
 
   #if ENV_INCLUDE_BME280
-  if (BME280.begin(TELEM_BME280_ADDRESS, TELEM_WIRE)) {
-    MESH_DEBUG_PRINTLN("Found BME280 at address: %02X", TELEM_BME280_ADDRESS);
+  uint8_t bme280_address = TELEM_BME280_ADDRESS;
+  bool bme280_ok = BME280.begin(bme280_address, TELEM_WIRE);
+  if (!bme280_ok) {
+    const uint8_t alt_address = (TELEM_BME280_ADDRESS == 0x76) ? 0x77 : 0x76;
+    bme280_ok = BME280.begin(alt_address, TELEM_WIRE);
+    if (bme280_ok) {
+      bme280_address = alt_address;
+      MESH_DEBUG_PRINTLN("Found BME280 at alternate address: %02X", alt_address);
+    }
+  }
+  if (bme280_ok) {
+    MESH_DEBUG_PRINTLN("Found BME280 at address: %02X", bme280_address);
     MESH_DEBUG_PRINTLN("BME sensor ID: %02X", BME280.sensorID());
     BME280_initialized = true;
   } else {
