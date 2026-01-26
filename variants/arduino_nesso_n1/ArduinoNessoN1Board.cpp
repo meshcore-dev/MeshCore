@@ -40,7 +40,9 @@ void ArduinoNessoN1Board::begin() {
   digitalWrite(LCD_BACKLIGHT, LOW);
   digitalWrite(BEEP_PIN, LOW);
 
+#ifdef MESH_DEBUG
   // Toggle LCD backlight to show the device has powered on until we get the screen working
+  // Only do this if in debug mode, since the delay is quite long
   MESH_DEBUG_PRINTLN("ArduinoNessoN1.begin(): Now high...");
   digitalWrite(LCD_BACKLIGHT, HIGH);
   digitalWrite(BEEP_PIN, HIGH);
@@ -48,4 +50,5 @@ void ArduinoNessoN1Board::begin() {
   digitalWrite(LCD_BACKLIGHT, LOW);
   digitalWrite(BEEP_PIN, LOW);
   MESH_DEBUG_PRINTLN("ArduinoNessoN1.begin(): Now low...");
+#endif
 }
