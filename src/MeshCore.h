@@ -17,10 +17,24 @@
 #define PATH_HASH_SIZE       1
 
 // V2 (ChaCha20-Poly1305)
+// RFC 8439 specifies 256-bit key, 96-bit nonce, 128-bit tag
+// We deviate from RFC in two ways to minimize LoRa airtime:
+//
+// 1. NONCE COMPRESSION: Transmit 4-byte counter, derive 12-byte nonce via SHA256(key || counter)
+//    Security: Equivalent to full nonce - SHA256 output is indistinguishable from random
+//
+// 2. TAG TRUNCATION: Use 64-bit tag instead of 128-bit (RFC says "MUST NOT" truncate)
+//    Security: Forgery probability 1 in 2^64 (vs 2^128). Acceptable for mesh because:
+//    - Attacker must be in radio range for each attempt
+//    - Each attempt consumes airtime and is detectable
+//    - Online brute force at 1000 msg/sec = 292 million years
+//    - No known attacks reduce this below brute force
+//
+// Trade-off: 8 bytes saved per packet vs. reduced forgery resistance margin
 #define CHACHA_KEY_SIZE      32
 #define CHACHA_NONCE_SIZE    12   // Internal nonce size (derived from counter + key)
 #define CHACHA_COUNTER_SIZE   4   // Transmitted counter size (full nonce derived via SHA256)
-#define CHACHA_TAG_SIZE       8   // 64-bit tag: sufficient for mesh network (2^64 forgery resistance)
+#define CHACHA_TAG_SIZE       8   // 64-bit tag (RFC specifies 128-bit, see rationale above)
 
 #define MAX_PACKET_PAYLOAD  184
 #define MAX_PATH_SIZE        64
