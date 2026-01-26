@@ -202,6 +202,13 @@ bool EnvironmentSensorManager::begin() {
   if (bme280_ok) {
     MESH_DEBUG_PRINTLN("Found BME280 at address: %02X", bme280_address);
     MESH_DEBUG_PRINTLN("BME sensor ID: %02X", BME280.sensorID());
+    // Use forced mode to align with takeForcedMeasurement() in querySensors().
+    BME280.setSampling(Adafruit_BME280::MODE_FORCED,
+                       Adafruit_BME280::SAMPLING_X1,   // temperature
+                       Adafruit_BME280::SAMPLING_X1,   // pressure
+                       Adafruit_BME280::SAMPLING_X1,   // humidity
+                       Adafruit_BME280::FILTER_OFF,
+                       Adafruit_BME280::STANDBY_MS_1000);
     BME280_initialized = true;
   } else {
     BME280_initialized = false;

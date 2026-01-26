@@ -34,6 +34,9 @@ void XiaoNrf52Board::begin() {
 #endif
 
 #if defined(PIN_WIRE_SDA) && defined(PIN_WIRE_SCL)
+  // Enable weak pullups for external I2C devices if no onboard pullups exist.
+  pinMode(PIN_WIRE_SDA, INPUT_PULLUP);
+  pinMode(PIN_WIRE_SCL, INPUT_PULLUP);
   Wire.setPins(PIN_WIRE_SDA, PIN_WIRE_SCL);
 #endif
 
