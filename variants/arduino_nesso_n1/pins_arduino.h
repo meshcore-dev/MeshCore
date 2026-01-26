@@ -1,4 +1,5 @@
 // from https://github.com/espressif/arduino-esp32/pull/11985/files
+// some inspiration from https://github.com/m5stack/M5Unified/blob/master/src/utility/power/AW32001_Class.hpp
 #ifndef Pins_Arduino_h
 #define Pins_Arduino_h
 

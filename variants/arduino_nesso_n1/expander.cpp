@@ -2,6 +2,8 @@
 // Based off here https://github.com/espressif/arduino-esp32/blob/d1eb62d7c6dda16c254c374504aa93188d7c386b/variants/arduino_nesso_n1/expander.cpp
 // Should be OK based on this? https://opensource.stackexchange.com/a/6406
 
+// Some inspiration from: https://github.com/m5stack/M5Unified/blob/master/src/utility/power/AW32001_Class.cpp
+
 #include "pins_arduino.h"
 #include <helpers/ESP32Board.h>
 #include <Wire.h>
