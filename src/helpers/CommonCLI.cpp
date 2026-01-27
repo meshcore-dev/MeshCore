@@ -292,8 +292,13 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         sprintf(reply, "> %s", _prefs->guest_password);
       } else if (sender_timestamp == 0 && memcmp(config, "prv.key", 7) == 0) {  // from serial command line only
         uint8_t prv_key[PRV_KEY_SIZE];
-        int len = _callbacks->getSelfId().writeTo(prv_key, PRV_KEY_SIZE);
+        int len = _callbacks->getSelfId().writePrvkeyTo(prv_key, PRV_KEY_SIZE);
         mesh::Utils::toHex(tmp, prv_key, len);
+        sprintf(reply, "> %s", tmp);
+      } else if (sender_timestamp == 0 && memcmp(config, "prv.seed", 8) == 0) {  // from serial command line only
+        uint8_t seed[SEED_SIZE];
+        int len = _callbacks->getSelfId().writeSeedTo(seed, SEED_SIZE);
+        mesh::Utils::toHex(tmp, seed, len);
         sprintf(reply, "> %s", tmp);
       } else if (memcmp(config, "name", 4) == 0) {
         sprintf(reply, "> %s", _prefs->node_name);
@@ -460,6 +465,17 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
           mesh::Utils::toHex(&reply[33], new_id.pub_key, PUB_KEY_SIZE);
         } else {
           strcpy(reply, "Error, bad key");
+        }
+      } else if (sender_timestamp == 0 && memcmp(config, "prv.seed ", 9) == 0) {  // from serial command line only
+        uint8_t seed[SEED_SIZE];
+        bool success = mesh::Utils::fromHex(seed, SEED_SIZE, &config[9]);
+        if (success) {
+          mesh::LocalIdentity new_id;
+          new_id.readFrom(seed, SEED_SIZE);
+          _callbacks->saveIdentity(new_id);
+          strcpy(reply, "OK");
+        } else {
+          strcpy(reply, "Error, invalid seed");
         }
       } else if (memcmp(config, "name ", 5) == 0) {
         if (isValidName(&config[5])) {
