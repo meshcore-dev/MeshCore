@@ -68,7 +68,7 @@ class BanditNanoBoard : public ESP32Board {
 private:
 public:
   // Return fake battery status, battery/fixed power is not monitored.
-  uint16_t getBattMilliVolts() override { return (5.42 * (3.3 / 1024.0) * 250) * 1000; }
+  uint16_t getBattMilliVolts() override { return 5000; }
 
   const char *getManufacturerName() const override { return "RadioMaster Bandit Nano"; }
 };
