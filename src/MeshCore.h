@@ -16,7 +16,7 @@
 #define CIPHER_MAC_SIZE      2
 #define PATH_HASH_SIZE       1
 
-// V2 (ChaCha20-Poly1305)
+// ChaCha20-Poly1305 AEAD encryption
 // RFC 8439 specifies 256-bit key, 96-bit nonce, 128-bit tag
 // We deviate from RFC in two ways to minimize LoRa airtime:
 //
@@ -30,11 +30,16 @@
 //    - Online brute force at 1000 msg/sec = 292 million years
 //    - No known attacks reduce this below brute force
 //
+// Backwards compatibility: ChaCha packets are sent with PAYLOAD_VER_1 header so old
+// repeaters forward them normally. Old clients fail AES decryption and silently drop.
+// Updated clients try both crypto methods based on peer capability advertisements.
+//
 // Trade-off: 8 bytes saved per packet vs. reduced forgery resistance margin
 #define CHACHA_KEY_SIZE      32
 #define CHACHA_NONCE_SIZE    12   // Internal nonce size (derived from counter + key)
 #define CHACHA_COUNTER_SIZE   4   // Transmitted counter size (full nonce derived via SHA256)
 #define CHACHA_TAG_SIZE       8   // 64-bit tag (RFC specifies 128-bit, see rationale above)
+#define CHACHA_AAD_MARKER  0xCC   // Marker byte used in AAD to identify ChaCha encrypted packets
 
 #define MAX_PACKET_PAYLOAD  184
 #define MAX_PATH_SIZE        64

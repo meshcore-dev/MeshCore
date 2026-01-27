@@ -278,13 +278,13 @@ File file = openRead(_getContactsChannelsFS(), "/contacts3");
         c.shared_secret_valid = false;
         c.supports_chacha = false;
         uint8_t pub_key[32];
-        uint8_t unused;
+        uint8_t crypto_flags;  // was 'unused'; bit 0 = supports_chacha
 
         bool success = (file.read(pub_key, 32) == 32);
         success = success && (file.read((uint8_t *)&c.name, 32) == 32);
         success = success && (file.read(&c.type, 1) == 1);
         success = success && (file.read(&c.flags, 1) == 1);
-        success = success && (file.read(&unused, 1) == 1);
+        success = success && (file.read(&crypto_flags, 1) == 1);
         success = success && (file.read((uint8_t *)&c.sync_since, 4) == 4); // was 'reserved'
         success = success && (file.read((uint8_t *)&c.out_path_len, 1) == 1);
         success = success && (file.read((uint8_t *)&c.last_advert_timestamp, 4) == 4);
@@ -295,6 +295,7 @@ File file = openRead(_getContactsChannelsFS(), "/contacts3");
 
         if (!success) break; // EOF
 
+        c.supports_chacha = (crypto_flags & 0x01) != 0;  // bit 0; old files have 0 here (backwards compatible)
         c.id = mesh::Identity(pub_key);
         if (!host->onContactLoaded(c)) full = true;
       }
@@ -307,14 +308,14 @@ void DataStore::saveContacts(DataStoreHost* host) {
   if (file) {
     uint32_t idx = 0;
     ContactInfo c;
-    uint8_t unused = 0;
 
     while (host->getContactForSave(idx, c)) {
+      uint8_t crypto_flags = c.supports_chacha ? 0x01 : 0x00;  // bit 0 = supports_chacha
       bool success = (file.write(c.id.pub_key, 32) == 32);
       success = success && (file.write((uint8_t *)&c.name, 32) == 32);
       success = success && (file.write(&c.type, 1) == 1);
       success = success && (file.write(&c.flags, 1) == 1);
-      success = success && (file.write(&unused, 1) == 1);
+      success = success && (file.write(&crypto_flags, 1) == 1);
       success = success && (file.write((uint8_t *)&c.sync_since, 4) == 4);
       success = success && (file.write((uint8_t *)&c.out_path_len, 1) == 1);
       success = success && (file.write((uint8_t *)&c.last_advert_timestamp, 4) == 4);
