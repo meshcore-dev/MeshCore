@@ -560,6 +560,9 @@ bool DataStore::putBlobByKey(const uint8_t key[], int key_len, const uint8_t src
   }
   return false; // error
 }
+bool DataStore::deleteBlobByKey(const uint8_t key[], int key_len) {
+  return true; // this is just a stub on NRF52/STM32 platforms
+}
 #else
 uint8_t DataStore::getBlobByKey(const uint8_t key[], int key_len, uint8_t dest_buf[]) {
   char path[64];
@@ -597,5 +600,18 @@ bool DataStore::putBlobByKey(const uint8_t key[], int key_len, const uint8_t src
     _fs->remove(path); // blob was only partially written!
   }
   return false; // error
+}
+
+bool DataStore::deleteBlobByKey(const uint8_t key[], int key_len) {
+  char path[64];
+  char fname[18];
+
+  if (key_len > 8) key_len = 8; // just use first 8 bytes (prefix)
+  mesh::Utils::toHex(fname, key, key_len);
+  sprintf(path, "/bl/%s", fname);
+
+  _fs->remove(path);
+  
+  return true; // return true even if file did not exist
 }
 #endif
