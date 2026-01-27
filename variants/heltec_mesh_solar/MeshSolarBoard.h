@@ -2,6 +2,7 @@
 
 #include <MeshCore.h>
 #include <Arduino.h>
+#include <helpers/NRF52Board.h>
 
 #ifdef HELTEC_MESH_SOLAR
 #include "meshSolarApp.h"
@@ -19,14 +20,10 @@
 #define SX126X_DIO2_AS_RF_SWITCH  true
 #define SX126X_DIO3_TCXO_VOLTAGE   1.8
 
-
-class MeshSolarBoard : public mesh::MainBoard {
-protected:
-  uint8_t startup_reason;
-
+class MeshSolarBoard : public NRF52BoardDCDC {
 public:
+  MeshSolarBoard() : NRF52Board("MESH_SOLAR_OTA") {}
   void begin();
-  uint8_t getStartupReason() const override { return startup_reason; }
 
   uint16_t getBattMilliVolts() override {
     return meshSolarGetBattVoltage();
@@ -35,10 +32,4 @@ public:
   const char* getManufacturerName() const override {
     return "Heltec Mesh Solar";
   }
-
-  void reboot() override {
-    NVIC_SystemReset();
-  }
-
-  bool startOTAUpdate(const char* id, char reply[]) override;
 };

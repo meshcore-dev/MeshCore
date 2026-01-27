@@ -582,7 +582,9 @@ void setup() {
   the_mesh.showWelcome();
 
   // send out initial Advertisement to the mesh
+#if ENABLE_ADVERT_ON_BOOT == 1
   the_mesh.sendSelfAdvert(1200);   // add slight delay
+#endif
 }
 
 void loop() {

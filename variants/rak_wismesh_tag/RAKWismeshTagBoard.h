@@ -2,18 +2,16 @@
 
 #include <MeshCore.h>
 #include <Arduino.h>
+#include <helpers/NRF52Board.h>
 
 // built-ins
 #define  PIN_VBAT_READ    5
 #define  ADC_MULTIPLIER   (3 * 1.73 * 1.187 * 1000)
 
-class RAKWismeshTagBoard : public mesh::MainBoard {
-protected:
-  uint8_t startup_reason;
-
+class RAKWismeshTagBoard : public NRF52BoardDCDC {
 public:
+  RAKWismeshTagBoard() : NRF52Board("WISMESHTAG_OTA") {}
   void begin();
-  uint8_t getStartupReason() const override { return startup_reason; }
 
 #if defined(P_LORA_TX_LED) && defined(LED_STATE_ON)
   void onBeforeTransmit() override {
@@ -41,12 +39,6 @@ public:
   const char* getManufacturerName() const override {
     return "RAK WisMesh Tag";
   }
-
-  void reboot() override {
-    NVIC_SystemReset();
-  }
-
-  bool startOTAUpdate(const char* id, char reply[]) override;
 
   void powerOff() override {
     #ifdef BUZZER_EN

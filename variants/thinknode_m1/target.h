@@ -22,6 +22,7 @@ class ThinkNodeM1SensorManager : public SensorManager {
   void stop_gps();
 public:
   ThinkNodeM1SensorManager(LocationProvider &location): _location(&location) { }
+  LocationProvider* getLocationProvider() override { return _location; }
   bool begin() override;
   bool querySensors(uint8_t requester_permissions, CayenneLPP& telemetry) override;
   void loop() override;
