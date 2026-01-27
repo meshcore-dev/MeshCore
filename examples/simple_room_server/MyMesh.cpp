@@ -71,8 +71,8 @@ void MyMesh::pushPostToClient(ClientInfo *client, PostInfo &post) {
   mesh::Utils::sha256((uint8_t *)&client->extra.room.pending_ack, 4, reply_data, len, client->id.pub_key, PUB_KEY_SIZE);
   client->extra.room.push_post_timestamp = post.post_timestamp;
 
-  bool use_v2 = client->supports_chacha;
-  auto reply = createDatagram(PAYLOAD_TYPE_TXT_MSG, client->id, client->shared_secret, reply_data, len, use_v2);
+  bool use_chacha = client->supports_chacha;
+  auto reply = createDatagram(PAYLOAD_TYPE_TXT_MSG, client->id, client->shared_secret, reply_data, len, use_chacha);
   if (reply) {
     if (client->out_path_len < 0) {
       sendFlood(reply);
@@ -280,7 +280,7 @@ bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
 }
 
 void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const mesh::Identity &sender,
-                            uint8_t *data, size_t len) {
+                            uint8_t *data, size_t len, bool decrypted_with_chacha) {
   if (packet->getPayloadType() == PAYLOAD_TYPE_ANON_REQ) { // received an initial request by a possible admin
                                                            // client (unknown at this stage)
     uint32_t sender_timestamp, sender_sync_since;
@@ -350,14 +350,17 @@ void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const m
 
     next_push = futureMillis(PUSH_NOTIFY_DELAY_MILLIS); // delay next push, give RESPONSE packet time to arrive first
 
-    bool use_v2 = (packet->getPayloadVer() == PAYLOAD_VER_2);
+    // Mark peer as ChaCha-capable if we decoded their packet with ChaCha
+    if (decrypted_with_chacha) client->supports_chacha = true;
+
+    bool use_chacha = client->supports_chacha;
     if (packet->isRouteFlood()) {
       // let this sender know path TO here, so they can use sendDirect(), and ALSO encode the response
       mesh::Packet *path = createPathReturn(sender, client->shared_secret, packet->path, packet->path_len,
-                                            PAYLOAD_TYPE_RESPONSE, reply_data, 13, use_v2);
+                                            PAYLOAD_TYPE_RESPONSE, reply_data, 13, use_chacha);
       if (path) sendFlood(path, SERVER_RESPONSE_DELAY);
     } else {
-      mesh::Packet *reply = createDatagram(PAYLOAD_TYPE_RESPONSE, sender, client->shared_secret, reply_data, 13, use_v2);
+      mesh::Packet *reply = createDatagram(PAYLOAD_TYPE_RESPONSE, sender, client->shared_secret, reply_data, 13, use_chacha);
       if (reply) {
         if (client->out_path_len >= 0) { // we have an out_path, so send DIRECT
           sendDirect(reply, client->out_path, client->out_path_len, SERVER_RESPONSE_DELAY);
@@ -395,8 +398,31 @@ bool MyMesh::peerSupportsCHACHA(const mesh::Identity& dest) {
   if (client) {
     return client->supports_chacha;
   }
-  // Unknown peer - default to v1 (safe fallback)
+  // Unknown peer - default to AES (safe fallback)
   return false;
+}
+
+bool MyMesh::peerSupportsCHACHA(uint8_t src_hash, int peer_idx) {
+  // Use the peer index from searchPeersByHash() - no re-lookup needed
+  int i = matching_peer_indexes[peer_idx];
+  if (i >= 0 && i < acl.getNumClients()) {
+    return acl.getClientByIdx(i)->supports_chacha;
+  }
+  return false;
+}
+
+void MyMesh::setPeerSupportsCHACHA(const mesh::Identity* id, int peer_idx) {
+  if (peer_idx >= 0) {
+    int i = matching_peer_indexes[peer_idx];
+    if (i >= 0 && i < acl.getNumClients()) {
+      acl.getClientByIdx(i)->supports_chacha = true;
+    }
+  } else if (id != nullptr) {
+    ClientInfo* client = acl.getClient(id->pub_key, PUB_KEY_SIZE);
+    if (client) {
+      client->supports_chacha = true;
+    }
+  }
 }
 
 void MyMesh::onAdvertRecv(mesh::Packet *packet, const mesh::Identity &id, uint32_t timestamp,
@@ -506,8 +532,8 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
         // mesh::Utils::sha256((uint8_t *)&expected_ack_crc, 4, temp, 5 + text_len, self_id.pub_key,
         // PUB_KEY_SIZE);
 
-        bool use_v2 = (packet->getPayloadVer() == PAYLOAD_VER_2);
-        auto reply = createDatagram(PAYLOAD_TYPE_TXT_MSG, client->id, secret, temp, 5 + text_len, use_v2);
+        bool use_chacha = client->supports_chacha;
+        auto reply = createDatagram(PAYLOAD_TYPE_TXT_MSG, client->id, secret, temp, 5 + text_len, use_chacha);
         if (reply) {
           if (client->out_path_len < 0) {
             sendFlood(reply, delay_millis + SERVER_RESPONSE_DELAY);
@@ -561,14 +587,14 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
       } else {
         int reply_len = handleRequest(client, sender_timestamp, &data[4], len - 4);
         if (reply_len > 0) { // valid command
-          bool use_v2 = (packet->getPayloadVer() == PAYLOAD_VER_2);
+          bool use_chacha = client->supports_chacha;
           if (packet->isRouteFlood()) {
             // let this sender know path TO here, so they can use sendDirect(), and ALSO encode the response
             mesh::Packet *path = createPathReturn(client->id, secret, packet->path, packet->path_len,
-                                                  PAYLOAD_TYPE_RESPONSE, reply_data, reply_len, use_v2);
+                                                  PAYLOAD_TYPE_RESPONSE, reply_data, reply_len, use_chacha);
             if (path) sendFlood(path, SERVER_RESPONSE_DELAY);
           } else {
-            mesh::Packet *reply = createDatagram(PAYLOAD_TYPE_RESPONSE, client->id, secret, reply_data, reply_len, use_v2);
+            mesh::Packet *reply = createDatagram(PAYLOAD_TYPE_RESPONSE, client->id, secret, reply_data, reply_len, use_chacha);
             if (reply) {
               if (client->out_path_len >= 0) { // we have an out_path, so send DIRECT
                 sendDirect(reply, client->out_path, client->out_path_len, SERVER_RESPONSE_DELAY);
