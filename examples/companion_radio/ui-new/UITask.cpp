@@ -18,6 +18,26 @@
 
 #define LONG_PRESS_MILLIS 1200
 
+#ifdef RADIOMASTER_900_BANDIT
+// NeoPixel message notification settings
+#define NEOPIXEL_MSG_UPDATE_MILLIS 30 // Update every 30ms for smooth breathing
+#define NEOPIXEL_MIN_BRIGHTNESS    5  // Minimum brightness (dim)
+#define NEOPIXEL_MAX_BRIGHTNESS    80 // Maximum brightness (bright blue)
+#define NEOPIXEL_BRIGHTNESS_STEP   2  // Brightness change per update
+
+// User-definable message notification color (RGB hex format)
+// Examples: 0x0000FF (blue), 0x00FF00 (green), 0xFF0000 (red),
+//           0xFF00FF (magenta), 0x00FFFF (cyan), 0xFFFF00 (yellow)
+#ifndef NEW_MSG_LED
+#define NEW_MSG_LED 0x0000FF // Default: Blue
+#endif
+
+// Extract RGB components from hex color
+#define NEOPIXEL_MSG_RED   ((NEW_MSG_LED >> 16) & 0xFF)
+#define NEOPIXEL_MSG_GREEN ((NEW_MSG_LED >> 8) & 0xFF)
+#define NEOPIXEL_MSG_BLUE  (NEW_MSG_LED & 0xFF)
+#endif
+
 #ifndef UI_RECENT_LIST_SIZE
 #define UI_RECENT_LIST_SIZE 4
 #endif
@@ -645,6 +665,58 @@ void UITask::userLedHandler() {
 #endif
 }
 
+#ifdef RADIOMASTER_900_BANDIT
+void UITask::neopixelMsgHandler() {
+  unsigned long cur_time = millis();
+
+  if (_msgcount > 0) {
+    // We have unread messages - do breathing effect
+    if (cur_time >= next_neopixel_change) {
+      // Update brightness
+      if (neopixel_brightness_increasing) {
+        neopixel_brightness += NEOPIXEL_BRIGHTNESS_STEP;
+        if (neopixel_brightness >= NEOPIXEL_MAX_BRIGHTNESS) {
+          neopixel_brightness = NEOPIXEL_MAX_BRIGHTNESS;
+          neopixel_brightness_increasing = false;
+        }
+      } else {
+        if (neopixel_brightness <= NEOPIXEL_BRIGHTNESS_STEP) {
+          neopixel_brightness = NEOPIXEL_MIN_BRIGHTNESS;
+          neopixel_brightness_increasing = true;
+        } else {
+          neopixel_brightness -= NEOPIXEL_BRIGHTNESS_STEP;
+        }
+      }
+
+      // Set NeoPixels 2-5 to user-defined color with current brightness
+      // Leave 0-1 for button backlights
+      // Scale each RGB component by the brightness level
+      uint8_t r = (NEOPIXEL_MSG_RED * neopixel_brightness) / NEOPIXEL_MAX_BRIGHTNESS;
+      uint8_t g = (NEOPIXEL_MSG_GREEN * neopixel_brightness) / NEOPIXEL_MAX_BRIGHTNESS;
+      uint8_t b = (NEOPIXEL_MSG_BLUE * neopixel_brightness) / NEOPIXEL_MAX_BRIGHTNESS;
+
+      for (int i = 2; i < 6; i++) {
+        pixels.setPixelColor(i, pixels.Color(r, g, b));
+      }
+      pixels.show();
+
+      next_neopixel_change = cur_time + NEOPIXEL_MSG_UPDATE_MILLIS;
+    }
+  } else {
+    // No messages - turn off message notification NeoPixels (2-5)
+    // Only turn them off if they were previously on
+    if (neopixel_brightness > 0) {
+      neopixel_brightness = 0;
+      neopixel_brightness_increasing = true;
+      for (int i = 2; i < 6; i++) {
+        pixels.setPixelColor(i, pixels.Color(0, 0, 0));
+      }
+      pixels.show();
+    }
+  }
+}
+#endif
+
 void UITask::setCurrScreen(UIScreen *c) {
   curr = c;
   _next_refresh = 100;
@@ -680,6 +752,8 @@ void UITask::shutdown(bool restart) {
 bool UITask::isButtonPressed() const {
 #ifdef PIN_USER_BTN
   return user_btn.isPressed();
+#elif defined(PIN_USER_JOYSTICK)
+  return analog_joystick.isPressed();
 #else
   return false;
 #endif
@@ -784,6 +858,10 @@ void UITask::loop() {
 
   userLedHandler();
 
+#ifdef RADIOMASTER_900_BANDIT
+  neopixelMsgHandler();
+#endif
+
 #ifdef PIN_BUZZER
   if (buzzer.isPlaying()) buzzer.loop();
 #endif
@@ -812,6 +890,11 @@ void UITask::loop() {
 #if AUTO_OFF_MILLIS > 0
     if (millis() > _auto_off) {
       _display->turnOff();
+#ifdef RADIOMASTER_900_BANDIT
+      pixels.setPixelColor(0, pixels.Color(0, 0, 0));
+      pixels.setPixelColor(1, pixels.Color(0, 0, 0));
+      pixels.show();
+#endif
     }
 #endif
   }
@@ -850,6 +933,11 @@ char UITask::checkDisplayOn(char c) {
     if (!_display->isOn()) {
       _display->turnOn(); // turn display on and consume event
       c = 0;
+#ifdef RADIOMASTER_900_BANDIT
+      pixels.setPixelColor(0, pixels.Color(255, 0, 0));
+      pixels.setPixelColor(1, pixels.Color(0, 255, 0));
+      pixels.show();
+#endif
     }
     _auto_off = millis() + AUTO_OFF_MILLIS; // extend auto-off timer
     _next_refresh = 0;                      // trigger refresh

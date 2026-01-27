@@ -7,10 +7,19 @@
 
 #define RADIOMASTER_900_BANDIT
 #define DISPLAY_CLASS SH1115Display
-#define PIN_NEOPIXEL  15
-#define NEOPIXEL_NUM  6
 
 extern Adafruit_NeoPixel pixels;
+
+// User-definable TX LED color (RGB hex format)
+// Examples: 0x00FF00 (green), 0xFF0000 (red), 0x0000FF (blue)
+#ifndef TX_LED_COLOR
+#define TX_LED_COLOR 0x009600 // Default: Green (0, 150, 0)
+#endif
+
+// Extract RGB components from hex color for TX LED
+#define TX_LED_RED       ((TX_LED_COLOR >> 16) & 0xFF)
+#define TX_LED_GREEN     ((TX_LED_COLOR >> 8) & 0xFF)
+#define TX_LED_BLUE      (TX_LED_COLOR & 0xFF)
 
 /*
   6 x Neopixels, GRB
@@ -18,8 +27,8 @@ extern Adafruit_NeoPixel pixels;
   Backgroundlight button 1 at index 0
   Backgroundlight button 2 at index 1
 
-  Button 1 at GPIO 34
-  Button 2 at GPIO 35
+  Button 1 at GPIO 34 - UNUSED
+  Button 2 at GPIO 35 - UNUSED
 
   STK8XXX Accelerometer I2C address 0x18 and Interrupt at GPIO 37
 */
@@ -92,25 +101,27 @@ public:
     ESP32Board::begin();
     pixels.begin();
     pixels.clear();
+    //    pixels.setPixelColor(0, pixels.Color(255, 0, 0));
+    //    pixels.setPixelColor(1, pixels.Color(0, 255, 0));
     pixels.show();
   }
   // Return fake battery status, battery/fixed power is not monitored.
-  uint16_t getBattMilliVolts() override { return (5.42 * (3.3 / 1024.0) * 250) * 1000; }
+  uint16_t getBattMilliVolts() override { return 5000; }
 
   const char *getManufacturerName() const override { return "RadioMaster Bandit"; }
 
   void onBeforeTransmit() override {
-    pixels.setPixelColor(0, pixels.Color(0, 150, 0));
-    pixels.setPixelColor(1, pixels.Color(0, 150, 0));
-    pixels.setPixelColor(2, pixels.Color(0, 150, 0));
-    pixels.setPixelColor(3, pixels.Color(0, 150, 0));
-    pixels.setPixelColor(4, pixels.Color(0, 150, 0));
-    pixels.setPixelColor(5, pixels.Color(0, 150, 0));
+    // Use user-defined TX LED color
+    for (byte i = 2; i <= 6; i++) {
+      pixels.setPixelColor(i, pixels.Color(TX_LED_RED, TX_LED_GREEN, TX_LED_BLUE));
+    }
     pixels.show();
   }
 
   void onAfterTransmit() override {
-    pixels.clear();
+    for (byte i = 2; i <= 6; i++) {
+      pixels.setPixelColor(i, pixels.Color(0, 0, 0));
+    }
     pixels.show();
   }
 };
