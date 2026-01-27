@@ -2,6 +2,16 @@
 #include <Mesh.h>
 #include "MyMesh.h"
 
+// Optional on-screen boot status for boards with a display.
+#if defined(DISPLAY_CLASS) && defined(DISPLAY_BOOT_STATUS)
+static void showBootStatus(DisplayDriver* disp, const char* msg) {
+  if (!disp) return;
+  disp->startFrame();
+  disp->drawTextCentered(disp->width() / 2, 28, msg);
+  disp->endFrame();
+}
+#endif
+
 // Believe it or not, this std C function is busted on some platforms!
 static uint32_t _atoi(const char* sp) {
   uint32_t n = 0;
@@ -123,11 +133,22 @@ void setup() {
   }
 #endif
 
-  if (!radio_init()) { halt(); }
+#if defined(DISPLAY_CLASS) && defined(DISPLAY_BOOT_STATUS)
+  showBootStatus(disp, "Radio...");
+#endif
+  if (!radio_init()) {
+#if defined(DISPLAY_CLASS) && defined(DISPLAY_BOOT_STATUS)
+    showBootStatus(disp, "Radio fail");
+#endif
+    halt();
+  }
 
   fast_rng.begin(radio_get_rng_seed());
 
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
+#if defined(DISPLAY_CLASS) && defined(DISPLAY_BOOT_STATUS)
+  showBootStatus(disp, "FS...");
+#endif
   InternalFS.begin();
   #if defined(QSPIFLASH)
     if (!QSPIFlash.begin()) {
@@ -142,6 +163,9 @@ void setup() {
   #endif
   #endif
   store.begin();
+#if defined(DISPLAY_CLASS) && defined(DISPLAY_BOOT_STATUS)
+  showBootStatus(disp, "Mesh...");
+#endif
   the_mesh.begin(
     #ifdef DISPLAY_CLASS
         disp != NULL
@@ -155,10 +179,19 @@ void setup() {
 #else
   serial_interface.begin(Serial);
 #endif
+#if defined(DISPLAY_CLASS) && defined(DISPLAY_BOOT_STATUS)
+  showBootStatus(disp, "Iface...");
+#endif
   the_mesh.startInterface(serial_interface);
 #elif defined(RP2040_PLATFORM)
+#if defined(DISPLAY_CLASS) && defined(DISPLAY_BOOT_STATUS)
+  showBootStatus(disp, "FS...");
+#endif
   LittleFS.begin();
   store.begin();
+#if defined(DISPLAY_CLASS) && defined(DISPLAY_BOOT_STATUS)
+  showBootStatus(disp, "Mesh...");
+#endif
   the_mesh.begin(
     #ifdef DISPLAY_CLASS
         disp != NULL
@@ -181,10 +214,19 @@ void setup() {
   #else
     serial_interface.begin(Serial);
   #endif
+#if defined(DISPLAY_CLASS) && defined(DISPLAY_BOOT_STATUS)
+    showBootStatus(disp, "Iface...");
+#endif
     the_mesh.startInterface(serial_interface);
 #elif defined(ESP32)
+#if defined(DISPLAY_CLASS) && defined(DISPLAY_BOOT_STATUS)
+  showBootStatus(disp, "FS...");
+#endif
   SPIFFS.begin(true);
   store.begin();
+#if defined(DISPLAY_CLASS) && defined(DISPLAY_BOOT_STATUS)
+  showBootStatus(disp, "Mesh...");
+#endif
   the_mesh.begin(
     #ifdef DISPLAY_CLASS
         disp != NULL
@@ -205,6 +247,9 @@ void setup() {
 #else
   serial_interface.begin(Serial);
 #endif
+#if defined(DISPLAY_CLASS) && defined(DISPLAY_BOOT_STATUS)
+  showBootStatus(disp, "Iface...");
+#endif
   the_mesh.startInterface(serial_interface);
 #else
   #error "need to define filesystem"
@@ -214,6 +259,10 @@ void setup() {
 
 #ifdef DISPLAY_CLASS
   ui_task.begin(disp, &sensors, the_mesh.getNodePrefs());  // still want to pass this in as dependency, as prefs might be moved
+#endif
+
+#if defined(DISPLAY_CLASS) && defined(DISPLAY_BOOT_STATUS)
+  showBootStatus(disp, "Ready");
 #endif
 }
 

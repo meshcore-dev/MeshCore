@@ -5,9 +5,42 @@
 #include <Adafruit_GFX.h>
 #define SSD1306_NO_SPLASH
 #include <Adafruit_SSD1306.h>
+#ifdef USE_SPI_SSD1306 // Note: current display implementation shares the same SPI bus as the radio.
+  #include <SPI.h>
+  #if defined(DISPLAY_SPI) && (DISPLAY_SPI == 1)
+    #undef DISPLAY_SPI
+    #define DISPLAY_SPI spi
+  #endif
+  #ifndef DISPLAY_SPI
+    #define DISPLAY_SPI SPI
+  #endif
+  extern SPIClass DISPLAY_SPI;
+#endif
 
 #ifndef PIN_OLED_RESET
   #define PIN_OLED_RESET        21 // Reset pin # (or -1 if sharing Arduino reset pin)
+#endif
+
+#ifdef USE_SPI_SSD1306
+  #ifndef PIN_OLED_CS
+    #define PIN_OLED_CS        5
+  #endif
+  #ifndef PIN_OLED_DC
+    #define PIN_OLED_DC        4
+  #endif
+  #ifndef PIN_OLED_SCK
+    #define PIN_OLED_SCK       SCK
+  #endif
+  #ifndef PIN_OLED_MISO
+    #ifdef P_LORA_MISO
+      #define PIN_OLED_MISO    P_LORA_MISO
+    #else
+      #define PIN_OLED_MISO    MISO
+    #endif
+  #endif
+  #ifndef PIN_OLED_MOSI
+    #define PIN_OLED_MOSI      MOSI
+  #endif
 #endif
 
 #ifndef DISPLAY_ADDRESS
@@ -19,9 +52,15 @@ class SSD1306Display : public DisplayDriver {
   bool _isOn;
   uint8_t _color;
 
+#ifndef USE_SPI_SSD1306
   bool i2c_probe(TwoWire& wire, uint8_t addr);
+#endif
 public:
+#ifdef USE_SPI_SSD1306
+  SSD1306Display() : DisplayDriver(128, 64), display(128, 64, &DISPLAY_SPI, PIN_OLED_DC, PIN_OLED_RESET, PIN_OLED_CS) { _isOn = false; }
+#else
   SSD1306Display() : DisplayDriver(128, 64), display(128, 64, &Wire, PIN_OLED_RESET) { _isOn = false; }
+#endif
   bool begin();
 
   bool isOn() override { return _isOn; }
