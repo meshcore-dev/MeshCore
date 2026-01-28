@@ -789,7 +789,7 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
 
   // defaults
   memset(&_prefs, 0, sizeof(_prefs));
-  _prefs.airtime_factor = 1.0; // one half
+  _prefs.airtime_factor = 1.0;
   strcpy(_prefs.node_name, "NONAME");
   _prefs.freq = LORA_FREQ;
   _prefs.sf = LORA_SF;

@@ -20,12 +20,34 @@ void Dispatcher::begin() {
   _err_flags = 0;
   radio_nonrx_start = _ms->getMillis();
 
+  duty_cycle_window_ms = getDutyCycleWindowMs();
+  float duty_cycle = 1.0f / (1.0f + getAirtimeBudgetFactor());
+  tx_budget_ms = (unsigned long)(duty_cycle_window_ms * duty_cycle);
+  last_budget_update = _ms->getMillis();
+
   _radio->begin();
   prev_isrecv_mode = _radio->isInRecvMode();
 }
 
 float Dispatcher::getAirtimeBudgetFactor() const {
-  return 2.0;   // default, 33.3%  (1/3rd)
+  return 1.0;
+}
+
+void Dispatcher::updateTxBudget() {
+  unsigned long now = _ms->getMillis();
+  unsigned long elapsed = now - last_budget_update;
+
+  float duty_cycle = 1.0f / (1.0f + getAirtimeBudgetFactor());
+  unsigned long max_budget = (unsigned long)(getDutyCycleWindowMs() * duty_cycle);
+
+  unsigned long refill = (unsigned long)(elapsed * duty_cycle);
+  tx_budget_ms += refill;
+
+  if (tx_budget_ms > max_budget) {
+    tx_budget_ms = max_budget;
+  }
+
+  last_budget_update = now;
 }
 
 int Dispatcher::calcRxDelay(float score, uint32_t air_time) const {
@@ -61,11 +83,24 @@ void Dispatcher::loop() {
   if (outbound) {  // waiting for outbound send to be completed
     if (_radio->isSendComplete()) {
       long t = _ms->getMillis() - outbound_start;
-      total_air_time += t;  // keep track of how much air time we are using
+      total_air_time += t;
       //Serial.print("  airtime="); Serial.println(t);
 
-      // will need radio silence up to next_tx_time
-      next_tx_time = futureMillis(t * getAirtimeBudgetFactor());
+      updateTxBudget();
+
+      if (t > tx_budget_ms) {
+        tx_budget_ms = 0;
+      } else {
+        tx_budget_ms -= t;
+      }
+
+      if (tx_budget_ms < 100) {
+        float duty_cycle = 1.0f / (1.0f + getAirtimeBudgetFactor());
+        unsigned long needed = 100 - tx_budget_ms;
+        next_tx_time = futureMillis((unsigned long)(needed / duty_cycle));
+      } else {
+        next_tx_time = _ms->getMillis();
+      }
 
       _radio->onSendFinished();
       logTx(outbound, 2 + outbound->path_len + outbound->payload_len);
@@ -224,9 +259,20 @@ void Dispatcher::processRecvPacket(Packet* pkt) {
 }
 
 void Dispatcher::checkSend() {
-  if (_mgr->getOutboundCount(_ms->getMillis()) == 0) return;  // nothing waiting to send
-  if (!millisHasNowPassed(next_tx_time)) return;   // still in 'radio silence' phase (from airtime budget setting)
-  if (_radio->isReceiving()) {   // LBT - check if radio is currently mid-receive, or if channel activity
+  if (_mgr->getOutboundCount(_ms->getMillis()) == 0) return;
+  
+  updateTxBudget();
+  
+  uint32_t est_airtime = _radio->getEstAirtimeFor(MAX_TRANS_UNIT);
+  if (tx_budget_ms < est_airtime / 2) {
+    float duty_cycle = 1.0f / (1.0f + getAirtimeBudgetFactor());
+    unsigned long needed = est_airtime / 2 - tx_budget_ms;
+    next_tx_time = futureMillis((unsigned long)(needed / duty_cycle));
+    return;
+  }
+  
+  if (!millisHasNowPassed(next_tx_time)) return;
+  if (_radio->isReceiving()) {
     if (cad_busy_start == 0) {
       cad_busy_start = _ms->getMillis();   // record when CAD busy state started
     }
