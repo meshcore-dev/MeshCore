@@ -827,6 +827,14 @@ void MyMesh::begin(FILESYSTEM *fs) {
   board.setAdcMultiplier(_prefs.adc_multiplier);
 
 #if ENV_INCLUDE_GPS == 1
+  // Sync advertised location from prefs to sensors (for geoid correction fallback)
+  // This allows altitude correction even when GPS doesn't have a fix
+  if (_prefs.node_lat != 0.0 || _prefs.node_lon != 0.0) {
+    sensors.node_lat = _prefs.node_lat;
+    sensors.node_lon = _prefs.node_lon;
+    MESH_DEBUG_PRINTLN("Synced advertised location to sensors: lat=%.6f, lon=%.6f", sensors.node_lat,
+                       sensors.node_lon);
+  }
   applyGpsPrefs();
 #endif
 }
