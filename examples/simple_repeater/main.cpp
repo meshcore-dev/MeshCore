@@ -20,8 +20,12 @@ void halt() {
 static char command[160];
 
 // For power saving
+const uint32_t POWERSAVING_FIRSTSLEEP_SINCEBOOT_SECS = 120; // PowerSaving will be active some time after boot
+const uint32_t POWERSAVING_MAXSLEEP_PERIOD_SECS = 1800;     // Wakeup periodically to do scheduled jobs
+const uint32_t POWERSAVING_WAKEUP_PERIOD_SECS = 5;          // Awake period after wakeup
+
 unsigned long lastActive = 0; // mark last active time
-unsigned long nextSleepinSecs = 120; // next sleep in seconds. The first sleep (if enabled) is after 2 minutes from boot
+unsigned long nextSleepinSecs = POWERSAVING_FIRSTSLEEP_SINCEBOOT_SECS; // next sleep in seconds. The first sleep (if enabled) is after some time since boot
 
 void setup() {
   Serial.begin(115200);
@@ -127,14 +131,14 @@ void loop() {
 #endif
   rtc_clock.tick();
 
-  if (the_mesh.getNodePrefs()->powersaving_enabled &&                     // To check if power saving is enabled
-      the_mesh.millisHasNowPassed(lastActive + nextSleepinSecs * 1000)) { // To check if it is time to sleep
+  if (the_mesh.getNodePrefs()->powersaving_enabled &&                     // Check if power saving is enabled
+      the_mesh.millisHasNowPassed(lastActive + nextSleepinSecs * 1000)) { // Check if it is time to sleep
     if (!the_mesh.hasPendingWork()) { // No pending work. Safe to sleep
-      board.sleep(1800);             // To sleep. Wake up after 30 minutes or when receiving a LoRa packet
+      board.sleep(POWERSAVING_MAXSLEEP_PERIOD_SECS);             // Sleep. Wake up periodically or when receiving a LoRa packet
       lastActive = millis();
-      nextSleepinSecs = 5;  // Default: To work for 5s and sleep again
+      nextSleepinSecs = POWERSAVING_WAKEUP_PERIOD_SECS;  // Default: Work for 1 wakeup period and sleep again
     } else {
-      nextSleepinSecs += 5; // When there is pending work, to work another 5s
+      nextSleepinSecs += POWERSAVING_WAKEUP_PERIOD_SECS; // When there is pending work, work another wakeup period
     }
   }
 }
