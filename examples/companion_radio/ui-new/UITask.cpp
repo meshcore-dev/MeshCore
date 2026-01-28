@@ -219,7 +219,7 @@ public:
       for (int i = 0; i < UI_RECENT_LIST_SIZE; i++, y += 11) {
         auto a = &recent[i];
         if (a->name[0] == 0) continue;  // empty slot
-        int secs = _rtc->getCurrentTime() - a->recv_timestamp;
+        uint32_t secs = safeElapsedSecs(_rtc->getCurrentTime(), a->recv_timestamp);
         if (secs < 60) {
           sprintf(tmp, "%ds", secs);
         } else if (secs < 60*60) {
@@ -480,7 +480,7 @@ public:
 
     auto p = &unread[0];
 
-    int secs = _rtc->getCurrentTime() - p->timestamp;
+    uint32_t secs = safeElapsedSecs(_rtc->getCurrentTime(), p->timestamp);
     if (secs < 60) {
       sprintf(tmp, "%ds", secs);
     } else if (secs < 60*60) {
