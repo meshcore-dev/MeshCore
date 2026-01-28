@@ -56,6 +56,10 @@ public:
     return raw / 4;
   }
 
+  uint32_t getIRQGpio() {
+    return P_LORA_DIO_1; // default for SX1262
+  }
+
   bool safeToSleep() {
     // Check for RX status
     gpio_num_t wakeupPin = (gpio_num_t)getIRQGpio();
