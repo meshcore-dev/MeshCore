@@ -104,6 +104,14 @@ extern "C"
 	static const uint8_t A7 = PIN_A7;
 #define ADC_RESOLUTION 14
 
+// Power management boot protection threshold (millivolts)
+// Set to 0 to disable boot protection
+#define PWRMGT_VOLTAGE_BOOTLOCK 3300   // Won't boot below this voltage (mV)
+// LPCOMP wake configuration (voltage recovery from SYSTEMOFF)
+// AIN3 = P0.05 = PIN_A0 / PIN_VBAT_READ
+#define PWRMGT_LPCOMP_AIN 3
+#define PWRMGT_LPCOMP_REFSEL 4  // 5/8 VDD (~3.13-3.44V)
+
 // Other pins
 #define PIN_AREF (2)
 #define PIN_NFC1 (9)

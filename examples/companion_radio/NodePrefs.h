@@ -27,4 +27,5 @@ struct NodePrefs {  // persisted to file
   uint8_t  buzzer_quiet;
   uint8_t  gps_enabled;      // GPS enabled flag (0=disabled, 1=enabled)
   uint32_t gps_interval;     // GPS read interval in seconds
+  uint8_t autoadd_config;    // bitmask for auto-add contacts config
 };

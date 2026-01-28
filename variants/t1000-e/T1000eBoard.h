@@ -9,6 +9,7 @@ protected:
   uint8_t btn_prev_state;
 
 public:
+  T1000eBoard() : NRF52Board("T1000E_OTA") {}
   void begin();
 
   uint16_t getBattMilliVolts() override {
@@ -34,7 +35,7 @@ public:
   }
 
   const char* getManufacturerName() const override {
-    return "Seeed Tracker T1000-e";
+    return "Seeed Tracker T1000-E";
   }
 
   int buttonStateChanged() {
@@ -89,6 +90,4 @@ public:
 
     sd_power_system_off();
   }
-
-//  bool startOTAUpdate(const char* id, char reply[]) override;
 };

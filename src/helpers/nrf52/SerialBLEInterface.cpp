@@ -123,7 +123,7 @@ void SerialBLEInterface::onBLEEvent(ble_evt_t* evt) {
   }
 }
 
-void SerialBLEInterface::begin(const char* device_name, uint32_t pin_code) {
+void SerialBLEInterface::begin(const char* prefix, char* name, uint32_t pin_code) {
   instance = this;
 
   char charpin[20];
@@ -133,7 +133,17 @@ void SerialBLEInterface::begin(const char* device_name, uint32_t pin_code) {
   // Bluefruit.autoConnLed(false);
   Bluefruit.configPrphBandwidth(BANDWIDTH_MAX);
   Bluefruit.begin();
-  
+ 
+  char dev_name[32+16];
+  if (strcmp(name, "@@MAC") == 0) {
+    ble_gap_addr_t addr;
+    if (sd_ble_gap_addr_get(&addr) == NRF_SUCCESS) {
+      sprintf(name, "%02X%02X%02X%02X%02X%02X",    // modify (IN-OUT param)
+          addr.addr[5], addr.addr[4], addr.addr[3], addr.addr[2], addr.addr[1], addr.addr[0]);
+    }
+  }
+  sprintf(dev_name, "%s%s", prefix, name);
+
   // Connection interval units: 1.25ms, supervision timeout units: 10ms
   ble_gap_conn_params_t ppcp_params;
   ppcp_params.min_conn_interval = BLE_MIN_CONN_INTERVAL;
@@ -153,7 +163,7 @@ void SerialBLEInterface::begin(const char* device_name, uint32_t pin_code) {
   }
   
   Bluefruit.setTxPower(BLE_TX_POWER);
-  Bluefruit.setName(device_name);
+  Bluefruit.setName(dev_name);
 
   Bluefruit.Security.setMITM(true);
   Bluefruit.Security.setPIN(charpin);

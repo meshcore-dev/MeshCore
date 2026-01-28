@@ -29,6 +29,20 @@ $ sh build.sh build-repeater-firmwares
 
 Build all chat room server firmwares
 $ sh build.sh build-room-server-firmwares
+
+Environment Variables:
+  DISABLE_DEBUG=1: Disables all debug logging flags (MESH_DEBUG, MESH_PACKET_LOGGING, etc.)
+                   If not set, debug flags from variant platformio.ini files are used.
+
+Examples:
+Build without debug logging:
+$ export FIRMWARE_VERSION=v1.0.0
+$ export DISABLE_DEBUG=1
+$ sh build.sh build-firmware RAK_4631_repeater
+
+Build with debug logging (default, uses flags from variant files):
+$ export FIRMWARE_VERSION=v1.0.0
+$ sh build.sh build-firmware RAK_4631_repeater
 EOF
 }
 
@@ -68,6 +82,13 @@ get_pio_envs_ending_with_string() {
   done
 }
 
+# disable all debug logging flags if DISABLE_DEBUG=1 is set
+disable_debug_flags() {
+  if [ "$DISABLE_DEBUG" == "1" ]; then
+    export PLATFORMIO_BUILD_FLAGS="${PLATFORMIO_BUILD_FLAGS} -UMESH_DEBUG -UBLE_DEBUG_LOGGING -UWIFI_DEBUG_LOGGING -UBRIDGE_DEBUG -UGPS_NMEA_DEBUG -UCORE_DEBUG_LEVEL -UESPNOW_DEBUG_LOGGING -UDEBUG_RP2040_WIRE -UDEBUG_RP2040_SPI -UDEBUG_RP2040_CORE -UDEBUG_RP2040_PORT -URADIOLIB_DEBUG_SPI -UCFG_DEBUG -URADIOLIB_DEBUG_BASIC -URADIOLIB_DEBUG_PROTOCOL"
+  fi
+}
+
 # build firmware for the provided pio env in $1
 build_firmware() {
 
@@ -93,6 +114,9 @@ build_firmware() {
 
   # add firmware version info to end of existing platformio build flags in environment vars
   export PLATFORMIO_BUILD_FLAGS="${PLATFORMIO_BUILD_FLAGS} -DFIRMWARE_BUILD_DATE='\"${FIRMWARE_BUILD_DATE}\"' -DFIRMWARE_VERSION='\"${FIRMWARE_VERSION_STRING}\"'"
+
+  # disable debug flags if requested
+  disable_debug_flags
 
   # build firmware target
   pio run -e $1
