@@ -1,6 +1,7 @@
 name: Build and deploy Docs site to GitHub Pages
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
