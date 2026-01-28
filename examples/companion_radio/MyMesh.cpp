@@ -330,11 +330,10 @@ void MyMesh::onDiscoveredContact(ContactInfo &contact, bool is_new, uint8_t path
       memcpy(&out_frame[1], contact.id.pub_key, PUB_KEY_SIZE);
       _serial->writeFrame(out_frame, 1 + PUB_KEY_SIZE);
     }
-  } else {
+  } 
 #ifdef DISPLAY_CLASS
-    if (_ui) _ui->notify(UIEventType::newContactMessage);
+  if (_ui && !_prefs.buzzer_quiet) _ui->notify(UIEventType::newContactMessage); //buzz if enabled
 #endif
-  }
 
   // add inbound-path to mem cache
   if (path && path_len <= sizeof(AdvertPath::path)) {  // check path is valid
@@ -441,9 +440,7 @@ void MyMesh::queueMessage(const ContactInfo &from, uint8_t txt_type, mesh::Packe
   bool should_display = txt_type == TXT_TYPE_PLAIN || txt_type == TXT_TYPE_SIGNED_PLAIN;
   if (should_display && _ui) {
     _ui->newMsg(path_len, from.name, text, offline_queue_len);
-    if (!_serial->isConnected()) {
-      _ui->notify(UIEventType::contactMessage);
-    }
+    if (!_prefs.buzzer_quiet) _ui->notify(UIEventType::contactMessage); //buzz if enabled
   }
 #endif
 }
@@ -528,11 +525,8 @@ void MyMesh::onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packe
     uint8_t frame[1];
     frame[0] = PUSH_CODE_MSG_WAITING; // send push 'tickle'
     _serial->writeFrame(frame, 1);
-  } else {
-#ifdef DISPLAY_CLASS
-    if (_ui) _ui->notify(UIEventType::channelMessage);
-#endif
   }
+
 #ifdef DISPLAY_CLASS
   // Get the channel name from the channel index
   const char *channel_name = "Unknown";
@@ -540,7 +534,10 @@ void MyMesh::onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packe
   if (getChannel(channel_idx, channel_details)) {
     channel_name = channel_details.name;
   }
-  if (_ui) _ui->newMsg(path_len, channel_name, text, offline_queue_len);
+  if (_ui) {
+    _ui->newMsg(path_len, channel_name, text, offline_queue_len);
+    if (!_prefs.buzzer_quiet) _ui->notify(UIEventType::channelMessage); //buzz if enabled
+  }
 #endif
 }
 
@@ -799,6 +796,7 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
   _prefs.bw = LORA_BW;
   _prefs.cr = LORA_CR;
   _prefs.tx_power_dbm = LORA_TX_POWER;
+  _prefs.buzzer_quiet = 0;
   _prefs.gps_enabled = 0;       // GPS disabled by default
   _prefs.gps_interval = 0;      // No automatic GPS updates by default
   //_prefs.rx_delay_base = 10.0f;  enable once new algo fixed
@@ -817,14 +815,14 @@ void MyMesh::begin(bool has_display) {
     _store->saveMainIdentity(self_id);
   }
 
+// if name is provided as a build flag, use that as default node name instead
+#ifdef ADVERT_NAME
+  strcpy(_prefs.node_name, ADVERT_NAME);
+#else
   // use hex of first 4 bytes of identity public key as default node name
   char pub_key_hex[10];
   mesh::Utils::toHex(pub_key_hex, self_id.pub_key, 4);
   strcpy(_prefs.node_name, pub_key_hex);
-
-// if name is provided as a build flag, use that as default node name instead
-#ifdef ADVERT_NAME
-  strcpy(_prefs.node_name, ADVERT_NAME);
 #endif
 
   // load persisted prefs
@@ -838,6 +836,7 @@ void MyMesh::begin(bool has_display) {
   _prefs.sf = constrain(_prefs.sf, 5, 12);
   _prefs.cr = constrain(_prefs.cr, 5, 8);
   _prefs.tx_power_dbm = constrain(_prefs.tx_power_dbm, 1, MAX_LORA_TX_POWER);
+  _prefs.buzzer_quiet = constrain(_prefs.buzzer_quiet, 0, 1);  // Ensure boolean 0 or 1
   _prefs.gps_enabled = constrain(_prefs.gps_enabled, 0, 1);  // Ensure boolean 0 or 1
   _prefs.gps_interval = constrain(_prefs.gps_interval, 0, 86400);  // Max 24 hours
 
@@ -1295,16 +1294,20 @@ void MyMesh::handleCmdFrame(size_t len) {
 #endif
   } else if (cmd_frame[0] == CMD_IMPORT_PRIVATE_KEY && len >= 65) {
 #if ENABLE_PRIVATE_KEY_IMPORT
-    mesh::LocalIdentity identity;
-    identity.readFrom(&cmd_frame[1], 64);
-    if (_store->saveMainIdentity(identity)) {
-      self_id = identity;
-      writeOKFrame();
-      // re-load contacts, to invalidate ecdh shared_secrets
-      resetContacts();
-      _store->loadContacts(this);
+    if (!mesh::LocalIdentity::validatePrivateKey(&cmd_frame[1])) {
+        writeErrFrame(ERR_CODE_ILLEGAL_ARG); // invalid key
     } else {
-      writeErrFrame(ERR_CODE_FILE_IO_ERROR);
+        mesh::LocalIdentity identity;
+        identity.readFrom(&cmd_frame[1], 64);
+        if (_store->saveMainIdentity(identity)) {
+          self_id = identity;
+          writeOKFrame();
+          // re-load contacts, to invalidate ecdh shared_secrets
+          resetContacts();
+          _store->loadContacts(this);
+        } else {
+          writeErrFrame(ERR_CODE_FILE_IO_ERROR);
+        }
     }
 #else
     writeDisabledFrame();

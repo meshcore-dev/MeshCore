@@ -54,6 +54,7 @@ struct RepeaterStats {
   int16_t  last_snr;   // x 4
   uint16_t n_direct_dups, n_flood_dups;
   uint32_t total_rx_air_time_secs;
+  uint32_t n_recv_errors;
 };
 
 #ifndef MAX_CLIENTS
@@ -86,11 +87,11 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   unsigned long next_local_advert, next_flood_advert;
   bool _logging;
   NodePrefs _prefs;
+  ClientACL  acl;
   CommonCLI _cli;
   uint8_t reply_data[MAX_PACKET_PAYLOAD];
   uint8_t reply_path[MAX_PATH_SIZE];
   int8_t  reply_path_len;
-  ClientACL  acl;
   TransportKeyStore key_store;
   RegionMap region_map, temp_map;
   RegionEntry* load_stack[8];
@@ -186,7 +187,7 @@ public:
 
   void applyTempRadioParams(float freq, float bw, uint8_t sf, uint8_t cr, int timeout_mins) override;
   bool formatFileSystem() override;
-  void sendSelfAdvertisement(int delay_millis) override;
+  void sendSelfAdvertisement(int delay_millis, bool flood) override;
   void updateAdvertTimer() override;
   void updateFloodAdvertTimer() override;
 

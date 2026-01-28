@@ -1,7 +1,8 @@
 #pragma once
 
-#include <MeshCore.h>
 #include <Arduino.h>
+#include <MeshCore.h>
+#include <helpers/NRF52Board.h>
 
 // built-ins
 #define VBAT_MV_PER_LSB   (0.73242188F)   // 3.0V ADC range and 12-bit ADC resolution = 3000mV/4096
@@ -11,21 +12,13 @@
 #define PIN_VBAT_READ     BATTERY_PIN
 #define REAL_VBAT_MV_PER_LSB (VBAT_DIVIDER_COMP * VBAT_MV_PER_LSB)
 
-class ThinkNodeM6Board : public mesh::MainBoard {
-protected:
-  uint8_t startup_reason;
-
+class ThinkNodeM6Board : public Nrf52BoardOTA {
 public:
-
+  ThinkNodeM6Board() : NRF52BoardOTA("THINKNODE_M1_OTA") {}
   void begin();
   uint16_t getBattMilliVolts() override;
-  bool startOTAUpdate(const char* id, char reply[]) override;
 
-  uint8_t getStartupReason() const override {
-    return startup_reason;
-  }
-
-  #if defined(P_LORA_TX_LED)
+#if defined(P_LORA_TX_LED)
   void onBeforeTransmit() override {
     digitalWrite(P_LORA_TX_LED, HIGH);   // turn TX LED on
   }
@@ -38,10 +31,6 @@ public:
     return "Elecrow ThinkNode-M6";
   }
 
-  void reboot() override {
-    NVIC_SystemReset();
-  }
-
   void powerOff() override {
 
     // turn off all leds, sd_power_system_off will not do this for us
@@ -51,6 +40,5 @@ public:
 
     // power off board
     sd_power_system_off();
-
   }
 };

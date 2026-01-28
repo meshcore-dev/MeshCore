@@ -30,6 +30,14 @@
 
 #define AREF_VOLTAGE            (3.0)
 
+// Power management boot protection threshold (millivolts)
+// Set to 0 to disable boot protection
+#define PWRMGT_VOLTAGE_BOOTLOCK 3300   // Won't boot below this voltage (mV)
+// LPCOMP wake configuration (voltage recovery from SYSTEMOFF)
+// AIN2 = P0.04 = BATTERY_PIN / PIN_VBAT_READ
+#define PWRMGT_LPCOMP_AIN 2
+#define PWRMGT_LPCOMP_REFSEL 1  // 2/8 VDD (~3.68-4.04V)
+
 ////////////////////////////////////////////////////////////////////////////////
 // Number of pins
 
@@ -50,8 +58,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 // I2C pin definition
 
-#define PIN_WIRE_SDA            (26)             // P0.26
-#define PIN_WIRE_SCL            (27)             // P0.27
+#define PIN_WIRE_SDA            (16)             // P0.16
+#define PIN_WIRE_SCL            (13)             // P0.13
 
 ////////////////////////////////////////////////////////////////////////////////
 // SPI pin definition

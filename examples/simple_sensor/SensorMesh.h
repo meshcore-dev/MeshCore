@@ -60,7 +60,7 @@ public:
   NodePrefs* getNodePrefs() { return &_prefs; }
   void savePrefs() override { _cli.savePrefs(_fs); }
   bool formatFileSystem() override;
-  void sendSelfAdvertisement(int delay_millis) override;
+  void sendSelfAdvertisement(int delay_millis, bool flood) override;
   void updateAdvertTimer() override;
   void updateFloodAdvertTimer() override;
   void setLoggingOn(bool enable) override {  }
@@ -133,9 +133,9 @@ private:
   FILESYSTEM* _fs;
   unsigned long next_local_advert, next_flood_advert;
   NodePrefs _prefs;
+  ClientACL  acl;
   CommonCLI _cli;
   uint8_t reply_data[MAX_PACKET_PAYLOAD];
-  ClientACL  acl;
   unsigned long dirty_contacts_expiry;
   CayenneLPP telemetry;
   uint32_t last_read_time;

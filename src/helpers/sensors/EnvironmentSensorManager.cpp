@@ -42,7 +42,7 @@ static Adafruit_BME280 BME280;
 #endif
 #define TELEM_BMP280_SEALEVELPRESSURE_HPA (1013.25)    // Athmospheric pressure at sea level
 #include <Adafruit_BMP280.h>
-static Adafruit_BMP280 BMP280;
+static Adafruit_BMP280 BMP280(TELEM_WIRE);
 #endif
 
 #if ENV_INCLUDE_SHTC3
@@ -58,6 +58,7 @@ static SensirionI2cSht4x SHT4X;
 
 #if ENV_INCLUDE_LPS22HB
 #include <Arduino_LPS22HB.h>
+LPS22HBClass LPS22HB(*TELEM_WIRE);
 #endif
 
 #if ENV_INCLUDE_INA3221
@@ -218,7 +219,7 @@ bool EnvironmentSensorManager::begin() {
   #endif
 
   #if ENV_INCLUDE_SHTC3
-  if (SHTC3.begin()) {
+  if (SHTC3.begin(TELEM_WIRE)) {
     MESH_DEBUG_PRINTLN("Found sensor: SHTC3");
     SHTC3_initialized = true;
   } else {
@@ -243,7 +244,7 @@ bool EnvironmentSensorManager::begin() {
   #endif
 
   #if ENV_INCLUDE_LPS22HB
-  if (BARO.begin()) {
+  if (LPS22HB.begin()) {
     MESH_DEBUG_PRINTLN("Found sensor: LPS22HB");
     LPS22HB_initialized = true;
   } else {
@@ -407,8 +408,8 @@ bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, Cayen
 
     #if ENV_INCLUDE_LPS22HB
     if (LPS22HB_initialized) {
-      telemetry.addTemperature(TELEM_CHANNEL_SELF, BARO.readTemperature());
-      telemetry.addBarometricPressure(TELEM_CHANNEL_SELF, BARO.readPressure() * 10); // convert kPa to hPa
+      telemetry.addTemperature(TELEM_CHANNEL_SELF, LPS22HB.readTemperature());
+      telemetry.addBarometricPressure(TELEM_CHANNEL_SELF, LPS22HB.readPressure() * 10); // convert kPa to hPa
     }
     #endif
 
