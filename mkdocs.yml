@@ -14,7 +14,6 @@ theme:
     - content.code.copy
     - search.highlight
     - search.suggest
-    - toc.integrate
 
 extra_css:
   - _stylesheets/extra.css
