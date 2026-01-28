@@ -2,6 +2,12 @@
 #include <Arduino.h>
 #include <helpers/CommonCLI.h>
 
+// Default button polarity: Active-LOW (pressed = LOW)
+// Override with -D USER_BTN_PRESSED=HIGH in platformio.ini for rare active-high devices.
+#ifndef USER_BTN_PRESSED
+#define USER_BTN_PRESSED LOW
+#endif
+
 #define AUTO_OFF_MILLIS      20000  // 20 seconds
 #define BOOT_SCREEN_MILLIS   4000   // 4 seconds
 
@@ -85,7 +91,7 @@ void UITask::loop() {
   if (millis() >= _next_read) {
     int btnState = digitalRead(PIN_USER_BTN);
     if (btnState != _prevBtnState) {
-      if (btnState == LOW) {  // pressed?
+      if (btnState == USER_BTN_PRESSED) {  // pressed?
         if (_display->isOn()) {
           // TODO: any action ?
         } else {
