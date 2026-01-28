@@ -37,7 +37,7 @@
 #define JOYSTICK_LEFT           PIN_BUTTON4
 #define JOYSTICK_RIGHT          PIN_BUTTON5
 #define JOYSTICK_PRESS          PIN_BUTTON6
-#define PIN_USER_BTN            PIN_BUTTON6
+#define PIN_USER_BTN            PIN_BUTTON1
 
 // Buzzer
 // #define PIN_BUZZER           (12) // Buzzer pin (defined per firmware type)
