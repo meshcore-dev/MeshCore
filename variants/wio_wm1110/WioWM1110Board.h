@@ -2,6 +2,7 @@
 
 #include <MeshCore.h>
 #include <Arduino.h>
+#include <helpers/NRF52Board.h>
 
 #ifdef WIO_WM1110
 
@@ -10,13 +11,10 @@
 #endif
 #define Serial Serial1
 
-class WioWM1110Board : public mesh::MainBoard {
-protected:
-  uint8_t startup_reason;
-
+class WioWM1110Board : public NRF52BoardDCDC {
 public:
+  WioWM1110Board() : NRF52Board("WM1110_OTA") {}
   void begin();
-  uint8_t getStartupReason() const override { return startup_reason; }
 
 #if defined(LED_GREEN)
   void onBeforeTransmit() override {
@@ -39,12 +37,6 @@ public:
   const char* getManufacturerName() const override {
     return "Seeed Wio WM1110";
   }
-
-  void reboot() override {
-    NVIC_SystemReset();
-  }
-
-  bool startOTAUpdate(const char* id, char reply[]) override;
 
   void enableSensorPower(bool enable) {
     digitalWrite(SENSOR_POWER_PIN, enable ? HIGH : LOW);

@@ -11,11 +11,13 @@
   #include <helpers/ui/ST7789LCDDisplay.h>
   #include <helpers/ui/MomentaryButton.h>
 #endif
+#include "helpers/sensors/EnvironmentSensorManager.h"
+#include "helpers/sensors/MicroNMEALocationProvider.h"
 
 extern TDeckBoard board;
 extern WRAPPER_CLASS radio_driver;
 extern AutoDiscoverRTCClock rtc_clock;
-extern SensorManager sensors;
+extern EnvironmentSensorManager sensors;
 
 #ifdef DISPLAY_CLASS
   extern DISPLAY_CLASS display;

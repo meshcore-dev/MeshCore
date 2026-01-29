@@ -1,0 +1,45 @@
+{
+	"name": "MeshCore",
+	"image": "mcr.microsoft.com/devcontainers/python:3-bookworm",
+	"features": {
+		"ghcr.io/rocker-org/devcontainer-features/apt-packages:1": {
+			"packages": [
+				"sudo"
+			]
+		}
+	},
+	"runArgs": [
+		"--privileged",
+		"--network=host",
+		"--volume=/dev/bus/usb:/dev/bus/usb:ro",
+		// arch tty* is owned by uucp (986)
+		// debian tty* is owned by dialout (20)
+		"--group-add=20",
+		"--group-add=986"
+	],
+	"postCreateCommand": {
+		"platformio": "pipx install platformio"
+	},
+	"customizations": {
+		"vscode": {
+			"settings": {
+				"platformio-ide.disablePIOHomeStartup": true,
+				"editor.formatOnSave": false,
+				"workbench.colorCustomizations": {
+					"titleBar.activeBackground": "#0d1a2b",
+					"titleBar.activeForeground": "#ffffff",
+					"titleBar.inactiveBackground": "#0d1a2b99",
+					"titleBar.inactiveForeground": "#ffffff99"
+				}
+			},
+			"extensions": [
+				"platformio.platformio-ide",
+				"github.vscode-github-actions",
+				"GitHub.vscode-pull-request-github"
+			],
+			"unwantedRecommendations": [
+				"ms-vscode.cpptools-extension-pack"
+			]
+		}
+	}
+}

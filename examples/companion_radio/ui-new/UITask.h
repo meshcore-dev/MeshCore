@@ -8,6 +8,10 @@
 #include <helpers/ui/DisplayDriver.h>
 #include <helpers/ui/UIScreen.h>
 
+#ifndef LED_STATE_ON
+  #define LED_STATE_ON 1
+#endif
+
 #ifdef PIN_BUZZER
 #include <helpers/ui/buzzer.h>
 #endif
