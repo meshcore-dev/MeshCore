@@ -4,10 +4,14 @@
 
 namespace mesh {
 
+// Channel flags
+#define CHANNEL_FLAG_CHACHA  0x01  // Use ChaCha20-Poly1305 encryption for this channel
+
 class GroupChannel {
 public:
   uint8_t hash[PATH_HASH_SIZE];
   uint8_t secret[PUB_KEY_SIZE];
+  uint8_t flags;  // CHANNEL_FLAG_* bits
 };
 
 /**
@@ -84,6 +88,29 @@ protected:
   virtual void getPeerSharedSecret(uint8_t* dest_secret, int peer_idx) { }
 
   /**
+   * \brief  Check if a peer supports ChaCha20-Poly1305 encryption.
+   * \param  dest  the Identity of the peer to check
+   * \returns  true if peer has advertised CHACHA_CAPABLE flag
+   */
+  virtual bool peerSupportsCHACHA(const Identity& dest) { return false; }
+
+  /**
+   * \brief  Check if a peer supports ChaCha20-Poly1305 encryption (by peer index from searchPeersByHash).
+   * \param  src_hash  the hash byte of the peer
+   * \param  peer_idx  index of peer, [0..n) where n is what searchPeersByHash() returned
+   * \returns  true if peer has advertised CHACHA_CAPABLE flag
+   */
+  virtual bool peerSupportsCHACHA(uint8_t src_hash, int peer_idx) { return false; }
+
+  /**
+   * \brief  Called when a peer's packet was successfully decrypted with ChaCha.
+   *         Subclasses should override to mark the peer as ChaCha-capable.
+   * \param  id  the Identity of the peer (for ANON_REQ) or NULL for known-peer path
+   * \param  peer_idx  index from searchPeersByHash (-1 if ANON_REQ)
+   */
+  virtual void setPeerSupportsCHACHA(const Identity* id, int peer_idx) { }
+
+  /**
    * \brief  A (now decrypted) data packet has been received (by a known peer).
    *         NOTE: these can be received multiple times (per sender/msg-id), via different routes
    * \param  type  one of: PAYLOAD_TYPE_TXT_MSG, PAYLOAD_TYPE_REQ, PAYLOAD_TYPE_RESPONSE
@@ -126,7 +153,7 @@ protected:
    * \param  secret  ECDH shared secret
    * \param  sender  public key provided by sender
   */
-  virtual void onAnonDataRecv(Packet* packet, const uint8_t* secret, const Identity& sender, uint8_t* data, size_t len) { }
+  virtual void onAnonDataRecv(Packet* packet, const uint8_t* secret, const Identity& sender, uint8_t* data, size_t len, bool decrypted_with_chacha = false) { }
 
   /**
    * \brief  A path TO 'sender' has been received. (also with optional 'extra' data encoded)
@@ -182,13 +209,13 @@ public:
   RTCClock* getRTCClock() const { return _rtc; }
 
   Packet* createAdvert(const LocalIdentity& id, const uint8_t* app_data=NULL, size_t app_data_len=0);
-  Packet* createDatagram(uint8_t type, const Identity& dest, const uint8_t* secret, const uint8_t* data, size_t len);
-  Packet* createAnonDatagram(uint8_t type, const LocalIdentity& sender, const Identity& dest, const uint8_t* secret, const uint8_t* data, size_t data_len);
+  Packet* createDatagram(uint8_t type, const Identity& dest, const uint8_t* secret, const uint8_t* data, size_t len, bool use_chacha=false);
+  Packet* createAnonDatagram(uint8_t type, const LocalIdentity& sender, const Identity& dest, const uint8_t* secret, const uint8_t* data, size_t data_len, bool use_chacha=false);
   Packet* createGroupDatagram(uint8_t type, const GroupChannel& channel, const uint8_t* data, size_t data_len);
   Packet* createAck(uint32_t ack_crc);
   Packet* createMultiAck(uint32_t ack_crc, uint8_t remaining);
-  Packet* createPathReturn(const uint8_t* dest_hash, const uint8_t* secret, const uint8_t* path, uint8_t path_len, uint8_t extra_type, const uint8_t*extra, size_t extra_len);
-  Packet* createPathReturn(const Identity& dest, const uint8_t* secret, const uint8_t* path, uint8_t path_len, uint8_t extra_type, const uint8_t*extra, size_t extra_len);
+  Packet* createPathReturn(const uint8_t* dest_hash, const uint8_t* secret, const uint8_t* path, uint8_t path_len, uint8_t extra_type, const uint8_t*extra, size_t extra_len, bool use_chacha=false);
+  Packet* createPathReturn(const Identity& dest, const uint8_t* secret, const uint8_t* path, uint8_t path_len, uint8_t extra_type, const uint8_t*extra, size_t extra_len, bool use_chacha=false);
   Packet* createRawData(const uint8_t* data, size_t len);
   Packet* createTrace(uint32_t tag, uint32_t auth_code, uint8_t flags = 0);
   Packet* createControlData(const uint8_t* data, size_t len);

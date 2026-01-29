@@ -55,6 +55,62 @@ public:
   static int MACThenDecrypt(const uint8_t* shared_secret, uint8_t* dest, const uint8_t* src, int src_len);
 
   /**
+   * \brief  Encrypts with ChaCha20-Poly1305 AEAD cipher (v2 encryption).
+   *         Layout: [counter (4 bytes)] [ciphertext] [tag (8 bytes)]
+   *         Full 12-byte nonce is derived internally: SHA256(key || counter)[0:12]
+   * \param  key  32-byte encryption key (shared secret)
+   * \param  dest  destination buffer for encrypted output
+   * \param  counter  4-byte counter (must be unique per message per key)
+   * \param  plaintext  data to encrypt
+   * \param  plaintext_len  length of plaintext
+   * \param  aad  optional additional authenticated data (can be NULL)
+   * \param  aad_len  length of AAD (0 if no AAD)
+   * \returns  total length of encrypted output (counter + ciphertext + tag)
+  */
+  static int encryptCHACHA(const uint8_t* key, uint8_t* dest, const uint8_t* counter,
+                           const uint8_t* plaintext, int plaintext_len,
+                           const uint8_t* aad = nullptr, int aad_len = 0);
+
+  /**
+   * \brief  Decrypts with ChaCha20-Poly1305 AEAD cipher (v2 decryption).
+   *         Expects layout: [counter (4 bytes)] [ciphertext] [tag (8 bytes)]
+   *         Full 12-byte nonce is derived internally: SHA256(key || counter)[0:12]
+   * \param  key  32-byte decryption key (shared secret)
+   * \param  dest  destination buffer for decrypted plaintext
+   * \param  src  encrypted data (counter + ciphertext + tag)
+   * \param  src_len  length of encrypted data
+   * \param  aad  optional additional authenticated data (can be NULL)
+   * \param  aad_len  length of AAD (0 if no AAD)
+   * \returns  plaintext length on success, 0 on authentication failure
+  */
+  static int decryptCHACHA(const uint8_t* key, uint8_t* dest,
+                           const uint8_t* src, int src_len,
+                           const uint8_t* aad = nullptr, int aad_len = 0);
+
+  /**
+   * \brief  Get hardware random bytes from platform-specific TRNG.
+   * \param  dest  destination buffer
+   * \param  size  number of random bytes to generate
+  */
+  static void getHardwareRandom(uint8_t* dest, size_t size);
+
+  /**
+   * \brief  Get high-quality random bytes, preferring provided RNG.
+   * \param  rng  optional RNG instance (e.g. RadioNoiseListener)
+   * \param  dest  destination buffer
+   * \param  size  number of random bytes to generate
+  */
+  static void getHighQualityRandom(RNG* rng, uint8_t* dest, size_t size);
+
+  /**
+   * \brief  Generate a secure counter for ChaCha20-Poly1305 nonce derivation.
+   *         Uses hybrid format: [boot_id (2)] [counter (2)] for uniqueness.
+   *         Full nonce is derived in encrypt/decrypt via SHA256(key || counter).
+   * \param  counter  destination buffer (must be CHACHA_COUNTER_SIZE bytes)
+  */
+  static void generateSecureCounter(uint8_t* counter);
+
+  /**
    * \brief  converts 'src' bytes with given length to Hex representation, and null terminates.
   */
   static void toHex(char* dest, const uint8_t* src, size_t len);

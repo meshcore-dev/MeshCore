@@ -31,10 +31,7 @@ namespace mesh {
 //...
 #define PAYLOAD_TYPE_RAW_CUSTOM   0x0F    // custom packet as raw bytes, for applications with custom encryption, payloads, etc
 
-#define PAYLOAD_VER_1       0x00   // 1-byte src/dest hashes, 2-byte MAC
-#define PAYLOAD_VER_2       0x01   // FUTURE (eg. 2-byte hashes, 4-byte MAC ??)
-#define PAYLOAD_VER_3       0x02   // FUTURE
-#define PAYLOAD_VER_4       0x03   // FUTURE
+#define PAYLOAD_VER_1       0x00   // 1-byte src/dest hashes; crypto determined by peer capability
 
 /**
  * \brief  The fundamental transmission unit.
@@ -98,7 +95,7 @@ public:
    * \param  src  (IN) buffer containing blob
    * \param  len  the packet length (as returned by writeTo())
    */
-  bool readFrom(const uint8_t src[], uint8_t len);
+  bool readFrom(const uint8_t src[], uint16_t len);
 };
 
 }

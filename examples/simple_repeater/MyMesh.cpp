@@ -506,7 +506,7 @@ bool MyMesh::filterRecvFloodPacket(mesh::Packet* pkt) {
 }
 
 void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const mesh::Identity &sender,
-                            uint8_t *data, size_t len) {
+                            uint8_t *data, size_t len, bool decrypted_with_chacha) {
   if (packet->getPayloadType() == PAYLOAD_TYPE_ANON_REQ) { // received an initial request by a possible admin
                                                            // client (unknown at this stage)
     uint32_t timestamp;
@@ -530,16 +530,20 @@ void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const m
 
     if (reply_len == 0) return;   // invalid request
 
+    // Mark peer as ChaCha-capable if we decoded their packet with ChaCha
+    if (decrypted_with_chacha) setPeerSupportsCHACHA(&sender, -1);
+
+    bool use_chacha = peerSupportsCHACHA(sender);
     if (packet->isRouteFlood()) {
       // let this sender know path TO here, so they can use sendDirect(), and ALSO encode the response
       mesh::Packet* path = createPathReturn(sender, secret, packet->path, packet->path_len,
-                                            PAYLOAD_TYPE_RESPONSE, reply_data, reply_len);
+                                            PAYLOAD_TYPE_RESPONSE, reply_data, reply_len, use_chacha);
       if (path) sendFlood(path, SERVER_RESPONSE_DELAY);
     } else if (reply_path_len < 0) {
-      mesh::Packet* reply = createDatagram(PAYLOAD_TYPE_RESPONSE, sender, secret, reply_data, reply_len);
+      mesh::Packet* reply = createDatagram(PAYLOAD_TYPE_RESPONSE, sender, secret, reply_data, reply_len, use_chacha);
       if (reply) sendFlood(reply, SERVER_RESPONSE_DELAY);
     } else {
-      mesh::Packet* reply = createDatagram(PAYLOAD_TYPE_RESPONSE, sender, secret, reply_data, reply_len);
+      mesh::Packet* reply = createDatagram(PAYLOAD_TYPE_RESPONSE, sender, secret, reply_data, reply_len, use_chacha);
       if (reply) sendDirect(reply, reply_path, reply_path_len, SERVER_RESPONSE_DELAY);
     }
   }
@@ -565,6 +569,39 @@ void MyMesh::getPeerSharedSecret(uint8_t *dest_secret, int peer_idx) {
   }
 }
 
+bool MyMesh::peerSupportsCHACHA(const mesh::Identity& dest) {
+  // Look up client by public key
+  ClientInfo* client = acl.getClient(dest.pub_key, PUB_KEY_SIZE);
+  if (client) {
+    return client->supports_chacha;
+  }
+  // Unknown peer - default to AES (safe fallback)
+  return false;
+}
+
+bool MyMesh::peerSupportsCHACHA(uint8_t src_hash, int peer_idx) {
+  // Use the peer index from searchPeersByHash() - no re-lookup needed
+  int i = matching_peer_indexes[peer_idx];
+  if (i >= 0 && i < acl.getNumClients()) {
+    return acl.getClientByIdx(i)->supports_chacha;
+  }
+  return false;
+}
+
+void MyMesh::setPeerSupportsCHACHA(const mesh::Identity* id, int peer_idx) {
+  if (peer_idx >= 0) {
+    int i = matching_peer_indexes[peer_idx];
+    if (i >= 0 && i < acl.getNumClients()) {
+      acl.getClientByIdx(i)->supports_chacha = true;
+    }
+  } else if (id != nullptr) {
+    ClientInfo* client = acl.getClient(id->pub_key, PUB_KEY_SIZE);
+    if (client) {
+      client->supports_chacha = true;
+    }
+  }
+}
+
 static bool isShare(const mesh::Packet *packet) {
   if (packet->hasTransportCodes()) {
     return packet->transport_codes[0] == 0 && packet->transport_codes[1] == 0;  // codes { 0, 0 } means 'send to nowhere'
@@ -576,11 +613,19 @@ void MyMesh::onAdvertRecv(mesh::Packet *packet, const mesh::Identity &id, uint32
                           const uint8_t *app_data, size_t app_data_len) {
   mesh::Mesh::onAdvertRecv(packet, id, timestamp, app_data, app_data_len); // chain to super impl
 
-  // if this a zero hop advert (and not via 'Share'), add it to neighbours
-  if (packet->path_len == 0 && !isShare(packet)) {
-    AdvertDataParser parser(app_data, app_data_len);
-    if (parser.isValid() && parser.getType() == ADV_TYPE_REPEATER) { // just keep neigbouring Repeaters
-      putNeighbour(id, timestamp, packet->getSNR());
+  AdvertDataParser parser(app_data, app_data_len);
+  if (parser.isValid()) {
+    // Update CHACHA capability for known clients (chat nodes that are in our ACL)
+    ClientInfo* client = acl.getClient(id.pub_key, PUB_KEY_SIZE);
+    if (client) {
+      client->supports_chacha = (parser.getFeat1() & ADV_FEAT1_CHACHA_CAPABLE) != 0;
+    }
+
+    // if this a zero hop advert (and not via 'Share'), add it to neighbours
+    if (packet->path_len == 0 && !isShare(packet)) {
+      if (parser.getType() == ADV_TYPE_REPEATER) { // just keep neigbouring Repeaters
+        putNeighbour(id, timestamp, packet->getSNR());
+      }
     }
   }
 }
@@ -605,14 +650,15 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
       client->last_timestamp = timestamp;
       client->last_activity = getRTCClock()->getCurrentTime();
 
+      bool use_chacha = client->supports_chacha;
       if (packet->isRouteFlood()) {
         // let this sender know path TO here, so they can use sendDirect(), and ALSO encode the response
         mesh::Packet *path = createPathReturn(client->id, secret, packet->path, packet->path_len,
-                                              PAYLOAD_TYPE_RESPONSE, reply_data, reply_len);
+                                              PAYLOAD_TYPE_RESPONSE, reply_data, reply_len, use_chacha);
         if (path) sendFlood(path, SERVER_RESPONSE_DELAY);
       } else {
         mesh::Packet *reply =
-            createDatagram(PAYLOAD_TYPE_RESPONSE, client->id, secret, reply_data, reply_len);
+            createDatagram(PAYLOAD_TYPE_RESPONSE, client->id, secret, reply_data, reply_len, use_chacha);
         if (reply) {
           if (client->out_path_len >= 0) { // we have an out_path, so send DIRECT
             sendDirect(reply, client->out_path, client->out_path_len, SERVER_RESPONSE_DELAY);
@@ -673,7 +719,8 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
         memcpy(temp, &timestamp, 4);        // mostly an extra blob to help make packet_hash unique
         temp[4] = (TXT_TYPE_CLI_DATA << 2); // NOTE: legacy was: TXT_TYPE_PLAIN
 
-        auto reply = createDatagram(PAYLOAD_TYPE_TXT_MSG, client->id, secret, temp, 5 + text_len);
+        bool use_chacha = client->supports_chacha;
+        auto reply = createDatagram(PAYLOAD_TYPE_TXT_MSG, client->id, secret, temp, 5 + text_len, use_chacha);
         if (reply) {
           if (client->out_path_len < 0) {
             sendFlood(reply, CLI_REPLY_DELAY_MILLIS);
