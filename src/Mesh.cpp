@@ -131,8 +131,9 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
     case PAYLOAD_TYPE_RESPONSE:
     case PAYLOAD_TYPE_TXT_MSG: {
       int i = 0;
-      uint8_t dest_hash = pkt->payload[i++];
-      uint8_t src_hash = pkt->payload[i++];
+      uint8_t* dest_hash = &pkt->payload[i];
+      uint8_t* src_hash = &pkt->payload[i + PATH_HASH_SIZE];
+      i += PATH_HASH_SIZE * 2;
 
       uint8_t* macAndData = &pkt->payload[i];   // MAC + encrypted data 
       if (i + CIPHER_MAC_SIZE >= pkt->payload_len) {
@@ -142,9 +143,9 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
         //       For flood mode, the path may not be the 'best' in terms of hops.
         // FUTURE: could send back multiple paths, using createPathReturn(), and let sender choose which to use(?)
 
-        if (self_id.isHashMatch(&dest_hash)) {
+        if (self_id.isHashMatch(dest_hash)) {
           // scan contacts DB, for all matching hashes of 'src_hash' (max 4 matches supported ATM)
-          int num = searchPeersByHash(&src_hash);
+          int num = searchPeersByHash(src_hash);
           // for each matching contact, try to decrypt data
           bool found = false;
           for (int j = 0; j < num; j++) {
@@ -165,7 +166,7 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
                 if (onPeerPathRecv(pkt, j, secret, path, path_len, extra_type, extra, extra_len)) {
                   if (pkt->isRouteFlood()) {
                     // send a reciprocal return path to sender, but send DIRECTLY!
-                    mesh::Packet* rpath = createPathReturn(&src_hash, secret, pkt->path, pkt->path_len, 0, NULL, 0);
+                    mesh::Packet* rpath = createPathReturn(src_hash, secret, pkt->path, pkt->path_len, 0, NULL, 0);
                     if (rpath) sendDirect(rpath, path, path_len, 500);
                   }
                 }
@@ -179,7 +180,7 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
           if (found) {
             pkt->markDoNotRetransmit();  // packet was for this node, so don't retransmit
           } else {
-            MESH_DEBUG_PRINTLN("%s recv matches no peers, src_hash=%02X", getLogDateTime(), (uint32_t)src_hash);
+            MESH_DEBUG_PRINTLN("%s recv matches no peers", getLogDateTime());
           }
         }
         action = routeRecvPacket(pkt);
@@ -188,14 +189,15 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
     }
     case PAYLOAD_TYPE_ANON_REQ: {
       int i = 0;
-      uint8_t dest_hash = pkt->payload[i++];
-      uint8_t* sender_pub_key = &pkt->payload[i]; i += PUB_KEY_SIZE;
+      uint8_t* dest_hash = &pkt->payload[i];
+      uint8_t* sender_pub_key = &pkt->payload[i + PATH_HASH_SIZE];
+      i += PATH_HASH_SIZE + PUB_KEY_SIZE;
 
       uint8_t* macAndData = &pkt->payload[i];   // MAC + encrypted data 
       if (i + 2 >= pkt->payload_len) {
         MESH_DEBUG_PRINTLN("%s Mesh::onRecvPacket(): incomplete data packet", getLogDateTime());
       } else if (!_tables->hasSeen(pkt)) {
-        if (self_id.isHashMatch(&dest_hash)) {
+        if (self_id.isHashMatch(dest_hash)) {
           Identity sender(sender_pub_key);
 
           uint8_t secret[PUB_KEY_SIZE];
@@ -216,7 +218,8 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
     case PAYLOAD_TYPE_GRP_DATA: 
     case PAYLOAD_TYPE_GRP_TXT: {
       int i = 0;
-      uint8_t channel_hash = pkt->payload[i++];
+      uint8_t* channel_hash = &pkt->payload[i];
+      i += PATH_HASH_SIZE;
 
       uint8_t* macAndData = &pkt->payload[i];   // MAC + encrypted data 
       if (i + 2 >= pkt->payload_len) {
@@ -224,7 +227,7 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
       } else if (!_tables->hasSeen(pkt)) {
         // scan channels DB, for all matching hashes of 'channel_hash' (max 4 matches supported ATM)
         GroupChannel channels[4];
-        int num = searchChannelsByHash(&channel_hash, channels, 4);
+        int num = searchChannelsByHash(channel_hash, channels, 4);
         // for each matching channel, try to decrypt data
         for (int j = 0; j < num; j++) {
           // decrypt, checking MAC is valid
@@ -322,15 +325,7 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
 void Mesh::removeSelfFromPath(Packet* pkt) {
   // remove our hash from 'path'
   pkt->path_len -= PATH_HASH_SIZE;
-#if 0
-  memcpy(pkt->path, &pkt->path[PATH_HASH_SIZE], pkt->path_len);
-#elif PATH_HASH_SIZE == 1
-  for (int k = 0; k < pkt->path_len; k++) {  // shuffle bytes by 1
-    pkt->path[k] = pkt->path[k + 1];
-  }
-#else
-  #error "need path remove impl"
-#endif
+  memmove(pkt->path, &pkt->path[PATH_HASH_SIZE], pkt->path_len);
 }
 
 DispatcherAction Mesh::routeRecvPacket(Packet* packet) {
