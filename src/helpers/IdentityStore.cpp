@@ -44,21 +44,28 @@ bool IdentityStore::load(const char *name, mesh::LocalIdentity& id, char display
 
 bool IdentityStore::save(const char *name, const mesh::LocalIdentity& id) {
   char filename[40];
+  char tmpfile[sizeof(filename) + sizeof(".tmp")];
   sprintf(filename, "%s/%s.id", _dir, name);
+  sprintf(tmpfile, "%s.tmp", filename);
 
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
-  _fs->remove(filename);
-  File file = _fs->open(filename, FILE_O_WRITE);
+  _fs->remove(tmpfile);
+  File file = _fs->open(tmpfile, FILE_O_WRITE);
 #elif defined(RP2040_PLATFORM)
-  File file = _fs->open(filename, "w");
+  File file = _fs->open(tmpfile, "w");
 #else
-  File file = _fs->open(filename, "w", true);
+  File file = _fs->open(tmpfile, "w", true);
 #endif
   if (file) {
-    bool success = id.writeTo(file);
+    bool ok = id.writeTo(file);
     file.close();
-    MESH_DEBUG_PRINTLN("IdentityStore::save() write - %s", success ? "OK" : "Err");
-    return true;
+    if (ok) {
+      _fs->rename(tmpfile, filename);
+    } else {
+      _fs->remove(tmpfile);
+    }
+    MESH_DEBUG_PRINTLN("IdentityStore::save() write - %s", ok ? "OK" : "Err");
+    return ok;
   }
   MESH_DEBUG_PRINTLN("IdentityStore::save() failed");
   return false;
@@ -66,28 +73,35 @@ bool IdentityStore::save(const char *name, const mesh::LocalIdentity& id) {
 
 bool IdentityStore::save(const char *name, const mesh::LocalIdentity& id, const char display_name[]) {
   char filename[40];
+  char tmpfile[sizeof(filename) + sizeof(".tmp")];
   sprintf(filename, "%s/%s.id", _dir, name);
+  sprintf(tmpfile, "%s.tmp", filename);
 
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
-  _fs->remove(filename);
-  File file = _fs->open(filename, FILE_O_WRITE);
+  _fs->remove(tmpfile);
+  File file = _fs->open(tmpfile, FILE_O_WRITE);
 #elif defined(RP2040_PLATFORM)
-  File file = _fs->open(filename, "w");
+  File file = _fs->open(tmpfile, "w");
 #else
-  File file = _fs->open(filename, "w", true);
+  File file = _fs->open(tmpfile, "w", true);
 #endif
   if (file) {
-    id.writeTo(file);
+    bool ok = id.writeTo(file);
 
     uint8_t tmp[32];
     memset(tmp, 0, sizeof(tmp));
     int n = strlen(display_name);
     if (n > sizeof(tmp)-1) n = sizeof(tmp)-1;
     memcpy(tmp, display_name, n);
-    file.write(tmp, sizeof(tmp));
+    ok = ok && (file.write(tmp, sizeof(tmp)) == sizeof(tmp));
 
     file.close();
-    return true;
+    if (ok) {
+      _fs->rename(tmpfile, filename);
+    } else {
+      _fs->remove(tmpfile);
+    }
+    return ok;
   }
   return false;
 }
