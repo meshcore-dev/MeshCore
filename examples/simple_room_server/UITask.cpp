@@ -2,6 +2,10 @@
 #include <Arduino.h>
 #include <helpers/CommonCLI.h>
 
+#ifdef WITH_MQTT_BRIDGE
+  #include <WiFi.h>
+#endif
+
 #define AUTO_OFF_MILLIS      20000  // 20 seconds
 #define BOOT_SCREEN_MILLIS   4000   // 4 seconds
 
@@ -77,6 +81,17 @@ void UITask::renderCurrScreen() {
     _display->setCursor(0, 30);
     sprintf(tmp, "BW: %03.2f CR: %d", _node_prefs->bw, _node_prefs->cr);
     _display->print(tmp);
+
+#ifdef WITH_MQTT_BRIDGE
+    // Display IP address for MQTT bridge devices
+    if (WiFi.status() == WL_CONNECTED) {
+      IPAddress ip = WiFi.localIP();
+      _display->setCursor(0, 40);
+      _display->setColor(DisplayDriver::LIGHT);
+      snprintf(tmp, sizeof(tmp), "IP: %d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
+      _display->print(tmp);
+    }
+#endif
   }
 }
 

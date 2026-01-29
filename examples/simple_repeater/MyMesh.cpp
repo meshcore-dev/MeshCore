@@ -1,5 +1,6 @@
 #include "MyMesh.h"
 #include <algorithm>
+#include <stdlib.h>  // for qsort()
 
 /* ------------------------------ Config -------------------------------- */
 
@@ -142,6 +143,39 @@ uint8_t MyMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* secr
   reply_data[12] = FIRMWARE_VER_LEVEL;  // New field
 
   return 13;  // reply length
+}
+
+// Comparison functions for qsort() - defined at file scope to avoid heap allocations
+static int cmp_neighbours_newest_to_oldest(const void* a, const void* b) {
+  const NeighbourInfo* na = *(const NeighbourInfo**)a;
+  const NeighbourInfo* nb = *(const NeighbourInfo**)b;
+  if (nb->heard_timestamp > na->heard_timestamp) return 1;
+  if (nb->heard_timestamp < na->heard_timestamp) return -1;
+  return 0;
+}
+
+static int cmp_neighbours_oldest_to_newest(const void* a, const void* b) {
+  const NeighbourInfo* na = *(const NeighbourInfo**)a;
+  const NeighbourInfo* nb = *(const NeighbourInfo**)b;
+  if (na->heard_timestamp > nb->heard_timestamp) return 1;
+  if (na->heard_timestamp < nb->heard_timestamp) return -1;
+  return 0;
+}
+
+static int cmp_neighbours_strongest_to_weakest(const void* a, const void* b) {
+  const NeighbourInfo* na = *(const NeighbourInfo**)a;
+  const NeighbourInfo* nb = *(const NeighbourInfo**)b;
+  if (nb->snr > na->snr) return 1;
+  if (nb->snr < na->snr) return -1;
+  return 0;
+}
+
+static int cmp_neighbours_weakest_to_strongest(const void* a, const void* b) {
+  const NeighbourInfo* na = *(const NeighbourInfo**)a;
+  const NeighbourInfo* nb = *(const NeighbourInfo**)b;
+  if (na->snr > nb->snr) return 1;
+  if (na->snr < nb->snr) return -1;
+  return 0;
 }
 
 uint8_t MyMesh::handleAnonRegionsReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data) {
@@ -290,42 +324,47 @@ int MyMesh::handleRequest(ClientInfo *sender, uint32_t sender_timestamp, uint8_t
         MESH_DEBUG_PRINTLN("REQ_TYPE_GET_NEIGHBOURS invalid pubkey_prefix_length=%d clamping to %d", pubkey_prefix_length, PUB_KEY_SIZE);
       }
 
-      // create copy of neighbours list, skipping empty entries so we can sort it separately from main list
+      // Early exit if no neighbours to avoid unnecessary processing
       int16_t neighbours_count = 0;
-      NeighbourInfo* sorted_neighbours[MAX_NEIGHBOURS];
       for (int i = 0; i < MAX_NEIGHBOURS; i++) {
-        auto neighbour = &neighbours[i];
-        if (neighbour->heard_timestamp > 0) {
-          sorted_neighbours[neighbours_count] = neighbour;
+        if (neighbours[i].heard_timestamp > 0) {
           neighbours_count++;
         }
       }
+      
+      if (neighbours_count == 0) {
+        // No neighbours - return minimal response
+        memcpy(&reply_data[reply_offset], &neighbours_count, 2); reply_offset += 2;
+        uint16_t zero = 0;
+        memcpy(&reply_data[reply_offset], &zero, 2); reply_offset += 2; // results_count = 0
+        return reply_offset;
+      }
 
-      // sort neighbours based on order
+      // create copy of neighbours list, skipping empty entries so we can sort it separately from main list
+      NeighbourInfo* sorted_neighbours[MAX_NEIGHBOURS];
+      int16_t sorted_idx = 0;
+      for (int i = 0; i < MAX_NEIGHBOURS; i++) {
+        auto neighbour = &neighbours[i];
+        if (neighbour->heard_timestamp > 0) {
+          sorted_neighbours[sorted_idx++] = neighbour;
+        }
+      }
+
+      // Sort neighbours based on order using qsort() - standard C library function
+      // qsort() doesn't allocate heap memory (uses stack-based recursion) and is O(n log n)
+      // This matches the pattern used elsewhere in the codebase (e.g., BaseChatMesh)
       if (order_by == 0) {
         // sort by newest to oldest
-        MESH_DEBUG_PRINTLN("REQ_TYPE_GET_NEIGHBOURS sorting newest to oldest");
-        std::sort(sorted_neighbours, sorted_neighbours + neighbours_count, [](const NeighbourInfo* a, const NeighbourInfo* b) {
-          return a->heard_timestamp > b->heard_timestamp; // desc
-        });
+        qsort(sorted_neighbours, neighbours_count, sizeof(NeighbourInfo*), cmp_neighbours_newest_to_oldest);
       } else if (order_by == 1) {
         // sort by oldest to newest
-        MESH_DEBUG_PRINTLN("REQ_TYPE_GET_NEIGHBOURS sorting oldest to newest");
-        std::sort(sorted_neighbours, sorted_neighbours + neighbours_count, [](const NeighbourInfo* a, const NeighbourInfo* b) {
-          return a->heard_timestamp < b->heard_timestamp; // asc
-        });
+        qsort(sorted_neighbours, neighbours_count, sizeof(NeighbourInfo*), cmp_neighbours_oldest_to_newest);
       } else if (order_by == 2) {
         // sort by strongest to weakest
-        MESH_DEBUG_PRINTLN("REQ_TYPE_GET_NEIGHBOURS sorting strongest to weakest");
-        std::sort(sorted_neighbours, sorted_neighbours + neighbours_count, [](const NeighbourInfo* a, const NeighbourInfo* b) {
-          return a->snr > b->snr; // desc
-        });
+        qsort(sorted_neighbours, neighbours_count, sizeof(NeighbourInfo*), cmp_neighbours_strongest_to_weakest);
       } else if (order_by == 3) {
         // sort by weakest to strongest
-        MESH_DEBUG_PRINTLN("REQ_TYPE_GET_NEIGHBOURS sorting weakest to strongest");
-        std::sort(sorted_neighbours, sorted_neighbours + neighbours_count, [](const NeighbourInfo* a, const NeighbourInfo* b) {
-          return a->snr < b->snr; // asc
-        });
+        qsort(sorted_neighbours, neighbours_count, sizeof(NeighbourInfo*), cmp_neighbours_weakest_to_strongest);
       }
 
       // build results buffer
@@ -409,12 +448,19 @@ void MyMesh::logRxRaw(float snr, float rssi, const uint8_t raw[], int len) {
   mesh::Utils::printHex(Serial, raw, len);
   Serial.println();
 #endif
+
+#ifdef WITH_BRIDGE
+  if (_prefs.bridge_enabled) {
+    // Store raw radio data for MQTT messages
+    bridge.storeRawRadioData(raw, len, snr, rssi);
+  }
+#endif
 }
 
 void MyMesh::logRx(mesh::Packet *pkt, int len, float score) {
 #ifdef WITH_BRIDGE
   if (_prefs.bridge_pkt_src == 1) {
-    bridge.sendPacket(pkt);
+    bridge.onPacketReceived(pkt);
   }
 #endif
 
@@ -712,9 +758,7 @@ bool MyMesh::onPeerPathRecv(mesh::Packet *packet, int sender_idx, const uint8_t 
 
 void MyMesh::onControlDataRecv(mesh::Packet* packet) {
   uint8_t type = packet->payload[0] & 0xF0;    // just test upper 4 bits
-  if (type == CTL_TYPE_NODE_DISCOVER_REQ && packet->payload_len >= 6
-      && !_prefs.disable_fwd && discover_limiter.allow(rtc_clock.getCurrentTime())
-  ) {
+  if (type == CTL_TYPE_NODE_DISCOVER_REQ && packet->payload_len >= 6 && discover_limiter.allow(rtc_clock.getCurrentTime())) {
     int i = 1;
     uint8_t  filter = packet->payload[i++];
     uint32_t tag;
@@ -749,9 +793,10 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
       anon_limiter(4, 180)   // max 4 every 3 minutes
 #if defined(WITH_RS232_BRIDGE)
       , bridge(&_prefs, WITH_RS232_BRIDGE, _mgr, &rtc)
-#endif
-#if defined(WITH_ESPNOW_BRIDGE)
+#elif defined(WITH_ESPNOW_BRIDGE)
       , bridge(&_prefs, _mgr, &rtc)
+#elif defined(WITH_MQTT_BRIDGE)
+      , bridge(&_prefs, _mgr, &rtc, &self_id)
 #endif
 {
   last_millis = 0;
@@ -789,7 +834,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   // bridge defaults
   _prefs.bridge_enabled = 1;    // enabled
   _prefs.bridge_delay   = 500;  // milliseconds
-  _prefs.bridge_pkt_src = 0;    // logTx
+  _prefs.bridge_pkt_src = 1;    // logRx (RX packets)
   _prefs.bridge_baud = 115200;  // baud rate
   _prefs.bridge_channel = 1;    // channel 1
 
@@ -800,7 +845,26 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.gps_interval = 0;
   _prefs.advert_loc_policy = ADVERT_LOC_PREFS;
 
-  _prefs.adc_multiplier = 0.0f; // 0.0f means use default board multiplier
+  // MQTT defaults
+  StrHelper::strncpy(_prefs.mqtt_origin, "MeshCore-Repeater", sizeof(_prefs.mqtt_origin));
+  StrHelper::strncpy(_prefs.mqtt_iata, "SEA", sizeof(_prefs.mqtt_iata));
+  _prefs.mqtt_status_enabled = 1;    // enabled
+  _prefs.mqtt_packets_enabled = 1;   // enabled
+  _prefs.mqtt_raw_enabled = 0;       // disabled
+  _prefs.mqtt_tx_enabled = 0;        // disabled (RX only for now)
+  _prefs.mqtt_status_interval = 300000; // 5 minutes
+  
+  // WiFi defaults
+  StrHelper::strncpy(_prefs.wifi_ssid, "ssid_here", sizeof(_prefs.wifi_ssid));
+  StrHelper::strncpy(_prefs.wifi_password, "password_here", sizeof(_prefs.wifi_password));
+  
+        // Timezone defaults (Pacific Time with DST support)
+        StrHelper::strncpy(_prefs.timezone_string, "America/Los_Angeles", sizeof(_prefs.timezone_string));
+        _prefs.timezone_offset = -8; // fallback
+        
+        // Let's Mesh Analyzer defaults (both enabled by default)
+        _prefs.mqtt_analyzer_us_enabled = 1; // enabled
+        _prefs.mqtt_analyzer_eu_enabled = 1; // enabled
 }
 
 void MyMesh::begin(FILESYSTEM *fs) {
@@ -808,12 +872,47 @@ void MyMesh::begin(FILESYSTEM *fs) {
   _fs = fs;
   // load persisted prefs
   _cli.loadPrefs(_fs);
+
+  // Ensure analyzer servers are enabled by default (in case no prefs were loaded)
+  if (_prefs.mqtt_analyzer_us_enabled == 0 && _prefs.mqtt_analyzer_eu_enabled == 0) {
+    _prefs.mqtt_analyzer_us_enabled = 1; // enabled
+    _prefs.mqtt_analyzer_eu_enabled = 1; // enabled
+    MESH_DEBUG_PRINTLN("Setting analyzer servers to enabled by default");
+  }
+  
+  // Set MQTT origin to actual device name (not build-time ADVERT_NAME)
+  StrHelper::strncpy(_prefs.mqtt_origin, _prefs.node_name, sizeof(_prefs.mqtt_origin));
+  MESH_DEBUG_PRINTLN("MQTT origin set to device name: %s", _prefs.mqtt_origin);
+
   acl.load(_fs, self_id);
   // TODO: key_store.begin();
   region_map.load(_fs);
 
 #if defined(WITH_BRIDGE)
   if (_prefs.bridge_enabled) {
+    // Set device public key for MQTT topics
+    char device_id[65];
+    mesh::LocalIdentity self_id = getSelfId();
+    mesh::Utils::toHex(device_id, self_id.pub_key, PUB_KEY_SIZE);
+    MESH_DEBUG_PRINTLN("Setting device ID: %s", device_id);
+    bridge.setDeviceID(device_id);
+    
+    // Set firmware version
+    bridge.setFirmwareVersion(getFirmwareVer());
+    
+    // Set board model
+    bridge.setBoardModel(_cli.getBoard()->getManufacturerName());
+    
+    // Set build date
+    bridge.setBuildDate(getBuildDate());
+    
+#ifdef WITH_MQTT_BRIDGE
+    // Set stats sources for automatic stats collection (optional - can be done in custom initialization)
+    // This enables stats to be included in status messages automatically
+    // this (Mesh*) inherits from Dispatcher, so it can be passed as Dispatcher*
+    bridge.setStatsSources(this, _radio, _cli.getBoard(), _ms);
+#endif
+    
     bridge.begin();
   }
 #endif
@@ -823,8 +922,6 @@ void MyMesh::begin(FILESYSTEM *fs) {
 
   updateAdvertTimer();
   updateFloodAdvertTimer();
-
-  board.setAdcMultiplier(_prefs.adc_multiplier);
 
 #if ENV_INCLUDE_GPS == 1
   applyGpsPrefs();
@@ -869,7 +966,7 @@ void MyMesh::sendSelfAdvertisement(int delay_millis, bool flood) {
 
 void MyMesh::updateAdvertTimer() {
   if (_prefs.advert_interval > 0) { // schedule local advert timer
-    next_local_advert = futureMillis(((uint32_t)_prefs.advert_interval) * 2 * 60 * 1000);
+    next_local_advert = futureMillis((int)((uint32_t)_prefs.advert_interval * 2 * 60 * 1000));
   } else {
     next_local_advert = 0; // stop the timer
   }
@@ -1174,11 +1271,13 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
 }
 
 void MyMesh::loop() {
-#ifdef WITH_BRIDGE
-  bridge.loop();
-#endif
-
+  // Check radio FIRST to ensure we don't miss incoming packets
+  // MQTT processing runs in a separate FreeRTOS task on Core 0, so we don't call bridge.loop() here
   mesh::Mesh::loop();
+
+#ifdef WITH_BRIDGE
+  // bridge.loop() is now handled by FreeRTOS task on Core 0 - no need to call it here
+#endif
 
   if (next_flood_advert && millisHasNowPassed(next_flood_advert)) {
     mesh::Packet *pkt = createSelfAdvert();
