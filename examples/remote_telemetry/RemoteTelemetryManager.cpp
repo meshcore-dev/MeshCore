@@ -72,6 +72,7 @@ RemoteTelemetryManager::RemoteTelemetryManager(RemoteTelemetryMesh& mesh, PubSub
   _mesh.setManager(this);
   _instance = this;
   _mqtt.setCallback(RemoteTelemetryManager::mqttCallback);
+  refreshControlTopic();
   applyIntervals();
 }
 
@@ -79,6 +80,7 @@ void RemoteTelemetryManager::reloadSettings(telemetry::Settings& settings) {
   _settings = &settings;
   applyIntervals();
   configureRepeaters();
+  refreshControlTopic();
 }
 
 void RemoteTelemetryManager::attachConfigStore(telemetry::ConfigStore& store) {
@@ -86,6 +88,7 @@ void RemoteTelemetryManager::attachConfigStore(telemetry::ConfigStore& store) {
   _settings = &_configStore->data();
   applyIntervals();
   configureRepeaters();
+  refreshControlTopic();
 }
 
 void RemoteTelemetryManager::applyIntervals() {
@@ -375,6 +378,8 @@ void RemoteTelemetryManager::ensureMqtt() {
     return;
   }
 
+  refreshControlTopic();
+
   if (!_mqtt.connected()) {
     unsigned long now = millis();
     if (now < _nextMqttRetry) {
@@ -409,12 +414,12 @@ void RemoteTelemetryManager::ensureMqtt() {
     const char* password = _settings->mqttPassword.length() > 0 ? _settings->mqttPassword.c_str() : nullptr;
     if (_mqtt.connect(clientId, username, password)) {
       RT_INFO_PRINTLN("MQTT connected as %s", clientId);
-      if (_settings->mqttControlTopic.length() > 0) {
-        if (_mqtt.subscribe(_settings->mqttControlTopic.c_str())) {
+      if (_controlTopicRuntime.length() > 0) {
+        if (_mqtt.subscribe(_controlTopicRuntime.c_str())) {
           _controlSubscribed = true;
-          RT_INFO_PRINTLN("Subscribed to MQTT control topic %s", _settings->mqttControlTopic.c_str());
+          RT_INFO_PRINTLN("Subscribed to MQTT control topic %s", _controlTopicRuntime.c_str());
         } else {
-          RT_INFO_PRINTLN("Failed to subscribe to MQTT control topic %s", _settings->mqttControlTopic.c_str());
+          RT_INFO_PRINTLN("Failed to subscribe to MQTT control topic %s", _controlTopicRuntime.c_str());
         }
       }
       publishStatusEvent("boot", true);
@@ -425,10 +430,10 @@ void RemoteTelemetryManager::ensureMqtt() {
     return;
   }
 
-  if (!_controlSubscribed && _settings->mqttControlTopic.length() > 0) {
-    if (_mqtt.subscribe(_settings->mqttControlTopic.c_str())) {
+  if (!_controlSubscribed && _controlTopicRuntime.length() > 0) {
+    if (_mqtt.subscribe(_controlTopicRuntime.c_str())) {
       _controlSubscribed = true;
-      RT_INFO_PRINTLN("Subscribed to MQTT control topic %s", _settings->mqttControlTopic.c_str());
+      RT_INFO_PRINTLN("Subscribed to MQTT control topic %s", _controlTopicRuntime.c_str());
     }
   }
 
@@ -870,7 +875,7 @@ void RemoteTelemetryManager::onMqttMessage(const char* topic, const uint8_t* pay
     return;
   }
 
-  if (_settings && _settings->mqttControlTopic.length() > 0 && strcmp(topic, _settings->mqttControlTopic.c_str()) == 0) {
+  if (_settings && _controlTopicRuntime.length() > 0 && strcmp(topic, _controlTopicRuntime.c_str()) == 0) {
     handleControlMessage(payload, length);
   } else {
 #if REMOTE_TELEMETRY_DEBUG
@@ -1340,6 +1345,29 @@ bool RemoteTelemetryManager::persistSettings(const char* context) {
   return true;
 }
 
+void RemoteTelemetryManager::refreshControlTopic() {
+  String newTopic;
+  if (_settings) {
+    String base = _settings->mqttControlTopic;
+    base.trim();
+    if (base.length() > 0) {
+      char suffix[5];
+      mesh::Utils::toHex(suffix, _mesh.self_id.pub_key, 2);
+      suffix[4] = '\0';
+      if (base.endsWith("/")) {
+        newTopic = base + suffix;
+      } else {
+        newTopic = base + "/" + suffix;
+      }
+    }
+  }
+
+  if (newTopic != _controlTopicRuntime) {
+    _controlTopicRuntime = newTopic;
+    _controlSubscribed = false;
+  }
+}
+
 bool RemoteTelemetryManager::publishRepeatersSnapshot(const char* event, const char* detail) {
   if (!_mqtt.connected() || !_settings || _settings->mqttStatusTopic.length() == 0) {
     return false;
@@ -1387,7 +1415,9 @@ bool RemoteTelemetryManager::publishStatusPayload(const char* event, const char*
     return false;
   }
 
-  StaticJsonDocument<256> doc;
+  refreshControlTopic();
+
+  StaticJsonDocument<512> doc;
   doc["event"] = event;
   doc["uptimeMs"] = millis();
   doc["pollIntervalMs"] = _pollIntervalMs;
@@ -1402,7 +1432,12 @@ bool RemoteTelemetryManager::publishStatusPayload(const char* event, const char*
   JsonObject node = doc.createNestedObject("node");
   node["pubKey"] = pubKeyHex;
 
-  char buffer[256];
+  JsonObject topics = doc.createNestedObject("topics");
+  topics["telemetry"] = _settings->mqttTelemetryTopic.c_str();
+  topics["status"] = _settings->mqttStatusTopic.c_str();
+  topics["control"] = _controlTopicRuntime.length() > 0 ? _controlTopicRuntime.c_str() : _settings->mqttControlTopic.c_str();
+
+  char buffer[512];
   size_t written = serializeJson(doc, buffer, sizeof(buffer));
   if (written == 0 || written >= sizeof(buffer)) {
     RT_INFO_PRINTLN("Failed to serialise status payload for event %s", event ? event : "");

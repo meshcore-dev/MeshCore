@@ -5,7 +5,7 @@ This example targets ESP32-based boards with WiFi (for example the Seeed XIAO ES
 ## Configuration
 
 - On first boot the node starts the WiFiManager portal that captures WiFi, MQTT credentials, telemetry topics and repeater details and saves them to `/telemetry.json` on SPIFFS.
-- The legacy `credentials.cpp` / `credentials.h` pair is no longer referenced by the firmware; you can delete or ignore the stub without affecting runtime behaviour.
+- Populate `examples/remote_telemetry/credentials.h` with deployment defaults for the MQTT host, username and password; leaving those fields blank in the portal applies these values automatically.
 - To change settings later, trigger the configuration portal (e.g. erase `/telemetry.json`) or push updates over MQTT as described below.
 
 ## Building
@@ -28,7 +28,7 @@ Runtime logging uses `Serial` at 115200 baud. Set the build flag `-D REMOTE_TELE
 
 ## MQTT Control & Payloads
 
-The node listens for JSON commands on the configured control topic and publishes telemetry and status messages to their respective topics.
+The node listens for JSON commands on the configured control topic and publishes telemetry and status messages to their respective topics. At runtime the control topic gains a suffix with the first two bytes of the node's public key (e.g. `telemetry/control/364C`) so multiple nodes can share a base topic without collisions.
 
 ### Commands to the Node
 
@@ -101,6 +101,11 @@ Status messages land on `settings.mqttStatusTopic`, for example:
   "pollIntervalMs": 1800000,
   "timeoutRetryMs": 30000,
   "loginRetryMs": 120000,
+  "topics": {
+    "telemetry": "meshcore/field/telemetry",
+    "status": "meshcore/field/status",
+    "control": "meshcore/field/control/364C"
+  },
   "node": {
     "pubKey": "8f3e2e611bf8469deed5ece8a59249281bca7e891febdd58861a406fbf73a8bc"
   }

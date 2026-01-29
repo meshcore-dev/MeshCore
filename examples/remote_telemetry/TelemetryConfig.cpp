@@ -45,7 +45,7 @@ void Settings::applyDefaults() {
   mqttPort = 1883;
   mqttUsername = "";
   mqttPassword = "";
-  mqttTelemetryTopic = "meshcore/telemetry";
+  mqttTelemetryTopic = "meshcore/it-telemetry/rx";
   mqttStatusTopic = "meshcore/status";
   mqttControlTopic = "meshcore/control";
   pollIntervalMs = 30UL * 60UL * 1000UL;

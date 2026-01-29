@@ -85,6 +85,7 @@ private:
   unsigned long _lastTimeWaitLog;
   bool _rebootArmed;
   int _rebootDay;
+  String _controlTopicRuntime;
 
   enum class PendingRequestType : uint8_t {
     None,
@@ -122,6 +123,7 @@ private:
   void markRequestStarted(PendingRequestType type, size_t index);
   void markRequestCompleted(PendingRequestType type, size_t index);
   void deferNextRequest();
+  void refreshControlTopic();
 
   static RemoteTelemetryManager* _instance;
 };

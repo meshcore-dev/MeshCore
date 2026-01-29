@@ -7,6 +7,8 @@
 #include <cstdlib>
 #include <vector>
 
+#include "credentials.h"
+
 namespace {
 void copyString(char* dest, size_t destLen, const String& value) {
   if (!dest || destLen == 0) {
@@ -87,10 +89,32 @@ bool ConfigPortal::captureParameters(const WiFiManagerParameter& hostParam,
                                      const WiFiManagerParameter& repeatersParam) {
   telemetry::Settings& settings = _store.data();
 
-  settings.mqttHost = hostParam.getValue();
-  settings.mqttHost.trim();
-  settings.mqttUsername = userParam.getValue();
-  settings.mqttPassword = passParam.getValue();
+  String hostValue = hostParam.getValue();
+  hostValue.trim();
+  bool userProvidedHost = hostValue.length() > 0;
+  bool defaultHostApplied = false;
+
+  if (!userProvidedHost && remote_telemetry::defaults::MQTT_HOST[0] != '\0') {
+    hostValue = remote_telemetry::defaults::MQTT_HOST;
+    defaultHostApplied = true;
+  }
+
+  String usernameValue = userParam.getValue();
+  usernameValue.trim();
+  String passwordValue = passParam.getValue();
+
+  if (defaultHostApplied) {
+    if (usernameValue.length() == 0 && remote_telemetry::defaults::MQTT_USERNAME[0] != '\0') {
+      usernameValue = remote_telemetry::defaults::MQTT_USERNAME;
+    }
+    if (passwordValue.length() == 0 && remote_telemetry::defaults::MQTT_PASSWORD[0] != '\0') {
+      passwordValue = remote_telemetry::defaults::MQTT_PASSWORD;
+    }
+  }
+
+  settings.mqttHost = hostValue;
+  settings.mqttUsername = usernameValue;
+  settings.mqttPassword = passwordValue;
   settings.mqttTelemetryTopic = telemetryParam.getValue();
   settings.mqttTelemetryTopic.trim();
   settings.mqttStatusTopic = statusParam.getValue();
@@ -129,10 +153,10 @@ bool ConfigPortal::ensureConfigured(bool forcePortal) {
     populateBuffers();
 
     WiFiManagerParameter sectionMqtt("<hr><h3>MQTT Settings</h3>");
-    WiFiManagerParameter hostParam("mqtt_host", "MQTT host", _mqttHost, sizeof(_mqttHost));
+    WiFiManagerParameter hostParam("mqtt_host", "MQTT host (leave blank for default)", _mqttHost, sizeof(_mqttHost));
     WiFiManagerParameter portParam("mqtt_port", "MQTT port", _mqttPort, sizeof(_mqttPort));
-    WiFiManagerParameter userParam("mqtt_user", "MQTT username", _mqttUsername, sizeof(_mqttUsername));
-    WiFiManagerParameter passParam("mqtt_pass", "MQTT password", _mqttPassword, sizeof(_mqttPassword));
+    WiFiManagerParameter userParam("mqtt_user", "MQTT username (blank keeps default)", _mqttUsername, sizeof(_mqttUsername));
+    WiFiManagerParameter passParam("mqtt_pass", "MQTT password (blank keeps default)", _mqttPassword, sizeof(_mqttPassword));
     WiFiManagerParameter telemetryParam("mqtt_topic", "Telemetry topic", _mqttTelemetryTopic, sizeof(_mqttTelemetryTopic));
     WiFiManagerParameter statusParam("mqtt_status", "Status topic", _mqttStatusTopic, sizeof(_mqttStatusTopic));
     WiFiManagerParameter controlParam("mqtt_control", "Control topic", _mqttControlTopic, sizeof(_mqttControlTopic));
