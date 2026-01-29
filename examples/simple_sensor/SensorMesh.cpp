@@ -802,7 +802,7 @@ void SensorMesh::sendSelfAdvertisement(int delay_millis, bool flood) {
 
 void SensorMesh::updateAdvertTimer() {
   if (_prefs.advert_interval > 0) {  // schedule local advert timer
-    next_local_advert = futureMillis((int)((uint32_t)_prefs.advert_interval * 2 * 60 * 1000));
+    next_local_advert = futureMillis( ((uint32_t)_prefs.advert_interval) * 2 * 60 * 1000);
   } else {
     next_local_advert = 0;  // stop the timer
   }

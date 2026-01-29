@@ -3,7 +3,6 @@
 #include <Arduino.h>
 #include <Mesh.h>
 #include <RTClib.h>
-#include <CayenneLPP.h>
 #include <target.h>
 
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
@@ -24,11 +23,6 @@
 #define WITH_BRIDGE
 #endif
 
-#ifdef WITH_MQTT_BRIDGE
-#include "helpers/bridges/MQTTBridge.h"
-#define WITH_BRIDGE
-#endif
-
 #include <helpers/AdvertDataHelpers.h>
 #include <helpers/ArduinoHelpers.h>
 #include <helpers/ClientACL.h>
@@ -41,6 +35,9 @@
 #include <helpers/RegionMap.h>
 #include "RateLimiter.h"
 
+#ifdef WITH_BRIDGE
+extern AbstractBridge* bridge;
+#endif
 
 struct RepeaterStats {
   uint16_t batt_milli_volts;
@@ -116,8 +113,6 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   RS232Bridge bridge;
 #elif defined(WITH_ESPNOW_BRIDGE)
   ESPNowBridge bridge;
-#elif defined(WITH_MQTT_BRIDGE)
-  MQTTBridge bridge;
 #endif
 
   void putNeighbour(const mesh::Identity& id, uint32_t timestamp, float snr);
@@ -222,17 +217,6 @@ public:
     if (enable == bridge.isRunning()) return;
     if (enable)
     {
-      // Set device metadata before starting bridge (same as in begin())
-      char device_id[65];
-      mesh::LocalIdentity self_id = getSelfId();
-      mesh::Utils::toHex(device_id, self_id.pub_key, PUB_KEY_SIZE);
-      bridge.setDeviceID(device_id);
-      bridge.setFirmwareVersion(getFirmwareVer());
-      bridge.setBoardModel(_cli.getBoard()->getManufacturerName());
-      bridge.setBuildDate(getBuildDate());
-#ifdef WITH_MQTT_BRIDGE
-      bridge.setStatsSources(this, _radio, _cli.getBoard(), _ms);
-#endif
       bridge.begin();
     }
     else 
@@ -244,22 +228,7 @@ public:
   void restartBridge() override {
     if (!bridge.isRunning()) return;
     bridge.end();
-    // Set device metadata before restarting bridge (same as in begin())
-    char device_id[65];
-    mesh::LocalIdentity self_id = getSelfId();
-    mesh::Utils::toHex(device_id, self_id.pub_key, PUB_KEY_SIZE);
-    bridge.setDeviceID(device_id);
-    bridge.setFirmwareVersion(getFirmwareVer());
-    bridge.setBoardModel(_cli.getBoard()->getManufacturerName());
-    bridge.setBuildDate(getBuildDate());
-#ifdef WITH_MQTT_BRIDGE
-    bridge.setStatsSources(this, _radio, _cli.getBoard(), _ms);
-#endif
     bridge.begin();
-  }
-
-  int getQueueSize() override {
-    return bridge.getQueueSize();
   }
 #endif
 
