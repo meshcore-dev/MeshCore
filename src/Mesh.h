@@ -33,6 +33,13 @@ class Mesh : public Dispatcher {
   //void routeRecvAcks(Packet* packet, uint32_t delay_millis);
   DispatcherAction forwardMultipartDirect(Packet* pkt);
 
+  /**
+   * \brief  Collect timestamp from peer advertisement for time synchronization
+   * \param  timestamp  The timestamp from the advertisement packet
+   * \param  packet  The packet containing hop count and used for airtime calculation
+   */
+  void collectPeerTimestamp(uint32_t timestamp, const Packet* packet);
+
 protected:
   DispatcherAction onRecvPacket(Packet* pkt) override;
 
