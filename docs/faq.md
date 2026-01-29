@@ -279,8 +279,11 @@ Reboot the repeater after `set prv.key <hex>` command for the new private key to
 
 ### 3.6. Q: The first byte of my repeater's public key collides with an exisitng repeater on the mesh.  How do I get a new private key with a matching public key that has its first byte of my choosing?
 
-**A:** You can generate a new private key and specific the first byte of its public key here:  https://gessaman.com/mc-keygen/
+**A:** You can generate a new private key and specify the first byte of its public key here: <https://gessaman.com/mc-keygen/>.
 
+Having multiple repeaters with the same first byte ID does not negatively affect the mesh or its functionality. Flood and pathed packets will still reach their destinations. First byte ID collision makes traceroute and path analysis harder because these tools don't know exactly which of the two (or more) colliding repeaters is the one in the path.
+
+It is best practice when setting up a new repeater to choose a public key that has a prefix that is not in use in local area.
 
 ### 3.7. Q: My repeater maybe suffering from deafness due to high power interference near my mesh's frequency, it is not hearing other in-range MeshCore radios.  what can I do?
 
