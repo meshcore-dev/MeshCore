@@ -9,6 +9,10 @@
 #include <helpers/ArduinoHelpers.h>
 #include <helpers/sensors/EnvironmentSensorManager.h>
 
+#ifdef ENV_INCLUDE_GPS
+#include <helpers/sensors/MicroNMEALocationProvider.h>
+#endif
+
 extern SenseCapSolarBoard board;
 extern WRAPPER_CLASS radio_driver;
 extern AutoDiscoverRTCClock rtc_clock;
