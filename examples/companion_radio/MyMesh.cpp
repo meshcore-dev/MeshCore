@@ -53,9 +53,11 @@
 #define CMD_SET_FLOOD_SCOPE           54   // v8+
 #define CMD_SEND_CONTROL_DATA         55   // v8+
 #define CMD_GET_STATS                 56   // v8+, second byte is stats type
-#define CMD_SEND_ANON_REQ             57
-#define CMD_SET_AUTOADD_CONFIG        58
-#define CMD_GET_AUTOADD_CONFIG        59
+#define CMD_GET_RADIO_SETTINGS        57
+#define CMD_SET_MAX_HOPS              58  // Adaptive forwarding control
+#define CMD_SEND_ANON_REQ             59  // Send anonymous request
+#define CMD_SET_AUTOADD_CONFIG        60  // Set auto-add contacts config
+#define CMD_GET_AUTOADD_CONFIG        61  // Get auto-add contacts config
 
 // Stats sub-types for CMD_GET_STATS
 #define STATS_TYPE_CORE               0
@@ -449,6 +451,47 @@ bool MyMesh::filterRecvFloodPacket(mesh::Packet* packet) {
   // REVISIT: try to determine which Region (from transport_codes[1]) that Sender is indicating for replies/responses
   //    if unknown, fallback to finding Region from transport_codes[0], the 'scope' used by Sender
   return false;
+}
+
+bool MyMesh::allowPacketForward(const mesh::Packet* packet) {
+  // Adaptive forwarding control for companion radios
+  // Respects flood_max set by app via CMD_SET_MAX_HOPS (default 0 = disabled)
+  
+  if (_prefs.flood_max == 0) {
+    MESH_DEBUG_PRINTLN("FORWARD: Blocked - forwarding disabled (flood_max=0)");
+    return false;  // Forwarding disabled
+  }
+  
+  // Honor hop limit from app
+  if (packet->isRouteFlood() && packet->path_len >= _prefs.flood_max) {
+    MESH_DEBUG_PRINTLN("FORWARD: Blocked - hop limit reached (path_len=%d >= flood_max=%d)", 
+                       (uint32_t)packet->path_len, (uint32_t)_prefs.flood_max);
+    return false;
+  }
+  
+  // Block public channel forwarding to prevent spam
+  uint8_t payload_type = packet->getPayloadType();
+  if (payload_type == PAYLOAD_TYPE_GRP_TXT || payload_type == PAYLOAD_TYPE_GRP_DATA) {
+    // For group messages, check if this is the public channel
+    if (packet->payload_len > 0) {
+      uint8_t channel_hash = packet->payload[0];
+      
+      // Compare against stored public channel hash
+      if (channel_hash == _public_channel_hash) {
+        // This is a public channel message - block forwarding
+        MESH_DEBUG_PRINTLN("FORWARD: Blocked - public channel message (type=%d)", (uint32_t)payload_type);
+        return false;
+      }
+    }
+  }
+  
+  // Allow forwarding for:
+  // - Direct messages (PAYLOAD_TYPE_TXT_MSG)
+  // - Private channel messages (GRP_TXT/GRP_DATA on non-public channels)
+  // - Telemetry and other packet types (ADVERT, ACK, etc.)
+  MESH_DEBUG_PRINTLN("FORWARD: ALLOWED - type=%d, path_len=%d, flood_max=%d", 
+                     (uint32_t)payload_type, (uint32_t)packet->path_len, (uint32_t)_prefs.flood_max);
+  return true;
 }
 
 void MyMesh::sendFloodScoped(const ContactInfo& recipient, mesh::Packet* pkt, uint32_t delay_millis) {
@@ -862,7 +905,15 @@ void MyMesh::begin(bool has_display) {
   resetContacts();
   _store->loadContacts(this);
   bootstrapRTCfromContacts();
-  addChannel("Public", PUBLIC_GROUP_PSK); // pre-configure Andy's public channel
+  
+  // Add public channel and store its hash for forwarding filter
+  auto pub_channel = addChannel("Public", PUBLIC_GROUP_PSK);
+  if (pub_channel) {
+    _public_channel_hash = pub_channel->channel.hash[0];
+  } else {
+    _public_channel_hash = 0xFF;  // Invalid hash if channel creation failed
+  }
+  
   _store->loadChannels(this);
 
   radio_set_params(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
@@ -870,9 +921,6 @@ void MyMesh::begin(bool has_display) {
 }
 
 const char *MyMesh::getNodeName() {
-  Serial.print(\"[DEBUG] getNodeName() returning: '\");
-  Serial.print(_prefs.node_name);
-  Serial.println(\"'\");
   return _prefs.node_name;
 }
 NodePrefs *MyMesh::getNodePrefs() {
@@ -888,11 +936,6 @@ void MyMesh::startInterface(BaseSerialInterface &serial) {
 }
 
 void MyMesh::handleCmdFrame(size_t len) {
-  Serial.print(\"[DEBUG] handleCmdFrame called, command: \");
-  Serial.print(cmd_frame[0]);
-  Serial.print(\", length: \");
-  Serial.println(len);
-  
   if (cmd_frame[0] == CMD_DEVICE_QEURY && len >= 2) { // sent when app establishes connection
     app_target_ver = cmd_frame[1];                    // which version of protocol does app understand
 
@@ -1303,6 +1346,23 @@ void MyMesh::handleCmdFrame(size_t len) {
     }
     savePrefs();
     writeOKFrame();
+  } else if (cmd_frame[0] == CMD_SET_MAX_HOPS) {
+    // Adaptive forwarding: set maximum hop count (flood_max)
+    if (len >= 2) {
+      uint8_t max_hops = cmd_frame[1];
+      if (max_hops <= 127) {  // Valid range 0-127
+        _prefs.flood_max = max_hops;
+        savePrefs();
+        MESH_DEBUG_PRINTLN("OK: CMD_SET_MAX_HOPS: %d", (uint32_t)max_hops);
+        writeOKFrame();
+      } else {
+        MESH_DEBUG_PRINTLN("Error: CMD_SET_MAX_HOPS: invalid value %d", (uint32_t)max_hops);
+        writeErrFrame(ERR_CODE_ILLEGAL_ARG);
+      }
+    } else {
+      MESH_DEBUG_PRINTLN("Error: CMD_SET_MAX_HOPS: insufficient data");
+      writeErrFrame(ERR_CODE_ILLEGAL_ARG);
+    }
   } else if (cmd_frame[0] == CMD_REBOOT && memcmp(&cmd_frame[1], "reboot", 6) == 0) {
     if (dirty_contacts_expiry) { // is there are pending dirty contacts write needed?
       saveContacts();
