@@ -30,10 +30,10 @@ class RegionMap {
 public:
   RegionMap(TransportKeyStore& store);
 
-  static bool is_name_char(char c);
+  static bool is_name_char(uint8_t c);
 
-  bool load(FILESYSTEM* _fs);
-  bool save(FILESYSTEM* _fs);
+  bool load(FILESYSTEM* _fs, const char* path=NULL);
+  bool save(FILESYSTEM* _fs, const char* path=NULL);
 
   RegionEntry* putRegion(const char* name, uint16_t parent_id, uint16_t id = 0);
   RegionEntry* findMatch(mesh::Packet* packet, uint8_t mask);
@@ -47,6 +47,11 @@ public:
   bool clear();
   void resetFrom(const RegionMap& src) { num_regions = 0; next_id = src.next_id; }
   int getCount() const { return num_regions; }
+  const RegionEntry* getByIdx(int i) const { return &regions[i]; }
+  const RegionEntry* getRoot() const { return &wildcard; }
+  int exportNamesTo(char *dest, int max_len, uint8_t mask, bool invert = false);
 
-  void exportTo(Stream& out) const;
+  void    exportTo(Stream& out) const;
+  size_t  exportTo(char *dest, size_t max_len) const;
+ 
 };

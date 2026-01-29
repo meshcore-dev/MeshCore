@@ -2,15 +2,15 @@
 
 #include <MeshCore.h>
 #include <Arduino.h>
+#include <helpers/NRF52Board.h>
 
-class WioTrackerL1Board : public mesh::MainBoard {
+class WioTrackerL1Board : public NRF52BoardDCDC {
 protected:
-  uint8_t startup_reason;
   uint8_t btn_prev_state;
 
 public:
+  WioTrackerL1Board() : NRF52Board("WioTrackerL1 OTA") {}
   void begin();
-  uint8_t getStartupReason() const override { return startup_reason; }
 
 #if defined(P_LORA_TX_LED)
   void onBeforeTransmit() override {
@@ -34,13 +34,7 @@ public:
     return "Seeed Wio Tracker L1";
   }
 
-  void reboot() override {
-    NVIC_SystemReset();
-  }
-
   void powerOff() override {
     sd_power_system_off();
   }
-
-  bool startOTAUpdate(const char* id, char reply[]) override;
 };

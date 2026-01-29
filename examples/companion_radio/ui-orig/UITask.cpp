@@ -137,9 +137,13 @@ void UITask::newMsg(uint8_t path_len, const char* from_name, const char* text, i
   StrHelper::strncpy(_msg, text, sizeof(_msg));
 
   if (_display != NULL) {
-    if (!_display->isOn()) _display->turnOn();
+    if (!_display->isOn() && !hasConnection()) {
+      _display->turnOn();
+    }
+    if (_display->isOn()) {
     _auto_off = millis() + AUTO_OFF_MILLIS;  // extend the auto-off timer
     _need_refresh = true;
+    }
   }
 }
 
