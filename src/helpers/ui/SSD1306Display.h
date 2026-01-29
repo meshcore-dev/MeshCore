@@ -5,6 +5,7 @@
 #include <Adafruit_GFX.h>
 #define SSD1306_NO_SPLASH
 #include <Adafruit_SSD1306.h>
+#include <helpers/RefCountedDigitalPin.h>
 
 #ifndef PIN_OLED_RESET
   #define PIN_OLED_RESET        21 // Reset pin # (or -1 if sharing Arduino reset pin)
@@ -18,10 +19,16 @@ class SSD1306Display : public DisplayDriver {
   Adafruit_SSD1306 display;
   bool _isOn;
   uint8_t _color;
+  RefCountedDigitalPin* _peripher_power;
 
   bool i2c_probe(TwoWire& wire, uint8_t addr);
 public:
-  SSD1306Display() : DisplayDriver(128, 64), display(128, 64, &Wire, PIN_OLED_RESET) { _isOn = false; }
+  SSD1306Display(RefCountedDigitalPin* peripher_power=NULL) : DisplayDriver(128, 64), 
+      display(128, 64, &Wire, PIN_OLED_RESET),
+      _peripher_power(peripher_power)
+  {
+    _isOn = false; 
+  }
   bool begin();
 
   bool isOn() override { return _isOn; }

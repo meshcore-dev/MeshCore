@@ -76,6 +76,13 @@ public:
   */
   void calcSharedSecret(uint8_t* secret, const uint8_t* other_pub_key) const;
 
+  /**
+   * \brief  Validates that a given private key can be used for ECDH / shared-secret operations.
+   * \param  prv IN - the private key to validate (must be PRV_KEY_SIZE bytes)
+   * \returns true, if the private key is valid for login.
+  */
+  static bool validatePrivateKey(const uint8_t prv[64]);
+
   bool readFrom(Stream& s);
   bool writeTo(Stream& s) const;
   void printTo(Stream& s) const;
