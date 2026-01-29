@@ -26,6 +26,7 @@ public:
 #endif
 
   uint16_t getBattMilliVolts() override;
+  float getTemperatureCelsius();
 
   const char* getManufacturerName() const override {
     return "Seeed Xiao-nrf52";
