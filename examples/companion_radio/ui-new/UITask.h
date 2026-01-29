@@ -8,6 +8,10 @@
 #include <Arduino.h>
 #include <helpers/sensors/LPPDataHelpers.h>
 
+#ifndef LED_STATE_ON
+  #define LED_STATE_ON 1
+#endif
+
 #ifdef PIN_BUZZER
   #include <helpers/ui/buzzer.h>
 #endif
@@ -50,7 +54,7 @@ class UITask : public AbstractUITask {
   UIScreen* curr;
 
   void userLedHandler();
-  
+
   // Button action handlers
   char checkDisplayOn(char c);
   char handleLongPress(char c);

@@ -2,6 +2,7 @@
 
 #include <MeshCore.h>
 #include <Arduino.h>
+#include <helpers/NRF52Board.h>
 
 // LoRa and SPI pins
 
@@ -19,13 +20,12 @@
 #define  PIN_VBAT_READ BATTERY_PIN
 #define  ADC_MULTIPLIER   (1.815f) // dependent on voltage divider resistors. TODO: more accurate battery tracking
 
-
-class MinewsemiME25LS01Board : public mesh::MainBoard {
+class MinewsemiME25LS01Board : public NRF52BoardDCDC {
 protected:
-  uint8_t startup_reason;
   uint8_t btn_prev_state;
 
 public:
+  MinewsemiME25LS01Board() : NRF52Board("Minewsemi_OTA") {}
   void begin();
 
 #define BATTERY_SAMPLES 8
@@ -40,8 +40,6 @@ public:
     raw = raw / BATTERY_SAMPLES;
     return (ADC_MULTIPLIER * raw);
   }
-
-  uint8_t getStartupReason() const override { return startup_reason; }
 
   const char* getManufacturerName() const override {
     return "Minewsemi";
@@ -78,11 +76,4 @@ public:
     digitalWrite(P_LORA_TX_LED, LOW); // turn TX LED off
   }
 #endif
-
-
-  void reboot() override {
-    NVIC_SystemReset();
-  }
-
-  bool startOTAUpdate(const char* id, char reply[]) override;
 };
