@@ -6,7 +6,7 @@
 
 extern "C" bool __attribute__((weak))
 meshcore_custom_cli(uint32_t sender_ts, const char* cmd, char* reply) {
-  return false; // domyślnie: nic nie obsługuję
+  return false;
 }
 
 // Believe it or not, this std C function is busted on some platforms!
