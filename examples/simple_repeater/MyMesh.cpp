@@ -1216,8 +1216,3 @@ void MyMesh::loop() {
   uptime_millis += now - last_millis;
   last_millis = now;
 }
-
-// To check if there is pending work
-bool MyMesh::hasPendingWork() const {
-  return _mgr->getOutboundCount(0xFFFFFFFF) > 0;
-}

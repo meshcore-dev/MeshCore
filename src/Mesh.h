@@ -220,6 +220,12 @@ public:
   */
   void sendZeroHop(Packet* packet, uint16_t* transport_codes, uint32_t delay_millis=0);
 
+  /**
+   * \brief  Check if there is pending work (packets to send)
+   * \returns  true if there are outbound packets waiting
+   */
+  bool hasPendingWork() const { return _mgr->getOutboundCount(0xFFFFFFFF) > 0; }
+
 };
 
 }
