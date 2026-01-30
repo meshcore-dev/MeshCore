@@ -8,11 +8,11 @@
 #define FIRMWARE_VER_CODE 8
 
 #ifndef FIRMWARE_BUILD_DATE
-#define FIRMWARE_BUILD_DATE "30 Nov 2025"
+#define FIRMWARE_BUILD_DATE "29 Jan 2026"
 #endif
 
 #ifndef FIRMWARE_VERSION
-#define FIRMWARE_VERSION "v1.11.0"
+#define FIRMWARE_VERSION "v1.12.0"
 #endif
 
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
@@ -108,12 +108,17 @@ protected:
   int calcRxDelay(float score, uint32_t air_time) const override;
   uint8_t getExtraAckTransmitCount() const override;
   bool filterRecvFloodPacket(mesh::Packet* packet) override;
+  bool allowPacketForward(const mesh::Packet* packet) override;  // Adaptive forwarding control
 
   void sendFloodScoped(const ContactInfo& recipient, mesh::Packet* pkt, uint32_t delay_millis=0) override;
   void sendFloodScoped(const mesh::GroupChannel& channel, mesh::Packet* pkt, uint32_t delay_millis=0) override;
 
   void logRxRaw(float snr, float rssi, const uint8_t raw[], int len) override;
   bool isAutoAddEnabled() const override;
+  bool shouldAutoAddContactType(uint8_t type) const override;
+  bool shouldOverwriteWhenFull() const override;
+  void onContactsFull() override;
+  void onContactOverwrite(const uint8_t* pub_key) override;
   bool onContactPathRecv(ContactInfo& from, uint8_t* in_path, uint8_t in_path_len, uint8_t* out_path, uint8_t out_path_len, uint8_t extra_type, uint8_t* extra, uint8_t extra_len) override;
   void onDiscoveredContact(ContactInfo &contact, bool is_new, uint8_t path_len, const uint8_t* path) override;
   void onContactPathUpdated(const ContactInfo &contact) override;
@@ -179,6 +184,7 @@ private:
 
   DataStore* _store;
   NodePrefs _prefs;
+  uint8_t _public_channel_hash;  // First byte of SHA256(PUBLIC_GROUP_PSK)
   uint32_t pending_login;
   uint32_t pending_status;
   uint32_t pending_telemetry, pending_discovery;   // pending _TELEMETRY_REQ

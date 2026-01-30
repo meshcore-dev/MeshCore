@@ -110,8 +110,10 @@ void setup() {
   ui_task.begin(the_mesh.getNodePrefs(), FIRMWARE_BUILD_DATE, FIRMWARE_VERSION);
 #endif
 
-  // send out initial Advertisement to the mesh
-  the_mesh.sendSelfAdvertisement(16000);
+  // send out initial zero hop Advertisement to the mesh
+#if ENABLE_ADVERT_ON_BOOT == 1
+  the_mesh.sendSelfAdvertisement(16000, false);
+#endif
 }
 
 void loop() {

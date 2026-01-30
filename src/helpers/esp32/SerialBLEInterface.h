@@ -61,7 +61,13 @@ public:
     send_queue_len = recv_queue_len = 0;
   }
 
-  void begin(const char* device_name, uint32_t pin_code);
+  /**
+   * init the BLE interface.
+   * @param prefix   a prefix for the device name
+   * @param name  IN/OUT - a name for the device (combined with prefix). If "@@MAC", is modified and returned
+   * @param pin_code   the BLE security pin
+   */
+  void begin(const char* prefix, char* name, uint32_t pin_code);
 
   // BaseSerialInterface methods
   void enable() override;

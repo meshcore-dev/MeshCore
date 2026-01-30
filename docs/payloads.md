@@ -103,7 +103,9 @@ Request type
 | `0x02` | keepalive            | (deprecated) |
 | `0x03` | get telemetry data   | TODO |
 | `0x04` | get min,max,avg data | sensor nodes - get min, max, average for given time span |
-| `0x05` | get access list      | get node's approved access list       |
+| `0x05` | get access list      | get node's approved access list            |
+| `0x06` | get neighbors        | get repeater node's neighbors              |
+| `0x07` | get owner info       | get repeater firmware-ver/name/owner info  |
 
 ### Get stats
 
@@ -131,6 +133,27 @@ Gets information about the node, possibly including the following:
 ### Get telemetry data
 
 Request data about sensors on the node, including battery level.
+
+### Get Telemetry
+
+TODO
+
+### Get Min/Max/Ave  (Sensor nodes)
+
+TODO
+
+### Get Access List
+
+TODO
+
+### Get Neighors
+
+TODO
+
+### Get Owner Info
+
+TODO
+
 
 ## Response
 
@@ -178,6 +201,34 @@ txt_type
 |----------------|-----------------|-------------------------------------------------------------------------------|
 | timestamp      | 4               | sender time (unix timestamp)                                                  |
 | password       | rest of message | password for repeater/sensor                                                  |
+
+## Repeater - Regions request
+
+| Field          | Size (bytes)    | Description                                                                   |
+|----------------|-----------------|-------------------------------------------------------------------------------|
+| timestamp      | 4               | sender time (unix timestamp)                                                  |
+| req type       | 1               | 0x01 (request sub type)                                                       |
+| reply path len | 1               | path len for reply                                                       |
+| reply path     | (variable)      | reply path                                                       |
+
+## Repeater - Owner info request
+
+| Field          | Size (bytes)    | Description                                                                   |
+|----------------|-----------------|-------------------------------------------------------------------------------|
+| timestamp      | 4               | sender time (unix timestamp)                                                  |
+| req type       | 1               | 0x02 (request sub type)                                                       |
+| reply path len | 1               | path len for reply                                                       |
+| reply path     | (variable)      | reply path                                                       |
+
+## Repeater - Clock and status request
+
+| Field          | Size (bytes)    | Description                                                                   |
+|----------------|-----------------|-------------------------------------------------------------------------------|
+| timestamp      | 4               | sender time (unix timestamp)                                                  |
+| req type       | 1               | 0x03 (request sub type)                                                       |
+| reply path len | 1               | path len for reply                                                       |
+| reply path     | (variable)      | reply path                                                       |
+
 
 # Group text message / datagram
 

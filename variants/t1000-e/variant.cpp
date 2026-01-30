@@ -67,6 +67,8 @@ void initVariant()
   // https://github.com/Seeed-Studio/Adafruit_nRF52_Arduino/blob/fab7d30a997a1dfeef9d1d59bfb549adda73815a/cores/nRF5/wiring.c#L65-L69
 
   pinMode(BATTERY_PIN, INPUT);
+  pinMode(TEMP_SENSOR, INPUT);
+  pinMode(LUX_SENSOR, INPUT);
   pinMode(EXT_CHRG_DETECT, INPUT);
   pinMode(EXT_PWR_DETECT, INPUT);
   pinMode(GPS_RESETB, INPUT);

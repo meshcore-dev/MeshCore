@@ -16,3 +16,5 @@ cmake-*
 compile_commands.json
 .*
 .gradle
+.venv/
+venv/

@@ -40,7 +40,7 @@
  * Platform Support:
  * Different platforms require different pin configuration methods:
  * - ESP32: Uses HardwareSerial::setPins(rx, tx)
- * - NRF52: Uses HardwareSerial::setPins(rx, tx)
+ * - NRF52: Uses Uart::setPins(rx, tx)
  * - RP2040: Uses SerialUART::setRX(rx) and SerialUART::setTX(tx)
  * - STM32: Uses HardwareSerial::setRx(rx) and HardwareSerial::setTx(tx)
  */
