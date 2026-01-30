@@ -3,6 +3,10 @@
 #include <Arduino.h> // needed for PlatformIO
 #include <Mesh.h>
 
+// Firmware capability flags - sent in RESP_CODE_SELF_INFO
+#define CAPABILITY_FORWARDING         0x01  // Supports adaptive forwarding control
+#define CAPABILITY_AUTONOMOUS         0x02  // Future: Autonomous tracker firmware
+
 #define CMD_APP_START                 1
 #define CMD_SEND_TXT_MSG              2
 #define CMD_SEND_CHANNEL_TXT_MSG      3
@@ -995,6 +999,11 @@ void MyMesh::handleCmdFrame(size_t len) {
     int tlen = strlen(_prefs.node_name); // revisit: UTF_8 ??
     memcpy(&out_frame[i], _prefs.node_name, tlen);
     i += tlen;
+    out_frame[i++] = 0; // Null terminator for device name
+    
+    // Firmware capability flags - tells app what features this firmware supports
+    out_frame[i++] = CAPABILITY_FORWARDING; // Currently supports adaptive forwarding
+    
     _serial->writeFrame(out_frame, i);
   } else if (cmd_frame[0] == CMD_SEND_TXT_MSG && len >= 14) {
     int i = 1;
