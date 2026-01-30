@@ -18,6 +18,7 @@ struct ClientInfo {
   uint8_t shared_secret[PUB_KEY_SIZE];
   uint32_t last_timestamp;   // by THEIR clock  (transient)
   uint32_t last_activity;    // by OUR clock    (transient)
+  bool supports_ascon;       // Peer advertised Ascon encryption capability in FEAT1 (transient)
   union  {
     struct {
       uint32_t sync_since;  // sync messages SINCE this timestamp (by OUR clock)

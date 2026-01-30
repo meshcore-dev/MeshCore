@@ -18,8 +18,13 @@ static void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
 
 static void OnDataRecv(const uint8_t *mac, const uint8_t *data, int len) {
   ESPNOW_DEBUG_PRINTLN("Recv: len = %d", len);
+  if (len <= 0) {
+    last_rx_len = 0;
+    return;
+  }
+  if (len > 255) len = 255;
   memcpy(rx_buf, data, len);
-  last_rx_len = len;
+  last_rx_len = (uint8_t)len;
 }
 
 void ESPNOWRadio::init() {
@@ -100,12 +105,14 @@ float ESPNOWRadio::getLastSNR() const { return 0; }
 
 int ESPNOWRadio::recvRaw(uint8_t* bytes, int sz) {
   int len = last_rx_len;
-  if (last_rx_len > 0) {
-    memcpy(bytes, rx_buf, last_rx_len);
-    last_rx_len = 0;
-    n_recv++;
-  }
-  return len;
+  if (len <= 0 || sz <= 0) return 0;
+
+  int copy_len = len;
+  if (copy_len > sz) copy_len = sz;
+  memcpy(bytes, rx_buf, copy_len);
+  last_rx_len = 0;
+  n_recv++;
+  return copy_len;
 }
 
 uint32_t ESPNOWRadio::getEstAirtimeFor(int len_bytes) {

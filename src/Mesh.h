@@ -4,10 +4,14 @@
 
 namespace mesh {
 
+// Channel flags
+#define CHANNEL_FLAG_ASCON  0x01  // Use Ascon-128 AEAD encryption for this channel
+
 class GroupChannel {
 public:
   uint8_t hash[PATH_HASH_SIZE];
   uint8_t secret[PUB_KEY_SIZE];
+  uint8_t flags;  // CHANNEL_FLAG_* bits
 };
 
 /**
@@ -84,6 +88,14 @@ protected:
   virtual void getPeerSharedSecret(uint8_t* dest_secret, int peer_idx) { }
 
   /**
+   * \brief  Called when a peer's Ascon (V2) encryption capability is detected from an incoming packet.
+   *         Subclasses can override to update peer capability flags for future sends.
+   * \param  peer_idx  index of peer, [0..n) where n is what searchPeersByHash() returned
+   * \param  supports_ascon  true if peer sent V2-encrypted packet
+   */
+  virtual void onPeerAsconCapabilityDetected(int peer_idx, bool supports_ascon) { }
+
+  /**
    * \brief  A (now decrypted) data packet has been received (by a known peer).
    *         NOTE: these can be received multiple times (per sender/msg-id), via different routes
    * \param  type  one of: PAYLOAD_TYPE_TXT_MSG, PAYLOAD_TYPE_REQ, PAYLOAD_TYPE_RESPONSE
@@ -125,8 +137,9 @@ protected:
    *         NOTE: these can be received multiple times (per sender/contents), via different routes
    * \param  secret  ECDH shared secret
    * \param  sender  public key provided by sender
+   * \param  was_ascon  true if Ascon decryption was used, false if legacy
   */
-  virtual void onAnonDataRecv(Packet* packet, const uint8_t* secret, const Identity& sender, uint8_t* data, size_t len) { }
+  virtual void onAnonDataRecv(Packet* packet, const uint8_t* secret, const Identity& sender, uint8_t* data, size_t len, bool was_ascon) { }
 
   /**
    * \brief  A path TO 'sender' has been received. (also with optional 'extra' data encoded)
@@ -182,13 +195,13 @@ public:
   RTCClock* getRTCClock() const { return _rtc; }
 
   Packet* createAdvert(const LocalIdentity& id, const uint8_t* app_data=NULL, size_t app_data_len=0);
-  Packet* createDatagram(uint8_t type, const Identity& dest, const uint8_t* secret, const uint8_t* data, size_t len);
-  Packet* createAnonDatagram(uint8_t type, const LocalIdentity& sender, const Identity& dest, const uint8_t* secret, const uint8_t* data, size_t data_len);
-  Packet* createGroupDatagram(uint8_t type, const GroupChannel& channel, const uint8_t* data, size_t data_len);
+  Packet* createDatagram(uint8_t type, const Identity& dest, const uint8_t* secret, const uint8_t* data, size_t len, bool use_ascon=true);
+  Packet* createAnonDatagram(uint8_t type, const LocalIdentity& sender, const Identity& dest, const uint8_t* secret, const uint8_t* data, size_t data_len, bool use_ascon=true);
+  Packet* createGroupDatagram(uint8_t type, const GroupChannel& channel, const uint8_t* data, size_t data_len, bool use_ascon=true);
   Packet* createAck(uint32_t ack_crc);
   Packet* createMultiAck(uint32_t ack_crc, uint8_t remaining);
-  Packet* createPathReturn(const uint8_t* dest_hash, const uint8_t* secret, const uint8_t* path, uint8_t path_len, uint8_t extra_type, const uint8_t*extra, size_t extra_len);
-  Packet* createPathReturn(const Identity& dest, const uint8_t* secret, const uint8_t* path, uint8_t path_len, uint8_t extra_type, const uint8_t*extra, size_t extra_len);
+  Packet* createPathReturn(const uint8_t* dest_hash, const uint8_t* secret, const uint8_t* path, uint8_t path_len, uint8_t extra_type, const uint8_t*extra, size_t extra_len, bool use_ascon=true);
+  Packet* createPathReturn(const Identity& dest, const uint8_t* secret, const uint8_t* path, uint8_t path_len, uint8_t extra_type, const uint8_t*extra, size_t extra_len, bool use_ascon=true);
   Packet* createRawData(const uint8_t* data, size_t len);
   Packet* createTrace(uint32_t tag, uint32_t auth_code, uint8_t flags = 0);
   Packet* createControlData(const uint8_t* data, size_t len);

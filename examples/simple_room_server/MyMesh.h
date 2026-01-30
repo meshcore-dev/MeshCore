@@ -145,9 +145,11 @@ protected:
   }
 
   bool allowPacketForward(const mesh::Packet* packet) override;
-  void onAnonDataRecv(mesh::Packet* packet, const uint8_t* secret, const mesh::Identity& sender, uint8_t* data, size_t len) override;
+  void onAnonDataRecv(mesh::Packet* packet, const uint8_t* secret, const mesh::Identity& sender, uint8_t* data, size_t len, bool was_ascon) override;
   int searchPeersByHash(const uint8_t* hash) override ;
   void getPeerSharedSecret(uint8_t* dest_secret, int peer_idx) override;
+  void onPeerAsconCapabilityDetected(int peer_idx, bool supports_ascon) override;
+  void onAdvertRecv(mesh::Packet* packet, const mesh::Identity& id, uint32_t timestamp, const uint8_t* app_data, size_t app_data_len) override;
   void onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender_idx, const uint8_t* secret, uint8_t* data, size_t len) override;
   bool onPeerPathRecv(mesh::Packet* packet, int sender_idx, const uint8_t* secret, uint8_t* path, uint8_t path_len, uint8_t extra_type, uint8_t* extra, uint8_t extra_len) override;
   void onAckRecv(mesh::Packet* packet, uint32_t ack_crc) override;
