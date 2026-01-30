@@ -56,6 +56,9 @@
 #define CMD_SEND_ANON_REQ             57
 #define CMD_SET_AUTOADD_CONFIG        58
 #define CMD_GET_AUTOADD_CONFIG        59
+#define CMD_SEND_CHANNEL_DATA         60
+
+#define MAX_BINARY_LEN                (MAX_PACKET_PAYLOAD - CIPHER_BLOCK_SIZE - 4)  // 4 bytes for timestamp
 
 // Stats sub-types for CMD_GET_STATS
 #define STATS_TYPE_CORE               0
@@ -88,6 +91,7 @@
 #define RESP_CODE_TUNING_PARAMS       23
 #define RESP_CODE_STATS               24   // v8+, second byte is stats type
 #define RESP_CODE_AUTOADD_CONFIG      25
+#define RESP_CODE_CHANNEL_DATA_RECV   26
 
 #define SEND_TIMEOUT_BASE_MILLIS        500
 #define FLOOD_SEND_TIMEOUT_FACTOR       16.0f
@@ -542,6 +546,35 @@ void MyMesh::onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packe
   }
   if (_ui) _ui->newMsg(path_len, channel_name, text, offline_queue_len);
 #endif
+}
+
+void MyMesh::onChannelDataRecv(const mesh::GroupChannel &channel, mesh::Packet *pkt, uint32_t timestamp,
+                               const uint8_t *data, size_t len) {
+  int i = 0;
+  out_frame[i++] = RESP_CODE_CHANNEL_DATA_RECV;
+  out_frame[i++] = (int8_t)(pkt->getSNR() * 4);
+  out_frame[i++] = 0; // reserved1
+  out_frame[i++] = 0; // reserved2
+
+  uint8_t channel_idx = findChannelIdx(channel);
+  out_frame[i++] = channel_idx;
+  out_frame[i++] = pkt->isRouteFlood() ? pkt->path_len : 0xFF;
+
+  memcpy(&out_frame[i], &timestamp, 4);
+  i += 4;
+
+  if (i + len > MAX_FRAME_SIZE) {
+    len = MAX_FRAME_SIZE - i;
+  }
+  memcpy(&out_frame[i], data, len);
+  i += len;
+  addToOfflineQueue(out_frame, i);
+
+  if (_serial->isConnected()) {
+    uint8_t frame[1];
+    frame[0] = PUSH_CODE_MSG_WAITING; // send push 'tickle'
+    _serial->writeFrame(frame, 1);
+  }
 }
 
 uint8_t MyMesh::onContactRequest(const ContactInfo &contact, uint32_t sender_timestamp, const uint8_t *data,
@@ -1012,6 +1045,22 @@ void MyMesh::handleCmdFrame(size_t len) {
         writeErrFrame(ERR_CODE_NOT_FOUND); // bad channel_idx
       }
     }
+  } else if (cmd_frame[0] == CMD_SEND_CHANNEL_DATA) { // send GroupChannel binary data
+    if (len < 7) { writeErrFrame(ERR_CODE_ILLEGAL_ARG); return; }
+    uint8_t channel_idx = cmd_frame[1];
+    uint32_t msg_timestamp;
+    memcpy(&msg_timestamp, &cmd_frame[2], 4);
+    size_t data_len = len - 6;
+    if (data_len > MAX_BINARY_LEN) { writeErrFrame(ERR_CODE_ILLEGAL_ARG); return; }
+    ChannelDetails channel;
+    if (getChannel(channel_idx, channel)) {
+      uint8_t temp[4 + MAX_BINARY_LEN];
+      memcpy(temp, &msg_timestamp, 4);
+      memcpy(&temp[4], &cmd_frame[6], data_len);
+      auto pkt = createGroupDatagram(PAYLOAD_TYPE_GRP_DATA, channel.channel, temp, 4 + data_len);
+      if (pkt) { sendFloodScoped(channel.channel, pkt); writeOKFrame(); }
+      else writeErrFrame(ERR_CODE_TABLE_FULL);
+    } else writeErrFrame(ERR_CODE_NOT_FOUND);
   } else if (cmd_frame[0] == CMD_GET_CONTACTS) { // get Contact list
     if (_iter_started) {
       writeErrFrame(ERR_CODE_BAD_STATE); // iterator is currently busy
