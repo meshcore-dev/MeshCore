@@ -125,9 +125,7 @@ protected:
   void onAdvertRecv(mesh::Packet* packet, const mesh::Identity& id, uint32_t timestamp, const uint8_t* app_data, size_t app_data_len) override;
   int searchPeersByHash(const uint8_t* hash) override;
   void getPeerSharedSecret(uint8_t* dest_secret, int peer_idx) override;
-  bool peerSupportsCHACHA(const mesh::Identity& dest) override;
-  bool peerSupportsCHACHA(uint8_t src_hash, int peer_idx) override;
-  void setPeerSupportsCHACHA(const mesh::Identity* id, int peer_idx) override;
+  void onPeerAsconCapabilityDetected(int peer_idx, bool supports_ascon) override;
   void onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender_idx, const uint8_t* secret, uint8_t* data, size_t len) override;
   bool onPeerPathRecv(mesh::Packet* packet, int sender_idx, const uint8_t* secret, uint8_t* path, uint8_t path_len, uint8_t extra_type, uint8_t* extra, uint8_t extra_len) override;
   void onAckRecv(mesh::Packet* packet, uint32_t ack_crc) override;

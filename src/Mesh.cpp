@@ -138,7 +138,7 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
       uint8_t dest_hash = pkt->payload[i++];
       uint8_t src_hash = pkt->payload[i++];
 
-      uint8_t* encryptedData = &pkt->payload[i];   // encrypted data (AES: MAC + ciphertext, ChaCha: counter + ciphertext + tag)
+      uint8_t* encryptedData = &pkt->payload[i];   // encrypted data (AES: MAC + ciphertext, Ascon: counter + ciphertext + tag)
       int encrypted_len = pkt->payload_len - i;
 
       if (encrypted_len < CIPHER_MAC_SIZE) {
@@ -157,44 +157,15 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
             uint8_t secret[PUB_KEY_SIZE];
             getPeerSharedSecret(secret, j);
 
-            // Try both decryption methods; order based on peer capability
+            // Unified decryption: tries Ascon first, falls back to legacy AES-ECB+HMAC
             uint8_t data[MAX_PACKET_PAYLOAD];
-            int len = 0;
-            bool decrypted_with_chacha = false;
-
-            if (peerSupportsCHACHA(src_hash, j)) {
-              // Peer advertised ChaCha capability, try ChaCha first
-              if (encrypted_len >= CHACHA_COUNTER_SIZE + CHACHA_TAG_SIZE) {
-                uint8_t aad[4];
-                aad[0] = dest_hash;
-                aad[1] = src_hash;
-                aad[2] = pkt->getPayloadType();
-                aad[3] = CHACHA_AAD_MARKER;
-                len = Utils::decryptCHACHA(secret, data, encryptedData, encrypted_len, aad, sizeof(aad));
-              }
-              if (len > 0) {
-                decrypted_with_chacha = true;
-              } else {
-                // Fallback to AES
-                len = Utils::MACThenDecrypt(secret, data, encryptedData, encrypted_len);
-              }
-            } else {
-              // Unknown or AES-only peer, try AES first
-              len = Utils::MACThenDecrypt(secret, data, encryptedData, encrypted_len);
-              if (len <= 0 && encrypted_len >= CHACHA_COUNTER_SIZE + CHACHA_TAG_SIZE) {
-                // Fallback to ChaCha (peer may have upgraded)
-                uint8_t aad[4];
-                aad[0] = dest_hash;
-                aad[1] = src_hash;
-                aad[2] = pkt->getPayloadType();
-                aad[3] = CHACHA_AAD_MARKER;
-                len = Utils::decryptCHACHA(secret, data, encryptedData, encrypted_len, aad, sizeof(aad));
-                if (len > 0) decrypted_with_chacha = true;
-              }
-            }
+            bool was_ascon = false;
+            int len = Utils::decryptAuto(secret, data, encryptedData, encrypted_len, &was_ascon);
 
             if (len > 0) {  // success!
-              if (decrypted_with_chacha) setPeerSupportsCHACHA(nullptr, j);
+              // Notify subclass of detected crypto capability (for auto-upgrade to Ascon)
+              onPeerAsconCapabilityDetected(j, was_ascon);
+
               if (pkt->getPayloadType() == PAYLOAD_TYPE_PATH) {
                 int k = 0;
                 uint8_t path_len = data[k++];
@@ -204,8 +175,8 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
                 uint8_t extra_len = len - k;   // remainder of packet (may be padded with zeroes!)
                 if (onPeerPathRecv(pkt, j, secret, path, path_len, extra_type, extra, extra_len)) {
                   if (pkt->isRouteFlood()) {
-                    // send a reciprocal return path to sender, but send DIRECTLY!
-                    mesh::Packet* rpath = createPathReturn(&src_hash, secret, pkt->path, pkt->path_len, 0, NULL, 0, decrypted_with_chacha);
+                    // send a reciprocal return path to sender using same crypto they used
+                    mesh::Packet* rpath = createPathReturn(&src_hash, secret, pkt->path, pkt->path_len, 0, NULL, 0, was_ascon);
                     if (rpath) sendDirect(rpath, path, path_len, 500);
                   }
                 }
@@ -237,7 +208,7 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
       uint8_t dest_hash = pkt->payload[i++];
       uint8_t* sender_pub_key = &pkt->payload[i]; i += PUB_KEY_SIZE;
 
-      uint8_t* encryptedData = &pkt->payload[i];   // encrypted data (AES: MAC + ciphertext, ChaCha: counter + ciphertext + tag)
+      uint8_t* encryptedData = &pkt->payload[i];   // encrypted data (AES: MAC + ciphertext, Ascon: counter + ciphertext + tag)
       int encrypted_len = pkt->payload_len - i;
 
       if (encrypted_len < CIPHER_MAC_SIZE + 1) {
@@ -249,24 +220,13 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
           uint8_t secret[PUB_KEY_SIZE];
           self_id.calcSharedSecret(secret, sender);
 
-          // Try both decryption methods; ANON_REQ sender is unknown, try AES first then ChaCha
+          // Unified decryption: tries Ascon first, falls back to legacy AES-ECB+HMAC
           uint8_t data[MAX_PACKET_PAYLOAD];
-          int len;
-          bool decrypted_with_chacha = false;
-          len = Utils::MACThenDecrypt(secret, data, encryptedData, encrypted_len);
-          if (len <= 0 && encrypted_len >= CHACHA_COUNTER_SIZE + CHACHA_TAG_SIZE) {
-            // Fallback to ChaCha
-            uint8_t aad[1 + PUB_KEY_SIZE + 2];
-            aad[0] = dest_hash;
-            memcpy(&aad[1], sender_pub_key, PUB_KEY_SIZE);
-            aad[1 + PUB_KEY_SIZE] = pkt->getPayloadType();
-            aad[1 + PUB_KEY_SIZE + 1] = CHACHA_AAD_MARKER;
-            len = Utils::decryptCHACHA(secret, data, encryptedData, encrypted_len, aad, sizeof(aad));
-            if (len > 0) decrypted_with_chacha = true;
-          }
+          bool was_ascon = false;
+          int len = Utils::decryptAuto(secret, data, encryptedData, encrypted_len, &was_ascon);
 
           if (len > 0) {  // success!
-            onAnonDataRecv(pkt, secret, sender, data, len, decrypted_with_chacha);
+            onAnonDataRecv(pkt, secret, sender, data, len, was_ascon);
             pkt->markDoNotRetransmit();
           }
           // SECURITY: Clear sensitive data from stack
@@ -282,7 +242,7 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
       int i = 0;
       uint8_t channel_hash = pkt->payload[i++];
 
-      uint8_t* encryptedData = &pkt->payload[i];   // encrypted data (AES: MAC + ciphertext, ChaCha: counter + ciphertext + tag)
+      uint8_t* encryptedData = &pkt->payload[i];   // encrypted data (AES: MAC + ciphertext, Ascon: counter + ciphertext + tag)
       int encrypted_len = pkt->payload_len - i;
 
       if (encrypted_len < 2) {
@@ -293,35 +253,9 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
         int num = searchChannelsByHash(&channel_hash, channels, 4);
         // for each matching channel, try to decrypt data
         for (int j = 0; j < num; j++) {
-          // Try both decryption methods based on channel flag
+          // Unified decryption: tries Ascon first, falls back to legacy AES-ECB+HMAC
           uint8_t data[MAX_PACKET_PAYLOAD];
-          int len = 0;
-
-          if (channels[j].flags & CHANNEL_FLAG_CHACHA) {
-            // Channel configured for ChaCha, try ChaCha first
-            if (encrypted_len >= CHACHA_COUNTER_SIZE + CHACHA_TAG_SIZE) {
-              uint8_t aad[3];
-              aad[0] = channel_hash;
-              aad[1] = pkt->getPayloadType();
-              aad[2] = CHACHA_AAD_MARKER;
-              len = Utils::decryptCHACHA(channels[j].secret, data, encryptedData, encrypted_len, aad, sizeof(aad));
-            }
-            if (len <= 0) {
-              // Fallback to AES
-              len = Utils::MACThenDecrypt(channels[j].secret, data, encryptedData, encrypted_len);
-            }
-          } else {
-            // AES channel, try AES first
-            len = Utils::MACThenDecrypt(channels[j].secret, data, encryptedData, encrypted_len);
-            if (len <= 0 && encrypted_len >= CHACHA_COUNTER_SIZE + CHACHA_TAG_SIZE) {
-              // Fallback to ChaCha (channel may have been upgraded)
-              uint8_t aad[3];
-              aad[0] = channel_hash;
-              aad[1] = pkt->getPayloadType();
-              aad[2] = CHACHA_AAD_MARKER;
-              len = Utils::decryptCHACHA(channels[j].secret, data, encryptedData, encrypted_len, aad, sizeof(aad));
-            }
-          }
+          int len = Utils::decryptAuto(channels[j].secret, data, encryptedData, encrypted_len);
 
           if (len > 0) {  // success!
             onGroupDataRecv(pkt, pkt->getPayloadType(), channels[j], data, len);
@@ -527,13 +461,13 @@ Packet* Mesh::createAdvert(const LocalIdentity& id, const uint8_t* app_data, siz
   return packet;
 }
 
-Packet* Mesh::createPathReturn(const Identity& dest, const uint8_t* secret, const uint8_t* path, uint8_t path_len, uint8_t extra_type, const uint8_t*extra, size_t extra_len, bool use_chacha) {
+Packet* Mesh::createPathReturn(const Identity& dest, const uint8_t* secret, const uint8_t* path, uint8_t path_len, uint8_t extra_type, const uint8_t*extra, size_t extra_len, bool use_ascon) {
   uint8_t dest_hash[PATH_HASH_SIZE];
   dest.copyHashTo(dest_hash);
-  return createPathReturn(dest_hash, secret, path, path_len, extra_type, extra, extra_len, use_chacha);
+  return createPathReturn(dest_hash, secret, path, path_len, extra_type, extra, extra_len, use_ascon);
 }
 
-Packet* Mesh::createPathReturn(const uint8_t* dest_hash, const uint8_t* secret, const uint8_t* path, uint8_t path_len, uint8_t extra_type, const uint8_t*extra, size_t extra_len, bool use_chacha) {
+Packet* Mesh::createPathReturn(const uint8_t* dest_hash, const uint8_t* secret, const uint8_t* path, uint8_t path_len, uint8_t extra_type, const uint8_t*extra, size_t extra_len, bool use_ascon) {
   // Plaintext layout: [path_len (1)] [path (path_len)] [extra_type (1)] [extra (extra_len)]
   // Or if no extra: [dummy_type (1)] [rand (4)]
   const int plain_len = 1 + (int)path_len + ((extra_len > 0) ? (1 + (int)extra_len) : (1 + 4));
@@ -541,13 +475,14 @@ Packet* Mesh::createPathReturn(const uint8_t* dest_hash, const uint8_t* secret, 
   // Payload prefix: dest_hash (1) + src_hash (1)
   const int prefix_len = 2;
 
-  if (use_chacha) {
-    // ChaCha: prefix + counter + ciphertext + tag
-    if (prefix_len + CHACHA_COUNTER_SIZE + plain_len + CHACHA_TAG_SIZE > MAX_PACKET_PAYLOAD) return NULL;
+  // Check size based on encryption mode
+  if (use_ascon) {
+    // V2: prefix + counter + ciphertext + tag
+    if (prefix_len + V2_COUNTER_SIZE + plain_len + V2_TAG_SIZE > MAX_PACKET_PAYLOAD) return NULL;
   } else {
-    // AES: prefix + MAC + padded ciphertext
-    const int padded_len = (plain_len + (CIPHER_BLOCK_SIZE - 1)) & ~(CIPHER_BLOCK_SIZE - 1);
-    if (prefix_len + CIPHER_MAC_SIZE + padded_len > MAX_PACKET_PAYLOAD) return NULL;
+    // V1: prefix + MAC + ciphertext (rounded up to 16)
+    int enc_len = ((plain_len + 15) / 16) * 16;
+    if (prefix_len + CIPHER_MAC_SIZE + enc_len > MAX_PACKET_PAYLOAD) return NULL;
   }
 
   Packet* packet = obtainNewPacket();
@@ -578,18 +513,10 @@ Packet* Mesh::createPathReturn(const uint8_t* dest_hash, const uint8_t* secret, 
       getRNG()->random(&data[data_len], 4); data_len += 4;
     }
 
-    if (use_chacha) {
-      // ChaCha20-Poly1305 encryption with AAD
-      uint8_t counter[CHACHA_COUNTER_SIZE];
-      Utils::generateSecureCounter(counter);
-      uint8_t aad[4];
-      aad[0] = packet->payload[0];  // dest_hash
-      aad[1] = packet->payload[1];  // src_hash
-      aad[2] = PAYLOAD_TYPE_PATH;
-      aad[3] = CHACHA_AAD_MARKER;
-      len += Utils::encryptCHACHA(secret, &packet->payload[len], counter, data, data_len, aad, sizeof(aad));
+    // Encrypt based on peer capability
+    if (use_ascon) {
+      len += Utils::encryptV2(secret, &packet->payload[len], data, data_len);
     } else {
-      // AES-ECB + HMAC
       len += Utils::encryptThenMAC(secret, &packet->payload[len], data, data_len);
     }
   }
@@ -599,17 +526,18 @@ Packet* Mesh::createPathReturn(const uint8_t* dest_hash, const uint8_t* secret, 
   return packet;
 }
 
-Packet* Mesh::createDatagram(uint8_t type, const Identity& dest, const uint8_t* secret, const uint8_t* data, size_t data_len, bool use_chacha) {
+Packet* Mesh::createDatagram(uint8_t type, const Identity& dest, const uint8_t* secret, const uint8_t* data, size_t data_len, bool use_ascon) {
   if (type == PAYLOAD_TYPE_TXT_MSG || type == PAYLOAD_TYPE_REQ || type == PAYLOAD_TYPE_RESPONSE) {
     // Payload prefix: dest_hash (1) + src_hash (1)
     const int prefix_len = 2;
-    if (use_chacha) {
-      // ChaCha: prefix + counter + ciphertext + tag
-      if (prefix_len + (int)data_len + CHACHA_COUNTER_SIZE + CHACHA_TAG_SIZE > MAX_PACKET_PAYLOAD) return NULL;
+    // Check size based on encryption mode
+    if (use_ascon) {
+      // V2: prefix + counter + ciphertext + tag
+      if (prefix_len + (int)data_len + V2_COUNTER_SIZE + V2_TAG_SIZE > MAX_PACKET_PAYLOAD) return NULL;
     } else {
-      // AES: prefix + MAC + padded ciphertext
-      const int padded_len = (((int)data_len) + (CIPHER_BLOCK_SIZE - 1)) & ~(CIPHER_BLOCK_SIZE - 1);
-      if (prefix_len + CIPHER_MAC_SIZE + padded_len > MAX_PACKET_PAYLOAD) return NULL;
+      // V1: prefix + MAC + ciphertext (rounded up to 16)
+      int enc_len = (((int)data_len + 15) / 16) * 16;
+      if (prefix_len + CIPHER_MAC_SIZE + enc_len > MAX_PACKET_PAYLOAD) return NULL;
     }
   } else {
     return NULL;  // invalid type
@@ -628,18 +556,10 @@ Packet* Mesh::createDatagram(uint8_t type, const Identity& dest, const uint8_t* 
   len += dest.copyHashTo(&packet->payload[len]);  // dest hash
   len += self_id.copyHashTo(&packet->payload[len]);  // src hash
 
-  if (use_chacha) {
-    // ChaCha20-Poly1305 encryption with AAD
-    uint8_t counter[CHACHA_COUNTER_SIZE];
-    Utils::generateSecureCounter(counter);
-    uint8_t aad[4];
-    aad[0] = packet->payload[0];  // dest_hash
-    aad[1] = packet->payload[1];  // src_hash
-    aad[2] = type;
-    aad[3] = CHACHA_AAD_MARKER;
-    len += Utils::encryptCHACHA(secret, &packet->payload[len], counter, data, data_len, aad, sizeof(aad));
+  // Encrypt based on peer capability
+  if (use_ascon) {
+    len += Utils::encryptV2(secret, &packet->payload[len], data, data_len);
   } else {
-    // AES-ECB + HMAC
     len += Utils::encryptThenMAC(secret, &packet->payload[len], data, data_len);
   }
 
@@ -648,14 +568,16 @@ Packet* Mesh::createDatagram(uint8_t type, const Identity& dest, const uint8_t* 
   return packet;
 }
 
-Packet* Mesh::createAnonDatagram(uint8_t type, const LocalIdentity& sender, const Identity& dest, const uint8_t* secret, const uint8_t* data, size_t data_len, bool use_chacha) {
+Packet* Mesh::createAnonDatagram(uint8_t type, const LocalIdentity& sender, const Identity& dest, const uint8_t* secret, const uint8_t* data, size_t data_len, bool use_ascon) {
   if (type == PAYLOAD_TYPE_ANON_REQ) {
-    if (use_chacha) {
-      // ChaCha: dest_hash + pub_key + counter + ciphertext + tag
-      if (data_len + 1 + PUB_KEY_SIZE + CHACHA_COUNTER_SIZE + CHACHA_TAG_SIZE > MAX_PACKET_PAYLOAD) return NULL;
+    // Check size based on encryption mode
+    if (use_ascon) {
+      // V2: dest_hash + pub_key + counter + ciphertext + tag
+      if (data_len + 1 + PUB_KEY_SIZE + V2_COUNTER_SIZE + V2_TAG_SIZE > MAX_PACKET_PAYLOAD) return NULL;
     } else {
-      // AES: dest_hash + pub_key + MAC + padded ciphertext
-      if (data_len + 1 + PUB_KEY_SIZE + CIPHER_MAC_SIZE + CIPHER_BLOCK_SIZE-1 > MAX_PACKET_PAYLOAD) return NULL;
+      // V1: dest_hash + pub_key + MAC + ciphertext (rounded up to 16)
+      int enc_len = ((data_len + 15) / 16) * 16;
+      if (1 + PUB_KEY_SIZE + CIPHER_MAC_SIZE + enc_len > MAX_PACKET_PAYLOAD) return NULL;
     }
   } else {
     return NULL;  // invalid type
@@ -678,18 +600,10 @@ Packet* Mesh::createAnonDatagram(uint8_t type, const LocalIdentity& sender, cons
     // FUTURE:
   }
 
-  if (use_chacha) {
-    // ChaCha20-Poly1305 encryption with AAD
-    uint8_t counter[CHACHA_COUNTER_SIZE];
-    Utils::generateSecureCounter(counter);
-    uint8_t aad[1 + PUB_KEY_SIZE + 2];
-    aad[0] = packet->payload[0];  // dest_hash
-    memcpy(&aad[1], sender.pub_key, PUB_KEY_SIZE);
-    aad[1 + PUB_KEY_SIZE] = type;
-    aad[1 + PUB_KEY_SIZE + 1] = CHACHA_AAD_MARKER;
-    len += Utils::encryptCHACHA(secret, &packet->payload[len], counter, data, data_len, aad, sizeof(aad));
+  // Encrypt based on peer capability
+  if (use_ascon) {
+    len += Utils::encryptV2(secret, &packet->payload[len], data, data_len);
   } else {
-    // AES-ECB + HMAC
     len += Utils::encryptThenMAC(secret, &packet->payload[len], data, data_len);
   }
 
@@ -698,20 +612,19 @@ Packet* Mesh::createAnonDatagram(uint8_t type, const LocalIdentity& sender, cons
   return packet;
 }
 
-Packet* Mesh::createGroupDatagram(uint8_t type, const GroupChannel& channel, const uint8_t* data, size_t data_len) {
+Packet* Mesh::createGroupDatagram(uint8_t type, const GroupChannel& channel, const uint8_t* data, size_t data_len, bool use_ascon) {
   if (!(type == PAYLOAD_TYPE_GRP_TXT || type == PAYLOAD_TYPE_GRP_DATA)) return NULL;   // invalid type
-
-  bool use_chacha = (channel.flags & CHANNEL_FLAG_CHACHA) != 0;
 
   // Payload prefix: channel_hash (PATH_HASH_SIZE, currently 1)
   const int prefix_len = PATH_HASH_SIZE;
-  if (use_chacha) {
-    // ChaCha: prefix + counter + ciphertext + tag
-    if (prefix_len + (int)data_len + CHACHA_COUNTER_SIZE + CHACHA_TAG_SIZE > MAX_PACKET_PAYLOAD) return NULL;
+  // Check size based on encryption mode
+  if (use_ascon) {
+    // V2: prefix + counter + ciphertext + tag
+    if (prefix_len + (int)data_len + V2_COUNTER_SIZE + V2_TAG_SIZE > MAX_PACKET_PAYLOAD) return NULL;
   } else {
-    // AES: prefix + MAC + padded ciphertext
-    const int padded_len = (((int)data_len) + (CIPHER_BLOCK_SIZE - 1)) & ~(CIPHER_BLOCK_SIZE - 1);
-    if (prefix_len + CIPHER_MAC_SIZE + padded_len > MAX_PACKET_PAYLOAD) return NULL;
+    // V1: prefix + MAC + ciphertext (rounded up to 16)
+    int enc_len = (((int)data_len + 15) / 16) * 16;
+    if (prefix_len + CIPHER_MAC_SIZE + enc_len > MAX_PACKET_PAYLOAD) return NULL;
   }
 
   Packet* packet = obtainNewPacket();
@@ -726,17 +639,10 @@ Packet* Mesh::createGroupDatagram(uint8_t type, const GroupChannel& channel, con
   int len = 0;
   memcpy(&packet->payload[len], channel.hash, PATH_HASH_SIZE); len += PATH_HASH_SIZE;
 
-  if (use_chacha) {
-    // ChaCha20-Poly1305 encryption with AAD
-    uint8_t counter[CHACHA_COUNTER_SIZE];
-    Utils::generateSecureCounter(counter);
-    uint8_t aad[3];
-    aad[0] = channel.hash[0];  // channel_hash
-    aad[1] = type;
-    aad[2] = CHACHA_AAD_MARKER;
-    len += Utils::encryptCHACHA(channel.secret, &packet->payload[len], counter, data, data_len, aad, sizeof(aad));
+  // Encrypt based on channel flag or explicit request
+  if (use_ascon) {
+    len += Utils::encryptV2(channel.secret, &packet->payload[len], data, data_len);
   } else {
-    // AES-ECB + HMAC
     len += Utils::encryptThenMAC(channel.secret, &packet->payload[len], data, data_len);
   }
 

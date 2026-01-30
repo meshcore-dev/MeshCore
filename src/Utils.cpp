@@ -1,7 +1,12 @@
 #include "Utils.h"
 #include <AES.h>
 #include <SHA256.h>
-#include <ChaChaPoly.h>
+
+// LibAscon - lightweight AEAD cipher (CC0 license)
+// https://github.com/TheMatjaz/LibAscon
+extern "C" {
+#include <ascon.h>
+}
 
 #ifdef ARDUINO
   #include <Arduino.h>
@@ -161,93 +166,141 @@ int Utils::parseTextParts(char* text, const char* parts[], int max_num, char sep
   return num;
 }
 
-// ========== ChaCha20-Poly1305 Implementation ==========
+// ========== V2 Encryption: Ascon-128 with Per-Packet Key Derivation ==========
+//
+// Security design:
+// 1. Per-packet key derivation: key = HMAC-SHA256(shared_secret, counter)[0:16]
+//    This enables short 4-byte tags (safe because key changes every packet)
+// 2. Nonce: counter zero-padded to 16 bytes
+// 3. Tag: 4 bytes (2^32 forgery attempts, but key changes before exhaustion)
+//
+// Packet format: [counter:4][ciphertext:N][tag:4] = 8 bytes overhead
 
-// Derive full 12-byte nonce from key and 4-byte counter
-// nonce = SHA256(key || counter)[0:12]
-static void deriveNonce(uint8_t* nonce, const uint8_t* key, const uint8_t* counter) {
-    uint8_t hash_input[CHACHA_KEY_SIZE + CHACHA_COUNTER_SIZE];
-    memcpy(hash_input, key, CHACHA_KEY_SIZE);
-    memcpy(hash_input + CHACHA_KEY_SIZE, counter, CHACHA_COUNTER_SIZE);
-    Utils::sha256(nonce, CHACHA_NONCE_SIZE, hash_input, sizeof(hash_input));
+// Derive per-packet key from shared secret and counter
+// key = HMAC-SHA256(shared_secret, counter)[0:16]
+static void derivePacketKey(uint8_t* packet_key, const uint8_t* shared_secret, const uint8_t* counter) {
+    SHA256 sha;
+    uint8_t hmac_out[32];
+    sha.resetHMAC(shared_secret, PUB_KEY_SIZE);
+    sha.update(counter, V2_COUNTER_SIZE);
+    sha.finalizeHMAC(shared_secret, PUB_KEY_SIZE, hmac_out, 32);
+    memcpy(packet_key, hmac_out, V2_KEY_SIZE);
 }
 
-// Encrypt with ChaCha20-Poly1305
+// Expand 4-byte counter to 16-byte nonce (zero-padded)
+static void expandNonce(uint8_t* nonce, const uint8_t* counter) {
+    memset(nonce, 0, V2_NONCE_SIZE);
+    memcpy(nonce + V2_NONCE_SIZE - V2_COUNTER_SIZE, counter, V2_COUNTER_SIZE);
+}
+
+// V2 Encrypt with Ascon-128 and per-packet key derivation
 // Returns: total length (counter + ciphertext + tag)
-int Utils::encryptCHACHA(const uint8_t* key, uint8_t* dest, const uint8_t* counter,
-                         const uint8_t* plaintext, int plaintext_len,
-                         const uint8_t* aad, int aad_len) {
-    // Derive full nonce from key and counter
-    uint8_t nonce[CHACHA_NONCE_SIZE];
-    deriveNonce(nonce, key, counter);
+int Utils::encryptV2(const uint8_t* shared_secret, uint8_t* dest,
+                     const uint8_t* plaintext, int plaintext_len) {
+    // Generate unique counter
+    uint8_t counter[V2_COUNTER_SIZE];
+    generateCounter(counter);
 
-    ChaChaPoly chacha;
+    // Derive per-packet key
+    uint8_t packet_key[V2_KEY_SIZE];
+    derivePacketKey(packet_key, shared_secret, counter);
 
-    // Set key and nonce
-    chacha.setKey(key, CHACHA_KEY_SIZE);
-    chacha.setIV(nonce, CHACHA_NONCE_SIZE);
+    // Expand counter to full nonce
+    uint8_t nonce[V2_NONCE_SIZE];
+    expandNonce(nonce, counter);
 
-    // Add AAD if provided
-    if (aad && aad_len > 0) {
-        chacha.addAuthData(aad, aad_len);
-    }
+    // Write counter to output
+    memcpy(dest, counter, V2_COUNTER_SIZE);
 
-    // Layout: [counter || ciphertext || tag]
-    memcpy(dest, counter, CHACHA_COUNTER_SIZE);
+    // Encrypt with Ascon-128 using LibAscon offline API
+    // Output: ciphertext directly after counter, tag after ciphertext
+    uint8_t* ciphertext_out = dest + V2_COUNTER_SIZE;
+    uint8_t* tag_out = dest + V2_COUNTER_SIZE + plaintext_len;
 
-    // Encrypt
-    chacha.encrypt(dest + CHACHA_COUNTER_SIZE, plaintext, plaintext_len);
+    ascon_aead128_encrypt(
+        ciphertext_out,            // ciphertext output
+        tag_out,                   // tag output (truncated)
+        packet_key,                // 16-byte key
+        nonce,                     // 16-byte nonce
+        NULL,                      // no associated data
+        plaintext,                 // plaintext input
+        0,                         // assoc_data_len
+        (size_t)plaintext_len,     // plaintext_len
+        V2_TAG_SIZE                // tag_len (4 bytes - built-in truncation!)
+    );
 
-    // Generate and append authentication tag
-    chacha.computeTag(dest + CHACHA_COUNTER_SIZE + plaintext_len, CHACHA_TAG_SIZE);
+    // Clear sensitive material
+    memset(packet_key, 0, V2_KEY_SIZE);
 
-    return CHACHA_COUNTER_SIZE + plaintext_len + CHACHA_TAG_SIZE;
+    return V2_COUNTER_SIZE + plaintext_len + V2_TAG_SIZE;
 }
 
-// Decrypt with ChaCha20-Poly1305
+// V2 Decrypt with Ascon-128 and per-packet key derivation
 // Returns: plaintext length on success, 0 on authentication failure
-int Utils::decryptCHACHA(const uint8_t* key, uint8_t* dest,
-                         const uint8_t* src, int src_len,
-                         const uint8_t* aad, int aad_len) {
+int Utils::decryptV2(const uint8_t* shared_secret, uint8_t* dest,
+                     const uint8_t* src, int src_len) {
     // Validate minimum length
-    if (src_len < CHACHA_COUNTER_SIZE + CHACHA_TAG_SIZE) {
+    if (src_len < V2_COUNTER_SIZE + V2_TAG_SIZE) {
         return 0;
     }
 
-    int ciphertext_len = src_len - CHACHA_COUNTER_SIZE - CHACHA_TAG_SIZE;
+    int ciphertext_len = src_len - V2_COUNTER_SIZE - V2_TAG_SIZE;
 
     // Extract components
     const uint8_t* counter = src;
-    const uint8_t* ciphertext = src + CHACHA_COUNTER_SIZE;
-    const uint8_t* tag = src + CHACHA_COUNTER_SIZE + ciphertext_len;
+    const uint8_t* ciphertext = src + V2_COUNTER_SIZE;
+    const uint8_t* tag = src + V2_COUNTER_SIZE + ciphertext_len;
 
-    // Derive full nonce from key and counter
-    uint8_t nonce[CHACHA_NONCE_SIZE];
-    deriveNonce(nonce, key, counter);
+    // Derive per-packet key
+    uint8_t packet_key[V2_KEY_SIZE];
+    derivePacketKey(packet_key, shared_secret, counter);
 
-    ChaChaPoly chacha;
+    // Expand counter to full nonce
+    uint8_t nonce[V2_NONCE_SIZE];
+    expandNonce(nonce, counter);
 
-    // Set key and nonce
-    chacha.setKey(key, CHACHA_KEY_SIZE);
-    chacha.setIV(nonce, CHACHA_NONCE_SIZE);
+    // Decrypt with Ascon-128 using LibAscon offline API
+    // LibAscon supports truncated tags directly via expected_tag_len!
+    bool valid = ascon_aead128_decrypt(
+        dest,                      // plaintext output
+        packet_key,                // 16-byte key
+        nonce,                     // 16-byte nonce
+        NULL,                      // no associated data
+        ciphertext,                // ciphertext input
+        tag,                       // expected tag (truncated)
+        0,                         // assoc_data_len
+        (size_t)ciphertext_len,    // ciphertext_len
+        V2_TAG_SIZE                // expected_tag_len (4 bytes - built-in truncation!)
+    );
 
-    // Add AAD if provided
-    if (aad && aad_len > 0) {
-        chacha.addAuthData(aad, aad_len);
-    }
+    // Clear sensitive material
+    memset(packet_key, 0, V2_KEY_SIZE);
 
-    // Decrypt (must be done before checkTag due to library requirements)
-    chacha.decrypt(dest, ciphertext, ciphertext_len);
-
-    // Verify authentication tag (constant-time comparison)
-    if (!chacha.checkTag(tag, CHACHA_TAG_SIZE)) {
-        // SECURITY: Zero output buffer on auth failure to prevent use of
-        // unauthenticated data. Callers must check return value > 0.
+    if (!valid) {
+        // Authentication failed - zero output
         memset(dest, 0, ciphertext_len);
         return 0;
     }
 
     return ciphertext_len;
+}
+
+// Unified decryption: try Ascon first, fall back to legacy
+int Utils::decryptAuto(const uint8_t* shared_secret, uint8_t* dest,
+                       const uint8_t* src, int src_len, bool* was_ascon) {
+    // Try Ascon first - this is the happy path for updated clients
+    int len = decryptV2(shared_secret, dest, src, src_len);
+    if (len > 0) {
+        if (was_ascon) *was_ascon = true;
+        return len;
+    }
+
+    // Fall back to legacy (AES-ECB + HMAC) for old clients
+    len = MACThenDecrypt(shared_secret, dest, src, src_len);
+    if (len > 0) {
+        if (was_ascon) *was_ascon = false;
+    }
+    return len;
 }
 
 // ========== Hardware RNG Implementation ==========
@@ -333,47 +386,39 @@ void Utils::getHardwareRandom(uint8_t* dest, size_t size) {
 
 #else
     // No secure RNG available - FAIL COMPILATION for v2 encryption safety
-    #error "No hardware RNG available. ChaCha20-Poly1305 requires secure nonce generation. \
+    #error "No hardware RNG available. Ascon-128 AEAD requires secure nonce generation. \
             Supported platforms: ESP32, nRF52, RP2040, STM32 with HAL_RNG."
 #endif
 }
 
-void Utils::getHighQualityRandom(RNG* rng, uint8_t* dest, size_t size) {
-    if (rng) {
-        // Use provided RNG (typically RadioNoiseListener for high entropy)
-        rng->random(dest, size);
-    } else {
-        // Fallback to hardware RNG if no RNG provided
-        getHardwareRandom(dest, size);
-    }
-}
-
-// ========== Secure Counter Generation ==========
+// ========== Counter Generation for V2 ==========
 
 // Static state for counter generation
-// Counter format: [epoch (2 bytes random)] [sequence (2 bytes incrementing)]
-// - epoch: random value, regenerated on boot or sequence wraparound
+// Counter format: [boot_id (2 bytes random)] [sequence (2 bytes incrementing)]
+// - boot_id: random value, generated once at boot
 // - sequence: 0-65535, increments each message
-// This guarantees uniqueness across devices (different epochs) and
-// within long-running sessions (epoch changes on wraparound)
-static uint16_t s_counter_epoch = 0;
+// This guarantees uniqueness across devices (different boot_ids) and
+// within long-running sessions (sequence increments)
+// On sequence wraparound, new boot_id is generated
+static uint16_t s_boot_id = 0;
 static uint16_t s_counter_seq = 0;
 
-void Utils::generateSecureCounter(uint8_t* counter) {
-    // Initialize epoch on first call
-    if (s_counter_epoch == 0) {
-        getHardwareRandom((uint8_t*)&s_counter_epoch, 2);
-        if (s_counter_epoch == 0) s_counter_epoch = 1;
+void Utils::generateCounter(uint8_t* counter) {
+    // Initialize boot_id on first call
+    if (s_boot_id == 0) {
+        getHardwareRandom((uint8_t*)&s_boot_id, 2);
+        if (s_boot_id == 0) s_boot_id = 1;  // Avoid zero
     }
 
-    // On sequence wraparound, generate new epoch
+    // On sequence wraparound, generate new boot_id
     if (s_counter_seq == 0xFFFF) {
-        getHardwareRandom((uint8_t*)&s_counter_epoch, 2);
-        if (s_counter_epoch == 0) s_counter_epoch = 1;
+        getHardwareRandom((uint8_t*)&s_boot_id, 2);
+        if (s_boot_id == 0) s_boot_id = 1;
         s_counter_seq = 0;
     }
 
-    memcpy(counter, &s_counter_epoch, 2);
+    // Format: [boot_id:2][seq:2]
+    memcpy(counter, &s_boot_id, 2);
     memcpy(counter + 2, &s_counter_seq, 2);
     s_counter_seq++;
 }
