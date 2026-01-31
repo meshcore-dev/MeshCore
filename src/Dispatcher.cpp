@@ -4,9 +4,13 @@
   #include <Arduino.h>
 #endif
 
+#ifdef MESHCORE_SIMULATOR
+  #include "sim_context.h"
+#endif
+
 #include <math.h>
 
-namespace mesh {
+    namespace mesh {
 
 #define MAX_RX_DELAY_MILLIS        32000  // 32 seconds
 #define MIN_TX_BUDGET_RESERVE_MS   100    // min budget (ms) required before allowing next TX
@@ -384,7 +388,13 @@ bool Dispatcher::millisHasNowPassed(unsigned long timestamp) const {
 }
 
 unsigned long Dispatcher::futureMillis(int millis_from_now) const {
-  return _ms->getMillis() + millis_from_now;
+  unsigned long wake_time = _ms->getMillis() + millis_from_now;
+  #ifdef MESHCORE_SIMULATOR // Register wake time with simulator for accurate scheduling
+  if (auto *ctx = SIM_CTX()) {
+    ctx->wake_registry.registerWakeTime(wake_time);
+  }
+  #endif
+  
+  return wake_time;
 }
-
 }

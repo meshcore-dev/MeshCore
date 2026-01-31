@@ -847,7 +847,7 @@ void BaseChatMesh::resetPathTo(ContactInfo& recipient) {
   recipient.out_path_len = OUT_PATH_UNKNOWN;
 }
 
-static ContactInfo* table;  // pass via global :-(
+static thread_local ContactInfo *table; // pass via global (thread_local for simulation)
 
 static int cmp_adv_timestamp(const void *a, const void *b) {
   int a_idx = *((int *)a);
