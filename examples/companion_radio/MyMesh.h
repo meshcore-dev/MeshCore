@@ -67,6 +67,10 @@
 #define BLE_NAME_PREFIX "MeshCore-"
 #endif
 
+#ifndef BUZZER_QUIET
+#define BUZZER_QUIET 1
+#endif
+
 #include <helpers/BaseChatMesh.h>
 #include <helpers/TransportKeyStore.h>
 

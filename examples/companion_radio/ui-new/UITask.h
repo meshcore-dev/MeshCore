@@ -78,7 +78,10 @@ public:
   bool hasDisplay() const { return _display != NULL; }
   bool isButtonPressed() const;
 
+  
+  bool playNotification();
   void toggleBuzzer();
+  void toggleBuzzerOnSerial();
   bool getGPSState();
   void toggleGPS();
 
