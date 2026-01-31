@@ -730,7 +730,7 @@ void UITask::loop() {
     c = handleLongPress(KEY_RIGHT);
   }
   ev = back_btn.check();
-  if (ev == BUTTON_EVENT_TRIPLE_CLICK) {
+  if (ev == BUTTON_EVENT_TRIPLE_CLICK || ev == BUTTON_EVENT_QUAD_CLICK) { // Until we have a need for Quad Click here, we treat is as a Triple Click
     c = handleTripleClick(KEY_SELECT);
   }
 #elif defined(PIN_USER_BTN)
@@ -743,6 +743,8 @@ void UITask::loop() {
     c = handleDoubleClick(KEY_PREV);
   } else if (ev == BUTTON_EVENT_TRIPLE_CLICK) {
     c = handleTripleClick(KEY_SELECT);
+  } else if (ev == BUTTON_EVENT_QUAD_CLICK) {
+    c = handleQuadClick(KEY_SELECT);
   }
 #endif
 #if defined(PIN_USER_BTN_ANA)
@@ -754,7 +756,7 @@ void UITask::loop() {
       c = handleLongPress(KEY_ENTER);
     } else if (ev == BUTTON_EVENT_DOUBLE_CLICK) {
       c = handleDoubleClick(KEY_PREV);
-    } else if (ev == BUTTON_EVENT_TRIPLE_CLICK) {
+    } else if (ev == BUTTON_EVENT_TRIPLE_CLICK || ev == BUTTON_EVENT_QUAD_CLICK) { // Until we have a need for Quad Click here, we treat is as a Triple Click
       c = handleTripleClick(KEY_SELECT);
     }
     _analogue_pin_read_millis = millis();
@@ -762,11 +764,11 @@ void UITask::loop() {
 #endif
 #if defined(BACKLIGHT_BTN)
   if (millis() > next_backlight_btn_check) {
-    bool touch_state = digitalRead(PIN_BUTTON2);
+    bool touch_state = digitalRead(BACKLIGHT_BTN);
 #if defined(DISP_BACKLIGHT)
-    digitalWrite(DISP_BACKLIGHT, !touch_state);
+    digitalWrite(DISP_BACKLIGHT, _forceBacklight || !touch_state);
 #elif defined(EXP_PIN_BACKLIGHT)
-    expander.digitalWrite(EXP_PIN_BACKLIGHT, !touch_state);
+    expander.digitalWrite(EXP_PIN_BACKLIGHT, _forceBacklight || !touch_state);
 #endif
     next_backlight_btn_check = millis() + 300;
   }
@@ -876,6 +878,14 @@ char UITask::handleTripleClick(char c) {
   return c;
 }
 
+char UITask::handleQuadClick(char c) {
+  MESH_DEBUG_PRINTLN("UITask: quad click triggered");
+  checkDisplayOn(c);
+  toggleBacklight();
+  c = 0;
+  return c;
+}
+
 bool UITask::getGPSState() {
   if (_sensors != NULL) {
     int num = _sensors->getNumSettings();
@@ -925,5 +935,18 @@ void UITask::toggleBuzzer() {
     the_mesh.savePrefs();
     showAlert(buzzer.isQuiet() ? "Buzzer: OFF" : "Buzzer: ON", 800);
     _next_refresh = 0;  // trigger refresh
+  #else
+    showAlert("Buzzer N/A", 800);
+  #endif
+}
+
+void UITask::toggleBacklight() {
+  // Toggle forced backlight mode
+  #if defined(DISP_BACKLIGHT) || defined(EXP_PIN_BACKLIGHT)
+    _forceBacklight = !_forceBacklight;
+    showAlert(_forceBacklight ? "Backlight: ALWAYS" : "Backlight: BUTTON ", 800);
+    _next_refresh = 0;  // trigger refresh
+  #else
+    showAlert("Backlight N/A", 800);
   #endif
 }

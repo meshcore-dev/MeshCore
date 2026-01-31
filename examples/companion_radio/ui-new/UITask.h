@@ -37,6 +37,7 @@ class UITask : public AbstractUITask {
   unsigned long _alert_expiry;
   int _msgcount;
   unsigned long ui_started_at, next_batt_chck;
+  bool _forceBacklight = false;
   int next_backlight_btn_check = 0;
 #ifdef PIN_STATUS_LED
   int led_state = 0;
@@ -60,6 +61,7 @@ class UITask : public AbstractUITask {
   char handleLongPress(char c);
   char handleDoubleClick(char c);
   char handleTripleClick(char c);
+  char handleQuadClick(char c);
 
   void setCurrScreen(UIScreen* c);
 
@@ -78,6 +80,7 @@ public:
   bool hasDisplay() const { return _display != NULL; }
   bool isButtonPressed() const;
 
+  void toggleBacklight();
   void toggleBuzzer();
   bool getGPSState();
   void toggleGPS();
