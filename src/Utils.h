@@ -55,6 +55,71 @@ public:
   static int MACThenDecrypt(const uint8_t* shared_secret, uint8_t* dest, const uint8_t* src, int src_len);
 
   /**
+   * \brief  Ascon-128 AEAD encryption with per-packet key derivation.
+   *         Layout: [counter (4 bytes)] [ciphertext] [tag (4 bytes)]
+   *         Per-packet key = HMAC-SHA256(shared_secret, counter)[0:16]
+   *
+   * \param  shared_secret  32-byte shared secret from key exchange
+   * \param  dest  destination buffer for encrypted output
+   * \param  plaintext  data to encrypt
+   * \param  plaintext_len  length of plaintext
+   * \returns  total length of encrypted output (counter + ciphertext + tag)
+  */
+  static int encryptAscon(const uint8_t* shared_secret, uint8_t* dest,
+                          const uint8_t* plaintext, int plaintext_len);
+
+  /**
+   * \brief  Ascon-128 AEAD decryption with per-packet key derivation.
+   *         Expects layout: [counter (4 bytes)] [ciphertext] [tag (4 bytes)]
+   *         Per-packet key = HMAC-SHA256(shared_secret, counter)[0:16]
+   *
+   * \param  shared_secret  32-byte shared secret from key exchange
+   * \param  dest  destination buffer for decrypted plaintext
+   * \param  src  encrypted data (counter + ciphertext + tag)
+   * \param  src_len  length of encrypted data
+   * \returns  plaintext length on success, 0 on authentication failure
+  */
+  static int decryptAscon(const uint8_t* shared_secret, uint8_t* dest,
+                          const uint8_t* src, int src_len);
+
+  /**
+   * \brief  Unified decryption: tries Ascon first, falls back to legacy AES-ECB+HMAC.
+   *         Use this for receiving packets from unknown sender crypto version.
+   *
+   * \param  shared_secret  32-byte shared secret from key exchange
+   * \param  dest  destination buffer for decrypted plaintext
+   * \param  src  encrypted data
+   * \param  src_len  length of encrypted data
+   * \param  was_ascon  optional output: set to true if Ascon decryption succeeded, false if legacy
+   * \returns  plaintext length on success, 0 on authentication failure
+  */
+  static int decryptAuto(const uint8_t* shared_secret, uint8_t* dest,
+                         const uint8_t* src, int src_len, bool* was_ascon = nullptr);
+
+  /**
+   * \brief  Get hardware random bytes from platform-specific TRNG.
+   * \param  dest  destination buffer
+   * \param  size  number of random bytes to generate
+  */
+  static void getHardwareRandom(uint8_t* dest, size_t size);
+
+  /**
+   * \brief  Initialize the Ascon counter with a random starting value.
+   *         Call this once at boot before any encryption operations.
+   *         Provides defense-in-depth against counter reuse across reboots,
+   *         especially when timestamp replay protection is unreliable.
+   * \param  rng  random number generator
+  */
+  static void initAsconCounter(RNG& rng);
+
+  /**
+   * \brief  Generate a 4-byte counter for Ascon nonce.
+   *         Counter starts from random value (set by initAsconCounter) and increments.
+   * \param  counter  destination buffer (must be ASCON_COUNTER_SIZE bytes)
+  */
+  static void generateCounter(uint8_t* counter);
+
+  /**
    * \brief  converts 'src' bytes with given length to Hex representation, and null terminates.
   */
   static void toHex(char* dest, const uint8_t* src, size_t len);
