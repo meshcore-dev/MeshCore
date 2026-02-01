@@ -274,14 +274,17 @@ File file = openRead(_getContactsChannelsFS(), "/contacts3");
       bool full = false;
       while (!full) {
         ContactInfo c;
+        memset(&c, 0, sizeof(c));  // Zero-initialize to prevent garbage in new fields
+        c.shared_secret_valid = false;
+        c.supports_ascon = false;
         uint8_t pub_key[32];
-        uint8_t unused;
+        uint8_t crypto_flags;  // was 'unused'; bit 0 = supports_ascon
 
         bool success = (file.read(pub_key, 32) == 32);
         success = success && (file.read((uint8_t *)&c.name, 32) == 32);
         success = success && (file.read(&c.type, 1) == 1);
         success = success && (file.read(&c.flags, 1) == 1);
-        success = success && (file.read(&unused, 1) == 1);
+        success = success && (file.read(&crypto_flags, 1) == 1);
         success = success && (file.read((uint8_t *)&c.sync_since, 4) == 4); // was 'reserved'
         success = success && (file.read((uint8_t *)&c.out_path_len, 1) == 1);
         success = success && (file.read((uint8_t *)&c.last_advert_timestamp, 4) == 4);
@@ -292,6 +295,7 @@ File file = openRead(_getContactsChannelsFS(), "/contacts3");
 
         if (!success) break; // EOF
 
+        c.supports_ascon = (crypto_flags & 0x01) != 0;  // bit 0; old files have 0 here (backwards compatible)
         c.id = mesh::Identity(pub_key);
         if (!host->onContactLoaded(c)) full = true;
       }
@@ -304,14 +308,14 @@ void DataStore::saveContacts(DataStoreHost* host) {
   if (file) {
     uint32_t idx = 0;
     ContactInfo c;
-    uint8_t unused = 0;
 
     while (host->getContactForSave(idx, c)) {
+      uint8_t crypto_flags = c.supports_ascon ? 0x01 : 0x00;  // bit 0 = supports_ascon
       bool success = (file.write(c.id.pub_key, 32) == 32);
       success = success && (file.write((uint8_t *)&c.name, 32) == 32);
       success = success && (file.write(&c.type, 1) == 1);
       success = success && (file.write(&c.flags, 1) == 1);
-      success = success && (file.write(&unused, 1) == 1);
+      success = success && (file.write(&crypto_flags, 1) == 1);
       success = success && (file.write((uint8_t *)&c.sync_since, 4) == 4);
       success = success && (file.write((uint8_t *)&c.out_path_len, 1) == 1);
       success = success && (file.write((uint8_t *)&c.last_advert_timestamp, 4) == 4);
@@ -335,13 +339,17 @@ void DataStore::loadChannels(DataStoreHost* host) {
       uint8_t channel_idx = 0;
       while (!full) {
         ChannelDetails ch;
-        uint8_t unused[4];
+        uint8_t flags_and_unused[4];
 
-        bool success = (file.read(unused, 4) == 4);
+        bool success = (file.read(flags_and_unused, 4) == 4);
         success = success && (file.read((uint8_t *)ch.name, 32) == 32);
         success = success && (file.read((uint8_t *)ch.channel.secret, 32) == 32);
 
         if (!success) break; // EOF
+
+        // First byte stores channel flags (v2 support, etc), rest unused
+        // Old files have all zeros here, which means v1 (backward compatible)
+        ch.channel.flags = flags_and_unused[0];
 
         if (host->onChannelLoaded(channel_idx, ch)) {
           channel_idx++;
@@ -358,11 +366,14 @@ void DataStore::saveChannels(DataStoreHost* host) {
   if (file) {
     uint8_t channel_idx = 0;
     ChannelDetails ch;
-    uint8_t unused[4];
-    memset(unused, 0, 4);
+    uint8_t flags_and_unused[4];
 
     while (host->getChannelForSave(channel_idx, ch)) {
-      bool success = (file.write(unused, 4) == 4);
+      // First byte stores channel flags (v2 support, etc), rest unused
+      memset(flags_and_unused, 0, 4);
+      flags_and_unused[0] = ch.channel.flags;
+
+      bool success = (file.write(flags_and_unused, 4) == 4);
       success = success && (file.write((uint8_t *)ch.name, 32) == 32);
       success = success && (file.write((uint8_t *)ch.channel.secret, 32) == 32);
 

@@ -408,7 +408,9 @@ public:
       temp[5 + MAX_TEXT_LEN] = 0;  // truncate if too long
 
       int len = strlen((char *) &temp[5]);
-      auto pkt = createGroupDatagram(PAYLOAD_TYPE_GRP_TXT, _public->channel, temp, 5 + len);
+      // Use Ascon if channel has the flag set, otherwise use legacy for backwards compatibility
+      bool use_ascon = (_public->channel.flags & CHANNEL_FLAG_ASCON) != 0;
+      auto pkt = createGroupDatagram(PAYLOAD_TYPE_GRP_TXT, _public->channel, temp, 5 + len, use_ascon);
       if (pkt) {
         sendFlood(pkt);
         Serial.println("   Sent.");
