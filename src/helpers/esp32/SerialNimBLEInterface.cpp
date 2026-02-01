@@ -9,11 +9,21 @@
 
 #define ADVERT_RESTART_DELAY  1000   // millis
 
-void SerialNimBLEInterface::begin(const char* device_name, uint32_t pin_code) {
+void SerialNimBLEInterface::begin(const char* prefix, char* name, uint32_t pin_code) {
   _pin_code = pin_code;
 
+  if (strcmp(name, "@@MAC") == 0) {
+    uint8_t addr[8];
+    memset(addr, 0, sizeof(addr));
+    esp_efuse_mac_get_default(addr);
+    sprintf(name, "%02X%02X%02X%02X%02X%02X",    // modify (IN-OUT param)
+          addr[5], addr[4], addr[3], addr[2], addr[1], addr[0]);
+  }
+  char dev_name[32+16];
+  sprintf(dev_name, "%s%s", prefix, name);
+
   // Create the BLE Device
-  NimBLEDevice::init(device_name);
+  NimBLEDevice::init(dev_name);
   NimBLEDevice::setMTU(MAX_FRAME_SIZE);
   NimBLEDevice::setSecurityIOCap(BLE_HS_IO_DISPLAY_ONLY);
   NimBLEDevice::setSecurityAuth(BLE_SM_PAIR_AUTHREQ_BOND | BLE_SM_PAIR_AUTHREQ_MITM | BLE_SM_PAIR_AUTHREQ_SC);
@@ -39,7 +49,7 @@ void SerialNimBLEInterface::begin(const char* device_name, uint32_t pin_code) {
   pService->start();
 
   NimBLEAdvertising* pAdvertising = NimBLEDevice::getAdvertising();
-  pAdvertising->setName(device_name);
+  pAdvertising->setName(dev_name);
   pAdvertising->addServiceUUID(pService->getUUID());
   pAdvertising->enableScanResponse(true);
   pAdvertising->start();
