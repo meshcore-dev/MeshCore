@@ -61,6 +61,7 @@ public:
   void begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* node_prefs);
 
   bool hasDisplay() const { return _display != NULL; }
+  bool playNotification();
   void clearMsgPreview();
 
   // from AbstractUITask
