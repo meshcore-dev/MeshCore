@@ -349,8 +349,9 @@ Byte 0: 0x0A
 0A
 ```
 
-**Response**: 
-- `PACKET_CHANNEL_MSG_RECV` (0x08) or `PACKET_CHANNEL_MSG_RECV_V3` (0x11) for channel messages
+**Response**:
+- `PACKET_CHANNEL_MSG_RECV` (0x08) or `PACKET_CHANNEL_MSG_RECV_V3` (0x11) for channel text messages
+- `PACKET_CHANNEL_DATA_RECV` (0x1A) for channel binary data
 - `PACKET_CONTACT_MSG_RECV` (0x07) or `PACKET_CONTACT_MSG_RECV_V3` (0x10) for contact messages
 - `PACKET_NO_MORE_MSGS` (0x0A) if no messages available
 
@@ -373,6 +374,34 @@ Byte 0: 0x14
 ```
 
 **Response**: `PACKET_BATTERY` (0x0C) with battery percentage
+
+---
+
+### 8. Send Channel Data
+
+**Purpose**: Send binary data to a channel (group datagram).
+
+**Command Format**:
+```
+Byte 0: 0x3C
+Byte 1: Channel Index (0-7)
+Bytes 2-5: Timestamp (32-bit little-endian Unix timestamp, seconds)
+Bytes 6+: Binary Data (variable length, max 164 bytes)
+```
+
+**Timestamp**: Unix timestamp in seconds (32-bit unsigned integer, little-endian)
+
+**Example** (send 3 bytes of data `0xAA 0xBB 0xCC` to channel 1 at timestamp 1234567890):
+```
+3C 01 D2 02 96 49 AA BB CC
+```
+
+**Response**: `PACKET_OK` (0x00) on success, `PACKET_ERROR` (0x01) on failure
+
+**Error Codes**:
+- `ERR_CODE_ILLEGAL_ARG`: Frame too short (< 7 bytes) or data exceeds 164 bytes
+- `ERR_CODE_NOT_FOUND`: Invalid channel index
+- `ERR_CODE_TABLE_FULL`: Packet pool is full
 
 ---
 
@@ -678,6 +707,39 @@ def parse_channel_message(data):
     }
 ```
 
+### Channel Binary Data Format
+
+**Format** (`PACKET_CHANNEL_DATA_RECV`, 0x1A):
+```
+Byte 0: 0x1A (packet type)
+Byte 1: SNR (signed byte, multiplied by 4)
+Bytes 2-3: Reserved
+Byte 4: Channel Index (0-7)
+Byte 5: Path Length
+Bytes 6-9: Timestamp (32-bit little-endian)
+Bytes 10+: Binary Data (variable length, max 164 bytes)
+```
+
+**Parsing Pseudocode**:
+```python
+def parse_channel_data(data):
+    packet_type = data[0]  # 0x1A
+    snr_byte = data[1]
+    snr = ((snr_byte if snr_byte < 128 else snr_byte - 256) / 4.0)
+    # bytes 2-3 reserved
+    channel_idx = data[4]
+    path_len = data[5]
+    timestamp = int.from_bytes(data[6:10], 'little')
+    binary_data = data[10:]
+
+    return {
+        'channel_idx': channel_idx,
+        'timestamp': timestamp,
+        'data': binary_data,
+        'snr': snr
+    }
+```
+
 ### Sending Messages
 
 Use the `SEND_CHANNEL_MESSAGE` command (see [Commands](#commands)).
@@ -711,6 +773,7 @@ Use the `SEND_CHANNEL_MESSAGE` command (see [Commands](#commands)).
 | 0x10 | PACKET_CONTACT_MSG_RECV_V3 | Contact message (V3 with SNR) |
 | 0x11 | PACKET_CHANNEL_MSG_RECV_V3 | Channel message (V3 with SNR) |
 | 0x12 | PACKET_CHANNEL_INFO | Channel information |
+| 0x1A | PACKET_CHANNEL_DATA_RECV | Channel binary data received |
 | 0x80 | PACKET_ADVERTISEMENT | Advertisement packet |
 | 0x82 | PACKET_ACK | Acknowledgment |
 | 0x83 | PACKET_MESSAGES_WAITING | Messages waiting notification |
