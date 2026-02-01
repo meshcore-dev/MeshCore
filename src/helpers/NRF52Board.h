@@ -60,6 +60,10 @@ public:
   const char* getResetReasonString(uint32_t reason) override;
   const char* getShutdownReasonString(uint8_t reason) override;
 #endif
+
+  uint32_t getIRQGpio() { return P_LORA_DIO_1; } // default for SX1262
+  virtual bool safeToSleep() override;
+  virtual void sleep(uint32_t secs) override;
 };
 
 /*
