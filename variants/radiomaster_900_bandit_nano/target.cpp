@@ -31,7 +31,7 @@ static AnalogJoystick::JoyADCMapping joystick_mappings[] = {
   { 2668, KEY_RIGHT }, { 3227, KEY_UP },     { 4095, 0 } // IDLE
 };
 
-AnalogJoystick analog_joystick(PIN_USER_JOYSTICK, joystick_mappings, 6);
+AnalogJoystick analog_joystick(PIN_USER_JOYSTICK, joystick_mappings, 6, KEY_SELECT);
 #endif
 #endif
 
