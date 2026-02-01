@@ -961,9 +961,9 @@ char UITask::checkDisplayOn(char c) {
       _display->turnOn(); // turn display on and consume event
       c = 0;
 #ifdef RADIOMASTER_900_BANDIT
-      pixels.setPixelColor(0, pixels.Color(255, 0, 0));
-      pixels.setPixelColor(1, pixels.Color(0, 255, 0));
-      pixels.show();
+//      pixels.setPixelColor(0, pixels.Color(255, 0, 0));
+//      pixels.setPixelColor(1, pixels.Color(0, 255, 0));
+//      pixels.show();
 #endif
     }
     _auto_off = millis() + AUTO_OFF_MILLIS; // extend auto-off timer
