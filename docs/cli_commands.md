@@ -642,7 +642,7 @@
 **Usage:** 
 - `region`
 
-**Serial Only:** Yes
+**Serial Only:** For firmware older than 1.12.0
 
 ---
 
