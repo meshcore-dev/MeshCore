@@ -708,6 +708,12 @@ void EnvironmentSensorManager::loop() {
 
   #if ENV_INCLUDE_GPS
   _location->loop();
+
+  if (gps_tmp_flag && !gps_active) {
+    MESH_DEBUG_PRINTLN("[GPS] GPS request flag set. Starting GPS for location fix.");  // Debug message
+    start_gps();
+  }
+
   if (millis() > next_gps_update) {
 
     if(gps_active){
@@ -718,6 +724,12 @@ void EnvironmentSensorManager::loop() {
       MESH_DEBUG_PRINTLN("lat %f lon %f", node_lat, node_lon);
       node_altitude = ((double)_location->getAltitude()) / 1000.0;
       MESH_DEBUG_PRINTLN("lat %f lon %f alt %f", node_lat, node_lon, node_altitude);
+
+      if (gps_tmp_flag) {
+          MESH_DEBUG_PRINTLN("[GPS] GPS location fix obtained. Disabling GPS.");
+          gps_tmp_flag = false;
+          stop_gps();
+      }
     }
     #else
     if (_location->isValid()) {
@@ -726,6 +738,12 @@ void EnvironmentSensorManager::loop() {
       MESH_DEBUG_PRINTLN("lat %f lon %f", node_lat, node_lon);
       node_altitude = ((double)_location->getAltitude()) / 1000.0;
       MESH_DEBUG_PRINTLN("lat %f lon %f alt %f", node_lat, node_lon, node_altitude);
+
+      if (gps_tmp_flag) {
+          MESH_DEBUG_PRINTLN("[GPS] GPS location fix obtained. Disabling GPS.");
+          gps_tmp_flag = false;
+          stop_gps();
+      }
     }
     #endif
     }
