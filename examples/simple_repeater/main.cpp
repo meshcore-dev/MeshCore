@@ -127,14 +127,17 @@ void loop() {
 #endif
   rtc_clock.tick();
 
-  if (the_mesh.getNodePrefs()->powersaving_enabled &&                     // To check if power saving is enabled
-      the_mesh.millisHasNowPassed(lastActive + nextSleepinSecs * 1000)) { // To check if it is time to sleep
-    if (!the_mesh.hasPendingWork()) { // No pending work. Safe to sleep
+  if (the_mesh.getNodePrefs()->powersaving_enabled && !the_mesh.hasPendingWork()) {
+    #if defined(NRF52_PLATFORM)
+    board.sleep(1800); // nrf ignores seconds param, sleeps whenever possible
+    #else
+    if (the_mesh.millisHasNowPassed(lastActive + nextSleepinSecs * 1000)) { // To check if it is time to sleep
       board.sleep(1800);             // To sleep. Wake up after 30 minutes or when receiving a LoRa packet
       lastActive = millis();
       nextSleepinSecs = 5;  // Default: To work for 5s and sleep again
     } else {
       nextSleepinSecs += 5; // When there is pending work, to work another 5s
     }
+    #endif
   }
 }

@@ -251,6 +251,32 @@ void NRF52BoardDCDC::begin() {
   }
 }
 
+void NRF52Board::sleep(uint32_t secs) {
+  // Clear FPU interrupt flags to avoid insomnia
+  // see errata 87 for details https://docs.nordicsemi.com/bundle/errata_nRF52840_Rev3/page/ERR/nRF52840/Rev3/latest/anomaly_840_87.html
+  #if (__FPU_USED == 1)
+  __set_FPSCR(__get_FPSCR() & ~(0x0000009F)); 
+  (void) __get_FPSCR();
+  NVIC_ClearPendingIRQ(FPU_IRQn);
+  #endif
+
+  // On nRF52, we use event-driven sleep instead of timed sleep
+  // The 'secs' parameter is ignored - we wake on any interrupt
+  uint8_t sd_enabled = 0;
+  sd_softdevice_is_enabled(&sd_enabled);
+
+  if (sd_enabled) {
+    // first call processes pending softdevice events, second call sleeps.
+    sd_app_evt_wait();
+    sd_app_evt_wait();
+  } else {
+    // softdevice is disabled, use raw WFE
+    __SEV();
+    __WFE();
+    __WFE();
+  }
+}
+
 // Temperature from NRF52 MCU
 float NRF52Board::getMCUTemperature() {
   NRF_TEMP->TASKS_START = 1; // Start temperature measurement
