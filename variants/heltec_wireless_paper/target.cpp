@@ -1,7 +1,7 @@
 #include "target.h"
 #include <Arduino.h>
 
-HeltecV3Board board;
+HeltecV3WirelessPaper board;
 
 #if defined(P_LORA_SCLK)
   static SPIClass spi;

@@ -3,7 +3,7 @@
 #define RADIOLIB_STATIC_ONLY 1
 #include <RadioLib.h>
 #include <helpers/radiolib/RadioLibWrappers.h>
-#include <../heltec_v3/HeltecV3Board.h>
+#include "HeltecV3WirelessPaper.h"
 #include <helpers/radiolib/CustomSX1262Wrapper.h>
 #include <helpers/AutoDiscoverRTCClock.h>
 #include <helpers/SensorManager.h>
@@ -12,7 +12,7 @@
 #include <helpers/ui/MomentaryButton.h>
 #endif
 
-extern HeltecV3Board board;
+extern HeltecV3WirelessPaper board;
 extern WRAPPER_CLASS radio_driver;
 extern AutoDiscoverRTCClock rtc_clock;
 extern SensorManager sensors;
