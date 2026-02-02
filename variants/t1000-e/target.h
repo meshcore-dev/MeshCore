@@ -8,28 +8,10 @@
 #include <helpers/ArduinoHelpers.h>
 #include <helpers/SensorManager.h>
 #include <helpers/sensors/LocationProvider.h>
+#include <helpers/sensors/EnvironmentSensorManager.h>
 #ifdef DISPLAY_CLASS
   #include "NullDisplayDriver.h"
 #endif
-
-class T1000SensorManager: public SensorManager {
-  bool gps_active = false;
-  LocationProvider * _nmea;
-
-  void start_gps();
-  void sleep_gps();
-  void stop_gps();
-public:
-  T1000SensorManager(LocationProvider &nmea): _nmea(&nmea) { }
-  bool begin() override;
-  bool querySensors(uint8_t requester_permissions, CayenneLPP& telemetry) override;
-  void loop() override;
-  int getNumSettings() const override;
-  const char* getSettingName(int i) const override;
-  const char* getSettingValue(int i) const override;
-  bool setSettingValue(const char* name, const char* value) override;
-  LocationProvider* getLocationProvider() { return _nmea; }
-};
 
 #ifdef DISPLAY_CLASS
   extern NullDisplayDriver display;
@@ -38,7 +20,7 @@ public:
 extern T1000eBoard board;
 extern WRAPPER_CLASS radio_driver;
 extern VolatileRTCClock rtc_clock;
-extern T1000SensorManager sensors;
+extern EnvironmentSensorManager sensors;
 
 bool radio_init();
 uint32_t radio_get_rng_seed();

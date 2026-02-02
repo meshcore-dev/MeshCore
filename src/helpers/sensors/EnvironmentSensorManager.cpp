@@ -105,6 +105,13 @@ static Adafruit_VL53L0X VL53L0X;
 #define RAK_WISBLOCK_GPS
 #endif
 
+#if ENV_INCLUDE_GPS && defined(T1000_E)
+#define T1000_E_GPS
+#define GPS_RX_PIN PIN_GPS_RX
+#define GPS_RX_PIN PIN_GPS_TX
+#include "t1000e_sensors.h"
+#endif
+
 #ifdef RAK_WISBLOCK_GPS
 static uint32_t gpsResetPin = 0;
 static bool i2cGPSFlag = false;
@@ -483,6 +490,12 @@ bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, Cayen
     }
     #endif
 
+    #ifdef T1000_E_GPS
+      // Firmware reports light as a 0-100 % scale, but expose it via Luminosity so app labels it "Luminosity".
+      telemetry.addLuminosity(TELEM_CHANNEL_SELF, t1000e_get_light());
+      telemetry.addTemperature(TELEM_CHANNEL_SELF, t1000e_get_temperature());
+    #endif
+
   }
 
   return true;
@@ -680,6 +693,27 @@ void EnvironmentSensorManager::start_gps() {
     return;
   #endif
 
+  #ifdef T1000_E_GPS
+    pinMode(GPS_EN, OUTPUT);
+    digitalWrite(GPS_EN, HIGH);
+    delay(10);
+    pinMode(GPS_VRTC_EN, OUTPUT);
+    digitalWrite(GPS_VRTC_EN, HIGH);
+    delay(10);
+
+    pinMode(GPS_RESET, OUTPUT);
+    digitalWrite(GPS_RESET, HIGH);
+    delay(10);
+    digitalWrite(GPS_RESET, LOW);
+
+    pinMode(GPS_SLEEP_INT, OUTPUT);
+    digitalWrite(GPS_SLEEP_INT, HIGH);
+    pinMode(GPS_RTC_INT, OUTPUT);
+    digitalWrite(GPS_RTC_INT, LOW);
+    pinMode(GPS_RESETB, INPUT_PULLUP);
+    return;
+#endif
+
   _location->begin();
   _location->reset();
 
@@ -695,6 +729,17 @@ void EnvironmentSensorManager::stop_gps() {
     digitalWrite(gpsResetPin, LOW);
     return;
   #endif
+
+  #ifdef T1000_E_GPS
+    digitalWrite(GPS_VRTC_EN, LOW);
+    digitalWrite(GPS_EN, LOW);
+    digitalWrite(GPS_RESET, HIGH);
+    digitalWrite(GPS_SLEEP_INT, HIGH);
+    digitalWrite(GPS_RTC_INT, LOW);
+    pinMode(GPS_RESETB, OUTPUT);
+    digitalWrite(GPS_RESETB, LOW);
+    return;
+#endif
 
   _location->stop();
 
