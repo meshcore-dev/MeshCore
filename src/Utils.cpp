@@ -194,7 +194,7 @@ static void expandNonce(uint8_t* nonce, const uint8_t* counter) {
 }
 
 // Ascon Encrypt with Ascon-128 and per-packet key derivation
-// Returns: total length (counter + padded_ciphertext + tag)
+// Returns: total length (counter + ciphertext + tag)
 int Utils::encryptAscon(const uint8_t* shared_secret, uint8_t* dest,
                         const uint8_t* plaintext, int plaintext_len) {
     // Generate unique counter
@@ -209,22 +209,13 @@ int Utils::encryptAscon(const uint8_t* shared_secret, uint8_t* dest,
     uint8_t nonce[ASCON_NONCE_SIZE];
     expandNonce(nonce, counter);
 
-    // Pad plaintext to 16-byte boundary for length hiding (like AES blocks).
-    // Padding uses PKCS#7 style: pad bytes contain the padding length.
-    int padded_len = ((plaintext_len + 15) / 16) * 16;
-    if (padded_len == plaintext_len) padded_len += 16;  // Always at least 1 byte of padding
-    uint8_t padded[256];  // Max plaintext size in MeshCore is well under this
-    memcpy(padded, plaintext, plaintext_len);
-    uint8_t pad_value = padded_len - plaintext_len;
-    memset(padded + plaintext_len, pad_value, pad_value);
-
     // Write counter to output
     memcpy(dest, counter, ASCON_COUNTER_SIZE);
 
     // Encrypt with Ascon-128 using LibAscon offline API
     // Output: ciphertext directly after counter, tag after ciphertext
     uint8_t* ciphertext_out = dest + ASCON_COUNTER_SIZE;
-    uint8_t* tag_out = dest + ASCON_COUNTER_SIZE + padded_len;
+    uint8_t* tag_out = dest + ASCON_COUNTER_SIZE + plaintext_len;
 
     ascon_aead128_encrypt(
         ciphertext_out,            // ciphertext output
@@ -232,34 +223,28 @@ int Utils::encryptAscon(const uint8_t* shared_secret, uint8_t* dest,
         packet_key,                // 16-byte key
         nonce,                     // 16-byte nonce
         NULL,                      // no associated data
-        padded,                    // padded plaintext input
+        plaintext,                 // plaintext input
         0,                         // assoc_data_len
-        (size_t)padded_len,        // padded plaintext_len
+        (size_t)plaintext_len,     // plaintext_len
         ASCON_TAG_SIZE             // tag_len (4 bytes - built-in truncation!)
     );
 
     // Clear sensitive material
     memset(packet_key, 0, ASCON_KEY_SIZE);
-    memset(padded, 0, padded_len);
 
-    return ASCON_COUNTER_SIZE + padded_len + ASCON_TAG_SIZE;
+    return ASCON_COUNTER_SIZE + plaintext_len + ASCON_TAG_SIZE;
 }
 
 // Ascon Decrypt with Ascon-128 and per-packet key derivation
 // Returns: plaintext length on success, 0 on authentication failure
 int Utils::decryptAscon(const uint8_t* shared_secret, uint8_t* dest,
                         const uint8_t* src, int src_len) {
-    // Validate minimum length (must have at least 16 bytes ciphertext due to padding)
-    if (src_len < ASCON_COUNTER_SIZE + 16 + ASCON_TAG_SIZE) {
+    // Validate minimum length
+    if (src_len < ASCON_COUNTER_SIZE + ASCON_TAG_SIZE) {
         return 0;
     }
 
     int ciphertext_len = src_len - ASCON_COUNTER_SIZE - ASCON_TAG_SIZE;
-
-    // Ciphertext must be multiple of 16 (due to padding)
-    if (ciphertext_len % 16 != 0) {
-        return 0;
-    }
 
     // Extract components
     const uint8_t* counter = src;
@@ -276,9 +261,8 @@ int Utils::decryptAscon(const uint8_t* shared_secret, uint8_t* dest,
 
     // Decrypt with Ascon-128 using LibAscon offline API
     // LibAscon supports truncated tags directly via expected_tag_len!
-    uint8_t padded[256];
     bool valid = ascon_aead128_decrypt(
-        padded,                    // padded plaintext output
+        dest,                      // plaintext output
         packet_key,                // 16-byte key
         nonce,                     // 16-byte nonce
         NULL,                      // no associated data
@@ -293,29 +277,11 @@ int Utils::decryptAscon(const uint8_t* shared_secret, uint8_t* dest,
     memset(packet_key, 0, ASCON_KEY_SIZE);
 
     if (!valid) {
+        memset(dest, 0, ciphertext_len);
         return 0;
     }
 
-    // Remove PKCS#7 padding
-    uint8_t pad_value = padded[ciphertext_len - 1];
-    if (pad_value == 0 || pad_value > 16 || pad_value > ciphertext_len) {
-        memset(padded, 0, ciphertext_len);
-        return 0;  // Invalid padding
-    }
-
-    // Verify all padding bytes
-    for (int i = 0; i < pad_value; i++) {
-        if (padded[ciphertext_len - 1 - i] != pad_value) {
-            memset(padded, 0, ciphertext_len);
-            return 0;  // Invalid padding
-        }
-    }
-
-    int plaintext_len = ciphertext_len - pad_value;
-    memcpy(dest, padded, plaintext_len);
-    memset(padded, 0, ciphertext_len);
-
-    return plaintext_len;
+    return ciphertext_len;
 }
 
 // Unified decryption: try Ascon first, fall back to legacy
