@@ -104,17 +104,9 @@ public:
   static void getHardwareRandom(uint8_t* dest, size_t size);
 
   /**
-   * \brief  Initialize the Ascon counter with a random starting value.
-   *         Call this once at boot before any encryption operations.
-   *         Provides defense-in-depth against counter reuse across reboots,
-   *         especially when timestamp replay protection is unreliable.
-   * \param  rng  random number generator
-  */
-  static void initAsconCounter(RNG& rng);
-
-  /**
    * \brief  Generate a 4-byte counter for Ascon nonce.
-   *         Counter starts from random value (set by initAsconCounter) and increments.
+   *         Counter starts at 0 and increments monotonically.
+   *         Safe because per-packet key derivation ensures unique keys.
    * \param  counter  destination buffer (must be ASCON_COUNTER_SIZE bytes)
   */
   static void generateCounter(uint8_t* counter);

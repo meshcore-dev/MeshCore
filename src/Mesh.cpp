@@ -5,8 +5,6 @@ namespace mesh {
 
 void Mesh::begin() {
   Dispatcher::begin();
-  // Initialize Ascon counter with random starting value for replay protection
-  Utils::initAsconCounter(*_rng);
 }
 
 void Mesh::loop() {
