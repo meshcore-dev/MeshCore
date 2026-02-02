@@ -307,6 +307,7 @@ bool MyMesh::shouldOverwriteWhenFull() const {
 }
 
 void MyMesh::onContactOverwrite(const uint8_t* pub_key) {
+    _store->deleteBlobByKey(pub_key, PUB_KEY_SIZE); // delete from storage
   if (_serial->isConnected()) {
     out_frame[0] = PUSH_CODE_CONTACT_DELETED;
     memcpy(&out_frame[1], pub_key, PUB_KEY_SIZE);
@@ -1126,6 +1127,7 @@ void MyMesh::handleCmdFrame(size_t len) {
     uint8_t *pub_key = &cmd_frame[1];
     ContactInfo *recipient = lookupContactByPubKey(pub_key, PUB_KEY_SIZE);
     if (recipient && removeContact(*recipient)) {
+      _store->deleteBlobByKey(pub_key, PUB_KEY_SIZE);
       dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY);
       writeOKFrame();
     } else {
