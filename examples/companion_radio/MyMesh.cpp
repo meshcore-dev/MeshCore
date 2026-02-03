@@ -536,7 +536,7 @@ void MyMesh::onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packe
   }
   if (_ui) {
     _ui->newMsg(path_len, channel_name, text, offline_queue_len);
-    if (!_prefs.buzzer_quiet) _ui->notify(UIEventType::channelMessage); //buzz if enabled
+    if (!_prefs.buzzer_quiet && ((_prefs.notify_channel_buzzer_mask >> channel_idx) & 1)) _ui->notify(UIEventType::channelMessage); //buzz only if enabled and this channel's bit set
   }
 #endif
 }
@@ -797,6 +797,7 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
   _prefs.cr = LORA_CR;
   _prefs.tx_power_dbm = LORA_TX_POWER;
   _prefs.buzzer_quiet = 0;
+  _prefs.notify_channel_buzzer_mask = 0xFF;  // test: channel 0 off, channel 1 on. Production: use 0xFF (all channels)
   _prefs.gps_enabled = 0;       // GPS disabled by default
   _prefs.gps_interval = 0;      // No automatic GPS updates by default
   //_prefs.rx_delay_base = 10.0f;  enable once new algo fixed
@@ -837,6 +838,7 @@ void MyMesh::begin(bool has_display) {
   _prefs.cr = constrain(_prefs.cr, 5, 8);
   _prefs.tx_power_dbm = constrain(_prefs.tx_power_dbm, 1, MAX_LORA_TX_POWER);
   _prefs.buzzer_quiet = constrain(_prefs.buzzer_quiet, 0, 1);  // Ensure boolean 0 or 1
+  // notify_channel_buzzer_mask: 0-255, bit N = buzz for channel N
   _prefs.gps_enabled = constrain(_prefs.gps_enabled, 0, 1);  // Ensure boolean 0 or 1
   _prefs.gps_interval = constrain(_prefs.gps_interval, 0, 86400);  // Max 24 hours
 
@@ -1262,6 +1264,12 @@ void MyMesh::handleCmdFrame(size_t len) {
         _prefs.advert_loc_policy = cmd_frame[3];
         if (len >= 5) {
           _prefs.multi_acks = cmd_frame[4];
+          if (len >= 6) {
+            _prefs.buzzer_quiet = cmd_frame[5] ? 1 : 0;
+            if (len >= 7) {
+              _prefs.notify_channel_buzzer_mask = cmd_frame[6];  // bit N = 1: buzz for channel N (0-7)
+            }
+          }
         }
       }
     }
