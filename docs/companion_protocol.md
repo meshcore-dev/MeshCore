@@ -1,26 +1,42 @@
-# MeshCore Device Communication Protocol Guide
+# Companion Protocol
 
-This document provides a comprehensive guide for communicating with MeshCore devices over Bluetooth Low Energy (BLE). It is platform-agnostic and can be used for Android, iOS, Python, JavaScript, or any other platform that supports BLE.
+- **Last Updated**: 2026-01-03
+- **Protocol Version**: Companion Firmware v1.12.0+
 
-## ⚠️ Important Security Note
+> NOTE: This document is still in development. Some information may be inaccurate.
 
-**All secrets, hashes, and cryptographic values shown in this guide are EXAMPLE VALUES ONLY and are NOT real secrets.** 
+This document provides a comprehensive guide for communicating with MeshCore devices over Bluetooth Low Energy (BLE).
 
-- The secret `9b647d242d6e1c5883fde0c5cf5c4c5e` used in examples is a made-up example value
-- All hex values, public keys, and hashes in examples are for demonstration purposes only
-- **Never use example secrets in production** - always generate new cryptographically secure random secrets
-- This guide is for protocol documentation only - implement proper security practices in your actual implementation
+It is platform-agnostic and can be used for Android, iOS, Python, JavaScript, or any other platform that supports BLE.
+
+## Official Libraries
+
+Please see the following repos for existing MeshCore Companion Protocol libraries.
+
+- JavaScript: [https://github.com/meshcore-dev/meshcore.js](https://github.com/meshcore-dev/meshcore.js)
+- Python: [https://github.com/meshcore-dev/meshcore_py](https://github.com/meshcore-dev/meshcore_py)
+
+## Important Security Note
+
+All secrets, hashes, and cryptographic values shown in this guide are example values only.
+
+- All hex values, public keys and hashes are for demonstration purposes only
+- Never use example secrets in production
+- Always generate new cryptographically secure random secrets
+- Please implement proper security practices in your implementation
+- This guide is for protocol documentation only
 
 ## Table of Contents
 
 1. [BLE Connection](#ble-connection)
-2. [Protocol Overview](#protocol-overview)
+2. [Packet Structure](#packet-structure)
 3. [Commands](#commands)
 4. [Channel Management](#channel-management)
-5. [Secret Generation and QR Codes](#secret-generation-and-qr-codes)
-6. [Message Handling](#message-handling)
-7. [Response Parsing](#response-parsing)
-8. [Example Implementation Flow](#example-implementation-flow)
+5. [Message Handling](#message-handling)
+6. [Response Parsing](#response-parsing)
+7. [Example Implementation Flow](#example-implementation-flow)
+8. [Best Practices](#best-practices)
+9. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -28,180 +44,110 @@ This document provides a comprehensive guide for communicating with MeshCore dev
 
 ### Service and Characteristics
 
-MeshCore devices expose a BLE service with the following UUIDs:
+MeshCore Companion devices expose a BLE service with the following UUIDs:
 
-- **Service UUID**: `0000ff00-0000-1000-8000-00805f9b34fb`
-- **RX Characteristic** (Device → Client): `0000ff01-0000-1000-8000-00805f9b34fb`
-- **TX Characteristic** (Client → Device): `0000ff02-0000-1000-8000-00805f9b34fb`
+- **Service UUID**: `6E400001-B5A3-F393-E0A9-E50E24DCCA9E`
+- **RX Characteristic** (App → Firmware): `6E400002-B5A3-F393-E0A9-E50E24DCCA9E`
+- **TX Characteristic** (Firmware → App): `6E400003-B5A3-F393-E0A9-E50E24DCCA9E`
 
 ### Connection Steps
 
 1. **Scan for Devices**
-   - Scan for BLE devices advertising the MeshCore service UUID
-   - Filter by device name (typically contains "MeshCore" or similar)
-   - Note the device MAC address for reconnection
+    - Scan for BLE devices advertising the MeshCore Service UUID
+    - Optionally filter by device name (typically contains "MeshCore" prefix)
+    - Note the device MAC address for reconnection
 
 2. **Connect to GATT**
-   - Connect to the device using the discovered MAC address
-   - Wait for connection to be established
+    - Connect to the device using the discovered MAC address
+    - Wait for connection to be established
 
 3. **Discover Services and Characteristics**
-   - Discover the service with UUID `0000ff00-0000-1000-8000-00805f9b34fb`
-   - Discover RX characteristic (`0000ff01-...`) for receiving data
-   - Discover TX characteristic (`0000ff02-...`) for sending commands
+    - Discover the service with UUID `6E400001-B5A3-F393-E0A9-E50E24DCCA9E`
+    - Discover the RX characteristic `6E400002-B5A3-F393-E0A9-E50E24DCCA9E`
+        - Your app writes to this, the firmware reads from this
+    - Discover the TX characteristic `6E400003-B5A3-F393-E0A9-E50E24DCCA9E`
+        - The firmware writes to this, your app reads from this
 
 4. **Enable Notifications**
-   - Subscribe to notifications on the RX characteristic
-   - Enable notifications/indications to receive data from the device
-   - On some platforms, you may need to write to a descriptor (e.g., `0x2902`) with value `0x01` or `0x02`
+    - Subscribe to notifications on the TX characteristic to receive data from the firmware
 
-5. **Send AppStart Command**
-   - Send the app start command (see [Commands](#commands)) to initialize communication
-   - Wait for OK response before sending other commands
-
-### Connection State Management
-
-- **Disconnected**: No connection established
-- **Connecting**: Connection attempt in progress
-- **Connected**: GATT connection established, ready for commands
-- **Error**: Connection failed or lost
+5. **Send Initial Commands**
+    - Send `CMD_APP_START` to identify your app to firmware and get radio settings
+    - Send `CMD_DEVICE_QEURY` to fetch device info and negotiate supported protocol versions
+    - Send `CMD_SET_DEVICE_TIME` to set the firmware clock
+    - Send `CMD_GET_CONTACTS` to fetch all contacts
+    - Send `CMD_GET_CHANNEL` multiple times to fetch all channel slots
+    - Send `CMD_SYNC_NEXT_MESSAGE` to fetch the next message stored in firmware
+    - Setup listeners for push codes, such as `PUSH_CODE_MSG_WAITING` or `PUSH_CODE_ADVERT`
+    - See [Commands](#commands) section for information on other commands
 
 **Note**: MeshCore devices may disconnect after periods of inactivity. Implement auto-reconnect logic with exponential backoff.
 
 ### BLE Write Type
 
-When writing commands to the TX characteristic, specify the write type:
+When writing commands to the RX characteristic, specify the write type:
 
 - **Write with Response** (default): Waits for acknowledgment from device
 - **Write without Response**: Faster but no acknowledgment
 
 **Platform-specific**:
+
 - **Android**: Use `BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT` or `WRITE_TYPE_NO_RESPONSE`
 - **iOS**: Use `CBCharacteristicWriteType.withResponse` or `.withoutResponse`
 - **Python (bleak)**: Use `write_gatt_char()` with `response=True` or `False`
 
-**Recommendation**: Use write with response for reliability, especially for critical commands like `SET_CHANNEL`.
+**Recommendation**: Use write with response for reliability.
 
 ### MTU (Maximum Transmission Unit)
 
 The default BLE MTU is 23 bytes (20 bytes payload). For larger commands like `SET_CHANNEL` (66 bytes), you may need to:
 
 1. **Request Larger MTU**: Request MTU of 512 bytes if supported
-   - Android: `gatt.requestMtu(512)`
-   - iOS: `peripheral.maximumWriteValueLength(for:)`
-   - Python (bleak): MTU is negotiated automatically
+    - Android: `gatt.requestMtu(512)`
+    - iOS: `peripheral.maximumWriteValueLength(for:)`
+    - Python (bleak): MTU is negotiated automatically
 
-2. **Handle Chunking**: If MTU is small, commands may be split automatically by the BLE stack
-   - Ensure all chunks are sent before waiting for response
-   - Responses may also arrive in chunks - buffer until complete
-
-### Command Sequencing and Timing
+### Command Sequencing
 
 **Critical**: Commands must be sent in the correct sequence:
 
 1. **After Connection**:
-   - Wait for GATT connection established
-   - Wait for services/characteristics discovered
-   - Wait for notifications enabled (descriptor write complete)
-   - **Wait 200-1000ms** for device to be ready (some devices need initialization time)
-   - Send `APP_START` command
-   - **Wait for `PACKET_OK` response** before sending any other commands
+    - Wait for BLE connection to be established
+    - Wait for services/characteristics to be discovered
+    - Wait for notifications to be enabled
+    - Now you can safely send commands to the firmware
 
 2. **Command-Response Matching**:
-   - Send one command at a time
-   - Wait for response before sending next command
-   - Use timeout (typically 5 seconds)
-   - Match response to command by:
-     - Command type (e.g., `GET_CHANNEL` → `PACKET_CHANNEL_INFO`)
-     - Sequence number (if implemented)
-     - First-in-first-out queue
-
-3. **Timing Considerations**:
-   - Minimum delay between commands: 50-100ms
-   - After `APP_START`: Wait 200-500ms before next command
-   - After `SET_CHANNEL`: Wait 500-1000ms for channel to be created
-   - After enabling notifications: Wait 200ms before sending commands
-
-**Example Flow**:
-```python
-# 1. Connect and discover
-await connect_to_device(device)
-await discover_services()
-await enable_notifications()
-await asyncio.sleep(0.2)  # Wait for device ready
-
-# 2. Send AppStart
-send_command(build_app_start())
-response = await wait_for_response(PACKET_OK, timeout=5.0)
-if response.type != PACKET_OK:
-    raise Exception("AppStart failed")
-
-# 3. Now safe to send other commands
-await asyncio.sleep(0.1)  # Small delay between commands
-send_command(build_device_query())
-response = await wait_for_response(PACKET_DEVICE_INFO, timeout=5.0)
-```
+    - Send one command at a time
+    - Wait for a response before sending another command
+    - Use a timeout (typically 5 seconds)
+    - Match response to command by type (e.g: `CMD_GET_CHANNEL` → `RESP_CODE_CHANNEL_INFO`)
 
 ### Command Queue Management
 
-For reliable operation, implement a command queue:
+For reliable operation, implement a command queue.
 
-1. **Queue Structure**:
-   - Maintain a queue of pending commands
-   - Track which command is currently waiting for response
-   - Only send next command after receiving response or timeout
+**Queue Structure**:
 
-2. **Implementation**:
-```python
-class CommandQueue:
-    def __init__(self):
-        self.queue = []
-        self.waiting_for_response = False
-        self.current_command = None
-    
-    async def send_command(self, command, expected_response_type, timeout=5.0):
-        if self.waiting_for_response:
-            # Queue the command
-            self.queue.append((command, expected_response_type, timeout))
-            return
-        
-        self.waiting_for_response = True
-        self.current_command = (command, expected_response_type, timeout)
-        
-        # Send command
-        await write_to_tx_characteristic(command)
-        
-        # Wait for response
-        response = await wait_for_response(expected_response_type, timeout)
-        
-        self.waiting_for_response = False
-        self.current_command = None
-        
-        # Process next queued command
-        if self.queue:
-            next_cmd, next_type, next_timeout = self.queue.pop(0)
-            await self.send_command(next_cmd, next_type, next_timeout)
-        
-        return response
-```
+- Maintain a queue of pending commands
+- Track which command is currently waiting for a response
+- Only send next command after receiving response or timeout
 
-3. **Error Handling**:
-   - On timeout: Clear current command, process next in queue
-   - On error: Log error, clear current command, process next
-   - Don't block queue on single command failure
+**Error Handling**:
+
+- On timeout, clear current command, process next in queue
+- On error, log error, clear current command, process next
 
 ---
 
-## Protocol Overview
+## Packet Structure
 
 The MeshCore protocol uses a binary format with the following structure:
 
-- **Commands**: Sent from client to device via TX characteristic
-- **Responses**: Received from device via RX characteristic (notifications)
-- **All multi-byte integers**: Little-endian byte order
+- **Commands**: Sent from app to firmware via RX characteristic
+- **Responses**: Received from firmware via TX characteristic notifications
+- **All multi-byte integers**: Little-endian byte order (except CayenneLPP which is Big-endian)
 - **All strings**: UTF-8 encoding
-
-### Packet Structure
 
 Most packets follow this format:
 ```
@@ -283,7 +229,7 @@ Byte 1: Channel Index (0-7)
 Byte 0: 0x20
 Byte 1: Channel Index (0-7)
 Bytes 2-33: Channel Name (32 bytes, UTF-8, null-padded)
-Bytes 34-65: Secret (32 bytes, see [Secret Generation](#secret-generation))
+Bytes 34-65: Secret (32 bytes)
 ```
 
 **Total Length**: 66 bytes
@@ -298,7 +244,7 @@ Bytes 34-65: Secret (32 bytes, see [Secret Generation](#secret-generation))
 - Padded with null bytes (0x00) if shorter
 
 **Secret Field** (32 bytes):
-- For **private channels**: 32-byte secret (see [Secret Generation](#secret-generation))
+- For **private channels**: 32-byte secret
 - For **public channels**: All zeros (0x00)
 
 **Example** (create channel "YourChannelName" at index 1 with secret):
@@ -380,170 +326,33 @@ Byte 0: 0x14
 
 ### Channel Types
 
-1. **Public Channels** (Index 0)
-   - No secret required
-   - Anyone with the channel name can join
-   - Use for open communication
-
-2. **Private Channels** (Indices 1-7)
-   - Require a 16-byte secret
-   - Secret is expanded to 32 bytes using SHA-512 (see [Secret Generation](#secret-generation))
-   - Only devices with the secret can access the channel
+1. **Public Channel**
+    - Uses a publicly known 16-byte key: `8b3387e9c5cdea6ac9e5edbaa115cd72`
+    - Anyone can join this channel, messages should be considered public
+    - Used as the default public group chat
+2. **Hashtag Channels**
+    - Uses a secret key derived from the channel name
+    - It is the first 16 bytes of `sha256("#test")`
+    - For example hashtag channel `#test` has the key: `9cd8fcf22a47333b591d96a2b848b73f`
+    - Used as a topic based public group chat, separate from the default public channel
+3. **Private Channels**
+    - Uses a randomly generated 16-byte secret key
+    - Messages should be considered private between those that know the secret
+    - Users should keep the key secret, and only share with those you want to communicate with
+    - Used as a secure private group chat
 
 ### Channel Lifecycle
 
-1. **Create Channel**:
-   - Choose an available index (1-7 for private channels)
-   - Generate or provide a 16-byte secret
-   - Send `SET_CHANNEL` command with name and secret
-   - **Store the secret locally** (device does not return it)
-
-2. **Query Channel**:
-   - Send `GET_CHANNEL` command with channel index
-   - Parse `PACKET_CHANNEL_INFO` response
-   - Note: Secret will be null in response (security feature)
-
+1. **Set Channel**:
+    - Fetch all channel slots, and find one with empty name and all-zero secret
+    - Generate or provide a 16-byte secret
+    - Send `CMD_SET_CHANNEL` with name and secret
+2. **Get Channel**:
+    - Send `CMD_GET_CHANNEL` with channel index
+    - Parse `RESP_CODE_CHANNEL_INFO` response
 3. **Delete Channel**:
-   - Send `SET_CHANNEL` command with empty name and all-zero secret
-   - Or overwrite with a new channel
-
-### Channel Index Management
-
-- **Index 0**: Reserved for public channels
-- **Indices 1-7**: Available for private channels
-- If a channel exists at index 0 but should be private, migrate it to index 1-7
-
----
-
-## Secret Generation and QR Codes
-
-### Secret Generation
-
-For private channels, generate a cryptographically secure 16-byte secret:
-
-**Pseudocode**:
-```python
-import secrets
-
-# Generate 16 random bytes
-secret_bytes = secrets.token_bytes(16)
-
-# Convert to hex string for storage/sharing
-secret_hex = secret_bytes.hex()  # 32 hex characters
-```
-
-**Important**: Use a cryptographically secure random number generator (CSPRNG). Do not use predictable values.
-
-### Secret Expansion
-
-When sending the secret to the device via `SET_CHANNEL`, the 16-byte secret must be expanded to 32 bytes:
-
-**Process**:
-1. Take the 16-byte secret
-2. Compute SHA-512 hash: `hash = SHA-512(secret)`
-3. Use the first 32 bytes of the hash as the secret field in the command
-
-**Pseudocode**:
-```python
-import hashlib
-
-secret_16_bytes = ...  # Your 16-byte secret
-sha512_hash = hashlib.sha512(secret_16_bytes).digest()  # 64 bytes
-secret_32_bytes = sha512_hash[:32]  # First 32 bytes
-```
-
-This matches MeshCore's ED25519 key expansion method.
-
-### QR Code Format
-
-QR codes for sharing channel secrets use the following format:
-
-**URL Scheme**:
-```
-meshcore://channel/add?name=<ChannelName>&secret=<32HexChars>
-```
-
-**Parameters**:
-- `name`: Channel name (URL-encoded if needed)
-- `secret`: 32-character hexadecimal representation of the 16-byte secret
-
-**Example** (using example secret - NOT a real secret):
-```
-meshcore://channel/add?name=YourChannelName&secret=9b647d242d6e1c5883fde0c5cf5c4c5e
-```
-
-**Alternative Formats** (for backward compatibility):
-
-1. **JSON Format**:
-```json
-{
-  "name": "YourChannelName",
-  "secret": "9b647d242d6e1c5883fde0c5cf5c4c5e"
-}
-```
-*Note: The secret value above is an example only - generate your own secure random secret.*
-
-2. **Plain Hex** (32 hex characters):
-```
-9b647d242d6e1c5883fde0c5cf5c4c5e
-```
-*Note: This is an example hex value - always generate your own cryptographically secure random secret.*
-
-### QR Code Generation
-
-**Steps**:
-1. Generate or use existing 16-byte secret
-2. Convert to 32-character hex string (lowercase)
-3. URL-encode the channel name
-4. Construct the `meshcore://` URL
-5. Generate QR code from the URL string
-
-**Example** (Python with `qrcode` library):
-```python
-import qrcode
-from urllib.parse import quote
-import secrets
-
-channel_name = "YourChannelName"
-# Generate a real cryptographically secure secret (NOT the example value)
-secret_bytes = secrets.token_bytes(16)
-secret_hex = secret_bytes.hex()  # This will be a different value each time
-
-# Example value shown in documentation: "9b647d242d6e1c5883fde0c5cf5c4c5e"
-# DO NOT use the example value - always generate your own!
-
-url = f"meshcore://channel/add?name={quote(channel_name)}&secret={secret_hex}"
-qr = qrcode.QRCode(version=1, box_size=10, border=5)
-qr.add_data(url)
-qr.make(fit=True)
-img = qr.make_image(fill_color="black", back_color="white")
-img.save("channel_qr.png")
-```
-
-### QR Code Scanning
-
-When scanning a QR code:
-
-1. **Parse URL Format**:
-   - Extract `name` and `secret` query parameters
-   - Validate secret is 32 hex characters
-
-2. **Parse JSON Format**:
-   - Parse JSON object
-   - Extract `name` and `secret` fields
-
-3. **Parse Plain Hex**:
-   - Extract only hex characters (0-9, a-f, A-F)
-   - Validate length is 32 characters
-   - Convert to lowercase
-
-4. **Validate Secret**:
-   - Must be exactly 32 hex characters (16 bytes)
-   - Convert hex string to bytes
-
-5. **Create Channel**:
-   - Use extracted name and secret
-   - Send `SET_CHANNEL` command
+    - Send `CMD_SET_CHANNEL` with empty name and all-zero secret
+    - Or overwrite with a new channel
 
 ---
 
@@ -693,28 +502,28 @@ Use the `SEND_CHANNEL_MESSAGE` command (see [Commands](#commands)).
 
 ### Packet Types
 
-| Value | Name | Description |
-|-------|------|-------------|
-| 0x00 | PACKET_OK | Command succeeded |
-| 0x01 | PACKET_ERROR | Command failed |
-| 0x02 | PACKET_CONTACT_START | Start of contact list |
-| 0x03 | PACKET_CONTACT | Contact information |
-| 0x04 | PACKET_CONTACT_END | End of contact list |
-| 0x05 | PACKET_SELF_INFO | Device self-information |
-| 0x06 | PACKET_MSG_SENT | Message sent confirmation |
-| 0x07 | PACKET_CONTACT_MSG_RECV | Contact message (standard) |
-| 0x08 | PACKET_CHANNEL_MSG_RECV | Channel message (standard) |
-| 0x09 | PACKET_CURRENT_TIME | Current time response |
-| 0x0A | PACKET_NO_MORE_MSGS | No more messages available |
-| 0x0C | PACKET_BATTERY | Battery level |
-| 0x0D | PACKET_DEVICE_INFO | Device information |
-| 0x10 | PACKET_CONTACT_MSG_RECV_V3 | Contact message (V3 with SNR) |
-| 0x11 | PACKET_CHANNEL_MSG_RECV_V3 | Channel message (V3 with SNR) |
-| 0x12 | PACKET_CHANNEL_INFO | Channel information |
-| 0x80 | PACKET_ADVERTISEMENT | Advertisement packet |
-| 0x82 | PACKET_ACK | Acknowledgment |
-| 0x83 | PACKET_MESSAGES_WAITING | Messages waiting notification |
-| 0x88 | PACKET_LOG_DATA | RF log data (can be ignored) |
+| Value | Name                       | Description                   |
+|-------|----------------------------|-------------------------------|
+| 0x00  | PACKET_OK                  | Command succeeded             |
+| 0x01  | PACKET_ERROR               | Command failed                |
+| 0x02  | PACKET_CONTACT_START       | Start of contact list         |
+| 0x03  | PACKET_CONTACT             | Contact information           |
+| 0x04  | PACKET_CONTACT_END         | End of contact list           |
+| 0x05  | PACKET_SELF_INFO           | Device self-information       |
+| 0x06  | PACKET_MSG_SENT            | Message sent confirmation     |
+| 0x07  | PACKET_CONTACT_MSG_RECV    | Contact message (standard)    |
+| 0x08  | PACKET_CHANNEL_MSG_RECV    | Channel message (standard)    |
+| 0x09  | PACKET_CURRENT_TIME        | Current time response         |
+| 0x0A  | PACKET_NO_MORE_MSGS        | No more messages available    |
+| 0x0C  | PACKET_BATTERY             | Battery level                 |
+| 0x0D  | PACKET_DEVICE_INFO         | Device information            |
+| 0x10  | PACKET_CONTACT_MSG_RECV_V3 | Contact message (V3 with SNR) |
+| 0x11  | PACKET_CHANNEL_MSG_RECV_V3 | Channel message (V3 with SNR) |
+| 0x12  | PACKET_CHANNEL_INFO        | Channel information           |
+| 0x80  | PACKET_ADVERTISEMENT       | Advertisement packet          |
+| 0x82  | PACKET_ACK                 | Acknowledgment                |
+| 0x83  | PACKET_MESSAGES_WAITING    | Messages waiting notification |
+| 0x88  | PACKET_LOG_DATA            | RF log data (can be ignored)  |
 
 ### Parsing Responses
 
@@ -1081,33 +890,6 @@ def on_notification_received(data):
         send_command(tx_char, build_get_message())
 ```
 
-### QR Code Sharing
-
-```python
-import secrets
-from urllib.parse import quote
-
-# 1. Generate QR code data
-channel_name = "YourChannelName"
-# Generate a real secret (NOT the example value from documentation)
-secret_bytes = secrets.token_bytes(16)
-secret_hex = secret_bytes.hex()
-
-# Example value in documentation: "9b647d242d6e1c5883fde0c5cf5c4c5e"
-# DO NOT use example values - always generate your own secure random secrets!
-
-url = f"meshcore://channel/add?name={quote(channel_name)}&secret={secret_hex}"
-
-# 2. Generate QR code image
-qr = qrcode.QRCode(version=1, box_size=10, border=5)
-qr.add_data(url)
-qr.make(fit=True)
-img = qr.make_image(fill_color="black", back_color="white")
-
-# 3. Display or save QR code
-img.save("channel_qr.png")
-```
-
 ---
 
 ## Best Practices
@@ -1121,81 +903,37 @@ img.save("channel_qr.png")
    - Always use cryptographically secure random number generators
    - Store secrets securely (encrypted storage)
    - Never log or transmit secrets in plain text
-   - Device does not return secrets - you must store them locally
 
 3. **Message Handling**:
-   - Poll `GET_MESSAGE` periodically or when `PACKET_MESSAGES_WAITING` is received
-   - Handle message chunking for long messages (>133 characters)
-   - Implement message deduplication to avoid processing the same message twice
+   - Send `CMD_SYNC_NEXT_MESSAGE` when `PUSH_CODE_MSG_WAITING` is received
+   - Implement message deduplication to avoid display the same message twice
 
-4. **Error Handling**:
+4. **Channel Management**:
+    - Fetch all channel slots even if you encounter an empty slot
+    - Ideally save new channels into the first empty slot
+
+5. **Error Handling**:
    - Implement timeouts for all commands (typically 5 seconds)
-   - Handle `PACKET_ERROR` responses appropriately
-   - Log errors for debugging but don't expose sensitive information
-
-5. **Channel Management**:
-   - Avoid using channel index 0 for private channels
-   - Migrate channels from index 0 to 1-7 if needed
-   - Query channels after connection to discover existing channels
-
----
-
-## Platform-Specific Notes
-
-### Android
-- Use `BluetoothGatt` API
-- Request `BLUETOOTH_CONNECT` and `BLUETOOTH_SCAN` permissions (Android 12+)
-- Enable notifications by writing to descriptor `0x2902` with value `0x01` or `0x02`
-
-### iOS
-- Use `CoreBluetooth` framework
-- Implement `CBPeripheralDelegate` for notifications
-- Request Bluetooth permissions in Info.plist
-
-### Python
-- Use `bleak` library for cross-platform BLE support
-- Handle async/await for BLE operations
-- Use `asyncio` for command-response patterns
-
-### JavaScript/Node.js
-- Use `noble` or `@abandonware/noble` for BLE
-- Handle callbacks or promises for async operations
-- Use `Buffer` for binary data manipulation
+   - Handle `RESP_CODE_ERR` responses appropriately
 
 ---
 
 ## Troubleshooting
 
 ### Connection Issues
+
 - **Device not found**: Ensure device is powered on and advertising
 - **Connection timeout**: Check Bluetooth permissions and device proximity
 - **GATT errors**: Ensure proper service/characteristic discovery
 
 ### Command Issues
+
 - **No response**: Verify notifications are enabled, check connection state
-- **Error responses**: Verify command format, check channel index validity
-- **Timeout**: Increase timeout value or check device responsiveness
+- **Error responses**: Verify command format and check error code
+- **Timeout**: Increase timeout value or try again
 
 ### Message Issues
+
 - **Messages not received**: Poll `GET_MESSAGE` command periodically
-- **Duplicate messages**: Implement message deduplication using timestamps/hashes
-- **Message truncation**: Split long messages into chunks
-
-### Secret/Channel Issues
-- **Secret not working**: Verify secret expansion (SHA-512) is correct
-- **Channel not found**: Query channels after connection to discover existing channels
-- **Channel index 0**: Migrate to index 1-7 for private channels
-
----
-
-## References
-
-- MeshCore Python implementation: `meshcore_py-main/src/meshcore/`
-- BLE GATT Specification: Bluetooth SIG Core Specification
-- ED25519 Key Expansion: RFC 8032
-
----
-
-**Last Updated**: 2025-01-01
-**Protocol Version**: Based on MeshCore v1.36.0+
-
+- **Duplicate messages**: Implement message deduplication using timestamp/content as a unique id
+- **Message truncation**: Send long messages as separate shorter messages

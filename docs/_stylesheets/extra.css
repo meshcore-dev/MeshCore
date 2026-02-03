@@ -9,3 +9,8 @@
 .md-source__fact--version {
     display: none;
 }
+
+/* underline links */
+.md-typeset a {
+    text-decoration: underline;
+}
