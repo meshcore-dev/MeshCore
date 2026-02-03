@@ -93,6 +93,6 @@ public:
   }
 
   const char* getManufacturerName() const override {
-    return "Heltec V3 Wireless Paper";
+    return "Heltec Wireless Paper";
   }
 };
