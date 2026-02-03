@@ -228,6 +228,10 @@ void DataStore::loadPrefsInt(const char *filename, NodePrefs& _prefs, double& no
     file.read((uint8_t *)&_prefs.gps_enabled, sizeof(_prefs.gps_enabled));                 // 85
     file.read((uint8_t *)&_prefs.gps_interval, sizeof(_prefs.gps_interval));               // 86
     file.read((uint8_t *)&_prefs.autoadd_config, sizeof(_prefs.autoadd_config));           // 87
+    if (file.available() >= (int)sizeof(_prefs.notify_channel_buzzer_mask)) {
+      file.read((uint8_t *)&_prefs.notify_channel_buzzer_mask, sizeof(_prefs.notify_channel_buzzer_mask));
+    }
+    // else: leave _prefs.notify_channel_buzzer_mask unchanged (caller's setDefaults already set it, e.g. 0x02 for test or 0xFF for production)
 
     file.close();
   }
@@ -263,6 +267,7 @@ void DataStore::savePrefs(const NodePrefs& _prefs, double node_lat, double node_
     file.write((uint8_t *)&_prefs.gps_enabled, sizeof(_prefs.gps_enabled));                 // 85
     file.write((uint8_t *)&_prefs.gps_interval, sizeof(_prefs.gps_interval));               // 86
     file.write((uint8_t *)&_prefs.autoadd_config, sizeof(_prefs.autoadd_config));           // 87
+    file.write((uint8_t *)&_prefs.notify_channel_buzzer_mask, sizeof(_prefs.notify_channel_buzzer_mask));
 
     file.close();
   }
