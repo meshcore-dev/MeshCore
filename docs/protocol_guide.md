@@ -376,6 +376,44 @@ Byte 0: 0x14
 
 ---
 
+### 8. Set Other Params (device preferences, buzzer, notifications)
+
+**Purpose**: Set device preferences including manual-add-contacts, telemetry modes, advert policy, multi-acks, **buzzer on/off**, and **per-channel buzzer mask** (one bit per channel 0–7).
+
+**Command**: `SET_OTHER_PARAMS` = **0x26** (decimal 38)
+
+**Command Format**:
+```
+Byte 0: 0x26 (command)
+Byte 1: manual_add_contacts (0/1)
+Byte 2: telemetry_mode_byte = (telemetry_mode_env << 4) | (telemetry_mode_loc << 2) | telemetry_mode_base
+Byte 3: advert_loc_policy
+Byte 4: multi_acks
+Byte 5: buzzer_quiet (optional, len>=6) — 0 = buzzer on, 1 = buzzer off (global mute)
+Byte 6: notify_channel_buzzer_mask (optional, len>=7) — 8-bit mask: bit N = 1 means buzz for channel N (0–7). 0xFF = all channels, 0x00 = none.
+```
+
+**How to trigger in the mobile app**:
+1. When the user changes any of these settings (e.g. toggles "Buzzer" or per-channel "Notify" in notification settings), build a 6- or 7-byte frame with the **current** values for bytes 1–4 (so other prefs are not overwritten), and set byte 5 and/or byte 6 as needed.
+2. **Write the frame to the BLE TX characteristic** (same characteristic used for all commands: typically UUID `0000ff02-0000-1000-8000-00805f9b34fb`).
+3. Send one command at a time; wait for `PACKET_OK` (0x00) on the RX characteristic before sending another command.
+
+**Buzzer**:
+- **Turn buzzer off**: send SET_OTHER_PARAMS with byte 5 = 1 (and bytes 1–4 = current values).
+- **Turn buzzer on**: send SET_OTHER_PARAMS with byte 5 = 0.
+
+**Per-channel buzzer** (byte 6 = 8-bit mask):
+- **Bit N = 1**: buzzer on for channel N (N = 0..7).
+- **Bit N = 0**: no buzzer for channel N.
+- **0xFF**: buzz for all channels.
+- **0x00**: buzz for no channels.
+- Example: `0x05` = binary 00000101 = buzz for channel 0 and channel 2 only.
+- To toggle one channel: app keeps current mask, flips bit N, sends SET_OTHER_PARAMS with byte 6 = new mask.
+
+**Response**: `PACKET_OK` (0x00) on success.
+
+---
+
 ## Channel Management
 
 ### Channel Types
