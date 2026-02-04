@@ -290,7 +290,7 @@ This is a very low cost operation.  AGC reset is done by simply setting `state =
 
 ### 3.8 Q: How do I make my repeater an observer on the mesh
 
-**A:** The observer instruction is available here: https://analyzer.letsme.sh/observer/onboard
+**A:** The observer instruction is available here: https://analyzer.letsmesh.net/observer/onboard
 
 ---
 
@@ -607,7 +607,7 @@ From here, reference repeater and room server command line commands on MeshCore 
 **A:** Yes.  See the following:
 
 #### 5.14.1. meshcoremqtt
-A Python script to send meshcore debug and packet capture data to MQTT for analysis.  Cisien's version is a fork of Andrew-a-g's and is being used to to collect data for https://map.w0z.is/messages and https://analyzer.letsme.sh/
+A Python script to send meshcore debug and packet capture data to MQTT for analysis.  Cisien's version is a fork of Andrew-a-g's and is being used to to collect data for https://map.w0z.is/messages and https://analyzer.letsmesh.net/
 https://github.com/Cisien/meshcoretomqtt
 https://github.com/Andrew-a-g/meshcoretomqtt
 
@@ -632,7 +632,7 @@ pyMC_Core is a Python port of MeshCore, designed for Raspberry Pi and similar ha
 https://github.com/rightup/pyMC_core
 
 #### 5.14.7. MeshCore Packet Decoder
-A TypeScript library for decoding MeshCore mesh networking packets with full cryptographic support. Uses WebAssembly (WASM) for Ed25519 key derivation through the orlp/ed25519 library.  It powers the [MeshCore Packet Analyzer](https://analyzer.letsme.sh/packets).
+A TypeScript library for decoding MeshCore mesh networking packets with full cryptographic support. Uses WebAssembly (WASM) for Ed25519 key derivation through the orlp/ed25519 library.  It powers the [MeshCore Packet Analyzer](https://analyzer.letsmesh.net/packets).
 https://github.com/michaelhart/meshcore-decoder
 
 #### 5.14.8. meshcore-pi
