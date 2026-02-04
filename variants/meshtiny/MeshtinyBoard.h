@@ -4,12 +4,12 @@
 #include <MeshCore.h>
 #include <helpers/NRF52Board.h>
 
-class MeshtinyBoard : public NRF52BoardDCDC, public NRF52BoardOTA {
+class MeshtinyBoard : public NRF52BoardDCDC {
 protected:
   uint8_t btn_prev_state;
 
 public:
-  MeshtinyBoard() : NRF52BoardOTA("Meshtiny OTA") {}
+  MeshtinyBoard() : NRF52Board("Meshtiny OTA") {}
   void begin();
 
 #if defined(P_LORA_TX_LED)

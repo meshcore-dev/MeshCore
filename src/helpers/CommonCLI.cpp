@@ -16,7 +16,7 @@ static uint32_t _atoi(const char* sp) {
 
 static bool isValidName(const char *n) {
   while (*n) {
-    if (*n == '[' || *n == ']' || *n == '/' || *n == '\\' || *n == ':' || *n == ',' || *n == '?' || *n == '*') return false;
+    if (*n == '[' || *n == ']' || *n == '\\' || *n == ':' || *n == ',' || *n == '?' || *n == '*') return false;
     n++;
   }
   return true;

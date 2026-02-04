@@ -4,22 +4,17 @@
 #include <MeshCore.h>
 #include <helpers/NRF52Board.h>
 
-// built-ins
-#define VBAT_MV_PER_LSB   (0.73242188F)   // 3.0V ADC range and 12-bit ADC resolution = 3000mV/4096
+#define ADC_FACTOR ((1000.0*ADC_MULTIPLIER*AREF_VOLTAGE)/ADC_MAX)
 
-#define VBAT_DIVIDER_COMP ADC_MULTIPLIER          // Compensation factor for the VBAT divider
-
-#define PIN_VBAT_READ     BATTERY_PIN
-#define REAL_VBAT_MV_PER_LSB (VBAT_DIVIDER_COMP * VBAT_MV_PER_LSB)
-
-class ThinkNodeM6Board : public NRF52BoardDCDC {
+class ThinkNodeM3Board : public NRF52BoardDCDC {
 protected:
 #if NRF52_POWER_MANAGEMENT
   void initiateShutdown(uint8_t reason) override;
 #endif
+  uint8_t btn_prev_state;
 
 public:
-  ThinkNodeM6Board() : NRF52Board("THINKNODE_M6_OTA") {}
+  ThinkNodeM3Board() : NRF52Board("THINKNODE_M3_OTA") {}
   void begin();
   uint16_t getBattMilliVolts() override;
 
@@ -33,11 +28,21 @@ public:
 #endif
 
   const char* getManufacturerName() const override {
-    return "Elecrow ThinkNode M6";
+    return "Elecrow ThinkNode M3";
+  }
+
+  int buttonStateChanged() {
+  #ifdef BUTTON_PIN
+    uint8_t v = digitalRead(BUTTON_PIN);
+    if (v != btn_prev_state) {
+      btn_prev_state = v;
+      return (v == LOW) ? 1 : -1;
+    }
+  #endif
+    return 0;
   }
 
   void powerOff() override {
-
     // turn off all leds, sd_power_system_off will not do this for us
     #ifdef P_LORA_TX_LED
     digitalWrite(P_LORA_TX_LED, LOW);

@@ -141,11 +141,6 @@ static const uint8_t AREF = PIN_AREF;
 #define EXTERNAL_FLASH_DEVICES IS25LP080D
 #define EXTERNAL_FLASH_USE_QSPI
 
-#define P_LORA_SCK PIN_SPI1_SCK
-#define P_LORA_MISO PIN_SPI1_MISO
-#define P_LORA_MOSI PIN_SPI1_MOSI
-#define P_LORA_CS 26
-
 #define USE_SX1262
 #define SX126X_CS (26)
 #define SX126X_DIO1 (10)
@@ -156,6 +151,15 @@ static const uint8_t AREF = PIN_AREF;
 // DIO2 controlls an antenna switch and the TCXO voltage is controlled by DIO3
 #define SX126X_DIO2_AS_RF_SWITCH
 #define SX126X_DIO3_TCXO_VOLTAGE 1.8
+
+#define P_LORA_SCLK PIN_SPI1_SCK
+#define P_LORA_MISO PIN_SPI1_MISO
+#define P_LORA_MOSI PIN_SPI1_MOSI
+#define P_LORA_NSS SX126X_CS
+#define P_LORA_DIO_1 SX126X_DIO1
+#define P_LORA_BUSY SX126X_BUSY
+#define P_LORA_RESET SX126X_RESET
+#define P_LORA_PA_EN  31
 
 // enables 3.3V periphery like GPS or IO Module
 // Do not toggle this for GPS power savings
@@ -172,6 +176,10 @@ static const uint8_t AREF = PIN_AREF;
 
 #define PIN_GPS_RX PIN_SERIAL1_RX
 #define PIN_GPS_TX PIN_SERIAL1_TX
+
+#define PIN_GPS_1PPS PIN_GPS_PPS
+#define GPS_BAUD_RATE 9600
+#define GPS_ADDRESS 0x42  //i2c address for GPS
 
 // Battery
 // The battery sense is hooked to pin A0 (5)
