@@ -2,7 +2,7 @@
 #include "target.h"
 #include <helpers/sensors/MicroNMEALocationProvider.h>
 
-ThinknodeM3Board board;
+ThinkNodeM3Board board;
 
 RADIO_CLASS radio = new Module(P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BUSY, SPI);
 
@@ -30,26 +30,26 @@ static const uint32_t rfswitch_dios[Module::RFSWITCH_MAX_PINS] = {
   RADIOLIB_LR11X0_DIO5,
   RADIOLIB_LR11X0_DIO6,
   RADIOLIB_NC,
-  RADIOLIB_NC, 
+  RADIOLIB_NC,
   RADIOLIB_NC
 };
 
 static const Module::RfSwitchMode_t rfswitch_table[] = {
-  // mode                 DIO5  DIO6 
-  { LR11x0::MODE_STBY,   {LOW , LOW  }},  
+  // mode                 DIO5  DIO6
+  { LR11x0::MODE_STBY,   {LOW , LOW  }},
   { LR11x0::MODE_RX,     {HIGH, LOW  }},
   { LR11x0::MODE_TX,     {HIGH, HIGH }},
   { LR11x0::MODE_TX_HP,  {LOW , HIGH }},
-  { LR11x0::MODE_TX_HF,  {LOW , LOW  }}, 
+  { LR11x0::MODE_TX_HF,  {LOW , LOW  }},
   { LR11x0::MODE_GNSS,   {LOW , LOW  }},
-  { LR11x0::MODE_WIFI,   {LOW , LOW  }},  
+  { LR11x0::MODE_WIFI,   {LOW , LOW  }},
   END_OF_MODE_TABLE,
 };
 #endif
 
 bool radio_init() {
   rtc_clock.begin(Wire);
-  
+
 #ifdef LR11X0_DIO3_TCXO_VOLTAGE
   float tcxo = LR11X0_DIO3_TCXO_VOLTAGE;
 #else
@@ -64,7 +64,7 @@ bool radio_init() {
     Serial.println(status);
     return false;  // fail
   }
-  
+
   radio.setCRC(2);
   radio.explicitHeader();
 

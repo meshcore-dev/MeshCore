@@ -131,7 +131,6 @@ void BaseChatMesh::onAdvertRecv(mesh::Packet* packet, const mesh::Identity& id, 
     plen = packet->writeTo(temp_buf);
     packet->header = save;
   }
-  putBlobByKey(id.pub_key, PUB_KEY_SIZE, temp_buf, plen);
 
   bool is_new = false; // true = not in contacts[], false = exists in contacts[]
   if (from == NULL) {
@@ -157,6 +156,7 @@ void BaseChatMesh::onAdvertRecv(mesh::Packet* packet, const mesh::Identity& id, 
     from->shared_secret_valid = false;
   }
   // update
+    putBlobByKey(id.pub_key, PUB_KEY_SIZE, temp_buf, plen);
     StrHelper::strncpy(from->name, parser.getName(), sizeof(from->name));
     from->type = parser.getType();
     if (parser.hasLatLon()) {

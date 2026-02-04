@@ -3,21 +3,19 @@
 #define RADIOLIB_STATIC_ONLY 1
 #include <RadioLib.h>
 #include <helpers/radiolib/RadioLibWrappers.h>
-#include "ThinkNodeM3Board.h"
-#include <helpers/radiolib/CustomLR1110Wrapper.h>
-#include <helpers/ArduinoHelpers.h>
-#include <helpers/sensors/EnvironmentSensorManager.h>
-#include <helpers/sensors/LocationProvider.h>
+#include <helpers/radiolib/CustomSX1262Wrapper.h>
 #include <helpers/AutoDiscoverRTCClock.h>
-#ifdef DISPLAY_CLASS
-  #include "NullDisplayDriver.h"
-#endif
+#include <helpers/sensors/EnvironmentSensorManager.h>
+#include "TBeam1WBoard.h"
 
 #ifdef DISPLAY_CLASS
-  extern NullDisplayDriver display;
+  #include <helpers/ui/SH1106Display.h>
+  #include <helpers/ui/MomentaryButton.h>
+  extern DISPLAY_CLASS display;
+  extern MomentaryButton user_btn;
 #endif
 
-extern ThinkNodeM3Board board;
+extern TBeam1WBoard board;
 extern WRAPPER_CLASS radio_driver;
 extern AutoDiscoverRTCClock rtc_clock;
 extern EnvironmentSensorManager sensors;
