@@ -136,6 +136,8 @@ private:
   ClientACL  acl;
   CommonCLI _cli;
   uint8_t reply_data[MAX_PACKET_PAYLOAD];
+  uint8_t reply_path[MAX_PATH_SIZE];
+  int8_t  reply_path_len;
   unsigned long dirty_contacts_expiry;
   CayenneLPP telemetry;
   uint32_t last_read_time;

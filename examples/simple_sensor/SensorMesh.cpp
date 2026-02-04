@@ -359,8 +359,11 @@ uint8_t SensorMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* 
     dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY);
   }
 
-  if (is_flood) {
-    client->out_path_len = -1;  // need to rediscover out_path
+  if (!is_flood && client->out_path_len >= 0) { // login via path and we have an out_path so use it
+    reply_path_len = client->out_path_len;
+    memcpy(reply_path, client->out_path, client->out_path_len);
+  } else {
+    client->out_path_len = -1; // need to rediscover out_path
   }
 
   uint32_t now = getRTCClock()->getCurrentTimeUnique();
@@ -469,9 +472,12 @@ void SensorMesh::onAnonDataRecv(mesh::Packet* packet, const uint8_t* secret, con
       mesh::Packet* path = createPathReturn(sender, secret, packet->path, packet->path_len,
                                             PAYLOAD_TYPE_RESPONSE, reply_data, reply_len);
       if (path) sendFlood(path, SERVER_RESPONSE_DELAY);
-    } else {
+    } else if (reply_path_len < 0) {
       mesh::Packet* reply = createDatagram(PAYLOAD_TYPE_RESPONSE, sender, secret, reply_data, reply_len);
       if (reply) sendFlood(reply, SERVER_RESPONSE_DELAY);
+    } else {
+      mesh::Packet* reply = createDatagram(PAYLOAD_TYPE_RESPONSE, sender, secret, reply_data, reply_len);
+      if (reply) sendDirect(reply, reply_path, reply_path_len, SERVER_RESPONSE_DELAY);
     }
   }
 }
