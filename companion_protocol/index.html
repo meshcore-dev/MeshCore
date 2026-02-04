@@ -1,0 +1,2684 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Documentation for the open source MeshCore firmware">
+      
+      
+      
+        <link rel="canonical" href="https://meshcore-dev.github.io/meshcore/companion_protocol/">
+      
+      
+        <link rel="prev" href="../cli_commands/">
+      
+      
+        <link rel="next" href="../docs/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.1">
+    
+    
+      
+        <title>Companion Protocol - MeshCore Docs</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../_stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#companion-protocol" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="MeshCore Docs" class="md-header__button md-logo" aria-label="MeshCore Docs" data-md-component="logo">
+      
+  <img src="../_assets/meshcore_tm.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            MeshCore Docs
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Companion Protocol
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/meshcore-dev/meshcore/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    meshcore-dev/meshcore
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="MeshCore Docs" class="md-nav__button md-logo" aria-label="MeshCore Docs" data-md-component="logo">
+      
+  <img src="../_assets/meshcore_tm.svg" alt="logo">
+
+    </a>
+    MeshCore Docs
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/meshcore-dev/meshcore/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    meshcore-dev/meshcore
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Introduction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli_commands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Commands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Companion Protocol
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Companion Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#official-libraries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Official Libraries
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#important-security-note" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Important Security Note
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#table-of-contents" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Table of Contents
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ble-connection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        BLE Connection
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="BLE Connection">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#service-and-characteristics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Service and Characteristics
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#connection-steps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Connection Steps
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ble-write-type" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        BLE Write Type
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mtu-maximum-transmission-unit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MTU (Maximum Transmission Unit)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#command-sequencing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Command Sequencing
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#command-queue-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Command Queue Management
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#packet-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Packet Structure
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Commands
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Commands">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-app-start" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. App Start
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-device-query" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Device Query
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-get-channel-info" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Get Channel Info
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-set-channel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Set Channel
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-send-channel-message" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Send Channel Message
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6-get-message" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Get Message
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#7-get-battery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Get Battery
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#channel-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Channel Management
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Channel Management">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#channel-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Channel Types
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#channel-lifecycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Channel Lifecycle
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#message-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Message Handling
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Message Handling">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#receiving-messages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Receiving Messages
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#contact-message-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Contact Message Format
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#channel-message-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Channel Message Format
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sending-messages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sending Messages
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#response-parsing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Response Parsing
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Response Parsing">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#packet-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Packet Types
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#parsing-responses" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Parsing Responses
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#error-codes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error Codes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#partial-packet-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Partial Packet Handling
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#response-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Response Handling
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#example-implementation-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example Implementation Flow
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Example Implementation Flow">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#initialization" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Initialization
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#creating-a-private-channel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Creating a Private Channel
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sending-a-message" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sending a Message
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#receiving-messages_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Receiving Messages
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#best-practices" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Best Practices
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#troubleshooting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Troubleshooting
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Troubleshooting">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#connection-issues" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Connection Issues
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#command-issues" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Command Issues
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#message-issues" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Message Issues
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Local Documentation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Frequently Asked Questions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../nrf52_power_management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    nRF52 Power Management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../packet_structure/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Packet Structure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../payloads/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Meshcore payloads
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qr_codes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QR Codes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../stats_binary_frames/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stats Binary Frame Structures
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../terminal_chat_cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Terminal Chat CLI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#official-libraries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Official Libraries
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#important-security-note" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Important Security Note
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#table-of-contents" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Table of Contents
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ble-connection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        BLE Connection
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="BLE Connection">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#service-and-characteristics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Service and Characteristics
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#connection-steps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Connection Steps
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ble-write-type" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        BLE Write Type
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mtu-maximum-transmission-unit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MTU (Maximum Transmission Unit)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#command-sequencing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Command Sequencing
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#command-queue-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Command Queue Management
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#packet-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Packet Structure
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Commands
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Commands">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-app-start" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. App Start
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-device-query" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Device Query
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-get-channel-info" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Get Channel Info
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-set-channel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Set Channel
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-send-channel-message" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Send Channel Message
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6-get-message" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Get Message
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#7-get-battery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Get Battery
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#channel-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Channel Management
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Channel Management">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#channel-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Channel Types
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#channel-lifecycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Channel Lifecycle
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#message-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Message Handling
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Message Handling">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#receiving-messages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Receiving Messages
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#contact-message-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Contact Message Format
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#channel-message-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Channel Message Format
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sending-messages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sending Messages
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#response-parsing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Response Parsing
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Response Parsing">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#packet-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Packet Types
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#parsing-responses" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Parsing Responses
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#error-codes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error Codes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#partial-packet-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Partial Packet Handling
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#response-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Response Handling
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#example-implementation-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example Implementation Flow
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Example Implementation Flow">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#initialization" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Initialization
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#creating-a-private-channel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Creating a Private Channel
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sending-a-message" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sending a Message
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#receiving-messages_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Receiving Messages
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#best-practices" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Best Practices
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#troubleshooting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Troubleshooting
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Troubleshooting">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#connection-issues" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Connection Issues
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#command-issues" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Command Issues
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#message-issues" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Message Issues
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/meshcore-dev/meshcore/edit/main/docs/companion_protocol.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="companion-protocol">Companion Protocol</h1>
+<ul>
+<li><strong>Last Updated</strong>: 2026-01-03</li>
+<li><strong>Protocol Version</strong>: Companion Firmware v1.12.0+</li>
+</ul>
+<blockquote>
+<p>NOTE: This document is still in development. Some information may be inaccurate.</p>
+</blockquote>
+<p>This document provides a comprehensive guide for communicating with MeshCore devices over Bluetooth Low Energy (BLE).</p>
+<p>It is platform-agnostic and can be used for Android, iOS, Python, JavaScript, or any other platform that supports BLE.</p>
+<h2 id="official-libraries">Official Libraries</h2>
+<p>Please see the following repos for existing MeshCore Companion Protocol libraries.</p>
+<ul>
+<li>JavaScript: <a href="https://github.com/meshcore-dev/meshcore.js">https://github.com/meshcore-dev/meshcore.js</a></li>
+<li>Python: <a href="https://github.com/meshcore-dev/meshcore_py">https://github.com/meshcore-dev/meshcore_py</a></li>
+</ul>
+<h2 id="important-security-note">Important Security Note</h2>
+<p>All secrets, hashes, and cryptographic values shown in this guide are example values only.</p>
+<ul>
+<li>All hex values, public keys and hashes are for demonstration purposes only</li>
+<li>Never use example secrets in production</li>
+<li>Always generate new cryptographically secure random secrets</li>
+<li>Please implement proper security practices in your implementation</li>
+<li>This guide is for protocol documentation only</li>
+</ul>
+<h2 id="table-of-contents">Table of Contents</h2>
+<ol>
+<li><a href="#ble-connection">BLE Connection</a></li>
+<li><a href="#packet-structure">Packet Structure</a></li>
+<li><a href="#commands">Commands</a></li>
+<li><a href="#channel-management">Channel Management</a></li>
+<li><a href="#message-handling">Message Handling</a></li>
+<li><a href="#response-parsing">Response Parsing</a></li>
+<li><a href="#example-implementation-flow">Example Implementation Flow</a></li>
+<li><a href="#best-practices">Best Practices</a></li>
+<li><a href="#troubleshooting">Troubleshooting</a></li>
+</ol>
+<hr />
+<h2 id="ble-connection">BLE Connection</h2>
+<h3 id="service-and-characteristics">Service and Characteristics</h3>
+<p>MeshCore Companion devices expose a BLE service with the following UUIDs:</p>
+<ul>
+<li><strong>Service UUID</strong>: <code>6E400001-B5A3-F393-E0A9-E50E24DCCA9E</code></li>
+<li><strong>RX Characteristic</strong> (App → Firmware): <code>6E400002-B5A3-F393-E0A9-E50E24DCCA9E</code></li>
+<li><strong>TX Characteristic</strong> (Firmware → App): <code>6E400003-B5A3-F393-E0A9-E50E24DCCA9E</code></li>
+</ul>
+<h3 id="connection-steps">Connection Steps</h3>
+<ol>
+<li>
+<p><strong>Scan for Devices</strong></p>
+<ul>
+<li>Scan for BLE devices advertising the MeshCore Service UUID</li>
+<li>Optionally filter by device name (typically contains "MeshCore" prefix)</li>
+<li>Note the device MAC address for reconnection</li>
+</ul>
+</li>
+<li>
+<p><strong>Connect to GATT</strong></p>
+<ul>
+<li>Connect to the device using the discovered MAC address</li>
+<li>Wait for connection to be established</li>
+</ul>
+</li>
+<li>
+<p><strong>Discover Services and Characteristics</strong></p>
+<ul>
+<li>Discover the service with UUID <code>6E400001-B5A3-F393-E0A9-E50E24DCCA9E</code></li>
+<li>Discover the RX characteristic <code>6E400002-B5A3-F393-E0A9-E50E24DCCA9E</code><ul>
+<li>Your app writes to this, the firmware reads from this</li>
+</ul>
+</li>
+<li>Discover the TX characteristic <code>6E400003-B5A3-F393-E0A9-E50E24DCCA9E</code><ul>
+<li>The firmware writes to this, your app reads from this</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>
+<p><strong>Enable Notifications</strong></p>
+<ul>
+<li>Subscribe to notifications on the TX characteristic to receive data from the firmware</li>
+</ul>
+</li>
+<li>
+<p><strong>Send Initial Commands</strong></p>
+<ul>
+<li>Send <code>CMD_APP_START</code> to identify your app to firmware and get radio settings</li>
+<li>Send <code>CMD_DEVICE_QEURY</code> to fetch device info and negotiate supported protocol versions</li>
+<li>Send <code>CMD_SET_DEVICE_TIME</code> to set the firmware clock</li>
+<li>Send <code>CMD_GET_CONTACTS</code> to fetch all contacts</li>
+<li>Send <code>CMD_GET_CHANNEL</code> multiple times to fetch all channel slots</li>
+<li>Send <code>CMD_SYNC_NEXT_MESSAGE</code> to fetch the next message stored in firmware</li>
+<li>Setup listeners for push codes, such as <code>PUSH_CODE_MSG_WAITING</code> or <code>PUSH_CODE_ADVERT</code></li>
+<li>See <a href="#commands">Commands</a> section for information on other commands</li>
+</ul>
+</li>
+</ol>
+<p><strong>Note</strong>: MeshCore devices may disconnect after periods of inactivity. Implement auto-reconnect logic with exponential backoff.</p>
+<h3 id="ble-write-type">BLE Write Type</h3>
+<p>When writing commands to the RX characteristic, specify the write type:</p>
+<ul>
+<li><strong>Write with Response</strong> (default): Waits for acknowledgment from device</li>
+<li><strong>Write without Response</strong>: Faster but no acknowledgment</li>
+</ul>
+<p><strong>Platform-specific</strong>:</p>
+<ul>
+<li><strong>Android</strong>: Use <code>BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT</code> or <code>WRITE_TYPE_NO_RESPONSE</code></li>
+<li><strong>iOS</strong>: Use <code>CBCharacteristicWriteType.withResponse</code> or <code>.withoutResponse</code></li>
+<li><strong>Python (bleak)</strong>: Use <code>write_gatt_char()</code> with <code>response=True</code> or <code>False</code></li>
+</ul>
+<p><strong>Recommendation</strong>: Use write with response for reliability.</p>
+<h3 id="mtu-maximum-transmission-unit">MTU (Maximum Transmission Unit)</h3>
+<p>The default BLE MTU is 23 bytes (20 bytes payload). For larger commands like <code>SET_CHANNEL</code> (66 bytes), you may need to:</p>
+<ol>
+<li><strong>Request Larger MTU</strong>: Request MTU of 512 bytes if supported<ul>
+<li>Android: <code>gatt.requestMtu(512)</code></li>
+<li>iOS: <code>peripheral.maximumWriteValueLength(for:)</code></li>
+<li>Python (bleak): MTU is negotiated automatically</li>
+</ul>
+</li>
+</ol>
+<h3 id="command-sequencing">Command Sequencing</h3>
+<p><strong>Critical</strong>: Commands must be sent in the correct sequence:</p>
+<ol>
+<li>
+<p><strong>After Connection</strong>:</p>
+<ul>
+<li>Wait for BLE connection to be established</li>
+<li>Wait for services/characteristics to be discovered</li>
+<li>Wait for notifications to be enabled</li>
+<li>Now you can safely send commands to the firmware</li>
+</ul>
+</li>
+<li>
+<p><strong>Command-Response Matching</strong>:</p>
+<ul>
+<li>Send one command at a time</li>
+<li>Wait for a response before sending another command</li>
+<li>Use a timeout (typically 5 seconds)</li>
+<li>Match response to command by type (e.g: <code>CMD_GET_CHANNEL</code> → <code>RESP_CODE_CHANNEL_INFO</code>)</li>
+</ul>
+</li>
+</ol>
+<h3 id="command-queue-management">Command Queue Management</h3>
+<p>For reliable operation, implement a command queue.</p>
+<p><strong>Queue Structure</strong>:</p>
+<ul>
+<li>Maintain a queue of pending commands</li>
+<li>Track which command is currently waiting for a response</li>
+<li>Only send next command after receiving response or timeout</li>
+</ul>
+<p><strong>Error Handling</strong>:</p>
+<ul>
+<li>On timeout, clear current command, process next in queue</li>
+<li>On error, log error, clear current command, process next</li>
+</ul>
+<hr />
+<h2 id="packet-structure">Packet Structure</h2>
+<p>The MeshCore protocol uses a binary format with the following structure:</p>
+<ul>
+<li><strong>Commands</strong>: Sent from app to firmware via RX characteristic</li>
+<li><strong>Responses</strong>: Received from firmware via TX characteristic notifications</li>
+<li><strong>All multi-byte integers</strong>: Little-endian byte order (except CayenneLPP which is Big-endian)</li>
+<li><strong>All strings</strong>: UTF-8 encoding</li>
+</ul>
+<p>Most packets follow this format:</p>
+<pre><code>[Packet Type (1 byte)] [Data (variable length)]
+</code></pre>
+<p>The first byte indicates the packet type (see <a href="#response-parsing">Response Parsing</a>).</p>
+<hr />
+<h2 id="commands">Commands</h2>
+<h3 id="1-app-start">1. App Start</h3>
+<p><strong>Purpose</strong>: Initialize communication with the device. Must be sent first after connection.</p>
+<p><strong>Command Format</strong>:</p>
+<pre><code>Byte 0: 0x01
+Byte 1: 0x03
+Bytes 2-10: &quot;mccli&quot; (ASCII, null-padded to 9 bytes)
+</code></pre>
+<p><strong>Example</strong> (hex):</p>
+<pre><code>01 03 6d 63 63 6c 69 00 00 00 00
+</code></pre>
+<p><strong>Response</strong>: <code>PACKET_OK</code> (0x00)</p>
+<hr />
+<h3 id="2-device-query">2. Device Query</h3>
+<p><strong>Purpose</strong>: Query device information.</p>
+<p><strong>Command Format</strong>:</p>
+<pre><code>Byte 0: 0x16
+Byte 1: 0x03
+</code></pre>
+<p><strong>Example</strong> (hex):</p>
+<pre><code>16 03
+</code></pre>
+<p><strong>Response</strong>: <code>PACKET_DEVICE_INFO</code> (0x0D) with device information</p>
+<hr />
+<h3 id="3-get-channel-info">3. Get Channel Info</h3>
+<p><strong>Purpose</strong>: Retrieve information about a specific channel.</p>
+<p><strong>Command Format</strong>:</p>
+<pre><code>Byte 0: 0x1F
+Byte 1: Channel Index (0-7)
+</code></pre>
+<p><strong>Example</strong> (get channel 1):</p>
+<pre><code>1F 01
+</code></pre>
+<p><strong>Response</strong>: <code>PACKET_CHANNEL_INFO</code> (0x12) with channel details</p>
+<p><strong>Note</strong>: The device does not return channel secrets for security reasons. Store secrets locally when creating channels.</p>
+<hr />
+<h3 id="4-set-channel">4. Set Channel</h3>
+<p><strong>Purpose</strong>: Create or update a channel on the device.</p>
+<p><strong>Command Format</strong>:</p>
+<pre><code>Byte 0: 0x20
+Byte 1: Channel Index (0-7)
+Bytes 2-33: Channel Name (32 bytes, UTF-8, null-padded)
+Bytes 34-65: Secret (32 bytes)
+</code></pre>
+<p><strong>Total Length</strong>: 66 bytes</p>
+<p><strong>Channel Index</strong>:
+- Index 0: Reserved for public channels (no secret)
+- Indices 1-7: Available for private channels</p>
+<p><strong>Channel Name</strong>:
+- UTF-8 encoded
+- Maximum 32 bytes
+- Padded with null bytes (0x00) if shorter</p>
+<p><strong>Secret Field</strong> (32 bytes):
+- For <strong>private channels</strong>: 32-byte secret
+- For <strong>public channels</strong>: All zeros (0x00)</p>
+<p><strong>Example</strong> (create channel "YourChannelName" at index 1 with secret):</p>
+<pre><code>20 01 53 4D 53 00 00 ... (name padded to 32 bytes)
+    [32 bytes of secret]
+</code></pre>
+<p><strong>Response</strong>: <code>PACKET_OK</code> (0x00) on success, <code>PACKET_ERROR</code> (0x01) on failure</p>
+<hr />
+<h3 id="5-send-channel-message">5. Send Channel Message</h3>
+<p><strong>Purpose</strong>: Send a text message to a channel.</p>
+<p><strong>Command Format</strong>:</p>
+<pre><code>Byte 0: 0x03
+Byte 1: 0x00
+Byte 2: Channel Index (0-7)
+Bytes 3-6: Timestamp (32-bit little-endian Unix timestamp, seconds)
+Bytes 7+: Message Text (UTF-8, variable length)
+</code></pre>
+<p><strong>Timestamp</strong>: Unix timestamp in seconds (32-bit unsigned integer, little-endian)</p>
+<p><strong>Example</strong> (send "Hello" to channel 1 at timestamp 1234567890):</p>
+<pre><code>03 00 01 D2 02 96 49 48 65 6C 6C 6F
+</code></pre>
+<p><strong>Response</strong>: <code>PACKET_MSG_SENT</code> (0x06) on success</p>
+<hr />
+<h3 id="6-get-message">6. Get Message</h3>
+<p><strong>Purpose</strong>: Request the next queued message from the device.</p>
+<p><strong>Command Format</strong>:</p>
+<pre><code>Byte 0: 0x0A
+</code></pre>
+<p><strong>Example</strong> (hex):</p>
+<pre><code>0A
+</code></pre>
+<p><strong>Response</strong>: 
+- <code>PACKET_CHANNEL_MSG_RECV</code> (0x08) or <code>PACKET_CHANNEL_MSG_RECV_V3</code> (0x11) for channel messages
+- <code>PACKET_CONTACT_MSG_RECV</code> (0x07) or <code>PACKET_CONTACT_MSG_RECV_V3</code> (0x10) for contact messages
+- <code>PACKET_NO_MORE_MSGS</code> (0x0A) if no messages available</p>
+<p><strong>Note</strong>: Poll this command periodically to retrieve queued messages. The device may also send <code>PACKET_MESSAGES_WAITING</code> (0x83) as a notification when messages are available.</p>
+<hr />
+<h3 id="7-get-battery">7. Get Battery</h3>
+<p><strong>Purpose</strong>: Query device battery level.</p>
+<p><strong>Command Format</strong>:</p>
+<pre><code>Byte 0: 0x14
+</code></pre>
+<p><strong>Example</strong> (hex):</p>
+<pre><code>14
+</code></pre>
+<p><strong>Response</strong>: <code>PACKET_BATTERY</code> (0x0C) with battery percentage</p>
+<hr />
+<h2 id="channel-management">Channel Management</h2>
+<h3 id="channel-types">Channel Types</h3>
+<ol>
+<li><strong>Public Channel</strong><ul>
+<li>Uses a publicly known 16-byte key: <code>8b3387e9c5cdea6ac9e5edbaa115cd72</code></li>
+<li>Anyone can join this channel, messages should be considered public</li>
+<li>Used as the default public group chat</li>
+</ul>
+</li>
+<li><strong>Hashtag Channels</strong><ul>
+<li>Uses a secret key derived from the channel name</li>
+<li>It is the first 16 bytes of <code>sha256("#test")</code></li>
+<li>For example hashtag channel <code>#test</code> has the key: <code>9cd8fcf22a47333b591d96a2b848b73f</code></li>
+<li>Used as a topic based public group chat, separate from the default public channel</li>
+</ul>
+</li>
+<li><strong>Private Channels</strong><ul>
+<li>Uses a randomly generated 16-byte secret key</li>
+<li>Messages should be considered private between those that know the secret</li>
+<li>Users should keep the key secret, and only share with those you want to communicate with</li>
+<li>Used as a secure private group chat</li>
+</ul>
+</li>
+</ol>
+<h3 id="channel-lifecycle">Channel Lifecycle</h3>
+<ol>
+<li><strong>Set Channel</strong>:<ul>
+<li>Fetch all channel slots, and find one with empty name and all-zero secret</li>
+<li>Generate or provide a 16-byte secret</li>
+<li>Send <code>CMD_SET_CHANNEL</code> with name and secret</li>
+</ul>
+</li>
+<li><strong>Get Channel</strong>:<ul>
+<li>Send <code>CMD_GET_CHANNEL</code> with channel index</li>
+<li>Parse <code>RESP_CODE_CHANNEL_INFO</code> response</li>
+</ul>
+</li>
+<li><strong>Delete Channel</strong>:<ul>
+<li>Send <code>CMD_SET_CHANNEL</code> with empty name and all-zero secret</li>
+<li>Or overwrite with a new channel</li>
+</ul>
+</li>
+</ol>
+<hr />
+<h2 id="message-handling">Message Handling</h2>
+<h3 id="receiving-messages">Receiving Messages</h3>
+<p>Messages are received via the RX characteristic (notifications). The device sends:</p>
+<ol>
+<li><strong>Channel Messages</strong>:</li>
+<li><code>PACKET_CHANNEL_MSG_RECV</code> (0x08) - Standard format</li>
+<li>
+<p><code>PACKET_CHANNEL_MSG_RECV_V3</code> (0x11) - Version 3 with SNR</p>
+</li>
+<li>
+<p><strong>Contact Messages</strong>:</p>
+</li>
+<li><code>PACKET_CONTACT_MSG_RECV</code> (0x07) - Standard format</li>
+<li>
+<p><code>PACKET_CONTACT_MSG_RECV_V3</code> (0x10) - Version 3 with SNR</p>
+</li>
+<li>
+<p><strong>Notifications</strong>:</p>
+</li>
+<li><code>PACKET_MESSAGES_WAITING</code> (0x83) - Indicates messages are queued</li>
+</ol>
+<h3 id="contact-message-format">Contact Message Format</h3>
+<p><strong>Standard Format</strong> (<code>PACKET_CONTACT_MSG_RECV</code>, 0x07):</p>
+<pre><code>Byte 0: 0x07 (packet type)
+Bytes 1-6: Public Key Prefix (6 bytes, hex)
+Byte 7: Path Length
+Byte 8: Text Type
+Bytes 9-12: Timestamp (32-bit little-endian)
+Bytes 13-16: Signature (4 bytes, only if txt_type == 2)
+Bytes 17+: Message Text (UTF-8)
+</code></pre>
+<p><strong>V3 Format</strong> (<code>PACKET_CONTACT_MSG_RECV_V3</code>, 0x10):</p>
+<pre><code>Byte 0: 0x10 (packet type)
+Byte 1: SNR (signed byte, multiplied by 4)
+Bytes 2-3: Reserved
+Bytes 4-9: Public Key Prefix (6 bytes, hex)
+Byte 10: Path Length
+Byte 11: Text Type
+Bytes 12-15: Timestamp (32-bit little-endian)
+Bytes 16-19: Signature (4 bytes, only if txt_type == 2)
+Bytes 20+: Message Text (UTF-8)
+</code></pre>
+<p><strong>Parsing Pseudocode</strong>:</p>
+<pre><code class="language-python">def parse_contact_message(data):
+    packet_type = data[0]
+    offset = 1
+
+    # Check for V3 format
+    if packet_type == 0x10:  # V3
+        snr_byte = data[offset]
+        snr = ((snr_byte if snr_byte &lt; 128 else snr_byte - 256) / 4.0)
+        offset += 3  # Skip SNR + reserved
+
+    pubkey_prefix = data[offset:offset+6].hex()
+    offset += 6
+
+    path_len = data[offset]
+    txt_type = data[offset + 1]
+    offset += 2
+
+    timestamp = int.from_bytes(data[offset:offset+4], 'little')
+    offset += 4
+
+    # If txt_type == 2, skip 4-byte signature
+    if txt_type == 2:
+        offset += 4
+
+    message = data[offset:].decode('utf-8')
+
+    return {
+        'pubkey_prefix': pubkey_prefix,
+        'path_len': path_len,
+        'txt_type': txt_type,
+        'timestamp': timestamp,
+        'message': message,
+        'snr': snr if packet_type == 0x10 else None
+    }
+</code></pre>
+<h3 id="channel-message-format">Channel Message Format</h3>
+<p><strong>Standard Format</strong> (<code>PACKET_CHANNEL_MSG_RECV</code>, 0x08):</p>
+<pre><code>Byte 0: 0x08 (packet type)
+Byte 1: Channel Index (0-7)
+Byte 2: Path Length
+Byte 3: Text Type
+Bytes 4-7: Timestamp (32-bit little-endian)
+Bytes 8+: Message Text (UTF-8)
+</code></pre>
+<p><strong>V3 Format</strong> (<code>PACKET_CHANNEL_MSG_RECV_V3</code>, 0x11):</p>
+<pre><code>Byte 0: 0x11 (packet type)
+Byte 1: SNR (signed byte, multiplied by 4)
+Bytes 2-3: Reserved
+Byte 4: Channel Index (0-7)
+Byte 5: Path Length
+Byte 6: Text Type
+Bytes 7-10: Timestamp (32-bit little-endian)
+Bytes 11+: Message Text (UTF-8)
+</code></pre>
+<p><strong>Parsing Pseudocode</strong>:</p>
+<pre><code class="language-python">def parse_channel_message(data):
+    packet_type = data[0]
+    offset = 1
+
+    # Check for V3 format
+    if packet_type == 0x11:  # V3
+        snr_byte = data[offset]
+        snr = ((snr_byte if snr_byte &lt; 128 else snr_byte - 256) / 4.0)
+        offset += 3  # Skip SNR + reserved
+
+    channel_idx = data[offset]
+    path_len = data[offset + 1]
+    txt_type = data[offset + 2]
+    timestamp = int.from_bytes(data[offset+3:offset+7], 'little')
+    message = data[offset+7:].decode('utf-8')
+
+    return {
+        'channel_idx': channel_idx,
+        'timestamp': timestamp,
+        'message': message,
+        'snr': snr if packet_type == 0x11 else None
+    }
+</code></pre>
+<h3 id="sending-messages">Sending Messages</h3>
+<p>Use the <code>SEND_CHANNEL_MESSAGE</code> command (see <a href="#commands">Commands</a>).</p>
+<p><strong>Important</strong>: 
+- Messages are limited to 133 characters per MeshCore specification
+- Long messages should be split into chunks
+- Include a chunk indicator (e.g., "[1/3] message text")</p>
+<hr />
+<h2 id="response-parsing">Response Parsing</h2>
+<h3 id="packet-types">Packet Types</h3>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Name</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0x00</td>
+<td>PACKET_OK</td>
+<td>Command succeeded</td>
+</tr>
+<tr>
+<td>0x01</td>
+<td>PACKET_ERROR</td>
+<td>Command failed</td>
+</tr>
+<tr>
+<td>0x02</td>
+<td>PACKET_CONTACT_START</td>
+<td>Start of contact list</td>
+</tr>
+<tr>
+<td>0x03</td>
+<td>PACKET_CONTACT</td>
+<td>Contact information</td>
+</tr>
+<tr>
+<td>0x04</td>
+<td>PACKET_CONTACT_END</td>
+<td>End of contact list</td>
+</tr>
+<tr>
+<td>0x05</td>
+<td>PACKET_SELF_INFO</td>
+<td>Device self-information</td>
+</tr>
+<tr>
+<td>0x06</td>
+<td>PACKET_MSG_SENT</td>
+<td>Message sent confirmation</td>
+</tr>
+<tr>
+<td>0x07</td>
+<td>PACKET_CONTACT_MSG_RECV</td>
+<td>Contact message (standard)</td>
+</tr>
+<tr>
+<td>0x08</td>
+<td>PACKET_CHANNEL_MSG_RECV</td>
+<td>Channel message (standard)</td>
+</tr>
+<tr>
+<td>0x09</td>
+<td>PACKET_CURRENT_TIME</td>
+<td>Current time response</td>
+</tr>
+<tr>
+<td>0x0A</td>
+<td>PACKET_NO_MORE_MSGS</td>
+<td>No more messages available</td>
+</tr>
+<tr>
+<td>0x0C</td>
+<td>PACKET_BATTERY</td>
+<td>Battery level</td>
+</tr>
+<tr>
+<td>0x0D</td>
+<td>PACKET_DEVICE_INFO</td>
+<td>Device information</td>
+</tr>
+<tr>
+<td>0x10</td>
+<td>PACKET_CONTACT_MSG_RECV_V3</td>
+<td>Contact message (V3 with SNR)</td>
+</tr>
+<tr>
+<td>0x11</td>
+<td>PACKET_CHANNEL_MSG_RECV_V3</td>
+<td>Channel message (V3 with SNR)</td>
+</tr>
+<tr>
+<td>0x12</td>
+<td>PACKET_CHANNEL_INFO</td>
+<td>Channel information</td>
+</tr>
+<tr>
+<td>0x80</td>
+<td>PACKET_ADVERTISEMENT</td>
+<td>Advertisement packet</td>
+</tr>
+<tr>
+<td>0x82</td>
+<td>PACKET_ACK</td>
+<td>Acknowledgment</td>
+</tr>
+<tr>
+<td>0x83</td>
+<td>PACKET_MESSAGES_WAITING</td>
+<td>Messages waiting notification</td>
+</tr>
+<tr>
+<td>0x88</td>
+<td>PACKET_LOG_DATA</td>
+<td>RF log data (can be ignored)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="parsing-responses">Parsing Responses</h3>
+<p><strong>PACKET_OK</strong> (0x00):</p>
+<pre><code>Byte 0: 0x00
+Bytes 1-4: Optional value (32-bit little-endian integer)
+</code></pre>
+<p><strong>PACKET_ERROR</strong> (0x01):</p>
+<pre><code>Byte 0: 0x01
+Byte 1: Error code (optional)
+</code></pre>
+<p><strong>PACKET_CHANNEL_INFO</strong> (0x12):</p>
+<pre><code>Byte 0: 0x12
+Byte 1: Channel Index
+Bytes 2-33: Channel Name (32 bytes, null-terminated)
+Bytes 34-65: Secret (32 bytes, but device typically only returns 20 bytes total)
+</code></pre>
+<p><strong>Note</strong>: The device may not return the full 66-byte packet. Parse what is available. The secret field is typically not returned for security reasons.</p>
+<p><strong>PACKET_DEVICE_INFO</strong> (0x0D):</p>
+<pre><code>Byte 0: 0x0D
+Byte 1: Firmware Version (uint8)
+Bytes 2+: Variable length based on firmware version
+
+For firmware version &gt;= 3:
+Byte 2: Max Contacts Raw (uint8, actual = value * 2)
+Byte 3: Max Channels (uint8)
+Bytes 4-7: BLE PIN (32-bit little-endian)
+Bytes 8-19: Firmware Build (12 bytes, UTF-8, null-padded)
+Bytes 20-59: Model (40 bytes, UTF-8, null-padded)
+Bytes 60-79: Version (20 bytes, UTF-8, null-padded)
+</code></pre>
+<p><strong>Parsing Pseudocode</strong>:</p>
+<pre><code class="language-python">def parse_device_info(data):
+    if len(data) &lt; 2:
+        return None
+
+    fw_ver = data[1]
+    info = {'fw_ver': fw_ver}
+
+    if fw_ver &gt;= 3 and len(data) &gt;= 80:
+        info['max_contacts'] = data[2] * 2
+        info['max_channels'] = data[3]
+        info['ble_pin'] = int.from_bytes(data[4:8], 'little')
+        info['fw_build'] = data[8:20].decode('utf-8').rstrip('\x00').strip()
+        info['model'] = data[20:60].decode('utf-8').rstrip('\x00').strip()
+        info['ver'] = data[60:80].decode('utf-8').rstrip('\x00').strip()
+
+    return info
+</code></pre>
+<p><strong>PACKET_BATTERY</strong> (0x0C):</p>
+<pre><code>Byte 0: 0x0C
+Bytes 1-2: Battery Level (16-bit little-endian, percentage 0-100)
+
+Optional (if data size &gt; 3):
+Bytes 3-6: Used Storage (32-bit little-endian, KB)
+Bytes 7-10: Total Storage (32-bit little-endian, KB)
+</code></pre>
+<p><strong>Parsing Pseudocode</strong>:</p>
+<pre><code class="language-python">def parse_battery(data):
+    if len(data) &lt; 3:
+        return None
+
+    level = int.from_bytes(data[1:3], 'little')
+    info = {'level': level}
+
+    if len(data) &gt; 3:
+        used_kb = int.from_bytes(data[3:7], 'little')
+        total_kb = int.from_bytes(data[7:11], 'little')
+        info['used_kb'] = used_kb
+        info['total_kb'] = total_kb
+
+    return info
+</code></pre>
+<p><strong>PACKET_SELF_INFO</strong> (0x05):</p>
+<pre><code>Byte 0: 0x05
+Byte 1: Advertisement Type
+Byte 2: TX Power
+Byte 3: Max TX Power
+Bytes 4-35: Public Key (32 bytes, hex)
+Bytes 36-39: Advertisement Latitude (32-bit little-endian, divided by 1e6)
+Bytes 40-43: Advertisement Longitude (32-bit little-endian, divided by 1e6)
+Byte 44: Multi ACKs
+Byte 45: Advertisement Location Policy
+Byte 46: Telemetry Mode (bitfield)
+Byte 47: Manual Add Contacts (bool)
+Bytes 48-51: Radio Frequency (32-bit little-endian, divided by 1000.0)
+Bytes 52-55: Radio Bandwidth (32-bit little-endian, divided by 1000.0)
+Byte 56: Radio Spreading Factor
+Byte 57: Radio Coding Rate
+Bytes 58+: Device Name (UTF-8, variable length, null-terminated)
+</code></pre>
+<p><strong>Parsing Pseudocode</strong>:</p>
+<pre><code class="language-python">def parse_self_info(data):
+    if len(data) &lt; 36:
+        return None
+
+    offset = 1
+    info = {
+        'adv_type': data[offset],
+        'tx_power': data[offset + 1],
+        'max_tx_power': data[offset + 2],
+        'public_key': data[offset + 3:offset + 35].hex()
+    }
+    offset += 35
+
+    lat = int.from_bytes(data[offset:offset+4], 'little') / 1e6
+    lon = int.from_bytes(data[offset+4:offset+8], 'little') / 1e6
+    info['adv_lat'] = lat
+    info['adv_lon'] = lon
+    offset += 8
+
+    info['multi_acks'] = data[offset]
+    info['adv_loc_policy'] = data[offset + 1]
+    telemetry_mode = data[offset + 2]
+    info['telemetry_mode_env'] = (telemetry_mode &gt;&gt; 4) &amp; 0b11
+    info['telemetry_mode_loc'] = (telemetry_mode &gt;&gt; 2) &amp; 0b11
+    info['telemetry_mode_base'] = telemetry_mode &amp; 0b11
+    info['manual_add_contacts'] = data[offset + 3] &gt; 0
+    offset += 4
+
+    freq = int.from_bytes(data[offset:offset+4], 'little') / 1000.0
+    bw = int.from_bytes(data[offset+4:offset+8], 'little') / 1000.0
+    info['radio_freq'] = freq
+    info['radio_bw'] = bw
+    info['radio_sf'] = data[offset + 8]
+    info['radio_cr'] = data[offset + 9]
+    offset += 10
+
+    if offset &lt; len(data):
+        name_bytes = data[offset:]
+        info['name'] = name_bytes.decode('utf-8').rstrip('\x00').strip()
+
+    return info
+</code></pre>
+<p><strong>PACKET_MSG_SENT</strong> (0x06):</p>
+<pre><code>Byte 0: 0x06
+Byte 1: Message Type
+Bytes 2-5: Expected ACK (4 bytes, hex)
+Bytes 6-9: Suggested Timeout (32-bit little-endian, seconds)
+</code></pre>
+<p><strong>PACKET_ACK</strong> (0x82):</p>
+<pre><code>Byte 0: 0x82
+Bytes 1-6: ACK Code (6 bytes, hex)
+</code></pre>
+<h3 id="error-codes">Error Codes</h3>
+<p><strong>PACKET_ERROR</strong> (0x01) may include an error code in byte 1:</p>
+<table>
+<thead>
+<tr>
+<th>Error Code</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0x00</td>
+<td>Generic error (no specific code)</td>
+</tr>
+<tr>
+<td>0x01</td>
+<td>Invalid command</td>
+</tr>
+<tr>
+<td>0x02</td>
+<td>Invalid parameter</td>
+</tr>
+<tr>
+<td>0x03</td>
+<td>Channel not found</td>
+</tr>
+<tr>
+<td>0x04</td>
+<td>Channel already exists</td>
+</tr>
+<tr>
+<td>0x05</td>
+<td>Channel index out of range</td>
+</tr>
+<tr>
+<td>0x06</td>
+<td>Secret mismatch</td>
+</tr>
+<tr>
+<td>0x07</td>
+<td>Message too long</td>
+</tr>
+<tr>
+<td>0x08</td>
+<td>Device busy</td>
+</tr>
+<tr>
+<td>0x09</td>
+<td>Not enough storage</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Note</strong>: Error codes may vary by firmware version. Always check byte 1 of <code>PACKET_ERROR</code> response.</p>
+<h3 id="partial-packet-handling">Partial Packet Handling</h3>
+<p>BLE notifications may arrive in chunks, especially for larger packets. Implement buffering:</p>
+<p><strong>Implementation</strong>:</p>
+<pre><code class="language-python">class PacketBuffer:
+    def __init__(self):
+        self.buffer = bytearray()
+        self.expected_length = None
+
+    def add_data(self, data):
+        self.buffer.extend(data)
+
+        # Check if we have a complete packet
+        if len(self.buffer) &gt;= 1:
+            packet_type = self.buffer[0]
+
+            # Determine expected length based on packet type
+            expected = self.get_expected_length(packet_type)
+
+            if expected is not None and len(self.buffer) &gt;= expected:
+                # Complete packet
+                packet = bytes(self.buffer[:expected])
+                self.buffer = self.buffer[expected:]
+                return packet
+            elif expected is None:
+                # Variable length packet - try to parse what we have
+                # Some packets have minimum length requirements
+                if self.can_parse_partial(packet_type):
+                    return self.try_parse_partial()
+
+        return None  # Incomplete packet
+
+    def get_expected_length(self, packet_type):
+        # Fixed-length packets
+        fixed_lengths = {
+            0x00: 5,  # PACKET_OK (minimum)
+            0x01: 2,  # PACKET_ERROR (minimum)
+            0x0A: 1,  # PACKET_NO_MORE_MSGS
+            0x14: 3,  # PACKET_BATTERY (minimum)
+        }
+        return fixed_lengths.get(packet_type)
+
+    def can_parse_partial(self, packet_type):
+        # Some packets can be parsed partially
+        return packet_type in [0x12, 0x08, 0x11, 0x07, 0x10, 0x05, 0x0D]
+
+    def try_parse_partial(self):
+        # Try to parse with available data
+        # Return packet if successfully parsed, None otherwise
+        # This is packet-type specific
+        pass
+</code></pre>
+<p><strong>Usage</strong>:</p>
+<pre><code class="language-python">buffer = PacketBuffer()
+
+def on_notification_received(data):
+    packet = buffer.add_data(data)
+    if packet:
+        parse_and_handle_packet(packet)
+</code></pre>
+<h3 id="response-handling">Response Handling</h3>
+<ol>
+<li><strong>Command-Response Pattern</strong>:</li>
+<li>Send command via TX characteristic</li>
+<li>Wait for response via RX characteristic (notification)</li>
+<li>Match response to command using sequence numbers or command type</li>
+<li>Handle timeout (typically 5 seconds)</li>
+<li>
+<p>Use command queue to prevent concurrent commands</p>
+</li>
+<li>
+<p><strong>Asynchronous Messages</strong>:</p>
+</li>
+<li>Device may send messages at any time via RX characteristic</li>
+<li>Handle <code>PACKET_MESSAGES_WAITING</code> (0x83) by polling <code>GET_MESSAGE</code> command</li>
+<li>Parse incoming messages and route to appropriate handlers</li>
+<li>
+<p>Buffer partial packets until complete</p>
+</li>
+<li>
+<p><strong>Response Matching</strong>:</p>
+</li>
+<li>
+<p>Match responses to commands by expected packet type:</p>
+<ul>
+<li><code>APP_START</code> → <code>PACKET_OK</code></li>
+<li><code>DEVICE_QUERY</code> → <code>PACKET_DEVICE_INFO</code></li>
+<li><code>GET_CHANNEL</code> → <code>PACKET_CHANNEL_INFO</code></li>
+<li><code>SET_CHANNEL</code> → <code>PACKET_OK</code> or <code>PACKET_ERROR</code></li>
+<li><code>SEND_CHANNEL_MESSAGE</code> → <code>PACKET_MSG_SENT</code></li>
+<li><code>GET_MESSAGE</code> → <code>PACKET_CHANNEL_MSG_RECV</code>, <code>PACKET_CONTACT_MSG_RECV</code>, or <code>PACKET_NO_MORE_MSGS</code></li>
+<li><code>GET_BATTERY</code> → <code>PACKET_BATTERY</code></li>
+</ul>
+</li>
+<li>
+<p><strong>Timeout Handling</strong>:</p>
+</li>
+<li>Default timeout: 5 seconds per command</li>
+<li>On timeout: Log error, clear current command, proceed to next in queue</li>
+<li>Some commands may take longer (e.g., <code>SET_CHANNEL</code> may need 1-2 seconds)</li>
+<li>
+<p>Consider longer timeout for channel operations</p>
+</li>
+<li>
+<p><strong>Error Recovery</strong>:</p>
+</li>
+<li>On <code>PACKET_ERROR</code>: Log error code, clear current command</li>
+<li>On connection loss: Clear command queue, attempt reconnection</li>
+<li>On invalid response: Log warning, clear current command, proceed</li>
+</ol>
+<hr />
+<h2 id="example-implementation-flow">Example Implementation Flow</h2>
+<h3 id="initialization">Initialization</h3>
+<pre><code class="language-python"># 1. Scan for MeshCore device
+device = scan_for_device(&quot;MeshCore&quot;)
+
+# 2. Connect to BLE GATT
+gatt = connect_to_device(device)
+
+# 3. Discover services and characteristics
+service = discover_service(gatt, &quot;0000ff00-0000-1000-8000-00805f9b34fb&quot;)
+rx_char = discover_characteristic(service, &quot;0000ff01-0000-1000-8000-00805f9b34fb&quot;)
+tx_char = discover_characteristic(service, &quot;0000ff02-0000-1000-8000-00805f9b34fb&quot;)
+
+# 4. Enable notifications on RX characteristic
+enable_notifications(rx_char, on_notification_received)
+
+# 5. Send AppStart command
+send_command(tx_char, build_app_start())
+wait_for_response(PACKET_OK)
+</code></pre>
+<h3 id="creating-a-private-channel">Creating a Private Channel</h3>
+<pre><code class="language-python"># 1. Generate 16-byte secret
+secret_16_bytes = generate_secret(16)  # Use CSPRNG
+secret_hex = secret_16_bytes.hex()
+
+# 2. Expand secret to 32 bytes using SHA-512
+import hashlib
+sha512_hash = hashlib.sha512(secret_16_bytes).digest()
+secret_32_bytes = sha512_hash[:32]
+
+# 3. Build SET_CHANNEL command
+channel_name = &quot;YourChannelName&quot;
+channel_index = 1  # Use 1-7 for private channels
+command = build_set_channel(channel_index, channel_name, secret_32_bytes)
+
+# 4. Send command
+send_command(tx_char, command)
+response = wait_for_response(PACKET_OK)
+
+# 5. Store secret locally (device won't return it)
+store_channel_secret(channel_index, secret_hex)
+</code></pre>
+<h3 id="sending-a-message">Sending a Message</h3>
+<pre><code class="language-python"># 1. Build channel message command
+channel_index = 1
+message = &quot;Hello, MeshCore!&quot;
+timestamp = int(time.time())
+command = build_channel_message(channel_index, message, timestamp)
+
+# 2. Send command
+send_command(tx_char, command)
+response = wait_for_response(PACKET_MSG_SENT)
+</code></pre>
+<h3 id="receiving-messages_1">Receiving Messages</h3>
+<pre><code class="language-python">def on_notification_received(data):
+    packet_type = data[0]
+
+    if packet_type == PACKET_CHANNEL_MSG_RECV or packet_type == PACKET_CHANNEL_MSG_RECV_V3:
+        message = parse_channel_message(data)
+        handle_channel_message(message)
+    elif packet_type == PACKET_MESSAGES_WAITING:
+        # Poll for messages
+        send_command(tx_char, build_get_message())
+</code></pre>
+<hr />
+<h2 id="best-practices">Best Practices</h2>
+<ol>
+<li><strong>Connection Management</strong>:</li>
+<li>Implement auto-reconnect with exponential backoff</li>
+<li>Handle disconnections gracefully</li>
+<li>
+<p>Store last connected device address for quick reconnection</p>
+</li>
+<li>
+<p><strong>Secret Management</strong>:</p>
+</li>
+<li>Always use cryptographically secure random number generators</li>
+<li>Store secrets securely (encrypted storage)</li>
+<li>
+<p>Never log or transmit secrets in plain text</p>
+</li>
+<li>
+<p><strong>Message Handling</strong>:</p>
+</li>
+<li>Send <code>CMD_SYNC_NEXT_MESSAGE</code> when <code>PUSH_CODE_MSG_WAITING</code> is received</li>
+<li>
+<p>Implement message deduplication to avoid display the same message twice</p>
+</li>
+<li>
+<p><strong>Channel Management</strong>:</p>
+<ul>
+<li>Fetch all channel slots even if you encounter an empty slot</li>
+<li>Ideally save new channels into the first empty slot</li>
+</ul>
+</li>
+<li>
+<p><strong>Error Handling</strong>:</p>
+</li>
+<li>Implement timeouts for all commands (typically 5 seconds)</li>
+<li>Handle <code>RESP_CODE_ERR</code> responses appropriately</li>
+</ol>
+<hr />
+<h2 id="troubleshooting">Troubleshooting</h2>
+<h3 id="connection-issues">Connection Issues</h3>
+<ul>
+<li><strong>Device not found</strong>: Ensure device is powered on and advertising</li>
+<li><strong>Connection timeout</strong>: Check Bluetooth permissions and device proximity</li>
+<li><strong>GATT errors</strong>: Ensure proper service/characteristic discovery</li>
+</ul>
+<h3 id="command-issues">Command Issues</h3>
+<ul>
+<li><strong>No response</strong>: Verify notifications are enabled, check connection state</li>
+<li><strong>Error responses</strong>: Verify command format and check error code</li>
+<li><strong>Timeout</strong>: Increase timeout value or try again</li>
+</ul>
+<h3 id="message-issues">Message Issues</h3>
+<ul>
+<li><strong>Messages not received</strong>: Poll <code>GET_MESSAGE</code> command periodically</li>
+<li><strong>Duplicate messages</strong>: Implement message deduplication using timestamp/content as a unique id</li>
+<li><strong>Message truncation</strong>: Send long messages as separate shorter messages</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["content.action.edit", "content.code.copy", "search.highlight", "search.suggest"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

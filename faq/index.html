@@ -1,0 +1,3290 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Documentation for the open source MeshCore firmware">
+      
+      
+      
+        <link rel="canonical" href="https://meshcore-dev.github.io/meshcore/faq/">
+      
+      
+        <link rel="prev" href="../docs/">
+      
+      
+        <link rel="next" href="../nrf52_power_management/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.1">
+    
+    
+      
+        <title>Frequently Asked Questions - MeshCore Docs</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../_stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#frequently-asked-questions" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="MeshCore Docs" class="md-header__button md-logo" aria-label="MeshCore Docs" data-md-component="logo">
+      
+  <img src="../_assets/meshcore_tm.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            MeshCore Docs
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Frequently Asked Questions
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/meshcore-dev/meshcore/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    meshcore-dev/meshcore
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="MeshCore Docs" class="md-nav__button md-logo" aria-label="MeshCore Docs" data-md-component="logo">
+      
+  <img src="../_assets/meshcore_tm.svg" alt="logo">
+
+    </a>
+    MeshCore Docs
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/meshcore-dev/meshcore/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    meshcore-dev/meshcore
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Introduction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli_commands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Commands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../companion_protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Companion Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Local Documentation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Frequently Asked Questions
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Frequently Asked Questions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-introduction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Introduction
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1. Introduction">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#11-q-what-is-meshcore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.1. Q: What is MeshCore?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#12-q-what-do-you-need-to-start-using-meshcore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2. Q: What do you need to start using MeshCore?
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1.2. Q: What do you need to start using MeshCore?">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#121-hardware" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2.1. Hardware
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#122-firmware" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2.2. Firmware
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#123-companion-radio-firmware" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2.3. Companion Radio Firmware
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#124-repeater" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2.4. Repeater
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#125-room-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2.5. Room Server
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-initial-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Initial Setup
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. Initial Setup">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#21-q-how-many-devices-do-i-need-to-start-using-meshcore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.1. Q: How many devices do I need to start using MeshCore?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#22-q-does-meshcore-cost-any-money" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.2. Q: Does MeshCore cost any money?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#23-q-what-frequencies-are-supported-by-meshcore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.3. Q: What frequencies are supported by MeshCore?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#24-q-what-is-an-advert-in-meshcore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.4. Q: What is an "advert" in MeshCore?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#25-q-is-there-a-hop-limit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.5. Q: Is there a hop limit?
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-server-administration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Server Administration
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. Server Administration">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#31-q-how-do-you-configure-a-repeater-or-a-room-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.1. Q: How do you configure a repeater or a room server?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#32-q-do-i-need-to-set-the-location-for-a-repeater" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.2. Q: Do I need to set the location for a repeater?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#33-q-what-is-the-password-to-administer-a-repeater-or-a-room-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.3. Q: What is the password to administer a repeater or a room server?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#34-q-what-is-the-password-to-join-a-room-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.4. Q: What is the password to join a room server?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#35-q-can-i-retrieve-a-repeaters-private-key-or-set-a-repeaters-private-key" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.5. Q: Can I retrieve a repeater's private key or set a repeater's private key?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#36-q-the-first-byte-of-my-repeaters-public-key-collides-with-an-exisitng-repeater-on-the-mesh-how-do-i-get-a-new-private-key-with-a-matching-public-key-that-has-its-first-byte-of-my-choosing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.6. Q: The first byte of my repeater's public key collides with an exisitng repeater on the mesh. How do I get a new private key with a matching public key that has its first byte of my choosing?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#37-q-my-repeater-maybe-suffering-from-deafness-due-to-high-power-interference-near-my-meshs-frequency-it-is-not-hearing-other-in-range-meshcore-radios-what-can-i-do" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.7. Q: My repeater maybe suffering from deafness due to high power interference near my mesh's frequency, it is not hearing other in-range MeshCore radios. what can I do?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#38-q-how-do-i-make-my-repeater-an-observer-on-the-mesh" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.8 Q: How do I make my repeater an observer on the mesh
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-t-deck-related" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. T-Deck Related
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. T-Deck Related">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#41-q-is-there-a-user-guide-for-t-deck-t-pager-t-watch-or-t-display-pro" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.1. Q: Is there a user guide for T-Deck, T-Pager, T-Watch, or T-Display Pro?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#42-q-what-are-the-steps-to-get-a-t-deck-into-dfu-device-firmware-update-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.2. Q: What are the steps to get a T-Deck into DFU (Device Firmware Update) mode?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#43-q-why-is-my-t-deck-plus-not-getting-any-satellite-lock" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.3. Q: Why is my T-Deck Plus not getting any satellite lock?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#44-q-why-is-my-og-non-plus-t-deck-not-getting-any-satellite-lock" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.4. Q: Why is my OG (non-Plus) T-Deck not getting any satellite lock?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#45-q-what-size-of-sd-card-does-the-t-deck-support" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.5. Q: What size of SD card does the T-Deck support?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#46-q-what-is-the-public-key-for-the-default-public-channel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.6. Q: what is the public key for the default public channel?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#47-q-how-do-i-get-maps-on-t-deck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.7. Q: How do I get maps on T-Deck?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#48-q-where-do-the-map-tiles-go" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.8. Q: Where do the map tiles go?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#49-q-how-to-unlock-deeper-map-zoom-and-server-management-features-on-t-deck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.9. Q: How to unlock deeper map zoom and server management features on T-Deck?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#410-q-how-to-decipher-the-diagnostics-screen-on-t-deck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.10. Q: How to decipher the diagnostics screen on T-Deck?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#411-q-the-t-deck-sound-is-too-loud" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.11. Q: The T-Deck sound is too loud?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#412-q-can-you-customize-the-sound" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.12. Q: Can you customize the sound?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#413-q-what-is-the-import-from-clipboard-feature-on-the-t-deck-and-is-there-a-way-to-manually-add-nodes-without-having-to-receive-adverts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.13. Q: What is the 'Import from Clipboard' feature on the t-deck and is there a way to manually add nodes without having to receive adverts?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#414-q-how-to-capture-a-screenshot-on-t-deck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.14. Q: How to capture a screenshot on T-Deck?
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-general" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. General
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5. General">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#51-q-what-are-bw-sf-and-cr" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.1. Q: What are BW, SF, and CR?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#52-q-do-meshcore-clients-repeat" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.2. Q: Do MeshCore clients repeat?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#53-q-what-happens-when-a-node-learns-a-route-via-a-mobile-repeater-and-that-repeater-is-gone" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.3. Q: What happens when a node learns a route via a mobile repeater, and that repeater is gone?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#54-q-how-does-a-node-discovery-a-path-to-its-destination-and-then-use-it-to-send-messages-in-the-future-instead-of-flooding-every-message-it-sends-like-meshtastic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.4. Q: How does a node discovery a path to its destination and then use it to send messages in the future, instead of flooding every message it sends like Meshtastic?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#55-q-do-public-channels-always-flood-do-private-channels-always-flood" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.5. Q: Do public channels always flood? Do private channels always flood?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#56-q-what-is-the-public-key-for-the-default-public-channel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.6. Q: what is the public key for the default public channel?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#57-q-is-meshcore-open-source" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.7. Q: Is MeshCore open source?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#58-q-how-can-i-support-meshcore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.8. Q: How can I support MeshCore?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#59-q-how-do-i-build-meshcore-firmware-from-source" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.9. Q: How do I build MeshCore firmware from source?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#510-q-are-there-other-meshcore-related-open-source-projects" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.10. Q: Are there other MeshCore related open source projects?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#511-q-does-meshcore-support-atak" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.11. Q: Does MeshCore support ATAK
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#512-q-how-do-i-add-a-node-to-the-meshcore-map" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.12. Q: How do I add a node to the MeshCore Map
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#513-q-can-i-use-a-raspberry-pi-to-update-a-meshcore-radio" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.13. Q: Can I use a Raspberry Pi to update a MeshCore radio?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#514-q-are-there-are-projects-built-around-meshcore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.14. Q: Are there are projects built around MeshCore?
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5.14. Q: Are there are projects built around MeshCore?">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#5141-meshcoremqtt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.14.1. meshcoremqtt
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5142-meshcore-for-home-assistant" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.14.2. MeshCore for Home Assistant
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5143-python-meshcore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.14.3. Python MeshCore
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5144-meshcore-cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.14.4. meshcore-cli
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5145-meshcorejs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.14.5. meshcore.js
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5146-pymc_core" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.14.6. pyMC_core
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5147-meshcore-packet-decoder" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.14.7. MeshCore Packet Decoder
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5148-meshcore-pi" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.14.8. meshcore-pi
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5149-pymc_repeater" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.14.9. pyMC_Repeater
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#515-q-are-there-client-applications-for-windows-or-mac" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.15. Q: Are there client applications for Windows or Mac?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#516-q-are-there-any-resources-that-compare-meshcore-to-other-lora-systems" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.16. Q: Are there any resources that compare MeshCore to other LoRa systems?
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-troubleshooting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Troubleshooting
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="6. Troubleshooting">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#61-q-my-client-says-another-client-or-a-repeater-or-a-room-server-was-last-seen-many-many-days-ago" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.1. Q: My client says another client or a repeater or a room server was last seen many, many days ago.
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#62-q-a-repeater-or-a-client-or-a-room-server-i-expect-to-see-on-my-discover-list-on-t-deck-or-contact-list-on-a-smart-device-client-are-not-listed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.2. Q: A repeater or a client or a room server I expect to see on my discover list (on T-Deck) or contact list (on a smart device client) are not listed.
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#63-q-how-to-connect-to-a-repeater-via-ble-bluetooth" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.3. Q: How to connect to a repeater via BLE (Bluetooth)?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#64-q-my-companion-isnt-showing-up-over-bluetooth" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.4. Q: My companion isn't showing up over Bluetooth?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#65-q-i-cant-connect-via-bluetooth-what-is-the-bluetooth-pairing-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.5. Q: I can't connect via Bluetooth, what is the Bluetooth pairing code?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#66-q-my-heltec-v3-keeps-disconnecting-from-my-smartphone-it-cant-hold-a-solid-bluetooth-connection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.6. Q: My Heltec V3 keeps disconnecting from my smartphone. It can't hold a solid Bluetooth connection.
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#67-q-my-rakt1000-exiao_nrf52-device-seems-to-be-corrupted-how-do-i-wipe-it-clean-to-start-fresh" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.7. Q: My RAK/T1000-E/xiao_nRF52 device seems to be corrupted, how do I wipe it clean to start fresh?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#68-q-webflasher-fails-on-linux-with-failed-to-open" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.8. Q: WebFlasher fails on Linux with failed to open
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-other-questions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Other Questions:
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="7. Other Questions:">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#71-q-how-to-update-nrf-rak-t114-seed-xiao-repeater-and-room-server-firmware-over-the-air-using-the-new-simpler-dfu-app" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.1. Q: How to update nRF (RAK, T114, Seed XIAO) repeater and room server firmware over the air using the new simpler DFU app?
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="7.1. Q: How to update nRF (RAK, T114, Seed XIAO) repeater and room server firmware over the air using the new simpler DFU app?">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#711-q-can-i-update-seeed-studio-wio-tracker-l1-pro-using-ota" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.1.1 Q: Can I update Seeed Studio Wio Tracker L1 Pro using OTA?
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#72-q-how-to-update-esp32-based-devices-over-the-air" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.2. Q: How to update ESP32-based devices over the air?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#73-q-is-there-a-way-to-lower-the-chance-of-a-failed-ota-device-firmware-update-dfu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.3. Q: Is there a way to lower the chance of a failed OTA device firmware update (DFU)?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#74-q-are-the-meshcore-logo-and-font-available" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.4. Q: are the MeshCore logo and font available?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#75-q-what-is-the-format-of-a-contact-or-channel-qr-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.5. Q: What is the format of a contact or channel QR code?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#76-q-how-do-i-connect-to-the-companion-via-wifi-eg-using-a-heltec-v3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.6. Q: How do I connect to the companion via WIFI, e.g. using a heltec v3?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#77-q-i-have-a-station-g2-or-a-heltec-v4-or-an-ikoka-stick-or-a-radio-with-a-ebyte-e22-900m30s-or-a-e22-900m33s-module-what-should-their-transmit-power-be-set-to" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.7. Q: I have a Station G2, or a Heltec V4, or an Ikoka Stick, or a radio with a EByte E22-900M30S or a E22-900M33S module, what should their transmit power be set to?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#warning-set-these-values-at-your-own-risk-incorrect-power-settings-can-permanently-damage-your-radio-hardware" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ⚠️ WARNING: Set these values at your own risk. Incorrect power settings can permanently damage your radio hardware.
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../nrf52_power_management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    nRF52 Power Management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../packet_structure/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Packet Structure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../payloads/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Meshcore payloads
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qr_codes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QR Codes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../stats_binary_frames/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stats Binary Frame Structures
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../terminal_chat_cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Terminal Chat CLI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-introduction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Introduction
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1. Introduction">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#11-q-what-is-meshcore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.1. Q: What is MeshCore?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#12-q-what-do-you-need-to-start-using-meshcore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2. Q: What do you need to start using MeshCore?
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1.2. Q: What do you need to start using MeshCore?">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#121-hardware" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2.1. Hardware
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#122-firmware" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2.2. Firmware
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#123-companion-radio-firmware" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2.3. Companion Radio Firmware
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#124-repeater" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2.4. Repeater
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#125-room-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2.5. Room Server
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-initial-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Initial Setup
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. Initial Setup">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#21-q-how-many-devices-do-i-need-to-start-using-meshcore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.1. Q: How many devices do I need to start using MeshCore?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#22-q-does-meshcore-cost-any-money" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.2. Q: Does MeshCore cost any money?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#23-q-what-frequencies-are-supported-by-meshcore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.3. Q: What frequencies are supported by MeshCore?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#24-q-what-is-an-advert-in-meshcore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.4. Q: What is an "advert" in MeshCore?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#25-q-is-there-a-hop-limit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.5. Q: Is there a hop limit?
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-server-administration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Server Administration
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. Server Administration">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#31-q-how-do-you-configure-a-repeater-or-a-room-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.1. Q: How do you configure a repeater or a room server?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#32-q-do-i-need-to-set-the-location-for-a-repeater" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.2. Q: Do I need to set the location for a repeater?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#33-q-what-is-the-password-to-administer-a-repeater-or-a-room-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.3. Q: What is the password to administer a repeater or a room server?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#34-q-what-is-the-password-to-join-a-room-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.4. Q: What is the password to join a room server?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#35-q-can-i-retrieve-a-repeaters-private-key-or-set-a-repeaters-private-key" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.5. Q: Can I retrieve a repeater's private key or set a repeater's private key?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#36-q-the-first-byte-of-my-repeaters-public-key-collides-with-an-exisitng-repeater-on-the-mesh-how-do-i-get-a-new-private-key-with-a-matching-public-key-that-has-its-first-byte-of-my-choosing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.6. Q: The first byte of my repeater's public key collides with an exisitng repeater on the mesh. How do I get a new private key with a matching public key that has its first byte of my choosing?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#37-q-my-repeater-maybe-suffering-from-deafness-due-to-high-power-interference-near-my-meshs-frequency-it-is-not-hearing-other-in-range-meshcore-radios-what-can-i-do" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.7. Q: My repeater maybe suffering from deafness due to high power interference near my mesh's frequency, it is not hearing other in-range MeshCore radios. what can I do?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#38-q-how-do-i-make-my-repeater-an-observer-on-the-mesh" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.8 Q: How do I make my repeater an observer on the mesh
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-t-deck-related" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. T-Deck Related
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. T-Deck Related">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#41-q-is-there-a-user-guide-for-t-deck-t-pager-t-watch-or-t-display-pro" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.1. Q: Is there a user guide for T-Deck, T-Pager, T-Watch, or T-Display Pro?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#42-q-what-are-the-steps-to-get-a-t-deck-into-dfu-device-firmware-update-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.2. Q: What are the steps to get a T-Deck into DFU (Device Firmware Update) mode?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#43-q-why-is-my-t-deck-plus-not-getting-any-satellite-lock" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.3. Q: Why is my T-Deck Plus not getting any satellite lock?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#44-q-why-is-my-og-non-plus-t-deck-not-getting-any-satellite-lock" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.4. Q: Why is my OG (non-Plus) T-Deck not getting any satellite lock?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#45-q-what-size-of-sd-card-does-the-t-deck-support" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.5. Q: What size of SD card does the T-Deck support?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#46-q-what-is-the-public-key-for-the-default-public-channel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.6. Q: what is the public key for the default public channel?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#47-q-how-do-i-get-maps-on-t-deck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.7. Q: How do I get maps on T-Deck?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#48-q-where-do-the-map-tiles-go" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.8. Q: Where do the map tiles go?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#49-q-how-to-unlock-deeper-map-zoom-and-server-management-features-on-t-deck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.9. Q: How to unlock deeper map zoom and server management features on T-Deck?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#410-q-how-to-decipher-the-diagnostics-screen-on-t-deck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.10. Q: How to decipher the diagnostics screen on T-Deck?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#411-q-the-t-deck-sound-is-too-loud" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.11. Q: The T-Deck sound is too loud?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#412-q-can-you-customize-the-sound" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.12. Q: Can you customize the sound?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#413-q-what-is-the-import-from-clipboard-feature-on-the-t-deck-and-is-there-a-way-to-manually-add-nodes-without-having-to-receive-adverts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.13. Q: What is the 'Import from Clipboard' feature on the t-deck and is there a way to manually add nodes without having to receive adverts?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#414-q-how-to-capture-a-screenshot-on-t-deck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.14. Q: How to capture a screenshot on T-Deck?
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-general" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. General
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5. General">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#51-q-what-are-bw-sf-and-cr" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.1. Q: What are BW, SF, and CR?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#52-q-do-meshcore-clients-repeat" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.2. Q: Do MeshCore clients repeat?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#53-q-what-happens-when-a-node-learns-a-route-via-a-mobile-repeater-and-that-repeater-is-gone" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.3. Q: What happens when a node learns a route via a mobile repeater, and that repeater is gone?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#54-q-how-does-a-node-discovery-a-path-to-its-destination-and-then-use-it-to-send-messages-in-the-future-instead-of-flooding-every-message-it-sends-like-meshtastic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.4. Q: How does a node discovery a path to its destination and then use it to send messages in the future, instead of flooding every message it sends like Meshtastic?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#55-q-do-public-channels-always-flood-do-private-channels-always-flood" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.5. Q: Do public channels always flood? Do private channels always flood?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#56-q-what-is-the-public-key-for-the-default-public-channel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.6. Q: what is the public key for the default public channel?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#57-q-is-meshcore-open-source" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.7. Q: Is MeshCore open source?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#58-q-how-can-i-support-meshcore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.8. Q: How can I support MeshCore?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#59-q-how-do-i-build-meshcore-firmware-from-source" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.9. Q: How do I build MeshCore firmware from source?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#510-q-are-there-other-meshcore-related-open-source-projects" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.10. Q: Are there other MeshCore related open source projects?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#511-q-does-meshcore-support-atak" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.11. Q: Does MeshCore support ATAK
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#512-q-how-do-i-add-a-node-to-the-meshcore-map" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.12. Q: How do I add a node to the MeshCore Map
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#513-q-can-i-use-a-raspberry-pi-to-update-a-meshcore-radio" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.13. Q: Can I use a Raspberry Pi to update a MeshCore radio?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#514-q-are-there-are-projects-built-around-meshcore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.14. Q: Are there are projects built around MeshCore?
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5.14. Q: Are there are projects built around MeshCore?">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#5141-meshcoremqtt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.14.1. meshcoremqtt
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5142-meshcore-for-home-assistant" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.14.2. MeshCore for Home Assistant
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5143-python-meshcore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.14.3. Python MeshCore
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5144-meshcore-cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.14.4. meshcore-cli
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5145-meshcorejs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.14.5. meshcore.js
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5146-pymc_core" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.14.6. pyMC_core
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5147-meshcore-packet-decoder" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.14.7. MeshCore Packet Decoder
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5148-meshcore-pi" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.14.8. meshcore-pi
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5149-pymc_repeater" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.14.9. pyMC_Repeater
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#515-q-are-there-client-applications-for-windows-or-mac" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.15. Q: Are there client applications for Windows or Mac?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#516-q-are-there-any-resources-that-compare-meshcore-to-other-lora-systems" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.16. Q: Are there any resources that compare MeshCore to other LoRa systems?
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-troubleshooting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Troubleshooting
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="6. Troubleshooting">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#61-q-my-client-says-another-client-or-a-repeater-or-a-room-server-was-last-seen-many-many-days-ago" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.1. Q: My client says another client or a repeater or a room server was last seen many, many days ago.
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#62-q-a-repeater-or-a-client-or-a-room-server-i-expect-to-see-on-my-discover-list-on-t-deck-or-contact-list-on-a-smart-device-client-are-not-listed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.2. Q: A repeater or a client or a room server I expect to see on my discover list (on T-Deck) or contact list (on a smart device client) are not listed.
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#63-q-how-to-connect-to-a-repeater-via-ble-bluetooth" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.3. Q: How to connect to a repeater via BLE (Bluetooth)?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#64-q-my-companion-isnt-showing-up-over-bluetooth" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.4. Q: My companion isn't showing up over Bluetooth?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#65-q-i-cant-connect-via-bluetooth-what-is-the-bluetooth-pairing-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.5. Q: I can't connect via Bluetooth, what is the Bluetooth pairing code?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#66-q-my-heltec-v3-keeps-disconnecting-from-my-smartphone-it-cant-hold-a-solid-bluetooth-connection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.6. Q: My Heltec V3 keeps disconnecting from my smartphone. It can't hold a solid Bluetooth connection.
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#67-q-my-rakt1000-exiao_nrf52-device-seems-to-be-corrupted-how-do-i-wipe-it-clean-to-start-fresh" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.7. Q: My RAK/T1000-E/xiao_nRF52 device seems to be corrupted, how do I wipe it clean to start fresh?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#68-q-webflasher-fails-on-linux-with-failed-to-open" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.8. Q: WebFlasher fails on Linux with failed to open
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-other-questions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Other Questions:
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="7. Other Questions:">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#71-q-how-to-update-nrf-rak-t114-seed-xiao-repeater-and-room-server-firmware-over-the-air-using-the-new-simpler-dfu-app" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.1. Q: How to update nRF (RAK, T114, Seed XIAO) repeater and room server firmware over the air using the new simpler DFU app?
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="7.1. Q: How to update nRF (RAK, T114, Seed XIAO) repeater and room server firmware over the air using the new simpler DFU app?">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#711-q-can-i-update-seeed-studio-wio-tracker-l1-pro-using-ota" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.1.1 Q: Can I update Seeed Studio Wio Tracker L1 Pro using OTA?
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#72-q-how-to-update-esp32-based-devices-over-the-air" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.2. Q: How to update ESP32-based devices over the air?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#73-q-is-there-a-way-to-lower-the-chance-of-a-failed-ota-device-firmware-update-dfu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.3. Q: Is there a way to lower the chance of a failed OTA device firmware update (DFU)?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#74-q-are-the-meshcore-logo-and-font-available" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.4. Q: are the MeshCore logo and font available?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#75-q-what-is-the-format-of-a-contact-or-channel-qr-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.5. Q: What is the format of a contact or channel QR code?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#76-q-how-do-i-connect-to-the-companion-via-wifi-eg-using-a-heltec-v3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.6. Q: How do I connect to the companion via WIFI, e.g. using a heltec v3?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#77-q-i-have-a-station-g2-or-a-heltec-v4-or-an-ikoka-stick-or-a-radio-with-a-ebyte-e22-900m30s-or-a-e22-900m33s-module-what-should-their-transmit-power-be-set-to" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.7. Q: I have a Station G2, or a Heltec V4, or an Ikoka Stick, or a radio with a EByte E22-900M30S or a E22-900M33S module, what should their transmit power be set to?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#warning-set-these-values-at-your-own-risk-incorrect-power-settings-can-permanently-damage-your-radio-hardware" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ⚠️ WARNING: Set these values at your own risk. Incorrect power settings can permanently damage your radio hardware.
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/meshcore-dev/meshcore/edit/main/docs/faq.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="frequently-asked-questions">Frequently Asked Questions</h1>
+<p>A list of frequently-asked questions and answers for MeshCore</p>
+<ul>
+<li><a href="#1-introduction">1. Introduction</a></li>
+<li><a href="#11-q-what-is-meshcore">1.1. Q: What is MeshCore?</a></li>
+<li><a href="#12-q-what-do-you-need-to-start-using-meshcore">1.2. Q: What do you need to start using MeshCore?</a><ul>
+<li><a href="#121-hardware">1.2.1. Hardware</a></li>
+<li><a href="#122-firmware">1.2.2. Firmware</a></li>
+<li><a href="#123-companion-radio-firmware">1.2.3. Companion Radio Firmware</a></li>
+<li><a href="#124-repeater">1.2.4. Repeater</a></li>
+<li><a href="#125-room-server">1.2.5. Room Server</a></li>
+</ul>
+</li>
+<li><a href="#2-initial-setup">2. Initial Setup</a></li>
+<li><a href="#21-q-how-many-devices-do-i-need-to-start-using-meshcore">2.1. Q: How many devices do I need to start using MeshCore?</a></li>
+<li><a href="#22-q-does-meshcore-cost-any-money">2.2. Q: Does MeshCore cost any money?</a></li>
+<li><a href="#23-q-what-frequencies-are-supported-by-meshcore">2.3. Q: What frequencies are supported by MeshCore?</a></li>
+<li><a href="#24-q-what-is-an-advert-in-meshcore">2.4. Q: What is an "advert" in MeshCore?</a></li>
+<li><a href="#25-q-is-there-a-hop-limit">2.5. Q: Is there a hop limit?</a></li>
+<li><a href="#3-server-administration">3. Server Administration</a></li>
+<li><a href="#31-q-how-do-you-configure-a-repeater-or-a-room-server">3.1. Q: How do you configure a repeater or a room server?</a></li>
+<li><a href="#32-q-do-i-need-to-set-the-location-for-a-repeater">3.2. Q: Do I need to set the location for a repeater?</a></li>
+<li><a href="#33-q-what-is-the-password-to-administer-a-repeater-or-a-room-server">3.3. Q: What is the password to administer a repeater or a room server?</a></li>
+<li><a href="#34-q-what-is-the-password-to-join-a-room-server">3.4. Q: What is the password to join a room server?</a></li>
+<li><a href="#35-q-can-i-retrieve-a-repeaters-private-key-or-set-a-repeaters-private-key">3.5. Q: Can I retrieve a repeater's private key or set a repeater's private key?</a></li>
+<li><a href="#36-q-the-first-byte-of-my-repeaters-public-key-collides-with-an-exisitng-repeater-on-the-mesh--how-do-i-get-a-new-private-key-with-a-matching-public-key-that-has-its-first-byte-of-my-choosing">3.6. Q: The first byte of my repeater's public key collides with an exisitng repeater on the mesh.  How do I get a new private key with a matching public key that has its first byte of my choosing?</a></li>
+<li><a href="#37-q-my-repeater-maybe-suffering-from-deafness-due-to-high-power-interference-near-my-meshs-frequency-it-is-not-hearing-other-in-range-meshcore-radios--what-can-i-do">3.7. Q: My repeater maybe suffering from deafness due to high power interference near my mesh's frequency, it is not hearing other in-range MeshCore radios.  what can I do?</a></li>
+<li><a href="#38-q-how-do-i-make-my-repeater-an-observer-on-the-mesh">3.8 Q: How do I make my repeater an observer on the mesh</a></li>
+<li><a href="#4-t-deck-related">4. T-Deck Related</a></li>
+<li><a href="#41-q-is-there-a-user-guide-for-t-deck-t-pager-t-watch-or-t-display-pro">4.1. Q: Is there a user guide for T-Deck, T-Pager, T-Watch, or T-Display Pro?</a></li>
+<li><a href="#42-q-what-are-the-steps-to-get-a-t-deck-into-dfu-device-firmware-update-mode">4.2. Q: What are the steps to get a T-Deck into DFU (Device Firmware Update) mode?</a></li>
+<li><a href="#43-q-why-is-my-t-deck-plus-not-getting-any-satellite-lock">4.3. Q: Why is my T-Deck Plus not getting any satellite lock?</a></li>
+<li><a href="#44-q-why-is-my-og-non-plus-t-deck-not-getting-any-satellite-lock">4.4. Q: Why is my OG (non-Plus) T-Deck not getting any satellite lock?</a></li>
+<li><a href="#45-q-what-size-of-sd-card-does-the-t-deck-support">4.5. Q: What size of SD card does the T-Deck support?</a></li>
+<li><a href="#46-q-what-is-the-public-key-for-the-default-public-channel">4.6. Q: what is the public key for the default public channel?</a></li>
+<li><a href="#47-q-how-do-i-get-maps-on-t-deck">4.7. Q: How do I get maps on T-Deck?</a></li>
+<li><a href="#48-q-where-do-the-map-tiles-go">4.8. Q: Where do the map tiles go?</a></li>
+<li><a href="#49-q-how-to-unlock-deeper-map-zoom-and-server-management-features-on-t-deck">4.9. Q: How to unlock deeper map zoom and server management features on T-Deck?</a></li>
+<li><a href="#410-q-how-to-decipher-the-diagnostics-screen-on-t-deck">4.10. Q: How to decipher the diagnostics screen on T-Deck?</a></li>
+<li><a href="#411-q-the-t-deck-sound-is-too-loud">4.11. Q: The T-Deck sound is too loud?</a></li>
+<li><a href="#412-q-can-you-customize-the-sound">4.12. Q: Can you customize the sound?</a></li>
+<li><a href="#413-q-what-is-the-import-from-clipboard-feature-on-the-t-deck-and-is-there-a-way-to-manually-add-nodes-without-having-to-receive-adverts">4.13. Q: What is the 'Import from Clipboard' feature on the t-deck and is there a way to manually add nodes without having to receive adverts?</a></li>
+<li><a href="#414-q-how-to-capture-a-screenshot-on-t-deck">4.14. Q: How to capture a screenshot on T-Deck?</a></li>
+<li><a href="#5-general">5. General</a></li>
+<li><a href="#51-q-what-are-bw-sf-and-cr">5.1. Q: What are BW, SF, and CR?</a></li>
+<li><a href="#52-q-do-meshcore-clients-repeat">5.2. Q: Do MeshCore clients repeat?</a></li>
+<li><a href="#53-q-what-happens-when-a-node-learns-a-route-via-a-mobile-repeater-and-that-repeater-is-gone">5.3. Q: What happens when a node learns a route via a mobile repeater, and that repeater is gone?</a></li>
+<li><a href="#54-q-how-does-a-node-discovery-a-path-to-its-destination-and-then-use-it-to-send-messages-in-the-future-instead-of-flooding-every-message-it-sends-like-meshtastic">5.4. Q: How does a node discovery a path to its destination and then use it to send messages in the future, instead of flooding every message it sends like Meshtastic?</a></li>
+<li><a href="#55-q-do-public-channels-always-flood-do-private-channels-always-flood">5.5. Q: Do public channels always flood? Do private channels always flood?</a></li>
+<li><a href="#56-q-what-is-the-public-key-for-the-default-public-channel">5.6. Q: what is the public key for the default public channel?</a></li>
+<li><a href="#57-q-is-meshcore-open-source">5.7. Q: Is MeshCore open source?</a></li>
+<li><a href="#58-q-how-can-i-support-meshcore">5.8. Q: How can I support MeshCore?</a></li>
+<li><a href="#59-q-how-do-i-build-meshcore-firmware-from-source">5.9. Q: How do I build MeshCore firmware from source?</a></li>
+<li><a href="#510-q-are-there-other-meshcore-related-open-source-projects">5.10. Q: Are there other MeshCore related open source projects?</a></li>
+<li><a href="#511-q-does-meshcore-support-atak">5.11. Q: Does MeshCore support ATAK</a></li>
+<li><a href="#512-q-how-do-i-add-a-node-to-the-meshcore-map">5.12. Q: How do I add a node to the MeshCore Map</a></li>
+<li><a href="#513-q-can-i-use-a-raspberry-pi-to-update-a-meshcore-radio">5.13. Q: Can I use a Raspberry Pi to update a MeshCore radio?</a></li>
+<li><a href="#514-q-are-there-are-projects-built-around-meshcore">5.14. Q: Are there are projects built around MeshCore?</a><ul>
+<li><a href="#5141-meshcoremqtt">5.14.1. meshcoremqtt</a></li>
+<li><a href="#5142-meshcore-for-home-assistant">5.14.2. MeshCore for Home Assistant</a></li>
+<li><a href="#5143-python-meshcore">5.14.3. Python MeshCore</a></li>
+<li><a href="#5144-meshcore-cli">5.14.4. meshcore-cli</a></li>
+<li><a href="#5145-meshcorejs">5.14.5. meshcore.js</a></li>
+<li><a href="#5146-pymc_core">5.14.6. pyMC_core</a></li>
+<li><a href="#5147-meshcore-packet-decoder">5.14.7. MeshCore Packet Decoder</a></li>
+<li><a href="#5148-meshcore-pi">5.14.8. meshcore-pi</a></li>
+<li><a href="#5149-pymc_repeater">5.14.9. pyMC_Repeater</a></li>
+</ul>
+</li>
+<li><a href="#515-q-are-there-client-applications-for-windows-or-mac">5.15. Q: Are there client applications for Windows or Mac?</a></li>
+<li><a href="#516-q-are-there-any-resources-that-compare-meshcore-to-other-lora-systems">5.16. Q: Are there any resources that compare MeshCore to other LoRa systems?</a></li>
+<li><a href="#6-troubleshooting">6. Troubleshooting</a></li>
+<li><a href="#61-q-my-client-says-another-client-or-a-repeater-or-a-room-server-was-last-seen-many-many-days-ago">6.1. Q: My client says another client or a repeater or a room server was last seen many, many days ago.</a></li>
+<li><a href="#62-q-a-repeater-or-a-client-or-a-room-server-i-expect-to-see-on-my-discover-list-on-t-deck-or-contact-list-on-a-smart-device-client-are-not-listed">6.2. Q: A repeater or a client or a room server I expect to see on my discover list (on T-Deck) or contact list (on a smart device client) are not listed.</a></li>
+<li><a href="#63-q-how-to-connect-to-a-repeater-via-ble-bluetooth">6.3. Q: How to connect to a repeater via BLE (Bluetooth)?</a></li>
+<li><a href="#64-q-my-companion-isnt-showing-up-over-bluetooth">6.4. Q: My companion isn't showing up over Bluetooth?</a></li>
+<li><a href="#65-q-i-cant-connect-via-bluetooth-what-is-the-bluetooth-pairing-code">6.5. Q: I can't connect via Bluetooth, what is the Bluetooth pairing code?</a></li>
+<li><a href="#66-q-my-heltec-v3-keeps-disconnecting-from-my-smartphone--it-cant-hold-a-solid-bluetooth-connection">6.6. Q: My Heltec V3 keeps disconnecting from my smartphone.  It can't hold a solid Bluetooth connection.</a></li>
+<li><a href="#67-q-my-rakt1000-exiao_nrf52-device-seems-to-be-corrupted-how-do-i-wipe-it-clean-to-start-fresh">6.7. Q: My RAK/T1000-E/xiao_nRF52 device seems to be corrupted, how do I wipe it clean to start fresh?</a></li>
+<li><a href="#68-q-webflasher-fails-on-linux-with-failed-to-open">6.8. Q: WebFlasher fails on Linux with failed to open</a></li>
+<li><a href="#7-other-questions">7. Other Questions:</a></li>
+<li><a href="#71-q-how-to-update-nrf-rak-t114-seed-xiao-repeater-and-room-server-firmware-over-the-air-using-the-new-simpler-dfu-app">7.1. Q: How to update nRF (RAK, T114, Seed XIAO) repeater and room server firmware over the air using the new simpler DFU app?</a><ul>
+<li><a href="#711-q-can-i-update-seeed-studio-wio-tracker-l1-pro-using-ota">7.1.1 Q: Can I update Seeed Studio Wio Tracker L1 Pro using OTA?</a></li>
+</ul>
+</li>
+<li><a href="#72-q-how-to-update-esp32-based-devices-over-the-air">7.2. Q: How to update ESP32-based devices over the air?</a></li>
+<li><a href="#73-q-is-there-a-way-to-lower-the-chance-of-a-failed-ota-device-firmware-update-dfu">7.3. Q: Is there a way to lower the chance of a failed OTA device firmware update (DFU)?</a></li>
+<li><a href="#74-q-are-the-meshcore-logo-and-font-available">7.4. Q: are the MeshCore logo and font available?</a></li>
+<li><a href="#75-q-what-is-the-format-of-a-contact-or-channel-qr-code">7.5. Q: What is the format of a contact or channel QR code?</a></li>
+<li><a href="#76-q-how-do-i-connect-to-the-companion-via-wifi-eg-using-a-heltec-v3">7.6. Q: How do I connect to the companion via WIFI, e.g. using a heltec v3?</a></li>
+<li><a href="#77-q-i-have-a-station-g2-or-a-heltec-v4-or-an-ikoka-stick-or-a-radio-with-a-ebyte-e22-900m30s-or-a-e22-900m33s-module-what-should-their-transmit-power-be-set-to">7.7. Q: I have a Station G2, or a Heltec V4, or an Ikoka Stick, or a radio with a EByte E22-900M30S or a E22-900M33S module, what should their transmit power be set to?</a></li>
+<li><a href="#--high-output--22-dbm--28-dbm--">| | High Output | 22 dBm | 28 dBm | |</a></li>
+</ul>
+<h2 id="1-introduction">1. Introduction</h2>
+<h3 id="11-q-what-is-meshcore">1.1. Q: What is MeshCore?</h3>
+<p><strong>A:</strong> MeshCore is a multi platform system for enabling secure text based communications utilising LoRa radio hardware. It can be used for Off-Grid Communication, Emergency Response &amp; Disaster Recovery, Outdoor Activities, Tactical Security including law enforcement and private security and also IoT sensor networks. (<a href="https://meshcore.co.uk/">source</a>)</p>
+<p>MeshCore is free and open source:
+* MeshCore is the routing and firmware etc, available on GitHub under MIT license
+* There are clients made by the community, such as the web clients, these are free to use, and some are open source too
+* The cross platform mobile app developed by <a href="https://liamcottle.net">Liam Cottle</a> for Android/iOS/PC etc is free to download and use
+* The T-Deck firmware is developed by Scott at Ripple Radios, the creator of MeshCore, is also free to flash on your devices and use</p>
+<p>Some more advanced, but optional features are available on T-Deck if you register your device for a key to unlock.  On the MeshCore smartphone clients for Android and iOS/iPadOS, you can unlock the wait timer for repeater and room server remote management over RF feature.</p>
+<p>These features are completely optional and aren't needed for the core messaging experience. They're like super bonus features and to help the developers continue to work on these amazing features, they may charge a small fee for an unlock code to utilise the advanced features.</p>
+<p>Anyone is able to build anything they like on top of MeshCore without paying anything.</p>
+<h3 id="12-q-what-do-you-need-to-start-using-meshcore">1.2. Q: What do you need to start using MeshCore?</h3>
+<p><strong>A:</strong> Everything you need for MeshCore is available at:</p>
+<ul>
+<li>Main web site: <a href="https://meshcore.co.uk">https://meshcore.co.uk</a></li>
+<li>Firmware Flasher: <a href="https://flasher.meshcore.co.uk">https://flasher.meshcore.co.uk</a></li>
+<li>MeshCore Firmware on GitHub: <a href="https://github.com/meshcore-dev/MeshCore">https://github.com/meshcore-dev/MeshCore</a></li>
+<li>MeshCore Companion App: <a href="https://meshcore.nz">https://meshcore.nz</a></li>
+<li>MeshCore Map: <a href="https://meshcore.co.uk/map.html">https://meshcore.co.uk/map.html</a></li>
+<li>Andy Kirby has a very useful <a href="https://www.youtube.com/watch?v=t1qne8uJBAc">intro video</a> for beginners.</li>
+</ul>
+<p>You need LoRa hardware devices to run MeshCore firmware as clients or server (repeater and room server).</p>
+<h4 id="121-hardware">1.2.1. Hardware</h4>
+<p>MeshCore is available on a variety of 433MHz, 868MHz and 915MHz LoRa devices. For example, Lilygo T-Deck, T-Pager, RAK Wireless WisBlock RAK4631 devices (e.g. 19003, 19007, 19026), Heltec V3, Xiao S3 WIO, Xiao C3, Heltec T114, Station G2, Nano G2 Ultra, Seeed Studio T1000-E. More devices are being added regularly.</p>
+<p>For an up-to-date list of supported devices, please go to https://flasher.meshcore.co.uk/</p>
+<p>To use MeshCore without using a phone as the client interface, you can run MeshCore on a LiLygo's T-Deck, T-Deck Plus, T-Pager, T-Watch, or T-Display Pro. MeshCore Ultra firmware running on these devices are a complete off-grid secure communication solution.</p>
+<h4 id="122-firmware">1.2.2. Firmware</h4>
+<p>MeshCore has four firmware types that are not available on other LoRa systems. MeshCore has the following:</p>
+<h4 id="123-companion-radio-firmware">1.2.3. Companion Radio Firmware</h4>
+<p>Companion radios are for connecting to the Android app or web app as a messenger client. There are two different companion radio firmware versions:</p>
+<ol>
+<li>
+<p><strong>BLE Companion</strong>
+   BLE Companion firmware runs on a supported LoRa device and connects to a smart device running the Android or iOS MeshCore client over BLE
+   <a href="https://meshcore.co.uk/apps.html">https://meshcore.co.uk/apps.html</a></p>
+</li>
+<li>
+<p><strong>USB Serial Companion</strong>
+   USB Serial Companion firmware runs on a supported LoRa device and connects to a smart device or a computer over USB Serial running the MeshCore web client
+   <a href="https://meshcore.liamcottle.net/#/">https://meshcore.liamcottle.net/#/</a>
+   <a href="https://client.meshcore.co.uk/tabs/devices">https://client.meshcore.co.uk/tabs/devices</a></p>
+</li>
+</ol>
+<h4 id="124-repeater">1.2.4. Repeater</h4>
+<p>Repeaters are used to extend the range of a MeshCore network. Repeater firmware runs on the same devices that run client firmware. A repeater's job is to forward MeshCore packets to the destination device. It does <strong>not</strong> forward or retransmit every packet it receives, unlike other LoRa mesh systems.</p>
+<p>A repeater can be remotely administered using a T-Deck running the MeshCore firmware with remote administration features unlocked, or from a BLE Companion client connected to a smartphone running the MeshCore app.</p>
+<h4 id="125-room-server">1.2.5. Room Server</h4>
+<p>A room server is a simple BBS server for sharing posts. T-Deck devices running MeshCore firmware or a BLE Companion client connected to a smartphone running the MeshCore app can connect to a room server.</p>
+<p>Room servers store message history on them and push the stored messages to users.  Room servers allow roaming users to come back later and retrieve message history.  With channels, messages are either received when it's sent, or not received and missed if the channel user is out of range.  Room servers are different and more like email servers where you can come back later and get your emails from your mail server.</p>
+<p>A room server can be remotely administered using a T-Deck running the MeshCore firmware with remote administration features unlocked, or from a BLE Companion client connected to a smartphone running the MeshCore app.</p>
+<p>When a client logs into a room server, the client will receive the previously 32 unseen messages.</p>
+<p>Although room server can also repeat with the command line command <code>set repeat on</code>, it is not recommended nor encouraged.  A room server with repeat set to <code>on</code> lacks the full set of repeater and remote administration features that are only available in the repeater firmware.</p>
+<p>The recommendation is to run repeater and room server on separate devices for the best experience.</p>
+<hr />
+<h2 id="2-initial-setup">2. Initial Setup</h2>
+<h3 id="21-q-how-many-devices-do-i-need-to-start-using-meshcore">2.1. Q: How many devices do I need to start using MeshCore?</h3>
+<p><strong>A:</strong> If you have one supported device, flash the BLE Companion firmware and use your device as a client.  You can connect to the device using the Android or iOS client via Bluetooth.  You can start communicating with other MeshCore users near you.</p>
+<p>If you have two supported devices, and there are not many MeshCore users near you, flash both to BLE Companion firmware so you can use your devices to communicate with your near-by friends and family.</p>
+<p>If you have two supported devices, and there are other MeshCore users nearby, you can flash one of your devices with BLE Companion firmware and flash another supported device to repeater firmware.  Place the repeater high above ground to extend your MeshCore network's reach.</p>
+<p>After you flashed the latest firmware onto your repeater device, keep the device connected to your computer via USB serial, use the console feature on the web flasher and set the frequency for your region or country, so your client can remote administer the repeater or room server over RF:</p>
+<p><code>set freq {frequency}</code></p>
+<p>The repeater and room server CLI reference is here: https://github.com/meshcore-dev/MeshCore/wiki/Repeater-&amp;-Room-Server-CLI-Reference</p>
+<p>If you have more supported devices, you can use your additional devices with the room server firmware.</p>
+<h3 id="22-q-does-meshcore-cost-any-money">2.2. Q: Does MeshCore cost any money?</h3>
+<p><strong>A:</strong> All radio firmware versions (e.g. for Heltec V3, RAK, T-1000E, etc) are free and open source developed by Scott at Ripple Radios.</p>
+<p>The native Android and iOS client uses the freemium model and is developed by Liam Cottle, developer of meshtastic map at <a href="https://meshtastic.liamcottle.net">meshtastic.liamcottle.net</a> on <a href="https://github.com/liamcottle/meshtastic-map">GitHub</a> and <a href="https://github.com/liamcottle/reticulum-meshchat">reticulum-meshchat on github</a>.</p>
+<p>The T-Deck firmware is free to download and most features are available without cost.  To support the firmware developer, you can pay for a registration key to unlock your T-Deck for deeper map zoom and remote server administration over RF using the T-Deck.  You do not need to pay for the registration to use your T-Deck for direct messaging and connecting to repeaters and room servers.</p>
+<h3 id="23-q-what-frequencies-are-supported-by-meshcore">2.3. Q: What frequencies are supported by MeshCore?</h3>
+<p><strong>A:</strong> It supports the 868MHz range in the UK/EU and the 915MHz range in New Zealand, Australia, and the USA. Countries and regions in these two frequency ranges are also supported.</p>
+<p>Use the smartphone client or the repeater setup feature on there web flasher to set your radios' RF settings by choosing the preset for your regions.</p>
+<p>Recently, as of October 2025, many regions have moved to the "narrow" setting, aka using BW62.5 and a lower SF number (instead of the original SF11).  For example, USA/Canada (Recommended) preset is 910.525MHz, SF7, BW62.5, CR5.</p>
+<p>After extensive testing, many regions have switched or about to switch over to BW62.5 and SF7, 8, or 9.  Narrower bandwidth setting and lower SF setting allow MeshCore's radio signals to fit between interference in the ISM band, provide for a lower noise floor, better SNR, and faster transmissions.</p>
+<p>If you have consensus from your community in your region to update your region's preset recommendation, please post your update request on  the <a href="https://discord.com/channels/1343693475589263471/1391681655911088241">#meshcore-app</a> channel on the <a href="https://discord.gg/cYtQNYCCRK">MeshCore Discord server </a> to let Liam Cottle know.</p>
+<h3 id="24-q-what-is-an-advert-in-meshcore">2.4. Q: What is an "advert" in MeshCore?</h3>
+<p><strong>A:</strong>
+Advert means to advertise yourself on the network. In Reticulum terms it would be to announce. In Meshtastic terms it would be the node sending its node info.</p>
+<p>MeshCore allows you to manually broadcast your name, position and public encryption key, which is also signed to prevent spoofing.  When you click the advert button, it broadcasts that data over LoRa.  MeshCore calls that an Advert. There's two ways to advert, "zero hop" and "flood".</p>
+<ul>
+<li>Zero hop means your advert is broadcasted out to anyone that can hear it, and that's it.</li>
+<li>Flooded means it's broadcasted out and then repeated by all the repeaters that hear it.</li>
+</ul>
+<p>MeshCore clients only advertise themselves when the user initiates it. A repeater sends a flood advert once every 3 hours by default. This interval can be configured using the following command:</p>
+<p><code>set advert.interval {minutes}</code></p>
+<p>As of Aug 20 2025, a pending PR on github will change the flood advert to 12 hours to minimize airtime utilization caused by repeaters' flood adverts.</p>
+<h3 id="25-q-is-there-a-hop-limit">2.5. Q: Is there a hop limit?</h3>
+<p><strong>A:</strong> Internally the firmware has maximum limit of 64 hops.  In real world settings it will be difficult to get close to the limit due to the environments and timing as packets travel further and further.  We want to hear how far your MeshCore conversations go.</p>
+<hr />
+<h2 id="3-server-administration">3. Server Administration</h2>
+<h3 id="31-q-how-do-you-configure-a-repeater-or-a-room-server">3.1. Q: How do you configure a repeater or a room server?</h3>
+<p><strong>A:</strong> - When MeshCore is flashed onto a LoRa device is for the first time, it is necessary to set the server device's frequency to make it utilize the frequency that is legal in your country or region.</p>
+<p>Repeater or room server can be administered with one of the options below:</p>
+<ul>
+<li>After a repeater or room server firmware is flashed on to a LoRa device, go to <a href="https://config.meshcore.dev">https://config.meshcore.dev</a> and use the web user interface to connect to the LoRa device via USB serial.  From there you can set the name of the server, its frequency and other related settings, location, passwords etc.</li>
+</ul>
+<p><img alt="image" src="https://github.com/user-attachments/assets/2a9d9894-e34d-4dbe-b57c-fc3c250a2d34" /></p>
+<ul>
+<li>
+<p>Connect the server device using a USB cable to a computer running Chrome on https://flasher.meshcore.co.uk/, then use the <code>console</code> feature to connect to the device</p>
+</li>
+<li>
+<p>Use a MeshCore smartphone clients  to remotely administer servers via LoRa.</p>
+</li>
+<li>
+<p>A T-Deck running unlocked/registered MeshCore firmware. Remote server administration is enabled through registering your T-Deck with Ripple Radios. It is one of the ways to support MeshCore development. You can register your T-Deck at:</p>
+</li>
+</ul>
+<p><a href="https://buymeacoffee.com/ripplebiz/e/249834">https://buymeacoffee.com/ripplebiz/e/249834</a></p>
+<h3 id="32-q-do-i-need-to-set-the-location-for-a-repeater">3.2. Q: Do I need to set the location for a repeater?</h3>
+<p><strong>A:</strong> While not required, with location set for a repeater it will show up on the MeshCore map in the future. Set location with the following command:</p>
+<p><code>set lat &lt;GPS Lat&gt; set long &lt;GPS Lon&gt;</code></p>
+<p>You can get the latitude and longitude from Google Maps by right-clicking the location you are at on the map.</p>
+<h3 id="33-q-what-is-the-password-to-administer-a-repeater-or-a-room-server">3.3. Q: What is the password to administer a repeater or a room server?</h3>
+<p><strong>A:</strong> The default admin password to a repeater and room server is <code>password</code>. Use the following command to change the admin password:</p>
+<p><code>password {new-password}</code></p>
+<h3 id="34-q-what-is-the-password-to-join-a-room-server">3.4. Q: What is the password to join a room server?</h3>
+<p><strong>A:</strong> The default guest password to a room server is <code>hello</code>. Use the following command to change the guest password:</p>
+<p><code>set guest.password {guest-password}</code></p>
+<h3 id="35-q-can-i-retrieve-a-repeaters-private-key-or-set-a-repeaters-private-key">3.5. Q: Can I retrieve a repeater's private key or set a repeater's private key?</h3>
+<p><strong>A:</strong> You can issue these commands to get or set a repeater's private key using a USB serial connection.</p>
+<p><code>get prv.key</code> to print a repeater's private key on the serial console
+<code>set prv.key &lt;hex&gt;</code> to set a repeater's private key on the serial console</p>
+<p>Reboot the repeater after <code>set prv.key &lt;hex&gt;</code> command for the new private key to take effect.</p>
+<h3 id="36-q-the-first-byte-of-my-repeaters-public-key-collides-with-an-exisitng-repeater-on-the-mesh-how-do-i-get-a-new-private-key-with-a-matching-public-key-that-has-its-first-byte-of-my-choosing">3.6. Q: The first byte of my repeater's public key collides with an exisitng repeater on the mesh.  How do I get a new private key with a matching public key that has its first byte of my choosing?</h3>
+<p><strong>A:</strong> You can generate a new private key and specific the first byte of its public key here:  https://gessaman.com/mc-keygen/</p>
+<h3 id="37-q-my-repeater-maybe-suffering-from-deafness-due-to-high-power-interference-near-my-meshs-frequency-it-is-not-hearing-other-in-range-meshcore-radios-what-can-i-do">3.7. Q: My repeater maybe suffering from deafness due to high power interference near my mesh's frequency, it is not hearing other in-range MeshCore radios.  what can I do?</h3>
+<p><strong>A:</strong> This may be due to the SX1262 radio's auto gain control feature.  You can use this command to preiodically reset its AGC.  </p>
+<p><code>set agc.reset.interval &lt;number&gt;</code></p>
+<p>The <code>&lt;number&gt;</code> unit is in seconds and is incremented by 4.  <code>set agc.reset.interval 4</code> works well to cure deafness.  </p>
+<p>This is a very low cost operation.  AGC reset is done by simply setting <code>state = STATE_IDLE;</code> in function <code>RadioLibWrapper::resetAGC()</code> in <code>RadioLibWrappers.cpp</code></p>
+<h3 id="38-q-how-do-i-make-my-repeater-an-observer-on-the-mesh">3.8 Q: How do I make my repeater an observer on the mesh</h3>
+<p><strong>A:</strong> The observer instruction is available here: https://analyzer.letsmesh.net/observer/onboard</p>
+<hr />
+<h2 id="4-t-deck-related">4. T-Deck Related</h2>
+<h3 id="41-q-is-there-a-user-guide-for-t-deck-t-pager-t-watch-or-t-display-pro">4.1. Q: Is there a user guide for T-Deck, T-Pager, T-Watch, or T-Display Pro?</h3>
+<p><strong>A:</strong> Yes, it is available on https://buymeacoffee.com/ripplebiz/ultra-v7-7-guide-meshcore-users</p>
+<h3 id="42-q-what-are-the-steps-to-get-a-t-deck-into-dfu-device-firmware-update-mode">4.2. Q: What are the steps to get a T-Deck into DFU (Device Firmware Update) mode?</h3>
+<p><strong>A:</strong>
+1. Device off
+2. Connect USB cable to device
+3. Hold down trackball (keep holding)
+4. Turn on device
+5. Hear USB connection sound
+6. Release trackball
+7. T-Deck in DFU mode now
+8. At this point you can begin flashing using <a href="https://flasher.meshcore.co.uk/">https://flasher.meshcore.co.uk/</a></p>
+<h3 id="43-q-why-is-my-t-deck-plus-not-getting-any-satellite-lock">4.3. Q: Why is my T-Deck Plus not getting any satellite lock?</h3>
+<p><strong>A:</strong> For T-Deck Plus, the GPS baud rate should be set to <strong>38400</strong>. Also, some T-Deck Plus devices were found to have the GPS module installed upside down, with the GPS antenna facing down instead of up. If your T-Deck Plus still doesn't get any satellite lock after setting the baud rate to 38400, you might need to open the device to check the GPS orientation.</p>
+<p>GPS on T-Deck is always enabled.  You can skip the "GPS clock sync" and the T-Deck will continue to try to get a GPS lock.  You can go to the <code>GPS Info</code> screen; you should see the <code>Sentences:</code> counter increasing if the baud rate is correct.</p>
+<p><a href="https://discord.com/channels/826570251612323860/1330643963501351004/1356609240302616689">Source</a></p>
+<h3 id="44-q-why-is-my-og-non-plus-t-deck-not-getting-any-satellite-lock">4.4. Q: Why is my OG (non-Plus) T-Deck not getting any satellite lock?</h3>
+<p><strong>A:</strong> The OG (non-Plus) T-Deck doesn't come with a GPS. If you added a GPS to your OG T-Deck, please refer to the manual of your GPS to see what baud rate it requires. Alternatively, you can try to set the baud rate from 9600, 19200, etc., and up to 115200 to see which one works.</p>
+<h3 id="45-q-what-size-of-sd-card-does-the-t-deck-support">4.5. Q: What size of SD card does the T-Deck support?</h3>
+<p><strong>A:</strong> Users have had no issues using 16GB or 32GB SD cards. Format the SD card to <strong>FAT32</strong>.</p>
+<h3 id="46-q-what-is-the-public-key-for-the-default-public-channel">4.6. Q: what is the public key for the default public channel?</h3>
+<p><strong>A:</strong>
+T-Deck uses the same key the smartphone apps use but in base64
+<code>izOH6cXN6mrJ5e26oRXNcg==</code></p>
+<p>There is no <code>=</code> key on the T-Deck's hardware keyboard.  You can use the on-screen software keyboard to enter <code>=</code>.  Tap the text box to enable the on-screen software keyboard.
+The third character is the capital letter <code>O</code> (Oh), not zero <code>0</code></p>
+<p>The smartphone app key is in hex:
+<code>8b3387e9c5cdea6ac9e5edbaa115cd72</code></p>
+<p><a href="https://discord.com/channels/826570251612323860/1330643963501351004/1354194409213792388">Source</a></p>
+<h3 id="47-q-how-do-i-get-maps-on-t-deck">4.7. Q: How do I get maps on T-Deck?</h3>
+<p><strong>A:</strong> You need map tiles. You can get pre-downloaded map tiles here (a good way to support development):
+- <a href="https://buymeacoffee.com/ripplebiz/e/342543">https://buymeacoffee.com/ripplebiz/e/342543</a> (Europe)
+- <a href="https://buymeacoffee.com/ripplebiz/e/342542">https://buymeacoffee.com/ripplebiz/e/342542</a> (US)</p>
+<p>Another way to download map tiles is to use this Python script to get the tiles in the areas you want:
+<a href="https://github.com/fistulareffigy/MTD-Script">https://github.com/fistulareffigy/MTD-Script</a></p>
+<p>There is also a modified script that adds additional error handling and parallel downloads:
+<a href="https://discord.com/channels/826570251612323860/1330643963501351004/1338775811548905572">https://discord.com/channels/826570251612323860/1330643963501351004/1338775811548905572</a></p>
+<p>UK map tiles are available separately from Andy Kirby on his discord server:
+<a href="https://discord.com/channels/826570251612323860/1330643963501351004/1331346597367386224">https://discord.com/channels/826570251612323860/1330643963501351004/1331346597367386224</a></p>
+<h3 id="48-q-where-do-the-map-tiles-go">4.8. Q: Where do the map tiles go?</h3>
+<p>Once you have the tiles downloaded, copy the <code>\tiles</code> folder to the root of your T-Deck's SD card.</p>
+<h3 id="49-q-how-to-unlock-deeper-map-zoom-and-server-management-features-on-t-deck">4.9. Q: How to unlock deeper map zoom and server management features on T-Deck?</h3>
+<p><strong>A:</strong> You can download, install, and use the T-Deck firmware for free, but it has some features (map zoom, server administration) that are enabled if you purchase an unlock code for \$10 per T-Deck device.
+Unlock page: <a href="https://buymeacoffee.com/ripplebiz/e/249834">https://buymeacoffee.com/ripplebiz/e/249834</a></p>
+<h3 id="410-q-how-to-decipher-the-diagnostics-screen-on-t-deck">4.10. Q: How to decipher the diagnostics screen on T-Deck?</h3>
+<p>**A: ** Space is tight on T-Deck's screen, so the information is a bit cryptic.  The format is :
+<code>{hops} l:{packet-length}({payload-len}) t:{packet-type} snr:{n} rssi:{n}</code></p>
+<p>See here for packet-type:
+https://github.com/meshcore-dev/MeshCore/blob/main/src/Packet.h#L19</p>
+<pre><code>#define PAYLOAD_TYPE_REQ 0x00 // request (prefixed with dest/src hashes, MAC) (enc data: timestamp, blob)
+#define PAYLOAD_TYPE_RESPONSE 0x01 // response to REQ or ANON_REQ (prefixed with dest/src hashes, MAC) (enc data: timestamp, blob)
+#define PAYLOAD_TYPE_TXT_MSG 0x02 // a plain text message (prefixed with dest/src hashes, MAC) (enc data: timestamp, text)
+#define PAYLOAD_TYPE_ACK 0x03 // a simple ack #define PAYLOAD_TYPE_ADVERT 0x04 // a node advertising its Identity
+#define PAYLOAD_TYPE_GRP_TXT 0x05 // an (unverified) group text message (prefixed with channel hash, MAC) (enc data: timestamp, "name: msg")
+#define PAYLOAD_TYPE_GRP_DATA 0x06 // an (unverified) group datagram (prefixed with channel hash, MAC) (enc data: timestamp, blob)
+#define PAYLOAD_TYPE_ANON_REQ 0x07 // generic request (prefixed with dest_hash, ephemeral pub_key, MAC) (enc data: ...)
+#define PAYLOAD_TYPE_PATH 0x08 // returned path (prefixed with dest/src hashes, MAC) (enc data: path, extra)
+</code></pre>
+<p><a href="https://discord.com/channels/1343693475589263471/1343693475589263474/1350611321040932966">Source</a></p>
+<h3 id="411-q-the-t-deck-sound-is-too-loud">4.11. Q: The T-Deck sound is too loud?</h3>
+<h3 id="412-q-can-you-customize-the-sound">4.12. Q: Can you customize the sound?</h3>
+<p><strong>A:</strong> You can customise the sounds on the T-Deck, by placing <code>.mp3</code> files onto the <code>root</code> dir of the SD card. The files are:</p>
+<ul>
+<li><code>startup.mp3</code></li>
+<li><code>error.mp3</code></li>
+<li><code>alert.mp3</code></li>
+<li><code>new-advert.mp3</code></li>
+<li><code>existing-advert.mp3</code></li>
+</ul>
+<h3 id="413-q-what-is-the-import-from-clipboard-feature-on-the-t-deck-and-is-there-a-way-to-manually-add-nodes-without-having-to-receive-adverts">4.13. Q: What is the 'Import from Clipboard' feature on the t-deck and is there a way to manually add nodes without having to receive adverts?</h3>
+<p><strong>A:</strong> 'Import from Clipboard' is for importing a contact via a file named 'clipboard.txt' on the SD card. The opposite, is in the Identity screen, the 'Card to Clipboard' menu, which writes to 'clipboard.txt' so you can share yourself (call these 'biz cards', that start with "meshcore://...")</p>
+<h3 id="414-q-how-to-capture-a-screenshot-on-t-deck">4.14. Q: How to capture a screenshot on T-Deck?</h3>
+<p><strong>A:</strong> To capture a screenshot on a T-Deck, long press the top-left corner of the screen.  The screenshot is saved to the microSD card, if one is inserted into the device.</p>
+<hr />
+<h2 id="5-general">5. General</h2>
+<h3 id="51-q-what-are-bw-sf-and-cr">5.1. Q: What are BW, SF, and CR?</h3>
+<p><strong>A:</strong></p>
+<p><strong>BW is bandwidth</strong> - width of frequency spectrum that is used for transmission</p>
+<p><strong>SF is spreading factor</strong> - how much should the communication spread in time</p>
+<p><strong>CR is coding rate</strong> - from: https://www.thethingsnetwork.org/docs/lorawan/fec-and-code-rate/</p>
+<p>TL;DR: default CR to 5 for good stable links.  If it is not a solid link and is intermittent, change to CR to 7 or 8.</p>
+<p>Forward Error Correction is a process of adding redundant bits to the data to be transmitted. During the transmission, data may get corrupted by interference (changes from 0 to 1 / 1 to 0). These error correction bits are used at the receivers for restoring corrupted bits.</p>
+<p>The Code Rate of a forward error correction expresses the proportion of bits in a data stream that actually carry useful information.</p>
+<p>There are 4 code rates used in LoRaWAN:</p>
+<p>4/5
+4/6
+5/7
+4/8</p>
+<p>For example, if the code rate is 5/7, for every 5 bits of useful information, the coder generates a total of 7 bits of data, of which 2 bits are redundant.</p>
+<p>Making the bandwidth 2x wider (from BW125 to BW250) allows you to send 2x more bytes in the same time. Making the spreading factor 1 step lower (from SF10 to SF9) allows you to send 2x more bytes in the same time.</p>
+<p>Lowering the spreading factor makes it more difficult for the gateway to receive a transmission, as it will be more sensitive to noise. You could compare this to two people taking in a noisy place (a bar for example). If you’re far from each other, you have to talk slow (SF10), but if you’re close, you can talk faster (SF7)</p>
+<p>So, it's balancing act between speed of the transmission and resistance to noise.
+things network is mainly focused on LoRaWAN, but the LoRa low-level stuff still checks out for any LoRa project</p>
+<h3 id="52-q-do-meshcore-clients-repeat">5.2. Q: Do MeshCore clients repeat?</h3>
+<p><strong>A:</strong> No, MeshCore clients do not repeat.  This is the core of MeshCore's messaging-first design.  This is to avoid devices flooding the air ware and create endless collisions, so messages sent aren't received.
+In MeshCore, only repeaters and room server with <code>set repeat on</code> repeat.</p>
+<h3 id="53-q-what-happens-when-a-node-learns-a-route-via-a-mobile-repeater-and-that-repeater-is-gone">5.3. Q: What happens when a node learns a route via a mobile repeater, and that repeater is gone?</h3>
+<p><strong>A:</strong> If you used to reach a node through a repeater and the repeater is no longer reachable, the client will send the message using the existing (but now broken) known path, the message will fail after 3 retries, and the app will reset the path and send the message as flood on the last retry by default.  This can be turned off in settings.  If the destination is reachable directly or through another repeater, the new path will be used going forward.  Or you can set the path manually if you know a specific repeater to use to reach that destination.</p>
+<p>In the case if users are moving around frequently, and the paths are breaking, they just see the phone client retries and revert to flood to attempt to re-establish a path.</p>
+<h3 id="54-q-how-does-a-node-discovery-a-path-to-its-destination-and-then-use-it-to-send-messages-in-the-future-instead-of-flooding-every-message-it-sends-like-meshtastic">5.4. Q: How does a node discovery a path to its destination and then use it to send messages in the future, instead of flooding every message it sends like Meshtastic?</h3>
+<p>Routes are stored in sender's contact list.  When you send a message the first time, the message first gets to your destination by flood routing. When your destination node gets the message, it will send back a delivery report to the sender with all repeaters that the original message went through. This delivery report is flood-routed back to you the sender and is a basis for future direct path. When you send the next message, the path will get embedded into the packet and be evaluated by repeaters. If the hop and address of the repeater matches, it will retransmit the message, otherwise it will not retransmit, hence minimizing utilization.</p>
+<p><a href="https://discord.com/channels/826570251612323860/1330643963501351004/1351279141630119996">Source</a></p>
+<h3 id="55-q-do-public-channels-always-flood-do-private-channels-always-flood">5.5. Q: Do public channels always flood? Do private channels always flood?</h3>
+<p><strong>A:</strong> Yes, group channels are A to B, so there is no defined path.  They have to flood.  Repeaters can however deny flood traffic up to some hop limit, with the <code>set flood.max</code> CLI command. Administrators of repeaters get to set the rules of their repeaters.</p>
+<p><a href="https://discord.com/channels/1343693475589263471/1343693475589263474/1350023009527664672">Source</a></p>
+<h3 id="56-q-what-is-the-public-key-for-the-default-public-channel">5.6. Q: what is the public key for the default public channel?</h3>
+<p><strong>A:</strong> The smartphone app key is in hex:
+<code>8b3387e9c5cdea6ac9e5edbaa115cd72</code></p>
+<p>T-Deck uses the same key but in base64
+<code>izOH6cXN6mrJ5e26oRXNcg==</code>
+The third character is the capital letter 'O', not zero <code>0</code>
+<a href="https://discord.com/channels/826570251612323860/1330643963501351004/1354194409213792388">Source</a></p>
+<h3 id="57-q-is-meshcore-open-source">5.7. Q: Is MeshCore open source?</h3>
+<p><strong>A:</strong> Most of the firmware is freely available. Everything is open source except the T-Deck firmware and Liam's native mobile apps.
+- Firmware repo: https://github.com/meshcore-dev/MeshCore</p>
+<h3 id="58-q-how-can-i-support-meshcore">5.8. Q: How can I support MeshCore?</h3>
+<p><strong>A:</strong> Provide your honest feedback on GitHub and on <a href="https://discord.gg/BMwCtwHj5V">MeshCore Discord server</a>. Spread the word of MeshCore to your friends and communities; help them get started with MeshCore. Support Scott's MeshCore development at <a href="https://buymeacoffee.com/ripplebiz">https://buymeacoffee.com/ripplebiz</a>.</p>
+<p>Support Liam Cottle's smartphone client development by unlocking the server administration wait gate with in-app purchase</p>
+<p>Support Rastislav Vysoky (recrof)'s flasher web site and the map web site development through <a href="https://www.paypal.com/donate/?business=DREHF5HM265ES&amp;no_recurring=0&amp;item_name=If+you+enjoy+my+work%2C+you+can+support+me+here%3A&amp;currency_code=EUR">PayPal</a> or <a href="https://revolut.me/recrof">Revolut</a></p>
+<h3 id="59-q-how-do-i-build-meshcore-firmware-from-source">5.9. Q: How do I build MeshCore firmware from source?</h3>
+<p><strong>A:</strong> See instructions here:
+https://discord.com/channels/826570251612323860/1330643963501351004/1341826372120608769</p>
+<p>Build instructions for MeshCore:</p>
+<p>For Windows, first install WSL and Python+pip via: https://plainenglish.io/blog/setting-up-python-on-windows-subsystem-for-linux-wsl-26510f1b2d80</p>
+<p>(Linux, Windows+WSL) In the terminal/shell:</p>
+<pre><code>sudo apt update
+sudo apt install libpython3-dev
+sudo apt install python3-venv
+</code></pre>
+<p>Mac: python3 should be already installed.</p>
+<p>Then it should be the same for all platforms:</p>
+<pre><code>python3 -m venv meshcore
+cd meshcore &amp;&amp; source bin/activate
+pip install -U platformio
+git clone https://github.com/ripplebiz/MeshCore.git
+cd MeshCore
+</code></pre>
+<p>open platformio.ini and in <code>[arduino_base]</code> edit the <code>LORA_FREQ=867.5</code>
+save, then run:</p>
+<pre><code>pio run -e RAK_4631_Repeater
+</code></pre>
+<p>then you'll find <code>firmware.zip</code> in <code>.pio/build/RAK_4631_Repeater</code></p>
+<p>Andy also has a video on how to build using VS Code:
+<em>How to build and flash Meshcore repeater firmware | Heltec V3</em>
+<a href="https://www.youtube.com/watch?v=WJvg6dt13hk">https://www.youtube.com/watch?v=WJvg6dt13hk</a> <em>(Link referenced in the Discord post)</em></p>
+<h3 id="510-q-are-there-other-meshcore-related-open-source-projects">5.10. Q: Are there other MeshCore related open source projects?</h3>
+<p><strong>A:</strong> <a href="https://liamcottle.net">Liam Cottle</a>'s MeshCore web client and MeshCore Javascript library are open source under MIT license.</p>
+<p>Web client: https://github.com/liamcottle/meshcore-web
+Javascript: https://github.com/liamcottle/meshcore.js</p>
+<h3 id="511-q-does-meshcore-support-atak">5.11. Q: Does MeshCore support ATAK</h3>
+<p><strong>A:</strong> ATAK is not currently on MeshCore's roadmap.</p>
+<p>Meshcore would not be best suited to ATAK because MeshCore:
+clients do not repeat and therefore you would need a network of repeaters in place
+will not have a stable path where all clients are constantly moving between repeaters</p>
+<p>MeshCore clients would need to reset path constantly and flood traffic across the network which could lead to lots of collisions with something as chatty as ATAK.</p>
+<p>This could change in the future if MeshCore develops a client firmware that repeats.
+<a href="https://discord.com/channels/826570251612323860/1330643963501351004/1354780032140054659">Source</a></p>
+<h3 id="512-q-how-do-i-add-a-node-to-the-meshcore-map">5.12. Q: How do I add a node to the <a href="https://meshcore.co.uk/map.html">MeshCore Map</a></h3>
+<p><strong>A:</strong></p>
+<p>To add a BLE Companion radio, connect to the BLE Companion radio from the MeshCore smartphone app.  In the app, tap the <code>3 dot</code> menu icon at the top right corner, then tap <code>Internet Map</code>.  Tap the <code>3 dot</code> menu icon again and choose <code>Add me to the Map</code></p>
+<p>To add a Repeater or Room Server to the map, go to the Contact List, tap the <code>3 dot</code> next to the Repeater or Room Server you want to add to the Internet Map, tap <code>Share</code>, then tap <code>Upload to Internet Map</code>.</p>
+<p>You can use the same companion (same public key) that you used to add your repeaters or room servers to remove them from the Internet Map.</p>
+<h3 id="513-q-can-i-use-a-raspberry-pi-to-update-a-meshcore-radio">5.13. Q: Can I use a Raspberry Pi to update a MeshCore radio?</h3>
+<p>** A:** Yes.
+Below are the instructions to flash firmware onto a supported LoRa device using a Raspberry Pi over USB serial.</p>
+<blockquote>
+<p>Instructions for nRF devices like RAK, T1000-E, T114 are immediately after the ESP instructions</p>
+</blockquote>
+<p>For ESP-based devices (e.g. Heltec V3) you need:
+- Download firmware file from flasher.meshcore.co.uk
+    - Go to the web site on a browser, find the section that has the firmware up need
+    - Click the Download button, right click on the file you need, for example,
+        - <code>Heltec_V3_companion_radio_ble-v1.7.1-165fb33.bin</code>
+            - Non-merged bin keeps the existing Bluetooth pairing database
+        - <code>Heltec_v3_companion_radio_usb-v1.7.1-165fb33-merged.bin</code>
+            - Merged bin overwrites everything including the bootloader, existing Bluetooth pairing database, but keeps configurations.
+        - Right click on the file name and copy the link and note it for later use here is an example: <code>https://flasher.meshcore.dev/releases/download/companion-v1.7.1/Heltec_v3_companion_radio_ble-v1.7.1-165fb33.bin</code>
+        - Run:
+            - <code>wget https://flasher.meshcore.dev/releases/download/companion-v1.7.1/Heltec_v3_companion_radio_ble-v1.7.1-165fb33.bin</code> to download the firmware file for your device type. or the version you need  - USB, BLE, Repeater, Room Server, merged bin or non-merged bin
+            - If the above wget command only downloads a very small file (10K bytes instead of more than 100K byte, use this command instead:
+                - <code>wget --user-agent="Mozilla/5.0" --content-disposition "https://flasher.meshcore.dev/releases/download/companion-v1.7.1/Heltec_v3_companion_radio_usb-v1.7.1-165fb33.bin"</code>
+    - Confirm the <code>ttyXXXX</code> device path on your Raspberry Pi:
+        - Go to <code>/dev</code> directory, run ls command to find confirm your device path
+        - They are usually <code>/dev/ttyUSB0</code> for ESP devices
+        - For ESP-based devices, install esptool from the shell:
+            - <code>pip install esptool --break-system-packages</code>
+    - To flash, use the following command:
+        - For non-merged bin:
+            - <code>esptool.py -p /dev/ttyUSB0 --chip esp32-s3 write_flash 0x10000 &lt;non-merged_firmware&gt;.bin</code>
+        - For merged bin:
+            - <code>esptool.py -p /dev/ttyUSB0 --chip esp32-s3 write_flash 0x00000 &lt;merged_firmware&gt;.bin</code></p>
+<p><strong>Instructions for nRF devices:</strong></p>
+<p>For nRF devices (e.g. RAK, Heltec T114) you need the following:
+- Download firmware file from flasher.meshcore.co.uk
+    - Go to the web site on a browser, find the section that has the firmware up need
+    - You need the ZIP version for the adafruit flash tool (below)
+    - Click the Download button, right click on the ZIP file, for example:
+        - <code>RAK_4631_companion_radio_ble-v1.7.1-165fb33.zip</code>
+        - Right click on the file name and copy the link and note it for later use here is an example: <code>https://flasher.meshcore.dev/releases/download/companion-v1.7.1/RAK_4631_companion_radio_ble-v1.7.1-165fb33.zip</code>
+        - Run:
+        - <code>wget https://flasher.meshcore.dev/releases/download/companion-v1.7.1/RAK_4631_companion_radio_ble-v1.7.1-165fb33.zip</code> to download the firmware file for your device type. or the version you need  - USB, BLE, Repeater, Room Server, ZIP file only
+    - Confirm the <code>ttyXXXX</code> device path on your Raspberry Pi:
+        - Go to <code>/dev</code> directory, run ls command to find confirm your device path
+        - They are usually <code>/dev/ttyACM0</code> for nRF devices
+    - For nRF-based devices, install adafruit-nrfutil
+        - <code>pip install adafruit-nrfutil --break-system-packages</code>
+        - Use this command to flash the nRF device:
+            - <code>adafruit-nrfutil --verbose dfu serial --package RAK_4631_companion_radio_usb-v1.7.1-165fb33.zip -p /dev/ttyACM0 -b 115200 --singlebank --touch 1200</code></p>
+<p>To manage a repeater or room server connected to a Pi over USB serial using shell commands, you need to install <code>picocom</code>.  To install <code>picocom</code>, run the following command:
+- <code>sudo apt install picocom</code></p>
+<p>To start managing your USB serial-connected device using picocom, use the following command:
+    - <code>picocom -b 115200 /dev/ttyUSB0 --imap lfcrlf</code></p>
+<p>From here, reference repeater and room server command line commands on MeshCore github wiki here:
+    - https://github.com/meshcore-dev/MeshCore/wiki/Repeater-&amp;-Room-Server-CLI-Reference</p>
+<h3 id="514-q-are-there-are-projects-built-around-meshcore">5.14. Q: Are there are projects built around MeshCore?</h3>
+<p><strong>A:</strong> Yes.  See the following:</p>
+<h4 id="5141-meshcoremqtt">5.14.1. meshcoremqtt</h4>
+<p>A Python script to send meshcore debug and packet capture data to MQTT for analysis.  Cisien's version is a fork of Andrew-a-g's and is being used to to collect data for https://map.w0z.is/messages and https://analyzer.letsmesh.net/
+https://github.com/Cisien/meshcoretomqtt
+https://github.com/Andrew-a-g/meshcoretomqtt</p>
+<h4 id="5142-meshcore-for-home-assistant">5.14.2. MeshCore for Home Assistant</h4>
+<p>A custom Home Assistant integration for MeshCore mesh radio nodes. It allows you to monitor and control MeshCore nodes via USB, BLE, or TCP connections.
+https://github.com/awolden/meshcore-ha</p>
+<h4 id="5143-python-meshcore">5.14.3. Python MeshCore</h4>
+<p>Bindings to access your MeshCore companion radio nodes in python.
+https://github.com/fdlamotte/meshcore_py</p>
+<h4 id="5144-meshcore-cli">5.14.4. meshcore-cli</h4>
+<p>CLI interface to MeshCore companion radio over BLE, TCP, or serial.  Uses Python MeshCore above.
+ https://github.com/fdlamotte/meshcore-cli</p>
+<h4 id="5145-meshcorejs">5.14.5. meshcore.js</h4>
+<p>A JavaScript library for interacting with a MeshCore device running the companion radio firmware
+https://github.com/liamcottle/meshcore.js</p>
+<h4 id="5146-pymc_core">5.14.6. pyMC_core</h4>
+<p>pyMC_Core is a Python port of MeshCore, designed for Raspberry Pi and similar hardware, it talks to LoRa modules over SPI.
+https://github.com/rightup/pyMC_core</p>
+<h4 id="5147-meshcore-packet-decoder">5.14.7. MeshCore Packet Decoder</h4>
+<p>A TypeScript library for decoding MeshCore mesh networking packets with full cryptographic support. Uses WebAssembly (WASM) for Ed25519 key derivation through the orlp/ed25519 library.  It powers the <a href="https://analyzer.letsmesh.net/packets">MeshCore Packet Analyzer</a>.
+https://github.com/michaelhart/meshcore-decoder</p>
+<h4 id="5148-meshcore-pi">5.14.8. meshcore-pi</h4>
+<p>meshcore-pi is another Python port of MeshCore, designed for Raspberry Pi and similar hardware, it talks to LoRa modules over SPI or GPIO.
+https://github.com/brianwiddas/meshcore-pi</p>
+<h4 id="5149-pymc_repeater">5.14.9. pyMC_Repeater</h4>
+<p>pyMC_Repeater is a repeater daemon in Python built on top of the <a href="#5146-pymc_core"><code>pymc_core</code></a> library.
+https://github.com/rightup/pyMC_Repeater</p>
+<h3 id="515-q-are-there-client-applications-for-windows-or-mac">5.15. Q: Are there client applications for Windows or Mac?</h3>
+<p><strong>A:</strong> Yes, the same iOS and Android client is also available for Windows and Intel Mac (sorry, not available for ARM-based Mac yet).  You can find them together with the Android APK here:
+https://files.liamcottle.net/MeshCore</p>
+<p>Both the Windows and Intel Mac versions of the client app are fully unlocked and are free to use.</p>
+<h3 id="516-q-are-there-any-resources-that-compare-meshcore-to-other-lora-systems">5.16. Q: Are there any resources that compare MeshCore to other LoRa systems?</h3>
+<p><strong>A:</strong> Here is a list of MeshCore comparison resources:
+The Comms Channel on YouTube:
+https://www.youtube.com/watch?v=guDoKGs02Us
+MeshCore Advantages by MCarper:
+https://github.com/mikecarper/meshfirmware/blob/main/MeshCoreAdvantages.md
+Meshcore vs Meshtastic by austinmesh.org
+https://www.austinmesh.org/learn/meshcore-vs-meshtastic/</p>
+<hr />
+<h2 id="6-troubleshooting">6. Troubleshooting</h2>
+<h3 id="61-q-my-client-says-another-client-or-a-repeater-or-a-room-server-was-last-seen-many-many-days-ago">6.1. Q: My client says another client or a repeater or a room server was last seen many, many days ago.</h3>
+<h3 id="62-q-a-repeater-or-a-client-or-a-room-server-i-expect-to-see-on-my-discover-list-on-t-deck-or-contact-list-on-a-smart-device-client-are-not-listed">6.2. Q: A repeater or a client or a room server I expect to see on my discover list (on T-Deck) or contact list (on a smart device client) are not listed.</h3>
+<p><strong>A:</strong>
+- If your client is a T-Deck, it may not have its time set (no GPS installed, no GPS lock, or wrong GPS baud rate).
+- If you are using the Android or iOS client, the other client, repeater, or room server may have the wrong time.</p>
+<p>You can get the epoch time on <a href="https://www.epochconverter.com/">https://www.epochconverter.com/</a> and use it to set your T-Deck clock. For a repeater and room server, the admin can use a T-Deck to remotely set their clock (clock sync), or use the <code>time</code> command in the USB serial console with the server device connected.</p>
+<h3 id="63-q-how-to-connect-to-a-repeater-via-ble-bluetooth">6.3. Q: How to connect to a repeater via BLE (Bluetooth)?</h3>
+<p><strong>A:</strong> You can't connect to a device running repeater firmware  via Bluetooth.  Devices running the BLE companion firmware you can connect to it via Bluetooth using the android app</p>
+<h3 id="64-q-my-companion-isnt-showing-up-over-bluetooth">6.4. Q: My companion isn't showing up over Bluetooth?</h3>
+<p><strong>A:</strong> make sure that you flashed the Bluetooth companion firmware and not the USB-only companion firmware.</p>
+<h3 id="65-q-i-cant-connect-via-bluetooth-what-is-the-bluetooth-pairing-code">6.5. Q: I can't connect via Bluetooth, what is the Bluetooth pairing code?</h3>
+<p><strong>A:</strong> the default Bluetooth pairing code is <code>123456</code></p>
+<h3 id="66-q-my-heltec-v3-keeps-disconnecting-from-my-smartphone-it-cant-hold-a-solid-bluetooth-connection">6.6. Q: My Heltec V3 keeps disconnecting from my smartphone.  It can't hold a solid Bluetooth connection.</h3>
+<p><strong>A:</strong> Heltec V3 has a very small coil antenna on its PCB for Wi-Fi and Bluetooth connectivity.  It has a very short range, only a few feet.  It is possible to remove the coil antenna  and replace it with a 31mm wire.  The BT range is much improved with the modification.</p>
+<h3 id="67-q-my-rakt1000-exiao_nrf52-device-seems-to-be-corrupted-how-do-i-wipe-it-clean-to-start-fresh">6.7. Q: My RAK/T1000-E/xiao_nRF52 device seems to be corrupted, how do I wipe it clean to start fresh?</h3>
+<p><strong>A:</strong>
+1. Connect USB-C cable to your device, per your device's instruction, get it to flash mode:
+    - For RAK, click the reset button <strong>TWICE</strong>
+    - For T1000-e, quickly disconnect and reconnect the magnetic side of the cable from the device <strong>TWICE</strong>
+    - For Heltec T114, click the reset button <strong>TWICE</strong> (the bottom button)
+    - For Xiao nRF52, click the reset button once.  If that doesn't work, quickly double click the reset button twice.  If that doesn't work, disconnection the board from your PC and reconnect again (<a href="https://wiki.seeedstudio.com/XIAO_BLE/#access-the-swd-pins-for-debugging-and-reflashing-bootloader">seeed studio wiki</a>)
+5. A new folder will appear on your computer's desktop
+6. Download the <code>flash_erase*.uf2</code> file for your device on flasher.meshcore.co.uk
+    - RAK WisBlock and Heltec T114: <code>Flash_erase-nRF32_softdevice_v6.uf2</code>
+    - Seeed Studio Xiao nRF52 WIO: <code>Flash_erase-nRF52_softdevice_v7.uf2</code>
+8. drag and drop the uf2 file for your device to the root of the new folder
+9. Wait for the copy to complete.  You might get an error dialog, you can ignore it
+10. Go to https://flasher.meshcore.co.uk/, click <code>Console</code> and select the serial port for your connected device
+11. In the console, press enter.  Your flash should now be erased
+12. You may now flash the latest MeshCore firmware onto your device</p>
+<p>Separately, starting in firmware version 1.7.0, there is a CLI Rescue mode.  If your device has a user button (e.g. some RAK, T114), you can activate the rescue mode by hold down the user button of the device within 8 seconds of boot.  Then you can use the 'Console' on flasher.meshcore.co.uk</p>
+<h3 id="68-q-webflasher-fails-on-linux-with-failed-to-open">6.8. Q: WebFlasher fails on Linux with failed to open</h3>
+<p><strong>A:</strong> If the usb port doesn't have the right ownership for this task, the process fails with the following error:
+<code>NetworkError: Failed to execute 'open' on 'SerialPort': Failed to open serial port.</code></p>
+<p>Allow the browser user on it:
+<code># setfacl -m u:YOUR_USER_HERE:rw /dev/ttyUSB0</code></p>
+<hr />
+<h2 id="7-other-questions">7. Other Questions:</h2>
+<h3 id="71-q-how-to-update-nrf-rak-t114-seed-xiao-repeater-and-room-server-firmware-over-the-air-using-the-new-simpler-dfu-app">7.1. Q: How to update nRF (RAK, T114, Seed XIAO) repeater and room server firmware over the air using the new simpler DFU app?</h3>
+<p><strong>A:</strong> The steps below work on both Android and iOS as nRF has made both apps' user interface the same on both platforms:</p>
+<ol>
+<li>Download nRF's DFU app from iOS App Store or Android's Play Store, you can find the app by searching for <code>nrf dfu</code>, the app's full name is <code>nRF Device Firmware Update</code></li>
+<li>On flasher.meshcore.co.uk, download the <strong>ZIP</strong> version of the firmware for your nRF device (e.g. RAK or Heltec T114 or Seeed Studio's Xiao)</li>
+<li>From the MeshCore app, login remotely to the repeater you want to update with admin privilege</li>
+<li>Go to the Command Line tab, type <code>start ota</code> and hit enter.</li>
+<li>you should see <code>OK</code> to confirm the repeater device is now in OTA mode</li>
+<li>Run the DFU app,tab <code>Settings</code> on the top right corner</li>
+<li>Enable <code>Packets receipt notifications</code>, and change <code>Number of Packets</code> to 10 for RAK, 8 for T114.  8 also works for RAK.</li>
+<li>Select the firmware zip file you downloaded</li>
+<li>Select the device you want to update. If the device you want to update is not on the list, try enabling<code>OTA</code> on the device again</li>
+<li>If the device is not found, enable <code>Force Scanning</code> in the DFU app</li>
+<li>Tab the <code>Upload</code> to begin OTA update</li>
+<li>If it fails, try turning off and on Bluetooth on your phone.  If that doesn't work, try rebooting your phone.</li>
+<li>Wait for the update to complete.  It can take a few minutes.</li>
+</ol>
+<h4 id="711-q-can-i-update-seeed-studio-wio-tracker-l1-pro-using-ota">7.1.1 Q: Can I update Seeed Studio Wio Tracker L1 Pro using OTA?</h4>
+<p><strong>A:</strong>  You can flash this safer bootloader to the Wio Tracker L1 Pro
+https://github.com/oltaco/Adafruit_nRF52_Bootloader_OTAFIX</p>
+<p>After this bootloader is flashed onto the device, you can trigger over the air update using bluetooth by holding the button next to the D-Pad and then click the reset button.  The follow the same OTA update instructions above.  You can skip pass the <code>start ota</code> instruction and start the update using the DFU app.</p>
+<h3 id="72-q-how-to-update-esp32-based-devices-over-the-air">7.2. Q: How to update ESP32-based devices over the air?</h3>
+<p><strong>A:</strong> For ESP32-based devices (e.g. Heltec V3):
+1. On flasher.meshcore.co.uk, download the <strong>non-merged</strong> version of the firmware for your ESP32 device (e.g. <code>Heltec_v3_repeater-v1.6.2-4449fd3.bin</code>, no <code>"merged"</code> in the file name)
+2. From the MeshCore app, login remotely to the repeater you want to update with admin privilege
+4. Go to the Command Line tab, type <code>start ota</code> and hit enter.
+5. you should see <code>OK</code> to confirm the repeater device is now in OTA mode
+6. The command <code>start ota</code> on an ESP32-based device starts a wifi hotspot named <code>MeshCore OTA</code>
+7. From your phone or computer connect to the 'MeshCore OTA' hotspot
+8. From a browser, go to http://192.168.4.1/update and upload the non-merged bin from the flasher</p>
+<h3 id="73-q-is-there-a-way-to-lower-the-chance-of-a-failed-ota-device-firmware-update-dfu">7.3. Q: Is there a way to lower the chance of a failed OTA device firmware update (DFU)?</h3>
+<p><strong>A:</strong> Yes, developer <code>che aporeps</code> has an enhanced OTA DFU bootloader for nRF52 based devices.  With this bootloader, if it detects that the application firmware is invalid, it falls back to OTA DFU mode so you can attempt to flash again to recover.  This bootloader has other changes to make the OTA DFU process more fault tolerant.</p>
+<p>Refer to https://github.com/oltaco/Adafruit_nRF52_Bootloader_OTAFIX for the latest information.</p>
+<p>Currently, the following boards are supported:
+- Heltec Automation Mesh Node T114 / HT-nRF5262
+- Nologo ProMicro NRF52840 (aka SuperMini NRF52840)
+- Seeed Studio SenseCAP Card Tracker T1000-E
+- Seeed Studio Wio Tracker L1
+- Seeed Studio XIAO nRF52840 BLE
+- Seeed Studio XIAO nRF52840 BLE SENSE
+- RAK 4631 (See note)
+- RAK WisMesh Tag (new 28/11/2025)</p>
+<h3 id="74-q-are-the-meshcore-logo-and-font-available">7.4. Q: are the MeshCore logo and font available?</h3>
+<p><strong>A:</strong> Yes, it is on the MeshCore github repo here:
+https://github.com/meshcore-dev/MeshCore/tree/main/logo</p>
+<h3 id="75-q-what-is-the-format-of-a-contact-or-channel-qr-code">7.5. Q: What is the format of a contact or channel QR code?</h3>
+<p><strong>A:</strong>
+Channel:
+<code>meshcore://channel/add?name=&lt;name&gt;&amp;secret=&lt;secret&gt;</code></p>
+<p>Contact:
+<code>meshcore://contact/add?name=&lt;name&gt;&amp;public_key=&lt;secret&gt;&amp;type=&lt;type&gt;</code></p>
+<p>where <code>&amp;type</code> is:
+<code>chat = 1</code>
+<code>repeater = 2</code>
+<code>room = 3</code>
+<code>sensor = 4</code></p>
+<h3 id="76-q-how-do-i-connect-to-the-companion-via-wifi-eg-using-a-heltec-v3">7.6. Q: How do I connect to the companion via WIFI, e.g. using a heltec v3?</h3>
+<p><strong>A:</strong>
+WiFi firmware requires you to compile it yourself, as you need to set the wifi ssid and password.
+Edit WIFI_SSID and WIFI_PWD in <code>./variants/heltec_v3/platformio.ini</code> and then flash it to your device.</p>
+<h3 id="77-q-i-have-a-station-g2-or-a-heltec-v4-or-an-ikoka-stick-or-a-radio-with-a-ebyte-e22-900m30s-or-a-e22-900m33s-module-what-should-their-transmit-power-be-set-to">7.7. Q: I have a Station G2, or a Heltec V4, or an Ikoka Stick, or a radio with a EByte E22-900M30S or a E22-900M33S module, what should their transmit power be set to?</h3>
+<p><strong>A:</strong>
+For companion radios, you can set these radios' transmit power in the smartphone app.  For repeater and room server radios, you can set their transmit power using the command line command <code>set tx</code>.  You can get their current value using command line comand <code>get tx</code></p>
+<blockquote>
+<h3 id="warning-set-these-values-at-your-own-risk-incorrect-power-settings-can-permanently-damage-your-radio-hardware">⚠️ <strong>WARNING: Set these values at your own risk. Incorrect power settings can permanently damage your radio hardware.</strong></h3>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Device / Model</th>
+<th style="text-align: left;">Region / Description</th>
+<th style="text-align: left;">In-App Setting (dBm)</th>
+<th style="text-align: left;">Target Radio Output</th>
+<th style="text-align: left;">Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>Station G2</strong> <br> <a href="https://wiki.uniteng.com/en/meshtastic/station-g2">Reference</a></td>
+<td style="text-align: left;">US915 Max Output</td>
+<td style="text-align: left;">19 dBm</td>
+<td style="text-align: left;">36.5 dBm (4.46W)</td>
+<td style="text-align: left;"></td>
+</tr>
+<tr>
+<td style="text-align: left;"></td>
+<td style="text-align: left;">US915 Recommended Max</td>
+<td style="text-align: left;">16 dBm</td>
+<td style="text-align: left;">35 dBm (3.16W)</td>
+<td style="text-align: left;">1dB compression point</td>
+</tr>
+<tr>
+<td style="text-align: left;"></td>
+<td style="text-align: left;">EU868 Recommended Max</td>
+<td style="text-align: left;">15 dBm</td>
+<td style="text-align: left;">34.5 dBm (2.82W)</td>
+<td style="text-align: left;">1dB compression point</td>
+</tr>
+<tr>
+<td style="text-align: left;"></td>
+<td style="text-align: left;">US915 1W Output</td>
+<td style="text-align: left;">10 dBm</td>
+<td style="text-align: left;">1W</td>
+<td style="text-align: left;"></td>
+</tr>
+<tr>
+<td style="text-align: left;"></td>
+<td style="text-align: left;">EU868 1W Output</td>
+<td style="text-align: left;">9 dBm</td>
+<td style="text-align: left;">1W</td>
+<td style="text-align: left;"></td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Ikoka Stick E22-900M30S</strong></td>
+<td style="text-align: left;">1W Model</td>
+<td style="text-align: left;">19 dBm</td>
+<td style="text-align: left;">1W</td>
+<td style="text-align: left;"><strong>DO NOT EXCEED</strong> (Risk of burn out)</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Ikoka Stick E22-900M33S</strong></td>
+<td style="text-align: left;">2W Model</td>
+<td style="text-align: left;">9 dBm</td>
+<td style="text-align: left;">2W</td>
+<td style="text-align: left;"><strong>DO NOT EXCEED</strong> (Risk of burn out)</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Heltec V4</strong></td>
+<td style="text-align: left;">Standard Output</td>
+<td style="text-align: left;">10 dBm</td>
+<td style="text-align: left;">22 dBm</td>
+<td style="text-align: left;"></td>
+</tr>
+<tr>
+<td style="text-align: left;"></td>
+<td style="text-align: left;">High Output</td>
+<td style="text-align: left;">22 dBm</td>
+<td style="text-align: left;">28 dBm</td>
+<td style="text-align: left;"></td>
+</tr>
+<tr>
+<td style="text-align: left;">---</td>
+<td style="text-align: left;"></td>
+<td style="text-align: left;"></td>
+<td style="text-align: left;"></td>
+<td style="text-align: left;"></td>
+</tr>
+</tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["content.action.edit", "content.code.copy", "search.highlight", "search.suggest"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

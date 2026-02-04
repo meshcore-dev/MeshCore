@@ -1,0 +1,1558 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Documentation for the open source MeshCore firmware">
+      
+      
+      
+        <link rel="canonical" href="https://meshcore-dev.github.io/meshcore/stats_binary_frames/">
+      
+      
+        <link rel="prev" href="../qr_codes/">
+      
+      
+        <link rel="next" href="../terminal_chat_cli/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.1">
+    
+    
+      
+        <title>Stats Binary Frame Structures - MeshCore Docs</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../_stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#stats-binary-frame-structures" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="MeshCore Docs" class="md-header__button md-logo" aria-label="MeshCore Docs" data-md-component="logo">
+      
+  <img src="../_assets/meshcore_tm.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            MeshCore Docs
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Stats Binary Frame Structures
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/meshcore-dev/meshcore/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    meshcore-dev/meshcore
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="MeshCore Docs" class="md-nav__button md-logo" aria-label="MeshCore Docs" data-md-component="logo">
+      
+  <img src="../_assets/meshcore_tm.svg" alt="logo">
+
+    </a>
+    MeshCore Docs
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/meshcore-dev/meshcore/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    meshcore-dev/meshcore
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Introduction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli_commands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Commands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../companion_protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Companion Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Local Documentation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Frequently Asked Questions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../nrf52_power_management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    nRF52 Power Management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../packet_structure/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Packet Structure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../payloads/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Meshcore payloads
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qr_codes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QR Codes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stats Binary Frame Structures
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stats Binary Frame Structures
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#command-codes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Command Codes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Command Codes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#stats-sub-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stats Sub-Types
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#response-codes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Response Codes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Response Codes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#stats-response-sub-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stats Response Sub-Types
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#resp_code_stats-stats_type_core-24-0" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RESP_CODE_STATS + STATS_TYPE_CORE (24, 0)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="RESP_CODE_STATS + STATS_TYPE_CORE (24, 0)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#example-structure-cc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example Structure (C/C++)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#resp_code_stats-stats_type_radio-24-1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RESP_CODE_STATS + STATS_TYPE_RADIO (24, 1)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="RESP_CODE_STATS + STATS_TYPE_RADIO (24, 1)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#example-structure-cc_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example Structure (C/C++)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#resp_code_stats-stats_type_packets-24-2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RESP_CODE_STATS + STATS_TYPE_PACKETS (24, 2)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="RESP_CODE_STATS + STATS_TYPE_PACKETS (24, 2)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#notes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Notes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-structure-cc_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example Structure (C/C++)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#command-usage-example-python" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Command Usage Example (Python)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#response-parsing-example-python" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Response Parsing Example (Python)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#command-usage-example-javascripttypescript" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Command Usage Example (JavaScript/TypeScript)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#response-parsing-example-javascripttypescript" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Response Parsing Example (JavaScript/TypeScript)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#field-size-considerations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Field Size Considerations
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../terminal_chat_cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Terminal Chat CLI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#command-codes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Command Codes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Command Codes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#stats-sub-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stats Sub-Types
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#response-codes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Response Codes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Response Codes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#stats-response-sub-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stats Response Sub-Types
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#resp_code_stats-stats_type_core-24-0" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RESP_CODE_STATS + STATS_TYPE_CORE (24, 0)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="RESP_CODE_STATS + STATS_TYPE_CORE (24, 0)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#example-structure-cc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example Structure (C/C++)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#resp_code_stats-stats_type_radio-24-1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RESP_CODE_STATS + STATS_TYPE_RADIO (24, 1)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="RESP_CODE_STATS + STATS_TYPE_RADIO (24, 1)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#example-structure-cc_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example Structure (C/C++)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#resp_code_stats-stats_type_packets-24-2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RESP_CODE_STATS + STATS_TYPE_PACKETS (24, 2)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="RESP_CODE_STATS + STATS_TYPE_PACKETS (24, 2)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#notes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Notes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-structure-cc_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example Structure (C/C++)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#command-usage-example-python" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Command Usage Example (Python)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#response-parsing-example-python" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Response Parsing Example (Python)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#command-usage-example-javascripttypescript" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Command Usage Example (JavaScript/TypeScript)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#response-parsing-example-javascripttypescript" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Response Parsing Example (JavaScript/TypeScript)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#field-size-considerations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Field Size Considerations
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/meshcore-dev/meshcore/edit/main/docs/stats_binary_frames.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="stats-binary-frame-structures">Stats Binary Frame Structures</h1>
+<p>Binary frame structures for companion radio stats commands. All multi-byte integers use little-endian byte order.</p>
+<h2 id="command-codes">Command Codes</h2>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Code</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CMD_GET_STATS</code></td>
+<td>56</td>
+<td>Get statistics (2-byte command: code + sub-type)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="stats-sub-types">Stats Sub-Types</h3>
+<p>The <code>CMD_GET_STATS</code> command uses a 2-byte frame structure:
+- <strong>Byte 0:</strong> <code>CMD_GET_STATS</code> (56)
+- <strong>Byte 1:</strong> Stats sub-type:
+  - <code>STATS_TYPE_CORE</code> (0) - Get core device statistics
+  - <code>STATS_TYPE_RADIO</code> (1) - Get radio statistics
+  - <code>STATS_TYPE_PACKETS</code> (2) - Get packet statistics</p>
+<h2 id="response-codes">Response Codes</h2>
+<table>
+<thead>
+<tr>
+<th>Response</th>
+<th>Code</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>RESP_CODE_STATS</code></td>
+<td>24</td>
+<td>Statistics response (2-byte response: code + sub-type)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="stats-response-sub-types">Stats Response Sub-Types</h3>
+<p>The <code>RESP_CODE_STATS</code> response uses a 2-byte header structure:
+- <strong>Byte 0:</strong> <code>RESP_CODE_STATS</code> (24)
+- <strong>Byte 1:</strong> Stats sub-type (matches command sub-type):
+  - <code>STATS_TYPE_CORE</code> (0) - Core device statistics response
+  - <code>STATS_TYPE_RADIO</code> (1) - Radio statistics response
+  - <code>STATS_TYPE_PACKETS</code> (2) - Packet statistics response</p>
+<hr />
+<h2 id="resp_code_stats-stats_type_core-24-0">RESP_CODE_STATS + STATS_TYPE_CORE (24, 0)</h2>
+<p><strong>Total Frame Size:</strong> 11 bytes</p>
+<table>
+<thead>
+<tr>
+<th>Offset</th>
+<th>Size</th>
+<th>Type</th>
+<th>Field Name</th>
+<th>Description</th>
+<th>Range/Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>1</td>
+<td>uint8_t</td>
+<td>response_code</td>
+<td>Always <code>0x18</code> (24)</td>
+<td>-</td>
+</tr>
+<tr>
+<td>1</td>
+<td>1</td>
+<td>uint8_t</td>
+<td>stats_type</td>
+<td>Always <code>0x00</code> (STATS_TYPE_CORE)</td>
+<td>-</td>
+</tr>
+<tr>
+<td>2</td>
+<td>2</td>
+<td>uint16_t</td>
+<td>battery_mv</td>
+<td>Battery voltage in millivolts</td>
+<td>0 - 65,535</td>
+</tr>
+<tr>
+<td>4</td>
+<td>4</td>
+<td>uint32_t</td>
+<td>uptime_secs</td>
+<td>Device uptime in seconds</td>
+<td>0 - 4,294,967,295</td>
+</tr>
+<tr>
+<td>8</td>
+<td>2</td>
+<td>uint16_t</td>
+<td>errors</td>
+<td>Error flags bitmask</td>
+<td>-</td>
+</tr>
+<tr>
+<td>10</td>
+<td>1</td>
+<td>uint8_t</td>
+<td>queue_len</td>
+<td>Outbound packet queue length</td>
+<td>0 - 255</td>
+</tr>
+</tbody>
+</table>
+<h3 id="example-structure-cc">Example Structure (C/C++)</h3>
+<pre><code class="language-c">struct StatsCore {
+    uint8_t  response_code;  // 0x18
+    uint8_t  stats_type;     // 0x00 (STATS_TYPE_CORE)
+    uint16_t battery_mv;
+    uint32_t uptime_secs;
+    uint16_t errors;
+    uint8_t  queue_len;
+} __attribute__((packed));
+</code></pre>
+<hr />
+<h2 id="resp_code_stats-stats_type_radio-24-1">RESP_CODE_STATS + STATS_TYPE_RADIO (24, 1)</h2>
+<p><strong>Total Frame Size:</strong> 14 bytes</p>
+<table>
+<thead>
+<tr>
+<th>Offset</th>
+<th>Size</th>
+<th>Type</th>
+<th>Field Name</th>
+<th>Description</th>
+<th>Range/Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>1</td>
+<td>uint8_t</td>
+<td>response_code</td>
+<td>Always <code>0x18</code> (24)</td>
+<td>-</td>
+</tr>
+<tr>
+<td>1</td>
+<td>1</td>
+<td>uint8_t</td>
+<td>stats_type</td>
+<td>Always <code>0x01</code> (STATS_TYPE_RADIO)</td>
+<td>-</td>
+</tr>
+<tr>
+<td>2</td>
+<td>2</td>
+<td>int16_t</td>
+<td>noise_floor</td>
+<td>Radio noise floor in dBm</td>
+<td>-140 to +10</td>
+</tr>
+<tr>
+<td>4</td>
+<td>1</td>
+<td>int8_t</td>
+<td>last_rssi</td>
+<td>Last received signal strength in dBm</td>
+<td>-128 to +127</td>
+</tr>
+<tr>
+<td>5</td>
+<td>1</td>
+<td>int8_t</td>
+<td>last_snr</td>
+<td>SNR scaled by 4</td>
+<td>Divide by 4.0 for dB</td>
+</tr>
+<tr>
+<td>6</td>
+<td>4</td>
+<td>uint32_t</td>
+<td>tx_air_secs</td>
+<td>Cumulative transmit airtime in seconds</td>
+<td>0 - 4,294,967,295</td>
+</tr>
+<tr>
+<td>10</td>
+<td>4</td>
+<td>uint32_t</td>
+<td>rx_air_secs</td>
+<td>Cumulative receive airtime in seconds</td>
+<td>0 - 4,294,967,295</td>
+</tr>
+</tbody>
+</table>
+<h3 id="example-structure-cc_1">Example Structure (C/C++)</h3>
+<pre><code class="language-c">struct StatsRadio {
+    uint8_t  response_code;  // 0x18
+    uint8_t  stats_type;     // 0x01 (STATS_TYPE_RADIO)
+    int16_t  noise_floor;
+    int8_t   last_rssi;
+    int8_t   last_snr;       // Divide by 4.0 to get actual SNR in dB
+    uint32_t tx_air_secs;
+    uint32_t rx_air_secs;
+} __attribute__((packed));
+</code></pre>
+<hr />
+<h2 id="resp_code_stats-stats_type_packets-24-2">RESP_CODE_STATS + STATS_TYPE_PACKETS (24, 2)</h2>
+<p><strong>Total Frame Size:</strong> 26 bytes</p>
+<table>
+<thead>
+<tr>
+<th>Offset</th>
+<th>Size</th>
+<th>Type</th>
+<th>Field Name</th>
+<th>Description</th>
+<th>Range/Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>1</td>
+<td>uint8_t</td>
+<td>response_code</td>
+<td>Always <code>0x18</code> (24)</td>
+<td>-</td>
+</tr>
+<tr>
+<td>1</td>
+<td>1</td>
+<td>uint8_t</td>
+<td>stats_type</td>
+<td>Always <code>0x02</code> (STATS_TYPE_PACKETS)</td>
+<td>-</td>
+</tr>
+<tr>
+<td>2</td>
+<td>4</td>
+<td>uint32_t</td>
+<td>recv</td>
+<td>Total packets received</td>
+<td>0 - 4,294,967,295</td>
+</tr>
+<tr>
+<td>6</td>
+<td>4</td>
+<td>uint32_t</td>
+<td>sent</td>
+<td>Total packets sent</td>
+<td>0 - 4,294,967,295</td>
+</tr>
+<tr>
+<td>10</td>
+<td>4</td>
+<td>uint32_t</td>
+<td>flood_tx</td>
+<td>Packets sent via flood routing</td>
+<td>0 - 4,294,967,295</td>
+</tr>
+<tr>
+<td>14</td>
+<td>4</td>
+<td>uint32_t</td>
+<td>direct_tx</td>
+<td>Packets sent via direct routing</td>
+<td>0 - 4,294,967,295</td>
+</tr>
+<tr>
+<td>18</td>
+<td>4</td>
+<td>uint32_t</td>
+<td>flood_rx</td>
+<td>Packets received via flood routing</td>
+<td>0 - 4,294,967,295</td>
+</tr>
+<tr>
+<td>22</td>
+<td>4</td>
+<td>uint32_t</td>
+<td>direct_rx</td>
+<td>Packets received via direct routing</td>
+<td>0 - 4,294,967,295</td>
+</tr>
+</tbody>
+</table>
+<h3 id="notes">Notes</h3>
+<ul>
+<li>Counters are cumulative from boot and may wrap.</li>
+<li><code>recv = flood_rx + direct_rx</code></li>
+<li><code>sent = flood_tx + direct_tx</code></li>
+</ul>
+<h3 id="example-structure-cc_2">Example Structure (C/C++)</h3>
+<pre><code class="language-c">struct StatsPackets {
+    uint8_t  response_code;  // 0x18
+    uint8_t  stats_type;     // 0x02 (STATS_TYPE_PACKETS)
+    uint32_t recv;
+    uint32_t sent;
+    uint32_t flood_tx;
+    uint32_t direct_tx;
+    uint32_t flood_rx;
+    uint32_t direct_rx;
+} __attribute__((packed));
+</code></pre>
+<hr />
+<h2 id="command-usage-example-python">Command Usage Example (Python)</h2>
+<pre><code class="language-python"># Send CMD_GET_STATS command
+def send_get_stats_core(serial_interface):
+    &quot;&quot;&quot;Send command to get core stats&quot;&quot;&quot;
+    cmd = bytes([56, 0])  # CMD_GET_STATS (56) + STATS_TYPE_CORE (0)
+    serial_interface.write(cmd)
+
+def send_get_stats_radio(serial_interface):
+    &quot;&quot;&quot;Send command to get radio stats&quot;&quot;&quot;
+    cmd = bytes([56, 1])  # CMD_GET_STATS (56) + STATS_TYPE_RADIO (1)
+    serial_interface.write(cmd)
+
+def send_get_stats_packets(serial_interface):
+    &quot;&quot;&quot;Send command to get packet stats&quot;&quot;&quot;
+    cmd = bytes([56, 2])  # CMD_GET_STATS (56) + STATS_TYPE_PACKETS (2)
+    serial_interface.write(cmd)
+</code></pre>
+<hr />
+<h2 id="response-parsing-example-python">Response Parsing Example (Python)</h2>
+<pre><code class="language-python">import struct
+
+def parse_stats_core(frame):
+    &quot;&quot;&quot;Parse RESP_CODE_STATS + STATS_TYPE_CORE frame (11 bytes)&quot;&quot;&quot;
+    response_code, stats_type, battery_mv, uptime_secs, errors, queue_len = \
+        struct.unpack('&lt;B B H I H B', frame)
+    assert response_code == 24 and stats_type == 0, &quot;Invalid response type&quot;
+    return {
+        'battery_mv': battery_mv,
+        'uptime_secs': uptime_secs,
+        'errors': errors,
+        'queue_len': queue_len
+    }
+
+def parse_stats_radio(frame):
+    &quot;&quot;&quot;Parse RESP_CODE_STATS + STATS_TYPE_RADIO frame (14 bytes)&quot;&quot;&quot;
+    response_code, stats_type, noise_floor, last_rssi, last_snr, tx_air_secs, rx_air_secs = \
+        struct.unpack('&lt;B B h b b I I', frame)
+    assert response_code == 24 and stats_type == 1, &quot;Invalid response type&quot;
+    return {
+        'noise_floor': noise_floor,
+        'last_rssi': last_rssi,
+        'last_snr': last_snr / 4.0,  # Unscale SNR
+        'tx_air_secs': tx_air_secs,
+        'rx_air_secs': rx_air_secs
+    }
+
+def parse_stats_packets(frame):
+    &quot;&quot;&quot;Parse RESP_CODE_STATS + STATS_TYPE_PACKETS frame (26 bytes)&quot;&quot;&quot;
+    response_code, stats_type, recv, sent, flood_tx, direct_tx, flood_rx, direct_rx = \
+        struct.unpack('&lt;B B I I I I I I', frame)
+    assert response_code == 24 and stats_type == 2, &quot;Invalid response type&quot;
+    return {
+        'recv': recv,
+        'sent': sent,
+        'flood_tx': flood_tx,
+        'direct_tx': direct_tx,
+        'flood_rx': flood_rx,
+        'direct_rx': direct_rx
+    }
+</code></pre>
+<hr />
+<h2 id="command-usage-example-javascripttypescript">Command Usage Example (JavaScript/TypeScript)</h2>
+<pre><code class="language-typescript">// Send CMD_GET_STATS command
+const CMD_GET_STATS = 56;
+const STATS_TYPE_CORE = 0;
+const STATS_TYPE_RADIO = 1;
+const STATS_TYPE_PACKETS = 2;
+
+function sendGetStatsCore(serialInterface: SerialPort): void {
+    const cmd = new Uint8Array([CMD_GET_STATS, STATS_TYPE_CORE]);
+    serialInterface.write(cmd);
+}
+
+function sendGetStatsRadio(serialInterface: SerialPort): void {
+    const cmd = new Uint8Array([CMD_GET_STATS, STATS_TYPE_RADIO]);
+    serialInterface.write(cmd);
+}
+
+function sendGetStatsPackets(serialInterface: SerialPort): void {
+    const cmd = new Uint8Array([CMD_GET_STATS, STATS_TYPE_PACKETS]);
+    serialInterface.write(cmd);
+}
+</code></pre>
+<hr />
+<h2 id="response-parsing-example-javascripttypescript">Response Parsing Example (JavaScript/TypeScript)</h2>
+<pre><code class="language-typescript">interface StatsCore {
+    battery_mv: number;
+    uptime_secs: number;
+    errors: number;
+    queue_len: number;
+}
+
+interface StatsRadio {
+    noise_floor: number;
+    last_rssi: number;
+    last_snr: number;
+    tx_air_secs: number;
+    rx_air_secs: number;
+}
+
+interface StatsPackets {
+    recv: number;
+    sent: number;
+    flood_tx: number;
+    direct_tx: number;
+    flood_rx: number;
+    direct_rx: number;
+}
+
+function parseStatsCore(buffer: ArrayBuffer): StatsCore {
+    const view = new DataView(buffer);
+    const response_code = view.getUint8(0);
+    const stats_type = view.getUint8(1);
+    if (response_code !== 24 || stats_type !== 0) {
+        throw new Error('Invalid response type');
+    }
+    return {
+        battery_mv: view.getUint16(2, true),
+        uptime_secs: view.getUint32(4, true),
+        errors: view.getUint16(8, true),
+        queue_len: view.getUint8(10)
+    };
+}
+
+function parseStatsRadio(buffer: ArrayBuffer): StatsRadio {
+    const view = new DataView(buffer);
+    const response_code = view.getUint8(0);
+    const stats_type = view.getUint8(1);
+    if (response_code !== 24 || stats_type !== 1) {
+        throw new Error('Invalid response type');
+    }
+    return {
+        noise_floor: view.getInt16(2, true),
+        last_rssi: view.getInt8(4),
+        last_snr: view.getInt8(5) / 4.0,  // Unscale SNR
+        tx_air_secs: view.getUint32(6, true),
+        rx_air_secs: view.getUint32(10, true)
+    };
+}
+
+function parseStatsPackets(buffer: ArrayBuffer): StatsPackets {
+    const view = new DataView(buffer);
+    const response_code = view.getUint8(0);
+    const stats_type = view.getUint8(1);
+    if (response_code !== 24 || stats_type !== 2) {
+        throw new Error('Invalid response type');
+    }
+    return {
+        recv: view.getUint32(2, true),
+        sent: view.getUint32(6, true),
+        flood_tx: view.getUint32(10, true),
+        direct_tx: view.getUint32(14, true),
+        flood_rx: view.getUint32(18, true),
+        direct_rx: view.getUint32(22, true)
+    };
+}
+</code></pre>
+<hr />
+<h2 id="field-size-considerations">Field Size Considerations</h2>
+<ul>
+<li>Packet counters (uint32_t): May wrap after extended high-traffic operation.</li>
+<li>Time fields (uint32_t): Max ~136 years.</li>
+<li>SNR (int8_t, scaled by 4): Range -32 to +31.75 dB, 0.25 dB precision.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["content.action.edit", "content.code.copy", "search.highlight", "search.suggest"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

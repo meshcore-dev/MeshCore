@@ -1,0 +1,1405 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Documentation for the open source MeshCore firmware">
+      
+      
+      
+        <link rel="canonical" href="https://meshcore-dev.github.io/meshcore/payloads/">
+      
+      
+        <link rel="prev" href="../packet_structure/">
+      
+      
+        <link rel="next" href="../qr_codes/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.1">
+    
+    
+      
+        <title>Meshcore payloads - MeshCore Docs</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../_stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#meshcore-payloads" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="MeshCore Docs" class="md-header__button md-logo" aria-label="MeshCore Docs" data-md-component="logo">
+      
+  <img src="../_assets/meshcore_tm.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            MeshCore Docs
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Meshcore payloads
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/meshcore-dev/meshcore/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    meshcore-dev/meshcore
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="MeshCore Docs" class="md-nav__button md-logo" aria-label="MeshCore Docs" data-md-component="logo">
+      
+  <img src="../_assets/meshcore_tm.svg" alt="logo">
+
+    </a>
+    MeshCore Docs
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/meshcore-dev/meshcore/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    meshcore-dev/meshcore
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Introduction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli_commands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Commands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../companion_protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Companion Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Local Documentation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Frequently Asked Questions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../nrf52_power_management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    nRF52 Power Management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../packet_structure/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Packet Structure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Meshcore payloads
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Meshcore payloads
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#important-concepts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Important concepts:
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qr_codes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QR Codes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../stats_binary_frames/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stats Binary Frame Structures
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../terminal_chat_cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Terminal Chat CLI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#important-concepts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Important concepts:
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/meshcore-dev/meshcore/edit/main/docs/payloads.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="meshcore-payloads">Meshcore payloads</h1>
+<p>Inside of each <a href="../packet_structure/">meshcore packet</a> is a payload, identified by the payload type in the packet header. The types of payloads are:</p>
+<ul>
+<li>Node advertisement.</li>
+<li>Acknowledgment.</li>
+<li>Returned path.</li>
+<li>Request (destination/source hashes + MAC).</li>
+<li>Response to REQ or ANON_REQ.</li>
+<li>Plain text message.</li>
+<li>Anonymous request.</li>
+<li>Group text message (unverified).</li>
+<li>Group datagram (unverified).</li>
+<li>Multi-part packet</li>
+<li>Control data packet</li>
+<li>Custom packet (raw bytes, custom encryption).</li>
+</ul>
+<p>This document defines the structure of each of these payload types.</p>
+<p>NOTE: all 16 and 32-bit integer fields are Little Endian.</p>
+<h2 id="important-concepts">Important concepts:</h2>
+<ul>
+<li>Node hash: the first byte of the node's public key</li>
+</ul>
+<h1 id="node-advertisement">Node advertisement</h1>
+<p>This kind of payload notifies receivers that a node exists, and gives information about the node</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Size (bytes)</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>public key</td>
+<td>32</td>
+<td>Ed25519 public key of the node</td>
+</tr>
+<tr>
+<td>timestamp</td>
+<td>4</td>
+<td>unix timestamp of advertisement</td>
+</tr>
+<tr>
+<td>signature</td>
+<td>64</td>
+<td>Ed25519 signature of public key, timestamp, and app data</td>
+</tr>
+<tr>
+<td>appdata</td>
+<td>rest of payload</td>
+<td>optional, see below</td>
+</tr>
+</tbody>
+</table>
+<p>Appdata</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Size (bytes)</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>flags</td>
+<td>1</td>
+<td>specifies which of the fields are present, see below</td>
+</tr>
+<tr>
+<td>latitude</td>
+<td>4 (optional)</td>
+<td>decimal latitude multiplied by 1000000, integer</td>
+</tr>
+<tr>
+<td>longitude</td>
+<td>4 (optional)</td>
+<td>decimal longitude multiplied by 1000000, integer</td>
+</tr>
+<tr>
+<td>feature 1</td>
+<td>2  (optional)</td>
+<td>reserved for future use</td>
+</tr>
+<tr>
+<td>feature 2</td>
+<td>2  (optional)</td>
+<td>reserved for future use</td>
+</tr>
+<tr>
+<td>name</td>
+<td>rest of appdata</td>
+<td>name of the node</td>
+</tr>
+</tbody>
+</table>
+<p>Appdata Flags</p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Name</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0x01</code></td>
+<td>is chat node</td>
+<td>advert is for a chat node</td>
+</tr>
+<tr>
+<td><code>0x02</code></td>
+<td>is repeater</td>
+<td>advert is for a repeater</td>
+</tr>
+<tr>
+<td><code>0x03</code></td>
+<td>is room server</td>
+<td>advert is for a room server</td>
+</tr>
+<tr>
+<td><code>0x04</code></td>
+<td>is sensor</td>
+<td>advert is for a sensor server</td>
+</tr>
+<tr>
+<td><code>0x10</code></td>
+<td>has location</td>
+<td>appdata contains lat/long information</td>
+</tr>
+<tr>
+<td><code>0x20</code></td>
+<td>has feature 1</td>
+<td>Reserved for future use.</td>
+</tr>
+<tr>
+<td><code>0x40</code></td>
+<td>has feature 2</td>
+<td>Reserved for future use.</td>
+</tr>
+<tr>
+<td><code>0x80</code></td>
+<td>has name</td>
+<td>appdata contains a node name</td>
+</tr>
+</tbody>
+</table>
+<h1 id="acknowledgement">Acknowledgement</h1>
+<p>An acknowledgement that a message was received. Note that for returned path messages, an acknowledgement can be sent in the "extra" payload (see <a href="#returned-path">Returned Path</a>) instead of as a separate ackowledgement packet. CLI commands do not cause acknowledgement responses, neither discrete nor extra.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Size (bytes)</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>checksum</td>
+<td>4</td>
+<td>CRC checksum of message timestamp, text, and sender pubkey</td>
+</tr>
+</tbody>
+</table>
+<h1 id="returned-path-request-response-and-plain-text-message">Returned path, request, response, and plain text message</h1>
+<p>Returned path, request, response, and plain text messages are all formatted in the same way. See the subsection for more details about the ciphertext's associated plaintext representation.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Size (bytes)</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>destination hash</td>
+<td>1</td>
+<td>first byte of destination node public key</td>
+</tr>
+<tr>
+<td>source hash</td>
+<td>1</td>
+<td>first byte of source node public key</td>
+</tr>
+<tr>
+<td>cipher MAC</td>
+<td>2</td>
+<td>MAC for encrypted data in next field</td>
+</tr>
+<tr>
+<td>ciphertext</td>
+<td>rest of payload</td>
+<td>encrypted message, see subsections below for details</td>
+</tr>
+</tbody>
+</table>
+<h2 id="returned-path">Returned path</h2>
+<p>Returned path messages provide a description of the route a packet took from the original author. Receivers will send returned path messages to the author of the original message.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Size (bytes)</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>path length</td>
+<td>1</td>
+<td>length of next field</td>
+</tr>
+<tr>
+<td>path</td>
+<td>see above</td>
+<td>a list of node hashes (one byte each)</td>
+</tr>
+<tr>
+<td>extra type</td>
+<td>1</td>
+<td>extra, bundled payload type, eg., acknowledgement or response. Same values as in <a href="../packet_structure/">packet structure</a></td>
+</tr>
+<tr>
+<td>extra</td>
+<td>rest of data</td>
+<td>extra, bundled payload content, follows same format as main content defined by this document</td>
+</tr>
+</tbody>
+</table>
+<h2 id="request">Request</h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Size (bytes)</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>timestamp</td>
+<td>4</td>
+<td>send time (unix timestamp)</td>
+</tr>
+<tr>
+<td>request type</td>
+<td>1</td>
+<td>see below</td>
+</tr>
+<tr>
+<td>request data</td>
+<td>rest of payload</td>
+<td>depends on request type</td>
+</tr>
+</tbody>
+</table>
+<p>Request type</p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Name</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0x01</code></td>
+<td>get stats</td>
+<td>get stats of repeater or room server</td>
+</tr>
+<tr>
+<td><code>0x02</code></td>
+<td>keepalive</td>
+<td>(deprecated)</td>
+</tr>
+<tr>
+<td><code>0x03</code></td>
+<td>get telemetry data</td>
+<td>TODO</td>
+</tr>
+<tr>
+<td><code>0x04</code></td>
+<td>get min,max,avg data</td>
+<td>sensor nodes - get min, max, average for given time span</td>
+</tr>
+<tr>
+<td><code>0x05</code></td>
+<td>get access list</td>
+<td>get node's approved access list</td>
+</tr>
+<tr>
+<td><code>0x06</code></td>
+<td>get neighbors</td>
+<td>get repeater node's neighbors</td>
+</tr>
+<tr>
+<td><code>0x07</code></td>
+<td>get owner info</td>
+<td>get repeater firmware-ver/name/owner info</td>
+</tr>
+</tbody>
+</table>
+<h3 id="get-stats">Get stats</h3>
+<p>Gets information about the node, possibly including the following:</p>
+<ul>
+<li>Battery level (millivolts)</li>
+<li>Current transmit queue length</li>
+<li>Current free queue length</li>
+<li>Last RSSI value</li>
+<li>Number of received packets</li>
+<li>Number of sent packets</li>
+<li>Total airtime (seconds)</li>
+<li>Total uptime (seconds)</li>
+<li>Number of packets sent as flood</li>
+<li>Number of packets sent directly</li>
+<li>Number of packets received as flood</li>
+<li>Number of packets received directly</li>
+<li>Error flags</li>
+<li>Last SNR value</li>
+<li>Number of direct route duplicates</li>
+<li>Number of flood route duplicates</li>
+<li>Number posted (?)</li>
+<li>Number of post pushes (?)</li>
+</ul>
+<h3 id="get-telemetry-data">Get telemetry data</h3>
+<p>Request data about sensors on the node, including battery level.</p>
+<h3 id="get-telemetry">Get Telemetry</h3>
+<p>TODO</p>
+<h3 id="get-minmaxave-sensor-nodes">Get Min/Max/Ave  (Sensor nodes)</h3>
+<p>TODO</p>
+<h3 id="get-access-list">Get Access List</h3>
+<p>TODO</p>
+<h3 id="get-neighors">Get Neighors</h3>
+<p>TODO</p>
+<h3 id="get-owner-info">Get Owner Info</h3>
+<p>TODO</p>
+<h2 id="response">Response</h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Size (bytes)</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>tag</td>
+<td>4</td>
+<td>TODO</td>
+</tr>
+<tr>
+<td>content</td>
+<td>rest of payload</td>
+<td>TODO</td>
+</tr>
+</tbody>
+</table>
+<h2 id="plain-text-message">Plain text message</h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Size (bytes)</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>timestamp</td>
+<td>4</td>
+<td>send time (unix timestamp)</td>
+</tr>
+<tr>
+<td>txt_type + attempt</td>
+<td>1</td>
+<td>upper six bits are txt_type (see below), lower two bits are attempt number (0..3)</td>
+</tr>
+<tr>
+<td>message</td>
+<td>rest of payload</td>
+<td>the message content, see next table</td>
+</tr>
+</tbody>
+</table>
+<p>txt_type</p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Description</th>
+<th>Message content</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0x00</code></td>
+<td>plain text message</td>
+<td>the plain text of the message</td>
+</tr>
+<tr>
+<td><code>0x01</code></td>
+<td>CLI command</td>
+<td>the command text of the message</td>
+</tr>
+<tr>
+<td><code>0x02</code></td>
+<td>signed plain text message</td>
+<td>first four bytes is sender pubkey prefix, followed by plain text message</td>
+</tr>
+</tbody>
+</table>
+<h1 id="anonymous-request">Anonymous request</h1>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Size (bytes)</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>destination hash</td>
+<td>1</td>
+<td>first byte of destination node public key</td>
+</tr>
+<tr>
+<td>public key</td>
+<td>32</td>
+<td>sender's Ed25519 public key</td>
+</tr>
+<tr>
+<td>cipher MAC</td>
+<td>2</td>
+<td>MAC for encrypted data in next field</td>
+</tr>
+<tr>
+<td>ciphertext</td>
+<td>rest of payload</td>
+<td>encrypted message, see below for details</td>
+</tr>
+</tbody>
+</table>
+<h2 id="room-server-login">Room server login</h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Size (bytes)</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>timestamp</td>
+<td>4</td>
+<td>sender time (unix timestamp)</td>
+</tr>
+<tr>
+<td>sync timestamp</td>
+<td>4</td>
+<td>sender's "sync messages SINCE x" timestamp</td>
+</tr>
+<tr>
+<td>password</td>
+<td>rest of message</td>
+<td>password for room</td>
+</tr>
+</tbody>
+</table>
+<h2 id="repeatersensor-login">Repeater/Sensor login</h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Size (bytes)</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>timestamp</td>
+<td>4</td>
+<td>sender time (unix timestamp)</td>
+</tr>
+<tr>
+<td>password</td>
+<td>rest of message</td>
+<td>password for repeater/sensor</td>
+</tr>
+</tbody>
+</table>
+<h2 id="repeater-regions-request">Repeater - Regions request</h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Size (bytes)</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>timestamp</td>
+<td>4</td>
+<td>sender time (unix timestamp)</td>
+</tr>
+<tr>
+<td>req type</td>
+<td>1</td>
+<td>0x01 (request sub type)</td>
+</tr>
+<tr>
+<td>reply path len</td>
+<td>1</td>
+<td>path len for reply</td>
+</tr>
+<tr>
+<td>reply path</td>
+<td>(variable)</td>
+<td>reply path</td>
+</tr>
+</tbody>
+</table>
+<h2 id="repeater-owner-info-request">Repeater - Owner info request</h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Size (bytes)</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>timestamp</td>
+<td>4</td>
+<td>sender time (unix timestamp)</td>
+</tr>
+<tr>
+<td>req type</td>
+<td>1</td>
+<td>0x02 (request sub type)</td>
+</tr>
+<tr>
+<td>reply path len</td>
+<td>1</td>
+<td>path len for reply</td>
+</tr>
+<tr>
+<td>reply path</td>
+<td>(variable)</td>
+<td>reply path</td>
+</tr>
+</tbody>
+</table>
+<h2 id="repeater-clock-and-status-request">Repeater - Clock and status request</h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Size (bytes)</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>timestamp</td>
+<td>4</td>
+<td>sender time (unix timestamp)</td>
+</tr>
+<tr>
+<td>req type</td>
+<td>1</td>
+<td>0x03 (request sub type)</td>
+</tr>
+<tr>
+<td>reply path len</td>
+<td>1</td>
+<td>path len for reply</td>
+</tr>
+<tr>
+<td>reply path</td>
+<td>(variable)</td>
+<td>reply path</td>
+</tr>
+</tbody>
+</table>
+<h1 id="group-text-message-datagram">Group text message / datagram</h1>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Size (bytes)</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>channel hash</td>
+<td>1</td>
+<td>first byte of SHA256 of channel's shared key</td>
+</tr>
+<tr>
+<td>cipher MAC</td>
+<td>2</td>
+<td>MAC for encrypted data in next field</td>
+</tr>
+<tr>
+<td>ciphertext</td>
+<td>rest of payload</td>
+<td>encrypted message, see below for details</td>
+</tr>
+</tbody>
+</table>
+<p>The plaintext contained in the ciphertext matches the format described in <a href="#plain-text-message">plain text message</a>. Specifically, it consists of a four byte timestamp, a flags byte, and the message. The flags byte will generally be <code>0x00</code> because it is a "plain text message". The message will be of the form <code>&lt;sender name&gt;: &lt;message body&gt;</code> (eg., <code>user123: I'm on my way</code>).</p>
+<h1 id="control-data">Control data</h1>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Size (bytes)</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>flags</td>
+<td>1</td>
+<td>upper 4 bits is sub_type</td>
+</tr>
+<tr>
+<td>data</td>
+<td>rest of payload</td>
+<td>typically unencrypted data</td>
+</tr>
+</tbody>
+</table>
+<h2 id="discover_req-sub_type">DISCOVER_REQ (sub_type)</h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Size (bytes)</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>flags</td>
+<td>1</td>
+<td>0x8 (upper 4 bits), prefix_only (lowest bit)</td>
+</tr>
+<tr>
+<td>type_filter</td>
+<td>1</td>
+<td>bit for each ADV_TYPE_*</td>
+</tr>
+<tr>
+<td>tag</td>
+<td>4</td>
+<td>randomly generate by sender</td>
+</tr>
+<tr>
+<td>since</td>
+<td>4</td>
+<td>(optional) epoch timestamp (0 by default)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="discover_resp-sub_type">DISCOVER_RESP (sub_type)</h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Size (bytes)</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>flags</td>
+<td>1</td>
+<td>0x9 (upper 4 bits), node_type (lower 4)</td>
+</tr>
+<tr>
+<td>snr</td>
+<td>1</td>
+<td>signed, SNR*4</td>
+</tr>
+<tr>
+<td>tag</td>
+<td>4</td>
+<td>reflected back from DISCOVER_REQ</td>
+</tr>
+<tr>
+<td>pubkey</td>
+<td>8 or 32</td>
+<td>node's ID (or prefix)</td>
+</tr>
+</tbody>
+</table>
+<h1 id="custom-packet">Custom packet</h1>
+<p>Custom packets have no defined format.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["content.action.edit", "content.code.copy", "search.highlight", "search.suggest"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

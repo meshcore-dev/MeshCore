@@ -1,0 +1,3327 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Documentation for the open source MeshCore firmware">
+      
+      
+      
+        <link rel="canonical" href="https://meshcore-dev.github.io/meshcore/cli_commands/">
+      
+      
+        <link rel="prev" href="..">
+      
+      
+        <link rel="next" href="../companion_protocol/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.1">
+    
+    
+      
+        <title>CLI Commands - MeshCore Docs</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../_stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#cli-commands" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="MeshCore Docs" class="md-header__button md-logo" aria-label="MeshCore Docs" data-md-component="logo">
+      
+  <img src="../_assets/meshcore_tm.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            MeshCore Docs
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              CLI Commands
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/meshcore-dev/meshcore/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    meshcore-dev/meshcore
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="MeshCore Docs" class="md-nav__button md-logo" aria-label="MeshCore Docs" data-md-component="logo">
+      
+  <img src="../_assets/meshcore_tm.svg" alt="logo">
+
+    </a>
+    MeshCore Docs
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/meshcore-dev/meshcore/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    meshcore-dev/meshcore
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Introduction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Commands
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Commands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#navigation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Navigation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#operational" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Operational
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Operational">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#reboot-the-node" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reboot the node
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reset-the-clock-and-reboot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reset the clock and reboot
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sync-the-clock-with-the-remote-device" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sync the clock with the remote device
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#display-current-time-in-utc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Display current time in UTC
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#set-the-time-to-a-specific-timestamp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Set the time to a specific timestamp
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#send-a-flood-advert" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Send a flood advert
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#start-an-over-the-air-ota-firmware-update" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Start an Over-The-Air (OTA) firmware update
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#erasefactory-reset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Erase/Factory Reset
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#neighbors-repeater-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Neighbors (Repeater Only)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Neighbors (Repeater Only)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#list-nearby-neighbors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        List nearby neighbors
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#remove-a-neighbor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Remove a neighbor
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#statistics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Statistics
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Statistics">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#clear-stats" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Clear Stats
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#system-stats-battery-uptime-queue-length-and-debug-flags" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        System Stats - Battery, Uptime, Queue Length and Debug Flags
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#radio-stats-noise-floor-last-rssisnr-airtime-receive-errors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Radio Stats - Noise floor, Last RSSI/SNR, Airtime, Receive errors
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#packet-stats-packet-counters-received-sent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Packet stats - Packet counters: Received, Sent
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#logging" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Logging
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Logging">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#begin-capture-of-rx-log-to-node-storage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Begin capture of rx log to node storage
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#end-capture-of-rx-log-to-node-sotrage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        End capture of rx log to node sotrage
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#erase-captured-log" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Erase captured log
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#print-the-captured-log-to-the-serial-terminal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Print the captured log to the serial terminal
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#info" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Info
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Info">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#get-the-version" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Get the Version
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#show-the-hardware-name" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Show the hardware name
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuration
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Configuration">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#radio" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Radio
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Radio">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-this-nodes-radio-parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change this node's radio parameters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-this-nodes-transmit-power" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change this node's transmit power
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#change-the-radio-parameters-for-a-set-duration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Change the radio parameters for a set duration
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-this-nodes-frequency" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change this node's frequency
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#system" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        System
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="System">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-this-nodes-name" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change this node's name
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-this-nodes-latitude" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change this node's latitude
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-this-nodes-longitude" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change this node's longitude
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-this-nodes-identity-private-key" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change this node's identity (Private Key)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-this-nodes-admin-password" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change this node's admin password
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-this-nodes-guest-password" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change this node's guest password
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-this-nodes-owner-info" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change this node's owner info
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fine-tune-the-battery-reading" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fine-tune the battery reading
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-this-nodes-power-saving-flag-repeater-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change this node's power saving flag (Repeater Only)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#routing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Routing
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Routing">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-this-nodes-repeat-flag" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change this node's repeat flag
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-the-retransmit-delay-factor-for-flood-traffic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change the retransmit delay factor for flood traffic
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-the-retransmit-delay-factor-for-direct-traffic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change the retransmit delay factor for direct traffic
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#experimental-view-or-change-the-processing-delay-for-received-traffic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [Experimental] View or change the processing delay for received traffic
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-the-airtime-factor-duty-cycle-limit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change the airtime factor (duty cycle limit)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-the-local-interference-threshold" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change the local interference threshold
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-the-agc-reset-interval" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change the AGC Reset Interval
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#enable-or-disable-multi-acks-support" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Enable or disable Multi-Acks support
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-the-flood-advert-interval" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change the flood advert interval
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-the-zero-hop-advert-interval" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change the zero-hop advert interval
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#limit-the-number-of-hops-for-a-flood-message" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Limit the number of hops for a flood message
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#acl" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ACL
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ACL">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#add-update-or-remove-permissions-for-a-companion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Add, update or remove permissions for a companion
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-the-current-acl" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View the current ACL
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-this-room-servers-read-only-flag" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change this room server's 'read-only' flag
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#region-management-v110" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Region Management (v1.10.+)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Region Management (v1.10.+)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#bulk-load-region-lists" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bulk-load region lists
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#save-any-changes-to-regions-made-since-reboot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Save any changes to regions made since reboot
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#allow-a-region" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Allow a region
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#block-a-region" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Block a region
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#show-information-for-a-region" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Show information for a region
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-the-home-region-for-this-node" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change the home region for this node
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#create-a-new-region" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Create a new region
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#remove-a-region" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Remove a region
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-all-regions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View all regions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dump-all-defined-regions-and-flood-permissions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dump all defined regions and flood permissions
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#region-examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Region Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#gps-when-gps-support-is-compiled-in" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GPS (When GPS support is compiled in)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="GPS (When GPS support is compiled in)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-gps-state" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change GPS state
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sync-this-nodes-clock-with-gps-time" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sync this node's clock with GPS time
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#set-this-nodes-location-based-on-the-gps-coordinates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Set this node's location based on the GPS coordinates
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-the-gps-advert-policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change the GPS advert policy
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sensors-when-sensor-support-is-compiled-in" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sensors (When sensor support is compiled in)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Sensors (When sensor support is compiled in)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#view-the-list-of-sensors-on-this-node" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View the list of sensors on this node
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-thevalue-of-a-sensor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change thevalue of a sensor
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bridge-when-bridge-support-is-compiled-in" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bridge (When bridge support is compiled in)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Bridge (When bridge support is compiled in)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-the-bridge-enabled-flag" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change the bridge enabled flag
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-the-bridge-source" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View the bridge source
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#add-a-delay-to-packets-routed-through-this-bridge" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Add a delay to packets routed through this bridge
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-the-source-of-packets-bridged-to-the-external-interface" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change the source of packets bridged to the external interface
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-the-speed-of-the-bridge-rs-232-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change the speed of the bridge (RS-232 only)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-the-channel-used-for-bridging-espnow-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change the channel used for bridging (ESPNow only)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#set-the-esp-now-secret" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Set the ESP-Now secret
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../companion_protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Companion Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Local Documentation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Frequently Asked Questions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../nrf52_power_management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    nRF52 Power Management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../packet_structure/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Packet Structure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../payloads/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Meshcore payloads
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qr_codes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QR Codes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../stats_binary_frames/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stats Binary Frame Structures
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../terminal_chat_cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Terminal Chat CLI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#navigation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Navigation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#operational" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Operational
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Operational">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#reboot-the-node" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reboot the node
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reset-the-clock-and-reboot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reset the clock and reboot
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sync-the-clock-with-the-remote-device" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sync the clock with the remote device
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#display-current-time-in-utc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Display current time in UTC
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#set-the-time-to-a-specific-timestamp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Set the time to a specific timestamp
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#send-a-flood-advert" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Send a flood advert
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#start-an-over-the-air-ota-firmware-update" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Start an Over-The-Air (OTA) firmware update
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#erasefactory-reset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Erase/Factory Reset
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#neighbors-repeater-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Neighbors (Repeater Only)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Neighbors (Repeater Only)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#list-nearby-neighbors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        List nearby neighbors
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#remove-a-neighbor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Remove a neighbor
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#statistics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Statistics
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Statistics">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#clear-stats" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Clear Stats
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#system-stats-battery-uptime-queue-length-and-debug-flags" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        System Stats - Battery, Uptime, Queue Length and Debug Flags
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#radio-stats-noise-floor-last-rssisnr-airtime-receive-errors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Radio Stats - Noise floor, Last RSSI/SNR, Airtime, Receive errors
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#packet-stats-packet-counters-received-sent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Packet stats - Packet counters: Received, Sent
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#logging" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Logging
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Logging">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#begin-capture-of-rx-log-to-node-storage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Begin capture of rx log to node storage
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#end-capture-of-rx-log-to-node-sotrage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        End capture of rx log to node sotrage
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#erase-captured-log" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Erase captured log
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#print-the-captured-log-to-the-serial-terminal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Print the captured log to the serial terminal
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#info" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Info
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Info">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#get-the-version" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Get the Version
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#show-the-hardware-name" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Show the hardware name
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuration
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Configuration">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#radio" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Radio
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Radio">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-this-nodes-radio-parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change this node's radio parameters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-this-nodes-transmit-power" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change this node's transmit power
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#change-the-radio-parameters-for-a-set-duration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Change the radio parameters for a set duration
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-this-nodes-frequency" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change this node's frequency
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#system" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        System
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="System">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-this-nodes-name" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change this node's name
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-this-nodes-latitude" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change this node's latitude
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-this-nodes-longitude" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change this node's longitude
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-this-nodes-identity-private-key" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change this node's identity (Private Key)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-this-nodes-admin-password" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change this node's admin password
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-this-nodes-guest-password" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change this node's guest password
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-this-nodes-owner-info" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change this node's owner info
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fine-tune-the-battery-reading" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fine-tune the battery reading
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-this-nodes-power-saving-flag-repeater-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change this node's power saving flag (Repeater Only)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#routing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Routing
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Routing">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-this-nodes-repeat-flag" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change this node's repeat flag
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-the-retransmit-delay-factor-for-flood-traffic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change the retransmit delay factor for flood traffic
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-the-retransmit-delay-factor-for-direct-traffic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change the retransmit delay factor for direct traffic
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#experimental-view-or-change-the-processing-delay-for-received-traffic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        [Experimental] View or change the processing delay for received traffic
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-the-airtime-factor-duty-cycle-limit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change the airtime factor (duty cycle limit)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-the-local-interference-threshold" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change the local interference threshold
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-the-agc-reset-interval" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change the AGC Reset Interval
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#enable-or-disable-multi-acks-support" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Enable or disable Multi-Acks support
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-the-flood-advert-interval" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change the flood advert interval
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-the-zero-hop-advert-interval" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change the zero-hop advert interval
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#limit-the-number-of-hops-for-a-flood-message" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Limit the number of hops for a flood message
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#acl" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ACL
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ACL">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#add-update-or-remove-permissions-for-a-companion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Add, update or remove permissions for a companion
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-the-current-acl" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View the current ACL
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-this-room-servers-read-only-flag" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change this room server's 'read-only' flag
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#region-management-v110" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Region Management (v1.10.+)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Region Management (v1.10.+)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#bulk-load-region-lists" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bulk-load region lists
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#save-any-changes-to-regions-made-since-reboot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Save any changes to regions made since reboot
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#allow-a-region" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Allow a region
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#block-a-region" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Block a region
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#show-information-for-a-region" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Show information for a region
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-the-home-region-for-this-node" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change the home region for this node
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#create-a-new-region" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Create a new region
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#remove-a-region" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Remove a region
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-all-regions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View all regions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dump-all-defined-regions-and-flood-permissions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dump all defined regions and flood permissions
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#region-examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Region Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#gps-when-gps-support-is-compiled-in" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GPS (When GPS support is compiled in)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="GPS (When GPS support is compiled in)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-gps-state" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change GPS state
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sync-this-nodes-clock-with-gps-time" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sync this node's clock with GPS time
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#set-this-nodes-location-based-on-the-gps-coordinates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Set this node's location based on the GPS coordinates
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-the-gps-advert-policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change the GPS advert policy
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sensors-when-sensor-support-is-compiled-in" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sensors (When sensor support is compiled in)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Sensors (When sensor support is compiled in)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#view-the-list-of-sensors-on-this-node" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View the list of sensors on this node
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-thevalue-of-a-sensor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change thevalue of a sensor
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bridge-when-bridge-support-is-compiled-in" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bridge (When bridge support is compiled in)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Bridge (When bridge support is compiled in)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-the-bridge-enabled-flag" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change the bridge enabled flag
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-the-bridge-source" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View the bridge source
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#add-a-delay-to-packets-routed-through-this-bridge" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Add a delay to packets routed through this bridge
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-the-source-of-packets-bridged-to-the-external-interface" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change the source of packets bridged to the external interface
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-the-speed-of-the-bridge-rs-232-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change the speed of the bridge (RS-232 only)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-the-channel-used-for-bridging-espnow-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change the channel used for bridging (ESPNow only)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#set-the-esp-now-secret" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Set the ESP-Now secret
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/meshcore-dev/meshcore/edit/main/docs/cli_commands.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="cli-commands">CLI Commands</h1>
+<p>This document provides an overview of CLI commands that can be sent to MeshCore Repeaters, Room Servers and Sensors.</p>
+<h2 id="navigation">Navigation</h2>
+<ul>
+<li><a href="#operational">Operational</a></li>
+<li><a href="#neighbors-repeater-only">Neighbors</a></li>
+<li><a href="#statistics">Statistics</a></li>
+<li><a href="#logging">Logging</a></li>
+<li><a href="#info">Information</a></li>
+<li><a href="#configuration">Configuration</a></li>
+<li><a href="#radio">Radio</a></li>
+<li><a href="#system">System</a></li>
+<li><a href="#routing">Routing</a></li>
+<li><a href="#acl">ACL</a></li>
+<li><a href="#region-management-v110">Region Management</a><ul>
+<li><a href="#region-examples">Region Examples</a></li>
+</ul>
+</li>
+<li><a href="#gps-when-gps-support-is-compiled-in">GPS</a></li>
+<li><a href="#sensors-when-sensor-support-is-compiled-in">Sensors</a></li>
+<li><a href="#bridge-when-bridge-support-is-compiled-in">Bridge</a></li>
+</ul>
+<hr />
+<h2 id="operational">Operational</h2>
+<h3 id="reboot-the-node">Reboot the node</h3>
+<p><strong>Usage:</strong> 
+- <code>reboot</code></p>
+<hr />
+<h3 id="reset-the-clock-and-reboot">Reset the clock and reboot</h3>
+<p><strong>Usage:</strong>
+- <code>clkreboot</code></p>
+<hr />
+<h3 id="sync-the-clock-with-the-remote-device">Sync the clock with the remote device</h3>
+<p><strong>Usage:</strong> 
+- <code>clock sync</code></p>
+<hr />
+<h3 id="display-current-time-in-utc">Display current time in UTC</h3>
+<p><strong>Usage:</strong>
+- <code>clock</code></p>
+<hr />
+<h3 id="set-the-time-to-a-specific-timestamp">Set the time to a specific timestamp</h3>
+<p><strong>Usage:</strong> 
+- <code>time &lt;epoch_seconds&gt;</code></p>
+<p><strong>Parameters:</strong>
+- <code>epoc_seconds</code>: Unix epoc time</p>
+<hr />
+<h3 id="send-a-flood-advert">Send a flood advert</h3>
+<p><strong>Usage:</strong> 
+- <code>advert</code></p>
+<hr />
+<h3 id="start-an-over-the-air-ota-firmware-update">Start an Over-The-Air (OTA) firmware update</h3>
+<p><strong>Usage:</strong>
+- <code>start ota</code></p>
+<hr />
+<h3 id="erasefactory-reset">Erase/Factory Reset</h3>
+<p><strong>Usage:</strong>
+- <code>erase</code></p>
+<p><strong>Serial Only:</strong> Yes</p>
+<p><strong>Warning:</strong> <em><strong>This is destructive!</strong></em></p>
+<hr />
+<h2 id="neighbors-repeater-only">Neighbors (Repeater Only)</h2>
+<h3 id="list-nearby-neighbors">List nearby neighbors</h3>
+<p><strong>Usage:</strong> 
+- <code>neighbors</code></p>
+<p><strong>Note:</strong> The output of this command is limited to the 8 most recent adverts.</p>
+<p><strong>Note:</strong> Each line is encoded as <code>{pubkey-prefix}:{timestamp}:{snr*4}</code></p>
+<hr />
+<h3 id="remove-a-neighbor">Remove a neighbor</h3>
+<p><strong>Usage:</strong> 
+- <code>neighbor.remove &lt;pubkey_prefix&gt;</code></p>
+<p><strong>Parameters:</strong> 
+- <code>pubkey_prefix</code>: The public key of the node to remove from the neighbors list</p>
+<hr />
+<h2 id="statistics">Statistics</h2>
+<h3 id="clear-stats">Clear Stats</h3>
+<p><strong>Usage:</strong> <code>clear stats</code></p>
+<hr />
+<h3 id="system-stats-battery-uptime-queue-length-and-debug-flags">System Stats - Battery, Uptime, Queue Length and Debug Flags</h3>
+<p><strong>Usage:</strong> 
+- <code>stats-core</code></p>
+<p><strong>Serial Only:</strong> Yes</p>
+<hr />
+<h3 id="radio-stats-noise-floor-last-rssisnr-airtime-receive-errors">Radio Stats - Noise floor, Last RSSI/SNR, Airtime, Receive errors</h3>
+<p><strong>Usage:</strong> <code>stats-radio</code></p>
+<p><strong>Serial Only:</strong> Yes</p>
+<hr />
+<h3 id="packet-stats-packet-counters-received-sent">Packet stats - Packet counters: Received, Sent</h3>
+<p><strong>Usage:</strong> <code>stats-packets</code></p>
+<p><strong>Serial Only:</strong> Yes</p>
+<hr />
+<h2 id="logging">Logging</h2>
+<h3 id="begin-capture-of-rx-log-to-node-storage">Begin capture of rx log to node storage</h3>
+<p><strong>Usage:</strong> <code>log start</code></p>
+<hr />
+<h3 id="end-capture-of-rx-log-to-node-sotrage">End capture of rx log to node sotrage</h3>
+<p><strong>Usage:</strong> <code>log stop</code></p>
+<hr />
+<h3 id="erase-captured-log">Erase captured log</h3>
+<p><strong>Usage:</strong> <code>log erase</code></p>
+<hr />
+<h3 id="print-the-captured-log-to-the-serial-terminal">Print the captured log to the serial terminal</h3>
+<p><strong>Usage:</strong> <code>log</code></p>
+<p><strong>Serial Only:</strong> Yes</p>
+<hr />
+<h2 id="info">Info</h2>
+<h3 id="get-the-version">Get the Version</h3>
+<p><strong>Usage:</strong> <code>ver</code></p>
+<hr />
+<h3 id="show-the-hardware-name">Show the hardware name</h3>
+<p><strong>Usage:</strong> <code>board</code></p>
+<hr />
+<h2 id="configuration">Configuration</h2>
+<h3 id="radio">Radio</h3>
+<h4 id="view-or-change-this-nodes-radio-parameters">View or change this node's radio parameters</h4>
+<p><strong>Usage:</strong>
+- <code>get radio</code>
+- <code>set radio &lt;freq&gt;,&lt;bw&gt;,&lt;sf&gt;,&lt;cr&gt;</code></p>
+<p><strong>Parameters:</strong>
+- <code>freq</code>: Frequency in MHz
+- <code>bw</code>: Bandwidth in kHz
+- <code>sf</code>: Spreading factor (5-12)
+- <code>cr</code>: Coding rate (5-8)</p>
+<p><strong>Set by build flag:</strong> <code>LORA_FREQ</code>, <code>LORA_BW</code>, <code>LORA_SF</code>, <code>LORA_CR</code></p>
+<p><strong>Default:</strong> <code>869.525,250,11,5</code></p>
+<p><strong>Note:</strong> Requires reboot to apply</p>
+<hr />
+<h4 id="view-or-change-this-nodes-transmit-power">View or change this node's transmit power</h4>
+<p><strong>Usage:</strong>
+- <code>get tx</code>
+- <code>set tx &lt;dbm&gt;</code></p>
+<p><strong>Parameters:</strong>
+- <code>dbm</code>: Power level in dBm (1-22)</p>
+<p><strong>Set by build flag:</strong> <code>LORA_TX_POWER</code></p>
+<p><strong>Default:</strong> Varies by board</p>
+<p><strong>Notes:</strong> This setting only controls the power level of the LoRa chip. Some nodes have an additional power amplifier stage which increases the total output. Referr to the node's manual for the correct setting to use. <strong>Setting a value too high may violate the laws in your country.</strong></p>
+<hr />
+<h4 id="change-the-radio-parameters-for-a-set-duration">Change the radio parameters for a set duration</h4>
+<p><strong>Usage:</strong> 
+- <code>tempradio &lt;freq&gt;,&lt;bw&gt;,&lt;sf&gt;,&lt;cr&gt;,&lt;timeout_mins&gt;</code></p>
+<p><strong>Parameters:</strong>
+- <code>freq</code>: Frequency in MHz (300-2500)
+- <code>bw</code>: Bandwidth in kHz (7.8-500)
+- <code>sf</code>: Spreading factor (5-12)
+- <code>cr</code>: Coding rate (5-8)
+- <code>timeout_mins</code>: Duration in minutes (must be &gt; 0)</p>
+<p><strong>Note:</strong> This is not saved to preferences and will clear on reboot</p>
+<hr />
+<h4 id="view-or-change-this-nodes-frequency">View or change this node's frequency</h4>
+<p><strong>Usage:</strong>
+- <code>get freq</code>
+- <code>set freq &lt;frequency&gt;</code></p>
+<p><strong>Parameters:</strong>
+- <code>frequency</code>: Frequency in MHz</p>
+<p><strong>Default:</strong> <code>869.525</code></p>
+<p><strong>Note:</strong> Requires reboot to apply</p>
+<h3 id="system">System</h3>
+<h4 id="view-or-change-this-nodes-name">View or change this node's name</h4>
+<p><strong>Usage:</strong>
+- <code>get name</code>
+- <code>set name &lt;name&gt;</code></p>
+<p><strong>Parameters:</strong>
+- <code>name</code>: Node name</p>
+<p><strong>Set by build flag:</strong> <code>ADVERT_NAME</code></p>
+<p><strong>Default:</strong> Varies by board</p>
+<p><strong>Note:</strong> Max length varies. If a location is set, the max length is 24 bytes; 32 otherwise. Emoji and unicode characters may take more than one byte.</p>
+<hr />
+<h4 id="view-or-change-this-nodes-latitude">View or change this node's latitude</h4>
+<p><strong>Usage:</strong>
+- <code>get lat</code>
+- <code>set lat &lt;degrees&gt;</code></p>
+<p><strong>Set by build flag:</strong> <code>ADVERT_LAT</code></p>
+<p><strong>Default:</strong> <code>0</code></p>
+<p><strong>Parameters:</strong>
+- <code>degrees</code>: Latitude in degrees</p>
+<hr />
+<h4 id="view-or-change-this-nodes-longitude">View or change this node's longitude</h4>
+<p><strong>Usage:</strong>
+- <code>get lon</code>
+- <code>set lon &lt;degrees&gt;</code></p>
+<p><strong>Set by build flag:</strong> <code>ADVERT_LON</code></p>
+<p><strong>Default:</strong> <code>0</code></p>
+<p><strong>Parameters:</strong>
+- <code>degrees</code>: Longitude in degrees</p>
+<hr />
+<h4 id="view-or-change-this-nodes-identity-private-key">View or change this node's identity (Private Key)</h4>
+<p><strong>Usage:</strong>
+- <code>get prv.key</code>
+- <code>set prv.key &lt;private_key&gt;</code></p>
+<p><strong>Parameters:</strong>
+- <code>private_key</code>: Private key in hex format (64 hex characters)</p>
+<p><strong>Serial Only:</strong>
+- <code>get prv.key</code>: Yes
+- <code>set prv.key</code>: No</p>
+<p><strong>Note:</strong> Requires reboot to take effect after setting</p>
+<hr />
+<h4 id="view-or-change-this-nodes-admin-password">View or change this node's admin password</h4>
+<p><strong>Usage:</strong>
+- <code>get password</code>
+- <code>set password &lt;password&gt;</code></p>
+<p><strong>Parameters:</strong>
+- <code>password</code>: Admin password</p>
+<p><strong>Set by build flag:</strong> <code>ADMIN_PASSWORD</code></p>
+<p><strong>Default:</strong> <code>password</code></p>
+<p><strong>Note:</strong> Echoed back for confirmation</p>
+<p><strong>Note:</strong> Any node using this password will be added to the admin ACL list.</p>
+<hr />
+<h4 id="view-or-change-this-nodes-guest-password">View or change this node's guest password</h4>
+<p><strong>Usage:</strong>
+- <code>get guest.password</code>
+- <code>set guest.password &lt;password&gt;</code></p>
+<p><strong>Parameters:</strong>
+- <code>password</code>: Guest password</p>
+<p><strong>Set by build flag:</strong> <code>ROOM_PASSWORD</code> (Room Server only)</p>
+<p><strong>Default:</strong> <code>&lt;blank&gt;</code></p>
+<hr />
+<h4 id="view-or-change-this-nodes-owner-info">View or change this node's owner info</h4>
+<p><strong>Usage:</strong>
+- <code>get owner.info</code>
+- <code>set owner.info &lt;text&gt;</code></p>
+<p><strong>Parameters:</strong>
+- <code>text</code>: Owner information text</p>
+<p><strong>Default:</strong> <code>&lt;blank&gt;</code></p>
+<p><strong>Note:</strong> <code>|</code> characters are translated to newlines</p>
+<p><strong>Note:</strong> Requires firmware 1.12.+</p>
+<hr />
+<h4 id="fine-tune-the-battery-reading">Fine-tune the battery reading</h4>
+<p><strong>Usage:</strong>
+- <code>get adc.multiplier</code>
+- <code>set adc.multiplier &lt;value&gt;</code></p>
+<p><strong>Parameters:</strong>
+- <code>value</code>: ADC multiplier (0.0-10.0)</p>
+<p><strong>Default:</strong> <code>0.0</code> (value defined by board)</p>
+<p><strong>Note:</strong> Returns "Error: unsupported by this board" if hardware doesn't support it</p>
+<hr />
+<h4 id="view-or-change-this-nodes-power-saving-flag-repeater-only">View or change this node's power saving flag (Repeater Only)</h4>
+<p><strong>Usage:</strong>
+- <code>powersaving &lt;state&gt;</code>
+- <code>powersaving</code></p>
+<p><strong>Parameters:</strong> 
+- <code>state</code>: <code>on</code>|<code>off</code> </p>
+<p><strong>Default:</strong> <code>on</code></p>
+<p><strong>Note:</strong> When enabled, device enters sleep mode between radio transmissions</p>
+<hr />
+<h3 id="routing">Routing</h3>
+<h4 id="view-or-change-this-nodes-repeat-flag">View or change this node's repeat flag</h4>
+<p><strong>Usage:</strong>
+- <code>get repeat</code>
+- <code>set repeat &lt;state&gt;</code></p>
+<p><strong>Parameters:</strong>
+  - <code>state</code>: <code>on</code>|<code>off</code></p>
+<p><strong>Default:</strong> <code>on</code></p>
+<hr />
+<h4 id="view-or-change-the-retransmit-delay-factor-for-flood-traffic">View or change the retransmit delay factor for flood traffic</h4>
+<p><strong>Usage:</strong>
+- <code>get txdelay</code>
+- <code>set txdelay &lt;value&gt;</code></p>
+<p><strong>Parameters:</strong>
+- <code>value</code>: Transmit delay factor (0-2)</p>
+<p><strong>Default:</strong> <code>0.5</code></p>
+<hr />
+<h4 id="view-or-change-the-retransmit-delay-factor-for-direct-traffic">View or change the retransmit delay factor for direct traffic</h4>
+<p><strong>Usage:</strong>
+- <code>get direct.txdelay</code>
+- <code>set direct.txdelay &lt;value&gt;</code></p>
+<p><strong>Parameters:</strong>
+- <code>value</code>: Direct transmit delay factor (0-2)</p>
+<p><strong>Default:</strong> <code>0.2</code></p>
+<hr />
+<h4 id="experimental-view-or-change-the-processing-delay-for-received-traffic">[Experimental] View or change the processing delay for received traffic</h4>
+<p><strong>Usage:</strong>
+- <code>get rxdelay</code>
+- <code>set rxdelay &lt;value&gt;</code></p>
+<p><strong>Parameters:</strong>
+- <code>value</code>: Receive delay base (0-20)</p>
+<p><strong>Default:</strong> <code>0.0</code></p>
+<hr />
+<h4 id="view-or-change-the-airtime-factor-duty-cycle-limit">View or change the airtime factor (duty cycle limit)</h4>
+<p><strong>Usage:</strong>
+- <code>get af</code>
+- <code>set af &lt;value&gt;</code></p>
+<p><strong>Parameters:</strong>
+- <code>value</code>: Airtime factor (0-9)</p>
+<p><strong>Default:</strong> <code>1.0</code></p>
+<hr />
+<h4 id="view-or-change-the-local-interference-threshold">View or change the local interference threshold</h4>
+<p><strong>Usage:</strong>
+- <code>get int.thresh</code>
+- <code>set int.thresh &lt;value&gt;</code></p>
+<p><strong>Parameters:</strong>
+- <code>value</code>: Interference threshold value</p>
+<p><strong>Default:</strong> <code>0.0</code></p>
+<hr />
+<h4 id="view-or-change-the-agc-reset-interval">View or change the AGC Reset Interval</h4>
+<p><strong>Usage:</strong>
+- <code>get agc.reset.interval</code>
+- <code>set agc.reset.interval &lt;value&gt;</code></p>
+<p><strong>Parameters:</strong>
+- <code>value</code>: Interval in seconds rounded down to a multiple of 4 (17 becomes 16)</p>
+<p><strong>Default:</strong> <code>0.0</code></p>
+<hr />
+<h4 id="enable-or-disable-multi-acks-support">Enable or disable Multi-Acks support</h4>
+<p><strong>Usage:</strong>
+- <code>get multi.acks</code>
+- <code>set multi.acks &lt;state&gt;</code></p>
+<p><strong>Parameters:</strong>
+- <code>state</code>: <code>0</code> (disable) or <code>1</code> (enable)</p>
+<p><strong>Default:</strong> <code>0</code></p>
+<hr />
+<h4 id="view-or-change-the-flood-advert-interval">View or change the flood advert interval</h4>
+<p><strong>Usage:</strong>
+- <code>get flood.advert.interval</code>
+- <code>set flood.advert.interval &lt;hours&gt;</code></p>
+<p><strong>Parameters:</strong>
+- <code>hours</code>: Interval in hours (3-168)</p>
+<p><strong>Default:</strong> <code>12</code> (Repeater) - <code>0</code> (Sensor)</p>
+<hr />
+<h4 id="view-or-change-the-zero-hop-advert-interval">View or change the zero-hop advert interval</h4>
+<p><strong>Usage:</strong>
+- <code>get advert.interval</code>
+- <code>set advert.interval &lt;minutes&gt;</code></p>
+<p><strong>Parameters:</strong>
+- <code>minutes</code>: Interval in minutes rounded down to the nearest multiple of 2 (61 becomes 60) (60-240)</p>
+<p><strong>Default:</strong> <code>0</code></p>
+<hr />
+<h4 id="limit-the-number-of-hops-for-a-flood-message">Limit the number of hops for a flood message</h4>
+<p><strong>Usage:</strong>
+- <code>get flood.max</code>
+- <code>set flood.max &lt;value&gt;</code></p>
+<p><strong>Parameters:</strong>
+- <code>value</code>: Maximum flood hop count (0-64)</p>
+<p><strong>Default:</strong> <code>64</code></p>
+<hr />
+<h3 id="acl">ACL</h3>
+<h4 id="add-update-or-remove-permissions-for-a-companion">Add, update or remove permissions for a companion</h4>
+<p><strong>Usage:</strong> 
+- <code>setperm &lt;pubkey&gt; &lt;permissions&gt;</code></p>
+<p><strong>Parameters:</strong>
+- <code>pubkey</code>: Companion public key
+- <code>permissions</code>: 
+  - <code>0</code>: Guest
+  - <code>1</code>: Read-only
+  - <code>2</code>: Read-write
+  - <code>3</code>: Admin</p>
+<p><strong>Note:</strong> Removes the entry when <code>permissions</code> is omitted</p>
+<hr />
+<h4 id="view-the-current-acl">View the current ACL</h4>
+<p><strong>Usage:</strong> 
+- <code>get acl</code></p>
+<p><strong>Serial Only:</strong> Yes</p>
+<hr />
+<h4 id="view-or-change-this-room-servers-read-only-flag">View or change this room server's 'read-only' flag</h4>
+<p><strong>Usage:</strong>
+- <code>get allow.read.only</code>
+- <code>set allow.read.only &lt;state&gt;</code></p>
+<p><strong>Parameters:</strong>
+- <code>state</code>: <code>on</code> (enable) or <code>off</code> (disable)</p>
+<p><strong>Default:</strong> <code>off</code></p>
+<hr />
+<h3 id="region-management-v110">Region Management (v1.10.+)</h3>
+<h4 id="bulk-load-region-lists">Bulk-load region lists</h4>
+<p><strong>Usage:</strong> 
+- <code>region load</code>
+- <code>region load &lt;name&gt; [flood_flag]</code></p>
+<p><strong>Parameters:</strong>
+- <code>name</code>: A name of a region. <code>*</code> represents the wildcard region</p>
+<p><strong>Note:</strong> <code>flood_flag</code>: Optional <code>F</code> to allow flooding</p>
+<p><strong>Note:</strong> Indentation creates parent-child relationships (max 8 levels)</p>
+<p><strong>Note:</strong> <code>region load</code> with an empty name will not work remotely (it's interactive)</p>
+<hr />
+<h4 id="save-any-changes-to-regions-made-since-reboot">Save any changes to regions made since reboot</h4>
+<p><strong>Usage:</strong> 
+- <code>region save</code></p>
+<hr />
+<h4 id="allow-a-region">Allow a region</h4>
+<p><strong>Usage:</strong> 
+- <code>region allowf &lt;name&gt;</code></p>
+<p><strong>Parameters:</strong> 
+- <code>name</code>: Region name (or <code>*</code> for wildcard)</p>
+<p><strong>Note:</strong> Setting on wildcard <code>*</code> allows packets without region transport codes</p>
+<hr />
+<h4 id="block-a-region">Block a region</h4>
+<p><strong>Usage:</strong> 
+- <code>region denyf &lt;name&gt;</code></p>
+<p><strong>Parameters:</strong> 
+- <code>name</code>: Region name (or <code>*</code> for wildcard)</p>
+<p><strong>Note:</strong> Setting on wildcard <code>*</code> drops packets without region transport codes</p>
+<hr />
+<h4 id="show-information-for-a-region">Show information for a region</h4>
+<p><strong>Usage:</strong> 
+- <code>region get &lt;name&gt;</code></p>
+<p><strong>Parameters:</strong>
+- <code>name</code>: Region name (or <code>*</code> for wildcard)</p>
+<hr />
+<h4 id="view-or-change-the-home-region-for-this-node">View or change the home region for this node</h4>
+<p><strong>Usage:</strong> 
+- <code>region home</code>
+- <code>region home &lt;name&gt;</code></p>
+<p><strong>Parameters:</strong>
+- <code>name</code>: Region name</p>
+<hr />
+<h4 id="create-a-new-region">Create a new region</h4>
+<p><strong>Usage:</strong> 
+- <code>region put &lt;name&gt; [parent_name]</code></p>
+<p><strong>Parameters:</strong>
+- <code>name</code>: Region name
+- <code>parent_name</code>: Parent region name (optional, defaults to wildcard)</p>
+<hr />
+<h4 id="remove-a-region">Remove a region</h4>
+<p><strong>Usage:</strong> 
+- <code>region remove &lt;name&gt;</code></p>
+<p><strong>Parameters:</strong>
+- <code>name</code>: Region name</p>
+<p><strong>Note:</strong> Must remove all child regions before the region can be removed </p>
+<hr />
+<h4 id="view-all-regions">View all regions</h4>
+<p><strong>Usage:</strong> 
+- <code>region list &lt;filter&gt;</code></p>
+<p><strong>Serial Only:</strong> Yes</p>
+<p><strong>Parameters:</strong>
+- <code>filter</code>: <code>allowed</code>|<code>denied</code></p>
+<p><strong>Note:</strong> Requires firmware 1.12.+</p>
+<hr />
+<h4 id="dump-all-defined-regions-and-flood-permissions">Dump all defined regions and flood permissions</h4>
+<p><strong>Usage:</strong> 
+- <code>region</code></p>
+<p><strong>Serial Only:</strong> Yes</p>
+<hr />
+<h3 id="region-examples">Region Examples</h3>
+<p><strong>Example 1: Using F Flag with Named Public Region</strong></p>
+<pre><code>region load
+#Europe F
+&lt;blank line to end region load&gt;
+region save
+</code></pre>
+<p><strong>Explanation:</strong>
+- Creates a region named <code>#Europe</code> with flooding enabled
+- Packets from this region will be flooded to other nodes</p>
+<hr />
+<p><strong>Example 2: Using Wildcard with F Flag</strong></p>
+<pre><code>region load 
+* F
+&lt;blank line to end region load&gt;
+region save
+</code></pre>
+<p><strong>Explanation:</strong>
+- Creates a wildcard region <code>*</code> with flooding enabled
+- Enables flooding for all regions automatically
+- Applies only to packets without transport codes</p>
+<hr />
+<p><strong>Example 3: Using Wildcard Without F Flag</strong></p>
+<pre><code>region load 
+*
+&lt;blank line to end region load&gt;
+region save
+</code></pre>
+<p><strong>Explanation:</strong>
+- Creates a wildcard region <code>*</code> without flooding
+- This region exists but doesn't affect packet distribution
+- Used as a default/empty region</p>
+<hr />
+<p><strong>Example 4: Nested Public Region with F Flag</strong></p>
+<pre><code>region load 
+#Europe F
+  #UK
+    #London
+    #Manchester
+  #France
+    #Paris
+    #Lyon
+&lt;blank line to end region load&gt;
+region save
+</code></pre>
+<p><strong>Explanation:</strong>
+- Creates <code>#Europe</code> region with flooding enabled
+- Adds nested child regions (<code>#UK</code>, <code>#France</code>)
+- All nested regions inherit the flooding flag from parent</p>
+<hr />
+<p><strong>Example 5: Wildcard with Nested Public Regions</strong></p>
+<pre><code>region load 
+* F
+  #NorthAmerica
+    #USA
+      #NewYork
+      #California
+    #Canada
+      #Ontario
+      #Quebec
+&lt;blank line to end region load&gt;
+region save
+</code></pre>
+<p><strong>Explanation:</strong>
+- Creates wildcard region <code>*</code> with flooding enabled
+- Adds nested <code>#NorthAmerica</code> hierarchy
+- Enables flooding for all child regions automatically
+- Useful for global networks with specific regional rules</p>
+<hr />
+<h3 id="gps-when-gps-support-is-compiled-in">GPS (When GPS support is compiled in)</h3>
+<h4 id="view-or-change-gps-state">View or change GPS state</h4>
+<p><strong>Usage:</strong>
+- <code>gps</code>
+- <code>gps &lt;state&gt;</code></p>
+<p><strong>Parameters:</strong>
+- <code>state</code>: <code>on</code>|<code>off</code></p>
+<p><strong>Default:</strong> <code>off</code></p>
+<p><strong>Note:</strong> Output format: <code>{status}, {fix}, {sat count}</code> (when enabled)</p>
+<hr />
+<h4 id="sync-this-nodes-clock-with-gps-time">Sync this node's clock with GPS time</h4>
+<p><strong>Usage:</strong> 
+- <code>gps sync</code></p>
+<hr />
+<h4 id="set-this-nodes-location-based-on-the-gps-coordinates">Set this node's location based on the GPS coordinates</h4>
+<p><strong>Usage:</strong> 
+- <code>gps setloc</code></p>
+<hr />
+<h4 id="view-or-change-the-gps-advert-policy">View or change the GPS advert policy</h4>
+<p><strong>Usage:</strong>
+- <code>gps advert</code>
+- <code>gps advert &lt;policy&gt;</code></p>
+<p><strong>Parameters:</strong> 
+- <code>policy</code>: <code>none</code>|<code>shared</code>|<code>prefs</code> 
+  - <code>none</code>: don't include location in adverts
+  - <code>share</code>: share gps location (from SensorManager)
+  - <code>prefs</code>: location stored in node's lat and lon settings</p>
+<p><strong>Default:</strong> <code>prefs</code></p>
+<hr />
+<h3 id="sensors-when-sensor-support-is-compiled-in">Sensors (When sensor support is compiled in)</h3>
+<h4 id="view-the-list-of-sensors-on-this-node">View the list of sensors on this node</h4>
+<p><strong>Usage:</strong> <code>sensor list [start]</code></p>
+<p><strong>Parameters:</strong>
+- <code>start</code>: Optional starting index (defaults to 0)</p>
+<p><strong>Note:</strong> Output format: <code>&lt;var_name&gt;=&lt;value&gt;\n</code></p>
+<hr />
+<h4 id="view-or-change-thevalue-of-a-sensor">View or change thevalue of a sensor</h4>
+<p><strong>Usage:</strong> 
+- <code>sensor get &lt;key&gt;</code>
+- <code>sensor set &lt;key&gt; &lt;value&gt;</code></p>
+<p><strong>Parameters:</strong>
+- <code>key</code>: Sensor setting name
+- <code>value</code>: The value to set the sensor to</p>
+<hr />
+<h3 id="bridge-when-bridge-support-is-compiled-in">Bridge (When bridge support is compiled in)</h3>
+<h4 id="view-or-change-the-bridge-enabled-flag">View or change the bridge enabled flag</h4>
+<p><strong>Usage:</strong>
+- <code>get bridge.enabled</code>
+- <code>set bridge.enabled &lt;state&gt;</code></p>
+<p><strong>Parameters:</strong>
+- <code>state</code>: <code>on</code>|<code>off</code></p>
+<p><strong>Default:</strong> <code>off</code></p>
+<hr />
+<h4 id="view-the-bridge-source">View the bridge source</h4>
+<p><strong>Usage:</strong>
+- <code>get bridge.source</code></p>
+<hr />
+<h4 id="add-a-delay-to-packets-routed-through-this-bridge">Add a delay to packets routed through this bridge</h4>
+<p><strong>Usage:</strong>
+- <code>get bridge.delay</code>
+- <code>set bridge.delay &lt;ms&gt;</code></p>
+<p><strong>Parameters:</strong>
+- <code>ms</code>: Delay in milliseconds (0-10000)</p>
+<p><strong>Default:</strong> <code>500</code></p>
+<hr />
+<h4 id="view-or-change-the-source-of-packets-bridged-to-the-external-interface">View or change the source of packets bridged to the external interface</h4>
+<p><strong>Usage:</strong>
+- <code>get bridge.source</code>
+- <code>set bridge.source &lt;source&gt;</code></p>
+<p><strong>Parameters:</strong>
+- <code>source</code>: 
+  - <code>rx</code>: bridges received packets
+  - <code>tx</code>: bridges transmitted packets</p>
+<p><strong>Default:</strong> <code>tx</code></p>
+<hr />
+<h4 id="view-or-change-the-speed-of-the-bridge-rs-232-only">View or change the speed of the bridge (RS-232 only)</h4>
+<p><strong>Usage:</strong>
+- <code>get bridge.baud</code>
+- <code>set bridge.baud &lt;rate&gt;</code></p>
+<p><strong>Parameters:</strong>
+- <code>rate</code>: Baud rate (<code>9600</code>, <code>19200</code>, <code>38400</code>, <code>57600</code>, or <code>115200</code>)</p>
+<p><strong>Default:</strong> <code>115200</code></p>
+<hr />
+<h4 id="view-or-change-the-channel-used-for-bridging-espnow-only">View or change the channel used for bridging (ESPNow only)</h4>
+<p><strong>Usage:</strong>
+- <code>get bridge.channel</code>
+- <code>set bridge.channel &lt;channel&gt;</code></p>
+<p><strong>Parameters:</strong>
+- <code>channel</code>: Channel number (1-14)</p>
+<hr />
+<h4 id="set-the-esp-now-secret">Set the ESP-Now secret</h4>
+<p><strong>Usage:</strong> 
+- <code>get bridge.secret</code>
+- <code>set bridge.secret &lt;secret&gt;</code></p>
+<p><strong>Parameters:</strong>
+- <code>secret</code>: 16-character encryption secret</p>
+<p><strong>Default:</strong> Varies by board</p>
+<hr />
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["content.action.edit", "content.code.copy", "search.highlight", "search.suggest"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
