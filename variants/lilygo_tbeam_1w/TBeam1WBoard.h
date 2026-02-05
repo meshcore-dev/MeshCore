@@ -3,6 +3,9 @@
 #include <Arduino.h>
 #include <helpers/ESP32Board.h>
 #include "variant.h"
+#include "esp_timer.h"
+
+#define FAN_COOLDOWN_MS 3000
 
 // LilyGo T-Beam 1W with SX1262 + external PA (XY16P35 module)
 //
@@ -30,6 +33,11 @@
 class TBeam1WBoard : public ESP32Board {
 private:
   bool radio_powered = false;
+  esp_timer_handle_t fan_timer = nullptr;
+
+  static void fanTimerCallback(void* arg);
+  void stopFanTimer();
+  void startFanTimer();
 
 public:
   void begin();

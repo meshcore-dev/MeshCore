@@ -1,5 +1,22 @@
 #include "TBeam1WBoard.h"
 
+void TBeam1WBoard::fanTimerCallback(void* arg) {
+  digitalWrite(FAN_CTRL_PIN, LOW);
+}
+
+void TBeam1WBoard::stopFanTimer() {
+  if (fan_timer != nullptr) {
+    esp_timer_stop(fan_timer);
+  }
+}
+
+void TBeam1WBoard::startFanTimer() {
+  if (fan_timer != nullptr) {
+    esp_timer_stop(fan_timer);
+    esp_timer_start_once(fan_timer, FAN_COOLDOWN_MS * 1000);
+  }
+}
+
 void TBeam1WBoard::begin() {
   ESP32Board::begin();
 
@@ -15,18 +32,29 @@ void TBeam1WBoard::begin() {
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(LED_PIN, LOW);
 
-  // Initialize fan control (on by default - 1W PA can overheat)
+  // Initialize fan control
   pinMode(FAN_CTRL_PIN, OUTPUT);
-  digitalWrite(FAN_CTRL_PIN, HIGH);
+  digitalWrite(FAN_CTRL_PIN, LOW);
+
+  esp_timer_create_args_t timer_args = {
+    .callback = &TBeam1WBoard::fanTimerCallback,
+    .arg = this,
+    .dispatch_method = ESP_TIMER_TASK,
+    .name = "fan_cooldown",
+    .skip_unhandled_events = true
+  };
+  esp_timer_create(&timer_args, &fan_timer);
 }
 
 void TBeam1WBoard::onBeforeTransmit() {
-  // RF switching handled by RadioLib via SX126X_DIO2_AS_RF_SWITCH and setRfSwitchPins()
-  digitalWrite(LED_PIN, HIGH);  // TX LED on
+  stopFanTimer();
+  digitalWrite(LED_PIN, HIGH);
+  digitalWrite(FAN_CTRL_PIN, HIGH);
 }
 
 void TBeam1WBoard::onAfterTransmit() {
-  digitalWrite(LED_PIN, LOW);   // TX LED off
+  digitalWrite(LED_PIN, LOW);
+  startFanTimer();
 }
 
 uint16_t TBeam1WBoard::getBattMilliVolts() {
@@ -48,6 +76,8 @@ const char* TBeam1WBoard::getManufacturerName() const {
 }
 
 void TBeam1WBoard::powerOff() {
+  stopFanTimer();
+
   // Turn off radio LNA (CTRL pin must be LOW when not receiving)
   digitalWrite(SX126X_RXEN, LOW);
 
@@ -63,6 +93,7 @@ void TBeam1WBoard::powerOff() {
 }
 
 void TBeam1WBoard::setFanEnabled(bool enabled) {
+  stopFanTimer();
   digitalWrite(FAN_CTRL_PIN, enabled ? HIGH : LOW);
 }
 
