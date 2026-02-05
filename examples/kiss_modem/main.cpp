@@ -14,7 +14,26 @@
 
 StdRNG rng;
 mesh::LocalIdentity identity;
-KissModem* modem;
+KissModem* modem_usb;
+KissModem* tx_pending_modem = nullptr;
+
+#if defined(KISS_UART_RX) && defined(KISS_UART_TX)
+  #define KISS_UART_ENABLED
+  #if defined(ESP32)
+    HardwareSerial kiss_uart(1);
+  #elif defined(NRF52_PLATFORM)
+    Uart kiss_uart(NRF_UARTE1, NRF_UARTE1_IRQn, KISS_UART_RX, KISS_UART_TX);
+  #elif defined(RP2040_PLATFORM)
+    SerialUART kiss_uart(uart1, KISS_UART_TX, KISS_UART_RX);
+  #elif defined(STM32_PLATFORM)
+    HardwareSerial kiss_uart(KISS_UART_RX, KISS_UART_TX);
+  #endif
+  KissModem* modem_uart;
+#endif
+
+#ifndef KISS_UART_BAUD
+  #define KISS_UART_BAUD 115200
+#endif
 
 void halt() {
   while (1) ;
@@ -81,27 +100,53 @@ void setup() {
 
   sensors.begin();
 
-  modem = new KissModem(Serial, identity, rng, radio_driver, board, sensors);
-  modem->setRadioCallback(onSetRadio);
-  modem->setTxPowerCallback(onSetTxPower);
-  modem->setGetCurrentRssiCallback(onGetCurrentRssi);
-  modem->setGetStatsCallback(onGetStats);
-  modem->begin();
+  modem_usb = new KissModem(Serial, identity, rng, radio_driver, board, sensors);
+  modem_usb->setRadioCallback(onSetRadio);
+  modem_usb->setTxPowerCallback(onSetTxPower);
+  modem_usb->setGetCurrentRssiCallback(onGetCurrentRssi);
+  modem_usb->setGetStatsCallback(onGetStats);
+  modem_usb->begin();
+
+#ifdef KISS_UART_ENABLED
+  #if defined(ESP32)
+    kiss_uart.setPins(KISS_UART_RX, KISS_UART_TX);
+  #endif
+  kiss_uart.begin(KISS_UART_BAUD);
+
+  modem_uart = new KissModem(kiss_uart, identity, rng, radio_driver, board, sensors);
+  modem_uart->setRadioCallback(onSetRadio);
+  modem_uart->setTxPowerCallback(onSetTxPower);
+  modem_uart->setGetCurrentRssiCallback(onGetCurrentRssi);
+  modem_uart->setGetStatsCallback(onGetStats);
+  modem_uart->begin();
+#endif
 }
 
 void loop() {
-  modem->loop();
+  modem_usb->loop();
+#ifdef KISS_UART_ENABLED
+  modem_uart->loop();
+#endif
 
   uint8_t packet[KISS_MAX_PACKET_SIZE];
   uint16_t len;
   
-  if (modem->getPacketToSend(packet, &len)) {
+  if (tx_pending_modem == nullptr && modem_usb->getPacketToSend(packet, &len)) {
+    tx_pending_modem = modem_usb;
     radio_driver.startSendRaw(packet, len);
-    while (!radio_driver.isSendComplete()) {
-      delay(1);
-    }
+  }
+
+#ifdef KISS_UART_ENABLED
+  if (tx_pending_modem == nullptr && modem_uart->getPacketToSend(packet, &len)) {
+    tx_pending_modem = modem_uart;
+    radio_driver.startSendRaw(packet, len);
+  }
+#endif
+
+  if (tx_pending_modem != nullptr && radio_driver.isSendComplete()) {
     radio_driver.onSendFinished();
-    modem->onTxComplete(true);
+    tx_pending_modem->onTxComplete(true);
+    tx_pending_modem = nullptr;
   }
 
   uint8_t rx_buf[256];
@@ -110,7 +155,10 @@ void loop() {
   if (rx_len > 0) {
     int8_t snr = (int8_t)(radio_driver.getLastSNR() * 4);
     int8_t rssi = (int8_t)radio_driver.getLastRSSI();
-    modem->onPacketReceived(snr, rssi, rx_buf, rx_len);
+    modem_usb->onPacketReceived(snr, rssi, rx_buf, rx_len);
+#ifdef KISS_UART_ENABLED
+    modem_uart->onPacketReceived(snr, rssi, rx_buf, rx_len);
+#endif
   }
 
   radio_driver.loop();
