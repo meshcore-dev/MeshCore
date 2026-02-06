@@ -10,34 +10,50 @@
 
 class SimpleMeshTables : public mesh::MeshTables {
   uint8_t _hashes[MAX_PACKET_HASHES*MAX_HASH_SIZE];
-  int _next_idx;
+  uint32_t _last_seen[MAX_PACKET_HASHES];  // timestamp for LRU eviction
   uint32_t _direct_dups, _flood_dups;
 
 public:
-  SimpleMeshTables() { 
+  SimpleMeshTables() {
     memset(_hashes, 0, sizeof(_hashes));
-    _next_idx = 0;
+    memset(_last_seen, 0, sizeof(_last_seen));
     _direct_dups = _flood_dups = 0;
   }
 
 #ifdef ESP32
   void restoreFrom(File f) {
     f.read(_hashes, sizeof(_hashes));
-    f.read((uint8_t *) &_next_idx, sizeof(_next_idx));
+    int dummy_idx;
+    f.read((uint8_t *) &dummy_idx, sizeof(dummy_idx));  // legacy _next_idx, ignore
+    // Treat restored hashes as just seen - give them fresh timestamps
+    uint32_t now = millis();
+    const uint8_t* sp = _hashes;
+    for (int i = 0; i < MAX_PACKET_HASHES; i++, sp += MAX_HASH_SIZE) {
+      // Check if slot has data (not all zeros)
+      bool empty = true;
+      for (int j = 0; j < MAX_HASH_SIZE && empty; j++) {
+        if (sp[j] != 0) empty = false;
+      }
+      _last_seen[i] = empty ? 0 : now;
+    }
   }
   void saveTo(File f) {
     f.write(_hashes, sizeof(_hashes));
-    f.write((const uint8_t *) &_next_idx, sizeof(_next_idx));
+    int dummy_idx = 0;
+    f.write((const uint8_t *) &dummy_idx, sizeof(dummy_idx));  // legacy format
   }
 #endif
 
   bool wasSeen(const mesh::Packet* packet) override {
+    uint32_t now = millis();
     uint8_t hash[MAX_HASH_SIZE];
     packet->calculatePacketHash(hash);
 
     const uint8_t* sp = _hashes;
     for (int i = 0; i < MAX_PACKET_HASHES; i++, sp += MAX_HASH_SIZE) {
-      if (memcmp(hash, sp, MAX_HASH_SIZE) == 0) {
+      if (memcmp(hash, sp, MAX_HASH_SIZE) == 0 && _last_seen[i] != 0) {
+        // Match found - refresh timestamp (LRU touch) and return true
+        _last_seen[i] = now;
         if (packet->isRouteDirect()) {
           _direct_dups++;
         } else {
@@ -50,10 +66,24 @@ public:
   }
 
   void markSeen(const mesh::Packet* packet) override {
+    uint32_t now = millis();
     uint8_t hash[MAX_HASH_SIZE];
     packet->calculatePacketHash(hash);
-    memcpy(&_hashes[_next_idx * MAX_HASH_SIZE], hash, MAX_HASH_SIZE);
-    _next_idx = (_next_idx + 1) % MAX_PACKET_HASHES;
+
+    // Insert into oldest slot (LRU eviction). Empty slots have _last_seen == 0,
+    // hence maximal age, so they get filled before any real entry is evicted.
+    int oldest_idx = 0;
+    uint32_t oldest_age = 0;
+    const uint8_t* sp = _hashes;
+    for (int i = 0; i < MAX_PACKET_HASHES; i++, sp += MAX_HASH_SIZE) {
+      uint32_t age = now - _last_seen[i];
+      if (age > oldest_age) {
+        oldest_age = age;
+        oldest_idx = i;
+      }
+    }
+    memcpy(&_hashes[oldest_idx*MAX_HASH_SIZE], hash, MAX_HASH_SIZE);
+    _last_seen[oldest_idx] = now;
   }
 
   void clear(const mesh::Packet* packet) override {
@@ -62,8 +92,9 @@ public:
 
     uint8_t* sp = _hashes;
     for (int i = 0; i < MAX_PACKET_HASHES; i++, sp += MAX_HASH_SIZE) {
-      if (memcmp(hash, sp, MAX_HASH_SIZE) == 0) { 
+      if (memcmp(hash, sp, MAX_HASH_SIZE) == 0) {
         memset(sp, 0, MAX_HASH_SIZE);
+        _last_seen[i] = 0;
         break;
       }
     }
