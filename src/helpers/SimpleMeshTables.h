@@ -11,15 +11,15 @@
 
 class SimpleMeshTables : public mesh::MeshTables {
   uint8_t _hashes[MAX_PACKET_HASHES*MAX_HASH_SIZE];
-  int _next_idx;
+  uint32_t _last_seen[MAX_PACKET_HASHES];  // timestamp for LRU eviction
   uint32_t _acks[MAX_PACKET_ACKS];
   int _next_ack_idx;
   uint32_t _direct_dups, _flood_dups;
 
 public:
-  SimpleMeshTables() { 
+  SimpleMeshTables() {
     memset(_hashes, 0, sizeof(_hashes));
-    _next_idx = 0;
+    memset(_last_seen, 0, sizeof(_last_seen));
     memset(_acks, 0, sizeof(_acks));
     _next_ack_idx = 0;
     _direct_dups = _flood_dups = 0;
@@ -28,13 +28,26 @@ public:
 #ifdef ESP32
   void restoreFrom(File f) {
     f.read(_hashes, sizeof(_hashes));
-    f.read((uint8_t *) &_next_idx, sizeof(_next_idx));
+    int dummy_idx;
+    f.read((uint8_t *) &dummy_idx, sizeof(dummy_idx));  // legacy, ignore
     f.read((uint8_t *) &_acks[0], sizeof(_acks));
     f.read((uint8_t *) &_next_ack_idx, sizeof(_next_ack_idx));
+    // Treat restored hashes as just seen - give them fresh timestamps
+    uint32_t now = millis();
+    const uint8_t* sp = _hashes;
+    for (int i = 0; i < MAX_PACKET_HASHES; i++, sp += MAX_HASH_SIZE) {
+      // Check if slot has data (not all zeros)
+      bool empty = true;
+      for (int j = 0; j < MAX_HASH_SIZE && empty; j++) {
+        if (sp[j] != 0) empty = false;
+      }
+      _last_seen[i] = empty ? 0 : now;
+    }
   }
   void saveTo(File f) {
     f.write(_hashes, sizeof(_hashes));
-    f.write((const uint8_t *) &_next_idx, sizeof(_next_idx));
+    int dummy_idx = 0;
+    f.write((const uint8_t *) &dummy_idx, sizeof(dummy_idx));  // legacy format
     f.write((const uint8_t *) &_acks[0], sizeof(_acks));
     f.write((const uint8_t *) &_next_ack_idx, sizeof(_next_ack_idx));
   }
@@ -45,7 +58,7 @@ public:
       uint32_t ack;
       memcpy(&ack, packet->payload, 4);
       for (int i = 0; i < MAX_PACKET_ACKS; i++) {
-        if (ack == _acks[i]) { 
+        if (ack == _acks[i]) {
           if (packet->isRouteDirect()) {
             _direct_dups++;   // keep some stats
           } else {
@@ -54,18 +67,26 @@ public:
           return true;
         }
       }
-  
+
       _acks[_next_ack_idx] = ack;
-      _next_ack_idx = (_next_ack_idx + 1) % MAX_PACKET_ACKS;  // cyclic table  
+      _next_ack_idx = (_next_ack_idx + 1) % MAX_PACKET_ACKS;  // cyclic table
       return false;
     }
 
+    uint32_t now = millis();
     uint8_t hash[MAX_HASH_SIZE];
     packet->calculatePacketHash(hash);
 
+    int oldest_idx = 0;
+    uint32_t oldest_age = 0;
+
     const uint8_t* sp = _hashes;
     for (int i = 0; i < MAX_PACKET_HASHES; i++, sp += MAX_HASH_SIZE) {
-      if (memcmp(hash, sp, MAX_HASH_SIZE) == 0) { 
+      uint32_t age = now - _last_seen[i];
+
+      if (memcmp(hash, sp, MAX_HASH_SIZE) == 0 && _last_seen[i] != 0) {
+        // Match found - refresh timestamp (LRU touch) and return true
+        _last_seen[i] = now;
         if (packet->isRouteDirect()) {
           _direct_dups++;   // keep some stats
         } else {
@@ -73,10 +94,18 @@ public:
         }
         return true;
       }
+
+      // Track oldest entry for LRU eviction
+      if (age > oldest_age) {
+        oldest_age = age;
+        oldest_idx = i;
+      }
     }
 
-    memcpy(&_hashes[_next_idx*MAX_HASH_SIZE], hash, MAX_HASH_SIZE);
-    _next_idx = (_next_idx + 1) % MAX_PACKET_HASHES;  // cyclic table
+    // Not found - evict oldest (LRU)
+    int insert_idx = oldest_idx;
+    memcpy(&_hashes[insert_idx*MAX_HASH_SIZE], hash, MAX_HASH_SIZE);
+    _last_seen[insert_idx] = now;
     return false;
   }
 
@@ -85,7 +114,7 @@ public:
       uint32_t ack;
       memcpy(&ack, packet->payload, 4);
       for (int i = 0; i < MAX_PACKET_ACKS; i++) {
-        if (ack == _acks[i]) { 
+        if (ack == _acks[i]) {
           _acks[i] = 0;
           break;
         }
@@ -96,8 +125,9 @@ public:
 
       uint8_t* sp = _hashes;
       for (int i = 0; i < MAX_PACKET_HASHES; i++, sp += MAX_HASH_SIZE) {
-        if (memcmp(hash, sp, MAX_HASH_SIZE) == 0) { 
+        if (memcmp(hash, sp, MAX_HASH_SIZE) == 0) {
           memset(sp, 0, MAX_HASH_SIZE);
+          _last_seen[i] = 0;
           break;
         }
       }
