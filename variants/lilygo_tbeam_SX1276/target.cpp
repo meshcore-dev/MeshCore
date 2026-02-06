@@ -58,11 +58,3 @@ mesh::LocalIdentity radio_new_identity() {
   RadioNoiseListener rng(radio);
   return mesh::LocalIdentity(&rng);  // create new random identity
 }
-
-void radio_set_current_limit(uint8_t ma) {
-  radio.setCurrentLimit(ma);
-}
-
-uint8_t radio_get_current_limit() {
-  return radio.getCurrentLimit();
-}

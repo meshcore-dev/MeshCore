@@ -53,7 +53,6 @@ struct NodePrefs { // persisted to file
   float adc_multiplier;
   char owner_info[120];
   // Power settings
-  uint8_t sx12xx_current_limit;
   uint8_t sx126x_rx_boosted_gain;
 };
 
@@ -88,10 +87,6 @@ public:
   };
 
   virtual void restartBridge() {
-    // no op by default
-  };
-
-  virtual void setCurrentLimit(uint8_t ma) {
     // no op by default
   };
 

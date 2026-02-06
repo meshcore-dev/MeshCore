@@ -63,9 +63,8 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     file.read((uint8_t *)&_prefs->multi_acks, sizeof(_prefs->multi_acks));                         // 115
     file.read((uint8_t *)&_prefs->bw, sizeof(_prefs->bw));                                         // 116
     file.read((uint8_t *)&_prefs->agc_reset_interval, sizeof(_prefs->agc_reset_interval));         // 120
-    file.read((uint8_t *)&_prefs->sx12xx_current_limit, sizeof(_prefs->sx12xx_current_limit));     // 121
-    file.read((uint8_t *)&_prefs->sx126x_rx_boosted_gain, sizeof(_prefs->sx126x_rx_boosted_gain)); // 122
-    file.read(pad, 1); // 123 : 1 byte unused
+    file.read((uint8_t *)&_prefs->sx126x_rx_boosted_gain, sizeof(_prefs->sx126x_rx_boosted_gain)); // 121
+    file.read(pad, 2); // 122 : 2 byte unused
     file.read((uint8_t *)&_prefs->flood_max, sizeof(_prefs->flood_max));                           // 124
     file.read((uint8_t *)&_prefs->flood_advert_interval, sizeof(_prefs->flood_advert_interval));   // 125
     file.read((uint8_t *)&_prefs->interference_threshold, sizeof(_prefs->interference_threshold)); // 126
@@ -110,8 +109,7 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     _prefs->gps_enabled = constrain(_prefs->gps_enabled, 0, 1);
     _prefs->advert_loc_policy = constrain(_prefs->advert_loc_policy, 0, 2);
 
-    // sanitise power settings
-    _prefs->sx12xx_current_limit = constrain(_prefs->sx12xx_current_limit, 0, 140); // mA
+    // sanitise settings
     _prefs->sx126x_rx_boosted_gain = constrain(_prefs->sx126x_rx_boosted_gain, 0, 1); // boolean
 
     file.close();
@@ -153,9 +151,8 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->multi_acks, sizeof(_prefs->multi_acks));                         // 115
     file.write((uint8_t *)&_prefs->bw, sizeof(_prefs->bw));                                         // 116
     file.write((uint8_t *)&_prefs->agc_reset_interval, sizeof(_prefs->agc_reset_interval));         // 120
-    file.write((uint8_t *)&_prefs->sx12xx_current_limit, sizeof(_prefs->sx12xx_current_limit));     // 121
-    file.write((uint8_t *)&_prefs->sx126x_rx_boosted_gain, sizeof(_prefs->sx126x_rx_boosted_gain)); // 122
-    file.write(pad, 1); // 123 : 3 bytes unused
+    file.write((uint8_t *)&_prefs->sx126x_rx_boosted_gain, sizeof(_prefs->sx126x_rx_boosted_gain)); // 121
+    file.write(pad, 2); // 122 : 2 byte unused
     file.write((uint8_t *)&_prefs->flood_max, sizeof(_prefs->flood_max));                           // 124
     file.write((uint8_t *)&_prefs->flood_advert_interval, sizeof(_prefs->flood_advert_interval));   // 125
     file.write((uint8_t *)&_prefs->interference_threshold, sizeof(_prefs->interference_threshold)); // 126
@@ -311,13 +308,9 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         sprintf(reply, "> %s", StrHelper::ftoa(_prefs->node_lat));
       } else if (memcmp(config, "lon", 3) == 0) {
         sprintf(reply, "> %s", StrHelper::ftoa(_prefs->node_lon));
-#if defined(USE_SX1262) || defined(USE_SX1268) || defined(USE_SX1276)
-      } else if (memcmp(config, "radio.current", 13) == 0) {
-        sprintf(reply, "> %d mA", (uint8_t)_prefs->sx12xx_current_limit);
 #if defined(USE_SX1262) || defined(USE_SX1268)
-      } else if (memcmp(config, "radio.rxbgm", 11) == 0) {
+      } else if (memcmp(config, "radio.lna", 9) == 0) {
         sprintf(reply, "> %s", _prefs->sx126x_rx_boosted_gain ? "on" : "off");
-#endif
 #endif
       } else if (memcmp(config, "radio", 5) == 0) {
         char freq[16], bw[16];
@@ -489,19 +482,12 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         _prefs->disable_fwd = memcmp(&config[7], "off", 3) == 0;
         savePrefs();
         strcpy(reply, _prefs->disable_fwd ? "OK - repeat is now OFF" : "OK - repeat is now ON");
-#if defined(USE_SX1262) || defined(USE_SX1268) || defined(USE_SX1276)
-      } else if (memcmp(config, "radio.current ", 14) == 0) {
-        _prefs->sx12xx_current_limit = atoi(&config[14]);
-        strcpy(reply, "OK");
-        savePrefs();
-        _callbacks->setCurrentLimit(_prefs->sx12xx_current_limit);
 #if defined(USE_SX1262) || defined(USE_SX1268)
-      } else if (memcmp(config, "radio.rxbgm ", 12) == 0) {
-        _prefs->sx126x_rx_boosted_gain = memcmp(&config[12], "on", 2) == 0;
+      } else if (memcmp(config, "radio.lna ", 10) == 0) {
+        _prefs->sx126x_rx_boosted_gain = memcmp(&config[10], "on", 2) == 0;
         strcpy(reply, "OK");
         savePrefs();
         _callbacks->setRxBoostedGain(_prefs->sx126x_rx_boosted_gain);
-#endif
 #endif
       } else if (memcmp(config, "radio ", 6) == 0) {
         strcpy(tmp, &config[6]);

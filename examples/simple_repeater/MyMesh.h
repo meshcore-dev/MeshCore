@@ -235,14 +235,9 @@ public:
   // To check if there is pending work
   bool hasPendingWork() const;
 
-#if defined(USE_SX1262) || defined(USE_SX1268) || defined(USE_SX1276)
-  void setCurrentLimit(uint8_t ma) override {
-    radio_set_current_limit(ma);
-  }
 #if defined(USE_SX1262) || defined(USE_SX1268)
   void setRxBoostedGain(bool enable) override {
     radio_set_rx_boosted_gain_mode(enable);
   }
-#endif
 #endif
 };

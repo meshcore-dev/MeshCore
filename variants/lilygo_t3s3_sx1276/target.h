@@ -29,4 +29,3 @@ void radio_set_tx_power(uint8_t dbm);
 mesh::LocalIdentity radio_new_identity();
 
 bool radio_get_rx_boosted_gain_mode();
-void radio_set_current_limit(uint8_t ma);
