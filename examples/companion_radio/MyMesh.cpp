@@ -878,6 +878,35 @@ void MyMesh::begin(bool has_display) {
   resetContacts();
   _store->loadContacts(this);
   bootstrapRTCfromContacts();
+
+#if defined(ESP32) || defined(RP2040_PLATFORM)
+  // One-time cleanup of orphan blobs from pre-v1.13 firmware
+  FILESYSTEM* fs = _store->getPrimaryFS();
+  if (!fs->exists("/bl/.cleaned")) {
+    MESH_DEBUG_PRINTLN("Cleaning orphan blobs...");
+    File root = _store->openRead("/bl");
+    if (root) {
+      for (File f = root.openNextFile(); f; f = root.openNextFile()) {
+        const char* name = f.name();
+        f.close();
+        uint8_t key[8];
+        if (name[0] != '.' && strlen(name) == 16 && mesh::Utils::fromHex(key, 8, name)) {
+          bool found = false;
+          for (int i = 0; i < num_contacts && !found; i++)
+            found = (memcmp(contacts[i].id.pub_key, key, 8) == 0);
+          if (!found) _store->deleteBlobByKey(key, 8);
+        }
+      }
+      root.close();
+    }
+#if defined(ESP32)
+    File m = fs->open("/bl/.cleaned", "w", true);
+#else
+    File m = fs->open("/bl/.cleaned", "w");
+#endif
+    if (m) m.close();
+  }
+#endif
   addChannel("Public", PUBLIC_GROUP_PSK); // pre-configure Andy's public channel
   _store->loadChannels(this);
 
