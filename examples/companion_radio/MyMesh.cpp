@@ -56,6 +56,8 @@
 #define CMD_SEND_ANON_REQ             57
 #define CMD_SET_AUTOADD_CONFIG        58
 #define CMD_GET_AUTOADD_CONFIG        59
+#define CMD_GET_DISPLAY_SETTINGS      60
+#define CMD_SET_DISPLAY_SETTINGS      61
 
 // Stats sub-types for CMD_GET_STATS
 #define STATS_TYPE_CORE               0
@@ -88,6 +90,7 @@
 #define RESP_CODE_TUNING_PARAMS       23
 #define RESP_CODE_STATS               24   // v8+, second byte is stats type
 #define RESP_CODE_AUTOADD_CONFIG      25
+#define RESP_CODE_DISPLAY_SETTINGS    26
 
 #define SEND_TIMEOUT_BASE_MILLIS        500
 #define FLOOD_SEND_TIMEOUT_FACTOR       16.0f
@@ -115,6 +118,10 @@
 #define PUSH_CODE_CONTROL_DATA          0x8E   // v8+
 #define PUSH_CODE_CONTACT_DELETED       0x8F // used to notify client app of deleted contact when overwriting oldest
 #define PUSH_CODE_CONTACTS_FULL         0x90 // used to notify client app that contacts storage is full
+#define PUSH_CODE_DISPLAY_SETTINGS      0x91
+
+#define DISPLAY_SETTING_SCREEN          0x01
+#define DISPLAY_SETTING_BRIGHTNESS      0x02
 
 #define ERR_CODE_UNSUPPORTED_CMD        1
 #define ERR_CODE_NOT_FOUND              2
@@ -150,6 +157,36 @@ void MyMesh::writeDisabledFrame() {
   uint8_t buf[1];
   buf[0] = RESP_CODE_DISABLED;
   _serial->writeFrame(buf, 1);
+}
+
+void MyMesh::pushDisplaySettings() {
+#ifdef DISPLAY_CLASS
+  if (!_serial || !_serial->isConnected()) {
+    return;
+  }
+
+  uint8_t mask = 0;
+  if (board.supportsDisplaySettings()) {
+    mask |= DISPLAY_SETTING_SCREEN;
+  }
+  if (board.supportsDisplayBrightness()) {
+    mask |= DISPLAY_SETTING_BRIGHTNESS;
+  }
+  if (mask == 0) {
+    return;
+  }
+
+  int i = 0;
+  out_frame[i++] = PUSH_CODE_DISPLAY_SETTINGS;
+  out_frame[i++] = mask;
+  if (mask & DISPLAY_SETTING_SCREEN) {
+    out_frame[i++] = board.getDisplayEnabled() ? 1 : 0;
+  }
+  if (mask & DISPLAY_SETTING_BRIGHTNESS) {
+    out_frame[i++] = board.getDisplayBrightness();
+  }
+  _serial->writeFrame(out_frame, i);
+#endif
 }
 
 void MyMesh::writeContactRespFrame(uint8_t code, const ContactInfo &contact) {
@@ -1633,6 +1670,75 @@ void MyMesh::handleCmdFrame(size_t len) {
     } else {
       writeErrFrame(ERR_CODE_ILLEGAL_ARG);
     }
+  } else if (cmd_frame[0] == CMD_GET_DISPLAY_SETTINGS) {
+#ifdef DISPLAY_CLASS
+    uint8_t mask = 0;
+    if (board.supportsDisplaySettings()) {
+      mask |= DISPLAY_SETTING_SCREEN;
+    }
+    if (board.supportsDisplayBrightness()) {
+      mask |= DISPLAY_SETTING_BRIGHTNESS;
+    }
+    if (mask == 0) {
+      writeDisabledFrame();
+    } else {
+      int i = 0;
+      out_frame[i++] = RESP_CODE_DISPLAY_SETTINGS;
+      out_frame[i++] = mask;
+      if (mask & DISPLAY_SETTING_SCREEN) {
+        out_frame[i++] = board.getDisplayEnabled() ? 1 : 0;
+      }
+      if (mask & DISPLAY_SETTING_BRIGHTNESS) {
+        out_frame[i++] = board.getDisplayBrightness();
+      }
+      _serial->writeFrame(out_frame, i);
+    }
+#else
+    writeDisabledFrame();
+#endif
+  } else if (cmd_frame[0] == CMD_SET_DISPLAY_SETTINGS && len >= 2) {
+#ifdef DISPLAY_CLASS
+    uint8_t mask = cmd_frame[1];
+    bool screen_supported = board.supportsDisplaySettings();
+    bool brightness_supported = board.supportsDisplayBrightness();
+    if (mask == 0 ||
+        ((mask & DISPLAY_SETTING_SCREEN) && !screen_supported) ||
+        ((mask & DISPLAY_SETTING_BRIGHTNESS) && !brightness_supported)) {
+      writeDisabledFrame();
+    } else {
+      int expected = 2;
+      if (mask & DISPLAY_SETTING_SCREEN) expected += 1;
+      if (mask & DISPLAY_SETTING_BRIGHTNESS) expected += 1;
+      if (len < expected) {
+        writeErrFrame(ERR_CODE_ILLEGAL_ARG);
+      } else {
+        int idx = 2;
+        if (mask & DISPLAY_SETTING_SCREEN) {
+          bool enabled = cmd_frame[idx++] != 0;
+          board.setDisplayEnabled(enabled);
+          if (enabled) {
+            display.turnOn();
+            if (brightness_supported) {
+              display.setBrightness(board.getDisplayBrightness());
+            }
+          } else {
+            display.turnOff();
+          }
+        }
+        if (mask & DISPLAY_SETTING_BRIGHTNESS) {
+          uint8_t brightness = cmd_frame[idx++];
+          board.setDisplayBrightness(brightness);
+          if (display.isOn()) {
+            display.setBrightness(brightness);
+          }
+        }
+        writeOKFrame();
+        pushDisplaySettings();
+      }
+    }
+#else
+    writeDisabledFrame();
+#endif
   } else if (cmd_frame[0] == CMD_GET_ADVERT_PATH && len >= PUB_KEY_SIZE+2) {
     // FUTURE use:  uint8_t reserved = cmd_frame[1];
     uint8_t *pub_key = &cmd_frame[2];

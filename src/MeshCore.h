@@ -57,6 +57,14 @@ public:
   virtual uint8_t getStartupReason() const = 0;
   virtual bool startOTAUpdate(const char* id, char reply[]) { return false; }   // not supported
 
+  // Optional display control interface (boards without displays keep defaults)
+  virtual bool supportsDisplaySettings() const { return false; }
+  virtual bool supportsDisplayBrightness() const { return false; }
+  virtual bool getDisplayEnabled() const { return true; }
+  virtual bool setDisplayEnabled(bool enabled) { (void)enabled; return false; }
+  virtual uint8_t getDisplayBrightness() const { return 255; }
+  virtual bool setDisplayBrightness(uint8_t brightness) { (void)brightness; return false; }
+
   // Power management interface (boards with power management override these)
   virtual bool isExternalPowered() { return false; }
   virtual uint16_t getBootVoltage() { return 0; }

@@ -88,16 +88,26 @@ class HomeScreen : public UIScreen {
 #if UI_SENSORS_PAGE == 1
     SENSORS,
 #endif
+  #ifdef HELTEC_V3_SCREEN_LED_CONTROL
+    SETTINGS,
+  #endif
     SHUTDOWN,
     Count    // keep as last
   };
 
   UITask* _task;
+  mesh::MainBoard* _board;
   mesh::RTCClock* _rtc;
   SensorManager* _sensors;
   NodePrefs* _node_prefs;
   uint8_t _page;
   bool _shutdown_init;
+#ifdef HELTEC_V3_SCREEN_LED_CONTROL
+  bool _in_settings_submenu;  // true when inside light settings submenu
+  uint8_t _display_menu_item;  // 0=back, 1=screen, 2=led, 3=brightness
+  bool _brightness_popup;
+  uint8_t _brightness_popup_item;  // 0=back, 1=low, 2=medium, 3=high
+#endif
   AdvertPath recent[UI_RECENT_LIST_SIZE];
 
 
@@ -161,9 +171,13 @@ class HomeScreen : public UIScreen {
   }
 
 public:
-  HomeScreen(UITask* task, mesh::RTCClock* rtc, SensorManager* sensors, NodePrefs* node_prefs)
-     : _task(task), _rtc(rtc), _sensors(sensors), _node_prefs(node_prefs), _page(0), 
-       _shutdown_init(false), sensors_lpp(200) {  }
+  HomeScreen(UITask* task, mesh::RTCClock* rtc, SensorManager* sensors, NodePrefs* node_prefs, mesh::MainBoard* board)
+     : _task(task), _board(board), _rtc(rtc), _sensors(sensors), _node_prefs(node_prefs), _page(0), 
+       _shutdown_init(false)
+#ifdef HELTEC_V3_SCREEN_LED_CONTROL
+    , _in_settings_submenu(false), _display_menu_item(0), _brightness_popup(false), _brightness_popup_item(0)
+#endif
+       , sensors_lpp(200) {  }
 
   void poll() override {
     if (_shutdown_init && !_task->isButtonPressed()) {  // must wait for USR button to be released
@@ -384,6 +398,83 @@ public:
       if (sensors_scroll) sensors_scroll_offset = (sensors_scroll_offset+1)%sensors_nb;
       else sensors_scroll_offset = 0;
 #endif
+#ifdef HELTEC_V3_SCREEN_LED_CONTROL
+    } else if (_page == HomePage::SETTINGS) {
+      display.setColor(DisplayDriver::GREEN);
+      display.setTextSize(1);
+
+      if (!_in_settings_submenu) {
+        // Main settings page - show icon/title
+        display.drawTextCentered(display.width() / 2, 26, "Light Settings");
+        display.setTextSize(1);
+        display.drawTextCentered(display.width() / 2, 50, "hold:enter");
+      } else {
+        // Inside submenu - show options
+        // Get current screen and LED states
+        bool screen_enabled = true;
+        bool led_enabled = true;
+        if (_board && _board->supportsDisplaySettings()) {
+          screen_enabled = _board->getDisplayEnabled();
+        }
+        if (_sensors != NULL) {
+          int num = _sensors->getNumSettings();
+          for (int i = 0; i < num; i++) {
+            const char* name = _sensors->getSettingName(i);
+            if (strcmp(name, "led") == 0) {
+              led_enabled = (strcmp(_sensors->getSettingValue(i), "1") == 0);
+            }
+          }
+        }
+
+        // Show menu with selection indicator (>)
+        int y = 18;
+        display.setCursor(0, y);
+        if (_display_menu_item == 0) display.print(">");
+        display.print("Back");
+        if (_display_menu_item == 0) display.print("<");
+
+        y += 12;
+        display.setCursor(0, y);
+        if (_display_menu_item == 1) display.print(">");
+        display.print("Screen: ");
+        display.print(screen_enabled ? "ON" : "OFF");
+        if (_display_menu_item == 1) display.print("<");
+
+        y += 12;
+        display.setCursor(0, y);
+        if (_display_menu_item == 2) display.print(">");
+        display.print("LED: ");
+        display.print(led_enabled ? "ON" : "OFF");
+        if (_display_menu_item == 2) display.print("<");
+
+        y += 12;
+        display.setCursor(0, y);
+        if (_display_menu_item == 3) display.print(">");
+        display.print("Brightness: (hold)");
+        if (_display_menu_item == 3) display.print("<");
+
+        // Brightness popup window
+        if (_brightness_popup) {
+          int box_w = display.width() - 12;
+          int box_h = 48;
+          int box_x = 6;
+          int box_y = 12;
+          display.setColor(DisplayDriver::DARK);
+          display.fillRect(box_x, box_y, box_w, box_h);
+          display.setColor(DisplayDriver::LIGHT);
+          display.drawRect(box_x, box_y, box_w, box_h);
+
+          const char* labels[4] = {"Back", "Low", "Medium", "High"};
+          for (int i = 0; i < 4; i++) {
+            int y = box_y + 4 + (i * 11);
+            display.setCursor(box_x + 4, y);
+            if (_brightness_popup_item == i) display.print(">");
+            display.print(labels[i]);
+            if (_brightness_popup_item == i) display.print("<");
+          }
+        }
+      }
+#endif
     } else if (_page == HomePage::SHUTDOWN) {
       display.setColor(DisplayDriver::GREEN);
       display.setTextSize(1);
@@ -403,12 +494,66 @@ public:
       return true;
     }
     if (c == KEY_NEXT || c == KEY_RIGHT) {
+#ifdef HELTEC_V3_SCREEN_LED_CONTROL
+      // On SETTINGS page, use NEXT to scroll menu items only if in submenu
+      if (_page == HomePage::SETTINGS && _in_settings_submenu) {
+        if (_brightness_popup) {
+          _brightness_popup_item = (_brightness_popup_item + 1) % 4;
+          return true;
+        }
+        _display_menu_item = (_display_menu_item + 1) % 4;  // 0=back, 1=screen, 2=led, 3=brightness
+        return true;
+      }
+#endif
       _page = (_page + 1) % HomePage::Count;
       if (_page == HomePage::RECENT) {
         _task->showAlert("Recent adverts", 800);
       }
+#ifdef HELTEC_V3_SCREEN_LED_CONTROL
+      if (_page == HomePage::SETTINGS) {
+        _in_settings_submenu = false;
+        _display_menu_item = 0;
+      }
+#endif
       return true;
     }
+#ifdef HELTEC_V3_SCREEN_LED_CONTROL
+    if (c == KEY_ENTER && _page == HomePage::SETTINGS) {
+      if (!_in_settings_submenu) {
+        _in_settings_submenu = true;
+        _display_menu_item = 0;
+        _brightness_popup = false;
+        _brightness_popup_item = 0;
+      } else {
+        if (_brightness_popup) {
+          if (_brightness_popup_item == 0) {
+            _brightness_popup = false;
+          } else if (_brightness_popup_item == 1) {
+            _task->setBrightnessLevel(1);
+            _brightness_popup = false;
+          } else if (_brightness_popup_item == 2) {
+            _task->setBrightnessLevel(2);
+            _brightness_popup = false;
+          } else if (_brightness_popup_item == 3) {
+            _task->setBrightnessLevel(3);
+            _brightness_popup = false;
+          }
+          return true;
+        }
+        if (_display_menu_item == 0) {
+          _in_settings_submenu = false;
+        } else if (_display_menu_item == 1) {
+          _task->toggleScreen();
+        } else if (_display_menu_item == 2) {
+          _task->toggleLED();
+        } else if (_display_menu_item == 3) {
+          _brightness_popup = true;
+          _brightness_popup_item = 0;
+        }
+      }
+      return true;
+    }
+#endif
     if (c == KEY_ENTER && _page == HomePage::BLUETOOTH) {
       if (_task->isSerialEnabled()) {  // toggle Bluetooth on/off
         _task->disableSerial();
@@ -565,7 +710,14 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
 #endif
 
   if (_display != NULL) {
-    _display->turnOn();
+    if (_board && _board->supportsDisplayBrightness()) {
+      _display->setBrightness(_board->getDisplayBrightness());
+    }
+    if (_board && _board->supportsDisplaySettings() && !_board->getDisplayEnabled()) {
+      _display->turnOff();
+    } else {
+      _display->turnOn();
+    }
   }
 
 #ifdef PIN_BUZZER
@@ -581,7 +733,7 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
   _alert_expiry = 0;
 
   splash = new SplashScreen(this);
-  home = new HomeScreen(this, &rtc_clock, sensors, node_prefs);
+  home = new HomeScreen(this, &rtc_clock, sensors, node_prefs, _board);
   msg_preview = new MsgPreviewScreen(this, &rtc_clock);
   setCurrScreen(splash);
 }
@@ -635,9 +787,21 @@ void UITask::newMsg(uint8_t path_len, const char* from_name, const char* text, i
   setCurrScreen(msg_preview);
 
   if (_display != NULL) {
+#ifdef HELTEC_V3_SCREEN_LED_CONTROL
+    // Check if screen is enabled via board settings
+    bool screen_enabled = true;
+    if (_board && _board->supportsDisplaySettings()) {
+      screen_enabled = _board->getDisplayEnabled();
+    }
+
+    if (!_display->isOn() && !hasConnection() && screen_enabled) {
+      _display->turnOn();  // only turn on if screen is enabled
+    }
+#else
     if (!_display->isOn() && !hasConnection()) {
       _display->turnOn();
     }
+#endif
     if (_display->isOn()) {
     _auto_off = millis() + AUTO_OFF_MILLIS;  // extend the auto-off timer
     _next_refresh = 100;  // trigger refresh
@@ -800,6 +964,12 @@ void UITask::loop() {
         _next_refresh = _alert_expiry;   // will need refresh when alert is dismissed
       } else {
         _next_refresh = millis() + delay_millis;
+#ifdef HELTEC_V3_SCREEN_LED_CONTROL
+        // After alert expires, check if screen should be off
+        if (_board && _board->supportsDisplaySettings() && !_board->getDisplayEnabled()) {
+          _display->turnOff();
+        }
+#endif
       }
       _display->endFrame();
     }
@@ -842,10 +1012,23 @@ void UITask::loop() {
 
 char UITask::checkDisplayOn(char c) {
   if (_display != NULL) {
+#ifdef HELTEC_V3_SCREEN_LED_CONTROL
+    // Check if screen is enabled via board settings
+    bool screen_enabled = true;
+    if (_board && _board->supportsDisplaySettings()) {
+      screen_enabled = _board->getDisplayEnabled();
+    }
+
+    if (!_display->isOn() && screen_enabled) {
+      _display->turnOn();   // turn display on only if enabled
+      c = 0;
+    }
+#else
     if (!_display->isOn()) {
       _display->turnOn();   // turn display on and consume event
       c = 0;
     }
+#endif
     _auto_off = millis() + AUTO_OFF_MILLIS;   // extend auto-off timer
     _next_refresh = 0;  // trigger refresh
   }
@@ -862,14 +1045,42 @@ char UITask::handleLongPress(char c) {
 
 char UITask::handleDoubleClick(char c) {
   MESH_DEBUG_PRINTLN("UITask: double click triggered");
+#ifdef HELTEC_V3_SCREEN_LED_CONTROL
+  // Emergency restore: If screen setting is OFF, double-click turns it back ON
+  if (_board && _board->supportsDisplaySettings()) {
+    if (!_board->getDisplayEnabled()) {
+      _board->setDisplayEnabled(true);
+      if (_display != NULL) {
+        _display->turnOn();
+      }
+      showAlert("Screen: ON", 1000);
+      the_mesh.pushDisplaySettings();
+      c = 0;  // consume event
+    }
+  }
+#endif
   checkDisplayOn(c);
   return c;
 }
 
 char UITask::handleTripleClick(char c) {
   MESH_DEBUG_PRINTLN("UITask: triple click triggered");
+#ifdef HELTEC_V3_SCREEN_LED_CONTROL
+  // Failsafe: Always turn screen on with triple-click
+  if (_display != NULL && !_display->isOn()) {
+    if (_board && _board->supportsDisplaySettings()) {
+      _board->setDisplayEnabled(true);
+    }
+    _display->turnOn();
+    showAlert("Screen: ON", 1000);
+    the_mesh.pushDisplaySettings();
+  } else {
+    toggleBuzzer();
+  }
+#else
   checkDisplayOn(c);
   toggleBuzzer();
+#endif
   c = 0;
   return c;
 }
@@ -925,3 +1136,72 @@ void UITask::toggleBuzzer() {
     _next_refresh = 0;  // trigger refresh
   #endif
 }
+#ifdef HELTEC_V3_SCREEN_LED_CONTROL
+void UITask::toggleScreen() {
+  if (_board && _board->supportsDisplaySettings()) {
+    bool screen_enabled = _board->getDisplayEnabled();
+    if (screen_enabled) {
+      _board->setDisplayEnabled(false);
+      if (_display) {
+        _display->turnOn();
+      }
+      notify(UIEventType::ack);
+      showAlert("Dbl-click to turn on", 2500);
+    } else {
+      _board->setDisplayEnabled(true);
+      if (_display) {
+        _display->turnOn();
+      }
+      notify(UIEventType::ack);
+      showAlert("Screen: ON", 800);
+    }
+    the_mesh.pushDisplaySettings();
+    _next_refresh = 0;
+  }
+}
+
+void UITask::toggleLED() {
+  if (_sensors != NULL) {
+    // toggle LED on/off
+    int num = _sensors->getNumSettings();
+    for (int i = 0; i < num; i++) {
+      if (strcmp(_sensors->getSettingName(i), "led") == 0) {
+        if (strcmp(_sensors->getSettingValue(i), "1") == 0) {
+          _sensors->setSettingValue("led", "0");
+          notify(UIEventType::ack);
+        } else {
+          _sensors->setSettingValue("led", "1");
+          notify(UIEventType::ack);
+        }
+        showAlert(_sensors->getSettingValue(i)[0] == '1' ? "LED: ON" : "LED: OFF", 800);
+        _next_refresh = 0;
+        break;
+      }
+    }
+  }
+}
+
+void UITask::setBrightnessLevel(int level) {
+  if (_board && _board->supportsDisplayBrightness()) {
+    int value = 255;
+    const char* label = "High";
+    if (level == 1) {
+      value = 1;
+      label = "Low";
+    } else if (level == 2) {
+      value = 80;
+      label = "Medium";
+    }
+
+    _board->setDisplayBrightness((uint8_t)value);
+    if (_display != NULL) {
+      _display->setBrightness((uint8_t)value);
+    }
+    the_mesh.pushDisplaySettings();
+    char msg[20];
+    sprintf(msg, "Bright: %s", label);
+    showAlert(msg, 800);
+    _next_refresh = 0;
+  }
+}
+#endif
