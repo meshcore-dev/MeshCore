@@ -355,7 +355,7 @@ int MyMesh::handleRequest(ClientInfo *sender, uint32_t sender_timestamp, uint8_t
 #if MAX_NEIGHBOURS
         // add next neighbour to results
         auto neighbour = sorted_neighbours[index + offset];
-        uint32_t heard_seconds_ago = getRTCClock()->getCurrentTime() - neighbour->heard_timestamp;
+        uint32_t heard_seconds_ago = safeElapsedSecs(getRTCClock()->getCurrentTime(), neighbour->heard_timestamp);
         memcpy(&results_buffer[results_offset], neighbour->id.pub_key, pubkey_prefix_length); results_offset += pubkey_prefix_length;
         memcpy(&results_buffer[results_offset], &heard_seconds_ago, 4); results_offset += 4;
         memcpy(&results_buffer[results_offset], &neighbour->snr, 1); results_offset += 1;
@@ -993,7 +993,7 @@ void MyMesh::formatNeighborsReply(char *reply) {
     mesh::Utils::toHex(hex, neighbour->id.pub_key, 4);
 
     // add next neighbour
-    uint32_t secs_ago = getRTCClock()->getCurrentTime() - neighbour->heard_timestamp;
+    uint32_t secs_ago = safeElapsedSecs(getRTCClock()->getCurrentTime(), neighbour->heard_timestamp);
     sprintf(dp, "%s:%d:%d", hex, secs_ago, neighbour->snr);
     while (*dp)
       dp++; // find end of string
