@@ -1,5 +1,14 @@
 #include "TxtDataHelpers.h"
 
+#ifdef PORTDUINO
+#include <stdio.h>
+static char* _meshcore_ltoa(long val, char* buf, int base) {
+  sprintf(buf, "%ld", val);
+  return buf;
+}
+#define ltoa _meshcore_ltoa
+#endif
+
 void StrHelper::strncpy(char* dest, const char* src, size_t buf_sz) {
   while (buf_sz > 1 && *src) {
     *dest++ = *src++;

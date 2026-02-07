@@ -33,7 +33,7 @@ void CommonCLI::loadPrefs(FILESYSTEM* fs) {
 }
 
 void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
-#if defined(RP2040_PLATFORM)
+#if defined(RP2040_PLATFORM) || defined(PORTDUINO)
   File file = fs->open(filename, "r");
 #else
   File file = fs->open(filename);
@@ -116,7 +116,7 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
   fs->remove("/com_prefs");
   File file = fs->open("/com_prefs", FILE_O_WRITE);
-#elif defined(RP2040_PLATFORM)
+#elif defined(RP2040_PLATFORM) || defined(PORTDUINO)
   File file = fs->open("/com_prefs", "w");
 #else
   File file = fs->open("/com_prefs", "w", true);

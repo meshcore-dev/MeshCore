@@ -4,7 +4,7 @@ static File openWrite(FILESYSTEM* _fs, const char* filename) {
   #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
     _fs->remove(filename);
     return _fs->open(filename, FILE_O_WRITE);
-  #elif defined(RP2040_PLATFORM)
+  #elif defined(RP2040_PLATFORM) || defined(PORTDUINO)
     return _fs->open(filename, "w");
   #else
     return _fs->open(filename, "w", true);
@@ -15,7 +15,7 @@ void ClientACL::load(FILESYSTEM* fs, const mesh::LocalIdentity& self_id) {
   _fs = fs;
   num_clients = 0;
   if (_fs->exists("/s_contacts")) {
-  #if defined(RP2040_PLATFORM)
+  #if defined(RP2040_PLATFORM) || defined(PORTDUINO)
     File file = _fs->open("/s_contacts", "r");
   #else
     File file = _fs->open("/s_contacts");

@@ -5,7 +5,7 @@ bool IdentityStore::load(const char *name, mesh::LocalIdentity& id) {
   char filename[40];
   sprintf(filename, "%s/%s.id", _dir, name);
   if (_fs->exists(filename)) {
-#if defined(RP2040_PLATFORM)
+#if defined(RP2040_PLATFORM) || defined(PORTDUINO)
     File file = _fs->open(filename, "r");
 #else
     File file = _fs->open(filename);
@@ -23,7 +23,7 @@ bool IdentityStore::load(const char *name, mesh::LocalIdentity& id, char display
   char filename[40];
   sprintf(filename, "%s/%s.id", _dir, name);
   if (_fs->exists(filename)) {
-#if defined(RP2040_PLATFORM)
+#if defined(RP2040_PLATFORM) || defined(PORTDUINO)
     File file = _fs->open(filename, "r");
 #else
     File file = _fs->open(filename);
@@ -49,7 +49,7 @@ bool IdentityStore::save(const char *name, const mesh::LocalIdentity& id) {
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
   _fs->remove(filename);
   File file = _fs->open(filename, FILE_O_WRITE);
-#elif defined(RP2040_PLATFORM)
+#elif defined(RP2040_PLATFORM) || defined(PORTDUINO)
   File file = _fs->open(filename, "w");
 #else
   File file = _fs->open(filename, "w", true);
@@ -71,7 +71,7 @@ bool IdentityStore::save(const char *name, const mesh::LocalIdentity& id, const 
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
   _fs->remove(filename);
   File file = _fs->open(filename, FILE_O_WRITE);
-#elif defined(RP2040_PLATFORM)
+#elif defined(RP2040_PLATFORM) || defined(PORTDUINO)
   File file = _fs->open(filename, "w");
 #else
   File file = _fs->open(filename, "w", true);

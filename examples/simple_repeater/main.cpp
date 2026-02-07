@@ -61,6 +61,10 @@ void setup() {
   fs = &LittleFS;
   IdentityStore store(LittleFS, "/identity");
   store.begin();
+#elif defined(PORTDUINO)
+  fs = &PortduinoFS;
+  IdentityStore store(PortduinoFS, "/identity");
+  store.begin();
 #else
   #error "need to define filesystem"
 #endif
