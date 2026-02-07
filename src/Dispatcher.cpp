@@ -39,15 +39,15 @@ void Dispatcher::updateTxBudget() {
 
   float duty_cycle = 1.0f / (1.0f + getAirtimeBudgetFactor());
   unsigned long max_budget = (unsigned long)(getDutyCycleWindowMs() * duty_cycle);
-
   unsigned long refill = (unsigned long)(elapsed * duty_cycle);
-  tx_budget_ms += refill;
-
-  if (tx_budget_ms > max_budget) {
-    tx_budget_ms = max_budget;
+  
+  if (refill > 0) {
+    tx_budget_ms += refill;
+    if (tx_budget_ms > max_budget) {
+      tx_budget_ms = max_budget;
+    }
+    last_budget_update = now;
   }
-
-  last_budget_update = now;
 }
 
 int Dispatcher::calcRxDelay(float score, uint32_t air_time) const {
