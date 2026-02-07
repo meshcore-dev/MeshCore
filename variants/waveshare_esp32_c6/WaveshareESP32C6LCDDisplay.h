@@ -15,6 +15,14 @@
   #define DISPLAY_SCALE_Y 5.0f      // 320 / 64
 #endif
 
+#ifndef DISPLAY_OFFSET_X
+  #define DISPLAY_OFFSET_X 0
+#endif
+
+#ifndef DISPLAY_OFFSET_Y
+  #define DISPLAY_OFFSET_Y 0
+#endif
+
 class WaveshareESP32C6LCDDisplay : public DisplayDriver {
   Arduino_DataBus* _bus;
   Arduino_GFX* _display;

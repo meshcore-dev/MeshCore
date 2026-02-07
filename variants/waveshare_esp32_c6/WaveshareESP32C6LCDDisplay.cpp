@@ -25,11 +25,11 @@ WaveshareESP32C6LCDDisplay::WaveshareESP32C6LCDDisplay()
 }
 
 int WaveshareESP32C6LCDDisplay::sx(int x) const {
-  return (int)lroundf(x * DISPLAY_SCALE_X);
+  return DISPLAY_OFFSET_X + (int)lroundf(x * DISPLAY_SCALE_X);
 }
 
 int WaveshareESP32C6LCDDisplay::sy(int y) const {
-  return (int)lroundf(y * DISPLAY_SCALE_Y);
+  return DISPLAY_OFFSET_Y + (int)lroundf(y * DISPLAY_SCALE_Y);
 }
 
 int WaveshareESP32C6LCDDisplay::sw(int w) const {
