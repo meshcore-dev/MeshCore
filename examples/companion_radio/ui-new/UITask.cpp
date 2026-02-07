@@ -593,22 +593,24 @@ void UITask::showAlert(const char* text, int duration_millis) {
 
 void UITask::notify(UIEventType t) {
 #if defined(PIN_BUZZER)
-switch(t){
-  case UIEventType::contactMessage:
-    // gemini's pick
-    buzzer.play("MsgRcv3:d=4,o=6,b=200:32e,32g,32b,16c7");
-    break;
-  case UIEventType::channelMessage:
-    buzzer.play("kerplop:d=16,o=6,b=120:32g#,32c#");
-    break;
-  case UIEventType::ack:
-    buzzer.play("ack:d=32,o=8,b=120:c");
-    break;
-  case UIEventType::roomMessage:
-  case UIEventType::newContactMessage:
-  case UIEventType::none:
-  default:
-    break;
+if (playNotification()) {
+  switch(t){
+    case UIEventType::contactMessage:
+      // gemini's pick
+      buzzer.play("MsgRcv3:d=4,o=6,b=200:32e,32g,32b,16c7");
+      break;
+    case UIEventType::channelMessage:
+      buzzer.play("kerplop:d=16,o=6,b=120:32g#,32c#");
+      break;
+    case UIEventType::ack:
+      buzzer.play("ack:d=32,o=8,b=120:c");
+      break;
+    case UIEventType::roomMessage:
+    case UIEventType::newContactMessage:
+    case UIEventType::none:
+    default:
+      break;
+  }
 }
 #endif
 
@@ -910,18 +912,48 @@ void UITask::toggleGPS() {
   }
 }
 
-void UITask::toggleBuzzer() {
-    // Toggle buzzer quiet mode
+bool UITask::playNotification() {
   #ifdef PIN_BUZZER
-    if (buzzer.isQuiet()) {
+  return !(_node_prefs->buzzer_quiet & BUZZER_QUIET_ALWAYS) && 
+    (!(_node_prefs->buzzer_quiet & BUZZER_QUIET_ON_SERIAL) || !hasConnection());
+  #else
+  return false; 
+  #endif
+}
+
+void UITask::toggleBuzzer() { // Master Toggle (bit 0 = 1, buzzer always disabled)
+  #ifdef PIN_BUZZER
+    _node_prefs->buzzer_quiet ^= (1 << 0);
+    if (!(_node_prefs->buzzer_quiet & BUZZER_QUIET_ALWAYS)) { //bit 0 is true
       buzzer.quiet(false);
       notify(UIEventType::ack);
     } else {
       buzzer.quiet(true);
     }
-    _node_prefs->buzzer_quiet = buzzer.isQuiet();
     the_mesh.savePrefs();
     showAlert(buzzer.isQuiet() ? "Buzzer: OFF" : "Buzzer: ON", 800);
     _next_refresh = 0;  // trigger refresh
   #endif
 }
+
+void UITask::toggleBuzzerOnSerial() { // Serial Toggle (bit 1 = 1, buzzer disabled during serial)
+  _node_prefs->buzzer_quiet ^= (1 << 1);
+  the_mesh.savePrefs();
+}
+
+/*void UITask::toggleBuzzer() { // Toggle between all four settings
+  #ifdef PIN_BUZZER
+    _node_prefs->buzzer_quiet = (_node_prefs->buzzer_quiet + 1) % 4;
+    the_mesh.savePrefs();
+
+    if (!(_node_prefs->buzzer_quiet & BUZZER_QUIET_ALWAYS)) { //bit 0 is true
+      buzzer.quiet(false);
+      if (_node_prefs->buzzer_quiet == 0) { //buzzer always enabled
+        buzzer.play("ack:d=32,o=8,b=120:c");
+      }
+    } else {
+      buzzer.quiet(true);
+    }
+    _next_refresh = 0;  // trigger refresh
+  #endif
+}*/
