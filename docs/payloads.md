@@ -1,5 +1,6 @@
-# Meshcore payloads
-Inside of each [meshcore packet](./packet_structure.md) is a payload, identified by the payload type in the packet header. The types of payloads are:
+# Payload Format
+
+Inside each [MeshCore Packet](./packet_format.md) is a payload, identified by the payload type in the packet header. The types of payloads are:
 
 * Node advertisement.
 * Acknowledgment.
@@ -80,12 +81,12 @@ Returned path, request, response, and plain text messages are all formatted in t
 
 Returned path messages provide a description of the route a packet took from the original author. Receivers will send returned path messages to the author of the original message.
 
-| Field       | Size (bytes) | Description                                                                                  |
-|-------------|--------------|----------------------------------------------------------------------------------------------|
-| path length | 1            | length of next field                                                                         |
-| path        | see above    | a list of node hashes (one byte each) |
-| extra type  | 1            | extra, bundled payload type, eg., acknowledgement or response. Same values as in [packet structure](./packet_structure.md) |
-| extra       | rest of data | extra, bundled payload content, follows same format as main content defined by this document |
+| Field       | Size (bytes) | Description                                                                                                          |
+|-------------|--------------|----------------------------------------------------------------------------------------------------------------------|
+| path length | 1            | length of next field                                                                                                 |
+| path        | see above    | a list of node hashes (one byte each)                                                                                |
+| extra type  | 1            | extra, bundled payload type, eg., acknowledgement or response. Same values as in [Packet Format](./packet_format.md) |
+| extra       | rest of data | extra, bundled payload content, follows same format as main content defined by this document                         |
 
 ## Request
 
