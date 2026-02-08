@@ -23,12 +23,15 @@ jobs:
         with:
           ruby-version: 3.x
 
-      - name: Configure Git Credentials
-        run: |
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-
-      - name: Build and Deploy
+      - name: Build
         run: |
           pip install mkdocs-material
-          mkdocs gh-deploy --force
+          mkdocs build
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          cname: docs.meshcore.nz
+          publish_dir: ./site
+          publish_branch: 'gh-pages'
