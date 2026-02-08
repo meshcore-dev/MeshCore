@@ -2,7 +2,6 @@
 #include <string.h>
 #define ED25519_NO_SEED  1
 #include <ed_25519.h>
-#include <Ed25519.h>
 
 namespace mesh {
 
@@ -15,12 +14,7 @@ Identity::Identity(const char* pub_hex) {
 }
 
 bool Identity::verify(const uint8_t* sig, const uint8_t* message, int msg_len) const {
-#if 0
-  // NOTE:  memory corruption bug was found in this function!!
   return ed25519_verify(sig, message, msg_len, pub_key);
-#else
-  return Ed25519::verify(sig, this->pub_key, message, msg_len);
-#endif
 }
 
 bool Identity::readFrom(Stream& s) {
