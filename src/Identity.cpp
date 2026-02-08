@@ -1,5 +1,6 @@
 #include "Identity.h"
 #include <string.h>
+#include <assert.h>
 #define ED25519_NO_SEED  1
 #include <ed_25519.h>
 
@@ -14,7 +15,14 @@ Identity::Identity(const char* pub_hex) {
 }
 
 bool Identity::verify(const uint8_t* sig, const uint8_t* message, int msg_len) const {
-  return ed25519_verify(sig, message, msg_len, pub_key);
+  // ed25519_verify uses static buffers internally (ge.c) and is NOT reentrant.
+  // This guard catches concurrent calls (e.g. from multiple FreeRTOS tasks).
+  static volatile bool in_verify = false;
+  assert(!in_verify && "ed25519_verify is not reentrant - concurrent call detected");
+  in_verify = true;
+  bool result = ed25519_verify(sig, message, msg_len, pub_key);
+  in_verify = false;
+  return result;
 }
 
 bool Identity::readFrom(Stream& s) {
