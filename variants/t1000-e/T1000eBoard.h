@@ -43,7 +43,7 @@ public:
     uint8_t v = digitalRead(BUTTON_PIN);
     if (v != btn_prev_state) {
       btn_prev_state = v;
-      return (v == LOW) ? 1 : -1;
+      return (v == USER_BTN_PRESSED) ? 1 : -1;
     }
   #endif
     return 0;
@@ -78,14 +78,14 @@ public:
     digitalWrite(LED_PIN, HIGH);
     #endif
     #ifdef BUTTON_PIN
-    while(digitalRead(BUTTON_PIN) == LOW);
+    while(digitalRead(BUTTON_PIN));
     #endif
     #ifdef LED_PIN
     digitalWrite(LED_PIN, LOW);
     #endif
 
     #ifdef BUTTON_PIN
-    nrf_gpio_cfg_sense_input(BUTTON_PIN, NRF_GPIO_PIN_NOPULL, NRF_GPIO_PIN_SENSE_LOW);
+    nrf_gpio_cfg_sense_input(BUTTON_PIN, NRF_GPIO_PIN_NOPULL, NRF_GPIO_PIN_SENSE_HIGH);
     #endif
 
     sd_power_system_off();
