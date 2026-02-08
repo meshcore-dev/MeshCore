@@ -65,9 +65,9 @@ B is the Ed25519 base point (x,4/5) with x positive.
 */
 
 void ge_double_scalarmult_vartime(ge_p2 *r, const unsigned char *a, const ge_p3 *A, const unsigned char *b) {
-    signed char aslide[256];
-    signed char bslide[256];
-    ge_cached Ai[8]; /* A,3A,5A,7A,9A,11A,13A,15A */
+    static signed char aslide[256];
+    static signed char bslide[256];
+    static ge_cached Ai[8]; /* A,3A,5A,7A,9A,11A,13A,15A */
     ge_p1p1 t;
     ge_p3 u;
     ge_p3 A2;
