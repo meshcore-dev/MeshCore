@@ -21,10 +21,12 @@ void HeltecV4Board::begin() {
     pinMode(P_LORA_PA_TX_EN, OUTPUT);
     digitalWrite(P_LORA_PA_TX_EN,LOW);
 
+    esp_reset_reason_t reason = esp_reset_reason();
+    if (reason != ESP_RST_DEEPSLEEP) {
+      delay(1);  // GC1109 startup time after cold power-on
+    }
 
     periph_power.begin();
-
-    esp_reset_reason_t reason = esp_reset_reason();
     if (reason == ESP_RST_DEEPSLEEP) {
       long wakeup_source = esp_sleep_get_ext1_wakeup_status();
       if (wakeup_source & (1 << P_LORA_DIO_1)) {  // received a LoRa packet (while in deep sleep)
