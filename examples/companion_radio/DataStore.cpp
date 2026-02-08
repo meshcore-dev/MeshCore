@@ -531,12 +531,17 @@ bool DataStore::putBlobByKey(const uint8_t key[], int key_len, const uint8_t src
     uint32_t pos = 0, found_pos = 0;
     uint32_t min_timestamp = 0xFFFFFFFF;
 
-    // search for matching key OR evict by oldest timestmap
+    // search for matching key OR evict by oldest timestamp
     BlobRec tmp;
     file.seek(0);
     while (file.read((uint8_t *) &tmp, sizeof(tmp)) == sizeof(tmp)) {
       if (memcmp(key, tmp.key, sizeof(tmp.key)) == 0) {  // only match by 7 byte prefix
         found_pos = pos;
+        // skip write if data is unchanged
+        if (tmp.len == len && memcmp(tmp.data, src_buf, len) == 0) {
+          file.close();
+          return true;
+        }
         break;
       }
       if (tmp.timestamp < min_timestamp) {
@@ -589,6 +594,19 @@ uint8_t DataStore::getBlobByKey(const uint8_t key[], int key_len, uint8_t dest_b
 bool DataStore::putBlobByKey(const uint8_t key[], int key_len, const uint8_t src_buf[], uint8_t len) {
   char path[64];
   makeBlobPath(key, key_len, path, sizeof(path));
+
+  // skip write if existing blob data is unchanged
+  if (_fs->exists(path)) {
+    File f = openRead(_fs, path);
+    if (f) {
+      uint8_t existing[MAX_ADVERT_PKT_LEN];
+      int existing_len = f.read(existing, sizeof(existing));
+      f.close();
+      if (existing_len > 0 && existing_len == len && memcmp(existing, src_buf, len) == 0) {
+        return true;  // no change needed
+      }
+    }
+  }
 
   File f = openWrite(_fs, path);
   if (f) {
