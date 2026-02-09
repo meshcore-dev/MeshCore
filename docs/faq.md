@@ -283,7 +283,7 @@ Reboot the repeater after `set prv.key <hex>` command for the new private key to
 
 Having multiple repeaters with the same first byte ID does not negatively affect the mesh or its functionality. Flood and pathed packets will still reach their destinations. First byte ID collision makes traceroute and path analysis harder because these tools don't know exactly which of the two (or more) colliding repeaters is the one in the path.
 
-It is best practice when setting up a new repeater to choose a public key that has a prefix that is not in use in local area.
+Best practice is when you set up a new repeater, choose a public key that is not in use. if it is not possible to find a unique first byte for your repeater's public key, choose one that is unique within about 10 miles/km to minimize collision with nearby repeaters.
 
 ### 3.7. Q: My repeater maybe suffering from deafness due to high power interference near my mesh's frequency, it is not hearing other in-range MeshCore radios.  what can I do?
 
