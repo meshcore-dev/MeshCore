@@ -299,7 +299,7 @@ bool TBeamBoard::power_init()
 //     switch(i){
 //       case 0: 
 //         CustomSX1262 radio = new Module(P_LORA_NSS, P_LORA_DIO_0, P_LORA_RESET, P_LORA_DIO_1, spi);
-//         int status = radio.begin(LORA_FREQ, LORA_BW, LORA_SF, LORA_CR, RADIOLIB_SX126X_SYNC_WORD_PRIVATE, LORA_TX_POWER, 8);
+//         int status = radio.begin(LORA_FREQ, LORA_BW, LORA_SF, LORA_CR, RADIOLIB_SX126X_SYNC_WORD_PRIVATE, LORA_TX_POWER, 32);
 //         if (status != RADIOLIB_ERR_NONE) {
 //           Serial.print("ERROR: SX1262 not found: ");
 //           Serial.println(status);
@@ -320,7 +320,7 @@ bool TBeamBoard::power_init()
 //         }
 //       case 1:
 //         SX1276 radio = new Module(P_LORA_NSS, P_LORA_DIO_0, P_LORA_RESET, P_LORA_DIO_1, spi);
-//         int status1 = radio.begin(LORA_FREQ, LORA_BW, LORA_SF, LORA_CR, RADIOLIB_SX126X_SYNC_WORD_PRIVATE, LORA_TX_POWER, 8);
+//         int status1 = radio.begin(LORA_FREQ, LORA_BW, LORA_SF, LORA_CR, RADIOLIB_SX126X_SYNC_WORD_PRIVATE, LORA_TX_POWER, 32);
 //         if (status1 != RADIOLIB_ERR_NONE) {
 //           Serial.print("ERROR: SX1272 not found: ");
 //           Serial.println(status1);

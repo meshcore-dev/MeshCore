@@ -39,7 +39,7 @@ bool radio_init()
 
     radio.setRfSwitchTable(rfswitch_pins, rfswitch_table);
 
-    int status = radio.begin(LORA_FREQ, LORA_BW, LORA_SF, LORA_CR, RADIOLIB_SX126X_SYNC_WORD_PRIVATE, LORA_TX_POWER, 16,
+    int status = radio.begin(LORA_FREQ, LORA_BW, LORA_SF, LORA_CR, RADIOLIB_SX126X_SYNC_WORD_PRIVATE, LORA_TX_POWER, 32,
                              STM32WL_TCXO_VOLTAGE, 0);
 
     if (status != RADIOLIB_ERR_NONE) {

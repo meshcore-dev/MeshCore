@@ -39,7 +39,7 @@ class CustomSX1276 : public SX1276 {
       if (spi) spi->begin(P_LORA_SCLK, P_LORA_MISO, P_LORA_MOSI);
     #endif
   #endif
-      int status = begin(LORA_FREQ, LORA_BW, LORA_SF, cr, RADIOLIB_SX126X_SYNC_WORD_PRIVATE, LORA_TX_POWER, 16);
+      int status = begin(LORA_FREQ, LORA_BW, LORA_SF, cr, RADIOLIB_SX126X_SYNC_WORD_PRIVATE, LORA_TX_POWER, 32);
       // if radio init fails with -707/-706, try again with tcxo voltage set to 0.0f
       if (status != RADIOLIB_ERR_NONE) {
         Serial.print("ERROR: radio init failed: ");
