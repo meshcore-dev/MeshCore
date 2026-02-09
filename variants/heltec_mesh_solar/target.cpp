@@ -141,7 +141,12 @@ void SolarExWatchdog::loop() {
 }
 
 unsigned long SolarExWatchdog::getIntervalMs() const {
-    return next_feed_watchdog - millis();
+    unsigned long interval_ms = 0;
+    interval_ms = next_feed_watchdog - millis();
+    if(interval_ms > EX_WATCHDOG_TIMEOUT_MS) {
+      interval_ms = EX_WATCHDOG_TIMEOUT_MS;
+    }
+    return interval_ms;
 }
 
 void SolarExWatchdog::feed() {
