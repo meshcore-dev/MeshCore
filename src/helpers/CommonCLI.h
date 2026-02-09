@@ -3,6 +3,7 @@
 #include "Mesh.h"
 #include <helpers/IdentityStore.h>
 #include <helpers/SensorManager.h>
+#include <helpers/ClientACL.h>
 
 #if defined(WITH_RS232_BRIDGE) || defined(WITH_ESPNOW_BRIDGE)
 #define WITH_BRIDGE
@@ -18,7 +19,7 @@ struct NodePrefs { // persisted to file
   double node_lat, node_lon;
   char password[16];
   float freq;
-  uint8_t tx_power_dbm;
+  int8_t tx_power_dbm;
   uint8_t disable_fwd;
   uint8_t advert_interval;       // minutes / 2
   uint8_t flood_advert_interval; // hours
@@ -60,13 +61,13 @@ public:
   virtual const char* getBuildDate() = 0;
   virtual const char* getRole() = 0;
   virtual bool formatFileSystem() = 0;
-  virtual void sendSelfAdvertisement(int delay_millis) = 0;
+  virtual void sendSelfAdvertisement(int delay_millis, bool flood) = 0;
   virtual void updateAdvertTimer() = 0;
   virtual void updateFloodAdvertTimer() = 0;
   virtual void setLoggingOn(bool enable) = 0;
   virtual void eraseLogFile() = 0;
   virtual void dumpLogFile() = 0;
-  virtual void setTxPower(uint8_t power_dbm) = 0;
+  virtual void setTxPower(int8_t power_dbm) = 0;
   virtual void formatNeighborsReply(char *reply) = 0;
   virtual void removeNeighbor(const uint8_t* pubkey, int key_len) {
     // no op by default
@@ -94,6 +95,7 @@ class CommonCLI {
   CommonCLICallbacks* _callbacks;
   mesh::MainBoard* _board;
   SensorManager* _sensors;
+  ClientACL* _acl;
   char tmp[PRV_KEY_SIZE*2 + 4];
 
   mesh::RTCClock* getRTCClock() { return _rtc; }
@@ -101,8 +103,8 @@ class CommonCLI {
   void loadPrefsInt(FILESYSTEM* _fs, const char* filename);
 
 public:
-  CommonCLI(mesh::MainBoard& board, mesh::RTCClock& rtc, SensorManager& sensors, NodePrefs* prefs, CommonCLICallbacks* callbacks)
-      : _board(&board), _rtc(&rtc), _sensors(&sensors), _prefs(prefs), _callbacks(callbacks) { }
+  CommonCLI(mesh::MainBoard& board, mesh::RTCClock& rtc, SensorManager& sensors, ClientACL& acl, NodePrefs* prefs, CommonCLICallbacks* callbacks)
+      : _board(&board), _rtc(&rtc), _sensors(&sensors), _acl(&acl), _prefs(prefs), _callbacks(callbacks) { }
 
   void loadPrefs(FILESYSTEM* _fs);
   void savePrefs(FILESYSTEM* _fs);

@@ -307,6 +307,7 @@ bool MyMesh::shouldOverwriteWhenFull() const {
 }
 
 void MyMesh::onContactOverwrite(const uint8_t* pub_key) {
+    _store->deleteBlobByKey(pub_key, PUB_KEY_SIZE); // delete from storage
   if (_serial->isConnected()) {
     out_frame[0] = PUSH_CODE_CONTACT_DELETED;
     memcpy(&out_frame[1], pub_key, PUB_KEY_SIZE);
@@ -817,14 +818,14 @@ void MyMesh::begin(bool has_display) {
     _store->saveMainIdentity(self_id);
   }
 
+// if name is provided as a build flag, use that as default node name instead
+#ifdef ADVERT_NAME
+  strcpy(_prefs.node_name, ADVERT_NAME);
+#else
   // use hex of first 4 bytes of identity public key as default node name
   char pub_key_hex[10];
   mesh::Utils::toHex(pub_key_hex, self_id.pub_key, 4);
   strcpy(_prefs.node_name, pub_key_hex);
-
-// if name is provided as a build flag, use that as default node name instead
-#ifdef ADVERT_NAME
-  strcpy(_prefs.node_name, ADVERT_NAME);
 #endif
 
   // load persisted prefs
@@ -837,7 +838,7 @@ void MyMesh::begin(bool has_display) {
   _prefs.bw = constrain(_prefs.bw, 7.8f, 500.0f);
   _prefs.sf = constrain(_prefs.sf, 5, 12);
   _prefs.cr = constrain(_prefs.cr, 5, 8);
-  _prefs.tx_power_dbm = constrain(_prefs.tx_power_dbm, 1, MAX_LORA_TX_POWER);
+  _prefs.tx_power_dbm = constrain(_prefs.tx_power_dbm, -9, MAX_LORA_TX_POWER);
   _prefs.gps_enabled = constrain(_prefs.gps_enabled, 0, 1);  // Ensure boolean 0 or 1
   _prefs.gps_interval = constrain(_prefs.gps_interval, 0, 86400);  // Max 24 hours
 
@@ -1124,6 +1125,7 @@ void MyMesh::handleCmdFrame(size_t len) {
     uint8_t *pub_key = &cmd_frame[1];
     ContactInfo *recipient = lookupContactByPubKey(pub_key, PUB_KEY_SIZE);
     if (recipient && removeContact(*recipient)) {
+      _store->deleteBlobByKey(pub_key, PUB_KEY_SIZE);
       dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY);
       writeOKFrame();
     } else {
@@ -1226,10 +1228,11 @@ void MyMesh::handleCmdFrame(size_t len) {
       writeErrFrame(ERR_CODE_ILLEGAL_ARG);
     }
   } else if (cmd_frame[0] == CMD_SET_RADIO_TX_POWER) {
-    if (cmd_frame[1] > MAX_LORA_TX_POWER) {
+    int8_t power = (int8_t)cmd_frame[1];
+    if (power < -9 || power > MAX_LORA_TX_POWER) {
       writeErrFrame(ERR_CODE_ILLEGAL_ARG);
     } else {
-      _prefs.tx_power_dbm = cmd_frame[1];
+      _prefs.tx_power_dbm = power;
       savePrefs();
       radio_set_tx_power(_prefs.tx_power_dbm);
       writeOKFrame();
@@ -1295,16 +1298,20 @@ void MyMesh::handleCmdFrame(size_t len) {
 #endif
   } else if (cmd_frame[0] == CMD_IMPORT_PRIVATE_KEY && len >= 65) {
 #if ENABLE_PRIVATE_KEY_IMPORT
-    mesh::LocalIdentity identity;
-    identity.readFrom(&cmd_frame[1], 64);
-    if (_store->saveMainIdentity(identity)) {
-      self_id = identity;
-      writeOKFrame();
-      // re-load contacts, to invalidate ecdh shared_secrets
-      resetContacts();
-      _store->loadContacts(this);
+    if (!mesh::LocalIdentity::validatePrivateKey(&cmd_frame[1])) {
+        writeErrFrame(ERR_CODE_ILLEGAL_ARG); // invalid key
     } else {
-      writeErrFrame(ERR_CODE_FILE_IO_ERROR);
+        mesh::LocalIdentity identity;
+        identity.readFrom(&cmd_frame[1], 64);
+        if (_store->saveMainIdentity(identity)) {
+          self_id = identity;
+          writeOKFrame();
+          // re-load contacts, to invalidate ecdh shared_secrets
+          resetContacts();
+          _store->loadContacts(this);
+        } else {
+          writeErrFrame(ERR_CODE_FILE_IO_ERROR);
+        }
     }
 #else
     writeDisabledFrame();
@@ -1685,12 +1692,14 @@ void MyMesh::handleCmdFrame(size_t len) {
       uint32_t n_sent_direct = getNumSentDirect();
       uint32_t n_recv_flood = getNumRecvFlood();
       uint32_t n_recv_direct = getNumRecvDirect();
+      uint32_t n_recv_errors = radio_driver.getPacketsRecvErrors();
       memcpy(&out_frame[i], &recv, 4); i += 4;
       memcpy(&out_frame[i], &sent, 4); i += 4;
       memcpy(&out_frame[i], &n_sent_flood, 4); i += 4;
       memcpy(&out_frame[i], &n_sent_direct, 4); i += 4;
       memcpy(&out_frame[i], &n_recv_flood, 4); i += 4;
       memcpy(&out_frame[i], &n_recv_direct, 4); i += 4;
+      memcpy(&out_frame[i], &n_recv_errors, 4); i += 4;
       _serial->writeFrame(out_frame, i);
     } else {
       writeErrFrame(ERR_CODE_ILLEGAL_ARG); // invalid stats sub-type

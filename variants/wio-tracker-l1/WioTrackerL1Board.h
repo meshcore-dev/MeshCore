@@ -4,12 +4,12 @@
 #include <Arduino.h>
 #include <helpers/NRF52Board.h>
 
-class WioTrackerL1Board : public NRF52BoardDCDC, public NRF52BoardOTA {
+class WioTrackerL1Board : public NRF52BoardDCDC {
 protected:
   uint8_t btn_prev_state;
 
 public:
-  WioTrackerL1Board() : NRF52BoardOTA("WioTrackerL1 OTA") {}
+  WioTrackerL1Board() : NRF52Board("WioTrackerL1 OTA") {}
   void begin();
 
 #if defined(P_LORA_TX_LED)

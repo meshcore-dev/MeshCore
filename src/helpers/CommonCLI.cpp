@@ -16,7 +16,7 @@ static uint32_t _atoi(const char* sp) {
 
 static bool isValidName(const char *n) {
   while (*n) {
-    if (*n == '[' || *n == ']' || *n == '/' || *n == '\\' || *n == ':' || *n == ',' || *n == '?' || *n == '*') return false;
+    if (*n == '[' || *n == ']' || *n == '\\' || *n == ':' || *n == ',' || *n == '?' || *n == '*') return false;
     n++;
   }
   return true;
@@ -92,7 +92,7 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     _prefs->bw = constrain(_prefs->bw, 7.8f, 500.0f);
     _prefs->sf = constrain(_prefs->sf, 5, 12);
     _prefs->cr = constrain(_prefs->cr, 5, 8);
-    _prefs->tx_power_dbm = constrain(_prefs->tx_power_dbm, 1, 30);
+    _prefs->tx_power_dbm = constrain(_prefs->tx_power_dbm, -9, 30);
     _prefs->multi_acks = constrain(_prefs->multi_acks, 0, 1);
     _prefs->adc_multiplier = constrain(_prefs->adc_multiplier, 0.0f, 10.0f);
 
@@ -196,8 +196,13 @@ uint8_t CommonCLI::buildAdvertData(uint8_t node_type, uint8_t* app_data) {
 void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, char* reply) {
     if (memcmp(command, "reboot", 6) == 0) {
       _board->reboot();  // doesn't return
+    } else if (memcmp(command, "clkreboot", 9) == 0) {
+      // Reset clock
+      getRTCClock()->setCurrentTime(1715770351);  // 15 May 2024, 8:50pm
+      _board->reboot();  // doesn't return
     } else if (memcmp(command, "advert", 6) == 0) {
-      _callbacks->sendSelfAdvertisement(1500);  // longer delay, give CLI response time to be sent first
+      // send flood advert
+      _callbacks->sendSelfAdvertisement(1500, true);  // longer delay, give CLI response time to be sent first
       strcpy(reply, "OK - Advert sent");
     } else if (memcmp(command, "clock sync", 10) == 0) {
       uint32_t curr = getRTCClock()->getCurrentTime();
@@ -321,7 +326,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         }
         *reply = 0;  // set null terminator
       } else if (memcmp(config, "tx", 2) == 0 && (config[2] == 0 || config[2] == ' ')) {
-        sprintf(reply, "> %d", (uint32_t) _prefs->tx_power_dbm);
+        sprintf(reply, "> %d", (int32_t) _prefs->tx_power_dbm);
       } else if (memcmp(config, "freq", 4) == 0) {
         sprintf(reply, "> %s", StrHelper::ftoa(_prefs->freq));
       } else if (memcmp(config, "public.key", 10) == 0) {
@@ -364,6 +369,33 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         } else {
           sprintf(reply, "> %.3f", adc_mult);
         }
+      // Power management commands
+      } else if (memcmp(config, "pwrmgt.support", 14) == 0) {
+#ifdef NRF52_POWER_MANAGEMENT
+        strcpy(reply, "> supported");
+#else
+        strcpy(reply, "> unsupported");
+#endif
+      } else if (memcmp(config, "pwrmgt.source", 13) == 0) {
+#ifdef NRF52_POWER_MANAGEMENT
+        strcpy(reply, _board->isExternalPowered() ? "> external" : "> battery");
+#else
+        strcpy(reply, "ERROR: Power management not supported");
+#endif
+      } else if (memcmp(config, "pwrmgt.bootreason", 17) == 0) {
+#ifdef NRF52_POWER_MANAGEMENT
+        sprintf(reply, "> Reset: %s; Shutdown: %s",
+          _board->getResetReasonString(_board->getResetReason()),
+          _board->getShutdownReasonString(_board->getShutdownReason()));
+#else
+        strcpy(reply, "ERROR: Power management not supported");
+#endif
+      } else if (memcmp(config, "pwrmgt.bootmv", 13) == 0) {
+#ifdef NRF52_POWER_MANAGEMENT
+        sprintf(reply, "> %u mV", _board->getBootVoltage());
+#else
+        strcpy(reply, "ERROR: Power management not supported");
+#endif
       } else {
         sprintf(reply, "??: %s", config);
       }
@@ -394,8 +426,8 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         strcpy(reply, "OK");
       } else if (memcmp(config, "flood.advert.interval ", 22) == 0) {
         int hours = _atoi(&config[22]);
-        if ((hours > 0 && hours < 3) || (hours > 48)) {
-          strcpy(reply, "Error: interval range is 3-48 hours");
+        if ((hours > 0 && hours < 3) || (hours > 168)) {
+          strcpy(reply, "Error: interval range is 3-168 hours");
         } else {
           _prefs->flood_advert_interval = (uint8_t)(hours);
           _callbacks->updateFloodAdvertTimer();
@@ -416,17 +448,18 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         StrHelper::strncpy(_prefs->guest_password, &config[15], sizeof(_prefs->guest_password));
         savePrefs();
         strcpy(reply, "OK");
-      } else if (sender_timestamp == 0 &&
-                 memcmp(config, "prv.key ", 8) == 0) { // from serial command line only
+      } else if (memcmp(config, "prv.key ", 8) == 0) {
         uint8_t prv_key[PRV_KEY_SIZE];
         bool success = mesh::Utils::fromHex(prv_key, PRV_KEY_SIZE, &config[8]);
-        if (success) {
+        // only allow rekey if key is valid
+        if (success && mesh::LocalIdentity::validatePrivateKey(prv_key)) {
           mesh::LocalIdentity new_id;
           new_id.readFrom(prv_key, PRV_KEY_SIZE);
           _callbacks->saveIdentity(new_id);
-          strcpy(reply, "OK");
+          strcpy(reply, "OK, reboot to apply! New pubkey: ");
+          mesh::Utils::toHex(&reply[33], new_id.pub_key, PUB_KEY_SIZE);
         } else {
-          strcpy(reply, "Error, invalid key");
+          strcpy(reply, "Error, bad key");
         }
       } else if (memcmp(config, "name ", 5) == 0) {
         if (isValidName(&config[5])) {

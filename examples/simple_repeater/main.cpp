@@ -29,8 +29,10 @@ void setup() {
 
   board.begin();
 
-#ifdef HAS_EX_WATCHDOG
-  ex_watchdog.begin();
+#if defined(MESH_DEBUG) && defined(NRF52_PLATFORM)
+  // give some extra time for serial to settle so
+  // boot debug messages can be seen on terminal
+  delay(5000);
 #endif
 
   // For power saving
@@ -46,6 +48,7 @@ void setup() {
 #endif
 
   if (!radio_init()) {
+    MESH_DEBUG_PRINTLN("Radio init failed!");
     halt();
   }
 
@@ -91,8 +94,10 @@ void setup() {
   ui_task.begin(the_mesh.getNodePrefs(), FIRMWARE_BUILD_DATE, FIRMWARE_VERSION);
 #endif
 
-  // send out initial Advertisement to the mesh
-  the_mesh.sendSelfAdvertisement(16000);
+  // send out initial zero hop Advertisement to the mesh
+#if ENABLE_ADVERT_ON_BOOT == 1
+  the_mesh.sendSelfAdvertisement(16000, false);
+#endif
 }
 
 void loop() {
@@ -128,15 +133,12 @@ void loop() {
   ui_task.loop();
 #endif
   rtc_clock.tick();
-#ifdef HAS_EX_WATCHDOG
-  ex_watchdog.loop();
-#endif
-  if (the_mesh.getNodePrefs()->powersaving_enabled &&                     // To check if power saving is enabled
-      the_mesh.millisHasNowPassed(lastActive + nextSleepinSecs * 1000)) { // To check if it is time to sleep
-    if (!the_mesh.hasPendingWork()) { // No pending work. Safe to sleep
-#ifdef HAS_EX_WATCHDOG
-      board.sleep(ex_watchdog.getIntervalMs()>1800?1800:ex_watchdog.getIntervalMs());             // To sleep. Wake up after 30 minutes or when receiving a LoRa packet
-#else
+
+  if (the_mesh.getNodePrefs()->powersaving_enabled && !the_mesh.hasPendingWork()) {
+    #if defined(NRF52_PLATFORM)
+    board.sleep(1800); // nrf ignores seconds param, sleeps whenever possible
+    #else
+    if (the_mesh.millisHasNowPassed(lastActive + nextSleepinSecs * 1000)) { // To check if it is time to sleep
       board.sleep(1800);             // To sleep. Wake up after 30 minutes or when receiving a LoRa packet
 #endif
       lastActive = millis();
@@ -144,5 +146,6 @@ void loop() {
     } else {
       nextSleepinSecs += 5; // When there is pending work, to work another 5s
     }
+    #endif
   }
 }

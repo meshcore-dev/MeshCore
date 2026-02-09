@@ -11,7 +11,8 @@ static File openWrite(FILESYSTEM* _fs, const char* filename) {
   #endif
 }
 
-void ClientACL::load(FILESYSTEM* _fs) {
+void ClientACL::load(FILESYSTEM* fs, const mesh::LocalIdentity& self_id) {
+  _fs = fs;
   num_clients = 0;
   if (_fs->exists("/s_contacts")) {
   #if defined(RP2040_PLATFORM)
@@ -34,11 +35,12 @@ void ClientACL::load(FILESYSTEM* _fs) {
         success = success && (file.read(unused, 2) == 2);
         success = success && (file.read((uint8_t *)&c.out_path_len, 1) == 1);
         success = success && (file.read(c.out_path, 64) == 64);
-        success = success && (file.read(c.shared_secret, PUB_KEY_SIZE) == PUB_KEY_SIZE);
+        success = success && (file.read(c.shared_secret, PUB_KEY_SIZE) == PUB_KEY_SIZE); // will be recalculated below
 
         if (!success) break; // EOF
 
         c.id = mesh::Identity(pub_key);
+        self_id.calcSharedSecret(c.shared_secret, pub_key);  // recalculate shared secrets in case our private key changed
         if (num_clients < MAX_CLIENTS) {
           clients[num_clients++] = c;
         } else {
@@ -50,7 +52,8 @@ void ClientACL::load(FILESYSTEM* _fs) {
   }
 }
 
-void ClientACL::save(FILESYSTEM* _fs, bool (*filter)(ClientInfo*)) {
+void ClientACL::save(FILESYSTEM* fs, bool (*filter)(ClientInfo*)) {
+  _fs = fs;
   File file = openWrite(_fs, "/s_contacts");
   if (file) {
     uint8_t unused[2];
@@ -72,6 +75,16 @@ void ClientACL::save(FILESYSTEM* _fs, bool (*filter)(ClientInfo*)) {
     }
     file.close();
   }
+}
+
+bool ClientACL::clear() {
+  if (!_fs) return false; // no filesystem, nothing to clear
+  if (_fs->exists("/s_contacts")) {
+    _fs->remove("/s_contacts");
+  }
+  memset(clients, 0, sizeof(clients));
+  num_clients = 0;
+  return true;
 }
 
 ClientInfo* ClientACL::getClient(const uint8_t* pubkey, int key_len) {

@@ -155,9 +155,7 @@ void setup() {
   );
 
 #ifdef BLE_PIN_CODE
-  char dev_name[32+16];
-  sprintf(dev_name, "%s%s", BLE_NAME_PREFIX, the_mesh.getNodeName());
-  serial_interface.begin(dev_name, the_mesh.getBLEPin());
+  serial_interface.begin(BLE_NAME_PREFIX, the_mesh.getNodePrefs()->node_name, the_mesh.getBLEPin());
 #else
   serial_interface.begin(Serial);
 #endif
@@ -200,12 +198,11 @@ void setup() {
   );
 
 #ifdef WIFI_SSID
+  board.setInhibitSleep(true);   // prevent sleep when WiFi is active
   WiFi.begin(WIFI_SSID, WIFI_PWD);
   serial_interface.begin(TCP_PORT);
 #elif defined(BLE_PIN_CODE)
-  char dev_name[32+16];
-  sprintf(dev_name, "%s%s", BLE_NAME_PREFIX, the_mesh.getNodeName());
-  serial_interface.begin(dev_name, the_mesh.getBLEPin());
+  serial_interface.begin(BLE_NAME_PREFIX, the_mesh.getNodePrefs()->node_name, the_mesh.getBLEPin());
 #elif defined(SERIAL_RX)
   companion_serial.setPins(SERIAL_RX, SERIAL_TX);
   companion_serial.begin(115200);

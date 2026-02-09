@@ -56,6 +56,14 @@ public:
   virtual void setGpio(uint32_t values) {}
   virtual uint8_t getStartupReason() const = 0;
   virtual bool startOTAUpdate(const char* id, char reply[]) { return false; }   // not supported
+
+  // Power management interface (boards with power management override these)
+  virtual bool isExternalPowered() { return false; }
+  virtual uint16_t getBootVoltage() { return 0; }
+  virtual uint32_t getResetReason() const { return 0; }
+  virtual const char* getResetReasonString(uint32_t reason) { return "Not available"; }
+  virtual uint8_t getShutdownReason() const { return 0; }
+  virtual const char* getShutdownReasonString(uint8_t reason) { return "Not available"; }
 };
 
 /**

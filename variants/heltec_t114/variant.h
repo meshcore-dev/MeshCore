@@ -14,7 +14,7 @@
 #define USE_LFXO    // 32.768 kHz crystal oscillator
 #define VARIANT_MCK (64000000ul)
 
-#define WIRE_INTERFACES_COUNT 	(1)
+#define WIRE_INTERFACES_COUNT 	(2)
 
 ////////////////////////////////////////////////////////////////////////////////
 // Power
@@ -29,6 +29,14 @@
 #define BATTERY_SENSE_RES       (12)
 
 #define AREF_VOLTAGE            (3.0)
+
+// Power management boot protection threshold (millivolts)
+// Set to 0 to disable boot protection
+#define PWRMGT_VOLTAGE_BOOTLOCK 3300   // Won't boot below this voltage (mV)
+// LPCOMP wake configuration (voltage recovery from SYSTEMOFF)
+// AIN2 = P0.04 = BATTERY_PIN / PIN_VBAT_READ
+#define PWRMGT_LPCOMP_AIN 2
+#define PWRMGT_LPCOMP_REFSEL 1  // 2/8 VDD (~3.68-4.04V)
 
 ////////////////////////////////////////////////////////////////////////////////
 // Number of pins
@@ -50,8 +58,11 @@
 ////////////////////////////////////////////////////////////////////////////////
 // I2C pin definition
 
-#define PIN_WIRE_SDA            (26)             // P0.26
-#define PIN_WIRE_SCL            (27)             // P0.27
+#define PIN_WIRE_SDA            (26) // P0.26
+#define PIN_WIRE_SCL            (27) // P0.27
+
+#define PIN_WIRE1_SDA            (7) // P0.8
+#define PIN_WIRE1_SCL            (8) // P0.7
 
 ////////////////////////////////////////////////////////////////////////////////
 // SPI pin definition

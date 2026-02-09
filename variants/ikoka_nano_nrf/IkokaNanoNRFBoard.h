@@ -6,9 +6,9 @@
 
 #ifdef XIAO_NRF52
 
-class IkokaNanoNRFBoard : public NRF52BoardOTA {
+class IkokaNanoNRFBoard : public NRF52BoardDCDC {
 public:
-  IkokaNanoNRFBoard() : NRF52BoardOTA("XIAO_NRF52_OTA") {}
+  IkokaNanoNRFBoard() : NRF52Board("XIAO_NRF52_OTA") {}
   void begin();
 
 #if defined(P_LORA_TX_LED)

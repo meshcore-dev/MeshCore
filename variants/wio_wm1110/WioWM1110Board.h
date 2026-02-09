@@ -13,6 +13,7 @@
 
 class WioWM1110Board : public NRF52BoardDCDC {
 public:
+  WioWM1110Board() : NRF52Board("WM1110_OTA") {}
   void begin();
 
 #if defined(LED_GREEN)
@@ -36,8 +37,6 @@ public:
   const char* getManufacturerName() const override {
     return "Seeed Wio WM1110";
   }
-
-  bool startOTAUpdate(const char* id, char reply[]) override;
 
   void enableSensorPower(bool enable) {
     digitalWrite(SENSOR_POWER_PIN, enable ? HIGH : LOW);

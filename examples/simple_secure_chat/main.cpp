@@ -66,7 +66,7 @@ struct NodePrefs {  // persisted to file
   char node_name[32];
   double node_lat, node_lon;
   float freq;
-  uint8_t tx_power_dbm;
+  int8_t tx_power_dbm;
   uint8_t unused[3];
 };
 
@@ -290,7 +290,7 @@ public:
   }
 
   float getFreqPref() const { return _prefs.freq; }
-  uint8_t getTxPowerPref() const { return _prefs.tx_power_dbm; }
+  int8_t getTxPowerPref() const { return _prefs.tx_power_dbm; }
 
   void begin(FILESYSTEM& fs) {
     _fs = &fs;
@@ -586,7 +586,9 @@ void setup() {
   the_mesh.showWelcome();
 
   // send out initial Advertisement to the mesh
+#if ENABLE_ADVERT_ON_BOOT == 1
   the_mesh.sendSelfAdvert(1200);   // add slight delay
+#endif
 }
 
 void loop() {

@@ -13,9 +13,9 @@
 #define PIN_VBAT_READ     (4)
 #define REAL_VBAT_MV_PER_LSB (VBAT_DIVIDER_COMP * VBAT_MV_PER_LSB)
 
-class TechoBoard : public NRF52BoardOTA {
+class TechoBoard : public NRF52BoardDCDC {
 public:
-  TechoBoard() : NRF52BoardOTA("TECHO_OTA") {}
+  TechoBoard() : NRF52Board("TECHO_OTA") {}
   void begin();
   uint16_t getBattMilliVolts() override;
 
