@@ -1,6 +1,6 @@
 #include "Identity.h"
 #include <string.h>
-#include <assert.h>
+#include <atomic>
 #define ED25519_NO_SEED  1
 #include <ed_25519.h>
 
@@ -16,12 +16,11 @@ Identity::Identity(const char* pub_hex) {
 
 bool Identity::verify(const uint8_t* sig, const uint8_t* message, int msg_len) const {
   // ed25519_verify uses static buffers internally (ge.c) and is NOT reentrant.
-  // This guard catches concurrent calls (e.g. from multiple FreeRTOS tasks).
-  static volatile bool in_verify = false;
-  assert(!in_verify && "ed25519_verify is not reentrant - concurrent call detected");
-  in_verify = true;
+  // Spinlock to serialize concurrent calls (e.g. from multiple FreeRTOS tasks).
+  static std::atomic<bool> in_verify{false};
+  while (in_verify.exchange(true, std::memory_order_acquire)) { /* spin */ }
   bool result = ed25519_verify(sig, message, msg_len, pub_key);
-  in_verify = false;
+  in_verify.store(false, std::memory_order_release);
   return result;
 }
 
