@@ -204,6 +204,7 @@ void setup() {
     }
     if (wifiManager.autoConnect(WIFI_MANAGER, ap_passwd.c_str()))
     {
+      board.setInhibitSleep(true);   // prevent sleep when WiFi is active
       serial_interface.begin(TCP_PORT);
     } else {
       MESH_DEBUG_PRINTLN("WifiManager failed to connect. Restarting.");
@@ -211,6 +212,7 @@ void setup() {
       ESP.restart();
     }
 #elif defined(WIFI_SSID)
+  board.setInhibitSleep(true);   // prevent sleep when WiFi is active
   WiFi.begin(WIFI_SSID, WIFI_PWD);
   serial_interface.begin(TCP_PORT);
 #elif defined(BLE_PIN_CODE)
