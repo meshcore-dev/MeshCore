@@ -344,16 +344,23 @@ int BaseChatMesh::searchChannelsByHash(const uint8_t* hash, mesh::GroupChannel d
 #endif
 
 void BaseChatMesh::onGroupDataRecv(mesh::Packet* packet, uint8_t type, const mesh::GroupChannel& channel, uint8_t* data, size_t len) {
-  uint8_t txt_type = data[4];
-  if (type == PAYLOAD_TYPE_GRP_TXT && len > 5 && (txt_type >> 2) == 0) {  // 0 = plain text msg
-    uint32_t timestamp;
-    memcpy(&timestamp, data, 4);
+  if (len < 5) return;  // need at least timestamp (4 bytes) + 1 byte
 
-    // len can be > original length, but 'text' will be padded with zeroes
-    data[len] = 0; // need to make a C string again, with null terminator
+  uint32_t timestamp;
+  memcpy(&timestamp, data, 4);
 
-    // notify UI  of this new message
-    onChannelMessageRecv(channel, packet, timestamp, (const char *) &data[5]);  // let UI know
+  if (type == PAYLOAD_TYPE_GRP_TXT) {
+    uint8_t txt_type = data[4];
+    if ((txt_type >> 2) == 0) {  // 0 = plain text msg
+      // len can be > original length, but 'text' will be padded with zeroes
+      data[len] = 0; // need to make a C string again, with null terminator
+
+      // notify UI of this new message
+      onChannelMessageRecv(channel, packet, timestamp, (const char *) &data[5]);  // let UI know
+    }
+  } else if (type == PAYLOAD_TYPE_GRP_DATA) {
+    // notify UI of this new binary data
+    onChannelDataRecv(channel, packet, timestamp, &data[4], len - 4);  // let UI know
   }
 }
 
