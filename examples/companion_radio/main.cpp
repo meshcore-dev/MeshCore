@@ -35,7 +35,9 @@ static uint32_t _atoi(const char* sp) {
 #endif
 
 #ifdef ESP32
-  #ifdef WIFI_SSID
+  #if defined(WIFI_MANAGER) || defined(WIFI_SSID)
+    #include <WiFiManager.h> // https://github.com/tzapu/WiFiManager
+    WiFiManager wifiManager;
     #include <helpers/esp32/SerialWifiInterface.h>
     SerialWifiInterface serial_interface;
     #ifndef TCP_PORT
@@ -193,7 +195,22 @@ void setup() {
     #endif
   );
 
-#ifdef WIFI_SSID
+#if defined(WIFI_MANAGER)
+
+    // AP password must have a minimum 8 characters
+    String ap_passwd = WIFI_PWD;
+    while (ap_passwd.length() < 8) {
+      ap_passwd += "0";
+    }
+    if (wifiManager.autoConnect(WIFI_MANAGER, ap_passwd.c_str()))
+    {
+      serial_interface.begin(TCP_PORT);
+    } else {
+      MESH_DEBUG_PRINTLN("WifiManager failed to connect. Restarting.");
+      delay(2000);
+      ESP.restart();
+    }
+#elif defined(WIFI_SSID)
   WiFi.begin(WIFI_SSID, WIFI_PWD);
   serial_interface.begin(TCP_PORT);
 #elif defined(BLE_PIN_CODE)
