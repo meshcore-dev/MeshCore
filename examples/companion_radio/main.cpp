@@ -196,7 +196,6 @@ void setup() {
   );
 
 #if defined(WIFI_MANAGER)
-
     // AP password must have a minimum 8 characters
     String ap_passwd = WIFI_PWD;
     while (ap_passwd.length() < 8) {
@@ -204,6 +203,7 @@ void setup() {
     }
     if (wifiManager.autoConnect(WIFI_MANAGER, ap_passwd.c_str()))
     {
+      board.setInhibitSleep(true);   // prevent sleep when WiFi is active
       serial_interface.begin(TCP_PORT);
     } else {
       MESH_DEBUG_PRINTLN("WifiManager failed to connect. Restarting.");

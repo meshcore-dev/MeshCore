@@ -17,7 +17,7 @@ struct NodePrefs {  // persisted to file
   uint8_t multi_acks;
   uint8_t manual_add_contacts;
   float bw;
-  uint8_t tx_power_dbm;
+  int8_t tx_power_dbm;
   uint8_t telemetry_mode_base;
   uint8_t telemetry_mode_loc;
   uint8_t telemetry_mode_env;

@@ -815,7 +815,7 @@ void SensorMesh::updateFloodAdvertTimer() {
   }
 }
 
-void SensorMesh::setTxPower(uint8_t power_dbm) {
+void SensorMesh::setTxPower(int8_t power_dbm) {
   radio_set_tx_power(power_dbm);
 }
 

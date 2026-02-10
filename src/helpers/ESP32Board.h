@@ -8,12 +8,12 @@
 #include <rom/rtc.h>
 #include <sys/time.h>
 #include <Wire.h>
-#include "esp_wifi.h"
 #include "driver/rtc_io.h"
 
 class ESP32Board : public mesh::MainBoard {
 protected:
   uint8_t startup_reason;
+  bool inhibit_sleep = false;
 
 public:
   void begin() {
@@ -72,11 +72,7 @@ public:
   }
 
   void sleep(uint32_t secs) override {
-    // To check for WiFi status to see if there is active OTA
-    wifi_mode_t mode;
-    esp_err_t err = esp_wifi_get_mode(&mode);
-    
-    if (err != ESP_OK) {          // WiFi is off ~ No active OTA, safe to go to sleep
+    if (!inhibit_sleep) {
       enterLightSleep(secs);      // To wake up after "secs" seconds or when receiving a LoRa packet
     }
   }
@@ -126,6 +122,10 @@ public:
   }
 
   bool startOTAUpdate(const char* id, char reply[]) override;
+
+  void setInhibitSleep(bool inhibit) {
+    inhibit_sleep = inhibit;
+  }
 };
 
 class ESP32RTCClock : public mesh::RTCClock {
