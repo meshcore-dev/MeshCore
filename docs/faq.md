@@ -704,4 +704,6 @@ WiFi firmware now utilizes WIFI Manager which automatically creates an AP of "MC
 
 To customize the default AP name and password, edit WIFI_MANAGER and WIFI_PWD in `./variants/heltec_v3/platformio.ini` and then flash it to your device. A custom password with fewer than 8 characters will be right-padded with zeros to a length of 8.
 
+If the manager does not pop up automatically after connecting to the AP, please browse to 192.168.4.1 .
+
 ---
