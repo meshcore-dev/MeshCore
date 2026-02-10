@@ -50,6 +50,16 @@ mesh::LocalIdentity radio_new_identity() {
   return mesh::LocalIdentity(&rng);  // create new random identity
 }
 
+#if defined(USE_SX1262) || defined(USE_SX1268)
+void radio_set_rx_boosted_gain_mode(bool rxbgm) {
+  radio.setRxBoostedGainMode(rxbgm);
+}
+
+bool radio_get_rx_boosted_gain_mode() {
+  return radio.getRxBoostedGainMode();
+}
+#endif
+
 void MASensorManager::start_gps() {
   if(!gps_active) {
     MESH_DEBUG_PRINTLN("starting GPS");
