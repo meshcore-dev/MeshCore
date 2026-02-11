@@ -51,9 +51,10 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
 
       uint8_t len = pkt->payload_len - i;
       uint8_t offset = pkt->path_len << path_sz;
+      uint8_t hash_sz = 1 << path_sz;
       if (offset >= len) {   // TRACE has reached end of given path
         onTraceRecv(pkt, trace_tag, auth_code, flags, pkt->path, &pkt->payload[i], len);
-      } else if (self_id.isHashMatch(&pkt->payload[i + offset], 1 << path_sz) && allowPacketForward(pkt) && !_tables->hasSeen(pkt)) {
+      } else if (offset + hash_sz <= len && self_id.isHashMatch(&pkt->payload[i + offset], hash_sz) && allowPacketForward(pkt) && !_tables->hasSeen(pkt)) {
         // append SNR (Not hash!)
         pkt->path[pkt->path_len++] = (int8_t) (pkt->getSNR()*4);
 
