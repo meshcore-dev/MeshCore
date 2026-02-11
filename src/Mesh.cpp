@@ -238,6 +238,12 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
     }
     case PAYLOAD_TYPE_ADVERT: {
       int i = 0;
+      int min_advert_len = PUB_KEY_SIZE + 4 + SIGNATURE_SIZE;
+      if (pkt->payload_len < min_advert_len) {
+        MESH_DEBUG_PRINTLN("%s Mesh::onRecvPacket(): incomplete advertisement packet, payload_len=%d", getLogDateTime(), (int)pkt->payload_len);
+        break;
+      }
+
       Identity id;
       memcpy(id.pub_key, &pkt->payload[i], PUB_KEY_SIZE); i += PUB_KEY_SIZE;
 
@@ -245,9 +251,7 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
       memcpy(&timestamp, &pkt->payload[i], 4); i += 4;
       const uint8_t* signature = &pkt->payload[i]; i += SIGNATURE_SIZE;
 
-      if (i > pkt->payload_len) {
-        MESH_DEBUG_PRINTLN("%s Mesh::onRecvPacket(): incomplete advertisement packet", getLogDateTime());
-      } else if (self_id.matches(id.pub_key)) {
+      if (self_id.matches(id.pub_key)) {
         MESH_DEBUG_PRINTLN("%s Mesh::onRecvPacket(): receiving SELF advert packet", getLogDateTime());
       } else if (!_tables->hasSeen(pkt)) {
         uint8_t* app_data = &pkt->payload[i];
