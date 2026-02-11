@@ -361,7 +361,6 @@ void DataStore::saveContacts(DataStoreHost* host) {
 
 #ifdef HAS_ATOMIC_WRITE_SUPPORT
     if (write_success) {
-      fs->remove("/contacts3.bak");
       fs->rename("/contacts3", "/contacts3.bak");
       fs->rename("/contacts3.tmp", "/contacts3");
       fs->remove("/contacts3.bak");
