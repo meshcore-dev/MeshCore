@@ -19,6 +19,12 @@
   #include <helpers/ui/GenericVibration.h>
 #endif
 
+// Add NeoPixel support for Bandit Board
+#ifdef RADIOMASTER_900_BANDIT
+#include <Adafruit_NeoPixel.h>
+extern Adafruit_NeoPixel pixels;
+#endif
+
 #include "../AbstractUITask.h"
 #include "../NodePrefs.h"
 
@@ -44,7 +50,15 @@ class UITask : public AbstractUITask {
   int last_led_increment = 0;
 #endif
 
-#ifdef PIN_USER_BTN_ANA
+#ifdef RADIOMASTER_900_BANDIT
+  // NeoPixel message notification support
+  int neopixel_state = 0;
+  unsigned long next_neopixel_change = 0;
+  uint8_t neopixel_brightness = 0;
+  bool neopixel_brightness_increasing = true;
+#endif
+
+#if defined(PIN_USER_JOYSTICK) || defined(PIN_USER_BTN_ANA)
   unsigned long _analogue_pin_read_millis = millis();
 #endif
 
@@ -54,6 +68,9 @@ class UITask : public AbstractUITask {
   UIScreen* curr;
 
   void userLedHandler();
+#ifdef RADIOMASTER_900_BANDIT
+  void neopixelMsgHandler();
+#endif
 
   // Button action handlers
   char checkDisplayOn(char c);
