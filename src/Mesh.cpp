@@ -155,6 +155,10 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
                 uint8_t path_len = data[k++];
                 uint8_t hash_size = (path_len >> 6) + 1;
                 uint8_t hash_count = path_len & 63;
+                if (hash_size*hash_count > MAX_PATH_SIZE) {
+                  MESH_DEBUG_PRINTLN("%s Mesh::onRecvPacket(): bad PATH path_len=%d exceeds MAX_PATH_SIZE", getLogDateTime(), (int)path_len);
+                  break;
+                }
                 uint8_t* path = &data[k]; k += hash_size*hash_count;
                 uint8_t extra_type = data[k++] & 0x0F;   // upper 4 bits reserved for future use
                 uint8_t* extra = &data[k];
@@ -683,12 +687,20 @@ void Mesh::sendDirect(Packet* packet, const uint8_t* path, uint8_t path_len, uin
   uint8_t pri;
   if (packet->getPayloadType() == PAYLOAD_TYPE_TRACE) {   // TRACE packets are different
     // for TRACE packets, path is appended to end of PAYLOAD. (path is used for SNR's)
+    if (packet->payload_len + path_len > sizeof(packet->payload)) {
+      _mgr->free(packet);
+      return;
+    }
     memcpy(&packet->payload[packet->payload_len], path, path_len);  // NOTE: path_len here can be > 64, and NOT in the new scheme
     packet->payload_len += path_len;
 
     packet->path_len = 0;
     pri = 5;   // maybe make this configurable
   } else {
+    if (path_len > MAX_PATH_SIZE) {
+      _mgr->free(packet);
+      return;
+    }
     packet->path_len = Packet::copyPath(packet->path, path, path_len);
     if (packet->getPayloadType() == PAYLOAD_TYPE_PATH) {
       pri = 1;   // slightly less priority
