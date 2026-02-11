@@ -247,7 +247,7 @@ void loop() {
     }
 
     // Only sleep if enough time has passed since last activity
-    if (millis() >= lastActive + (nextSleepInSecs * 1000)) {
+    if (the_mesh.millisHasNowPassed(lastActive + (nextSleepInSecs * 1000))) {
 #ifdef PIN_USER_BTN
       // Sleep for 30 minutes, wake on LoRa packet, timer, or button press
       board.enterLightSleep(1800, PIN_USER_BTN);
