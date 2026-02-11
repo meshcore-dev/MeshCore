@@ -67,7 +67,7 @@ bool Packet::readFrom(const uint8_t src[], uint8_t len) {
   uint8_t i = 0;
   header = src[i++];
   if (hasTransportCodes()) {
-    if (i + 4 >= len) return false;  // need 4 bytes for transport codes + path_len after
+    if (i + 4 >= len) return false;  // need 4 transport bytes + the path_len byte
     memcpy(&transport_codes[0], &src[i], 2); i += 2;
     memcpy(&transport_codes[1], &src[i], 2); i += 2;
   } else {
