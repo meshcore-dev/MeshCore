@@ -131,9 +131,9 @@ size_t SerialWifiInterface::checkRecvFrame(uint8_t dest[]) {
         if(frame_length > MAX_FRAME_SIZE){
           WIFI_DEBUG_PRINTLN("Skipping frame: length=%d is larger than MAX_FRAME_SIZE=%d", frame_length, MAX_FRAME_SIZE);
           while(frame_length > 0){
-            uint8_t skip[1];
-            int skipped = client.read(skip, 1);
-            frame_length -= skipped;
+            int skipped = client.read();
+            if(skipped < 0) break;  // read error, stop draining
+            frame_length--;
           }
           resetReceivedFrameHeader();
           return 0;
@@ -144,9 +144,9 @@ size_t SerialWifiInterface::checkRecvFrame(uint8_t dest[]) {
         if(frame_type != '<'){
           WIFI_DEBUG_PRINTLN("Skipping frame: type=0x%x is unexpected", frame_type);
           while(frame_length > 0){
-            uint8_t skip[1];
-            int skipped = client.read(skip, 1);
-            frame_length -= skipped;
+            int skipped = client.read();
+            if(skipped < 0) break;  // read error, stop draining
+            frame_length--;
           }
           resetReceivedFrameHeader();
           return 0;
