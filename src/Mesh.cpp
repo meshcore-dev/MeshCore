@@ -155,6 +155,7 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
                 uint8_t path_len = data[k++];
                 uint8_t hash_size = (path_len >> 6) + 1;
                 uint8_t hash_count = path_len & 63;
+                if (k + hash_size*hash_count + 1 > len) break;  // bounds check: need path bytes + extra_type byte
                 uint8_t* path = &data[k]; k += hash_size*hash_count;
                 uint8_t extra_type = data[k++] & 0x0F;   // upper 4 bits reserved for future use
                 uint8_t* extra = &data[k];
