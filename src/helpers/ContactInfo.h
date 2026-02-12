@@ -17,6 +17,7 @@ struct ContactInfo {
   uint32_t lastmod;  // by OUR clock
   int32_t gps_lat, gps_lon;    // 6 dec places
   uint32_t sync_since;
+  uint16_t aead_nonce;  // per-peer AEAD nonce counter for DMs (not used for group messages), seeded from HW RNG
 
   const uint8_t* getSharedSecret(const mesh::LocalIdentity& self_id) const {
     if (!shared_secret_valid) {
