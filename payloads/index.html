@@ -13,7 +13,7 @@
         <link rel="canonical" href="https://meshcore-dev.github.io/meshcore/payloads/">
       
       
-        <link rel="prev" href="../packet_structure/">
+        <link rel="prev" href="../packet_format/">
       
       
         <link rel="next" href="../qr_codes/">
@@ -27,7 +27,7 @@
     
     
       
-        <title>Meshcore payloads - MeshCore Docs</title>
+        <title>Payload Format - MeshCore Docs</title>
       
     
     
@@ -70,7 +70,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#meshcore-payloads" class="md-skip">
+        <a href="#payload-format" class="md-skip">
           Skip to content
         </a>
       
@@ -105,7 +105,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Meshcore payloads
+              Payload Format
             
           </span>
         </div>
@@ -388,14 +388,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../packet_structure/" class="md-nav__link">
+      <a href="../packet_format/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Packet Structure
+    Packet Format
   
 
     
@@ -431,7 +431,7 @@
   <span class="md-ellipsis">
     
   
-    Meshcore payloads
+    Payload Format
   
 
     
@@ -449,7 +449,7 @@
   <span class="md-ellipsis">
     
   
-    Meshcore payloads
+    Payload Format
   
 
     
@@ -636,8 +636,8 @@
   
 
 
-<h1 id="meshcore-payloads">Meshcore payloads</h1>
-<p>Inside of each <a href="../packet_structure/">meshcore packet</a> is a payload, identified by the payload type in the packet header. The types of payloads are:</p>
+<h1 id="payload-format">Payload Format</h1>
+<p>Inside each <a href="../packet_format/">MeshCore Packet</a> is a payload, identified by the payload type in the packet header. The types of payloads are:</p>
 <ul>
 <li>Node advertisement.</li>
 <li>Acknowledgment.</li>
@@ -860,7 +860,7 @@
 <tr>
 <td>extra type</td>
 <td>1</td>
-<td>extra, bundled payload type, eg., acknowledgement or response. Same values as in <a href="../packet_structure/">packet structure</a></td>
+<td>extra, bundled payload type, eg., acknowledgement or response. Same values as in <a href="../packet_format/">Packet Format</a></td>
 </tr>
 <tr>
 <td>extra</td>
