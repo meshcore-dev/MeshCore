@@ -151,16 +151,23 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
 
             // Try-both decode: AEAD-first for peers known to support it (avoids 1/65536
             // ECB false-positive on AEAD packets), ECB-first for unknown/legacy peers.
-            uint8_t assoc[3] = { pkt->header, dest_hash, src_hash };
+            // Mask out route type bits — they are set after encryption and vary per hop.
+            uint8_t assoc[3] = { (uint8_t)(pkt->header & ~PH_ROUTE_MASK), dest_hash, src_hash };
             int len;
+            bool decoded_aead = false;
             if (getPeerFlags(j) & CONTACT_FLAG_AEAD) {
               len = Utils::aeadDecrypt(secret, data, macAndData, macAndDataLen, assoc, 3, dest_hash, src_hash);
-              if (len <= 0) len = Utils::MACThenDecrypt(secret, data, macAndData, macAndDataLen);
+              if (len > 0) decoded_aead = true;
+              else len = Utils::MACThenDecrypt(secret, data, macAndData, macAndDataLen);
             } else {
               len = Utils::MACThenDecrypt(secret, data, macAndData, macAndDataLen);
-              if (len <= 0) len = Utils::aeadDecrypt(secret, data, macAndData, macAndDataLen, assoc, 3, dest_hash, src_hash);
+              if (len <= 0) {
+                len = Utils::aeadDecrypt(secret, data, macAndData, macAndDataLen, assoc, 3, dest_hash, src_hash);
+                if (len > 0) decoded_aead = true;
+              }
             }
             if (len > 0) {  // success!
+              if (decoded_aead) onPeerAeadDetected(j);
               if (pkt->getPayloadType() == PAYLOAD_TYPE_PATH) {
                 int k = 0;
                 uint8_t path_len = data[k++];
@@ -216,7 +223,7 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
           // Phase 2 MUST swap to AEAD-first (see peer message comment above).
           int len = Utils::MACThenDecrypt(secret, data, macAndData, macAndDataLen);
           if (len <= 0) {
-            uint8_t assoc[2] = { pkt->header, dest_hash };
+            uint8_t assoc[2] = { (uint8_t)(pkt->header & ~PH_ROUTE_MASK), dest_hash };
             len = Utils::aeadDecrypt(secret, data, macAndData, macAndDataLen, assoc, 2, dest_hash, 0);
           }
           if (len > 0) {  // success!
@@ -252,7 +259,7 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
           // worthwhile for public/hashtag channels where the PSK is already widely known.
           int len = Utils::MACThenDecrypt(channels[j].secret, data, macAndData, macAndDataLen);
           if (len <= 0) {
-            uint8_t assoc[2] = { pkt->header, channel_hash };
+            uint8_t assoc[2] = { (uint8_t)(pkt->header & ~PH_ROUTE_MASK), channel_hash };
             len = Utils::aeadDecrypt(channels[j].secret, data, macAndData, macAndDataLen, assoc, 2, channel_hash, 0);
           }
           if (len > 0) {  // success!
@@ -494,7 +501,7 @@ Packet* Mesh::createPathReturn(const uint8_t* dest_hash, const uint8_t* secret, 
     if (aead_nonce) {
       uint8_t dh = packet->payload[0];
       uint8_t sh = packet->payload[1];
-      uint8_t assoc[3] = { packet->header, dh, sh };
+      uint8_t assoc[3] = { (uint8_t)(packet->header & ~PH_ROUTE_MASK), dh, sh };
       len += Utils::aeadEncrypt(secret, &packet->payload[len], data, data_len, assoc, 3, aead_nonce, dh, sh);
     } else {
       len += Utils::encryptThenMAC(secret, &packet->payload[len], data, data_len);
@@ -529,7 +536,7 @@ Packet* Mesh::createDatagram(uint8_t type, const Identity& dest, const uint8_t* 
   if (aead_nonce) {
     uint8_t dest_hash = packet->payload[0];
     uint8_t src_hash = packet->payload[1];
-    uint8_t assoc[3] = { packet->header, dest_hash, src_hash };
+    uint8_t assoc[3] = { (uint8_t)(packet->header & ~PH_ROUTE_MASK), dest_hash, src_hash };
     len += Utils::aeadEncrypt(secret, &packet->payload[len], data, data_len, assoc, 3, aead_nonce, dest_hash, src_hash);
   } else {
     len += Utils::encryptThenMAC(secret, &packet->payload[len], data, data_len);

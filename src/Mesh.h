@@ -84,6 +84,7 @@ protected:
   virtual void getPeerSharedSecret(uint8_t* dest_secret, int peer_idx) { }
   virtual uint8_t getPeerFlags(int peer_idx) { return 0; }
   virtual uint16_t getPeerNextAeadNonce(int peer_idx) { return 0; }
+  virtual void onPeerAeadDetected(int peer_idx) { }
 
   /**
    * \brief  A (now decrypted) data packet has been received (by a known peer).
