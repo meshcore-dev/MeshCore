@@ -17,7 +17,14 @@ struct ContactInfo {
   uint32_t lastmod;  // by OUR clock
   int32_t gps_lat, gps_lon;    // 6 dec places
   uint32_t sync_since;
-  uint16_t aead_nonce;  // per-peer AEAD nonce counter for DMs (not used for group messages), seeded from HW RNG
+  mutable uint16_t aead_nonce;  // per-peer AEAD nonce counter for DMs (not used for group messages), seeded from HW RNG
+
+  // Returns next AEAD nonce (post-increment) if peer supports AEAD, 0 otherwise.
+  // When 0, callers use ECB encryption.
+  uint16_t nextAeadNonce() const {
+    if (flags & CONTACT_FLAG_AEAD) return ++aead_nonce;
+    return 0;
+  }
 
   const uint8_t* getSharedSecret(const mesh::LocalIdentity& self_id) const {
     if (!shared_secret_valid) {
