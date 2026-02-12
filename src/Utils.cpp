@@ -122,7 +122,8 @@ int Utils::aeadEncrypt(const uint8_t* shared_secret,
                        const uint8_t* assoc_data, int assoc_len,
                        uint16_t nonce_counter,
                        uint8_t dest_hash, uint8_t src_hash) {
-  if (src_len <= 0) return 0;
+  if (src_len <= 0 || src_len > MAX_PACKET_PAYLOAD) return 0;
+  if (assoc_len < 0 || assoc_len > MAX_PACKET_PAYLOAD) return 0;
 
   // Write nonce to output
   dest[0] = (uint8_t)(nonce_counter >> 8);
@@ -166,7 +167,8 @@ int Utils::aeadDecrypt(const uint8_t* shared_secret,
                        const uint8_t* assoc_data, int assoc_len,
                        uint8_t dest_hash, uint8_t src_hash) {
   // Minimum: nonce(2) + at least 1 byte ciphertext + tag(4)
-  if (src_len < AEAD_NONCE_SIZE + 1 + AEAD_TAG_SIZE) return 0;
+  if (src_len < AEAD_NONCE_SIZE + 1 + AEAD_TAG_SIZE || src_len > MAX_PACKET_PAYLOAD) return 0;
+  if (assoc_len < 0 || assoc_len > MAX_PACKET_PAYLOAD) return 0;
 
   int ct_len = src_len - AEAD_NONCE_SIZE - AEAD_TAG_SIZE;
 
