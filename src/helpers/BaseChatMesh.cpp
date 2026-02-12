@@ -21,6 +21,7 @@ mesh::Packet* BaseChatMesh::createSelfAdvert(const char* name) {
   uint8_t app_data_len;
   {
     AdvertDataBuilder builder(ADV_TYPE_CHAT, name);
+    builder.setFeat1(FEAT1_AEAD_SUPPORT);
     app_data_len = builder.encodeTo(app_data);
   }
 
@@ -32,6 +33,7 @@ mesh::Packet* BaseChatMesh::createSelfAdvert(const char* name, double lat, doubl
   uint8_t app_data_len;
   {
     AdvertDataBuilder builder(ADV_TYPE_CHAT, name, lat, lon);
+    builder.setFeat1(FEAT1_AEAD_SUPPORT);
     app_data_len = builder.encodeTo(app_data);
   }
 
@@ -101,6 +103,10 @@ void BaseChatMesh::populateContactFromAdvert(ContactInfo& ci, const mesh::Identi
   }
   ci.last_advert_timestamp = timestamp;
   ci.lastmod = getRTCClock()->getCurrentTime();
+  getRNG()->random((uint8_t*)&ci.aead_nonce, sizeof(ci.aead_nonce));  // seed AEAD nonce from HW RNG
+  if (parser.getFeat1() & FEAT1_AEAD_SUPPORT) {
+    ci.flags |= CONTACT_FLAG_AEAD;
+  }
 }
 
 void BaseChatMesh::onAdvertRecv(mesh::Packet* packet, const mesh::Identity& id, uint32_t timestamp, const uint8_t* app_data, size_t app_data_len) {
@@ -165,6 +171,11 @@ void BaseChatMesh::onAdvertRecv(mesh::Packet* packet, const mesh::Identity& id, 
     }
     from->last_advert_timestamp = timestamp;
     from->lastmod = getRTCClock()->getCurrentTime();
+    if (parser.getFeat1() & FEAT1_AEAD_SUPPORT) {
+      from->flags |= CONTACT_FLAG_AEAD;
+    } else {
+      from->flags &= ~CONTACT_FLAG_AEAD;
+    }
 
   onDiscoveredContact(*from, is_new, packet->path_len, packet->path);       // let UI know
 }
@@ -762,6 +773,7 @@ bool BaseChatMesh::addContact(const ContactInfo& contact) {
   if (dest) {
     *dest = contact;
     dest->shared_secret_valid = false; // mark shared_secret as needing calculation
+    getRNG()->random((uint8_t*)&dest->aead_nonce, sizeof(dest->aead_nonce));  // always seed fresh from HW RNG
     return true;  // success
   }
   return false;

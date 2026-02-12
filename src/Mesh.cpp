@@ -146,9 +146,19 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
             uint8_t secret[PUB_KEY_SIZE];
             getPeerSharedSecret(secret, j);
 
-            // decrypt, checking MAC is valid
             uint8_t data[MAX_PACKET_PAYLOAD];
-            int len = Utils::MACThenDecrypt(secret, data, macAndData, pkt->payload_len - i);
+            int macAndDataLen = pkt->payload_len - i;
+
+            // Try ECB first (Phase 1: all senders use ECB), then AEAD-4 fallback.
+            // IMPORTANT: Phase 2 MUST swap to AEAD-first. ECB-first has a 1/65536
+            // false-positive rate on AEAD packets (nonce bytes matching truncated HMAC),
+            // producing garbage plaintext. AEAD-first has only 1/2^32 false-positive on
+            // ECB packets, which is negligible.
+            int len = Utils::MACThenDecrypt(secret, data, macAndData, macAndDataLen);
+            if (len <= 0) {
+              uint8_t assoc[3] = { pkt->header, dest_hash, src_hash };
+              len = Utils::aeadDecrypt(secret, data, macAndData, macAndDataLen, assoc, 3, dest_hash, src_hash);
+            }
             if (len > 0) {  // success!
               if (pkt->getPayloadType() == PAYLOAD_TYPE_PATH) {
                 int k = 0;
@@ -198,9 +208,16 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
           uint8_t secret[PUB_KEY_SIZE];
           self_id.calcSharedSecret(secret, sender);
 
-          // decrypt, checking MAC is valid
           uint8_t data[MAX_PACKET_PAYLOAD];
-          int len = Utils::MACThenDecrypt(secret, data, macAndData, pkt->payload_len - i);
+          int macAndDataLen = pkt->payload_len - i;
+
+          // Try ECB first (Phase 1), then AEAD-4 fallback.
+          // Phase 2 MUST swap to AEAD-first (see peer message comment above).
+          int len = Utils::MACThenDecrypt(secret, data, macAndData, macAndDataLen);
+          if (len <= 0) {
+            uint8_t assoc[2] = { pkt->header, dest_hash };
+            len = Utils::aeadDecrypt(secret, data, macAndData, macAndDataLen, assoc, 2, dest_hash, 0);
+          }
           if (len > 0) {  // success!
             onAnonDataRecv(pkt, secret, sender, data, len);
             pkt->markDoNotRetransmit();
@@ -224,9 +241,19 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
         int num = searchChannelsByHash(&channel_hash, channels, 4);
         // for each matching channel, try to decrypt data
         for (int j = 0; j < num; j++) {
-          // decrypt, checking MAC is valid
           uint8_t data[MAX_PACKET_PAYLOAD];
-          int len = Utils::MACThenDecrypt(channels[j].secret, data, macAndData, pkt->payload_len - i);
+          int macAndDataLen = pkt->payload_len - i;
+
+          // Try ECB first (Phase 1), then AEAD-4 fallback.
+          // Phase 2 MUST swap to AEAD-first (see peer message comment above).
+          // Note: group channels share a key, so nonce collisions across senders can leak
+          // P1 XOR P2 for colliding message pairs (no key recovery). Bounded risk, mainly
+          // worthwhile for public/hashtag channels where the PSK is already widely known.
+          int len = Utils::MACThenDecrypt(channels[j].secret, data, macAndData, macAndDataLen);
+          if (len <= 0) {
+            uint8_t assoc[2] = { pkt->header, channel_hash };
+            len = Utils::aeadDecrypt(channels[j].secret, data, macAndData, macAndDataLen, assoc, 2, channel_hash, 0);
+          }
           if (len > 0) {  // success!
             onGroupDataRecv(pkt, pkt->getPayloadType(), channels[j], data, len);
             break;

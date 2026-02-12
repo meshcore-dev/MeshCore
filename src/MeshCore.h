@@ -16,6 +16,12 @@
 #define CIPHER_MAC_SIZE      2
 #define PATH_HASH_SIZE       1
 
+// AEAD-4 (ChaChaPoly) encryption
+#define AEAD_TAG_SIZE        4
+#define AEAD_NONCE_SIZE      2
+#define CONTACT_FLAG_AEAD    0x02   // bit 1 of ContactInfo.flags (bit 0 = favourite)
+#define FEAT1_AEAD_SUPPORT   0x0001 // bit 0 of feat1 uint16_t
+
 #define MAX_PACKET_PAYLOAD  184
 #define MAX_PATH_SIZE        64
 #define MAX_TRANS_UNIT      255
