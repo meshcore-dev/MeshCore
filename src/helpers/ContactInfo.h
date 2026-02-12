@@ -23,7 +23,10 @@ struct ContactInfo {
   // When 0, callers use ECB encryption.
   uint16_t nextAeadNonce() const {
     if (flags & CONTACT_FLAG_AEAD) {
-      if (++aead_nonce == 0) ++aead_nonce;  // skip 0 (sentinel for ECB)
+      if (++aead_nonce == 0) {
+        ++aead_nonce;  // skip 0 (sentinel for ECB)
+        MESH_DEBUG_PRINTLN("AEAD nonce wrapped for peer: %s", name);
+      }
       return aead_nonce;
     }
     return 0;
