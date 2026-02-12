@@ -65,6 +65,7 @@
 
 // GPS L76KB
 #define GPS_BAUDRATE            9600
+#define GPS_BAUD_RATE            GPS_BAUDRATE
 #define GPS_THREAD_INTERVAL     50
 #define PIN_GPS_TX              PIN_SERIAL1_RX
 #define PIN_GPS_RX              PIN_SERIAL1_TX
