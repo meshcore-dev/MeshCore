@@ -85,7 +85,9 @@ int Utils::MACThenDecrypt(const uint8_t* shared_secret, uint8_t* dest, const uin
   if (memcmp(hmac, src, CIPHER_MAC_SIZE) == 0) {
     return decrypt(shared_secret, dest, src + CIPHER_MAC_SIZE, src_len - CIPHER_MAC_SIZE);
   }
-  return 0; // invalid HMAC
+  // No need to zero dest on failure — MAC is checked before decryption,
+  // so dest is never written to when authentication fails.
+  return 0;
 }
 
 /*
