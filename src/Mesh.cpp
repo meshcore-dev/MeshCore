@@ -149,15 +149,16 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
             uint8_t data[MAX_PACKET_PAYLOAD];
             int macAndDataLen = pkt->payload_len - i;
 
-            // Try ECB first (Phase 1: all senders use ECB), then AEAD-4 fallback.
-            // IMPORTANT: Phase 2 MUST swap to AEAD-first. ECB-first has a 1/65536
-            // false-positive rate on AEAD packets (nonce bytes matching truncated HMAC),
-            // producing garbage plaintext. AEAD-first has only 1/2^32 false-positive on
-            // ECB packets, which is negligible.
-            int len = Utils::MACThenDecrypt(secret, data, macAndData, macAndDataLen);
-            if (len <= 0) {
-              uint8_t assoc[3] = { pkt->header, dest_hash, src_hash };
+            // Try-both decode: AEAD-first for peers known to support it (avoids 1/65536
+            // ECB false-positive on AEAD packets), ECB-first for unknown/legacy peers.
+            uint8_t assoc[3] = { pkt->header, dest_hash, src_hash };
+            int len;
+            if (getPeerFlags(j) & CONTACT_FLAG_AEAD) {
               len = Utils::aeadDecrypt(secret, data, macAndData, macAndDataLen, assoc, 3, dest_hash, src_hash);
+              if (len <= 0) len = Utils::MACThenDecrypt(secret, data, macAndData, macAndDataLen);
+            } else {
+              len = Utils::MACThenDecrypt(secret, data, macAndData, macAndDataLen);
+              if (len <= 0) len = Utils::aeadDecrypt(secret, data, macAndData, macAndDataLen, assoc, 3, dest_hash, src_hash);
             }
             if (len > 0) {  // success!
               if (pkt->getPayloadType() == PAYLOAD_TYPE_PATH) {
@@ -172,7 +173,7 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
                 if (onPeerPathRecv(pkt, j, secret, path, path_len, extra_type, extra, extra_len)) {
                   if (pkt->isRouteFlood()) {
                     // send a reciprocal return path to sender, but send DIRECTLY!
-                    mesh::Packet* rpath = createPathReturn(&src_hash, secret, pkt->path, pkt->path_len, 0, NULL, 0);
+                    mesh::Packet* rpath = createPathReturn(&src_hash, secret, pkt->path, pkt->path_len, 0, NULL, 0, getPeerNextAeadNonce(j));
                     if (rpath) sendDirect(rpath, path, path_len, 500);
                   }
                 }
@@ -452,13 +453,13 @@ Packet* Mesh::createAdvert(const LocalIdentity& id, const uint8_t* app_data, siz
 
 #define MAX_COMBINED_PATH  (MAX_PACKET_PAYLOAD - 2 - CIPHER_BLOCK_SIZE)
 
-Packet* Mesh::createPathReturn(const Identity& dest, const uint8_t* secret, const uint8_t* path, uint8_t path_len, uint8_t extra_type, const uint8_t*extra, size_t extra_len) {
+Packet* Mesh::createPathReturn(const Identity& dest, const uint8_t* secret, const uint8_t* path, uint8_t path_len, uint8_t extra_type, const uint8_t*extra, size_t extra_len, uint16_t aead_nonce) {
   uint8_t dest_hash[PATH_HASH_SIZE];
   dest.copyHashTo(dest_hash);
-  return createPathReturn(dest_hash, secret, path, path_len, extra_type, extra, extra_len);
+  return createPathReturn(dest_hash, secret, path, path_len, extra_type, extra, extra_len, aead_nonce);
 }
 
-Packet* Mesh::createPathReturn(const uint8_t* dest_hash, const uint8_t* secret, const uint8_t* path, uint8_t path_len, uint8_t extra_type, const uint8_t*extra, size_t extra_len) {
+Packet* Mesh::createPathReturn(const uint8_t* dest_hash, const uint8_t* secret, const uint8_t* path, uint8_t path_len, uint8_t extra_type, const uint8_t*extra, size_t extra_len, uint16_t aead_nonce) {
   uint8_t path_hash_size = (path_len >> 6) + 1;
   uint8_t path_hash_count = path_len & 63;
 
@@ -490,7 +491,14 @@ Packet* Mesh::createPathReturn(const uint8_t* dest_hash, const uint8_t* secret, 
       getRNG()->random(&data[data_len], 4); data_len += 4;
     }
 
-    len += Utils::encryptThenMAC(secret, &packet->payload[len], data, data_len);
+    if (aead_nonce) {
+      uint8_t dh = packet->payload[0];
+      uint8_t sh = packet->payload[1];
+      uint8_t assoc[3] = { packet->header, dh, sh };
+      len += Utils::aeadEncrypt(secret, &packet->payload[len], data, data_len, assoc, 3, aead_nonce, dh, sh);
+    } else {
+      len += Utils::encryptThenMAC(secret, &packet->payload[len], data, data_len);
+    }
   }
 
   packet->payload_len = len;
@@ -498,9 +506,10 @@ Packet* Mesh::createPathReturn(const uint8_t* dest_hash, const uint8_t* secret, 
   return packet;
 }
 
-Packet* Mesh::createDatagram(uint8_t type, const Identity& dest, const uint8_t* secret, const uint8_t* data, size_t data_len) {
+Packet* Mesh::createDatagram(uint8_t type, const Identity& dest, const uint8_t* secret, const uint8_t* data, size_t data_len, uint16_t aead_nonce) {
   if (type == PAYLOAD_TYPE_TXT_MSG || type == PAYLOAD_TYPE_REQ || type == PAYLOAD_TYPE_RESPONSE) {
-    if (data_len + CIPHER_MAC_SIZE + CIPHER_BLOCK_SIZE-1 > MAX_PACKET_PAYLOAD) return NULL;
+    size_t max_overhead = aead_nonce ? (AEAD_NONCE_SIZE + AEAD_TAG_SIZE) : (CIPHER_MAC_SIZE + CIPHER_BLOCK_SIZE-1);
+    if (data_len + max_overhead > MAX_PACKET_PAYLOAD) return NULL;
   } else {
     return NULL;  // invalid type
   }
@@ -515,7 +524,15 @@ Packet* Mesh::createDatagram(uint8_t type, const Identity& dest, const uint8_t* 
   int len = 0;
   len += dest.copyHashTo(&packet->payload[len]);  // dest hash
   len += self_id.copyHashTo(&packet->payload[len]);  // src hash
-  len += Utils::encryptThenMAC(secret, &packet->payload[len], data, data_len);
+
+  if (aead_nonce) {
+    uint8_t dest_hash = packet->payload[0];
+    uint8_t src_hash = packet->payload[1];
+    uint8_t assoc[3] = { packet->header, dest_hash, src_hash };
+    len += Utils::aeadEncrypt(secret, &packet->payload[len], data, data_len, assoc, 3, aead_nonce, dest_hash, src_hash);
+  } else {
+    len += Utils::encryptThenMAC(secret, &packet->payload[len], data, data_len);
+  }
 
   packet->payload_len = len;
 
