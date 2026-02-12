@@ -15,6 +15,8 @@
 struct ClientInfo {
   mesh::Identity id;
   uint8_t permissions;
+  uint8_t flags;                    // transient — includes CONTACT_FLAG_AEAD
+  mutable uint16_t aead_nonce;      // transient — per-peer nonce counter
   uint8_t out_path_len;
   uint8_t out_path[MAX_PATH_SIZE];
   uint8_t shared_secret[PUB_KEY_SIZE];
@@ -30,6 +32,13 @@ struct ClientInfo {
     } room;
   } extra;
   
+  uint16_t nextAeadNonce() const {
+    if (flags & CONTACT_FLAG_AEAD) {
+      if (++aead_nonce == 0) ++aead_nonce;  // skip 0 (means ECB)
+      return aead_nonce;
+    }
+    return 0;
+  }
   bool isAdmin() const { return (permissions & PERM_ACL_ROLE_MASK) == PERM_ACL_ADMIN; }
 };
 
