@@ -22,7 +22,10 @@ struct ContactInfo {
   // Returns next AEAD nonce (post-increment) if peer supports AEAD, 0 otherwise.
   // When 0, callers use ECB encryption.
   uint16_t nextAeadNonce() const {
-    if (flags & CONTACT_FLAG_AEAD) return ++aead_nonce;
+    if (flags & CONTACT_FLAG_AEAD) {
+      if (++aead_nonce == 0) ++aead_nonce;  // skip 0 (sentinel for ECB)
+      return aead_nonce;
+    }
     return 0;
   }
 
