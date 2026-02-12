@@ -50,6 +50,15 @@
 #define ADC_MULTIPLIER          (2.0F)
 #define ADC_RESOLUTION          (12)
 
+// Power management boot protection threshold (millivolts)
+// Set to 0 to disable boot protection
+#define PWRMGT_VOLTAGE_BOOTLOCK    3300   // Won't boot below this voltage
+
+// LPCOMP wake configuration (voltage recovery from SYSTEMOFF)
+#define PWRMGT_LPCOMP_AIN           7     // AIN7 = P0.31 = PIN_VBAT_READ
+// Wake when battery voltage recovers to ~3.7V
+#define PWRMGT_LPCOMP_REFSEL        12    // 9/16 VDD
+
 // Serial interfaces
 #define PIN_SERIAL1_RX          (7)
 #define PIN_SERIAL1_TX          (6)
