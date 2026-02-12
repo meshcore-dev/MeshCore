@@ -508,8 +508,9 @@ Packet* Mesh::createPathReturn(const uint8_t* dest_hash, const uint8_t* secret, 
 
 Packet* Mesh::createDatagram(uint8_t type, const Identity& dest, const uint8_t* secret, const uint8_t* data, size_t data_len, uint16_t aead_nonce) {
   if (type == PAYLOAD_TYPE_TXT_MSG || type == PAYLOAD_TYPE_REQ || type == PAYLOAD_TYPE_RESPONSE) {
+    size_t hash_prefix = PATH_HASH_SIZE * 2;  // dest_hash + src_hash
     size_t max_overhead = aead_nonce ? (AEAD_NONCE_SIZE + AEAD_TAG_SIZE) : (CIPHER_MAC_SIZE + CIPHER_BLOCK_SIZE-1);
-    if (data_len + max_overhead > MAX_PACKET_PAYLOAD) return NULL;
+    if (data_len + hash_prefix + max_overhead > MAX_PACKET_PAYLOAD) return NULL;
   } else {
     return NULL;  // invalid type
   }
