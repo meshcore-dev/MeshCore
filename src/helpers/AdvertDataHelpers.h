@@ -16,6 +16,9 @@
 #define ADV_FEAT2_MASK        0x40   // FUTURE
 #define ADV_NAME_MASK         0x80
 
+// FEAT1 bit flags (encoded when ADV_FEAT1_MASK is set)
+#define ADV_FEAT1_ASCON_CAPABLE 0x0001
+
 class AdvertDataBuilder {
   uint8_t _type;
   bool _has_loc;

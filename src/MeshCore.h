@@ -12,9 +12,36 @@
 #define CIPHER_KEY_SIZE     16
 #define CIPHER_BLOCK_SIZE   16
 
-// V1
+// V1 (AES-ECB + HMAC) - Legacy encryption
 #define CIPHER_MAC_SIZE      2
 #define PATH_HASH_SIZE       1
+
+// Ascon-128 AEAD encryption with per-packet key derivation
+//
+// Design goals:
+// 1. Minimize airtime (8 bytes overhead: 4-byte counter + 4-byte tag)
+// 2. Strong security through per-packet rekeying
+// 3. Simple try-decrypt fallback (no capability flags needed)
+//
+// Per-packet key derivation:
+//   packet_key = HMAC-SHA256(shared_secret, counter)[0:16]
+//
+// This enables a short 4-byte tag because:
+// - Each message uses a unique derived key
+// - Attacker can't accumulate forgery attempts across messages
+// - At LoRa's 500ms/packet, brute forcing 2^32 attempts takes 68 years
+//
+// Counter: 4 bytes, initialized to random value at boot, increments per packet.
+// Random boot offset prevents counter reuse across reboots when RTC is unreliable.
+//
+// Backwards compatibility:
+// - Try Ascon decrypt first, fall back to legacy AES-ECB+HMAC on failure
+// - Old clients silently drop Ascon packets (tag check fails)
+#define ASCON_KEY_SIZE       16   // Ascon-128 uses 128-bit key
+#define ASCON_NONCE_SIZE     16   // Ascon-128 uses 128-bit nonce (internal)
+#define ASCON_COUNTER_SIZE    4   // Transmitted counter (random boot offset + sequence)
+#define ASCON_TAG_SIZE        4   // 32-bit tag (safe with per-packet rekey)
+#define ASCON_OVERHEAD        8   // Total overhead: counter + tag
 
 #define MAX_PACKET_PAYLOAD  184
 #define MAX_PATH_SIZE        64

@@ -46,6 +46,11 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
 
   if (pkt->isRouteDirect() && pkt->getPayloadType() == PAYLOAD_TYPE_TRACE) {
     if (pkt->path_len < MAX_PATH_SIZE) {
+      // TRACE packet minimum: trace_tag(4) + auth_code(4) + flags(1) = 9 bytes
+      if (pkt->payload_len < 9) {
+        MESH_DEBUG_PRINTLN("%s Mesh::onRecvPacket(): incomplete TRACE packet", getLogDateTime());
+        return ACTION_RELEASE;
+      }
       uint8_t i = 0;
       uint32_t trace_tag;
       memcpy(&trace_tag, &pkt->payload[i], 4); i += 4;
@@ -56,9 +61,10 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
 
       uint8_t len = pkt->payload_len - i;
       uint8_t offset = pkt->path_len << path_sz;
+      uint8_t hash_size = 1 << path_sz;
       if (offset >= len) {   // TRACE has reached end of given path
         onTraceRecv(pkt, trace_tag, auth_code, flags, pkt->path, &pkt->payload[i], len);
-      } else if (self_id.isHashMatch(&pkt->payload[i + offset], 1 << path_sz) && allowPacketForward(pkt) && !_tables->hasSeen(pkt)) {
+      } else if (i + offset + hash_size <= pkt->payload_len && self_id.isHashMatch(&pkt->payload[i + offset], hash_size) && allowPacketForward(pkt) && !_tables->hasSeen(pkt)) {
         // append SNR (Not hash!)
         pkt->path[pkt->path_len++] = (int8_t) (pkt->getSNR()*4);
 
@@ -80,10 +86,9 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
   if (pkt->isRouteDirect() && pkt->path_len >= PATH_HASH_SIZE) {
     // check for 'early received' ACK
     if (pkt->getPayloadType() == PAYLOAD_TYPE_ACK) {
-      int i = 0;
-      uint32_t ack_crc;
-      memcpy(&ack_crc, &pkt->payload[i], 4); i += 4;
-      if (i <= pkt->payload_len) {
+      if (pkt->payload_len >= 4) {
+        uint32_t ack_crc;
+        memcpy(&ack_crc, &pkt->payload[0], 4);
         onAckRecv(pkt, ack_crc);
       }
     }
@@ -115,12 +120,11 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
 
   switch (pkt->getPayloadType()) {
     case PAYLOAD_TYPE_ACK: {
-      int i = 0;
-      uint32_t ack_crc;
-      memcpy(&ack_crc, &pkt->payload[i], 4); i += 4;
-      if (i > pkt->payload_len) {
+      if (pkt->payload_len < 4) {
         MESH_DEBUG_PRINTLN("%s Mesh::onRecvPacket(): incomplete ACK packet", getLogDateTime());
       } else if (!_tables->hasSeen(pkt)) {
+        uint32_t ack_crc;
+        memcpy(&ack_crc, &pkt->payload[0], 4);
         onAckRecv(pkt, ack_crc);
         action = routeRecvPacket(pkt);
       }
@@ -134,8 +138,10 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
       uint8_t dest_hash = pkt->payload[i++];
       uint8_t src_hash = pkt->payload[i++];
 
-      uint8_t* macAndData = &pkt->payload[i];   // MAC + encrypted data 
-      if (i + CIPHER_MAC_SIZE >= pkt->payload_len) {
+      uint8_t* encryptedData = &pkt->payload[i];   // encrypted data (AES: MAC + ciphertext, Ascon: counter + ciphertext + tag)
+      int encrypted_len = pkt->payload_len - i;
+
+      if (encrypted_len < CIPHER_MAC_SIZE) {
         MESH_DEBUG_PRINTLN("%s Mesh::onRecvPacket(): incomplete data packet", getLogDateTime());
       } else if (!_tables->hasSeen(pkt)) {
         // NOTE: this is a 'first packet wins' impl. When receiving from multiple paths, the first to arrive wins.
@@ -151,10 +157,15 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
             uint8_t secret[PUB_KEY_SIZE];
             getPeerSharedSecret(secret, j);
 
-            // decrypt, checking MAC is valid
+            // Unified decryption: tries Ascon first, falls back to legacy AES-ECB+HMAC
             uint8_t data[MAX_PACKET_PAYLOAD];
-            int len = Utils::MACThenDecrypt(secret, data, macAndData, pkt->payload_len - i);
+            bool was_ascon = false;
+            int len = Utils::decryptAuto(secret, data, encryptedData, encrypted_len, &was_ascon);
+
             if (len > 0) {  // success!
+              // Notify subclass of detected crypto capability (for auto-upgrade to Ascon)
+              onPeerAsconCapabilityDetected(j, was_ascon);
+
               if (pkt->getPayloadType() == PAYLOAD_TYPE_PATH) {
                 int k = 0;
                 uint8_t path_len = data[k++];
@@ -164,17 +175,23 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
                 uint8_t extra_len = len - k;   // remainder of packet (may be padded with zeroes!)
                 if (onPeerPathRecv(pkt, j, secret, path, path_len, extra_type, extra, extra_len)) {
                   if (pkt->isRouteFlood()) {
-                    // send a reciprocal return path to sender, but send DIRECTLY!
-                    mesh::Packet* rpath = createPathReturn(&src_hash, secret, pkt->path, pkt->path_len, 0, NULL, 0);
+                    // send a reciprocal return path to sender using same crypto they used, but send DIRECTLY!
+                    mesh::Packet* rpath = createPathReturn(&src_hash, secret, pkt->path, pkt->path_len, 0, NULL, 0, was_ascon);
                     if (rpath) sendDirect(rpath, path, path_len, 500);
                   }
                 }
               } else {
                 onPeerDataRecv(pkt, pkt->getPayloadType(), j, secret, data, len);
               }
+              // SECURITY: Clear sensitive data from stack before breaking
+              memset(data, 0, sizeof(data));
+              memset(secret, 0, sizeof(secret));
               found = true;
               break;
             }
+            // SECURITY: Clear buffers even if decryption failed
+            memset(data, 0, sizeof(data));
+            memset(secret, 0, sizeof(secret));
           }
           if (found) {
             pkt->markDoNotRetransmit();  // packet was for this node, so don't retransmit
@@ -191,8 +208,10 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
       uint8_t dest_hash = pkt->payload[i++];
       uint8_t* sender_pub_key = &pkt->payload[i]; i += PUB_KEY_SIZE;
 
-      uint8_t* macAndData = &pkt->payload[i];   // MAC + encrypted data 
-      if (i + 2 >= pkt->payload_len) {
+      uint8_t* encryptedData = &pkt->payload[i];   // encrypted data (AES: MAC + ciphertext, Ascon: counter + ciphertext + tag)
+      int encrypted_len = pkt->payload_len - i;
+
+      if (encrypted_len < CIPHER_MAC_SIZE + 1) {
         MESH_DEBUG_PRINTLN("%s Mesh::onRecvPacket(): incomplete data packet", getLogDateTime());
       } else if (!_tables->hasSeen(pkt)) {
         if (self_id.isHashMatch(&dest_hash)) {
@@ -201,25 +220,32 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
           uint8_t secret[PUB_KEY_SIZE];
           self_id.calcSharedSecret(secret, sender);
 
-          // decrypt, checking MAC is valid
+          // Unified decryption: tries Ascon first, falls back to legacy AES-ECB+HMAC
           uint8_t data[MAX_PACKET_PAYLOAD];
-          int len = Utils::MACThenDecrypt(secret, data, macAndData, pkt->payload_len - i);
+          bool was_ascon = false;
+          int len = Utils::decryptAuto(secret, data, encryptedData, encrypted_len, &was_ascon);
+
           if (len > 0) {  // success!
-            onAnonDataRecv(pkt, secret, sender, data, len);
+            onAnonDataRecv(pkt, secret, sender, data, len, was_ascon);
             pkt->markDoNotRetransmit();
           }
+          // SECURITY: Clear sensitive data from stack
+          memset(data, 0, sizeof(data));
+          memset(secret, 0, sizeof(secret));
         }
         action = routeRecvPacket(pkt);
       }
       break;
     }
-    case PAYLOAD_TYPE_GRP_DATA: 
+    case PAYLOAD_TYPE_GRP_DATA:
     case PAYLOAD_TYPE_GRP_TXT: {
       int i = 0;
       uint8_t channel_hash = pkt->payload[i++];
 
-      uint8_t* macAndData = &pkt->payload[i];   // MAC + encrypted data 
-      if (i + 2 >= pkt->payload_len) {
+      uint8_t* encryptedData = &pkt->payload[i];   // encrypted data (AES: MAC + ciphertext, Ascon: counter + ciphertext + tag)
+      int encrypted_len = pkt->payload_len - i;
+
+      if (encrypted_len < 2) {
         MESH_DEBUG_PRINTLN("%s Mesh::onRecvPacket(): incomplete data packet", getLogDateTime());
       } else if (!_tables->hasSeen(pkt)) {
         // scan channels DB, for all matching hashes of 'channel_hash' (max 4 matches supported ATM)
@@ -227,13 +253,18 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
         int num = searchChannelsByHash(&channel_hash, channels, 4);
         // for each matching channel, try to decrypt data
         for (int j = 0; j < num; j++) {
-          // decrypt, checking MAC is valid
+          // Unified decryption: tries Ascon first, falls back to legacy AES-ECB+HMAC
           uint8_t data[MAX_PACKET_PAYLOAD];
-          int len = Utils::MACThenDecrypt(channels[j].secret, data, macAndData, pkt->payload_len - i);
+          int len = Utils::decryptAuto(channels[j].secret, data, encryptedData, encrypted_len);
+
           if (len > 0) {  // success!
             onGroupDataRecv(pkt, pkt->getPayloadType(), channels[j], data, len);
+            // SECURITY: Clear sensitive data from stack before breaking
+            memset(data, 0, sizeof(data));
             break;
           }
+          // SECURITY: Clear buffer even if decryption failed
+          memset(data, 0, sizeof(data));
         }
         action = routeRecvPacket(pkt);
       }
@@ -430,23 +461,38 @@ Packet* Mesh::createAdvert(const LocalIdentity& id, const uint8_t* app_data, siz
   return packet;
 }
 
-#define MAX_COMBINED_PATH  (MAX_PACKET_PAYLOAD - 2 - CIPHER_BLOCK_SIZE)
-
-Packet* Mesh::createPathReturn(const Identity& dest, const uint8_t* secret, const uint8_t* path, uint8_t path_len, uint8_t extra_type, const uint8_t*extra, size_t extra_len) {
+Packet* Mesh::createPathReturn(const Identity& dest, const uint8_t* secret, const uint8_t* path, uint8_t path_len, uint8_t extra_type, const uint8_t*extra, size_t extra_len, bool use_ascon) {
   uint8_t dest_hash[PATH_HASH_SIZE];
   dest.copyHashTo(dest_hash);
-  return createPathReturn(dest_hash, secret, path, path_len, extra_type, extra, extra_len);
+  return createPathReturn(dest_hash, secret, path, path_len, extra_type, extra, extra_len, use_ascon);
 }
 
-Packet* Mesh::createPathReturn(const uint8_t* dest_hash, const uint8_t* secret, const uint8_t* path, uint8_t path_len, uint8_t extra_type, const uint8_t*extra, size_t extra_len) {
-  if (path_len + extra_len + 5 > MAX_COMBINED_PATH) return NULL;  // too long!!
+Packet* Mesh::createPathReturn(const uint8_t* dest_hash, const uint8_t* secret, const uint8_t* path, uint8_t path_len, uint8_t extra_type, const uint8_t*extra, size_t extra_len, bool use_ascon) {
+  // Plaintext layout: [path_len (1)] [path (path_len)] [extra_type (1)] [extra (extra_len)]
+  // Or if no extra: [dummy_type (1)] [rand (4)]
+  const int plain_len = 1 + (int)path_len + ((extra_len > 0) ? (1 + (int)extra_len) : (1 + 4));
+
+  // Payload prefix: dest_hash (1) + src_hash (1)
+  const int prefix_len = 2;
+
+  // Check size based on encryption mode
+  if (use_ascon) {
+    // V2: prefix + counter + ciphertext + tag
+    if (prefix_len + ASCON_COUNTER_SIZE + plain_len + ASCON_TAG_SIZE > MAX_PACKET_PAYLOAD) return NULL;
+  } else {
+    // V1: prefix + MAC + ciphertext (rounded up to 16)
+    int enc_len = ((plain_len + 15) / 16) * 16;
+    if (prefix_len + CIPHER_MAC_SIZE + enc_len > MAX_PACKET_PAYLOAD) return NULL;
+  }
 
   Packet* packet = obtainNewPacket();
   if (packet == NULL) {
     MESH_DEBUG_PRINTLN("%s Mesh::createPathReturn(): error, packet pool empty", getLogDateTime());
     return NULL;
   }
-  packet->header = (PAYLOAD_TYPE_PATH << PH_TYPE_SHIFT);  // ROUTE_TYPE_* set later
+
+  // Always use PAYLOAD_VER_1 header for backwards compatibility with old repeaters
+  packet->header = (PAYLOAD_TYPE_PATH << PH_TYPE_SHIFT);
 
   int len = 0;
   memcpy(&packet->payload[len], dest_hash, PATH_HASH_SIZE); len += PATH_HASH_SIZE;  // dest hash
@@ -467,7 +513,12 @@ Packet* Mesh::createPathReturn(const uint8_t* dest_hash, const uint8_t* secret, 
       getRNG()->random(&data[data_len], 4); data_len += 4;
     }
 
-    len += Utils::encryptThenMAC(secret, &packet->payload[len], data, data_len);
+    // Encrypt based on peer capability
+    if (use_ascon) {
+      len += Utils::encryptAscon(secret, &packet->payload[len], data, data_len);
+    } else {
+      len += Utils::encryptThenMAC(secret, &packet->payload[len], data, data_len);
+    }
   }
 
   packet->payload_len = len;
@@ -475,9 +526,19 @@ Packet* Mesh::createPathReturn(const uint8_t* dest_hash, const uint8_t* secret, 
   return packet;
 }
 
-Packet* Mesh::createDatagram(uint8_t type, const Identity& dest, const uint8_t* secret, const uint8_t* data, size_t data_len) {
+Packet* Mesh::createDatagram(uint8_t type, const Identity& dest, const uint8_t* secret, const uint8_t* data, size_t data_len, bool use_ascon) {
   if (type == PAYLOAD_TYPE_TXT_MSG || type == PAYLOAD_TYPE_REQ || type == PAYLOAD_TYPE_RESPONSE) {
-    if (data_len + CIPHER_MAC_SIZE + CIPHER_BLOCK_SIZE-1 > MAX_PACKET_PAYLOAD) return NULL;
+    // Payload prefix: dest_hash (1) + src_hash (1)
+    const int prefix_len = 2;
+    // Check size based on encryption mode
+    if (use_ascon) {
+      // V2: prefix + counter + ciphertext + tag
+      if (prefix_len + (int)data_len + ASCON_COUNTER_SIZE + ASCON_TAG_SIZE > MAX_PACKET_PAYLOAD) return NULL;
+    } else {
+      // V1: prefix + MAC + ciphertext (rounded up to 16)
+      int enc_len = (((int)data_len + 15) / 16) * 16;
+      if (prefix_len + CIPHER_MAC_SIZE + enc_len > MAX_PACKET_PAYLOAD) return NULL;
+    }
   } else {
     return NULL;  // invalid type
   }
@@ -487,21 +548,37 @@ Packet* Mesh::createDatagram(uint8_t type, const Identity& dest, const uint8_t* 
     MESH_DEBUG_PRINTLN("%s Mesh::createDatagram(): error, packet pool empty", getLogDateTime());
     return NULL;
   }
-  packet->header = (type << PH_TYPE_SHIFT);  // ROUTE_TYPE_* set later
+
+  // Always use PAYLOAD_VER_1 header for backwards compatibility with old repeaters
+  packet->header = (type << PH_TYPE_SHIFT);
 
   int len = 0;
   len += dest.copyHashTo(&packet->payload[len]);  // dest hash
   len += self_id.copyHashTo(&packet->payload[len]);  // src hash
-  len += Utils::encryptThenMAC(secret, &packet->payload[len], data, data_len);
+
+  // Encrypt based on peer capability
+  if (use_ascon) {
+    len += Utils::encryptAscon(secret, &packet->payload[len], data, data_len);
+  } else {
+    len += Utils::encryptThenMAC(secret, &packet->payload[len], data, data_len);
+  }
 
   packet->payload_len = len;
 
   return packet;
 }
 
-Packet* Mesh::createAnonDatagram(uint8_t type, const LocalIdentity& sender, const Identity& dest, const uint8_t* secret, const uint8_t* data, size_t data_len) {
+Packet* Mesh::createAnonDatagram(uint8_t type, const LocalIdentity& sender, const Identity& dest, const uint8_t* secret, const uint8_t* data, size_t data_len, bool use_ascon) {
   if (type == PAYLOAD_TYPE_ANON_REQ) {
-    if (data_len + 1 + PUB_KEY_SIZE + CIPHER_BLOCK_SIZE-1 > MAX_PACKET_PAYLOAD) return NULL;
+    // Check size based on encryption mode
+    if (use_ascon) {
+      // V2: dest_hash + pub_key + counter + ciphertext + tag
+      if (data_len + 1 + PUB_KEY_SIZE + ASCON_COUNTER_SIZE + ASCON_TAG_SIZE > MAX_PACKET_PAYLOAD) return NULL;
+    } else {
+      // V1: dest_hash + pub_key + MAC + ciphertext (rounded up to 16)
+      int enc_len = ((data_len + 15) / 16) * 16;
+      if (1 + PUB_KEY_SIZE + CIPHER_MAC_SIZE + enc_len > MAX_PACKET_PAYLOAD) return NULL;
+    }
   } else {
     return NULL;  // invalid type
   }
@@ -511,7 +588,9 @@ Packet* Mesh::createAnonDatagram(uint8_t type, const LocalIdentity& sender, cons
     MESH_DEBUG_PRINTLN("%s Mesh::createAnonDatagram(): error, packet pool empty", getLogDateTime());
     return NULL;
   }
-  packet->header = (type << PH_TYPE_SHIFT);  // ROUTE_TYPE_* set later
+
+  // Always use PAYLOAD_VER_1 header for backwards compatibility with old repeaters
+  packet->header = (type << PH_TYPE_SHIFT);
 
   int len = 0;
   if (type == PAYLOAD_TYPE_ANON_REQ) {
@@ -520,27 +599,52 @@ Packet* Mesh::createAnonDatagram(uint8_t type, const LocalIdentity& sender, cons
   } else {
     // FUTURE:
   }
-  len += Utils::encryptThenMAC(secret, &packet->payload[len], data, data_len);
+
+  // Encrypt based on peer capability
+  if (use_ascon) {
+    len += Utils::encryptAscon(secret, &packet->payload[len], data, data_len);
+  } else {
+    len += Utils::encryptThenMAC(secret, &packet->payload[len], data, data_len);
+  }
 
   packet->payload_len = len;
 
   return packet;
 }
 
-Packet* Mesh::createGroupDatagram(uint8_t type, const GroupChannel& channel, const uint8_t* data, size_t data_len) {
+Packet* Mesh::createGroupDatagram(uint8_t type, const GroupChannel& channel, const uint8_t* data, size_t data_len, bool use_ascon) {
   if (!(type == PAYLOAD_TYPE_GRP_TXT || type == PAYLOAD_TYPE_GRP_DATA)) return NULL;   // invalid type
-  if (data_len + 1 + CIPHER_BLOCK_SIZE-1 > MAX_PACKET_PAYLOAD) return NULL; // too long
+
+  // Payload prefix: channel_hash (PATH_HASH_SIZE, currently 1)
+  const int prefix_len = PATH_HASH_SIZE;
+  // Check size based on encryption mode
+  if (use_ascon) {
+    // V2: prefix + counter + ciphertext + tag
+    if (prefix_len + (int)data_len + ASCON_COUNTER_SIZE + ASCON_TAG_SIZE > MAX_PACKET_PAYLOAD) return NULL;
+  } else {
+    // V1: prefix + MAC + ciphertext (rounded up to 16)
+    int enc_len = (((int)data_len + 15) / 16) * 16;
+    if (prefix_len + CIPHER_MAC_SIZE + enc_len > MAX_PACKET_PAYLOAD) return NULL;
+  }
 
   Packet* packet = obtainNewPacket();
   if (packet == NULL) {
     MESH_DEBUG_PRINTLN("%s Mesh::createGroupDatagram(): error, packet pool empty", getLogDateTime());
     return NULL;
   }
-  packet->header = (type << PH_TYPE_SHIFT);  // ROUTE_TYPE_* set later
+
+  // Always use PAYLOAD_VER_1 header for backwards compatibility with old repeaters
+  packet->header = (type << PH_TYPE_SHIFT);
 
   int len = 0;
   memcpy(&packet->payload[len], channel.hash, PATH_HASH_SIZE); len += PATH_HASH_SIZE;
-  len += Utils::encryptThenMAC(channel.secret, &packet->payload[len], data, data_len);
+
+  // Encrypt based on channel flag or explicit request
+  if (use_ascon) {
+    len += Utils::encryptAscon(channel.secret, &packet->payload[len], data, data_len);
+  } else {
+    len += Utils::encryptThenMAC(channel.secret, &packet->payload[len], data, data_len);
+  }
 
   packet->payload_len = len;
 

@@ -38,17 +38,21 @@ uint8_t Packet::writeTo(uint8_t dest[]) const {
   return i;
 }
 
-bool Packet::readFrom(const uint8_t src[], uint8_t len) {
-  uint8_t i = 0;
+bool Packet::readFrom(const uint8_t src[], uint16_t len) {
+  if (len == 0) return false;  // minimum packet needs at least header
+  uint16_t i = 0;
   header = src[i++];
   if (hasTransportCodes()) {
+    if (i + 4 > len) return false;  // need 4 bytes for transport codes
     memcpy(&transport_codes[0], &src[i], 2); i += 2;
     memcpy(&transport_codes[1], &src[i], 2); i += 2;
   } else {
     transport_codes[0] = transport_codes[1] = 0;
   }
+  if (i >= len) return false;  // need at least path_len byte
   path_len = src[i++];
   if (path_len > sizeof(path)) return false;   // bad encoding
+  if (i + path_len > len) return false;  // path extends beyond buffer
   memcpy(path, &src[i], path_len); i += path_len;
   if (i >= len) return false;   // bad encoding
   payload_len = len - i;

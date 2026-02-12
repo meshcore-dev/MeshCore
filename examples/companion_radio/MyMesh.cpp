@@ -56,6 +56,7 @@
 #define CMD_SEND_ANON_REQ             57
 #define CMD_SET_AUTOADD_CONFIG        58
 #define CMD_GET_AUTOADD_CONFIG        59
+#define CMD_GET_CHANNEL_V2            60  // returns 51 bytes (includes flags)
 
 // Stats sub-types for CMD_GET_STATS
 #define STATS_TYPE_CORE               0
@@ -88,6 +89,7 @@
 #define RESP_CODE_TUNING_PARAMS       23
 #define RESP_CODE_STATS               24   // v8+, second byte is stats type
 #define RESP_CODE_AUTOADD_CONFIG      25
+#define RESP_CODE_CHANNEL_INFO_V2     26  // reply to CMD_GET_CHANNEL_V2 (51 bytes)
 
 #define SEND_TIMEOUT_BASE_MILLIS        500
 #define FLOOD_SEND_TIMEOUT_FACTOR       16.0f
@@ -1110,7 +1112,7 @@ void MyMesh::handleCmdFrame(size_t len) {
       dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY);
       writeOKFrame();
     } else {
-      ContactInfo contact;
+      ContactInfo contact = {};  // Zero-initialize to prevent garbage in supports_ascon etc.
       updateContactFromFrame(contact, last_mod, cmd_frame, len);
       contact.lastmod = last_mod;
       contact.sync_since = 0;
@@ -1503,6 +1505,23 @@ void MyMesh::handleCmdFrame(size_t len) {
       i += 32;
       memcpy(&out_frame[i], channel.channel.secret, 16);
       i += 16; // NOTE: only 128-bit supported
+      // flags byte NOT included - old apps expect exactly 50 bytes
+      _serial->writeFrame(out_frame, i);
+    } else {
+      writeErrFrame(ERR_CODE_NOT_FOUND);
+    }
+  } else if (cmd_frame[0] == CMD_GET_CHANNEL_V2 && len >= 2) {
+    uint8_t channel_idx = cmd_frame[1];
+    ChannelDetails channel;
+    if (getChannel(channel_idx, channel)) {
+      int i = 0;
+      out_frame[i++] = RESP_CODE_CHANNEL_INFO_V2;
+      out_frame[i++] = channel_idx;
+      strcpy((char *)&out_frame[i], channel.name);
+      i += 32;
+      memcpy(&out_frame[i], channel.channel.secret, 16);
+      i += 16; // NOTE: only 128-bit supported
+      out_frame[i++] = channel.channel.flags;  // V2: includes flags byte (51 bytes total)
       _serial->writeFrame(out_frame, i);
     } else {
       writeErrFrame(ERR_CODE_NOT_FOUND);
@@ -1512,9 +1531,13 @@ void MyMesh::handleCmdFrame(size_t len) {
   } else if (cmd_frame[0] == CMD_SET_CHANNEL && len >= 2 + 32 + 16) {
     uint8_t channel_idx = cmd_frame[1];
     ChannelDetails channel;
+    memset(&channel, 0, sizeof(channel));
     StrHelper::strncpy(channel.name, (char *)&cmd_frame[2], 32);
-    memset(channel.channel.secret, 0, sizeof(channel.channel.secret));
     memcpy(channel.channel.secret, &cmd_frame[2 + 32], 16); // NOTE: only 128-bit supported
+    // Optional flags byte: old apps don't send it (flags defaults to 0 = AES)
+    if (len >= 2 + 32 + 16 + 1) {
+      channel.channel.flags = cmd_frame[2 + 32 + 16];
+    }
     if (setChannel(channel_idx, channel)) {
       saveChannels();
       writeOKFrame();
