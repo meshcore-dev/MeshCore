@@ -256,7 +256,7 @@ void SensorMesh::sendAlert(const ClientInfo* c, Trigger* t) {
   mesh::Utils::sha256((uint8_t *)&t->expected_acks[t->attempt], 4, data, 5 + text_len, self_id.pub_key, PUB_KEY_SIZE);
   t->attempt++;
 
-  auto pkt = createDatagram(PAYLOAD_TYPE_TXT_MSG, c->id, c->shared_secret, data, 5 + text_len);
+  auto pkt = createDatagram(PAYLOAD_TYPE_TXT_MSG, c->id, c->shared_secret, data, 5 + text_len, c->nextAeadNonce());
   if (pkt) {
     if (c->out_path_len != OUT_PATH_UNKNOWN) {  // we have an out_path, so send DIRECT
       sendDirect(pkt, c->out_path, c->out_path_len);
@@ -497,6 +497,31 @@ void SensorMesh::getPeerSharedSecret(uint8_t* dest_secret, int peer_idx) {
   }
 }
 
+uint8_t SensorMesh::getPeerFlags(int peer_idx) {
+  int i = matching_peer_indexes[peer_idx];
+  if (i >= 0 && i < acl.getNumClients())
+    return acl.getClientByIdx(i)->flags;
+  return 0;
+}
+
+uint16_t SensorMesh::getPeerNextAeadNonce(int peer_idx) {
+  int i = matching_peer_indexes[peer_idx];
+  if (i >= 0 && i < acl.getNumClients())
+    return acl.getClientByIdx(i)->nextAeadNonce();
+  return 0;
+}
+
+void SensorMesh::onPeerAeadDetected(int peer_idx) {
+  int i = matching_peer_indexes[peer_idx];
+  if (i >= 0 && i < acl.getNumClients()) {
+    auto c = acl.getClientByIdx(i);
+    if (!(c->flags & CONTACT_FLAG_AEAD)) {
+      c->flags |= CONTACT_FLAG_AEAD;
+      getRNG()->random((uint8_t*)&c->aead_nonce, sizeof(c->aead_nonce));
+    }
+  }
+}
+
 void SensorMesh::sendAckTo(const ClientInfo& dest, uint32_t ack_hash, uint8_t path_hash_size) {
   if (dest.out_path_len == OUT_PATH_UNKNOWN) {
     mesh::Packet* ack = createAck(ack_hash);
@@ -537,10 +562,10 @@ void SensorMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender_i
       if (packet->isRouteFlood()) {
         // let this sender know path TO here, so they can use sendDirect(), and ALSO encode the response
         mesh::Packet* path = createPathReturn(from->id, secret, packet->path, packet->path_len,
-                                              PAYLOAD_TYPE_RESPONSE, reply_data, reply_len);
+                                              PAYLOAD_TYPE_RESPONSE, reply_data, reply_len, from->nextAeadNonce());
         if (path) sendFlood(path, SERVER_RESPONSE_DELAY, packet->getPathHashSize());
       } else {
-        mesh::Packet* reply = createDatagram(PAYLOAD_TYPE_RESPONSE, from->id, secret, reply_data, reply_len);
+        mesh::Packet* reply = createDatagram(PAYLOAD_TYPE_RESPONSE, from->id, secret, reply_data, reply_len, from->nextAeadNonce());
         if (reply) {
           if (from->out_path_len != OUT_PATH_UNKNOWN) {  // we have an out_path, so send DIRECT
             sendDirect(reply, from->out_path, from->out_path_len, SERVER_RESPONSE_DELAY);
@@ -567,7 +592,7 @@ void SensorMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender_i
           if (packet->isRouteFlood()) {
             // let this sender know path TO here, so they can use sendDirect(), and ALSO encode the ACK
             mesh::Packet* path = createPathReturn(from->id, secret, packet->path, packet->path_len,
-                                                  PAYLOAD_TYPE_ACK, (uint8_t *) &ack_hash, 4);
+                                                  PAYLOAD_TYPE_ACK, (uint8_t *) &ack_hash, 4, from->nextAeadNonce());
             if (path) sendFlood(path, TXT_ACK_DELAY, packet->getPathHashSize());
           } else {
             sendAckTo(*from, ack_hash, packet->getPathHashSize());
@@ -595,7 +620,7 @@ void SensorMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender_i
           memcpy(temp, &timestamp, 4);   // mostly an extra blob to help make packet_hash unique
           temp[4] = (TXT_TYPE_CLI_DATA << 2);
 
-          auto reply = createDatagram(PAYLOAD_TYPE_TXT_MSG, from->id, secret, temp, 5 + text_len);
+          auto reply = createDatagram(PAYLOAD_TYPE_TXT_MSG, from->id, secret, temp, 5 + text_len, from->nextAeadNonce());
           if (reply) {
             if (from->out_path_len == OUT_PATH_UNKNOWN) {
               sendFlood(reply, CLI_REPLY_DELAY_MILLIS, packet->getPathHashSize());

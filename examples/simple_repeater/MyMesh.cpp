@@ -579,6 +579,31 @@ void MyMesh::getPeerSharedSecret(uint8_t *dest_secret, int peer_idx) {
   }
 }
 
+uint8_t MyMesh::getPeerFlags(int peer_idx) {
+  int i = matching_peer_indexes[peer_idx];
+  if (i >= 0 && i < acl.getNumClients())
+    return acl.getClientByIdx(i)->flags;
+  return 0;
+}
+
+uint16_t MyMesh::getPeerNextAeadNonce(int peer_idx) {
+  int i = matching_peer_indexes[peer_idx];
+  if (i >= 0 && i < acl.getNumClients())
+    return acl.getClientByIdx(i)->nextAeadNonce();
+  return 0;
+}
+
+void MyMesh::onPeerAeadDetected(int peer_idx) {
+  int i = matching_peer_indexes[peer_idx];
+  if (i >= 0 && i < acl.getNumClients()) {
+    auto c = acl.getClientByIdx(i);
+    if (!(c->flags & CONTACT_FLAG_AEAD)) {
+      c->flags |= CONTACT_FLAG_AEAD;
+      getRNG()->random((uint8_t*)&c->aead_nonce, sizeof(c->aead_nonce));
+    }
+  }
+}
+
 static bool isShare(const mesh::Packet *packet) {
   if (packet->hasTransportCodes()) {
     return packet->transport_codes[0] == 0 && packet->transport_codes[1] == 0;  // codes { 0, 0 } means 'send to nowhere'
@@ -622,11 +647,11 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
       if (packet->isRouteFlood()) {
         // let this sender know path TO here, so they can use sendDirect(), and ALSO encode the response
         mesh::Packet *path = createPathReturn(client->id, secret, packet->path, packet->path_len,
-                                              PAYLOAD_TYPE_RESPONSE, reply_data, reply_len);
+                                              PAYLOAD_TYPE_RESPONSE, reply_data, reply_len, client->nextAeadNonce());
         if (path) sendFlood(path, SERVER_RESPONSE_DELAY, packet->getPathHashSize());
       } else {
         mesh::Packet *reply =
-            createDatagram(PAYLOAD_TYPE_RESPONSE, client->id, secret, reply_data, reply_len);
+            createDatagram(PAYLOAD_TYPE_RESPONSE, client->id, secret, reply_data, reply_len, client->nextAeadNonce());
         if (reply) {
           if (client->out_path_len != OUT_PATH_UNKNOWN) { // we have an out_path, so send DIRECT
             sendDirect(reply, client->out_path, client->out_path_len, SERVER_RESPONSE_DELAY);
@@ -687,7 +712,7 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
         memcpy(temp, &timestamp, 4);        // mostly an extra blob to help make packet_hash unique
         temp[4] = (TXT_TYPE_CLI_DATA << 2); // NOTE: legacy was: TXT_TYPE_PLAIN
 
-        auto reply = createDatagram(PAYLOAD_TYPE_TXT_MSG, client->id, secret, temp, 5 + text_len);
+        auto reply = createDatagram(PAYLOAD_TYPE_TXT_MSG, client->id, secret, temp, 5 + text_len, client->nextAeadNonce());
         if (reply) {
           if (client->out_path_len == OUT_PATH_UNKNOWN) {
             sendFlood(reply, CLI_REPLY_DELAY_MILLIS, packet->getPathHashSize());
