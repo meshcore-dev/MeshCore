@@ -104,6 +104,13 @@ unsigned long lastActive = 0;           // Last time there was activity
 unsigned long nextSleepInSecs = 120;    // Wait 2 minutes before first sleep
 const unsigned long WORK_TIME_SECS = 5; // Stay awake 5 seconds after wake/activity
 
+// Short-sleep cycle when phone is disconnected but BLE is enabled
+const unsigned long DISCONNECT_SLEEP_TIMEOUT_MS = 60000;  // 60s before short-sleep cycle
+const unsigned long SHORT_SLEEP_SECS = 12;                // sleep duration per cycle
+const unsigned long RECONNECT_WINDOW_MS = 3000;           // awake time for BLE advertising
+unsigned long disconnectTime = 0;   // when phone disconnected (0 = connected/N/A)
+unsigned long lastSleepWake = 0;    // when we last woke from short sleep (0 = not in cycle)
+
 /* END GLOBAL OBJECTS */
 
 void halt() {
@@ -233,6 +240,34 @@ void loop() {
   ui_task.loop();
 #endif
   rtc_clock.tick();
+
+#ifndef WIFI_SSID
+  // Track phone connection state for disconnect sleep
+  if (serial_interface.hasPendingConnection()) {
+    disconnectTime = 0;
+    lastSleepWake = 0;
+  } else if (serial_interface.isEnabled() && disconnectTime == 0) {
+    disconnectTime = millis();
+    if (disconnectTime == 0) disconnectTime = 1;  // avoid 0 sentinel collision
+  }
+  // Short-sleep cycle when BLE is enabled but phone is disconnected
+  if (serial_interface.isEnabled() && disconnectTime != 0
+      && !the_mesh.getNodePrefs()->gps_enabled
+      && the_mesh.millisHasNowPassed(disconnectTime + DISCONNECT_SLEEP_TIMEOUT_MS)
+      && !the_mesh.hasPendingWork()
+      && (lastSleepWake == 0 || the_mesh.millisHasNowPassed(lastSleepWake + RECONNECT_WINDOW_MS))) {
+#ifdef PIN_USER_BTN
+    board.enterLightSleep(SHORT_SLEEP_SECS, PIN_USER_BTN);
+#else
+    board.enterLightSleep(SHORT_SLEEP_SECS);
+#endif
+    // Restart BLE advertising after light sleep powers down the radio
+    serial_interface.disable();
+    serial_interface.enable();
+    lastSleepWake = millis();
+    if (lastSleepWake == 0) lastSleepWake = 1;
+  }
+#endif
 
   // Power saving when BLE/WiFi is disabled
   // Don't sleep if GPS is enabled - it needs continuous operation to maintain fix
