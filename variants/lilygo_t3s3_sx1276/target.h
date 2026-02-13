@@ -3,7 +3,7 @@
 #define RADIOLIB_STATIC_ONLY 1
 #include <RadioLib.h>
 #include <helpers/radiolib/RadioLibWrappers.h>
-#include <helpers/ESP32Board.h>
+#include <LilygoT3S3SX1276Board.h>
 #include <helpers/radiolib/CustomSX1276Wrapper.h>
 #include <helpers/AutoDiscoverRTCClock.h>
 #include <helpers/SensorManager.h>
@@ -12,7 +12,7 @@
   #include <helpers/ui/MomentaryButton.h>
 #endif
 
-extern ESP32Board board;
+extern LilygoT3S3SX1276Board board;
 extern WRAPPER_CLASS radio_driver;
 extern AutoDiscoverRTCClock rtc_clock;
 extern SensorManager sensors;
