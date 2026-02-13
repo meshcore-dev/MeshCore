@@ -59,6 +59,9 @@ public:
   const char* getNodeName() { return _prefs.node_name; }
   NodePrefs* getNodePrefs() { return &_prefs; }
   void savePrefs() override { _cli.savePrefs(_fs); }
+  void onBeforeReboot() override {
+    if (acl.isNonceDirty()) acl.saveNonces();
+  }
   bool formatFileSystem() override;
   void sendSelfAdvertisement(int delay_millis, bool flood) override;
   void updateAdvertTimer() override;
@@ -140,6 +143,7 @@ private:
   CommonCLI _cli;
   uint8_t reply_data[MAX_PACKET_PAYLOAD];
   unsigned long dirty_contacts_expiry;
+  unsigned long next_nonce_persist;
   CayenneLPP telemetry;
   uint32_t last_read_time;
   int matching_peer_indexes[MAX_SEARCH_RESULTS];

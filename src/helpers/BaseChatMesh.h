@@ -71,6 +71,10 @@ class BaseChatMesh : public mesh::Mesh {
   uint8_t temp_buf[MAX_TRANS_UNIT];
   ConnectionInfo connections[MAX_CONNECTIONS];
 
+  // Nonce persistence state (parallel to contacts[])
+  uint16_t nonce_at_last_persist[MAX_CONTACTS];
+  bool nonce_dirty;
+
   mesh::Packet* composeMsgPacket(const ContactInfo& recipient, uint32_t timestamp, uint8_t attempt, const char *text, uint32_t& expected_ack);
   void sendAckTo(const ContactInfo& dest, uint32_t ack_hash);
 
@@ -86,6 +90,8 @@ protected:
     txt_send_timeout = 0;
     _pendingLoopback = NULL;
     memset(connections, 0, sizeof(connections));
+    memset(nonce_at_last_persist, 0, sizeof(nonce_at_last_persist));
+    nonce_dirty = false;
   }
 
   void bootstrapRTCfromContacts();
@@ -120,6 +126,17 @@ protected:
   // storage concepts, for sub-classes to override/implement
   virtual int  getBlobByKey(const uint8_t key[], int key_len, uint8_t dest_buf[]) { return 0; }  // not implemented
   virtual bool putBlobByKey(const uint8_t key[], int key_len, const uint8_t src_buf[], int len) { return false; }
+
+  // AEAD nonce persistence helpers
+  uint16_t nextAeadNonceFor(const ContactInfo& contact);  // wraps nextAeadNonce() with dirty-check
+  bool applyLoadedNonce(const uint8_t* pub_key_prefix, uint16_t nonce);
+  void finalizeNonceLoad(bool needs_bump);
+  bool getNonceEntry(int idx, uint8_t* pub_key_prefix, uint16_t* nonce);
+  bool isNonceDirty() const { return nonce_dirty; }
+  void clearNonceDirty() {
+    for (int i = 0; i < num_contacts; i++) nonce_at_last_persist[i] = contacts[i].aead_nonce;
+    nonce_dirty = false;
+  }
 
   // Mesh overrides
   void onAdvertRecv(mesh::Packet* packet, const mesh::Identity& id, uint32_t timestamp, const uint8_t* app_data, size_t app_data_len) override;

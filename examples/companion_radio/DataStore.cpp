@@ -375,6 +375,36 @@ void DataStore::saveChannels(DataStoreHost* host) {
   }
 }
 
+void DataStore::loadNonces(DataStoreHost* host) {
+  File file = openRead(_getContactsChannelsFS(), "/nonces");
+  if (file) {
+    uint8_t rec[6];  // 4-byte pub_key prefix + 2-byte nonce
+    while (file.read(rec, 6) == 6) {
+      uint16_t nonce;
+      memcpy(&nonce, &rec[4], 2);
+      host->onNonceLoaded(rec, nonce);
+    }
+    file.close();
+  }
+}
+
+bool DataStore::saveNonces(DataStoreHost* host) {
+  File file = openWrite(_getContactsChannelsFS(), "/nonces");
+  if (file) {
+    int idx = 0;
+    uint8_t pub_key_prefix[4];
+    uint16_t nonce;
+    while (host->getNonceForSave(idx, pub_key_prefix, &nonce)) {
+      file.write(pub_key_prefix, 4);
+      file.write((uint8_t*)&nonce, 2);
+      idx++;
+    }
+    file.close();
+    return true;
+  }
+  return false;
+}
+
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
 
 #define MAX_ADVERT_PKT_LEN   (2 + 32 + PUB_KEY_SIZE + 4 + SIGNATURE_SIZE + MAX_ADVERT_DATA_SIZE)

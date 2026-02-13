@@ -154,6 +154,8 @@ protected:
   bool getContactForSave(uint32_t idx, ContactInfo& contact) override { return getContactByIdx(idx, contact); }
   bool onChannelLoaded(uint8_t channel_idx, const ChannelDetails& ch) override { return setChannel(channel_idx, ch); }
   bool getChannelForSave(uint8_t channel_idx, ChannelDetails& ch) override { return getChannel(channel_idx, ch); }
+  bool onNonceLoaded(const uint8_t* pub_key_prefix, uint16_t nonce) override { return applyLoadedNonce(pub_key_prefix, nonce); }
+  bool getNonceForSave(int idx, uint8_t* pub_key_prefix, uint16_t* nonce) override { return getNonceEntry(idx, pub_key_prefix, nonce); }
 
   void clearPendingReqs() {
     pending_login = pending_status = pending_telemetry = pending_discovery = pending_req = 0;
@@ -184,6 +186,7 @@ private:
   // helpers, short-cuts
   void saveChannels() { _store->saveChannels(this); }
   void saveContacts() { _store->saveContacts(this); }
+  void saveNonces() { if (_store->saveNonces(this)) clearNonceDirty(); }
 
   DataStore* _store;
   NodePrefs _prefs;
@@ -205,6 +208,7 @@ private:
   uint8_t *sign_data;
   uint32_t sign_data_len;
   unsigned long dirty_contacts_expiry;
+  unsigned long next_nonce_persist;
 
   TransportKey send_scope;
 

@@ -201,10 +201,12 @@ uint8_t CommonCLI::buildAdvertData(uint8_t node_type, uint8_t* app_data) {
 
 void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, char* reply) {
     if (memcmp(command, "reboot", 6) == 0) {
+      _callbacks->onBeforeReboot();
       _board->reboot();  // doesn't return
     } else if (memcmp(command, "clkreboot", 9) == 0) {
       // Reset clock
       getRTCClock()->setCurrentTime(1715770351);  // 15 May 2024, 8:50pm
+      _callbacks->onBeforeReboot();
       _board->reboot();  // doesn't return
     } else if (memcmp(command, "advert", 6) == 0) {
       // send flood advert

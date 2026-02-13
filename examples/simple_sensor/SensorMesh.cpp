@@ -256,7 +256,7 @@ void SensorMesh::sendAlert(const ClientInfo* c, Trigger* t) {
   mesh::Utils::sha256((uint8_t *)&t->expected_acks[t->attempt], 4, data, 5 + text_len, self_id.pub_key, PUB_KEY_SIZE);
   t->attempt++;
 
-  auto pkt = createDatagram(PAYLOAD_TYPE_TXT_MSG, c->id, c->shared_secret, data, 5 + text_len, c->nextAeadNonce());
+  auto pkt = createDatagram(PAYLOAD_TYPE_TXT_MSG, c->id, c->shared_secret, data, 5 + text_len, acl.nextAeadNonceFor(*c));
   if (pkt) {
     if (c->out_path_len != OUT_PATH_UNKNOWN) {  // we have an out_path, so send DIRECT
       sendDirect(pkt, c->out_path, c->out_path_len);
@@ -507,7 +507,7 @@ uint8_t SensorMesh::getPeerFlags(int peer_idx) {
 uint16_t SensorMesh::getPeerNextAeadNonce(int peer_idx) {
   int i = matching_peer_indexes[peer_idx];
   if (i >= 0 && i < acl.getNumClients())
-    return acl.getClientByIdx(i)->nextAeadNonce();
+    return acl.nextAeadNonceFor(*acl.getClientByIdx(i));
   return 0;
 }
 
@@ -517,7 +517,10 @@ void SensorMesh::onPeerAeadDetected(int peer_idx) {
     auto c = acl.getClientByIdx(i);
     if (!(c->flags & CONTACT_FLAG_AEAD)) {
       c->flags |= CONTACT_FLAG_AEAD;
-      getRNG()->random((uint8_t*)&c->aead_nonce, sizeof(c->aead_nonce));
+      if (c->aead_nonce == 0) {  // no persisted nonce — seed from RNG to avoid deterministic start
+        getRNG()->random((uint8_t*)&c->aead_nonce, sizeof(c->aead_nonce));
+        if (c->aead_nonce == 0) c->aead_nonce = 1;
+      }
     }
   }
 }
@@ -562,10 +565,10 @@ void SensorMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender_i
       if (packet->isRouteFlood()) {
         // let this sender know path TO here, so they can use sendDirect(), and ALSO encode the response
         mesh::Packet* path = createPathReturn(from->id, secret, packet->path, packet->path_len,
-                                              PAYLOAD_TYPE_RESPONSE, reply_data, reply_len, from->nextAeadNonce());
+                                              PAYLOAD_TYPE_RESPONSE, reply_data, reply_len, acl.nextAeadNonceFor(*from));
         if (path) sendFlood(path, SERVER_RESPONSE_DELAY, packet->getPathHashSize());
       } else {
-        mesh::Packet* reply = createDatagram(PAYLOAD_TYPE_RESPONSE, from->id, secret, reply_data, reply_len, from->nextAeadNonce());
+        mesh::Packet* reply = createDatagram(PAYLOAD_TYPE_RESPONSE, from->id, secret, reply_data, reply_len, acl.nextAeadNonceFor(*from));
         if (reply) {
           if (from->out_path_len != OUT_PATH_UNKNOWN) {  // we have an out_path, so send DIRECT
             sendDirect(reply, from->out_path, from->out_path_len, SERVER_RESPONSE_DELAY);
@@ -592,7 +595,7 @@ void SensorMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender_i
           if (packet->isRouteFlood()) {
             // let this sender know path TO here, so they can use sendDirect(), and ALSO encode the ACK
             mesh::Packet* path = createPathReturn(from->id, secret, packet->path, packet->path_len,
-                                                  PAYLOAD_TYPE_ACK, (uint8_t *) &ack_hash, 4, from->nextAeadNonce());
+                                                  PAYLOAD_TYPE_ACK, (uint8_t *) &ack_hash, 4, acl.nextAeadNonceFor(*from));
             if (path) sendFlood(path, TXT_ACK_DELAY, packet->getPathHashSize());
           } else {
             sendAckTo(*from, ack_hash, packet->getPathHashSize());
@@ -620,7 +623,7 @@ void SensorMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender_i
           memcpy(temp, &timestamp, 4);   // mostly an extra blob to help make packet_hash unique
           temp[4] = (TXT_TYPE_CLI_DATA << 2);
 
-          auto reply = createDatagram(PAYLOAD_TYPE_TXT_MSG, from->id, secret, temp, 5 + text_len, from->nextAeadNonce());
+          auto reply = createDatagram(PAYLOAD_TYPE_TXT_MSG, from->id, secret, temp, 5 + text_len, acl.nextAeadNonceFor(*from));
           if (reply) {
             if (from->out_path_len == OUT_PATH_UNKNOWN) {
               sendFlood(reply, CLI_REPLY_DELAY_MILLIS, packet->getPathHashSize());
@@ -725,6 +728,7 @@ SensorMesh::SensorMesh(mesh::MainBoard& board, mesh::Radio& radio, mesh::Millise
 {
   next_local_advert = next_flood_advert = 0;
   dirty_contacts_expiry = 0;
+  next_nonce_persist = 0;
   last_read_time = 0;
   num_alert_tasks = 0;
   set_radio_at = revert_radio_at = 0;
@@ -763,6 +767,12 @@ void SensorMesh::begin(FILESYSTEM* fs) {
   _cli.loadPrefs(_fs);
 
   acl.load(_fs, self_id);
+  acl.setRNG(getRNG());
+  acl.loadNonces();
+  bool dirty_reset = wasDirtyReset(board);
+  acl.finalizeNonceLoad(dirty_reset);
+  if (dirty_reset) acl.saveNonces();  // persist bumped nonces immediately
+  next_nonce_persist = futureMillis(60000);
 
   radio_set_params(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
   radio_set_tx_power(_prefs.tx_power_dbm);
@@ -970,5 +980,11 @@ void SensorMesh::loop() {
   if (dirty_contacts_expiry && millisHasNowPassed(dirty_contacts_expiry)) {
     acl.save(_fs);
     dirty_contacts_expiry = 0;
+  }
+
+  // persist dirty AEAD nonces
+  if (next_nonce_persist && millisHasNowPassed(next_nonce_persist)) {
+    if (acl.isNonceDirty()) { acl.saveNonces(); }
+    next_nonce_persist = futureMillis(60000);
   }
 }
