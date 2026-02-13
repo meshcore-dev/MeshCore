@@ -16,3 +16,4 @@ cmake-*
 compile_commands.json
 .venv/
 venv/
+platformio.credentials.ini
