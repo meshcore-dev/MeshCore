@@ -10,6 +10,49 @@
 #endif
 
 #define CLI_REPLY_DELAY_MILLIS      600
+uint16_t BaseChatMesh::nextAeadNonceFor(const ContactInfo& contact) {
+  uint16_t nonce = contact.nextAeadNonce();
+  if (nonce != 0) {
+    int idx = &contact - contacts;
+    if (idx >= 0 && idx < num_contacts &&
+        (uint16_t)(contact.aead_nonce - nonce_at_last_persist[idx]) >= NONCE_PERSIST_INTERVAL) {
+      nonce_dirty = true;
+    }
+  }
+  return nonce;
+}
+
+bool BaseChatMesh::applyLoadedNonce(const uint8_t* pub_key_prefix, uint16_t nonce) {
+  for (int i = 0; i < num_contacts; i++) {
+    if (memcmp(contacts[i].id.pub_key, pub_key_prefix, 4) == 0) {
+      contacts[i].aead_nonce = nonce;
+      return true;
+    }
+  }
+  return false;
+}
+
+void BaseChatMesh::finalizeNonceLoad(bool needs_bump) {
+  for (int i = 0; i < num_contacts; i++) {
+    if (needs_bump) {
+      uint16_t old = contacts[i].aead_nonce;
+      contacts[i].aead_nonce += NONCE_BOOT_BUMP;
+      if (contacts[i].aead_nonce == 0) contacts[i].aead_nonce = 1;
+      if (contacts[i].aead_nonce < old) {
+        MESH_DEBUG_PRINTLN("AEAD nonce wrapped after boot bump for peer: %s", contacts[i].name);
+      }
+    }
+    nonce_at_last_persist[i] = contacts[i].aead_nonce;
+  }
+  nonce_dirty = false;
+}
+
+bool BaseChatMesh::getNonceEntry(int idx, uint8_t* pub_key_prefix, uint16_t* nonce) {
+  if (idx >= num_contacts) return false;
+  memcpy(pub_key_prefix, contacts[idx].id.pub_key, 4);
+  *nonce = contacts[idx].aead_nonce;
+  return true;
+}
 
 void BaseChatMesh::sendFloodScoped(const ContactInfo& recipient, mesh::Packet* pkt, uint32_t delay_millis) {
   sendFlood(pkt, delay_millis);
@@ -120,6 +163,7 @@ void BaseChatMesh::populateContactFromAdvert(ContactInfo& ci, const mesh::Identi
   ci.last_advert_timestamp = timestamp;
   ci.lastmod = getRTCClock()->getCurrentTime();
   getRNG()->random((uint8_t*)&ci.aead_nonce, sizeof(ci.aead_nonce));  // seed AEAD nonce from HW RNG
+  if (ci.aead_nonce == 0) ci.aead_nonce = 1;
   if (parser.getFeat1() & FEAT1_AEAD_SUPPORT) {
     ci.flags |= CONTACT_FLAG_AEAD;
   }
@@ -187,7 +231,8 @@ void BaseChatMesh::onAdvertRecv(mesh::Packet* packet, const mesh::Identity& id, 
       return;
     }
     
-    populateContactFromAdvert(*from, id, parser, timestamp);
+    populateContactFromAdvert(*from, id, parser, timestamp);  // seeds aead_nonce from RNG
+    nonce_at_last_persist[from - contacts] = from->aead_nonce;
     from->sync_since = 0;
     from->shared_secret_valid = false;
   }
@@ -241,7 +286,7 @@ uint8_t BaseChatMesh::getPeerFlags(int peer_idx) {
 uint16_t BaseChatMesh::getPeerNextAeadNonce(int peer_idx) {
   int i = matching_peer_indexes[peer_idx];
   if (i >= 0 && i < num_contacts) {
-    return contacts[i].nextAeadNonce();
+    return nextAeadNonceFor(contacts[i]);
   }
   return 0;
 }
@@ -277,7 +322,7 @@ void BaseChatMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender
       if (packet->isRouteFlood()) {
         // let this sender know path TO here, so they can use sendDirect(), and ALSO encode the ACK
         mesh::Packet* path = createPathReturn(from.id, secret, packet->path, packet->path_len,
-                                                PAYLOAD_TYPE_ACK, (uint8_t *) &ack_hash, 6, from.nextAeadNonce());
+                                                PAYLOAD_TYPE_ACK, (uint8_t *) &ack_hash, 6, nextAeadNonceFor(from));
         if (path) sendFloodScoped(from, path, TXT_ACK_DELAY);
       } else {
         sendAckTo(from, ack_hash, 6);
@@ -305,7 +350,7 @@ void BaseChatMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender
         memcpy(temp, &timestamp, 4);
         temp[4] = (TXT_TYPE_CLI_DATA << 2);
 
-        auto reply_pkt = createDatagram(PAYLOAD_TYPE_TXT_MSG, from.id, secret, temp, 5 + text_len, from.nextAeadNonce());
+        auto reply_pkt = createDatagram(PAYLOAD_TYPE_TXT_MSG, from.id, secret, temp, 5 + text_len, nextAeadNonceFor(from));
         if (reply_pkt) {
           if (from.out_path_len == OUT_PATH_UNKNOWN) {
             sendFloodScoped(from, reply_pkt, CLI_REPLY_DELAY_MILLIS);
@@ -327,7 +372,7 @@ void BaseChatMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender
       if (packet->isRouteFlood()) {
         // let this sender know path TO here, so they can use sendDirect(), and ALSO encode the ACK
         mesh::Packet* path = createPathReturn(from.id, secret, packet->path, packet->path_len,
-                                                PAYLOAD_TYPE_ACK, (uint8_t *) &ack_hash, 4, from.nextAeadNonce());
+                                                PAYLOAD_TYPE_ACK, (uint8_t *) &ack_hash, 4, nextAeadNonceFor(from));
         if (path) sendFloodScoped(from, path, TXT_ACK_DELAY);
       } else {
         sendAckTo(from, (uint8_t *) &ack_hash);
@@ -343,10 +388,10 @@ void BaseChatMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender
       if (packet->isRouteFlood()) {
         // let this sender know path TO here, so they can use sendDirect(), and ALSO encode the response
         mesh::Packet* path = createPathReturn(from.id, secret, packet->path, packet->path_len,
-                                              PAYLOAD_TYPE_RESPONSE, temp_buf, reply_len, from.nextAeadNonce());
+                                              PAYLOAD_TYPE_RESPONSE, temp_buf, reply_len, nextAeadNonceFor(from));
         if (path) sendFloodScoped(from, path, SERVER_RESPONSE_DELAY);
       } else {
-        mesh::Packet* reply = createDatagram(PAYLOAD_TYPE_RESPONSE, from.id, secret, temp_buf, reply_len, from.nextAeadNonce());
+        mesh::Packet* reply = createDatagram(PAYLOAD_TYPE_RESPONSE, from.id, secret, temp_buf, reply_len, nextAeadNonceFor(from));
         if (reply) {
           if (from.out_path_len != OUT_PATH_UNKNOWN) {  // we have an out_path, so send DIRECT
             sendDirect(reply, from.out_path, from.out_path_len, SERVER_RESPONSE_DELAY);
@@ -412,7 +457,7 @@ void BaseChatMesh::onAckRecv(mesh::Packet* packet, uint32_t ack_crc) {
 void BaseChatMesh::handleReturnPathRetry(const ContactInfo& contact, const uint8_t* path, uint8_t path_len) {
   // NOTE: simplest impl is just to re-send a reciprocal return path to sender (DIRECTLY)
   //        override this method in various firmwares, if there's a better strategy
-  mesh::Packet* rpath = createPathReturn(contact.id, contact.getSharedSecret(self_id), path, path_len, 0, NULL, 0, contact.nextAeadNonce());
+  mesh::Packet* rpath = createPathReturn(contact.id, contact.getSharedSecret(self_id), path, path_len, 0, NULL, 0, nextAeadNonceFor(contact));
   if (rpath) sendDirect(rpath, contact.out_path, contact.out_path_len, 3000);   // 3 second delay
 }
 
@@ -494,7 +539,7 @@ mesh::Packet* BaseChatMesh::composeMsgPacket(const ContactInfo& recipient, uint3
     temp[len++] = attempt;  // hide attempt number at tail end of payload
   }
 
-  return createDatagram(PAYLOAD_TYPE_TXT_MSG, recipient.id, recipient.getSharedSecret(self_id), temp, len, recipient.nextAeadNonce());
+  return createDatagram(PAYLOAD_TYPE_TXT_MSG, recipient.id, recipient.getSharedSecret(self_id), temp, len, nextAeadNonceFor(recipient));
 }
 
 int  BaseChatMesh::sendMessage(const ContactInfo& recipient, uint32_t timestamp, uint8_t attempt, const char* text, uint32_t& expected_ack, uint32_t& est_timeout) {
@@ -525,7 +570,7 @@ int  BaseChatMesh::sendCommandData(const ContactInfo& recipient, uint32_t timest
   temp[4] = (attempt & 3) | (txt_type << 2);
   memcpy(&temp[5], text, text_len + 1);
 
-  auto pkt = createDatagram(PAYLOAD_TYPE_TXT_MSG, recipient.id, recipient.getSharedSecret(self_id), temp, 5 + text_len, recipient.nextAeadNonce());
+  auto pkt = createDatagram(PAYLOAD_TYPE_TXT_MSG, recipient.id, recipient.getSharedSecret(self_id), temp, 5 + text_len, nextAeadNonceFor(recipient));
   if (pkt == NULL) return MSG_SEND_FAILED;
 
   uint32_t t = _radio->getEstAirtimeFor(pkt->getRawLength());
@@ -697,7 +742,7 @@ int  BaseChatMesh::sendRequest(const ContactInfo& recipient, const uint8_t* req_
     memcpy(temp, &tag, 4);   // mostly an extra blob to help make packet_hash unique
     memcpy(&temp[4], req_data, data_len);
 
-    pkt = createDatagram(PAYLOAD_TYPE_REQ, recipient.id, recipient.getSharedSecret(self_id), temp, 4 + data_len, recipient.nextAeadNonce());
+    pkt = createDatagram(PAYLOAD_TYPE_REQ, recipient.id, recipient.getSharedSecret(self_id), temp, 4 + data_len, nextAeadNonceFor(recipient));
   }
   if (pkt) {
     uint32_t t = _radio->getEstAirtimeFor(pkt->getRawLength());
@@ -724,7 +769,7 @@ int  BaseChatMesh::sendRequest(const ContactInfo& recipient, uint8_t req_type, u
     memset(&temp[5], 0, 4);  // reserved (possibly for 'since' param)
     getRNG()->random(&temp[9], 4);   // random blob to help make packet-hash unique
 
-    pkt = createDatagram(PAYLOAD_TYPE_REQ, recipient.id, recipient.getSharedSecret(self_id), temp, sizeof(temp), recipient.nextAeadNonce());
+    pkt = createDatagram(PAYLOAD_TYPE_REQ, recipient.id, recipient.getSharedSecret(self_id), temp, sizeof(temp), nextAeadNonceFor(recipient));
   }
   if (pkt) {
     uint32_t t = _radio->getEstAirtimeFor(pkt->getRawLength());
@@ -847,7 +892,7 @@ void BaseChatMesh::checkConnections() {
       // calc expected ACK reply
       mesh::Utils::sha256((uint8_t *)&connections[i].expected_ack, 4, data, 9, self_id.pub_key, PUB_KEY_SIZE);
 
-      auto pkt = createDatagram(PAYLOAD_TYPE_REQ, contact->id, contact->getSharedSecret(self_id), data, 9, contact->nextAeadNonce());
+      auto pkt = createDatagram(PAYLOAD_TYPE_REQ, contact->id, contact->getSharedSecret(self_id), data, 9, nextAeadNonceFor(*contact));
       if (pkt) {
         sendDirect(pkt, contact->out_path, contact->out_path_len);
       }
@@ -909,9 +954,12 @@ ContactInfo* BaseChatMesh::lookupContactByPubKey(const uint8_t* pub_key, int pre
 bool BaseChatMesh::addContact(const ContactInfo& contact) {
   ContactInfo* dest = allocateContactSlot(contact.type == ADV_TYPE_NONE);
   if (dest) {
+    int idx = dest - contacts;
     *dest = contact;
     dest->shared_secret_valid = false; // mark shared_secret as needing calculation
     getRNG()->random((uint8_t*)&dest->aead_nonce, sizeof(dest->aead_nonce));  // always seed fresh from HW RNG
+    if (dest->aead_nonce == 0) dest->aead_nonce = 1;
+    nonce_at_last_persist[idx] = dest->aead_nonce;
     return true;  // success
   }
   return false;
@@ -924,10 +972,11 @@ bool BaseChatMesh::removeContact(ContactInfo& contact) {
   }
   if (idx >= num_contacts) return false;   // not found
 
-  // remove from contacts array
+  // remove from contacts array and parallel nonce tracking
   num_contacts--;
   while (idx < num_contacts) {
     contacts[idx] = contacts[idx + 1];
+    nonce_at_last_persist[idx] = nonce_at_last_persist[idx + 1];
     idx++;
   }
   return true;  // Success
