@@ -97,6 +97,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   ClientACL acl;
   CommonCLI _cli;
   unsigned long dirty_contacts_expiry;
+  unsigned long next_nonce_persist;
   uint8_t reply_data[MAX_PACKET_PAYLOAD];
   unsigned long next_push;
   uint16_t _num_posted, _num_post_pushes;
@@ -176,6 +177,9 @@ public:
 
   void savePrefs() override {
     _cli.savePrefs(_fs);
+  }
+  void onBeforeReboot() override {
+    if (acl.isNonceDirty()) acl.saveNonces();
   }
 
   void applyTempRadioParams(float freq, float bw, uint8_t sf, uint8_t cr, int timeout_mins) override;

@@ -22,6 +22,10 @@
 #define CONTACT_FLAG_AEAD    0x02   // bit 1 of ContactInfo.flags (bit 0 = favourite)
 #define FEAT1_AEAD_SUPPORT   0x0001 // bit 0 of feat1 uint16_t
 
+// AEAD nonce persistence
+#define NONCE_PERSIST_INTERVAL  50   // persist every N messages per peer
+#define NONCE_BOOT_BUMP         100  // add this on load after dirty boot (must be >= 2 * PERSIST_INTERVAL)
+
 #define MAX_PACKET_PAYLOAD  184
 #define MAX_PATH_SIZE        64
 #define MAX_TRANS_UNIT      255

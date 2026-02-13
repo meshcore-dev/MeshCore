@@ -1,4 +1,5 @@
 #include "ClientACL.h"
+#include <MeshCore.h>
 
 static File openWrite(FILESYSTEM* _fs, const char* filename) {
   #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
@@ -111,11 +112,85 @@ ClientInfo* ClientACL::putClient(const mesh::Identity& id, uint8_t init_perms) {
   } else {
     c = oldest;  // evict least active contact
   }
+  int idx = c - clients;
   memset(c, 0, sizeof(*c));
   c->permissions = init_perms;
   c->id = id;
   c->out_path_len = OUT_PATH_UNKNOWN;
+  if (_rng) {
+    _rng->random((uint8_t*)&c->aead_nonce, sizeof(c->aead_nonce));
+    if (c->aead_nonce == 0) c->aead_nonce = 1;
+  }
+  nonce_at_last_persist[idx] = c->aead_nonce;
   return c;
+}
+
+uint16_t ClientACL::nextAeadNonceFor(const ClientInfo& client) {
+  uint16_t nonce = client.nextAeadNonce();
+  if (nonce != 0) {
+    int idx = &client - clients;
+    if (idx >= 0 && idx < num_clients &&
+        (uint16_t)(client.aead_nonce - nonce_at_last_persist[idx]) >= NONCE_PERSIST_INTERVAL) {
+      nonce_dirty = true;
+    }
+  }
+  return nonce;
+}
+
+void ClientACL::loadNonces() {
+  if (!_fs) return;
+#if defined(RP2040_PLATFORM)
+  File file = _fs->open("/s_nonces", "r");
+#elif defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
+  File file = _fs->open("/s_nonces", FILE_O_READ);
+#else
+  File file = _fs->open("/s_nonces", "r", false);
+#endif
+  if (file) {
+    uint8_t rec[6];  // 4-byte pub_key prefix + 2-byte nonce
+    while (file.read(rec, 6) == 6) {
+      uint16_t nonce;
+      memcpy(&nonce, &rec[4], 2);
+      for (int i = 0; i < num_clients; i++) {
+        if (memcmp(clients[i].id.pub_key, rec, 4) == 0) {
+          clients[i].aead_nonce = nonce;
+          break;
+        }
+      }
+    }
+    file.close();
+  }
+}
+
+void ClientACL::saveNonces() {
+  if (!_fs) return;
+  File file = openWrite(_fs, "/s_nonces");
+  if (file) {
+    for (int i = 0; i < num_clients; i++) {
+      file.write(clients[i].id.pub_key, 4);
+      file.write((uint8_t*)&clients[i].aead_nonce, 2);
+      nonce_at_last_persist[i] = clients[i].aead_nonce;
+    }
+    file.close();
+    nonce_dirty = false;
+  }
+}
+
+void ClientACL::finalizeNonceLoad(bool needs_bump) {
+  for (int i = 0; i < num_clients; i++) {
+    if (needs_bump) {
+      uint16_t old = clients[i].aead_nonce;
+      clients[i].aead_nonce += NONCE_BOOT_BUMP;
+      if (clients[i].aead_nonce == 0) clients[i].aead_nonce = 1;
+      if (clients[i].aead_nonce < old) {
+        MESH_DEBUG_PRINTLN("AEAD nonce wrapped after boot bump for client: %02x%02x%02x%02x",
+          clients[i].id.pub_key[0], clients[i].id.pub_key[1],
+          clients[i].id.pub_key[2], clients[i].id.pub_key[3]);
+      }
+    }
+    nonce_at_last_persist[i] = clients[i].aead_nonce;
+  }
+  nonce_dirty = false;
 }
 
 bool ClientACL::applyPermissions(const mesh::LocalIdentity& self_id, const uint8_t* pubkey, int key_len, uint8_t perms) {
@@ -128,6 +203,7 @@ bool ClientACL::applyPermissions(const mesh::LocalIdentity& self_id, const uint8
     int i = c - clients;
     while (i < num_clients) {
       clients[i] = clients[i + 1];
+      nonce_at_last_persist[i] = nonce_at_last_persist[i + 1];
       i++;
     }
   } else {

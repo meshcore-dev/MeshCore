@@ -31,7 +31,7 @@ struct ClientInfo {
       uint8_t  push_failures;
     } room;
   } extra;
-  
+
   uint16_t nextAeadNonce() const {
     if (flags & CONTACT_FLAG_AEAD) {
       if (++aead_nonce == 0) ++aead_nonce;  // skip 0 (means ECB)
@@ -51,10 +51,18 @@ class ClientACL {
   ClientInfo clients[MAX_CLIENTS];
   int num_clients;
 
+  // Nonce persistence state (parallel to clients[])
+  uint16_t nonce_at_last_persist[MAX_CLIENTS];
+  bool nonce_dirty;
+  mesh::RNG* _rng;
+
 public:
-  ClientACL() { 
+  ClientACL() {
     memset(clients, 0, sizeof(clients));
+    memset(nonce_at_last_persist, 0, sizeof(nonce_at_last_persist));
     num_clients = 0;
+    nonce_dirty = false;
+    _rng = NULL;
   }
   void load(FILESYSTEM* _fs, const mesh::LocalIdentity& self_id);
   void save(FILESYSTEM* _fs, bool (*filter)(ClientInfo*)=NULL);
@@ -66,4 +74,16 @@ public:
 
   int getNumClients() const { return num_clients; }
   ClientInfo* getClientByIdx(int idx) { return &clients[idx]; }
+
+  // AEAD nonce persistence
+  void setRNG(mesh::RNG* rng) { _rng = rng; }
+  uint16_t nextAeadNonceFor(const ClientInfo& client);
+  void loadNonces();
+  void saveNonces();
+  void finalizeNonceLoad(bool needs_bump);
+  bool isNonceDirty() const { return nonce_dirty; }
+  void clearNonceDirty() {
+    for (int i = 0; i < num_clients; i++) nonce_at_last_persist[i] = clients[i].aead_nonce;
+    nonce_dirty = false;
+  }
 };

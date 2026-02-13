@@ -71,7 +71,7 @@ void MyMesh::pushPostToClient(ClientInfo *client, PostInfo &post) {
   mesh::Utils::sha256((uint8_t *)&client->extra.room.pending_ack, 4, reply_data, len, client->id.pub_key, PUB_KEY_SIZE);
   client->extra.room.push_post_timestamp = post.post_timestamp;
 
-  auto reply = createDatagram(PAYLOAD_TYPE_TXT_MSG, client->id, client->shared_secret, reply_data, len, client->nextAeadNonce());
+  auto reply = createDatagram(PAYLOAD_TYPE_TXT_MSG, client->id, client->shared_secret, reply_data, len, acl.nextAeadNonceFor(*client));
   if (reply) {
     if (client->out_path_len == OUT_PATH_UNKNOWN) {
       unsigned long delay_millis = 0;
@@ -399,7 +399,7 @@ uint8_t MyMesh::getPeerFlags(int peer_idx) {
 uint16_t MyMesh::getPeerNextAeadNonce(int peer_idx) {
   int i = matching_peer_indexes[peer_idx];
   if (i >= 0 && i < acl.getNumClients())
-    return acl.getClientByIdx(i)->nextAeadNonce();
+    return acl.nextAeadNonceFor(*acl.getClientByIdx(i));
   return 0;
 }
 
@@ -409,7 +409,10 @@ void MyMesh::onPeerAeadDetected(int peer_idx) {
     auto c = acl.getClientByIdx(i);
     if (!(c->flags & CONTACT_FLAG_AEAD)) {
       c->flags |= CONTACT_FLAG_AEAD;
-      getRNG()->random((uint8_t*)&c->aead_nonce, sizeof(c->aead_nonce));
+      if (c->aead_nonce == 0) {  // no persisted nonce — seed from RNG to avoid deterministic start
+        getRNG()->random((uint8_t*)&c->aead_nonce, sizeof(c->aead_nonce));
+        if (c->aead_nonce == 0) c->aead_nonce = 1;
+      }
     }
   }
 }
@@ -507,7 +510,7 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
         // mesh::Utils::sha256((uint8_t *)&expected_ack_crc, 4, temp, 5 + text_len, self_id.pub_key,
         // PUB_KEY_SIZE);
 
-        auto reply = createDatagram(PAYLOAD_TYPE_TXT_MSG, client->id, secret, temp, 5 + text_len, client->nextAeadNonce());
+        auto reply = createDatagram(PAYLOAD_TYPE_TXT_MSG, client->id, secret, temp, 5 + text_len, acl.nextAeadNonceFor(*client));
         if (reply) {
           if (client->out_path_len == OUT_PATH_UNKNOWN) {
             sendFlood(reply, delay_millis + SERVER_RESPONSE_DELAY, packet->getPathHashSize());
@@ -564,10 +567,10 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
           if (packet->isRouteFlood()) {
             // let this sender know path TO here, so they can use sendDirect(), and ALSO encode the response
             mesh::Packet *path = createPathReturn(client->id, secret, packet->path, packet->path_len,
-                                                  PAYLOAD_TYPE_RESPONSE, reply_data, reply_len, client->nextAeadNonce());
+                                                  PAYLOAD_TYPE_RESPONSE, reply_data, reply_len, acl.nextAeadNonceFor(*client));
             if (path) sendFlood(path, SERVER_RESPONSE_DELAY, packet->getPathHashSize());
           } else {
-            mesh::Packet *reply = createDatagram(PAYLOAD_TYPE_RESPONSE, client->id, secret, reply_data, reply_len, client->nextAeadNonce());
+            mesh::Packet *reply = createDatagram(PAYLOAD_TYPE_RESPONSE, client->id, secret, reply_data, reply_len, acl.nextAeadNonceFor(*client));
             if (reply) {
               if (client->out_path_len != OUT_PATH_UNKNOWN) { // we have an out_path, so send DIRECT
                 sendDirect(reply, client->out_path, client->out_path_len, SERVER_RESPONSE_DELAY);
@@ -619,6 +622,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   uptime_millis = 0;
   next_local_advert = next_flood_advert = 0;
   dirty_contacts_expiry = 0;
+  next_nonce_persist = 0;
   _logging = false;
   set_radio_at = revert_radio_at = 0;
 
@@ -665,6 +669,12 @@ void MyMesh::begin(FILESYSTEM *fs) {
   _cli.loadPrefs(_fs);
 
   acl.load(_fs, self_id);
+  acl.setRNG(getRNG());
+  acl.loadNonces();
+  bool dirty_reset = wasDirtyReset(board);
+  acl.finalizeNonceLoad(dirty_reset);
+  if (dirty_reset) acl.saveNonces();  // persist bumped nonces immediately
+  next_nonce_persist = futureMillis(60000);
 
   radio_set_params(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
   radio_set_tx_power(_prefs.tx_power_dbm);
@@ -910,6 +920,12 @@ void MyMesh::loop() {
   if (dirty_contacts_expiry && millisHasNowPassed(dirty_contacts_expiry)) {
     acl.save(_fs, MyMesh::saveFilter);
     dirty_contacts_expiry = 0;
+  }
+
+  // persist dirty AEAD nonces
+  if (next_nonce_persist && millisHasNowPassed(next_nonce_persist)) {
+    if (acl.isNonceDirty()) { acl.saveNonces(); }
+    next_nonce_persist = futureMillis(60000);
   }
 
   // TODO: periodically check for OLD/inactive entries in known_clients[], and evict
