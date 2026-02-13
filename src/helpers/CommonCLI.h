@@ -243,8 +243,12 @@ public:
   #if defined(USE_LR2021)
   virtual bool configSideDetectors(const uint8_t sideDetSFs[], uint8_t num, float bw) {
     return false; // Override in wrapper
-  } 
+  }
   #endif
+
+  virtual void onBeforeReboot() {
+    // no op by default — override to flush nonces, etc.
+  };
 };
 
 class CommonCLI {

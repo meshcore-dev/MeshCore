@@ -103,6 +103,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   unsigned long pending_discover_until;
   bool region_load_active;
   unsigned long dirty_contacts_expiry;
+  unsigned long next_nonce_persist;
 #if MAX_NEIGHBOURS
   NeighbourInfo neighbours[MAX_NEIGHBOURS];
 #endif
@@ -196,6 +197,9 @@ public:
 
   void savePrefs() override {
     _cli.savePrefs(_fs);
+  }
+  void onBeforeReboot() override {
+    if (acl.isNonceDirty()) acl.saveNonces();
   }
 
   void sendFloodScoped(const TransportKey& scope, mesh::Packet* pkt, uint32_t delay_millis, uint8_t path_hash_size);
