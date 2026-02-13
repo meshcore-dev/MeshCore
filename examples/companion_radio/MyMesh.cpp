@@ -854,6 +854,7 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
   next_ack_idx = 0;
   sign_data = NULL;
   dirty_contacts_expiry = 0;
+  next_nonce_persist = 0;
   memset(advert_paths, 0, sizeof(advert_paths));
   memset(send_scope.key, 0, sizeof(send_scope.key));
 
@@ -948,6 +949,14 @@ void MyMesh::begin(bool has_display) {
   resetContacts();
   _store->loadContacts(this);
   bootstrapRTCfromContacts();
+
+  // Load persisted AEAD nonces and apply boot bump if needed
+  _store->loadNonces(this);
+  bool dirty_reset = wasDirtyReset(board);
+  finalizeNonceLoad(dirty_reset);
+  if (dirty_reset) saveNonces();  // persist bumped nonces immediately
+  next_nonce_persist = futureMillis(60000);
+
   addChannel("Public", PUBLIC_GROUP_PSK); // pre-configure Andy's public channel
   _store->loadChannels(this);
 
@@ -1440,6 +1449,7 @@ void MyMesh::handleCmdFrame(size_t len) {
     if (dirty_contacts_expiry) { // is there are pending dirty contacts write needed?
       saveContacts();
     }
+    if (isNonceDirty()) saveNonces();
     board.reboot();
   } else if (cmd_frame[0] == CMD_GET_BATT_AND_STORAGE) {
     uint8_t reply[11];
@@ -2121,6 +2131,7 @@ void MyMesh::checkCLIRescueCmd() {
       }
 
     } else if (strcmp(cli_command, "reboot") == 0) {
+      if (isNonceDirty()) saveNonces();
       board.reboot();  // doesn't return
     } else {
       Serial.println("  Error: unknown command");
@@ -2170,6 +2181,14 @@ void MyMesh::loop() {
   if (dirty_contacts_expiry && millisHasNowPassed(dirty_contacts_expiry)) {
     saveContacts();
     dirty_contacts_expiry = 0;
+  }
+
+  // periodic AEAD nonce persistence
+  if (next_nonce_persist && millisHasNowPassed(next_nonce_persist)) {
+    if (isNonceDirty()) {
+      saveNonces();
+    }
+    next_nonce_persist = futureMillis(60000);
   }
 
 #ifdef DISPLAY_CLASS

@@ -101,6 +101,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   ClientACL acl;
   CommonCLI _cli;
   unsigned long dirty_contacts_expiry;
+  unsigned long next_nonce_persist;
   uint8_t reply_data[MAX_PACKET_PAYLOAD];
   unsigned long next_push;
   uint16_t _num_posted, _num_post_pushes;
@@ -187,6 +188,9 @@ public:
 
   void savePrefs() override {
     _cli.savePrefs(_fs);
+  }
+  void onBeforeReboot() override {
+    if (acl.isNonceDirty()) acl.saveNonces();
   }
 
   void sendFloodScoped(const TransportKey& scope, mesh::Packet* pkt, uint32_t delay_millis, uint8_t path_hash_size);

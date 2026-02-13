@@ -110,6 +110,10 @@ public:
   virtual void setRxBoostedGain(bool enable) {
     // no op by default
   };
+
+  virtual void onBeforeReboot() {
+    // no op by default — override to flush nonces, etc.
+  };
 };
 
 class CommonCLI {
