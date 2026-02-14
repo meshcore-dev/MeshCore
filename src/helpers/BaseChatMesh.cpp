@@ -1,5 +1,7 @@
 #include <helpers/BaseChatMesh.h>
 #include <Utils.h>
+#include <SHA256.h>
+#include <ed_25519.h>
 
 #ifndef SERVER_RESPONSE_DELAY
   #define SERVER_RESPONSE_DELAY   300
@@ -44,6 +46,20 @@ void BaseChatMesh::finalizeNonceLoad(bool needs_bump) {
     nonce_at_last_persist[i] = contacts[i].aead_nonce;
   }
   nonce_dirty = false;
+
+  // Apply boot bump to session key nonces too
+  if (needs_bump) {
+    for (int i = 0; i < session_keys.getCount(); i++) {
+      auto entry = session_keys.getByIdx(i);
+      if (entry && (entry->state == SESSION_STATE_ACTIVE || entry->state == SESSION_STATE_DUAL_DECODE)) {
+        uint16_t old_nonce = entry->nonce;
+        entry->nonce += NONCE_BOOT_BUMP;
+        if (entry->nonce <= old_nonce) {
+          entry->nonce = 65535;  // wrapped — force exhaustion so renegotiation happens
+        }
+      }
+    }
+  }
 }
 
 bool BaseChatMesh::getNonceEntry(int idx, uint8_t* pub_key_prefix, uint16_t* nonce) {
@@ -147,8 +163,7 @@ void BaseChatMesh::populateContactFromAdvert(ContactInfo& ci, const mesh::Identi
   }
   ci.last_advert_timestamp = timestamp;
   ci.lastmod = getRTCClock()->getCurrentTime();
-  getRNG()->random((uint8_t*)&ci.aead_nonce, sizeof(ci.aead_nonce));  // seed AEAD nonce from HW RNG
-  if (ci.aead_nonce == 0) ci.aead_nonce = 1;
+  ci.aead_nonce = (uint16_t)getRNG()->nextInt(NONCE_INITIAL_MIN, NONCE_INITIAL_MAX + 1);
   if (parser.getFeat1() & FEAT1_AEAD_SUPPORT) {
     ci.flags |= CONTACT_FLAG_AEAD;
   }
@@ -287,8 +302,8 @@ void BaseChatMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender
 
       if (packet->isRouteFlood()) {
         // let this sender know path TO here, so they can use sendDirect(), and ALSO encode the ACK
-        mesh::Packet* path = createPathReturn(from.id, secret, packet->path, packet->path_len,
-                                                PAYLOAD_TYPE_ACK, (uint8_t *) &ack_hash, 4, nextAeadNonceFor(from));
+        mesh::Packet* path = createPathReturn(from.id, getEncryptionKeyFor(from), packet->path, packet->path_len,
+                                                PAYLOAD_TYPE_ACK, (uint8_t *) &ack_hash, 4, getEncryptionNonceFor(from));
         if (path) sendFloodScoped(from, path, TXT_ACK_DELAY);
       } else {
         sendAckTo(from, ack_hash);
@@ -299,7 +314,7 @@ void BaseChatMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender
 
       if (packet->isRouteFlood()) {
         // let this sender know path TO here, so they can use sendDirect() (NOTE: no ACK as extra)
-        mesh::Packet* path = createPathReturn(from.id, secret, packet->path, packet->path_len, 0, NULL, 0, nextAeadNonceFor(from));
+        mesh::Packet* path = createPathReturn(from.id, getEncryptionKeyFor(from), packet->path, packet->path_len, 0, NULL, 0, getEncryptionNonceFor(from));
         if (path) sendFloodScoped(from, path);
       }
     } else if (flags == TXT_TYPE_SIGNED_PLAIN) {
@@ -314,8 +329,8 @@ void BaseChatMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender
 
       if (packet->isRouteFlood()) {
         // let this sender know path TO here, so they can use sendDirect(), and ALSO encode the ACK
-        mesh::Packet* path = createPathReturn(from.id, secret, packet->path, packet->path_len,
-                                                PAYLOAD_TYPE_ACK, (uint8_t *) &ack_hash, 4, nextAeadNonceFor(from));
+        mesh::Packet* path = createPathReturn(from.id, getEncryptionKeyFor(from), packet->path, packet->path_len,
+                                                PAYLOAD_TYPE_ACK, (uint8_t *) &ack_hash, 4, getEncryptionNonceFor(from));
         if (path) sendFloodScoped(from, path, TXT_ACK_DELAY);
       } else {
         sendAckTo(from, ack_hash);
@@ -326,15 +341,37 @@ void BaseChatMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender
   } else if (type == PAYLOAD_TYPE_REQ && len > 4) {
     uint32_t sender_timestamp;
     memcpy(&sender_timestamp, data, 4);
-    uint8_t reply_len = onContactRequest(from, sender_timestamp, &data[4], len - 4, temp_buf);
+
+    uint8_t reply_len = 0;
+    bool use_static_secret = false;
+
+    // Intercept session key INIT before subclass onContactRequest
+    if (len >= 5 + PUB_KEY_SIZE && data[4] == REQ_TYPE_SESSION_KEY_INIT) {
+      memcpy(temp_buf, &sender_timestamp, 4);
+      temp_buf[4] = RESP_TYPE_SESSION_KEY_ACCEPT;
+      uint8_t n = handleIncomingSessionKeyInit(from, &data[5], &temp_buf[5]);
+      if (n > 0) {
+        reply_len = 5 + n;
+        use_static_secret = true;  // ACCEPT must use static secret (initiator doesn't have session key yet)
+      }
+    }
+    if (reply_len == 0) {
+      reply_len = onContactRequest(from, sender_timestamp, &data[4], len - 4, temp_buf);
+    }
+
     if (reply_len > 0) {
+      // Session key ACCEPT must be encrypted with static ECDH secret, because
+      // the initiator hasn't derived the session key yet (they need our ephemeral_pub_B first).
+      const uint8_t* enc_key = use_static_secret ? from.getSharedSecret(self_id) : getEncryptionKeyFor(from);
+      uint16_t enc_nonce = use_static_secret ? nextAeadNonceFor(from) : getEncryptionNonceFor(from);
+
       if (packet->isRouteFlood()) {
         // let this sender know path TO here, so they can use sendDirect(), and ALSO encode the response
-        mesh::Packet* path = createPathReturn(from.id, secret, packet->path, packet->path_len,
-                                              PAYLOAD_TYPE_RESPONSE, temp_buf, reply_len, nextAeadNonceFor(from));
+        mesh::Packet* path = createPathReturn(from.id, enc_key, packet->path, packet->path_len,
+                                              PAYLOAD_TYPE_RESPONSE, temp_buf, reply_len, enc_nonce);
         if (path) sendFloodScoped(from, path, SERVER_RESPONSE_DELAY);
       } else {
-        mesh::Packet* reply = createDatagram(PAYLOAD_TYPE_RESPONSE, from.id, secret, temp_buf, reply_len, nextAeadNonceFor(from));
+        mesh::Packet* reply = createDatagram(PAYLOAD_TYPE_RESPONSE, from.id, enc_key, temp_buf, reply_len, enc_nonce);
         if (reply) {
           if (from.out_path_len != OUT_PATH_UNKNOWN) {  // we have an out_path, so send DIRECT
             sendDirect(reply, from.out_path, from.out_path_len, SERVER_RESPONSE_DELAY);
@@ -345,7 +382,16 @@ void BaseChatMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender
       }
     }
   } else if (type == PAYLOAD_TYPE_RESPONSE && len > 0) {
-    onContactResponse(from, data, len);
+    // Intercept session key accept responses before passing to onContactResponse.
+    // Note: RESP_TYPE_SESSION_KEY_ACCEPT (0x08) could collide with a normal response whose
+    // 5th byte happens to be 0x08, but handleSessionKeyResponse has a secondary guard
+    // (requires INIT_SENT state for this peer) so false positives are extremely unlikely,
+    // and self-heal via session key invalidation if they ever occur.
+    if (len >= 5 && data[4] == RESP_TYPE_SESSION_KEY_ACCEPT && handleSessionKeyResponse(from, data, len)) {
+      // Session key response handled — don't pass to onContactResponse
+    } else {
+      onContactResponse(from, data, len);
+    }
     if (packet->isRouteFlood() && from.out_path_len != OUT_PATH_UNKNOWN) {
       // we have direct path, but other node is still sending flood response, so maybe they didn't receive reciprocal path properly(?)
       handleReturnPathRetry(from, packet->path, packet->path_len);
@@ -379,7 +425,11 @@ bool BaseChatMesh::onContactPathRecv(ContactInfo& from, uint8_t* in_path, uint8_
       txt_send_timeout = 0;   // matched one we're waiting for, cancel timeout timer
     }
   } else if (extra_type == PAYLOAD_TYPE_RESPONSE && extra_len > 0) {
-    onContactResponse(from, extra, extra_len);
+    if (extra_len >= 5 && extra[4] == RESP_TYPE_SESSION_KEY_ACCEPT && handleSessionKeyResponse(from, extra, extra_len)) {
+      // Session key response handled
+    } else {
+      onContactResponse(from, extra, extra_len);
+    }
   }
   return true;  // send reciprocal path if necessary
 }
@@ -400,7 +450,7 @@ void BaseChatMesh::onAckRecv(mesh::Packet* packet, uint32_t ack_crc) {
 void BaseChatMesh::handleReturnPathRetry(const ContactInfo& contact, const uint8_t* path, uint8_t path_len) {
   // NOTE: simplest impl is just to re-send a reciprocal return path to sender (DIRECTLY)
   //        override this method in various firmwares, if there's a better strategy
-  mesh::Packet* rpath = createPathReturn(contact.id, contact.getSharedSecret(self_id), path, path_len, 0, NULL, 0, nextAeadNonceFor(contact));
+  mesh::Packet* rpath = createPathReturn(contact.id, getEncryptionKeyFor(contact), path, path_len, 0, NULL, 0, getEncryptionNonceFor(contact));
   if (rpath) sendDirect(rpath, contact.out_path, contact.out_path_len, 3000);   // 3 second delay
 }
 
@@ -449,7 +499,7 @@ mesh::Packet* BaseChatMesh::composeMsgPacket(const ContactInfo& recipient, uint3
     temp[len++] = attempt;  // hide attempt number at tail end of payload
   }
 
-  return createDatagram(PAYLOAD_TYPE_TXT_MSG, recipient.id, recipient.getSharedSecret(self_id), temp, len, nextAeadNonceFor(recipient));
+  return createDatagram(PAYLOAD_TYPE_TXT_MSG, recipient.id, getEncryptionKeyFor(recipient), temp, len, getEncryptionNonceFor(recipient));
 }
 
 int  BaseChatMesh::sendMessage(const ContactInfo& recipient, uint32_t timestamp, uint8_t attempt, const char* text, uint32_t& expected_ack, uint32_t& est_timeout) {
@@ -480,7 +530,7 @@ int  BaseChatMesh::sendCommandData(const ContactInfo& recipient, uint32_t timest
   temp[4] = (attempt & 3) | (TXT_TYPE_CLI_DATA << 2);
   memcpy(&temp[5], text, text_len + 1);
 
-  auto pkt = createDatagram(PAYLOAD_TYPE_TXT_MSG, recipient.id, recipient.getSharedSecret(self_id), temp, 5 + text_len, nextAeadNonceFor(recipient));
+  auto pkt = createDatagram(PAYLOAD_TYPE_TXT_MSG, recipient.id, getEncryptionKeyFor(recipient), temp, 5 + text_len, getEncryptionNonceFor(recipient));
   if (pkt == NULL) return MSG_SEND_FAILED;
 
   uint32_t t = _radio->getEstAirtimeFor(pkt->getRawLength());
@@ -621,7 +671,7 @@ int  BaseChatMesh::sendRequest(const ContactInfo& recipient, const uint8_t* req_
     memcpy(temp, &tag, 4);   // mostly an extra blob to help make packet_hash unique
     memcpy(&temp[4], req_data, data_len);
 
-    pkt = createDatagram(PAYLOAD_TYPE_REQ, recipient.id, recipient.getSharedSecret(self_id), temp, 4 + data_len, nextAeadNonceFor(recipient));
+    pkt = createDatagram(PAYLOAD_TYPE_REQ, recipient.id, getEncryptionKeyFor(recipient), temp, 4 + data_len, getEncryptionNonceFor(recipient));
   }
   if (pkt) {
     uint32_t t = _radio->getEstAirtimeFor(pkt->getRawLength());
@@ -648,7 +698,7 @@ int  BaseChatMesh::sendRequest(const ContactInfo& recipient, uint8_t req_type, u
     memset(&temp[5], 0, 4);  // reserved (possibly for 'since' param)
     getRNG()->random(&temp[9], 4);   // random blob to help make packet-hash unique
 
-    pkt = createDatagram(PAYLOAD_TYPE_REQ, recipient.id, recipient.getSharedSecret(self_id), temp, sizeof(temp), nextAeadNonceFor(recipient));
+    pkt = createDatagram(PAYLOAD_TYPE_REQ, recipient.id, getEncryptionKeyFor(recipient), temp, sizeof(temp), getEncryptionNonceFor(recipient));
   }
   if (pkt) {
     uint32_t t = _radio->getEstAirtimeFor(pkt->getRawLength());
@@ -771,7 +821,7 @@ void BaseChatMesh::checkConnections() {
       // calc expected ACK reply
       mesh::Utils::sha256((uint8_t *)&connections[i].expected_ack, 4, data, 9, self_id.pub_key, PUB_KEY_SIZE);
 
-      auto pkt = createDatagram(PAYLOAD_TYPE_REQ, contact->id, contact->getSharedSecret(self_id), data, 9, nextAeadNonceFor(*contact));
+      auto pkt = createDatagram(PAYLOAD_TYPE_REQ, contact->id, getEncryptionKeyFor(*contact), data, 9, getEncryptionNonceFor(*contact));
       if (pkt) {
         sendDirect(pkt, contact->out_path, contact->out_path_len);
       }
@@ -836,8 +886,7 @@ bool BaseChatMesh::addContact(const ContactInfo& contact) {
     int idx = dest - contacts;
     *dest = contact;
     dest->shared_secret_valid = false; // mark shared_secret as needing calculation
-    getRNG()->random((uint8_t*)&dest->aead_nonce, sizeof(dest->aead_nonce));  // always seed fresh from HW RNG
-    if (dest->aead_nonce == 0) dest->aead_nonce = 1;
+    dest->aead_nonce = (uint16_t)getRNG()->nextInt(NONCE_INITIAL_MIN, NONCE_INITIAL_MAX + 1);
     nonce_at_last_persist[idx] = dest->aead_nonce;
     return true;  // success
   }
@@ -850,6 +899,8 @@ bool BaseChatMesh::removeContact(ContactInfo& contact) {
     idx++;
   }
   if (idx >= num_contacts) return false;   // not found
+
+  session_keys.remove(contact.id.pub_key);  // also remove session key if any
 
   // remove from contacts array and parallel nonce tracking
   num_contacts--;
@@ -953,4 +1004,337 @@ void BaseChatMesh::loop() {
     releasePacket(_pendingLoopback);   // undo the obtainNewPacket()
     _pendingLoopback = NULL;
   }
+
+  checkSessionKeyTimeouts();
+
+  // Process deferred session key negotiation (set by getEncryptionNonceFor)
+  if (_pending_rekey_idx >= 0 && _pending_rekey_idx < num_contacts) {
+    int idx = _pending_rekey_idx;
+    _pending_rekey_idx = -1;
+    initiateSessionKeyNegotiation(contacts[idx]);
+  }
+}
+
+// --- Session key support (Phase 2 — initiator) ---
+
+static bool canUseSessionKey(const SessionKeyEntry* entry) {
+  if (!entry) return false;
+  // ACTIVE/DUAL_DECODE: normal session key use
+  // INIT_SENT with nonce > 1: renegotiation in progress, keep using old session key
+  //   (nonce == 0 means fresh allocation with no prior session key)
+  bool valid_state = (entry->state == SESSION_STATE_ACTIVE || entry->state == SESSION_STATE_DUAL_DECODE)
+                     || (entry->state == SESSION_STATE_INIT_SENT && entry->nonce > 1);
+  return valid_state
+      && entry->sends_since_last_recv < SESSION_KEY_STALE_THRESHOLD
+      && entry->nonce < 65535;  // nonce exhausted → fall back to static ECDH
+}
+
+const uint8_t* BaseChatMesh::getEncryptionKeyFor(const ContactInfo& contact) {
+  auto entry = session_keys.findByPrefix(contact.id.pub_key);
+  if (canUseSessionKey(entry)) {
+    return entry->session_key;
+  }
+  return contact.getSharedSecret(self_id);
+}
+
+uint16_t BaseChatMesh::getEncryptionNonceFor(const ContactInfo& contact) {
+  uint16_t nonce = 0;
+  auto entry = session_keys.findByPrefix(contact.id.pub_key);
+  if (canUseSessionKey(entry)) {
+    ++entry->nonce;
+    if (entry->sends_since_last_recv < 255) entry->sends_since_last_recv++;
+    session_keys_dirty = true;
+    nonce = entry->nonce;
+  } else if (entry && entry->sends_since_last_recv < 255) {
+    // Progressive fallback: keep incrementing counter even when not using session key
+    entry->sends_since_last_recv++;
+    if (entry->sends_since_last_recv >= SESSION_KEY_ABANDON_THRESHOLD) {
+      // Give up: clear AEAD capability and remove session key
+      int idx = &contact - contacts;
+      if (idx >= 0 && idx < num_contacts)
+        contacts[idx].flags &= ~CONTACT_FLAG_AEAD;
+      session_keys.remove(contact.id.pub_key);
+      onSessionKeysUpdated();
+      // nonce = 0 (ECB)
+    } else if (entry->sends_since_last_recv >= SESSION_KEY_ECB_THRESHOLD) {
+      // nonce = 0 (ECB)
+    } else {
+      nonce = nextAeadNonceFor(contact);
+    }
+  } else {
+    nonce = nextAeadNonceFor(contact);
+  }
+
+  // Trigger session key negotiation on the next loop() tick.
+  // Checking here (the single funnel for all outgoing encryption) ensures no
+  // send path can silently skip a trigger — unlike the old per-call-site approach.
+  if (_pending_rekey_idx < 0 && shouldInitiateSessionKey(contact)) {
+    _pending_rekey_idx = &contact - contacts;
+  }
+
+  return nonce;
+}
+
+bool BaseChatMesh::shouldInitiateSessionKey(const ContactInfo& contact) {
+  // Only for AEAD-capable peers
+  if (!(contact.flags & CONTACT_FLAG_AEAD)) return false;
+
+  // Need a known path to send the request
+  if (contact.out_path_len < 0) return false;
+
+  auto entry = session_keys.findByPrefix(contact.id.pub_key);
+
+  // Don't trigger if negotiation already in progress
+  if (entry && entry->state == SESSION_STATE_INIT_SENT) return false;
+
+  // Determine intervals based on hop count tier:
+  //   direct (0):  static=100, session=100
+  //   1–9 hops:    static=500, session=300
+  //   10+ hops:    static=1000, session=300
+  uint16_t static_interval, session_interval;
+  if (contact.out_path_len == 0) {
+    static_interval = 100;
+    session_interval = 100;
+  } else if (contact.out_path_len < 10) {
+    static_interval = 500;
+    session_interval = 300;
+  } else {
+    static_interval = 1000;
+    session_interval = 300;
+  }
+
+  if (entry && (entry->state == SESSION_STATE_ACTIVE || entry->state == SESSION_STATE_DUAL_DECODE)) {
+    if (entry->nonce < 65535) {
+      // Active session key with remaining nonces — renegotiate after nonce > 60000
+      if (entry->nonce <= NONCE_REKEY_THRESHOLD) return false;
+      return ((entry->nonce - NONCE_REKEY_THRESHOLD) % session_interval) == 0;
+    }
+    // Session key nonce exhausted — fall through to static ECDH trigger
+  }
+
+  // No session key (or state=NONE) — trigger based on static ECDH nonce vs interval
+  if (contact.aead_nonce == 0) return false;  // no messages sent yet
+  return (contact.aead_nonce % static_interval) == 0;
+}
+
+bool BaseChatMesh::initiateSessionKeyNegotiation(const ContactInfo& contact) {
+  auto entry = session_keys.allocate(contact.id.pub_key);
+  if (!entry) return false;
+
+  // Don't start a new negotiation if one is already pending
+  if (entry->state == SESSION_STATE_INIT_SENT) return false;
+
+  // Generate ephemeral keypair A
+  uint8_t seed[SEED_SIZE];
+  getRNG()->random(seed, SEED_SIZE);
+  ed25519_create_keypair(entry->ephemeral_pub, entry->ephemeral_prv, seed);
+  memset(seed, 0, SEED_SIZE);
+
+  // Send REQ_TYPE_SESSION_KEY_INIT with ephemeral_pub_A
+  uint8_t req_data[1 + PUB_KEY_SIZE];
+  req_data[0] = REQ_TYPE_SESSION_KEY_INIT;
+  memcpy(&req_data[1], entry->ephemeral_pub, PUB_KEY_SIZE);
+
+  uint32_t tag, est_timeout;
+  int rc = sendRequest(contact, req_data, sizeof(req_data), tag, est_timeout);
+  if (rc == MSG_SEND_FAILED) {
+    memset(entry->ephemeral_prv, 0, PRV_KEY_SIZE);
+    memset(entry->ephemeral_pub, 0, PUB_KEY_SIZE);
+    return false;
+  }
+
+  entry->state = SESSION_STATE_INIT_SENT;
+  entry->retries_left = SESSION_KEY_MAX_RETRIES - 1;
+  entry->timeout_at = futureMillis(SESSION_KEY_TIMEOUT_MS);
+  return true;
+}
+
+bool BaseChatMesh::handleSessionKeyResponse(ContactInfo& contact, const uint8_t* data, uint8_t len) {
+  // Response format: [timestamp:4][RESP_TYPE_SESSION_KEY_ACCEPT:1][ephemeral_pub_B:32]
+  if (len < 5 + PUB_KEY_SIZE) return false;
+  if (data[4] != RESP_TYPE_SESSION_KEY_ACCEPT) return false;
+
+  auto entry = session_keys.findByPrefix(contact.id.pub_key);
+  if (!entry || entry->state != SESSION_STATE_INIT_SENT) return false;
+
+  const uint8_t* ephemeral_pub_B = &data[5];
+
+  // Compute ephemeral_secret via X25519
+  uint8_t ephemeral_secret[PUB_KEY_SIZE];
+  ed25519_key_exchange(ephemeral_secret, ephemeral_pub_B, entry->ephemeral_prv);
+  memset(entry->ephemeral_prv, 0, PRV_KEY_SIZE);
+  memset(entry->ephemeral_pub, 0, PUB_KEY_SIZE);
+
+  // Derive session_key = HMAC-SHA256(static_shared_secret, ephemeral_secret)
+  const uint8_t* static_secret = contact.getSharedSecret(self_id);
+  uint8_t new_session_key[SESSION_KEY_SIZE];
+  {
+    SHA256 sha;
+    sha.resetHMAC(static_secret, PUB_KEY_SIZE);
+    sha.update(ephemeral_secret, PUB_KEY_SIZE);
+    sha.finalizeHMAC(static_secret, PUB_KEY_SIZE, new_session_key, SESSION_KEY_SIZE);
+  }
+  memset(ephemeral_secret, 0, PUB_KEY_SIZE);
+
+  // Activate session key
+  memcpy(entry->session_key, new_session_key, SESSION_KEY_SIZE);
+  memset(new_session_key, 0, SESSION_KEY_SIZE);
+  entry->nonce = 1;
+  entry->state = SESSION_STATE_ACTIVE;
+  entry->sends_since_last_recv = 0;
+  entry->retries_left = 0;
+  entry->timeout_at = 0;
+
+  MESH_DEBUG_PRINTLN("Session key established with: %s", contact.name);
+  onSessionKeysUpdated();
+  return true;
+}
+
+uint8_t BaseChatMesh::handleIncomingSessionKeyInit(ContactInfo& from, const uint8_t* ephemeral_pub_A, uint8_t* reply_buf) {
+  // 1. Generate ephemeral keypair B
+  uint8_t seed[SEED_SIZE];
+  getRNG()->random(seed, SEED_SIZE);
+  uint8_t ephemeral_pub_B[PUB_KEY_SIZE];
+  uint8_t ephemeral_prv_B[PRV_KEY_SIZE];
+  ed25519_create_keypair(ephemeral_pub_B, ephemeral_prv_B, seed);
+  memset(seed, 0, SEED_SIZE);
+
+  // 2. Compute ephemeral_secret via X25519
+  uint8_t ephemeral_secret[PUB_KEY_SIZE];
+  ed25519_key_exchange(ephemeral_secret, ephemeral_pub_A, ephemeral_prv_B);
+  memset(ephemeral_prv_B, 0, PRV_KEY_SIZE);
+
+  // 3. Derive session_key = HMAC-SHA256(static_shared_secret, ephemeral_secret)
+  const uint8_t* static_secret = from.getSharedSecret(self_id);
+  uint8_t new_session_key[SESSION_KEY_SIZE];
+  {
+    SHA256 sha;
+    sha.resetHMAC(static_secret, PUB_KEY_SIZE);
+    sha.update(ephemeral_secret, PUB_KEY_SIZE);
+    sha.finalizeHMAC(static_secret, PUB_KEY_SIZE, new_session_key, SESSION_KEY_SIZE);
+  }
+  memset(ephemeral_secret, 0, PUB_KEY_SIZE);
+
+  // 4. Store in pool (dual-decode: new key active, old key still valid)
+  auto entry = session_keys.allocate(from.id.pub_key);
+  if (!entry) return 0;
+
+  if (entry->state == SESSION_STATE_ACTIVE || entry->state == SESSION_STATE_DUAL_DECODE) {
+    memcpy(entry->prev_session_key, entry->session_key, SESSION_KEY_SIZE);
+  }
+  memcpy(entry->session_key, new_session_key, SESSION_KEY_SIZE);
+  entry->nonce = 1;
+  entry->state = SESSION_STATE_DUAL_DECODE;
+  entry->sends_since_last_recv = 0;
+  memset(new_session_key, 0, SESSION_KEY_SIZE);
+
+  // 5. Persist immediately
+  onSessionKeysUpdated();
+
+  // 6. Write ephemeral_pub_B to reply
+  memcpy(reply_buf, ephemeral_pub_B, PUB_KEY_SIZE);
+  MESH_DEBUG_PRINTLN("Session key INIT accepted from: %s", from.name);
+  return PUB_KEY_SIZE;
+}
+
+void BaseChatMesh::checkSessionKeyTimeouts() {
+  for (int i = 0; i < session_keys.getCount(); i++) {
+    auto entry = session_keys.getByIdx(i);
+    if (!entry || entry->state != SESSION_STATE_INIT_SENT) continue;
+    if (entry->timeout_at == 0 || !millisHasNowPassed(entry->timeout_at)) continue;
+
+    if (entry->retries_left > 0) {
+      // Retry: find the contact and resend INIT
+      for (int j = 0; j < num_contacts; j++) {
+        if (memcmp(contacts[j].id.pub_key, entry->peer_pub_prefix, 4) == 0) {
+          entry->retries_left--;
+          entry->timeout_at = futureMillis(SESSION_KEY_TIMEOUT_MS);
+
+          // Regenerate ephemeral keypair for retry
+          uint8_t seed[SEED_SIZE];
+          getRNG()->random(seed, SEED_SIZE);
+          ed25519_create_keypair(entry->ephemeral_pub, entry->ephemeral_prv, seed);
+          memset(seed, 0, SEED_SIZE);
+
+          uint8_t req_data[1 + PUB_KEY_SIZE];
+          req_data[0] = REQ_TYPE_SESSION_KEY_INIT;
+          memcpy(&req_data[1], entry->ephemeral_pub, PUB_KEY_SIZE);
+
+          uint32_t tag, est_timeout;
+          sendRequest(contacts[j], req_data, sizeof(req_data), tag, est_timeout);
+          break;
+        }
+      }
+    } else {
+      // All retries exhausted — clean up
+      memset(entry->ephemeral_prv, 0, PRV_KEY_SIZE);
+      memset(entry->ephemeral_pub, 0, PUB_KEY_SIZE);
+      entry->state = SESSION_STATE_NONE;
+      entry->timeout_at = 0;
+    }
+  }
+}
+
+// Virtual overrides for session key decrypt path
+const uint8_t* BaseChatMesh::getPeerSessionKey(int peer_idx) {
+  int i = matching_peer_indexes[peer_idx];
+  if (i >= 0 && i < num_contacts) {
+    auto entry = session_keys.findByPrefix(contacts[i].id.pub_key);
+    // Also try decode during INIT_SENT renegotiation (nonce > 1 means prior key exists)
+    if (entry && (entry->state == SESSION_STATE_ACTIVE || entry->state == SESSION_STATE_DUAL_DECODE
+                  || (entry->state == SESSION_STATE_INIT_SENT && entry->nonce > 1)))
+      return entry->session_key;
+  }
+  return nullptr;
+}
+
+const uint8_t* BaseChatMesh::getPeerPrevSessionKey(int peer_idx) {
+  int i = matching_peer_indexes[peer_idx];
+  if (i >= 0 && i < num_contacts) {
+    auto entry = session_keys.findByPrefix(contacts[i].id.pub_key);
+    if (entry && entry->state == SESSION_STATE_DUAL_DECODE)
+      return entry->prev_session_key;
+  }
+  return nullptr;
+}
+
+void BaseChatMesh::onSessionKeyDecryptSuccess(int peer_idx) {
+  int i = matching_peer_indexes[peer_idx];
+  if (i >= 0 && i < num_contacts) {
+    auto entry = session_keys.findByPrefix(contacts[i].id.pub_key);
+    if (entry) {
+      bool changed = (entry->state == SESSION_STATE_DUAL_DECODE);
+      if (changed) {
+        memset(entry->prev_session_key, 0, SESSION_KEY_SIZE);
+        entry->state = SESSION_STATE_ACTIVE;
+      }
+      entry->sends_since_last_recv = 0;
+      if (changed) onSessionKeysUpdated();
+    }
+  }
+}
+
+const uint8_t* BaseChatMesh::getPeerEncryptionKey(int peer_idx, const uint8_t* static_secret) {
+  int i = matching_peer_indexes[peer_idx];
+  if (i >= 0 && i < num_contacts)
+    return getEncryptionKeyFor(contacts[i]);
+  return static_secret;
+}
+
+uint16_t BaseChatMesh::getPeerEncryptionNonce(int peer_idx) {
+  int i = matching_peer_indexes[peer_idx];
+  if (i >= 0 && i < num_contacts)
+    return getEncryptionNonceFor(contacts[i]);
+  return getPeerNextAeadNonce(peer_idx);
+}
+
+// Session key persistence helpers (delegated to subclass for file I/O)
+bool BaseChatMesh::applyLoadedSessionKey(const uint8_t* pub_key_prefix, uint8_t flags, uint16_t nonce,
+                                          const uint8_t* session_key, const uint8_t* prev_session_key) {
+  return session_keys.applyLoaded(pub_key_prefix, flags, nonce, session_key, prev_session_key);
+}
+
+bool BaseChatMesh::getSessionKeyEntry(int idx, uint8_t* pub_key_prefix, uint8_t* flags, uint16_t* nonce,
+                                       uint8_t* session_key, uint8_t* prev_session_key) {
+  return session_keys.getEntryForSave(idx, pub_key_prefix, flags, nonce, session_key, prev_session_key);
 }

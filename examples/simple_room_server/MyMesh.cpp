@@ -71,7 +71,7 @@ void MyMesh::pushPostToClient(ClientInfo *client, PostInfo &post) {
   mesh::Utils::sha256((uint8_t *)&client->extra.room.pending_ack, 4, reply_data, len, client->id.pub_key, PUB_KEY_SIZE);
   client->extra.room.push_post_timestamp = post.post_timestamp;
 
-  auto reply = createDatagram(PAYLOAD_TYPE_TXT_MSG, client->id, client->shared_secret, reply_data, len, acl.nextAeadNonceFor(*client));
+  auto reply = createDatagram(PAYLOAD_TYPE_TXT_MSG, client->id, acl.getEncryptionKey(*client), reply_data, len, acl.getEncryptionNonce(*client));
   if (reply) {
     if (client->out_path_len == OUT_PATH_UNKNOWN) {
       unsigned long delay_millis = 0;
@@ -397,24 +397,34 @@ uint8_t MyMesh::getPeerFlags(int peer_idx) {
 }
 
 uint16_t MyMesh::getPeerNextAeadNonce(int peer_idx) {
-  int i = matching_peer_indexes[peer_idx];
-  if (i >= 0 && i < acl.getNumClients())
-    return acl.nextAeadNonceFor(*acl.getClientByIdx(i));
-  return 0;
+  return acl.peerNextAeadNonce(peer_idx, matching_peer_indexes);
 }
 
 void MyMesh::onPeerAeadDetected(int peer_idx) {
-  int i = matching_peer_indexes[peer_idx];
-  if (i >= 0 && i < acl.getNumClients()) {
-    auto c = acl.getClientByIdx(i);
-    if (!(c->flags & CONTACT_FLAG_AEAD)) {
-      c->flags |= CONTACT_FLAG_AEAD;
-      if (c->aead_nonce == 0) {  // no persisted nonce — seed from RNG to avoid deterministic start
-        getRNG()->random((uint8_t*)&c->aead_nonce, sizeof(c->aead_nonce));
-        if (c->aead_nonce == 0) c->aead_nonce = 1;
-      }
+  auto* c = acl.resolveClient(peer_idx, matching_peer_indexes);
+  if (c && !(c->flags & CONTACT_FLAG_AEAD)) {
+    c->flags |= CONTACT_FLAG_AEAD;
+    if (c->aead_nonce == 0) {  // no persisted nonce — seed from RNG to avoid deterministic start
+      getRNG()->random((uint8_t*)&c->aead_nonce, sizeof(c->aead_nonce));
+      if (c->aead_nonce == 0) c->aead_nonce = 1;
     }
   }
+}
+
+const uint8_t* MyMesh::getPeerSessionKey(int peer_idx) {
+  return acl.peerSessionKey(peer_idx, matching_peer_indexes);
+}
+const uint8_t* MyMesh::getPeerPrevSessionKey(int peer_idx) {
+  return acl.peerPrevSessionKey(peer_idx, matching_peer_indexes);
+}
+void MyMesh::onSessionKeyDecryptSuccess(int peer_idx) {
+  acl.peerSessionKeyDecryptSuccess(peer_idx, matching_peer_indexes);
+}
+const uint8_t* MyMesh::getPeerEncryptionKey(int peer_idx, const uint8_t* static_secret) {
+  return acl.peerEncryptionKey(peer_idx, matching_peer_indexes, static_secret);
+}
+uint16_t MyMesh::getPeerEncryptionNonce(int peer_idx) {
+  return acl.peerEncryptionNonce(peer_idx, matching_peer_indexes);
 }
 
 void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, const uint8_t *secret,
@@ -510,7 +520,7 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
         // mesh::Utils::sha256((uint8_t *)&expected_ack_crc, 4, temp, 5 + text_len, self_id.pub_key,
         // PUB_KEY_SIZE);
 
-        auto reply = createDatagram(PAYLOAD_TYPE_TXT_MSG, client->id, secret, temp, 5 + text_len, acl.nextAeadNonceFor(*client));
+        auto reply = createDatagram(PAYLOAD_TYPE_TXT_MSG, client->id, acl.getEncryptionKey(*client), temp, 5 + text_len, acl.getEncryptionNonce(*client));
         if (reply) {
           if (client->out_path_len == OUT_PATH_UNKNOWN) {
             sendFlood(reply, delay_millis + SERVER_RESPONSE_DELAY, packet->getPathHashSize());
@@ -562,15 +572,30 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
           }
         }
       } else {
-        int reply_len = handleRequest(client, sender_timestamp, &data[4], len - 4);
+        int reply_len;
+        bool use_static_secret = false;
+
+        // Intercept session key INIT before handleRequest
+        if (data[4] == REQ_TYPE_SESSION_KEY_INIT && len >= 37) {
+          memcpy(reply_data, &sender_timestamp, 4);
+          reply_data[4] = RESP_TYPE_SESSION_KEY_ACCEPT;
+          int n = acl.handleSessionKeyInit(client, &data[5], &reply_data[5], getRNG());
+          reply_len = (n > 0) ? 5 + n : 0;
+          use_static_secret = true;  // ACCEPT must use static secret (initiator doesn't have session key yet)
+        } else {
+          reply_len = handleRequest(client, sender_timestamp, &data[4], len - 4);
+        }
         if (reply_len > 0) { // valid command
+          const uint8_t* enc_key = use_static_secret ? secret : acl.getEncryptionKey(*client);
+          uint16_t enc_nonce = use_static_secret ? acl.nextAeadNonceFor(*client) : acl.getEncryptionNonce(*client);
+
           if (packet->isRouteFlood()) {
             // let this sender know path TO here, so they can use sendDirect(), and ALSO encode the response
-            mesh::Packet *path = createPathReturn(client->id, secret, packet->path, packet->path_len,
-                                                  PAYLOAD_TYPE_RESPONSE, reply_data, reply_len, acl.nextAeadNonceFor(*client));
+            mesh::Packet *path = createPathReturn(client->id, enc_key, packet->path, packet->path_len,
+                                                  PAYLOAD_TYPE_RESPONSE, reply_data, reply_len, enc_nonce);
             if (path) sendFlood(path, SERVER_RESPONSE_DELAY, packet->getPathHashSize());
           } else {
-            mesh::Packet *reply = createDatagram(PAYLOAD_TYPE_RESPONSE, client->id, secret, reply_data, reply_len, acl.nextAeadNonceFor(*client));
+            mesh::Packet *reply = createDatagram(PAYLOAD_TYPE_RESPONSE, client->id, enc_key, reply_data, reply_len, enc_nonce);
             if (reply) {
               if (client->out_path_len != OUT_PATH_UNKNOWN) { // we have an out_path, so send DIRECT
                 sendDirect(reply, client->out_path, client->out_path_len, SERVER_RESPONSE_DELAY);
@@ -671,6 +696,7 @@ void MyMesh::begin(FILESYSTEM *fs) {
   acl.load(_fs, self_id);
   acl.setRNG(getRNG());
   acl.loadNonces();
+  acl.loadSessionKeys();
   bool dirty_reset = wasDirtyReset(board);
   acl.finalizeNonceLoad(dirty_reset);
   if (dirty_reset) acl.saveNonces();  // persist bumped nonces immediately
@@ -925,6 +951,7 @@ void MyMesh::loop() {
   // persist dirty AEAD nonces
   if (next_nonce_persist && millisHasNowPassed(next_nonce_persist)) {
     if (acl.isNonceDirty()) { acl.saveNonces(); }
+    if (acl.isSessionKeysDirty()) { acl.saveSessionKeys(); }
     next_nonce_persist = futureMillis(60000);
   }
 

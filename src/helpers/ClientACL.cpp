@@ -1,5 +1,7 @@
 #include "ClientACL.h"
 #include <MeshCore.h>
+#include <SHA256.h>
+#include <ed_25519.h>
 
 static File openWrite(FILESYSTEM* _fs, const char* filename) {
   #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
@@ -118,8 +120,7 @@ ClientInfo* ClientACL::putClient(const mesh::Identity& id, uint8_t init_perms) {
   c->id = id;
   c->out_path_len = OUT_PATH_UNKNOWN;
   if (_rng) {
-    _rng->random((uint8_t*)&c->aead_nonce, sizeof(c->aead_nonce));
-    if (c->aead_nonce == 0) c->aead_nonce = 1;
+    c->aead_nonce = (uint16_t)_rng->nextInt(NONCE_INITIAL_MIN, NONCE_INITIAL_MAX + 1);
   }
   nonce_at_last_persist[idx] = c->aead_nonce;
   return c;
@@ -191,6 +192,20 @@ void ClientACL::finalizeNonceLoad(bool needs_bump) {
     nonce_at_last_persist[i] = clients[i].aead_nonce;
   }
   nonce_dirty = false;
+
+  // Apply boot bump to session key nonces too
+  if (needs_bump) {
+    for (int i = 0; i < session_keys.getCount(); i++) {
+      auto entry = session_keys.getByIdx(i);
+      if (entry && (entry->state == SESSION_STATE_ACTIVE || entry->state == SESSION_STATE_DUAL_DECODE)) {
+        uint16_t old_nonce = entry->nonce;
+        entry->nonce += NONCE_BOOT_BUMP;
+        if (entry->nonce <= old_nonce) {
+          entry->nonce = 65535;  // wrapped — force exhaustion so renegotiation happens
+        }
+      }
+    }
+  }
 }
 
 bool ClientACL::applyPermissions(const mesh::LocalIdentity& self_id, const uint8_t* pubkey, int key_len, uint8_t perms) {
@@ -198,6 +213,8 @@ bool ClientACL::applyPermissions(const mesh::LocalIdentity& self_id, const uint8
   if ((perms & PERM_ACL_ROLE_MASK) == PERM_ACL_GUEST) {  // guest role is not persisted in contacts
     c = getClient(pubkey, key_len);
     if (c == NULL) return false;   // partial pubkey not found
+
+    session_keys.remove(c->id.pub_key);  // also remove session key if any
 
     num_clients--;   // delete from contacts[]
     int i = c - clients;
@@ -216,4 +233,199 @@ bool ClientACL::applyPermissions(const mesh::LocalIdentity& self_id, const uint8
     self_id.calcSharedSecret(c->shared_secret, pubkey);
   }
   return true;
+}
+
+// --- Session key support (Phase 2) ---
+
+int ClientACL::handleSessionKeyInit(const ClientInfo* client, const uint8_t* ephemeral_pub_A, uint8_t* reply_buf, mesh::RNG* rng) {
+  // 1. Generate ephemeral keypair B
+  uint8_t seed[SEED_SIZE];
+  rng->random(seed, SEED_SIZE);
+  uint8_t ephemeral_pub_B[PUB_KEY_SIZE];
+  uint8_t ephemeral_prv_B[PRV_KEY_SIZE];
+  ed25519_create_keypair(ephemeral_pub_B, ephemeral_prv_B, seed);
+  memset(seed, 0, SEED_SIZE);
+
+  // 2. Compute ephemeral_secret via X25519
+  uint8_t ephemeral_secret[PUB_KEY_SIZE];
+  ed25519_key_exchange(ephemeral_secret, ephemeral_pub_A, ephemeral_prv_B);
+  memset(ephemeral_prv_B, 0, PRV_KEY_SIZE);
+
+  // 3. Derive session_key = HMAC-SHA256(static_shared_secret, ephemeral_secret)
+  uint8_t new_session_key[SESSION_KEY_SIZE];
+  {
+    SHA256 sha;
+    sha.resetHMAC(client->shared_secret, PUB_KEY_SIZE);
+    sha.update(ephemeral_secret, PUB_KEY_SIZE);
+    sha.finalizeHMAC(client->shared_secret, PUB_KEY_SIZE, new_session_key, SESSION_KEY_SIZE);
+  }
+  memset(ephemeral_secret, 0, PUB_KEY_SIZE);
+
+  // 4. Store in pool (dual-decode: new key active, old key still valid)
+  auto entry = session_keys.allocate(client->id.pub_key);
+  if (!entry) return 0;
+
+  if (entry->state == SESSION_STATE_ACTIVE || entry->state == SESSION_STATE_DUAL_DECODE) {
+    memcpy(entry->prev_session_key, entry->session_key, SESSION_KEY_SIZE);
+  }
+  memcpy(entry->session_key, new_session_key, SESSION_KEY_SIZE);
+  entry->nonce = 1;
+  entry->state = SESSION_STATE_DUAL_DECODE;
+  entry->sends_since_last_recv = 0;
+  memset(new_session_key, 0, SESSION_KEY_SIZE);
+
+  // 5. Persist immediately
+  saveSessionKeys();
+
+  // 6. Write ephemeral_pub_B to reply
+  memcpy(reply_buf, ephemeral_pub_B, PUB_KEY_SIZE);
+  return PUB_KEY_SIZE;
+}
+
+const uint8_t* ClientACL::getSessionKey(const uint8_t* pub_key) {
+  auto entry = session_keys.findByPrefix(pub_key);
+  if (entry && (entry->state == SESSION_STATE_ACTIVE || entry->state == SESSION_STATE_DUAL_DECODE)) {
+    return entry->session_key;
+  }
+  return nullptr;
+}
+
+const uint8_t* ClientACL::getPrevSessionKey(const uint8_t* pub_key) {
+  auto entry = session_keys.findByPrefix(pub_key);
+  if (entry && entry->state == SESSION_STATE_DUAL_DECODE) {
+    return entry->prev_session_key;
+  }
+  return nullptr;
+}
+
+const uint8_t* ClientACL::getEncryptionKey(const ClientInfo& client) {
+  auto entry = session_keys.findByPrefix(client.id.pub_key);
+  if (entry && (entry->state == SESSION_STATE_ACTIVE || entry->state == SESSION_STATE_DUAL_DECODE)
+      && entry->sends_since_last_recv < SESSION_KEY_STALE_THRESHOLD
+      && entry->nonce < 65535) {
+    return entry->session_key;
+  }
+  return client.shared_secret;
+}
+
+uint16_t ClientACL::getEncryptionNonce(const ClientInfo& client) {
+  auto entry = session_keys.findByPrefix(client.id.pub_key);
+  if (entry && (entry->state == SESSION_STATE_ACTIVE || entry->state == SESSION_STATE_DUAL_DECODE)
+      && entry->sends_since_last_recv < SESSION_KEY_STALE_THRESHOLD
+      && entry->nonce < 65535) {
+    ++entry->nonce;
+    if (entry->sends_since_last_recv < 255) entry->sends_since_last_recv++;
+    _session_keys_dirty = true;
+    return entry->nonce;
+  }
+  // Progressive fallback: keep incrementing counter even when not using session key
+  if (entry && entry->sends_since_last_recv < 255) {
+    entry->sends_since_last_recv++;
+    if (entry->sends_since_last_recv >= SESSION_KEY_ABANDON_THRESHOLD) {
+      int idx = &client - clients;
+      if (idx >= 0 && idx < num_clients)
+        clients[idx].flags &= ~CONTACT_FLAG_AEAD;
+      session_keys.remove(client.id.pub_key);
+      saveSessionKeys();
+      return 0;  // ECB
+    }
+    if (entry->sends_since_last_recv >= SESSION_KEY_ECB_THRESHOLD) {
+      return 0;  // ECB
+    }
+  }
+  return nextAeadNonceFor(client);
+}
+
+void ClientACL::onSessionConfirmed(const uint8_t* pub_key) {
+  auto entry = session_keys.findByPrefix(pub_key);
+  if (entry) {
+    if (entry->state == SESSION_STATE_DUAL_DECODE) {
+      memset(entry->prev_session_key, 0, SESSION_KEY_SIZE);
+      entry->state = SESSION_STATE_ACTIVE;
+      saveSessionKeys();
+    }
+    entry->sends_since_last_recv = 0;
+  }
+}
+
+// --- Peer-index forwarding helpers ---
+
+ClientInfo* ClientACL::resolveClient(int peer_idx, const int* matching_indexes) {
+  int i = matching_indexes[peer_idx];
+  if (i >= 0 && i < num_clients) return &clients[i];
+  return nullptr;
+}
+
+uint16_t ClientACL::peerNextAeadNonce(int peer_idx, const int* matching_indexes) {
+  auto* c = resolveClient(peer_idx, matching_indexes);
+  return c ? nextAeadNonceFor(*c) : 0;
+}
+
+const uint8_t* ClientACL::peerSessionKey(int peer_idx, const int* matching_indexes) {
+  auto* c = resolveClient(peer_idx, matching_indexes);
+  return c ? getSessionKey(c->id.pub_key) : nullptr;
+}
+
+const uint8_t* ClientACL::peerPrevSessionKey(int peer_idx, const int* matching_indexes) {
+  auto* c = resolveClient(peer_idx, matching_indexes);
+  return c ? getPrevSessionKey(c->id.pub_key) : nullptr;
+}
+
+void ClientACL::peerSessionKeyDecryptSuccess(int peer_idx, const int* matching_indexes) {
+  auto* c = resolveClient(peer_idx, matching_indexes);
+  if (c) onSessionConfirmed(c->id.pub_key);
+}
+
+const uint8_t* ClientACL::peerEncryptionKey(int peer_idx, const int* matching_indexes, const uint8_t* fallback) {
+  auto* c = resolveClient(peer_idx, matching_indexes);
+  return c ? getEncryptionKey(*c) : fallback;
+}
+
+uint16_t ClientACL::peerEncryptionNonce(int peer_idx, const int* matching_indexes) {
+  auto* c = resolveClient(peer_idx, matching_indexes);
+  return c ? getEncryptionNonce(*c) : 0;
+}
+
+void ClientACL::loadSessionKeys() {
+  if (!_fs) return;
+#if defined(RP2040_PLATFORM)
+  File file = _fs->open("/s_sess_keys", "r");
+#elif defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
+  File file = _fs->open("/s_sess_keys", FILE_O_READ);
+#else
+  File file = _fs->open("/s_sess_keys", "r", false);
+#endif
+  if (file) {
+    uint8_t rec[71];  // [pub_prefix:4][flags:1][nonce:2][session_key:32][prev_session_key:32]
+    while (file.read(rec, 71) == 71) {
+      uint8_t flags = rec[4];
+      uint16_t nonce;
+      memcpy(&nonce, &rec[5], 2);
+      session_keys.applyLoaded(rec, flags, nonce, &rec[7], &rec[39]);
+    }
+    file.close();
+  }
+}
+
+void ClientACL::saveSessionKeys() {
+  _session_keys_dirty = false;
+  if (!_fs) return;
+  File file = openWrite(_fs, "/s_sess_keys");
+  if (file) {
+    for (int i = 0; i < session_keys.getCount(); i++) {
+      uint8_t pub_key_prefix[4];
+      uint8_t flags;
+      uint16_t nonce;
+      uint8_t session_key[SESSION_KEY_SIZE];
+      uint8_t prev_session_key[SESSION_KEY_SIZE];
+      if (session_keys.getEntryForSave(i, pub_key_prefix, &flags, &nonce, session_key, prev_session_key)) {
+        file.write(pub_key_prefix, 4);
+        file.write(&flags, 1);
+        file.write((uint8_t*)&nonce, 2);
+        file.write(session_key, SESSION_KEY_SIZE);
+        file.write(prev_session_key, SESSION_KEY_SIZE);
+      }
+    }
+    file.close();
+  }
 }

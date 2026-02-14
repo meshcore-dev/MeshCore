@@ -27,6 +27,10 @@ struct ContactInfo {
         ++aead_nonce;  // skip 0 (sentinel for ECB)
         MESH_DEBUG_PRINTLN("AEAD nonce wrapped for peer: %s", name);
       }
+      if (aead_nonce < NONCE_INITIAL_MIN) {
+        aead_nonce = 1;  // stay stuck in exhaustion zone, always return ECB
+        return 0;
+      }
       return aead_nonce;
     }
     return 0;

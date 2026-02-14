@@ -405,6 +405,42 @@ bool DataStore::saveNonces(DataStoreHost* host) {
   return false;
 }
 
+void DataStore::loadSessionKeys(DataStoreHost* host) {
+  File file = openRead(_getContactsChannelsFS(), "/sess_keys");
+  if (file) {
+    uint8_t rec[71];  // 4-byte pub_key prefix + 1 flags + 2 nonce + 32 session_key + 32 prev_session_key
+    while (file.read(rec, 71) == 71) {
+      uint16_t nonce;
+      memcpy(&nonce, &rec[5], 2);
+      host->onSessionKeyLoaded(rec, rec[4], nonce, &rec[7], &rec[39]);
+    }
+    file.close();
+  }
+}
+
+bool DataStore::saveSessionKeys(DataStoreHost* host) {
+  File file = openWrite(_getContactsChannelsFS(), "/sess_keys");
+  if (file) {
+    uint8_t pub_key_prefix[4];
+    uint8_t flags;
+    uint16_t nonce;
+    uint8_t session_key[32];
+    uint8_t prev_session_key[32];
+    for (int idx = 0; idx < MAX_SESSION_KEYS; idx++) {
+      if (host->getSessionKeyForSave(idx, pub_key_prefix, &flags, &nonce, session_key, prev_session_key)) {
+        file.write(pub_key_prefix, 4);
+        file.write(&flags, 1);
+        file.write((uint8_t*)&nonce, 2);
+        file.write(session_key, 32);
+        file.write(prev_session_key, 32);
+      }
+    }
+    file.close();
+    return true;
+  }
+  return false;
+}
+
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
 
 #define MAX_ADVERT_PKT_LEN   (2 + 32 + PUB_KEY_SIZE + 4 + SIGNATURE_SIZE + MAX_ADVERT_DATA_SIZE)

@@ -156,6 +156,14 @@ protected:
   bool getChannelForSave(uint8_t channel_idx, ChannelDetails& ch) override { return getChannel(channel_idx, ch); }
   bool onNonceLoaded(const uint8_t* pub_key_prefix, uint16_t nonce) override { return applyLoadedNonce(pub_key_prefix, nonce); }
   bool getNonceForSave(int idx, uint8_t* pub_key_prefix, uint16_t* nonce) override { return getNonceEntry(idx, pub_key_prefix, nonce); }
+  bool onSessionKeyLoaded(const uint8_t* pub_key_prefix, uint8_t flags, uint16_t nonce,
+                           const uint8_t* session_key, const uint8_t* prev_session_key) override {
+    return applyLoadedSessionKey(pub_key_prefix, flags, nonce, session_key, prev_session_key);
+  }
+  bool getSessionKeyForSave(int idx, uint8_t* pub_key_prefix, uint8_t* flags, uint16_t* nonce,
+                              uint8_t* session_key, uint8_t* prev_session_key) override {
+    return getSessionKeyEntry(idx, pub_key_prefix, flags, nonce, session_key, prev_session_key);
+  }
 
   void clearPendingReqs() {
     pending_login = pending_status = pending_telemetry = pending_discovery = pending_req = 0;
@@ -187,6 +195,8 @@ private:
   void saveChannels() { _store->saveChannels(this); }
   void saveContacts() { _store->saveContacts(this); }
   void saveNonces() { if (_store->saveNonces(this)) clearNonceDirty(); }
+  void saveSessionKeys() { if (_store->saveSessionKeys(this)) clearSessionKeysDirty(); }
+  void onSessionKeysUpdated() override { saveSessionKeys(); }
 
   DataStore* _store;
   NodePrefs _prefs;

@@ -8,6 +8,7 @@
 #define MAX_TEXT_LEN    (10*CIPHER_BLOCK_SIZE)  // must be LESS than (MAX_PACKET_PAYLOAD - 4 - CIPHER_MAC_SIZE - 1)
 
 #include "ContactInfo.h"
+#include "SessionKeyPool.h"
 
 #define MAX_SEARCH_RESULTS   8
 
@@ -75,6 +76,11 @@ class BaseChatMesh : public mesh::Mesh {
   uint16_t nonce_at_last_persist[MAX_CONTACTS];
   bool nonce_dirty;
 
+  // Session key pool (Phase 2)
+  SessionKeyPool session_keys;
+  bool session_keys_dirty;
+  int _pending_rekey_idx;  // contact index needing session key negotiation, -1 = none
+
   mesh::Packet* composeMsgPacket(const ContactInfo& recipient, uint32_t timestamp, uint8_t attempt, const char *text, uint32_t& expected_ack);
   void sendAckTo(const ContactInfo& dest, uint32_t ack_hash);
 
@@ -92,6 +98,8 @@ protected:
     memset(connections, 0, sizeof(connections));
     memset(nonce_at_last_persist, 0, sizeof(nonce_at_last_persist));
     nonce_dirty = false;
+    session_keys_dirty = false;
+    _pending_rekey_idx = -1;
   }
 
   void bootstrapRTCfromContacts();
@@ -138,12 +146,36 @@ protected:
     nonce_dirty = false;
   }
 
+  // Session key support (Phase 2 — initiator)
+  virtual void onSessionKeysUpdated() { session_keys_dirty = true; }  // called when session key pool changes; override to persist
+  const uint8_t* getEncryptionKeyFor(const ContactInfo& contact);
+  uint16_t getEncryptionNonceFor(const ContactInfo& contact);
+  bool shouldInitiateSessionKey(const ContactInfo& contact);
+  bool initiateSessionKeyNegotiation(const ContactInfo& contact);
+  bool handleSessionKeyResponse(ContactInfo& contact, const uint8_t* data, uint8_t len);
+  uint8_t handleIncomingSessionKeyInit(ContactInfo& from, const uint8_t* ephemeral_pub_A, uint8_t* reply_buf);
+  void checkSessionKeyTimeouts();
+
+  // Session key persistence helpers (for subclass to call)
+  bool applyLoadedSessionKey(const uint8_t* pub_key_prefix, uint8_t flags, uint16_t nonce,
+                             const uint8_t* session_key, const uint8_t* prev_session_key);
+  bool getSessionKeyEntry(int idx, uint8_t* pub_key_prefix, uint8_t* flags, uint16_t* nonce,
+                          uint8_t* session_key, uint8_t* prev_session_key);
+  int getSessionKeyCount() const { return session_keys.getCount(); }
+  bool isSessionKeysDirty() const { return session_keys_dirty; }
+  void clearSessionKeysDirty() { session_keys_dirty = false; }
+
   // Mesh overrides
   void onAdvertRecv(mesh::Packet* packet, const mesh::Identity& id, uint32_t timestamp, const uint8_t* app_data, size_t app_data_len) override;
   int searchPeersByHash(const uint8_t* hash) override;
   void getPeerSharedSecret(uint8_t* dest_secret, int peer_idx) override;
   uint8_t getPeerFlags(int peer_idx) override;
   uint16_t getPeerNextAeadNonce(int peer_idx) override;
+  const uint8_t* getPeerSessionKey(int peer_idx) override;
+  const uint8_t* getPeerPrevSessionKey(int peer_idx) override;
+  void onSessionKeyDecryptSuccess(int peer_idx) override;
+  const uint8_t* getPeerEncryptionKey(int peer_idx, const uint8_t* static_secret) override;
+  uint16_t getPeerEncryptionNonce(int peer_idx) override;
   void onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender_idx, const uint8_t* secret, uint8_t* data, size_t len) override;
   bool onPeerPathRecv(mesh::Packet* packet, int sender_idx, const uint8_t* secret, uint8_t* path, uint8_t path_len, uint8_t extra_type, uint8_t* extra, uint8_t extra_len) override;
   void onAckRecv(mesh::Packet* packet, uint32_t ack_crc) override;
