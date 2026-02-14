@@ -9,6 +9,7 @@
 #define SEED_SIZE           32
 #define SIGNATURE_SIZE      64
 #define MAX_ADVERT_DATA_SIZE  32
+#define SESSION_KEY_SIZE    32
 #define CIPHER_KEY_SIZE     16
 #define CIPHER_BLOCK_SIZE   16
 
@@ -24,7 +25,21 @@
 
 // AEAD nonce persistence
 #define NONCE_PERSIST_INTERVAL  50   // persist every N messages per peer
-#define NONCE_BOOT_BUMP         100  // add this on load after dirty boot (must be >= 2 * PERSIST_INTERVAL)
+#define NONCE_BOOT_BUMP         50   // add this on load after dirty boot (must be >= PERSIST_INTERVAL)
+
+// Session key negotiation (Phase 2)
+#define REQ_TYPE_SESSION_KEY_INIT   0x08
+#define RESP_TYPE_SESSION_KEY_ACCEPT 0x08  // response type byte in PAYLOAD_TYPE_RESPONSE
+
+#define NONCE_REKEY_THRESHOLD       60000  // start renegotiation when nonce exceeds this
+#define NONCE_INITIAL_MIN           1000   // min random nonce seed for new contacts
+#define NONCE_INITIAL_MAX           50000  // max random nonce seed for new contacts
+#define SESSION_KEY_TIMEOUT_MS      180000 // 3 minutes per attempt
+#define SESSION_KEY_MAX_RETRIES     3      // attempts per negotiation round
+#define MAX_SESSION_KEYS            8      // max concurrent session key entries
+#define SESSION_KEY_STALE_THRESHOLD 50     // sends without recv before fallback to static ECDH
+#define SESSION_KEY_ECB_THRESHOLD  100    // sends without recv before fallback to ECB
+#define SESSION_KEY_ABANDON_THRESHOLD 255 // sends without recv before clearing AEAD + session key
 
 #define MAX_PACKET_PAYLOAD  184
 #define MAX_PATH_SIZE        64

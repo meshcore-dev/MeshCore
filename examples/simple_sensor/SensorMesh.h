@@ -129,6 +129,11 @@ protected:
   uint8_t getPeerFlags(int peer_idx) override;
   uint16_t getPeerNextAeadNonce(int peer_idx) override;
   void onPeerAeadDetected(int peer_idx) override;
+  const uint8_t* getPeerSessionKey(int peer_idx) override;
+  const uint8_t* getPeerPrevSessionKey(int peer_idx) override;
+  void onSessionKeyDecryptSuccess(int peer_idx) override;
+  const uint8_t* getPeerEncryptionKey(int peer_idx, const uint8_t* static_secret) override;
+  uint16_t getPeerEncryptionNonce(int peer_idx) override;
   void onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender_idx, const uint8_t* secret, uint8_t* data, size_t len) override;
   bool onPeerPathRecv(mesh::Packet* packet, int sender_idx, const uint8_t* secret, uint8_t* path, uint8_t path_len, uint8_t extra_type, uint8_t* extra, uint8_t extra_len) override;
   void onControlDataRecv(mesh::Packet* packet) override;
