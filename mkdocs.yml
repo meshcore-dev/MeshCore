@@ -1,0 +1,19 @@
+site_name: MeshCore Docs
+site_url: https://meshcore-dev.github.io/meshcore/
+site_description: Documentation for the open source MeshCore firmware
+
+repo_name: meshcore-dev/meshcore
+repo_url: https://github.com/meshcore-dev/meshcore/
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  logo: _assets/meshcore_tm.svg
+  features:
+    - content.action.edit
+    - content.code.copy
+    - search.highlight
+    - search.suggest
+
+extra_css:
+  - _stylesheets/extra.css
