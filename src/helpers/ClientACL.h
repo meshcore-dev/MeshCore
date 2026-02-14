@@ -3,6 +3,7 @@
 #include <Arduino.h>   // needed for PlatformIO
 #include <Mesh.h>
 #include <helpers/IdentityStore.h>
+#include <helpers/SessionKeyPool.h>
 
 #define PERM_ACL_ROLE_MASK     3   // lower 2 bits
 #define PERM_ACL_GUEST         0
@@ -54,7 +55,11 @@ class ClientACL {
   // Nonce persistence state (parallel to clients[])
   uint16_t nonce_at_last_persist[MAX_CLIENTS];
   bool nonce_dirty;
+  bool _session_keys_dirty;
   mesh::RNG* _rng;
+
+  // Session key pool (Phase 2)
+  SessionKeyPool session_keys;
 
 public:
   ClientACL() {
@@ -62,6 +67,7 @@ public:
     memset(nonce_at_last_persist, 0, sizeof(nonce_at_last_persist));
     num_clients = 0;
     nonce_dirty = false;
+    _session_keys_dirty = false;
     _rng = NULL;
   }
   void load(FILESYSTEM* _fs, const mesh::LocalIdentity& self_id);
@@ -74,6 +80,7 @@ public:
 
   int getNumClients() const { return num_clients; }
   ClientInfo* getClientByIdx(int idx) { return &clients[idx]; }
+  int getSessionKeyCount() const { return session_keys.getCount(); }
 
   // AEAD nonce persistence
   void setRNG(mesh::RNG* rng) { _rng = rng; }
@@ -86,4 +93,27 @@ public:
     for (int i = 0; i < num_clients; i++) nonce_at_last_persist[i] = clients[i].aead_nonce;
     nonce_dirty = false;
   }
+
+  // Session key support (Phase 2)
+  int handleSessionKeyInit(const ClientInfo* client, const uint8_t* ephemeral_pub_A, uint8_t* reply_buf, mesh::RNG* rng);
+  const uint8_t* getSessionKey(const uint8_t* pub_key);
+  const uint8_t* getPrevSessionKey(const uint8_t* pub_key);
+  const uint8_t* getEncryptionKey(const ClientInfo& client);
+  uint16_t getEncryptionNonce(const ClientInfo& client);
+  void onSessionConfirmed(const uint8_t* pub_key);
+  bool isSessionKeysDirty() const { return _session_keys_dirty; }
+  void loadSessionKeys();
+  void saveSessionKeys();
+
+  // Peer-index forwarding helpers for server-side Mesh overrides.
+  // These resolve peer_idx → ClientInfo via matching_indexes[], then delegate
+  // to the corresponding method above.  Eliminates repeated boilerplate in
+  // repeater/room/sensor examples.
+  ClientInfo* resolveClient(int peer_idx, const int* matching_indexes);
+  uint16_t peerNextAeadNonce(int peer_idx, const int* matching_indexes);
+  const uint8_t* peerSessionKey(int peer_idx, const int* matching_indexes);
+  const uint8_t* peerPrevSessionKey(int peer_idx, const int* matching_indexes);
+  void peerSessionKeyDecryptSuccess(int peer_idx, const int* matching_indexes);
+  const uint8_t* peerEncryptionKey(int peer_idx, const int* matching_indexes, const uint8_t* fallback);
+  uint16_t peerEncryptionNonce(int peer_idx, const int* matching_indexes);
 };
