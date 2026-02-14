@@ -8,7 +8,6 @@
 #define SESSION_STATE_DUAL_DECODE 2  // responder: new key active, old key still valid
 #define SESSION_STATE_ACTIVE      3  // session key confirmed and in use
 
-#define SESSION_FLAG_PREV_VALID   0x01  // prev_session_key is valid for dual-decode
 
 struct SessionKeyEntry {
   uint8_t peer_pub_prefix[4];       // first 4 bytes of peer's public key
@@ -21,24 +20,46 @@ struct SessionKeyEntry {
   unsigned long timeout_at;          // millis timestamp for INIT timeout
   uint8_t ephemeral_prv[PRV_KEY_SIZE]; // initiator-only: ephemeral private key (zeroed after use)
   uint8_t ephemeral_pub[PUB_KEY_SIZE]; // initiator-only: ephemeral public key
+  uint32_t last_used;                // LRU counter (higher = more recent)
 };
 
 class SessionKeyPool {
-  SessionKeyEntry entries[MAX_SESSION_KEYS];
+  SessionKeyEntry entries[MAX_SESSION_KEYS_RAM];
   int count;
+  uint32_t lru_counter;
+
+  // Track prefixes removed since last save, so merge-save doesn't resurrect them
+  uint8_t removed_prefixes[MAX_SESSION_KEYS_RAM][4];
+  int removed_count;
+
+  void touch(SessionKeyEntry* entry) {
+    entry->last_used = ++lru_counter;
+  }
 
 public:
-  SessionKeyPool() : count(0) {
+  SessionKeyPool() : count(0), lru_counter(0), removed_count(0) {
     memset(entries, 0, sizeof(entries));
+    memset(removed_prefixes, 0, sizeof(removed_prefixes));
   }
+
+  bool isFull() const { return count >= MAX_SESSION_KEYS_RAM; }
 
   SessionKeyEntry* findByPrefix(const uint8_t* pub_key) {
     for (int i = 0; i < count; i++) {
       if (memcmp(entries[i].peer_pub_prefix, pub_key, 4) == 0) {
+        touch(&entries[i]);
         return &entries[i];
       }
     }
     return nullptr;
+  }
+
+  // Lookup without updating LRU — use during save/merge to avoid perturbing eviction order
+  bool hasPrefix(const uint8_t* pub_key) const {
+    for (int i = 0; i < count; i++) {
+      if (memcmp(entries[i].peer_pub_prefix, pub_key, 4) == 0) return true;
+    }
+    return false;
   }
 
   SessionKeyEntry* allocate(const uint8_t* pub_key) {
@@ -46,30 +67,38 @@ public:
     auto existing = findByPrefix(pub_key);
     if (existing) return existing;
 
-    // Find free slot or evict oldest
-    if (count < MAX_SESSION_KEYS) {
+    // Find free slot
+    if (count < MAX_SESSION_KEYS_RAM) {
       auto e = &entries[count++];
       memset(e, 0, sizeof(*e));
       memcpy(e->peer_pub_prefix, pub_key, 4);
+      touch(e);
       return e;
     }
-    // Pool full — evict the entry with state NONE, or the first one
-    for (int i = 0; i < MAX_SESSION_KEYS; i++) {
-      if (entries[i].state == SESSION_STATE_NONE) {
-        memset(&entries[i], 0, sizeof(entries[i]));
-        memcpy(entries[i].peer_pub_prefix, pub_key, 4);
-        return &entries[i];
+    // Pool full — LRU eviction, skip INIT_SENT entries (ephemeral keys are RAM-only)
+    int evict_idx = -1;
+    uint32_t min_used = 0xFFFFFFFF;
+    for (int i = 0; i < MAX_SESSION_KEYS_RAM; i++) {
+      if (entries[i].state == SESSION_STATE_INIT_SENT) continue;
+      if (entries[i].last_used < min_used) {
+        min_used = entries[i].last_used;
+        evict_idx = i;
       }
     }
-    // All slots active — evict first entry
-    memset(&entries[0], 0, sizeof(entries[0]));
-    memcpy(entries[0].peer_pub_prefix, pub_key, 4);
-    return &entries[0];
+    if (evict_idx < 0) evict_idx = 0;  // all INIT_SENT — shouldn't happen, fall back to [0]
+    memset(&entries[evict_idx], 0, sizeof(entries[evict_idx]));
+    memcpy(entries[evict_idx].peer_pub_prefix, pub_key, 4);
+    touch(&entries[evict_idx]);
+    return &entries[evict_idx];
   }
 
   void remove(const uint8_t* pub_key) {
     for (int i = 0; i < count; i++) {
       if (memcmp(entries[i].peer_pub_prefix, pub_key, 4) == 0) {
+        // Track removed prefix for merge-save
+        if (removed_count < MAX_SESSION_KEYS_RAM) {
+          memcpy(removed_prefixes[removed_count++], entries[i].peer_pub_prefix, 4);
+        }
         // Shift remaining entries down
         count--;
         for (int j = i; j < count; j++) {
@@ -81,11 +110,20 @@ public:
     }
   }
 
+  bool isRemoved(const uint8_t* pub_key_prefix) const {
+    for (int i = 0; i < removed_count; i++) {
+      if (memcmp(removed_prefixes[i], pub_key_prefix, 4) == 0) return true;
+    }
+    return false;
+  }
+
+  void clearRemoved() { removed_count = 0; }
+
   int getCount() const { return count; }
   SessionKeyEntry* getByIdx(int idx) { return (idx >= 0 && idx < count) ? &entries[idx] : nullptr; }
 
-  // Persistence helpers — 71-byte records: [pub_prefix:4][flags:1][nonce:2][session_key:32][prev_session_key:32]
-  // Returns false when idx is past end
+  // Persistence helpers — variable-length records: [pub_prefix:4][flags:1][nonce:2][session_key:32][prev_session_key:32 if flags & PREV_VALID]
+  // Returns false when idx is past end or entry is not persistable
   bool getEntryForSave(int idx, uint8_t* pub_key_prefix, uint8_t* flags, uint16_t* nonce,
                        uint8_t* session_key, uint8_t* prev_session_key) {
     if (idx >= count) return false;

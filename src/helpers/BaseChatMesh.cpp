@@ -967,7 +967,7 @@ bool BaseChatMesh::removeContact(ContactInfo& contact) {
   }
   if (idx >= num_contacts) return false;   // not found
 
-  session_keys.remove(contact.id.pub_key);  // also remove session key if any
+  removeSessionKey(contact.id.pub_key);  // also remove session key if any
 
   // remove from contacts array and parallel nonce tracking
   num_contacts--;
@@ -1082,6 +1082,41 @@ void BaseChatMesh::loop() {
   }
 }
 
+// --- Session key flash-backed wrappers ---
+
+SessionKeyEntry* BaseChatMesh::findSessionKey(const uint8_t* pub_key) {
+  auto entry = session_keys.findByPrefix(pub_key);
+  if (entry) return entry;
+
+  // Cache miss — try flash
+  uint8_t flags; uint16_t nonce;
+  uint8_t sk[SESSION_KEY_SIZE], psk[SESSION_KEY_SIZE];
+  if (!loadSessionKeyRecordFromFlash(pub_key, &flags, &nonce, sk, psk)) return nullptr;
+
+  // Save dirty evictee before overwriting
+  if (session_keys.isFull() && session_keys_dirty) {
+    mergeAndSaveSessionKeys();
+  }
+  session_keys.applyLoaded(pub_key, flags, nonce, sk, psk);
+  return session_keys.findByPrefix(pub_key);
+}
+
+SessionKeyEntry* BaseChatMesh::allocateSessionKey(const uint8_t* pub_key) {
+  // Check RAM and flash first
+  auto entry = findSessionKey(pub_key);
+  if (entry) return entry;
+
+  // Not found anywhere — save dirty evictee before allocating
+  if (session_keys.isFull() && session_keys_dirty) {
+    mergeAndSaveSessionKeys();
+  }
+  return session_keys.allocate(pub_key);
+}
+
+void BaseChatMesh::removeSessionKey(const uint8_t* pub_key) {
+  session_keys.remove(pub_key);
+}
+
 // --- Session key support (Phase 2 — initiator) ---
 
 static bool canUseSessionKey(const SessionKeyEntry* entry) {
@@ -1097,7 +1132,7 @@ static bool canUseSessionKey(const SessionKeyEntry* entry) {
 }
 
 const uint8_t* BaseChatMesh::getEncryptionKeyFor(const ContactInfo& contact) {
-  auto entry = session_keys.findByPrefix(contact.id.pub_key);
+  auto entry = findSessionKey(contact.id.pub_key);
   if (canUseSessionKey(entry)) {
     return entry->session_key;
   }
@@ -1106,7 +1141,7 @@ const uint8_t* BaseChatMesh::getEncryptionKeyFor(const ContactInfo& contact) {
 
 uint16_t BaseChatMesh::getEncryptionNonceFor(const ContactInfo& contact) {
   uint16_t nonce = 0;
-  auto entry = session_keys.findByPrefix(contact.id.pub_key);
+  auto entry = findSessionKey(contact.id.pub_key);
   if (canUseSessionKey(entry)) {
     ++entry->nonce;
     if (entry->sends_since_last_recv < 255) entry->sends_since_last_recv++;
@@ -1120,7 +1155,7 @@ uint16_t BaseChatMesh::getEncryptionNonceFor(const ContactInfo& contact) {
       int idx = &contact - contacts;
       if (idx >= 0 && idx < num_contacts)
         contacts[idx].flags &= ~CONTACT_FLAG_AEAD;
-      session_keys.remove(contact.id.pub_key);
+      removeSessionKey(contact.id.pub_key);
       onSessionKeysUpdated();
       // nonce = 0 (ECB)
     } else if (entry->sends_since_last_recv >= SESSION_KEY_ECB_THRESHOLD) {
@@ -1149,7 +1184,7 @@ bool BaseChatMesh::shouldInitiateSessionKey(const ContactInfo& contact) {
   // Need a known path to send the request
   if (contact.out_path_len < 0) return false;
 
-  auto entry = session_keys.findByPrefix(contact.id.pub_key);
+  auto entry = findSessionKey(contact.id.pub_key);
 
   // Don't trigger if negotiation already in progress
   if (entry && entry->state == SESSION_STATE_INIT_SENT) return false;
@@ -1185,7 +1220,7 @@ bool BaseChatMesh::shouldInitiateSessionKey(const ContactInfo& contact) {
 }
 
 bool BaseChatMesh::initiateSessionKeyNegotiation(const ContactInfo& contact) {
-  auto entry = session_keys.allocate(contact.id.pub_key);
+  auto entry = allocateSessionKey(contact.id.pub_key);
   if (!entry) return false;
 
   // Don't start a new negotiation if one is already pending
@@ -1221,7 +1256,7 @@ bool BaseChatMesh::handleSessionKeyResponse(ContactInfo& contact, const uint8_t*
   if (len < 5 + PUB_KEY_SIZE) return false;
   if (data[4] != RESP_TYPE_SESSION_KEY_ACCEPT) return false;
 
-  auto entry = session_keys.findByPrefix(contact.id.pub_key);
+  auto entry = findSessionKey(contact.id.pub_key);
   if (!entry || entry->state != SESSION_STATE_INIT_SENT) return false;
 
   const uint8_t* ephemeral_pub_B = &data[5];
@@ -1283,7 +1318,7 @@ uint8_t BaseChatMesh::handleIncomingSessionKeyInit(ContactInfo& from, const uint
   memset(ephemeral_secret, 0, PUB_KEY_SIZE);
 
   // 4. Store in pool (dual-decode: new key active, old key still valid)
-  auto entry = session_keys.allocate(from.id.pub_key);
+  auto entry = allocateSessionKey(from.id.pub_key);
   if (!entry) return 0;
 
   if (entry->state == SESSION_STATE_ACTIVE || entry->state == SESSION_STATE_DUAL_DECODE) {
@@ -1346,7 +1381,7 @@ void BaseChatMesh::checkSessionKeyTimeouts() {
 const uint8_t* BaseChatMesh::getPeerSessionKey(int peer_idx) {
   int i = matching_peer_indexes[peer_idx];
   if (i >= 0 && i < num_contacts) {
-    auto entry = session_keys.findByPrefix(contacts[i].id.pub_key);
+    auto entry = findSessionKey(contacts[i].id.pub_key);
     // Also try decode during INIT_SENT renegotiation (nonce > 1 means prior key exists)
     if (entry && (entry->state == SESSION_STATE_ACTIVE || entry->state == SESSION_STATE_DUAL_DECODE
                   || (entry->state == SESSION_STATE_INIT_SENT && entry->nonce > 1)))
@@ -1358,7 +1393,7 @@ const uint8_t* BaseChatMesh::getPeerSessionKey(int peer_idx) {
 const uint8_t* BaseChatMesh::getPeerPrevSessionKey(int peer_idx) {
   int i = matching_peer_indexes[peer_idx];
   if (i >= 0 && i < num_contacts) {
-    auto entry = session_keys.findByPrefix(contacts[i].id.pub_key);
+    auto entry = findSessionKey(contacts[i].id.pub_key);
     if (entry && entry->state == SESSION_STATE_DUAL_DECODE)
       return entry->prev_session_key;
   }
@@ -1368,7 +1403,7 @@ const uint8_t* BaseChatMesh::getPeerPrevSessionKey(int peer_idx) {
 void BaseChatMesh::onSessionKeyDecryptSuccess(int peer_idx) {
   int i = matching_peer_indexes[peer_idx];
   if (i >= 0 && i < num_contacts) {
-    auto entry = session_keys.findByPrefix(contacts[i].id.pub_key);
+    auto entry = findSessionKey(contacts[i].id.pub_key);
     if (entry) {
       bool changed = (entry->state == SESSION_STATE_DUAL_DECODE);
       if (changed) {

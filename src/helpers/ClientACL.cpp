@@ -214,7 +214,7 @@ bool ClientACL::applyPermissions(const mesh::LocalIdentity& self_id, const uint8
     c = getClient(pubkey, key_len);
     if (c == NULL) return false;   // partial pubkey not found
 
-    session_keys.remove(c->id.pub_key);  // also remove session key if any
+    removeSessionKey(c->id.pub_key);  // also remove session key if any
 
     num_clients--;   // delete from contacts[]
     int i = c - clients;
@@ -262,7 +262,7 @@ int ClientACL::handleSessionKeyInit(const ClientInfo* client, const uint8_t* eph
   memset(ephemeral_secret, 0, PUB_KEY_SIZE);
 
   // 4. Store in pool (dual-decode: new key active, old key still valid)
-  auto entry = session_keys.allocate(client->id.pub_key);
+  auto entry = allocateSessionKey(client->id.pub_key);
   if (!entry) return 0;
 
   if (entry->state == SESSION_STATE_ACTIVE || entry->state == SESSION_STATE_DUAL_DECODE) {
@@ -283,7 +283,7 @@ int ClientACL::handleSessionKeyInit(const ClientInfo* client, const uint8_t* eph
 }
 
 const uint8_t* ClientACL::getSessionKey(const uint8_t* pub_key) {
-  auto entry = session_keys.findByPrefix(pub_key);
+  auto entry = findSessionKey(pub_key);
   if (entry && (entry->state == SESSION_STATE_ACTIVE || entry->state == SESSION_STATE_DUAL_DECODE)) {
     return entry->session_key;
   }
@@ -291,7 +291,7 @@ const uint8_t* ClientACL::getSessionKey(const uint8_t* pub_key) {
 }
 
 const uint8_t* ClientACL::getPrevSessionKey(const uint8_t* pub_key) {
-  auto entry = session_keys.findByPrefix(pub_key);
+  auto entry = findSessionKey(pub_key);
   if (entry && entry->state == SESSION_STATE_DUAL_DECODE) {
     return entry->prev_session_key;
   }
@@ -299,7 +299,7 @@ const uint8_t* ClientACL::getPrevSessionKey(const uint8_t* pub_key) {
 }
 
 const uint8_t* ClientACL::getEncryptionKey(const ClientInfo& client) {
-  auto entry = session_keys.findByPrefix(client.id.pub_key);
+  auto entry = findSessionKey(client.id.pub_key);
   if (entry && (entry->state == SESSION_STATE_ACTIVE || entry->state == SESSION_STATE_DUAL_DECODE)
       && entry->sends_since_last_recv < SESSION_KEY_STALE_THRESHOLD
       && entry->nonce < 65535) {
@@ -309,7 +309,7 @@ const uint8_t* ClientACL::getEncryptionKey(const ClientInfo& client) {
 }
 
 uint16_t ClientACL::getEncryptionNonce(const ClientInfo& client) {
-  auto entry = session_keys.findByPrefix(client.id.pub_key);
+  auto entry = findSessionKey(client.id.pub_key);
   if (entry && (entry->state == SESSION_STATE_ACTIVE || entry->state == SESSION_STATE_DUAL_DECODE)
       && entry->sends_since_last_recv < SESSION_KEY_STALE_THRESHOLD
       && entry->nonce < 65535) {
@@ -325,7 +325,7 @@ uint16_t ClientACL::getEncryptionNonce(const ClientInfo& client) {
       int idx = &client - clients;
       if (idx >= 0 && idx < num_clients)
         clients[idx].flags &= ~CONTACT_FLAG_AEAD;
-      session_keys.remove(client.id.pub_key);
+      removeSessionKey(client.id.pub_key);
       saveSessionKeys();
       return 0;  // ECB
     }
@@ -337,7 +337,7 @@ uint16_t ClientACL::getEncryptionNonce(const ClientInfo& client) {
 }
 
 void ClientACL::onSessionConfirmed(const uint8_t* pub_key) {
-  auto entry = session_keys.findByPrefix(pub_key);
+  auto entry = findSessionKey(pub_key);
   if (entry) {
     if (entry->state == SESSION_STATE_DUAL_DECODE) {
       memset(entry->prev_session_key, 0, SESSION_KEY_SIZE);
@@ -386,46 +386,160 @@ uint16_t ClientACL::peerEncryptionNonce(int peer_idx, const int* matching_indexe
   return c ? getEncryptionNonce(*c) : 0;
 }
 
+// --- Flash-backed session key wrappers ---
+
+static File openReadACL(FILESYSTEM* fs, const char* filename) {
+#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
+  return fs->open(filename, FILE_O_READ);
+#elif defined(RP2040_PLATFORM)
+  return fs->open(filename, "r");
+#else
+  return fs->open(filename, "r", false);
+#endif
+}
+
+bool ClientACL::loadSessionKeyRecordFromFlash(const uint8_t* prefix,
+    uint8_t* flags, uint16_t* nonce, uint8_t* session_key, uint8_t* prev_session_key) {
+  if (!_fs) return false;
+  File f = openReadACL(_fs, "/s_sess_keys");
+  if (!f) return false;
+  while (true) {
+    uint8_t rec[SESSION_KEY_RECORD_MIN_SIZE];
+    if (f.read(rec, SESSION_KEY_RECORD_MIN_SIZE) != SESSION_KEY_RECORD_MIN_SIZE) break;
+    uint8_t rec_flags = rec[4];
+    bool has_prev = (rec_flags & SESSION_FLAG_PREV_VALID);
+    if (memcmp(rec, prefix, 4) == 0) {
+      *flags = rec_flags;
+      memcpy(nonce, &rec[5], 2);
+      memcpy(session_key, &rec[7], SESSION_KEY_SIZE);
+      if (has_prev) {
+        if (f.read(prev_session_key, SESSION_KEY_SIZE) != SESSION_KEY_SIZE) break;
+      } else {
+        memset(prev_session_key, 0, SESSION_KEY_SIZE);
+      }
+      f.close();
+      return true;
+    }
+    // Skip prev_key if present
+    if (has_prev) {
+      uint8_t skip[SESSION_KEY_SIZE];
+      if (f.read(skip, SESSION_KEY_SIZE) != SESSION_KEY_SIZE) break;
+    }
+  }
+  f.close();
+  return false;
+}
+
+SessionKeyEntry* ClientACL::findSessionKey(const uint8_t* pub_key) {
+  auto entry = session_keys.findByPrefix(pub_key);
+  if (entry) return entry;
+
+  // Cache miss — try flash
+  uint8_t flags; uint16_t nonce;
+  uint8_t sk[SESSION_KEY_SIZE], psk[SESSION_KEY_SIZE];
+  if (!loadSessionKeyRecordFromFlash(pub_key, &flags, &nonce, sk, psk)) return nullptr;
+
+  // Save dirty evictee before overwriting
+  if (session_keys.isFull() && _session_keys_dirty) {
+    saveSessionKeys();
+  }
+  session_keys.applyLoaded(pub_key, flags, nonce, sk, psk);
+  return session_keys.findByPrefix(pub_key);
+}
+
+SessionKeyEntry* ClientACL::allocateSessionKey(const uint8_t* pub_key) {
+  auto entry = findSessionKey(pub_key);
+  if (entry) return entry;
+
+  // Not found anywhere — save dirty evictee before allocating
+  if (session_keys.isFull() && _session_keys_dirty) {
+    saveSessionKeys();
+  }
+  return session_keys.allocate(pub_key);
+}
+
+void ClientACL::removeSessionKey(const uint8_t* pub_key) {
+  session_keys.remove(pub_key);
+}
+
 void ClientACL::loadSessionKeys() {
   if (!_fs) return;
-#if defined(RP2040_PLATFORM)
-  File file = _fs->open("/s_sess_keys", "r");
-#elif defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
-  File file = _fs->open("/s_sess_keys", FILE_O_READ);
-#else
-  File file = _fs->open("/s_sess_keys", "r", false);
-#endif
-  if (file) {
-    uint8_t rec[71];  // [pub_prefix:4][flags:1][nonce:2][session_key:32][prev_session_key:32]
-    while (file.read(rec, 71) == 71) {
-      uint8_t flags = rec[4];
-      uint16_t nonce;
-      memcpy(&nonce, &rec[5], 2);
-      session_keys.applyLoaded(rec, flags, nonce, &rec[7], &rec[39]);
+  File file = openReadACL(_fs, "/s_sess_keys");
+  if (!file) return;
+  while (true) {
+    uint8_t rec[SESSION_KEY_RECORD_MIN_SIZE];
+    if (file.read(rec, SESSION_KEY_RECORD_MIN_SIZE) != SESSION_KEY_RECORD_MIN_SIZE) break;
+    uint8_t flags = rec[4];
+    uint16_t nonce;
+    memcpy(&nonce, &rec[5], 2);
+    uint8_t prev_key[SESSION_KEY_SIZE];
+    if (flags & SESSION_FLAG_PREV_VALID) {
+      if (file.read(prev_key, SESSION_KEY_SIZE) != SESSION_KEY_SIZE) break;
+    } else {
+      memset(prev_key, 0, SESSION_KEY_SIZE);
     }
-    file.close();
+    session_keys.applyLoaded(rec, flags, nonce, &rec[7], prev_key);
   }
+  file.close();
 }
 
 void ClientACL::saveSessionKeys() {
-  _session_keys_dirty = false;
   if (!_fs) return;
-  File file = openWrite(_fs, "/s_sess_keys");
-  if (file) {
-    for (int i = 0; i < session_keys.getCount(); i++) {
-      uint8_t pub_key_prefix[4];
-      uint8_t flags;
-      uint16_t nonce;
-      uint8_t session_key[SESSION_KEY_SIZE];
-      uint8_t prev_session_key[SESSION_KEY_SIZE];
-      if (session_keys.getEntryForSave(i, pub_key_prefix, &flags, &nonce, session_key, prev_session_key)) {
-        file.write(pub_key_prefix, 4);
-        file.write(&flags, 1);
-        file.write((uint8_t*)&nonce, 2);
-        file.write(session_key, SESSION_KEY_SIZE);
-        file.write(prev_session_key, SESSION_KEY_SIZE);
+
+  // 1. Read old flash file into buffer (variable-length records)
+  uint8_t old_buf[MAX_SESSION_KEYS_FLASH * SESSION_KEY_RECORD_SIZE];
+  int old_len = 0;
+  File rf = openReadACL(_fs, "/s_sess_keys");
+  if (rf) {
+    while (true) {
+      if (old_len + SESSION_KEY_RECORD_MIN_SIZE > (int)sizeof(old_buf)) break;
+      if (rf.read(&old_buf[old_len], SESSION_KEY_RECORD_MIN_SIZE) != SESSION_KEY_RECORD_MIN_SIZE) break;
+      uint8_t flags = old_buf[old_len + 4];
+      int rec_len = SESSION_KEY_RECORD_MIN_SIZE;
+      if (flags & SESSION_FLAG_PREV_VALID) {
+        if (old_len + SESSION_KEY_RECORD_SIZE > (int)sizeof(old_buf)) break;
+        if (rf.read(&old_buf[old_len + SESSION_KEY_RECORD_MIN_SIZE], SESSION_KEY_SIZE) != SESSION_KEY_SIZE) break;
+        rec_len = SESSION_KEY_RECORD_SIZE;
+      }
+      old_len += rec_len;
+    }
+    rf.close();
+  }
+
+  // 2. Write merged file
+  File wf = openWrite(_fs, "/s_sess_keys");
+  if (!wf) return;
+
+  // Write kept old records (variable-length)
+  int pos = 0;
+  while (pos + SESSION_KEY_RECORD_MIN_SIZE <= old_len) {
+    uint8_t* rec = &old_buf[pos];
+    uint8_t flags = rec[4];
+    int rec_len = (flags & SESSION_FLAG_PREV_VALID) ? SESSION_KEY_RECORD_SIZE : SESSION_KEY_RECORD_MIN_SIZE;
+    if (pos + rec_len > old_len) break;
+    if (!session_keys.hasPrefix(rec) && !session_keys.isRemoved(rec)) {
+      wf.write(rec, rec_len);
+    }
+    pos += rec_len;
+  }
+  // Write current RAM entries (variable-length)
+  for (int i = 0; i < session_keys.getCount(); i++) {
+    uint8_t pub_key_prefix[4];
+    uint8_t flags;
+    uint16_t nonce;
+    uint8_t session_key[SESSION_KEY_SIZE];
+    uint8_t prev_session_key[SESSION_KEY_SIZE];
+    if (session_keys.getEntryForSave(i, pub_key_prefix, &flags, &nonce, session_key, prev_session_key)) {
+      wf.write(pub_key_prefix, 4);
+      wf.write(&flags, 1);
+      wf.write((uint8_t*)&nonce, 2);
+      wf.write(session_key, SESSION_KEY_SIZE);
+      if (flags & SESSION_FLAG_PREV_VALID) {
+        wf.write(prev_session_key, SESSION_KEY_SIZE);
       }
     }
-    file.close();
   }
+  wf.close();
+  _session_keys_dirty = false;
+  session_keys.clearRemoved();
 }
