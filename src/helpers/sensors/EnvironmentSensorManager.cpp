@@ -191,7 +191,13 @@ bool EnvironmentSensorManager::begin() {
 
   #if ENV_INCLUDE_DS18B20
     sensors.begin();
-    DS18B20_initialized = true;
+    uint8_t resetResult = oneWire.reset();
+    if (resetResult == 1) {
+      DS18B20_initialized = true;
+    } else {
+      DS18B20_initialized = false;
+      MESH_DEBUG_PRINTLN("OneWire bus is unresponsive!");
+    }
   #endif
 
   #if ENV_INCLUDE_BME680
