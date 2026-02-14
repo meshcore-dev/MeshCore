@@ -64,6 +64,7 @@ public:
   void sleep(uint32_t secs) override {
     // Skip if not allow to sleep
     if (inhibit_sleep) {
+      delay(1); // Give MCU to OTA to run
       return;
     }
 
