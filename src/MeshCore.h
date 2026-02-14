@@ -36,7 +36,11 @@
 #define NONCE_INITIAL_MAX           50000  // max random nonce seed for new contacts
 #define SESSION_KEY_TIMEOUT_MS      180000 // 3 minutes per attempt
 #define SESSION_KEY_MAX_RETRIES     3      // attempts per negotiation round
-#define MAX_SESSION_KEYS            8      // max concurrent session key entries
+#define MAX_SESSION_KEYS_RAM        8      // max concurrent session key entries in RAM (LRU cache)
+#define MAX_SESSION_KEYS_FLASH     48     // max entries in flash file
+#define SESSION_KEY_RECORD_SIZE    71     // max bytes per record (with prev_key)
+#define SESSION_KEY_RECORD_MIN_SIZE 39   // min bytes per record: [pub_prefix:4][flags:1][nonce:2][key:32]
+#define SESSION_FLAG_PREV_VALID   0x01   // prev_session_key is valid for dual-decode
 #define SESSION_KEY_STALE_THRESHOLD 50     // sends without recv before fallback to static ECDH
 #define SESSION_KEY_ECB_THRESHOLD  100    // sends without recv before fallback to ECB
 #define SESSION_KEY_ABANDON_THRESHOLD 255 // sends without recv before clearing AEAD + session key

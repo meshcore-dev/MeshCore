@@ -148,6 +148,15 @@ protected:
 
   // Session key support (Phase 2 — initiator)
   virtual void onSessionKeysUpdated() { session_keys_dirty = true; }  // called when session key pool changes; override to persist
+  virtual bool loadSessionKeyRecordFromFlash(const uint8_t* pub_key_prefix,
+      uint8_t* flags, uint16_t* nonce, uint8_t* session_key, uint8_t* prev_session_key) { return false; }
+  virtual void mergeAndSaveSessionKeys() {}  // merge RAM + flash, write back
+
+  // Wrappers that add flash fallback on cache miss
+  SessionKeyEntry* findSessionKey(const uint8_t* pub_key);
+  SessionKeyEntry* allocateSessionKey(const uint8_t* pub_key);
+  void removeSessionKey(const uint8_t* pub_key);
+
   const uint8_t* getEncryptionKeyFor(const ContactInfo& contact);
   uint16_t getEncryptionNonceFor(const ContactInfo& contact);
   bool shouldInitiateSessionKey(const ContactInfo& contact);
@@ -164,6 +173,9 @@ protected:
   int getSessionKeyCount() const { return session_keys.getCount(); }
   bool isSessionKeysDirty() const { return session_keys_dirty; }
   void clearSessionKeysDirty() { session_keys_dirty = false; }
+  bool isSessionKeyInRAMPool(const uint8_t* pub_key_prefix) { return session_keys.hasPrefix(pub_key_prefix); }
+  bool isSessionKeyRemovedFromPool(const uint8_t* pub_key_prefix) { return session_keys.isRemoved(pub_key_prefix); }
+  void clearSessionKeysRemoved() { session_keys.clearRemoved(); }
 
   // Mesh overrides
   void onAdvertRecv(mesh::Packet* packet, const mesh::Identity& id, uint32_t timestamp, const uint8_t* app_data, size_t app_data_len) override;

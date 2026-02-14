@@ -407,37 +407,105 @@ bool DataStore::saveNonces(DataStoreHost* host) {
 
 void DataStore::loadSessionKeys(DataStoreHost* host) {
   File file = openRead(_getContactsChannelsFS(), "/sess_keys");
-  if (file) {
-    uint8_t rec[71];  // 4-byte pub_key prefix + 1 flags + 2 nonce + 32 session_key + 32 prev_session_key
-    while (file.read(rec, 71) == 71) {
-      uint16_t nonce;
-      memcpy(&nonce, &rec[5], 2);
-      host->onSessionKeyLoaded(rec, rec[4], nonce, &rec[7], &rec[39]);
+  if (!file) return;
+  while (true) {
+    uint8_t rec[SESSION_KEY_RECORD_MIN_SIZE];
+    if (file.read(rec, SESSION_KEY_RECORD_MIN_SIZE) != SESSION_KEY_RECORD_MIN_SIZE) break;
+    uint8_t flags = rec[4];
+    uint16_t nonce;
+    memcpy(&nonce, &rec[5], 2);
+    uint8_t prev_key[SESSION_KEY_SIZE];
+    if (flags & SESSION_FLAG_PREV_VALID) {
+      if (file.read(prev_key, SESSION_KEY_SIZE) != SESSION_KEY_SIZE) break;
+    } else {
+      memset(prev_key, 0, SESSION_KEY_SIZE);
     }
-    file.close();
+    host->onSessionKeyLoaded(rec, flags, nonce, &rec[7], prev_key);
   }
+  file.close();
 }
 
 bool DataStore::saveSessionKeys(DataStoreHost* host) {
-  File file = openWrite(_getContactsChannelsFS(), "/sess_keys");
-  if (file) {
-    uint8_t pub_key_prefix[4];
-    uint8_t flags;
-    uint16_t nonce;
-    uint8_t session_key[32];
-    uint8_t prev_session_key[32];
-    for (int idx = 0; idx < MAX_SESSION_KEYS; idx++) {
-      if (host->getSessionKeyForSave(idx, pub_key_prefix, &flags, &nonce, session_key, prev_session_key)) {
-        file.write(pub_key_prefix, 4);
-        file.write(&flags, 1);
-        file.write((uint8_t*)&nonce, 2);
-        file.write(session_key, 32);
-        file.write(prev_session_key, 32);
+  FILESYSTEM* fs = _getContactsChannelsFS();
+
+  // 1. Read old flash file into buffer (variable-length records)
+  uint8_t old_buf[MAX_SESSION_KEYS_FLASH * SESSION_KEY_RECORD_SIZE];
+  int old_len = 0;
+  File rf = openRead(fs, "/sess_keys");
+  if (rf) {
+    while (true) {
+      if (old_len + SESSION_KEY_RECORD_MIN_SIZE > (int)sizeof(old_buf)) break;
+      if (rf.read(&old_buf[old_len], SESSION_KEY_RECORD_MIN_SIZE) != SESSION_KEY_RECORD_MIN_SIZE) break;
+      uint8_t flags = old_buf[old_len + 4];
+      int rec_len = SESSION_KEY_RECORD_MIN_SIZE;
+      if (flags & SESSION_FLAG_PREV_VALID) {
+        if (old_len + SESSION_KEY_RECORD_SIZE > (int)sizeof(old_buf)) break;
+        if (rf.read(&old_buf[old_len + SESSION_KEY_RECORD_MIN_SIZE], SESSION_KEY_SIZE) != SESSION_KEY_SIZE) break;
+        rec_len = SESSION_KEY_RECORD_SIZE;
       }
+      old_len += rec_len;
     }
-    file.close();
-    return true;
+    rf.close();
   }
+
+  // 2. Write merged file
+  File wf = openWrite(fs, "/sess_keys");
+  if (!wf) return false;
+
+  // Write kept old records (variable-length)
+  int pos = 0;
+  while (pos + SESSION_KEY_RECORD_MIN_SIZE <= old_len) {
+    uint8_t* rec = &old_buf[pos];
+    uint8_t flags = rec[4];
+    int rec_len = (flags & SESSION_FLAG_PREV_VALID) ? SESSION_KEY_RECORD_SIZE : SESSION_KEY_RECORD_MIN_SIZE;
+    if (pos + rec_len > old_len) break;
+    if (!host->isSessionKeyInRAM(rec) && !host->isSessionKeyRemoved(rec)) {
+      wf.write(rec, rec_len);
+    }
+    pos += rec_len;
+  }
+  // Write current RAM entries (variable-length)
+  for (int idx = 0; idx < MAX_SESSION_KEYS_RAM; idx++) {
+    uint8_t pk[4]; uint8_t fl; uint16_t n; uint8_t sk[32]; uint8_t psk[32];
+    if (!host->getSessionKeyForSave(idx, pk, &fl, &n, sk, psk)) continue;
+    wf.write(pk, 4); wf.write(&fl, 1); wf.write((uint8_t*)&n, 2);
+    wf.write(sk, 32);
+    if (fl & SESSION_FLAG_PREV_VALID) {
+      wf.write(psk, 32);
+    }
+  }
+  wf.close();
+  return true;
+}
+
+bool DataStore::loadSessionKeyByPrefix(const uint8_t* prefix,
+    uint8_t* flags, uint16_t* nonce, uint8_t* session_key, uint8_t* prev_session_key) {
+  File f = openRead(_getContactsChannelsFS(), "/sess_keys");
+  if (!f) return false;
+  while (true) {
+    uint8_t rec[SESSION_KEY_RECORD_MIN_SIZE];
+    if (f.read(rec, SESSION_KEY_RECORD_MIN_SIZE) != SESSION_KEY_RECORD_MIN_SIZE) break;
+    uint8_t rec_flags = rec[4];
+    bool has_prev = (rec_flags & SESSION_FLAG_PREV_VALID);
+    if (memcmp(rec, prefix, 4) == 0) {
+      *flags = rec_flags;
+      memcpy(nonce, &rec[5], 2);
+      memcpy(session_key, &rec[7], SESSION_KEY_SIZE);
+      if (has_prev) {
+        if (f.read(prev_session_key, SESSION_KEY_SIZE) != SESSION_KEY_SIZE) break;
+      } else {
+        memset(prev_session_key, 0, SESSION_KEY_SIZE);
+      }
+      f.close();
+      return true;
+    }
+    // Skip prev_key if present
+    if (has_prev) {
+      uint8_t skip[SESSION_KEY_SIZE];
+      if (f.read(skip, SESSION_KEY_SIZE) != SESSION_KEY_SIZE) break;
+    }
+  }
+  f.close();
   return false;
 }
 

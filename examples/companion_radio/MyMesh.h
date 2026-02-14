@@ -164,6 +164,8 @@ protected:
                               uint8_t* session_key, uint8_t* prev_session_key) override {
     return getSessionKeyEntry(idx, pub_key_prefix, flags, nonce, session_key, prev_session_key);
   }
+  bool isSessionKeyInRAM(const uint8_t* pub_key_prefix) override;
+  bool isSessionKeyRemoved(const uint8_t* pub_key_prefix) override;
 
   void clearPendingReqs() {
     pending_login = pending_status = pending_telemetry = pending_discovery = pending_req = 0;
@@ -195,8 +197,15 @@ private:
   void saveChannels() { _store->saveChannels(this); }
   void saveContacts() { _store->saveContacts(this); }
   void saveNonces() { if (_store->saveNonces(this)) clearNonceDirty(); }
-  void saveSessionKeys() { if (_store->saveSessionKeys(this)) clearSessionKeysDirty(); }
+  void saveSessionKeys() { if (_store->saveSessionKeys(this)) { clearSessionKeysDirty(); clearSessionKeysRemoved(); } }
   void onSessionKeysUpdated() override { saveSessionKeys(); }
+
+  // Flash-backed session key overrides
+  bool loadSessionKeyRecordFromFlash(const uint8_t* pub_key_prefix,
+      uint8_t* flags, uint16_t* nonce, uint8_t* session_key, uint8_t* prev_session_key) override {
+    return _store->loadSessionKeyByPrefix(pub_key_prefix, flags, nonce, session_key, prev_session_key);
+  }
+  void mergeAndSaveSessionKeys() override { saveSessionKeys(); }
 
   DataStore* _store;
   NodePrefs _prefs;

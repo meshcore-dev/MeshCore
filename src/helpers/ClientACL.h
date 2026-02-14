@@ -105,6 +105,16 @@ public:
   void loadSessionKeys();
   void saveSessionKeys();
 
+private:
+  // Flash-backed session key wrappers
+  SessionKeyEntry* findSessionKey(const uint8_t* pub_key);
+  SessionKeyEntry* allocateSessionKey(const uint8_t* pub_key);
+  void removeSessionKey(const uint8_t* pub_key);
+  bool loadSessionKeyRecordFromFlash(const uint8_t* pub_key_prefix,
+      uint8_t* flags, uint16_t* nonce, uint8_t* session_key, uint8_t* prev_session_key);
+
+public:
+
   // Peer-index forwarding helpers for server-side Mesh overrides.
   // These resolve peer_idx → ClientInfo via matching_indexes[], then delegate
   // to the corresponding method above.  Eliminates repeated boilerplate in

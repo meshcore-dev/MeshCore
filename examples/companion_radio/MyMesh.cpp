@@ -2040,6 +2040,14 @@ void MyMesh::checkSerialInterface() {
   }
 }
 
+bool MyMesh::isSessionKeyInRAM(const uint8_t* pub_key_prefix) {
+  return isSessionKeyInRAMPool(pub_key_prefix);
+}
+
+bool MyMesh::isSessionKeyRemoved(const uint8_t* pub_key_prefix) {
+  return isSessionKeyRemovedFromPool(pub_key_prefix);
+}
+
 void MyMesh::loop() {
   BaseChatMesh::loop();
 
