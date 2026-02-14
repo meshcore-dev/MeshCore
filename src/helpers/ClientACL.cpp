@@ -223,6 +223,7 @@ bool ClientACL::applyPermissions(const mesh::LocalIdentity& self_id, const uint8
       nonce_at_last_persist[i] = nonce_at_last_persist[i + 1];
       i++;
     }
+    memset(&clients[num_clients], 0, sizeof(ClientInfo));
   } else {
     if (key_len < PUB_KEY_SIZE) return false;   // need complete pubkey when adding/modifying
 
@@ -460,6 +461,7 @@ SessionKeyEntry* ClientACL::allocateSessionKey(const uint8_t* pub_key) {
 
 void ClientACL::removeSessionKey(const uint8_t* pub_key) {
   session_keys.remove(pub_key);
+  _session_keys_dirty = true;
 }
 
 void ClientACL::loadSessionKeys() {
