@@ -1,11 +1,6 @@
-**MeshCore-FAQ**<!-- omit from toc -->
+# Frequently Asked Questions
+
 A list of frequently-asked questions and answers for MeshCore
-
-The current version of this MeshCore FAQ is at https://github.com/meshcore-dev/MeshCore/blob/main/docs/faq.md.  
-This MeshCore FAQ is also mirrored at https://github.com/LitBomb/MeshCore-FAQ and might have newer updates if pull requests on Scott's MeshCore repo are not approved yet.
-
-author: https://github.com/LitBomb<!-- omit from toc -->
----
 
 - [1. Introduction](#1-introduction)
   - [1.1. Q: What is MeshCore?](#11-q-what-is-meshcore)
@@ -112,15 +107,15 @@ Anyone is able to build anything they like on top of MeshCore without paying any
 
 ### 1.2. Q: What do you need to start using MeshCore?
 **A:** Everything you need for MeshCore is available at:
- Main web site: [https://meshcore.co.uk/](https://meshcore.co.uk/)
- Firmware Flasher: https://flasher.meshcore.co.uk/
- Phone Client Applications: https://meshcore.co.uk/apps.html
- MeshCore Firmware GitHub: https://github.com/ripplebiz/MeshCore
 
- NOTE: Andy Kirby has a very useful [intro video](https://www.youtube.com/watch?v=t1qne8uJBAc) for beginners.
+- Main web site: [https://meshcore.co.uk](https://meshcore.co.uk)
+- Firmware Flasher: [https://flasher.meshcore.co.uk](https://flasher.meshcore.co.uk)
+- MeshCore Firmware on GitHub: [https://github.com/meshcore-dev/MeshCore](https://github.com/meshcore-dev/MeshCore)
+- MeshCore Companion App: [https://meshcore.nz](https://meshcore.nz)
+- MeshCore Map: [https://meshcore.co.uk/map.html](https://meshcore.co.uk/map.html)
+- Andy Kirby has a very useful [intro video](https://www.youtube.com/watch?v=t1qne8uJBAc) for beginners.
 
-
- You need LoRa hardware devices to run MeshCore firmware as clients or server (repeater and room server).
+You need LoRa hardware devices to run MeshCore firmware as clients or server (repeater and room server).
 
 #### 1.2.1. Hardware
 MeshCore is available on a variety of 433MHz, 868MHz and 915MHz LoRa devices. For example, Lilygo T-Deck, T-Pager, RAK Wireless WisBlock RAK4631 devices (e.g. 19003, 19007, 19026), Heltec V3, Xiao S3 WIO, Xiao C3, Heltec T114, Station G2, Nano G2 Ultra, Seeed Studio T1000-E. More devices are being added regularly.
@@ -295,7 +290,7 @@ This is a very low cost operation.  AGC reset is done by simply setting `state =
 
 ### 3.8 Q: How do I make my repeater an observer on the mesh
 
-**A:** The observer instruction is available here: https://analyzer.letsme.sh/observer/onboard
+**A:** The observer instruction is available here: https://analyzer.letsmesh.net/observer/onboard
 
 ---
 
@@ -535,7 +530,7 @@ MeshCore clients would need to reset path constantly and flood traffic across th
 This could change in the future if MeshCore develops a client firmware that repeats.
 [Source](https://discord.com/channels/826570251612323860/1330643963501351004/1354780032140054659)
 
-### 5.12. Q: How do I add a node to the [MeshCore Map]([url](https://meshcore.co.uk/map.html))
+### 5.12. Q: How do I add a node to the [MeshCore Map](https://meshcore.co.uk/map.html)
 **A:**
 
 To add a BLE Companion radio, connect to the BLE Companion radio from the MeshCore smartphone app.  In the app, tap the `3 dot` menu icon at the top right corner, then tap `Internet Map`.  Tap the `3 dot` menu icon again and choose `Add me to the Map`
@@ -612,7 +607,7 @@ From here, reference repeater and room server command line commands on MeshCore 
 **A:** Yes.  See the following:
 
 #### 5.14.1. meshcoremqtt
-A Python script to send meshcore debug and packet capture data to MQTT for analysis.  Cisien's version is a fork of Andrew-a-g's and is being used to to collect data for https://map.w0z.is/messages and https://analyzer.letsme.sh/
+A Python script to send meshcore debug and packet capture data to MQTT for analysis.  Cisien's version is a fork of Andrew-a-g's and is being used to to collect data for https://map.w0z.is/messages and https://analyzer.letsmesh.net/
 https://github.com/Cisien/meshcoretomqtt
 https://github.com/Andrew-a-g/meshcoretomqtt
 
@@ -637,7 +632,7 @@ pyMC_Core is a Python port of MeshCore, designed for Raspberry Pi and similar ha
 https://github.com/rightup/pyMC_core
 
 #### 5.14.7. MeshCore Packet Decoder
-A TypeScript library for decoding MeshCore mesh networking packets with full cryptographic support. Uses WebAssembly (WASM) for Ed25519 key derivation through the orlp/ed25519 library.  It powers the [MeshCore Packet Analyzer](https://analyzer.letsme.sh/packets).
+A TypeScript library for decoding MeshCore mesh networking packets with full cryptographic support. Uses WebAssembly (WASM) for Ed25519 key derivation through the orlp/ed25519 library.  It powers the [MeshCore Packet Analyzer](https://analyzer.letsmesh.net/packets).
 https://github.com/michaelhart/meshcore-decoder
 
 #### 5.14.8. meshcore-pi
