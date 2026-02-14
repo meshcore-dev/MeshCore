@@ -56,6 +56,7 @@
 #define CMD_SEND_ANON_REQ             57
 #define CMD_SET_AUTOADD_CONFIG        58
 #define CMD_GET_AUTOADD_CONFIG        59
+#define CMD_GET_ALLOWED_REPEAT_FREQ   60
 
 // Stats sub-types for CMD_GET_STATS
 #define STATS_TYPE_CORE               0
@@ -88,6 +89,7 @@
 #define RESP_CODE_TUNING_PARAMS       23
 #define RESP_CODE_STATS               24   // v8+, second byte is stats type
 #define RESP_CODE_AUTOADD_CONFIG      25
+#define RESP_ALLOWED_REPEAT_FREQ      26
 
 #define SEND_TIMEOUT_BASE_MILLIS        500
 #define FLOOD_SEND_TIMEOUT_FACTOR       16.0f
@@ -453,6 +455,10 @@ bool MyMesh::filterRecvFloodPacket(mesh::Packet* packet) {
   // REVISIT: try to determine which Region (from transport_codes[1]) that Sender is indicating for replies/responses
   //    if unknown, fallback to finding Region from transport_codes[0], the 'scope' used by Sender
   return false;
+}
+
+bool MyMesh::allowPacketForward(const mesh::Packet* packet) {
+  return _prefs.client_repeat != 0;
 }
 
 void MyMesh::sendFloodScoped(const ContactInfo& recipient, mesh::Packet* pkt, uint32_t delay_millis) {
@@ -881,6 +887,24 @@ uint32_t MyMesh::getBLEPin() {
   return _active_ble_pin;
 }
 
+struct FreqRange {
+  uint32_t lower_freq, upper_freq;
+};
+
+static FreqRange repeat_freq_ranges[] = {
+  { 433000, 433000 },
+  { 869000, 869000 },
+  { 918000, 918000 }
+};
+
+bool MyMesh::isValidClientRepeatFreq(uint32_t f) const {
+  for (int i = 0; i < sizeof(repeat_freq_ranges)/sizeof(repeat_freq_ranges[0]); i++) {
+    auto r = &repeat_freq_ranges[i];
+    if (f >= r->lower_freq && f <= r->upper_freq) return true;
+  }
+  return false;
+}
+
 void MyMesh::startInterface(BaseSerialInterface &serial) {
   _serial = &serial;
   serial.enable();
@@ -904,6 +928,7 @@ void MyMesh::handleCmdFrame(size_t len) {
     i += 40;
     StrHelper::strzcpy((char *)&out_frame[i], FIRMWARE_VERSION, 20);
     i += 20;
+    out_frame[i++] = _prefs.client_repeat;   // v9+
     _serial->writeFrame(out_frame, i);
   } else if (cmd_frame[0] == CMD_APP_START &&
              len >= 8) { // sent when app establishes connection, respond with node ID
@@ -1208,13 +1233,20 @@ void MyMesh::handleCmdFrame(size_t len) {
     i += 4;
     uint8_t sf = cmd_frame[i++];
     uint8_t cr = cmd_frame[i++];
+    uint8_t repeat = 0;  // default - false
+    if (len > i) {
+      repeat = cmd_frame[i++];   // FIRMWARE_VER_CODE  9+
+    }
 
-    if (freq >= 300000 && freq <= 2500000 && sf >= 5 && sf <= 12 && cr >= 5 && cr <= 8 && bw >= 7000 &&
+    if (repeat && !isValidClientRepeatFreq(freq)) {
+      writeErrFrame(ERR_CODE_ILLEGAL_ARG);
+    } else if (freq >= 300000 && freq <= 2500000 && sf >= 5 && sf <= 12 && cr >= 5 && cr <= 8 && bw >= 7000 &&
         bw <= 500000) {
       _prefs.sf = sf;
       _prefs.cr = cr;
       _prefs.freq = (float)freq / 1000.0;
       _prefs.bw = (float)bw / 1000.0;
+      _prefs.client_repeat = repeat;
       savePrefs();
 
       radio_set_params(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
@@ -1740,6 +1772,15 @@ void MyMesh::handleCmdFrame(size_t len) {
     int i = 0;
     out_frame[i++] = RESP_CODE_AUTOADD_CONFIG;
     out_frame[i++] = _prefs.autoadd_config;
+    _serial->writeFrame(out_frame, i);
+  } else if (cmd_frame[0] == CMD_GET_ALLOWED_REPEAT_FREQ) {
+    int i = 0;
+    out_frame[i++] = RESP_ALLOWED_REPEAT_FREQ;
+    for (int k = 0; k < sizeof(repeat_freq_ranges)/sizeof(repeat_freq_ranges[0]) && i + 8 < sizeof(out_frame); k++) {
+      auto r = &repeat_freq_ranges[k];
+      memcpy(&out_frame[i], &r->lower_freq, 4); i += 4;
+      memcpy(&out_frame[i], &r->upper_freq, 4); i += 4;
+    }
     _serial->writeFrame(out_frame, i);
   } else {
     writeErrFrame(ERR_CODE_UNSUPPORTED_CMD);
