@@ -149,17 +149,46 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
             uint8_t data[MAX_PACKET_PAYLOAD];
             int macAndDataLen = pkt->payload_len - i;
 
-            // Try-both decode: AEAD-first for peers known to support it (avoids 1/65536
-            // ECB false-positive on AEAD packets), ECB-first for unknown/legacy peers.
             // Mask out route type bits — they are set after encryption and vary per hop.
             uint8_t assoc[3] = { (uint8_t)(pkt->header & ~PH_ROUTE_MASK), dest_hash, src_hash };
-            int len;
+            int len = 0;
             bool decoded_aead = false;
-            if (getPeerFlags(j) & CONTACT_FLAG_AEAD) {
+            bool decoded_session = false;
+
+            // Session key decode path: try session key(s) first if available
+            const uint8_t* sess_key = getPeerSessionKey(j);
+            if (sess_key) {
+              len = Utils::aeadDecrypt(sess_key, data, macAndData, macAndDataLen, assoc, 3, dest_hash, src_hash);
+              if (len > 0) {
+                decoded_session = true;
+                decoded_aead = true;
+              } else {
+                // Try prev_session_key (dual-decode window)
+                const uint8_t* prev_key = getPeerPrevSessionKey(j);
+                if (prev_key) {
+                  len = Utils::aeadDecrypt(prev_key, data, macAndData, macAndDataLen, assoc, 3, dest_hash, src_hash);
+                  if (len > 0) {
+                    decoded_session = true;
+                    decoded_aead = true;
+                  }
+                }
+              }
+              if (!decoded_session) {
+                // Session key failed — try static ECDH, then ECB
+                len = Utils::aeadDecrypt(secret, data, macAndData, macAndDataLen, assoc, 3, dest_hash, src_hash);
+                if (len > 0) {
+                  decoded_aead = true;
+                } else {
+                  len = Utils::MACThenDecrypt(secret, data, macAndData, macAndDataLen);
+                }
+              }
+            } else if (getPeerFlags(j) & CONTACT_FLAG_AEAD) {
+              // No session key — standard AEAD-first decode for AEAD-capable peers
               len = Utils::aeadDecrypt(secret, data, macAndData, macAndDataLen, assoc, 3, dest_hash, src_hash);
               if (len > 0) decoded_aead = true;
               else len = Utils::MACThenDecrypt(secret, data, macAndData, macAndDataLen);
             } else {
+              // Legacy ECB-first decode
               len = Utils::MACThenDecrypt(secret, data, macAndData, macAndDataLen);
               if (len <= 0) {
                 len = Utils::aeadDecrypt(secret, data, macAndData, macAndDataLen, assoc, 3, dest_hash, src_hash);
@@ -167,7 +196,8 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
               }
             }
             if (len > 0) {  // success!
-              if (decoded_aead) onPeerAeadDetected(j);
+              if (decoded_session) onSessionKeyDecryptSuccess(j);
+              else if (decoded_aead) onPeerAeadDetected(j);
               if (pkt->getPayloadType() == PAYLOAD_TYPE_PATH) {
                 int k = 0;
                 uint8_t path_len = data[k++];
@@ -180,12 +210,12 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
                 if (onPeerPathRecv(pkt, j, secret, path, path_len, extra_type, extra, extra_len)) {
                   if (pkt->isRouteFlood()) {
                     // send a reciprocal return path to sender, but send DIRECTLY!
-                    mesh::Packet* rpath = createPathReturn(&src_hash, secret, pkt->path, pkt->path_len, 0, NULL, 0, getPeerNextAeadNonce(j));
+                    mesh::Packet* rpath = createPathReturn(&src_hash, getPeerEncryptionKey(j, secret), pkt->path, pkt->path_len, 0, NULL, 0, getPeerEncryptionNonce(j));
                     if (rpath) sendDirect(rpath, path, path_len, 500);
                   }
                 }
               } else {
-                onPeerDataRecv(pkt, pkt->getPayloadType(), j, secret, data, len);
+                onPeerDataRecv(pkt, pkt->getPayloadType(), j, getPeerEncryptionKey(j, secret), data, len);
               }
               found = true;
               break;

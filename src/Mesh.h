@@ -86,6 +86,14 @@ protected:
   virtual uint16_t getPeerNextAeadNonce(int peer_idx) { return 0; }
   virtual void onPeerAeadDetected(int peer_idx) { }
 
+  // Session key support (Phase 2)
+  virtual const uint8_t* getPeerSessionKey(int peer_idx) { return NULL; }
+  virtual const uint8_t* getPeerPrevSessionKey(int peer_idx) { return NULL; }
+  virtual void onSessionKeyDecryptSuccess(int peer_idx) { }
+  // Encryption key/nonce for outgoing messages to peer (session key with static ECDH fallback)
+  virtual const uint8_t* getPeerEncryptionKey(int peer_idx, const uint8_t* static_secret) { return static_secret; }
+  virtual uint16_t getPeerEncryptionNonce(int peer_idx) { return getPeerNextAeadNonce(peer_idx); }
+
   /**
    * \brief  A (now decrypted) data packet has been received (by a known peer).
    *         NOTE: these can be received multiple times (per sender/msg-id), via different routes
