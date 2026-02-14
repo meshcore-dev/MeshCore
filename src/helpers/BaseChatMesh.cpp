@@ -918,6 +918,7 @@ bool BaseChatMesh::removeContact(ContactInfo& contact) {
     nonce_at_last_persist[idx] = nonce_at_last_persist[idx + 1];
     idx++;
   }
+  memset(&contacts[num_contacts], 0, sizeof(ContactInfo));
   return true;  // Success
 }
 
@@ -1057,6 +1058,7 @@ SessionKeyEntry* BaseChatMesh::allocateSessionKey(const uint8_t* pub_key) {
 
 void BaseChatMesh::removeSessionKey(const uint8_t* pub_key) {
   session_keys.remove(pub_key);
+  session_keys_dirty = true;
 }
 
 // --- Session key support (Phase 2 — initiator) ---
@@ -1313,6 +1315,8 @@ void BaseChatMesh::checkSessionKeyTimeouts() {
       // All retries exhausted — clean up
       memset(entry->ephemeral_prv, 0, PRV_KEY_SIZE);
       memset(entry->ephemeral_pub, 0, PUB_KEY_SIZE);
+      memset(entry->session_key, 0, SESSION_KEY_SIZE);
+      memset(entry->prev_session_key, 0, SESSION_KEY_SIZE);
       entry->state = SESSION_STATE_NONE;
       entry->timeout_at = 0;
     }
