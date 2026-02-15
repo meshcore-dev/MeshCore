@@ -31,3 +31,8 @@ mesh::LocalIdentity radio_new_identity();
 
 extern SensorManager sensors;
 
+#if defined(USE_SX1262) || defined(USE_SX1268)
+bool radio_get_rx_boosted_gain_mode();
+void radio_set_rx_boosted_gain_mode(bool rxbgm);
+#endif
+
