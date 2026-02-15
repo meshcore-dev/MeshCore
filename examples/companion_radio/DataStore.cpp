@@ -212,7 +212,7 @@ void DataStore::loadPrefsInt(const char *filename, NodePrefs& _prefs, double& no
     file.read((uint8_t *)&_prefs.freq, sizeof(_prefs.freq));                               // 56
     file.read((uint8_t *)&_prefs.sf, sizeof(_prefs.sf));                                   // 60
     file.read((uint8_t *)&_prefs.cr, sizeof(_prefs.cr));                                   // 61
-    file.read(pad, 1);                                                                     // 62
+    file.read((uint8_t *)&_prefs.client_repeat, sizeof(_prefs.client_repeat));             // 62
     file.read((uint8_t *)&_prefs.manual_add_contacts, sizeof(_prefs.manual_add_contacts)); // 63
     file.read((uint8_t *)&_prefs.bw, sizeof(_prefs.bw));                                   // 64
     file.read((uint8_t *)&_prefs.tx_power_dbm, sizeof(_prefs.tx_power_dbm));               // 68
@@ -247,7 +247,7 @@ void DataStore::savePrefs(const NodePrefs& _prefs, double node_lat, double node_
     file.write((uint8_t *)&_prefs.freq, sizeof(_prefs.freq));                               // 56
     file.write((uint8_t *)&_prefs.sf, sizeof(_prefs.sf));                                   // 60
     file.write((uint8_t *)&_prefs.cr, sizeof(_prefs.cr));                                   // 61
-    file.write(pad, 1);                                                                     // 62
+    file.write((uint8_t *)&_prefs.client_repeat, sizeof(_prefs.client_repeat));             // 62
     file.write((uint8_t *)&_prefs.manual_add_contacts, sizeof(_prefs.manual_add_contacts)); // 63
     file.write((uint8_t *)&_prefs.bw, sizeof(_prefs.bw));                                   // 64
     file.write((uint8_t *)&_prefs.tx_power_dbm, sizeof(_prefs.tx_power_dbm));               // 68
@@ -560,14 +560,20 @@ bool DataStore::putBlobByKey(const uint8_t key[], int key_len, const uint8_t src
   }
   return false; // error
 }
+bool DataStore::deleteBlobByKey(const uint8_t key[], int key_len) {
+  return true; // this is just a stub on NRF52/STM32 platforms
+}
 #else
-uint8_t DataStore::getBlobByKey(const uint8_t key[], int key_len, uint8_t dest_buf[]) {
-  char path[64];
+inline void makeBlobPath(const uint8_t key[], int key_len, char* path, size_t path_size) {
   char fname[18];
-
   if (key_len > 8) key_len = 8; // just use first 8 bytes (prefix)
   mesh::Utils::toHex(fname, key, key_len);
   sprintf(path, "/bl/%s", fname);
+}
+
+uint8_t DataStore::getBlobByKey(const uint8_t key[], int key_len, uint8_t dest_buf[]) {
+  char path[64];
+  makeBlobPath(key, key_len, path, sizeof(path));
 
   if (_fs->exists(path)) {
     File f = openRead(_fs, path);
@@ -582,11 +588,7 @@ uint8_t DataStore::getBlobByKey(const uint8_t key[], int key_len, uint8_t dest_b
 
 bool DataStore::putBlobByKey(const uint8_t key[], int key_len, const uint8_t src_buf[], uint8_t len) {
   char path[64];
-  char fname[18];
-
-  if (key_len > 8) key_len = 8; // just use first 8 bytes (prefix)
-  mesh::Utils::toHex(fname, key, key_len);
-  sprintf(path, "/bl/%s", fname);
+  makeBlobPath(key, key_len, path, sizeof(path));
 
   File f = openWrite(_fs, path);
   if (f) {
@@ -597,5 +599,14 @@ bool DataStore::putBlobByKey(const uint8_t key[], int key_len, const uint8_t src
     _fs->remove(path); // blob was only partially written!
   }
   return false; // error
+}
+
+bool DataStore::deleteBlobByKey(const uint8_t key[], int key_len) {
+  char path[64];
+  makeBlobPath(key, key_len, path, sizeof(path));
+
+  _fs->remove(path);
+  
+  return true; // return true even if file did not exist
 }
 #endif

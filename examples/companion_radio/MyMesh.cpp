@@ -56,6 +56,7 @@
 #define CMD_SEND_ANON_REQ             57
 #define CMD_SET_AUTOADD_CONFIG        58
 #define CMD_GET_AUTOADD_CONFIG        59
+#define CMD_GET_ALLOWED_REPEAT_FREQ   60
 
 // Stats sub-types for CMD_GET_STATS
 #define STATS_TYPE_CORE               0
@@ -88,6 +89,7 @@
 #define RESP_CODE_TUNING_PARAMS       23
 #define RESP_CODE_STATS               24   // v8+, second byte is stats type
 #define RESP_CODE_AUTOADD_CONFIG      25
+#define RESP_ALLOWED_REPEAT_FREQ      26
 
 #define SEND_TIMEOUT_BASE_MILLIS        500
 #define FLOOD_SEND_TIMEOUT_FACTOR       16.0f
@@ -307,6 +309,7 @@ bool MyMesh::shouldOverwriteWhenFull() const {
 }
 
 void MyMesh::onContactOverwrite(const uint8_t* pub_key) {
+    _store->deleteBlobByKey(pub_key, PUB_KEY_SIZE); // delete from storage
   if (_serial->isConnected()) {
     out_frame[0] = PUSH_CODE_CONTACT_DELETED;
     memcpy(&out_frame[1], pub_key, PUB_KEY_SIZE);
@@ -330,10 +333,11 @@ void MyMesh::onDiscoveredContact(ContactInfo &contact, bool is_new, uint8_t path
       memcpy(&out_frame[1], contact.id.pub_key, PUB_KEY_SIZE);
       _serial->writeFrame(out_frame, 1 + PUB_KEY_SIZE);
     }
-  } 
+  } else {
 #ifdef DISPLAY_CLASS
-  if (_ui && !_prefs.buzzer_quiet) _ui->notify(UIEventType::newContactMessage); //buzz if enabled
+    if (_ui) _ui->notify(UIEventType::newContactMessage);
 #endif
+  }
 
   // add inbound-path to mem cache
   if (path && path_len <= sizeof(AdvertPath::path)) {  // check path is valid
@@ -440,7 +444,9 @@ void MyMesh::queueMessage(const ContactInfo &from, uint8_t txt_type, mesh::Packe
   bool should_display = txt_type == TXT_TYPE_PLAIN || txt_type == TXT_TYPE_SIGNED_PLAIN;
   if (should_display && _ui) {
     _ui->newMsg(path_len, from.name, text, offline_queue_len);
-    if (!_prefs.buzzer_quiet) _ui->notify(UIEventType::contactMessage); //buzz if enabled
+    if (!_serial->isConnected()) {
+      _ui->notify(UIEventType::contactMessage);
+    }
   }
 #endif
 }
@@ -449,6 +455,10 @@ bool MyMesh::filterRecvFloodPacket(mesh::Packet* packet) {
   // REVISIT: try to determine which Region (from transport_codes[1]) that Sender is indicating for replies/responses
   //    if unknown, fallback to finding Region from transport_codes[0], the 'scope' used by Sender
   return false;
+}
+
+bool MyMesh::allowPacketForward(const mesh::Packet* packet) {
+  return _prefs.client_repeat != 0;
 }
 
 void MyMesh::sendFloodScoped(const ContactInfo& recipient, mesh::Packet* pkt, uint32_t delay_millis) {
@@ -525,8 +535,11 @@ void MyMesh::onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packe
     uint8_t frame[1];
     frame[0] = PUSH_CODE_MSG_WAITING; // send push 'tickle'
     _serial->writeFrame(frame, 1);
+  } else {
+#ifdef DISPLAY_CLASS
+    if (_ui) _ui->notify(UIEventType::channelMessage);
+#endif
   }
-
 #ifdef DISPLAY_CLASS
   // Get the channel name from the channel index
   const char *channel_name = "Unknown";
@@ -534,10 +547,7 @@ void MyMesh::onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packe
   if (getChannel(channel_idx, channel_details)) {
     channel_name = channel_details.name;
   }
-  if (_ui) {
-    _ui->newMsg(path_len, channel_name, text, offline_queue_len);
-    if (!_prefs.buzzer_quiet) _ui->notify(UIEventType::channelMessage); //buzz if enabled
-  }
+  if (_ui) _ui->newMsg(path_len, channel_name, text, offline_queue_len);
 #endif
 }
 
@@ -796,7 +806,6 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
   _prefs.bw = LORA_BW;
   _prefs.cr = LORA_CR;
   _prefs.tx_power_dbm = LORA_TX_POWER;
-  _prefs.buzzer_quiet = 0;
   _prefs.gps_enabled = 0;       // GPS disabled by default
   _prefs.gps_interval = 0;      // No automatic GPS updates by default
   //_prefs.rx_delay_base = 10.0f;  enable once new algo fixed
@@ -835,8 +844,7 @@ void MyMesh::begin(bool has_display) {
   _prefs.bw = constrain(_prefs.bw, 7.8f, 500.0f);
   _prefs.sf = constrain(_prefs.sf, 5, 12);
   _prefs.cr = constrain(_prefs.cr, 5, 8);
-  _prefs.tx_power_dbm = constrain(_prefs.tx_power_dbm, 1, MAX_LORA_TX_POWER);
-  _prefs.buzzer_quiet = constrain(_prefs.buzzer_quiet, 0, 1);  // Ensure boolean 0 or 1
+  _prefs.tx_power_dbm = constrain(_prefs.tx_power_dbm, -9, MAX_LORA_TX_POWER);
   _prefs.gps_enabled = constrain(_prefs.gps_enabled, 0, 1);  // Ensure boolean 0 or 1
   _prefs.gps_interval = constrain(_prefs.gps_interval, 0, 86400);  // Max 24 hours
 
@@ -879,6 +887,24 @@ uint32_t MyMesh::getBLEPin() {
   return _active_ble_pin;
 }
 
+struct FreqRange {
+  uint32_t lower_freq, upper_freq;
+};
+
+static FreqRange repeat_freq_ranges[] = {
+  { 433000, 433000 },
+  { 869000, 869000 },
+  { 918000, 918000 }
+};
+
+bool MyMesh::isValidClientRepeatFreq(uint32_t f) const {
+  for (int i = 0; i < sizeof(repeat_freq_ranges)/sizeof(repeat_freq_ranges[0]); i++) {
+    auto r = &repeat_freq_ranges[i];
+    if (f >= r->lower_freq && f <= r->upper_freq) return true;
+  }
+  return false;
+}
+
 void MyMesh::startInterface(BaseSerialInterface &serial) {
   _serial = &serial;
   serial.enable();
@@ -902,6 +928,7 @@ void MyMesh::handleCmdFrame(size_t len) {
     i += 40;
     StrHelper::strzcpy((char *)&out_frame[i], FIRMWARE_VERSION, 20);
     i += 20;
+    out_frame[i++] = _prefs.client_repeat;   // v9+
     _serial->writeFrame(out_frame, i);
   } else if (cmd_frame[0] == CMD_APP_START &&
              len >= 8) { // sent when app establishes connection, respond with node ID
@@ -1123,6 +1150,7 @@ void MyMesh::handleCmdFrame(size_t len) {
     uint8_t *pub_key = &cmd_frame[1];
     ContactInfo *recipient = lookupContactByPubKey(pub_key, PUB_KEY_SIZE);
     if (recipient && removeContact(*recipient)) {
+      _store->deleteBlobByKey(pub_key, PUB_KEY_SIZE);
       dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY);
       writeOKFrame();
     } else {
@@ -1205,13 +1233,20 @@ void MyMesh::handleCmdFrame(size_t len) {
     i += 4;
     uint8_t sf = cmd_frame[i++];
     uint8_t cr = cmd_frame[i++];
+    uint8_t repeat = 0;  // default - false
+    if (len > i) {
+      repeat = cmd_frame[i++];   // FIRMWARE_VER_CODE  9+
+    }
 
-    if (freq >= 300000 && freq <= 2500000 && sf >= 5 && sf <= 12 && cr >= 5 && cr <= 8 && bw >= 7000 &&
+    if (repeat && !isValidClientRepeatFreq(freq)) {
+      writeErrFrame(ERR_CODE_ILLEGAL_ARG);
+    } else if (freq >= 300000 && freq <= 2500000 && sf >= 5 && sf <= 12 && cr >= 5 && cr <= 8 && bw >= 7000 &&
         bw <= 500000) {
       _prefs.sf = sf;
       _prefs.cr = cr;
       _prefs.freq = (float)freq / 1000.0;
       _prefs.bw = (float)bw / 1000.0;
+      _prefs.client_repeat = repeat;
       savePrefs();
 
       radio_set_params(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
@@ -1225,10 +1260,11 @@ void MyMesh::handleCmdFrame(size_t len) {
       writeErrFrame(ERR_CODE_ILLEGAL_ARG);
     }
   } else if (cmd_frame[0] == CMD_SET_RADIO_TX_POWER) {
-    if (cmd_frame[1] > MAX_LORA_TX_POWER) {
+    int8_t power = (int8_t)cmd_frame[1];
+    if (power < -9 || power > MAX_LORA_TX_POWER) {
       writeErrFrame(ERR_CODE_ILLEGAL_ARG);
     } else {
-      _prefs.tx_power_dbm = cmd_frame[1];
+      _prefs.tx_power_dbm = power;
       savePrefs();
       radio_set_tx_power(_prefs.tx_power_dbm);
       writeOKFrame();
@@ -1564,7 +1600,7 @@ void MyMesh::handleCmdFrame(size_t len) {
         sendDirect(pkt, &cmd_frame[10], path_len);
 
         uint32_t t = _radio->getEstAirtimeFor(pkt->payload_len + pkt->path_len + 2);
-        uint32_t est_timeout = calcDirectTimeoutMillisFor(t, path_len);
+        uint32_t est_timeout = calcDirectTimeoutMillisFor(t, path_len >> path_sz);
 
         out_frame[0] = RESP_CODE_SENT;
         out_frame[1] = 0;
@@ -1688,12 +1724,14 @@ void MyMesh::handleCmdFrame(size_t len) {
       uint32_t n_sent_direct = getNumSentDirect();
       uint32_t n_recv_flood = getNumRecvFlood();
       uint32_t n_recv_direct = getNumRecvDirect();
+      uint32_t n_recv_errors = radio_driver.getPacketsRecvErrors();
       memcpy(&out_frame[i], &recv, 4); i += 4;
       memcpy(&out_frame[i], &sent, 4); i += 4;
       memcpy(&out_frame[i], &n_sent_flood, 4); i += 4;
       memcpy(&out_frame[i], &n_sent_direct, 4); i += 4;
       memcpy(&out_frame[i], &n_recv_flood, 4); i += 4;
       memcpy(&out_frame[i], &n_recv_direct, 4); i += 4;
+      memcpy(&out_frame[i], &n_recv_errors, 4); i += 4;
       _serial->writeFrame(out_frame, i);
     } else {
       writeErrFrame(ERR_CODE_ILLEGAL_ARG); // invalid stats sub-type
@@ -1734,6 +1772,15 @@ void MyMesh::handleCmdFrame(size_t len) {
     int i = 0;
     out_frame[i++] = RESP_CODE_AUTOADD_CONFIG;
     out_frame[i++] = _prefs.autoadd_config;
+    _serial->writeFrame(out_frame, i);
+  } else if (cmd_frame[0] == CMD_GET_ALLOWED_REPEAT_FREQ) {
+    int i = 0;
+    out_frame[i++] = RESP_ALLOWED_REPEAT_FREQ;
+    for (int k = 0; k < sizeof(repeat_freq_ranges)/sizeof(repeat_freq_ranges[0]) && i + 8 < sizeof(out_frame); k++) {
+      auto r = &repeat_freq_ranges[k];
+      memcpy(&out_frame[i], &r->lower_freq, 4); i += 4;
+      memcpy(&out_frame[i], &r->upper_freq, 4); i += 4;
+    }
     _serial->writeFrame(out_frame, i);
   } else {
     writeErrFrame(ERR_CODE_UNSUPPORTED_CMD);

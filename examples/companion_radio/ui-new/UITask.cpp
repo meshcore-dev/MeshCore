@@ -103,8 +103,14 @@ class HomeScreen : public UIScreen {
 
   void renderBatteryIndicator(DisplayDriver& display, uint16_t batteryMilliVolts) {
     // Convert millivolts to percentage
-    const int minMilliVolts = 3000; // Minimum voltage (e.g., 3.0V)
-    const int maxMilliVolts = 4200; // Maximum voltage (e.g., 4.2V)
+#ifndef BATT_MIN_MILLIVOLTS
+  #define BATT_MIN_MILLIVOLTS 3000
+#endif
+#ifndef BATT_MAX_MILLIVOLTS
+  #define BATT_MAX_MILLIVOLTS 4200
+#endif
+    const int minMilliVolts = BATT_MIN_MILLIVOLTS;
+    const int maxMilliVolts = BATT_MAX_MILLIVOLTS;
     int batteryPercentage = ((batteryMilliVolts - minMilliVolts) * 100) / (maxMilliVolts - minMilliVolts);
     if (batteryPercentage < 0) batteryPercentage = 0; // Clamp to 0%
     if (batteryPercentage > 100) batteryPercentage = 100; // Clamp to 100%
@@ -125,6 +131,14 @@ class HomeScreen : public UIScreen {
     // fill the battery based on the percentage
     int fillWidth = (batteryPercentage * (iconWidth - 4)) / 100;
     display.fillRect(iconX + 2, iconY + 2, fillWidth, iconHeight - 4);
+
+    // show muted icon if buzzer is muted
+#ifdef PIN_BUZZER
+    if (_task->isBuzzerQuiet()) {
+      display.setColor(DisplayDriver::RED);
+      display.drawXbm(iconX - 9, iconY + 1, muted_icon, 8, 8);
+    }
+#endif
   }
 
   CayenneLPP sensors_lpp;
@@ -452,15 +466,17 @@ class MsgPreviewScreen : public UIScreen {
   };
   #define MAX_UNREAD_MSGS   32
   int num_unread;
+  int head = MAX_UNREAD_MSGS - 1; // index of latest unread message
   MsgEntry unread[MAX_UNREAD_MSGS];
 
 public:
   MsgPreviewScreen(UITask* task, mesh::RTCClock* rtc) : _task(task), _rtc(rtc) { num_unread = 0; }
 
   void addPreview(uint8_t path_len, const char* from_name, const char* msg) {
-    if (num_unread >= MAX_UNREAD_MSGS) return;  // full
+    head = (head + 1) % MAX_UNREAD_MSGS;
+    if (num_unread < MAX_UNREAD_MSGS) num_unread++;
 
-    auto p = &unread[num_unread++];
+    auto p = &unread[head];
     p->timestamp = _rtc->getCurrentTime();
     if (path_len == 0xFF) {
       sprintf(p->origin, "(D) %s:", from_name);
@@ -478,7 +494,7 @@ public:
     sprintf(tmp, "Unread: %d", num_unread);
     display.print(tmp);
 
-    auto p = &unread[0];
+    auto p = &unread[head];
 
     int secs = _rtc->getCurrentTime() - p->timestamp;
     if (secs < 60) {
@@ -514,14 +530,10 @@ public:
 
   bool handleInput(char c) override {
     if (c == KEY_NEXT || c == KEY_RIGHT) {
+      head = (head + MAX_UNREAD_MSGS - 1) % MAX_UNREAD_MSGS;
       num_unread--;
       if (num_unread == 0) {
         _task->gotoHomeScreen();
-      } else {
-        // delete first/curr item from unread queue
-        for (int i = 0; i < num_unread; i++) {
-          unread[i] = unread[i + 1];
-        }
       }
       return true;
     }

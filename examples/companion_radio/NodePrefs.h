@@ -17,7 +17,7 @@ struct NodePrefs {  // persisted to file
   uint8_t multi_acks;
   uint8_t manual_add_contacts;
   float bw;
-  uint8_t tx_power_dbm;
+  int8_t tx_power_dbm;
   uint8_t telemetry_mode_base;
   uint8_t telemetry_mode_loc;
   uint8_t telemetry_mode_env;
@@ -28,4 +28,5 @@ struct NodePrefs {  // persisted to file
   uint8_t  gps_enabled;      // GPS enabled flag (0=disabled, 1=enabled)
   uint32_t gps_interval;     // GPS read interval in seconds
   uint8_t autoadd_config;    // bitmask for auto-add contacts config
+  uint8_t client_repeat;
 };

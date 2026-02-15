@@ -899,7 +899,7 @@ void MyMesh::dumpLogFile() {
   }
 }
 
-void MyMesh::setTxPower(uint8_t power_dbm) {
+void MyMesh::setTxPower(int8_t power_dbm) {
   radio_set_tx_power(power_dbm);
 }
 
@@ -1219,5 +1219,8 @@ void MyMesh::loop() {
 
 // To check if there is pending work
 bool MyMesh::hasPendingWork() const {
+#if defined(WITH_BRIDGE)
+  if (bridge.isRunning()) return true;  // bridge needs WiFi radio, can't sleep
+#endif
   return _mgr->getOutboundCount(0xFFFFFFFF) > 0;
 }
