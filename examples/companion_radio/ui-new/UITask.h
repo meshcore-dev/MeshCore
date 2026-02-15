@@ -95,6 +95,14 @@ public:
   bool hasDisplay() const { return _display != NULL; }
   bool isButtonPressed() const;
 
+  bool isBuzzerQuiet() { 
+#ifdef PIN_BUZZER
+    return buzzer.isQuiet();
+#else
+    return true;
+#endif
+  }
+
   void toggleBuzzer();
   bool getGPSState();
   void toggleGPS();
