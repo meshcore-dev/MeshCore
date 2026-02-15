@@ -361,6 +361,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../kiss_modem_protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MeshCore KISS Modem Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../nrf52_power_management/" class="md-nav__link">
         
   
@@ -1237,7 +1264,7 @@
 </code></pre>
 <hr />
 <h2 id="resp_code_stats-stats_type_packets-24-2">RESP_CODE_STATS + STATS_TYPE_PACKETS (24, 2)</h2>
-<p><strong>Total Frame Size:</strong> 26 bytes</p>
+<p><strong>Total Frame Size:</strong> 26 bytes (legacy) or 30 bytes (includes <code>recv_errors</code>)</p>
 <table>
 <thead>
 <tr>
@@ -1314,6 +1341,14 @@
 <td>Packets received via direct routing</td>
 <td>0 - 4,294,967,295</td>
 </tr>
+<tr>
+<td>26</td>
+<td>4</td>
+<td>uint32_t</td>
+<td>recv_errors</td>
+<td>Receive/CRC errors (RadioLib); present only in 30-byte frame</td>
+<td>0 - 4,294,967,295</td>
+</tr>
 </tbody>
 </table>
 <h3 id="notes">Notes</h3>
@@ -1321,6 +1356,7 @@
 <li>Counters are cumulative from boot and may wrap.</li>
 <li><code>recv = flood_rx + direct_rx</code></li>
 <li><code>sent = flood_tx + direct_tx</code></li>
+<li>Clients should accept frame length ≥ 26; if length ≥ 30, parse <code>recv_errors</code> at offset 26.</li>
 </ul>
 <h3 id="example-structure-cc_2">Example Structure (C/C++)</h3>
 <pre><code class="language-c">struct StatsPackets {
@@ -1332,6 +1368,7 @@
     uint32_t direct_tx;
     uint32_t flood_rx;
     uint32_t direct_rx;
+    uint32_t recv_errors;    // present when frame size is 30
 } __attribute__((packed));
 </code></pre>
 <hr />
@@ -1382,11 +1419,12 @@ def parse_stats_radio(frame):
     }
 
 def parse_stats_packets(frame):
-    &quot;&quot;&quot;Parse RESP_CODE_STATS + STATS_TYPE_PACKETS frame (26 bytes)&quot;&quot;&quot;
+    &quot;&quot;&quot;Parse RESP_CODE_STATS + STATS_TYPE_PACKETS frame (26 or 30 bytes)&quot;&quot;&quot;
+    assert len(frame) &gt;= 26, &quot;STATS_TYPE_PACKETS frame too short&quot;
     response_code, stats_type, recv, sent, flood_tx, direct_tx, flood_rx, direct_rx = \
-        struct.unpack('&lt;B B I I I I I I', frame)
+        struct.unpack('&lt;B B I I I I I I', frame[:26])
     assert response_code == 24 and stats_type == 2, &quot;Invalid response type&quot;
-    return {
+    result = {
         'recv': recv,
         'sent': sent,
         'flood_tx': flood_tx,
@@ -1394,6 +1432,10 @@ def parse_stats_packets(frame):
         'flood_rx': flood_rx,
         'direct_rx': direct_rx
     }
+    if len(frame) &gt;= 30:
+        (recv_errors,) = struct.unpack('&lt;I', frame[26:30])
+        result['recv_errors'] = recv_errors
+    return result
 </code></pre>
 <hr />
 <h2 id="command-usage-example-javascripttypescript">Command Usage Example (JavaScript/TypeScript)</h2>
@@ -1442,6 +1484,7 @@ interface StatsPackets {
     direct_tx: number;
     flood_rx: number;
     direct_rx: number;
+    recv_errors?: number;  // present when frame is 30 bytes
 }
 
 function parseStatsCore(buffer: ArrayBuffer): StatsCore {
@@ -1477,12 +1520,15 @@ function parseStatsRadio(buffer: ArrayBuffer): StatsRadio {
 
 function parseStatsPackets(buffer: ArrayBuffer): StatsPackets {
     const view = new DataView(buffer);
+    if (buffer.byteLength &lt; 26) {
+        throw new Error('STATS_TYPE_PACKETS frame too short');
+    }
     const response_code = view.getUint8(0);
     const stats_type = view.getUint8(1);
     if (response_code !== 24 || stats_type !== 2) {
         throw new Error('Invalid response type');
     }
-    return {
+    const result: StatsPackets = {
         recv: view.getUint32(2, true),
         sent: view.getUint32(6, true),
         flood_tx: view.getUint32(10, true),
@@ -1490,6 +1536,10 @@ function parseStatsPackets(buffer: ArrayBuffer): StatsPackets {
         flood_rx: view.getUint32(18, true),
         direct_rx: view.getUint32(22, true)
     };
+    if (buffer.byteLength &gt;= 30) {
+        result.recv_errors = view.getUint32(26, true);
+    }
+    return result;
 }
 </code></pre>
 <hr />
