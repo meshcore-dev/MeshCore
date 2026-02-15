@@ -1282,26 +1282,32 @@ void BaseChatMesh::checkSessionKeyTimeouts() {
 
     if (entry->retries_left > 0) {
       // Retry: find the contact and resend INIT
+      ContactInfo* contact = nullptr;
       for (int j = 0; j < num_contacts; j++) {
         if (memcmp(contacts[j].id.pub_key, entry->peer_pub_prefix, 4) == 0) {
-          entry->retries_left--;
-          entry->timeout_at = futureMillis(SESSION_KEY_TIMEOUT_MS);
-
-          // Regenerate ephemeral keypair for retry
-          uint8_t seed[SEED_SIZE];
-          getRNG()->random(seed, SEED_SIZE);
-          ed25519_create_keypair(entry->ephemeral_pub, entry->ephemeral_prv, seed);
-          memset(seed, 0, SEED_SIZE);
-
-          uint8_t req_data[1 + PUB_KEY_SIZE];
-          req_data[0] = REQ_TYPE_SESSION_KEY_INIT;
-          memcpy(&req_data[1], entry->ephemeral_pub, PUB_KEY_SIZE);
-
-          uint32_t tag, est_timeout;
-          sendRequest(contacts[j], req_data, sizeof(req_data), tag, est_timeout);
+          contact = &contacts[j];
           break;
         }
       }
+      if (!contact) {
+        entry->retries_left = 0;  // contact gone — fall through to cleanup on next tick
+        continue;
+      }
+      entry->retries_left--;
+      entry->timeout_at = futureMillis(SESSION_KEY_TIMEOUT_MS);
+
+      // Regenerate ephemeral keypair for retry
+      uint8_t seed[SEED_SIZE];
+      getRNG()->random(seed, SEED_SIZE);
+      ed25519_create_keypair(entry->ephemeral_pub, entry->ephemeral_prv, seed);
+      memset(seed, 0, SEED_SIZE);
+
+      uint8_t req_data[1 + PUB_KEY_SIZE];
+      req_data[0] = REQ_TYPE_SESSION_KEY_INIT;
+      memcpy(&req_data[1], entry->ephemeral_pub, PUB_KEY_SIZE);
+
+      uint32_t tag, est_timeout;
+      sendRequest(*contact, req_data, sizeof(req_data), tag, est_timeout);
     } else {
       // All retries exhausted — clean up
       memset(entry->ephemeral_prv, 0, PRV_KEY_SIZE);
