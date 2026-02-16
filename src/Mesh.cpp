@@ -145,7 +145,7 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
         // FUTURE: could send back multiple paths, using createPathReturn(), and let sender choose which to use(?)
 
         if (self_id.isHashMatch(&dest_hash)) {
-          // scan contacts DB, for all matching hashes of 'src_hash' (max 4 matches supported ATM)
+          // scan contacts DB, for all matching hashes of 'src_hash' (max 8 matches supported ATM)
           int num = searchPeersByHash(&src_hash);
           // for each matching contact, try to decrypt data
           bool found = false;
