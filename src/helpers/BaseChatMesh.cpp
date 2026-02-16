@@ -1352,9 +1352,9 @@ void BaseChatMesh::onSessionKeyDecryptSuccess(int peer_idx) {
       if (changed) {
         memset(entry->prev_session_key, 0, SESSION_KEY_SIZE);
         entry->state = SESSION_STATE_ACTIVE;
+        onSessionKeysUpdated();
       }
       entry->sends_since_last_recv = 0;
-      if (changed) onSessionKeysUpdated();
     }
   }
 }
