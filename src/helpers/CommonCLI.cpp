@@ -200,10 +200,13 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
       // Reset clock
       getRTCClock()->setCurrentTime(1715770351);  // 15 May 2024, 8:50pm
       _board->reboot();  // doesn't return
-    } else if (memcmp(command, "advert", 6) == 0) {
+    } else if (memcmp(command, "advert.flood", 12) == 0 && (command[12] == 0 || command[12] == ' ')) {
       // send flood advert
       _callbacks->sendSelfAdvertisement(1500, true);  // longer delay, give CLI response time to be sent first
-      strcpy(reply, "OK - Advert sent");
+      strcpy(reply, "OK - Flood advert sent");
+    } else if (memcmp(command, "advert", 6) == 0 && (command[6] == 0 || command[6] == ' ')) {
+      _callbacks->sendSelfAdvertisement(1500, false);  // longer delay, give CLI response time to be sent first
+      strcpy(reply, "OK - zerohop advert sent");
     } else if (memcmp(command, "clock sync", 10) == 0) {
       uint32_t curr = getRTCClock()->getCurrentTime();
       if (sender_timestamp > curr) {
