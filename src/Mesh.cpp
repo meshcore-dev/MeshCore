@@ -138,7 +138,7 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
         // FUTURE: could send back multiple paths, using createPathReturn(), and let sender choose which to use(?)
 
         if (self_id.isHashMatch(&dest_hash)) {
-          // scan contacts DB, for all matching hashes of 'src_hash' (max 4 matches supported ATM)
+          // scan contacts DB, for all matching hashes of 'src_hash' (max 8 matches supported ATM)
           int num = searchPeersByHash(&src_hash);
           // for each matching contact, try to decrypt data
           bool found = false;
@@ -274,7 +274,7 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
       if (i + 2 >= pkt->payload_len) {
         MESH_DEBUG_PRINTLN("%s Mesh::onRecvPacket(): incomplete data packet", getLogDateTime());
       } else if (!_tables->hasSeen(pkt)) {
-        // scan channels DB, for all matching hashes of 'channel_hash' (max 4 matches supported ATM)
+        // scan channels DB, for all matching hashes of 'channel_hash' (max 8 matches supported ATM)
         GroupChannel channels[4];
         int num = searchChannelsByHash(&channel_hash, channels, 4);
         // for each matching channel, try to decrypt data

@@ -1117,7 +1117,7 @@ bool BaseChatMesh::shouldInitiateSessionKey(const ContactInfo& contact) {
   if (!(contact.flags & CONTACT_FLAG_AEAD)) return false;
 
   // Need a known path to send the request
-  if (contact.out_path_len < 0) return false;
+  if (contact.out_path_len == OUT_PATH_UNKNOWN) return false;
 
   auto entry = findSessionKey(contact.id.pub_key);
 
@@ -1352,9 +1352,9 @@ void BaseChatMesh::onSessionKeyDecryptSuccess(int peer_idx) {
       if (changed) {
         memset(entry->prev_session_key, 0, SESSION_KEY_SIZE);
         entry->state = SESSION_STATE_ACTIVE;
+        onSessionKeysUpdated();
       }
       entry->sends_since_last_recv = 0;
-      if (changed) onSessionKeysUpdated();
     }
   }
 }
