@@ -8,6 +8,9 @@
 #ifdef PIN_BUZZER
   #include <helpers/ui/buzzer.h>
 #endif
+#ifdef PIN_STATUS_LED
+  #include <helpers/StatusLED.h>
+#endif
 
 #include "../AbstractUITask.h"
 #include "../NodePrefs.h"
@@ -30,6 +33,9 @@ class UITask : public AbstractUITask {
   bool _need_refresh = true;
   bool _displayWasOn = false;  // Track display state before button press
   unsigned long ui_started_at;
+#ifdef PIN_STATUS_LED
+  StatusLED status_led;
+#endif
 
   // Button handlers
 #ifdef PIN_USER_BTN
@@ -40,7 +46,6 @@ class UITask : public AbstractUITask {
 #endif
 
   void renderCurrScreen();
-  void userLedHandler();
   void renderBatteryIndicator(uint16_t batteryMilliVolts);
   
   // Button action handlers
@@ -54,7 +59,11 @@ class UITask : public AbstractUITask {
  
 public:
 
-  UITask(mesh::MainBoard* board, BaseSerialInterface* serial) : AbstractUITask(board, serial), _display(NULL), _sensors(NULL) {
+  UITask(mesh::MainBoard* board, BaseSerialInterface* serial) : AbstractUITask(board, serial), _display(NULL), _sensors(NULL)
+#ifdef PIN_STATUS_LED
+    , status_led(PIN_STATUS_LED)
+#endif
+  {
       _next_refresh = 0;
       ui_started_at = 0;
   }

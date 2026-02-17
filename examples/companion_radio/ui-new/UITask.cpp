@@ -11,12 +11,6 @@
 #endif
 #define BOOT_SCREEN_MILLIS   3000   // 3 seconds
 
-#ifdef PIN_STATUS_LED
-#define LED_ON_MILLIS     20
-#define LED_ON_MSG_MILLIS 200
-#define LED_CYCLE_MILLIS  4000
-#endif
-
 #define LONG_PRESS_MILLIS   1200
 
 #ifndef UI_RECENT_LIST_SIZE
@@ -585,6 +579,10 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
   vibration.begin();
 #endif
 
+#ifdef PIN_STATUS_LED
+  status_led.begin();
+#endif
+
   ui_started_at = millis();
   _alert_expiry = 0;
 
@@ -651,27 +649,6 @@ void UITask::newMsg(uint8_t path_len, const char* from_name, const char* text, i
     _next_refresh = 100;  // trigger refresh
     }
   }
-}
-
-void UITask::userLedHandler() {
-#ifdef PIN_STATUS_LED
-  int cur_time = millis();
-  if (cur_time > next_led_change) {
-    if (led_state == 0) {
-      led_state = 1;
-      if (_msgcount > 0) {
-        last_led_increment = LED_ON_MSG_MILLIS;
-      } else {
-        last_led_increment = LED_ON_MILLIS;
-      }
-      next_led_change = cur_time + last_led_increment;
-    } else {
-      led_state = 0;
-      next_led_change = cur_time + LED_CYCLE_MILLIS - last_led_increment;
-    }
-    digitalWrite(PIN_STATUS_LED, led_state == LED_STATE_ON);
-  }
-#endif
 }
 
 void UITask::setCurrScreen(UIScreen* c) {
@@ -784,7 +761,10 @@ void UITask::loop() {
     _next_refresh = 100;  // trigger refresh
   }
 
-  userLedHandler();
+#ifdef PIN_STATUS_LED
+  status_led.setAlert(_msgcount > 0);
+  status_led.loop();
+#endif
 
 #ifdef PIN_BUZZER
   if (buzzer.isPlaying())  buzzer.loop();

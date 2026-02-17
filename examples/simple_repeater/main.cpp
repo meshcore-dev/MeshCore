@@ -3,6 +3,11 @@
 
 #include "MyMesh.h"
 
+#ifdef PIN_STATUS_LED
+  #include <helpers/StatusLED.h>
+  static StatusLED status_led(PIN_STATUS_LED);
+#endif
+
 #ifdef DISPLAY_CLASS
   #include "UITask.h"
   static UITask ui_task(display);
@@ -33,6 +38,10 @@ void setup() {
   // give some extra time for serial to settle so
   // boot debug messages can be seen on terminal
   delay(5000);
+#endif
+
+#ifdef PIN_STATUS_LED
+  status_led.begin();
 #endif
 
   // For power saving
@@ -133,6 +142,9 @@ void loop() {
   ui_task.loop();
 #endif
   rtc_clock.tick();
+#ifdef PIN_STATUS_LED
+  status_led.loop();
+#endif
 
   if (the_mesh.getNodePrefs()->powersaving_enabled && !the_mesh.hasPendingWork()) {
     #if defined(NRF52_PLATFORM)
