@@ -394,6 +394,14 @@ bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
     MESH_DEBUG_PRINTLN("allowPacketForward: unknown transport code, or wildcard not allowed for FLOOD packet");
     return false;
   }
+  // Limit flood advert paket forwarding using a probabilistic reduction defined by P(h) = 0.308^(hops-1)
+  // https://github.com/meshcore-dev/MeshCore/issues/1223
+  double_t roll_dice = (double)rand() / RAND_MAX;
+  double_t forw_prob = pow(_prefs.flood_advert_base, packet->path_len - 1);
+  if (packet->getPayloadType() == PAYLOAD_TYPE_ADVERT && packet->isRouteFlood() && roll_dice > forw_prob)
+    return false;
+
+  // all other packets
   return true;
 }
 
@@ -828,6 +836,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.tx_power_dbm = LORA_TX_POWER;
   _prefs.advert_interval = 1;        // default to 2 minutes for NEW installs
   _prefs.flood_advert_interval = 12; // 12 hours
+  _prefs.flood_advert_base = 0.308f;
   _prefs.flood_max = 64;
   _prefs.interference_threshold = 0; // disabled
 
