@@ -13,6 +13,7 @@ VolatileRTCClock fallback_clock;
 AutoDiscoverRTCClock rtc_clock(fallback_clock);
 MicroNMEALocationProvider nmea = MicroNMEALocationProvider(Serial1);
 SolarSensorManager sensors = SolarSensorManager(nmea);
+SolarExWatchdog ex_watchdog;
 
 #ifdef DISPLAY_CLASS
   DISPLAY_CLASS display;
@@ -120,4 +121,36 @@ bool SolarSensorManager::setSettingValue(const char* name, const char* value) {
     return true;
   }
   return false;  // not supported
+}
+
+bool SolarExWatchdog::begin() {
+  next_feed_watchdog = 0;
+  pinMode(EX_WATCHDOG_WAKE_PIN, INPUT);
+  pinMode(EX_WATCHDOG_DONE_PIN, OUTPUT);
+  delay(1);
+  digitalWrite(EX_WATCHDOG_DONE_PIN, LOW);
+  delay(1);
+  feed();
+  return true;
+}
+void SolarExWatchdog::loop() {
+  if (millis() > next_feed_watchdog) {
+    feed();
+    next_feed_watchdog = millis() + EX_WATCHDOG_TIMEOUT_MS;
+  }
+}
+
+unsigned long SolarExWatchdog::getIntervalMs() const {
+    unsigned long interval_ms = 0;
+    interval_ms = next_feed_watchdog - millis();
+    if(interval_ms > EX_WATCHDOG_TIMEOUT_MS) {
+      interval_ms = EX_WATCHDOG_TIMEOUT_MS;
+    }
+    return interval_ms;
+}
+
+void SolarExWatchdog::feed() {
+    digitalWrite(EX_WATCHDOG_DONE_PIN, HIGH);
+    delay(1);
+    digitalWrite(EX_WATCHDOG_DONE_PIN, LOW);
 }

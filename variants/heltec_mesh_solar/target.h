@@ -8,6 +8,7 @@
 #include <helpers/AutoDiscoverRTCClock.h>
 #include <helpers/SensorManager.h>
 #include <helpers/sensors/LocationProvider.h>
+#include <helpers/ExWatchdogManager.h>
 #ifdef DISPLAY_CLASS
   #include <helpers/ui/ST7789Display.h>
 #endif
@@ -30,10 +31,20 @@ public:
   bool setSettingValue(const char* name, const char* value) override;
 };
 
+class SolarExWatchdog : public ExWatchdogManager {
+public:
+    SolarExWatchdog() {}
+    bool begin() override;
+    void loop() override;
+    unsigned long getIntervalMs() const override;
+    void feed() override;
+};
+
 extern MeshSolarBoard board;
 extern WRAPPER_CLASS radio_driver;
 extern AutoDiscoverRTCClock rtc_clock;
 extern SolarSensorManager sensors;
+extern SolarExWatchdog ex_watchdog;
 
 #ifdef DISPLAY_CLASS
   extern DISPLAY_CLASS display;
