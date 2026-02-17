@@ -257,6 +257,15 @@ int MyMesh::calcRxDelay(float score, uint32_t air_time) const {
   return (int)((pow(_prefs.rx_delay_base, 0.85f - score) - 1.0) * air_time);
 }
 
+uint32_t MyMesh::getRetransmitDelay(const mesh::Packet *packet) {
+  uint32_t t = (_radio->getEstAirtimeFor(packet->path_len + packet->payload_len + 2) * 0.5f);
+  return getRNG()->nextInt(0, 5*t + 1);
+}
+uint32_t MyMesh::getDirectRetransmitDelay(const mesh::Packet *packet) {
+  uint32_t t = (_radio->getEstAirtimeFor(packet->path_len + packet->payload_len + 2) * 0.2f);
+  return getRNG()->nextInt(0, 5*t + 1);
+}
+
 uint8_t MyMesh::getExtraAckTransmitCount() const {
   return _prefs.multi_acks;
 }
