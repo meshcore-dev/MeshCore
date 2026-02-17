@@ -19,7 +19,14 @@ bool SSD1306Display::begin() {
 
 void SSD1306Display::turnOn() {
   if (!_isOn) {
-    if (_peripher_power) _peripher_power->claim();
+    if (_peripher_power) {
+      _peripher_power->claim();
+#if defined(PIN_BOARD_SDA) && defined(PIN_BOARD_SCL)
+      Wire.begin(PIN_BOARD_SDA, PIN_BOARD_SCL);  // re-init after Wire.end() in turnOff()
+#else
+      Wire.begin();
+#endif
+    }
     _isOn = true;  // set before begin() to prevent double claim
     if (_peripher_power) begin();  // re-init display after power was cut
   }
@@ -30,6 +37,7 @@ void SSD1306Display::turnOff() {
   display.ssd1306_command(SSD1306_DISPLAYOFF);
   if (_isOn) {
     if (_peripher_power) {
+      Wire.end();  // release GPIO17/18 before VEXT cut to prevent parasitic current through de-powered SSD1306
 #if PIN_OLED_RESET >= 0
       digitalWrite(PIN_OLED_RESET, LOW);
 #endif
