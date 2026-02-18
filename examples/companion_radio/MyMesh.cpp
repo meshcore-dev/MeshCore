@@ -1099,13 +1099,8 @@ void MyMesh::handleCmdFrame(size_t len) {
   } else if (cmd_frame[0] == CMD_SET_DEVICE_TIME && len >= 5) {
     uint32_t secs;
     memcpy(&secs, &cmd_frame[1], 4);
-    uint32_t curr = getRTCClock()->getCurrentTime();
-    if (secs >= curr) {
-      getRTCClock()->setCurrentTime(secs);
-      writeOKFrame();
-    } else {
-      writeErrFrame(ERR_CODE_ILLEGAL_ARG);
-    }
+    getRTCClock()->setCurrentTime(secs);
+    writeOKFrame();
   } else if (cmd_frame[0] == CMD_SEND_SELF_ADVERT) {
     mesh::Packet* pkt;
     if (_prefs.advert_loc_policy == ADVERT_LOC_NONE) {

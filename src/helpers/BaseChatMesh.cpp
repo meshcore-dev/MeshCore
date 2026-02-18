@@ -609,7 +609,7 @@ bool BaseChatMesh::startConnection(const ContactInfo& contact, uint16_t keep_ali
   uint32_t interval = connections[use_idx].keep_alive_millis = ((uint32_t)keep_alive_secs)*1000;
   connections[use_idx].next_ping = futureMillis(interval);
   connections[use_idx].expected_ack = 0;
-  connections[use_idx].last_activity = getRTCClock()->getCurrentTime();
+  connections[use_idx].last_activity_ms = _ms->getMillis();
   return true;  // success
 }
 
@@ -619,7 +619,7 @@ void BaseChatMesh::stopConnection(const uint8_t* pub_key) {
       connections[i].keep_alive_millis = 0;  // mark slot as now free
       connections[i].next_ping = 0;
       connections[i].expected_ack = 0;
-      connections[i].last_activity = 0;
+      connections[i].last_activity_ms = 0;
       break;
     }
   }
@@ -635,7 +635,7 @@ bool BaseChatMesh::hasConnectionTo(const uint8_t* pub_key) {
 void BaseChatMesh::markConnectionActive(const ContactInfo& contact) {
   for (int i = 0; i < MAX_CONNECTIONS; i++) {
     if (connections[i].keep_alive_millis > 0 && connections[i].server_id.matches(contact.id)) {
-      connections[i].last_activity = getRTCClock()->getCurrentTime();
+      connections[i].last_activity_ms = _ms->getMillis();
 
       // re-schedule next KEEP_ALIVE, now that we have heard from server
       connections[i].next_ping = futureMillis(connections[i].keep_alive_millis);
@@ -649,7 +649,7 @@ ContactInfo* BaseChatMesh::checkConnectionsAck(const uint8_t* data) {
     if (connections[i].keep_alive_millis > 0 && memcmp(&connections[i].expected_ack, data, 4) == 0) {
       // yes, got an ack for our keep_alive request!
       connections[i].expected_ack = 0;
-      connections[i].last_activity = getRTCClock()->getCurrentTime();
+      connections[i].last_activity_ms = _ms->getMillis();
 
       // re-schedule next KEEP_ALIVE, now that we have heard from server
       connections[i].next_ping = futureMillis(connections[i].keep_alive_millis);
@@ -666,14 +666,17 @@ void BaseChatMesh::checkConnections() {
   for (int i = 0; i < MAX_CONNECTIONS; i++) {
     if (connections[i].keep_alive_millis == 0) continue;  // unused slot
 
-    uint32_t now = getRTCClock()->getCurrentTime();
-    uint32_t expire_secs = (connections[i].keep_alive_millis / 1000) * 5 / 2;   // 2.5 x keep_alive interval
-    if (now >= connections[i].last_activity + expire_secs) {
+    // Monotonic time is immune to RTC clock changes (GPS, NTP, manual sync).
+    // Assumes light sleep (millis() keeps incrementing). Deep sleep resets millis(),
+    // but BaseChatMesh is only used by companion_radio which uses light sleep.
+    unsigned long now = _ms->getMillis();
+    unsigned long expire_millis = (connections[i].keep_alive_millis * 5UL) / 2;   // 2.5 x keep_alive interval
+    if ((now - connections[i].last_activity_ms) >= expire_millis) {
       // connection now lost
       connections[i].keep_alive_millis = 0;
       connections[i].next_ping = 0;
       connections[i].expected_ack = 0;
-      connections[i].last_activity = 0;
+      connections[i].last_activity_ms = 0;
       continue;
     }
 
