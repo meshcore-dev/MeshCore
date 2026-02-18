@@ -144,10 +144,12 @@ uint8_t MyMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* secr
   return 13;  // reply length
 }
 
-uint8_t MyMesh::handleAnonRegionsReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data) {
+uint8_t MyMesh::handleAnonRegionsReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data, size_t data_len) {
   if (anon_limiter.allow(rtc_clock.getCurrentTime())) {
     // request data has: {reply-path-len}{reply-path}
+    if (data_len < 1) return 0;
     reply_path_len = *data++ & 0x3F;
+    if (1 + reply_path_len > data_len) return 0;
     memcpy(reply_path, data, reply_path_len);
     // data += reply_path_len;
 
@@ -160,10 +162,12 @@ uint8_t MyMesh::handleAnonRegionsReq(const mesh::Identity& sender, uint32_t send
   return 0;
 }
 
-uint8_t MyMesh::handleAnonOwnerReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data) {
+uint8_t MyMesh::handleAnonOwnerReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data, size_t data_len) {
   if (anon_limiter.allow(rtc_clock.getCurrentTime())) {
     // request data has: {reply-path-len}{reply-path}
+    if (data_len < 1) return 0;
     reply_path_len = *data++ & 0x3F;
+    if (1 + reply_path_len > data_len) return 0;
     memcpy(reply_path, data, reply_path_len);
     // data += reply_path_len;
 
@@ -177,10 +181,12 @@ uint8_t MyMesh::handleAnonOwnerReq(const mesh::Identity& sender, uint32_t sender
   return 0;
 }
 
-uint8_t MyMesh::handleAnonClockReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data) {
+uint8_t MyMesh::handleAnonClockReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data, size_t data_len) {
   if (anon_limiter.allow(rtc_clock.getCurrentTime())) {
     // request data has: {reply-path-len}{reply-path}
+    if (data_len < 1) return 0;
     reply_path_len = *data++ & 0x3F;
+    if (1 + reply_path_len > data_len) return 0;
     memcpy(reply_path, data, reply_path_len);
     // data += reply_path_len;
 
@@ -522,12 +528,12 @@ void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const m
     reply_path_len = -1;
     if (data[4] == 0 || data[4] >= ' ') {   // is password, ie. a login request
       reply_len = handleLoginReq(sender, secret, timestamp, &data[4], packet->isRouteFlood());
-    } else if (data[4] == ANON_REQ_TYPE_REGIONS && packet->isRouteDirect()) {
-      reply_len = handleAnonRegionsReq(sender, timestamp, &data[5]);
-    } else if (data[4] == ANON_REQ_TYPE_OWNER && packet->isRouteDirect()) {
-      reply_len = handleAnonOwnerReq(sender, timestamp, &data[5]);
-    } else if (data[4] == ANON_REQ_TYPE_BASIC && packet->isRouteDirect()) {
-      reply_len = handleAnonClockReq(sender, timestamp, &data[5]);
+    } else if (data[4] == ANON_REQ_TYPE_REGIONS && packet->isRouteDirect() && len > 5) {
+      reply_len = handleAnonRegionsReq(sender, timestamp, &data[5], len - 5);
+    } else if (data[4] == ANON_REQ_TYPE_OWNER && packet->isRouteDirect() && len > 5) {
+      reply_len = handleAnonOwnerReq(sender, timestamp, &data[5], len - 5);
+    } else if (data[4] == ANON_REQ_TYPE_BASIC && packet->isRouteDirect() && len > 5) {
+      reply_len = handleAnonClockReq(sender, timestamp, &data[5], len - 5);
     } else {
       reply_len = 0;  // unknown/invalid request type
     }
