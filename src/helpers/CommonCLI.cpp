@@ -4,6 +4,11 @@
 #include "AdvertDataHelpers.h"
 #include <RTClib.h>
 
+extern "C" bool __attribute__((weak))
+meshcore_custom_cli(uint32_t sender_ts, const char* cmd, char* reply) {
+  return false;
+}
+
 // Believe it or not, this std C function is busted on some platforms!
 static uint32_t _atoi(const char* sp) {
   uint32_t n = 0;
@@ -194,6 +199,7 @@ uint8_t CommonCLI::buildAdvertData(uint8_t node_type, uint8_t* app_data) {
 }
 
 void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, char* reply) {
+    if (meshcore_custom_cli(sender_timestamp, command, reply)) return;
     if (memcmp(command, "reboot", 6) == 0) {
       _board->reboot();  // doesn't return
     } else if (memcmp(command, "clkreboot", 9) == 0) {
