@@ -723,7 +723,7 @@ SensorMesh::SensorMesh(mesh::MainBoard& board, mesh::Radio& radio, mesh::Millise
   _prefs.flood_advert_interval = 0;   // disabled
   _prefs.disable_fwd = true;
   _prefs.flood_max = 64;
-  _prefs.interference_threshold = 0;  // disabled
+  _prefs.interference_threshold = 1;  // non-zero enables hardware CAD before TX
 
   // GPS defaults
   _prefs.gps_enabled = 0;
