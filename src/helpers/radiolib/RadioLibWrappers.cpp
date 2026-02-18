@@ -170,10 +170,37 @@ void RadioLibWrapper::onSendFinished() {
   state = STATE_IDLE;
 }
 
+int16_t RadioLibWrapper::performChannelScan() {
+  return _radio->scanChannel();
+}
+
 bool RadioLibWrapper::isChannelActive() {
-  return _threshold == 0 
-          ? false    // interference check is disabled
-          : getCurrentRSSI() > _noise_floor + _threshold;
+  if (_threshold == 0) return false;    // interference check is disabled
+
+  int16_t result = performChannelScan();
+  // scanChannel() triggers DIO interrupt (CAD done) which sets STATE_INT_READY
+  // via setFlag() ISR. Clear it before restarting RX so recvRaw() doesn't
+  // try to read a non-existent packet and count a spurious recv error.
+  state = STATE_IDLE;
+  startRecv();
+
+  if (result != RADIOLIB_CHANNEL_FREE) {
+    // Random backoff to desynchronize retries between competing nodes
+    uint32_t backoff_until = millis() + random(8000, 22000);
+    while (millis() < backoff_until) {
+      vTaskDelay(1);  // yield CPU to FreeRTOS tasks including BLE
+    }
+    return true;
+  }
+
+  // Small jitter even when channel is free to prevent simultaneous TX
+  // from two nodes that both detect a free channel at the same time
+  uint32_t jitter_until = millis() + random(0, 500);
+  while (millis() < jitter_until) {
+    vTaskDelay(1);  // yield CPU to FreeRTOS tasks including BLE
+  }
+
+  return false;
 }
 
 float RadioLibWrapper::getLastRSSI() const {

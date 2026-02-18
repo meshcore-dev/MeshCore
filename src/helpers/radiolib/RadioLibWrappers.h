@@ -32,7 +32,7 @@ public:
   bool isInRecvMode() const override;
   bool isChannelActive();
 
-  bool isReceiving() override { 
+  bool isReceiving() override {
     if (isReceivingPacket()) return true;
 
     return isChannelActive();
