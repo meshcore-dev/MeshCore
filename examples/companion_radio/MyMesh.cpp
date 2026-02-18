@@ -250,7 +250,7 @@ float MyMesh::getAirtimeBudgetFactor() const {
 }
 
 int MyMesh::getInterferenceThreshold() const {
-  return 0; // disabled for now, until currentRSSI() problem is resolved
+  return 1; // non-zero enables hardware CAD (Channel Activity Detection) before TX
 }
 
 int MyMesh::calcRxDelay(float score, uint32_t air_time) const {
