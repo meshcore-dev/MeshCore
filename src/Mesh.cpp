@@ -158,6 +158,10 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
               if (pkt->getPayloadType() == PAYLOAD_TYPE_PATH) {
                 int k = 0;
                 uint8_t path_len = data[k++];
+                if (k + path_len + 1 > len) {  // bounds check: need path_len bytes + extra_type byte
+                  MESH_DEBUG_PRINTLN("%s Mesh::onRecvPacket(): bad PATH payload format, path_len=%d len=%d", getLogDateTime(), (int)path_len, (int)len);
+                  break;
+                }
                 uint8_t* path = &data[k]; k += path_len;
                 uint8_t extra_type = data[k++] & 0x0F;   // upper 4 bits reserved for future use
                 uint8_t* extra = &data[k];
