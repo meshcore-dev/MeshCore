@@ -57,8 +57,11 @@ void RadioLibWrapper::resetAGC() {
   // make sure we're not mid-receive of packet!
   if ((state & STATE_INT_READY) != 0 || isReceivingPacket()) return;
 
-  // NOTE: according to higher powers, just issuing RadioLib's startReceive() will reset the AGC.
-  //      revisit this if a better impl is discovered.
+  // Warm sleep powers down the entire analog frontend (including AGC), forcing a
+  // fresh gain calibration on the next startReceive().  A plain standby->startReceive
+  // cycle does NOT reset the AGC — the analog state can persist across STDBY_RC.
+  // The ~1-2 ms sleep gap is negligible vs the preamble budget (131 ms at SF11/BW250).
+  _radio->sleep();
   state = STATE_IDLE;   // trigger a startReceive()
 }
 
