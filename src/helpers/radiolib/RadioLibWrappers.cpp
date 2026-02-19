@@ -63,6 +63,14 @@ void RadioLibWrapper::resetAGC() {
 
   doResetAGC();
   state = STATE_IDLE;   // trigger a startReceive()
+
+  // Reset noise floor sampling so it reconverges from scratch.
+  // Without this, a stuck _noise_floor of -120 makes the sampling threshold
+  // too low (-106) to accept normal samples (~-105), self-reinforcing the
+  // stuck value even after the receiver has recovered.
+  _noise_floor = 0;
+  _num_floor_samples = 0;
+  _floor_sample_sum = 0;
 }
 
 void RadioLibWrapper::loop() {
