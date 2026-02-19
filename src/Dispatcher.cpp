@@ -303,6 +303,7 @@ Packet* Dispatcher::obtainNewPacket() {
   } else {
     pkt->payload_len = pkt->path_len = 0;
     pkt->_snr = 0;
+    pkt->_relay_count = 0;
   }
   return pkt;
 }

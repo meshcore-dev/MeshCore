@@ -123,6 +123,8 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
       } else if (!_tables->hasSeen(pkt)) {
         onAckRecv(pkt, ack_crc);
         action = routeRecvPacket(pkt);
+      } else if (pkt->isRouteFlood()) {
+        onDuplicateFloodRecv(pkt);
       }
       break;
     }
@@ -183,6 +185,8 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
           }
         }
         action = routeRecvPacket(pkt);
+      } else if (pkt->isRouteFlood()) {
+        onDuplicateFloodRecv(pkt);
       }
       break;
     }
@@ -210,6 +214,8 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
           }
         }
         action = routeRecvPacket(pkt);
+      } else if (pkt->isRouteFlood()) {
+        onDuplicateFloodRecv(pkt);
       }
       break;
     }
@@ -236,6 +242,8 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
           }
         }
         action = routeRecvPacket(pkt);
+      } else if (pkt->isRouteFlood()) {
+        onDuplicateFloodRecv(pkt);
       }
       break;
     }
@@ -275,6 +283,8 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
         } else {
           MESH_DEBUG_PRINTLN("%s Mesh::onRecvPacket(): received advertisement with forged signature! (app_data_len=%d)", getLogDateTime(), app_data_len);
         }
+      } else if (pkt->isRouteFlood()) {
+        onDuplicateFloodRecv(pkt);
       }
       break;
     }

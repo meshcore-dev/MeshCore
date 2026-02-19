@@ -81,7 +81,8 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     file.read((uint8_t *)&_prefs->discovery_mod_timestamp, sizeof(_prefs->discovery_mod_timestamp)); // 162
     file.read((uint8_t *)&_prefs->adc_multiplier, sizeof(_prefs->adc_multiplier)); // 166
     file.read((uint8_t *)_prefs->owner_info, sizeof(_prefs->owner_info));  // 170
-    // 290
+    file.read((uint8_t *)&_prefs->relay_redundancy, sizeof(_prefs->relay_redundancy)); // 290
+    // 291
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -107,6 +108,7 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
 
     _prefs->gps_enabled = constrain(_prefs->gps_enabled, 0, 1);
     _prefs->advert_loc_policy = constrain(_prefs->advert_loc_policy, 0, 2);
+    _prefs->relay_redundancy = constrain(_prefs->relay_redundancy, 0, 10);
 
     file.close();
   }
@@ -165,7 +167,8 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->discovery_mod_timestamp, sizeof(_prefs->discovery_mod_timestamp)); // 162
     file.write((uint8_t *)&_prefs->adc_multiplier, sizeof(_prefs->adc_multiplier));                 // 166
     file.write((uint8_t *)_prefs->owner_info, sizeof(_prefs->owner_info));  // 170
-    // 290
+    file.write((uint8_t *)&_prefs->relay_redundancy, sizeof(_prefs->relay_redundancy)); // 290
+    // 291
 
     file.close();
   }
@@ -314,6 +317,8 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         sprintf(reply, "> %s", StrHelper::ftoa(_prefs->tx_delay_factor));
       } else if (memcmp(config, "flood.max", 9) == 0) {
         sprintf(reply, "> %d", (uint32_t)_prefs->flood_max);
+      } else if (memcmp(config, "relay.redundancy", 16) == 0) {
+        sprintf(reply, "> %d", (uint32_t)_prefs->relay_redundancy);
       } else if (memcmp(config, "direct.txdelay", 14) == 0) {
         sprintf(reply, "> %s", StrHelper::ftoa(_prefs->direct_tx_delay_factor));
       } else if (memcmp(config, "owner.info", 10) == 0) {
@@ -525,6 +530,15 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
           strcpy(reply, "OK");
         } else {
           strcpy(reply, "Error, max 64");
+        }
+      } else if (memcmp(config, "relay.redundancy ", 17) == 0) {
+        uint8_t v = atoi(&config[17]);
+        if (v <= 10) {
+          _prefs->relay_redundancy = v;
+          savePrefs();
+          strcpy(reply, "OK");
+        } else {
+          strcpy(reply, "Error, range 0-10");
         }
       } else if (memcmp(config, "direct.txdelay ", 15) == 0) {
         float f = atof(&config[15]);

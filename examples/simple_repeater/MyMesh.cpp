@@ -484,8 +484,13 @@ int MyMesh::calcRxDelay(float score, uint32_t air_time) const {
 }
 
 uint32_t MyMesh::getRetransmitDelay(const mesh::Packet *packet) {
-  uint32_t t = (_radio->getEstAirtimeFor(packet->path_len + packet->payload_len + 2) * _prefs.tx_delay_factor);
-  return getRNG()->nextInt(0, 5*t + 1);
+  uint32_t airtime = _radio->getEstAirtimeFor(packet->path_len + packet->payload_len + 2);
+  uint32_t t = airtime * _prefs.tx_delay_factor;
+  uint32_t delay = getRNG()->nextInt(0, 5*t + 1);
+  if (_prefs.relay_redundancy > 0 && delay < airtime) {
+    delay = airtime;
+  }
+  return delay;
 }
 uint32_t MyMesh::getDirectRetransmitDelay(const mesh::Packet *packet) {
   uint32_t t = (_radio->getEstAirtimeFor(packet->path_len + packet->payload_len + 2) * _prefs.direct_tx_delay_factor);
@@ -507,6 +512,37 @@ bool MyMesh::filterRecvFloodPacket(mesh::Packet* pkt) {
   }
   // do normal processing
   return false;
+}
+
+void MyMesh::onDuplicateFloodRecv(mesh::Packet* pkt) {
+  if (_prefs.relay_redundancy == 0) return;
+
+  uint8_t dup_hash[MAX_HASH_SIZE];
+  pkt->calculatePacketHash(dup_hash);
+
+  int n = _mgr->getOutboundCount(0xFFFFFFFF);
+  for (int i = 0; i < n; i++) {
+    auto queued = _mgr->getOutboundByIdx(i);
+    if (queued == nullptr || !queued->isRouteFlood()) continue;
+
+    uint8_t queued_hash[MAX_HASH_SIZE];
+    queued->calculatePacketHash(queued_hash);
+
+    if (memcmp(dup_hash, queued_hash, MAX_HASH_SIZE) == 0) {
+      queued->_relay_count++;
+      MESH_DEBUG_PRINTLN("%s relay_count=%d for queued flood pkt (threshold=%d)",
+        getLogDateTime(), (int)queued->_relay_count, (int)_prefs.relay_redundancy);
+      if (queued->_relay_count >= _prefs.relay_redundancy) {
+        auto removed = _mgr->removeOutboundByIdx(i);
+        if (removed) {
+          MESH_DEBUG_PRINTLN("%s relay suppressed: %d neighbors already covered",
+            getLogDateTime(), (int)queued->_relay_count);
+          releasePacket(removed);
+        }
+      }
+      return;
+    }
+  }
 }
 
 void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const mesh::Identity &sender,
@@ -829,6 +865,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.advert_interval = 1;        // default to 2 minutes for NEW installs
   _prefs.flood_advert_interval = 12; // 12 hours
   _prefs.flood_max = 64;
+  _prefs.relay_redundancy = 3;
   _prefs.interference_threshold = 0; // disabled
 
   // bridge defaults

@@ -8,6 +8,7 @@ Packet::Packet() {
   header = 0;
   path_len = 0;
   payload_len = 0;
+  _relay_count = 0;
 }
 
 int Packet::getRawLength() const {

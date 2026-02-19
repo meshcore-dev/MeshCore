@@ -165,6 +165,12 @@ protected:
   */
   virtual void onAckRecv(Packet* packet, uint32_t ack_crc) { }
 
+  /**
+   * \brief  A duplicate flood packet was received (hasSeen returned true).
+   *         Sub-classes can use this to implement counter-based relay suppression.
+  */
+  virtual void onDuplicateFloodRecv(Packet* pkt) { }
+
   Mesh(Radio& radio, MillisecondClock& ms, RNG& rng, RTCClock& rtc, PacketManager& mgr, MeshTables& tables)
     : Dispatcher(radio, ms, mgr), _rng(&rng), _rtc(&rtc), _tables(&tables)
   {
