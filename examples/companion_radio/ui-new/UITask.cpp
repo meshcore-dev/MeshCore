@@ -689,7 +689,7 @@ void UITask::shutdown(bool restart){
     _board->reboot();
   } else {
     _display->turnOff();
-    radio_driver.powerOff();
+    //radio_driver.powerOff();
     _board->powerOff();
   }
 }

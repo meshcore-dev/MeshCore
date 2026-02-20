@@ -6,6 +6,7 @@
 #include <lgfx/v1/platforms/esp32s3/Panel_RGB.hpp>
 #include <lgfx/v1/platforms/esp32s3/Bus_RGB.hpp>
 
+#ifndef SEEED_SENSECAP_INDICATOR
 class LGFX : public lgfx::LGFX_Device
 {
 public:
@@ -205,10 +206,12 @@ public:
     _panel_instance.setBus(&_bus_instance);
     setPanel(&_panel_instance);
   }
+  #elif defined(SEEED_SENSECAP_INDICATOR)
+
   #else
     #error "No Display size defined!"
   #endif  
   
 };
-
+#endif
 #endif

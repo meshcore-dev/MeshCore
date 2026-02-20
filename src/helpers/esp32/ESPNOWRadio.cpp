@@ -3,6 +3,14 @@
 #include <WiFi.h>
 #include <esp_wifi.h>
 
+  static uint8_t broadcastAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+  static esp_now_peer_info_t peerInfo;
+  static volatile bool is_send_complete = false;
+  static esp_err_t last_send_result;
+  static uint8_t rx_buf[256];
+  static uint8_t last_rx_len = 0;
+  static char bridge_secret[16];
+
 #ifdef CLIENT_WITHOUT_LORA
   static constexpr uint16_t BRIDGE_PACKET_MAGIC = 0xC03E;
   static const size_t MAX_ESPNOW_PACKET_SIZE = 250;
@@ -17,14 +25,6 @@
   static constexpr uint16_t BRIDGE_MAGIC_SIZE = sizeof(BRIDGE_PACKET_MAGIC);
   static constexpr uint16_t BRIDGE_LENGTH_SIZE = sizeof(uint16_t);
   static constexpr uint16_t BRIDGE_CHECKSUM_SIZE = sizeof(uint16_t);
-
-  static uint8_t broadcastAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-  static esp_now_peer_info_t peerInfo;
-  static volatile bool is_send_complete = false;
-  static esp_err_t last_send_result;
-  static uint8_t rx_buf[256];
-  static uint8_t last_rx_len = 0;
-  static char bridge_secret[16];
 
   static void xorCrypt(uint8_t *data, size_t len) {
     size_t keyLen = strlen(bridge_secret);

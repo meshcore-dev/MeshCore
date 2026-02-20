@@ -582,6 +582,7 @@ void UIManager::scroll_begin_event(lv_event_t *e)
 
 void UIManager::ui_Screen1_screen_init(void)
 {
+    //lv_disp_set_rotation(disp, LV_DISP_ROT_90);
     //ui_Screen1 = lv_obj_create(NULL);
 
     ui_Screen1 = LvObj(NULL)
@@ -591,7 +592,7 @@ void UIManager::ui_Screen1_screen_init(void)
 
     LvTabView tabView(ui_Screen1);
     tabView
-        .size(800, 480)
+        .size(480, 480)
         .align(LV_ALIGN_CENTER)
         .bgColor(0x000000)
         .contentNoScroll()
@@ -776,7 +777,7 @@ void UIManager::ui_Screen1_screen_init(void)
     lv_obj_center(iu_SendLabel);
 
     ui_Keyboard = LvKeyboard(lv_layer_top())
-        .size(800, 200)
+        .size(480, 200)
         .align(LV_ALIGN_BOTTOM_MID)
         .show(false)
         .onEvent(s_onKeyboardEvent, this);

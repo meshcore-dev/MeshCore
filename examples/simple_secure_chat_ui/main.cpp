@@ -79,7 +79,9 @@ UIManager *uiManager;
 SemaphoreHandle_t semaphoreData;
 
 TwoWire I2Cone = TwoWire(0);
+#ifndef SEEED_SENSECAP_INDICATOR
 Adafruit_SSD1306 display = Adafruit_SSD1306(128, 64, &I2Cone, OLED_RESET);
+#endif
 
 SPIClass& spi = SPI;
 uint16_t touchCalibration_x0 = 300, touchCalibration_x1 = 3600, touchCalibration_y0 = 300, touchCalibration_y1 = 3600;
@@ -135,33 +137,49 @@ void my_disp_flush(lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *color
 
 }
 
-void my_touchpad_read(lv_indev_drv_t *indev_driver, lv_indev_data_t *data)
+void my_touchpad_read(lv_indev_drv_t * indev_driver, lv_indev_data_t * data)
 {
-  if (touch_has_signal())
-  {
-    if (touch_touched())
-    {
-      data->state = LV_INDEV_STATE_PR;
+  uint16_t x, y;
 
-      /*Set the coordinates*/
-      data->point.x = touch_last_x;
-      data->point.y = touch_last_y;
-      // #ifndef MODE_RELEASE
-      //   Serial.printf("Data x: %d, Data y: %d", touch_last_x, touch_last_y);
-      //   Serial.println();
-      // #endif
-    }
-    else if (touch_released())
-    {
-      data->state = LV_INDEV_STATE_REL;
-    }
+  if (lcd.getTouch(&x, &y))
+  {
+    data->state = LV_INDEV_STATE_PR;
+    data->point.x = x;
+    data->point.y = y;
   }
   else
   {
     data->state = LV_INDEV_STATE_REL;
   }
-  delay(15);
 }
+
+// void my_touchpad_read(lv_indev_drv_t *indev_driver, lv_indev_data_t *data)
+// {
+//   if (touch_has_signal())
+//   {
+//     if (touch_touched())
+//     {
+//       data->state = LV_INDEV_STATE_PR;
+
+//       /*Set the coordinates*/
+//       data->point.x = touch_last_x;
+//       data->point.y = touch_last_y;
+//       // #ifndef MODE_RELEASE
+//       //   Serial.printf("Data x: %d, Data y: %d", touch_last_x, touch_last_y);
+//       //   Serial.println();
+//       // #endif
+//     }
+//     else if (touch_released())
+//     {
+//       data->state = LV_INDEV_STATE_REL;
+//     }
+//   }
+//   else
+//   {
+//     data->state = LV_INDEV_STATE_REL;
+//   }
+//   delay(15);
+// }
 
 void initializeUI() {  
 
@@ -779,6 +797,7 @@ void initializeDisplay() {
   lcd.begin();
   lcd.fillScreen(0x000000u);
   lcd.setTextSize(2); 
+  lcd.setRotation(1);  
   //lcd.setBrightness(127);
 }
 
