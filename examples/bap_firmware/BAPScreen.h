@@ -13,7 +13,7 @@ class DisplayDriver;
 #define BAP_HEADER_HEIGHT   16
 #define BAP_BUS_ROW_HEIGHT  68
 #define BAP_FOOTER_HEIGHT   12
-#define BAP_MAX_ROWS        4
+#define BAP_MAX_ROWS        3
 
 #define BAP_STALE_THRESHOLD 300  // 5 minutes in seconds
 

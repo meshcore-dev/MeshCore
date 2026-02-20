@@ -184,6 +184,22 @@ int BAPAPIClient::fetchAllArrivals(BusArrival* arrivals, int max_arrivals) {
   return -1;
 }
 
+// Sort arrivals by minutes (ascending - soonest first)
+static void sortArrivalsByTime(BusArrival* arrivals, int count) {
+  // Simple insertion sort - good for small arrays
+  for (int i = 1; i < count; i++) {
+    BusArrival key = arrivals[i];
+    int j = i - 1;
+
+    // Move elements that are greater than key to one position ahead
+    while (j >= 0 && arrivals[j].minutes > key.minutes) {
+      arrivals[j + 1] = arrivals[j];
+      j--;
+    }
+    arrivals[j + 1] = key;
+  }
+}
+
 int BAPAPIClient::parseStopMonitoringResponse(const String& json, BusArrival* arrivals, int max_arrivals, uint32_t filter_stop_id) {
   // Use ArduinoJson to parse the SIRI StopMonitoring response
   // The response format is:
@@ -313,6 +329,8 @@ int BAPAPIClient::parseStopMonitoringResponse(const String& json, BusArrival* ar
         }
       }
     }
+    // Sort arrivals by time (soonest first)
+    sortArrivalsByTime(arrivals, count);
     return count;
   }
 
@@ -375,43 +393,76 @@ int BAPAPIClient::parseStopMonitoringResponse(const String& json, BusArrival* ar
     }
   }
 
+  // Sort arrivals by time (soonest first)
+  sortArrivalsByTime(arrivals, count);
   return count;
 }
 
 uint32_t BAPAPIClient::parseISO8601(const char* timestamp) {
-  // Parse ISO8601 format: 2024-01-15T10:42:00-08:00
-  // This is a simplified parser - production code should use a proper library
-
-  struct tm tm;
-  memset(&tm, 0, sizeof(tm));
+  // Parse ISO8601 formats:
+  // - 2024-01-15T10:42:00-08:00 (with timezone offset)
+  // - 2024-01-15T10:42:00Z (UTC)
 
   int year, month, day, hour, minute, second;
   int tz_hour = 0, tz_min = 0;
-  char tz_sign = '+';
+  char tz_char = '+';
 
-  if (sscanf(timestamp, "%d-%d-%dT%d:%d:%d%c%d:%d",
-             &year, &month, &day, &hour, &minute, &second, &tz_sign, &tz_hour, &tz_min) >= 6) {
-    tm.tm_year = year - 1900;
-    tm.tm_mon = month - 1;
-    tm.tm_mday = day;
-    tm.tm_hour = hour;
-    tm.tm_min = minute;
-    tm.tm_sec = second;
+  // Parse format: 2024-01-15T10:42:00-08:00 or 2024-01-15T10:42:00Z
+  int parsed = sscanf(timestamp, "%d-%d-%dT%d:%d:%d%c%d:%d",
+                      &year, &month, &day, &hour, &minute, &second, &tz_char, &tz_hour, &tz_min);
 
-    time_t t = mktime(&tm);
-
-    // Adjust for timezone offset
-    int tz_offset = tz_hour * 3600 + tz_min * 60;
-    if (tz_sign == '-') {
-      t += tz_offset;  // Convert to UTC
-    } else {
-      t -= tz_offset;
-    }
-
-    return (uint32_t)t;
+  if (parsed < 6) {
+    return 0;
   }
 
-  return 0;
+  // Calculate Unix timestamp manually (treating input as UTC)
+  // This avoids mktime() timezone issues
+  // Days since Unix epoch (1970-01-01)
+
+  // Number of days per month (non-leap year)
+  static const int days_per_month[] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+
+  // Calculate days from 1970 to start of given year
+  int days = 0;
+  for (int y = 1970; y < year; y++) {
+    days += 365;
+    // Leap year check
+    if ((y % 4 == 0 && y % 100 != 0) || (y % 400 == 0)) {
+      days++;
+    }
+  }
+
+  // Add days for completed months this year
+  for (int m = 1; m < month; m++) {
+    days += days_per_month[m];
+    // Add leap day if February in a leap year
+    if (m == 2 && ((year % 4 == 0 && year % 100 != 0) || (year % 400 == 0))) {
+      days++;
+    }
+  }
+
+  // Add days in current month
+  days += day - 1;
+
+  // Convert to seconds
+  time_t t = (days * 86400LL) + (hour * 3600) + (minute * 60) + second;
+
+  // Now adjust for timezone if specified
+  if (parsed >= 7) {
+    if (tz_char == 'Z') {
+      // Already UTC, no adjustment needed
+    } else {
+      // Apply timezone offset to convert to UTC
+      int tz_offset_secs = tz_hour * 3600 + tz_min * 60;
+      if (tz_char == '-') {
+        t += tz_offset_secs;  // e.g., -08:00 means local is 8 hours behind UTC
+      } else {
+        t -= tz_offset_secs;
+      }
+    }
+  }
+
+  return (uint32_t)t;
 }
 
 uint8_t BAPAPIClient::getAgencyId(const char* operator_ref) {
