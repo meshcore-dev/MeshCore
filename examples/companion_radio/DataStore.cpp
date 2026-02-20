@@ -212,7 +212,7 @@ void DataStore::loadPrefsInt(const char *filename, NodePrefs& _prefs, double& no
     file.read((uint8_t *)&_prefs.freq, sizeof(_prefs.freq));                               // 56
     file.read((uint8_t *)&_prefs.sf, sizeof(_prefs.sf));                                   // 60
     file.read((uint8_t *)&_prefs.cr, sizeof(_prefs.cr));                                   // 61
-    file.read(pad, 1);                                                                     // 62
+    file.read((uint8_t *)&_prefs.client_repeat, sizeof(_prefs.client_repeat));             // 62
     file.read((uint8_t *)&_prefs.manual_add_contacts, sizeof(_prefs.manual_add_contacts)); // 63
     file.read((uint8_t *)&_prefs.bw, sizeof(_prefs.bw));                                   // 64
     file.read((uint8_t *)&_prefs.tx_power_dbm, sizeof(_prefs.tx_power_dbm));               // 68
@@ -247,7 +247,7 @@ void DataStore::savePrefs(const NodePrefs& _prefs, double node_lat, double node_
     file.write((uint8_t *)&_prefs.freq, sizeof(_prefs.freq));                               // 56
     file.write((uint8_t *)&_prefs.sf, sizeof(_prefs.sf));                                   // 60
     file.write((uint8_t *)&_prefs.cr, sizeof(_prefs.cr));                                   // 61
-    file.write(pad, 1);                                                                     // 62
+    file.write((uint8_t *)&_prefs.client_repeat, sizeof(_prefs.client_repeat));             // 62
     file.write((uint8_t *)&_prefs.manual_add_contacts, sizeof(_prefs.manual_add_contacts)); // 63
     file.write((uint8_t *)&_prefs.bw, sizeof(_prefs.bw));                                   // 64
     file.write((uint8_t *)&_prefs.tx_power_dbm, sizeof(_prefs.tx_power_dbm));               // 68
