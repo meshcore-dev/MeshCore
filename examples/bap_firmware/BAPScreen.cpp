@@ -18,7 +18,28 @@ void BAPScreen::update(uint32_t stop_id, const BusArrival* arrivals, int count, 
 
   _display->startFrame();
 
-  // Draw bus arrival rows (no header)
+  // Draw header with stop ID (black text, no fill)
+  _display->setColor(DisplayDriver::Color::DARK);
+  _display->setTextSize(1);
+  _display->setCursor(2, 3);
+
+  char stop_buf[20];
+  snprintf(stop_buf, sizeof(stop_buf), "Stop %u", stop_id);
+  _display->print(stop_buf);
+
+  // Show live indicator if data is fresh
+  uint32_t now = time(nullptr);
+  bool is_fresh = (now - generated_at) < BAP_STALE_THRESHOLD;
+
+  if (is_fresh) {
+    _display->setCursor(BAP_SCREEN_WIDTH - 8, 3);
+    _display->print("*");
+  }
+
+  // Draw header separator line
+  _display->drawRect(0, BAP_HEADER_HEIGHT - 1, BAP_SCREEN_WIDTH, 1);
+
+  // Draw bus arrival rows
   int rows = (count > BAP_MAX_ROWS) ? BAP_MAX_ROWS : count;
 
   for (int i = 0; i < rows; i++) {
@@ -38,7 +59,7 @@ void BAPScreen::update(uint32_t stop_id, const BusArrival* arrivals, int count, 
     _display->setColor(DisplayDriver::Color::DARK);
     _display->setTextSize(1);
     int header_width = _display->getTextWidth(header_line);
-    _display->setCursor((BAP_SCREEN_WIDTH - header_width) / 2, row_top + 3);
+    _display->setCursor((BAP_SCREEN_WIDTH - header_width) / 2, row_top + 2);
     _display->print(header_line);
 
     // Format minutes for display
@@ -46,11 +67,11 @@ void BAPScreen::update(uint32_t stop_id, const BusArrival* arrivals, int count, 
     formatMinutes(arr.minutes, min_buf, sizeof(min_buf));
 
     // Draw big centered minutes
-    _display->setTextSize(3);  // Large text (slightly smaller for 4 rows)
+    _display->setTextSize(3);  // Large text
 
     int text_width = _display->getTextWidth(min_buf);
     int x = (BAP_SCREEN_WIDTH - text_width) / 2;
-    int y = row_top + 22;
+    int y = row_top + 20;
 
     _display->setCursor(x, y);
     _display->print(min_buf);
@@ -77,7 +98,7 @@ void BAPScreen::update(uint32_t stop_id, const BusArrival* arrivals, int count, 
   _display->drawRect(0, footer_y - 1, BAP_SCREEN_WIDTH, 1);
 
   _display->setTextSize(1);
-  _display->setCursor(4, footer_y + 2);
+  _display->setCursor(4, footer_y + 1);
 
   // Show last update time
   char time_buf[16];

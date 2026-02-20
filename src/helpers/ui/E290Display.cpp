@@ -8,8 +8,8 @@ bool E290Display::begin() {
   powerOn();
   display.begin();
 
-  // Set to portrait mode for BAP firmware (rotated 90° from landscape)
-  display.setRotation(0);
+  // Set to portrait mode rotated 180 degrees
+  display.setRotation(2);
 
   _init = true;
   _isOn = true;
