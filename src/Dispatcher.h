@@ -61,6 +61,8 @@ public:
    */
   virtual void loop() { }
 
+  virtual void startRecv() { }
+
   virtual int getNoiseFloor() const { return 0; }
 
   virtual void triggerNoiseFloorCalibrate(int threshold) { }
