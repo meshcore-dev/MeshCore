@@ -67,8 +67,8 @@ struct BAPArrivalPacket {
   uint16_t sequence;        // 2 bytes - Sequence number for dedup
   uint32_t generated_at;    // 4 bytes - When gateway fetched this data
   BusArrival arrivals[5];   // 155 bytes - Up to 5 arrivals
-  uint8_t checksum;         // 1 byte - Simple checksum
-};                          // Total: 164 bytes
+  uint16_t checksum;        // 2 bytes - Fletcher-16 checksum
+};                          // Total: 165 bytes
 
 // BAP Configuration stored in SPIFFS
 struct BAPConfig {
@@ -138,5 +138,5 @@ protected:
   bool allowPacketForward(const mesh::Packet* packet) override;
 
 private:
-  uint8_t calcChecksum(const uint8_t* data, size_t len);
+  uint16_t calcChecksum(const uint8_t* data, size_t len);
 };

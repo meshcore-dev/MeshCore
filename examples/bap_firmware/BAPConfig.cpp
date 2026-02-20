@@ -19,24 +19,92 @@ bool BAPConfigManager::load(BAPConfig& config) {
   size_t bytes_read = f.read((uint8_t*)&config, sizeof(config));
   f.close();
 
-  return bytes_read == sizeof(config);
+  if (bytes_read != sizeof(config)) {
+    return false;
+  }
+
+  // Check if we need to migrate secrets from SPIFFS to NVS
+  // Old format had secrets stored directly in the struct
+  // New format: secrets stored in NVS, struct fields cleared
+  if (config.wifi_password[0] != '\0' || config.api_key[0] != '\0') {
+    migrateToNVS(config);
+  }
+
+  // Load secrets from NVS
+  _prefs.begin(NVS_NAMESPACE, true);  // read-only mode
+  if (_prefs.isKey("wifi_pass")) {
+    _prefs.getString("wifi_pass", config.wifi_password, sizeof(config.wifi_password));
+  }
+  if (_prefs.isKey("api_key")) {
+    _prefs.getString("api_key", config.api_key, sizeof(config.api_key));
+  }
+  _prefs.end();
+
+  return true;
 }
 
 bool BAPConfigManager::save(const BAPConfig& config) {
+  // Save non-sensitive config to SPIFFS
+  // Create a copy without secrets for SPIFFS storage
+  BAPConfig config_copy = config;
+  memset(config_copy.wifi_password, 0, sizeof(config_copy.wifi_password));
+  memset(config_copy.api_key, 0, sizeof(config_copy.api_key));
+
   File f = SPIFFS.open(BAP_CONFIG_FILE, "w");
   if (!f) {
     return false;
   }
 
-  size_t bytes_written = f.write((const uint8_t*)&config, sizeof(config));
+  size_t bytes_written = f.write((const uint8_t*)&config_copy, sizeof(config_copy));
   f.close();
 
+  // Save secrets to NVS
+  _prefs.begin(NVS_NAMESPACE, false);  // read-write mode
+  if (config.wifi_password[0] != '\0') {
+    _prefs.putString("wifi_pass", config.wifi_password);
+  }
+  if (config.api_key[0] != '\0') {
+    _prefs.putString("api_key", config.api_key);
+  }
+  _prefs.end();
+
   _dirty = false;
-  return bytes_written == sizeof(config);
+  return bytes_written == sizeof(config_copy);
+}
+
+void BAPConfigManager::migrateToNVS(BAPConfig& config) {
+  // Migrate secrets from old SPIFFS format to NVS
+  _prefs.begin(NVS_NAMESPACE, false);
+
+  if (config.wifi_password[0] != '\0') {
+    _prefs.putString("wifi_pass", config.wifi_password);
+    memset(config.wifi_password, 0, sizeof(config.wifi_password));
+  }
+
+  if (config.api_key[0] != '\0') {
+    _prefs.putString("api_key", config.api_key);
+    memset(config.api_key, 0, sizeof(config.api_key));
+  }
+
+  _prefs.end();
+
+  // Re-save the config without secrets to SPIFFS
+  BAPConfig config_copy = config;
+  File f = SPIFFS.open(BAP_CONFIG_FILE, "w");
+  if (f) {
+    f.write((const uint8_t*)&config_copy, sizeof(config_copy));
+    f.close();
+  }
 }
 
 void BAPConfigManager::reset() {
   SPIFFS.remove(BAP_CONFIG_FILE);
+
+  // Clear NVS secrets
+  _prefs.begin(NVS_NAMESPACE, false);
+  _prefs.clear();
+  _prefs.end();
+
   _dirty = false;
 }
 
@@ -46,9 +114,14 @@ void BAPConfigManager::handleCommand(const char* command, char* reply, BAPConfig
   // Parse command
   if (strncmp(command, "setstop ", 8) == 0) {
     uint32_t stop_id = atol(command + 8);
-    setStopId(config, stop_id);
-    save(config);
-    sprintf(reply, "Stop ID set to %u", stop_id);
+    // Input validation: stop_id should be 4-7 digits
+    if (stop_id < 1000 || stop_id > 9999999) {
+      strcpy(reply, "Invalid stop ID (must be 4-7 digits)");
+    } else {
+      setStopId(config, stop_id);
+      save(config);
+      sprintf(reply, "Stop ID set to %u", stop_id);
+    }
   }
   else if (strncmp(command, "setwifi ", 8) == 0) {
     // Parse "setwifi ssid password"
@@ -138,6 +211,12 @@ void BAPConfigManager::setWiFi(BAPConfig& config, const char* ssid, const char* 
 void BAPConfigManager::clearWiFi(BAPConfig& config) {
   memset(config.wifi_ssid, 0, sizeof(config.wifi_ssid));
   memset(config.wifi_password, 0, sizeof(config.wifi_password));
+
+  // Also clear from NVS
+  _prefs.begin(NVS_NAMESPACE, false);
+  _prefs.remove("wifi_pass");
+  _prefs.end();
+
   _dirty = true;
 }
 
@@ -149,6 +228,12 @@ void BAPConfigManager::setRepeater(BAPConfig& config, bool enabled) {
 void BAPConfigManager::setApiKey(BAPConfig& config, const char* api_key) {
   strncpy(config.api_key, api_key, sizeof(config.api_key) - 1);
   config.api_key[sizeof(config.api_key) - 1] = '\0';
+
+  // Save to NVS immediately for security
+  _prefs.begin(NVS_NAMESPACE, false);
+  _prefs.putString("api_key", api_key);
+  _prefs.end();
+
   _dirty = true;
 }
 

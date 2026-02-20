@@ -87,11 +87,12 @@ int BAPAPIClient::fetchArrivals(uint32_t stop_id, BusArrival* arrivals, int max_
 
   MESH_DEBUG_PRINTLN("Fetching path: %s", path.c_str());
 
-  // Use WiFiClient directly for more control
-  WiFiClient client;
+  // Use WiFiClientSecure for HTTPS
+  WiFiClientSecure client;
   client.setTimeout(BAP_API_TIMEOUT / 1000);  // setTimeout takes seconds
+  client.setInsecure();  // Skip certificate validation (511.org uses valid cert but this avoids cert bundle issues)
 
-  if (!client.connect("api.511.org", 80)) {
+  if (!client.connect("api.511.org", 443)) {
     strcpy(_last_error, "Failed to connect to API server");
     return -1;
   }
@@ -110,55 +111,76 @@ int BAPAPIClient::fetchArrivals(uint32_t stop_id, BusArrival* arrivals, int max_
     delay(10);
   }
 
-  // Read response headers
+  // Read response headers first
   String response;
-  bool headers_done = false;
   int content_length = -1;
   bool chunked = false;
 
-  while (client.available()) {
+  // Read headers line by line
+  while (client.available() || client.connected()) {
     String line = client.readStringUntil('\n');
 
-    if (!headers_done) {
-      // Check for end of headers
-      if (line == "\r" || line.length() == 0) {
-        headers_done = true;
-        continue;
-      }
-      // Check for Content-Length
-      if (line.startsWith("Content-Length:")) {
-        content_length = line.substring(15).toInt();
-      }
-      // Check for chunked encoding
-      if (line.startsWith("Transfer-Encoding: chunked")) {
-        chunked = true;
-      }
-      continue;
+    // Check for end of headers
+    if (line == "\r" || line == "\n" || line.length() == 0) {
+      break;  // End of headers
     }
 
-    // Read body
-    if (chunked) {
-      // Skip chunk size lines
-      line.trim();
-      if (line.length() == 0) continue;
-      int chunk_size = strtol(line.c_str(), NULL, 16);
-      if (chunk_size == 0) break;
-      // Read chunk data
-      while (client.available() && response.length() < content_length + 16000) {
-        char c = client.read();
-        response += c;
+    // Check for Content-Length
+    if (line.startsWith("Content-Length:")) {
+      content_length = line.substring(15).toInt();
+    }
+    // Check for chunked encoding (case insensitive check)
+    if (line.indexOf("Transfer-Encoding:") >= 0 && line.indexOf("chunked") >= 0) {
+      chunked = true;
+    }
+  }
+
+  // Small delay to ensure body data is available
+  delay(100);
+
+  // Now read the body based on transfer encoding
+  if (chunked) {
+    while (client.available() || client.connected()) {
+      // Read chunk size line
+      String chunk_line = client.readStringUntil('\n');
+      chunk_line.trim();
+
+      if (chunk_line.length() == 0) continue;  // Skip empty lines
+
+      // Parse chunk size (ignore chunk extensions after semicolon)
+      int semi = chunk_line.indexOf(';');
+      if (semi >= 0) chunk_line = chunk_line.substring(0, semi);
+
+      long chunk_size = strtol(chunk_line.c_str(), NULL, 16);
+      if (chunk_size <= 0) break;  // End of chunks
+
+      // Wait for chunk data to be available
+      start = millis();
+      while (client.available() < chunk_size && millis() - start < 5000) {
+        delay(10);
       }
-    } else {
-      response += line;
+
+      // Read exactly chunk_size bytes
+      for (long i = 0; i < chunk_size && (client.available() || client.connected()); i++) {
+        int c = client.read();
+        if (c >= 0) response += (char)c;
+      }
+
+      // Read trailing CRLF
+      if (client.available() || client.connected()) {
+        client.readStringUntil('\n');
+      }
+    }
+  } else {
+    // Non-chunked: read all available content
+    while (client.available() || client.connected()) {
+      int c = client.read();
+      if (c >= 0) response += (char)c;
+      else delay(10);  // Brief wait if no data yet
     }
   }
 
   client.stop();
-
-  if (response.length() == 0) {
-    // Try reading everything as body if header parsing failed
-    response = client.readString();
-  }
 
   MESH_DEBUG_PRINTLN("Response length: %d bytes", response.length());
 
@@ -198,6 +220,76 @@ static void sortArrivalsByTime(BusArrival* arrivals, int count) {
     }
     arrivals[j + 1] = key;
   }
+}
+
+// Helper to parse a MonitoredStopVisit array - used by parseStopMonitoringResponse
+static int parseVisitArray(JsonArray visits, BusArrival* arrivals, int max_arrivals,
+                           int start_count, uint32_t filter_stop_id, BAPAPIClient* client) {
+  int count = start_count;
+
+  for (JsonObject visit : visits) {
+    if (count >= max_arrivals) break;
+
+    JsonObject journey = visit["MonitoredVehicleJourney"];
+    if (journey.isNull()) continue;
+
+    JsonObject monitoredCall = journey["MonitoredCall"];
+    if (monitoredCall.isNull()) continue;
+
+    // Get stop ID and filter if needed
+    const char* stopPointRef = monitoredCall["StopPointRef"];
+    uint32_t arrival_stop_id = stopPointRef ? atol(stopPointRef) : 0;
+    if (filter_stop_id != 0 && arrival_stop_id != filter_stop_id) continue;
+
+    // Fill in arrival data
+    BusArrival& arr = arrivals[count];
+    memset(&arr, 0, sizeof(arr));
+
+    arr.stop_id = arrival_stop_id;
+
+    const char* lineRef = journey["LineRef"];
+    if (lineRef) {
+      strncpy(arr.route, lineRef, sizeof(arr.route) - 1);
+    }
+
+    const char* destName = journey["DestinationName"];
+    if (destName) {
+      strncpy(arr.destination, destName, sizeof(arr.destination) - 1);
+    }
+
+    const char* operatorRef = journey["OperatorRef"];
+    arr.agency_id = client->getAgencyIdPublic(operatorRef ? operatorRef : "SF");
+
+    // Calculate minutes until arrival
+    const char* expectedArrival = monitoredCall["ExpectedArrivalTime"];
+    if (expectedArrival) {
+      uint32_t arrival_time = client->parseISO8601Public(expectedArrival);
+      uint32_t now = time(nullptr);
+      MESH_DEBUG_PRINTLN("DEBUG: expectedArrival=%s, parsed=%u, now=%u, diff=%u",
+                         expectedArrival, arrival_time, now,
+                         arrival_time > now ? arrival_time - now : 0);
+      if (arrival_time > now) {
+        arr.minutes = (int16_t)((arrival_time - now) / 60);
+      } else {
+        arr.minutes = 0;  // Arriving now
+      }
+    } else {
+      arr.minutes = ARRIVAL_MINUTES_NA;
+    }
+
+    arr.timestamp = time(nullptr);
+    arr.status = ARRIVAL_STATUS_ON_TIME;
+
+    // Check for progress status
+    const char* progressStatus = journey["ProgressStatus"];
+    if (progressStatus && strstr(progressStatus, "delay") != nullptr) {
+      arr.status = ARRIVAL_STATUS_DELAYED;
+    }
+
+    count++;
+  }
+
+  return count;
 }
 
 int BAPAPIClient::parseStopMonitoringResponse(const String& json, BusArrival* arrivals, int max_arrivals, uint32_t filter_stop_id) {
@@ -269,64 +361,7 @@ int BAPAPIClient::parseStopMonitoringResponse(const String& json, BusArrival* ar
       // Handle single delivery object
       JsonArray visits = singleDelivery["MonitoredStopVisit"];
       if (!visits.isNull()) {
-        for (JsonObject visit : visits) {
-          if (count >= max_arrivals) break;
-
-          JsonObject journey = visit["MonitoredVehicleJourney"];
-          if (journey.isNull()) continue;
-
-          JsonObject monitoredCall = journey["MonitoredCall"];
-          if (monitoredCall.isNull()) continue;
-
-          // Get stop ID and filter if needed
-          const char* stopPointRef = monitoredCall["StopPointRef"];
-          uint32_t arrival_stop_id = stopPointRef ? atol(stopPointRef) : 0;
-          if (filter_stop_id != 0 && arrival_stop_id != filter_stop_id) continue;
-
-          // Fill in arrival data
-          BusArrival& arr = arrivals[count];
-          memset(&arr, 0, sizeof(arr));
-
-          arr.stop_id = arrival_stop_id;
-
-          const char* lineRef = journey["LineRef"];
-          if (lineRef) {
-            strncpy(arr.route, lineRef, sizeof(arr.route) - 1);
-          }
-
-          const char* destName = journey["DestinationName"];
-          if (destName) {
-            strncpy(arr.destination, destName, sizeof(arr.destination) - 1);
-          }
-
-          const char* operatorRef = journey["OperatorRef"];
-          arr.agency_id = getAgencyId(operatorRef ? operatorRef : "SF");
-
-          // Calculate minutes until arrival
-          const char* expectedArrival = monitoredCall["ExpectedArrivalTime"];
-          if (expectedArrival) {
-            uint32_t arrival_time = parseISO8601(expectedArrival);
-            uint32_t now = time(nullptr);  // Requires system time to be set
-            if (arrival_time > now) {
-              arr.minutes = (int16_t)((arrival_time - now) / 60);
-            } else {
-              arr.minutes = 0;  // Arriving now
-            }
-          } else {
-            arr.minutes = ARRIVAL_MINUTES_NA;
-          }
-
-          arr.timestamp = time(nullptr);
-          arr.status = ARRIVAL_STATUS_ON_TIME;
-
-          // Check for progress status
-          const char* progressStatus = journey["ProgressStatus"];
-          if (progressStatus && strstr(progressStatus, "delay") != nullptr) {
-            arr.status = ARRIVAL_STATUS_DELAYED;
-          }
-
-          count++;
-        }
+        count = parseVisitArray(visits, arrivals, max_arrivals, 0, filter_stop_id, this);
       }
     }
     // Sort arrivals by time (soonest first)
@@ -338,59 +373,8 @@ int BAPAPIClient::parseStopMonitoringResponse(const String& json, BusArrival* ar
   for (JsonObject deliveryObj : stopMonitoring) {
     JsonArray visits = deliveryObj["MonitoredStopVisit"];
     if (visits.isNull()) continue;
-
-    for (JsonObject visit : visits) {
-      if (count >= max_arrivals) break;
-
-      JsonObject journey = visit["MonitoredVehicleJourney"];
-      if (journey.isNull()) continue;
-
-      JsonObject monitoredCall = journey["MonitoredCall"];
-      if (monitoredCall.isNull()) continue;
-
-      // Get stop ID and filter if needed
-      const char* stopPointRef = monitoredCall["StopPointRef"];
-      uint32_t arrival_stop_id = stopPointRef ? atol(stopPointRef) : 0;
-      if (filter_stop_id != 0 && arrival_stop_id != filter_stop_id) continue;
-
-      // Fill in arrival data
-      BusArrival& arr = arrivals[count];
-      memset(&arr, 0, sizeof(arr));
-
-      arr.stop_id = arrival_stop_id;
-
-      const char* lineRef = journey["LineRef"];
-      if (lineRef) {
-        strncpy(arr.route, lineRef, sizeof(arr.route) - 1);
-      }
-
-      const char* destName = journey["DestinationName"];
-      if (destName) {
-        strncpy(arr.destination, destName, sizeof(arr.destination) - 1);
-      }
-
-      const char* operatorRef = journey["OperatorRef"];
-      arr.agency_id = getAgencyId(operatorRef ? operatorRef : "SF");
-
-      // Calculate minutes until arrival
-      const char* expectedArrival = monitoredCall["ExpectedArrivalTime"];
-      if (expectedArrival) {
-        uint32_t arrival_time = parseISO8601(expectedArrival);
-        uint32_t now = time(nullptr);
-        if (arrival_time > now) {
-          arr.minutes = (int16_t)((arrival_time - now) / 60);
-        } else {
-          arr.minutes = 0;
-        }
-      } else {
-        arr.minutes = ARRIVAL_MINUTES_NA;
-      }
-
-      arr.timestamp = time(nullptr);
-      arr.status = ARRIVAL_STATUS_ON_TIME;
-
-      count++;
-    }
+    count = parseVisitArray(visits, arrivals, max_arrivals, count, filter_stop_id, this);
+    if (count >= max_arrivals) break;
   }
 
   // Sort arrivals by time (soonest first)

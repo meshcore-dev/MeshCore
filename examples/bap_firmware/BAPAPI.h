@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #ifdef ESP32
   #include <WiFi.h>
+  #include <WiFiClientSecure.h>
   #include <HTTPClient.h>
 #endif
 #include "MyMesh.h"
@@ -53,6 +54,12 @@ public:
 
   // Get last error message
   const char* getLastError() { return _last_error; }
+
+  // Parse ISO8601 timestamp to Unix time (public for helper access)
+  uint32_t parseISO8601Public(const char* timestamp) { return parseISO8601(timestamp); }
+
+  // Get agency ID from operator code (public for helper access)
+  uint8_t getAgencyIdPublic(const char* operator_ref) { return getAgencyId(operator_ref); }
 
 private:
   char _api_key[64];

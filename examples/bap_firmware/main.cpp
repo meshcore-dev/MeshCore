@@ -57,29 +57,115 @@ void onArrivalsReceived(const BusArrival* arrivals, int count, uint32_t generate
 void gatewayTask() {
   static unsigned long last_check = 0;
   static bool time_synced = false;
+  static wl_status_t last_wifi_status = WL_IDLE_STATUS;
+  static unsigned long wifi_connect_start = 0;
+  static int wifi_retries = 0;
+  const int MAX_WIFI_RETRIES = 5;
+  const unsigned long WIFI_TIMEOUT = 30000;  // 30 seconds per attempt
 
   if (millis() - last_check < 1000) return;  // Check every second
   last_check = millis();
 
   if (!api_client || !the_mesh) return;
 
-  // Check WiFi status
-  if (WiFi.status() != WL_CONNECTED) {
+  wl_status_t wifi_status = WiFi.status();
+
+  // Log WiFi status changes
+  if (wifi_status != last_wifi_status) {
+    Serial.printf("[WiFi] Status changed: %d -> %d\n", last_wifi_status, wifi_status);
+    last_wifi_status = wifi_status;
+  }
+
+  // Handle WiFi connection
+  if (wifi_status != WL_CONNECTED) {
+    // Check if we need to retry connection
+    if (wifi_status == WL_CONNECT_FAILED ||
+        (wifi_connect_start > 0 && millis() - wifi_connect_start > WIFI_TIMEOUT)) {
+
+      if (wifi_retries < MAX_WIFI_RETRIES) {
+        wifi_retries++;
+        Serial.printf("[WiFi] Retrying connection (attempt %d/%d)...\n", wifi_retries, MAX_WIFI_RETRIES);
+
+        // Disconnect and retry
+        WiFi.disconnect(true);
+        delay(1000);
+        WiFi.mode(WIFI_STA);
+        WiFi.begin(bap_config.wifi_ssid, bap_config.wifi_password);
+        wifi_connect_start = millis();
+
+        if (screen) {
+          char msg[32];
+          snprintf(msg, sizeof(msg), "Retry %d/%d", wifi_retries, MAX_WIFI_RETRIES);
+          screen->showMessage("Connecting...", msg);
+        }
+      } else {
+        static unsigned long last_fail_msg = 0;
+        if (millis() - last_fail_msg > 30000) {
+          Serial.println("[WiFi] Max retries reached. Use 'reset' or power cycle.");
+          last_fail_msg = millis();
+        }
+      }
+    } else if (wifi_connect_start == 0) {
+      // First time checking - start connection timer
+      wifi_connect_start = millis();
+      Serial.println("[WiFi] Waiting for connection...");
+    }
+
+    // Print periodic status
     static unsigned long last_wifi_msg = 0;
-    if (millis() - last_wifi_msg > 10000) {  // Only print every 10s
-      Serial.println("WiFi not connected, waiting...");
+    if (millis() - last_wifi_msg > 10000) {
+      Serial.printf("[WiFi] Status: %d, waiting...\n", wifi_status);
       last_wifi_msg = millis();
     }
     return;
   }
 
+  // WiFi is connected - reset retry counter
+  wifi_retries = 0;
+  wifi_connect_start = 0;
+
   // Sync time once after WiFi connects
   if (!time_synced) {
     Serial.println("WiFi connected! Syncing time...");
-    configTime(-8 * 3600, 0, "pool.ntp.org", "time.nist.gov");
-    time_synced = true;
-    if (screen) {
-      screen->showMessage("Gateway Mode", "Connected!");
+    // Use POSIX timezone string for Pacific Time with automatic DST
+    // PST8PDT = Pacific Standard Time (UTC-8) with Daylight Time
+    // M3.2.0 = DST starts 2nd Sunday of March
+    // M11.1.0 = DST ends 1st Sunday of November
+    configTzTime("PST8PDT,M3.2.0,M11.1.0", "pool.ntp.org", "time.nist.gov");
+
+    // Wait for time sync to complete (up to 10 seconds)
+    // Store initial time to detect when NTP actually updates it
+    time_t initial_time = time(nullptr);
+    Serial.printf("Initial time: %u, waiting for NTP sync", (uint32_t)initial_time);
+
+    int sync_attempts = 0;
+    time_t current_time = initial_time;
+    while (sync_attempts < 100) {
+      delay(100);
+      sync_attempts++;
+      current_time = time(nullptr);
+
+      // Check if time has changed significantly (more than 60 seconds from initial)
+      // and is reasonable (after Jan 1, 2024)
+      if (current_time > 1704067200 &&  // After Jan 1, 2024
+          (current_time > initial_time + 60 || current_time < initial_time - 60)) {
+        break;  // Time has been updated
+      }
+      if (sync_attempts % 10 == 0) Serial.print(".");
+    }
+
+    // Verify we got a reasonable time
+    if (current_time > 1704067200 &&
+        (current_time > initial_time + 60 || current_time < initial_time - 60)) {
+      Serial.printf(" OK! (time=%u)\n", (uint32_t)time(nullptr));
+      time_synced = true;
+      if (screen) {
+        screen->showMessage("Gateway Mode", "Time synced!");
+      }
+    } else {
+      Serial.println(" FAILED!");
+      // Continue anyway - will retry on next loop
+      return;
     }
   }
 
@@ -244,8 +330,10 @@ void setup() {
     api_client->setPollInterval(60000);  // Poll every 60 seconds
 
     // Connect to WiFi in background (non-blocking)
-    Serial.println("[10] Starting WiFi connection (async)...");
+    Serial.println("[10] Starting WiFi connection...");
+    Serial.printf("[10] SSID: %s\n", bap_config.wifi_ssid);
     WiFi.mode(WIFI_STA);
+    WiFi.setAutoReconnect(true);  // Enable auto-reconnect
     WiFi.begin(bap_config.wifi_ssid, bap_config.wifi_password);
     board.setInhibitSleep(true);
 

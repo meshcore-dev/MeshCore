@@ -1,16 +1,10 @@
 #pragma once
 
 #include <Arduino.h>
+#include <Preferences.h>
 #include "MyMesh.h"
 
 #define BAP_CONFIG_FILE "/bap_config.bin"
-
-// Extended config with API key
-struct BAPConfigExt {
-  BAPConfig base;
-  char api_key[64];
-  char api_endpoint[128];
-};
 
 class BAPConfigManager {
 public:
@@ -38,4 +32,9 @@ public:
 
 private:
   bool _dirty;  // Config needs saving
+  Preferences _prefs;
+  static constexpr const char* NVS_NAMESPACE = "bap_secrets";
+
+  // Migrate secrets from old SPIFFS format to NVS
+  void migrateToNVS(BAPConfig& config);
 };

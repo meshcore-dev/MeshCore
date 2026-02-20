@@ -64,8 +64,8 @@ void BAPMesh::sendArrivals(const BusArrival* arrivals, int count, uint32_t seque
     pkt.arrivals[i] = arrivals[i];
   }
 
-  // Calculate checksum
-  pkt.checksum = calcChecksum((uint8_t*)&pkt, sizeof(pkt) - 1);
+  // Calculate checksum (skip last 2 bytes which are the checksum itself)
+  pkt.checksum = calcChecksum((uint8_t*)&pkt, sizeof(pkt) - 2);
 
   // Create and send packet
   mesh::Packet* mesh_pkt = createRawData((uint8_t*)&pkt, sizeof(pkt));
@@ -95,8 +95,8 @@ void BAPMesh::onRawDataRecv(mesh::Packet* packet) {
     return;
   }
 
-  // Verify checksum
-  uint8_t calc = calcChecksum(data, sizeof(BAPArrivalPacket) - 1);
+  // Verify checksum (skip last 2 bytes which are the checksum itself)
+  uint16_t calc = calcChecksum(data, sizeof(BAPArrivalPacket) - 2);
   if (calc != bap_pkt->checksum) {
     MESH_DEBUG_PRINTLN("BAP packet checksum mismatch");
     return;
@@ -136,10 +136,12 @@ bool BAPMesh::allowPacketForward(const mesh::Packet* packet) {
   return false;
 }
 
-uint8_t BAPMesh::calcChecksum(const uint8_t* data, size_t len) {
-  uint8_t sum = 0;
+uint16_t BAPMesh::calcChecksum(const uint8_t* data, size_t len) {
+  // Fletcher-16 checksum algorithm
+  uint8_t sum1 = 0, sum2 = 0;
   for (size_t i = 0; i < len; i++) {
-    sum ^= data[i];  // Simple XOR checksum
+    sum1 = (sum1 + data[i]) % 255;
+    sum2 = (sum2 + sum1) % 255;
   }
-  return sum;
+  return (sum2 << 8) | sum1;
 }
