@@ -13,7 +13,7 @@ class E290Display : public DisplayDriver {
   bool _isOn = false;
 
 public:
-  E290Display() : DisplayDriver(296, 128) {}
+  E290Display() : DisplayDriver(128, 296) {}  // Portrait mode for BAP firmware
 
   bool begin();
   bool isOn() override { return _isOn; }
