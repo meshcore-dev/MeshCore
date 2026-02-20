@@ -23,7 +23,7 @@ const char *UIManager::months[12] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
 
 #define TAG "UIManager"
 
-//extern void handleCommand(char *msg);
+extern void handleCommand(char *msg);
 
 UIManager::UIManager() {
 
@@ -505,6 +505,7 @@ static void s_onSendClick(lv_event_t *e)
 
 void UIManager::onSendClick(lv_event_t* e)
 {
+
     char fullMessage[260];
     char msgCopy[200];
 
@@ -518,6 +519,7 @@ void UIManager::onSendClick(lv_event_t* e)
 
     snprintf(fullMessage, sizeof(fullMessage), "public %s", msgCopy);
     //handleCommand(fullMessage);
+    handleCommand(msgCopy);
 
     char time_buf[16];
     time_t now = time(NULL);

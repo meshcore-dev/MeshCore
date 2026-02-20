@@ -92,6 +92,8 @@ public:
   void startInterface(BaseSerialInterface &serial);
 
   const char *getNodeName();
+  const char *getFirmwareVer();
+  const char *getBuildDate();
   NodePrefs *getNodePrefs();
   uint32_t getBLEPin();
 
@@ -158,6 +160,7 @@ protected:
 
 public:
   void savePrefs() { _store->savePrefs(_prefs, sensors.node_lat, sensors.node_lon); }
+  void handleCommand(const char* command);
 
 private:
   void writeOKFrame();
