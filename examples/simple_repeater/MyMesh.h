@@ -69,11 +69,11 @@ struct NeighbourInfo {
 };
 
 #ifndef FIRMWARE_BUILD_DATE
-  #define FIRMWARE_BUILD_DATE   "29 Jan 2026"
+  #define FIRMWARE_BUILD_DATE   "15 Feb 2026"
 #endif
 
 #ifndef FIRMWARE_VERSION
-  #define FIRMWARE_VERSION   "v1.12.0"
+  #define FIRMWARE_VERSION   "v1.13.0"
 #endif
 
 #define FIRMWARE_ROLE "repeater"
@@ -198,7 +198,7 @@ public:
   }
 
   void dumpLogFile() override;
-  void setTxPower(uint8_t power_dbm) override;
+  void setTxPower(int8_t power_dbm) override;
   void formatNeighborsReply(char *reply) override;
   void removeNeighbor(const uint8_t* pubkey, int key_len) override;
   void formatStatsReply(char *reply) override;

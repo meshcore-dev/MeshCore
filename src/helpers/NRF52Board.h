@@ -51,6 +51,7 @@ public:
   virtual float getMCUTemperature() override;
   virtual void reboot() override { NVIC_SystemReset(); }
   virtual bool startOTAUpdate(const char *id, char reply[]) override;
+  virtual void sleep(uint32_t secs) override;
 
 #ifdef NRF52_POWER_MANAGEMENT
   bool isExternalPowered() override;
