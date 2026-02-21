@@ -14,6 +14,7 @@
 #define MSG_SEND_FAILED       0
 #define MSG_SEND_SENT_FLOOD   1
 #define MSG_SEND_SENT_DIRECT  2
+#define PATH_DIRECT_BLOCK_MILLIS  15000
 
 #define REQ_TYPE_GET_STATUS      0x01   // same as _GET_STATS
 #define REQ_TYPE_KEEP_ALIVE      0x02
@@ -70,8 +71,15 @@ class BaseChatMesh : public mesh::Mesh {
   mesh::Packet* _pendingLoopback;
   uint8_t temp_buf[MAX_TRANS_UNIT];
   ConnectionInfo connections[MAX_CONNECTIONS];
+  ContactInfo* pending_direct_contact;
 
   mesh::Packet* composeMsgPacket(const ContactInfo& recipient, uint32_t timestamp, uint8_t attempt, const char *text, uint32_t& expected_ack);
+  bool hasUsableBackupPath(ContactInfo& contact);
+  bool canUseDirectNow(const ContactInfo& contact) const;
+  void activateBackupPath(ContactInfo& contact);
+  void noteDirectPathFailure(ContactInfo& contact);
+  void noteDirectPathSuccess(ContactInfo& contact);
+  bool updatePathForContact(ContactInfo& from, const uint8_t* out_path, uint8_t out_path_len);
   void sendAckTo(const ContactInfo& dest, uint32_t ack_hash);
 
 protected:
@@ -85,6 +93,7 @@ protected:
   #endif
     txt_send_timeout = 0;
     _pendingLoopback = NULL;
+    pending_direct_contact = NULL;
     memset(connections, 0, sizeof(connections));
   }
 
