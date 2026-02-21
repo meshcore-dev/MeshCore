@@ -68,6 +68,7 @@ private:
 
   /** Current position in receive buffer */
   size_t _rx_buffer_pos;
+  bool _rx_pending;
 
   /**
    * Performs XOR encryption/decryption of data
@@ -91,6 +92,7 @@ private:
    * @param len Length of received data
    */
   void onDataRecv(const uint8_t *mac, const uint8_t *data, int32_t len);
+  void processReceivedRaw(const uint8_t *data, size_t len);
 
   /**
    * ESP-NOW send callback

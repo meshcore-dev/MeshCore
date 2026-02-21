@@ -2,6 +2,8 @@
 
 #include <WiFi.h>
 #include <esp_wifi.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/portmacro.h>
 
 #ifdef WITH_ESPNOW_BRIDGE
 
@@ -10,6 +12,7 @@ static size_t boundedSecretLen(const char *secret, size_t max_len) {
   while (n < max_len && secret[n] != 0) n++;
   return n;
 }
+static portMUX_TYPE rx_queue_mux = portMUX_INITIALIZER_UNLOCKED;
 
 // Static member to handle callbacks
 ESPNowBridge *ESPNowBridge::_instance = nullptr;
@@ -28,7 +31,7 @@ void ESPNowBridge::send_cb(const uint8_t *mac, esp_now_send_status_t status) {
 }
 
 ESPNowBridge::ESPNowBridge(NodePrefs *prefs, mesh::PacketManager *mgr, mesh::RTCClock *rtc)
-    : BridgeBase(prefs, mgr, rtc), _rx_buffer_pos(0) {
+    : BridgeBase(prefs, mgr, rtc), _rx_buffer_pos(0), _rx_pending(false) {
   _instance = this;
 }
 
@@ -93,10 +96,26 @@ void ESPNowBridge::end() {
 
   // Update bridge state
   _initialized = false;
+  _rx_pending = false;
+  _rx_buffer_pos = 0;
 }
 
 void ESPNowBridge::loop() {
-  // Nothing to do here - ESP-NOW is callback based
+  uint8_t raw[MAX_ESPNOW_PACKET_SIZE];
+  size_t raw_len = 0;
+
+  portENTER_CRITICAL(&rx_queue_mux);
+  if (_rx_pending) {
+    raw_len = _rx_buffer_pos;
+    memcpy(raw, _rx_buffer, raw_len);
+    _rx_pending = false;
+    _rx_buffer_pos = 0;
+  }
+  portEXIT_CRITICAL(&rx_queue_mux);
+
+  if (raw_len > 0) {
+    processReceivedRaw(raw, raw_len);
+  }
 }
 
 void ESPNowBridge::xorCrypt(uint8_t *data, size_t len) {
@@ -108,6 +127,11 @@ void ESPNowBridge::xorCrypt(uint8_t *data, size_t len) {
 }
 
 void ESPNowBridge::onDataRecv(const uint8_t *mac, const uint8_t *data, int32_t len) {
+  // Guard against uninitialized state
+  if (_initialized == false) {
+    return;
+  }
+
   // Ignore packets that are too small to contain header + checksum
   if (len < (BRIDGE_MAGIC_SIZE + BRIDGE_CHECKSUM_SIZE)) {
     BRIDGE_DEBUG_PRINTLN("RX packet too small, len=%d\n", len);
@@ -120,6 +144,17 @@ void ESPNowBridge::onDataRecv(const uint8_t *mac, const uint8_t *data, int32_t l
     return;
   }
 
+  // Keep callback work minimal and defer packet parsing/queueing to loop().
+  portENTER_CRITICAL(&rx_queue_mux);
+  if (!_rx_pending) {
+    memcpy(_rx_buffer, data, len);
+    _rx_buffer_pos = (size_t)len;
+    _rx_pending = true;
+  }
+  portEXIT_CRITICAL(&rx_queue_mux);
+}
+
+void ESPNowBridge::processReceivedRaw(const uint8_t *data, size_t len) {
   // Check packet header magic
   uint16_t received_magic = (data[0] << 8) | data[1];
   if (received_magic != BRIDGE_PACKET_MAGIC) {
@@ -148,13 +183,13 @@ void ESPNowBridge::onDataRecv(const uint8_t *mac, const uint8_t *data, int32_t l
   BRIDGE_DEBUG_PRINTLN("RX, payload_len=%d\n", payloadLen);
 
   // Create mesh packet
-  mesh::Packet *pkt = _instance->_mgr->allocNew();
+  mesh::Packet *pkt = _mgr->allocNew();
   if (!pkt) return;
 
   if (pkt->readFrom(decrypted + BRIDGE_CHECKSUM_SIZE, payloadLen)) {
-    _instance->onPacketReceived(pkt);
+    onPacketReceived(pkt);
   } else {
-    _instance->_mgr->free(pkt);
+    _mgr->free(pkt);
   }
 }
 
