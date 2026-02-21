@@ -48,9 +48,6 @@ const uint32_t g_ADigitalPinMap[] = {
 };
 
 void initVariant() {
-    pinMode(GPS_EN, OUTPUT);
-    digitalWrite(GPS_EN, LOW);
-
     pinMode(BATTERY_PIN, INPUT);
     pinMode(VBAT_ENABLE, OUTPUT);
     digitalWrite(VBAT_ENABLE, LOW);
@@ -63,9 +60,4 @@ void initVariant() {
 
     pinMode(LED_BLUE, OUTPUT);
     digitalWrite(LED_BLUE, LOW);
-
-    /* disable gps until we actually support it.
-    pinMode(GPS_EN, OUTPUT);
-    digitalWrite(GPS_EN, HIGH);
-    */
 }
