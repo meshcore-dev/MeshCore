@@ -118,12 +118,19 @@ void SerialBLEInterface::onWrite(BLECharacteristic* pCharacteristic, esp_ble_gat
 
   if (len > MAX_FRAME_SIZE) {
     BLE_DEBUG_PRINTLN("ERROR: onWrite(), frame too big, len=%d", len);
-  } else if (recv_queue_len >= FRAME_QUEUE_SIZE) {
-    BLE_DEBUG_PRINTLN("ERROR: onWrite(), recv_queue is full!");
   } else {
-    recv_queue[recv_queue_len].len = len;
-    memcpy(recv_queue[recv_queue_len].buf, rxValue, len);
-    recv_queue_len++;
+    bool queued = false;
+    portENTER_CRITICAL(&_queue_mux);
+    if (recv_queue_len < FRAME_QUEUE_SIZE) {
+      recv_queue[recv_queue_len].len = len;
+      memcpy(recv_queue[recv_queue_len].buf, rxValue, len);
+      recv_queue_len++;
+      queued = true;
+    }
+    portEXIT_CRITICAL(&_queue_mux);
+    if (!queued) {
+      BLE_DEBUG_PRINTLN("ERROR: onWrite(), recv_queue is full!");
+    }
   }
 }
 
@@ -166,14 +173,20 @@ size_t SerialBLEInterface::writeFrame(const uint8_t src[], size_t len) {
   }
 
   if (deviceConnected && len > 0) {
-    if (send_queue_len >= FRAME_QUEUE_SIZE) {
+    bool queued = false;
+    portENTER_CRITICAL(&_queue_mux);
+    if (send_queue_len < FRAME_QUEUE_SIZE) {
+      send_queue[send_queue_len].len = len;  // add to send queue
+      memcpy(send_queue[send_queue_len].buf, src, len);
+      send_queue_len++;
+      queued = true;
+    }
+    portEXIT_CRITICAL(&_queue_mux);
+
+    if (!queued) {
       BLE_DEBUG_PRINTLN("writeFrame(), send_queue is full!");
       return 0;
     }
-
-    send_queue[send_queue_len].len = len;  // add to send queue
-    memcpy(send_queue[send_queue_len].buf, src, len);
-    send_queue_len++;
 
     return len;
   }
@@ -187,31 +200,48 @@ bool SerialBLEInterface::isWriteBusy() const {
 }
 
 size_t SerialBLEInterface::checkRecvFrame(uint8_t dest[]) {
-  if (send_queue_len > 0   // first, check send queue
-    && millis() >= _last_write + BLE_WRITE_MIN_INTERVAL    // space the writes apart
-  ) {
-    _last_write = millis();
-    pTxCharacteristic->setValue(send_queue[0].buf, send_queue[0].len);
-    pTxCharacteristic->notify();
-
-    BLE_DEBUG_PRINTLN("writeBytes: sz=%d, hdr=%d", (uint32_t)send_queue[0].len, (uint32_t) send_queue[0].buf[0]);
-
-    send_queue_len--;
-    for (int i = 0; i < send_queue_len; i++) {   // delete top item from queue
-      send_queue[i] = send_queue[i + 1];
+  Frame send_frame;
+  bool has_send_frame = false;
+  if (millis() >= _last_write + BLE_WRITE_MIN_INTERVAL) {
+    portENTER_CRITICAL(&_queue_mux);
+    if (send_queue_len > 0) {
+      send_frame = send_queue[0];
+      send_queue_len--;
+      for (int i = 0; i < send_queue_len; i++) {   // delete top item from queue
+        send_queue[i] = send_queue[i + 1];
+      }
+      has_send_frame = true;
     }
+    portEXIT_CRITICAL(&_queue_mux);
   }
 
+  if (has_send_frame) {
+    _last_write = millis();
+    pTxCharacteristic->setValue(send_frame.buf, send_frame.len);
+    pTxCharacteristic->notify();
+
+    BLE_DEBUG_PRINTLN("writeBytes: sz=%d, hdr=%d", (uint32_t)send_frame.len, (uint32_t) send_frame.buf[0]);
+  }
+
+  Frame recv_frame;
+  bool has_recv_frame = false;
+  portENTER_CRITICAL(&_queue_mux);
   if (recv_queue_len > 0) {   // check recv queue
-    size_t len = recv_queue[0].len;   // take from top of queue
-    memcpy(dest, recv_queue[0].buf, len);
-
-    BLE_DEBUG_PRINTLN("readBytes: sz=%d, hdr=%d", len, (uint32_t) dest[0]);
-
+    recv_frame = recv_queue[0];
     recv_queue_len--;
     for (int i = 0; i < recv_queue_len; i++) {   // delete top item from queue
       recv_queue[i] = recv_queue[i + 1];
     }
+    has_recv_frame = true;
+  }
+  portEXIT_CRITICAL(&_queue_mux);
+
+  if (has_recv_frame) {
+    size_t len = recv_frame.len;   // take from top of queue
+    memcpy(dest, recv_frame.buf, len);
+
+    BLE_DEBUG_PRINTLN("readBytes: sz=%d, hdr=%d", len, (uint32_t) dest[0]);
+
     return len;
   }
 

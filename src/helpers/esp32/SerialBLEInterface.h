@@ -5,6 +5,8 @@
 #include <BLEServer.h>
 #include <BLEUtils.h>
 #include <BLE2902.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/portmacro.h>
 
 class SerialBLEInterface : public BaseSerialInterface, BLESecurityCallbacks, BLEServerCallbacks, BLECharacteristicCallbacks {
   BLEServer *pServer;
@@ -29,7 +31,14 @@ class SerialBLEInterface : public BaseSerialInterface, BLESecurityCallbacks, BLE
   int send_queue_len;
   Frame send_queue[FRAME_QUEUE_SIZE];
 
-  void clearBuffers() { recv_queue_len = 0; send_queue_len = 0; }
+  portMUX_TYPE _queue_mux = portMUX_INITIALIZER_UNLOCKED;
+
+  void clearBuffers() {
+    portENTER_CRITICAL(&_queue_mux);
+    recv_queue_len = 0;
+    send_queue_len = 0;
+    portEXIT_CRITICAL(&_queue_mux);
+  }
 
 protected:
   // BLESecurityCallbacks methods
