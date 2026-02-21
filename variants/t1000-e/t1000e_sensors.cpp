@@ -32,22 +32,35 @@ static char ntc_temp2[136] = {
 };
 
 static float get_heater_temperature(unsigned int vcc_volt, unsigned int ntc_volt) {
-  int i = 0;
-  float Vout = 0, Rt = 0, temp = 0;
-  Vout = ntc_volt;
-
-  Rt = (HEATER_NTC_RP * vcc_volt) / Vout - HEATER_NTC_RP;
-
-  for (i = 0; i < 136; i++) {
-    if (Rt >= ntc_res2[i]) {
-      break;
-    }
+  constexpr size_t kNtcTableSize = sizeof(ntc_res2) / sizeof(ntc_res2[0]);
+  if (kNtcTableSize < 2 || ntc_volt == 0 || vcc_volt == 0) {
+    return ntc_temp2[0];
   }
 
-  temp = ntc_temp2[i - 1] + 1 * (ntc_res2[i - 1] - Rt) / (float)(ntc_res2[i - 1] - ntc_res2[i]);
+  const float v_out = (float)ntc_volt;
+  const float r_t = (HEATER_NTC_RP * (float)vcc_volt) / v_out - HEATER_NTC_RP;
 
-  temp = (temp * 100 + 5) / 100;
-  return temp;
+  // Clamp to table edges before interpolation.
+  if (r_t >= (float)ntc_res2[0]) {
+    return ntc_temp2[0];
+  }
+  if (r_t <= (float)ntc_res2[kNtcTableSize - 1]) {
+    return ntc_temp2[kNtcTableSize - 1];
+  }
+
+  for (size_t i = 1; i < kNtcTableSize; i++) {
+    if (r_t >= (float)ntc_res2[i]) {
+      const float r1 = (float)ntc_res2[i - 1];
+      const float r2 = (float)ntc_res2[i];
+      const float denom = r1 - r2;
+      if (denom == 0.0f) {
+        return ntc_temp2[i - 1];
+      }
+      const float temp = ntc_temp2[i - 1] + ((r1 - r_t) / denom);
+      return (temp * 100.0f + 5.0f) / 100.0f;
+    }
+  }
+  return ntc_temp2[kNtcTableSize - 1];
 }
 
 static int get_light_lv(unsigned int light_volt) {
