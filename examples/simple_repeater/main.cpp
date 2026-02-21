@@ -20,8 +20,7 @@ void halt() {
 static char command[160];
 
 // For power saving
-unsigned long lastActive = 0; // mark last active time
-unsigned long nextSleepinSecs = 120; // next sleep in seconds. The first sleep (if enabled) is after 2 minutes from boot
+unsigned long POWERSAVING_FIRSTSLEEP_SECS = 120; // The first sleep (if enabled) from boot
 
 void setup() {
   Serial.begin(115200);
@@ -34,9 +33,6 @@ void setup() {
   // boot debug messages can be seen on terminal
   delay(5000);
 #endif
-
-  // For power saving
-  lastActive = millis(); // mark last active time since boot
 
 #ifdef DISPLAY_CLASS
   if (display.begin()) {
@@ -135,16 +131,12 @@ void loop() {
   rtc_clock.tick();
 
   if (the_mesh.getNodePrefs()->powersaving_enabled && !the_mesh.hasPendingWork()) {
-    #if defined(NRF52_PLATFORM)
+#if defined(NRF52_PLATFORM)
     board.sleep(1800); // nrf ignores seconds param, sleeps whenever possible
-    #else
-    if (the_mesh.millisHasNowPassed(lastActive + nextSleepinSecs * 1000)) { // To check if it is time to sleep
-      board.sleep(1800);             // To sleep. Wake up after 30 minutes or when receiving a LoRa packet
-      lastActive = millis();
-      nextSleepinSecs = 5;  // Default: To work for 5s and sleep again
-    } else {
-      nextSleepinSecs += 5; // When there is pending work, to work another 5s
+#else
+    if (the_mesh.millisHasNowPassed(POWERSAVING_FIRSTSLEEP_SECS * 1000)) { // To check if it is time to sleep
+      board.sleep(1800); // Sleep. Wake up after 30 minutes or when receiving a LoRa packet
     }
-    #endif
+#endif
   }
 }
