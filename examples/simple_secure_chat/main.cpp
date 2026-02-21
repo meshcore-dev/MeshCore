@@ -262,8 +262,8 @@ protected:
     // not supported
   }
 
-  uint32_t calcFloodTimeoutMillisFor(uint32_t pkt_airtime_millis) const override {
-    return SEND_TIMEOUT_BASE_MILLIS + (FLOOD_SEND_TIMEOUT_FACTOR * pkt_airtime_millis);
+  uint32_t calcFloodTimeoutMillisFor(uint32_t pkt_airtime_millis, uint8_t attempt = 0) const override {
+    return (SEND_TIMEOUT_BASE_MILLIS + (FLOOD_SEND_TIMEOUT_FACTOR * pkt_airtime_millis)) * (attempt + 1);
   }
   uint32_t calcDirectTimeoutMillisFor(uint32_t pkt_airtime_millis, uint8_t path_len) const override {
     return SEND_TIMEOUT_BASE_MILLIS + 

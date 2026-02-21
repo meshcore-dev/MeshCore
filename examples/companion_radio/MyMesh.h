@@ -145,7 +145,7 @@ protected:
   void onTraceRecv(mesh::Packet *packet, uint32_t tag, uint32_t auth_code, uint8_t flags,
                    const uint8_t *path_snrs, const uint8_t *path_hashes, uint8_t path_len) override;
 
-  uint32_t calcFloodTimeoutMillisFor(uint32_t pkt_airtime_millis) const override;
+  uint32_t calcFloodTimeoutMillisFor(uint32_t pkt_airtime_millis, uint8_t attempt = 0) const override;
   uint32_t calcDirectTimeoutMillisFor(uint32_t pkt_airtime_millis, uint8_t path_len) const override;
   void onSendTimeout() override;
 
