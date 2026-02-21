@@ -225,4 +225,9 @@ void loop() {
   ui_task.loop();
 #endif
   rtc_clock.tick();
+
+#if defined(NRF52_PLATFORM)
+  board.sleep(1800);
+#endif
+
 }
