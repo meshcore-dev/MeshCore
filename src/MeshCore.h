@@ -9,12 +9,41 @@
 #define SEED_SIZE           32
 #define SIGNATURE_SIZE      64
 #define MAX_ADVERT_DATA_SIZE  32
+#define SESSION_KEY_SIZE    32
 #define CIPHER_KEY_SIZE     16
 #define CIPHER_BLOCK_SIZE   16
 
 // V1
 #define CIPHER_MAC_SIZE      2
 #define PATH_HASH_SIZE       1
+
+// AEAD-4 (ChaChaPoly) encryption
+#define AEAD_TAG_SIZE        4
+#define AEAD_NONCE_SIZE      2
+#define CONTACT_FLAG_AEAD    0x02   // bit 1 of ContactInfo.flags (bit 0 = favourite)
+#define FEAT1_AEAD_SUPPORT   0x0001 // bit 0 of feat1 uint16_t
+
+// AEAD nonce persistence
+#define NONCE_PERSIST_INTERVAL  50   // persist every N messages per peer
+#define NONCE_BOOT_BUMP         50   // add this on load after dirty boot (must be >= PERSIST_INTERVAL)
+
+// Session key negotiation (Phase 2)
+#define REQ_TYPE_SESSION_KEY_INIT   0x08
+#define RESP_TYPE_SESSION_KEY_ACCEPT 0x08  // response type byte in PAYLOAD_TYPE_RESPONSE
+
+#define NONCE_REKEY_THRESHOLD       60000  // start renegotiation when nonce exceeds this
+#define NONCE_INITIAL_MIN           1000   // min random nonce seed for new contacts
+#define NONCE_INITIAL_MAX           50000  // max random nonce seed for new contacts
+#define SESSION_KEY_TIMEOUT_MS      180000 // 3 minutes per attempt
+#define SESSION_KEY_MAX_RETRIES     3      // attempts per negotiation round
+#define MAX_SESSION_KEYS_RAM        8      // max concurrent session key entries in RAM (LRU cache)
+#define MAX_SESSION_KEYS_FLASH     48     // max entries in flash file
+#define SESSION_KEY_RECORD_SIZE    71     // max bytes per record (with prev_key)
+#define SESSION_KEY_RECORD_MIN_SIZE 39   // min bytes per record: [pub_prefix:4][flags:1][nonce:2][key:32]
+#define SESSION_FLAG_PREV_VALID   0x01   // prev_session_key is valid for dual-decode
+#define SESSION_KEY_STALE_THRESHOLD 50     // sends without recv before fallback to static ECDH
+#define SESSION_KEY_ECB_THRESHOLD  100    // sends without recv before fallback to ECB
+#define SESSION_KEY_ABANDON_THRESHOLD 255 // sends without recv before clearing AEAD + session key
 
 #define MAX_PACKET_PAYLOAD  184
 #define MAX_PATH_SIZE        64

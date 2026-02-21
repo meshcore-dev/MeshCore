@@ -154,6 +154,18 @@ protected:
   bool getContactForSave(uint32_t idx, ContactInfo& contact) override { return getContactByIdx(idx, contact); }
   bool onChannelLoaded(uint8_t channel_idx, const ChannelDetails& ch) override { return setChannel(channel_idx, ch); }
   bool getChannelForSave(uint8_t channel_idx, ChannelDetails& ch) override { return getChannel(channel_idx, ch); }
+  bool onNonceLoaded(const uint8_t* pub_key_prefix, uint16_t nonce) override { return applyLoadedNonce(pub_key_prefix, nonce); }
+  bool getNonceForSave(int idx, uint8_t* pub_key_prefix, uint16_t* nonce) override { return getNonceEntry(idx, pub_key_prefix, nonce); }
+  bool onSessionKeyLoaded(const uint8_t* pub_key_prefix, uint8_t flags, uint16_t nonce,
+                           const uint8_t* session_key, const uint8_t* prev_session_key) override {
+    return applyLoadedSessionKey(pub_key_prefix, flags, nonce, session_key, prev_session_key);
+  }
+  bool getSessionKeyForSave(int idx, uint8_t* pub_key_prefix, uint8_t* flags, uint16_t* nonce,
+                              uint8_t* session_key, uint8_t* prev_session_key) override {
+    return getSessionKeyEntry(idx, pub_key_prefix, flags, nonce, session_key, prev_session_key);
+  }
+  bool isSessionKeyInRAM(const uint8_t* pub_key_prefix) override;
+  bool isSessionKeyRemoved(const uint8_t* pub_key_prefix) override;
 
   void clearPendingReqs() {
     pending_login = pending_status = pending_telemetry = pending_discovery = pending_req = 0;
@@ -184,6 +196,16 @@ private:
   // helpers, short-cuts
   void saveChannels() { _store->saveChannels(this); }
   void saveContacts() { _store->saveContacts(this); }
+  void saveNonces() { if (_store->saveNonces(this)) clearNonceDirty(); }
+  void saveSessionKeys() { if (_store->saveSessionKeys(this)) { clearSessionKeysDirty(); clearSessionKeysRemoved(); } }
+  void onSessionKeysUpdated() override { saveSessionKeys(); }
+
+  // Flash-backed session key overrides
+  bool loadSessionKeyRecordFromFlash(const uint8_t* pub_key_prefix,
+      uint8_t* flags, uint16_t* nonce, uint8_t* session_key, uint8_t* prev_session_key) override {
+    return _store->loadSessionKeyByPrefix(pub_key_prefix, flags, nonce, session_key, prev_session_key);
+  }
+  void mergeAndSaveSessionKeys() override { saveSessionKeys(); }
 
   DataStore* _store;
   NodePrefs _prefs;
@@ -205,6 +227,7 @@ private:
   uint8_t *sign_data;
   uint32_t sign_data_len;
   unsigned long dirty_contacts_expiry;
+  unsigned long next_nonce_persist;
 
   TransportKey send_scope;
 

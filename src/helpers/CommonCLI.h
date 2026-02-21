@@ -87,6 +87,10 @@ public:
   virtual void restartBridge() {
     // no op by default
   };
+
+  virtual void onBeforeReboot() {
+    // no op by default — override to flush nonces, etc.
+  };
 };
 
 class CommonCLI {
