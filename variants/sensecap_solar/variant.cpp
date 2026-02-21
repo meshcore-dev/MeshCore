@@ -18,8 +18,8 @@ const uint32_t g_ADigitalPinMap[] = {
     47, // D10 P1.15 (SPI_MOSI) LORA_MOSI
 
     // D11-D12 - LED outputs
-    15, // D11 P0.15 User LED
-    19, // D12 P0.19 Breathing LED
+    15, // D11 P0.15 User LED (White LED)
+    19, // D12 P0.19 Breathing LED (Blue LED - LoRa TX)
 
     // D13 - User input
     33, // D13 P1.01 User Button
@@ -58,8 +58,8 @@ void initVariant() {
     pinMode(PIN_QSPI_CS, OUTPUT);
     digitalWrite(PIN_QSPI_CS, HIGH);
 
-    pinMode(LED_GREEN, OUTPUT);
-    digitalWrite(LED_GREEN, LOW);
+    pinMode(LED_WHITE, OUTPUT);
+    digitalWrite(LED_WHITE, LOW);
 
     pinMode(LED_BLUE, OUTPUT);
     digitalWrite(LED_BLUE, LOW);
