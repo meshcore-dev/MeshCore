@@ -2,6 +2,8 @@
 #include <esp_now.h>
 #include <WiFi.h>
 #include <esp_wifi.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/portmacro.h>
 
 static uint8_t broadcastAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 static esp_now_peer_info_t peerInfo;
@@ -9,6 +11,7 @@ static volatile bool is_send_complete = false;
 static esp_err_t last_send_result;
 static uint8_t rx_buf[256];
 static uint8_t last_rx_len = 0;
+static portMUX_TYPE rx_buf_mux = portMUX_INITIALIZER_UNLOCKED;
 
 // callback when data is sent
 static void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
@@ -18,8 +21,15 @@ static void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
 
 static void OnDataRecv(const uint8_t *mac, const uint8_t *data, int len) {
   ESPNOW_DEBUG_PRINTLN("Recv: len = %d", len);
-  memcpy(rx_buf, data, len);
-  last_rx_len = len;
+  if (len <= 0) return;
+  size_t copy_len = (size_t)len;
+  if (copy_len > sizeof(rx_buf)) {
+    copy_len = sizeof(rx_buf);
+  }
+  portENTER_CRITICAL(&rx_buf_mux);
+  memcpy(rx_buf, data, copy_len);
+  last_rx_len = (uint8_t)copy_len;
+  portEXIT_CRITICAL(&rx_buf_mux);
 }
 
 void ESPNOWRadio::init() {
@@ -99,12 +109,18 @@ float ESPNOWRadio::getLastRSSI() const { return 0; }
 float ESPNOWRadio::getLastSNR() const { return 0; }
 
 int ESPNOWRadio::recvRaw(uint8_t* bytes, int sz) {
-  int len = last_rx_len;
+  if (sz <= 0) return 0;
+
+  int len = 0;
+  portENTER_CRITICAL(&rx_buf_mux);
   if (last_rx_len > 0) {
-    memcpy(bytes, rx_buf, last_rx_len);
+    len = last_rx_len;
+    if (len > sz) len = sz;
+    memcpy(bytes, rx_buf, len);
     last_rx_len = 0;
     n_recv++;
   }
+  portEXIT_CRITICAL(&rx_buf_mux);
   return len;
 }
 
