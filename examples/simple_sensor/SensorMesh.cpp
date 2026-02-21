@@ -882,12 +882,18 @@ void SensorMesh::loop() {
   if (set_radio_at && millisHasNowPassed(set_radio_at)) {   // apply pending (temporary) radio params
     set_radio_at = 0;  // clear timer
     radio_set_params(pending_freq, pending_bw, pending_sf, pending_cr);
+    //You need to clear the old registers, otherwise the LoRa module won't receive any information the first time.
+    _radio->onSendFinished();
+    _radio->startRecv();
     MESH_DEBUG_PRINTLN("Temp radio params");
   }
 
   if (revert_radio_at && millisHasNowPassed(revert_radio_at)) {   // revert radio params to orig
     revert_radio_at = 0;  // clear timer
     radio_set_params(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
+    //You need to clear the old registers, otherwise the LoRa module won't receive any information the first time.
+    _radio->onSendFinished();
+    _radio->startRecv();
     MESH_DEBUG_PRINTLN("Radio params restored");
   }
 
