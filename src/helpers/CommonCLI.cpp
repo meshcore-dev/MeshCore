@@ -362,6 +362,17 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
       } else if (memcmp(config, "bridge.secret", 13) == 0) {
         sprintf(reply, "> %s", _prefs->bridge_secret);
 #endif
+      } else if (memcmp(config, "bootloader.ver", 14) == 0) {
+      #ifdef NRF52_PLATFORM
+          char ver[32];
+          if (_board->getBootloaderVersion(ver, sizeof(ver))) {
+              sprintf(reply, "> %s", ver);
+          } else {
+              strcpy(reply, "> unknown");
+          }
+      #else
+          strcpy(reply, "ERROR: unsupported");
+      #endif
       } else if (memcmp(config, "adc.multiplier", 14) == 0) {
         float adc_mult = _board->getAdcMultiplier();
         if (adc_mult == 0.0f) {
