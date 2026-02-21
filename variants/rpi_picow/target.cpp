@@ -4,8 +4,11 @@
 
 PicoWBoard board;
 
-RADIO_CLASS radio = new Module(P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BUSY, SPI1);
-
+#ifdef PICOW_SPI  // if defined in config, use config value
+  RADIO_CLASS radio = new Module(P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BUSY, PICOW_SPI);
+#else  // If not defines use default
+  RADIO_CLASS radio = new Module(P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BUSY, SPI1);
+#endif
 WRAPPER_CLASS radio_driver(radio, board);
 
 VolatileRTCClock fallback_clock;
@@ -15,7 +18,11 @@ SensorManager sensors;
 bool radio_init() {
   rtc_clock.begin(Wire);
   
-  return radio.std_init(&SPI1);
+  #ifdef PICOW_SPI  // If defined in config, use defined
+    return radio.std_init(&PICOW_SPI);
+  #else  // If not defines, use default
+    return radio.std_init(&SPI1);
+  #endif
 }
 
 uint32_t radio_get_rng_seed() {
