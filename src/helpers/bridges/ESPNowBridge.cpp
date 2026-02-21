@@ -5,6 +5,12 @@
 
 #ifdef WITH_ESPNOW_BRIDGE
 
+static size_t boundedSecretLen(const char *secret, size_t max_len) {
+  size_t n = 0;
+  while (n < max_len && secret[n] != 0) n++;
+  return n;
+}
+
 // Static member to handle callbacks
 ESPNowBridge *ESPNowBridge::_instance = nullptr;
 
@@ -94,7 +100,8 @@ void ESPNowBridge::loop() {
 }
 
 void ESPNowBridge::xorCrypt(uint8_t *data, size_t len) {
-  size_t keyLen = strlen(_prefs->bridge_secret);
+  const size_t keyLen = boundedSecretLen(_prefs->bridge_secret, sizeof(_prefs->bridge_secret));
+  if (keyLen == 0) return;
   for (size_t i = 0; i < len; i++) {
     data[i] ^= _prefs->bridge_secret[i % keyLen];
   }
