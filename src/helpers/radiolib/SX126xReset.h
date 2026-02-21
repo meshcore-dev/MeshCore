@@ -18,6 +18,10 @@ inline void sx126xResetAGC(SX126x* radio) {
     radio->mod->hal->yield();
   }
 
+  // Calibrate(0x7F) defaults image calibration to 902-928MHz band.
+  // Re-calibrate for the actual operating frequency.
+  radio->calibrateImage(radio->freqMHz);
+
 #ifdef SX126X_DIO2_AS_RF_SWITCH
   radio->setDio2AsRfSwitch(SX126X_DIO2_AS_RF_SWITCH);
 #endif
