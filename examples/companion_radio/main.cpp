@@ -99,6 +99,18 @@ MyMesh the_mesh(radio_driver, fast_rng, rtc_clock, tables, store
    #endif
 );
 
+// Power saving timing variables
+unsigned long lastActive = 0;           // Last time there was activity
+unsigned long nextSleepInSecs = 120;    // Wait 2 minutes before first sleep
+const unsigned long WORK_TIME_SECS = 5; // Stay awake 5 seconds after wake/activity
+
+// Short-sleep cycle when phone is disconnected but BLE is enabled
+const unsigned long DISCONNECT_SLEEP_TIMEOUT_MS = 60000;  // 60s before short-sleep cycle
+const unsigned long SHORT_SLEEP_SECS = 12;                // sleep duration per cycle
+const unsigned long RECONNECT_WINDOW_MS = 3000;           // awake time for BLE advertising
+unsigned long disconnectTime = 0;   // when phone disconnected (0 = connected/N/A)
+unsigned long lastSleepWake = 0;    // when we last woke from short sleep (0 = not in cycle)
+
 /* END GLOBAL OBJECTS */
 
 void halt() {
@@ -216,6 +228,9 @@ void setup() {
 #ifdef DISPLAY_CLASS
   ui_task.begin(disp, &sensors, the_mesh.getNodePrefs());  // still want to pass this in as dependency, as prefs might be moved
 #endif
+
+  // Initialize power saving timer
+  lastActive = millis();
 }
 
 void loop() {
@@ -225,4 +240,59 @@ void loop() {
   ui_task.loop();
 #endif
   rtc_clock.tick();
+
+#ifndef WIFI_SSID
+  // Track phone connection state for disconnect sleep
+  if (serial_interface.hasPendingConnection()) {
+    disconnectTime = 0;
+    lastSleepWake = 0;
+  } else if (serial_interface.isEnabled() && disconnectTime == 0) {
+    disconnectTime = millis();
+    if (disconnectTime == 0) disconnectTime = 1;  // avoid 0 sentinel collision
+  }
+  // Short-sleep cycle when BLE is enabled but phone is disconnected
+  if (serial_interface.isEnabled() && disconnectTime != 0
+      && !the_mesh.getNodePrefs()->gps_enabled
+      && the_mesh.millisHasNowPassed(disconnectTime + DISCONNECT_SLEEP_TIMEOUT_MS)
+      && !the_mesh.hasPendingWork()
+      && (lastSleepWake == 0 || the_mesh.millisHasNowPassed(lastSleepWake + RECONNECT_WINDOW_MS))) {
+#ifdef PIN_USER_BTN
+    board.enterLightSleep(SHORT_SLEEP_SECS, PIN_USER_BTN);
+#else
+    board.enterLightSleep(SHORT_SLEEP_SECS);
+#endif
+    // Restart BLE advertising after light sleep powers down the radio
+    serial_interface.disable();
+    serial_interface.enable();
+    lastSleepWake = millis();
+    if (lastSleepWake == 0) lastSleepWake = 1;
+  }
+#endif
+
+  // Power saving when BLE/WiFi is disabled
+  // Don't sleep if GPS is enabled - it needs continuous operation to maintain fix
+  // Note: Disabling BLE/WiFi via UI actually turns off the radio to save power
+  if (!serial_interface.isEnabled() && !the_mesh.getNodePrefs()->gps_enabled) {
+    // Check for pending work and update activity timer
+    if (the_mesh.hasPendingWork()) {
+      lastActive = millis();
+      if (nextSleepInSecs < 10) {
+        nextSleepInSecs += 5; // Extend work time by 5s if still busy
+      }
+    }
+
+    // Only sleep if enough time has passed since last activity
+    if (the_mesh.millisHasNowPassed(lastActive + (nextSleepInSecs * 1000))) {
+#ifdef PIN_USER_BTN
+      // Sleep for 30 minutes, wake on LoRa packet, timer, or button press
+      board.enterLightSleep(1800, PIN_USER_BTN);
+#else
+      // Sleep for 30 minutes, wake on LoRa packet or timer
+      board.enterLightSleep(1800);
+#endif
+      // Just woke up - reset timers
+      lastActive = millis();
+      nextSleepInSecs = WORK_TIME_SECS; // Stay awake for 5s after wake
+    }
+  }
 }
