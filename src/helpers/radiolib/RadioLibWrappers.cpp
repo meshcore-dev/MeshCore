@@ -157,10 +157,17 @@ void RadioLibWrapper::onSendFinished() {
   state = STATE_IDLE;
 }
 
+int16_t RadioLibWrapper::performChannelScan() {
+  return _radio->scanChannel();
+}
+
 bool RadioLibWrapper::isChannelActive() {
-  return _threshold == 0 
-          ? false    // interference check is disabled
-          : getCurrentRSSI() > _noise_floor + _threshold;
+  if (_threshold == 0) return false;    // interference check is disabled
+
+  int16_t result = performChannelScan();
+  // scanChannel() leaves radio in standby — restart RX regardless of result
+  startRecv();
+  return (result == RADIOLIB_LORA_DETECTED);
 }
 
 float RadioLibWrapper::getLastRSSI() const {
