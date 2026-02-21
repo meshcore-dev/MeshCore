@@ -8,6 +8,7 @@ Packet::Packet() {
   header = 0;
   path_len = 0;
   payload_len = 0;
+  _hash_cached = false;
 }
 
 int Packet::getRawLength() const {
@@ -15,6 +16,11 @@ int Packet::getRawLength() const {
 }
 
 void Packet::calculatePacketHash(uint8_t* hash) const {
+  if (_hash_cached) {
+    memcpy(hash, _cached_hash, MAX_HASH_SIZE);
+    return;
+  }
+
   SHA256 sha;
   uint8_t t = getPayloadType();
   sha.update(&t, 1);
@@ -22,7 +28,9 @@ void Packet::calculatePacketHash(uint8_t* hash) const {
     sha.update(&path_len, sizeof(path_len));   // CAVEAT: TRACE packets can revisit same node on return path
   }
   sha.update(payload, payload_len);
-  sha.finalize(hash, MAX_HASH_SIZE);
+  sha.finalize(_cached_hash, MAX_HASH_SIZE);
+  _hash_cached = true;
+  memcpy(hash, _cached_hash, MAX_HASH_SIZE);
 }
 
 uint8_t Packet::writeTo(uint8_t dest[]) const {
@@ -39,6 +47,7 @@ uint8_t Packet::writeTo(uint8_t dest[]) const {
 }
 
 bool Packet::readFrom(const uint8_t src[], uint8_t len) {
+  _hash_cached = false;
   uint8_t i = 0;
   header = src[i++];
   if (hasTransportCodes()) {

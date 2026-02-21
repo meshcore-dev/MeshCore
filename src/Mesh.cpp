@@ -633,6 +633,7 @@ void Mesh::sendFlood(Packet* packet, uint32_t delay_millis) {
   packet->header &= ~PH_ROUTE_MASK;
   packet->header |= ROUTE_TYPE_FLOOD;
   packet->path_len = 0;
+  packet->invalidateCachedHash();
 
   _tables->hasSeen(packet); // mark this packet as already sent in case it is rebroadcast back to us
 
@@ -658,6 +659,7 @@ void Mesh::sendFlood(Packet* packet, uint16_t* transport_codes, uint32_t delay_m
   packet->transport_codes[0] = transport_codes[0];
   packet->transport_codes[1] = transport_codes[1];
   packet->path_len = 0;
+  packet->invalidateCachedHash();
 
   _tables->hasSeen(packet); // mark this packet as already sent in case it is rebroadcast back to us
 
@@ -692,6 +694,7 @@ void Mesh::sendDirect(Packet* packet, const uint8_t* path, uint8_t path_len, uin
       pri = 0;
     }
   }
+  packet->invalidateCachedHash();
   _tables->hasSeen(packet); // mark this packet as already sent in case it is rebroadcast back to us
   sendPacket(packet, pri, delay_millis);
 }
@@ -701,6 +704,7 @@ void Mesh::sendZeroHop(Packet* packet, uint32_t delay_millis) {
   packet->header |= ROUTE_TYPE_DIRECT;
 
   packet->path_len = 0;  // path_len of zero means Zero Hop
+  packet->invalidateCachedHash();
 
   _tables->hasSeen(packet); // mark this packet as already sent in case it is rebroadcast back to us
 
@@ -714,6 +718,7 @@ void Mesh::sendZeroHop(Packet* packet, uint16_t* transport_codes, uint32_t delay
   packet->transport_codes[1] = transport_codes[1];
 
   packet->path_len = 0;  // path_len of zero means Zero Hop
+  packet->invalidateCachedHash();
 
   _tables->hasSeen(packet); // mark this packet as already sent in case it is rebroadcast back to us
 
