@@ -39,7 +39,7 @@ mesh::Packet* BaseChatMesh::createSelfAdvert(const char* name, double lat, doubl
 }
 
 void BaseChatMesh::sendAckTo(const ContactInfo& dest, uint32_t ack_hash) {
-  if (dest.out_path_len < 0) {
+  if (!shouldUseDirectPath(dest)) {
     mesh::Packet* ack = createAck(ack_hash);
     if (ack) sendFloodScoped(dest, ack, TXT_ACK_DELAY);
   } else {
@@ -53,6 +53,26 @@ void BaseChatMesh::sendAckTo(const ContactInfo& dest, uint32_t ack_hash) {
     mesh::Packet* a2 = createAck(ack_hash);
     if (a2) sendDirect(a2, dest.out_path, dest.out_path_len, d);
   }
+}
+
+bool BaseChatMesh::isAmbiguousDirectPath(const ContactInfo& recipient) const {
+  if (recipient.out_path_len <= 0) return false;
+  for (int i = 0; i < recipient.out_path_len; i++) {
+    uint8_t hop = recipient.out_path[i];
+    bool seen_once = false;
+    for (int j = 0; j < num_contacts; j++) {
+      if (contacts[j].id.matches(recipient.id)) continue;
+      if (contacts[j].id.pub_key[0] == hop) {
+        if (seen_once) return true;
+        seen_once = true;
+      }
+    }
+  }
+  return false;
+}
+
+bool BaseChatMesh::shouldUseDirectPath(const ContactInfo& recipient) const {
+  return recipient.out_path_len >= 0 && !isAmbiguousDirectPath(recipient);
 }
 
 void BaseChatMesh::bootstrapRTCfromContacts() {
@@ -263,9 +283,12 @@ void BaseChatMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender
       } else {
         mesh::Packet* reply = createDatagram(PAYLOAD_TYPE_RESPONSE, from.id, secret, temp_buf, reply_len);
         if (reply) {
-          if (from.out_path_len >= 0) {  // we have an out_path, so send DIRECT
+          if (shouldUseDirectPath(from)) {  // we have an unambiguous out_path, so send DIRECT
             sendDirect(reply, from.out_path, from.out_path_len, SERVER_RESPONSE_DELAY);
           } else {
+            if (from.out_path_len >= 0) {
+              ambiguous_direct_avoids++;
+            }
             sendFloodScoped(from, reply, SERVER_RESPONSE_DELAY);
           }
         }
@@ -273,7 +296,7 @@ void BaseChatMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender
     }
   } else if (type == PAYLOAD_TYPE_RESPONSE && len > 0) {
     onContactResponse(from, data, len);
-    if (packet->isRouteFlood() && from.out_path_len >= 0) {
+    if (packet->isRouteFlood() && shouldUseDirectPath(from)) {
       // we have direct path, but other node is still sending flood response, so maybe they didn't receive reciprocal path properly(?)
       handleReturnPathRetry(from, packet->path, packet->path_len);
     }
@@ -317,7 +340,7 @@ void BaseChatMesh::onAckRecv(mesh::Packet* packet, uint32_t ack_crc) {
     txt_send_timeout = 0;   // matched one we're waiting for, cancel timeout timer
     packet->markDoNotRetransmit();   // ACK was for this node, so don't retransmit
 
-    if (packet->isRouteFlood() && from->out_path_len >= 0) {
+    if (packet->isRouteFlood() && shouldUseDirectPath(*from)) {
       // we have direct path, but other node is still sending flood, so maybe they didn't receive reciprocal path properly(?)
       handleReturnPathRetry(*from, packet->path, packet->path_len);
     }
@@ -327,6 +350,12 @@ void BaseChatMesh::onAckRecv(mesh::Packet* packet, uint32_t ack_crc) {
 void BaseChatMesh::handleReturnPathRetry(const ContactInfo& contact, const uint8_t* path, uint8_t path_len) {
   // NOTE: simplest impl is just to re-send a reciprocal return path to sender (DIRECTLY)
   //        override this method in various firmwares, if there's a better strategy
+  if (!shouldUseDirectPath(contact)) {
+    if (contact.out_path_len >= 0) {
+      ambiguous_direct_avoids++;
+    }
+    return;
+  }
   mesh::Packet* rpath = createPathReturn(contact.id, contact.getSharedSecret(self_id), path, path_len, 0, NULL, 0);
   if (rpath) sendDirect(rpath, contact.out_path, contact.out_path_len, 3000);   // 3 second delay
 }
@@ -386,7 +415,10 @@ int  BaseChatMesh::sendMessage(const ContactInfo& recipient, uint32_t timestamp,
   uint32_t t = _radio->getEstAirtimeFor(pkt->getRawLength());
 
   int rc;
-  if (recipient.out_path_len < 0) {
+  if (!shouldUseDirectPath(recipient)) {
+    if (recipient.out_path_len >= 0) {
+      ambiguous_direct_avoids++;
+    }
     sendFloodScoped(recipient, pkt);
     txt_send_timeout = futureMillis(est_timeout = calcFloodTimeoutMillisFor(t));
     rc = MSG_SEND_SENT_FLOOD;
@@ -412,7 +444,10 @@ int  BaseChatMesh::sendCommandData(const ContactInfo& recipient, uint32_t timest
 
   uint32_t t = _radio->getEstAirtimeFor(pkt->getRawLength());
   int rc;
-  if (recipient.out_path_len < 0) {
+  if (!shouldUseDirectPath(recipient)) {
+    if (recipient.out_path_len >= 0) {
+      ambiguous_direct_avoids++;
+    }
     sendFloodScoped(recipient, pkt);
     txt_send_timeout = futureMillis(est_timeout = calcFloodTimeoutMillisFor(t));
     rc = MSG_SEND_SENT_FLOOD;
@@ -500,7 +535,10 @@ int BaseChatMesh::sendLogin(const ContactInfo& recipient, const char* password, 
   }
   if (pkt) {
     uint32_t t = _radio->getEstAirtimeFor(pkt->getRawLength());
-    if (recipient.out_path_len < 0) {
+    if (!shouldUseDirectPath(recipient)) {
+      if (recipient.out_path_len >= 0) {
+        ambiguous_direct_avoids++;
+      }
       sendFloodScoped(recipient, pkt);
       est_timeout = calcFloodTimeoutMillisFor(t);
       return MSG_SEND_SENT_FLOOD;
@@ -525,7 +563,10 @@ int BaseChatMesh::sendAnonReq(const ContactInfo& recipient, const uint8_t* data,
   }
   if (pkt) {
     uint32_t t = _radio->getEstAirtimeFor(pkt->getRawLength());
-    if (recipient.out_path_len < 0) {
+    if (!shouldUseDirectPath(recipient)) {
+      if (recipient.out_path_len >= 0) {
+        ambiguous_direct_avoids++;
+      }
       sendFloodScoped(recipient, pkt);
       est_timeout = calcFloodTimeoutMillisFor(t);
       return MSG_SEND_SENT_FLOOD;
@@ -552,7 +593,10 @@ int  BaseChatMesh::sendRequest(const ContactInfo& recipient, const uint8_t* req_
   }
   if (pkt) {
     uint32_t t = _radio->getEstAirtimeFor(pkt->getRawLength());
-    if (recipient.out_path_len < 0) {
+    if (!shouldUseDirectPath(recipient)) {
+      if (recipient.out_path_len >= 0) {
+        ambiguous_direct_avoids++;
+      }
       sendFloodScoped(recipient, pkt);
       est_timeout = calcFloodTimeoutMillisFor(t);
       return MSG_SEND_SENT_FLOOD;
@@ -579,7 +623,10 @@ int  BaseChatMesh::sendRequest(const ContactInfo& recipient, uint8_t req_type, u
   }
   if (pkt) {
     uint32_t t = _radio->getEstAirtimeFor(pkt->getRawLength());
-    if (recipient.out_path_len < 0) {
+    if (!shouldUseDirectPath(recipient)) {
+      if (recipient.out_path_len >= 0) {
+        ambiguous_direct_avoids++;
+      }
       sendFloodScoped(recipient, pkt);
       est_timeout = calcFloodTimeoutMillisFor(t);
       return MSG_SEND_SENT_FLOOD;
@@ -683,8 +730,11 @@ void BaseChatMesh::checkConnections() {
         MESH_DEBUG_PRINTLN("checkConnections(): Keep_alive contact not found!");
         continue;
       }
-      if (contact->out_path_len < 0) {
-        MESH_DEBUG_PRINTLN("checkConnections(): Keep_alive contact, no out_path!");
+      if (!shouldUseDirectPath(*contact)) {
+        MESH_DEBUG_PRINTLN("checkConnections(): Keep_alive contact, no direct path candidate");
+        if (contact->out_path_len >= 0) {
+          ambiguous_direct_avoids++;
+        }
         continue;
       }
 
