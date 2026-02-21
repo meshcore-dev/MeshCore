@@ -11,7 +11,7 @@ inline void lr11x0ResetAGC(LR11x0* radio, float freqMHz) {
 
   radio->calibrate(RADIOLIB_LR11X0_CALIBRATE_ALL);
 
-  // calibrate(0x3F) defaults image calibration to an unknown band.
+  // calibrate(0x3F) defaults image calibration to 902-928MHz band.
   // Re-calibrate for the actual operating frequency (band=4MHz matches RadioLib default).
   radio->calibrateImageRejection(freqMHz - 4.0f, freqMHz + 4.0f);
 
