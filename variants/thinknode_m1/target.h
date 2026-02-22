@@ -7,29 +7,24 @@
 #include <helpers/radiolib/CustomSX1262Wrapper.h>
 #include <helpers/AutoDiscoverRTCClock.h>
 #include <helpers/SensorManager.h>
+#if ENV_INCLUDE_GPS
 #include <helpers/sensors/LocationProvider.h>
+#endif
 #ifdef DISPLAY_CLASS
   #include <helpers/ui/GxEPDDisplay.h>
   #include <helpers/ui/MomentaryButton.h>
 #endif
 
 class ThinkNodeM1SensorManager : public SensorManager {
-  bool gps_active = false;
+  #if ENV_INCLUDE_GPS
   bool last_gps_switch_state = false;
-  LocationProvider* _location;
-
-  void start_gps();
-  void stop_gps();
+  #endif
 public:
-  ThinkNodeM1SensorManager(LocationProvider &location): _location(&location) { }
-  LocationProvider* getLocationProvider() override { return _location; }
+  ThinkNodeM1SensorManager() {}
   bool begin() override;
-  bool querySensors(uint8_t requester_permissions, CayenneLPP& telemetry) override;
+  #if ENV_INCLUDE_GPS
   void loop() override;
-  int getNumSettings() const override;
-  const char* getSettingName(int i) const override;
-  const char* getSettingValue(int i) const override;
-  bool setSettingValue(const char* name, const char* value) override;
+  #endif
 };
 
 extern ThinkNodeM1Board board;

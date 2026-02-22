@@ -1,7 +1,9 @@
 #include <Arduino.h>
 #include "target.h"
 #include <helpers/ArduinoHelpers.h>
+#if ENV_INCLUDE_GPS
 #include <helpers/sensors/MicroNMEALocationProvider.h>
+#endif
 
 ThinkNodeM1Board board;
 
@@ -11,8 +13,10 @@ WRAPPER_CLASS radio_driver(radio, board);
 
 VolatileRTCClock fallback_clock;
 AutoDiscoverRTCClock rtc_clock(fallback_clock);
+#if ENV_INCLUDE_GPS
 MicroNMEALocationProvider nmea = MicroNMEALocationProvider(Serial1, &rtc_clock);
-ThinkNodeM1SensorManager sensors = ThinkNodeM1SensorManager(nmea);
+#endif
+ThinkNodeM1SensorManager sensors;
 
 #ifdef DISPLAY_CLASS
   DISPLAY_CLASS display;
@@ -21,6 +25,11 @@ ThinkNodeM1SensorManager sensors = ThinkNodeM1SensorManager(nmea);
 
 bool radio_init() {
   rtc_clock.begin(Wire);
+
+  #if ENV_INCLUDE_GPS
+  sensors.registerLocationProvider(&nmea);
+  #endif
+
   return radio.std_init(&SPI);
 }
 
@@ -44,22 +53,10 @@ mesh::LocalIdentity radio_new_identity() {
   return mesh::LocalIdentity(&rng);  // create new random identity
 }
 
-void ThinkNodeM1SensorManager::start_gps() {
-  if (!gps_active) {
-    gps_active = true;
-    _location->begin();
-  }
-}
-
-void ThinkNodeM1SensorManager::stop_gps() {
-  if (gps_active) {
-    gps_active = false;
-    _location->stop();
-  }
-}
-
 bool ThinkNodeM1SensorManager::begin() {
-  Serial1.begin(9600);
+  #if ENV_INCLUDE_GPS
+  detectLocationProvider();
+  if (!_location) return true;
 
   // Initialize GPS switch pin
   pinMode(PIN_GPS_SWITCH, INPUT);
@@ -72,29 +69,24 @@ bool ThinkNodeM1SensorManager::begin() {
   if (last_gps_switch_state == HIGH) {  // Switch is HIGH when ON
     start_gps();
   }
+  #endif
 
   return true;
 }
 
-bool ThinkNodeM1SensorManager::querySensors(uint8_t requester_permissions, CayenneLPP& telemetry) {
-  if (requester_permissions & TELEM_PERM_LOCATION) {   // does requester have permission?
-    telemetry.addGPS(TELEM_CHANNEL_SELF, node_lat, node_lon, node_altitude);
-  }
-  return true;
-}
-
+#if ENV_INCLUDE_GPS
 void ThinkNodeM1SensorManager::loop() {
-  static long next_gps_update = 0;
   static long last_switch_check = 0;
+  if (!_location) return;
 
   // Check GPS switch state every second
   if (millis() - last_switch_check > 1000) {
     bool current_switch_state = digitalRead(PIN_GPS_SWITCH);
-    
+
     // Detect switch state change
     if (current_switch_state != last_gps_switch_state) {
       last_gps_switch_state = current_switch_state;
-      
+
       if (current_switch_state == HIGH) {  // Switch is ON
         MESH_DEBUG_PRINTLN("GPS switch ON");
         start_gps();
@@ -103,50 +95,10 @@ void ThinkNodeM1SensorManager::loop() {
         stop_gps();
       }
     }
-    
+
     last_switch_check = millis();
   }
 
-  if (!gps_active) {
-    return;  // GPS is not active, skip further processing
-  }
-
-  _location->loop();
-
-  if (millis() > next_gps_update) {
-    if (_location->isValid()) {
-      node_lat = ((double)_location->getLatitude())/1000000.;
-      node_lon = ((double)_location->getLongitude())/1000000.;
-      node_altitude = ((double)_location->getAltitude()) / 1000.0;
-      MESH_DEBUG_PRINTLN("lat %f lon %f", node_lat, node_lon);
-    }
-    next_gps_update = millis() + 1000;
-  }
+  updateGpsCoordinates();
 }
-
-int ThinkNodeM1SensorManager::getNumSettings() const {
-  return 1;  // always show GPS setting
-}
-
-const char* ThinkNodeM1SensorManager::getSettingName(int i) const {
-  return (i == 0) ? "gps" : NULL;
-}
-
-const char* ThinkNodeM1SensorManager::getSettingValue(int i) const {
-  if (i == 0) {
-    return gps_active ? "1" : "0";
-  }
-  return NULL;
-}
-
-bool ThinkNodeM1SensorManager::setSettingValue(const char* name, const char* value) {
-  if (strcmp(name, "gps") == 0) {
-    if (strcmp(value, "0") == 0) {
-      stop_gps();
-    } else {
-      start_gps();
-    }
-    return true;
-  }
-  return false;  // not supported
-}
+#endif

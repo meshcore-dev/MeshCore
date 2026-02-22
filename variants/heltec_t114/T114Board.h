@@ -50,10 +50,8 @@ public:
 #ifdef LED_PIN
     digitalWrite(LED_PIN, HIGH);
 #endif
-#if ENV_INCLUDE_GPS == 1
-    pinMode(GPS_EN, OUTPUT);
-    digitalWrite(GPS_EN, LOW);
-#endif
+    pinMode(PIN_3V3_EN, OUTPUT);
+    digitalWrite(PIN_3V3_EN, LOW);
     sd_power_system_off();
   }
 };

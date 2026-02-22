@@ -3,10 +3,6 @@
 #include <Arduino.h>
 #include <helpers/ArduinoHelpers.h>
 
-#ifdef ENV_INCLUDE_GPS
-#include <helpers/sensors/MicroNMEALocationProvider.h>
-#endif
-
 T114Board board;
 
 #if defined(P_LORA_SCLK)
@@ -20,13 +16,15 @@ WRAPPER_CLASS radio_driver(radio, board);
 VolatileRTCClock fallback_clock;
 AutoDiscoverRTCClock rtc_clock(fallback_clock);
 
+#include <helpers/RefCountedDigitalPin.h>
+RefCountedDigitalPin peripher_power(PIN_3V3_EN, HIGH);
+
 #if ENV_INCLUDE_GPS
-#include <helpers/sensors/MicroNMEALocationProvider.h>
-MicroNMEALocationProvider nmea = MicroNMEALocationProvider(Serial1);
-EnvironmentSensorManager sensors = EnvironmentSensorManager(nmea);
-#else
-EnvironmentSensorManager sensors;
+  #include <helpers/sensors/L76KLocationProvider.h>
+  L76KLocationProvider nmea = L76KLocationProvider(Serial1, &rtc_clock, GPS_RESET, GPS_EN, &peripher_power);
 #endif
+
+EnvironmentSensorManager sensors;
 
 #ifdef DISPLAY_CLASS
 DISPLAY_CLASS display;
@@ -35,6 +33,11 @@ MomentaryButton user_btn(PIN_USER_BTN, 1000, true);
 
 bool radio_init() {
   rtc_clock.begin(Wire);
+  peripher_power.begin();
+
+  #if ENV_INCLUDE_GPS
+  sensors.registerLocationProvider(&nmea);
+  #endif
 
 #if defined(P_LORA_SCLK)
   return radio.std_init(&SPI);

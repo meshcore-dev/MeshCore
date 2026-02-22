@@ -111,6 +111,7 @@
 
 #define GPS_EN                  (43)            // P1.11
 #define GPS_RESET               (47)            // P1.15
+#define PIN_GPS_RESET_ACTIVE    HIGH            // Reset is active HIGH on AG3335
 
 #define GPS_VRTC_EN             (8)             // P0.8
 #define GPS_SLEEP_INT           (44)            // P1.12

@@ -13,10 +13,8 @@ const PowerMgtConfig power_config = {
 };
 
 void T114Board::initiateShutdown(uint8_t reason) {
-#if ENV_INCLUDE_GPS == 1
-  pinMode(GPS_EN, OUTPUT);
-  digitalWrite(GPS_EN, LOW);
-#endif
+  pinMode(PIN_3V3_EN, OUTPUT);
+  digitalWrite(PIN_3V3_EN, LOW);
   digitalWrite(SX126X_POWER_EN, LOW);
 
   bool enable_lpcomp = (reason == SHUTDOWN_REASON_LOW_VOLTAGE ||
