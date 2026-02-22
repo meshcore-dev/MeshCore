@@ -8,6 +8,14 @@
   #define MAX_REGION_ENTRIES  32
 #endif
 
+#ifndef ANY_REGION_ID
+  #define ANY_REGION_ID (MAX_REGION_ENTRIES + 1)
+#endif
+
+#ifndef DEFAULT_REGION_NAME
+  #define DEFAULT_REGION_NAME "any"
+#endif
+
 #define REGION_DENY_FLOOD   0x01
 #define REGION_DENY_DIRECT  0x02   // reserved for future
 
@@ -24,6 +32,7 @@ class RegionMap {
   uint16_t num_regions;
   RegionEntry regions[MAX_REGION_ENTRIES];
   RegionEntry wildcard;
+  RegionEntry any; // Matches any region scope that hasn't been explicitly defined
 
   void printChildRegions(int indent, const RegionEntry* parent, Stream& out) const;
 
