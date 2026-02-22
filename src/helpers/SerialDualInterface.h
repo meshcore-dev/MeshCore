@@ -16,14 +16,13 @@ public:
     _usb.begin(serial);
   }
 
+  // enable/disable only control BLE, USB is always available
   void enable() override {
     _ble.enable();
-    _usb.enable();
   }
 
   void disable() override {
     _ble.disable();
-    _usb.disable();
   }
 
   bool isEnabled() const override {
