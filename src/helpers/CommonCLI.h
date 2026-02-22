@@ -52,6 +52,7 @@ struct NodePrefs { // persisted to file
   uint32_t discovery_mod_timestamp;
   float adc_multiplier;
   char owner_info[120];
+  uint8_t wdt_enabled; // nRF52 watchdog enabled preference (0/1)
 };
 
 class CommonCLICallbacks {
