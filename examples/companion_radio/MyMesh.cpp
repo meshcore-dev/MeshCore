@@ -1309,15 +1309,19 @@ void MyMesh::handleCmdFrame(size_t len) {
     }
     board.reboot();
   } else if (cmd_frame[0] == CMD_GET_BATT_AND_STORAGE) {
-    uint8_t reply[11];
+    uint8_t reply[12];
     int i = 0;
     reply[i++] = RESP_CODE_BATT_AND_STORAGE;
     uint16_t battery_millivolts = board.getBattMilliVolts();
     uint32_t used = _store->getStorageUsedKb();
     uint32_t total = _store->getStorageTotalKb();
+    // Optional extra byte for companion clients:
+    // 0 = not externally powered, 1 = externally powered/charging source present.
+    uint8_t is_charging = board.isExternalPowered() ? 1 : 0;
     memcpy(&reply[i], &battery_millivolts, 2); i += 2;
     memcpy(&reply[i], &used, 4); i += 4;
     memcpy(&reply[i], &total, 4); i += 4;
+    reply[i++] = is_charging;
     _serial->writeFrame(reply, i);
   } else if (cmd_frame[0] == CMD_EXPORT_PRIVATE_KEY) {
 #if ENABLE_PRIVATE_KEY_EXPORT
