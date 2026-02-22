@@ -4,6 +4,47 @@
 #include <bluefruit.h>
 #include <nrf_soc.h>
 
+#ifdef NRF52_WATCHDOG
+#include <nrf.h>
+
+// nRF52 WDT reload register magic value ("nRF5" in ASCII, per Nordic SDK)
+#define WDT_RR_VALUE 0x6E524635UL
+
+// 30 second timeout at 32.768kHz clock
+#define WDT_TIMEOUT_SECONDS 30
+#define WDT_CRV_VALUE (WDT_TIMEOUT_SECONDS * 32768UL)
+
+bool NRF52Board::initWatchdog() {
+  // Check if already running - WDT cannot be reconfigured once started
+  if (NRF_WDT->RUNSTATUS) {
+    return false;
+  }
+
+  // Configure WDT to pause during sleep and halt modes
+  NRF_WDT->CONFIG = (WDT_CONFIG_SLEEP_Pause << WDT_CONFIG_SLEEP_Pos) |
+                    (WDT_CONFIG_HALT_Pause << WDT_CONFIG_HALT_Pos);
+
+  // Set timeout value (30 seconds)
+  NRF_WDT->CRV = WDT_CRV_VALUE;
+
+  // Enable reload request register 0
+  NRF_WDT->RREN = WDT_RREN_RR0_Enabled << WDT_RREN_RR0_Pos;
+
+  // Start the watchdog
+  NRF_WDT->TASKS_START = 1;
+
+  return true;
+}
+
+void NRF52Board::feedWatchdog() {
+  NRF_WDT->RR[0] = WDT_RR_VALUE;
+}
+
+bool NRF52Board::isWatchdogRunning() {
+  return NRF_WDT->RUNSTATUS != 0;
+}
+#endif
+
 static BLEDfu bledfu;
 
 static void connect_callback(uint16_t conn_handle) {
@@ -20,6 +61,12 @@ static void disconnect_callback(uint16_t conn_handle, uint8_t reason) {
 
 void NRF52Board::begin() {
   startup_reason = BD_STARTUP_NORMAL;
+}
+
+void NRF52Board::tick() {
+#ifdef NRF52_WATCHDOG
+  feedWatchdog();
+#endif
 }
 
 #ifdef NRF52_POWER_MANAGEMENT

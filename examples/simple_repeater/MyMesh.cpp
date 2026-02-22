@@ -860,6 +860,12 @@ void MyMesh::begin(FILESYSTEM *fs) {
   // TODO: key_store.begin();
   region_map.load(_fs);
 
+  #ifdef NRF52_WATCHDOG
+  if (_prefs.wdt_enabled) {
+    board.initWatchdog();
+  }
+#endif
+
 #if defined(WITH_BRIDGE)
   if (_prefs.bridge_enabled) {
     bridge.begin();
