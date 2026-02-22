@@ -167,7 +167,7 @@ bool RadioLibWrapper::isChannelActive() {
   int16_t result = performChannelScan();
   // scanChannel() leaves radio in standby — restart RX regardless of result
   startRecv();
-  return (result == RADIOLIB_LORA_DETECTED);
+  return (result == RADIOLIB_LORA_DETECTED || result == RADIOLIB_PREAMBLE_DETECTED);
 }
 
 float RadioLibWrapper::getLastRSSI() const {
