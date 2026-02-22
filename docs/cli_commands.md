@@ -127,6 +127,17 @@
 
 ---
 
+### External Power Monitoring Stats - Per-channel voltage and current
+**Usage:** `stats-extpower`
+
+**Serial Only:** Yes
+
+**Note:** Returns JSON with only enabled channels, e.g. `{"ch1_voltage_mv":12450,"ch1_current_ma":150,"ch2_voltage_mv":3800,"ch2_current_ma":85}`
+
+**Note:** Returns "No external power monitoring board detected" if no supported hardware is present
+
+---
+
 ## Logging
 
 ### Begin capture of rx log to node storage
