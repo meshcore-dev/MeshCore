@@ -11,7 +11,7 @@ PacketQueue::PacketQueue(int max_entries) {
 int PacketQueue::countBefore(uint32_t now) const {
   int n = 0;
   for (int j = 0; j < _num; j++) {
-    if (_schedule_table[j] > now) continue;   // scheduled for future... ignore for now
+    if ((int32_t)(_schedule_table[j] - now) > 0) continue;   // scheduled for future... ignore for now
     n++;
   }
   return n;
@@ -21,7 +21,7 @@ mesh::Packet* PacketQueue::get(uint32_t now) {
   uint8_t min_pri = 0xFF;
   int best_idx = -1;
   for (int j = 0; j < _num; j++) {
-    if (_schedule_table[j] > now) continue;   // scheduled for future... ignore for now
+    if ((int32_t)(_schedule_table[j] - now) > 0) continue;   // scheduled for future... ignore for now
     if (_pri_table[j] < min_pri) {  // select most important priority amongst non-future entries
       min_pri = _pri_table[j];
       best_idx = j;
