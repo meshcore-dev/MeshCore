@@ -493,16 +493,20 @@ bool EnvironmentSensorManager::formatExtPowerStats(char* reply) {
 #if ENV_INCLUDE_INA3221
   if (!INA3221_initialized) return false;
   char* dp = reply;
+  int remaining = 160;  // max reply buffer length
   *dp++ = '{';
+  remaining--;
   bool first = true;
   for (int i = 0; i < TELEM_INA3221_NUM_CHANNELS; i++) {
     if (INA3221.isChannelEnabled(i)) {
       int ch = i + 1;
       int voltage_mv = (int)(INA3221.getBusVoltage(i) * 1000);
       int current_ma = (int)(INA3221.getCurrentAmps(i) * 1000);
-      if (!first) *dp++ = ',';
-      sprintf(dp, "\"ch%d_voltage_mv\":%d,\"ch%d_current_ma\":%d", ch, voltage_mv, ch, current_ma);
-      dp = strchr(dp, 0);
+      if (!first) { *dp++ = ','; remaining--; }
+      int n = snprintf(dp, remaining, "\"ch%d_voltage_mv\":%d,\"ch%d_current_ma\":%d", ch, voltage_mv, ch, current_ma);
+      if (n >= remaining) break;
+      dp += n;
+      remaining -= n;
       first = false;
     }
   }

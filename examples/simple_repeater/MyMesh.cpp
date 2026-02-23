@@ -1021,7 +1021,7 @@ void MyMesh::formatPacketStatsReply(char *reply) {
 
 void MyMesh::formatExtPowerStatsReply(char *reply) {
   if (!sensors.formatExtPowerStats(reply)) {
-    strcpy(reply, "No external power monitoring board detected");
+    strcpy(reply, "{\"err\":\"No external power monitoring board detected\"}");
   }
 }
 
