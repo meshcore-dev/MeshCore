@@ -260,26 +260,60 @@ void UITask::renderCurrScreen() {
   _need_refresh = false;
 }
 
+
+//if the buzzer is deactivated we see a double blink at the status LED
+//this is an important status message to be sure that the buzzer keep quiet
+
+ 
+#define LED_OFF_SHORT     LED_ON_MILLIS*10  // short OFF time between double blink
 void UITask::userLedHandler() {
 #ifdef PIN_STATUS_LED
   static int state = 0;
   static int next_change = 0;
-  static int last_increment = 0;
+  static int blink_phase = 0;  // 0=ON1, 1=OFF1, 2=ON2, 3=OFF2
 
   int cur_time = millis();
   if (cur_time > next_change) {
-    if (state == 0) {
-      state = 1;
-      if (_msgcount > 0) {
-        last_increment = LED_ON_MSG_MILLIS;
-      } else {
-        last_increment = LED_ON_MILLIS;
+
+    if (buzzer.isQuiet()) {  // FORCE double blink
+      switch (blink_phase) {
+        case 0: // first ON
+          state = 1;
+          next_change = cur_time + (_msgcount > 0 ? LED_ON_MSG_MILLIS : LED_ON_MILLIS);
+          blink_phase = 1;
+          break;
+
+        case 1: // short OFF between blinks
+          state = 0;
+          next_change = cur_time + LED_OFF_SHORT;
+          blink_phase = 2;
+          break;
+
+        case 2: // second ON
+          state = 1;
+          next_change = cur_time + (_msgcount > 0 ? LED_ON_MSG_MILLIS : LED_ON_MILLIS);
+          blink_phase = 3;
+          break;
+
+        default: // long OFF pause
+          state = 0;
+          next_change = cur_time + LED_CYCLE_MILLIS;
+          blink_phase = 0;
+          break;
       }
-      next_change = cur_time + last_increment;
     } else {
-      state = 0;
-      next_change = cur_time + LED_CYCLE_MILLIS - last_increment;
+      // ---- ORIGINAL SINGLE BLINK ----
+      blink_phase = 0;
+
+      if (state == 0) {
+        state = 1;
+        next_change = cur_time + (_msgcount > 0 ? LED_ON_MSG_MILLIS : LED_ON_MILLIS);
+      } else {
+        state = 0;
+        next_change = cur_time + LED_CYCLE_MILLIS;
+      }
     }
+
     digitalWrite(PIN_STATUS_LED, state == LED_STATE_ON);
   }
 #endif
@@ -403,7 +437,12 @@ void UITask::handleButtonTriplePress() {
       buzzer.quiet(false);
       notify(UIEventType::ack);
       sprintf(_alert, "Buzzer: ON");
+      buzzer.play("BuzzerON:d=4,o=5,b=160:16c6,8g6");
     } else {
+      buzzer.play("BuzzerOFF:d=4,o=5,b=160:8g6,16c6"); 
+      uint32_t buzzer_timer = millis(); // give time to play before turning off
+      while (buzzer.isPlaying() && (millis() - 2500) < buzzer_timer)
+        buzzer.loop();
       buzzer.quiet(true);
       sprintf(_alert, "Buzzer: OFF");
     }
@@ -412,6 +451,7 @@ void UITask::handleButtonTriplePress() {
     _need_refresh = true;
   #endif
 }
+
 
 void UITask::handleButtonQuadruplePress() {
   MESH_DEBUG_PRINTLN("UITask: quad press triggered");
