@@ -74,7 +74,8 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     file.read((uint8_t *)&_prefs->bridge_channel, sizeof(_prefs->bridge_channel));                 // 135
     file.read((uint8_t *)&_prefs->bridge_secret, sizeof(_prefs->bridge_secret));                   // 136
     file.read((uint8_t *)&_prefs->powersaving_enabled, sizeof(_prefs->powersaving_enabled));       // 152
-    file.read(pad, 3);                                                                             // 153
+    file.read((uint8_t *)&_prefs->wdt_enabled, sizeof(_prefs->wdt_enabled));                       // 153
+    file.read(pad, 2);                                                                             // 154
     file.read((uint8_t *)&_prefs->gps_enabled, sizeof(_prefs->gps_enabled));                       // 156
     file.read((uint8_t *)&_prefs->gps_interval, sizeof(_prefs->gps_interval));                     // 157
     file.read((uint8_t *)&_prefs->advert_loc_policy, sizeof (_prefs->advert_loc_policy));          // 161
@@ -95,6 +96,7 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     _prefs->tx_power_dbm = constrain(_prefs->tx_power_dbm, -9, 30);
     _prefs->multi_acks = constrain(_prefs->multi_acks, 0, 1);
     _prefs->adc_multiplier = constrain(_prefs->adc_multiplier, 0.0f, 10.0f);
+    _prefs->wdt_enabled = constrain(_prefs->wdt_enabled, 0, 1);
 
     // sanitise bad bridge pref values
     _prefs->bridge_enabled = constrain(_prefs->bridge_enabled, 0, 1);
@@ -158,7 +160,8 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->bridge_channel, sizeof(_prefs->bridge_channel));                 // 135
     file.write((uint8_t *)&_prefs->bridge_secret, sizeof(_prefs->bridge_secret));                   // 136
     file.write((uint8_t *)&_prefs->powersaving_enabled, sizeof(_prefs->powersaving_enabled));       // 152
-    file.write(pad, 3);                                                                             // 153
+    file.write((uint8_t *)&_prefs->wdt_enabled, sizeof(_prefs->wdt_enabled));                       // 153
+    file.write(pad, 2);                                                                             // 154
     file.write((uint8_t *)&_prefs->gps_enabled, sizeof(_prefs->gps_enabled));                       // 156
     file.write((uint8_t *)&_prefs->gps_interval, sizeof(_prefs->gps_interval));                     // 157
     file.write((uint8_t *)&_prefs->advert_loc_policy, sizeof(_prefs->advert_loc_policy));           // 161
@@ -407,6 +410,12 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
 #else
         strcpy(reply, "ERROR: Power management not supported");
 #endif
+#ifdef NRF52_WATCHDOG
+      } else if (memcmp(config, "wdt", 3) == 0 && config[3] == 0) {
+        sprintf(reply, "> %s, %s",
+                _prefs->wdt_enabled ? "Enabled" : "Disabled",
+                _board->isWatchdogRunning() ? "running" : "not running");
+#endif
       } else {
         sprintf(reply, "??: %s", config);
       }
@@ -627,6 +636,14 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
           _prefs->adc_multiplier = 0.0f;
           strcpy(reply, "Error: unsupported by this board");
         };
+#ifdef NRF52_WATCHDOG
+      } else if (memcmp(config, "wdt ", 4) == 0) {
+        const char* value = &config[4];
+        bool enable = memcmp(value, "on", 2) == 0 || memcmp(value, "1", 1) == 0;
+        _prefs->wdt_enabled = enable ? 1 : 0;
+        savePrefs();
+        strcpy(reply, enable ? "OK - reboot to enable watchdog" : "OK - reboot to disable watchdog");
+#endif
       } else {
         sprintf(reply, "unknown config: %s", config);
       }

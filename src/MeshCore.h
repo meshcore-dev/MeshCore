@@ -65,6 +65,9 @@ public:
   virtual const char* getResetReasonString(uint32_t reason) { return "Not available"; }
   virtual uint8_t getShutdownReason() const { return 0; }
   virtual const char* getShutdownReasonString(uint8_t reason) { return "Not available"; }
+
+  // Watchdog interface (boards with watchdog support override these)
+  virtual bool isWatchdogRunning() { return false; }
 };
 
 /**
