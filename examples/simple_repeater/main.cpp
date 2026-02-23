@@ -20,8 +20,12 @@ void halt() {
 static char command[160];
 
 // For power saving
+constexpr unsigned long ACTIVE_TIME_SEC_INUSE = 2 * 60; // 2 minutes
+constexpr unsigned long ACTIVE_TIME_SEC_IDLE = 5;       // 5 seconds
+constexpr unsigned long IDLE_PERIOD_SEC = 30 * 60;      // 30 minutes
+
 unsigned long lastActive = 0; // mark last active time
-unsigned long nextSleepinSecs = 120; // next sleep in seconds. The first sleep (if enabled) is after 2 minutes from boot
+unsigned long nextSleepinSecs = ACTIVE_TIME_SEC_INUSE; // next sleep in seconds
 
 void setup() {
   Serial.begin(115200);
@@ -119,6 +123,8 @@ void loop() {
     Serial.print('\n');
     command[len - 1] = 0;  // replace newline with C string null terminator
     char reply[160];
+    lastActive = millis();
+    nextSleepinSecs = ACTIVE_TIME_SEC_INUSE;
     the_mesh.handleCommand(0, command, reply);  // NOTE: there is no sender_timestamp via serial!
     if (reply[0]) {
       Serial.print("  -> "); Serial.println(reply);
@@ -136,14 +142,14 @@ void loop() {
 
   if (the_mesh.getNodePrefs()->powersaving_enabled && !the_mesh.hasPendingWork()) {
     #if defined(NRF52_PLATFORM)
-    board.sleep(1800); // nrf ignores seconds param, sleeps whenever possible
+    board.sleep(IDLE_PERIOD_SEC); // nrf ignores seconds param, sleeps whenever possible
     #else
     if (the_mesh.millisHasNowPassed(lastActive + nextSleepinSecs * 1000)) { // To check if it is time to sleep
-      board.sleep(1800);             // To sleep. Wake up after 30 minutes or when receiving a LoRa packet
+      board.sleep(IDLE_PERIOD_SEC);             // To sleep. Wake up after 30 minutes or when receiving a LoRa packet
       lastActive = millis();
-      nextSleepinSecs = 5;  // Default: To work for 5s and sleep again
+      nextSleepinSecs = ACTIVE_TIME_SEC_IDLE; // Default: To work for 5s and sleep again
     } else {
-      nextSleepinSecs += 5; // When there is pending work, to work another 5s
+      nextSleepinSecs += ACTIVE_TIME_SEC_IDLE; // When there is pending work, to work another 5s
     }
     #endif
   }
