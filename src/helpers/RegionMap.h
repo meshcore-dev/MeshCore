@@ -9,7 +9,7 @@
 #endif
 
 #ifndef ANY_REGION_ID
-  #define ANY_REGION_ID (MAX_REGION_ENTRIES + 1)
+  #define ANY_REGION_ID 0xFFFF // reserved id
 #endif
 
 #ifndef DEFAULT_REGION_NAME
