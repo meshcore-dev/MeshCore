@@ -100,8 +100,8 @@ Request type
 | Value  | Name                 | Description                           |
 |--------|----------------------|---------------------------------------|
 | `0x01` | get stats            | get stats of repeater or room server  |
-| `0x02` | keepalive            | (deprecated) |
-| `0x03` | get telemetry data   | TODO |
+| `0x02` | keepalive            | room/repeater keepalive request flow |
+| `0x03` | get telemetry data   | get CayenneLPP telemetry payload |
 | `0x04` | get min,max,avg data | sensor nodes - get min, max, average for given time span |
 | `0x05` | get access list      | get node's approved access list            |
 | `0x06` | get neighbors        | get repeater node's neighbors              |
@@ -113,7 +113,6 @@ Gets information about the node, possibly including the following:
 
 * Battery level (millivolts)
 * Current transmit queue length
-* Current free queue length
 * Last RSSI value
 * Number of received packets
 * Number of sent packets
@@ -132,35 +131,79 @@ Gets information about the node, possibly including the following:
 
 ### Get telemetry data
 
-Request data about sensors on the node, including battery level.
+Request payload in current handlers:
 
-### Get Telemetry
+* first byte is inverse telemetry permission mask (`perm_mask = ~payload[0]` in sensor, `~payload[1]` in repeater/room)
+* remaining bytes are currently reserved
 
-TODO
+Response payload:
+
+* response tag (`sender_timestamp`) in first 4 bytes
+* CayenneLPP telemetry bytes after the tag (`telemetry.getBuffer()` / `telemetry.getSize()`)
 
 ### Get Min/Max/Ave  (Sensor nodes)
 
-TODO
+Request payload:
+
+* `start_secs_ago` (`uint32`)
+* `end_secs_ago` (`uint32`)
+* `reserved1` (`uint8`, must be `0` for query to run)
+* `reserved2` (`uint8`, must be `0` for query to run)
+
+Response payload:
+
+* response tag (`sender_timestamp`) in first 4 bytes
+* `now` (`uint32`)
+* repeated records: `channel` (`uint8`), `lpp_type` (`uint8`), then min/max/avg encoded with type-specific size and scale in `SensorMesh.cpp` (`getDataSize`, `getMultiplier`, `putFloat`)
 
 ### Get Access List
 
-TODO
+Request payload uses reserved query bytes (must be zero in current handlers).
 
-### Get Neighors
+Response payload:
 
-TODO
+* response tag (`sender_timestamp`) in first 4 bytes
+* repeated ACL entries:
+  * `pubkey_prefix` (6 bytes)
+  * `permissions` (`uint8`)
+
+Room server handler includes admin entries only (`c->isAdmin()`); repeater and sensor include non-zero entries.
+
+### Get Neighbors
+
+Repeater-only request payload:
+
+* `request_version` (`uint8`, current code handles `0`)
+* `count` (`uint8`)
+* `offset` (`uint16`)
+* `order_by` (`uint8`: `0` newest, `1` oldest, `2` strongest, `3` weakest)
+* `pubkey_prefix_length` (`uint8`)
+* random bytes for packet uniqueness (`payload[7..10]`)
+
+Response payload:
+
+* response tag (`sender_timestamp`) in first 4 bytes
+* `neighbours_count` (`uint16`)
+* `results_count` (`uint16`)
+* repeated result entries:
+  * `pubkey_prefix` (`pubkey_prefix_length` bytes)
+  * `heard_seconds_ago` (`uint32`)
+  * `snr_x4` (`int8`)
 
 ### Get Owner Info
 
-TODO
+Repeater-only response payload:
+
+* response tag (`sender_timestamp`) in first 4 bytes
+* UTF-8 text: `FIRMWARE_VERSION + "\\n" + node_name + "\\n" + owner_info`
 
 
 ## Response
 
 | Field   | Size (bytes)    | Description |
 |---------|-----------------|-------------|
-| tag     | 4               | TODO        |
-| content | rest of payload | TODO        |
+| tag     | 4               | sender request timestamp echoed back (`sender_timestamp`) |
+| content | rest of payload | response-type specific content (stats struct, telemetry bytes, ACL list, neighbors, owner info, etc.) |
 
 ## Plain text message
 
