@@ -38,13 +38,14 @@ public:
     return "RAK 3401";
   }
 
-#ifdef P_LORA_PA_EN
+  // SKY66122 FEM TX/RX switching via CTX pin.
+  // CTX=HIGH: TX mode + 5V boost ON (PA powered from VCC1/VCC2)
+  // CTX=LOW:  RX mode + 5V boost OFF (LNA powered from VSUP1 at 3.3V)
   void onBeforeTransmit() override {
-    digitalWrite(P_LORA_PA_EN, HIGH);  // Enable PA before transmission
+    digitalWrite(P_LORA_PA_EN, HIGH);  // CTX=1: TX mode, boost on
   }
 
   void onAfterTransmit() override {
-    digitalWrite(P_LORA_PA_EN, LOW);   // Disable PA after transmission to save power
+    digitalWrite(P_LORA_PA_EN, LOW);   // CTX=0: RX mode, boost off
   }
-#endif
 };

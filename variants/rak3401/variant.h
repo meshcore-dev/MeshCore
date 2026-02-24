@@ -147,8 +147,14 @@ static const uint8_t AREF = PIN_AREF;
 #define SX126X_BUSY (9)
 #define SX126X_RESET (4)
 
-#define SX126X_POWER_EN (21)
-// DIO2 controlls an antenna switch and the TCXO voltage is controlled by DIO3
+// SKY66122-11 FEM control pins (active HIGH, active LOW = shutdown <1uA)
+// CSD+CPS must be HIGH for TX and RX; CTX selects TX(HIGH) vs RX(LOW)
+// CTX also enables the 5V boost converter for the PA during TX
+#define P_LORA_PA_CSD (24)          // P0.24 -> SKY66122 CSD (pin 11) - FEM enable
+#define SX126X_POWER_EN (21)        // P0.21 -> SKY66122 CPS (pin 1) - path select
+#define P_LORA_PA_EN  (31)          // P0.31 -> SKY66122 CTX (pin 2) - TX/RX + boost EN
+
+// DIO2 has a NC 0R footprint (R25) to CTX; not connected by default
 #define SX126X_DIO2_AS_RF_SWITCH
 #define SX126X_DIO3_TCXO_VOLTAGE 1.8
 
@@ -159,7 +165,6 @@ static const uint8_t AREF = PIN_AREF;
 #define P_LORA_DIO_1 SX126X_DIO1
 #define P_LORA_BUSY SX126X_BUSY
 #define P_LORA_RESET SX126X_RESET
-#define P_LORA_PA_EN  31
 
 // enables 3.3V periphery like GPS or IO Module
 // Do not toggle this for GPS power savings
