@@ -55,6 +55,7 @@ public:
    * \param  dest_hash   destination to store the hash (must be MAX_HASH_SIZE bytes)
    */
   void calculatePacketHash(uint8_t* dest_hash) const;
+  void invalidateCachedHash() const { _hash_cached = false; }
 
   /**
    * \returns  one of ROUTE_ values
@@ -76,7 +77,7 @@ public:
    */
   uint8_t getPayloadVer() const { return (header >> PH_VER_SHIFT) & PH_VER_MASK; }
 
-  void markDoNotRetransmit() { header = 0xFF; }
+  void markDoNotRetransmit() { header = 0xFF; invalidateCachedHash(); }
   bool isMarkedDoNotRetransmit() const { return header == 0xFF; }
 
   float getSNR() const { return ((float)_snr) / 4.0f; }
@@ -99,6 +100,11 @@ public:
    * \param  len  the packet length (as returned by writeTo())
    */
   bool readFrom(const uint8_t src[], uint8_t len);
+
+private:
+  // Cache packet hash for repeated duplicate checks while packet content is unchanged.
+  mutable bool _hash_cached;
+  mutable uint8_t _cached_hash[MAX_HASH_SIZE];
 };
 
 }
