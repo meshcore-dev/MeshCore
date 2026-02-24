@@ -51,7 +51,7 @@
 - `time <epoch_seconds>`
 
 **Parameters:**
-- `epoc_seconds`: Unix epoc time
+- `epoch_seconds`: Unix epoch time
 
 ---
 
@@ -134,7 +134,7 @@
 
 ---
 
-### End capture of rx log to node sotrage
+### End capture of rx log to node storage
 **Usage:** `log stop`
 
 ---
@@ -198,7 +198,7 @@
 
 **Default:** Varies by board
 
-**Notes:** This setting only controls the power level of the LoRa chip. Some nodes have an additional power amplifier stage which increases the total output. Referr to the node's manual for the correct setting to use. **Setting a value too high may violate the laws in your country.**
+**Notes:** This setting only controls the power level of the LoRa chip. Some nodes have an additional power amplifier stage which increases the total output. Refer to the node's manual for the correct setting to use. **Setting a value too high may violate the laws in your country.**
 
 ---
 
@@ -228,6 +228,7 @@
 **Default:** `869.525`
 
 **Note:** Requires reboot to apply
+**Serial Only:** `set freq <frequency>`
 
 ### System
 
@@ -293,17 +294,16 @@
 
 #### View or change this node's admin password
 **Usage:**
-- `get password`
-- `set password <password>`
+- `password <new_password>`
 
 **Parameters:**
-- `password`: Admin password
+- `new_password`: New admin password
 
 **Set by build flag:** `ADMIN_PASSWORD`
 
 **Default:** `password`
 
-**Note:** Echoed back for confirmation
+**Note:** Command reply echoes the updated password for confirmation.
 
 **Note:** Any node using this password will be added to the admin ACL list.
 
@@ -768,7 +768,7 @@ region save
 - `gps advert <policy>`
 
 **Parameters:** 
-- `policy`: `none`|`shared`|`prefs` 
+- `policy`: `none`|`share`|`prefs` 
   - `none`: don't include location in adverts
   - `share`: share gps location (from SensorManager)
   - `prefs`: location stored in node's lat and lon settings
