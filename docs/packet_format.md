@@ -9,7 +9,7 @@ This document describes the MeshCore packet format.
 
 ## Version 1 Packet Format
 
-This is the protocol level packet structure used in MeshCore firmware v1.12.0
+This is the protocol-level packet structure used in current MeshCore v1 firmware.
 
 ```
 [header][transport_codes(optional)][path_length][path][payload]
@@ -51,12 +51,12 @@ This is the protocol level packet structure used in MeshCore firmware v1.12.0
 - `path_length` - 1 byte - Length of the path field in bytes
 - `path` - size provided by `path_length` - Path to use for Direct Routing
     - Up to a maximum of 64 bytes, defined by `MAX_PATH_SIZE`
-    - v1.12.0 firmware and older drops packets with `path_length` [larger than 64](https://github.com/meshcore-dev/MeshCore/blob/e812632235274ffd2382adf5354168aec765d416/src/Dispatcher.cpp#L144)
+    - Current firmware drops packets with `path_length` larger than 64
 - `payload` - variable length - Payload Data
     - Up to a maximum 184 bytes, defined by `MAX_PACKET_PAYLOAD`
     - Generally this is the remainder of the raw packet data
     - The firmware parses this data based on the provided Payload Type
-    - v1.12.0 firmware and older drops packets with `payload` sizes [larger than 184](https://github.com/meshcore-dev/MeshCore/blob/e812632235274ffd2382adf5354168aec765d416/src/Dispatcher.cpp#L152)
+    - Current firmware drops packets with `payload` sizes larger than 184
 
 ### Packet Format
 

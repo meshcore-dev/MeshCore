@@ -1,7 +1,7 @@
 # Companion Protocol
 
 - **Last Updated**: 2026-01-03
-- **Protocol Version**: Companion Firmware v1.12.0+
+- **Protocol Version**: Companion Firmware v1.13.0+ (frame protocol code 9)
 
 > NOTE: This document is still in development. Some information may be inaccurate.
 
@@ -100,7 +100,7 @@ When writing commands to the RX characteristic, specify the write type:
 
 ### MTU (Maximum Transmission Unit)
 
-The default BLE MTU is 23 bytes (20 bytes payload). For larger commands like `SET_CHANNEL` (66 bytes), you may need to:
+The default BLE MTU is 23 bytes (20 bytes payload). For larger commands like `SET_CHANNEL` (50 bytes), you may need to:
 
 1. **Request Larger MTU**: Request MTU of 512 bytes if supported
     - Android: `gatt.requestMtu(512)`
@@ -187,7 +187,7 @@ Bytes 2-10: "mccli" (ASCII, null-padded to 9 bytes)
 **Command Format**:
 ```
 Byte 0: 0x16
-Byte 1: 0x03
+Byte 1: App target protocol version (for example, 0x03)
 ```
 
 **Example** (hex):
@@ -229,10 +229,10 @@ Byte 1: Channel Index (0-7)
 Byte 0: 0x20
 Byte 1: Channel Index (0-7)
 Bytes 2-33: Channel Name (32 bytes, UTF-8, null-padded)
-Bytes 34-65: Secret (32 bytes)
+Bytes 34-49: Secret (16 bytes)
 ```
 
-**Total Length**: 66 bytes
+**Total Length**: 50 bytes
 
 **Channel Index**:
 - Index 0: Reserved for public channels (no secret)
@@ -243,14 +243,16 @@ Bytes 34-65: Secret (32 bytes)
 - Maximum 32 bytes
 - Padded with null bytes (0x00) if shorter
 
-**Secret Field** (32 bytes):
-- For **private channels**: 32-byte secret
-- For **public channels**: All zeros (0x00)
+**Secret Field**:
+- Firmware stores and uses a 16-byte (128-bit) channel secret.
+- Current firmware expects a 16-byte secret payload (`len >= 2 + 32 + 16`).
+- 32-byte secret payload variants are currently rejected as unsupported.
+- For **public channels**: all zeros (0x00).
 
 **Example** (create channel "YourChannelName" at index 1 with secret):
 ```
 20 01 53 4D 53 00 00 ... (name padded to 32 bytes)
-    [32 bytes of secret]
+    [16 bytes of secret]
 ```
 
 **Response**: `PACKET_OK` (0x00) on success, `PACKET_ERROR` (0x01) on failure
@@ -306,7 +308,7 @@ Byte 0: 0x0A
 
 ### 7. Get Battery
 
-**Purpose**: Query device battery level.
+**Purpose**: Query battery millivolts and storage usage.
 
 **Command Format**:
 ```
@@ -318,7 +320,7 @@ Byte 0: 0x14
 14
 ```
 
-**Response**: `PACKET_BATTERY` (0x0C) with battery percentage
+**Response**: `PACKET_BATTERY` (0x0C) with battery millivolts and storage totals
 
 ---
 
@@ -354,13 +356,28 @@ Byte 0: 0x14
     - Send `CMD_SET_CHANNEL` with empty name and all-zero secret
     - Or overwrite with a new channel
 
+### Client Repeat Mode (v9+)
+
+Client repeat is controlled through `CMD_SET_RADIO_PARAMS`:
+- Command byte: `0x0B`
+- Payload includes radio params and an optional trailing `repeat` byte (firmware protocol code 9+).
+- `repeat = 0`: client repeat disabled
+- `repeat != 0`: client repeat enabled (subject to frequency validation)
+
+Current allowed frequencies for enabling repeat are:
+- `433000` kHz
+- `869000` kHz
+- `918000` kHz
+
+If repeat is enabled at a different frequency, firmware returns `PACKET_ERROR` with illegal argument.
+
 ---
 
 ## Message Handling
 
 ### Receiving Messages
 
-Messages are received via the RX characteristic (notifications). The device sends:
+Messages are received via the TX characteristic (notifications). The device sends:
 
 1. **Channel Messages**:
    - `PACKET_CHANNEL_MSG_RECV` (0x08) - Standard format
@@ -492,7 +509,8 @@ def parse_channel_message(data):
 Use the `SEND_CHANNEL_MESSAGE` command (see [Commands](#commands)).
 
 **Important**: 
-- Messages are limited to 133 characters per MeshCore specification
+- Message payloads are limited by `MAX_TEXT_LEN` in firmware (currently `10 * 16 = 160` bytes).
+- For channel messages, this same limit includes the firmware-added `"<sender_name>: "` prefix.
 - Long messages should be split into chunks
 - Include a chunk indicator (e.g., "[1/3] message text")
 
@@ -515,13 +533,13 @@ Use the `SEND_CHANNEL_MESSAGE` command (see [Commands](#commands)).
 | 0x08  | PACKET_CHANNEL_MSG_RECV    | Channel message (standard)    |
 | 0x09  | PACKET_CURRENT_TIME        | Current time response         |
 | 0x0A  | PACKET_NO_MORE_MSGS        | No more messages available    |
-| 0x0C  | PACKET_BATTERY             | Battery level                 |
+| 0x0C  | PACKET_BATTERY             | Battery mV + storage usage    |
 | 0x0D  | PACKET_DEVICE_INFO         | Device information            |
 | 0x10  | PACKET_CONTACT_MSG_RECV_V3 | Contact message (V3 with SNR) |
 | 0x11  | PACKET_CHANNEL_MSG_RECV_V3 | Channel message (V3 with SNR) |
 | 0x12  | PACKET_CHANNEL_INFO        | Channel information           |
 | 0x80  | PACKET_ADVERTISEMENT       | Advertisement packet          |
-| 0x82  | PACKET_ACK                 | Acknowledgment                |
+| 0x82  | PACKET_SEND_CONFIRMED      | Send confirmation (ack + RTT) |
 | 0x83  | PACKET_MESSAGES_WAITING    | Messages waiting notification |
 | 0x88  | PACKET_LOG_DATA            | RF log data (can be ignored)  |
 
@@ -544,10 +562,8 @@ Byte 1: Error code (optional)
 Byte 0: 0x12
 Byte 1: Channel Index
 Bytes 2-33: Channel Name (32 bytes, null-terminated)
-Bytes 34-65: Secret (32 bytes, but device typically only returns 20 bytes total)
+Bytes 34-49: Secret (16 bytes)
 ```
-
-**Note**: The device may not return the full 66-byte packet. Parse what is available. The secret field is typically not returned for security reasons.
 
 **PACKET_DEVICE_INFO** (0x0D):
 ```
@@ -562,6 +578,7 @@ Bytes 4-7: BLE PIN (32-bit little-endian)
 Bytes 8-19: Firmware Build (12 bytes, UTF-8, null-padded)
 Bytes 20-59: Model (40 bytes, UTF-8, null-padded)
 Bytes 60-79: Version (20 bytes, UTF-8, null-padded)
+Byte 80: Client repeat flag (`0`/`1`) for protocol code 9+
 ```
 
 **Parsing Pseudocode**:
@@ -580,6 +597,8 @@ def parse_device_info(data):
         info['fw_build'] = data[8:20].decode('utf-8').rstrip('\x00').strip()
         info['model'] = data[20:60].decode('utf-8').rstrip('\x00').strip()
         info['ver'] = data[60:80].decode('utf-8').rstrip('\x00').strip()
+        if len(data) >= 81:
+            info['client_repeat'] = data[80]
     
     return info
 ```
@@ -587,29 +606,25 @@ def parse_device_info(data):
 **PACKET_BATTERY** (0x0C):
 ```
 Byte 0: 0x0C
-Bytes 1-2: Battery Level (16-bit little-endian, percentage 0-100)
-
-Optional (if data size > 3):
-Bytes 3-6: Used Storage (32-bit little-endian, KB)
-Bytes 7-10: Total Storage (32-bit little-endian, KB)
+Bytes 1-2: Battery millivolts (16-bit little-endian)
+Bytes 3-6: Used storage (32-bit little-endian, KB)
+Bytes 7-10: Total storage (32-bit little-endian, KB)
 ```
 
 **Parsing Pseudocode**:
 ```python
 def parse_battery(data):
-    if len(data) < 3:
+    if len(data) < 11:
         return None
-    
-    level = int.from_bytes(data[1:3], 'little')
-    info = {'level': level}
-    
-    if len(data) > 3:
-        used_kb = int.from_bytes(data[3:7], 'little')
-        total_kb = int.from_bytes(data[7:11], 'little')
-        info['used_kb'] = used_kb
-        info['total_kb'] = total_kb
-    
-    return info
+
+    battery_mv = int.from_bytes(data[1:3], 'little')
+    used_kb = int.from_bytes(data[3:7], 'little')
+    total_kb = int.from_bytes(data[7:11], 'little')
+    return {
+        'battery_mv': battery_mv,
+        'used_kb': used_kb,
+        'total_kb': total_kb,
+    }
 ```
 
 **PACKET_SELF_INFO** (0x05):
@@ -680,15 +695,16 @@ def parse_self_info(data):
 **PACKET_MSG_SENT** (0x06):
 ```
 Byte 0: 0x06
-Byte 1: Message Type
-Bytes 2-5: Expected ACK (4 bytes, hex)
-Bytes 6-9: Suggested Timeout (32-bit little-endian, seconds)
+Byte 1: Route mode (0 = direct, 1 = flood)
+Bytes 2-5: Request/Send Tag (4 bytes)
+Bytes 6-9: Suggested timeout (32-bit little-endian, milliseconds)
 ```
 
-**PACKET_ACK** (0x82):
+**PACKET_SEND_CONFIRMED** (0x82):
 ```
 Byte 0: 0x82
-Bytes 1-6: ACK Code (6 bytes, hex)
+Bytes 1-4: ACK hash (4 bytes)
+Bytes 5-8: Trip time (32-bit little-endian, milliseconds)
 ```
 
 ### Error Codes
@@ -825,12 +841,12 @@ device = scan_for_device("MeshCore")
 gatt = connect_to_device(device)
 
 # 3. Discover services and characteristics
-service = discover_service(gatt, "0000ff00-0000-1000-8000-00805f9b34fb")
-rx_char = discover_characteristic(service, "0000ff01-0000-1000-8000-00805f9b34fb")
-tx_char = discover_characteristic(service, "0000ff02-0000-1000-8000-00805f9b34fb")
+service = discover_service(gatt, "6E400001-B5A3-F393-E0A9-E50E24DCCA9E")
+rx_char = discover_characteristic(service, "6E400002-B5A3-F393-E0A9-E50E24DCCA9E")
+tx_char = discover_characteristic(service, "6E400003-B5A3-F393-E0A9-E50E24DCCA9E")
 
-# 4. Enable notifications on RX characteristic
-enable_notifications(rx_char, on_notification_received)
+# 4. Enable notifications on TX characteristic
+enable_notifications(tx_char, on_notification_received)
 
 # 5. Send AppStart command
 send_command(tx_char, build_app_start())

@@ -44,7 +44,7 @@ A list of frequently-asked questions and answers for MeshCore
   - [5.1. Q: What are BW, SF, and CR?](#51-q-what-are-bw-sf-and-cr)
   - [5.2. Q: Do MeshCore clients repeat?](#52-q-do-meshcore-clients-repeat)
   - [5.3. Q: What happens when a node learns a route via a mobile repeater, and that repeater is gone?](#53-q-what-happens-when-a-node-learns-a-route-via-a-mobile-repeater-and-that-repeater-is-gone)
-  - [5.4. Q: How does a node discovery a path to its destination and then use it to send messages in the future, instead of flooding every message it sends like Meshtastic?](#54-q-how-does-a-node-discovery-a-path-to-its-destination-and-then-use-it-to-send-messages-in-the-future-instead-of-flooding-every-message-it-sends-like-meshtastic)
+  - [5.4. Q: How does a node discover a path to its destination and then use it to send messages in the future, instead of flooding every message it sends like Meshtastic?](#54-q-how-does-a-node-discover-a-path-to-its-destination-and-then-use-it-to-send-messages-in-the-future-instead-of-flooding-every-message-it-sends-like-meshtastic)
   - [5.5. Q: Do public channels always flood? Do private channels always flood?](#55-q-do-public-channels-always-flood-do-private-channels-always-flood)
   - [5.6. Q: what is the public key for the default public channel?](#56-q-what-is-the-public-key-for-the-default-public-channel)
   - [5.7. Q: Is MeshCore open source?](#57-q-is-meshcore-open-source)
@@ -188,9 +188,9 @@ The T-Deck firmware is free to download and most features are available without 
 
 
 ### 2.3. Q: What frequencies are supported by MeshCore?
-**A:** It supports the 868MHz range in the UK/EU and the 915MHz range in New Zealand, Australia, and the USA. Countries and regions in these two frequency ranges are also supported.
+**A:** Common deployments use the 868MHz and 915MHz ranges, and some builds/regions also use 433MHz. Use only frequencies and presets that are legal for your country/region.
 
-Use the smartphone client or the repeater setup feature on there web flasher to set your radios' RF settings by choosing the preset for your regions.
+Use the smartphone client or the repeater setup feature on the web flasher to set your radio RF settings by choosing the preset for your region.
 
 Recently, as of October 2025, many regions have moved to the "narrow" setting, aka using BW62.5 and a lower SF number (instead of the original SF11).  For example, USA/Canada (Recommended) preset is 910.525MHz, SF7, BW62.5, CR5.
 
@@ -434,16 +434,17 @@ So, it's balancing act between speed of the transmission and resistance to noise
 things network is mainly focused on LoRaWAN, but the LoRa low-level stuff still checks out for any LoRa project
 
 ### 5.2. Q: Do MeshCore clients repeat?
-**A:** No, MeshCore clients do not repeat.  This is the core of MeshCore's messaging-first design.  This is to avoid devices flooding the air ware and create endless collisions, so messages sent aren't received.
-In MeshCore, only repeaters and room server with `set repeat on` repeat.
+**A:** By default, clients do not repeat. In normal operation, repeaters and room servers (with `set repeat on`) are the nodes that relay traffic.
+
+Companion firmware has an optional client repeat mode controlled by app protocol settings (`client_repeat`). In current firmware, enabling this mode is restricted to specific frequencies (433.000, 869.000, and 918.000 MHz).
 
 ### 5.3. Q: What happens when a node learns a route via a mobile repeater, and that repeater is gone?
 
 **A:** If you used to reach a node through a repeater and the repeater is no longer reachable, the client will send the message using the existing (but now broken) known path, the message will fail after 3 retries, and the app will reset the path and send the message as flood on the last retry by default.  This can be turned off in settings.  If the destination is reachable directly or through another repeater, the new path will be used going forward.  Or you can set the path manually if you know a specific repeater to use to reach that destination.
 
-In the case if users are moving around frequently, and the paths are breaking, they just see the phone client retries and revert to flood to attempt to re-establish a path.
+If users are moving around frequently and paths are breaking, the phone client retries and reverts to flood to re-establish a path.
 
-### 5.4. Q: How does a node discovery a path to its destination and then use it to send messages in the future, instead of flooding every message it sends like Meshtastic?
+### 5.4. Q: How does a node discover a path to its destination and then use it to send messages in the future, instead of flooding every message it sends like Meshtastic?
 
 Routes are stored in sender's contact list.  When you send a message the first time, the message first gets to your destination by flood routing. When your destination node gets the message, it will send back a delivery report to the sender with all repeaters that the original message went through. This delivery report is flood-routed back to you the sender and is a basis for future direct path. When you send the next message, the path will get embedded into the packet and be evaluated by repeaters. If the hop and address of the repeater matches, it will retransmit the message, otherwise it will not retransmit, hence minimizing utilization.
 
@@ -521,13 +522,13 @@ Javascript: https://github.com/liamcottle/meshcore.js
 ### 5.11. Q: Does MeshCore support ATAK
 **A:** ATAK is not currently on MeshCore's roadmap.
 
-Meshcore would not be best suited to ATAK because MeshCore:
-clients do not repeat and therefore you would need a network of repeaters in place
+MeshCore would not be best suited to ATAK because MeshCore:
+clients do not repeat by default and therefore you still need a network of repeaters in place
 will not have a stable path where all clients are constantly moving between repeaters
 
 MeshCore clients would need to reset path constantly and flood traffic across the network which could lead to lots of collisions with something as chatty as ATAK.
 
-This could change in the future if MeshCore develops a client firmware that repeats.
+Companion firmware now has an optional repeat mode, but it is frequency-restricted and does not remove ATAK's broader mobility and path-stability challenges.
 [Source](https://discord.com/channels/826570251612323860/1330643963501351004/1354780032140054659)
 
 ### 5.12. Q: How do I add a node to the [MeshCore Map](https://meshcore.co.uk/map.html)
@@ -541,14 +542,14 @@ You can use the same companion (same public key) that you used to add your repea
 
 
 ### 5.13. Q: Can I use a Raspberry Pi to update a MeshCore radio?
-** A:** Yes.
+**A:** Yes.
 Below are the instructions to flash firmware onto a supported LoRa device using a Raspberry Pi over USB serial.
 
 > Instructions for nRF devices like RAK, T1000-E, T114 are immediately after the ESP instructions
 
 For ESP-based devices (e.g. Heltec V3) you need:
 - Download firmware file from flasher.meshcore.co.uk
-    - Go to the web site on a browser, find the section that has the firmware up need
+    - Go to the website in a browser, find the section that has the firmware you need
     - Click the Download button, right click on the file you need, for example,
         - `Heltec_V3_companion_radio_ble-v1.7.1-165fb33.bin`
             - Non-merged bin keeps the existing Bluetooth pairing database
@@ -576,7 +577,7 @@ For ESP-based devices (e.g. Heltec V3) you need:
 
 For nRF devices (e.g. RAK, Heltec T114) you need the following:
 - Download firmware file from flasher.meshcore.co.uk
-    - Go to the web site on a browser, find the section that has the firmware up need
+    - Go to the website in a browser, find the section that has the firmware you need
     - You need the ZIP version for the adafruit flash tool (below)
     - Click the Download button, right click on the ZIP file, for example:
         - `RAK_4631_companion_radio_ble-v1.7.1-165fb33.zip`
@@ -607,7 +608,7 @@ From here, reference repeater and room server command line commands on MeshCore 
 **A:** Yes.  See the following:
 
 #### 5.14.1. meshcoremqtt
-A Python script to send meshcore debug and packet capture data to MQTT for analysis.  Cisien's version is a fork of Andrew-a-g's and is being used to to collect data for https://map.w0z.is/messages and https://analyzer.letsmesh.net/
+A Python script to send meshcore debug and packet capture data to MQTT for analysis. Cisien's version is a fork of Andrew-a-g's and is being used to collect data for https://map.w0z.is/messages and https://analyzer.letsmesh.net/
 https://github.com/Cisien/meshcoretomqtt
 https://github.com/Andrew-a-g/meshcoretomqtt
 
@@ -695,7 +696,7 @@ You can get the epoch time on <https://www.epochconverter.com/> and use it to se
     - For RAK, click the reset button **TWICE**
     - For T1000-e, quickly disconnect and reconnect the magnetic side of the cable from the device **TWICE**
     - For Heltec T114, click the reset button **TWICE** (the bottom button)
-    - For Xiao nRF52, click the reset button once.  If that doesn't work, quickly double click the reset button twice.  If that doesn't work, disconnection the board from your PC and reconnect again ([seeed studio wiki](https://wiki.seeedstudio.com/XIAO_BLE/#access-the-swd-pins-for-debugging-and-reflashing-bootloader))
+    - For Xiao nRF52, click the reset button once. If that doesn't work, quickly double click the reset button twice. If that doesn't work, disconnect the board from your PC and reconnect again ([seeed studio wiki](https://wiki.seeedstudio.com/XIAO_BLE/#access-the-swd-pins-for-debugging-and-reflashing-bootloader))
 5. A new folder will appear on your computer's desktop
 6. Download the `flash_erase*.uf2` file for your device on flasher.meshcore.co.uk
     - RAK WisBlock and Heltec T114: `Flash_erase-nRF32_softdevice_v6.uf2`
@@ -733,7 +734,7 @@ Allow the browser user on it:
 9. Select the firmware zip file you downloaded
 10. Select the device you want to update. If the device you want to update is not on the list, try enabling`OTA` on the device again
 11. If the device is not found, enable `Force Scanning` in the DFU app
-12. Tab the `Upload` to begin OTA update
+12. Tap `Upload` to begin OTA update
 13. If it fails, try turning off and on Bluetooth on your phone.  If that doesn't work, try rebooting your phone.
 14. Wait for the update to complete.  It can take a few minutes.
 
@@ -751,8 +752,8 @@ After this bootloader is flashed onto the device, you can trigger over the air u
 2. From the MeshCore app, login remotely to the repeater you want to update with admin privilege
 4. Go to the Command Line tab, type `start ota` and hit enter.
 5. you should see `OK` to confirm the repeater device is now in OTA mode
-6. The command `start ota` on an ESP32-based device starts a wifi hotspot named `MeshCore OTA`
-7. From your phone or computer connect to the 'MeshCore OTA' hotspot
+6. The command `start ota` on an ESP32-based device starts a Wi-Fi hotspot named `MeshCore-OTA`
+7. From your phone or computer connect to the 'MeshCore-OTA' hotspot
 8. From a browser, go to http://192.168.4.1/update and upload the non-merged bin from the flasher
 
 
@@ -795,11 +796,15 @@ where `&type` is:
 ### 7.6. Q: How do I connect to the companion via WIFI, e.g. using a heltec v3?
  **A:**
 WiFi firmware requires you to compile it yourself, as you need to set the wifi ssid and password.
-Edit WIFI_SSID and WIFI_PWD in `./variants/heltec_v3/platformio.ini` and then flash it to your device.
+Edit `WIFI_SSID` and `WIFI_PWD` in your board's `platformio.ini` companion WiFi environment and then flash it to your device.
+
+Current companion WiFi build environments include:
+- `env:Heltec_V3_companion_radio_wifi` in `./variants/heltec_v3/platformio.ini`
+- `env:T_Beam_S3_Supreme_SX1262_companion_radio_wifi` in `./variants/lilygo_tbeam_supreme_SX1262/platformio.ini`
 
 ### 7.7. Q: I have a Station G2, or a Heltec V4, or an Ikoka Stick, or a radio with a EByte E22-900M30S or a E22-900M33S module, what should their transmit power be set to?
  **A:**
-For companion radios, you can set these radios' transmit power in the smartphone app.  For repeater and room server radios, you can set their transmit power using the command line command `set tx`.  You can get their current value using command line comand `get tx`
+For companion radios, you can set these radios' transmit power in the smartphone app. For repeater and room server radios, you can set their transmit power using the command line command `set tx`. You can get their current value using command line command `get tx`
 
 
 > ### ⚠️ **WARNING: Set these values at your own risk. Incorrect power settings can permanently damage your radio hardware.**

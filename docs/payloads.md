@@ -46,12 +46,23 @@ Appdata
 
 Appdata Flags
 
+The `flags` byte mixes node type and optional field flags:
+- Lower 4 bits (`flags & 0x0F`) = node type
+- Upper 4 bits (`flags & 0xF0`) = optional fields present
+
+Node type values (lower nibble):
+
+| Value  | Name           |
+|--------|----------------|
+| `0x01` | chat node      |
+| `0x02` | repeater node  |
+| `0x03` | room server    |
+| `0x04` | sensor node    |
+
+Optional field flags (upper bits):
+
 | Value  | Name           | Description                           |
 |--------|----------------|---------------------------------------|
-| `0x01` | is chat node   | advert is for a chat node             |
-| `0x02` | is repeater    | advert is for a repeater              |
-| `0x03` | is room server | advert is for a room server           |
-| `0x04` | is sensor      | advert is for a sensor server         |
 | `0x10` | has location   | appdata contains lat/long information |
 | `0x20` | has feature 1  | Reserved for future use.              |
 | `0x40` | has feature 2  | Reserved for future use.              |
@@ -59,11 +70,11 @@ Appdata Flags
 
 # Acknowledgement
 
-An acknowledgement that a message was received. Note that for returned path messages, an acknowledgement can be sent in the "extra" payload (see [Returned Path](#returned-path)) instead of as a separate ackowledgement packet. CLI commands do not cause acknowledgement responses, neither discrete nor extra.
+An acknowledgement that a message was received. Note that for returned path messages, an acknowledgement can be sent in the "extra" payload (see [Returned Path](#returned-path)) instead of as a separate acknowledgement packet. CLI commands do not cause acknowledgement responses, neither discrete nor extra.
 
 | Field    | Size (bytes) | Description                                                |
 |----------|--------------|------------------------------------------------------------|
-| checksum | 4            | CRC checksum of message timestamp, text, and sender pubkey |
+| checksum | 4            | first 4 bytes of SHA-256 over message timestamp, text, and sender pubkey |
 
 
 # Returned path, request, response, and plain text message
@@ -90,11 +101,11 @@ Returned path messages provide a description of the route a packet took from the
 
 ## Request
 
-| Field        | Size (bytes)    | Description                |
-|--------------|-----------------|----------------------------|
-| timestamp    | 4               | send time (unix timestamp) |
-| request type | 1               | see below                  |
-| request data | rest of payload | depends on request type    |
+| Field        | Size (bytes)    | Description                                                                              |
+|--------------|-----------------|------------------------------------------------------------------------------------------|
+| tag          | 4               | request tag (typically sender timestamp/unique timestamp); reflected in response bytes 0..3 |
+| request type | 1               | see below                                                                                |
+| request data | rest of payload | depends on request type                                                                  |
 
 Request type
 
@@ -102,7 +113,7 @@ Request type
 |--------|----------------------|---------------------------------------|
 | `0x01` | get stats            | get stats of repeater or room server  |
 | `0x02` | keepalive            | (deprecated) |
-| `0x03` | get telemetry data   | TODO |
+| `0x03` | get telemetry data   | get telemetry payload from target node |
 | `0x04` | get min,max,avg data | sensor nodes - get min, max, average for given time span |
 | `0x05` | get access list      | get node's approved access list            |
 | `0x06` | get neighbors        | get repeater node's neighbors              |
@@ -128,40 +139,82 @@ Gets information about the node, possibly including the following:
 * Last SNR value
 * Number of direct route duplicates
 * Number of flood route duplicates
-* Number posted (?)
-* Number of post pushes (?)
+* Number of posts created (room server)
+* Number of post push notifications sent (room server)
 
 ### Get telemetry data
 
-Request data about sensors on the node, including battery level.
+Requests telemetry payload from the target node.
 
-### Get Telemetry
+Typical request data (used by companion/mesh helpers):
+- byte 0: inverse telemetry permission mask (`~mask`) used by node-side filtering
+- bytes 1..3: reserved
 
-TODO
+Response content:
+- telemetry payload bytes (LPP-style encoded telemetry), prefixed by the 4-byte response tag.
 
 ### Get Min/Max/Ave  (Sensor nodes)
 
-TODO
+Sensor request data:
+- bytes 0..3: `start_secs_ago` (`uint32`)
+- bytes 4..7: `end_secs_ago` (`uint32`)
+- byte 8: reserved (must be `0`)
+- byte 9: reserved (must be `0`)
+
+Sensor response content (after 4-byte response tag):
+- bytes 0..3: current node time (`uint32`)
+- repeated per record:
+  - channel (`uint8`)
+  - telemetry type (`uint8`)
+  - min value (encoded by telemetry type)
+  - max value (encoded by telemetry type)
+  - avg value (encoded by telemetry type)
 
 ### Get Access List
 
-TODO
+Returns ACL entries (admin-only operation on server-side handlers).
 
-### Get Neighors
+Request data:
+- reserved bytes, expected as zero by current handlers.
 
-TODO
+Response content (after 4-byte response tag):
+- repeated entries of:
+  - pubkey prefix (6 bytes)
+  - permissions (`uint8`)
+
+### Get Neighbors (Repeater)
+
+Request data format (version `0`):
+
+| Field                | Size (bytes) | Description |
+|----------------------|--------------|-------------|
+| request version      | 1            | `0` currently supported |
+| count                | 1            | max neighbors to return |
+| offset               | 2            | start index into sorted neighbors |
+| order_by             | 1            | `0` newest->oldest, `1` oldest->newest, `2` strongest->weakest, `3` weakest->strongest |
+| pubkey_prefix_length | 1            | number of pubkey bytes per entry (clamped to 32) |
+| random               | 4            | request uniqueness blob |
+
+Response content (after 4-byte response tag):
+- `neighbours_count` (`uint16`): total available neighbors
+- `results_count` (`uint16`): entries returned in this response
+- repeated entries:
+  - pubkey prefix (`pubkey_prefix_length` bytes)
+  - `heard_seconds_ago` (`uint32`)
+  - `snr_x4` (`int8`)
 
 ### Get Owner Info
 
-TODO
+Repeater response content is UTF-8 text:
+- `"<firmware_version>\n<node_name>\n<owner_info>"`
 
 
 ## Response
 
 | Field   | Size (bytes)    | Description |
 |---------|-----------------|-------------|
-| tag     | 4               | TODO        |
-| content | rest of payload | TODO        |
+| tag     | 4               | mirrored request tag/sender timestamp |
+| content | rest of payload | request-specific response bytes |
 
 ## Plain text message
 
@@ -246,7 +299,7 @@ The plaintext contained in the ciphertext matches the format described in [plain
 
 | Field        | Size (bytes)    | Description                                |
 |--------------|-----------------|--------------------------------------------|
-| flags        | 1               | upper 4 bits is sub_type                   |
+| flags        | 1               | upper 4 bits are sub_type, lower bits are subtype-specific |
 | data         | rest of payload | typically unencrypted data                 |
 
 ## DISCOVER_REQ (sub_type)
@@ -254,9 +307,14 @@ The plaintext contained in the ciphertext matches the format described in [plain
 | Field        | Size (bytes)    | Description                                  |
 |--------------|-----------------|----------------------------------------------|
 | flags        | 1               | 0x8 (upper 4 bits), prefix_only (lowest bit) |
-| type_filter  | 1               | bit for each ADV_TYPE_*                      |
+| type_filter  | 1               | bit mask by advert type (`1 << ADV_TYPE_*`)  |
 | tag          | 4               | randomly generate by sender                  |
 | since        | 4               | (optional) epoch timestamp (0 by default)    |
+
+`type_filter` examples:
+- repeater: `1 << 2` (`0x04`)
+- room server: `1 << 3` (`0x08`)
+- sensor: `1 << 4` (`0x10`)
 
 ## DISCOVER_RESP (sub_type)
 
