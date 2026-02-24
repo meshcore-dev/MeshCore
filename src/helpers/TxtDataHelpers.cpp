@@ -83,12 +83,12 @@ static void _ftoa(float f, char *p, int *status)
   } 
   else if (exp2 >= 23)
   { 
-    int_part = mantissa<<(exp2 - 23);
+    int_part = static_cast<int32_t>(static_cast<uint32_t>(mantissa) << (exp2 - 23));
   }
   else if (exp2 >= 0) 
   {
     int_part = mantissa>>(23 - exp2);
-    frac_part = (mantissa<<(exp2 + 1))&0xFFFFFF;
+    frac_part = static_cast<int32_t>((static_cast<uint32_t>(mantissa) << (exp2 + 1)) & 0xFFFFFFu);
   } 
   else 
   {
