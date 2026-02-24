@@ -1,0 +1,35 @@
+title: "[Q&A]: "
+body:
+  - type: dropdown
+    id: topic
+    attributes:
+      label: Topic Area
+      options:
+        - Getting Started / Setup
+        - BLE / Companion App
+        - LoRa / Mesh Networking
+        - Build System / Compilation
+        - Hardware / Wiring
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: hardware
+    attributes:
+      label: Hardware (if applicable)
+      placeholder: "e.g., T1000-E, RAK4631"
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Your Question
+      description: Describe what you need help with.
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: What have you tried?
+      description: Steps you have already taken or documentation you have read.
