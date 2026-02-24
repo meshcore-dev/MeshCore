@@ -336,6 +336,13 @@ void Mesh::removeSelfFromPath(Packet* pkt) {
 DispatcherAction Mesh::routeRecvPacket(Packet* packet) {
   if (packet->isRouteFlood() && !packet->isMarkedDoNotRetransmit()
     && packet->path_len + PATH_HASH_SIZE <= MAX_PATH_SIZE && allowPacketForward(packet)) {
+    // prevent this repeater from being added to the path multiple times
+    uint8_t my_hash = self_id.pub_key[0];
+    if (packet->path_len >= 2
+        && packet->path[packet->path_len - 1] == my_hash
+        && packet->path[packet->path_len - 2] == my_hash) {
+      return ACTION_RELEASE;
+    }
     // append this node's hash to 'path'
     packet->path_len += self_id.copyHashTo(&packet->path[packet->path_len]);
 
