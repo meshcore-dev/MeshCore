@@ -30,9 +30,11 @@ This document provides a comprehensive guide for communicating with MeshCore dev
 
 MeshCore devices expose a BLE service with the following UUIDs:
 
-- **Service UUID**: `0000ff00-0000-1000-8000-00805f9b34fb`
-- **RX Characteristic** (Device → Client): `0000ff01-0000-1000-8000-00805f9b34fb`
-- **TX Characteristic** (Client → Device): `0000ff02-0000-1000-8000-00805f9b34fb`
+- **Service UUID**: `6E400001-B5A3-F393-E0A9-E50E24DCCA9E` (ESP32 companion BLE interface)
+- **RX Characteristic** (Client → Device write): `6E400002-B5A3-F393-E0A9-E50E24DCCA9E`
+- **TX Characteristic** (Device → Client notify): `6E400003-B5A3-F393-E0A9-E50E24DCCA9E`
+
+**nRF52 note**: The nRF52 implementation uses Bluefruit `BLEUart` and does not define these UUID constants in this repository.
 
 ### Connection Steps
 
@@ -46,18 +48,18 @@ MeshCore devices expose a BLE service with the following UUIDs:
    - Wait for connection to be established
 
 3. **Discover Services and Characteristics**
-   - Discover the service with UUID `0000ff00-0000-1000-8000-00805f9b34fb`
-   - Discover RX characteristic (`0000ff01-...`) for receiving data
-   - Discover TX characteristic (`0000ff02-...`) for sending commands
+   - Discover the service with UUID `6E400001-B5A3-F393-E0A9-E50E24DCCA9E`
+   - Discover RX characteristic (`6E400002-...`) for sending commands
+   - Discover TX characteristic (`6E400003-...`) for receiving data
 
 4. **Enable Notifications**
-   - Subscribe to notifications on the RX characteristic
+   - Subscribe to notifications on the TX characteristic
    - Enable notifications/indications to receive data from the device
    - On some platforms, you may need to write to a descriptor (e.g., `0x2902`) with value `0x01` or `0x02`
 
 5. **Send AppStart Command**
    - Send the app start command (see [Commands](#commands)) to initialize communication
-   - Wait for OK response before sending other commands
+   - Wait for `PACKET_SELF_INFO` response before sending other commands
 
 ### Connection State Management
 
@@ -84,7 +86,7 @@ When writing commands to the TX characteristic, specify the write type:
 
 ### MTU (Maximum Transmission Unit)
 
-The default BLE MTU is 23 bytes (20 bytes payload). For larger commands like `SET_CHANNEL` (66 bytes), you may need to:
+The default BLE MTU is 23 bytes (20 bytes payload). For larger commands like `SET_CHANNEL` (50 bytes in current firmware), you may need to:
 
 1. **Request Larger MTU**: Request MTU of 512 bytes if supported
    - Android: `gatt.requestMtu(512)`
@@ -105,7 +107,7 @@ The default BLE MTU is 23 bytes (20 bytes payload). For larger commands like `SE
    - Wait for notifications enabled (descriptor write complete)
    - **Wait 200-1000ms** for device to be ready (some devices need initialization time)
    - Send `APP_START` command
-   - **Wait for `PACKET_OK` response** before sending any other commands
+   - **Wait for `PACKET_SELF_INFO` response** before sending any other commands
 
 2. **Command-Response Matching**:
    - Send one command at a time
@@ -132,8 +134,8 @@ await asyncio.sleep(0.2)  # Wait for device ready
 
 # 2. Send AppStart
 send_command(build_app_start())
-response = await wait_for_response(PACKET_OK, timeout=5.0)
-if response.type != PACKET_OK:
+response = await wait_for_response(PACKET_SELF_INFO, timeout=5.0)
+if response.type != PACKET_SELF_INFO:
     raise Exception("AppStart failed")
 
 # 3. Now safe to send other commands
@@ -221,16 +223,16 @@ The first byte indicates the packet type (see [Response Parsing](#response-parsi
 **Command Format**:
 ```
 Byte 0: 0x01
-Byte 1: 0x03
-Bytes 2-10: "mccli" (ASCII, null-padded to 9 bytes)
+Bytes 1-7: Reserved (currently unused by firmware parser)
+Bytes 8+: App name string (UTF-8)
 ```
 
 **Example** (hex):
 ```
-01 03 6d 63 63 6c 69 00 00 00 00
+01 03 00 00 00 00 00 00 6d 63 63 6c 69
 ```
 
-**Response**: `PACKET_OK` (0x00)
+**Response**: `PACKET_SELF_INFO` (0x05)
 
 ---
 
@@ -270,7 +272,7 @@ Byte 1: Channel Index (0-7)
 
 **Response**: `PACKET_CHANNEL_INFO` (0x12) with channel details
 
-**Note**: The device does not return channel secrets for security reasons. Store secrets locally when creating channels.
+**Note**: Current firmware returns a 16-byte channel secret in the channel info response payload.
 
 ---
 
@@ -283,10 +285,10 @@ Byte 1: Channel Index (0-7)
 Byte 0: 0x20
 Byte 1: Channel Index (0-7)
 Bytes 2-33: Channel Name (32 bytes, UTF-8, null-padded)
-Bytes 34-65: Secret (32 bytes, see [Secret Generation](#secret-generation))
+Bytes 34-49: Secret (16 bytes, see [Secret Generation](#secret-generation))
 ```
 
-**Total Length**: 66 bytes
+**Total Length**: 50 bytes
 
 **Channel Index**:
 - Index 0: Reserved for public channels (no secret)
@@ -297,17 +299,19 @@ Bytes 34-65: Secret (32 bytes, see [Secret Generation](#secret-generation))
 - Maximum 32 bytes
 - Padded with null bytes (0x00) if shorter
 
-**Secret Field** (32 bytes):
-- For **private channels**: 32-byte secret (see [Secret Generation](#secret-generation))
+**Secret Field** (16 bytes):
+- For **private channels**: 16-byte secret (see [Secret Generation](#secret-generation))
 - For **public channels**: All zeros (0x00)
 
 **Example** (create channel "YourChannelName" at index 1 with secret):
 ```
 20 01 53 4D 53 00 00 ... (name padded to 32 bytes)
-    [32 bytes of secret]
+    [16 bytes of secret]
 ```
 
-**Response**: `PACKET_OK` (0x00) on success, `PACKET_ERROR` (0x01) on failure
+**Response**: `PACKET_OK` (0x00) on success, `PACKET_ERROR` (0x01) on failure.
+
+**Compatibility Note**: A 66-byte `SET_CHANNEL` frame (`32-byte secret`) currently returns `ERR_CODE_UNSUPPORTED_CMD` in `MyMesh::handleCmdFrame()`.
 
 ---
 
@@ -358,9 +362,9 @@ Byte 0: 0x0A
 
 ---
 
-### 7. Get Battery
+### 7. Get Battery and Storage
 
-**Purpose**: Query device battery level.
+**Purpose**: Query battery voltage and storage usage.
 
 **Command Format**:
 ```
@@ -372,7 +376,7 @@ Byte 0: 0x14
 14
 ```
 
-**Response**: `PACKET_BATTERY` (0x0C) with battery percentage
+**Response**: `PACKET_BATT_AND_STORAGE` (0x0C)
 
 ---
 
@@ -387,7 +391,6 @@ Byte 0: 0x14
 
 2. **Private Channels** (Indices 1-7)
    - Require a 16-byte secret
-   - Secret is expanded to 32 bytes using SHA-512 (see [Secret Generation](#secret-generation))
    - Only devices with the secret can access the channel
 
 ### Channel Lifecycle
@@ -396,12 +399,12 @@ Byte 0: 0x14
    - Choose an available index (1-7 for private channels)
    - Generate or provide a 16-byte secret
    - Send `SET_CHANNEL` command with name and secret
-   - **Store the secret locally** (device does not return it)
+   - Store the secret locally (needed for client-side sharing/QR workflows)
 
 2. **Query Channel**:
    - Send `GET_CHANNEL` command with channel index
    - Parse `PACKET_CHANNEL_INFO` response
-   - Note: Secret will be null in response (security feature)
+   - Parse `PACKET_CHANNEL_INFO` response (includes current 16-byte secret payload field)
 
 3. **Delete Channel**:
    - Send `SET_CHANNEL` command with empty name and all-zero secret
@@ -434,25 +437,9 @@ secret_hex = secret_bytes.hex()  # 32 hex characters
 
 **Important**: Use a cryptographically secure random number generator (CSPRNG). Do not use predictable values.
 
-### Secret Expansion
+### Secret Size on Wire
 
-When sending the secret to the device via `SET_CHANNEL`, the 16-byte secret must be expanded to 32 bytes:
-
-**Process**:
-1. Take the 16-byte secret
-2. Compute SHA-512 hash: `hash = SHA-512(secret)`
-3. Use the first 32 bytes of the hash as the secret field in the command
-
-**Pseudocode**:
-```python
-import hashlib
-
-secret_16_bytes = ...  # Your 16-byte secret
-sha512_hash = hashlib.sha512(secret_16_bytes).digest()  # 64 bytes
-secret_32_bytes = sha512_hash[:32]  # First 32 bytes
-```
-
-This matches MeshCore's ED25519 key expansion method.
+`SET_CHANNEL` and `PACKET_CHANNEL_INFO` currently use 16-byte channel secrets on the companion protocol wire format.
 
 ### QR Code Format
 
@@ -706,7 +693,7 @@ Use the `SEND_CHANNEL_MESSAGE` command (see [Commands](#commands)).
 | 0x08 | PACKET_CHANNEL_MSG_RECV | Channel message (standard) |
 | 0x09 | PACKET_CURRENT_TIME | Current time response |
 | 0x0A | PACKET_NO_MORE_MSGS | No more messages available |
-| 0x0C | PACKET_BATTERY | Battery level |
+| 0x0C | PACKET_BATT_AND_STORAGE | Battery millivolts + storage usage |
 | 0x0D | PACKET_DEVICE_INFO | Device information |
 | 0x10 | PACKET_CONTACT_MSG_RECV_V3 | Contact message (V3 with SNR) |
 | 0x11 | PACKET_CHANNEL_MSG_RECV_V3 | Channel message (V3 with SNR) |
@@ -721,7 +708,6 @@ Use the `SEND_CHANNEL_MESSAGE` command (see [Commands](#commands)).
 **PACKET_OK** (0x00):
 ```
 Byte 0: 0x00
-Bytes 1-4: Optional value (32-bit little-endian integer)
 ```
 
 **PACKET_ERROR** (0x01):
@@ -735,10 +721,10 @@ Byte 1: Error code (optional)
 Byte 0: 0x12
 Byte 1: Channel Index
 Bytes 2-33: Channel Name (32 bytes, null-terminated)
-Bytes 34-65: Secret (32 bytes, but device typically only returns 20 bytes total)
+Bytes 34-49: Secret (16 bytes)
 ```
 
-**Note**: The device may not return the full 66-byte packet. Parse what is available. The secret field is typically not returned for security reasons.
+**Note**: Current companion firmware writes a fixed 50-byte channel-info payload.
 
 **PACKET_DEVICE_INFO** (0x0D):
 ```
@@ -775,32 +761,25 @@ def parse_device_info(data):
     return info
 ```
 
-**PACKET_BATTERY** (0x0C):
+**PACKET_BATT_AND_STORAGE** (0x0C):
 ```
 Byte 0: 0x0C
-Bytes 1-2: Battery Level (16-bit little-endian, percentage 0-100)
-
-Optional (if data size > 3):
-Bytes 3-6: Used Storage (32-bit little-endian, KB)
-Bytes 7-10: Total Storage (32-bit little-endian, KB)
+Bytes 1-2: Battery millivolts (uint16 LE)
+Bytes 3-6: Used storage (uint32 LE, KB)
+Bytes 7-10: Total storage (uint32 LE, KB)
 ```
 
 **Parsing Pseudocode**:
 ```python
-def parse_battery(data):
-    if len(data) < 3:
+def parse_batt_and_storage(data):
+    if len(data) < 11:
         return None
     
-    level = int.from_bytes(data[1:3], 'little')
-    info = {'level': level}
-    
-    if len(data) > 3:
-        used_kb = int.from_bytes(data[3:7], 'little')
-        total_kb = int.from_bytes(data[7:11], 'little')
-        info['used_kb'] = used_kb
-        info['total_kb'] = total_kb
-    
-    return info
+    return {
+        'battery_millivolts': int.from_bytes(data[1:3], 'little'),
+        'used_kb': int.from_bytes(data[3:7], 'little'),
+        'total_kb': int.from_bytes(data[7:11], 'little'),
+    }
 ```
 
 **PACKET_SELF_INFO** (0x05):
@@ -938,10 +917,10 @@ class PacketBuffer:
     def get_expected_length(self, packet_type):
         # Fixed-length packets
         fixed_lengths = {
-            0x00: 5,  # PACKET_OK (minimum)
+            0x00: 1,  # PACKET_OK
             0x01: 2,  # PACKET_ERROR (minimum)
             0x0A: 1,  # PACKET_NO_MORE_MSGS
-            0x14: 3,  # PACKET_BATTERY (minimum)
+            0x0C: 11, # PACKET_BATT_AND_STORAGE
         }
         return fixed_lengths.get(packet_type)
     
@@ -983,13 +962,13 @@ def on_notification_received(data):
 
 3. **Response Matching**:
    - Match responses to commands by expected packet type:
-     - `APP_START` → `PACKET_OK`
+     - `APP_START` → `PACKET_SELF_INFO`
      - `DEVICE_QUERY` → `PACKET_DEVICE_INFO`
      - `GET_CHANNEL` → `PACKET_CHANNEL_INFO`
      - `SET_CHANNEL` → `PACKET_OK` or `PACKET_ERROR`
      - `SEND_CHANNEL_MESSAGE` → `PACKET_MSG_SENT`
      - `GET_MESSAGE` → `PACKET_CHANNEL_MSG_RECV`, `PACKET_CONTACT_MSG_RECV`, or `PACKET_NO_MORE_MSGS`
-     - `GET_BATTERY` → `PACKET_BATTERY`
+     - `GET_BATTERY_AND_STORAGE` → `PACKET_BATT_AND_STORAGE`
 
 4. **Timeout Handling**:
    - Default timeout: 5 seconds per command
@@ -1016,16 +995,16 @@ device = scan_for_device("MeshCore")
 gatt = connect_to_device(device)
 
 # 3. Discover services and characteristics
-service = discover_service(gatt, "0000ff00-0000-1000-8000-00805f9b34fb")
-rx_char = discover_characteristic(service, "0000ff01-0000-1000-8000-00805f9b34fb")
-tx_char = discover_characteristic(service, "0000ff02-0000-1000-8000-00805f9b34fb")
+service = discover_service(gatt, "6E400001-B5A3-F393-E0A9-E50E24DCCA9E")
+rx_char = discover_characteristic(service, "6E400003-B5A3-F393-E0A9-E50E24DCCA9E")
+tx_char = discover_characteristic(service, "6E400002-B5A3-F393-E0A9-E50E24DCCA9E")
 
 # 4. Enable notifications on RX characteristic
 enable_notifications(rx_char, on_notification_received)
 
 # 5. Send AppStart command
 send_command(tx_char, build_app_start())
-wait_for_response(PACKET_OK)
+wait_for_response(PACKET_SELF_INFO)
 ```
 
 ### Creating a Private Channel
@@ -1035,21 +1014,16 @@ wait_for_response(PACKET_OK)
 secret_16_bytes = generate_secret(16)  # Use CSPRNG
 secret_hex = secret_16_bytes.hex()
 
-# 2. Expand secret to 32 bytes using SHA-512
-import hashlib
-sha512_hash = hashlib.sha512(secret_16_bytes).digest()
-secret_32_bytes = sha512_hash[:32]
-
-# 3. Build SET_CHANNEL command
+# 2. Build SET_CHANNEL command
 channel_name = "YourChannelName"
 channel_index = 1  # Use 1-7 for private channels
-command = build_set_channel(channel_index, channel_name, secret_32_bytes)
+command = build_set_channel(channel_index, channel_name, secret_16_bytes)
 
-# 4. Send command
+# 3. Send command
 send_command(tx_char, command)
 response = wait_for_response(PACKET_OK)
 
-# 5. Store secret locally (device won't return it)
+# 4. Store secret locally (for sharing/QR workflows)
 store_channel_secret(channel_index, secret_hex)
 ```
 
@@ -1182,7 +1156,7 @@ img.save("channel_qr.png")
 - **Message truncation**: Split long messages into chunks
 
 ### Secret/Channel Issues
-- **Secret not working**: Verify secret expansion (SHA-512) is correct
+- **Secret not working**: Verify a 16-byte secret is sent in the `SET_CHANNEL` payload
 - **Channel not found**: Query channels after connection to discover existing channels
 - **Channel index 0**: Migrate to index 1-7 for private channels
 
@@ -1196,6 +1170,4 @@ img.save("channel_qr.png")
 
 ---
 
-**Last Updated**: 2025-01-01
-**Protocol Version**: Based on MeshCore v1.36.0+
-
+**Last Updated**: 2026-02-24
