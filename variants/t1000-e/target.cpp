@@ -17,6 +17,14 @@ T1000SensorManager sensors = T1000SensorManager(nmea);
   NullDisplayDriver display;
 #endif
 
+#ifdef PIN_USER_BTN
+  MomentaryButton user_btn(PIN_USER_BTN,
+    /*long_press_mills=*/1000,
+    /*reverse=*/(USER_BTN_PRESSED==LOW),
+    /*pulldownup=*/false,
+    /*multiclick=*/true);
+#endif
+
 #ifndef LORA_CR
   #define LORA_CR      5
 #endif
