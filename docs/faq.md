@@ -76,6 +76,7 @@ A list of frequently-asked questions and answers for MeshCore
       - [5.14.4.3. MC-Term](#51443-MC-Term)
       - [5.14.4.4. Meck](#51444-Meck)
       - [5.14.4.5. Meshcore for Wio Tracker L1 Pro](#51445-Meshcore-for-Wio-Tracker-L1-Pro)
+      - [5.14.4.6. MeshCore Evo](#51446-meshcore-evo)
     - [5.14.5. online services](#5145-online-services)
   - [5.15. Q: Are there client applications for Windows or Mac?](#515-q-are-there-client-applications-for-windows-or-mac)
   - [5.16. Q: Are there any resources that compare MeshCore to other LoRa systems?](#516-q-are-there-any-resources-that-compare-meshcore-to-other-lora-systems)
@@ -700,6 +701,11 @@ https://github.com/pelgraine/Meck
 ##### 5.14.4.5. Meshcore for Wio Tracker L1 Pro
 Companion firmware for [Seeed Studio Wio Tracker L1 Pro](https://www.seeedstudio.com/Wio-Tracker-L1-Pro-p-6454.html) with specific UI adjustments that can be used standalone.  
 https://github.com/sosprz/Meshcore-Wio-Tracker-L1-Pro
+
+##### 5.14.4.6. MeshCore Evo
+Repeater firmware based on the official firmware with adaptions and improvements of handling flood adverts for high load areas and improved duty cycle handling.  
+https://github.com/mattzzw/MeshCore/releases, see also https://hansemesh.de/repeater#firmware (in German).
+
 
 #### 5.14.5. online services
 
