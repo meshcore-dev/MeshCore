@@ -55,6 +55,78 @@ void BaseChatMesh::sendAckTo(const ContactInfo& dest, uint32_t ack_hash) {
   }
 }
 
+int BaseChatMesh::findPassiveCandidateByHash(uint8_t end_hash) const {
+  for (int i = 0; i < MAX_PASSIVE_CANDIDATES; i++) {
+    if (passive_candidates[i].path_len >= 0 && passive_candidates[i].end_hash == end_hash) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+void BaseChatMesh::removePassiveCandidateByHash(uint8_t end_hash) {
+  int idx = findPassiveCandidateByHash(end_hash);
+  if (idx >= 0) {
+    passive_candidates[idx].path_len = -1;
+    passive_candidates[idx].last_seen = 0;
+  }
+}
+
+void BaseChatMesh::observePassiveCandidate(uint8_t end_hash, const uint8_t* path, uint8_t path_len) {
+  if (path_len > MAX_PATH_SIZE) return;
+
+  uint32_t now = getRTCClock()->getCurrentTime();
+  int idx = findPassiveCandidateByHash(end_hash);
+  if (idx >= 0) {
+    if (passive_candidates[idx].path_len < 0 || path_len < (uint8_t)passive_candidates[idx].path_len) {
+      memcpy(passive_candidates[idx].path, path, path_len);
+      passive_candidates[idx].path_len = path_len;
+    }
+    passive_candidates[idx].last_seen = now;
+    return;
+  }
+
+  int use_idx = -1;
+  uint32_t oldest_seen = 0xFFFFFFFF;
+  for (int i = 0; i < MAX_PASSIVE_CANDIDATES; i++) {
+    if (passive_candidates[i].path_len < 0) {
+      use_idx = i;
+      break;
+    }
+    if (passive_candidates[i].last_seen < oldest_seen) {
+      oldest_seen = passive_candidates[i].last_seen;
+      use_idx = i;
+    }
+  }
+  if (use_idx < 0) return;
+
+  passive_candidates[use_idx].end_hash = end_hash;
+  passive_candidates[use_idx].path_len = path_len;
+  passive_candidates[use_idx].last_seen = now;
+  memcpy(passive_candidates[use_idx].path, path, path_len);
+}
+
+bool BaseChatMesh::getPassiveCandidateFor(const ContactInfo& recipient, uint8_t* path, uint8_t& path_len) const {
+  int idx = findPassiveCandidateByHash(recipient.id.pub_key[0]);
+  if (idx < 0 || passive_candidates[idx].path_len < 0) return false;
+  path_len = passive_candidates[idx].path_len;
+  memcpy(path, passive_candidates[idx].path, path_len);
+  return true;
+}
+
+void BaseChatMesh::promotePendingCandidateOnSuccess(ContactInfo& from) {
+  if (pending_candidate_contact == NULL || !pending_candidate_contact->id.matches(from.id)) return;
+
+  int idx = findPassiveCandidateByHash(from.id.pub_key[0]);
+  if (idx >= 0 && passive_candidates[idx].path_len >= 0) {
+    memcpy(from.out_path, passive_candidates[idx].path, passive_candidates[idx].path_len);
+    from.out_path_len = passive_candidates[idx].path_len;
+    from.lastmod = getRTCClock()->getCurrentTime();
+    onContactPathUpdated(from);
+  }
+  pending_candidate_contact = NULL;
+}
+
 void BaseChatMesh::bootstrapRTCfromContacts() {
   uint32_t latest = 0;
   for (int i = 0; i < num_contacts; i++) {
@@ -288,32 +360,43 @@ bool BaseChatMesh::onPeerPathRecv(mesh::Packet* packet, int sender_idx, const ui
   }
 
   ContactInfo& from = contacts[i];
-
+  path_recv_was_flood = packet->isRouteFlood();
   return onContactPathRecv(from, packet->path, packet->path_len, path, path_len, extra_type, extra, extra_len);
 }
 
 bool BaseChatMesh::onContactPathRecv(ContactInfo& from, uint8_t* in_path, uint8_t in_path_len, uint8_t* out_path, uint8_t out_path_len, uint8_t extra_type, uint8_t* extra, uint8_t extra_len) {
-  // NOTE: default impl, we just replace the current 'out_path' regardless, whenever sender sends us a new out_path.
-  // FUTURE: could store multiple out_paths per contact, and try to find which is the 'best'(?)
-  memcpy(from.out_path, out_path, from.out_path_len = out_path_len);  // store a copy of path, for sendDirect()
-  from.lastmod = getRTCClock()->getCurrentTime();
+  if (out_path_len > MAX_PATH_SIZE) {
+    path_recv_was_flood = false;
+    return false;
+  }
 
-  onContactPathUpdated(from);
+  if (path_recv_was_flood && (extra_type == PAYLOAD_TYPE_ACK || extra_type == PAYLOAD_TYPE_RESPONSE)) {
+    observePassiveCandidate(from.id.pub_key[0], out_path, out_path_len);
+  } else {
+    memcpy(from.out_path, out_path, from.out_path_len = out_path_len);  // store a copy of path, for sendDirect()
+    from.lastmod = getRTCClock()->getCurrentTime();
+    onContactPathUpdated(from);
+  }
 
   if (extra_type == PAYLOAD_TYPE_ACK && extra_len >= 4) {
     // also got an encoded ACK!
-    if (processAck(extra) != NULL) {
+    ContactInfo* ack_from = processAck(extra);
+    if (ack_from != NULL) {
+      promotePendingCandidateOnSuccess(*ack_from);
       txt_send_timeout = 0;   // matched one we're waiting for, cancel timeout timer
     }
   } else if (extra_type == PAYLOAD_TYPE_RESPONSE && extra_len > 0) {
+    promotePendingCandidateOnSuccess(from);
     onContactResponse(from, extra, extra_len);
   }
+  path_recv_was_flood = false;
   return true;  // send reciprocal path if necessary
 }
 
 void BaseChatMesh::onAckRecv(mesh::Packet* packet, uint32_t ack_crc) {
   ContactInfo* from;
   if ((from = processAck((uint8_t *)&ack_crc)) != NULL) {
+    promotePendingCandidateOnSuccess(*from);
     txt_send_timeout = 0;   // matched one we're waiting for, cancel timeout timer
     packet->markDoNotRetransmit();   // ACK was for this node, so don't retransmit
 
@@ -386,13 +469,24 @@ int  BaseChatMesh::sendMessage(const ContactInfo& recipient, uint32_t timestamp,
   uint32_t t = _radio->getEstAirtimeFor(pkt->getRawLength());
 
   int rc;
+  uint8_t candidate_path[MAX_PATH_SIZE];
+  uint8_t candidate_path_len = 0;
   if (recipient.out_path_len < 0) {
-    sendFloodScoped(recipient, pkt);
-    txt_send_timeout = futureMillis(est_timeout = calcFloodTimeoutMillisFor(t));
-    rc = MSG_SEND_SENT_FLOOD;
+    if (getPassiveCandidateFor(recipient, candidate_path, candidate_path_len)) {
+      sendDirect(pkt, candidate_path, candidate_path_len);
+      txt_send_timeout = futureMillis(est_timeout = calcDirectTimeoutMillisFor(t, candidate_path_len));
+      pending_candidate_contact = lookupContactByPubKey(recipient.id.pub_key, PUB_KEY_SIZE);
+      rc = MSG_SEND_SENT_DIRECT;
+    } else {
+      sendFloodScoped(recipient, pkt);
+      txt_send_timeout = futureMillis(est_timeout = calcFloodTimeoutMillisFor(t));
+      pending_candidate_contact = NULL;
+      rc = MSG_SEND_SENT_FLOOD;
+    }
   } else {
     sendDirect(pkt, recipient.out_path, recipient.out_path_len);
     txt_send_timeout = futureMillis(est_timeout = calcDirectTimeoutMillisFor(t, recipient.out_path_len));
+    pending_candidate_contact = NULL;
     rc = MSG_SEND_SENT_DIRECT;
   }
   return rc;
@@ -412,13 +506,24 @@ int  BaseChatMesh::sendCommandData(const ContactInfo& recipient, uint32_t timest
 
   uint32_t t = _radio->getEstAirtimeFor(pkt->getRawLength());
   int rc;
+  uint8_t candidate_path[MAX_PATH_SIZE];
+  uint8_t candidate_path_len = 0;
   if (recipient.out_path_len < 0) {
-    sendFloodScoped(recipient, pkt);
-    txt_send_timeout = futureMillis(est_timeout = calcFloodTimeoutMillisFor(t));
-    rc = MSG_SEND_SENT_FLOOD;
+    if (getPassiveCandidateFor(recipient, candidate_path, candidate_path_len)) {
+      sendDirect(pkt, candidate_path, candidate_path_len);
+      txt_send_timeout = futureMillis(est_timeout = calcDirectTimeoutMillisFor(t, candidate_path_len));
+      pending_candidate_contact = lookupContactByPubKey(recipient.id.pub_key, PUB_KEY_SIZE);
+      rc = MSG_SEND_SENT_DIRECT;
+    } else {
+      sendFloodScoped(recipient, pkt);
+      txt_send_timeout = futureMillis(est_timeout = calcFloodTimeoutMillisFor(t));
+      pending_candidate_contact = NULL;
+      rc = MSG_SEND_SENT_FLOOD;
+    }
   } else {
     sendDirect(pkt, recipient.out_path, recipient.out_path_len);
     txt_send_timeout = futureMillis(est_timeout = calcDirectTimeoutMillisFor(t, recipient.out_path_len));
+    pending_candidate_contact = NULL;
     rc = MSG_SEND_SENT_DIRECT;
   }
   return rc;
@@ -711,6 +816,7 @@ void BaseChatMesh::checkConnections() {
 
 void BaseChatMesh::resetPathTo(ContactInfo& recipient) {
   recipient.out_path_len = -1;
+  removePassiveCandidateByHash(recipient.id.pub_key[0]);
 }
 
 static ContactInfo* table;  // pass via global :-(
@@ -865,6 +971,10 @@ void BaseChatMesh::loop() {
   Mesh::loop();
 
   if (txt_send_timeout && millisHasNowPassed(txt_send_timeout)) {
+    if (pending_candidate_contact) {
+      removePassiveCandidateByHash(pending_candidate_contact->id.pub_key[0]);
+      pending_candidate_contact = NULL;
+    }
     // failed to get an ACK
     onSendTimeout();
     txt_send_timeout = 0;
