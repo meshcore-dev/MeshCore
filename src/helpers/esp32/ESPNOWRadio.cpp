@@ -1,9 +1,10 @@
 #include "ESPNOWRadio.h"
-#include <esp_now.h>
+
 #include <WiFi.h>
+#include <esp_now.h>
 #include <esp_wifi.h>
 
-static uint8_t broadcastAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+static uint8_t broadcastAddress[] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
 static esp_now_peer_info_t peerInfo;
 static volatile bool is_send_complete = false;
 static esp_err_t last_send_result;
@@ -34,7 +35,7 @@ void ESPNOWRadio::init() {
     return;
   }
 
-  esp_wifi_set_max_tx_power(80);  // should be 20dBm
+  esp_wifi_set_max_tx_power(80); // should be 20dBm
 
   esp_now_register_send_cb(OnDataSent);
   esp_now_register_recv_cb(OnDataRecv);
@@ -46,11 +47,11 @@ void ESPNOWRadio::init() {
 
   is_send_complete = true;
 
-  // Add peer        
+  // Add peer
   if (esp_now_add_peer(&peerInfo) == ESP_OK) {
     ESPNOW_DEBUG_PRINTLN("init success");
   } else {
-   // ESPNOW_DEBUG_PRINTLN("Failed to add peer");
+    // ESPNOW_DEBUG_PRINTLN("Failed to add peer");
   }
 }
 
@@ -65,11 +66,11 @@ uint32_t ESPNOWRadio::intID() {
   uint32_t n, m;
   memcpy(&n, &mac[0], 4);
   memcpy(&m, &mac[4], 4);
-  
+
   return n + m;
 }
 
-bool ESPNOWRadio::startSendRaw(const uint8_t* bytes, int len) {
+bool ESPNOWRadio::startSendRaw(const uint8_t *bytes, int len) {
   // Send message via ESP-NOW
   is_send_complete = false;
   esp_err_t result = esp_now_send(broadcastAddress, bytes, len);
@@ -92,13 +93,17 @@ void ESPNOWRadio::onSendFinished() {
 }
 
 bool ESPNOWRadio::isInRecvMode() const {
-  return is_send_complete;    // if NO send in progress, then we're in Rx mode
+  return is_send_complete; // if NO send in progress, then we're in Rx mode
 }
 
-float ESPNOWRadio::getLastRSSI() const { return 0; }
-float ESPNOWRadio::getLastSNR() const { return 0; }
+float ESPNOWRadio::getLastRSSI() const {
+  return 0;
+}
+float ESPNOWRadio::getLastSNR() const {
+  return 0;
+}
 
-int ESPNOWRadio::recvRaw(uint8_t* bytes, int sz) {
+int ESPNOWRadio::recvRaw(uint8_t *bytes, int sz) {
   int len = last_rx_len;
   if (last_rx_len > 0) {
     memcpy(bytes, rx_buf, last_rx_len);
@@ -109,5 +114,5 @@ int ESPNOWRadio::recvRaw(uint8_t* bytes, int sz) {
 }
 
 uint32_t ESPNOWRadio::getEstAirtimeFor(int len_bytes) {
-  return 4;  // Fast AF
+  return 4; // Fast AF
 }

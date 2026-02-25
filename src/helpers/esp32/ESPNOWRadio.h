@@ -10,9 +10,9 @@ public:
   ESPNOWRadio() { n_recv = n_sent = 0; }
 
   void init();
-  int recvRaw(uint8_t* bytes, int sz) override;
+  int recvRaw(uint8_t *bytes, int sz) override;
   uint32_t getEstAirtimeFor(int len_bytes) override;
-  bool startSendRaw(const uint8_t* bytes, int len) override;
+  bool startSendRaw(const uint8_t *bytes, int len) override;
   bool isSendComplete() override;
   void onSendFinished() override;
   bool isInRecvMode() const override;
@@ -30,10 +30,12 @@ public:
 };
 
 #if ESPNOW_DEBUG_LOGGING && ARDUINO
-  #include <Arduino.h>
-  #define ESPNOW_DEBUG_PRINT(F, ...) Serial.printf("ESP-Now: " F, ##__VA_ARGS__)
-  #define ESPNOW_DEBUG_PRINTLN(F, ...) Serial.printf("ESP-Now: " F "\n", ##__VA_ARGS__)
+#include <Arduino.h>
+#define ESPNOW_DEBUG_PRINT(F, ...)   Serial.printf("ESP-Now: " F, ##__VA_ARGS__)
+#define ESPNOW_DEBUG_PRINTLN(F, ...) Serial.printf("ESP-Now: " F "\n", ##__VA_ARGS__)
 #else
-  #define ESPNOW_DEBUG_PRINT(...) {}
-  #define ESPNOW_DEBUG_PRINTLN(...) {}
+#define ESPNOW_DEBUG_PRINT(...) \
+  {}
+#define ESPNOW_DEBUG_PRINTLN(...) \
+  {}
 #endif

@@ -1,17 +1,18 @@
 #pragma once
 
 #include "Mesh.h"
+
+#include <helpers/ClientACL.h>
 #include <helpers/IdentityStore.h>
 #include <helpers/SensorManager.h>
-#include <helpers/ClientACL.h>
 
 #if defined(WITH_RS232_BRIDGE) || defined(WITH_ESPNOW_BRIDGE)
 #define WITH_BRIDGE
 #endif
 
-#define ADVERT_LOC_NONE       0
-#define ADVERT_LOC_SHARE      1
-#define ADVERT_LOC_PREFS      2
+#define ADVERT_LOC_NONE  0
+#define ADVERT_LOC_SHARE 1
+#define ADVERT_LOC_PREFS 2
 
 struct NodePrefs { // persisted to file
   float airtime_factor;
@@ -57,9 +58,9 @@ struct NodePrefs { // persisted to file
 class CommonCLICallbacks {
 public:
   virtual void savePrefs() = 0;
-  virtual const char* getFirmwareVer() = 0;
-  virtual const char* getBuildDate() = 0;
-  virtual const char* getRole() = 0;
+  virtual const char *getFirmwareVer() = 0;
+  virtual const char *getBuildDate() = 0;
+  virtual const char *getRole() = 0;
   virtual bool formatFileSystem() = 0;
   virtual void sendSelfAdvertisement(int delay_millis, bool flood) = 0;
   virtual void updateAdvertTimer() = 0;
@@ -69,14 +70,14 @@ public:
   virtual void dumpLogFile() = 0;
   virtual void setTxPower(int8_t power_dbm) = 0;
   virtual void formatNeighborsReply(char *reply) = 0;
-  virtual void removeNeighbor(const uint8_t* pubkey, int key_len) {
+  virtual void removeNeighbor(const uint8_t *pubkey, int key_len) {
     // no op by default
   };
   virtual void formatStatsReply(char *reply) = 0;
   virtual void formatRadioStatsReply(char *reply) = 0;
   virtual void formatPacketStatsReply(char *reply) = 0;
-  virtual mesh::LocalIdentity& getSelfId() = 0;
-  virtual void saveIdentity(const mesh::LocalIdentity& new_id) = 0;
+  virtual mesh::LocalIdentity &getSelfId() = 0;
+  virtual void saveIdentity(const mesh::LocalIdentity &new_id) = 0;
   virtual void clearStats() = 0;
   virtual void applyTempRadioParams(float freq, float bw, uint8_t sf, uint8_t cr, int timeout_mins) = 0;
 
@@ -90,24 +91,25 @@ public:
 };
 
 class CommonCLI {
-  mesh::RTCClock* _rtc;
-  NodePrefs* _prefs;
-  CommonCLICallbacks* _callbacks;
-  mesh::MainBoard* _board;
-  SensorManager* _sensors;
-  ClientACL* _acl;
-  char tmp[PRV_KEY_SIZE*2 + 4];
+  mesh::RTCClock *_rtc;
+  NodePrefs *_prefs;
+  CommonCLICallbacks *_callbacks;
+  mesh::MainBoard *_board;
+  SensorManager *_sensors;
+  ClientACL *_acl;
+  char tmp[PRV_KEY_SIZE * 2 + 4];
 
-  mesh::RTCClock* getRTCClock() { return _rtc; }
+  mesh::RTCClock *getRTCClock() { return _rtc; }
   void savePrefs();
-  void loadPrefsInt(FILESYSTEM* _fs, const char* filename);
+  void loadPrefsInt(FILESYSTEM *_fs, const char *filename);
 
 public:
-  CommonCLI(mesh::MainBoard& board, mesh::RTCClock& rtc, SensorManager& sensors, ClientACL& acl, NodePrefs* prefs, CommonCLICallbacks* callbacks)
-      : _board(&board), _rtc(&rtc), _sensors(&sensors), _acl(&acl), _prefs(prefs), _callbacks(callbacks) { }
+  CommonCLI(mesh::MainBoard &board, mesh::RTCClock &rtc, SensorManager &sensors, ClientACL &acl,
+            NodePrefs *prefs, CommonCLICallbacks *callbacks)
+      : _board(&board), _rtc(&rtc), _sensors(&sensors), _acl(&acl), _prefs(prefs), _callbacks(callbacks) {}
 
-  void loadPrefs(FILESYSTEM* _fs);
-  void savePrefs(FILESYSTEM* _fs);
-  void handleCommand(uint32_t sender_timestamp, const char* command, char* reply);
-  uint8_t buildAdvertData(uint8_t node_type, uint8_t* app_data);
+  void loadPrefs(FILESYSTEM *_fs);
+  void savePrefs(FILESYSTEM *_fs);
+  void handleCommand(uint32_t sender_timestamp, const char *command, char *reply);
+  uint8_t buildAdvertData(uint8_t node_type, uint8_t *app_data);
 };

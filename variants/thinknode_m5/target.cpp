@@ -1,14 +1,15 @@
-#include <Arduino.h>
 #include "target.h"
+
+#include <Arduino.h>
 #include <helpers/sensors/MicroNMEALocationProvider.h>
 
 ThinknodeM5Board board;
 
 #if defined(P_LORA_SCLK)
-  static SPIClass spi;
-  RADIO_CLASS radio = new Module(P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BUSY, spi);
+static SPIClass spi;
+RADIO_CLASS radio = new Module(P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BUSY, spi);
 #else
-  RADIO_CLASS radio = new Module(P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BUSY);
+RADIO_CLASS radio = new Module(P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BUSY);
 #endif
 
 WRAPPER_CLASS radio_driver(radio, board);
@@ -24,8 +25,8 @@ EnvironmentSensorManager sensors = EnvironmentSensorManager();
 #endif
 
 #ifdef DISPLAY_CLASS
-  DISPLAY_CLASS display;
-  MomentaryButton user_btn(PIN_USER_BTN, 1000, true);
+DISPLAY_CLASS display;
+MomentaryButton user_btn(PIN_USER_BTN, 1000, true);
 #endif
 
 bool radio_init() {
@@ -33,7 +34,7 @@ bool radio_init() {
   rtc_clock.begin(Wire);
   pinMode(P_LORA_EN, OUTPUT);
   digitalWrite(P_LORA_EN, HIGH);
-  #if defined(P_LORA_SCLK)
+#if defined(P_LORA_SCLK)
   spi.begin(P_LORA_SCLK, P_LORA_MISO, P_LORA_MOSI);
   return radio.std_init(&spi);
 #else
@@ -44,7 +45,6 @@ bool radio_init() {
 uint32_t radio_get_rng_seed() {
   return radio.random(0x7FFFFFFF);
 }
-
 
 void radio_set_params(float freq, float bw, uint8_t sf, uint8_t cr) {
   radio.setFrequency(freq);
@@ -59,6 +59,5 @@ void radio_set_tx_power(int8_t dbm) {
 
 mesh::LocalIdentity radio_new_identity() {
   RadioNoiseListener rng(radio);
-  return mesh::LocalIdentity(&rng);  // create new random identity
+  return mesh::LocalIdentity(&rng); // create new random identity
 }
-

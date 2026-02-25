@@ -1,7 +1,7 @@
+#include "TechoBoard.h"
+
 #include <Arduino.h>
 #include <Wire.h>
-
-#include "TechoBoard.h"
 
 #ifdef LILYGO_TECHO
 
@@ -12,7 +12,7 @@ void TechoBoard::begin() {
 
   pinMode(SX126X_POWER_EN, OUTPUT);
   digitalWrite(SX126X_POWER_EN, HIGH);
-  delay(10);   // give sx1262 some time to power up
+  delay(10); // give sx1262 some time to power up
 }
 
 uint16_t TechoBoard::getBattMilliVolts() {

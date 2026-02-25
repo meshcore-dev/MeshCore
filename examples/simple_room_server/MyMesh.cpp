@@ -10,7 +10,7 @@
 
 #define POST_SYNC_DELAY_SECS        6
 
-#define FIRMWARE_VER_LEVEL       1
+#define FIRMWARE_VER_LEVEL          1
 
 #define REQ_TYPE_GET_STATUS         0x01 // same as _GET_STATS
 #define REQ_TYPE_KEEP_ALIVE         0x02
@@ -19,7 +19,7 @@
 
 #define RESP_SERVER_LOGIN_OK        0 // response to ANON_REQ
 
-#define LAZY_CONTACTS_WRITE_DELAY    5000
+#define LAZY_CONTACTS_WRITE_DELAY   5000
 
 struct ServerStats {
   uint16_t batt_milli_volts;
@@ -68,7 +68,8 @@ void MyMesh::pushPostToClient(ClientInfo *client, PostInfo &post) {
   len += text_len;
 
   // calc expected ACK reply
-  mesh::Utils::sha256((uint8_t *)&client->extra.room.pending_ack, 4, reply_data, len, client->id.pub_key, PUB_KEY_SIZE);
+  mesh::Utils::sha256((uint8_t *)&client->extra.room.pending_ack, 4, reply_data, len, client->id.pub_key,
+                      PUB_KEY_SIZE);
   client->extra.room.push_post_timestamp = post.post_timestamp;
 
   auto reply = createDatagram(PAYLOAD_TYPE_TXT_MSG, client->id, client->shared_secret, reply_data, len);
@@ -92,7 +93,7 @@ uint8_t MyMesh::getUnsyncedCount(ClientInfo *client) {
   uint8_t count = 0;
   for (int k = 0; k < MAX_UNSYNCED_POSTS; k++) {
     if (posts[k].post_timestamp > client->extra.room.sync_since // is new post for this Client?
-        && !posts[k].author.matches(client->id)) {   // don't push posts to the author
+        && !posts[k].author.matches(client->id)) {              // don't push posts to the author
       count++;
     }
   }
@@ -102,10 +103,12 @@ uint8_t MyMesh::getUnsyncedCount(ClientInfo *client) {
 bool MyMesh::processAck(const uint8_t *data) {
   for (int i = 0; i < acl.getNumClients(); i++) {
     auto client = acl.getClientByIdx(i);
-    if (client->extra.room.pending_ack && memcmp(data, &client->extra.room.pending_ack, 4) == 0) { // got an ACK from Client!
-      client->extra.room.pending_ack = 0; // clear this, so next push can happen
+    if (client->extra.room.pending_ack &&
+        memcmp(data, &client->extra.room.pending_ack, 4) == 0) { // got an ACK from Client!
+      client->extra.room.pending_ack = 0;                        // clear this, so next push can happen
       client->extra.room.push_failures = 0;
-      client->extra.room.sync_since = client->extra.room.push_post_timestamp; // advance Client's SINCE timestamp, to sync next post
+      client->extra.room.sync_since =
+          client->extra.room.push_post_timestamp; // advance Client's SINCE timestamp, to sync next post
       return true;
     }
   }
@@ -133,7 +136,8 @@ int MyMesh::handleRequest(ClientInfo *sender, uint32_t sender_timestamp, uint8_t
                           size_t payload_len) {
   // uint32_t now = getRTCClock()->getCurrentTimeUnique();
   // memcpy(reply_data, &now, 4);   // response packets always prefixed with timestamp
-  memcpy(reply_data, &sender_timestamp, 4); // reflect sender_timestamp back in response packet (kind of like a 'tag')
+  memcpy(reply_data, &sender_timestamp,
+         4); // reflect sender_timestamp back in response packet (kind of like a 'tag')
 
   if (payload[0] == REQ_TYPE_GET_STATUS) {
     ServerStats stats;
@@ -160,13 +164,14 @@ int MyMesh::handleRequest(ClientInfo *sender, uint32_t sender_timestamp, uint8_t
     return 4 + sizeof(stats);
   }
   if (payload[0] == REQ_TYPE_GET_TELEMETRY_DATA) {
-    uint8_t perm_mask = ~(payload[1]); // NEW: first reserved byte (of 4), is now inverse mask to apply to permissions
+    uint8_t perm_mask =
+        ~(payload[1]); // NEW: first reserved byte (of 4), is now inverse mask to apply to permissions
 
     telemetry.reset();
     telemetry.addVoltage(TELEM_CHANNEL_SELF, (float)board.getBattMilliVolts() / 1000.0f);
     // query other sensors -- target specific
     if ((sender->permissions & PERM_ACL_ROLE_MASK) == PERM_ACL_GUEST) {
-      perm_mask = 0x00;  // just base telemetry allowed
+      perm_mask = 0x00; // just base telemetry allowed
     }
     sensors.querySensors(perm_mask, telemetry);
 
@@ -175,14 +180,15 @@ int MyMesh::handleRequest(ClientInfo *sender, uint32_t sender_timestamp, uint8_t
     return 4 + tlen; // reply_len
   }
   if (payload[0] == REQ_TYPE_GET_ACCESS_LIST && sender->isAdmin()) {
-    uint8_t res1 = payload[1];   // reserved for future  (extra query params)
+    uint8_t res1 = payload[1]; // reserved for future  (extra query params)
     uint8_t res2 = payload[2];
     if (res1 == 0 && res2 == 0) {
       uint8_t ofs = 4;
       for (int i = 0; i < acl.getNumClients() && ofs + 7 <= sizeof(reply_data) - 4; i++) {
         auto c = acl.getClientByIdx(i);
-        if (!c->isAdmin()) continue;  // skip non-Admin entries
-        memcpy(&reply_data[ofs], c->id.pub_key, 6); ofs += 6;  // just 6-byte pub_key prefix
+        if (!c->isAdmin()) continue; // skip non-Admin entries
+        memcpy(&reply_data[ofs], c->id.pub_key, 6);
+        ofs += 6; // just 6-byte pub_key prefix
         reply_data[ofs++] = c->permissions;
       }
       return ofs;
@@ -264,12 +270,14 @@ const char *MyMesh::getLogDateTime() {
 }
 
 uint32_t MyMesh::getRetransmitDelay(const mesh::Packet *packet) {
-  uint32_t t = (_radio->getEstAirtimeFor(packet->path_len + packet->payload_len + 2) * _prefs.tx_delay_factor);
-  return getRNG()->nextInt(0, 5*t + 1);
+  uint32_t t =
+      (_radio->getEstAirtimeFor(packet->path_len + packet->payload_len + 2) * _prefs.tx_delay_factor);
+  return getRNG()->nextInt(0, 5 * t + 1);
 }
 uint32_t MyMesh::getDirectRetransmitDelay(const mesh::Packet *packet) {
-  uint32_t t = (_radio->getEstAirtimeFor(packet->path_len + packet->payload_len + 2) * _prefs.direct_tx_delay_factor);
-  return getRNG()->nextInt(0, 5*t + 1);
+  uint32_t t =
+      (_radio->getEstAirtimeFor(packet->path_len + packet->payload_len + 2) * _prefs.direct_tx_delay_factor);
+  return getRNG()->nextInt(0, 5 * t + 1);
 }
 
 bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
@@ -286,15 +294,15 @@ void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const m
     memcpy(&sender_timestamp, data, 4);
     memcpy(&sender_sync_since, &data[4], 4); // sender's "sync messags SINCE x" timestamp
 
-    data[len] = 0;                                        // ensure null terminator
+    data[len] = 0; // ensure null terminator
 
-    ClientInfo* client = NULL;
-    if (data[8] == 0) {   // blank password, just check if sender is in ACL
+    ClientInfo *client = NULL;
+    if (data[8] == 0) { // blank password, just check if sender is in ACL
       client = acl.getClient(sender.pub_key, PUB_KEY_SIZE);
       if (client == NULL) {
-      #if MESH_DEBUG
+#if MESH_DEBUG
         MESH_DEBUG_PRINTLN("Login, sender not in ACL");
-      #endif
+#endif
       }
     }
     if (client == NULL) {
@@ -302,7 +310,7 @@ void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const m
       if (strcmp((char *)&data[8], _prefs.password) == 0) { // check for valid admin password
         perm = PERM_ACL_ADMIN;
       } else {
-        if (strcmp((char *)&data[8], _prefs.guest_password) == 0) {   // check the room/public password
+        if (strcmp((char *)&data[8], _prefs.guest_password) == 0) { // check the room/public password
           perm = PERM_ACL_READ_WRITE;
         } else if (_prefs.allow_read_only) {
           perm = PERM_ACL_GUEST;
@@ -312,7 +320,7 @@ void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const m
         }
       }
 
-      client = acl.putClient(sender, 0);  // add to known clients (if not already known)
+      client = acl.putClient(sender, 0); // add to known clients (if not already known)
       if (sender_timestamp <= client->last_timestamp) {
         MESH_DEBUG_PRINTLN("possible replay attack!");
         return;
@@ -333,7 +341,7 @@ void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const m
     }
 
     if (packet->isRouteFlood()) {
-      client->out_path_len = -1;  // need to rediscover out_path
+      client->out_path_len = -1; // need to rediscover out_path
     }
 
     uint32_t now = getRTCClock()->getCurrentTimeUnique();
@@ -344,10 +352,11 @@ void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const m
     reply_data[6] = (client->isAdmin() ? 1 : (client->permissions == 0 ? 2 : 0));
     // LEGACY: reply_data[7] = getUnsyncedCount(client);
     reply_data[7] = client->permissions; // NEW
-    getRNG()->random(&reply_data[8], 4);   // random blob to help packet-hash uniqueness
-    reply_data[12] = FIRMWARE_VER_LEVEL;  // New field
+    getRNG()->random(&reply_data[8], 4); // random blob to help packet-hash uniqueness
+    reply_data[12] = FIRMWARE_VER_LEVEL; // New field
 
-    next_push = futureMillis(PUSH_NOTIFY_DELAY_MILLIS); // delay next push, give RESPONSE packet time to arrive first
+    next_push =
+        futureMillis(PUSH_NOTIFY_DELAY_MILLIS); // delay next push, give RESPONSE packet time to arrive first
 
     if (packet->isRouteFlood()) {
       // let this sender know path TO here, so they can use sendDirect(), and ALSO encode the response
@@ -355,7 +364,8 @@ void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const m
                                             PAYLOAD_TYPE_RESPONSE, reply_data, 13);
       if (path) sendFlood(path, SERVER_RESPONSE_DELAY);
     } else {
-      mesh::Packet *reply = createDatagram(PAYLOAD_TYPE_RESPONSE, sender, client->shared_secret, reply_data, 13);
+      mesh::Packet *reply =
+          createDatagram(PAYLOAD_TYPE_RESPONSE, sender, client->shared_secret, reply_data, 13);
       if (reply) {
         if (client->out_path_len >= 0) { // we have an out_path, so send DIRECT
           sendDirect(reply, client->out_path, client->out_path_len, SERVER_RESPONSE_DELAY);
@@ -371,7 +381,8 @@ int MyMesh::searchPeersByHash(const uint8_t *hash) {
   int n = 0;
   for (int i = 0; i < acl.getNumClients(); i++) {
     if (acl.getClientByIdx(i)->id.isHashMatch(hash)) {
-      matching_peer_indexes[n++] = i; // store the INDEXES of matching contacts (for subsequent 'peer' methods)
+      matching_peer_indexes[n++] =
+          i; // store the INDEXES of matching contacts (for subsequent 'peer' methods)
     }
   }
   return n;
@@ -390,7 +401,8 @@ void MyMesh::getPeerSharedSecret(uint8_t *dest_secret, int peer_idx) {
 void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, const uint8_t *secret,
                             uint8_t *data, size_t len) {
   int i = matching_peer_indexes[sender_idx];
-  if (i < 0 || i >= acl.getNumClients()) { // get from our known_clients table (sender SHOULD already be known in this context)
+  if (i < 0 || i >= acl.getNumClients()) { // get from our known_clients table (sender SHOULD already be known
+                                           // in this context)
     MESH_DEBUG_PRINTLN("onPeerDataRecv: invalid peer idx: %d", i);
     return;
   }
@@ -398,11 +410,12 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
   if (type == PAYLOAD_TYPE_TXT_MSG && len > 5) { // a CLI command or new Post
     uint32_t sender_timestamp;
     memcpy(&sender_timestamp, data, 4); // timestamp (by sender's RTC clock - which could be wrong)
-    uint8_t flags = (data[4] >> 2);        // message attempt number, and other flags
+    uint8_t flags = (data[4] >> 2);     // message attempt number, and other flags
 
     if (!(flags == TXT_TYPE_PLAIN || flags == TXT_TYPE_CLI_DATA)) {
       MESH_DEBUG_PRINTLN("onPeerDataRecv: unsupported command flags received: flags=%02x", (uint32_t)flags);
-    } else if (sender_timestamp >= client->last_timestamp) { // prevent replay attacks, but send Acks for retries
+    } else if (sender_timestamp >=
+               client->last_timestamp) { // prevent replay attacks, but send Acks for retries
       bool is_retry = (sender_timestamp == client->last_timestamp);
       client->last_timestamp = sender_timestamp;
 
@@ -501,8 +514,8 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
       client->last_timestamp = sender_timestamp;
 
       uint32_t now = getRTCClock()->getCurrentTime();
-      client->last_activity = now; // <-- THIS will keep client connection alive
-      client->extra.room.push_failures = 0;   // reset so push can resume (if prev failed)
+      client->last_activity = now;          // <-- THIS will keep client connection alive
+      client->extra.room.push_failures = 0; // reset so push can resume (if prev failed)
 
       if (data[4] == REQ_TYPE_KEEP_ALIVE && packet->isRouteDirect()) { // request type
         uint32_t forceSince = 0;
@@ -527,7 +540,8 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
 
           auto reply = createAck(ack_hash);
           if (reply) {
-            reply->payload[reply->payload_len++] = getUnsyncedCount(client); // NEW: add unsynced counter to end of ACK packet
+            reply->payload[reply->payload_len++] =
+                getUnsyncedCount(client); // NEW: add unsynced counter to end of ACK packet
             sendDirect(reply, client->out_path, client->out_path_len, SERVER_RESPONSE_DELAY);
           }
         }
@@ -540,7 +554,8 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
                                                   PAYLOAD_TYPE_RESPONSE, reply_data, reply_len);
             if (path) sendFlood(path, SERVER_RESPONSE_DELAY);
           } else {
-            mesh::Packet *reply = createDatagram(PAYLOAD_TYPE_RESPONSE, client->id, secret, reply_data, reply_len);
+            mesh::Packet *reply =
+                createDatagram(PAYLOAD_TYPE_RESPONSE, client->id, secret, reply_data, reply_len);
             if (reply) {
               if (client->out_path_len >= 0) { // we have an out_path, so send DIRECT
                 sendDirect(reply, client->out_path, client->out_path_len, SERVER_RESPONSE_DELAY);
@@ -560,7 +575,8 @@ bool MyMesh::onPeerPathRecv(mesh::Packet *packet, int sender_idx, const uint8_t 
   // TODO: prevent replay attacks
   int i = matching_peer_indexes[sender_idx];
 
-  if (i >= 0 && i < acl.getNumClients()) { // get from our known_clients table (sender SHOULD already be known in this context)
+  if (i >= 0 && i < acl.getNumClients()) { // get from our known_clients table (sender SHOULD already be known
+                                           // in this context)
     MESH_DEBUG_PRINTLN("PATH to client, path_len=%d", (uint32_t)path_len);
     auto client = acl.getClientByIdx(i);
     memcpy(client->out_path, path, client->out_path_len = path_len); // store a copy of path, for sendDirect()
@@ -597,9 +613,9 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
 
   // defaults
   memset(&_prefs, 0, sizeof(_prefs));
-  _prefs.airtime_factor = 1.0;   // one half
-  _prefs.rx_delay_base = 0.0f;   // off by default, was 10.0
-  _prefs.tx_delay_factor = 0.5f; // was 0.25f;
+  _prefs.airtime_factor = 1.0;          // one half
+  _prefs.rx_delay_base = 0.0f;          // off by default, was 10.0
+  _prefs.tx_delay_factor = 0.5f;        // was 0.25f;
   _prefs.direct_tx_delay_factor = 0.2f; // was zero
   StrHelper::strncpy(_prefs.node_name, ADVERT_NAME, sizeof(_prefs.node_name));
   _prefs.node_lat = ADVERT_LAT;
@@ -653,7 +669,8 @@ void MyMesh::begin(FILESYSTEM *fs) {
 }
 
 void MyMesh::applyTempRadioParams(float freq, float bw, uint8_t sf, uint8_t cr, int timeout_mins) {
-  set_radio_at = futureMillis(2000); // give CLI reply some time to be sent back, before applying temp radio params
+  set_radio_at =
+      futureMillis(2000); // give CLI reply some time to be sent back, before applying temp radio params
   pending_freq = freq;
   pending_bw = bw;
   pending_sf = sf;
@@ -751,7 +768,7 @@ void MyMesh::formatRadioStatsReply(char *reply) {
 }
 
 void MyMesh::formatPacketStatsReply(char *reply) {
-  StatsFormatHelper::formatPacketStats(reply, radio_driver, getNumSentFlood(), getNumSentDirect(), 
+  StatsFormatHelper::formatPacketStats(reply, radio_driver, getNumSentFlood(), getNumSentDirect(),
                                        getNumRecvFlood(), getNumRecvDirect());
 }
 
@@ -766,20 +783,20 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
   }
 
   // handle ACL related commands
-  if (memcmp(command, "setperm ", 8) == 0) {   // format:  setperm {pubkey-hex} {permissions-int8}
-    char* hex = &command[8];
-    char* sp = strchr(hex, ' ');   // look for separator char
+  if (memcmp(command, "setperm ", 8) == 0) { // format:  setperm {pubkey-hex} {permissions-int8}
+    char *hex = &command[8];
+    char *sp = strchr(hex, ' '); // look for separator char
     if (sp == NULL) {
       strcpy(reply, "Err - bad params");
     } else {
-      *sp++ = 0;   // replace space with null terminator
+      *sp++ = 0; // replace space with null terminator
 
       uint8_t pubkey[PUB_KEY_SIZE];
-      int hex_len = min(sp - hex, PUB_KEY_SIZE*2);
+      int hex_len = min(sp - hex, PUB_KEY_SIZE * 2);
       if (mesh::Utils::fromHex(pubkey, hex_len / 2, hex)) {
         uint8_t perms = atoi(sp);
         if (acl.applyPermissions(self_id, pubkey, hex_len / 2, perms)) {
-          dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY);   // trigger acl.save()
+          dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY); // trigger acl.save()
           strcpy(reply, "OK");
         } else {
           strcpy(reply, "Err - invalid params");
@@ -792,20 +809,20 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
     Serial.println("ACL:");
     for (int i = 0; i < acl.getNumClients(); i++) {
       auto c = acl.getClientByIdx(i);
-      if (c->permissions == 0) continue;  // skip deleted (or guest) entries
+      if (c->permissions == 0) continue; // skip deleted (or guest) entries
 
       Serial.printf("%02X ", c->permissions);
       mesh::Utils::printHex(Serial, c->id.pub_key, PUB_KEY_SIZE);
       Serial.printf("\n");
     }
     reply[0] = 0;
-  } else{
-    _cli.handleCommand(sender_timestamp, command, reply);  // common CLI commands
+  } else {
+    _cli.handleCommand(sender_timestamp, command, reply); // common CLI commands
   }
 }
 
-bool MyMesh::saveFilter(ClientInfo* client) {
-  return client->isAdmin();    // only save Admins
+bool MyMesh::saveFilter(ClientInfo *client) {
+  return client->isAdmin(); // only save Admins
 }
 
 void MyMesh::loop() {
@@ -817,7 +834,8 @@ void MyMesh::loop() {
       auto c = acl.getClientByIdx(i);
       if (c->extra.room.pending_ack && millisHasNowPassed(c->extra.room.ack_timeout)) {
         c->extra.room.push_failures++;
-        c->extra.room.pending_ack = 0; // reset  (TODO: keep prev expected_ack's in a list, incase they arrive LATER, after we retry)
+        c->extra.room.pending_ack =
+            0; // reset  (TODO: keep prev expected_ack's in a list, incase they arrive LATER, after we retry)
         MESH_DEBUG_PRINTLN("pending ACK timed out: push_failures: %d", (uint32_t)c->extra.room.push_failures);
       }
     }
@@ -825,14 +843,15 @@ void MyMesh::loop() {
     auto client = acl.getClientByIdx(next_client_idx);
     bool did_push = false;
     if (client->extra.room.pending_ack == 0 && client->last_activity != 0 &&
-        client->extra.room.push_failures < 3) { // not already waiting for ACK, AND not evicted, AND retries not max
+        client->extra.room.push_failures <
+            3) { // not already waiting for ACK, AND not evicted, AND retries not max
       MESH_DEBUG_PRINTLN("loop - checking for client %02X", (uint32_t)client->id.pub_key[0]);
       uint32_t now = getRTCClock()->getCurrentTime();
       for (int k = 0, idx = next_post_idx; k < MAX_UNSYNCED_POSTS; k++) {
         auto p = &posts[idx];
         if (now >= p->post_timestamp + POST_SYNC_DELAY_SECS &&
             p->post_timestamp > client->extra.room.sync_since // is new post for this Client?
-            && !p->author.matches(client->id)) {   // don't push posts to the author
+            && !p->author.matches(client->id)) {              // don't push posts to the author
           // push this post to Client, then wait for ACK
           pushPostToClient(client, *p);
           did_push = true;

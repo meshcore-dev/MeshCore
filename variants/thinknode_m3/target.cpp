@@ -1,5 +1,6 @@
-#include <Arduino.h>
 #include "target.h"
+
+#include <Arduino.h>
 #include <helpers/sensors/MicroNMEALocationProvider.h>
 
 ThinkNodeM3Board board;
@@ -18,32 +19,23 @@ EnvironmentSensorManager sensors = EnvironmentSensorManager();
 #endif
 
 #ifdef DISPLAY_CLASS
-  NullDisplayDriver display;
+NullDisplayDriver display;
 #endif
 
 #ifndef LORA_CR
-  #define LORA_CR      5
+#define LORA_CR 5
 #endif
 
 #ifdef RF_SWITCH_TABLE
-static const uint32_t rfswitch_dios[Module::RFSWITCH_MAX_PINS] = {
-  RADIOLIB_LR11X0_DIO5,
-  RADIOLIB_LR11X0_DIO6,
-  RADIOLIB_NC,
-  RADIOLIB_NC,
-  RADIOLIB_NC
-};
+static const uint32_t rfswitch_dios[Module::RFSWITCH_MAX_PINS] = { RADIOLIB_LR11X0_DIO5, RADIOLIB_LR11X0_DIO6,
+                                                                   RADIOLIB_NC, RADIOLIB_NC, RADIOLIB_NC };
 
 static const Module::RfSwitchMode_t rfswitch_table[] = {
   // mode                 DIO5  DIO6
-  { LR11x0::MODE_STBY,   {LOW , LOW  }},
-  { LR11x0::MODE_RX,     {HIGH, LOW  }},
-  { LR11x0::MODE_TX,     {HIGH, HIGH }},
-  { LR11x0::MODE_TX_HP,  {LOW , HIGH }},
-  { LR11x0::MODE_TX_HF,  {LOW , LOW  }},
-  { LR11x0::MODE_GNSS,   {LOW , LOW  }},
-  { LR11x0::MODE_WIFI,   {LOW , LOW  }},
-  END_OF_MODE_TABLE,
+  { LR11x0::MODE_STBY, { LOW, LOW } },  { LR11x0::MODE_RX, { HIGH, LOW } },
+  { LR11x0::MODE_TX, { HIGH, HIGH } },  { LR11x0::MODE_TX_HP, { LOW, HIGH } },
+  { LR11x0::MODE_TX_HF, { LOW, LOW } }, { LR11x0::MODE_GNSS, { LOW, LOW } },
+  { LR11x0::MODE_WIFI, { LOW, LOW } },  END_OF_MODE_TABLE,
 };
 #endif
 
@@ -58,11 +50,12 @@ bool radio_init() {
 
   SPI.setPins(P_LORA_MISO, P_LORA_SCLK, P_LORA_MOSI);
   SPI.begin();
-  int status = radio.begin(LORA_FREQ, LORA_BW, LORA_SF, LORA_CR, RADIOLIB_LR11X0_LORA_SYNC_WORD_PRIVATE, LORA_TX_POWER, 16, tcxo);
+  int status = radio.begin(LORA_FREQ, LORA_BW, LORA_SF, LORA_CR, RADIOLIB_LR11X0_LORA_SYNC_WORD_PRIVATE,
+                           LORA_TX_POWER, 16, tcxo);
   if (status != RADIOLIB_ERR_NONE) {
     Serial.print("ERROR: radio init failed: ");
     Serial.println(status);
-    return false;  // fail
+    return false; // fail
   }
 
   radio.setCRC(2);
@@ -75,7 +68,7 @@ bool radio_init() {
   radio.setRxBoostedGainMode(RX_BOOSTED_GAIN);
 #endif
 
-  return true;  // success
+  return true; // success
 }
 
 uint32_t radio_get_rng_seed() {
@@ -95,5 +88,5 @@ void radio_set_tx_power(int8_t dbm) {
 
 mesh::LocalIdentity radio_new_identity() {
   RadioNoiseListener rng(radio);
-  return mesh::LocalIdentity(&rng);  // create new random identity
+  return mesh::LocalIdentity(&rng); // create new random identity
 }

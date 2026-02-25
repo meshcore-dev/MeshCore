@@ -1,7 +1,7 @@
 #pragma once
 
-#include <MeshCore.h>
 #include <Arduino.h>
+#include <MeshCore.h>
 #include <helpers/NRF52Board.h>
 
 class KeepteenLT1Board : public NRF52Board {
@@ -12,7 +12,7 @@ public:
   KeepteenLT1Board() : NRF52Board("KeepteenLT1_OTA") {}
   void begin();
 
-  #define BATTERY_SAMPLES 8
+#define BATTERY_SAMPLES 8
 
   uint16_t getBattMilliVolts() override {
     analogReadResolution(12);
@@ -25,20 +25,16 @@ public:
     return (ADC_MULTIPLIER * raw);
   }
 
-  const char* getManufacturerName() const override {
-    return "Keepteen LT1";
-  }
+  const char *getManufacturerName() const override { return "Keepteen LT1"; }
 
 #if defined(P_LORA_TX_LED)
   void onBeforeTransmit() override {
-    digitalWrite(P_LORA_TX_LED, HIGH);   // turn TX LED on
+    digitalWrite(P_LORA_TX_LED, HIGH); // turn TX LED on
   }
   void onAfterTransmit() override {
-    digitalWrite(P_LORA_TX_LED, LOW);   // turn TX LED off
+    digitalWrite(P_LORA_TX_LED, LOW); // turn TX LED off
   }
 #endif
 
-  void powerOff() override {
-    sd_power_system_off();
-  }
+  void powerOff() override { sd_power_system_off(); }
 };

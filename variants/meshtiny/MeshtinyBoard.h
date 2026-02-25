@@ -14,10 +14,10 @@ public:
 
 #if defined(P_LORA_TX_LED)
   void onBeforeTransmit() override {
-    digitalWrite(P_LORA_TX_LED, HIGH);   // turn TX LED on
+    digitalWrite(P_LORA_TX_LED, HIGH); // turn TX LED on
   }
   void onAfterTransmit() override {
-    digitalWrite(P_LORA_TX_LED, LOW);   // turn TX LED off
+    digitalWrite(P_LORA_TX_LED, LOW); // turn TX LED off
   }
 #endif
 
@@ -47,7 +47,6 @@ public:
     digitalWrite(PIN_3V3_EN, LOW);
 #endif
 
-
 #ifdef PIN_LED1
     digitalWrite(PIN_LED1, LOW);
 #endif
@@ -62,5 +61,4 @@ public:
 
     sd_power_system_off();
   }
-
 };

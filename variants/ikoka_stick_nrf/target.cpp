@@ -1,12 +1,13 @@
-#include <Arduino.h>
 #include "target.h"
+
+#include <Arduino.h>
 #include <helpers/ArduinoHelpers.h>
 
 IkokaStickNRFBoard board;
 
 #ifdef DISPLAY_CLASS
-  DISPLAY_CLASS display;
-  MomentaryButton user_btn(PIN_USER_BTN, 1000, true);
+DISPLAY_CLASS display;
+MomentaryButton user_btn(PIN_USER_BTN, 1000, true);
 #endif
 
 RADIO_CLASS radio = new Module(P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BUSY, SPI);
@@ -18,9 +19,9 @@ AutoDiscoverRTCClock rtc_clock(fallback_clock);
 EnvironmentSensorManager sensors;
 
 bool radio_init() {
-    rtc_clock.begin(Wire);
-  
-    return radio.std_init(&SPI);
+  rtc_clock.begin(Wire);
+
+  return radio.std_init(&SPI);
 }
 
 uint32_t radio_get_rng_seed() {
@@ -40,5 +41,5 @@ void radio_set_tx_power(int8_t dbm) {
 
 mesh::LocalIdentity radio_new_identity() {
   RadioNoiseListener rng(radio);
-  return mesh::LocalIdentity(&rng);  // create new random identity
+  return mesh::LocalIdentity(&rng); // create new random identity
 }

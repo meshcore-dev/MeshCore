@@ -2,16 +2,16 @@
 
 #define RADIOLIB_STATIC_ONLY 1
 #include <RadioLib.h>
-#include <helpers/radiolib/RadioLibWrappers.h>
 #include <XiaoNrf52Board.h>
-#include <helpers/radiolib/CustomSX1262Wrapper.h>
-#include <helpers/AutoDiscoverRTCClock.h>
 #include <helpers/ArduinoHelpers.h>
+#include <helpers/AutoDiscoverRTCClock.h>
+#include <helpers/radiolib/CustomSX1262Wrapper.h>
+#include <helpers/radiolib/RadioLibWrappers.h>
 #include <helpers/sensors/EnvironmentSensorManager.h>
 
 #ifdef DISPLAY_CLASS
-  #include <helpers/ui/NullDisplayDriver.h>
-  extern DISPLAY_CLASS display;
+#include <helpers/ui/NullDisplayDriver.h>
+extern DISPLAY_CLASS display;
 #endif
 
 extern XiaoNrf52Board board;

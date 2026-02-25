@@ -1,9 +1,10 @@
-#include <Arduino.h>
 #include "target.h"
+
+#include <Arduino.h>
 #include <helpers/ArduinoHelpers.h>
 
 #ifdef DISPLAY_CLASS
-  DISPLAY_CLASS display;
+DISPLAY_CLASS display;
 #endif
 
 XiaoNrf52Board board;

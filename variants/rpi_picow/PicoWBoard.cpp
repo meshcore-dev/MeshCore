@@ -1,10 +1,11 @@
-#include <Arduino.h>
 #include "PicoWBoard.h"
 
-//#include <bluefruit.h>
+#include <Arduino.h>
+
+// #include <bluefruit.h>
 #include <Wire.h>
 
-//static BLEDfu bledfu;
+// static BLEDfu bledfu;
 
 static void connect_callback(uint16_t conn_handle) {
   (void)conn_handle;
@@ -32,11 +33,11 @@ void PicoWBoard::begin() {
 
   Wire.begin();
 
-  //pinMode(SX126X_POWER_EN, OUTPUT);
-  //digitalWrite(SX126X_POWER_EN, HIGH);
-  delay(10);   // give sx1262 some time to power up
+  // pinMode(SX126X_POWER_EN, OUTPUT);
+  // digitalWrite(SX126X_POWER_EN, HIGH);
+  delay(10); // give sx1262 some time to power up
 }
 
-bool PicoWBoard::startOTAUpdate(const char* id, char reply[]) {
+bool PicoWBoard::startOTAUpdate(const char *id, char reply[]) {
   return false;
 }

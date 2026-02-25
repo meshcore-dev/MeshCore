@@ -1,5 +1,6 @@
-#include <Arduino.h>
 #include "target.h"
+
+#include <Arduino.h>
 #include <helpers/ArduinoHelpers.h>
 
 PromicroBoard board;
@@ -11,21 +12,21 @@ WRAPPER_CLASS radio_driver(radio, board);
 VolatileRTCClock fallback_clock;
 AutoDiscoverRTCClock rtc_clock(fallback_clock);
 #if ENV_INCLUDE_GPS
-  #include <helpers/sensors/MicroNMEALocationProvider.h>
-  MicroNMEALocationProvider nmea = MicroNMEALocationProvider(Serial1);
-  EnvironmentSensorManager sensors = EnvironmentSensorManager(nmea);
+#include <helpers/sensors/MicroNMEALocationProvider.h>
+MicroNMEALocationProvider nmea = MicroNMEALocationProvider(Serial1);
+EnvironmentSensorManager sensors = EnvironmentSensorManager(nmea);
 #else
-  EnvironmentSensorManager sensors;
+EnvironmentSensorManager sensors;
 #endif
 
 #ifdef DISPLAY_CLASS
-  DISPLAY_CLASS display;
-  MomentaryButton user_btn(PIN_USER_BTN, 1000, true, true);
+DISPLAY_CLASS display;
+MomentaryButton user_btn(PIN_USER_BTN, 1000, true, true);
 #endif
 
 bool radio_init() {
   rtc_clock.begin(Wire);
-  
+
   return radio.std_init(&SPI);
 }
 
@@ -46,6 +47,5 @@ void radio_set_tx_power(int8_t dbm) {
 
 mesh::LocalIdentity radio_new_identity() {
   RadioNoiseListener rng(radio);
-  return mesh::LocalIdentity(&rng);  // create new random identity
+  return mesh::LocalIdentity(&rng); // create new random identity
 }
-

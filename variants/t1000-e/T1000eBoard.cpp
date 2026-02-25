@@ -1,7 +1,7 @@
+#include "T1000eBoard.h"
+
 #include <Arduino.h>
 #include <Wire.h>
-
-#include "T1000eBoard.h"
 
 void T1000eBoard::begin() {
   NRF52BoardDCDC::begin();
@@ -19,5 +19,5 @@ void T1000eBoard::begin() {
 
   Wire.begin();
 
-  delay(10);   // give sx1262 some time to power up
+  delay(10); // give sx1262 some time to power up
 }

@@ -2,47 +2,46 @@
 
 #include "../../MeshCore.h"
 
-BaseDisplay* E213Display::detectEInk()
-{
-    // Test 1: Logic of BUSY pin
+BaseDisplay *E213Display::detectEInk() {
+  // Test 1: Logic of BUSY pin
 
-    // Determines controller IC manufacturer
-    // Fitipower: busy when LOW
-    // Solomon Systech: busy when HIGH
+  // Determines controller IC manufacturer
+  // Fitipower: busy when LOW
+  // Solomon Systech: busy when HIGH
 
-    // Force display BUSY by holding reset pin active
-    pinMode(DISP_RST, OUTPUT);
-    digitalWrite(DISP_RST, LOW);
+  // Force display BUSY by holding reset pin active
+  pinMode(DISP_RST, OUTPUT);
+  digitalWrite(DISP_RST, LOW);
 
-    delay(10);
+  delay(10);
 
-    // Read whether pin is HIGH or LOW while busy
-    pinMode(DISP_BUSY, INPUT);
-    bool busyLogic = digitalRead(DISP_BUSY);
+  // Read whether pin is HIGH or LOW while busy
+  pinMode(DISP_BUSY, INPUT);
+  bool busyLogic = digitalRead(DISP_BUSY);
 
-    // Test complete. Release pin
-    pinMode(DISP_RST, INPUT);
+  // Test complete. Release pin
+  pinMode(DISP_RST, INPUT);
 
-    if (busyLogic == LOW) {
+  if (busyLogic == LOW) {
 #ifdef VISION_MASTER_E213
-      return new EInkDisplay_VisionMasterE213 ;
+    return new EInkDisplay_VisionMasterE213;
 #else
-      return new EInkDisplay_WirelessPaperV1_1 ;
+    return new EInkDisplay_WirelessPaperV1_1;
 #endif
-    } else {// busy HIGH
+  } else { // busy HIGH
 #ifdef VISION_MASTER_E213
-      return new EInkDisplay_VisionMasterE213V1_1 ;
+    return new EInkDisplay_VisionMasterE213V1_1;
 #else
-      return new EInkDisplay_WirelessPaperV1_1_1 ;
+    return new EInkDisplay_WirelessPaperV1_1_1;
 #endif
-    }
+  }
 }
 
 bool E213Display::begin() {
   if (_init) return true;
 
   powerOn();
-  if(display==NULL) {
+  if (display == NULL) {
     display = detectEInk();
   }
   display->begin();
@@ -62,18 +61,18 @@ void E213Display::powerOn() {
 #ifdef PIN_VEXT_EN
   pinMode(PIN_VEXT_EN, OUTPUT);
 #ifdef PIN_VEXT_EN_ACTIVE
-  digitalWrite(PIN_VEXT_EN, PIN_VEXT_EN_ACTIVE); 
+  digitalWrite(PIN_VEXT_EN, PIN_VEXT_EN_ACTIVE);
 #else
   digitalWrite(PIN_VEXT_EN, LOW); // Active low
 #endif
-  delay(50);                      // Allow power to stabilize
+  delay(50); // Allow power to stabilize
 #endif
 }
 
 void E213Display::powerOff() {
 #ifdef PIN_VEXT_EN
 #ifdef PIN_VEXT_EN_ACTIVE
-  digitalWrite(PIN_VEXT_EN, !PIN_VEXT_EN_ACTIVE); 
+  digitalWrite(PIN_VEXT_EN, !PIN_VEXT_EN_ACTIVE);
 #else
   digitalWrite(PIN_VEXT_EN, HIGH); // Turn off power
 #endif
@@ -93,7 +92,6 @@ void E213Display::turnOff() {
 
 void E213Display::clear() {
   display->clear();
-
 }
 
 void E213Display::startFrame(Color bkg) {
@@ -108,7 +106,7 @@ void E213Display::startFrame(Color bkg) {
 
 void E213Display::setTextSize(int sz) {
   // The library handles text size internally
-    display->setTextSize(sz);
+  display->setTextSize(sz);
 }
 
 void E213Display::setColor(Color c) {
@@ -116,19 +114,19 @@ void E213Display::setColor(Color c) {
 }
 
 void E213Display::setCursor(int x, int y) {
-    display->setCursor(x, y);
+  display->setCursor(x, y);
 }
 
 void E213Display::print(const char *str) {
-    display->print(str);
+  display->print(str);
 }
 
 void E213Display::fillRect(int x, int y, int w, int h) {
-    display->fillRect(x, y, w, h, BLACK);
+  display->fillRect(x, y, w, h, BLACK);
 }
 
 void E213Display::drawRect(int x, int y, int w, int h) {
-    display->drawRect(x, y, w, h, BLACK);
+  display->drawRect(x, y, w, h, BLACK);
 }
 
 void E213Display::drawXbm(int x, int y, const uint8_t *bits, int w, int h) {
@@ -146,7 +144,7 @@ void E213Display::drawXbm(int x, int y, const uint8_t *bits, int w, int h) {
 
       // If the bit is set, draw the pixel
       if (bitSet) {
-          display->drawPixel(x + bx, y + by, BLACK);
+        display->drawPixel(x + bx, y + by, BLACK);
       }
     }
   }
@@ -160,5 +158,5 @@ uint16_t E213Display::getTextWidth(const char *str) {
 }
 
 void E213Display::endFrame() {
-    display->update();
+  display->update();
 }

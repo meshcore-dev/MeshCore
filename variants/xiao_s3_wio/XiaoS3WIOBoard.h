@@ -5,9 +5,7 @@
 
 class XiaoS3WIOBoard : public ESP32Board {
 public:
-  XiaoS3WIOBoard() { }
+  XiaoS3WIOBoard() {}
 
-  const char* getManufacturerName() const override {
-    return "Xiao S3 WIO";
-  }
+  const char *getManufacturerName() const override { return "Xiao S3 WIO"; }
 };

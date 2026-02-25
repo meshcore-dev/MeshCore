@@ -4,8 +4,8 @@
 #include <helpers/ESP32Board.h>
 
 // built-ins
-#define  PIN_VBAT_READ   37
-#define  PIN_LED_BUILTIN 25
+#define PIN_VBAT_READ   37
+#define PIN_LED_BUILTIN 25
 
 #include <driver/rtc_io.h>
 
@@ -17,7 +17,7 @@ public:
     esp_reset_reason_t reason = esp_reset_reason();
     if (reason == ESP_RST_DEEPSLEEP) {
       long wakeup_source = esp_sleep_get_ext1_wakeup_status();
-      if (wakeup_source & (1 << P_LORA_DIO_1)) {  // received a LoRa packet (while in deep sleep)
+      if (wakeup_source & (1 << P_LORA_DIO_1)) { // received a LoRa packet (while in deep sleep)
         startup_reason = BD_STARTUP_RX_PACKET;
       }
 
@@ -36,9 +36,11 @@ public:
     rtc_gpio_hold_en((gpio_num_t)P_LORA_NSS);
 
     if (pin_wake_btn < 0) {
-      esp_sleep_enable_ext1_wakeup( (1L << P_LORA_DIO_1), ESP_EXT1_WAKEUP_ANY_HIGH);  // wake up on: recv LoRa packet
+      esp_sleep_enable_ext1_wakeup((1L << P_LORA_DIO_1),
+                                   ESP_EXT1_WAKEUP_ANY_HIGH); // wake up on: recv LoRa packet
     } else {
-      esp_sleep_enable_ext1_wakeup( (1L << P_LORA_DIO_1) | (1L << pin_wake_btn), ESP_EXT1_WAKEUP_ANY_HIGH);  // wake up on: recv LoRa packet OR wake btn
+      esp_sleep_enable_ext1_wakeup((1L << P_LORA_DIO_1) | (1L << pin_wake_btn),
+                                   ESP_EXT1_WAKEUP_ANY_HIGH); // wake up on: recv LoRa packet OR wake btn
     }
 
     if (secs > 0) {
@@ -46,7 +48,7 @@ public:
     }
 
     // Finally set ESP32 into sleep
-    esp_deep_sleep_start();   // CPU halts here and never returns!
+    esp_deep_sleep_start(); // CPU halts here and never returns!
   }
 
   uint16_t getBattMilliVolts() override {
@@ -61,7 +63,5 @@ public:
     return (1.98 * (2 / 1024.0) * raw) * 1000;
   }
 
-  const char* getManufacturerName() const override {
-    return "Heltec V2";
-  }
+  const char *getManufacturerName() const override { return "Heltec V2"; }
 };

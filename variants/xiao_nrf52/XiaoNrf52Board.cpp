@@ -1,22 +1,19 @@
 #ifdef XIAO_NRF52
 
+#include "XiaoNrf52Board.h"
+
 #include <Arduino.h>
 #include <Wire.h>
-
-#include "XiaoNrf52Board.h"
 
 #ifdef NRF52_POWER_MANAGEMENT
 // Static configuration for power management
 // Values set in variant.h defines
-const PowerMgtConfig power_config = {
-  .lpcomp_ain_channel = PWRMGT_LPCOMP_AIN,
-  .lpcomp_refsel = PWRMGT_LPCOMP_REFSEL,
-  .voltage_bootlock = PWRMGT_VOLTAGE_BOOTLOCK
-};
+const PowerMgtConfig power_config = { .lpcomp_ain_channel = PWRMGT_LPCOMP_AIN,
+                                      .lpcomp_refsel = PWRMGT_LPCOMP_REFSEL,
+                                      .voltage_bootlock = PWRMGT_VOLTAGE_BOOTLOCK };
 
 void XiaoNrf52Board::initiateShutdown(uint8_t reason) {
-  bool enable_lpcomp = (reason == SHUTDOWN_REASON_LOW_VOLTAGE ||
-                        reason == SHUTDOWN_REASON_BOOT_PROTECT);
+  bool enable_lpcomp = (reason == SHUTDOWN_REASON_LOW_VOLTAGE || reason == SHUTDOWN_REASON_BOOT_PROTECT);
 
   pinMode(VBAT_ENABLE, OUTPUT);
   digitalWrite(VBAT_ENABLE, enable_lpcomp ? LOW : HIGH);
@@ -35,10 +32,10 @@ void XiaoNrf52Board::begin() {
   // Configure battery voltage ADC
   pinMode(PIN_VBAT, INPUT);
   pinMode(VBAT_ENABLE, OUTPUT);
-  digitalWrite(VBAT_ENABLE, LOW);  // Enable VBAT divider for reading
+  digitalWrite(VBAT_ENABLE, LOW); // Enable VBAT divider for reading
   analogReadResolution(12);
   analogReference(AR_INTERNAL_3_0);
-  delay(50);  // Allow ADC to settle
+  delay(50); // Allow ADC to settle
 
 #ifdef PIN_USER_BTN
   pinMode(PIN_USER_BTN, INPUT_PULLUP);
@@ -60,7 +57,7 @@ void XiaoNrf52Board::begin() {
   checkBootVoltage(&power_config);
 #endif
 
-  delay(10);  // Give sx1262 some time to power up
+  delay(10); // Give sx1262 some time to power up
 }
 
 uint16_t XiaoNrf52Board::getBattMilliVolts() {

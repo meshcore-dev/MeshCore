@@ -3,11 +3,11 @@
 #define RADIOLIB_STATIC_ONLY 1
 #include <RadioLib.h>
 #include <UnitC6LBoard.h>
-#include <helpers/radiolib/RadioLibWrappers.h>
-#include <helpers/ESP32Board.h>
-#include <helpers/radiolib/CustomSX1262Wrapper.h>
 #include <helpers/AutoDiscoverRTCClock.h>
+#include <helpers/ESP32Board.h>
 #include <helpers/SensorManager.h>
+#include <helpers/radiolib/CustomSX1262Wrapper.h>
+#include <helpers/radiolib/RadioLibWrappers.h>
 
 extern UnitC6LBoard board;
 extern WRAPPER_CLASS radio_driver;

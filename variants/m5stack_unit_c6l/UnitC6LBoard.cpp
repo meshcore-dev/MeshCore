@@ -1,13 +1,14 @@
-#include <Arduino.h>
 #include "target.h"
+
+#include <Arduino.h>
 
 UnitC6LBoard board;
 
 #if defined(P_LORA_SCLK)
-  static SPIClass spi(0);
-  RADIO_CLASS radio = new Module(P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BUSY, spi);
+static SPIClass spi(0);
+RADIO_CLASS radio = new Module(P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BUSY, spi);
 #else
-  RADIO_CLASS radio = new Module(P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BUSY);
+RADIO_CLASS radio = new Module(P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BUSY);
 #endif
 
 WRAPPER_CLASS radio_driver(radio, board);
@@ -45,5 +46,5 @@ void radio_set_tx_power(uint8_t dbm) {
 
 mesh::LocalIdentity radio_new_identity() {
   RadioNoiseListener rng(radio);
-  return mesh::LocalIdentity(&rng);  // create new random identity
+  return mesh::LocalIdentity(&rng); // create new random identity
 }

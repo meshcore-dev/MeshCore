@@ -24,7 +24,7 @@ void E290Display::powerOn() {
 #ifdef PIN_VEXT_EN
   pinMode(PIN_VEXT_EN, OUTPUT);
   digitalWrite(PIN_VEXT_EN, PIN_VEXT_EN_ACTIVE);
-  delay(50);                      // Allow power to stabilize
+  delay(50); // Allow power to stabilize
 #endif
 }
 

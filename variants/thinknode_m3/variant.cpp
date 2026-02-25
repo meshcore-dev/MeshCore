@@ -5,11 +5,11 @@
  */
 
 #include "variant.h"
+
 #include "wiring_constants.h"
 #include "wiring_digital.h"
 
-const uint32_t g_ADigitalPinMap[] =
-{
+const uint32_t g_ADigitalPinMap[] = {
   0,  // P0.00
   1,  // P0.01
   2,  // P0.02
@@ -60,9 +60,8 @@ const uint32_t g_ADigitalPinMap[] =
   47, // P1.15
 };
 
-void initVariant()
-{
-/* TODO */
+void initVariant() {
+  /* TODO */
   pinMode(PIN_PWR_EN, OUTPUT);
   digitalWrite(PIN_PWR_EN, HIGH);
 

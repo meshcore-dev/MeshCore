@@ -18,9 +18,9 @@
  *              |    100k
  *    BAT- -----+
  */
-#define PIN_VBAT_READ     26 // D0
-#define BATTERY_SAMPLES   8
-#define ADC_MULTIPLIER    (3.0f * 3.3f * 1000)
+#define PIN_VBAT_READ   26 // D0
+#define BATTERY_SAMPLES 8
+#define ADC_MULTIPLIER  (3.0f * 3.3f * 1000)
 
 class XiaoRP2040Board : public mesh::MainBoard {
 protected:
@@ -34,7 +34,6 @@ public:
   void onBeforeTransmit() override { digitalWrite(P_LORA_TX_LED, HIGH); }
   void onAfterTransmit() override { digitalWrite(P_LORA_TX_LED, LOW); }
 #endif
-
 
   uint16_t getBattMilliVolts() override {
 #if defined(PIN_VBAT_READ) && defined(ADC_MULTIPLIER)

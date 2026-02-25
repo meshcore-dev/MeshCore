@@ -1,7 +1,7 @@
+#include "RAK3401Board.h"
+
 #include <Arduino.h>
 #include <Wire.h>
-
-#include "RAK3401Board.h"
 
 void RAK3401Board::begin() {
   NRF52BoardDCDC::begin();
@@ -26,7 +26,7 @@ void RAK3401Board::begin() {
 #ifdef P_LORA_PA_EN
   // Initialize RAK13302 1W LoRa transceiver module PA control pin
   pinMode(P_LORA_PA_EN, OUTPUT);
-  digitalWrite(P_LORA_PA_EN, LOW);  // Start with PA disabled
-  delay(10);  // Allow PA module to initialize
+  digitalWrite(P_LORA_PA_EN, LOW); // Start with PA disabled
+  delay(10);                       // Allow PA module to initialize
 #endif
 }

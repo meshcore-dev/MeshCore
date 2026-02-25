@@ -1,7 +1,7 @@
+#include "MeshPocket.h"
+
 #include <Arduino.h>
 #include <Wire.h>
-
-#include "MeshPocket.h"
 
 void HeltecMeshPocket::begin() {
   NRF52Board::begin();

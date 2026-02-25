@@ -31,7 +31,7 @@ void ESPNowBridge::begin() {
 
   // Initialize WiFi in station mode
   WiFi.mode(WIFI_STA);
-  
+
   // Set wifi channel
   if (esp_wifi_set_channel(_prefs->bridge_channel, WIFI_SECOND_CHAN_NONE) != ESP_OK) {
     BRIDGE_DEBUG_PRINTLN("Error setting WIFI channel to %d\n", _prefs->bridge_channel);
@@ -174,8 +174,7 @@ void ESPNowBridge::sendPacket(mesh::Packet *packet) {
 
     // Check if packet fits within our maximum payload size
     if (meshPacketLen > MAX_PAYLOAD_SIZE) {
-      BRIDGE_DEBUG_PRINTLN("TX packet too large (payload=%d, max=%d)\n", meshPacketLen,
-                           MAX_PAYLOAD_SIZE);
+      BRIDGE_DEBUG_PRINTLN("TX packet too large (payload=%d, max=%d)\n", meshPacketLen, MAX_PAYLOAD_SIZE);
       return;
     }
 

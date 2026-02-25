@@ -1,7 +1,7 @@
+#include "MeshSolarBoard.h"
+
 #include <Arduino.h>
 #include <Wire.h>
-
-#include "MeshSolarBoard.h"
 
 void MeshSolarBoard::begin() {
   NRF52Board::begin();

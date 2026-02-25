@@ -1,21 +1,21 @@
 #pragma once
 
 #define RADIOLIB_STATIC_ONLY 1
-#include <RadioLib.h>
-#include <helpers/radiolib/RadioLibWrappers.h>
 #include <RAK4631Board.h>
-#include <helpers/radiolib/CustomSX1262Wrapper.h>
+#include <RadioLib.h>
 #include <helpers/AutoDiscoverRTCClock.h>
+#include <helpers/radiolib/CustomSX1262Wrapper.h>
+#include <helpers/radiolib/RadioLibWrappers.h>
 #include <helpers/sensors/EnvironmentSensorManager.h>
 
 #ifdef DISPLAY_CLASS
-  #include <helpers/ui/SSD1306Display.h>
-  extern DISPLAY_CLASS display;
-  #include <helpers/ui/MomentaryButton.h>
-  extern MomentaryButton user_btn;
-  #if defined(PIN_USER_BTN_ANA)
-  extern MomentaryButton analog_btn;
-  #endif
+#include <helpers/ui/SSD1306Display.h>
+extern DISPLAY_CLASS display;
+#include <helpers/ui/MomentaryButton.h>
+extern MomentaryButton user_btn;
+#if defined(PIN_USER_BTN_ANA)
+extern MomentaryButton analog_btn;
+#endif
 #endif
 
 extern RAK4631Board board;

@@ -7,7 +7,7 @@ void TBeam1WBoard::begin() {
   pinMode(SX126X_POWER_EN, OUTPUT);
   digitalWrite(SX126X_POWER_EN, HIGH);
   radio_powered = true;
-  delay(10);  // Allow radio to power up
+  delay(10); // Allow radio to power up
 
   // RF switch RXEN pin handled by RadioLib via setRfSwitchPins()
 
@@ -22,11 +22,11 @@ void TBeam1WBoard::begin() {
 
 void TBeam1WBoard::onBeforeTransmit() {
   // RF switching handled by RadioLib via SX126X_DIO2_AS_RF_SWITCH and setRfSwitchPins()
-  digitalWrite(LED_PIN, HIGH);  // TX LED on
+  digitalWrite(LED_PIN, HIGH); // TX LED on
 }
 
 void TBeam1WBoard::onAfterTransmit() {
-  digitalWrite(LED_PIN, LOW);   // TX LED off
+  digitalWrite(LED_PIN, LOW); // TX LED off
 }
 
 uint16_t TBeam1WBoard::getBattMilliVolts() {
@@ -43,7 +43,7 @@ uint16_t TBeam1WBoard::getBattMilliVolts() {
   return static_cast<uint16_t>((raw * 3300 * ADC_MULTIPLIER) / 4095);
 }
 
-const char* TBeam1WBoard::getManufacturerName() const {
+const char *TBeam1WBoard::getManufacturerName() const {
   return "LilyGo T-Beam 1W";
 }
 

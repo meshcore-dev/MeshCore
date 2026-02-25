@@ -1,5 +1,6 @@
-#include <Arduino.h>
 #include "target.h"
+
+#include <Arduino.h>
 
 LilyGoTLoraBoard board;
 
@@ -13,8 +14,8 @@ AutoDiscoverRTCClock rtc_clock(fallback_clock);
 EnvironmentSensorManager sensors;
 
 #ifdef DISPLAY_CLASS
-  DISPLAY_CLASS display;
-  MomentaryButton user_btn(PIN_USER_BTN, 1000, true);
+DISPLAY_CLASS display;
+MomentaryButton user_btn(PIN_USER_BTN, 1000, true);
 #endif
 
 bool radio_init() {
@@ -45,5 +46,5 @@ void radio_set_tx_power(int8_t dbm) {
 
 mesh::LocalIdentity radio_new_identity() {
   RadioNoiseListener rng(radio);
-  return mesh::LocalIdentity(&rng);  // create new random identity
+  return mesh::LocalIdentity(&rng); // create new random identity
 }

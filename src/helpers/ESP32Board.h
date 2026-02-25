@@ -1,14 +1,15 @@
 #pragma once
 
-#include <MeshCore.h>
 #include <Arduino.h>
+#include <MeshCore.h>
 
 #if defined(ESP_PLATFORM)
 
+#include "driver/rtc_io.h"
+
+#include <Wire.h>
 #include <rom/rtc.h>
 #include <sys/time.h>
-#include <Wire.h>
-#include "driver/rtc_io.h"
 
 class ESP32Board : public mesh::MainBoard {
 protected:
@@ -20,28 +21,28 @@ public:
     // for future use, sub-classes SHOULD call this from their begin()
     startup_reason = BD_STARTUP_NORMAL;
 
-  #ifdef ESP32_CPU_FREQ
+#ifdef ESP32_CPU_FREQ
     setCpuFrequencyMhz(ESP32_CPU_FREQ);
-  #endif
+#endif
 
-  #ifdef PIN_VBAT_READ
+#ifdef PIN_VBAT_READ
     // battery read support
     pinMode(PIN_VBAT_READ, INPUT);
     adcAttachPin(PIN_VBAT_READ);
-  #endif
+#endif
 
-  #ifdef P_LORA_TX_LED
+#ifdef P_LORA_TX_LED
     pinMode(P_LORA_TX_LED, OUTPUT);
     digitalWrite(P_LORA_TX_LED, LOW);
-  #endif
+#endif
 
-  #if defined(PIN_BOARD_SDA) && defined(PIN_BOARD_SCL)
-   #if PIN_BOARD_SDA >= 0 && PIN_BOARD_SCL >= 0
+#if defined(PIN_BOARD_SDA) && defined(PIN_BOARD_SCL)
+#if PIN_BOARD_SDA >= 0 && PIN_BOARD_SCL >= 0
     Wire.begin(PIN_BOARD_SDA, PIN_BOARD_SCL);
-   #endif
-  #else
+#endif
+#else
     Wire.begin();
-  #endif
+#endif
   }
 
   // Temperature from ESP32 MCU
@@ -58,9 +59,11 @@ public:
 
   void enterLightSleep(uint32_t secs) {
 #if defined(CONFIG_IDF_TARGET_ESP32S3) && defined(P_LORA_DIO_1) // Supported ESP32 variants
-    if (rtc_gpio_is_valid_gpio((gpio_num_t)P_LORA_DIO_1)) { // Only enter sleep mode if P_LORA_DIO_1 is RTC pin
+    if (rtc_gpio_is_valid_gpio(
+            (gpio_num_t)P_LORA_DIO_1)) { // Only enter sleep mode if P_LORA_DIO_1 is RTC pin
       esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
-      esp_sleep_enable_ext1_wakeup((1L << P_LORA_DIO_1), ESP_EXT1_WAKEUP_ANY_HIGH); // To wake up when receiving a LoRa packet
+      esp_sleep_enable_ext1_wakeup((1L << P_LORA_DIO_1),
+                                   ESP_EXT1_WAKEUP_ANY_HIGH); // To wake up when receiving a LoRa packet
 
       if (secs > 0) {
         esp_sleep_enable_timer_wakeup(secs * 1000000); // To wake up every hour to do periodically jobs
@@ -73,7 +76,7 @@ public:
 
   void sleep(uint32_t secs) override {
     if (!inhibit_sleep) {
-      enterLightSleep(secs);      // To wake up after "secs" seconds or when receiving a LoRa packet
+      enterLightSleep(secs); // To wake up after "secs" seconds or when receiving a LoRa packet
     }
   }
 
@@ -81,24 +84,25 @@ public:
 
 #if defined(P_LORA_TX_LED)
   void onBeforeTransmit() override {
-    digitalWrite(P_LORA_TX_LED, HIGH);   // turn TX LED on
+    digitalWrite(P_LORA_TX_LED, HIGH); // turn TX LED on
   }
   void onAfterTransmit() override {
-    digitalWrite(P_LORA_TX_LED, LOW);   // turn TX LED off
+    digitalWrite(P_LORA_TX_LED, LOW); // turn TX LED off
   }
 #elif defined(P_LORA_TX_NEOPIXEL_LED)
-  #define NEOPIXEL_BRIGHTNESS    64  // white brightness (max 255)
+#define NEOPIXEL_BRIGHTNESS 64 // white brightness (max 255)
 
   void onBeforeTransmit() override {
-    neopixelWrite(P_LORA_TX_NEOPIXEL_LED, NEOPIXEL_BRIGHTNESS, NEOPIXEL_BRIGHTNESS, NEOPIXEL_BRIGHTNESS);   // turn TX neopixel on (White)
+    neopixelWrite(P_LORA_TX_NEOPIXEL_LED, NEOPIXEL_BRIGHTNESS, NEOPIXEL_BRIGHTNESS,
+                  NEOPIXEL_BRIGHTNESS); // turn TX neopixel on (White)
   }
   void onAfterTransmit() override {
-    neopixelWrite(P_LORA_TX_NEOPIXEL_LED, 0, 0, 0);   // turn TX neopixel off
+    neopixelWrite(P_LORA_TX_NEOPIXEL_LED, 0, 0, 0); // turn TX neopixel off
   }
 #endif
 
   uint16_t getBattMilliVolts() override {
-  #ifdef PIN_VBAT_READ
+#ifdef PIN_VBAT_READ
     analogReadResolution(12);
 
     uint32_t raw = 0;
@@ -108,35 +112,29 @@ public:
     raw = raw / 4;
 
     return (2 * raw);
-  #else
-    return 0;  // not supported
-  #endif
+#else
+    return 0; // not supported
+#endif
   }
 
-  const char* getManufacturerName() const override {
-    return "Generic ESP32";
-  }
+  const char *getManufacturerName() const override { return "Generic ESP32"; }
 
-  void reboot() override {
-    esp_restart();
-  }
+  void reboot() override { esp_restart(); }
 
-  bool startOTAUpdate(const char* id, char reply[]) override;
+  bool startOTAUpdate(const char *id, char reply[]) override;
 
-  void setInhibitSleep(bool inhibit) {
-    inhibit_sleep = inhibit;
-  }
+  void setInhibitSleep(bool inhibit) { inhibit_sleep = inhibit; }
 };
 
 class ESP32RTCClock : public mesh::RTCClock {
 public:
-  ESP32RTCClock() { }
+  ESP32RTCClock() {}
   void begin() {
     esp_reset_reason_t reason = esp_reset_reason();
     if (reason == ESP_RST_POWERON) {
       // start with some date/time in the recent past
       struct timeval tv;
-      tv.tv_sec = 1715770351;  // 15 May 2024, 8:50pm
+      tv.tv_sec = 1715770351; // 15 May 2024, 8:50pm
       tv.tv_usec = 0;
       settimeofday(&tv, NULL);
     }
@@ -146,7 +144,7 @@ public:
     time(&_now);
     return _now;
   }
-  void setCurrentTime(uint32_t time) override { 
+  void setCurrentTime(uint32_t time) override {
     struct timeval tv;
     tv.tv_sec = time;
     tv.tv_usec = 0;

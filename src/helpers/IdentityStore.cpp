@@ -1,6 +1,6 @@
 #include "IdentityStore.h"
 
-bool IdentityStore::load(const char *name, mesh::LocalIdentity& id) {
+bool IdentityStore::load(const char *name, mesh::LocalIdentity &id) {
   bool loaded = false;
   char filename[40];
   sprintf(filename, "%s/%s.id", _dir, name);
@@ -18,7 +18,7 @@ bool IdentityStore::load(const char *name, mesh::LocalIdentity& id) {
   return loaded;
 }
 
-bool IdentityStore::load(const char *name, mesh::LocalIdentity& id, char display_name[], int max_name_sz) {
+bool IdentityStore::load(const char *name, mesh::LocalIdentity &id, char display_name[], int max_name_sz) {
   bool loaded = false;
   char filename[40];
   sprintf(filename, "%s/%s.id", _dir, name);
@@ -31,10 +31,10 @@ bool IdentityStore::load(const char *name, mesh::LocalIdentity& id, char display
     if (file) {
       loaded = id.readFrom(file);
 
-      int n = max_name_sz;   // up to 32 bytes
+      int n = max_name_sz; // up to 32 bytes
       if (n > 32) n = 32;
-      file.read((uint8_t *) display_name, n);
-      display_name[n - 1] = 0;  // ensure null terminator
+      file.read((uint8_t *)display_name, n);
+      display_name[n - 1] = 0; // ensure null terminator
 
       file.close();
     }
@@ -42,7 +42,7 @@ bool IdentityStore::load(const char *name, mesh::LocalIdentity& id, char display
   return loaded;
 }
 
-bool IdentityStore::save(const char *name, const mesh::LocalIdentity& id) {
+bool IdentityStore::save(const char *name, const mesh::LocalIdentity &id) {
   char filename[40];
   sprintf(filename, "%s/%s.id", _dir, name);
 
@@ -64,7 +64,7 @@ bool IdentityStore::save(const char *name, const mesh::LocalIdentity& id) {
   return false;
 }
 
-bool IdentityStore::save(const char *name, const mesh::LocalIdentity& id, const char display_name[]) {
+bool IdentityStore::save(const char *name, const mesh::LocalIdentity &id, const char display_name[]) {
   char filename[40];
   sprintf(filename, "%s/%s.id", _dir, name);
 
@@ -82,7 +82,7 @@ bool IdentityStore::save(const char *name, const mesh::LocalIdentity& id, const 
     uint8_t tmp[32];
     memset(tmp, 0, sizeof(tmp));
     int n = strlen(display_name);
-    if (n > sizeof(tmp)-1) n = sizeof(tmp)-1;
+    if (n > sizeof(tmp) - 1) n = sizeof(tmp) - 1;
     memcpy(tmp, display_name, n);
     file.write(tmp, sizeof(tmp));
 

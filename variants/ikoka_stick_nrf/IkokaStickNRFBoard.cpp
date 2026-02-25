@@ -1,9 +1,9 @@
 #ifdef XIAO_NRF52
 
+#include "IkokaStickNRFBoard.h"
+
 #include <Arduino.h>
 #include <Wire.h>
-
-#include "IkokaStickNRFBoard.h"
 
 void IkokaStickNRFBoard::begin() {
   NRF52Board::begin();
@@ -27,9 +27,9 @@ void IkokaStickNRFBoard::begin() {
   digitalWrite(P_LORA_TX_LED, HIGH);
 #endif
 
-//  pinMode(SX126X_POWER_EN, OUTPUT);
-//  digitalWrite(SX126X_POWER_EN, HIGH);
-  delay(10);   // give sx1262 some time to power up
+  //  pinMode(SX126X_POWER_EN, OUTPUT);
+  //  digitalWrite(SX126X_POWER_EN, HIGH);
+  delay(10); // give sx1262 some time to power up
 }
 
 #endif

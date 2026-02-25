@@ -1,15 +1,19 @@
 #pragma once
 
 #include "../BaseSerialInterface.h"
+
+#include <BLE2902.h>
 #include <BLEDevice.h>
 #include <BLEServer.h>
 #include <BLEUtils.h>
-#include <BLE2902.h>
 
-class SerialBLEInterface : public BaseSerialInterface, BLESecurityCallbacks, BLEServerCallbacks, BLECharacteristicCallbacks {
+class SerialBLEInterface : public BaseSerialInterface,
+                           BLESecurityCallbacks,
+                           BLEServerCallbacks,
+                           BLECharacteristicCallbacks {
   BLEServer *pServer;
   BLEService *pService;
-  BLECharacteristic * pTxCharacteristic;
+  BLECharacteristic *pTxCharacteristic;
   bool deviceConnected;
   bool oldDeviceConnected;
   bool _isEnabled;
@@ -23,13 +27,16 @@ class SerialBLEInterface : public BaseSerialInterface, BLESecurityCallbacks, BLE
     uint8_t buf[MAX_FRAME_SIZE];
   };
 
-  #define FRAME_QUEUE_SIZE  4
+#define FRAME_QUEUE_SIZE 4
   int recv_queue_len;
   Frame recv_queue[FRAME_QUEUE_SIZE];
   int send_queue_len;
   Frame send_queue[FRAME_QUEUE_SIZE];
 
-  void clearBuffers() { recv_queue_len = 0; send_queue_len = 0; }
+  void clearBuffers() {
+    recv_queue_len = 0;
+    send_queue_len = 0;
+  }
 
 protected:
   // BLESecurityCallbacks methods
@@ -40,13 +47,13 @@ protected:
   void onAuthenticationComplete(esp_ble_auth_cmpl_t cmpl) override;
 
   // BLEServerCallbacks methods
-  void onConnect(BLEServer* pServer) override;
-  void onConnect(BLEServer* pServer, esp_ble_gatts_cb_param_t *param) override;
-  void onMtuChanged(BLEServer* pServer, esp_ble_gatts_cb_param_t* param) override;
-  void onDisconnect(BLEServer* pServer) override;
+  void onConnect(BLEServer *pServer) override;
+  void onConnect(BLEServer *pServer, esp_ble_gatts_cb_param_t *param) override;
+  void onMtuChanged(BLEServer *pServer, esp_ble_gatts_cb_param_t *param) override;
+  void onDisconnect(BLEServer *pServer) override;
 
   // BLECharacteristicCallbacks methods
-  void onWrite(BLECharacteristic* pCharacteristic, esp_ble_gatts_cb_param_t* param) override;
+  void onWrite(BLECharacteristic *pCharacteristic, esp_ble_gatts_cb_param_t *param) override;
 
 public:
   SerialBLEInterface() {
@@ -67,7 +74,7 @@ public:
    * @param name  IN/OUT - a name for the device (combined with prefix). If "@@MAC", is modified and returned
    * @param pin_code   the BLE security pin
    */
-  void begin(const char* prefix, char* name, uint32_t pin_code);
+  void begin(const char *prefix, char *name, uint32_t pin_code);
 
   // BaseSerialInterface methods
   void enable() override;
@@ -82,10 +89,12 @@ public:
 };
 
 #if BLE_DEBUG_LOGGING && ARDUINO
-  #include <Arduino.h>
-  #define BLE_DEBUG_PRINT(F, ...) Serial.printf("BLE: " F, ##__VA_ARGS__)
-  #define BLE_DEBUG_PRINTLN(F, ...) Serial.printf("BLE: " F "\n", ##__VA_ARGS__)
+#include <Arduino.h>
+#define BLE_DEBUG_PRINT(F, ...)   Serial.printf("BLE: " F, ##__VA_ARGS__)
+#define BLE_DEBUG_PRINTLN(F, ...) Serial.printf("BLE: " F "\n", ##__VA_ARGS__)
 #else
-  #define BLE_DEBUG_PRINT(...) {}
-  #define BLE_DEBUG_PRINTLN(...) {}
+#define BLE_DEBUG_PRINT(...) \
+  {}
+#define BLE_DEBUG_PRINTLN(...) \
+  {}
 #endif

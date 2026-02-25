@@ -1,10 +1,12 @@
 #include "UITask.h"
-#include <Arduino.h>
-#include <helpers/TxtDataHelpers.h>
+
 #include "../MyMesh.h"
 
-#define AUTO_OFF_MILLIS     15000   // 15 seconds
-#define BOOT_SCREEN_MILLIS   3000   // 3 seconds
+#include <Arduino.h>
+#include <helpers/TxtDataHelpers.h>
+
+#define AUTO_OFF_MILLIS    15000 // 15 seconds
+#define BOOT_SCREEN_MILLIS 3000  // 3 seconds
 
 #ifdef PIN_STATUS_LED
 #define LED_ON_MILLIS     20
@@ -17,23 +19,22 @@
 #endif
 
 // 'meshcore', 128x13px
-static const uint8_t meshcore_logo [] PROGMEM = {
-    0x3c, 0x01, 0xe3, 0xff, 0xc7, 0xff, 0x8f, 0x03, 0x87, 0xfe, 0x1f, 0xfe, 0x1f, 0xfe, 0x1f, 0xfe, 
-    0x3c, 0x03, 0xe3, 0xff, 0xc7, 0xff, 0x8e, 0x03, 0x8f, 0xfe, 0x3f, 0xfe, 0x1f, 0xff, 0x1f, 0xfe, 
-    0x3e, 0x03, 0xc3, 0xff, 0x8f, 0xff, 0x0e, 0x07, 0x8f, 0xfe, 0x7f, 0xfe, 0x1f, 0xff, 0x1f, 0xfc, 
-    0x3e, 0x07, 0xc7, 0x80, 0x0e, 0x00, 0x0e, 0x07, 0x9e, 0x00, 0x78, 0x0e, 0x3c, 0x0f, 0x1c, 0x00, 
-    0x3e, 0x0f, 0xc7, 0x80, 0x1e, 0x00, 0x0e, 0x07, 0x1e, 0x00, 0x70, 0x0e, 0x38, 0x0f, 0x3c, 0x00, 
-    0x7f, 0x0f, 0xc7, 0xfe, 0x1f, 0xfc, 0x1f, 0xff, 0x1c, 0x00, 0x70, 0x0e, 0x38, 0x0e, 0x3f, 0xf8, 
-    0x7f, 0x1f, 0xc7, 0xfe, 0x0f, 0xff, 0x1f, 0xff, 0x1c, 0x00, 0xf0, 0x0e, 0x38, 0x0e, 0x3f, 0xf8, 
-    0x7f, 0x3f, 0xc7, 0xfe, 0x0f, 0xff, 0x1f, 0xff, 0x1c, 0x00, 0xf0, 0x1e, 0x3f, 0xfe, 0x3f, 0xf0, 
-    0x77, 0x3b, 0x87, 0x00, 0x00, 0x07, 0x1c, 0x0f, 0x3c, 0x00, 0xe0, 0x1c, 0x7f, 0xfc, 0x38, 0x00, 
-    0x77, 0xfb, 0x8f, 0x00, 0x00, 0x07, 0x1c, 0x0f, 0x3c, 0x00, 0xe0, 0x1c, 0x7f, 0xf8, 0x38, 0x00, 
-    0x73, 0xf3, 0x8f, 0xff, 0x0f, 0xff, 0x1c, 0x0e, 0x3f, 0xf8, 0xff, 0xfc, 0x70, 0x78, 0x7f, 0xf8, 
-    0xe3, 0xe3, 0x8f, 0xff, 0x1f, 0xfe, 0x3c, 0x0e, 0x3f, 0xf8, 0xff, 0xfc, 0x70, 0x3c, 0x7f, 0xf8, 
-    0xe3, 0xe3, 0x8f, 0xff, 0x1f, 0xfc, 0x3c, 0x0e, 0x1f, 0xf8, 0xff, 0xf8, 0x70, 0x3c, 0x7f, 0xf8, 
+static const uint8_t meshcore_logo[] PROGMEM = {
+  0x3c, 0x01, 0xe3, 0xff, 0xc7, 0xff, 0x8f, 0x03, 0x87, 0xfe, 0x1f, 0xfe, 0x1f, 0xfe, 0x1f, 0xfe, 0x3c, 0x03,
+  0xe3, 0xff, 0xc7, 0xff, 0x8e, 0x03, 0x8f, 0xfe, 0x3f, 0xfe, 0x1f, 0xff, 0x1f, 0xfe, 0x3e, 0x03, 0xc3, 0xff,
+  0x8f, 0xff, 0x0e, 0x07, 0x8f, 0xfe, 0x7f, 0xfe, 0x1f, 0xff, 0x1f, 0xfc, 0x3e, 0x07, 0xc7, 0x80, 0x0e, 0x00,
+  0x0e, 0x07, 0x9e, 0x00, 0x78, 0x0e, 0x3c, 0x0f, 0x1c, 0x00, 0x3e, 0x0f, 0xc7, 0x80, 0x1e, 0x00, 0x0e, 0x07,
+  0x1e, 0x00, 0x70, 0x0e, 0x38, 0x0f, 0x3c, 0x00, 0x7f, 0x0f, 0xc7, 0xfe, 0x1f, 0xfc, 0x1f, 0xff, 0x1c, 0x00,
+  0x70, 0x0e, 0x38, 0x0e, 0x3f, 0xf8, 0x7f, 0x1f, 0xc7, 0xfe, 0x0f, 0xff, 0x1f, 0xff, 0x1c, 0x00, 0xf0, 0x0e,
+  0x38, 0x0e, 0x3f, 0xf8, 0x7f, 0x3f, 0xc7, 0xfe, 0x0f, 0xff, 0x1f, 0xff, 0x1c, 0x00, 0xf0, 0x1e, 0x3f, 0xfe,
+  0x3f, 0xf0, 0x77, 0x3b, 0x87, 0x00, 0x00, 0x07, 0x1c, 0x0f, 0x3c, 0x00, 0xe0, 0x1c, 0x7f, 0xfc, 0x38, 0x00,
+  0x77, 0xfb, 0x8f, 0x00, 0x00, 0x07, 0x1c, 0x0f, 0x3c, 0x00, 0xe0, 0x1c, 0x7f, 0xf8, 0x38, 0x00, 0x73, 0xf3,
+  0x8f, 0xff, 0x0f, 0xff, 0x1c, 0x0e, 0x3f, 0xf8, 0xff, 0xfc, 0x70, 0x78, 0x7f, 0xf8, 0xe3, 0xe3, 0x8f, 0xff,
+  0x1f, 0xfe, 0x3c, 0x0e, 0x3f, 0xf8, 0xff, 0xfc, 0x70, 0x3c, 0x7f, 0xf8, 0xe3, 0xe3, 0x8f, 0xff, 0x1f, 0xfc,
+  0x3c, 0x0e, 0x1f, 0xf8, 0xff, 0xf8, 0x70, 0x3c, 0x7f, 0xf8,
 };
 
-void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* node_prefs) {
+void UITask::begin(DisplayDriver *display, SensorManager *sensors, NodePrefs *node_prefs) {
   _display = display;
   _sensors = sensors;
   _auto_off = millis() + AUTO_OFF_MILLIS;
@@ -63,7 +64,7 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
 #ifdef PIN_USER_BTN
   _userButton = new Button(PIN_USER_BTN, USER_BTN_PRESSED);
   _userButton->begin();
-  
+
   // Set up digital button callbacks
   _userButton->onShortPress([this]() { handleButtonShortPress(); });
   _userButton->onDoublePress([this]() { handleButtonDoublePress(); });
@@ -77,7 +78,7 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
 #ifdef PIN_USER_BTN_ANA
   _userButtonAnalog = new Button(PIN_USER_BTN_ANA, USER_BTN_PRESSED, true, 20);
   _userButtonAnalog->begin();
-  
+
   // Set up analog button callbacks
   _userButtonAnalog->onShortPress([this]() { handleButtonShortPress(); });
   _userButtonAnalog->onDoublePress([this]() { handleButtonDoublePress(); });
@@ -91,7 +92,7 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
 
 void UITask::notify(UIEventType t) {
 #if defined(PIN_BUZZER)
-switch(t){
+  switch (t) {
   case UIEventType::contactMessage:
     // gemini's pick
     buzzer.play("MsgRcv3:d=4,o=6,b=200:32e,32g,32b,16c7");
@@ -107,10 +108,10 @@ switch(t){
   case UIEventType::none:
   default:
     break;
-}
+  }
 #endif
-//  Serial.print("DBG:  Alert user -> ");
-//  Serial.println((int) t);
+  //  Serial.print("DBG:  Alert user -> ");
+  //  Serial.println((int) t);
 }
 
 void UITask::msgRead(int msgcount) {
@@ -126,13 +127,13 @@ void UITask::clearMsgPreview() {
   _need_refresh = true;
 }
 
-void UITask::newMsg(uint8_t path_len, const char* from_name, const char* text, int msgcount) {
+void UITask::newMsg(uint8_t path_len, const char *from_name, const char *text, int msgcount) {
   _msgcount = msgcount;
 
   if (path_len == 0xFF) {
     sprintf(_origin, "(F) %s", from_name);
   } else {
-    sprintf(_origin, "(%d) %s", (uint32_t) path_len, from_name);
+    sprintf(_origin, "(%d) %s", (uint32_t)path_len, from_name);
   }
   StrHelper::strncpy(_msg, text, sizeof(_msg));
 
@@ -141,8 +142,8 @@ void UITask::newMsg(uint8_t path_len, const char* from_name, const char* text, i
       _display->turnOn();
     }
     if (_display->isOn()) {
-    _auto_off = millis() + AUTO_OFF_MILLIS;  // extend the auto-off timer
-    _need_refresh = true;
+      _auto_off = millis() + AUTO_OFF_MILLIS; // extend the auto-off timer
+      _need_refresh = true;
     }
   }
 }
@@ -150,15 +151,15 @@ void UITask::newMsg(uint8_t path_len, const char* from_name, const char* text, i
 void UITask::renderBatteryIndicator(uint16_t batteryMilliVolts) {
   // Convert millivolts to percentage
 #ifndef BATT_MIN_MILLIVOLTS
-  #define BATT_MIN_MILLIVOLTS 3000
+#define BATT_MIN_MILLIVOLTS 3000
 #endif
 #ifndef BATT_MAX_MILLIVOLTS
-  #define BATT_MAX_MILLIVOLTS 4200
+#define BATT_MAX_MILLIVOLTS 4200
 #endif
   const int minMilliVolts = BATT_MIN_MILLIVOLTS;
   const int maxMilliVolts = BATT_MAX_MILLIVOLTS;
   int batteryPercentage = ((batteryMilliVolts - minMilliVolts) * 100) / (maxMilliVolts - minMilliVolts);
-  if (batteryPercentage < 0) batteryPercentage = 0; // Clamp to 0%
+  if (batteryPercentage < 0) batteryPercentage = 0;     // Clamp to 0%
   if (batteryPercentage > 100) batteryPercentage = 100; // Clamp to 100%
 
   // battery icon
@@ -180,7 +181,7 @@ void UITask::renderBatteryIndicator(uint16_t batteryMilliVolts) {
 }
 
 void UITask::renderCurrScreen() {
-  if (_display == NULL) return;  // assert() ??
+  if (_display == NULL) return; // assert() ??
 
   char tmp[80];
   if (_alert[0]) {
@@ -211,7 +212,7 @@ void UITask::renderCurrScreen() {
     _display->setColor(DisplayDriver::ORANGE);
     sprintf(tmp, "%d", _msgcount);
     _display->print(tmp);
-    _display->setColor(DisplayDriver::YELLOW); // last color will be kept on T114
+    _display->setColor(DisplayDriver::YELLOW);                  // last color will be kept on T114
   } else if ((millis() - ui_started_at) < BOOT_SCREEN_MILLIS) { // boot screen
     // meshcore logo
     _display->setColor(DisplayDriver::BLUE);
@@ -224,7 +225,7 @@ void UITask::renderCurrScreen() {
     uint16_t textWidth = _display->getTextWidth(_version_info);
     _display->setCursor((_display->width() - textWidth) / 2, 22);
     _display->print(_version_info);
-  } else {  // home screen
+  } else { // home screen
     // node name
     _display->setCursor(0, 0);
     _display->setTextSize(1);
@@ -254,7 +255,7 @@ void UITask::renderCurrScreen() {
       _display->print(tmp);
       _display->setColor(DisplayDriver::GREEN);
     } else {
-      _display->setColor(DisplayDriver::LIGHT); 
+      _display->setColor(DisplayDriver::LIGHT);
     }
   }
   _need_refresh = false;
@@ -285,12 +286,12 @@ void UITask::userLedHandler() {
 #endif
 }
 
-/* 
-  hardware-agnostic pre-shutdown activity should be done here 
+/*
+  hardware-agnostic pre-shutdown activity should be done here
 */
-void UITask::shutdown(bool restart){
+void UITask::shutdown(bool restart) {
 
-  #ifdef PIN_BUZZER
+#ifdef PIN_BUZZER
   /* note: we have a choice here -
      we can do a blocking buzzer.loop() with non-deterministic consequences
      or we can set a flag and delay the shutdown for a couple of seconds
@@ -301,7 +302,7 @@ void UITask::shutdown(bool restart){
   while (buzzer.isPlaying() && (millis() - 2500) < buzzer_timer)
     buzzer.loop();
 
-  #endif // PIN_BUZZER
+#endif // PIN_BUZZER
 
   if (restart) {
     _board->reboot();
@@ -312,25 +313,25 @@ void UITask::shutdown(bool restart){
 }
 
 void UITask::loop() {
-  #ifdef PIN_USER_BTN
-    if (_userButton) {
-      _userButton->update();
-    }
-  #endif
-  #ifdef PIN_USER_BTN_ANA
-    if (_userButtonAnalog) {
-      _userButtonAnalog->update();
-    }
-  #endif
+#ifdef PIN_USER_BTN
+  if (_userButton) {
+    _userButton->update();
+  }
+#endif
+#ifdef PIN_USER_BTN_ANA
+  if (_userButtonAnalog) {
+    _userButtonAnalog->update();
+  }
+#endif
   userLedHandler();
 
 #ifdef PIN_BUZZER
-  if (buzzer.isPlaying())  buzzer.loop();
+  if (buzzer.isPlaying()) buzzer.loop();
 #endif
 
   if (_display != NULL && _display->isOn()) {
     static bool _firstBoot = true;
-    if(_firstBoot && (millis() - ui_started_at) >= BOOT_SCREEN_MILLIS) {
+    if (_firstBoot && (millis() - ui_started_at) >= BOOT_SCREEN_MILLIS) {
       _need_refresh = true;
       _firstBoot = false;
     }
@@ -339,7 +340,7 @@ void UITask::loop() {
       renderCurrScreen();
       _display->endFrame();
 
-      _next_refresh = millis() + 1000;   // refresh every second
+      _next_refresh = millis() + 1000; // refresh every second
     }
     if (millis() > _auto_off) {
       _display->turnOff();
@@ -352,11 +353,11 @@ void UITask::handleButtonAnyPress() {
   // called on any button press before other events, to wake up the display quickly
   // do not refresh the display here, as it may block the button handler
   if (_display != NULL) {
-    _displayWasOn = _display->isOn();  // Track display state before any action
+    _displayWasOn = _display->isOn(); // Track display state before any action
     if (!_displayWasOn) {
       _display->turnOn();
     }
-    _auto_off = millis() + AUTO_OFF_MILLIS;   // extend auto-off timer
+    _auto_off = millis() + AUTO_OFF_MILLIS; // extend auto-off timer
   }
 }
 
@@ -381,10 +382,10 @@ void UITask::handleButtonShortPress() {
 
 void UITask::handleButtonDoublePress() {
   MESH_DEBUG_PRINTLN("UITask: double press triggered, sending advert");
-  // ADVERT
-  #ifdef PIN_BUZZER
-      notify(UIEventType::ack);
-  #endif
+// ADVERT
+#ifdef PIN_BUZZER
+  notify(UIEventType::ack);
+#endif
   if (the_mesh.advert()) {
     MESH_DEBUG_PRINTLN("Advert sent!");
     sprintf(_alert, "Advert sent!");
@@ -397,20 +398,20 @@ void UITask::handleButtonDoublePress() {
 
 void UITask::handleButtonTriplePress() {
   MESH_DEBUG_PRINTLN("UITask: triple press triggered");
-  // Toggle buzzer quiet mode
-  #ifdef PIN_BUZZER
-    if (buzzer.isQuiet()) {
-      buzzer.quiet(false);
-      notify(UIEventType::ack);
-      sprintf(_alert, "Buzzer: ON");
-    } else {
-      buzzer.quiet(true);
-      sprintf(_alert, "Buzzer: OFF");
-    }
-    _node_prefs->buzzer_quiet = buzzer.isQuiet();
-    the_mesh.savePrefs();
-    _need_refresh = true;
-  #endif
+// Toggle buzzer quiet mode
+#ifdef PIN_BUZZER
+  if (buzzer.isQuiet()) {
+    buzzer.quiet(false);
+    notify(UIEventType::ack);
+    sprintf(_alert, "Buzzer: ON");
+  } else {
+    buzzer.quiet(true);
+    sprintf(_alert, "Buzzer: OFF");
+  }
+  _node_prefs->buzzer_quiet = buzzer.isQuiet();
+  the_mesh.savePrefs();
+  _need_refresh = true;
+#endif
 }
 
 void UITask::handleButtonQuadruplePress() {
@@ -438,7 +439,7 @@ void UITask::handleButtonQuadruplePress() {
 
 void UITask::handleButtonLongPress() {
   MESH_DEBUG_PRINTLN("UITask: long press triggered");
-  if (millis() - ui_started_at < 8000) {   // long press in first 8 seconds since startup -> CLI/rescue
+  if (millis() - ui_started_at < 8000) { // long press in first 8 seconds since startup -> CLI/rescue
     the_mesh.enterCLIRescue();
   } else {
     shutdown();

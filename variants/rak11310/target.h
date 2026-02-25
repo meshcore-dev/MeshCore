@@ -1,12 +1,12 @@
 #pragma once
 
 #define RADIOLIB_STATIC_ONLY 1
+#include <RAK11310Board.h>
 #include <RadioLib.h>
 #include <helpers/AutoDiscoverRTCClock.h>
+#include <helpers/SensorManager.h>
 #include <helpers/radiolib/CustomSX1262Wrapper.h>
 #include <helpers/radiolib/RadioLibWrappers.h>
-#include <helpers/SensorManager.h>
-#include <RAK11310Board.h>
 
 extern RAK11310Board board;
 extern WRAPPER_CLASS radio_driver;

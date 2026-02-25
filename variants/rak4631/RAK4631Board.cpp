@@ -1,23 +1,20 @@
+#include "RAK4631Board.h"
+
 #include <Arduino.h>
 #include <Wire.h>
-
-#include "RAK4631Board.h"
 
 #ifdef NRF52_POWER_MANAGEMENT
 // Static configuration for power management
 // Values set in variant.h defines
-const PowerMgtConfig power_config = {
-  .lpcomp_ain_channel = PWRMGT_LPCOMP_AIN,
-  .lpcomp_refsel = PWRMGT_LPCOMP_REFSEL,
-  .voltage_bootlock = PWRMGT_VOLTAGE_BOOTLOCK
-};
+const PowerMgtConfig power_config = { .lpcomp_ain_channel = PWRMGT_LPCOMP_AIN,
+                                      .lpcomp_refsel = PWRMGT_LPCOMP_REFSEL,
+                                      .voltage_bootlock = PWRMGT_VOLTAGE_BOOTLOCK };
 
 void RAK4631Board::initiateShutdown(uint8_t reason) {
   // Disable LoRa module power before shutdown
   digitalWrite(SX126X_POWER_EN, LOW);
 
-  if (reason == SHUTDOWN_REASON_LOW_VOLTAGE ||
-      reason == SHUTDOWN_REASON_BOOT_PROTECT) {
+  if (reason == SHUTDOWN_REASON_LOW_VOLTAGE || reason == SHUTDOWN_REASON_BOOT_PROTECT) {
     configureVoltageWake(power_config.lpcomp_ain_channel, power_config.lpcomp_refsel);
   }
 
@@ -49,5 +46,5 @@ void RAK4631Board::begin() {
   checkBootVoltage(&power_config);
 #endif
   digitalWrite(SX126X_POWER_EN, HIGH);
-  delay(10);   // give sx1262 some time to power up
+  delay(10); // give sx1262 some time to power up
 }

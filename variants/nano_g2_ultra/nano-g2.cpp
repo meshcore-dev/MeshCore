@@ -1,12 +1,12 @@
-#include <Arduino.h>
 #include "nano-g2.h"
+
+#include <Arduino.h>
 
 #ifdef NANO_G2_ULTRA
 
 #include <Wire.h>
 
-void NanoG2Ultra::begin()
-{
+void NanoG2Ultra::begin() {
   NRF52Board::begin();
 
   // set user button
@@ -17,7 +17,7 @@ void NanoG2Ultra::begin()
   digitalWrite(EXT_NOTIFY_OUT, LOW);
 
   pinMode(GPS_EN, OUTPUT); // Initialize GPS power pin
-  
+
   Wire.begin();
   pinMode(SX126X_POWER_EN, OUTPUT);
   digitalWrite(SX126X_POWER_EN, HIGH);
@@ -25,8 +25,7 @@ void NanoG2Ultra::begin()
   delay(10);
 }
 
-uint16_t NanoG2Ultra::getBattMilliVolts()
-{
+uint16_t NanoG2Ultra::getBattMilliVolts() {
   int adcvalue = 0;
 
   analogReference(AR_INTERNAL_3_0);

@@ -28,4 +28,3 @@ void WioWM1110Board::begin() {
   delay(10);
 }
 #endif
-

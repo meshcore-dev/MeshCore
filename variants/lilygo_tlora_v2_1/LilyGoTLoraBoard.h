@@ -6,9 +6,7 @@
 // LILYGO T-LoRa V2.1-1.6 board with SX1276
 class LilyGoTLoraBoard : public ESP32Board {
 public:
-  const char* getManufacturerName() const override {
-    return "LILYGO T-LoRa V2.1-1.6";
-  }
+  const char *getManufacturerName() const override { return "LILYGO T-LoRa V2.1-1.6"; }
 
   uint16_t getBattMilliVolts() override {
     analogReadResolution(12);

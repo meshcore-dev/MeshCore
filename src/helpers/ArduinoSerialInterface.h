@@ -1,6 +1,7 @@
 #pragma once
 
 #include "BaseSerialInterface.h"
+
 #include <Arduino.h>
 
 class ArduinoSerialInterface : public BaseSerialInterface {
@@ -8,17 +9,20 @@ class ArduinoSerialInterface : public BaseSerialInterface {
   uint8_t _state;
   uint16_t _frame_len;
   uint16_t rx_len;
-  Stream* _serial;
+  Stream *_serial;
   uint8_t rx_buf[MAX_FRAME_SIZE];
 
 public:
-  ArduinoSerialInterface() { _isEnabled = false; _state = 0; }
+  ArduinoSerialInterface() {
+    _isEnabled = false;
+    _state = 0;
+  }
 
-  void begin(Stream& serial) { 
-    _serial = &serial; 
-  #ifdef RAK_4631
+  void begin(Stream &serial) {
+    _serial = &serial;
+#ifdef RAK_4631
     pinMode(WB_IO2, OUTPUT);
-  #endif  
+#endif
   }
 
   // BaseSerialInterface methods

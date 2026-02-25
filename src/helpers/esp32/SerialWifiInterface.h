@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../BaseSerialInterface.h"
+
 #include <WiFi.h>
 
 class SerialWifiInterface : public BaseSerialInterface {
@@ -24,16 +25,18 @@ class SerialWifiInterface : public BaseSerialInterface {
 
   FrameHeader received_frame_header;
 
-  #define FRAME_QUEUE_SIZE  4
+#define FRAME_QUEUE_SIZE 4
   int recv_queue_len;
   Frame recv_queue[FRAME_QUEUE_SIZE];
   int send_queue_len;
   Frame send_queue[FRAME_QUEUE_SIZE];
 
-  void clearBuffers() { recv_queue_len = 0; send_queue_len = 0; }
+  void clearBuffers() {
+    recv_queue_len = 0;
+    send_queue_len = 0;
+  }
 
 protected:
-
 public:
   SerialWifiInterface() : server(WiFiServer()), client(WiFiClient()) {
     deviceConnected = false;
@@ -62,10 +65,12 @@ public:
 };
 
 #if WIFI_DEBUG_LOGGING && ARDUINO
-  #include <Arduino.h>
-  #define WIFI_DEBUG_PRINT(F, ...) Serial.printf("WiFi: " F, ##__VA_ARGS__)
-  #define WIFI_DEBUG_PRINTLN(F, ...) Serial.printf("WiFi: " F "\n", ##__VA_ARGS__)
+#include <Arduino.h>
+#define WIFI_DEBUG_PRINT(F, ...)   Serial.printf("WiFi: " F, ##__VA_ARGS__)
+#define WIFI_DEBUG_PRINTLN(F, ...) Serial.printf("WiFi: " F "\n", ##__VA_ARGS__)
 #else
-  #define WIFI_DEBUG_PRINT(...) {}
-  #define WIFI_DEBUG_PRINTLN(...) {}
+#define WIFI_DEBUG_PRINT(...) \
+  {}
+#define WIFI_DEBUG_PRINTLN(...) \
+  {}
 #endif

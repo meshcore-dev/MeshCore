@@ -1,12 +1,13 @@
 #include "MomentaryButton.h"
 
-#define MULTI_CLICK_WINDOW_MS  280
+#define MULTI_CLICK_WINDOW_MS 280
 
-MomentaryButton::MomentaryButton(int8_t pin, int long_press_millis, bool reverse, bool pulldownup, bool multiclick) { 
+MomentaryButton::MomentaryButton(int8_t pin, int long_press_millis, bool reverse, bool pulldownup,
+                                 bool multiclick) {
   _pin = pin;
   _reverse = reverse;
   _pull = pulldownup;
-  down_at = 0; 
+  down_at = 0;
   prev = _reverse ? HIGH : LOW;
   cancel = 0;
   _long_millis = long_press_millis;
@@ -38,7 +39,7 @@ void MomentaryButton::begin() {
   }
 }
 
-bool  MomentaryButton::isPressed() const {
+bool MomentaryButton::isPressed() const {
   int btn = _threshold > 0 ? (analogRead(_pin) < _threshold) : digitalRead(_pin);
   return isPressed(btn);
 }
@@ -73,15 +74,16 @@ int MomentaryButton::check(bool repeat_click) {
     } else {
       // button UP
       if (_long_millis > 0) {
-        if (down_at > 0 && (unsigned long)(millis() - down_at) < _long_millis) {  // only a CLICK if still within the long_press millis
-            _click_count++;
-            _last_click_time = millis();
-            _pending_click = true;
-        }
-      } else {
+        if (down_at > 0 && (unsigned long)(millis() - down_at) <
+                               _long_millis) { // only a CLICK if still within the long_press millis
           _click_count++;
           _last_click_time = millis();
           _pending_click = true;
+        }
+      } else {
+        _click_count++;
+        _last_click_time = millis();
+        _pending_click = true;
       }
       if (event == BUTTON_EVENT_CLICK && cancel) {
         event = BUTTON_EVENT_NONE;
@@ -93,7 +95,7 @@ int MomentaryButton::check(bool repeat_click) {
     }
     prev = btn;
   }
-  if (!isPressed(btn) && cancel) {   // always clear the pending 'cancel' once button is back in UP state
+  if (!isPressed(btn) && cancel) { // always clear the pending 'cancel' once button is back in UP state
     cancel = 0;
   }
 
@@ -112,7 +114,7 @@ int MomentaryButton::check(bool repeat_click) {
   if (down_at > 0 && repeat_click) {
     unsigned long diff = (unsigned long)(millis() - down_at);
     if (diff >= 700) {
-      event = BUTTON_EVENT_CLICK;   // wait 700 millis before repeating the click events
+      event = BUTTON_EVENT_CLICK; // wait 700 millis before repeating the click events
     }
   }
 
@@ -122,19 +124,19 @@ int MomentaryButton::check(bool repeat_click) {
       return event;
     }
     switch (_click_count) {
-      case 1:
-        event = BUTTON_EVENT_CLICK;
-        break;
-      case 2:
-        event = BUTTON_EVENT_DOUBLE_CLICK;
-        break;
-      case 3:
-        event = BUTTON_EVENT_TRIPLE_CLICK;
-        break;
-      default:
-        // For 4+ clicks, treat as triple click?
-        event = BUTTON_EVENT_TRIPLE_CLICK;
-        break;
+    case 1:
+      event = BUTTON_EVENT_CLICK;
+      break;
+    case 2:
+      event = BUTTON_EVENT_DOUBLE_CLICK;
+      break;
+    case 3:
+      event = BUTTON_EVENT_TRIPLE_CLICK;
+      break;
+    default:
+      // For 4+ clicks, treat as triple click?
+      event = BUTTON_EVENT_TRIPLE_CLICK;
+      break;
     }
     _click_count = 0;
     _last_click_time = 0;

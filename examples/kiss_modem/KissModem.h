@@ -2,26 +2,26 @@
 
 #include <Arduino.h>
 #include <Identity.h>
-#include <Utils.h>
 #include <Mesh.h>
+#include <Utils.h>
 #include <helpers/SensorManager.h>
 
-#define KISS_FEND  0xC0
-#define KISS_FESC  0xDB
-#define KISS_TFEND 0xDC
-#define KISS_TFESC 0xDD
+#define KISS_FEND                0xC0
+#define KISS_FESC                0xDB
+#define KISS_TFEND               0xDC
+#define KISS_TFESC               0xDD
 
-#define KISS_MAX_FRAME_SIZE  512
-#define KISS_MAX_PACKET_SIZE 255
+#define KISS_MAX_FRAME_SIZE      512
+#define KISS_MAX_PACKET_SIZE     255
 
-#define KISS_CMD_DATA        0x00
-#define KISS_CMD_TXDELAY     0x01
-#define KISS_CMD_PERSISTENCE 0x02
-#define KISS_CMD_SLOTTIME    0x03
-#define KISS_CMD_TXTAIL      0x04
-#define KISS_CMD_FULLDUPLEX  0x05
-#define KISS_CMD_SETHARDWARE 0x06
-#define KISS_CMD_RETURN      0xFF
+#define KISS_CMD_DATA            0x00
+#define KISS_CMD_TXDELAY         0x01
+#define KISS_CMD_PERSISTENCE     0x02
+#define KISS_CMD_SLOTTIME        0x03
+#define KISS_CMD_TXTAIL          0x04
+#define KISS_CMD_FULLDUPLEX      0x05
+#define KISS_CMD_SETHARDWARE     0x06
+#define KISS_CMD_RETURN          0xFF
 
 #define KISS_DEFAULT_TXDELAY     50
 #define KISS_DEFAULT_PERSISTENCE 63
@@ -72,12 +72,12 @@
 #define HW_ERR_UNKNOWN_CMD       0x05
 #define HW_ERR_ENCRYPT_FAILED    0x06
 
-#define KISS_FIRMWARE_VERSION 1
+#define KISS_FIRMWARE_VERSION    1
 
 typedef void (*SetRadioCallback)(float freq, float bw, uint8_t sf, uint8_t cr);
 typedef void (*SetTxPowerCallback)(uint8_t power);
 typedef float (*GetCurrentRssiCallback)();
-typedef void (*GetStatsCallback)(uint32_t* rx, uint32_t* tx, uint32_t* errors);
+typedef void (*GetStatsCallback)(uint32_t *rx, uint32_t *tx, uint32_t *errors);
 
 struct RadioConfig {
   uint32_t freq_hz;
@@ -87,21 +87,15 @@ struct RadioConfig {
   uint8_t tx_power;
 };
 
-enum TxState {
-  TX_IDLE,
-  TX_WAIT_CLEAR,
-  TX_SLOT_WAIT,
-  TX_DELAY,
-  TX_SENDING
-};
+enum TxState { TX_IDLE, TX_WAIT_CLEAR, TX_SLOT_WAIT, TX_DELAY, TX_SENDING };
 
 class KissModem {
-  Stream& _serial;
-  mesh::LocalIdentity& _identity;
-  mesh::RNG& _rng;
-  mesh::Radio& _radio;
-  mesh::MainBoard& _board;
-  SensorManager& _sensors;
+  Stream &_serial;
+  mesh::LocalIdentity &_identity;
+  mesh::RNG &_rng;
+  mesh::Radio &_radio;
+  mesh::MainBoard &_board;
+  SensorManager &_sensors;
 
   uint8_t _rx_buf[KISS_MAX_FRAME_SIZE];
   uint16_t _rx_len;
@@ -130,43 +124,43 @@ class KissModem {
   bool _signal_report_enabled;
 
   void writeByte(uint8_t b);
-  void writeFrame(uint8_t type, const uint8_t* data, uint16_t len);
-  void writeHardwareFrame(uint8_t sub_cmd, const uint8_t* data, uint16_t len);
+  void writeFrame(uint8_t type, const uint8_t *data, uint16_t len);
+  void writeHardwareFrame(uint8_t sub_cmd, const uint8_t *data, uint16_t len);
   void writeHardwareError(uint8_t error_code);
   void processFrame();
-  void handleHardwareCommand(uint8_t sub_cmd, const uint8_t* data, uint16_t len);
+  void handleHardwareCommand(uint8_t sub_cmd, const uint8_t *data, uint16_t len);
   void processTx();
 
   void handleGetIdentity();
-  void handleGetRandom(const uint8_t* data, uint16_t len);
-  void handleVerifySignature(const uint8_t* data, uint16_t len);
-  void handleSignData(const uint8_t* data, uint16_t len);
-  void handleEncryptData(const uint8_t* data, uint16_t len);
-  void handleDecryptData(const uint8_t* data, uint16_t len);
-  void handleKeyExchange(const uint8_t* data, uint16_t len);
-  void handleHash(const uint8_t* data, uint16_t len);
-  void handleSetRadio(const uint8_t* data, uint16_t len);
-  void handleSetTxPower(const uint8_t* data, uint16_t len);
+  void handleGetRandom(const uint8_t *data, uint16_t len);
+  void handleVerifySignature(const uint8_t *data, uint16_t len);
+  void handleSignData(const uint8_t *data, uint16_t len);
+  void handleEncryptData(const uint8_t *data, uint16_t len);
+  void handleDecryptData(const uint8_t *data, uint16_t len);
+  void handleKeyExchange(const uint8_t *data, uint16_t len);
+  void handleHash(const uint8_t *data, uint16_t len);
+  void handleSetRadio(const uint8_t *data, uint16_t len);
+  void handleSetTxPower(const uint8_t *data, uint16_t len);
   void handleGetRadio();
   void handleGetTxPower();
   void handleGetVersion();
   void handleGetCurrentRssi();
   void handleIsChannelBusy();
-  void handleGetAirtime(const uint8_t* data, uint16_t len);
+  void handleGetAirtime(const uint8_t *data, uint16_t len);
   void handleGetNoiseFloor();
   void handleGetStats();
   void handleGetBattery();
   void handlePing();
-  void handleGetSensors(const uint8_t* data, uint16_t len);
+  void handleGetSensors(const uint8_t *data, uint16_t len);
   void handleGetMCUTemp();
   void handleReboot();
   void handleGetDeviceName();
-  void handleSetSignalReport(const uint8_t* data, uint16_t len);
+  void handleSetSignalReport(const uint8_t *data, uint16_t len);
   void handleGetSignalReport();
 
 public:
-  KissModem(Stream& serial, mesh::LocalIdentity& identity, mesh::RNG& rng,
-            mesh::Radio& radio, mesh::MainBoard& board, SensorManager& sensors);
+  KissModem(Stream &serial, mesh::LocalIdentity &identity, mesh::RNG &rng, mesh::Radio &radio,
+            mesh::MainBoard &board, SensorManager &sensors);
 
   void begin();
   void loop();
@@ -176,7 +170,7 @@ public:
   void setGetCurrentRssiCallback(GetCurrentRssiCallback cb) { _getCurrentRssiCallback = cb; }
   void setGetStatsCallback(GetStatsCallback cb) { _getStatsCallback = cb; }
 
-  void onPacketReceived(int8_t snr, int8_t rssi, const uint8_t* packet, uint16_t len);
+  void onPacketReceived(int8_t snr, int8_t rssi, const uint8_t *packet, uint16_t len);
   bool isTxBusy() const { return _tx_state != TX_IDLE; }
   /** True only when radio is actually transmitting; use to skip recvRaw in main loop. */
   bool isActuallyTransmitting() const { return _tx_state == TX_SENDING; }

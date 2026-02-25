@@ -1,20 +1,21 @@
-#include <Arduino.h>
 #include "target.h"
+
+#include <Arduino.h>
 #include <helpers/ArduinoHelpers.h>
 
 RAK3401Board board;
 
 #ifndef PIN_USER_BTN
-  #define PIN_USER_BTN (-1)
+#define PIN_USER_BTN (-1)
 #endif
 
 #ifdef DISPLAY_CLASS
-  DISPLAY_CLASS display;
-  MomentaryButton user_btn(PIN_USER_BTN, 1000, true, true);
+DISPLAY_CLASS display;
+MomentaryButton user_btn(PIN_USER_BTN, 1000, true, true);
 
-  #if defined(PIN_USER_BTN_ANA)
-  MomentaryButton analog_btn(PIN_USER_BTN_ANA, 1000, 20);
-  #endif
+#if defined(PIN_USER_BTN_ANA)
+MomentaryButton analog_btn(PIN_USER_BTN_ANA, 1000, 20);
+#endif
 #endif
 
 RADIO_CLASS radio = new Module(P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BUSY, SPI);
@@ -25,11 +26,11 @@ VolatileRTCClock fallback_clock;
 AutoDiscoverRTCClock rtc_clock(fallback_clock);
 
 #if ENV_INCLUDE_GPS
-  #include <helpers/sensors/MicroNMEALocationProvider.h>
-  MicroNMEALocationProvider nmea = MicroNMEALocationProvider(Serial1);
-  EnvironmentSensorManager sensors = EnvironmentSensorManager(nmea);
+#include <helpers/sensors/MicroNMEALocationProvider.h>
+MicroNMEALocationProvider nmea = MicroNMEALocationProvider(Serial1);
+EnvironmentSensorManager sensors = EnvironmentSensorManager(nmea);
 #else
-  EnvironmentSensorManager sensors;
+EnvironmentSensorManager sensors;
 #endif
 
 bool radio_init() {
@@ -54,5 +55,5 @@ void radio_set_tx_power(int8_t dbm) {
 
 mesh::LocalIdentity radio_new_identity() {
   RadioNoiseListener rng(radio);
-  return mesh::LocalIdentity(&rng);  // create new random identity
+  return mesh::LocalIdentity(&rng); // create new random identity
 }

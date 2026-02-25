@@ -2,11 +2,11 @@
 
 #include <Arduino.h>
 
-#define MAX_FRAME_SIZE  172
+#define MAX_FRAME_SIZE 172
 
 class BaseSerialInterface {
 protected:
-  BaseSerialInterface() { }
+  BaseSerialInterface() {}
 
 public:
   virtual void enable() = 0;

@@ -38,7 +38,5 @@ void MeshtinyBoard::begin() {
 
   pinMode(SX126X_POWER_EN, OUTPUT);
   digitalWrite(SX126X_POWER_EN, HIGH);
-  delay(10);   // give sx1262 some time to power up
+  delay(10); // give sx1262 some time to power up
 }
-
-

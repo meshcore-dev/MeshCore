@@ -1,8 +1,9 @@
 #pragma once
 
 #include "DisplayDriver.h"
-#include <Wire.h>
+
 #include <Adafruit_GFX.h>
+#include <Wire.h>
 #define SH110X_NO_SPLASH
 #include <Adafruit_SH110X.h>
 
@@ -14,8 +15,7 @@
 #define DISPLAY_ADDRESS 0x3C
 #endif
 
-class SH1106Display : public DisplayDriver
-{
+class SH1106Display : public DisplayDriver {
   Adafruit_SH1106G display;
   bool _isOn;
   uint8_t _color;

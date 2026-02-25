@@ -1,7 +1,7 @@
-#include <Arduino.h>
 #include "ThinkNodeM3Board.h"
-#include <Wire.h>
 
+#include <Arduino.h>
+#include <Wire.h>
 #include <bluefruit.h>
 
 void ThinkNodeM3Board::begin() {
@@ -10,7 +10,7 @@ void ThinkNodeM3Board::begin() {
 
   Wire.begin();
 
-  delay(10);   // give sx1262 some time to power up
+  delay(10); // give sx1262 some time to power up
 }
 
 uint16_t ThinkNodeM3Board::getBattMilliVolts() {

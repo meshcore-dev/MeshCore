@@ -1,31 +1,33 @@
-#include <Arduino.h>
-#include <target.h>
-#include <helpers/ArduinoHelpers.h>
-#include <helpers/IdentityStore.h>
 #include "KissModem.h"
 
+#include <Arduino.h>
+#include <helpers/ArduinoHelpers.h>
+#include <helpers/IdentityStore.h>
+#include <target.h>
+
 #if defined(NRF52_PLATFORM)
-  #include <InternalFileSystem.h>
+#include <InternalFileSystem.h>
 #elif defined(RP2040_PLATFORM)
-  #include <LittleFS.h>
+#include <LittleFS.h>
 #elif defined(ESP32)
-  #include <SPIFFS.h>
+#include <SPIFFS.h>
 #endif
 #if defined(KISS_UART_RX) && defined(KISS_UART_TX)
-  #include <HardwareSerial.h>
+#include <HardwareSerial.h>
 #endif
 
 #define NOISE_FLOOR_CALIB_INTERVAL_MS 2000
-#define AGC_RESET_INTERVAL_MS 30000
+#define AGC_RESET_INTERVAL_MS         30000
 
 StdRNG rng;
 mesh::LocalIdentity identity;
-KissModem* modem;
+KissModem *modem;
 static uint32_t next_noise_floor_calib_ms = 0;
 static uint32_t next_agc_reset_ms = 0;
 
 void halt() {
-  while (1) ;
+  while (1)
+    ;
 }
 
 void loadOrCreateIdentity() {
@@ -40,7 +42,7 @@ void loadOrCreateIdentity() {
   IdentityStore store(LittleFS, "/identity");
   store.begin();
 #else
-  #error "Filesystem not defined"
+#error "Filesystem not defined"
 #endif
 
   if (!store.load("_main", identity)) {
@@ -64,7 +66,7 @@ float onGetCurrentRssi() {
   return radio_driver.getCurrentRSSI();
 }
 
-void onGetStats(uint32_t* rx, uint32_t* tx, uint32_t* errors) {
+void onGetStats(uint32_t *rx, uint32_t *tx, uint32_t *errors) {
   *rx = radio_driver.getPacketsRecv();
   *tx = radio_driver.getPacketsSent();
   *errors = radio_driver.getPacketsRecvErrors();
@@ -100,13 +102,14 @@ void setup() {
   ((HardwareSerial *)&Serial1)->setTx(KISS_UART_TX);
   Serial1.begin(115200);
 #else
-  #error "KISS UART not supported on this platform"
+#error "KISS UART not supported on this platform"
 #endif
   modem = new KissModem(Serial1, identity, rng, radio_driver, board, sensors);
 #else
   Serial.begin(115200);
   uint32_t start = millis();
-  while (!Serial && millis() - start < 3000) delay(10);
+  while (!Serial && millis() - start < 3000)
+    delay(10);
   delay(100);
   modem = new KissModem(Serial, identity, rng, radio_driver, board, sensors);
 #endif

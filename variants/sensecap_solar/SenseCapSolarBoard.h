@@ -1,7 +1,7 @@
 #pragma once
 
-#include <MeshCore.h>
 #include <Arduino.h>
+#include <MeshCore.h>
 #include <helpers/NRF52Board.h>
 
 class SenseCapSolarBoard : public NRF52BoardDCDC {
@@ -11,10 +11,10 @@ public:
 
 #if defined(P_LORA_TX_LED)
   void onBeforeTransmit() override {
-    digitalWrite(P_LORA_TX_LED, HIGH);   // turn TX LED on
+    digitalWrite(P_LORA_TX_LED, HIGH); // turn TX LED on
   }
   void onAfterTransmit() override {
-    digitalWrite(P_LORA_TX_LED, LOW);   // turn TX LED off
+    digitalWrite(P_LORA_TX_LED, LOW); // turn TX LED off
   }
 #endif
 
@@ -28,7 +28,5 @@ public:
     return (adcvalue * ADC_MULTIPLIER * AREF_VOLTAGE) / 4.096;
   }
 
-  const char* getManufacturerName() const override {
-    return "Seeed SenseCap Solar";
-  }
+  const char *getManufacturerName() const override { return "Seeed SenseCap Solar"; }
 };

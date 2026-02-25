@@ -6,11 +6,9 @@
 #ifdef NRF52_POWER_MANAGEMENT
 // Static configuration for power management
 // Values come from variant.h defines
-const PowerMgtConfig power_config = {
-  .lpcomp_ain_channel = PWRMGT_LPCOMP_AIN,
-  .lpcomp_refsel = PWRMGT_LPCOMP_REFSEL,
-  .voltage_bootlock = PWRMGT_VOLTAGE_BOOTLOCK
-};
+const PowerMgtConfig power_config = { .lpcomp_ain_channel = PWRMGT_LPCOMP_AIN,
+                                      .lpcomp_refsel = PWRMGT_LPCOMP_REFSEL,
+                                      .voltage_bootlock = PWRMGT_VOLTAGE_BOOTLOCK };
 
 void T114Board::initiateShutdown(uint8_t reason) {
 #if ENV_INCLUDE_GPS == 1
@@ -19,8 +17,7 @@ void T114Board::initiateShutdown(uint8_t reason) {
 #endif
   digitalWrite(SX126X_POWER_EN, LOW);
 
-  bool enable_lpcomp = (reason == SHUTDOWN_REASON_LOW_VOLTAGE ||
-                        reason == SHUTDOWN_REASON_BOOT_PROTECT);
+  bool enable_lpcomp = (reason == SHUTDOWN_REASON_LOW_VOLTAGE || reason == SHUTDOWN_REASON_BOOT_PROTECT);
   pinMode(PIN_BAT_CTL, OUTPUT);
   digitalWrite(PIN_BAT_CTL, enable_lpcomp ? HIGH : LOW);
 

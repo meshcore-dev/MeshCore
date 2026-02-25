@@ -1,7 +1,7 @@
+#include "SenseCapSolarBoard.h"
+
 #include <Arduino.h>
 #include <Wire.h>
-
-#include "SenseCapSolarBoard.h"
 
 void SenseCapSolarBoard::begin() {
   NRF52Board::begin();
@@ -17,5 +17,5 @@ void SenseCapSolarBoard::begin() {
   digitalWrite(P_LORA_TX_LED, LOW);
 #endif
 
-  delay(10);   // give sx1262 some time to power up
+  delay(10); // give sx1262 some time to power up
 }

@@ -3,14 +3,15 @@
 #include <Arduino.h>
 #include <MeshCore.h>
 
-// from https://github.com/RAKWireless/RAK11300-AT-Command-Firmware/blob/9c48409a43620a828d653501d536473200aa33af/RAK11300-AT-Arduino/batt.cpp#L17-L19
-#define VBAT_MV_PER_LSB (0.806F)   // 3.0V ADC range and 12 - bit ADC resolution = 3300mV / 4096
-#define VBAT_DIVIDER (0.6F)		   // 1.5M + 1M voltage divider on VBAT = (1.5M / (1M + 1.5M))
+// from
+// https://github.com/RAKWireless/RAK11300-AT-Command-Firmware/blob/9c48409a43620a828d653501d536473200aa33af/RAK11300-AT-Arduino/batt.cpp#L17-L19
+#define VBAT_MV_PER_LSB   (0.806F) // 3.0V ADC range and 12 - bit ADC resolution = 3300mV / 4096
+#define VBAT_DIVIDER      (0.6F)   // 1.5M + 1M voltage divider on VBAT = (1.5M / (1M + 1.5M))
 #define VBAT_DIVIDER_COMP (1.846F) //  // Compensation factor for the VBAT divider
 
-#define PIN_VBAT_READ            26
-#define BATTERY_SAMPLES          8
-#define ADC_MULTIPLIER           (VBAT_DIVIDER_COMP * VBAT_MV_PER_LSB)
+#define PIN_VBAT_READ     26
+#define BATTERY_SAMPLES   8
+#define ADC_MULTIPLIER    (VBAT_DIVIDER_COMP * VBAT_MV_PER_LSB)
 
 class RAK11310Board : public mesh::MainBoard {
 protected:

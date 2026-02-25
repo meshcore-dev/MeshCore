@@ -1,20 +1,20 @@
 #ifdef IKOKA_NRF52
 
+#include "IkokaNrf52Board.h"
+
 #include <Arduino.h>
 #include <Wire.h>
-
-#include "IkokaNrf52Board.h"
 
 void IkokaNrf52Board::begin() {
   NRF52Board::begin();
 
-  // ensure we have pull ups on the screen i2c, this isn't always available
-  // in hardware and it should only be 20k ohms. Disable the pullups if we
-  // are using the rotated lcd breakout board
-  #if defined(DISPLAY_CLASS) && DISPLAY_ROTATION == 0
-    pinMode(PIN_WIRE_SDA, INPUT_PULLUP);
-    pinMode(PIN_WIRE_SCL, INPUT_PULLUP);
-  #endif
+// ensure we have pull ups on the screen i2c, this isn't always available
+// in hardware and it should only be 20k ohms. Disable the pullups if we
+// are using the rotated lcd breakout board
+#if defined(DISPLAY_CLASS) && DISPLAY_ROTATION == 0
+  pinMode(PIN_WIRE_SDA, INPUT_PULLUP);
+  pinMode(PIN_WIRE_SCL, INPUT_PULLUP);
+#endif
 
   pinMode(PIN_VBAT, INPUT);
   pinMode(VBAT_ENABLE, OUTPUT);

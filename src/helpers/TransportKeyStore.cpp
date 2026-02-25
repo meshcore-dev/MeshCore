@@ -1,7 +1,8 @@
 #include "TransportKeyStore.h"
+
 #include <SHA256.h>
 
-uint16_t TransportKey::calcTransportCode(const mesh::Packet* packet) const {
+uint16_t TransportKey::calcTransportCode(const mesh::Packet *packet) const {
   uint16_t code;
   SHA256 sha;
   sha.resetHMAC(key, sizeof(key));
@@ -9,7 +10,7 @@ uint16_t TransportKey::calcTransportCode(const mesh::Packet* packet) const {
   sha.update(&type, 1);
   sha.update(packet->payload, packet->payload_len);
   sha.finalizeHMAC(key, sizeof(key), &code, 2);
-  if (code == 0) {     // reserve codes 0000 and FFFF
+  if (code == 0) { // reserve codes 0000 and FFFF
     code++;
   } else if (code == 0xFFFF) {
     code--;
@@ -21,10 +22,10 @@ bool TransportKey::isNull() const {
   for (int i = 0; i < sizeof(key); i++) {
     if (key[i]) return false;
   }
-  return true;  // key is all zeroes
+  return true; // key is all zeroes
 }
 
-void TransportKeyStore::putCache(uint16_t id, const TransportKey& key) {
+void TransportKeyStore::putCache(uint16_t id, const TransportKey &key) {
   if (num_cache < MAX_TKS_ENTRIES) {
     cache_ids[num_cache] = id;
     cache_keys[num_cache] = key;
@@ -34,9 +35,9 @@ void TransportKeyStore::putCache(uint16_t id, const TransportKey& key) {
   }
 }
 
-void TransportKeyStore::getAutoKeyFor(uint16_t id, const char* name, TransportKey& dest) {
-  for (int i = 0; i < num_cache; i++) {  // first, check cache
-    if (cache_ids[i] == id) {   // cache hit!
+void TransportKeyStore::getAutoKeyFor(uint16_t id, const char *name, TransportKey &dest) {
+  for (int i = 0; i < num_cache; i++) { // first, check cache
+    if (cache_ids[i] == id) {           // cache hit!
       dest = cache_keys[i];
       return;
     }
@@ -51,12 +52,12 @@ void TransportKeyStore::getAutoKeyFor(uint16_t id, const char* name, TransportKe
 
 int TransportKeyStore::loadKeysFor(uint16_t id, TransportKey keys[], int max_num) {
   int n = 0;
-  for (int i = 0; i < num_cache && n < max_num; i++) {  // first, check cache
+  for (int i = 0; i < num_cache && n < max_num; i++) { // first, check cache
     if (cache_ids[i] == id) {
       keys[n++] = cache_keys[i];
     }
   }
-  if (n > 0) return n;   // cache hit!
+  if (n > 0) return n; // cache hit!
 
   // TODO:  retrieve from difficult-to-copy keystore
 
@@ -72,7 +73,7 @@ bool TransportKeyStore::saveKeysFor(uint16_t id, const TransportKey keys[], int 
 
   // TODO: update hardware keystore
 
-  return false;  // failed
+  return false; // failed
 }
 
 bool TransportKeyStore::removeKeys(uint16_t id) {
@@ -80,7 +81,7 @@ bool TransportKeyStore::removeKeys(uint16_t id) {
 
   // TODO: remove from hardware keystore
 
-  return false;  // failed
+  return false; // failed
 }
 
 bool TransportKeyStore::clear() {
@@ -88,5 +89,5 @@ bool TransportKeyStore::clear() {
 
   // TODO: clear hardware keystore
 
-  return false;  // failed
+  return false; // failed
 }

@@ -26,8 +26,8 @@ void NRF52Board::begin() {
 #include "nrf.h"
 
 // Power Management global variables
-uint32_t g_nrf52_reset_reason = 0;     // Reset/Startup reason
-uint8_t g_nrf52_shutdown_reason = 0;   // Shutdown reason
+uint32_t g_nrf52_reset_reason = 0;   // Reset/Startup reason
+uint8_t g_nrf52_shutdown_reason = 0; // Shutdown reason
 
 // Early constructor - runs before SystemInit() clears the registers
 // Priority 101 ensures this runs before SystemInit (102) and before
@@ -41,7 +41,7 @@ void NRF52Board::initPowerMgr() {
   // Copy early-captured register values
   reset_reason = g_nrf52_reset_reason;
   shutdown_reason = g_nrf52_shutdown_reason;
-  boot_voltage_mv = 0;  // Will be set by checkBootVoltage()
+  boot_voltage_mv = 0; // Will be set by checkBootVoltage()
 
   // Clear registers for next boot
   // Note: At this point SoftDevice may or may not be enabled
@@ -51,18 +51,18 @@ void NRF52Board::initPowerMgr() {
     sd_power_reset_reason_clr(0xFFFFFFFF);
     sd_power_gpregret_clr(1, 0xFF);
   } else {
-    NRF_POWER->RESETREAS = 0xFFFFFFFF;  // Write 1s to clear
+    NRF_POWER->RESETREAS = 0xFFFFFFFF; // Write 1s to clear
     NRF_POWER->GPREGRET2 = 0;
   }
 
   // Log reset/shutdown info
   if (shutdown_reason != SHUTDOWN_REASON_NONE) {
     MESH_DEBUG_PRINTLN("PWRMGT: Reset = %s (0x%lX); Shutdown = %s (0x%02X)",
-      getResetReasonString(reset_reason), (unsigned long)reset_reason,
-      getShutdownReasonString(shutdown_reason), shutdown_reason);
+                       getResetReasonString(reset_reason), (unsigned long)reset_reason,
+                       getShutdownReasonString(shutdown_reason), shutdown_reason);
   } else {
-    MESH_DEBUG_PRINTLN("PWRMGT: Reset = %s (0x%lX)",
-      getResetReasonString(reset_reason), (unsigned long)reset_reason);
+    MESH_DEBUG_PRINTLN("PWRMGT: Reset = %s (0x%lX)", getResetReasonString(reset_reason),
+                       (unsigned long)reset_reason);
   }
 }
 
@@ -80,42 +80,45 @@ bool NRF52Board::isExternalPowered() {
   }
 }
 
-const char* NRF52Board::getResetReasonString(uint32_t reason) {
+const char *NRF52Board::getResetReasonString(uint32_t reason) {
   if (reason & POWER_RESETREAS_RESETPIN_Msk) return "Reset Pin";
   if (reason & POWER_RESETREAS_DOG_Msk) return "Watchdog";
   if (reason & POWER_RESETREAS_SREQ_Msk) return "Soft Reset";
   if (reason & POWER_RESETREAS_LOCKUP_Msk) return "CPU Lockup";
-  #ifdef POWER_RESETREAS_LPCOMP_Msk
-    if (reason & POWER_RESETREAS_LPCOMP_Msk) return "Wake from LPCOMP";
-  #endif
-  #ifdef POWER_RESETREAS_VBUS_Msk
-    if (reason & POWER_RESETREAS_VBUS_Msk) return "Wake from VBUS";
-  #endif
-  #ifdef POWER_RESETREAS_OFF_Msk
-    if (reason & POWER_RESETREAS_OFF_Msk) return "Wake from GPIO";
-  #endif
-  #ifdef POWER_RESETREAS_DIF_Msk
-    if (reason & POWER_RESETREAS_DIF_Msk) return "Debug Interface";
-  #endif
+#ifdef POWER_RESETREAS_LPCOMP_Msk
+  if (reason & POWER_RESETREAS_LPCOMP_Msk) return "Wake from LPCOMP";
+#endif
+#ifdef POWER_RESETREAS_VBUS_Msk
+  if (reason & POWER_RESETREAS_VBUS_Msk) return "Wake from VBUS";
+#endif
+#ifdef POWER_RESETREAS_OFF_Msk
+  if (reason & POWER_RESETREAS_OFF_Msk) return "Wake from GPIO";
+#endif
+#ifdef POWER_RESETREAS_DIF_Msk
+  if (reason & POWER_RESETREAS_DIF_Msk) return "Debug Interface";
+#endif
   return "Cold Boot";
 }
 
-const char* NRF52Board::getShutdownReasonString(uint8_t reason) {
+const char *NRF52Board::getShutdownReasonString(uint8_t reason) {
   switch (reason) {
-    case SHUTDOWN_REASON_LOW_VOLTAGE:  return "Low Voltage";
-    case SHUTDOWN_REASON_USER:         return "User Request";
-    case SHUTDOWN_REASON_BOOT_PROTECT: return "Boot Protection";
+  case SHUTDOWN_REASON_LOW_VOLTAGE:
+    return "Low Voltage";
+  case SHUTDOWN_REASON_USER:
+    return "User Request";
+  case SHUTDOWN_REASON_BOOT_PROTECT:
+    return "Boot Protection";
   }
   return "Unknown";
 }
 
-bool NRF52Board::checkBootVoltage(const PowerMgtConfig* config) {
+bool NRF52Board::checkBootVoltage(const PowerMgtConfig *config) {
   initPowerMgr();
 
   // Read boot voltage
   boot_voltage_mv = getBattMilliVolts();
-  
-  if (config->voltage_bootlock == 0) return true;  // Protection disabled
+
+  if (config->voltage_bootlock == 0) return true; // Protection disabled
 
   // Skip check if externally powered
   if (isExternalPowered()) {
@@ -124,8 +127,8 @@ bool NRF52Board::checkBootVoltage(const PowerMgtConfig* config) {
     return true;
   }
 
-  MESH_DEBUG_PRINTLN("PWRMGT: Boot voltage = %u mV (threshold = %u mV)",
-      boot_voltage_mv, config->voltage_bootlock);
+  MESH_DEBUG_PRINTLN("PWRMGT: Boot voltage = %u mV (threshold = %u mV)", boot_voltage_mv,
+                     config->voltage_bootlock);
 
   // Only trigger shutdown if reading is valid (>1000mV) AND below threshold
   // This prevents spurious shutdowns on ADC glitches or uninitialized reads
@@ -133,7 +136,7 @@ bool NRF52Board::checkBootVoltage(const PowerMgtConfig* config) {
     MESH_DEBUG_PRINTLN("PWRMGT: Boot voltage too low - entering protective shutdown");
 
     initiateShutdown(SHUTDOWN_REASON_BOOT_PROTECT);
-    return false;  // Should never reach this
+    return false; // Should never reach this
   }
 
   return true;
@@ -163,7 +166,7 @@ void NRF52Board::enterSystemOff(uint8_t reason) {
   // Enter SYSTEMOFF
   if (sd_enabled) {
     uint32_t err = sd_power_system_off();
-    if (err == NRF_ERROR_SOFTDEVICE_NOT_ENABLED) {  //SoftDevice not enabled
+    if (err == NRF_ERROR_SOFTDEVICE_NOT_ENABLED) { // SoftDevice not enabled
       sd_enabled = 0;
     }
   }
@@ -216,12 +219,10 @@ void NRF52Board::configureVoltageWake(uint8_t ain_channel, uint8_t refsel) {
   if (refsel == 7) {
     MESH_DEBUG_PRINTLN("PWRMGT: LPCOMP wake configured (AIN%d, ref=ARef)", ain_channel);
   } else if (refsel <= 6) {
-    MESH_DEBUG_PRINTLN("PWRMGT: LPCOMP wake configured (AIN%d, ref=%d/8 VDD)",
-      ain_channel, refsel + 1);
+    MESH_DEBUG_PRINTLN("PWRMGT: LPCOMP wake configured (AIN%d, ref=%d/8 VDD)", ain_channel, refsel + 1);
   } else {
     uint8_t ref_num = (uint8_t)((refsel - 8) * 2 + 1);
-    MESH_DEBUG_PRINTLN("PWRMGT: LPCOMP wake configured (AIN%d, ref=%d/16 VDD)",
-      ain_channel, ref_num);
+    MESH_DEBUG_PRINTLN("PWRMGT: LPCOMP wake configured (AIN%d, ref=%d/16 VDD)", ain_channel, ref_num);
   }
 
   // Configure VBUS (USB power) wake alongside LPCOMP
@@ -252,13 +253,14 @@ void NRF52BoardDCDC::begin() {
 }
 
 void NRF52Board::sleep(uint32_t secs) {
-  // Clear FPU interrupt flags to avoid insomnia
-  // see errata 87 for details https://docs.nordicsemi.com/bundle/errata_nRF52840_Rev3/page/ERR/nRF52840/Rev3/latest/anomaly_840_87.html
-  #if (__FPU_USED == 1)
-  __set_FPSCR(__get_FPSCR() & ~(0x0000009F)); 
-  (void) __get_FPSCR();
+// Clear FPU interrupt flags to avoid insomnia
+// see errata 87 for details
+// https://docs.nordicsemi.com/bundle/errata_nRF52840_Rev3/page/ERR/nRF52840/Rev3/latest/anomaly_840_87.html
+#if (__FPU_USED == 1)
+  __set_FPSCR(__get_FPSCR() & ~(0x0000009F));
+  (void)__get_FPSCR();
   NVIC_ClearPendingIRQ(FPU_IRQn);
-  #endif
+#endif
 
   // On nRF52, we use event-driven sleep instead of timed sleep
   // The 'secs' parameter is ignored - we wake on any interrupt
@@ -281,14 +283,14 @@ void NRF52Board::sleep(uint32_t secs) {
 float NRF52Board::getMCUTemperature() {
   NRF_TEMP->TASKS_START = 1; // Start temperature measurement
 
-  long startTime = millis();  
+  long startTime = millis();
   while (NRF_TEMP->EVENTS_DATARDY == 0) { // Wait for completion. Should complete in 50us
-    if(millis() - startTime > 5) {  // To wait 5ms just in case
+    if (millis() - startTime > 5) {       // To wait 5ms just in case
       NRF_TEMP->TASKS_STOP = 1;
       return NAN;
     }
   }
-  
+
   NRF_TEMP->EVENTS_DATARDY = 0; // Clear event flag
 
   int32_t temp = NRF_TEMP->TEMP; // In 0.25 *C units
@@ -297,23 +299,25 @@ float NRF52Board::getMCUTemperature() {
   return temp * 0.25f; // Convert to *C
 }
 
-bool NRF52Board::getBootloaderVersion(char* out, size_t max_len) {
-    static const char BOOTLOADER_MARKER[] = "UF2 Bootloader ";
-    const uint8_t* flash = (const uint8_t*)0x000FB000; // earliest known info.txt location is 0xFB90B, latest is 0xFCC4B
+bool NRF52Board::getBootloaderVersion(char *out, size_t max_len) {
+  static const char BOOTLOADER_MARKER[] = "UF2 Bootloader ";
+  const uint8_t *flash =
+      (const uint8_t *)0x000FB000; // earliest known info.txt location is 0xFB90B, latest is 0xFCC4B
 
-    for (uint32_t i = 0; i < 0x3000 - (sizeof(BOOTLOADER_MARKER) - 1); i++) {
-        if (memcmp(&flash[i], BOOTLOADER_MARKER, sizeof(BOOTLOADER_MARKER) - 1) == 0) {
-            const char* ver = (const char*)&flash[i + sizeof(BOOTLOADER_MARKER) - 1];
-            size_t len = 0;
-            while (len < max_len - 1 && ver[len] != '\0' && ver[len] != ' ' && ver[len] != '\n' && ver[len] != '\r') {
-                out[len] = ver[len];
-                len++;
-            }
-            out[len] = '\0';
-            return len > 0; // bootloader string is non-empty
-        }
+  for (uint32_t i = 0; i < 0x3000 - (sizeof(BOOTLOADER_MARKER) - 1); i++) {
+    if (memcmp(&flash[i], BOOTLOADER_MARKER, sizeof(BOOTLOADER_MARKER) - 1) == 0) {
+      const char *ver = (const char *)&flash[i + sizeof(BOOTLOADER_MARKER) - 1];
+      size_t len = 0;
+      while (len < max_len - 1 && ver[len] != '\0' && ver[len] != ' ' && ver[len] != '\n' &&
+             ver[len] != '\r') {
+        out[len] = ver[len];
+        len++;
+      }
+      out[len] = '\0';
+      return len > 0; // bootloader string is non-empty
     }
-    return false;
+  }
+  return false;
 }
 
 bool NRF52Board::startOTAUpdate(const char *id, char reply[]) {

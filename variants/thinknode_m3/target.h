@@ -1,20 +1,21 @@
 #pragma once
 
 #define RADIOLIB_STATIC_ONLY 1
-#include <RadioLib.h>
-#include <helpers/radiolib/RadioLibWrappers.h>
 #include "ThinkNodeM3Board.h"
-#include <helpers/radiolib/CustomLR1110Wrapper.h>
+
+#include <RadioLib.h>
 #include <helpers/ArduinoHelpers.h>
+#include <helpers/AutoDiscoverRTCClock.h>
+#include <helpers/radiolib/CustomLR1110Wrapper.h>
+#include <helpers/radiolib/RadioLibWrappers.h>
 #include <helpers/sensors/EnvironmentSensorManager.h>
 #include <helpers/sensors/LocationProvider.h>
-#include <helpers/AutoDiscoverRTCClock.h>
 #ifdef DISPLAY_CLASS
-  #include "NullDisplayDriver.h"
+#include "NullDisplayDriver.h"
 #endif
 
 #ifdef DISPLAY_CLASS
-  extern NullDisplayDriver display;
+extern NullDisplayDriver display;
 #endif
 
 extern ThinkNodeM3Board board;

@@ -11,10 +11,10 @@
 ////////////////////////////////////////////////////////////////////////////////
 // Low frequency clock source
 
-#define USE_LFXO    // 32.768 kHz crystal oscillator
-#define VARIANT_MCK (64000000ul)
+#define USE_LFXO              // 32.768 kHz crystal oscillator
+#define VARIANT_MCK           (64000000ul)
 
-#define WIRE_INTERFACES_COUNT 	(2)
+#define WIRE_INTERFACES_COUNT (2)
 
 ////////////////////////////////////////////////////////////////////////////////
 // Power
@@ -32,11 +32,11 @@
 
 // Power management boot protection threshold (millivolts)
 // Set to 0 to disable boot protection
-#define PWRMGT_VOLTAGE_BOOTLOCK 3300   // Won't boot below this voltage (mV)
+#define PWRMGT_VOLTAGE_BOOTLOCK 3300 // Won't boot below this voltage (mV)
 // LPCOMP wake configuration (voltage recovery from SYSTEMOFF)
 // AIN2 = P0.04 = BATTERY_PIN / PIN_VBAT_READ
-#define PWRMGT_LPCOMP_AIN 2
-#define PWRMGT_LPCOMP_REFSEL 1  // 2/8 VDD (~3.68-4.04V)
+#define PWRMGT_LPCOMP_AIN       2
+#define PWRMGT_LPCOMP_REFSEL    1 // 2/8 VDD (~3.68-4.04V)
 
 ////////////////////////////////////////////////////////////////////////////////
 // Number of pins
@@ -61,8 +61,8 @@
 #define PIN_WIRE_SDA            (26) // P0.26
 #define PIN_WIRE_SCL            (27) // P0.27
 
-#define PIN_WIRE1_SDA            (7) // P0.8
-#define PIN_WIRE1_SCL            (8) // P0.7
+#define PIN_WIRE1_SDA           (7) // P0.8
+#define PIN_WIRE1_SCL           (8) // P0.7
 
 ////////////////////////////////////////////////////////////////////////////////
 // SPI pin definition
@@ -80,7 +80,7 @@
 #define LED_BUILTIN             (35)
 #define PIN_LED                 LED_BUILTIN
 #define LED_RED                 LED_BUILTIN
-#define LED_BLUE                (-1)            // No blue led, prevents Bluefruit flashing the green LED during advertising
+#define LED_BLUE                (-1) // No blue led, prevents Bluefruit flashing the green LED during advertising
 #define LED_PIN                 LED_BUILTIN
 
 #define LED_STATE_ON            LOW
@@ -99,44 +99,43 @@
 
 #define PIN_USER_BTN            BUTTON_PIN
 
-#define EXTERNAL_FLASH_DEVICES MX25R1635F
+#define EXTERNAL_FLASH_DEVICES  MX25R1635F
 #define EXTERNAL_FLASH_USE_QSPI
 
 ////////////////////////////////////////////////////////////////////////////////
 // Lora
 
 #define USE_SX1262
-#define LORA_CS                 (24)
-#define SX126X_DIO1             (20)
-#define SX126X_BUSY             (17)
-#define SX126X_RESET            (25)
+#define LORA_CS      (24)
+#define SX126X_DIO1  (20)
+#define SX126X_BUSY  (17)
+#define SX126X_RESET (25)
 #define SX126X_DIO2_AS_RF_SWITCH
 #define SX126X_DIO3_TCXO_VOLTAGE 1.8
 
-#define PIN_SPI1_MISO           (43)
-#define PIN_SPI1_MOSI           (41)
-#define PIN_SPI1_SCK            (40)
+#define PIN_SPI1_MISO            (43)
+#define PIN_SPI1_MOSI            (41)
+#define PIN_SPI1_SCK             (40)
 
 ////////////////////////////////////////////////////////////////////////////////
 // Buzzer
 
 // #define PIN_BUZZER              (46)
 
-
 ////////////////////////////////////////////////////////////////////////////////
 // GPS
 
-#define GPS_EN                  (21)
-#define GPS_RESET               (38)
-#define PIN_GPS_RX              (39)  // This is for bits going TOWARDS the GPS
-#define PIN_GPS_TX              (37)  // This is for bits going TOWARDS the CPU
+#define GPS_EN                   (21)
+#define GPS_RESET                (38)
+#define PIN_GPS_RX               (39) // This is for bits going TOWARDS the GPS
+#define PIN_GPS_TX               (37) // This is for bits going TOWARDS the CPU
 
 ////////////////////////////////////////////////////////////////////////////////
 // TFT
-#define PIN_TFT_SCL             (40)
-#define PIN_TFT_SDA             (41)
-#define PIN_TFT_RST             (2)
-#define PIN_TFT_VDD_CTL         (3)
-#define PIN_TFT_LEDA_CTL        (15)
-#define PIN_TFT_CS              (11)
-#define PIN_TFT_DC              (12)
+#define PIN_TFT_SCL              (40)
+#define PIN_TFT_SDA              (41)
+#define PIN_TFT_RST              (2)
+#define PIN_TFT_VDD_CTL          (3)
+#define PIN_TFT_LEDA_CTL         (15)
+#define PIN_TFT_CS               (11)
+#define PIN_TFT_DC               (12)

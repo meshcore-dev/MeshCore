@@ -24,7 +24,7 @@ bool radio_init() {
 
   SPI1.begin(false);
 
-  //passing NULL skips init of SPI
+  // passing NULL skips init of SPI
   return radio.std_init(NULL);
 }
 

@@ -1,4 +1,5 @@
 #include "ThinkNodeM6Board.h"
+
 #include <Arduino.h>
 
 #ifdef THINKNODE_M6

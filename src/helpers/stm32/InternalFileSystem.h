@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 hathach for Adafruit Industries
@@ -22,27 +22,25 @@
  * THE SOFTWARE.
  */
 
- #ifndef INTERNALFILESYSTEM_H_
- #define INTERNALFILESYSTEM_H_
- 
- #include "Adafruit_LittleFS.h"
- 
-#ifndef LFS_FLASH_TOTAL_SIZE /* Flash size can be configured in platformio.ini */
-  #define LFS_FLASH_TOTAL_SIZE (16 * 2048) /* defaults to 32k flash */
+#ifndef INTERNALFILESYSTEM_H_
+#define INTERNALFILESYSTEM_H_
+
+#include "Adafruit_LittleFS.h"
+
+#ifndef LFS_FLASH_TOTAL_SIZE             /* Flash size can be configured in platformio.ini */
+#define LFS_FLASH_TOTAL_SIZE (16 * 2048) /* defaults to 32k flash */
 #endif
-#define LFS_BLOCK_SIZE (2048)
+#define LFS_BLOCK_SIZE      (2048)
 #define LFS_FLASH_ADDR_BASE (FLASH_END_ADDR - LFS_FLASH_TOTAL_SIZE + 1)
-    
- class InternalFileSystem : public Adafruit_LittleFS
- {
-   public:
-     InternalFileSystem(void);
- 
-     // overwrite to also perform low level format (sector erase of whole flash region)
-     bool begin(void);
- };
- 
- extern InternalFileSystem InternalFS;
- 
- #endif /* INTERNALFILESYSTEM_H_ */
- 
+
+class InternalFileSystem : public Adafruit_LittleFS {
+public:
+  InternalFileSystem(void);
+
+  // overwrite to also perform low level format (sector erase of whole flash region)
+  bool begin(void);
+};
+
+extern InternalFileSystem InternalFS;
+
+#endif /* INTERNALFILESYSTEM_H_ */

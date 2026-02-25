@@ -16,7 +16,7 @@ bool LGFXDisplay::begin() {
 }
 
 void LGFXDisplay::turnOn() {
-//  display->wakeup();
+  //  display->wakeup();
   if (!_isOn) {
     display->wakeup();
   }
@@ -31,13 +31,13 @@ void LGFXDisplay::turnOff() {
 }
 
 void LGFXDisplay::clear() {
-//  display->clearDisplay();
+  //  display->clearDisplay();
   buffer.clearDisplay();
 }
 
 void LGFXDisplay::startFrame(Color bkg) {
-//  display->startWrite();
-//  display->getScanLine();
+  //  display->startWrite();
+  //  display->getScanLine();
   buffer.clearDisplay();
   buffer.setTextColor(TFT_WHITE);
 }
@@ -49,29 +49,29 @@ void LGFXDisplay::setTextSize(int sz) {
 void LGFXDisplay::setColor(Color c) {
   // _color = (c != 0) ? ILI9342_WHITE : ILI9342_BLACK;
   switch (c) {
-    case DARK:
-      _color = TFT_BLACK;
-      break;
-    case LIGHT:
-      _color = TFT_WHITE;
-      break;
-    case RED:
-      _color = TFT_RED;
-      break;
-    case GREEN:
-      _color = TFT_GREEN;
-      break;
-    case BLUE:
-      _color = TFT_BLUE;
-      break;
-    case YELLOW:
-      _color = TFT_YELLOW;
-      break;
-    case ORANGE:
-      _color = TFT_ORANGE;
-      break;
-    default:
-      _color = TFT_WHITE;
+  case DARK:
+    _color = TFT_BLACK;
+    break;
+  case LIGHT:
+    _color = TFT_WHITE;
+    break;
+  case RED:
+    _color = TFT_RED;
+    break;
+  case GREEN:
+    _color = TFT_GREEN;
+    break;
+  case BLUE:
+    _color = TFT_BLUE;
+    break;
+  case YELLOW:
+    _color = TFT_YELLOW;
+    break;
+  case ORANGE:
+    _color = TFT_ORANGE;
+    break;
+  default:
+    _color = TFT_WHITE;
   }
   buffer.setTextColor(_color);
 }
@@ -80,9 +80,9 @@ void LGFXDisplay::setCursor(int x, int y) {
   buffer.setCursor(x, y);
 }
 
-void LGFXDisplay::print(const char* str) {
+void LGFXDisplay::print(const char *str) {
   buffer.println(str);
-//  Serial.println(str);
+  //  Serial.println(str);
 }
 
 void LGFXDisplay::fillRect(int x, int y, int w, int h) {
@@ -93,18 +93,18 @@ void LGFXDisplay::drawRect(int x, int y, int w, int h) {
   buffer.drawRect(x, y, w, h, _color);
 }
 
-void LGFXDisplay::drawXbm(int x, int y, const uint8_t* bits, int w, int h) {
+void LGFXDisplay::drawXbm(int x, int y, const uint8_t *bits, int w, int h) {
   buffer.drawBitmap(x, y, bits, w, h, _color);
 }
 
-uint16_t LGFXDisplay::getTextWidth(const char* str) {
+uint16_t LGFXDisplay::getTextWidth(const char *str) {
   return buffer.textWidth(str);
 }
 
 void LGFXDisplay::endFrame() {
   display->startWrite();
   if (UI_ZOOM != 1) {
-    buffer.pushRotateZoom(display, display->width()/2, display->height()/2 , 0, UI_ZOOM, UI_ZOOM);
+    buffer.pushRotateZoom(display, display->width() / 2, display->height() / 2, 0, UI_ZOOM, UI_ZOOM);
   } else {
     buffer.pushSprite(display, 0, 0);
   }

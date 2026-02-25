@@ -1,13 +1,14 @@
-#include <Arduino.h>
 #include "target.h"
+
+#include <Arduino.h>
 
 ESP32Board board;
 
 #if defined(P_LORA_SCLK)
-  static SPIClass spi;
-  RADIO_CLASS radio = new Module(P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BUSY, spi);
+static SPIClass spi;
+RADIO_CLASS radio = new Module(P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BUSY, spi);
 #else
-  RADIO_CLASS radio = new Module(P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BUSY);
+RADIO_CLASS radio = new Module(P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BUSY);
 #endif
 
 WRAPPER_CLASS radio_driver(radio, board);
@@ -17,18 +18,18 @@ AutoDiscoverRTCClock rtc_clock(fallback_clock);
 SensorManager sensors;
 
 #ifdef DISPLAY_CLASS
-  DISPLAY_CLASS display;
-  MomentaryButton user_btn(PIN_USER_BTN, 1000, true);
+DISPLAY_CLASS display;
+MomentaryButton user_btn(PIN_USER_BTN, 1000, true);
 #endif
 
 #ifndef LORA_CR
-  #define LORA_CR      5
+#define LORA_CR 5
 #endif
 
 bool radio_init() {
   fallback_clock.begin();
   rtc_clock.begin(Wire);
-  
+
 #ifdef SX126X_DIO3_TCXO_VOLTAGE
   float tcxo = SX126X_DIO3_TCXO_VOLTAGE;
 #else
@@ -38,15 +39,16 @@ bool radio_init() {
 #if defined(P_LORA_SCLK)
   spi.begin(P_LORA_SCLK, P_LORA_MISO, P_LORA_MOSI);
 #endif
-  int status = radio.begin(LORA_FREQ, LORA_BW, LORA_SF, LORA_CR, RADIOLIB_SX126X_SYNC_WORD_PRIVATE, LORA_TX_POWER, 8, tcxo);
+  int status = radio.begin(LORA_FREQ, LORA_BW, LORA_SF, LORA_CR, RADIOLIB_SX126X_SYNC_WORD_PRIVATE,
+                           LORA_TX_POWER, 8, tcxo);
   if (status != RADIOLIB_ERR_NONE) {
     Serial.print("ERROR: radio init failed: ");
     Serial.println(status);
-    return false;  // fail
+    return false; // fail
   }
-  
+
   radio.setCRC(1);
-  
+
 #if defined(SX126X_RXEN) && defined(SX126X_TXEN)
   radio.setRfSwitchPins(SX126X_RXEN, SX126X_TXEN);
 #endif
@@ -61,7 +63,7 @@ bool radio_init() {
   radio.setRxBoostedGainMode(SX126X_RX_BOOSTED_GAIN);
 #endif
 
-  return true;  // success
+  return true; // success
 }
 
 uint32_t radio_get_rng_seed() {
@@ -81,5 +83,5 @@ void radio_set_tx_power(int8_t dbm) {
 
 mesh::LocalIdentity radio_new_identity() {
   RadioNoiseListener rng(radio);
-  return mesh::LocalIdentity(&rng);  // create new random identity
+  return mesh::LocalIdentity(&rng); // create new random identity
 }

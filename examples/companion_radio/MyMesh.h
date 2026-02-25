@@ -1,8 +1,9 @@
 #pragma once
 
+#include "AbstractUITask.h"
+
 #include <Arduino.h>
 #include <Mesh.h>
-#include "AbstractUITask.h"
 
 /*------------ Frame Protocol --------------*/
 #define FIRMWARE_VER_CODE 9
@@ -72,21 +73,22 @@
 
 /* -------------------------------------------------------------------------------------- */
 
-#define REQ_TYPE_GET_STATUS             0x01 // same as _GET_STATS
-#define REQ_TYPE_KEEP_ALIVE             0x02
-#define REQ_TYPE_GET_TELEMETRY_DATA     0x03
+#define REQ_TYPE_GET_STATUS         0x01 // same as _GET_STATS
+#define REQ_TYPE_KEEP_ALIVE         0x02
+#define REQ_TYPE_GET_TELEMETRY_DATA 0x03
 
 struct AdvertPath {
   uint8_t pubkey_prefix[7];
   uint8_t path_len;
-  char    name[32];
+  char name[32];
   uint32_t recv_timestamp;
   uint8_t path[MAX_PATH_SIZE];
 };
 
 class MyMesh : public BaseChatMesh, public DataStoreHost {
 public:
-  MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMeshTables &tables, DataStore& store, AbstractUITask* ui=NULL);
+  MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMeshTables &tables, DataStore &store,
+         AbstractUITask *ui = NULL);
 
   void begin(bool has_display);
   void startInterface(BaseSerialInterface &serial);
@@ -100,7 +102,7 @@ public:
   bool advert();
   void enterCLIRescue();
 
-  int  getRecentlyHeard(AdvertPath dest[], int max_num);
+  int getRecentlyHeard(AdvertPath dest[], int max_num);
 
 protected:
   float getAirtimeBudgetFactor() const override;
@@ -109,22 +111,25 @@ protected:
   uint32_t getRetransmitDelay(const mesh::Packet *packet) override;
   uint32_t getDirectRetransmitDelay(const mesh::Packet *packet) override;
   uint8_t getExtraAckTransmitCount() const override;
-  bool filterRecvFloodPacket(mesh::Packet* packet) override;
-  bool allowPacketForward(const mesh::Packet* packet) override;
+  bool filterRecvFloodPacket(mesh::Packet *packet) override;
+  bool allowPacketForward(const mesh::Packet *packet) override;
 
-  void sendFloodScoped(const ContactInfo& recipient, mesh::Packet* pkt, uint32_t delay_millis=0) override;
-  void sendFloodScoped(const mesh::GroupChannel& channel, mesh::Packet* pkt, uint32_t delay_millis=0) override;
+  void sendFloodScoped(const ContactInfo &recipient, mesh::Packet *pkt, uint32_t delay_millis = 0) override;
+  void sendFloodScoped(const mesh::GroupChannel &channel, mesh::Packet *pkt,
+                       uint32_t delay_millis = 0) override;
 
   void logRxRaw(float snr, float rssi, const uint8_t raw[], int len) override;
   bool isAutoAddEnabled() const override;
   bool shouldAutoAddContactType(uint8_t type) const override;
   bool shouldOverwriteWhenFull() const override;
   void onContactsFull() override;
-  void onContactOverwrite(const uint8_t* pub_key) override;
-  bool onContactPathRecv(ContactInfo& from, uint8_t* in_path, uint8_t in_path_len, uint8_t* out_path, uint8_t out_path_len, uint8_t extra_type, uint8_t* extra, uint8_t extra_len) override;
-  void onDiscoveredContact(ContactInfo &contact, bool is_new, uint8_t path_len, const uint8_t* path) override;
+  void onContactOverwrite(const uint8_t *pub_key) override;
+  bool onContactPathRecv(ContactInfo &from, uint8_t *in_path, uint8_t in_path_len, uint8_t *out_path,
+                         uint8_t out_path_len, uint8_t extra_type, uint8_t *extra,
+                         uint8_t extra_len) override;
+  void onDiscoveredContact(ContactInfo &contact, bool is_new, uint8_t path_len, const uint8_t *path) override;
   void onContactPathUpdated(const ContactInfo &contact) override;
-  ContactInfo* processAck(const uint8_t *data) override;
+  ContactInfo *processAck(const uint8_t *data) override;
   void queueMessage(const ContactInfo &from, uint8_t txt_type, mesh::Packet *pkt, uint32_t sender_timestamp,
                     const uint8_t *extra, int extra_len, const char *text);
 
@@ -150,10 +155,16 @@ protected:
   void onSendTimeout() override;
 
   // DataStoreHost methods
-  bool onContactLoaded(const ContactInfo& contact) override { return addContact(contact); }
-  bool getContactForSave(uint32_t idx, ContactInfo& contact) override { return getContactByIdx(idx, contact); }
-  bool onChannelLoaded(uint8_t channel_idx, const ChannelDetails& ch) override { return setChannel(channel_idx, ch); }
-  bool getChannelForSave(uint8_t channel_idx, ChannelDetails& ch) override { return getChannel(channel_idx, ch); }
+  bool onContactLoaded(const ContactInfo &contact) override { return addContact(contact); }
+  bool getContactForSave(uint32_t idx, ContactInfo &contact) override {
+    return getContactByIdx(idx, contact);
+  }
+  bool onChannelLoaded(uint8_t channel_idx, const ChannelDetails &ch) override {
+    return setChannel(channel_idx, ch);
+  }
+  bool getChannelForSave(uint8_t channel_idx, ChannelDetails &ch) override {
+    return getChannel(channel_idx, ch);
+  }
 
   void clearPendingReqs() {
     pending_login = pending_status = pending_telemetry = pending_discovery = pending_req = 0;
@@ -167,10 +178,10 @@ private:
   void writeErrFrame(uint8_t err_code);
   void writeDisabledFrame();
   void writeContactRespFrame(uint8_t code, const ContactInfo &contact);
-  void updateContactFromFrame(ContactInfo &contact, uint32_t& last_mod, const uint8_t *frame, int len);
+  void updateContactFromFrame(ContactInfo &contact, uint32_t &last_mod, const uint8_t *frame, int len);
   void addToOfflineQueue(const uint8_t frame[], int len);
   int getFromOfflineQueue(uint8_t frame[]);
-  int getBlobByKey(const uint8_t key[], int key_len, uint8_t dest_buf[]) override { 
+  int getBlobByKey(const uint8_t key[], int key_len, uint8_t dest_buf[]) override {
     return _store->getBlobByKey(key, key_len, dest_buf);
   }
   bool putBlobByKey(const uint8_t key[], int key_len, const uint8_t src_buf[], int len) override {
@@ -185,14 +196,14 @@ private:
   void saveChannels() { _store->saveChannels(this); }
   void saveContacts() { _store->saveContacts(this); }
 
-  DataStore* _store;
+  DataStore *_store;
   NodePrefs _prefs;
   uint32_t pending_login;
   uint32_t pending_status;
-  uint32_t pending_telemetry, pending_discovery;   // pending _TELEMETRY_REQ
-  uint32_t pending_req;   // pending _BINARY_REQ
+  uint32_t pending_telemetry, pending_discovery; // pending _TELEMETRY_REQ
+  uint32_t pending_req;                          // pending _BINARY_REQ
   BaseSerialInterface *_serial;
-  AbstractUITask* _ui;
+  AbstractUITask *_ui;
 
   ContactsIterator _iter;
   uint32_t _iter_filter_since;
@@ -224,13 +235,13 @@ private:
   struct AckTableEntry {
     unsigned long msg_sent;
     uint32_t ack;
-    ContactInfo* contact;
+    ContactInfo *contact;
   };
-  #define EXPECTED_ACK_TABLE_SIZE 8
+#define EXPECTED_ACK_TABLE_SIZE 8
   AckTableEntry expected_ack_table[EXPECTED_ACK_TABLE_SIZE]; // circular table
   int next_ack_idx;
 
-  #define ADVERT_PATH_TABLE_SIZE   16
+#define ADVERT_PATH_TABLE_SIZE 16
   AdvertPath advert_paths[ADVERT_PATH_TABLE_SIZE]; // circular table
 };
 

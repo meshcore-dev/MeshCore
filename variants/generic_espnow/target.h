@@ -1,8 +1,8 @@
 #pragma once
 
 #include <helpers/ESP32Board.h>
-#include <helpers/esp32/ESPNOWRadio.h>
 #include <helpers/SensorManager.h>
+#include <helpers/esp32/ESPNOWRadio.h>
 
 extern ESP32Board board;
 extern ESPNOWRadio radio_driver;

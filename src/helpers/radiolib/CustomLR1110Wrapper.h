@@ -5,10 +5,8 @@
 
 class CustomLR1110Wrapper : public RadioLibWrapper {
 public:
-  CustomLR1110Wrapper(CustomLR1110& radio, mesh::MainBoard& board) : RadioLibWrapper(radio, board) { }
-  bool isReceivingPacket() override { 
-    return ((CustomLR1110 *)_radio)->isReceiving();
-  }
+  CustomLR1110Wrapper(CustomLR1110 &radio, mesh::MainBoard &board) : RadioLibWrapper(radio, board) {}
+  bool isReceivingPacket() override { return ((CustomLR1110 *)_radio)->isReceiving(); }
   float getCurrentRSSI() override {
     float rssi = -110;
     ((CustomLR1110 *)_radio)->getRssiInst(&rssi);

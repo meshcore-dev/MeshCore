@@ -1,7 +1,7 @@
+#include "ThinkNodeM1Board.h"
+
 #include <Arduino.h>
 #include <Wire.h>
-
-#include "ThinkNodeM1Board.h"
 
 #ifdef THINKNODE_M1
 

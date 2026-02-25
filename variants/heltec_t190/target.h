@@ -1,15 +1,15 @@
 #pragma once
 
 #define RADIOLIB_STATIC_ONLY 1
-#include <RadioLib.h>
-#include <helpers/radiolib/RadioLibWrappers.h>
 #include <HeltecT190Board.h>
-#include <helpers/radiolib/CustomSX1262Wrapper.h>
+#include <RadioLib.h>
 #include <helpers/AutoDiscoverRTCClock.h>
 #include <helpers/SensorManager.h>
+#include <helpers/radiolib/CustomSX1262Wrapper.h>
+#include <helpers/radiolib/RadioLibWrappers.h>
 #ifdef DISPLAY_CLASS
-#include <helpers/ui/ST7789Display.h>
 #include <helpers/ui/MomentaryButton.h>
+#include <helpers/ui/ST7789Display.h>
 #endif
 
 extern HeltecT190Board board;

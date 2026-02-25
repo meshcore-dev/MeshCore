@@ -1,12 +1,12 @@
 #pragma once
 
-#include <MeshCore.h>
 #include <Arduino.h>
+#include <MeshCore.h>
 #include <helpers/NRF52Board.h>
 
 // built-ins
-#define  PIN_VBAT_READ    5
-#define  ADC_MULTIPLIER   (3 * 1.73 * 1.187 * 1000)
+#define PIN_VBAT_READ  5
+#define ADC_MULTIPLIER (3 * 1.73 * 1.187 * 1000)
 
 class RAK4631Board : public NRF52BoardDCDC {
 protected:
@@ -18,7 +18,7 @@ public:
   RAK4631Board() : NRF52Board("RAK4631_OTA") {}
   void begin();
 
-  #define BATTERY_SAMPLES 8
+#define BATTERY_SAMPLES 8
 
   uint16_t getBattMilliVolts() override {
     analogReadResolution(12);
@@ -32,7 +32,5 @@ public:
     return (ADC_MULTIPLIER * raw) / 4096;
   }
 
-  const char* getManufacturerName() const override {
-    return "RAK 4631";
-  }
+  const char *getManufacturerName() const override { return "RAK 4631"; }
 };

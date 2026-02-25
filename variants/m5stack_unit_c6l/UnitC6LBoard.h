@@ -5,11 +5,7 @@
 
 class UnitC6LBoard : public ESP32Board {
 public:
-  void begin() {
-    ESP32Board::begin();
-  }
+  void begin() { ESP32Board::begin(); }
 
-  const char* getManufacturerName() const override {
-    return "Unit C6L";
-  }
+  const char *getManufacturerName() const override { return "Unit C6L"; }
 };

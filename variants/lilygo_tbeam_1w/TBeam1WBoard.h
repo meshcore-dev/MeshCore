@@ -1,8 +1,9 @@
 #pragma once
 
+#include "variant.h"
+
 #include <Arduino.h>
 #include <helpers/ESP32Board.h>
-#include "variant.h"
 
 // LilyGo T-Beam 1W with SX1262 + external PA (XY16P35 module)
 //
@@ -36,7 +37,7 @@ public:
   void onBeforeTransmit() override;
   void onAfterTransmit() override;
   uint16_t getBattMilliVolts() override;
-  const char* getManufacturerName() const override;
+  const char *getManufacturerName() const override;
   void powerOff() override;
 
   // Fan control methods

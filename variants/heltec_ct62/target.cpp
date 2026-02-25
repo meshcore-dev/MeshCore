@@ -1,5 +1,6 @@
-#include <Arduino.h>
 #include "target.h"
+
+#include <Arduino.h>
 
 Heltec_CT62_Board board;
 
@@ -12,7 +13,7 @@ SensorManager sensors;
 
 bool radio_init() {
   fallback_clock.begin();
-  rtc_clock.begin(Wire);  
+  rtc_clock.begin(Wire);
   return radio.std_init(&SPI);
 }
 
@@ -33,5 +34,5 @@ void radio_set_tx_power(int8_t dbm) {
 
 mesh::LocalIdentity radio_new_identity() {
   RadioNoiseListener rng(radio);
-  return mesh::LocalIdentity(&rng);  // create new random identity
+  return mesh::LocalIdentity(&rng); // create new random identity
 }
