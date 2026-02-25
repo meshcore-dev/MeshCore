@@ -12,7 +12,7 @@
 #endif
 #define TELEM_BME680_SEALEVELPRESSURE_HPA (1013.25)
 #include <Adafruit_BME680.h>
-static Adafruit_BME680 BME680;
+static Adafruit_BME680 BME680(TELEM_WIRE);
 #endif
 
 #ifdef ENV_INCLUDE_BMP085
