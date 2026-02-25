@@ -1,0 +1,53 @@
+name: clang-format check
+
+on:
+  pull_request:
+    branches: [main, dev]
+    paths:
+      - '**.cpp'
+      - '**.h'
+      - '**.c'
+      - '.clang-format'
+
+jobs:
+  format-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get changed files
+        id: changed
+        run: |
+          FILES=$(git diff --name-only --diff-filter=d origin/${{ github.base_ref }}...HEAD -- \
+            '*.cpp' '*.h' '*.c' \
+            | grep -v '^lib/' || true)
+          echo "files<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$FILES" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Run clang-format
+        if: steps.changed.outputs.files != ''
+        run: |
+          FAILED=0
+          while IFS= read -r file; do
+            [ -z "$file" ] && continue
+            if ! clang-format-18 --dry-run --Werror "$file" 2>/dev/null; then
+              FAILED=1
+              echo ""
+              echo "::error file=$file::File does not match clang-format style"
+              echo "--- Required changes for $file ---"
+              clang-format-18 "$file" | diff -u "$file" - || true
+              echo ""
+            fi
+          done <<< "${{ steps.changed.outputs.files }}"
+
+          if [ "$FAILED" -eq 1 ]; then
+            echo ""
+            echo "::error::clang-format check failed. Run the following to fix:"
+            echo "  clang-format -i <files...>"
+            exit 1
+          fi
+
+          echo "All files pass clang-format check."
