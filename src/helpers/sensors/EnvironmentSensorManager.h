@@ -4,6 +4,10 @@
 #include <helpers/SensorManager.h>
 #include <helpers/sensors/LocationProvider.h>
 
+#ifdef ENV_INCLUDE_ONEWIRE
+#include <helpers/sensors/OneWireSensorHub.h>
+#endif
+
 class EnvironmentSensorManager : public SensorManager {
 protected:
   int next_available_channel = TELEM_CHANNEL_SELF + 1;
@@ -22,6 +26,11 @@ protected:
   bool SHT4X_initialized = false;
   bool BME680_initialized = false;
   bool BMP085_initialized = false;
+
+  #ifdef ENV_INCLUDE_ONEWIRE
+  OneWireSensorHub _oneWireHub;
+  bool OneWire_initialized = false;
+  #endif
 
   bool gps_detected = false;
   bool gps_active = false;
@@ -48,7 +57,7 @@ public:
   #endif
   bool begin() override;
   bool querySensors(uint8_t requester_permissions, CayenneLPP& telemetry) override;
-  #if ENV_INCLUDE_GPS
+  #if ENV_INCLUDE_GPS || ENV_INCLUDE_ONEWIRE
   void loop() override;
   #endif
   int getNumSettings() const override;
