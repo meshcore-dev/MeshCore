@@ -9,7 +9,7 @@ This document describes the MeshCore packet format.
 
 ## Version 1 Packet Format
 
-This is the protocol level packet structure used in MeshCore firmware v1.12.0
+This is the protocol-level packet structure used in current MeshCore v1 firmware.
 
 ```
 [header][transport_codes(optional)][path_length][path][payload]

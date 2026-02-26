@@ -53,7 +53,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 - `time <epoch_seconds>`
 
 **Parameters:**
-- `epoc_seconds`: Unix epoc time
+- `epoch_seconds`: Unix epoch time
 
 ---
 
@@ -88,6 +88,14 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 **Note:** The output of this command is limited to the 8 most recent adverts.
 
 **Note:** Each line is encoded as `{pubkey-prefix}:{timestamp}:{snr*4}`
+
+---
+
+### Trigger active neighbor discovery
+**Usage:**
+- `discover.neighbors`
+
+**Note:** Sends a node discovery request and refreshes the repeater's neighbor list from matching repeater discovery responses.
 
 ---
 
@@ -136,7 +144,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 ---
 
-### End capture of rx log to node sotrage
+### End capture of rx log to node storage
 **Usage:** `log stop`
 
 ---
@@ -162,6 +170,13 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 ### Show the hardware name
 **Usage:** `board`
+
+---
+
+### Show the bootloader version
+**Usage:** `get bootloader.ver`
+
+**Note:** Supported on nRF52 builds. Returns `ERROR: unsupported` on other platforms and `> unknown` if unavailable.
 
 ---
 
@@ -200,7 +215,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 **Default:** Varies by board
 
-**Notes:** This setting only controls the power level of the LoRa chip. Some nodes have an additional power amplifier stage which increases the total output. Referr to the node's manual for the correct setting to use. **Setting a value too high may violate the laws in your country.**
+**Notes:** This setting only controls the power level of the LoRa chip. Some nodes have an additional power amplifier stage which increases the total output. Refer to the node's manual for the correct setting to use. **Setting a value too high may violate the laws in your country.**
 
 ---
 
@@ -402,7 +417,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 **Parameters:**
 - `value`: Direct transmit delay factor (0-2)
 
-**Default:** `0.2`
+**Default:** `0.3` (Simple Repeater), `0.2` (Simple Room Server / Simple Sensor)
 
 ---
 

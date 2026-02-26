@@ -12,7 +12,7 @@ MeshCore provides the ability to create wireless mesh networks, similar to Mesht
 * Multi-Hop Packet Routing
   * Devices can forward messages across multiple nodes, extending range beyond a single radio's reach.
   * Supports up to a configurable number of hops to balance network efficiency and prevent excessive traffic.
-  * Nodes use fixed roles where "Companion" nodes are not repeating messages at all to prevent adverse routing paths from being used.
+  * Nodes use fixed roles where Companion nodes do not repeat by default. Companion firmware can optionally enable client repeat mode on specific frequencies.
 * Supports LoRa Radios – Works with Heltec, RAK Wireless, and other LoRa-based hardware.
 * Decentralized & Resilient – No central server or internet required; the network is self-healing.
 * Low Power Consumption – Ideal for battery-powered or solar-powered devices.
