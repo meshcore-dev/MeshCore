@@ -29,19 +29,25 @@
   AdvertDataParser::AdvertDataParser(const uint8_t app_data[], uint8_t app_data_len) {
     _name[0] = 0;
     _lat = _lon = 0;
-    _flags = app_data[0];
+    _flags = 0;
     _valid = false;
     _extra1 = _extra2 = 0;
+    if (app_data == NULL || app_data_len == 0) return;
+
+    _flags = app_data[0];
   
     int i = 1;
     if (_flags & ADV_LATLON_MASK) {
+      if (i + 8 > app_data_len) return;
       memcpy(&_lat, &app_data[i], 4); i += 4;
       memcpy(&_lon, &app_data[i], 4); i += 4;
     }
     if (_flags & ADV_FEAT1_MASK) {
+      if (i + 2 > app_data_len) return;
       memcpy(&_extra1, &app_data[i], 2); i += 2;
     }
     if (_flags & ADV_FEAT2_MASK) {
+      if (i + 2 > app_data_len) return;
       memcpy(&_extra2, &app_data[i], 2); i += 2;
     }
 
@@ -51,6 +57,9 @@
         nlen = app_data_len - i;  // remainder of app_data
       }
       if (nlen > 0) {
+        if (nlen > MAX_ADVERT_DATA_SIZE - 1) {
+          nlen = MAX_ADVERT_DATA_SIZE - 1;
+        }
         memcpy(_name, &app_data[i], nlen);
         _name[nlen] = 0;  // set null terminator
       }
