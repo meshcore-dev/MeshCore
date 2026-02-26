@@ -49,6 +49,7 @@ public:
 */
 class LocalIdentity : public Identity {
   uint8_t prv_key[PRV_KEY_SIZE];
+  uint8_t seed[SEED_SIZE];
 public:
   LocalIdentity();
   LocalIdentity(const char* prv_hex, const char* pub_hex);
@@ -86,7 +87,19 @@ public:
   bool readFrom(Stream& s);
   bool writeTo(Stream& s) const;
   void printTo(Stream& s) const;
-  size_t writeTo(uint8_t* dest, size_t max_len);
+  size_t writePubkeyTo(uint8_t* dest, size_t max_len);
+  size_t writePrvkeyTo(uint8_t* dest, size_t max_len);
+  size_t writeSeedTo(uint8_t* dest, size_t max_len);
+  /**
+   * \brief Set the Ed25519 keypair.
+   * \param src IN - the source for the key(s) or seed
+   * \param len IN - length of the input; if equal to SEED_SIZE, src is
+   *   assumed to be a new seed, from which new private and public keys
+   *   will be generated.  If equal to PRV_KEY_SIZE, the corresponding
+   *   public key will be re-generated.  If equal to PRV_KEY_SIZE+
+   *   PUB_KEY_SIZE, no key regen is needed.  The seed can only later
+   *   be obtained via the `get prv.seed` CLI if SEED_SIZE is used.
+   */
   void readFrom(const uint8_t* src, size_t len);
 };
 
