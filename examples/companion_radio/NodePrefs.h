@@ -29,4 +29,5 @@ struct NodePrefs {  // persisted to file
   uint32_t gps_interval;     // GPS read interval in seconds
   uint8_t autoadd_config;    // bitmask for auto-add contacts config
   uint8_t client_repeat;
+  uint8_t path_hash_mode;    // which path mode to use when sending
 };
