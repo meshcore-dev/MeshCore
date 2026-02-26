@@ -108,15 +108,15 @@ void Utils::printHex(Stream& s, const uint8_t* src, size_t len) {
   }
 }
 
-static uint8_t hexVal(char c) {
+static int8_t hexVal(char c) {
   if (c >= 'A' && c <= 'F') return c - 'A' + 10;
   if (c >= 'a' && c <= 'f') return c - 'a' + 10;
   if (c >= '0' && c <= '9') return c - '0';
-  return 0;
+  return -1;
 }
 
 bool Utils::isHexChar(char c) {
-  return c == '0' || hexVal(c) > 0;
+  return hexVal(c) >= 0;
 }
 
 bool Utils::fromHex(uint8_t* dest, int dest_size, const char *src_hex) {
@@ -127,7 +127,10 @@ bool Utils::fromHex(uint8_t* dest, int dest_size, const char *src_hex) {
   while (dp - dest < dest_size) {
     char ch = *src_hex++;
     char cl = *src_hex++;
-    *dp++ = (hexVal(ch) << 4) | hexVal(cl);
+    int8_t hi = hexVal(ch);
+    int8_t lo = hexVal(cl);
+    if (hi < 0 || lo < 0) return false;  // invalid chars
+    *dp++ = (hi << 4) | lo;
   }
   return true;
 }
