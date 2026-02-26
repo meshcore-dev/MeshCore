@@ -26,12 +26,23 @@
 // 31 (BLE_GAP_ADV_SET_DATA_SIZE_MAX) - 2 (AD length + type bytes) = 29
 #define BLE_NAME_MAX_LEN  29
 
-static size_t utf8CharLen(uint8_t lead_byte) {
-  if (lead_byte < 0x80) return 1;
-  if ((lead_byte & 0xE0) == 0xC0) return 2;
-  if ((lead_byte & 0xF0) == 0xE0) return 3;
-  if ((lead_byte & 0xF8) == 0xF0) return 4;
-  return 1; // invalid lead byte — treat as single byte to avoid infinite loops
+// Return the byte length of a UTF-8 character starting at s, where
+// remaining is the number of valid bytes from s onward.
+// Returns 1 for invalid/incomplete sequences to guarantee forward progress.
+static size_t utf8CharLen(const char* s, size_t remaining) {
+  uint8_t b = (uint8_t)s[0];
+  size_t expected;
+  if (b < 0x80)                    expected = 1;
+  else if ((b & 0xE0) == 0xC0)    expected = 2;
+  else if ((b & 0xF0) == 0xE0)    expected = 3;
+  else if ((b & 0xF8) == 0xF0)    expected = 4;
+  else                             return 1;  // continuation or invalid
+
+  if (expected > remaining) return 1;  // truncated sequence
+  for (size_t j = 1; j < expected; j++) {
+    if (((uint8_t)s[j] & 0xC0) != 0x80) return 1;  // missing continuation
+  }
+  return expected;
 }
 
 // Build a BLE device name from prefix + node name, middle-truncating with
@@ -40,16 +51,29 @@ static size_t utf8CharLen(uint8_t lead_byte) {
 static void buildBLEName(char* dest, size_t dest_size,
                          const char* prefix, const char* name)
 {
+  if (dest_size == 0) return;
+
   size_t prefix_len = strlen(prefix);
   size_t name_len = strlen(name);
 
+  // Clamp output limit to both dest_size and BLE_NAME_MAX_LEN
+  size_t max_out = dest_size - 1;
+  if (BLE_NAME_MAX_LEN < max_out) max_out = BLE_NAME_MAX_LEN;
+
+  // If prefix alone meets or exceeds the limit, truncate it and return
+  if (prefix_len >= max_out) {
+    memcpy(dest, prefix, max_out);
+    dest[max_out] = '\0';
+    return;
+  }
+
   // Fast path: fits without truncation
-  if (prefix_len + name_len <= BLE_NAME_MAX_LEN) {
+  if (prefix_len + name_len <= max_out) {
     snprintf(dest, dest_size, "%s%s", prefix, name);
     return;
   }
 
-  size_t name_budget = BLE_NAME_MAX_LEN - prefix_len;
+  size_t name_budget = max_out - prefix_len;
   const char sep[] = "..";
   const size_t sep_len = 2;
 
@@ -59,7 +83,7 @@ static void buildBLEName(char* dest, size_t dest_size,
     memcpy(dest, prefix, prefix_len);
     size_t i = 0;
     while (i < name_budget && i < name_len) {
-      size_t cl = utf8CharLen((uint8_t)name[i]);
+      size_t cl = utf8CharLen(name + i, name_len - i);
       if (i + cl > name_budget) break;
       i += cl;
     }
@@ -77,7 +101,7 @@ static void buildBLEName(char* dest, size_t dest_size,
   {
     size_t i = 0;
     while (i < name_len) {
-      size_t cl = utf8CharLen((uint8_t)name[i]);
+      size_t cl = utf8CharLen(name + i, name_len - i);
       if (i + cl > head_target) break;
       i += cl;
     }
@@ -94,6 +118,9 @@ static void buildBLEName(char* dest, size_t dest_size,
       size_t prev = i - 1;
       while (prev > 0 && ((uint8_t)name[prev] & 0xC0) == 0x80)
         prev--;
+      // If name[0] is itself a continuation byte, the sequence is malformed
+      if (prev == 0 && ((uint8_t)name[0] & 0xC0) == 0x80)
+        break;
       size_t cl = i - prev;
       if (tail_len + cl > tail_target) break;
       tail_len += cl;
