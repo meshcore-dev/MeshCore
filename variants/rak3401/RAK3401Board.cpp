@@ -28,14 +28,17 @@ void RAK3401Board::begin() {
   // CTX (P0.31) selects TX(HIGH) vs RX(LOW) and also enables the 5V boost
   // converter that powers the PA section (VCC1/VCC2).
   // The LNA section (VSUP1/VCC0) runs on 3.3V and works with boost off.
+  //
+  // Drive CTX LOW first to prevent transient TX mode (Mode 2) while CSD/CPS
+  // are being enabled — the RAK13302 has no pull-downs on these pins.
+  pinMode(P_LORA_PA_EN, OUTPUT);
+  digitalWrite(P_LORA_PA_EN, LOW);         // CTX=0: RX mode, boost off
+
   pinMode(P_LORA_PA_CSD, OUTPUT);
   digitalWrite(P_LORA_PA_CSD, HIGH);       // CSD=1: enable FEM
 
   pinMode(SX126X_POWER_EN, OUTPUT);
   digitalWrite(SX126X_POWER_EN, HIGH);     // CPS=1: enable TX/RX paths
-
-  pinMode(P_LORA_PA_EN, OUTPUT);
-  digitalWrite(P_LORA_PA_EN, LOW);         // CTX=0: RX mode, boost off
 
   delay(1);  // SKY66122 turn-on settling time
 }
