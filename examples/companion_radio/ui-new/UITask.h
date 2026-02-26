@@ -8,8 +8,8 @@
 #include <Arduino.h>
 #include <helpers/sensors/LPPDataHelpers.h>
 
-#ifndef LED_STATE_ON
-  #define LED_STATE_ON 1
+#ifdef PIN_STATUS_LED
+  #include <helpers/StatusLED.h>
 #endif
 
 #ifdef PIN_BUZZER
@@ -39,9 +39,7 @@ class UITask : public AbstractUITask {
   unsigned long ui_started_at, next_batt_chck;
   int next_backlight_btn_check = 0;
 #ifdef PIN_STATUS_LED
-  int led_state = 0;
-  int next_led_change = 0;
-  int last_led_increment = 0;
+  StatusLED status_led;
 #endif
 
 #ifdef PIN_USER_BTN_ANA
@@ -53,8 +51,6 @@ class UITask : public AbstractUITask {
   UIScreen* msg_preview;
   UIScreen* curr;
 
-  void userLedHandler();
-
   // Button action handlers
   char checkDisplayOn(char c);
   char handleLongPress(char c);
@@ -65,7 +61,11 @@ class UITask : public AbstractUITask {
 
 public:
 
-  UITask(mesh::MainBoard* board, BaseSerialInterface* serial) : AbstractUITask(board, serial), _display(NULL), _sensors(NULL) {
+  UITask(mesh::MainBoard* board, BaseSerialInterface* serial) : AbstractUITask(board, serial), _display(NULL), _sensors(NULL)
+#ifdef PIN_STATUS_LED
+    , status_led(PIN_STATUS_LED)
+#endif
+  {
     next_batt_chck = _next_refresh = 0;
     ui_started_at = 0;
     curr = NULL;

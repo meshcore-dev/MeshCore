@@ -6,12 +6,6 @@
 #define AUTO_OFF_MILLIS     15000   // 15 seconds
 #define BOOT_SCREEN_MILLIS   3000   // 3 seconds
 
-#ifdef PIN_STATUS_LED
-#define LED_ON_MILLIS     20
-#define LED_ON_MSG_MILLIS 200
-#define LED_CYCLE_MILLIS  4000
-#endif
-
 #ifndef USER_BTN_PRESSED
 #define USER_BTN_PRESSED LOW
 #endif
@@ -57,6 +51,10 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
 #ifdef PIN_BUZZER
   buzzer.begin();
   buzzer.quiet(_node_prefs->buzzer_quiet);
+#endif
+
+#ifdef PIN_STATUS_LED
+  status_led.begin();
 #endif
 
   // Initialize digital button if available
@@ -260,33 +258,8 @@ void UITask::renderCurrScreen() {
   _need_refresh = false;
 }
 
-void UITask::userLedHandler() {
-#ifdef PIN_STATUS_LED
-  static int state = 0;
-  static int next_change = 0;
-  static int last_increment = 0;
-
-  int cur_time = millis();
-  if (cur_time > next_change) {
-    if (state == 0) {
-      state = 1;
-      if (_msgcount > 0) {
-        last_increment = LED_ON_MSG_MILLIS;
-      } else {
-        last_increment = LED_ON_MILLIS;
-      }
-      next_change = cur_time + last_increment;
-    } else {
-      state = 0;
-      next_change = cur_time + LED_CYCLE_MILLIS - last_increment;
-    }
-    digitalWrite(PIN_STATUS_LED, state == LED_STATE_ON);
-  }
-#endif
-}
-
-/* 
-  hardware-agnostic pre-shutdown activity should be done here 
+/*
+  hardware-agnostic pre-shutdown activity should be done here
 */
 void UITask::shutdown(bool restart){
 
@@ -322,7 +295,11 @@ void UITask::loop() {
       _userButtonAnalog->update();
     }
   #endif
-  userLedHandler();
+
+#ifdef PIN_STATUS_LED
+  status_led.setAlert(_msgcount > 0);
+  status_led.loop();
+#endif
 
 #ifdef PIN_BUZZER
   if (buzzer.isPlaying())  buzzer.loop();
