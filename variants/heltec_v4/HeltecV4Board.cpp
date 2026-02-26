@@ -7,15 +7,7 @@ void HeltecV4Board::begin() {
     pinMode(PIN_ADC_CTRL, OUTPUT);
     digitalWrite(PIN_ADC_CTRL, LOW); // Initially inactive
 
-    pinMode(P_LORA_PA_POWER, OUTPUT);
-    digitalWrite(P_LORA_PA_POWER,HIGH);
-
-    rtc_gpio_hold_dis((gpio_num_t)P_LORA_PA_EN);
-    pinMode(P_LORA_PA_EN, OUTPUT);
-    digitalWrite(P_LORA_PA_EN,HIGH);
-    pinMode(P_LORA_PA_TX_EN, OUTPUT);
-    digitalWrite(P_LORA_PA_TX_EN,LOW);
-
+    loRaFEMControl.init();
 
     periph_power.begin();
 
@@ -33,12 +25,12 @@ void HeltecV4Board::begin() {
 
   void HeltecV4Board::onBeforeTransmit(void) {
     digitalWrite(P_LORA_TX_LED, HIGH);   // turn TX LED on
-    digitalWrite(P_LORA_PA_TX_EN,HIGH);
+    loRaFEMControl.setTxModeEnable();
   }
 
   void HeltecV4Board::onAfterTransmit(void) {
     digitalWrite(P_LORA_TX_LED, LOW);   // turn TX LED off
-    digitalWrite(P_LORA_PA_TX_EN,LOW);
+    loRaFEMControl.setRxModeEnable();
   }
 
   void HeltecV4Board::enterDeepSleep(uint32_t secs, int pin_wake_btn) {
@@ -50,7 +42,7 @@ void HeltecV4Board::begin() {
 
     rtc_gpio_hold_en((gpio_num_t)P_LORA_NSS);
 
-    rtc_gpio_hold_en((gpio_num_t)P_LORA_PA_EN); //It also needs to be enabled in receive mode
+    loRaFEMControl.setRxModeEnableWhenMCUSleep();//It also needs to be enabled in receive mode
 
     if (pin_wake_btn < 0) {
       esp_sleep_enable_ext1_wakeup( (1L << P_LORA_DIO_1), ESP_EXT1_WAKEUP_ANY_HIGH);  // wake up on: recv LoRa packet
