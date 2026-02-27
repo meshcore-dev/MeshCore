@@ -34,20 +34,20 @@ bool OneWireSensorHub::begin() {
   MESH_DEBUG_PRINTLN("OneWire: Scanning for sensor probes (%d ms)...", ONEWIRE_DISCOVERY_TIMEOUT_MS);
 
   unsigned long start = millis();
+  unsigned long last_rx = 0;
+
   while ((millis() - start) < ONEWIRE_DISCOVERY_TIMEOUT_MS) {
     while (oneWireSerial.available()) {
       if (_rxlen < sizeof(_rxbuf)) {
         _rxbuf[_rxlen++] = oneWireSerial.read();
       }
-      delay(5);
+      last_rx = millis();
     }
 
-    if (_rxlen > 0) {
+    if (_rxlen > 0 && (millis() - last_rx) >= 10) {
       RakSNHub_Protocl_API.process(_rxbuf, _rxlen);
       _rxlen = 0;
     }
-
-    delay(100);
   }
 
   MESH_DEBUG_PRINTLN("OneWire: Discovery complete. Found %d sensor probe(s)", _found_pid_count);
@@ -57,7 +57,7 @@ bool OneWireSensorHub::begin() {
     return false;
   }
 
-  _next_poll_ms = millis() + 2000;
+  _next_poll_ms = millis() + 10000; // First request within ~10 seconds only returned 0.0 values. 
   _current_poll_idx = 0;
 
   return true;
