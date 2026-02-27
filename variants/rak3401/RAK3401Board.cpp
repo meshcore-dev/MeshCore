@@ -20,37 +20,27 @@ void RAK3401Board::begin() {
 
   Wire.begin();
 
+  // PIN_3V3_EN (WB_IO2, P0.34) controls the 3V3_S switched peripheral rail
+  // AND the 5V boost regulator (U5) on the RAK13302 that powers the SKY66122 PA.
+  // Must stay HIGH during radio operation — do not toggle for power saving.
   pinMode(PIN_3V3_EN, OUTPUT);
   digitalWrite(PIN_3V3_EN, HIGH);
 
-  // Initialize SKY66122-11 FEM on the RAK13302 module.
-  // CSD (P0.24) and CPS (P0.21) must be HIGH for both TX and RX modes.
-  // CTX (P0.31) selects TX(HIGH) vs RX(LOW) and also enables the 5V boost
-  // converter that powers the PA section (VCC1/VCC2).
-  // The LNA section (VSUP1/VCC0) runs on 3.3V and works with boost off.
-  //
-  // Drive CTX LOW first to prevent transient TX mode (Mode 2) while CSD/CPS
-  // are being enabled — the RAK13302 has no pull-downs on these pins.
-  pinMode(P_LORA_PA_EN, OUTPUT);
-  digitalWrite(P_LORA_PA_EN, LOW);         // CTX=0: RX mode, boost off
-
-  pinMode(P_LORA_PA_CSD, OUTPUT);
-  digitalWrite(P_LORA_PA_CSD, HIGH);       // CSD=1: enable FEM
-
+  // Enable SKY66122-11 FEM on the RAK13302 module.
+  // CSD and CPS are tied together on the RAK13302 PCB, routed to IO3 (P0.21).
+  // HIGH = FEM active (LNA for RX, PA path available for TX).
+  // TX/RX switching (CTX) is handled by SX1262 DIO2 via SetDIO2AsRfSwitchCtrl.
   pinMode(SX126X_POWER_EN, OUTPUT);
-  digitalWrite(SX126X_POWER_EN, HIGH);     // CPS=1: enable TX/RX paths
-
-  delay(1);  // SKY66122 turn-on settling time
+  digitalWrite(SX126X_POWER_EN, HIGH);
+  delay(1);  // SKY66122 turn-on settling time (tON = 3us typ)
 }
 
 #ifdef NRF52_POWER_MANAGEMENT
 void RAK3401Board::initiateShutdown(uint8_t reason) {
-  // Put SKY66122 in guaranteed <1 uA shutdown (Mode 4: CSD=0, CTX=0, CPS=0)
-  digitalWrite(P_LORA_PA_EN, LOW);         // CTX=0, boost off
-  digitalWrite(SX126X_POWER_EN, LOW);      // CPS=0
-  digitalWrite(P_LORA_PA_CSD, LOW);        // CSD=0
+  // Disable SKY66122 FEM (CSD+CPS LOW = shutdown, <1 uA)
+  digitalWrite(SX126X_POWER_EN, LOW);
 
-  // Disable 3V3 switched peripherals
+  // Disable 3V3 switched peripherals and 5V boost
   digitalWrite(PIN_3V3_EN, LOW);
 
   enterSystemOff(reason);
