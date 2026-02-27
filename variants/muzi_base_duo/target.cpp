@@ -17,6 +17,28 @@ MuziBaseUnoBoard board;
   #define LORA_CR 5
 #endif
 
+#ifdef RF_SWITCH_TABLE
+static const uint32_t rfswitch_dios[Module::RFSWITCH_MAX_PINS] = {
+  RADIOLIB_LR11X0_DIO5,
+  RADIOLIB_LR11X0_DIO6,
+  RADIOLIB_NC,
+  RADIOLIB_NC,
+  RADIOLIB_NC
+};
+
+static const Module::RfSwitchMode_t rfswitch_table[] = {
+  // mode                 DIO5  DIO6
+  { LR11x0::MODE_STBY,   {LOW,  LOW  }},
+  { LR11x0::MODE_RX,     {HIGH, LOW  }},
+  { LR11x0::MODE_TX,     {LOW,  HIGH }},
+  { LR11x0::MODE_TX_HP,  {LOW,  HIGH }},
+  { LR11x0::MODE_TX_HF,  {LOW,  LOW  }},
+  { LR11x0::MODE_GNSS,   {LOW,  LOW  }},
+  { LR11x0::MODE_WIFI,   {LOW,  LOW  }},
+  END_OF_MODE_TABLE,
+};
+#endif
+
 RADIO_CLASS radio = new Module(P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BUSY, SPI);
 
 WRAPPER_CLASS radio_driver(radio, board);
@@ -53,6 +75,10 @@ bool radio_init() {
 
   radio.setCRC(2);
   radio.explicitHeader();
+
+#ifdef RF_SWITCH_TABLE
+  radio.setRfSwitchTable(rfswitch_dios, rfswitch_table);
+#endif
 
 #ifdef RX_BOOSTED_GAIN
   radio.setRxBoostedGainMode(RX_BOOSTED_GAIN);

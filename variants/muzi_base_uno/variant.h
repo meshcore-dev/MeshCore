@@ -148,7 +148,7 @@ static const uint8_t SCK  = PIN_SPI_SCK;
 #define SX126X_POWER_EN      (37)   // P1.05
 
 #define SX126X_DIO2_AS_RF_SWITCH   true
-#define SX126X_DIO3_TCXO_VOLTAGE   (1.8f)
+#define SX126X_DIO3_TCXO_VOLTAGE   (3.3f)
 
 /*
  * Wire Interfaces (I2C)
