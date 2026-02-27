@@ -104,7 +104,9 @@ void OneWireSensorHub::handleEvent(uint8_t pid, uint8_t sid, SNHUBAPI_EVT_E eid,
                                     uint8_t* msg, uint16_t len) {
   switch (eid) {
     case SNHUBAPI_EVT_QSEND:
-      oneWireSerial.write(msg, len);
+      if (oneWireSerial.write(msg, len) != len) {
+        MESH_DEBUG_PRINTLN("OneWire: write failed");
+      }
       break;
 
     case SNHUBAPI_EVT_ADD_PID:
@@ -116,10 +118,12 @@ void OneWireSensorHub::handleEvent(uint8_t pid, uint8_t sid, SNHUBAPI_EVT_E eid,
       break;
 
     case SNHUBAPI_EVT_SDATA_REQ: {
+      if (len < 2) break;
       uint8_t ipso_type = msg[0];
       uint16_t val_len = len - 1;
 
       uint8_t ordered[256];
+      if (val_len > 256) val_len = 256;
       for (uint16_t i = 0; i < val_len; i += 2) {
         if (i + 1 < val_len) {
           ordered[i] = msg[1 + i + 1];
@@ -134,6 +138,7 @@ void OneWireSensorHub::handleEvent(uint8_t pid, uint8_t sid, SNHUBAPI_EVT_E eid,
     }
 
     case SNHUBAPI_EVT_REPORT: {
+      if (len < 2) break;
       uint8_t ipso_type = msg[0];
       uint16_t val_len = len - 1;
       MESH_DEBUG_PRINTLN("OneWire: REPORT SID=0x%02X IPSO=%d len=%d", sid, ipso_type, val_len);
@@ -185,10 +190,10 @@ void OneWireSensorHub::parseSensorData(uint8_t sid, uint8_t ipso_type, uint8_t* 
       break;
     }
 
-    case RAK_IPSO_DC_CURRENT: { // 185 (3385-3200): DC current, 2 bytes, mA
+    case RAK_IPSO_DC_CURRENT: { // 185 (3385-3200): DC current, 2 bytes, raw * 0.01A
       if (data_len >= 2) {
         int16_t raw = ((int16_t)data[0] << 8) | (int16_t)data[1];
-        _cached_current_ma = raw;
+        _cached_current_ma = raw * 10;  // convert raw (centiamps) to mA
         _has_current = true;
         MESH_DEBUG_PRINTLN("OneWire: Battery Current = %dmA (IPSO %d, raw=%d)", _cached_current_ma, ipso_type, raw);
       }
@@ -251,7 +256,7 @@ void OneWireSensorHub::parseSensorData(uint8_t sid, uint8_t ipso_type, uint8_t* 
 bool OneWireSensorHub::hasVoltage() const { return _has_voltage; }
 float OneWireSensorHub::getVoltage() const { return _cached_voltage; }
 bool OneWireSensorHub::hasCurrent() const { return _has_current; }
-float OneWireSensorHub::getCurrent() const { return (float)_cached_current_ma / 100.0f; }
+float OneWireSensorHub::getCurrent() const { return (float)_cached_current_ma / 1000.0f; }
 bool OneWireSensorHub::hasBatteryPercent() const { return _has_battery_pct; }
 uint8_t OneWireSensorHub::getBatteryPercent() const { return _cached_battery_pct; }
 bool OneWireSensorHub::hasTemperature() const { return _has_temperature; }
