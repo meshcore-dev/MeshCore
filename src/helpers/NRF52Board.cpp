@@ -297,6 +297,25 @@ float NRF52Board::getMCUTemperature() {
   return temp * 0.25f; // Convert to *C
 }
 
+bool NRF52Board::getBootloaderVersion(char* out, size_t max_len) {
+    static const char BOOTLOADER_MARKER[] = "UF2 Bootloader ";
+    const uint8_t* flash = (const uint8_t*)0x000FB000; // earliest known info.txt location is 0xFB90B, latest is 0xFCC4B
+
+    for (uint32_t i = 0; i < 0x3000 - (sizeof(BOOTLOADER_MARKER) - 1); i++) {
+        if (memcmp(&flash[i], BOOTLOADER_MARKER, sizeof(BOOTLOADER_MARKER) - 1) == 0) {
+            const char* ver = (const char*)&flash[i + sizeof(BOOTLOADER_MARKER) - 1];
+            size_t len = 0;
+            while (len < max_len - 1 && ver[len] != '\0' && ver[len] != ' ' && ver[len] != '\n' && ver[len] != '\r') {
+                out[len] = ver[len];
+                len++;
+            }
+            out[len] = '\0';
+            return len > 0; // bootloader string is non-empty
+        }
+    }
+    return false;
+}
+
 bool NRF52Board::startOTAUpdate(const char *id, char reply[]) {
   // Config the peripheral connection with maximum bandwidth
   // more SRAM required by SoftDevice

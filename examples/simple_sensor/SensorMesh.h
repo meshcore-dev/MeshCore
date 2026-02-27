@@ -33,11 +33,11 @@
 #define PERM_RECV_ALERTS_HI    (1 << 7)   // high priority alerts
 
 #ifndef FIRMWARE_BUILD_DATE
-  #define FIRMWARE_BUILD_DATE   "29 Jan 2026"
+  #define FIRMWARE_BUILD_DATE   "15 Feb 2026"
 #endif
 
 #ifndef FIRMWARE_VERSION
-  #define FIRMWARE_VERSION   "v1.12.0"
+  #define FIRMWARE_VERSION   "v1.13.0"
 #endif
 
 #define FIRMWARE_ROLE "sensor"
@@ -128,7 +128,7 @@ protected:
   void onControlDataRecv(mesh::Packet* packet) override;
   void onAckRecv(mesh::Packet* packet, uint32_t ack_crc) override;
   virtual bool handleIncomingMsg(ClientInfo& from, uint32_t timestamp, uint8_t* data, uint8_t flags, size_t len);
-  void sendAckTo(const ClientInfo& dest, uint32_t ack_hash);
+  void sendAckTo(const ClientInfo& dest, uint32_t ack_hash, uint8_t path_hash_size=1);
 private:
   FILESYSTEM* _fs;
   unsigned long next_local_advert, next_flood_advert;

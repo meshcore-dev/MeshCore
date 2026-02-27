@@ -114,7 +114,7 @@ ClientInfo* ClientACL::putClient(const mesh::Identity& id, uint8_t init_perms) {
   memset(c, 0, sizeof(*c));
   c->permissions = init_perms;
   c->id = id;
-  c->out_path_len = -1;  // initially out_path is unknown
+  c->out_path_len = OUT_PATH_UNKNOWN;
   return c;
 }
 

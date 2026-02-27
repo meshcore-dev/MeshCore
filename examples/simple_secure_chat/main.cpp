@@ -213,7 +213,7 @@ protected:
   }
 
   void onContactPathUpdated(const ContactInfo& contact) override {
-    Serial.printf("PATH to: %s, path_len=%d\n", contact.name, (int32_t) contact.out_path_len);
+    Serial.printf("PATH to: %s, path_len=%d\n", contact.name, (uint32_t) contact.out_path_len);
     saveContacts();
   }
 
@@ -266,8 +266,9 @@ protected:
     return SEND_TIMEOUT_BASE_MILLIS + (FLOOD_SEND_TIMEOUT_FACTOR * pkt_airtime_millis);
   }
   uint32_t calcDirectTimeoutMillisFor(uint32_t pkt_airtime_millis, uint8_t path_len) const override {
+    uint8_t path_hash_count = path_len & 63;
     return SEND_TIMEOUT_BASE_MILLIS + 
-         ( (pkt_airtime_millis*DIRECT_SEND_PERHOP_FACTOR + DIRECT_SEND_PERHOP_EXTRA_MILLIS) * (path_len + 1));
+         ( (pkt_airtime_millis*DIRECT_SEND_PERHOP_FACTOR + DIRECT_SEND_PERHOP_EXTRA_MILLIS) * (path_hash_count + 1));
   }
 
   void onSendTimeout() override {
