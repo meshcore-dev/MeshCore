@@ -2,6 +2,10 @@
 
 #include <Arduino.h> // needed for PlatformIO
 #include <Mesh.h>
+#if defined(NRF52_PLATFORM)
+  #include <nrf.h>
+  #include <nrf_soc.h>
+#endif
 
 #define CMD_APP_START                 1
 #define CMD_SEND_TXT_MSG              2
@@ -1309,15 +1313,38 @@ void MyMesh::handleCmdFrame(size_t len) {
     }
     board.reboot();
   } else if (cmd_frame[0] == CMD_GET_BATT_AND_STORAGE) {
-    uint8_t reply[11];
+    uint8_t reply[12];
     int i = 0;
     reply[i++] = RESP_CODE_BATT_AND_STORAGE;
     uint16_t battery_millivolts = board.getBattMilliVolts();
     uint32_t used = _store->getStorageUsedKb();
     uint32_t total = _store->getStorageTotalKb();
+    // Optional extra byte for companion clients:
+    // 0 = not externally powered, 1 = externally powered/charging source present.
+    bool external_powered = board.isExternalPowered();
+#if defined(NRF52_PLATFORM)
+    uint8_t sd_enabled = 0;
+    sd_softdevice_is_enabled(&sd_enabled);
+    uint32_t usb_status = 0;
+    if (sd_enabled) {
+      sd_power_usbregstatus_get(&usb_status);
+    } else {
+      usb_status = NRF_POWER->USBREGSTATUS;
+    }
+
+    // Some nRF52 boards report VBUS correctly in USBREGSTATUS while
+    // board.isExternalPowered() may still resolve false in practice.
+    uint32_t usb_power_mask = POWER_USBREGSTATUS_VBUSDETECT_Msk;
+#ifdef POWER_USBREGSTATUS_OUTPUTRDY_Msk
+    usb_power_mask |= POWER_USBREGSTATUS_OUTPUTRDY_Msk;
+#endif
+    external_powered = external_powered || ((usb_status & usb_power_mask) != 0);
+#endif
+    uint8_t is_charging = external_powered ? 1 : 0;
     memcpy(&reply[i], &battery_millivolts, 2); i += 2;
     memcpy(&reply[i], &used, 4); i += 4;
     memcpy(&reply[i], &total, 4); i += 4;
+    reply[i++] = is_charging;
     _serial->writeFrame(reply, i);
   } else if (cmd_frame[0] == CMD_EXPORT_PRIVATE_KEY) {
 #if ENABLE_PRIVATE_KEY_EXPORT

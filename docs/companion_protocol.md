@@ -587,11 +587,12 @@ def parse_device_info(data):
 **PACKET_BATTERY** (0x0C):
 ```
 Byte 0: 0x0C
-Bytes 1-2: Battery Level (16-bit little-endian, percentage 0-100)
+Bytes 1-2: Battery Milli Volts (16-bit little-endian)
 
 Optional (if data size > 3):
 Bytes 3-6: Used Storage (32-bit little-endian, KB)
 Bytes 7-10: Total Storage (32-bit little-endian, KB)
+Bytes 11: Charging/External Power Flag (uint8, 0=no, 1=yes)
 ```
 
 **Parsing Pseudocode**:
@@ -600,14 +601,17 @@ def parse_battery(data):
     if len(data) < 3:
         return None
     
-    level = int.from_bytes(data[1:3], 'little')
-    info = {'level': level}
+    milli_volts = int.from_bytes(data[1:3], 'little')
+    info = {'milli_volts': milli_volts}
     
-    if len(data) > 3:
+    if len(data) >= 11:
         used_kb = int.from_bytes(data[3:7], 'little')
         total_kb = int.from_bytes(data[7:11], 'little')
         info['used_kb'] = used_kb
         info['total_kb'] = total_kb
+    
+    if len(data) >= 12:
+        info['is_charging'] = data[11] == 1
     
     return info
 ```
