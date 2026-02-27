@@ -703,8 +703,8 @@ Companion firmware for [Seeed Studio Wio Tracker L1 Pro](https://www.seeedstudio
 https://github.com/sosprz/Meshcore-Wio-Tracker-L1-Pro
 
 ##### 5.14.4.6. MeshCore Evo
-Repeater firmware based on the official firmware with adaptions and improvements of handling flood adverts for high load areas and improved duty cycle handling.  
-https://github.com/mattzzw/MeshCore/releases, see also https://hansemesh.de/repeater#firmware (in German).
+Repeater firmware based on the official firmware with adaptions and improvements for big or high density areas, e.g. dealing with flood advert traffic, duty cycle handling, &hellip;  
+https://github.com/mattzzw/MeshCore-Evo/releases, see also https://hansemesh.de/repeater#firmware (in German).
 
 
 #### 5.14.5. online services
