@@ -20,8 +20,9 @@ class LoRaFEMControl
     void setLNAEnable(bool enabled);
     bool isLnaCanControl(void) { return lna_can_control; }
     void setLnaCanControl(bool can_control) { lna_can_control = can_control; }
+    LoRaFEMType getFEMType(void) const { return fem_type; }
   private:
-    LoRaFEMType fem_type;
+    LoRaFEMType fem_type=OTHER_FEM_TYPES;
     bool lna_enabled=false;
     bool lna_can_control=false;
 };
