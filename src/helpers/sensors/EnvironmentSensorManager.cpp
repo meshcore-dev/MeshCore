@@ -1,5 +1,7 @@
 #include "EnvironmentSensorManager.h"
 
+#include <Wire.h>
+
 #if ENV_PIN_SDA && ENV_PIN_SCL
 #define TELEM_WIRE &Wire1  // Use Wire1 as the I2C bus for Environment Sensors
 #else
