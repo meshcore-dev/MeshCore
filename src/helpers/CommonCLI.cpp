@@ -4,6 +4,10 @@
 #include "AdvertDataHelpers.h"
 #include <RTClib.h>
 
+#ifndef BRIDGE_MAX_BAUD
+#define BRIDGE_MAX_BAUD 115200
+#endif
+
 // Believe it or not, this std C function is busted on some platforms!
 static uint32_t _atoi(const char* sp) {
   uint32_t n = 0;
@@ -102,7 +106,7 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     _prefs->bridge_enabled = constrain(_prefs->bridge_enabled, 0, 1);
     _prefs->bridge_delay = constrain(_prefs->bridge_delay, 0, 10000);
     _prefs->bridge_pkt_src = constrain(_prefs->bridge_pkt_src, 0, 1);
-    _prefs->bridge_baud = constrain(_prefs->bridge_baud, 9600, 115200);
+    _prefs->bridge_baud = constrain(_prefs->bridge_baud, 9600, BRIDGE_MAX_BAUD);
     _prefs->bridge_channel = constrain(_prefs->bridge_channel, 0, 14);
 
     _prefs->powersaving_enabled = constrain(_prefs->powersaving_enabled, 0, 1);
@@ -603,13 +607,13 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
 #ifdef WITH_RS232_BRIDGE
       } else if (memcmp(config, "bridge.baud ", 12) == 0) {
         uint32_t baud = atoi(&config[12]);
-        if (baud >= 9600 && baud <= 115200) {
+        if (baud >= 9600 && baud <= BRIDGE_MAX_BAUD) {
           _prefs->bridge_baud = (uint32_t)baud;
           _callbacks->restartBridge();
           savePrefs();
           strcpy(reply, "OK");
         } else {
-          strcpy(reply, "Error: baud rate must be between 9600-115200");
+          sprintf(reply, "Error: baud rate must be between 9600-%d",BRIDGE_MAX_BAUD);
         }
 #endif
 #ifdef WITH_ESPNOW_BRIDGE
