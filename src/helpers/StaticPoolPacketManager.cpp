@@ -9,7 +9,6 @@ PacketQueue::PacketQueue(int max_entries) {
 }
 
 int PacketQueue::countBefore(uint32_t now) const {
-  if (now == 0xFFFFFFFF) return _num;  // sentinel: count all entries regardless of schedule
   int n = 0;
   for (int j = 0; j < _num; j++) {
     if ((int32_t)(_schedule_table[j] - now) > 0) continue;   // scheduled for future... ignore for now
@@ -96,6 +95,10 @@ mesh::Packet* StaticPoolPacketManager::getNextOutbound(uint32_t now) {
 
 int  StaticPoolPacketManager::getOutboundCount(uint32_t now) const {
   return send_queue.countBefore(now);
+}
+
+int  StaticPoolPacketManager::getOutboundTotal() const {
+  return send_queue.count();
 }
 
 int StaticPoolPacketManager::getFreeCount() const {

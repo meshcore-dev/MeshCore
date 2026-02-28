@@ -89,7 +89,8 @@ public:
 
   virtual void queueOutbound(Packet* packet, uint8_t priority, uint32_t scheduled_for) = 0;
   virtual Packet* getNextOutbound(uint32_t now) = 0;    // by priority
-  virtual int getOutboundCount(uint32_t now) const = 0;  // pass now=0xFFFFFFFF to count all
+  virtual int getOutboundCount(uint32_t now) const = 0;
+  virtual int getOutboundTotal() const = 0;
   virtual int getFreeCount() const = 0;
   virtual Packet* getOutboundByIdx(int i) = 0;
   virtual Packet* removeOutboundByIdx(int i) = 0;
