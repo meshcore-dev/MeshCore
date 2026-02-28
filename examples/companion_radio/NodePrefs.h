@@ -28,6 +28,7 @@ struct NodePrefs {  // persisted to file
   uint8_t  gps_enabled;      // GPS enabled flag (0=disabled, 1=enabled)
   uint32_t gps_interval;     // GPS read interval in seconds
   uint8_t autoadd_config;    // bitmask for auto-add contacts config
+  uint8_t sx126x_rx_boosted_gain; // SX126x RX boosted gain mode (0=power saving, 1=boosted)
   uint8_t client_repeat;
   uint8_t path_hash_mode;    // which path mode to use when sending
 };

@@ -2,7 +2,7 @@
 
 #include <RadioLib.h>
 
-#define SX126X_IRQ_HEADER_VALID                     0b0000010000  //  4     4     valid LoRa header received
+#define SX126X_IRQ_HEADER_VALID                0b0000010000  //  4     4     valid LoRa header received
 #define SX126X_IRQ_PREAMBLE_DETECTED           0x04
 
 class CustomSX1262 : public SX1262 {
@@ -91,5 +91,11 @@ class CustomSX1262 : public SX1262 {
       uint16_t irq = getIrqFlags();
       bool detected = (irq & SX126X_IRQ_HEADER_VALID) || (irq & SX126X_IRQ_PREAMBLE_DETECTED);
       return detected;
+    }
+
+    bool getRxBoostedGainMode() {
+      uint8_t rxGain = 0;
+      readRegister(RADIOLIB_SX126X_REG_RX_GAIN, &rxGain, 1);
+      return (rxGain == RADIOLIB_SX126X_RX_GAIN_BOOSTED);
     }
 };

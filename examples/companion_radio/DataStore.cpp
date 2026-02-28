@@ -229,6 +229,7 @@ void DataStore::loadPrefsInt(const char *filename, NodePrefs& _prefs, double& no
     file.read((uint8_t *)&_prefs.gps_enabled, sizeof(_prefs.gps_enabled));                 // 85
     file.read((uint8_t *)&_prefs.gps_interval, sizeof(_prefs.gps_interval));               // 86
     file.read((uint8_t *)&_prefs.autoadd_config, sizeof(_prefs.autoadd_config));           // 87
+    file.read((uint8_t *)&_prefs.sx126x_rx_boosted_gain, sizeof(_prefs.sx126x_rx_boosted_gain)); // 88
 
     file.close();
   }
@@ -265,6 +266,7 @@ void DataStore::savePrefs(const NodePrefs& _prefs, double node_lat, double node_
     file.write((uint8_t *)&_prefs.gps_enabled, sizeof(_prefs.gps_enabled));                 // 85
     file.write((uint8_t *)&_prefs.gps_interval, sizeof(_prefs.gps_interval));               // 86
     file.write((uint8_t *)&_prefs.autoadd_config, sizeof(_prefs.autoadd_config));           // 87
+    file.write((uint8_t *)&_prefs.sx126x_rx_boosted_gain, sizeof(_prefs.sx126x_rx_boosted_gain)); // 88
 
     file.close();
   }

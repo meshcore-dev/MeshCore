@@ -858,6 +858,14 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
 
   _prefs.adc_multiplier = 0.0f; // 0.0f means use default board multiplier
 
+#if defined(USE_SX1262) || defined(USE_SX1268)
+#ifdef SX126X_RX_BOOSTED_GAIN
+  _prefs.sx126x_rx_boosted_gain = SX126X_RX_BOOSTED_GAIN;
+#else
+  _prefs.sx126x_rx_boosted_gain = 1; // enabled by default;
+#endif
+#endif
+
   pending_discover_tag = 0;
   pending_discover_until = 0;
 }
@@ -879,6 +887,12 @@ void MyMesh::begin(FILESYSTEM *fs) {
 
   radio_set_params(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
   radio_set_tx_power(_prefs.tx_power_dbm);
+
+#if defined(USE_SX1262) || defined(USE_SX1268)
+  radio_set_rx_boosted_gain_mode(_prefs.sx126x_rx_boosted_gain);
+  MESH_DEBUG_PRINTLN("SX126x RX Boosted Gain Mode: %s",
+                     radio_get_rx_boosted_gain_mode() ? "Enabled" : "Disabled");
+#endif
 
   updateAdvertTimer();
   updateFloodAdvertTimer();
