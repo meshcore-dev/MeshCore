@@ -20,6 +20,8 @@ class CustomLR1110 : public LR1110 {
       return len;
     }
     
+    float getFreqMHz() const { return freqMHz; }
+
     bool isReceiving() {
       uint16_t irq = getIrqStatus();
       bool detected = ((irq & RADIOLIB_LR11X0_IRQ_SYNC_WORD_HEADER_VALID) || (irq & RADIOLIB_LR11X0_IRQ_PREAMBLE_DETECTED));

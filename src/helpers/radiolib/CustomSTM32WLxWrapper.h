@@ -2,6 +2,7 @@
 
 #include "CustomSTM32WLx.h"
 #include "RadioLibWrappers.h"
+#include "SX126xReset.h"
 #include <math.h>
 
 class CustomSTM32WLxWrapper : public RadioLibWrapper {
@@ -20,4 +21,6 @@ public:
     int sf = ((CustomSTM32WLx *)_radio)->spreadingFactor;
     return packetScoreInt(snr, sf, packet_len);
   }
+
+  void doResetAGC() override { sx126xResetAGC((SX126x *)_radio); }
 };
