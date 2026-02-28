@@ -331,6 +331,15 @@ bool EnvironmentSensorManager::begin() {
   }
   #endif
 
+  #ifdef ENV_INCLUDE_ONEWIRE
+  OneWire_initialized = _oneWireHub.begin();
+  if (OneWire_initialized) {
+    MESH_DEBUG_PRINTLN("OneWire SensorHub initialized with %d probe(s)", _oneWireHub.getNumPids());
+  } else {
+    MESH_DEBUG_PRINTLN("OneWire SensorHub: No probes found");
+  }
+  #endif
+
   return true;
 }
 
@@ -480,6 +489,27 @@ bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, Cayen
         telemetry.addTemperature(TELEM_CHANNEL_SELF, BMP085.readTemperature());
         telemetry.addBarometricPressure(TELEM_CHANNEL_SELF, BMP085.readPressure() / 100);
         telemetry.addAltitude(TELEM_CHANNEL_SELF, BMP085.readAltitude(TELEM_BMP085_SEALEVELPRESSURE_HPA * 100));
+    }
+    #endif
+
+    #ifdef ENV_INCLUDE_ONEWIRE
+    if (OneWire_initialized) {
+      bool has_onewire_data = _oneWireHub.hasVoltage() || _oneWireHub.hasCurrent() || _oneWireHub.hasBatteryPercent() || _oneWireHub.hasTemperature();
+      if (has_onewire_data) {
+        MESH_DEBUG_PRINTLN("OneWire Telemetry ch=%d: V=%d C=%d SOC=%d T=%d",
+          next_available_channel,
+          _oneWireHub.hasVoltage(), _oneWireHub.hasCurrent(),
+          _oneWireHub.hasBatteryPercent(), _oneWireHub.hasTemperature());
+        if (_oneWireHub.hasVoltage())
+          telemetry.addVoltage(next_available_channel, _oneWireHub.getVoltage());
+        if (_oneWireHub.hasCurrent())
+          telemetry.addCurrent(next_available_channel, _oneWireHub.getCurrent());
+        if (_oneWireHub.hasBatteryPercent())
+          telemetry.addPercentage(next_available_channel, _oneWireHub.getBatteryPercent());
+        if (_oneWireHub.hasTemperature())
+          telemetry.addTemperature(next_available_channel, _oneWireHub.getTemperature());
+        next_available_channel++;
+      }
     }
     #endif
 
@@ -702,11 +732,13 @@ void EnvironmentSensorManager::stop_gps() {
   MESH_DEBUG_PRINTLN("Stop GPS is N/A on this board. Actual GPS state unchanged");
   #endif
 }
+#endif // ENV_INCLUDE_GPS
 
+#if ENV_INCLUDE_GPS || ENV_INCLUDE_ONEWIRE
 void EnvironmentSensorManager::loop() {
+  #if ENV_INCLUDE_GPS
   static long next_gps_update = 0;
 
-  #if ENV_INCLUDE_GPS
   _location->loop();
   if (millis() > next_gps_update) {
 
@@ -730,6 +762,12 @@ void EnvironmentSensorManager::loop() {
     #endif
     }
     next_gps_update = millis() + (gps_update_interval_sec * 1000);
+  }
+  #endif
+
+  #ifdef ENV_INCLUDE_ONEWIRE
+  if (OneWire_initialized) {
+    _oneWireHub.loop();
   }
   #endif
 }
