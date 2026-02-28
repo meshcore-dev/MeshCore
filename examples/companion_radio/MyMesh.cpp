@@ -650,8 +650,10 @@ void MyMesh::onContactResponse(const ContactInfo &contact, const uint8_t *data, 
     out_frame[i++] = 0; // reserved
     memcpy(&out_frame[i], contact.id.pub_key, 6);
     i += 6; // pub_key_prefix
-    memcpy(&out_frame[i], &data[4], len - 4);
-    i += (len - 4);
+    int copy_len = len - 4;
+    if (copy_len > MAX_FRAME_SIZE - i) copy_len = MAX_FRAME_SIZE - i;
+    memcpy(&out_frame[i], &data[4], copy_len);
+    i += copy_len;
     _serial->writeFrame(out_frame, i);
   } else if (len > 4 && tag == pending_telemetry) {  // check for matching response tag
     pending_telemetry = 0;
@@ -661,8 +663,10 @@ void MyMesh::onContactResponse(const ContactInfo &contact, const uint8_t *data, 
     out_frame[i++] = 0; // reserved
     memcpy(&out_frame[i], contact.id.pub_key, 6);
     i += 6; // pub_key_prefix
-    memcpy(&out_frame[i], &data[4], len - 4);
-    i += (len - 4);
+    int copy_len = len - 4;
+    if (copy_len > MAX_FRAME_SIZE - i) copy_len = MAX_FRAME_SIZE - i;
+    memcpy(&out_frame[i], &data[4], copy_len);
+    i += copy_len;
     _serial->writeFrame(out_frame, i);
   } else if (len > 4 && tag == pending_req) {  // check for matching response tag
     pending_req = 0;
@@ -672,8 +676,10 @@ void MyMesh::onContactResponse(const ContactInfo &contact, const uint8_t *data, 
     out_frame[i++] = 0; // reserved
     memcpy(&out_frame[i], &tag, 4);   // app needs to match this to RESP_CODE_SENT.tag
     i += 4;
-    memcpy(&out_frame[i], &data[4], len - 4);
-    i += (len - 4);
+    int copy_len = len - 4;
+    if (copy_len > MAX_FRAME_SIZE - i) copy_len = MAX_FRAME_SIZE - i;
+    memcpy(&out_frame[i], &data[4], copy_len);
+    i += copy_len;
     _serial->writeFrame(out_frame, i);
   }
 }
