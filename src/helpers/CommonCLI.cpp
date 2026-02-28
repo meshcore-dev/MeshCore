@@ -749,7 +749,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         _prefs->advert_loc_policy = ADVERT_LOC_SHARE;
         savePrefs();
         strcpy(reply, "ok");
-      } else if (memcmp(command+11, "prefs", 4) == 0) {
+      } else if (memcmp(command+11, "prefs", 5) == 0) {
         _prefs->advert_loc_policy = ADVERT_LOC_PREFS;
         savePrefs();
         strcpy(reply, "ok");
