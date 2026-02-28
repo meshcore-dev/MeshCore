@@ -802,6 +802,7 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
   next_ack_idx = 0;
   sign_data = NULL;
   dirty_contacts_expiry = 0;
+  next_nonce_persist = 0;
   memset(advert_paths, 0, sizeof(advert_paths));
   memset(send_scope.key, 0, sizeof(send_scope.key));
 
@@ -878,6 +879,16 @@ void MyMesh::begin(bool has_display) {
   resetContacts();
   _store->loadContacts(this);
   bootstrapRTCfromContacts();
+
+  // Load persisted AEAD nonces and apply boot bump if needed
+  _store->loadNonces(this);
+  bool dirty_reset = wasDirtyReset(board);
+  finalizeNonceLoad(dirty_reset);
+  if (dirty_reset) saveNonces();  // persist bumped nonces immediately
+  next_nonce_persist = futureMillis(60000);
+
+  _store->loadSessionKeys(this);
+
   addChannel("Public", PUBLIC_GROUP_PSK); // pre-configure Andy's public channel
   _store->loadChannels(this);
 
@@ -1325,6 +1336,8 @@ void MyMesh::handleCmdFrame(size_t len) {
     if (dirty_contacts_expiry) { // is there are pending dirty contacts write needed?
       saveContacts();
     }
+    if (isNonceDirty()) saveNonces();
+    saveSessionKeys();
     board.reboot();
   } else if (cmd_frame[0] == CMD_GET_BATT_AND_STORAGE) {
     uint8_t reply[11];
@@ -1975,7 +1988,22 @@ void MyMesh::checkCLIRescueCmd() {
 
       }
 
+    } else if (memcmp(cli_command, "rekey ", 6) == 0) {
+      const char* name_prefix = &cli_command[6];
+      ContactInfo* c = searchContactsByPrefix(name_prefix);
+      if (c) {
+        if (initiateSessionKeyNegotiation(*c)) {
+          Serial.print("  Session key negotiation started with: ");
+          Serial.println(c->name);
+        } else {
+          Serial.println("  Error: failed to initiate (no AEAD or pool full)");
+        }
+      } else {
+        Serial.println("  Error: contact not found");
+      }
     } else if (strcmp(cli_command, "reboot") == 0) {
+      if (isNonceDirty()) saveNonces();
+      saveSessionKeys();
       board.reboot();  // doesn't return
     } else {
       Serial.println("  Error: unknown command");
@@ -2012,6 +2040,14 @@ void MyMesh::checkSerialInterface() {
   }
 }
 
+bool MyMesh::isSessionKeyInRAM(const uint8_t* pub_key_prefix) {
+  return isSessionKeyInRAMPool(pub_key_prefix);
+}
+
+bool MyMesh::isSessionKeyRemoved(const uint8_t* pub_key_prefix) {
+  return isSessionKeyRemovedFromPool(pub_key_prefix);
+}
+
 void MyMesh::loop() {
   BaseChatMesh::loop();
 
@@ -2025,6 +2061,17 @@ void MyMesh::loop() {
   if (dirty_contacts_expiry && millisHasNowPassed(dirty_contacts_expiry)) {
     saveContacts();
     dirty_contacts_expiry = 0;
+  }
+
+  // periodic AEAD nonce and session key persistence
+  if (next_nonce_persist && millisHasNowPassed(next_nonce_persist)) {
+    if (isNonceDirty()) {
+      saveNonces();
+    }
+    if (isSessionKeysDirty()) {
+      saveSessionKeys();
+    }
+    next_nonce_persist = futureMillis(60000);
   }
 
 #ifdef DISPLAY_CLASS

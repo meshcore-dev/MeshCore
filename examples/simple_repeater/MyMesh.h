@@ -102,6 +102,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   unsigned long pending_discover_until;
   bool region_load_active;
   unsigned long dirty_contacts_expiry;
+  unsigned long next_nonce_persist;
 #if MAX_NEIGHBOURS
   NeighbourInfo neighbours[MAX_NEIGHBOURS];
 #endif
@@ -167,6 +168,14 @@ protected:
   void onAnonDataRecv(mesh::Packet* packet, const uint8_t* secret, const mesh::Identity& sender, uint8_t* data, size_t len) override;
   int searchPeersByHash(const uint8_t* hash) override;
   void getPeerSharedSecret(uint8_t* dest_secret, int peer_idx) override;
+  uint8_t getPeerFlags(int peer_idx) override;
+  uint16_t getPeerNextAeadNonce(int peer_idx) override;
+  void onPeerAeadDetected(int peer_idx) override;
+  const uint8_t* getPeerSessionKey(int peer_idx) override;
+  const uint8_t* getPeerPrevSessionKey(int peer_idx) override;
+  void onSessionKeyDecryptSuccess(int peer_idx) override;
+  const uint8_t* getPeerEncryptionKey(int peer_idx, const uint8_t* static_secret) override;
+  uint16_t getPeerEncryptionNonce(int peer_idx) override;
   void onAdvertRecv(mesh::Packet* packet, const mesh::Identity& id, uint32_t timestamp, const uint8_t* app_data, size_t app_data_len);
   void onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender_idx, const uint8_t* secret, uint8_t* data, size_t len) override;
   bool onPeerPathRecv(mesh::Packet* packet, int sender_idx, const uint8_t* secret, uint8_t* path, uint8_t path_len, uint8_t extra_type, uint8_t* extra, uint8_t extra_len) override;
@@ -187,6 +196,9 @@ public:
 
   void savePrefs() override {
     _cli.savePrefs(_fs);
+  }
+  void onBeforeReboot() override {
+    if (acl.isNonceDirty()) acl.saveNonces();
   }
 
   void applyTempRadioParams(float freq, float bw, uint8_t sf, uint8_t cr, int timeout_mins) override;

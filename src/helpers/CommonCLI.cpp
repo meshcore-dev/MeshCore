@@ -186,22 +186,27 @@ void CommonCLI::savePrefs() {
 uint8_t CommonCLI::buildAdvertData(uint8_t node_type, uint8_t* app_data) {
   if (_prefs->advert_loc_policy == ADVERT_LOC_NONE) {
     AdvertDataBuilder builder(node_type, _prefs->node_name);
+    builder.setFeat1(FEAT1_AEAD_SUPPORT);
     return builder.encodeTo(app_data);
   } else if (_prefs->advert_loc_policy == ADVERT_LOC_SHARE) {
     AdvertDataBuilder builder(node_type, _prefs->node_name, _sensors->node_lat, _sensors->node_lon);
+    builder.setFeat1(FEAT1_AEAD_SUPPORT);
     return builder.encodeTo(app_data);
   } else {
     AdvertDataBuilder builder(node_type, _prefs->node_name, _prefs->node_lat, _prefs->node_lon);
+    builder.setFeat1(FEAT1_AEAD_SUPPORT);
     return builder.encodeTo(app_data);
   }
 }
 
 void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, char* reply) {
     if (memcmp(command, "reboot", 6) == 0) {
+      _callbacks->onBeforeReboot();
       _board->reboot();  // doesn't return
     } else if (memcmp(command, "clkreboot", 9) == 0) {
       // Reset clock
       getRTCClock()->setCurrentTime(1715770351);  // 15 May 2024, 8:50pm
+      _callbacks->onBeforeReboot();
       _board->reboot();  // doesn't return
     } else if (memcmp(command, "advert", 6) == 0) {
       // send flood advert
@@ -807,6 +812,8 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
       _callbacks->formatRadioStatsReply(reply);
     } else if (sender_timestamp == 0 && memcmp(command, "stats-core", 10) == 0 && (command[10] == 0 || command[10] == ' ')) {
       _callbacks->formatStatsReply(reply);
+    } else if (memcmp(command, "rekey", 5) == 0) {
+      strcpy(reply, "rekey is client-initiated");
     } else {
       strcpy(reply, "Unknown command");
     }

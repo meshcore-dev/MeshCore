@@ -59,6 +59,9 @@ public:
   const char* getNodeName() { return _prefs.node_name; }
   NodePrefs* getNodePrefs() { return &_prefs; }
   void savePrefs() override { _cli.savePrefs(_fs); }
+  void onBeforeReboot() override {
+    if (acl.isNonceDirty()) acl.saveNonces();
+  }
   bool formatFileSystem() override;
   void sendSelfAdvertisement(int delay_millis, bool flood) override;
   void updateAdvertTimer() override;
@@ -123,6 +126,14 @@ protected:
   void onAnonDataRecv(mesh::Packet* packet, const uint8_t* secret, const mesh::Identity& sender, uint8_t* data, size_t len) override;
   int searchPeersByHash(const uint8_t* hash) override;
   void getPeerSharedSecret(uint8_t* dest_secret, int peer_idx) override;
+  uint8_t getPeerFlags(int peer_idx) override;
+  uint16_t getPeerNextAeadNonce(int peer_idx) override;
+  void onPeerAeadDetected(int peer_idx) override;
+  const uint8_t* getPeerSessionKey(int peer_idx) override;
+  const uint8_t* getPeerPrevSessionKey(int peer_idx) override;
+  void onSessionKeyDecryptSuccess(int peer_idx) override;
+  const uint8_t* getPeerEncryptionKey(int peer_idx, const uint8_t* static_secret) override;
+  uint16_t getPeerEncryptionNonce(int peer_idx) override;
   void onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender_idx, const uint8_t* secret, uint8_t* data, size_t len) override;
   bool onPeerPathRecv(mesh::Packet* packet, int sender_idx, const uint8_t* secret, uint8_t* path, uint8_t path_len, uint8_t extra_type, uint8_t* extra, uint8_t extra_len) override;
   void onControlDataRecv(mesh::Packet* packet) override;
@@ -137,6 +148,7 @@ private:
   CommonCLI _cli;
   uint8_t reply_data[MAX_PACKET_PAYLOAD];
   unsigned long dirty_contacts_expiry;
+  unsigned long next_nonce_persist;
   CayenneLPP telemetry;
   uint32_t last_read_time;
   int matching_peer_indexes[MAX_SEARCH_RESULTS];

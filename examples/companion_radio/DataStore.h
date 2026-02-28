@@ -11,6 +11,14 @@ public:
   virtual bool getContactForSave(uint32_t idx, ContactInfo& contact) =0;
   virtual bool onChannelLoaded(uint8_t channel_idx, const ChannelDetails& ch) =0;
   virtual bool getChannelForSave(uint8_t channel_idx, ChannelDetails& ch) =0;
+  virtual bool onNonceLoaded(const uint8_t* pub_key_prefix, uint16_t nonce) { return false; }
+  virtual bool getNonceForSave(int idx, uint8_t* pub_key_prefix, uint16_t* nonce) { return false; }
+  virtual bool onSessionKeyLoaded(const uint8_t* pub_key_prefix, uint8_t flags, uint16_t nonce,
+                                   const uint8_t* session_key, const uint8_t* prev_session_key) { return false; }
+  virtual bool getSessionKeyForSave(int idx, uint8_t* pub_key_prefix, uint8_t* flags, uint16_t* nonce,
+                                     uint8_t* session_key, uint8_t* prev_session_key) { return false; }
+  virtual bool isSessionKeyInRAM(const uint8_t* pub_key_prefix) { return false; }
+  virtual bool isSessionKeyRemoved(const uint8_t* pub_key_prefix) { return false; }
 };
 
 class DataStore {
@@ -39,6 +47,12 @@ public:
   void saveContacts(DataStoreHost* host);
   void loadChannels(DataStoreHost* host);
   void saveChannels(DataStoreHost* host);
+  void loadNonces(DataStoreHost* host);
+  bool saveNonces(DataStoreHost* host);
+  void loadSessionKeys(DataStoreHost* host);
+  bool saveSessionKeys(DataStoreHost* host);
+  bool loadSessionKeyByPrefix(const uint8_t* prefix,
+      uint8_t* flags, uint16_t* nonce, uint8_t* session_key, uint8_t* prev_session_key);
   void migrateToSecondaryFS();
   uint8_t getBlobByKey(const uint8_t key[], int key_len, uint8_t dest_buf[]);
   bool putBlobByKey(const uint8_t key[], int key_len, const uint8_t src_buf[], uint8_t len);
