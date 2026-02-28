@@ -92,10 +92,10 @@
 #define RESP_CODE_AUTOADD_CONFIG      25
 #define RESP_ALLOWED_REPEAT_FREQ      26
 
-#define SEND_TIMEOUT_BASE_MILLIS        500
-#define FLOOD_SEND_TIMEOUT_FACTOR       16.0f
-#define DIRECT_SEND_PERHOP_FACTOR       6.0f
-#define DIRECT_SEND_PERHOP_EXTRA_MILLIS 250
+#define SEND_TIMEOUT_BASE_MILLIS        1000
+#define FLOOD_SEND_TIMEOUT_FACTOR       32.0f
+#define DIRECT_SEND_PERHOP_FACTOR       10.0f
+#define DIRECT_SEND_PERHOP_EXTRA_MILLIS 500
 #define LAZY_CONTACTS_WRITE_DELAY       5000
 
 #define PUBLIC_GROUP_PSK                "izOH6cXN6mrJ5e26oRXNcg=="
@@ -779,8 +779,8 @@ void MyMesh::onTraceRecv(mesh::Packet *packet, uint32_t tag, uint32_t auth_code,
   }
 }
 
-uint32_t MyMesh::calcFloodTimeoutMillisFor(uint32_t pkt_airtime_millis) const {
-  return SEND_TIMEOUT_BASE_MILLIS + (FLOOD_SEND_TIMEOUT_FACTOR * pkt_airtime_millis);
+uint32_t MyMesh::calcFloodTimeoutMillisFor(uint32_t pkt_airtime_millis, uint8_t attempt) const {
+  return (SEND_TIMEOUT_BASE_MILLIS + (FLOOD_SEND_TIMEOUT_FACTOR * pkt_airtime_millis)) * (attempt + 1);
 }
 uint32_t MyMesh::calcDirectTimeoutMillisFor(uint32_t pkt_airtime_millis, uint8_t path_len) const {
   uint8_t path_hash_count = path_len & 63;
