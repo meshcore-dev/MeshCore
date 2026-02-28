@@ -13,7 +13,7 @@ public:
   mesh::Packet* get(uint32_t now);
   bool add(mesh::Packet* packet, uint8_t priority, uint32_t scheduled_for);
   int count() const { return _num; }
-  int countBefore(uint32_t now) const;
+  int countBefore(uint32_t now) const;  // pass now=0xFFFFFFFF to count all
   mesh::Packet* itemAt(int i) const { return _table[i]; }
   mesh::Packet* removeByIdx(int i);
 };
