@@ -1260,6 +1260,9 @@ void MyMesh::handleCmdFrame(size_t len) {
       savePrefs();
 
       radio_set_params(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
+      //You need to clear the old registers, otherwise the LoRa module won't receive any information the first time.
+      _radio->onSendFinished();
+      _radio->startRecv();
       MESH_DEBUG_PRINTLN("OK: CMD_SET_RADIO_PARAMS: f=%d, bw=%d, sf=%d, cr=%d", freq, bw, (uint32_t)sf,
                          (uint32_t)cr);
 
