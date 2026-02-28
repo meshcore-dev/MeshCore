@@ -34,6 +34,11 @@ void IkokaNrf52Board::begin() {
   digitalWrite(P_LORA_TX_LED, HIGH);
 #endif
 
+#ifdef PIN_STATUS_LED
+  pinMode(PIN_STATUS_LED, OUTPUT);
+  digitalWrite(PIN_STATUS_LED, HIGH);
+#endif
+
   delay(10); // give sx1262 some time to power up
 }
 
