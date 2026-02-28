@@ -30,13 +30,14 @@ public:
   bool isInRecvMode() const override;
   bool isChannelActive();
 
-  bool isReceiving() override { 
+  bool isReceiving() override {
     if (isReceivingPacket()) return true;
 
     return isChannelActive();
   }
 
   virtual float getCurrentRSSI() =0;
+  virtual int16_t performChannelScan();
 
   int getNoiseFloor() const override { return _noise_floor; }
   void triggerNoiseFloorCalibrate(int threshold) override;
