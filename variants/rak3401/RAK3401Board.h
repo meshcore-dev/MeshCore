@@ -38,13 +38,6 @@ public:
     return "RAK 3401";
   }
 
-#ifdef P_LORA_PA_EN
-  void onBeforeTransmit() override {
-    digitalWrite(P_LORA_PA_EN, HIGH);  // Enable PA before transmission
-  }
-
-  void onAfterTransmit() override {
-    digitalWrite(P_LORA_PA_EN, LOW);   // Disable PA after transmission to save power
-  }
-#endif
+  // TX/RX switching is handled by SX1262 DIO2 -> SKY66122 CTX (hardware-timed).
+  // No onBeforeTransmit/onAfterTransmit overrides needed.
 };
