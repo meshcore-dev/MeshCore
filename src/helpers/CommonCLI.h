@@ -76,6 +76,9 @@ public:
   virtual void formatStatsReply(char *reply) = 0;
   virtual void formatRadioStatsReply(char *reply) = 0;
   virtual void formatPacketStatsReply(char *reply) = 0;
+  virtual void formatExtPowerStatsReply(char *reply) {
+    strcpy(reply, "{\"err\":\"No external power monitoring board detected\"}");
+  };
   virtual mesh::LocalIdentity& getSelfId() = 0;
   virtual void saveIdentity(const mesh::LocalIdentity& new_id) = 0;
   virtual void clearStats() = 0;

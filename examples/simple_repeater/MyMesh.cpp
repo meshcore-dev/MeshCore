@@ -1026,8 +1026,14 @@ void MyMesh::formatRadioStatsReply(char *reply) {
 }
 
 void MyMesh::formatPacketStatsReply(char *reply) {
-  StatsFormatHelper::formatPacketStats(reply, radio_driver, getNumSentFlood(), getNumSentDirect(), 
+  StatsFormatHelper::formatPacketStats(reply, radio_driver, getNumSentFlood(), getNumSentDirect(),
                                        getNumRecvFlood(), getNumRecvDirect());
+}
+
+void MyMesh::formatExtPowerStatsReply(char *reply) {
+  if (!sensors.formatExtPowerStats(reply)) {
+    strcpy(reply, "{\"err\":\"No external power monitoring board detected\"}");
+  }
 }
 
 void MyMesh::saveIdentity(const mesh::LocalIdentity &new_id) {
