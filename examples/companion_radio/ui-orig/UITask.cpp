@@ -57,6 +57,7 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
 #ifdef PIN_BUZZER
   buzzer.begin();
   buzzer.quiet(_node_prefs->buzzer_quiet);
+  if (!buzzer.isQuiet()) buzzer.startup();
 #endif
 
   // Initialize digital button if available
