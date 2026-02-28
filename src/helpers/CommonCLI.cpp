@@ -4,6 +4,10 @@
 #include "AdvertDataHelpers.h"
 #include <RTClib.h>
 
+#ifndef LORA_MAX_TX_POWER
+#define LORA_MAX_TX_POWER LORA_TX_POWER
+#endif
+
 // Believe it or not, this std C function is busted on some platforms!
 static uint32_t _atoi(const char* sp) {
   uint32_t n = 0;
@@ -93,7 +97,7 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     _prefs->bw = constrain(_prefs->bw, 7.8f, 500.0f);
     _prefs->sf = constrain(_prefs->sf, 5, 12);
     _prefs->cr = constrain(_prefs->cr, 5, 8);
-    _prefs->tx_power_dbm = constrain(_prefs->tx_power_dbm, -9, 30);
+    _prefs->tx_power_dbm = constrain(_prefs->tx_power_dbm, -9, LORA_MAX_TX_POWER);
     _prefs->multi_acks = constrain(_prefs->multi_acks, 0, 1);
     _prefs->adc_multiplier = constrain(_prefs->adc_multiplier, 0.0f, 10.0f);
     _prefs->path_hash_mode = constrain(_prefs->path_hash_mode, 0, 2);   // NOTE: mode 3 reserved for future
@@ -572,10 +576,15 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
           strcpy(reply, "Error, must be 0,1, or 2");
         }
       } else if (memcmp(config, "tx ", 3) == 0) {
-        _prefs->tx_power_dbm = atoi(&config[3]);
-        savePrefs();
-        _callbacks->setTxPower(_prefs->tx_power_dbm);
-        strcpy(reply, "OK");
+	      int8_t tx = atoi(&config[3]);
+        if ((tx < -9) || (tx > LORA_MAX_TX_POWER)) {
+          sprintf(reply, "Error: tx must be between -9 to %d", LORA_MAX_TX_POWER);
+        } else {
+          _prefs->tx_power_dbm = tx;
+          savePrefs();
+          _callbacks->setTxPower(_prefs->tx_power_dbm);
+          strcpy(reply, "OK");
+        }
       } else if (sender_timestamp == 0 && memcmp(config, "freq ", 5) == 0) {
         _prefs->freq = atof(&config[5]);
         savePrefs();
