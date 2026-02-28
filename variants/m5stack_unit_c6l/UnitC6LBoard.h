@@ -58,10 +58,8 @@ private:
     // Uses Wire (already on SDA=10, SCL=8 from ESP32Board::begin)
 
     if (!i2cProbe()) {
-      Serial.printf("C6L: ERROR - PI4IOE5V6408 not found at 0x%02X\n", PI4IO_ADDR);
       return;
     }
-    Serial.println("C6L: PI4IOE5V6408 found, initializing...");
 
     // Reset expander
     i2cWrite(PI4IO_REG_CHIP_RESET, 0xFF);
@@ -103,9 +101,5 @@ private:
     out |= (1 << 6);
     i2cWrite(PI4IO_REG_OUT_SET, out);
 
-    // Verify
-    uint8_t verify = i2cRead(PI4IO_REG_OUT_SET);
-    Serial.printf("C6L: OUT_SET=0x%02X (expect 0xC0: P6=RF_SW, P7=LORA_RST)\n", verify);
-    Serial.printf("C6L: IO_DIR=0x%02X (expect 0xC0: P6,P7 outputs)\n", i2cRead(PI4IO_REG_IO_DIR));
   }
 };
