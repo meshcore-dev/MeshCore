@@ -161,6 +161,10 @@ void SerialBLEInterface::begin(const char* prefix, char* name, uint32_t pin_code
   } else {
     BLE_DEBUG_PRINTLN("Failed to set PPCP: %lu", err_code);
   }
+
+  #ifdef DISABLE_BLUE_LED
+    Bluefruit.autoConnLed(false);
+  #endif
   
   Bluefruit.setTxPower(BLE_TX_POWER);
   Bluefruit.setName(dev_name);
