@@ -43,10 +43,12 @@ public:
 
 #ifdef PIN_USER_BTN
     while (digitalRead(PIN_USER_BTN) == LOW);
-    nrf_gpio_cfg_sense_input(digitalPinToInterrupt(g_ADigitalPinMap[PIN_USER_BTN]), NRF_GPIO_PIN_NOPULL, NRF_GPIO_PIN_SENSE_LOW);
+    // Keep pull-up enabled in system-off so the wake line doesn't float low.
+    nrf_gpio_cfg_sense_input(digitalPinToInterrupt(g_ADigitalPinMap[PIN_USER_BTN]), NRF_GPIO_PIN_PULLUP, NRF_GPIO_PIN_SENSE_LOW);
 #elif defined(PIN_BUTTON1)
     while (digitalRead(PIN_BUTTON1) == LOW);
-    nrf_gpio_cfg_sense_input(digitalPinToInterrupt(g_ADigitalPinMap[PIN_BUTTON1]), NRF_GPIO_PIN_NOPULL, NRF_GPIO_PIN_SENSE_LOW);
+    // Keep pull-up enabled in system-off so the wake line doesn't float low.
+    nrf_gpio_cfg_sense_input(digitalPinToInterrupt(g_ADigitalPinMap[PIN_BUTTON1]), NRF_GPIO_PIN_PULLUP, NRF_GPIO_PIN_SENSE_LOW);
 #endif
 
 #ifdef NRF52_POWER_MANAGEMENT
