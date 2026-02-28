@@ -707,7 +707,9 @@ void EnvironmentSensorManager::loop() {
   static long next_gps_update = 0;
 
   #if ENV_INCLUDE_GPS
-  _location->loop();
+  if (gps_active) {
+    _location->loop();
+  }
   if (millis() > next_gps_update) {
 
     if(gps_active){
