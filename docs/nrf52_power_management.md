@@ -42,7 +42,7 @@ Shutdown reason codes (stored in GPREGRET2):
 | RAK WisMesh Tag | No | No | No |
 | Heltec Mesh Solar | No | No | No |
 | LilyGo T-Echo / T-Echo Lite | No | No | No |
-| SenseCAP Solar | No | No | No |
+| SenseCAP Solar | Yes | Yes | Yes |
 | WIO Tracker L1 / L1 E-Ink | No | No | No |
 | WIO WM1110 | No | No | No |
 | Mesh Pocket | No | No | No |
