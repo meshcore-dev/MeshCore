@@ -48,18 +48,11 @@ private:
     return Wire.read();
   }
 
-  bool i2cProbe() {
-    Wire.beginTransmission(PI4IO_ADDR);
-    return Wire.endTransmission() == 0;
-  }
 
   void initGPIOExpander() {
     // Matches Meshtastic's c6l_init() in variant.cpp
     // Uses Wire (already on SDA=10, SCL=8 from ESP32Board::begin)
 
-    if (!i2cProbe()) {
-      return;
-    }
 
     // Reset expander
     i2cWrite(PI4IO_REG_CHIP_RESET, 0xFF);
