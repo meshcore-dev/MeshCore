@@ -32,6 +32,7 @@
 // Buttons
 #define PIN_BUTTON1             (13)
 #define PIN_BUTTON2             (20)
+#define PIN_USER_BTN            PIN_BUTTON1
 
 #define VBAT_ENABLE             (19)    // Output LOW to enable reading of the BAT voltage.
 
@@ -40,6 +41,11 @@
 #define AREF_VOLTAGE            (3.0F)
 #define ADC_MULTIPLIER          (3.0F) // 1M, 512k divider bridge
 #define ADC_RESOLUTION          (12)
+
+// nRF52 power management settings
+#define PWRMGT_VOLTAGE_BOOTLOCK (3300) // Won't boot below this voltage (mV)
+#define PWRMGT_LPCOMP_AIN       (7)    // AIN7 = P0.31 = BATTERY_PIN
+#define PWRMGT_LPCOMP_REFSEL    (2)    // 3/8 VDD (~3.38-3.71V)
 
 // Serial interfaces
 #define PIN_SERIAL1_RX          (7)

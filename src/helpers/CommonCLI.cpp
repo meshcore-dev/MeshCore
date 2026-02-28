@@ -194,7 +194,9 @@ uint8_t CommonCLI::buildAdvertData(uint8_t node_type, uint8_t* app_data) {
 }
 
 void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, char* reply) {
-    if (memcmp(command, "reboot", 6) == 0) {
+    if (memcmp(command, "poweroff", 8) == 0 || memcmp(command, "shutdown", 8) == 0) {
+      _board->powerOff();  // doesn't return
+    } else if (memcmp(command, "reboot", 6) == 0) {
       _board->reboot();  // doesn't return
     } else if (memcmp(command, "clkreboot", 9) == 0) {
       // Reset clock
