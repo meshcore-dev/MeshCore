@@ -1,4 +1,3 @@
-#include <esp_mac.h>
 #include "SerialBLEInterface.h"
 #include "esp_mac.h"
 
