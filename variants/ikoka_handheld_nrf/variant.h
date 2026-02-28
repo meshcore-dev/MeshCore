@@ -35,7 +35,9 @@ extern "C"
 #define LED_GREEN               (13)
 #define LED_BLUE                (12)
 
-#define LED_STATE_ON            (1)     // State when LED is litted
+#define LED_STATE_ON            (0)     // State when LED is litted
+
+#define PIN_STATUS_LED          LED_GREEN
 
 // Buttons
 #define PIN_BUTTON1             (PINS_COUNT)
