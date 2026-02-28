@@ -565,6 +565,7 @@ bool DataStore::putBlobByKey(const uint8_t key[], int key_len, const uint8_t src
 bool DataStore::deleteBlobByKey(const uint8_t key[], int key_len) {
   return true; // this is just a stub on NRF52/STM32 platforms
 }
+void DataStore::cleanOrphanBlobs(DataStoreHost* host) {}
 #else
 inline void makeBlobPath(const uint8_t key[], int key_len, char* path, size_t path_size) {
   char fname[18];
@@ -608,7 +609,39 @@ bool DataStore::deleteBlobByKey(const uint8_t key[], int key_len) {
   makeBlobPath(key, key_len, path, sizeof(path));
 
   _fs->remove(path);
-  
+
   return true; // return true even if file did not exist
+}
+
+void DataStore::cleanOrphanBlobs(DataStoreHost* host) {
+  if (_fs->exists("/bl/.cleaned")) return;
+  MESH_DEBUG_PRINTLN("Cleaning orphan blobs...");
+  File root = openRead("/bl");
+  if (root) {
+    for (File f = root.openNextFile(); f; f = root.openNextFile()) {
+      const char* name = f.name();
+      f.close();
+      if (name[0] == '.' || strlen(name) != 16) continue;
+      uint8_t file_key[8];
+      if (!mesh::Utils::fromHex(file_key, 8, name)) continue;
+      bool found = false;
+      ContactInfo c;
+      for (uint32_t i = 0; host->getContactForSave(i, c) && !found; i++) {
+        found = (memcmp(file_key, c.id.pub_key, 8) == 0);
+      }
+      if (!found) {
+        char path[24];
+        sprintf(path, "/bl/%s", name);
+        _fs->remove(path);
+      }
+    }
+    root.close();
+  }
+#if defined(ESP32)
+  File m = _fs->open("/bl/.cleaned", "w", true);
+#else
+  File m = _fs->open("/bl/.cleaned", "w");
+#endif
+  if (m) m.close();
 }
 #endif
