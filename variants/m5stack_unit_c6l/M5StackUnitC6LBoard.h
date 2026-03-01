@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include <Wire.h>
+#include <esp_ota_ops.h>
 #include <helpers/ESP32Board.h>
 
 // PI4IO I/O Expander (I2C address 0x43)
@@ -42,6 +43,52 @@ private:
     if (!Wire.available()) return false;
     *value = Wire.read();
     return true;
+  }
+
+  void checkOTASwitch() {
+    // If BOOT button (P0) is held during startup, switch to the other OTA partition
+    if (!isButtonPressed()) return;
+
+    // Button is pressed — wait a moment and confirm it's still held
+    delay(500);
+    if (!isButtonPressed()) return;
+
+    const esp_partition_t* running = esp_ota_get_running_partition();
+    const esp_partition_t* next = esp_ota_get_next_update_partition(running);
+    if (next == NULL) {
+      Serial.println("OTA switch: no other partition found");
+      return;
+    }
+
+    // Verify the other partition has valid firmware
+    esp_app_desc_t app_desc;
+    if (esp_ota_get_partition_description(next, &app_desc) != ESP_OK) {
+      Serial.println("OTA switch: other partition has no valid firmware");
+#ifdef PIN_BUZZER
+      // Error buzzer: three short beeps
+      for (int i = 0; i < 3; i++) {
+        tone(PIN_BUZZER, 200, 100);
+        delay(200);
+      }
+      noTone(PIN_BUZZER);
+#endif
+      return;
+    }
+
+    Serial.printf("OTA switch: %s -> %s\n", running->label, next->label);
+
+#ifdef PIN_BUZZER
+    // Confirmation buzzer: ascending two-tone
+    tone(PIN_BUZZER, 1000, 150);
+    delay(200);
+    tone(PIN_BUZZER, 1500, 150);
+    delay(200);
+    noTone(PIN_BUZZER);
+#endif
+
+    esp_ota_set_boot_partition(next);
+    delay(200);
+    ESP.restart();
   }
 
   void initIOExpander() {
@@ -105,6 +152,9 @@ public:
     pinMode(PIN_BUZZER, OUTPUT);
     digitalWrite(PIN_BUZZER, LOW);
 #endif
+
+    // Check if BOOT button is held to switch firmware
+    checkOTASwitch();
   }
 
   const char* getManufacturerName() const override {
