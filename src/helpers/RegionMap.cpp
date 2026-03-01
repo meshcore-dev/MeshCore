@@ -135,7 +135,7 @@ bool RegionMap::save(FILESYSTEM* _fs, const char* path) {
       }
     }
     file.close();
-    return true;
+    return success;
   }
   return false;  // failed
 }
