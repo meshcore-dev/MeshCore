@@ -985,9 +985,8 @@ void MyMesh::handleCmdFrame(size_t len) {
     int i = 1;
     uint8_t txt_type = cmd_frame[i++];
     uint8_t attempt = cmd_frame[i++];
-    uint32_t msg_timestamp;
-    memcpy(&msg_timestamp, &cmd_frame[i], 4);
-    i += 4;
+    uint32_t msg_timestamp = getRTCClock()->getCurrentTimeUnique(); // Use node's RTC for consistency
+    i += 4; // skip timestamp in cmd_frame (not used)
     uint8_t *pub_key_prefix = &cmd_frame[i];
     i += 6;
     ContactInfo *recipient = lookupContactByPubKey(pub_key_prefix, 6);
@@ -999,7 +998,6 @@ void MyMesh::handleCmdFrame(size_t len) {
       int result;
       uint32_t expected_ack;
       if (txt_type == TXT_TYPE_CLI_DATA) {
-        msg_timestamp = getRTCClock()->getCurrentTimeUnique(); // Use node's RTC instead of app timestamp to avoid tripping replay protection
         result = sendCommandData(*recipient, msg_timestamp, attempt, text, est_timeout);
         expected_ack = 0; // no Ack expected
       } else {
@@ -1031,9 +1029,8 @@ void MyMesh::handleCmdFrame(size_t len) {
     int i = 1;
     uint8_t txt_type = cmd_frame[i++]; // should be TXT_TYPE_PLAIN
     uint8_t channel_idx = cmd_frame[i++];
-    uint32_t msg_timestamp;
-    memcpy(&msg_timestamp, &cmd_frame[i], 4);
-    i += 4;
+    uint32_t msg_timestamp = getRTCClock()->getCurrentTimeUnique(); // Use node's RTC for consistency
+    i += 4; // skip timestamp in cmd_frame (not used)
     const char *text = (char *)&cmd_frame[i];
 
     if (txt_type != TXT_TYPE_PLAIN) {
@@ -1099,13 +1096,9 @@ void MyMesh::handleCmdFrame(size_t len) {
   } else if (cmd_frame[0] == CMD_SET_DEVICE_TIME && len >= 5) {
     uint32_t secs;
     memcpy(&secs, &cmd_frame[1], 4);
-    uint32_t curr = getRTCClock()->getCurrentTime();
-    if (secs >= curr) {
-      getRTCClock()->setCurrentTime(secs);
-      writeOKFrame();
-    } else {
-      writeErrFrame(ERR_CODE_ILLEGAL_ARG);
-    }
+    // Allow setting time to any value (removed >= check to allow correcting a clock stuck in the future)
+    getRTCClock()->setCurrentTime(secs);
+    writeOKFrame();
   } else if (cmd_frame[0] == CMD_SEND_SELF_ADVERT) {
     mesh::Packet* pkt;
     if (_prefs.advert_loc_policy == ADVERT_LOC_NONE) {
