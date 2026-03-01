@@ -3,8 +3,8 @@
 #include <Arduino.h>
 #include <helpers/ui/DisplayDriver.h>
 #include <helpers/SensorManager.h>
-#include "../examples/companion_radio/NodePrefs.h"
-#include "../examples/companion_radio/AbstractUITask.h"
+#include "../../examples/companion_radio/NodePrefs.h"
+#include "../../examples/companion_radio/AbstractUITask.h"
 
 class M5StackUnitC6LBoard;
 
@@ -30,4 +30,7 @@ private:
   bool _need_refresh;
   uint32_t _next_refresh;
   uint32_t _auto_off;
+  int _scroll_offset;
+  uint32_t _scroll_next;
+  bool _scroll_paused;
 };

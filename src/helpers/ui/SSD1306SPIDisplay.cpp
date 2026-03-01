@@ -31,6 +31,17 @@ bool SSD1306SPIDisplay::lazyInit() {
     return false;
   }
   Serial.println("SSD1306: display.begin() OK");
+
+  // Fix for 64x48 displays: Adafruit library lacks this case and defaults
+  // to comPins=0x02 (sequential). Displays taller than 32px need 0x12
+  // (alternative COM pin config) or the output is garbled.
+  #if defined(DISPLAY_WIDTH) && defined(DISPLAY_HEIGHT)
+  #if (DISPLAY_WIDTH == 64) && (DISPLAY_HEIGHT == 48)
+  display.ssd1306_command(SSD1306_SETCOMPINS);
+  display.ssd1306_command(0x12);
+  #endif
+  #endif
+
   // Clear any garbage in the display buffer
   display.clearDisplay();
   display.display();
@@ -63,6 +74,7 @@ void SSD1306SPIDisplay::startFrame(Color bkg) {
   display.setTextColor(_color);
   display.setFont(NULL);  // Default 6x8 font
   display.setTextSize(1);
+  display.setTextWrap(false);
   display.cp437(true);
 }
 
