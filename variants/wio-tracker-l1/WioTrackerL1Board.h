@@ -8,6 +8,10 @@ class WioTrackerL1Board : public NRF52BoardDCDC {
 protected:
   uint8_t btn_prev_state;
 
+#ifdef NRF52_POWER_MANAGEMENT
+  void initiateShutdown(uint8_t reason) override;
+#endif
+
 public:
   WioTrackerL1Board() : NRF52Board("WioTrackerL1 OTA") {}
   void begin();
@@ -21,14 +25,7 @@ public:
   }
 #endif
 
-  uint16_t getBattMilliVolts() override {
-    int adcvalue = 0;
-    analogReadResolution(12);
-    analogReference(AR_INTERNAL);
-    delay(10);
-    adcvalue = analogRead(PIN_VBAT_READ);
-    return (adcvalue * ADC_MULTIPLIER * AREF_VOLTAGE) / 4.096;
-  }
+  uint16_t getBattMilliVolts() override;
 
   const char* getManufacturerName() const override {
     return "Seeed Wio Tracker L1";
