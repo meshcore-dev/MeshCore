@@ -117,7 +117,10 @@ uint8_t MyMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* secr
     }
 
     MESH_DEBUG_PRINTLN("Login success!");
-    client->last_timestamp = sender_timestamp;
+    // NOTE: don't update last_timestamp here - login uses companion RTC which may differ
+    // from the app clock used for messages. Mixing the two causes silent message rejection
+    // when the companion RTC runs ahead of the app clock (see #1551).
+    // Login replay protection is already handled by hasSeen() in the mesh layer.
     client->last_activity = getRTCClock()->getCurrentTime();
     client->permissions &= ~0x03;
     client->permissions |= perms;
