@@ -1,7 +1,7 @@
 // C6L-specific repeater UITask for 64x48 SSD1306 display
 // Replaces examples/simple_repeater/UITask.cpp via build_src_filter
 
-#include "UITask.h"
+#include "../../../examples/simple_repeater/UITask.h"
 #include <Arduino.h>
 #include <helpers/CommonCLI.h>
 #include <M5StackUnitC6LBoard.h>
@@ -26,11 +26,11 @@ void UITask::begin(NodePrefs* node_prefs, const char* build_date, const char* fi
   s_scroll_paused = true;
   _display->turnOn();
 
-  char *version = strdup(firmware_version);
+  char version[16];
+  strncpy(version, firmware_version, sizeof(version) - 1);
+  version[sizeof(version) - 1] = '\0';
   char *dash = strchr(version, '-');
-  if (dash) {
-    *dash = 0;
-  }
+  if (dash) *dash = '\0';
   sprintf(_version_info, "%s (%s)", version, build_date);
 }
 

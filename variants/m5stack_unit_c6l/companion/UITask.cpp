@@ -109,7 +109,7 @@ void UITask::loop() {
 
   if (_display->isOn()) {
     // Update marquee scroll
-    if (_display != NULL && _node_prefs != NULL && millis() >= _scroll_next) {
+    if (_node_prefs != NULL && millis() >= _scroll_next) {
       int nameW = _display->getTextWidth(_node_prefs->node_name);
       int w = _display->width();
       int maxScroll = nameW - w;
