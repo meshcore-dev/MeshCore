@@ -90,6 +90,7 @@ public:
 
   void begin(bool has_display);
   void startInterface(BaseSerialInterface &serial);
+  void pushDisplaySettings();
 
   const char *getNodeName();
   NodePrefs *getNodePrefs();

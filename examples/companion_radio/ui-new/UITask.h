@@ -89,6 +89,11 @@ public:
   void toggleBuzzer();
   bool getGPSState();
   void toggleGPS();
+#ifdef HELTEC_V3_SCREEN_LED_CONTROL
+  void toggleScreen();
+  void toggleLED();
+  void setBrightnessLevel(int level);
+#endif
 
 
   // from AbstractUITask

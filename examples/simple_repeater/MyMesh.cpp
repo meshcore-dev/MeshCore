@@ -1227,6 +1227,92 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
     } else {
       strcpy(reply, "Err - ??");
     }
+#ifdef HELTEC_V3_SCREEN_LED_CONTROL
+  } else if (strcmp(command, "status") == 0) {
+    // Show current status of screen and LED settings
+    const char* screen_status = "unknown";
+    const char* led_status = "unknown";
+    bool has_status = false;
+
+    if (board.supportsDisplaySettings()) {
+      screen_status = board.getDisplayEnabled() ? "ON" : "OFF";
+      has_status = true;
+    }
+
+    int num = sensors.getNumSettings();
+    for (int i = 0; i < num; i++) {
+      const char* name = sensors.getSettingName(i);
+      if (strcmp(name, "led") == 0) {
+        led_status = (strcmp(sensors.getSettingValue(i), "1") == 0) ? "ON" : "OFF";
+        has_status = true;
+        break;
+      }
+    }
+
+    if (has_status) {
+      sprintf(reply, "Screen: %s | LED: %s", screen_status, led_status);
+    } else {
+      strcpy(reply, "No screen/LED settings available");
+    }
+  } else if (strcmp(command, "screen on") == 0) {
+    // Convenience command for "sensor set screen 1"
+    if (board.supportsDisplaySettings()) {
+      board.setDisplayEnabled(true);
+#ifdef DISPLAY_CLASS
+      display.turnOn();
+#endif
+      strcpy(reply, "OK - Screen enabled");
+    } else {
+      strcpy(reply, "Err - Screen setting not available");
+    }
+  } else if (strcmp(command, "screen off") == 0) {
+    // Convenience command for "sensor set screen 0"
+    if (board.supportsDisplaySettings()) {
+      board.setDisplayEnabled(false);
+#ifdef DISPLAY_CLASS
+      display.turnOff();
+#endif
+      strcpy(reply, "OK - Screen disabled");
+    } else {
+      strcpy(reply, "Err - Screen setting not available");
+    }
+  } else if (strcmp(command, "led on") == 0) {
+    // Convenience command for "sensor set led 1"
+    if (sensors.setSettingValue("led", "1")) {
+      strcpy(reply, "OK - LED enabled");
+    } else {
+      strcpy(reply, "Err - LED setting not available");
+    }
+  } else if (strcmp(command, "led off") == 0) {
+    // Convenience command for "sensor set led 0"
+    if (sensors.setSettingValue("led", "0")) {
+      strcpy(reply, "OK - LED disabled");
+    } else {
+      strcpy(reply, "Err - LED setting not available");
+    }
+  } else if (strcmp(command, "brightness") == 0) {
+    if (board.supportsDisplayBrightness()) {
+      sprintf(reply, "Brightness: %u", board.getDisplayBrightness());
+    } else {
+      strcpy(reply, "Err - Brightness setting not available");
+    }
+  } else if (strncmp(command, "brightness ", 11) == 0) {
+    const char* val = command + 11;
+    if (board.supportsDisplayBrightness()) {
+      int brightness = atoi(val);
+      if (brightness < 0) brightness = 0;
+      if (brightness > 255) brightness = 255;
+      board.setDisplayBrightness((uint8_t)brightness);
+#ifdef DISPLAY_CLASS
+      if (display.isOn()) {
+        display.setBrightness((uint8_t)brightness);
+      }
+#endif
+      strcpy(reply, "OK - Brightness updated");
+    } else {
+      strcpy(reply, "Err - Brightness setting not available");
+    }
+#endif
   } else if (memcmp(command, "discover.neighbors", 18) == 0) {
     const char* sub = command + 18;
     while (*sub == ' ') sub++;
