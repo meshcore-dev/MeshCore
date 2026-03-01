@@ -1811,9 +1811,17 @@ void MyMesh::enterCLIRescue() {
   _cli_rescue = true;
   cli_command[0] = 0;
   Serial.println("========= CLI Rescue =========");
+  Serial.println("Commands: set pin <n>, rebuild, erase, reboot, ls, cat, rm");
+#ifdef WIFI_SSID
+  Serial.println("WiFi:     wifi_ssid <ssid>, wifi_pwd <pwd>, wifi_commit, wifi_clear");
+#endif
 }
 
 void MyMesh::checkCLIRescueCmd() {
+#ifdef WIFI_SSID
+  static char staged_ssid[33] = {0};
+  static char staged_pwd[65]  = {0};
+#endif
   int len = strlen(cli_command);
   while (Serial.available() && len < sizeof(cli_command)-1) {
     char c = Serial.read();
@@ -1975,6 +1983,40 @@ void MyMesh::checkCLIRescueCmd() {
 
       }
 
+#ifdef WIFI_SSID
+    } else if (memcmp(cli_command, "wifi_ssid ", 10) == 0) {
+      strncpy(staged_ssid, &cli_command[10], sizeof(staged_ssid) - 1);
+      staged_ssid[sizeof(staged_ssid) - 1] = 0;
+      Serial.printf("  > SSID staged: \"%s\" (not saved yet, use wifi_commit)\n", staged_ssid);
+    } else if (memcmp(cli_command, "wifi_pwd ", 9) == 0) {
+      strncpy(staged_pwd, &cli_command[9], sizeof(staged_pwd) - 1);
+      staged_pwd[sizeof(staged_pwd) - 1] = 0;
+      Serial.println("  > Password staged (not saved yet, use wifi_commit)");
+    } else if (strcmp(cli_command, "wifi_commit") == 0) {
+      if (staged_ssid[0] == 0 || staged_pwd[0] == 0) {
+        Serial.println("  Error: stage both wifi_ssid and wifi_pwd before committing");
+      } else {
+        File f = _store->getPrimaryFS()->open("/wifi_config", "w", true);
+        if (f) {
+          f.println(staged_ssid);
+          f.println(staged_pwd);
+          f.close();
+          Serial.printf("  > Saved SSID \"%s\" to flash, rebooting...\n", staged_ssid);
+          board.reboot();
+        } else {
+          Serial.println("  Error: failed to write /wifi_config");
+        }
+      }
+    } else if (strcmp(cli_command, "wifi_clear") == 0) {
+      _store->getPrimaryFS()->remove("/wifi_config");
+      Serial.println("  > /wifi_config removed, using compiled-in defaults on next boot, rebooting...");
+      board.reboot();
+    } else if (strcmp(cli_command, "wifi_show") == 0) {
+      Serial.printf("  Staged SSID: \"%s\"\n", staged_ssid[0] ? staged_ssid : "(none)");
+      Serial.printf("  Staged PWD:  %s\n",     staged_pwd[0] ? "(set)"    : "(none)");
+      bool has_config = _store->getPrimaryFS()->exists("/wifi_config");
+      Serial.printf("  /wifi_config on flash: %s\n", has_config ? "yes" : "no (using compiled-in defaults)");
+#endif
     } else if (strcmp(cli_command, "reboot") == 0) {
       board.reboot();  // doesn't return
     } else {
