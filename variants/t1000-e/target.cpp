@@ -3,6 +3,80 @@
 #include "target.h"
 #include <helpers/sensors/MicroNMEALocationProvider.h>
 
+class T1000eLocationProvider : public MicroNMEALocationProvider {
+    bool _configured = false;
+
+public:
+    T1000eLocationProvider(HardwareSerial& ser, mesh::RTCClock* clock)
+        : MicroNMEALocationProvider(ser, clock) { }
+
+    void begin() override {
+        enable();
+
+        if (!_configured) {
+            // First start: set up T1000-E specific control pins
+            MESH_DEBUG_PRINTLN("GPS(T1000-E): begin (first start, GPIO init)");
+            pinMode(GPS_VRTC_EN, OUTPUT);
+            digitalWrite(GPS_VRTC_EN, HIGH);
+            delay(10);
+
+            pinMode(GPS_SLEEP_INT, OUTPUT);
+            digitalWrite(GPS_SLEEP_INT, HIGH);  // not sleeping
+            pinMode(GPS_RTC_INT, OUTPUT);
+            digitalWrite(GPS_RTC_INT, LOW);
+            pinMode(GPS_RESETB, INPUT_PULLUP);
+
+            // Reset and wait for boot
+            reset();
+            delay(1000);
+            while (_gps_serial->available()) { // drain boot messages
+                char c = _gps_serial->read();
+            }
+            configure();
+            _configured = true;
+        } else {
+            // Wake from backup mode via RTC_INT pulse
+            MESH_DEBUG_PRINTLN("GPS(T1000-E): begin (wake from backup)");
+            digitalWrite(GPS_RTC_INT, HIGH);
+            delay(3);
+            digitalWrite(GPS_RTC_INT, LOW);
+            delay(100);
+        }
+
+        // Lock sleep to keep module active during scan
+        MESH_DEBUG_PRINTLN("GPS(T1000-E): locking sleep");
+        sendSentence("$PAIR382,1");
+        _active = true;
+    }
+
+    void stop() override {
+        MESH_DEBUG_PRINTLN("GPS(T1000-E): stop, entering backup mode");
+        // Unlock sleep + enter backup mode (VRTC keeps RTC alive for warm start)
+        sendSentence("$PAIR382,0");
+        sendSentence("$PAIR650,0");
+        delay(50);
+        _active = false;
+        disable();
+    }
+
+    void configure() override {
+        MESH_DEBUG_PRINTLN("GPS(T1000-E): configure AG3335");
+        // Enable GPS+GLONASS+Galileo+BDS
+        sendSentence("$PAIR066,1,1,1,1,0,0");
+        // NMEA sentence filter: only GGA and RMC
+        sendSentence("$PAIR062,0,1");  // GGA ON
+        sendSentence("$PAIR062,1,0");  // GLL OFF
+        sendSentence("$PAIR062,2,0");  // GSA OFF
+        sendSentence("$PAIR062,3,0");  // GSV OFF
+        sendSentence("$PAIR062,4,1");  // RMC ON
+        sendSentence("$PAIR062,5,0");  // VTG OFF
+        sendSentence("$PAIR062,6,0");  // ZDA OFF
+        // Save config to flash
+        delay(250);
+        sendSentence("$PAIR513");
+    }
+};
+
 T1000eBoard board;
 
 RADIO_CLASS radio = new Module(P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BUSY, SPI);
@@ -10,8 +84,8 @@ RADIO_CLASS radio = new Module(P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BU
 WRAPPER_CLASS radio_driver(radio, board);
 
 VolatileRTCClock rtc_clock;
-MicroNMEALocationProvider nmea = MicroNMEALocationProvider(Serial1, &rtc_clock);
-T1000SensorManager sensors = T1000SensorManager(nmea);
+T1000eLocationProvider nmea(Serial1, &rtc_clock);
+T1000SensorManager sensors(nmea);
 
 #ifdef DISPLAY_CLASS
   NullDisplayDriver display;
@@ -26,25 +100,24 @@ static const uint32_t rfswitch_dios[Module::RFSWITCH_MAX_PINS] = {
   RADIOLIB_LR11X0_DIO5,
   RADIOLIB_LR11X0_DIO6,
   RADIOLIB_LR11X0_DIO7,
-  RADIOLIB_LR11X0_DIO8, 
+  RADIOLIB_LR11X0_DIO8,
   RADIOLIB_NC
 };
 
 static const Module::RfSwitchMode_t rfswitch_table[] = {
   // mode                 DIO5  DIO6  DIO7  DIO8
-  { LR11x0::MODE_STBY,   {LOW,  LOW,  LOW,  LOW  }},  
+  { LR11x0::MODE_STBY,   {LOW,  LOW,  LOW,  LOW  }},
   { LR11x0::MODE_RX,     {HIGH, LOW,  LOW,  HIGH }},
   { LR11x0::MODE_TX,     {HIGH, HIGH, LOW,  HIGH }},
   { LR11x0::MODE_TX_HP,  {LOW,  HIGH, LOW,  HIGH }},
-  { LR11x0::MODE_TX_HF,  {LOW,  LOW,  LOW,  LOW  }}, 
+  { LR11x0::MODE_TX_HF,  {LOW,  LOW,  LOW,  LOW  }},
   { LR11x0::MODE_GNSS,   {LOW,  LOW,  HIGH, LOW  }},
-  { LR11x0::MODE_WIFI,   {LOW,  LOW,  LOW,  LOW  }},  
+  { LR11x0::MODE_WIFI,   {LOW,  LOW,  LOW,  LOW  }},
   END_OF_MODE_TABLE,
 };
 #endif
 
 bool radio_init() {
-  //rtc_clock.begin(Wire);
   
 #ifdef LR11X0_DIO3_TCXO_VOLTAGE
   float tcxo = LR11X0_DIO3_TCXO_VOLTAGE;
@@ -60,7 +133,7 @@ bool radio_init() {
     Serial.println(status);
     return false;  // fail
   }
-  
+
   radio.setCRC(2);
   radio.explicitHeader();
 
@@ -94,108 +167,12 @@ mesh::LocalIdentity radio_new_identity() {
   return mesh::LocalIdentity(&rng);  // create new random identity
 }
 
-void T1000SensorManager::start_gps() {
-  gps_active = true;
-  //_nmea->begin();
-  // this init sequence should be better 
-  // comes from seeed examples and deals with all gps pins
-  pinMode(GPS_EN, OUTPUT);
-  digitalWrite(GPS_EN, HIGH);
-  delay(10);
-  pinMode(GPS_VRTC_EN, OUTPUT);
-  digitalWrite(GPS_VRTC_EN, HIGH);
-  delay(10);
-       
-  pinMode(GPS_RESET, OUTPUT);
-  digitalWrite(GPS_RESET, HIGH);
-  delay(10);
-  digitalWrite(GPS_RESET, LOW);
-       
-  pinMode(GPS_SLEEP_INT, OUTPUT);
-  digitalWrite(GPS_SLEEP_INT, HIGH);
-  pinMode(GPS_RTC_INT, OUTPUT);
-  digitalWrite(GPS_RTC_INT, LOW);
-  pinMode(GPS_RESETB, INPUT_PULLUP);
-}
-
-void T1000SensorManager::sleep_gps() {
-  gps_active = false;
-  digitalWrite(GPS_VRTC_EN, HIGH);
-  digitalWrite(GPS_EN, LOW);
-  digitalWrite(GPS_RESET, HIGH);
-  digitalWrite(GPS_SLEEP_INT, HIGH);
-  digitalWrite(GPS_RTC_INT, LOW);
-  pinMode(GPS_RESETB, OUTPUT);
-  digitalWrite(GPS_RESETB, LOW);
-  //_nmea->stop();
-}
-
-void T1000SensorManager::stop_gps() {
-  gps_active = false;
-  digitalWrite(GPS_VRTC_EN, LOW);
-  digitalWrite(GPS_EN, LOW);
-  digitalWrite(GPS_RESET, HIGH);
-  digitalWrite(GPS_SLEEP_INT, HIGH);
-  digitalWrite(GPS_RTC_INT, LOW);
-  pinMode(GPS_RESETB, OUTPUT);
-  digitalWrite(GPS_RESETB, LOW);
-  //_nmea->stop();
-}
-
-
-bool T1000SensorManager::begin() {
-  // init GPS
-  Serial1.begin(115200);
-  return true;
-}
-
 bool T1000SensorManager::querySensors(uint8_t requester_permissions, CayenneLPP& telemetry) {
-  if (requester_permissions & TELEM_PERM_LOCATION) {   // does requester have permission?
-    telemetry.addGPS(TELEM_CHANNEL_SELF, node_lat, node_lon, node_altitude);
-  }
+  SensorManager::querySensors(requester_permissions, telemetry);
   if (requester_permissions & TELEM_PERM_ENVIRONMENT) {
     // Firmware reports light as a 0-100 % scale, but expose it via Luminosity so app labels it "Luminosity".
     telemetry.addLuminosity(TELEM_CHANNEL_SELF, t1000e_get_light());
     telemetry.addTemperature(TELEM_CHANNEL_SELF, t1000e_get_temperature());
   }
   return true;
-}
-
-void T1000SensorManager::loop() {
-  static long next_gps_update = 0;
-
-  _nmea->loop();
-
-  if (millis() > next_gps_update) {
-    if (gps_active && _nmea->isValid()) {
-      node_lat = ((double)_nmea->getLatitude())/1000000.;
-      node_lon = ((double)_nmea->getLongitude())/1000000.;
-      node_altitude = ((double)_nmea->getAltitude()) / 1000.0;
-      //Serial.printf("lat %f lon %f\r\n", _lat, _lon);
-    }
-    next_gps_update = millis() + 1000;
-  }
-}
-
-int T1000SensorManager::getNumSettings() const { return 1; }  // just one supported: "gps" (power switch)
-
-const char* T1000SensorManager::getSettingName(int i) const {
-  return i == 0 ? "gps" : NULL;
-}
-const char* T1000SensorManager::getSettingValue(int i) const {
-  if (i == 0) {
-    return gps_active ? "1" : "0";
-  }
-  return NULL;
-}
-bool T1000SensorManager::setSettingValue(const char* name, const char* value) {
-  if (strcmp(name, "gps") == 0) {
-    if (strcmp(value, "0") == 0) {
-      sleep_gps(); // sleep for faster fix !
-    } else {
-      start_gps();
-    }
-    return true;
-  }
-  return false;  // not supported
 }

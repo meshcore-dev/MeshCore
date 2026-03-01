@@ -24,16 +24,28 @@ WRAPPER_CLASS radio_driver(radio, board);
 VolatileRTCClock fallback_clock;
 AutoDiscoverRTCClock rtc_clock(fallback_clock);
 
+#include <helpers/RefCountedDigitalPin.h>
+RefCountedDigitalPin peripher_power(WB_IO2, HIGH);
+
 #if ENV_INCLUDE_GPS
-  #include <helpers/sensors/MicroNMEALocationProvider.h>
-  MicroNMEALocationProvider nmea = MicroNMEALocationProvider(Serial1);
-  EnvironmentSensorManager sensors = EnvironmentSensorManager(nmea);
-#else
-  EnvironmentSensorManager sensors;
+  #include <helpers/sensors/L76KLocationProvider.h>
+  L76KLocationProvider nmea = L76KLocationProvider(Serial1, &rtc_clock, GPS_RESET, GPS_EN, &peripher_power);
+  #include <helpers/sensors/RAK12500LocationProvider.h>
+  RAK12500LocationProvider rak12500 = RAK12500LocationProvider(&rtc_clock, &peripher_power);
 #endif
+
+EnvironmentSensorManager sensors;
 
 bool radio_init() {
   rtc_clock.begin(Wire);
+
+  peripher_power.begin();
+
+  #if ENV_INCLUDE_GPS
+  sensors.registerLocationProvider(&rak12500);
+  sensors.registerLocationProvider(&nmea);
+  #endif
+
   return radio.std_init(&SPI);
 }
 
