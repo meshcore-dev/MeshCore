@@ -128,29 +128,50 @@ public:
   }
 };
 
+static RTC_NOINIT_ATTR uint32_t _rtc_backup_time;
+static RTC_NOINIT_ATTR uint32_t _rtc_backup_magic;
+#define RTC_BACKUP_MAGIC  0xAA55CC33
+#define RTC_TIME_MIN      1772323200  // 1 Mar 2026
+
 class ESP32RTCClock : public mesh::RTCClock {
 public:
   ESP32RTCClock() { }
   void begin() {
     esp_reset_reason_t reason = esp_reset_reason();
-    if (reason == ESP_RST_POWERON) {
-      // start with some date/time in the recent past
-      struct timeval tv;
-      tv.tv_sec = 1715770351;  // 15 May 2024, 8:50pm
-      tv.tv_usec = 0;
-      settimeofday(&tv, NULL);
+    if (reason == ESP_RST_DEEPSLEEP) {
+      return;  // ESP-IDF preserves system time across deep sleep
     }
+    // All other resets (power-on, crash, WDT, brownout) lose system time.
+    // Restore from RTC backup if valid, otherwise use hardcoded seed.
+    struct timeval tv;
+    if (_rtc_backup_magic == RTC_BACKUP_MAGIC && _rtc_backup_time > RTC_TIME_MIN) {
+      tv.tv_sec = _rtc_backup_time;
+    } else {
+      tv.tv_sec = 1772323200;  // 1 Mar 2026
+    }
+    tv.tv_usec = 0;
+    settimeofday(&tv, NULL);
   }
   uint32_t getCurrentTime() override {
     time_t _now;
     time(&_now);
     return _now;
   }
-  void setCurrentTime(uint32_t time) override { 
+  void setCurrentTime(uint32_t time) override {
     struct timeval tv;
     tv.tv_sec = time;
     tv.tv_usec = 0;
     settimeofday(&tv, NULL);
+    _rtc_backup_time = time;
+    _rtc_backup_magic = RTC_BACKUP_MAGIC;
+  }
+  void tick() override {
+    time_t now;
+    time(&now);
+    if (now > RTC_TIME_MIN && (uint32_t)now != _rtc_backup_time) {
+      _rtc_backup_time = (uint32_t)now;
+      _rtc_backup_magic = RTC_BACKUP_MAGIC;
+    }
   }
 };
 
