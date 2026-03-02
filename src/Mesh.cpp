@@ -488,8 +488,6 @@ Packet* Mesh::createAdvert(const LocalIdentity& id, const uint8_t* app_data, siz
   return packet;
 }
 
-#define MAX_COMBINED_PATH  (MAX_PACKET_PAYLOAD - 2 - CIPHER_BLOCK_SIZE)
-
 Packet* Mesh::createPathReturn(const Identity& dest, const uint8_t* secret, const uint8_t* path, uint8_t path_len, uint8_t extra_type, const uint8_t*extra, size_t extra_len, uint16_t aead_nonce) {
   uint8_t dest_hash[PATH_HASH_SIZE];
   dest.copyHashTo(dest_hash);
@@ -500,7 +498,9 @@ Packet* Mesh::createPathReturn(const uint8_t* dest_hash, const uint8_t* secret, 
   uint8_t path_hash_size = (path_len >> 6) + 1;
   uint8_t path_hash_count = path_len & 63;
 
-  if (path_hash_count*path_hash_size + extra_len + 5 > MAX_COMBINED_PATH) return NULL;  // too long!!
+  size_t max_overhead = aead_nonce ? (AEAD_NONCE_SIZE + AEAD_TAG_SIZE) : (CIPHER_MAC_SIZE + CIPHER_BLOCK_SIZE-1);
+  size_t max_combined_path = MAX_PACKET_PAYLOAD - PATH_HASH_SIZE * 2 - max_overhead;
+  if (path_hash_count*path_hash_size + extra_len + 5 > max_combined_path) return NULL;  // too long!!
 
   Packet* packet = obtainNewPacket();
   if (packet == NULL) {
