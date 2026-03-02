@@ -264,7 +264,10 @@ int ClientACL::handleSessionKeyInit(const ClientInfo* client, const uint8_t* eph
 
   // 4. Store in pool (dual-decode: new key active, old key still valid)
   auto entry = allocateSessionKey(client->id.pub_key);
-  if (!entry) return 0;
+  if (!entry) {
+    memset(new_session_key, 0, SESSION_KEY_SIZE);
+    return 0;
+  }
 
   if (entry->state == SESSION_STATE_ACTIVE || entry->state == SESSION_STATE_DUAL_DECODE) {
     memcpy(entry->prev_session_key, entry->session_key, SESSION_KEY_SIZE);
