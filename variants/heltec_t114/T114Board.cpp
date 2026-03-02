@@ -25,7 +25,9 @@ void T114Board::initiateShutdown(uint8_t reason) {
   digitalWrite(PIN_BAT_CTL, enable_lpcomp ? HIGH : LOW);
 
   if (enable_lpcomp) {
-    configureVoltageWake(power_config.lpcomp_ain_channel, power_config.lpcomp_refsel);
+    if (!configureVoltageWake(power_config.lpcomp_ain_channel, power_config.lpcomp_refsel)) {
+      NVIC_SystemReset();
+    }
   }
 
   enterSystemOff(reason);

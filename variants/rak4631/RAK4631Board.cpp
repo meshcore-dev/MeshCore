@@ -18,7 +18,9 @@ void RAK4631Board::initiateShutdown(uint8_t reason) {
 
   if (reason == SHUTDOWN_REASON_LOW_VOLTAGE ||
       reason == SHUTDOWN_REASON_BOOT_PROTECT) {
-    configureVoltageWake(power_config.lpcomp_ain_channel, power_config.lpcomp_refsel);
+    if (!configureVoltageWake(power_config.lpcomp_ain_channel, power_config.lpcomp_refsel)) {
+      NVIC_SystemReset();
+    }
   }
 
   enterSystemOff(reason);

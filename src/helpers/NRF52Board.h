@@ -40,7 +40,7 @@ protected:
 
   bool checkBootVoltage(const PowerMgtConfig* config);
   void enterSystemOff(uint8_t reason);
-  void configureVoltageWake(uint8_t ain_channel, uint8_t refsel);
+  bool configureVoltageWake(uint8_t ain_channel, uint8_t refsel);
   virtual void initiateShutdown(uint8_t reason);
 #endif
 
