@@ -1087,7 +1087,7 @@ uint16_t BaseChatMesh::getEncryptionNonceFor(const ContactInfo& contact) {
   uint16_t nonce = 0;
   auto entry = findSessionKey(contact.id.pub_key);
   if (canUseSessionKey(entry)) {
-    ++entry->nonce;
+    ++entry->nonce;  // may reach 65535 → canUseSessionKey() fails next call → falls back to static ECDH
     if (entry->sends_since_last_recv < 255) entry->sends_since_last_recv++;
     session_keys_dirty = true;
     nonce = entry->nonce;
