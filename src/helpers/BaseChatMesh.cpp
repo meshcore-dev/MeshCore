@@ -911,6 +911,10 @@ bool BaseChatMesh::removeContact(ContactInfo& contact) {
 
   removeSessionKey(contact.id.pub_key);  // also remove session key if any
 
+  // adjust pending rekey index before shifting array
+  if (_pending_rekey_idx == idx) _pending_rekey_idx = -1;
+  else if (_pending_rekey_idx > idx) _pending_rekey_idx--;
+
   // remove from contacts array and parallel nonce tracking
   num_contacts--;
   while (idx < num_contacts) {
