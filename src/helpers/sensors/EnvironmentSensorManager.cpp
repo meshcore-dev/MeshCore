@@ -27,6 +27,16 @@ static Adafruit_BMP085 BMP085;
 static Adafruit_AHTX0 AHTX0;
 #endif
 
+#if ENV_INCLUDE_DS18B20
+#include <OneWire.h>
+#include <DallasTemperature.h>
+#ifndef TELEM_DS18B20_PIN
+#define TELEM_DS18B20_PIN 7
+#endif
+OneWire oneWire(TELEM_DS18B20_PIN);
+static DallasTemperature sensors(&oneWire);
+#endif
+
 #if ENV_INCLUDE_BME280
 #ifndef TELEM_BME280_ADDRESS
 #define TELEM_BME280_ADDRESS    0x76      // BME280 environmental sensor I2C address
@@ -177,6 +187,17 @@ bool EnvironmentSensorManager::begin() {
     AHTX0_initialized = false;
     MESH_DEBUG_PRINTLN("AHT10/AHT20 was not found at I2C address %02X", TELEM_AHTX_ADDRESS);
   }
+  #endif
+
+  #if ENV_INCLUDE_DS18B20
+    sensors.begin();
+    uint8_t resetResult = oneWire.reset();
+    if (resetResult == 1) {
+      DS18B20_initialized = true;
+    } else {
+      DS18B20_initialized = false;
+      MESH_DEBUG_PRINTLN("OneWire bus is unresponsive!");
+    }
   #endif
 
   #if ENV_INCLUDE_BME680
@@ -349,6 +370,16 @@ bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, Cayen
       AHTX0.getEvent(&humidity, &temp);
       telemetry.addTemperature(TELEM_CHANNEL_SELF, temp.temperature);
       telemetry.addRelativeHumidity(TELEM_CHANNEL_SELF, humidity.relative_humidity);
+    }
+    #endif
+
+    #if ENV_INCLUDE_DS18B20
+    if (DS18B20_initialized) {
+      sensors.requestTemperatures();
+      for (uint8_t i = 0; i < sensors.getDeviceCount(); i++) {
+        telemetry.addTemperature(next_available_channel, sensors.getTempCByIndex(i));
+        next_available_channel++;
+      }
     }
     #endif
 
