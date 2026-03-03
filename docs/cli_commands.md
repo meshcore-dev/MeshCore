@@ -211,7 +211,7 @@
 - `bw`: Bandwidth in kHz (7.8-500)
 - `sf`: Spreading factor (5-12)
 - `cr`: Coding rate (5-8)
-- `timeout_mins`: Duration in minutes (must be > 0)
+- `timeout_mins`: Duration in minutes (must be 1-32767)
 
 **Note:** This is not saved to preferences and will clear on reboot
 
