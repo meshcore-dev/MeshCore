@@ -1267,7 +1267,35 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
       sendNodeDiscoverReq();
       strcpy(reply, "OK - Discover sent");
     }
-  } else{
+  } else if (memcmp(command, "io", 2) == 0) { 
+      uint32_t val = 0;
+      uint32_t current = board.getGpio();
+      char mode = command[2]; // This is ' ', 'r', 's', 't', or 'p'
+
+      // Find the start of the hex value (the first space)
+      const char* valuePtr = strchr(command, ' ');
+      
+      if (valuePtr != nullptr) {
+          sscanf(valuePtr, "%x", &val);
+
+          if (mode == 'r') {        // ior 1  (Reset/Off)
+              board.setGpio(current & ~val);
+          } else if (mode == 's') { // ios 1  (Set/On)
+              board.setGpio(current | val);
+          } else if (mode == 't') { // iot 1  (Toggle)
+              board.setGpio(current ^ val);
+          } else if (mode == 'p') { // iop 1  (Pulse for Pi)
+              // Pulse logic: Start the action
+              board.setGpio(current & ~val); // Pull Low (0)
+              // 50ms is the "sweet spot" for Pi triggers
+              delay(50); 
+              board.setGpio(current | val);  // Return High (1)
+          } else {                  // io 1   (Direct Write)
+              board.setGpio(val);
+          }
+      }
+      sprintf(reply, "IO: %x", board.getGpio());
+} else{
     _cli.handleCommand(sender_timestamp, command, reply);  // common CLI commands
   }
 }
