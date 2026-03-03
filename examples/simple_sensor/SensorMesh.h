@@ -128,7 +128,7 @@ protected:
   void onControlDataRecv(mesh::Packet* packet) override;
   void onAckRecv(mesh::Packet* packet, uint32_t ack_crc) override;
   virtual bool handleIncomingMsg(ClientInfo& from, uint32_t timestamp, uint8_t* data, uint8_t flags, size_t len);
-  void sendAckTo(const ClientInfo& dest, uint32_t ack_hash);
+  void sendAckTo(const ClientInfo& dest, uint32_t ack_hash, uint8_t path_hash_size=1);
 private:
   FILESYSTEM* _fs;
   unsigned long next_local_advert, next_flood_advert;
