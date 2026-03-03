@@ -11,10 +11,16 @@ struct ContactInfo {
   uint8_t type;   // on of ADV_TYPE_*
   uint8_t flags;
   uint8_t out_path_len;
+  uint8_t backup_out_path_len;
   mutable bool shared_secret_valid; // flag to indicate if shared_secret has been calculated
   uint8_t out_path[MAX_PATH_SIZE];
+  uint8_t backup_out_path[MAX_PATH_SIZE];
+  uint8_t path_failures;                    // consecutive direct-send timeouts on active path
+  unsigned long path_switch_cooldown_until; // millis() guard to prevent rapid path flapping
+  unsigned long direct_block_until;         // millis() until direct sends are temporarily blocked
   uint32_t last_advert_timestamp;   // by THEIR clock
   uint32_t lastmod;  // by OUR clock
+  uint32_t backup_lastmod;                  // RTC timestamp of last backup path refresh
   int32_t gps_lat, gps_lon;    // 6 dec places
   uint32_t sync_since;
 
