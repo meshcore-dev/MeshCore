@@ -56,26 +56,51 @@ void BaseChatMesh::sendAckTo(const ContactInfo& dest, uint32_t ack_hash) {
 }
 
 bool BaseChatMesh::isAmbiguousDirectPath(const ContactInfo& recipient) const {
-  if (recipient.out_path_len == OUT_PATH_UNKNOWN || recipient.out_path_len == 0 || recipient.out_path_len > MAX_PATH_SIZE) {
+  if (recipient.out_path_len == OUT_PATH_UNKNOWN || recipient.out_path_len == 0) {
     return false;
   }
+  if (recipient.out_path_len > MAX_PATH_SIZE) return true;
 
   for (int i = 0; i < recipient.out_path_len; i++) {
     const uint8_t hop = recipient.out_path[i];
-    bool seen_once = false;
+    int matches = 0;
     for (int j = 0; j < num_contacts; j++) {
-      if (contacts[j].id.matches(recipient.id)) continue;
       if (contacts[j].id.pub_key[0] == hop) {
-        if (seen_once) return true;
-        seen_once = true;
+        if (++matches >= 2) return true;
       }
     }
   }
   return false;
 }
 
+bool BaseChatMesh::isTrackedContact(const ContactInfo& recipient, int& idx) const {
+  const ContactInfo* ptr = &recipient;
+  if (ptr < &contacts[0] || ptr >= &contacts[num_contacts]) return false;
+  idx = (int) (ptr - &contacts[0]);
+  return true;
+}
+
+void BaseChatMesh::updateDirectPathAmbiguousAt(int idx) {
+  if (idx < 0 || idx >= num_contacts) return;
+  direct_path_ambiguous[idx] = isAmbiguousDirectPath(contacts[idx]);
+}
+
+void BaseChatMesh::updateAllDirectPathAmbiguous() {
+  for (int i = 0; i < num_contacts; i++) {
+    direct_path_ambiguous[i] = isAmbiguousDirectPath(contacts[i]);
+  }
+}
+
 bool BaseChatMesh::shouldUseDirectPath(const ContactInfo& recipient) const {
-  return recipient.out_path_len != OUT_PATH_UNKNOWN && !isAmbiguousDirectPath(recipient);
+  if (recipient.out_path_len == OUT_PATH_UNKNOWN) return false;
+  if (recipient.out_path_len > MAX_PATH_SIZE) return false;
+
+  int idx;
+  if (isTrackedContact(recipient, idx)) {
+    return !direct_path_ambiguous[idx];
+  }
+
+  return !isAmbiguousDirectPath(recipient);
 }
 
 void BaseChatMesh::bootstrapRTCfromContacts() {
@@ -186,6 +211,8 @@ void BaseChatMesh::onAdvertRecv(mesh::Packet* packet, const mesh::Identity& id, 
     populateContactFromAdvert(*from, id, parser, timestamp);
     from->sync_since = 0;
     from->shared_secret_valid = false;
+    is_new = true;
+    updateAllDirectPathAmbiguous();
   }
   // update
     putBlobByKey(id.pub_key, PUB_KEY_SIZE, temp_buf, plen);
@@ -328,6 +355,12 @@ bool BaseChatMesh::onContactPathRecv(ContactInfo& from, uint8_t* in_path, uint8_
   // NOTE: default impl, we just replace the current 'out_path' regardless, whenever sender sends us a new out_path.
   // FUTURE: could store multiple out_paths per contact, and try to find which is the 'best'(?)
   from.out_path_len = mesh::Packet::copyPath(from.out_path, out_path, out_path_len);  // store a copy of path, for sendDirect()
+  {
+    int idx;
+    if (isTrackedContact(from, idx)) {
+      updateDirectPathAmbiguousAt(idx);
+    }
+  }
   from.lastmod = getRTCClock()->getCurrentTime();
 
   onContactPathUpdated(from);
@@ -744,6 +777,10 @@ void BaseChatMesh::checkConnections() {
 
 void BaseChatMesh::resetPathTo(ContactInfo& recipient) {
   recipient.out_path_len = OUT_PATH_UNKNOWN;
+  int idx;
+  if (isTrackedContact(recipient, idx)) {
+    direct_path_ambiguous[idx] = false;
+  }
 }
 
 static ContactInfo* table;  // pass via global :-(
@@ -795,6 +832,7 @@ bool BaseChatMesh::addContact(const ContactInfo& contact) {
   if (dest) {
     *dest = contact;
     dest->shared_secret_valid = false; // mark shared_secret as needing calculation
+    updateAllDirectPathAmbiguous();
     return true;  // success
   }
   return false;
@@ -811,8 +849,13 @@ bool BaseChatMesh::removeContact(ContactInfo& contact) {
   num_contacts--;
   while (idx < num_contacts) {
     contacts[idx] = contacts[idx + 1];
+    direct_path_ambiguous[idx] = direct_path_ambiguous[idx + 1];
     idx++;
   }
+  if (num_contacts < MAX_CONTACTS) {
+    direct_path_ambiguous[num_contacts] = false;
+  }
+  updateAllDirectPathAmbiguous();
   return true;  // Success
 }
 

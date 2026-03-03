@@ -70,9 +70,13 @@ class BaseChatMesh : public mesh::Mesh {
   mesh::Packet* _pendingLoopback;
   uint8_t temp_buf[MAX_TRANS_UNIT];
   ConnectionInfo connections[MAX_CONNECTIONS];
+  bool direct_path_ambiguous[MAX_CONTACTS];
 
   mesh::Packet* composeMsgPacket(const ContactInfo& recipient, uint32_t timestamp, uint8_t attempt, const char *text, uint32_t& expected_ack);
   bool isAmbiguousDirectPath(const ContactInfo& recipient) const;
+  bool isTrackedContact(const ContactInfo& recipient, int& idx) const;
+  void updateDirectPathAmbiguousAt(int idx);
+  void updateAllDirectPathAmbiguous();
   bool shouldUseDirectPath(const ContactInfo& recipient) const;
   void sendAckTo(const ContactInfo& dest, uint32_t ack_hash);
 
@@ -88,10 +92,14 @@ protected:
     txt_send_timeout = 0;
     _pendingLoopback = NULL;
     memset(connections, 0, sizeof(connections));
+    memset(direct_path_ambiguous, 0, sizeof(direct_path_ambiguous));
   }
 
   void bootstrapRTCfromContacts();
-  void resetContacts() { num_contacts = 0; }
+  void resetContacts() {
+    num_contacts = 0;
+    memset(direct_path_ambiguous, 0, sizeof(direct_path_ambiguous));
+  }
   void populateContactFromAdvert(ContactInfo& ci, const mesh::Identity& id, const AdvertDataParser& parser, uint32_t timestamp);
   ContactInfo* allocateContactSlot(); // helper to find slot for new contact
 
