@@ -72,6 +72,8 @@ class BaseChatMesh : public mesh::Mesh {
   ConnectionInfo connections[MAX_CONNECTIONS];
 
   mesh::Packet* composeMsgPacket(const ContactInfo& recipient, uint32_t timestamp, uint8_t attempt, const char *text, uint32_t& expected_ack);
+  bool isAmbiguousDirectPath(const ContactInfo& recipient) const;
+  bool shouldUseDirectPath(const ContactInfo& recipient) const;
   void sendAckTo(const ContactInfo& dest, uint32_t ack_hash);
 
 protected:
