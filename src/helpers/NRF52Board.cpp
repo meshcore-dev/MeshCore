@@ -258,13 +258,15 @@ bool NRF52Board::configureVoltageWake(uint8_t ain_channel, uint8_t refsel) {
 void NRF52BoardDCDC::begin() {
   NRF52Board::begin();
 
-  // Enable DC/DC converter for improved power efficiency
+  // Enable DC/DC converter only when SoftDevice is managing the POWER peripheral.
+  // Without SoftDevice, NRF_POWER->DCDCEN = 1 leaves the DC/DC permanently on,
+  // which causes boot failures on some boards when running on battery alone.
+  // The SoftDevice manages DC/DC dynamically (on during radio, off during idle),
+  // which is the safe way to use it.
   uint8_t sd_enabled = 0;
   sd_softdevice_is_enabled(&sd_enabled);
   if (sd_enabled) {
     sd_power_dcdc_mode_set(NRF_POWER_DCDC_ENABLE);
-  } else {
-    NRF_POWER->DCDCEN = 1;
   }
 }
 
