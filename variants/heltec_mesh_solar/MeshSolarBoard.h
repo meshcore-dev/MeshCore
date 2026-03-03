@@ -32,4 +32,15 @@ public:
   const char* getManufacturerName() const override {
     return "Heltec Mesh Solar";
   }
+
+  void setGpio(uint32_t values) override {
+      // set led values
+      digitalWrite(30, values & 1);
+      digitalWrite(5, (values & 2) >> 1);
+  }
+
+  uint32_t getGpio() override {
+      // get led value
+      return (digitalRead(30) << 1) | digitalRead(5);
+  }
 };
