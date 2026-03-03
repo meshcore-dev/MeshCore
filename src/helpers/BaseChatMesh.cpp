@@ -1,5 +1,6 @@
 #include <helpers/BaseChatMesh.h>
 #include <Utils.h>
+#include <stdint.h>
 
 #ifndef SERVER_RESPONSE_DELAY
   #define SERVER_RESPONSE_DELAY   300
@@ -74,9 +75,18 @@ bool BaseChatMesh::isAmbiguousDirectPath(const ContactInfo& recipient) const {
 }
 
 bool BaseChatMesh::isTrackedContact(const ContactInfo& recipient, int& idx) const {
-  const ContactInfo* ptr = &recipient;
-  if (ptr < &contacts[0] || ptr >= &contacts[num_contacts]) return false;
-  idx = (int) (ptr - &contacts[0]);
+  if (num_contacts <= 0) return false;
+
+  const uintptr_t start = (uintptr_t) &contacts[0];
+  const uintptr_t end = (uintptr_t) (&contacts[num_contacts - 1]) + sizeof(ContactInfo);
+  const uintptr_t p = (uintptr_t) &recipient;
+  if (p < start || p >= end) return false;
+  if (((p - start) % sizeof(ContactInfo)) != 0) return false;
+
+  idx = (int) ((p - start) / sizeof(ContactInfo));
+  if (idx < 0 || idx >= num_contacts) return false;
+  if (&contacts[idx] != &recipient) return false;
+
   return true;
 }
 
@@ -849,7 +859,6 @@ bool BaseChatMesh::removeContact(ContactInfo& contact) {
   num_contacts--;
   while (idx < num_contacts) {
     contacts[idx] = contacts[idx + 1];
-    direct_path_ambiguous[idx] = direct_path_ambiguous[idx + 1];
     idx++;
   }
   if (num_contacts < MAX_CONTACTS) {
