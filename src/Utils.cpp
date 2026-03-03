@@ -73,6 +73,7 @@ int Utils::encryptThenMAC(const uint8_t* shared_secret, uint8_t* dest, const uin
 
 int Utils::MACThenDecrypt(const uint8_t* shared_secret, uint8_t* dest, const uint8_t* src, int src_len) {
   if (src_len <= CIPHER_MAC_SIZE) return 0;  // invalid src bytes
+  if ((src_len - CIPHER_MAC_SIZE) % CIPHER_BLOCK_SIZE != 0) return 0;  // invalid ciphertext length
 
   uint8_t hmac[CIPHER_MAC_SIZE];
   {

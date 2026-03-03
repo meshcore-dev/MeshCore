@@ -29,6 +29,7 @@ class SerialWifiInterface : public BaseSerialInterface {
   Frame recv_queue[FRAME_QUEUE_SIZE];
   int send_queue_len;
   Frame send_queue[FRAME_QUEUE_SIZE];
+  uint32_t _drop_count;
 
   void clearBuffers() { recv_queue_len = 0; send_queue_len = 0; }
 
@@ -42,6 +43,7 @@ public:
     send_queue_len = recv_queue_len = 0;
     received_frame_header.type = 0;
     received_frame_header.length = 0;
+    _drop_count = 0;
   }
 
   void begin(int port);
@@ -56,6 +58,7 @@ public:
 
   size_t writeFrame(const uint8_t src[], size_t len) override;
   size_t checkRecvFrame(uint8_t dest[]) override;
+  uint32_t getDropCount() const override { return _drop_count; }
 
   bool hasReceivedFrameHeader();
   void resetReceivedFrameHeader();

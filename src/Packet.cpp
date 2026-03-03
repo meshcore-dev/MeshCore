@@ -62,26 +62,45 @@ uint8_t Packet::writeTo(uint8_t dest[]) const {
   return i;
 }
 
-bool Packet::readFrom(const uint8_t src[], uint8_t len) {
-  uint8_t i = 0;
-  header = src[i++];
-  if (hasTransportCodes()) {
-    memcpy(&transport_codes[0], &src[i], 2); i += 2;
-    memcpy(&transport_codes[1], &src[i], 2); i += 2;
-  } else {
-    transport_codes[0] = transport_codes[1] = 0;
+bool Packet::readFrom(const uint8_t src[], size_t len) {
+  if (src == NULL || len < 2) return false;  // needs at least header + path_len
+
+  size_t i = 0;
+  uint8_t new_header = src[i++];
+  uint16_t new_transport_codes[2] = {0, 0};
+
+  uint8_t route_type = new_header & PH_ROUTE_MASK;
+  bool has_transport = route_type == ROUTE_TYPE_TRANSPORT_FLOOD || route_type == ROUTE_TYPE_TRANSPORT_DIRECT;
+  if (has_transport) {
+    if (len - i < 4) return false;   // truncated transport header
+    memcpy(&new_transport_codes[0], &src[i], 2); i += 2;
+    memcpy(&new_transport_codes[1], &src[i], 2); i += 2;
   }
-  path_len = src[i++];
-  if (!isValidPathLen(path_len)) return false;   // bad encoding
 
-  uint8_t bl = getPathByteLen();
-  memcpy(path, &src[i], bl); i += bl;
+  if (len - i < 1) return false;   // missing path_len
+  uint8_t new_path_len = src[i++];
+  uint8_t payload_ver = (new_header >> PH_VER_SHIFT) & PH_VER_MASK;
+  if (payload_ver > PAYLOAD_VER_1 || !isValidPathLen(new_path_len)) return false;
 
-  if (i >= len) return false;   // bad encoding
-  payload_len = len - i;
-  if (payload_len > sizeof(payload)) return false;  // bad encoding
-  memcpy(payload, &src[i], payload_len); //i += payload_len;
-  return true;   // success
+  size_t path_byte_len = (new_path_len & 63) * ((new_path_len >> 6) + 1);
+  if (len - i < path_byte_len) return false;   // truncated path
+
+  uint8_t new_path[MAX_PATH_SIZE];
+  memcpy(new_path, &src[i], path_byte_len); i += path_byte_len;
+
+  if (i >= len) return false;   // empty payload is invalid encoding
+  size_t new_payload_len = len - i;
+  if (new_payload_len > sizeof(payload)) return false;
+
+  // Only commit state after all bounds checks succeed.
+  header = new_header;
+  transport_codes[0] = new_transport_codes[0];
+  transport_codes[1] = new_transport_codes[1];
+  path_len = new_path_len;
+  payload_len = new_payload_len;
+  memcpy(path, new_path, path_byte_len);
+  memcpy(payload, &src[i], new_payload_len);
+  return true;
 }
 
 }

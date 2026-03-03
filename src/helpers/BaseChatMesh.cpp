@@ -452,7 +452,10 @@ bool BaseChatMesh::shareContactZeroHop(const ContactInfo& contact) {
   auto packet = obtainNewPacket();
   if (packet == NULL) return false;  // no Packets available
 
-  packet->readFrom(temp_buf, plen);  // restore Packet from 'blob'
+  if (!packet->readFrom(temp_buf, plen)) {  // restore Packet from 'blob'
+    releasePacket(packet);
+    return false;
+  }
   uint16_t codes[2];
   codes[0] = codes[1] = 0;   // { 0, 0 } means 'send this nowhere'
   sendZeroHop(packet, codes);

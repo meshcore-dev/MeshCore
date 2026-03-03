@@ -113,7 +113,7 @@
 
 ---
 
-### Radio Stats - Noise floor, Last RSSI/SNR, Airtime, Receive errors
+### Radio Stats - Noise floor, Last RSSI/SNR, Airtime, WiFi drop count (0 when not using WiFi serial)
 **Usage:** `stats-radio`
 
 **Serial Only:** Yes

@@ -71,7 +71,7 @@ void RS232Bridge::loop() {
         uint16_t len = (_rx_buffer[2] << 8) | _rx_buffer[3];
 
         // Validate length field
-        if (len > (MAX_TRANS_UNIT + 1)) {
+        if (len > MAX_TRANS_UNIT) {
           BRIDGE_DEBUG_PRINTLN("RX invalid length %d, resetting\n", len);
           _rx_buffer_pos = 0; // Invalid length, reset
           continue;
@@ -84,7 +84,7 @@ void RS232Bridge::loop() {
             BRIDGE_DEBUG_PRINTLN("RX, len=%d crc=0x%04x\n", len, received_checksum);
             mesh::Packet *pkt = _mgr->allocNew();
             if (pkt) {
-              if (pkt->readFrom(_rx_buffer + 4, len)) {
+              if (pkt->readFrom(_rx_buffer + 4, (size_t) len)) {
                 onPacketReceived(pkt);
               } else {
                 BRIDGE_DEBUG_PRINTLN("RX failed to parse packet\n");
@@ -121,8 +121,8 @@ void RS232Bridge::sendPacket(mesh::Packet *packet) {
     uint16_t len = packet->writeTo(buffer + 4);
 
     // Check if packet fits within our maximum payload size
-    if (len > (MAX_TRANS_UNIT + 1)) {
-      BRIDGE_DEBUG_PRINTLN("TX packet too large (payload=%d, max=%d)\n", len, MAX_TRANS_UNIT + 1);
+    if (len > MAX_TRANS_UNIT) {
+      BRIDGE_DEBUG_PRINTLN("TX packet too large (payload=%d, max=%d)\n", len, MAX_TRANS_UNIT);
       return;
     }
 

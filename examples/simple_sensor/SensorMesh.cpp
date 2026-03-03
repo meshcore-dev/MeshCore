@@ -825,7 +825,7 @@ void SensorMesh::formatStatsReply(char *reply) {
 }
 
 void SensorMesh::formatRadioStatsReply(char *reply) {
-  StatsFormatHelper::formatRadioStats(reply, _radio, radio_driver, getTotalAirTime(), getReceiveAirTime());
+  StatsFormatHelper::formatRadioStats(reply, _radio, radio_driver, getTotalAirTime(), getReceiveAirTime(), getSerialDropCount());
 }
 
 void SensorMesh::formatPacketStatsReply(char *reply) {

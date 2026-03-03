@@ -18,6 +18,8 @@ static void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
 
 static void OnDataRecv(const uint8_t *mac, const uint8_t *data, int len) {
   ESPNOW_DEBUG_PRINTLN("Recv: len = %d", len);
+  if (len <= 0) return;
+  if (len > (int) sizeof(rx_buf)) len = sizeof(rx_buf);
   memcpy(rx_buf, data, len);
   last_rx_len = len;
 }
@@ -101,7 +103,8 @@ float ESPNOWRadio::getLastSNR() const { return 0; }
 int ESPNOWRadio::recvRaw(uint8_t* bytes, int sz) {
   int len = last_rx_len;
   if (last_rx_len > 0) {
-    memcpy(bytes, rx_buf, last_rx_len);
+    if (len > sz) len = sz;
+    memcpy(bytes, rx_buf, len);
     last_rx_len = 0;
     n_recv++;
   }

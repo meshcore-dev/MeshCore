@@ -1,4 +1,5 @@
 #include "IdentityStore.h"
+#include "CheckedIO.h"
 
 bool IdentityStore::load(const char *name, mesh::LocalIdentity& id) {
   bool loaded = false;
@@ -19,6 +20,8 @@ bool IdentityStore::load(const char *name, mesh::LocalIdentity& id) {
 }
 
 bool IdentityStore::load(const char *name, mesh::LocalIdentity& id, char display_name[], int max_name_sz) {
+  if (display_name == NULL || max_name_sz <= 0) return false;
+
   bool loaded = false;
   char filename[40];
   sprintf(filename, "%s/%s.id", _dir, name);
@@ -33,7 +36,7 @@ bool IdentityStore::load(const char *name, mesh::LocalIdentity& id, char display
 
       int n = max_name_sz;   // up to 32 bytes
       if (n > 32) n = 32;
-      file.read((uint8_t *) display_name, n);
+      loaded = loaded && checked_io::readExact(file, (uint8_t *) display_name, n);
       display_name[n - 1] = 0;  // ensure null terminator
 
       file.close();
@@ -58,7 +61,7 @@ bool IdentityStore::save(const char *name, const mesh::LocalIdentity& id) {
     bool success = id.writeTo(file);
     file.close();
     MESH_DEBUG_PRINTLN("IdentityStore::save() write - %s", success ? "OK" : "Err");
-    return true;
+    return success;
   }
   MESH_DEBUG_PRINTLN("IdentityStore::save() failed");
   return false;
@@ -77,17 +80,17 @@ bool IdentityStore::save(const char *name, const mesh::LocalIdentity& id, const 
   File file = _fs->open(filename, "w", true);
 #endif
   if (file) {
-    id.writeTo(file);
+    bool success = id.writeTo(file);
 
     uint8_t tmp[32];
     memset(tmp, 0, sizeof(tmp));
     int n = strlen(display_name);
     if (n > sizeof(tmp)-1) n = sizeof(tmp)-1;
     memcpy(tmp, display_name, n);
-    file.write(tmp, sizeof(tmp));
+    success = success && checked_io::writeExact(file, tmp, sizeof(tmp));
 
     file.close();
-    return true;
+    return success;
   }
   return false;
 }

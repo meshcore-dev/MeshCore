@@ -76,6 +76,7 @@ public:
   virtual void formatStatsReply(char *reply) = 0;
   virtual void formatRadioStatsReply(char *reply) = 0;
   virtual void formatPacketStatsReply(char *reply) = 0;
+  virtual uint32_t getSerialDropCount() const { return 0; }
   virtual mesh::LocalIdentity& getSelfId() = 0;
   virtual void saveIdentity(const mesh::LocalIdentity& new_id) = 0;
   virtual void clearStats() = 0;

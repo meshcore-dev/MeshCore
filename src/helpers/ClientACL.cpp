@@ -1,4 +1,5 @@
 #include "ClientACL.h"
+#include "CheckedIO.h"
 
 static File openWrite(FILESYSTEM* _fs, const char* filename) {
   #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
@@ -29,13 +30,13 @@ void ClientACL::load(FILESYSTEM* fs, const mesh::LocalIdentity& self_id) {
 
         memset(&c, 0, sizeof(c));
 
-        bool success = (file.read(pub_key, 32) == 32);
-        success = success && (file.read((uint8_t *) &c.permissions, 1) == 1);
-        success = success && (file.read((uint8_t *) &c.extra.room.sync_since, 4) == 4);
-        success = success && (file.read(unused, 2) == 2);
-        success = success && (file.read((uint8_t *)&c.out_path_len, 1) == 1);
-        success = success && (file.read(c.out_path, 64) == 64);
-        success = success && (file.read(c.shared_secret, PUB_KEY_SIZE) == PUB_KEY_SIZE); // will be recalculated below
+        bool success = checked_io::readExact(file, pub_key, 32);
+        success = success && checked_io::readValue(file, c.permissions);
+        success = success && checked_io::readValue(file, c.extra.room.sync_since);
+        success = success && checked_io::readExact(file, unused, 2);
+        success = success && checked_io::readValue(file, c.out_path_len);
+        success = success && checked_io::readExact(file, c.out_path, 64);
+        success = success && checked_io::readExact(file, c.shared_secret, PUB_KEY_SIZE); // recalculated below
 
         if (!success) break; // EOF
 
@@ -63,13 +64,13 @@ void ClientACL::save(FILESYSTEM* fs, bool (*filter)(ClientInfo*)) {
       auto c = &clients[i];
       if (c->permissions == 0 || (filter && !filter(c))) continue;    // skip deleted entries, or by filter function
 
-      bool success = (file.write(c->id.pub_key, 32) == 32);
-      success = success && (file.write((uint8_t *) &c->permissions, 1) == 1);
-      success = success && (file.write((uint8_t *) &c->extra.room.sync_since, 4) == 4);
-      success = success && (file.write(unused, 2) == 2);
-      success = success && (file.write((uint8_t *)&c->out_path_len, 1) == 1);
-      success = success && (file.write(c->out_path, 64) == 64);
-      success = success && (file.write(c->shared_secret, PUB_KEY_SIZE) == PUB_KEY_SIZE);
+      bool success = checked_io::writeExact(file, c->id.pub_key, 32);
+      success = success && checked_io::writeValue(file, c->permissions);
+      success = success && checked_io::writeValue(file, c->extra.room.sync_since);
+      success = success && checked_io::writeExact(file, unused, 2);
+      success = success && checked_io::writeValue(file, c->out_path_len);
+      success = success && checked_io::writeExact(file, c->out_path, 64);
+      success = success && checked_io::writeExact(file, c->shared_secret, PUB_KEY_SIZE);
 
       if (!success) break; // write failed
     }

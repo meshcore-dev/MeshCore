@@ -2,6 +2,7 @@
 #include "CommonCLI.h"
 #include "TxtDataHelpers.h"
 #include "AdvertDataHelpers.h"
+#include "CheckedIO.h"
 #include <RTClib.h>
 
 // Believe it or not, this std C function is busted on some platforms!
@@ -22,6 +23,37 @@ static bool isValidName(const char *n) {
   return true;
 }
 
+static void readCompatPad(File& file, bool& truncated, size_t n) {
+  if (truncated) return;
+  uint8_t pad[8];
+  if (n > sizeof(pad) || !checked_io::readExact(file, pad, n)) {
+    truncated = true;
+  }
+}
+
+template <typename T>
+static void readCompatValue(File& file, bool& truncated, T& field) {
+  if (truncated) return;
+  T tmp = field;
+  if (checked_io::readValue(file, tmp)) {
+    field = tmp;
+  } else {
+    truncated = true;
+  }
+}
+
+template <size_t N>
+static void readCompatCharArray(File& file, bool& truncated, char (&arr)[N]) {
+  if (truncated) return;
+  char tmp[N];
+  memcpy(tmp, arr, sizeof(tmp));
+  if (checked_io::readExact(file, (uint8_t*) tmp, sizeof(tmp))) {
+    memcpy(arr, tmp, sizeof(tmp));
+  } else {
+    truncated = true;
+  }
+}
+
 void CommonCLI::loadPrefs(FILESYSTEM* fs) {
   if (fs->exists("/com_prefs")) {
     loadPrefsInt(fs, "/com_prefs");   // new filename
@@ -39,50 +71,53 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
   File file = fs->open(filename);
 #endif
   if (file) {
-    uint8_t pad[8];
+    NodePrefs loaded = *_prefs;
+    bool truncated = false;
 
-    file.read((uint8_t *)&_prefs->airtime_factor, sizeof(_prefs->airtime_factor));    // 0
-    file.read((uint8_t *)&_prefs->node_name, sizeof(_prefs->node_name));              // 4
-    file.read(pad, 4);                                                                // 36
-    file.read((uint8_t *)&_prefs->node_lat, sizeof(_prefs->node_lat));                // 40
-    file.read((uint8_t *)&_prefs->node_lon, sizeof(_prefs->node_lon));                // 48
-    file.read((uint8_t *)&_prefs->password[0], sizeof(_prefs->password));             // 56
-    file.read((uint8_t *)&_prefs->freq, sizeof(_prefs->freq));                        // 72
-    file.read((uint8_t *)&_prefs->tx_power_dbm, sizeof(_prefs->tx_power_dbm));        // 76
-    file.read((uint8_t *)&_prefs->disable_fwd, sizeof(_prefs->disable_fwd));          // 77
-    file.read((uint8_t *)&_prefs->advert_interval, sizeof(_prefs->advert_interval));  // 78
-    file.read((uint8_t *)pad, 1);                                                     // 79  was 'unused'
-    file.read((uint8_t *)&_prefs->rx_delay_base, sizeof(_prefs->rx_delay_base));      // 80
-    file.read((uint8_t *)&_prefs->tx_delay_factor, sizeof(_prefs->tx_delay_factor));  // 84
-    file.read((uint8_t *)&_prefs->guest_password[0], sizeof(_prefs->guest_password)); // 88
-    file.read((uint8_t *)&_prefs->direct_tx_delay_factor, sizeof(_prefs->direct_tx_delay_factor)); // 104
-    file.read(pad, 4);                                                                             // 108
-    file.read((uint8_t *)&_prefs->sf, sizeof(_prefs->sf));                                         // 112
-    file.read((uint8_t *)&_prefs->cr, sizeof(_prefs->cr));                                         // 113
-    file.read((uint8_t *)&_prefs->allow_read_only, sizeof(_prefs->allow_read_only));               // 114
-    file.read((uint8_t *)&_prefs->multi_acks, sizeof(_prefs->multi_acks));                         // 115
-    file.read((uint8_t *)&_prefs->bw, sizeof(_prefs->bw));                                         // 116
-    file.read((uint8_t *)&_prefs->agc_reset_interval, sizeof(_prefs->agc_reset_interval));         // 120
-    file.read((uint8_t *)&_prefs->path_hash_mode, sizeof(_prefs->path_hash_mode));                 // 121
-    file.read(pad, 2);                                                                             // 122
-    file.read((uint8_t *)&_prefs->flood_max, sizeof(_prefs->flood_max));                           // 124
-    file.read((uint8_t *)&_prefs->flood_advert_interval, sizeof(_prefs->flood_advert_interval));   // 125
-    file.read((uint8_t *)&_prefs->interference_threshold, sizeof(_prefs->interference_threshold)); // 126
-    file.read((uint8_t *)&_prefs->bridge_enabled, sizeof(_prefs->bridge_enabled));                 // 127
-    file.read((uint8_t *)&_prefs->bridge_delay, sizeof(_prefs->bridge_delay));                     // 128
-    file.read((uint8_t *)&_prefs->bridge_pkt_src, sizeof(_prefs->bridge_pkt_src));                 // 130
-    file.read((uint8_t *)&_prefs->bridge_baud, sizeof(_prefs->bridge_baud));                       // 131
-    file.read((uint8_t *)&_prefs->bridge_channel, sizeof(_prefs->bridge_channel));                 // 135
-    file.read((uint8_t *)&_prefs->bridge_secret, sizeof(_prefs->bridge_secret));                   // 136
-    file.read((uint8_t *)&_prefs->powersaving_enabled, sizeof(_prefs->powersaving_enabled));       // 152
-    file.read(pad, 3);                                                                             // 153
-    file.read((uint8_t *)&_prefs->gps_enabled, sizeof(_prefs->gps_enabled));                       // 156
-    file.read((uint8_t *)&_prefs->gps_interval, sizeof(_prefs->gps_interval));                     // 157
-    file.read((uint8_t *)&_prefs->advert_loc_policy, sizeof (_prefs->advert_loc_policy));          // 161
-    file.read((uint8_t *)&_prefs->discovery_mod_timestamp, sizeof(_prefs->discovery_mod_timestamp)); // 162
-    file.read((uint8_t *)&_prefs->adc_multiplier, sizeof(_prefs->adc_multiplier)); // 166
-    file.read((uint8_t *)_prefs->owner_info, sizeof(_prefs->owner_info));  // 170
-    // 290
+    readCompatValue(file, truncated, loaded.airtime_factor);         // 0
+    readCompatCharArray(file, truncated, loaded.node_name);          // 4
+    readCompatPad(file, truncated, 4);                               // 36
+    readCompatValue(file, truncated, loaded.node_lat);               // 40
+    readCompatValue(file, truncated, loaded.node_lon);               // 48
+    readCompatCharArray(file, truncated, loaded.password);           // 56
+    readCompatValue(file, truncated, loaded.freq);                   // 72
+    readCompatValue(file, truncated, loaded.tx_power_dbm);           // 76
+    readCompatValue(file, truncated, loaded.disable_fwd);            // 77
+    readCompatValue(file, truncated, loaded.advert_interval);        // 78
+    readCompatPad(file, truncated, 1);                               // 79  was 'unused'
+    readCompatValue(file, truncated, loaded.rx_delay_base);          // 80
+    readCompatValue(file, truncated, loaded.tx_delay_factor);        // 84
+    readCompatCharArray(file, truncated, loaded.guest_password);     // 88
+    readCompatValue(file, truncated, loaded.direct_tx_delay_factor); // 104
+    readCompatPad(file, truncated, 4);                               // 108
+    readCompatValue(file, truncated, loaded.sf);                     // 112
+    readCompatValue(file, truncated, loaded.cr);                     // 113
+    readCompatValue(file, truncated, loaded.allow_read_only);        // 114
+    readCompatValue(file, truncated, loaded.multi_acks);             // 115
+    readCompatValue(file, truncated, loaded.bw);                     // 116
+    readCompatValue(file, truncated, loaded.agc_reset_interval);     // 120
+    readCompatValue(file, truncated, loaded.path_hash_mode);         // 121
+    readCompatPad(file, truncated, 2);                               // 122
+    readCompatValue(file, truncated, loaded.flood_max);              // 124
+    readCompatValue(file, truncated, loaded.flood_advert_interval);  // 125
+    readCompatValue(file, truncated, loaded.interference_threshold); // 126
+    readCompatValue(file, truncated, loaded.bridge_enabled);         // 127
+    readCompatValue(file, truncated, loaded.bridge_delay);           // 128
+    readCompatValue(file, truncated, loaded.bridge_pkt_src);         // 130
+    readCompatValue(file, truncated, loaded.bridge_baud);            // 131
+    readCompatValue(file, truncated, loaded.bridge_channel);         // 135
+    readCompatCharArray(file, truncated, loaded.bridge_secret);      // 136
+    readCompatValue(file, truncated, loaded.powersaving_enabled);    // 152
+    readCompatPad(file, truncated, 3);                               // 153
+    readCompatValue(file, truncated, loaded.gps_enabled);            // 156
+    readCompatValue(file, truncated, loaded.gps_interval);           // 157
+    readCompatValue(file, truncated, loaded.advert_loc_policy);      // 161
+    readCompatValue(file, truncated, loaded.discovery_mod_timestamp);// 162
+    readCompatValue(file, truncated, loaded.adc_multiplier);         // 166
+    readCompatCharArray(file, truncated, loaded.owner_info);         // 170
+    // 290 bytes total
+
+    *_prefs = loaded;
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -110,6 +145,10 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     _prefs->gps_enabled = constrain(_prefs->gps_enabled, 0, 1);
     _prefs->advert_loc_policy = constrain(_prefs->advert_loc_policy, 0, 2);
 
+    if (truncated) {
+      MESH_DEBUG_PRINTLN("CommonCLI::loadPrefsInt() truncated prefs, keeping defaults for missing fields");
+    }
+
     file.close();
   }
 }
@@ -126,49 +165,52 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
   if (file) {
     uint8_t pad[8];
     memset(pad, 0, sizeof(pad));
+    bool success = checked_io::writeValue(file, _prefs->airtime_factor);         // 0
+    success = success && checked_io::writeExact(file, (uint8_t *) _prefs->node_name, sizeof(_prefs->node_name)); // 4
+    success = success && checked_io::writeExact(file, pad, 4);                   // 36
+    success = success && checked_io::writeValue(file, _prefs->node_lat);         // 40
+    success = success && checked_io::writeValue(file, _prefs->node_lon);         // 48
+    success = success && checked_io::writeExact(file, (uint8_t *) &_prefs->password[0], sizeof(_prefs->password)); // 56
+    success = success && checked_io::writeValue(file, _prefs->freq);             // 72
+    success = success && checked_io::writeValue(file, _prefs->tx_power_dbm);     // 76
+    success = success && checked_io::writeValue(file, _prefs->disable_fwd);      // 77
+    success = success && checked_io::writeValue(file, _prefs->advert_interval);  // 78
+    success = success && checked_io::writeExact(file, pad, 1);                   // 79  was 'unused'
+    success = success && checked_io::writeValue(file, _prefs->rx_delay_base);    // 80
+    success = success && checked_io::writeValue(file, _prefs->tx_delay_factor);  // 84
+    success = success && checked_io::writeExact(file, (uint8_t *) &_prefs->guest_password[0], sizeof(_prefs->guest_password)); // 88
+    success = success && checked_io::writeValue(file, _prefs->direct_tx_delay_factor); // 104
+    success = success && checked_io::writeExact(file, pad, 4);                   // 108
+    success = success && checked_io::writeValue(file, _prefs->sf);               // 112
+    success = success && checked_io::writeValue(file, _prefs->cr);               // 113
+    success = success && checked_io::writeValue(file, _prefs->allow_read_only);  // 114
+    success = success && checked_io::writeValue(file, _prefs->multi_acks);       // 115
+    success = success && checked_io::writeValue(file, _prefs->bw);               // 116
+    success = success && checked_io::writeValue(file, _prefs->agc_reset_interval); // 120
+    success = success && checked_io::writeValue(file, _prefs->path_hash_mode);   // 121
+    success = success && checked_io::writeExact(file, pad, 2);                   // 122
+    success = success && checked_io::writeValue(file, _prefs->flood_max);        // 124
+    success = success && checked_io::writeValue(file, _prefs->flood_advert_interval); // 125
+    success = success && checked_io::writeValue(file, _prefs->interference_threshold); // 126
+    success = success && checked_io::writeValue(file, _prefs->bridge_enabled);   // 127
+    success = success && checked_io::writeValue(file, _prefs->bridge_delay);     // 128
+    success = success && checked_io::writeValue(file, _prefs->bridge_pkt_src);   // 130
+    success = success && checked_io::writeValue(file, _prefs->bridge_baud);      // 131
+    success = success && checked_io::writeValue(file, _prefs->bridge_channel);   // 135
+    success = success && checked_io::writeExact(file, (uint8_t *) _prefs->bridge_secret, sizeof(_prefs->bridge_secret)); // 136
+    success = success && checked_io::writeValue(file, _prefs->powersaving_enabled); // 152
+    success = success && checked_io::writeExact(file, pad, 3);                   // 153
+    success = success && checked_io::writeValue(file, _prefs->gps_enabled);      // 156
+    success = success && checked_io::writeValue(file, _prefs->gps_interval);     // 157
+    success = success && checked_io::writeValue(file, _prefs->advert_loc_policy);// 161
+    success = success && checked_io::writeValue(file, _prefs->discovery_mod_timestamp); // 162
+    success = success && checked_io::writeValue(file, _prefs->adc_multiplier);   // 166
+    success = success && checked_io::writeExact(file, (uint8_t *) _prefs->owner_info, sizeof(_prefs->owner_info)); // 170
+    // 290 bytes total
 
-    file.write((uint8_t *)&_prefs->airtime_factor, sizeof(_prefs->airtime_factor));    // 0
-    file.write((uint8_t *)&_prefs->node_name, sizeof(_prefs->node_name));              // 4
-    file.write(pad, 4);                                                                // 36
-    file.write((uint8_t *)&_prefs->node_lat, sizeof(_prefs->node_lat));                // 40
-    file.write((uint8_t *)&_prefs->node_lon, sizeof(_prefs->node_lon));                // 48
-    file.write((uint8_t *)&_prefs->password[0], sizeof(_prefs->password));             // 56
-    file.write((uint8_t *)&_prefs->freq, sizeof(_prefs->freq));                        // 72
-    file.write((uint8_t *)&_prefs->tx_power_dbm, sizeof(_prefs->tx_power_dbm));        // 76
-    file.write((uint8_t *)&_prefs->disable_fwd, sizeof(_prefs->disable_fwd));          // 77
-    file.write((uint8_t *)&_prefs->advert_interval, sizeof(_prefs->advert_interval));  // 78
-    file.write((uint8_t *)pad, 1);                                                     // 79  was 'unused'
-    file.write((uint8_t *)&_prefs->rx_delay_base, sizeof(_prefs->rx_delay_base));      // 80
-    file.write((uint8_t *)&_prefs->tx_delay_factor, sizeof(_prefs->tx_delay_factor));  // 84
-    file.write((uint8_t *)&_prefs->guest_password[0], sizeof(_prefs->guest_password)); // 88
-    file.write((uint8_t *)&_prefs->direct_tx_delay_factor, sizeof(_prefs->direct_tx_delay_factor)); // 104
-    file.write(pad, 4);                                                                             // 108
-    file.write((uint8_t *)&_prefs->sf, sizeof(_prefs->sf));                                         // 112
-    file.write((uint8_t *)&_prefs->cr, sizeof(_prefs->cr));                                         // 113
-    file.write((uint8_t *)&_prefs->allow_read_only, sizeof(_prefs->allow_read_only));               // 114
-    file.write((uint8_t *)&_prefs->multi_acks, sizeof(_prefs->multi_acks));                         // 115
-    file.write((uint8_t *)&_prefs->bw, sizeof(_prefs->bw));                                         // 116
-    file.write((uint8_t *)&_prefs->agc_reset_interval, sizeof(_prefs->agc_reset_interval));         // 120
-    file.write((uint8_t *)&_prefs->path_hash_mode, sizeof(_prefs->path_hash_mode));                 // 121
-    file.write(pad, 2);                                                                             // 122
-    file.write((uint8_t *)&_prefs->flood_max, sizeof(_prefs->flood_max));                           // 124
-    file.write((uint8_t *)&_prefs->flood_advert_interval, sizeof(_prefs->flood_advert_interval));   // 125
-    file.write((uint8_t *)&_prefs->interference_threshold, sizeof(_prefs->interference_threshold)); // 126
-    file.write((uint8_t *)&_prefs->bridge_enabled, sizeof(_prefs->bridge_enabled));                 // 127
-    file.write((uint8_t *)&_prefs->bridge_delay, sizeof(_prefs->bridge_delay));                     // 128
-    file.write((uint8_t *)&_prefs->bridge_pkt_src, sizeof(_prefs->bridge_pkt_src));                 // 130
-    file.write((uint8_t *)&_prefs->bridge_baud, sizeof(_prefs->bridge_baud));                       // 131
-    file.write((uint8_t *)&_prefs->bridge_channel, sizeof(_prefs->bridge_channel));                 // 135
-    file.write((uint8_t *)&_prefs->bridge_secret, sizeof(_prefs->bridge_secret));                   // 136
-    file.write((uint8_t *)&_prefs->powersaving_enabled, sizeof(_prefs->powersaving_enabled));       // 152
-    file.write(pad, 3);                                                                             // 153
-    file.write((uint8_t *)&_prefs->gps_enabled, sizeof(_prefs->gps_enabled));                       // 156
-    file.write((uint8_t *)&_prefs->gps_interval, sizeof(_prefs->gps_interval));                     // 157
-    file.write((uint8_t *)&_prefs->advert_loc_policy, sizeof(_prefs->advert_loc_policy));           // 161
-    file.write((uint8_t *)&_prefs->discovery_mod_timestamp, sizeof(_prefs->discovery_mod_timestamp)); // 162
-    file.write((uint8_t *)&_prefs->adc_multiplier, sizeof(_prefs->adc_multiplier));                 // 166
-    file.write((uint8_t *)_prefs->owner_info, sizeof(_prefs->owner_info));  // 170
-    // 290
+    if (!success) {
+      MESH_DEBUG_PRINTLN("CommonCLI::savePrefs() failed: partial/short write");
+    }
 
     file.close();
   }

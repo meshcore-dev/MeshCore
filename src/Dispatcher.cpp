@@ -109,45 +109,11 @@ void Dispatcher::loop() {
 }
 
 bool Dispatcher::tryParsePacket(Packet* pkt, const uint8_t* raw, int len) {
-  int i = 0;
+  if (len <= 0 || len > MAX_TRANS_UNIT) return false;
+  if (pkt->readFrom(raw, (size_t) len)) return true;
 
-  pkt->header = raw[i++];
-  if (pkt->getPayloadVer() > PAYLOAD_VER_1) {
-    MESH_DEBUG_PRINTLN("%s Dispatcher::checkRecv(): unsupported packet version", getLogDateTime());
-    return false;
-  }
-
-  if (pkt->hasTransportCodes()) {
-    memcpy(&pkt->transport_codes[0], &raw[i], 2); i += 2;
-    memcpy(&pkt->transport_codes[1], &raw[i], 2); i += 2;
-  } else {
-    pkt->transport_codes[0] = pkt->transport_codes[1] = 0;
-  }
-
-  pkt->path_len = raw[i++];
-  uint8_t path_mode = pkt->path_len >> 6;  // upper 2 bits (legacy firmware: 00)
-  if (path_mode == 3) {   // Reserved for future
-    MESH_DEBUG_PRINTLN("%s Dispatcher::checkRecv(): unsupported path mode: 3", getLogDateTime());
-    return false;
-  }
-
-  uint8_t path_byte_len = (pkt->path_len & 63) * pkt->getPathHashSize();
-  if (path_byte_len > MAX_PATH_SIZE || i + path_byte_len > len) {
-    MESH_DEBUG_PRINTLN("%s Dispatcher::checkRecv(): partial or corrupt packet received, len=%d", getLogDateTime(), len);
-    return false;
-  }
-
-  memcpy(pkt->path, &raw[i], path_byte_len); i += path_byte_len;
-
-  pkt->payload_len = len - i;  // payload is remainder
-  if (pkt->payload_len > sizeof(pkt->payload)) {
-    MESH_DEBUG_PRINTLN("%s Dispatcher::checkRecv(): packet payload too big, payload_len=%d", getLogDateTime(), (uint32_t)pkt->payload_len);
-    return false;
-  }
-
-  memcpy(pkt->payload, &raw[i], pkt->payload_len);
-
-  return true;  // success
+  MESH_DEBUG_PRINTLN("%s Dispatcher::checkRecv(): partial or corrupt packet received, len=%d", getLogDateTime(), len);
+  return false;
 }
 
 void Dispatcher::checkRecv() {
