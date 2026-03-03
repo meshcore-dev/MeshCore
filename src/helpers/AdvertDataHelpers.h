@@ -12,9 +12,12 @@
 //FUTURE: 5..15
 
 #define ADV_LATLON_MASK       0x10
-#define ADV_FEAT1_MASK        0x20   // FUTURE
+#define ADV_FEAT1_MASK        0x20
 #define ADV_FEAT2_MASK        0x40   // FUTURE
 #define ADV_NAME_MASK         0x80
+
+// FEAT1 bits
+#define ADVERT_CAP_REPEAT     0x0001  // node forwards packets
 
 class AdvertDataBuilder {
   uint8_t _type;
@@ -26,7 +29,7 @@ class AdvertDataBuilder {
 public:
   AdvertDataBuilder(uint8_t adv_type) : _type(adv_type), _name(NULL), _has_loc(false) { }
   AdvertDataBuilder(uint8_t adv_type, const char* name) : _type(adv_type), _name(name), _has_loc(false) { }
-  AdvertDataBuilder(uint8_t adv_type, const char* name, double lat, double lon) : 
+  AdvertDataBuilder(uint8_t adv_type, const char* name, double lat, double lon) :
       _type(adv_type), _name(name), _has_loc(true), _lat(lat * 1E6), _lon(lon * 1E6)  { }
 
   void setFeat1(uint16_t extra) { _extra1 = extra; }

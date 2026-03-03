@@ -16,22 +16,24 @@ void BaseChatMesh::sendFloodScoped(const mesh::GroupChannel& channel, mesh::Pack
   sendFlood(pkt, delay_millis);
 }
 
-mesh::Packet* BaseChatMesh::createSelfAdvert(const char* name) {
+mesh::Packet* BaseChatMesh::createSelfAdvert(const char* name, uint16_t feat1) {
   uint8_t app_data[MAX_ADVERT_DATA_SIZE];
   uint8_t app_data_len;
   {
     AdvertDataBuilder builder(ADV_TYPE_CHAT, name);
+    if (feat1) builder.setFeat1(feat1);
     app_data_len = builder.encodeTo(app_data);
   }
 
   return createAdvert(self_id, app_data, app_data_len);
 }
 
-mesh::Packet* BaseChatMesh::createSelfAdvert(const char* name, double lat, double lon) {
+mesh::Packet* BaseChatMesh::createSelfAdvert(const char* name, double lat, double lon, uint16_t feat1) {
   uint8_t app_data[MAX_ADVERT_DATA_SIZE];
   uint8_t app_data_len;
   {
     AdvertDataBuilder builder(ADV_TYPE_CHAT, name, lat, lon);
+    if (feat1) builder.setFeat1(feat1);
     app_data_len = builder.encodeTo(app_data);
   }
 

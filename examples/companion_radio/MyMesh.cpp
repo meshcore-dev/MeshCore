@@ -1111,11 +1111,12 @@ void MyMesh::handleCmdFrame(size_t len) {
       writeErrFrame(ERR_CODE_ILLEGAL_ARG);
     }
   } else if (cmd_frame[0] == CMD_SEND_SELF_ADVERT) {
+    uint16_t caps = _prefs.client_repeat ? ADVERT_CAP_REPEAT : 0;
     mesh::Packet* pkt;
     if (_prefs.advert_loc_policy == ADVERT_LOC_NONE) {
-      pkt = createSelfAdvert(_prefs.node_name);
+      pkt = createSelfAdvert(_prefs.node_name, caps);
     } else {
-      pkt = createSelfAdvert(_prefs.node_name, sensors.node_lat, sensors.node_lon);
+      pkt = createSelfAdvert(_prefs.node_name, sensors.node_lat, sensors.node_lon, caps);
     }
     if (pkt) {
       if (len >= 2 && cmd_frame[1] == 1) { // optional param (1 = flood, 0 = zero hop)
@@ -1193,11 +1194,12 @@ void MyMesh::handleCmdFrame(size_t len) {
   } else if (cmd_frame[0] == CMD_EXPORT_CONTACT) {
     if (len < 1 + PUB_KEY_SIZE) {
       // export SELF
+      uint16_t caps = _prefs.client_repeat ? ADVERT_CAP_REPEAT : 0;
       mesh::Packet* pkt;
       if (_prefs.advert_loc_policy == ADVERT_LOC_NONE) {
-        pkt = createSelfAdvert(_prefs.node_name);
+        pkt = createSelfAdvert(_prefs.node_name, caps);
       } else {
-        pkt = createSelfAdvert(_prefs.node_name, sensors.node_lat, sensors.node_lon);
+        pkt = createSelfAdvert(_prefs.node_name, sensors.node_lat, sensors.node_lon, caps);
       }
       if (pkt) {
         pkt->header |= ROUTE_TYPE_FLOOD; // would normally be sent in this mode
@@ -2041,11 +2043,12 @@ void MyMesh::loop() {
 }
 
 bool MyMesh::advert() {
+  uint16_t caps = _prefs.client_repeat ? ADVERT_CAP_REPEAT : 0;
   mesh::Packet* pkt;
   if (_prefs.advert_loc_policy == ADVERT_LOC_NONE) {
-    pkt = createSelfAdvert(_prefs.node_name);
+    pkt = createSelfAdvert(_prefs.node_name, caps);
   } else {
-    pkt = createSelfAdvert(_prefs.node_name, sensors.node_lat, sensors.node_lon);
+    pkt = createSelfAdvert(_prefs.node_name, sensors.node_lat, sensors.node_lon, caps);
   }
   if (pkt) {
     sendZeroHop(pkt);

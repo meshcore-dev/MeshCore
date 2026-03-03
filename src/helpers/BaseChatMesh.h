@@ -143,8 +143,8 @@ protected:
   void checkConnections();
 
 public:
-  mesh::Packet* createSelfAdvert(const char* name);
-  mesh::Packet* createSelfAdvert(const char* name, double lat, double lon);
+  mesh::Packet* createSelfAdvert(const char* name, uint16_t feat1 = 0);
+  mesh::Packet* createSelfAdvert(const char* name, double lat, double lon, uint16_t feat1 = 0);
   int  sendMessage(const ContactInfo& recipient, uint32_t timestamp, uint8_t attempt, const char* text, uint32_t& expected_ack, uint32_t& est_timeout);
   int  sendCommandData(const ContactInfo& recipient, uint32_t timestamp, uint8_t attempt, const char* text, uint32_t& est_timeout);
   bool sendGroupMessage(uint32_t timestamp, mesh::GroupChannel& channel, const char* sender_name, const char* text, int text_len);

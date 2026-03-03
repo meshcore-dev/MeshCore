@@ -116,7 +116,8 @@ bool MyMesh::processAck(const uint8_t *data) {
 
 mesh::Packet *MyMesh::createSelfAdvert() {
   uint8_t app_data[MAX_ADVERT_DATA_SIZE];
-  uint8_t app_data_len = _cli.buildAdvertData(ADV_TYPE_ROOM, app_data);
+  uint16_t caps = _prefs.disable_fwd ? 0 : ADVERT_CAP_REPEAT;
+  uint8_t app_data_len = _cli.buildAdvertData(ADV_TYPE_ROOM, app_data, caps);
 
   return createAdvert(self_id, app_data, app_data_len);
 }
