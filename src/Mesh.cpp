@@ -321,7 +321,7 @@ void Mesh::removeSelfFromPath(Packet* pkt) {
 
   uint8_t sz = pkt->getPathHashSize();
   for (int k = 0; k < pkt->getPathHashCount()*sz; k += sz) {  // shuffle path by 1 'entry'
-    memcpy(&pkt->path[k], &pkt->path[k + sz], sz);
+    memmove(&pkt->path[k], &pkt->path[k + sz], sz);
   }
 }
 
