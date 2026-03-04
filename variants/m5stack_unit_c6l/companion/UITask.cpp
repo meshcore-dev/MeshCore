@@ -51,14 +51,11 @@ void UITask::renderScreen() {
     return;
   }
 
-  uint32_t pin = the_mesh.getBLEPin();
-
-  // 64x48 display, 6x8 default font = 10 chars x 6 lines
-
-  // 48px tall, 6x8 font → 4 lines at 10px spacing + 8px last
   _display->setTextSize(1);
 
-  // Line 1: PIN or status (y=0)
+  // Line 1: status (y=0)
+#ifdef BLE_PIN_CODE
+  uint32_t pin = the_mesh.getBLEPin();
   if (_connected) {
     _display->drawTextCentered(w / 2, 0, "Connected");
   } else if (pin != 0) {
@@ -67,6 +64,9 @@ void UITask::renderScreen() {
   } else {
     _display->drawTextCentered(w / 2, 0, "Ready");
   }
+#else
+  _display->drawTextCentered(w / 2, 0, "USB Ready");
+#endif
 
   // Line 2: Node name with marquee scroll (y=10)
   int nameW = _display->getTextWidth(_node_prefs->node_name);
