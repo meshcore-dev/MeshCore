@@ -7,6 +7,8 @@
 #include <helpers/RegionMap.h>
 #include <helpers/ConfigSerializer.h>
 
+#define MAX_CLI_REPLY_LEN  160
+
 #if defined(WITH_RS232_BRIDGE) || defined(WITH_ESPNOW_BRIDGE)
 #define WITH_BRIDGE
 #endif
@@ -263,8 +265,8 @@ class CommonCLI {
   void loadPrefsInt(FILESYSTEM* _fs, const char* filename);
 
   void handleRegionCmd(char* command, char* reply);
-  void handleGetCmd(uint32_t sender_timestamp, char* command, char* reply);
-  void handleSetCmd(uint32_t sender_timestamp, char* command, char* reply);
+  void handleGetCmd(uint32_t sender_timestamp, const char* command, char* reply);
+  void handleSetCmd(uint32_t sender_timestamp, const char* command, char* reply);
 
 public:
   CommonCLI(mesh::MainBoard& board, mesh::RTCClock& rtc, SensorManager& sensors, RegionMap& region_map, ClientACL& acl, NodePrefs* prefs, CommonCLICallbacks* callbacks)
@@ -272,6 +274,6 @@ public:
 
   void loadPrefs(FILESYSTEM* _fs);
   bool savePrefs(FILESYSTEM* _fs);
-  void handleCommand(uint32_t sender_timestamp, char* command, char* reply);
+  void handleCommand(uint32_t sender_timestamp, char* command, char reply[MAX_CLI_REPLY_LEN]);
   uint8_t buildAdvertData(uint8_t node_type, uint8_t* app_data);
 };
