@@ -29,8 +29,8 @@ void setup() {
 
   board.begin();
 
-#ifdef HAS_EX_WATCHDOG
-  ex_watchdog.begin();
+#ifdef HAS_EXTERNAL_WATCHDOG
+  external_watchdog.begin();
 #endif
 
 #if defined(MESH_DEBUG) && defined(NRF52_PLATFORM)
@@ -138,13 +138,13 @@ void loop() {
 #endif
   rtc_clock.tick();
 
-#ifdef HAS_EX_WATCHDOG
-  ex_watchdog.loop();
+#ifdef HAS_EXTERNAL_WATCHDOG
+  external_watchdog.loop();
 #endif
   if (the_mesh.getNodePrefs()->powersaving_enabled && !the_mesh.hasPendingWork()) {
 #if defined(NRF52_PLATFORM)
-#ifdef HAS_EX_WATCHDOG
-    uint32_t sleep_interval = ex_watchdog.getIntervalMs()/1000;
+#ifdef HAS_EXTERNAL_WATCHDOG
+    uint32_t sleep_interval = external_watchdog.getIntervalMs()/1000;
     board.sleep((sleep_interval > 1800) ? 1800 : sleep_interval);             // To sleep. Wake up after 30 minutes or when receiving a LoRa packet
 #else
     board.sleep(1800);             // To sleep. Wake up after 30 minutes or when receiving a LoRa packet
@@ -152,8 +152,8 @@ void loop() {
     board.sleep(1800); // nrf ignores seconds param, sleeps whenever possible
 #else
     if (the_mesh.millisHasNowPassed(lastActive + nextSleepinSecs * 1000)) { // To check if it is time to sleep
-#ifdef HAS_EX_WATCHDOG
-      uint32_t sleep_interval = ex_watchdog.getIntervalMs()/1000;
+#ifdef HAS_EXTERNAL_WATCHDOG
+      uint32_t sleep_interval = external_watchdog.getIntervalMs()/1000;
       board.sleep((sleep_interval > 1800) ? 1800 : sleep_interval);             // To sleep. Wake up after 30 minutes or when receiving a LoRa packet
 #else
       board.sleep(1800);             // To sleep. Wake up after 30 minutes or when receiving a LoRa packet
