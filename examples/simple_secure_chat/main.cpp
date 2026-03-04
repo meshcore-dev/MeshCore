@@ -559,8 +559,8 @@ void setup() {
 
   board.begin();
 
-#ifdef HAS_EX_WATCHDOG
-  ex_watchdog.begin();
+#ifdef HAS_EXTERNAL_WATCHDOG
+  external_watchdog.begin();
 #endif
 
   if (!radio_init()) { halt(); }
@@ -594,7 +594,7 @@ void setup() {
 void loop() {
   the_mesh.loop();
   rtc_clock.tick();
-#ifdef HAS_EX_WATCHDOG
-  ex_watchdog.loop();
+#ifdef HAS_EXTERNAL_WATCHDOG
+  external_watchdog.loop();
 #endif
 }
