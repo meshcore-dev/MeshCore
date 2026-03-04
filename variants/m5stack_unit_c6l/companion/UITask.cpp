@@ -14,9 +14,7 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
   _msgcount = 0;
   _next_refresh = 0;
   _auto_off = millis() + AUTO_OFF_MILLIS;
-  _scroll_offset = 0;
-  _scroll_next = 0;
-  _scroll_paused = true;
+  _scroller.reset();
 
   Serial.println("UITask: begin()");
   if (_display != NULL) {
@@ -78,7 +76,7 @@ void UITask::renderScreen() {
     _display->print(_node_prefs->node_name);
   } else {
     // Marquee: draw at negative offset
-    _display->setCursor(-_scroll_offset, 10);
+    _display->setCursor(-_scroller.offset, 10);
     _display->print(_node_prefs->node_name);
   }
 
@@ -109,23 +107,9 @@ void UITask::loop() {
 
   if (_display->isOn()) {
     // Update marquee scroll
-    if (_node_prefs != NULL && millis() >= _scroll_next) {
-      int nameW = _display->getTextWidth(_node_prefs->node_name);
-      int w = _display->width();
-      int maxScroll = nameW - w;
-      if (maxScroll > 0) {
-        if (_scroll_paused) {
-          _scroll_paused = false;
-          _scroll_next = millis() + SCROLL_PAUSE_MS;
-        } else {
-          _scroll_offset++;
-          if (_scroll_offset >= maxScroll) {
-            _scroll_offset = 0;
-            _scroll_paused = true;
-          }
-          _scroll_next = millis() + SCROLL_SPEED_MS;
-        }
-      }
+    if (_node_prefs != NULL) {
+      _scroller.update(_display->getTextWidth(_node_prefs->node_name),
+                       _display->width(), millis(), SCROLL_SPEED_MS, SCROLL_PAUSE_MS);
     }
 
     if (millis() >= _next_refresh) {
