@@ -102,8 +102,9 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
       if (!_tables->wasSeen(pkt)) {
         _tables->markSeen(pkt);
         removeSelfFromPath(pkt);
+        pkt->_tx_cr = selectCodingRateForPeer(pkt->path, pkt->getPathHashSize());
 
-        return ACTION_RETRANSMIT_DELAYED(0, d);  // Routed traffic is HIGHEST priority 
+        return ACTION_RETRANSMIT_DELAYED(0, d);  // Routed traffic is HIGHEST priority
       }
     }
     return ACTION_RELEASE;   // this node is NOT the next hop (OR this packet has already been forwarded), so discard.
