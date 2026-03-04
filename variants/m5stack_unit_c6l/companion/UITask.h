@@ -30,7 +30,5 @@ private:
   bool _need_refresh;
   uint32_t _next_refresh;
   uint32_t _auto_off;
-  int _scroll_offset;
-  uint32_t _scroll_next;
-  bool _scroll_paused;
+  MarqueeScroller _scroller;
 };

@@ -4,6 +4,7 @@
 #include "../../../examples/simple_repeater/UITask.h"
 #include <Arduino.h>
 #include <helpers/CommonCLI.h>
+#include <helpers/ui/DisplayDriver.h>
 #include <M5StackUnitC6LBoard.h>
 
 extern M5StackUnitC6LBoard board;
@@ -13,17 +14,13 @@ extern M5StackUnitC6LBoard board;
 #define SCROLL_SPEED_MS      150
 #define SCROLL_PAUSE_MS      2000
 
-static int s_scroll_offset = 0;
-static unsigned long s_scroll_next = 0;
-static bool s_scroll_paused = true;
+static MarqueeScroller s_scroller;
 
 void UITask::begin(NodePrefs* node_prefs, const char* build_date, const char* firmware_version) {
   _prevBtnState = HIGH;
   _auto_off = millis() + AUTO_OFF_MILLIS;
   _node_prefs = node_prefs;
-  s_scroll_offset = 0;
-  s_scroll_next = 0;
-  s_scroll_paused = true;
+  s_scroller.reset();
   _display->turnOn();
 
   char version[16];
@@ -60,7 +57,7 @@ void UITask::renderCurrScreen() {
       _display->setCursor(0, 0);
       _display->print(_node_prefs->node_name);
     } else {
-      _display->setCursor(-s_scroll_offset, 0);
+      _display->setCursor(-s_scroller.offset, 0);
       _display->print(_node_prefs->node_name);
     }
 
@@ -96,23 +93,9 @@ void UITask::loop() {
 
   if (_display->isOn()) {
     // Update marquee scroll
-    if (_node_prefs != NULL && millis() >= s_scroll_next) {
-      int nameW = _display->getTextWidth(_node_prefs->node_name);
-      int w = _display->width();
-      int maxScroll = nameW - w;
-      if (maxScroll > 0) {
-        if (s_scroll_paused) {
-          s_scroll_paused = false;
-          s_scroll_next = millis() + SCROLL_PAUSE_MS;
-        } else {
-          s_scroll_offset++;
-          if (s_scroll_offset >= maxScroll) {
-            s_scroll_offset = 0;
-            s_scroll_paused = true;
-          }
-          s_scroll_next = millis() + SCROLL_SPEED_MS;
-        }
-      }
+    if (_node_prefs != NULL) {
+      s_scroller.update(_display->getTextWidth(_node_prefs->node_name),
+                        _display->width(), millis(), SCROLL_SPEED_MS, SCROLL_PAUSE_MS);
     }
 
     if (millis() >= _next_refresh) {

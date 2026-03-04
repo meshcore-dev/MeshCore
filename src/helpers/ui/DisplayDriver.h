@@ -3,6 +3,38 @@
 #include <stdint.h>
 #include <string.h>
 
+struct MarqueeScroller {
+  int offset = 0;
+  unsigned long next_time = 0;
+  bool paused = true;
+
+  void reset() {
+    offset = 0;
+    next_time = 0;
+    paused = true;
+  }
+
+  // Call once per loop iteration to advance the scroll.
+  // textW/displayW in pixels, now = millis().
+  void update(int textW, int displayW, unsigned long now,
+              unsigned long speed_ms = 150, unsigned long pause_ms = 2000) {
+    int maxScroll = textW - displayW;
+    if (maxScroll <= 0) { offset = 0; return; }
+    if (now < next_time) return;
+    if (paused) {
+      paused = false;
+      next_time = now + pause_ms;
+    } else {
+      offset++;
+      if (offset >= maxScroll) {
+        offset = 0;
+        paused = true;
+      }
+      next_time = now + speed_ms;
+    }
+  }
+};
+
 class DisplayDriver {
   int _w, _h;
 protected:
