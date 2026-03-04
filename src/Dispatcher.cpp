@@ -105,6 +105,9 @@ void Dispatcher::loop() {
       }
 
       _radio->onSendFinished();
+      if (outbound->_tx_cr != 0 && outbound->_tx_cr != _default_cr) {
+        _radio->setCodingRate(_default_cr);
+      }
       logTx(outbound, 2 + outbound->getPathByteLen() + outbound->payload_len);
       if (outbound->isRouteFlood()) {
         n_sent_flood++;
@@ -117,6 +120,9 @@ void Dispatcher::loop() {
       MESH_DEBUG_PRINTLN("%s Dispatcher::loop(): WARNING: outbound packed send timed out!", getLogDateTime());
 
       _radio->onSendFinished();
+      if (outbound->_tx_cr != 0 && outbound->_tx_cr != _default_cr) {
+        _radio->setCodingRate(_default_cr);
+      }
       logTxFail(outbound, 2 + outbound->getPathByteLen() + outbound->payload_len);
 
       releasePacket(outbound);  // return to pool
@@ -323,14 +329,21 @@ void Dispatcher::checkSend() {
     } else {
       memcpy(&raw[len], outbound->payload, outbound->payload_len); len += outbound->payload_len;
 
+      if (outbound->_tx_cr != 0 && outbound->_tx_cr != _default_cr) {
+        _radio->setCodingRate(outbound->_tx_cr);
+      }
+
       uint32_t max_airtime = _radio->getEstAirtimeFor(len)*3/2;
       outbound_start = _ms->getMillis();
       bool success = _radio->startSendRaw(raw, len);
       if (!success) {
         MESH_DEBUG_PRINTLN("%s Dispatcher::loop(): ERROR: send start failed!", getLogDateTime());
+        if (outbound->_tx_cr != 0 && outbound->_tx_cr != _default_cr) {
+          _radio->setCodingRate(_default_cr);
+        }
 
         logTxFail(outbound, outbound->getRawLength());
-  
+
         releasePacket(outbound);  // return to pool
         outbound = NULL;
         return;
@@ -359,6 +372,7 @@ Packet* Dispatcher::obtainNewPacket() {
   } else {
     pkt->payload_len = pkt->path_len = 0;
     pkt->_snr = 0;
+    pkt->_tx_cr = 0;
   }
   return pkt;
 }
