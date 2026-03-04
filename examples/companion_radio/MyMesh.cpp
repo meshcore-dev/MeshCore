@@ -1247,7 +1247,7 @@ void MyMesh::handleCmdFrame(size_t len) {
   } else if (cmd_frame[0] == CMD_SYNC_NEXT_MESSAGE) {
     int out_len;
     if ((out_len = peekOfflineQueue(out_frame)) > 0) {
-      if (_serial->writeFrame(out_frame, out_len) > 0) {
+      if (_serial->writeFrame(out_frame, out_len) >= out_len) {
         popOfflineQueue();
 #ifdef DISPLAY_CLASS
         if (_ui) _ui->msgRead(offline_queue_len);
