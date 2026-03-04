@@ -45,6 +45,11 @@ static Adafruit_BME280 BME280;
 static Adafruit_BMP280 BMP280(TELEM_WIRE);
 #endif
 
+#ifdef ENV_INCLUDE_SEN0658
+#include "DFROBOT_SEN0658.h"
+static DFROBOT_SEN0658 SEN0658;
+#endif
+
 #if ENV_INCLUDE_SHTC3
 #include <Adafruit_SHTC3.h>
 static Adafruit_SHTC3 SHTC3;
@@ -331,6 +336,16 @@ bool EnvironmentSensorManager::begin() {
   }
   #endif
 
+  #if ENV_INCLUDE_SEN0658
+  if (SEN0658.begin()) {
+    MESH_DEBUG_PRINTLN("Found sensor SEN0658");
+    SEN0658_initialized = true;
+  } else {
+    SEN0658_initialized = false;
+    MESH_DEBUG_PRINTLN("SEN0658 was not found");
+  }
+  #endif
+
   return true;
 }
 
@@ -480,6 +495,20 @@ bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, Cayen
         telemetry.addTemperature(TELEM_CHANNEL_SELF, BMP085.readTemperature());
         telemetry.addBarometricPressure(TELEM_CHANNEL_SELF, BMP085.readPressure() / 100);
         telemetry.addAltitude(TELEM_CHANNEL_SELF, BMP085.readAltitude(TELEM_BMP085_SEALEVELPRESSURE_HPA * 100));
+    }
+    #endif
+
+    #if ENV_INCLUDE_SEN0658
+    if (SEN0658_initialized) {
+      DFROBOT_SEN0658_Sample sample = {0};
+      if (SEN0658.readSample(sample)) {
+        telemetry.addTemperature(TELEM_CHANNEL_SELF, sample.temperature);
+        telemetry.addRelativeHumidity(TELEM_CHANNEL_SELF, sample.humidity);
+        telemetry.addBarometricPressure(TELEM_CHANNEL_SELF, sample.airPressure);
+        telemetry.addLuminosity(TELEM_CHANNEL_SELF, sample.luminosity);
+        telemetry.addDirection(TELEM_CHANNEL_SELF, sample.windDirection);
+        telemetry.addConcentration(TELEM_CHANNEL_SELF, sample.pm2_5);
+      }
     }
     #endif
 
