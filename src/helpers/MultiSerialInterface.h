@@ -163,18 +163,22 @@ public:
       return 0;
     }
 
-    // write frame to all enabled interfaces
+    // write frame to all enabled interfaces that have a client connected
+    // (an idle interface with no client must not count as a failed write)
+    bool anyWritten = false;
     bool allSuccessful = true;
     for(auto iface : _interfaces){
-      if(iface.instance && iface.instance->isEnabled()){
-        if(iface.instance->writeFrame(src, len) != len){
+      if(iface.instance && iface.instance->isEnabled() && iface.instance->isConnected()){
+        if(iface.instance->writeFrame(src, len) == len){
+          anyWritten = true;
+        } else {
           allSuccessful = false;
         }
       }
     }
 
-    // report success if all writes completed successfully
-    return allSuccessful ? len : 0; 
+    // report success if all connected interfaces accepted the frame
+    return (anyWritten && allSuccessful) ? len : 0; 
   }
 
   size_t checkRecvFrame(uint8_t dest[]) override {
