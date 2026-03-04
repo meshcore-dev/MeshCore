@@ -74,6 +74,8 @@ public:
   */
   virtual bool isReceiving() { return false; }
 
+  virtual void setCodingRate(uint8_t cr) { }
+
   virtual float getLastRSSI() const { return 0; }
   virtual float getLastSNR() const { return 0; }
 };
@@ -136,6 +138,8 @@ protected:
   MillisecondClock* _ms;
   uint16_t _err_flags;
 
+  uint8_t _default_cr;
+
   Dispatcher(Radio& radio, MillisecondClock& ms, PacketManager& mgr)
     : _radio(&radio), _ms(&ms), _mgr(&mgr)
   {
@@ -150,6 +154,7 @@ protected:
     tx_budget_ms = 0;
     last_budget_update = 0;
     duty_cycle_window_ms = 3600000;
+    _default_cr = 5;
   }
 
   virtual DispatcherAction onRecvPacket(Packet* pkt) = 0;
@@ -184,6 +189,8 @@ public:
   uint32_t getNumSentDirect() const { return n_sent_direct; }
   uint32_t getNumRecvFlood() const { return n_recv_flood; }
   uint32_t getNumRecvDirect() const { return n_recv_direct; }
+  void setDefaultCR(uint8_t cr) { _default_cr = cr; }
+
   void resetStats() {
     n_sent_flood = n_sent_direct = n_recv_flood = n_recv_direct = 0;
     _err_flags = 0;
