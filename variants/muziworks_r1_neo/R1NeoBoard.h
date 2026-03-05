@@ -19,6 +19,12 @@ public:
   R1NeoBoard() : NRF52Board("R1NEO_OTA") {}
   void begin();
 
+#ifdef NRF52_POWER_MANAGEMENT
+  void powerOff() override {
+    initiateShutdown(SHUTDOWN_REASON_USER);
+  }
+#endif
+
   #define BATTERY_SAMPLES 8
 
   uint16_t getBattMilliVolts() override {

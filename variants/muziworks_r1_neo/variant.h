@@ -66,12 +66,11 @@ extern "C"
 
 /* R1Neo peripherals */
 /* GPS */
-#define GPS_RX      (24) // P0.24 (23) UART_GPS_RX
-#define GPS_TX      (25) // P0.25 (24) UART_GPS_TX
-#define GPS_EN      (33) // P1.01 (25) GPS_EN
-#define GPS_PPS      (2) // P0.02 (30) GPS_PPS
+#define PIN_GPS_RX   (24) // P0.24 (23) UART_GPS_RX (MCU transmits -> GPS receives)
+#define PIN_GPS_TX   (25) // P0.25 (24) UART_GPS_TX (GPS transmits -> MCU receives)
+#define PIN_GPS_EN   (33) // P1.01 (25) GPS_EN
+#define PIN_GPS_1PPS  (2) // P0.02 (30) GPS_PPS
 
-#define PIN_GPS_1PPS  GPS_PPS
 #define GPS_BAUD_RATE 9600
 
 /* RTC */
@@ -123,10 +122,6 @@ extern "C"
    static const uint8_t AREF = PIN_AREF;
 
 /* Serial interfaces */
-#define PIN_GPS_TX (GPS_TX)
-#define PIN_GPS_RX (GPS_RX)
-#define PIN_GPS_EN (GPS_EN)
-
 #define PIN_SERIAL1_RX (PIN_GPS_TX)  // MCU receives <- GPS transmits
 #define PIN_SERIAL1_TX (PIN_GPS_RX)  // MCU transmits -> GPS receives
 
