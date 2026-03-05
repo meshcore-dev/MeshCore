@@ -13,9 +13,7 @@
   },
   "connectivity": [
     "wifi",
-    "bluetooth",
-    "ethernet",
-    "can"
+    "bluetooth"
   ],
   "frameworks": [
     "arduino",
