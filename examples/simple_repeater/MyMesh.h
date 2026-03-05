@@ -92,6 +92,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   uint8_t reply_data[MAX_PACKET_PAYLOAD];
   uint8_t reply_path[MAX_PATH_SIZE];
   int8_t  reply_path_len;
+  uint8_t reply_path_hash_size;
   TransportKeyStore key_store;
   RegionMap region_map, temp_map;
   RegionEntry* load_stack[8];
@@ -127,6 +128,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   mesh::Packet* createSelfAdvert();
 
   File openAppend(const char* fname);
+  bool isLooped(const mesh::Packet* packet, const uint8_t max_counters[]);
 
 protected:
   float getAirtimeBudgetFactor() const override {
