@@ -124,7 +124,7 @@ public:
 
   void onBeforeTransmit() override {
     // Use user-defined TX LED color
-    for (byte i = 2; i <= 6; i++) {
+    for (byte i = 2; i < NEOPIXEL_NUM; i++) {
       pixels.setPixelColor(i, pixels.Color(TX_LED_RED, TX_LED_GREEN, TX_LED_BLUE));
     }
     pixels.show();
