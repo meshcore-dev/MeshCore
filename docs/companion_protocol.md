@@ -298,7 +298,7 @@ Bytes 7+: Binary payload bytes (variable length)
 ```
 
 **Data Type / Transport Mapping**:
-- `0xFF` (`TXT_TYPE_CUSTOM_BINARY`) is the custom-app binary type.
+- `0xFF` (`TXT_TYPE_CUSTOM_BINARY`) must be used for custom-protocol binary datagrams.
 - `0x00` (`TXT_TYPE_PLAIN`) is invalid for this command.
 - Values other than `0xFF` are reserved for official protocol extensions.
 
@@ -489,7 +489,7 @@ Bytes 11+: Payload bytes
 **Payload Meaning**:
 - If `txt_type == 0x00`: payload is UTF-8 channel text.
 - If `txt_type != 0x00`: payload is binary (for example image/voice fragments) and must be treated as raw bytes.
-  For custom app datagrams sent via `CMD_SEND_CHANNEL_DATA`, use `txt_type == 0xFF`.
+  For custom app datagrams sent via `CMD_SEND_CHANNEL_DATA`, `txt_type` must be `0xFF`.
 
 **Parsing Pseudocode**:
 ```python
