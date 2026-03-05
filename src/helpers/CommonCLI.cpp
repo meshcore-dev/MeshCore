@@ -688,7 +688,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         };
       } else if (memcmp(config, "flood.advert.base ", 18) == 0) {
         float f = atof(&config[18]);
-        if((f > 0) || (f<1)) {
+        if(f >= 0 && f <= 1) {
           _prefs->flood_advert_base = f;
           savePrefs();
           strcpy(reply, "OK");
