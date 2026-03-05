@@ -740,7 +740,7 @@ void UITask::neopixelMsgHandler() {
     if (neopixel_brightness > 0) {
       neopixel_brightness = 0;
       neopixel_brightness_increasing = true;
-      for (int i = 2; i <= 6; i++) {
+      for (int i = 2; i < NEOPIXEL_NUM; i++) {
         pixels.setPixelColor(i, pixels.Color(0, 0, 0));
       }
       pixels.show();
