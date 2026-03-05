@@ -1268,33 +1268,36 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
       strcpy(reply, "OK - Discover sent");
     }
   } else if (memcmp(command, "io", 2) == 0) { 
-      uint32_t val = 0;
-      uint32_t current = board.getGpio();
-      char mode = command[2]; // This is ' ', 'r', 's', 't', or 'p'
+      // Check if it's a write/pulse command (e.g., "io ...") 
+      // If it's just "io", we skip this and just return the current state (read).
+      if (command[2] == ' ') { 
+          uint32_t val = 0;
+          uint32_t current = board.getGpio();
+          
+          // Mode check: format "io r 1" (command[3] is mode, command[4] is space)
+          if (command[3] != '\0' && command[4] == ' ') {
+              char mode = command[3];
+              sscanf(&command[5], "%x", &val); // Value starts at index 5
 
-      // Find the start of the hex value (the first space)
-      const char* valuePtr = strchr(command, ' ');
-      
-      if (valuePtr != nullptr) {
-          sscanf(valuePtr, "%x", &val);
-
-          if (mode == 'r') {        // ior 1  (Reset/Off)
-              board.setGpio(current & ~val);
-          } else if (mode == 's') { // ios 1  (Set/On)
-              board.setGpio(current | val);
-          } else if (mode == 't') { // iot 1  (Toggle)
-              board.setGpio(current ^ val);
-          } else if (mode == 'p') { // iop 1  (Pulse for Pi)
-              // Pulse logic: Start the action
-              board.setGpio(current & ~val); // Pull Low (0)
-              // 50ms is the "sweet spot" for Pi triggers
-              delay(50); 
-              board.setGpio(current | val);  // Return High (1)
-          } else {                  // io 1   (Direct Write)
+              if (mode == 'r') {        // "io r 1" -> Reset bits
+                  board.setGpio(current & ~val);
+              } else if (mode == 's') { // "io s 1" -> Set bits
+                  board.setGpio(current | val);
+              } else if (mode == 't') { // "io t 1" -> Toggle bits
+                  board.setGpio(current ^ val);
+              } else if (mode == 'p') { // "io p 1" -> Pulse for Pi
+                  board.setGpio(current & ~val); // Pull Low (0)
+                  delay(50);                     // 50ms is safe for Mesh & Pi
+                  board.setGpio(current | val);  // Back to High (1)
+              }
+          } else { 
+              // "io 1" -> Direct absolute write
+              sscanf(&command[3], "%x", &val);
               board.setGpio(val);
           }
       }
-      sprintf(reply, "IO: %x", board.getGpio());
+      // Return the hex state for both read and write commands
+      sprintf(reply, "%x", board.getGpio());
 } else{
     _cli.handleCommand(sender_timestamp, command, reply);  // common CLI commands
   }
