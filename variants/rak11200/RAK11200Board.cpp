@@ -18,19 +18,6 @@ void RAK11200Board::begin() {
 #endif
 }
 
-uint16_t RAK11200Board::getBattMilliVolts() {
-  analogReadResolution(12);
-
-  uint32_t raw = 0;
-  const int BATTERY_SAMPLES = 8;
-  for (int i = 0; i < BATTERY_SAMPLES; i++) {
-    raw += analogRead(PIN_VBAT_READ);
-  }
-  raw = raw / BATTERY_SAMPLES;
-
-  return (ADC_MULTIPLIER * raw) / 4096;
-}
-
 const char* RAK11200Board::getManufacturerName() const {
   return "RAK 11200";
 }
