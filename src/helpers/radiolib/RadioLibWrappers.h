@@ -38,6 +38,7 @@ public:
   }
 
   virtual float getCurrentRSSI() =0;
+  virtual uint8_t getSpreadingFactor() const { return LORA_SF; }
 
   int getNoiseFloor() const override { return _noise_floor; }
   void triggerNoiseFloorCalibrate(int threshold) override;
