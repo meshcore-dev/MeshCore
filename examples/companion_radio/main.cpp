@@ -208,8 +208,10 @@ void setup() {
     File wf = SPIFFS.open("/wifi_config", "r");
     if (wf) {
       int n = wf.readBytesUntil('\n', _wifi_ssid, sizeof(_wifi_ssid) - 1);
+      if (n > 0 && _wifi_ssid[n - 1] == '\r') n--;  // strip \r if present
       _wifi_ssid[n] = 0;
       n = wf.readBytesUntil('\n', _wifi_pwd, sizeof(_wifi_pwd) - 1);
+      if (n > 0 && _wifi_pwd[n - 1] == '\r') n--;   // strip \r if present
       _wifi_pwd[n] = 0;
       wf.close();
       WIFI_DEBUG_PRINTLN("Loaded credentials from flash, SSID: %s", _wifi_ssid);

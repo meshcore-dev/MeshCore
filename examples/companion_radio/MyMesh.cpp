@@ -1998,8 +1998,8 @@ void MyMesh::checkCLIRescueCmd() {
       } else {
         File f = _store->getPrimaryFS()->open("/wifi_config", "w", true);
         if (f) {
-          f.println(staged_ssid);
-          f.println(staged_pwd);
+          f.print(staged_ssid); f.print('\n');
+          f.print(staged_pwd);  f.print('\n');
           f.close();
           Serial.printf("  > Saved SSID \"%s\" to flash, rebooting...\n", staged_ssid);
           board.reboot();
