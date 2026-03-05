@@ -13,13 +13,11 @@
 #define  P_LORA_MOSI    25    // GPIO25 (ESP32 pin 10 -> SPI_MOSI)
 #define  SX126X_POWER_EN  27    // GPIO27 (ESP32 pin 12 -> IO2)
 #define  PIN_VBAT_READ    36    // WB_A0 for battery reading
-#define  ADC_MULTIPLIER   (3 * 1.73 * 1.110 * 1000)
 
 class RAK11200Board : public ESP32Board {
 
 public:
   void begin();
-  uint16_t getBattMilliVolts() override;
   const char* getManufacturerName() const override;
 
 };
