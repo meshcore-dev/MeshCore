@@ -52,7 +52,6 @@ class UITask : public AbstractUITask {
 
 #ifdef RADIOMASTER_900_BANDIT
   // NeoPixel message notification support
-  int neopixel_state = 0;
   unsigned long next_neopixel_change = 0;
   uint8_t neopixel_brightness = 0;
   bool neopixel_brightness_increasing = true;
