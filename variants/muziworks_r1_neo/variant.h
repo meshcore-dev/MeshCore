@@ -127,8 +127,8 @@ extern "C"
 #define PIN_GPS_RX (GPS_RX)
 #define PIN_GPS_EN (GPS_EN)
 
-#define PIN_SERIAL1_TX (PIN_GPS_TX)
-#define PIN_SERIAL1_RX (PIN_GPS_RX)
+#define PIN_SERIAL1_RX (PIN_GPS_TX)  // MCU receives <- GPS transmits
+#define PIN_SERIAL1_TX (PIN_GPS_RX)  // MCU transmits -> GPS receives
 
 /* SPI Interfaces */
 // unused pins - define anyways
