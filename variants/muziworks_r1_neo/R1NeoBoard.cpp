@@ -58,6 +58,8 @@ void R1NeoBoard::begin() {
 
   Wire.begin();
 
+  initNCP5623();
+
   pinMode(SX126X_POWER_EN, OUTPUT);
 #ifdef NRF52_POWER_MANAGEMENT
   // Boot voltage protection check (may not return if voltage too low)
