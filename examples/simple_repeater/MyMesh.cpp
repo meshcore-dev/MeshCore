@@ -100,7 +100,7 @@ int8_t MyMesh::findNeighbourSNR(const uint8_t* hash, uint8_t hash_size) {
 }
 
 // Approximate SNR demod floor per SF (same as RadioLibWrappers.cpp)
-static float cr_snr_thresholds[] = {
+static const float cr_snr_thresholds[] = {
   -7.5f,  // SF7
   -10.0f, // SF8
   -12.5f, // SF9
