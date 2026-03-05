@@ -2,6 +2,9 @@
 
 #include <Arduino.h>
 #include <helpers/ui/UIScreen.h>
+#include <Adafruit_NeoPixel.h>
+
+Adafruit_NeoPixel pixels(NEOPIXEL_NUM, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
 
 BanditBoard board;
 
