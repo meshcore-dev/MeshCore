@@ -57,6 +57,7 @@
 #define CMD_SET_AUTOADD_CONFIG        58
 #define CMD_GET_AUTOADD_CONFIG        59
 #define CMD_GET_ALLOWED_REPEAT_FREQ   60
+#define CMD_SEND_CHANNEL_DATA         61
 
 // Stats sub-types for CMD_GET_STATS
 #define STATS_TYPE_CORE               0
@@ -551,6 +552,41 @@ void MyMesh::onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packe
 #endif
 }
 
+void MyMesh::onChannelDataRecv(const mesh::GroupChannel &channel, mesh::Packet *pkt, uint32_t timestamp, uint8_t txt_type,
+                               const uint8_t *data, size_t data_len) {
+  int i = 0;
+  if (app_target_ver >= 3) {
+    out_frame[i++] = RESP_CODE_CHANNEL_MSG_RECV_V3;
+    out_frame[i++] = (int8_t)(pkt->getSNR() * 4);
+    out_frame[i++] = 0; // reserved1
+    out_frame[i++] = 0; // reserved2
+  } else {
+    out_frame[i++] = RESP_CODE_CHANNEL_MSG_RECV;
+  }
+
+  uint8_t channel_idx = findChannelIdx(channel);
+  out_frame[i++] = channel_idx;
+  out_frame[i++] = pkt->isRouteFlood() ? pkt->path_len : 0xFF;
+  out_frame[i++] = txt_type;
+  memcpy(&out_frame[i], &timestamp, 4);
+  i += 4;
+
+  size_t available = MAX_FRAME_SIZE - i;
+  if (data_len > available) data_len = available;
+  int copy_len = (int)data_len;
+  if (copy_len > 0) {
+    memcpy(&out_frame[i], data, copy_len);
+    i += copy_len;
+  }
+  addToOfflineQueue(out_frame, i);
+
+  if (_serial->isConnected()) {
+    uint8_t frame[1];
+    frame[0] = PUSH_CODE_MSG_WAITING; // send push 'tickle'
+    _serial->writeFrame(frame, 1);
+  }
+}
+
 uint8_t MyMesh::onContactRequest(const ContactInfo &contact, uint32_t sender_timestamp, const uint8_t *data,
                                  uint8_t len, uint8_t *reply) {
   if (data[0] == REQ_TYPE_GET_TELEMETRY_DATA) {
@@ -1018,25 +1054,47 @@ void MyMesh::handleCmdFrame(size_t len) {
                         ? ERR_CODE_NOT_FOUND
                         : ERR_CODE_UNSUPPORTED_CMD); // unknown recipient, or unsuported TXT_TYPE_*
     }
-  } else if (cmd_frame[0] == CMD_SEND_CHANNEL_TXT_MSG) { // send GroupChannel msg
+  } else if (cmd_frame[0] == CMD_SEND_CHANNEL_TXT_MSG) { // send GroupChannel text msg
     int i = 1;
-    uint8_t txt_type = cmd_frame[i++]; // should be TXT_TYPE_PLAIN
+    uint8_t txt_type = cmd_frame[i++];
     uint8_t channel_idx = cmd_frame[i++];
     uint32_t msg_timestamp;
     memcpy(&msg_timestamp, &cmd_frame[i], 4);
     i += 4;
     const char *text = (char *)&cmd_frame[i];
+    int text_len = (len > (size_t)i) ? (int)(len - i) : 0;
 
     if (txt_type != TXT_TYPE_PLAIN) {
       writeErrFrame(ERR_CODE_UNSUPPORTED_CMD);
     } else {
       ChannelDetails channel;
-      bool success = getChannel(channel_idx, channel);
-      if (success && sendGroupMessage(msg_timestamp, channel.channel, _prefs.node_name, text, len - i)) {
+      if (!getChannel(channel_idx, channel)) {
+        writeErrFrame(ERR_CODE_NOT_FOUND); // bad channel_idx
+      } else if (sendGroupMessage(msg_timestamp, channel.channel, _prefs.node_name, text, text_len)) {
         writeOKFrame();
       } else {
-        writeErrFrame(ERR_CODE_NOT_FOUND); // bad channel_idx
+        writeErrFrame(ERR_CODE_TABLE_FULL);
       }
+    }
+  } else if (cmd_frame[0] == CMD_SEND_CHANNEL_DATA) { // send GroupChannel datagram
+    int i = 1;
+    uint8_t txt_type = cmd_frame[i++];
+    uint8_t channel_idx = cmd_frame[i++];
+    uint32_t msg_timestamp;
+    memcpy(&msg_timestamp, &cmd_frame[i], 4);
+    i += 4;
+    const uint8_t *payload = &cmd_frame[i];
+    int payload_len = (len > (size_t)i) ? (int)(len - i) : 0;
+
+    ChannelDetails channel;
+    if (!getChannel(channel_idx, channel)) {
+      writeErrFrame(ERR_CODE_NOT_FOUND); // bad channel_idx
+    } else if (txt_type != TXT_TYPE_CUSTOM_BINARY) {
+      writeErrFrame(ERR_CODE_UNSUPPORTED_CMD);
+    } else if (sendGroupData(msg_timestamp, channel.channel, txt_type, payload, payload_len)) {
+      writeOKFrame();
+    } else {
+      writeErrFrame(ERR_CODE_TABLE_FULL);
     }
   } else if (cmd_frame[0] == CMD_GET_CONTACTS) { // get Contact list
     if (_iter_started) {

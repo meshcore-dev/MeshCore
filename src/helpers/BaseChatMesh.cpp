@@ -344,8 +344,10 @@ int BaseChatMesh::searchChannelsByHash(const uint8_t* hash, mesh::GroupChannel d
 #endif
 
 void BaseChatMesh::onGroupDataRecv(mesh::Packet* packet, uint8_t type, const mesh::GroupChannel& channel, uint8_t* data, size_t len) {
+  if (len < 5) return;
+
   uint8_t txt_type = data[4];
-  if (type == PAYLOAD_TYPE_GRP_TXT && len > 5 && (txt_type >> 2) == 0) {  // 0 = plain text msg
+  if (type == PAYLOAD_TYPE_GRP_TXT && (txt_type >> 2) == 0) {  // 0 = plain text msg
     uint32_t timestamp;
     memcpy(&timestamp, data, 4);
 
@@ -354,6 +356,10 @@ void BaseChatMesh::onGroupDataRecv(mesh::Packet* packet, uint8_t type, const mes
 
     // notify UI  of this new message
     onChannelMessageRecv(channel, packet, timestamp, (const char *) &data[5]);  // let UI know
+  } else if (type == PAYLOAD_TYPE_GRP_DATA) {
+    uint32_t timestamp;
+    memcpy(&timestamp, data, 4);
+    onChannelDataRecv(channel, packet, timestamp, txt_type, &data[5], len - 5);
   }
 }
 
@@ -438,6 +444,26 @@ bool BaseChatMesh::sendGroupMessage(uint32_t timestamp, mesh::GroupChannel& chan
   ep[text_len] = 0;  // null terminator
 
   auto pkt = createGroupDatagram(PAYLOAD_TYPE_GRP_TXT, channel, temp, 5 + prefix_len + text_len);
+  if (pkt) {
+    sendFloodScoped(channel, pkt);
+    return true;
+  }
+  return false;
+}
+
+bool BaseChatMesh::sendGroupData(uint32_t timestamp, mesh::GroupChannel& channel, uint8_t txt_type, const uint8_t* data, int data_len) {
+  if (data_len < 0) return false;
+  // createGroupDatagram() accepts at most (MAX_PACKET_PAYLOAD - CIPHER_BLOCK_SIZE)
+  // plaintext bytes; subtract our 5-byte {timestamp, txt_type} header.
+  const int max_group_data_len = (MAX_PACKET_PAYLOAD - CIPHER_BLOCK_SIZE) - 5;
+  if (data_len > max_group_data_len) data_len = max_group_data_len;
+
+  uint8_t temp[MAX_PACKET_PAYLOAD];
+  memcpy(temp, &timestamp, 4);
+  temp[4] = txt_type;
+  if (data_len > 0) memcpy(&temp[5], data, data_len);
+
+  auto pkt = createGroupDatagram(PAYLOAD_TYPE_GRP_DATA, channel, temp, 5 + data_len);
   if (pkt) {
     sendFloodScoped(channel, pkt);
     return true;

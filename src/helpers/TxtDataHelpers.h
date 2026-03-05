@@ -6,6 +6,7 @@
 #define TXT_TYPE_PLAIN          0    // a plain text message
 #define TXT_TYPE_CLI_DATA       1    // a CLI command
 #define TXT_TYPE_SIGNED_PLAIN   2    // plain text, signed by sender
+#define TXT_TYPE_CUSTOM_BINARY  0xFF // custom app binary payload (group/channel datagrams)
 
 class StrHelper {
 public:
