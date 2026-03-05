@@ -27,12 +27,18 @@ class DFROBOT_SEN0658
     public:
         bool begin();
         bool readSample(DFROBOT_SEN0658_Sample &sample);
+        bool readWindDirectionOffset(uint16_t &offset);
+        bool writeWindDirectionOffset(uint16_t offset);
+        bool zeroWindSpeed();
+        bool zeroRainfall();
     private:
         static uint16_t CRC16_2(const uint8_t *buf, int len);
-        static void sendCommand(const uint8_t command[6]);
+        static void sendCommand(uint8_t function, uint16_t registerStart, uint16_t registerLengthOrValue);
+        static void sendWriteCommand(uint16_t registerIndex, uint16_t value);
         static bool readBytes(uint8_t *buffer, int len);
         static void flushSerial();
-        template<typename PacketType> bool readPacket(const uint8_t command[6], PacketType& packet);
+        template<typename PacketType> bool readRegisters(uint16_t registerStart, PacketType& packet);
+        bool writeRegister(uint16_t registerIndex, uint16_t value);
         bool readWind(DFROBOT_SEN0658_Sample &sample);
         bool readTemperature(DFROBOT_SEN0658_Sample &sample);
         bool readAir(DFROBOT_SEN0658_Sample &sample);

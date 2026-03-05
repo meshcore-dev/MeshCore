@@ -528,6 +528,9 @@ int EnvironmentSensorManager::getNumSettings() const {
   #if ENV_INCLUDE_GPS
     if (gps_detected) settings++;  // only show GPS setting if GPS is detected
   #endif
+  #if ENV_INCLUDE_SEN0658
+    if (SEN0658_initialized) settings += 3; 
+  #endif
   return settings;
 }
 
@@ -538,8 +541,17 @@ const char* EnvironmentSensorManager::getSettingName(int i) const {
       return "gps";
     }
   #endif
-  // convenient way to add params (needed for some tests)
-//  if (i == settings++) return "param.2";
+  #if ENV_INCLUDE_SEN0658
+    if (SEN0658_initialized && i == settings++) {
+      return "wind_dir_offset";
+    }
+    if (SEN0658_initialized && i == settings++) {
+      return "wind_speed_zero";
+    }
+    if (SEN0658_initialized && i == settings++) {
+      return "rainfall_zero";
+    }
+  #endif
   return NULL;
 }
 
@@ -550,8 +562,28 @@ const char* EnvironmentSensorManager::getSettingValue(int i) const {
       return gps_active ? "1" : "0";
     }
   #endif
-  // convenient way to add params ...
-//  if (i == settings++) return "2";
+  #if ENV_INCLUDE_SEN0658
+    if (SEN0658_initialized && i == settings++) {
+      uint16_t offset;
+      if (SEN0658.readWindDirectionOffset(offset)) {
+        if (offset == 0) {
+          return "0";
+        } else if (offset == 1) {
+          return "1";
+        } else {
+          return "[unknown]";
+        }
+      } else {
+        return "[error]";
+      }
+    }
+    if (SEN0658_initialized && i == settings++) {
+      return "[only writeable]";
+    }
+    if (SEN0658_initialized && i == settings++) {
+      return "[only writeable]";
+    }
+  #endif
   return NULL;
 }
 
@@ -573,6 +605,15 @@ bool EnvironmentSensorManager::setSettingValue(const char* name, const char* val
       gps_update_interval_sec = 1;  // Default to 1 second if 0
     }
     return true;
+  }
+  #endif
+  #if ENV_INCLUDE_SEN0658
+  if (strcmp(name, "wind_dir_offset") == 0) {
+    return SEN0658.writeWindDirectionOffset(atoi(value));
+  } else if (strcmp(name, "wind_speed_zero") == 0) {
+    return SEN0658.zeroWindSpeed();
+  } else if (strcmp(name, "rainfall_zero") == 0) {
+    return SEN0658.zeroRainfall();
   }
   #endif
   return false;  // not supported
