@@ -3,7 +3,7 @@
 
 
 bool RTC_RX8130CE::stop(bool stop) {
-    write_register(0x1E, stop ? 0x040 : 0x00);
+    write_register(0x1E, stop ? 0x40 : 0x00);
     return true;
 }
 
@@ -17,7 +17,17 @@ bool RTC_RX8130CE::begin(TwoWire *wire) {
        return false;
     }
 
-    /* 
+    // Dummy read per init flowchart (page 55)
+    read_register(0x1D);
+
+    // Check VLF flag (bit 1 of Flag Register 0x1D) — indicates data loss
+    uint8_t flags = read_register(0x1D);
+    if (flags & 0x02) {
+       // VLF set: clock data unreliable after power loss, clear flag
+       write_register(0x1D, flags & ~0x02);
+    }
+
+    /*
      * Digital offset register:
      *   [7]   DET: 0 ->  disabled
      *   [6:0] L7-L1: 0 -> no offset
@@ -95,7 +105,7 @@ bool RTC_RX8130CE::setTime(struct tm *t) {
     buf[1] = bin2bcd(t->tm_sec) & 0x7F;
     buf[2] = bin2bcd(t->tm_min) & 0x7F;
     buf[3] = bin2bcd(t->tm_hour) & 0x3F;
-    buf[4] = bin2bcd(t->tm_wday) & 0x07;
+    buf[4] = (1 << t->tm_wday) & 0x7F;
     buf[5] = bin2bcd(t->tm_mday) & 0x3F;
     buf[6] = bin2bcd(t->tm_mon + 1) & 0x1F;
     buf[7] = bin2bcd((t->tm_year - 100));
@@ -141,7 +151,10 @@ bool RTC_RX8130CE::getTime(struct tm *t) {
     t->tm_sec =  bcd2bin(buff[0] & 0x7F);
     t->tm_min =  bcd2bin(buff[1] & 0x7F);
     t->tm_hour = bcd2bin(buff[2] & 0x3F);
-    t->tm_wday = bcd2bin(buff[3] & 0x07);
+    // WEEK register is a bitmap (bit 0=Sun, bit 1=Mon, ..., bit 6=Sat)
+    uint8_t wday_bits = buff[3] & 0x7F;
+    t->tm_wday = 0;
+    while (wday_bits >>= 1) t->tm_wday++;
     t->tm_mday = bcd2bin(buff[4] & 0x3F);
     t->tm_mon =  bcd2bin(buff[5] & 0x1F) - 1;
     t->tm_year = bcd2bin(buff[6]) + 100;
