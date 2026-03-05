@@ -3,37 +3,19 @@
 #include <MeshCore.h>
 #include <Arduino.h>
 #include <helpers/NRF52Board.h>
-#include "NullDisplayDriver.h"
-#include "MomentaryButton.h"
 
-#define DISPLAY_CLASS NullDisplayDriver
+#define  PIN_VBAT_READ    31
+#define  ADC_MULTIPLIER   (3 * 1.73 * 1.187 * 1000)
 
-class R1NeoBoard : public NRF52BoardDCDC, public NRF52BoardOTA {
+class R1NeoBoard : public NRF52BoardDCDC {
 protected:
 #ifdef NRF52_POWER_MANAGEMENT
   void initiateShutdown(uint8_t reason) override;
 #endif
 
 public:
-  R1NeoBoard() : NRF52BoardOTA("R1NEO_OTA") {}
+  R1NeoBoard() : NRF52Board("R1NEO_OTA") {}
   void begin();
-
-#if defined(P_LORA_TX_LED)
-  void onBeforeTransmit() override {
-    digitalWrite(P_LORA_TX_LED, HIGH);   // turn TX LED on
-    #if defined(LED_BLUE)
-       // turn off that annoying blue LED before transmitting
-       digitalWrite(LED_BLUE, LOW);
-    #endif
-  }
-  void onAfterTransmit() override {
-    digitalWrite(P_LORA_TX_LED, LOW);   // turn TX LED off
-    #if defined(LED_BLUE)
-       // do it after transmitting too, just in case
-       digitalWrite(LED_BLUE, LOW);
-    #endif
-  }
-#endif
 
   #define BATTERY_SAMPLES 8
 

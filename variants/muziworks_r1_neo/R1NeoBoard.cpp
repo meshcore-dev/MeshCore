@@ -16,6 +16,10 @@ void R1NeoBoard::initiateShutdown(uint8_t reason) {
   // Disable LoRa module power before shutdown
   digitalWrite(SX126X_POWER_EN, LOW);
 
+  // Signal IO controller that MCU is off, then release DCDC latch
+  digitalWrite(PIN_SOFT_SHUTDOWN, LOW);
+  digitalWrite(PIN_DCDC_EN_MCU_HOLD, LOW);
+
   if (reason == SHUTDOWN_REASON_LOW_VOLTAGE ||
       reason == SHUTDOWN_REASON_BOOT_PROTECT) {
     configureVoltageWake(power_config.lpcomp_ain_channel, power_config.lpcomp_refsel);

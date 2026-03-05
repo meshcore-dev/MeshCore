@@ -54,7 +54,7 @@ extern "C"
 
 #define  P_LORA_DIO_1    (47)        // P1.15 (SX)
 #define  P_LORA_NSS      (42)        // P1.10 (SX)
-#define  P_LORA_RESET    RADIOLIB_NC // P1.06 (SX) -- 38
+#define  P_LORA_RESET    (38)        // P1.06 (SX)
 #define  P_LORA_BUSY     (46)        // P1.14 (SX)
 #define  P_LORA_SCLK     (43)        // P1.11 (SX)
 #define  P_LORA_MISO     (45)        // P1.13 (SX)
@@ -158,18 +158,13 @@ extern "C"
 #define EXTERNAL_FLASH_USE_QSPI
 
 /* Battery */
-#define PIN_VBAT_READ (31) // P0.31 (39) ADC_VBAT
 #define PIN_BAT_CHG   (34) // P1.02 (26) BAT_CHG_STATUS
 
-#define ADC_MULTIPLIER (3 * 1.73 * 1.187 * 1000)
-
 // Power management boot protection threshold (millivolts)
-// Set to 0 to disable boot protection
-// disabled for now until I can figure this out
-#define PWRMGT_VOLTAGE_BOOTLOCK 0   // Won't boot below this voltage (mV)
+#define PWRMGT_VOLTAGE_BOOTLOCK 3300   // Won't boot below this voltage (mV)
 // LPCOMP wake configuration (voltage recovery from SYSTEMOFF)
-// AIN3 = P0.05 = PIN_A0 / PIN_VBAT_READ
-#define PWRMGT_LPCOMP_AIN    5
+// AIN7 = P0.31 = PIN_VBAT_READ
+#define PWRMGT_LPCOMP_AIN    7
 #define PWRMGT_LPCOMP_REFSEL 4  // 5/8 VDD (~3.13-3.44V)
 
 #ifdef __cplusplus
