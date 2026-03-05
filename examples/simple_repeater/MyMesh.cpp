@@ -415,10 +415,26 @@ bool MyMesh::isLooped(const mesh::Packet* packet, const uint8_t max_counters[]) 
 
 bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
   if (_prefs.disable_fwd) return false;
-  if (packet->isRouteFlood() && packet->getPathHashCount() >= _prefs.flood_max) return false;
-  if (packet->isRouteFlood() && recv_pkt_region == NULL) {
-    MESH_DEBUG_PRINTLN("allowPacketForward: unknown transport code, or wildcard not allowed for FLOOD packet");
-    return false;
+  if (packet->isRouteFlood()) {
+    if (recv_pkt_region == NULL) {
+      MESH_DEBUG_PRINTLN("allowPacketForward: unknown transport code, or wildcard not allowed for FLOOD packet");
+      return false;
+    }
+    // per-type adaptive hop limits (groups and adverts use busy-driven ramp,
+    // but never exceed the operator-configured flood_max)
+    uint8_t hops = packet->getPathHashCount();
+    uint8_t limit = _prefs.flood_max;
+    uint8_t type = packet->getPayloadType();
+    if (type == PAYLOAD_TYPE_GRP_TXT || type == PAYLOAD_TYPE_GRP_DATA) {
+      uint8_t adaptive = getEffectiveFloodMax(busy_tracker.busy,
+          GROUP_FLOOD_MAX, GROUP_FLOOD_MID, GROUP_FLOOD_FLOOR);
+      limit = (adaptive < limit) ? adaptive : limit;
+    } else if (type == PAYLOAD_TYPE_ADVERT) {
+      uint8_t adaptive = getEffectiveFloodMax(busy_tracker.busy,
+          ADVERT_FLOOD_MAX, ADVERT_FLOOD_MID, ADVERT_FLOOD_FLOOR);
+      limit = (adaptive < limit) ? adaptive : limit;
+    }
+    if (hops >= limit) return false;
   }
   if (packet->isRouteFlood() && _prefs.loop_detect != LOOP_DETECT_OFF) {
     const uint8_t* maximums;
@@ -525,7 +541,8 @@ int MyMesh::calcRxDelay(float score, uint32_t air_time) const {
 
 uint32_t MyMesh::getRetransmitDelay(const mesh::Packet *packet) {
   uint32_t t = (_radio->getEstAirtimeFor(packet->getPathByteLen() + packet->payload_len + 2) * _prefs.tx_delay_factor);
-  return getRNG()->nextInt(0, 5*t + 1);
+  float scale = 1.0f + busy_tracker.busy * BUSY_TX_DELAY_SCALE;
+  return getRNG()->nextInt(0, (uint32_t)(5 * t * scale) + 1);
 }
 uint32_t MyMesh::getDirectRetransmitDelay(const mesh::Packet *packet) {
   uint32_t t = (_radio->getEstAirtimeFor(packet->getPathByteLen() + packet->payload_len + 2) * _prefs.direct_tx_delay_factor);
@@ -830,7 +847,7 @@ void MyMesh::sendNodeDiscoverReq() {
 
 MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondClock &ms, mesh::RNG &rng,
                mesh::RTCClock &rtc, mesh::MeshTables &tables)
-    : mesh::Mesh(radio, ms, rng, rtc, *new StaticPoolPacketManager(32), tables),
+    : mesh::Mesh(radio, ms, rng, rtc, *new StaticPoolPacketManager(PACKET_POOL_SIZE), tables),
       _cli(board, rtc, sensors, acl, &_prefs, this), telemetry(MAX_PACKET_PAYLOAD - 4), region_map(key_store), temp_map(key_store),
       discover_limiter(4, 120),  // max 4 every 2 minutes
       anon_limiter(4, 180)   // max 4 every 3 minutes
@@ -907,6 +924,10 @@ void MyMesh::begin(FILESYSTEM *fs) {
     bridge.begin();
   }
 #endif
+
+  busy_tracker.reset(millis(), getTotalAirTime(), getReceiveAirTime(),
+                     getNumRecvFlood(),
+                     ((SimpleMeshTables *)getTables())->getNumFloodDups());
 
   radio_set_params(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
   radio_set_tx_power(_prefs.tx_power_dbm);
@@ -1057,8 +1078,25 @@ void MyMesh::formatRadioStatsReply(char *reply) {
 }
 
 void MyMesh::formatPacketStatsReply(char *reply) {
-  StatsFormatHelper::formatPacketStats(reply, radio_driver, getNumSentFlood(), getNumSentDirect(), 
+  StatsFormatHelper::formatPacketStats(reply, radio_driver, getNumSentFlood(), getNumSentDirect(),
                                        getNumRecvFlood(), getNumRecvDirect());
+}
+
+void MyMesh::formatBusyStatsReply(char *reply) {
+  const char* label = busy_tracker.busy < BUSY_ONSET ? "low"
+                    : busy_tracker.busy < 0.50f       ? "medium"
+                    :                                    "high";
+  uint8_t grp_hops = getEffectiveFloodMax(busy_tracker.busy,
+      GROUP_FLOOD_MAX, GROUP_FLOOD_MID, GROUP_FLOOD_FLOOR);
+  uint8_t adv_hops = getEffectiveFloodMax(busy_tracker.busy,
+      ADVERT_FLOOD_MAX, ADVERT_FLOOD_MID, ADVERT_FLOOD_FLOOR);
+  sprintf(reply,
+    "busy: %.2f (%s)\n"
+    "  air:%.2f q:%.2f dup:%.2f\n"
+    "  grp_hops:%d/%d adv_hops:%d/%d",
+    busy_tracker.busy, label,
+    busy_tracker.airtime_ratio, busy_tracker.queue_ratio, busy_tracker.dup_ratio,
+    grp_hops, GROUP_FLOOD_MAX, adv_hops, ADVERT_FLOOD_MAX);
 }
 
 void MyMesh::saveIdentity(const mesh::LocalIdentity &new_id) {
@@ -1078,6 +1116,9 @@ void MyMesh::clearStats() {
   radio_driver.resetStats();
   resetStats();
   ((SimpleMeshTables *)getTables())->resetStats();
+  busy_tracker.reset(millis(), getTotalAirTime(), getReceiveAirTime(),
+                     getNumRecvFlood(),
+                     ((SimpleMeshTables *)getTables())->getNumFloodDups());
 }
 
 void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply) {
@@ -1267,6 +1308,8 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
       sendNodeDiscoverReq();
       strcpy(reply, "OK - Discover sent");
     }
+  } else if (sender_timestamp == 0 && memcmp(command, "stats-busy", 10) == 0 && (command[10] == 0 || command[10] == ' ')) {
+    formatBusyStatsReply(reply);
   } else{
     _cli.handleCommand(sender_timestamp, command, reply);  // common CLI commands
   }
@@ -1314,6 +1357,12 @@ void MyMesh::loop() {
   uint32_t now = millis();
   uptime_millis += now - last_millis;
   last_millis = now;
+
+  // update busy score
+  auto t = (SimpleMeshTables *)getTables();
+  busy_tracker.update(now, getTotalAirTime(), getReceiveAirTime(),
+                      _mgr->getOutboundCount(now), PACKET_POOL_SIZE,
+                      getNumRecvFlood(), t->getNumFloodDups());
 }
 
 // To check if there is pending work

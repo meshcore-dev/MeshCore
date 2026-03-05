@@ -33,6 +33,7 @@
 #include <helpers/StatsFormatHelper.h>
 #include <helpers/TxtDataHelpers.h>
 #include <helpers/RegionMap.h>
+#include <helpers/BusyTracker.h>
 #include "RateLimiter.h"
 
 #ifdef WITH_BRIDGE
@@ -59,6 +60,10 @@ struct RepeaterStats {
 
 #ifndef MAX_CLIENTS
   #define MAX_CLIENTS           32
+#endif
+
+#ifndef PACKET_POOL_SIZE
+  #define PACKET_POOL_SIZE      32
 #endif
 
 struct NeighbourInfo {
@@ -97,6 +102,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   RegionMap region_map, temp_map;
   RegionEntry* load_stack[8];
   RegionEntry* recv_pkt_region;
+  BusyTracker busy_tracker;
   RateLimiter discover_limiter, anon_limiter;
   uint32_t pending_discover_tag;
   unsigned long pending_discover_until;
@@ -185,6 +191,9 @@ public:
   NodePrefs* getNodePrefs() {
     return &_prefs;
   }
+  BusyTracker* getBusyTracker() {
+    return &busy_tracker;
+  }
 
   void savePrefs() override {
     _cli.savePrefs(_fs);
@@ -209,6 +218,7 @@ public:
   void formatStatsReply(char *reply) override;
   void formatRadioStatsReply(char *reply) override;
   void formatPacketStatsReply(char *reply) override;
+  void formatBusyStatsReply(char *reply);
 
   mesh::LocalIdentity& getSelfId() override { return self_id; }
 

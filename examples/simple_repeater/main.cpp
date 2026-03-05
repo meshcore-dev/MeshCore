@@ -91,7 +91,7 @@ void setup() {
   the_mesh.begin(fs);
 
 #ifdef DISPLAY_CLASS
-  ui_task.begin(the_mesh.getNodePrefs(), FIRMWARE_BUILD_DATE, FIRMWARE_VERSION);
+  ui_task.begin(the_mesh.getNodePrefs(), the_mesh.getBusyTracker(), FIRMWARE_BUILD_DATE, FIRMWARE_VERSION);
 #endif
 
   // send out initial zero hop Advertisement to the mesh
