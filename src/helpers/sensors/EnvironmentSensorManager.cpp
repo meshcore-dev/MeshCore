@@ -502,12 +502,17 @@ bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, Cayen
     if (SEN0658_initialized) {
       DFROBOT_SEN0658_Sample sample = {0};
       if (SEN0658.readSample(sample)) {
-        telemetry.addTemperature(TELEM_CHANNEL_SELF, sample.temperature);
-        telemetry.addRelativeHumidity(TELEM_CHANNEL_SELF, sample.humidity);
-        telemetry.addBarometricPressure(TELEM_CHANNEL_SELF, sample.airPressure);
-        telemetry.addLuminosity(TELEM_CHANNEL_SELF, sample.luminosity);
-        telemetry.addDirection(TELEM_CHANNEL_SELF, sample.windDirection);
-        telemetry.addConcentration(TELEM_CHANNEL_SELF, sample.pm2_5);
+        // this is an external sensor, so don't start with SELF channel
+        telemetry.addTemperature(next_available_channel, sample.temperature);
+        telemetry.addRelativeHumidity(next_available_channel, sample.humidity);
+        telemetry.addBarometricPressure(next_available_channel, sample.airPressure);
+        telemetry.addConcentration(next_available_channel, sample.pm2_5);
+        telemetry.addAnalogInput(next_available_channel, sample.pm10);
+        telemetry.addDistance(next_available_channel, sample.windSpeed);
+        telemetry.addDirection(next_available_channel, sample.windAngle);
+        telemetry.addLuminosity(next_available_channel, sample.luminosity);
+        telemetry.addGenericSensor(next_available_channel, sample.noiseDb);
+        next_available_channel++;
       }
     }
     #endif

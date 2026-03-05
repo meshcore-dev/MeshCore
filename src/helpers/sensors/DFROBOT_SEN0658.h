@@ -3,6 +3,13 @@
 #include <Arduino.h>
 #include <target.h>
 
+#if defined(ENV_INCLUDE_GPS) && \
+    (PIN_GPS_TX == WITH_SEN0658_TX || PIN_GPS_TX == WITH_SEN0658_RX || \
+     PIN_GPS_RX == WITH_SEN0658_TX || PIN_GPS_RX == WITH_SEN0658_RX)
+    #error "GPS pins conflict with SEN0658 pins. Please change the pin definitions to avoid conflicts"
+#endif
+
+
 struct DFROBOT_SEN0658_Sample {
     float temperature;
     float humidity;
@@ -29,4 +36,5 @@ class DFROBOT_SEN0658
         bool readWind(DFROBOT_SEN0658_Sample &sample);
         bool readTemperature(DFROBOT_SEN0658_Sample &sample);
         bool readAir(DFROBOT_SEN0658_Sample &sample);
+        bool readLight(DFROBOT_SEN0658_Sample &sample);
 };

@@ -8,6 +8,18 @@ const uint8_t AirCom[] =     { 0x01, 0x03, 0x01, 0xFB, 0x00, 0x03 }; //PM2.5, PM
 const uint8_t LightCom[] =   { 0x01, 0x03, 0x01, 0xFE, 0x00, 0x02 }; //Light
 const uint8_t BaudCom[] =    { 0x01, 0x06, 0x07, 0xD1, 0x00, 0x06 }; //115200 baud
 
+struct LightPacket {
+  uint8_t address;
+  uint8_t function;
+  uint8_t validBytes;
+  uint8_t light3;
+  uint8_t light2;
+  uint8_t light1;
+  uint8_t light0;
+  uint8_t crcHigh;
+  uint8_t crcLow;
+} __attribute__((packed));
+
 struct WindPacket {
   uint8_t address;
   uint8_t function;
@@ -114,9 +126,31 @@ bool DFROBOT_SEN0658::readWind(DFROBOT_SEN0658_Sample &sample) {
         MESH_DEBUG_PRINTLN("CRC mismatch %04X != %04X reading wind packet from SEN0658.", (int)crc, (int)((packet.crcHigh << 8) | packet.crcLow));
         return false;
     }
-    sample.windSpeed = (((uint16_t)packet.windSpeedHigh << 8) | packet.windSpeedLow) / 100.0;
-    sample.windDirection = (float)(((uint16_t)packet.windDirectionHigh << 8) | packet.windDirectionLow);
+    sample.windSpeed = (((uint16_t)packet.windSpeedHigh << 8) | packet.windSpeedLow) / 100.0; 
     sample.windAngle = (float)(((uint16_t)packet.windAngleHigh << 8) | packet.windAngleLow);
+    return true;
+}
+
+bool DFROBOT_SEN0658::readLight(DFROBOT_SEN0658_Sample &sample) {
+    flushSerial();
+    sendCommand(LightCom);
+    LightPacket packet;
+    if (!readBytes((uint8_t *)&packet, sizeof(LightPacket))) {
+        MESH_DEBUG_PRINTLN("Could not read light packet from SEN0658.");
+        return false;
+    }
+    if (packet.address != 0x01 || packet.function != 0x03 || packet.validBytes != sizeof(LightPacket) - 5) {
+        MESH_DEBUG_PRINTLN(
+            "Packet header mismatch reading light packet from SEN0658. Address: %02X Function: %02X ValidBytes: %02X", 
+            (int)packet.address, (int)packet.function, (int)packet.validBytes);
+        return false;
+    }
+    uint16_t crc = DFROBOT_SEN0658::CRC16_2((uint8_t *)&packet, sizeof(LightPacket) - 2);
+    if (crc != ((packet.crcHigh << 8) | packet.crcLow)) {
+        MESH_DEBUG_PRINTLN("CRC mismatch %04X != %04X reading light packet from SEN0658.", (int)crc, (int)((packet.crcHigh << 8) | packet.crcLow));
+        return false;
+    }
+    sample.luminosity = (float)(((uint32_t)packet.light3 << 24) | ((uint32_t)packet.light2 << 16) | ((uint32_t)packet.light1 << 8) | packet.light0);
     return true;
 }
 
@@ -182,6 +216,10 @@ bool DFROBOT_SEN0658::readSample(DFROBOT_SEN0658_Sample &sample) {
     }
     if (!readAir(sample)) {
         MESH_DEBUG_PRINTLN("Could not read air data from SEN0658.");
+        return false;
+    }
+    if (!readLight(sample)) {
+        MESH_DEBUG_PRINTLN("Could not read light data from SEN0658.");
         return false;
     }
     return true; // Return a dummy sample for this example.
