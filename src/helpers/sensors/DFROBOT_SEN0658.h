@@ -13,14 +13,13 @@
 struct DFROBOT_SEN0658_Sample {
     float temperature;
     float humidity;
-    float windSpeed;
     float airPressure;
-    float noiseDb;
-    float windDirection;
-    float windAngle;
-    float luminosity;
     float pm2_5;
     float pm10;
+    float windSpeed;
+    float windAngle;
+    float noiseDb;
+    float luminosity;
 };
 
 class DFROBOT_SEN0658
@@ -33,6 +32,7 @@ class DFROBOT_SEN0658
         static void sendCommand(const uint8_t command[6]);
         static bool readBytes(uint8_t *buffer, int len);
         static void flushSerial();
+        template<typename PacketType> bool readPacket(const uint8_t command[6], PacketType& packet);
         bool readWind(DFROBOT_SEN0658_Sample &sample);
         bool readTemperature(DFROBOT_SEN0658_Sample &sample);
         bool readAir(DFROBOT_SEN0658_Sample &sample);
