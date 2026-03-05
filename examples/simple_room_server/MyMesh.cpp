@@ -284,14 +284,15 @@ bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
   if (_prefs.disable_fwd) return false;
   if (packet->isRouteFlood() && packet->path_len >= _prefs.flood_max) return false;
 
-  // Limit flood advert paket forwarding using a probabilistic reduction defined by P(h) = 0.308^(hops-1)
+  // Limit flood advert packet forwarding using a probabilistic reduction defined by P(h) = base^(hops-1)
   // https://github.com/meshcore-dev/MeshCore/issues/1223
-  double_t roll_dice = (double)rand() / RAND_MAX;
-  double_t forw_prob = pow(_prefs.flood_advert_base, packet->path_len - 1);
-  if (packet->getPayloadType() == PAYLOAD_TYPE_ADVERT && packet->isRouteFlood() && roll_dice > forw_prob)
-    return false;
+  if (packet->getPayloadType() == PAYLOAD_TYPE_ADVERT && packet->isRouteFlood()) {
+    double roll_dice = (double)rand() / RAND_MAX;
+    double forw_prob = pow(_prefs.flood_advert_base, packet->path_len - 1);
+    if (roll_dice > forw_prob)
+      return false;
+  }
 
-  // all other packets
   return true;
 }
 
