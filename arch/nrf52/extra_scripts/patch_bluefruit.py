@@ -7,6 +7,8 @@ when BLE central disconnects unexpectedly (e.g., going out of range, supervision
 Patches applied:
 1. BLEConnection.h: Add _hvn_qsize member to track semaphore queue size
 2. BLEConnection.cpp: Store hvn_qsize and restore semaphore on disconnect
+3. bluefruit.h: Add bluefruit_blinky_cb as friend so it can access _led_conn
+4. bluefruit.cpp: Guard LED toggle in blinky callback with _led_conn check
 
 Bug description:
 - When a BLE central disconnects unexpectedly (reason=8 supervision timeout),
@@ -133,6 +135,89 @@ def _patch_ble_connection_source(source: Path) -> bool:
         return False
 
 
+def _patch_bluefruit_header_led(source: Path) -> bool:
+    """
+    Add bluefruit_blinky_cb as a friend function so it can access _led_conn.
+
+    Without this, the blink timer callback toggles LED_BLUE unconditionally,
+    ignoring autoConnLed(false).
+
+    Returns True if patch was applied or already applied, False on error.
+    """
+    try:
+        content = source.read_text()
+
+        # Check if already patched
+        if "bluefruit_blinky_cb" in content:
+            return True  # Already patched
+
+        original_pattern = '''    friend void adafruit_soc_task(void* arg);
+    friend class BLECentral;'''
+
+        patched_pattern = '''    friend void adafruit_soc_task(void* arg);
+    friend void bluefruit_blinky_cb(TimerHandle_t xTimer);
+    friend class BLECentral;'''
+
+        if original_pattern not in content:
+            print("Bluefruit patch: WARNING - bluefruit.h friend pattern not found")
+            return False
+
+        content = content.replace(original_pattern, patched_pattern)
+        source.write_text(content)
+
+        if "bluefruit_blinky_cb" not in source.read_text():
+            return False
+
+        return True
+    except Exception as e:
+        print(f"Bluefruit patch: ERROR patching bluefruit.h: {e}")
+        return False
+
+
+def _patch_bluefruit_source_led(source: Path) -> bool:
+    """
+    Guard the LED toggle in bluefruit_blinky_cb with a _led_conn check.
+
+    The blink timer can be inadvertently started by Advertising.start() ->
+    setConnLedInterval() -> xTimerChangePeriod() (FreeRTOS starts dormant
+    timers as a side effect). Without this guard, the LED toggles even when
+    autoConnLed(false) has been called.
+
+    Returns True if patch was applied or already applied, False on error.
+    """
+    try:
+        content = source.read_text()
+
+        # Check if already patched
+        if "Bluefruit._led_conn" in content:
+            return True  # Already patched
+
+        original_pattern = '''static void bluefruit_blinky_cb( TimerHandle_t xTimer )
+{
+  (void) xTimer;
+  digitalToggle(LED_BLUE);'''
+
+        patched_pattern = '''void bluefruit_blinky_cb( TimerHandle_t xTimer )
+{
+  (void) xTimer;
+  if ( Bluefruit._led_conn ) digitalToggle(LED_BLUE);'''
+
+        if original_pattern not in content:
+            print("Bluefruit patch: WARNING - bluefruit.cpp blinky_cb pattern not found")
+            return False
+
+        content = content.replace(original_pattern, patched_pattern)
+        source.write_text(content)
+
+        if "Bluefruit._led_conn" not in source.read_text():
+            return False
+
+        return True
+    except Exception as e:
+        print(f"Bluefruit patch: ERROR patching bluefruit.cpp: {e}")
+        return False
+
+
 def _apply_bluefruit_patches(target, source, env):  # pylint: disable=unused-argument
     framework_path = env.get("PLATFORMFW_DIR")
     if not framework_path:
@@ -185,6 +270,44 @@ def _apply_bluefruit_patches(target, source, env):  # pylint: disable=unused-arg
         print(f"Bluefruit patch: ERROR - BLEConnection.cpp not found at {conn_source}")
         patch_failed = True
     
+    # Patch bluefruit.h - add friend declaration for blinky callback
+    bf_header = bluefruit_lib / "bluefruit.h"
+    if bf_header.exists():
+        before = bf_header.read_text()
+        success = _patch_bluefruit_header_led(bf_header)
+        after = bf_header.read_text()
+
+        if success:
+            if before != after:
+                print("Bluefruit patch: OK - Applied bluefruit.h fix (added blinky_cb friend)")
+            else:
+                print("Bluefruit patch: OK - bluefruit.h already patched")
+        else:
+            print("Bluefruit patch: FAILED - bluefruit.h")
+            patch_failed = True
+    else:
+        print(f"Bluefruit patch: ERROR - bluefruit.h not found at {bf_header}")
+        patch_failed = True
+
+    # Patch bluefruit.cpp - guard LED toggle with _led_conn check
+    bf_source = bluefruit_lib / "bluefruit.cpp"
+    if bf_source.exists():
+        before = bf_source.read_text()
+        success = _patch_bluefruit_source_led(bf_source)
+        after = bf_source.read_text()
+
+        if success:
+            if before != after:
+                print("Bluefruit patch: OK - Applied bluefruit.cpp fix (guard blinky_cb with _led_conn)")
+            else:
+                print("Bluefruit patch: OK - bluefruit.cpp already patched")
+        else:
+            print("Bluefruit patch: FAILED - bluefruit.cpp")
+            patch_failed = True
+    else:
+        print(f"Bluefruit patch: ERROR - bluefruit.cpp not found at {bf_source}")
+        patch_failed = True
+
     if patch_failed:
         print("Bluefruit patch: CRITICAL - Patch failed! Build aborted.")
         env.Exit(1)
