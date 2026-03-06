@@ -10,10 +10,12 @@
 #define PERM_ACL_READ_WRITE    2
 #define PERM_ACL_ADMIN         3
 
+#define OUT_PATH_UNKNOWN  0xFF
+
 struct ClientInfo {
   mesh::Identity id;
   uint8_t permissions;
-  int8_t out_path_len;
+  uint8_t out_path_len;
   uint8_t out_path[MAX_PATH_SIZE];
   uint8_t shared_secret[PUB_KEY_SIZE];
   uint32_t last_timestamp;   // by THEIR clock  (transient)

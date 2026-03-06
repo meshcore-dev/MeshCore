@@ -2,11 +2,13 @@
 
 #include "CustomLR1110.h"
 #include "RadioLibWrappers.h"
+#include "LR11x0Reset.h"
 
 class CustomLR1110Wrapper : public RadioLibWrapper {
 public:
   CustomLR1110Wrapper(CustomLR1110& radio, mesh::MainBoard& board) : RadioLibWrapper(radio, board) { }
-  bool isReceivingPacket() override { 
+  void doResetAGC() override { lr11x0ResetAGC((LR11x0 *)_radio, ((CustomLR1110 *)_radio)->getFreqMHz()); }
+  bool isReceivingPacket() override {
     return ((CustomLR1110 *)_radio)->isReceiving();
   }
   float getCurrentRSSI() override {
