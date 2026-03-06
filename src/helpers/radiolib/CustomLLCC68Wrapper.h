@@ -2,6 +2,7 @@
 
 #include "CustomLLCC68.h"
 #include "RadioLibWrappers.h"
+#include "SX126xReset.h"
 
 class CustomLLCC68Wrapper : public RadioLibWrapper {
 public:
@@ -19,4 +20,6 @@ public:
     int sf = ((CustomLLCC68 *)_radio)->spreadingFactor;
     return packetScoreInt(snr, sf, packet_len);
   }
+
+  void doResetAGC() override { sx126xResetAGC((SX126x *)_radio); }
 };
