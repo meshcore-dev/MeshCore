@@ -8,6 +8,14 @@
 #define ADVERT_LOC_NONE       0
 #define ADVERT_LOC_SHARE      1
 
+#define LED_BLE_ENABLED        0
+#define LED_BLE_DISCONN_ONLY   1
+#define LED_BLE_CONN_ONLY      2
+#define LED_BLE_DISABLED       3
+
+#define LED_STATUS_ENABLED     0
+#define LED_STATUS_DISABLED    1
+
 struct NodePrefs {  // persisted to file
   float airtime_factor;
   char node_name[32];
@@ -31,4 +39,6 @@ struct NodePrefs {  // persisted to file
   uint8_t client_repeat;
   uint8_t path_hash_mode;    // which path mode to use when sending
   uint8_t autoadd_max_hops;  // 0 = no limit, 1 = direct (0 hops), N = up to N-1 hops (max 64)
+  uint8_t led_ble_mode;      // LED_BLE_ENABLED, LED_BLE_DISCONN_ONLY, LED_BLE_CONN_ONLY, LED_BLE_DISABLED
+  uint8_t led_status_mode;   // LED_STATUS_ENABLED, LED_STATUS_DISABLED
 };

@@ -12,6 +12,16 @@
 #include "../AbstractUITask.h"
 #include "../NodePrefs.h"
 
+#ifndef LED_STATE_ON
+  #define LED_STATE_ON 1
+#endif
+
+#ifdef LED_CONN
+  #define BLE_LED_PIN LED_CONN
+#elif defined(LED_BLUE)
+  #define BLE_LED_PIN LED_BLUE
+#endif
+
 #include "Button.h"
 
 class UITask : public AbstractUITask {
@@ -41,6 +51,7 @@ class UITask : public AbstractUITask {
 
   void renderCurrScreen();
   void userLedHandler();
+  void bleLedHandler();
   void renderBatteryIndicator(uint16_t batteryMilliVolts);
   
   // Button action handlers

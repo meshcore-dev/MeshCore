@@ -1844,6 +1844,24 @@ void MyMesh::checkCLIRescueCmd() {
         _prefs.ble_pin = atoi(&config[4]);
         savePrefs();
         Serial.printf("  > pin is now %06d\n", _prefs.ble_pin);
+      } else if (memcmp(config, "led.ble ", 8) == 0) {
+        int mode = atoi(&config[8]);
+        if (mode >= 0 && mode <= 3) {
+          _prefs.led_ble_mode = mode;
+          savePrefs();
+          Serial.printf("  > led.ble is now %d (reboot to apply)\n", mode);
+        } else {
+          Serial.println("  Error: must be 0-3 (0=enabled, 1=disconn_only, 2=conn_only, 3=disabled)");
+        }
+      } else if (memcmp(config, "led.status ", 11) == 0) {
+        int mode = atoi(&config[11]);
+        if (mode >= 0 && mode <= 1) {
+          _prefs.led_status_mode = mode;
+          savePrefs();
+          Serial.printf("  > led.status is now %d (reboot to apply)\n", mode);
+        } else {
+          Serial.println("  Error: must be 0-1 (0=enabled, 1=disabled)");
+        }
       } else {
         Serial.printf("  Error: unknown config: %s\n", config);
       }
