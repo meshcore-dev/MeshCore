@@ -5,7 +5,11 @@
 
 #ifdef DISPLAY_CLASS
   #include "UITask.h"
-  static UITask ui_task(display);
+  #ifdef HELTEC_V3_SCREEN_LED_CONTROL
+    static UITask ui_task(display, &board, &sensors);
+  #else
+    static UITask ui_task(display);
+  #endif
 #endif
 
 StdRNG fast_rng;
@@ -40,10 +44,21 @@ void setup() {
 
 #ifdef DISPLAY_CLASS
   if (display.begin()) {
+  #ifdef HELTEC_V3_SCREEN_LED_CONTROL
+    if (board.supportsDisplaySettings() && !board.getDisplayEnabled()) {
+      display.turnOff();
+    } else {
+      display.startFrame();
+      display.setCursor(0, 0);
+      display.print("Please wait...");
+      display.endFrame();
+    }
+  #else
     display.startFrame();
     display.setCursor(0, 0);
     display.print("Please wait...");
     display.endFrame();
+  #endif
   }
 #endif
 

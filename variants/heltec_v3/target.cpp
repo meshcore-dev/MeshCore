@@ -18,17 +18,22 @@ AutoDiscoverRTCClock rtc_clock(fallback_clock);
 #if ENV_INCLUDE_GPS
   #include <helpers/sensors/MicroNMEALocationProvider.h>
   MicroNMEALocationProvider nmea = MicroNMEALocationProvider(Serial1);
-  EnvironmentSensorManager sensors = EnvironmentSensorManager(nmea);
+  EnvironmentSensorManager env_sensors = EnvironmentSensorManager(nmea);
+  HeltecV3SensorManager sensors = HeltecV3SensorManager(board, &env_sensors);
 #else
-  EnvironmentSensorManager sensors;
+  HeltecV3SensorManager sensors = HeltecV3SensorManager(board);
 #endif
 
 #ifdef DISPLAY_CLASS
-  DISPLAY_CLASS display;
+  DISPLAY_CLASS display(&(board.periph_power));
   MomentaryButton user_btn(PIN_USER_BTN, 1000, true);
 #endif
 
 bool radio_init() {
+  #ifdef DISPLAY_CLASS
+    sensors.setDisplay(&display);
+  #endif
+  
   fallback_clock.begin();
   rtc_clock.begin(Wire);
   
