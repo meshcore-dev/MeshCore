@@ -58,6 +58,7 @@
 #define CMD_GET_AUTOADD_CONFIG        59
 #define CMD_GET_ALLOWED_REPEAT_FREQ   60
 #define CMD_SET_PATH_HASH_MODE        61
+#define CMD_SET_LED_PARAMS            62
 
 // Stats sub-types for CMD_GET_STATS
 #define STATS_TYPE_CORE               0
@@ -942,6 +943,8 @@ void MyMesh::handleCmdFrame(size_t len) {
     i += 20;
     out_frame[i++] = _prefs.client_repeat;   // v9+
     out_frame[i++] = _prefs.path_hash_mode;  // v10+
+    out_frame[i++] = _prefs.led_ble_mode;    // v11+
+    out_frame[i++] = _prefs.led_status_mode; // v11+
     _serial->writeFrame(out_frame, i);
   } else if (cmd_frame[0] == CMD_APP_START &&
              len >= 8) { // sent when app establishes connection, respond with node ID
@@ -1325,6 +1328,13 @@ void MyMesh::handleCmdFrame(size_t len) {
       savePrefs();
       writeOKFrame();
     }
+  } else if (cmd_frame[0] == CMD_SET_LED_PARAMS && len >= 2) {
+    _prefs.led_ble_mode = cmd_frame[1];
+    if (len >= 3) {
+      _prefs.led_status_mode = cmd_frame[2];
+    }
+    savePrefs();
+    writeOKFrame();
   } else if (cmd_frame[0] == CMD_REBOOT && memcmp(&cmd_frame[1], "reboot", 6) == 0) {
     if (dirty_contacts_expiry) { // is there are pending dirty contacts write needed?
       saveContacts();
