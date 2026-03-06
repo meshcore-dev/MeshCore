@@ -1,4 +1,6 @@
-# MeshCore Repeater & Room Server CLI Commands
+# CLI Commands
+
+This document provides an overview of CLI commands that can be sent to MeshCore Repeaters, Room Servers and Sensors.
 
 ## Navigation
 
@@ -292,7 +294,7 @@
 
 ---
 
-#### View or change this node's admin password
+#### Change this node's admin password
 **Usage:**
 - `password <new_password>`
 
