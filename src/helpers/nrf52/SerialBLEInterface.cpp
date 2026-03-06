@@ -134,9 +134,18 @@ void SerialBLEInterface::begin(const char* prefix, char* name, uint32_t pin_code
   // On fast boots (filesystem already formatted), Bluefruit.begin() can
   // be called before the crystal is stable, hanging sd_softdevice_enable().
   // See: https://github.com/meshcore-dev/MeshCore/issues/1780
-  while (!NRF_CLOCK->EVENTS_LFCLKSTARTED) {
-    delay(1);
+#ifdef USE_LFXO
+  {
+    uint32_t lfclk_start = millis();
+    while (!NRF_CLOCK->EVENTS_LFCLKSTARTED) {
+      if (millis() - lfclk_start >= 2000) {
+        Serial.println("WARNING: LFXO crystal did not start within 2s — check 32.768kHz crystal");
+        break;
+      }
+      delay(1);
+    }
   }
+#endif
 
   #ifdef DISABLE_BLE_LED  // use variant platformio.ini build_flags macro: -D DISABLE_BLE_LED
     Bluefruit.autoConnLed(false);  // false removes the automatic control of the LED by the Bluefruit library
