@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.3">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
     
     
       
@@ -552,10 +552,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#end-capture-of-rx-log-to-node-sotrage" class="md-nav__link">
+  <a href="#end-capture-of-rx-log-to-node-storage" class="md-nav__link">
     <span class="md-ellipsis">
       
-        End capture of rx log to node sotrage
+        End capture of rx log to node storage
       
     </span>
   </a>
@@ -1886,10 +1886,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#end-capture-of-rx-log-to-node-sotrage" class="md-nav__link">
+  <a href="#end-capture-of-rx-log-to-node-storage" class="md-nav__link">
     <span class="md-ellipsis">
       
-        End capture of rx log to node sotrage
+        End capture of rx log to node storage
       
     </span>
   </a>
@@ -2745,7 +2745,7 @@
 <p><strong>Usage:</strong> 
 - <code>time &lt;epoch_seconds&gt;</code></p>
 <p><strong>Parameters:</strong>
-- <code>epoc_seconds</code>: Unix epoc time</p>
+- <code>epoch_seconds</code>: Unix epoch time</p>
 <hr />
 <h3 id="send-a-flood-advert">Send a flood advert</h3>
 <p><strong>Usage:</strong> 
@@ -2795,7 +2795,7 @@
 <h3 id="begin-capture-of-rx-log-to-node-storage">Begin capture of rx log to node storage</h3>
 <p><strong>Usage:</strong> <code>log start</code></p>
 <hr />
-<h3 id="end-capture-of-rx-log-to-node-sotrage">End capture of rx log to node sotrage</h3>
+<h3 id="end-capture-of-rx-log-to-node-storage">End capture of rx log to node storage</h3>
 <p><strong>Usage:</strong> <code>log stop</code></p>
 <hr />
 <h3 id="erase-captured-log">Erase captured log</h3>
@@ -2835,7 +2835,7 @@
 - <code>dbm</code>: Power level in dBm (1-22)</p>
 <p><strong>Set by build flag:</strong> <code>LORA_TX_POWER</code></p>
 <p><strong>Default:</strong> Varies by board</p>
-<p><strong>Notes:</strong> This setting only controls the power level of the LoRa chip. Some nodes have an additional power amplifier stage which increases the total output. Referr to the node's manual for the correct setting to use. <strong>Setting a value too high may violate the laws in your country.</strong></p>
+<p><strong>Notes:</strong> This setting only controls the power level of the LoRa chip. Some nodes have an additional power amplifier stage which increases the total output. Refer to the node's manual for the correct setting to use. <strong>Setting a value too high may violate the laws in your country.</strong></p>
 <hr />
 <h4 id="change-the-radio-parameters-for-a-set-duration">Change the radio parameters for a set duration</h4>
 <p><strong>Usage:</strong> 
@@ -2855,7 +2855,8 @@
 <p><strong>Parameters:</strong>
 - <code>frequency</code>: Frequency in MHz</p>
 <p><strong>Default:</strong> <code>869.525</code></p>
-<p><strong>Note:</strong> Requires reboot to apply</p>
+<p><strong>Note:</strong> Requires reboot to apply
+<strong>Serial Only:</strong> <code>set freq &lt;frequency&gt;</code></p>
 <h3 id="system">System</h3>
 <h4 id="view-or-change-this-nodes-name">View or change this node's name</h4>
 <p><strong>Usage:</strong>
@@ -2898,12 +2899,12 @@
 <hr />
 <h4 id="change-this-nodes-admin-password">Change this node's admin password</h4>
 <p><strong>Usage:</strong>
-- <code>password &lt;password&gt;</code></p>
+- <code>password &lt;new_password&gt;</code></p>
 <p><strong>Parameters:</strong>
-- <code>password</code>: Admin password</p>
+- <code>new_password</code>: New admin password</p>
 <p><strong>Set by build flag:</strong> <code>ADMIN_PASSWORD</code></p>
 <p><strong>Default:</strong> <code>password</code></p>
-<p><strong>Note:</strong> Echoed back for confirmation</p>
+<p><strong>Note:</strong> Command reply echoes the updated password for confirmation.</p>
 <p><strong>Note:</strong> Any node using this password will be added to the admin ACL list.</p>
 <hr />
 <h4 id="view-or-change-this-nodes-guest-password">View or change this node's guest password</h4>
@@ -3219,7 +3220,7 @@ region save
 - <code>gps advert</code>
 - <code>gps advert &lt;policy&gt;</code></p>
 <p><strong>Parameters:</strong> 
-- <code>policy</code>: <code>none</code>|<code>shared</code>|<code>prefs</code> 
+- <code>policy</code>: <code>none</code>|<code>share</code>|<code>prefs</code> 
   - <code>none</code>: don't include location in adverts
   - <code>share</code>: share gps location (from SensorManager)
   - <code>prefs</code>: location stored in node's lat and lon settings</p>
