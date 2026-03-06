@@ -129,6 +129,15 @@ void SerialBLEInterface::begin(const char* prefix, char* name, uint32_t pin_code
   char charpin[20];
   snprintf(charpin, sizeof(charpin), "%lu", (unsigned long)pin_code);
   
+  // Ensure LFXO crystal is fully started before enabling SoftDevice.
+  // The framework starts LFXO in init() but doesn't wait for it.
+  // On fast boots (filesystem already formatted), Bluefruit.begin() can
+  // be called before the crystal is stable, hanging sd_softdevice_enable().
+  // See: https://github.com/meshcore-dev/MeshCore/issues/1780
+  while (!NRF_CLOCK->EVENTS_LFCLKSTARTED) {
+    delay(1);
+  }
+
   // If we want to control BLE LED ourselves, uncomment this:
   // Bluefruit.autoConnLed(false);
   Bluefruit.configPrphBandwidth(BANDWIDTH_MAX);
