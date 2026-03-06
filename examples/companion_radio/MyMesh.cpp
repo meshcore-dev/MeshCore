@@ -1330,6 +1330,7 @@ void MyMesh::handleCmdFrame(size_t len) {
     }
   } else if (cmd_frame[0] == CMD_SET_LED_PARAMS && len >= 2) {
     _prefs.led_ble_mode = cmd_frame[1];
+    _serial->setLedBleMode(cmd_frame[1]);
     if (len >= 3) {
       _prefs.led_status_mode = cmd_frame[2];
     }
@@ -1858,8 +1859,9 @@ void MyMesh::checkCLIRescueCmd() {
         int mode = atoi(&config[8]);
         if (mode >= 0 && mode <= 3) {
           _prefs.led_ble_mode = mode;
+          _serial->setLedBleMode(mode);
           savePrefs();
-          Serial.printf("  > led.ble is now %d (reboot to apply)\n", mode);
+          Serial.printf("  > led.ble is now %d\n", mode);
         } else {
           Serial.println("  Error: must be 0-3 (0=enabled, 1=disconn_only, 2=conn_only, 3=disabled)");
         }
@@ -1868,7 +1870,7 @@ void MyMesh::checkCLIRescueCmd() {
         if (mode >= 0 && mode <= 1) {
           _prefs.led_status_mode = mode;
           savePrefs();
-          Serial.printf("  > led.status is now %d (reboot to apply)\n", mode);
+          Serial.printf("  > led.status is now %d\n", mode);
         } else {
           Serial.println("  Error: must be 0-1 (0=enabled, 1=disabled)");
         }

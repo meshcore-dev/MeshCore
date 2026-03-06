@@ -442,3 +442,29 @@ bool SerialBLEInterface::isConnected() const {
 bool SerialBLEInterface::isWriteBusy() const {
   return send_queue_len >= (FRAME_QUEUE_SIZE * 2 / 3);
 }
+
+void SerialBLEInterface::setLedBleMode(uint8_t mode) {
+  _led_ble_mode = mode;
+  if (mode == LED_BLE_ENABLED) {
+    Bluefruit.autoConnLed(true);
+#ifdef BLE_LED_PIN
+    // SDK won't update LED until next connect/disconnect event, so set it now
+    digitalWrite(BLE_LED_PIN, _isDeviceConnected ? LED_STATE_ON : !LED_STATE_ON);
+#endif
+  } else {
+    Bluefruit.autoConnLed(false);
+#ifdef BLE_LED_PIN
+    // Apply immediate state based on new mode
+    if (mode == LED_BLE_DISABLED) {
+      digitalWrite(BLE_LED_PIN, !LED_STATE_ON);
+    } else if (mode == LED_BLE_CONN_ONLY) {
+      digitalWrite(BLE_LED_PIN, _isDeviceConnected ? LED_STATE_ON : !LED_STATE_ON);
+    } else if (mode == LED_BLE_DISCONN_ONLY) {
+      // Blink handled by UITask::bleLedHandler(); just set initial state
+      if (_isDeviceConnected) {
+        digitalWrite(BLE_LED_PIN, !LED_STATE_ON);
+      }
+    }
+#endif
+  }
+}

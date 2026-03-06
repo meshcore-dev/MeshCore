@@ -70,6 +70,7 @@ public:
   bool isWriteBusy() const override;
   size_t writeFrame(const uint8_t src[], size_t len) override;
   size_t checkRecvFrame(uint8_t dest[]) override;
+  void setLedBleMode(uint8_t mode) override;
 };
 
 #if BLE_DEBUG_LOGGING && ARDUINO
