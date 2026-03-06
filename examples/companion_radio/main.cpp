@@ -220,33 +220,6 @@ void setup() {
     }
   }
 
-  WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info) {
-    switch (event) {
-      case ARDUINO_EVENT_WIFI_STA_START:
-        WIFI_DEBUG_PRINTLN("STA started, connecting to SSID: %s", _wifi_ssid);
-        break;
-      case ARDUINO_EVENT_WIFI_STA_CONNECTED:
-        WIFI_DEBUG_PRINTLN("Associated with AP: %s, channel: %d",
-          (char*)info.wifi_sta_connected.ssid,
-          info.wifi_sta_connected.channel);
-        break;
-      case ARDUINO_EVENT_WIFI_STA_GOT_IP:
-        WIFI_DEBUG_PRINTLN("Got IP: %s", WiFi.localIP().toString().c_str());
-        break;
-      case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
-        WIFI_DEBUG_PRINTLN("Disconnected, reason: %d",
-          info.wifi_sta_disconnected.reason);
-        break;
-      case ARDUINO_EVENT_WIFI_STA_AUTHMODE_CHANGE:
-        WIFI_DEBUG_PRINTLN("Auth mode changed");
-        break;
-      case ARDUINO_EVENT_WIFI_STA_LOST_IP:
-        WIFI_DEBUG_PRINTLN("Lost IP");
-        break;
-      default:
-        break;
-    }
-  });
   WiFi.persistent(false);        // don't use/overwrite NVS-cached credentials
   WiFi.mode(WIFI_STA);
   WiFi.begin(_wifi_ssid, _wifi_pwd);
@@ -284,6 +257,9 @@ static void wifi_reconnect_check() {
   last_check = millis();
 
   if (WiFi.status() == WL_CONNECTED) {
+    if (down_since != 0) {
+      WIFI_DEBUG_PRINTLN("Connected to %s, IP: %s", _wifi_ssid, WiFi.localIP().toString().c_str());
+    }
     down_since = 0;
     return;
   }
