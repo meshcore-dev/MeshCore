@@ -1,0 +1,37 @@
+{
+  "build": {
+    "arduino": {
+      "ldscript": "esp32_out.ld",
+      "partitions": "default_8MB.csv"
+    },
+    "core": "esp32",
+    "extra_flags": "-DARDUINO_RADIOMASTER_BANDIT -DARDUINO_ARCH_ESP32",
+    "f_cpu": "240000000L",
+    "f_flash": "40000000L",
+    "flash_mode": "dio",
+    "mcu": "esp32",
+    "variant": "esp32"
+  },
+  "connectivity": [
+    "wifi",
+    "bluetooth",
+    "ethernet"
+  ],
+  "debug": {
+    "openocd_board": "esp-wroom-32.cfg"
+  },
+  "frameworks": [
+    "arduino",
+    "espidf"
+  ],
+  "name": "Radiomaster Bandit",
+  "upload": {
+    "flash_size": "8MB",
+    "maximum_ram_size": 327680,
+    "maximum_size": 8388608,
+    "require_upload_port": true,
+    "speed": 460800
+  },
+  "url": "https://www.espressif.com/en/products/socs/esp32",
+  "vendor": "Espressif"
+}
