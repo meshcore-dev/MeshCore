@@ -5,15 +5,20 @@
 #include <SPI.h>
 #include <Wire.h>
 #include <heltec-eink-modules.h>
+#include <CRC32.h>
+#include <helpers/RefCountedDigitalPin.h>
 
 // Display driver for E213 e-ink display
 class E213Display : public DisplayDriver {
   BaseDisplay* display=NULL;
   bool _init = false;
   bool _isOn = false;
+  RefCountedDigitalPin* _periph_power;
+  CRC32 display_crc;
+  uint32_t last_display_crc_value = 0;
 
 public:
-  E213Display() : DisplayDriver(250, 122) {}
+  E213Display(RefCountedDigitalPin* periph_power = NULL) : DisplayDriver(250, 122), _periph_power(periph_power) {}
   ~E213Display(){
     if(display!=NULL) {
       delete display;
