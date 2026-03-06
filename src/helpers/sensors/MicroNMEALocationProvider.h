@@ -79,7 +79,10 @@ public :
         if (_pin_en != -1) {
             digitalWrite(_pin_en, !PIN_GPS_EN_ACTIVE);
         }
-        if (_peripher_power) _peripher_power->release();  
+        if (_pin_reset != -1) {
+            digitalWrite(_pin_reset, GPS_RESET_FORCE);
+        }
+        if (_peripher_power) _peripher_power->release();
     }
 
     bool isEnabled() override {

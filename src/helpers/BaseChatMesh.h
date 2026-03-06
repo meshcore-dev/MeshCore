@@ -98,6 +98,7 @@ protected:
   virtual bool shouldAutoAddContactType(uint8_t type) const { return true; }
   virtual void onContactsFull() {};
   virtual bool shouldOverwriteWhenFull() const { return false; }
+  virtual uint8_t getAutoAddMaxHops() const { return 0; }  // 0 = no limit, 1 = direct (0 hops), N = up to N-1 hops
   virtual void onContactOverwrite(const uint8_t* pub_key) {};
   virtual void onDiscoveredContact(ContactInfo& contact, bool is_new, uint8_t path_len, const uint8_t* path) = 0;
   virtual ContactInfo* processAck(const uint8_t *data) = 0;
