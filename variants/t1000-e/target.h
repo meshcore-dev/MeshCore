@@ -37,7 +37,7 @@ public:
 
 extern T1000eBoard board;
 extern WRAPPER_CLASS radio_driver;
-extern VolatileRTCClock rtc_clock;
+extern NRF52RTCClock rtc_clock;
 extern T1000SensorManager sensors;
 
 bool radio_init();
