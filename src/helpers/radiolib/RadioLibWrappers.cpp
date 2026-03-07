@@ -26,7 +26,8 @@ void setFlag(void) {
 
 void RadioLibWrapper::begin() {
   _radio->setPacketReceivedAction(setFlag);  // this is also SentComplete interrupt
-  _radio->setPreambleLength(getSpreadingFactor() <= 8 ? 32 : 16); // longer preamble for lower SF improves reliability
+  _preamble_sf = getSpreadingFactor();
+  _radio->setPreambleLength(_preamble_sf <= 8 ? 32 : 16); // longer preamble for lower SF improves reliability
   state = STATE_IDLE;
 
   if (_board->getStartupReason() == BD_STARTUP_RX_PACKET) {  // received a LoRa packet (while in deep sleep)
@@ -143,7 +144,11 @@ uint32_t RadioLibWrapper::getEstAirtimeFor(int len_bytes) {
 
 bool RadioLibWrapper::startSendRaw(const uint8_t* bytes, int len) {
   _board->onBeforeTransmit();
-  _radio->setPreambleLength(getSpreadingFactor() <= 8 ? 32 : 16); // keep preamble in sync with current SF
+  uint8_t sf = getSpreadingFactor();
+  if (sf != _preamble_sf) {
+    _preamble_sf = sf;
+    _radio->setPreambleLength(sf <= 8 ? 32 : 16); // update preamble when SF has changed
+  }
   int err = _radio->startTransmit((uint8_t *) bytes, len);
   if (err == RADIOLIB_ERR_NONE) {
     state = STATE_TX_WAIT;
