@@ -402,15 +402,21 @@ static uint8_t max_loop_strict[] =   { 0, /* 1-byte */  1, /* 2-byte */  1, /* 3
 
 bool MyMesh::isLooped(const mesh::Packet* packet, const uint8_t max_counters[]) {
   uint8_t hash_size = packet->getPathHashSize();
-  uint8_t hash_count = packet->getPathHashCount();
-  uint8_t n = 0;
+  uint8_t path_byte_len = packet->getPathByteLen();
+  uint8_t limit = max_counters[hash_size];
   const uint8_t* path = packet->path;
-  while (hash_count > 0) {      // count how many times this node is already in the path
-    if (self_id.isHashMatch(path, hash_size)) n++;
-    hash_count--;
-    path += hash_size;
+
+  for (uint8_t i = 0; i < path_byte_len; i += hash_size) {
+      uint8_t n = 0;
+
+      if (self_id.isHashMatch(&path[i], hash_size)) n++;
+
+      for (uint8_t j = i + hash_size; j < path_byte_len; j += hash_size) {
+          if (memcmp(&path[i], &path[j], hash_size) == 0) n++;
+      }
+      if (n >= limit) return true;
   }
-  return n >= max_counters[hash_size];
+  return false;
 }
 
 bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
