@@ -45,7 +45,7 @@ static Adafruit_BME280 BME280;
 static Adafruit_BMP280 BMP280(TELEM_WIRE);
 #endif
 
-#ifdef ENV_INCLUDE_SEN0658
+#if ENV_INCLUDE_SEN0658
 #include "DFROBOT_SEN0658.h"
 static DFROBOT_SEN0658 SEN0658;
 #endif
@@ -777,6 +777,19 @@ void EnvironmentSensorManager::stop_gps() {
   MESH_DEBUG_PRINTLN("Stop GPS is N/A on this board. Actual GPS state unchanged");
   #endif
 }
+#endif
+
+bool EnvironmentSensorManager::hasPendingWork() {
+  #if ENV_INCLUDE_SEN0658
+  if (SEN0658_initialized) {
+    if(SEN0658.hasPendingWork()) {
+      return true;
+    }
+  }
+  #endif
+
+  return false;
+}
 
 void EnvironmentSensorManager::loop() {
   static long next_gps_update = 0;
@@ -809,5 +822,10 @@ void EnvironmentSensorManager::loop() {
     next_gps_update = millis() + (gps_update_interval_sec * 1000);
   }
   #endif
+
+  #if ENV_INCLUDE_SEN0658
+  if (SEN0658_initialized) {
+    SEN0658.loop();
+  }
+  #endif
 }
-#endif

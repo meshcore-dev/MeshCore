@@ -48,10 +48,9 @@ public:
   EnvironmentSensorManager(){};
   #endif
   bool begin() override;
+  bool hasPendingWork() override;
   bool querySensors(uint8_t requester_permissions, CayenneLPP& telemetry) override;
-  #if ENV_INCLUDE_GPS
   void loop() override;
-  #endif
   int getNumSettings() const override;
   const char* getSettingName(int i) const override;
   const char* getSettingValue(int i) const override;

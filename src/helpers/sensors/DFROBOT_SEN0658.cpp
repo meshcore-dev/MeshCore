@@ -35,21 +35,41 @@ bool DFROBOT_SEN0658::readBytes(uint8_t *buffer, int len) {
 
 bool DFROBOT_SEN0658::begin() {
     WITH_SEN0658_SERIAL.setPins(WITH_SEN0658_RX, WITH_SEN0658_TX);
-    WITH_SEN0658_SERIAL.begin(4800);
-    sendWriteCommand(0x07D1, 0x0006); // set baud rate to 115200
-    flushSerial();
 
-    WITH_SEN0658_SERIAL.end();
-    WITH_SEN0658_SERIAL.begin(115200);
-
-    DFROBOT_SEN0658_Sample sample = {0};
-    if (!readSample(sample))
-    {
-        MESH_DEBUG_PRINTLN("Could not read sample from SEN0658.");
-        return false;
-    }
+    bool result;
+    int i;
+    for(i = 0; i < 100; i++) {
     
-    return true;
+        WITH_SEN0658_SERIAL.begin(4800);
+        sendWriteCommand(0x07D1, 0x0006); // set baud rate to 115200
+        flushSerial();
+
+        WITH_SEN0658_SERIAL.end();
+        WITH_SEN0658_SERIAL.begin(115200);
+
+        DFROBOT_SEN0658_Sample sample = {0};
+        if(result = readSample(sample)) {
+            break;
+        }
+
+        delay(100);
+    }
+
+    if (result) {
+        MESH_DEBUG_PRINTLN("SEN0658 started after %i attempts.", i+1);
+    } else {
+        MESH_DEBUG_PRINTLN("SEN0658 failed to start after %i attempts.", i+1);
+    }
+        
+    return result;
+}
+
+bool DFROBOT_SEN0658::hasPendingWork() {
+    #if defined(WITH_SEN0658_EN)
+    return idleShutdownTime != 0;
+    #endif
+    
+    return false;
 }
 
 template<typename PacketType>
@@ -81,7 +101,7 @@ bool DFROBOT_SEN0658::readWind(DFROBOT_SEN0658_Sample &sample) {
         PacketHeader header;
         be_uint16_t windSpeed;
         be_uint16_t Reserved;
-        be_uint16_t windDirection;
+        be_uint16_t ignoredWindDirection;
         be_uint16_t windAngle;
         le_uint16_t crc;
     } __attribute__((packed)) packet;
@@ -90,6 +110,11 @@ bool DFROBOT_SEN0658::readWind(DFROBOT_SEN0658_Sample &sample) {
         MESH_DEBUG_PRINTLN("Could not read wind data from SEN0658.");
         return false;
     }
+    // Wind is sometimes really all zeros
+    // if (packet.windSpeed == 0 && packet.windAngle == 0) {
+    //     MESH_DEBUG_PRINTLN("WindPacket is all zeros.");
+    //     return false;
+    // }
     sample.windSpeed = (uint16_t)packet.windSpeed / 100.0; 
     sample.windAngle = (float)(uint16_t)packet.windAngle;
     return true;
@@ -104,6 +129,11 @@ bool DFROBOT_SEN0658::readLight(DFROBOT_SEN0658_Sample &sample) {
 
     if (!readRegisters<LightPacket>(0x01FE, packet)) {
         MESH_DEBUG_PRINTLN("Could not read light data from SEN0658.");
+        return false;
+    }
+
+    if (packet.light == 0) {
+        MESH_DEBUG_PRINTLN("LightPacket is all zeros.");
         return false;
     }
 
@@ -122,6 +152,10 @@ bool DFROBOT_SEN0658::readTemperature(DFROBOT_SEN0658_Sample &sample) {
 
     if (!readRegisters<TemperaturePacket>(0x01F8, packet)) {
         MESH_DEBUG_PRINTLN("Could not read temperature data from SEN0658.");
+        return false;
+    }
+    if (packet.humidity == 0 && packet.temperature == 0 && packet.noise == 0) {
+        MESH_DEBUG_PRINTLN("TemperaturePacket is all zeros.");
         return false;
     }
     sample.humidity = (uint16_t)packet.humidity / 10.0;
@@ -143,6 +177,10 @@ bool DFROBOT_SEN0658::readAir(DFROBOT_SEN0658_Sample &sample) {
         MESH_DEBUG_PRINTLN("Could not read air data from SEN0658.");
         return false;
     }
+    if (packet.pm2_5 == 0 && packet.pm10 == 0 && packet.airPressure == 0) {
+        MESH_DEBUG_PRINTLN("AirPacket is all zeros.");
+        return false;
+    }
     sample.pm2_5 = (uint16_t)packet.pm2_5;
     sample.pm10 = (uint16_t)packet.pm10;
     sample.airPressure = (uint16_t)packet.airPressure / 10.0;
@@ -151,22 +189,39 @@ bool DFROBOT_SEN0658::readAir(DFROBOT_SEN0658_Sample &sample) {
 
 bool DFROBOT_SEN0658::readSample(DFROBOT_SEN0658_Sample &sample) {
     sample = {0};
-    if (!readWind(sample)) {
-        return false;
+
+    bool result;
+    int i;
+    for(i = 0; i < 100; i++) {
+        if(result = readTemperature(sample)) break;
+        delay(100);
     }
-    if (!readTemperature(sample)) {
-        return false;
+    if (!result) return false;
+    MESH_DEBUG_PRINTLN("SEN0658 readTemperature after %i attempts.", i+1);
+
+    for(i = 0; i < 100; i++) {
+        if(result = readAir(sample)) break;
+        delay(100);
     }
-    if (!readAir(sample)) {
-        return false;
+    if (!result) return false;
+    MESH_DEBUG_PRINTLN("SEN0658 readAir after %i attempts.", i+1);
+
+    for(i = 0; i < 100; i++) {
+        if(result = readLight(sample)) break;
+        delay(100);
     }
-    if (!readLight(sample)) {
-        return false;
+    if (!result) return false;
+    MESH_DEBUG_PRINTLN("SEN0658 readLight after %i attempts.", i+1);
+
+    for(i = 0; i < 100; i++) {
+        if(result = readWind(sample)) break;
+        delay(100);
     }
-    return true; // Return a dummy sample for this example.
+    if (!result) return false;
+    MESH_DEBUG_PRINTLN("SEN0658 readWind after %i attempts.", i+1);
+
+    return result;
 }
-
-
 
 bool DFROBOT_SEN0658::readWindDirectionOffset(uint16_t &offset) {
     struct OffsetPacket {
@@ -245,6 +300,17 @@ void DFROBOT_SEN0658::sendCommand(uint8_t function, uint16_t registerStart, uint
     command[4] = (registerLengthOrValue >> 8) & 0xFF;
     command[5] = registerLengthOrValue & 0xFF;
 
+#if defined(WITH_SEN0658_EN)
+    uint32_t previousIdleShutdownTime = idleShutdownTime;
+    uint32_t now = millis();
+    idleShutdownTime = now + 30000; // keep enabled for 30 seconds after command
+    if (previousIdleShutdownTime == 0) {
+        MESH_DEBUG_PRINTLN("SEN0658 power on: idleShutdownTime set to %lu (currently %lu).", idleShutdownTime, now);
+        digitalWrite(WITH_SEN0658_EN, HIGH);
+        delay(100); // wait for sensor to power up
+    }
+#endif
+
     WITH_SEN0658_SERIAL.write(command, 6);
     uint16_t crc = CRC16_2(&command[0], 6);
     WITH_SEN0658_SERIAL.write(crc & 0xFF);
@@ -254,6 +320,17 @@ void DFROBOT_SEN0658::sendCommand(uint8_t function, uint16_t registerStart, uint
 
 void DFROBOT_SEN0658::sendWriteCommand(uint16_t registerIndex, uint16_t value) {
     sendCommand(0x06, registerIndex, value);
+}
+
+void DFROBOT_SEN0658::loop() {
+#if defined(WITH_SEN0658_EN)
+    uint32_t now = millis();
+    if (idleShutdownTime != 0 && now > idleShutdownTime) {
+        MESH_DEBUG_PRINTLN("SEN0658 idle shutdown at %lu (was set to %lu).", now, idleShutdownTime);
+        digitalWrite(WITH_SEN0658_EN, LOW);
+        idleShutdownTime = 0;
+    }
+#endif
 }
 
 uint16_t DFROBOT_SEN0658::CRC16_2(const uint8_t *buf, int len) {
