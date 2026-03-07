@@ -3,6 +3,10 @@
 #include <stdint.h>
 #include <string.h>
 
+#if defined(LOCALE_CE)
+  #include "locale_font.h"  // for mapCodepointToSlot()
+#endif
+
 class DisplayDriver {
   int _w, _h;
 protected:
@@ -42,17 +46,42 @@ public:
     print(str);
   }
   
-  // convert UTF-8 characters to displayable block characters for compatibility
+  // convert UTF-8 characters to displayable characters
+  // With LOCALE_CE: maps national chars to custom font slots 0x81+
+  // Without LOCALE_CE: replaces all non-ASCII with block character
   virtual void translateUTF8ToBlocks(char* dest, const char* src, size_t dest_size) {
     size_t j = 0;
     for (size_t i = 0; src[i] != 0 && j < dest_size - 1; i++) {
       unsigned char c = (unsigned char)src[i];
       if (c >= 32 && c <= 126) {
         dest[j++] = c;  // ASCII printable
-      } else if (c >= 0x80) {
-        dest[j++] = '\xDB';  // CP437 full block █
-        while (src[i+1] && (src[i+1] & 0xC0) == 0x80) 
-          i++;  // skip UTF-8 continuation bytes
+      } else if ((c & 0xE0) == 0xC0) {
+        // 2-byte UTF-8 sequence
+        uint16_t cp = (c & 0x1F) << 6;
+        if (src[i+1] && ((unsigned char)src[i+1] & 0xC0) == 0x80)
+          cp |= ((unsigned char)src[++i] & 0x3F);
+#if defined(LOCALE_CE)
+        dest[j++] = (char)mapCodepointToSlot(cp);
+#else
+        dest[j++] = '\xDB';
+#endif
+      } else if ((c & 0xF0) == 0xE0) {
+        // 3-byte UTF-8 sequence
+        if (src[i+1] && ((unsigned char)src[i+1] & 0xC0) == 0x80) i++;
+        if (src[i+1] && ((unsigned char)src[i+1] & 0xC0) == 0x80) i++;
+#if defined(LOCALE_CE)
+        dest[j++] = '\x80';  // block (CE chars are all 2-byte UTF-8)
+#else
+        dest[j++] = '\xDB';
+#endif
+      } else if (c >= 0xF0) {
+        // 4-byte UTF-8 sequence - skip continuation bytes
+        while (src[i+1] && ((unsigned char)src[i+1] & 0xC0) == 0x80) i++;
+#if defined(LOCALE_CE)
+        dest[j++] = '\x80';
+#else
+        dest[j++] = '\xDB';
+#endif
       }
     }
     dest[j] = 0;
