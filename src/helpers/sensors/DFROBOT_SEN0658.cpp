@@ -3,6 +3,8 @@
 #include "DFROBOT_SEN0658.h"
 #include "EndianTypes.h"
 
+#if ENV_INCLUDE_SEN0658
+
 struct PacketHeader {
   uint8_t address;
   uint8_t function;
@@ -17,6 +19,7 @@ void DFROBOT_SEN0658::flushSerial() {
 
 bool DFROBOT_SEN0658::readBytes(uint8_t *buffer, int len) {
   const int16_t timeout = 500;
+  uint8_t *start_buf = buffer;
   int remaining = len;
   long start = millis();
   while (remaining > 0) {
@@ -30,6 +33,11 @@ bool DFROBOT_SEN0658::readBytes(uint8_t *buffer, int len) {
       return false;
     }
   }
+  MESH_DEBUG_PRINT("SEN0658 RX [%i]: ", len);
+  for (int i = 0; i < len; i++) {
+    MESH_DEBUG_PRINT("%02X ", start_buf[i]);
+  }
+  MESH_DEBUG_PRINTLN("");
   return true;
 }
 
@@ -115,8 +123,8 @@ bool DFROBOT_SEN0658::readWind(DFROBOT_SEN0658_Sample &sample) {
     //     MESH_DEBUG_PRINTLN("WindPacket is all zeros.");
     //     return false;
     // }
-    sample.windSpeed = (uint16_t)packet.windSpeed / 100.0; 
-    sample.windAngle = (float)(uint16_t)packet.windAngle;
+    sample.windSpeed = packet.windSpeed / 100.0; 
+    sample.windAngle = packet.windAngle;
     return true;
 }
 
@@ -137,7 +145,7 @@ bool DFROBOT_SEN0658::readLight(DFROBOT_SEN0658_Sample &sample) {
         return false;
     }
 
-    sample.luminosity = (float)(uint32_t)packet.light;
+    sample.luminosity = packet.light;
     return true;
 }
 
@@ -158,9 +166,9 @@ bool DFROBOT_SEN0658::readTemperature(DFROBOT_SEN0658_Sample &sample) {
         MESH_DEBUG_PRINTLN("TemperaturePacket is all zeros.");
         return false;
     }
-    sample.humidity = (uint16_t)packet.humidity / 10.0;
-    sample.temperature = (uint16_t)packet.temperature / 10.0;
-    sample.noiseDb = (uint16_t)packet.noise / 10.0;
+    sample.humidity = packet.humidity / 10.0;
+    sample.temperature = packet.temperature / 10.0;
+    sample.noiseDb = packet.noise / 10.0;
     return true;
 }
 
@@ -181,9 +189,9 @@ bool DFROBOT_SEN0658::readAir(DFROBOT_SEN0658_Sample &sample) {
         MESH_DEBUG_PRINTLN("AirPacket is all zeros.");
         return false;
     }
-    sample.pm2_5 = (uint16_t)packet.pm2_5;
-    sample.pm10 = (uint16_t)packet.pm10;
-    sample.airPressure = (uint16_t)packet.airPressure / 10.0;
+    sample.pm2_5 = packet.pm2_5;
+    sample.pm10 = packet.pm10;
+    sample.airPressure = packet.airPressure; // register is 0.1 kPa = 1 hPa
     return true;
 }
 
@@ -348,3 +356,5 @@ uint16_t DFROBOT_SEN0658::CRC16_2(const uint8_t *buf, int len) {
     }
     return crc;
 }
+
+#endif
