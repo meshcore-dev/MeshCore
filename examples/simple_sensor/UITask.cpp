@@ -1,6 +1,7 @@
 #include "UITask.h"
 #include <Arduino.h>
 #include <helpers/CommonCLI.h>
+#include <helpers/ArduinoHelpers.h>
 
 #define AUTO_OFF_MILLIS      20000  // 20 seconds
 #define BOOT_SCREEN_MILLIS   4000   // 4 seconds
@@ -42,7 +43,7 @@ void UITask::begin(NodePrefs* node_prefs, const char* build_date, const char* fi
 
 void UITask::renderCurrScreen() {
   char tmp[80];
-  if (millis() < BOOT_SCREEN_MILLIS) { // boot screen
+  if (!millis_passed(BOOT_SCREEN_MILLIS)) { // boot screen
     // meshcore logo
     _display->setColor(DisplayDriver::BLUE);
     int logoWidth = 128;
@@ -82,7 +83,7 @@ void UITask::renderCurrScreen() {
 
 void UITask::loop() {
 #ifdef PIN_USER_BTN
-  if (millis() >= _next_read) {
+  if (millis_passed(_next_read)) {
     int btnState = digitalRead(PIN_USER_BTN);
     if (btnState != _prevBtnState) {
       if (btnState == LOW) {  // pressed?
@@ -100,14 +101,14 @@ void UITask::loop() {
 #endif
 
   if (_display->isOn()) {
-    if (millis() >= _next_refresh) {
+    if (millis_passed(_next_refresh)) {
       _display->startFrame();
       renderCurrScreen();
       _display->endFrame();
 
       _next_refresh = millis() + 1000;   // refresh every second
     }
-    if (millis() > _auto_off) {
+    if (millis_passed(_auto_off)) {
       _display->turnOff();
     }
   }

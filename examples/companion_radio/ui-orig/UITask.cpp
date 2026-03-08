@@ -334,14 +334,14 @@ void UITask::loop() {
       _need_refresh = true;
       _firstBoot = false;
     }
-    if (millis() >= _next_refresh && _need_refresh) {
+    if (millis_passed(_next_refresh) && _need_refresh) {
       _display->startFrame();
       renderCurrScreen();
       _display->endFrame();
 
       _next_refresh = millis() + 1000;   // refresh every second
     }
-    if (millis() > _auto_off) {
+    if (millis_passed(_auto_off)) {
       _display->turnOff();
     }
   }

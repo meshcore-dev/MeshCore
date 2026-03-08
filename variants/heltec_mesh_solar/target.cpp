@@ -84,7 +84,7 @@ void SolarSensorManager::loop() {
 
   _location->loop();
 
-  if (millis() > next_gps_update) {
+  if (millis_passed(next_gps_update)) {
     if (_location->isValid()) {
       node_lat = ((double)_location->getLatitude())/1000000.;
       node_lon = ((double)_location->getLongitude())/1000000.;
