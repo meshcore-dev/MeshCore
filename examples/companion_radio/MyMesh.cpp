@@ -2,6 +2,9 @@
 
 #include <Arduino.h> // needed for PlatformIO
 #include <Mesh.h>
+#if defined(ESP32) && defined(COMPANION_ALL_TRANSPORTS)
+  #include <helpers/esp32/CompanionTransportInterface.h>
+#endif
 
 #define CMD_APP_START                 1
 #define CMD_SEND_TXT_MSG              2
@@ -118,6 +121,30 @@
 #define PUSH_CODE_CONTROL_DATA          0x8E   // v8+
 #define PUSH_CODE_CONTACT_DELETED       0x8F // used to notify client app of deleted contact when overwriting oldest
 #define PUSH_CODE_CONTACTS_FULL         0x90 // used to notify client app that contacts storage is full
+
+#if defined(ESP32) && defined(COMPANION_ALL_TRANSPORTS)
+static bool applyTransportModePref(NodePrefs& prefs) {
+  auto* transport = CompanionTransportInterface::instance();
+  if (!transport) return false;
+
+  auto mode = (prefs.transport_mode == 1)
+      ? CompanionTransportInterface::WIRELESS_MODE_TCP
+      : CompanionTransportInterface::WIRELESS_MODE_BLE;
+  return transport->setWirelessMode(mode);
+}
+
+static bool applyWifiPrefs(NodePrefs& prefs) {
+  auto* transport = CompanionTransportInterface::instance();
+  if (!transport) return false;
+
+  if (!transport->setWifiCredentials(prefs.wifi_ssid, prefs.wifi_pwd)) return false;
+  if (!transport->setWifiApCredentials(prefs.wifi_ap_ssid, prefs.wifi_ap_pwd)) return false;
+  auto wifi_mode = (prefs.wifi_mode == 1)
+      ? CompanionTransportInterface::WIFI_MODE_STA_CLIENT
+      : CompanionTransportInterface::WIFI_MODE_AP_ONLY;
+  return transport->setWifiMode(wifi_mode);
+}
+#endif
 
 #define ERR_CODE_UNSUPPORTED_CMD        1
 #define ERR_CODE_NOT_FOUND              2
@@ -820,6 +847,12 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
   _prefs.tx_power_dbm = LORA_TX_POWER;
   _prefs.gps_enabled = 0;       // GPS disabled by default
   _prefs.gps_interval = 0;      // No automatic GPS updates by default
+  _prefs.transport_mode = 0;    // BLE by default
+  _prefs.wifi_mode = 0;         // WiFi AP mode by default
+  _prefs.wifi_ssid[0] = 0;
+  _prefs.wifi_pwd[0] = 0;
+  _prefs.wifi_ap_ssid[0] = 0;
+  _prefs.wifi_ap_pwd[0] = 0;
   //_prefs.rx_delay_base = 10.0f;  enable once new algo fixed
 }
 
@@ -859,6 +892,12 @@ void MyMesh::begin(bool has_display) {
   _prefs.tx_power_dbm = constrain(_prefs.tx_power_dbm, -9, MAX_LORA_TX_POWER);
   _prefs.gps_enabled = constrain(_prefs.gps_enabled, 0, 1);  // Ensure boolean 0 or 1
   _prefs.gps_interval = constrain(_prefs.gps_interval, 0, 86400);  // Max 24 hours
+  _prefs.transport_mode = constrain(_prefs.transport_mode, 0, 1);
+  _prefs.wifi_mode = constrain(_prefs.wifi_mode, 0, 1);
+  _prefs.wifi_ssid[sizeof(_prefs.wifi_ssid) - 1] = 0;
+  _prefs.wifi_pwd[sizeof(_prefs.wifi_pwd) - 1] = 0;
+  _prefs.wifi_ap_ssid[sizeof(_prefs.wifi_ap_ssid) - 1] = 0;
+  _prefs.wifi_ap_pwd[sizeof(_prefs.wifi_ap_pwd) - 1] = 0;
 
 #ifdef BLE_PIN_CODE // 123456 by default
   if (_prefs.ble_pin == 0) {
@@ -1667,7 +1706,60 @@ void MyMesh::handleCmdFrame(size_t len) {
     char *np = strchr(sp, ':'); // look for separator char
     if (np) {
       *np++ = 0; // modify 'cmd_frame', replace ':' with null
-      bool success = sensors.setSettingValue(sp, np);
+      bool success = false;
+
+#if defined(ESP32) && defined(COMPANION_ALL_TRANSPORTS)
+      if (strcmp(sp, "transport") == 0) {
+        if (strcmp(np, "ble") == 0) {
+          _prefs.transport_mode = 0;
+          success = applyTransportModePref(_prefs);
+        } else if (strcmp(np, "tcp") == 0 || strcmp(np, "wifi") == 0) {
+          _prefs.transport_mode = 1;
+          success = applyTransportModePref(_prefs);
+        }
+        if (success) {
+          savePrefs();
+        }
+      } else if (strcmp(sp, "wifi.ssid") == 0) {
+        if (strlen(np) < sizeof(_prefs.wifi_ssid)) {
+          StrHelper::strncpy(_prefs.wifi_ssid, np, sizeof(_prefs.wifi_ssid));
+          success = applyWifiPrefs(_prefs);
+          if (success) savePrefs();
+        }
+      } else if (strcmp(sp, "wifi.pwd") == 0) {
+        if (strlen(np) < sizeof(_prefs.wifi_pwd)) {
+          StrHelper::strncpy(_prefs.wifi_pwd, np, sizeof(_prefs.wifi_pwd));
+          success = applyWifiPrefs(_prefs);
+          if (success) savePrefs();
+        }
+      } else if (strcmp(sp, "wifi.mode") == 0) {
+        if (strcmp(np, "ap") == 0) {
+          _prefs.wifi_mode = 0;
+          success = applyWifiPrefs(_prefs);
+          if (success) savePrefs();
+        } else if (strcmp(np, "client") == 0 || strcmp(np, "sta") == 0) {
+          _prefs.wifi_mode = 1;
+          success = applyWifiPrefs(_prefs);
+          if (success) savePrefs();
+        }
+      } else if (strcmp(sp, "wifi.ap.ssid") == 0) {
+        if (strlen(np) < sizeof(_prefs.wifi_ap_ssid)) {
+          StrHelper::strncpy(_prefs.wifi_ap_ssid, np, sizeof(_prefs.wifi_ap_ssid));
+          success = applyWifiPrefs(_prefs);
+          if (success) savePrefs();
+        }
+      } else if (strcmp(sp, "wifi.ap.pwd") == 0) {
+        if (strlen(np) < sizeof(_prefs.wifi_ap_pwd)) {
+          StrHelper::strncpy(_prefs.wifi_ap_pwd, np, sizeof(_prefs.wifi_ap_pwd));
+          success = applyWifiPrefs(_prefs);
+          if (success) savePrefs();
+        }
+      }
+#endif
+
+      if (!success) {
+        success = sensors.setSettingValue(sp, np);
+      }
       if (success) {
         #if ENV_INCLUDE_GPS == 1
         // Update node preferences for GPS settings
@@ -1844,9 +1936,123 @@ void MyMesh::checkCLIRescueCmd() {
         _prefs.ble_pin = atoi(&config[4]);
         savePrefs();
         Serial.printf("  > pin is now %06d\n", _prefs.ble_pin);
+#if defined(ESP32) && defined(COMPANION_ALL_TRANSPORTS)
+      } else if (memcmp(config, "transport ", 10) == 0) {
+        const char* mode = &config[10];
+        if (strcmp(mode, "ble") == 0) {
+          _prefs.transport_mode = 0;
+          if (applyTransportModePref(_prefs)) {
+            savePrefs();
+            Serial.println("  > wireless transport is now BLE");
+          } else {
+            Serial.println("  Error: failed to switch transport");
+          }
+        } else if (strcmp(mode, "tcp") == 0 || strcmp(mode, "wifi") == 0) {
+          _prefs.transport_mode = 1;
+          if (applyTransportModePref(_prefs)) {
+            savePrefs();
+            Serial.println("  > wireless transport is now TCP/WiFi");
+          } else {
+            Serial.println("  Error: failed to switch transport");
+          }
+        } else {
+          Serial.println("  Error: usage set transport ble|tcp");
+        }
+      } else if (memcmp(config, "wifi.ssid ", 10) == 0) {
+        const char* ssid = &config[10];
+        if (strlen(ssid) < sizeof(_prefs.wifi_ssid)) {
+          StrHelper::strncpy(_prefs.wifi_ssid, ssid, sizeof(_prefs.wifi_ssid));
+          if (applyWifiPrefs(_prefs)) {
+            savePrefs();
+            Serial.println("  > wifi ssid updated");
+          } else {
+            Serial.println("  Error: failed to set wifi config");
+          }
+        } else {
+          Serial.println("  Error: ssid too long");
+        }
+      } else if (memcmp(config, "wifi.pwd ", 9) == 0) {
+        const char* pwd = &config[9];
+        if (strlen(pwd) < sizeof(_prefs.wifi_pwd)) {
+          StrHelper::strncpy(_prefs.wifi_pwd, pwd, sizeof(_prefs.wifi_pwd));
+          if (applyWifiPrefs(_prefs)) {
+            savePrefs();
+            Serial.println("  > wifi password updated");
+          } else {
+            Serial.println("  Error: failed to set wifi config");
+          }
+        } else {
+          Serial.println("  Error: password too long");
+        }
+      } else if (memcmp(config, "wifi.mode ", 10) == 0) {
+        const char* mode = &config[10];
+        if (strcmp(mode, "ap") == 0) {
+          _prefs.wifi_mode = 0;
+          if (applyWifiPrefs(_prefs)) {
+            savePrefs();
+            Serial.println("  > wifi mode is now AP");
+          } else {
+            Serial.println("  Error: failed to set wifi mode");
+          }
+        } else if (strcmp(mode, "client") == 0 || strcmp(mode, "sta") == 0) {
+          _prefs.wifi_mode = 1;
+          if (applyWifiPrefs(_prefs)) {
+            savePrefs();
+            Serial.println("  > wifi mode is now CLIENT");
+          } else {
+            Serial.println("  Error: failed to set wifi mode");
+          }
+        } else {
+          Serial.println("  Error: usage set wifi.mode ap|client");
+        }
+      } else if (memcmp(config, "wifi.ap.ssid ", 13) == 0) {
+        const char* ssid = &config[13];
+        if (strlen(ssid) < sizeof(_prefs.wifi_ap_ssid)) {
+          StrHelper::strncpy(_prefs.wifi_ap_ssid, ssid, sizeof(_prefs.wifi_ap_ssid));
+          if (applyWifiPrefs(_prefs)) {
+            savePrefs();
+            Serial.println("  > wifi ap ssid updated");
+          } else {
+            Serial.println("  Error: failed to set wifi config");
+          }
+        } else {
+          Serial.println("  Error: ssid too long");
+        }
+      } else if (memcmp(config, "wifi.ap.pwd ", 12) == 0) {
+        const char* pwd = &config[12];
+        if (strlen(pwd) < sizeof(_prefs.wifi_ap_pwd)) {
+          StrHelper::strncpy(_prefs.wifi_ap_pwd, pwd, sizeof(_prefs.wifi_ap_pwd));
+          if (applyWifiPrefs(_prefs)) {
+            savePrefs();
+            Serial.println("  > wifi ap password updated");
+          } else {
+            Serial.println("  Error: failed to set wifi config (password must be empty or >= 8 chars)");
+          }
+        } else {
+          Serial.println("  Error: password too long");
+        }
+#endif
       } else {
         Serial.printf("  Error: unknown config: %s\n", config);
       }
+#if defined(ESP32) && defined(COMPANION_ALL_TRANSPORTS)
+    } else if (strcmp(cli_command, "wifi connect") == 0) {
+      _prefs.transport_mode = 1;
+      if (applyTransportModePref(_prefs)) {
+        savePrefs();
+        Serial.println("  > switched to TCP/WiFi transport");
+      } else {
+        Serial.println("  Error: failed to enable TCP/WiFi");
+      }
+    } else if (strcmp(cli_command, "ble connect") == 0) {
+      _prefs.transport_mode = 0;
+      if (applyTransportModePref(_prefs)) {
+        savePrefs();
+        Serial.println("  > switched to BLE transport");
+      } else {
+        Serial.println("  Error: failed to enable BLE");
+      }
+#endif
     } else if (strcmp(cli_command, "rebuild") == 0) {
       bool success = _store->formatFileSystem();
       if (success) {
