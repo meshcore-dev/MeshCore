@@ -2025,6 +2025,7 @@ void MyMesh::checkCLIRescueCmd() {
           if (applyTransportModePref(_prefs)) {
             savePrefs();
             Serial.println("  > wireless transport is now BLE");
+            Serial.println("  > reboot required; board will auto-reset in 10 seconds");
           } else {
             Serial.println("  Error: failed to switch transport");
           }
@@ -2033,6 +2034,7 @@ void MyMesh::checkCLIRescueCmd() {
           if (applyTransportModePref(_prefs)) {
             savePrefs();
             Serial.println("  > wireless transport is now TCP/WiFi");
+            Serial.println("  > reboot required; board will auto-reset in 10 seconds");
           } else {
             Serial.println("  Error: failed to switch transport");
           }

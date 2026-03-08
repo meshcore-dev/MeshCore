@@ -832,11 +832,31 @@ void UITask::loop() {
   char c = 0;
 
   if (_node_prefs != NULL) {
-    if (_node_prefs->transport_mode != _last_transport_mode || _node_prefs->wifi_mode != _last_wifi_mode) {
+    if (_node_prefs->transport_mode != _last_transport_mode) {
       _last_transport_mode = _node_prefs->transport_mode;
-      _last_wifi_mode = _node_prefs->wifi_mode;
+      _transport_reboot_pending = true;
+      _transport_reboot_deadline = millis() + 10000;
       _next_refresh = 0;  // immediate redraw after remote command changes
     }
+    if (_node_prefs->wifi_mode != _last_wifi_mode) {
+      _last_wifi_mode = _node_prefs->wifi_mode;
+      _wifi_mode_notice_active = true;
+      _wifi_mode_notice_value = _node_prefs->wifi_mode;
+      _wifi_mode_notice_until = millis() + 3000;
+      _last_transport_mode = _node_prefs->transport_mode;
+      _next_refresh = 0;  // immediate redraw after remote command changes
+    }
+  }
+
+  if (_transport_reboot_pending && millis() >= _transport_reboot_deadline) {
+    _transport_reboot_pending = false;
+    shutdown(true);
+    return;
+  }
+
+  if (_wifi_mode_notice_active && millis() >= _wifi_mode_notice_until) {
+    _wifi_mode_notice_active = false;
+    _next_refresh = 0;
   }
 
 #if UI_HAS_JOYSTICK
@@ -919,7 +939,41 @@ void UITask::loop() {
   if (_display != NULL && _display->isOn()) {
     if (millis() >= _next_refresh && curr) {
       _display->startFrame();
-      int delay_millis = curr->render(*_display);
+      int delay_millis = 5000;
+      if (_transport_reboot_pending) {
+        int remaining_secs = (int)((_transport_reboot_deadline - millis() + 999) / 1000);
+        if (remaining_secs < 0) remaining_secs = 0;
+
+        _display->setTextSize(1);
+        _display->setColor(DisplayDriver::YELLOW);
+        _display->drawTextCentered(_display->width() / 2, 8, "Transport Changed");
+        _display->setColor(DisplayDriver::LIGHT);
+        _display->drawTextCentered(_display->width() / 2, 22, "Reboot required");
+        _display->drawTextCentered(_display->width() / 2, 34, "Auto reset in:");
+
+        char tmp[16];
+        snprintf(tmp, sizeof(tmp), "%ds", remaining_secs);
+        _display->setTextSize(2);
+        _display->setColor(DisplayDriver::RED);
+        _display->drawTextCentered(_display->width() / 2, 46, tmp);
+        _display->setTextSize(1);
+        delay_millis = 200;
+      } else if (_wifi_mode_notice_active) {
+        _display->setTextSize(1);
+        _display->setColor(DisplayDriver::YELLOW);
+        _display->drawTextCentered(_display->width() / 2, 10, "WiFi Mode Updated");
+        _display->setColor(DisplayDriver::LIGHT);
+        if (_wifi_mode_notice_value == 0) {
+          _display->drawTextCentered(_display->width() / 2, 30, "Switching to AP mode");
+          _display->drawTextCentered(_display->width() / 2, 44, "SSID: device hotspot");
+        } else {
+          _display->drawTextCentered(_display->width() / 2, 30, "Switching to Client");
+          _display->drawTextCentered(_display->width() / 2, 44, "Joining configured SSID");
+        }
+        delay_millis = 200;
+      } else {
+        delay_millis = curr->render(*_display);
+      }
       if (millis() < _alert_expiry) {  // render alert popup
         _display->setTextSize(1);
         int y = _display->height() / 3;

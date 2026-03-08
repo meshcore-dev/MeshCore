@@ -35,6 +35,11 @@ class UITask : public AbstractUITask {
   bool _pending_long_press;
   uint8_t _last_transport_mode;
   uint8_t _last_wifi_mode;
+  bool _transport_reboot_pending;
+  unsigned long _transport_reboot_deadline;
+  bool _wifi_mode_notice_active;
+  unsigned long _wifi_mode_notice_until;
+  uint8_t _wifi_mode_notice_value;
   NodePrefs* _node_prefs;
   char _alert[80];
   unsigned long _alert_expiry;
@@ -74,6 +79,11 @@ public:
     _pending_long_press = false;
     _last_transport_mode = 255;
     _last_wifi_mode = 255;
+    _transport_reboot_pending = false;
+    _transport_reboot_deadline = 0;
+    _wifi_mode_notice_active = false;
+    _wifi_mode_notice_until = 0;
+    _wifi_mode_notice_value = 255;
     curr = NULL;
   }
   void begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* node_prefs);

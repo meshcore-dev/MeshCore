@@ -240,5 +240,7 @@ meshcli -t 192.168.40.55 -p 5000 infos
 
 - `transport:wifi` / `set transport tcp` enables WiFi/TCP transport and disables BLE.
 - `transport:ble` / `set transport ble` enables BLE and disables WiFi/TCP.
+- After a transport switch, the board UI now shows a 10-second reboot countdown and auto-resets.
+- The board UI also shows a temporary WiFi mode transition screen when switching AP/client mode.
 - AP password should be empty (open AP) or at least 8 characters.
 - Do not commit real SSIDs/passwords to git.
