@@ -137,7 +137,7 @@ protected:
                            const uint8_t *sender_prefix, const char *text) override;
   void onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packet *pkt, uint32_t timestamp,
                             const char *text) override;
-  void onChannelDataRecv(const mesh::GroupChannel &channel, mesh::Packet *pkt, uint32_t timestamp, uint8_t txt_type,
+  void onChannelDataRecv(const mesh::GroupChannel &channel, mesh::Packet *pkt, uint32_t timestamp, uint8_t data_type,
                          const uint8_t *data, size_t data_len) override;
 
   uint8_t onContactRequest(const ContactInfo &contact, uint32_t sender_timestamp, const uint8_t *data,

@@ -353,10 +353,18 @@ int BaseChatMesh::searchChannelsByHash(const uint8_t* hash, mesh::GroupChannel d
 #endif
 
 void BaseChatMesh::onGroupDataRecv(mesh::Packet* packet, uint8_t type, const mesh::GroupChannel& channel, uint8_t* data, size_t len) {
-  if (len < 5) return;
+  if (len < 5) {
+    MESH_DEBUG_PRINTLN("onGroupDataRecv: dropping short group payload len=%d", (uint32_t)len);
+    return;
+  }
 
-  uint8_t txt_type = data[4];
-  if (type == PAYLOAD_TYPE_GRP_TXT && (txt_type >> 2) == 0) {  // 0 = plain text msg
+  uint8_t data_type = data[4];
+  if (type == PAYLOAD_TYPE_GRP_TXT) {
+    if ((data_type >> 2) != 0) {
+      MESH_DEBUG_PRINTLN("onGroupDataRecv: dropping unsupported group text type=%d", (uint32_t)data_type);
+      return;
+    }
+
     uint32_t timestamp;
     memcpy(&timestamp, data, 4);
 
@@ -368,7 +376,7 @@ void BaseChatMesh::onGroupDataRecv(mesh::Packet* packet, uint8_t type, const mes
   } else if (type == PAYLOAD_TYPE_GRP_DATA) {
     uint32_t timestamp;
     memcpy(&timestamp, data, 4);
-    onChannelDataRecv(channel, packet, timestamp, txt_type, &data[5], len - 5);
+    onChannelDataRecv(channel, packet, timestamp, data_type, &data[5], len - 5);
   }
 }
 
@@ -460,24 +468,28 @@ bool BaseChatMesh::sendGroupMessage(uint32_t timestamp, mesh::GroupChannel& chan
   return false;
 }
 
-bool BaseChatMesh::sendGroupData(uint32_t timestamp, mesh::GroupChannel& channel, uint8_t txt_type, const uint8_t* data, int data_len) {
-  if (data_len < 0) return false;
-  // createGroupDatagram() accepts at most (MAX_PACKET_PAYLOAD - CIPHER_BLOCK_SIZE)
-  // plaintext bytes; subtract our 5-byte {timestamp, txt_type} header.
-  const int max_group_data_len = (MAX_PACKET_PAYLOAD - CIPHER_BLOCK_SIZE) - 5;
-  if (data_len > max_group_data_len) data_len = max_group_data_len;
+bool BaseChatMesh::sendGroupData(uint32_t timestamp, mesh::GroupChannel& channel, uint8_t data_type, const uint8_t* data, int data_len) {
+  if (data_len < 0) {
+    MESH_DEBUG_PRINTLN("sendGroupData: invalid negative data_len=%d", data_len);
+    return false;
+  }
+  if (data_len > MAX_GROUP_DATA_LENGTH) {
+    MESH_DEBUG_PRINTLN("sendGroupData: data_len=%d exceeds max=%d", data_len, MAX_GROUP_DATA_LENGTH);
+    return false;
+  }
 
-  uint8_t temp[MAX_PACKET_PAYLOAD];
+  uint8_t temp[5 + MAX_GROUP_DATA_LENGTH];
   memcpy(temp, &timestamp, 4);
-  temp[4] = txt_type;
+  temp[4] = data_type;
   if (data_len > 0) memcpy(&temp[5], data, data_len);
 
   auto pkt = createGroupDatagram(PAYLOAD_TYPE_GRP_DATA, channel, temp, 5 + data_len);
-  if (pkt) {
-    sendFloodScoped(channel, pkt);
-    return true;
+  if (pkt == NULL) {
+    MESH_DEBUG_PRINTLN("sendGroupData: unable to create group datagram, data_len=%d", data_len);
+    return false;
   }
-  return false;
+  sendFloodScoped(channel, pkt);
+  return true;
 }
 
 bool BaseChatMesh::shareContactZeroHop(const ContactInfo& contact) {

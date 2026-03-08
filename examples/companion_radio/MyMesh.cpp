@@ -92,6 +92,8 @@
 #define RESP_CODE_STATS               24   // v8+, second byte is stats type
 #define RESP_CODE_AUTOADD_CONFIG      25
 #define RESP_ALLOWED_REPEAT_FREQ      26
+#define RESP_CODE_CHANNEL_DATA_RECV   27
+#define RESP_CODE_CHANNEL_DATA_RECV_V3 28
 
 #define SEND_TIMEOUT_BASE_MILLIS        500
 #define FLOOD_SEND_TIMEOUT_FACTOR       16.0f
@@ -205,7 +207,8 @@ void MyMesh::updateContactFromFrame(ContactInfo &contact, uint32_t& last_mod, co
 }
 
 bool MyMesh::Frame::isChannelMsg() const {
-  return buf[0] == RESP_CODE_CHANNEL_MSG_RECV || buf[0] == RESP_CODE_CHANNEL_MSG_RECV_V3;
+  return buf[0] == RESP_CODE_CHANNEL_MSG_RECV || buf[0] == RESP_CODE_CHANNEL_MSG_RECV_V3 ||
+         buf[0] == RESP_CODE_CHANNEL_DATA_RECV || buf[0] == RESP_CODE_CHANNEL_DATA_RECV_V3;
 }
 
 void MyMesh::addToOfflineQueue(const uint8_t frame[], int len) {
@@ -565,27 +568,30 @@ void MyMesh::onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packe
 #endif
 }
 
-void MyMesh::onChannelDataRecv(const mesh::GroupChannel &channel, mesh::Packet *pkt, uint32_t timestamp, uint8_t txt_type,
+void MyMesh::onChannelDataRecv(const mesh::GroupChannel &channel, mesh::Packet *pkt, uint32_t timestamp, uint8_t data_type,
                                const uint8_t *data, size_t data_len) {
   int i = 0;
   if (app_target_ver >= 3) {
-    out_frame[i++] = RESP_CODE_CHANNEL_MSG_RECV_V3;
+    out_frame[i++] = RESP_CODE_CHANNEL_DATA_RECV_V3;
     out_frame[i++] = (int8_t)(pkt->getSNR() * 4);
     out_frame[i++] = 0; // reserved1
     out_frame[i++] = 0; // reserved2
   } else {
-    out_frame[i++] = RESP_CODE_CHANNEL_MSG_RECV;
+    out_frame[i++] = RESP_CODE_CHANNEL_DATA_RECV;
   }
 
   uint8_t channel_idx = findChannelIdx(channel);
   out_frame[i++] = channel_idx;
   out_frame[i++] = pkt->isRouteFlood() ? pkt->path_len : 0xFF;
-  out_frame[i++] = txt_type;
+  out_frame[i++] = data_type;
   memcpy(&out_frame[i], &timestamp, 4);
   i += 4;
 
   size_t available = MAX_FRAME_SIZE - i;
-  if (data_len > available) data_len = available;
+  if (data_len > available) {
+    MESH_DEBUG_PRINTLN("onChannelDataRecv(): payload_len=%d exceeds frame space=%d, truncating", (uint32_t)data_len, (uint32_t)available);
+    data_len = available;
+  }
   int copy_len = (int)data_len;
   if (copy_len > 0) {
     memcpy(&out_frame[i], data, copy_len);
@@ -1069,29 +1075,27 @@ void MyMesh::handleCmdFrame(size_t len) {
     }
   } else if (cmd_frame[0] == CMD_SEND_CHANNEL_TXT_MSG) { // send GroupChannel text msg
     int i = 1;
-    uint8_t txt_type = cmd_frame[i++];
+    uint8_t txt_type = cmd_frame[i++]; // should be TXT_TYPE_PLAIN
     uint8_t channel_idx = cmd_frame[i++];
     uint32_t msg_timestamp;
     memcpy(&msg_timestamp, &cmd_frame[i], 4);
     i += 4;
     const char *text = (char *)&cmd_frame[i];
-    int text_len = (len > (size_t)i) ? (int)(len - i) : 0;
 
     if (txt_type != TXT_TYPE_PLAIN) {
       writeErrFrame(ERR_CODE_UNSUPPORTED_CMD);
     } else {
       ChannelDetails channel;
-      if (!getChannel(channel_idx, channel)) {
-        writeErrFrame(ERR_CODE_NOT_FOUND); // bad channel_idx
-      } else if (sendGroupMessage(msg_timestamp, channel.channel, _prefs.node_name, text, text_len)) {
+      bool success = getChannel(channel_idx, channel);
+      if (success && sendGroupMessage(msg_timestamp, channel.channel, _prefs.node_name, text, len - i)) {
         writeOKFrame();
       } else {
-        writeErrFrame(ERR_CODE_TABLE_FULL);
+        writeErrFrame(ERR_CODE_NOT_FOUND); // bad channel_idx
       }
     }
   } else if (cmd_frame[0] == CMD_SEND_CHANNEL_DATA) { // send GroupChannel datagram
     int i = 1;
-    uint8_t txt_type = cmd_frame[i++];
+    uint8_t data_type = cmd_frame[i++];
     uint8_t channel_idx = cmd_frame[i++];
     uint32_t msg_timestamp;
     memcpy(&msg_timestamp, &cmd_frame[i], 4);
@@ -1102,9 +1106,12 @@ void MyMesh::handleCmdFrame(size_t len) {
     ChannelDetails channel;
     if (!getChannel(channel_idx, channel)) {
       writeErrFrame(ERR_CODE_NOT_FOUND); // bad channel_idx
-    } else if (txt_type != TXT_TYPE_CUSTOM_BINARY) {
+    } else if (data_type != DATA_TYPE_CUSTOM) {
       writeErrFrame(ERR_CODE_UNSUPPORTED_CMD);
-    } else if (sendGroupData(msg_timestamp, channel.channel, txt_type, payload, payload_len)) {
+    } else if (payload_len > MAX_GROUP_DATA_LENGTH) {
+      MESH_DEBUG_PRINTLN("CMD_SEND_CHANNEL_DATA payload too long: %d > %d", payload_len, MAX_GROUP_DATA_LENGTH);
+      writeErrFrame(ERR_CODE_ILLEGAL_ARG);
+    } else if (sendGroupData(msg_timestamp, channel.channel, data_type, payload, payload_len)) {
       writeOKFrame();
     } else {
       writeErrFrame(ERR_CODE_TABLE_FULL);
