@@ -47,6 +47,40 @@ For developers;
 
 The Simple Secure Chat example can be interacted with through the Serial Monitor in Visual Studio Code, or with a Serial USB Terminal on Android.
 
+## Build And Flash This Fork (Heltec V3)
+
+If you want to build and flash this fork directly from terminal:
+
+```bash
+git clone https://github.com/just-stuff-tm/MeshCore.git
+cd MeshCore
+git checkout feat/heltec-v3-runtime-transport-dev
+```
+
+Install PlatformIO Core (if not already installed):
+
+```bash
+python3 -m pip install -U platformio
+```
+
+Build firmware:
+
+```bash
+~/.platformio/penv/bin/pio run -e Heltec_v3_companion_radio_tcp_usb_ble
+```
+
+Flash firmware (USB serial example):
+
+```bash
+~/.platformio/penv/bin/pio run -e Heltec_v3_companion_radio_tcp_usb_ble -t upload --upload-port /dev/ttyUSB0
+```
+
+Optional serial companion check:
+
+```bash
+meshcli -s /dev/ttyUSB0
+```
+
 ## ⚡️ MeshCore Flasher
 
 We have prebuilt firmware ready to flash on supported devices.

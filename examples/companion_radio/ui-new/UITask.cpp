@@ -316,42 +316,69 @@ public:
       display.setTextSize(1);
       display.drawTextCentered(display.width() / 2, 64 - 11, "Long press: WiFi");
     } else if (_page == HomePage::WIFI_TRANSPORT) {
+      const int row1_y = 28;
+      const int row2_y = 38;
+      const int row3_y = 48;
+      const int footer_y = 57;
       display.setColor(DisplayDriver::GREEN);
       display.setTextSize(1);
       display.drawTextCentered(display.width() / 2, 20, "WiFi transport");
+      uint16_t tcp_port = 5000;
+#if defined(ESP32) && defined(COMPANION_ALL_TRANSPORTS)
+      if (auto* transport = CompanionTransportInterface::instance()) {
+        tcp_port = transport->getTcpPort();
+      }
+#endif
+      bool flip = ((millis() / 1300) % 2) == 0;
+
       if (_node_prefs->wifi_mode == 0) {
+        char ap_name[40];
         if (_node_prefs->wifi_ap_ssid[0]) {
-          snprintf(tmp, sizeof(tmp), "AP:%s", _node_prefs->wifi_ap_ssid);
+          snprintf(ap_name, sizeof(ap_name), "AP:%s", _node_prefs->wifi_ap_ssid);
         } else {
-          snprintf(tmp, sizeof(tmp), "AP:MeshCore-%s", _node_prefs->node_name);
+          snprintf(ap_name, sizeof(ap_name), "AP:MeshCore-%s", _node_prefs->node_name);
         }
-        display.drawTextCentered(display.width() / 2, 31, tmp);
+        const char* ap_pwd = _node_prefs->wifi_ap_pwd[0] ? _node_prefs->wifi_ap_pwd : "<open>";
+        char ap_pwd_row[40];
+        snprintf(ap_pwd_row, sizeof(ap_pwd_row), "PW:%s", ap_pwd);
+
+        if (flip) {
+          display.drawTextEllipsized(0, row1_y, display.width(), ap_name);
+          display.drawTextEllipsized(0, row2_y, display.width(), ap_pwd_row);
+        } else {
+          display.drawTextEllipsized(0, row1_y, display.width(), ap_pwd_row);
+          display.drawTextEllipsized(0, row2_y, display.width(), ap_name);
+        }
 #if defined(ESP32) && defined(COMPANION_ALL_TRANSPORTS)
         IPAddress ap_ip = WiFi.softAPIP();
-        snprintf(tmp, sizeof(tmp), "IP:%d.%d.%d.%d", ap_ip[0], ap_ip[1], ap_ip[2], ap_ip[3]);
+        snprintf(tmp, sizeof(tmp), "%d.%d.%d.%d:%u", ap_ip[0], ap_ip[1], ap_ip[2], ap_ip[3], tcp_port);
 #else
-        snprintf(tmp, sizeof(tmp), "IP:n/a");
+        snprintf(tmp, sizeof(tmp), "0.0.0.0:%u", tcp_port);
 #endif
-        display.drawTextCentered(display.width() / 2, 42, tmp);
-        const char* ap_pwd = _node_prefs->wifi_ap_pwd[0] ? _node_prefs->wifi_ap_pwd : "<open>";
-        snprintf(tmp, sizeof(tmp), "PW:%s", ap_pwd);
-        display.drawTextCentered(display.width() / 2, 53, tmp);
+        display.drawTextCentered(display.width() / 2, row3_y, tmp);
       } else {
-        display.drawTextCentered(display.width() / 2, 31, "Mode: Client");
+        display.drawTextCentered(display.width() / 2, row1_y, "Mode: Client");
         snprintf(tmp, sizeof(tmp), "SSID:%s", _node_prefs->wifi_ssid[0] ? _node_prefs->wifi_ssid : "<unset>");
-        display.drawTextCentered(display.width() / 2, 42, tmp);
+        display.drawTextEllipsized(0, row2_y, display.width(), tmp);
 #if defined(ESP32) && defined(COMPANION_ALL_TRANSPORTS)
         if (WiFi.status() == WL_CONNECTED) {
           IPAddress ip = WiFi.localIP();
-          snprintf(tmp, sizeof(tmp), "IP:%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
+          snprintf(tmp, sizeof(tmp), "%d.%d.%d.%d:%u", ip[0], ip[1], ip[2], ip[3], tcp_port);
         } else {
-          snprintf(tmp, sizeof(tmp), "IP: <disconnected>");
+          snprintf(tmp, sizeof(tmp), "0.0.0.0:%u", tcp_port);
         }
 #else
-        snprintf(tmp, sizeof(tmp), "IP: n/a");
+        snprintf(tmp, sizeof(tmp), "0.0.0.0:%u", tcp_port);
 #endif
-        display.drawTextCentered(display.width() / 2, 53, tmp);
+        display.drawTextCentered(display.width() / 2, row3_y, tmp);
       }
+
+      display.setColor(DisplayDriver::YELLOW);
+      // Keep labels short enough to fully fit 128px width with centered rendering.
+      const char* labels[2] = {"Hold: AP/Client", "Triple click: BLE"};
+      const int label_turn_ms = 3500;
+      int idx = (millis() / label_turn_ms) % 2;
+      display.drawTextCentered(display.width() / 2, footer_y, labels[idx]);
     } else if (_page == HomePage::ADVERT_ACTION) {
       display.setColor(DisplayDriver::GREEN);
       display.drawXbm((display.width() - 32) / 2, 18, advert_icon, 32, 32);
@@ -521,6 +548,29 @@ public:
     if (c == KEY_ENTER && _page == HomePage::WIFI_TRANSPORT) {
 #if defined(ESP32) && defined(COMPANION_ALL_TRANSPORTS)
       if (_task->consumeLongPress()) {
+        bool success = false;
+        uint8_t next_mode = _node_prefs->wifi_mode == 0 ? 1 : 0;
+        if (auto* transport = CompanionTransportInterface::instance()) {
+          auto mode = next_mode == 0
+              ? CompanionTransportInterface::WIFI_MODE_AP_ONLY
+              : CompanionTransportInterface::WIFI_MODE_STA_CLIENT;
+          success = transport->setWifiMode(mode);
+          if (success) _node_prefs->wifi_mode = next_mode;
+        }
+        if (success) {
+          the_mesh.savePrefs();
+          _task->notify(UIEventType::ack);
+          _task->showAlert(next_mode == 0 ? "WiFi mode: AP" : "WiFi mode: Client", 1400);
+        } else {
+          _task->showAlert("WiFi mode switch failed", 1400);
+        }
+      }
+#endif
+      return true;
+    }
+    if (c == KEY_SELECT && _page == HomePage::WIFI_TRANSPORT) {
+#if defined(ESP32) && defined(COMPANION_ALL_TRANSPORTS)
+      {
         bool success = false;
         if (auto* transport = CompanionTransportInterface::instance()) {
           success = transport->setWirelessMode(CompanionTransportInterface::WIRELESS_MODE_BLE);
@@ -922,7 +972,10 @@ void UITask::loop() {
 #endif
 
   if (c != 0 && curr) {
-    curr->handleInput(c);
+    bool handled = curr->handleInput(c);
+    if (!handled && c == KEY_SELECT) {
+      toggleBuzzer();
+    }
     _pending_long_press = false;   // one-shot flag
     _auto_off = millis() + AUTO_OFF_MILLIS;   // extend auto-off timer
     _next_refresh = 100;  // trigger refresh
@@ -1057,8 +1110,6 @@ char UITask::handleDoubleClick(char c) {
 char UITask::handleTripleClick(char c) {
   MESH_DEBUG_PRINTLN("UITask: triple click triggered");
   checkDisplayOn(c);
-  toggleBuzzer();
-  c = 0;
   return c;
 }
 

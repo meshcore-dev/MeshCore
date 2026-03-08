@@ -1759,13 +1759,11 @@ void MyMesh::handleCmdFrame(size_t len) {
 
     appendKVEscaped("transport", _prefs.transport_mode == 1 ? "tcp" : "ble");
     appendKVEscaped("tcp.port", tcp_port_value);
-    appendKVEscaped("ip", ip_value);
     appendKVEscaped("wifi.mode", _prefs.wifi_mode == 1 ? "client" : "ap");
-    appendKVEscaped("wifi.ssid", _prefs.wifi_ssid);
+    appendKVEscaped("wifi.ap.ssid", _prefs.wifi_ap_ssid);
     appendKVEscaped("wifi.pwd", _prefs.wifi_pwd);
     appendKVEscaped("wifi.ap.pwd", _prefs.wifi_ap_pwd);
-    appendKVEscaped("wifi.ip", ip_value);
-    appendKVEscaped("wifi.ap.ssid", _prefs.wifi_ap_ssid);
+    appendKVEscaped("wifi.ssid", _prefs.wifi_ssid);
 #endif
 
     for (int i = 0; i < sensors.getNumSettings() && dp - (char *)&out_frame[1] < max_custom_vars_len; i++) {

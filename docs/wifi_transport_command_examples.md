@@ -19,8 +19,7 @@ These are the custom-var keys used by firmware:
 - `wifi.ap.ssid:<ap_name>`
 - `wifi.ap.pwd:<ap_password>`
 - `tcp.port:<port>`
-- `ip` (runtime IP in companion mode)
-- `wifi.ip` / `wifi.status` / `wifi.rssi` / `wifi.gateway` / `wifi.mask` / `wifi.mac` (runtime keys in CLI Rescue)
+- `ip` / `wifi.ip` / `wifi.status` / `wifi.rssi` / `wifi.gateway` / `wifi.mask` / `wifi.mac` (runtime keys in CLI Rescue)
 
 ## 1) Raw Companion Protocol Form
 
@@ -115,10 +114,10 @@ Read back current transport/WiFi values:
 ```bash
 meshcli -s /dev/ttyUSB0 -b 115200 get transport
 meshcli -s /dev/ttyUSB0 -b 115200 get tcp.port
-meshcli -s /dev/ttyUSB0 -b 115200 get ip
 meshcli -s /dev/ttyUSB0 -b 115200 get wifi.mode
 meshcli -s /dev/ttyUSB0 -b 115200 get wifi.ssid
 meshcli -s /dev/ttyUSB0 -b 115200 get wifi.pwd
+meshcli -s /dev/ttyUSB0 -b 115200 get wifi.ap.ssid
 meshcli -s /dev/ttyUSB0 -b 115200 get wifi.ap.pwd
 ```
 
@@ -145,12 +144,12 @@ KD3CGK|* set transport ble
 Var transport set to ble
 KD3CGK|* get transport
 ble
-KD3CGK|* get ip
-0.0.0.0
 KD3CGK|* get wifi.ssid
 SampleSSID
 KD3CGK|* get wifi.pwd
 SamplePwd123
+KD3CGK|* get wifi.ap.ssid
+MeshCore-SampleAP
 KD3CGK|* get wifi.ap.pwd
 SampleAPPwd123
 ```
@@ -186,12 +185,24 @@ meshcli -s /dev/ttyUSB0 -b 115200 set transport ble
 meshcli -s /dev/ttyUSB0 -b 115200 get transport
 
 meshcli -s /dev/ttyUSB0 -b 115200 get tcp.port
-meshcli -s /dev/ttyUSB0 -b 115200 get ip
 meshcli -s /dev/ttyUSB0 -b 115200 get wifi.mode
 meshcli -s /dev/ttyUSB0 -b 115200 get wifi.ssid
 meshcli -s /dev/ttyUSB0 -b 115200 get wifi.pwd
+meshcli -s /dev/ttyUSB0 -b 115200 get wifi.ap.ssid
 meshcli -s /dev/ttyUSB0 -b 115200 get wifi.ap.pwd
 ```
+
+### 3.2.2 Current `meshcli` custom `get` keys
+
+In companion interactive mode (`meshcli -s ...`), the custom-var getter supports:
+
+- `transport`
+- `tcp.port`
+- `wifi.mode`
+- `wifi.ssid`
+- `wifi.pwd`
+- `wifi.ap.ssid`
+- `wifi.ap.pwd`
 
 ### 3.3 CLI Rescue text commands
 
@@ -242,5 +253,6 @@ meshcli -t 192.168.40.55 -p 5000 infos
 - `transport:ble` / `set transport ble` enables BLE and disables WiFi/TCP.
 - After a transport switch, the board UI now shows a 10-second reboot countdown and auto-resets.
 - The board UI also shows a temporary WiFi mode transition screen when switching AP/client mode.
+- Heltec V3 button mappings for these UI actions: [Heltec V3 Button Actions](./heltec_v3_button_actions.md).
 - AP password should be empty (open AP) or at least 8 characters.
 - Do not commit real SSIDs/passwords to git.
