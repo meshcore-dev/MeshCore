@@ -180,7 +180,8 @@ class HomeScreen : public UIScreen {
   int sensors_nb = 0;
   bool sensors_scroll = false;
   int sensors_scroll_offset = 0;
-  int next_sensors_refresh = 0;
+  unsigned long next_sensors_refresh = 0;
+
 
   void refresh_sensors() {
     if (millis_passed(next_sensors_refresh)) {
@@ -852,8 +853,8 @@ void UITask::onControlDataRecv(const mesh::Packet* packet) {
 
 void UITask::userLedHandler() {
 #ifdef PIN_STATUS_LED
-  int cur_time = millis();
-  if (cur_time > next_led_change) {
+  unsigned long cur_time = millis();
+  if (millis_passed(next_led_change)) {
     if (led_state == 0) {
       led_state = 1;
       if (_msgcount > 0) {
