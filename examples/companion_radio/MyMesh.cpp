@@ -1689,15 +1689,33 @@ void MyMesh::handleCmdFrame(size_t len) {
   } else if (cmd_frame[0] == CMD_GET_CUSTOM_VARS) {
     out_frame[0] = RESP_CODE_CUSTOM_VARS;
     char *dp = (char *)&out_frame[1];
-    for (int i = 0; i < sensors.getNumSettings() && dp - (char *)&out_frame[1] < 140; i++) {
-      if (i > 0) {
+    auto appendKV = [&](const char* key, const char* value) -> bool {
+      if (!key || !value) return false;
+      int used = dp - (char *)&out_frame[1];
+      int required = strlen(key) + 1 + strlen(value) + (used > 0 ? 1 : 0);
+      if (used + required >= 140) return false;
+      if (used > 0) {
         *dp++ = ',';
       }
-      strcpy(dp, sensors.getSettingName(i));
+      strcpy(dp, key);
       dp = strchr(dp, 0);
       *dp++ = ':';
-      strcpy(dp, sensors.getSettingValue(i));
+      strcpy(dp, value);
       dp = strchr(dp, 0);
+      return true;
+    };
+
+#if defined(ESP32) && defined(COMPANION_ALL_TRANSPORTS)
+    appendKV("transport", _prefs.transport_mode == 1 ? "wifi" : "ble");
+    appendKV("wifi.mode", _prefs.wifi_mode == 1 ? "client" : "ap");
+    appendKV("wifi.ssid", _prefs.wifi_ssid);
+    appendKV("wifi.ap.ssid", _prefs.wifi_ap_ssid);
+    appendKV("wifi.pwd", _prefs.wifi_pwd);
+    appendKV("wifi.ap.pwd", _prefs.wifi_ap_pwd);
+#endif
+
+    for (int i = 0; i < sensors.getNumSettings() && dp - (char *)&out_frame[1] < 140; i++) {
+      if (!appendKV(sensors.getSettingName(i), sensors.getSettingValue(i))) break;
     }
     _serial->writeFrame(out_frame, dp - (char *)out_frame);
   } else if (cmd_frame[0] == CMD_SET_CUSTOM_VAR && len >= 4) {
@@ -2035,6 +2053,25 @@ void MyMesh::checkCLIRescueCmd() {
       } else {
         Serial.printf("  Error: unknown config: %s\n", config);
       }
+#if defined(ESP32) && defined(COMPANION_ALL_TRANSPORTS)
+    } else if (memcmp(cli_command, "get ", 4) == 0) {
+      const char* key = &cli_command[4];
+      if (strcmp(key, "transport") == 0) {
+        Serial.printf("  > %s\n", _prefs.transport_mode == 1 ? "wifi" : "ble");
+      } else if (strcmp(key, "wifi.mode") == 0) {
+        Serial.printf("  > %s\n", _prefs.wifi_mode == 1 ? "client" : "ap");
+      } else if (strcmp(key, "wifi.ssid") == 0) {
+        Serial.printf("  > %s\n", _prefs.wifi_ssid);
+      } else if (strcmp(key, "wifi.pwd") == 0) {
+        Serial.printf("  > %s\n", _prefs.wifi_pwd);
+      } else if (strcmp(key, "wifi.ap.ssid") == 0) {
+        Serial.printf("  > %s\n", _prefs.wifi_ap_ssid);
+      } else if (strcmp(key, "wifi.ap.pwd") == 0) {
+        Serial.printf("  > %s\n", _prefs.wifi_ap_pwd);
+      } else {
+        Serial.printf("  Error: unknown key: %s\n", key);
+      }
+#endif
 #if defined(ESP32) && defined(COMPANION_ALL_TRANSPORTS)
     } else if (strcmp(cli_command, "wifi connect") == 0) {
       _prefs.transport_mode = 1;

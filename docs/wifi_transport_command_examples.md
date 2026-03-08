@@ -60,12 +60,12 @@ def send_custom_var(port, kv):
 ```python
 send_custom_var("/dev/ttyUSB0", "transport:wifi")
 send_custom_var("/dev/ttyUSB0", "wifi.mode:ap")
-send_custom_var("/dev/ttyUSB0", "wifi.ap.ssid:MeshCore-TestAP")
-send_custom_var("/dev/ttyUSB0", "wifi.ap.pwd:testpass123")
+send_custom_var("/dev/ttyUSB0", "wifi.ap.ssid:MeshCore-SampleAP")
+send_custom_var("/dev/ttyUSB0", "wifi.ap.pwd:SampleAPPwd123")
 
 send_custom_var("/dev/ttyUSB0", "wifi.mode:client")
-send_custom_var("/dev/ttyUSB0", "wifi.ssid:YourSSID")
-send_custom_var("/dev/ttyUSB0", "wifi.pwd:YourPassword")
+send_custom_var("/dev/ttyUSB0", "wifi.ssid:SampleSSID")
+send_custom_var("/dev/ttyUSB0", "wifi.pwd:SamplePwd123")
 
 send_custom_var("/dev/ttyUSB0", "transport:ble")
 ```
@@ -96,31 +96,114 @@ Then set values:
 ```bash
 meshcore-cli -s /dev/ttyUSB0 -b 115200 set transport tcp
 meshcore-cli -s /dev/ttyUSB0 -b 115200 set wifi.mode ap
-meshcore-cli -s /dev/ttyUSB0 -b 115200 set wifi.ap.ssid MeshCore-TestAP
-meshcore-cli -s /dev/ttyUSB0 -b 115200 set wifi.ap.pwd testpass123
+meshcore-cli -s /dev/ttyUSB0 -b 115200 set wifi.ap.ssid MeshCore-SampleAP
+meshcore-cli -s /dev/ttyUSB0 -b 115200 set wifi.ap.pwd SampleAPPwd123
 
 meshcore-cli -s /dev/ttyUSB0 -b 115200 set wifi.mode client
-meshcore-cli -s /dev/ttyUSB0 -b 115200 set wifi.ssid YourSSID
-meshcore-cli -s /dev/ttyUSB0 -b 115200 set wifi.pwd YourPassword
+meshcore-cli -s /dev/ttyUSB0 -b 115200 set wifi.ssid SampleSSID
+meshcore-cli -s /dev/ttyUSB0 -b 115200 set wifi.pwd SamplePwd123
 
 meshcore-cli -s /dev/ttyUSB0 -b 115200 set transport ble
+
+Read back current transport/WiFi values:
+
+```bash
+meshcore-cli -s /dev/ttyUSB0 -b 115200 get transport
+meshcore-cli -s /dev/ttyUSB0 -b 115200 get wifi.mode
+meshcore-cli -s /dev/ttyUSB0 -b 115200 get wifi.ssid
+meshcore-cli -s /dev/ttyUSB0 -b 115200 get wifi.pwd
+meshcore-cli -s /dev/ttyUSB0 -b 115200 get wifi.ap.ssid
+meshcore-cli -s /dev/ttyUSB0 -b 115200 get wifi.ap.pwd
 ```
 
-### 3.2 CLI Rescue text commands
+### 3.2 meshcli interactive mode (recommended for manual testing)
+
+Start interactive mode:
+
+```bash
+meshcore-cli -s /dev/ttyUSB0 -b 115200
+```
+
+Example interactive session:
+
+```text
+KD3CGK|* set wifi.mode client
+Var wifi.mode set to client
+KD3CGK|* get wifi.mode
+client
+KD3CGK|* set transport ble
+Var transport set to ble
+KD3CGK|* get transport
+ble
+KD3CGK|* get wifi.ssid
+SampleSSID
+KD3CGK|* get wifi.ap.ssid
+MeshCore-SampleAP
+KD3CGK|* get wifi.pwd
+SamplePwd123
+KD3CGK|* get wifi.ap.pwd
+SampleAPPwd123
+```
+
+### 3.2.1 Full sample test sequence
+
+Run this exact command sequence to validate WiFi/transport set+get behavior with sample values:
+
+```bash
+meshcore-cli -s /dev/ttyUSB0 -b 115200 infos
+meshcore-cli -s /dev/ttyUSB0 -b 115200 set transport ble
+meshcore-cli -s /dev/ttyUSB0 -b 115200 get transport
+
+meshcore-cli -s /dev/ttyUSB0 -b 115200 set wifi.mode ap
+meshcore-cli -s /dev/ttyUSB0 -b 115200 get wifi.mode
+meshcore-cli -s /dev/ttyUSB0 -b 115200 set wifi.ap.ssid MeshCore-SampleAP
+meshcore-cli -s /dev/ttyUSB0 -b 115200 get wifi.ap.ssid
+meshcore-cli -s /dev/ttyUSB0 -b 115200 set wifi.ap.pwd SampleAPPwd123
+meshcore-cli -s /dev/ttyUSB0 -b 115200 get wifi.ap.pwd
+
+meshcore-cli -s /dev/ttyUSB0 -b 115200 set wifi.mode client
+meshcore-cli -s /dev/ttyUSB0 -b 115200 get wifi.mode
+meshcore-cli -s /dev/ttyUSB0 -b 115200 set wifi.ssid SampleSSID
+meshcore-cli -s /dev/ttyUSB0 -b 115200 get wifi.ssid
+meshcore-cli -s /dev/ttyUSB0 -b 115200 set wifi.pwd SamplePwd123
+meshcore-cli -s /dev/ttyUSB0 -b 115200 get wifi.pwd
+
+meshcore-cli -s /dev/ttyUSB0 -b 115200 set transport tcp
+meshcore-cli -s /dev/ttyUSB0 -b 115200 get transport
+meshcore-cli -s /dev/ttyUSB0 -b 115200 set transport wifi
+meshcore-cli -s /dev/ttyUSB0 -b 115200 get transport
+meshcore-cli -s /dev/ttyUSB0 -b 115200 set transport ble
+meshcore-cli -s /dev/ttyUSB0 -b 115200 get transport
+
+meshcore-cli -s /dev/ttyUSB0 -b 115200 get wifi.mode
+meshcore-cli -s /dev/ttyUSB0 -b 115200 get wifi.ssid
+meshcore-cli -s /dev/ttyUSB0 -b 115200 get wifi.pwd
+meshcore-cli -s /dev/ttyUSB0 -b 115200 get wifi.ap.ssid
+meshcore-cli -s /dev/ttyUSB0 -b 115200 get wifi.ap.pwd
+```
+
+### 3.3 CLI Rescue text commands
 
 Inside CLI Rescue terminal:
 
 ```text
 set transport tcp
 set wifi.mode ap
-set wifi.ap.ssid MeshCore-TestAP
-set wifi.ap.pwd testpass123
+set wifi.ap.ssid MeshCore-SampleAP
+set wifi.ap.pwd SampleAPPwd123
 
 set wifi.mode client
-set wifi.ssid YourSSID
-set wifi.pwd YourPassword
+set wifi.ssid SampleSSID
+set wifi.pwd SamplePwd123
 
 set transport ble
+
+get transport
+get wifi.mode
+get wifi.ssid
+get wifi.pwd
+get wifi.ap.ssid
+get wifi.ap.pwd
 ```
 
 ## TCP Test Example
