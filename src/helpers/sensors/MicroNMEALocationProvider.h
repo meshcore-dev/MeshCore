@@ -43,7 +43,7 @@ class MicroNMEALocationProvider : public LocationProvider {
     int8_t _claims = 0;
     int _pin_reset;
     int _pin_en;
-    long next_check = 0;
+    unsigned long next_check = 0;
     long time_valid = 0;
     unsigned long _last_time_sync = 0;
     static const unsigned long TIME_SYNC_INTERVAL = 1800000; // Re-sync every 30 minutes

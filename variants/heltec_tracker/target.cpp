@@ -72,7 +72,7 @@ bool HWTSensorManager::querySensors(uint8_t requester_permissions, CayenneLPP& t
 }
 
 void HWTSensorManager::loop() {
-  static long next_gps_update = 0;
+  static unsigned long next_gps_update = 0;
 
   _location->loop();
 
