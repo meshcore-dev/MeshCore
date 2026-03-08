@@ -1,5 +1,6 @@
 #include "SerialBLEInterface.h"
 #include "esp_mac.h"
+#include <helpers/ArduinoHelpers.h>
 
 // See the following for generating UUIDs:
 // https://www.uuidgenerator.net/
@@ -183,12 +184,12 @@ size_t SerialBLEInterface::writeFrame(const uint8_t src[], size_t len) {
 #define  BLE_WRITE_MIN_INTERVAL   60
 
 bool SerialBLEInterface::isWriteBusy() const {
-  return millis() < _last_write + BLE_WRITE_MIN_INTERVAL;   // still too soon to start another write?
+  return !millis_passed(_last_write + BLE_WRITE_MIN_INTERVAL);   // still too soon to start another write?
 }
 
 size_t SerialBLEInterface::checkRecvFrame(uint8_t dest[]) {
   if (send_queue_len > 0   // first, check send queue
-    && millis() >= _last_write + BLE_WRITE_MIN_INTERVAL    // space the writes apart
+    && millis_passed(_last_write + BLE_WRITE_MIN_INTERVAL)    // space the writes apart
   ) {
     _last_write = millis();
     pTxCharacteristic->setValue(send_queue[0].buf, send_queue[0].len);
@@ -238,7 +239,7 @@ size_t SerialBLEInterface::checkRecvFrame(uint8_t dest[]) {
     oldDeviceConnected = deviceConnected;
   }
 
-  if (adv_restart_time && millis() >= adv_restart_time) {
+  if (adv_restart_time && millis_passed(adv_restart_time)) {
     if (pServer->getConnectedCount() == 0) {
       BLE_DEBUG_PRINTLN("SerialBLEInterface -> re-starting advertising");
       pServer->getAdvertising()->start();  // re-Start advertising

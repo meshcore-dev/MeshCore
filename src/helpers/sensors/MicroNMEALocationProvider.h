@@ -4,6 +4,7 @@
 #include <MicroNMEA.h>
 #include <RTClib.h>
 #include <helpers/RefCountedDigitalPin.h>
+#include <helpers/ArduinoHelpers.h>
 
 #ifndef GPS_EN
     #ifdef PIN_GPS_EN
@@ -143,7 +144,7 @@ public :
 
         if (!isValid()) time_valid = 0;
 
-        if (millis() > next_check) {
+        if (millis_passed(next_check)) {
             next_check = millis() + 1000;
             // Re-enable time sync periodically when GPS has valid fix
             if (!_time_sync_needed && _clock != NULL && (millis() - _last_time_sync) > TIME_SYNC_INTERVAL) {
