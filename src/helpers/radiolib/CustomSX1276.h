@@ -1,6 +1,7 @@
 #pragma once
 
 #include <RadioLib.h>
+#include <helpers/ArduinoHelpers.h>
 
 #define RH_RF95_MODEM_STATUS_CLEAR               0x10
 #define RH_RF95_MODEM_STATUS_HEADER_INFO_VALID   0x08
@@ -79,7 +80,7 @@ class CustomSX1276 : public SX1276 {
 
       // wait for channel activity detected or timeout
       unsigned long timeout = millis() + 16;
-      while(!this->mod->hal->digitalRead(this->mod->getIrq()) && millis() < timeout) {
+      while(!this->mod->hal->digitalRead(this->mod->getIrq()) && !millis_passed(timeout)) {
         this->mod->hal->yield();
         if(this->mod->hal->digitalRead(this->mod->getGpio())) {
           return(RADIOLIB_PREAMBLE_DETECTED);

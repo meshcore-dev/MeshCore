@@ -24,6 +24,12 @@ public:
   unsigned long getMillis() override { return millis(); }
 };
 
+// Wrap-safe millis deadline check. Handles the 49-day millis() overflow
+// using signed comparison (2's complement). Use instead of millis() >= target.
+inline bool millis_passed(unsigned long target) {
+  return (long)(millis() - target) > 0;
+}
+
 class StdRNG : public mesh::RNG {
 public:
   void begin(long seed) { randomSeed(seed); }
