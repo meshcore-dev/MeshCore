@@ -47,7 +47,7 @@ For developers;
 
 The Simple Secure Chat example can be interacted with through the Serial Monitor in Visual Studio Code, or with a Serial USB Terminal on Android.
 
-## Build And Flash This Fork (Heltec V3)
+## Build And Flash This Fork (Heltec V3 / Heltec V2)
 
 If you want to build and flash this fork directly from terminal:
 
@@ -69,10 +69,22 @@ Build firmware:
 ~/.platformio/penv/bin/pio run -e Heltec_v3_companion_radio_tcp_usb_ble
 ```
 
+For Heltec V2:
+
+```bash
+~/.platformio/penv/bin/pio run -e Heltec_v2_companion_radio_tcp_usb_ble
+```
+
 Flash firmware (USB serial example):
 
 ```bash
 ~/.platformio/penv/bin/pio run -e Heltec_v3_companion_radio_tcp_usb_ble -t upload --upload-port /dev/ttyUSB0
+```
+
+For Heltec V2:
+
+```bash
+~/.platformio/penv/bin/pio run -e Heltec_v2_companion_radio_tcp_usb_ble -t upload --upload-port /dev/ttyUSB0
 ```
 
 Optional serial companion check:
