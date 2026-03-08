@@ -93,7 +93,11 @@ bool CompanionTransportInterface::setWirelessMode(WirelessMode mode, bool persis
   }
   _mode = mode;
   if (_isEnabled && !persist_only) {
-    startWireless();
+    // Keep active USB control session stable: if command/control is over USB,
+    // defer live wireless stack switch until after USB disconnect/reconnect.
+    if (!(_last_source == 0 && _usb.isConnected())) {
+      startWireless();
+    }
   }
   return true;
 }
@@ -134,6 +138,21 @@ bool CompanionTransportInterface::setWifiApCredentials(const char* ssid, const c
   return true;
 }
 
+bool CompanionTransportInterface::setTcpPort(uint16_t port) {
+  if (port == 0) return false;
+  _tcp_port = port;
+
+  // If TCP server is already running, restart it on the new port.
+  if (_wifi_server_started) {
+    _wifi.disable();
+    _wifi.begin(_tcp_port);
+    if (_mode == WIRELESS_MODE_TCP) {
+      _wifi.enable();
+    }
+  }
+  return true;
+}
+
 void CompanionTransportInterface::enable() {
   if (_isEnabled) return;
   _isEnabled = true;
@@ -168,6 +187,14 @@ size_t CompanionTransportInterface::writeFrame(const uint8_t src[], size_t len) 
 }
 
 size_t CompanionTransportInterface::checkRecvFrame(uint8_t dest[]) {
+  // Prioritise USB input so local serial control remains reliable even
+  // when wireless transport is active or reconnecting.
+  size_t usb_len = _usb.checkRecvFrame(dest);
+  if (usb_len > 0) {
+    _last_source = 0;
+    return usb_len;
+  }
+
   if (_mode == WIRELESS_MODE_TCP) {
     static unsigned long last_wifi_retry_at = 0;
     if (_wifi_mode == WIFI_MODE_STA_CLIENT && _wifi_ssid[0] != 0 && WiFi.status() != WL_CONNECTED) {
@@ -191,12 +218,6 @@ size_t CompanionTransportInterface::checkRecvFrame(uint8_t dest[]) {
       _last_source = 1;
       return ble_len;
     }
-  }
-
-  size_t usb_len = _usb.checkRecvFrame(dest);
-  if (usb_len > 0) {
-    _last_source = 0;
-    return usb_len;
   }
   return 0;
 }

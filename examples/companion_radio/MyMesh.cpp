@@ -144,6 +144,12 @@ static bool applyWifiPrefs(NodePrefs& prefs) {
       : CompanionTransportInterface::WIFI_MODE_AP_ONLY;
   return transport->setWifiMode(wifi_mode);
 }
+
+static bool applyTcpPortPref(uint16_t tcp_port) {
+  auto* transport = CompanionTransportInterface::instance();
+  if (!transport) return false;
+  return transport->setTcpPort(tcp_port);
+}
 #endif
 
 #define ERR_CODE_UNSUPPORTED_CMD        1
@@ -827,6 +833,8 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
       _serial(NULL), telemetry(MAX_PACKET_PAYLOAD - 4), _store(&store), _ui(ui) {
   _iter_started = false;
   _cli_rescue = false;
+  _pending_transport_apply = false;
+  _pending_transport_apply_at = 0;
   offline_queue_len = 0;
   app_target_ver = 0;
   clearPendingReqs();
@@ -1689,11 +1697,36 @@ void MyMesh::handleCmdFrame(size_t len) {
   } else if (cmd_frame[0] == CMD_GET_CUSTOM_VARS) {
     out_frame[0] = RESP_CODE_CUSTOM_VARS;
     char *dp = (char *)&out_frame[1];
+    const int max_custom_vars_len = 140;
+    auto escapeCustomVarValue = [](const char* value, char* out, size_t out_len) {
+      if (!value || !out || out_len == 0) return;
+      size_t oi = 0;
+      for (size_t i = 0; value[i] != 0 && oi + 1 < out_len; i++) {
+        char c = value[i];
+        if (c == ',' || c == ':' || c == '%') {
+          if (oi + 3 >= out_len) break;
+          out[oi++] = '%';
+          if (c == ',') {
+            out[oi++] = '2';
+            out[oi++] = 'C';
+          } else if (c == ':') {
+            out[oi++] = '3';
+            out[oi++] = 'A';
+          } else {
+            out[oi++] = '2';
+            out[oi++] = '5';
+          }
+        } else {
+          out[oi++] = c;
+        }
+      }
+      out[oi] = 0;
+    };
     auto appendKV = [&](const char* key, const char* value) -> bool {
       if (!key || !value) return false;
       int used = dp - (char *)&out_frame[1];
       int required = strlen(key) + 1 + strlen(value) + (used > 0 ? 1 : 0);
-      if (used + required >= 140) return false;
+      if (used + required >= max_custom_vars_len) return false;
       if (used > 0) {
         *dp++ = ',';
       }
@@ -1704,18 +1737,39 @@ void MyMesh::handleCmdFrame(size_t len) {
       dp = strchr(dp, 0);
       return true;
     };
+    auto appendKVEscaped = [&](const char* key, const char* value) -> bool {
+      char escaped[96];
+      escapeCustomVarValue(value, escaped, sizeof(escaped));
+      return appendKV(key, escaped);
+    };
 
 #if defined(ESP32) && defined(COMPANION_ALL_TRANSPORTS)
-    appendKV("transport", _prefs.transport_mode == 1 ? "wifi" : "ble");
-    appendKV("wifi.mode", _prefs.wifi_mode == 1 ? "client" : "ap");
-    appendKV("wifi.ssid", _prefs.wifi_ssid);
-    appendKV("wifi.ap.ssid", _prefs.wifi_ap_ssid);
-    appendKV("wifi.pwd", _prefs.wifi_pwd);
-    appendKV("wifi.ap.pwd", _prefs.wifi_ap_pwd);
+    char tcp_port_value[8];
+    char ip_value[20] = "0.0.0.0";
+    uint16_t tcp_port = 5000;
+    if (auto* transport = CompanionTransportInterface::instance()) {
+      tcp_port = transport->getTcpPort();
+    }
+    snprintf(tcp_port_value, sizeof(tcp_port_value), "%u", tcp_port);
+    if (WiFi.status() == WL_CONNECTED) {
+      snprintf(ip_value, sizeof(ip_value), "%s", WiFi.localIP().toString().c_str());
+    } else if (_prefs.wifi_mode == 0) {
+      snprintf(ip_value, sizeof(ip_value), "%s", WiFi.softAPIP().toString().c_str());
+    }
+
+    appendKVEscaped("transport", _prefs.transport_mode == 1 ? "tcp" : "ble");
+    appendKVEscaped("tcp.port", tcp_port_value);
+    appendKVEscaped("ip", ip_value);
+    appendKVEscaped("wifi.mode", _prefs.wifi_mode == 1 ? "client" : "ap");
+    appendKVEscaped("wifi.ssid", _prefs.wifi_ssid);
+    appendKVEscaped("wifi.pwd", _prefs.wifi_pwd);
+    appendKVEscaped("wifi.ap.pwd", _prefs.wifi_ap_pwd);
+    appendKVEscaped("wifi.ip", ip_value);
+    appendKVEscaped("wifi.ap.ssid", _prefs.wifi_ap_ssid);
 #endif
 
-    for (int i = 0; i < sensors.getNumSettings() && dp - (char *)&out_frame[1] < 140; i++) {
-      if (!appendKV(sensors.getSettingName(i), sensors.getSettingValue(i))) break;
+    for (int i = 0; i < sensors.getNumSettings() && dp - (char *)&out_frame[1] < max_custom_vars_len; i++) {
+      if (!appendKVEscaped(sensors.getSettingName(i), sensors.getSettingValue(i))) break;
     }
     _serial->writeFrame(out_frame, dp - (char *)out_frame);
   } else if (cmd_frame[0] == CMD_SET_CUSTOM_VAR && len >= 4) {
@@ -1730,10 +1784,14 @@ void MyMesh::handleCmdFrame(size_t len) {
       if (strcmp(sp, "transport") == 0) {
         if (strcmp(np, "ble") == 0) {
           _prefs.transport_mode = 0;
-          success = applyTransportModePref(_prefs);
+          _pending_transport_apply = true;
+          _pending_transport_apply_at = millis() + 500;
+          success = true;
         } else if (strcmp(np, "tcp") == 0 || strcmp(np, "wifi") == 0) {
           _prefs.transport_mode = 1;
-          success = applyTransportModePref(_prefs);
+          _pending_transport_apply = true;
+          _pending_transport_apply_at = millis() + 500;
+          success = true;
         }
         if (success) {
           savePrefs();
@@ -1771,6 +1829,11 @@ void MyMesh::handleCmdFrame(size_t len) {
           StrHelper::strncpy(_prefs.wifi_ap_pwd, np, sizeof(_prefs.wifi_ap_pwd));
           success = applyWifiPrefs(_prefs);
           if (success) savePrefs();
+        }
+      } else if (strcmp(sp, "tcp.port") == 0) {
+        long port = atol(np);
+        if (port >= 1 && port <= 65535) {
+          success = applyTcpPortPref((uint16_t)port);
         }
       }
 #endif
@@ -2056,8 +2119,46 @@ void MyMesh::checkCLIRescueCmd() {
 #if defined(ESP32) && defined(COMPANION_ALL_TRANSPORTS)
     } else if (memcmp(cli_command, "get ", 4) == 0) {
       const char* key = &cli_command[4];
-      if (strcmp(key, "transport") == 0) {
-        Serial.printf("  > %s\n", _prefs.transport_mode == 1 ? "wifi" : "ble");
+      String wifi_mac_str = WiFi.macAddress();
+      const char* wifi_status = "off";
+      if (WiFi.status() == WL_CONNECTED) {
+        wifi_status = "connected";
+      } else if (_prefs.wifi_mode == 0) {
+        wifi_status = "ap";
+      } else if (_prefs.wifi_mode == 1 && _prefs.transport_mode == 1 && _prefs.wifi_ssid[0] != 0) {
+        wifi_status = "connecting";
+      }
+
+      if (strcmp(key, "ip") == 0 || strcmp(key, "wifi.ip") == 0) {
+        if (WiFi.status() == WL_CONNECTED) {
+          Serial.printf("  > %s\n", WiFi.localIP().toString().c_str());
+        } else if (_prefs.wifi_mode == 0) {
+          Serial.printf("  > %s\n", WiFi.softAPIP().toString().c_str());
+        } else {
+          Serial.println("  > 0.0.0.0");
+        }
+      } else if (strcmp(key, "tcp.port") == 0) {
+        if (auto* transport = CompanionTransportInterface::instance()) {
+          Serial.printf("  > %u\n", transport->getTcpPort());
+        } else {
+          Serial.println("  > 5000");
+        }
+      } else if (strcmp(key, "wifi.gateway") == 0) {
+        Serial.printf("  > %s\n", WiFi.gatewayIP().toString().c_str());
+      } else if (strcmp(key, "wifi.mask") == 0) {
+        Serial.printf("  > %s\n", WiFi.subnetMask().toString().c_str());
+      } else if (strcmp(key, "wifi.status") == 0) {
+        Serial.printf("  > %s\n", wifi_status);
+      } else if (strcmp(key, "wifi.rssi") == 0) {
+        if (WiFi.status() == WL_CONNECTED) {
+          Serial.printf("  > %ld\n", (long)WiFi.RSSI());
+        } else {
+          Serial.println("  > n/a");
+        }
+      } else if (strcmp(key, "wifi.mac") == 0) {
+        Serial.printf("  > %s\n", wifi_mac_str.c_str());
+      } else if (strcmp(key, "transport") == 0) {
+        Serial.printf("  > %s\n", _prefs.transport_mode == 1 ? "tcp" : "ble");
       } else if (strcmp(key, "wifi.mode") == 0) {
         Serial.printf("  > %s\n", _prefs.wifi_mode == 1 ? "client" : "ap");
       } else if (strcmp(key, "wifi.ssid") == 0) {
@@ -2277,6 +2378,15 @@ void MyMesh::loop() {
     saveContacts();
     dirty_contacts_expiry = 0;
   }
+
+#if defined(ESP32) && defined(COMPANION_ALL_TRANSPORTS)
+  if (_pending_transport_apply && _serial && !_serial->isWriteBusy() &&
+      millisHasNowPassed(_pending_transport_apply_at)) {
+    _pending_transport_apply = false;
+    _pending_transport_apply_at = 0;
+    applyTransportModePref(_prefs);  // best-effort apply after command response is sent
+  }
+#endif
 
 #ifdef DISPLAY_CLASS
   if (_ui) _ui->setHasConnection(_serial->isConnected());

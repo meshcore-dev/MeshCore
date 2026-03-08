@@ -55,6 +55,8 @@ public:
   bool setWifiMode(WifiMode mode);
   WifiMode getWifiMode() const { return _wifi_mode; }
   bool setWifiApCredentials(const char* ssid, const char* pwd);
+  bool setTcpPort(uint16_t port);
+  uint16_t getTcpPort() const { return _tcp_port; }
   const char* getWifiSSID() const { return _wifi_ssid; }
   const char* getWifiApSSID() const { return _wifi_ap_ssid; }
   const char* getWifiApPassword() const { return _wifi_ap_pwd; }
