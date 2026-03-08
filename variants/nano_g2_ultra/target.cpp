@@ -88,7 +88,7 @@ bool NanoG2UltraSensorManager::querySensors(uint8_t requester_permissions, Cayen
 }
 
 void NanoG2UltraSensorManager::loop() {
-  static long next_gps_update = 0;
+  static unsigned long next_gps_update = 0;
 
   if (!gps_active) {
     return; // GPS is not active, skip further processing

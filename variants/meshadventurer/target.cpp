@@ -80,7 +80,7 @@ bool MASensorManager::querySensors(uint8_t requester_permissions, CayenneLPP& te
 }
 
 void MASensorManager::loop() {
-  static long next_gps_update = 0;
+  static unsigned long next_gps_update = 0;
   _location->loop();
   if(millis_passed(next_gps_update) && gps_active) {
     if(_location->isValid()) {

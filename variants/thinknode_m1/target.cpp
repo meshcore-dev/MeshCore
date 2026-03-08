@@ -84,11 +84,11 @@ bool ThinkNodeM1SensorManager::querySensors(uint8_t requester_permissions, Cayen
 }
 
 void ThinkNodeM1SensorManager::loop() {
-  static long next_gps_update = 0;
-  static long last_switch_check = 0;
+  static unsigned long next_gps_update = 0;
+  static unsigned long last_switch_check = 0;
 
   // Check GPS switch state every second
-  if (millis() - last_switch_check > 1000) {
+  if (millis_passed(last_switch_check + 1000)) {
     bool current_switch_state = digitalRead(PIN_GPS_SWITCH);
     
     // Detect switch state change

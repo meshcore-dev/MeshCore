@@ -281,7 +281,7 @@ void NRF52Board::sleep(uint32_t secs) {
 float NRF52Board::getMCUTemperature() {
   NRF_TEMP->TASKS_START = 1; // Start temperature measurement
 
-  long startTime = millis();  
+  unsigned long startTime = millis();  
   while (NRF_TEMP->EVENTS_DATARDY == 0) { // Wait for completion. Should complete in 50us
     if(millis() - startTime > 5) {  // To wait 5ms just in case
       NRF_TEMP->TASKS_STOP = 1;

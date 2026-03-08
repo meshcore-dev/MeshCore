@@ -163,7 +163,7 @@ bool T1000SensorManager::querySensors(uint8_t requester_permissions, CayenneLPP&
 }
 
 void T1000SensorManager::loop() {
-  static long next_gps_update = 0;
+  static unsigned long next_gps_update = 0;
 
   _nmea->loop();
 

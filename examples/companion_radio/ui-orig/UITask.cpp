@@ -263,11 +263,11 @@ void UITask::renderCurrScreen() {
 void UITask::userLedHandler() {
 #ifdef PIN_STATUS_LED
   static int state = 0;
-  static int next_change = 0;
+  static unsigned long next_change = 0;
   static int last_increment = 0;
 
-  int cur_time = millis();
-  if (cur_time > next_change) {
+  unsigned long cur_time = millis();
+  if (millis_passed(next_change)) {
     if (state == 0) {
       state = 1;
       if (_msgcount > 0) {
