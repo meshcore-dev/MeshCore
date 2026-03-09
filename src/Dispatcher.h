@@ -92,6 +92,7 @@ public:
   virtual void queueOutbound(Packet* packet, uint8_t priority, uint32_t scheduled_for) = 0;
   virtual Packet* getNextOutbound(uint32_t now) = 0;    // by priority
   virtual int getOutboundCount(uint32_t now) const = 0;
+  virtual int getOutboundTotal() const = 0;
   virtual int getFreeCount() const = 0;
   virtual Packet* getOutboundByIdx(int i) = 0;
   virtual Packet* removeOutboundByIdx(int i) = 0;
@@ -124,8 +125,12 @@ class Dispatcher {
   bool  prev_isrecv_mode;
   uint32_t n_sent_flood, n_sent_direct;
   uint32_t n_recv_flood, n_recv_direct;
+  unsigned long tx_budget_ms;
+  unsigned long last_budget_update;
+  unsigned long duty_cycle_window_ms;
 
   void processRecvPacket(Packet* pkt);
+  void updateTxBudget();
 
 protected:
   PacketManager* _mgr;
@@ -138,12 +143,15 @@ protected:
   {
     outbound = NULL;
     total_air_time = rx_air_time = 0;
-    next_tx_time = 0;
+    next_tx_time = ms.getMillis();
     cad_busy_start = 0;
     next_floor_calib_time = next_agc_reset_time = 0;
     _err_flags = 0;
     radio_nonrx_start = 0;
     prev_isrecv_mode = true;
+    tx_budget_ms = 0;
+    last_budget_update = 0;
+    duty_cycle_window_ms = 3600000;
   }
 
   virtual DispatcherAction onRecvPacket(Packet* pkt) = 0;
@@ -161,6 +169,7 @@ protected:
   virtual uint32_t getCADFailMaxDuration() const;
   virtual int getInterferenceThreshold() const { return 0; }    // disabled by default
   virtual int getAGCResetInterval() const { return 0; }    // disabled by default
+  virtual unsigned long getDutyCycleWindowMs() const { return 3600000; }
 
 public:
   void begin();
@@ -170,8 +179,9 @@ public:
   void releasePacket(Packet* packet);
   void sendPacket(Packet* packet, uint8_t priority, uint32_t delay_millis=0);
 
-  unsigned long getTotalAirTime() const { return total_air_time; }  // in milliseconds
+  unsigned long getTotalAirTime() const { return total_air_time; }
   unsigned long getReceiveAirTime() const {return rx_air_time; }
+  unsigned long getRemainingTxBudget() const { return tx_budget_ms; }
   uint32_t getNumSentFlood() const { return n_sent_flood; }
   uint32_t getNumSentDirect() const { return n_sent_direct; }
   uint32_t getNumRecvFlood() const { return n_recv_flood; }
@@ -186,6 +196,7 @@ public:
   unsigned long futureMillis(int millis_from_now) const;
 
 private:
+  bool tryParsePacket(Packet* pkt, const uint8_t* raw, int len);
   void checkRecv();
   void checkSend();
 };

@@ -38,8 +38,8 @@
   "frameworks": ["arduino"],
   "name": "Seeed T1000-E",
   "upload": {
-    "maximum_ram_size": 248832,
-    "maximum_size": 815104,
+    "maximum_ram_size": 235520,
+    "maximum_size": 811008,
     "speed": 115200,
     "protocol": "nrfutil",
     "protocols": [

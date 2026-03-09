@@ -1,0 +1,36 @@
+name: Build and deploy Docs site to GitHub Pages
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  github-pages:
+    runs-on: ubuntu-latest
+    steps:
+
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          ruby-version: 3.x
+
+      - name: Build
+        run: |
+          pip install mkdocs-material
+          mkdocs build
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          cname: docs.meshcore.nz
+          publish_dir: ./site
+          publish_branch: 'gh-pages'

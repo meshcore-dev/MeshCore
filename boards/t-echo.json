@@ -45,7 +45,7 @@
   ],
   "name": "LilyGo T-ECHO",
   "upload": {
-    "maximum_ram_size": 248832,
+    "maximum_ram_size": 235520,
     "maximum_size": 815104,
     "require_upload_port": true,
     "speed": 115200,
