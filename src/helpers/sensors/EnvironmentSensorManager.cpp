@@ -494,6 +494,7 @@ int EnvironmentSensorManager::getNumSettings() const {
   #if ENV_INCLUDE_GPS
     if (gps_detected) settings++;  // only show GPS setting if GPS is detected
   #endif
+  settings += 2;  // led.ble and led.status
   return settings;
 }
 
@@ -504,10 +505,12 @@ const char* EnvironmentSensorManager::getSettingName(int i) const {
       return "gps";
     }
   #endif
-  // convenient way to add params (needed for some tests)
-//  if (i == settings++) return "param.2";
+  if (i == settings++) return "led.ble";
+  if (i == settings++) return "led.status";
   return NULL;
 }
+
+static char _led_val_buf[4];
 
 const char* EnvironmentSensorManager::getSettingValue(int i) const {
   int settings = 0;
@@ -516,8 +519,14 @@ const char* EnvironmentSensorManager::getSettingValue(int i) const {
       return gps_active ? "1" : "0";
     }
   #endif
-  // convenient way to add params ...
-//  if (i == settings++) return "2";
+  if (i == settings++) {
+    sprintf(_led_val_buf, "%d", led_ble_mode);
+    return _led_val_buf;
+  }
+  if (i == settings++) {
+    sprintf(_led_val_buf, "%d", led_status_mode);
+    return _led_val_buf;
+  }
   return NULL;
 }
 
@@ -541,6 +550,22 @@ bool EnvironmentSensorManager::setSettingValue(const char* name, const char* val
     return true;
   }
   #endif
+  if (strcmp(name, "led.ble") == 0) {
+    int mode = atoi(value);
+    if (mode >= 0 && mode <= 3) {
+      led_ble_mode = mode;
+      return true;
+    }
+    return false;
+  }
+  if (strcmp(name, "led.status") == 0) {
+    int mode = atoi(value);
+    if (mode >= 0 && mode <= 1) {
+      led_status_mode = mode;
+      return true;
+    }
+    return false;
+  }
   return false;  // not supported
 }
 

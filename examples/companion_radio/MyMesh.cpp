@@ -58,7 +58,6 @@
 #define CMD_GET_AUTOADD_CONFIG        59
 #define CMD_GET_ALLOWED_REPEAT_FREQ   60
 #define CMD_SET_PATH_HASH_MODE        61
-#define CMD_SET_LED_PARAMS            62
 
 // Stats sub-types for CMD_GET_STATS
 #define STATS_TYPE_CORE               0
@@ -860,6 +859,12 @@ void MyMesh::begin(bool has_display) {
   _prefs.tx_power_dbm = constrain(_prefs.tx_power_dbm, -9, MAX_LORA_TX_POWER);
   _prefs.gps_enabled = constrain(_prefs.gps_enabled, 0, 1);  // Ensure boolean 0 or 1
   _prefs.gps_interval = constrain(_prefs.gps_interval, 0, 86400);  // Max 24 hours
+  _prefs.led_ble_mode = constrain(_prefs.led_ble_mode, 0, 3);
+  _prefs.led_status_mode = constrain(_prefs.led_status_mode, 0, 1);
+
+  // Sync LED prefs to sensor manager (exposed as custom vars)
+  sensors.led_ble_mode = _prefs.led_ble_mode;
+  sensors.led_status_mode = _prefs.led_status_mode;
 
 #ifdef BLE_PIN_CODE // 123456 by default
   if (_prefs.ble_pin == 0) {
@@ -943,8 +948,6 @@ void MyMesh::handleCmdFrame(size_t len) {
     i += 20;
     out_frame[i++] = _prefs.client_repeat;   // v9+
     out_frame[i++] = _prefs.path_hash_mode;  // v10+
-    out_frame[i++] = _prefs.led_ble_mode;    // v11+
-    out_frame[i++] = _prefs.led_status_mode; // v11+
     _serial->writeFrame(out_frame, i);
   } else if (cmd_frame[0] == CMD_APP_START &&
              len >= 8) { // sent when app establishes connection, respond with node ID
@@ -1328,14 +1331,6 @@ void MyMesh::handleCmdFrame(size_t len) {
       savePrefs();
       writeOKFrame();
     }
-  } else if (cmd_frame[0] == CMD_SET_LED_PARAMS && len >= 2) {
-    _prefs.led_ble_mode = cmd_frame[1];
-    _serial->setLedBleMode(cmd_frame[1]);
-    if (len >= 3) {
-      _prefs.led_status_mode = cmd_frame[2];
-    }
-    savePrefs();
-    writeOKFrame();
   } else if (cmd_frame[0] == CMD_REBOOT && memcmp(&cmd_frame[1], "reboot", 6) == 0) {
     if (dirty_contacts_expiry) { // is there are pending dirty contacts write needed?
       saveContacts();
@@ -1691,6 +1686,15 @@ void MyMesh::handleCmdFrame(size_t len) {
           savePrefs();
         }
         #endif
+        // Update node preferences for LED settings
+        if (strcmp(sp, "led.ble") == 0) {
+          _prefs.led_ble_mode = sensors.led_ble_mode;
+          _serial->setLedBleMode(_prefs.led_ble_mode);
+          savePrefs();
+        } else if (strcmp(sp, "led.status") == 0) {
+          _prefs.led_status_mode = sensors.led_status_mode;
+          savePrefs();
+        }
         writeOKFrame();
       } else {
         writeErrFrame(ERR_CODE_ILLEGAL_ARG);
@@ -1856,21 +1860,19 @@ void MyMesh::checkCLIRescueCmd() {
         savePrefs();
         Serial.printf("  > pin is now %06d\n", _prefs.ble_pin);
       } else if (memcmp(config, "led.ble ", 8) == 0) {
-        int mode = atoi(&config[8]);
-        if (mode >= 0 && mode <= 3) {
-          _prefs.led_ble_mode = mode;
-          _serial->setLedBleMode(mode);
+        if (sensors.setSettingValue("led.ble", &config[8])) {
+          _prefs.led_ble_mode = sensors.led_ble_mode;
+          _serial->setLedBleMode(_prefs.led_ble_mode);
           savePrefs();
-          Serial.printf("  > led.ble is now %d\n", mode);
+          Serial.printf("  > led.ble is now %d\n", _prefs.led_ble_mode);
         } else {
           Serial.println("  Error: must be 0-3 (0=enabled, 1=disconn_only, 2=conn_only, 3=disabled)");
         }
       } else if (memcmp(config, "led.status ", 11) == 0) {
-        int mode = atoi(&config[11]);
-        if (mode >= 0 && mode <= 1) {
-          _prefs.led_status_mode = mode;
+        if (sensors.setSettingValue("led.status", &config[11])) {
+          _prefs.led_status_mode = sensors.led_status_mode;
           savePrefs();
-          Serial.printf("  > led.status is now %d\n", mode);
+          Serial.printf("  > led.status is now %d\n", _prefs.led_status_mode);
         } else {
           Serial.println("  Error: must be 0-1 (0=enabled, 1=disabled)");
         }
