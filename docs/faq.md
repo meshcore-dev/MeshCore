@@ -55,15 +55,28 @@ A list of frequently-asked questions and answers for MeshCore
   - [5.12. Q: How do I add a node to the MeshCore Map](#512-q-how-do-i-add-a-node-to-the-meshcore-map)
   - [5.13. Q: Can I use a Raspberry Pi to update a MeshCore radio?](#513-q-can-i-use-a-raspberry-pi-to-update-a-meshcore-radio)
   - [5.14. Q: Are there are projects built around MeshCore?](#514-q-are-there-are-projects-built-around-meshcore)
-    - [5.14.1. meshcoremqtt](#5141-meshcoremqtt)
-    - [5.14.2. MeshCore for Home Assistant](#5142-meshcore-for-home-assistant)
-    - [5.14.3. Python MeshCore](#5143-python-meshcore)
-    - [5.14.4. meshcore-cli](#5144-meshcore-cli)
-    - [5.14.5. meshcore.js](#5145-meshcorejs)
-    - [5.14.6. pyMC\_core](#5146-pymc_core)
-    - [5.14.7. MeshCore Packet Decoder](#5147-meshcore-packet-decoder)
-    - [5.14.8. meshcore-pi](#5148-meshcore-pi)
-    - [5.14.9. pyMC\_Repeater](#5149-pymc_repeater)
+    - [5.14.1. overview](#5141-overview)
+      - [5.14.1.1. awesome-meshcore](#51411-awesome-meshcore)
+    - [5.14.2. programming libraries, command line software](#5142-programming-libraries-command-line-software)
+      - [5.14.2.1. meshcoremqtt](#51421-meshcoremqtt)
+      - [5.14.2.2. MeshCore for Home Assistant](#51422-meshcore-for-home-assistant)
+      - [5.14.2.3. Python MeshCore](#51423-python-meshcore)
+      - [5.14.2.4. meshcore-cli](#51424-meshcore-cli)
+      - [5.14.2.5. meshcore.js](#51425-meshcorejs)
+      - [5.14.2.6. pyMC\_core](#51426-pymc_core)
+      - [5.14.2.7. MeshCore Packet Decoder](#51427-meshcore-packet-decoder)
+      - [5.14.2.8. meshcore-pi](#51428-meshcore-pi)
+      - [5.14.2.9. pyMC\_Repeater](#51429-pymc_repeater)
+      - [5.14.2.10. MeshCore map auto uploader](#514210-MeshCore-map-auto-uploader)
+    - [5.14.3. apps, graphical software](#5143-apps-graphical-software)
+      - [5.14.3.1. meshcore-open](#51431-meshcore-open)
+    - [5.14.4. firmwares](#5144-firmwares)
+      - [5.14.4.1. MeshCore-Cardputer-ADV](#51441-MeshCore-Cardputer-ADV)
+      - [5.14.4.2. LunarCore](#51442-LunarCore)
+      - [5.14.4.3. MC-Term](#51443-MC-Term)
+      - [5.14.4.4. Meck](#51444-Meck)
+      - [5.14.4.5. Meshcore for Wio Tracker L1 Pro](#51445-Meshcore-for-Wio-Tracker-L1-Pro)
+    - [5.14.5. online services](#5145-online-services)
   - [5.15. Q: Are there client applications for Windows or Mac?](#515-q-are-there-client-applications-for-windows-or-mac)
   - [5.16. Q: Are there any resources that compare MeshCore to other LoRa systems?](#516-q-are-there-any-resources-that-compare-meshcore-to-other-lora-systems)
 - [6. Troubleshooting](#6-troubleshooting)
@@ -84,7 +97,6 @@ A list of frequently-asked questions and answers for MeshCore
   - [7.5. Q: What is the format of a contact or channel QR code?](#75-q-what-is-the-format-of-a-contact-or-channel-qr-code)
   - [7.6. Q: How do I connect to the companion via WIFI, e.g. using a heltec v3?](#76-q-how-do-i-connect-to-the-companion-via-wifi-eg-using-a-heltec-v3)
   - [7.7. Q: I have a Station G2, or a Heltec V4, or an Ikoka Stick, or a radio with a EByte E22-900M30S or a E22-900M33S module, what should their transmit power be set to?](#77-q-i-have-a-station-g2-or-a-heltec-v4-or-an-ikoka-stick-or-a-radio-with-a-ebyte-e22-900m30s-or-a-e22-900m33s-module-what-should-their-transmit-power-be-set-to)
-- [| | High Output | 22 dBm | 28 dBm | |](#--high-output--22-dbm--28-dbm--)
 
 ## 1. Introduction
 
@@ -604,44 +616,94 @@ From here, reference repeater and room server command line commands on MeshCore 
 
 ### 5.14. Q: Are there are projects built around MeshCore?
 
-**A:** Yes.  See the following:
+**A:** Yes. Some of them are listed below.
 
-#### 5.14.1. meshcoremqtt
+#### 5.14.1. overview
+
+Some resources that by themselves give overviews about MeshCore related projects:
+
+##### 5.14.1.1. awesome-meshcore
+A meta website/ git-repository collecting many projects related to MeshCore, grouped by type. See  
+https://github.com/samuk/awesome-meshcore.
+
+#### 5.14.2. programming libraries, command line software
+
+##### 5.14.2.1. meshcoremqtt
 A Python script to send meshcore debug and packet capture data to MQTT for analysis.  Cisien's version is a fork of Andrew-a-g's and is being used to to collect data for https://map.w0z.is/messages and https://analyzer.letsmesh.net/
 https://github.com/Cisien/meshcoretomqtt
 https://github.com/Andrew-a-g/meshcoretomqtt
 
-#### 5.14.2. MeshCore for Home Assistant
+##### 5.14.2.2. MeshCore for Home Assistant
 A custom Home Assistant integration for MeshCore mesh radio nodes. It allows you to monitor and control MeshCore nodes via USB, BLE, or TCP connections.
 https://github.com/awolden/meshcore-ha
 
-#### 5.14.3. Python MeshCore
+##### 5.14.2.3. Python MeshCore
 Bindings to access your MeshCore companion radio nodes in python.
 https://github.com/fdlamotte/meshcore_py
 
-#### 5.14.4. meshcore-cli
+##### 5.14.2.4. meshcore-cli
 CLI interface to MeshCore companion radio over BLE, TCP, or serial.  Uses Python MeshCore above.
  https://github.com/fdlamotte/meshcore-cli
 
-#### 5.14.5. meshcore.js
+##### 5.14.2.5. meshcore.js
 A JavaScript library for interacting with a MeshCore device running the companion radio firmware
 https://github.com/liamcottle/meshcore.js
 
-#### 5.14.6. pyMC_core
+##### 5.14.2.6. pyMC_core
 pyMC_Core is a Python port of MeshCore, designed for Raspberry Pi and similar hardware, it talks to LoRa modules over SPI.
 https://github.com/rightup/pyMC_core
 
-#### 5.14.7. MeshCore Packet Decoder
+##### 5.14.2.7. MeshCore Packet Decoder
 A TypeScript library for decoding MeshCore mesh networking packets with full cryptographic support. Uses WebAssembly (WASM) for Ed25519 key derivation through the orlp/ed25519 library.  It powers the [MeshCore Packet Analyzer](https://analyzer.letsmesh.net/packets).
 https://github.com/michaelhart/meshcore-decoder
 
-#### 5.14.8. meshcore-pi
+##### 5.14.2.8. meshcore-pi
 meshcore-pi is another Python port of MeshCore, designed for Raspberry Pi and similar hardware, it talks to LoRa modules over SPI or GPIO.
 https://github.com/brianwiddas/meshcore-pi
 
-#### 5.14.9. pyMC_Repeater
+##### 5.14.2.9. pyMC_Repeater
 pyMC_Repeater is a repeater daemon in Python built on top of the [`pymc_core`](#5146-pymc_core) library.
 https://github.com/rightup/pyMC_Repeater
+
+##### 5.14.2.10. MeshCore map auto uploader
+A Node.js software that will upload every repeater or room server to [map.meshcore.dev](https://map.meshcore.dev/) when a connected companion hears new advert.  
+https://github.com/recrof/map.meshcore.dev-uploader
+
+#### 5.14.3. apps, graphical software
+
+##### 5.14.3.1. meshcore-open
+Open Source companion app for Android, iOS, GNU/Linux (and maybe other Unixes), Windows, macOS, chromium-based browsers.  
+https://github.com/zjs81/meshcore-open
+
+#### 5.14.4. firmwares
+
+##### 5.14.4.1. MeshCore-Cardputer-ADV
+Standalone client firmware for the "[M5Stack Cardputer ADV](https://docs.m5stack.com/en/core/Cardputer-Adv)" with the "[M5Stack Cap LoRa-1262](https://docs.m5stack.com/en/cap/Cap_LoRa-1262)" module.
+
+There are two variants:
+
+* https://github.com/Stachugit/MeshCore-Cardputer-ADV,
+* https://github.com/sosprz/meshcore-cardputer-adv.
+
+##### 5.14.4.2. LunarCore
+Multi-protocol mesh firmware for ESP32-S3 LoRa devices (MeshCore, Meshtastic, RNode/KISS (Reticulum)). Protocol is auto-detected from the first bytes over serial or BLE.  
+https://github.com/STCisGOOD/lunarcore
+
+##### 5.14.4.3. MC-Term
+(Soon to be) Open Source companion firmware for [LilyGO T-Deck (Plus)](https://lilygo.cc/en-us/products/t-deck-plus-1) and [Seeed Studio SenseCap Indicator (TFT / D1Pro)](https://www.seeedstudio.com/SenseCAP-Indicator-D1Pro-p-5644.html), that can be used both standalone and together with a companion app.  
+https://github.com/dabeani/meshcore
+
+##### 5.14.4.4. Meck
+Companion firmware for [LilyGo T-Deck Pro](https://lilygo.cc/products/t-deck-pro) that allows standalone operation and connection to a companion app via Bluetooth Low Energy (BLE).  
+https://github.com/pelgraine/Meck
+
+##### 5.14.4.5. Meshcore for Wio Tracker L1 Pro
+Companion firmware for [Seeed Studio Wio Tracker L1 Pro](https://www.seeedstudio.com/Wio-Tracker-L1-Pro-p-6454.html) with specific UI adjustments that can be used standalone.  
+https://github.com/sosprz/Meshcore-Wio-Tracker-L1-Pro
+
+#### 5.14.5. online services
+
+*(None yet listed here. See [overview ressources](#5141-overview).)*
 
 
 ### 5.15. Q: Are there client applications for Windows or Mac?
