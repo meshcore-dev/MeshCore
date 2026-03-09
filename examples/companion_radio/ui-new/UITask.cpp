@@ -1063,7 +1063,8 @@ void UITask::loop() {
     if (millis_passed(_next_refresh) && curr) {
       _display->startFrame();
       int delay_millis = curr->render(*_display);
-      if (!millis_passed(_alert_expiry)) {  // render alert popup
+      if (_alert_expiry && millis_passed(_alert_expiry)) _alert_expiry = 0;  // latch: a stale expiry reads as "not passed" again after 2^31 ms
+      if (_alert_expiry) {  // render alert popup
         _display->setTextSize(1);
         int y = _display->height() / 3;
         int p = _display->height() / 32;

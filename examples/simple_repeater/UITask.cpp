@@ -56,7 +56,7 @@ void UITask::begin(NodePrefs* node_prefs, const char* build_date, const char* fi
 
 void UITask::renderCurrScreen() {
   char tmp[80];
-  if (!millis_passed(_started_at + BOOT_SCREEN_MILLIS)) { // boot screen
+  if (millis() < _started_at + BOOT_SCREEN_MILLIS) { // boot screen
     // meshcore logo
     _display->setColor(UIColor::corp_blue);
     int logoWidth = 128;
