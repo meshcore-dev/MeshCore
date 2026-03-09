@@ -11,7 +11,7 @@
 
 
 #ifndef SEN0658_POLL_PERIOD_SECONDS
-#define SEN0658_POLL_PERIOD_SECONDS (15 * 60)
+#define SEN0658_POLL_PERIOD_SECONDS (10 * 60)
 #endif
 
 #ifndef SEN0658_CACHE_MAX_AGE_SECONDS
@@ -22,11 +22,8 @@
 #define SEN0658_WARMUP_SECONDS 30
 #endif
 
-#if defined(WITH_SEN0658_EN)
 #ifndef SEN0658_IDLE_TIMEOUT_SECONDS
 #define SEN0658_IDLE_TIMEOUT_SECONDS 30
-#endif
-
 #endif
 
 struct DFROBOT_SEN0658_Sample {
@@ -59,6 +56,7 @@ class DFROBOT_SEN0658
         uint32_t _lastPollTime = 0;
         uint32_t _powerOnTime = 0;
         uint32_t _lastActivityTime = 0;
+        uint32_t _lastWarmupLog = 0;
         void powerOn();
         static uint16_t CRC16_2(const uint8_t *buf, int len);
         void sendCommand(uint8_t function, uint16_t registerStart, uint16_t registerLengthOrValue);
@@ -72,4 +70,11 @@ class DFROBOT_SEN0658
         bool readTemperature(DFROBOT_SEN0658_Sample &sample);
         bool readAir(DFROBOT_SEN0658_Sample &sample);
         bool readLight(DFROBOT_SEN0658_Sample &sample);
+        // helpers
+        bool isPollDue() { return millis() - _lastPollTime >= (uint32_t)SEN0658_POLL_PERIOD_SECONDS * 1000; }
+        bool isPoweredOn() { return _powerOnTime != 0; }
+        bool isSensorReady() { return isPoweredOn() && millis() - _powerOnTime >= (uint32_t)SEN0658_WARMUP_SECONDS * 1000; }
+        bool hasCachedSample() { return _lastCacheTime != 0; }
+        bool isCachedSampleValid() { return hasCachedSample() && millis() - _lastCacheTime < (uint32_t)SEN0658_CACHE_MAX_AGE_SECONDS * 1000; }
+        bool isIdle() { return isPoweredOn() && millis() - _lastActivityTime >= (uint32_t)SEN0658_IDLE_TIMEOUT_SECONDS * 1000; }
 };

@@ -34,10 +34,8 @@ bool DFROBOT_SEN0658::readBytes(uint8_t *buffer, int len) {
     }
   }
   MESH_DEBUG_PRINT("SEN0658 RX [%i]:", len);
-  for (int i = 0; i < len; i++) {
-    MESH_DEBUG_PRINT(" %02X", start_buf[i]);
-  }
-  MESH_DEBUG_PRINTLN("");
+  MESH_DEBUG_PRINT_HEX(start_buf, len);
+  MESH_DEBUG_PRINT_RAW("\n");
   return true;
 }
 
@@ -58,7 +56,8 @@ bool DFROBOT_SEN0658::begin() {
         delay(100);
         flushSerial();
 
-        if (result = readTemperature(_cachedSample)) {
+        uint16_t offset;
+        if (result = readWindDirectionOffset(offset)) {
             break;
         }
         MESH_DEBUG_PRINTLN("SEN0658 not detected.");
@@ -76,7 +75,7 @@ bool DFROBOT_SEN0658::begin() {
 
 bool DFROBOT_SEN0658::hasPendingWork() {
 #if defined(WITH_SEN0658_EN)
-    // if power is on, don't go into powersaving mode.
+    // if power is on, don't go into powersaving mode until we turn it off.
     return _powerOnTime != 0;
 #else
     return false;
@@ -292,7 +291,7 @@ void DFROBOT_SEN0658::sendWriteCommand(uint16_t registerIndex, uint16_t value) {
 
 void DFROBOT_SEN0658::powerOn() {
     if (_powerOnTime == 0) {
-        MESH_DEBUG_PRINTLN("SEN0658 power on and ready to read in %i seconds.", (int)SEN0658_WARMUP_SECONDS);
+        MESH_DEBUG_PRINTLN("SEN0658 power on and ready to read sensor values in %i seconds.", (int)SEN0658_WARMUP_SECONDS);
 #if defined(WITH_SEN0658_EN)
         digitalWrite(WITH_SEN0658_EN, HIGH);
         delay(100); // wait for power rail to stabilize
@@ -305,14 +304,25 @@ void DFROBOT_SEN0658::powerOn() {
 bool DFROBOT_SEN0658::updateSample(DFROBOT_SEN0658_Sample &sample) {
     powerOn();
     // If still warming up, return cached data if available
-    if (millis() - _powerOnTime < (uint32_t)SEN0658_WARMUP_SECONDS * 1000) {
+    if (!isSensorReady()) {
+        uint32_t timeSincePowerOn = millis() - _powerOnTime;
+        uint32_t time_remaining = (uint32_t)SEN0658_WARMUP_SECONDS * 1000 - timeSincePowerOn;
+
+        // limit debug spew
+        if (_lastWarmupLog == 0 || millis() - _lastWarmupLog >= 1000) {
+            MESH_DEBUG_PRINTLN("SEN0658 is warming up. %lu ms until ready.", time_remaining);
+            _lastWarmupLog = millis();
+        }
+
         return false;
     } else if (readTemperature(sample) && readAir(sample) && readLight(sample) && readWind(sample)) {
         sample.timestamp = rtc_clock.getCurrentTime();
         _cachedSample = sample;
         _lastCacheTime = millis();
+        MESH_DEBUG_PRINTLN("SEN0658 sample updated and cached at timestamp %lu.", sample.timestamp);
         return true;
     } else {
+        MESH_DEBUG_PRINTLN("SEN0658 sample update failed.");
         return false;
     }
 }
@@ -321,9 +331,9 @@ bool DFROBOT_SEN0658::readSample(DFROBOT_SEN0658_Sample &sample) {
     bool result;
     if (result = updateSample(sample)) {
         MESH_DEBUG_PRINTLN("SEN0658 poll OK.");
-    } else if (_lastCacheTime == 0) {
+    } else if (!hasCachedSample()) {
         MESH_DEBUG_PRINTLN("SEN0658 poll failed; no cached sample available.");
-    } else if (millis() - _lastCacheTime < (uint32_t)SEN0658_CACHE_MAX_AGE_SECONDS * 1000) {
+    } else if (isCachedSampleValid()) {
         sample = _cachedSample;
         MESH_DEBUG_PRINTLN("SEN0658 poll failed; returning cached sample.");
         result = true;
@@ -338,16 +348,16 @@ void DFROBOT_SEN0658::loop() {
     DFROBOT_SEN0658_Sample sample;
     
     // Check if it is time to poll
-    if (millis() - _lastPollTime >= (uint32_t)SEN0658_POLL_PERIOD_SECONDS * 1000) {
+    if (isPollDue()) {
         if (updateSample(sample)) {
             _lastPollTime = millis();
             MESH_DEBUG_PRINTLN("SEN0658 poll successful in loop.");
         }
     }
 
-#if defined(WITH_SEN0658_EN)
     // Idle timeout: power off if no activity
-    if (_powerOnTime != 0 && millis() - _lastActivityTime >= (uint32_t)SEN0658_IDLE_TIMEOUT_SECONDS * 1000) {
+#if defined(WITH_SEN0658_EN)
+    if (isPoweredOn() && isSensorReady() && isIdle()) {
         // opportunistically read a sample before shutting down
         if(updateSample(sample)) {
             _lastPollTime = millis();
@@ -357,6 +367,7 @@ void DFROBOT_SEN0658::loop() {
         }
         digitalWrite(WITH_SEN0658_EN, LOW);
         _powerOnTime = 0;
+        _lastActivityTime = 0;
     }
 #endif
 }

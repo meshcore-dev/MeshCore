@@ -332,16 +332,12 @@ uint8_t SensorMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* 
   if (data[0] == 0) {   // blank password, just check if sender is in ACL
     client = acl.getClient(sender.pub_key, PUB_KEY_SIZE);
     if (client == NULL) {
-    #if MESH_DEBUG
       MESH_DEBUG_PRINTLN("Login, sender not in ACL");
-    #endif
       return 0;
     }
   } else {
     if (strcmp((char *) data, _prefs.password) != 0) {  // check for valid admin password
-    #if MESH_DEBUG
       MESH_DEBUG_PRINTLN("Invalid password: %s", &data[4]);
-    #endif
       return 0;
     }
 
@@ -615,10 +611,8 @@ void SensorMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender_i
 
 bool SensorMesh::handleIncomingMsg(ClientInfo& from, uint32_t timestamp, uint8_t* data, uint8_t flags, size_t len) {
   MESH_DEBUG_PRINT("handleIncomingMsg: unhandled msg from ");
-  #ifdef MESH_DEBUG
-  mesh::Utils::printHex(Serial, from.id.pub_key, PUB_KEY_SIZE);
-  Serial.printf(": %s\n", data);
-  #endif
+  MESH_DEBUG_PRINT_HEX(from.id.pub_key, PUB_KEY_SIZE);
+  MESH_DEBUG_PRINT_RAW(": %s\n", data);
   return false;
 }
 
