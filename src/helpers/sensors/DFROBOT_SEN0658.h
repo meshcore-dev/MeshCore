@@ -39,6 +39,7 @@ struct DFROBOT_SEN0658_Sample {
     float windAngle;
     float noiseDb;
     float luminosity;
+    uint32_t timestamp;
 };
 
 class DFROBOT_SEN0658

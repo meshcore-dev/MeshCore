@@ -512,6 +512,7 @@ bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, Cayen
         telemetry.addDirection(next_available_channel, sample.windAngle);
         telemetry.addLuminosity(next_available_channel, sample.luminosity);
         telemetry.addGenericSensor(next_available_channel, sample.noiseDb);
+        telemetry.addUnixTime(next_available_channel, sample.timestamp);
         next_available_channel++;
       }
     }

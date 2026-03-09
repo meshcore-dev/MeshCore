@@ -299,11 +299,16 @@ void DFROBOT_SEN0658::powerOn() {
 #endif
         _powerOnTime = millis();
     }
+    _lastActivityTime = millis();
 }
 
 bool DFROBOT_SEN0658::updateSample(DFROBOT_SEN0658_Sample &sample) {
     powerOn();
-    if (readTemperature(sample) && readAir(sample) && readLight(sample) && readWind(sample)) {
+    // If still warming up, return cached data if available
+    if (millis() - _powerOnTime < (uint32_t)SEN0658_WARMUP_SECONDS * 1000) {
+        return false;
+    } else if (readTemperature(sample) && readAir(sample) && readLight(sample) && readWind(sample)) {
+        sample.timestamp = rtc_clock.getCurrentTime();
         _cachedSample = sample;
         _lastCacheTime = millis();
         return true;
@@ -331,31 +336,25 @@ bool DFROBOT_SEN0658::readSample(DFROBOT_SEN0658_Sample &sample) {
 
 void DFROBOT_SEN0658::loop() {
     DFROBOT_SEN0658_Sample sample;
-    bool pollNeeded = millis() - _lastPollTime >= (uint32_t)SEN0658_POLL_PERIOD_SECONDS * 1000;
     
     // Check if it is time to poll
-    if (pollNeeded) {
-        // make sure we are powered up
-        powerOn();
-
-        // check if we are warmed up
-        if (millis() - _powerOnTime >= (uint32_t)SEN0658_WARMUP_SECONDS * 1000) {
-            // Read all sensors and update cache
-            if (updateSample(sample)) {
-                _lastPollTime = millis();
-                pollNeeded = false;
-                MESH_DEBUG_PRINTLN("SEN0658 poll successful in loop.");
-            }
+    if (millis() - _lastPollTime >= (uint32_t)SEN0658_POLL_PERIOD_SECONDS * 1000) {
+        if (updateSample(sample)) {
+            _lastPollTime = millis();
+            MESH_DEBUG_PRINTLN("SEN0658 poll successful in loop.");
         }
     }
 
 #if defined(WITH_SEN0658_EN)
     // Idle timeout: power off if no activity
-    if (!pollNeeded && _powerOnTime != 0 && millis() - _lastActivityTime >= (uint32_t)SEN0658_IDLE_TIMEOUT_SECONDS * 1000) {
+    if (_powerOnTime != 0 && millis() - _lastActivityTime >= (uint32_t)SEN0658_IDLE_TIMEOUT_SECONDS * 1000) {
         // opportunistically read a sample before shutting down
-        updateSample(sample);
-        _lastPollTime = millis();
-        MESH_DEBUG_PRINTLN("SEN0658 idle power off.");
+        if(updateSample(sample)) {
+            _lastPollTime = millis();
+            MESH_DEBUG_PRINTLN("SEN0658 poll successful before idle shutdown.");
+        } else {
+            MESH_DEBUG_PRINTLN("SEN0658 poll failed before idle shutdown.");
+        }
         digitalWrite(WITH_SEN0658_EN, LOW);
         _powerOnTime = 0;
     }
