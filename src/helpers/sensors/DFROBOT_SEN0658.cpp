@@ -33,11 +33,11 @@ bool DFROBOT_SEN0658::readBytes(uint8_t *buffer, int len) {
       return false;
     }
   }
-  MESH_DEBUG_PRINT("SEN0658 RX [%i]: ", len);
+  MESH_DEBUG_PRINT("SEN0658 RX [%i]:", len);
   for (int i = 0; i < len; i++) {
-    MESH_DEBUG_PRINT("%02X ", start_buf[i]);
+    Serial.printf(" %02X", start_buf[i]);
   }
-  MESH_DEBUG_PRINTLN("");
+  Serial.println();
   return true;
 }
 
@@ -48,17 +48,17 @@ bool DFROBOT_SEN0658::begin() {
 
     bool result;
     int i;
-    for(i = 0; i < 100; i++) {
+    for(i = 0; i < 15; i++) {
     
         WITH_SEN0658_SERIAL.begin(4800);
         sendWriteCommand(0x07D1, 0x0006); // set baud rate to 115200
+        WITH_SEN0658_SERIAL.end();
+
+        WITH_SEN0658_SERIAL.begin(115200);
+        delay(100);
         flushSerial();
 
-        WITH_SEN0658_SERIAL.end();
-        WITH_SEN0658_SERIAL.begin(115200);
-
-        uint16_t offset;
-        if (result = readWindDirectionOffset(offset)) {
+        if (result = readTemperature(_cachedSample)) {
             break;
         }
         MESH_DEBUG_PRINTLN("SEN0658 not detected.");
@@ -295,12 +295,14 @@ void DFROBOT_SEN0658::powerOn() {
         MESH_DEBUG_PRINTLN("SEN0658 power on and ready to read in %i seconds.", (int)SEN0658_WARMUP_SECONDS);
 #if defined(WITH_SEN0658_EN)
         digitalWrite(WITH_SEN0658_EN, HIGH);
+        delay(100); // wait for power rail to stabilize
 #endif
         _powerOnTime = millis();
     }
 }
 
 bool DFROBOT_SEN0658::updateSample(DFROBOT_SEN0658_Sample &sample) {
+    powerOn();
     if (readTemperature(sample) && readAir(sample) && readLight(sample) && readWind(sample)) {
         _cachedSample = sample;
         _lastCacheTime = millis();
