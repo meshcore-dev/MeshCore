@@ -1,18 +1,28 @@
 #include <Arduino.h>
 #include "target.h"
+#include <helpers/ArduinoHelpers.h>
 
-XiaoC3Board board;
+GAT562MeshTrackerProBoard board;
 
-#if defined(P_LORA_SCLK)
-  static SPIClass spi;
-  RADIO_CLASS radio = new Module(P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BUSY, spi);
-#else
-  RADIO_CLASS radio = new Module(P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BUSY);
+#ifndef PIN_USER_BTN
+  #define PIN_USER_BTN (-1)
 #endif
+
+
+#ifdef DISPLAY_CLASS
+  DISPLAY_CLASS display;
+  MomentaryButton user_btn(PIN_USER_BTN, 1000, true, false, false);
+  MomentaryButton joystick_left(JOYSTICK_LEFT, 1000, true, false, false);
+  MomentaryButton joystick_right(JOYSTICK_RIGHT, 1000, true, false, false);
+  MomentaryButton back_btn(PIN_BACK_BTN, 1000, true, false, true);
+#endif
+
+
+RADIO_CLASS radio = new Module(P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BUSY, SPI);
 
 WRAPPER_CLASS radio_driver(radio, board);
 
-ESP32RTCClock fallback_clock;
+VolatileRTCClock fallback_clock;
 AutoDiscoverRTCClock rtc_clock(fallback_clock);
 
 #if ENV_INCLUDE_GPS
@@ -24,15 +34,8 @@ AutoDiscoverRTCClock rtc_clock(fallback_clock);
 #endif
 
 bool radio_init() {
-  fallback_clock.begin();
   rtc_clock.begin(Wire);
-
-#if defined(P_LORA_SCLK)
-  spi.begin(P_LORA_SCLK, P_LORA_MISO, P_LORA_MOSI);
-  return radio.std_init(&spi);
-#else
-  return radio.std_init();
-#endif
+  return radio.std_init(&SPI);
 }
 
 uint32_t radio_get_rng_seed() {
