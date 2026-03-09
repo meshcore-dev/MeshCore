@@ -1,10 +1,12 @@
+#pragma once
 
 #include "helpers/BaseSerialInterface.h"
 #include <SPI.h>
 #include <RAK13800_W5100S.h>
 
-// expects ETH_ENABLED = 1
-#define TCP_PORT 5000
+#ifndef ETH_TCP_PORT
+  #define ETH_TCP_PORT 5000
+#endif
 // define ETH_RAW_LINE=1 to use raw line-based CLI instead of framed packets
 
 class SerialEthernetInterface : public BaseSerialInterface {
@@ -42,7 +44,7 @@ class SerialEthernetInterface : public BaseSerialInterface {
   protected:
 
   public:
-    SerialEthernetInterface() : server(EthernetServer(TCP_PORT)) { 
+    SerialEthernetInterface() : server(EthernetServer(ETH_TCP_PORT)) { 
         deviceConnected = false;
         _isEnabled = false;
         _last_write = 0;

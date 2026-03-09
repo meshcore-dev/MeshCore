@@ -20,7 +20,7 @@ SPIClass ETH_SPI_PORT(NRF_SPIM1, PIN_SPI1_MISO, PIN_SPI1_SCK, PIN_SPI1_MOSI);
 
 bool SerialEthernetInterface::begin() {
   
-  ETH_DEBUG_PRINTLN("Ethernet initalizing");
+  ETH_DEBUG_PRINTLN("Ethernet initializing");
 
 #ifdef PIN_ETH_POWER_EN
         ETH_DEBUG_PRINTLN("Ethernet power enable");
@@ -90,7 +90,7 @@ bool SerialEthernetInterface::begin() {
   ETH_DEBUG_PRINT_IP("Gateway", gateway);
 
   server.begin();   // start listening for clients
-  ETH_DEBUG_PRINTLN("Ethernet: listening on TCP port: %d", TCP_PORT);
+  ETH_DEBUG_PRINTLN("Ethernet: listening on TCP port: %d", ETH_TCP_PORT);
 
   return true;
 }
