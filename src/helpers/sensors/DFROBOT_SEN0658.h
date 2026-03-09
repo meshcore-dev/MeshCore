@@ -10,6 +10,28 @@
 #endif
 
 
+#ifndef SEN0658_POLL_PERIOD_SECONDS
+#define SEN0658_POLL_PERIOD_SECONDS (15 * 60)
+#endif
+
+#ifndef SEN0658_CACHE_MAX_AGE_SECONDS
+#define SEN0658_CACHE_MAX_AGE_SECONDS (SEN0658_POLL_PERIOD_SECONDS * 5 / 2)
+#endif
+
+#ifndef SEN0658_WARMUP_SECONDS
+#define SEN0658_WARMUP_SECONDS 10
+#endif
+
+#if defined(WITH_SEN0658_EN)
+#ifndef SEN0658_IDLE_TIMEOUT_SECONDS
+#define SEN0658_IDLE_TIMEOUT_SECONDS 30
+#endif
+
+#if SEN0658_IDLE_TIMEOUT_SECONDS < (SEN0658_WARMUP_SECONDS * 2)
+#error "SEN0658_IDLE_TIMEOUT_SECONDS must be at least 2x SEN0658_WARMUP_SECONDS"
+#endif
+#endif
+
 struct DFROBOT_SEN0658_Sample {
     float temperature;
     float humidity;
@@ -34,14 +56,18 @@ class DFROBOT_SEN0658
         void loop();
         bool hasPendingWork();
     private:
-        #if defined(WITH_SEN0658_EN)
-        uint32_t idleShutdownTime = 0;
-        #endif
+        DFROBOT_SEN0658_Sample _cachedSample = {0};
+        uint32_t _lastCacheTime = 0;
+        uint32_t _lastPollTime = 0;
+        uint32_t _powerOnTime = 0;
+        uint32_t _lastActivityTime = 0;
+        void powerOn();
         static uint16_t CRC16_2(const uint8_t *buf, int len);
         void sendCommand(uint8_t function, uint16_t registerStart, uint16_t registerLengthOrValue);
         void sendWriteCommand(uint16_t registerIndex, uint16_t value);
         bool readBytes(uint8_t *buffer, int len);
         void flushSerial();
+        bool updateSample(DFROBOT_SEN0658_Sample &sample);
         template<typename PacketType> bool readRegisters(uint16_t registerStart, PacketType& packet);
         bool writeRegister(uint16_t registerIndex, uint16_t value);
         bool readWind(DFROBOT_SEN0658_Sample &sample);
