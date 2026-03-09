@@ -24,8 +24,13 @@ public:
   unsigned long getMillis() override { return millis(); }
 };
 
-// Wrap-safe millis deadline check. Handles the 49-day millis() overflow
-// using signed comparison (2's complement). Use instead of millis() >= target.
+/**
+ * \brief  Wrap-safe millis deadline check, handling the 49-day millis() overflow.
+ * \param  target  The deadline timestamp obtained from millis() + delay.
+ * \returns true when the deadline has passed.
+ * \note   Use this instead of \c millis()>=target which fails near the 32-bit wrap.
+ *         Works via signed subtraction (2's complement).
+ */
 inline bool millis_passed(unsigned long target) {
   return (long)(millis() - target) > 0;
 }
