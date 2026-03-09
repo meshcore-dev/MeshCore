@@ -77,7 +77,7 @@ extern "C"
 
 #define LED_STATE_ON 1 // State when LED is litted
 
-#define P_LORA_TX_LED LED_BLUE
+#define P_LORA_TX_LED LED_GREEN
 
 
 /*
