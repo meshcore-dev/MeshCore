@@ -8,6 +8,123 @@
   static UITask ui_task(display);
 #endif
 
+#ifdef ETH_ENABLED
+  #include <SPI.h>
+  #include <RAK13800_W5100S.h>
+
+  #define PIN_SPI1_MISO (29)
+  #define PIN_SPI1_MOSI (30)
+  #define PIN_SPI1_SCK  (3)
+  SPIClass ETH_SPI_PORT(NRF_SPIM1, PIN_SPI1_MISO, PIN_SPI1_SCK, PIN_SPI1_MOSI);
+
+  #define PIN_ETH_POWER_EN  WB_IO2
+  #define PIN_ETHERNET_RESET 21
+  #define PIN_ETHERNET_SS    26
+
+  #ifndef ETH_TCP_PORT
+    #define ETH_TCP_PORT 23  // telnet port for CLI access
+  #endif
+
+  #define ETH_RETRY_INTERVAL_MS 30000
+
+  static EthernetServer eth_server(ETH_TCP_PORT);
+  static EthernetClient eth_client;
+  static volatile bool eth_running = false;
+
+  static void generateDeviceMac(uint8_t mac[6]) {
+    uint32_t device_id = NRF_FICR->DEVICEID[0];
+    mac[0] = 0x02; mac[1] = 0x92; mac[2] = 0x1F;
+    mac[3] = (device_id >> 16) & 0xFF;
+    mac[4] = (device_id >> 8) & 0xFF;
+    mac[5] = device_id & 0xFF;
+  }
+
+  // FreeRTOS task: handles hw init, DHCP, and retries in the background
+  static void eth_task(void* param) {
+    (void)param;
+
+    // Hardware init
+    Serial.println("ETH: Initializing hardware");
+    pinMode(PIN_ETH_POWER_EN, OUTPUT);
+    digitalWrite(PIN_ETH_POWER_EN, HIGH);
+    vTaskDelay(pdMS_TO_TICKS(100));
+
+    pinMode(PIN_ETHERNET_RESET, OUTPUT);
+    digitalWrite(PIN_ETHERNET_RESET, LOW);
+    vTaskDelay(pdMS_TO_TICKS(100));
+    digitalWrite(PIN_ETHERNET_RESET, HIGH);
+
+    ETH_SPI_PORT.begin();
+    Ethernet.init(ETH_SPI_PORT, PIN_ETHERNET_SS);
+
+    uint8_t mac[6];
+    generateDeviceMac(mac);
+    Serial.printf("ETH: MAC: %02X:%02X:%02X:%02X:%02X:%02X\n",
+        mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+
+    // Retry loop: keep trying until we get an IP
+    while (!eth_running) {
+      if (Ethernet.hardwareStatus() == EthernetNoHardware) {
+        Serial.println("ETH: Hardware not found, giving up");
+        vTaskDelete(NULL);
+        return;
+      }
+
+      if (Ethernet.linkStatus() == LinkOFF) {
+        vTaskDelay(pdMS_TO_TICKS(ETH_RETRY_INTERVAL_MS));
+        continue;
+      }
+
+      Serial.println("ETH: Link detected, attempting DHCP...");
+      if (Ethernet.begin(mac, 10000, 2000) == 0) {
+        Serial.println("ETH: DHCP failed, will retry");
+        vTaskDelay(pdMS_TO_TICKS(ETH_RETRY_INTERVAL_MS));
+        continue;
+      }
+
+      IPAddress ip = Ethernet.localIP();
+      Serial.printf("ETH: IP: %u.%u.%u.%u\n", ip[0], ip[1], ip[2], ip[3]);
+      Serial.printf("ETH: Listening on TCP port %d\n", ETH_TCP_PORT);
+      eth_server.begin();
+      eth_running = true;
+    }
+
+    // DHCP succeeded, task is done
+    vTaskDelete(NULL);
+  }
+
+  static void eth_start_task() {
+    xTaskCreate(eth_task, "eth_init", 1024, NULL, 1, NULL);
+  }
+
+  // Format ethernet status into reply buffer. Returns true if command was handled.
+  static bool eth_handle_command(const char* command, char* reply) {
+    if (strcmp(command, "eth") != 0) return false;
+    if (!eth_running) {
+      strcpy(reply, "ETH: not connected");
+    } else {
+      IPAddress ip = Ethernet.localIP();
+      sprintf(reply, "ETH: %u.%u.%u.%u:%d", ip[0], ip[1], ip[2], ip[3], ETH_TCP_PORT);
+    }
+    return true;
+  }
+
+  // Check for new TCP client connections
+  static void eth_check_client() {
+    if (eth_client && eth_client.connected()) return;
+
+    auto newClient = eth_server.available();
+    if (newClient) {
+      if (eth_client) eth_client.stop();
+      eth_client = newClient;
+      IPAddress ip = eth_client.remoteIP();
+      Serial.printf("ETH: Client connected from %u.%u.%u.%u\n", ip[0], ip[1], ip[2], ip[3]);
+      eth_client.println("MeshCore Repeater CLI");
+      eth_client.print("> ");
+    }
+  }
+#endif
+
 StdRNG fast_rng;
 SimpleMeshTables tables;
 
@@ -18,6 +135,9 @@ void halt() {
 }
 
 static char command[160];
+#ifdef ETH_ENABLED
+static char eth_command[160];
+#endif
 
 // For power saving
 unsigned long lastActive = 0; // mark last active time
@@ -85,6 +205,9 @@ void setup() {
   mesh::Utils::printHex(Serial, the_mesh.self_id.pub_key, PUB_KEY_SIZE); Serial.println();
 
   command[0] = 0;
+#ifdef ETH_ENABLED
+  eth_command[0] = 0;
+#endif
 
   sensors.begin();
 
@@ -94,6 +217,10 @@ void setup() {
   ui_task.begin(the_mesh.getNodePrefs(), FIRMWARE_BUILD_DATE, FIRMWARE_VERSION);
 #endif
 
+#ifdef ETH_ENABLED
+  eth_start_task();
+#endif
+
   // send out initial zero hop Advertisement to the mesh
 #if ENABLE_ADVERT_ON_BOOT == 1
   the_mesh.sendSelfAdvertisement(16000, false);
@@ -101,6 +228,7 @@ void setup() {
 }
 
 void loop() {
+  // Handle Serial CLI
   int len = strlen(command);
   while (Serial.available() && len < sizeof(command)-1) {
     char c = Serial.read();
@@ -119,6 +247,10 @@ void loop() {
     Serial.print('\n');
     command[len - 1] = 0;  // replace newline with C string null terminator
     char reply[160];
+    reply[0] = 0;
+#ifdef ETH_ENABLED
+    if (!eth_handle_command(command, reply))
+#endif
     the_mesh.handleCommand(0, command, reply);  // NOTE: there is no sender_timestamp via serial!
     if (reply[0]) {
       Serial.print("  -> "); Serial.println(reply);
@@ -126,6 +258,41 @@ void loop() {
 
     command[0] = 0;  // reset command buffer
   }
+
+#ifdef ETH_ENABLED
+  if (eth_running) {
+    eth_check_client();
+    Ethernet.maintain();
+  }
+
+  if (eth_running && eth_client && eth_client.connected()) {
+    int elen = strlen(eth_command);
+    while (eth_client.available() && elen < (int)sizeof(eth_command)-1) {
+      char c = eth_client.read();
+      if (c == '\n') continue;  // ignore LF
+      eth_command[elen++] = c;
+      eth_command[elen] = 0;
+      if (c == '\r') break;
+    }
+    if (elen == sizeof(eth_command)-1) {
+      eth_command[sizeof(eth_command)-1] = '\r';
+    }
+
+    if (elen > 0 && eth_command[elen - 1] == '\r') {
+      eth_command[elen - 1] = 0;
+      eth_client.println();
+      char reply[160];
+      reply[0] = 0;
+      if (!eth_handle_command(eth_command, reply))
+        the_mesh.handleCommand(0, eth_command, reply);
+      if (reply[0]) {
+        eth_client.print("  -> "); eth_client.println(reply);
+      }
+      eth_client.print("> ");
+      eth_command[0] = 0;
+    }
+  }
+#endif
 
   the_mesh.loop();
   sensors.loop();
