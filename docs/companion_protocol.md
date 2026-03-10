@@ -257,31 +257,60 @@ Bytes 34-65: Secret (32 bytes)
 
 ---
 
-### 5. Send Channel Message
+### 5. Send Channel Text Message
 
-**Purpose**: Send a text message to a channel.
+**Purpose**: Send a plain text message to a channel.
 
 **Command Format**:
 ```
 Byte 0: 0x03
-Byte 1: 0x00
+Byte 1: Text Type
 Byte 2: Channel Index (0-7)
 Bytes 3-6: Timestamp (32-bit little-endian Unix timestamp, seconds)
-Bytes 7+: Message Text (UTF-8, variable length)
+Bytes 7+: UTF-8 text bytes (variable length)
 ```
 
 **Timestamp**: Unix timestamp in seconds (32-bit unsigned integer, little-endian)
+
+**Text Type**:
+- Must be `0x00` (`TXT_TYPE_PLAIN`) for this command.
 
 **Example** (send "Hello" to channel 1 at timestamp 1234567890):
 ```
 03 00 01 D2 02 96 49 48 65 6C 6C 6F
 ```
 
-**Response**: `PACKET_MSG_SENT` (0x06) on success
+**Response**: `PACKET_OK` (0x00) on success
 
 ---
 
-### 6. Get Message
+### 6. Send Channel Data Datagram
+
+**Purpose**: Send binary datagram data to a channel.
+
+**Command Format**:
+```
+Byte 0: 0x3D
+Byte 1: Data Type (`data_type`)
+Byte 2: Channel Index (0-7)
+Bytes 3-6: Timestamp (32-bit little-endian Unix timestamp, seconds)
+Bytes 7+: Binary payload bytes (variable length)
+```
+
+**Data Type / Transport Mapping**:
+- `0xFF` (`DATA_TYPE_CUSTOM`) must be used for custom-protocol binary datagrams.
+- `0x00` (`TXT_TYPE_PLAIN`) is invalid for this command.
+- Values other than `0xFF` are reserved for official protocol extensions.
+
+**Limits**:
+- Maximum payload length is `163` bytes (`MAX_GROUP_DATA_LENGTH`).
+- Larger payloads are rejected with `PACKET_ERROR` / `ERR_CODE_ILLEGAL_ARG`.
+
+**Response**: `PACKET_OK` (0x00) on success
+
+---
+
+### 7. Get Message
 
 **Purpose**: Request the next queued message from the device.
 
@@ -297,6 +326,7 @@ Byte 0: 0x0A
 
 **Response**: 
 - `PACKET_CHANNEL_MSG_RECV` (0x08) or `PACKET_CHANNEL_MSG_RECV_V3` (0x11) for channel messages
+- `PACKET_CHANNEL_DATA_RECV` (0x1B) or `PACKET_CHANNEL_DATA_RECV_V3` (0x1C) for channel data
 - `PACKET_CONTACT_MSG_RECV` (0x07) or `PACKET_CONTACT_MSG_RECV_V3` (0x10) for contact messages
 - `PACKET_NO_MORE_MSGS` (0x0A) if no messages available
 
@@ -304,7 +334,7 @@ Byte 0: 0x0A
 
 ---
 
-### 7. Get Battery
+### 8. Get Battery
 
 **Purpose**: Query device battery level.
 
@@ -366,11 +396,15 @@ Messages are received via the RX characteristic (notifications). The device send
    - `PACKET_CHANNEL_MSG_RECV` (0x08) - Standard format
    - `PACKET_CHANNEL_MSG_RECV_V3` (0x11) - Version 3 with SNR
 
-2. **Contact Messages**:
+2. **Channel Data**:
+   - `PACKET_CHANNEL_DATA_RECV` (0x1B) - Standard format
+   - `PACKET_CHANNEL_DATA_RECV_V3` (0x1C) - Version 3 with SNR
+
+3. **Contact Messages**:
    - `PACKET_CONTACT_MSG_RECV` (0x07) - Standard format
    - `PACKET_CONTACT_MSG_RECV_V3` (0x10) - Version 3 with SNR
 
-3. **Notifications**:
+4. **Notifications**:
    - `PACKET_MESSAGES_WAITING` (0x83) - Indicates messages are queued
 
 ### Contact Message Format
@@ -446,7 +480,7 @@ Byte 1: Channel Index (0-7)
 Byte 2: Path Length
 Byte 3: Text Type
 Bytes 4-7: Timestamp (32-bit little-endian)
-Bytes 8+: Message Text (UTF-8)
+Bytes 8+: Payload bytes
 ```
 
 **V3 Format** (`PACKET_CHANNEL_MSG_RECV_V3`, 0x11):
@@ -458,38 +492,74 @@ Byte 4: Channel Index (0-7)
 Byte 5: Path Length
 Byte 6: Text Type
 Bytes 7-10: Timestamp (32-bit little-endian)
-Bytes 11+: Message Text (UTF-8)
+Bytes 11+: Payload bytes
+```
+
+**Payload Meaning**:
+- If `txt_type == 0x00`: payload is UTF-8 channel text.
+- If `txt_type != 0x00`: payload is binary (for example image/voice fragments) and must be treated as raw bytes.
+  For custom app datagrams sent via `CMD_SEND_CHANNEL_DATA`, `data_type` must be `0xFF`.
+
+### Channel Data Format
+
+**Standard Format** (`PACKET_CHANNEL_DATA_RECV`, 0x1B):
+```
+Byte 0: 0x1B (packet type)
+Byte 1: Channel Index (0-7)
+Byte 2: Path Length
+Byte 3: Data Type
+Bytes 4-7: Timestamp (32-bit little-endian)
+Bytes 8+: Payload bytes
+```
+
+**V3 Format** (`PACKET_CHANNEL_DATA_RECV_V3`, 0x1C):
+```
+Byte 0: 0x1C (packet type)
+Byte 1: SNR (signed byte, multiplied by 4)
+Bytes 2-3: Reserved
+Byte 4: Channel Index (0-7)
+Byte 5: Path Length
+Byte 6: Data Type
+Bytes 7-10: Timestamp (32-bit little-endian)
+Bytes 11+: Payload bytes
 ```
 
 **Parsing Pseudocode**:
 ```python
-def parse_channel_message(data):
+def parse_channel_frame(data):
     packet_type = data[0]
     offset = 1
     
     # Check for V3 format
-    if packet_type == 0x11:  # V3
+    if packet_type in (0x11, 0x1C):  # V3
         snr_byte = data[offset]
         snr = ((snr_byte if snr_byte < 128 else snr_byte - 256) / 4.0)
         offset += 3  # Skip SNR + reserved
     
     channel_idx = data[offset]
     path_len = data[offset + 1]
-    txt_type = data[offset + 2]
+    item_type = data[offset + 2]
     timestamp = int.from_bytes(data[offset+3:offset+7], 'little')
-    message = data[offset+7:].decode('utf-8')
+    payload = data[offset+7:]
+    is_text = packet_type in (0x08, 0x11)
+    if is_text and item_type == 0:
+        message = payload.decode('utf-8')
+    else:
+        message = None
     
     return {
         'channel_idx': channel_idx,
+        'item_type': item_type,
         'timestamp': timestamp,
+        'payload': payload,
         'message': message,
-        'snr': snr if packet_type == 0x11 else None
+        'snr': snr if packet_type in (0x11, 0x1C) else None
     }
 ```
 
 ### Sending Messages
 
-Use the `SEND_CHANNEL_MESSAGE` command (see [Commands](#commands)).
+Use `CMD_SEND_CHANNEL_TXT_MSG` for plain text, and `CMD_SEND_CHANNEL_DATA` for binary datagrams (see [Commands](#commands)).
 
 **Important**: 
 - Messages are limited to 133 characters per MeshCore specification
@@ -510,7 +580,7 @@ Use the `SEND_CHANNEL_MESSAGE` command (see [Commands](#commands)).
 | 0x03  | PACKET_CONTACT             | Contact information           |
 | 0x04  | PACKET_CONTACT_END         | End of contact list           |
 | 0x05  | PACKET_SELF_INFO           | Device self-information       |
-| 0x06  | PACKET_MSG_SENT            | Message sent confirmation     |
+| 0x06  | PACKET_MSG_SENT            | Direct message sent confirmation |
 | 0x07  | PACKET_CONTACT_MSG_RECV    | Contact message (standard)    |
 | 0x08  | PACKET_CHANNEL_MSG_RECV    | Channel message (standard)    |
 | 0x09  | PACKET_CURRENT_TIME        | Current time response         |
@@ -520,6 +590,8 @@ Use the `SEND_CHANNEL_MESSAGE` command (see [Commands](#commands)).
 | 0x10  | PACKET_CONTACT_MSG_RECV_V3 | Contact message (V3 with SNR) |
 | 0x11  | PACKET_CHANNEL_MSG_RECV_V3 | Channel message (V3 with SNR) |
 | 0x12  | PACKET_CHANNEL_INFO        | Channel information           |
+| 0x1B  | PACKET_CHANNEL_DATA_RECV   | Channel data (standard)       |
+| 0x1C  | PACKET_CHANNEL_DATA_RECV_V3| Channel data (V3 with SNR)    |
 | 0x80  | PACKET_ADVERTISEMENT       | Advertisement packet          |
 | 0x82  | PACKET_ACK                 | Acknowledgment                |
 | 0x83  | PACKET_MESSAGES_WAITING    | Messages waiting notification |
@@ -677,7 +749,7 @@ def parse_self_info(data):
     return info
 ```
 
-**PACKET_MSG_SENT** (0x06):
+**PACKET_MSG_SENT** (0x06, used by direct/contact send flows):
 ```
 Byte 0: 0x06
 Byte 1: Message Type
@@ -796,8 +868,9 @@ def on_notification_received(data):
      - `DEVICE_QUERY` → `PACKET_DEVICE_INFO`
      - `GET_CHANNEL` → `PACKET_CHANNEL_INFO`
      - `SET_CHANNEL` → `PACKET_OK` or `PACKET_ERROR`
-     - `SEND_CHANNEL_MESSAGE` → `PACKET_MSG_SENT`
-     - `GET_MESSAGE` → `PACKET_CHANNEL_MSG_RECV`, `PACKET_CONTACT_MSG_RECV`, or `PACKET_NO_MORE_MSGS`
+     - `CMD_SEND_CHANNEL_TXT_MSG` → `PACKET_OK` or `PACKET_ERROR`
+     - `CMD_SEND_CHANNEL_DATA` → `PACKET_OK` or `PACKET_ERROR`
+     - `GET_MESSAGE` → `PACKET_CHANNEL_MSG_RECV`, `PACKET_CHANNEL_DATA_RECV`, `PACKET_CONTACT_MSG_RECV`, or `PACKET_NO_MORE_MSGS`
      - `GET_BATTERY` → `PACKET_BATTERY`
 
 4. **Timeout Handling**:
@@ -873,7 +946,7 @@ command = build_channel_message(channel_index, message, timestamp)
 
 # 2. Send command
 send_command(tx_char, command)
-response = wait_for_response(PACKET_MSG_SENT)
+response = wait_for_response(PACKET_OK)
 ```
 
 ### Receiving Messages
@@ -882,8 +955,9 @@ response = wait_for_response(PACKET_MSG_SENT)
 def on_notification_received(data):
     packet_type = data[0]
     
-    if packet_type == PACKET_CHANNEL_MSG_RECV or packet_type == PACKET_CHANNEL_MSG_RECV_V3:
-        message = parse_channel_message(data)
+    if packet_type in (PACKET_CHANNEL_MSG_RECV, PACKET_CHANNEL_MSG_RECV_V3,
+                       PACKET_CHANNEL_DATA_RECV, PACKET_CHANNEL_DATA_RECV_V3):
+        message = parse_channel_frame(data)
         handle_channel_message(message)
     elif packet_type == PACKET_MESSAGES_WAITING:
         # Poll for messages
