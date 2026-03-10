@@ -841,6 +841,28 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#view-or-change-this-nodes-advert-path-hash-size" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change this node's advert path hash size
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-this-nodes-loop-detection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change this node's loop detection
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#view-or-change-the-retransmit-delay-factor-for-flood-traffic" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2175,6 +2197,28 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#view-or-change-this-nodes-advert-path-hash-size" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change this node's advert path hash size
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-or-change-this-nodes-loop-detection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change this node's loop detection
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#view-or-change-the-retransmit-delay-factor-for-flood-traffic" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2952,6 +2996,34 @@
 <p><strong>Parameters:</strong>
   - <code>state</code>: <code>on</code>|<code>off</code></p>
 <p><strong>Default:</strong> <code>on</code></p>
+<hr />
+<h4 id="view-or-change-this-nodes-advert-path-hash-size">View or change this node's advert path hash size</h4>
+<p><strong>Usage:</strong>
+- <code>get path.hash.mode</code>
+- <code>set path.hash.mode &lt;value&gt;</code></p>
+<p><strong>Parameters:</strong>
+- <code>value</code>: Path hash size (0-2)
+  - <code>0</code>: 1 Byte hash size (256 unique ids)[64 max flood]
+  - <code>1</code>: 2 Byte hash size (65,536 unique ids)[32 max flood]
+  - <code>2</code>: 3 Byte hash size (16,777,216 unique ids)[21 max flood]
+  - <code>3</code>: DO NOT USE (Reserved) </p>
+<p><strong>Default:</strong> <code>0</code></p>
+<p><strong>Note:</strong> the 'path.hash.mode' sets the low-level ID/hash encoding size used when the repeater adverts. This setting has no impact on what packet ID/hash size this repeater forwards, all sizes should be forwarded on firmware &gt;= 1.14. This feature was added in firmware 1.14</p>
+<p><strong>Temporary Note:</strong> adverts with ID/hash sizes of 2 or 3 bytes may have limited flood propogation in your network while this feature is new as v1.13.0 firmware and older will drop packets with multibyte path ID/hashes as only 1-byte hashes are suppored. Consider your install base of firmware &gt;=1.14 has reached a criticality for effective network flooding before implementing higher ID/hash sizes. </p>
+<hr />
+<h4 id="view-or-change-this-nodes-loop-detection">View or change this node's loop detection</h4>
+<p><strong>Usage:</strong>
+- <code>get loop.detect</code>
+- <code>set loop.detect &lt;state&gt;</code></p>
+<p><strong>Parameters:</strong>
+- <code>state</code>: 
+  - <code>off</code>: no loop detection is performed
+  - <code>minimal</code>: packets are dropped if repeater's ID/hash appears 4 or more times (1-byte), 2 or more (2-byte), 1 or more (3-byte)
+  - <code>moderate</code>: packets are dropped if repeater's ID/hash appears 2 or more times (1-byte), 1 or more (2-byte), 1 or more (3-byte)
+  - <code>strict</code>: packets are dropped if repeater's ID/hash appears 1 or more times (1-byte), 1 or more (2-byte), 1 or more (3-byte)</p>
+<p><strong>Default:</strong> <code>off</code></p>
+<p><strong>Note:</strong> When it is enabled, repeaters will now reject flood packets which look like they are in a loop. This has been happening recently in some meshes when there is just a single 'bad' repeater firmware out there (prob some forked or custom firmware). If the payload is messed with, then forwarded, the same packet ends up causing a packet storm, repeated up to the max 64 hops. This feature was added in firmware 1.14</p>
+<p><strong>Example:</strong> If preference is <code>loop.detect minimal</code>, and a 1-byte path size packet is received, the repeater will see if its own ID/hash is already in the path. If it's already encoded 4 times, it will reject the packet.  If the packet uses 2-byte path size, and repeater's own ID/hash is already encoded 2 times, it rejects. If the packet uses 3-byte path size, and the repeater's own ID/hash is already encoded 1 time, it rejects. </p>
 <hr />
 <h4 id="view-or-change-the-retransmit-delay-factor-for-flood-traffic">View or change the retransmit delay factor for flood traffic</h4>
 <p><strong>Usage:</strong>
