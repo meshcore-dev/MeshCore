@@ -885,6 +885,12 @@ char UITask::handleLongPress(char c) {
     the_mesh.enterCLIRescue();
     c = 0;   // consume event
   }
+#if UI_HAS_OTA_MENU
+  else {
+    triggerOTA();   // long press after startup -> enter BLE OTA mode
+    c = 0;
+  }
+#endif
   return c;
 }
 
@@ -940,22 +946,18 @@ void UITask::toggleGPS() {
 
 void UITask::triggerOTA() {
   notify(UIEventType::ack);
-  showAlert("Starting OTA...", 1000);
+  showAlert("Restarting for OTA...", 1500);
   _next_refresh = 0;
+
+  delay(500);  // allow screen to update before reset
 
   char reply[96] = {0};
   const char* ota_id = (_node_prefs && _node_prefs->node_name[0]) ? _node_prefs->node_name : "MESHCORE_OTA";
 
-  // BLE companion mode needs serial BLE interface off before DFU advertising starts.
-  if (isSerialEnabled()) {
-    disableSerial();
-    delay(120);
-  }
-
-  if (_board->startOTAUpdate(ota_id, reply)) {
-    showAlert("OTA ready (nRF DFU app)", 2000);
-  } else {
-    showAlert(reply[0] ? reply : "OTA start failed", 2000);
+  // startOTAUpdate writes GPREGRET=0xA8 and calls NVIC_SystemReset() — does not return.
+  // If it does return, something went wrong.
+  if (!_board->startOTAUpdate(ota_id, reply)) {
+    showAlert(reply[0] ? reply : "OTA start failed", 3000);
   }
   _next_refresh = 0;
 }

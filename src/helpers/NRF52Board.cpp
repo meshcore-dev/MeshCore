@@ -317,50 +317,18 @@ bool NRF52Board::getBootloaderVersion(char* out, size_t max_len) {
 }
 
 bool NRF52Board::startOTAUpdate(const char *id, char reply[]) {
-  // Config the peripheral connection with maximum bandwidth
-  // more SRAM required by SoftDevice
-  // Note: All config***() function must be called before begin()
-  Bluefruit.configPrphBandwidth(BANDWIDTH_MAX);
-  Bluefruit.configPrphConn(92, BLE_GAP_EVENT_LENGTH_MIN, 16, 16);
-
-  Bluefruit.begin(1, 0);
-  // Set max power. Accepted values are: -40, -30, -20, -16, -12, -8, -4, 0, 4
-  Bluefruit.setTxPower(4);
-  // Set the BLE device name
-  Bluefruit.setName(ota_name);
-
-  Bluefruit.Periph.setConnectCallback(connect_callback);
-  Bluefruit.Periph.setDisconnectCallback(disconnect_callback);
-
-  // To be consistent OTA DFU should be added first if it exists
-  bledfu.begin();
-
-  // Set up and start advertising
-  // Advertising packet
-  Bluefruit.Advertising.addFlags(BLE_GAP_ADV_FLAGS_LE_ONLY_GENERAL_DISC_MODE);
-  Bluefruit.Advertising.addTxPower();
-  Bluefruit.Advertising.addName();
-
-  /* Start Advertising
-    - Enable auto advertising if disconnected
-    - Interval:  fast mode = 20 ms, slow mode = 152.5 ms
-    - Timeout for fast mode is 30 seconds
-    - Start(timeout) with timeout = 0 will advertise forever (until connected)
-
-    For recommended advertising interval
-    https://developer.apple.com/library/content/qa/qa1931/_index.html
-  */
-  Bluefruit.Advertising.restartOnDisconnect(true);
-  Bluefruit.Advertising.setInterval(32, 244); // in unit of 0.625 ms
-  Bluefruit.Advertising.setFastTimeout(30);   // number of seconds in fast mode
-  Bluefruit.Advertising.start(0);             // 0 = Don't stop advertising after n seconds
-
-  uint8_t mac_addr[6];
-  memset(mac_addr, 0, sizeof(mac_addr));
-  Bluefruit.getAddr(mac_addr);
-  sprintf(reply, "OK - mac: %02X:%02X:%02X:%02X:%02X:%02X", mac_addr[5], mac_addr[4], mac_addr[3],
-          mac_addr[2], mac_addr[1], mac_addr[0]);
-
-  return true;
+  // Write the OTA magic value to GPREGRET then perform a system reset.
+  // The Adafruit bootloader reads GPREGRET on startup:
+  //   0xA8 = DFU_MAGIC_OTA_RESET  -> bootloader re-inits SoftDevice and enters BLE DFU mode
+  // This is more reliable than trying to re-register the BLEDfu GATT service in-application,
+  // which fails because the ATT table is locked after the companion BLE interface starts.
+  uint32_t err = sd_power_gpregret_set(0, 0xA8);
+  if (err == NRF_SUCCESS) {
+    strcpy(reply, "OK - rebooting into BLE DFU bootloader");
+    NVIC_SystemReset();
+    return true;  // unreachable, but satisfies return type
+  }
+  sprintf(reply, "GPREGRET set failed: 0x%08lX", (unsigned long)err);
+  return false;
 }
 #endif

@@ -77,11 +77,13 @@
 ////////////////////////////////////////////////////////////////////////////////
 // Builtin buttons
 
-#define PIN_BUTTON1             (42)
+#define PIN_BUTTON1             (42)    // P1.10 - page/nav button (has external pullup)
 #define BUTTON_PIN              PIN_BUTTON1
+#ifndef PIN_USER_BTN
 #define PIN_USER_BTN            BUTTON_PIN
+#endif
 
-#define PIN_BUTTON2             (11)
+#define PIN_BUTTON2             (39)    // P1.07 - function button (needs internal pullup)
 #define BUTTON_PIN2             PIN_BUTTON2
 
 #define EXTERNAL_FLASH_DEVICES MX25R1635F

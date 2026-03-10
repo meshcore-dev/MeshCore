@@ -16,7 +16,7 @@ ThinkNodeM1SensorManager sensors = ThinkNodeM1SensorManager(nmea);
 
 #ifdef DISPLAY_CLASS
   DISPLAY_CLASS display;
-  MomentaryButton user_btn(PIN_USER_BTN, 1000, true);
+  MomentaryButton user_btn(PIN_USER_BTN, 1000, true, true);  // reverse=active-low, pullup=true
 #endif
 
 bool radio_init() {

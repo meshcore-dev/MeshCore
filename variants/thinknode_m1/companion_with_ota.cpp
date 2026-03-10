@@ -96,12 +96,7 @@ MyMesh the_mesh(radio_driver, fast_rng, rtc_clock, tables, store
 
 /* END GLOBAL OBJECTS */
 
-// OTA Trigger variables
-#ifdef PIN_OTA_BTN
-unsigned long ota_button_pressed_at = 0;
-bool ota_button_was_pressed = false;
 bool ota_mode_active = false;
-#endif
 
 void halt() {
   while (1) ;
@@ -111,16 +106,12 @@ void setup() {
   Serial.begin(115200);
   while (!Serial && millis() < 3000) delay(10);
 
-  // Configure OTA trigger button if available
-  #ifdef PIN_OTA_BTN
-    pinMode(PIN_OTA_BTN, INPUT_PULLUP);
-    Serial.println("\n==========================================");
-    Serial.println("ThinkNode M1 Companion with OTA Trigger");
-    Serial.println("==========================================");
-    Serial.println("Press OTA button to enter OTA mode");
-    Serial.println("Once in OTA mode, use nRF Device Firmware Update app");
-    Serial.println("==========================================\n");
-  #endif
+  Serial.println("\n==========================================");
+  Serial.println("ThinkNode M1 Companion with OTA Trigger");
+  Serial.println("==========================================");
+  Serial.println("Long-press P1.07 button to enter BLE OTA mode");
+  Serial.println("Single press: next page  Double: prev  Triple: buzzer");
+  Serial.println("==========================================\n");
 
   board.begin();
 
@@ -227,35 +218,6 @@ void setup() {
 void loop() {
   the_mesh.loop();
   sensors.loop();
-
-#ifdef PIN_OTA_BTN
-  // Use dedicated OTA button pin and keep page navigation untouched.
-  bool is_pressed = (digitalRead(PIN_OTA_BTN) == LOW);
-  if (is_pressed && !ota_button_was_pressed) {
-    ota_button_pressed_at = millis();
-  }
-
-  // Trigger OTA on release after a valid short press.
-  if (!ota_mode_active && !is_pressed && ota_button_was_pressed) {
-    unsigned long press_duration = millis() - ota_button_pressed_at;
-    if (press_duration >= 50 && press_duration <= 2000) {
-      Serial.println("=========================================");
-      Serial.println("OTA button pressed: entering BLE OTA mode...");
-      Serial.println("Open nRF Device Firmware Update app now");
-      Serial.println("=========================================");
-
-      char reply[256];
-      if (board.startOTAUpdate("THINKNODE_M1_OTA", reply)) {
-        Serial.println(reply);
-        ota_mode_active = true;
-      } else {
-        Serial.println("Failed to enter OTA mode");
-        Serial.println(reply);
-      }
-    }
-  }
-  ota_button_was_pressed = is_pressed;
-#endif
 
 #ifdef DISPLAY_CLASS
   if (!ota_mode_active) {
