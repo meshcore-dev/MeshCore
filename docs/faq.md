@@ -97,6 +97,7 @@ A list of frequently-asked questions and answers for MeshCore
   - [7.5. Q: What is the format of a contact or channel QR code?](#75-q-what-is-the-format-of-a-contact-or-channel-qr-code)
   - [7.6. Q: How do I connect to the companion via WIFI, e.g. using a heltec v3?](#76-q-how-do-i-connect-to-the-companion-via-wifi-eg-using-a-heltec-v3)
   - [7.7. Q: I have a Station G2, or a Heltec V4, or an Ikoka Stick, or a radio with a EByte E22-900M30S or a E22-900M33S module, what should their transmit power be set to?](#77-q-i-have-a-station-g2-or-a-heltec-v4-or-an-ikoka-stick-or-a-radio-with-a-ebyte-e22-900m30s-or-a-e22-900m33s-module-what-should-their-transmit-power-be-set-to)
+  - [7.8. Q: How do I use Ethernet with a RAK4631?](#78-q-how-do-i-use-ethernet-with-a-rak4631)
 
 ## 1. Introduction
 
@@ -877,4 +878,28 @@ For companion radios, you can set these radios' transmit power in the smartphone
 | **Ikoka Stick E22-900M33S** | 2W Model | 9 dBm | 2W | **DO NOT EXCEED** (Risk of burn out) |
 | **Heltec V4** | Standard Output | 10 dBm | 22 dBm | |
 | | High Output | 22 dBm | 28 dBm | |
+---
+
+### 7.8. Q: How do I use Ethernet with a RAK4631?
+ **A:**
+MeshCore supports Ethernet on RAK4631 boards using the [RAK13800](https://docs.rakwireless.com/product-categories/wisblock/rak13800/datasheet/) WisBlock Ethernet module (based on the W5100S chip).
+
+**Hardware required:**
+- RAK4631 WisBlock Core
+- RAK19007 or RAK19018 WisBlock Base Board (with an available IO slot)
+- RAK13800 WisBlock Ethernet module
+- Ethernet cable connected to a network with a DHCP server
+
+**Firmware:**
+Flash one of the Ethernet-enabled firmware variants:
+- `RAK_4631_repeater_eth` - Repeater with Ethernet CLI access
+- `RAK_4631_room_server_eth` - Room server with Ethernet CLI access
+- `RAK_4631_companion_radio_eth` - Companion radio over Ethernet (replaces BLE)
+
+**Connecting:**
+- The device obtains an IP address via DHCP automatically on boot.
+- For repeaters and room servers, connect to the device on TCP port 5000 using any TCP client (e.g. `nc <ip> 5000` or PuTTY in raw mode). This gives you the same CLI available over serial/USB.
+- For companion radio firmware, the Ethernet interface replaces BLE as the transport to companion apps.
+- Use the `eth` CLI command to check connection status and see the assigned IP address.
+
 ---
