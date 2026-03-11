@@ -885,22 +885,22 @@ region save
 
 ### Ethernet (when Ethernet support is compiled in)
 
-Ethernet support is available on RAK4631 boards with a RAK13800 (W5100S) Ethernet module. Use the `_eth` firmware variants (e.g. `RAK_4631_repeater_eth`) to enable this feature.
+Ethernet support is available on RAK4631 boards with a RAK13800 (W5100S) Ethernet module. Use the `_ethernet` firmware variants (e.g. `RAK_4631_repeater_ethernet`) to enable this feature.
 
 ---
 
 #### View Ethernet connection status
 **Usage:**
-- `eth`
+- `eth.status`
 
 **Output:**
-- `ETH: <ip>:<port>` when connected (e.g. `ETH: 192.168.1.50:5000`)
+- `ETH: <ip>:<port>` when connected (e.g. `ETH: 192.168.1.50:23`)
 - `ETH: not connected` when Ethernet is not active
 
 **Notes:**
+- Available on repeater and room server firmware only. Companion radio ethernet firmware does not expose a CLI.
 - The Ethernet interface obtains an IP address via DHCP automatically on boot.
-- A TCP server listens on port 5000 (default) for CLI connections.
-- For repeaters and room servers, connect with any TCP client (e.g. `nc`, PuTTY) to access the same CLI available over serial.
-- For companion radio firmware, the Ethernet interface replaces BLE/USB as the transport to companion apps.
+- A TCP server listens on port 23 (default) for CLI connections.
+- Connect with any TCP client (e.g. `nc`, PuTTY) to access the same CLI available over serial.
 
 ---

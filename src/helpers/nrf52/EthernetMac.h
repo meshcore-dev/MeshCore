@@ -2,7 +2,7 @@
 
 #include <Arduino.h>
 
-static inline void generateDeviceMac(uint8_t mac[6]) {
+static inline void generateEthernetMac(uint8_t mac[6]) {
   uint32_t device_id = NRF_FICR->DEVICEID[0];
   mac[0] = 0x02;
   mac[1] = 0x92;

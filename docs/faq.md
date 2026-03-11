@@ -892,14 +892,14 @@ MeshCore supports Ethernet on RAK4631 boards using the [RAK13800](https://docs.r
 
 **Firmware:**
 Flash one of the Ethernet-enabled firmware variants:
-- `RAK_4631_repeater_eth` - Repeater with Ethernet CLI access
-- `RAK_4631_room_server_eth` - Room server with Ethernet CLI access
-- `RAK_4631_companion_radio_eth` - Companion radio over Ethernet (replaces BLE)
+- `RAK_4631_repeater_ethernet` - Repeater with Ethernet CLI access
+- `RAK_4631_room_server_ethernet` - Room server with Ethernet CLI access
+- `RAK_4631_companion_radio_ethernet` - Companion radio over Ethernet (replaces BLE)
 
 **Connecting:**
 - The device obtains an IP address via DHCP automatically on boot.
-- For repeaters and room servers, connect to the device on TCP port 5000 using any TCP client (e.g. `nc <ip> 5000` or PuTTY in raw mode). This gives you the same CLI available over serial/USB.
-- For companion radio firmware, the Ethernet interface replaces BLE as the transport to companion apps.
-- Use the `eth` CLI command to check connection status and see the assigned IP address.
+- For repeaters and room servers, connect to the device on TCP port 23 using any TCP client (e.g. `nc <ip> 23` or PuTTY in raw mode). This gives you the same CLI available over serial/USB.
+- For companion radio firmware, the Ethernet interface replaces BLE as the transport to companion apps. Connect on TCP port 5000 (same as the WiFi companion radio).
+- Use the `eth.status` CLI command to check connection status and see the assigned IP address.
 
 ---

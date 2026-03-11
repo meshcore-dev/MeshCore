@@ -13,7 +13,6 @@ class SerialEthernetInterface : public BaseSerialInterface {
   bool deviceConnected;
   bool _isEnabled;
   unsigned long _last_write;
-  unsigned long adv_restart_time;
   uint8_t _state;
   uint16_t _frame_len;
   uint16_t _rx_len;
@@ -28,13 +27,10 @@ class SerialEthernetInterface : public BaseSerialInterface {
   };
 
   #define FRAME_QUEUE_SIZE 4
-  int recv_queue_len;
-  Frame recv_queue[FRAME_QUEUE_SIZE];
   int send_queue_len;
   Frame send_queue[FRAME_QUEUE_SIZE];
 
   void clearBuffers() {
-    recv_queue_len = 0;
     send_queue_len = 0;
     _state = 0;
     _frame_len = 0;
@@ -48,7 +44,7 @@ class SerialEthernetInterface : public BaseSerialInterface {
         deviceConnected = false;
         _isEnabled = false;
         _last_write = 0;
-        send_queue_len = recv_queue_len = 0;
+        send_queue_len = 0;
         _state = 0;
         _frame_len = 0;
         _rx_len = 0;

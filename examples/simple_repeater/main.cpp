@@ -51,7 +51,7 @@
     Ethernet.init(ETHERNET_SPI_PORT, PIN_ETHERNET_SS);
 
     uint8_t mac[6];
-    generateDeviceMac(mac);
+    generateEthernetMac(mac);
     Serial.printf("ETH: MAC: %02X:%02X:%02X:%02X:%02X:%02X\n",
         mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 
@@ -92,20 +92,20 @@
 
   // Format ethernet status into reply buffer. Returns true if command was handled.
   static bool ethernet_handle_command(const char* command, char* reply) {
-    if (strcmp(command, "eth") != 0) return false;
-    if (!ethernet_running) {
-      strcpy(reply, "ETH: not connected");
-    } else {
-      IPAddress ip = Ethernet.localIP();
-      sprintf(reply, "ETH: %u.%u.%u.%u:%d", ip[0], ip[1], ip[2], ip[3], ETHERNET_TCP_PORT);
+    if (strcmp(command, "eth.status") == 0) {
+      if (!ethernet_running) {
+        strcpy(reply, "ETH: not connected");
+      } else {
+        IPAddress ip = Ethernet.localIP();
+        sprintf(reply, "ETH: %u.%u.%u.%u:%d", ip[0], ip[1], ip[2], ip[3], ETHERNET_TCP_PORT);
+      }
+      return true;
     }
-    return true;
+    return false;
   }
 
-  // Check for new TCP client connections
+  // Check for new TCP client connections, replacing any existing connection
   static void ethernet_check_client() {
-    if (ethernet_client && ethernet_client.connected()) return;
-
     auto newClient = ethernet_server.available();
     if (newClient) {
       if (ethernet_client) ethernet_client.stop();
@@ -113,7 +113,6 @@
       IPAddress ip = ethernet_client.remoteIP();
       Serial.printf("ETH: Client connected from %u.%u.%u.%u\n", ip[0], ip[1], ip[2], ip[3]);
       ethernet_client.println("MeshCore Repeater CLI");
-      ethernet_client.print("> ");
     }
   }
 #endif
@@ -285,7 +284,6 @@ void loop() {
       if (reply[0]) {
         ethernet_client.print("  -> "); ethernet_client.println(reply);
       }
-      ethernet_client.print("> ");
       ethernet_command[0] = 0;
     }
   }

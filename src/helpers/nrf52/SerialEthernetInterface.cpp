@@ -39,7 +39,7 @@ bool SerialEthernetInterface::begin() {
 #endif
 
   uint8_t mac[6];
-  generateDeviceMac(mac);
+  generateEthernetMac(mac);
   ETHERNET_DEBUG_PRINTLN(
       "Ethernet MAC: %02X:%02X:%02X:%02X:%02X:%02X",
       mac[0],
@@ -80,14 +80,9 @@ bool SerialEthernetInterface::begin() {
   }
   #endif
   ETHERNET_DEBUG_PRINTLN("Ethernet begin complete");
-  IPAddress ip = Ethernet.localIP();
-  ETHERNET_DEBUG_PRINT_IP("IP", ip);
-
-  IPAddress subnet = Ethernet.subnetMask();
-  ETHERNET_DEBUG_PRINT_IP("Subnet", subnet);
-
-  IPAddress gateway = Ethernet.gatewayIP();
-  ETHERNET_DEBUG_PRINT_IP("Gateway", gateway);
+  ETHERNET_DEBUG_PRINT_IP("IP", Ethernet.localIP());
+  ETHERNET_DEBUG_PRINT_IP("Subnet", Ethernet.subnetMask());
+  ETHERNET_DEBUG_PRINT_IP("Gateway", Ethernet.gatewayIP());
 
   server.begin();   // start listening for clients
   ETHERNET_DEBUG_PRINTLN("Ethernet: listening on TCP port: %d", ETHERNET_TCP_PORT);
@@ -132,48 +127,45 @@ bool SerialEthernetInterface::isWriteBusy() const {
 }
 
 size_t SerialEthernetInterface::checkRecvFrame(uint8_t dest[]) {
-  // check if new client connected
-  if (client && client.connected()) {
-    // Avoid polling for new clients while an active connection exists.
-  } else {
-    auto newClient = server.available();
-    if (newClient) {
-      IPAddress new_ip = newClient.remoteIP();
-      uint16_t new_port = newClient.remotePort();
+  // check if new client connected; new connections replace existing ones
+  auto newClient = server.available();
+  if (newClient) {
+    IPAddress new_ip = newClient.remoteIP();
+    uint16_t new_port = newClient.remotePort();
+    ETHERNET_DEBUG_PRINTLN(
+        "New client available %u.%u.%u.%u:%u",
+        new_ip[0],
+        new_ip[1],
+        new_ip[2],
+        new_ip[3],
+        new_port);
+    if (client && client.connected()) {
+      IPAddress cur_ip = client.remoteIP();
+      uint16_t cur_port = client.remotePort();
       ETHERNET_DEBUG_PRINTLN(
-          "New client available %u.%u.%u.%u:%u",
-          new_ip[0],
-          new_ip[1],
-          new_ip[2],
-          new_ip[3],
-          new_port);
-      if (client && client.connected()) {
-        IPAddress cur_ip = client.remoteIP();
-        uint16_t cur_port = client.remotePort();
-        ETHERNET_DEBUG_PRINTLN(
-            "Current client %u.%u.%u.%u:%u",
-            cur_ip[0],
-            cur_ip[1],
-            cur_ip[2],
-            cur_ip[3],
-            cur_port);
-        if (cur_ip == new_ip && cur_port == new_port) {
-          ETHERNET_DEBUG_PRINTLN("Ignoring duplicate client");
-          return 0;
-        }
+          "Current client %u.%u.%u.%u:%u",
+          cur_ip[0],
+          cur_ip[1],
+          cur_ip[2],
+          cur_ip[3],
+          cur_port);
+      if (cur_ip == new_ip && cur_port == new_port) {
+        ETHERNET_DEBUG_PRINTLN("Ignoring duplicate client");
+        newClient.stop();
+        return 0;
       }
-
-      deviceConnected = false;
-      if (client) {
-        ETHERNET_DEBUG_PRINTLN("Closing previous client");
-        client.stop();
-      }
-      _state = RECV_STATE_IDLE;
-      _frame_len = 0;
-      _rx_len = 0;
-      client = newClient;
-      ETHERNET_DEBUG_PRINTLN("Switched to new client");
     }
+
+    deviceConnected = false;
+    if (client) {
+      ETHERNET_DEBUG_PRINTLN("Closing previous client");
+      client.stop();
+    }
+    _state = RECV_STATE_IDLE;
+    _frame_len = 0;
+    _rx_len = 0;
+    client = newClient;
+    ETHERNET_DEBUG_PRINTLN("Switched to new client");
   }
 
   if (client.connected()) {
