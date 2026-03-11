@@ -309,12 +309,12 @@ public:
       display.print(tmp);
     } else if (_page == HomePage::BLE_TRANSPORT) {
       display.setColor(DisplayDriver::GREEN);
-      display.drawTextCentered(display.width() / 2, 20, "BLE transport");
-      display.drawXbm((display.width() - 32) / 2, 28,
+      display.drawTextCentered(display.width() / 2, 16, "BLE transport");
+      display.drawXbm((display.width() - 32) / 2, 24,
           _task->isSerialEnabled() ? bluetooth_on : bluetooth_off,
           32, 32);
       display.setTextSize(1);
-      display.drawTextCentered(display.width() / 2, 64 - 11, "Long press: WiFi");
+      display.drawTextCentered(display.width() / 2, 56, "Long press: WiFi");
     } else if (_page == HomePage::WIFI_TRANSPORT) {
       const int row1_y = 28;
       const int row2_y = 38;
@@ -375,7 +375,7 @@ public:
 
       display.setColor(DisplayDriver::YELLOW);
       // Keep labels short enough to fully fit 128px width with centered rendering.
-      const char* labels[2] = {"Hold: AP/Client", "Triple click: BLE"};
+      const char* labels[2] = {"Hold: BLE", "Triple: AP/Client"};
       const int label_turn_ms = 3500;
       int idx = (millis() / label_turn_ms) % 2;
       display.drawTextCentered(display.width() / 2, footer_y, labels[idx]);
@@ -549,6 +549,25 @@ public:
 #if defined(ESP32) && defined(COMPANION_ALL_TRANSPORTS)
       if (_task->consumeLongPress()) {
         bool success = false;
+        if (auto* transport = CompanionTransportInterface::instance()) {
+          success = transport->setWirelessMode(CompanionTransportInterface::WIRELESS_MODE_BLE);
+          if (success) _node_prefs->transport_mode = 0;
+        }
+        if (success) {
+          the_mesh.savePrefs();
+          _task->notify(UIEventType::ack);
+          _task->showAlert("BLE enabled", 1200);
+        } else {
+          _task->showAlert("Transport switch failed", 1200);
+        }
+      }
+#endif
+      return true;
+    }
+    if (c == KEY_SELECT && _page == HomePage::WIFI_TRANSPORT) {
+#if defined(ESP32) && defined(COMPANION_ALL_TRANSPORTS)
+      {
+        bool success = false;
         uint8_t next_mode = _node_prefs->wifi_mode == 0 ? 1 : 0;
         if (auto* transport = CompanionTransportInterface::instance()) {
           auto mode = next_mode == 0
@@ -563,25 +582,6 @@ public:
           _task->showAlert(next_mode == 0 ? "WiFi mode: AP" : "WiFi mode: Client", 1400);
         } else {
           _task->showAlert("WiFi mode switch failed", 1400);
-        }
-      }
-#endif
-      return true;
-    }
-    if (c == KEY_SELECT && _page == HomePage::WIFI_TRANSPORT) {
-#if defined(ESP32) && defined(COMPANION_ALL_TRANSPORTS)
-      {
-        bool success = false;
-        if (auto* transport = CompanionTransportInterface::instance()) {
-          success = transport->setWirelessMode(CompanionTransportInterface::WIRELESS_MODE_BLE);
-          if (success) _node_prefs->transport_mode = 0;
-        }
-        if (success) {
-          the_mesh.savePrefs();
-          _task->notify(UIEventType::ack);
-          _task->showAlert("BLE enabled", 1200);
-        } else {
-          _task->showAlert("Transport switch failed", 1200);
         }
       }
 #endif

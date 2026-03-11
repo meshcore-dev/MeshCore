@@ -1,6 +1,7 @@
 # Heltec V3 Button Actions
 
 This page documents current button behavior for `Heltec_v3_companion_radio_tcp_usb_ble` UI flows.
+The same mapping also applies to `Heltec_v2_companion_radio_tcp_usb_ble`, which uses the same `examples/companion_radio/ui-new` button/UI logic.
 
 ## Global Click Mapping
 
@@ -24,11 +25,11 @@ On single-button Heltec V3 builds:
 
 ### WiFi Transport Page
 
-- Long press: toggle WiFi mode (`AP <-> Client`).
-- Triple click: switch transport back to BLE.
+- Long press: switch transport back to BLE.
+- Triple click: toggle WiFi mode (`AP <-> Client`).
 - UI footer alternates/scrolls usage hints:
-  - `Long press: AP/Client`
-  - `Triple click: BLE`
+  - `Hold: BLE`
+  - `Triple: AP/Client`
 
 ### Advert Page
 
