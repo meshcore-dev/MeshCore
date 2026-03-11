@@ -257,7 +257,7 @@ public:
         display.setTextSize(1);
         display.drawTextCentered(display.width() / 2, 43, "< Connected >");
 
-      } else if (the_mesh.getBLEPin() != 0) { // BT pin
+      } else if (_node_prefs->transport_mode == 0 && the_mesh.getBLEPin() != 0) { // BT pin
         display.setColor(DisplayDriver::RED);
         display.setTextSize(2);
         sprintf(tmp, "Pin:%d", the_mesh.getBLEPin());
