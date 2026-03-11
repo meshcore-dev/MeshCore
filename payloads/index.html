@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.5">
     
     
       
@@ -909,21 +909,16 @@
 <tr>
 <td>timestamp</td>
 <td>4</td>
-<td>send time (unix timestamp)</td>
-</tr>
-<tr>
-<td>request type</td>
-<td>1</td>
-<td>see below</td>
+<td>sender time (unix timestamp)</td>
 </tr>
 <tr>
 <td>request data</td>
 <td>rest of payload</td>
-<td>depends on request type</td>
+<td>application-defined request payload body</td>
 </tr>
 </tbody>
 </table>
-<p>Request type</p>
+<p>For the common chat/server helpers in <code>BaseChatMesh</code>, the current request type values are:</p>
 <table>
 <thead>
 <tr>
@@ -941,32 +936,7 @@
 <tr>
 <td><code>0x02</code></td>
 <td>keepalive</td>
-<td>(deprecated)</td>
-</tr>
-<tr>
-<td><code>0x03</code></td>
-<td>get telemetry data</td>
-<td>TODO</td>
-</tr>
-<tr>
-<td><code>0x04</code></td>
-<td>get min,max,avg data</td>
-<td>sensor nodes - get min, max, average for given time span</td>
-</tr>
-<tr>
-<td><code>0x05</code></td>
-<td>get access list</td>
-<td>get node's approved access list</td>
-</tr>
-<tr>
-<td><code>0x06</code></td>
-<td>get neighbors</td>
-<td>get repeater node's neighbors</td>
-</tr>
-<tr>
-<td><code>0x07</code></td>
-<td>get owner info</td>
-<td>get repeater firmware-ver/name/owner info</td>
+<td>keep-alive request used for maintained connections</td>
 </tr>
 </tbody>
 </table>
@@ -993,17 +963,17 @@
 <li>Number of post pushes (?)</li>
 </ul>
 <h3 id="get-telemetry-data">Get telemetry data</h3>
-<p>Request data about sensors on the node, including battery level.</p>
+<p>Not defined in <code>BaseChatMesh</code>. Sensor- and application-specific request payloads may be implemented by higher-level firmware.</p>
 <h3 id="get-telemetry">Get Telemetry</h3>
-<p>TODO</p>
+<p>Not defined in <code>BaseChatMesh</code>.</p>
 <h3 id="get-minmaxave-sensor-nodes">Get Min/Max/Ave  (Sensor nodes)</h3>
-<p>TODO</p>
+<p>Not defined in <code>BaseChatMesh</code>.</p>
 <h3 id="get-access-list">Get Access List</h3>
-<p>TODO</p>
+<p>Not defined in <code>BaseChatMesh</code>.</p>
 <h3 id="get-neighors">Get Neighors</h3>
-<p>TODO</p>
+<p>Not defined in <code>BaseChatMesh</code>.</p>
 <h3 id="get-owner-info">Get Owner Info</h3>
-<p>TODO</p>
+<p>Not defined in <code>BaseChatMesh</code>.</p>
 <h2 id="response">Response</h2>
 <table>
 <thead>
@@ -1015,17 +985,13 @@
 </thead>
 <tbody>
 <tr>
-<td>tag</td>
-<td>4</td>
-<td>TODO</td>
-</tr>
-<tr>
 <td>content</td>
 <td>rest of payload</td>
-<td>TODO</td>
+<td>application-defined response body</td>
 </tr>
 </tbody>
 </table>
+<p>Response contents are opaque application data. There is no single generic response envelope beyond the encrypted payload wrapper shown above.</p>
 <h2 id="plain-text-message">Plain text message</h2>
 <table>
 <thead>

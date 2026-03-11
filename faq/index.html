@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.5">
     
     
       
@@ -3107,9 +3107,9 @@ Advert means to advertise yourself on the network. In Reticulum terms it would b
 <li>Zero hop means your advert is broadcasted out to anyone that can hear it, and that's it.</li>
 <li>Flooded means it's broadcasted out and then repeated by all the repeaters that hear it.</li>
 </ul>
-<p>MeshCore clients only advertise themselves when the user initiates it. A repeater sends a flood advert once every 3 hours by default. This interval can be configured using the following command:</p>
-<p><code>set advert.interval {minutes}</code></p>
-<p>As of Aug 20 2025, a pending PR on github will change the flood advert to 12 hours to minimize airtime utilization caused by repeaters' flood adverts.</p>
+<p>MeshCore clients only advertise themselves when the user initiates it. A repeater sends a flood advert once every 12 hours by default. This interval can be configured using the following command:</p>
+<p><code>set flood.advert.interval {hours}</code></p>
+<p>The separate <code>set advert.interval {minutes}</code> command controls the local zero-hop advert timer.</p>
 <h3 id="25-q-is-there-a-hop-limit">2.5. Q: Is there a hop limit?</h3>
 <p><strong>A:</strong> Internally the firmware has maximum limit of 64 hops.  In real world settings it will be difficult to get close to the limit due to the environments and timing as packets travel further and further.  We want to hear how far your MeshCore conversations go.</p>
 <hr />
@@ -3135,7 +3135,8 @@ Advert means to advertise yourself on the network. In Reticulum terms it would b
 <p><a href="https://buymeacoffee.com/ripplebiz/e/249834">https://buymeacoffee.com/ripplebiz/e/249834</a></p>
 <h3 id="32-q-do-i-need-to-set-the-location-for-a-repeater">3.2. Q: Do I need to set the location for a repeater?</h3>
 <p><strong>A:</strong> While not required, with location set for a repeater it will show up on the MeshCore map in the future. Set location with the following command:</p>
-<p><code>set lat &lt;GPS Lat&gt; set long &lt;GPS Lon&gt;</code></p>
+<p><code>set lat &lt;GPS Lat&gt;</code></p>
+<p><code>set lon &lt;GPS Lon&gt;</code></p>
 <p>You can get the latitude and longitude from Google Maps by right-clicking the location you are at on the map.</p>
 <h3 id="33-q-what-is-the-password-to-administer-a-repeater-or-a-room-server">3.3. Q: What is the password to administer a repeater or a room server?</h3>
 <p><strong>A:</strong> The default admin password to a repeater and room server is <code>password</code>. Use the following command to change the admin password:</p>

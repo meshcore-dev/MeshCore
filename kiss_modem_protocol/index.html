@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.5">
     
     
       
@@ -1875,7 +1875,7 @@
 <tr>
 <td>Ciphertext</td>
 <td>variable</td>
-<td>AES-128-CBC encrypted data</td>
+<td>AES-128 block-encrypted data with zero padding</td>
 </tr>
 </tbody>
 </table>
@@ -2049,7 +2049,7 @@
 </tr>
 <tr>
 <td>Encryption</td>
-<td>AES-128-CBC + HMAC-SHA256 (MAC truncated to 2 bytes)</td>
+<td>AES-128 block encryption with zero padding + HMAC-SHA256 (MAC truncated to 2 bytes)</td>
 </tr>
 <tr>
 <td>Hashing</td>
@@ -2065,7 +2065,7 @@
 <li>SNR values in RxMeta are multiplied by 4 for 0.25 dB precision</li>
 <li>TxDone is sent as a SetHardware event after each transmission</li>
 <li>Standard KISS clients receive only type 0x00 data frames and can safely ignore all SetHardware (0x06) frames</li>
-<li>See <a href="./packet_structure.md">packet_structure.md</a> for packet format</li>
+<li>See <a href="../packet_format/">packet_format.md</a> for packet format</li>
 </ul>
 
 
