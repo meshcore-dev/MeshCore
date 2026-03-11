@@ -313,12 +313,12 @@ int SensorMesh::calcRxDelay(float score, uint32_t air_time) const {
 }
 
 uint32_t SensorMesh::getRetransmitDelay(const mesh::Packet* packet) {
-  uint32_t t = (_radio->getEstAirtimeFor(packet->getPathByteLen() + packet->payload_len + 2) * _prefs.tx_delay_factor);
-  return getRNG()->nextInt(0, 6)*t;
+  uint32_t tx_airtime_ms = (estimateTxAirtimeFor(packet->getPathByteLen() + packet->payload_len + 2, packet->_tx_cr) * _prefs.tx_delay_factor);
+  return getRNG()->nextInt(0, 6) * tx_airtime_ms;
 }
 uint32_t SensorMesh::getDirectRetransmitDelay(const mesh::Packet* packet) {
-  uint32_t t = (_radio->getEstAirtimeFor(packet->getPathByteLen() + packet->payload_len + 2) * _prefs.direct_tx_delay_factor);
-  return getRNG()->nextInt(0, 6)*t;
+  uint32_t tx_airtime_ms = (estimateTxAirtimeFor(packet->getPathByteLen() + packet->payload_len + 2, packet->_tx_cr) * _prefs.direct_tx_delay_factor);
+  return getRNG()->nextInt(0, 6) * tx_airtime_ms;
 }
 int SensorMesh::getInterferenceThreshold() const {
   return _prefs.interference_threshold;
@@ -769,6 +769,7 @@ void SensorMesh::begin(FILESYSTEM* fs) {
   }
 
   radio_driver.setParams(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
+  setDefaultCR(_prefs.cr);
   radio_driver.setTxPower(_prefs.tx_power_dbm);
   board.setLoRaFemLnaEnabled(_prefs.radio_fem_rxgain);
 
@@ -914,12 +915,14 @@ void SensorMesh::loop() {
   if (set_radio_at && millisHasNowPassed(set_radio_at)) {   // apply pending (temporary) radio params
     set_radio_at = 0;  // clear timer
     radio_driver.setParams(pending_freq, pending_bw, pending_sf, pending_cr);
+    setDefaultCR(pending_cr);
     MESH_DEBUG_PRINTLN("Temp radio params");
   }
 
   if (revert_radio_at && millisHasNowPassed(revert_radio_at)) {   // revert radio params to orig
     revert_radio_at = 0;  // clear timer
     radio_driver.setParams(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
+    setDefaultCR(_prefs.cr);
     MESH_DEBUG_PRINTLN("Radio params restored");
   }
 

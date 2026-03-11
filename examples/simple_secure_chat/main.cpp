@@ -193,6 +193,9 @@ protected:
   float getAirtimeBudgetFactor() const override {
     return _prefs.airtime_factor;
   }
+  uint32_t estimateTxAirtimeFor(int len_bytes, uint8_t tx_cr=0) const override {
+    return estimateLoRaAirtimeFor(len_bytes, LORA_SF, LORA_BW, tx_cr != 0 ? tx_cr : LORA_CR);
+  }
 
   int calcRxDelay(float score, uint32_t air_time) const override {
     return 0;  // disable rxdelay
@@ -582,6 +585,7 @@ void setup() {
 #endif
 
   radio_driver.setParams(the_mesh.getFreqPref(), LORA_BW, LORA_SF, LORA_CR);
+  the_mesh.setDefaultCR(LORA_CR);
   radio_driver.setTxPower(the_mesh.getTxPowerPref());
 
   the_mesh.showWelcome();

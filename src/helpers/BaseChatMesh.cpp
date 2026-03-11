@@ -443,16 +443,18 @@ int  BaseChatMesh::sendMessage(const ContactInfo& recipient, uint32_t timestamp,
   mesh::Packet* pkt = composeMsgPacket(recipient, timestamp, attempt, text, expected_ack);
   if (pkt == NULL) return MSG_SEND_FAILED;
 
-  uint32_t t = _radio->getEstAirtimeFor(pkt->getRawLength());
-
   int rc;
   if (recipient.out_path_len == OUT_PATH_UNKNOWN) {
+    uint32_t tx_airtime_ms = estimateTxAirtimeFor(pkt->getRawLength(), pkt->_tx_cr);
     sendFloodScoped(recipient, pkt);
-    txt_send_timeout = futureMillis(est_timeout = calcFloodTimeoutMillisFor(t));
+    txt_send_timeout = futureMillis(est_timeout = calcFloodTimeoutMillisFor(tx_airtime_ms));
     rc = MSG_SEND_SENT_FLOOD;
   } else {
+    pkt->_tx_cr = selectCodingRateForPeer(recipient.out_path, (recipient.out_path_len >> 6) + 1);
+    // Downstream repeater CR choices are not knowable here, so only the local hop is modeled exactly.
+    uint32_t tx_airtime_ms = estimateTxAirtimeFor(pkt->getRawLength(), pkt->_tx_cr);
     sendDirect(pkt, recipient.out_path, recipient.out_path_len);
-    txt_send_timeout = futureMillis(est_timeout = calcDirectTimeoutMillisFor(t, recipient.out_path_len));
+    txt_send_timeout = futureMillis(est_timeout = calcDirectTimeoutMillisFor(tx_airtime_ms, recipient.out_path_len));
     rc = MSG_SEND_SENT_DIRECT;
   }
   return rc;
@@ -470,15 +472,18 @@ int  BaseChatMesh::sendCommandData(const ContactInfo& recipient, uint32_t timest
   auto pkt = createDatagram(PAYLOAD_TYPE_TXT_MSG, recipient.id, recipient.getSharedSecret(self_id), temp, 5 + text_len);
   if (pkt == NULL) return MSG_SEND_FAILED;
 
-  uint32_t t = _radio->getEstAirtimeFor(pkt->getRawLength());
   int rc;
   if (recipient.out_path_len == OUT_PATH_UNKNOWN) {
+    uint32_t tx_airtime_ms = estimateTxAirtimeFor(pkt->getRawLength(), pkt->_tx_cr);
     sendFloodScoped(recipient, pkt);
-    txt_send_timeout = futureMillis(est_timeout = calcFloodTimeoutMillisFor(t));
+    txt_send_timeout = futureMillis(est_timeout = calcFloodTimeoutMillisFor(tx_airtime_ms));
     rc = MSG_SEND_SENT_FLOOD;
   } else {
+    pkt->_tx_cr = selectCodingRateForPeer(recipient.out_path, (recipient.out_path_len >> 6) + 1);
+    // Downstream repeater CR choices are not knowable here, so only the local hop is modeled exactly.
+    uint32_t tx_airtime_ms = estimateTxAirtimeFor(pkt->getRawLength(), pkt->_tx_cr);
     sendDirect(pkt, recipient.out_path, recipient.out_path_len);
-    txt_send_timeout = futureMillis(est_timeout = calcDirectTimeoutMillisFor(t, recipient.out_path_len));
+    txt_send_timeout = futureMillis(est_timeout = calcDirectTimeoutMillisFor(tx_airtime_ms, recipient.out_path_len));
     rc = MSG_SEND_SENT_DIRECT;
   }
   return rc;
@@ -590,14 +595,17 @@ int BaseChatMesh::sendLogin(const ContactInfo& recipient, const char* password, 
     pkt = createAnonDatagram(PAYLOAD_TYPE_ANON_REQ, self_id, recipient.id, recipient.getSharedSecret(self_id), temp, tlen);
   }
   if (pkt) {
-    uint32_t t = _radio->getEstAirtimeFor(pkt->getRawLength());
     if (recipient.out_path_len == OUT_PATH_UNKNOWN) {
+      uint32_t tx_airtime_ms = estimateTxAirtimeFor(pkt->getRawLength(), pkt->_tx_cr);
       sendFloodScoped(recipient, pkt);
-      est_timeout = calcFloodTimeoutMillisFor(t);
+      est_timeout = calcFloodTimeoutMillisFor(tx_airtime_ms);
       return MSG_SEND_SENT_FLOOD;
     } else {
+      pkt->_tx_cr = selectCodingRateForPeer(recipient.out_path, (recipient.out_path_len >> 6) + 1);
+      // Downstream repeater CR choices are not knowable here, so only the local hop is modeled exactly.
+      uint32_t tx_airtime_ms = estimateTxAirtimeFor(pkt->getRawLength(), pkt->_tx_cr);
       sendDirect(pkt, recipient.out_path, recipient.out_path_len);
-      est_timeout = calcDirectTimeoutMillisFor(t, recipient.out_path_len);
+      est_timeout = calcDirectTimeoutMillisFor(tx_airtime_ms, recipient.out_path_len);
       return MSG_SEND_SENT_DIRECT;
     }
   }
@@ -615,14 +623,17 @@ int BaseChatMesh::sendAnonReq(const ContactInfo& recipient, const uint8_t* data,
     pkt = createAnonDatagram(PAYLOAD_TYPE_ANON_REQ, self_id, recipient.id, recipient.getSharedSecret(self_id), temp, 4 + len);
   }
   if (pkt) {
-    uint32_t t = _radio->getEstAirtimeFor(pkt->getRawLength());
     if (recipient.out_path_len == OUT_PATH_UNKNOWN) {
+      uint32_t tx_airtime_ms = estimateTxAirtimeFor(pkt->getRawLength(), pkt->_tx_cr);
       sendFloodScoped(recipient, pkt);
-      est_timeout = calcFloodTimeoutMillisFor(t);
+      est_timeout = calcFloodTimeoutMillisFor(tx_airtime_ms);
       return MSG_SEND_SENT_FLOOD;
     } else {
+      pkt->_tx_cr = selectCodingRateForPeer(recipient.out_path, (recipient.out_path_len >> 6) + 1);
+      // Downstream repeater CR choices are not knowable here, so only the local hop is modeled exactly.
+      uint32_t tx_airtime_ms = estimateTxAirtimeFor(pkt->getRawLength(), pkt->_tx_cr);
       sendDirect(pkt, recipient.out_path, recipient.out_path_len);
-      est_timeout = calcDirectTimeoutMillisFor(t, recipient.out_path_len);
+      est_timeout = calcDirectTimeoutMillisFor(tx_airtime_ms, recipient.out_path_len);
       return MSG_SEND_SENT_DIRECT;
     }
   }
@@ -642,14 +653,17 @@ int  BaseChatMesh::sendRequest(const ContactInfo& recipient, const uint8_t* req_
     pkt = createDatagram(PAYLOAD_TYPE_REQ, recipient.id, recipient.getSharedSecret(self_id), temp, 4 + data_len);
   }
   if (pkt) {
-    uint32_t t = _radio->getEstAirtimeFor(pkt->getRawLength());
     if (recipient.out_path_len == OUT_PATH_UNKNOWN) {
+      uint32_t tx_airtime_ms = estimateTxAirtimeFor(pkt->getRawLength(), pkt->_tx_cr);
       sendFloodScoped(recipient, pkt);
-      est_timeout = calcFloodTimeoutMillisFor(t);
+      est_timeout = calcFloodTimeoutMillisFor(tx_airtime_ms);
       return MSG_SEND_SENT_FLOOD;
     } else {
+      pkt->_tx_cr = selectCodingRateForPeer(recipient.out_path, (recipient.out_path_len >> 6) + 1);
+      // Downstream repeater CR choices are not knowable here, so only the local hop is modeled exactly.
+      uint32_t tx_airtime_ms = estimateTxAirtimeFor(pkt->getRawLength(), pkt->_tx_cr);
       sendDirect(pkt, recipient.out_path, recipient.out_path_len);
-      est_timeout = calcDirectTimeoutMillisFor(t, recipient.out_path_len);
+      est_timeout = calcDirectTimeoutMillisFor(tx_airtime_ms, recipient.out_path_len);
       return MSG_SEND_SENT_DIRECT;
     }
   }
@@ -669,14 +683,17 @@ int  BaseChatMesh::sendRequest(const ContactInfo& recipient, uint8_t req_type, u
     pkt = createDatagram(PAYLOAD_TYPE_REQ, recipient.id, recipient.getSharedSecret(self_id), temp, sizeof(temp));
   }
   if (pkt) {
-    uint32_t t = _radio->getEstAirtimeFor(pkt->getRawLength());
     if (recipient.out_path_len == OUT_PATH_UNKNOWN) {
+      uint32_t tx_airtime_ms = estimateTxAirtimeFor(pkt->getRawLength(), pkt->_tx_cr);
       sendFloodScoped(recipient, pkt);
-      est_timeout = calcFloodTimeoutMillisFor(t);
+      est_timeout = calcFloodTimeoutMillisFor(tx_airtime_ms);
       return MSG_SEND_SENT_FLOOD;
     } else {
+      pkt->_tx_cr = selectCodingRateForPeer(recipient.out_path, (recipient.out_path_len >> 6) + 1);
+      // Downstream repeater CR choices are not knowable here, so only the local hop is modeled exactly.
+      uint32_t tx_airtime_ms = estimateTxAirtimeFor(pkt->getRawLength(), pkt->_tx_cr);
       sendDirect(pkt, recipient.out_path, recipient.out_path_len);
-      est_timeout = calcDirectTimeoutMillisFor(t, recipient.out_path_len);
+      est_timeout = calcDirectTimeoutMillisFor(tx_airtime_ms, recipient.out_path_len);
       return MSG_SEND_SENT_DIRECT;
     }
   }

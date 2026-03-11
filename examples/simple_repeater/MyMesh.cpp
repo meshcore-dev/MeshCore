@@ -575,12 +575,12 @@ int MyMesh::calcRxDelay(float score, uint32_t air_time) const {
 }
 
 uint32_t MyMesh::getRetransmitDelay(const mesh::Packet *packet) {
-  uint32_t t = (_radio->getEstAirtimeFor(packet->getPathByteLen() + packet->payload_len + 2) * _prefs.tx_delay_factor);
-  return getRNG()->nextInt(0, 5*t + 1);
+  uint32_t tx_airtime_ms = (estimateTxAirtimeFor(packet->getPathByteLen() + packet->payload_len + 2, packet->_tx_cr) * _prefs.tx_delay_factor);
+  return getRNG()->nextInt(0, 5 * tx_airtime_ms + 1);
 }
 uint32_t MyMesh::getDirectRetransmitDelay(const mesh::Packet *packet) {
-  uint32_t t = (_radio->getEstAirtimeFor(packet->getPathByteLen() + packet->payload_len + 2) * _prefs.direct_tx_delay_factor);
-  return getRNG()->nextInt(0, 5*t + 1);
+  uint32_t tx_airtime_ms = (estimateTxAirtimeFor(packet->getPathByteLen() + packet->payload_len + 2, packet->_tx_cr) * _prefs.direct_tx_delay_factor);
+  return getRNG()->nextInt(0, 5 * tx_airtime_ms + 1);
 }
 
 mesh::DispatcherAction MyMesh::onRecvPacket(mesh::Packet* pkt) {
@@ -1325,12 +1325,14 @@ void MyMesh::loop() {
   if (set_radio_at && millisHasNowPassed(set_radio_at)) { // apply pending (temporary) radio params
     set_radio_at = 0;                                     // clear timer
     radio_driver.setParams(pending_freq, pending_bw, pending_sf, pending_cr);
+    setDefaultCR(pending_cr);
     MESH_DEBUG_PRINTLN("Temp radio params");
   }
 
   if (revert_radio_at && millisHasNowPassed(revert_radio_at)) { // revert radio params to orig
     revert_radio_at = 0;                                        // clear timer
     radio_driver.setParams(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
+    setDefaultCR(_prefs.cr);
     MESH_DEBUG_PRINTLN("Radio params restored");
   }
 

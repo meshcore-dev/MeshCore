@@ -176,6 +176,10 @@ protected:
   virtual bool getCADEnabled() const { return false; }    // hardware CAD disabled by default
   virtual int getAGCResetInterval() const { return 0; }    // disabled by default
   virtual unsigned long getDutyCycleWindowMs() const { return 3600000; }
+  // Estimates TX airtime using an explicit per-packet CR override when present.
+  virtual uint32_t estimateTxAirtimeFor(int len_bytes, uint8_t tx_cr=0) const;
+  // LoRa airtime helper for meshes that know the active SF/BW/CR settings directly.
+  uint32_t estimateLoRaAirtimeFor(int len_bytes, uint8_t sf, float bw_khz, uint8_t cr) const;
 
 public:
   void begin();
