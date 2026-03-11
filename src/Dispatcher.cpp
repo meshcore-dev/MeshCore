@@ -63,6 +63,25 @@ uint32_t Dispatcher::getCADFailMaxDuration() const {
   return 4000;   // 4 seconds
 }
 
+uint32_t Dispatcher::estimateTxAirtimeFor(int len_bytes, uint8_t tx_cr) const {
+  (void)tx_cr;
+  return _radio->getEstAirtimeFor(len_bytes);
+}
+
+// Matches the standard LoRa time-on-air equation for the configured modem settings.
+uint32_t Dispatcher::estimateLoRaAirtimeFor(int len_bytes, uint8_t sf, float bw_khz, uint8_t cr) const {
+  bool ldro_enabled = (((float)(1UL << sf)) / bw_khz) > 16.0f;
+  float low_data_rate_optimize = ldro_enabled ? 1.0f : 0.0f;
+  float implicit_header = 0.0f;
+  float crc_enabled = 1.0f;
+  float preamble_symbols = 16.0f;
+  float payload_symbols = 8.0f + fmaxf(ceilf((8.0f * (float)len_bytes - 4.0f * (float)sf + 28.0f + 16.0f * crc_enabled - 20.0f * implicit_header) /
+                                             (4.0f * (float)sf - 8.0f * low_data_rate_optimize)) * (float)cr, 0.0f);
+  float total_symbols = preamble_symbols + payload_symbols + 4.25f;
+  float symbol_length_ms = ((float)(uint32_t(1) << sf) / bw_khz);
+  return (uint32_t)ceilf(symbol_length_ms * total_symbols);
+}
+
 void Dispatcher::loop() {
   if (millisHasNowPassed(next_floor_calib_time)) {
     _radio->triggerNoiseFloorCalibrate(getInterferenceThreshold());
@@ -334,8 +353,7 @@ void Dispatcher::checkSend() {
       if (outbound->_tx_cr != 0 && outbound->_tx_cr != _default_cr) {
         _radio->setCodingRate(outbound->_tx_cr);
       }
-
-      uint32_t max_airtime = _radio->getEstAirtimeFor(len)*3/2;
+      uint32_t max_airtime = estimateTxAirtimeFor(len, outbound->_tx_cr) * 3 / 2;
       outbound_start = _ms->getMillis();
       bool success = _radio->startSendRaw(raw, len);
       if (!success) {
