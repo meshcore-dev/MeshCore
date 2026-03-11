@@ -264,6 +264,10 @@ float MyMesh::getAirtimeBudgetFactor() const {
   return _prefs.airtime_factor;
 }
 
+uint32_t MyMesh::estimateTxAirtimeFor(int len_bytes, uint8_t tx_cr) const {
+  return estimateLoRaAirtimeFor(len_bytes, _prefs.sf, _prefs.bw, tx_cr != 0 ? tx_cr : _prefs.cr);
+}
+
 int MyMesh::getInterferenceThreshold() const {
   return _prefs.interference_threshold;
 }
@@ -277,12 +281,12 @@ int MyMesh::calcRxDelay(float score, uint32_t air_time) const {
 }
 
 uint32_t MyMesh::getRetransmitDelay(const mesh::Packet *packet) {
-  uint32_t t = (_radio->getEstAirtimeFor(packet->getPathByteLen() + packet->payload_len + 2) * _prefs.tx_delay_factor);
-  return getRNG()->nextInt(0, 5*t + 1);
+  uint32_t tx_airtime_ms = (estimateTxAirtimeFor(packet->getPathByteLen() + packet->payload_len + 2, packet->_tx_cr) * _prefs.tx_delay_factor);
+  return getRNG()->nextInt(0, 5 * tx_airtime_ms + 1);
 }
 uint32_t MyMesh::getDirectRetransmitDelay(const mesh::Packet *packet) {
-  uint32_t t = (_radio->getEstAirtimeFor(packet->getPathByteLen() + packet->payload_len + 2) * _prefs.direct_tx_delay_factor);
-  return getRNG()->nextInt(0, 5*t + 1);
+  uint32_t tx_airtime_ms = (estimateTxAirtimeFor(packet->getPathByteLen() + packet->payload_len + 2, packet->_tx_cr) * _prefs.direct_tx_delay_factor);
+  return getRNG()->nextInt(0, 5 * tx_airtime_ms + 1);
 }
 
 uint8_t MyMesh::getExtraAckTransmitCount() const {
@@ -1045,6 +1049,7 @@ void MyMesh::begin(bool has_display) {
   _store->loadChannels(this);
 
   radio_driver.setParams(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
+  setDefaultCR(_prefs.cr);
   radio_driver.setTxPower(_prefs.tx_power_dbm);
   radio_driver.setRxBoostedGainMode(_prefs.rx_boosted_gain);
 
@@ -1489,6 +1494,7 @@ void MyMesh::handleCmdFrame(size_t len) {
       savePrefs();
 
       radio_driver.setParams(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
+      setDefaultCR(_prefs.cr);
       MESH_DEBUG_PRINTLN("OK: CMD_SET_RADIO_PARAMS: f=%d, bw=%d, sf=%d, cr=%d", freq, bw, (uint32_t)sf,
                          (uint32_t)cr);
 
@@ -1863,10 +1869,13 @@ void MyMesh::handleCmdFrame(size_t len) {
       memcpy(&auth, &cmd_frame[5], 4);
       auto pkt = createTrace(tag, auth, flags);
       if (pkt) {
+        if ((path_len >> path_sz) > 0) {
+          pkt->_tx_cr = selectCodingRateForPeer(&cmd_frame[10], 1 << path_sz);
+        }
         sendDirect(pkt, &cmd_frame[10], path_len);
 
-        uint32_t t = _radio->getEstAirtimeFor(pkt->payload_len + pkt->path_len + 2);
-        uint32_t est_timeout = calcDirectTimeoutMillisFor(t, path_len >> path_sz);
+        uint32_t tx_airtime_ms = estimateTxAirtimeFor(pkt->payload_len + pkt->path_len + 2, pkt->_tx_cr);
+        uint32_t est_timeout = calcDirectTimeoutMillisFor(tx_airtime_ms, path_len >> path_sz);
 
         out_frame[0] = RESP_CODE_SENT;
         out_frame[1] = 0;
