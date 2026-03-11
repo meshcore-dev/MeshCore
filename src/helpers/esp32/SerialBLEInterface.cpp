@@ -10,6 +10,60 @@
 
 #define ADVERT_RESTART_DELAY  1000   // millis
 
+void SerialBLEInterface::initStack() {
+  if (_stack_initialized || _device_name[0] == 0) return;
+
+  BLEDevice::init(_device_name);
+  BLEDevice::setSecurityCallbacks(this);
+  BLEDevice::setMTU(MAX_FRAME_SIZE);
+
+  BLESecurity sec;
+  sec.setStaticPIN(_pin_code);
+  sec.setAuthenticationMode(ESP_LE_AUTH_REQ_SC_MITM_BOND);
+
+  pServer = BLEDevice::createServer();
+  pServer->setCallbacks(this);
+
+  pService = pServer->createService(SERVICE_UUID);
+
+  pTxCharacteristic = pService->createCharacteristic(
+      CHARACTERISTIC_UUID_TX, BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY);
+  pTxCharacteristic->setAccessPermissions(ESP_GATT_PERM_READ_ENC_MITM);
+  pTxCharacteristic->addDescriptor(new BLE2902());
+
+  BLECharacteristic * pRxCharacteristic =
+      pService->createCharacteristic(CHARACTERISTIC_UUID_RX, BLECharacteristic::PROPERTY_WRITE);
+  pRxCharacteristic->setAccessPermissions(ESP_GATT_PERM_WRITE_ENC_MITM);
+  pRxCharacteristic->setCallbacks(this);
+
+  pServer->getAdvertising()->addServiceUUID(SERVICE_UUID);
+  _stack_initialized = true;
+}
+
+void SerialBLEInterface::shutdownStack() {
+  if (!_stack_initialized) return;
+
+  if (pServer != NULL && pServer->getAdvertising() != NULL) {
+    pServer->getAdvertising()->stop();
+  }
+  if (pServer != NULL && pServer->getConnectedCount() > 0) {
+    pServer->disconnect(last_conn_id);
+  }
+  if (pService != NULL) {
+    pService->stop();
+  }
+
+  BLEDevice::deinit(false);
+
+  pTxCharacteristic = NULL;
+  pService = NULL;
+  pServer = NULL;
+  oldDeviceConnected = deviceConnected = false;
+  adv_restart_time = 0;
+  last_conn_id = 0;
+  _stack_initialized = false;
+}
+
 void SerialBLEInterface::begin(const char* prefix, char* name, uint32_t pin_code) {
   _pin_code = pin_code;
 
@@ -20,37 +74,8 @@ void SerialBLEInterface::begin(const char* prefix, char* name, uint32_t pin_code
     sprintf(name, "%02X%02X%02X%02X%02X%02X",    // modify (IN-OUT param)
           addr[5], addr[4], addr[3], addr[2], addr[1], addr[0]);
   }
-  char dev_name[32+16];
-  sprintf(dev_name, "%s%s", prefix, name);
-
-  // Create the BLE Device
-  BLEDevice::init(dev_name);
-  BLEDevice::setSecurityCallbacks(this);
-  BLEDevice::setMTU(MAX_FRAME_SIZE);
-
-  BLESecurity  sec;
-  sec.setStaticPIN(pin_code);
-  sec.setAuthenticationMode(ESP_LE_AUTH_REQ_SC_MITM_BOND);
-
-  //BLEDevice::setPower(ESP_PWR_LVL_N8);
-
-  // Create the BLE Server
-  pServer = BLEDevice::createServer();
-  pServer->setCallbacks(this);
-
-  // Create the BLE Service
-  pService = pServer->createService(SERVICE_UUID);
-
-  // Create a BLE Characteristic
-  pTxCharacteristic = pService->createCharacteristic(CHARACTERISTIC_UUID_TX, BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY);
-  pTxCharacteristic->setAccessPermissions(ESP_GATT_PERM_READ_ENC_MITM);
-  pTxCharacteristic->addDescriptor(new BLE2902());
-
-  BLECharacteristic * pRxCharacteristic = pService->createCharacteristic(CHARACTERISTIC_UUID_RX, BLECharacteristic::PROPERTY_WRITE);
-  pRxCharacteristic->setAccessPermissions(ESP_GATT_PERM_WRITE_ENC_MITM);
-  pRxCharacteristic->setCallbacks(this);
-
-  pServer->getAdvertising()->addServiceUUID(SERVICE_UUID);
+  snprintf(_device_name, sizeof(_device_name), "%s%s", prefix, name);
+  initStack();
 }
 
 // -------- BLESecurityCallbacks methods
@@ -132,6 +157,9 @@ void SerialBLEInterface::onWrite(BLECharacteristic* pCharacteristic, esp_ble_gat
 void SerialBLEInterface::enable() { 
   if (_isEnabled) return;
 
+  initStack();
+  if (!_stack_initialized || pService == NULL || pServer == NULL) return;
+
   _isEnabled = true;
   clearBuffers();
 
@@ -151,12 +179,8 @@ void SerialBLEInterface::disable() {
   _isEnabled = false;
 
   BLE_DEBUG_PRINTLN("SerialBLEInterface::disable");
-
-  pServer->getAdvertising()->stop();
-  pServer->disconnect(last_conn_id);
-  pService->stop();
-  oldDeviceConnected = deviceConnected = false;
-  adv_restart_time = 0;
+  clearBuffers();
+  shutdownStack();
 }
 
 size_t SerialBLEInterface::writeFrame(const uint8_t src[], size_t len) {

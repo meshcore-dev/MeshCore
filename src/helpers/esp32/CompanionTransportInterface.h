@@ -21,6 +21,7 @@ public:
 
 private:
   static CompanionTransportInterface* _instance;
+  static constexpr unsigned long USB_ACTIVITY_TIMEOUT_MS = 15000;
 
   ArduinoSerialInterface _usb;
   SerialBLEInterface _ble;
@@ -31,6 +32,10 @@ private:
   uint8_t _last_source;  // 0=usb,1=ble,2=wifi
   WirelessMode _mode;
   bool _wifi_started;
+  unsigned long _last_usb_activity_at;
+  uint8_t _wifi_retry_count;
+  bool _wifi_retry_suspended;
+  unsigned long _next_wifi_retry_at;
 
   char _node_name[33];
   char _wifi_ssid[33];
@@ -71,6 +76,8 @@ public:
   size_t checkRecvFrame(uint8_t dest[]) override;
 
 private:
+  bool usbSessionActive() const;
+  void resetWifiRetryState();
   void startWireless();
   void stopWireless();
   void startWifi();
