@@ -75,7 +75,7 @@ static uint32_t _atoi(const char* sp) {
   #ifdef BLE_PIN_CODE
     #include <helpers/nrf52/SerialBLEInterface.h>
     SerialBLEInterface serial_interface;
-  #elif defined(ETH_ENABLED)
+  #elif defined(ETHERNET_ENABLED)
     #include <helpers/nrf52/SerialEthernetInterface.h>
     SerialEthernetInterface serial_interface;
   #else
@@ -83,7 +83,7 @@ static uint32_t _atoi(const char* sp) {
     ArduinoSerialInterface serial_interface;
   #endif
 #elif defined(STM32_PLATFORM)
-  #ifdef ETH_ENABLED
+  #ifdef ETHERNET_ENABLED
     #include <helpers/nrf52/SerialEthernetInterface.h>
     SerialEthernetInterface serial_interface;
   #else
@@ -160,18 +160,14 @@ void setup() {
 
 #ifdef BLE_PIN_CODE
   serial_interface.begin(BLE_NAME_PREFIX, the_mesh.getNodePrefs()->node_name, the_mesh.getBLEPin());
-#elif defined(ETH_ENABLED)
-
+#elif defined(ETHERNET_ENABLED)
   Serial.print("Waiting for serial to connect...\n");
   time_t timeout = millis();
-  // Initialize Serial for debug output.
-  while (!Serial)
-  {
+  while (!Serial) {
     if ((millis() - timeout) < 5000) { delay(100); } else { break; }
   }
-  Serial.print("Initializing ethernet adapter....\n");
-  bool result = serial_interface.begin();
-  if (!result) {
+  Serial.println("Initializing Ethernet adapter...");
+  if (!serial_interface.begin()) {
     Serial.println("ETH: Init failed, halting");
     halt();
   }
@@ -249,7 +245,7 @@ void loop() {
 #endif
   rtc_clock.tick();
 
-#ifdef ETH_ENABLED
-  serial_interface.maintain();
+#ifdef ETHERNET_ENABLED
+  serial_interface.loop();
 #endif
 }

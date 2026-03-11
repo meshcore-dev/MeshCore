@@ -4,10 +4,10 @@
 #include <SPI.h>
 #include <RAK13800_W5100S.h>
 
-#ifndef ETH_TCP_PORT
-  #define ETH_TCP_PORT 5000
+#ifndef ETHERNET_TCP_PORT
+  #define ETHERNET_TCP_PORT 5000
 #endif
-// define ETH_RAW_LINE=1 to use raw line-based CLI instead of framed packets
+// define ETHERNET_RAW_LINE=1 to use raw line-based CLI instead of framed packets
 
 class SerialEthernetInterface : public BaseSerialInterface {
   bool deviceConnected;
@@ -44,7 +44,7 @@ class SerialEthernetInterface : public BaseSerialInterface {
   protected:
 
   public:
-    SerialEthernetInterface() : server(EthernetServer(ETH_TCP_PORT)) { 
+    SerialEthernetInterface() : server(EthernetServer(ETHERNET_TCP_PORT)) {
         deviceConnected = false;
         _isEnabled = false;
         _last_write = 0;
@@ -66,20 +66,17 @@ class SerialEthernetInterface : public BaseSerialInterface {
     size_t writeFrame(const uint8_t src[], size_t len) override;
     size_t checkRecvFrame(uint8_t dest[]) override;
 
-    void maintain();
-
-private:
-  void generateDeviceMac(uint8_t mac[6]);
+    void loop();
 };
 
 
-#if ETH_DEBUG_LOGGING && ARDUINO
+#if ETHERNET_DEBUG_LOGGING && ARDUINO
   #include <Arduino.h>
-  #define ETH_DEBUG_PRINT(F, ...) Serial.printf("ETH: " F, ##__VA_ARGS__)
-  #define ETH_DEBUG_PRINTLN(F, ...) Serial.printf("ETH: " F "\n", ##__VA_ARGS__)
-  #define ETH_DEBUG_PRINT_IP(name, ip) Serial.printf(name ": %u.%u.%u.%u" "\n", ip[0], ip[1], ip[2], ip[3])
+  #define ETHERNET_DEBUG_PRINT(F, ...) Serial.printf("ETH: " F, ##__VA_ARGS__)
+  #define ETHERNET_DEBUG_PRINTLN(F, ...) Serial.printf("ETH: " F "\n", ##__VA_ARGS__)
+  #define ETHERNET_DEBUG_PRINT_IP(name, ip) Serial.printf(name ": %u.%u.%u.%u" "\n", ip[0], ip[1], ip[2], ip[3])
 #else
-  #define ETH_DEBUG_PRINT(...) {}
-  #define ETH_DEBUG_PRINTLN(...) {}
-  #define ETH_DEBUG_PRINT_IP(...) {}
+  #define ETHERNET_DEBUG_PRINT(...) {}
+  #define ETHERNET_DEBUG_PRINTLN(...) {}
+  #define ETHERNET_DEBUG_PRINT_IP(...) {}
 #endif

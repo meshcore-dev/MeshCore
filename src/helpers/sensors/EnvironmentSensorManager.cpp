@@ -628,7 +628,7 @@ void EnvironmentSensorManager::rakGPSInit(){
 
 bool EnvironmentSensorManager::gpsIsAwake(uint8_t ioPin){
 
-  #if defined(ETH_ENABLED) && defined(RAK_BOARD)
+  #if defined(ETHERNET_ENABLED) && defined(RAK_BOARD)
     if (ioPin == WB_IO2) {
       // WB_IO2 powers the Ethernet module on RAK baseboards.
       return false;
