@@ -106,6 +106,8 @@ void setup() {
 }
 
 void loop() {
+  board.loop();
+
   int len = strlen(command);
   while (Serial.available() && len < sizeof(command)-1) {
     char c = Serial.read();

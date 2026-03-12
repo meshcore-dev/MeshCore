@@ -112,15 +112,29 @@ const char* NRF52Board::getShutdownReasonString(uint8_t reason) {
 bool NRF52Board::checkBootVoltage(const PowerMgtConfig* config) {
   initPowerMgr();
 
+  // Store config for runtime use (voltage monitoring, WDT)
+  _power_config = config;
+  _last_voltage_check_ms = 0;
+  _low_voltage_count = 0;
+
   // Read boot voltage
   boot_voltage_mv = getBattMilliVolts();
-  
-  if (config->voltage_bootlock == 0) return true;  // Protection disabled
+
+  if (config->voltage_bootlock == 0) {
+    // Boot protection disabled, but still init WDT if configured
+    if (config->wdt_timeout_ms > 0) {
+      initWatchdog(config->wdt_timeout_ms);
+    }
+    return true;
+  }
 
   // Skip check if externally powered
   if (isExternalPowered()) {
     MESH_DEBUG_PRINTLN("PWRMGT: Boot check skipped (external power)");
     boot_voltage_mv = getBattMilliVolts();
+    if (config->wdt_timeout_ms > 0) {
+      initWatchdog(config->wdt_timeout_ms);
+    }
     return true;
   }
 
@@ -134,6 +148,11 @@ bool NRF52Board::checkBootVoltage(const PowerMgtConfig* config) {
 
     initiateShutdown(SHUTDOWN_REASON_BOOT_PROTECT);
     return false;  // Should never reach this
+  }
+
+  // Boot voltage OK — start WDT if configured
+  if (config->wdt_timeout_ms > 0) {
+    initWatchdog(config->wdt_timeout_ms);
   }
 
   return true;
@@ -236,7 +255,66 @@ void NRF52Board::configureVoltageWake(uint8_t ain_channel, uint8_t refsel) {
 
   MESH_DEBUG_PRINTLN("PWRMGT: VBUS wake configured");
 }
+
+#define VOLTAGE_CHECK_INTERVAL_MS  30000
+#define LOW_VOLTAGE_COUNT_THRESHOLD  3
+
+void NRF52Board::initWatchdog(uint32_t timeout_ms) {
+  // Configure WDT via direct register access (same pattern as LPCOMP/POWER registers)
+  NRF_WDT->CONFIG = WDT_CONFIG_SLEEP_Run << WDT_CONFIG_SLEEP_Pos;  // Keep running during WFE sleep
+  NRF_WDT->CRV = (uint32_t)((uint64_t)timeout_ms * 32768 / 1000);  // Timeout in 32.768kHz ticks
+  NRF_WDT->RREN = WDT_RREN_RR0_Enabled << WDT_RREN_RR0_Pos;  // Enable reload register 0
+  NRF_WDT->TASKS_START = 1;  // Start — cannot be stopped once started
+
+  // Initial feed
+  NRF_WDT->RR[0] = WDT_RR_RR_Reload;
+
+  MESH_DEBUG_PRINTLN("PWRMGT: WDT started (%lu ms)", (unsigned long)timeout_ms);
+}
+
+void NRF52Board::feedWatchdog() {
+  if (NRF_WDT->RUNSTATUS) {
+    NRF_WDT->RR[0] = WDT_RR_RR_Reload;
+  }
+}
+
+void NRF52Board::checkRuntimeVoltage() {
+  if (_power_config == nullptr || _power_config->voltage_runtime == 0) return;
+
+  uint32_t now = millis();
+  if (now - _last_voltage_check_ms < VOLTAGE_CHECK_INTERVAL_MS) return;
+  _last_voltage_check_ms = now;
+
+  if (isExternalPowered()) {
+    _low_voltage_count = 0;
+    return;
+  }
+
+  uint16_t mv = getBattMilliVolts();
+
+  // Ignore ADC glitch readings
+  if (mv < 1000) return;
+
+  if (mv < _power_config->voltage_runtime) {
+    _low_voltage_count++;
+    MESH_DEBUG_PRINTLN("PWRMGT: Low voltage %u mV (%u/%u)",
+        mv, _low_voltage_count, LOW_VOLTAGE_COUNT_THRESHOLD);
+    if (_low_voltage_count >= LOW_VOLTAGE_COUNT_THRESHOLD) {
+      MESH_DEBUG_PRINTLN("PWRMGT: Runtime voltage too low - shutting down");
+      initiateShutdown(SHUTDOWN_REASON_LOW_VOLTAGE);
+    }
+  } else {
+    _low_voltage_count = 0;
+  }
+}
 #endif
+
+void NRF52Board::loop() {
+#ifdef NRF52_POWER_MANAGEMENT
+  feedWatchdog();
+  checkRuntimeVoltage();
+#endif
+}
 
 void NRF52BoardDCDC::begin() {
   NRF52Board::begin();
@@ -252,10 +330,14 @@ void NRF52BoardDCDC::begin() {
 }
 
 void NRF52Board::sleep(uint32_t secs) {
+#ifdef NRF52_POWER_MANAGEMENT
+  feedWatchdog();
+#endif
+
   // Clear FPU interrupt flags to avoid insomnia
   // see errata 87 for details https://docs.nordicsemi.com/bundle/errata_nRF52840_Rev3/page/ERR/nRF52840/Rev3/latest/anomaly_840_87.html
   #if (__FPU_USED == 1)
-  __set_FPSCR(__get_FPSCR() & ~(0x0000009F)); 
+  __set_FPSCR(__get_FPSCR() & ~(0x0000009F));
   (void) __get_FPSCR();
   NVIC_ClearPendingIRQ(FPU_IRQn);
   #endif
