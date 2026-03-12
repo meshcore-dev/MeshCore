@@ -397,7 +397,7 @@ int  BaseChatMesh::sendMessage(const ContactInfo& recipient, uint32_t timestamp,
   int rc;
   if (recipient.out_path_len == OUT_PATH_UNKNOWN) {
     sendFloodScoped(recipient, pkt);
-    txt_send_timeout = futureMillis(est_timeout = calcFloodTimeoutMillisFor(t));
+    txt_send_timeout = futureMillis(est_timeout = calcFloodTimeoutMillisFor(t, attempt));
     rc = MSG_SEND_SENT_FLOOD;
   } else {
     sendDirect(pkt, recipient.out_path, recipient.out_path_len);
@@ -423,7 +423,7 @@ int  BaseChatMesh::sendCommandData(const ContactInfo& recipient, uint32_t timest
   int rc;
   if (recipient.out_path_len == OUT_PATH_UNKNOWN) {
     sendFloodScoped(recipient, pkt);
-    txt_send_timeout = futureMillis(est_timeout = calcFloodTimeoutMillisFor(t));
+    txt_send_timeout = futureMillis(est_timeout = calcFloodTimeoutMillisFor(t, attempt));
     rc = MSG_SEND_SENT_FLOOD;
   } else {
     sendDirect(pkt, recipient.out_path, recipient.out_path_len);
