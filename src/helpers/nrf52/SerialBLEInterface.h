@@ -14,6 +14,7 @@ class SerialBLEInterface : public BaseSerialInterface {
   uint16_t _conn_handle;
   unsigned long _last_health_check;
   unsigned long _last_retry_attempt;
+  uint8_t _led_ble_mode;
 
   struct Frame {
     uint8_t len;
@@ -48,6 +49,7 @@ public:
     _conn_handle = BLE_CONN_HANDLE_INVALID;
     _last_health_check = 0;
     _last_retry_attempt = 0;
+    _led_ble_mode = 0;
     send_queue_len = 0;
     recv_queue_len = 0;
   }
@@ -58,7 +60,7 @@ public:
    * @param name  IN/OUT - a name for the device (combined with prefix). If "@@MAC", is modified and returned
    * @param pin_code   the BLE security pin
    */
-  void begin(const char* prefix, char* name, uint32_t pin_code);
+  void begin(const char* prefix, char* name, uint32_t pin_code, uint8_t led_ble_mode = 0);
 
   void disconnect();
   void enable() override;
@@ -68,6 +70,7 @@ public:
   bool isWriteBusy() const override;
   size_t writeFrame(const uint8_t src[], size_t len) override;
   size_t checkRecvFrame(uint8_t dest[]) override;
+  void setLedBleMode(uint8_t mode) override;
 };
 
 #if BLE_DEBUG_LOGGING && ARDUINO

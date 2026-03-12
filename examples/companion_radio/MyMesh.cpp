@@ -859,6 +859,12 @@ void MyMesh::begin(bool has_display) {
   _prefs.tx_power_dbm = constrain(_prefs.tx_power_dbm, -9, MAX_LORA_TX_POWER);
   _prefs.gps_enabled = constrain(_prefs.gps_enabled, 0, 1);  // Ensure boolean 0 or 1
   _prefs.gps_interval = constrain(_prefs.gps_interval, 0, 86400);  // Max 24 hours
+  _prefs.led_ble_mode = constrain(_prefs.led_ble_mode, 0, 3);
+  _prefs.led_status_mode = constrain(_prefs.led_status_mode, 0, 1);
+
+  // Sync LED prefs to sensor manager (exposed as custom vars)
+  sensors.led_ble_mode = _prefs.led_ble_mode;
+  sensors.led_status_mode = _prefs.led_status_mode;
 
 #ifdef BLE_PIN_CODE // 123456 by default
   if (_prefs.ble_pin == 0) {
@@ -1680,6 +1686,15 @@ void MyMesh::handleCmdFrame(size_t len) {
           savePrefs();
         }
         #endif
+        // Update node preferences for LED settings
+        if (strcmp(sp, "led.ble") == 0) {
+          _prefs.led_ble_mode = sensors.led_ble_mode;
+          _serial->setLedBleMode(_prefs.led_ble_mode);
+          savePrefs();
+        } else if (strcmp(sp, "led.status") == 0) {
+          _prefs.led_status_mode = sensors.led_status_mode;
+          savePrefs();
+        }
         writeOKFrame();
       } else {
         writeErrFrame(ERR_CODE_ILLEGAL_ARG);
@@ -1844,6 +1859,23 @@ void MyMesh::checkCLIRescueCmd() {
         _prefs.ble_pin = atoi(&config[4]);
         savePrefs();
         Serial.printf("  > pin is now %06d\n", _prefs.ble_pin);
+      } else if (memcmp(config, "led.ble ", 8) == 0) {
+        if (sensors.setSettingValue("led.ble", &config[8])) {
+          _prefs.led_ble_mode = sensors.led_ble_mode;
+          _serial->setLedBleMode(_prefs.led_ble_mode);
+          savePrefs();
+          Serial.printf("  > led.ble is now %d\n", _prefs.led_ble_mode);
+        } else {
+          Serial.println("  Error: must be 0-3 (0=enabled, 1=disconn_only, 2=conn_only, 3=disabled)");
+        }
+      } else if (memcmp(config, "led.status ", 11) == 0) {
+        if (sensors.setSettingValue("led.status", &config[11])) {
+          _prefs.led_status_mode = sensors.led_status_mode;
+          savePrefs();
+          Serial.printf("  > led.status is now %d\n", _prefs.led_status_mode);
+        } else {
+          Serial.println("  Error: must be 0-1 (0=enabled, 1=disabled)");
+        }
       } else {
         Serial.printf("  Error: unknown config: %s\n", config);
       }

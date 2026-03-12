@@ -655,6 +655,13 @@ void UITask::newMsg(uint8_t path_len, const char* from_name, const char* text, i
 
 void UITask::userLedHandler() {
 #ifdef PIN_STATUS_LED
+  if (_node_prefs->led_status_mode == LED_STATUS_DISABLED) {
+    if (led_state != 0) {
+      led_state = 0;
+      digitalWrite(PIN_STATUS_LED, !LED_STATE_ON);
+    }
+    return;
+  }
   int cur_time = millis();
   if (cur_time > next_led_change) {
     if (led_state == 0) {
@@ -670,6 +677,22 @@ void UITask::userLedHandler() {
       next_led_change = cur_time + LED_CYCLE_MILLIS - last_led_increment;
     }
     digitalWrite(PIN_STATUS_LED, led_state == LED_STATE_ON);
+  }
+#endif
+}
+
+void UITask::bleLedHandler() {
+#ifdef BLE_LED_PIN
+  if (_node_prefs->led_ble_mode != LED_BLE_DISCONN_ONLY) return;
+
+  // Disconnected-only mode: blink when not connected
+  if (hasConnection()) return;
+
+  unsigned long now = millis();
+  if (now >= next_ble_led_change) {
+    ble_led_state = !ble_led_state;
+    digitalWrite(BLE_LED_PIN, ble_led_state ? LED_STATE_ON : !LED_STATE_ON);
+    next_ble_led_change = now + 250;
   }
 #endif
 }
@@ -785,6 +808,7 @@ void UITask::loop() {
   }
 
   userLedHandler();
+  bleLedHandler();
 
 #ifdef PIN_BUZZER
   if (buzzer.isPlaying())  buzzer.loop();

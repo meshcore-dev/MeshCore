@@ -4,6 +4,23 @@
 #include "ble_gap.h"
 #include "ble_hci.h"
 
+#ifndef LED_STATE_ON
+  #define LED_STATE_ON 1
+#endif
+
+// Resolve the BLE LED pin: prefer LED_CONN, fall back to LED_BLUE
+#ifdef LED_CONN
+  #define BLE_LED_PIN LED_CONN
+#elif defined(LED_BLUE)
+  #define BLE_LED_PIN LED_BLUE
+#endif
+
+// BLE LED mode constants (must match NodePrefs.h)
+#define LED_BLE_ENABLED        0
+#define LED_BLE_DISCONN_ONLY   1
+#define LED_BLE_CONN_ONLY      2
+#define LED_BLE_DISABLED       3
+
 // Magic numbers came from actual testing
 #define BLE_HEALTH_CHECK_INTERVAL  10000  // Advertising watchdog check every 10 seconds
 #define BLE_RETRY_THROTTLE_MS      250    // Throttle retries to 250ms when queue buildup detected
@@ -40,6 +57,11 @@ void SerialBLEInterface::onDisconnect(uint16_t connection_handle, uint8_t reason
       instance->_conn_handle = BLE_CONN_HANDLE_INVALID;
       instance->_isDeviceConnected = false;
       instance->clearBuffers();
+#ifdef BLE_LED_PIN
+      if (instance->_led_ble_mode == LED_BLE_CONN_ONLY || instance->_led_ble_mode == LED_BLE_DISABLED) {
+        digitalWrite(BLE_LED_PIN, !LED_STATE_ON);
+      }
+#endif
     }
   }
 }
@@ -49,6 +71,13 @@ void SerialBLEInterface::onSecured(uint16_t connection_handle) {
   if (instance) {
     if (instance->isValidConnection(connection_handle, true)) {
       instance->_isDeviceConnected = true;
+#ifdef BLE_LED_PIN
+      if (instance->_led_ble_mode == LED_BLE_CONN_ONLY) {
+        digitalWrite(BLE_LED_PIN, LED_STATE_ON);
+      } else if (instance->_led_ble_mode == LED_BLE_DISCONN_ONLY) {
+        digitalWrite(BLE_LED_PIN, !LED_STATE_ON);
+      }
+#endif
       
       // Connection interval units: 1.25ms, supervision timeout units: 10ms
       // Apple: "The product will not read or use the parameters in the Peripheral Preferred Connection Parameters characteristic."
@@ -123,16 +152,27 @@ void SerialBLEInterface::onBLEEvent(ble_evt_t* evt) {
   }
 }
 
-void SerialBLEInterface::begin(const char* prefix, char* name, uint32_t pin_code) {
+void SerialBLEInterface::begin(const char* prefix, char* name, uint32_t pin_code, uint8_t led_ble_mode) {
   instance = this;
+  _led_ble_mode = led_ble_mode;
 
   char charpin[20];
   snprintf(charpin, sizeof(charpin), "%lu", (unsigned long)pin_code);
-  
-  // If we want to control BLE LED ourselves, uncomment this:
-  // Bluefruit.autoConnLed(false);
+
+  if (_led_ble_mode != LED_BLE_ENABLED) {
+    Bluefruit.autoConnLed(false);
+  }
   Bluefruit.configPrphBandwidth(BANDWIDTH_MAX);
   Bluefruit.begin();
+
+  // Re-assert autoConnLed after begin() to ensure the SDK doesn't interfere
+  if (_led_ble_mode != LED_BLE_ENABLED) {
+    Bluefruit.autoConnLed(false);
+#ifdef BLE_LED_PIN
+    pinMode(BLE_LED_PIN, OUTPUT);
+    digitalWrite(BLE_LED_PIN, !LED_STATE_ON);  // start with LED off for all non-default modes
+#endif
+  }
  
   char dev_name[32+16];
   if (strcmp(name, "@@MAC") == 0) {
@@ -247,6 +287,13 @@ void SerialBLEInterface::enable() {
   _last_health_check = millis();
 
   Bluefruit.Advertising.start(0);
+
+  // Re-assert autoConnLed after Advertising.start(), which may inadvertently
+  // start the SDK's blink timer via xTimerChangePeriod() side effect.
+  // UITask::bleLedHandler() continuously enforces the correct LED state.
+  if (_led_ble_mode != LED_BLE_ENABLED) {
+    Bluefruit.autoConnLed(false);
+  }
 }
 
 void SerialBLEInterface::disconnect() {
@@ -394,4 +441,30 @@ bool SerialBLEInterface::isConnected() const {
 
 bool SerialBLEInterface::isWriteBusy() const {
   return send_queue_len >= (FRAME_QUEUE_SIZE * 2 / 3);
+}
+
+void SerialBLEInterface::setLedBleMode(uint8_t mode) {
+  _led_ble_mode = mode;
+  if (mode == LED_BLE_ENABLED) {
+    Bluefruit.autoConnLed(true);
+#ifdef BLE_LED_PIN
+    // SDK won't update LED until next connect/disconnect event, so set it now
+    digitalWrite(BLE_LED_PIN, _isDeviceConnected ? LED_STATE_ON : !LED_STATE_ON);
+#endif
+  } else {
+    Bluefruit.autoConnLed(false);
+#ifdef BLE_LED_PIN
+    // Apply immediate state based on new mode
+    if (mode == LED_BLE_DISABLED) {
+      digitalWrite(BLE_LED_PIN, !LED_STATE_ON);
+    } else if (mode == LED_BLE_CONN_ONLY) {
+      digitalWrite(BLE_LED_PIN, _isDeviceConnected ? LED_STATE_ON : !LED_STATE_ON);
+    } else if (mode == LED_BLE_DISCONN_ONLY) {
+      // Blink handled by UITask::bleLedHandler(); just set initial state
+      if (_isDeviceConnected) {
+        digitalWrite(BLE_LED_PIN, !LED_STATE_ON);
+      }
+    }
+#endif
+  }
 }

@@ -10,7 +10,8 @@
 
 #define ADVERT_RESTART_DELAY  1000   // millis
 
-void SerialBLEInterface::begin(const char* prefix, char* name, uint32_t pin_code) {
+void SerialBLEInterface::begin(const char* prefix, char* name, uint32_t pin_code, uint8_t led_ble_mode) {
+  (void)led_ble_mode;  // LED mode control not implemented on ESP32
   _pin_code = pin_code;
 
   if (strcmp(name, "@@MAC") == 0) {

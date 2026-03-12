@@ -12,6 +12,12 @@
   #define LED_STATE_ON 1
 #endif
 
+#ifdef LED_CONN
+  #define BLE_LED_PIN LED_CONN
+#elif defined(LED_BLUE)
+  #define BLE_LED_PIN LED_BLUE
+#endif
+
 #ifdef PIN_BUZZER
   #include <helpers/ui/buzzer.h>
 #endif
@@ -43,6 +49,10 @@ class UITask : public AbstractUITask {
   int next_led_change = 0;
   int last_led_increment = 0;
 #endif
+#ifdef BLE_LED_PIN
+  int ble_led_state = 0;
+  unsigned long next_ble_led_change = 0;
+#endif
 
 #ifdef PIN_USER_BTN_ANA
   unsigned long _analogue_pin_read_millis = millis();
@@ -54,6 +64,7 @@ class UITask : public AbstractUITask {
   UIScreen* curr;
 
   void userLedHandler();
+  void bleLedHandler();
 
   // Button action handlers
   char checkDisplayOn(char c);
