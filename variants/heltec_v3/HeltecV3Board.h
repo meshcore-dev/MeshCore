@@ -11,6 +11,9 @@
 #ifndef PIN_ADC_CTRL              // set in platformio.ini for Heltec Wireless Tracker (2)
   #define  PIN_ADC_CTRL    37
 #endif
+#ifndef ADC_MULTIPLIER  //default ADC multiplier
+  #define ADC_MULTIPLIER 1
+#endif
 #define  PIN_ADC_CTRL_ACTIVE    LOW
 #define  PIN_ADC_CTRL_INACTIVE  HIGH
 
@@ -88,7 +91,7 @@ public:
 
     digitalWrite(PIN_ADC_CTRL, !adc_active_state);
 
-    return (5.42 * (3.3 / 1024.0) * raw) * 1000;
+    return (5.42 * (3.3 / 1024.0) * raw) * 1000 * ADC_MULTIPLIER;
   }
 
   const char* getManufacturerName() const override {
