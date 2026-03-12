@@ -5,14 +5,14 @@
 #include "AbstractUITask.h"
 
 /*------------ Frame Protocol --------------*/
-#define FIRMWARE_VER_CODE 8
+#define FIRMWARE_VER_CODE 10
 
 #ifndef FIRMWARE_BUILD_DATE
-#define FIRMWARE_BUILD_DATE "29 Jan 2026"
+#define FIRMWARE_BUILD_DATE "6 Mar 2026"
 #endif
 
 #ifndef FIRMWARE_VERSION
-#define FIRMWARE_VERSION "v1.12.0"
+#define FIRMWARE_VERSION "v1.14.0"
 #endif
 
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
@@ -106,8 +106,11 @@ protected:
   float getAirtimeBudgetFactor() const override;
   int getInterferenceThreshold() const override;
   int calcRxDelay(float score, uint32_t air_time) const override;
+  uint32_t getRetransmitDelay(const mesh::Packet *packet) override;
+  uint32_t getDirectRetransmitDelay(const mesh::Packet *packet) override;
   uint8_t getExtraAckTransmitCount() const override;
   bool filterRecvFloodPacket(mesh::Packet* packet) override;
+  bool allowPacketForward(const mesh::Packet* packet) override;
 
   void sendFloodScoped(const ContactInfo& recipient, mesh::Packet* pkt, uint32_t delay_millis=0) override;
   void sendFloodScoped(const mesh::GroupChannel& channel, mesh::Packet* pkt, uint32_t delay_millis=0) override;
@@ -116,6 +119,7 @@ protected:
   bool isAutoAddEnabled() const override;
   bool shouldAutoAddContactType(uint8_t type) const override;
   bool shouldOverwriteWhenFull() const override;
+  uint8_t getAutoAddMaxHops() const override;
   void onContactsFull() override;
   void onContactOverwrite(const uint8_t* pub_key) override;
   bool onContactPathRecv(ContactInfo& from, uint8_t* in_path, uint8_t in_path_len, uint8_t* out_path, uint8_t out_path_len, uint8_t extra_type, uint8_t* extra, uint8_t extra_len) override;
@@ -176,6 +180,7 @@ private:
 
   void checkCLIRescueCmd();
   void checkSerialInterface();
+  bool isValidClientRepeatFreq(uint32_t f) const;
 
   // helpers, short-cuts
   void saveChannels() { _store->saveChannels(this); }

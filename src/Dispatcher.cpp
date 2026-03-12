@@ -8,7 +8,9 @@
 
 namespace mesh {
 
-#define MAX_RX_DELAY_MILLIS   32000  // 32 seconds
+#define MAX_RX_DELAY_MILLIS        32000  // 32 seconds
+#define MIN_TX_BUDGET_RESERVE_MS   100    // min budget (ms) required before allowing next TX
+#define MIN_TX_BUDGET_AIRTIME_DIV  2      // require at least 1/N of estimated airtime as budget before TX
 
 #ifndef NOISE_FLOOR_CALIB_INTERVAL
   #define NOISE_FLOOR_CALIB_INTERVAL   2000     // 2 seconds
@@ -20,12 +22,34 @@ void Dispatcher::begin() {
   _err_flags = 0;
   radio_nonrx_start = _ms->getMillis();
 
+  duty_cycle_window_ms = getDutyCycleWindowMs();
+  float duty_cycle = 1.0f / (1.0f + getAirtimeBudgetFactor());
+  tx_budget_ms = (unsigned long)(duty_cycle_window_ms * duty_cycle);
+  last_budget_update = _ms->getMillis();
+
   _radio->begin();
   prev_isrecv_mode = _radio->isInRecvMode();
 }
 
 float Dispatcher::getAirtimeBudgetFactor() const {
-  return 2.0;   // default, 33.3%  (1/3rd)
+  return 1.0;
+}
+
+void Dispatcher::updateTxBudget() {
+  unsigned long now = _ms->getMillis();
+  unsigned long elapsed = now - last_budget_update;
+
+  float duty_cycle = 1.0f / (1.0f + getAirtimeBudgetFactor());
+  unsigned long max_budget = (unsigned long)(getDutyCycleWindowMs() * duty_cycle);
+  unsigned long refill = (unsigned long)(elapsed * duty_cycle);
+  
+  if (refill > 0) {
+    tx_budget_ms += refill;
+    if (tx_budget_ms > max_budget) {
+      tx_budget_ms = max_budget;
+    }
+    last_budget_update = now;
+  }
 }
 
 int Dispatcher::calcRxDelay(float score, uint32_t air_time) const {
@@ -61,14 +85,27 @@ void Dispatcher::loop() {
   if (outbound) {  // waiting for outbound send to be completed
     if (_radio->isSendComplete()) {
       long t = _ms->getMillis() - outbound_start;
-      total_air_time += t;  // keep track of how much air time we are using
+      total_air_time += t;
       //Serial.print("  airtime="); Serial.println(t);
 
-      // will need radio silence up to next_tx_time
-      next_tx_time = futureMillis(t * getAirtimeBudgetFactor());
+      updateTxBudget();
+
+      if (t > tx_budget_ms) {
+        tx_budget_ms = 0;
+      } else {
+        tx_budget_ms -= t;
+      }
+
+      if (tx_budget_ms < MIN_TX_BUDGET_RESERVE_MS) {
+        float duty_cycle = 1.0f / (1.0f + getAirtimeBudgetFactor());
+        unsigned long needed = MIN_TX_BUDGET_RESERVE_MS - tx_budget_ms;
+        next_tx_time = futureMillis((unsigned long)(needed / duty_cycle));
+      } else {
+        next_tx_time = _ms->getMillis();
+      }
 
       _radio->onSendFinished();
-      logTx(outbound, 2 + outbound->path_len + outbound->payload_len);
+      logTx(outbound, 2 + outbound->getPathByteLen() + outbound->payload_len);
       if (outbound->isRouteFlood()) {
         n_sent_flood++;
       } else {
@@ -80,7 +117,7 @@ void Dispatcher::loop() {
       MESH_DEBUG_PRINTLN("%s Dispatcher::loop(): WARNING: outbound packed send timed out!", getLogDateTime());
 
       _radio->onSendFinished();
-      logTxFail(outbound, 2 + outbound->path_len + outbound->payload_len);
+      logTxFail(outbound, 2 + outbound->getPathByteLen() + outbound->payload_len);
 
       releasePacket(outbound);  // return to pool
       outbound = NULL;
@@ -108,6 +145,48 @@ void Dispatcher::loop() {
   checkSend();
 }
 
+bool Dispatcher::tryParsePacket(Packet* pkt, const uint8_t* raw, int len) {
+  int i = 0;
+
+  pkt->header = raw[i++];
+  if (pkt->getPayloadVer() > PAYLOAD_VER_1) {
+    MESH_DEBUG_PRINTLN("%s Dispatcher::checkRecv(): unsupported packet version", getLogDateTime());
+    return false;
+  }
+
+  if (pkt->hasTransportCodes()) {
+    memcpy(&pkt->transport_codes[0], &raw[i], 2); i += 2;
+    memcpy(&pkt->transport_codes[1], &raw[i], 2); i += 2;
+  } else {
+    pkt->transport_codes[0] = pkt->transport_codes[1] = 0;
+  }
+
+  pkt->path_len = raw[i++];
+  uint8_t path_mode = pkt->path_len >> 6;  // upper 2 bits (legacy firmware: 00)
+  if (path_mode == 3) {   // Reserved for future
+    MESH_DEBUG_PRINTLN("%s Dispatcher::checkRecv(): unsupported path mode: 3", getLogDateTime());
+    return false;
+  }
+
+  uint8_t path_byte_len = (pkt->path_len & 63) * pkt->getPathHashSize();
+  if (path_byte_len > MAX_PATH_SIZE || i + path_byte_len > len) {
+    MESH_DEBUG_PRINTLN("%s Dispatcher::checkRecv(): partial or corrupt packet received, len=%d", getLogDateTime(), len);
+    return false;
+  }
+
+  memcpy(pkt->path, &raw[i], path_byte_len); i += path_byte_len;
+
+  pkt->payload_len = len - i;  // payload is remainder
+  if (pkt->payload_len > sizeof(pkt->payload)) {
+    MESH_DEBUG_PRINTLN("%s Dispatcher::checkRecv(): packet payload too big, payload_len=%d", getLogDateTime(), (uint32_t)pkt->payload_len);
+    return false;
+  }
+
+  memcpy(pkt->payload, &raw[i], pkt->payload_len);
+
+  return true;  // success
+}
+
 void Dispatcher::checkRecv() {
   Packet* pkt;
   float score;
@@ -122,45 +201,14 @@ void Dispatcher::checkRecv() {
       if (pkt == NULL) {
         MESH_DEBUG_PRINTLN("%s Dispatcher::checkRecv(): WARNING: received data, no unused packets available!", getLogDateTime());
       } else {
-        int i = 0;
-#ifdef NODE_ID
-        uint8_t sender_id = raw[i++];
-        if (sender_id == NODE_ID - 1 || sender_id == NODE_ID + 1) {  // simulate that NODE_ID can only hear NODE_ID-1 or NODE_ID+1, eg. 3 can't hear 1
+        if (tryParsePacket(pkt, raw, len)) {
+          pkt->_snr = _radio->getLastSNR() * 4.0f;
+          score = _radio->packetScore(_radio->getLastSNR(), len);
+          air_time = _radio->getEstAirtimeFor(len);
+          rx_air_time += air_time;
         } else {
-          _mgr->free(pkt);  // put back into pool
-          return;
-        }
-#endif
-
-        pkt->header = raw[i++];
-        if (pkt->hasTransportCodes()) {
-          memcpy(&pkt->transport_codes[0], &raw[i], 2); i += 2;
-          memcpy(&pkt->transport_codes[1], &raw[i], 2); i += 2;
-        } else {
-          pkt->transport_codes[0] = pkt->transport_codes[1] = 0;
-        }
-        pkt->path_len = raw[i++];
-
-        if (pkt->path_len > MAX_PATH_SIZE || i + pkt->path_len > len) {
-          MESH_DEBUG_PRINTLN("%s Dispatcher::checkRecv(): partial or corrupt packet received, len=%d", getLogDateTime(), len);
           _mgr->free(pkt);  // put back into pool
           pkt = NULL;
-        } else {
-          memcpy(pkt->path, &raw[i], pkt->path_len); i += pkt->path_len;
-
-          pkt->payload_len = len - i;  // payload is remainder
-          if (pkt->payload_len > sizeof(pkt->payload)) {
-            MESH_DEBUG_PRINTLN("%s Dispatcher::checkRecv(): packet payload too big, payload_len=%d", getLogDateTime(), (uint32_t)pkt->payload_len);
-            _mgr->free(pkt);  // put back into pool
-            pkt = NULL;  
-          } else {
-            memcpy(pkt->payload, &raw[i], pkt->payload_len);
-
-            pkt->_snr = _radio->getLastSNR() * 4.0f;
-            score = _radio->packetScore(_radio->getLastSNR(), len);
-            air_time = _radio->getEstAirtimeFor(len);
-            rx_air_time += air_time;
-          }
         }
       }
     } else {
@@ -224,9 +272,20 @@ void Dispatcher::processRecvPacket(Packet* pkt) {
 }
 
 void Dispatcher::checkSend() {
-  if (_mgr->getOutboundCount(_ms->getMillis()) == 0) return;  // nothing waiting to send
-  if (!millisHasNowPassed(next_tx_time)) return;   // still in 'radio silence' phase (from airtime budget setting)
-  if (_radio->isReceiving()) {   // LBT - check if radio is currently mid-receive, or if channel activity
+  if (_mgr->getOutboundCount(_ms->getMillis()) == 0) return;
+  
+  updateTxBudget();
+  
+  uint32_t est_airtime = _radio->getEstAirtimeFor(MAX_TRANS_UNIT);
+  if (tx_budget_ms < est_airtime / MIN_TX_BUDGET_AIRTIME_DIV) {
+    float duty_cycle = 1.0f / (1.0f + getAirtimeBudgetFactor());
+    unsigned long needed = est_airtime / MIN_TX_BUDGET_AIRTIME_DIV - tx_budget_ms;
+    next_tx_time = futureMillis((unsigned long)(needed / duty_cycle));
+    return;
+  }
+  
+  if (!millisHasNowPassed(next_tx_time)) return;
+  if (_radio->isReceiving()) {
     if (cad_busy_start == 0) {
       cad_busy_start = _ms->getMillis();   // record when CAD busy state started
     }
@@ -249,16 +308,13 @@ void Dispatcher::checkSend() {
     int len = 0;
     uint8_t raw[MAX_TRANS_UNIT];
 
-#ifdef NODE_ID
-    raw[len++] = NODE_ID;
-#endif
     raw[len++] = outbound->header;
     if (outbound->hasTransportCodes()) {
       memcpy(&raw[len], &outbound->transport_codes[0], 2); len += 2;
       memcpy(&raw[len], &outbound->transport_codes[1], 2); len += 2;
     }
     raw[len++] = outbound->path_len;
-    memcpy(&raw[len], outbound->path, outbound->path_len); len += outbound->path_len;
+    len += Packet::writePath(&raw[len], outbound->path, outbound->path_len);
 
     if (len + outbound->payload_len > MAX_TRANS_UNIT) {
       MESH_DEBUG_PRINTLN("%s Dispatcher::checkSend(): FATAL: Invalid packet queued... too long, len=%d", getLogDateTime(), len + outbound->payload_len);
@@ -312,7 +368,7 @@ void Dispatcher::releasePacket(Packet* packet) {
 }
 
 void Dispatcher::sendPacket(Packet* packet, uint8_t priority, uint32_t delay_millis) {
-  if (packet->path_len > MAX_PATH_SIZE || packet->payload_len > MAX_PACKET_PAYLOAD) {
+  if (!Packet::isValidPathLen(packet->path_len) || packet->payload_len > MAX_PACKET_PAYLOAD) {
     MESH_DEBUG_PRINTLN("%s Dispatcher::sendPacket(): ERROR: invalid packet... path_len=%d, payload_len=%d", getLogDateTime(), (uint32_t) packet->path_len, (uint32_t) packet->payload_len);
     _mgr->free(packet);
   } else {

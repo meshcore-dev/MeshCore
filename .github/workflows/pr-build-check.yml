@@ -1,0 +1,43 @@
+name: PR Build Check
+
+on:
+  pull_request:
+    branches: [main, dev]
+    paths:
+      - 'src/**'
+      - 'examples/**'
+      - 'variants/**'
+      - 'platformio.ini'
+      - '.github/workflows/pr-build-check.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        environment:
+          # ESP32-S3 (most common platform)
+          - Heltec_v3_companion_radio_ble
+          - Heltec_v3_repeater
+          - Heltec_v3_room_server
+          # nRF52
+          - RAK_4631_companion_radio_ble
+          - RAK_4631_repeater
+          - RAK_4631_room_server
+          # RP2040
+          - PicoW_repeater
+          # STM32
+          - wio-e5-mini_repeater
+          # ESP32-C6
+          - LilyGo_Tlora_C6_repeater_
+
+    steps:
+      - name: Clone Repo
+        uses: actions/checkout@v4
+
+      - name: Setup Build Environment
+        uses: ./.github/actions/setup-build-environment
+
+      - name: Build ${{ matrix.environment }}
+        run: pio run -e ${{ matrix.environment }}
