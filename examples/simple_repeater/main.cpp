@@ -123,6 +123,8 @@ void setup() {
 }
 
 void loop() {
+  board.loop();
+
   // Handle Serial CLI
   int len = strlen(command);
   while (Serial.available() && len < sizeof(command)-1) {
