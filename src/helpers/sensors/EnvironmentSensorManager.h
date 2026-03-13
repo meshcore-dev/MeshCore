@@ -25,6 +25,7 @@ protected:
 
   bool gps_detected = false;
   bool gps_active = false;
+  bool gps_has_fix = false;  // true only when _location->isValid() — reset on fix loss
   uint32_t gps_update_interval_sec = 1;  // Default 1 second
 
   #if ENV_INCLUDE_GPS
