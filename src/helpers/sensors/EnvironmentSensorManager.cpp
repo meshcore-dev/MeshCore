@@ -50,6 +50,12 @@ static Adafruit_BMP280 BMP280(TELEM_WIRE);
 static Adafruit_SHTC3 SHTC3;
 #endif
 
+#if ENV_INCLUDE_SHT3X
+#define TELEM_SHT3X_ADDRESS 0x44  //Addresses with 0x44 (default) and 0x45 are possible
+#include <SensirionI2cSht3x.h>
+static SensirionI2cSht3x SHT3X;
+#endif
+
 #if ENV_INCLUDE_SHT4X
 #define TELEM_SHT4X_ADDRESS 0x44  //0x44 - 0x46
 #include <SensirionI2cSht4x.h>
@@ -228,6 +234,19 @@ bool EnvironmentSensorManager::begin() {
   }
   #endif
 
+  #if ENV_INCLUDE_SHT3X
+  SHT3X.begin(*TELEM_WIRE, TELEM_SHT3X_ADDRESS);
+  uint16_t aStatusRegister = 0u;
+  int16_t sht3x_error;
+  sht3x_error = SHT3X.readStatusRegister(aStatusRegister);
+  if (sht3x_error == 0) {
+    MESH_DEBUG_PRINTLN("Found SHT3X at address: %02X", TELEM_SHT3X_ADDRESS);
+    SHT3X_initialized = true;
+  } else {
+    SHT3X_initialized = false;
+    MESH_DEBUG_PRINTLN("SHT3X was not found at I2C address %02X", TELEM_SHT3X_ADDRESS);
+  }
+  #endif
 
   #if ENV_INCLUDE_SHT4X
   SHT4X.begin(*TELEM_WIRE, TELEM_SHT4X_ADDRESS);
@@ -391,6 +410,18 @@ bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, Cayen
 
       telemetry.addTemperature(TELEM_CHANNEL_SELF, temp.temperature);
       telemetry.addRelativeHumidity(TELEM_CHANNEL_SELF, humidity.relative_humidity);
+    }
+    #endif
+
+    #if ENV_INCLUDE_SHT3X
+    if (SHT3X_initialized) {
+      float sht3x_humidity, sht3x_temperature;
+      int16_t sht3x_error;
+      sht3x_error = SHT3X.measureSingleShot(REPEATABILITY_MEDIUM, false, sht3x_temperature, sht3x_humidity);
+      if (sht3x_error == 0) {
+        telemetry.addTemperature(TELEM_CHANNEL_SELF, sht3x_temperature);
+        telemetry.addRelativeHumidity(TELEM_CHANNEL_SELF, sht3x_humidity);
+      }
     }
     #endif
 
