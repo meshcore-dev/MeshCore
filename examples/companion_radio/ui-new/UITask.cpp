@@ -98,6 +98,7 @@ class HomeScreen : public UIScreen {
   NodePrefs* _node_prefs;
   uint8_t _page;
   bool _shutdown_init;
+  bool _show_ble_pin;
   AdvertPath recent[UI_RECENT_LIST_SIZE];
 
 
@@ -170,8 +171,8 @@ class HomeScreen : public UIScreen {
 
 public:
   HomeScreen(UITask* task, mesh::RTCClock* rtc, SensorManager* sensors, NodePrefs* node_prefs)
-     : _task(task), _rtc(rtc), _sensors(sensors), _node_prefs(node_prefs), _page(0), 
-       _shutdown_init(false), sensors_lpp(200) {  }
+     : _task(task), _rtc(rtc), _sensors(sensors), _node_prefs(node_prefs), _page(0),
+       _shutdown_init(false), sensors_lpp(200), _show_ble_pin(false) {  }
 
   void poll() override {
     if (_shutdown_init && !_task->isButtonPressed()) {  // must wait for USR button to be released
@@ -221,10 +222,21 @@ public:
         display.drawTextCentered(display.width() / 2, 43, "< Connected >");
 
       } else if (the_mesh.getBLEPin() != 0) { // BT pin
-        display.setColor(DisplayDriver::RED);
-        display.setTextSize(2);
-        sprintf(tmp, "Pin:%d", the_mesh.getBLEPin());
-        display.drawTextCentered(display.width() / 2, 43, tmp);
+#ifdef BLE_LONG_PRESS
+        bool show_pin = _show_ble_pin;
+#else
+        bool show_pin = true;
+#endif
+        if (show_pin) {
+          display.setColor(DisplayDriver::RED);
+          display.setTextSize(2);
+          sprintf(tmp, "Pin:%d", the_mesh.getBLEPin());
+          display.drawTextCentered(display.width() / 2, 43, tmp);
+        } else {
+          display.setColor(DisplayDriver::ORANGE);
+          display.setTextSize(1);
+          display.drawTextCentered(display.width() / 2, 43, "show pin: " PRESS_LABEL);
+        }
       }
     } else if (_page == HomePage::RECENT) {
       the_mesh.getRecentlyHeard(recent, UI_RECENT_LIST_SIZE);
@@ -241,10 +253,10 @@ public:
         } else {
           sprintf(tmp, "%dh", secs / (60*60));
         }
-        
+
         int timestamp_width = display.getTextWidth(tmp);
         int max_name_width = display.width() - timestamp_width - 1;
-        
+
         char filtered_recent_name[sizeof(a->name)];
         display.translateUTF8ToBlocks(filtered_recent_name, a->name, sizeof(filtered_recent_name));
         display.drawTextEllipsized(0, y, max_name_width, filtered_recent_name);
@@ -310,7 +322,7 @@ public:
         display.drawTextRightAlign(display.width()-1, y, buf);
         y = y + 12;
         display.drawTextLeftAlign(0, y, "pos");
-        sprintf(buf, "%.4f %.4f", 
+        sprintf(buf, "%.4f %.4f",
           nmea->getLatitude()/1000000., nmea->getLongitude()/1000000.);
         display.drawTextRightAlign(display.width()-1, y, buf);
         y = y + 12;
@@ -417,6 +429,12 @@ public:
       }
       return true;
     }
+#ifdef BLE_LONG_PRESS
+    if (c == KEY_ENTER && _page == HomePage::FIRST) {
+      _show_ble_pin = !_show_ble_pin;  // toggle PIN visibility on long press
+      return true;
+    }
+#endif
     if (c == KEY_ENTER && _page == HomePage::BLUETOOTH) {
       if (_task->isSerialEnabled()) {  // toggle Bluetooth on/off
         _task->disableSerial();
@@ -890,7 +908,7 @@ bool UITask::getGPSState() {
         return !strcmp(_sensors->getSettingValue(i), "1");
       }
     }
-  } 
+  }
   return false;
 }
 
