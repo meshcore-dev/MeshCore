@@ -50,6 +50,7 @@ void E290Display::clear() {
 }
 
 void E290Display::startFrame(Color bkg) {
+  display.cp437(true);  // Use full 256 char font without char >= 176 adjustment
   // Fill screen with white first to ensure clean background
   display.fillRect(0, 0, width(), height(), WHITE);
   if (bkg == LIGHT) {

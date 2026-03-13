@@ -97,6 +97,7 @@ void E213Display::clear() {
 }
 
 void E213Display::startFrame(Color bkg) {
+  display->cp437(true);  // Use full 256 char font without char >= 176 adjustment
   // Fill screen with white first to ensure clean background
   display->fillRect(0, 0, width(), height(), WHITE);
 
