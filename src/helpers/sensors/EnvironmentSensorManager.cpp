@@ -236,9 +236,9 @@ bool EnvironmentSensorManager::begin() {
 
   #if ENV_INCLUDE_SHT3X
   SHT3X.begin(*TELEM_WIRE, TELEM_SHT3X_ADDRESS);
-  uint16_t aStatusRegister = 0u;
+  uint16_t SHT3XStatusRegister = 0u;
   int16_t sht3x_error;
-  sht3x_error = SHT3X.readStatusRegister(aStatusRegister);
+  sht3x_error = SHT3X.readStatusRegister(SHT3XStatusRegister);
   if (sht3x_error == 0) {
     MESH_DEBUG_PRINTLN("Found SHT3X at address: %02X", TELEM_SHT3X_ADDRESS);
     SHT3X_initialized = true;
