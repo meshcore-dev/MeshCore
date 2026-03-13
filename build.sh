@@ -93,7 +93,7 @@ get_pio_envs_ending_with_string() {
 # $1 should be the environment name
 get_platform_for_env() {
   local env_name=$1
-  echo "$PIO_CONFIG_JSON" | python3 -c "
+  printf '%s' "$PIO_CONFIG_JSON" | python3 -c "
 import sys, json, re
 data = json.load(sys.stdin)
 for section, options in data:
