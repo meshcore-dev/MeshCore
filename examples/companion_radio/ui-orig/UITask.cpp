@@ -93,14 +93,14 @@ void UITask::notify(UIEventType t) {
 #if defined(PIN_BUZZER)
 switch(t){
   case UIEventType::contactMessage:
-    // gemini's pick
-    buzzer.play("MsgRcv3:d=4,o=6,b=200:32e,32g,32b,16c7");
+    // Play message sound using class member
+    buzzer.play(buzzer.message_song);
     break;
   case UIEventType::channelMessage:
-    buzzer.play("kerplop:d=16,o=6,b=120:32g#,32c#");
+    buzzer.play(buzzer.channel_song); // Play channel message sound
     break;
   case UIEventType::ack:
-    buzzer.play("ack:d=32,o=8,b=120:c");
+    buzzer.play(buzzer.ack_song); // Play ack sound
     break;
   case UIEventType::roomMessage:
   case UIEventType::newContactMessage:
