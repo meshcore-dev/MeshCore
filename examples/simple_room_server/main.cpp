@@ -4,105 +4,8 @@
 #include "MyMesh.h"
 
 #ifdef ETHERNET_ENABLED
-  #include <SPI.h>
-  #include <RAK13800_W5100S.h>
-  #include <helpers/nrf52/EthernetMac.h>
-
-  #define PIN_SPI1_MISO (29)
-  #define PIN_SPI1_MOSI (30)
-  #define PIN_SPI1_SCK  (3)
-  SPIClass ETHERNET_SPI_PORT(NRF_SPIM1, PIN_SPI1_MISO, PIN_SPI1_SCK, PIN_SPI1_MOSI);
-
-  #define PIN_ETHERNET_POWER_EN  WB_IO2
-  #define PIN_ETHERNET_RESET 21
-  #define PIN_ETHERNET_SS    26
-
-  #ifndef ETHERNET_TCP_PORT
-    #define ETHERNET_TCP_PORT 23
-  #endif
-
-  #define ETHERNET_RETRY_INTERVAL_MS 30000
-
-  static EthernetServer ethernet_server(ETHERNET_TCP_PORT);
-  static EthernetClient ethernet_client;
-  static volatile bool ethernet_running = false;
-
-  static void ethernet_task(void* param) {
-    (void)param;
-
-    Serial.println("ETH: Initializing hardware");
-    pinMode(PIN_ETHERNET_POWER_EN, OUTPUT);
-    digitalWrite(PIN_ETHERNET_POWER_EN, HIGH);
-    vTaskDelay(pdMS_TO_TICKS(100));
-
-    pinMode(PIN_ETHERNET_RESET, OUTPUT);
-    digitalWrite(PIN_ETHERNET_RESET, LOW);
-    vTaskDelay(pdMS_TO_TICKS(100));
-    digitalWrite(PIN_ETHERNET_RESET, HIGH);
-
-    ETHERNET_SPI_PORT.begin();
-    Ethernet.init(ETHERNET_SPI_PORT, PIN_ETHERNET_SS);
-
-    uint8_t mac[6];
-    generateEthernetMac(mac);
-    Serial.printf("ETH: MAC: %02X:%02X:%02X:%02X:%02X:%02X\n",
-        mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-
-    while (!ethernet_running) {
-      if (Ethernet.hardwareStatus() == EthernetNoHardware) {
-        Serial.println("ETH: Hardware not found, giving up");
-        vTaskDelete(NULL);
-        return;
-      }
-      if (Ethernet.linkStatus() == LinkOFF) {
-        vTaskDelay(pdMS_TO_TICKS(ETHERNET_RETRY_INTERVAL_MS));
-        continue;
-      }
-
-      Serial.println("ETH: Link detected, attempting DHCP...");
-      if (Ethernet.begin(mac, 10000, 2000) == 0) {
-        Serial.println("ETH: DHCP failed, will retry");
-        vTaskDelay(pdMS_TO_TICKS(ETHERNET_RETRY_INTERVAL_MS));
-        continue;
-      }
-
-      IPAddress ip = Ethernet.localIP();
-      Serial.printf("ETH: IP: %u.%u.%u.%u\n", ip[0], ip[1], ip[2], ip[3]);
-      Serial.printf("ETH: Listening on TCP port %d\n", ETHERNET_TCP_PORT);
-      ethernet_server.begin();
-      ethernet_running = true;
-    }
-    vTaskDelete(NULL);
-  }
-
-  static void ethernet_start_task() {
-    xTaskCreate(ethernet_task, "eth_init", 1024, NULL, 1, NULL);
-  }
-
-  static bool ethernet_handle_command(const char* command, char* reply) {
-    if (strcmp(command, "eth.status") == 0) {
-      if (!ethernet_running) {
-        strcpy(reply, "ETH: not connected");
-      } else {
-        IPAddress ip = Ethernet.localIP();
-        sprintf(reply, "ETH: %u.%u.%u.%u:%d", ip[0], ip[1], ip[2], ip[3], ETHERNET_TCP_PORT);
-      }
-      return true;
-    }
-    return false;
-  }
-
-  // Check for new TCP client connections, replacing any existing connection
-  static void ethernet_check_client() {
-    auto newClient = ethernet_server.available();
-    if (newClient) {
-      if (ethernet_client) ethernet_client.stop();
-      ethernet_client = newClient;
-      IPAddress ip = ethernet_client.remoteIP();
-      Serial.printf("ETH: Client connected from %u.%u.%u.%u\n", ip[0], ip[1], ip[2], ip[3]);
-      ethernet_client.println("MeshCore Room Server CLI");
-    }
-  }
+  #define ETHERNET_CLI_BANNER "MeshCore Room Server CLI"
+  #include <helpers/nrf52/EthernetCLI.h>
 #endif
 
 #ifdef DISPLAY_CLASS
@@ -227,37 +130,15 @@ void loop() {
   }
 
 #ifdef ETHERNET_ENABLED
-  if (ethernet_running) {
-    ethernet_check_client();
-    Ethernet.maintain();
-  }
-
-  if (ethernet_running && ethernet_client && ethernet_client.connected()) {
-    int elen = strlen(ethernet_command);
-    while (ethernet_client.available() && elen < (int)sizeof(ethernet_command)-1) {
-      char c = ethernet_client.read();
-      if (c == '\n' && elen == 0) continue;  // ignore leading LF (from CR+LF)
-      if (c == '\r' || c == '\n') { ethernet_command[elen++] = '\r'; break; }
-      ethernet_command[elen++] = c;
-      ethernet_command[elen] = 0;
+  ethernet_loop_maintain();
+  if (ethernet_read_line(ethernet_command, sizeof(ethernet_command))) {
+    char reply[160];
+    reply[0] = 0;
+    if (!ethernet_handle_command(ethernet_command, reply)) {
+      the_mesh.handleCommand(0, ethernet_command, reply);
     }
-    if (elen == sizeof(ethernet_command)-1) {
-      ethernet_command[sizeof(ethernet_command)-1] = '\r';
-    }
-
-    if (elen > 0 && ethernet_command[elen - 1] == '\r') {
-      ethernet_command[elen - 1] = 0;
-      ethernet_client.println();
-      char reply[160];
-      reply[0] = 0;
-      if (!ethernet_handle_command(ethernet_command, reply)) {
-        the_mesh.handleCommand(0, ethernet_command, reply);
-      }
-      if (reply[0]) {
-        ethernet_client.print("  -> "); ethernet_client.println(reply);
-      }
-      ethernet_command[0] = 0;
-    }
+    ethernet_send_reply(reply);
+    ethernet_command[0] = 0;
   }
 #endif
 

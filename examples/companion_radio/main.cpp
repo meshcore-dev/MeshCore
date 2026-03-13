@@ -163,7 +163,7 @@ void setup() {
   the_mesh.startInterface(serial_interface);
 #elif defined(ETHERNET_ENABLED)
   Serial.print("Waiting for serial to connect...\n");
-  time_t timeout = millis();
+  unsigned long timeout = millis();
   while (!Serial) {
     if ((millis() - timeout) < 5000) { delay(100); } else { break; }
   }
