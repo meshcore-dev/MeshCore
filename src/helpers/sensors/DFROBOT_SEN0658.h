@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include <target.h>
+#include <helpers/IdentityStore.h>
 
 #if defined(ENV_INCLUDE_GPS) && \
     (PIN_GPS_TX == WITH_SEN0658_TX || PIN_GPS_TX == WITH_SEN0658_RX || \
@@ -50,7 +51,22 @@ class DFROBOT_SEN0658
         bool zeroRainfall();
         void loop();
         bool hasPendingWork();
+        void loadPrefs(FILESYSTEM* fs);
+        void savePrefs(FILESYSTEM* fs);
+        int getNumSettings() const;
+        const char* getSettingName(int i) const;
+        int getSettingValue(int i, char* buf, int bufLen);
+        bool setSettingValue(const char* name, const char* value);
+
     private:
+        struct Config {
+            uint16_t version = 1;
+            uint16_t pollPeriodSeconds = SEN0658_POLL_PERIOD_SECONDS;
+            uint16_t cacheMaxAgeSeconds = SEN0658_CACHE_MAX_AGE_SECONDS;
+            uint16_t warmupSeconds = SEN0658_WARMUP_SECONDS;
+            uint16_t idleTimeoutSeconds = SEN0658_IDLE_TIMEOUT_SECONDS;
+        } __attribute__((packed)) config;
+
         DFROBOT_SEN0658_Sample _cachedSample = {0};
         uint32_t _lastCacheTime = 0;
         uint32_t _lastPollTime = 0;
@@ -71,10 +87,10 @@ class DFROBOT_SEN0658
         bool readAir(DFROBOT_SEN0658_Sample &sample);
         bool readLight(DFROBOT_SEN0658_Sample &sample);
         // helpers
-        bool isPollDue() { return millis() - _lastPollTime >= (uint32_t)SEN0658_POLL_PERIOD_SECONDS * 1000; }
+        bool isPollDue() { return config.pollPeriodSeconds > 0 && millis() - _lastPollTime >= config.pollPeriodSeconds * 1000; }
         bool isPoweredOn() { return _powerOnTime != 0; }
-        bool isSensorReady() { return isPoweredOn() && millis() - _powerOnTime >= (uint32_t)SEN0658_WARMUP_SECONDS * 1000; }
+        bool isSensorReady() { return isPoweredOn() && millis() - _powerOnTime >= config.warmupSeconds * 1000; }
         bool hasCachedSample() { return _lastCacheTime != 0; }
-        bool isCachedSampleValid() { return hasCachedSample() && millis() - _lastCacheTime < (uint32_t)SEN0658_CACHE_MAX_AGE_SECONDS * 1000; }
-        bool isIdle() { return isPoweredOn() && millis() - _lastActivityTime >= (uint32_t)SEN0658_IDLE_TIMEOUT_SECONDS * 1000; }
+        bool isCachedSampleValid() { return hasCachedSample() && config.cacheMaxAgeSeconds > 0 && millis() - _lastCacheTime < config.cacheMaxAgeSeconds * 1000; }
+        bool isIdle() { return isSensorReady() &&config.idleTimeoutSeconds > 0 && millis() - _lastActivityTime >= config.idleTimeoutSeconds * 1000; }
 };

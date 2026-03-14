@@ -21,7 +21,7 @@ class T1000SensorManager: public SensorManager {
   void stop_gps();
 public:
   T1000SensorManager(LocationProvider &nmea): _nmea(&nmea) { }
-  bool begin() override;
+  bool begin(FILESYSTEM* fs = nullptr) override;
   bool querySensors(uint8_t requester_permissions, CayenneLPP& telemetry) override;
   void loop() override;
   int getNumSettings() const override;

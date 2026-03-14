@@ -58,7 +58,7 @@ void ThinkNodeM1SensorManager::stop_gps() {
   }
 }
 
-bool ThinkNodeM1SensorManager::begin() {
+bool ThinkNodeM1SensorManager::begin(FILESYSTEM* fs) {
   Serial1.begin(9600);
 
   // Initialize GPS switch pin

@@ -87,7 +87,7 @@ bool WIOE5SensorManager::querySensors(uint8_t requester_permissions, CayenneLPP&
   return true; 
 }
 
-bool WIOE5SensorManager::begin() {
+bool WIOE5SensorManager::begin(FILESYSTEM* fs) {
   has_bme = bme.begin();
 
   return has_bme;

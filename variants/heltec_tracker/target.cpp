@@ -72,7 +72,7 @@ void HWTSensorManager::stop_gps() {
   }
 }
 
-bool HWTSensorManager::begin() {
+bool HWTSensorManager::begin(FILESYSTEM* fs) {
   // init GPS port
   Serial1.begin(115200, SERIAL_8N1, PIN_GPS_RX, PIN_GPS_TX);
   return true;

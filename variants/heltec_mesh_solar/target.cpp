@@ -57,7 +57,7 @@ void SolarSensorManager::stop_gps() {
   }
 }
 
-bool SolarSensorManager::begin() {
+bool SolarSensorManager::begin(FILESYSTEM* fs) {
   Serial1.begin(9600);
 
   // We'll consider GPS detected if we see any data on Serial1

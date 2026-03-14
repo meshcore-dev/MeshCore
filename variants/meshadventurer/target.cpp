@@ -64,7 +64,7 @@ void MASensorManager::stop_gps() {
   }
 }
 
-bool MASensorManager::begin() {
+bool MASensorManager::begin(FILESYSTEM* fs) {
   Serial1.setPins(PIN_GPS_RX, PIN_GPS_TX);
   Serial1.begin(9600);
   delay(500);

@@ -21,7 +21,7 @@ class HWTSensorManager : public SensorManager {
   void stop_gps();
 public:
   HWTSensorManager(LocationProvider &location): _location(&location) { }
-  bool begin() override;
+  bool begin(FILESYSTEM* fs = nullptr) override;
   bool querySensors(uint8_t requester_permissions, CayenneLPP& telemetry) override;
   void loop() override;
   int getNumSettings() const override;

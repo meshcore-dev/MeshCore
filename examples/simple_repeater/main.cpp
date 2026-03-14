@@ -86,7 +86,7 @@ void setup() {
 
   command[0] = 0;
 
-  sensors.begin();
+  sensors.begin(fs);
 
   the_mesh.begin(fs);
 

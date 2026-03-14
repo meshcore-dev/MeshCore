@@ -154,7 +154,8 @@ public:
 static RAK12500LocationProvider RAK12500_provider;
 #endif
 
-bool EnvironmentSensorManager::begin() {
+bool EnvironmentSensorManager::begin(FILESYSTEM* fs) {
+  _fs = fs;
   #if ENV_INCLUDE_GPS
   #ifdef RAK_WISBLOCK_GPS
   rakGPSInit();   //probe base board/sockets for GPS
@@ -337,6 +338,7 @@ bool EnvironmentSensorManager::begin() {
   #endif
 
   #if ENV_INCLUDE_SEN0658
+  if (_fs) SEN0658.loadPrefs(_fs);
   if (SEN0658.begin()) {
     MESH_DEBUG_PRINTLN("Found sensor SEN0658");
     SEN0658_initialized = true;
@@ -530,7 +532,7 @@ int EnvironmentSensorManager::getNumSettings() const {
     if (gps_detected) settings++;  // only show GPS setting if GPS is detected
   #endif
   #if ENV_INCLUDE_SEN0658
-    if (SEN0658_initialized) settings += 3; 
+    if (SEN0658_initialized) settings += SEN0658.getNumSettings();
   #endif
   return settings;
 }
@@ -543,14 +545,12 @@ const char* EnvironmentSensorManager::getSettingName(int i) const {
     }
   #endif
   #if ENV_INCLUDE_SEN0658
-    if (SEN0658_initialized && i == settings++) {
-      return "wind_dir_offset";
-    }
-    if (SEN0658_initialized && i == settings++) {
-      return "wind_speed_zero";
-    }
-    if (SEN0658_initialized && i == settings++) {
-      return "rainfall_zero";
+    if (SEN0658_initialized) {
+      int local = i - settings;
+      if (local >= 0 && local < SEN0658.getNumSettings()) {
+        return SEN0658.getSettingName(local);
+      }
+      settings += SEN0658.getNumSettings();
     }
   #endif
   return NULL;
@@ -564,19 +564,12 @@ int EnvironmentSensorManager::getSettingValue(int i, char* buf, int bufLen) cons
     }
   #endif
   #if ENV_INCLUDE_SEN0658
-    if (SEN0658_initialized && i == settings++) {
-      uint16_t offset;
-      if (SEN0658.readWindDirectionOffset(offset)) {
-        return snprintf(buf, bufLen, "%u", (unsigned)offset);
-      } else {
-        return snprintf(buf, bufLen, "[error]");
+    if (SEN0658_initialized) {
+      int local = i - settings;
+      if (local >= 0 && local < SEN0658.getNumSettings()) {
+        return SEN0658.getSettingValue(local, buf, bufLen);
       }
-    }
-    if (SEN0658_initialized && i == settings++) {
-      return snprintf(buf, bufLen, "[n/a]");
-    }
-    if (SEN0658_initialized && i == settings++) {
-      return snprintf(buf, bufLen, "[n/a]");
+      settings += SEN0658.getNumSettings();
     }
   #endif
   return 0;
@@ -603,12 +596,11 @@ bool EnvironmentSensorManager::setSettingValue(const char* name, const char* val
   }
   #endif
   #if ENV_INCLUDE_SEN0658
-  if (strcmp(name, "wind_dir_offset") == 0) {
-    return SEN0658.writeWindDirectionOffset(atoi(value));
-  } else if (strcmp(name, "wind_speed_zero") == 0) {
-    return SEN0658.zeroWindSpeed();
-  } else if (strcmp(name, "rainfall_zero") == 0) {
-    return SEN0658.zeroRainfall();
+  if (SEN0658_initialized) {
+    if (SEN0658.setSettingValue(name, value)) {
+      if (_fs) SEN0658.savePrefs(_fs);
+      return true;
+    }
   }
   #endif
   return false;  // not supported

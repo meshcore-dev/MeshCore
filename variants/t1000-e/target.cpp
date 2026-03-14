@@ -143,7 +143,7 @@ void T1000SensorManager::stop_gps() {
 }
 
 
-bool T1000SensorManager::begin() {
+bool T1000SensorManager::begin(FILESYSTEM* fs) {
   // init GPS
   Serial1.begin(115200);
   return true;

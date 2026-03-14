@@ -62,7 +62,7 @@ void NanoG2UltraSensorManager::stop_gps() {
   _location->stop();
 }
 
-bool NanoG2UltraSensorManager::begin() {
+bool NanoG2UltraSensorManager::begin(FILESYSTEM* fs) {
   digitalWrite(PIN_GPS_STANDBY, HIGH); // Wake GPS from standby
   Serial1.setPins(PIN_GPS_TX, PIN_GPS_RX);
   Serial1.begin(9600);

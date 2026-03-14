@@ -291,7 +291,7 @@ void DFROBOT_SEN0658::sendWriteCommand(uint16_t registerIndex, uint16_t value) {
 
 void DFROBOT_SEN0658::powerOn() {
     if (_powerOnTime == 0) {
-        MESH_DEBUG_PRINTLN("SEN0658 power on and ready to read sensor values in %i seconds.", (int)SEN0658_WARMUP_SECONDS);
+        MESH_DEBUG_PRINTLN("SEN0658 power on and ready to read sensor values in %u seconds.", (unsigned)config.warmupSeconds);
 #if defined(WITH_SEN0658_EN)
         digitalWrite(WITH_SEN0658_EN, HIGH);
         delay(100); // wait for power rail to stabilize
@@ -306,7 +306,7 @@ bool DFROBOT_SEN0658::updateSample(DFROBOT_SEN0658_Sample &sample) {
     // If still warming up, return cached data if available
     if (!isSensorReady()) {
         uint32_t timeSincePowerOn = millis() - _powerOnTime;
-        uint32_t time_remaining = (uint32_t)SEN0658_WARMUP_SECONDS * 1000 - timeSincePowerOn;
+        uint32_t time_remaining = config.warmupSeconds * 1000 - timeSincePowerOn;
 
         // limit debug spew
         if (_lastWarmupLog == 0 || millis() - _lastWarmupLog >= 1000) {
@@ -386,6 +386,108 @@ uint16_t DFROBOT_SEN0658::CRC16_2(const uint8_t *buf, int len) {
         }
     }
     return crc;
+}
+
+#define SEN0658_PREFS_FILE "/sen0658_prefs"
+
+void DFROBOT_SEN0658::loadPrefs(FILESYSTEM* fs) {
+#if defined(RP2040_PLATFORM)
+    File file = fs->open(SEN0658_PREFS_FILE, "r");
+#else
+    File file = fs->open(SEN0658_PREFS_FILE);
+#endif
+    if (file) {
+        Config loaded;
+        if (file.read((uint8_t *)&loaded, sizeof(loaded)) == sizeof(loaded) && loaded.version == config.version) {
+            config = loaded;
+            MESH_DEBUG_PRINTLN("SEN0658 prefs loaded: poll=%u cache=%u warmup=%u idle=%u",
+                (unsigned)config.pollPeriodSeconds, (unsigned)config.cacheMaxAgeSeconds,
+                (unsigned)config.warmupSeconds, (unsigned)config.idleTimeoutSeconds);
+        } else {
+            MESH_DEBUG_PRINTLN("SEN0658 prefs version mismatch or short read, using defaults.");
+        }
+        file.close();
+    }
+}
+
+void DFROBOT_SEN0658::savePrefs(FILESYSTEM* fs) {
+#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
+    fs->remove(SEN0658_PREFS_FILE);
+    File file = fs->open(SEN0658_PREFS_FILE, FILE_O_WRITE);
+#elif defined(RP2040_PLATFORM)
+    File file = fs->open(SEN0658_PREFS_FILE, "w");
+#else
+    File file = fs->open(SEN0658_PREFS_FILE, "w", true);
+#endif
+    if (file) {
+        file.write((uint8_t *)&config, sizeof(config));
+        file.close();
+        MESH_DEBUG_PRINTLN("SEN0658 prefs saved.");
+    }
+}
+
+static const char* sen0658_setting_names[] = {
+    "wind_dir_offset", "wind_speed_zero", "rainfall_zero",
+    "poll_period", "cache_max_age", "warmup", "idle_timeout"
+};
+
+int DFROBOT_SEN0658::getNumSettings() const {
+    return sizeof(sen0658_setting_names) / sizeof(sen0658_setting_names[0]);
+}
+
+const char* DFROBOT_SEN0658::getSettingName(int i) const {
+    if (i >= 0 && i < getNumSettings()) return sen0658_setting_names[i];
+    return nullptr;
+}
+
+int DFROBOT_SEN0658::getSettingValue(int i, char* buf, int bufLen) {
+    switch (i) {
+        case 0: { // wind_dir_offset
+            uint16_t offset;
+            if (readWindDirectionOffset(offset)) {
+                return snprintf(buf, bufLen, "%u", (unsigned)offset);
+            } else {
+                return snprintf(buf, bufLen, "[error]");
+            }
+        }
+        case 1: return snprintf(buf, bufLen, "[n/a]"); // wind_speed_zero
+        case 2: return snprintf(buf, bufLen, "[n/a]"); // rainfall_zero
+        case 3: return snprintf(buf, bufLen, "%u", (unsigned)config.pollPeriodSeconds);
+        case 4: return snprintf(buf, bufLen, "%u", (unsigned)config.cacheMaxAgeSeconds);
+        case 5: return snprintf(buf, bufLen, "%u", (unsigned)config.warmupSeconds);
+        case 6: return snprintf(buf, bufLen, "%u", (unsigned)config.idleTimeoutSeconds);
+        default: return 0;
+    }
+}
+
+bool DFROBOT_SEN0658::setSettingValue(const char* name, const char* value) {
+    if (strcmp(name, "wind_speed_zero") == 0) {
+        return zeroWindSpeed();
+    } else if (strcmp(name, "rainfall_zero") == 0) {
+        return zeroRainfall();
+    }
+
+    // parse uint16_t value
+    char *end;
+    unsigned long v = strtoul(value, &end, 10);
+    if (end == value || v > UINT16_MAX) return false;
+    uint16_t val = (uint16_t)v;
+
+    if (strcmp(name, "wind_dir_offset") == 0) {
+        if (val > 1) return false;
+        return writeWindDirectionOffset(val);
+    } else if (strcmp(name, "poll_period") == 0) {
+        config.pollPeriodSeconds = val;
+    } else if (strcmp(name, "cache_max_age") == 0) {
+        config.cacheMaxAgeSeconds = val;
+    } else if (strcmp(name, "warmup") == 0) {
+        config.warmupSeconds = val;
+    } else if (strcmp(name, "idle_timeout") == 0) {
+        config.idleTimeoutSeconds = val;
+    } else {
+        return false;
+    }
+    return true;
 }
 
 #endif

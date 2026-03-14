@@ -24,6 +24,8 @@ protected:
   bool BMP085_initialized = false;
   bool SEN0658_initialized = false;
 
+  FILESYSTEM* _fs = nullptr;
+
   bool gps_detected = false;
   bool gps_active = false;
   uint32_t gps_update_interval_sec = 1;  // Default 1 second
@@ -47,7 +49,7 @@ public:
   #else
   EnvironmentSensorManager(){};
   #endif
-  bool begin() override;
+  bool begin(FILESYSTEM* fs = nullptr) override;
   bool hasPendingWork() override;
   bool querySensors(uint8_t requester_permissions, CayenneLPP& telemetry) override;
   void loop() override;

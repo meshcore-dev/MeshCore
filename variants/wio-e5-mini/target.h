@@ -48,7 +48,7 @@ class WIOE5SensorManager : public SensorManager {
 
 public:
     WIOE5SensorManager() {}
-    bool begin() override;
+    bool begin(FILESYSTEM* fs = nullptr) override;
     bool querySensors(uint8_t requester_permissions, CayenneLPP& telemetry) override;
 };
 
