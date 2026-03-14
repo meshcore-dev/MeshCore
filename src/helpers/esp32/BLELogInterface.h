@@ -55,6 +55,13 @@ public:
   void begin(const char* device_name) {
     BLEDevice::init(device_name);
 
+    // Explicitly disable bonding so the ESP32 does not send security requests.
+    // Without this the BLE stack initiates Just Works pairing by default, which
+    // fails with AUTH FAILED when no security callbacks are registered.
+    BLESecurity* pSecurity = new BLESecurity();
+    pSecurity->setAuthenticationMode(ESP_LE_AUTH_NO_BOND);
+    pSecurity->setCapability(ESP_IO_CAP_NONE);
+
     _server = BLEDevice::createServer();
     _server->setCallbacks(this);
 
