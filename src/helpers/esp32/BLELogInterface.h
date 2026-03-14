@@ -68,6 +68,13 @@ public:
     BLEService* service = _server->createService(NUS_SERVICE_UUID);
     _tx_char = service->createCharacteristic(NUS_TX_UUID, BLECharacteristic::PROPERTY_NOTIFY);
     _tx_char->addDescriptor(new BLE2902());
+
+    // Characteristic Presentation Format (0x2904): declare value as UTF-8 string
+    // Format: format(1) exponent(1) unit(2) namespace(1) description(2)
+    static const uint8_t utf8_format[] = { 0x19, 0x00, 0x00, 0x27, 0x01, 0x00, 0x00 };
+    BLEDescriptor* pFormat = new BLEDescriptor((uint16_t)0x2904);
+    pFormat->setValue(const_cast<uint8_t*>(utf8_format), sizeof(utf8_format));
+    _tx_char->addDescriptor(pFormat);
     service->start();
 
     BLEAdvertising* adv = BLEDevice::getAdvertising();
