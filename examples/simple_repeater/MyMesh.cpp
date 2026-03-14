@@ -446,14 +446,6 @@ const char *MyMesh::getLogDateTime() {
   return tmp;
 }
 
-void MyMesh::logRxRaw(float snr, float rssi, const uint8_t raw[], int len) {
-#if MESH_PACKET_LOGGING
-  Serial.print(getLogDateTime());
-  Serial.print(" RAW: ");
-  mesh::Utils::printHex(Serial, raw, len);
-  Serial.println();
-#endif
-}
 
 void MyMesh::logRx(mesh::Packet *pkt, int len, float score) {
 #ifdef WITH_BRIDGE
