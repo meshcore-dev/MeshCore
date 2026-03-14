@@ -12,6 +12,8 @@
 #elif defined(ESP32)
   #include <SPIFFS.h>
   using File = fs::File;
+#elif defined(ARCH_PORTDUINO)
+  #include <PortduinoFS.h>
 #endif
 
 #ifdef WITH_RS232_BRIDGE

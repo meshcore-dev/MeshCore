@@ -144,7 +144,7 @@ bool CommonCLI::savePrefs(FILESYSTEM* fs) {
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
   fs->remove("/prefs.json");
   File file = fs->open("/prefs.json", FILE_O_WRITE);
-#elif defined(RP2040_PLATFORM)
+#elif defined(RP2040_PLATFORM) || defined(ARCH_PORTDUINO)
   File file = fs->open("/prefs.json", "w");
 #else
   File file = fs->open("/prefs.json", "w", true);
