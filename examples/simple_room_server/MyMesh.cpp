@@ -294,9 +294,7 @@ void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const m
     if (data[8] == 0) {   // blank password, just check if sender is in ACL
       client = acl.getClient(sender.pub_key, PUB_KEY_SIZE);
       if (client == NULL) {
-      #if MESH_DEBUG
         MESH_DEBUG_PRINTLN("Login, sender not in ACL");
-      #endif
       }
     }
     if (client == NULL) {

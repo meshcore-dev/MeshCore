@@ -45,6 +45,11 @@ static Adafruit_BME280 BME280;
 static Adafruit_BMP280 BMP280(TELEM_WIRE);
 #endif
 
+#if ENV_INCLUDE_SEN0658
+#include "DFROBOT_SEN0658.h"
+static DFROBOT_SEN0658 SEN0658;
+#endif
+
 #if ENV_INCLUDE_SHTC3
 #include <Adafruit_SHTC3.h>
 static Adafruit_SHTC3 SHTC3;
@@ -331,6 +336,16 @@ bool EnvironmentSensorManager::begin() {
   }
   #endif
 
+  #if ENV_INCLUDE_SEN0658
+  if (SEN0658.begin()) {
+    MESH_DEBUG_PRINTLN("Found sensor SEN0658");
+    SEN0658_initialized = true;
+  } else {
+    SEN0658_initialized = false;
+    MESH_DEBUG_PRINTLN("SEN0658 was not found");
+  }
+  #endif
+
   return true;
 }
 
@@ -483,6 +498,26 @@ bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, Cayen
     }
     #endif
 
+    #if ENV_INCLUDE_SEN0658
+    if (SEN0658_initialized) {
+      DFROBOT_SEN0658_Sample sample = {0};
+      if (SEN0658.readSample(sample)) {
+        // this is an external sensor, so don't start with SELF channel
+        telemetry.addTemperature(next_available_channel, sample.temperature);
+        telemetry.addRelativeHumidity(next_available_channel, sample.humidity);
+        telemetry.addBarometricPressure(next_available_channel, sample.airPressure);
+        telemetry.addConcentration(next_available_channel, sample.pm2_5);
+        telemetry.addAnalogInput(next_available_channel, sample.pm10);
+        telemetry.addDistance(next_available_channel, sample.windSpeed);
+        telemetry.addDirection(next_available_channel, sample.windAngle);
+        telemetry.addLuminosity(next_available_channel, sample.luminosity);
+        telemetry.addGenericSensor(next_available_channel, sample.noiseDb);
+        telemetry.addUnixTime(next_available_channel, sample.timestamp);
+        next_available_channel++;
+      }
+    }
+    #endif
+
   }
 
   return true;
@@ -494,6 +529,9 @@ int EnvironmentSensorManager::getNumSettings() const {
   #if ENV_INCLUDE_GPS
     if (gps_detected) settings++;  // only show GPS setting if GPS is detected
   #endif
+  #if ENV_INCLUDE_SEN0658
+    if (SEN0658_initialized) settings += 3; 
+  #endif
   return settings;
 }
 
@@ -504,8 +542,17 @@ const char* EnvironmentSensorManager::getSettingName(int i) const {
       return "gps";
     }
   #endif
-  // convenient way to add params (needed for some tests)
-//  if (i == settings++) return "param.2";
+  #if ENV_INCLUDE_SEN0658
+    if (SEN0658_initialized && i == settings++) {
+      return "wind_dir_offset";
+    }
+    if (SEN0658_initialized && i == settings++) {
+      return "wind_speed_zero";
+    }
+    if (SEN0658_initialized && i == settings++) {
+      return "rainfall_zero";
+    }
+  #endif
   return NULL;
 }
 
@@ -516,8 +563,28 @@ const char* EnvironmentSensorManager::getSettingValue(int i) const {
       return gps_active ? "1" : "0";
     }
   #endif
-  // convenient way to add params ...
-//  if (i == settings++) return "2";
+  #if ENV_INCLUDE_SEN0658
+    if (SEN0658_initialized && i == settings++) {
+      uint16_t offset;
+      if (SEN0658.readWindDirectionOffset(offset)) {
+        if (offset == 0) {
+          return "0";
+        } else if (offset == 1) {
+          return "1";
+        } else {
+          return "[unknown]";
+        }
+      } else {
+        return "[error]";
+      }
+    }
+    if (SEN0658_initialized && i == settings++) {
+      return "[only writeable]";
+    }
+    if (SEN0658_initialized && i == settings++) {
+      return "[only writeable]";
+    }
+  #endif
   return NULL;
 }
 
@@ -539,6 +606,15 @@ bool EnvironmentSensorManager::setSettingValue(const char* name, const char* val
       gps_update_interval_sec = 1;  // Default to 1 second if 0
     }
     return true;
+  }
+  #endif
+  #if ENV_INCLUDE_SEN0658
+  if (strcmp(name, "wind_dir_offset") == 0) {
+    return SEN0658.writeWindDirectionOffset(atoi(value));
+  } else if (strcmp(name, "wind_speed_zero") == 0) {
+    return SEN0658.zeroWindSpeed();
+  } else if (strcmp(name, "rainfall_zero") == 0) {
+    return SEN0658.zeroRainfall();
   }
   #endif
   return false;  // not supported
@@ -702,6 +778,19 @@ void EnvironmentSensorManager::stop_gps() {
   MESH_DEBUG_PRINTLN("Stop GPS is N/A on this board. Actual GPS state unchanged");
   #endif
 }
+#endif
+
+bool EnvironmentSensorManager::hasPendingWork() {
+  #if ENV_INCLUDE_SEN0658
+  if (SEN0658_initialized) {
+    if(SEN0658.hasPendingWork()) {
+      return true;
+    }
+  }
+  #endif
+
+  return false;
+}
 
 void EnvironmentSensorManager::loop() {
   static long next_gps_update = 0;
@@ -734,5 +823,10 @@ void EnvironmentSensorManager::loop() {
     next_gps_update = millis() + (gps_update_interval_sec * 1000);
   }
   #endif
+
+  #if ENV_INCLUDE_SEN0658
+  if (SEN0658_initialized) {
+    SEN0658.loop();
+  }
+  #endif
 }
-#endif

@@ -24,9 +24,13 @@
   #include <Arduino.h>
   #define MESH_DEBUG_PRINT(F, ...) Serial.printf("DEBUG: " F, ##__VA_ARGS__)
   #define MESH_DEBUG_PRINTLN(F, ...) Serial.printf("DEBUG: " F "\n", ##__VA_ARGS__)
+  #define MESH_DEBUG_PRINT_RAW(F, ...) Serial.printf(F, ##__VA_ARGS__)
+  #define MESH_DEBUG_PRINT_HEX(src,len) mesh::Utils::printHex(Serial, src, len)
 #else
   #define MESH_DEBUG_PRINT(...) {}
   #define MESH_DEBUG_PRINTLN(...) {}
+  #define MESH_DEBUG_PRINT_RAW(F, ...) {}
+  #define MESH_DEBUG_PRINT_HEX(src,len) {}
 #endif
 
 #if BRIDGE_DEBUG && ARDUINO

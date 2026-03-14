@@ -16,6 +16,7 @@ public:
 
   SensorManager() { node_lat = 0; node_lon = 0; node_altitude = 0; }
   virtual bool begin() { return false; }
+  virtual bool hasPendingWork() { return false; }
   virtual bool querySensors(uint8_t requester_permissions, CayenneLPP& telemetry) { return false; }
   virtual void loop() { }
   virtual int getNumSettings() const { return 0; }

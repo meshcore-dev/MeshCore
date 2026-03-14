@@ -92,9 +92,7 @@ uint8_t MyMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* secr
   if (data[0] == 0) {   // blank password, just check if sender is in ACL
     client = acl.getClient(sender.pub_key, PUB_KEY_SIZE);
     if (client == NULL) {
-    #if MESH_DEBUG
       MESH_DEBUG_PRINTLN("Login, sender not in ACL");
-    #endif
     }
   }
   if (client == NULL) {
@@ -104,9 +102,7 @@ uint8_t MyMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* secr
     } else if (strcmp((char *)data, _prefs.guest_password) == 0) { // check guest password
       perms = PERM_ACL_GUEST;
     } else {
-#if MESH_DEBUG
       MESH_DEBUG_PRINTLN("Invalid password: %s", data);
-#endif
       return 0;
     }
 
