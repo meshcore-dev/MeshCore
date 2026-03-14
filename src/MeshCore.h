@@ -51,6 +51,7 @@ public:
   virtual void onAfterTransmit() { }
   virtual void reboot() = 0;
   virtual void powerOff() { /* no op */ }
+  virtual uint32_t getIRQGpio() { return -1; } // not supported. Returns DIO1 (SX1262) and DIO0 (SX127x)
   virtual void sleep(uint32_t secs)  { /* no op */ }
   virtual uint32_t getGpio() { return 0; }
   virtual void setGpio(uint32_t values) {}
