@@ -109,6 +109,15 @@ int LinuxConfig::load(const char *filename) {
     trim(key);
     trim(value);
 
+    // strip optional surrounding quotes from string values
+    {
+      size_t vlen = strlen(value);
+      if (vlen >= 2 && (value[0] == '"' || value[0] == '\'') && value[vlen-1] == value[0]) {
+        value[vlen-1] = '\0';
+        value++;
+      }
+    }
+
     if (strcmp(key, "spidev") == 0)         spidev = safe_copy(value, 32);
     else if (strcmp(key, "lora_freq") == 0) lora_freq = atof(value);
     else if (strcmp(key, "lora_bw") == 0)   lora_bw = atof(value);
