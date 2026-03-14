@@ -54,6 +54,7 @@ public:
 
   void begin(const char* device_name) {
     BLEDevice::init(device_name);
+    BLEDevice::setMTU(256);  // default 23-byte MTU caps notifications at 20 bytes; request more
 
     // Explicitly disable bonding so the ESP32 does not send security requests.
     // Without this the BLE stack initiates Just Works pairing by default, which
