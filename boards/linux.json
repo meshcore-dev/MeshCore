@@ -1,0 +1,21 @@
+{
+  "build": {
+    "arduino": {
+    },
+    "core": "linux",
+    "extra_flags": [
+    ],
+    "hwids": [],
+    "mcu": "arm64",
+    "variant": "linux"
+  },
+  "connectivity": ["wifi", "bluetooth"],
+  "debug": {},
+  "frameworks": ["portduino", "linux"],
+  "name": "Linux",
+  "upload": {
+    "maximum_ram_size": 0,
+    "maximum_size": 0
+  },
+  "vendor": "Linux"
+}
