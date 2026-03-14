@@ -63,14 +63,18 @@ public:
     _tx_char->addDescriptor(new BLE2902());
     service->start();
 
-    _server->getAdvertising()->addServiceUUID(NUS_SERVICE_UUID);
-    _server->getAdvertising()->start();
+    BLEAdvertising* adv = BLEDevice::getAdvertising();
+    adv->addServiceUUID(NUS_SERVICE_UUID);
+    adv->setScanResponse(true);
+    adv->setMinPreferred(0x06);  // helps iOS find and stay connected to the device
+    adv->setMinPreferred(0x12);
+    BLEDevice::startAdvertising();
   }
 
   void loop() {
     if (_adv_restart_time && millis() >= _adv_restart_time) {
       if (_server->getConnectedCount() == 0) {
-        _server->getAdvertising()->start();
+        BLEDevice::startAdvertising();
       }
       _adv_restart_time = 0;
     }
