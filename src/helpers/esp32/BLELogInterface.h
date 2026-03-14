@@ -25,23 +25,29 @@ class BLELogInterface : public Print, BLEServerCallbacks {
   BLEServer *_server;
   BLECharacteristic *_tx_char;
   bool _connected;
+  uint16_t _conn_id;
   unsigned long _adv_restart_time;
   char _line_buf[256];
   int _line_len;
+
+  // Returns the max bytes per notification for the current connection.
+  // BLE notifications carry ATT_MTU-3 bytes of payload. Falls back to 20
+  // (the minimum guaranteed by the spec) if MTU has not been negotiated yet.
+  int notifyPayloadSize() const {
+    const uint16_t mtu = _server->getPeerMTU(_conn_id);
+    return (mtu > 3) ? mtu - 3 : 20;
+  }
 
   void flushLine() {
     if (_line_len == 0 || !_connected) {
       _line_len = 0;
       return;
     }
-    // BLE notifications are capped at ATT_MTU-3 bytes; MTU negotiation is not
-    // guaranteed, so always chunk at 20 bytes (the safe minimum) to ensure the
-    // full line is delivered regardless of the negotiated MTU.
-    const int CHUNK = 20;
+    const int chunk = notifyPayloadSize();
     int offset = 0;
     while (offset < _line_len) {
       int n = _line_len - offset;
-      if (n > CHUNK) n = CHUNK;
+      if (n > chunk) n = chunk;
       _tx_char->setValue((uint8_t *)_line_buf + offset, n);
       _tx_char->notify();
       offset += n;
@@ -49,7 +55,14 @@ class BLELogInterface : public Print, BLEServerCallbacks {
     _line_len = 0;
   }
 
-  void onConnect(BLEServer *pServer) override { _connected = true; }
+  void onConnect(BLEServer *pServer) override {
+    _connected = true;
+  }
+
+  void onConnect(BLEServer *pServer, esp_ble_gatts_cb_param_t *param) override {
+    _connected = true;
+    _conn_id = param->connect.conn_id;
+  }
 
   void onDisconnect(BLEServer *pServer) override {
     _connected = false;
@@ -59,11 +72,12 @@ class BLELogInterface : public Print, BLEServerCallbacks {
 
 public:
   BLELogInterface()
-      : _server(nullptr), _tx_char(nullptr), _connected(false), _adv_restart_time(0), _line_len(0) {}
+      : _server(nullptr), _tx_char(nullptr), _connected(false), _conn_id(0), _adv_restart_time(0),
+        _line_len(0) {}
 
   void begin(const char *device_name) {
     BLEDevice::init(device_name);
-    BLEDevice::setMTU(256); // default 23-byte MTU caps notifications at 20 bytes; request more
+    BLEDevice::setMTU(256); // raise the ceiling; client may negotiate a larger MTU
 
     // Explicitly disable bonding so the ESP32 does not send security requests.
     // Without this the BLE stack initiates Just Works pairing by default, which
