@@ -30,19 +30,21 @@ class BLELogInterface : public Print, BLEServerCallbacks {
   int                 _line_len;
 
   void flushLine() {
-    if (_line_len > 0 && _connected) {
-      // BLE notifications are capped at ATT_MTU-3 bytes; MTU negotiation is not
-      // guaranteed, so always chunk at 20 bytes (the safe minimum) to ensure the
-      // full line is delivered regardless of the negotiated MTU.
-      const int CHUNK = 20;
-      int offset = 0;
-      while (offset < _line_len) {
-        int n = _line_len - offset;
-        if (n > CHUNK) n = CHUNK;
-        _tx_char->setValue((uint8_t*)_line_buf + offset, n);
-        _tx_char->notify();
-        offset += n;
-      }
+    if (_line_len == 0 || !_connected) {
+      _line_len = 0;
+      return;
+    }
+    // BLE notifications are capped at ATT_MTU-3 bytes; MTU negotiation is not
+    // guaranteed, so always chunk at 20 bytes (the safe minimum) to ensure the
+    // full line is delivered regardless of the negotiated MTU.
+    const int CHUNK = 20;
+    int offset = 0;
+    while (offset < _line_len) {
+      int n = _line_len - offset;
+      if (n > CHUNK) n = CHUNK;
+      _tx_char->setValue((uint8_t*)_line_buf + offset, n);
+      _tx_char->notify();
+      offset += n;
     }
     _line_len = 0;
   }
@@ -97,11 +99,10 @@ public:
   }
 
   void loop() {
-    if (_adv_restart_time && millis() >= _adv_restart_time) {
-      if (_server->getConnectedCount() == 0) {
-        BLEDevice::startAdvertising();
-      }
-      _adv_restart_time = 0;
+    if (!_adv_restart_time || millis() < _adv_restart_time) return;
+    _adv_restart_time = 0;
+    if (_server->getConnectedCount() == 0) {
+      BLEDevice::startAdvertising();
     }
   }
 
