@@ -1,0 +1,24 @@
+# meshcored.ini — PoW SX1262 HAT on Raspberry Pi Zero 2W
+# GPIO numbering is BCM (the number after "GPIO", e.g. GPIO22 = 22).
+#
+# Hardware config (read on every startup):
+spidev = /dev/spidev0.0
+lora_irq_pin = 22
+lora_reset_pin = 13
+# lora_nss_pin — SS is handled by the SPI driver; not needed
+# lora_busy_pin — not wired on this HAT
+lora_freq = 869.618
+lora_bw = 62.5
+lora_sf = 8
+lora_cr = 8
+lora_tcxo = 1.8
+lora_tx_power = 22
+
+# First-run node defaults (ignored after first boot; use CLI to change):
+advert_name = PoW Linux Repeater
+admin_password = changeme
+lat = 0.0
+lon = 0.0
+
+# data_dir — where identity and node prefs are persisted (default shown):
+#data_dir = /var/lib/meshcore
