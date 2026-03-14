@@ -66,11 +66,12 @@ void initVariant()
   // All pins output HIGH by default.
   // https://github.com/Seeed-Studio/Adafruit_nRF52_Arduino/blob/fab7d30a997a1dfeef9d1d59bfb549adda73815a/cores/nRF5/wiring.c#L65-L69
 
-  pinMode(BATTERY_PIN, INPUT);
-  pinMode(EXT_CHRG_DETECT, INPUT);
-  pinMode(EXT_PWR_DETECT, INPUT);
+  pinMode(PIN_VBAT_READ, INPUT);
+  // pinMode(EXT_CHRG_DETECT, INPUT);
+  // pinMode(EXT_PWR_DETECT, INPUT);
   pinMode(PIN_BUTTON1, INPUT);
   pinMode(LED_PIN, OUTPUT);
   pinMode(LED_BLUE, OUTPUT);
   digitalWrite(LED_PIN, LOW);
+  digitalWrite(LED_BLUE, LOW);
 }

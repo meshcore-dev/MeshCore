@@ -18,21 +18,26 @@
 ////////////////////////////////////////////////////////////////////////////////
 // Power
 
-#define NRF_APM                                 // detect usb power
-// #define PIN_3V3_EN              (38)            // P1.6 Power to Sensors no power 
+#define PIN_VBAT_READ                   (31)   // P0.31
+#define BATTERY_SENSE_RESOLUTION_BITS   12
+#define BATTERY_SENSE_RESOLUTION        4096.0
+#define AREF_VOLTAGE                    3.0
+#define VBAT_AR_INTERNAL                AR_INTERNAL_3_0
+#define ADC_MULTIPLIER                  1.537
+#define ADC_RESOLUTION                  14
 
-#define BATTERY_PIN (0 + 31) // P0.31
-// #define BATTERY_CHARGING_INV (32 + 02) // P1.02
-// #define BATTERY_IMMUTABLE
-#define ADC_MULTIPLIER          (1.537F)
+// Power management boot protection threshold (millivolts)
+#define PWRMGT_VOLTAGE_BOOTLOCK  3300   // Won't boot below this voltage (mV)
 
-#define EXT_CHRG_DETECT         (32+02)            // P1.02 Muzi Base schematic shows there's a bat_chg status. That's stat2 on BQ25. if low, it's charging. 
-#define EXT_PWR_DETECT          (27)             // P0.5 stat1 (power detect, basically) on bq25 is connected to pin 0.27
+// LPCOMP wake configuration (voltage recovery from SYSTEMOFF)
+#define PWRMGT_LPCOMP_AIN       3
+#define PWRMGT_LPCOMP_REFSEL    4       // 5/8 VDD (~3.13-3.44V)
 
-#define ADC_RESOLUTION          (14)
-#define BATTERY_SENSE_RES       (12)
+// Other pins
+#define PIN_AREF             (2)
 
-#define AREF_VOLTAGE            (3.3)
+
+static const uint8_t AREF = PIN_AREF;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Number of pins
@@ -79,10 +84,10 @@
 ////////////////////////////////////////////////////////////////////////////////
 // Builtin LEDs
 
-#define LED_BUILTIN             (-1)
-#define LED_BLUE                (32+4)            // P1.04
-#define LED_GREEN               (32+3)            // P1.03
-#define LED_PIN                 LED_GREEN
+#define LED_BUILTIN             (35)
+#define LED_BLUE                (-1)            // P1.04 turned off, because the blue LED was annoying. 
+// #define LED_GREEN               (35)            // P1.03
+#define LED_PIN                 LED_BUILTIN
 
 #define LED_STATE_ON            LOW
 
