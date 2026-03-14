@@ -3,6 +3,8 @@
 #include <MeshCore.h>
 #include <Arduino.h>
 #include <sys/time.h>
+#include <sys/stat.h>
+#include <errno.h>
 #include <RadioLib.h>
 
 class LinuxConfig {
@@ -36,6 +38,7 @@ public:
   char *admin_password = "password";
   float lat = 0.0f;
   float lon = 0.0f;
+  char *data_dir = "/var/lib/meshcore";
 
   int load(const char *filename);
 };

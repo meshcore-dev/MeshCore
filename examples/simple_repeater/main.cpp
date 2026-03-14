@@ -73,6 +73,14 @@ void setup() {
   fs = &LittleFS;
   IdentityStore store(LittleFS, "/identity");
   store.begin();
+#elif defined(ARCH_PORTDUINO)
+  if (::mkdir(board.config.data_dir, 0755) != 0 && errno != EEXIST) {
+    Serial.printf("WARNING: could not create data_dir '%s': %s\n", board.config.data_dir, strerror(errno));
+  }
+  portduinoVFS->mountpoint(board.config.data_dir);
+  fs = &PortduinoFS;
+  IdentityStore store(PortduinoFS, "/identity");
+  store.begin();
 #else
   #error "need to define filesystem"
 #endif

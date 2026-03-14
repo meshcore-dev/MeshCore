@@ -131,6 +131,7 @@ int LinuxConfig::load(const char *filename) {
     else if (strcmp(key, "admin_password") == 0) admin_password = safe_copy(value, 100);
     else if (strcmp(key, "lat") == 0)            lat = atof(value);
     else if (strcmp(key, "lon") == 0)            lon = atof(value);
+    else if (strcmp(key, "data_dir") == 0)       data_dir = safe_copy(value, 256);
   }
   fclose(f);
   return 0;
