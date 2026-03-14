@@ -5,6 +5,8 @@
 #include <helpers/SensorManager.h>
 #include <helpers/ClientACL.h>
 
+#define MAX_CLI_REPLY_LEN  160
+
 #if defined(WITH_RS232_BRIDGE) || defined(WITH_ESPNOW_BRIDGE)
 #define WITH_BRIDGE
 #endif
@@ -115,6 +117,6 @@ public:
 
   void loadPrefs(FILESYSTEM* _fs);
   void savePrefs(FILESYSTEM* _fs);
-  void handleCommand(uint32_t sender_timestamp, const char* command, char* reply);
+  void handleCommand(uint32_t sender_timestamp, const char* command, char reply[MAX_CLI_REPLY_LEN]);
   uint8_t buildAdvertData(uint8_t node_type, uint8_t* app_data);
 };

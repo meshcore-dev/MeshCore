@@ -198,7 +198,8 @@ uint8_t CommonCLI::buildAdvertData(uint8_t node_type, uint8_t* app_data) {
   }
 }
 
-void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, char* reply) {
+void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, char reply[MAX_CLI_REPLY_LEN]) {
+    char *reply_end= reply + MAX_CLI_REPLY_LEN;
     if (memcmp(command, "reboot", 6) == 0) {
       _board->reboot();  // doesn't return
     } else if (memcmp(command, "clkreboot", 9) == 0) {
@@ -690,8 +691,8 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
       sprintf(reply, "%s", _board->getManufacturerName());
     } else if (memcmp(command, "sensor get ", 11) == 0) {
       const char* key = command + 11;
-      const char* val = _sensors->getSettingByKey(key);
-      if (val != NULL) {
+      char val[MAX_SETTING_BUF_LEN];
+      if (_sensors->getSettingByKey(key, val, sizeof(val)) > 0) {
         sprintf(reply, "> %s", val);
       } else {
         strcpy(reply, "null");
@@ -714,22 +715,20 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
       if (strlen(command) > 11) {
         start = _atoi(command+12);
       }
+      const char *continue_fmt = "... next:%d";
       if (start >= end) {
-        strcpy(reply, "no custom var");
+        strlcpy(reply, "no custom var", reply_end - reply);
       } else {
-        sprintf(dp, "%d vars\n", end);
-        dp = strchr(dp, 0);
+        const char *vars_end = reply_end - strlen(continue_fmt) - 1; // leave space for continue message if needed
+        dp += snprintf(dp, vars_end - dp, "%d vars\n", end);
         int i;
-        for (i = start; i < end && (dp-reply < 134); i++) {
-          sprintf(dp, "%s=%s\n", 
-            _sensors->getSettingName(i),
-            _sensors->getSettingValue(i));
-          dp = strchr(dp, 0);
+        for (i = start; i < end && dp < vars_end; i++) {
+          dp += snprintf(dp, vars_end - dp, "%s=", _sensors->getSettingName(i));
+          dp += _sensors->getSettingValue(i, dp, vars_end - dp);
+          dp += snprintf(dp, vars_end - dp, "\n");
         }
         if (i < end) {
-          sprintf(dp, "... next:%d", i);
-        } else {
-          *(dp-1) = 0; // remove last CR
+          snprintf(dp, reply_end - dp, continue_fmt, i);
         }
       }
 #if ENV_INCLUDE_GPS == 1
@@ -798,7 +797,8 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         bool enabled = l->isEnabled(); // is EN pin on ?
         bool fix = l->isValid();       // has fix ?
         int sats = l->satellitesCount();
-        bool active = !strcmp(_sensors->getSettingByKey("gps"), "1");
+        char gpsVal[4];
+        bool active = _sensors->getSettingByKey("gps", gpsVal, sizeof(gpsVal)) > 0 && !strcmp(gpsVal, "1");
         if (enabled) {
           sprintf(reply, "on, %s, %s, %d sats",
             active?"active":"deactivated", 

@@ -103,11 +103,11 @@ const char* SolarSensorManager::getSettingName(int i) const {
   return (gps_detected && i == 0) ? "gps" : NULL;
 }
 
-const char* SolarSensorManager::getSettingValue(int i) const {
+int SolarSensorManager::getSettingValue(int i, char* buf, int bufLen) const {
   if (gps_detected && i == 0) {
-    return gps_active ? "1" : "0";
+    return snprintf(buf, bufLen, "%s", gps_active ? "1" : "0");
   }
-  return NULL;
+  return 0;
 }
 
 bool SolarSensorManager::setSettingValue(const char* name, const char* value) {

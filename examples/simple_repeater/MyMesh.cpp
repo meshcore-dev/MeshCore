@@ -1076,7 +1076,7 @@ void MyMesh::clearStats() {
   ((SimpleMeshTables *)getTables())->resetStats();
 }
 
-void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply) {
+void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char reply[MAX_CLI_REPLY_LEN]) {
   if (region_load_active) {
     if (StrHelper::isBlank(command)) {  // empty/blank line, signal to terminate 'load' operation
       region_map = temp_map;  // copy over the temp instance as new current map

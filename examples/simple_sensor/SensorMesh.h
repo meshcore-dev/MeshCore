@@ -50,7 +50,7 @@ public:
   SensorMesh(mesh::MainBoard& board, mesh::Radio& radio, mesh::MillisecondClock& ms, mesh::RNG& rng, mesh::RTCClock& rtc, mesh::MeshTables& tables);
   void begin(FILESYSTEM* fs);
   void loop();
-  void handleCommand(uint32_t sender_timestamp, char* command, char* reply);
+  void handleCommand(uint32_t sender_timestamp, char* command, char reply[MAX_CLI_REPLY_LEN]);
 
   // CommonCLI callbacks
   const char* getFirmwareVer() override { return FIRMWARE_VERSION; }

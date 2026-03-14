@@ -1650,15 +1650,11 @@ void MyMesh::handleCmdFrame(size_t len) {
   } else if (cmd_frame[0] == CMD_GET_CUSTOM_VARS) {
     out_frame[0] = RESP_CODE_CUSTOM_VARS;
     char *dp = (char *)&out_frame[1];
-    for (int i = 0; i < sensors.getNumSettings() && dp - (char *)&out_frame[1] < 140; i++) {
-      if (i > 0) {
-        *dp++ = ',';
-      }
-      strcpy(dp, sensors.getSettingName(i));
-      dp = strchr(dp, 0);
-      *dp++ = ':';
-      strcpy(dp, sensors.getSettingValue(i));
-      dp = strchr(dp, 0);
+    char *end = (char *)out_frame + sizeof(out_frame);
+    for (int i = 0; i < sensors.getNumSettings(); i++) {
+      if (i > 0) *dp++ = ',';
+      dp += snprintf(dp, end - dp, "%s:", sensors.getSettingName(i));
+      dp += sensors.getSettingValue(i, dp, end - dp);
     }
     _serial->writeFrame(out_frame, dp - (char *)out_frame);
   } else if (cmd_frame[0] == CMD_SET_CUSTOM_VAR && len >= 4) {

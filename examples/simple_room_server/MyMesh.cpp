@@ -755,7 +755,7 @@ void MyMesh::formatPacketStatsReply(char *reply) {
                                        getNumRecvFlood(), getNumRecvDirect());
 }
 
-void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply) {
+void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char reply[MAX_CLI_REPLY_LEN]) {
   while (*command == ' ')
     command++; // skip leading spaces
 

@@ -887,7 +887,9 @@ bool UITask::getGPSState() {
     int num = _sensors->getNumSettings();
     for (int i = 0; i < num; i++) {
       if (strcmp(_sensors->getSettingName(i), "gps") == 0) {
-        return !strcmp(_sensors->getSettingValue(i), "1");
+        char val[4];
+        _sensors->getSettingValue(i, val, sizeof(val));
+        return !strcmp(val, "1");
       }
     }
   } 
@@ -900,7 +902,9 @@ void UITask::toggleGPS() {
     int num = _sensors->getNumSettings();
     for (int i = 0; i < num; i++) {
       if (strcmp(_sensors->getSettingName(i), "gps") == 0) {
-        if (strcmp(_sensors->getSettingValue(i), "1") == 0) {
+        char val[4];
+        _sensors->getSettingValue(i, val, sizeof(val));
+        if (strcmp(val, "1") == 0) {
           _sensors->setSettingValue("gps", "0");
           _node_prefs->gps_enabled = 0;
           notify(UIEventType::ack);

@@ -372,7 +372,7 @@ uint8_t SensorMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* 
   return 13;  // reply length
 }
 
-void SensorMesh::handleCommand(uint32_t sender_timestamp, char* command, char* reply) {
+void SensorMesh::handleCommand(uint32_t sender_timestamp, char* command, char reply[MAX_CLI_REPLY_LEN]) {
   while (*command == ' ') command++;   // skip leading spaces
 
   if (strlen(command) > 4 && command[2] == '|') {  // optional prefix (for companion radio CLI)

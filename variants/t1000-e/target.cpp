@@ -182,11 +182,11 @@ int T1000SensorManager::getNumSettings() const { return 1; }  // just one suppor
 const char* T1000SensorManager::getSettingName(int i) const {
   return i == 0 ? "gps" : NULL;
 }
-const char* T1000SensorManager::getSettingValue(int i) const {
+int T1000SensorManager::getSettingValue(int i, char* buf, int bufLen) const {
   if (i == 0) {
-    return gps_active ? "1" : "0";
+    return snprintf(buf, bufLen, "%s", gps_active ? "1" : "0");
   }
-  return NULL;
+  return 0;
 }
 bool T1000SensorManager::setSettingValue(const char* name, const char* value) {
   if (strcmp(name, "gps") == 0) {

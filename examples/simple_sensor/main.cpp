@@ -132,7 +132,7 @@ void loop() {
 
   if (len > 0 && command[len - 1] == '\r') {  // received complete line
     command[len - 1] = 0;  // replace newline with C string null terminator
-    char reply[160];
+    char reply[MAX_CLI_REPLY_LEN];
     the_mesh.handleCommand(0, command, reply);  // NOTE: there is no sender_timestamp via serial!
     if (reply[0]) {
       Serial.print("  -> "); Serial.println(reply);

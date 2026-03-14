@@ -556,36 +556,30 @@ const char* EnvironmentSensorManager::getSettingName(int i) const {
   return NULL;
 }
 
-const char* EnvironmentSensorManager::getSettingValue(int i) const {
+int EnvironmentSensorManager::getSettingValue(int i, char* buf, int bufLen) const {
   int settings = 0;
   #if ENV_INCLUDE_GPS
     if (gps_detected && i == settings++) {
-      return gps_active ? "1" : "0";
+      return snprintf(buf, bufLen, "%s", gps_active ? "1" : "0");
     }
   #endif
   #if ENV_INCLUDE_SEN0658
     if (SEN0658_initialized && i == settings++) {
       uint16_t offset;
       if (SEN0658.readWindDirectionOffset(offset)) {
-        if (offset == 0) {
-          return "0";
-        } else if (offset == 1) {
-          return "1";
-        } else {
-          return "[unknown]";
-        }
+        return snprintf(buf, bufLen, "%u", (unsigned)offset);
       } else {
-        return "[error]";
+        return snprintf(buf, bufLen, "[error]");
       }
     }
     if (SEN0658_initialized && i == settings++) {
-      return "[only writeable]";
+      return snprintf(buf, bufLen, "[n/a]");
     }
     if (SEN0658_initialized && i == settings++) {
-      return "[only writeable]";
+      return snprintf(buf, bufLen, "[n/a]");
     }
   #endif
-  return NULL;
+  return 0;
 }
 
 bool EnvironmentSensorManager::setSettingValue(const char* name, const char* value) {

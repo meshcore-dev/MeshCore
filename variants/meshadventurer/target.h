@@ -27,7 +27,7 @@ public:
   void loop() override;
   int getNumSettings() const override;
   const char* getSettingName(int i) const override;
-  const char* getSettingValue(int i) const override;
+  int getSettingValue(int i, char* buf, int bufLen) const override;
   bool setSettingValue(const char* name, const char* value) override;
 };
 

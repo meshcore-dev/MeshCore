@@ -420,7 +420,9 @@ void UITask::handleButtonQuadruplePress() {
     int num = _sensors->getNumSettings();
     for (int i = 0; i < num; i++) {
       if (strcmp(_sensors->getSettingName(i), "gps") == 0) {
-        if (strcmp(_sensors->getSettingValue(i), "1") == 0) {
+        char val[4];
+        _sensors->getSettingValue(i, val, sizeof(val));
+        if (strcmp(val, "1") == 0) {
           _sensors->setSettingValue("gps", "0");
           notify(UIEventType::ack);
           sprintf(_alert, "GPS: Disabled");

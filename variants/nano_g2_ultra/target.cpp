@@ -118,11 +118,11 @@ const char *NanoG2UltraSensorManager::getSettingName(int i) const {
   return i == 0 ? "gps" : NULL;
 }
 
-const char *NanoG2UltraSensorManager::getSettingValue(int i) const {
+int NanoG2UltraSensorManager::getSettingValue(int i, char* buf, int bufLen) const {
   if (i == 0) {
-    return gps_active ? "1" : "0";
+    return snprintf(buf, bufLen, "%s", gps_active ? "1" : "0");
   }
-  return NULL;
+  return 0;
 }
 
 bool NanoG2UltraSensorManager::setSettingValue(const char *name, const char *value) {
