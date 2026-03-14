@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #include <Wire.h>
 
-#include "GAT562MeshTrackerProBoard.h"
+#include "GAT56230SMeshKitBoard.h"
 
 
 #ifdef NRF52_POWER_MANAGEMENT
@@ -14,7 +14,7 @@ const PowerMgtConfig power_config = {
 };
 
 
-void GAT562MeshTrackerProBoard::initiateShutdown(uint8_t reason) {
+void GAT56230SMeshKitBoard::initiateShutdown(uint8_t reason) {
   // Disable LoRa module power before shutdown
   digitalWrite(SX126X_POWER_EN, LOW);
 
@@ -28,7 +28,7 @@ void GAT562MeshTrackerProBoard::initiateShutdown(uint8_t reason) {
 #endif // NRF52_POWER_MANAGEMENT
 
 
-void GAT562MeshTrackerProBoard::begin() {
+void GAT56230SMeshKitBoard::begin() {
   NRF52BoardDCDC::begin();
   pinMode(PIN_VBAT_READ, INPUT);
 
