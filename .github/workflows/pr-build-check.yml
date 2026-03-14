@@ -39,6 +39,10 @@ jobs:
           - wio-e5-mini_repeater
           # ESP32-C6
           - LilyGo_Tlora_C6_repeater_
+          # LR1110 (nRF52)
+          - wio_wm1110_repeater
+          # SX1276 (ESP32)
+          - Tbeam_SX1276_repeater
 
     steps:
       - name: Clone Repo
