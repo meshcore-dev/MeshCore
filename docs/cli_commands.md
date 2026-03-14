@@ -477,15 +477,22 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 ---
 
-#### View or change the airtime factor (duty cycle limit)
+#### View or change the duty cycle limit
 **Usage:**
-- `get af`
-- `set af <value>`
+- `get dutycycle`
+- `set dutycycle <value>`
 
 **Parameters:**
-- `value`: Airtime factor (0-9)
+- `value`: Duty cycle percentage (10-100)
 
-**Default:** `1.0`
+**Default:** `50%` (equivalent to airtime factor 1.0)
+
+**Examples:**
+- `set dutycycle 100` — no duty cycle limit
+- `set dutycycle 50` — 50% duty cycle (default)
+- `set dutycycle 10` — 10% duty cycle (strictest EU requirement)
+
+> **Deprecated:** `get af` / `set af` still work but are deprecated in favour of `dutycycle`.
 
 ---
 

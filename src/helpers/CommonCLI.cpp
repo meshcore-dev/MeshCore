@@ -289,8 +289,13 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
      */
     } else if (memcmp(command, "get ", 4) == 0) {
       const char* config = &command[4];
-      if (memcmp(config, "af", 2) == 0) {
-        sprintf(reply, "> %s", StrHelper::ftoa(_prefs->airtime_factor));
+      if (memcmp(config, "dutycycle", 9) == 0) {
+        float dc = 100.0f / (_prefs->airtime_factor + 1.0f);
+        int dc_int = (int)dc;
+        int dc_frac = (int)((dc - dc_int) * 10.0f + 0.5f);
+        sprintf(reply, "> %d.%d%%", dc_int, dc_frac);
+      } else if (memcmp(config, "af", 2) == 0) {
+        sprintf(reply, "> %s (deprecated, use 'get dutycycle')", StrHelper::ftoa(_prefs->airtime_factor));
       } else if (memcmp(config, "int.thresh", 10) == 0) {
         sprintf(reply, "> %d", (uint32_t) _prefs->interference_threshold);
       } else if (memcmp(config, "agc.reset.interval", 18) == 0) {
@@ -442,10 +447,25 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
      */
     } else if (memcmp(command, "set ", 4) == 0) {
       const char* config = &command[4];
-      if (memcmp(config, "af ", 3) == 0) {
+      if (memcmp(config, "dutycycle ", 10) == 0) {
+        float dc = atof(&config[10]);
+        if (dc < 10 || dc > 100) {
+          strcpy(reply, "ERROR: dutycycle must be 10-100");
+        } else {
+          _prefs->airtime_factor = (100.0f / dc) - 1.0f;
+          savePrefs();
+          float actual = 100.0f / (_prefs->airtime_factor + 1.0f);
+          int a_int = (int)actual;
+          int a_frac = (int)((actual - a_int) * 10.0f + 0.5f);
+          sprintf(reply, "OK - %d.%d%%", a_int, a_frac);
+        }
+      } else if (memcmp(config, "af ", 3) == 0) {
         _prefs->airtime_factor = atof(&config[3]);
         savePrefs();
-        strcpy(reply, "OK");
+        float actual = 100.0f / (_prefs->airtime_factor + 1.0f);
+        int a_int = (int)actual;
+        int a_frac = (int)((actual - a_int) * 10.0f + 0.5f);
+        sprintf(reply, "OK - %d.%d%% (deprecated, use 'set dutycycle')", a_int, a_frac);
       } else if (memcmp(config, "int.thresh ", 11) == 0) {
         _prefs->interference_threshold = atoi(&config[11]);
         savePrefs();

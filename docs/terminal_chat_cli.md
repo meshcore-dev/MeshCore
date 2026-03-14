@@ -28,9 +28,11 @@ set lon {longitude}
 Sets your advertisement map longitude. (decimal degrees)
 
 ```
-set af {air-time-factor}
+set dutycycle {percent}
 ```
-Sets the transmit air-time-factor.
+Sets the transmit duty cycle limit (10-100%). Example: `set dutycycle 10` for 10%.
+
+> **Deprecated:** `set af` still works but is deprecated in favour of `set dutycycle`.
 
 
 ```
