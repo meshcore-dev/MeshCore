@@ -63,6 +63,14 @@
 
 #define ALERT_ACK_EXPIRY_MILLIS         8000   // wait 8 secs for ACKs to alert messages
 
+#ifndef PATH_STALE_SECS
+  #define PATH_STALE_SECS 60
+#endif
+
+static inline uint8_t pathHopCount(uint8_t path_len) {
+  return path_len & 0x3F;  // lower 6 bits encode hash count
+}
+
 static File openAppend(FILESYSTEM* _fs, const char* fname) {
   #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
     return _fs->open(fname, FILE_O_WRITE);
@@ -665,15 +673,23 @@ bool SensorMesh::onPeerPathRecv(mesh::Packet* packet, int sender_idx, const uint
   ClientInfo* from = acl.getClientByIdx(i);
 
   MESH_DEBUG_PRINTLN("PATH to contact, path_len=%d", (uint32_t) path_len);
-  // NOTE: for this impl, we just replace the current 'out_path' regardless, whenever sender sends us a new out_path.
-  // FUTURE: could store multiple out_paths per contact, and try to find which is the 'best'(?)
-  from->out_path_len = mesh::Packet::copyPath(from->out_path, path, path_len);  // store a copy of path, for sendDirect()
-  from->last_activity = getRTCClock()->getCurrentTime();
+  uint32_t now = getRTCClock()->getCurrentTime();
+  bool has_no_path = (from->out_path_len == OUT_PATH_UNKNOWN);
+  bool better_hops = !has_no_path && (pathHopCount(path_len) < pathHopCount(from->out_path_len));
+  bool stale = !has_no_path && (now > from->last_activity + PATH_STALE_SECS);
+  bool accept = has_no_path || better_hops || stale;
 
-  // REVISIT: maybe make ALL out_paths non-persisted to minimise flash writes??
-  if (from->isAdmin()) {
-    // only do saveContacts() (of this out_path change) if this is an admin
-    dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY);
+  if (accept) {
+    from->out_path_len = mesh::Packet::copyPath(from->out_path, path, path_len);  // store a copy of path, for sendDirect()
+    from->last_activity = now;
+
+    // REVISIT: maybe make ALL out_paths non-persisted to minimise flash writes??
+    if (from->isAdmin()) {
+      // only do saveContacts() (of this out_path change) if this is an admin
+      dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY);
+    }
+  } else {
+    MESH_DEBUG_PRINTLN("onPeerPathRecv: ignoring non-improving path update");
   }
 
   // NOTE: no reciprocal path send!!
