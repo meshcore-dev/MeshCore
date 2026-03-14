@@ -1,6 +1,9 @@
 #pragma once
 
 #include <MeshCore.h>
+#if MESH_PACKET_LOGGING && ARDUINO
+  #include <Arduino.h>
+#endif
 #include <Identity.h>
 #include <Packet.h>
 #include <Utils.h>
@@ -129,6 +132,9 @@ class Dispatcher {
 
   void processRecvPacket(Packet* pkt);
   void updateTxBudget();
+#if MESH_PACKET_LOGGING
+  Print* _packet_log;
+#endif
 
 protected:
   PacketManager* _mgr;
@@ -150,6 +156,9 @@ protected:
     tx_budget_ms = 0;
     last_budget_update = 0;
     duty_cycle_window_ms = 3600000;
+#if MESH_PACKET_LOGGING
+    _packet_log = &Serial;
+#endif
   }
 
   virtual DispatcherAction onRecvPacket(Packet* pkt) = 0;
@@ -172,6 +181,9 @@ protected:
 public:
   void begin();
   void loop();
+#if MESH_PACKET_LOGGING
+  void setPacketLogStream(Print* s) { if (s) _packet_log = s; }
+#endif
 
   Packet* obtainNewPacket();
   void releasePacket(Packet* packet);
