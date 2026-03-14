@@ -71,6 +71,14 @@ protected:
   virtual uint8_t getExtraAckTransmitCount() const;
 
   /**
+   * \brief  Select a coding rate for the next-hop peer based on link quality.
+   * \param  hash       the hash of the next-hop peer (from path[0..hash_size-1])
+   * \param  hash_size  bytes per hash entry
+   * \returns  0 = use node default CR, 5-8 = override CR for this packet
+   */
+  virtual uint8_t selectCodingRateForPeer(const uint8_t* hash, uint8_t hash_size) { return 0; }
+
+  /**
    * \brief  Perform search of local DB of peers/contacts.
    * \returns  Number of peers with matching hash
    */

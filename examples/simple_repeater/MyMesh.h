@@ -119,6 +119,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
 #endif
 
   void putNeighbour(const mesh::Identity& id, uint32_t timestamp, float snr);
+  int8_t findNeighbourSNR(const uint8_t* hash, uint8_t hash_size);
   void sendNodeDiscoverReq();
   uint8_t handleLoginReq(const mesh::Identity& sender, const uint8_t* secret, uint32_t sender_timestamp, const uint8_t* data, bool is_flood);
   uint8_t handleAnonRegionsReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data);
@@ -156,6 +157,7 @@ protected:
   uint8_t getExtraAckTransmitCount() const override {
     return _prefs.multi_acks;
   }
+  uint8_t selectCodingRateForPeer(const uint8_t* hash, uint8_t hash_size) override;
 
 #if ENV_INCLUDE_GPS == 1
   void applyGpsPrefs() {
