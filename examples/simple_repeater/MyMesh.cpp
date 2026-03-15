@@ -1267,7 +1267,38 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
       sendNodeDiscoverReq();
       strcpy(reply, "OK - Discover sent");
     }
-  } else{
+  } else if (memcmp(command, "io", 2) == 0) { 
+      // Check if it's a write/pulse command (e.g., "io ...") 
+      // If it's just "io", we skip this and just return the current state (read).
+      if (command[2] == ' ') { 
+          uint32_t val = 0;
+          uint32_t current = board.getGpio();
+          
+          // Mode check: format "io r 1" (command[3] is mode, command[4] is space)
+          if (command[3] != '\0' && command[4] == ' ') {
+              char mode = command[3];
+              sscanf(&command[5], "%x", &val); // Value starts at index 5
+
+              if (mode == 'r') {        // "io r 1" -> Reset bits
+                  board.setGpio(current & ~val);
+              } else if (mode == 's') { // "io s 1" -> Set bits
+                  board.setGpio(current | val);
+              } else if (mode == 't') { // "io t 1" -> Toggle bits
+                  board.setGpio(current ^ val);
+              } else if (mode == 'p') { // "io p 1" -> Pulse for Pi
+                  board.setGpio(current & ~val); // Pull Low (0)
+                  delay(50);                     // 50ms is safe for Mesh & Pi
+                  board.setGpio(current | val);  // Back to High (1)
+              }
+          } else { 
+              // "io 1" -> Direct absolute write
+              sscanf(&command[3], "%x", &val);
+              board.setGpio(val);
+          }
+      }
+      // Return the hex state for both read and write commands
+      sprintf(reply, "%x", board.getGpio());
+} else{
     _cli.handleCommand(sender_timestamp, command, reply);  // common CLI commands
   }
 }
