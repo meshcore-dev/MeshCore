@@ -2,6 +2,11 @@
 #include <Mesh.h>
 
 #include "MyMesh.h"
+#include <helpers/BLELogInterface.h>
+
+#if MESH_PACKET_LOGGING && BLE_PACKET_LOGGING && (defined(NRF52_PLATFORM) || defined(ESP32))
+  static BLELogInterface ble_log;
+#endif
 
 #ifdef DISPLAY_CLASS
   #include "UITask.h"
@@ -95,6 +100,11 @@ void setup() {
 
   the_mesh.begin(fs);
 
+#if MESH_PACKET_LOGGING && BLE_PACKET_LOGGING && (defined(NRF52_PLATFORM) || defined(ESP32))
+  ble_log.begin(the_mesh.getNodeName());
+  the_mesh.setPacketLogStream(&ble_log);
+#endif
+
 #ifdef DISPLAY_CLASS
   ui_task.begin(the_mesh.getNodePrefs(), FIRMWARE_BUILD_DATE, FIRMWARE_VERSION);
 #endif
@@ -153,6 +163,9 @@ void loop() {
   ui_task.loop();
 #endif
   rtc_clock.tick();
+#if MESH_PACKET_LOGGING && BLE_PACKET_LOGGING && defined(ESP32)
+  ble_log.loop();
+#endif
 
   if (the_mesh.getNodePrefs()->powersaving_enabled && !the_mesh.hasPendingWork()) {
     #if defined(NRF52_PLATFORM)

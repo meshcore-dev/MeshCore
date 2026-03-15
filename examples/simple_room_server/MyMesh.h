@@ -124,7 +124,6 @@ protected:
     return _prefs.airtime_factor;
   }
 
-  void logRxRaw(float snr, float rssi, const uint8_t raw[], int len) override;
   void logRx(mesh::Packet* pkt, int len, float score) override;
   void logTx(mesh::Packet* pkt, int len) override;
   void logTxFail(mesh::Packet* pkt, int len) override;

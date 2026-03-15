@@ -1,6 +1,34 @@
 #pragma once
 
 #include <MeshCore.h>
+#if MESH_PACKET_LOGGING && ARDUINO
+  #include <Arduino.h>
+  #include <stdarg.h>
+
+  class LogPrint : public Print {
+    Print* _impl;
+  public:
+    LogPrint() : _impl(&Serial) {}
+    void setStream(Print* s) { if (s) _impl = s; }
+    size_t write(uint8_t c) override { return _impl->write(c); }
+    size_t write(const uint8_t* buf, size_t n) override { return _impl->write(buf, n); }
+    void printf(const char* fmt, ...) {
+      char buf[192];  // sized for longest log line: ~31 char datetime + ~90 char fields
+      va_list args;
+      va_start(args, fmt);
+      int n = vsnprintf(buf, sizeof(buf), fmt, args);
+      va_end(args);
+      if (n >= (int)sizeof(buf)) {
+        // truncation occurred: mark it visibly rather than silently losing data
+        buf[sizeof(buf) - 4] = '.';
+        buf[sizeof(buf) - 3] = '.';
+        buf[sizeof(buf) - 2] = '\n';
+        buf[sizeof(buf) - 1] = '\0';
+      }
+      _impl->print(buf);
+    }
+  };
+#endif
 #include <Identity.h>
 #include <Packet.h>
 #include <Utils.h>
@@ -129,6 +157,9 @@ class Dispatcher {
 
   void processRecvPacket(Packet* pkt);
   void updateTxBudget();
+#if MESH_PACKET_LOGGING
+  LogPrint _packet_log;
+#endif
 
 protected:
   PacketManager* _mgr;
@@ -154,7 +185,13 @@ protected:
 
   virtual DispatcherAction onRecvPacket(Packet* pkt) = 0;
 
-  virtual void logRxRaw(float snr, float rssi, const uint8_t raw[], int len) { }   // custom hook
+  virtual void logRxRaw(float snr, float rssi, const uint8_t raw[], int len) {   // custom hook
+  #if MESH_PACKET_LOGGING
+    _packet_log.printf("%s RAW: ", getLogDateTime());
+    mesh::Utils::printHex(_packet_log, raw, len);
+    _packet_log.print("\n");
+  #endif
+  }
 
   virtual void logRx(Packet* packet, int len, float score) { }   // hooks for custom logging
   virtual void logTx(Packet* packet, int len) { }
@@ -172,6 +209,9 @@ protected:
 public:
   void begin();
   void loop();
+#if MESH_PACKET_LOGGING
+  void setPacketLogStream(Print* s) { _packet_log.setStream(s); }
+#endif
 
   Packet* obtainNewPacket();
   void releasePacket(Packet* packet);

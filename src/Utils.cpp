@@ -99,7 +99,7 @@ void Utils::toHex(char* dest, const uint8_t* src, size_t len) {
   *dest = 0;
 }
 
-void Utils::printHex(Stream& s, const uint8_t* src, size_t len) {
+void Utils::printHex(Print& s, const uint8_t* src, size_t len) {
   while (len > 0) {
     uint8_t b = *src++;
     s.print(hex_chars[b >> 4]);

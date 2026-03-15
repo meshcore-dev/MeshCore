@@ -137,8 +137,6 @@ protected:
 
   bool allowPacketForward(const mesh::Packet* packet) override;
   const char* getLogDateTime() override;
-  void logRxRaw(float snr, float rssi, const uint8_t raw[], int len) override;
-
   void logRx(mesh::Packet* pkt, int len, float score) override;
   void logTx(mesh::Packet* pkt, int len) override;
   void logTxFail(mesh::Packet* pkt, int len) override;
