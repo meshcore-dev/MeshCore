@@ -101,6 +101,11 @@ MyMesh the_mesh(radio_driver, fast_rng, rtc_clock, tables, store
 
 /* END GLOBAL OBJECTS */
 
+#ifdef WIFI_SSID
+static char _wifi_ssid[33];
+static char _wifi_pwd[65];
+#endif
+
 void halt() {
   while (1) ;
 }
@@ -195,7 +200,29 @@ void setup() {
 
 #ifdef WIFI_SSID
   board.setInhibitSleep(true);   // prevent sleep when WiFi is active
-  WiFi.begin(WIFI_SSID, WIFI_PWD);
+
+  // Load credentials from flash if provisioned via CLI rescue; fall back to compiled-in defaults
+  strncpy(_wifi_ssid, WIFI_SSID, sizeof(_wifi_ssid) - 1);
+  strncpy(_wifi_pwd,  WIFI_PWD,  sizeof(_wifi_pwd)  - 1);
+  {
+    File wf = SPIFFS.open("/wifi_config", "r");
+    if (wf) {
+      int n = wf.readBytesUntil('\n', _wifi_ssid, sizeof(_wifi_ssid) - 1);
+      if (n > 0 && _wifi_ssid[n - 1] == '\r') n--;  // strip \r if present
+      _wifi_ssid[n] = 0;
+      n = wf.readBytesUntil('\n', _wifi_pwd, sizeof(_wifi_pwd) - 1);
+      if (n > 0 && _wifi_pwd[n - 1] == '\r') n--;   // strip \r if present
+      _wifi_pwd[n] = 0;
+      wf.close();
+      WIFI_DEBUG_PRINTLN("Loaded credentials from flash, SSID: %s", _wifi_ssid);
+    } else {
+      WIFI_DEBUG_PRINTLN("No /wifi_config found, using compiled-in SSID: %s", _wifi_ssid);
+    }
+  }
+
+  WiFi.persistent(false);        // don't use/overwrite NVS-cached credentials
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(_wifi_ssid, _wifi_pwd);
   serial_interface.begin(TCP_PORT);
 #elif defined(BLE_PIN_CODE)
   serial_interface.begin(BLE_NAME_PREFIX, the_mesh.getNodePrefs()->node_name, the_mesh.getBLEPin());
@@ -218,6 +245,42 @@ void setup() {
 #endif
 }
 
+#ifdef defined(WIFI_SSID) && defined(ESP32)
+static void wifi_reconnect_check() {
+  constexpr uint32_t CHECK_INTERVAL_MS  = 5000;
+  constexpr uint32_t RECONNECT_AFTER_MS = 30000;
+
+  static uint32_t last_check   = 0;
+  static uint32_t down_since   = 0;
+
+  if (millis() - last_check < CHECK_INTERVAL_MS) return;
+  last_check = millis();
+
+  if (WiFi.status() == WL_CONNECTED) {
+    if (down_since != 0) {
+      WIFI_DEBUG_PRINTLN("Connected to %s, IP: %s", _wifi_ssid, WiFi.localIP().toString().c_str());
+    }
+    down_since = 0;
+    return;
+  }
+
+  if (down_since == 0) {
+    down_since = millis();
+    WIFI_DEBUG_PRINTLN("WiFi disconnected, waiting to reconnect...");
+    return;
+  }
+
+  if (millis() - down_since >= RECONNECT_AFTER_MS) {
+    WIFI_DEBUG_PRINTLN("WiFi reconnecting...");
+    WiFi.disconnect(true);
+    WiFi.persistent(false);
+    WiFi.mode(WIFI_STA);
+    WiFi.begin(_wifi_ssid, _wifi_pwd);
+    down_since = 0;
+  }
+}
+#endif
+
 void loop() {
   the_mesh.loop();
   sensors.loop();
@@ -225,4 +288,7 @@ void loop() {
   ui_task.loop();
 #endif
   rtc_clock.tick();
+#ifdef WIFI_SSID
+  wifi_reconnect_check();
+#endif
 }
