@@ -67,7 +67,8 @@ struct NodePrefs {  // persisted to file
   double node_lat, node_lon;
   float freq;
   int8_t tx_power_dbm;
-  uint8_t unused[3];
+  uint8_t path_hash_mode;
+  uint8_t unused[2];
 };
 
 class MyMesh : public BaseChatMesh, ContactVisitor {
@@ -368,7 +369,7 @@ public:
   void sendSelfAdvert(int delay_millis) {
     auto pkt = createSelfAdvert(_prefs.node_name, _prefs.node_lat, _prefs.node_lon);
     if (pkt) {
-      sendFlood(pkt, delay_millis);
+      sendFlood(pkt, delay_millis, _prefs.path_hash_mode + 1);
     }
   }
 
@@ -411,7 +412,7 @@ public:
       int len = strlen((char *) &temp[5]);
       auto pkt = createGroupDatagram(PAYLOAD_TYPE_GRP_TXT, _public->channel, temp, 5 + len);
       if (pkt) {
-        sendFlood(pkt);
+        sendFlood(pkt, 0, _prefs.path_hash_mode + 1);
         Serial.println("   Sent.");
       } else {
         Serial.println("   ERROR: unable to send");
