@@ -2,6 +2,12 @@
 #include <helpers/TxtDataHelpers.h>
 #include "../MyMesh.h"
 #include "target.h"
+#if defined(ESP32)
+  #include <WiFi.h>
+#endif
+#if defined(ESP32) && defined(COMPANION_ALL_TRANSPORTS)
+  #include <helpers/esp32/CompanionTransportInterface.h>
+#endif
 #ifdef WIFI_SSID
   #include <WiFi.h>
 #endif
@@ -77,18 +83,19 @@ public:
 
 class HomeScreen : public UIScreen {
   enum HomePage {
-    FIRST,
-    RECENT,
-    RADIO,
-    BLUETOOTH,
-    ADVERT,
+    STATUS,
+    RECENT_ADVERTS,
+    RADIO_INFO,
+    BLE_TRANSPORT,
+    WIFI_TRANSPORT,
+    ADVERT_ACTION,
 #if ENV_INCLUDE_GPS == 1
-    GPS,
+    GPS_STATUS,
 #endif
 #if UI_SENSORS_PAGE == 1
-    SENSORS,
+    SENSOR_VALUES,
 #endif
-    SHUTDOWN,
+    POWER,
     Count    // keep as last
   };
 
@@ -99,6 +106,35 @@ class HomeScreen : public UIScreen {
   uint8_t _page;
   bool _shutdown_init;
   AdvertPath recent[UI_RECENT_LIST_SIZE];
+
+  bool isPageVisible(HomePage page) const {
+    if (page == HomePage::BLE_TRANSPORT) return _node_prefs->transport_mode == 0;
+    if (page == HomePage::WIFI_TRANSPORT) return _node_prefs->transport_mode == 1;
+    return true;
+  }
+
+  void ensureVisiblePage() {
+    if (isPageVisible((HomePage)_page)) return;
+    for (int i = 0; i < HomePage::Count; i++) {
+      uint8_t candidate = (_page + i) % HomePage::Count;
+      if (isPageVisible((HomePage)candidate)) {
+        _page = candidate;
+        return;
+      }
+    }
+  }
+
+  uint8_t nextVisiblePage(int dir) const {
+    for (int i = 1; i <= HomePage::Count; i++) {
+      int candidate = (int)_page + (dir * i);
+      while (candidate < 0) candidate += HomePage::Count;
+      candidate %= HomePage::Count;
+      if (isPageVisible((HomePage)candidate)) {
+        return (uint8_t)candidate;
+      }
+    }
+    return _page;
+  }
 
 
   void renderBatteryIndicator(DisplayDriver& display, uint16_t batteryMilliVolts) {
@@ -180,6 +216,7 @@ public:
   }
 
   int render(DisplayDriver& display) override {
+    ensureVisiblePage();
     char tmp[80];
     // node name
     display.setTextSize(1);
@@ -203,7 +240,7 @@ public:
       }
     }
 
-    if (_page == HomePage::FIRST) {
+    if (_page == HomePage::STATUS) {
       display.setColor(DisplayDriver::YELLOW);
       display.setTextSize(2);
       sprintf(tmp, "MSG: %d", _task->getMsgCount());
@@ -220,13 +257,13 @@ public:
         display.setTextSize(1);
         display.drawTextCentered(display.width() / 2, 43, "< Connected >");
 
-      } else if (the_mesh.getBLEPin() != 0) { // BT pin
+      } else if (_node_prefs->transport_mode == 0 && the_mesh.getBLEPin() != 0) { // BT pin
         display.setColor(DisplayDriver::RED);
         display.setTextSize(2);
         sprintf(tmp, "Pin:%d", the_mesh.getBLEPin());
         display.drawTextCentered(display.width() / 2, 43, tmp);
       }
-    } else if (_page == HomePage::RECENT) {
+    } else if (_page == HomePage::RECENT_ADVERTS) {
       the_mesh.getRecentlyHeard(recent, UI_RECENT_LIST_SIZE);
       display.setColor(DisplayDriver::GREEN);
       int y = 20;
@@ -251,7 +288,7 @@ public:
         display.setCursor(display.width() - timestamp_width - 1, y);
         display.print(tmp);
       }
-    } else if (_page == HomePage::RADIO) {
+    } else if (_page == HomePage::RADIO_INFO) {
       display.setColor(DisplayDriver::YELLOW);
       display.setTextSize(1);
       // freq / sf
@@ -270,19 +307,84 @@ public:
       display.setCursor(0, 53);
       sprintf(tmp, "Noise floor: %d", radio_driver.getNoiseFloor());
       display.print(tmp);
-    } else if (_page == HomePage::BLUETOOTH) {
+    } else if (_page == HomePage::BLE_TRANSPORT) {
       display.setColor(DisplayDriver::GREEN);
-      display.drawXbm((display.width() - 32) / 2, 18,
+      display.drawTextCentered(display.width() / 2, 16, "BLE transport");
+      display.drawXbm((display.width() - 32) / 2, 24,
           _task->isSerialEnabled() ? bluetooth_on : bluetooth_off,
           32, 32);
       display.setTextSize(1);
-      display.drawTextCentered(display.width() / 2, 64 - 11, "toggle: " PRESS_LABEL);
-    } else if (_page == HomePage::ADVERT) {
+      display.drawTextCentered(display.width() / 2, 56, "Long press: WiFi");
+    } else if (_page == HomePage::WIFI_TRANSPORT) {
+      const int row1_y = 28;
+      const int row2_y = 38;
+      const int row3_y = 48;
+      const int footer_y = 57;
+      display.setColor(DisplayDriver::GREEN);
+      display.setTextSize(1);
+      display.drawTextCentered(display.width() / 2, 20, "WiFi transport");
+      uint16_t tcp_port = 5000;
+#if defined(ESP32) && defined(COMPANION_ALL_TRANSPORTS)
+      if (auto* transport = CompanionTransportInterface::instance()) {
+        tcp_port = transport->getTcpPort();
+      }
+#endif
+      bool flip = ((millis() / 1300) % 2) == 0;
+
+      if (_node_prefs->wifi_mode == 0) {
+        char ap_name[40];
+        if (_node_prefs->wifi_ap_ssid[0]) {
+          snprintf(ap_name, sizeof(ap_name), "AP:%s", _node_prefs->wifi_ap_ssid);
+        } else {
+          snprintf(ap_name, sizeof(ap_name), "AP:MeshCore-%s", _node_prefs->node_name);
+        }
+        const char* ap_pwd = _node_prefs->wifi_ap_pwd[0] ? _node_prefs->wifi_ap_pwd : "<open>";
+        char ap_pwd_row[40];
+        snprintf(ap_pwd_row, sizeof(ap_pwd_row), "PW:%s", ap_pwd);
+
+        if (flip) {
+          display.drawTextEllipsized(0, row1_y, display.width(), ap_name);
+          display.drawTextEllipsized(0, row2_y, display.width(), ap_pwd_row);
+        } else {
+          display.drawTextEllipsized(0, row1_y, display.width(), ap_pwd_row);
+          display.drawTextEllipsized(0, row2_y, display.width(), ap_name);
+        }
+#if defined(ESP32) && defined(COMPANION_ALL_TRANSPORTS)
+        IPAddress ap_ip = WiFi.softAPIP();
+        snprintf(tmp, sizeof(tmp), "%d.%d.%d.%d:%u", ap_ip[0], ap_ip[1], ap_ip[2], ap_ip[3], tcp_port);
+#else
+        snprintf(tmp, sizeof(tmp), "0.0.0.0:%u", tcp_port);
+#endif
+        display.drawTextCentered(display.width() / 2, row3_y, tmp);
+      } else {
+        display.drawTextCentered(display.width() / 2, row1_y, "Mode: Client");
+        snprintf(tmp, sizeof(tmp), "SSID:%s", _node_prefs->wifi_ssid[0] ? _node_prefs->wifi_ssid : "<unset>");
+        display.drawTextEllipsized(0, row2_y, display.width(), tmp);
+#if defined(ESP32) && defined(COMPANION_ALL_TRANSPORTS)
+        if (WiFi.status() == WL_CONNECTED) {
+          IPAddress ip = WiFi.localIP();
+          snprintf(tmp, sizeof(tmp), "%d.%d.%d.%d:%u", ip[0], ip[1], ip[2], ip[3], tcp_port);
+        } else {
+          snprintf(tmp, sizeof(tmp), "0.0.0.0:%u", tcp_port);
+        }
+#else
+        snprintf(tmp, sizeof(tmp), "0.0.0.0:%u", tcp_port);
+#endif
+        display.drawTextCentered(display.width() / 2, row3_y, tmp);
+      }
+
+      display.setColor(DisplayDriver::YELLOW);
+      // Keep labels short enough to fully fit 128px width with centered rendering.
+      const char* labels[2] = {"Hold: BLE", "Triple: AP/Client"};
+      const int label_turn_ms = 3500;
+      int idx = (millis() / label_turn_ms) % 2;
+      display.drawTextCentered(display.width() / 2, footer_y, labels[idx]);
+    } else if (_page == HomePage::ADVERT_ACTION) {
       display.setColor(DisplayDriver::GREEN);
       display.drawXbm((display.width() - 32) / 2, 18, advert_icon, 32, 32);
       display.drawTextCentered(display.width() / 2, 64 - 11, "advert: " PRESS_LABEL);
 #if ENV_INCLUDE_GPS == 1
-    } else if (_page == HomePage::GPS) {
+    } else if (_page == HomePage::GPS_STATUS) {
       LocationProvider* nmea = sensors.getLocationProvider();
       char buf[50];
       int y = 18;
@@ -321,7 +423,7 @@ public:
       }
 #endif
 #if UI_SENSORS_PAGE == 1
-    } else if (_page == HomePage::SENSORS) {
+    } else if (_page == HomePage::SENSOR_VALUES) {
       int y = 18;
       refresh_sensors();
       char buf[30];
@@ -392,7 +494,7 @@ public:
       if (sensors_scroll) sensors_scroll_offset = (sensors_scroll_offset+1)%sensors_nb;
       else sensors_scroll_offset = 0;
 #endif
-    } else if (_page == HomePage::SHUTDOWN) {
+    } else if (_page == HomePage::POWER) {
       display.setColor(DisplayDriver::GREEN);
       display.setTextSize(1);
       if (_shutdown_init) {
@@ -406,18 +508,36 @@ public:
   }
 
   bool handleInput(char c) override {
+    ensureVisiblePage();
     if (c == KEY_LEFT || c == KEY_PREV) {
-      _page = (_page + HomePage::Count - 1) % HomePage::Count;
+      _page = nextVisiblePage(-1);
       return true;
     }
     if (c == KEY_NEXT || c == KEY_RIGHT) {
-      _page = (_page + 1) % HomePage::Count;
-      if (_page == HomePage::RECENT) {
+      _page = nextVisiblePage(1);
+      if (_page == HomePage::RECENT_ADVERTS) {
         _task->showAlert("Recent adverts", 800);
       }
       return true;
     }
-    if (c == KEY_ENTER && _page == HomePage::BLUETOOTH) {
+    if (c == KEY_ENTER && _page == HomePage::BLE_TRANSPORT) {
+#if defined(ESP32) && defined(COMPANION_ALL_TRANSPORTS)
+      if (_task->consumeLongPress()) {
+        bool success = false;
+        if (auto* transport = CompanionTransportInterface::instance()) {
+          success = transport->setWirelessMode(CompanionTransportInterface::WIRELESS_MODE_TCP);
+          if (success) _node_prefs->transport_mode = 1;
+        }
+        if (success) {
+          the_mesh.savePrefs();
+          _task->notify(UIEventType::ack);
+          _task->showAlert("WiFi enabled", 1200);
+        } else {
+          _task->showAlert("Transport switch failed", 1200);
+        }
+        return true;
+      }
+#endif
       if (_task->isSerialEnabled()) {  // toggle Bluetooth on/off
         _task->disableSerial();
       } else {
@@ -425,7 +545,49 @@ public:
       }
       return true;
     }
-    if (c == KEY_ENTER && _page == HomePage::ADVERT) {
+    if (c == KEY_ENTER && _page == HomePage::WIFI_TRANSPORT) {
+#if defined(ESP32) && defined(COMPANION_ALL_TRANSPORTS)
+      if (_task->consumeLongPress()) {
+        bool success = false;
+        if (auto* transport = CompanionTransportInterface::instance()) {
+          success = transport->setWirelessMode(CompanionTransportInterface::WIRELESS_MODE_BLE);
+          if (success) _node_prefs->transport_mode = 0;
+        }
+        if (success) {
+          the_mesh.savePrefs();
+          _task->notify(UIEventType::ack);
+          _task->showAlert("BLE enabled", 1200);
+        } else {
+          _task->showAlert("Transport switch failed", 1200);
+        }
+      }
+#endif
+      return true;
+    }
+    if (c == KEY_SELECT && _page == HomePage::WIFI_TRANSPORT) {
+#if defined(ESP32) && defined(COMPANION_ALL_TRANSPORTS)
+      {
+        bool success = false;
+        uint8_t next_mode = _node_prefs->wifi_mode == 0 ? 1 : 0;
+        if (auto* transport = CompanionTransportInterface::instance()) {
+          auto mode = next_mode == 0
+              ? CompanionTransportInterface::WIFI_MODE_AP_ONLY
+              : CompanionTransportInterface::WIFI_MODE_STA_CLIENT;
+          success = transport->setWifiMode(mode);
+          if (success) _node_prefs->wifi_mode = next_mode;
+        }
+        if (success) {
+          the_mesh.savePrefs();
+          _task->notify(UIEventType::ack);
+          _task->showAlert(next_mode == 0 ? "WiFi mode: AP" : "WiFi mode: Client", 1400);
+        } else {
+          _task->showAlert("WiFi mode switch failed", 1400);
+        }
+      }
+#endif
+      return true;
+    }
+    if (c == KEY_ENTER && _page == HomePage::ADVERT_ACTION) {
       _task->notify(UIEventType::ack);
       if (the_mesh.advert()) {
         _task->showAlert("Advert sent!", 1000);
@@ -435,19 +597,19 @@ public:
       return true;
     }
 #if ENV_INCLUDE_GPS == 1
-    if (c == KEY_ENTER && _page == HomePage::GPS) {
+    if (c == KEY_ENTER && _page == HomePage::GPS_STATUS) {
       _task->toggleGPS();
       return true;
     }
 #endif
 #if UI_SENSORS_PAGE == 1
-    if (c == KEY_ENTER && _page == HomePage::SENSORS) {
+    if (c == KEY_ENTER && _page == HomePage::SENSOR_VALUES) {
       _task->toggleGPS();
       next_sensors_refresh=0;
       return true;
     }
 #endif
-    if (c == KEY_ENTER && _page == HomePage::SHUTDOWN) {
+    if (c == KEY_ENTER && _page == HomePage::POWER) {
       _shutdown_init = true;  // need to wait for button to be released
       return true;
     }
@@ -559,6 +721,8 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
 #endif
 
   _node_prefs = node_prefs;
+  _last_transport_mode = _node_prefs ? _node_prefs->transport_mode : 255;
+  _last_wifi_mode = _node_prefs ? _node_prefs->wifi_mode : 255;
 
 #if ENV_INCLUDE_GPS == 1
   // Apply GPS preferences from stored prefs
@@ -716,6 +880,35 @@ bool UITask::isButtonPressed() const {
 
 void UITask::loop() {
   char c = 0;
+
+  if (_node_prefs != NULL) {
+    if (_node_prefs->transport_mode != _last_transport_mode) {
+      _last_transport_mode = _node_prefs->transport_mode;
+      _transport_reboot_pending = true;
+      _transport_reboot_deadline = millis() + 10000;
+      _next_refresh = 0;  // immediate redraw after remote command changes
+    }
+    if (_node_prefs->wifi_mode != _last_wifi_mode) {
+      _last_wifi_mode = _node_prefs->wifi_mode;
+      _wifi_mode_notice_active = true;
+      _wifi_mode_notice_value = _node_prefs->wifi_mode;
+      _wifi_mode_notice_until = millis() + 3000;
+      _last_transport_mode = _node_prefs->transport_mode;
+      _next_refresh = 0;  // immediate redraw after remote command changes
+    }
+  }
+
+  if (_transport_reboot_pending && millis() >= _transport_reboot_deadline) {
+    _transport_reboot_pending = false;
+    shutdown(true);
+    return;
+  }
+
+  if (_wifi_mode_notice_active && millis() >= _wifi_mode_notice_until) {
+    _wifi_mode_notice_active = false;
+    _next_refresh = 0;
+  }
+
 #if UI_HAS_JOYSTICK
   int ev = user_btn.check();
   if (ev == BUTTON_EVENT_CLICK) {
@@ -779,7 +972,11 @@ void UITask::loop() {
 #endif
 
   if (c != 0 && curr) {
-    curr->handleInput(c);
+    bool handled = curr->handleInput(c);
+    if (!handled && c == KEY_SELECT) {
+      toggleBuzzer();
+    }
+    _pending_long_press = false;   // one-shot flag
     _auto_off = millis() + AUTO_OFF_MILLIS;   // extend auto-off timer
     _next_refresh = 100;  // trigger refresh
   }
@@ -795,7 +992,41 @@ void UITask::loop() {
   if (_display != NULL && _display->isOn()) {
     if (millis() >= _next_refresh && curr) {
       _display->startFrame();
-      int delay_millis = curr->render(*_display);
+      int delay_millis = 5000;
+      if (_transport_reboot_pending) {
+        int remaining_secs = (int)((_transport_reboot_deadline - millis() + 999) / 1000);
+        if (remaining_secs < 0) remaining_secs = 0;
+
+        _display->setTextSize(1);
+        _display->setColor(DisplayDriver::YELLOW);
+        _display->drawTextCentered(_display->width() / 2, 8, "Transport Changed");
+        _display->setColor(DisplayDriver::LIGHT);
+        _display->drawTextCentered(_display->width() / 2, 22, "Reboot required");
+        _display->drawTextCentered(_display->width() / 2, 34, "Auto reset in:");
+
+        char tmp[16];
+        snprintf(tmp, sizeof(tmp), "%ds", remaining_secs);
+        _display->setTextSize(2);
+        _display->setColor(DisplayDriver::RED);
+        _display->drawTextCentered(_display->width() / 2, 46, tmp);
+        _display->setTextSize(1);
+        delay_millis = 200;
+      } else if (_wifi_mode_notice_active) {
+        _display->setTextSize(1);
+        _display->setColor(DisplayDriver::YELLOW);
+        _display->drawTextCentered(_display->width() / 2, 10, "WiFi Mode Updated");
+        _display->setColor(DisplayDriver::LIGHT);
+        if (_wifi_mode_notice_value == 0) {
+          _display->drawTextCentered(_display->width() / 2, 30, "Switching to AP mode");
+          _display->drawTextCentered(_display->width() / 2, 44, "SSID: device hotspot");
+        } else {
+          _display->drawTextCentered(_display->width() / 2, 30, "Switching to Client");
+          _display->drawTextCentered(_display->width() / 2, 44, "Joining configured SSID");
+        }
+        delay_millis = 200;
+      } else {
+        delay_millis = curr->render(*_display);
+      }
       if (millis() < _alert_expiry) {  // render alert popup
         _display->setTextSize(1);
         int y = _display->height() / 3;
@@ -864,6 +1095,8 @@ char UITask::handleLongPress(char c) {
   if (millis() - ui_started_at < 8000) {   // long press in first 8 seconds since startup -> CLI/rescue
     the_mesh.enterCLIRescue();
     c = 0;   // consume event
+  } else {
+    _pending_long_press = true;
   }
   return c;
 }
@@ -877,8 +1110,6 @@ char UITask::handleDoubleClick(char c) {
 char UITask::handleTripleClick(char c) {
   MESH_DEBUG_PRINTLN("UITask: triple click triggered");
   checkDisplayOn(c);
-  toggleBuzzer();
-  c = 0;
   return c;
 }
 

@@ -7,6 +7,7 @@ Below are a few quick start guides.
 - [Frequently Asked Questions](./faq.md)
 - [CLI Commands](./cli_commands.md)
 - [Companion Protocol](./companion_protocol.md)
+- [Heltec V3 Button Actions](./heltec_v3_button_actions.md)
 - [Packet Format](./packet_format.md)
 - [QR Codes](./qr_codes.md)
 

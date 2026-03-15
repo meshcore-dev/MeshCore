@@ -31,4 +31,10 @@ struct NodePrefs {  // persisted to file
   uint8_t client_repeat;
   uint8_t path_hash_mode;    // which path mode to use when sending
   uint8_t autoadd_max_hops;  // 0 = no limit, 1 = direct (0 hops), N = up to N-1 hops (max 64)
+  uint8_t transport_mode;    // 0 = BLE, 1 = TCP/WiFi
+  char wifi_ssid[33];
+  char wifi_pwd[65];
+  uint8_t wifi_mode;         // 0 = AP, 1 = Client/STA
+  char wifi_ap_ssid[33];
+  char wifi_ap_pwd[65];
 };

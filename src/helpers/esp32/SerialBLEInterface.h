@@ -13,10 +13,12 @@ class SerialBLEInterface : public BaseSerialInterface, BLESecurityCallbacks, BLE
   bool deviceConnected;
   bool oldDeviceConnected;
   bool _isEnabled;
+  bool _stack_initialized;
   uint16_t last_conn_id;
   uint32_t _pin_code;
   unsigned long _last_write;
   unsigned long adv_restart_time;
+  char _device_name[49];
 
   struct Frame {
     uint8_t len;
@@ -30,6 +32,8 @@ class SerialBLEInterface : public BaseSerialInterface, BLESecurityCallbacks, BLE
   Frame send_queue[FRAME_QUEUE_SIZE];
 
   void clearBuffers() { recv_queue_len = 0; send_queue_len = 0; }
+  void initStack();
+  void shutdownStack();
 
 protected:
   // BLESecurityCallbacks methods
@@ -56,9 +60,11 @@ public:
     oldDeviceConnected = false;
     adv_restart_time = 0;
     _isEnabled = false;
+    _stack_initialized = false;
     _last_write = 0;
     last_conn_id = 0;
     send_queue_len = recv_queue_len = 0;
+    _device_name[0] = 0;
   }
 
   /**

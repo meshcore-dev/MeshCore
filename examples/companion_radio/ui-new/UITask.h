@@ -32,6 +32,14 @@ class UITask : public AbstractUITask {
   GenericVibration vibration;
 #endif
   unsigned long _next_refresh, _auto_off;
+  bool _pending_long_press;
+  uint8_t _last_transport_mode;
+  uint8_t _last_wifi_mode;
+  bool _transport_reboot_pending;
+  unsigned long _transport_reboot_deadline;
+  bool _wifi_mode_notice_active;
+  unsigned long _wifi_mode_notice_until;
+  uint8_t _wifi_mode_notice_value;
   NodePrefs* _node_prefs;
   char _alert[80];
   unsigned long _alert_expiry;
@@ -68,6 +76,14 @@ public:
   UITask(mesh::MainBoard* board, BaseSerialInterface* serial) : AbstractUITask(board, serial), _display(NULL), _sensors(NULL) {
     next_batt_chck = _next_refresh = 0;
     ui_started_at = 0;
+    _pending_long_press = false;
+    _last_transport_mode = 255;
+    _last_wifi_mode = 255;
+    _transport_reboot_pending = false;
+    _transport_reboot_deadline = 0;
+    _wifi_mode_notice_active = false;
+    _wifi_mode_notice_until = 0;
+    _wifi_mode_notice_value = 255;
     curr = NULL;
   }
   void begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* node_prefs);
@@ -77,6 +93,7 @@ public:
   int  getMsgCount() const { return _msgcount; }
   bool hasDisplay() const { return _display != NULL; }
   bool isButtonPressed() const;
+  bool consumeLongPress() { bool v = _pending_long_press; _pending_long_press = false; return v; }
 
   bool isBuzzerQuiet() { 
 #ifdef PIN_BUZZER

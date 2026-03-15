@@ -35,7 +35,16 @@ static uint32_t _atoi(const char* sp) {
 #endif
 
 #ifdef ESP32
-  #ifdef WIFI_SSID
+  #if defined(COMPANION_ALL_TRANSPORTS)
+    #include <helpers/esp32/CompanionTransportInterface.h>
+    CompanionTransportInterface serial_interface;
+    #ifdef SERIAL_RX
+      HardwareSerial companion_serial(1);
+    #endif
+    #ifndef TCP_PORT
+      #define TCP_PORT 5000
+    #endif
+  #elif defined(WIFI_SSID)
     #include <helpers/esp32/SerialWifiInterface.h>
     SerialWifiInterface serial_interface;
     #ifndef TCP_PORT
@@ -193,7 +202,29 @@ void setup() {
     #endif
   );
 
-#ifdef WIFI_SSID
+#if defined(COMPANION_ALL_TRANSPORTS)
+  board.setInhibitSleep(true);   // transport manager will keep one wireless stack active
+  #if defined(SERIAL_RX)
+    companion_serial.setPins(SERIAL_RX, SERIAL_TX);
+    companion_serial.begin(115200);
+    serial_interface.begin(companion_serial, BLE_NAME_PREFIX, the_mesh.getNodePrefs()->node_name, the_mesh.getBLEPin(), TCP_PORT);
+  #else
+    serial_interface.begin(Serial, BLE_NAME_PREFIX, the_mesh.getNodePrefs()->node_name, the_mesh.getBLEPin(), TCP_PORT);
+  #endif
+  serial_interface.setWifiCredentials(the_mesh.getNodePrefs()->wifi_ssid, the_mesh.getNodePrefs()->wifi_pwd);
+  serial_interface.setWifiApCredentials(the_mesh.getNodePrefs()->wifi_ap_ssid, the_mesh.getNodePrefs()->wifi_ap_pwd);
+  serial_interface.setWifiMode(
+    the_mesh.getNodePrefs()->wifi_mode == 1
+      ? CompanionTransportInterface::WIFI_MODE_STA_CLIENT
+      : CompanionTransportInterface::WIFI_MODE_AP_ONLY
+  );
+  serial_interface.setWirelessMode(
+    the_mesh.getNodePrefs()->transport_mode == 1
+      ? CompanionTransportInterface::WIRELESS_MODE_TCP
+      : CompanionTransportInterface::WIRELESS_MODE_BLE,
+    true
+  );
+#elif defined(WIFI_SSID)
   board.setInhibitSleep(true);   // prevent sleep when WiFi is active
   WiFi.begin(WIFI_SSID, WIFI_PWD);
   serial_interface.begin(TCP_PORT);

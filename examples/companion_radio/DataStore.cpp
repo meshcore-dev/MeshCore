@@ -230,6 +230,12 @@ void DataStore::loadPrefsInt(const char *filename, NodePrefs& _prefs, double& no
     file.read((uint8_t *)&_prefs.gps_interval, sizeof(_prefs.gps_interval));               // 86
     file.read((uint8_t *)&_prefs.autoadd_config, sizeof(_prefs.autoadd_config));           // 87
     file.read((uint8_t *)&_prefs.autoadd_max_hops, sizeof(_prefs.autoadd_max_hops));       // 88
+    file.read((uint8_t *)&_prefs.transport_mode, sizeof(_prefs.transport_mode));           // 89
+    file.read((uint8_t *)_prefs.wifi_ssid, sizeof(_prefs.wifi_ssid));                      // 90
+    file.read((uint8_t *)_prefs.wifi_pwd, sizeof(_prefs.wifi_pwd));                        // 123
+    file.read((uint8_t *)&_prefs.wifi_mode, sizeof(_prefs.wifi_mode));                     // 188
+    file.read((uint8_t *)_prefs.wifi_ap_ssid, sizeof(_prefs.wifi_ap_ssid));                // 189
+    file.read((uint8_t *)_prefs.wifi_ap_pwd, sizeof(_prefs.wifi_ap_pwd));                  // 222
 
     file.close();
   }
@@ -267,6 +273,12 @@ void DataStore::savePrefs(const NodePrefs& _prefs, double node_lat, double node_
     file.write((uint8_t *)&_prefs.gps_interval, sizeof(_prefs.gps_interval));               // 86
     file.write((uint8_t *)&_prefs.autoadd_config, sizeof(_prefs.autoadd_config));           // 87
     file.write((uint8_t *)&_prefs.autoadd_max_hops, sizeof(_prefs.autoadd_max_hops));      // 88
+    file.write((uint8_t *)&_prefs.transport_mode, sizeof(_prefs.transport_mode));          // 89
+    file.write((uint8_t *)_prefs.wifi_ssid, sizeof(_prefs.wifi_ssid));                     // 90
+    file.write((uint8_t *)_prefs.wifi_pwd, sizeof(_prefs.wifi_pwd));                       // 123
+    file.write((uint8_t *)&_prefs.wifi_mode, sizeof(_prefs.wifi_mode));                    // 188
+    file.write((uint8_t *)_prefs.wifi_ap_ssid, sizeof(_prefs.wifi_ap_ssid));               // 189
+    file.write((uint8_t *)_prefs.wifi_ap_pwd, sizeof(_prefs.wifi_ap_pwd));                 // 222
 
     file.close();
   }

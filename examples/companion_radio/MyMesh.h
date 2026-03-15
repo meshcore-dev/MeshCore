@@ -201,6 +201,8 @@ private:
   uint32_t _active_ble_pin;
   bool _iter_started;
   bool _cli_rescue;
+  bool _pending_transport_apply;
+  unsigned long _pending_transport_apply_at;
   char cli_command[80];
   uint8_t app_target_ver;
   uint8_t *sign_data;
