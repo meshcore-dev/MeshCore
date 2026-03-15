@@ -22,10 +22,11 @@ static const uint8_t meshcore_logo [] PROGMEM = {
     0xe3, 0xe3, 0x8f, 0xff, 0x1f, 0xfc, 0x3c, 0x0e, 0x1f, 0xf8, 0xff, 0xf8, 0x70, 0x3c, 0x7f, 0xf8, 
 };
 
-void UITask::begin(NodePrefs* node_prefs, const char* build_date, const char* firmware_version) {
+void UITask::begin(NodePrefs* node_prefs, BusyTracker* busy, const char* build_date, const char* firmware_version) {
   _prevBtnState = HIGH;
   _auto_off = millis() + AUTO_OFF_MILLIS;
   _node_prefs = node_prefs;
+  _busy_tracker = busy;
   _display->turnOn();
 
   // strip off dash and commit hash by changing dash to null terminator
@@ -77,6 +78,20 @@ void UITask::renderCurrScreen() {
     _display->setCursor(0, 30);
     sprintf(tmp, "BW: %03.2f CR: %d", _node_prefs->bw, _node_prefs->cr);
     _display->print(tmp);
+
+    // busy score + effective hop limits
+    if (_busy_tracker) {
+      uint8_t grp = getEffectiveFloodMax(_busy_tracker->busy,
+          GROUP_FLOOD_MAX, GROUP_FLOOD_MID, GROUP_FLOOD_FLOOR);
+      uint8_t adv = getEffectiveFloodMax(_busy_tracker->busy,
+          ADVERT_FLOOD_MAX, ADVERT_FLOOD_MID, ADVERT_FLOOD_FLOOR);
+      _display->setCursor(0, 42);
+      _display->setColor(DisplayDriver::LIGHT);
+      sprintf(tmp, "GRP:%d/%d ADV:%d/%d B:%.0f%%",
+              grp, GROUP_FLOOD_MAX, adv, ADVERT_FLOOD_MAX,
+              _busy_tracker->busy * 100.0f);
+      _display->print(tmp);
+    }
   }
 }
 
