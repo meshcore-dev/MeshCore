@@ -38,7 +38,7 @@ public:
   }
 
   void powerOff() override {
-    digitalWrite(LED_GREEN, LOW);
+    digitalWrite(LED_WHITE, LOW);
     digitalWrite(LED_BLUE, LOW);
 
 #ifdef PIN_USER_BTN

@@ -47,9 +47,9 @@ void SenseCapSolarBoard::begin() {
 
   Wire.begin();
 
-#ifdef LED_GREEN
-  pinMode(LED_GREEN, OUTPUT);
-  digitalWrite(LED_GREEN, HIGH);
+#ifdef LED_WHITE
+  pinMode(LED_WHITE, OUTPUT);
+  digitalWrite(LED_WHITE, HIGH);
 #endif
 #ifdef LED_BLUE
   pinMode(LED_BLUE, OUTPUT);
