@@ -438,9 +438,11 @@ bool BaseChatMesh::sendGroupMessage(uint32_t timestamp, mesh::GroupChannel& chan
   memcpy(temp, &timestamp, 4);   // mostly an extra blob to help make packet_hash unique
   temp[4] = 0;  // TXT_TYPE_PLAIN
 
-  sprintf((char *) &temp[5], "%s: ", sender_name);  // <sender>: <msg>
+  size_t prefix_buf_sz = (size_t)(MAX_TEXT_LEN + 32);
+  snprintf((char *) &temp[5], prefix_buf_sz, "%s: ", sender_name ? sender_name : "");  // <sender>: <msg>, bounded
+  ((char *)&temp[5])[prefix_buf_sz - 1] = '\0';
   char *ep = strchr((char *) &temp[5], 0);
-  int prefix_len = ep - (char *) &temp[5];
+  int prefix_len = (int)(ep - (char *) &temp[5]);
 
   if (text_len + prefix_len > MAX_TEXT_LEN) text_len = MAX_TEXT_LEN - prefix_len;
   memcpy(ep, text, text_len);
