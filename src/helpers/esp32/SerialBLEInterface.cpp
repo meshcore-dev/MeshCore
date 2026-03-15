@@ -251,3 +251,7 @@ size_t SerialBLEInterface::checkRecvFrame(uint8_t dest[]) {
 bool SerialBLEInterface::isConnected() const {
   return deviceConnected;  //pServer != NULL && pServer->getConnectedCount() > 0;
 }
+
+bool SerialBLEInterface::hasPendingConnection() const {
+  return pServer != NULL && pServer->getConnectedCount() > 0;
+}
