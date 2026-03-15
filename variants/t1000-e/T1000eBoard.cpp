@@ -21,3 +21,20 @@ void T1000eBoard::begin() {
 
   delay(10);   // give sx1262 some time to power up
 }
+
+bool T1000eBoard::isExternalPowered() {
+  // T1000-E intentionally relies on its PMIC status lines rather than the
+  // generic nRF52 USB/VBUS detection path.
+  bool externalPowerDetected = false;
+  bool chargingDetected = false;
+
+#ifdef EXT_PWR_DETECT
+  externalPowerDetected = digitalRead(EXT_PWR_DETECT) == HIGH;
+#endif
+
+#ifdef EXT_CHRG_DETECT
+  chargingDetected = digitalRead(EXT_CHRG_DETECT) == LOW;
+#endif
+
+  return externalPowerDetected || chargingDetected;
+}

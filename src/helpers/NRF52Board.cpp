@@ -67,6 +67,11 @@ void NRF52Board::initPowerMgr() {
 }
 
 bool NRF52Board::isExternalPowered() {
+  uint32_t usb_power_mask = POWER_USBREGSTATUS_VBUSDETECT_Msk;
+#ifdef POWER_USBREGSTATUS_OUTPUTRDY_Msk
+  usb_power_mask |= POWER_USBREGSTATUS_OUTPUTRDY_Msk;
+#endif
+
   // Check if SoftDevice is enabled before using its API
   uint8_t sd_enabled = 0;
   sd_softdevice_is_enabled(&sd_enabled);
@@ -74,9 +79,9 @@ bool NRF52Board::isExternalPowered() {
   if (sd_enabled) {
     uint32_t usb_status;
     sd_power_usbregstatus_get(&usb_status);
-    return (usb_status & POWER_USBREGSTATUS_VBUSDETECT_Msk) != 0;
+    return (usb_status & usb_power_mask) != 0;
   } else {
-    return (NRF_POWER->USBREGSTATUS & POWER_USBREGSTATUS_VBUSDETECT_Msk) != 0;
+    return (NRF_POWER->USBREGSTATUS & usb_power_mask) != 0;
   }
 }
 

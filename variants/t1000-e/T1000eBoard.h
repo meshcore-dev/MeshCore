@@ -11,6 +11,7 @@ protected:
 public:
   T1000eBoard() : NRF52Board("T1000E_OTA") {}
   void begin();
+  bool isExternalPowered() override;
 
   uint16_t getBattMilliVolts() override {
   #ifdef BATTERY_PIN

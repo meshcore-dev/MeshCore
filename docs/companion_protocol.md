@@ -592,6 +592,10 @@ Byte 0: 0x0C
 Bytes 1-2: Battery Voltage (16-bit little-endian, millivolts)
 Bytes 3-6: Used Storage (32-bit little-endian, KB)
 Bytes 7-10: Total Storage (32-bit little-endian, KB)
+Bytes 11: Charging/External Power Flag (uint8, 0=no, 1=yes)
+
+Older parsers should tolerate the trailing byte and ignore it if they do not
+yet consume charging state.
 ```
 
 **Parsing Pseudocode**:
@@ -606,6 +610,9 @@ def parse_battery(data):
     if len(data) >= 11:
         info['used_kb'] = int.from_bytes(data[3:7], 'little')
         info['total_kb'] = int.from_bytes(data[7:11], 'little')
+    
+    if len(data) >= 12:
+        info['is_charging'] = data[11] == 1
     
     return info
 ```
