@@ -857,11 +857,17 @@ where `&type` is:
 `sensor = 4`
 
 ### 7.6. Q: How do I connect to the companion via WIFI, e.g. using a heltec v3?
- **A:**
-WiFi firmware requires you to compile it yourself, as you need to set the wifi ssid and password.
-Edit WIFI_SSID and WIFI_PWD in `./variants/heltec_v3/platformio.ini` and then flash it to your device.
+ 
+ **A:** 
+WiFi firmware now utilizes WIFI Manager which automatically creates an AP of "MC-AP" with password "mypwd000" when unable to connect to WIFI.
+
+To customize the default AP name and password, edit WIFI_MANAGER and WIFI_PWD in `./variants/heltec_v3/platformio.ini` and then flash it to your device. A custom password with fewer than 8 characters will be right-padded with zeros to a length of 8.
+
+If the manager does not pop up automatically after connecting to the AP, please browse to 192.168.4.1 .
+
 
 ### 7.7. Q: I have a Station G2, or a Heltec V4, or an Ikoka Stick, or a radio with a EByte E22-900M30S or a E22-900M33S module, what should their transmit power be set to?
+ 
  **A:**
 For companion radios, you can set these radios' transmit power in the smartphone app.  For repeater and room server radios, you can set their transmit power using the command line command `set tx`.  You can get their current value using command line comand `get tx`
 
