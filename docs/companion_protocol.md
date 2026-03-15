@@ -589,10 +589,12 @@ def parse_device_info(data):
 Byte 0: 0x0C
 Bytes 1-2: Battery Milli Volts (16-bit little-endian)
 
-Optional (if data size > 3):
 Bytes 3-6: Used Storage (32-bit little-endian, KB)
 Bytes 7-10: Total Storage (32-bit little-endian, KB)
 Bytes 11: Charging/External Power Flag (uint8, 0=no, 1=yes)
+
+Older parsers should tolerate the trailing byte and ignore it if they do not
+yet consume charging state.
 ```
 
 **Parsing Pseudocode**:

@@ -1319,7 +1319,7 @@ void MyMesh::handleCmdFrame(size_t len) {
     uint16_t battery_millivolts = board.getBattMilliVolts();
     uint32_t used = _store->getStorageUsedKb();
     uint32_t total = _store->getStorageTotalKb();
-    // Optional extra byte for companion clients:
+    // Always append a trailing charging/external-power flag:
     // 0 = not externally powered, 1 = externally powered/charging source present.
     bool external_powered = board.isExternalPowered();
 #if defined(NRF52_PLATFORM)
