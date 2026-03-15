@@ -290,7 +290,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
     } else if (memcmp(command, "get ", 4) == 0) {
       const char* config = &command[4];
       if (memcmp(config, "af", 2) == 0) {
-        sprintf(reply, "> %s", StrHelper::ftoa(_prefs->airtime_factor));
+        sprintf(reply, "> %s", StrHelper::ftoa3(_prefs->airtime_factor));
       } else if (memcmp(config, "int.thresh", 10) == 0) {
         sprintf(reply, "> %d", (uint32_t) _prefs->interference_threshold);
       } else if (memcmp(config, "agc.reset.interval", 18) == 0) {
@@ -324,13 +324,13 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         strcpy(bw, StrHelper::ftoa3(_prefs->bw));
         sprintf(reply, "> %s,%s,%d,%d", freq, bw, (uint32_t)_prefs->sf, (uint32_t)_prefs->cr);
       } else if (memcmp(config, "rxdelay", 7) == 0) {
-        sprintf(reply, "> %s", StrHelper::ftoa(_prefs->rx_delay_base));
+        sprintf(reply, "> %s", StrHelper::ftoa3(_prefs->rx_delay_base));
       } else if (memcmp(config, "txdelay", 7) == 0) {
-        sprintf(reply, "> %s", StrHelper::ftoa(_prefs->tx_delay_factor));
+        sprintf(reply, "> %s", StrHelper::ftoa3(_prefs->tx_delay_factor));
       } else if (memcmp(config, "flood.max", 9) == 0) {
         sprintf(reply, "> %d", (uint32_t)_prefs->flood_max);
       } else if (memcmp(config, "direct.txdelay", 14) == 0) {
-        sprintf(reply, "> %s", StrHelper::ftoa(_prefs->direct_tx_delay_factor));
+        sprintf(reply, "> %s", StrHelper::ftoa3(_prefs->direct_tx_delay_factor));
       } else if (memcmp(config, "owner.info", 10) == 0) {
         *reply++ = '>';
         *reply++ = ' ';
