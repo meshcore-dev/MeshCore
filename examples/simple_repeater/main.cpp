@@ -2,7 +2,13 @@
 #include <Mesh.h>
 
 #include "MyMesh.h"
-#include <helpers/BLELogInterface.h>
+#if BLE_PACKET_LOGGING
+  #if defined(NRF52_PLATFORM) || defined(ESP32)
+    #include <helpers/BLELogInterface.h>
+  #else
+    #error "BLE_PACKET_LOGGING is not supported on this platform (only ESP32 and nRF52)"
+  #endif
+#endif
 
 #if MESH_PACKET_LOGGING && BLE_PACKET_LOGGING && (defined(NRF52_PLATFORM) || defined(ESP32))
   static BLELogInterface ble_log;
