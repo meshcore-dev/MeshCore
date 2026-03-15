@@ -36,6 +36,7 @@ void RAK4631Board::begin() {
   pinMode(PIN_USER_BTN_ANA, INPUT_PULLUP);
 #endif
 
+
 #if defined(PIN_BOARD_SDA) && defined(PIN_BOARD_SCL)
   Wire.setPins(PIN_BOARD_SDA, PIN_BOARD_SCL);
 #endif

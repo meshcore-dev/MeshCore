@@ -19,6 +19,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
   - [GPS](#gps-when-gps-support-is-compiled-in)
   - [Sensors](#sensors-when-sensor-support-is-compiled-in)
   - [Bridge](#bridge-when-bridge-support-is-compiled-in)
+  - [Ethernet](#ethernet-when-ethernet-support-is-compiled-in)
 
 ---
 
@@ -973,5 +974,27 @@ region save
 **Usage:** `get pwrmgt.bootmv`
 
 **Note:** Returns an error on boards without power management support.
+
+---
+
+### Ethernet (when Ethernet support is compiled in)
+
+Ethernet support is available on RAK4631 boards with a RAK13800 (W5100S) Ethernet module. Use the `_ethernet` firmware variants (e.g. `RAK_4631_repeater_ethernet`) to enable this feature.
+
+---
+
+#### View Ethernet connection status
+**Usage:**
+- `eth.status`
+
+**Output:**
+- `ETH: <ip>:<port>` when connected (e.g. `ETH: 192.168.1.50:23`)
+- `ETH: not connected` when Ethernet is not active
+
+**Notes:**
+- Available on repeater and room server firmware only. Companion radio ethernet firmware does not expose a CLI.
+- The Ethernet interface obtains an IP address via DHCP automatically on boot.
+- A TCP server listens on port 23 (default) for CLI connections.
+- Connect with any TCP client (e.g. `nc`, PuTTY) to access the same CLI available over serial.
 
 ---

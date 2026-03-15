@@ -12,19 +12,20 @@ static uint32_t _atoi(const char* sp) {
   return n;
 }
 
+
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
   #include <InternalFileSystem.h>
   #if defined(QSPIFLASH)
     #include <CustomLFS_QSPIFlash.h>
     DataStore store(InternalFS, QSPIFlash, rtc_clock);
   #else
-  #if defined(EXTRAFS)
-    #include <CustomLFS.h>
-    CustomLFS ExtraFS(0xD4000, 0x19000, 128);
-    DataStore store(InternalFS, ExtraFS, rtc_clock);
-  #else
-    DataStore store(InternalFS, rtc_clock);
-  #endif
+    #if defined(EXTRAFS)
+      #include <CustomLFS.h>
+      CustomLFS ExtraFS(0xD4000, 0x19000, 128);
+      DataStore store(InternalFS, ExtraFS, rtc_clock);
+    #else
+      DataStore store(InternalFS, rtc_clock);
+    #endif
   #endif
 #elif defined(RP2040_PLATFORM)
   #include <LittleFS.h>
@@ -74,13 +75,21 @@ static uint32_t _atoi(const char* sp) {
   #ifdef BLE_PIN_CODE
     #include <helpers/nrf52/SerialBLEInterface.h>
     SerialBLEInterface serial_interface;
+  #elif defined(ETHERNET_ENABLED)
+    #include <helpers/nrf52/SerialEthernetInterface.h>
+    SerialEthernetInterface serial_interface;
   #else
     #include <helpers/ArduinoSerialInterface.h>
     ArduinoSerialInterface serial_interface;
   #endif
 #elif defined(STM32_PLATFORM)
-  #include <helpers/ArduinoSerialInterface.h>
-  ArduinoSerialInterface serial_interface;
+  #ifdef ETHERNET_ENABLED
+    #include <helpers/nrf52/SerialEthernetInterface.h>
+    SerialEthernetInterface serial_interface;
+  #else
+    #include <helpers/ArduinoSerialInterface.h>
+    ArduinoSerialInterface serial_interface;
+  #endif
 #else
   #error "need to define a serial interface"
 #endif
@@ -107,7 +116,6 @@ void halt() {
 
 void setup() {
   Serial.begin(115200);
-
   board.begin();
 
 #ifdef DISPLAY_CLASS
@@ -152,10 +160,23 @@ void setup() {
 
 #ifdef BLE_PIN_CODE
   serial_interface.begin(BLE_NAME_PREFIX, the_mesh.getNodePrefs()->node_name, the_mesh.getBLEPin());
+  the_mesh.startInterface(serial_interface);
+#elif defined(ETHERNET_ENABLED)
+  Serial.print("Waiting for serial to connect...\n");
+  unsigned long timeout = millis();
+  while (!Serial) {
+    if ((millis() - timeout) < 5000) { delay(100); } else { break; }
+  }
+  Serial.println("Initializing Ethernet adapter...");
+  if (serial_interface.begin()) {
+    the_mesh.startInterface(serial_interface);
+  } else {
+    Serial.println("ETH: Init failed, continuing without Ethernet (mesh only)");
+  }
 #else
   serial_interface.begin(Serial);
-#endif
   the_mesh.startInterface(serial_interface);
+#endif
 #elif defined(RP2040_PLATFORM)
   LittleFS.begin();
   store.begin();
@@ -225,4 +246,8 @@ void loop() {
   ui_task.loop();
 #endif
   rtc_clock.tick();
+
+#ifdef ETHERNET_ENABLED
+  serial_interface.loop();
+#endif
 }
