@@ -23,20 +23,18 @@ void T1000eBoard::begin() {
 }
 
 bool T1000eBoard::isExternalPowered() {
-  // T1000-E exposes dedicated detect lines for external power and charge state.
-  // Use these first, then fall back to NRF52 USB VBUS detection.
+  // T1000-E intentionally relies on its PMIC status lines rather than the
+  // generic nRF52 USB/VBUS detection path.
   bool externalPowerDetected = false;
   bool chargingDetected = false;
 
 #ifdef EXT_PWR_DETECT
-  // EXT_PWR_DETECT is high when external power rail is present.
   externalPowerDetected = digitalRead(EXT_PWR_DETECT) == HIGH;
 #endif
 
 #ifdef EXT_CHRG_DETECT
-  // Charge detect is typically active-low on PMIC status lines.
   chargingDetected = digitalRead(EXT_CHRG_DETECT) == LOW;
 #endif
 
-  return externalPowerDetected || chargingDetected || NRF52Board::isExternalPowered();
+  return externalPowerDetected || chargingDetected;
 }
