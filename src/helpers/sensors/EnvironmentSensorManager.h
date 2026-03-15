@@ -19,6 +19,7 @@ protected:
   bool LPS22HB_initialized = false;
   bool MLX90614_initialized = false;
   bool VL53L0X_initialized = false;
+  bool SHT3X_initialized = false;
   bool SHT4X_initialized = false;
   bool BME680_initialized = false;
   bool BMP085_initialized = false;
