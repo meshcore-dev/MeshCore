@@ -22,7 +22,9 @@ void XiaoNrf52Board::initiateShutdown(uint8_t reason) {
   digitalWrite(VBAT_ENABLE, enable_lpcomp ? LOW : HIGH);
 
   if (enable_lpcomp) {
-    configureVoltageWake(power_config.lpcomp_ain_channel, power_config.lpcomp_refsel);
+    if (!configureVoltageWake(power_config.lpcomp_ain_channel, power_config.lpcomp_refsel)) {
+      NVIC_SystemReset();
+    }
   }
 
   enterSystemOff(reason);
