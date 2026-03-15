@@ -3,6 +3,29 @@
 
 namespace mesh {
 
+static uint8_t getLocalFloodPriorityFor(uint8_t payload_type) {
+  if (payload_type == PAYLOAD_TYPE_ACK) return 0;
+  if (payload_type == PAYLOAD_TYPE_PATH || payload_type == PAYLOAD_TYPE_CONTROL) return 1;
+  if (payload_type == PAYLOAD_TYPE_ADVERT) return 3;
+  return 2;
+}
+
+static uint8_t getLocalDirectPriorityFor(uint8_t payload_type) {
+  if (payload_type == PAYLOAD_TYPE_ACK || payload_type == PAYLOAD_TYPE_CONTROL) return 0;
+  if (payload_type == PAYLOAD_TYPE_PATH) return 1;
+  return 0;
+}
+
+static uint8_t getFloodRetransmitPriorityFor(const Packet* packet) {
+  uint8_t payload_type = packet->getPayloadType();
+  if (payload_type == PAYLOAD_TYPE_ACK) return 0;
+  if (payload_type == PAYLOAD_TYPE_PATH || payload_type == PAYLOAD_TYPE_CONTROL) return 1;
+
+  // Keep ACK/PATH/CONTROL lanes clear by ensuring generic flood traffic doesn't use top priorities.
+  uint8_t hop_pri = packet->getPathHashCount();
+  return hop_pri < 2 ? 2 : hop_pri;
+}
+
 void Mesh::begin() {
   Dispatcher::begin();
 }
@@ -334,8 +357,8 @@ DispatcherAction Mesh::routeRecvPacket(Packet* packet) {
     packet->setPathHashCount(n + 1);
 
     uint32_t d = getRetransmitDelay(packet);
-    // as this propagates outwards, give it lower and lower priority
-    return ACTION_RETRANSMIT_DELAYED(packet->getPathHashCount(), d);   // give priority to closer sources, than ones further away
+    uint8_t pri = getFloodRetransmitPriorityFor(packet);
+    return ACTION_RETRANSMIT_DELAYED(pri, d);
   }
   return ACTION_RELEASE;
 }
@@ -636,14 +659,7 @@ void Mesh::sendFlood(Packet* packet, uint32_t delay_millis, uint8_t path_hash_si
 
   _tables->hasSeen(packet); // mark this packet as already sent in case it is rebroadcast back to us
 
-  uint8_t pri;
-  if (packet->getPayloadType() == PAYLOAD_TYPE_PATH) {
-    pri = 2;
-  } else if (packet->getPayloadType() == PAYLOAD_TYPE_ADVERT) {
-    pri = 3;   // de-prioritie these
-  } else {
-    pri = 1;
-  }
+  uint8_t pri = getLocalFloodPriorityFor(packet->getPayloadType());
   sendPacket(packet, pri, delay_millis);
 }
 
@@ -665,14 +681,7 @@ void Mesh::sendFlood(Packet* packet, uint16_t* transport_codes, uint32_t delay_m
 
   _tables->hasSeen(packet); // mark this packet as already sent in case it is rebroadcast back to us
 
-  uint8_t pri;
-  if (packet->getPayloadType() == PAYLOAD_TYPE_PATH) {
-    pri = 2;
-  } else if (packet->getPayloadType() == PAYLOAD_TYPE_ADVERT) {
-    pri = 3;   // de-prioritie these
-  } else {
-    pri = 1;
-  }
+  uint8_t pri = getLocalFloodPriorityFor(packet->getPayloadType());
   sendPacket(packet, pri, delay_millis);
 }
 
@@ -690,11 +699,7 @@ void Mesh::sendDirect(Packet* packet, const uint8_t* path, uint8_t path_len, uin
     pri = 5;   // maybe make this configurable
   } else {
     packet->path_len = Packet::copyPath(packet->path, path, path_len);
-    if (packet->getPayloadType() == PAYLOAD_TYPE_PATH) {
-      pri = 1;   // slightly less priority
-    } else {
-      pri = 0;
-    }
+    pri = getLocalDirectPriorityFor(packet->getPayloadType());
   }
   _tables->hasSeen(packet); // mark this packet as already sent in case it is rebroadcast back to us
   sendPacket(packet, pri, delay_millis);
