@@ -3,6 +3,7 @@
 #include "TxtDataHelpers.h"
 #include "AdvertDataHelpers.h"
 #include <RTClib.h>
+#include <stdlib.h>
 
 #ifndef BRIDGE_MAX_BAUD
 #define BRIDGE_MAX_BAUD 115200
@@ -23,6 +24,58 @@ static bool isValidName(const char *n) {
     if (*n == '[' || *n == ']' || *n == '\\' || *n == ':' || *n == ',' || *n == '?' || *n == '*') return false;
     n++;
   }
+  return true;
+}
+
+static bool parseTempradioFloatField(const char*& sp, float& out_val, bool is_last = false) {
+  while (*sp == ' ' || *sp == '\t') sp++;
+  if (*sp == 0) return false;
+
+  char* ep = nullptr;
+  out_val = strtof(sp, &ep);
+  if (ep == sp) return false;
+
+  sp = ep;
+  while (*sp == ' ' || *sp == '\t') sp++;
+  if (is_last) return *sp == 0;
+  if (*sp != ',') return false;
+  sp++;
+  return true;
+}
+
+static bool parseTempradioIntField(const char*& sp, long& out_val, bool is_last = false) {
+  while (*sp == ' ' || *sp == '\t') sp++;
+  if (*sp == 0) return false;
+
+  char* ep = nullptr;
+  out_val = strtol(sp, &ep, 10);
+  if (ep == sp) return false;
+
+  sp = ep;
+  while (*sp == ' ' || *sp == '\t') sp++;
+  if (is_last) return *sp == 0;
+  if (*sp != ',') return false;
+  sp++;
+  return true;
+}
+
+static bool parseTempradioArgs(const char* args, float& freq, float& bw, uint8_t& sf, uint8_t& cr, int& timeout_mins) {
+  long sf_l = 0;
+  long cr_l = 0;
+  long timeout_l = 0;
+  const char* sp = args;
+
+  if (!parseTempradioFloatField(sp, freq)) return false;
+  if (!parseTempradioFloatField(sp, bw)) return false;
+  if (!parseTempradioIntField(sp, sf_l)) return false;
+  if (!parseTempradioIntField(sp, cr_l)) return false;
+  if (!parseTempradioIntField(sp, timeout_l, true)) return false;
+  if (sf_l < 0 || sf_l > 255 || cr_l < 0 || cr_l > 255) return false;
+  if (timeout_l < -32768 || timeout_l > 32767) return false;
+
+  sf = (uint8_t)sf_l;
+  cr = (uint8_t)cr_l;
+  timeout_mins = (int)timeout_l;
   return true;
 }
 
@@ -262,15 +315,15 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         strcpy(reply, "ERR: bad pubkey");
       }
     } else if (memcmp(command, "tempradio ", 10) == 0) {
-      strcpy(tmp, &command[10]);
-      const char *parts[5];
-      int num = mesh::Utils::parseTextParts(tmp, parts, 5);
-      float freq  = num > 0 ? strtof(parts[0], nullptr) : 0.0f;
-      float bw    = num > 1 ? strtof(parts[1], nullptr) : 0.0f;
-      uint8_t sf  = num > 2 ? atoi(parts[2]) : 0;
-      uint8_t cr  = num > 3 ? atoi(parts[3]) : 0;
-      int temp_timeout_mins  = num > 4 ? atoi(parts[4]) : 0;
-      if (freq >= 300.0f && freq <= 2500.0f && sf >= 5 && sf <= 12 && cr >= 5 && cr <= 8 && bw >= 7.0f && bw <= 500.0f && temp_timeout_mins > 0) {
+      float freq = 0.0f;
+      float bw = 0.0f;
+      uint8_t sf = 0;
+      uint8_t cr = 0;
+      int temp_timeout_mins = 0;
+      bool parsed = parseTempradioArgs(&command[10], freq, bw, sf, cr, temp_timeout_mins);
+
+      if (parsed && freq >= 300.0f && freq <= 2500.0f && sf >= 5 && sf <= 12 && cr >= 5 && cr <= 8 &&
+          bw >= 7.0f && bw <= 500.0f && temp_timeout_mins > 0) {
         _callbacks->applyTempRadioParams(freq, bw, sf, cr, temp_timeout_mins);
         sprintf(reply, "OK - temp params for %d mins", temp_timeout_mins);
       } else {
