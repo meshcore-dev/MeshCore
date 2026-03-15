@@ -20,4 +20,6 @@ public:
   uint16_t getBattMilliVolts() override;
   const char* getManufacturerName() const override ;
 
+private:
+  bool is_kct8103l_ = false;  // true = V4.3 (KCT8103L), false = V4.2 (GC1109)
 };
