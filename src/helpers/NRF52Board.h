@@ -21,6 +21,11 @@ struct PowerMgtConfig {
   // Boot protection voltage threshold (millivolts)
   // Set to 0 to disable boot protection
   uint16_t voltage_bootlock;
+
+  // Runtime low voltage shutdown threshold (millivolts), 0=disabled
+  uint16_t voltage_runtime;
+  // Watchdog timer timeout (ms), 0=disabled
+  uint32_t wdt_timeout_ms;
 };
 #endif
 
@@ -38,14 +43,25 @@ protected:
   uint8_t shutdown_reason;            // GPREGRET value (why we entered last SYSTEMOFF)
   uint16_t boot_voltage_mv;           // Battery voltage at boot (millivolts)
 
+  const PowerMgtConfig* _power_config;
+  uint32_t _last_voltage_check_ms;
+  uint8_t _low_voltage_count;
+
   bool checkBootVoltage(const PowerMgtConfig* config);
   void enterSystemOff(uint8_t reason);
   void configureVoltageWake(uint8_t ain_channel, uint8_t refsel);
   virtual void initiateShutdown(uint8_t reason);
+  void initWatchdog(uint32_t timeout_ms);
+  void feedWatchdog();
+  void checkRuntimeVoltage();
 #endif
 
 public:
-  NRF52Board(char *otaname) : ota_name(otaname) {}
+  NRF52Board(char *otaname) : ota_name(otaname)
+#ifdef NRF52_POWER_MANAGEMENT
+    , _power_config(nullptr), _last_voltage_check_ms(0), _low_voltage_count(0)
+#endif
+  {}
   virtual void begin();
   virtual uint8_t getStartupReason() const override { return startup_reason; }
   virtual float getMCUTemperature() override;
@@ -53,6 +69,7 @@ public:
   virtual bool getBootloaderVersion(char* version, size_t max_len) override;
   virtual bool startOTAUpdate(const char *id, char reply[]) override;
   virtual void sleep(uint32_t secs) override;
+  virtual void loop() override;
 
 #ifdef NRF52_POWER_MANAGEMENT
   bool isExternalPowered() override;
