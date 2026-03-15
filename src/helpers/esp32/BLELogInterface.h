@@ -39,10 +39,7 @@ class BLELogInterface : public Print, BLEServerCallbacks {
   }
 
   void flushLine() {
-    if (_line_len == 0 || !_connected) {
-      _line_len = 0;
-      return;
-    }
+    if (_line_len == 0 || !_connected) return;
     const int chunk = notifyPayloadSize();
     int offset = 0;
     while (offset < _line_len) {
@@ -105,7 +102,7 @@ public:
     adv->addServiceUUID(NUS_SERVICE_UUID);
     adv->setScanResponse(true);
     adv->setMinPreferred(0x06); // helps iOS find and stay connected to the device
-    adv->setMinPreferred(0x12);
+    adv->setMaxPreferred(0x12);
     BLEDevice::startAdvertising();
   }
 
