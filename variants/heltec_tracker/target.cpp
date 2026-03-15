@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include "target.h"
 
+#include <helpers/ArduinoHelpers.h>
 #include <helpers/sensors/MicroNMEALocationProvider.h>
 
 HeltecV3Board board;
@@ -86,11 +87,11 @@ bool HWTSensorManager::querySensors(uint8_t requester_permissions, CayenneLPP& t
 }
 
 void HWTSensorManager::loop() {
-  static long next_gps_update = 0;
+  static unsigned long next_gps_update = 0;
 
   _location->loop();
 
-  if (millis() > next_gps_update) {
+  if (millis_passed(next_gps_update)) {
     if (gps_active && _location->isValid()) {
       node_lat = ((double)_location->getLatitude())/1000000.;
       node_lon = ((double)_location->getLongitude())/1000000.;

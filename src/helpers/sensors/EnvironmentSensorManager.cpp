@@ -1,4 +1,5 @@
 #include "EnvironmentSensorManager.h"
+#include <helpers/ArduinoHelpers.h>
 
 #if ENV_PIN_SDA && ENV_PIN_SCL
 #define TELEM_WIRE &Wire1  // Use Wire1 as the I2C bus for Environment Sensors
@@ -704,13 +705,13 @@ void EnvironmentSensorManager::stop_gps() {
 }
 
 void EnvironmentSensorManager::loop() {
-  static long next_gps_update = 0;
+  static unsigned long next_gps_update = 0;
 
   #if ENV_INCLUDE_GPS
   if (gps_active) {
     _location->loop();
   }
-  if (millis() > next_gps_update) {
+  if (millis_passed(next_gps_update)) {
 
     if(gps_active){
     #ifdef RAK_WISBLOCK_GPS
