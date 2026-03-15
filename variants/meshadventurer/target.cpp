@@ -50,6 +50,7 @@ mesh::LocalIdentity radio_new_identity() {
   return mesh::LocalIdentity(&rng);  // create new random identity
 }
 
+
 void MASensorManager::start_gps() {
   if(!gps_active) {
     MESH_DEBUG_PRINTLN("starting GPS");
