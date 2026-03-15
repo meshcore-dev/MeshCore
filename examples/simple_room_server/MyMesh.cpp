@@ -276,7 +276,17 @@ uint32_t MyMesh::getDirectRetransmitDelay(const mesh::Packet *packet) {
 
 bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
   if (_prefs.disable_fwd) return false;
-  if (packet->isRouteFlood() && packet->getPathHashCount() >= _prefs.flood_max) return false;
+  if (packet->isRouteFlood() && packet->path_len >= _prefs.flood_max) return false;
+
+  // Limit flood advert packet forwarding using a probabilistic reduction defined by P(h) = base^(hops-1)
+  // https://github.com/meshcore-dev/MeshCore/issues/1223
+  if (packet->getPayloadType() == PAYLOAD_TYPE_ADVERT && packet->isRouteFlood()) {
+    double roll_dice = (double)rand() / RAND_MAX;
+    double forw_prob = pow(_prefs.flood_advert_base, packet->path_len - 1);
+    if (roll_dice > forw_prob)
+      return false;
+  }
+
   return true;
 }
 
@@ -615,6 +625,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.disable_fwd = 1;
   _prefs.advert_interval = 1;        // default to 2 minutes for NEW installs
   _prefs.flood_advert_interval = 12; // 12 hours
+  _prefs.flood_advert_base = 0.308f;
   _prefs.flood_max = 64;
   _prefs.interference_threshold = 0; // disabled
 #ifdef ROOM_PASSWORD
