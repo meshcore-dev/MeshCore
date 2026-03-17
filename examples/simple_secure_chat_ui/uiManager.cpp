@@ -263,7 +263,7 @@ void UIManager::addPrivateChatBubble(const char *time_str, const char *msg, bool
   lv_obj_set_style_text_font(lbl_msg, &lv_font_arial_22, 0);
 
   // Fixed max width για wrap
-  lv_obj_set_width(lbl_msg, 400);           // max πλάτος
+  lv_obj_set_width(lbl_msg, 270);           // max πλάτος
   lv_obj_set_height(lbl_msg, LV_SIZE_CONTENT);  // αυτόματο ύψος
 
   // Bubble style
@@ -358,7 +358,7 @@ void UIManager::handleContactClick(lv_event_t *e)
 
 void UIManager::addContactToUI(ContactInfo c)
 {
-    const int ROW_W  = 200;
+    const int ROW_W  = 130;
     const int ROW_H  = 64;
     const int AVATAR = 44;
     const int PAD    = 4;
@@ -613,22 +613,10 @@ void UIManager::ui_Screen1_screen_init(void)
         ui_TabPageSettings = tabView.addTab("Ρυθμίσεις");        
     #endif 
 
-    LvObj(ui_TabPageHome)
-        .scrollable(false)
-        .bgOpa(0)
-        .bgColor(0x000000);
-    LvObj(ui_TabPageContacts)
-        .scrollable(false)
-        .bgOpa(0)
-        .bgColor(0x000000);
-    LvObj(ui_TabPageChannels)
-        .scrollable(false)
-        .bgOpa(0)
-        .bgColor(0x000000);
-    LvObj(ui_TabPageSettings)
-        .scrollable(false)
-        .bgOpa(0)
-        .bgColor(0x000000);
+    lv_obj_clear_flag(ui_TabPageHome, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_clear_flag(ui_TabPageContacts, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_clear_flag(ui_TabPageChannels, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_clear_flag(ui_TabPageSettings, LV_OBJ_FLAG_SCROLLABLE);
 
     ui_ValueDate = LvLabel(ui_TabPageHome)
         .text("--- --/--/----")
@@ -652,10 +640,10 @@ void UIManager::ui_Screen1_screen_init(void)
         .position(0, -100);
 
     ui_Contacts = LvList(ui_TabPageContacts)
-        .width(250)
+        .width(140)
         .height(400)
         .align(LV_ALIGN_CENTER)
-        .position(-274, 0)
+        .position(-155, 0)
         .transparent()
         .raw();
 
@@ -668,10 +656,10 @@ void UIManager::ui_Screen1_screen_init(void)
     lv_obj_set_style_border_width(ui_Contacts, 0, LV_PART_ITEMS);
 
     ui_ContactMessages = LvList(ui_TabPageContacts)
-        .width(500)
+        .width(310)
         .height(400)
         .align(LV_ALIGN_CENTER)
-        .position(124, 0)
+        .position(80, 0)
         .transparent()
         .raw();
 
@@ -694,19 +682,19 @@ void UIManager::ui_Screen1_screen_init(void)
 
     ui_Channels = LvDropdown(ui_TabPageChannels)
         .options("Public")
-        .width(291)
+        .width(200)
         .align(LV_ALIGN_CENTER)
-        .position(-243, -182)
+        .position(-135, -182)
         .clickable(true)
         .raw();
 
     ui_ChannelMessages = LvList(ui_TabPageChannels)
-        .width(780)
-        .height(280)
+        .width(460)
+        .height(250)
         .align(LV_ALIGN_CENTER)
         .transparent()
         .padRow(10)
-        .position(0, 0)
+        .position(0, -10)
         .bgColor(0)
         .bgOpa(0)
         .border(0)
@@ -718,7 +706,7 @@ void UIManager::ui_Screen1_screen_init(void)
     lv_obj_set_style_border_width(ui_ChannelMessages, 0, LV_PART_ITEMS);
 
     ui_ChannelDivider = LvObj(ui_TabPageChannels)
-        .size(780, 1)
+        .size(460, 1)
         .align(LV_ALIGN_CENTER)
         .position(0, 150)
         .bgColor(0x444444)
@@ -741,9 +729,9 @@ void UIManager::ui_Screen1_screen_init(void)
 
 
     ui_ChannelInput = LvTextArea(ui_TabPageChannels)
-        .size(670, 40)
+        .size(360, 40)
         .align(LV_ALIGN_CENTER)
-        .position(-50, channelInputBaseY)
+        .position(-55, channelInputBaseY)
         .oneLine(true)
         #if defined(LANG_EN)
         .placeholder("Write message...")
@@ -762,7 +750,7 @@ void UIManager::ui_Screen1_screen_init(void)
     ui_SendBtn = LvButton(ui_TabPageChannels)
         .size(90, 42)
         .align(LV_ALIGN_CENTER)
-        .position(350, channelInputBaseY)
+        .position(180, channelInputBaseY)
         .bgColor(0x3A7AFE)
         .onClick(s_onSendClick, this)
         .raw();

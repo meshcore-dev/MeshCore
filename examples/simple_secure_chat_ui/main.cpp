@@ -45,8 +45,10 @@
 #include "esp_log.h"
 #include <lvgl.h>
 #include <Wire.h>
-#include <Adafruit_SSD1306.h> 
+#ifndef SEEED_SENSECAP_INDICATOR
+#include <Adafruit_SSD1306.h>
 #include <Adafruit_GFX.h>
+#endif
 
 #include "../src/fonts/fonts.h"
 #include "../lvgl/lvgl.h"
@@ -796,8 +798,8 @@ void initializeDisplay() {
   ESP_LOGI(TAG, "Initializing display...");
   lcd.begin();
   lcd.fillScreen(0x000000u);
-  lcd.setTextSize(2); 
-  lcd.setRotation(1);  
+  lcd.setTextSize(2);
+  lcd.setRotation(1);
   //lcd.setBrightness(127);
 }
 
@@ -812,12 +814,18 @@ void initializeLVGL() {
 }
 
 void initializeMesh() {
+  Serial.println("[mesh] board.begin()");
   board.begin();
 
-  if (!radio_init()) { halt(); }
+  Serial.println("[mesh] radio_init()...");
+  if (!radio_init()) {
+    Serial.println("[mesh] FATAL: radio_init() failed - halting");
+    halt();
+  }
 
   fast_rng.begin(radio_get_rng_seed());
 
+  Serial.println("[mesh] SPIFFS.begin()");
 #if defined(NRF52_PLATFORM)
   InternalFS.begin();
   the_mesh.begin(InternalFS);
@@ -830,20 +838,36 @@ void initializeMesh() {
 #else
   #error "need to define filesystem"
 #endif
+  Serial.println("[mesh] the_mesh.begin() done");
 
-  radio_set_params(the_mesh.getFreqPref(), LORA_BW, LORA_SF, LORA_CR);
-  radio_set_tx_power(the_mesh.getTxPowerPref());
+  float freq = the_mesh.getFreqPref();
+  uint8_t txpwr = the_mesh.getTxPowerPref();
+  Serial.printf("[mesh] Radio params: freq=%.3f MHz  BW=%d  SF=%d  CR=%d  TX=%d dBm\n",
+                freq, LORA_BW, LORA_SF, LORA_CR, txpwr);
+  radio_set_params(freq, LORA_BW, LORA_SF, LORA_CR);
+  radio_set_tx_power(txpwr);
 
   the_mesh.showWelcome();
 
-  // send out initial Advertisement to the mesh
-  the_mesh.sendSelfAdvert(1200);   // add slight delay
+  Serial.println("[mesh] Sending self-advert...");
+  the_mesh.sendSelfAdvert(1200);
+  Serial.println("[mesh] Advert queued (1200ms delay)");
 }
 
 void setup() {
   Serial.begin(115200);
 
-  initializeDisplay();  
+#ifdef PIN_USER_BTN
+  pinMode(PIN_USER_BTN, INPUT_PULLUP);
+#endif
+
+#if defined(PIN_BOARD_SDA) && defined(PIN_BOARD_SCL)
+  // Initialise I2C early so both the touch controller (FT5x06 @ 0x48)
+  // and the IO expander (TCA9535 @ 0x20) are ready before lcd.begin().
+  Wire.begin(PIN_BOARD_SDA, PIN_BOARD_SCL);
+#endif
+
+  initializeDisplay();
   delay(200);
 
   initializeLVGL();
@@ -878,11 +902,26 @@ void core_task(void *pvParameters) {
 
   vTaskSuspend(NULL);
 
-  ESP_LOGI(TAG, "MeshCore: Task running on core %d", xPortGetCoreID());
+  Serial.printf("[core_task] Mesh loop started on core %d\n", xPortGetCoreID());
 
-  while (1) {    
+#ifdef PIN_USER_BTN
+  bool btn_was_pressed = false;
+#endif
+
+  while (1) {
     the_mesh.loop();
     rtc_clock.tick();
+
+#ifdef PIN_USER_BTN
+    bool btn_pressed = (digitalRead(PIN_USER_BTN) == LOW);
+    if (btn_pressed && !btn_was_pressed) {
+      Serial.println("[btn] Press detected - restarting...");
+      delay(50);
+      ESP.restart();
+    }
+    btn_was_pressed = btn_pressed;
+#endif
+
     vTaskDelay(DELAY_CORE_TASK / portTICK_PERIOD_MS);
   }
 }

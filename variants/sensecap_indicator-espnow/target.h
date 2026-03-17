@@ -2,11 +2,13 @@
 
 #include <Arduino.h>
 #include <RadioLib.h>
+#include <Wire.h>
 
 #include <helpers/ESP32Board.h>
 #include <helpers/radiolib/RadioLibWrappers.h>
 #include <helpers/radiolib/CustomSX1262Wrapper.h>
 #include <helpers/AutoDiscoverRTCClock.h>
+#include <helpers/esp32/SenseCapHAL.h>  // TCA9535 IO expander HAL for RadioLib
 
 #include <helpers/SensorManager.h>
 #include <helpers/sensors/EnvironmentSensorManager.h>
@@ -36,7 +38,7 @@ extern CustomSX1262Wrapper radio_driver;
 // -------------------------------------------------
 // RTC
 // -------------------------------------------------
-extern ESP32RTCClock rtc_clock;
+extern AutoDiscoverRTCClock rtc_clock;
 
 
 // -------------------------------------------------
