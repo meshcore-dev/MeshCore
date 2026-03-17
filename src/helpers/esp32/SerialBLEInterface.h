@@ -5,6 +5,8 @@
 #include <BLEServer.h>
 #include <BLEUtils.h>
 #include <BLE2902.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/portmacro.h>
 
 class SerialBLEInterface : public BaseSerialInterface, BLESecurityCallbacks, BLEServerCallbacks, BLECharacteristicCallbacks {
   BLEServer *pServer;
@@ -24,12 +26,21 @@ class SerialBLEInterface : public BaseSerialInterface, BLESecurityCallbacks, BLE
   };
 
   #define FRAME_QUEUE_SIZE  4
-  int recv_queue_len;
   Frame recv_queue[FRAME_QUEUE_SIZE];
-  int send_queue_len;
   Frame send_queue[FRAME_QUEUE_SIZE];
+  uint8_t recv_queue_read_idx;
+  uint8_t recv_queue_write_idx;
+  uint8_t recv_queue_len;
+  uint8_t send_queue_read_idx;
+  uint8_t send_queue_write_idx;
+  uint8_t send_queue_len;
+  portMUX_TYPE _queue_lock;
 
-  void clearBuffers() { recv_queue_len = 0; send_queue_len = 0; }
+  void clearBuffers();
+  bool enqueueRecvFrame(const uint8_t src[], size_t len);
+  bool dequeueRecvFrame(Frame *frame);
+  bool enqueueSendFrame(const uint8_t src[], size_t len);
+  bool dequeueSendFrame(Frame *frame);
 
 protected:
   // BLESecurityCallbacks methods
@@ -58,7 +69,9 @@ public:
     _isEnabled = false;
     _last_write = 0;
     last_conn_id = 0;
-    send_queue_len = recv_queue_len = 0;
+    recv_queue_read_idx = recv_queue_write_idx = recv_queue_len = 0;
+    send_queue_read_idx = send_queue_write_idx = send_queue_len = 0;
+    _queue_lock = portMUX_INITIALIZER_UNLOCKED;
   }
 
   /**
