@@ -901,6 +901,8 @@ region save
   - `logRx`: bridges received packets
   - `logTx`: bridges transmitted packets
 
+**Compatibility:** `rx` and `tx` are also accepted as legacy aliases for `logRx` and `logTx`
+
 **Default:** `logTx`
 
 ---

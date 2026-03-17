@@ -652,9 +652,18 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
           strcpy(reply, "Error: delay must be between 0-10000 ms");
         }
       } else if (memcmp(config, "bridge.source ", 14) == 0) {
-        _prefs->bridge_pkt_src = memcmp(&config[14], "rx", 2) == 0;
-        savePrefs();
-        strcpy(reply, "OK");
+        const char* source = &config[14];
+        if (strcmp(source, "logRx") == 0 || strcmp(source, "rx") == 0) {
+          _prefs->bridge_pkt_src = true;
+          savePrefs();
+          strcpy(reply, "OK");
+        } else if (strcmp(source, "logTx") == 0 || strcmp(source, "tx") == 0) {
+          _prefs->bridge_pkt_src = false;
+          savePrefs();
+          strcpy(reply, "OK");
+        } else {
+          strcpy(reply, "Error: source must be logRx or logTx");
+        }
 #endif
 #ifdef WITH_RS232_BRIDGE
       } else if (memcmp(config, "bridge.baud ", 12) == 0) {
