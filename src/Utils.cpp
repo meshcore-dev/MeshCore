@@ -33,7 +33,7 @@ int Utils::decrypt(const uint8_t* shared_secret, uint8_t* dest, const uint8_t* s
   const uint8_t* sp = src;
 
   aes.setKey(shared_secret, CIPHER_KEY_SIZE);
-  while (sp - src < src_len) {
+  while (sp - src + 16 <= src_len) { // ensure full 16-byte block is available before decrypting
     aes.decryptBlock(dp, sp);
     dp += 16; sp += 16;
   }
