@@ -84,10 +84,28 @@ public:
   // Both this HAL and the touch-read callback must use the same handle.
   void setMutex(SemaphoreHandle_t m) { _mutex = m; }
 
-  // Call once Wire is running — sets TCA9535 Port 0: all outputs HIGH
+  // Call once Wire is running.
+  // Configures TCA9535 Port 0 radio pins (bits 0-3) only.
+  // Bits 4-7 are preserved exactly as LovyanGFX left them
+  // (bit 4 = display SPI CS, must stay OUTPUT HIGH so the
+  //  display ignores any SPI clock pulses from the radio).
   void initExpander() {
-    writeReg(0x02, _out0);  // Output Port 0: all HIGH
-    writeReg(0x06, _cfg0);  // Config Port 0: all inputs (RadioLib will reconfigure)
+    // Read the current register values set by LovyanGFX
+    uint8_t cur_out = readReg(0x02);
+    uint8_t cur_cfg = readReg(0x06);
+
+    // Bits 0-3  (radio pins):     inputs initially, output latch HIGH (de-asserted)
+    //                              RadioLib will reconfigure them as needed.
+    // Bit  4    (display SPI CS):  OUTPUT HIGH — permanently de-asserted.
+    //                              LovyanGFX leaves this pin as INPUT after lcd.begin(),
+    //                              which lets it float. When radio SPI transactions drive
+    //                              GPIO 41/48, a floating CS can corrupt the ST7701 display.
+    // Bits 5-7  (other):           preserved exactly as LovyanGFX left them.
+    _out0 = (cur_out & 0xE0) | 0x1F;  // bits 0-4 = HIGH,   bits 5-7 = preserved
+    _cfg0 = (cur_cfg & 0xE0) | 0x0F;  // bits 0-3 = input,  bit 4 = OUTPUT, bits 5-7 = preserved
+
+    writeReg(0x02, _out0);  // Output Port 0
+    writeReg(0x06, _cfg0);  // Config Port 0
     Serial.printf("[SenseCapHAL] TCA9535@0x%02X init: out=0x%02X cfg=0x%02X\n",
                   _addr, _out0, _cfg0);
   }
