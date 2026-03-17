@@ -71,8 +71,6 @@ async def find_device(args: argparse.Namespace):
 def choose_device(devices: List) -> Optional[object]:
     if not devices:
         return None
-    if len(devices) == 1:
-        return devices[0]
 
     print("Matching MeshCore companion devices:")
     for idx, device in enumerate(devices, start=1):
