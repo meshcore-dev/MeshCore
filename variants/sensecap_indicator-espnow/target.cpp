@@ -1,56 +1,74 @@
 #include <Arduino.h>
 #include "target.h"
-#include <helpers/ArduinoHelpers.h>
 
 ESP32Board board;
+//SenseCapIndicatorBoard board;
 
-ESPNOWRadio radio_driver;
+static SPIClass spi(FSPI);
 
-ESP32RTCClock rtc_clock;
-#if defined(ENV_INCLUDE_GPS)
-MicroNMEALocationProvider nmea = MicroNMEALocationProvider(Serial1, (mesh::RTCClock*)&rtc_clock);
-EnvironmentSensorManager sensors = EnvironmentSensorManager(nmea);
-#else
-EnvironmentSensorManager sensors = EnvironmentSensorManager();
-#endif
+// SX1262 pins για SenseCAP Indicator Meshtastic edition
+#define LORA_SCLK   5
+#define LORA_MISO   4
+#define LORA_MOSI   6
+#define LORA_NSS    7
+#define LORA_DIO1   2
+#define LORA_RESET  8
+#define LORA_BUSY   3
 
-#ifdef DISPLAY_CLASS
-  DISPLAY_CLASS display;
-  #ifdef PIN_USER_BTN
-  MomentaryButton user_btn(PIN_USER_BTN, 1000, true, true);
-  #endif
-#endif
+Module* module = new Module(
+    LORA_NSS,
+    LORA_DIO1,
+    LORA_RESET,
+    LORA_BUSY,
+    spi
+);
+
+SX1262 radio(module);
+
+WRAPPER_CLASS radio_driver(&radio, board);
+
+ESP32RTCClock fallback_clock;
+// AutoDiscoverRTCClock rtc_clock(fallback_clock);
+
+EnvironmentSensorManager sensors;
+
+// #ifdef DISPLAY_CLASS
+// DISPLAY_CLASS display(&(board.periph_power));
+// MomentaryButton user_btn(PIN_USER_BTN, 1000, true);
+// #endif
+
 
 bool radio_init() {
-  rtc_clock.begin();
+  fallback_clock.begin();
+  rtc_clock.begin(Wire);
 
-  radio_driver.init();
+  spi.begin(LORA_SCLK, LORA_MISO, LORA_MOSI);
 
-  return true;  // success
+  return radio_driver.std_init(&spi);
+
+  #if defined(P_LORA_SCLK)
+    return radio.std_init(&spi);
+  #else
+    return radio.std_init();
+  #endif
 }
 
 uint32_t radio_get_rng_seed() {
-  return millis() + radio_driver.intID();  // TODO: where to get some entropy?
+  return radio.random(0x7FFFFFFF);
 }
 
 void radio_set_params(float freq, float bw, uint8_t sf, uint8_t cr) {
-  // no-op
+  radio.setFrequency(freq);
+  radio.setSpreadingFactor(sf);
+  radio.setBandwidth(bw);
+  radio.setCodingRate(cr);
 }
 
 void radio_set_tx_power(uint8_t dbm) {
-  radio_driver.setTxPower(dbm);
+  radio.setOutputPower(dbm);
 }
 
-// NOTE: as we are using the WiFi radio, the ESP_IDF will have enabled hardware RNG:
-//    https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/system/random.html
-class ESP_RNG : public mesh::RNG {
-public:
-  void random(uint8_t* dest, size_t sz) override {
-    esp_fill_random(dest, sz);
-  }
-};
-
 mesh::LocalIdentity radio_new_identity() {
-  ESP_RNG rng;
-  return mesh::LocalIdentity(&rng);  // create new random identity
+  RadioNoiseListener rng(radio);
+  return mesh::LocalIdentity(&rng);
 }

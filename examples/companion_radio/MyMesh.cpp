@@ -1760,7 +1760,7 @@ void MyMesh::handleCommand(const char* command) {
       } else {
         Serial.println("  Error: erase failed");
       }
-    } else if (strcmp(cli_command, "reboot") == 0) {
+    } else if (strcmp(command, "reboot") == 0) {
       board.reboot();  // doesn't return
     } else {
       Serial.println("  Error: unknown command");

@@ -1,27 +1,62 @@
 #pragma once
 
+#include <Arduino.h>
+#include <RadioLib.h>
+
 #include <helpers/ESP32Board.h>
-#include <helpers/esp32/ESPNOWRadio.h>
+#include <helpers/radiolib/RadioLibWrappers.h>
+#include <helpers/radiolib/CustomSX1262Wrapper.h>
+#include <helpers/AutoDiscoverRTCClock.h>
+
 #include <helpers/SensorManager.h>
 #include <helpers/sensors/EnvironmentSensorManager.h>
+
 #ifdef ENV_INCLUDE_GPS
   #include <helpers/sensors/MicroNMEALocationProvider.h>
 #endif
+
 #ifdef DISPLAY_CLASS
   #include "SCIndicatorDisplay.h"
   #include <helpers/ui/MomentaryButton.h>
 #endif
 
+
+// -------------------------------------------------
+// Board
+// -------------------------------------------------
 extern ESP32Board board;
-extern ESPNOWRadio radio_driver;
+
+
+// -------------------------------------------------
+// Radio (SX1262 - SenseCAP uses SX1262)
+// -------------------------------------------------
+extern CustomSX1262Wrapper radio_driver;
+
+
+// -------------------------------------------------
+// RTC
+// -------------------------------------------------
 extern ESP32RTCClock rtc_clock;
+
+
+// -------------------------------------------------
+// Sensors
+// -------------------------------------------------
 extern EnvironmentSensorManager sensors;
 
+
+// -------------------------------------------------
+// Display + Button
+// -------------------------------------------------
 #ifdef DISPLAY_CLASS
   extern DISPLAY_CLASS display;
   extern MomentaryButton user_btn;
 #endif
 
+
+// -------------------------------------------------
+// Functions
+// -------------------------------------------------
 bool radio_init();
 uint32_t radio_get_rng_seed();
 void radio_set_params(float freq, float bw, uint8_t sf, uint8_t cr);

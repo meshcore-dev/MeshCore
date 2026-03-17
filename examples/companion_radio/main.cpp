@@ -373,6 +373,7 @@ void setup() {
 
   Serial.println("Setup completed");
 
+  Serial.println(the_mesh.getNodeName());
   the_mesh.advert();
 
   Serial.print("MeshCore ");
@@ -408,7 +409,9 @@ void loop() {
    vTaskDelete(NULL);
 }
 
-
-void handleCommand(const char* command) {
-  the_mesh.handleCommand(command);
+void handleCommand(char *msg)
+{
+  Serial.println("Outgoing data:");
+  Serial.println(msg);
+  the_mesh.handleCommand(msg);
 }
