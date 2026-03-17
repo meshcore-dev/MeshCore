@@ -15,7 +15,7 @@ const uint32_t g_ADigitalPinMap[PINS_COUNT + 1] =
   2,  // P0.02, AIN0 BATTERY_PIN
   3,  // P0.03
   4,  // P0.04, SENSOR_EN
-  5,  // P0.05, EXT_PWR_DETEC
+  5,  // P0.05, CHARGER_INSERT_DETECT
   6,  // P0.06, PIN_BUTTON1
   7,  // P0.07, LORA_BUSY
   8,  // P0.08, GPS_VRTC_EN
@@ -45,7 +45,7 @@ const uint32_t g_ADigitalPinMap[PINS_COUNT + 1] =
   32, // P1.00
   33, // P1.01, LORA_DIO_1
   34, // P1.02
-  35, // P1.03, EXT_CHRG_DETECT
+  35, // P1.03, CHARGER_STATE_DETECT
   36, // P1.04
   37, // P1.05, LR1110_EN
   38, // P1.06, 3V3_EN PWR TO SENSORS
@@ -69,8 +69,8 @@ void initVariant()
   pinMode(BATTERY_PIN, INPUT);
   pinMode(TEMP_SENSOR, INPUT);
   pinMode(LUX_SENSOR, INPUT);
-  pinMode(EXT_CHRG_DETECT, INPUT);
-  pinMode(EXT_PWR_DETECT, INPUT);
+  pinMode(CHARGER_STATE_DETECT, INPUT);
+  pinMode(CHARGER_INSERT_DETECT, INPUT);
   pinMode(GPS_RESETB, INPUT);
   pinMode(PIN_BUTTON1, INPUT);
 
