@@ -482,6 +482,11 @@ void UIManager::onHideKeyboard()
     LvObj(ui_SendBtn, true).positionY(channelInputBaseY);
 }
 
+static void s_onRestartClick(lv_event_t *e)
+{
+    ESP.restart();
+}
+
 static void s_onChannelInputFocus(lv_event_t *e)
 {
     UIManager *self = (UIManager*) lv_event_get_user_data(e);
@@ -638,6 +643,25 @@ void UIManager::ui_Screen1_screen_init(void)
         .opa(255)
         .align(LV_ALIGN_CENTER)
         .position(0, -100);
+
+    lv_obj_t* ui_RestartBtn = LvButton(ui_TabPageHome)
+        .size(200, 56)
+        .align(LV_ALIGN_CENTER)
+        .position(0, 60)
+        .bgColor(0xC62828)
+        .onClick(s_onRestartClick, nullptr)
+        .raw();
+
+    lv_obj_t* ui_RestartLabel = LvLabel(ui_RestartBtn)
+        #if defined(LANG_EN)
+        .text(LV_SYMBOL_REFRESH "  Restart")
+        #elif defined(LANG_GR)
+        .text(LV_SYMBOL_REFRESH "  Επανεκκίνηση")
+        #endif
+        .font(&lv_font_arial_22)
+        .textColor(0xFFFFFF)
+        .raw();
+    lv_obj_center(ui_RestartLabel);
 
     ui_Contacts = LvList(ui_TabPageContacts)
         .width(140)

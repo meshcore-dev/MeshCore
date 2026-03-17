@@ -141,9 +141,16 @@ void my_disp_flush(lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *color
 
 void my_touchpad_read(lv_indev_drv_t * indev_driver, lv_indev_data_t * data)
 {
-  uint16_t x, y;
+  // Serialize Wire access with SenseCapHAL (TCA9535 radio expander).
+  // g_i2c_mutex is nullptr until radio_init() creates it — safe to skip then.
+  if (g_i2c_mutex) xSemaphoreTake(g_i2c_mutex, pdMS_TO_TICKS(20));
 
-  if (lcd.getTouch(&x, &y))
+  uint16_t x, y;
+  bool touched = lcd.getTouch(&x, &y);
+
+  if (g_i2c_mutex) xSemaphoreGive(g_i2c_mutex);
+
+  if (touched)
   {
     data->state = LV_INDEV_STATE_PR;
     data->point.x = x;

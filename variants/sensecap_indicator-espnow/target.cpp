@@ -1,5 +1,47 @@
 #include <Arduino.h>
 #include "target.h"
+#include <driver/gpio.h>
+
+// Recover a stuck I2C bus by manually clocking SCL up to 9 times until
+// SDA is released, then issuing a STOP condition.
+static void i2c_bus_recovery() {
+  Serial.println("[i2c_recover] Attempting I2C bus recovery...");
+  pinMode(PIN_BOARD_SCL, OUTPUT_OPEN_DRAIN);
+  pinMode(PIN_BOARD_SDA, INPUT_PULLUP);
+  digitalWrite(PIN_BOARD_SCL, HIGH);
+  delayMicroseconds(10);
+
+  bool released = false;
+  for (int i = 0; i < 9; i++) {
+    digitalWrite(PIN_BOARD_SCL, LOW);
+    delayMicroseconds(10);
+    digitalWrite(PIN_BOARD_SCL, HIGH);
+    delayMicroseconds(10);
+    if (digitalRead(PIN_BOARD_SDA) == HIGH) {
+      released = true;
+      Serial.printf("[i2c_recover] SDA released after %d clocks\n", i + 1);
+      break;
+    }
+  }
+  if (!released) {
+    Serial.println("[i2c_recover] SDA still LOW after 9 clocks!");
+  }
+
+  // Generate STOP condition: SDA LOW→HIGH while SCL HIGH
+  pinMode(PIN_BOARD_SDA, OUTPUT_OPEN_DRAIN);
+  digitalWrite(PIN_BOARD_SDA, LOW);
+  delayMicroseconds(10);
+  digitalWrite(PIN_BOARD_SCL, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(PIN_BOARD_SDA, HIGH);
+  delayMicroseconds(10);
+
+  // Restore pins to input so Wire can take over
+  pinMode(PIN_BOARD_SCL, INPUT_PULLUP);
+  pinMode(PIN_BOARD_SDA, INPUT_PULLUP);
+  delay(5);
+  Serial.println("[i2c_recover] Done.");
+}
 
 ESP32Board board;
 
@@ -35,9 +77,17 @@ AutoDiscoverRTCClock rtc_clock(fallback_clock);
 
 EnvironmentSensorManager sensors;
 
+// Shared Wire mutex — created in radio_init(), exported via target.h
+SemaphoreHandle_t g_i2c_mutex = nullptr;
+
 // ── radio_init ─────────────────────────────────────────────────────────
 
 bool radio_init() {
+  // Create the shared Wire mutex FIRST so both the radio HAL and the
+  // LVGL touch callback (my_touchpad_read) serialise their Wire access.
+  g_i2c_mutex = xSemaphoreCreateMutex();
+  radio_hal.setMutex(g_i2c_mutex);
+
   Serial.println("[radio_init] Starting...");
   Serial.printf("[radio_init] SPI  : SCLK=%d  MISO=%d  MOSI=%d\n",
                 LORA_SCLK, LORA_MISO, LORA_MOSI);
@@ -45,9 +95,37 @@ bool radio_init() {
                 LORA_NSS & 0x0F, LORA_RESET & 0x0F, LORA_BUSY & 0x0F, LORA_DIO1 & 0x0F);
   Serial.printf("[radio_init] DIO1 interrupt → GPIO %d\n", IO_EXPANDER_IRQ);
 
-  // Wire must be up before TCA9535 access.
-  // (lcd.begin() may have already called Wire.begin, but re-init is safe.)
+  // Take mutex for bus recovery + Wire re-init + scan
+  // (prevents LVGL touch task from accessing Wire concurrently)
+  xSemaphoreTake(g_i2c_mutex, portMAX_DELAY);
+
+  // Recover stuck I2C bus (may be left in bad state after display init)
+  i2c_bus_recovery();
+
+  // Wire must be up before TCA9535 access — force full re-init after recovery
+  Wire.end();
+  delay(5);
   Wire.begin(PIN_BOARD_SDA, PIN_BOARD_SCL);
+  Wire.setTimeOut(15);  // 15 ms per address for fast scan
+  delay(10);
+
+  // ── Full I2C bus scan ───────────────────────────────────────────────────
+  Serial.println("[radio_init] I2C scan:");
+  uint8_t found_addr = 0;
+  for (uint8_t addr = 0x08; addr <= 0x77; addr++) {
+    Wire.beginTransmission(addr);
+    uint8_t err = Wire.endTransmission();
+    if (err == 0) {
+      Serial.printf("[radio_init]   Device found at 0x%02X\n", addr);
+      found_addr = addr;
+    }
+  }
+  if (found_addr == 0) {
+    Serial.println("[radio_init]   No I2C devices found!");
+  }
+  Serial.println("[radio_init] I2C scan done.");
+
+  xSemaphoreGive(g_i2c_mutex);
 
   // Verify TCA9535 is present on the bus
   if (radio_hal.scanExpander()) {

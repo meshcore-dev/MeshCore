@@ -3,6 +3,8 @@
 #include <Arduino.h>
 #include <RadioLib.h>
 #include <Wire.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
 
 #include <helpers/ESP32Board.h>
 #include <helpers/radiolib/RadioLibWrappers.h>
@@ -54,6 +56,15 @@ extern EnvironmentSensorManager sensors;
   extern DISPLAY_CLASS display;
   extern MomentaryButton user_btn;
 #endif
+
+
+// -------------------------------------------------
+// Shared I2C mutex
+// Protects Wire access shared between SenseCapHAL (TCA9535 @ 0x20)
+// and the LVGL touch callback (FT5x06 @ 0x48).
+// Created in radio_init() before std_init(); use via g_i2c_mutex.
+// -------------------------------------------------
+extern SemaphoreHandle_t g_i2c_mutex;
 
 
 // -------------------------------------------------

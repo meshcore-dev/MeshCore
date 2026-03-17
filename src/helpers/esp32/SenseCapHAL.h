@@ -26,13 +26,16 @@
 #include <RadioLib.h>
 #include <Wire.h>
 #include <SPI.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
 
 class SenseCapHAL : public ArduinoHal {
-  TwoWire* _wire;
-  uint8_t  _addr;   // 7-bit I2C address of TCA9535 (0x20)
-  uint8_t  _out0;   // cached Output Port 0 latch  (all HIGH = de-asserted)
-  uint8_t  _cfg0;   // cached Config Port 0        (all 1 = input initially)
-  int      _sclk, _miso, _mosi;  // SPI data pins
+  TwoWire*          _wire;
+  uint8_t           _addr;   // 7-bit I2C address of TCA9535 (0x20)
+  uint8_t           _out0;   // cached Output Port 0 latch  (all HIGH = de-asserted)
+  uint8_t           _cfg0;   // cached Config Port 0        (all 1 = input initially)
+  int               _sclk, _miso, _mosi;  // SPI data pins
+  SemaphoreHandle_t _mutex;  // shared Wire mutex (set via setMutex() after creation)
 
   // A pin is on the expander when its upper nibble equals IO_EXPANDER
   static bool isExp(uint32_t pin) {
@@ -48,17 +51,22 @@ class SenseCapHAL : public ArduinoHal {
   }
 
   void writeReg(uint8_t reg, uint8_t val) {
+    if (_mutex) xSemaphoreTake(_mutex, portMAX_DELAY);
     _wire->beginTransmission(_addr);
     _wire->write(reg);
     _wire->write(val);
     _wire->endTransmission();
+    if (_mutex) xSemaphoreGive(_mutex);
   }
   uint8_t readReg(uint8_t reg) {
+    if (_mutex) xSemaphoreTake(_mutex, portMAX_DELAY);
     _wire->beginTransmission(_addr);
     _wire->write(reg);
     _wire->endTransmission(false);
     _wire->requestFrom(_addr, (uint8_t)1);
-    return _wire->available() ? _wire->read() : 0xFF;
+    uint8_t val = _wire->available() ? _wire->read() : 0xFF;
+    if (_mutex) xSemaphoreGive(_mutex);
+    return val;
   }
 
 public:
@@ -69,7 +77,12 @@ public:
     , _out0(0xFF)   // all HIGH (NSS, RESET de-asserted)
     , _cfg0(0xFF)   // all inputs initially
     , _sclk(sclk), _miso(miso), _mosi(mosi)
+    , _mutex(nullptr)
   {}
+
+  // Set the shared I2C mutex.  Must be called before any Wire operations.
+  // Both this HAL and the touch-read callback must use the same handle.
+  void setMutex(SemaphoreHandle_t m) { _mutex = m; }
 
   // Call once Wire is running — sets TCA9535 Port 0: all outputs HIGH
   void initExpander() {
@@ -137,7 +150,10 @@ public:
 
   // Scan for the TCA9535 on I2C and log the result
   bool scanExpander() {
+    if (_mutex) xSemaphoreTake(_mutex, portMAX_DELAY);
     _wire->beginTransmission(_addr);
-    return (_wire->endTransmission() == 0);
+    bool found = (_wire->endTransmission() == 0);
+    if (_mutex) xSemaphoreGive(_mutex);
+    return found;
   }
 };
