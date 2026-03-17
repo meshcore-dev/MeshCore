@@ -94,11 +94,18 @@ public:
 
   // ── Overrides ──────────────────────────────────────────────────────────
 
-  // Initialize SPI with the correct pin numbers for SenseCAP Indicator
+  // Initialize SPI with the correct pin numbers for SenseCAP Indicator.
   void spiBegin() override {
     this->spi->begin(_sclk, _miso, _mosi);
     Serial.printf("[SenseCapHAL] SPI begin: SCLK=%d MISO=%d MOSI=%d\n",
                   _sclk, _miso, _mosi);
+  }
+
+  // ArduinoHal::init() only calls spiBegin() when initInterface==true,
+  // which is NOT set when an explicit SPIClass& is passed to the constructor.
+  // Override init() to always initialise SPI with our custom pins.
+  void init() override {
+    spiBegin();
   }
 
   void pinMode(uint32_t pin, uint32_t mode) override {
