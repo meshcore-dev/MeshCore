@@ -126,8 +126,8 @@ int LinuxConfig::load(const char *filename) {
     else if (strcmp(key, "lora_tcxo") == 0) lora_tcxo = atof(value);
     else if (strcmp(key, "lora_tx_power") == 0)   lora_tx_power = atoi(value);
     else if (strcmp(key, "current_limit") == 0)  current_limit = atof(value);
-    else if (strcmp(key, "dio2_as_rf_switch") == 0)  dio2_as_rf_switch = value != 0;
-    else if (strcmp(key, "rx_boosted_gain") == 0)  rx_boosted_gain = value != 0;
+    else if (strcmp(key, "dio2_as_rf_switch") == 0)  dio2_as_rf_switch = atoi(value) != 0;
+    else if (strcmp(key, "rx_boosted_gain") == 0)  rx_boosted_gain = atoi(value) != 0;
 
     else if (strcmp(key, "lora_irq_pin") == 0)   lora_irq_pin = atoi(value);
     else if (strcmp(key, "lora_reset_pin") == 0) lora_reset_pin = atoi(value);
