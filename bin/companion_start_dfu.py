@@ -3,7 +3,7 @@
 import argparse
 import asyncio
 import sys
-from typing import Optional
+from typing import List, Optional
 
 from bleak import BleakClient, BleakScanner
 
@@ -25,6 +25,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--address",
         help="Exact BLE address/identifier to connect to.",
+    )
+    parser.add_argument(
+        "--non-interactive",
+        action="store_true",
+        help="Connect to the first matching device instead of prompting.",
     )
     parser.add_argument(
         "--scan-seconds",
@@ -53,11 +58,35 @@ async def find_device(args: argparse.Namespace):
     if args.address:
         return await BleakScanner.find_device_by_address(args.address, timeout=args.scan_seconds)
 
-    def matcher(device, adv_data) -> bool:
+    devices = await BleakScanner.discover(timeout=args.scan_seconds, return_adv=True)
+    matches = []
+    for device, adv_data in devices.values():
         uuids = [uuid.lower() for uuid in (adv_data.service_uuids or [])]
-        return SERVICE_UUID.lower() in uuids and name_matches(device.name, args.name)
+        if SERVICE_UUID.lower() in uuids and name_matches(device.name, args.name):
+            matches.append(device)
 
-    return await BleakScanner.find_device_by_filter(matcher, timeout=args.scan_seconds)
+    return matches
+
+
+def choose_device(devices: List) -> Optional[object]:
+    if not devices:
+        return None
+    if len(devices) == 1:
+        return devices[0]
+
+    print("Matching MeshCore companion devices:")
+    for idx, device in enumerate(devices, start=1):
+        print(f"  {idx}. {device.name or '(unknown)'} [{device.address}]")
+
+    while True:
+        choice = input("Select device number (or press Enter to cancel): ").strip()
+        if not choice:
+            return None
+        if choice.isdigit():
+            selected = int(choice)
+            if 1 <= selected <= len(devices):
+                return devices[selected - 1]
+        print("Invalid selection.")
 
 
 def on_notify(_, data: bytearray) -> None:
@@ -72,7 +101,14 @@ async def main() -> int:
         return 2
 
     print("Scanning for MeshCore companion device...")
-    device = await find_device(args)
+    found = await find_device(args)
+    if args.address:
+        device = found
+    elif args.non_interactive:
+        device = found[0] if found else None
+    else:
+        device = choose_device(found)
+
     if not device:
         print("No matching MeshCore companion device found.", file=sys.stderr)
         return 1
