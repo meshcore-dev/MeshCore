@@ -12,8 +12,7 @@ WRAPPER_CLASS radio_driver(radio, board);
 VolatileRTCClock rtc_clock;
 // MicroNMEALocationProvider nmea = MicroNMEALocationProvider(Serial1, &rtc_clock);
 
-EnvironmentSensorManager sensors;  // Added: Instantiate sensors (no GPS, as it's disabled)
-
+EnvironmentSensorManager sensors;  // only enable environment sensors. GPS is disabled. 
 #ifdef DISPLAY_CLASS
   NullDisplayDriver display;
 #endif

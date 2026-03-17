@@ -10,55 +10,55 @@
 
 const uint32_t g_ADigitalPinMap[PINS_COUNT + 1] =
 {
-  0,  // P0.00
-  1,  // P0.01
-  2,  // P0.02, AIN0 BATTERY_PIN
-  3,  // P0.03
-  4,  // P0.04, SENSOR_EN
-  5,  // P0.05, EXT_PWR_DETEC
-  6,  // P0.06, PIN_BUTTON1
-  7,  // P0.07, LORA_BUSY
-  8,  // P0.08, GPS_VRTC_EN
-  9,  // P0.09
-  10, // P0.10
-  11, // P0.11, PIN_SPI_SCK
-  12, // P0.12, PIN_SPI_NSS
-  13, // P0.13, PIN_SERIAL1_TX
-  14, // P0.14, PIN_SERIAL1_RX
-  15, // P0.15, GPS_RTC_INT
-  16, // P0.16, PIN_SERIAL2_TX
-  17, // P0.17, PIN_SERIAL2_RX
-  18, // P0.18
-  19, // P0.19
-  20, // P0.20
-  21, // P0.21
-  22, // P0.22
-  23, // P0.23
-  24, // P0.24, LED_GREEN
-  25, // P0.25, BUZZER_PIN
-  26, // P0.26, PIN_WIRE_SDA
-  27, // P0.27, PIN_WIRE_SCL
-  28, // P0.28
-  29, // P0.29, AIN5, LUX_SENSOR
-  30, // P0.30
-  31, // P0.31, AIN7, TEMP_SENSOR
-  32, // P1.00
-  33, // P1.01, LORA_DIO_1
-  34, // P1.02
-  35, // P1.03, EXT_CHRG_DETECT
-  36, // P1.04
-  37, // P1.05, LR1110_EN
-  38, // P1.06, 3V3_EN PWR TO SENSORS
-  39, // P1.07, PIN_3V3_ACC_EN
-  40, // P1.08, PIN_SPI_MISO
-  41, // P1.09, PIN_SPI_MOSI
-  42, // P1.10, LORA_RESET
-  43, // P1.11, GPS_EN
-  44, // P1.12, GPS_SLEEP_INT
-  45, // P1.13
-  46, // P1.14, GPS_RESETB
-  47, // P1.15, PIN_GPS_RESET
-  255,  // NRFX_SPIM_PIN_NOT_USED
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+// P1 pins.
+    32,
+    33,
+    34,
+    35,
+    36,
+    37,
+    38,
+    39,
+    40,
+    41,
+    42,
+    43,
+    44,
+    45,
+    46,
+    47,
 };
 
 void initVariant()
@@ -67,11 +67,21 @@ void initVariant()
   // https://github.com/Seeed-Studio/Adafruit_nRF52_Arduino/blob/fab7d30a997a1dfeef9d1d59bfb549adda73815a/cores/nRF5/wiring.c#L65-L69
 
   pinMode(PIN_VBAT_READ, INPUT);
-  // pinMode(EXT_CHRG_DETECT, INPUT);
-  // pinMode(EXT_PWR_DETECT, INPUT);
+  pinMode(PIN_BATTERY_CHARGING, INPUT);
+  pinMode(PIN_CHARGER_FAULT, INPUT);
   pinMode(PIN_BUTTON1, INPUT);
+  pinMode(PIN_BUTTON2, INPUT);
+  pinMode(PIN_BUTTON3, INPUT);
+  pinMode(PIN_BUTTON4, INPUT);
+  pinMode(PIN_BUTTON5, INPUT);
+  pinMode(PIN_BUTTON6, INPUT);
   pinMode(LED_PIN, OUTPUT);
   pinMode(LED_BLUE, OUTPUT);
   digitalWrite(LED_PIN, LOW);
   digitalWrite(LED_BLUE, LOW);
+  pinMode(GPS_EN, OUTPUT);
+  digitalWrite(GPS_EN, LOW); // lets turn off the GPS at start. we can turn it on when we need it.
+
+  pinMode(SCREEN_12V_ENABLE, OUTPUT);
+  digitalWrite(SCREEN_12V_ENABLE, LOW); //
 }

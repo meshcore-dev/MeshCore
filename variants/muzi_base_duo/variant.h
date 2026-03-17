@@ -25,19 +25,23 @@
 #define VBAT_AR_INTERNAL                AR_INTERNAL_3_0
 #define ADC_MULTIPLIER                  1.537
 #define ADC_RESOLUTION                  14
+#define PIN_BATTERY_CHARGING              (32+2)  // P1.02 STAT2 
+#define PIN_CHARGER_FAULT                 (27)   // P0.27 STAT1 this pin is disabled on meshtastic.
+// BQ25185 has 2 status pins: STAT1 and STAT2. Both are high when not charging. STAT1 high, STAT2 low: charging. Recoverable fault: STAT1 low, STAT2 high. Unrecoverable fault: both low. 
+// We only need to detect charging vs not charging, but someone else can use the fault pin to log when the battery gets too hot or cold.
 
 // Power management boot protection threshold (millivolts)
-#define PWRMGT_VOLTAGE_BOOTLOCK  3300   // Won't boot below this voltage (mV)
+#define PWRMGT_VOLTAGE_BOOTLOCK  3100   // Won't boot below this voltage (mV). BB15 battery min voltage is 3v, 3100mV is minimum batt in meshtastic code.
 
 // LPCOMP wake configuration (voltage recovery from SYSTEMOFF)
-#define PWRMGT_LPCOMP_AIN       3
-#define PWRMGT_LPCOMP_REFSEL    4       // 5/8 VDD (~3.13-3.44V)
+#define PWRMGT_LPCOMP_AIN       7      // AIN7 = P0.31 = PIN_VBAT_READ
+#define PWRMGT_LPCOMP_REFSEL    4       // 5/8 VDD (~3.13-3.44V) was the default on RAK4631. should still apply here. 
 
 // Other pins
-#define PIN_AREF             (2)
+#define PIN_AREF             (-1)
+#define SCREEN_12V_ENABLE   (23) // SH1107 OLED controller has a pin that needs to be enabled to turn on the screen. 
 
-
-static const uint8_t AREF = PIN_AREF;
+static const uint8_t AREF = (PIN_AREF); // not used 
 
 ////////////////////////////////////////////////////////////////////////////////
 // Number of pins
@@ -53,20 +57,16 @@ static const uint8_t AREF = PIN_AREF;
 #define PIN_SERIAL1_RX          (19)             // P0.19 used for GPS RX
 #define PIN_SERIAL1_TX          (20)             // P0.20 used for GPS TX
 
-
-// #define PIN_SERIAL2_RX          (17)             // P0.17
-// #define PIN_SERIAL2_TX          (16)             // P0.16
-
 ////////////////////////////////////////////////////////////////////////////////
 // I2C pin definition
 
 #define HAS_WIRE                (1)
 #define WIRE_INTERFACES_COUNT   (2)
 
-#define PIN_WIRE_SDA            (4)             // P0.4
-#define PIN_WIRE_SCL            (6)             // P0.6
-#define PIN_WIRE1_SDA           (24)             // P0.24 OLED I2C
-#define PIN_WIRE1_SCL           (25)             // P0.25 OLED I2C
+#define PIN_WIRE1_SDA            (4)             // P0.4
+#define PIN_WIRE1_SCL            (6)             // P0.6
+#define PIN_WIRE_SDA           (24)             // P0.24 OLED I2C
+#define PIN_WIRE_SCL           (25)             // P0.25 OLED I2C
 // #define I2C_NO_RESCAN
 // #define HAS_QMA6100P
 // #define QMA_6100P_INT_PIN       (34)             // P1.2
@@ -93,9 +93,18 @@ static const uint8_t AREF = PIN_AREF;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Builtin buttons
-
-#define PIN_BUTTON1             (10)             // P0.10
-#define BUTTON_PIN              PIN_BUTTON1
+#define PIN_BUTTON1             (10)             // P0.10 Menu / User Button | on superIO, this is in the center of the "D-Pad", but it's also the button on the Uno/Duo.
+#define PIN_BUTTON2             (21) // Joystick Up
+#define PIN_BUTTON3             (17) // Joystick Down
+#define PIN_BUTTON4             (37) // Joystick Left
+#define PIN_BUTTON5             (16) // Joystick Right
+#define PIN_BUTTON6             (15) // Back / Cancel Button.
+#define JOYSTICK_PRESS          PIN_BUTTON1
+#define JOYSTICK_UP             PIN_BUTTON2
+#define JOYSTICK_DOWN           PIN_BUTTON3
+#define JOYSTICK_LEFT           PIN_BUTTON4
+#define JOYSTICK_RIGHT          PIN_BUTTON5
+#define PIN_BACK_BTN            PIN_BUTTON6
 
 ////////////////////////////////////////////////////////////////////////////////
 // LR1110
@@ -112,7 +121,7 @@ static const uint8_t AREF = PIN_AREF;
 #define LR11X0_DIO3_TCXO_VOLTAGE   3.0
 
 ////////////////////////////////////////////////////////////////////////////////
-
+// QSPI Flash
 #define PIN_QSPI_SCK (0 + 3)
 #define PIN_QSPI_CS (0 + 26)
 #define PIN_QSPI_IO0 (0 + 30)
@@ -122,34 +131,15 @@ static const uint8_t AREF = PIN_AREF;
 
 #define EXTERNAL_FLASH_DEVICES W25Q128JVPQ
 #define EXTERNAL_FLASH_USE_QSPI
-// // GPS
 
+////////////////////////////////////////////////////////////////////////////////
+// GPS
 // #define HAS_GPS                 1
-// #define GPS_RX_PIN              PIN_SERIAL1_RX
-// #define GPS_TX_PIN              PIN_SERIAL1_TX
-
-// #define GPS_EN                  (43)            // P1.11
-// #define GPS_RESET               (47)            // P1.15
-
-// #define GPS_VRTC_EN             (8)             // P0.8
-// #define GPS_SLEEP_INT           (44)            // P1.12
-// #define GPS_RTC_INT             (15)            // P0.15
-// #define GPS_RESETB              (46)            // P1.14
-
-////////////////////////////////////////////////////////////////////////////////
-// Temp+Lux Sensor
-
-// #define SENSOR_EN               (4)             // P0.4
-// #define TEMP_SENSOR             (31)            // P0.31/AIN7
-// #define LUX_SENSOR              (29)            // P0.29/AIN5
-
-////////////////////////////////////////////////////////////////////////////////
-// Accelerometer (I2C addr : ??? )
-
-// #define PIN_3V3_ACC_EN          (39)            // P1.7
+#define GPS_RX_PIN              PIN_SERIAL1_RX
+#define GPS_TX_PIN              PIN_SERIAL1_TX
+#define GPS_EN                  (32+1)            // P1.01 PWR_IO2 on schematic. just cuts power to gps. 
 
 ////////////////////////////////////////////////////////////////////////////////
 // Buzzer
 
-// #define BUZZER_EN               (37)            // P1.5
-// #define BUZZER_PIN              (25)            // P0.25
+#define BUZZER_PIN              (22)            // P0.22 same load switch design as GPS_EN. 
