@@ -4,6 +4,10 @@
 #include <Arduino.h>
 #include <helpers/NRF52Board.h>
 
+#ifndef USER_BTN_PRESSED
+  #define USER_BTN_PRESSED LOW
+#endif
+
 class T1000eBoard : public NRF52BoardDCDC {
 protected:
   uint8_t btn_prev_state;
@@ -43,7 +47,7 @@ public:
     uint8_t v = digitalRead(BUTTON_PIN);
     if (v != btn_prev_state) {
       btn_prev_state = v;
-      return (v == LOW) ? 1 : -1;
+      return (v == USER_BTN_PRESSED) ? 1 : -1;
     }
   #endif
     return 0;
