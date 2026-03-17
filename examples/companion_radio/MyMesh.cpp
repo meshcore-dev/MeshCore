@@ -50,6 +50,7 @@
 #define CMD_SEND_BINARY_REQ           50
 #define CMD_FACTORY_RESET             51
 #define CMD_SEND_PATH_DISCOVERY_REQ   52
+#define CMD_START_DFU                 53
 #define CMD_SET_FLOOD_SCOPE           54   // v8+
 #define CMD_SEND_CONTROL_DATA         55   // v8+
 #define CMD_GET_STATS                 56   // v8+, second byte is stats type
@@ -840,6 +841,8 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
       _serial(NULL), telemetry(MAX_PACKET_PAYLOAD - 4), _store(&store), _ui(ui) {
   _iter_started = false;
   _cli_rescue = false;
+  pending_dfu_start = false;
+  pending_dfu_after = 0;
   offline_queue_len = 0;
   app_target_ver = 0;
   clearPendingReqs();
@@ -1420,6 +1423,14 @@ void MyMesh::handleCmdFrame(size_t len) {
       saveContacts();
     }
     board.reboot();
+  } else if (cmd_frame[0] == CMD_START_DFU && len >= 4 && memcmp(&cmd_frame[1], "dfu", 3) == 0) {
+    if (!board.supportsOTAUpdate()) {
+      writeErrFrame(ERR_CODE_UNSUPPORTED_CMD);
+    } else {
+      pending_dfu_start = true;
+      pending_dfu_after = millis() + 250;
+      writeOKFrame();
+    }
   } else if (cmd_frame[0] == CMD_GET_BATT_AND_STORAGE) {
     uint8_t reply[11];
     int i = 0;
@@ -2117,6 +2128,18 @@ void MyMesh::loop() {
     checkCLIRescueCmd();
   } else {
     checkSerialInterface();
+  }
+
+  if (pending_dfu_start && millisHasNowPassed(pending_dfu_after) && !_serial->isWriteBusy()) {
+    if (dirty_contacts_expiry) {
+      saveContacts();
+      dirty_contacts_expiry = 0;
+    }
+    pending_dfu_start = false;
+    pending_dfu_after = 0;
+    _serial->disable();
+    char reply[48];
+    board.startOTAUpdate(_prefs.node_name, reply);
   }
 
   // is there are pending dirty contacts write needed?

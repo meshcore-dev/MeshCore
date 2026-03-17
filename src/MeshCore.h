@@ -57,6 +57,7 @@ public:
   virtual void setGpio(uint32_t values) {}
   virtual uint8_t getStartupReason() const = 0;
   virtual bool getBootloaderVersion(char* version, size_t max_len) { return false; }
+  virtual bool supportsOTAUpdate() const { return false; }
   virtual bool startOTAUpdate(const char* id, char reply[]) { return false; }   // not supported
 
   // Power management interface (boards with power management override these)
