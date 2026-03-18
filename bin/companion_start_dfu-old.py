@@ -12,7 +12,6 @@ from bleak import BleakClient, BleakScanner
 SERVICE_UUID = "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"
 RX_UUID = "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
 TX_UUID = "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
-DFU_SERVICE_UUID = "00001530-1212-EFDE-1523-785FEABCD123"
 CMD_START_DFU = bytes.fromhex("35646675")
 
 
@@ -50,12 +49,6 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=15.0,
         help="BLE connection timeout in seconds (default: 15).",
-    )
-    parser.add_argument(
-        "--post-scan-seconds",
-        type=float,
-        default=8.0,
-        help="How long to scan for Nordic DFU devices after sending the command (default: 8).",
     )
     return parser.parse_args()
 
@@ -106,18 +99,6 @@ def on_notify(_, data: bytearray) -> None:
     print(f"TX: {data.hex()}")
 
 
-async def scan_for_dfu_devices(scan_seconds: float) -> List:
-    devices = await BleakScanner.discover(timeout=scan_seconds, return_adv=True)
-    matches = []
-    for device, adv_data in devices.values():
-        uuids = [uuid.lower() for uuid in (adv_data.service_uuids or [])]
-        if DFU_SERVICE_UUID.lower() in uuids:
-            matches.append(device)
-
-    matches.sort(key=lambda device: ((device.name or "").lower(), device.address))
-    return matches
-
-
 async def main() -> int:
     args = parse_args()
 
@@ -153,15 +134,6 @@ async def main() -> int:
         )
         traceback.print_exc()
         return 1
-
-    print("Scanning for Nordic DFU devices...")
-    dfu_devices = await scan_for_dfu_devices(args.post_scan_seconds)
-    if dfu_devices:
-        print("Nordic DFU service detected on:")
-        for idx, dfu_device in enumerate(dfu_devices, start=1):
-            print(f"  {idx}. {dfu_device.name or '(unknown)'} [{dfu_device.address}]")
-    else:
-        print("No Nordic DFU service devices found.")
 
     print("Done. If successful, the device should now leave normal companion mode.")
     return 0
