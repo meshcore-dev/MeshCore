@@ -1,0 +1,41 @@
+name: Build Matching Firmwares
+
+permissions:
+  contents: write
+
+on:
+  workflow_dispatch:
+    inputs:
+      match_spec:
+        description: "Input the matching string (e.g. heltec_v4)"
+        required: true
+        default: "heltec_v4"
+      firmware_version:
+        description: "Input the version number (e.g. v1.13.0)"
+        required: true
+        default: "v1.13.0"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Clone Repo
+        uses: actions/checkout@v4
+
+      - name: Setup Build Environment
+        uses: ./.github/actions/setup-build-environment
+
+
+      - name: Build Firmwares
+        env:
+          FIRMWARE_VERSION: "${{ github.event.inputs.firmware_version }}"
+        run: /usr/bin/env bash build.sh build-matching-firmwares "${{ github.event.inputs.match_spec }}"
+
+
+      - name: Upload Workflow Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: matching-firmwares
+          path: out
