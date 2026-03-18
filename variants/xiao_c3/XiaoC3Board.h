@@ -74,7 +74,9 @@ public:
 #if defined(LORA_TX_BOOST_PIN) || defined(P_LORA_TX_LED)
   void onBeforeTransmit() override {
   #if defined(P_LORA_TX_LED)
-    digitalWrite(P_LORA_TX_LED, HIGH);   // turn TX LED on
+    if (activity_led_enabled) {
+      digitalWrite(P_LORA_TX_LED, HIGH);   // turn TX LED on
+    }
   #endif
   #if defined(LORA_TX_BOOST_PIN)
     digitalWrite(LORA_TX_BOOST_PIN, LOW);
@@ -86,7 +88,9 @@ public:
     digitalWrite(LORA_TX_BOOST_PIN, HIGH);
   #endif
   #if defined(P_LORA_TX_LED)
-    digitalWrite(P_LORA_TX_LED, LOW);   // turn TX LED off
+    if (activity_led_enabled) {
+      digitalWrite(P_LORA_TX_LED, LOW);   // turn TX LED off
+    }
   #endif
   }
 #endif

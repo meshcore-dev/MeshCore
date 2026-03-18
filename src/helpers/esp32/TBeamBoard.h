@@ -124,9 +124,11 @@ public:
 
   #ifndef TBEAM_SUPREME_SX1262
   void onBeforeTransmit() override{
+    if (!activity_led_enabled) return;
     digitalWrite(P_LORA_TX_LED, LOW);   // turn TX LED on - invert pin for SX1276
   }
   void onAfterTransmit() override{
+    if (!activity_led_enabled) return;
     digitalWrite(P_LORA_TX_LED, HIGH);   // turn TX LED off - invert pin for SX1276
   }
   #endif

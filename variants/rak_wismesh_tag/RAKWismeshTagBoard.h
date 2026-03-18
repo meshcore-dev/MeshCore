@@ -15,9 +15,11 @@ public:
 
 #if defined(P_LORA_TX_LED) && defined(LED_STATE_ON)
   void onBeforeTransmit() override {
+    if (!activity_led_enabled) return;
     digitalWrite(P_LORA_TX_LED, LED_STATE_ON);   // turn TX LED on
   }
   void onAfterTransmit() override {
+    if (!activity_led_enabled) return;
     digitalWrite(P_LORA_TX_LED, !LED_STATE_ON);   // turn TX LED off
   }
 #endif

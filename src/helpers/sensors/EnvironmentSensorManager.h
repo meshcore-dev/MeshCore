@@ -46,8 +46,9 @@ public:
   #else
   EnvironmentSensorManager(){};
   #endif
-  uint8_t led_ble_mode = 0;     // runtime copy, synced from/to NodePrefs
-  uint8_t led_status_mode = 0;  // runtime copy, synced from/to NodePrefs
+  uint8_t led_ble_mode = 0;        // runtime copy, synced from/to NodePrefs
+  uint8_t led_status_mode = 0;     // runtime copy, synced from/to NodePrefs
+  uint8_t led_activity_mode = 0;   // runtime copy, synced from/to NodePrefs
 
   bool begin() override;
   bool querySensors(uint8_t requester_permissions, CayenneLPP& telemetry) override;
