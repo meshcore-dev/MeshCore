@@ -6,6 +6,7 @@
 
 // Magic numbers came from actual testing
 #define BLE_HEALTH_CHECK_INTERVAL  10000  // Advertising watchdog check every 10 seconds
+#define BLE_SECURITY_TIMEOUT_MS    15000  // Max time to wait for pairing/security to complete
 #define BLE_RETRY_THROTTLE_MS      250    // Throttle retries to 250ms when queue buildup detected
 
 // Connection parameters (units: interval=1.25ms, timeout=10ms)
@@ -29,6 +30,7 @@ void SerialBLEInterface::onConnect(uint16_t connection_handle) {
   if (instance) {
     instance->_conn_handle = connection_handle;
     instance->_isDeviceConnected = false;
+    instance->_conn_pending_since = millis();
     instance->clearBuffers();
   }
 }
@@ -39,6 +41,7 @@ void SerialBLEInterface::onDisconnect(uint16_t connection_handle, uint8_t reason
     if (instance->_conn_handle == connection_handle) {
       instance->_conn_handle = BLE_CONN_HANDLE_INVALID;
       instance->_isDeviceConnected = false;
+      instance->_conn_pending_since = 0;
       instance->clearBuffers();
     }
   }
@@ -49,6 +52,7 @@ void SerialBLEInterface::onSecured(uint16_t connection_handle) {
   if (instance) {
     if (instance->isValidConnection(connection_handle, true)) {
       instance->_isDeviceConnected = true;
+      instance->_conn_pending_since = 0;
       
       // Connection interval units: 1.25ms, supervision timeout units: 10ms
       // Apple: "The product will not read or use the parameters in the Peripheral Preferred Connection Parameters characteristic."
@@ -331,13 +335,23 @@ size_t SerialBLEInterface::checkRecvFrame(uint8_t dest[]) {
     return len;
   }
   
+  unsigned long now = millis();
+
+  // Security timeout: if a connection has been pending pairing for too long, force-disconnect
+  // and let the watchdog below restart advertising. This handles the iOS pairing stall case.
+  if (_isEnabled && _conn_handle != BLE_CONN_HANDLE_INVALID && !_isDeviceConnected) {
+    if (_conn_pending_since > 0 && (now - _conn_pending_since) >= BLE_SECURITY_TIMEOUT_MS) {
+      BLE_DEBUG_PRINTLN("SerialBLEInterface: security timeout, forcing disconnect");
+      disconnect();
+    }
+  }
+
   // Advertising watchdog: periodically check if advertising is running, restart if not
   // Only run when truly disconnected (no connection handle), not during connection establishment
-  unsigned long now = millis();
   if (_isEnabled && !isConnected() && _conn_handle == BLE_CONN_HANDLE_INVALID) {
     if (now - _last_health_check >= BLE_HEALTH_CHECK_INTERVAL) {
       _last_health_check = now;
-      
+
       if (!isAdvertising()) {
         BLE_DEBUG_PRINTLN("SerialBLEInterface: advertising watchdog - advertising stopped, restarting");
         Bluefruit.Advertising.start(0);
