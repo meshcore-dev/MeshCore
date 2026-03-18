@@ -13,7 +13,7 @@ SERVICE_UUID = "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"
 RX_UUID = "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
 TX_UUID = "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
 DFU_SERVICE_UUID = "00001530-1212-EFDE-1523-785FEABCD123"
-CMD_START_DFU = bytes.fromhex("35646675")
+CMD_START_DFU = bytes.fromhex("3f646675")
 
 
 def parse_args() -> argparse.Namespace:
@@ -143,7 +143,7 @@ async def main() -> int:
     try:
         async with BleakClient(device.address, timeout=args.connect_timeout) as client:
             await client.start_notify(TX_UUID, on_notify)
-            print("Sending CMD_START_DFU (53, 'dfu')...")
+            print("Sending CMD_START_DFU (63, 'dfu')...")
             await client.write_gatt_char(RX_UUID, CMD_START_DFU, response=True)
             await asyncio.sleep(args.wait_seconds)
     except Exception as exc:

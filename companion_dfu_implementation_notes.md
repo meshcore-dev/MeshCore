@@ -10,9 +10,9 @@ The companion firmware now supports a remote DFU trigger over the normal compani
 
 ## Start DFU Command
 
-- Command ID: `53` (`0x35`)
+- Command ID: `63` (`0x3F`)
 - Payload: ASCII `"dfu"`
-- Full BLE write payload: `35 64 66 75`
+- Full BLE write payload: `3F 64 66 75`
 
 Important:
 
@@ -22,7 +22,7 @@ Important:
 ## Expected Behavior
 
 1. Connect to the companion device normally.
-2. Write `0x35 0x64 0x66 0x75` to the RX characteristic.
+2. Write `0x3F 0x64 0x66 0x75` to the RX characteristic.
 3. Listen for the normal companion TX reply.
 4. If accepted, firmware returns `PACKET_OK` (`0x00`).
 5. Shortly after that, the current BLE connection will drop.

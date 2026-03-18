@@ -56,7 +56,7 @@
 #define CMD_SEND_BINARY_REQ           50
 #define CMD_FACTORY_RESET             51
 #define CMD_SEND_PATH_DISCOVERY_REQ   52
-#define CMD_START_DFU                 53
+#define CMD_UNASSIGNED_53             53   // unassigned
 #define CMD_SET_FLOOD_SCOPE           54   // v8+
 #define CMD_SEND_CONTROL_DATA         55   // v8+
 #define CMD_GET_STATS                 56   // v8+, second byte is stats type
@@ -66,6 +66,7 @@
 #define CMD_GET_ALLOWED_REPEAT_FREQ   60
 #define CMD_SET_PATH_HASH_MODE        61
 #define CMD_SEND_CHANNEL_DATA         62
+#define CMD_START_DFU                 63
 
 // Stats sub-types for CMD_GET_STATS
 #define STATS_TYPE_CORE               0
