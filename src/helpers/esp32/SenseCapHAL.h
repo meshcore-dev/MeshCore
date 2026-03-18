@@ -28,6 +28,7 @@
 #include <SPI.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
+#include <driver/gpio.h>
 
 class SenseCapHAL : public ArduinoHal {
   TwoWire*          _wire;
@@ -111,19 +112,76 @@ public:
   }
 
   // ── Overrides ──────────────────────────────────────────────────────────
-
-  // Initialize SPI with the correct pin numbers for SenseCAP Indicator.
-  void spiBegin() override {
-    this->spi->begin(_sclk, _miso, _mosi);
-    Serial.printf("[SenseCapHAL] SPI begin: SCLK=%d MISO=%d MOSI=%d\n",
-                  _sclk, _miso, _mosi);
-  }
+  //
+  // SOFTWARE SPI — we bit-bang GPIO 41/47/48 directly instead of using
+  // the hardware FSPI peripheral.  Calling spi.begin(41,47,48) routes
+  // those pins through the ESP32-S3 GPIO matrix to FSPI, which silently
+  // disables LovyanGFX's LCD_CAM framebuffer output (blank display).
+  // Software SPI avoids that conflict entirely; the SX1262 works fine
+  // at the ~500 kHz rate the bit-bang produces.
 
   // ArduinoHal::init() only calls spiBegin() when initInterface==true,
-  // which is NOT set when an explicit SPIClass& is passed to the constructor.
-  // Override init() to always initialise SPI with our custom pins.
-  void init() override {
-    spiBegin();
+  // which is false when an explicit SPIClass& is supplied.  Override to
+  // always call our spiBegin().
+  void init() override { spiBegin(); }
+
+  void spiBegin() override {
+    // ── IMPORTANT ──────────────────────────────────────────────────────────
+    // We must NOT call ::pinMode() here.  ::pinMode() calls gpio_reset_pin()
+    // which disrupts the GPIO matrix signal routing used by LovyanGFX's
+    // Bus_RGB LCD_CAM driver — blanking the display permanently.
+    //
+    // We also must NOT use gpio_set_direction() alone: it does not call
+    // PIN_FUNC_SELECT, so the IO_MUX for GPIO 41/48 may remain pointed at
+    // the JTAG MTDI/MTCK function (restored by LovyanGFX's pin_backup_t
+    // after lcd.begin()).  With IO_MUX in JTAG function the physical pins
+    // bypass the GPIO matrix entirely, making soft-SPI write nothing.
+    //
+    // Fix: gpio_config() sets IO_MUX → PIN_FUNC_GPIO (via PIN_FUNC_SELECT)
+    // AND enables GPIO output via the GPIO matrix (SIG_GPIO_OUT_IDX), all
+    // without ever calling gpio_reset_pin().
+    // ───────────────────────────────────────────────────────────────────────
+    gpio_config_t out_conf = {};
+    out_conf.pin_bit_mask = (1ULL << _sclk) | (1ULL << _mosi);
+    out_conf.mode         = GPIO_MODE_OUTPUT;
+    out_conf.pull_up_en   = GPIO_PULLUP_DISABLE;
+    out_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
+    out_conf.intr_type    = GPIO_INTR_DISABLE;
+    gpio_config(&out_conf);
+
+    gpio_config_t in_conf = {};
+    in_conf.pin_bit_mask = (1ULL << _miso);
+    in_conf.mode         = GPIO_MODE_INPUT;
+    in_conf.pull_up_en   = GPIO_PULLUP_DISABLE;
+    in_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
+    in_conf.intr_type    = GPIO_INTR_DISABLE;
+    gpio_config(&in_conf);
+
+    gpio_set_level((gpio_num_t)_sclk, 0);
+    gpio_set_level((gpio_num_t)_mosi, 0);
+    Serial.printf("[SenseCapHAL] SPI (soft) SCLK=%d MOSI=%d MISO=%d\n",
+                  _sclk, _mosi, _miso);
+  }
+
+  void spiBeginTransaction() override { /* no-op for soft SPI */ }
+  void spiEndTransaction()   override { /* no-op for soft SPI */ }
+  void spiEnd()              override { /* no-op for soft SPI */ }
+
+  // SPI Mode 0: CPOL=0 (CLK idles LOW), CPHA=0 (sample on rising edge)
+  void spiTransfer(uint8_t* out, size_t len, uint8_t* in) override {
+    for (size_t i = 0; i < len; i++) {
+      uint8_t txByte = out ? out[i] : 0xFF;
+      uint8_t rxByte = 0;
+      for (int b = 7; b >= 0; b--) {
+        ::digitalWrite(_mosi, (txByte >> b) & 1);
+        ::delayMicroseconds(1);                          // MOSI setup time
+        ::digitalWrite(_sclk, HIGH);
+        rxByte |= (uint8_t)(::digitalRead(_miso) << b); // sample on rising edge
+        ::delayMicroseconds(1);                          // hold time
+        ::digitalWrite(_sclk, LOW);
+      }
+      if (in) in[i] = rxByte;
+    }
   }
 
   void pinMode(uint32_t pin, uint32_t mode) override {

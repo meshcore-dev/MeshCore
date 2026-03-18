@@ -61,11 +61,11 @@ ESP32Board board;
 #define LORA_DIO1   (3 | IO_EXPANDER)   // TCA9535 port-0 pin 3  (0x43)
                                         // → interrupt fires on GPIO 42
 
-static SPIClass spi(FSPI);
-
-// Custom RadioLib HAL: routes expander pins through TCA9535 (I2C 0x20)
-// and inits SPI with the correct pins on first use.
-static SenseCapHAL radio_hal(spi, LORA_SCLK, LORA_MISO, LORA_MOSI, 0x20, &Wire);
+// Custom RadioLib HAL: routes expander pins through TCA9535 (I2C 0x20).
+// Uses software (bit-bang) SPI on SCLK/MOSI/MISO to avoid taking the
+// hardware FSPI peripheral, which would disrupt LovyanGFX's LCD_CAM output.
+// SPI is passed as a placeholder only — all SPI methods are overridden.
+static SenseCapHAL radio_hal(SPI, LORA_SCLK, LORA_MISO, LORA_MOSI, 0x20, &Wire);
 
 // SX1262 module using the custom HAL
 RADIO_CLASS radio = new Module(&radio_hal, LORA_NSS, LORA_DIO1, LORA_RESET, LORA_BUSY);

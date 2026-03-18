@@ -848,9 +848,11 @@ void initializeMesh() {
   Serial.println("[mesh] the_mesh.begin() done");
 
   float freq = the_mesh.getFreqPref();
-  uint8_t txpwr = the_mesh.getTxPowerPref();
-  Serial.printf("[mesh] Radio params: freq=%.3f MHz  BW=%d  SF=%d  CR=%d  TX=%d dBm\n",
-                freq, LORA_BW, LORA_SF, LORA_CR, txpwr);
+  // Always use the build-defined TX power; saved prefs may contain a stale
+  // value from a previous firmware version with a different default.
+  uint8_t txpwr = LORA_TX_POWER;
+  Serial.printf("[mesh] Radio params: freq=%.3f MHz  BW=%.1f  SF=%d  CR=%d  TX=%d dBm\n",
+                freq, (float)LORA_BW, (int)LORA_SF, (int)LORA_CR, (int)txpwr);
   radio_set_params(freq, LORA_BW, LORA_SF, LORA_CR);
   radio_set_tx_power(txpwr);
 
@@ -884,9 +886,31 @@ void setup() {
   initializeUI();
   
   createTasks();
-  lv_timer_handler();
+
+  // ── Let LVGL render the initial UI before suspending ───────────────────────
+  // configureDisplay() fills the RGB framebuffer with black.  LVGL needs at
+  // least one lv_timer_handler() cycle to paint the initial screen into that
+  // framebuffer.  Since lvgl_task (Core 0) runs in parallel with setup()
+  // (Core 1), a short delay here gives it time to complete the first render,
+  // so the display shows the UI rather than a blank screen during radio init.
+  delay(100);
+
+  // ── Suspend LVGL task before radio init ────────────────────────────────────
+  // radio_init() calls Wire.end()/Wire.begin() while the LVGL touch callback
+  // (my_touchpad_read) also accesses Wire.  Suspending lvgl_task eliminates
+  // the race; the I2C mutex (g_i2c_mutex) guards all Wire access once it is
+  // created inside radio_init().
+  Serial.println("[setup] Suspending LVGL task for radio init...");
+  vTaskSuspend(t_core0_lvgl);
 
   initializeMesh();
+
+  // Mark entire LVGL screen dirty so the first lv_timer_handler() tick
+  // after resume flushes the full UI.
+  lv_obj_invalidate(lv_scr_act());
+
+  Serial.println("[setup] Resuming LVGL task...");
+  vTaskResume(t_core0_lvgl);
 
   vTaskResume(t_core1_core);
 
