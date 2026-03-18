@@ -26,7 +26,8 @@ Important:
 3. Listen for the normal companion TX reply.
 4. If accepted, firmware returns `PACKET_OK` (`0x00`).
 5. Shortly after that, the current BLE connection will drop.
-6. The board then becomes available to the Nordic DFU app for firmware update.
+6. On nRF52 companion builds, the device reboots directly into the OTA bootloader.
+7. The board then becomes available to the Nordic DFU app for firmware update.
 
 ## Recommended App Behavior
 
@@ -39,3 +40,4 @@ Important:
 
 - Sending this payload from a desktop BLE client successfully triggered DFU mode.
 - After that transition, the Nordic DFU app was able to perform the firmware update successfully.
+- On the validated nRF52 companion path, rebooting into the OTA bootloader was more reliable than attempting an in-process BLE handoff from companion mode to DFU mode.

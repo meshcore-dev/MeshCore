@@ -2147,7 +2147,7 @@ void MyMesh::loop() {
     }
     pending_dfu_start = false;
     pending_dfu_after = 0;
-#if defined(NRF52_PLATFORM) && defined(COMPANION_DFU_NRF52_BOOTLOADER_RESET)
+#if defined(NRF52_PLATFORM)
     DFU_DEBUG_PRINTLN("CMD_START_DFU: entering nRF52 OTA bootloader via reset");
     enterOTADfu();
 #else

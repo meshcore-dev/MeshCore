@@ -369,7 +369,8 @@ Bytes 1-3: ASCII "dfu"
 - `PACKET_ERROR` (0x01) if the board does not support OTA/DFU updates
 
 **Notes**:
-- After sending `PACKET_OK`, the companion firmware will shut down its normal app transport and switch into the board's OTA/DFU mode.
+- After sending `PACKET_OK`, the companion firmware will leave normal app mode and switch into the board's OTA/DFU mode.
+- On nRF52 companion builds, this is done by rebooting directly into the OTA bootloader.
 - The app should expect the current connection to drop and then scan for the DFU target exposed by the bootloader/runtime update service.
 - This command is intended for the same class of remote update flow currently exposed as `start ota` in repeater and room server firmware.
 
