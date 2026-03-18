@@ -17,10 +17,12 @@ public:
   uint8_t getStartupReason() const override { return startup_reason; }
 
   void onBeforeTransmit() override {
+    if (!activity_led_enabled) return;
     digitalWrite(LED_BUILTIN, HIGH);   // turn TX LED on
   }
 
   void onAfterTransmit() override {
+    if (!activity_led_enabled) return;
     digitalWrite(LED_BUILTIN, LOW);   // turn TX LED off
   }
 

@@ -19,9 +19,11 @@ public:
   const char* getManufacturerName() const override ;
 
   void onBeforeTransmit() override {
+    if (!activity_led_enabled) return;
     expander.digitalWrite(EXP_PIN_LED, HIGH);   // turn TX LED on
   }
   void onAfterTransmit() override {
+    if (!activity_led_enabled) return;
     expander.digitalWrite(EXP_PIN_LED, LOW);   // turn TX LED off
   }
 };
