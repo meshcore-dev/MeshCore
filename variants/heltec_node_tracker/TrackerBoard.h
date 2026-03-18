@@ -11,6 +11,7 @@ protected:
 #ifdef NRF52_POWER_MANAGEMENT
   void initiateShutdown(uint8_t reason) override;
 #endif
+  void variant_shutdown();
 
 public:
   RefCountedDigitalPin periph_power;

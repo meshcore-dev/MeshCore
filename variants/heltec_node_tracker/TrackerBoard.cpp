@@ -17,6 +17,7 @@ void TrackerBoard::initiateShutdown(uint8_t reason) {
   pinMode(PIN_GPS_EN, OUTPUT);
   digitalWrite(PIN_GPS_EN, !PIN_GPS_EN_ACTIVE);
 #endif
+  variant_shutdown();
 
   bool enable_lpcomp = (reason == SHUTDOWN_REASON_LOW_VOLTAGE ||
                         reason == SHUTDOWN_REASON_BOOT_PROTECT);
@@ -45,8 +46,6 @@ void TrackerBoard::begin() {
 
   Wire.begin();
 
-  pinMode(PIN_VBAT_READ, INPUT);
-
   pinMode(P_LORA_TX_LED, OUTPUT);
   digitalWrite(P_LORA_TX_LED, LOW);
 
@@ -69,6 +68,7 @@ uint16_t TrackerBoard::getBattMilliVolts() {
     int adcvalue = 0;
     analogReadResolution(12);
     analogReference(AR_INTERNAL_3_0);
+    pinMode(PIN_VBAT_READ, INPUT);
     pinMode(PIN_BAT_CTL, OUTPUT);
     digitalWrite(PIN_BAT_CTL, 1);
 
@@ -78,6 +78,38 @@ uint16_t TrackerBoard::getBattMilliVolts() {
 
     return (uint16_t)((float)adcvalue * MV_LSB * 4.9);
 }
+void TrackerBoard::variant_shutdown() {
+ nrf_gpio_cfg_default(PIN_VEXT_EN);
+    nrf_gpio_cfg_default(PIN_TFT_CS);
+    nrf_gpio_cfg_default(PIN_TFT_DC);
+    nrf_gpio_cfg_default(PIN_TFT_SDA);
+    nrf_gpio_cfg_default(PIN_TFT_SCL);
+    nrf_gpio_cfg_default(PIN_TFT_RST);
+    nrf_gpio_cfg_default(PIN_TFT_LEDA_CTL);
+
+    nrf_gpio_cfg_default(PIN_LED);
+
+    nrf_gpio_cfg_default(P_LORA_KCT8103L_PA_CSD);
+    nrf_gpio_cfg_default(P_LORA_KCT8103L_PA_CTX);
+    pinMode(P_LORA_PA_POWER, OUTPUT);
+    digitalWrite(P_LORA_PA_POWER, LOW);
+
+    digitalWrite(PIN_BAT_CTL, LOW);
+    nrf_gpio_cfg_default(LORA_CS);
+    nrf_gpio_cfg_default(SX126X_DIO1);
+    nrf_gpio_cfg_default(SX126X_BUSY);
+    nrf_gpio_cfg_default(SX126X_RESET);
+
+    nrf_gpio_cfg_default(PIN_SPI_MISO);
+    nrf_gpio_cfg_default(PIN_SPI_MOSI);
+    nrf_gpio_cfg_default(PIN_SPI_SCK);
+
+    // nrf_gpio_cfg_default(PIN_GPS_PPS);
+    nrf_gpio_cfg_default(PIN_GPS_RESET);
+    nrf_gpio_cfg_default(PIN_GPS_EN);
+    nrf_gpio_cfg_default(PIN_GPS_RX);
+    nrf_gpio_cfg_default(PIN_GPS_TX);
+}
 
 void TrackerBoard::powerOff() {
 #if ENV_INCLUDE_GPS == 1
@@ -85,6 +117,7 @@ void TrackerBoard::powerOff() {
     digitalWrite(PIN_GPS_EN, !PIN_GPS_EN_ACTIVE);
 #endif
     loRaFEMControl.setSleepModeEnable();
+    variant_shutdown();
     sd_power_system_off();
 }
 
