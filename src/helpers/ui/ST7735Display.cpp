@@ -40,7 +40,7 @@ bool ST7735Display::begin() {
     display.setSPISpeed(40000000);
     display.fillScreen(ST77XX_BLACK);
     display.setTextColor(ST77XX_WHITE);
-    display.setTextSize(2); 
+    display.setTextSize(2);
     display.cp437(true);         // Use full 256 char 'Code Page 437' font
     
     _isOn = true;
