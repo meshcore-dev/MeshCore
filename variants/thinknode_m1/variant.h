@@ -69,10 +69,10 @@
 #define LED_BUILTIN             LED_GREEN
 #define PIN_LED                 LED_BUILTIN
 #define LED_PIN                 LED_BUILTIN
-#define LED_STATE_ON            LOW
 
 #define PIN_NEOPIXEL            (14)
 #define NEOPIXEL_NUM            (2)
+#define LED_STATE_ON            HIGH
 
 ////////////////////////////////////////////////////////////////////////////////
 // Builtin buttons
