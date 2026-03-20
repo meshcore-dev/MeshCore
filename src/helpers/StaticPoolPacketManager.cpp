@@ -9,9 +9,11 @@ PacketQueue::PacketQueue(int max_entries) {
 }
 
 int PacketQueue::countBefore(uint32_t now) const {
+  if (now == 0xFFFFFFFF) return _num;  // sentinel: count all entries regardless of schedule
+
   int n = 0;
   for (int j = 0; j < _num; j++) {
-    if (_schedule_table[j] > now) continue;   // scheduled for future... ignore for now
+    if ((int32_t)(_schedule_table[j] - now) > 0) continue;   // scheduled for future... ignore for now
     n++;
   }
   return n;
@@ -21,7 +23,7 @@ mesh::Packet* PacketQueue::get(uint32_t now) {
   uint8_t min_pri = 0xFF;
   int best_idx = -1;
   for (int j = 0; j < _num; j++) {
-    if (_schedule_table[j] > now) continue;   // scheduled for future... ignore for now
+    if ((int32_t)(_schedule_table[j] - now) > 0) continue;   // scheduled for future... ignore for now
     if (_pri_table[j] < min_pri) {  // select most important priority amongst non-future entries
       min_pri = _pri_table[j];
       best_idx = j;
@@ -95,6 +97,10 @@ mesh::Packet* StaticPoolPacketManager::getNextOutbound(uint32_t now) {
 
 int  StaticPoolPacketManager::getOutboundCount(uint32_t now) const {
   return send_queue.countBefore(now);
+}
+
+int  StaticPoolPacketManager::getOutboundTotal() const {
+  return send_queue.count();
 }
 
 int StaticPoolPacketManager::getFreeCount() const {

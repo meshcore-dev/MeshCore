@@ -88,21 +88,23 @@ MeshCore is open-source software released under the MIT License. You are free to
 ## Contributing
 
 Please submit PR's using 'dev' as the base branch!
-For minor changes just submit your PR and I'll try to review it, but for anything more 'impactful' please open an Issue first and start a discussion. Is better to sound out what it is you want to achieve first, and try to come to a consensus on what the best approach is, especially when it impacts the structure or architecture of this codebase.
+For minor changes just submit your PR and we'll try to review it, but for anything more 'impactful' please open an Issue first and start a discussion. Is better to sound out what it is you want to achieve first, and try to come to a consensus on what the best approach is, especially when it impacts the structure or architecture of this codebase.
 
 Here are some general principals you should try to adhere to:
 * Keep it simple. Please, don't think like a high-level lang programmer. Think embedded, and keep code concise, without any unnecessary layers.
 * No dynamic memory allocation, except during setup/begin functions.
 * Use the same brace and indenting style that's in the core source modules. (A .clang-format is prob going to be added soon, but please do NOT retroactively re-format existing code. This just creates unnecessary diffs that make finding problems harder)
 
+Help us prioritize! Please react with thumbs-up to issues/PRs you care about most. We look at reaction counts when planning work.
+
 ## Road-Map / To-Do
 
 There are a number of fairly major features in the pipeline, with no particular time-frames attached yet. In very rough chronological order:
 - [X] Companion radio: UI redesign
-- [ ] Repeater + Room Server: add ACL's (like Sensor Node has)
-- [ ] Standardise Bridge mode for repeaters
+- [X] Repeater + Room Server: add ACL's (like Sensor Node has)
+- [X] Standardise Bridge mode for repeaters
 - [ ] Repeater/Bridge: Standardise the Transport Codes for zoning/filtering
-- [ ] Core + Repeater: enhanced zero-hop neighbour discovery
+- [X] Core + Repeater: enhanced zero-hop neighbour discovery
 - [ ] Core: round-trip manual path support
 - [ ] Companion + Apps: support for multiple sub-meshes (and 'off-grid' client repeat mode)
 - [ ] Core + Apps: support for LZW message compression
@@ -115,12 +117,3 @@ There are a number of fairly major features in the pipeline, with no particular 
 - Report bugs and request features on the [GitHub Issues](https://github.com/ripplebiz/MeshCore/issues) page.
 - Find additional guides and components on [my site](https://buymeacoffee.com/ripplebiz).
 - Join [MeshCore Discord](https://discord.gg/BMwCtwHj5V) to chat with the developers and get help from the community.
-
-## RAK Wireless Board Support in PlatformIO
-
-Before building/flashing the RAK4631 targets in this project, there is, unfortunately, some patching you have to do to your platformIO packages to make it work. There is a guide here on the process:
-   [RAK Wireless: How to Perform Installation of Board Support Package in PlatformIO](https://learn.rakwireless.com/hc/en-us/articles/26687276346775-How-To-Perform-Installation-of-Board-Support-Package-in-PlatformIO)
-
-After building, you will need to convert the output firmware.hex file into a .uf2 file you can copy over to your RAK4631 device (after doing a full erase) by using the command `uf2conv.py -f 0xADA52840 -c firmware.hex` with the python script available from:
-   [GitHub: Microsoft - uf2](https://github.com/Microsoft/uf2/blob/master/utils/uf2conv.py)
-

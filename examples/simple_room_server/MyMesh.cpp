@@ -73,13 +73,15 @@ void MyMesh::pushPostToClient(ClientInfo *client, PostInfo &post) {
 
   auto reply = createDatagram(PAYLOAD_TYPE_TXT_MSG, client->id, client->shared_secret, reply_data, len);
   if (reply) {
-    if (client->out_path_len < 0) {
-      sendFlood(reply);
+    if (client->out_path_len == OUT_PATH_UNKNOWN) {
+      unsigned long delay_millis = 0;
+      sendFlood(reply, delay_millis, _prefs.path_hash_mode + 1);
       client->extra.room.ack_timeout = futureMillis(PUSH_ACK_TIMEOUT_FLOOD);
     } else {
       sendDirect(reply, client->out_path, client->out_path_len);
-      client->extra.room.ack_timeout =
-          futureMillis(PUSH_TIMEOUT_BASE + PUSH_ACK_TIMEOUT_FACTOR * (client->out_path_len + 1));
+
+      uint8_t path_hash_count = client->out_path_len & 63;
+      client->extra.room.ack_timeout = futureMillis(PUSH_TIMEOUT_BASE + PUSH_ACK_TIMEOUT_FACTOR * (path_hash_count + 1));
     }
     _num_post_pushes++; // stats
   } else {
@@ -138,7 +140,7 @@ int MyMesh::handleRequest(ClientInfo *sender, uint32_t sender_timestamp, uint8_t
   if (payload[0] == REQ_TYPE_GET_STATUS) {
     ServerStats stats;
     stats.batt_milli_volts = board.getBattMilliVolts();
-    stats.curr_tx_queue_len = _mgr->getOutboundCount(0xFFFFFFFF);
+    stats.curr_tx_queue_len = _mgr->getOutboundTotal();
     stats.noise_floor = (int16_t)_radio->getNoiseFloor();
     stats.last_rssi = (int16_t)radio_driver.getLastRSSI();
     stats.n_packets_recv = radio_driver.getPacketsRecv();
@@ -169,6 +171,12 @@ int MyMesh::handleRequest(ClientInfo *sender, uint32_t sender_timestamp, uint8_t
       perm_mask = 0x00;  // just base telemetry allowed
     }
     sensors.querySensors(perm_mask, telemetry);
+
+    // This default temperature will be overridden by external sensors (if any)
+    float temperature = board.getMCUTemperature();
+    if(!isnan(temperature)) { // Supported boards with built-in temperature sensor. ESP32-C3 may return NAN
+      telemetry.addTemperature(TELEM_CHANNEL_SELF, temperature); // Built-in MCU Temperature
+    }
 
     uint8_t tlen = telemetry.getSize();
     memcpy(&reply_data[4], telemetry.getBuffer(), tlen);
@@ -264,17 +272,17 @@ const char *MyMesh::getLogDateTime() {
 }
 
 uint32_t MyMesh::getRetransmitDelay(const mesh::Packet *packet) {
-  uint32_t t = (_radio->getEstAirtimeFor(packet->path_len + packet->payload_len + 2) * _prefs.tx_delay_factor);
+  uint32_t t = (_radio->getEstAirtimeFor(packet->getPathByteLen() + packet->payload_len + 2) * _prefs.tx_delay_factor);
   return getRNG()->nextInt(0, 5*t + 1);
 }
 uint32_t MyMesh::getDirectRetransmitDelay(const mesh::Packet *packet) {
-  uint32_t t = (_radio->getEstAirtimeFor(packet->path_len + packet->payload_len + 2) * _prefs.direct_tx_delay_factor);
+  uint32_t t = (_radio->getEstAirtimeFor(packet->getPathByteLen() + packet->payload_len + 2) * _prefs.direct_tx_delay_factor);
   return getRNG()->nextInt(0, 5*t + 1);
 }
 
 bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
   if (_prefs.disable_fwd) return false;
-  if (packet->isRouteFlood() && packet->path_len >= _prefs.flood_max) return false;
+  if (packet->isRouteFlood() && packet->getPathHashCount() >= _prefs.flood_max) return false;
   return true;
 }
 
@@ -333,7 +341,7 @@ void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const m
     }
 
     if (packet->isRouteFlood()) {
-      client->out_path_len = -1;  // need to rediscover out_path
+      client->out_path_len = OUT_PATH_UNKNOWN;  // need to rediscover out_path
     }
 
     uint32_t now = getRTCClock()->getCurrentTimeUnique();
@@ -353,14 +361,14 @@ void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const m
       // let this sender know path TO here, so they can use sendDirect(), and ALSO encode the response
       mesh::Packet *path = createPathReturn(sender, client->shared_secret, packet->path, packet->path_len,
                                             PAYLOAD_TYPE_RESPONSE, reply_data, 13);
-      if (path) sendFlood(path, SERVER_RESPONSE_DELAY);
+      if (path) sendFlood(path, SERVER_RESPONSE_DELAY, packet->getPathHashSize());
     } else {
       mesh::Packet *reply = createDatagram(PAYLOAD_TYPE_RESPONSE, sender, client->shared_secret, reply_data, 13);
       if (reply) {
-        if (client->out_path_len >= 0) { // we have an out_path, so send DIRECT
+        if (client->out_path_len != OUT_PATH_UNKNOWN) { // we have an out_path, so send DIRECT
           sendDirect(reply, client->out_path, client->out_path_len, SERVER_RESPONSE_DELAY);
         } else {
-          sendFlood(reply, SERVER_RESPONSE_DELAY);
+          sendFlood(reply, SERVER_RESPONSE_DELAY, packet->getPathHashSize());
         }
       }
     }
@@ -448,9 +456,9 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
 
       uint32_t delay_millis;
       if (send_ack) {
-        if (client->out_path_len < 0) {
+        if (client->out_path_len == OUT_PATH_UNKNOWN) {
           mesh::Packet *ack = createAck(ack_hash);
-          if (ack) sendFlood(ack, TXT_ACK_DELAY);
+          if (ack) sendFlood(ack, TXT_ACK_DELAY, packet->getPathHashSize());
           delay_millis = TXT_ACK_DELAY + REPLY_DELAY_MILLIS;
         } else {
           uint32_t d = TXT_ACK_DELAY;
@@ -482,8 +490,8 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
 
         auto reply = createDatagram(PAYLOAD_TYPE_TXT_MSG, client->id, secret, temp, 5 + text_len);
         if (reply) {
-          if (client->out_path_len < 0) {
-            sendFlood(reply, delay_millis + SERVER_RESPONSE_DELAY);
+          if (client->out_path_len == OUT_PATH_UNKNOWN) {
+            sendFlood(reply, delay_millis + SERVER_RESPONSE_DELAY, packet->getPathHashSize());
           } else {
             sendDirect(reply, client->out_path, client->out_path_len, delay_millis + SERVER_RESPONSE_DELAY);
           }
@@ -521,7 +529,7 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
         // if client sends too quickly, evict()
 
         // RULE: only send keep_alive response DIRECT!
-        if (client->out_path_len >= 0) {
+        if (client->out_path_len != OUT_PATH_UNKNOWN) {
           uint32_t ack_hash; // calc ACK to prove to sender that we got request
           mesh::Utils::sha256((uint8_t *)&ack_hash, 4, data, 9, client->id.pub_key, PUB_KEY_SIZE);
 
@@ -538,14 +546,14 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
             // let this sender know path TO here, so they can use sendDirect(), and ALSO encode the response
             mesh::Packet *path = createPathReturn(client->id, secret, packet->path, packet->path_len,
                                                   PAYLOAD_TYPE_RESPONSE, reply_data, reply_len);
-            if (path) sendFlood(path, SERVER_RESPONSE_DELAY);
+            if (path) sendFlood(path, SERVER_RESPONSE_DELAY, packet->getPathHashSize());
           } else {
             mesh::Packet *reply = createDatagram(PAYLOAD_TYPE_RESPONSE, client->id, secret, reply_data, reply_len);
             if (reply) {
-              if (client->out_path_len >= 0) { // we have an out_path, so send DIRECT
+              if (client->out_path_len != OUT_PATH_UNKNOWN) { // we have an out_path, so send DIRECT
                 sendDirect(reply, client->out_path, client->out_path_len, SERVER_RESPONSE_DELAY);
               } else {
-                sendFlood(reply, SERVER_RESPONSE_DELAY);
+                sendFlood(reply, SERVER_RESPONSE_DELAY, packet->getPathHashSize());
               }
             }
           }
@@ -563,7 +571,7 @@ bool MyMesh::onPeerPathRecv(mesh::Packet *packet, int sender_idx, const uint8_t 
   if (i >= 0 && i < acl.getNumClients()) { // get from our known_clients table (sender SHOULD already be known in this context)
     MESH_DEBUG_PRINTLN("PATH to client, path_len=%d", (uint32_t)path_len);
     auto client = acl.getClientByIdx(i);
-    memcpy(client->out_path, path, client->out_path_len = path_len); // store a copy of path, for sendDirect()
+    client->out_path_len = mesh::Packet::copyPath(client->out_path, path, path_len); // store a copy of path, for sendDirect()
     client->last_activity = getRTCClock()->getCurrentTime();
   } else {
     MESH_DEBUG_PRINTLN("onPeerPathRecv: invalid peer idx: %d", i);
@@ -597,7 +605,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
 
   // defaults
   memset(&_prefs, 0, sizeof(_prefs));
-  _prefs.airtime_factor = 1.0;   // one half
+  _prefs.airtime_factor = 1.0;
   _prefs.rx_delay_base = 0.0f;   // off by default, was 10.0
   _prefs.tx_delay_factor = 0.5f; // was 0.25f;
   _prefs.direct_tx_delay_factor = 0.2f; // was zero
@@ -679,7 +687,7 @@ void MyMesh::sendSelfAdvertisement(int delay_millis, bool flood) {
   mesh::Packet *pkt = createSelfAdvert();
   if (pkt) {
     if (flood) {
-      sendFlood(pkt, delay_millis);
+      sendFlood(pkt, delay_millis, _prefs.path_hash_mode + 1);
     } else {
       sendZeroHop(pkt, delay_millis);
     }
@@ -856,7 +864,8 @@ void MyMesh::loop() {
 
   if (next_flood_advert && millisHasNowPassed(next_flood_advert)) {
     mesh::Packet *pkt = createSelfAdvert();
-    if (pkt) sendFlood(pkt);
+    uint32_t delay_millis = 0;
+    if (pkt) sendFlood(pkt, delay_millis, _prefs.path_hash_mode + 1);
 
     updateFloodAdvertTimer(); // schedule next flood advert
     updateAdvertTimer();      // also schedule local advert (so they don't overlap)

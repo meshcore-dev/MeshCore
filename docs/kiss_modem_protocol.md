@@ -190,7 +190,7 @@ All values little-endian.
 | Field | Size | Description |
 |-------|------|-------------|
 | MAC | 2 bytes | HMAC-SHA256 truncated to 2 bytes |
-| Ciphertext | variable | AES-128-CBC encrypted data |
+| Ciphertext | variable | AES-128 block-encrypted data with zero padding |
 
 ### Airtime (Airtime response)
 
@@ -268,7 +268,7 @@ Data returned in CayenneLPP format. See [CayenneLPP documentation](https://docs.
 |-----------|-----------|
 | Identity / Signing / Verification | Ed25519 |
 | Key Exchange | X25519 (ECDH) |
-| Encryption | AES-128-CBC + HMAC-SHA256 (MAC truncated to 2 bytes) |
+| Encryption | AES-128 block encryption with zero padding + HMAC-SHA256 (MAC truncated to 2 bytes) |
 | Hashing | SHA-256 |
 
 ## Notes
@@ -279,4 +279,4 @@ Data returned in CayenneLPP format. See [CayenneLPP documentation](https://docs.
 - SNR values in RxMeta are multiplied by 4 for 0.25 dB precision
 - TxDone is sent as a SetHardware event after each transmission
 - Standard KISS clients receive only type 0x00 data frames and can safely ignore all SetHardware (0x06) frames
-- See [packet_structure.md](./packet_structure.md) for packet format
+- See [packet_format.md](./packet_format.md) for packet format
