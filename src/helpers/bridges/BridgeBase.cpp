@@ -40,7 +40,9 @@ void BridgeBase::handleReceivedPacket(mesh::Packet *packet) {
   }
 
   if (!_seen_packets.hasSeen(packet)) {
-    // bridge_delay provides a buffer to prevent immediate processing conflicts in the mesh network.
+    // Only hand the packet off to the mesh once per bridge-side receive. New packets are queued with
+    // bridge_delay applied so they are processed asynchronously instead of immediately inside the
+    // bridge RX path, which reduces feedback/reprocessing conflicts with other mesh activity.
     _mgr->queueInbound(packet, millis() + _prefs->bridge_delay);
   } else {
     _mgr->free(packet);
