@@ -384,7 +384,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
       } else if (memcmp(config, "bridge.delay", 12) == 0) {
         sprintf(reply, "> %d", (uint32_t)_prefs->bridge_delay);
       } else if (memcmp(config, "bridge.source", 13) == 0) {
-        sprintf(reply, "> %s", _prefs->bridge_pkt_src ? "logRx" : "logTx");
+        sprintf(reply, "> %s", _prefs->bridge_pkt_src ? "rx" : "tx");
 #endif
 #ifdef WITH_RS232_BRIDGE
       } else if (memcmp(config, "bridge.baud", 11) == 0) {
@@ -651,10 +651,21 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         } else {
           strcpy(reply, "Error: delay must be between 0-10000 ms");
         }
+      } else if (strcmp(config, "bridge.source") == 0) {
+        strcpy(reply, "Error: source must be rx or tx");
       } else if (memcmp(config, "bridge.source ", 14) == 0) {
-        _prefs->bridge_pkt_src = memcmp(&config[14], "rx", 2) == 0;
-        savePrefs();
-        strcpy(reply, "OK");
+        const char* source = &config[14];
+        if (strcmp(source, "rx") == 0) {
+          _prefs->bridge_pkt_src = true;
+          savePrefs();
+          strcpy(reply, "OK");
+        } else if (strcmp(source, "tx") == 0) {
+          _prefs->bridge_pkt_src = false;
+          savePrefs();
+          strcpy(reply, "OK");
+        } else {
+          strcpy(reply, "Error: source must be rx or tx");
+        }
 #endif
 #ifdef WITH_RS232_BRIDGE
       } else if (memcmp(config, "bridge.baud ", 12) == 0) {
