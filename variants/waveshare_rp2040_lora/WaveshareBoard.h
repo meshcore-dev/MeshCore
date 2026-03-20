@@ -33,8 +33,8 @@ public:
   uint8_t getStartupReason() const override { return startup_reason; }
 
 #ifdef P_LORA_TX_LED
-  void onBeforeTransmit() override { digitalWrite(P_LORA_TX_LED, HIGH); }
-  void onAfterTransmit() override { digitalWrite(P_LORA_TX_LED, LOW); }
+  void onBeforeTransmit() override { if (activity_led_enabled) digitalWrite(P_LORA_TX_LED, HIGH); }
+  void onAfterTransmit() override { if (activity_led_enabled) digitalWrite(P_LORA_TX_LED, LOW); }
 #endif
 
   uint16_t getBattMilliVolts() override {

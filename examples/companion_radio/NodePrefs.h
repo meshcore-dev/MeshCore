@@ -16,6 +16,9 @@
 #define LED_STATUS_ENABLED     0
 #define LED_STATUS_DISABLED    1
 
+#define LED_ACTIVITY_ENABLED   0
+#define LED_ACTIVITY_DISABLED  1
+
 struct NodePrefs {  // persisted to file
   float airtime_factor;
   char node_name[32];
@@ -41,4 +44,5 @@ struct NodePrefs {  // persisted to file
   uint8_t autoadd_max_hops;  // 0 = no limit, 1 = direct (0 hops), N = up to N-1 hops (max 64)
   uint8_t led_ble_mode;      // LED_BLE_ENABLED, LED_BLE_DISCONN_ONLY, LED_BLE_CONN_ONLY, LED_BLE_DISABLED
   uint8_t led_status_mode;   // LED_STATUS_ENABLED, LED_STATUS_DISABLED
+  uint8_t led_activity_mode; // LED_ACTIVITY_ENABLED, LED_ACTIVITY_DISABLED
 };

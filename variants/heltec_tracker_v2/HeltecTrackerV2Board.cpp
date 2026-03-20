@@ -38,12 +38,16 @@ void HeltecTrackerV2Board::begin() {
   }
 
   void HeltecTrackerV2Board::onBeforeTransmit(void) {
-    digitalWrite(P_LORA_TX_LED, HIGH);   // turn TX LED on
+    if (activity_led_enabled) {
+      digitalWrite(P_LORA_TX_LED, HIGH);   // turn TX LED on
+    }
     digitalWrite(P_LORA_PA_TX_EN,HIGH);
   }
 
   void HeltecTrackerV2Board::onAfterTransmit(void) {
-    digitalWrite(P_LORA_TX_LED, LOW);   // turn TX LED off
+    if (activity_led_enabled) {
+      digitalWrite(P_LORA_TX_LED, LOW);   // turn TX LED off
+    }
     digitalWrite(P_LORA_PA_TX_EN,LOW);
   }
 

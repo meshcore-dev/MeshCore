@@ -42,6 +42,7 @@ namespace mesh {
 
 class MainBoard {
 public:
+  bool activity_led_enabled = true;   // runtime flag for led.activity custom var
   virtual uint16_t getBattMilliVolts() = 0;
   virtual float getMCUTemperature() { return NAN; }
   virtual bool setAdcMultiplier(float multiplier) { return false; };

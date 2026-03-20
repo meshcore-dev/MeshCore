@@ -861,10 +861,13 @@ void MyMesh::begin(bool has_display) {
   _prefs.gps_interval = constrain(_prefs.gps_interval, 0, 86400);  // Max 24 hours
   _prefs.led_ble_mode = constrain(_prefs.led_ble_mode, 0, 3);
   _prefs.led_status_mode = constrain(_prefs.led_status_mode, 0, 1);
+  _prefs.led_activity_mode = constrain(_prefs.led_activity_mode, 0, 1);
 
   // Sync LED prefs to sensor manager (exposed as custom vars)
   sensors.led_ble_mode = _prefs.led_ble_mode;
   sensors.led_status_mode = _prefs.led_status_mode;
+  sensors.led_activity_mode = _prefs.led_activity_mode;
+  board.activity_led_enabled = (_prefs.led_activity_mode == LED_ACTIVITY_ENABLED);
 
 #ifdef BLE_PIN_CODE // 123456 by default
   if (_prefs.ble_pin == 0) {
@@ -1694,6 +1697,10 @@ void MyMesh::handleCmdFrame(size_t len) {
         } else if (strcmp(sp, "led.status") == 0) {
           _prefs.led_status_mode = sensors.led_status_mode;
           savePrefs();
+        } else if (strcmp(sp, "led.activity") == 0) {
+          _prefs.led_activity_mode = sensors.led_activity_mode;
+          board.activity_led_enabled = (_prefs.led_activity_mode == LED_ACTIVITY_ENABLED);
+          savePrefs();
         }
         writeOKFrame();
       } else {
@@ -1873,6 +1880,15 @@ void MyMesh::checkCLIRescueCmd() {
           _prefs.led_status_mode = sensors.led_status_mode;
           savePrefs();
           Serial.printf("  > led.status is now %d\n", _prefs.led_status_mode);
+        } else {
+          Serial.println("  Error: must be 0-1 (0=enabled, 1=disabled)");
+        }
+      } else if (memcmp(config, "led.activity ", 13) == 0) {
+        if (sensors.setSettingValue("led.activity", &config[13])) {
+          _prefs.led_activity_mode = sensors.led_activity_mode;
+          board.activity_led_enabled = (_prefs.led_activity_mode == LED_ACTIVITY_ENABLED);
+          savePrefs();
+          Serial.printf("  > led.activity is now %d\n", _prefs.led_activity_mode);
         } else {
           Serial.println("  Error: must be 0-1 (0=enabled, 1=disabled)");
         }

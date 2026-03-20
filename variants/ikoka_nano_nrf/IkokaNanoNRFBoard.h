@@ -13,14 +13,18 @@ public:
 
 #if defined(P_LORA_TX_LED)
   void onBeforeTransmit() override {
-    digitalWrite(P_LORA_TX_LED, LOW);   // turn TX LED on
+    if (activity_led_enabled) {
+      digitalWrite(P_LORA_TX_LED, LOW);   // turn TX LED on
+    }
     #if defined(LED_BLUE)
        // turn off that annoying blue LED before transmitting
        digitalWrite(LED_BLUE, HIGH);
     #endif
   }
   void onAfterTransmit() override {
-    digitalWrite(P_LORA_TX_LED, HIGH);   // turn TX LED off
+    if (activity_led_enabled) {
+      digitalWrite(P_LORA_TX_LED, HIGH);   // turn TX LED off
+    }
     #if defined(LED_BLUE)
        // do it after transmitting too, just in case
        digitalWrite(LED_BLUE, HIGH);

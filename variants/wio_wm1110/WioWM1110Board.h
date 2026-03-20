@@ -18,9 +18,11 @@ public:
 
 #if defined(LED_GREEN)
   void onBeforeTransmit() override {
+    if (!activity_led_enabled) return;
     digitalWrite(LED_RED, HIGH);
   }
   void onAfterTransmit() override {
+    if (!activity_led_enabled) return;
     digitalWrite(LED_RED, LOW);
   }
 #endif

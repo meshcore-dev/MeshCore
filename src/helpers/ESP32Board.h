@@ -81,18 +81,22 @@ public:
 
 #if defined(P_LORA_TX_LED)
   void onBeforeTransmit() override {
+    if (!activity_led_enabled) return;
     digitalWrite(P_LORA_TX_LED, HIGH);   // turn TX LED on
   }
   void onAfterTransmit() override {
+    if (!activity_led_enabled) return;
     digitalWrite(P_LORA_TX_LED, LOW);   // turn TX LED off
   }
 #elif defined(P_LORA_TX_NEOPIXEL_LED)
   #define NEOPIXEL_BRIGHTNESS    64  // white brightness (max 255)
 
   void onBeforeTransmit() override {
+    if (!activity_led_enabled) return;
     neopixelWrite(P_LORA_TX_NEOPIXEL_LED, NEOPIXEL_BRIGHTNESS, NEOPIXEL_BRIGHTNESS, NEOPIXEL_BRIGHTNESS);   // turn TX neopixel on (White)
   }
   void onAfterTransmit() override {
+    if (!activity_led_enabled) return;
     neopixelWrite(P_LORA_TX_NEOPIXEL_LED, 0, 0, 0);   // turn TX neopixel off
   }
 #endif
