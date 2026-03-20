@@ -45,7 +45,7 @@ struct NodePrefs { // persisted to file
   uint8_t bridge_enabled; // boolean
   uint16_t bridge_delay;  // milliseconds (default 500 ms)
   uint8_t bridge_pkt_src; // 0 = logTx, 1 = logRx (default logTx)
-  uint32_t bridge_baud;   // 9600, 19200, 38400, 57600, 115200 (default 115200)
+  uint32_t bridge_baud;   // one of 9600, 19200, 38400, 57600, or 115200 (default 115200)
   uint8_t bridge_channel; // 1-14 (ESP-NOW only)
   char bridge_secret[16]; // for XOR encryption of bridge packets (ESP-NOW only)
   // Power setting

@@ -918,6 +918,8 @@ region save
 **Parameters:**
 - `rate`: Baud rate (`9600`, `19200`, `38400`, `57600`, or `115200`)
 
+`set bridge.baud` returns an error for any other value.
+
 **Default:** `115200`
 
 ---

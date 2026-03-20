@@ -8,6 +8,19 @@
 #define BRIDGE_MAX_BAUD 115200
 #endif
 
+static bool isSupportedBridgeBaud(uint32_t baud) {
+  switch (baud) {
+    case 9600:
+    case 19200:
+    case 38400:
+    case 57600:
+    case 115200:
+      return true;
+    default:
+      return false;
+  }
+}
+
 // Believe it or not, this std C function is busted on some platforms!
 static uint32_t _atoi(const char* sp) {
   uint32_t n = 0;
@@ -107,7 +120,9 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     _prefs->bridge_enabled = constrain(_prefs->bridge_enabled, 0, 1);
     _prefs->bridge_delay = constrain(_prefs->bridge_delay, 0, 10000);
     _prefs->bridge_pkt_src = constrain(_prefs->bridge_pkt_src, 0, 1);
-    _prefs->bridge_baud = constrain(_prefs->bridge_baud, 9600, BRIDGE_MAX_BAUD);
+    if (!isSupportedBridgeBaud(_prefs->bridge_baud)) {
+      _prefs->bridge_baud = BRIDGE_MAX_BAUD;
+    }
     _prefs->bridge_channel = constrain(_prefs->bridge_channel, 0, 14);
 
     _prefs->powersaving_enabled = constrain(_prefs->powersaving_enabled, 0, 1);
@@ -659,13 +674,13 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
 #ifdef WITH_RS232_BRIDGE
       } else if (memcmp(config, "bridge.baud ", 12) == 0) {
         uint32_t baud = atoi(&config[12]);
-        if (baud >= 9600 && baud <= BRIDGE_MAX_BAUD) {
+        if (isSupportedBridgeBaud(baud)) {
           _prefs->bridge_baud = (uint32_t)baud;
           _callbacks->restartBridge();
           savePrefs();
           strcpy(reply, "OK");
         } else {
-          sprintf(reply, "Error: baud rate must be between 9600-%d",BRIDGE_MAX_BAUD);
+          strcpy(reply, "Error: baud rate must be 9600, 19200, 38400, 57600, or 115200");
         }
 #endif
 #ifdef WITH_ESPNOW_BRIDGE
