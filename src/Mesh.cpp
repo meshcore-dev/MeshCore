@@ -1,14 +1,103 @@
 #include "Mesh.h"
 //#include <Arduino.h>
+#include <string.h>
 
 namespace mesh {
 
 void Mesh::begin() {
+  memset(_pending_direct_acks, 0, sizeof(_pending_direct_acks));
   Dispatcher::begin();
 }
 
 void Mesh::loop() {
+  flushQueuedDirectAcks();
   Dispatcher::loop();
+}
+
+bool Mesh::queueDirectAck(uint32_t ack_crc, const uint8_t* path, uint8_t path_len, uint32_t delay_millis) {
+  unsigned long scheduled_for = futureMillis(delay_millis);
+  PendingDirectAck* slot = NULL;
+  PendingDirectAck* empty = NULL;
+  uint8_t path_byte_len = ((path_len & 63) * ((path_len >> 6) + 1));
+
+  for (uint8_t i = 0; i < MAX_PENDING_DIRECT_ACKS; i++) {
+    auto* curr = &_pending_direct_acks[i];
+    if (!curr->used) {
+      if (empty == NULL) empty = curr;
+      continue;
+    }
+    if (curr->path_len == path_len && memcmp(curr->path, path, path_byte_len) == 0) {
+      slot = curr;
+      break;
+    }
+  }
+
+  if (slot == NULL) {
+    slot = empty;
+    if (slot == NULL) return false;
+
+    slot->used = 1;
+    slot->count = 0;
+    slot->path_len = Packet::copyPath(slot->path, path, path_len);
+    slot->scheduled_for = scheduled_for;
+  } else if (scheduled_for < slot->scheduled_for) {
+    slot->scheduled_for = scheduled_for;
+  }
+
+  for (uint8_t i = 0; i < slot->count; i++) {
+    if (slot->ack_crcs[i] == ack_crc) return true;
+  }
+
+  if (slot->count >= sizeof(slot->ack_crcs) / sizeof(slot->ack_crcs[0])) return false;
+
+  slot->ack_crcs[slot->count++] = ack_crc;
+  return true;
+}
+
+void Mesh::flushQueuedDirectAcks() {
+  for (uint8_t i = 0; i < MAX_PENDING_DIRECT_ACKS; i++) {
+    auto* slot = &_pending_direct_acks[i];
+    if (!slot->used || slot->count == 0 || !millisHasNowPassed(slot->scheduled_for)) continue;
+
+    uint32_t delay_millis = 0;
+
+    if (slot->count == 1) {
+      uint8_t extra = getExtraAckTransmitCount();
+      if (extra > 0) {
+        auto* a1 = createMultiAck(slot->ack_crcs[0], 1);
+        if (a1) {
+          a1->path_len = Packet::copyPath(a1->path, slot->path, slot->path_len);
+          a1->header &= ~PH_ROUTE_MASK;
+          a1->header |= ROUTE_TYPE_DIRECT;
+          sendPacket(a1, 0, delay_millis);
+        }
+        delay_millis += 300;
+      }
+
+      auto* a2 = createAck(slot->ack_crcs[0]);
+      if (a2) {
+        a2->path_len = Packet::copyPath(a2->path, slot->path, slot->path_len);
+        a2->header &= ~PH_ROUTE_MASK;
+        a2->header |= ROUTE_TYPE_DIRECT;
+        sendPacket(a2, 0, delay_millis);
+      }
+    } else {
+      for (uint8_t n = 0; n < slot->count; n++) {
+        uint8_t remaining = slot->count - n - 1;
+        Packet* ack = remaining > 0 ? createMultiAck(slot->ack_crcs[n], remaining)
+                                    : createAck(slot->ack_crcs[n]);
+        if (ack) {
+          ack->path_len = Packet::copyPath(ack->path, slot->path, slot->path_len);
+          ack->header &= ~PH_ROUTE_MASK;
+          ack->header |= ROUTE_TYPE_DIRECT;
+          sendPacket(ack, 0, delay_millis);
+        }
+        delay_millis += 300;
+      }
+    }
+
+    memset(slot, 0, sizeof(*slot));
+  }
 }
 
 bool Mesh::allowPacketForward(const mesh::Packet* packet) { 

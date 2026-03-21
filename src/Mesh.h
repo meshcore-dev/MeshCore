@@ -24,14 +24,28 @@ public:
  *     and provides virtual methods for sub-classes on handling incoming, and also preparing outbound Packets.
 */
 class Mesh : public Dispatcher {
+  struct PendingDirectAck {
+    uint8_t used;
+    uint8_t count;
+    uint8_t path_len;
+    uint32_t scheduled_for;
+    uint8_t path[MAX_PATH_SIZE];
+    uint32_t ack_crcs[4];
+  };
+
+  static constexpr uint8_t MAX_PENDING_DIRECT_ACKS = 4;
+
   RTCClock* _rtc;
   RNG* _rng;
   MeshTables* _tables;
+  PendingDirectAck _pending_direct_acks[MAX_PENDING_DIRECT_ACKS];
 
   void removeSelfFromPath(Packet* packet);
   void routeDirectRecvAcks(Packet* packet, uint32_t delay_millis);
   //void routeRecvAcks(Packet* packet, uint32_t delay_millis);
   DispatcherAction forwardMultipartDirect(Packet* pkt);
+  bool queueDirectAck(uint32_t ack_crc, const uint8_t* path, uint8_t path_len, uint32_t delay_millis);
+  void flushQueuedDirectAcks();
 
 protected:
   DispatcherAction onRecvPacket(Packet* pkt) override;
@@ -208,6 +222,9 @@ public:
    * \brief  send a locally-generated Packet with Direct routing
   */
   void sendDirect(Packet* packet, const uint8_t* path, uint8_t path_len, uint32_t delay_millis=0);
+  bool enqueueDirectAck(uint32_t ack_crc, const uint8_t* path, uint8_t path_len, uint32_t delay_millis=0) {
+    return queueDirectAck(ack_crc, path, path_len, delay_millis);
+  }
 
   /**
    * \brief  send a locally-generated Packet to just neigbor nodes (zero hops)

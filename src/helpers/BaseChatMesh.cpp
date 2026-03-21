@@ -43,6 +43,11 @@ void BaseChatMesh::sendAckTo(const ContactInfo& dest, uint32_t ack_hash) {
     mesh::Packet* ack = createAck(ack_hash);
     if (ack) sendFloodScoped(dest, ack, TXT_ACK_DELAY);
   } else {
+    if (getExtraAckTransmitCount() > 0
+        && enqueueDirectAck(ack_hash, dest.out_path, dest.out_path_len, TXT_ACK_DELAY)) {
+      return;
+    }
+
     uint32_t d = TXT_ACK_DELAY;
     if (getExtraAckTransmitCount() > 0) {
       mesh::Packet* a1 = createMultiAck(ack_hash, 1);
