@@ -916,9 +916,13 @@ region save
 - `set bridge.baud <rate>`
 
 **Parameters:**
-- `rate`: Baud rate (`9600`, `19200`, `38400`, `57600`, or `115200`)
+- `rate`: Positive integer baud rate value passed to the underlying serial library
 
 **Default:** `115200`
+
+**Notes:**
+- MeshCore stores the configured baud rate and passes it to the platform UART library when the RS-232 bridge starts or restarts.
+- Supported values depend on the board/core UART implementation. Some platforms may reject unsupported values or round to the nearest achievable baud rate.
 
 ---
 
