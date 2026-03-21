@@ -59,9 +59,12 @@
 #define CLI_REPLY_DELAY_MILLIS      600
 
 #define LAZY_CONTACTS_WRITE_DELAY    5000
+#define ACTIVE_NEIGHBOUR_SECS      3600
+#define STABLE_NEIGHBOUR_HEARS        3
 
 void MyMesh::putNeighbour(const mesh::Identity &id, uint32_t timestamp, float snr) {
 #if MAX_NEIGHBOURS // check if neighbours enabled
+  bool found = false;
   // find existing neighbour, else use least recently updated
   uint32_t oldest_timestamp = 0xFFFFFFFF;
   NeighbourInfo *neighbour = &neighbours[0];
@@ -69,6 +72,7 @@ void MyMesh::putNeighbour(const mesh::Identity &id, uint32_t timestamp, float sn
     // if neighbour already known, we should update it
     if (id.matches(neighbours[i].id)) {
       neighbour = &neighbours[i];
+      found = true;
       break;
     }
 
@@ -84,6 +88,38 @@ void MyMesh::putNeighbour(const mesh::Identity &id, uint32_t timestamp, float sn
   neighbour->advert_timestamp = timestamp;
   neighbour->heard_timestamp = getRTCClock()->getCurrentTime();
   neighbour->snr = (int8_t)(snr * 4);
+  neighbour->hear_count = found ? (uint16_t)(neighbour->hear_count + 1) : 1;
+#endif
+}
+
+uint16_t MyMesh::getActiveNeighbourCount() const {
+#if MAX_NEIGHBOURS
+  uint16_t count = 0;
+  uint32_t now = rtc_clock.getCurrentTime();
+  for (int i = 0; i < MAX_NEIGHBOURS; i++) {
+    if (neighbours[i].heard_timestamp > 0 && now - neighbours[i].heard_timestamp <= ACTIVE_NEIGHBOUR_SECS) {
+      count++;
+    }
+  }
+  return count;
+#else
+  return 0;
+#endif
+}
+
+uint16_t MyMesh::getStableNeighbourCount() const {
+#if MAX_NEIGHBOURS
+  uint16_t count = 0;
+  uint32_t now = rtc_clock.getCurrentTime();
+  for (int i = 0; i < MAX_NEIGHBOURS; i++) {
+    if (neighbours[i].heard_timestamp > 0 && now - neighbours[i].heard_timestamp <= ACTIVE_NEIGHBOUR_SECS
+        && neighbours[i].hear_count >= STABLE_NEIGHBOUR_HEARS) {
+      count++;
+    }
+  }
+  return count;
+#else
+  return 0;
 #endif
 }
 
@@ -414,9 +450,16 @@ bool MyMesh::isLooped(const mesh::Packet* packet, const uint8_t max_counters[]) 
 }
 
 bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
-  if (_prefs.disable_fwd) return false;
-  if (packet->isRouteFlood() && packet->getPathHashCount() >= _prefs.flood_max) return false;
+  if (_prefs.disable_fwd) {
+    if (packet->isRouteFlood()) metrics.drop_disabled++;
+    return false;
+  }
+  if (packet->isRouteFlood() && packet->getPathHashCount() >= _prefs.flood_max) {
+    metrics.drop_max++;
+    return false;
+  }
   if (packet->isRouteFlood() && recv_pkt_region == NULL) {
+    metrics.drop_region++;
     MESH_DEBUG_PRINTLN("allowPacketForward: unknown transport code, or wildcard not allowed for FLOOD packet");
     return false;
   }
@@ -430,10 +473,12 @@ bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
       maximums = max_loop_strict;
     }
     if (isLooped(packet, maximums)) {
+      metrics.drop_loop++;
       MESH_DEBUG_PRINTLN("allowPacketForward: FLOOD packet loop detected!");
       return false;
     }
   }
+  if (packet->isRouteFlood()) metrics.flood_forwarded++;
   return true;
 }
 
@@ -647,6 +692,7 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
       int reply_len = handleRequest(client, timestamp, &data[4], len - 4);
       if (reply_len == 0) return; // invalid command
 
+      metrics.admin_req_recv++;
       client->last_timestamp = timestamp;
       client->last_activity = getRTCClock()->getCurrentTime();
 
@@ -655,14 +701,17 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
         mesh::Packet *path = createPathReturn(client->id, secret, packet->path, packet->path_len,
                                               PAYLOAD_TYPE_RESPONSE, reply_data, reply_len);
         if (path) sendFlood(path, SERVER_RESPONSE_DELAY, packet->getPathHashSize());
+        metrics.admin_reply_flood++;
       } else {
         mesh::Packet *reply =
             createDatagram(PAYLOAD_TYPE_RESPONSE, client->id, secret, reply_data, reply_len);
         if (reply) {
           if (client->out_path_len != OUT_PATH_UNKNOWN) { // we have an out_path, so send DIRECT
             sendDirect(reply, client->out_path, client->out_path_len, SERVER_RESPONSE_DELAY);
+            metrics.admin_reply_direct++;
           } else {
             sendFlood(reply, SERVER_RESPONSE_DELAY, packet->getPathHashSize());
+            metrics.admin_reply_flood++;
           }
         }
       }
@@ -690,12 +739,17 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
         mesh::Utils::sha256((uint8_t *)&ack_hash, 4, data, 5 + strlen((char *)&data[5]), client->id.pub_key,
                             PUB_KEY_SIZE);
 
-        mesh::Packet *ack = createAck(ack_hash);
-        if (ack) {
-          if (client->out_path_len == OUT_PATH_UNKNOWN) {
+        if (client->out_path_len == OUT_PATH_UNKNOWN) {
+          mesh::Packet *ack = createAck(ack_hash);
+          if (ack) {
             sendFlood(ack, TXT_ACK_DELAY, packet->getPathHashSize());
-          } else {
+            metrics.ack_flood_sent++;
+          }
+        } else {
+          mesh::Packet *ack = createAck(ack_hash);
+          if (ack) {
             sendDirect(ack, client->out_path, client->out_path_len, TXT_ACK_DELAY);
+            metrics.ack_direct_sent++;
           }
         }
       }
@@ -706,6 +760,7 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
       if (is_retry) {
         *reply = 0;
       } else {
+        metrics.cli_cmd_recv++;
         handleCommand(sender_timestamp, command, reply);
       }
       int text_len = strlen(reply);
@@ -722,8 +777,10 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
         if (reply) {
           if (client->out_path_len == OUT_PATH_UNKNOWN) {
             sendFlood(reply, CLI_REPLY_DELAY_MILLIS, packet->getPathHashSize());
+            metrics.admin_reply_flood++;
           } else {
             sendDirect(reply, client->out_path, client->out_path_len, CLI_REPLY_DELAY_MILLIS);
+            metrics.admin_reply_direct++;
           }
         }
       }
@@ -1067,7 +1124,14 @@ void MyMesh::removeNeighbor(const uint8_t *pubkey, int key_len) {
 }
 
 void MyMesh::formatStatsReply(char *reply) {
-  StatsFormatHelper::formatCoreStats(reply, board, *_ms, _err_flags, _mgr);
+  sprintf(reply,
+          "{\"battery_mv\":%u,\"uptime_secs\":%u,\"errors\":%u,\"queue_len\":%u,\"active_nbrs\":%u,\"stable_nbrs\":%u}",
+          board.getBattMilliVolts(),
+          _ms->getMillis() / 1000,
+          _err_flags,
+          _mgr->getOutboundTotal(),
+          getActiveNeighbourCount(),
+          getStableNeighbourCount());
 }
 
 void MyMesh::formatRadioStatsReply(char *reply) {
@@ -1077,6 +1141,22 @@ void MyMesh::formatRadioStatsReply(char *reply) {
 void MyMesh::formatPacketStatsReply(char *reply) {
   StatsFormatHelper::formatPacketStats(reply, radio_driver, getNumSentFlood(), getNumSentDirect(), 
                                        getNumRecvFlood(), getNumRecvDirect());
+}
+
+void MyMesh::formatRepeaterStatsReply(char *reply) {
+  sprintf(reply,
+          "{\"ack_d\":%u,\"ack_f\":%u,\"req\":%u,\"cli\":%u,\"rep_d\":%u,\"rep_f\":%u,\"fwd\":%u,\"drop_dis\":%u,\"drop_max\":%u,\"drop_reg\":%u,\"drop_loop\":%u}",
+          metrics.ack_direct_sent,
+          metrics.ack_flood_sent,
+          metrics.admin_req_recv,
+          metrics.cli_cmd_recv,
+          metrics.admin_reply_direct,
+          metrics.admin_reply_flood,
+          metrics.flood_forwarded,
+          metrics.drop_disabled,
+          metrics.drop_max,
+          metrics.drop_region,
+          metrics.drop_loop);
 }
 
 void MyMesh::saveIdentity(const mesh::LocalIdentity &new_id) {
@@ -1096,6 +1176,12 @@ void MyMesh::clearStats() {
   radio_driver.resetStats();
   resetStats();
   ((SimpleMeshTables *)getTables())->resetStats();
+  memset(&metrics, 0, sizeof(metrics));
+#if MAX_NEIGHBOURS
+  for (int i = 0; i < MAX_NEIGHBOURS; i++) {
+    neighbours[i].hear_count = 0;
+  }
+#endif
 }
 
 void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply) {
@@ -1285,6 +1371,8 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
       sendNodeDiscoverReq();
       strcpy(reply, "OK - Discover sent");
     }
+  } else if (sender_timestamp == 0 && strcmp(command, "stats-repeater") == 0) {
+    formatRepeaterStatsReply(reply);
   } else{
     _cli.handleCommand(sender_timestamp, command, reply);  // common CLI commands
   }

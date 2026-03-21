@@ -66,6 +66,21 @@ struct NeighbourInfo {
   uint32_t advert_timestamp;
   uint32_t heard_timestamp;
   int8_t snr; // multiplied by 4, user should divide to get float value
+  uint16_t hear_count;
+};
+
+struct RepeaterMetrics {
+  uint32_t ack_direct_sent;
+  uint32_t ack_flood_sent;
+  uint32_t admin_req_recv;
+  uint32_t cli_cmd_recv;
+  uint32_t admin_reply_direct;
+  uint32_t admin_reply_flood;
+  uint32_t flood_forwarded;
+  uint32_t drop_disabled;
+  uint32_t drop_max;
+  uint32_t drop_region;
+  uint32_t drop_loop;
 };
 
 #ifndef FIRMWARE_BUILD_DATE
@@ -105,6 +120,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
 #if MAX_NEIGHBOURS
   NeighbourInfo neighbours[MAX_NEIGHBOURS];
 #endif
+  RepeaterMetrics metrics;
   CayenneLPP telemetry;
   unsigned long set_radio_at, revert_radio_at;
   float pending_freq;
@@ -119,6 +135,8 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
 #endif
 
   void putNeighbour(const mesh::Identity& id, uint32_t timestamp, float snr);
+  uint16_t getActiveNeighbourCount() const;
+  uint16_t getStableNeighbourCount() const;
   void sendNodeDiscoverReq();
   uint8_t handleLoginReq(const mesh::Identity& sender, const uint8_t* secret, uint32_t sender_timestamp, const uint8_t* data, bool is_flood);
   uint8_t handleAnonRegionsReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data);
@@ -209,6 +227,7 @@ public:
   void formatStatsReply(char *reply) override;
   void formatRadioStatsReply(char *reply) override;
   void formatPacketStatsReply(char *reply) override;
+  void formatRepeaterStatsReply(char *reply);
 
   mesh::LocalIdentity& getSelfId() override { return self_id; }
 

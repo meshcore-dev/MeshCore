@@ -119,6 +119,8 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 **Serial Only:** Yes
 
+**Repeater Note:** Repeater firmware also includes `active_nbrs` and `stable_nbrs` in this response.
+
 ---
 
 ### Radio Stats - Noise floor, Last RSSI/SNR, Airtime, Receive errors
@@ -132,6 +134,28 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 **Usage:** `stats-packets`
 
 **Serial Only:** Yes
+
+---
+
+### Repeater stats - ACK, admin traffic, and forward/drop counters
+**Usage:** `stats-repeater`
+
+**Serial Only:** Yes
+
+**Repeater Only:** Yes
+
+**Fields:**
+- `ack_d`: Direct ACKs sent
+- `ack_f`: Flood ACKs sent
+- `req`: Admin requests handled
+- `cli`: CLI commands handled
+- `rep_d`: Admin replies sent direct
+- `rep_f`: Admin replies sent by flood
+- `fwd`: Flood packets forwarded
+- `drop_dis`: Flood packets dropped because forwarding is disabled
+- `drop_max`: Flood packets dropped because they exceeded `flood_max`
+- `drop_reg`: Flood packets dropped because no allowed region match was available
+- `drop_loop`: Flood packets dropped by loop detection
 
 ---
 
