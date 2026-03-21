@@ -3,6 +3,31 @@
 
 #include "RAK3401Board.h"
 
+#ifdef NRF52_POWER_MANAGEMENT
+// Static configuration for power management
+// Values set in variant.h defines
+const PowerMgtConfig power_config = {
+  .lpcomp_ain_channel = PWRMGT_LPCOMP_AIN,
+  .lpcomp_refsel = PWRMGT_LPCOMP_REFSEL,
+  .voltage_bootlock = PWRMGT_VOLTAGE_BOOTLOCK
+};
+
+void RAK3401Board::initiateShutdown(uint8_t reason) {
+  // Disable SKY66122 FEM (CSD+CPS LOW = shutdown, <1 uA)
+  digitalWrite(SX126X_POWER_EN, LOW);
+
+  // Disable 3V3 switched peripherals and 5V boost
+  digitalWrite(PIN_3V3_EN, LOW);
+
+  if (reason == SHUTDOWN_REASON_LOW_VOLTAGE ||
+      reason == SHUTDOWN_REASON_BOOT_PROTECT) {
+    configureVoltageWake(power_config.lpcomp_ain_channel, power_config.lpcomp_refsel);
+  }
+
+  enterSystemOff(reason);
+}
+#endif
+
 void RAK3401Board::begin() {
   NRF52BoardDCDC::begin();
   pinMode(PIN_VBAT_READ, INPUT);
@@ -31,18 +56,11 @@ void RAK3401Board::begin() {
   // HIGH = FEM active (LNA for RX, PA path available for TX).
   // TX/RX switching (CTX) is handled by SX1262 DIO2 via SetDIO2AsRfSwitchCtrl.
   pinMode(SX126X_POWER_EN, OUTPUT);
+#ifdef NRF52_POWER_MANAGEMENT
+  // Boot voltage protection check (may not return if voltage too low)
+  // We need to call this after we configure SX126X_POWER_EN as output but before we pull high
+  checkBootVoltage(&power_config);
+#endif
   digitalWrite(SX126X_POWER_EN, HIGH);
   delay(1);  // SKY66122 turn-on settling time (tON = 3us typ)
 }
-
-#ifdef NRF52_POWER_MANAGEMENT
-void RAK3401Board::initiateShutdown(uint8_t reason) {
-  // Disable SKY66122 FEM (CSD+CPS LOW = shutdown, <1 uA)
-  digitalWrite(SX126X_POWER_EN, LOW);
-
-  // Disable 3V3 switched peripherals and 5V boost
-  digitalWrite(PIN_3V3_EN, LOW);
-
-  enterSystemOff(reason);
-}
-#endif
