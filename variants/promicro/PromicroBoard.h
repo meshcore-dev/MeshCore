@@ -47,4 +47,10 @@ public:
   const char* getManufacturerName() const override {
     return "ProMicro DIY";
   }
+
+  void powerOff() override;
+
+  #ifdef NRF52_POWER_MANAGEMENT
+    void initiateShutdown(uint8_t reason) override;
+  #endif
 };
