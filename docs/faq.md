@@ -221,11 +221,11 @@ MeshCore allows you to manually broadcast your name, position and public encrypt
 * Zero hop means your advert is broadcasted out to anyone that can hear it, and that's it.
 * Flooded means it's broadcasted out and then repeated by all the repeaters that hear it.
 
-MeshCore clients only advertise themselves when the user initiates it. A repeater sends a flood advert once every 3 hours by default. This interval can be configured using the following command:
+MeshCore clients only advertise themselves when the user initiates it. A repeater sends a flood advert once every 12 hours by default. This interval can be configured using the following command:
 
-`set advert.interval {minutes}`
+`set flood.advert.interval {hours}`
 
-As of Aug 20 2025, a pending PR on github will change the flood advert to 12 hours to minimize airtime utilization caused by repeaters' flood adverts.
+The separate `set advert.interval {minutes}` command controls the local zero-hop advert timer.
 
 ### 2.5. Q: Is there a hop limit?
 
@@ -260,7 +260,9 @@ Repeater or room server can be administered with one of the options below:
 ### 3.2. Q: Do I need to set the location for a repeater?
 **A:** While not required, with location set for a repeater it will show up on the MeshCore map in the future. Set location with the following command:
 
-`set lat <GPS Lat> set long <GPS Lon>`
+`set lat <GPS Lat>`
+
+`set lon <GPS Lon>`
 
 You can get the latitude and longitude from Google Maps by right-clicking the location you are at on the map.
 

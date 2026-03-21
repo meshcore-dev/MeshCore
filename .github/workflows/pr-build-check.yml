@@ -9,6 +9,14 @@ on:
       - 'variants/**'
       - 'platformio.ini'
       - '.github/workflows/pr-build-check.yml'
+  push:
+    branches: [main, dev]
+    paths:
+      - 'src/**'
+      - 'examples/**'
+      - 'variants/**'
+      - 'platformio.ini'
+      - '.github/workflows/pr-build-check.yml'
 
 jobs:
   build:

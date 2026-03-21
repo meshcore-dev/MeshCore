@@ -90,23 +90,17 @@ Returned path messages provide a description of the route a packet took from the
 
 ## Request
 
-| Field        | Size (bytes)    | Description                |
-|--------------|-----------------|----------------------------|
-| timestamp    | 4               | send time (unix timestamp) |
-| request type | 1               | see below                  |
-| request data | rest of payload | depends on request type    |
+| Field        | Size (bytes)    | Description                              |
+|--------------|-----------------|------------------------------------------|
+| timestamp    | 4               | sender time (unix timestamp)             |
+| request data | rest of payload | application-defined request payload body |
 
-Request type
+For the common chat/server helpers in `BaseChatMesh`, the current request type values are:
 
 | Value  | Name                 | Description                           |
 |--------|----------------------|---------------------------------------|
 | `0x01` | get stats            | get stats of repeater or room server  |
-| `0x02` | keepalive            | (deprecated) |
-| `0x03` | get telemetry data   | TODO |
-| `0x04` | get min,max,avg data | sensor nodes - get min, max, average for given time span |
-| `0x05` | get access list      | get node's approved access list            |
-| `0x06` | get neighbors        | get repeater node's neighbors              |
-| `0x07` | get owner info       | get repeater firmware-ver/name/owner info  |
+| `0x02` | keepalive            | keep-alive request used for maintained connections |
 
 ### Get stats
 
@@ -133,35 +127,36 @@ Gets information about the node, possibly including the following:
 
 ### Get telemetry data
 
-Request data about sensors on the node, including battery level.
+Not defined in `BaseChatMesh`. Sensor- and application-specific request payloads may be implemented by higher-level firmware.
 
 ### Get Telemetry
 
-TODO
+Not defined in `BaseChatMesh`.
 
 ### Get Min/Max/Ave  (Sensor nodes)
 
-TODO
+Not defined in `BaseChatMesh`.
 
 ### Get Access List
 
-TODO
+Not defined in `BaseChatMesh`.
 
 ### Get Neighors
 
-TODO
+Not defined in `BaseChatMesh`.
 
 ### Get Owner Info
 
-TODO
+Not defined in `BaseChatMesh`.
 
 
 ## Response
 
 | Field   | Size (bytes)    | Description |
 |---------|-----------------|-------------|
-| tag     | 4               | TODO        |
-| content | rest of payload | TODO        |
+| content | rest of payload | application-defined response body |
+
+Response contents are opaque application data. There is no single generic response envelope beyond the encrypted payload wrapper shown above.
 
 ## Plain text message
 
