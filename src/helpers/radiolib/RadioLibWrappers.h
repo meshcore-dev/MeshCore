@@ -15,10 +15,12 @@ protected:
   void idle();
   void startRecv();
   float packetScoreInt(float snr, int sf, int packet_len);
+  virtual int tryReadRawWithMeta(uint8_t* bytes, int sz, int* out_len);
   virtual bool isReceivingPacket() =0;
 
 public:
-  RadioLibWrapper(PhysicalLayer& radio, mesh::MainBoard& board) : _radio(&radio), _board(&board) { n_recv = n_sent = 0; }
+  RadioLibWrapper(PhysicalLayer& radio, mesh::MainBoard& board)
+      : _radio(&radio), _board(&board), n_recv(0), n_sent(0), n_recv_errors(0) {}
 
   void begin() override;
   virtual void powerOff() { _radio->sleep(); }

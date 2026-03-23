@@ -6,6 +6,16 @@
 class CustomSX1268Wrapper : public RadioLibWrapper {
 public:
   CustomSX1268Wrapper(CustomSX1268& radio, mesh::MainBoard& board) : RadioLibWrapper(radio, board) { }
+protected:
+  int tryReadRawWithMeta(uint8_t* bytes, int sz, int* out_len) override {
+    size_t len = 0;
+    int err = ((CustomSX1268*)_radio)->tryReadData(bytes, (size_t)sz, &len);
+    if (out_len) {
+      *out_len = (err == RADIOLIB_ERR_NONE) ? (int)len : 0;
+    }
+    return err;
+  }
+public:
   bool isReceivingPacket() override { 
     return ((CustomSX1268 *)_radio)->isReceiving();
   }

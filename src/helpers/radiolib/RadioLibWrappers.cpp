@@ -95,21 +95,38 @@ bool RadioLibWrapper::isInRecvMode() const {
   return (state & ~STATE_INT_READY) == STATE_RX;
 }
 
+int RadioLibWrapper::tryReadRawWithMeta(uint8_t* bytes, int sz, int* out_len) {
+  int len = _radio->getPacketLength();
+  if (len <= 0) {
+    if (out_len) { *out_len = 0; }
+    return RADIOLIB_ERR_NONE;
+  }
+
+  if (len > sz) {
+    len = sz;
+  }
+
+  int err = _radio->readData(bytes, len);
+  if (err != RADIOLIB_ERR_NONE) {
+    if (out_len) { *out_len = 0; }
+    return err;
+  }
+
+  if (out_len) { *out_len = len; }
+  return RADIOLIB_ERR_NONE;
+}
+
 int RadioLibWrapper::recvRaw(uint8_t* bytes, int sz) {
   int len = 0;
   if (state & STATE_INT_READY) {
-    len = _radio->getPacketLength();
-    if (len > 0) {
-      if (len > sz) { len = sz; }
-      int err = _radio->readData(bytes, len);
-      if (err != RADIOLIB_ERR_NONE) {
-        MESH_DEBUG_PRINTLN("RadioLibWrapper: error: readData(%d)", err);
-        len = 0;
-        n_recv_errors++;
-      } else {
-      //  Serial.print("  readData() -> "); Serial.println(len);
-        n_recv++;
-      }
+    int err = tryReadRawWithMeta(bytes, sz, &len);
+    if (err != RADIOLIB_ERR_NONE) {
+      MESH_DEBUG_PRINTLN("RadioLibWrapper: error: readData(%d)", err);
+      len = 0;
+      n_recv_errors++;
+    } else if (len > 0) {
+    //  Serial.print("  readData() -> "); Serial.println(len);
+      n_recv++;
     }
     state = STATE_IDLE;   // need another startReceive()
   }
