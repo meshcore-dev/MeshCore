@@ -342,7 +342,18 @@ size_t SerialBLEInterface::checkRecvFrame(uint8_t dest[]) {
   if (_isEnabled && _conn_handle != BLE_CONN_HANDLE_INVALID && !_isDeviceConnected) {
     if (_conn_pending_since > 0 && (now - _conn_pending_since) >= BLE_SECURITY_TIMEOUT_MS) {
       BLE_DEBUG_PRINTLN("SerialBLEInterface: security timeout, forcing disconnect");
+      // Reset _conn_pending_since so we don't call disconnect more than once in a half-connected state
+      _conn_pending_since = 0;
+
+      // Disconnect the current connection
       disconnect();
+
+      // Force an advertising health check
+      _last_health_check = now;
+      if (!isAdvertising()) {
+        BLE_DEBUG_PRINTLN("SerialBLEInterface: advertising watchdog - advertising stopped, restarting");
+        Bluefruit.Advertising.start(0);
+      }
     }
   }
 
