@@ -38,9 +38,6 @@ Shutdown reason codes (stored in GPREGRET2):
 | Seeed Studio XIAO nRF52840 (`xiao_nrf52`) | Yes | Yes | Yes |
 | RAK4631 (`rak4631`) | Yes | Yes | Yes |
 | Heltec T114 (`heltec_t114`) | Yes | Yes | Yes |
-| GAT562 30S Mesh Kit | Yes | Yes | Yes |
-| GAT562 Mesh Tracker Pro | Yes | Yes | Yes |
-| GAT562 Mesh Solar Relay | Yes | Yes | Yes |
 | GAT56 Mesh Watch13 | Yes | Yes | Yes |
 | Promicro nRF52840 | No | No | No |
 | RAK WisMesh Tag | No | No | No |
