@@ -106,6 +106,13 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 ---
 
+### Discover zero hop neighbors
+
+**Usage:** 
+- `discover.neighbors`
+
+---
+
 ## Statistics
 
 ### Clear Stats
@@ -237,6 +244,22 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 **Note:** Requires reboot to apply
 **Serial Only:** `set freq <frequency>`
+
+---
+
+#### View or change this node's rx boosted gain mode (SX12xx only, v1.14.1+)
+**Usage:**
+- `get radio.rxgain`
+- `set radio.rxgain <state>`
+
+**Parameters:**
+  - `state`: `on`|`off`
+
+**Default:** `on`
+
+**Temporary Note:** If you upgraded from an older version to 1.14.1 without erasing flash, this setting is `off` because of [#2118](https://github.com/meshcore-dev/MeshCore/issues/2118)
+
+---
 
 ### System
 
