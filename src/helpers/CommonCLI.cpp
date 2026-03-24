@@ -88,7 +88,8 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     file.read((uint8_t *)&_prefs->adc_multiplier, sizeof(_prefs->adc_multiplier));                 // 166
     file.read((uint8_t *)_prefs->owner_info, sizeof(_prefs->owner_info));                          // 170
     file.read((uint8_t *)&_prefs->rx_boosted_gain, sizeof(_prefs->rx_boosted_gain));              // 290
-    // next: 291
+    file.read((uint8_t *)&_prefs->radio_fem_rxgain, sizeof(_prefs->radio_fem_rxgain));            // 291
+    // next: 292
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -118,6 +119,7 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
 
     // sanitise settings
     _prefs->rx_boosted_gain = constrain(_prefs->rx_boosted_gain, 0, 1); // boolean
+    _prefs->radio_fem_rxgain = constrain(_prefs->radio_fem_rxgain, 0, 1); // boolean
 
     file.close();
   }
@@ -179,7 +181,8 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->adc_multiplier, sizeof(_prefs->adc_multiplier));                 // 166
     file.write((uint8_t *)_prefs->owner_info, sizeof(_prefs->owner_info));                          // 170
     file.write((uint8_t *)&_prefs->rx_boosted_gain, sizeof(_prefs->rx_boosted_gain));              // 290
-    // next: 291
+    file.write((uint8_t *)&_prefs->radio_fem_rxgain, sizeof(_prefs->radio_fem_rxgain));            // 291
+    // next: 292
 
     file.close();
   }
@@ -327,6 +330,12 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
       } else if (memcmp(config, "radio.rxgain", 12) == 0) {
         sprintf(reply, "> %s", _prefs->rx_boosted_gain ? "on" : "off");
 #endif
+      } else if (memcmp(config, "radio.fem.rxgain", 16) == 0) {
+        if (!_board->canControlLoRaFemLna()) {
+          strcpy(reply, "Error: unsupported by this board");
+        } else {
+          sprintf(reply, "> %s", _board->isLoRaFemLnaEnabled() ? "on" : "off");
+        }
       } else if (memcmp(config, "radio", 5) == 0) {
         char freq[16], bw[16];
         strcpy(freq, StrHelper::ftoa(_prefs->freq));
@@ -520,13 +529,37 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         _prefs->disable_fwd = memcmp(&config[7], "off", 3) == 0;
         savePrefs();
         strcpy(reply, _prefs->disable_fwd ? "OK - repeat is now OFF" : "OK - repeat is now ON");
-#if defined(USE_SX1262) || defined(USE_SX1268)
       } else if (memcmp(config, "radio.rxgain ", 13) == 0) {
+#if defined(USE_SX1262) || defined(USE_SX1268)
         _prefs->rx_boosted_gain = memcmp(&config[13], "on", 2) == 0;
         strcpy(reply, "OK");
         savePrefs();
         _callbacks->setRxBoostedGain(_prefs->rx_boosted_gain);
+#else
+        strcpy(reply, "Error: unsupported by this board");
 #endif
+      } else if (memcmp(config, "radio.fem.rxgain ", 17) == 0) {
+        if (!_board->canControlLoRaFemLna()) {
+          strcpy(reply, "Error: unsupported by this board");
+        } else if (memcmp(&config[17], "on", 2) == 0) {
+          if (_board->setLoRaFemLnaEnabled(true)) {
+            _prefs->radio_fem_rxgain = 1;
+            savePrefs();
+            strcpy(reply, "OK - LoRa FEM RX gain on");
+          } else {
+            strcpy(reply, "Error: failed to apply LoRa FEM RX gain");
+          }
+        } else if (memcmp(&config[17], "off", 3) == 0) {
+          if (_board->setLoRaFemLnaEnabled(false)) {
+            _prefs->radio_fem_rxgain = 0;
+            savePrefs();
+            strcpy(reply, "OK - LoRa FEM RX gain off");
+          } else {
+            strcpy(reply, "Error: failed to apply LoRa FEM RX gain");
+          }
+        } else {
+          strcpy(reply, "Error: state must be on or off");
+        }
       } else if (memcmp(config, "radio ", 6) == 0) {
         strcpy(tmp, &config[6]);
         const char *parts[4];
