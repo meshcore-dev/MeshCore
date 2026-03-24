@@ -14,7 +14,7 @@
 #define USE_LFXO    // 32.768 kHz crystal oscillator
 #define VARIANT_MCK (64000000ul)
 
-#define WIRE_INTERFACES_COUNT 	(1)
+#define WIRE_INTERFACES_COUNT 	(2)
 
 ////////////////////////////////////////////////////////////////////////////////
 // Power
@@ -58,8 +58,11 @@
 ////////////////////////////////////////////////////////////////////////////////
 // I2C pin definition
 
-#define PIN_WIRE_SDA            (26)             // P0.26
-#define PIN_WIRE_SCL            (27)             // P0.27
+#define PIN_WIRE_SDA            (26) // P0.26
+#define PIN_WIRE_SCL            (27) // P0.27
+
+#define PIN_WIRE1_SDA            (7) // P0.8
+#define PIN_WIRE1_SCL            (8) // P0.7
 
 ////////////////////////////////////////////////////////////////////////////////
 // SPI pin definition

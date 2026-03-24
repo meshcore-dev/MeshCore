@@ -80,6 +80,14 @@ public:
 
   
   bool playNotification();
+  bool isBuzzerQuiet() { 
+#ifdef PIN_BUZZER
+    return buzzer.isQuiet();
+#else
+    return true;
+#endif
+  }
+
   void toggleBuzzer();
   void toggleBuzzerOnSerial();
   bool getGPSState();

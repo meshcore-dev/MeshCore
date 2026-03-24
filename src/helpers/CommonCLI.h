@@ -13,13 +13,18 @@
 #define ADVERT_LOC_SHARE      1
 #define ADVERT_LOC_PREFS      2
 
+#define LOOP_DETECT_OFF       0
+#define LOOP_DETECT_MINIMAL   1
+#define LOOP_DETECT_MODERATE  2
+#define LOOP_DETECT_STRICT    3
+
 struct NodePrefs { // persisted to file
   float airtime_factor;
   char node_name[32];
   double node_lat, node_lon;
   char password[16];
   float freq;
-  uint8_t tx_power_dbm;
+  int8_t tx_power_dbm;
   uint8_t disable_fwd;
   uint8_t advert_interval;       // minutes / 2
   uint8_t flood_advert_interval; // hours
@@ -52,6 +57,9 @@ struct NodePrefs { // persisted to file
   uint32_t discovery_mod_timestamp;
   float adc_multiplier;
   char owner_info[120];
+  uint8_t rx_boosted_gain; // power settings
+  uint8_t path_hash_mode;   // which path mode to use when sending
+  uint8_t loop_detect;
 };
 
 class CommonCLICallbacks {
@@ -67,7 +75,7 @@ public:
   virtual void setLoggingOn(bool enable) = 0;
   virtual void eraseLogFile() = 0;
   virtual void dumpLogFile() = 0;
-  virtual void setTxPower(uint8_t power_dbm) = 0;
+  virtual void setTxPower(int8_t power_dbm) = 0;
   virtual void formatNeighborsReply(char *reply) = 0;
   virtual void removeNeighbor(const uint8_t* pubkey, int key_len) {
     // no op by default
@@ -85,6 +93,10 @@ public:
   };
 
   virtual void restartBridge() {
+    // no op by default
+  };
+
+  virtual void setRxBoostedGain(bool enable) {
     // no op by default
   };
 };

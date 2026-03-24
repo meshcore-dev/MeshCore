@@ -42,7 +42,7 @@
   ],
   "name": "Heltec T114 Board",
   "upload": {
-    "maximum_ram_size": 248832,
+    "maximum_ram_size": 235520,
     "maximum_size": 815104,
     "speed": 115200,
     "protocol": "nrfutil",
