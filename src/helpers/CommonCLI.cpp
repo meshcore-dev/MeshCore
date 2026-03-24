@@ -88,7 +88,13 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     file.read((uint8_t *)&_prefs->adc_multiplier, sizeof(_prefs->adc_multiplier));                 // 166
     file.read((uint8_t *)_prefs->owner_info, sizeof(_prefs->owner_info));                          // 170
     file.read((uint8_t *)&_prefs->rx_boosted_gain, sizeof(_prefs->rx_boosted_gain));              // 290
-    // next: 291
+    if (!file.read((uint8_t *)&_prefs->tx_fail_reset_threshold, sizeof(_prefs->tx_fail_reset_threshold))) { // 291
+      _prefs->tx_fail_reset_threshold = 3;
+    }
+    if (!file.read((uint8_t *)&_prefs->rx_fail_reboot_threshold, sizeof(_prefs->rx_fail_reboot_threshold))) { // 292
+      _prefs->rx_fail_reboot_threshold = 3;
+    }
+    // next: 293
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -179,7 +185,9 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->adc_multiplier, sizeof(_prefs->adc_multiplier));                 // 166
     file.write((uint8_t *)_prefs->owner_info, sizeof(_prefs->owner_info));                          // 170
     file.write((uint8_t *)&_prefs->rx_boosted_gain, sizeof(_prefs->rx_boosted_gain));              // 290
-    // next: 291
+    file.write((uint8_t *)&_prefs->tx_fail_reset_threshold, sizeof(_prefs->tx_fail_reset_threshold)); // 291
+    file.write((uint8_t *)&_prefs->rx_fail_reboot_threshold, sizeof(_prefs->rx_fail_reboot_threshold)); // 292
+    // next: 293
 
     file.close();
   }
@@ -300,6 +308,10 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         sprintf(reply, "> %d", (uint32_t) _prefs->interference_threshold);
       } else if (memcmp(config, "agc.reset.interval", 18) == 0) {
         sprintf(reply, "> %d", ((uint32_t) _prefs->agc_reset_interval) * 4);
+      } else if (memcmp(config, "tx.fail.threshold", 17) == 0) {
+        sprintf(reply, "> %d", (uint32_t) _prefs->tx_fail_reset_threshold);
+      } else if (memcmp(config, "rx.fail.threshold", 17) == 0) {
+        sprintf(reply, "> %d", (uint32_t) _prefs->rx_fail_reboot_threshold);
       } else if (memcmp(config, "multi.acks", 10) == 0) {
         sprintf(reply, "> %d", (uint32_t) _prefs->multi_acks);
       } else if (memcmp(config, "allow.read.only", 15) == 0) {
@@ -463,6 +475,28 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         _prefs->agc_reset_interval = atoi(&config[19]) / 4;
         savePrefs();
         sprintf(reply, "OK - interval rounded to %d", ((uint32_t) _prefs->agc_reset_interval) * 4);
+      } else if (memcmp(config, "tx.fail.threshold ", 18) == 0) {
+        int val = atoi(&config[18]);
+        if (val < 0) val = 0;
+        if (val > 10) val = 10;
+        _prefs->tx_fail_reset_threshold = (uint8_t) val;
+        savePrefs();
+        if (val == 0) {
+          strcpy(reply, "OK - tx fail reset disabled");
+        } else {
+          sprintf(reply, "OK - tx fail reset after %d failures", val);
+        }
+      } else if (memcmp(config, "rx.fail.threshold ", 18) == 0) {
+        int val = atoi(&config[18]);
+        if (val < 0) val = 0;
+        if (val > 10) val = 10;
+        _prefs->rx_fail_reboot_threshold = (uint8_t) val;
+        savePrefs();
+        if (val == 0) {
+          strcpy(reply, "OK - rx fail reboot disabled");
+        } else {
+          sprintf(reply, "OK - reboot after %d rx recovery failures", val);
+        }
       } else if (memcmp(config, "multi.acks ", 11) == 0) {
         _prefs->multi_acks = atoi(&config[11]);
         savePrefs();

@@ -76,10 +76,28 @@ void Dispatcher::loop() {
     prev_isrecv_mode = is_recv;
     if (!is_recv) {
       radio_nonrx_start = _ms->getMillis();
+    } else {
+      rx_stuck_count = 0;  // radio recovered — reset counter
     }
   }
   if (!is_recv && _ms->getMillis() - radio_nonrx_start > 8000) {   // radio has not been in Rx mode for 8 seconds!
     _err_flags |= ERR_EVENT_STARTRX_TIMEOUT;
+
+    rx_stuck_count++;
+    MESH_DEBUG_PRINTLN("%s Dispatcher::loop(): RX stuck (attempt %d), calling onRxStuck()", getLogDateTime(), rx_stuck_count);
+    onRxStuck();
+
+    uint8_t reboot_threshold = getRxFailRebootThreshold();
+    if (reboot_threshold > 0 && rx_stuck_count >= reboot_threshold) {
+      MESH_DEBUG_PRINTLN("%s Dispatcher::loop(): RX unrecoverable after %d attempts", getLogDateTime(), rx_stuck_count);
+      onRxUnrecoverable();
+    }
+
+    // Reset state to give recovery the full 8s window before re-triggering
+    radio_nonrx_start = _ms->getMillis();
+    prev_isrecv_mode = true;
+    cad_busy_start = 0;
+    next_agc_reset_time = futureMillis(getAGCResetInterval());
   }
 
   if (outbound) {  // waiting for outbound send to be completed
@@ -327,14 +345,31 @@ void Dispatcher::checkSend() {
       outbound_start = _ms->getMillis();
       bool success = _radio->startSendRaw(raw, len);
       if (!success) {
-        MESH_DEBUG_PRINTLN("%s Dispatcher::loop(): ERROR: send start failed!", getLogDateTime());
+        MESH_DEBUG_PRINTLN("%s Dispatcher::checkSend(): ERROR: send start failed!", getLogDateTime());
 
         logTxFail(outbound, outbound->getRawLength());
-  
-        releasePacket(outbound);  // return to pool
+
+        // re-queue packet for retry instead of dropping it
+        int retry_delay = getCADFailRetryDelay();
+        unsigned long retry_time = futureMillis(retry_delay);
+        _mgr->queueOutbound(outbound, 0, retry_time);
         outbound = NULL;
+        next_tx_time = retry_time;
+
+        // count consecutive failures and reset radio if stuck
+        uint8_t threshold = getTxFailResetThreshold();
+        if (threshold > 0) {
+          tx_fail_count++;
+          if (tx_fail_count >= threshold) {
+            MESH_DEBUG_PRINTLN("%s Dispatcher::checkSend(): TX stuck (%d failures), resetting radio", getLogDateTime(), tx_fail_count);
+            onTxStuck();
+            tx_fail_count = 0;
+            next_tx_time = futureMillis(2000);
+          }
+        }
         return;
       }
+      tx_fail_count = 0;  // clear counter on successful TX start
       outbound_expiry = futureMillis(max_airtime);
 
     #if MESH_PACKET_LOGGING

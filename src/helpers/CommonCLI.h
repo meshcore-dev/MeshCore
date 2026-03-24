@@ -60,6 +60,8 @@ struct NodePrefs { // persisted to file
   uint8_t rx_boosted_gain; // power settings
   uint8_t path_hash_mode;   // which path mode to use when sending
   uint8_t loop_detect;
+  uint8_t tx_fail_reset_threshold; // 0=disabled, 1-10, default 3
+  uint8_t rx_fail_reboot_threshold; // 0=disabled, 1-10, default 3
 };
 
 class CommonCLICallbacks {

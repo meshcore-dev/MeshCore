@@ -231,6 +231,13 @@ void DataStore::loadPrefsInt(const char *filename, NodePrefs& _prefs, double& no
     file.read((uint8_t *)&_prefs.autoadd_config, sizeof(_prefs.autoadd_config));           // 87
     file.read((uint8_t *)&_prefs.autoadd_max_hops, sizeof(_prefs.autoadd_max_hops));       // 88
     file.read((uint8_t *)&_prefs.rx_boosted_gain, sizeof(_prefs.rx_boosted_gain)); // 89
+    if (!file.read((uint8_t *)&_prefs.tx_fail_reset_threshold, sizeof(_prefs.tx_fail_reset_threshold))) { // 90
+      _prefs.tx_fail_reset_threshold = 3;
+    }
+    if (!file.read((uint8_t *)&_prefs.rx_fail_reboot_threshold, sizeof(_prefs.rx_fail_reboot_threshold))) { // 91
+      _prefs.rx_fail_reboot_threshold = 3;
+    }
+    // next: 92
 
     file.close();
   }
@@ -269,6 +276,9 @@ void DataStore::savePrefs(const NodePrefs& _prefs, double node_lat, double node_
     file.write((uint8_t *)&_prefs.autoadd_config, sizeof(_prefs.autoadd_config));           // 87
     file.write((uint8_t *)&_prefs.autoadd_max_hops, sizeof(_prefs.autoadd_max_hops));       // 88
     file.write((uint8_t *)&_prefs.rx_boosted_gain, sizeof(_prefs.rx_boosted_gain)); // 89
+    file.write((uint8_t *)&_prefs.tx_fail_reset_threshold, sizeof(_prefs.tx_fail_reset_threshold)); // 90
+    file.write((uint8_t *)&_prefs.rx_fail_reboot_threshold, sizeof(_prefs.rx_fail_reboot_threshold)); // 91
+    // next: 92
 
     file.close();
   }
