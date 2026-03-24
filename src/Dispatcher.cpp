@@ -332,9 +332,11 @@ void Dispatcher::checkSend() {
         logTxFail(outbound, outbound->getRawLength());
 
         // re-queue instead of dropping so the packet gets another chance
-        _mgr->queueOutbound(outbound, 0, futureMillis(getCADFailRetryDelay()));
+        int retry_delay = getCADFailRetryDelay();
+        unsigned long retry_time = futureMillis(retry_delay);
+        _mgr->queueOutbound(outbound, 0, retry_time);
         outbound = NULL;
-        next_tx_time = futureMillis(getCADFailRetryDelay());
+        next_tx_time = retry_time;
         return;
       }
       outbound_expiry = futureMillis(max_airtime);
