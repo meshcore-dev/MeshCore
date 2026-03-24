@@ -330,9 +330,11 @@ void Dispatcher::checkSend() {
         MESH_DEBUG_PRINTLN("%s Dispatcher::loop(): ERROR: send start failed!", getLogDateTime());
 
         logTxFail(outbound, outbound->getRawLength());
-  
-        releasePacket(outbound);  // return to pool
+
+        // re-queue instead of dropping so the packet gets another chance
+        _mgr->queueOutbound(outbound, 0, futureMillis(getCADFailRetryDelay()));
         outbound = NULL;
+        next_tx_time = futureMillis(getCADFailRetryDelay());
         return;
       }
       outbound_expiry = futureMillis(max_airtime);
