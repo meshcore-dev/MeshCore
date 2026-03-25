@@ -5,7 +5,14 @@
 #include <helpers/AdvertDataHelpers.h>
 #include <helpers/TxtDataHelpers.h>
 
-#define MAX_TEXT_LEN    (10*CIPHER_BLOCK_SIZE)  // must be LESS than (MAX_PACKET_PAYLOAD - 4 - CIPHER_MAC_SIZE - 1)
+// JP_STRICT: limit MAX_TEXT_LEN to keep TX time under 4s (ARIB STD-T108)
+// SF12/BW125/CR4-8: 60 bytes total packet = ~3809ms, overhead ~44 bytes
+// leaving 16 bytes (1*CIPHER_BLOCK_SIZE) for text payload
+#ifdef JP_STRICT
+  #define MAX_TEXT_LEN  (1*CIPHER_BLOCK_SIZE)   // ~16 chars, TX <= 4s for JP
+#else
+  #define MAX_TEXT_LEN  (10*CIPHER_BLOCK_SIZE)  // must be LESS than (MAX_PACKET_PAYLOAD - 4 - CIPHER_MAC_SIZE - 1)
+#endif
 
 #include "ContactInfo.h"
 
