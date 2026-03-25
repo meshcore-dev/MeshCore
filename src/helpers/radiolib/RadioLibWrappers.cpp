@@ -170,6 +170,10 @@ bool RadioLibWrapper::isSendComplete() {
 void RadioLibWrapper::onSendFinished() {
   _radio->finishTransmit();
   _board->onAfterTransmit();
+#ifdef JP_STRICT
+  // ARIB STD-T108: wait >= 50ms after TX before next transmission
+  delay(50);
+#endif
   state = STATE_IDLE;
 }
 
@@ -186,7 +190,7 @@ bool RadioLibWrapper::isChannelActive() {
   uint32_t sense_start = millis();
   uint32_t sense_duration_ms = 5;
   while (millis() - sense_start < sense_duration_ms) {
-    if (getCurrentRSSI() > _noise_floor + _threshold) {
+    if (getCurrentRSSI() > -80.0f) {
       // Channel busy detected during 5ms sensing window
       uint32_t backoff_until = millis() + random(8000, 22000);
       while (millis() < backoff_until) {
