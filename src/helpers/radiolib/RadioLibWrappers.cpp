@@ -144,6 +144,7 @@ uint32_t RadioLibWrapper::getEstAirtimeFor(int len_bytes) {
 
 bool RadioLibWrapper::startSendRaw(const uint8_t* bytes, int len) {
   _board->onBeforeTransmit();
+  _tx_start_ms = millis();  // recording TX time
   int err = _radio->startTransmit((uint8_t *) bytes, len);
   if (err == RADIOLIB_ERR_NONE) {
     state = STATE_TX_WAIT;
@@ -159,6 +160,8 @@ bool RadioLibWrapper::isSendComplete() {
   if (state & STATE_INT_READY) {
     state = STATE_IDLE;
     n_sent++;
+    uint32_t tx_duration = millis() - _tx_start_ms;
+    MESH_DEBUG_PRINTLN("TX duration: %lu ms (len=%d)", tx_duration);
     return true;
   }
   return false;
@@ -176,6 +179,24 @@ int16_t RadioLibWrapper::performChannelScan() {
 
 bool RadioLibWrapper::isChannelActive() {
   if (_threshold == 0) return false;    // interference check is disabled
+
+#ifdef JP_STRICT
+  // ARIB STD-T108 compliant LBT: continuous RSSI sensing for >= 5ms
+  // Energy-based sensing required; LoRa CAD alone is not sufficient
+  uint32_t sense_start = millis();
+  uint32_t sense_duration_ms = 5;
+  while (millis() - sense_start < sense_duration_ms) {
+    if (getCurrentRSSI() > _noise_floor + _threshold) {
+      // Channel busy detected during 5ms sensing window
+      uint32_t backoff_until = millis() + random(8000, 22000);
+      while (millis() < backoff_until) {
+        vTaskDelay(1);  // yield CPU to FreeRTOS tasks including BLE
+      }
+      return true;
+    }
+    vTaskDelay(1);  // yield CPU between RSSI samples
+  }
+#endif
 
   int16_t result = performChannelScan();
   // scanChannel() triggers DIO interrupt (CAD done) which sets STATE_INT_READY
