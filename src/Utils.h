@@ -34,6 +34,7 @@ public:
    * \returns  The length in bytes put into 'dest'. (rounded up to block size)
   */
   static int encrypt(const uint8_t* shared_secret, uint8_t* dest, const uint8_t* src, int src_len);
+  static int encrypt(void* aes, const uint8_t* shared_secret, uint8_t* dest, const uint8_t* src, int src_len);
 
   /**
    * \brief  Decrypt the 'src' bytes using AES128 cipher, using 'shared_secret' as key, with key length fixed at CIPHER_KEY_SIZE.
@@ -41,6 +42,7 @@ public:
    * \returns  The length in bytes put into 'dest'. (dest may contain trailing zero bytes in final block)
   */
   static int decrypt(const uint8_t* shared_secret, uint8_t* dest, const uint8_t* src, int src_len);
+  static int decrypt(void* aes, const uint8_t* shared_secret, uint8_t* dest, const uint8_t* src, int src_len);
 
   /**
    * \brief  encrypts bytes in src, then calculates MAC on ciphertext, inserting into leading bytes of 'dest'.

@@ -1,0 +1,23 @@
+{
+  "name": "native_crypto",
+  "version": "0.1.0",
+  "description": "Wrapper to compile Crypto library for native platform: a subset of rweather/Crypto@0.4.0",
+  "keywords": [],
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "authors": [
+    {
+      "name": "Test Suite"
+    }
+  ],
+  "license": "MIT",
+  "frameworks": "*",
+  "platforms": "*",
+    "build": {
+        "flags": [
+            "-Itest/lib/native_crypto"
+        ]
+  }
+}
