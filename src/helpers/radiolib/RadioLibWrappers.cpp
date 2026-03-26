@@ -36,6 +36,7 @@ void RadioLibWrapper::begin() {
 
   _noise_floor = 0;
   _threshold = 0;
+  _busy_count = 0;  // initialize exponential backoff counter
 
   // start average out some samples
   _num_floor_samples = 0;
@@ -185,38 +186,42 @@ bool RadioLibWrapper::isChannelActive() {
   if (_threshold == 0) return false;    // interference check is disabled
 
 #ifdef JP_STRICT
-  // ARIB STD-T108 compliant LBT: continuous RSSI sensing for >= 5ms
-  // Energy-based sensing required; LoRa CAD alone is not sufficient
+  // 5ms continuous RSSI sensing
   uint32_t sense_start = millis();
-  uint32_t sense_duration_ms = 5;
-  while (millis() - sense_start < sense_duration_ms) {
+  while (millis() - sense_start < 5) {
     if (getCurrentRSSI() > -80.0f) {
-      // Channel busy detected during 5ms sensing window
-      uint32_t backoff_until = millis() + random(8000, 22000);
+      // RSSI busy: backoff and return without CAD
+      _busy_count++;
+      uint32_t base_ms = 3000;
+      uint32_t max_backoff = min(base_ms * (1u << _busy_count), (uint32_t)20000);
+      uint32_t backoff_until = millis() + random(max_backoff / 2, max_backoff);
       while (millis() < backoff_until) {
-        vTaskDelay(1);  // yield CPU to FreeRTOS tasks including BLE
+        vTaskDelay(1);
       }
       return true;
     }
-    vTaskDelay(1);  // yield CPU between RSSI samples
+    vTaskDelay(1);
   }
 #endif
 
+  // CAD
   int16_t result = performChannelScan();
-  // scanChannel() triggers DIO interrupt (CAD done) which sets STATE_INT_READY
-  // via setFlag() ISR. Clear it before restarting RX so recvRaw() doesn't
-  // try to read a non-existent packet and count a spurious recv error.
   state = STATE_IDLE;
   startRecv();
 
   if (result != RADIOLIB_CHANNEL_FREE) {
-    // Random backoff to desynchronize retries between competing nodes
-    uint32_t backoff_until = millis() + random(8000, 22000);
+    // CAD busy: backoff
+    _busy_count++;
+    uint32_t base_ms = 3000;
+    uint32_t max_backoff = min(base_ms * (1u << _busy_count), (uint32_t)20000);
+    uint32_t backoff_until = millis() + random(max_backoff / 2, max_backoff);
     while (millis() < backoff_until) {
-      vTaskDelay(1);  // yield CPU to FreeRTOS tasks including BLE
+      vTaskDelay(1);
     }
     return true;
   }
+
+  _busy_count = 0;
 
   // Small jitter even when channel is free to prevent simultaneous TX
   // from two nodes that both detect a free channel at the same time
