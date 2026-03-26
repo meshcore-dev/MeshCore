@@ -6,12 +6,24 @@
 #include <helpers/TxtDataHelpers.h>
 
 // JP_STRICT: limit MAX_TEXT_LEN to keep TX time under 4s (ARIB STD-T108)
-// SF12/BW125/CR4-8: 60 bytes total packet = ~3809ms, overhead ~44 bytes
-// leaving 16 bytes (1*CIPHER_BLOCK_SIZE) for text payload
+// SF12/BW125, packet overhead ~44 bytes
+// CR4/5: 100 bytes total = ~3808ms → 56 bytes text → ~18 JP chars
+// CR4/6: 80 bytes total  = ~3530ms → 36 bytes text → ~12 JP chars
+// CR4/7: 70 bytes total  = ~3530ms → 26 bytes text →  ~8 JP chars
+// CR4/8: 60 bytes total  = ~3809ms → 16 bytes text →  ~5 JP chars
 #ifdef JP_STRICT
-  #define MAX_TEXT_LEN  (1*CIPHER_BLOCK_SIZE)   // ~16 chars, TX <= 4s for JP
+  #if defined(LORA_CR) && (LORA_CR == 5)
+    #define MAX_TEXT_LEN  (3*CIPHER_BLOCK_SIZE)    // 48 bytes ~18 JP chars
+  #elif defined(LORA_CR) && (LORA_CR == 6)
+    #define MAX_TEXT_LEN  (2*CIPHER_BLOCK_SIZE)    // 32 bytes ~10 JP chars
+  #elif defined(LORA_CR) && (LORA_CR == 7)
+    #define MAX_TEXT_LEN  (1*CIPHER_BLOCK_SIZE+8)  // 24 bytes ~8 JP chars
+  #else
+    #define MAX_TEXT_LEN  (1*CIPHER_BLOCK_SIZE)    // 16 bytes ~5 JP chars
+  #endif
 #else
-  #define MAX_TEXT_LEN  (10*CIPHER_BLOCK_SIZE)  // must be LESS than (MAX_PACKET_PAYLOAD - 4 - CIPHER_MAC_SIZE - 1)
+  #define MAX_TEXT_LEN  (10*CIPHER_BLOCK_SIZE)  
+// must be LESS than (MAX_PACKET_PAYLOAD - 4 - CIPHER_MAC_SIZE - 1)
 #endif
 
 #include "ContactInfo.h"
