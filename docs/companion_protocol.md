@@ -287,7 +287,7 @@ Bytes 7+: Message Text (UTF-8, variable length)
 
 **Command Format**:
 ```
-Byte 0: 0x3F
+Byte 0: 0x3E
 Bytes 1-2: Data Type (`data_type`, 16-bit little-endian)
 Byte 3: Channel Index (0-7)
 Bytes 4+: Binary payload bytes (variable length)
