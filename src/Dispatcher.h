@@ -38,6 +38,10 @@ public:
 
   virtual float packetScore(float snr, int packet_len) = 0;
 
+#ifdef JP_STRICT
+  virtual int getMaxTextLen() const { return 1 * 16; }  // default: CR4/8
+#endif
+
   /**
    * \brief  starts the raw packet send. (no wait)
    * \param  bytes   the raw packet data

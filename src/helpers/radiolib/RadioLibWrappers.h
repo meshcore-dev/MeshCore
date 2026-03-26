@@ -7,7 +7,7 @@ class RadioLibWrapper : public mesh::Radio {
 protected:
   PhysicalLayer* _radio;
   mesh::MainBoard* _board;
-  uint32_t n_recv, n_sent, n_recv_errors;
+  uint32_t n_recv, n_sent, n_recv_errors, _tx_start_ms;
   int16_t _noise_floor, _threshold;
   uint16_t _num_floor_samples;
   int32_t _floor_sample_sum;
@@ -42,7 +42,20 @@ public:
   virtual uint8_t getSpreadingFactor() const { return LORA_SF; }
   static uint16_t preambleLengthForSF(uint8_t sf) { return sf <= 8 ? 32 : 16; }
   void updatePreamble(uint8_t sf) { _preamble_sf = sf; _radio->setPreambleLength(preambleLengthForSF(sf)); }
+  virtual uint8_t getCodingRate() const = 0;
 
+#ifdef JP_STRICT
+  int getMaxTextLen() const {
+    uint8_t cr = getCodingRate();
+    if (cr <= 5) return 3 * 16;  // 48 bytes ~16 JP chars
+    if (cr == 6) return 2 * 16;  // 32 bytes ~10 JP chars
+    if (cr == 7) return 1 * 16 + 8; // 24 bytes ~8 JP chars
+    return 1 * 16;               // 16 bytes ~5 JP chars
+  }
+#endif
+
+  virtual int16_t performChannelScan();
+  
   int getNoiseFloor() const override { return _noise_floor; }
   void triggerNoiseFloorCalibrate(int threshold) override;
   void resetAGC() override;
