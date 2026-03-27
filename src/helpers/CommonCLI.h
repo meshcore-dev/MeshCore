@@ -101,6 +101,8 @@ public:
   virtual void setRxBoostedGain(bool enable) {
     // no op by default
   };
+
+  virtual uint16_t getRadioErrFlags() const { return 0; }
 };
 
 class CommonCLI {

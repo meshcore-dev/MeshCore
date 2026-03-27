@@ -146,6 +146,7 @@ protected:
   uint8_t getRxFailRebootThreshold() const override {
     return _prefs.rx_fail_reboot_threshold;
   }
+  uint16_t getRadioErrFlags() const override { return getErrFlags(); }
   void onRxUnrecoverable() override;
   uint8_t getExtraAckTransmitCount() const override {
     return _prefs.multi_acks;

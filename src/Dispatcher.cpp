@@ -60,7 +60,7 @@ uint32_t Dispatcher::getCADFailRetryDelay() const {
   return 200;
 }
 uint32_t Dispatcher::getCADFailMaxDuration() const {
-  return 4000;   // 4 seconds
+  return 6000;   // 6 seconds; allows more recovery time on congested nodes
 }
 
 void Dispatcher::loop() {
@@ -78,19 +78,40 @@ void Dispatcher::loop() {
       radio_nonrx_start = _ms->getMillis();
     } else {
       rx_stuck_count = 0;  // radio recovered — reset counter
+      rx_reboot_count = 0;
+      _err_flags &= ~(ERR_EVENT_RADIO_ZOMBIE | ERR_EVENT_RADIO_DEAD);
     }
+  } else if (is_recv && rx_stuck_count > 0) {
+    // After onRxStuck() we force prev_isrecv_mode = true. If recovery succeeds,
+    // is_recv == prev_isrecv_mode == true so the transition block above never fires
+    // and rx_stuck_count is never cleared. Catch that here.
+    rx_stuck_count = 0;
+    rx_reboot_count = 0;  // radio recovered; reset reboot attempt counter too
+    _err_flags &= ~(ERR_EVENT_RADIO_ZOMBIE | ERR_EVENT_RADIO_DEAD);  // radio is healthy again
   }
   if (!is_recv && _ms->getMillis() - radio_nonrx_start > 8000) {   // radio has not been in Rx mode for 8 seconds!
     _err_flags |= ERR_EVENT_STARTRX_TIMEOUT;
 
-    rx_stuck_count++;
+    if (rx_stuck_count < UINT8_MAX) rx_stuck_count++;  // saturate; don't wrap
     MESH_DEBUG_PRINTLN("%s Dispatcher::loop(): RX stuck (attempt %d), calling onRxStuck()", getLogDateTime(), rx_stuck_count);
     onRxStuck();
 
     uint8_t reboot_threshold = getRxFailRebootThreshold();
     if (reboot_threshold > 0 && rx_stuck_count >= reboot_threshold) {
-      MESH_DEBUG_PRINTLN("%s Dispatcher::loop(): RX unrecoverable after %d attempts", getLogDateTime(), rx_stuck_count);
-      onRxUnrecoverable();
+      _err_flags |= ERR_EVENT_RADIO_ZOMBIE;
+      uint8_t max_reboots = getRxMaxRebootAttempts();
+      if (max_reboots == 0 || rx_reboot_count < max_reboots) {
+        if (rx_reboot_count < UINT8_MAX) rx_reboot_count++;
+        MESH_DEBUG_PRINTLN("%s Dispatcher::loop(): RX unrecoverable after %d stuck events, reboot attempt %d", getLogDateTime(), rx_stuck_count, rx_reboot_count);
+        onRxUnrecoverable();
+      } else {
+        // All reboot attempts exhausted — radio cannot self-recover, power cycle required.
+        _err_flags |= ERR_EVENT_RADIO_DEAD;
+        MESH_DEBUG_PRINTLN("%s Dispatcher::loop(): RX reboot limit (%d) reached, radio dead (power cycle required)", getLogDateTime(), max_reboots);
+      }
+      // Reset to reboot_threshold (not 0): if reboot didn't happen, retry every 8s
+      // rather than waiting another full threshold * 8s cycle before trying again.
+      rx_stuck_count = reboot_threshold;
     }
 
     // Reset state to give recovery the full 8s window before re-triggering
@@ -148,7 +169,11 @@ void Dispatcher::loop() {
   }
 
   if (getAGCResetInterval() > 0 && millisHasNowPassed(next_agc_reset_time)) {
-    _radio->resetAGC();
+    // Use forceResetAGC so the periodic reset actually fires even when isReceivingPacket()
+    // returns true due to stuck IRQ bits (phantom preamble detection on SX126x/LR11x0/SX1276).
+    // Without this, a stuck isReceivingPacket() would silently block every periodic reset
+    // while the radio remains in a zombie state.
+    _radio->forceResetAGC();
     next_agc_reset_time = futureMillis(getAGCResetInterval());
   }
 
@@ -358,8 +383,10 @@ void Dispatcher::checkSend() {
 
         // count consecutive failures and reset radio if stuck
         uint8_t threshold = getTxFailResetThreshold();
-        if (threshold > 0) {
-          tx_fail_count++;
+        if (threshold == 0) {
+          tx_fail_count = 0;  // keep clean when feature disabled; stale count would fire early if threshold is later re-enabled
+        } else {
+          if (tx_fail_count < UINT8_MAX) tx_fail_count++;  // saturate; don't wrap
           if (tx_fail_count >= threshold) {
             MESH_DEBUG_PRINTLN("%s Dispatcher::checkSend(): TX stuck (%d failures), resetting radio", getLogDateTime(), tx_fail_count);
             onTxStuck();
