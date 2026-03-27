@@ -7,6 +7,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 - [Operational](#operational)
 - [Neighbors](#neighbors-repeater-only)
 - [Statistics](#statistics)
+  - [Radio diagnostics](#radio-diagnostics)
 - [Logging](#logging)
 - [Information](#info)
 - [Configuration](#configuration)
@@ -139,6 +140,37 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 **Usage:** `stats-packets`
 
 **Serial Only:** Yes
+
+---
+
+### Radio diagnostics - Zombie and error flag queries
+
+#### Query zombie radio state
+**Usage:** `get radio.zombie`
+
+**Note:** Returns `1` if the radio has entered a zombie state (stuck count exceeded the RX fail threshold and a reboot has been attempted), `0` otherwise. Cleared automatically when the radio recovers or on firmware reboot.
+
+---
+
+#### Query dead radio state
+**Usage:** `get radio.dead`
+
+**Note:** Returns `1` if all reboot attempts have been exhausted and the radio cannot self-recover. A physical power cycle is required. Cleared on firmware reboot.
+
+---
+
+#### Query all radio error flags
+**Usage:** `get radio.err`
+
+**Note:** Returns all radio error flags as a 4-digit hex value (e.g. `0x0018`). Flags accumulate since last boot or `clear stats`. Use `get radio.zombie` and `get radio.dead` for simple boolean checks.
+
+| Bit | Flag                        | Meaning                                   |
+|-----|-----------------------------|-------------------------------------------|
+| 0   | `ERR_EVENT_FULL`            | Packet pool exhausted                     |
+| 1   | `ERR_EVENT_CAD_TIMEOUT`     | Channel activity detection timeout        |
+| 2   | `ERR_EVENT_STARTRX_TIMEOUT` | Radio failed to return to RX within 8s    |
+| 3   | `ERR_EVENT_RADIO_ZOMBIE`    | Radio stuck; reboot attempted             |
+| 4   | `ERR_EVENT_RADIO_DEAD`      | Radio unrecoverable; power cycle required |
 
 ---
 
@@ -538,6 +570,34 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 - `value`: Interval in seconds rounded down to a multiple of 4 (17 becomes 16)
 
 **Default:** `0.0`
+
+---
+
+#### View or change the TX fail reset threshold
+**Usage:**
+- `get tx.fail.threshold`
+- `set tx.fail.threshold <value>`
+
+**Parameters:**
+- `value`: Number of consecutive TX failures before the radio is reset (0-10). `0` disables the feature.
+
+**Default:** `3`
+
+**Note:** On each TX failure the packet is re-queued for retry. When the consecutive failure count reaches this threshold, `onTxStuck()` is called (AGC reset by default) and the counter resets.
+
+---
+
+#### View or change the RX fail reboot threshold
+**Usage:**
+- `get rx.fail.threshold`
+- `set rx.fail.threshold <value>`
+
+**Parameters:**
+- `value`: Number of consecutive 8-second RX-stuck windows before a reboot is triggered (0-10). `0` disables the feature.
+
+**Default:** `3`
+
+**Note:** Each 8-second window where the radio is not in receive mode increments the stuck counter and calls `onRxStuck()` (force AGC reset). When the counter reaches this threshold, `onRxUnrecoverable()` is called (reboot by default). The counter resets to this threshold value after each reboot attempt so retries fire every 8 seconds rather than waiting another full threshold cycle.
 
 ---
 
