@@ -186,52 +186,38 @@ bool RadioLibWrapper::isChannelActive() {
   if (_threshold == 0) return false;    // interference check is disabled
 
 #ifdef JP_STRICT
-  // 5ms continuous RSSI sensing
+  // ARIB STD-T108 compliant LBT: continuous RSSI sensing for >= 5ms
+  // Energy-based sensing required; LoRa CAD not used here —
+  // CAD detects only LoRa preambles and is not required by ARIB STD-T108
   uint32_t sense_start = millis();
   while (millis() - sense_start < 5) {
     if (getCurrentRSSI() > -80.0f) {
-      // RSSI busy: backoff and return without CAD
+      // Channel busy: exponential backoff (tuned for JP 4s airtime)
       _busy_count++;
-      uint32_t base_ms = 3000;
-      uint32_t max_backoff = min(base_ms * (1u << _busy_count), (uint32_t)20000);
+      uint32_t base_ms = 2000;
+      uint32_t max_backoff = min(base_ms * (1u << _busy_count), (uint32_t)16000);
       uint32_t backoff_until = millis() + random(max_backoff / 2, max_backoff);
       while (millis() < backoff_until) {
-        vTaskDelay(1);
+        vTaskDelay(1);  // yield CPU to FreeRTOS tasks including BLE
       }
       return true;
     }
-    vTaskDelay(1);
+    vTaskDelay(1);  // yield CPU between RSSI samples
   }
-#endif
-
-  // CAD
-  int16_t result = performChannelScan();
-  state = STATE_IDLE;
-  startRecv();
-
-  if (result != RADIOLIB_CHANNEL_FREE) {
-    // CAD busy: backoff
-    _busy_count++;
-    uint32_t base_ms = 3000;
-    uint32_t max_backoff = min(base_ms * (1u << _busy_count), (uint32_t)20000);
-    uint32_t backoff_until = millis() + random(max_backoff / 2, max_backoff);
-    while (millis() < backoff_until) {
-      vTaskDelay(1);
-    }
-    return true;
-  }
-
+  // Channel free: reset busy counter and add small jitter
   _busy_count = 0;
-
-  // Small jitter even when channel is free to prevent simultaneous TX
-  // from two nodes that both detect a free channel at the same time
   uint32_t jitter_until = millis() + random(0, 500);
   while (millis() < jitter_until) {
     vTaskDelay(1);  // yield CPU to FreeRTOS tasks including BLE
   }
-
   return false;
+
+#else
+  // Non-JP: original behavior (RSSI threshold only)
+  return getCurrentRSSI() > _noise_floor + _threshold;
+#endif
 }
+
 
 float RadioLibWrapper::getLastRSSI() const {
   return _radio->getRSSI();

@@ -39,3 +39,7 @@ class CustomLR1110 : public LR1110 {
 
     uint8_t getSpreadingFactor() const { return spreadingFactor; }
 };
+    uint8_t getCodingRate() const {
+      return this->codingRate + 4;  // RadioLib stores 1-4, return 5-8
+    }
+};
