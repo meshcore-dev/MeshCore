@@ -122,6 +122,7 @@ protected:
   int getAGCResetInterval() const override;
   uint8_t getTxFailResetThreshold() const override;
   uint8_t getRxFailRebootThreshold() const override;
+  uint16_t getRadioErrFlags() const override { return getErrFlags(); }
   void onRxUnrecoverable() override;
   void onAnonDataRecv(mesh::Packet* packet, const uint8_t* secret, const mesh::Identity& sender, uint8_t* data, size_t len) override;
   int searchPeersByHash(const uint8_t* hash) override;

@@ -339,6 +339,14 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
       } else if (memcmp(config, "radio.rxgain", 12) == 0) {
         sprintf(reply, "> %s", _prefs->rx_boosted_gain ? "on" : "off");
 #endif
+      } else if (memcmp(config, "radio.zombie", 12) == 0) {
+        uint16_t flags = _callbacks->getRadioErrFlags();
+        sprintf(reply, "> %s", (flags & ERR_EVENT_RADIO_ZOMBIE) ? "1" : "0");
+      } else if (memcmp(config, "radio.dead", 10) == 0) {
+        uint16_t flags = _callbacks->getRadioErrFlags();
+        sprintf(reply, "> %s", (flags & ERR_EVENT_RADIO_DEAD) ? "1" : "0");
+      } else if (memcmp(config, "radio.err", 9) == 0) {
+        sprintf(reply, "> 0x%04X", (uint32_t)_callbacks->getRadioErrFlags());
       } else if (memcmp(config, "radio", 5) == 0) {
         char freq[16], bw[16];
         strcpy(freq, StrHelper::ftoa(_prefs->freq));
