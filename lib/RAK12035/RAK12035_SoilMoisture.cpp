@@ -119,14 +119,14 @@ bool RAK12035_SoilMoisture::begin(uint8_t addr)
  *      Power = Current Dry calibration value
  *  
  *  4) Click refresh several times.  This will take a capacitance reading and if it is
- *     greater than the current Dry value it will storee it in the sensor
+ *     greater than the current Dry value it will store it in the sensor
  *     The value will bounce a little, and eventually (a few clicks)
  *     the stored value will stabalize at it's Maximum value.
  * 
  * 5) Put the sensor in water.  
  * 
  * 6) Click refresh several times.  This will take a capacitance reading and if it 
- *     less than the current Wet value it will storee it in the sensor
+ *     less than the current Wet value it will store it in the sensor
  *     The value will bounce a little, and eventually (a few clicks)
  *     the stored value will stabalize at it's Minimum value.
  * 
