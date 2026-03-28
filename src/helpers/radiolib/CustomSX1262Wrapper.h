@@ -41,4 +41,7 @@ public:
   uint8_t getCodingRate() const override {
     return ((CustomSX1262 *)_radio)->codingRate + 4;  // RadioLib stores 1-4, return 5-8
   }
+  float getFreqMHz() const override {
+    return ((CustomSX1262 *)_radio)->freqMHz;
+  }
 };

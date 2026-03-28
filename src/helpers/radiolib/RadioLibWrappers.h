@@ -44,16 +44,23 @@ public:
   static uint16_t preambleLengthForSF(uint8_t sf) { return sf <= 8 ? 32 : 16; }
   void updatePreamble(uint8_t sf) { _preamble_sf = sf; _radio->setPreambleLength(preambleLengthForSF(sf)); }
   virtual uint8_t getCodingRate() const = 0;
+  virtual float getFreqMHz() const = 0;
 
-#ifdef JP_STRICT
-  int getMaxTextLen() const {
-    uint8_t cr = getCodingRate();
-    if (cr <= 5) return 3 * 16;  // 48 bytes ~16 JP chars
-    if (cr == 6) return 2 * 16;  // 32 bytes ~10 JP chars
-    if (cr == 7) return 1 * 16 + 8; // 24 bytes ~8 JP chars
-    return 1 * 16;               // 16 bytes ~5 JP chars
+  bool isJapanMode() const {
+    float freq = getFreqMHz();
+    return (fabsf(freq - 920.800f) < 0.05f ||
+            fabsf(freq - 921.000f) < 0.05f ||
+            fabsf(freq - 921.200f) < 0.05f);
   }
-#endif
+
+  int getMaxTextLen() const {
+    if (!isJapanMode()) return 10 * 16;  // default
+    uint8_t cr = getCodingRate();
+    if (cr <= 5) return 3 * 16;   // 48 bytes ~16 JP chars
+    if (cr == 6) return 2 * 16;   // 32 bytes ~10 JP chars
+    if (cr == 7) return 1 * 16 + 8; // 24 bytes ~8 JP chars
+    return 1 * 16;                 // 16 bytes ~5 JP chars
+  }
 
   virtual int16_t performChannelScan();
   

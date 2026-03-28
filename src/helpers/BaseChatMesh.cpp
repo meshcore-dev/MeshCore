@@ -395,16 +395,9 @@ void BaseChatMesh::onGroupDataRecv(mesh::Packet* packet, uint8_t type, const mes
 
 mesh::Packet* BaseChatMesh::composeMsgPacket(const ContactInfo& recipient, uint32_t timestamp, uint8_t attempt, const char *text, uint32_t& expected_ack) {
   int text_len = strlen(text);
-
-#ifdef JP_STRICT
   int max_len = _radio->getMaxTextLen();
   if (text_len > max_len) return NULL;
   if (attempt > 3 && text_len > max_len - 2) return NULL;
-#else
-  if (text_len > MAX_TEXT_LEN) return NULL;
-  if (attempt > 3 && text_len > MAX_TEXT_LEN-2) return NULL;
-#endif
-
   uint8_t temp[5+MAX_TEXT_LEN+1];
   memcpy(temp, &timestamp, 4);   // mostly an extra blob to help make packet_hash unique
   temp[4] = (attempt & 3);
