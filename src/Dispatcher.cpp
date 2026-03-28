@@ -10,7 +10,6 @@ namespace mesh {
 
 #define MAX_RX_DELAY_MILLIS        32000  // 32 seconds
 #define MIN_TX_BUDGET_RESERVE_MS   100    // min budget (ms) required before allowing next TX
-#define MIN_TX_BUDGET_AIRTIME_DIV  2      // require at least 1/N of estimated airtime as budget before TX
 /// add some time to get the max allowed airtime for the est. airtime
 #define MAX_TX_AIRTIME_FOR_EST(est_airtime) (((est_airtime) * 3) / 2)
 
@@ -275,9 +274,9 @@ void Dispatcher::processRecvPacket(Packet* pkt) {
 
 void Dispatcher::ensureTxDutyCycle(int tx_len) {
   uint32_t est_airtime = _radio->getEstAirtimeFor(tx_len);
-  if (tx_budget_ms < est_airtime / MIN_TX_BUDGET_AIRTIME_DIV) {
+  if (tx_budget_ms < MAX_TX_AIRTIME_FOR_EST(est_airtime)) {
     float duty_cycle = 1.0f / (1.0f + getAirtimeBudgetFactor());
-    unsigned long needed = est_airtime / MIN_TX_BUDGET_AIRTIME_DIV - tx_budget_ms;
+    unsigned long needed = MAX_TX_AIRTIME_FOR_EST(est_airtime) - tx_budget_ms;
     next_tx_time = futureMillis((unsigned long)(needed / duty_cycle));
   }
 }
