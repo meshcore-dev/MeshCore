@@ -43,9 +43,9 @@ public:
   virtual uint8_t getSpreadingFactor() const { return LORA_SF; }
   static uint16_t preambleLengthForSF(uint8_t sf) { return sf <= 8 ? 32 : 16; }
   void updatePreamble(uint8_t sf) { _preamble_sf = sf; _radio->setPreambleLength(preambleLengthForSF(sf)); }
-  virtual uint8_t getCodingRate() const = 0;
-  virtual float getFreqMHz() const = 0;
-
+  virtual uint8_t getCodingRate() const { return 8; }   // default CR4/8, override in subclass
+  virtual float getFreqMHz() const { return 0.0f; }     // default unknown, override in subclass
+						      //
   bool isJapanMode() const {
     float freq = getFreqMHz();
     return (fabsf(freq - 920.800f) < 0.05f ||

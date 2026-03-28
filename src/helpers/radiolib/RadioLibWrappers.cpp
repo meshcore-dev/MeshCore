@@ -2,6 +2,13 @@
 #define RADIOLIB_STATIC_ONLY 1
 #include "RadioLibWrappers.h"
 
+// Platform-safe yield for use in busy-wait loops
+#ifdef NRF52_PLATFORM
+  #define YIELD_TASK() vTaskDelay(1)
+#else
+  #define YIELD_TASK() delay(1)
+#endif
+
 #define STATE_IDLE       0
 #define STATE_RX         1
 #define STATE_TX_WAIT    3
@@ -196,17 +203,17 @@ bool RadioLibWrapper::isChannelActive() {
         uint32_t max_backoff = min(base_ms * (1u << _busy_count), (uint32_t)16000);
         uint32_t backoff_until = millis() + random(max_backoff / 2, max_backoff);
         while (millis() < backoff_until) {
-          vTaskDelay(1);
+          YIELD_TASK();
         }
         return true;
       }
-      vTaskDelay(1);
+      YIELD_TASK();
     }
     // Channel free: reset busy counter and add small jitter
     _busy_count = 0;
     uint32_t jitter_until = millis() + random(0, 500);
     while (millis() < jitter_until) {
-      vTaskDelay(1);
+      YIELD_TASK();
     }
     return false;
   }
