@@ -11,6 +11,8 @@ namespace mesh {
 #define MAX_RX_DELAY_MILLIS        32000  // 32 seconds
 #define MIN_TX_BUDGET_RESERVE_MS   100    // min budget (ms) required before allowing next TX
 #define MIN_TX_BUDGET_AIRTIME_DIV  2      // require at least 1/N of estimated airtime as budget before TX
+/// add some time to get the max allowed airtime for the est. airtime
+#define MAX_TX_AIRTIME_FOR_EST(est_airtime) (((est_airtime) * 3) / 2)
 
 #ifndef NOISE_FLOOR_CALIB_INTERVAL
   #define NOISE_FLOOR_CALIB_INTERVAL   2000     // 2 seconds
@@ -325,7 +327,7 @@ void Dispatcher::checkSend() {
     } else {
       memcpy(&raw[len], outbound->payload, outbound->payload_len); len += outbound->payload_len;
 
-      uint32_t max_airtime = _radio->getEstAirtimeFor(len)*3/2;
+      uint32_t max_airtime = MAX_TX_AIRTIME_FOR_EST(_radio->getEstAirtimeFor(len));
       outbound_start = _ms->getMillis();
       bool success = _radio->startSendRaw(raw, len);
       if (!success) {
