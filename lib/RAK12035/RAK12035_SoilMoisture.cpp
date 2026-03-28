@@ -147,7 +147,7 @@ bool RAK12035_SoilMoisture::begin(uint8_t addr)
 
  /*------------------------------------------------------------------------------------------
   * 
-  *   Check if a sensor is present and return true is found, false if not present
+  *   Check if a sensor is present and return true if found, false if not present
   *
   *------------------------------------------------------------------------------------------
   */
