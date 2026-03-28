@@ -195,6 +195,13 @@ public:
 
 private:
   bool tryParsePacket(Packet* pkt, const uint8_t* raw, int len);
+  /**
+   * \brief ensure the next tx time obeys the duty cycle
+   * 
+   * Internally this updates the next_tx_time so that the Tx
+   * is executed by earliest the next allowed time slot.
+   */
+  void ensureTxDutyCycle(int tx_len);
   void checkRecv();
   void checkSend();
 };
