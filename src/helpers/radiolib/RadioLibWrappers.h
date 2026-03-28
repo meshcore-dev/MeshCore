@@ -7,7 +7,7 @@ class RadioLibWrapper : public mesh::Radio {
 protected:
   PhysicalLayer* _radio;
   mesh::MainBoard* _board;
-  uint32_t n_recv, n_sent, n_recv_errors, _tx_start_ms;
+  uint32_t n_recv, n_sent, n_recv_errors;
   int16_t _noise_floor, _threshold;
   uint8_t _busy_count;  // consecutive busy detections for exponential backoff
   uint16_t _num_floor_samples;

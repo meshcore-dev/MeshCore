@@ -145,7 +145,6 @@ uint32_t RadioLibWrapper::getEstAirtimeFor(int len_bytes) {
 
 bool RadioLibWrapper::startSendRaw(const uint8_t* bytes, int len) {
   _board->onBeforeTransmit();
-  _tx_start_ms = millis();  // recording TX time
   int err = _radio->startTransmit((uint8_t *) bytes, len);
   if (err == RADIOLIB_ERR_NONE) {
     state = STATE_TX_WAIT;
@@ -161,8 +160,6 @@ bool RadioLibWrapper::isSendComplete() {
   if (state & STATE_INT_READY) {
     state = STATE_IDLE;
     n_sent++;
-    uint32_t tx_duration = millis() - _tx_start_ms;
-    MESH_DEBUG_PRINTLN("TX duration: %lu ms (len=%d)", tx_duration);
     return true;
   }
   return false;
