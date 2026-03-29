@@ -15,6 +15,10 @@ GAT56230SMeshKitBoard board;
   MomentaryButton joystick_left(JOYSTICK_LEFT, 1000, true, false, false);
   MomentaryButton joystick_right(JOYSTICK_RIGHT, 1000, true, false, false);
   MomentaryButton back_btn(PIN_BACK_BTN, 1000, true, false, true);
+  #if defined(JOYSTICK_UP) && defined(JOYSTICK_DOWN)
+    MomentaryButton joystick_up(JOYSTICK_UP, 1000, true, false, false);
+    MomentaryButton joystick_down(JOYSTICK_DOWN, 1000, true, false, false);
+  #endif
 #endif
 
 
