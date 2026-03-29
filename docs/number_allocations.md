@@ -14,7 +14,8 @@ Once you have a working app/project, you need to be able to demonstrate it exist
 
 | Data-Type range | App name                    | Contact                                              |
 |-----------------|-----------------------------|------------------------------------------------------|
-| 0000 - 00FF     | -reserved for internal use- |  |
-| FF00 - FFFF     | -reserved for testing/dev-  |  |
+| 0000 - 00FF     | -reserved for internal use- |                                                      |
+| FF00 - FFFF     | -reserved for testing/dev-  |                                                      |
+| 0100            | Swiss Mesh Pro              | info@swiss-mesh.pro                                  |
 
 (add rows, inside the range 0100 - FEFF for custom apps)
