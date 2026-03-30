@@ -1,15 +1,31 @@
 #pragma once
 
 #include <Mesh.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/portmacro.h>
 
 class ESPNOWRadio : public mesh::Radio {
 protected:
   uint32_t n_recv, n_sent;
+  struct PendingFrame {
+    uint16_t len;
+    uint8_t buf[256];
+  };
+
+  static const uint8_t RX_QUEUE_SIZE = 4;
+  PendingFrame _rx_queue[RX_QUEUE_SIZE];
+  uint8_t _rx_read_idx;
+  uint8_t _rx_write_idx;
+  uint8_t _rx_count;
+  uint32_t _rx_drop_count;
+  portMUX_TYPE _rx_lock;
+  bool popPendingFrame(PendingFrame& frame);
 
 public:
-  ESPNOWRadio() { n_recv = n_sent = 0; }
+  ESPNOWRadio() : _rx_read_idx(0), _rx_write_idx(0), _rx_count(0), _rx_drop_count(0), _rx_lock(portMUX_INITIALIZER_UNLOCKED) { n_recv = n_sent = 0; }
 
   void init();
+  bool enqueueRxFrame(const uint8_t* data, int len);
   int recvRaw(uint8_t* bytes, int sz) override;
   uint32_t getEstAirtimeFor(int len_bytes) override;
   bool startSendRaw(const uint8_t* bytes, int len) override;
@@ -18,8 +34,11 @@ public:
   bool isInRecvMode() const override;
 
   uint32_t getPacketsRecv() const { return n_recv; }
+  uint32_t getPacketsRecvErrors() const { return 0; }
   uint32_t getPacketsSent() const { return n_sent; }
   void resetStats() { n_recv = n_sent = 0; }
+  void setRxBoostedGainMode(bool) { }
+  void powerOff() { }
 
   virtual float getLastRSSI() const override;
   virtual float getLastSNR() const override;
