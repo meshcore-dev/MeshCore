@@ -36,16 +36,19 @@ void RAK4631Board::begin() {
   pinMode(PIN_USER_BTN_ANA, INPUT_PULLUP);
 #endif
 
+  // PIN_3V3_EN (WB_IO2) controls the 3V3_S switched peripheral rail,
+  // including OLED Display, I2C pull-ups, and any peripheral devices.
+  // Must be enabled before Wire.begin() — after hard reset all GPIOs
+  // default to INPUT, so the rail is dead and I2C has no pull-ups.
+  pinMode(PIN_3V3_EN, OUTPUT);
+  digitalWrite(PIN_3V3_EN, HIGH);
+  delay(5);  // a few ms for 3V3_S rail to stabilize before I2C init
+
 #if defined(PIN_BOARD_SDA) && defined(PIN_BOARD_SCL)
   Wire.setPins(PIN_BOARD_SDA, PIN_BOARD_SCL);
 #endif
 
   Wire.begin();
-  // PIN_3V3_EN (WB_IO2) controls the 3V3_S switched peripheral rail,
-  // including OLED Display and any I2C devices (if present).
-  // It MUST be active before connected peripherals are probed, or probe may hang.
-  pinMode(PIN_3V3_EN, OUTPUT);
-  digitalWrite(PIN_3V3_EN, HIGH);
 
   pinMode(SX126X_POWER_EN, OUTPUT);
 #ifdef NRF52_POWER_MANAGEMENT
