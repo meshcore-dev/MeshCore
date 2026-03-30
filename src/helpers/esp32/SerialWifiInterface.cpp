@@ -2,10 +2,9 @@
 #include <WiFi.h>
 
 void SerialWifiInterface::begin(int port) {
-  // wifi setup is handled outside of this class, only starts the server
-  server.begin(port);
+  server = WiFiServer(port);
+  server.begin();
 }
-
 // ---------- public methods
 void SerialWifiInterface::enable() { 
   if (_isEnabled) return;
@@ -170,3 +169,4 @@ size_t SerialWifiInterface::checkRecvFrame(uint8_t dest[]) {
 bool SerialWifiInterface::isConnected() const {
   return deviceConnected;  //pServer != NULL && pServer->getConnectedCount() > 0;
 }
+
