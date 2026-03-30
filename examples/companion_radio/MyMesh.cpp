@@ -2151,6 +2151,17 @@ void MyMesh::loop() {
 #if defined(NRF52_PLATFORM)
     DFU_DEBUG_PRINTLN("CMD_START_DFU: entering nRF52 OTA bootloader via reset");
     enterOTADfu();
+#elif defined(ESP32_PLATFORM)
+    DFU_DEBUG_PRINTLN("CMD_START_DFU: disabling active serial interface");
+    _serial->disable();
+    bool ota_boot_requested = _store->requestOTABoot();
+    DFU_DEBUG_PRINTLN("CMD_START_DFU: requestOTABoot returned %d", ota_boot_requested);
+    if (ota_boot_requested) {
+      DFU_DEBUG_PRINTLN("CMD_START_DFU: rebooting into ESP32 OTA mode");
+      board.reboot();
+    } else {
+      DFU_DEBUG_PRINTLN("CMD_START_DFU: failed to request ESP32 OTA boot");
+    }
 #else
     DFU_DEBUG_PRINTLN("CMD_START_DFU: disabling active serial interface");
     _serial->disable();

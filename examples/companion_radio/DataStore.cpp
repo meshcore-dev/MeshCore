@@ -274,6 +274,30 @@ void DataStore::savePrefs(const NodePrefs& _prefs, double node_lat, double node_
   }
 }
 
+bool DataStore::requestOTABoot() {
+  File file = openWrite(_fs, "/ota_boot");
+  if (!file) return false;
+
+  uint8_t enabled = 1;
+  bool success = file.write(&enabled, 1) == 1;
+  file.close();
+  return success;
+}
+
+bool DataStore::consumeOTABootRequest() {
+  if (!_fs->exists("/ota_boot")) return false;
+
+  File file = openRead(_fs, "/ota_boot");
+  bool enabled = false;
+  if (file) {
+    uint8_t value = 0;
+    enabled = (file.read(&value, 1) == 1 && value == 1);
+    file.close();
+  }
+  _fs->remove("/ota_boot");
+  return enabled;
+}
+
 void DataStore::loadContacts(DataStoreHost* host) {
 File file = openRead(_getContactsChannelsFS(), "/contacts3");
     if (file) {

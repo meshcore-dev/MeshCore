@@ -99,6 +99,10 @@ MyMesh the_mesh(radio_driver, fast_rng, rtc_clock, tables, store
    #endif
 );
 
+#if defined(ESP32_PLATFORM)
+static bool ota_mode_only = false;
+#endif
+
 /* END GLOBAL OBJECTS */
 
 void halt() {
@@ -185,6 +189,27 @@ void setup() {
 #elif defined(ESP32)
   SPIFFS.begin(true);
   store.begin();
+
+  if (store.consumeOTABootRequest()) {
+    NodePrefs ota_prefs = {};
+    double ota_lat = 0, ota_lon = 0;
+    strcpy(ota_prefs.node_name, "MeshCore");
+    store.loadPrefs(ota_prefs, ota_lat, ota_lon);
+    if (ota_prefs.node_name[0] == 0) {
+      strcpy(ota_prefs.node_name, "MeshCore");
+    }
+
+    board.setInhibitSleep(true);
+    char reply[48];
+    bool ota_ok = board.startOTAUpdate(ota_prefs.node_name, reply);
+    MESH_DEBUG_PRINTLN("boot OTA mode: startOTAUpdate returned %d, reply='%s'", ota_ok, reply);
+    ota_mode_only = ota_ok;
+    if (!ota_ok) {
+      board.reboot();
+    }
+    return;
+  }
+
   the_mesh.begin(
     #ifdef DISPLAY_CLASS
         disp != NULL
@@ -223,6 +248,13 @@ void setup() {
 }
 
 void loop() {
+#if defined(ESP32_PLATFORM)
+  if (ota_mode_only) {
+    delay(50);
+    rtc_clock.tick();
+    return;
+  }
+#endif
   the_mesh.loop();
   sensors.loop();
 #ifdef DISPLAY_CLASS
