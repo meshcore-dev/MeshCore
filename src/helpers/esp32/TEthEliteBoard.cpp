@@ -14,6 +14,7 @@ extern MomentaryButton user_btn;
 uint32_t deviceOnline = 0x00;
 static SPIClass spi_eth(FSPI);
 static ETHClass2 ETH;
+String eth_local_ip;  // global, accessible from ESP32Board.cpp via extern
 
 void TEthEliteBoard::begin() {
     ESP32Board::begin();
@@ -151,6 +152,8 @@ void TEthEliteBoard::startEthernet() {
         Serial.println("DHCP timeout, using fallback IP");
         ETH.config(IPAddress(192, 168, 4, 2), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
     }
+
+    eth_local_ip = ETH.localIP().toString();  // save IP for OTA use
 
     uint8_t mac[6];
     ETH.macAddress(mac);
