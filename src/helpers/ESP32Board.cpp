@@ -41,9 +41,6 @@ bool ESP32Board::startOTAUpdate(const char* id, char reply[]) {
   server->on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
     request->send(200, "text/html", home_buf);
   });
-  server->on("/ping", HTTP_GET, [](AsyncWebServerRequest *request) {
-    request->send(200, "text/plain", "OK");
-  });
   server->on("/log", HTTP_GET, [](AsyncWebServerRequest *request) {
     request->send(SPIFFS, "/packet_log", "text/plain");
   });
