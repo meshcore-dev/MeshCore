@@ -41,6 +41,11 @@ void RAK4631Board::begin() {
 #endif
 
   Wire.begin();
+  // PIN_3V3_EN (WB_IO2) controls the 3V3_S switched peripheral rail,
+  // including OLED Display and any I2C devices (if present).
+  // It MUST be active before connected peripherals are probed, or probe may hang.
+  pinMode(PIN_3V3_EN, OUTPUT);
+  digitalWrite(PIN_3V3_EN, HIGH);
 
   pinMode(SX126X_POWER_EN, OUTPUT);
 #ifdef NRF52_POWER_MANAGEMENT
