@@ -8,9 +8,20 @@
 #include <helpers/AutoDiscoverRTCClock.h>
 #include <helpers/SensorManager.h>
 #include <helpers/sensors/EnvironmentSensorManager.h>
-#ifdef DISPLAY_CLASS
-  #include <helpers/ui/SSD1306Display.h>
-  #include <helpers/ui/MomentaryButton.h>
+// ---------------------------------------------------------
+// Display handling
+// If DISPLAY_CLASS is defined AND not NullDisplayDriver,
+// include display support.
+// ---------------------------------------------------------
+#if defined(DISPLAY_CLASS) && !defined(NULL_DISPLAY_DRIVER)
+  #if !defined(DISPLAY_CLASS_IS_NULL) && !defined(DISPLAY_CLASS_NULL)
+    // Only include display headers if DISPLAY_CLASS is not NullDisplayDriver
+    #if !defined(DISPLAY_CLASS) || !__has_include(<helpers/ui/NullDisplayDriver.h>)
+      // Default behavior: SSD1306Display
+      #include <helpers/ui/SSD1306Display.h>
+    #endif
+    #include <helpers/ui/MomentaryButton.h>
+  #endif
 #endif
 
 extern HeltecV3Board board;
@@ -18,9 +29,12 @@ extern WRAPPER_CLASS radio_driver;
 extern AutoDiscoverRTCClock rtc_clock;
 extern EnvironmentSensorManager sensors;
 
-#ifdef DISPLAY_CLASS
-  extern DISPLAY_CLASS display;
-  extern MomentaryButton user_btn;
+// ---------------------------------------------------------
+// Display globals only if DISPLAY_CLASS is not NullDisplayDriver
+// ---------------------------------------------------------
+#if defined(DISPLAY_CLASS) && DISPLAY_CLASS != NullDisplayDriver
+extern DISPLAY_CLASS display;
+extern MomentaryButton user_btn;
 #endif
 
 bool radio_init();
