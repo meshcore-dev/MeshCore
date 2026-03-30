@@ -2,6 +2,11 @@
 #include <Mesh.h>
 #include "MyMesh.h"
 
+#if defined(ESP32) && defined(TCP_CONSOLE_PORT) && defined(ADMIN_PASSWORD)
+  #include <helpers/esp32/TCPConsole.h>
+  TCPConsole tcp_console(ADMIN_PASSWORD, ADVERT_NAME);
+#endif
+
 // Believe it or not, this std C function is busted on some platforms!
 static uint32_t _atoi(const char* sp) {
   uint32_t n = 0;
@@ -109,6 +114,10 @@ void setup() {
   Serial.begin(115200);
 
   board.begin();
+  
+  #if defined(ESP32) && defined(TCP_CONSOLE_PORT) && defined(ADMIN_PASSWORD)
+    tcp_console.begin();
+  #endif
 
 #ifdef DISPLAY_CLASS
   DisplayDriver* disp = NULL;
@@ -227,9 +236,14 @@ void setup() {
 
 void loop() {
   the_mesh.loop();
+  #if defined(ESP32) && defined(TCP_CONSOLE_PORT) && defined(ADMIN_PASSWORD)
+    tcp_console.loop(the_mesh);
+  #endif
+
   sensors.loop();
-#ifdef DISPLAY_CLASS
-  ui_task.loop();
-#endif
+  #ifdef DISPLAY_CLASS
+    ui_task.loop();
+  #endif
+  
   rtc_clock.tick();
 }
