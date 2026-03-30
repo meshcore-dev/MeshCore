@@ -35,7 +35,7 @@ static uint32_t _atoi(const char* sp) {
 #endif
 
 #ifdef ESP32
-  #ifdef WIFI_SSID
+  #if defined(WIFI_SSID) || defined(USE_ETHERNET)
     #include <helpers/esp32/SerialWifiInterface.h>
     SerialWifiInterface serial_interface;
     #ifndef TCP_PORT
@@ -122,7 +122,7 @@ void setup() {
     disp->endFrame();
   }
 #endif
-
+  
   if (!radio_init()) { halt(); }
 
   fast_rng.begin(radio_get_rng_seed());
@@ -194,9 +194,12 @@ void setup() {
   );
 
 #ifdef WIFI_SSID
-  board.setInhibitSleep(true);   // prevent sleep when WiFi is active
+  board.setInhibitSleep(true);
   WiFi.begin(WIFI_SSID, WIFI_PWD);
   serial_interface.begin(TCP_PORT);
+#elif defined(USE_ETHERNET)
+  serial_interface.begin(TCP_PORT);
+  Serial.printf("TCP server started on port %d\n", TCP_PORT);
 #elif defined(BLE_PIN_CODE)
   serial_interface.begin(BLE_NAME_PREFIX, the_mesh.getNodePrefs()->node_name, the_mesh.getBLEPin());
 #elif defined(SERIAL_RX)
