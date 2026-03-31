@@ -15,6 +15,10 @@ const PowerMgtConfig power_config = {
 
 
 void GAT56230SMeshKitBoard::initiateShutdown(uint8_t reason) {
+#if ENV_INCLUDE_GPS == 1
+  pinMode(PIN_GPS_EN, OUTPUT);
+  digitalWrite(PIN_GPS_EN, LOW);
+#endif
   // Disable LoRa module power before shutdown
   digitalWrite(SX126X_POWER_EN, LOW);
 
