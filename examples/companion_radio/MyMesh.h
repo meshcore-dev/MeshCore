@@ -8,11 +8,11 @@
 #define FIRMWARE_VER_CODE 10
 
 #ifndef FIRMWARE_BUILD_DATE
-#define FIRMWARE_BUILD_DATE "6 Mar 2026"
+#define FIRMWARE_BUILD_DATE "20 Mar 2026"
 #endif
 
 #ifndef FIRMWARE_VERSION
-#define FIRMWARE_VERSION "v1.14.0"
+#define FIRMWARE_VERSION "v1.14.1"
 #endif
 
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
@@ -137,6 +137,8 @@ protected:
                            const uint8_t *sender_prefix, const char *text) override;
   void onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packet *pkt, uint32_t timestamp,
                             const char *text) override;
+  void onChannelDataRecv(const mesh::GroupChannel &channel, mesh::Packet *pkt, uint16_t data_type,
+                         const uint8_t *data, size_t data_len) override;
 
   uint8_t onContactRequest(const ContactInfo &contact, uint32_t sender_timestamp, const uint8_t *data,
                            uint8_t len, uint8_t *reply) override;
@@ -162,6 +164,17 @@ protected:
 
 public:
   void savePrefs() { _store->savePrefs(_prefs, sensors.node_lat, sensors.node_lon); }
+
+#if ENV_INCLUDE_GPS == 1
+  void applyGpsPrefs() {
+    sensors.setSettingValue("gps", _prefs.gps_enabled ? "1" : "0");
+    if (_prefs.gps_interval > 0) {
+      char interval_str[12];  // Max: 24 hours = 86400 seconds (5 digits + null)
+      sprintf(interval_str, "%u", _prefs.gps_interval);
+      sensors.setSettingValue("gps_interval", interval_str);
+    }
+  }
+#endif
 
 private:
   void writeOKFrame();

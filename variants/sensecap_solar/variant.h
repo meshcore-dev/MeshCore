@@ -24,8 +24,8 @@
 #define LED_BUILTIN             (PIN_LED)
 
 #define LED_RED                 (PINS_COUNT)
-#define LED_GREEN               (12)
-#define LED_BLUE                (11)
+#define LED_WHITE               (11)
+#define LED_BLUE                (12)    // LoRa TX indicator
 
 #define LED_STATE_ON            (1)     // State when LED is litted
 

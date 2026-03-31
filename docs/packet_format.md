@@ -48,10 +48,17 @@ This is the protocol level packet structure used in MeshCore firmware v1.12.0
     - Only present for `ROUTE_TYPE_TRANSPORT_FLOOD` and `ROUTE_TYPE_TRANSPORT_DIRECT`
     - `transport_code_1` - 2 bytes - `uint16_t` - calculated from region scope
     - `transport_code_2` - 2 bytes - `uint16_t` - reserved
-- `path_length` - 1 byte - Length of the path field in bytes
-- `path` - size provided by `path_length` - Path to use for Direct Routing
+- `path_length` - 1 byte - Encoded path metadata
+    - Bits 0-5 store path hash count / hop count (`0-63`)
+    - Bits 6-7 store path hash size minus 1
+        - `0b00`: 1-byte path hashes
+        - `0b01`: 2-byte path hashes
+        - `0b10`: 3-byte path hashes
+        - `0b11`: reserved / unsupported
+- `path` - `hop_count * hash_size` bytes - Path to use for Direct Routing or flood path tracking
     - Up to a maximum of 64 bytes, defined by `MAX_PATH_SIZE`
-    - v1.12.0 firmware and older drops packets with `path_length` [larger than 64](https://github.com/meshcore-dev/MeshCore/blob/e812632235274ffd2382adf5354168aec765d416/src/Dispatcher.cpp#L144)
+    - Effective byte length is calculated from the encoded hop count and hash size, not taken directly from `path_length`
+    - v1.12.0 firmware and older only handled legacy 1-byte path hashes and dropped packets whose path bytes exceeded [64 bytes](https://github.com/meshcore-dev/MeshCore/blob/e812632235274ffd2382adf5354168aec765d416/src/Dispatcher.cpp#L144)
 - `payload` - variable length - Payload Data
     - Up to a maximum 184 bytes, defined by `MAX_PACKET_PAYLOAD`
     - Generally this is the remainder of the raw packet data
@@ -64,8 +71,8 @@ This is the protocol level packet structure used in MeshCore firmware v1.12.0
 |-----------------|----------------------------------|----------------------------------------------------------|
 | header          | 1                                | Contains routing type, payload type, and payload version |
 | transport_codes | 4 (optional)                     | 2x 16-bit transport codes (if ROUTE_TYPE_TRANSPORT_*)    |
-| path_length     | 1                                | Length of the path field in bytes                        |
-| path            | up to 64 (`MAX_PATH_SIZE`)       | Stores the routing path if applicable                    |
+| path_length     | 1                                | Encodes path hash size in bits 6-7 and hop count in bits 0-5 |
+| path            | up to 64 (`MAX_PATH_SIZE`)       | Stores `hop_count * hash_size` bytes of path data if applicable |
 | payload         | up to 184 (`MAX_PACKET_PAYLOAD`) | Data for the provided Payload Type                       |
 
 > NOTE: see the [Payloads](./payloads.md) documentation for more information about the content of specific payload types.
@@ -88,6 +95,31 @@ Bit 0 means the lowest bit (1s place)
 | `0x01` | `ROUTE_TYPE_FLOOD`            | Flood Routing                    |
 | `0x02` | `ROUTE_TYPE_DIRECT`           | Direct Routing                   |
 | `0x03` | `ROUTE_TYPE_TRANSPORT_DIRECT` | Direct Routing + Transport Codes |
+
+### Path Length Encoding
+
+`path_length` is not a raw byte count. It packs both hash size and hop count:
+
+| Bits | Field | Meaning |
+|------|-------|---------|
+| 0-5  | Hop Count | Number of path hashes (`0-63`) |
+| 6-7  | Hash Size Code | Stored as `hash_size - 1` |
+
+Hash size codes:
+
+| Bits 6-7 | Hash Size | Notes |
+|----------|-----------|-------|
+| `0b00` | 1 byte | Legacy / default mode |
+| `0b01` | 2 bytes | Supported in current firmware |
+| `0b10` | 3 bytes | Supported in current firmware |
+| `0b11` | 4 bytes | Reserved / invalid |
+
+Examples:
+
+- `0x00`: zero-hop packet, no path bytes
+- `0x05`: 5 hops using 1-byte hashes, so path is 5 bytes
+- `0x45`: 5 hops using 2-byte hashes, so path is 10 bytes
+- `0x8A`: 10 hops using 3-byte hashes, so path is 30 bytes
 
 ### Payload Types
 
