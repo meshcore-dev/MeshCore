@@ -1,7 +1,5 @@
 #pragma once
 
-#define HAS_ETHERNET 1
-
 #define RADIOLIB_STATIC_ONLY 1
 #include <RadioLib.h>
 #include <helpers/radiolib/RadioLibWrappers.h>
@@ -12,6 +10,10 @@
 #include <helpers/ui/MomentaryButton.h>
 
 extern MomentaryButton user_btn;
+
+#ifdef PIN_USER_BTN_ANA
+  extern MomentaryButton analog_btn;
+#endif
 
 #ifdef DISPLAY_CLASS
   #include <helpers/ui/SH1106Display.h>
