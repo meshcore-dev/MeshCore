@@ -6,6 +6,7 @@
 #include <WiFi.h>
 #include <WiFiClient.h>
 #include <WiFiServer.h>
+#include <helpers/CommonCLI.h>  // for NodePrefs
 
 #ifndef TCP_CONSOLE_MAX_CLIENTS
   #define TCP_CONSOLE_MAX_CLIENTS 2
@@ -22,8 +23,7 @@ class TCPConsole {
   unsigned long _last_active[TCP_CONSOLE_MAX_CLIENTS];
   char _cmd_buf[TCP_CONSOLE_MAX_CLIENTS][160];
   int _cmd_len[TCP_CONSOLE_MAX_CLIENTS];
-  const char* _password;
-  const char* _node_name;
+  NodePrefs* _prefs;  // pointer to live NodePrefs — password is read at runtime
 
   void sendToClient(int i, const char* msg) {
     if (_clients[i] && _clients[i].connected()) {
@@ -39,8 +39,8 @@ class TCPConsole {
   }
 
 public:
-  TCPConsole(const char* password, const char* node_name)
-    : _server(TCP_CONSOLE_PORT), _password(password), _node_name(node_name) {
+  TCPConsole(NodePrefs* prefs)
+    : _server(TCP_CONSOLE_PORT), _prefs(prefs) {
     for (int i = 0; i < TCP_CONSOLE_MAX_CLIENTS; i++) {
       _authenticated[i] = false;
       _cmd_buf[i][0] = 0;
@@ -53,6 +53,8 @@ public:
     _server.begin();
     Serial.printf("TCP Console listening on port %d\n", TCP_CONSOLE_PORT);
   }
+
+  void setPrefs(NodePrefs* prefs) { _prefs = prefs; }
 
   // Call this from loop(), passing the mesh's handleCommand function
   template<typename T>
@@ -107,11 +109,11 @@ public:
         _cmd_buf[i][_cmd_len[i]] = 0;
 
         if (!_authenticated[i]) {
-          // Authentication
-          if (strcmp(_cmd_buf[i], _password) == 0) {
+          // Authentication — always read from live NodePrefs, not compile-time constant
+          if (_prefs != nullptr && strcmp(_cmd_buf[i], _prefs->password) == 0) {
             _authenticated[i] = true;
             char welcome[80];
-            snprintf(welcome, sizeof(welcome), "Welcome to %s console.\r\n> ", _node_name);
+            snprintf(welcome, sizeof(welcome), "Welcome to %s console.\r\n> ", _prefs->node_name);
             sendToClient(i, welcome);
           } else {
             sendToClient(i, "Wrong password. Disconnecting.\r\n");
@@ -139,4 +141,4 @@ public:
   }
 };
 
-#endif  // ESP32 && TCP_CONSOLE_PORT
+#endif  // ESP32 && TCP_CONSOLE_PORT && ADMIN_PASSWORD
