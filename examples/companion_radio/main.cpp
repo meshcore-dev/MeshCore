@@ -4,7 +4,7 @@
 
 #if defined(ESP32) && defined(TCP_CONSOLE_PORT) && defined(ADMIN_PASSWORD)
   #include <helpers/esp32/TCPConsole.h>
-  TCPConsole tcp_console(ADMIN_PASSWORD, ADVERT_NAME);
+  TCPConsole tcp_console(nullptr);  // prefs set in setup()
 #endif
 
 // Believe it or not, this std C function is busted on some platforms!
@@ -152,6 +152,9 @@ void setup() {
   #endif
   store.begin();
   the_mesh.begin(
+
+    tcp_console.setPrefs(the_mesh.getNodePrefs());
+
     #ifdef DISPLAY_CLASS
         disp != NULL
     #else

@@ -5,7 +5,7 @@
 
 #if defined(ESP32) && defined(TCP_CONSOLE_PORT)
   #include <helpers/esp32/TCPConsole.h>
-  TCPConsole tcp_console(ADMIN_PASSWORD, ADVERT_NAME);
+  TCPConsole tcp_console(nullptr);  // prefs set in setup()
 #endif
 
 #ifdef DISPLAY_CLASS
@@ -98,6 +98,8 @@ void setup() {
   sensors.begin();
 
   the_mesh.begin(fs);
+
+  tcp_console.setPrefs(the_mesh.getNodePrefs());
 
 #ifdef DISPLAY_CLASS
   ui_task.begin(the_mesh.getNodePrefs(), FIRMWARE_BUILD_DATE, FIRMWARE_VERSION);
