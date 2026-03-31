@@ -79,6 +79,8 @@ void initVariant()
   pinMode(LED_BLUE, OUTPUT);
   digitalWrite(LED_PIN, LOW);
   digitalWrite(LED_BLUE, LOW);
+  pinMode(BUZZER_PIN, OUTPUT);
+  digitalWrite(BUZZER_PIN, LOW); // turn off buzzer at start. don't leave it high.
   pinMode(GPS_EN, OUTPUT);
   digitalWrite(GPS_EN, LOW); // lets turn off the GPS at start. we can turn it on when we need it.
 
