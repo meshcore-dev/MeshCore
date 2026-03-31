@@ -107,11 +107,11 @@ static const uint8_t AREF = (PIN_AREF); // not used
 #define PIN_BACK_BTN            PIN_BUTTON6
 
 ////////////////////////////////////////////////////////////////////////////////
-// LR1110
+// LR1121
 
 #define LORA_DIO_1              (32+8)            // P1.08
 #define LORA_NSS                (PIN_SPI_NSS)   // P1.12
-#define LORA_RESET              (32+12)            // P1.12
+#define LORA_RESET              (32+10)            // P1.10
 #define LORA_BUSY               (32+11)             // P1.11
 #define LORA_SCLK               (PIN_SPI_SCK) 
 #define LORA_MISO               (PIN_SPI_MISO)

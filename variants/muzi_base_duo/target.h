@@ -4,7 +4,7 @@
 #include <RadioLib.h>
 #include <helpers/radiolib/RadioLibWrappers.h>
 #include "muzi_base_duoBoard.h"
-#include <helpers/radiolib/CustomLR1110Wrapper.h>
+#include <helpers/radiolib/CustomLR1121Wrapper.h>
 #include <helpers/ArduinoHelpers.h>
 #include <helpers/SensorManager.h>
 #include <helpers/sensors/LocationProvider.h>
