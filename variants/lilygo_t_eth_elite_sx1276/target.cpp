@@ -9,6 +9,7 @@ TEthEliteBoard board;
 #endif
 
 MomentaryButton user_btn(PIN_USER_BTN_ANA, 1000, true);
+MomentaryButton analog_btn(PIN_USER_BTN_ANA, 1000, true);  // alias for UITask analog button support
 
 static SPIClass spi;
 RADIO_CLASS radio = new Module(P_LORA_NSS, P_LORA_DIO_0, P_LORA_RESET, P_LORA_DIO_1, spi);

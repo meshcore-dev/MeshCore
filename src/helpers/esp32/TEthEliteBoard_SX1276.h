@@ -34,7 +34,7 @@
 #define PIN_GPS_EN     -1
 
 // Analog button
-#define PIN_USER_BTN_ANA 7
+// #define PIN_USER_BTN_ANA 7
 
 // Include headers AFTER pin definitions so ESP32Board::sleep() can use P_LORA_DIO_0
 #include <Wire.h>
