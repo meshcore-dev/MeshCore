@@ -80,7 +80,9 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     file.read((uint8_t *)&_prefs->bridge_channel, sizeof(_prefs->bridge_channel));                 // 135
     file.read((uint8_t *)&_prefs->bridge_secret, sizeof(_prefs->bridge_secret));                   // 136
     file.read((uint8_t *)&_prefs->powersaving_enabled, sizeof(_prefs->powersaving_enabled));       // 152
-    file.read(pad, 3);                                                                             // 153
+    file.read((uint8_t *)&_prefs->battery_chemistry, sizeof(_prefs->battery_chemistry));           // 153
+    file.read((uint8_t *)&_prefs->bootlock_enabled, sizeof(_prefs->bootlock_enabled));             // 154
+    file.read(pad, 1);                                                                             // 155
     file.read((uint8_t *)&_prefs->gps_enabled, sizeof(_prefs->gps_enabled));                       // 156
     file.read((uint8_t *)&_prefs->gps_interval, sizeof(_prefs->gps_interval));                     // 157
     file.read((uint8_t *)&_prefs->advert_loc_policy, sizeof (_prefs->advert_loc_policy));          // 161
@@ -112,6 +114,8 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     _prefs->bridge_channel = constrain(_prefs->bridge_channel, 0, 14);
 
     _prefs->powersaving_enabled = constrain(_prefs->powersaving_enabled, 0, 1);
+    if (_prefs->battery_chemistry > 2) _prefs->battery_chemistry = 0;  // invalid value, reset to liion default
+    _prefs->bootlock_enabled = constrain(_prefs->bootlock_enabled, 0, 1);
 
     _prefs->gps_enabled = constrain(_prefs->gps_enabled, 0, 1);
     _prefs->advert_loc_policy = constrain(_prefs->advert_loc_policy, 0, 2);
@@ -171,7 +175,9 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->bridge_channel, sizeof(_prefs->bridge_channel));                 // 135
     file.write((uint8_t *)&_prefs->bridge_secret, sizeof(_prefs->bridge_secret));                   // 136
     file.write((uint8_t *)&_prefs->powersaving_enabled, sizeof(_prefs->powersaving_enabled));       // 152
-    file.write(pad, 3);                                                                             // 153
+    file.write((uint8_t *)&_prefs->battery_chemistry, sizeof(_prefs->battery_chemistry));           // 153
+    file.write((uint8_t *)&_prefs->bootlock_enabled, sizeof(_prefs->bootlock_enabled));             // 154
+    file.write(pad, 1);                                                                             // 155
     file.write((uint8_t *)&_prefs->gps_enabled, sizeof(_prefs->gps_enabled));                       // 156
     file.write((uint8_t *)&_prefs->gps_interval, sizeof(_prefs->gps_interval));                     // 157
     file.write((uint8_t *)&_prefs->advert_loc_policy, sizeof(_prefs->advert_loc_policy));           // 161
@@ -448,6 +454,21 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
 #else
         strcpy(reply, "ERROR: Power management not supported");
 #endif
+      } else if (memcmp(config, "pwrmgt.batt", 11) == 0 && config[11] == '\0') {
+#ifdef NRF52_POWER_MANAGEMENT
+        const char* chem_str[] = {"liion", "lfp", "lto"};
+        uint8_t chem = _prefs->battery_chemistry;
+        if (chem > 2) chem = 0;
+        sprintf(reply, "> %s", chem_str[chem]);
+#else
+        strcpy(reply, "ERROR: Power management not supported");
+#endif
+      } else if (memcmp(config, "pwrmgt.bootlock", 15) == 0) {
+#ifdef NRF52_POWER_MANAGEMENT
+        sprintf(reply, "> %s", _prefs->bootlock_enabled ? "enabled" : "disabled");
+#else
+        strcpy(reply, "ERROR: Power management not supported");
+#endif
       } else {
         sprintf(reply, "??: %s", config);
       }
@@ -717,6 +738,44 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
           _prefs->adc_multiplier = 0.0f;
           strcpy(reply, "Error: unsupported by this board");
         };
+      } else if (memcmp(config, "pwrmgt.batt ", 12) == 0) {
+#ifdef NRF52_POWER_MANAGEMENT
+        const char* value = &config[12];
+        if (memcmp(value, "liion", 5) == 0) {
+          _prefs->battery_chemistry = 0;
+          savePrefs();
+          strcpy(reply, "OK - Li-ion");
+        } else if (memcmp(value, "lfp", 3) == 0) {
+          _prefs->battery_chemistry = 1;
+          savePrefs();
+          strcpy(reply, "OK - LFP");
+        } else if (memcmp(value, "lto", 3) == 0) {
+          _prefs->battery_chemistry = 2;
+          savePrefs();
+          strcpy(reply, "OK - LTO");
+        } else {
+          strcpy(reply, "ERROR: enter liion/lfp/lto");
+        }
+#else
+        strcpy(reply, "ERROR: Power management not supported");
+#endif
+      } else if (memcmp(config, "pwrmgt.bootlock ", 16) == 0) {
+#ifdef NRF52_POWER_MANAGEMENT
+        const char* value = &config[16];
+        if (memcmp(value, "on", 2) == 0) {
+          _prefs->bootlock_enabled = 1;
+          savePrefs();
+          strcpy(reply, "OK - enabled (reboot required)");
+        } else if (memcmp(value, "off", 3) == 0) {
+          _prefs->bootlock_enabled = 0;
+          savePrefs();
+          strcpy(reply, "OK - disabled (reboot required)");
+        } else {
+          strcpy(reply, "ERROR: Use on/off");
+        }
+#else
+        strcpy(reply, "ERROR: Power management not supported");
+#endif
       } else {
         sprintf(reply, "unknown config: %s", config);
       }

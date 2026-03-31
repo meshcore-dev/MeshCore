@@ -1,8 +1,9 @@
 #if defined(NRF52_PLATFORM)
 #include "NRF52Board.h"
-
 #include <bluefruit.h>
 #include <nrf_soc.h>
+#include <InternalFileSystem.h>
+using Adafruit_LittleFS_Namespace::File;
 
 static BLEDfu bledfu;
 
@@ -20,6 +21,7 @@ static void disconnect_callback(uint16_t conn_handle, uint8_t reason) {
 
 void NRF52Board::begin() {
   startup_reason = BD_STARTUP_NORMAL;
+  InternalFS.begin();
 }
 
 #ifdef NRF52_POWER_MANAGEMENT
@@ -102,6 +104,7 @@ const char* NRF52Board::getResetReasonString(uint32_t reason) {
 
 const char* NRF52Board::getShutdownReasonString(uint8_t reason) {
   switch (reason) {
+    case SHUTDOWN_REASON_NONE:         return "None";
     case SHUTDOWN_REASON_LOW_VOLTAGE:  return "Low Voltage";
     case SHUTDOWN_REASON_USER:         return "User Request";
     case SHUTDOWN_REASON_BOOT_PROTECT: return "Boot Protection";
@@ -109,29 +112,77 @@ const char* NRF52Board::getShutdownReasonString(uint8_t reason) {
   return "Unknown";
 }
 
+uint16_t NRF52Board::getThresholdForChemistry(BatteryChemistry chem, const PowerMgtConfig* config) {
+  switch (chem) {
+    case CHEM_LIION: return config->voltage_bootlock_liion;
+    case CHEM_LFP:   return config->voltage_bootlock_lfp;
+    case CHEM_LTO:   return config->voltage_bootlock_lto;
+    default:         return config->voltage_bootlock_liion;  // Safe default
+  }
+}
+
+uint8_t NRF52Board::getRefselForChemistry(BatteryChemistry chem, const PowerMgtConfig* config) {
+  switch (chem) {
+    case CHEM_LIION: return config->lpcomp_refsel_liion;
+    case CHEM_LFP:   return config->lpcomp_refsel_lfp;
+    case CHEM_LTO:   return config->lpcomp_refsel_lto;
+    default:         return config->lpcomp_refsel_liion;  // Safe default
+  }
+}
+
+const char* NRF52Board::getChemistryString(BatteryChemistry chem) {
+  switch (chem) {
+    case CHEM_LIION: return "Li-ion";
+    case CHEM_LFP:   return "LFP";
+    case CHEM_LTO:   return "LTO";
+    default:         return "Unknown";
+  }
+}
+
 bool NRF52Board::checkBootVoltage(const PowerMgtConfig* config) {
   initPowerMgr();
 
+  // Read bootlock config
+  uint8_t raw_chem = 0, raw_bootlock = 0;  // default: Li-ion, bootlock disabled
+  File file = InternalFS.open("/com_prefs");
+  if (file) {
+    if (file.seek(153)) {
+      uint8_t buf[2];
+      if (file.read(buf, sizeof(buf)) == sizeof(buf)) {
+        raw_chem    = (buf[0] <= 2) ? buf[0] : 0;
+        raw_bootlock = (buf[1] <= 1) ? buf[1] : 0;
+      }
+    }
+    file.close();
+  }
+  bool enabled = raw_bootlock != 0;
+  battery_chem = static_cast<BatteryChemistry>(raw_chem);
+
   // Read boot voltage
   boot_voltage_mv = getBattMilliVolts();
-  
-  if (config->voltage_bootlock == 0) return true;  // Protection disabled
 
-  // Skip check if externally powered
-  if (isExternalPowered()) {
-    MESH_DEBUG_PRINTLN("PWRMGT: Boot check skipped (external power)");
-    boot_voltage_mv = getBattMilliVolts();
+  // If disabled skip check
+  if (!enabled) {
+    MESH_DEBUG_PRINTLN("PWRMGT: Boot protection disabled");
     return true;
   }
 
-  MESH_DEBUG_PRINTLN("PWRMGT: Boot voltage = %u mV (threshold = %u mV)",
-      boot_voltage_mv, config->voltage_bootlock);
+  // Skip check if externally powered (USB/5V)
+  if (isExternalPowered()) {
+    MESH_DEBUG_PRINTLN("PWRMGT: Boot check skipped (external power)");
+    return true;
+  }
+
+  // Get threshold for configured chemistry
+  uint16_t threshold = getThresholdForChemistry(battery_chem, config);
+
+  MESH_DEBUG_PRINTLN("PWRMGT: Boot protection enabled (%s), threshold=%u mV",
+      getChemistryString(battery_chem), threshold);
+  MESH_DEBUG_PRINTLN("PWRMGT: Boot voltage=%u mV", boot_voltage_mv);
 
   // Only trigger shutdown if reading is valid (>1000mV) AND below threshold
-  // This prevents spurious shutdowns on ADC glitches or uninitialized reads
-  if (boot_voltage_mv > 1000 && boot_voltage_mv < config->voltage_bootlock) {
+  if (boot_voltage_mv > 1000 && boot_voltage_mv < threshold) {
     MESH_DEBUG_PRINTLN("PWRMGT: Boot voltage too low - entering protective shutdown");
-
     initiateShutdown(SHUTDOWN_REASON_BOOT_PROTECT);
     return false;  // Should never reach this
   }
@@ -178,50 +229,54 @@ void NRF52Board::enterSystemOff(uint8_t reason) {
 }
 
 void NRF52Board::configureVoltageWake(uint8_t ain_channel, uint8_t refsel) {
-  // LPCOMP is not managed by SoftDevice - direct register access required
-  // Halt and disable before reconfiguration
-  NRF_LPCOMP->TASKS_STOP = 1;
-  NRF_LPCOMP->ENABLE = LPCOMP_ENABLE_ENABLE_Disabled;
+  if (refsel != 0xFF) {
+    // LPCOMP is not managed by SoftDevice - direct register access required
+    // Halt and disable before reconfiguration
+    NRF_LPCOMP->TASKS_STOP = 1;
+    NRF_LPCOMP->ENABLE = LPCOMP_ENABLE_ENABLE_Disabled;
 
-  // Select analog input (AIN0-7 maps to PSEL 0-7)
-  NRF_LPCOMP->PSEL = ((uint32_t)ain_channel << LPCOMP_PSEL_PSEL_Pos) & LPCOMP_PSEL_PSEL_Msk;
+    // Select analog input (AIN0-7 maps to PSEL 0-7)
+    NRF_LPCOMP->PSEL = ((uint32_t)ain_channel << LPCOMP_PSEL_PSEL_Pos) & LPCOMP_PSEL_PSEL_Msk;
 
-  // Reference: REFSEL (0-6=1/8..7/8, 7=ARef, 8-15=1/16..15/16)
-  NRF_LPCOMP->REFSEL = ((uint32_t)refsel << LPCOMP_REFSEL_REFSEL_Pos) & LPCOMP_REFSEL_REFSEL_Msk;
+    // Reference: REFSEL (0-6=1/8..7/8, 7=ARef, 8-15=1/16..15/16)
+    NRF_LPCOMP->REFSEL = ((uint32_t)refsel << LPCOMP_REFSEL_REFSEL_Pos) & LPCOMP_REFSEL_REFSEL_Msk;
 
-  // Detect UP events (voltage rises above threshold for battery recovery)
-  NRF_LPCOMP->ANADETECT = LPCOMP_ANADETECT_ANADETECT_Up;
+    // Detect UP events (voltage rises above threshold for battery recovery)
+    NRF_LPCOMP->ANADETECT = LPCOMP_ANADETECT_ANADETECT_Up;
 
-  // Enable 50mV hysteresis for noise immunity
-  NRF_LPCOMP->HYST = LPCOMP_HYST_HYST_Hyst50mV;
+    // Enable 50mV hysteresis for noise immunity
+    NRF_LPCOMP->HYST = LPCOMP_HYST_HYST_Hyst50mV;
 
-  // Clear stale events/interrupts before enabling wake
-  NRF_LPCOMP->EVENTS_READY = 0;
-  NRF_LPCOMP->EVENTS_DOWN = 0;
-  NRF_LPCOMP->EVENTS_UP = 0;
-  NRF_LPCOMP->EVENTS_CROSS = 0;
+    // Clear stale events/interrupts before enabling wake
+    NRF_LPCOMP->EVENTS_READY = 0;
+    NRF_LPCOMP->EVENTS_DOWN = 0;
+    NRF_LPCOMP->EVENTS_UP = 0;
+    NRF_LPCOMP->EVENTS_CROSS = 0;
 
-  NRF_LPCOMP->INTENCLR = 0xFFFFFFFF;
-  NRF_LPCOMP->INTENSET = LPCOMP_INTENSET_UP_Msk;
+    NRF_LPCOMP->INTENCLR = 0xFFFFFFFF;
+    NRF_LPCOMP->INTENSET = LPCOMP_INTENSET_UP_Msk;
 
-  // Enable LPCOMP
-  NRF_LPCOMP->ENABLE = LPCOMP_ENABLE_ENABLE_Enabled;
-  NRF_LPCOMP->TASKS_START = 1;
+    // Enable LPCOMP
+    NRF_LPCOMP->ENABLE = LPCOMP_ENABLE_ENABLE_Enabled;
+    NRF_LPCOMP->TASKS_START = 1;
 
-  // Wait for comparator to settle before entering SYSTEMOFF
-  for (uint8_t i = 0; i < 20 && !NRF_LPCOMP->EVENTS_READY; i++) {
-    delayMicroseconds(50);
-  }
+    // Wait for comparator to settle before entering SYSTEMOFF
+    for (uint8_t i = 0; i < 20 && !NRF_LPCOMP->EVENTS_READY; i++) {
+      delayMicroseconds(50);
+    }
 
-  if (refsel == 7) {
-    MESH_DEBUG_PRINTLN("PWRMGT: LPCOMP wake configured (AIN%d, ref=ARef)", ain_channel);
-  } else if (refsel <= 6) {
-    MESH_DEBUG_PRINTLN("PWRMGT: LPCOMP wake configured (AIN%d, ref=%d/8 VDD)",
-      ain_channel, refsel + 1);
+    if (refsel == 7) {
+      MESH_DEBUG_PRINTLN("PWRMGT: LPCOMP wake configured (AIN%d, ref=ARef)", ain_channel);
+    } else if (refsel <= 6) {
+      MESH_DEBUG_PRINTLN("PWRMGT: LPCOMP wake configured (AIN%d, ref=%d/8 VDD)",
+        ain_channel, refsel + 1);
+    } else {
+      uint8_t ref_num = (uint8_t)((refsel - 8) * 2 + 1);
+      MESH_DEBUG_PRINTLN("PWRMGT: LPCOMP wake configured (AIN%d, ref=%d/16 VDD)",
+        ain_channel, ref_num);
+    }
   } else {
-    uint8_t ref_num = (uint8_t)((refsel - 8) * 2 + 1);
-    MESH_DEBUG_PRINTLN("PWRMGT: LPCOMP wake configured (AIN%d, ref=%d/16 VDD)",
-      ain_channel, ref_num);
+    MESH_DEBUG_PRINTLN("PWRMGT: LPCOMP wake skipped for this chemistry");
   }
 
   // Configure VBUS (USB power) wake alongside LPCOMP

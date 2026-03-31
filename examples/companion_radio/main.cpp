@@ -128,7 +128,9 @@ void setup() {
   fast_rng.begin(radio_get_rng_seed());
 
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
-  InternalFS.begin();
+  #if defined(STM32_PLATFORM)
+    InternalFS.begin();
+  #endif
   #if defined(QSPIFLASH)
     if (!QSPIFlash.begin()) {
       // debug output might not be available at this point, might be too early. maybe should fall back to InternalFS here?

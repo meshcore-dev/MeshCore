@@ -104,13 +104,17 @@ extern "C"
 	static const uint8_t A7 = PIN_A7;
 #define ADC_RESOLUTION 14
 
-// Power management boot protection threshold (millivolts)
-// Set to 0 to disable boot protection
-#define PWRMGT_VOLTAGE_BOOTLOCK 3300   // Won't boot below this voltage (mV)
+// Power management boot protection thresholds (millivolts)
+// Safe minimum voltages per battery chemistry
+#define PWRMGT_VOLTAGE_BOOTLOCK_LIION  3000  // Li-ion/LiPo minimum
+#define PWRMGT_VOLTAGE_BOOTLOCK_LFP    2500  // LFP minimum
+#define PWRMGT_VOLTAGE_BOOTLOCK_LTO    1800  // LTO minimum
 // LPCOMP wake configuration (voltage recovery from SYSTEMOFF)
 // AIN3 = P0.05 = PIN_A0 / PIN_VBAT_READ
-#define PWRMGT_LPCOMP_AIN 3
-#define PWRMGT_LPCOMP_REFSEL 4  // 5/8 VDD (~3.13-3.44V)
+#define PWRMGT_LPCOMP_AIN          3
+#define PWRMGT_LPCOMP_REFSEL_LIION 4   // 5/8 VDD (~3.1–3.4V)
+#define PWRMGT_LPCOMP_REFSEL_LFP   4   // 5/8 VDD (~3.1–3.4V)
+#define PWRMGT_LPCOMP_REFSEL_LTO   11  // 7/16 VDD (~2.27–2.50V)
 
 // Other pins
 #define PIN_AREF (2)

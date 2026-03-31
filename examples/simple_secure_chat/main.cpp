@@ -565,7 +565,6 @@ void setup() {
   fast_rng.begin(radio_get_rng_seed());
 
 #if defined(NRF52_PLATFORM)
-  InternalFS.begin();
   the_mesh.begin(InternalFS);
 #elif defined(RP2040_PLATFORM)
   LittleFS.begin();

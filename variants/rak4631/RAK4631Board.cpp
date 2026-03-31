@@ -7,9 +7,13 @@
 // Static configuration for power management
 // Values set in variant.h defines
 const PowerMgtConfig power_config = {
-  .lpcomp_ain_channel = PWRMGT_LPCOMP_AIN,
-  .lpcomp_refsel = PWRMGT_LPCOMP_REFSEL,
-  .voltage_bootlock = PWRMGT_VOLTAGE_BOOTLOCK
+  .lpcomp_ain_channel   = PWRMGT_LPCOMP_AIN,
+  .lpcomp_refsel_liion  = PWRMGT_LPCOMP_REFSEL_LIION,
+  .lpcomp_refsel_lfp    = PWRMGT_LPCOMP_REFSEL_LFP,
+  .lpcomp_refsel_lto    = PWRMGT_LPCOMP_REFSEL_LTO,
+  .voltage_bootlock_liion = PWRMGT_VOLTAGE_BOOTLOCK_LIION,
+  .voltage_bootlock_lfp   = PWRMGT_VOLTAGE_BOOTLOCK_LFP,
+  .voltage_bootlock_lto   = PWRMGT_VOLTAGE_BOOTLOCK_LTO
 };
 
 void RAK4631Board::initiateShutdown(uint8_t reason) {
@@ -18,7 +22,8 @@ void RAK4631Board::initiateShutdown(uint8_t reason) {
 
   if (reason == SHUTDOWN_REASON_LOW_VOLTAGE ||
       reason == SHUTDOWN_REASON_BOOT_PROTECT) {
-    configureVoltageWake(power_config.lpcomp_ain_channel, power_config.lpcomp_refsel);
+    configureVoltageWake(power_config.lpcomp_ain_channel,
+                         getRefselForChemistry(battery_chem, &power_config));
   }
 
   enterSystemOff(reason);

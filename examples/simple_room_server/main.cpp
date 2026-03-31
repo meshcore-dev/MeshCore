@@ -39,7 +39,6 @@ void setup() {
 
   FILESYSTEM* fs;
 #if defined(NRF52_PLATFORM)
-  InternalFS.begin();
   fs = &InternalFS;
   IdentityStore store(InternalFS, "");
 #elif defined(RP2040_PLATFORM)

@@ -72,7 +72,9 @@ void setup() {
 
   FILESYSTEM* fs;
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
-  InternalFS.begin();
+  #if defined(STM32_PLATFORM)
+    InternalFS.begin();
+  #endif
   fs = &InternalFS;
   IdentityStore store(InternalFS, "");
 #elif defined(ESP32)

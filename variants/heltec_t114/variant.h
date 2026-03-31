@@ -30,13 +30,17 @@
 
 #define AREF_VOLTAGE            (3.0)
 
-// Power management boot protection threshold (millivolts)
-// Set to 0 to disable boot protection
-#define PWRMGT_VOLTAGE_BOOTLOCK 3300   // Won't boot below this voltage (mV)
+// Power management boot protection thresholds (millivolts)
+// Safe minimum voltages per battery chemistry
+#define PWRMGT_VOLTAGE_BOOTLOCK_LIION  3000  // Li-ion/LiPo minimum
+#define PWRMGT_VOLTAGE_BOOTLOCK_LFP    2500  // LFP minimum
+#define PWRMGT_VOLTAGE_BOOTLOCK_LTO    1800  // LTO minimum
 // LPCOMP wake configuration (voltage recovery from SYSTEMOFF)
 // AIN2 = P0.04 = BATTERY_PIN / PIN_VBAT_READ
-#define PWRMGT_LPCOMP_AIN 2
-#define PWRMGT_LPCOMP_REFSEL 1  // 2/8 VDD (~3.68-4.04V)
+#define PWRMGT_LPCOMP_AIN          2
+#define PWRMGT_LPCOMP_REFSEL_LIION 1    // 2/8 VDD (~3.7–4.0V)
+#define PWRMGT_LPCOMP_REFSEL_LFP   9    // 3/16 VDD (~2.8–3.0V)
+#define PWRMGT_LPCOMP_REFSEL_LTO   0    // 1/8 VDD (~1.84–2.02V); requires VDD_sys >= 3.0V
 
 ////////////////////////////////////////////////////////////////////////////////
 // Number of pins

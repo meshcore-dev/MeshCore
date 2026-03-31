@@ -30,7 +30,6 @@ void halt() {
 
 void loadOrCreateIdentity() {
 #if defined(NRF52_PLATFORM)
-  InternalFS.begin();
   IdentityStore store(InternalFS, "");
 #elif defined(ESP32)
   SPIFFS.begin(true);
