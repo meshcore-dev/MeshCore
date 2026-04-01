@@ -8,9 +8,6 @@
 #define  PIN_VBAT_READ    5
 #define  ADC_MULTIPLIER   (3 * 1.73 * 1.187 * 1000)
 
-#define PIN_3V3_EN (34)
-#define WB_IO2 PIN_3V3_EN
-
 class RAK4631Board : public NRF52BoardDCDC {
 protected:
 #ifdef NRF52_POWER_MANAGEMENT
