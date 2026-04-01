@@ -132,11 +132,19 @@ class HomeScreen : public UIScreen {
     int fillWidth = (batteryPercentage * (iconWidth - 4)) / 100;
     display.fillRect(iconX + 2, iconY + 2, fillWidth, iconHeight - 4);
 
+    int statusIconX = iconX - 9;
+
+    if (_task->isScreenLocked()) {
+      display.setColor(DisplayDriver::YELLOW);
+      display.drawXbm(statusIconX, iconY + 1, lock_icon, 8, 8);
+      statusIconX -= 9;
+    }
+
     // show muted icon if buzzer is muted
 #ifdef PIN_BUZZER
     if (_task->isBuzzerQuiet()) {
       display.setColor(DisplayDriver::RED);
-      display.drawXbm(iconX - 9, iconY + 1, muted_icon, 8, 8);
+      display.drawXbm(statusIconX, iconY + 1, muted_icon, 8, 8);
     }
 #endif
   }
@@ -575,6 +583,7 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
 
   ui_started_at = millis();
   _alert_expiry = 0;
+  _screen_locked = false;
 
   splash = new SplashScreen(this);
   home = new HomeScreen(this, &rtc_clock, sensors, node_prefs);
@@ -767,9 +776,17 @@ void UITask::loop() {
 #endif
 
   if (c != 0 && curr) {
-    curr->handleInput(c);
-    _auto_off = millis() + AUTO_OFF_MILLIS;   // extend auto-off timer
-    _next_refresh = 100;  // trigger refresh
+    if (_screen_locked) {
+      // Always show the lock alert when input is attempted on a locked screen.
+      // This ensures the user immediately sees that the screen is locked,
+      // even if a previous alert is still active.
+      showAlert("Locked, long press", 2000);
+      _next_refresh = 100;
+    } else {
+      curr->handleInput(c);
+      _auto_off = millis() + AUTO_OFF_MILLIS;   // extend auto-off timer
+      _next_refresh = 100;  // trigger refresh
+    }
   }
 
   userLedHandler();
@@ -849,9 +866,21 @@ char UITask::checkDisplayOn(char c) {
 }
 
 char UITask::handleLongPress(char c) {
+  if (_screen_locked) {
+    _screen_locked = false;
+    showAlert("Screen unlocked.", 1000);
+    _next_refresh = 0;
+    return 0;   // consume unlock gesture
+  }
+
   if (millis() - ui_started_at < 8000) {   // long press in first 8 seconds since startup -> CLI/rescue
     the_mesh.enterCLIRescue();
     c = 0;   // consume event
+  } else {
+    _screen_locked = true;
+    showAlert("Locked, long press", 2000);
+    _next_refresh = 0;
+    c = 0;   // consume lock gesture
   }
   return c;
 }
@@ -863,6 +892,12 @@ char UITask::handleDoubleClick(char c) {
 }
 
 char UITask::handleTripleClick(char c) {
+  if (_screen_locked) {
+    showAlert("Locked, long press", 2000);
+    _next_refresh = 100;
+    return 0;
+  }
+
   MESH_DEBUG_PRINTLN("UITask: triple click triggered");
   checkDisplayOn(c);
   toggleBuzzer();
