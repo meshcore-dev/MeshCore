@@ -195,7 +195,15 @@ void setup() {
 
 #ifdef WIFI_SSID
   board.setInhibitSleep(true);   // prevent sleep when WiFi is active
-  WiFi.begin(WIFI_SSID, WIFI_PWD);
+  const char* wifi_ssid = the_mesh.getNodePrefs()->wifi_ssid;
+  const char* wifi_pwd = the_mesh.getNodePrefs()->wifi_pwd;
+  if (wifi_ssid[0] != 0) {
+    if (wifi_pwd[0] == 0) {
+      WiFi.begin(wifi_ssid);
+    } else {
+      WiFi.begin(wifi_ssid, wifi_pwd);
+    }
+  }
   serial_interface.begin(TCP_PORT);
 #elif defined(BLE_PIN_CODE)
   serial_interface.begin(BLE_NAME_PREFIX, the_mesh.getNodePrefs()->node_name, the_mesh.getBLEPin());
