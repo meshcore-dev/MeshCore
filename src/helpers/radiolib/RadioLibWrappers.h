@@ -54,12 +54,21 @@ public:
   }
 
   int getMaxTextLen() const {
-    if (!isJapanMode()) return 10 * 16;  // default
+    if (!isJapanMode()) return 10 * 16;  // default 160 bytes
     uint8_t cr = getCodingRate();
-    if (cr <= 5) return 3 * 16;   // 48 bytes ~16 JP chars
-    if (cr == 6) return 2 * 16;   // 32 bytes ~10 JP chars
-    if (cr == 7) return 1 * 16 + 8; // 24 bytes ~8 JP chars
-    return 1 * 16;                 // 16 bytes ~5 JP chars
+    if (cr <= 5) return 64;  // 3874ms @ SF12/BW125/CR4-5
+    if (cr == 6) return 48;  // 3874ms @ SF12/BW125/CR4-6
+    if (cr == 7) return 32;  // 3678ms @ SF12/BW125/CR4-7
+    return 24;               // 3547ms @ SF12/BW125/CR4-8
+  }
+
+  int getMaxGroupTextLen() const {
+    if (!isJapanMode()) return 10 * 16;  // default 160 bytes
+    uint8_t cr = getCodingRate();
+    if (cr <= 5) return 64;  // 3710ms @ SF12/BW125/CR4-5
+    if (cr == 6) return 48;  // 3678ms @ SF12/BW125/CR4-6
+    if (cr == 7) return 39;  // 3907ms @ SF12/BW125/CR4-7
+    return 29;               // 3809ms @ SF12/BW125/CR4-8
   }
 
   virtual int16_t performChannelScan();

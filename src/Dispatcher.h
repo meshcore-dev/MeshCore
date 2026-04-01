@@ -39,6 +39,7 @@ public:
   virtual float packetScore(float snr, int packet_len) = 0;
 
   virtual int getMaxTextLen() const { return 10 * 16; }  // default: non-JP
+  virtual int getMaxGroupTextLen() const { return 10 * 16; }  // default: non-JP
 
   /**
    * \brief  starts the raw packet send. (no wait)
