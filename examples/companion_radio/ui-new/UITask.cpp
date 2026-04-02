@@ -7,7 +7,7 @@
 #endif
 
 #ifndef AUTO_OFF_MILLIS
-  #define AUTO_OFF_MILLIS     15000   // 15 seconds
+  #define AUTO_OFF_MILLIS    60000  // 60 seconds
 #endif
 #define BOOT_SCREEN_MILLIS   3000   // 3 seconds
 
@@ -30,6 +30,8 @@
 #endif
 
 #include "icons.h"
+
+extern CustomSX1262Wrapper radio_driver;
 
 class SplashScreen : public UIScreen {
   UITask* _task;
@@ -265,7 +267,7 @@ public:
 
       // tx power,  noise floor
       display.setCursor(0, 42);
-      sprintf(tmp, "TX: %ddBm", _node_prefs->tx_power_dbm);
+      sprintf(tmp, "TX: %ddBm", radio_driver.getPower());
       display.print(tmp);
       display.setCursor(0, 53);
       sprintf(tmp, "Noise floor: %d", radio_driver.getNoiseFloor());
@@ -604,13 +606,13 @@ void UITask::notify(UIEventType t) {
 switch(t){
   case UIEventType::contactMessage:
     // gemini's pick
-    buzzer.play("MsgRcv3:d=4,o=6,b=200:32e,32g,32b,16c7");
+    buzzer.play("MsgRcv3:d=4,o=7,b=200:32d#,32d#,32d#,16d");
     break;
   case UIEventType::channelMessage:
-    buzzer.play("kerplop:d=16,o=6,b=120:32g#,32c#");
+    buzzer.play("kerplop:d=16,o=7,b=120:32d#,32d#");
     break;
   case UIEventType::ack:
-    buzzer.play("ack:d=32,o=8,b=120:c");
+    buzzer.play("ack:d=32,o=7,b=120:d#");
     break;
   case UIEventType::roomMessage:
   case UIEventType::newContactMessage:
@@ -775,6 +777,20 @@ void UITask::loop() {
     expander.digitalWrite(EXP_PIN_BACKLIGHT, !touch_state);
 #endif
     next_backlight_btn_check = millis() + 300;
+  }
+#endif
+#if defined(PIN_POWER_BTN)
+  static unsigned long lastSwitchCheck = 0;
+  static uint8_t lastSwitchPower = 0;
+
+  // Проверяем переключатель раз в 500 мс
+  if (millis() - lastSwitchCheck > 500) {
+    uint8_t newPower = board.getSwitchPower();
+    if (newPower != lastSwitchPower) {
+      radio_driver.setPower(newPower);
+      lastSwitchPower = newPower;
+    }
+    lastSwitchCheck = millis();
   }
 #endif
 
