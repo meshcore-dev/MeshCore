@@ -11,6 +11,17 @@
 class CustomSX1262Wrapper : public RadioLibWrapper {
 public:
   CustomSX1262Wrapper(CustomSX1262& radio, mesh::MainBoard& board) : RadioLibWrapper(radio, board) { }
+  
+  // Sets the power, returns the value true if successful
+  bool setPower(int8_t power) {
+    return ((CustomSX1262 *)_radio)->setOutputPower(power) == RADIOLIB_ERR_NONE;
+  }
+
+  // A new way to get current power
+  uint8_t getPower() const {
+    return ((CustomSX1262 *)_radio)->getTxPower();
+  }
+  
   bool isReceivingPacket() override { 
     return ((CustomSX1262 *)_radio)->isReceiving();
   }
