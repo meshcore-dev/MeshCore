@@ -533,6 +533,20 @@ uint32_t MyMesh::getDirectRetransmitDelay(const mesh::Packet *packet) {
 }
 
 bool MyMesh::filterRecvFloodPacket(mesh::Packet* pkt) {
+  // Block group messages from blocklisted senders
+  if ((pkt->getPayloadType() == PAYLOAD_TYPE_GRP_TXT || pkt->getPayloadType() == PAYLOAD_TYPE_GRP_DATA) 
+      && pkt->getPathHashCount() > 0) {
+    // The first hash in the path is the original sender for flood packets
+    uint8_t hash_size = pkt->getPathHashSize();
+    
+    if (isBlocked(pkt->path, hash_size)) {
+      MESH_DEBUG_PRINT("%s Blocking group message relay from: ", getLogDateTime());
+      mesh::Utils::printHex(Serial, pkt->path, hash_size);
+      Serial.println();
+      return true;  // Block this packet from being relayed
+    }
+  }
+
   // just try to determine region for packet (apply later in allowPacketForward())
   if (pkt->getRouteType() == ROUTE_TYPE_TRANSPORT_FLOOD) {
     recv_pkt_region = region_map.findMatch(pkt, REGION_DENY_FLOOD);
@@ -547,6 +561,56 @@ bool MyMesh::filterRecvFloodPacket(mesh::Packet* pkt) {
   }
   // do normal processing
   return false;
+}
+
+bool MyMesh::isBlocked(const uint8_t* hash, uint8_t hash_size) const {
+  // Always use 3-byte matching with FF as wildcard
+  for (int i = 0; i < blocklist_count; i++) {
+    bool match = true;
+    for (int j = 0; j < 3; j++) {
+      // 0xFF is wildcard - matches any byte
+      uint8_t hash_byte = (j < hash_size) ? hash[j] : 0x00;
+      if (blocklist[i][j] != 0xFF && blocklist[i][j] != hash_byte) {
+        match = false;
+        break;
+      }
+    }
+    if (match) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool MyMesh::addToBlocklist(const uint8_t* hash, uint8_t hash_size) {
+  if (blocklist_count >= 10) {
+    return false;  // List is full
+  }
+  
+  // Check if already in list
+  if (isBlocked(hash, hash_size)) {
+    return false;  // Already blocked
+  }
+  
+  // Add to list
+  memset(blocklist[blocklist_count], 0, 3);  // Clear entry
+  memcpy(blocklist[blocklist_count], hash, hash_size);
+  blocklist_count++;
+  return true;
+}
+
+bool MyMesh::removeFromBlocklist(const uint8_t* hash, uint8_t hash_size) {
+  for (int i = 0; i < blocklist_count; i++) {
+    if (memcmp(blocklist[i], hash, hash_size) == 0) {
+      // Found it, remove by shifting remaining entries
+      for (int j = i; j < blocklist_count - 1; j++) {
+        memcpy(blocklist[j], blocklist[j + 1], 3);
+      }
+      blocklist_count--;
+      return true;
+    }
+  }
+  return false;  // Not found
 }
 
 void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const mesh::Identity &sender,
@@ -848,6 +912,10 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   set_radio_at = revert_radio_at = 0;
   _logging = false;
   region_load_active = false;
+
+  // Initialize blocklist
+  memset(blocklist, 0, sizeof(blocklist));
+  blocklist_count = 0;
 
 #if MAX_NEIGHBOURS
   memset(neighbours, 0, sizeof(neighbours));
@@ -1284,6 +1352,68 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
     } else {
       sendNodeDiscoverReq();
       strcpy(reply, "OK - Discover sent");
+    }
+  } else if (memcmp(command, "set blocked ", 12) == 0) {
+    // Format: set blocked <hex-hash>
+    // Example: set blocked 77FFFF (block 0x77****), set blocked 77ABFF (block 0x77AB**)
+    // Always 3 bytes (6 hex chars), use FF as wildcard
+    char* hex = &command[12];
+    while (*hex == ' ') hex++;  // Skip spaces
+    
+    int hex_len = strlen(hex);
+    if (hex_len != 6) {
+      strcpy(reply, "Err - hash must be 6 hex chars (use FF for wildcard)");
+    } else {
+      uint8_t hash[3];
+      
+      if (mesh::Utils::fromHex(hash, 3, hex)) {
+        if (addToBlocklist(hash, 3)) {
+          strcpy(reply, "OK - address blocked");
+        } else {
+          strcpy(reply, "Err - already blocked or list full");
+        }
+      } else {
+        strcpy(reply, "Err - invalid hex");
+      }
+    }
+  } else if (memcmp(command, "set unblock ", 12) == 0) {
+    // Format: set unblock <hex-hash>
+    // Always 3 bytes (6 hex chars)
+    char* hex = &command[12];
+    while (*hex == ' ') hex++;  // Skip spaces
+    
+    int hex_len = strlen(hex);
+    if (hex_len != 6) {
+      strcpy(reply, "Err - hash must be 6 hex chars");
+    } else {
+      uint8_t hash[3];
+      
+      if (mesh::Utils::fromHex(hash, 3, hex)) {
+        if (removeFromBlocklist(hash, 3)) {
+          strcpy(reply, "OK - address unblocked");
+        } else {
+          strcpy(reply, "Err - not in blocklist");
+        }
+      } else {
+        strcpy(reply, "Err - invalid hex");
+      }
+    }
+  } else if (strcmp(command, "get blocked") == 0) {
+    if (blocklist_count == 0) {
+      strcpy(reply, "(none)");
+    } else {
+      // Always display 3 bytes
+      int offset = 0;
+      for (int i = 0; i < blocklist_count && offset < 140; i++) {
+        if (i > 0) {
+          reply[offset++] = ' ';
+        }
+        for (int j = 0; j < 3; j++) {
+          sprintf(&reply[offset], "%02X", blocklist[i][j]);
+          offset += 2;
+        }
+      }
+      reply[offset] = 0;
     }
   } else{
     _cli.handleCommand(sender_timestamp, command, reply);  // common CLI commands

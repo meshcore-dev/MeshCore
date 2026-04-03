@@ -112,6 +112,14 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   uint8_t pending_sf;
   uint8_t pending_cr;
   int  matching_peer_indexes[MAX_CLIENTS];
+  
+  // Blocklist for group message senders
+  uint8_t blocklist[10][3];  // up to 10 blocked addresses, max 3 bytes each
+  uint8_t blocklist_count;
+  
+  bool isBlocked(const uint8_t* hash, uint8_t hash_size) const;
+  bool addToBlocklist(const uint8_t* hash, uint8_t hash_size);
+  bool removeFromBlocklist(const uint8_t* hash, uint8_t hash_size);
 #if defined(WITH_RS232_BRIDGE)
   RS232Bridge bridge;
 #elif defined(WITH_ESPNOW_BRIDGE)
