@@ -263,10 +263,17 @@ public:
       sprintf(tmp, "BW: %03.2f     CR: %d", _node_prefs->bw, _node_prefs->cr);
       display.print(tmp);
 
-      // tx power,  noise floor
+      // tx power
       display.setCursor(0, 42);
       sprintf(tmp, "TX: %ddBm", _node_prefs->tx_power_dbm);
       display.print(tmp);
+
+      // battery voltage
+      display.setCursor(84, 42);
+      sprintf(tmp, "%03.2fV", (float)board.getBattMilliVolts() / 1000.0f);
+      display.print(tmp);
+
+      // noise floor
       display.setCursor(0, 53);
       sprintf(tmp, "Noise floor: %d", radio_driver.getNoiseFloor());
       display.print(tmp);
@@ -775,6 +782,22 @@ void UITask::loop() {
     expander.digitalWrite(EXP_PIN_BACKLIGHT, !touch_state);
 #endif
     next_backlight_btn_check = millis() + 300;
+  }
+#endif
+#if defined(PIN_POWER_BTN)
+  static unsigned long next_power_chck = 0;
+  static uint8_t _lastSwitchPower = 0xFF;
+
+  if (millis() > next_power_chck) {
+    uint8_t newPower = digitalRead(PIN_POWER_BTN) == HIGH ? 20 : 10;
+    if (newPower != _lastSwitchPower && !radio_driver.isChannelActive()) {
+      _lastSwitchPower = newPower;
+      radio_driver.setPower(newPower);
+      _node_prefs->tx_power_dbm = newPower;
+      _next_refresh = 0;
+      MESH_DEBUG_PRINTLN("INFO: %d dBm", newPower);
+    }
+    next_power_chck = millis() + 300;
   }
 #endif
 
