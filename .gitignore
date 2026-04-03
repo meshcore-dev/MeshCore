@@ -16,4 +16,4 @@ cmake-*
 compile_commands.json
 .venv/
 venv/
-platformio_override.ini
+platformio.local.ini
