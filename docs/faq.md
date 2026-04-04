@@ -567,6 +567,14 @@ Andy also has a video on how to build using VS Code:
 *How to build and flash Meshcore repeater firmware | Heltec V3*
 <https://www.youtube.com/watch?v=WJvg6dt13hk> *(Link referenced in the Discord post)*
 
+### 5.9.2. Q: How do I flash MeshCore firmware from local build ?
+
+Once you have executed the previous step you can use `pio` again to flash the produced firmware : 
+
+```sh
+pio run -e RAK_4631_Repeater -t upload
+```
+
 ### 5.10. Q: Are there other MeshCore related open source projects?
 
 **A:** [Liam Cottle](https://liamcottle.net)'s MeshCore web client and MeshCore Javascript library are open source under MIT license.
