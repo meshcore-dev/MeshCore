@@ -536,7 +536,7 @@ bool MyMesh::filterRecvFloodPacket(mesh::Packet* pkt) {
   // Block group messages from blocklisted senders
   if ((pkt->getPayloadType() == PAYLOAD_TYPE_GRP_TXT || pkt->getPayloadType() == PAYLOAD_TYPE_GRP_DATA) 
       && pkt->getPathHashCount() > 0) {
-    // The first hash in the path is the original sender for flood packets
+    // The first hash in the path is the first repeater (not the original sender)
     uint8_t hash_size = pkt->getPathHashSize();
     
     if (isBlocked(pkt->path, hash_size)) {
