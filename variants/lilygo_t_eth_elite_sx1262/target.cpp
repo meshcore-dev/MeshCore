@@ -8,8 +8,16 @@ TEthEliteBoard board;
   DISPLAY_CLASS display;
 #endif
 
+#ifdef PIN_USER_BTN_ANA
+// If the analog pin is defined, use it for both button instances
 MomentaryButton user_btn(PIN_USER_BTN_ANA, 1000, true);
 MomentaryButton analog_btn(PIN_USER_BTN_ANA, 1000, true);  // alias for UITask analog button support
+#else
+// If NOT defined, route user_btn to pin 0
+// and create analog_btn as a dummy alias to satisfy UITask requirements
+MomentaryButton user_btn(0, 1000, true);
+MomentaryButton analog_btn(0, 1000, true);
+#endif
 
 static SPIClass spi;
 RADIO_CLASS radio = new Module(P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BUSY, spi);
