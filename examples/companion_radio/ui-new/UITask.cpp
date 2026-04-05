@@ -801,18 +801,6 @@ void UITask::loop() {
       MESH_DEBUG_PRINTLN("INFO: %d dBm", newPower);
     }
     next_power_chck = millis() + 300;
-=======
-  static unsigned long lastSwitchCheck = 0;
-  static uint8_t lastSwitchPower = 0;
-
-  // Проверяем переключатель раз в 500 мс
-  if (millis() - lastSwitchCheck > 500) {
-    uint8_t newPower = board.getSwitchPower();
-    if (newPower != lastSwitchPower) {
-      radio_driver.setPower(newPower);
-      lastSwitchPower = newPower;
-    }
-    lastSwitchCheck = millis();
 >>>>>>> 51eb51feedba3098d5895cd5696ebdcea90722cf
   }
 #endif
