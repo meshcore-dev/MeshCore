@@ -130,12 +130,15 @@ void TEthEliteBoard::startEthernet() {
     ETH.begin(ETH_PHY_W5500, ETH_ADDR, ETH_CS, ETH_INT, -1, SPI2_HOST, ETH_SCLK, ETH_MISO, ETH_MOSI);
     delay(100);
 
-#ifdef ETH_STATIC_IP
+#ifndef USE_ETHERNET
+  // Used only if USE_ETHERNET is not enabled
+  #ifdef ETH_STATIC_IP
     IPAddress ip(ETH_STATIC_IP);
     IPAddress gw(ETH_GATEWAY);
     IPAddress mask(ETH_SUBNET);
     IPAddress dns(ETH_DNS);
     ETH.config(ip, gw, mask, dns);
+  #endif
 #endif
 
     unsigned long t0 = millis();
@@ -161,5 +164,30 @@ void TEthEliteBoard::startEthernet() {
     Serial.print("ETH IP "); Serial.println(ETH.localIP());
     Serial.println(ETH.linkUp() ? "ETH LINK UP" : "ETH LINK DOWN");
 }
-
+void TEthEliteBoard::reconfigureEthernet(uint32_t ip, uint32_t gw, uint32_t subnet) {
+  if (ip != 0) {
+    uint8_t b1 = (ip >> 24) & 0xFF;
+    uint8_t b2 = (ip >> 16) & 0xFF;
+    uint8_t b3 = (ip >> 8) & 0xFF;
+    uint8_t b4 = ip & 0xFF;
+    
+    uint8_t gw1 = (gw >> 24) & 0xFF;
+    uint8_t gw2 = (gw >> 16) & 0xFF;
+    uint8_t gw3 = (gw >> 8) & 0xFF;
+    uint8_t gw4 = gw & 0xFF;
+    
+    uint8_t sub1 = (subnet >> 24) & 0xFF;
+    uint8_t sub2 = (subnet >> 16) & 0xFF;
+    uint8_t sub3 = (subnet >> 8) & 0xFF;
+    uint8_t sub4 = subnet & 0xFF;
+    
+    ETH.config(
+      IPAddress(b1, b2, b3, b4),
+      IPAddress(gw1, gw2, gw3, gw4),
+      IPAddress(sub1, sub2, sub3, sub4)
+    );
+    Serial.printf("ETH reconfigured to %d.%d.%d.%d\n", b1, b2, b3, b4);
+    eth_local_ip = ETH.localIP().toString();  // Aggiorna IP locale per OTA
+  }
+}
 #endif
