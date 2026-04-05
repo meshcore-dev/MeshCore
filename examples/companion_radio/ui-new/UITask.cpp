@@ -740,8 +740,8 @@ void UITask::loop() {
   }
 #endif
 #if defined(PIN_USER_BTN_ANA)
-  if ((long)(millis() - _analogue_pin_read_millis) > 10) {
-    int ev = analog_btn.check();
+  if (millis() - _analogue_pin_read_millis > 10) {
+    auto ev = analog_btn.check();
     if (ev == BUTTON_EVENT_CLICK) {
       c = checkDisplayOn(KEY_NEXT);
     } else if (ev == BUTTON_EVENT_LONG_PRESS) {
