@@ -22,6 +22,23 @@ static bool isValidName(const char *n) {
   return true;
 }
 
+// Helper functions for IP address conversion
+static uint32_t ipStringToUint32(const char* ip_str) {
+  uint32_t ip = 0;
+  uint8_t parts[4] = {0, 0, 0, 0};
+  sscanf(ip_str, "%hhu.%hhu.%hhu.%hhu", &parts[0], &parts[1], &parts[2], &parts[3]);
+  ip = ((uint32_t)parts[0] << 24) | ((uint32_t)parts[1] << 16) | ((uint32_t)parts[2] << 8) | parts[3];
+  return ip;
+}
+
+static void uint32ToIPString(uint32_t ip, char* buffer, size_t size) {
+  uint8_t b1 = (ip >> 24) & 0xFF;
+  uint8_t b2 = (ip >> 16) & 0xFF;
+  uint8_t b3 = (ip >> 8) & 0xFF;
+  uint8_t b4 = ip & 0xFF;
+  snprintf(buffer, size, "%d.%d.%d.%d", b1, b2, b3, b4);
+}
+
 void CommonCLI::loadPrefs(FILESYSTEM* fs) {
   if (fs->exists("/com_prefs")) {
     loadPrefsInt(fs, "/com_prefs");   // new filename
@@ -84,7 +101,13 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     file.read((uint8_t *)&_prefs->adc_multiplier, sizeof(_prefs->adc_multiplier)); // 166
     file.read((uint8_t *)_prefs->owner_info, sizeof(_prefs->owner_info));  // 170
     // 290
-
+    file.read((uint8_t *)&_prefs->eth_ip, sizeof(_prefs->eth_ip));              // 290
+    file.read((uint8_t *)&_prefs->eth_gateway, sizeof(_prefs->eth_gateway));    // 294
+    file.read((uint8_t *)&_prefs->eth_subnet, sizeof(_prefs->eth_subnet));      // 298
+    file.read((uint8_t *)&_prefs->eth_dns1, sizeof(_prefs->eth_dns1));          // 302
+    file.read((uint8_t *)&_prefs->eth_dns2, sizeof(_prefs->eth_dns2));          // 306
+    // 310
+  
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
     _prefs->tx_delay_factor = constrain(_prefs->tx_delay_factor, 0, 2.0f);
@@ -110,6 +133,14 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
 
     _prefs->gps_enabled = constrain(_prefs->gps_enabled, 0, 1);
     _prefs->advert_loc_policy = constrain(_prefs->advert_loc_policy, 0, 2);
+
+    // sanitise bad ethernet pref values
+    // If values are 0 (not set), they will be initialized from platformio.ini defaults at boot
+    if (_prefs->eth_ip == 0) _prefs->eth_ip = 0;          // 0 = use platformio.ini default
+    if (_prefs->eth_gateway == 0) _prefs->eth_gateway = 0;
+    if (_prefs->eth_subnet == 0) _prefs->eth_subnet = 0;
+    if (_prefs->eth_dns1 == 0) _prefs->eth_dns1 = 0;
+    if (_prefs->eth_dns2 == 0) _prefs->eth_dns2 = 0;
 
     file.close();
   }
@@ -171,7 +202,12 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->adc_multiplier, sizeof(_prefs->adc_multiplier));                 // 166
     file.write((uint8_t *)_prefs->owner_info, sizeof(_prefs->owner_info));  // 170
     // 290
-
+    file.write((uint8_t *)&_prefs->eth_ip, sizeof(_prefs->eth_ip));              // 290
+    file.write((uint8_t *)&_prefs->eth_gateway, sizeof(_prefs->eth_gateway));    // 294
+    file.write((uint8_t *)&_prefs->eth_subnet, sizeof(_prefs->eth_subnet));      // 298
+    file.write((uint8_t *)&_prefs->eth_dns1, sizeof(_prefs->eth_dns1));          // 302
+    file.write((uint8_t *)&_prefs->eth_dns2, sizeof(_prefs->eth_dns2));          // 306
+    // 310
     file.close();
   }
 }
@@ -382,6 +418,24 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         sprintf(reply, "> %d", (uint32_t)_prefs->bridge_channel);
       } else if (memcmp(config, "bridge.secret", 13) == 0) {
         sprintf(reply, "> %s", _prefs->bridge_secret);
+#endif
+#ifdef USE_ETHERNET
+      } else if (memcmp(config, "ip", 2) == 0) {
+        char ip_str[16];
+        uint32ToIPString(_prefs->eth_ip, ip_str, sizeof(ip_str));
+        sprintf(reply, "> %s", ip_str);
+      } else if (memcmp(config, "subnet", 6) == 0) {
+        char subnet_str[16];
+        uint32ToIPString(_prefs->eth_subnet, subnet_str, sizeof(subnet_str));
+        sprintf(reply, "> %s", subnet_str);
+      } else if (memcmp(config, "gw", 2) == 0) {
+        char gw_str[16];
+        uint32ToIPString(_prefs->eth_gateway, gw_str, sizeof(gw_str));
+        sprintf(reply, "> %s", gw_str);
+      } else if (memcmp(config, "dns", 3) == 0) {
+        char dns_str[16];
+        uint32ToIPString(_prefs->eth_dns1, dns_str, sizeof(dns_str));
+        sprintf(reply, "> %s", dns_str);
 #endif
       } else if (memcmp(config, "bootloader.ver", 14) == 0) {
       #ifdef NRF52_PLATFORM
@@ -678,6 +732,44 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
           _prefs->adc_multiplier = 0.0f;
           strcpy(reply, "Error: unsupported by this board");
         };
+#ifdef USE_ETHERNET
+      } else if (memcmp(config, "ip ", 3) == 0) {
+        uint32_t ip = ipStringToUint32(&config[3]);
+        if (ip != 0) {
+          _prefs->eth_ip = ip;
+          savePrefs();
+          strcpy(reply, "OK - reboot to apply");
+        } else {
+          strcpy(reply, "Error: invalid IP format");
+        }
+      } else if (memcmp(config, "subnet ", 7) == 0) {
+        uint32_t subnet = ipStringToUint32(&config[7]);
+        if (subnet != 0) {
+          _prefs->eth_subnet = subnet;
+          savePrefs();
+          strcpy(reply, "OK - reboot to apply");
+        } else {
+          strcpy(reply, "Error: invalid subnet format");
+        }  
+      } else if (memcmp(config, "gw ", 3) == 0) {
+        uint32_t gw = ipStringToUint32(&config[3]);
+        if (gw != 0) {
+          _prefs->eth_gateway = gw;
+          savePrefs();
+          strcpy(reply, "OK - reboot to apply");
+        } else {
+          strcpy(reply, "Error: invalid IP format");
+        }
+      } else if (memcmp(config, "dns ", 4) == 0) {
+        uint32_t dns = ipStringToUint32(&config[4]);
+        if (dns != 0) {
+          _prefs->eth_dns1 = dns;
+          savePrefs();
+          strcpy(reply, "OK - reboot to apply");
+        } else {
+          strcpy(reply, "Error: invalid IP format");
+        }
+#endif
       } else {
         sprintf(reply, "unknown config: %s", config);
       }

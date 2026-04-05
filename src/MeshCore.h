@@ -65,6 +65,7 @@ public:
   virtual const char* getResetReasonString(uint32_t reason) { return "Not available"; }
   virtual uint8_t getShutdownReason() const { return 0; }
   virtual const char* getShutdownReasonString(uint8_t reason) { return "Not available"; }
+  virtual void reconfigureEthernet(uint32_t ip, uint32_t gw, uint32_t subnet) { /* no op */ }
 };
 
 /**
@@ -101,3 +102,4 @@ public:
 };
 
 }
+

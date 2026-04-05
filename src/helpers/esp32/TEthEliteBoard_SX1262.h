@@ -73,7 +73,8 @@ public:
   void startNetwork();
   void startEthernet();
   void startWifi();
-
+  void reconfigureEthernet(uint32_t ip, uint32_t gw, uint32_t subnet);
+  
   void enterDeepSleep(uint32_t secs, int pin_wake_btn) {
     esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
 
