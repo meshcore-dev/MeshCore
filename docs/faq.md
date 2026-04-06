@@ -57,7 +57,8 @@ A list of frequently-asked questions and answers for MeshCore
     - [5.6. Q: what is the public key for the default public channel?](#56-q-what-is-the-public-key-for-the-default-public-channel)
     - [5.7. Q: Is MeshCore open source?](#57-q-is-meshcore-open-source)
     - [5.8. Q: How can I support MeshCore?](#58-q-how-can-i-support-meshcore)
-    - [5.9. Q: How do I build MeshCore firmware from source?](#59-q-how-do-i-build-meshcore-firmware-from-source)
+    - [5.9.1. Q: How do I build MeshCore firmware from source?](#591-q-how-do-i-build-meshcore-firmware-from-source)
+    - [5.9.2. Q: How do I flash MeshCore firmware from local build ?](#592-q-how-do-i-flash-meshcore-firmware-from-local-build)
     - [5.10. Q: Are there other MeshCore related open source projects?](#510-q-are-there-other-meshcore-related-open-source-projects)
     - [5.11. Q: Does MeshCore support ATAK](#511-q-does-meshcore-support-atak)
     - [5.12. Q: How do I add a node to the MeshCore Map](#512-q-how-do-i-add-a-node-to-the-meshcore-map)
@@ -532,7 +533,7 @@ Support Liam Cottle's smartphone client development by unlocking the server admi
 
 Support Rastislav Vysoky (recrof)'s flasher web site and the map web site development through [PayPal](https://www.paypal.com/donate/?business=DREHF5HM265ES&no_recurring=0&item_name=If+you+enjoy+my+work%2C+you+can+support+me+here%3A&currency_code=EUR) or [Revolut](https://revolut.me/recrof)
 
-### 5.9. Q: How do I build MeshCore firmware from source?
+### 5.9.1. Q: How do I build MeshCore firmware from source?
 **A:** See instructions here:
 https://discord.com/channels/826570251612323860/1330643963501351004/1341826372120608769
 
