@@ -12,7 +12,11 @@ static uint8_t rx_buf[256];
 static uint8_t last_rx_len = 0;
 
 // callback when data is sent
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
+static void OnDataSent(const esp_now_send_info_t *tx_info, esp_now_send_status_t status) {
+#else
 static void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
+#endif
   is_send_complete = true;
   ESPNOW_DEBUG_PRINTLN("Send Status: %d", (int)status);
 }
