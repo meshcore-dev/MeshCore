@@ -10,6 +10,15 @@
 
 #include <SPIFFS.h>
 
+// Workaround for missing loop() in Board class
+// It is less ugly than change API of whole
+// project just because of one OTA reboot routine
+// used probably once per month
+static void otaRebootTask(void*) {
+  vTaskDelay(pdMS_TO_TICKS(2000));
+  esp_restart();
+}
+
 bool ESP32Board::startOTAUpdate(const char* id, char reply[]) {
   inhibit_sleep = true;   // prevent sleep during OTA
   WiFi.softAP("MeshCore-OTA", NULL);
@@ -32,6 +41,15 @@ bool ESP32Board::startOTAUpdate(const char* id, char reply[]) {
   });
 
   ElegantOTA.begin(server);    // Start ElegantOTA
+  ElegantOTA.setAutoReboot(false);
+  ElegantOTA.onEnd([](bool success) {
+    if (success) {
+      // Can not use ESP.restart() here, because
+      // this callback is called before HTTP response
+      // so we need create separated task (thread)
+      xTaskCreate(otaRebootTask, "ota-reboot", 2048, NULL, 1, NULL);
+    }
+  });
   server->begin();
 
   return true;
