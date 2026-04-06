@@ -27,12 +27,12 @@ static bool isValidName(const char *n) {
 }
 
 // Helper functions for IP address conversion
+// Returns UINT32_MAX on parse error or out-of-range octet. Returns 0 for 0.0.0.0 (DHCP/clear).
 static uint32_t ipStringToUint32(const char* ip_str) {
-  uint32_t ip = 0;
-  uint8_t parts[4] = {0, 0, 0, 0};
-  sscanf(ip_str, "%hhu.%hhu.%hhu.%hhu", &parts[0], &parts[1], &parts[2], &parts[3]);
-  ip = ((uint32_t)parts[0] << 24) | ((uint32_t)parts[1] << 16) | ((uint32_t)parts[2] << 8) | parts[3];
-  return ip;
+  unsigned int a = 0, b = 0, c = 0, d = 0;
+  if (sscanf(ip_str, "%u.%u.%u.%u", &a, &b, &c, &d) != 4) return UINT32_MAX;
+  if (a > 255 || b > 255 || c > 255 || d > 255) return UINT32_MAX;
+  return ((uint32_t)a << 24) | ((uint32_t)b << 16) | ((uint32_t)c << 8) | d;
 }
 
 static void uint32ToIPString(uint32_t ip, char* buffer, size_t size) {
@@ -335,7 +335,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       // change admin password
       StrHelper::strncpy(_prefs->password, &command[9], sizeof(_prefs->password));
       savePrefs();
-      sprintf(reply, "password now: %s", _prefs->password);   // echo back just to let admin know for sure!!
+      strcpy(reply, "OK - password changed");
     } else if (memcmp(command, "clear stats", 11) == 0) {
       _callbacks->clearStats();
       strcpy(reply, "(OK - stats reset)");

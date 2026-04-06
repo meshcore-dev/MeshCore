@@ -104,12 +104,10 @@ void setup() {
 
   the_mesh.begin(fs);
 
-the_mesh.begin(fs);
-
 #ifdef USE_ETHERNET
     NodePrefs* prefs = the_mesh.getNodePrefs();
     if (prefs->eth_ip != 0) {
-      board.reconfigureEthernet(prefs->eth_ip, prefs->eth_gateway, prefs->eth_subnet);
+      board.reconfigureEthernet(prefs->eth_ip, prefs->eth_gateway, prefs->eth_subnet, prefs->eth_dns1);
    }
 #endif
 
@@ -170,7 +168,7 @@ void loop() {
 #endif
 
   the_mesh.loop();
-  #if defined(ESP32) && defined(TCP_CONSOLE_PORT)
+  #if defined(TCP_CONSOLE_PORT)
     tcp_console.loop(the_mesh);
   #endif
 

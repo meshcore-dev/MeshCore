@@ -84,7 +84,7 @@ void setup() {
 #ifdef USE_ETHERNET
     NodePrefs* prefs = the_mesh.getNodePrefs();
     if (prefs->eth_ip != 0) {
-      board.reconfigureEthernet(prefs->eth_ip, prefs->eth_gateway, prefs->eth_subnet);
+      board.reconfigureEthernet(prefs->eth_ip, prefs->eth_gateway, prefs->eth_subnet, prefs->eth_dns1);
     }
 #endif
 
