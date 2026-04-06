@@ -6,7 +6,7 @@
 #include <WiFi.h>
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
-#include <AsyncElegantOTA.h>
+#include <ElegantOTA.h>
 
 #include <SPIFFS.h>
 
@@ -24,15 +24,14 @@ bool ESP32Board::startOTAUpdate(const char* id, char reply[]) {
 
   AsyncWebServer* server = new AsyncWebServer(80);
 
-  server->on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
+  server->on("/", WebRequestMethod::HTTP_GET, [](AsyncWebServerRequest *request) {
     request->send(200, "text/html", home_buf);
   });
-  server->on("/log", HTTP_GET, [](AsyncWebServerRequest *request) {
+  server->on("/log", WebRequestMethod::HTTP_GET, [](AsyncWebServerRequest *request) {
     request->send(SPIFFS, "/packet_log", "text/plain");
   });
 
-  AsyncElegantOTA.setID(id_buf);
-  AsyncElegantOTA.begin(server);    // Start ElegantOTA
+  ElegantOTA.begin(server);    // Start ElegantOTA
   server->begin();
 
   return true;
