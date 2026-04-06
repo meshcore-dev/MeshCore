@@ -16,7 +16,11 @@ static void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
   ESPNOW_DEBUG_PRINTLN("Send Status: %d", (int)status);
 }
 
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+static void OnDataRecv(const esp_now_recv_info_t *info, const uint8_t *data, int len) {
+#else
 static void OnDataRecv(const uint8_t *mac, const uint8_t *data, int len) {
+#endif
   ESPNOW_DEBUG_PRINTLN("Recv: len = %d", len);
   memcpy(rx_buf, data, len);
   last_rx_len = len;
