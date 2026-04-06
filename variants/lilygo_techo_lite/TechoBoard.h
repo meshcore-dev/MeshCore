@@ -14,10 +14,14 @@
 #define REAL_VBAT_MV_PER_LSB (VBAT_DIVIDER_COMP * VBAT_MV_PER_LSB)
 
 class TechoBoard : public NRF52BoardDCDC {
+private:
+  void setRfSwitchTx(bool tx);
 public:
   TechoBoard() : NRF52Board("TECHO_OTA") {}
   void begin();
   uint16_t getBattMilliVolts() override;
+  void onBeforeTransmit() override;
+  void onAfterTransmit() override;
 
   const char* getManufacturerName() const override {
     return "LilyGo T-Echo";

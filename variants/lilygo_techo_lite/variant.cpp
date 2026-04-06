@@ -20,6 +20,12 @@ void initVariant() {
   pinMode(PIN_BUTTON1, INPUT_PULLUP);
   pinMode(PIN_BUTTON2, INPUT_PULLUP);
 
+  pinMode(S68F_RF_VC1, OUTPUT);
+  pinMode(S68F_RF_VC2, OUTPUT);
+  // TX
+  digitalWrite(S68F_RF_VC1, HIGH);
+  digitalWrite(S68F_RF_VC2, LOW);
+
   pinMode(LED_RED, OUTPUT);
   pinMode(LED_GREEN, OUTPUT);
   pinMode(LED_BLUE, OUTPUT);

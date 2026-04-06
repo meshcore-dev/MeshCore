@@ -10,6 +10,27 @@
 
 #include "WVariant.h"
 
+// # T-Echo-Lite_V1.0.pdf
+// S68F
+// ====
+// * RF_VC1 <-- P0.27
+// * RF_VC2 <-- P1.01
+// * DIO1   <-> P1.08
+// * DIO2   <-> P0.05
+//
+// # EK-S62F_UserGuide_Ver.A.pdf
+// MODE A
+// ------
+// Tx/Rx RF_VC1 RF_VC2
+//  Tx     H      L
+//  Rx     L      H
+//
+// MODE B
+// ------
+// DIO2 --- RF_VC1
+// RF_VC2 = H -> NON SLEEP
+// RF_VC2 = L -> SLEEP
+
 ////////////////////////////////////////////////////////////////////////////////
 // Low frequency clock source
 
@@ -76,7 +97,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 // Builtin LEDs
 
-#define LED_RED                 _PINNUM(1, 14) // LED_3
+#define LED_RED                 _PINNUM(1, 14) // LED_3 (CORE)
 #define LED_BLUE                _PINNUM(1, 5)  // LED_2
 #define LED_GREEN               _PINNUM(1, 7)  // LED_1
 
@@ -107,8 +128,8 @@
 #define SX126X_DIO1             _PINNUM(1, 8)
 #define SX126X_BUSY             _PINNUM(0, 14)
 #define SX126X_RESET            _PINNUM(0, 7)
-#define SX126X_RF_VC1           _PINNUM(0, 27)
-#define SX126X_RF_VC2           _PINNUM(0, 33)
+#define S68F_RF_VC1             _PINNUM(0, 27)
+#define S68F_RF_VC2             _PINNUM(1, 1)
 
 #define P_LORA_DIO_1            SX126X_DIO1
 #define P_LORA_NSS              LORA_CS

@@ -28,4 +28,30 @@ uint16_t TechoBoard::getBattMilliVolts() {
   // divider into account (providing the actual LIPO voltage)
   return (uint16_t)((float)adcvalue * REAL_VBAT_MV_PER_LSB);
 }
+
+void TechoBoard::setRfSwitchTx(bool tx) {
+  if (tx) { // TX
+    digitalWrite(S68F_RF_VC1, HIGH);
+    digitalWrite(S68F_RF_VC2, LOW);
+  } else { // RX
+    digitalWrite(S68F_RF_VC1, LOW);
+    digitalWrite(S68F_RF_VC2, HIGH);
+  }
+}
+
+void TechoBoard::onBeforeTransmit() {
+  // RF switching NOT handled by RadioLib via SX126X_DIO2_AS_RF_SWITCH and setRfSwitchPins()
+#if defined(P_LORA_TX_LED)
+  digitalWrite(P_LORA_TX_LED, LOW);  // TX LED on
+#endif
+  TechoBoard::setRfSwitchTx(true);
+}
+
+void TechoBoard::onAfterTransmit() {
+  TechoBoard::setRfSwitchTx(false);
+#if defined(P_LORA_TX_LED)
+  digitalWrite(P_LORA_TX_LED, HIGH);   // TX LED off
+#endif
+}
+
 #endif
