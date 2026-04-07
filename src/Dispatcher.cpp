@@ -60,7 +60,7 @@ uint32_t Dispatcher::getCADFailRetryDelay() const {
   return 200;
 }
 uint32_t Dispatcher::getCADFailMaxDuration() const {
-  return 6000;   // 6 seconds
+  return 8000;   // 8 seconds
 }
 
 void Dispatcher::loop() {
