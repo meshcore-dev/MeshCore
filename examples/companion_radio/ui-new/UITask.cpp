@@ -787,7 +787,6 @@ void UITask::loop() {
   }
 #endif
 #if defined(PIN_POWER_BTN)
-<<<<<<< HEAD
   static unsigned long next_power_chck = 0;
   static uint8_t _lastSwitchPower = 0xFF;
 
@@ -801,7 +800,6 @@ void UITask::loop() {
       MESH_DEBUG_PRINTLN("INFO: %d dBm", newPower);
     }
     next_power_chck = millis() + 300;
->>>>>>> 51eb51feedba3098d5895cd5696ebdcea90722cf
   }
 #endif
 
