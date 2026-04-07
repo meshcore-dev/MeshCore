@@ -17,6 +17,14 @@ T1000SensorManager sensors = T1000SensorManager(nmea);
   NullDisplayDriver display;
 #endif
 
+#ifdef PIN_USER_BTN
+  MomentaryButton user_btn(PIN_USER_BTN,
+    /*long_press_mills=*/1000,
+    /*reverse=*/(USER_BTN_PRESSED==LOW),
+    /*pulldownup=*/false,
+    /*multiclick=*/true);
+#endif
+
 #ifndef LORA_CR
   #define LORA_CR      5
 #endif
@@ -26,26 +34,26 @@ static const uint32_t rfswitch_dios[Module::RFSWITCH_MAX_PINS] = {
   RADIOLIB_LR11X0_DIO5,
   RADIOLIB_LR11X0_DIO6,
   RADIOLIB_LR11X0_DIO7,
-  RADIOLIB_LR11X0_DIO8, 
+  RADIOLIB_LR11X0_DIO8,
   RADIOLIB_NC
 };
 
 static const Module::RfSwitchMode_t rfswitch_table[] = {
   // mode                 DIO5  DIO6  DIO7  DIO8
-  { LR11x0::MODE_STBY,   {LOW,  LOW,  LOW,  LOW  }},  
+  { LR11x0::MODE_STBY,   {LOW,  LOW,  LOW,  LOW  }},
   { LR11x0::MODE_RX,     {HIGH, LOW,  LOW,  HIGH }},
   { LR11x0::MODE_TX,     {HIGH, HIGH, LOW,  HIGH }},
   { LR11x0::MODE_TX_HP,  {LOW,  HIGH, LOW,  HIGH }},
-  { LR11x0::MODE_TX_HF,  {LOW,  LOW,  LOW,  LOW  }}, 
+  { LR11x0::MODE_TX_HF,  {LOW,  LOW,  LOW,  LOW  }},
   { LR11x0::MODE_GNSS,   {LOW,  LOW,  HIGH, LOW  }},
-  { LR11x0::MODE_WIFI,   {LOW,  LOW,  LOW,  LOW  }},  
+  { LR11x0::MODE_WIFI,   {LOW,  LOW,  LOW,  LOW  }},
   END_OF_MODE_TABLE,
 };
 #endif
 
 bool radio_init() {
   //rtc_clock.begin(Wire);
-  
+
 #ifdef LR11X0_DIO3_TCXO_VOLTAGE
   float tcxo = LR11X0_DIO3_TCXO_VOLTAGE;
 #else
@@ -60,7 +68,7 @@ bool radio_init() {
     Serial.println(status);
     return false;  // fail
   }
-  
+
   radio.setCRC(2);
   radio.explicitHeader();
 
@@ -97,7 +105,7 @@ mesh::LocalIdentity radio_new_identity() {
 void T1000SensorManager::start_gps() {
   gps_active = true;
   //_nmea->begin();
-  // this init sequence should be better 
+  // this init sequence should be better
   // comes from seeed examples and deals with all gps pins
   pinMode(GPS_EN, OUTPUT);
   digitalWrite(GPS_EN, HIGH);
@@ -105,12 +113,12 @@ void T1000SensorManager::start_gps() {
   pinMode(GPS_VRTC_EN, OUTPUT);
   digitalWrite(GPS_VRTC_EN, HIGH);
   delay(10);
-       
+
   pinMode(GPS_RESET, OUTPUT);
   digitalWrite(GPS_RESET, HIGH);
   delay(10);
   digitalWrite(GPS_RESET, LOW);
-       
+
   pinMode(GPS_SLEEP_INT, OUTPUT);
   digitalWrite(GPS_SLEEP_INT, HIGH);
   pinMode(GPS_RTC_INT, OUTPUT);
