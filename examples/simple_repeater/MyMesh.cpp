@@ -690,13 +690,13 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
         mesh::Utils::sha256((uint8_t *)&ack_hash, 4, data, 5 + strlen((char *)&data[5]), client->id.pub_key,
                             PUB_KEY_SIZE);
 
-        mesh::Packet *ack = createAck(ack_hash);
-        if (ack) {
-          if (client->out_path_len == OUT_PATH_UNKNOWN) {
-            sendFlood(ack, TXT_ACK_DELAY, packet->getPathHashSize());
-          } else {
-            sendDirect(ack, client->out_path, client->out_path_len, TXT_ACK_DELAY);
-          }
+        if (client->out_path_len == OUT_PATH_UNKNOWN) {
+          mesh::Packet *ack = createAck(ack_hash);
+          if (ack) sendFlood(ack, TXT_ACK_DELAY, packet->getPathHashSize());
+        } else if (!(getExtraAckTransmitCount() > 0
+                     && enqueueDirectAck(ack_hash, client->out_path, client->out_path_len, TXT_ACK_DELAY))) {
+          mesh::Packet *ack = createAck(ack_hash);
+          if (ack) sendDirect(ack, client->out_path, client->out_path_len, TXT_ACK_DELAY);
         }
       }
 
