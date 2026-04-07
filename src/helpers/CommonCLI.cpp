@@ -5,7 +5,7 @@
 #include <RTClib.h>
 
 extern "C" bool __attribute__((weak))
-meshcore_custom_cli(uint32_t sender_ts, const char* cmd, char* reply) {
+meshcore_custom_cli(uint32_t sender_ts, const char* cmd, char* reply, size_t reply_size) {
   return false;
 }
 
