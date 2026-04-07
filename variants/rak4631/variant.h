@@ -144,6 +144,19 @@ extern "C"
 	static const uint8_t MISO = PIN_SPI_MISO;
 	static const uint8_t SCK = PIN_SPI_SCK;
 
+// LoRa radio module pins for RAK4631
+#define  P_LORA_DIO_1 (47)
+#define  P_LORA_NSS (42)
+#define  P_LORA_RESET (-1)
+#define  P_LORA_BUSY (46)
+#define  P_LORA_SCLK (43)
+#define  P_LORA_MISO (45)
+#define  P_LORA_MOSI (44)
+#define  SX126X_POWER_EN (37)
+
+#define SX126X_DIO2_AS_RF_SWITCH  true
+#define SX126X_DIO3_TCXO_VOLTAGE   1.8
+
 /*
  * Wire Interfaces
  */
@@ -155,19 +168,23 @@ extern "C"
 #define PIN_WIRE1_SDA (24)
 #define PIN_WIRE1_SCL (25)
 
-	// QSPI Pins
-	// QSPI occupied by GPIO's
-	#define PIN_QSPI_SCK 3	// 19
-	#define PIN_QSPI_CS 26	// 17
-	#define PIN_QSPI_IO0 30 // 20
-	#define PIN_QSPI_IO1 29 // 21
-	#define PIN_QSPI_IO2 28 // 22
-	#define PIN_QSPI_IO3 2	// 23
+// QSPI Pins
+// QSPI occupied by GPIO's
+#define PIN_QSPI_SCK 3	// 19
+#define PIN_QSPI_CS 26	// 17
+#define PIN_QSPI_IO0 30 // 20
+#define PIN_QSPI_IO1 29 // 21
+#define PIN_QSPI_IO2 28 // 22
+#define PIN_QSPI_IO3 2	// 23
 
-	// On-board QSPI Flash
-	// No onboard flash
-	#define EXTERNAL_FLASH_DEVICES IS25LP080D
-	#define EXTERNAL_FLASH_USE_QSPI
+// On-board QSPI Flash
+// No onboard flash
+#define EXTERNAL_FLASH_DEVICES IS25LP080D
+#define EXTERNAL_FLASH_USE_QSPI
+
+#define PIN_GPS_1PPS      17  //GPS PPS pin
+#define GPS_BAUD_RATE   9600
+#define GPS_ADDRESS   0x42  //i2c address for GPS
 
 #ifdef __cplusplus
 }

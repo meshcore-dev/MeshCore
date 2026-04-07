@@ -69,11 +69,11 @@ struct NeighbourInfo {
 };
 
 #ifndef FIRMWARE_BUILD_DATE
-  #define FIRMWARE_BUILD_DATE   "30 Nov 2025"
+  #define FIRMWARE_BUILD_DATE   "20 Mar 2026"
 #endif
 
 #ifndef FIRMWARE_VERSION
-  #define FIRMWARE_VERSION   "v1.11.0"
+  #define FIRMWARE_VERSION   "v1.14.1"
 #endif
 
 #define FIRMWARE_ROLE "repeater"
@@ -92,11 +92,14 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   uint8_t reply_data[MAX_PACKET_PAYLOAD];
   uint8_t reply_path[MAX_PATH_SIZE];
   int8_t  reply_path_len;
+  uint8_t reply_path_hash_size;
   TransportKeyStore key_store;
   RegionMap region_map, temp_map;
   RegionEntry* load_stack[8];
   RegionEntry* recv_pkt_region;
   RateLimiter discover_limiter, anon_limiter;
+  uint32_t pending_discover_tag;
+  unsigned long pending_discover_until;
   bool region_load_active;
   unsigned long dirty_contacts_expiry;
 #if MAX_NEIGHBOURS
@@ -124,6 +127,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   mesh::Packet* createSelfAdvert();
 
   File openAppend(const char* fname);
+  bool isLooped(const mesh::Packet* packet, const uint8_t max_counters[]);
 
 protected:
   float getAirtimeBudgetFactor() const override {
@@ -172,7 +176,7 @@ public:
   MyMesh(mesh::MainBoard& board, mesh::Radio& radio, mesh::MillisecondClock& ms, mesh::RNG& rng, mesh::RTCClock& rtc, mesh::MeshTables& tables);
 
   void begin(FILESYSTEM* fs);
-
+  void sendNodeDiscoverReq();
   const char* getFirmwareVer() override { return FIRMWARE_VERSION; }
   const char* getBuildDate() override { return FIRMWARE_BUILD_DATE; }
   const char* getRole() override { return FIRMWARE_ROLE; }
@@ -198,7 +202,7 @@ public:
   }
 
   void dumpLogFile() override;
-  void setTxPower(uint8_t power_dbm) override;
+  void setTxPower(int8_t power_dbm) override;
   void formatNeighborsReply(char *reply) override;
   void removeNeighbor(const uint8_t* pubkey, int key_len) override;
   void formatStatsReply(char *reply) override;
@@ -234,4 +238,8 @@ public:
 
   // To check if there is pending work
   bool hasPendingWork() const;
+
+#if defined(USE_SX1262) || defined(USE_SX1268)
+  void setRxBoostedGain(bool enable) override;
+#endif
 };

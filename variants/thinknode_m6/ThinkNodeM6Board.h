@@ -12,9 +12,14 @@
 #define PIN_VBAT_READ     BATTERY_PIN
 #define REAL_VBAT_MV_PER_LSB (VBAT_DIVIDER_COMP * VBAT_MV_PER_LSB)
 
-class ThinkNodeM6Board : public Nrf52BoardOTA {
+class ThinkNodeM6Board : public NRF52BoardDCDC {
+protected:
+#if NRF52_POWER_MANAGEMENT
+  void initiateShutdown(uint8_t reason) override;
+#endif
+
 public:
-  ThinkNodeM6Board() : NRF52BoardOTA("THINKNODE_M1_OTA") {}
+  ThinkNodeM6Board() : NRF52Board("THINKNODE_M6_OTA") {}
   void begin();
   uint16_t getBattMilliVolts() override;
 
@@ -25,10 +30,10 @@ public:
   void onAfterTransmit() override {
     digitalWrite(P_LORA_TX_LED, LOW);   // turn TX LED off
   }
-  #endif
+#endif
 
   const char* getManufacturerName() const override {
-    return "Elecrow ThinkNode-M6";
+    return "Elecrow ThinkNode M6";
   }
 
   void powerOff() override {
