@@ -1,0 +1,5 @@
+#define CRYPTO_VERSION "1.3.0"
+#define CRYPTO_BYTES 64
+#define ASCON_HASH_BYTES 0 /* XOF */
+#define ASCON_HASH_ROUNDS 12
+#define ASCON_VARIANT 3

@@ -2,6 +2,9 @@
 
 #include <Mesh.h>
 #include <Arduino.h>
+#include <helpers/IdentityStore.h>
+#include <helpers/radiolib/RadioLibWrappers.h>
+#include <ascon.h>
 
 class VolatileRTCClock : public mesh::RTCClock {
   uint32_t base_time;
@@ -24,12 +27,49 @@ public:
   unsigned long getMillis() override { return millis(); }
 };
 
-class StdRNG : public mesh::RNG {
+namespace mesh {
+void initHardwareRNG();
+void deinitHardwareRNG();
+}
+
+class AsconRNG : public mesh::RNG {
+protected:
+  RadioLibWrapper* _radio;
+  FILESYSTEM* _fs;
+  const char* _seed_path;
+  ascon_state_t _xof;
+  bool _is_ready;
+
+  uint32_t getHardwareRandom32();
+  void gatherEntropy(uint8_t* dest, size_t len);
+  bool loadSeed(uint8_t* dest, size_t len);
+  bool saveSeed();
+  void initState(const uint8_t* seed, size_t len);
+
 public:
-  void begin(long seed) { randomSeed(seed); }
+  AsconRNG()
+      : _radio(NULL), _fs(NULL), _seed_path("/seed.rng"), _is_ready(false) {
+  }
+
+  void begin();
+  void reseed(const uint8_t* extra = NULL, size_t extra_len = 0);
+  void setRadioEntropySource(RadioLibWrapper& radio) { _radio = &radio; }
+  void attachPersistence(FILESYSTEM& fs, const char* seed_path = "/seed.rng");
   void random(uint8_t* dest, size_t sz) override {
-    for (int i = 0; i < sz; i++) {
-      dest[i] = (::random(0, 256) & 0xFF);
+    if (!_is_ready) {
+      begin();
     }
+    ascon_squeeze(&_xof, dest, sz);
+  }
+};
+
+class StdRNG : public AsconRNG {
+public:
+  void begin() { AsconRNG::begin(); }
+  void begin(long seed) {
+    if (!_is_ready) {
+      begin();
+    }
+    ascon_absorb(&_xof, (const uint8_t*)&seed, sizeof(seed));
   }
 };

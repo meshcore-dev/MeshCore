@@ -882,10 +882,10 @@ void MyMesh::begin(bool has_display) {
   BaseChatMesh::begin();
 
   if (!_store->loadMainIdentity(self_id)) {
-    self_id = radio_new_identity(); // create new random identity
+    self_id = mesh::LocalIdentity(getRNG()); // create new random identity
     int count = 0;
     while (count < 10 && (self_id.pub_key[0] == 0x00 || self_id.pub_key[0] == 0xFF)) { // reserved id hashes
-      self_id = radio_new_identity();
+      self_id = mesh::LocalIdentity(getRNG());
       count++;
     }
     _store->saveMainIdentity(self_id);
@@ -930,8 +930,7 @@ void MyMesh::begin(bool has_display) {
   if (_prefs.ble_pin == 0) {
 #ifdef DISPLAY_CLASS
     if (has_display && BLE_PIN_CODE == 123456) {
-      StdRNG rng;
-      _active_ble_pin = rng.nextInt(100000, 999999); // random pin each session
+      _active_ble_pin = getRNG()->nextInt(100000, 999999); // random pin each session
     } else {
       _active_ble_pin = BLE_PIN_CODE; // otherwise static pin
     }

@@ -32,24 +32,29 @@ void halt() {
 }
 
 void loadOrCreateIdentity() {
+  FILESYSTEM* fs;
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
   InternalFS.begin();
+  fs = &InternalFS;
   IdentityStore store(InternalFS, "");
 #elif defined(ESP32)
   SPIFFS.begin(true);
+  fs = &SPIFFS;
   IdentityStore store(SPIFFS, "/identity");
 #elif defined(RP2040_PLATFORM)
   LittleFS.begin();
+  fs = &LittleFS;
   IdentityStore store(LittleFS, "/identity");
   store.begin();
 #else
   #error "Filesystem not defined"
 #endif
+  rng.attachPersistence(*fs, "/seed.rng");
 
   if (!store.load("_main", identity)) {
-    identity = radio_new_identity();
+    identity = mesh::LocalIdentity(&rng);
     while (identity.pub_key[0] == 0x00 || identity.pub_key[0] == 0xFF) {
-      identity = radio_new_identity();
+      identity = mesh::LocalIdentity(&rng);
     }
     store.save("_main", identity);
   }
@@ -75,15 +80,18 @@ void onGetStats(uint32_t* rx, uint32_t* tx, uint32_t* errors) {
 
 void setup() {
   board.begin();
+  mesh::initHardwareRNG();
+
+  loadOrCreateIdentity();
+  rng.setRadioEntropySource(radio_driver);
+  rng.begin();
+  mesh::deinitHardwareRNG();
 
   if (!radio_init()) {
     halt();
   }
 
   radio_driver.begin();
-
-  rng.begin(radio_get_rng_seed());
-  loadOrCreateIdentity();
 
   sensors.begin();
 
