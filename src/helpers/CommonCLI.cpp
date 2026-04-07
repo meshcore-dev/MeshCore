@@ -199,7 +199,7 @@ uint8_t CommonCLI::buildAdvertData(uint8_t node_type, uint8_t* app_data) {
 }
 
 void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, char* reply) {
-    if (meshcore_custom_cli(sender_timestamp, command, reply)) return;
+    if (meshcore_custom_cli(sender_timestamp, command, reply, 160)) return;
     if (memcmp(command, "reboot", 6) == 0) {
       _board->reboot();  // doesn't return
     } else if (memcmp(command, "clkreboot", 9) == 0) {
