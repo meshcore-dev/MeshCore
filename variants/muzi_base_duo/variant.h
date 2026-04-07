@@ -67,6 +67,7 @@ static const uint8_t AREF = (PIN_AREF); // not used
 #define PIN_WIRE1_SCL            (6)             // P0.6
 #define PIN_WIRE_SDA           (24)             // P0.24 OLED I2C
 #define PIN_WIRE_SCL           (25)             // P0.25 OLED I2C
+#define I2C_NO_RESCAN
 // #define I2C_NO_RESCAN
 // #define HAS_QMA6100P
 // #define QMA_6100P_INT_PIN       (34)             // P1.2
@@ -134,10 +135,10 @@ static const uint8_t AREF = (PIN_AREF); // not used
 
 ////////////////////////////////////////////////////////////////////////////////
 // GPS
-// #define HAS_GPS                 1
-#define GPS_RX_PIN              PIN_SERIAL1_RX
-#define GPS_TX_PIN              PIN_SERIAL1_TX
-#define GPS_EN                  (32+1)            // P1.01 PWR_IO2 on schematic. just cuts power to gps. 
+#define HAS_GPS                 1
+#define PIN_GPS_RX              PIN_SERIAL1_RX
+#define PIN_GPS_TX              PIN_SERIAL1_TX
+#define GPS_EN_GPIO                  (32+1)            // P1.01 PWR_IO2 on schematic. just cuts power to gps. 
 
 ////////////////////////////////////////////////////////////////////////////////
 // Buzzer

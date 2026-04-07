@@ -11,14 +11,15 @@
 #ifndef PIN_OLED_12V_EN 
 #define PIN_OLED_12V_EN -1
 #endif
+#endif
 
 #ifndef DISPLAY_ADDRESS
-#define DISPLAY_ADDRESS 0x3D
+#define DISPLAY_ADDRESS 0x3c
 #endif
 
 class SH1107Display : public DisplayDriver
 {
-  Adafruit_SH1107G display;
+  Adafruit_SH1107 display;
   bool _isOn;
   uint8_t _color;
 

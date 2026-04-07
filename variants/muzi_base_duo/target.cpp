@@ -1,7 +1,6 @@
 #include <Arduino.h>
 #include "target.h"
 #include "variant.h"
-// #include <helpers/sensors/MicroNMEALocationProvider.h>
 
 muzi_base_duoBoard board;
 
@@ -9,12 +8,22 @@ RADIO_CLASS radio = new Module(P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BU
 
 WRAPPER_CLASS radio_driver(radio, board);
 
-VolatileRTCClock rtc_clock;
-// MicroNMEALocationProvider nmea = MicroNMEALocationProvider(Serial1, &rtc_clock);
+VolatileRTCClock fallback_clock;
+AutoDiscoverRTCClock rtc_clock(fallback_clock);
+#if ENV_INCLUDE_GPS
+  #include <helpers/sensors/MicroNMEALocationProvider.h>
+  MicroNMEALocationProvider nmea = MicroNMEALocationProvider(Serial1, &rtc_clock);
+  EnvironmentSensorManager sensors = EnvironmentSensorManager(nmea);
+#else
+  EnvironmentSensorManager sensors;
+#endif
 
-EnvironmentSensorManager sensors;  // only enable environment sensors. GPS is disabled. 
 #ifdef DISPLAY_CLASS
-  NullDisplayDriver display;
+  DISPLAY_CLASS display;
+  MomentaryButton user_btn(PIN_USER_BTN, 1000, true, false, false);
+  MomentaryButton joystick_left(JOYSTICK_LEFT, 1000, true, false, false);
+  MomentaryButton joystick_right(JOYSTICK_RIGHT, 1000, true, false, false);
+  MomentaryButton back_btn(PIN_BACK_BTN, 1000, true, false, true);
 #endif
 
 #ifndef LORA_CR

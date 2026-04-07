@@ -8,19 +8,24 @@
 #include <helpers/ArduinoHelpers.h>
 #include <helpers/SensorManager.h>
 #include <helpers/sensors/LocationProvider.h>
+#include <helpers/AutoDiscoverRTCClock.h>
 #include <helpers/sensors/EnvironmentSensorManager.h>  // Added: Include for EnvironmentSensorManager
-#ifdef DISPLAY_CLASS
-  #include "NullDisplayDriver.h"
-#endif
-
 
 #ifdef DISPLAY_CLASS
-  extern NullDisplayDriver display;
+  #include <helpers/ui/SH1107Display.h>
+  extern DISPLAY_CLASS display;
+  #include <helpers/ui/MomentaryButton.h>
+  extern MomentaryButton user_btn;
+  extern MomentaryButton joystick_left;
+  extern MomentaryButton joystick_right;
+  extern MomentaryButton joystick_up;
+  extern MomentaryButton joystick_down;
+  extern MomentaryButton back_btn;
 #endif
 
 extern muzi_base_duoBoard board;
 extern WRAPPER_CLASS radio_driver;
-extern VolatileRTCClock rtc_clock;
+extern AutoDiscoverRTCClock rtc_clock;
 extern EnvironmentSensorManager sensors;
 
 bool radio_init();

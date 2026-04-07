@@ -81,9 +81,9 @@ void initVariant()
   digitalWrite(LED_BLUE, LOW);
   pinMode(BUZZER_PIN, OUTPUT);
   digitalWrite(BUZZER_PIN, LOW); // turn off buzzer at start. don't leave it high.
-  pinMode(GPS_EN, OUTPUT);
-  digitalWrite(GPS_EN, LOW); // lets turn off the GPS at start. we can turn it on when we need it.
+  pinMode(GPS_EN_GPIO, OUTPUT);
+  digitalWrite(GPS_EN_GPIO, HIGH); // needs to turn on for GPS detection
 
   pinMode(SCREEN_12V_ENABLE, OUTPUT);
-  digitalWrite(SCREEN_12V_ENABLE, LOW); //
+  digitalWrite(SCREEN_12V_ENABLE, LOW); // disable 12V power for SH1107 display for now. 
 }

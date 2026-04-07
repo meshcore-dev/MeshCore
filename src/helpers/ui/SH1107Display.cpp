@@ -2,6 +2,10 @@
 #include <Adafruit_GrayOLED.h>
 #include "Adafruit_SH110X.h"
 
+#ifndef DISPLAY_ROTATION
+#define DISPLAY_ROTATION 0
+#endif
+
 bool SH1107Display::i2c_probe(TwoWire &wire, uint8_t addr)
 {
   wire.beginTransmission(addr);
@@ -11,7 +15,11 @@ bool SH1107Display::i2c_probe(TwoWire &wire, uint8_t addr)
 
 bool SH1107Display::begin()
 {
-  return display.begin(DISPLAY_ADDRESS, true) && i2c_probe(Wire, DISPLAY_ADDRESS);
+  bool result = display.begin(DISPLAY_ADDRESS, true) && i2c_probe(Wire, DISPLAY_ADDRESS);
+  if (result) {
+    display.setRotation(DISPLAY_ROTATION);
+  }
+  return result;
 }
 
 void SH1107Display::turnOn()
@@ -35,6 +43,8 @@ void SH1107Display::clear()
 void SH1107Display::startFrame(Color bkg)
 {
   display.clearDisplay(); // TODO: apply 'bkg'
+  display.setContrast(300); // 0-255. default setting was causing some flickering. 
+  // display.SH110X_SETPRECHARGE(255);
   _color = SH110X_WHITE;
   display.setTextColor(_color);
   display.setTextSize(1);
