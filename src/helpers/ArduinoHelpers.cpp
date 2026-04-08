@@ -30,6 +30,13 @@ void initHardwareRNG() {
   bootloader_random_enable();
 #elif defined(NRF52_PLATFORM)
   NRF_RNG->TASKS_START = 1;
+#elif defined(STM32_PLATFORM)
+  #if defined(__HAL_RCC_RNG_CLK_ENABLE)
+    __HAL_RCC_RNG_CLK_ENABLE();
+  #endif
+  #if defined(RNG) && defined(RNG_CR_RNGEN)
+    SET_BIT(RNG->CR, RNG_CR_RNGEN);
+  #endif
 #endif
 }
 
@@ -38,6 +45,13 @@ void deinitHardwareRNG() {
   bootloader_random_disable();
 #elif defined(NRF52_PLATFORM)
   NRF_RNG->TASKS_STOP = 1;
+#elif defined(STM32_PLATFORM)
+  #if defined(RNG) && defined(RNG_CR_RNGEN)
+    CLEAR_BIT(RNG->CR, RNG_CR_RNGEN);
+  #endif
+  #if defined(__HAL_RCC_RNG_CLK_DISABLE)
+    __HAL_RCC_RNG_CLK_DISABLE();
+  #endif
 #endif
 }
 
@@ -67,6 +81,19 @@ uint32_t AsconRNG::getHardwareRandom32() {
     }
     NRF_RNG->EVENTS_VALRDY = 0;
     ((uint8_t*)&r)[i] = NRF_RNG->VALUE;
+  }
+#elif defined(STM32_PLATFORM) && defined(RNG) && defined(RNG_SR_DRDY)
+  uint32_t start = micros();
+  while ((RNG->SR & RNG_SR_DRDY) == 0) {
+    if ((micros() - start) > 2000) {
+      uint32_t m = micros();
+      uint32_t n = millis();
+      r = (m << 16) ^ (n * 2654435761u);
+      break;
+    }
+  }
+  if ((RNG->SR & RNG_SR_DRDY) != 0) {
+    r = RNG->DR;
   }
 #else
   uint32_t m = micros();
