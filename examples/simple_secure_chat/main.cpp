@@ -547,6 +547,7 @@ void halt() {
   while (1) ;
 }
 
+#ifndef PIO_UNIT_TESTING
 void setup() {
   Serial.begin(115200);
 
@@ -593,3 +594,4 @@ void loop() {
   the_mesh.loop();
   rtc_clock.tick();
 }
+#endif

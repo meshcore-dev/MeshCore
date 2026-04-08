@@ -18,6 +18,7 @@ void halt() {
 
 static char command[MAX_POST_TEXT_LEN+1];
 
+#ifndef PIO_UNIT_TESTING
 void setup() {
   Serial.begin(115200);
   delay(1000);
@@ -118,3 +119,4 @@ void loop() {
 #endif
   rtc_clock.tick();
 }
+#endif

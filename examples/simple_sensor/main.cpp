@@ -52,6 +52,7 @@ void halt() {
 
 static char command[160];
 
+#ifndef PIO_UNIT_TESTING
 void setup() {
   Serial.begin(115200);
   delay(1000);
@@ -152,3 +153,4 @@ void loop() {
 #endif
   rtc_clock.tick();
 }
+#endif

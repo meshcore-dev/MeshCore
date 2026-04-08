@@ -78,6 +78,7 @@ void onGetStats(uint32_t* rx, uint32_t* tx, uint32_t* errors) {
   *errors = radio_driver.getPacketsRecvErrors();
 }
 
+#ifndef PIO_UNIT_TESTING
 void setup() {
   board.begin();
   mesh::initHardwareRNG();
@@ -155,3 +156,4 @@ void loop() {
   }
   radio_driver.loop();
 }
+#endif

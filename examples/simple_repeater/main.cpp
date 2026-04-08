@@ -28,6 +28,7 @@ static unsigned long userBtnDownAt = 0;
 #define USER_BTN_HOLD_OFF_MILLIS 1500
 #endif
 
+#ifndef PIO_UNIT_TESTING
 void setup() {
   Serial.begin(115200);
   delay(1000);
@@ -172,3 +173,4 @@ void loop() {
     #endif
   }
 }
+#endif
