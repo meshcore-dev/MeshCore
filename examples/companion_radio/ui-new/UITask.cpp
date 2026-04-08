@@ -786,22 +786,6 @@ void UITask::loop() {
     next_backlight_btn_check = millis() + 300;
   }
 #endif
-#if defined(PIN_POWER_BTN)
-  static unsigned long next_power_chck = 0;
-  static uint8_t _lastSwitchPower = 0xFF;
-
-  if (millis() > next_power_chck) {
-    uint8_t newPower = digitalRead(PIN_POWER_BTN) == HIGH ? 20 : 10;
-    if (newPower != _lastSwitchPower && !radio_driver.isChannelActive()) {
-      _lastSwitchPower = newPower;
-      radio_driver.setPower(newPower);
-      _node_prefs->tx_power_dbm = newPower;
-      _next_refresh = 0;
-      MESH_DEBUG_PRINTLN("INFO: %d dBm", newPower);
-    }
-    next_power_chck = millis() + 300;
-  }
-#endif
 
   if (c != 0 && curr) {
     curr->handleInput(c);
