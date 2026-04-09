@@ -66,6 +66,7 @@ public:
 
 class StdRNG : public AsconRNG {
 public:
+  void begin() { AsconRNG::begin(); }
   void begin(long seed) {
     if (!_is_ready) {
       AsconRNG::begin();
