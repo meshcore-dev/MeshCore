@@ -184,12 +184,14 @@ bool AsconRNG::saveSeed() {
   File file = _fs->open(_seed_path, "w", true);
 #endif
   if (!file) {
+    mesh::Utils::secureClear((uint8_t*)&tmp, sizeof(tmp));
     mesh::Utils::secureClear((uint8_t*)&blob, sizeof(blob));
     return false;
   }
 
   bool ok = (file.write((const uint8_t*)&blob, sizeof(blob)) == sizeof(blob));
   file.close();
+  mesh::Utils::secureClear((uint8_t*)&tmp, sizeof(tmp));
   mesh::Utils::secureClear((uint8_t*)&blob, sizeof(blob));
   return ok;
 }
