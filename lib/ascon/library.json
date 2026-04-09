@@ -43,9 +43,7 @@
             "-fomit-frame-pointer",
             "-fno-strict-aliasing",
             "-std=c99",
-            "-O3",
-            "-DASCON_INLINE_MODE=0",
-            "-DASCON_HASH_BYTES=1"
+            "-O2"
         ]
     }
 }

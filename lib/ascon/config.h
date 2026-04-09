@@ -16,6 +16,4 @@
 #define ASCON_UNROLL_LOOPS 1
 #endif
 
-#define ASCON_HASH_BYTES 1
-
 #endif /* CONFIG_H_ */
