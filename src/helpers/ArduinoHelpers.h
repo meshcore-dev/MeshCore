@@ -5,6 +5,7 @@
 #include <helpers/IdentityStore.h>
 #include <helpers/radiolib/RadioLibWrappers.h>
 #include <ascon.h>
+#include <Utils.h>
 
 class VolatileRTCClock : public mesh::RTCClock {
   uint32_t base_time;
@@ -65,10 +66,9 @@ public:
 
 class StdRNG : public AsconRNG {
 public:
-  void begin() { AsconRNG::begin(); }
   void begin(long seed) {
     if (!_is_ready) {
-      begin();
+      AsconRNG::begin();
     }
     ascon_absorb(&_xof, (const uint8_t*)&seed, sizeof(seed));
   }

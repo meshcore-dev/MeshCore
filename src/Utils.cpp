@@ -158,4 +158,14 @@ int Utils::parseTextParts(char* text, const char* parts[], int max_num, char sep
   return num;
 }
 
+void Utils::secureClear(uint8_t* buf, size_t len) {
+  // Securely clear buffer using volatile to prevent compiler optimizations
+  // Modern compilers may recognize memset(0) and optimize it away,
+  // but volatile ensures the write actually happens
+  volatile uint8_t* v_buf = (volatile uint8_t*)buf;
+  for (size_t i = 0; i < len; i++) {
+    v_buf[i] = 0;
+  }
+}
+
 }

@@ -82,6 +82,14 @@ public:
   static int parseTextParts(char* text, const char* parts[], int max_num, char separator=',');
 
   static bool isHexChar(char c);
+
+    /**
+   * \brief  Securely zero-out sensitive buffer (prevents compiler optimizations)
+   * \param  buf IN - buffer to clear
+   * \param  len IN - number of bytes to clear
+   * \returns void
+  */
+  static void secureClear(uint8_t* buf, size_t len);
 };
 
 }

@@ -21,6 +21,19 @@ struct RNGSeedBlob {
 static const uint32_t RNG_SEED_MAGIC = 0x474E5253; // "SRNG"
 static const uint16_t RNG_SEED_VERSION = 1;
 
+#if defined(STM32_PLATFORM)
+static uint32_t stm32HardwareIdMix() {
+  uint32_t mix = 0;
+  #if defined(HAL_GetUIDw0) && defined(HAL_GetUIDw1) && defined(HAL_GetUIDw2)
+    mix = HAL_GetUIDw0() ^ (HAL_GetUIDw1() << 11) ^ (HAL_GetUIDw2() >> 7);
+  #elif defined(UID_BASE)
+    const volatile uint32_t* uid = (volatile uint32_t*)UID_BASE;
+    mix = uid[0] ^ (uid[1] << 11) ^ (uid[2] >> 7);
+  #endif
+  return mix;
+}
+#endif
+
 }
 
 namespace mesh {
@@ -85,10 +98,14 @@ uint32_t AsconRNG::getHardwareRandom32() {
 #elif defined(STM32_PLATFORM) && defined(RNG) && defined(RNG_SR_DRDY)
   uint32_t start = micros();
   while ((RNG->SR & RNG_SR_DRDY) == 0) {
+    // TODO: Low entropy fallback — only micros()/millis() boot timing.
+    // Consider sampling LSBs from a floating ADC pin for
+    // additional thermal noise.
     if ((micros() - start) > 2000) {
       uint32_t m = micros();
       uint32_t n = millis();
-      r = (m << 16) ^ (n * 2654435761u);
+      uint32_t hardware_id_mix = stm32HardwareIdMix();
+      r = (m << 16) ^ (n * 2654435761u) ^ hardware_id_mix;
       break;
     }
   }
@@ -96,9 +113,13 @@ uint32_t AsconRNG::getHardwareRandom32() {
     r = RNG->DR;
   }
 #else
+  // TODO: Low entropy fallback: At this point we're desesperate
   uint32_t m = micros();
   uint32_t n = millis();
   r = (m << 16) ^ (n * 2654435761u);
+  #if defined(STM32_PLATFORM)
+    r ^= stm32HardwareIdMix();
+  #endif
 #endif
   if (_radio) {
     uint32_t rv = 0;
@@ -128,19 +149,17 @@ bool AsconRNG::loadSeed(uint8_t* dest, size_t len) {
 #else
   File file = _fs->open(_seed_path, "r");
 #endif
-  if (!file) {
-    return false;
+  bool valid = false;
+  if (file) {
+    bool ok = (file.read((uint8_t*)&blob, sizeof(blob)) == (int)sizeof(blob));
+    valid = ok && blob.magic == RNG_SEED_MAGIC && blob.version == RNG_SEED_VERSION;
+    if (valid) {
+      memcpy(dest, blob.seed, 32);
+    }
+    file.close();
   }
-
-  bool ok = (file.read((uint8_t*)&blob, sizeof(blob)) == (int)sizeof(blob));
-  file.close();
-
-  if (!ok || blob.magic != RNG_SEED_MAGIC || blob.version != RNG_SEED_VERSION) {
-    return false;
-  }
-
-  memcpy(dest, blob.seed, 32);
-  return true;
+  mesh::Utils::secureClear((uint8_t*)&blob, sizeof(blob));
+  return valid;
 }
 
 bool AsconRNG::saveSeed() {
@@ -165,11 +184,13 @@ bool AsconRNG::saveSeed() {
   File file = _fs->open(_seed_path, "w", true);
 #endif
   if (!file) {
+    mesh::Utils::secureClear((uint8_t*)&blob, sizeof(blob));
     return false;
   }
 
   bool ok = (file.write((const uint8_t*)&blob, sizeof(blob)) == sizeof(blob));
   file.close();
+  mesh::Utils::secureClear((uint8_t*)&blob, sizeof(blob));
   return ok;
 }
 
@@ -183,15 +204,17 @@ void AsconRNG::begin() {
   if (_is_ready) return;
 
   uint8_t seed[32];
-  if (loadSeed(seed, sizeof(seed))) {
+  bool loaded = loadSeed(seed, sizeof(seed));
+  if (loaded) {
     initState(seed, sizeof(seed));
-    reseed(NULL, 0);
-    return;
+    gatherEntropy(seed, sizeof(seed));
+    reseed(seed, sizeof(seed));
+  } else {
+    gatherEntropy(seed, sizeof(seed));
+    initState(seed, sizeof(seed));
+    saveSeed();
   }
-
-  gatherEntropy(seed, sizeof(seed));
-  initState(seed, sizeof(seed));
-  saveSeed();
+  mesh::Utils::secureClear(seed, sizeof(seed));
 }
 
 void AsconRNG::reseed(const uint8_t* extra, size_t extra_len) {
@@ -210,6 +233,7 @@ void AsconRNG::reseed(const uint8_t* extra, size_t extra_len) {
   }
 
   saveSeed();
+  mesh::Utils::secureClear(carry, sizeof(carry));
 }
 
 void AsconRNG::attachPersistence(FILESYSTEM& fs, const char* seed_path) {
