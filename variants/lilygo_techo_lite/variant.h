@@ -24,7 +24,7 @@
 #define PIN_PWR_EN              _PINNUM(0, 30) // RT9080_EN
 
 #define BATTERY_PIN             _PINNUM(0, 2)
-#define ADC_MULTIPLIER          (4.90F)
+#define ADC_MULTIPLIER          (2.0F)
 
 #define ADC_RESOLUTION          (14)
 #define BATTERY_SENSE_RES       (12)
@@ -47,13 +47,13 @@
 ////////////////////////////////////////////////////////////////////////////////
 // I2C pin definition
 
-#define PIN_WIRE_SDA            _PINNUM(0, 4) // (SDA)
-#define PIN_WIRE_SCL            _PINNUM(0, 2) // (SCL)
+#define PIN_WIRE_SDA            _PINNUM(1, 4) // (SDA) - per LilyGo IIC_1_SDA
+#define PIN_WIRE_SCL            _PINNUM(1, 2) // (SCL) - per LilyGo IIC_1_SCL
 
 ////////////////////////////////////////////////////////////////////////////////
 // SPI pin definition
 
-#define SPI_INTERFACES_COUNT    _PINNUM(0, 2)
+#define SPI_INTERFACES_COUNT    (2)
 
 #define PIN_SPI_MISO            _PINNUM(0, 17) // (MISO)
 #define PIN_SPI_MOSI            _PINNUM(0, 15) // (MOSI)
@@ -149,10 +149,11 @@ extern const int SCK;
 #define PIN_DISPLAY_BUSY        DISP_BUSY
 
 ////////////////////////////////////////////////////////////////////////////////
-// GPS
+// GPS — per LilyGo t_echo_lite_config.h
+// PIN_GPS_TX/RX named from GPS module's perspective
 
-#define PIN_GPS_RX              _PINNUM(1, 13) // RXD
-#define PIN_GPS_TX              _PINNUM(1, 15) // TXD
-#define GPS_EN                  _PINNUM(1, 11) // POWER_RT9080_EN
-#define PIN_GPS_STANDBY         _PINNUM(1, 10)
-#define PIN_GPS_PPS             _PINNUM(0, 29) // 1PPS
+#define PIN_GPS_TX              _PINNUM(0, 29) // GPS UART TX → MCU RX
+#define PIN_GPS_RX              _PINNUM(1, 10) // GPS UART RX ← MCU TX
+#define GPS_EN                  _PINNUM(1, 11) // GPS RT9080 power enable
+#define PIN_GPS_STANDBY         _PINNUM(1, 13) // GPS wake-up
+#define PIN_GPS_PPS             _PINNUM(1, 15) // GPS 1PPS
