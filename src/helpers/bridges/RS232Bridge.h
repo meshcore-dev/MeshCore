@@ -19,7 +19,7 @@
  * - Magic header for packet synchronization and frame alignment
  * - Duplicate packet detection using SimpleMeshTables tracking
  * - Configurable RX/TX pins via build defines
- * - Fixed baud rate at 115200 for consistent timing
+ * - Configurable baud rate supplied from node preferences
  *
  * Packet Structure:
  * [2 bytes] Magic Header (0xC03E) - Used to identify start of RS232Bridge packets
@@ -61,7 +61,7 @@ public:
    *
    * - Validates that RX/TX pins are defined
    * - Configures UART pins based on target platform
-   * - Sets baud rate to 115200 for consistent communication
+   * - Starts the UART using the configured bridge baud rate
    * - Platform-specific pin configuration methods are used
    */
   void begin() override;
