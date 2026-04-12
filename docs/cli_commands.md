@@ -950,10 +950,12 @@ region save
 
 **Parameters:**
 - `source`: 
-  - `logRx`: bridges received packets
-  - `logTx`: bridges transmitted packets
+  - `rx`: bridges received packets
+  - `tx`: bridges transmitted packets
 
-**Default:** `logTx`
+`set bridge.source` requires a value and returns an error when `source` is missing or not one of `rx` or `tx`.
+
+**Default:** `tx`
 
 ---
 
