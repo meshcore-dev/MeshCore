@@ -381,7 +381,8 @@ int MyMesh::handleRequest(ClientInfo *sender, uint32_t sender_timestamp, uint8_t
 
 mesh::Packet *MyMesh::createSelfAdvert() {
   uint8_t app_data[MAX_ADVERT_DATA_SIZE];
-  uint8_t app_data_len = _cli.buildAdvertData(ADV_TYPE_REPEATER, app_data);
+  uint16_t caps = _prefs.disable_fwd ? 0 : ADVERT_CAP_REPEAT;
+  uint8_t app_data_len = _cli.buildAdvertData(ADV_TYPE_REPEATER, app_data, caps);
 
   return createAdvert(self_id, app_data, app_data_len);
 }
