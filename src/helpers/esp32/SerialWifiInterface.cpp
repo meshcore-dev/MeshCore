@@ -53,6 +53,15 @@ void SerialWifiInterface::resetReceivedFrameHeader() {
 }
 
 size_t SerialWifiInterface::checkRecvFrame(uint8_t dest[]) {
+  // periodic WiFi health check (every 60s, only after first successful connection)
+  if (WiFi.status() == WL_CONNECTED) {
+    _wifi_was_connected = true;
+  } else if (_wifi_was_connected && millis() >= _wifi_check_time) {
+    WIFI_DEBUG_PRINTLN("WiFi disconnected, attempting reconnect...");
+    WiFi.reconnect();
+    _wifi_check_time = millis() + 60000;
+  }
+
   // check if new client connected
   auto newClient = server.available();
   if (newClient) {
