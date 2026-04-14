@@ -123,20 +123,25 @@ void parse_group_message(const char *input,
 
 // Elecrow Display callbacks
 /* Display flushing */
+static uint32_t s_flush_count = 0;
 void my_disp_flush(lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *color_p)
 {
   uint32_t w = (area->x2 - area->x1 + 1);
-  uint32_t h = (area->y2 - area->y1 + 1);  
+  uint32_t h = (area->y2 - area->y1 + 1);
 
-  //lcd.fillScreen(TFT_WHITE);
+  s_flush_count++;
+  if (s_flush_count <= 3) {
+    Serial.printf("[display] flush #%u  x=%d y=%d w=%d h=%d\n",
+                  s_flush_count, area->x1, area->y1, w, h);
+  }
+
 #if (LV_COLOR_16_SWAP != 0)
- lcd.pushImageDMA(area->x1, area->y1, w, h,(lgfx::rgb565_t*)&color_p->full);
+  lcd.pushImageDMA(area->x1, area->y1, w, h,(lgfx::rgb565_t*)&color_p->full);
 #else
-  lcd.pushImageDMA(area->x1, area->y1, w, h,(lgfx::rgb565_t*)&color_p->full);//
+  lcd.pushImageDMA(area->x1, area->y1, w, h,(lgfx::rgb565_t*)&color_p->full);
 #endif
 
   lv_disp_flush_ready(disp);
-
 }
 
 void my_touchpad_read(lv_indev_drv_t * indev_driver, lv_indev_data_t * data)
@@ -803,11 +808,18 @@ void configureDisplay() {
 
 void initializeDisplay() {
   ESP_LOGI(TAG, "Initializing display...");
-  lcd.begin();
-  lcd.fillScreen(0x000000u);
+  bool ok = lcd.begin();
+  Serial.printf("[display] lcd.begin() = %s  w=%d h=%d\n", ok ? "OK" : "FAIL", lcd.width(), lcd.height());
+  lcd.setBrightness(255);
+  // Fallback: force GPIO 45 HIGH in case LovyanGFX Light_PWM LEDC setup failed.
+  pinMode(45, OUTPUT);
+  digitalWrite(45, HIGH);
+  Serial.printf("[display] BL GPIO45 after force HIGH: %d\n", digitalRead(45));
+  lcd.fillScreen(TFT_RED);  // DEBUG: should show solid RED for 3s before LVGL
+  Serial.println("[display] RED fill done — waiting 3s for visual check");
+  delay(3000);
   lcd.setTextSize(2);
   lcd.setRotation(1);
-  //lcd.setBrightness(127);
 }
 
 void initializeTouchScreen() {
@@ -824,6 +836,7 @@ void initializeMesh() {
   Serial.println("[mesh] board.begin()");
   board.begin();
 
+#ifndef DISABLE_LORA_FOR_DISPLAY_TEST
   Serial.println("[mesh] radio_init()...");
   if (!radio_init()) {
     Serial.println("[mesh] FATAL: radio_init() failed - halting");
@@ -831,6 +844,10 @@ void initializeMesh() {
   }
 
   fast_rng.begin(radio_get_rng_seed());
+#else
+  Serial.println("[mesh] *** LORA DISABLED FOR DISPLAY TEST ***");
+  fast_rng.begin(42);
+#endif
 
   Serial.println("[mesh] SPIFFS.begin()");
 #if defined(NRF52_PLATFORM)

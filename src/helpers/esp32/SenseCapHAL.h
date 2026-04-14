@@ -107,18 +107,38 @@ public:
 
     writeReg(0x02, _out0);  // Output Port 0
     writeReg(0x06, _cfg0);  // Config Port 0
-    Serial.printf("[SenseCapHAL] TCA9535@0x%02X init: out=0x%02X cfg=0x%02X\n",
+
+    // Port 1 (pins 8-15) — appears unused on the SenseCAP Indicator.
+    // TCA9535 /INT fires on ANY input change on either port and only clears
+    // when the triggering port register is read.  Floating Port 1 inputs
+    // continuously re-assert /INT, preventing DIO1 edges from ever firing.
+    // Fix: make all Port 1 pins OUTPUT HIGH so they can never float.
+    writeReg(0x03, 0xFF);  // Output Port 1: all HIGH
+    writeReg(0x07, 0x00);  // Config  Port 1: all OUTPUTS
+
+    // Read both input ports now to establish a clean /INT baseline.
+    readReg(0x00);
+    readReg(0x01);
+
+    Serial.printf("[SenseCapHAL] TCA9535@0x%02X init: out0=0x%02X cfg0=0x%02X\n",
                   _addr, _out0, _cfg0);
   }
 
   // ── Overrides ──────────────────────────────────────────────────────────
   //
-  // SOFTWARE SPI — we bit-bang GPIO 41/47/48 directly instead of using
-  // the hardware FSPI peripheral.  Calling spi.begin(41,47,48) routes
-  // those pins through the ESP32-S3 GPIO matrix to FSPI, which silently
-  // disables LovyanGFX's LCD_CAM framebuffer output (blank display).
-  // Software SPI avoids that conflict entirely; the SX1262 works fine
-  // at the ~500 kHz rate the bit-bang produces.
+  // SOFTWARE (bit-bang) SPI — intentionally avoids the hardware FSPI peripheral.
+  //
+  // Calling SPI.begin() (hardware FSPI) AFTER lcd.begin() disrupts the
+  // LCD_CAM peripheral that is already running the RGB parallel bus,
+  // causing the display to go blank.  Since the LCD_CAM uses GPIOs 0–21
+  // and the SX1262 SPI uses GPIOs 41/47/48, there is no pin conflict —
+  // the problem is at the peripheral / DMA level when FSPI is initialised
+  // while LCD_CAM is active.
+  //
+  // Bit-bang SPI on the same GPIOs avoids hardware SPI entirely.
+  // The SX1262 requires at most ~16 MHz SPI; bit-bang on ESP32-S3 gives
+  // ~1–2 MHz which is more than adequate for LoRa configuration and DIO
+  // interrupt latency is unaffected.
 
   // ArduinoHal::init() only calls spiBegin() when initInterface==true,
   // which is false when an explicit SPIClass& is supplied.  Override to
@@ -126,61 +146,40 @@ public:
   void init() override { spiBegin(); }
 
   void spiBegin() override {
-    // ── IMPORTANT ──────────────────────────────────────────────────────────
-    // We must NOT call ::pinMode() here.  ::pinMode() calls gpio_reset_pin()
-    // which disrupts the GPIO matrix signal routing used by LovyanGFX's
-    // Bus_RGB LCD_CAM driver — blanking the display permanently.
-    //
-    // We also must NOT use gpio_set_direction() alone: it does not call
-    // PIN_FUNC_SELECT, so the IO_MUX for GPIO 41/48 may remain pointed at
-    // the JTAG MTDI/MTCK function (restored by LovyanGFX's pin_backup_t
-    // after lcd.begin()).  With IO_MUX in JTAG function the physical pins
-    // bypass the GPIO matrix entirely, making soft-SPI write nothing.
-    //
-    // Fix: gpio_config() sets IO_MUX → PIN_FUNC_GPIO (via PIN_FUNC_SELECT)
-    // AND enables GPIO output via the GPIO matrix (SIG_GPIO_OUT_IDX), all
-    // without ever calling gpio_reset_pin().
-    // ───────────────────────────────────────────────────────────────────────
-    gpio_config_t out_conf = {};
-    out_conf.pin_bit_mask = (1ULL << _sclk) | (1ULL << _mosi);
-    out_conf.mode         = GPIO_MODE_OUTPUT;
-    out_conf.pull_up_en   = GPIO_PULLUP_DISABLE;
-    out_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
-    out_conf.intr_type    = GPIO_INTR_DISABLE;
-    gpio_config(&out_conf);
-
-    gpio_config_t in_conf = {};
-    in_conf.pin_bit_mask = (1ULL << _miso);
-    in_conf.mode         = GPIO_MODE_INPUT;
-    in_conf.pull_up_en   = GPIO_PULLUP_DISABLE;
-    in_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
-    in_conf.intr_type    = GPIO_INTR_DISABLE;
-    gpio_config(&in_conf);
-
-    gpio_set_level((gpio_num_t)_sclk, 0);
-    gpio_set_level((gpio_num_t)_mosi, 0);
-    Serial.printf("[SenseCapHAL] SPI (soft) SCLK=%d MOSI=%d MISO=%d\n",
+    // Configure GPIO pins for direct CPU control (disconnects any
+    // peripheral / GPIO-matrix function, including leftover FSPI routing).
+    ::pinMode(_sclk, OUTPUT);
+    ::pinMode(_mosi, OUTPUT);
+    ::pinMode(_miso, INPUT);
+    ::digitalWrite(_sclk, LOW);
+    Serial.printf("[SenseCapHAL] SPI (bit-bang) SCLK=%d MOSI=%d MISO=%d\n",
                   _sclk, _mosi, _miso);
   }
 
-  void spiBeginTransaction() override { /* no-op for soft SPI */ }
-  void spiEndTransaction()   override { /* no-op for soft SPI */ }
-  void spiEnd()              override { /* no-op for soft SPI */ }
+  void spiEnd() override {
+    // nothing to tear down for bit-bang
+  }
 
-  // SPI Mode 0: CPOL=0 (CLK idles LOW), CPHA=0 (sample on rising edge)
+  void spiBeginTransaction() override {
+    // nothing needed — CS is managed via the expander in digitalWrite()
+  }
+
+  void spiEndTransaction() override {
+    // nothing needed
+  }
+
+  // Bit-bang SPI Mode 0 (CPOL=0, CPHA=0): data sampled on rising edge.
   void spiTransfer(uint8_t* out, size_t len, uint8_t* in) override {
     for (size_t i = 0; i < len; i++) {
-      uint8_t txByte = out ? out[i] : 0xFF;
-      uint8_t rxByte = 0;
+      uint8_t tx = out ? out[i] : 0x00;
+      uint8_t rx = 0;
       for (int b = 7; b >= 0; b--) {
-        ::digitalWrite(_mosi, (txByte >> b) & 1);
-        ::delayMicroseconds(1);                          // MOSI setup time
+        ::digitalWrite(_mosi, (tx >> b) & 1);
         ::digitalWrite(_sclk, HIGH);
-        rxByte |= (uint8_t)(::digitalRead(_miso) << b); // sample on rising edge
-        ::delayMicroseconds(1);                          // hold time
+        rx = (rx << 1) | (::digitalRead(_miso) ? 1 : 0);
         ::digitalWrite(_sclk, LOW);
       }
-      if (in) in[i] = rxByte;
+      if (in) in[i] = rx;
     }
   }
 
@@ -213,18 +212,40 @@ public:
 
   // DIO1 is expander pin 3; redirect the interrupt to IO_EXPANDER_IRQ (GPIO 42).
   // TCA9535 /INT fires FALLING when any input changes (DIO1 going HIGH = packet ready).
-  void attachInterrupt(uint32_t pin, void (*cb)(void), uint32_t mode) override {
+  // RadioLib 7.x calls pinToInterrupt(irq_pin) BEFORE attachInterrupt().
+  // Without this override, pinToInterrupt(0x43) → digitalPinToInterrupt(67)
+  // which is invalid on ESP32-S3, so attachInterrupt() silently fails.
+  // Return IO_EXPANDER_IRQ (GPIO 42) directly for any expander pin.
+  uint32_t pinToInterrupt(uint32_t pin) override {
     if (isExp(pin)) {
+      return (uint32_t)IO_EXPANDER_IRQ;
+    }
+    return ArduinoHal::pinToInterrupt(pin);
+  }
+
+  // Called with either:
+  //   a) raw expander pin (e.g. 0x43) — direct call path
+  //   b) IO_EXPANDER_IRQ (42)         — via pinToInterrupt() path (RadioLib 7.x)
+  // In both cases redirect to GPIO 42 FALLING (TCA9535 /INT goes LOW when DIO1 rises).
+  void attachInterrupt(uint32_t pin, void (*cb)(void), uint32_t mode) override {
+    if (isExp(pin) || pin == (uint32_t)IO_EXPANDER_IRQ) {
+      // Clear any pending TCA9535 /INT by reading BOTH port registers.
+      // /INT stays LOW until the port that triggered it is read; floating
+      // Port 1 inputs keep /INT stuck even after reading Port 0 alone.
+      readReg(0x00);  // Input Port 0 (radio pins)
+      readReg(0x01);  // Input Port 1 (prevent spurious /INT from port 1)
       ::pinMode(IO_EXPANDER_IRQ, INPUT_PULLUP);
+      int gpio42 = ::digitalRead(IO_EXPANDER_IRQ);
       ::attachInterrupt(digitalPinToInterrupt(IO_EXPANDER_IRQ), cb, FALLING);
-      Serial.printf("[SenseCapHAL] DIO1 interrupt → GPIO %d (FALLING)\n", IO_EXPANDER_IRQ);
+      Serial.printf("[SenseCapHAL] DIO1 interrupt → GPIO %d  state=%d (FALLING)\n",
+                    IO_EXPANDER_IRQ, gpio42);
     } else {
       ArduinoHal::attachInterrupt(pin, cb, mode);
     }
   }
 
   void detachInterrupt(uint32_t pin) override {
-    if (isExp(pin)) {
+    if (isExp(pin) || pin == (uint32_t)IO_EXPANDER_IRQ) {
       ::detachInterrupt(digitalPinToInterrupt(IO_EXPANDER_IRQ));
     } else {
       ArduinoHal::detachInterrupt(pin);

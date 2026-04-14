@@ -99,6 +99,7 @@ int RadioLibWrapper::recvRaw(uint8_t* bytes, int sz) {
   int len = 0;
   if (state & STATE_INT_READY) {
     len = _radio->getPacketLength();
+    MESH_DEBUG_PRINTLN("RadioLibWrapper: IRQ fired, pkt_len=%d", len);
     if (len > 0) {
       if (len > sz) { len = sz; }
       int err = _radio->readData(bytes, len);
@@ -107,14 +108,14 @@ int RadioLibWrapper::recvRaw(uint8_t* bytes, int sz) {
         len = 0;
         n_recv_errors++;
       } else {
-      //  Serial.print("  readData() -> "); Serial.println(len);
+        MESH_DEBUG_PRINTLN("RadioLibWrapper: recv %d bytes  RSSI=%.1f SNR=%.1f", len, getLastRSSI(), getLastSNR());
         n_recv++;
       }
     }
     state = STATE_IDLE;   // need another startReceive()
   }
 
-  if (state != STATE_RX) {
+  if (state != STATE_RX && !isReceivingPacket()) {
     int err = _radio->startReceive();
     if (err == RADIOLIB_ERR_NONE) {
       state = STATE_RX;
