@@ -738,7 +738,9 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 - `set region.autotag.max.hops <value>`
 
 **Parameters:**
-- `value`: Maximum path hash count (0-8). `0` means only auto-tag packets without scope received directly (zero-hop); higher values also auto-tag packets without scope that already traversed that many repeaters.
+- `value`: Maximum path hash count. `0` means only auto-tag packets without scope received directly (zero-hop); higher values also auto-tag packets without scope that already traversed that many repeaters.
+
+**Range:** `0` to `8` (inclusive). Values outside this range are rejected by `set` and clamped to this range on load. The upper bound of `8` is intentionally well below the default `flood.max` of `64`, because auto-tagging packets from far across the mesh almost always produces incorrect region assignments — the limit exists to keep admins honest about the geographic scope they can actually account for.
 
 **Default:** `1`
 

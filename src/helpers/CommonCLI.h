@@ -13,6 +13,8 @@
 #define ADVERT_LOC_SHARE      1
 #define ADVERT_LOC_PREFS      2
 
+#define REGION_AUTOTAG_MAX_HOPS_LIMIT 8    // upper bound for region.autotag.max.hops pref
+
 #define LOOP_DETECT_OFF       0
 #define LOOP_DETECT_MINIMAL   1
 #define LOOP_DETECT_MODERATE  2

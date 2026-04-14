@@ -122,7 +122,7 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     // sanitise settings
     _prefs->rx_boosted_gain = constrain(_prefs->rx_boosted_gain, 0, 1); // boolean
     _prefs->region_autotag = constrain(_prefs->region_autotag, 0, 1);   // boolean
-    _prefs->region_autotag_max_hops = constrain(_prefs->region_autotag_max_hops, 0, 8);
+    _prefs->region_autotag_max_hops = constrain(_prefs->region_autotag_max_hops, 0, REGION_AUTOTAG_MAX_HOPS_LIMIT);
 
     file.close();
   }
@@ -630,12 +630,12 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         strcpy(reply, "OK");
       } else if (memcmp(config, "region.autotag.max.hops ", 24) == 0) {
         int h = atoi(&config[24]);
-        if (h >= 0 && h <= 8) {
+        if (h >= 0 && h <= REGION_AUTOTAG_MAX_HOPS_LIMIT) {
           _prefs->region_autotag_max_hops = (uint8_t)h;
           savePrefs();
           strcpy(reply, "OK");
         } else {
-          strcpy(reply, "Error, range is 0-8");
+          sprintf(reply, "Error, range is 0-%d", REGION_AUTOTAG_MAX_HOPS_LIMIT);
         }
       } else if (memcmp(config, "region.autotag ", 15) == 0) {
         _prefs->region_autotag = memcmp(&config[15], "on", 2) == 0;
