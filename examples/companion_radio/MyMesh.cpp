@@ -2,6 +2,9 @@
 
 #include <Arduino.h> // needed for PlatformIO
 #include <Mesh.h>
+#ifdef WIFI_SSID
+  #include <WiFi.h>
+#endif
 
 #define CMD_APP_START                 1
 #define CMD_SEND_TXT_MSG              2
@@ -140,6 +143,25 @@
 #define AUTO_ADD_REPEATER         (1 << 2)  // 0x04 - auto-add Repeater (ADV_TYPE_REPEATER)
 #define AUTO_ADD_ROOM_SERVER      (1 << 3)  // 0x08 - auto-add Room Server (ADV_TYPE_ROOM)
 #define AUTO_ADD_SENSOR           (1 << 4)  // 0x10 - auto-add Sensor (ADV_TYPE_SENSOR)
+
+#ifdef WIFI_SSID
+static void restartWifiClient(const NodePrefs& prefs) {
+  const char* ssid = prefs.wifi_ssid;
+  const char* pwd = prefs.wifi_pwd;
+
+  if (ssid[0] == 0) {
+    WiFi.disconnect();
+    return;
+  }
+
+  WiFi.disconnect();
+  if (pwd[0] == 0) {
+    WiFi.begin(ssid);
+  } else {
+    WiFi.begin(ssid, pwd);
+  }
+}
+#endif
 
 void MyMesh::writeOKFrame() {
   uint8_t buf[1];
@@ -895,6 +917,15 @@ void MyMesh::begin(bool has_display) {
 
   // load persisted prefs
   _store->loadPrefs(_prefs, sensors.node_lat, sensors.node_lon);
+  _prefs.wifi_ssid[sizeof(_prefs.wifi_ssid) - 1] = 0;
+  _prefs.wifi_pwd[sizeof(_prefs.wifi_pwd) - 1] = 0;
+#ifdef WIFI_SSID
+  if (_prefs.wifi_ssid[0] == 0 && _prefs.wifi_pwd[0] == 0) {
+    StrHelper::strncpy(_prefs.wifi_ssid, WIFI_SSID, sizeof(_prefs.wifi_ssid));
+    StrHelper::strncpy(_prefs.wifi_pwd, WIFI_PWD, sizeof(_prefs.wifi_pwd));
+    savePrefs();
+  }
+#endif
 
   // sanitise bad pref values
   _prefs.rx_delay_base = constrain(_prefs.rx_delay_base, 0, 20.0f);
@@ -1911,6 +1942,70 @@ void MyMesh::enterCLIRescue() {
   Serial.println("========= CLI Rescue =========");
 }
 
+bool MyMesh::handleWifiGetConfig(const char* config) {
+#ifdef WIFI_SSID
+  if (memcmp(config, "wifi.ssid", 9) == 0) {
+    Serial.printf("  > %s\n", _prefs.wifi_ssid);
+    return true;
+  } else if (memcmp(config, "wifi.pwd", 8) == 0) {
+    Serial.printf("  > %s\n", _prefs.wifi_pwd);
+    return true;
+  }
+#else
+  (void)config;
+#endif
+  return false;
+}
+
+bool MyMesh::handleWifiSetConfig(const char* config) {
+#ifdef WIFI_SSID
+  if (memcmp(config, "wifi.ssid ", 10) == 0) {
+    StrHelper::strncpy(_prefs.wifi_ssid, &config[10], sizeof(_prefs.wifi_ssid));
+    savePrefs();
+    restartWifiClient(_prefs);
+    Serial.println("  OK");
+    return true;
+  } else if (memcmp(config, "wifi.pwd ", 9) == 0) {
+    StrHelper::strncpy(_prefs.wifi_pwd, &config[9], sizeof(_prefs.wifi_pwd));
+    savePrefs();
+    restartWifiClient(_prefs);
+    Serial.println("  OK");
+    return true;
+  }
+#else
+  (void)config;
+#endif
+  return false;
+}
+
+void MyMesh::checkWifiConfigSerial() {
+#ifdef WIFI_SSID
+  int len = strlen(cli_command);
+  while (Serial.available() && len < sizeof(cli_command)-1) {
+    char c = Serial.read();
+    if (c != '\n') {
+      cli_command[len++] = c;
+      cli_command[len] = 0;
+    }
+    Serial.print(c);
+  }
+  if (len == sizeof(cli_command)-1) {
+    cli_command[sizeof(cli_command)-1] = '\r';
+  }
+  if (len > 0 && cli_command[len - 1] == '\r') {
+    cli_command[len - 1] = 0;
+    if (memcmp(cli_command, "get ", 4) == 0) {
+      const char* config = &cli_command[4];
+      handleWifiGetConfig(config);
+    } else if (memcmp(cli_command, "set ", 4) == 0) {
+      const char* config = &cli_command[4];
+      handleWifiSetConfig(config);
+    }
+    cli_command[0] = 0;
+  }
+#endif
+}
+
 void MyMesh::checkCLIRescueCmd() {
   int len = strlen(cli_command);
   while (Serial.available() && len < sizeof(cli_command)-1) {
@@ -2115,6 +2210,10 @@ void MyMesh::loop() {
 
   if (_cli_rescue) {
     checkCLIRescueCmd();
+#ifdef WIFI_SSID
+  } else if (Serial.available()) {
+    checkWifiConfigSerial();
+#endif
   } else {
     checkSerialInterface();
   }

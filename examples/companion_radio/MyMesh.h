@@ -191,6 +191,9 @@ private:
     return _store->putBlobByKey(key, key_len, src_buf, len);
   }
 
+  bool handleWifiGetConfig(const char* config);
+  bool handleWifiSetConfig(const char* config);
+  void checkWifiConfigSerial();
   void checkCLIRescueCmd();
   void checkSerialInterface();
   bool isValidClientRepeatFreq(uint32_t f) const;
