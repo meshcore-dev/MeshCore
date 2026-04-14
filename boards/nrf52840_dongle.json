@@ -1,0 +1,38 @@
+{
+  "build": {
+    "arduino": {
+      "ldscript": "nrf52840_dongle.ld"
+    },
+    "core": "nRF5",
+    "cpu": "cortex-m4",
+    "extra_flags": "-DARDUINO_NRF52840_PCA10059 -DNRF52840_XXAA",
+    "f_cpu": "64000000L",
+    "mcu": "nrf52840",
+    "variant": "pca10059",
+    "bsp": {
+      "name": "adafruit"
+    },
+    "softdevice": {
+      "sd_flags": "-DS140",
+      "sd_name": "s140",
+      "sd_version": "7.3.0",
+      "sd_fwid": "0x123"
+    }
+  },
+  "connectivity": [
+    "bluetooth"
+  ],
+  "frameworks": [
+    "arduino"
+  ],
+  "name": "NRF52840 Dongle",
+  "upload": {
+    "maximum_ram_size": 248832,
+    "maximum_size": 815104,
+    "require_upload_port": true,
+    "speed": 115200,
+    "protocol": "jlink"
+  },
+  "url": "https://os.mbed.com/platforms/Nordic-nRF52840-DK/",
+  "vendor": "Nordic"
+}
