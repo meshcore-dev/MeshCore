@@ -8,6 +8,11 @@
 #define BRIDGE_MAX_BAUD 115200
 #endif
 
+extern "C" bool __attribute__((weak))
+meshcore_custom_cli(uint32_t sender_ts, const char* cmd, char* reply, size_t reply_size) {
+  return false;
+}
+
 // Believe it or not, this std C function is busted on some platforms!
 static uint32_t _atoi(const char* sp) {
   uint32_t n = 0;
@@ -208,6 +213,7 @@ uint8_t CommonCLI::buildAdvertData(uint8_t node_type, uint8_t* app_data) {
 }
 
 void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, char* reply) {
+    if (meshcore_custom_cli(sender_timestamp, command, reply, 160)) return;
     if (memcmp(command, "poweroff", 8) == 0 || memcmp(command, "shutdown", 8) == 0) {
       _board->powerOff();  // doesn't return
     } else if (memcmp(command, "reboot", 6) == 0) {
