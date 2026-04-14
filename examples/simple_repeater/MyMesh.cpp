@@ -856,9 +856,9 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   // defaults
   memset(&_prefs, 0, sizeof(_prefs));
   _prefs.airtime_factor = 1.0;
-  _prefs.rx_delay_base = 0.0f;   // turn off by default, was 10.0;
-  _prefs.tx_delay_factor = 0.5f; // was 0.25f
-  _prefs.direct_tx_delay_factor = 0.3f; // was 0.2
+  _prefs.rx_delay_base = 3.0f;   // off by default, was 10.0, was 0.0
+  _prefs.tx_delay_factor = 1.6f; // was 0.25f, was 0.5f
+  _prefs.direct_tx_delay_factor = 1.0f; // was zero, was 0.3
   StrHelper::strncpy(_prefs.node_name, ADVERT_NAME, sizeof(_prefs.node_name));
   _prefs.node_lat = ADVERT_LAT;
   _prefs.node_lon = ADVERT_LON;
