@@ -125,6 +125,7 @@ public:
     esp_restart();
   }
 
+  bool supportsOTAUpdate() const override { return true; }
   bool startOTAUpdate(const char* id, char reply[]) override;
 
   void setInhibitSleep(bool inhibit) {

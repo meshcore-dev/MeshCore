@@ -3,6 +3,12 @@
 #include <Arduino.h> // needed for PlatformIO
 #include <Mesh.h>
 
+#ifdef COMPANION_DFU_DEBUG
+  #define DFU_DEBUG_PRINTLN(...) MESH_DEBUG_PRINTLN(__VA_ARGS__)
+#else
+  #define DFU_DEBUG_PRINTLN(...)
+#endif
+
 #define CMD_APP_START                 1
 #define CMD_SEND_TXT_MSG              2
 #define CMD_SEND_CHANNEL_TXT_MSG      3
@@ -50,6 +56,7 @@
 #define CMD_SEND_BINARY_REQ           50
 #define CMD_FACTORY_RESET             51
 #define CMD_SEND_PATH_DISCOVERY_REQ   52
+#define CMD_UNASSIGNED_53             53   // unassigned
 #define CMD_SET_FLOOD_SCOPE           54   // v8+
 #define CMD_SEND_CONTROL_DATA         55   // v8+
 #define CMD_GET_STATS                 56   // v8+, second byte is stats type
@@ -59,6 +66,7 @@
 #define CMD_GET_ALLOWED_REPEAT_FREQ   60
 #define CMD_SET_PATH_HASH_MODE        61
 #define CMD_SEND_CHANNEL_DATA         62
+#define CMD_START_DFU                 63
 
 // Stats sub-types for CMD_GET_STATS
 #define STATS_TYPE_CORE               0
@@ -840,6 +848,8 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
       _serial(NULL), telemetry(MAX_PACKET_PAYLOAD - 4), _store(&store), _ui(ui) {
   _iter_started = false;
   _cli_rescue = false;
+  pending_dfu_start = false;
+  pending_dfu_after = 0;
   offline_queue_len = 0;
   app_target_ver = 0;
   clearPendingReqs();
@@ -1420,6 +1430,16 @@ void MyMesh::handleCmdFrame(size_t len) {
       saveContacts();
     }
     board.reboot();
+  } else if (cmd_frame[0] == CMD_START_DFU && len >= 4 && memcmp(&cmd_frame[1], "dfu", 3) == 0) {
+    if (!board.supportsOTAUpdate()) {
+      DFU_DEBUG_PRINTLN("CMD_START_DFU: OTA unsupported on this board");
+      writeErrFrame(ERR_CODE_UNSUPPORTED_CMD);
+    } else {
+      DFU_DEBUG_PRINTLN("CMD_START_DFU: accepted, scheduling deferred OTA start");
+      pending_dfu_start = true;
+      pending_dfu_after = millis() + 250;
+      writeOKFrame();
+    }
   } else if (cmd_frame[0] == CMD_GET_BATT_AND_STORAGE) {
     uint8_t reply[11];
     int i = 0;
@@ -2117,6 +2137,38 @@ void MyMesh::loop() {
     checkCLIRescueCmd();
   } else {
     checkSerialInterface();
+  }
+
+  if (pending_dfu_start && millisHasNowPassed(pending_dfu_after) && !_serial->isWriteBusy()) {
+    DFU_DEBUG_PRINTLN("CMD_START_DFU: beginning deferred OTA handoff");
+    if (dirty_contacts_expiry) {
+      DFU_DEBUG_PRINTLN("CMD_START_DFU: flushing pending contacts before OTA");
+      saveContacts();
+      dirty_contacts_expiry = 0;
+    }
+    pending_dfu_start = false;
+    pending_dfu_after = 0;
+#if defined(NRF52_PLATFORM)
+    DFU_DEBUG_PRINTLN("CMD_START_DFU: entering nRF52 OTA bootloader via reset");
+    enterOTADfu();
+#elif defined(ESP32_PLATFORM)
+    DFU_DEBUG_PRINTLN("CMD_START_DFU: disabling active serial interface");
+    _serial->disable();
+    bool ota_boot_requested = _store->requestOTABoot();
+    DFU_DEBUG_PRINTLN("CMD_START_DFU: requestOTABoot returned %d", ota_boot_requested);
+    if (ota_boot_requested) {
+      DFU_DEBUG_PRINTLN("CMD_START_DFU: rebooting into ESP32 OTA mode");
+      board.reboot();
+    } else {
+      DFU_DEBUG_PRINTLN("CMD_START_DFU: failed to request ESP32 OTA boot");
+    }
+#else
+    DFU_DEBUG_PRINTLN("CMD_START_DFU: disabling active serial interface");
+    _serial->disable();
+    char reply[48];
+    bool ota_ok = board.startOTAUpdate(_prefs.node_name, reply);
+    DFU_DEBUG_PRINTLN("CMD_START_DFU: startOTAUpdate returned %d, reply='%s'", ota_ok, reply);
+#endif
   }
 
   // is there are pending dirty contacts write needed?

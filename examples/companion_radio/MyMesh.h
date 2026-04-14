@@ -219,6 +219,8 @@ private:
   uint8_t *sign_data;
   uint32_t sign_data_len;
   unsigned long dirty_contacts_expiry;
+  bool pending_dfu_start;
+  unsigned long pending_dfu_after;
 
   TransportKey send_scope;
 

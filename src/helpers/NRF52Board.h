@@ -51,6 +51,7 @@ public:
   virtual float getMCUTemperature() override;
   virtual void reboot() override { NVIC_SystemReset(); }
   virtual bool getBootloaderVersion(char* version, size_t max_len) override;
+  virtual bool supportsOTAUpdate() const override { return true; }
   virtual bool startOTAUpdate(const char *id, char reply[]) override;
   virtual void sleep(uint32_t secs) override;
 

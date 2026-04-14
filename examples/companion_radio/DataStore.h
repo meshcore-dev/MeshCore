@@ -35,6 +35,8 @@ public:
   bool saveMainIdentity(const mesh::LocalIdentity &identity);
   void loadPrefs(NodePrefs& prefs, double& node_lat, double& node_lon);
   void savePrefs(const NodePrefs& prefs, double node_lat, double node_lon);
+  bool requestOTABoot();
+  bool consumeOTABootRequest();
   void loadContacts(DataStoreHost* host);
   void saveContacts(DataStoreHost* host);
   void loadChannels(DataStoreHost* host);
