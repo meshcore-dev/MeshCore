@@ -714,6 +714,8 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 **Note:** The home region is used by the auto-tag feature (see `region.autotag` below) to stamp a transport code onto untagged flood packets this repeater receives, converting them from `ROUTE_TYPE_FLOOD` to `ROUTE_TYPE_TRANSPORT_FLOOD`. When selecting a home region, choose the **most specific region in the local region hierarchy that includes all nodes this repeater can possibly hear** (including via hops you intend to cover — see `region.autotag.max.hops`). Choosing a home region that is too narrow will cause unscoped packets originating from neighbouring regions to be tagged incorrectly; choosing one that is too broad defeats the purpose of scoping.
 
+**When no home region is set:** the repeater has no scope to apply, so auto-tagging is effectively disabled regardless of the `region.autotag` setting — untagged flood packets are forwarded based on the wildcard (`*`) region's flood permission only. To participate in auto-tagging, both a home region must be configured here **and** `region.autotag` must be `on`.
+
 ---
 
 #### View or change whether this repeater auto-tags untagged flood packets
