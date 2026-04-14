@@ -543,9 +543,10 @@ bool MyMesh::filterRecvFloodPacket(mesh::Packet* pkt) {
       recv_pkt_region = region_map.findMatch(pkt, REGION_DENY_FLOOD);
     }
   } else if (pkt->getRouteType() == ROUTE_TYPE_FLOOD) {
-    // untagged packet: tag with home region if one is configured
+    // untagged packet: tag with home region if auto-tagging is enabled and a home region is configured
     RegionEntry* home = region_map.getHomeRegion();
-    if (home && home->id != 0) {
+    if (_prefs.region_autotag && home && home->id != 0
+        && pkt->getPathHashCount() <= _prefs.region_autotag_max_hops) {
       // calculate transport code for home region and stamp onto packet
       TransportKey key;
       if (home->name[0] == '$') {
@@ -901,6 +902,8 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.advert_interval = 1;        // default to 2 minutes for NEW installs
   _prefs.flood_advert_interval = 12; // 12 hours
   _prefs.flood_max = 64;
+  _prefs.region_autotag = 0;           // opt-in, default off
+  _prefs.region_autotag_max_hops = 1;  // only tag zero-hop / 1-hop packets by default
   _prefs.interference_threshold = 0; // disabled
 
   // bridge defaults

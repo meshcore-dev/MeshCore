@@ -87,7 +87,9 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     file.read((uint8_t *)&_prefs->discovery_mod_timestamp, sizeof(_prefs->discovery_mod_timestamp)); // 162
     file.read((uint8_t *)&_prefs->adc_multiplier, sizeof(_prefs->adc_multiplier));                 // 166
     file.read((uint8_t *)_prefs->owner_info, sizeof(_prefs->owner_info));                          // 170
-    // next: 290
+    file.read((uint8_t *)&_prefs->region_autotag, sizeof(_prefs->region_autotag));                 // 290
+    file.read((uint8_t *)&_prefs->region_autotag_max_hops, sizeof(_prefs->region_autotag_max_hops)); // 291
+    // next: 292
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -117,6 +119,8 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
 
     // sanitise settings
     _prefs->rx_boosted_gain = constrain(_prefs->rx_boosted_gain, 0, 1); // boolean
+    _prefs->region_autotag = constrain(_prefs->region_autotag, 0, 1);   // boolean
+    _prefs->region_autotag_max_hops = constrain(_prefs->region_autotag_max_hops, 0, 8);
 
     file.close();
   }
@@ -177,7 +181,9 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->discovery_mod_timestamp, sizeof(_prefs->discovery_mod_timestamp)); // 162
     file.write((uint8_t *)&_prefs->adc_multiplier, sizeof(_prefs->adc_multiplier));                 // 166
     file.write((uint8_t *)_prefs->owner_info, sizeof(_prefs->owner_info));                          // 170
-    // next: 290
+    file.write((uint8_t *)&_prefs->region_autotag, sizeof(_prefs->region_autotag));                 // 290
+    file.write((uint8_t *)&_prefs->region_autotag_max_hops, sizeof(_prefs->region_autotag_max_hops)); // 291
+    // next: 292
 
     file.close();
   }
@@ -349,6 +355,10 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
         *reply = 0;  // set null terminator
       } else if (memcmp(config, "path.hash.mode", 14) == 0) {
         sprintf(reply, "> %d", (uint32_t)_prefs->path_hash_mode);
+      } else if (memcmp(config, "region.autotag.max.hops", 23) == 0) {
+        sprintf(reply, "> %d", (uint32_t)_prefs->region_autotag_max_hops);
+      } else if (memcmp(config, "region.autotag", 14) == 0) {
+        sprintf(reply, "> %s", _prefs->region_autotag ? "on" : "off");
       } else if (memcmp(config, "loop.detect", 11) == 0) {
         if (_prefs->loop_detect == LOOP_DETECT_OFF) {
           strcpy(reply, "> off");
@@ -595,6 +605,19 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, const char* command, ch
           config++;
         }
         *dp = 0;
+        savePrefs();
+        strcpy(reply, "OK");
+      } else if (memcmp(config, "region.autotag.max.hops ", 24) == 0) {
+        int h = atoi(&config[24]);
+        if (h >= 0 && h <= 8) {
+          _prefs->region_autotag_max_hops = (uint8_t)h;
+          savePrefs();
+          strcpy(reply, "OK");
+        } else {
+          strcpy(reply, "Error, range is 0-8");
+        }
+      } else if (memcmp(config, "region.autotag ", 15) == 0) {
+        _prefs->region_autotag = memcmp(&config[15], "on", 2) == 0;
         savePrefs();
         strcpy(reply, "OK");
       } else if (memcmp(config, "path.hash.mode ", 15) == 0) {
