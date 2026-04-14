@@ -726,7 +726,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 **Default:** `off`
 
-**Note:** When enabled, the repeater stamps its home region's transport code onto untagged flood packets (`ROUTE_TYPE_FLOOD`) it receives, converting them to `ROUTE_TYPE_TRANSPORT_FLOOD` before re-broadcast. This provides VLAN-style scoping of legacy / un-scoped traffic, but requires a home region to be configured (see `region home`). Because mis-tagging is possible when the repeater can hear traffic originating outside its home region, this feature is opt-in. See also `region.autotag.max.hops` to limit how far a packet may have travelled before becoming eligible for auto-tagging. The reserved transport code `0xFFFF` (TRANSPORT_CODE_ALL) is always forwarded regardless of local region configuration, allowing explicit mesh-wide flooding when a sender requests it.
+**Note:** When enabled, the repeater stamps its home region's transport code onto untagged flood packets (`ROUTE_TYPE_FLOOD`) it receives, converting them to `ROUTE_TYPE_TRANSPORT_FLOOD` before re-broadcast. This scopes legacy / un-scoped traffic into the configured home region, but requires a home region to be configured (see `region home`). Because mis-tagging is possible when the repeater can hear traffic originating outside its home region, this feature is opt-in. See also `region.autotag.max.hops` to limit how far a packet may have travelled before becoming eligible for auto-tagging. The reserved transport code `0xFFFF` (TRANSPORT_CODE_ALL) is always forwarded regardless of local region configuration, allowing explicit mesh-wide flooding when a sender requests it.
 
 ---
 
@@ -736,7 +736,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 - `set region.autotag.max.hops <value>`
 
 **Parameters:**
-- `value`: Maximum path hash count (0-8). `0` means only auto-tag packets received directly (zero-hop); higher values also auto-tag packets that already traversed that many repeaters.
+- `value`: Maximum path hash count (0-8). `0` means only auto-tag packets without scope received directly (zero-hop); higher values also auto-tag packets without scope that already traversed that many repeaters.
 
 **Default:** `1`
 
