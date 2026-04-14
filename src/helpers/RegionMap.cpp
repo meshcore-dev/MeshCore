@@ -46,6 +46,10 @@ RegionMap::RegionMap(TransportKeyStore& store) : _store(&store) {
   wildcard.id = wildcard.parent = 0;
   wildcard.flags = 0;  // default behaviour, allow flood and direct
   strcpy(wildcard.name, "*");
+  any.id = ANY_REGION_ID;
+  any.parent = 0;
+  any.flags = 0;
+  strcpy(any.name, DEFAULT_REGION_NAME);
 }
 
 bool RegionMap::is_name_char(uint8_t c) {
@@ -81,7 +85,8 @@ bool RegionMap::load(FILESYSTEM* _fs, const char* path) {
 
       num_regions = 0; next_id = 1; home_id = 0;
 
-      bool success = file.read(pad, 5) == 5;  // reserved header
+      bool success = file.read(pad, 4) == 4;  // reserved header
+      success = success && file.read((uint8_t *) &any.flags, sizeof(any.flags)) == sizeof(any.flags);
       success = success && file.read((uint8_t *) &home_id, sizeof(home_id)) == sizeof(home_id);
       success = success && file.read((uint8_t *) &wildcard.flags, sizeof(wildcard.flags)) == sizeof(wildcard.flags);
       success = success && file.read((uint8_t *) &next_id, sizeof(next_id)) == sizeof(next_id);
@@ -117,7 +122,8 @@ bool RegionMap::save(FILESYSTEM* _fs, const char* path) {
     uint8_t pad[128];
     memset(pad, 0, sizeof(pad));
 
-    bool success = file.write(pad, 5) == 5;  // reserved header
+    bool success = file.write(pad, 4) == 4;  // reserved header
+    success = success && file.write((uint8_t *) &any.flags, sizeof(any.flags)) == sizeof(any.flags);
     success = success && file.write((uint8_t *) &home_id, sizeof(home_id)) == sizeof(home_id);
     success = success && file.write((uint8_t *) &wildcard.flags, sizeof(wildcard.flags)) == sizeof(wildcard.flags);
     success = success && file.write((uint8_t *) &next_id, sizeof(next_id)) == sizeof(next_id);
@@ -145,6 +151,10 @@ RegionEntry* RegionMap::putRegion(const char* name, uint16_t parent_id, uint16_t
   while (*sp) {
     if (!is_name_char(*sp)) return NULL;   // error
     sp++;
+  }
+
+  if ((strcmp(name, any.name) == 0) || (strcmp(skip_hash(name), any.name) == 0)) { // protected default region
+    return NULL;
   }
 
   auto region = findByName(name);
@@ -190,11 +200,15 @@ RegionEntry* RegionMap::findMatch(mesh::Packet* packet, uint8_t mask) {
       }
     }
   }
+  if (any.flags == 0) {
+    return &any;
+  }
   return NULL;  // no matches
 }
 
 RegionEntry* RegionMap::findByName(const char* name) {
   if (strcmp(name, "*") == 0) return &wildcard;
+  if ((strcmp(name, any.name) == 0) || (strcmp(skip_hash(name), any.name) == 0)) return &any; // default region scope
 
   if (*name == '#') { name++; }  // ignore the '#' when matching by name
   for (int i = 0; i < num_regions; i++) {
@@ -206,6 +220,9 @@ RegionEntry* RegionMap::findByName(const char* name) {
 
 RegionEntry* RegionMap::findByNamePrefix(const char* prefix) {
   if (strcmp(prefix, "*") == 0) return &wildcard;
+  if (((strcmp(prefix, any.name) == 0) && (sizeof(prefix) == strlen(any.name))) || ((strcmp(prefix, skip_hash(any.name)) == 0) && (sizeof(prefix) == (strlen(any.name) + 1))) )  {
+    return &any; // exact match default region scope
+  }
 
   if (*prefix == '#') { prefix++; }  // ignore the '#' when matching by name
   RegionEntry* partial = NULL;
@@ -220,7 +237,8 @@ RegionEntry* RegionMap::findByNamePrefix(const char* prefix) {
 }
 
 RegionEntry* RegionMap::findById(uint16_t id) {
-  if (id == 0) return &wildcard;   // special root Region
+  if (id == 0) return &wildcard;   // special null Region
+  if (id == ANY_REGION_ID) return &any; //special default region
 
   for (int i = 0; i < num_regions; i++) {
     auto region = &regions[i];
@@ -238,7 +256,8 @@ void RegionMap::setHomeRegion(const RegionEntry* home) {
 }
 
 bool RegionMap::removeRegion(const RegionEntry& region) {
-  if (region.id == 0) return false;  // failed (cannot remove the wildcard Region)
+  if (region.id == 0) return false;  // failed (cannot remove the null Region)
+  if (region.id == ANY_REGION_ID) return false; // failed (cannot remove the default region)
 
   int i;     // first check region has no child regions
   for (i = 0; i < num_regions; i++) {
@@ -286,6 +305,13 @@ void RegionMap::printChildRegions(int indent, const RegionEntry* parent, Stream&
 
 void RegionMap::exportTo(Stream& out) const {
   printChildRegions(0, &wildcard, out);   // recursive
+
+  // Append default (any) region
+  if (any.flags & REGION_DENY_FLOOD) {
+    out.printf("any%s\n", any.id == home_id ? "^" : "");
+  } else {
+    out.printf("any%s F\n", any.id == home_id ? "^" : "");
+  }
 }
 
 size_t RegionMap::exportTo(char *dest, size_t max_len) const {
@@ -306,7 +332,7 @@ int RegionMap::exportNamesTo(char *dest, int max_len, uint8_t mask, bool invert)
     *dp++ = ',';
   }
 
-    for (int i = 0; i < num_regions; i++) {
+  for (int i = 0; i < num_regions; i++) {
     auto region = &regions[i];
     
     // Check if region matches the filter criteria
@@ -320,6 +346,17 @@ int RegionMap::exportNamesTo(char *dest, int max_len, uint8_t mask, bool invert)
         *dp++ = ',';
       }
     }
+  }
+
+  // Check default (any) region - do this after defined regions to emphasise it is "everything else"
+  bool any_matches = invert ? (any.flags & mask) : !(any.flags & mask);
+  if (any_matches) {
+    int len = strlen(any.name);
+    if ((dp - dest) + len + 1 < max_len) {   // only append if it will fit
+        memcpy(dp, any.name, len);
+        dp += len;
+        dp++;
+      }
   }
 
   if (dp > dest) { dp--; }   // don't include trailing comma
