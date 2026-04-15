@@ -15,13 +15,18 @@ static volatile uint8_t state = STATE_IDLE;
 
 // this function is called when a complete packet
 // is transmitted by the module
-static 
+static
 #if defined(ESP8266) || defined(ESP32)
   ICACHE_RAM_ATTR
 #endif
 void setFlag(void) {
   // we sent a packet, set the flag
   state |= STATE_INT_READY;
+}
+
+// Returns true if there is a completed interrupt event pending (TX done or RX done).
+static inline bool hasPendingRadioEvent() {
+  return (state & STATE_INT_READY) != 0;
 }
 
 void RadioLibWrapper::begin() {
@@ -59,7 +64,7 @@ void RadioLibWrapper::doResetAGC() {
 
 void RadioLibWrapper::resetAGC() {
   // make sure we're not mid-receive of packet!
-  if ((state & STATE_INT_READY) != 0 || isReceivingPacket()) return;
+  if (hasPendingRadioEvent() || isReceivingPacket()) return;
 
   doResetAGC();
   state = STATE_IDLE;   // trigger a startReceive()
@@ -68,6 +73,33 @@ void RadioLibWrapper::resetAGC() {
   // Without this, a stuck _noise_floor of -120 makes the sampling threshold
   // too low (-106) to accept normal samples (~-105), self-reinforcing the
   // stuck value even after the receiver has recovered.
+  _noise_floor = 0;
+  _num_floor_samples = 0;
+  _floor_sample_sum = 0;
+}
+
+// Force reset, bypassing isReceivingPacket().
+//
+// On SX126x/LR11x0, isReceiving() reads live hardware IRQ flags (PREAMBLE_DETECTED,
+// HEADER_VALID/SYNC_WORD_HEADER_VALID). These flags are non-destructive reads and
+// can get persistently stuck when strong interference triggers preamble detection
+// without a completing packet. normal resetAGC() returns early in that case,
+// permanently blocking recovery.
+//
+// On SX1276, getModemStatus() bits (SIGNAL_DETECTED, SIGNAL_SYNCHRONIZED) can
+// similarly get stuck via false preamble detection on noise.
+//
+// For all radio types, doResetAGC() already handles the chip-specific reset
+// sequence (SX126x: sleep+standby+Calibrate(0x7F)+image recal; LR11x0: same via
+// lr11x0ResetAGC; SX1276: warm sleep). The sleep/standby/calibrate sequence on
+// SX126x/LR11x0 clears the stuck IRQ bits as a side effect.
+//
+// A pending completed interrupt (STATE_INT_READY) is still respected to avoid
+// discarding a packet that has already been received into the FIFO.
+void RadioLibWrapper::forceResetAGC() {
+  if (hasPendingRadioEvent()) return;
+  doResetAGC();
+  state = STATE_IDLE;
   _noise_floor = 0;
   _num_floor_samples = 0;
   _floor_sample_sum = 0;

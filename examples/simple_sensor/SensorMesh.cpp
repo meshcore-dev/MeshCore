@@ -326,6 +326,15 @@ int SensorMesh::getInterferenceThreshold() const {
 int SensorMesh::getAGCResetInterval() const {
   return ((int)_prefs.agc_reset_interval) * 4000;   // milliseconds
 }
+uint8_t SensorMesh::getTxFailResetThreshold() const {
+  return _prefs.tx_fail_reset_threshold;
+}
+uint8_t SensorMesh::getRxFailRebootThreshold() const {
+  return _prefs.rx_fail_reboot_threshold;
+}
+void SensorMesh::onRxUnrecoverable() {
+  board.reboot();
+}
 
 uint8_t SensorMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* secret, uint32_t sender_timestamp, const uint8_t* data, bool is_flood) {
   ClientInfo* client;

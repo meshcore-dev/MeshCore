@@ -257,6 +257,15 @@ float MyMesh::getAirtimeBudgetFactor() const {
 int MyMesh::getInterferenceThreshold() const {
   return 0; // disabled for now, until currentRSSI() problem is resolved
 }
+uint8_t MyMesh::getTxFailResetThreshold() const {
+  return _prefs.tx_fail_reset_threshold;
+}
+uint8_t MyMesh::getRxFailRebootThreshold() const {
+  return _prefs.rx_fail_reboot_threshold;
+}
+void MyMesh::onRxUnrecoverable() {
+  board.reboot();
+}
 
 int MyMesh::calcRxDelay(float score, uint32_t air_time) const {
   if (_prefs.rx_delay_base <= 0.0f) return 0;

@@ -66,6 +66,7 @@ public:
   virtual void triggerNoiseFloorCalibrate(int threshold) { }
 
   virtual void resetAGC() { }
+  virtual void forceResetAGC() { resetAGC(); }  // bypasses mid-receive guard; see RadioLibWrapper override
 
   virtual bool isInRecvMode() const = 0;
 
@@ -108,6 +109,13 @@ typedef uint32_t  DispatcherAction;
 #define ERR_EVENT_FULL              (1 << 0)
 #define ERR_EVENT_CAD_TIMEOUT       (1 << 1)
 #define ERR_EVENT_STARTRX_TIMEOUT   (1 << 2)
+// Set when reboot has been attempted but radio remains stuck (clears on recovery).
+// Indicates a zombie radio state that is actively being worked on.
+#define ERR_EVENT_RADIO_ZOMBIE      (1 << 3)
+// Set when getRxMaxRebootAttempts() is exhausted and radio cannot self-recover.
+// Requires a physical power cycle. Clears on recovery if it somehow succeeds.
+// Automatically cleared on MCU reboot (RAM-based).
+#define ERR_EVENT_RADIO_DEAD        (1 << 4)
 
 /**
  * \brief  The low-level task that manages detecting incoming Packets, and the queueing
@@ -126,6 +134,9 @@ class Dispatcher {
   unsigned long tx_budget_ms;
   unsigned long last_budget_update;
   unsigned long duty_cycle_window_ms;
+  uint8_t tx_fail_count;
+  uint8_t rx_stuck_count;
+  uint8_t rx_reboot_count;  // number of times onRxUnrecoverable() has been called without recovery
 
   void processRecvPacket(Packet* pkt);
   void updateTxBudget();
@@ -150,6 +161,9 @@ protected:
     tx_budget_ms = 0;
     last_budget_update = 0;
     duty_cycle_window_ms = 3600000;
+    tx_fail_count = 0;
+    rx_stuck_count = 0;
+    rx_reboot_count = 0;
   }
 
   virtual DispatcherAction onRecvPacket(Packet* pkt) = 0;
@@ -167,6 +181,12 @@ protected:
   virtual uint32_t getCADFailMaxDuration() const;
   virtual int getInterferenceThreshold() const { return 0; }    // disabled by default
   virtual int getAGCResetInterval() const { return 0; }    // disabled by default
+  virtual uint8_t getTxFailResetThreshold() const { return 3; }  // reset radio after N consecutive TX failures; 0=disabled
+  virtual void onTxStuck() { _radio->resetAGC(); }               // override to use doFullRadioReset() when available
+  virtual uint8_t getRxFailRebootThreshold() const { return 3; }  // reboot after N failed RX recovery attempts; 0=disabled
+  virtual uint8_t getRxMaxRebootAttempts() const { return 0; }    // max times to call onRxUnrecoverable() before giving up; 0=unlimited
+  virtual void onRxStuck() { _radio->forceResetAGC(); }           // called each time RX stuck for 8s; uses forceResetAGC to bypass stuck IRQ guard
+  virtual void onRxUnrecoverable() { }                            // called when reboot threshold exceeded; override to call _board->reboot()
   virtual unsigned long getDutyCycleWindowMs() const { return 3600000; }
 
 public:
@@ -184,6 +204,9 @@ public:
   uint32_t getNumSentDirect() const { return n_sent_direct; }
   uint32_t getNumRecvFlood() const { return n_recv_flood; }
   uint32_t getNumRecvDirect() const { return n_recv_direct; }
+  uint16_t getErrFlags() const { return _err_flags; }
+  bool isRadioZombie() const { return (_err_flags & ERR_EVENT_RADIO_ZOMBIE) != 0; }
+  bool isRadioDead() const   { return (_err_flags & ERR_EVENT_RADIO_DEAD)   != 0; }
   void resetStats() {
     n_sent_flood = n_sent_direct = n_recv_flood = n_recv_direct = 0;
     _err_flags = 0;
