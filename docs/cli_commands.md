@@ -102,7 +102,9 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 - `neighbor.remove <pubkey_prefix>`
 
 **Parameters:** 
-- `pubkey_prefix`: The public key of the node to remove from the neighbors list
+- `pubkey_prefix`: The public key of the node to remove from the neighbors list. This can be a short prefix or the full key. All neighbors matching the provided prefix will be removed.
+
+**Note:** You can remove all neighbors by sending a space character as the prefix. The space indicates an empty prefix, which matches all existing neighbors.
 
 ---
 
