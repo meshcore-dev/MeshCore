@@ -29,8 +29,10 @@ void SerialBLEInterface::begin(const char* prefix, char* name, uint32_t pin_code
   BLEDevice::setMTU(MAX_FRAME_SIZE);
 
   BLESecurity  sec;
-  #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
   sec.setPassKey(true, pin_code);
+  sec.setCapability(ESP_IO_CAP_OUT);
+  sec.setInitEncryptionKey(ESP_BLE_ENC_KEY_MASK | ESP_BLE_ID_KEY_MASK);
 #else
   sec.setStaticPIN(pin_code);
 #endif
