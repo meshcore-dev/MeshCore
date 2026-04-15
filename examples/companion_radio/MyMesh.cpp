@@ -482,23 +482,23 @@ bool MyMesh::allowPacketForward(const mesh::Packet* packet) {
 void MyMesh::sendFloodScoped(const ContactInfo& recipient, mesh::Packet* pkt, uint32_t delay_millis) {
   // TODO: dynamic send_scope, depending on recipient and current 'home' Region
   if (send_scope.isNull()) {
-    sendFlood(pkt, delay_millis, _prefs.path_hash_mode + 1);
+    sendFlood(pkt, delay_millis, getPathHashSize());
   } else {
     uint16_t codes[2];
     codes[0] = send_scope.calcTransportCode(pkt);
     codes[1] = 0;  // REVISIT: set to 'home' Region, for sender/return region?
-    sendFlood(pkt, codes, delay_millis, _prefs.path_hash_mode + 1);
+    sendFlood(pkt, codes, delay_millis, getPathHashSize());
   }
 }
 void MyMesh::sendFloodScoped(const mesh::GroupChannel& channel, mesh::Packet* pkt, uint32_t delay_millis) {
   // TODO: have per-channel send_scope
   if (send_scope.isNull()) {
-    sendFlood(pkt, delay_millis, _prefs.path_hash_mode + 1);
+    sendFlood(pkt, delay_millis, getPathHashSize());
   } else {
     uint16_t codes[2];
     codes[0] = send_scope.calcTransportCode(pkt);
     codes[1] = 0;  // REVISIT: set to 'home' Region, for sender/return region?
-    sendFlood(pkt, codes, delay_millis, _prefs.path_hash_mode + 1);
+    sendFlood(pkt, codes, delay_millis, getPathHashSize());
   }
 }
 
@@ -1210,7 +1210,7 @@ void MyMesh::handleCmdFrame(size_t len) {
     if (pkt) {
       if (len >= 2 && cmd_frame[1] == 1) { // optional param (1 = flood, 0 = zero hop)
         unsigned long delay_millis = 0;
-        sendFlood(pkt, delay_millis, _prefs.path_hash_mode + 1);
+        sendFlood(pkt, delay_millis, getPathHashSize());
       } else {
         sendZeroHop(pkt);
       }

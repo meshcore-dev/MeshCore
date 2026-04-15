@@ -117,6 +117,7 @@ protected:
   virtual void onContactResponse(const ContactInfo& contact, const uint8_t* data, uint8_t len) = 0;
   virtual void handleReturnPathRetry(const ContactInfo& contact, const uint8_t* path, uint8_t path_len);
 
+  virtual uint8_t getPathHashSize() const = 0;
   virtual void sendFloodScoped(const ContactInfo& recipient, mesh::Packet* pkt, uint32_t delay_millis=0);
   virtual void sendFloodScoped(const mesh::GroupChannel& channel, mesh::Packet* pkt, uint32_t delay_millis=0);
 

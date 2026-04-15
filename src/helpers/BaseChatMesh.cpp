@@ -10,10 +10,10 @@
 #endif
 
 void BaseChatMesh::sendFloodScoped(const ContactInfo& recipient, mesh::Packet* pkt, uint32_t delay_millis) {
-  sendFlood(pkt, delay_millis);
+  sendFlood(pkt, delay_millis, getPathHashSize());
 }
 void BaseChatMesh::sendFloodScoped(const mesh::GroupChannel& channel, mesh::Packet* pkt, uint32_t delay_millis) {
-  sendFlood(pkt, delay_millis);
+  sendFlood(pkt, delay_millis, getPathHashSize());
 }
 
 mesh::Packet* BaseChatMesh::createSelfAdvert(const char* name) {
