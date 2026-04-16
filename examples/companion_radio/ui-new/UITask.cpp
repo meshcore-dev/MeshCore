@@ -838,7 +838,6 @@ void UITask::loop() {
       }
       ms->clearOutBuf();
     }
-    _next_refresh = 100;  // keep refreshing while on MorseScreen
   }
 #endif
 

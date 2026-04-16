@@ -11,7 +11,7 @@
 // - Longer press -> dash (>=240 ms)
 // - Letter gap (~360 ms silence) commits the staged pattern to the buffer
 // - Word gap (~840 ms silence) inserts a space
-// - `AR` prosign (.-.-.)  -> send to Public (channel 0), clear buffer
+// - `WW` prosign (.--.--)  -> send to Public (channel 0), clear buffer
 // - `HH` prosign (........) -> backspace one character
 // - 5 s continuous hold -> exit back to home screen
 //
@@ -128,13 +128,13 @@ class MorseScreen : public UIScreen {
   // ---------------------------------------------------------------------------
   // Morse decode
   // Returns the ASCII character for a pattern, or:
-  //   '\x01'  = AR prosign  ".-.-."   (send)
+  //   '\x01'  = WW prosign  ".--.--"  (send) — W·W without letter gap
   //   '\x02'  = HH prosign  "........" (backspace)
   //   0       = no match (silently drop)
   // ---------------------------------------------------------------------------
   char decodeStaging() const {
     if (_stagingLen == 0) return 0;
-    if (strcmp(_staging, ".-.-.") == 0)   return '\x01';
+    if (strcmp(_staging, ".--.--") == 0)   return '\x01';
     if (strcmp(_staging, "........") == 0) return '\x02';
     for (const MorseEntry* e = MORSE_TABLE; e->c != 0; e++) {
       if (strcmp(_staging, e->pat) == 0) return e->c;
@@ -146,7 +146,7 @@ class MorseScreen : public UIScreen {
     if (_stagingLen == 0) return;
     char decoded = decodeStaging();
     if (decoded == '\x01') {
-      // AR — request send from UITask
+      // WW — request send from UITask
       if (_outLen > 0) _wantsSend = true;
     } else if (decoded == '\x02') {
       // HH — backspace one character (skip trailing space if present)
@@ -235,7 +235,7 @@ public:
   // UITask bridges — polled each loop iteration
   // ---------------------------------------------------------------------------
 
-  // Returns the outgoing buffer pointer if a send was requested (AR prosign).
+  // Returns the outgoing buffer pointer if a send was requested (WW prosign).
   // Caller clears the buffer via clearOutBuf() after a successful send.
   bool consumeSendRequest(const char** textOut) {
     if (!_wantsSend) return false;
@@ -383,16 +383,19 @@ public:
              (unsigned)(MORSE_OUT_BUF_LEN - 1));
     display.drawTextRightAlign(W - 1, 68, ccBuf);
 
-    // AR/HH hint at bottom
+    // WW/HH hint at bottom
     display.setColor(DisplayDriver::LIGHT);
     display.setCursor(0, 80);
-    display.print("AR=send  HH=bksp");
+    display.print("WW=send  HH=bksp");
 
     _dirty = false;
     _nextRender = millis();
 
-    bool active = (_stagingLen > 0) || _btnPrevPressed || _exitArmed;
-    return active ? 200 : 800;
+    // E-ink refresh blocks the CPU for ~644ms. A short render interval
+    // means the display re-renders almost continuously, starving poll()
+    // and causing rapid button presses to be missed. 2s gives plenty of
+    // time for the user to key a full letter between screen updates.
+    return 2000;
   }
 };
 

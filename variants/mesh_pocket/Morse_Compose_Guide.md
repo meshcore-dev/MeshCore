@@ -41,7 +41,7 @@ So the flow is: press dot/dash patterns → pause briefly → letter appears →
 7. Press: · — · → pause → **R** appears
 8. Press: · → pause → **E** appears
 9. Buffer now shows "HI THERE"
-10. Press: · — · — · (AR prosign) → message sent!
+10. Press: · — — · — — (WW prosign) → message sent!
 
 ## Sending and Correcting
 
@@ -49,10 +49,10 @@ Two special Morse patterns (called prosigns) control the message:
 
 | Prosign | Pattern | What it does |
 |---|---|---|
-| **AR** | · — · — · | **Sends** the message on the Public channel and clears the buffer |
+| **WW** | · — — · — — | **Sends** the message on the Public channel and clears the buffer |
 | **HH** | · · · · · · · · | **Backspace** — deletes the last character |
 
-AR is 5 elements (dot dash dot dash dot). HH is 8 dots in a row.
+WW is 6 elements (dot dash dash dot dash dash — W twice without pausing). This pattern was chosen over the traditional AR prosign because "AR" appears frequently in English words, making accidental sends too easy.
 
 ## Morse Code Reference
 
@@ -109,5 +109,5 @@ The Morse screen shows four sections:
 - The maximum message length is 133 characters
 - If you make a mistake mid-letter (wrong dot/dash pattern), it won't match anything and will be silently dropped — just start the letter again after the gap
 - Practice the rhythm: a dash should feel about 3× longer than a dot
-- The AR prosign (send) is the same pattern as the letter R with an extra dot-dash at the end: · — · — ·
+- The WW prosign (send) is just W (· — —) typed twice without pausing: · — — · — —
 - HH (backspace) is just 8 rapid dots — hard to confuse with anything else
