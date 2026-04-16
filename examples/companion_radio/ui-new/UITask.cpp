@@ -31,6 +31,10 @@
 
 #include "icons.h"
 
+#ifdef MORSE_COMPOSE_ENABLED
+  #include "MorseScreen.h"
+#endif
+
 class SplashScreen : public UIScreen {
   UITask* _task;
   unsigned long dismiss_after;
@@ -560,6 +564,18 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
 
   _node_prefs = node_prefs;
 
+#if ENV_INCLUDE_GPS == 1
+  // Apply GPS preferences from stored prefs
+  if (_sensors != NULL && _node_prefs != NULL) {
+    _sensors->setSettingValue("gps", _node_prefs->gps_enabled ? "1" : "0");
+    if (_node_prefs->gps_interval > 0) {
+      char interval_str[12];  // Max: 24 hours = 86400 seconds (5 digits + null)
+      sprintf(interval_str, "%u", _node_prefs->gps_interval);
+      _sensors->setSettingValue("gps_interval", interval_str);
+    }
+  }
+#endif
+
   if (_display != NULL) {
     _display->turnOn();
   }
@@ -579,6 +595,9 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
   splash = new SplashScreen(this);
   home = new HomeScreen(this, &rtc_clock, sensors, node_prefs);
   msg_preview = new MsgPreviewScreen(this, &rtc_clock);
+#ifdef MORSE_COMPOSE_ENABLED
+  morse_screen = new MorseScreen(&rtc_clock);
+#endif
   setCurrScreen(splash);
 }
 
@@ -628,7 +647,19 @@ void UITask::newMsg(uint8_t path_len, const char* from_name, const char* text, i
   _msgcount = msgcount;
 
   ((MsgPreviewScreen *) msg_preview)->addPreview(path_len, from_name, text);
+#ifdef MORSE_COMPOSE_ENABLED
+  // Don't switch away from MorseScreen — incoming messages are shown in its
+  // inbox instead.  Switching mid-hold would break the exit gesture.
+  if (curr != morse_screen)
+#endif
   setCurrScreen(msg_preview);
+
+#ifdef MORSE_COMPOSE_ENABLED
+  // Feed all incoming messages to MorseScreen inbox for display
+  if (morse_screen) {
+    ((MorseScreen*)morse_screen)->notifyPublicMsg(from_name, text);
+  }
+#endif
 
   if (_display != NULL) {
     if (!_display->isOn() && !hasConnection()) {
@@ -728,6 +759,12 @@ void UITask::loop() {
     c = handleTripleClick(KEY_SELECT);
   }
 #elif defined(PIN_USER_BTN)
+#ifdef MORSE_COMPOSE_ENABLED
+  // MorseScreen handles button timing directly via isPressed() in its poll().
+  // Skip MomentaryButton event processing to avoid dot/dash presses being
+  // misinterpreted as clicks/double-clicks/triple-clicks.
+  if (curr != morse_screen) {
+#endif
   int ev = user_btn.check();
   if (ev == BUTTON_EVENT_CLICK) {
     c = checkDisplayOn(KEY_NEXT);
@@ -738,6 +775,9 @@ void UITask::loop() {
   } else if (ev == BUTTON_EVENT_TRIPLE_CLICK) {
     c = handleTripleClick(KEY_SELECT);
   }
+#ifdef MORSE_COMPOSE_ENABLED
+  }
+#endif
 #endif
 #if defined(PIN_USER_BTN_ANA)
   if (abs(millis() - _analogue_pin_read_millis) > 10) {
@@ -779,6 +819,28 @@ void UITask::loop() {
 #endif
 
   if (curr) curr->poll();
+
+#ifdef MORSE_COMPOSE_ENABLED
+  if (curr == morse_screen) {
+    MorseScreen* ms = (MorseScreen*)morse_screen;
+    if (ms->wantsExit()) {
+      ms->acknowledgeExit();
+      gotoHomeScreen();
+    }
+    const char* sendText = nullptr;
+    if (ms->consumeSendRequest(&sendText) && sendText) {
+      ChannelDetails ch;
+      if (the_mesh.getChannel(0, ch)) {
+        the_mesh.sendGroupMessage(
+          rtc_clock.getCurrentTime(), ch.channel,
+          the_mesh.getNodeName(), sendText, strlen(sendText));
+        showAlert("Sent!", 800);
+      }
+      ms->clearOutBuf();
+    }
+    _next_refresh = 100;  // keep refreshing while on MorseScreen
+  }
+#endif
 
   if (_display != NULL && _display->isOn()) {
     if (millis() >= _next_refresh && curr) {
@@ -865,6 +927,14 @@ char UITask::handleDoubleClick(char c) {
 char UITask::handleTripleClick(char c) {
   MESH_DEBUG_PRINTLN("UITask: triple click triggered");
   checkDisplayOn(c);
+#ifdef MORSE_COMPOSE_ENABLED
+  if (curr == home) {
+    ((MorseScreen*)morse_screen)->activate();
+    setCurrScreen(morse_screen);
+    c = 0;
+    return c;
+  }
+#endif
   toggleBuzzer();
   c = 0;
   return c;

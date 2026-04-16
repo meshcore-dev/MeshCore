@@ -11,14 +11,14 @@
 
 class HeltecMeshPocket : public NRF52BoardDCDC {
 public:
-  HeltecMeshPocket() : NRF52Board("MESH_POCKET_OTA") {}
+  HeltecMeshPocket() : NRF52Board((char*)"MESH_POCKET_OTA") {}
   void begin();
 
   uint16_t getBattMilliVolts() override {
     int adcvalue = 0;
     analogReadResolution(12);
     analogReference(AR_INTERNAL_3_0);
-    pinMode(PIN_BAT_CTL, OUTPUT);          // battery adc can be read only ctrl pin set to high
+    pinMode(PIN_BAT_CTL, OUTPUT);
     pinMode(PIN_VBAT_READ, INPUT);
     digitalWrite(PIN_BAT_CTL, HIGH);
 

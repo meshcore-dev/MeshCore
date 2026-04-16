@@ -51,6 +51,9 @@ class UITask : public AbstractUITask {
   UIScreen* splash;
   UIScreen* home;
   UIScreen* msg_preview;
+#ifdef MORSE_COMPOSE_ENABLED
+  UIScreen* morse_screen;
+#endif
   UIScreen* curr;
 
   void userLedHandler();
