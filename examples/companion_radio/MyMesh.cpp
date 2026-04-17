@@ -2145,6 +2145,14 @@ bool MyMesh::advert() {
   }
 }
 
+// To check if there is pending work (for power saving)
+bool MyMesh::hasPendingWork() const {
+#if defined(WITH_BRIDGE)
+  if (bridge.isRunning()) return true;
+#endif
+  return _mgr->getOutboundTotal() > 0;
+}
+
 #ifdef MORSE_COMPOSE_ENABLED
 void MyMesh::queueSentChannelMessage(uint8_t channel_idx, uint32_t timestamp, const char* text) {
   int i = 0;

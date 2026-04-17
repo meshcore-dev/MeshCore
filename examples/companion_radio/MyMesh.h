@@ -8,7 +8,7 @@
 #define FIRMWARE_VER_CODE 10
 
 #ifndef FIRMWARE_BUILD_DATE
-#define FIRMWARE_BUILD_DATE "20 Mar 2026"
+#define FIRMWARE_BUILD_DATE "17 Apr 2026"
 #endif
 
 #ifndef FIRMWARE_VERSION
@@ -170,6 +170,9 @@ public:
   // Called from UITask after MorseScreen sends via sendGroupMessage().
   void queueSentChannelMessage(uint8_t channel_idx, uint32_t timestamp, const char* text);
 #endif
+
+  // To check if there is pending work (for power saving)
+  bool hasPendingWork() const;
 
 #if ENV_INCLUDE_GPS == 1
   void applyGpsPrefs() {

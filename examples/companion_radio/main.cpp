@@ -237,6 +237,12 @@ void loop() {
 #endif
   rtc_clock.tick();
 
+  if (!the_mesh.hasPendingWork()) {
+#if defined(NRF52_PLATFORM)
+    board.sleep(0);  // nRF52 ignores seconds param, sleeps until next interrupt
+#endif
+  }
+
   // [DEBUG] Uncomment for periodic heap monitoring:
   // static unsigned long next_heap_print = 30000;
   // if (millis() > next_heap_print) {
