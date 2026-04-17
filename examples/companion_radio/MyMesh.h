@@ -151,6 +151,10 @@ protected:
 
   uint32_t calcFloodTimeoutMillisFor(uint32_t pkt_airtime_millis) const override;
   uint32_t calcDirectTimeoutMillisFor(uint32_t pkt_airtime_millis, uint8_t path_len) const override;
+  uint32_t getCADFailMaxDuration() const override {
+    if (_radio->isJapanMode()) return UINT32_MAX;  // JP LBT: no forced TX — channel must be free per ARIB STD-T108
+    return Dispatcher::getCADFailMaxDuration();
+  }
   void onSendTimeout() override;
 
   // DataStoreHost methods

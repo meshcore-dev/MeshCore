@@ -40,6 +40,7 @@ public:
 
   virtual int getMaxTextLen() const { return 10 * 16; }  // default: non-JP
   virtual int getMaxGroupTextLen() const { return 10 * 16; }  // default: non-JP
+  virtual bool isJapanMode() const { return false; }  // default: non-JP
 
   /**
    * \brief  starts the raw packet send. (no wait)
