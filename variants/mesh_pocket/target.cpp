@@ -20,7 +20,11 @@ AutoDiscoverRTCClock rtc_clock(fallback_clock);
 #endif
 
 bool radio_init() {
-  return radio.std_init(&SPI);
+  if (!radio.std_init(&SPI)) return false;
+#ifdef LORA_PREAMBLE_LEN
+  radio.setPreambleLength(LORA_PREAMBLE_LEN);
+#endif
+  return true;
 }
 
 uint32_t radio_get_rng_seed() {
@@ -42,4 +46,3 @@ mesh::LocalIdentity radio_new_identity() {
   RadioNoiseListener rng(radio);
   return mesh::LocalIdentity(&rng);  // create new random identity
 }
-
