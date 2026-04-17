@@ -599,6 +599,7 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
 #endif
 #ifdef MORSE_COMPOSE_ENABLED
   morse_screen = new MorseScreen(&rtc_clock);
+  morse_channel_picker = new MorseChannelPicker();
 #endif
   setCurrScreen(splash);
 }
@@ -825,6 +826,23 @@ void UITask::loop() {
   if (curr) curr->poll();
 
 #ifdef MORSE_COMPOSE_ENABLED
+  // Channel picker → MorseScreen transition
+  if (curr == morse_channel_picker) {
+    MorseChannelPicker* picker = (MorseChannelPicker*)morse_channel_picker;
+    if (picker->isConfirmed()) {
+      uint8_t ch_idx = picker->getSelectedChannelIdx();
+      const char* ch_name = picker->getSelectedChannelName();
+      ((MorseScreen*)morse_screen)->activate(ch_idx, ch_name);
+      setCurrScreen(morse_screen);
+      picker->acknowledgeConfirm();
+    }
+    if (picker->wantsExit()) {
+      picker->acknowledgeExit();
+      gotoHomeScreen();
+    }
+  }
+
+  // MorseScreen send/exit handling
   if (curr == morse_screen) {
     MorseScreen* ms = (MorseScreen*)morse_screen;
     if (ms->wantsExit()) {
@@ -833,17 +851,16 @@ void UITask::loop() {
     }
     const char* sendText = nullptr;
     if (ms->consumeSendRequest(&sendText) && sendText) {
+      uint8_t ch_idx = ms->getChannelIdx();
       ChannelDetails ch;
-      if (the_mesh.getChannel(0, ch)) {
+      if (the_mesh.getChannel(ch_idx, ch)) {
         uint32_t ts = rtc_clock.getCurrentTime();
         the_mesh.sendGroupMessage(ts, ch.channel,
           the_mesh.getNodeName(), sendText, strlen(sendText));
-        // Queue for BLE companion app so it appears in chat history.
-        // Build "sender: text" format to match what goes over LoRa.
         char fullMsg[160];
         snprintf(fullMsg, sizeof(fullMsg), "%s: %s",
                  the_mesh.getNodeName(), sendText);
-        the_mesh.queueSentChannelMessage(0, ts, fullMsg);
+        the_mesh.queueSentChannelMessage(ch_idx, ts, fullMsg);
         showAlert("Sent!", 800);
       }
       ms->clearOutBuf();
@@ -932,8 +949,19 @@ char UITask::handleDoubleClick(char c) {
   checkDisplayOn(c);
 #ifdef MORSE_COMPOSE_ENABLED
   if (curr == home) {
-    ((MorseScreen*)morse_screen)->activate();
-    setCurrScreen(morse_screen);
+    // Populate channel picker with available channels
+    MorseChannelPicker* picker = (MorseChannelPicker*)morse_channel_picker;
+    picker->activate();
+    ChannelDetails ch;
+    for (uint8_t i = 0; i < MAX_GROUP_CHANNELS; i++) {
+      if (the_mesh.getChannel(i, ch) && ch.name[0] != 0) {
+        picker->addChannel(i, ch.name);
+      }
+    }
+    setCurrScreen(morse_channel_picker);
+    // [DEBUG] Uncomment to check heap at Morse entry:
+    // Serial.println("[HEAP] === Morse entry ===");
+    // dbgMemInfo();
     c = 0;
     return c;
   }

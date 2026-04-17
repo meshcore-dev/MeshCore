@@ -2157,7 +2157,7 @@ void MyMesh::queueSentChannelMessage(uint8_t channel_idx, uint32_t timestamp, co
     out_frame[i++] = RESP_CODE_CHANNEL_MSG_RECV;
   }
   out_frame[i++] = channel_idx;
-  out_frame[i++] = 0xFF;  // path_len = local/direct
+  out_frame[i++] = 0;     // path_len = 0 (local, zero hops)
   out_frame[i++] = TXT_TYPE_PLAIN;
   memcpy(&out_frame[i], &timestamp, 4); i += 4;
   int tlen = strlen(text);

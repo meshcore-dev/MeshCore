@@ -220,6 +220,13 @@ void setup() {
 #ifdef DISPLAY_CLASS
   ui_task.begin(disp, &sensors, the_mesh.getNodePrefs());  // still want to pass this in as dependency, as prefs might be moved
 #endif
+
+  // [DEBUG] Uncomment to check free heap / offline queue sizing:
+  // Serial.println("[HEAP] === After setup ===");
+  // dbgMemInfo();
+  // Serial.printf("[HEAP] OFFLINE_QUEUE_SIZE=%d, frame size=%d bytes, queue total=%d bytes\n",
+  //   OFFLINE_QUEUE_SIZE, (int)(1 + MAX_FRAME_SIZE),
+  //   OFFLINE_QUEUE_SIZE * (int)(1 + MAX_FRAME_SIZE));
 }
 
 void loop() {
@@ -229,4 +236,12 @@ void loop() {
   ui_task.loop();
 #endif
   rtc_clock.tick();
+
+  // [DEBUG] Uncomment for periodic heap monitoring:
+  // static unsigned long next_heap_print = 30000;
+  // if (millis() > next_heap_print) {
+  //   Serial.println("[HEAP] === Periodic ===");
+  //   dbgMemInfo();
+  //   next_heap_print = millis() + 60000;
+  // }
 }

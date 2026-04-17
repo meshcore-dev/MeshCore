@@ -109,6 +109,8 @@ class MorseScreen : public UIScreen {
   // Outgoing composition
   char      _outBuf[MORSE_OUT_BUF_LEN];
   uint16_t  _outLen;
+  uint8_t   _channelIdx;
+  char      _channelName[32];
 
   // Current letter staging (dots/dashes not yet decoded)
   char      _staging[MORSE_STAGING_MAX];
@@ -161,10 +163,10 @@ class MorseScreen : public UIScreen {
     if (_stagingLen == 0) return;
     char decoded = decodeStaging();
     if (decoded == '\x01') {
-      Serial.printf("[MORSE] decoded \"%s\" -> WW (SEND), outLen=%d\n", _staging, _outLen);
+      // Serial.printf("[MORSE] decoded \"%s\" -> WW (SEND), outLen=%d\n", _staging, _outLen);
       if (_outLen > 0) _wantsSend = true;
     } else if (decoded == '\x02') {
-      Serial.printf("[MORSE] decoded \"%s\" -> HH (BACKSPACE)\n", _staging);
+      // Serial.printf("[MORSE] decoded \"%s\" -> HH (BACKSPACE)\n", _staging);
       if (_outLen > 0) {
         _outLen--;
         _outBuf[_outLen] = 0;
@@ -173,15 +175,15 @@ class MorseScreen : public UIScreen {
       // Convert to lowercase — Morse table produces uppercase but lowercase
       // reads more naturally in chat messages
       if (decoded >= 'A' && decoded <= 'Z') decoded += 32;
-      Serial.printf("[MORSE] decoded \"%s\" -> '%c'\n", _staging, decoded);
+      // Serial.printf("[MORSE] decoded \"%s\" -> '%c'\n", _staging, decoded);
       if (_outLen < MORSE_OUT_BUF_LEN - 1) {
         _outBuf[_outLen++] = decoded;
         _outBuf[_outLen] = 0;
       }
     } else {
-      Serial.printf("[MORSE] decoded \"%s\" -> NO MATCH (dropped)\n", _staging);
+      // Serial.printf("[MORSE] decoded \"%s\" -> NO MATCH (dropped)\n", _staging);
     }
-    Serial.printf("[MORSE] outBuf: \"%s\" (%d chars)\n", _outBuf, _outLen);
+    // Serial.printf("[MORSE] outBuf: \"%s\" (%d chars)\n", _outBuf, _outLen);
     _stagingLen = 0;
     _staging[0] = 0;
     _letterDecoded = true;
@@ -212,7 +214,7 @@ class MorseScreen : public UIScreen {
 public:
   MorseScreen(mesh::RTCClock* rtc)
     : _rtc(rtc),
-      _outLen(0), _stagingLen(0),
+      _outLen(0), _channelIdx(0), _stagingLen(0),
       _btnPrevPressed(false), _pressStart(0), _releaseAt(0),
       _letterDecoded(false), _wordSpaceInserted(false),
       _holdAction(HOLD_NONE),
@@ -222,12 +224,15 @@ public:
   {
     _outBuf[0] = 0;
     _staging[0] = 0;
+    strcpy(_channelName, "Public");
     memset(_inbox, 0, sizeof(_inbox));
   }
 
-  // Called by UITask when the screen is activated (on double-click from home)
-  // Resets composition state so each session starts clean.
-  void activate() {
+  // Called by UITask after channel picker selects a channel.
+  void activate(uint8_t channelIdx, const char* channelName) {
+    _channelIdx = channelIdx;
+    strncpy(_channelName, channelName, sizeof(_channelName) - 1);
+    _channelName[sizeof(_channelName) - 1] = 0;
     _outLen = 0;       _outBuf[0] = 0;
     _stagingLen = 0;   _staging[0] = 0;
     _btnPrevPressed = user_btn.isPressed();
@@ -240,6 +245,9 @@ public:
     _wantsSend = false;
     _dirty = true;
   }
+
+  uint8_t getChannelIdx() const { return _channelIdx; }
+  const char* getChannelName() const { return _channelName; }
 
   // Called from UITask::newMsg for incoming messages.
   // `from` is the sender/channel name; `text` is the message body.
@@ -300,34 +308,34 @@ public:
       _holdAction = HOLD_NONE;
       _letterDecoded = false;
       _wordSpaceInserted = false;
-      Serial.println("[MORSE] btn DOWN");
+      // Serial.println("[MORSE] btn DOWN");
 
     } else if (!pressed && _btnPrevPressed) {
       // ---- Edge: pressed -> released ----
       unsigned long dur = now - _pressStart;
       switch (_holdAction) {
         case HOLD_EXIT:
-          Serial.printf("[MORSE] btn UP after %lums — EXIT\n", dur);
+          // Serial.printf("[MORSE] btn UP after %lums — EXIT\n", dur);
           _wantsExit = true;
           break;
         case HOLD_SEND:
-          Serial.printf("[MORSE] btn UP after %lums — SEND, outLen=%d\n", dur, _outLen);
+          // Serial.printf("[MORSE] btn UP after %lums — SEND, outLen=%d\n", dur, _outLen);
           if (_outLen > 0) _wantsSend = true;
           break;
         case HOLD_BACKSPACE:
-          Serial.printf("[MORSE] btn UP after %lums — BACKSPACE\n", dur);
+          // Serial.printf("[MORSE] btn UP after %lums — BACKSPACE\n", dur);
           doBackspace();
           break;
         default: {
           // Normal dot/dash
           char sym = (dur < MORSE_DOT_DASH_MS) ? '.' : '-';
-          Serial.printf("[MORSE] btn UP after %lums — %s (%c)\n", dur,
-                        sym == '.' ? "DOT" : "DASH", sym);
+          // Serial.printf("[MORSE] btn UP after %lums — %s (%c)\n", dur,
+          //               sym == '.' ? "DOT" : "DASH", sym);
           if (_stagingLen < MORSE_STAGING_MAX - 1) {
             _staging[_stagingLen++] = sym;
             _staging[_stagingLen] = 0;
           }
-          Serial.printf("[MORSE] staging now: \"%s\" (%d elements)\n", _staging, _stagingLen);
+          // Serial.printf("[MORSE] staging now: \"%s\" (%d elements)\n", _staging, _stagingLen);
           _releaseAt = now;
           _dirty = true;
           break;
@@ -349,10 +357,10 @@ public:
         newAction = HOLD_NONE;
       }
       if (newAction != _holdAction) {
-        Serial.printf("[MORSE] hold %lums — armed: %s\n", dur,
-                      newAction == HOLD_BACKSPACE ? "BKSP" :
-                      newAction == HOLD_SEND ? "SEND" :
-                      newAction == HOLD_EXIT ? "EXIT" : "none");
+        // Serial.printf("[MORSE] hold %lums — armed: %s\n", dur,
+        //               newAction == HOLD_BACKSPACE ? "BKSP" :
+        //               newAction == HOLD_SEND ? "SEND" :
+        //               newAction == HOLD_EXIT ? "EXIT" : "none");
         _holdAction = newAction;
         _dirty = true;
       }
@@ -361,14 +369,14 @@ public:
       // ---- Idle — check gap timers ----
       if (_stagingLen > 0 && _releaseAt > 0
           && (now - _releaseAt) >= MORSE_LETTER_GAP_MS) {
-        Serial.printf("[MORSE] letter gap %lums — committing \"%s\"\n",
-                      now - _releaseAt, _staging);
+        // Serial.printf("[MORSE] letter gap %lums — committing \"%s\"\n",
+        //               now - _releaseAt, _staging);
         commitStaging();
         _releaseAt = now;
       } else if (_outLen > 0 && _letterDecoded && !_wordSpaceInserted
                  && _releaseAt > 0
                  && (now - _releaseAt) >= MORSE_WORD_GAP_MS) {
-        Serial.printf("[MORSE] word gap %lums — inserting space\n", now - _releaseAt);
+        // Serial.printf("[MORSE] word gap %lums — inserting space\n", now - _releaseAt);
         insertWordSpace();
       }
     }
@@ -384,7 +392,9 @@ public:
     // ---- Header --------------------------------------------------------------
     display.setColor(DisplayDriver::YELLOW);
     display.setCursor(0, 0);
-    display.print("MORSE");
+    char hdr[40];
+    snprintf(hdr, sizeof(hdr), "MORSE > %s", _channelName);
+    display.print(hdr);
 
     // Show armed hold action in header
     if (_holdAction != HOLD_NONE) {
@@ -474,10 +484,7 @@ public:
              (unsigned)(MORSE_OUT_BUF_LEN - 1));
     display.drawTextRightAlign(W - 1, 68, ccBuf);
 
-    // WW/HH hint at bottom
-    display.setColor(DisplayDriver::LIGHT);
-    display.setCursor(0, 80);
-    display.print("Hold 3s=bksp 7s=send 9s=exit");
+    // Hint: Hold 3s=bksp 7s=send 9s=exit  |  WW=send  HH=bksp
 
     _dirty = false;
     _nextRender = millis();
@@ -487,6 +494,124 @@ public:
     // in endFrame() means renders only block (~644ms) when content actually
     // changed — unchanged frames return instantly regardless of interval.
     return 800;
+  }
+};
+
+// =============================================================================
+// MorseChannelPicker — select which channel to compose Morse messages on.
+//
+// Shown after double-click from home, before entering MorseScreen.
+// Click cycles highlight, double-click selects.
+// =============================================================================
+
+#define MORSE_PICKER_MAX_CHANNELS 8
+
+class MorseChannelPicker : public UIScreen {
+  struct ChannelEntry {
+    uint8_t idx;
+    char    name[32];
+    bool    valid;
+  };
+
+  ChannelEntry _channels[MORSE_PICKER_MAX_CHANNELS];
+  uint8_t      _numChannels;
+  uint8_t      _highlighted;
+  bool         _confirmed;
+  bool         _wantsExit;
+
+public:
+  MorseChannelPicker()
+    : _numChannels(0), _highlighted(0), _confirmed(false), _wantsExit(false)
+  {
+    memset(_channels, 0, sizeof(_channels));
+  }
+
+  void activate() {
+    _numChannels = 0;
+    _highlighted = 0;
+    _confirmed = false;
+    _wantsExit = false;
+    memset(_channels, 0, sizeof(_channels));
+  }
+
+  // Called by UITask to populate available channels before showing the picker.
+  void addChannel(uint8_t idx, const char* name) {
+    if (_numChannels >= MORSE_PICKER_MAX_CHANNELS) return;
+    _channels[_numChannels].idx = idx;
+    strncpy(_channels[_numChannels].name, name, 31);
+    _channels[_numChannels].name[31] = 0;
+    _channels[_numChannels].valid = true;
+    _numChannels++;
+  }
+
+  bool isConfirmed() const { return _confirmed; }
+  void acknowledgeConfirm() { _confirmed = false; }
+  bool wantsExit() const { return _wantsExit; }
+  void acknowledgeExit() { _wantsExit = false; }
+
+  uint8_t getSelectedChannelIdx() const {
+    if (_highlighted < _numChannels)
+      return _channels[_highlighted].idx;
+    return 0;
+  }
+
+  const char* getSelectedChannelName() const {
+    if (_highlighted < _numChannels)
+      return _channels[_highlighted].name;
+    return "Public";
+  }
+
+  int render(DisplayDriver& display) override {
+    const int W = display.width();
+
+    display.setTextSize(1);
+    display.setColor(DisplayDriver::YELLOW);
+    display.setCursor(0, 0);
+    display.print("SELECT CHANNEL");
+
+    display.setColor(DisplayDriver::LIGHT);
+    display.drawRect(0, 11, W, 1);
+
+    int y = 16;
+    for (uint8_t i = 0; i < _numChannels; i++) {
+      if (i == _highlighted) {
+        display.setColor(DisplayDriver::DARK);
+        display.fillRect(0, y - 1, W, 12);
+        display.setColor(DisplayDriver::LIGHT);
+      } else {
+        display.setColor(DisplayDriver::LIGHT);
+      }
+      char line[40];
+      snprintf(line, sizeof(line), "  %s", _channels[i].name);
+      if (i == _highlighted) line[0] = '>';
+      display.setCursor(0, y);
+      display.print(line);
+      y += 14;
+    }
+
+    // Hint: Click=next  DblClick=select  LongPress=exit
+
+    return 5000;
+  }
+
+  bool handleInput(char c) override {
+    if (c == KEY_NEXT) {
+      // Cycle highlight
+      if (_numChannels > 0)
+        _highlighted = (_highlighted + 1) % _numChannels;
+      return true;
+    }
+    if (c == KEY_PREV) {
+      // Double-click = select
+      _confirmed = true;
+      return true;
+    }
+    if (c == KEY_ENTER) {
+      // Long press = exit back to home
+      _wantsExit = true;
+      return true;
+    }
+    return false;
   }
 };
 

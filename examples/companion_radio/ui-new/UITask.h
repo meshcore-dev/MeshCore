@@ -55,6 +55,7 @@ class UITask : public AbstractUITask {
 #endif
 #ifdef MORSE_COMPOSE_ENABLED
   UIScreen* morse_screen;
+  UIScreen* morse_channel_picker;
 #endif
   UIScreen* curr;
 
