@@ -2144,3 +2144,32 @@ bool MyMesh::advert() {
     return false;
   }
 }
+
+#ifdef MORSE_COMPOSE_ENABLED
+void MyMesh::queueSentChannelMessage(uint8_t channel_idx, uint32_t timestamp, const char* text) {
+  int i = 0;
+  if (app_target_ver >= 3) {
+    out_frame[i++] = RESP_CODE_CHANNEL_MSG_RECV_V3;
+    out_frame[i++] = 0;  // SNR = 0 (local)
+    out_frame[i++] = 0;  // reserved1
+    out_frame[i++] = 0;  // reserved2
+  } else {
+    out_frame[i++] = RESP_CODE_CHANNEL_MSG_RECV;
+  }
+  out_frame[i++] = channel_idx;
+  out_frame[i++] = 0xFF;  // path_len = local/direct
+  out_frame[i++] = TXT_TYPE_PLAIN;
+  memcpy(&out_frame[i], &timestamp, 4); i += 4;
+  int tlen = strlen(text);
+  if (i + tlen > MAX_FRAME_SIZE) tlen = MAX_FRAME_SIZE - i;
+  memcpy(&out_frame[i], text, tlen);
+  i += tlen;
+  addToOfflineQueue(out_frame, i);
+
+  if (_serial->isConnected()) {
+    uint8_t frame[1];
+    frame[0] = PUSH_CODE_MSG_WAITING;
+    _serial->writeFrame(frame, 1);
+  }
+}
+#endif

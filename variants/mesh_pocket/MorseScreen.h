@@ -3,17 +3,19 @@
 // =============================================================================
 // MorseScreen — single-button Morse compose/receive for the Meshpocket
 //
-// Entered from the home screen via a triple-click on the USER button when
+// Entered from the home screen via a double-click on the USER button when
 // MORSE_COMPOSE_ENABLED is defined (Meshpocket companion builds only).
 //
 // While active, this screen takes exclusive ownership of the USER button:
-// - Short press  -> dot (<240 ms by default)
-// - Longer press -> dash (>=240 ms)
-// - Letter gap (~360 ms silence) commits the staged pattern to the buffer
-// - Word gap (~840 ms silence) inserts a space
-// - `WW` prosign (.--.--)  -> send to Public (channel 0), clear buffer
-// - `HH` prosign (........) -> backspace one character
-// - 5 s continuous hold -> exit back to home screen
+// - Short press  -> dot (<500 ms)
+// - Medium press -> dash (500 ms – 3 s)
+// - Hold 3–7 s   -> BACKSPACE (deletes last character)
+// - Hold 7–9 s   -> SEND to Public channel, clear buffer
+// - Hold 9 s+    -> EXIT back to home screen
+// - Letter gap (~1 s silence) commits the staged pattern to the buffer
+// - Word gap (~2 s silence) inserts a space
+// - `WW` prosign (.--.--)  -> send (alternative to hold)
+// - `HH` prosign (........) -> backspace (alternative to hold)
 //
 // The screen maintains its own tiny ring buffer of the most recent Public
 // channel messages (populated from UITask::newMsg when channel_idx == 0) so
@@ -36,25 +38,30 @@
 extern MomentaryButton user_btn;
 
 // -----------------------------------------------------------------------------
-// Tunables
+// Tunables — calibrated for single momentary button on e-ink device.
+// Standard Morse timing is too tight for a button (vs a proper key) and
+// e-ink renders block the CPU for ~644ms, so generous thresholds are needed.
 // -----------------------------------------------------------------------------
 
-// Standard Morse timing: WPM = 1.2 / dot_seconds
-// 10 WPM -> dot = 120 ms
 #define MORSE_DOT_UNIT_MS      120
 
-// Press shorter than this = dot, longer = dash.
-// 2x dot is a common midpoint threshold (dash is nominally 3x dot).
-#define MORSE_DOT_DASH_MS      (MORSE_DOT_UNIT_MS * 2)
+// Dot/dash threshold. 500ms gives a comfortable margin — a quick tap is
+// unmistakably a dot, a deliberate half-second hold is a dash.
+#define MORSE_DOT_DASH_MS      500
 
-// Inter-letter silence that commits the staged pattern (3 dot units).
-#define MORSE_LETTER_GAP_MS    (MORSE_DOT_UNIT_MS * 3)
+// Letter commit gap. 1s silence after the last release commits the staged
+// pattern. This matches the user's natural pause between letters.
+#define MORSE_LETTER_GAP_MS    1000
 
-// Inter-word silence that inserts a space (7 dot units).
-#define MORSE_WORD_GAP_MS      (MORSE_DOT_UNIT_MS * 7)
+// Word space gap. 3.5s silence inserts a space. Well above natural
+// inter-letter pauses (typically 1–2s) to avoid unwanted spaces.
+#define MORSE_WORD_GAP_MS      3500
 
-// Exit gesture — longer than any conceivable dash, dominant hand will tire.
-#define MORSE_EXIT_HOLD_MS     5000
+// Hold-duration actions — release at the right moment.
+// Wide spacing between thresholds prevents accidental triggers.
+#define MORSE_BACKSPACE_HOLD_MS  3000
+#define MORSE_SEND_HOLD_MS       7000
+#define MORSE_EXIT_HOLD_MS       9000
 
 // Buffer sizes
 #define MORSE_OUT_BUF_LEN      134   // MeshCore per-channel msg cap is ~133
@@ -87,6 +94,14 @@ static const MorseEntry MORSE_TABLE[] = {
   {0, nullptr}
 };
 
+// Hold action states
+enum HoldAction : uint8_t {
+  HOLD_NONE = 0,
+  HOLD_BACKSPACE,
+  HOLD_SEND,
+  HOLD_EXIT
+};
+
 // -----------------------------------------------------------------------------
 class MorseScreen : public UIScreen {
   mesh::RTCClock* _rtc;
@@ -102,10 +117,10 @@ class MorseScreen : public UIScreen {
   // Key timing state
   bool          _btnPrevPressed;
   unsigned long _pressStart;
-  unsigned long _releaseAt;       // 0 if not yet released after last press
-  bool          _letterDecoded;   // set after commitStaging() — awaits word gap
+  unsigned long _releaseAt;
+  bool          _letterDecoded;
   bool          _wordSpaceInserted;
-  bool          _exitArmed;       // hold threshold crossed; exits on release
+  HoldAction    _holdAction;
 
   // Cross-screen requests (UITask polls these)
   bool          _wantsExit;
@@ -146,20 +161,27 @@ class MorseScreen : public UIScreen {
     if (_stagingLen == 0) return;
     char decoded = decodeStaging();
     if (decoded == '\x01') {
-      // WW — request send from UITask
+      Serial.printf("[MORSE] decoded \"%s\" -> WW (SEND), outLen=%d\n", _staging, _outLen);
       if (_outLen > 0) _wantsSend = true;
     } else if (decoded == '\x02') {
-      // HH — backspace one character (skip trailing space if present)
+      Serial.printf("[MORSE] decoded \"%s\" -> HH (BACKSPACE)\n", _staging);
       if (_outLen > 0) {
         _outLen--;
         _outBuf[_outLen] = 0;
       }
     } else if (decoded != 0) {
+      // Convert to lowercase — Morse table produces uppercase but lowercase
+      // reads more naturally in chat messages
+      if (decoded >= 'A' && decoded <= 'Z') decoded += 32;
+      Serial.printf("[MORSE] decoded \"%s\" -> '%c'\n", _staging, decoded);
       if (_outLen < MORSE_OUT_BUF_LEN - 1) {
         _outBuf[_outLen++] = decoded;
         _outBuf[_outLen] = 0;
       }
+    } else {
+      Serial.printf("[MORSE] decoded \"%s\" -> NO MATCH (dropped)\n", _staging);
     }
+    Serial.printf("[MORSE] outBuf: \"%s\" (%d chars)\n", _outBuf, _outLen);
     _stagingLen = 0;
     _staging[0] = 0;
     _letterDecoded = true;
@@ -177,12 +199,23 @@ class MorseScreen : public UIScreen {
     _wordSpaceInserted = true;
   }
 
+  void doBackspace() {
+    _stagingLen = 0;
+    _staging[0] = 0;
+    if (_outLen > 0) {
+      _outLen--;
+      _outBuf[_outLen] = 0;
+    }
+    _dirty = true;
+  }
+
 public:
   MorseScreen(mesh::RTCClock* rtc)
     : _rtc(rtc),
       _outLen(0), _stagingLen(0),
       _btnPrevPressed(false), _pressStart(0), _releaseAt(0),
-      _letterDecoded(false), _wordSpaceInserted(false), _exitArmed(false),
+      _letterDecoded(false), _wordSpaceInserted(false),
+      _holdAction(HOLD_NONE),
       _wantsExit(false), _wantsSend(false),
       _inboxNewest(0), _inboxCount(0),
       _dirty(true), _nextRender(0)
@@ -192,7 +225,7 @@ public:
     memset(_inbox, 0, sizeof(_inbox));
   }
 
-  // Called by UITask when the screen is activated (on triple-click from home)
+  // Called by UITask when the screen is activated (on double-click from home)
   // Resets composition state so each session starts clean.
   void activate() {
     _outLen = 0;       _outBuf[0] = 0;
@@ -202,7 +235,7 @@ public:
     _releaseAt = 0;
     _letterDecoded = false;
     _wordSpaceInserted = false;
-    _exitArmed = false;
+    _holdAction = HOLD_NONE;
     _wantsExit = false;
     _wantsSend = false;
     _dirty = true;
@@ -262,42 +295,80 @@ public:
     bool pressed = user_btn.isPressed();
 
     if (pressed && !_btnPrevPressed) {
-      // Edge: released -> pressed
+      // ---- Edge: released -> pressed ----
       _pressStart = now;
-      _exitArmed = false;
+      _holdAction = HOLD_NONE;
       _letterDecoded = false;
       _wordSpaceInserted = false;
+      Serial.println("[MORSE] btn DOWN");
+
     } else if (!pressed && _btnPrevPressed) {
-      // Edge: pressed -> released
+      // ---- Edge: pressed -> released ----
       unsigned long dur = now - _pressStart;
-      if (_exitArmed) {
-        // Exit-hold completed — signal UITask to navigate back to home.
-        // Do NOT add this press to staging.
-        _wantsExit = true;
-      } else {
-        // Normal dot/dash
-        if (_stagingLen < MORSE_STAGING_MAX - 1) {
-          _staging[_stagingLen++] = (dur < MORSE_DOT_DASH_MS) ? '.' : '-';
-          _staging[_stagingLen] = 0;
+      switch (_holdAction) {
+        case HOLD_EXIT:
+          Serial.printf("[MORSE] btn UP after %lums — EXIT\n", dur);
+          _wantsExit = true;
+          break;
+        case HOLD_SEND:
+          Serial.printf("[MORSE] btn UP after %lums — SEND, outLen=%d\n", dur, _outLen);
+          if (_outLen > 0) _wantsSend = true;
+          break;
+        case HOLD_BACKSPACE:
+          Serial.printf("[MORSE] btn UP after %lums — BACKSPACE\n", dur);
+          doBackspace();
+          break;
+        default: {
+          // Normal dot/dash
+          char sym = (dur < MORSE_DOT_DASH_MS) ? '.' : '-';
+          Serial.printf("[MORSE] btn UP after %lums — %s (%c)\n", dur,
+                        sym == '.' ? "DOT" : "DASH", sym);
+          if (_stagingLen < MORSE_STAGING_MAX - 1) {
+            _staging[_stagingLen++] = sym;
+            _staging[_stagingLen] = 0;
+          }
+          Serial.printf("[MORSE] staging now: \"%s\" (%d elements)\n", _staging, _stagingLen);
+          _releaseAt = now;
+          _dirty = true;
+          break;
         }
-        _releaseAt = now;
+      }
+      _holdAction = HOLD_NONE;
+
+    } else if (pressed && _btnPrevPressed) {
+      // ---- Still holding — update armed action ----
+      unsigned long dur = now - _pressStart;
+      HoldAction newAction;
+      if (dur >= MORSE_EXIT_HOLD_MS) {
+        newAction = HOLD_EXIT;
+      } else if (dur >= MORSE_SEND_HOLD_MS) {
+        newAction = HOLD_SEND;
+      } else if (dur >= MORSE_BACKSPACE_HOLD_MS) {
+        newAction = HOLD_BACKSPACE;
+      } else {
+        newAction = HOLD_NONE;
+      }
+      if (newAction != _holdAction) {
+        Serial.printf("[MORSE] hold %lums — armed: %s\n", dur,
+                      newAction == HOLD_BACKSPACE ? "BKSP" :
+                      newAction == HOLD_SEND ? "SEND" :
+                      newAction == HOLD_EXIT ? "EXIT" : "none");
+        _holdAction = newAction;
         _dirty = true;
       }
-    } else if (pressed && _btnPrevPressed) {
-      // Still holding — check for exit-arm threshold
-      if (!_exitArmed && (now - _pressStart) >= MORSE_EXIT_HOLD_MS) {
-        _exitArmed = true;
-        _dirty = true;   // redraw to show "release to exit" hint
-      }
+
     } else {
-      // Idle (not pressed, wasn't pressed) — check gap timers
+      // ---- Idle — check gap timers ----
       if (_stagingLen > 0 && _releaseAt > 0
           && (now - _releaseAt) >= MORSE_LETTER_GAP_MS) {
+        Serial.printf("[MORSE] letter gap %lums — committing \"%s\"\n",
+                      now - _releaseAt, _staging);
         commitStaging();
-        _releaseAt = now;   // reset so word gap measures from commit
+        _releaseAt = now;
       } else if (_outLen > 0 && _letterDecoded && !_wordSpaceInserted
                  && _releaseAt > 0
                  && (now - _releaseAt) >= MORSE_WORD_GAP_MS) {
+        Serial.printf("[MORSE] word gap %lums — inserting space\n", now - _releaseAt);
         insertWordSpace();
       }
     }
@@ -315,8 +386,15 @@ public:
     display.setCursor(0, 0);
     display.print("MORSE");
 
-    display.setColor(_exitArmed ? DisplayDriver::GREEN : DisplayDriver::LIGHT);
-    display.drawTextRightAlign(W - 1, 0, _exitArmed ? "Release=exit" : "Hold=exit");
+    // Show armed hold action in header
+    if (_holdAction != HOLD_NONE) {
+      display.setColor(DisplayDriver::GREEN);
+      const char* action =
+        _holdAction == HOLD_BACKSPACE ? "[BKSP]" :
+        _holdAction == HOLD_SEND     ? "[SEND]" :
+                                       "[EXIT]";
+      display.drawTextRightAlign(W - 1, 0, action);
+    }
 
     display.setColor(DisplayDriver::LIGHT);
     display.drawRect(0, 11, W, 1);
@@ -367,14 +445,27 @@ public:
 
     display.drawRect(0, 66, W, 1);
 
-    // ---- Staging (current key sequence) + char count -------------------------
+    // ---- Staging + char count ------------------------------------------------
+    // CRITICAL: The KEY area must NOT change CRC during active dot/dash input.
+    // Any CRC change triggers a 644ms e-ink block that eats button presses.
+    // Only hold actions (3s+) change the display here — by then the user has
+    // stopped rapid-pressing so one render block is harmless.
     display.setColor(DisplayDriver::GREEN);
     display.setCursor(0, 68);
     display.print("KEY");
 
-    display.setColor(_exitArmed ? DisplayDriver::YELLOW : DisplayDriver::LIGHT);
     display.setCursor(26, 68);
-    display.print(_stagingLen > 0 ? _staging : " ");
+    if (_holdAction != HOLD_NONE) {
+      display.setColor(DisplayDriver::YELLOW);
+      const char* action =
+        _holdAction == HOLD_BACKSPACE ? "[BKSP]" :
+        _holdAction == HOLD_SEND     ? "[SEND]" :
+                                       "[EXIT]";
+      display.print(action);
+    } else {
+      display.setColor(DisplayDriver::LIGHT);
+      display.print("ready");
+    }
 
     // Character count (right-aligned, same line)
     display.setColor(DisplayDriver::LIGHT);
@@ -386,16 +477,16 @@ public:
     // WW/HH hint at bottom
     display.setColor(DisplayDriver::LIGHT);
     display.setCursor(0, 80);
-    display.print("WW=send  HH=bksp");
+    display.print("Hold 3s=bksp 7s=send 9s=exit");
 
     _dirty = false;
     _nextRender = millis();
 
-    // E-ink refresh blocks the CPU for ~644ms. A short render interval
-    // means the display re-renders almost continuously, starving poll()
-    // and causing rapid button presses to be missed. 2s gives plenty of
-    // time for the user to key a full letter between screen updates.
-    return 2000;
+    // T-Deck Pro render throttle pattern: 800ms minimum after endFrame()
+    // guarantees unblocked poll() time for button sampling. The CRC check
+    // in endFrame() means renders only block (~644ms) when content actually
+    // changed — unchanged frames return instantly regardless of interval.
+    return 800;
   }
 };
 

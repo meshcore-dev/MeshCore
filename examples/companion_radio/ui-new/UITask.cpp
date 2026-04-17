@@ -594,7 +594,9 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
 
   splash = new SplashScreen(this);
   home = new HomeScreen(this, &rtc_clock, sensors, node_prefs);
+#ifndef HELTEC_MESH_POCKET
   msg_preview = new MsgPreviewScreen(this, &rtc_clock);
+#endif
 #ifdef MORSE_COMPOSE_ENABLED
   morse_screen = new MorseScreen(&rtc_clock);
 #endif
@@ -646,6 +648,7 @@ void UITask::msgRead(int msgcount) {
 void UITask::newMsg(uint8_t path_len, const char* from_name, const char* text, int msgcount) {
   _msgcount = msgcount;
 
+#ifndef HELTEC_MESH_POCKET
   ((MsgPreviewScreen *) msg_preview)->addPreview(path_len, from_name, text);
 #ifdef MORSE_COMPOSE_ENABLED
   // Don't switch away from MorseScreen — incoming messages are shown in its
@@ -653,6 +656,7 @@ void UITask::newMsg(uint8_t path_len, const char* from_name, const char* text, i
   if (curr != morse_screen)
 #endif
   setCurrScreen(msg_preview);
+#endif
 
 #ifdef MORSE_COMPOSE_ENABLED
   // Feed all incoming messages to MorseScreen inbox for display
@@ -831,9 +835,15 @@ void UITask::loop() {
     if (ms->consumeSendRequest(&sendText) && sendText) {
       ChannelDetails ch;
       if (the_mesh.getChannel(0, ch)) {
-        the_mesh.sendGroupMessage(
-          rtc_clock.getCurrentTime(), ch.channel,
+        uint32_t ts = rtc_clock.getCurrentTime();
+        the_mesh.sendGroupMessage(ts, ch.channel,
           the_mesh.getNodeName(), sendText, strlen(sendText));
+        // Queue for BLE companion app so it appears in chat history.
+        // Build "sender: text" format to match what goes over LoRa.
+        char fullMsg[160];
+        snprintf(fullMsg, sizeof(fullMsg), "%s: %s",
+                 the_mesh.getNodeName(), sendText);
+        the_mesh.queueSentChannelMessage(0, ts, fullMsg);
         showAlert("Sent!", 800);
       }
       ms->clearOutBuf();
@@ -920,12 +930,6 @@ char UITask::handleLongPress(char c) {
 char UITask::handleDoubleClick(char c) {
   MESH_DEBUG_PRINTLN("UITask: double click triggered");
   checkDisplayOn(c);
-  return c;
-}
-
-char UITask::handleTripleClick(char c) {
-  MESH_DEBUG_PRINTLN("UITask: triple click triggered");
-  checkDisplayOn(c);
 #ifdef MORSE_COMPOSE_ENABLED
   if (curr == home) {
     ((MorseScreen*)morse_screen)->activate();
@@ -934,6 +938,12 @@ char UITask::handleTripleClick(char c) {
     return c;
   }
 #endif
+  return c;
+}
+
+char UITask::handleTripleClick(char c) {
+  MESH_DEBUG_PRINTLN("UITask: triple click triggered");
+  checkDisplayOn(c);
   toggleBuzzer();
   c = 0;
   return c;

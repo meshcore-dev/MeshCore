@@ -50,7 +50,9 @@ class UITask : public AbstractUITask {
 
   UIScreen* splash;
   UIScreen* home;
+#ifndef HELTEC_MESH_POCKET
   UIScreen* msg_preview;
+#endif
 #ifdef MORSE_COMPOSE_ENABLED
   UIScreen* morse_screen;
 #endif
