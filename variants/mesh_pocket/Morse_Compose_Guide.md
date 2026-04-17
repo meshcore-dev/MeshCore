@@ -1,12 +1,12 @@
 # Morse Compose — Meshpocket User Guide
 
-Morse Compose lets you type and send messages on the Public channel using the Meshpocket's single button. No keyboard needed — just press and release in the rhythm of Morse code.
+Morse Compose lets you type and send messages on any configured channel using the Meshpocket's single button. No keyboard needed — just press and release in the rhythm of Morse code.
 
 ## Getting In and Out
 
-**Enter**: Double-click the button from the home screen.
+**Enter**: Double-click the button from the home screen. A channel picker appears — click to cycle between channels, then double-click to select. The Morse compose screen opens on the chosen channel.
 
-**Exit**: Hold the button for **9 seconds**, then release. The display shows `[EXIT]` when the threshold is reached.
+**Exit**: Hold the button for **9 seconds**, then release. The display shows `[EXIT]` when the threshold is reached. You can also exit by long-pressing from the channel picker.
 
 ## How Pressing Works
 
@@ -15,7 +15,7 @@ Every button press is either a **dot** or a **dash**, determined by how long you
 | Press duration | Result |
 |---|---|
 | Under 500 ms | Dot (·) |
-| 500 ms or longer | Dash (—) |
+| 500 ms – 3 s | Dash (—) |
 
 A quick tap (under half a second) is a dot. A deliberate half-second hold is a dash. The threshold is generous to avoid accidental dashes.
 
@@ -30,17 +30,17 @@ You don't need to press "confirm" after each letter — the screen detects lette
 
 So the flow is: press dot/dash patterns → pause for about 1 second → letter appears → continue with the next letter. Pause for 3.5 seconds and a space is added.
 
-### Example: Sending "HI THERE"
+### Example: Sending "hi there"
 
-1. Press: · · · · (four quick taps) → pause 1 second → **H** appears
-2. Press: · · (two quick taps) → pause 1 second → **I** appears
-3. **Wait ~3.5 seconds** → space inserted automatically → buffer shows "HI "
-4. Press: — (one half-second press) → pause → **T** appears
-5. Press: · · · · → pause → **H** appears
-6. Press: · → pause → **E** appears
-7. Press: · — · → pause → **R** appears
-8. Press: · → pause → **E** appears
-9. Buffer now shows "HI THERE"
+1. Press: · · · · (four quick taps) → pause 1 second → **h** appears
+2. Press: · · (two quick taps) → pause 1 second → **i** appears
+3. **Wait ~3.5 seconds** → space inserted automatically → buffer shows "hi "
+4. Press: — (one half-second press) → pause → **t** appears
+5. Press: · · · · → pause → **h** appears
+6. Press: · → pause → **e** appears
+7. Press: · — · → pause → **r** appears
+8. Press: · → pause → **e** appears
+9. Buffer now shows "hi there"
 10. Hold for ~8 seconds → display shows `[SEND]` → release → message sent!
 
 ## Sending, Correcting, and Exiting
@@ -54,7 +54,7 @@ Just hold the button and release at the right moment. The display shows which ac
 | Hold duration | Display shows | What happens on release |
 |---|---|---|
 | 3 – 7 s | `[BKSP]` | **Backspace** — deletes the last character |
-| 7 – 9 s | `[SEND]` | **Send** — sends the message on the Public channel |
+| 7 – 9 s | `[SEND]` | **Send** — sends the message on the selected channel |
 | 9 s+ | `[EXIT]` | **Exit** — returns to the home screen |
 
 ### Method 2: Prosigns (advanced)
@@ -108,18 +108,18 @@ Two special Morse patterns also work as alternatives:
 
 The Morse screen shows four sections:
 
-- **Header**: "MORSE" on the left, exit hint on the right
-- **IN**: The last 2 incoming messages
-- **OUT**: Your composed message so far, with a cursor
-- **KEY**: The dots and dashes you've entered for the current letter (before it decodes), plus a character count
+- **Header**: "MORSE > channelname" showing which channel you're composing on. When a hold action is armed, `[BKSP]`, `[SEND]`, or `[EXIT]` appears on the right.
+- **IN**: The last 2 incoming messages on the selected channel only (messages from other channels are filtered out).
+- **OUT**: Your composed message so far, with a cursor.
+- **KEY**: Shows "ready" during normal use. During a hold, shows the armed action.
 
-A hint at the bottom shows `Hold 3s=bksp 7s=send 9s=exit` as a reminder.
+Sent messages also appear in the MeshCore companion app's channel history if BLE is connected.
 
 ## Tips
 
 - **Spaces are automatic** — just pause for about 3.5 seconds after finishing a word and a space appears
 - Full stop is its own Morse character (· — · — · —) — a space is automatically inserted after it via the same word-gap pause
-- All output is **uppercase** — Morse code doesn't distinguish case
+- All output is **lowercase**
 - The maximum message length is 133 characters
 - If you enter a wrong dot/dash pattern, it won't match any character and will be silently dropped — just start the letter again after the gap
 - A dot is a quick tap (under half a second), a dash is a deliberate hold (half a second or longer)

@@ -250,8 +250,10 @@ public:
   const char* getChannelName() const { return _channelName; }
 
   // Called from UITask::newMsg for incoming messages.
-  // `from` is the sender/channel name; `text` is the message body.
+  // `from` is the channel name; `text` is the message body.
+  // Only accepts messages matching the currently selected channel.
   void notifyPublicMsg(const char* from, const char* text) {
+    if (!from || strcmp(from, _channelName) != 0) return;  // wrong channel
     _inboxNewest = (_inboxCount == 0) ? 0 : ((_inboxNewest + 1) % MORSE_INBOX_SIZE);
     InboxEntry& e = _inbox[_inboxNewest];
     e.timestamp = _rtc ? _rtc->getCurrentTime() : 0;
