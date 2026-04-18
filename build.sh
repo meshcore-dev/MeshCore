@@ -3,7 +3,7 @@
 global_usage() {
   cat - <<EOF
 Usage:
-sh build.sh <command> [target]
+bash build.sh <command> [target]
 
 Commands:
   help|usage|-h|--help: Shows this message.
@@ -17,19 +17,19 @@ Commands:
 
 Examples:
 Build firmware for the "RAK_4631_repeater" device target
-$ sh build.sh build-firmware RAK_4631_repeater
+$ bash build.sh build-firmware RAK_4631_repeater
 
 Build all firmwares for device targets containing the string "RAK_4631"
-$ sh build.sh build-matching-firmwares <build-match-spec>
+$ bash build.sh build-matching-firmwares <build-match-spec>
 
 Build all companion firmwares
-$ sh build.sh build-companion-firmwares
+$ bash build.sh build-companion-firmwares
 
 Build all repeater firmwares
-$ sh build.sh build-repeater-firmwares
+$ bash build.sh build-repeater-firmwares
 
 Build all chat room server firmwares
-$ sh build.sh build-room-server-firmwares
+$ bash build.sh build-room-server-firmwares
 
 Environment Variables:
   DISABLE_DEBUG=1: Disables all debug logging flags (MESH_DEBUG, MESH_PACKET_LOGGING, etc.)
@@ -39,11 +39,11 @@ Examples:
 Build without debug logging:
 $ export FIRMWARE_VERSION=v1.0.0
 $ export DISABLE_DEBUG=1
-$ sh build.sh build-firmware RAK_4631_repeater
+$ bash build.sh build-firmware RAK_4631_repeater
 
 Build with debug logging (default, uses flags from variant files):
 $ export FIRMWARE_VERSION=v1.0.0
-$ sh build.sh build-firmware RAK_4631_repeater
+$ bash build.sh build-firmware RAK_4631_repeater
 EOF
 }
 
