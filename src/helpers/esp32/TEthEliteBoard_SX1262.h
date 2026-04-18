@@ -5,15 +5,16 @@
 // Define pin mappings BEFORE including ESP32Board.h so sleep() can use P_LORA_DIO_1
 
 // LoRa SX1262 pins (T-ETH Elite LoRa Shield)
-#define P_LORA_NSS     40  // CS
-#define P_LORA_RESET   46  // RESET
-#define P_LORA_BUSY    16  // BUSY
-#define P_LORA_DIO_0   -1  // NC
-#define P_LORA_DIO_1   8   // IRQ
-#define P_LORA_TX_LED  38
-#define P_LORA_SCLK    10
-#define P_LORA_MISO    9
-#define P_LORA_MOSI    11
+#define P_LORA_NSS      40  // CS
+#define P_LORA_RESET    46  // RESET
+#define P_LORA_BUSY     16  // BUSY
+#define P_LORA_DIO_0    -1  // NC
+#define P_LORA_DIO_1    8   // IRQ
+#define P_LORA_TX_LED   38
+#define P_LORA_SCLK     10
+#define P_LORA_MISO     9
+#define P_LORA_MOSI     11
+#define P_LORA_WAKE_DIO P_LORA_DIO_1  // DIO used as deep-sleep wake source
 
 // ETH W5500 pins (T-ETH Elite main board)
 #define ETH_MISO       47
@@ -78,15 +79,13 @@ public:
   void enterDeepSleep(uint32_t secs, int pin_wake_btn) {
     esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
 
-    rtc_gpio_set_direction((gpio_num_t)P_LORA_DIO_1, RTC_GPIO_MODE_INPUT_ONLY);
-    rtc_gpio_pulldown_en((gpio_num_t)P_LORA_DIO_1);
+    rtc_gpio_set_direction((gpio_num_t)P_LORA_WAKE_DIO, RTC_GPIO_MODE_INPUT_ONLY);
+    rtc_gpio_pulldown_en((gpio_num_t)P_LORA_WAKE_DIO);
     rtc_gpio_hold_en((gpio_num_t)P_LORA_NSS);
 
-    if (pin_wake_btn < 0) {
-      esp_sleep_enable_ext1_wakeup((1L << P_LORA_DIO_1), ESP_EXT1_WAKEUP_ANY_HIGH);
-    } else {
-      esp_sleep_enable_ext1_wakeup((1L << P_LORA_DIO_1) | (1L << pin_wake_btn), ESP_EXT1_WAKEUP_ANY_HIGH);
-    }
+    uint64_t wake_mask = 1ULL << P_LORA_WAKE_DIO;
+    if (pin_wake_btn >= 0) wake_mask |= 1ULL << pin_wake_btn;
+    esp_sleep_enable_ext1_wakeup(wake_mask, ESP_EXT1_WAKEUP_ANY_HIGH);
 
     if (secs > 0) {
       esp_sleep_enable_timer_wakeup(secs * 1000000);
