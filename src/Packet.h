@@ -22,7 +22,7 @@ namespace mesh {
 #define PAYLOAD_TYPE_ACK         0x03    // a simple ack
 #define PAYLOAD_TYPE_ADVERT      0x04    // a node advertising its Identity
 #define PAYLOAD_TYPE_GRP_TXT     0x05    // an (unverified) group text message (prefixed with channel hash, MAC) (enc data: timestamp, "name: msg")
-#define PAYLOAD_TYPE_GRP_DATA    0x06    // an (unverified) group datagram (prefixed with channel hash, MAC) (enc data: timestamp, blob)
+#define PAYLOAD_TYPE_GRP_DATA    0x06    // an (unverified) group datagram (prefixed with channel hash, MAC) (enc data: data_type(uint16), data_len, blob)
 #define PAYLOAD_TYPE_ANON_REQ    0x07    // generic request (prefixed with dest_hash, ephemeral pub_key, MAC) (enc data: ...)
 #define PAYLOAD_TYPE_PATH        0x08    // returned path (prefixed with dest/src hashes, MAC) (enc data: path, extra)
 #define PAYLOAD_TYPE_TRACE       0x09    // trace a path, collecting SNI for each hop

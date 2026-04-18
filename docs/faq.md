@@ -89,7 +89,7 @@ A list of frequently-asked questions and answers for MeshCore
   - [6.7. Q: My RAK/T1000-E/xiao\_nRF52 device seems to be corrupted, how do I wipe it clean to start fresh?](#67-q-my-rakt1000-exiao_nrf52-device-seems-to-be-corrupted-how-do-i-wipe-it-clean-to-start-fresh)
   - [6.8. Q: WebFlasher fails on Linux with failed to open](#68-q-webflasher-fails-on-linux-with-failed-to-open)
 - [7. Other Questions:](#7-other-questions)
-  - [7.1. Q: How to update nRF (RAK, T114, Seed XIAO) repeater and room server firmware over the air using the new simpler DFU app?](#71-q-how-to-update-nrf-rak-t114-seed-xiao-repeater-and-room-server-firmware-over-the-air-using-the-new-simpler-dfu-app)
+  - [7.1. Q: How to update nRF (RAK, T114, Seed XIAO) companion, repeater and room server firmware over the air using the new simpler DFU app?](#71-q-how-to-update-nrf-rak-t114-seed-xiao-companion-repeater-and-room-server-firmware-over-the-air-using-the-new-simpler-dfu-app)
     - [7.1.1 Q: Can I update Seeed Studio Wio Tracker L1 Pro using OTA?](#711-q-can-i-update-seeed-studio-wio-tracker-l1-pro-using-ota)
   - [7.2. Q: How to update ESP32-based devices over the air?](#72-q-how-to-update-esp32-based-devices-over-the-air)
   - [7.3. Q: Is there a way to lower the chance of a failed OTA device firmware update (DFU)?](#73-q-is-there-a-way-to-lower-the-chance-of-a-failed-ota-device-firmware-update-dfu)
@@ -221,11 +221,11 @@ MeshCore allows you to manually broadcast your name, position and public encrypt
 * Zero hop means your advert is broadcasted out to anyone that can hear it, and that's it.
 * Flooded means it's broadcasted out and then repeated by all the repeaters that hear it.
 
-MeshCore clients only advertise themselves when the user initiates it. A repeater sends a flood advert once every 3 hours by default. This interval can be configured using the following command:
+MeshCore clients only advertise themselves when the user initiates it. A repeater sends a flood advert once every 12 hours by default. This interval can be configured using the following command:
 
-`set advert.interval {minutes}`
+`set flood.advert.interval {hours}`
 
-As of Aug 20 2025, a pending PR on github will change the flood advert to 12 hours to minimize airtime utilization caused by repeaters' flood adverts.
+The separate `set advert.interval {minutes}` command controls the local zero-hop advert timer.
 
 ### 2.5. Q: Is there a hop limit?
 
@@ -260,7 +260,9 @@ Repeater or room server can be administered with one of the options below:
 ### 3.2. Q: Do I need to set the location for a repeater?
 **A:** While not required, with location set for a repeater it will show up on the MeshCore map in the future. Set location with the following command:
 
-`set lat <GPS Lat> set long <GPS Lon>`
+`set lat <GPS Lat>`
+
+`set lon <GPS Lon>`
 
 You can get the latitude and longitude from Google Maps by right-clicking the location you are at on the map.
 
@@ -384,7 +386,7 @@ https://github.com/meshcore-dev/MeshCore/blob/main/src/Packet.h#L19
     #define PAYLOAD_TYPE_TXT_MSG 0x02 // a plain text message (prefixed with dest/src hashes, MAC) (enc data: timestamp, text)
     #define PAYLOAD_TYPE_ACK 0x03 // a simple ack #define PAYLOAD_TYPE_ADVERT 0x04 // a node advertising its Identity
     #define PAYLOAD_TYPE_GRP_TXT 0x05 // an (unverified) group text message (prefixed with channel hash, MAC) (enc data: timestamp, "name: msg")
-    #define PAYLOAD_TYPE_GRP_DATA 0x06 // an (unverified) group datagram (prefixed with channel hash, MAC) (enc data: timestamp, blob)
+    #define PAYLOAD_TYPE_GRP_DATA 0x06 // an (unverified) group datagram (prefixed with channel hash, MAC) (enc data: data_type, data_len, blob)
     #define PAYLOAD_TYPE_ANON_REQ 0x07 // generic request (prefixed with dest_hash, ephemeral pub_key, MAC) (enc data: ...)
     #define PAYLOAD_TYPE_PATH 0x08 // returned path (prefixed with dest/src hashes, MAC) (enc data: path, extra)
 
@@ -781,13 +783,13 @@ Allow the browser user on it:
 ---
 ## 7. Other Questions:
 
-### 7.1. Q: How to update nRF (RAK, T114, Seed XIAO) repeater and room server firmware over the air using the new simpler DFU app?
+### 7.1. Q: How to update nRF (RAK, T114, Seed XIAO) companion, repeater and room server firmware over the air using the new simpler DFU app?
 
 **A:** The steps below work on both Android and iOS as nRF has made both apps' user interface the same on both platforms:
 
 1. Download nRF's DFU app from iOS App Store or Android's Play Store, you can find the app by searching for `nrf dfu`, the app's full name is `nRF Device Firmware Update`
 2. On flasher.meshcore.co.uk, download the **ZIP** version of the firmware for your nRF device (e.g. RAK or Heltec T114 or Seeed Studio's Xiao)
-3. From the MeshCore app, login remotely to the repeater you want to update with admin privilege
+3. If updating a companion, skip to step 6 below.  If updating a repeater or room server, from the MeshCore app, login remotely to the repeater you want to update with admin privilege
 4. Go to the Command Line tab, type `start ota` and hit enter.
 5. you should see `OK` to confirm the repeater device is now in OTA mode
 6. Run the DFU app,tab `Settings` on the top right corner
@@ -796,8 +798,14 @@ Allow the browser user on it:
 10. Select the device you want to update. If the device you want to update is not on the list, try enabling`OTA` on the device again
 11. If the device is not found, enable `Force Scanning` in the DFU app
 12. Tab the `Upload` to begin OTA update
-13. If it fails, try turning off and on Bluetooth on your phone.  If that doesn't work, try rebooting your phone.
-14. Wait for the update to complete.  It can take a few minutes.
+13. If it fails, try turning off and on Bluetooth on your phone.  If that doesn't work, try rebooting your phone.  If you keep getting failures at the "Enabling Bootloader" step, try forgetting the NRF board in your IOS or Andriod device's bluetooth settings and re-pair it through the DFU app.
+14. Wait for the update to complete.  It can take a few minutes.   
+15. It is strongly recommended that you install and use the OTAFIX bootloader at https://github.com/oltaco/Adafruit_nRF52_Bootloader_OTAFIX. 
+16. To update a companion node over OTA, it must be running companion firmware v1.15 or greater.   
+17. Please see the Meshcore Blog for additional information on OTA firmware flashing: 
+    - https://blog.meshcore.io/2026/04/06/otafix-bootloader
+    - https://blog.meshcore.io/2026/04/02/nrf-ota-update
+
 
 #### 7.1.1 Q: Can I update Seeed Studio Wio Tracker L1 Pro using OTA?
 **A:**  You can flash this safer bootloader to the Wio Tracker L1 Pro

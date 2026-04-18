@@ -53,5 +53,5 @@ void GAT562MeshTrackerProBoard::begin() {
   checkBootVoltage(&power_config);
 #endif
   digitalWrite(SX126X_POWER_EN, HIGH);
-  delay(10);   // give sx1268 some time to power up
+  delay(10);   // give sx1262 some time to power up
 }

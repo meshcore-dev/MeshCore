@@ -55,7 +55,7 @@ const uint32_t g_ADigitalPinMap[PINS_COUNT + 1] =
   42, // P1.10, LORA_RESET
   43, // P1.11, GPS_EN
   44, // P1.12, GPS_SLEEP_INT
-  45, // P1.13
+  45, // P1.13, FLASH_ENABLE
   46, // P1.14, GPS_RESETB
   47, // P1.15, PIN_GPS_RESET
   255,  // NRFX_SPIM_PIN_NOT_USED

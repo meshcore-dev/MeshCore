@@ -46,7 +46,8 @@
   ],
   "debug": {
     "jlink_device": "nRF52840_xxAA",
-    "svd_path": "nrf52840.svd"
+    "svd_path": "nrf52840.svd",
+    "openocd_target": "nrf52.cfg"
   },
   "frameworks": [
     "arduino"

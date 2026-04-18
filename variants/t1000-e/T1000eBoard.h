@@ -43,7 +43,7 @@ public:
     uint8_t v = digitalRead(BUTTON_PIN);
     if (v != btn_prev_state) {
       btn_prev_state = v;
-      return (v == LOW) ? 1 : -1;
+      return (v == USER_BTN_PRESSED) ? 1 : -1;
     }
   #endif
     return 0;
