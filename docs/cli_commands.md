@@ -102,7 +102,16 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 - `neighbor.remove <pubkey_prefix>`
 
 **Parameters:** 
-- `pubkey_prefix`: The public key of the node to remove from the neighbors list
+- `pubkey_prefix`: The public key of the node to remove from the neighbors list. This can be a short prefix or the full key. All neighbors matching the provided prefix will be removed.
+
+**Note:** You can remove all neighbors by sending a space character as the prefix. The space indicates an empty prefix, which matches all existing neighbors.
+
+---
+
+### Discover zero hop neighbors
+
+**Usage:** 
+- `discover.neighbors`
 
 ---
 
@@ -210,6 +219,20 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 ---
 
+#### View or change the boosted receive gain mode
+**Usage:**
+- `get radio.rxgain`
+- `set radio.rxgain <state>`
+
+**Parameters:**
+- `state`: `on`|`off`
+
+**Default:** `off`
+
+**Note:** Only available on SX1262 and SX1268 based boards.
+
+---
+
 #### Change the radio parameters for a set duration
 **Usage:** 
 - `tempradio <freq>,<bw>,<sf>,<cr>,<timeout_mins>`
@@ -237,6 +260,22 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 **Note:** Requires reboot to apply
 **Serial Only:** `set freq <frequency>`
+
+---
+
+#### View or change this node's rx boosted gain mode (SX12xx only, v1.14.1+)
+**Usage:**
+- `get radio.rxgain`
+- `set radio.rxgain <state>`
+
+**Parameters:**
+  - `state`: `on`|`off`
+
+**Default:** `on`
+
+**Temporary Note:** If you upgraded from an older version to 1.14.1 without erasing flash, this setting is `off` because of [#2118](https://github.com/meshcore-dev/MeshCore/issues/2118)
+
+---
 
 ### System
 
@@ -477,7 +516,29 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 ---
 
+#### View or change the duty cycle limit
+**Usage:**
+- `get dutycycle`
+- `set dutycycle <value>`
+
+**Parameters:**
+- `value`: Duty cycle percentage (1-100)
+
+**Default:** `50%` (equivalent to airtime factor 1.0)
+
+**Examples:**
+- `set dutycycle 100` — no duty cycle limit
+- `set dutycycle 50` — 50% duty cycle (default)
+- `set dutycycle 10` — 10% duty cycle
+- `set dutycycle 1` — 1% duty cycle (strictest EU requirement)
+
+> **Note:** Added in firmware v1.15.0
+
+---
+
 #### View or change the airtime factor (duty cycle limit)
+> **Deprecated** as of firmware v1.15.0. Use [`get/set dutycycle`](#view-or-change-the-duty-cycle-limit) instead.
+
 **Usage:**
 - `get af`
 - `set af <value>`
@@ -487,8 +548,8 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
   - `af = 1` → ~50% duty
   - `af = 2` → ~33% duty
   - `af = 3` → ~25% duty
-  - `af = 9` → ~10% duty  
-  Yyou are responsible for choosing a value that is appropriate for your jurisdiction and channel plan (for example EU 868 Mhz 10% duty cycle regulation).
+  - `af = 9` → ~10% duty
+  You are responsible for choosing a value that is appropriate for your jurisdiction and channel plan (for example EU 868 Mhz 10% duty cycle regulation).
 
 **Default:** `1.0`
 
@@ -512,7 +573,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 - `set agc.reset.interval <value>`
 
 **Parameters:**
-- `value`: Interval in seconds rounded down to a multiple of 4 (17 becomes 16)
+- `value`: Interval in seconds rounded down to a multiple of 4 (17 becomes 16). 0 to disable.
 
 **Default:** `0.0`
 
@@ -669,6 +730,16 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 ---
 
+#### View or change the default scope region for this node
+**Usage:** 
+- `region default`
+- `region default {name|<null>}`
+
+**Parameters:**
+- `name`: Region name,  or <null> to reset/clear
+
+---
+
 #### Create a new region
 **Usage:** 
 - `region put <name> [parent_name]`
@@ -811,7 +882,9 @@ region save
 
 **Default:** `off`
 
-**Note:** Output format: `{status}, {fix}, {sat count}` (when enabled)
+**Note:** Output format:
+- `off` when the GPS hardware is disabled
+- `on, {active|deactivated}, {fix|no fix}, {sat count} sats` when the GPS hardware is enabled
 
 ---
 
