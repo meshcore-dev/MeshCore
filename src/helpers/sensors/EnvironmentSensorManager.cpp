@@ -62,9 +62,15 @@ LPS22HBClass LPS22HB(*TELEM_WIRE);
 #endif
 
 #if ENV_INCLUDE_INA3221
+#ifndef TELEM_INA3221_ADDRESS
 #define TELEM_INA3221_ADDRESS   0x42      // INA3221 3 channel current sensor I2C address
+#endif
+#ifndef TELEM_INA3221_SHUNT_VALUE
 #define TELEM_INA3221_SHUNT_VALUE 0.100 // most variants will have a 0.1 ohm shunts
+#endif
+#ifndef TELEM_INA3221_NUM_CHANNELS
 #define TELEM_INA3221_NUM_CHANNELS 3
+#endif
 #include <Adafruit_INA3221.h>
 static Adafruit_INA3221 INA3221;
 #endif

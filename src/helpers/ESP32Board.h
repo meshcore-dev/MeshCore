@@ -3,6 +3,10 @@
 #include <MeshCore.h>
 #include <Arduino.h>
 
+#ifndef USER_BTN_PRESSED
+#define USER_BTN_PRESSED LOW
+#endif
+
 #if defined(ESP_PLATFORM)
 
 #include <rom/rtc.h>
