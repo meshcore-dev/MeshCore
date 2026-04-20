@@ -78,6 +78,20 @@ struct NeighbourInfo {
 
 #define FIRMWARE_ROLE "repeater"
 
+#define ADVERT_JAIL_KEY_SIZE    4
+#define MAX_ADVERT_JAIL_ENTRIES 128
+#define ADVERT_JAIL_THRESHOLD   6
+
+struct AdvertJailEntry {
+  uint8_t pub_key_prefix[ADVERT_JAIL_KEY_SIZE];  // first bytes of sender pub_key
+  uint8_t count;                                  // strike count
+  bool jailed;                                    // true once count reaches threshold
+  unsigned long last_seen;                        // millis() when last advert seen
+  unsigned long first_seen;                       // millis() when first advert seen
+  uint16_t total_adverts;                         // total adverts received (for avg calc)
+  uint32_t last_advert_time;                      // advert timestamp (sender clock) for dedup
+};
+
 #define PACKET_LOG_FILE  "/packet_log"
 
 class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
@@ -108,6 +122,9 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
 #endif
   CayenneLPP telemetry;
   unsigned long set_radio_at, revert_radio_at;
+  unsigned long last_flood_advert_recv;
+  uint32_t last_flood_advert_time;  // advert timestamp for global rate limit dedup
+  AdvertJailEntry _advert_jail[MAX_ADVERT_JAIL_ENTRIES];
   float pending_freq;
   float pending_bw;
   uint8_t pending_sf;
@@ -211,6 +228,7 @@ public:
   void setTxPower(int8_t power_dbm) override;
   void formatNeighborsReply(char *reply) override;
   void removeNeighbor(const uint8_t* pubkey, int key_len) override;
+  void formatAdvertJailReply(char *reply) override;
   void formatStatsReply(char *reply) override;
   void formatRadioStatsReply(char *reply) override;
   void formatPacketStatsReply(char *reply) override;
