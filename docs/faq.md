@@ -428,7 +428,7 @@ https://github.com/meshcore-dev/MeshCore/blob/main/src/Packet.h#L19
     #define PAYLOAD_TYPE_TXT_MSG 0x02 // a plain text message (prefixed with dest/src hashes, MAC) (enc data: timestamp, text)
     #define PAYLOAD_TYPE_ACK 0x03 // a simple ack #define PAYLOAD_TYPE_ADVERT 0x04 // a node advertising its Identity
     #define PAYLOAD_TYPE_GRP_TXT 0x05 // an (unverified) group text message (prefixed with channel hash, MAC) (enc data: timestamp, "name: msg")
-    #define PAYLOAD_TYPE_GRP_DATA 0x06 // an (unverified) group datagram (prefixed with channel hash, MAC) (enc data: timestamp, blob)
+    #define PAYLOAD_TYPE_GRP_DATA 0x06 // an (unverified) group datagram (prefixed with channel hash, MAC) (enc data: data_type, data_len, blob)
     #define PAYLOAD_TYPE_ANON_REQ 0x07 // generic request (prefixed with dest_hash, ephemeral pub_key, MAC) (enc data: ...)
     #define PAYLOAD_TYPE_PATH 0x08 // returned path (prefixed with dest/src hashes, MAC) (enc data: path, extra)
 
@@ -740,7 +740,7 @@ Allow the browser user on it:
 ---
 ## 7. Other Questions:
 
-### 7.1. Q: How to update nRF (RAK, T114, Seed XIAO) repeater and room server firmware over the air using the new simpler DFU app?
+### 7.1. Q: How to update nRF (RAK, T114, Seed XIAO) companion, repeater and room server firmware over the air using the new simpler DFU app?
 
 **A:** The steps below work on both Android and iOS as nRF has made both apps' user interface the same on both platforms:
 
@@ -755,8 +755,14 @@ Allow the browser user on it:
 10. Select the device you want to update. If the device you want to update is not on the list, try enabling`OTA` on the device again
 11. If the device is not found, enable `Force Scanning` in the DFU app
 12. Tab the `Upload` to begin OTA update
-13. If it fails, try turning off and on Bluetooth on your phone.  If that doesn't work, try rebooting your phone.
-14. Wait for the update to complete.  It can take a few minutes.
+13. If it fails, try turning off and on Bluetooth on your phone.  If that doesn't work, try rebooting your phone.  If you keep getting failures at the "Enabling Bootloader" step, try forgetting the NRF board in your IOS or Andriod device's bluetooth settings and re-pair it through the DFU app.
+14. Wait for the update to complete.  It can take a few minutes.   
+15. It is strongly recommended that you install and use the OTAFIX bootloader at https://github.com/oltaco/Adafruit_nRF52_Bootloader_OTAFIX. 
+16. To update a companion node over OTA, it must be running companion firmware v1.15 or greater.   
+17. Please see the Meshcore Blog for additional information on OTA firmware flashing: 
+    - https://blog.meshcore.io/2026/04/06/otafix-bootloader
+    - https://blog.meshcore.io/2026/04/02/nrf-ota-update
+
 
 #### 7.1.1 Q: Can I update Seeed Studio Wio Tracker L1 Pro using OTA?
 **A:**  You can flash this safer bootloader to the Wio Tracker L1 Pro
@@ -790,7 +796,7 @@ Currently, the following boards are supported:
 - Seeed Studio Wio Tracker L1
 - Seeed Studio XIAO nRF52840 BLE
 - Seeed Studio XIAO nRF52840 BLE SENSE
-- RAK 4631 (See note)
+- RAK 4631 
 - RAK WisMesh Tag (new 28/11/2025)
 
 ### 7.4. Q: are the MeshCore logo and font available?
