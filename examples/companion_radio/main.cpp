@@ -229,4 +229,7 @@ void loop() {
   ui_task.loop();
 #endif
   rtc_clock.tick();
+#ifdef P_FAN_CTRL
+  update_fan_control();
+#endif
 }

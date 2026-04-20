@@ -82,6 +82,7 @@
 
 // Fan control
 #define FAN_CTRL_PIN 41
+#define P_FAN_CTRL FAN_CTRL_PIN  // enables update_fan_control() in main loop
 
 // PA Ramp Time - T-Beam 1W requires >800us stabilization (default is 200us)
 // Value 0x05 = RADIOLIB_SX126X_PA_RAMP_800U

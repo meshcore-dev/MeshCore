@@ -30,6 +30,7 @@
 class TBeam1WBoard : public ESP32Board {
 private:
   bool radio_powered = false;
+  unsigned long _fan_off_millis = 0;  // 0 = no pending fan-off
 
 public:
   void begin();
@@ -39,7 +40,9 @@ public:
   const char* getManufacturerName() const override;
   void powerOff() override;
 
-  // Fan control methods
+  // Called each main loop iteration to manage fan cooldown after TX
+  void updateFan();
+
   void setFanEnabled(bool enabled);
   bool isFanEnabled() const;
 };

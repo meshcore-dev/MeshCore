@@ -63,3 +63,7 @@ mesh::LocalIdentity radio_new_identity() {
   return mesh::LocalIdentity(&rng);
 }
 
+void update_fan_control() {
+  board.updateFan();
+}
+
