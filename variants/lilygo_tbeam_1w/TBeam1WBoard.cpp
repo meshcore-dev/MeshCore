@@ -36,7 +36,7 @@ void TBeam1WBoard::onBeforeTransmit() {
 void TBeam1WBoard::onAfterTransmit() {
   digitalWrite(SX126X_RXEN, HIGH); // re-enable LNA immediately after TX
   digitalWrite(LED_PIN, LOW);
-  // Keep fan running for 5s after TX
+  // Keep fan running for 10s after TX
   setFanEnabled(true);
   _fan_off_millis = millis() + 10000;
 }
