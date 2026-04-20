@@ -20,14 +20,24 @@ class MomentaryButton {
   int _multi_click_window;
   bool _pending_click;
 
+  // Debounce support
+  unsigned long _last_debounce_time;
+  int _last_read;
+  int _debounce_ms; // debounce interval in milliseconds
+
   bool isPressed(int level) const;
 
 public:
-  MomentaryButton(int8_t pin, int long_press_mills=0, bool reverse=false, bool pulldownup=false, bool multiclick=true);
-  MomentaryButton(int8_t pin, int long_press_mills, int analog_threshold);
+  // debounce_ms: milliseconds of stable state required to accept changes (default 30ms)
+  MomentaryButton(int8_t pin, int long_press_mills=0, bool reverse=false, bool pulldownup=false, bool multiclick=true, int debounce_ms=30);
+  MomentaryButton(int8_t pin, int long_press_mills, int analog_threshold, int debounce_ms=30);
   void begin();
   int check(bool repeat_click=false);  // returns one of BUTTON_EVENT_*
   void cancelClick();  // suppress next BUTTON_EVENT_CLICK (if already in DOWN state)
   uint8_t getPin() { return _pin; }
   bool isPressed() const;
+
+  // Debounce control
+  void setDebounceMs(int ms);
+  int getDebounceMs() const;
 };
