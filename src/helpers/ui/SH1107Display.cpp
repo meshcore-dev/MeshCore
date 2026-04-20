@@ -25,6 +25,8 @@ bool SH1107Display::begin()
 void SH1107Display::turnOn()
 {
   display.oled_command(SH110X_DISPLAYON);
+  uint8_t cmd[] = {0xD5, 0xF0};
+  display.oled_commandList(cmd, 2);
   _isOn = true;
 }
 
@@ -43,7 +45,7 @@ void SH1107Display::clear()
 void SH1107Display::startFrame(Color bkg)
 {
   display.clearDisplay(); // TODO: apply 'bkg'
-  display.setContrast(300); // 0-255. default setting was causing some flickering. 
+  display.setContrast(120); // 0-127. default setting was causing some flickering. 
   // display.SH110X_SETPRECHARGE(255);
   _color = SH110X_WHITE;
   display.setTextColor(_color);
