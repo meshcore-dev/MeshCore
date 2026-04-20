@@ -78,6 +78,8 @@ struct NeighbourInfo {
 
 #define FIRMWARE_ROLE "repeater"
 
+#define DEFAULT_FLOOD_PATH_MAX 12
+
 #define PACKET_LOG_FILE  "/packet_log"
 
 class MyMesh : public mesh::Mesh, public CommonCLICallbacks {

@@ -558,6 +558,18 @@ bool MyMesh::filterRecvFloodPacket(mesh::Packet* pkt) {
   } else {
     recv_pkt_region = NULL;
   }
+  // Drop flood REQ/RESPONSE/PATH packets that exceed the path hop limit
+  if (_prefs.flood_path_max > 0 && pkt->isRouteFlood()) {
+    uint8_t pt = pkt->getPayloadType();
+    if (pt == PAYLOAD_TYPE_REQ || pt == PAYLOAD_TYPE_RESPONSE || pt == PAYLOAD_TYPE_PATH) {
+      if (pkt->getPathHashCount() > _prefs.flood_path_max) {
+        MESH_DEBUG_PRINTLN("filterRecvFloodPacket: flood path too long (%d > %d), dropping!",
+          pkt->getPathHashCount(), (uint32_t)_prefs.flood_path_max);
+        return true;
+      }
+    }
+  }
+
   // do normal processing
   return false;
 }
@@ -886,6 +898,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.advert_interval = 1;        // default to 2 minutes for NEW installs
   _prefs.flood_advert_interval = 12; // 12 hours
   _prefs.flood_max = 64;
+  _prefs.flood_path_max = DEFAULT_FLOOD_PATH_MAX; // default 12
   _prefs.interference_threshold = 0; // disabled
 
   // bridge defaults
