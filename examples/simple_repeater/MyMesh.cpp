@@ -709,11 +709,13 @@ void MyMesh::saveBlacklist(const char* fname, const BlacklistEntry* list) {
 /* ------------------- Channel name filter helpers -------------------------- */
 
 void MyMesh::deriveChanNameFilter(ChanNameFilter& entry, const char* name) {
-  // Derive channel secret: first 16 bytes of sha256(name)
+  // Derive channel secret: first 16 bytes of sha256(name), zero-padded to PUB_KEY_SIZE
+  // to match GroupChannel.secret layout (MACThenDecrypt reads PUB_KEY_SIZE bytes)
   uint8_t full_hash[32];
   mesh::Utils::sha256(full_hash, 32, (const uint8_t*)name, strlen(name));
+  memset(entry.secret, 0, sizeof(entry.secret));
   memcpy(entry.secret, full_hash, CIPHER_KEY_SIZE);
-  // Derive channel hash from the secret
+  // Derive channel hash from the secret (using 16-byte key length, matching addChannel)
   mesh::Utils::sha256(entry.hash, sizeof(entry.hash), entry.secret, CIPHER_KEY_SIZE);
   StrHelper::strncpy(entry.name, name, sizeof(entry.name));
 }

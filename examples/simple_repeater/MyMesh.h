@@ -72,7 +72,7 @@ struct BlacklistEntry {
 
 struct ChanNameFilter {
   uint8_t hash[PATH_HASH_SIZE];
-  uint8_t secret[CIPHER_KEY_SIZE];
+  uint8_t secret[PUB_KEY_SIZE];
   char    name[32];
 };
 
