@@ -10,17 +10,23 @@
 #include <helpers/sensors/LocationProvider.h>
 #include <helpers/AutoDiscoverRTCClock.h>
 #include <helpers/sensors/EnvironmentSensorManager.h>  // Added: Include for EnvironmentSensorManager
+#include <helpers/ui/MomentaryButton.h>
 
-#ifdef DISPLAY_CLASS
+
+#ifdef muzi_base_duo_superIO
   #include <helpers/ui/SH1107Display.h>
   extern DISPLAY_CLASS display;
-  #include <helpers/ui/MomentaryButton.h>
   extern MomentaryButton user_btn;
   extern MomentaryButton joystick_left;
   extern MomentaryButton joystick_right;
   extern MomentaryButton joystick_up;
   extern MomentaryButton joystick_down;
   extern MomentaryButton back_btn;
+#else
+  #include "helpers/ui/NullDisplayDriver.h"
+  extern DISPLAY_CLASS display;
+  extern MomentaryButton user_btn;
+
 #endif
 
 extern muzi_base_duoBoard board;
