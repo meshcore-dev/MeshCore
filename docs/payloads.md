@@ -46,16 +46,17 @@ Appdata
 
 Appdata Flags
 
-| Value  | Name           | Description                           |
-|--------|----------------|---------------------------------------|
-| `0x01` | is chat node   | advert is for a chat node             |
-| `0x02` | is repeater    | advert is for a repeater              |
-| `0x03` | is room server | advert is for a room server           |
-| `0x04` | is sensor      | advert is for a sensor server         |
-| `0x10` | has location   | appdata contains lat/long information |
-| `0x20` | has feature 1  | Reserved for future use.              |
-| `0x40` | has feature 2  | Reserved for future use.              |
-| `0x80` | has name       | appdata contains a node name          |
+| Value  | Name           | Description                            |
+|--------|----------------|----------------------------------------|
+| `0x00` | no node type   | advert is for an unspecified node type |
+| `0x01` | is chat node   | advert is for a chat node              |
+| `0x02` | is repeater    | advert is for a repeater               |
+| `0x03` | is room server | advert is for a room server            |
+| `0x04` | is sensor      | advert is for a sensor server          |
+| `0x10` | has location   | appdata contains lat/long information  |
+| `0x20` | has feature 1  | Reserved for future use.               |
+| `0x40` | has feature 2  | Reserved for future use.               |
+| `0x80` | has name       | appdata contains a node name           |
 
 # Acknowledgement
 
