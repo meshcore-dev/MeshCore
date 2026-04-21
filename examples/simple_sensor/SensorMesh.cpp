@@ -363,7 +363,9 @@ uint8_t SensorMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* 
   if (is_flood) {
     client->out_path_len = OUT_PATH_UNKNOWN;  // need to rediscover out_path
   } else if (client->out_path_len != OUT_PATH_UNKNOWN) {
-    reply_path_len = mesh::Packet::writePath(reply_path, client->out_path, client->out_path_len);
+    reply_path_len = client->out_path_len & 63;
+    reply_path_hash_size = (client->out_path_len >> 6) + 1;
+    memcpy(reply_path, client->out_path, ((uint8_t)reply_path_len) * reply_path_hash_size);
   }
 
   uint32_t now = getRTCClock()->getCurrentTimeUnique();
@@ -479,7 +481,8 @@ void SensorMesh::onAnonDataRecv(mesh::Packet* packet, const uint8_t* secret, con
         if (reply_path_len < 0) {
           sendFlood(reply, SERVER_RESPONSE_DELAY, packet->getPathHashSize());
         } else {
-          sendDirect(reply, reply_path, reply_path_len, SERVER_RESPONSE_DELAY);
+          uint8_t path_len = ((reply_path_hash_size - 1) << 6) | (reply_path_len & 63);
+          sendDirect(reply, reply_path, path_len, SERVER_RESPONSE_DELAY);
         }
       }
     }
