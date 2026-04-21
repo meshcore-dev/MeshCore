@@ -35,13 +35,16 @@
   
     int i = 1;
     if (_flags & ADV_LATLON_MASK) {
+      if (app_data_len < i + 8) return;  // need 8 bytes for lat + lon
       memcpy(&_lat, &app_data[i], 4); i += 4;
       memcpy(&_lon, &app_data[i], 4); i += 4;
     }
     if (_flags & ADV_FEAT1_MASK) {
+      if (app_data_len < i + 2) return;  // need 2 bytes for feat1
       memcpy(&_extra1, &app_data[i], 2); i += 2;
     }
     if (_flags & ADV_FEAT2_MASK) {
+      if (app_data_len < i + 2) return;  // need 2 bytes for feat2
       memcpy(&_extra2, &app_data[i], 2); i += 2;
     }
 
