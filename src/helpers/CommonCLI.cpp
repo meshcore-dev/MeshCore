@@ -2,6 +2,7 @@
 #include "CommonCLI.h"
 #include "TxtDataHelpers.h"
 #include "AdvertDataHelpers.h"
+#include "TxtDataHelpers.h"
 #include <RTClib.h>
 
 #ifndef BRIDGE_MAX_BAUD
@@ -726,7 +727,8 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       strcpy(reply, "Error: unsupported by this board");
     };
   } else {
-    sprintf(reply, "unknown config: %s", config);
+    strcpy(reply, "unknown config: ");
+    StrHelper::strncpy(&reply[16], config, 160-17);
   }
 }
 
