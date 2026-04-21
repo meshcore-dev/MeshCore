@@ -35,14 +35,14 @@ This kind of payload notifies receivers that a node exists, and gives informatio
 
 Appdata
 
-| Field         | Size (bytes)    | Description                                           |
-|---------------|-----------------|-------------------------------------------------------|
-| flags         | 1               | specifies which of the fields are present, see below  |
-| latitude      | 4 (optional)    | decimal latitude multiplied by 1000000, integer       |
-| longitude     | 4 (optional)    | decimal longitude multiplied by 1000000, integer      |
-| feature 1     | 2  (optional)   | reserved for future use                               |
-| feature 2     | 2  (optional)   | reserved for future use                               |
-| name          | rest of appdata | name of the node                                      |
+| Field         | Size (bytes)    | Description                                                |
+|---------------|-----------------|------------------------------------------------------------|
+| flags         | 1               | specifies which of the fields are present, see below       |
+| latitude      | 4 (optional)    | decimal latitude multiplied by 1000000, integer            |
+| longitude     | 4 (optional)    | decimal longitude multiplied by 1000000, integer           |
+| feature 1     | 2  (optional)   | reserved for future use                                    |
+| feature 2     | 2  (optional)   | reserved for future use                                    |
+| name          | 0-32            | name of the node (capped at 32 bytes/MAX_ADVERT_DATA_SIZE) |
 
 Appdata Flags
 
