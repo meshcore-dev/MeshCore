@@ -5,11 +5,25 @@
 #include <BLEServer.h>
 #include <BLEUtils.h>
 #include <BLE2902.h>
+#include <BLEAdvertising.h>
+
+// Manufacturer ID for MeshCore (using 0xFFFF for development/testing)
+// In production, you should register with Bluetooth SIG for a unique ID
+#define MESHCORE_MANUFACTURER_ID  0xFFFF
+
+// Advertising data structure (packed into manufacturer specific data)
+// Byte 0: unread message count (0-255)
+// Byte 1: battery voltage encoded as (mV - 2500) / 10, range 0-250 (2500-5000 mV), 0xFF = unknown
+struct AdvertisingStatus {
+  uint8_t unread_count;
+  uint8_t battery_voltage;
+};
 
 class SerialBLEInterface : public BaseSerialInterface, BLESecurityCallbacks, BLEServerCallbacks, BLECharacteristicCallbacks {
   BLEServer *pServer;
   BLEService *pService;
   BLECharacteristic * pTxCharacteristic;
+  BLEAdvertising *pAdvertising;
   bool deviceConnected;
   bool oldDeviceConnected;
   bool _isEnabled;
@@ -17,6 +31,10 @@ class SerialBLEInterface : public BaseSerialInterface, BLESecurityCallbacks, BLE
   uint32_t _pin_code;
   unsigned long _last_write;
   unsigned long adv_restart_time;
+
+  // Advertising status data
+  AdvertisingStatus _advStatus;
+  bool _advDataDirty;
 
   struct Frame {
     uint8_t len;
@@ -52,6 +70,7 @@ public:
   SerialBLEInterface() {
     pServer = NULL;
     pService = NULL;
+    pAdvertising = NULL;
     deviceConnected = false;
     oldDeviceConnected = false;
     adv_restart_time = 0;
@@ -59,6 +78,9 @@ public:
     _last_write = 0;
     last_conn_id = 0;
     send_queue_len = recv_queue_len = 0;
+    _advStatus.unread_count = 0;
+    _advStatus.battery_voltage = 0xFF;  // unknown
+    _advDataDirty = false;
   }
 
   /**
@@ -79,6 +101,13 @@ public:
   bool isWriteBusy() const override;
   size_t writeFrame(const uint8_t src[], size_t len) override;
   size_t checkRecvFrame(uint8_t dest[]) override;
+
+  void setUnreadCount(uint8_t count) override;
+  void setBatteryMilliVolts(uint16_t millivolts) override;
+
+private:
+  void onAdvStatusChanged();
+  void applyAdvertisingData();
 };
 
 #if BLE_DEBUG_LOGGING && ARDUINO
