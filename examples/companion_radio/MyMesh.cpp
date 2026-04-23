@@ -876,6 +876,7 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
   _prefs.rx_boosted_gain = 1; // enabled by default
 #endif
 #endif
+  _prefs.display_rotation = 3; // matches prior hardcoded E213/E290 default
 }
 
 void MyMesh::begin(bool has_display) {

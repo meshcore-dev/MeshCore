@@ -911,6 +911,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.rx_boosted_gain = 1; // enabled by default;
 #endif
 #endif
+  _prefs.display_rotation = 3; // matches prior hardcoded E213/E290 default
 
   pending_discover_tag = 0;
   pending_discover_until = 0;
