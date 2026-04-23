@@ -8,6 +8,7 @@
 #endif
 
 class SerialBLEInterface : public BaseSerialInterface {
+  BLEDfu bledfu;
   BLEUart bleuart;
   bool _isEnabled;
   bool _isDeviceConnected;

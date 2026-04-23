@@ -31,6 +31,6 @@ jobs:
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          cname: docs.meshcore.nz
+          cname: docs.meshcore.io
           publish_dir: ./site
           publish_branch: 'gh-pages'
