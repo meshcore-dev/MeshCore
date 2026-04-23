@@ -497,6 +497,15 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     _prefs->multi_acks = atoi(&config[11]);
     savePrefs();
     strcpy(reply, "OK");
+  } else if (memcmp(config, "display.rotation ", 17) == 0) {
+    uint8_t r = atoi(&config[17]);
+    if (r > 3) {
+      strcpy(reply, "Error, display.rotation must be 0-3");
+    } else {
+      _prefs->display_rotation = r;
+      savePrefs();
+      strcpy(reply, "OK - reboot to apply");
+    }
   } else if (memcmp(config, "allow.read.only ", 16) == 0) {
     _prefs->allow_read_only = memcmp(&config[16], "on", 2) == 0;
     savePrefs();
@@ -751,6 +760,8 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %d", ((uint32_t) _prefs->agc_reset_interval) * 4);
   } else if (memcmp(config, "multi.acks", 10) == 0) {
     sprintf(reply, "> %d", (uint32_t) _prefs->multi_acks);
+  } else if (memcmp(config, "display.rotation", 16) == 0) {
+    sprintf(reply, "> %d", (uint32_t) _prefs->display_rotation);
   } else if (memcmp(config, "allow.read.only", 15) == 0) {
     sprintf(reply, "> %s", _prefs->allow_read_only ? "on" : "off");
   } else if (memcmp(config, "flood.advert.interval", 21) == 0) {
