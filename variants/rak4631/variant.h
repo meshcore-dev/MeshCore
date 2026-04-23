@@ -59,6 +59,8 @@ extern "C"
 	static const uint8_t WB_SPI_MISO = 29; // IO_SLOT
 	static const uint8_t WB_SPI_MOSI = 30; // IO_SLOT
 
+#define PIN_3V3_EN WB_IO2                  // 3V3_S switched peripheral rail control
+
 // Number of pins defined in PinDescription array
 #define PINS_COUNT (48)
 #define NUM_DIGITAL_PINS (48)

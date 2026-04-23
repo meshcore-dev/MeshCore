@@ -655,7 +655,14 @@ void EnvironmentSensorManager::rakGPSInit(){
   //  MESH_DEBUG_PRINTLN("RAK base board is RAK19007/10");
   //  MESH_DEBUG_PRINTLN("GPS is installed on Socket A");
   }
-  else if(gpsIsAwake(WB_IO4)){
+
+  // WB_IO2 controls the 3V3_S switched peripheral rail on RAK these boards.
+  // gpsIsAwake() leaves the pin as INPUT on failure, killing the rail.
+  // Restore it now, before probing other sockets.
+  pinMode(WB_IO2, OUTPUT);
+  digitalWrite(WB_IO2, HIGH);
+
+  if(gpsIsAwake(WB_IO4)){
   //  MESH_DEBUG_PRINTLN("RAK base board is RAK19003/9");
   //  MESH_DEBUG_PRINTLN("GPS is installed on Socket C");
   }

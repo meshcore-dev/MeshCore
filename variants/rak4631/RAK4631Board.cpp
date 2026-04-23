@@ -16,6 +16,9 @@ void RAK4631Board::initiateShutdown(uint8_t reason) {
   // Disable LoRa module power before shutdown
   digitalWrite(SX126X_POWER_EN, LOW);
 
+  // Disable 3V3 switched peripherals
+  digitalWrite(PIN_3V3_EN, LOW);
+
   if (reason == SHUTDOWN_REASON_LOW_VOLTAGE ||
       reason == SHUTDOWN_REASON_BOOT_PROTECT) {
     configureVoltageWake(power_config.lpcomp_ain_channel, power_config.lpcomp_refsel);
