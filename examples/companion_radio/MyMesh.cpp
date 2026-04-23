@@ -1982,6 +1982,15 @@ void MyMesh::checkCLIRescueCmd() {
         _prefs.ble_pin = atoi(&config[4]);
         savePrefs();
         Serial.printf("  > pin is now %06d\n", _prefs.ble_pin);
+      } else if (memcmp(config, "display.rotation ", 17) == 0) {
+        uint8_t r = atoi(&config[17]);
+        if (r > 3) {
+          Serial.printf("  Error: display.rotation must be 0-3\n");
+        } else {
+          _prefs.display_rotation = r;
+          savePrefs();
+          Serial.printf("  > display.rotation is now %d\n", _prefs.display_rotation);
+        }
       } else {
         Serial.printf("  Error: unknown config: %s\n", config);
       }
