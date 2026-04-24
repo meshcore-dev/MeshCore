@@ -89,7 +89,8 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     file.read((uint8_t *)&_prefs->adc_multiplier, sizeof(_prefs->adc_multiplier));                 // 166
     file.read((uint8_t *)_prefs->owner_info, sizeof(_prefs->owner_info));                          // 170
     file.read((uint8_t *)&_prefs->rx_boosted_gain, sizeof(_prefs->rx_boosted_gain));              // 290
-    // next: 291
+    file.read((uint8_t *)&_prefs->wdt_timeout_secs, sizeof(_prefs->wdt_timeout_secs));            // 291
+    // next: 292
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -119,6 +120,7 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
 
     // sanitise settings
     _prefs->rx_boosted_gain = constrain(_prefs->rx_boosted_gain, 0, 1); // boolean
+    // wdt_timeout_secs: 0 is valid (disabled), no constrain needed — uint8_t can't exceed 255
 
     file.close();
   }
@@ -180,7 +182,8 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->adc_multiplier, sizeof(_prefs->adc_multiplier));                 // 166
     file.write((uint8_t *)_prefs->owner_info, sizeof(_prefs->owner_info));                          // 170
     file.write((uint8_t *)&_prefs->rx_boosted_gain, sizeof(_prefs->rx_boosted_gain));              // 290
-    // next: 291
+    file.write((uint8_t *)&_prefs->wdt_timeout_secs, sizeof(_prefs->wdt_timeout_secs));            // 291
+    // next: 292
 
     file.close();
   }
@@ -656,6 +659,15 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       savePrefs();
       strcpy(reply, "OK");
     }
+  } else if (memcmp(config, "wdt ", 4) == 0) {
+    uint32_t val = _atoi(&config[4]);
+    if (val > 255) {
+      strcpy(reply, "Error, must be 0 (off) or 1-255 (seconds)");
+    } else {
+      _prefs->wdt_timeout_secs = (uint8_t)val;
+      savePrefs();
+      sprintf(reply, "OK - WDT %s (reboot to apply)", val == 0 ? "disabled" : "enabled");
+    }
   } else if (memcmp(config, "tx ", 3) == 0) {
     _prefs->tx_power_dbm = atoi(&config[3]);
     savePrefs();
@@ -808,6 +820,13 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     } else {
       strcpy(reply, "> strict");
     }
+  } else if (memcmp(config, "wdt", 3) == 0 && (config[3] == 0 || config[3] == ' ')) {
+#if defined(NRF52_PLATFORM)
+    sprintf(reply, "> %u secs%s", _prefs->wdt_timeout_secs,
+            _prefs->wdt_timeout_secs == 0 ? " (disabled)" : " (active after reboot)");
+#else
+    strcpy(reply, "> not supported on this platform");
+#endif
   } else if (memcmp(config, "tx", 2) == 0 && (config[2] == 0 || config[2] == ' ')) {
     sprintf(reply, "> %d", (int32_t) _prefs->tx_power_dbm);
   } else if (memcmp(config, "freq", 4) == 0) {

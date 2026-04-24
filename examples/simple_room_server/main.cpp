@@ -72,6 +72,10 @@ void setup() {
 
   the_mesh.begin(fs);
 
+#if defined(NRF52_PLATFORM)
+  board.initWatchdog(the_mesh.getNodePrefs()->wdt_timeout_secs);
+#endif
+
 #ifdef DISPLAY_CLASS
   ui_task.begin(the_mesh.getNodePrefs(), FIRMWARE_BUILD_DATE, FIRMWARE_VERSION);
 #endif
@@ -83,6 +87,7 @@ void setup() {
 }
 
 void loop() {
+  board.feedWatchdog();
   int len = strlen(command);
   while (Serial.available() && len < sizeof(command)-1) {
     char c = Serial.read();
