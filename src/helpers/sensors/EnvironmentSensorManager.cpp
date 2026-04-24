@@ -1,4 +1,5 @@
 #include "EnvironmentSensorManager.h"
+#include <helpers/ui/LEDManager.h>
 
 #if ENV_PIN_SDA && ENV_PIN_SCL
 #define TELEM_WIRE &Wire1  // Use Wire1 as the I2C bus for Environment Sensors
@@ -545,6 +546,7 @@ int EnvironmentSensorManager::getNumSettings() const {
   #if ENV_INCLUDE_GPS
     if (gps_detected) settings++;  // only show GPS setting if GPS is detected
   #endif
+  if (_ledManager) settings += 2;  // led.status and led.activity
   return settings;
 }
 
@@ -555,8 +557,10 @@ const char* EnvironmentSensorManager::getSettingName(int i) const {
       return "gps";
     }
   #endif
-  // convenient way to add params (needed for some tests)
-//  if (i == settings++) return "param.2";
+  if (_ledManager) {
+    if (i == settings++) return "led.status";
+    if (i == settings++) return "led.activity";
+  }
   return NULL;
 }
 
@@ -567,8 +571,17 @@ const char* EnvironmentSensorManager::getSettingValue(int i) const {
       return gps_active ? "1" : "0";
     }
   #endif
-  // convenient way to add params ...
-//  if (i == settings++) return "2";
+  if (_ledManager) {
+    static char buf[2] = {0, 0};
+    if (i == settings++) {
+      buf[0] = '0' + _ledManager->getStatusMode();
+      return buf;
+    }
+    if (i == settings++) {
+      buf[0] = '0' + _ledManager->getActivityMode();
+      return buf;
+    }
+  }
   return NULL;
 }
 
@@ -592,6 +605,20 @@ bool EnvironmentSensorManager::setSettingValue(const char* name, const char* val
     return true;
   }
   #endif
+  if (_ledManager && strcmp(name, "led.status") == 0) {
+    int val = atoi(value);
+    if (val >= 0 && val <= 3) {
+      _ledManager->setStatusMode(val);
+      return true;
+    }
+  }
+  if (_ledManager && strcmp(name, "led.activity") == 0) {
+    int val = atoi(value);
+    if (val >= 0 && val <= 3) {
+      _ledManager->setActivityMode(val);
+      return true;
+    }
+  }
   return false;  // not supported
 }
 

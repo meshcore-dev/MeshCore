@@ -1,5 +1,6 @@
 #include <Arduino.h>   // needed for PlatformIO
 #include <Mesh.h>
+#include <helpers/ui/LEDManager.h>
 
 #include "MyMesh.h"
 
@@ -69,6 +70,7 @@ void setup() {
   command[0] = 0;
 
   sensors.begin();
+  if (board.ledManager) sensors.setLEDManager(board.ledManager);
 
   the_mesh.begin(fs);
 
@@ -109,6 +111,7 @@ void loop() {
 
   the_mesh.loop();
   sensors.loop();
+  if (board.ledManager) board.ledManager->loop();
 #ifdef DISPLAY_CLASS
   ui_task.loop();
 #endif

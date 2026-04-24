@@ -3,6 +3,7 @@
 #include <MeshCore.h>
 #include <Arduino.h>
 #include <helpers/NRF52Board.h>
+#include <helpers/ui/LEDManager.h>
 
 class SenseCapSolarBoard : public NRF52BoardDCDC {
 protected:
@@ -14,14 +15,12 @@ public:
   SenseCapSolarBoard() : NRF52Board("SENSECAP_SOLAR_OTA") {}
   void begin();
 
-#if defined(P_LORA_TX_LED)
   void onBeforeTransmit() override {
-    digitalWrite(P_LORA_TX_LED, HIGH);   // turn TX LED on
+    if (ledManager) ledManager->onBeforeTransmit();
   }
   void onAfterTransmit() override {
-    digitalWrite(P_LORA_TX_LED, LOW);   // turn TX LED off
+    if (ledManager) ledManager->onAfterTransmit();
   }
-#endif
 
   uint16_t getBattMilliVolts() override {
     digitalWrite(VBAT_ENABLE, LOW);
@@ -38,8 +37,7 @@ public:
   }
 
   void powerOff() override {
-    digitalWrite(LED_WHITE, LOW);
-    digitalWrite(LED_BLUE, LOW);
+    if (ledManager) ledManager->powerOff();
 
 #ifdef PIN_USER_BTN
     while (digitalRead(PIN_USER_BTN) == LOW);

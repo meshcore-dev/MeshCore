@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include <MeshCore.h>
 #include <helpers/NRF52Board.h>
+#include <helpers/ui/LEDManager.h>
 
 // built-ins
 #define  PIN_VBAT_READ    29

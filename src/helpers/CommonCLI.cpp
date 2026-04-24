@@ -4,6 +4,7 @@
 #include "AdvertDataHelpers.h"
 #include "TxtDataHelpers.h"
 #include <RTClib.h>
+#include <helpers/ui/LEDManager.h>
 
 #ifndef BRIDGE_MAX_BAUD
 #define BRIDGE_MAX_BAUD 115200
@@ -89,7 +90,13 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     file.read((uint8_t *)&_prefs->adc_multiplier, sizeof(_prefs->adc_multiplier));                 // 166
     file.read((uint8_t *)_prefs->owner_info, sizeof(_prefs->owner_info));                          // 170
     file.read((uint8_t *)&_prefs->rx_boosted_gain, sizeof(_prefs->rx_boosted_gain));              // 290
-    // next: 291
+
+    // LED prefs added later; older prefs files end at offset 291
+    if (file.available() >= 2) {
+      file.read((uint8_t *)&_prefs->led_status_mode, sizeof(_prefs->led_status_mode));            // 291
+      file.read((uint8_t *)&_prefs->led_activity_mode, sizeof(_prefs->led_activity_mode));        // 292
+    }
+    // next: 293
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -119,8 +126,16 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
 
     // sanitise settings
     _prefs->rx_boosted_gain = constrain(_prefs->rx_boosted_gain, 0, 1); // boolean
+    _prefs->led_status_mode = constrain(_prefs->led_status_mode, 0, 3);
+    _prefs->led_activity_mode = constrain(_prefs->led_activity_mode, 0, 3);
 
     file.close();
+
+    // Apply LED preferences to board's LED manager (if present)
+    if (_board->ledManager) {
+      _board->ledManager->setStatusMode(_prefs->led_status_mode);
+      _board->ledManager->setActivityMode(_prefs->led_activity_mode);
+    }
   }
 }
 
@@ -180,7 +195,9 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->adc_multiplier, sizeof(_prefs->adc_multiplier));                 // 166
     file.write((uint8_t *)_prefs->owner_info, sizeof(_prefs->owner_info));                          // 170
     file.write((uint8_t *)&_prefs->rx_boosted_gain, sizeof(_prefs->rx_boosted_gain));              // 290
-    // next: 291
+    file.write((uint8_t *)&_prefs->led_status_mode, sizeof(_prefs->led_status_mode));               // 291
+    file.write((uint8_t *)&_prefs->led_activity_mode, sizeof(_prefs->led_activity_mode));           // 292
+    // next: 293
 
     file.close();
   }
@@ -727,6 +744,26 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       _prefs->adc_multiplier = 0.0f;
       strcpy(reply, "Error: unsupported by this board");
     };
+  } else if (memcmp(config, "led.status ", 11) == 0) {
+    int val = atoi(&config[11]);
+    if (val >= 0 && val <= 3) {
+      _prefs->led_status_mode = val;
+      _sensors->setSettingValue("led.status", &config[11]);
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: must be 0-3 (off/boot30s/blink/on)");
+    }
+  } else if (memcmp(config, "led.activity ", 13) == 0) {
+    int val = atoi(&config[13]);
+    if (val >= 0 && val <= 3) {
+      _prefs->led_activity_mode = val;
+      _sensors->setSettingValue("led.activity", &config[13]);
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: must be 0-3 (off/ble/lora/both)");
+    }
   } else {
     strcpy(reply, "unknown config: ");
     StrHelper::strncpy(&reply[16], config, 160-17);
@@ -890,6 +927,10 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
 #else
     strcpy(reply, "ERROR: Power management not supported");
 #endif
+  } else if (memcmp(config, "led.status", 10) == 0) {
+    sprintf(reply, "> %d", (int)_prefs->led_status_mode);
+  } else if (memcmp(config, "led.activity", 12) == 0) {
+    sprintf(reply, "> %d", (int)_prefs->led_activity_mode);
   } else {
     sprintf(reply, "??: %s", config);
   }

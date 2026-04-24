@@ -36,6 +36,8 @@
 #define BRIDGE_DEBUG_PRINTLN(...) {}
 #endif
 
+class LEDManager;  // forward declaration
+
 namespace mesh {
 
 #define  BD_STARTUP_NORMAL     0  // getStartupReason() codes
@@ -43,6 +45,8 @@ namespace mesh {
 
 class MainBoard {
 public:
+  LEDManager* ledManager = nullptr;   // set by boards that have LEDs
+
   virtual uint16_t getBattMilliVolts() = 0;
   virtual float getMCUTemperature() { return NAN; }
   virtual bool setAdcMultiplier(float multiplier) { return false; };

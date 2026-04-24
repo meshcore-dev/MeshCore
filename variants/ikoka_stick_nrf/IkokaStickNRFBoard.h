@@ -3,6 +3,7 @@
 #include <MeshCore.h>
 #include <Arduino.h>
 #include <helpers/NRF52Board.h>
+#include <helpers/ui/LEDManager.h>
 
 #ifdef XIAO_NRF52
 
@@ -11,22 +12,20 @@ public:
   IkokaStickNRFBoard() : NRF52Board("XIAO_NRF52_OTA") {}
   void begin();
 
-#if defined(P_LORA_TX_LED)
   void onBeforeTransmit() override {
-    digitalWrite(P_LORA_TX_LED, LOW);   // turn TX LED on
+    if (ledManager) ledManager->onBeforeTransmit();
     #if defined(LED_BLUE)
        // turn off that annoying blue LED before transmitting
        digitalWrite(LED_BLUE, HIGH);
     #endif
   }
   void onAfterTransmit() override {
-    digitalWrite(P_LORA_TX_LED, HIGH);   // turn TX LED off
+    if (ledManager) ledManager->onAfterTransmit();
     #if defined(LED_BLUE)
        // do it after transmitting too, just in case
        digitalWrite(LED_BLUE, HIGH);
     #endif
   }
-#endif
 
   uint16_t getBattMilliVolts() override {
     // Please read befor going further ;)

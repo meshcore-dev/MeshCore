@@ -50,17 +50,17 @@ void XiaoNrf52Board::begin() {
 
   Wire.begin();
 
-#ifdef P_LORA_TX_LED
-  pinMode(P_LORA_TX_LED, OUTPUT);
-  digitalWrite(P_LORA_TX_LED, HIGH);
-#endif
-
 #ifdef NRF52_POWER_MANAGEMENT
   // Boot voltage protection check (may not return if voltage too low)
   checkBootVoltage(&power_config);
 #endif
 
   delay(10);  // Give sx1262 some time to power up
+
+  // Start LEDs with defaults; prefs are applied after loadPrefs()
+  static LEDManager _ledManager(LED_BLUE, LED_RED, false, false);
+  ledManager = &_ledManager;
+  ledManager->begin(LED_STATUS_BOOT_30S, LED_ACTIVITY_BOTH);
 }
 
 uint16_t XiaoNrf52Board::getBattMilliVolts() {

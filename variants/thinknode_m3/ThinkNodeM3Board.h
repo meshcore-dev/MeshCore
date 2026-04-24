@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include <MeshCore.h>
 #include <helpers/NRF52Board.h>
+#include <helpers/ui/LEDManager.h>
 
 #define ADC_FACTOR ((1000.0*ADC_MULTIPLIER*AREF_VOLTAGE)/ADC_MAX)
 
@@ -18,14 +19,12 @@ public:
   void begin();
   uint16_t getBattMilliVolts() override;
 
-#if defined(P_LORA_TX_LED)
   void onBeforeTransmit() override {
-    digitalWrite(P_LORA_TX_LED, HIGH);   // turn TX LED on
+    if (ledManager) ledManager->onBeforeTransmit();
   }
   void onAfterTransmit() override {
-    digitalWrite(P_LORA_TX_LED, LOW);   // turn TX LED off
+    if (ledManager) ledManager->onAfterTransmit();
   }
-#endif
 
   const char* getManufacturerName() const override {
     return "Elecrow ThinkNode M3";
@@ -43,10 +42,7 @@ public:
   }
 
   void powerOff() override {
-    // turn off all leds, sd_power_system_off will not do this for us
-    #ifdef P_LORA_TX_LED
-    digitalWrite(P_LORA_TX_LED, LOW);
-    #endif
+    if (ledManager) ledManager->powerOff();
 
     // power off board
     sd_power_system_off();

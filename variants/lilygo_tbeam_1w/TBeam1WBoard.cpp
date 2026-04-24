@@ -11,22 +11,23 @@ void TBeam1WBoard::begin() {
 
   // RF switch RXEN pin handled by RadioLib via setRfSwitchPins()
 
-  // Initialize LED
-  pinMode(LED_PIN, OUTPUT);
-  digitalWrite(LED_PIN, LOW);
-
   // Initialize fan control (on by default - 1W PA can overheat)
   pinMode(FAN_CTRL_PIN, OUTPUT);
   digitalWrite(FAN_CTRL_PIN, HIGH);
+
+  // Start LEDs with defaults; prefs are applied after loadPrefs()
+  static LEDManager _ledManager(-1, LED_PIN);
+  ledManager = &_ledManager;
+  ledManager->begin(LED_STATUS_BOOT_30S, LED_ACTIVITY_BOTH);
 }
 
 void TBeam1WBoard::onBeforeTransmit() {
   // RF switching handled by RadioLib via SX126X_DIO2_AS_RF_SWITCH and setRfSwitchPins()
-  digitalWrite(LED_PIN, HIGH);  // TX LED on
+  if (ledManager) ledManager->onBeforeTransmit();
 }
 
 void TBeam1WBoard::onAfterTransmit() {
-  digitalWrite(LED_PIN, LOW);   // TX LED off
+  if (ledManager) ledManager->onAfterTransmit();
 }
 
 uint16_t TBeam1WBoard::getBattMilliVolts() {
@@ -56,7 +57,7 @@ void TBeam1WBoard::powerOff() {
   radio_powered = false;
 
   // Turn off LED and fan
-  digitalWrite(LED_PIN, LOW);
+  if (ledManager) ledManager->powerOff();
   digitalWrite(FAN_CTRL_PIN, LOW);
 
   ESP32Board::powerOff();

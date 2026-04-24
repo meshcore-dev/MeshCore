@@ -63,4 +63,9 @@ void RAK3401Board::begin() {
 #endif
   digitalWrite(SX126X_POWER_EN, HIGH);
   delay(1);  // SKY66122 turn-on settling time (tON = 3us typ)
+
+  // Start LEDs with defaults; prefs are applied after loadPrefs()
+  static LEDManager _ledManager(LED_GREEN, LED_BLUE);
+  ledManager = &_ledManager;
+  ledManager->begin(LED_STATUS_BOOT_30S, LED_ACTIVITY_BOTH);
 }

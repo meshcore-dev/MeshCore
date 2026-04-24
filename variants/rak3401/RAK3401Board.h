@@ -3,6 +3,7 @@
 #include <MeshCore.h>
 #include <Arduino.h>
 #include <helpers/NRF52Board.h>
+#include <helpers/ui/LEDManager.h>
 
 // built-ins
 #define  PIN_VBAT_READ    5
@@ -38,6 +39,10 @@ public:
     return "RAK 3401";
   }
 
-  // TX/RX switching is handled by SX1262 DIO2 -> SKY66122 CTX (hardware-timed).
-  // No onBeforeTransmit/onAfterTransmit overrides needed.
+  void onBeforeTransmit() override {
+    if (ledManager) ledManager->onBeforeTransmit();
+  }
+  void onAfterTransmit() override {
+    if (ledManager) ledManager->onAfterTransmit();
+  }
 };

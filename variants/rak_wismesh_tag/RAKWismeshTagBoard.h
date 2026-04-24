@@ -3,6 +3,7 @@
 #include <MeshCore.h>
 #include <Arduino.h>
 #include <helpers/NRF52Board.h>
+#include <helpers/ui/LEDManager.h>
 
 // built-ins
 #define  PIN_VBAT_READ    5
@@ -13,14 +14,12 @@ public:
   RAKWismeshTagBoard() : NRF52Board("WISMESHTAG_OTA") {}
   void begin();
 
-#if defined(P_LORA_TX_LED) && defined(LED_STATE_ON)
   void onBeforeTransmit() override {
-    digitalWrite(P_LORA_TX_LED, LED_STATE_ON);   // turn TX LED on
+    if (ledManager) ledManager->onBeforeTransmit();
   }
   void onAfterTransmit() override {
-    digitalWrite(P_LORA_TX_LED, !LED_STATE_ON);   // turn TX LED off
+    if (ledManager) ledManager->onAfterTransmit();
   }
-#endif
 
   #define BATTERY_SAMPLES 8
 
@@ -57,12 +56,8 @@ public:
     // wismesh tag uses LOW to indicate button is pressed, wait until it goes HIGH to indicate it was released
     while(digitalRead(BUTTON_PIN) == LOW);
     #endif
-    #ifdef LED_GREEN
-    digitalWrite(LED_GREEN, LOW);
-    #endif
-    #ifdef LED_BLUE
-    digitalWrite(LED_BLUE, LOW);
-    #endif
+
+    if (ledManager) ledManager->powerOff();
 
     #ifdef BUTTON_PIN
     // configure button press to wake up when in powered off state

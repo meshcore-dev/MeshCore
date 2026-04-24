@@ -10,14 +10,15 @@ void ThinkNodeM1Board::begin() {
 
   Wire.begin();
 
-#ifdef P_LORA_TX_LED
-  pinMode(P_LORA_TX_LED, OUTPUT);
-  digitalWrite(P_LORA_TX_LED, LOW);
-#endif
-
   pinMode(SX126X_POWER_EN, OUTPUT);
   digitalWrite(SX126X_POWER_EN, HIGH);
   delay(10); // give sx1262 some time to power up
+
+  // Start LEDs with defaults; prefs are applied after loadPrefs()
+  // LED_GREEN is active-LOW (LED_STATE_ON=LOW), P_LORA_TX_LED is active-HIGH
+  static LEDManager _ledManager(LED_GREEN, P_LORA_TX_LED, false, true);
+  ledManager = &_ledManager;
+  ledManager->begin(LED_STATUS_BOOT_30S, LED_ACTIVITY_BOTH);
 }
 
 uint16_t ThinkNodeM1Board::getBattMilliVolts() {

@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include <helpers/RefCountedDigitalPin.h>
 #include <helpers/ESP32Board.h>
+#include <helpers/ui/LEDManager.h>
 #include <driver/rtc_io.h>
 
 class ThinknodeM2Board : public ESP32Board {

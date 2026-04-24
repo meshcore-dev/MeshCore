@@ -9,7 +9,11 @@ void ThinknodeM2Board::begin() {
     digitalWrite(PIN_VEXT_EN, PIN_VEXT_EN_ACTIVE); // turn backlight back on
     delay(120); // give display time to bias on cold boot
     ESP32Board::begin();
-    pinMode(PIN_STATUS_LED, OUTPUT); // init power led
+
+    // Start LEDs with defaults; prefs are applied after loadPrefs()
+    static LEDManager _ledManager(PIN_STATUS_LED, -1);
+    ledManager = &_ledManager;
+    ledManager->begin(LED_STATUS_BOOT_30S, LED_ACTIVITY_BOTH);
   }
 
   void ThinknodeM2Board::enterDeepSleep(uint32_t secs, int pin_wake_btn) {

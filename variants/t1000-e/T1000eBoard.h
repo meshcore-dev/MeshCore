@@ -3,6 +3,7 @@
 #include <MeshCore.h>
 #include <Arduino.h>
 #include <helpers/NRF52Board.h>
+#include <helpers/ui/LEDManager.h>
 
 class T1000eBoard : public NRF52BoardDCDC {
 protected:
@@ -80,9 +81,8 @@ public:
     #ifdef BUTTON_PIN
     while(digitalRead(BUTTON_PIN));
     #endif
-    #ifdef LED_PIN
-    digitalWrite(LED_PIN, LOW);
-    #endif
+
+    if (ledManager) ledManager->powerOff();
 
     #ifdef BUTTON_PIN
     nrf_gpio_cfg_sense_input(BUTTON_PIN, NRF_GPIO_PIN_NOPULL, NRF_GPIO_PIN_SENSE_HIGH);

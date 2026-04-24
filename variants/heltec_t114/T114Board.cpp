@@ -43,11 +43,6 @@ void T114Board::begin() {
 
   Wire.begin();
 
-#ifdef P_LORA_TX_LED
-  pinMode(P_LORA_TX_LED, OUTPUT);
-  digitalWrite(P_LORA_TX_LED, HIGH);
-#endif
-
   pinMode(SX126X_POWER_EN, OUTPUT);
 #ifdef NRF52_POWER_MANAGEMENT
   // Boot voltage protection check (may not return if voltage too low)
@@ -56,4 +51,9 @@ void T114Board::begin() {
 #endif
   digitalWrite(SX126X_POWER_EN, HIGH);
   delay(10); // give sx1262 some time to power up
+
+  // Start LEDs with defaults; prefs are applied after loadPrefs()
+  static LEDManager _ledManager(-1, LED_RED, true, false);
+  ledManager = &_ledManager;
+  ledManager->begin(LED_STATUS_BOOT_30S, LED_ACTIVITY_BOTH);
 }

@@ -11,6 +11,11 @@ void ThinkNodeM3Board::begin() {
   Wire.begin();
 
   delay(10);   // give sx1262 some time to power up
+
+  // Start LEDs with defaults; prefs are applied after loadPrefs()
+  static LEDManager _ledManager(PIN_LED_GREEN, PIN_LED_BLUE, false, false);
+  ledManager = &_ledManager;
+  ledManager->begin(LED_STATUS_BOOT_30S, LED_ACTIVITY_BOTH);
 }
 
 uint16_t ThinkNodeM3Board::getBattMilliVolts() {

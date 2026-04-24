@@ -9,6 +9,8 @@
 
 #define TELEM_CHANNEL_SELF   1   // LPP data channel for 'self' device
 
+class LEDManager;
+
 class SensorManager {
 public:
   double node_lat, node_lon;  // modify these, if you want to affect Advert location
@@ -23,6 +25,8 @@ public:
   virtual const char* getSettingValue(int i) const { return NULL; }
   virtual bool setSettingValue(const char* name, const char* value) { return false; }
   virtual LocationProvider* getLocationProvider() { return NULL; }
+
+  virtual void setLEDManager(LEDManager* mgr) { }
 
   // Helper functions to manage setting by keys (useful in many places ...)
   const char* getSettingByKey(const char* key) {

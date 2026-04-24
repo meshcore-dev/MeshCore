@@ -83,6 +83,7 @@ void setup() {
   loadOrCreateIdentity();
 
   sensors.begin();
+  if (board.ledManager) sensors.setLEDManager(board.ledManager);
 
 #if defined(KISS_UART_RX) && defined(KISS_UART_TX)
 #if defined(ESP32)
@@ -143,4 +144,5 @@ void loop() {
     next_noise_floor_calib_ms = millis();
   }
   radio_driver.loop();
+  if (board.ledManager) board.ledManager->loop();
 }

@@ -3,6 +3,7 @@
 #include <MeshCore.h>
 #include <Arduino.h>
 #include <helpers/NRF52Board.h>
+#include <helpers/ui/LEDManager.h>
 
 // LoRa and SPI pins
 
@@ -54,26 +55,23 @@ public:
         pinMode(GPS_RESETB, OUTPUT);
         digitalWrite(GPS_RESETB, LOW);
     #endif
-    
+
     #ifdef BUZZER_EN
         digitalWrite(BUZZER_EN, LOW);
     #endif
-    
-    #ifdef LED_PIN
-    digitalWrite(LED_PIN, LOW);
-    #endif
+
+    if (ledManager) ledManager->powerOff();
+
     #ifdef BUTTON_PIN
     nrf_gpio_cfg_sense_input(digitalPinToInterrupt(BUTTON_PIN), NRF_GPIO_PIN_PULLUP, NRF_GPIO_PIN_SENSE_LOW);
     #endif
     sd_power_system_off();
   }
 
-  #if defined(P_LORA_TX_LED)
   void onBeforeTransmit() override {
-    digitalWrite(P_LORA_TX_LED, HIGH);// turn TX LED on
+    if (ledManager) ledManager->onBeforeTransmit();
   }
   void onAfterTransmit() override {
-    digitalWrite(P_LORA_TX_LED, LOW); // turn TX LED off
+    if (ledManager) ledManager->onAfterTransmit();
   }
-#endif
 };

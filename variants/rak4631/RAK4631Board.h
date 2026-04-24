@@ -3,6 +3,7 @@
 #include <MeshCore.h>
 #include <Arduino.h>
 #include <helpers/NRF52Board.h>
+#include <helpers/ui/LEDManager.h>
 
 // built-ins
 #define  PIN_VBAT_READ    5
@@ -35,4 +36,8 @@ public:
   const char* getManufacturerName() const override {
     return "RAK 4631";
   }
+
+  void onBeforeTransmit() override { if (ledManager) ledManager->onBeforeTransmit(); }
+  void onAfterTransmit() override { if (ledManager) ledManager->onAfterTransmit(); }
+  void powerOff() override { if (ledManager) ledManager->powerOff(); }
 };

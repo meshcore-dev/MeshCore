@@ -3,6 +3,7 @@
 #include <MeshCore.h>
 #include <Arduino.h>
 #include <helpers/NRF52Board.h>
+#include <helpers/ui/LEDManager.h>
 
 // built-ins
 #define  PIN_VBAT_READ    4
@@ -19,14 +20,12 @@ public:
   T114Board() : NRF52Board("T114_OTA") {}
   void begin();
 
-#if defined(P_LORA_TX_LED)
   void onBeforeTransmit() override {
-    digitalWrite(P_LORA_TX_LED, LOW);   // turn TX LED on
+    if (ledManager) ledManager->onBeforeTransmit();
   }
   void onAfterTransmit() override {
-    digitalWrite(P_LORA_TX_LED, HIGH);   // turn TX LED off
+    if (ledManager) ledManager->onAfterTransmit();
   }
-#endif
 
   uint16_t getBattMilliVolts() override {
     int adcvalue = 0;
@@ -47,9 +46,7 @@ public:
   }
 
   void powerOff() override {
-#ifdef LED_PIN
-    digitalWrite(LED_PIN, HIGH);
-#endif
+    if (ledManager) ledManager->powerOff();
 #if ENV_INCLUDE_GPS == 1
     pinMode(GPS_EN, OUTPUT);
     digitalWrite(GPS_EN, LOW);

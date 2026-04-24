@@ -3,6 +3,7 @@
 #include <string.h>
 #include "ble_gap.h"
 #include "ble_hci.h"
+#include <helpers/ui/LEDManager.h>
 
 // Magic numbers came from actual testing
 #define BLE_HEALTH_CHECK_INTERVAL  10000  // Advertising watchdog check every 10 seconds
@@ -40,6 +41,8 @@ void SerialBLEInterface::onDisconnect(uint16_t connection_handle, uint8_t reason
       instance->_conn_handle = BLE_CONN_HANDLE_INVALID;
       instance->_isDeviceConnected = false;
       instance->clearBuffers();
+      // Advertising auto-restarts on disconnect, but only if BLE is still enabled
+      if (instance->_isEnabled && instance->_ledManager) instance->_ledManager->setActivityState(LED_CONN_ADVERTISING);
     }
   }
 }
@@ -49,6 +52,7 @@ void SerialBLEInterface::onSecured(uint16_t connection_handle) {
   if (instance) {
     if (instance->isValidConnection(connection_handle, true)) {
       instance->_isDeviceConnected = true;
+      if (instance->_ledManager) instance->_ledManager->setActivityState(LED_CONN_CONNECTED);
       
       // Connection interval units: 1.25ms, supervision timeout units: 10ms
       // Apple: "The product will not read or use the parameters in the Peripheral Preferred Connection Parameters characteristic."
@@ -255,6 +259,7 @@ void SerialBLEInterface::enable() {
 
   Bluefruit.Advertising.restartOnDisconnect(true);
   Bluefruit.Advertising.start(0);
+  if (_ledManager) _ledManager->setActivityState(LED_CONN_ADVERTISING);
 }
 
 void SerialBLEInterface::disconnect() {
@@ -271,6 +276,7 @@ void SerialBLEInterface::disable() {
   Bluefruit.Advertising.stop();
   disconnect();
   _last_health_check = 0;
+  if (_ledManager) _ledManager->setActivityState(LED_CONN_IDLE);
 }
 
 size_t SerialBLEInterface::writeFrame(const uint8_t src[], size_t len) {

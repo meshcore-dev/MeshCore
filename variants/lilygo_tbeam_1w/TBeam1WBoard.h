@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include <helpers/ESP32Board.h>
+#include <helpers/ui/LEDManager.h>
 #include "variant.h"
 
 // LilyGo T-Beam 1W with SX1262 + external PA (XY16P35 module)

@@ -3,6 +3,7 @@
 #include <MeshCore.h>
 #include <Arduino.h>
 #include <helpers/NRF52Board.h>
+#include <helpers/ui/LEDManager.h>
 
 
 class GAT562MeshTrackerProBoard : public NRF52BoardDCDC {
@@ -33,15 +34,12 @@ public:
     return "GAT562 Mesh Tracker Pro";
   }
 
-#if defined(P_LORA_TX_LED)
   void onBeforeTransmit() override {
-    digitalWrite(P_LORA_TX_LED, HIGH);   // turn TX LED on
+    if (ledManager) ledManager->onBeforeTransmit();
   }
-
   void onAfterTransmit() override {
-    digitalWrite(P_LORA_TX_LED, LOW);   // turn TX LED off
+    if (ledManager) ledManager->onAfterTransmit();
   }
-#endif
 
   void powerOff() override {
     uint32_t button_pin = PIN_BUTTON1;

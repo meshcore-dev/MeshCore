@@ -1,5 +1,6 @@
 #include <Arduino.h>   // needed for PlatformIO
 #include <Mesh.h>
+#include <helpers/ui/LEDManager.h>
 #include "MyMesh.h"
 
 // Believe it or not, this std C function is busted on some platforms!
@@ -155,6 +156,7 @@ void setup() {
 #else
   serial_interface.begin(Serial);
 #endif
+  if (board.ledManager) serial_interface.setLEDManager(board.ledManager);
   the_mesh.startInterface(serial_interface);
 #elif defined(RP2040_PLATFORM)
   LittleFS.begin();
@@ -212,6 +214,7 @@ void setup() {
 #endif
 
   sensors.begin();
+  if (board.ledManager) sensors.setLEDManager(board.ledManager);
 
 #if ENV_INCLUDE_GPS == 1
   the_mesh.applyGpsPrefs();
@@ -225,6 +228,7 @@ void setup() {
 void loop() {
   the_mesh.loop();
   sensors.loop();
+  if (board.ledManager) board.ledManager->loop();
 #ifdef DISPLAY_CLASS
   ui_task.loop();
 #endif

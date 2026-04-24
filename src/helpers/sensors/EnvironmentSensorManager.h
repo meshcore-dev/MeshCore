@@ -4,6 +4,8 @@
 #include <helpers/SensorManager.h>
 #include <helpers/sensors/LocationProvider.h>
 
+class LEDManager;
+
 class EnvironmentSensorManager : public SensorManager {
 protected:
   int next_available_channel = TELEM_CHANNEL_SELF + 1;
@@ -28,6 +30,8 @@ protected:
   bool gps_active = false;
   uint32_t gps_update_interval_sec = 1;  // Default 1 second
 
+  LEDManager* _ledManager = nullptr;
+
   #if ENV_INCLUDE_GPS
   LocationProvider* _location;
   void start_gps();
@@ -47,6 +51,8 @@ public:
   #else
   EnvironmentSensorManager(){};
   #endif
+
+  void setLEDManager(LEDManager* mgr) override { _ledManager = mgr; }
   bool begin() override;
   bool querySensors(uint8_t requester_permissions, CayenneLPP& telemetry) override;
   #if ENV_INCLUDE_GPS

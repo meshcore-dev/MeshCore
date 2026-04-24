@@ -47,23 +47,14 @@ void SenseCapSolarBoard::begin() {
 
   Wire.begin();
 
-#ifdef LED_WHITE
-  pinMode(LED_WHITE, OUTPUT);
-  digitalWrite(LED_WHITE, HIGH);
-#endif
-#ifdef LED_BLUE
-  pinMode(LED_BLUE, OUTPUT);
-  digitalWrite(LED_BLUE, LOW);
-#endif
-
-#ifdef P_LORA_TX_LED
-  pinMode(P_LORA_TX_LED, OUTPUT);
-  digitalWrite(P_LORA_TX_LED, LOW);
-#endif
-
 #ifdef NRF52_POWER_MANAGEMENT
   checkBootVoltage(&power_config);
 #endif
 
   delay(10);   // give sx1262 some time to power up
+
+  // Start LEDs with defaults; prefs are applied after loadPrefs()
+  static LEDManager _ledManager(LED_BLUE, LED_WHITE);
+  ledManager = &_ledManager;
+  ledManager->begin(LED_STATUS_BOOT_30S, LED_ACTIVITY_BOTH);
 }

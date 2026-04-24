@@ -3,6 +3,7 @@
 #include <MeshCore.h>
 #include <Arduino.h>
 #include <helpers/NRF52Board.h>
+#include <helpers/ui/LEDManager.h>
 
 #ifdef WIO_WM1110
 
@@ -16,14 +17,12 @@ public:
   WioWM1110Board() : NRF52Board("WM1110_OTA") {}
   void begin();
 
-#if defined(LED_GREEN)
   void onBeforeTransmit() override {
-    digitalWrite(LED_RED, HIGH);
+    if (ledManager) ledManager->onBeforeTransmit();
   }
   void onAfterTransmit() override {
-    digitalWrite(LED_RED, LOW);
+    if (ledManager) ledManager->onAfterTransmit();
   }
-#endif
 
   uint16_t getBattMilliVolts() override {
     int adcvalue = 0;
