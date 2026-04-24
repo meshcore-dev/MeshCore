@@ -37,6 +37,9 @@
     if (_flags & ADV_LATLON_MASK) {
       memcpy(&_lat, &app_data[i], 4); i += 4;
       memcpy(&_lon, &app_data[i], 4); i += 4;
+      if (_lat < -90000000 || _lat > 90000000 || _lon < -180000000 || _lon > 180000000) {
+        return;
+      }
     }
     if (_flags & ADV_FEAT1_MASK) {
       memcpy(&_extra1, &app_data[i], 2); i += 2;
