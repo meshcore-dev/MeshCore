@@ -49,4 +49,44 @@ TEST(AdvertData, RoundTripsCoordinateExtremes) {
     EXPECT_EQ(180000000, parser.getIntLon());
 }
 
+TEST(AdvertData, RejectsLongitudeOutsideValidRange) {
+    uint8_t app_data[MAX_ADVERT_DATA_SIZE] = {};
+    AdvertDataBuilder builder(ADV_TYPE_CHAT, "node", 37.7749, 180.000001);
+
+    uint8_t len = builder.encodeTo(app_data);
+    AdvertDataParser parser(app_data, len);
+
+    EXPECT_FALSE(parser.isValid());
+}
+
+TEST(AdvertData, RejectsLongitudeBelowValidRange) {
+    uint8_t app_data[MAX_ADVERT_DATA_SIZE] = {};
+    AdvertDataBuilder builder(ADV_TYPE_CHAT, "node", 37.7749, -180.000001);
+
+    uint8_t len = builder.encodeTo(app_data);
+    AdvertDataParser parser(app_data, len);
+
+    EXPECT_FALSE(parser.isValid());
+}
+
+TEST(AdvertData, RejectsLatitudeOutsideValidRange) {
+    uint8_t app_data[MAX_ADVERT_DATA_SIZE] = {};
+    AdvertDataBuilder builder(ADV_TYPE_CHAT, "node", 90.000001, -122.4194);
+
+    uint8_t len = builder.encodeTo(app_data);
+    AdvertDataParser parser(app_data, len);
+
+    EXPECT_FALSE(parser.isValid());
+}
+
+TEST(AdvertData, RejectsLatitudeBelowValidRange) {
+    uint8_t app_data[MAX_ADVERT_DATA_SIZE] = {};
+    AdvertDataBuilder builder(ADV_TYPE_CHAT, "node", -90.000001, -122.4194);
+
+    uint8_t len = builder.encodeTo(app_data);
+    AdvertDataParser parser(app_data, len);
+
+    EXPECT_FALSE(parser.isValid());
+}
+
 }  // namespace
