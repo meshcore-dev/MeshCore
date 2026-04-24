@@ -16,6 +16,7 @@ protected:
   bool INA260_initialized = false;
   bool INA226_initialized = false;
   bool SHTC3_initialized = false;
+  bool SHT31_initialized = false;
   bool LPS22HB_initialized = false;
   bool MLX90614_initialized = false;
   bool VL53L0X_initialized = false;
