@@ -659,14 +659,18 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       savePrefs();
       strcpy(reply, "OK");
     }
-  } else if (memcmp(config, "wdt ", 4) == 0) {
-    uint32_t val = _atoi(&config[4]);
+  } else if (memcmp(config, "watchdog ", 9) == 0) {
+    uint32_t val = _atoi(&config[9]);
     if (val > 255) {
       strcpy(reply, "Error, must be 0 (off) or 1-255 (seconds)");
     } else {
       _prefs->wdt_timeout_secs = (uint8_t)val;
       savePrefs();
-      sprintf(reply, "OK - WDT %s (reboot to apply)", val == 0 ? "disabled" : "enabled");
+#if defined(NRF52_PLATFORM)
+      sprintf(reply, "OK - Watchdog %s (reboot to apply)", val == 0 ? "disabled" : "enabled");
+#else
+      sprintf(reply, "OK - Watchdog currently not implemented on this platform")
+#endif
     }
   } else if (memcmp(config, "tx ", 3) == 0) {
     _prefs->tx_power_dbm = atoi(&config[3]);
@@ -820,7 +824,7 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     } else {
       strcpy(reply, "> strict");
     }
-  } else if (memcmp(config, "wdt", 3) == 0 && (config[3] == 0 || config[3] == ' ')) {
+  } else if (memcmp(config, "watchdog", 8) == 0 && (config[8] == 0 || config[8] == ' ')) {
 #if defined(NRF52_PLATFORM)
     sprintf(reply, "> %u secs%s", _prefs->wdt_timeout_secs,
             _prefs->wdt_timeout_secs == 0 ? " (disabled)" : " (active after reboot)");
