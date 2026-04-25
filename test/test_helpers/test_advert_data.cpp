@@ -213,6 +213,19 @@ TestMeshContext MakeTestMesh(uint32_t current_timestamp) {
   return TestMeshContext(current_timestamp);
 }
 
+ContactInfo MakeSenderContact(uint32_t advert_timestamp, int32_t gps_lat, int32_t gps_lon) {
+  ContactInfo contact = {};
+  contact.id = mesh::Identity(kSenderPublicKeyHex);
+  strcpy(contact.name, "existing-contact");
+  contact.type = ADV_TYPE_CHAT;
+  contact.out_path_len = OUT_PATH_UNKNOWN;
+  contact.last_advert_timestamp = advert_timestamp;
+  contact.lastmod = advert_timestamp;
+  contact.gps_lat = gps_lat;
+  contact.gps_lon = gps_lon;
+  return contact;
+}
+
 mesh::Packet BuildSignedAdvertPacket(uint32_t timestamp, const uint8_t* app_data, uint8_t app_data_len) {
   mesh::LocalIdentity sender(kSenderPrivateKeyHex, kSenderPublicKeyHex);
   mesh::Packet packet;
@@ -250,31 +263,6 @@ mesh::Packet BuildSignedAdvertPacket(uint32_t timestamp, const uint8_t* app_data
 
   sender.sign(signature, message, message_len);
   return packet;
-}
-
-TEST(AdvertData, ParsesNameOnlyFromNetworkPacket) {
-  uint8_t app_data[MAX_ADVERT_DATA_SIZE] = {};
-  size_t offset = 0;
-
-  // flags/type byte: chat advert with a trailing name field.
-  WriteU8(app_data, &offset, ADV_TYPE_CHAT | ADV_NAME_MASK);
-  // name field: raw bytes for "dummy-node-name", consuming the rest of app_data.
-  WriteStringLiteral(app_data, &offset, "dummy-node-name");
-
-  constexpr uint32_t current_timestamp = 1704067200U;
-  constexpr uint32_t advert_timestamp = current_timestamp + 1;
-  mesh::Packet packet = BuildSignedAdvertPacket(advert_timestamp, app_data, offset);
-
-  auto test_mesh = MakeTestMesh(current_timestamp);
-  test_mesh->recv(&packet);
-
-  ASSERT_TRUE(test_mesh->discovered_contact.has_value());
-  EXPECT_EQ(ADV_TYPE_CHAT, test_mesh->discovered_contact->type);
-  EXPECT_STREQ("dummy-node-name", test_mesh->discovered_contact->name);
-  EXPECT_EQ(advert_timestamp, test_mesh->discovered_contact->last_advert_timestamp);
-  EXPECT_EQ(current_timestamp, test_mesh->discovered_contact->lastmod);
-  EXPECT_EQ(0, test_mesh->discovered_contact->gps_lat);
-  EXPECT_EQ(0, test_mesh->discovered_contact->gps_lon);
 }
 
 TEST(AdvertData, ParsesNameAndCoordinatesFromNetworkPacket) {
@@ -331,6 +319,52 @@ TEST(AdvertData, ParsesCoordinateExtremesFromNetworkPacket) {
   EXPECT_EQ(180000000, test_mesh->discovered_contact->gps_lon);
 }
 
+TEST(AdvertData, ParsesPositiveLatitudeAndNegativeLongitudeBoundariesFromNetworkPacket) {
+  uint8_t app_data[MAX_ADVERT_DATA_SIZE] = {};
+  size_t offset = 0;
+
+  // flags/type byte: sensor advert with both location fields and a name.
+  WriteU8(app_data, &offset, ADV_TYPE_SENSOR | ADV_LATLON_MASK | ADV_NAME_MASK);
+  // latitude field: maximum supported latitude, +90.000000 degrees.
+  WriteI32Le(app_data, &offset, 90000000);
+  // longitude field: minimum supported longitude, -180.000000 degrees.
+  WriteI32Le(app_data, &offset, -180000000);
+  WriteStringLiteral(app_data, &offset, "dummy-node-name");
+
+  constexpr uint32_t current_timestamp = 1704067200U;
+  constexpr uint32_t advert_timestamp = current_timestamp + 1;
+  mesh::Packet packet = BuildSignedAdvertPacket(advert_timestamp, app_data, offset);
+
+  auto test_mesh = MakeTestMesh(current_timestamp);
+  test_mesh->recv(&packet);
+
+  ASSERT_TRUE(test_mesh->discovered_contact.has_value());
+  EXPECT_EQ(90000000, test_mesh->discovered_contact->gps_lat);
+  EXPECT_EQ(-180000000, test_mesh->discovered_contact->gps_lon);
+}
+
+TEST(AdvertData, ParsesNullIslandCoordinatesFromNetworkPacket) {
+  uint8_t app_data[MAX_ADVERT_DATA_SIZE] = {};
+  size_t offset = 0;
+
+  // flags/type byte: chat advert with zero-valued coordinates and a name.
+  WriteU8(app_data, &offset, ADV_TYPE_CHAT | ADV_LATLON_MASK | ADV_NAME_MASK);
+  WriteI32Le(app_data, &offset, 0);
+  WriteI32Le(app_data, &offset, 0);
+  WriteStringLiteral(app_data, &offset, "dummy-node-name");
+
+  constexpr uint32_t current_timestamp = 1704067200U;
+  constexpr uint32_t advert_timestamp = current_timestamp + 1;
+  mesh::Packet packet = BuildSignedAdvertPacket(advert_timestamp, app_data, offset);
+
+  auto test_mesh = MakeTestMesh(current_timestamp);
+  test_mesh->recv(&packet);
+
+  ASSERT_TRUE(test_mesh->discovered_contact.has_value());
+  EXPECT_EQ(0, test_mesh->discovered_contact->gps_lat);
+  EXPECT_EQ(0, test_mesh->discovered_contact->gps_lon);
+}
+
 TEST(AdvertData, RejectsLongitudeOutsideValidRangeFromNetworkPacket) {
   uint8_t app_data[MAX_ADVERT_DATA_SIZE] = {};
   size_t offset = 0;
@@ -377,6 +411,42 @@ TEST(AdvertData, RejectsLongitudeBelowValidRangeFromNetworkPacket) {
   EXPECT_FALSE(test_mesh->discovered_contact.has_value());
 }
 
+void ExpectTruncatedGpsPayloadIsRejected(uint8_t app_data_len) {
+  uint8_t app_data[MAX_ADVERT_DATA_SIZE] = {};
+  size_t offset = 0;
+
+  // Advert claims to carry GPS coordinates and a name, but the payload is truncated.
+  WriteU8(app_data, &offset, ADV_TYPE_CHAT | ADV_LATLON_MASK | ADV_NAME_MASK);
+  WriteI32Le(app_data, &offset, 37774900);
+  WriteI32Le(app_data, &offset, -122419400);
+  WriteStringLiteral(app_data, &offset, "dummy-node-name");
+
+  constexpr uint32_t current_timestamp = 1704067200U;
+  constexpr uint32_t advert_timestamp = current_timestamp + 1;
+  mesh::Packet packet = BuildSignedAdvertPacket(advert_timestamp, app_data, app_data_len);
+
+  auto test_mesh = MakeTestMesh(current_timestamp);
+  test_mesh->recv(&packet);
+
+  EXPECT_FALSE(test_mesh->discovered_contact.has_value());
+}
+
+TEST(AdvertData, RejectsGpsPayloadWithMissingFlagsByte) {
+  ExpectTruncatedGpsPayloadIsRejected(0);
+}
+
+TEST(AdvertData, RejectsGpsPayloadWithOnlyFlagsByte) {
+  ExpectTruncatedGpsPayloadIsRejected(1);
+}
+
+TEST(AdvertData, RejectsGpsPayloadWithLatitudeButMissingLongitude) {
+  ExpectTruncatedGpsPayloadIsRejected(5);
+}
+
+TEST(AdvertData, RejectsGpsPayloadOneByteShortOfFullCoordinates) {
+  ExpectTruncatedGpsPayloadIsRejected(8);
+}
+
 TEST(AdvertData, RejectsLatitudeOutsideValidRangeFromNetworkPacket) {
   uint8_t app_data[MAX_ADVERT_DATA_SIZE] = {};
   size_t offset = 0;
@@ -420,6 +490,93 @@ TEST(AdvertData, RejectsLatitudeBelowValidRangeFromNetworkPacket) {
   auto test_mesh = MakeTestMesh(current_timestamp);
   test_mesh->recv(&packet);
 
+  EXPECT_FALSE(test_mesh->discovered_contact.has_value());
+}
+
+TEST(AdvertData, KeepsExistingGpsWhenUpdatedAdvertOmitsCoordinates) {
+  uint8_t app_data[MAX_ADVERT_DATA_SIZE] = {};
+  size_t offset = 0;
+
+  // flags/type byte: chat advert with a new name but no GPS fields.
+  WriteU8(app_data, &offset, ADV_TYPE_CHAT | ADV_NAME_MASK);
+  WriteStringLiteral(app_data, &offset, "updated-name");
+
+  constexpr uint32_t current_timestamp = 1704067200U;
+  constexpr uint32_t existing_advert_timestamp = current_timestamp - 10;
+  constexpr uint32_t new_advert_timestamp = current_timestamp + 1;
+  mesh::Packet packet = BuildSignedAdvertPacket(new_advert_timestamp, app_data, offset);
+
+  auto test_mesh = MakeTestMesh(current_timestamp);
+  ASSERT_TRUE(test_mesh->addContact(MakeSenderContact(existing_advert_timestamp, 37774900, -122419400)));
+
+  test_mesh->recv(&packet);
+
+  ContactInfo* updated = test_mesh->lookupContactByPubKey(mesh::Identity(kSenderPublicKeyHex).pub_key, PUB_KEY_SIZE);
+  ASSERT_NE(nullptr, updated);
+  EXPECT_STREQ("updated-name", updated->name);
+  EXPECT_EQ(37774900, updated->gps_lat);
+  EXPECT_EQ(-122419400, updated->gps_lon);
+  ASSERT_TRUE(test_mesh->discovered_contact.has_value());
+  EXPECT_EQ(37774900, test_mesh->discovered_contact->gps_lat);
+  EXPECT_EQ(-122419400, test_mesh->discovered_contact->gps_lon);
+}
+
+TEST(AdvertData, OverwritesExistingGpsWhenUpdatedAdvertIncludesCoordinates) {
+  uint8_t app_data[MAX_ADVERT_DATA_SIZE] = {};
+  size_t offset = 0;
+
+  // flags/type byte: chat advert with replacement GPS coordinates and a new name.
+  WriteU8(app_data, &offset, ADV_TYPE_CHAT | ADV_LATLON_MASK | ADV_NAME_MASK);
+  WriteI32Le(app_data, &offset, 40712800);
+  WriteI32Le(app_data, &offset, -74006000);
+  WriteStringLiteral(app_data, &offset, "updated-name");
+
+  constexpr uint32_t current_timestamp = 1704067200U;
+  constexpr uint32_t existing_advert_timestamp = current_timestamp - 10;
+  constexpr uint32_t new_advert_timestamp = current_timestamp + 1;
+  mesh::Packet packet = BuildSignedAdvertPacket(new_advert_timestamp, app_data, offset);
+
+  auto test_mesh = MakeTestMesh(current_timestamp);
+  ASSERT_TRUE(test_mesh->addContact(MakeSenderContact(existing_advert_timestamp, 37774900, -122419400)));
+
+  test_mesh->recv(&packet);
+
+  ContactInfo* updated = test_mesh->lookupContactByPubKey(mesh::Identity(kSenderPublicKeyHex).pub_key, PUB_KEY_SIZE);
+  ASSERT_NE(nullptr, updated);
+  EXPECT_STREQ("updated-name", updated->name);
+  EXPECT_EQ(40712800, updated->gps_lat);
+  EXPECT_EQ(-74006000, updated->gps_lon);
+  ASSERT_TRUE(test_mesh->discovered_contact.has_value());
+  EXPECT_EQ(40712800, test_mesh->discovered_contact->gps_lat);
+  EXPECT_EQ(-74006000, test_mesh->discovered_contact->gps_lon);
+}
+
+TEST(AdvertData, LeavesExistingGpsUntouchedWhenUpdatedAdvertHasInvalidCoordinates) {
+  uint8_t app_data[MAX_ADVERT_DATA_SIZE] = {};
+  size_t offset = 0;
+
+  // flags/type byte: chat advert with invalid longitude and a new name.
+  WriteU8(app_data, &offset, ADV_TYPE_CHAT | ADV_LATLON_MASK | ADV_NAME_MASK);
+  WriteI32Le(app_data, &offset, 37774900);
+  WriteI32Le(app_data, &offset, 180000001);
+  WriteStringLiteral(app_data, &offset, "updated-name");
+
+  constexpr uint32_t current_timestamp = 1704067200U;
+  constexpr uint32_t existing_advert_timestamp = current_timestamp - 10;
+  constexpr uint32_t new_advert_timestamp = current_timestamp + 1;
+  mesh::Packet packet = BuildSignedAdvertPacket(new_advert_timestamp, app_data, offset);
+
+  auto test_mesh = MakeTestMesh(current_timestamp);
+  ASSERT_TRUE(test_mesh->addContact(MakeSenderContact(existing_advert_timestamp, 37774900, -122419400)));
+
+  test_mesh->recv(&packet);
+
+  ContactInfo* existing = test_mesh->lookupContactByPubKey(mesh::Identity(kSenderPublicKeyHex).pub_key, PUB_KEY_SIZE);
+  ASSERT_NE(nullptr, existing);
+  EXPECT_STREQ("existing-contact", existing->name);
+  EXPECT_EQ(37774900, existing->gps_lat);
+  EXPECT_EQ(-122419400, existing->gps_lon);
+  EXPECT_EQ(existing_advert_timestamp, existing->last_advert_timestamp);
   EXPECT_FALSE(test_mesh->discovered_contact.has_value());
 }
 

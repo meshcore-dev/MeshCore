@@ -1,0 +1,7 @@
+{
+  "build": {
+    "flags": [
+      "-fno-sanitize=undefined"
+    ]
+  }
+}

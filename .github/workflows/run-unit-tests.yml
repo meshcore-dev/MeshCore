@@ -21,6 +21,11 @@ jobs:
 
       - name: Run Unit Tests
         run: pio test -e native -vv
+        env:
+          # Fail CI on leaks or memory errors reported by ASAN.
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          # Stop immediately and print a stack trace for undefined behavior.
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
 
       - name: Upload Test Results
         # Upload test results even if the test step failed.
