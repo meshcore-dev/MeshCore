@@ -16,7 +16,8 @@ void RS232Bridge::begin() {
 #if defined(ESP32)
   ((HardwareSerial *)_serial)->setPins(WITH_RS232_BRIDGE_RX, WITH_RS232_BRIDGE_TX);
 #elif defined(NRF52_PLATFORM)
-  ((HardwareSerial *)_serial)->setPins(WITH_RS232_BRIDGE_RX, WITH_RS232_BRIDGE_TX);
+  // Tested with RAK_4631 and T114
+  ((Uart *)_serial)->setPins(WITH_RS232_BRIDGE_RX, WITH_RS232_BRIDGE_TX);
 #elif defined(RP2040_PLATFORM)
   ((SerialUART *)_serial)->setRX(WITH_RS232_BRIDGE_RX);
   ((SerialUART *)_serial)->setTX(WITH_RS232_BRIDGE_TX);
@@ -121,8 +122,7 @@ void RS232Bridge::sendPacket(mesh::Packet *packet) {
 
     // Check if packet fits within our maximum payload size
     if (len > (MAX_TRANS_UNIT + 1)) {
-      BRIDGE_DEBUG_PRINTLN("TX packet too large (payload=%d, max=%d)\n", len,
-                           MAX_TRANS_UNIT + 1);
+      BRIDGE_DEBUG_PRINTLN("TX packet too large (payload=%d, max=%d)\n", len, MAX_TRANS_UNIT + 1);
       return;
     }
 

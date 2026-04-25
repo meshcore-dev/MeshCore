@@ -7,6 +7,10 @@ bool SSD1306Display::i2c_probe(TwoWire& wire, uint8_t addr) {
 }
 
 bool SSD1306Display::begin() {
+  if (!_isOn) {
+    if (_peripher_power) _peripher_power->claim();
+    _isOn = true;
+  }
   #ifdef DISPLAY_ROTATION
   display.setRotation(DISPLAY_ROTATION);
   #endif
@@ -14,13 +18,25 @@ bool SSD1306Display::begin() {
 }
 
 void SSD1306Display::turnOn() {
+  if (!_isOn) {
+    if (_peripher_power) _peripher_power->claim();
+    _isOn = true;  // set before begin() to prevent double claim
+    if (_peripher_power) begin();  // re-init display after power was cut
+  }
   display.ssd1306_command(SSD1306_DISPLAYON);
-  _isOn = true;
 }
 
 void SSD1306Display::turnOff() {
   display.ssd1306_command(SSD1306_DISPLAYOFF);
-  _isOn = false;
+  if (_isOn) {
+    if (_peripher_power) {
+#if PIN_OLED_RESET >= 0
+      digitalWrite(PIN_OLED_RESET, LOW);
+#endif
+      _peripher_power->release();
+    }
+    _isOn = false;
+  }
 }
 
 void SSD1306Display::clear() {

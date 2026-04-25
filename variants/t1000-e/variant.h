@@ -97,7 +97,7 @@
 #define LORA_BUSY               (7)             // P0.7
 #define LORA_SCLK               (PIN_SPI_SCK)   // P0.11
 #define LORA_MISO               (PIN_SPI_MISO)  // P1.8
-#define LORA_MOSI               (PIN_SPI_MOSI)  // P0.9
+#define LORA_MOSI               (PIN_SPI_MOSI)  // P1.9
  
 #define LR11X0_DIO_AS_RF_SWITCH    true
 #define LR11X0_DIO3_TCXO_VOLTAGE   1.6

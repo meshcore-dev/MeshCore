@@ -40,7 +40,7 @@
   ],
   "name": "Seeed Studio XIAO nRF52840",
   "upload": {
-    "maximum_ram_size": 237568,
+    "maximum_ram_size": 235520,
     "maximum_size": 811008,
     "protocol": "nrfutil",
     "speed": 115200,

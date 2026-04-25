@@ -53,13 +53,24 @@ void RadioLibWrapper::triggerNoiseFloorCalibrate(int threshold) {
   }
 }
 
+void RadioLibWrapper::doResetAGC() {
+  _radio->sleep();  // warm sleep to reset analog frontend
+}
+
 void RadioLibWrapper::resetAGC() {
   // make sure we're not mid-receive of packet!
   if ((state & STATE_INT_READY) != 0 || isReceivingPacket()) return;
 
-  // NOTE: according to higher powers, just issuing RadioLib's startReceive() will reset the AGC.
-  //      revisit this if a better impl is discovered.
+  doResetAGC();
   state = STATE_IDLE;   // trigger a startReceive()
+
+  // Reset noise floor sampling so it reconverges from scratch.
+  // Without this, a stuck _noise_floor of -120 makes the sampling threshold
+  // too low (-106) to accept normal samples (~-105), self-reinforcing the
+  // stuck value even after the receiver has recovered.
+  _noise_floor = 0;
+  _num_floor_samples = 0;
+  _floor_sample_sum = 0;
 }
 
 void RadioLibWrapper::loop() {
@@ -105,6 +116,7 @@ int RadioLibWrapper::recvRaw(uint8_t* bytes, int sz) {
       if (err != RADIOLIB_ERR_NONE) {
         MESH_DEBUG_PRINTLN("RadioLibWrapper: error: readData(%d)", err);
         len = 0;
+        n_recv_errors++;
       } else {
       //  Serial.print("  readData() -> "); Serial.println(len);
         n_recv++;
@@ -137,6 +149,7 @@ bool RadioLibWrapper::startSendRaw(const uint8_t* bytes, int len) {
   }
   MESH_DEBUG_PRINTLN("RadioLibWrapper: error: startTransmit(%d)", err);
   idle();   // trigger another startRecv()
+  _board->onAfterTransmit();
   return false;
 }
 

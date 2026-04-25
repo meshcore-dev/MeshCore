@@ -3,15 +3,21 @@
 #include <MeshCore.h>
 #include <Arduino.h>
 
+#ifndef USER_BTN_PRESSED
+#define USER_BTN_PRESSED LOW
+#endif
+
 #if defined(ESP_PLATFORM)
 
 #include <rom/rtc.h>
 #include <sys/time.h>
 #include <Wire.h>
+#include "driver/rtc_io.h"
 
 class ESP32Board : public mesh::MainBoard {
 protected:
   uint8_t startup_reason;
+  bool inhibit_sleep = false;
 
 public:
   void begin() {
@@ -40,6 +46,39 @@ public:
   #else
     Wire.begin();
   #endif
+  }
+
+  // Temperature from ESP32 MCU
+  float getMCUTemperature() override {
+    uint32_t raw = 0;
+
+    // To get and average the temperature so it is more accurate, especially in low temperature
+    for (int i = 0; i < 4; i++) {
+      raw += temperatureRead();
+    }
+
+    return raw / 4;
+  }
+
+  void enterLightSleep(uint32_t secs) {
+#if defined(CONFIG_IDF_TARGET_ESP32S3) && defined(P_LORA_DIO_1) // Supported ESP32 variants
+    if (rtc_gpio_is_valid_gpio((gpio_num_t)P_LORA_DIO_1)) { // Only enter sleep mode if P_LORA_DIO_1 is RTC pin
+      esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
+      esp_sleep_enable_ext1_wakeup((1L << P_LORA_DIO_1), ESP_EXT1_WAKEUP_ANY_HIGH); // To wake up when receiving a LoRa packet
+
+      if (secs > 0) {
+        esp_sleep_enable_timer_wakeup(secs * 1000000); // To wake up every hour to do periodically jobs
+      }
+
+      esp_light_sleep_start(); // CPU enters light sleep
+    }
+#endif
+  }
+
+  void sleep(uint32_t secs) override {
+    if (!inhibit_sleep) {
+      enterLightSleep(secs);      // To wake up after "secs" seconds or when receiving a LoRa packet
+    }
   }
 
   uint8_t getStartupReason() const override { return startup_reason; }
@@ -87,6 +126,10 @@ public:
   }
 
   bool startOTAUpdate(const char* id, char reply[]) override;
+
+  void setInhibitSleep(bool inhibit) {
+    inhibit_sleep = inhibit;
+  }
 };
 
 class ESP32RTCClock : public mesh::RTCClock {

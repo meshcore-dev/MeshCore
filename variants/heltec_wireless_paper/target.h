@@ -3,7 +3,7 @@
 #define RADIOLIB_STATIC_ONLY 1
 #include <RadioLib.h>
 #include <helpers/radiolib/RadioLibWrappers.h>
-#include <helpers/HeltecV3Board.h>
+#include <../heltec_v3/HeltecV3Board.h>
 #include <helpers/radiolib/CustomSX1262Wrapper.h>
 #include <helpers/AutoDiscoverRTCClock.h>
 #include <helpers/SensorManager.h>
@@ -25,5 +25,5 @@ extern MomentaryButton user_btn;
 bool radio_init();
 uint32_t radio_get_rng_seed();
 void radio_set_params(float freq, float bw, uint8_t sf, uint8_t cr);
-void radio_set_tx_power(uint8_t dbm);
+void radio_set_tx_power(int8_t dbm);
 mesh::LocalIdentity radio_new_identity();

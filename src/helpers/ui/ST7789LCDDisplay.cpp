@@ -23,12 +23,19 @@ bool ST7789LCDDisplay::begin() {
   if (!_isOn) {
     if (_peripher_power) _peripher_power->claim();
 
-    pinMode(PIN_TFT_LEDA_CTL, OUTPUT);
-    digitalWrite(PIN_TFT_LEDA_CTL, HIGH);
-    digitalWrite(PIN_TFT_RST, HIGH);
+    if (PIN_TFT_LEDA_CTL != -1) {
+      pinMode(PIN_TFT_LEDA_CTL, OUTPUT);
+      digitalWrite(PIN_TFT_LEDA_CTL, HIGH);
+    }
+    if (PIN_TFT_RST != -1) {
+      pinMode(PIN_TFT_RST, OUTPUT);
+      digitalWrite(PIN_TFT_RST, LOW); 
+      delay(10);
+      digitalWrite(PIN_TFT_RST, HIGH);
+    }
 
     // Im not sure if this is just a t-deck problem or not, if your display is slow try this.
-    #ifdef LILYGO_TDECK
+    #if defined(LILYGO_TDECK) || defined(HELTEC_LORA_V4_TFT)
       displaySPI.begin(PIN_TFT_SCL, -1, PIN_TFT_SDA, PIN_TFT_CS);
     #endif
 
@@ -54,9 +61,15 @@ void ST7789LCDDisplay::turnOn() {
 
 void ST7789LCDDisplay::turnOff() {
   if (_isOn) {
-    digitalWrite(PIN_TFT_LEDA_CTL, HIGH);
-    digitalWrite(PIN_TFT_RST, LOW);
-    digitalWrite(PIN_TFT_LEDA_CTL, LOW);
+    if (PIN_TFT_LEDA_CTL != -1) {
+      digitalWrite(PIN_TFT_LEDA_CTL, HIGH);
+    }
+    if (PIN_TFT_RST != -1) {
+      digitalWrite(PIN_TFT_RST, LOW);
+    }
+    if (PIN_TFT_LEDA_CTL != -1) {
+      digitalWrite(PIN_TFT_LEDA_CTL, LOW);
+    }
     _isOn = false;
 
     if (_peripher_power) _peripher_power->release();
