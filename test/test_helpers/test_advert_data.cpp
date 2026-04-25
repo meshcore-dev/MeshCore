@@ -188,8 +188,8 @@ protected:
   void onContactResponse(const ContactInfo&, const uint8_t*, uint8_t) override {}
 };
 
-mesh::Packet BuildSignedAdvertPacket(const mesh::LocalIdentity& sender, uint32_t timestamp,
-                                     const uint8_t* app_data, uint8_t app_data_len) {
+mesh::Packet BuildSignedAdvertPacket(uint32_t timestamp, const uint8_t* app_data, uint8_t app_data_len) {
+  mesh::LocalIdentity sender(kSenderPrivateKeyHex, kSenderPublicKeyHex);
   mesh::Packet packet;
 
   // Wire header: flood-routed advert packet with no path hashes yet.
@@ -238,21 +238,21 @@ TEST(AdvertData, ParsesNameOnlyFromNetworkPacket) {
 
   uint8_t app_data[MAX_ADVERT_DATA_SIZE] = {};
   size_t offset = 0;
+  constexpr uint32_t advert_timestamp = 1704067201U;
 
   // flags/type byte: chat advert with a trailing name field.
   WriteU8(app_data, &offset, ADV_TYPE_CHAT | ADV_NAME_MASK);
   // name field: raw bytes for "alice", consuming the rest of app_data.
   WriteStringLiteral(app_data, &offset, "alice");
 
-  mesh::LocalIdentity sender(kSenderPrivateKeyHex, kSenderPublicKeyHex);
-  mesh::Packet packet = BuildSignedAdvertPacket(sender, 1704067201U, app_data, offset);
+  mesh::Packet packet = BuildSignedAdvertPacket(advert_timestamp, app_data, offset);
 
   mesh.recv(&packet);
 
   ASSERT_TRUE(mesh.discovered_contact.has_value());
   EXPECT_EQ(ADV_TYPE_CHAT, mesh.discovered_contact->type);
   EXPECT_STREQ("alice", mesh.discovered_contact->name);
-  EXPECT_EQ(1704067201U, mesh.discovered_contact->last_advert_timestamp);
+  EXPECT_EQ(advert_timestamp, mesh.discovered_contact->last_advert_timestamp);
   EXPECT_EQ(1704067200U, mesh.discovered_contact->lastmod);
   EXPECT_EQ(0, mesh.discovered_contact->gps_lat);
   EXPECT_EQ(0, mesh.discovered_contact->gps_lon);
@@ -269,6 +269,7 @@ TEST(AdvertData, ParsesNameAndCoordinatesFromNetworkPacket) {
 
   uint8_t app_data[MAX_ADVERT_DATA_SIZE] = {};
   size_t offset = 0;
+  constexpr uint32_t advert_timestamp = 1704067201U;
 
   // flags/type byte: repeater advert with lat/lon followed by a name.
   WriteU8(app_data, &offset, ADV_TYPE_REPEATER | ADV_LATLON_MASK | ADV_NAME_MASK);
@@ -279,8 +280,7 @@ TEST(AdvertData, ParsesNameAndCoordinatesFromNetworkPacket) {
   // name field: raw bytes for "node" after the coordinate fields.
   WriteStringLiteral(app_data, &offset, "node");
 
-  mesh::LocalIdentity sender(kSenderPrivateKeyHex, kSenderPublicKeyHex);
-  mesh::Packet packet = BuildSignedAdvertPacket(sender, 1704067201U, app_data, offset);
+  mesh::Packet packet = BuildSignedAdvertPacket(advert_timestamp, app_data, offset);
 
   mesh.recv(&packet);
 
@@ -302,6 +302,7 @@ TEST(AdvertData, ParsesCoordinateExtremesFromNetworkPacket) {
 
   uint8_t app_data[MAX_ADVERT_DATA_SIZE] = {};
   size_t offset = 0;
+  constexpr uint32_t advert_timestamp = 1704067201U;
 
   // flags/type byte: sensor advert with both location fields and a name.
   WriteU8(app_data, &offset, ADV_TYPE_SENSOR | ADV_LATLON_MASK | ADV_NAME_MASK);
@@ -312,8 +313,7 @@ TEST(AdvertData, ParsesCoordinateExtremesFromNetworkPacket) {
   // name field: raw bytes for "edge".
   WriteStringLiteral(app_data, &offset, "edge");
 
-  mesh::LocalIdentity sender(kSenderPrivateKeyHex, kSenderPublicKeyHex);
-  mesh::Packet packet = BuildSignedAdvertPacket(sender, 1704067201U, app_data, offset);
+  mesh::Packet packet = BuildSignedAdvertPacket(advert_timestamp, app_data, offset);
 
   mesh.recv(&packet);
 
@@ -335,6 +335,7 @@ TEST(AdvertData, RejectsLongitudeOutsideValidRangeFromNetworkPacket) {
 
   uint8_t app_data[MAX_ADVERT_DATA_SIZE] = {};
   size_t offset = 0;
+  constexpr uint32_t advert_timestamp = 1704067201U;
 
   // flags/type byte: chat advert with location and name fields present.
   WriteU8(app_data, &offset, ADV_TYPE_CHAT | ADV_LATLON_MASK | ADV_NAME_MASK);
@@ -345,8 +346,7 @@ TEST(AdvertData, RejectsLongitudeOutsideValidRangeFromNetworkPacket) {
   // name field: parser should reject before the trailing name matters.
   WriteStringLiteral(app_data, &offset, "node");
 
-  mesh::LocalIdentity sender(kSenderPrivateKeyHex, kSenderPublicKeyHex);
-  mesh::Packet packet = BuildSignedAdvertPacket(sender, 1704067201U, app_data, offset);
+  mesh::Packet packet = BuildSignedAdvertPacket(advert_timestamp, app_data, offset);
 
   mesh.recv(&packet);
 
@@ -364,6 +364,7 @@ TEST(AdvertData, RejectsLongitudeBelowValidRangeFromNetworkPacket) {
 
   uint8_t app_data[MAX_ADVERT_DATA_SIZE] = {};
   size_t offset = 0;
+  constexpr uint32_t advert_timestamp = 1704067201U;
 
   // flags/type byte: chat advert with location and name fields present.
   WriteU8(app_data, &offset, ADV_TYPE_CHAT | ADV_LATLON_MASK | ADV_NAME_MASK);
@@ -374,8 +375,7 @@ TEST(AdvertData, RejectsLongitudeBelowValidRangeFromNetworkPacket) {
   // name field: included to keep the payload shape consistent.
   WriteStringLiteral(app_data, &offset, "node");
 
-  mesh::LocalIdentity sender(kSenderPrivateKeyHex, kSenderPublicKeyHex);
-  mesh::Packet packet = BuildSignedAdvertPacket(sender, 1704067201U, app_data, offset);
+  mesh::Packet packet = BuildSignedAdvertPacket(advert_timestamp, app_data, offset);
 
   mesh.recv(&packet);
 
@@ -393,6 +393,7 @@ TEST(AdvertData, RejectsLatitudeOutsideValidRangeFromNetworkPacket) {
 
   uint8_t app_data[MAX_ADVERT_DATA_SIZE] = {};
   size_t offset = 0;
+  constexpr uint32_t advert_timestamp = 1704067201U;
 
   // flags/type byte: chat advert with location and name fields present.
   WriteU8(app_data, &offset, ADV_TYPE_CHAT | ADV_LATLON_MASK | ADV_NAME_MASK);
@@ -403,8 +404,7 @@ TEST(AdvertData, RejectsLatitudeOutsideValidRangeFromNetworkPacket) {
   // name field: included to keep the payload shape consistent.
   WriteStringLiteral(app_data, &offset, "node");
 
-  mesh::LocalIdentity sender(kSenderPrivateKeyHex, kSenderPublicKeyHex);
-  mesh::Packet packet = BuildSignedAdvertPacket(sender, 1704067201U, app_data, offset);
+  mesh::Packet packet = BuildSignedAdvertPacket(advert_timestamp, app_data, offset);
 
   mesh.recv(&packet);
 
@@ -422,6 +422,7 @@ TEST(AdvertData, RejectsLatitudeBelowValidRangeFromNetworkPacket) {
 
   uint8_t app_data[MAX_ADVERT_DATA_SIZE] = {};
   size_t offset = 0;
+  constexpr uint32_t advert_timestamp = 1704067201U;
 
   // flags/type byte: chat advert with location and name fields present.
   WriteU8(app_data, &offset, ADV_TYPE_CHAT | ADV_LATLON_MASK | ADV_NAME_MASK);
@@ -432,8 +433,7 @@ TEST(AdvertData, RejectsLatitudeBelowValidRangeFromNetworkPacket) {
   // name field: included to keep the payload shape consistent.
   WriteStringLiteral(app_data, &offset, "node");
 
-  mesh::LocalIdentity sender(kSenderPrivateKeyHex, kSenderPublicKeyHex);
-  mesh::Packet packet = BuildSignedAdvertPacket(sender, 1704067201U, app_data, offset);
+  mesh::Packet packet = BuildSignedAdvertPacket(advert_timestamp, app_data, offset);
 
   mesh.recv(&packet);
 
@@ -451,14 +451,14 @@ TEST(AdvertData, RejectsForgedSignatureFromNetworkPacket) {
 
   uint8_t app_data[MAX_ADVERT_DATA_SIZE] = {};
   size_t offset = 0;
+  constexpr uint32_t advert_timestamp = 1704067201U;
 
   // flags/type byte: chat advert with a trailing name field.
   WriteU8(app_data, &offset, ADV_TYPE_CHAT | ADV_NAME_MASK);
   // name field: raw bytes for "mallory".
   WriteStringLiteral(app_data, &offset, "mallory");
 
-  mesh::LocalIdentity sender(kSenderPrivateKeyHex, kSenderPublicKeyHex);
-  mesh::Packet packet = BuildSignedAdvertPacket(sender, 1704067201U, app_data, offset);
+  mesh::Packet packet = BuildSignedAdvertPacket(advert_timestamp, app_data, offset);
 
   // Corrupt the signature bytes after signing so verification must fail in Mesh::onRecvPacket().
   packet.payload[PUB_KEY_SIZE + 4] ^= 0xFF;
