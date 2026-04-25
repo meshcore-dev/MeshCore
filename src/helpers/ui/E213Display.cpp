@@ -59,44 +59,58 @@ bool E213Display::begin() {
 }
 
 void E213Display::powerOn() {
+  if (_periph_power) {
+    _periph_power->claim();
+  } else {
 #ifdef PIN_VEXT_EN
-  pinMode(PIN_VEXT_EN, OUTPUT);
+    pinMode(PIN_VEXT_EN, OUTPUT);
 #ifdef PIN_VEXT_EN_ACTIVE
-  digitalWrite(PIN_VEXT_EN, PIN_VEXT_EN_ACTIVE); 
+    digitalWrite(PIN_VEXT_EN, PIN_VEXT_EN_ACTIVE);
 #else
-  digitalWrite(PIN_VEXT_EN, LOW); // Active low
+    digitalWrite(PIN_VEXT_EN, LOW); // Active low
 #endif
+#endif
+  }
   delay(50);                      // Allow power to stabilize
-#endif
 }
 
 void E213Display::powerOff() {
+  if (_periph_power) {
+    _periph_power->release();
+  } else {
 #ifdef PIN_VEXT_EN
 #ifdef PIN_VEXT_EN_ACTIVE
-  digitalWrite(PIN_VEXT_EN, !PIN_VEXT_EN_ACTIVE); 
+    digitalWrite(PIN_VEXT_EN, !PIN_VEXT_EN_ACTIVE);
 #else
-  digitalWrite(PIN_VEXT_EN, HIGH); // Turn off power
+    digitalWrite(PIN_VEXT_EN, HIGH); // Turn off power
 #endif
 #endif
+  }
 }
 
 void E213Display::turnOn() {
   if (!_init) begin();
-  powerOn();
+  else if (!_isOn) {
+    powerOn();
+    display->fastmodeOn();  // Reinitialize display controller after power was cut
+  }
   _isOn = true;
 }
 
 void E213Display::turnOff() {
-  powerOff();
-  _isOn = false;
+  if (_isOn) {
+    powerOff();
+    _isOn = false;
+  }
 }
 
 void E213Display::clear() {
   display->clear();
-
 }
 
 void E213Display::startFrame(Color bkg) {
+  display_crc.reset();
+
   // Fill screen with white first to ensure clean background
   display->fillRect(0, 0, width(), height(), WHITE);
 
@@ -107,31 +121,50 @@ void E213Display::startFrame(Color bkg) {
 }
 
 void E213Display::setTextSize(int sz) {
+  display_crc.update<int>(sz);
   // The library handles text size internally
     display->setTextSize(sz);
 }
 
 void E213Display::setColor(Color c) {
+  display_crc.update<Color>(c);
   // implemented in individual display methods
 }
 
 void E213Display::setCursor(int x, int y) {
+  display_crc.update<int>(x);
+  display_crc.update<int>(y);
     display->setCursor(x, y);
 }
 
 void E213Display::print(const char *str) {
+  display_crc.update<char>(str, strlen(str));
     display->print(str);
 }
 
 void E213Display::fillRect(int x, int y, int w, int h) {
+  display_crc.update<int>(x);
+  display_crc.update<int>(y);
+  display_crc.update<int>(w);
+  display_crc.update<int>(h);
     display->fillRect(x, y, w, h, BLACK);
 }
 
 void E213Display::drawRect(int x, int y, int w, int h) {
+  display_crc.update<int>(x);
+  display_crc.update<int>(y);
+  display_crc.update<int>(w);
+  display_crc.update<int>(h);
     display->drawRect(x, y, w, h, BLACK);
 }
 
 void E213Display::drawXbm(int x, int y, const uint8_t *bits, int w, int h) {
+  display_crc.update<int>(x);
+  display_crc.update<int>(y);
+  display_crc.update<int>(w);
+  display_crc.update<int>(h);
+  display_crc.update<uint8_t>(bits, w * h / 8);
+
   // Width in bytes for bitmap processing
   uint16_t widthInBytes = (w + 7) / 8;
 
@@ -160,5 +193,9 @@ uint16_t E213Display::getTextWidth(const char *str) {
 }
 
 void E213Display::endFrame() {
+  uint32_t crc = display_crc.finalize();
+  if (crc != last_display_crc_value) {
     display->update();
+    last_display_crc_value = crc;
+  }
 }

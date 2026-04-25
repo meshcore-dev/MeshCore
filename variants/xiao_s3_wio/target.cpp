@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #include "target.h"
 
-ESP32Board board;
+XiaoS3WIOBoard board;
 
 #if defined(P_LORA_SCLK)
   static SPIClass spi;
@@ -14,7 +14,7 @@ WRAPPER_CLASS radio_driver(radio, board);
 
 ESP32RTCClock fallback_clock;
 AutoDiscoverRTCClock rtc_clock(fallback_clock);
-SensorManager sensors;
+EnvironmentSensorManager sensors;
 
 #ifdef DISPLAY_CLASS
   DISPLAY_CLASS display;
@@ -46,7 +46,7 @@ void radio_set_params(float freq, float bw, uint8_t sf, uint8_t cr) {
   radio.setCodingRate(cr);
 }
 
-void radio_set_tx_power(uint8_t dbm) {
+void radio_set_tx_power(int8_t dbm) {
   radio.setOutputPower(dbm);
 }
 
@@ -54,3 +54,4 @@ mesh::LocalIdentity radio_new_identity() {
   RadioNoiseListener rng(radio);
   return mesh::LocalIdentity(&rng);  // create new random identity
 }
+

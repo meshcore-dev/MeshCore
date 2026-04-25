@@ -46,14 +46,15 @@
   ],
   "debug": {
     "jlink_device": "nRF52840_xxAA",
-    "svd_path": "nrf52840.svd"
+    "svd_path": "nrf52840.svd",
+    "openocd_target": "nrf52.cfg"
   },
   "frameworks": [
     "arduino"
   ],
   "name": "WisCore RAK4631 Board",
   "upload": {
-    "maximum_ram_size": 248832,
+    "maximum_ram_size": 235520,
     "maximum_size": 815104,
     "speed": 115200,
     "protocol": "nrfutil",

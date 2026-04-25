@@ -2,6 +2,10 @@
 #include "target.h"
 #include <helpers/ArduinoHelpers.h>
 
+#ifdef DISPLAY_CLASS
+  DISPLAY_CLASS display;
+#endif
+
 XiaoNrf52Board board;
 
 RADIO_CLASS radio = new Module(P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BUSY, SPI);
@@ -30,7 +34,7 @@ void radio_set_params(float freq, float bw, uint8_t sf, uint8_t cr) {
   radio.setCodingRate(cr);
 }
 
-void radio_set_tx_power(uint8_t dbm) {
+void radio_set_tx_power(int8_t dbm) {
   radio.setOutputPower(dbm);
 }
 
