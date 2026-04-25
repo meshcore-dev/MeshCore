@@ -61,7 +61,7 @@ struct NodePrefs { // persisted to file
   uint8_t rx_boosted_gain; // power settings
   uint8_t path_hash_mode;   // which path mode to use when sending
   uint8_t loop_detect;
-  uint8_t wdt_timeout_secs; // 0=disabled, 1-255=seconds (nRF52 only, applies on reboot)
+  uint8_t wdt_timeout_secs; // 0=disabled, 1-255=seconds (applies on reboot)
 };
 
 class CommonCLICallbacks {

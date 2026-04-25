@@ -50,11 +50,8 @@ public:
   virtual void begin();
   virtual uint8_t getStartupReason() const override { return startup_reason; }
 
-  // Hardware watchdog — call feedWatchdog() every loop iteration.
-  // If the MCU hangs (HardFault, deadlock, infinite loop), the WDT will
-  // force a reset. timeout_secs=0 means don't start the WDT.
-  void initWatchdog(uint8_t timeout_secs);
-  inline void feedWatchdog() { if (_wdt_running) NRF_WDT->RR[0] = WDT_RR_RR_Reload; }
+  void initWatchdog(uint8_t timeout_secs) override;
+  inline void feedWatchdog() override { if (_wdt_running) NRF_WDT->RR[0] = WDT_RR_RR_Reload; }
   bool _wdt_running = false;
 
   virtual float getMCUTemperature() override;
