@@ -194,7 +194,7 @@ Recently, as of October 2025, many regions have moved to the "narrow" setting, a
 
 After extensive testing, many regions have switched or about to switch over to BW62.5 and SF7, 8, or 9.  Narrower bandwidth setting and lower SF setting allow MeshCore's radio signals to fit between interference in the ISM band, provide for a lower noise floor, better SNR, and faster transmissions.
 
-If you have consensus from your community in your region to update your region's preset recommendation, please post your update request on  the [#meshcore-app](https://discord.com/channels/1343693475589263471/1391681655911088241) channel on the [MeshCore Discord server ](https://discord.gg/cYtQNYCCRK) to let Liam Cottle know.
+If you have consensus from your community in your region to update your region's preset recommendation, please post your update request on  the [#meshcore-app](https://discord.com/channels/1343693475589263471/1391681655911088241) channel on the [MeshCore Discord server ](https://meshcore.gg) to let Liam Cottle know.
 
 
 
@@ -526,7 +526,7 @@ The third character is the capital letter 'O', not zero `0`
 - Firmware repo: https://github.com/meshcore-dev/MeshCore
 
 ### 5.8. Q: How can I support MeshCore?
-**A:** Provide your honest feedback on GitHub and on [MeshCore Discord server](https://discord.gg/BMwCtwHj5V). Spread the word of MeshCore to your friends and communities; help them get started with MeshCore. Support Scott's MeshCore development at <https://buymeacoffee.com/ripplebiz>.
+**A:** Provide your honest feedback on GitHub and on [MeshCore Discord server](https://meshcore.gg). Spread the word of MeshCore to your friends and communities; help them get started with MeshCore. Support Scott's MeshCore development at <https://buymeacoffee.com/ripplebiz>.
 
 Support Liam Cottle's smartphone client development by unlocking the server administration wait gate with in-app purchase
 
