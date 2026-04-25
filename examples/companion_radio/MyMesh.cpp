@@ -46,7 +46,7 @@
 #define CMD_SET_CUSTOM_VAR            41
 #define CMD_GET_ADVERT_PATH           42
 #define CMD_GET_TUNING_PARAMS         43
-// NOTE: CMD range 46..49 parked, potentially for WiFi operations
+// NOTE: CMD range 44..49 parked, potentially for WiFi operations
 #define CMD_SEND_BINARY_REQ           50
 #define CMD_FACTORY_RESET             51
 #define CMD_SEND_PATH_DISCOVERY_REQ   52
