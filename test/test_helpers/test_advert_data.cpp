@@ -238,13 +238,13 @@ TEST(AdvertData, ParsesNameOnlyFromNetworkPacket) {
 
   uint8_t app_data[MAX_ADVERT_DATA_SIZE] = {};
   size_t offset = 0;
-  constexpr uint32_t advert_timestamp = 1704067201U;
 
   // flags/type byte: chat advert with a trailing name field.
   WriteU8(app_data, &offset, ADV_TYPE_CHAT | ADV_NAME_MASK);
   // name field: raw bytes for "alice", consuming the rest of app_data.
   WriteStringLiteral(app_data, &offset, "alice");
 
+  constexpr uint32_t advert_timestamp = 1704067201U;
   mesh::Packet packet = BuildSignedAdvertPacket(advert_timestamp, app_data, offset);
 
   mesh.recv(&packet);
@@ -269,7 +269,6 @@ TEST(AdvertData, ParsesNameAndCoordinatesFromNetworkPacket) {
 
   uint8_t app_data[MAX_ADVERT_DATA_SIZE] = {};
   size_t offset = 0;
-  constexpr uint32_t advert_timestamp = 1704067201U;
 
   // flags/type byte: repeater advert with lat/lon followed by a name.
   WriteU8(app_data, &offset, ADV_TYPE_REPEATER | ADV_LATLON_MASK | ADV_NAME_MASK);
@@ -280,6 +279,7 @@ TEST(AdvertData, ParsesNameAndCoordinatesFromNetworkPacket) {
   // name field: raw bytes for "node" after the coordinate fields.
   WriteStringLiteral(app_data, &offset, "node");
 
+  constexpr uint32_t advert_timestamp = 1704067201U;
   mesh::Packet packet = BuildSignedAdvertPacket(advert_timestamp, app_data, offset);
 
   mesh.recv(&packet);
@@ -302,7 +302,6 @@ TEST(AdvertData, ParsesCoordinateExtremesFromNetworkPacket) {
 
   uint8_t app_data[MAX_ADVERT_DATA_SIZE] = {};
   size_t offset = 0;
-  constexpr uint32_t advert_timestamp = 1704067201U;
 
   // flags/type byte: sensor advert with both location fields and a name.
   WriteU8(app_data, &offset, ADV_TYPE_SENSOR | ADV_LATLON_MASK | ADV_NAME_MASK);
@@ -313,6 +312,7 @@ TEST(AdvertData, ParsesCoordinateExtremesFromNetworkPacket) {
   // name field: raw bytes for "edge".
   WriteStringLiteral(app_data, &offset, "edge");
 
+  constexpr uint32_t advert_timestamp = 1704067201U;
   mesh::Packet packet = BuildSignedAdvertPacket(advert_timestamp, app_data, offset);
 
   mesh.recv(&packet);
@@ -335,7 +335,6 @@ TEST(AdvertData, RejectsLongitudeOutsideValidRangeFromNetworkPacket) {
 
   uint8_t app_data[MAX_ADVERT_DATA_SIZE] = {};
   size_t offset = 0;
-  constexpr uint32_t advert_timestamp = 1704067201U;
 
   // flags/type byte: chat advert with location and name fields present.
   WriteU8(app_data, &offset, ADV_TYPE_CHAT | ADV_LATLON_MASK | ADV_NAME_MASK);
@@ -346,6 +345,7 @@ TEST(AdvertData, RejectsLongitudeOutsideValidRangeFromNetworkPacket) {
   // name field: parser should reject before the trailing name matters.
   WriteStringLiteral(app_data, &offset, "node");
 
+  constexpr uint32_t advert_timestamp = 1704067201U;
   mesh::Packet packet = BuildSignedAdvertPacket(advert_timestamp, app_data, offset);
 
   mesh.recv(&packet);
@@ -364,7 +364,6 @@ TEST(AdvertData, RejectsLongitudeBelowValidRangeFromNetworkPacket) {
 
   uint8_t app_data[MAX_ADVERT_DATA_SIZE] = {};
   size_t offset = 0;
-  constexpr uint32_t advert_timestamp = 1704067201U;
 
   // flags/type byte: chat advert with location and name fields present.
   WriteU8(app_data, &offset, ADV_TYPE_CHAT | ADV_LATLON_MASK | ADV_NAME_MASK);
@@ -375,6 +374,7 @@ TEST(AdvertData, RejectsLongitudeBelowValidRangeFromNetworkPacket) {
   // name field: included to keep the payload shape consistent.
   WriteStringLiteral(app_data, &offset, "node");
 
+  constexpr uint32_t advert_timestamp = 1704067201U;
   mesh::Packet packet = BuildSignedAdvertPacket(advert_timestamp, app_data, offset);
 
   mesh.recv(&packet);
@@ -393,7 +393,6 @@ TEST(AdvertData, RejectsLatitudeOutsideValidRangeFromNetworkPacket) {
 
   uint8_t app_data[MAX_ADVERT_DATA_SIZE] = {};
   size_t offset = 0;
-  constexpr uint32_t advert_timestamp = 1704067201U;
 
   // flags/type byte: chat advert with location and name fields present.
   WriteU8(app_data, &offset, ADV_TYPE_CHAT | ADV_LATLON_MASK | ADV_NAME_MASK);
@@ -404,6 +403,7 @@ TEST(AdvertData, RejectsLatitudeOutsideValidRangeFromNetworkPacket) {
   // name field: included to keep the payload shape consistent.
   WriteStringLiteral(app_data, &offset, "node");
 
+  constexpr uint32_t advert_timestamp = 1704067201U;
   mesh::Packet packet = BuildSignedAdvertPacket(advert_timestamp, app_data, offset);
 
   mesh.recv(&packet);
@@ -422,7 +422,6 @@ TEST(AdvertData, RejectsLatitudeBelowValidRangeFromNetworkPacket) {
 
   uint8_t app_data[MAX_ADVERT_DATA_SIZE] = {};
   size_t offset = 0;
-  constexpr uint32_t advert_timestamp = 1704067201U;
 
   // flags/type byte: chat advert with location and name fields present.
   WriteU8(app_data, &offset, ADV_TYPE_CHAT | ADV_LATLON_MASK | ADV_NAME_MASK);
@@ -433,6 +432,7 @@ TEST(AdvertData, RejectsLatitudeBelowValidRangeFromNetworkPacket) {
   // name field: included to keep the payload shape consistent.
   WriteStringLiteral(app_data, &offset, "node");
 
+  constexpr uint32_t advert_timestamp = 1704067201U;
   mesh::Packet packet = BuildSignedAdvertPacket(advert_timestamp, app_data, offset);
 
   mesh.recv(&packet);
@@ -451,13 +451,13 @@ TEST(AdvertData, RejectsForgedSignatureFromNetworkPacket) {
 
   uint8_t app_data[MAX_ADVERT_DATA_SIZE] = {};
   size_t offset = 0;
-  constexpr uint32_t advert_timestamp = 1704067201U;
 
   // flags/type byte: chat advert with a trailing name field.
   WriteU8(app_data, &offset, ADV_TYPE_CHAT | ADV_NAME_MASK);
   // name field: raw bytes for "mallory".
   WriteStringLiteral(app_data, &offset, "mallory");
 
+  constexpr uint32_t advert_timestamp = 1704067201U;
   mesh::Packet packet = BuildSignedAdvertPacket(advert_timestamp, app_data, offset);
 
   // Corrupt the signature bytes after signing so verification must fail in Mesh::onRecvPacket().
