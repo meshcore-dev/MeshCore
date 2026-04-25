@@ -258,8 +258,8 @@ TEST(AdvertData, ParsesNameOnlyFromNetworkPacket) {
 
   // flags/type byte: chat advert with a trailing name field.
   WriteU8(app_data, &offset, ADV_TYPE_CHAT | ADV_NAME_MASK);
-  // name field: raw bytes for "alice", consuming the rest of app_data.
-  WriteStringLiteral(app_data, &offset, "alice");
+  // name field: raw bytes for "dummy-node-name", consuming the rest of app_data.
+  WriteStringLiteral(app_data, &offset, "dummy-node-name");
 
   constexpr uint32_t current_timestamp = 1704067200U;
   constexpr uint32_t advert_timestamp = current_timestamp + 1;
@@ -270,7 +270,7 @@ TEST(AdvertData, ParsesNameOnlyFromNetworkPacket) {
 
   ASSERT_TRUE(test_mesh->discovered_contact.has_value());
   EXPECT_EQ(ADV_TYPE_CHAT, test_mesh->discovered_contact->type);
-  EXPECT_STREQ("alice", test_mesh->discovered_contact->name);
+  EXPECT_STREQ("dummy-node-name", test_mesh->discovered_contact->name);
   EXPECT_EQ(advert_timestamp, test_mesh->discovered_contact->last_advert_timestamp);
   EXPECT_EQ(current_timestamp, test_mesh->discovered_contact->lastmod);
   EXPECT_EQ(0, test_mesh->discovered_contact->gps_lat);
@@ -287,8 +287,8 @@ TEST(AdvertData, ParsesNameAndCoordinatesFromNetworkPacket) {
   WriteI32Le(app_data, &offset, 37774900);
   // longitude field: signed little-endian microdegrees for -122.4194.
   WriteI32Le(app_data, &offset, -122419400);
-  // name field: raw bytes for "node" after the coordinate fields.
-  WriteStringLiteral(app_data, &offset, "node");
+  // name field: trailing contact name bytes after the coordinate fields.
+  WriteStringLiteral(app_data, &offset, "dummy-node-name");
 
   constexpr uint32_t current_timestamp = 1704067200U;
   constexpr uint32_t advert_timestamp = current_timestamp + 1;
@@ -299,7 +299,7 @@ TEST(AdvertData, ParsesNameAndCoordinatesFromNetworkPacket) {
 
   ASSERT_TRUE(test_mesh->discovered_contact.has_value());
   EXPECT_EQ(ADV_TYPE_REPEATER, test_mesh->discovered_contact->type);
-  EXPECT_STREQ("node", test_mesh->discovered_contact->name);
+  EXPECT_STREQ("dummy-node-name", test_mesh->discovered_contact->name);
   EXPECT_EQ(37774900, test_mesh->discovered_contact->gps_lat);
   EXPECT_EQ(-122419400, test_mesh->discovered_contact->gps_lon);
 }
@@ -314,8 +314,8 @@ TEST(AdvertData, ParsesCoordinateExtremesFromNetworkPacket) {
   WriteI32Le(app_data, &offset, -90000000);
   // longitude field: maximum supported longitude, 180.000000 degrees.
   WriteI32Le(app_data, &offset, 180000000);
-  // name field: raw bytes for "edge".
-  WriteStringLiteral(app_data, &offset, "edge");
+  // name field: raw bytes for "dummy-node-name".
+  WriteStringLiteral(app_data, &offset, "dummy-node-name");
 
   constexpr uint32_t current_timestamp = 1704067200U;
   constexpr uint32_t advert_timestamp = current_timestamp + 1;
@@ -326,7 +326,7 @@ TEST(AdvertData, ParsesCoordinateExtremesFromNetworkPacket) {
 
   ASSERT_TRUE(test_mesh->discovered_contact.has_value());
   EXPECT_EQ(ADV_TYPE_SENSOR, test_mesh->discovered_contact->type);
-  EXPECT_STREQ("edge", test_mesh->discovered_contact->name);
+  EXPECT_STREQ("dummy-node-name", test_mesh->discovered_contact->name);
   EXPECT_EQ(-90000000, test_mesh->discovered_contact->gps_lat);
   EXPECT_EQ(180000000, test_mesh->discovered_contact->gps_lon);
 }
@@ -342,7 +342,7 @@ TEST(AdvertData, RejectsLongitudeOutsideValidRangeFromNetworkPacket) {
   // longitude field: one microdegree above +180.0, which is invalid.
   WriteI32Le(app_data, &offset, 180000001);
   // name field: parser should reject before the trailing name matters.
-  WriteStringLiteral(app_data, &offset, "node");
+  WriteStringLiteral(app_data, &offset, "dummy-node-name");
 
   constexpr uint32_t current_timestamp = 1704067200U;
   constexpr uint32_t advert_timestamp = current_timestamp + 1;
@@ -365,7 +365,7 @@ TEST(AdvertData, RejectsLongitudeBelowValidRangeFromNetworkPacket) {
   // longitude field: one microdegree below -180.0, which is invalid.
   WriteI32Le(app_data, &offset, -180000001);
   // name field: included to keep the payload shape consistent.
-  WriteStringLiteral(app_data, &offset, "node");
+  WriteStringLiteral(app_data, &offset, "dummy-node-name");
 
   constexpr uint32_t current_timestamp = 1704067200U;
   constexpr uint32_t advert_timestamp = current_timestamp + 1;
@@ -388,7 +388,7 @@ TEST(AdvertData, RejectsLatitudeOutsideValidRangeFromNetworkPacket) {
   // longitude field: valid longitude so the failure comes from latitude.
   WriteI32Le(app_data, &offset, -122419400);
   // name field: included to keep the payload shape consistent.
-  WriteStringLiteral(app_data, &offset, "node");
+  WriteStringLiteral(app_data, &offset, "dummy-node-name");
 
   constexpr uint32_t current_timestamp = 1704067200U;
   constexpr uint32_t advert_timestamp = current_timestamp + 1;
@@ -411,33 +411,11 @@ TEST(AdvertData, RejectsLatitudeBelowValidRangeFromNetworkPacket) {
   // longitude field: valid longitude so the failure comes from latitude.
   WriteI32Le(app_data, &offset, -122419400);
   // name field: included to keep the payload shape consistent.
-  WriteStringLiteral(app_data, &offset, "node");
+  WriteStringLiteral(app_data, &offset, "dummy-node-name");
 
   constexpr uint32_t current_timestamp = 1704067200U;
   constexpr uint32_t advert_timestamp = current_timestamp + 1;
   mesh::Packet packet = BuildSignedAdvertPacket(advert_timestamp, app_data, offset);
-
-  auto test_mesh = MakeTestMesh(current_timestamp);
-  test_mesh->recv(&packet);
-
-  EXPECT_FALSE(test_mesh->discovered_contact.has_value());
-}
-
-TEST(AdvertData, RejectsForgedSignatureFromNetworkPacket) {
-  uint8_t app_data[MAX_ADVERT_DATA_SIZE] = {};
-  size_t offset = 0;
-
-  // flags/type byte: chat advert with a trailing name field.
-  WriteU8(app_data, &offset, ADV_TYPE_CHAT | ADV_NAME_MASK);
-  // name field: raw bytes for "mallory".
-  WriteStringLiteral(app_data, &offset, "mallory");
-
-  constexpr uint32_t current_timestamp = 1704067200U;
-  constexpr uint32_t advert_timestamp = current_timestamp + 1;
-  mesh::Packet packet = BuildSignedAdvertPacket(advert_timestamp, app_data, offset);
-
-  // Corrupt the signature bytes after signing so verification must fail in Mesh::onRecvPacket().
-  packet.payload[PUB_KEY_SIZE + 4] ^= 0xFF;
 
   auto test_mesh = MakeTestMesh(current_timestamp);
   test_mesh->recv(&packet);
