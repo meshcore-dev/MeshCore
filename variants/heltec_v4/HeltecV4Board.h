@@ -5,7 +5,15 @@
 #include <helpers/ESP32Board.h>
 #include <driver/rtc_io.h>
 #include "LoRaFEMControl.h"
+
+#ifndef ADC_MULTIPLIER
+  #define ADC_MULTIPLIER 5.42
+#endif
+
 class HeltecV4Board : public ESP32Board {
+
+protected:
+  float adc_mult = ADC_MULTIPLIER;
 
 public:
   RefCountedDigitalPin periph_power;
@@ -18,6 +26,14 @@ public:
   void enterDeepSleep(uint32_t secs, int pin_wake_btn = -1);
   void powerOff() override;
   uint16_t getBattMilliVolts() override;
-  const char* getManufacturerName() const override ;
-
+  bool setAdcMultiplier(float multiplier) override {
+    if (multiplier == 0.0f) {
+      adc_mult = ADC_MULTIPLIER;
+    } else {
+      adc_mult = multiplier;
+    }
+    return true;
+  }
+  float getAdcMultiplier() const override { return adc_mult; }
+  const char* getManufacturerName() const override;
 };

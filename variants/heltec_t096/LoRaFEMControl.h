@@ -16,6 +16,6 @@ class LoRaFEMControl
     void setLnaCanControl(bool can_control) { lna_can_control = can_control; }
 
   private:
-    bool lna_enabled = false;
+    bool lna_enabled = true;
     bool lna_can_control = false;
 };
