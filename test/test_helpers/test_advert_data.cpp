@@ -188,6 +188,31 @@ protected:
   void onContactResponse(const ContactInfo&, const uint8_t*, uint8_t) override {}
 };
 
+struct TestMeshContext {
+  explicit TestMeshContext(uint32_t current_timestamp)
+      : rtc(current_timestamp), mesh(radio, ms, rng, rtc, packet_manager, tables) {}
+
+  TestChatMesh* operator->() {
+    return &mesh;
+  }
+
+  const TestChatMesh* operator->() const {
+    return &mesh;
+  }
+
+  FakeRadio radio;
+  FakeMillis ms;
+  FakeRng rng;
+  FakeRtc rtc;
+  NoopPacketManager packet_manager;
+  SimpleMeshTables tables;
+  TestChatMesh mesh;
+};
+
+TestMeshContext MakeTestMesh(uint32_t current_timestamp) {
+  return TestMeshContext(current_timestamp);
+}
+
 mesh::Packet BuildSignedAdvertPacket(uint32_t timestamp, const uint8_t* app_data, uint8_t app_data_len) {
   mesh::LocalIdentity sender(kSenderPrivateKeyHex, kSenderPublicKeyHex);
   mesh::Packet packet;
@@ -228,14 +253,6 @@ mesh::Packet BuildSignedAdvertPacket(uint32_t timestamp, const uint8_t* app_data
 }
 
 TEST(AdvertData, ParsesNameOnlyFromNetworkPacket) {
-  FakeRadio radio;
-  FakeMillis ms;
-  FakeRng rng;
-  FakeRtc rtc(1704067200U);
-  NoopPacketManager packet_manager;
-  SimpleMeshTables tables;
-  TestChatMesh mesh(radio, ms, rng, rtc, packet_manager, tables);
-
   uint8_t app_data[MAX_ADVERT_DATA_SIZE] = {};
   size_t offset = 0;
 
@@ -244,29 +261,23 @@ TEST(AdvertData, ParsesNameOnlyFromNetworkPacket) {
   // name field: raw bytes for "alice", consuming the rest of app_data.
   WriteStringLiteral(app_data, &offset, "alice");
 
-  constexpr uint32_t advert_timestamp = 1704067201U;
+  constexpr uint32_t current_timestamp = 1704067200U;
+  constexpr uint32_t advert_timestamp = current_timestamp + 1;
   mesh::Packet packet = BuildSignedAdvertPacket(advert_timestamp, app_data, offset);
 
-  mesh.recv(&packet);
+  auto test_mesh = MakeTestMesh(current_timestamp);
+  test_mesh->recv(&packet);
 
-  ASSERT_TRUE(mesh.discovered_contact.has_value());
-  EXPECT_EQ(ADV_TYPE_CHAT, mesh.discovered_contact->type);
-  EXPECT_STREQ("alice", mesh.discovered_contact->name);
-  EXPECT_EQ(advert_timestamp, mesh.discovered_contact->last_advert_timestamp);
-  EXPECT_EQ(1704067200U, mesh.discovered_contact->lastmod);
-  EXPECT_EQ(0, mesh.discovered_contact->gps_lat);
-  EXPECT_EQ(0, mesh.discovered_contact->gps_lon);
+  ASSERT_TRUE(test_mesh->discovered_contact.has_value());
+  EXPECT_EQ(ADV_TYPE_CHAT, test_mesh->discovered_contact->type);
+  EXPECT_STREQ("alice", test_mesh->discovered_contact->name);
+  EXPECT_EQ(advert_timestamp, test_mesh->discovered_contact->last_advert_timestamp);
+  EXPECT_EQ(current_timestamp, test_mesh->discovered_contact->lastmod);
+  EXPECT_EQ(0, test_mesh->discovered_contact->gps_lat);
+  EXPECT_EQ(0, test_mesh->discovered_contact->gps_lon);
 }
 
 TEST(AdvertData, ParsesNameAndCoordinatesFromNetworkPacket) {
-  FakeRadio radio;
-  FakeMillis ms;
-  FakeRng rng;
-  FakeRtc rtc(1704067200U);
-  NoopPacketManager packet_manager;
-  SimpleMeshTables tables;
-  TestChatMesh mesh(radio, ms, rng, rtc, packet_manager, tables);
-
   uint8_t app_data[MAX_ADVERT_DATA_SIZE] = {};
   size_t offset = 0;
 
@@ -279,27 +290,21 @@ TEST(AdvertData, ParsesNameAndCoordinatesFromNetworkPacket) {
   // name field: raw bytes for "node" after the coordinate fields.
   WriteStringLiteral(app_data, &offset, "node");
 
-  constexpr uint32_t advert_timestamp = 1704067201U;
+  constexpr uint32_t current_timestamp = 1704067200U;
+  constexpr uint32_t advert_timestamp = current_timestamp + 1;
   mesh::Packet packet = BuildSignedAdvertPacket(advert_timestamp, app_data, offset);
 
-  mesh.recv(&packet);
+  auto test_mesh = MakeTestMesh(current_timestamp);
+  test_mesh->recv(&packet);
 
-  ASSERT_TRUE(mesh.discovered_contact.has_value());
-  EXPECT_EQ(ADV_TYPE_REPEATER, mesh.discovered_contact->type);
-  EXPECT_STREQ("node", mesh.discovered_contact->name);
-  EXPECT_EQ(37774900, mesh.discovered_contact->gps_lat);
-  EXPECT_EQ(-122419400, mesh.discovered_contact->gps_lon);
+  ASSERT_TRUE(test_mesh->discovered_contact.has_value());
+  EXPECT_EQ(ADV_TYPE_REPEATER, test_mesh->discovered_contact->type);
+  EXPECT_STREQ("node", test_mesh->discovered_contact->name);
+  EXPECT_EQ(37774900, test_mesh->discovered_contact->gps_lat);
+  EXPECT_EQ(-122419400, test_mesh->discovered_contact->gps_lon);
 }
 
 TEST(AdvertData, ParsesCoordinateExtremesFromNetworkPacket) {
-  FakeRadio radio;
-  FakeMillis ms;
-  FakeRng rng;
-  FakeRtc rtc(1704067200U);
-  NoopPacketManager packet_manager;
-  SimpleMeshTables tables;
-  TestChatMesh mesh(radio, ms, rng, rtc, packet_manager, tables);
-
   uint8_t app_data[MAX_ADVERT_DATA_SIZE] = {};
   size_t offset = 0;
 
@@ -312,27 +317,21 @@ TEST(AdvertData, ParsesCoordinateExtremesFromNetworkPacket) {
   // name field: raw bytes for "edge".
   WriteStringLiteral(app_data, &offset, "edge");
 
-  constexpr uint32_t advert_timestamp = 1704067201U;
+  constexpr uint32_t current_timestamp = 1704067200U;
+  constexpr uint32_t advert_timestamp = current_timestamp + 1;
   mesh::Packet packet = BuildSignedAdvertPacket(advert_timestamp, app_data, offset);
 
-  mesh.recv(&packet);
+  auto test_mesh = MakeTestMesh(current_timestamp);
+  test_mesh->recv(&packet);
 
-  ASSERT_TRUE(mesh.discovered_contact.has_value());
-  EXPECT_EQ(ADV_TYPE_SENSOR, mesh.discovered_contact->type);
-  EXPECT_STREQ("edge", mesh.discovered_contact->name);
-  EXPECT_EQ(-90000000, mesh.discovered_contact->gps_lat);
-  EXPECT_EQ(180000000, mesh.discovered_contact->gps_lon);
+  ASSERT_TRUE(test_mesh->discovered_contact.has_value());
+  EXPECT_EQ(ADV_TYPE_SENSOR, test_mesh->discovered_contact->type);
+  EXPECT_STREQ("edge", test_mesh->discovered_contact->name);
+  EXPECT_EQ(-90000000, test_mesh->discovered_contact->gps_lat);
+  EXPECT_EQ(180000000, test_mesh->discovered_contact->gps_lon);
 }
 
 TEST(AdvertData, RejectsLongitudeOutsideValidRangeFromNetworkPacket) {
-  FakeRadio radio;
-  FakeMillis ms;
-  FakeRng rng;
-  FakeRtc rtc(1704067200U);
-  NoopPacketManager packet_manager;
-  SimpleMeshTables tables;
-  TestChatMesh mesh(radio, ms, rng, rtc, packet_manager, tables);
-
   uint8_t app_data[MAX_ADVERT_DATA_SIZE] = {};
   size_t offset = 0;
 
@@ -345,23 +344,17 @@ TEST(AdvertData, RejectsLongitudeOutsideValidRangeFromNetworkPacket) {
   // name field: parser should reject before the trailing name matters.
   WriteStringLiteral(app_data, &offset, "node");
 
-  constexpr uint32_t advert_timestamp = 1704067201U;
+  constexpr uint32_t current_timestamp = 1704067200U;
+  constexpr uint32_t advert_timestamp = current_timestamp + 1;
   mesh::Packet packet = BuildSignedAdvertPacket(advert_timestamp, app_data, offset);
 
-  mesh.recv(&packet);
+  auto test_mesh = MakeTestMesh(current_timestamp);
+  test_mesh->recv(&packet);
 
-  EXPECT_FALSE(mesh.discovered_contact.has_value());
+  EXPECT_FALSE(test_mesh->discovered_contact.has_value());
 }
 
 TEST(AdvertData, RejectsLongitudeBelowValidRangeFromNetworkPacket) {
-  FakeRadio radio;
-  FakeMillis ms;
-  FakeRng rng;
-  FakeRtc rtc(1704067200U);
-  NoopPacketManager packet_manager;
-  SimpleMeshTables tables;
-  TestChatMesh mesh(radio, ms, rng, rtc, packet_manager, tables);
-
   uint8_t app_data[MAX_ADVERT_DATA_SIZE] = {};
   size_t offset = 0;
 
@@ -374,23 +367,17 @@ TEST(AdvertData, RejectsLongitudeBelowValidRangeFromNetworkPacket) {
   // name field: included to keep the payload shape consistent.
   WriteStringLiteral(app_data, &offset, "node");
 
-  constexpr uint32_t advert_timestamp = 1704067201U;
+  constexpr uint32_t current_timestamp = 1704067200U;
+  constexpr uint32_t advert_timestamp = current_timestamp + 1;
   mesh::Packet packet = BuildSignedAdvertPacket(advert_timestamp, app_data, offset);
 
-  mesh.recv(&packet);
+  auto test_mesh = MakeTestMesh(current_timestamp);
+  test_mesh->recv(&packet);
 
-  EXPECT_FALSE(mesh.discovered_contact.has_value());
+  EXPECT_FALSE(test_mesh->discovered_contact.has_value());
 }
 
 TEST(AdvertData, RejectsLatitudeOutsideValidRangeFromNetworkPacket) {
-  FakeRadio radio;
-  FakeMillis ms;
-  FakeRng rng;
-  FakeRtc rtc(1704067200U);
-  NoopPacketManager packet_manager;
-  SimpleMeshTables tables;
-  TestChatMesh mesh(radio, ms, rng, rtc, packet_manager, tables);
-
   uint8_t app_data[MAX_ADVERT_DATA_SIZE] = {};
   size_t offset = 0;
 
@@ -403,23 +390,17 @@ TEST(AdvertData, RejectsLatitudeOutsideValidRangeFromNetworkPacket) {
   // name field: included to keep the payload shape consistent.
   WriteStringLiteral(app_data, &offset, "node");
 
-  constexpr uint32_t advert_timestamp = 1704067201U;
+  constexpr uint32_t current_timestamp = 1704067200U;
+  constexpr uint32_t advert_timestamp = current_timestamp + 1;
   mesh::Packet packet = BuildSignedAdvertPacket(advert_timestamp, app_data, offset);
 
-  mesh.recv(&packet);
+  auto test_mesh = MakeTestMesh(current_timestamp);
+  test_mesh->recv(&packet);
 
-  EXPECT_FALSE(mesh.discovered_contact.has_value());
+  EXPECT_FALSE(test_mesh->discovered_contact.has_value());
 }
 
 TEST(AdvertData, RejectsLatitudeBelowValidRangeFromNetworkPacket) {
-  FakeRadio radio;
-  FakeMillis ms;
-  FakeRng rng;
-  FakeRtc rtc(1704067200U);
-  NoopPacketManager packet_manager;
-  SimpleMeshTables tables;
-  TestChatMesh mesh(radio, ms, rng, rtc, packet_manager, tables);
-
   uint8_t app_data[MAX_ADVERT_DATA_SIZE] = {};
   size_t offset = 0;
 
@@ -432,23 +413,17 @@ TEST(AdvertData, RejectsLatitudeBelowValidRangeFromNetworkPacket) {
   // name field: included to keep the payload shape consistent.
   WriteStringLiteral(app_data, &offset, "node");
 
-  constexpr uint32_t advert_timestamp = 1704067201U;
+  constexpr uint32_t current_timestamp = 1704067200U;
+  constexpr uint32_t advert_timestamp = current_timestamp + 1;
   mesh::Packet packet = BuildSignedAdvertPacket(advert_timestamp, app_data, offset);
 
-  mesh.recv(&packet);
+  auto test_mesh = MakeTestMesh(current_timestamp);
+  test_mesh->recv(&packet);
 
-  EXPECT_FALSE(mesh.discovered_contact.has_value());
+  EXPECT_FALSE(test_mesh->discovered_contact.has_value());
 }
 
 TEST(AdvertData, RejectsForgedSignatureFromNetworkPacket) {
-  FakeRadio radio;
-  FakeMillis ms;
-  FakeRng rng;
-  FakeRtc rtc(1704067200U);
-  NoopPacketManager packet_manager;
-  SimpleMeshTables tables;
-  TestChatMesh mesh(radio, ms, rng, rtc, packet_manager, tables);
-
   uint8_t app_data[MAX_ADVERT_DATA_SIZE] = {};
   size_t offset = 0;
 
@@ -457,15 +432,17 @@ TEST(AdvertData, RejectsForgedSignatureFromNetworkPacket) {
   // name field: raw bytes for "mallory".
   WriteStringLiteral(app_data, &offset, "mallory");
 
-  constexpr uint32_t advert_timestamp = 1704067201U;
+  constexpr uint32_t current_timestamp = 1704067200U;
+  constexpr uint32_t advert_timestamp = current_timestamp + 1;
   mesh::Packet packet = BuildSignedAdvertPacket(advert_timestamp, app_data, offset);
 
   // Corrupt the signature bytes after signing so verification must fail in Mesh::onRecvPacket().
   packet.payload[PUB_KEY_SIZE + 4] ^= 0xFF;
 
-  mesh.recv(&packet);
+  auto test_mesh = MakeTestMesh(current_timestamp);
+  test_mesh->recv(&packet);
 
-  EXPECT_FALSE(mesh.discovered_contact.has_value());
+  EXPECT_FALSE(test_mesh->discovered_contact.has_value());
 }
 
 }  // namespace
