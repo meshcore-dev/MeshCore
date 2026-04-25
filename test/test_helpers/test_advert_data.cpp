@@ -188,10 +188,6 @@ protected:
   void onContactResponse(const ContactInfo&, const uint8_t*, uint8_t) override {}
 };
 
-mesh::LocalIdentity MakeSenderIdentity() {
-  return mesh::LocalIdentity(kSenderPrivateKeyHex, kSenderPublicKeyHex);
-}
-
 mesh::Packet BuildSignedAdvertPacket(const mesh::LocalIdentity& sender, uint32_t timestamp,
                                      const uint8_t* app_data, uint8_t app_data_len) {
   mesh::Packet packet;
@@ -248,7 +244,7 @@ TEST(AdvertData, ParsesNameOnlyFromNetworkPacket) {
   // name field: raw bytes for "alice", consuming the rest of app_data.
   WriteStringLiteral(app_data, &offset, "alice");
 
-  mesh::LocalIdentity sender = MakeSenderIdentity();
+  mesh::LocalIdentity sender(kSenderPrivateKeyHex, kSenderPublicKeyHex);
   mesh::Packet packet = BuildSignedAdvertPacket(sender, 1704067201U, app_data, offset);
 
   mesh.recv(&packet);
@@ -283,7 +279,7 @@ TEST(AdvertData, ParsesNameAndCoordinatesFromNetworkPacket) {
   // name field: raw bytes for "node" after the coordinate fields.
   WriteStringLiteral(app_data, &offset, "node");
 
-  mesh::LocalIdentity sender = MakeSenderIdentity();
+  mesh::LocalIdentity sender(kSenderPrivateKeyHex, kSenderPublicKeyHex);
   mesh::Packet packet = BuildSignedAdvertPacket(sender, 1704067201U, app_data, offset);
 
   mesh.recv(&packet);
@@ -316,7 +312,7 @@ TEST(AdvertData, ParsesCoordinateExtremesFromNetworkPacket) {
   // name field: raw bytes for "edge".
   WriteStringLiteral(app_data, &offset, "edge");
 
-  mesh::LocalIdentity sender = MakeSenderIdentity();
+  mesh::LocalIdentity sender(kSenderPrivateKeyHex, kSenderPublicKeyHex);
   mesh::Packet packet = BuildSignedAdvertPacket(sender, 1704067201U, app_data, offset);
 
   mesh.recv(&packet);
@@ -349,7 +345,7 @@ TEST(AdvertData, RejectsLongitudeOutsideValidRangeFromNetworkPacket) {
   // name field: parser should reject before the trailing name matters.
   WriteStringLiteral(app_data, &offset, "node");
 
-  mesh::LocalIdentity sender = MakeSenderIdentity();
+  mesh::LocalIdentity sender(kSenderPrivateKeyHex, kSenderPublicKeyHex);
   mesh::Packet packet = BuildSignedAdvertPacket(sender, 1704067201U, app_data, offset);
 
   mesh.recv(&packet);
@@ -378,7 +374,7 @@ TEST(AdvertData, RejectsLongitudeBelowValidRangeFromNetworkPacket) {
   // name field: included to keep the payload shape consistent.
   WriteStringLiteral(app_data, &offset, "node");
 
-  mesh::LocalIdentity sender = MakeSenderIdentity();
+  mesh::LocalIdentity sender(kSenderPrivateKeyHex, kSenderPublicKeyHex);
   mesh::Packet packet = BuildSignedAdvertPacket(sender, 1704067201U, app_data, offset);
 
   mesh.recv(&packet);
@@ -407,7 +403,7 @@ TEST(AdvertData, RejectsLatitudeOutsideValidRangeFromNetworkPacket) {
   // name field: included to keep the payload shape consistent.
   WriteStringLiteral(app_data, &offset, "node");
 
-  mesh::LocalIdentity sender = MakeSenderIdentity();
+  mesh::LocalIdentity sender(kSenderPrivateKeyHex, kSenderPublicKeyHex);
   mesh::Packet packet = BuildSignedAdvertPacket(sender, 1704067201U, app_data, offset);
 
   mesh.recv(&packet);
@@ -436,7 +432,7 @@ TEST(AdvertData, RejectsLatitudeBelowValidRangeFromNetworkPacket) {
   // name field: included to keep the payload shape consistent.
   WriteStringLiteral(app_data, &offset, "node");
 
-  mesh::LocalIdentity sender = MakeSenderIdentity();
+  mesh::LocalIdentity sender(kSenderPrivateKeyHex, kSenderPublicKeyHex);
   mesh::Packet packet = BuildSignedAdvertPacket(sender, 1704067201U, app_data, offset);
 
   mesh.recv(&packet);
@@ -461,7 +457,7 @@ TEST(AdvertData, RejectsForgedSignatureFromNetworkPacket) {
   // name field: raw bytes for "mallory".
   WriteStringLiteral(app_data, &offset, "mallory");
 
-  mesh::LocalIdentity sender = MakeSenderIdentity();
+  mesh::LocalIdentity sender(kSenderPrivateKeyHex, kSenderPublicKeyHex);
   mesh::Packet packet = BuildSignedAdvertPacket(sender, 1704067201U, app_data, offset);
 
   // Corrupt the signature bytes after signing so verification must fail in Mesh::onRecvPacket().
