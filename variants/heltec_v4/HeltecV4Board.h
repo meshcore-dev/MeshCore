@@ -25,7 +25,6 @@ public:
   void onAfterTransmit(void) override;
   void enterDeepSleep(uint32_t secs, int pin_wake_btn = -1);
   void powerOff() override;
-  const char* getManufacturerName() const override ;
   bool setLoRaFemLnaEnabled(bool enable) override;
   bool canControlLoRaFemLna() const override;
   bool isLoRaFemLnaEnabled() const override;

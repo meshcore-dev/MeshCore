@@ -46,8 +46,7 @@
 #define CMD_SET_CUSTOM_VAR            41
 #define CMD_GET_ADVERT_PATH           42
 #define CMD_GET_TUNING_PARAMS         43
-#define CMD_GET_RADIO_FEM_RXGAIN      44
-#define CMD_SET_RADIO_FEM_RXGAIN      45
+
 // NOTE: CMD range 46..49 parked, potentially for WiFi operations
 #define CMD_SEND_BINARY_REQ           50
 #define CMD_FACTORY_RESET             51
@@ -63,6 +62,8 @@
 #define CMD_SEND_CHANNEL_DATA         62
 #define CMD_SET_DEFAULT_FLOOD_SCOPE   63
 #define CMD_GET_DEFAULT_FLOOD_SCOPE   64
+#define CMD_GET_RADIO_FEM_RXGAIN      65
+#define CMD_SET_RADIO_FEM_RXGAIN      66
 
 // Stats sub-types for CMD_GET_STATS
 #define STATS_TYPE_CORE               0
@@ -1808,9 +1809,9 @@ void MyMesh::handleCmdFrame(size_t len) {
       writeErrFrame(ERR_CODE_UNSUPPORTED_CMD);
     } else {
       out_frame[0] = RESP_CODE_OK;
-      uint32_t value = board.isLoRaFemLnaEnabled() ? 1 : 0;
-      memcpy(&out_frame[1], &value, 4);
-      _serial->writeFrame(out_frame, 5);
+      uint8_t value = board.isLoRaFemLnaEnabled() ? 1 : 0;
+      memcpy(&out_frame[1], &value, 1);
+      _serial->writeFrame(out_frame, 2);
     }
   } else if (cmd_frame[0] == CMD_SET_RADIO_FEM_RXGAIN && len >= 2) {
     uint8_t value = cmd_frame[1];
