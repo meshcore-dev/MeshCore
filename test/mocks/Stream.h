@@ -3,6 +3,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+// Mock Stream class for native testing.
+// Provides the minimal interface needed by code that depends on Arduino Stream.
 class Stream {
 public:
     virtual size_t readBytes(uint8_t*, size_t) { return 0; }

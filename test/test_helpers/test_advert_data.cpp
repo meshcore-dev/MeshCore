@@ -329,6 +329,7 @@ TEST(AdvertData, ParsesPositiveLatitudeAndNegativeLongitudeBoundariesFromNetwork
   WriteI32Le(app_data, &offset, 90000000);
   // longitude field: minimum supported longitude, -180.000000 degrees.
   WriteI32Le(app_data, &offset, -180000000);
+  // name field: raw bytes for "dummy-node-name".
   WriteStringLiteral(app_data, &offset, "dummy-node-name");
 
   constexpr uint32_t current_timestamp = 1704067200U;
@@ -349,8 +350,11 @@ TEST(AdvertData, ParsesNullIslandCoordinatesFromNetworkPacket) {
 
   // flags/type byte: chat advert with zero-valued coordinates and a name.
   WriteU8(app_data, &offset, ADV_TYPE_CHAT | ADV_LATLON_MASK | ADV_NAME_MASK);
+  // latitude field: Null Island latitude at exactly 0.000000 degrees.
   WriteI32Le(app_data, &offset, 0);
+  // longitude field: Null Island longitude at exactly 0.000000 degrees.
   WriteI32Le(app_data, &offset, 0);
+  // name field: raw bytes for "dummy-node-name".
   WriteStringLiteral(app_data, &offset, "dummy-node-name");
 
   constexpr uint32_t current_timestamp = 1704067200U;
@@ -411,19 +415,15 @@ TEST(AdvertData, RejectsLongitudeBelowValidRangeFromNetworkPacket) {
   EXPECT_FALSE(test_mesh->discovered_contact.has_value());
 }
 
-void ExpectTruncatedGpsPayloadIsRejected(uint8_t app_data_len) {
-  uint8_t app_data[MAX_ADVERT_DATA_SIZE] = {};
+TEST(AdvertData, RejectsGpsPayloadWithMissingFlagsByte) {
+  // Backing storage is unused because the advertised app_data length is zero.
+  uint8_t app_data[1] = {};
   size_t offset = 0;
-
-  // Advert claims to carry GPS coordinates and a name, but the payload is truncated.
-  WriteU8(app_data, &offset, ADV_TYPE_CHAT | ADV_LATLON_MASK | ADV_NAME_MASK);
-  WriteI32Le(app_data, &offset, 37774900);
-  WriteI32Le(app_data, &offset, -122419400);
-  WriteStringLiteral(app_data, &offset, "dummy-node-name");
 
   constexpr uint32_t current_timestamp = 1704067200U;
   constexpr uint32_t advert_timestamp = current_timestamp + 1;
-  mesh::Packet packet = BuildSignedAdvertPacket(advert_timestamp, app_data, app_data_len);
+  // Leave the app_data length at zero so the parser never sees the flags byte.
+  mesh::Packet packet = BuildSignedAdvertPacket(advert_timestamp, app_data, offset);
 
   auto test_mesh = MakeTestMesh(current_timestamp);
   test_mesh->recv(&packet);
@@ -431,20 +431,67 @@ void ExpectTruncatedGpsPayloadIsRejected(uint8_t app_data_len) {
   EXPECT_FALSE(test_mesh->discovered_contact.has_value());
 }
 
-TEST(AdvertData, RejectsGpsPayloadWithMissingFlagsByte) {
-  ExpectTruncatedGpsPayloadIsRejected(0);
-}
-
 TEST(AdvertData, RejectsGpsPayloadWithOnlyFlagsByte) {
-  ExpectTruncatedGpsPayloadIsRejected(1);
+  uint8_t app_data[1] = {};
+  size_t offset = 0;
+
+  // flags/type byte: chat advert that claims to carry coordinates and a name.
+  WriteU8(app_data, &offset, ADV_TYPE_CHAT | ADV_LATLON_MASK | ADV_NAME_MASK);
+
+  constexpr uint32_t current_timestamp = 1704067200U;
+  constexpr uint32_t advert_timestamp = current_timestamp + 1;
+  // Pass only the flags byte so no latitude bytes remain.
+  mesh::Packet packet = BuildSignedAdvertPacket(advert_timestamp, app_data, offset);
+
+  auto test_mesh = MakeTestMesh(current_timestamp);
+  test_mesh->recv(&packet);
+
+  EXPECT_FALSE(test_mesh->discovered_contact.has_value());
 }
 
 TEST(AdvertData, RejectsGpsPayloadWithLatitudeButMissingLongitude) {
-  ExpectTruncatedGpsPayloadIsRejected(5);
+  uint8_t app_data[5] = {};
+  size_t offset = 0;
+
+  // flags/type byte: chat advert that claims to carry coordinates and a name.
+  WriteU8(app_data, &offset, ADV_TYPE_CHAT | ADV_LATLON_MASK | ADV_NAME_MASK);
+  // latitude field: complete latitude bytes are present before truncation.
+  WriteI32Le(app_data, &offset, 37774900);
+
+  constexpr uint32_t current_timestamp = 1704067200U;
+  constexpr uint32_t advert_timestamp = current_timestamp + 1;
+  // Pass only the flags byte and latitude field so longitude is missing.
+  mesh::Packet packet = BuildSignedAdvertPacket(advert_timestamp, app_data, offset);
+
+  auto test_mesh = MakeTestMesh(current_timestamp);
+  test_mesh->recv(&packet);
+
+  EXPECT_FALSE(test_mesh->discovered_contact.has_value());
 }
 
 TEST(AdvertData, RejectsGpsPayloadOneByteShortOfFullCoordinates) {
-  ExpectTruncatedGpsPayloadIsRejected(8);
+  uint8_t app_data[8] = {};
+  size_t offset = 0;
+  uint8_t lon_bytes[sizeof(int32_t)] = {};
+  size_t lon_offset = 0;
+
+  // flags/type byte: chat advert that claims to carry coordinates and a name.
+  WriteU8(app_data, &offset, ADV_TYPE_CHAT | ADV_LATLON_MASK | ADV_NAME_MASK);
+  // latitude field: complete latitude bytes are present before truncation.
+  WriteI32Le(app_data, &offset, 37774900);
+  // longitude field: only the first three longitude bytes are present before truncation.
+  WriteI32Le(lon_bytes, &lon_offset, -122419400);
+  WriteBytes(app_data, &offset, lon_bytes, 3);
+
+  constexpr uint32_t current_timestamp = 1704067200U;
+  constexpr uint32_t advert_timestamp = current_timestamp + 1;
+  // Pass only the flags byte, latitude field, and three longitude bytes.
+  mesh::Packet packet = BuildSignedAdvertPacket(advert_timestamp, app_data, offset);
+
+  auto test_mesh = MakeTestMesh(current_timestamp);
+  test_mesh->recv(&packet);
+
+  EXPECT_FALSE(test_mesh->discovered_contact.has_value());
 }
 
 TEST(AdvertData, RejectsLatitudeOutsideValidRangeFromNetworkPacket) {
@@ -499,6 +546,7 @@ TEST(AdvertData, KeepsExistingGpsWhenUpdatedAdvertOmitsCoordinates) {
 
   // flags/type byte: chat advert with a new name but no GPS fields.
   WriteU8(app_data, &offset, ADV_TYPE_CHAT | ADV_NAME_MASK);
+  // name field: replacement contact name with no coordinate payload following it.
   WriteStringLiteral(app_data, &offset, "updated-name");
 
   constexpr uint32_t current_timestamp = 1704067200U;
@@ -527,8 +575,11 @@ TEST(AdvertData, OverwritesExistingGpsWhenUpdatedAdvertIncludesCoordinates) {
 
   // flags/type byte: chat advert with replacement GPS coordinates and a new name.
   WriteU8(app_data, &offset, ADV_TYPE_CHAT | ADV_LATLON_MASK | ADV_NAME_MASK);
+  // latitude field: replacement latitude for 40.712800 degrees.
   WriteI32Le(app_data, &offset, 40712800);
+  // longitude field: replacement longitude for -74.006000 degrees.
   WriteI32Le(app_data, &offset, -74006000);
+  // name field: replacement contact name applied with the new coordinates.
   WriteStringLiteral(app_data, &offset, "updated-name");
 
   constexpr uint32_t current_timestamp = 1704067200U;
@@ -557,8 +608,11 @@ TEST(AdvertData, LeavesExistingGpsUntouchedWhenUpdatedAdvertHasInvalidCoordinate
 
   // flags/type byte: chat advert with invalid longitude and a new name.
   WriteU8(app_data, &offset, ADV_TYPE_CHAT | ADV_LATLON_MASK | ADV_NAME_MASK);
+  // latitude field: valid latitude so the update failure comes from longitude.
   WriteI32Le(app_data, &offset, 37774900);
+  // longitude field: one microdegree above +180.0, which should reject the update.
   WriteI32Le(app_data, &offset, 180000001);
+  // name field: replacement name that should not be applied when parsing fails.
   WriteStringLiteral(app_data, &offset, "updated-name");
 
   constexpr uint32_t current_timestamp = 1704067200U;

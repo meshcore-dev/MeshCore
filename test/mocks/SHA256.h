@@ -4,6 +4,8 @@
 #include <stddef.h>
 #include <string.h>
 
+// Mock SHA256 class for native testing.
+// Provides a deterministic stand-in so code can hash data without Arduino crypto deps.
 class SHA256 {
   uint32_t state_ = 2166136261u;
 
