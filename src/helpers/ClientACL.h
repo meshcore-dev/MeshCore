@@ -10,10 +10,12 @@
 #define PERM_ACL_READ_WRITE    2
 #define PERM_ACL_ADMIN         3
 
+#define OUT_PATH_UNKNOWN  0xFF
+
 struct ClientInfo {
   mesh::Identity id;
   uint8_t permissions;
-  int8_t out_path_len;
+  uint8_t out_path_len;
   uint8_t out_path[MAX_PATH_SIZE];
   uint8_t shared_secret[PUB_KEY_SIZE];
   uint32_t last_timestamp;   // by THEIR clock  (transient)
@@ -36,6 +38,7 @@ struct ClientInfo {
 #endif
 
 class ClientACL {
+  FILESYSTEM* _fs;
   ClientInfo clients[MAX_CLIENTS];
   int num_clients;
 
@@ -44,8 +47,9 @@ public:
     memset(clients, 0, sizeof(clients));
     num_clients = 0;
   }
-  void load(FILESYSTEM* _fs);
+  void load(FILESYSTEM* _fs, const mesh::LocalIdentity& self_id);
   void save(FILESYSTEM* _fs, bool (*filter)(ClientInfo*)=NULL);
+  bool clear();
 
   ClientInfo* getClient(const uint8_t* pubkey, int key_len);
   ClientInfo* putClient(const mesh::Identity& id, uint8_t init_perms);

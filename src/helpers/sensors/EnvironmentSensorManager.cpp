@@ -6,6 +6,21 @@
 #define TELEM_WIRE &Wire  // Use default I2C bus for Environment Sensors
 #endif
 
+#ifdef ENV_INCLUDE_BME680
+#ifndef TELEM_BME680_ADDRESS
+#define TELEM_BME680_ADDRESS 0x76
+#endif
+#define TELEM_BME680_SEALEVELPRESSURE_HPA (1013.25)
+#include <Adafruit_BME680.h>
+static Adafruit_BME680 BME680(TELEM_WIRE);
+#endif
+
+#ifdef ENV_INCLUDE_BMP085
+#define TELEM_BMP085_SEALEVELPRESSURE_HPA (1013.25)
+#include <Adafruit_BMP085.h>
+static Adafruit_BMP085 BMP085;
+#endif
+
 #if ENV_INCLUDE_AHTX0
 #define TELEM_AHTX_ADDRESS      0x38      // AHT10, AHT20 temperature and humidity sensor I2C address
 #include <Adafruit_AHTX0.h>
@@ -27,7 +42,7 @@ static Adafruit_BME280 BME280;
 #endif
 #define TELEM_BMP280_SEALEVELPRESSURE_HPA (1013.25)    // Athmospheric pressure at sea level
 #include <Adafruit_BMP280.h>
-static Adafruit_BMP280 BMP280;
+static Adafruit_BMP280 BMP280(TELEM_WIRE);
 #endif
 
 #if ENV_INCLUDE_SHTC3
@@ -43,12 +58,19 @@ static SensirionI2cSht4x SHT4X;
 
 #if ENV_INCLUDE_LPS22HB
 #include <Arduino_LPS22HB.h>
+LPS22HBClass LPS22HB(*TELEM_WIRE);
 #endif
 
 #if ENV_INCLUDE_INA3221
+#ifndef TELEM_INA3221_ADDRESS
 #define TELEM_INA3221_ADDRESS   0x42      // INA3221 3 channel current sensor I2C address
+#endif
+#ifndef TELEM_INA3221_SHUNT_VALUE
 #define TELEM_INA3221_SHUNT_VALUE 0.100 // most variants will have a 0.1 ohm shunts
+#endif
+#ifndef TELEM_INA3221_NUM_CHANNELS
 #define TELEM_INA3221_NUM_CHANNELS 3
+#endif
 #include <Adafruit_INA3221.h>
 static Adafruit_INA3221 INA3221;
 #endif
@@ -85,6 +107,12 @@ static Adafruit_MLX90614 MLX90614;
 static Adafruit_VL53L0X VL53L0X;
 #endif
 
+#if ENV_INCLUDE_RAK12035
+#define TELEM_RAK12035_ADDRESS 0x20      // RAK12035 Soil Moisture sensor I2C address
+#include "RAK12035_SoilMoisture.h"
+static RAK12035_SoilMoisture RAK12035;
+#endif
+
 #if ENV_INCLUDE_GPS && defined(RAK_BOARD) && !defined(RAK_WISMESH_TAG)
 #define RAK_WISBLOCK_GPS
 #endif
@@ -96,6 +124,41 @@ static bool serialGPSFlag = false;
 #define TELEM_RAK12500_ADDRESS   0x42     //RAK12500 Ublox GPS via i2c
 #include <SparkFun_u-blox_GNSS_Arduino_Library.h>
 static SFE_UBLOX_GNSS ublox_GNSS;
+
+class RAK12500LocationProvider : public LocationProvider {
+  long _lat = 0;
+  long _lng = 0;
+  long _alt = 0;
+  int _sats = 0;
+  long _epoch = 0;
+  bool _fix = false;
+public:
+  long getLatitude() override { return _lat; }
+  long getLongitude() override { return _lng; }
+  long getAltitude() override { return _alt; }
+  long satellitesCount() override { return _sats; }
+  bool isValid() override { return _fix; }
+  long getTimestamp() override { return _epoch; }
+  void sendSentence(const char * sentence) override { }
+  void reset() override { }
+  void begin() override { }
+  void stop() override { }
+  void loop() override {
+    if (ublox_GNSS.getGnssFixOk(8)) {
+      _fix = true;
+      _lat = ublox_GNSS.getLatitude(2) / 10;
+      _lng = ublox_GNSS.getLongitude(2) / 10;
+      _alt = ublox_GNSS.getAltitude(2);
+      _sats = ublox_GNSS.getSIV(2);
+    } else {
+      _fix = false;
+    }
+    _epoch = ublox_GNSS.getUnixEpoch(2);
+  }
+  bool isEnabled() override { return true; }
+};
+
+static RAK12500LocationProvider RAK12500_provider;
 #endif
 
 bool EnvironmentSensorManager::begin() {
@@ -128,10 +191,27 @@ bool EnvironmentSensorManager::begin() {
   }
   #endif
 
+  #if ENV_INCLUDE_BME680
+  if (BME680.begin(TELEM_BME680_ADDRESS)) {
+    MESH_DEBUG_PRINTLN("Found BME680 at address: %02X", TELEM_BME680_ADDRESS);
+    BME680_initialized = true;
+  } else {
+    BME680_initialized = false;
+    MESH_DEBUG_PRINTLN("BME680 was not found at I2C address %02X", TELEM_BME680_ADDRESS);
+  }
+  #endif
+
   #if ENV_INCLUDE_BME280
   if (BME280.begin(TELEM_BME280_ADDRESS, TELEM_WIRE)) {
     MESH_DEBUG_PRINTLN("Found BME280 at address: %02X", TELEM_BME280_ADDRESS);
     MESH_DEBUG_PRINTLN("BME sensor ID: %02X", BME280.sensorID());
+    // Reduce self-heating: single-shot conversions, light oversampling, long standby.
+    BME280.setSampling(Adafruit_BME280::MODE_FORCED,
+                       Adafruit_BME280::SAMPLING_X1,   // temperature
+                       Adafruit_BME280::SAMPLING_X1,   // pressure
+                       Adafruit_BME280::SAMPLING_X1,   // humidity
+                       Adafruit_BME280::FILTER_OFF,
+                       Adafruit_BME280::STANDBY_MS_1000);
     BME280_initialized = true;
   } else {
     BME280_initialized = false;
@@ -151,7 +231,7 @@ bool EnvironmentSensorManager::begin() {
   #endif
 
   #if ENV_INCLUDE_SHTC3
-  if (SHTC3.begin()) {
+  if (SHTC3.begin(TELEM_WIRE)) {
     MESH_DEBUG_PRINTLN("Found sensor: SHTC3");
     SHTC3_initialized = true;
   } else {
@@ -176,7 +256,7 @@ bool EnvironmentSensorManager::begin() {
   #endif
 
   #if ENV_INCLUDE_LPS22HB
-  if (BARO.begin()) {
+  if (LPS22HB.begin()) {
     MESH_DEBUG_PRINTLN("Found sensor: LPS22HB");
     LPS22HB_initialized = true;
   } else {
@@ -216,7 +296,7 @@ bool EnvironmentSensorManager::begin() {
     INA260_initialized = true;
   } else {
     INA260_initialized = false;
-    MESH_DEBUG_PRINTLN("INA260 was not found at I2C address %02X", TELEM_INA219_ADDRESS);
+    MESH_DEBUG_PRINTLN("INA260 was not found at I2C address %02X", TELEM_INA260_ADDRESS);
   }
   #endif
 
@@ -251,6 +331,29 @@ bool EnvironmentSensorManager::begin() {
   }
   #endif
 
+  #if ENV_INCLUDE_BMP085
+  // First argument is  MODE (aka oversampling)
+  // choose ULTRALOWPOWER
+  if (BMP085.begin(0, TELEM_WIRE)) {
+    MESH_DEBUG_PRINTLN("Found sensor BMP085");
+    BMP085_initialized = true;
+  } else {
+    BMP085_initialized = false;
+    MESH_DEBUG_PRINTLN("BMP085 was not found at I2C address %02X", 0x77);
+  }
+  #endif
+
+  #if ENV_INCLUDE_RAK12035
+    RAK12035.setup(*TELEM_WIRE);
+  if (RAK12035.begin(TELEM_RAK12035_ADDRESS)) {
+    MESH_DEBUG_PRINTLN("Found sensor RAK12035 at address: %02X", TELEM_RAK12035_ADDRESS);
+    RAK12035_initialized = true;
+  } else {
+    RAK12035_initialized = false;
+    MESH_DEBUG_PRINTLN("RAK12035 was not found at I2C address %02X", TELEM_RAK12035_ADDRESS);
+  }
+  #endif
+
   return true;
 }
 
@@ -272,12 +375,27 @@ bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, Cayen
     }
     #endif
 
+    #if ENV_INCLUDE_BME680
+    if (BME680_initialized) {
+      if (BME680.performReading()) {
+        telemetry.addTemperature(TELEM_CHANNEL_SELF, BME680.temperature);
+        telemetry.addRelativeHumidity(TELEM_CHANNEL_SELF, BME680.humidity);
+        telemetry.addBarometricPressure(TELEM_CHANNEL_SELF, BME680.pressure / 100);
+        telemetry.addAltitude(TELEM_CHANNEL_SELF, 44330.0 * (1.0 - pow((BME680.pressure / 100) / TELEM_BME680_SEALEVELPRESSURE_HPA, 0.1903)));
+        telemetry.addAnalogInput(next_available_channel, BME680.gas_resistance);
+        next_available_channel++;
+      }
+    }
+    #endif
+
     #if ENV_INCLUDE_BME280
     if (BME280_initialized) {
-      telemetry.addTemperature(TELEM_CHANNEL_SELF, BME280.readTemperature());
-      telemetry.addRelativeHumidity(TELEM_CHANNEL_SELF, BME280.readHumidity());
-      telemetry.addBarometricPressure(TELEM_CHANNEL_SELF, BME280.readPressure()/100);
-      telemetry.addAltitude(TELEM_CHANNEL_SELF, BME280.readAltitude(TELEM_BME280_SEALEVELPRESSURE_HPA));
+      if (BME280.takeForcedMeasurement()) {  // trigger a fresh reading in forced mode
+        telemetry.addTemperature(TELEM_CHANNEL_SELF, BME280.readTemperature());
+        telemetry.addRelativeHumidity(TELEM_CHANNEL_SELF, BME280.readHumidity());
+        telemetry.addBarometricPressure(TELEM_CHANNEL_SELF, BME280.readPressure()/100);
+        telemetry.addAltitude(TELEM_CHANNEL_SELF, BME280.readAltitude(TELEM_BME280_SEALEVELPRESSURE_HPA));
+      }
     }
     #endif
 
@@ -313,8 +431,8 @@ bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, Cayen
 
     #if ENV_INCLUDE_LPS22HB
     if (LPS22HB_initialized) {
-      telemetry.addTemperature(TELEM_CHANNEL_SELF, BARO.readTemperature());
-      telemetry.addBarometricPressure(TELEM_CHANNEL_SELF, BARO.readPressure());
+      telemetry.addTemperature(TELEM_CHANNEL_SELF, LPS22HB.readTemperature());
+      telemetry.addBarometricPressure(TELEM_CHANNEL_SELF, LPS22HB.readPressure() * 10); // convert kPa to hPa
     }
     #endif
 
@@ -380,34 +498,77 @@ bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, Cayen
     }
     #endif
 
-  }
+    #if ENV_INCLUDE_BMP085
+    if (BMP085_initialized) {
+        telemetry.addTemperature(TELEM_CHANNEL_SELF, BMP085.readTemperature());
+        telemetry.addBarometricPressure(TELEM_CHANNEL_SELF, BMP085.readPressure() / 100);
+        telemetry.addAltitude(TELEM_CHANNEL_SELF, BMP085.readAltitude(TELEM_BMP085_SEALEVELPRESSURE_HPA * 100));
+    }
+    #endif
 
+    #if ENV_INCLUDE_RAK12035
+      if (RAK12035_initialized) {
+
+        // RAK12035 Telemetry is Channel 2
+        telemetry.addTemperature(2, RAK12035.get_sensor_temperature());
+        telemetry.addPercentage(2, RAK12035.get_sensor_moisture());
+
+        // RAK12035 CALIBRATION Telemetry is Channel 3, if enabled
+
+      #ifdef ENABLE_RAK12035_CALIBRATION 
+        // Calibration Data Screen is Channel 3
+        float cap = RAK12035.get_sensor_capacitance();
+        float _wet = RAK12035.get_humidity_full();
+        float _dry = RAK12035.get_humidity_zero();
+
+        telemetry.addFrequency(3, cap);
+        telemetry.addTemperature(3, _wet);
+        telemetry.addPower(3, _dry);
+      
+        if(cap > _dry){
+        RAK12035.set_humidity_zero(cap);
+        }
+
+        if(cap < _wet){
+        RAK12035.set_humidity_full(cap);
+        }
+        #endif
+      }
+    #endif
+  }
   return true;
 }
 
 
 int EnvironmentSensorManager::getNumSettings() const {
+  int settings = 0;
   #if ENV_INCLUDE_GPS
-    return gps_detected ? 1 : 0;  // only show GPS setting if GPS is detected
-  #else
-    return 0;
+    if (gps_detected) settings++;  // only show GPS setting if GPS is detected
   #endif
+  return settings;
 }
 
 const char* EnvironmentSensorManager::getSettingName(int i) const {
+  int settings = 0;
   #if ENV_INCLUDE_GPS
-    return (gps_detected && i == 0) ? "gps" : NULL;
-  #else
-    return NULL;
+    if (gps_detected && i == settings++) {
+      return "gps";
+    }
   #endif
+  // convenient way to add params (needed for some tests)
+//  if (i == settings++) return "param.2";
+  return NULL;
 }
 
 const char* EnvironmentSensorManager::getSettingValue(int i) const {
+  int settings = 0;
   #if ENV_INCLUDE_GPS
-  if (gps_detected && i == 0) {
-    return gps_active ? "1" : "0";
-  }
+    if (gps_detected && i == settings++) {
+      return gps_active ? "1" : "0";
+    }
   #endif
+  // convenient way to add params ...
+//  if (i == settings++) return "2";
   return NULL;
 }
 
@@ -418,6 +579,15 @@ bool EnvironmentSensorManager::setSettingValue(const char* name, const char* val
       stop_gps();
     } else {
       start_gps();
+    }
+    return true;
+  }
+  if (strcmp(name, "gps_interval") == 0) {
+    uint32_t interval_seconds = atoi(value);
+    if (interval_seconds > 0) {
+      gps_update_interval_sec = interval_seconds;
+    } else {
+      gps_update_interval_sec = 1;  // Default to 1 second if 0
     }
     return true;
   }
@@ -448,7 +618,11 @@ void EnvironmentSensorManager::initBasicGPS() {
   delay(1000);
 
   // We'll consider GPS detected if we see any data on Serial1
+#ifdef ENV_SKIP_GPS_DETECT
+  gps_detected = true;
+#else
   gps_detected = (Serial1.available() > 0);
+#endif
 
   if (gps_detected) {
     MESH_DEBUG_PRINTLN("GPS detected");
@@ -463,7 +637,7 @@ void EnvironmentSensorManager::initBasicGPS() {
   gps_active = false; //Set GPS visibility off until setting is changed
 }
 
-// gps code for rak might be moved to MicroNMEALoactionProvider 
+// gps code for rak might be moved to MicroNMEALoactionProvider
 // or make a new location provider ...
 #ifdef RAK_WISBLOCK_GPS
 void EnvironmentSensorManager::rakGPSInit(){
@@ -493,6 +667,7 @@ void EnvironmentSensorManager::rakGPSInit(){
     MESH_DEBUG_PRINTLN("No GPS found");
     gps_active = false;
     gps_detected = false;
+    Serial1.end();
     return;
   }
 
@@ -514,15 +689,24 @@ bool EnvironmentSensorManager::gpsIsAwake(uint8_t ioPin){
   //Try to init RAK12500 on I2C
   if (ublox_GNSS.begin(Wire) == true){
     MESH_DEBUG_PRINTLN("RAK12500 GPS init correctly with pin %i",ioPin);
-    ublox_GNSS.setI2COutput(COM_TYPE_NMEA);
+    ublox_GNSS.setI2COutput(COM_TYPE_UBX);
+    ublox_GNSS.enableGNSS(true, SFE_UBLOX_GNSS_ID_GPS);
+    ublox_GNSS.enableGNSS(true, SFE_UBLOX_GNSS_ID_GALILEO);
+    ublox_GNSS.enableGNSS(true, SFE_UBLOX_GNSS_ID_GLONASS);
+    ublox_GNSS.enableGNSS(true, SFE_UBLOX_GNSS_ID_SBAS);
+    ublox_GNSS.enableGNSS(true, SFE_UBLOX_GNSS_ID_BEIDOU);
+    ublox_GNSS.enableGNSS(true, SFE_UBLOX_GNSS_ID_IMES);
+    ublox_GNSS.enableGNSS(true, SFE_UBLOX_GNSS_ID_QZSS);
+    ublox_GNSS.setMeasurementRate(1000);
     ublox_GNSS.saveConfigSelective(VAL_CFG_SUBSEC_IOPORT);
     gpsResetPin = ioPin;
     i2cGPSFlag = true;
     gps_active = true;
     gps_detected = true;
+
+    _location = &RAK12500_provider;
     return true;
-  }
-  else if(Serial1){
+  } else if (Serial1.available()) {
     MESH_DEBUG_PRINTLN("Serial GPS init correctly and is turned on");
     if(PIN_GPS_EN){
       gpsResetPin = PIN_GPS_EN;
@@ -532,6 +716,8 @@ bool EnvironmentSensorManager::gpsIsAwake(uint8_t ioPin){
     gps_detected = true;
     return true;
   }
+  
+  pinMode(ioPin, INPUT);
   MESH_DEBUG_PRINTLN("GPS did not init with this IO pin... try the next");
   return false;
 }
@@ -548,7 +734,7 @@ void EnvironmentSensorManager::start_gps() {
   _location->begin();
   _location->reset();
 
-#ifndef PIN_GPS_RESET
+#ifndef PIN_GPS_EN
   MESH_DEBUG_PRINTLN("Start GPS is N/A on this board. Actual GPS state unchanged");
 #endif
 }
@@ -571,19 +757,15 @@ void EnvironmentSensorManager::stop_gps() {
 void EnvironmentSensorManager::loop() {
   static long next_gps_update = 0;
 
-  _location->loop();
-
+  #if ENV_INCLUDE_GPS
+  if (gps_active) {
+    _location->loop();
+  }
   if (millis() > next_gps_update) {
+
     if(gps_active){
     #ifdef RAK_WISBLOCK_GPS
-    if(i2cGPSFlag){
-      node_lat = ((double)ublox_GNSS.getLatitude())/10000000.;
-      node_lon = ((double)ublox_GNSS.getLongitude())/10000000.;
-      MESH_DEBUG_PRINTLN("lat %f lon %f", node_lat, node_lon);
-      node_altitude = ((double)ublox_GNSS.getAltitude()) / 1000.0;
-      MESH_DEBUG_PRINTLN("lat %f lon %f alt %f", node_lat, node_lon, node_altitude);
-    }
-    else if (serialGPSFlag && _location->isValid()) {
+    if ((i2cGPSFlag || serialGPSFlag) && _location->isValid()) {
       node_lat = ((double)_location->getLatitude())/1000000.;
       node_lon = ((double)_location->getLongitude())/1000000.;
       MESH_DEBUG_PRINTLN("lat %f lon %f", node_lat, node_lon);
@@ -600,7 +782,8 @@ void EnvironmentSensorManager::loop() {
     }
     #endif
     }
-    next_gps_update = millis() + 1000;
+    next_gps_update = millis() + (gps_update_interval_sec * 1000);
   }
+  #endif
 }
 #endif

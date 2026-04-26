@@ -4,11 +4,19 @@
 #include <Arduino.h>
 
 class VolatileRTCClock : public mesh::RTCClock {
-  long millis_offset;
+  uint32_t base_time;
+  uint64_t accumulator;
+  unsigned long prev_millis;
 public:
-  VolatileRTCClock() { millis_offset = 1715770351; } // 15 May 2024, 8:50pm
-  uint32_t getCurrentTime() override { return (millis()/1000 + millis_offset); }
-  void setCurrentTime(uint32_t time) override { millis_offset = time - millis()/1000; }
+  VolatileRTCClock() { base_time = 1715770351; accumulator = 0; prev_millis = millis(); }   // 15 May 2024, 8:50pm
+  uint32_t getCurrentTime() override { return base_time + accumulator/1000; }
+  void setCurrentTime(uint32_t time) override { base_time = time; accumulator = 0; prev_millis = millis(); }
+
+  void tick() override {
+    unsigned long now = millis();
+    accumulator += (now - prev_millis);
+    prev_millis = now;
+  }
 };
 
 class ArduinoMillis : public mesh::MillisecondClock {

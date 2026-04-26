@@ -1,0 +1,16 @@
+:root {
+    --md-primary-fg-color: #1F2937;
+    --md-primary-fg-color--light: #1F2937;
+    --md-primary-fg-color--dark: #1F2937;
+    --md-accent-fg-color: #1F2937;
+}
+
+/* hide git repo version */
+.md-source__fact--version {
+    display: none;
+}
+
+/* underline links */
+.md-typeset a {
+    text-decoration: underline;
+}

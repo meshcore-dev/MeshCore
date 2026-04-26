@@ -6,10 +6,6 @@
 
 #ifdef WITH_ESPNOW_BRIDGE
 
-#ifndef WITH_ESPNOW_BRIDGE_SECRET
-#error WITH_ESPNOW_BRIDGE_SECRET must be defined to use ESPNowBridge
-#endif
-
 /**
  * @brief Bridge implementation using ESP-NOW protocol for packet transport
  *
@@ -36,11 +32,11 @@
  *
  * Configuration:
  * - Define WITH_ESPNOW_BRIDGE to enable this bridge
- * - Define WITH_ESPNOW_BRIDGE_SECRET with a string to set the network encryption key
+ * - Define _prefs->bridge_secret with a string to set the network encryption key
  *
  * Network Isolation:
  * Multiple independent mesh networks can coexist by using different
- * WITH_ESPNOW_BRIDGE_SECRET values. Packets encrypted with a different key will
+ * _prefs->bridge_secret values. Packets encrypted with a different key will
  * fail the checksum validation and be discarded.
  */
 class ESPNowBridge : public BridgeBase {
@@ -74,16 +70,10 @@ private:
   size_t _rx_buffer_pos;
 
   /**
-   * Network encryption key from build define
-   * Must be defined with WITH_ESPNOW_BRIDGE_SECRET
-   * Used for XOR encryption to isolate different mesh networks
-   */
-  const char *_secret = WITH_ESPNOW_BRIDGE_SECRET;
-
-  /**
    * Performs XOR encryption/decryption of data
+   * Used to isolate different mesh networks
    *
-   * Uses WITH_ESPNOW_BRIDGE_SECRET as the key in a simple XOR operation.
+   * Uses _prefs->bridge_secret as the key in a simple XOR operation.
    * The same operation is used for both encryption and decryption.
    * While not cryptographically secure, it provides basic network isolation.
    *
@@ -115,10 +105,11 @@ public:
   /**
    * Constructs an ESPNowBridge instance
    *
+   * @param prefs Node preferences for configuration settings
    * @param mgr PacketManager for allocating and queuing packets
    * @param rtc RTCClock for timestamping debug messages
    */
-  ESPNowBridge(mesh::PacketManager *mgr, mesh::RTCClock *rtc);
+  ESPNowBridge(NodePrefs *prefs, mesh::PacketManager *mgr, mesh::RTCClock *rtc);
 
   /**
    * Initializes the ESP-NOW bridge
@@ -129,6 +120,16 @@ public:
    * - Sets up broadcast peer
    */
   void begin() override;
+
+  /**
+   * Stops the ESP-NOW bridge
+   *
+   * - Removes broadcast peer
+   * - Unregisters callbacks
+   * - Deinitializes ESP-NOW protocol
+   * - Turns off WiFi to release radio resources
+   */
+  void end() override;
 
   /**
    * Main loop handler
@@ -150,7 +151,7 @@ public:
    *
    * @param packet The mesh packet to transmit
    */
-  void onPacketTransmitted(mesh::Packet *packet) override;
+  void sendPacket(mesh::Packet *packet) override;
 };
 
 #endif

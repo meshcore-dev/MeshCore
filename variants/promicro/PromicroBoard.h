@@ -2,6 +2,7 @@
 
 #include <MeshCore.h>
 #include <Arduino.h>
+#include <helpers/NRF52Board.h>
 
 #define P_LORA_NSS 13 //P1.13 45
 #define P_LORA_DIO_1 11 //P0.10 10
@@ -19,15 +20,14 @@
 #define  PIN_VBAT_READ 17
 #define  ADC_MULTIPLIER   (1.815f) // dependent on voltage divider resistors. TODO: more accurate battery tracking
 
-class PromicroBoard : public mesh::MainBoard {
+class PromicroBoard : public NRF52BoardDCDC {
 protected:
-  uint8_t startup_reason;
   uint8_t btn_prev_state;
+  float adc_mult = ADC_MULTIPLIER;
 
 public:
+  PromicroBoard() : NRF52Board("ProMicro_OTA") {}
   void begin();
-
-  uint8_t getStartupReason() const override { return startup_reason; }
 
   #define BATTERY_SAMPLES 8
 
@@ -39,7 +39,23 @@ public:
       raw += analogRead(PIN_VBAT_READ);
     }
     raw = raw / BATTERY_SAMPLES;
-    return (ADC_MULTIPLIER * raw);
+    return (adc_mult * raw);
+  }
+
+  bool setAdcMultiplier(float multiplier) override {
+    if (multiplier == 0.0f) {
+      adc_mult = ADC_MULTIPLIER;}
+    else {
+      adc_mult = multiplier;
+    }
+    return true;
+  }
+  float getAdcMultiplier() const override {
+    if (adc_mult == 0.0f) {
+      return ADC_MULTIPLIER;
+    } else {
+      return adc_mult;
+    }
   }
 
   const char* getManufacturerName() const override {
@@ -57,13 +73,7 @@ public:
       return 0;
   }
 
-  void reboot() override {
-    NVIC_SystemReset();
-  }
-  
   void powerOff() override {
     sd_power_system_off();
   }
-
-  bool startOTAUpdate(const char* id, char reply[]) override;
 };

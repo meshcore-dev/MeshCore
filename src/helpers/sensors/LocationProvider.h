@@ -17,8 +17,9 @@ public:
     virtual bool isValid() = 0;
     virtual long getTimestamp() = 0;
     virtual void sendSentence(const char * sentence);
-    virtual void reset();
-    virtual void begin();
-    virtual void stop();
-    virtual void loop();
+    virtual void reset() = 0;
+    virtual void begin() = 0;
+    virtual void stop() = 0;
+    virtual void loop() = 0;
+    virtual bool isEnabled() = 0;
 };

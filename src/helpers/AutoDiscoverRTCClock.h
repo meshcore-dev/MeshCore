@@ -14,4 +14,8 @@ public:
   void begin(TwoWire& wire);
   uint32_t getCurrentTime() override;
   void setCurrentTime(uint32_t time) override;
+
+  void tick() override {
+    _fallback->tick();   // is typically VolatileRTCClock, which now needs tick()
+  }
 };
