@@ -8,6 +8,10 @@
 #include <Arduino.h>
 #include <helpers/sensors/LPPDataHelpers.h>
 
+#ifndef LED_STATE_ON
+  #define LED_STATE_ON 1
+#endif
+
 #ifdef PIN_BUZZER
   #include <helpers/ui/buzzer.h>
 #endif
@@ -40,13 +44,17 @@ class UITask : public AbstractUITask {
   int last_led_increment = 0;
 #endif
 
+#ifdef PIN_USER_BTN_ANA
+  unsigned long _analogue_pin_read_millis = millis();
+#endif
+
   UIScreen* splash;
   UIScreen* home;
   UIScreen* msg_preview;
   UIScreen* curr;
 
   void userLedHandler();
-  
+
   // Button action handlers
   char checkDisplayOn(char c);
   char handleLongPress(char c);
@@ -69,6 +77,14 @@ public:
   int  getMsgCount() const { return _msgcount; }
   bool hasDisplay() const { return _display != NULL; }
   bool isButtonPressed() const;
+
+  bool isBuzzerQuiet() { 
+#ifdef PIN_BUZZER
+    return buzzer.isQuiet();
+#else
+    return true;
+#endif
+  }
 
   void toggleBuzzer();
   bool getGPSState();

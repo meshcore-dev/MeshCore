@@ -2,14 +2,17 @@
 
 #include <MeshCore.h>
 #include <Arduino.h>
+#include <helpers/NRF52Board.h>
 
-class SenseCapSolarBoard : public mesh::MainBoard {
+class SenseCapSolarBoard : public NRF52BoardDCDC {
 protected:
-  uint8_t startup_reason;
+#ifdef NRF52_POWER_MANAGEMENT
+  void initiateShutdown(uint8_t reason) override;
+#endif
 
 public:
+  SenseCapSolarBoard() : NRF52Board("SENSECAP_SOLAR_OTA") {}
   void begin();
-  uint8_t getStartupReason() const override { return startup_reason; }
 
 #if defined(P_LORA_TX_LED)
   void onBeforeTransmit() override {
@@ -34,9 +37,24 @@ public:
     return "Seeed SenseCap Solar";
   }
 
-  void reboot() override {
-    NVIC_SystemReset();
-  }
+  void powerOff() override {
+    digitalWrite(LED_WHITE, LOW);
+    digitalWrite(LED_BLUE, LOW);
 
-  bool startOTAUpdate(const char* id, char reply[]) override;
+#ifdef PIN_USER_BTN
+    while (digitalRead(PIN_USER_BTN) == LOW);
+    // Keep pull-up enabled in system-off so the wake line doesn't float low.
+    nrf_gpio_cfg_sense_input(digitalPinToInterrupt(g_ADigitalPinMap[PIN_USER_BTN]), NRF_GPIO_PIN_PULLUP, NRF_GPIO_PIN_SENSE_LOW);
+#elif defined(PIN_BUTTON1)
+    while (digitalRead(PIN_BUTTON1) == LOW);
+    // Keep pull-up enabled in system-off so the wake line doesn't float low.
+    nrf_gpio_cfg_sense_input(digitalPinToInterrupt(g_ADigitalPinMap[PIN_BUTTON1]), NRF_GPIO_PIN_PULLUP, NRF_GPIO_PIN_SENSE_LOW);
+#endif
+
+#ifdef NRF52_POWER_MANAGEMENT
+    initiateShutdown(SHUTDOWN_REASON_USER);
+#else
+    sd_power_system_off();
+#endif
+  }
 };

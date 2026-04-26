@@ -12,10 +12,17 @@ class SerialWifiInterface : public BaseSerialInterface {
   WiFiServer server;
   WiFiClient client;
 
+  struct FrameHeader {
+    uint8_t type;
+    uint16_t length;
+  };
+
   struct Frame {
     uint8_t len;
     uint8_t buf[MAX_FRAME_SIZE];
   };
+
+  FrameHeader received_frame_header;
 
   #define FRAME_QUEUE_SIZE  4
   int recv_queue_len;
@@ -33,6 +40,8 @@ public:
     _isEnabled = false;
     _last_write = 0;
     send_queue_len = recv_queue_len = 0;
+    received_frame_header.type = 0;
+    received_frame_header.length = 0;
   }
 
   void begin(int port);
@@ -47,6 +56,9 @@ public:
 
   size_t writeFrame(const uint8_t src[], size_t len) override;
   size_t checkRecvFrame(uint8_t dest[]) override;
+
+  bool hasReceivedFrameHeader();
+  void resetReceivedFrameHeader();
 };
 
 #if WIFI_DEBUG_LOGGING && ARDUINO

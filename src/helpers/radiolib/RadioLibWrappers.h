@@ -7,7 +7,7 @@ class RadioLibWrapper : public mesh::Radio {
 protected:
   PhysicalLayer* _radio;
   mesh::MainBoard* _board;
-  uint32_t n_recv, n_sent;
+  uint32_t n_recv, n_sent, n_recv_errors;
   int16_t _noise_floor, _threshold;
   uint16_t _num_floor_samples;
   int32_t _floor_sample_sum;
@@ -16,11 +16,13 @@ protected:
   void startRecv();
   float packetScoreInt(float snr, int sf, int packet_len);
   virtual bool isReceivingPacket() =0;
+  virtual void doResetAGC();
 
 public:
   RadioLibWrapper(PhysicalLayer& radio, mesh::MainBoard& board) : _radio(&radio), _board(&board) { n_recv = n_sent = 0; }
 
   void begin() override;
+  virtual void powerOff() { _radio->sleep(); }
   int recvRaw(uint8_t* bytes, int sz) override;
   uint32_t getEstAirtimeFor(int len_bytes) override;
   bool startSendRaw(const uint8_t* bytes, int len) override;
@@ -44,13 +46,17 @@ public:
   void loop() override;
 
   uint32_t getPacketsRecv() const { return n_recv; }
+  uint32_t getPacketsRecvErrors() const { return n_recv_errors; }
   uint32_t getPacketsSent() const { return n_sent; }
-  void resetStats() { n_recv = n_sent = 0; }
+  void resetStats() { n_recv = n_sent = n_recv_errors = 0; }
 
   virtual float getLastRSSI() const override;
   virtual float getLastSNR() const override;
 
   float packetScore(float snr, int packet_len) override { return packetScoreInt(snr, 10, packet_len); }  // assume sf=10
+
+  virtual void setRxBoostedGainMode(bool) { }
+  virtual bool getRxBoostedGainMode() const { return false; }
 };
 
 /**

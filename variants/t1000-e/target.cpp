@@ -85,7 +85,7 @@ void radio_set_params(float freq, float bw, uint8_t sf, uint8_t cr) {
   radio.setCodingRate(cr);
 }
 
-void radio_set_tx_power(uint8_t dbm) {
+void radio_set_tx_power(int8_t dbm) {
   radio.setOutputPower(dbm);
 }
 
@@ -154,6 +154,7 @@ bool T1000SensorManager::querySensors(uint8_t requester_permissions, CayenneLPP&
     telemetry.addGPS(TELEM_CHANNEL_SELF, node_lat, node_lon, node_altitude);
   }
   if (requester_permissions & TELEM_PERM_ENVIRONMENT) {
+    // Firmware reports light as a 0-100 % scale, but expose it via Luminosity so app labels it "Luminosity".
     telemetry.addLuminosity(TELEM_CHANNEL_SELF, t1000e_get_light());
     telemetry.addTemperature(TELEM_CHANNEL_SELF, t1000e_get_temperature());
   }

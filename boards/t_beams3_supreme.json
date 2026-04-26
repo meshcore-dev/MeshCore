@@ -41,7 +41,7 @@
     "name": "LilyGo T-Beam supreme (8MB Flash 8MB PSRAM)",
     "upload": {
       "flash_size": "8MB",
-      "maximum_ram_size": 327680,
+      "maximum_ram_size": 8388608,
       "maximum_size": 8388608,
       "require_upload_port": true,
       "speed": 460800

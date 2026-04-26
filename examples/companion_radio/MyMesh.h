@@ -5,14 +5,14 @@
 #include "AbstractUITask.h"
 
 /*------------ Frame Protocol --------------*/
-#define FIRMWARE_VER_CODE 7
+#define FIRMWARE_VER_CODE 11
 
 #ifndef FIRMWARE_BUILD_DATE
-#define FIRMWARE_BUILD_DATE "2 Oct 2025"
+#define FIRMWARE_BUILD_DATE "19 Apr 2026"
 #endif
 
 #ifndef FIRMWARE_VERSION
-#define FIRMWARE_VERSION "v1.9.1"
+#define FIRMWARE_VERSION "v1.15.0"
 #endif
 
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
@@ -68,6 +68,7 @@
 #endif
 
 #include <helpers/BaseChatMesh.h>
+#include <helpers/TransportKeyStore.h>
 
 /* -------------------------------------------------------------------------------------- */
 
@@ -105,10 +106,23 @@ protected:
   float getAirtimeBudgetFactor() const override;
   int getInterferenceThreshold() const override;
   int calcRxDelay(float score, uint32_t air_time) const override;
+  uint32_t getRetransmitDelay(const mesh::Packet *packet) override;
+  uint32_t getDirectRetransmitDelay(const mesh::Packet *packet) override;
   uint8_t getExtraAckTransmitCount() const override;
+  bool filterRecvFloodPacket(mesh::Packet* packet) override;
+  bool allowPacketForward(const mesh::Packet* packet) override;
+
+  void sendFloodScoped(const TransportKey& scope, mesh::Packet* pkt, uint32_t delay_millis);
+  void sendFloodScoped(const ContactInfo& recipient, mesh::Packet* pkt, uint32_t delay_millis=0) override;
+  void sendFloodScoped(const mesh::GroupChannel& channel, mesh::Packet* pkt, uint32_t delay_millis=0) override;
 
   void logRxRaw(float snr, float rssi, const uint8_t raw[], int len) override;
   bool isAutoAddEnabled() const override;
+  bool shouldAutoAddContactType(uint8_t type) const override;
+  bool shouldOverwriteWhenFull() const override;
+  uint8_t getAutoAddMaxHops() const override;
+  void onContactsFull() override;
+  void onContactOverwrite(const uint8_t* pub_key) override;
   bool onContactPathRecv(ContactInfo& from, uint8_t* in_path, uint8_t in_path_len, uint8_t* out_path, uint8_t out_path_len, uint8_t extra_type, uint8_t* extra, uint8_t extra_len) override;
   void onDiscoveredContact(ContactInfo &contact, bool is_new, uint8_t path_len, const uint8_t* path) override;
   void onContactPathUpdated(const ContactInfo &contact) override;
@@ -124,10 +138,13 @@ protected:
                            const uint8_t *sender_prefix, const char *text) override;
   void onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packet *pkt, uint32_t timestamp,
                             const char *text) override;
+  void onChannelDataRecv(const mesh::GroupChannel &channel, mesh::Packet *pkt, uint16_t data_type,
+                         const uint8_t *data, size_t data_len) override;
 
   uint8_t onContactRequest(const ContactInfo &contact, uint32_t sender_timestamp, const uint8_t *data,
                            uint8_t len, uint8_t *reply) override;
   void onContactResponse(const ContactInfo &contact, const uint8_t *data, uint8_t len) override;
+  void onControlDataRecv(mesh::Packet *packet) override;
   void onRawDataRecv(mesh::Packet *packet) override;
   void onTraceRecv(mesh::Packet *packet, uint32_t tag, uint32_t auth_code, uint8_t flags,
                    const uint8_t *path_snrs, const uint8_t *path_hashes, uint8_t path_len) override;
@@ -146,6 +163,20 @@ protected:
     pending_login = pending_status = pending_telemetry = pending_discovery = pending_req = 0;
   }
 
+public:
+  void savePrefs() { _store->savePrefs(_prefs, sensors.node_lat, sensors.node_lon); }
+
+#if ENV_INCLUDE_GPS == 1
+  void applyGpsPrefs() {
+    sensors.setSettingValue("gps", _prefs.gps_enabled ? "1" : "0");
+    if (_prefs.gps_interval > 0) {
+      char interval_str[12];  // Max: 24 hours = 86400 seconds (5 digits + null)
+      sprintf(interval_str, "%u", _prefs.gps_interval);
+      sensors.setSettingValue("gps_interval", interval_str);
+    }
+  }
+#endif
+
 private:
   void writeOKFrame();
   void writeErrFrame(uint8_t err_code);
@@ -163,13 +194,12 @@ private:
 
   void checkCLIRescueCmd();
   void checkSerialInterface();
+  bool isValidClientRepeatFreq(uint32_t f) const;
 
   // helpers, short-cuts
-  void savePrefs() { _store->savePrefs(_prefs, sensors.node_lat, sensors.node_lon); }
   void saveChannels() { _store->saveChannels(this); }
   void saveContacts() { _store->saveContacts(this); }
 
-private:
   DataStore* _store;
   NodePrefs _prefs;
   uint32_t pending_login;
@@ -190,6 +220,8 @@ private:
   uint8_t *sign_data;
   uint32_t sign_data_len;
   unsigned long dirty_contacts_expiry;
+
+  TransportKey send_scope;
 
   uint8_t cmd_frame[MAX_FRAME_SIZE + 1];
   uint8_t out_frame[MAX_FRAME_SIZE + 1];

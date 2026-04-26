@@ -14,7 +14,7 @@ public:
       board.getBattMilliVolts(),
       ms.getMillis() / 1000,
       err_flags,
-      mgr->getOutboundCount(0xFFFFFFFF)
+      mgr->getOutboundTotal()
     );
   }
 
@@ -42,13 +42,14 @@ public:
                                uint32_t n_recv_flood,
                                uint32_t n_recv_direct) {
     sprintf(reply, 
-      "{\"recv\":%u,\"sent\":%u,\"flood_tx\":%u,\"direct_tx\":%u,\"flood_rx\":%u,\"direct_rx\":%u}",
+      "{\"recv\":%u,\"sent\":%u,\"flood_tx\":%u,\"direct_tx\":%u,\"flood_rx\":%u,\"direct_rx\":%u,\"recv_errors\":%u}",
       driver.getPacketsRecv(),
       driver.getPacketsSent(),
       n_sent_flood,
       n_sent_direct,
       n_recv_flood,
-      n_recv_direct
+      n_recv_direct,
+      driver.getPacketsRecvErrors()
     );
   }
 };
