@@ -59,6 +59,7 @@ struct NodePrefs { // persisted to file
   float adc_multiplier;
   char owner_info[120];
   uint8_t rx_boosted_gain; // power settings
+  uint8_t radio_fem_rxgain; // LoRa FEM RX gain setting
   uint8_t path_hash_mode;   // which path mode to use when sending
   uint8_t loop_detect;
 };

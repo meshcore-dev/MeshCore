@@ -18,6 +18,9 @@ void halt() {
 
 static char command[MAX_POST_TEXT_LEN+1];
 
+// For power saving
+unsigned long POWERSAVING_FIRSTSLEEP_SECS = 120; // The first sleep (if enabled) from boot
+
 void setup() {
   Serial.begin(115200);
   delay(1000);
@@ -116,4 +119,14 @@ void loop() {
 #ifdef P_FAN_CTRL
   update_fan_control();
 #endif
+
+  if (the_mesh.getNodePrefs()->powersaving_enabled && !the_mesh.hasPendingWork()) {
+#if defined(NRF52_PLATFORM)
+    board.sleep(1800); // nrf ignores seconds param, sleeps whenever possible
+#else
+    if (the_mesh.millisHasNowPassed(POWERSAVING_FIRSTSLEEP_SECS * 1000)) { // To check if it is time to sleep
+      board.sleep(1800); // Sleep. Wake up after 30 minutes or when receiving a LoRa packet
+    }
+#endif
+  }
 }

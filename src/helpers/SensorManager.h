@@ -2,6 +2,7 @@
 
 #include <CayenneLPP.h>
 #include "sensors/LocationProvider.h"
+#include <Wire.h>
 
 #define TELEM_PERM_BASE         0x01   // 'base' permission includes battery
 #define TELEM_PERM_LOCATION     0x02
@@ -15,6 +16,7 @@ public:
   double node_altitude;       // altitude in meters
 
   SensorManager() { node_lat = 0; node_lon = 0; node_altitude = 0; }
+  virtual bool i2c_probe(TwoWire& wire, uint8_t addr) { return false; }
   virtual bool begin() { return false; }
   virtual bool querySensors(uint8_t requester_permissions, CayenneLPP& telemetry) { return false; }
   virtual void loop() { }
