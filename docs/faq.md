@@ -111,7 +111,6 @@ Anyone is able to build anything they like on top of MeshCore without paying any
 - MeshCore Firmware on GitHub: [https://github.com/meshcore-dev/MeshCore](https://github.com/meshcore-dev/MeshCore)
 - MeshCore Companion Web App: [https://app.meshcore.nz](https://app.meshcore.nz)
 - MeshCore Map: [https://map.meshcore.io](https://map.meshcore.io)
-- Andy Kirby's [MeshCore Intro Video](https://www.youtube.com/watch?v=t1qne8uJBAc)
 - Liam Cottle's [MeshCore Technical Presentation](https://www.youtube.com/watch?v=OwmkVkZQTf4)
 
 You need LoRa hardware devices to run MeshCore firmware as clients or server (repeater and room server).
@@ -404,9 +403,6 @@ Another way to download map tiles is to use this Python script to get the tiles 
 There is also a modified script that adds additional error handling and parallel downloads:
 <https://discord.com/channels/826570251612323860/1330643963501351004/1338775811548905572>
 
-UK map tiles are available separately from Andy Kirby on his discord server:
-<https://discord.com/channels/826570251612323860/1330643963501351004/1331346597367386224>
-
 ### 4.8. Q: Where do the map tiles go?
 Once you have the tiles downloaded, copy the `\tiles` folder to the root of your T-Deck's SD card.
 
@@ -562,10 +558,6 @@ save, then run:
 pio run -e RAK_4631_Repeater
 ```
 then you'll find `firmware.zip` in `.pio/build/RAK_4631_Repeater`
-
-Andy also has a video on how to build using VS Code:
-*How to build and flash Meshcore repeater firmware | Heltec V3*
-<https://www.youtube.com/watch?v=WJvg6dt13hk> *(Link referenced in the Discord post)*
 
 ### 5.10. Q: Are there other MeshCore related open source projects?
 
