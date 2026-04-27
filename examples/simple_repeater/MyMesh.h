@@ -157,6 +157,8 @@ protected:
     return _prefs.multi_acks;
   }
 
+  bool shouldSyncClockFromMesh() const override { return true; }
+
 #if ENV_INCLUDE_GPS == 1
   void applyGpsPrefs() {
     sensors.setSettingValue("gps", _prefs.gps_enabled?"1":"0");

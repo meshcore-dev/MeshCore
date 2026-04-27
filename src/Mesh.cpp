@@ -267,6 +267,20 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
         }
         if (is_ok) {
           MESH_DEBUG_PRINTLN("%s Mesh::onRecvPacket(): valid advertisement received!", getLogDateTime());
+
+          // Opportunistic clock sync: if local clock is clearly wrong and the
+          // verified advert carries a sane timestamp, adopt it.  Only fires
+          // when the sub-class opts in (e.g. repeaters without hardware RTC).
+          if (shouldSyncClockFromMesh()) {
+            uint32_t local_time = _rtc->getCurrentTime();
+            if (local_time < 1735689600UL          // local clock before Jan 2025 (clearly wrong)
+                && timestamp > 1735689600UL         // advert after Jan 2025
+                && timestamp < 2082758400UL) {      // advert before Jan 2036
+              _rtc->setCurrentTime(timestamp);
+              MESH_DEBUG_PRINTLN("  clock synced from advert: %lu", (unsigned long)timestamp);
+            }
+          }
+
           onAdvertRecv(pkt, id, timestamp, app_data, app_data_len);
           action = routeRecvPacket(pkt);
         } else {

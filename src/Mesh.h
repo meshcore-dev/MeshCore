@@ -50,6 +50,15 @@ protected:
   virtual bool filterRecvFloodPacket(Packet* packet) { return false; }
 
   /**
+   * \brief  Whether to opportunistically sync the local RTC from verified advert timestamps.
+   *     When enabled, if the local clock is clearly wrong (before Jan 2025) and a
+   *     signature-verified advert carries a sane timestamp, the local clock is updated.
+   *     Intended for GPS-less repeaters that lose their clock on power cycle.
+   * \returns  true to enable advert-based clock sync (default: false)
+   */
+  virtual bool shouldSyncClockFromMesh() const { return false; }
+
+  /**
    * \brief  Check whether this packet should be forwarded (re-transmitted) or not.
    *     Is sub-classes responsibility to make sure given packet is only transmitted ONCE (by this node)
    */
