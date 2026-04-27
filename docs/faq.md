@@ -401,7 +401,7 @@ Another way to download map tiles is to use this Python script to get the tiles 
 <https://github.com/fistulareffigy/MTD-Script>
 
 There is also a modified script that adds additional error handling and parallel downloads:
-<https://discord.com/channels/826570251612323860/1330643963501351004/1338775811548905572>
+<https://github.com/TheBestJohn/MTD-Script>
 
 ### 4.8. Q: Where do the map tiles go?
 Once you have the tiles downloaded, copy the `\tiles` folder to the root of your T-Deck's SD card.
