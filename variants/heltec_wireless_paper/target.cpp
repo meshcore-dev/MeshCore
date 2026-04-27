@@ -1,7 +1,7 @@
 #include "target.h"
 #include <Arduino.h>
 
-HeltecV3Board board;
+HeltecWirelessPaperBoard board;
 
 #if defined(P_LORA_SCLK)
   static SPIClass spi;
@@ -51,3 +51,4 @@ mesh::LocalIdentity radio_new_identity() {
   RadioNoiseListener rng(radio);
   return mesh::LocalIdentity(&rng); // create new random identity
 }
+

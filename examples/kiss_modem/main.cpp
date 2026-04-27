@@ -11,9 +11,12 @@
 #elif defined(ESP32)
   #include <SPIFFS.h>
 #endif
+#if defined(KISS_UART_RX) && defined(KISS_UART_TX)
+  #include <HardwareSerial.h>
+#endif
 
-#define NOISE_FLOOR_CALIB_INTERVAL_MS  2000
-#define AGC_RESET_INTERVAL_MS         30000
+#define NOISE_FLOOR_CALIB_INTERVAL_MS 2000
+#define AGC_RESET_INTERVAL_MS 30000
 
 StdRNG rng;
 mesh::LocalIdentity identity;
@@ -79,14 +82,35 @@ void setup() {
   rng.begin(radio_get_rng_seed());
   loadOrCreateIdentity();
 
+  sensors.begin();
+
+#if defined(KISS_UART_RX) && defined(KISS_UART_TX)
+#if defined(ESP32)
+  Serial1.setPins(KISS_UART_RX, KISS_UART_TX);
+  Serial1.begin(115200);
+#elif defined(NRF52_PLATFORM)
+  ((Uart *)&Serial1)->setPins(KISS_UART_RX, KISS_UART_TX);
+  Serial1.begin(115200);
+#elif defined(RP2040_PLATFORM)
+  ((SerialUART *)&Serial1)->setRX(KISS_UART_RX);
+  ((SerialUART *)&Serial1)->setTX(KISS_UART_TX);
+  Serial1.begin(115200);
+#elif defined(STM32_PLATFORM)
+  ((HardwareSerial *)&Serial1)->setRx(KISS_UART_RX);
+  ((HardwareSerial *)&Serial1)->setTx(KISS_UART_TX);
+  Serial1.begin(115200);
+#else
+  #error "KISS UART not supported on this platform"
+#endif
+  modem = new KissModem(Serial1, identity, rng, radio_driver, board, sensors);
+#else
   Serial.begin(115200);
   uint32_t start = millis();
   while (!Serial && millis() - start < 3000) delay(10);
   delay(100);
-
-  sensors.begin();
-
   modem = new KissModem(Serial, identity, rng, radio_driver, board, sensors);
+#endif
+
   modem->setRadioCallback(onSetRadio);
   modem->setTxPowerCallback(onSetTxPower);
   modem->setGetCurrentRssiCallback(onGetCurrentRssi);
@@ -97,34 +121,26 @@ void setup() {
 void loop() {
   modem->loop();
 
-  uint8_t packet[KISS_MAX_PACKET_SIZE];
-  uint16_t len;
+  if (!modem->isActuallyTransmitting()) {
+    if (!modem->isTxBusy()) {
+      if ((uint32_t)(millis() - next_agc_reset_ms) >= AGC_RESET_INTERVAL_MS) {
+        radio_driver.resetAGC();
+        next_agc_reset_ms = millis();
+      }
+    }
 
-  // trigger noise floor calibration
+    uint8_t rx_buf[256];
+    int rx_len = radio_driver.recvRaw(rx_buf, sizeof(rx_buf));
+    if (rx_len > 0) {
+      int8_t snr = (int8_t)(radio_driver.getLastSNR() * 4);
+      int8_t rssi = (int8_t)radio_driver.getLastRSSI();
+      modem->onPacketReceived(snr, rssi, rx_buf, rx_len);
+    }
+  }
+
   if ((uint32_t)(millis() - next_noise_floor_calib_ms) >= NOISE_FLOOR_CALIB_INTERVAL_MS) {
     radio_driver.triggerNoiseFloorCalibrate(0);
     next_noise_floor_calib_ms = millis();
   }
   radio_driver.loop();
-
-  if (modem->getPacketToSend(packet, &len)) {
-    radio_driver.startSendRaw(packet, len);
-    while (!radio_driver.isSendComplete()) {
-      delay(1);
-    }
-    radio_driver.onSendFinished();
-    modem->onTxComplete(true);
-  }
-
-  if ((uint32_t)(millis() - next_agc_reset_ms) >= AGC_RESET_INTERVAL_MS) {
-    radio_driver.resetAGC();
-    next_agc_reset_ms = millis();
-  }
-  uint8_t rx_buf[256];
-  int rx_len = radio_driver.recvRaw(rx_buf, sizeof(rx_buf));
-  if (rx_len > 0) {
-    int8_t snr = (int8_t)(radio_driver.getLastSNR() * 4);
-    int8_t rssi = (int8_t)radio_driver.getLastRSSI();
-    modem->onPacketReceived(snr, rssi, rx_buf, rx_len);
-  }
 }

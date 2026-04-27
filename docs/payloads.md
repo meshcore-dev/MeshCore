@@ -1,5 +1,6 @@
-# Meshcore payloads
-Inside of each [meshcore packet](./packet_structure.md) is a payload, identified by the payload type in the packet header. The types of payloads are:
+# Payload Format
+
+Inside each [MeshCore Packet](./packet_format.md) is a payload, identified by the payload type in the packet header. The types of payloads are:
 
 * Node advertisement.
 * Acknowledgment.
@@ -80,32 +81,26 @@ Returned path, request, response, and plain text messages are all formatted in t
 
 Returned path messages provide a description of the route a packet took from the original author. Receivers will send returned path messages to the author of the original message.
 
-| Field       | Size (bytes) | Description                                                                                  |
-|-------------|--------------|----------------------------------------------------------------------------------------------|
-| path length | 1            | length of next field                                                                         |
-| path        | see above    | a list of node hashes (one byte each) |
-| extra type  | 1            | extra, bundled payload type, eg., acknowledgement or response. Same values as in [packet structure](./packet_structure.md) |
-| extra       | rest of data | extra, bundled payload content, follows same format as main content defined by this document |
+| Field       | Size (bytes) | Description                                                                                                          |
+|-------------|--------------|----------------------------------------------------------------------------------------------------------------------|
+| path length | 1            | length of next field                                                                                                 |
+| path        | see above    | a list of node hashes (one byte each)                                                                                |
+| extra type  | 1            | extra, bundled payload type, eg., acknowledgement or response. Same values as in [Packet Format](./packet_format.md) |
+| extra       | rest of data | extra, bundled payload content, follows same format as main content defined by this document                         |
 
 ## Request
 
-| Field        | Size (bytes)    | Description                |
-|--------------|-----------------|----------------------------|
-| timestamp    | 4               | send time (unix timestamp) |
-| request type | 1               | see below                  |
-| request data | rest of payload | depends on request type    |
+| Field        | Size (bytes)    | Description                              |
+|--------------|-----------------|------------------------------------------|
+| timestamp    | 4               | sender time (unix timestamp)             |
+| request data | rest of payload | application-defined request payload body |
 
-Request type
+For the common chat/server helpers in `BaseChatMesh`, the current request type values are:
 
 | Value  | Name                 | Description                           |
 |--------|----------------------|---------------------------------------|
 | `0x01` | get stats            | get stats of repeater or room server  |
-| `0x02` | keepalive            | (deprecated) |
-| `0x03` | get telemetry data   | TODO |
-| `0x04` | get min,max,avg data | sensor nodes - get min, max, average for given time span |
-| `0x05` | get access list      | get node's approved access list            |
-| `0x06` | get neighbors        | get repeater node's neighbors              |
-| `0x07` | get owner info       | get repeater firmware-ver/name/owner info  |
+| `0x02` | keepalive            | keep-alive request used for maintained connections |
 
 ### Get stats
 
@@ -132,35 +127,36 @@ Gets information about the node, possibly including the following:
 
 ### Get telemetry data
 
-Request data about sensors on the node, including battery level.
+Not defined in `BaseChatMesh`. Sensor- and application-specific request payloads may be implemented by higher-level firmware.
 
 ### Get Telemetry
 
-TODO
+Not defined in `BaseChatMesh`.
 
 ### Get Min/Max/Ave  (Sensor nodes)
 
-TODO
+Not defined in `BaseChatMesh`.
 
 ### Get Access List
 
-TODO
+Not defined in `BaseChatMesh`.
 
 ### Get Neighors
 
-TODO
+Not defined in `BaseChatMesh`.
 
 ### Get Owner Info
 
-TODO
+Not defined in `BaseChatMesh`.
 
 
 ## Response
 
 | Field   | Size (bytes)    | Description |
 |---------|-----------------|-------------|
-| tag     | 4               | TODO        |
-| content | rest of payload | TODO        |
+| content | rest of payload | application-defined response body |
+
+Response contents are opaque application data. There is no single generic response envelope beyond the encrypted payload wrapper shown above.
 
 ## Plain text message
 
@@ -230,7 +226,7 @@ txt_type
 | reply path     | (variable)      | reply path                                                       |
 
 
-# Group text message / datagram
+# Group text message
 
 | Field        | Size (bytes)    | Description                                |
 |--------------|-----------------|--------------------------------------------|
@@ -239,6 +235,22 @@ txt_type
 | ciphertext   | rest of payload | encrypted message, see below for details   |
 
 The plaintext contained in the ciphertext matches the format described in [plain text message](#plain-text-message). Specifically, it consists of a four byte timestamp, a flags byte, and the message. The flags byte will generally be `0x00` because it is a "plain text message". The message will be of the form `<sender name>: <message body>` (eg., `user123: I'm on my way`).
+
+# Group datagram
+
+| Field        | Size (bytes)    | Description                                |
+|--------------|-----------------|--------------------------------------------|
+| channel hash | 1               | first byte of SHA256 of channel's shared key  |
+| cipher MAC   | 2               | MAC for encrypted data in next field       |
+| ciphertext   | rest of payload | encrypted data, see below for details   |
+
+The data contained in the ciphertext uses the format below:
+
+| Field        | Size (bytes)    | Description                                |
+|--------------|-----------------|--------------------------------------------|
+| data type    | 2               | Identifier for type of data. (See number_allocations.md)  |
+| data len     | 1               | byte length of data         |
+| data         | rest of payload | (depends on data type)     |
 
 
 # Control data

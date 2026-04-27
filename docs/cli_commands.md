@@ -1,4 +1,6 @@
-# MeshCore Repeater & Room Server CLI Commands
+# CLI Commands
+
+This document provides an overview of CLI commands that can be sent to MeshCore Repeaters, Room Servers and Sensors.
 
 ## Navigation
 
@@ -51,13 +53,19 @@
 - `time <epoch_seconds>`
 
 **Parameters:**
-- `epoc_seconds`: Unix epoc time
+- `epoch_seconds`: Unix epoch time
 
 ---
 
 ### Send a flood advert
 **Usage:** 
 - `advert`
+
+---
+
+### Send a zero-hop advert
+**Usage:**
+- `advert.zerohop`
 
 ---
 
@@ -94,7 +102,16 @@
 - `neighbor.remove <pubkey_prefix>`
 
 **Parameters:** 
-- `pubkey_prefix`: The public key of the node to remove from the neighbors list
+- `pubkey_prefix`: The public key of the node to remove from the neighbors list. This can be a short prefix or the full key. All neighbors matching the provided prefix will be removed.
+
+**Note:** You can remove all neighbors by sending a space character as the prefix. The space indicates an empty prefix, which matches all existing neighbors.
+
+---
+
+### Discover zero hop neighbors
+
+**Usage:** 
+- `discover.neighbors`
 
 ---
 
@@ -134,7 +151,7 @@
 
 ---
 
-### End capture of rx log to node sotrage
+### End capture of rx log to node storage
 **Usage:** `log stop`
 
 ---
@@ -198,7 +215,21 @@
 
 **Default:** Varies by board
 
-**Notes:** This setting only controls the power level of the LoRa chip. Some nodes have an additional power amplifier stage which increases the total output. Referr to the node's manual for the correct setting to use. **Setting a value too high may violate the laws in your country.**
+**Notes:** This setting only controls the power level of the LoRa chip. Some nodes have an additional power amplifier stage which increases the total output. Refer to the node's manual for the correct setting to use. **Setting a value too high may violate the laws in your country.**
+
+---
+
+#### View or change the boosted receive gain mode
+**Usage:**
+- `get radio.rxgain`
+- `set radio.rxgain <state>`
+
+**Parameters:**
+- `state`: `on`|`off`
+
+**Default:** `off`
+
+**Note:** Only available on SX1262 and SX1268 based boards.
 
 ---
 
@@ -228,6 +259,23 @@
 **Default:** `869.525`
 
 **Note:** Requires reboot to apply
+**Serial Only:** `set freq <frequency>`
+
+---
+
+#### View or change this node's rx boosted gain mode (SX12xx only, v1.14.1+)
+**Usage:**
+- `get radio.rxgain`
+- `set radio.rxgain <state>`
+
+**Parameters:**
+  - `state`: `on`|`off`
+
+**Default:** `on`
+
+**Temporary Note:** If you upgraded from an older version to 1.14.1 without erasing flash, this setting is `off` because of [#2118](https://github.com/meshcore-dev/MeshCore/issues/2118)
+
+---
 
 ### System
 
@@ -291,19 +339,18 @@
 
 ---
 
-#### View or change this node's admin password
+#### Change this node's admin password
 **Usage:**
-- `get password`
-- `set password <password>`
+- `password <new_password>`
 
 **Parameters:**
-- `password`: Admin password
+- `new_password`: New admin password
 
 **Set by build flag:** `ADMIN_PASSWORD`
 
 **Default:** `password`
 
-**Note:** Echoed back for confirmation
+**Note:** Command reply echoes the updated password for confirmation.
 
 **Note:** Any node using this password will be added to the admin ACL list.
 
@@ -353,13 +400,25 @@
 
 ---
 
+#### View this node's public key
+**Usage:** `get public.key`
+
+---
+
+#### View this node's configured role
+**Usage:** `get role`
+
+---
+
 #### View or change this node's power saving flag (Repeater Only)
 **Usage:**
-- `powersaving <state>`
 - `powersaving`
+- `powersaving on`
+- `powersaving off`
 
 **Parameters:** 
-- `state`: `on`|`off` 
+- `on`: enable power saving
+- `off`: disable power saving
 
 **Default:** `on`
 
@@ -378,6 +437,46 @@
   - `state`: `on`|`off`
 
 **Default:** `on`
+
+---
+
+#### View or change this node's advert path hash size
+**Usage:**
+- `get path.hash.mode`
+- `set path.hash.mode <value>`
+
+**Parameters:**
+- `value`: Path hash size (0-2)
+  - `0`: 1 Byte hash size (256 unique ids)[64 max flood]
+  - `1`: 2 Byte hash size (65,536 unique ids)[32 max flood]
+  - `2`: 3 Byte hash size (16,777,216 unique ids)[21 max flood]
+  - `3`: DO NOT USE (Reserved) 
+
+**Default:** `0`
+
+**Note:** the 'path.hash.mode' sets the low-level ID/hash encoding size used when the repeater adverts. This setting has no impact on what packet ID/hash size this repeater forwards, all sizes should be forwarded on firmware >= 1.14. This feature was added in firmware 1.14
+
+**Temporary Note:** adverts with ID/hash sizes of 2 or 3 bytes may have limited flood propogation in your network while this feature is new as v1.13.0 firmware and older will drop packets with multibyte path ID/hashes as only 1-byte hashes are suppored. Consider your install base of firmware >=1.14 has reached a criticality for effective network flooding before implementing higher ID/hash sizes. 
+
+---
+
+#### View or change this node's loop detection
+**Usage:**
+- `get loop.detect`
+- `set loop.detect <state>`
+
+**Parameters:**
+- `state`: 
+  - `off`: no loop detection is performed
+  - `minimal`: packets are dropped if repeater's ID/hash appears 4 or more times (1-byte), 2 or more (2-byte), 1 or more (3-byte)
+  - `moderate`: packets are dropped if repeater's ID/hash appears 2 or more times (1-byte), 1 or more (2-byte), 1 or more (3-byte)
+  - `strict`: packets are dropped if repeater's ID/hash appears 1 or more times (1-byte), 1 or more (2-byte), 1 or more (3-byte)
+  
+**Default:** `off`
+
+**Note:** When it is enabled, repeaters will now reject flood packets which look like they are in a loop. This has been happening recently in some meshes when there is just a single 'bad' repeater firmware out there (prob some forked or custom firmware). If the payload is messed with, then forwarded, the same packet ends up causing a packet storm, repeated up to the max 64 hops. This feature was added in firmware 1.14
+
+**Example:** If preference is `loop.detect minimal`, and a 1-byte path size packet is received, the repeater will see if its own ID/hash is already in the path. If it's already encoded 4 times, it will reject the packet.  If the packet uses 2-byte path size, and repeater's own ID/hash is already encoded 2 times, it rejects. If the packet uses 3-byte path size, and the repeater's own ID/hash is already encoded 1 time, it rejects. 
 
 ---
 
@@ -417,13 +516,40 @@
 
 ---
 
+#### View or change the duty cycle limit
+**Usage:**
+- `get dutycycle`
+- `set dutycycle <value>`
+
+**Parameters:**
+- `value`: Duty cycle percentage (1-100)
+
+**Default:** `50%` (equivalent to airtime factor 1.0)
+
+**Examples:**
+- `set dutycycle 100` — no duty cycle limit
+- `set dutycycle 50` — 50% duty cycle (default)
+- `set dutycycle 10` — 10% duty cycle
+- `set dutycycle 1` — 1% duty cycle (strictest EU requirement)
+
+> **Note:** Added in firmware v1.15.0
+
+---
+
 #### View or change the airtime factor (duty cycle limit)
+> **Deprecated** as of firmware v1.15.0. Use [`get/set dutycycle`](#view-or-change-the-duty-cycle-limit) instead.
+
 **Usage:**
 - `get af`
 - `set af <value>`
 
 **Parameters:**
-- `value`: Airtime factor (0-9)
+- `value`: Airtime factor (0-9). After each transmission, the repeater enforces a silent period of approximately the on-air transmission time multiplied by the value. This results in a long-term duty cycle of roughly 1 divided by (1 plus the value). For example:
+  - `af = 1` → ~50% duty
+  - `af = 2` → ~33% duty
+  - `af = 3` → ~25% duty
+  - `af = 9` → ~10% duty
+  You are responsible for choosing a value that is appropriate for your jurisdiction and channel plan (for example EU 868 Mhz 10% duty cycle regulation).
 
 **Default:** `1.0`
 
@@ -447,7 +573,7 @@
 - `set agc.reset.interval <value>`
 
 **Parameters:**
-- `value`: Interval in seconds rounded down to a multiple of 4 (17 becomes 16)
+- `value`: Interval in seconds rounded down to a multiple of 4 (17 becomes 16). 0 to disable.
 
 **Default:** `0.0`
 
@@ -604,6 +730,16 @@
 
 ---
 
+#### View or change the default scope region for this node
+**Usage:** 
+- `region default`
+- `region default {name|<null>}`
+
+**Parameters:**
+- `name`: Region name,  or <null> to reset/clear
+
+---
+
 #### Create a new region
 **Usage:** 
 - `region put <name> [parent_name]`
@@ -642,7 +778,7 @@
 **Usage:** 
 - `region`
 
-**Serial Only:** Yes
+**Serial Only:** For firmware older than 1.12.0
 
 ---
 
@@ -746,7 +882,9 @@ region save
 
 **Default:** `off`
 
-**Note:** Output format: `{status}, {fix}, {sat count}` (when enabled)
+**Note:** Output format:
+- `off` when the GPS hardware is disabled
+- `on, {active|deactivated}, {fix|no fix}, {sat count} sats` when the GPS hardware is enabled
 
 ---
 
@@ -768,7 +906,7 @@ region save
 - `gps advert <policy>`
 
 **Parameters:** 
-- `policy`: `none`|`shared`|`prefs` 
+- `policy`: `none`|`share`|`prefs` 
   - `none`: don't include location in adverts
   - `share`: share gps location (from SensorManager)
   - `prefs`: location stored in node's lat and lon settings
@@ -802,6 +940,11 @@ region save
 
 ### Bridge (When bridge support is compiled in)
 
+#### View the compiled bridge type
+**Usage:** `get bridge.type`
+
+---
+
 #### View or change the bridge enabled flag
 **Usage:**
 - `get bridge.enabled`
@@ -811,12 +954,6 @@ region save
 - `state`: `on`|`off`
 
 **Default:** `off`
-
----
-
-#### View the bridge source
-**Usage:**
-- `get bridge.source`
 
 ---
 
@@ -839,10 +976,10 @@ region save
 
 **Parameters:**
 - `source`: 
-  - `rx`: bridges received packets
-  - `tx`: bridges transmitted packets
+  - `logRx`: bridges received packets
+  - `logTx`: bridges transmitted packets
 
-**Default:** `tx`
+**Default:** `logTx`
 
 ---
 
@@ -874,8 +1011,39 @@ region save
 - `set bridge.secret <secret>`
 
 **Parameters:**
-- `secret`: 16-character encryption secret
+- `secret`: ESP-NOW bridge secret, up to 15 characters
 
 **Default:** Varies by board
+
+---
+
+#### View the bootloader version (nRF52 only)
+**Usage:** `get bootloader.ver`
+
+---
+
+#### View power management support
+**Usage:** `get pwrmgt.support`
+
+---
+
+#### View the current power source
+**Usage:** `get pwrmgt.source`
+
+**Note:** Returns an error on boards without power management support.
+
+---
+
+#### View the boot reset and shutdown reasons
+**Usage:** `get pwrmgt.bootreason`
+
+**Note:** Returns an error on boards without power management support.
+
+---
+
+#### View the boot voltage
+**Usage:** `get pwrmgt.bootmv`
+
+**Note:** Returns an error on boards without power management support.
 
 ---
