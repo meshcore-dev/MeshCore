@@ -49,13 +49,7 @@ protected:
    */
   virtual bool filterRecvFloodPacket(Packet* packet) { return false; }
 
-  /**
-   * \brief  Whether to opportunistically sync the local RTC from verified advert timestamps.
-   *     When enabled, if the local clock is clearly wrong (before Jan 2025) and a
-   *     signature-verified advert carries a sane timestamp, the local clock is updated.
-   *     Intended for GPS-less repeaters that lose their clock on power cycle.
-   * \returns  true to enable advert-based clock sync (default: false)
-   */
+  // sync clock from verified advert if local clock is clearly wrong
   virtual bool shouldSyncClockFromMesh() const { return false; }
 
   /**
