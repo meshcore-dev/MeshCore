@@ -1,0 +1,43 @@
+# ~/code/meshcore/.clangd
+#
+# Strips GCC/Xtensa-specific flags that clangd doesn't understand.
+# Sysroot discovery (newlib headers, libstdc++ headers) is handled by
+# --query-driver on the clangd command line.
+#
+# Syntax reference: https://clangd.llvm.org/config
+
+CompileFlags:
+  Remove:
+    # GCC-only optimizer / codegen flags clangd rejects as "unknown".
+    - -fstrict-volatile-bitfields
+    - -fno-tree-switch-conversion
+    - -freorder-blocks
+    - -fno-shrink-wrap
+    - -fno-jump-tables
+    - -fipa-pta
+    - -free
+
+    # Xtensa (ESP32) architecture flags clangd doesn't model.
+    - -mlongcalls
+    - -mtext-section-literals
+    - -mfix-esp32-psram-cache-issue
+    - -mfix-esp32-psram-cache-strategy=*
+
+  Add:
+    # Don't cut off diagnostics after 20 errors -- useful when a missing
+    # header cascades into hundreds of downstream errors.
+    - -ferror-limit=0
+
+Diagnostics:
+  ClangTidy:
+    Remove:
+      - bugprone-easily-swappable-parameters
+      - readability-identifier-length
+      - readability-magic-numbers
+      - cppcoreguidelines-avoid-magic-numbers
+      - cppcoreguidelines-avoid-non-const-global-variables
+      - cppcoreguidelines-pro-type-vararg
+      - hicpp-vararg
+      - modernize-use-trailing-return-type
+  UnusedIncludes: None
+  MissingIncludes: None
