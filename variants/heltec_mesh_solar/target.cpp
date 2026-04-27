@@ -124,7 +124,7 @@ bool SolarSensorManager::setSettingValue(const char* name, const char* value) {
 }
 
 bool SolarExternalWatchdog::begin() {
-  next_feed_watchdog = 0;
+  last_feed_watchdog = 0;
   pinMode(EXTERNAL_WATCHDOG_WAKE_PIN, INPUT);
   pinMode(EXTERNAL_WATCHDOG_DONE_PIN, OUTPUT);
   delay(1);
@@ -134,23 +134,22 @@ bool SolarExternalWatchdog::begin() {
   return true;
 }
 void SolarExternalWatchdog::loop() {
-  if (millis() > next_feed_watchdog) {
+  if (millis() - last_feed_watchdog >= EXTERNAL_WATCHDOG_FEED_INTERVAL_MS) {
     feed();
-    next_feed_watchdog = millis() + EXTERNAL_WATCHDOG_TIMEOUT_MS;
   }
 }
 
 unsigned long SolarExternalWatchdog::getIntervalMs() const {
-    unsigned long interval_ms = 0;
-    interval_ms = next_feed_watchdog - millis();
-    if(interval_ms > EXTERNAL_WATCHDOG_TIMEOUT_MS) {
-      interval_ms = EXTERNAL_WATCHDOG_TIMEOUT_MS;
+    unsigned long elapsed_ms = millis() - last_feed_watchdog;
+    if (elapsed_ms >= EXTERNAL_WATCHDOG_FEED_INTERVAL_MS) {
+      return 0;
     }
-    return interval_ms;
+    return EXTERNAL_WATCHDOG_FEED_INTERVAL_MS - elapsed_ms;
 }
 
 void SolarExternalWatchdog::feed() {
     digitalWrite(EXTERNAL_WATCHDOG_DONE_PIN, HIGH);
     delay(1);
     digitalWrite(EXTERNAL_WATCHDOG_DONE_PIN, LOW);
+    last_feed_watchdog = millis();
 }
