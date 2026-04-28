@@ -26,7 +26,7 @@ TEST(IdentityTests, Identity)
   memset(buffer, 0, sizeof(buffer));
   MockStream bs;
   ASSERT_TRUE(id.writeTo(bs));
-  ASSERT_STREQ((const char *)bs.buffer, (const char *)pubhex);
+  ASSERT_EQ(memcmp(bs.buffer, pubhex, 32), 0);
 }
 
 #define ZERO_PUB_KEY \
