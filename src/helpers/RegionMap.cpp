@@ -59,7 +59,7 @@ static const char* skip_hash(const char* name) {
 }
 
 static File openWrite(FILESYSTEM* _fs, const char* filename) {
-  #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
+  #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM) || defined(NATIVE_PLATFORM)
     _fs->remove(filename);
     return _fs->open(filename, FILE_O_WRITE);
   #elif defined(RP2040_PLATFORM)
@@ -287,11 +287,9 @@ void RegionMap::printChildRegions(int indent, const RegionEntry* parent, Stream&
     out.print(' ');
   }
 
-  if (parent->flags & REGION_DENY_FLOOD) {
-    out.printf("%s%s\n", skip_hash(parent->name), parent->id == home_id ? "^" : "");
-  } else {
-    out.printf("%s%s F\n", skip_hash(parent->name), parent->id == home_id ? "^" : "");
-  }
+  out.print(skip_hash(parent->name));
+  out.print(parent->id == home_id ? "^" : "");
+  out.println(parent->flags & REGION_DENY_FLOOD ? "" : " F");
 
   for (int i = 0; i < num_regions; i++) {
     auto r = &regions[i];
