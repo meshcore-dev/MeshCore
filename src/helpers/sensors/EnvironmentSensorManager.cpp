@@ -50,6 +50,14 @@ static Adafruit_BMP280 BMP280(TELEM_WIRE);
 static Adafruit_SHTC3 SHTC3;
 #endif
 
+#if ENV_INCLUDE_SHT31
+#ifndef TELEM_SHT31_ADDRESS
+#define TELEM_SHT31_ADDRESS    0x44      // SHT31 environmental sensor I2C address
+#endif
+#include <Adafruit_SHT31.h>
+static Adafruit_SHT31 SHT31;
+#endif
+
 #if ENV_INCLUDE_SHT4X
 #define TELEM_SHT4X_ADDRESS 0x44  //0x44 - 0x46
 #include <SensirionI2cSht4x.h>
@@ -240,6 +248,16 @@ bool EnvironmentSensorManager::begin() {
   }
   #endif
 
+  #if ENV_INCLUDE_SHT31
+  if (SHT31.begin(TELEM_SHT31_ADDRESS)) {
+    MESH_DEBUG_PRINTLN("Found sensor: SHT31");
+    SHT31_initialized = true;
+  } else {
+    SHT31_initialized = false;
+    MESH_DEBUG_PRINTLN("SHT31 was not found at I2C address %02X", TELEM_SHT31_ADDRESS);
+  }
+  #endif
+
 
   #if ENV_INCLUDE_SHT4X
   SHT4X.begin(*TELEM_WIRE, TELEM_SHT4X_ADDRESS);
@@ -414,6 +432,16 @@ bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, Cayen
 
       telemetry.addTemperature(TELEM_CHANNEL_SELF, temp.temperature);
       telemetry.addRelativeHumidity(TELEM_CHANNEL_SELF, humidity.relative_humidity);
+    }
+    #endif
+
+    #if ENV_INCLUDE_SHT31
+    if (SHT31_initialized) {
+      float temp, humidity;
+      SHT31.readBoth(&temp, &humidity);
+
+      telemetry.addTemperature(TELEM_CHANNEL_SELF, temp);
+      telemetry.addRelativeHumidity(TELEM_CHANNEL_SELF, humidity);
     }
     #endif
 
