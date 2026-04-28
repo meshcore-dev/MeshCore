@@ -535,7 +535,7 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     } else {
       strcpy(reply, "Error, bad key");
     }
-  } else if (sender_timestamp == 0 && memcmp(config, "prv.seed ", 9) == 0) {  // from serial command line only
+  } else if (memcmp(config, "prv.seed ", 9) == 0) {
     uint8_t seed[SEED_SIZE];
     bool success = mesh::Utils::fromHex(seed, SEED_SIZE, &config[9]);
     if (success) {
