@@ -888,6 +888,9 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.flood_max = 64;
   _prefs.interference_threshold = 0; // disabled
 
+  #ifdef DEFAULT_AGC_RESET_INTERVAL
+  _prefs.agc_reset_interval = DEFAULT_AGC_RESET_INTERVAL;
+  #endif
   // bridge defaults
   _prefs.bridge_enabled = 1;    // enabled
   _prefs.bridge_delay   = 500;  // milliseconds

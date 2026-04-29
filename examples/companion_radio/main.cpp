@@ -225,6 +225,7 @@ void setup() {
 void loop() {
   the_mesh.loop();
   sensors.loop();
+  board.loop();
 #ifdef DISPLAY_CLASS
   ui_task.loop();
 #endif

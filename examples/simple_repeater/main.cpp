@@ -149,11 +149,12 @@ void loop() {
 
   the_mesh.loop();
   sensors.loop();
+  board.loop();
 #ifdef DISPLAY_CLASS
   ui_task.loop();
 #endif
   rtc_clock.tick();
-
+  
   if (the_mesh.getNodePrefs()->powersaving_enabled && !the_mesh.hasPendingWork()) {
     #if defined(NRF52_PLATFORM)
     board.sleep(1800); // nrf ignores seconds param, sleeps whenever possible
