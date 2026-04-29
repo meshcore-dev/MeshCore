@@ -94,7 +94,7 @@ struct StatsRadio {
 
 ## RESP_CODE_STATS + STATS_TYPE_PACKETS (24, 2)
 
-**Total Frame Size:** 26 bytes
+**Total Frame Size:** 26 bytes (legacy) or 30 bytes (includes `recv_errors`)
 
 | Offset | Size | Type | Field Name | Description | Range/Notes |
 |--------|------|------|------------|-------------|-------------|
@@ -106,12 +106,14 @@ struct StatsRadio {
 | 14 | 4 | uint32_t | direct_tx | Packets sent via direct routing | 0 - 4,294,967,295 |
 | 18 | 4 | uint32_t | flood_rx | Packets received via flood routing | 0 - 4,294,967,295 |
 | 22 | 4 | uint32_t | direct_rx | Packets received via direct routing | 0 - 4,294,967,295 |
+| 26 | 4 | uint32_t | recv_errors | Receive/CRC errors (RadioLib); present only in 30-byte frame | 0 - 4,294,967,295 |
 
 ### Notes
 
 - Counters are cumulative from boot and may wrap.
 - `recv = flood_rx + direct_rx`
 - `sent = flood_tx + direct_tx`
+- Clients should accept frame length ≥ 26; if length ≥ 30, parse `recv_errors` at offset 26.
 
 ### Example Structure (C/C++)
 
@@ -125,6 +127,7 @@ struct StatsPackets {
     uint32_t direct_tx;
     uint32_t flood_rx;
     uint32_t direct_rx;
+    uint32_t recv_errors;    // present when frame size is 30
 } __attribute__((packed));
 ```
 
@@ -183,11 +186,12 @@ def parse_stats_radio(frame):
     }
 
 def parse_stats_packets(frame):
-    """Parse RESP_CODE_STATS + STATS_TYPE_PACKETS frame (26 bytes)"""
+    """Parse RESP_CODE_STATS + STATS_TYPE_PACKETS frame (26 or 30 bytes)"""
+    assert len(frame) >= 26, "STATS_TYPE_PACKETS frame too short"
     response_code, stats_type, recv, sent, flood_tx, direct_tx, flood_rx, direct_rx = \
-        struct.unpack('<B B I I I I I I', frame)
+        struct.unpack('<B B I I I I I I', frame[:26])
     assert response_code == 24 and stats_type == 2, "Invalid response type"
-    return {
+    result = {
         'recv': recv,
         'sent': sent,
         'flood_tx': flood_tx,
@@ -195,6 +199,10 @@ def parse_stats_packets(frame):
         'flood_rx': flood_rx,
         'direct_rx': direct_rx
     }
+    if len(frame) >= 30:
+        (recv_errors,) = struct.unpack('<I', frame[26:30])
+        result['recv_errors'] = recv_errors
+    return result
 ```
 
 ---
@@ -251,6 +259,7 @@ interface StatsPackets {
     direct_tx: number;
     flood_rx: number;
     direct_rx: number;
+    recv_errors?: number;  // present when frame is 30 bytes
 }
 
 function parseStatsCore(buffer: ArrayBuffer): StatsCore {
@@ -286,12 +295,15 @@ function parseStatsRadio(buffer: ArrayBuffer): StatsRadio {
 
 function parseStatsPackets(buffer: ArrayBuffer): StatsPackets {
     const view = new DataView(buffer);
+    if (buffer.byteLength < 26) {
+        throw new Error('STATS_TYPE_PACKETS frame too short');
+    }
     const response_code = view.getUint8(0);
     const stats_type = view.getUint8(1);
     if (response_code !== 24 || stats_type !== 2) {
         throw new Error('Invalid response type');
     }
-    return {
+    const result: StatsPackets = {
         recv: view.getUint32(2, true),
         sent: view.getUint32(6, true),
         flood_tx: view.getUint32(10, true),
@@ -299,6 +311,10 @@ function parseStatsPackets(buffer: ArrayBuffer): StatsPackets {
         flood_rx: view.getUint32(18, true),
         direct_rx: view.getUint32(22, true)
     };
+    if (buffer.byteLength >= 30) {
+        result.recv_errors = view.getUint32(26, true);
+    }
+    return result;
 }
 ```
 

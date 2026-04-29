@@ -258,10 +258,11 @@ void SensorMesh::sendAlert(const ClientInfo* c, Trigger* t) {
 
   auto pkt = createDatagram(PAYLOAD_TYPE_TXT_MSG, c->id, c->shared_secret, data, 5 + text_len);
   if (pkt) {
-    if (c->out_path_len >= 0) {  // we have an out_path, so send DIRECT
+    if (c->out_path_len != OUT_PATH_UNKNOWN) {  // we have an out_path, so send DIRECT
       sendDirect(pkt, c->out_path, c->out_path_len);
     } else {
-      sendFlood(pkt);
+      unsigned long delay_millis = 0;
+      sendFlood(pkt, delay_millis, _prefs.path_hash_mode + 1);
     }
   }
   t->send_expiry = futureMillis(ALERT_ACK_EXPIRY_MILLIS);
@@ -302,7 +303,7 @@ float SensorMesh::getAirtimeBudgetFactor() const {
 
 bool SensorMesh::allowPacketForward(const mesh::Packet* packet) {
   if (_prefs.disable_fwd) return false;
-  if (packet->isRouteFlood() && packet->path_len >= _prefs.flood_max) return false;
+  if (packet->isRouteFlood() && packet->getPathHashCount() >= _prefs.flood_max) return false;
   return true;
 }
 
@@ -312,11 +313,11 @@ int SensorMesh::calcRxDelay(float score, uint32_t air_time) const {
 }
 
 uint32_t SensorMesh::getRetransmitDelay(const mesh::Packet* packet) {
-  uint32_t t = (_radio->getEstAirtimeFor(packet->path_len + packet->payload_len + 2) * _prefs.tx_delay_factor);
+  uint32_t t = (_radio->getEstAirtimeFor(packet->getPathByteLen() + packet->payload_len + 2) * _prefs.tx_delay_factor);
   return getRNG()->nextInt(0, 6)*t;
 }
 uint32_t SensorMesh::getDirectRetransmitDelay(const mesh::Packet* packet) {
-  uint32_t t = (_radio->getEstAirtimeFor(packet->path_len + packet->payload_len + 2) * _prefs.direct_tx_delay_factor);
+  uint32_t t = (_radio->getEstAirtimeFor(packet->getPathByteLen() + packet->payload_len + 2) * _prefs.direct_tx_delay_factor);
   return getRNG()->nextInt(0, 6)*t;
 }
 int SensorMesh::getInterferenceThreshold() const {
@@ -360,7 +361,7 @@ uint8_t SensorMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* 
   }
 
   if (is_flood) {
-    client->out_path_len = -1;  // need to rediscover out_path
+    client->out_path_len = OUT_PATH_UNKNOWN;  // need to rediscover out_path
   }
 
   uint32_t now = getRTCClock()->getCurrentTimeUnique();
@@ -468,10 +469,10 @@ void SensorMesh::onAnonDataRecv(mesh::Packet* packet, const uint8_t* secret, con
       // let this sender know path TO here, so they can use sendDirect(), and ALSO encode the response
       mesh::Packet* path = createPathReturn(sender, secret, packet->path, packet->path_len,
                                             PAYLOAD_TYPE_RESPONSE, reply_data, reply_len);
-      if (path) sendFlood(path, SERVER_RESPONSE_DELAY);
+      if (path) sendFlood(path, SERVER_RESPONSE_DELAY, packet->getPathHashSize());
     } else {
       mesh::Packet* reply = createDatagram(PAYLOAD_TYPE_RESPONSE, sender, secret, reply_data, reply_len);
-      if (reply) sendFlood(reply, SERVER_RESPONSE_DELAY);
+      if (reply) sendFlood(reply, SERVER_RESPONSE_DELAY, packet->getPathHashSize());
     }
   }
 }
@@ -496,10 +497,10 @@ void SensorMesh::getPeerSharedSecret(uint8_t* dest_secret, int peer_idx) {
   }
 }
 
-void SensorMesh::sendAckTo(const ClientInfo& dest, uint32_t ack_hash) {
-  if (dest.out_path_len < 0) {
+void SensorMesh::sendAckTo(const ClientInfo& dest, uint32_t ack_hash, uint8_t path_hash_size) {
+  if (dest.out_path_len == OUT_PATH_UNKNOWN) {
     mesh::Packet* ack = createAck(ack_hash);
-    if (ack) sendFlood(ack, TXT_ACK_DELAY);
+    if (ack) sendFlood(ack, TXT_ACK_DELAY, path_hash_size);
   } else {
     uint32_t d = TXT_ACK_DELAY;
     if (getExtraAckTransmitCount() > 0) {
@@ -537,14 +538,14 @@ void SensorMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender_i
         // let this sender know path TO here, so they can use sendDirect(), and ALSO encode the response
         mesh::Packet* path = createPathReturn(from->id, secret, packet->path, packet->path_len,
                                               PAYLOAD_TYPE_RESPONSE, reply_data, reply_len);
-        if (path) sendFlood(path, SERVER_RESPONSE_DELAY);
+        if (path) sendFlood(path, SERVER_RESPONSE_DELAY, packet->getPathHashSize());
       } else {
         mesh::Packet* reply = createDatagram(PAYLOAD_TYPE_RESPONSE, from->id, secret, reply_data, reply_len);
         if (reply) {
-          if (from->out_path_len >= 0) {  // we have an out_path, so send DIRECT
+          if (from->out_path_len != OUT_PATH_UNKNOWN) {  // we have an out_path, so send DIRECT
             sendDirect(reply, from->out_path, from->out_path_len, SERVER_RESPONSE_DELAY);
           } else {
-            sendFlood(reply, SERVER_RESPONSE_DELAY);
+            sendFlood(reply, SERVER_RESPONSE_DELAY, packet->getPathHashSize());
           }
         }
       }
@@ -567,9 +568,9 @@ void SensorMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender_i
             // let this sender know path TO here, so they can use sendDirect(), and ALSO encode the ACK
             mesh::Packet* path = createPathReturn(from->id, secret, packet->path, packet->path_len,
                                                   PAYLOAD_TYPE_ACK, (uint8_t *) &ack_hash, 4);
-            if (path) sendFlood(path, TXT_ACK_DELAY);
+            if (path) sendFlood(path, TXT_ACK_DELAY, packet->getPathHashSize());
           } else {
-            sendAckTo(*from, ack_hash);
+            sendAckTo(*from, ack_hash, packet->getPathHashSize());
           }
         }
       } else if (flags == TXT_TYPE_CLI_DATA) {  
@@ -596,8 +597,8 @@ void SensorMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender_i
 
           auto reply = createDatagram(PAYLOAD_TYPE_TXT_MSG, from->id, secret, temp, 5 + text_len);
           if (reply) {
-            if (from->out_path_len < 0) {
-              sendFlood(reply, CLI_REPLY_DELAY_MILLIS);
+            if (from->out_path_len == OUT_PATH_UNKNOWN) {
+              sendFlood(reply, CLI_REPLY_DELAY_MILLIS, packet->getPathHashSize());
             } else {
               sendDirect(reply, from->out_path, from->out_path_len, CLI_REPLY_DELAY_MILLIS);
             }
@@ -666,7 +667,7 @@ bool SensorMesh::onPeerPathRecv(mesh::Packet* packet, int sender_idx, const uint
   MESH_DEBUG_PRINTLN("PATH to contact, path_len=%d", (uint32_t) path_len);
   // NOTE: for this impl, we just replace the current 'out_path' regardless, whenever sender sends us a new out_path.
   // FUTURE: could store multiple out_paths per contact, and try to find which is the 'best'(?)
-  memcpy(from->out_path, path, from->out_path_len = path_len);  // store a copy of path, for sendDirect()
+  from->out_path_len = mesh::Packet::copyPath(from->out_path, path, path_len);  // store a copy of path, for sendDirect()
   from->last_activity = getRTCClock()->getCurrentTime();
 
   // REVISIT: maybe make ALL out_paths non-persisted to minimise flash writes??
@@ -695,7 +696,9 @@ void SensorMesh::onAckRecv(mesh::Packet* packet, uint32_t ack_crc) {
 
 SensorMesh::SensorMesh(mesh::MainBoard& board, mesh::Radio& radio, mesh::MillisecondClock& ms, mesh::RNG& rng, mesh::RTCClock& rtc, mesh::MeshTables& tables)
      : mesh::Mesh(radio, ms, rng, rtc, *new StaticPoolPacketManager(32), tables),
-      _cli(board, rtc, sensors, acl, &_prefs, this), telemetry(MAX_PACKET_PAYLOAD - 4)
+      region_map(key_store),
+      _cli(board, rtc, sensors, region_map, acl, &_prefs, this),
+      telemetry(MAX_PACKET_PAYLOAD - 4)
 {
   next_local_advert = next_flood_advert = 0;
   dirty_contacts_expiry = 0;
@@ -705,7 +708,7 @@ SensorMesh::SensorMesh(mesh::MainBoard& board, mesh::Radio& radio, mesh::Millise
 
   // defaults
   memset(&_prefs, 0, sizeof(_prefs));
-  _prefs.airtime_factor = 1.0;    // one half
+  _prefs.airtime_factor = 1.0;
   _prefs.rx_delay_base =   0.0f;  // turn off by default, was 10.0;
   _prefs.tx_delay_factor = 0.5f;   // was 0.25f
   _prefs.direct_tx_delay_factor = 0.2f; // was zero
@@ -728,6 +731,8 @@ SensorMesh::SensorMesh(mesh::MainBoard& board, mesh::Radio& radio, mesh::Millise
   _prefs.gps_enabled = 0;
   _prefs.gps_interval = 0;
   _prefs.advert_loc_policy = ADVERT_LOC_PREFS;
+
+  memset(default_scope.key, 0, sizeof(default_scope.key));
 }
 
 void SensorMesh::begin(FILESYSTEM* fs) {
@@ -737,6 +742,27 @@ void SensorMesh::begin(FILESYSTEM* fs) {
   _cli.loadPrefs(_fs);
 
   acl.load(_fs, self_id);
+  region_map.load(_fs);
+
+  // establish default-scope
+  {
+    RegionEntry* r = region_map.getDefaultRegion();
+    if (r) {
+      region_map.getTransportKeysFor(*r, &default_scope, 1);
+    } else {
+#ifdef DEFAULT_FLOOD_SCOPE_NAME
+      r = region_map.findByName(DEFAULT_FLOOD_SCOPE_NAME);
+      if (r == NULL) {
+        r = region_map.putRegion(DEFAULT_FLOOD_SCOPE_NAME, 0);  // auto-create the default scope region
+        if (r) { r->flags = 0; }   // Allow-flood
+      }
+      if (r) {
+        region_map.setDefaultRegion(r);
+        region_map.getTransportKeysFor(*r, &default_scope, 1);
+      }
+#endif
+    }
+  }
 
   radio_set_params(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
   radio_set_tx_power(_prefs.tx_power_dbm);
@@ -791,7 +817,7 @@ void SensorMesh::sendSelfAdvertisement(int delay_millis, bool flood) {
   mesh::Packet* pkt = createSelfAdvert();
   if (pkt) {
     if (flood) {
-      sendFlood(pkt, delay_millis);
+      sendFlood(pkt, delay_millis, _prefs.path_hash_mode + 1);
     } else {
       sendZeroHop(pkt, delay_millis);
     }
@@ -815,7 +841,7 @@ void SensorMesh::updateFloodAdvertTimer() {
   }
 }
 
-void SensorMesh::setTxPower(uint8_t power_dbm) {
+void SensorMesh::setTxPower(int8_t power_dbm) {
   radio_set_tx_power(power_dbm);
 }
 
@@ -868,7 +894,8 @@ void SensorMesh::loop() {
 
   if (next_flood_advert && millisHasNowPassed(next_flood_advert)) {
     mesh::Packet* pkt = createSelfAdvert();
-    if (pkt) sendFlood(pkt);
+    unsigned long delay_millis = 0;
+    if (pkt) sendFlood(pkt, delay_millis, _prefs.path_hash_mode + 1);
 
     updateFloodAdvertTimer();   // schedule next flood advert
     updateAdvertTimer();   // also schedule local advert (so they don't overlap)

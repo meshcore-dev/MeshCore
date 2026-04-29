@@ -50,7 +50,9 @@ public:
   virtual uint8_t getStartupReason() const override { return startup_reason; }
   virtual float getMCUTemperature() override;
   virtual void reboot() override { NVIC_SystemReset(); }
+  virtual bool getBootloaderVersion(char* version, size_t max_len) override;
   virtual bool startOTAUpdate(const char *id, char reply[]) override;
+  virtual void sleep(uint32_t secs) override;
 
 #ifdef NRF52_POWER_MANAGEMENT
   bool isExternalPowered() override;
