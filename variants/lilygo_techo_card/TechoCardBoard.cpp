@@ -59,7 +59,7 @@ void TechoCardBoard::begin() {
   pinMode(PIN_VBAT_READ, INPUT);
   pinMode(PIN_USER_BTN, INPUT);
 
-  // Initialise I2C — must be done before display.begin() is called from main.cpp
+  // Initialise I2C -- must be done before display.begin() is called from main.cpp
   Wire.begin();
   Wire.setClock(400000);
 

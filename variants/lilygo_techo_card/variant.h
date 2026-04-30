@@ -1,7 +1,7 @@
 /*
- * variant.h — LilyGo T-Echo Card pin definitions
+ * variant.h -- LilyGo T-Echo Card pin definitions
  *
- * nRF52840 + SX1262 (HPB16B3) + SSD1315 OLED (72×40) + L76K GPS
+ * nRF52840 + SX1262 (HPB16B3) + SSD1315 OLED (72x40) + L76K GPS
  * + MAX98357 Speaker + MP34DT05 PDM Mic + ICM20948 IMU + BQ25896 + Solar
  *
  * Cross-referenced against:
@@ -44,10 +44,10 @@
 #define NUM_ANALOG_OUTPUTS          (0)
 
 ////////////////////////////////////////////////////////////////////////////////
-// UART — GPS (L76K)
+// UART -- GPS (L76K)
 
-#define PIN_SERIAL1_RX              21    // (0, 21) — GPS TX → nRF RX
-#define PIN_SERIAL1_TX              19    // (0, 19) — nRF TX → GPS RX
+#define PIN_SERIAL1_RX              21    // (0, 21) -- GPS TX → nRF RX
+#define PIN_SERIAL1_TX              19    // (0, 19) -- nRF TX → GPS RX
 
 ////////////////////////////////////////////////////////////////////////////////
 // I2C (shared: OLED, IMU ICM20948)
@@ -57,37 +57,37 @@
 #define PIN_WIRE_SCL                34    // (1, 2)
 
 ////////////////////////////////////////////////////////////////////////////////
-// LEDs — WS2812 addressable (no plain GPIO LED)
-// The BSP drives LED_BUILTIN via digitalWrite for BLE status — if pointed at
+// LEDs -- WS2812 addressable (no plain GPIO LED)
+// The BSP drives LED_BUILTIN via digitalWrite for BLE status -- if pointed at
 // the WS2812 data pin (39), it holds the line HIGH and all LEDs glow green.
 // Point at an unused GPIO (46 = P1.14) so the BSP toggles harmlessly.
 
-#define LED_BUILTIN                 46    // Unused GPIO — keeps BSP happy
+#define LED_BUILTIN                 46    // Unused GPIO -- keeps BSP happy
 #define PIN_LED                     LED_BUILTIN
 #define LED_RED                     LED_BUILTIN
 #define LED_BLUE                    (-1)  // Prevents Bluefruit flashing during advertising
 #define PIN_STATUS_LED              LED_BUILTIN
 #define LED_STATE_ON                1
 
-// WS2812 RGB LEDs — 3 LEDs daisy-chained on a single data line (pin 39)
+// WS2812 RGB LEDs -- 3 LEDs daisy-chained on a single data line (pin 39)
 // Hardware verified: all three light when pin 39 is driven HIGH.
 // Meshtastic PR #10267 mapped them as separate GPIOs (39, 44, 28) but
 // testing confirms they're chained.
 #define HAS_RGB_LED                 1
-#define PIN_RGB_LED_1               39    // (1, 7) — chain data in
+#define PIN_RGB_LED_1               39    // (1, 7) -- chain data in
 #define PIN_NEOPIXEL                PIN_RGB_LED_1
 #define NUM_NEOPIXELS               3
 
 ////////////////////////////////////////////////////////////////////////////////
 // Buttons
 
-#define PIN_BUTTON1                 42    // (1, 10) — orange front button
+#define PIN_BUTTON1                 42    // (1, 10) -- orange front button
 #define BUTTON_PIN                  PIN_BUTTON1
 #define PIN_USER_BTN                BUTTON_PIN
 // Boot button: P0.24 (hardware only, used for DFU)
 
 ////////////////////////////////////////////////////////////////////////////////
-// SPI — LoRa
+// SPI -- LoRa
 
 #define SPI_INTERFACES_COUNT        (1)
 
@@ -119,9 +119,9 @@
 #define LORA_RF_VC2                 33    // (1, 1)
 
 ////////////////////////////////////////////////////////////////////////////////
-// OLED Display — SSD1315 (SSD1306-compatible), 72×40, I2C
+// OLED Display -- SSD1315 (SSD1306-compatible), 72x40, I2C
 //
-// Physical panel is 72×40 within 128×64 GDDRAM.
+// Physical panel is 72x40 within 128x64 GDDRAM.
 // Visible window: columns 28–99, pages 3–7 (rows 24–63).
 // SETDISPLAYOFFSET = 24 maps page 0 writes to the visible area.
 
@@ -131,12 +131,12 @@
 #define OLED_HEIGHT                 40
 #define OLED_DISPLAY_OFFSET         24
 
-// RT9080 enable — controls 3V3 rail (OLED, GPS, LoRa, sensors)
+// RT9080 enable -- controls 3V3 rail (OLED, GPS, LoRa, sensors)
 #define PIN_OLED_EN                 30    // (0, 30)
 #define PIN_OLED_RESET              (-1)
 
 ////////////////////////////////////////////////////////////////////////////////
-// GPS — L76K Multi-GNSS
+// GPS -- L76K Multi-GNSS
 
 #define HAS_GPS                     1
 #define GPS_BAUDRATE                9600
@@ -148,7 +148,7 @@
 #define PIN_GPS_RF_EN               29    // (0, 29)
 
 ////////////////////////////////////////////////////////////////////////////////
-// Speaker — MAX98357 I2S Class-D Mono Amp
+// Speaker -- MAX98357 I2S Class-D Mono Amp
 
 #define HAS_SPEAKER                 1
 #define PIN_SPK_EN                  43    // (1, 11)
@@ -158,7 +158,7 @@
 #define PIN_SPK_LRCK                22    // (0, 22)
 
 ////////////////////////////////////////////////////////////////////////////////
-// Microphone — MP34DT05 Digital MEMS PDM
+// Microphone -- MP34DT05 Digital MEMS PDM
 
 #define HAS_MICROPHONE              1
 #define PIN_MIC_CLK                 35    // (1, 3)
@@ -171,18 +171,18 @@
 #define PIN_BUZZER                  38    // (1, 6)
 
 ////////////////////////////////////////////////////////////////////////////////
-// IMU — ICM20948
+// IMU -- ICM20948
 
 #define HAS_IMU                     1
 #define IMU_I2C_ADDR                0x68
 
 ////////////////////////////////////////////////////////////////////////////////
-// NFC — nRF52840 NFC-A (dedicated P0.09/P0.10)
+// NFC -- nRF52840 NFC-A (dedicated P0.09/P0.10)
 
 #define HAS_NFC                     1
 
 ////////////////////////////////////////////////////////////////////////////////
-// External Flash — ZD25WQ32CEIGR 4MB QSPI
+// External Flash -- ZD25WQ32CEIGR 4MB QSPI
 
 #define HAS_EXT_FLASH               1
 #define PIN_QSPI_SCK                4     // (0, 4)
@@ -193,6 +193,6 @@
 #define PIN_QSPI_IO3                26    // (0, 26)
 
 ////////////////////////////////////////////////////////////////////////////////
-// No dedicated RTC chip — time from GPS or BLE companion sync
+// No dedicated RTC chip -- time from GPS or BLE companion sync
 
 #define HAS_RTC                     0

@@ -4,7 +4,7 @@
 #include "wiring_digital.h"
 
 const uint32_t g_ADigitalPinMap[] = {
-    // P0 — pins 0 and 1 are hardwired for 32.768 kHz crystal (LFXO)
+    // P0 -- pins 0 and 1 are hardwired for 32.768 kHz crystal (LFXO)
     0xff, 0xff, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
 
     // P1

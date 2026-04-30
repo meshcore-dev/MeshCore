@@ -49,7 +49,7 @@ public:
   // Speaker power control
   void enableSpeaker(bool enable);
 
-  // RGB LEDs — all three to same colour
+  // RGB LEDs -- all three to same colour
   void setLED(uint8_t r, uint8_t g, uint8_t b);
   void ledOff();
 

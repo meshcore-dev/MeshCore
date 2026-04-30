@@ -26,7 +26,7 @@ AutoDiscoverRTCClock rtc_clock(fallback_clock);
 
 bool radio_init() {
   // board.begin() and display.begin() are called by main.cpp before this.
-  // radio_init() should ONLY initialise the radio — matching Meshpocket pattern.
+  // radio_init() should ONLY initialise the radio -- matching Meshpocket pattern.
   return radio.std_init(&SPI);
 }
 

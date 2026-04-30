@@ -1,7 +1,7 @@
 // =============================================================================
-// TechoCardHomeScreen — 72×40 OLED home screen for LilyGo T-Echo Card
+// TechoCardHomeScreen -- 72x40 OLED home screen for LilyGo T-Echo Card
 //
-// Four-line layout using U8g2's 4×6 tom_thumb font (18 chars × 4 lines).
+// Four-line layout using U8g2's 4x6 tom_thumb font (18 chars x 4 lines).
 // U8g2's native SSD1306_72X40_ER support handles all GDDRAM offset mapping.
 //
 // Two-button navigation:  A (pin 42) = next page / long-press activate
@@ -41,7 +41,7 @@ class TechoCardHomeScreen : public UIScreen {
   unsigned long _shutdown_at;
 
   // Four lines at 9px spacing within 40px display.
-  // U8g2 handles panel offset natively — y=0 is the true visible top.
+  // U8g2 handles panel offset natively -- y=0 is the true visible top.
   static const int Y0 = 2;
   static const int Y1 = 11;
   static const int Y2 = 20;

@@ -56,7 +56,7 @@ public:
 
   int render(DisplayDriver& display) override {
 #if defined(LILYGO_TECHO_CARD)
-    // Text-only splash for 72×40 OLED — no room for 128px logo
+    // Text-only splash for 72x40 OLED -- no room for 128px logo
     display.setColor(DisplayDriver::GREEN);
     display.setTextSize(1);
     display.drawTextCentered(display.width()/2, 2, "MeshCore");
