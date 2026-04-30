@@ -14,7 +14,18 @@ bool SSD1306Display::begin() {
   #ifdef DISPLAY_ROTATION
   display.setRotation(DISPLAY_ROTATION);
   #endif
-  return display.begin(SSD1306_SWITCHCAPVCC, DISPLAY_ADDRESS, true, false) && i2c_probe(Wire, DISPLAY_ADDRESS);
+  bool ok = display.begin(SSD1306_SWITCHCAPVCC, DISPLAY_ADDRESS, true, false) && i2c_probe(Wire, DISPLAY_ADDRESS);
+
+  // Apply vertical display offset for panels smaller than the GDDRAM
+  // (e.g. 72×40 panel in a 128×64 GDDRAM — visible area starts at row 24)
+  #ifdef OLED_DISPLAY_OFFSET
+  if (ok) {
+    display.ssd1306_command(SSD1306_SETDISPLAYOFFSET);
+    display.ssd1306_command(OLED_DISPLAY_OFFSET);
+  }
+  #endif
+
+  return ok;
 }
 
 void SSD1306Display::turnOn() {
