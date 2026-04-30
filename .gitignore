@@ -17,3 +17,4 @@ compile_commands.json
 .venv/
 venv/
 platformio.local.ini
+.DS_Store
