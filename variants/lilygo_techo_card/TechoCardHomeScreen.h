@@ -117,7 +117,7 @@ public:
       display.print(tmp);
 
       display.setCursor(0, Y3);
-      snprintf(tmp, sizeof(tmp), "Noise floor: %d",
+      snprintf(tmp, sizeof(tmp), "NF: %d",
                radio_driver.getNoiseFloor());
       display.print(tmp);
       break;
@@ -172,7 +172,7 @@ public:
 
       display.print("GPS: ON");
       if (loc) {
-        snprintf(tmp, sizeof(tmp), "Sats: %d",
+        snprintf(tmp, sizeof(tmp), "S: %d",
                  loc->satellitesCount());
         display.drawTextRightAlign(display.width() - 1, Y0, tmp);
 

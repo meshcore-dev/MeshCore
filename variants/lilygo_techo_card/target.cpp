@@ -9,14 +9,19 @@ RADIO_CLASS radio = new Module(P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BU
 
 WRAPPER_CLASS radio_driver(radio, board);
 
-SensorManager sensors = SensorManager();
-
 VolatileRTCClock fallback_clock;
 AutoDiscoverRTCClock rtc_clock(fallback_clock);
 
+#if ENV_INCLUDE_GPS
+  MicroNMEALocationProvider gps(Serial1, &rtc_clock);
+  EnvironmentSensorManager sensors(gps);
+#else
+  EnvironmentSensorManager sensors;
+#endif
+
 #ifdef DISPLAY_CLASS
   DISPLAY_CLASS display;
-  MomentaryButton user_btn(PIN_USER_BTN, 1000, true);
+  MomentaryButton user_btn(PIN_USER_BTN, 1000, true, true);
 #endif
 
 bool radio_init() {

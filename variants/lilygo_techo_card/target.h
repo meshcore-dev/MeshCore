@@ -5,7 +5,7 @@
 #include <helpers/radiolib/RadioLibWrappers.h>
 #include <helpers/radiolib/CustomSX1262Wrapper.h>
 #include <helpers/AutoDiscoverRTCClock.h>
-#include <helpers/SensorManager.h>
+#include <helpers/sensors/EnvironmentSensorManager.h>
 #include <helpers/sensors/LocationProvider.h>
 #include "TechoCardBoard.h"
 
@@ -27,7 +27,7 @@ extern AutoDiscoverRTCClock rtc_clock;
   extern MomentaryButton user_btn;
 #endif
 
-extern SensorManager sensors;
+extern EnvironmentSensorManager sensors;
 
 bool radio_init();
 uint32_t radio_get_rng_seed();
