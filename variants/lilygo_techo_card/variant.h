@@ -58,19 +58,23 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 // LEDs — WS2812 addressable (no plain GPIO LED)
+// The BSP drives LED_BUILTIN via digitalWrite for BLE status — if pointed at
+// the WS2812 data pin (39), it holds the line HIGH and all LEDs glow green.
+// Point at an unused GPIO (46 = P1.14) so the BSP toggles harmlessly.
 
-#define LED_BUILTIN                 39    // WS2812 data 1 (1, 7)
+#define LED_BUILTIN                 46    // Unused GPIO — keeps BSP happy
 #define PIN_LED                     LED_BUILTIN
 #define LED_RED                     LED_BUILTIN
 #define LED_BLUE                    (-1)  // Prevents Bluefruit flashing during advertising
 #define PIN_STATUS_LED              LED_BUILTIN
 #define LED_STATE_ON                1
 
-// Three independent WS2812s on separate data lines
+// WS2812 RGB LEDs — 3 LEDs daisy-chained on a single data line (pin 39)
+// Hardware verified: all three light when pin 39 is driven HIGH.
+// Meshtastic PR #10267 mapped them as separate GPIOs (39, 44, 28) but
+// testing confirms they're chained.
 #define HAS_RGB_LED                 1
-#define PIN_RGB_LED_1               39    // (1, 7)  — power/charge
-#define PIN_RGB_LED_2               44    // (1, 12) — notification
-#define PIN_RGB_LED_3               28    // (0, 28) — BLE pairing
+#define PIN_RGB_LED_1               39    // (1, 7) — chain data in
 #define PIN_NEOPIXEL                PIN_RGB_LED_1
 #define NUM_NEOPIXELS               3
 

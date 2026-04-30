@@ -5,6 +5,9 @@
 #ifdef WIFI_SSID
   #include <WiFi.h>
 #endif
+#if defined(LILYGO_TECHO_CARD)
+  #include "TechoCardHomeScreen.h"
+#endif
 
 #ifndef AUTO_OFF_MILLIS
   #define AUTO_OFF_MILLIS     15000   // 15 seconds
@@ -52,6 +55,15 @@ public:
   }
 
   int render(DisplayDriver& display) override {
+#if defined(LILYGO_TECHO_CARD)
+    // Text-only splash for 72×40 OLED — no room for 128px logo
+    display.setColor(DisplayDriver::GREEN);
+    display.setTextSize(1);
+    display.drawTextCentered(display.width()/2, 2, "MeshCore");
+    display.setColor(DisplayDriver::LIGHT);
+    display.drawTextCentered(display.width()/2, 14, _version_info);
+    display.drawTextCentered(display.width()/2, 26, FIRMWARE_BUILD_DATE);
+#else
     // meshcore logo
     display.setColor(DisplayDriver::BLUE);
     int logoWidth = 128;
@@ -72,6 +84,7 @@ public:
 
     display.setTextSize(1);
     display.drawTextCentered(display.width()/2, 48, FIRMWARE_BUILD_DATE);
+#endif
 
     return 1000;
   }
@@ -585,7 +598,11 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
   _alert_expiry = 0;
 
   splash = new SplashScreen(this);
+#if defined(LILYGO_TECHO_CARD)
+  home = new TechoCardHomeScreen(this, &rtc_clock, node_prefs);
+#else
   home = new HomeScreen(this, &rtc_clock, sensors, node_prefs);
+#endif
   msg_preview = new MsgPreviewScreen(this, &rtc_clock);
   setCurrScreen(splash);
 }
@@ -745,6 +762,26 @@ void UITask::loop() {
     c = handleDoubleClick(KEY_PREV);
   } else if (ev == BUTTON_EVENT_TRIPLE_CLICK) {
     c = handleTripleClick(KEY_SELECT);
+  }
+#endif
+#if defined(PIN_BOOT_BTN)
+  // Second navigation button (C / Boot on T-Echo Card) + torch
+  {
+    static MomentaryButton boot_btn(PIN_BOOT_BTN, LONG_PRESS_MILLIS, true);
+    static bool _boot_btn_ready = false;
+    if (!_boot_btn_ready) { boot_btn.begin(); _boot_btn_ready = true; }
+    static bool torch_on = false;
+    int ev2 = boot_btn.check();
+    if (ev2 == BUTTON_EVENT_CLICK && c == 0) {
+      c = checkDisplayOn(KEY_PREV);
+    } else if (ev2 == BUTTON_EVENT_DOUBLE_CLICK) {
+      torch_on = !torch_on;
+      if (torch_on) {
+        board.setLED(255, 255, 255);
+      } else {
+        board.ledOff();
+      }
+    }
   }
 #endif
 #if defined(PIN_USER_BTN_ANA)

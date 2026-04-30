@@ -10,8 +10,12 @@
 #include "TechoCardBoard.h"
 
 #ifdef DISPLAY_CLASS
-#include <helpers/ui/SSD1306Display.h>
-#include <helpers/ui/MomentaryButton.h>
+  #if defined(USE_U8G2_DISPLAY)
+    #include <helpers/ui/U8g2Display.h>
+  #else
+    #include <helpers/ui/SSD1306Display.h>
+  #endif
+  #include <helpers/ui/MomentaryButton.h>
 #endif
 
 extern TechoCardBoard board;

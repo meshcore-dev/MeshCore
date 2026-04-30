@@ -12,9 +12,7 @@
 class TechoCardBoard : public NRF52BoardDCDC {
 private:
   #if defined(HAS_RGB_LED)
-    Adafruit_NeoPixel _pixel_power   = Adafruit_NeoPixel(1, PIN_RGB_LED_1, NEO_GRB + NEO_KHZ800);
-    Adafruit_NeoPixel _pixel_notify  = Adafruit_NeoPixel(1, PIN_RGB_LED_2, NEO_GRB + NEO_KHZ800);
-    Adafruit_NeoPixel _pixel_pairing = Adafruit_NeoPixel(1, PIN_RGB_LED_3, NEO_GRB + NEO_KHZ800);
+    Adafruit_NeoPixel _pixels = Adafruit_NeoPixel(NUM_NEOPIXELS, PIN_RGB_LED_1, NEO_GRB + NEO_KHZ800);
   #endif
 
 public:

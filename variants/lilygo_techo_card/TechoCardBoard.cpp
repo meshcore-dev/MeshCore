@@ -63,19 +63,15 @@ void TechoCardBoard::begin() {
   Wire.begin();
   Wire.setClock(400000);
 
-  // Initialise WS2812 NeoPixels (all off at boot)
+  // Initialise WS2812 NeoPixel chain (all off at boot)
+  // Force data line LOW before init to prevent stray HIGH latching green
   #if defined(HAS_RGB_LED)
-    _pixel_power.begin();
-    _pixel_power.clear();
-    _pixel_power.show();
-
-    _pixel_notify.begin();
-    _pixel_notify.clear();
-    _pixel_notify.show();
-
-    _pixel_pairing.begin();
-    _pixel_pairing.clear();
-    _pixel_pairing.show();
+    pinMode(PIN_RGB_LED_1, OUTPUT);
+    digitalWrite(PIN_RGB_LED_1, LOW);
+    delayMicroseconds(300);  // WS2812 reset pulse is ~280µs
+    _pixels.begin();
+    _pixels.clear();
+    _pixels.show();
   #endif
 }
 
@@ -100,12 +96,10 @@ void TechoCardBoard::enableSpeaker(bool enable) {
 void TechoCardBoard::setLED(uint8_t r, uint8_t g, uint8_t b) {
   #if defined(HAS_RGB_LED)
     uint32_t color = Adafruit_NeoPixel::Color(r, g, b);
-    _pixel_power.setPixelColor(0, color);
-    _pixel_power.show();
-    _pixel_notify.setPixelColor(0, color);
-    _pixel_notify.show();
-    _pixel_pairing.setPixelColor(0, color);
-    _pixel_pairing.show();
+    for (int i = 0; i < NUM_NEOPIXELS; i++) {
+      _pixels.setPixelColor(i, color);
+    }
+    _pixels.show();
   #else
     (void)r; (void)g; (void)b;
   #endif
@@ -117,19 +111,9 @@ void TechoCardBoard::ledOff() {
 
 void TechoCardBoard::setStatusLED(uint8_t led_index, uint32_t color) {
   #if defined(HAS_RGB_LED)
-    switch (led_index) {
-      case 0:
-        _pixel_power.setPixelColor(0, color);
-        _pixel_power.show();
-        break;
-      case 1:
-        _pixel_notify.setPixelColor(0, color);
-        _pixel_notify.show();
-        break;
-      case 2:
-        _pixel_pairing.setPixelColor(0, color);
-        _pixel_pairing.show();
-        break;
+    if (led_index < NUM_NEOPIXELS) {
+      _pixels.setPixelColor(led_index, color);
+      _pixels.show();
     }
   #else
     (void)led_index; (void)color;
