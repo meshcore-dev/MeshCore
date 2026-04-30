@@ -71,7 +71,7 @@ public:
     display.drawTextCentered(display.width()/2, 35, _version_info);
 
     display.setTextSize(1);
-#ifdef OLED_RU
+#ifdef CYRILLIC
     char filtered_date[sizeof(FIRMWARE_BUILD_DATE)];
     display.translateUTF8ToBlocks(filtered_date, FIRMWARE_BUILD_DATE, sizeof(filtered_date));
     display.drawTextCentered(display.width()/2, 48, filtered_date);
@@ -476,7 +476,7 @@ class MsgPreviewScreen : public UIScreen {
   struct MsgEntry {
     uint32_t timestamp;
     char origin[62];
-#ifdef OLED_RU
+#ifdef CYRILLIC
     char msg[140];
 #else
     char msg[78];
@@ -537,7 +537,7 @@ public:
     display.setColor(DisplayDriver::LIGHT);
     char filtered_msg[sizeof(p->msg)];
     display.translateUTF8ToBlocks(filtered_msg, p->msg, sizeof(filtered_msg));
-#ifdef OLED_RU
+#ifdef CYRILLIC
     char truncated_msg[78];
     StrHelper::strncpy(truncated_msg, filtered_msg, sizeof(truncated_msg));
     display.printWordWrap(truncated_msg, display.width());

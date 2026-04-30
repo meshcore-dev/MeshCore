@@ -45,14 +45,14 @@ public:
   // convert UTF-8 characters to displayable block characters for compatibility
   virtual void translateUTF8ToBlocks(char* dest, const char* src, size_t dest_size) {
     size_t j = 0;
-#ifdef OLED_RU	  
+#ifdef CYRILLIC	  
 	char last_char = 0;
 	char cc = 0;
 #endif
     for (size_t i = 0; src[i] != 0 && j < dest_size - 1; i++) {
       unsigned char c = (unsigned char)src[i];
       if (c >= 32 && c <= 126) {
-#ifdef OLED_RU 		  
+#ifdef CYRILLIC 		  
 		last_char = 0;
         dest[j++] = c;  // ASCII printable
 	  } else if (last_char == 0 && (c == 0xD0 || c == 0xD1 || c == 0xD2)) { // Cyrillic UTF-8 start byte for 2 bytes sequence
