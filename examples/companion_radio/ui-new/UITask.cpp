@@ -56,7 +56,7 @@ public:
 
   int render(DisplayDriver& display) override {
 #if defined(LILYGO_TECHO_CARD)
-    // Text-only splash for 72x40 OLED -- no room for 128px logo
+    // Text-only splash for 72×40 OLED -- no room for 128px logo
     display.setColor(DisplayDriver::GREEN);
     display.setTextSize(1);
     display.drawTextCentered(display.width()/2, 2, "MeshCore");
@@ -781,9 +781,10 @@ void UITask::loop() {
     } else if (ev2 == BUTTON_EVENT_DOUBLE_CLICK) {
       torch_on = !torch_on;
       if (torch_on) {
-        board.setLED(255, 255, 255);
+        // Single LED only -- driving all three white exceeds RT9080 current budget and reboots
+        board.setStatusLED(0, 0xFFFFFF);
       } else {
-        board.ledOff();
+        board.setStatusLED(0, 0);
       }
     }
   }
