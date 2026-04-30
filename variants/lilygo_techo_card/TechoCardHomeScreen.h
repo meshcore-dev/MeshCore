@@ -78,13 +78,13 @@ public:
                                     sizeof(filtered_name));
       display.print(filtered_name);
 
-      snprintf(tmp, sizeof(tmp), "%d%%", battPercent());
-      display.drawTextRightAlign(display.width() - 1, Y0, tmp);
-
       display.setColor(DisplayDriver::YELLOW);
       display.setCursor(0, Y1);
       snprintf(tmp, sizeof(tmp), "MSG: %d", _task->getMsgCount());
       display.print(tmp);
+
+      snprintf(tmp, sizeof(tmp), "%d%%", battPercent());
+      display.drawTextRightAlign(display.width() - 1, Y1, tmp);
 
       display.setColor(DisplayDriver::LIGHT);
       display.setCursor(0, Y2);

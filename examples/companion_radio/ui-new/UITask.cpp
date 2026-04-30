@@ -603,7 +603,9 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
 #else
   home = new HomeScreen(this, &rtc_clock, sensors, node_prefs);
 #endif
+#if !defined(LILYGO_TECHO_CARD)
   msg_preview = new MsgPreviewScreen(this, &rtc_clock);
+#endif
   setCurrScreen(splash);
 }
 
@@ -652,8 +654,10 @@ void UITask::msgRead(int msgcount) {
 void UITask::newMsg(uint8_t path_len, const char* from_name, const char* text, int msgcount) {
   _msgcount = msgcount;
 
+#if !defined(LILYGO_TECHO_CARD)
   ((MsgPreviewScreen *) msg_preview)->addPreview(path_len, from_name, text);
   setCurrScreen(msg_preview);
+#endif
 
   if (_display != NULL) {
     if (!_display->isOn() && !hasConnection()) {
