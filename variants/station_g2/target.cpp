@@ -49,6 +49,7 @@ void radio_set_params(float freq, float bw, uint8_t sf, uint8_t cr) {
   radio.setSpreadingFactor(sf);
   radio.setBandwidth(bw);
   radio.setCodingRate(cr);
+  radio_driver.updatePreamble(sf);
 }
 
 void radio_set_tx_power(int8_t dbm) {
@@ -59,3 +60,4 @@ mesh::LocalIdentity radio_new_identity() {
   RadioNoiseListener rng(radio);
   return mesh::LocalIdentity(&rng);  // create new random identity
 }
+

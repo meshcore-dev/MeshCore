@@ -22,7 +22,7 @@ namespace mesh {
 #define PAYLOAD_TYPE_ACK         0x03    // a simple ack
 #define PAYLOAD_TYPE_ADVERT      0x04    // a node advertising its Identity
 #define PAYLOAD_TYPE_GRP_TXT     0x05    // an (unverified) group text message (prefixed with channel hash, MAC) (enc data: timestamp, "name: msg")
-#define PAYLOAD_TYPE_GRP_DATA    0x06    // an (unverified) group datagram (prefixed with channel hash, MAC) (enc data: timestamp, blob)
+#define PAYLOAD_TYPE_GRP_DATA    0x06    // an (unverified) group datagram (prefixed with channel hash, MAC) (enc data: data_type(uint16), data_len, blob)
 #define PAYLOAD_TYPE_ANON_REQ    0x07    // generic request (prefixed with dest_hash, ephemeral pub_key, MAC) (enc data: ...)
 #define PAYLOAD_TYPE_PATH        0x08    // returned path (prefixed with dest/src hashes, MAC) (enc data: path, extra)
 #define PAYLOAD_TYPE_TRACE       0x09    // trace a path, collecting SNI for each hop
@@ -75,6 +75,16 @@ public:
    * \returns  one of PAYLOAD_VER_ values
    */
   uint8_t getPayloadVer() const { return (header >> PH_VER_SHIFT) & PH_VER_MASK; }
+
+  uint8_t getPathHashSize() const { return (path_len >> 6) + 1; }
+  uint8_t getPathHashCount() const { return path_len & 63; }
+  uint8_t getPathByteLen() const { return getPathHashCount() * getPathHashSize(); }
+  void setPathHashCount(uint8_t n) { path_len &= ~63; path_len |= n; }
+  void setPathHashSizeAndCount(uint8_t sz, uint8_t n) { path_len = ((sz - 1) << 6) | (n & 63); }
+
+  static uint8_t copyPath(uint8_t* dest, const uint8_t* src, uint8_t path_len);  // returns path_len
+  static size_t writePath(uint8_t* dest, const uint8_t* src, uint8_t path_len);  // returns byte length written
+  static bool isValidPathLen(uint8_t path_len);
 
   void markDoNotRetransmit() { header = 0xFF; }
   bool isMarkedDoNotRetransmit() const { return header == 0xFF; }

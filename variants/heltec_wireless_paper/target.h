@@ -4,6 +4,12 @@
 #include <RadioLib.h>
 #include <helpers/radiolib/RadioLibWrappers.h>
 #include <../heltec_v3/HeltecV3Board.h>
+class HeltecWirelessPaperBoard : public HeltecV3Board {
+public:
+  const char* getManufacturerName() const override {
+    return "Heltec Wireless Paper";
+  }
+};
 #include <helpers/radiolib/CustomSX1262Wrapper.h>
 #include <helpers/AutoDiscoverRTCClock.h>
 #include <helpers/SensorManager.h>
@@ -12,7 +18,7 @@
 #include <helpers/ui/MomentaryButton.h>
 #endif
 
-extern HeltecV3Board board;
+extern HeltecWirelessPaperBoard board;
 extern WRAPPER_CLASS radio_driver;
 extern AutoDiscoverRTCClock rtc_clock;
 extern SensorManager sensors;

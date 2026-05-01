@@ -26,6 +26,8 @@ void setFlag(void) {
 
 void RadioLibWrapper::begin() {
   _radio->setPacketReceivedAction(setFlag);  // this is also SentComplete interrupt
+  _preamble_sf = getSpreadingFactor();
+  _radio->setPreambleLength(preambleLengthForSF(_preamble_sf)); // longer preamble for lower SF improves reliability
   state = STATE_IDLE;
 
   if (_board->getStartupReason() == BD_STARTUP_RX_PACKET) {  // received a LoRa packet (while in deep sleep)
@@ -53,13 +55,24 @@ void RadioLibWrapper::triggerNoiseFloorCalibrate(int threshold) {
   }
 }
 
+void RadioLibWrapper::doResetAGC() {
+  _radio->sleep();  // warm sleep to reset analog frontend
+}
+
 void RadioLibWrapper::resetAGC() {
   // make sure we're not mid-receive of packet!
   if ((state & STATE_INT_READY) != 0 || isReceivingPacket()) return;
 
-  // NOTE: according to higher powers, just issuing RadioLib's startReceive() will reset the AGC.
-  //      revisit this if a better impl is discovered.
+  doResetAGC();
   state = STATE_IDLE;   // trigger a startReceive()
+
+  // Reset noise floor sampling so it reconverges from scratch.
+  // Without this, a stuck _noise_floor of -120 makes the sampling threshold
+  // too low (-106) to accept normal samples (~-105), self-reinforcing the
+  // stuck value even after the receiver has recovered.
+  _noise_floor = 0;
+  _num_floor_samples = 0;
+  _floor_sample_sum = 0;
 }
 
 void RadioLibWrapper::loop() {
