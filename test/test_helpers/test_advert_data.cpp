@@ -4,7 +4,7 @@
 
 #include <gtest/gtest.h>
 
-#include "mocks.h"
+#include "../mocks/mesh.h"
 
 namespace {
 
