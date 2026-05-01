@@ -111,7 +111,6 @@ Anyone is able to build anything they like on top of MeshCore without paying any
 - MeshCore Firmware on GitHub: [https://github.com/meshcore-dev/MeshCore](https://github.com/meshcore-dev/MeshCore)
 - MeshCore Companion Web App: [https://app.meshcore.nz](https://app.meshcore.nz)
 - MeshCore Map: [https://map.meshcore.io](https://map.meshcore.io)
-- Andy Kirby's [MeshCore Intro Video](https://www.youtube.com/watch?v=t1qne8uJBAc)
 - Liam Cottle's [MeshCore Technical Presentation](https://www.youtube.com/watch?v=OwmkVkZQTf4)
 
 You need LoRa hardware devices to run MeshCore firmware as clients or server (repeater and room server).
@@ -194,7 +193,7 @@ Recently, as of October 2025, many regions have moved to the "narrow" setting, a
 
 After extensive testing, many regions have switched or about to switch over to BW62.5 and SF7, 8, or 9.  Narrower bandwidth setting and lower SF setting allow MeshCore's radio signals to fit between interference in the ISM band, provide for a lower noise floor, better SNR, and faster transmissions.
 
-If you have consensus from your community in your region to update your region's preset recommendation, please post your update request on  the [#meshcore-app](https://discord.com/channels/1343693475589263471/1391681655911088241) channel on the [MeshCore Discord server ](https://discord.gg/cYtQNYCCRK) to let Liam Cottle know.
+If you have consensus from your community in your region to update your region's preset recommendation, please post your update request on  the [#meshcore-app](https://discord.com/channels/1343693475589263471/1391681655911088241) channel on the [MeshCore Discord server ](https://meshcore.gg) to let Liam Cottle know.
 
 
 
@@ -402,10 +401,7 @@ Another way to download map tiles is to use this Python script to get the tiles 
 <https://github.com/fistulareffigy/MTD-Script>
 
 There is also a modified script that adds additional error handling and parallel downloads:
-<https://discord.com/channels/826570251612323860/1330643963501351004/1338775811548905572>
-
-UK map tiles are available separately from Andy Kirby on his discord server:
-<https://discord.com/channels/826570251612323860/1330643963501351004/1331346597367386224>
+<https://github.com/TheBestJohn/MTD-Script>
 
 ### 4.8. Q: Where do the map tiles go?
 Once you have the tiles downloaded, copy the `\tiles` folder to the root of your T-Deck's SD card.
@@ -526,7 +522,7 @@ The third character is the capital letter 'O', not zero `0`
 - Firmware repo: https://github.com/meshcore-dev/MeshCore
 
 ### 5.8. Q: How can I support MeshCore?
-**A:** Provide your honest feedback on GitHub and on [MeshCore Discord server](https://discord.gg/BMwCtwHj5V). Spread the word of MeshCore to your friends and communities; help them get started with MeshCore. Support Scott's MeshCore development at <https://buymeacoffee.com/ripplebiz>.
+**A:** Provide your honest feedback on GitHub and on [MeshCore Discord server](https://meshcore.gg). Spread the word of MeshCore to your friends and communities; help them get started with MeshCore. Support Scott's MeshCore development at <https://buymeacoffee.com/ripplebiz>.
 
 Support Liam Cottle's smartphone client development by unlocking the server administration wait gate with in-app purchase
 
@@ -562,10 +558,6 @@ save, then run:
 pio run -e RAK_4631_Repeater
 ```
 then you'll find `firmware.zip` in `.pio/build/RAK_4631_Repeater`
-
-Andy also has a video on how to build using VS Code:
-*How to build and flash Meshcore repeater firmware | Heltec V3*
-<https://www.youtube.com/watch?v=WJvg6dt13hk> *(Link referenced in the Discord post)*
 
 ### 5.10. Q: Are there other MeshCore related open source projects?
 
