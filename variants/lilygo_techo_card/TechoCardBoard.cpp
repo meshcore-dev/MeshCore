@@ -2,6 +2,8 @@
 #include "variant.h"
 #include <Wire.h>
 #include <nrf_soc.h>
+#include <InternalFileSystem.h>
+using namespace Adafruit_LittleFS_Namespace;
 
 void TechoCardBoard::begin() {
   NRF52BoardDCDC::begin();
@@ -246,11 +248,8 @@ bool TechoCardBoard::initCompass() {
   // Check AK09916 WHO_AM_I (expect 0x09)
   if (_i2c_rd(AK09916_ADDR, 0x01) != 0x09) return false;
 
-  // Power down first, then continuous mode 4 (100 Hz)
+  // Leave in power-down -- readMag triggers single measurements on demand
   _i2c_wr(AK09916_ADDR, 0x31, 0x00);
-  delay(1);
-  _i2c_wr(AK09916_ADDR, 0x31, 0x08);
-  delay(10);
 
   _compassReady = true;
   return true;
@@ -259,8 +258,16 @@ bool TechoCardBoard::initCompass() {
 bool TechoCardBoard::readMag(int16_t& mx, int16_t& my, int16_t& mz) {
   if (!_compassReady) return false;
 
-  // Check data ready (ST1 bit 0)
-  if (!(_i2c_rd(AK09916_ADDR, 0x10) & 0x01)) return false;
+  // Single-measurement mode: trigger one fresh measurement per call.
+  // Continuous mode gets disrupted by OLED I2C display writes sharing
+  // the bus through ICM20948 bypass, causing stale data.
+  _i2c_wr(AK09916_ADDR, 0x31, 0x01); // single measurement trigger
+
+  // Wait for data ready (measurement takes ~7.2ms)
+  for (int i = 0; i < 20; i++) {
+    if (_i2c_rd(AK09916_ADDR, 0x10) & 0x01) break;
+    delay(1);
+  }
 
   // Burst read 6 data bytes + ST2 (must read ST2 to complete cycle)
   Wire.beginTransmission(AK09916_ADDR);
@@ -296,4 +303,37 @@ void TechoCardBoard::sleepCompass() {
   _i2c_wr(ICM20948_ADDR, 0x06, 0x40);
 
   _compassReady = false;
+}
+
+// =============================================================================
+// Compass calibration persistence
+// =============================================================================
+
+#define COMPASS_CAL_FILE "/compass_cal"
+
+bool TechoCardBoard::loadCalibration() {
+  // InternalFS must already be initialised (done in main.cpp setup)
+  File file = InternalFS.open(COMPASS_CAL_FILE, FILE_O_READ);
+  if (file) {
+    int n = file.read((uint8_t*)&_cal, sizeof(_cal));
+    file.close();
+    if (n == (int)sizeof(_cal) && _cal.magic == COMPASS_CAL_MAGIC) {
+      return true;
+    }
+  }
+  // No valid calibration -- reset to identity (no correction)
+  _cal = { 0, 0, 0, 1.0f, 1.0f, 1.0f, 0 };
+  return false;
+}
+
+bool TechoCardBoard::saveCalibration(const CompassCalibration& cal) {
+  _cal = cal;
+  _cal.magic = COMPASS_CAL_MAGIC;
+  // Direct-write pattern: remove then create (nRF52 LittleFS compatible)
+  InternalFS.remove(COMPASS_CAL_FILE);
+  File file = InternalFS.open(COMPASS_CAL_FILE, FILE_O_WRITE);
+  if (!file) return false;
+  file.write((const uint8_t*)&_cal, sizeof(_cal));
+  file.close();
+  return true;
 }

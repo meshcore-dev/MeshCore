@@ -9,6 +9,17 @@
   #include <Adafruit_NeoPixel.h>
 #endif
 
+// Hard-iron offsets + soft-iron axis scaling.
+// Computed by on-device calibration (rotate slowly for ~20 seconds).
+// Persisted to /compass_cal on InternalFS.
+#define COMPASS_CAL_MAGIC 0xCA1B0000
+
+struct CompassCalibration {
+  int16_t off_x, off_y, off_z;      // hard-iron offsets (raw ADC counts)
+  float   scale_x, scale_y, scale_z; // soft-iron per-axis scale factors
+  uint32_t magic;                     // COMPASS_CAL_MAGIC when valid
+};
+
 class TechoCardBoard : public NRF52BoardDCDC {
 private:
   #if defined(HAS_RGB_LED)
@@ -75,8 +86,15 @@ public:
   bool readMag(int16_t& mx, int16_t& my, int16_t& mz);
   void sleepCompass(); // power down magnetometer + put ICM20948 in sleep mode
 
+  // Compass calibration (persisted to InternalFS)
+  bool loadCalibration();   // call after InternalFS.begin()
+  bool saveCalibration(const CompassCalibration& cal);
+  bool isCalibrated() const { return _cal.magic == COMPASS_CAL_MAGIC; }
+  const CompassCalibration& getCalibration() const { return _cal; }
+
 private:
   bool _compassReady = false;
   bool _chargerProbed = false;
   bool _chargerPresent = false;
+  CompassCalibration _cal = { 0, 0, 0, 1.0f, 1.0f, 1.0f, 0 };
 };

@@ -779,7 +779,12 @@ void UITask::loop() {
     c = handleDoubleClick(KEY_PREV);
     #endif
   } else if (ev == BUTTON_EVENT_TRIPLE_CLICK) {
+    #if defined(LILYGO_TECHO_CARD)
+    toggleBuzzer();
+    c = 0; // consume event
+    #else
     c = handleTripleClick(KEY_SELECT);
+    #endif
   }
 #endif
 #if defined(PIN_BOOT_BTN)
