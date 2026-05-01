@@ -28,11 +28,13 @@ static unsigned long userBtnDownAt = 0;
 #define USER_BTN_HOLD_OFF_MILLIS 1500
 #endif
 
+#ifndef PIO_UNIT_TESTING
 void setup() {
   Serial.begin(115200);
   delay(1000);
 
   board.begin();
+  mesh::initHardwareRNG();
 
 #if defined(MESH_DEBUG) && defined(NRF52_PLATFORM)
   // give some extra time for serial to settle so
@@ -52,13 +54,6 @@ void setup() {
   }
 #endif
 
-  if (!radio_init()) {
-    MESH_DEBUG_PRINTLN("Radio init failed!");
-    halt();
-  }
-
-  fast_rng.begin(radio_get_rng_seed());
-
   FILESYSTEM* fs;
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
   InternalFS.begin();
@@ -76,12 +71,22 @@ void setup() {
 #else
   #error "need to define filesystem"
 #endif
+  fast_rng.attachPersistence(*fs, "/seed.rng");
+  fast_rng.setRadioEntropySource(radio_driver);
+  fast_rng.begin();
+  mesh::deinitHardwareRNG();
+
+  if (!radio_init()) {
+    MESH_DEBUG_PRINTLN("Radio init failed!");
+    halt();
+  }
+
   if (!store.load("_main", the_mesh.self_id)) {
     MESH_DEBUG_PRINTLN("Generating new keypair");
-    the_mesh.self_id = radio_new_identity();   // create new random identity
+    the_mesh.self_id = mesh::LocalIdentity(the_mesh.getRNG());   // create new random identity
     int count = 0;
     while (count < 10 && (the_mesh.self_id.pub_key[0] == 0x00 || the_mesh.self_id.pub_key[0] == 0xFF)) {  // reserved id hashes
-      the_mesh.self_id = radio_new_identity(); count++;
+      the_mesh.self_id = mesh::LocalIdentity(the_mesh.getRNG()); count++;
     }
     store.save("_main", the_mesh.self_id);
   }
@@ -168,3 +173,4 @@ void loop() {
     #endif
   }
 }
+#endif

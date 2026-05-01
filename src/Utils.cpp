@@ -9,9 +9,17 @@
 namespace mesh {
 
 uint32_t RNG::nextInt(uint32_t _min, uint32_t _max) {
+  if (_max <= _min) return _min;
+
+  const uint32_t range = _max - _min;
+  const uint32_t limit = 0xFFFFFFFFu - (0xFFFFFFFFu % range);
+
   uint32_t num;
-  random((uint8_t *) &num, sizeof(num));
-  return (num % (_max - _min)) + _min;
+  do {
+    random((uint8_t *)&num, sizeof(num));
+  } while (num >= limit);
+
+  return _min + (num % range);
 }
 
 void Utils::sha256(uint8_t *hash, size_t hash_len, const uint8_t* msg, int msg_len) {
@@ -148,6 +156,16 @@ int Utils::parseTextParts(char* text, const char* parts[], int max_num, char sep
     *sp = 0;  // replace the separator with null
   }
   return num;
+}
+
+void Utils::secureClear(uint8_t* buf, size_t len) {
+  // Securely clear buffer using volatile to prevent compiler optimizations
+  // Modern compilers may recognize memset(0) and optimize it away,
+  // but volatile ensures the write actually happens
+  volatile uint8_t* v_buf = (volatile uint8_t*)buf;
+  for (size_t i = 0; i < len; i++) {
+    v_buf[i] = 0;
+  }
 }
 
 }

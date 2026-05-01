@@ -1,0 +1,49 @@
+{
+    "name": "ascon",
+    "version": "1.3.0",
+    "description": "ASCon cryptographic library - NIST Lightweight Cryptography standard for authenticated encryption and hashing - This is asconxof128/opt32 without inlining",
+    "keywords": "crypto, encryption, hash, ascon, aes, lightweight",
+    "authors": [
+        {
+            "name": "Jakob Dombrowski",
+            "maintainer": true
+        },
+        {
+            "name": "Lorenzo Grassi",
+            "maintainer": true
+        },
+        {
+            "name": "Yassine Lellahi",
+            "maintainer": true
+        },
+        {
+            "name": "Yi Lu",
+            "maintainer": true
+        },
+        {
+            "name": "Daniel Nilsson",
+            "maintainer": true
+        },
+        {
+            "name": "Torete Pytkow",
+            "maintainer": true
+        }
+    ],
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/ascon-team/ascon-reference.git"
+    },
+    "license": "CC0 1.0 Universal",
+    "homepage": "https://ascon.iaik.tugraz.at/",
+    "frameworks": ["*"],
+    "platforms": ["*"],
+    "build": {
+        "flags": [
+            "-Ilib/ascon",
+            "-fomit-frame-pointer",
+            "-fno-strict-aliasing",
+            "-std=c99",
+            "-O2"
+        ]
+    }
+}

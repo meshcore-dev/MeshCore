@@ -61,6 +61,7 @@ public:
 
   virtual void setRxBoostedGainMode(bool) { }
   virtual bool getRxBoostedGainMode() const { return false; }
+  uint8_t randomByte() { return _radio->randomByte(); }
 };
 
 /**
@@ -74,7 +75,7 @@ public:
 
   void random(uint8_t* dest, size_t sz) override {
     for (int i = 0; i < sz; i++) {
-      dest[i] = _radio->randomByte() ^ (::random(0, 256) & 0xFF);
+      dest[i] = _radio->randomByte();
     }
   }
 };

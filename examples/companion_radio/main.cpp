@@ -105,10 +105,12 @@ void halt() {
   while (1) ;
 }
 
+#ifndef PIO_UNIT_TESTING
 void setup() {
   Serial.begin(115200);
 
   board.begin();
+  mesh::initHardwareRNG();
 
 #ifdef DISPLAY_CLASS
   DisplayDriver* disp = NULL;
@@ -123,12 +125,13 @@ void setup() {
   }
 #endif
 
-  if (!radio_init()) { halt(); }
-
-  fast_rng.begin(radio_get_rng_seed());
-
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
   InternalFS.begin();
+  fast_rng.attachPersistence(InternalFS, "/seed.rng");
+  fast_rng.setRadioEntropySource(radio_driver);
+  fast_rng.begin();
+  mesh::deinitHardwareRNG();
+  if (!radio_init()) { halt(); }
   #if defined(QSPIFLASH)
     if (!QSPIFlash.begin()) {
       // debug output might not be available at this point, might be too early. maybe should fall back to InternalFS here?
@@ -158,6 +161,11 @@ void setup() {
   the_mesh.startInterface(serial_interface);
 #elif defined(RP2040_PLATFORM)
   LittleFS.begin();
+  fast_rng.attachPersistence(LittleFS, "/seed.rng");
+  fast_rng.setRadioEntropySource(radio_driver);
+  fast_rng.begin();
+  mesh::deinitHardwareRNG();
+  if (!radio_init()) { halt(); }
   store.begin();
   the_mesh.begin(
     #ifdef DISPLAY_CLASS
@@ -184,6 +192,11 @@ void setup() {
     the_mesh.startInterface(serial_interface);
 #elif defined(ESP32)
   SPIFFS.begin(true);
+  fast_rng.attachPersistence(SPIFFS, "/seed.rng");
+  fast_rng.setRadioEntropySource(radio_driver);
+  fast_rng.begin();
+  mesh::deinitHardwareRNG();
+  if (!radio_init()) { halt(); }
   store.begin();
   the_mesh.begin(
     #ifdef DISPLAY_CLASS
@@ -230,3 +243,4 @@ void loop() {
 #endif
   rtc_clock.tick();
 }
+#endif

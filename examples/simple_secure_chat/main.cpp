@@ -307,14 +307,6 @@ public:
     IdentityStore store(fs, "/identity");
   #endif
     if (!store.load("_main", self_id, _prefs.node_name, sizeof(_prefs.node_name))) {  // legacy: node_name was from identity file
-      // Need way to get some entropy to seed RNG
-      Serial.println("Press ENTER to generate key:");
-      char c = 0;
-      while (c != '\n') {   // wait for ENTER to be pressed
-        if (Serial.available()) c = Serial.read();
-      }
-      ((StdRNG *)getRNG())->begin(millis());
-
       self_id = mesh::LocalIdentity(getRNG());  // create new random identity
       int count = 0;
       while (count < 10 && (self_id.pub_key[0] == 0x00 || self_id.pub_key[0] == 0xFF)) {  // reserved id hashes
@@ -555,27 +547,37 @@ void halt() {
   while (1) ;
 }
 
+#ifndef PIO_UNIT_TESTING
 void setup() {
   Serial.begin(115200);
 
   board.begin();
+  mesh::initHardwareRNG();
 
-  if (!radio_init()) { halt(); }
-
-  fast_rng.begin(radio_get_rng_seed());
+  FILESYSTEM* fs;
 
 #if defined(NRF52_PLATFORM)
   InternalFS.begin();
-  the_mesh.begin(InternalFS);
+  fs = &InternalFS;
+  fast_rng.attachPersistence(InternalFS, "/seed.rng");
 #elif defined(RP2040_PLATFORM)
   LittleFS.begin();
-  the_mesh.begin(LittleFS);
+  fs = &LittleFS;
+  fast_rng.attachPersistence(LittleFS, "/seed.rng");
 #elif defined(ESP32)
   SPIFFS.begin(true);
-  the_mesh.begin(SPIFFS);
+  fs = &SPIFFS;
+  fast_rng.attachPersistence(SPIFFS, "/seed.rng");
 #else
   #error "need to define filesystem"
 #endif
+  fast_rng.setRadioEntropySource(radio_driver);
+  fast_rng.begin();
+  mesh::deinitHardwareRNG();
+
+  if (!radio_init()) { halt(); }
+
+  the_mesh.begin(*fs);
 
   radio_set_params(the_mesh.getFreqPref(), LORA_BW, LORA_SF, LORA_CR);
   radio_set_tx_power(the_mesh.getTxPowerPref());
@@ -592,3 +594,4 @@ void loop() {
   the_mesh.loop();
   rtc_clock.tick();
 }
+#endif
