@@ -39,6 +39,8 @@ public:
     return "LilyGo T-Echo Card";
   }
 
+  float getMCUTemperature() override;
+
   void powerOff() override {
     sd_power_system_off();
   }
@@ -58,4 +60,23 @@ public:
 
   // Buzzer
   void buzz(uint16_t freq_hz, uint16_t duration_ms);
+
+  // BQ25896 charger IC (0x6B)
+  bool probeCharger(); // check if BQ25896 responds on I2C
+  uint8_t readChargerReg(uint8_t reg);
+  void writeChargerReg(uint8_t reg, uint8_t val);
+  void enableChargerADC(); // start continuous ADC conversion
+  uint8_t getChargeStatus(); // 0=none, 1=pre, 2=fast, 3=done
+  uint16_t getChargerBattMV(); // battery voltage from charger ADC
+  uint8_t getChargerTSPCT(); // thermistor voltage as % of REGN
+
+  // ICM20948 / AK09916 compass (0x68 bypass to 0x0C)
+  bool initCompass();
+  bool readMag(int16_t& mx, int16_t& my, int16_t& mz);
+  void sleepCompass(); // power down magnetometer + put ICM20948 in sleep mode
+
+private:
+  bool _compassReady = false;
+  bool _chargerProbed = false;
+  bool _chargerPresent = false;
 };

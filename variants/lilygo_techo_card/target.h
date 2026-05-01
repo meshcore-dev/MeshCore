@@ -9,6 +9,10 @@
 #include <helpers/sensors/LocationProvider.h>
 #include "TechoCardBoard.h"
 
+#if ENV_INCLUDE_GPS
+#include "GPSStreamCounter.h"
+#endif
+
 #ifdef DISPLAY_CLASS
   #if defined(USE_U8G2_DISPLAY)
     #include <helpers/ui/U8g2Display.h>
@@ -28,6 +32,10 @@ extern AutoDiscoverRTCClock rtc_clock;
 #endif
 
 extern EnvironmentSensorManager sensors;
+
+#if ENV_INCLUDE_GPS
+extern GPSStreamCounter gpsStream;
+#endif
 
 bool radio_init();
 uint32_t radio_get_rng_seed();

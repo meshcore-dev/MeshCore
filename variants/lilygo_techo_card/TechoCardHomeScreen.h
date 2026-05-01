@@ -7,10 +7,11 @@
 // Two-button navigation:  A (pin 42) = next page / long-press activate
 //                         C (pin 24) = previous page
 //
-// Pages:  STATUS → RADIO → BLE → ADVERT → GPS → HIBERNATE
+// Pages:  STATUS -> RADIO -> BLE -> ADVERT -> GPS -> COMPASS -> BATTERY -> HIBERNATE
 // =============================================================================
 #pragma once
 
+#include <math.h>
 #include <helpers/ui/UIScreen.h>
 #include <helpers/ui/DisplayDriver.h>
 #include <helpers/sensors/LocationProvider.h>
@@ -29,6 +30,8 @@ class TechoCardHomeScreen : public UIScreen {
 #if ENV_INCLUDE_GPS == 1
     GPS,
 #endif
+    COMPASS,
+    BATTERY,
     HIBERNATE,
     PAGE_COUNT
   };
@@ -40,6 +43,12 @@ class TechoCardHomeScreen : public UIScreen {
   bool _shutdown_init;
   unsigned long _shutdown_at;
 
+  // Compass state
+  bool _compassInitDone;
+  bool _compassOK;
+  float _lastHeading;
+  int16_t _lastMx, _lastMy, _lastMz;
+
   // Four lines at 9px spacing within 40px display.
   // U8g2 handles panel offset natively -- y=0 is the true visible top.
   static const int Y0 = 2;
@@ -50,16 +59,29 @@ class TechoCardHomeScreen : public UIScreen {
   int battPercent() {
     uint16_t mv = _task->getBattMilliVolts();
     if (mv == 0) return 0;
-    int pct = ((int)mv - 3000) * 100 / 1200;
+    int pct = ((int)mv - 3000) * 100 / 1160;
     if (pct < 0) pct = 0;
     if (pct > 100) pct = 100;
     return pct;
   }
 
+  const char* cardinal(float deg) {
+    if (deg >= 337.5f || deg < 22.5f) return "N";
+    if (deg < 67.5f) return "NE";
+    if (deg < 112.5f) return "E";
+    if (deg < 157.5f) return "SE";
+    if (deg < 202.5f) return "S";
+    if (deg < 247.5f) return "SW";
+    if (deg < 292.5f) return "W";
+    return "NW";
+  }
+
 public:
   TechoCardHomeScreen(UITask* task, mesh::RTCClock* rtc, NodePrefs* prefs)
     : _task(task), _rtc(rtc), _prefs(prefs),
-      _page(STATUS), _shutdown_init(false), _shutdown_at(0) {}
+      _page(STATUS), _shutdown_init(false), _shutdown_at(0),
+      _compassInitDone(false), _compassOK(false),
+      _lastHeading(0), _lastMx(0), _lastMy(0), _lastMz(0) {}
 
   void cancelEditing() { _shutdown_init = false; }
 
@@ -186,6 +208,13 @@ public:
                    loc->getLatitude() / 1000000.0,
                    loc->getLongitude() / 1000000.0);
           display.print(tmp);
+        } else {
+          // No fix yet -- show NMEA sentence rate to confirm the chip is talking.
+          // If this stays at 0, GPS is silent (baud rate wrong, RF off, etc).
+          display.setCursor(0, Y2);
+          snprintf(tmp, sizeof(tmp), "NMEA: %u/s",
+                   (unsigned)gpsStream.getSentencesPerSec());
+          display.print(tmp);
         }
       }
 
@@ -195,6 +224,82 @@ public:
       break;
     }
 #endif
+
+    // ----- COMPASS -----
+    case COMPASS: {
+      display.setColor(DisplayDriver::GREEN);
+      display.setCursor(0, Y0);
+      display.print("Compass");
+
+      if (!_compassInitDone) {
+        _compassOK = board.initCompass();
+        _compassInitDone = true;
+      }
+
+      if (!_compassOK) {
+        display.setColor(DisplayDriver::RED);
+        display.setCursor(0, Y2);
+        display.print("IMU not found");
+        break;
+      }
+
+      int16_t mx, my, mz;
+      if (board.readMag(mx, my, mz)) {
+        _lastMx = mx; _lastMy = my; _lastMz = mz;
+        _lastHeading = atan2f((float)my, (float)mx) * 180.0f / (float)M_PI;
+        if (_lastHeading < 0) _lastHeading += 360.0f;
+      }
+
+      display.setColor(DisplayDriver::YELLOW);
+      display.setCursor(0, Y1);
+      snprintf(tmp, sizeof(tmp), "%.0f %s",
+               _lastHeading, cardinal(_lastHeading));
+      display.print(tmp);
+
+      display.setColor(DisplayDriver::LIGHT);
+      display.setCursor(0, Y2);
+      snprintf(tmp, sizeof(tmp), "X:%d Y:%d", _lastMx, _lastMy);
+      display.print(tmp);
+
+      #if ENV_INCLUDE_GPS == 1
+      {
+        LocationProvider* loc = sensors.getLocationProvider();
+        if (loc && loc->isValid()) {
+          display.setCursor(0, Y3);
+          snprintf(tmp, sizeof(tmp), "%.4f,%.4f",
+                   loc->getLatitude() / 1000000.0,
+                   loc->getLongitude() / 1000000.0);
+          display.print(tmp);
+        }
+      }
+      #endif
+      return 500; // fast refresh for compass
+    }
+
+    // ----- BATTERY -----
+    case BATTERY: {
+      display.setColor(DisplayDriver::GREEN);
+      display.setCursor(0, Y0);
+      display.print("Battery");
+
+      uint16_t mv = _task->getBattMilliVolts();
+      snprintf(tmp, sizeof(tmp), "%d%%", battPercent());
+      display.drawTextRightAlign(display.width() - 1, Y0, tmp);
+
+      display.setColor(DisplayDriver::YELLOW);
+      display.setCursor(0, Y1);
+      snprintf(tmp, sizeof(tmp), "%d.%02dV", mv / 1000, (mv % 1000) / 10);
+      display.print(tmp);
+
+      display.setColor(DisplayDriver::LIGHT);
+      display.setCursor(0, Y2);
+      {
+        float dieTemp = board.getMCUTemperature();
+        snprintf(tmp, sizeof(tmp), "Temp: %.0fC", dieTemp);
+        display.print(tmp);
+      }
+      break;
+    }
 
     // ----- HIBERNATE -----
     case HIBERNATE: {

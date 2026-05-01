@@ -642,6 +642,7 @@ uint8_t MyMesh::onContactRequest(const ContactInfo &contact, uint32_t sender_tim
     if (permissions & TELEM_PERM_BASE) { // only respond if base permission bit is set
       telemetry.reset();
       telemetry.addVoltage(TELEM_CHANNEL_SELF, (float)board.getBattMilliVolts() / 1000.0f);
+      { float t = board.getMCUTemperature(); if (!isnan(t)) telemetry.addTemperature(TELEM_CHANNEL_SELF, t); }
       // query other sensors -- target specific
       sensors.querySensors(permissions, telemetry);
 
@@ -1613,6 +1614,7 @@ void MyMesh::handleCmdFrame(size_t len) {
   } else if (cmd_frame[0] == CMD_SEND_TELEMETRY_REQ && len == 4) {  // 'self' telemetry request
     telemetry.reset();
     telemetry.addVoltage(TELEM_CHANNEL_SELF, (float)board.getBattMilliVolts() / 1000.0f);
+    { float t = board.getMCUTemperature(); if (!isnan(t)) telemetry.addTemperature(TELEM_CHANNEL_SELF, t); }
     // query other sensors -- target specific
     sensors.querySensors(0xFF, telemetry);
 
@@ -2190,4 +2192,13 @@ bool MyMesh::advert() {
   } else {
     return false;
   }
+}
+
+// To check if there is pending work
+bool MyMesh::hasPendingWork() const {
+  #if defined(WITH_BRIDGE)
+  if (bridge.isRunning()) return true; // bridge needs WiFi radio, can't sleep
+  #endif
+  // If getOutboundTotal() is not available, use: _mgr->getOutboundCount(0xFFFFFFFF) > 0
+  return _mgr->getOutboundTotal() > 0;
 }

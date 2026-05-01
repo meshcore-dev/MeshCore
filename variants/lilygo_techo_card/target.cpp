@@ -13,7 +13,8 @@ VolatileRTCClock fallback_clock;
 AutoDiscoverRTCClock rtc_clock(fallback_clock);
 
 #if ENV_INCLUDE_GPS
-  MicroNMEALocationProvider gps(Serial1, &rtc_clock);
+  GPSStreamCounter gpsStream(Serial1);
+  MicroNMEALocationProvider gps(gpsStream, &rtc_clock);
   EnvironmentSensorManager sensors(gps);
 #else
   EnvironmentSensorManager sensors;

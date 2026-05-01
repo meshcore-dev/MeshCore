@@ -37,7 +37,7 @@
 class SplashScreen : public UIScreen {
   UITask* _task;
   unsigned long dismiss_after;
-  char _version_info[12];
+  char _version_info[24];
 
 public:
   SplashScreen(UITask* task) : _task(task) {
@@ -763,7 +763,21 @@ void UITask::loop() {
   } else if (ev == BUTTON_EVENT_LONG_PRESS) {
     c = handleLongPress(KEY_ENTER);
   } else if (ev == BUTTON_EVENT_DOUBLE_CLICK) {
+    #if defined(LILYGO_TECHO_CARD)
+    // Toggle screen on/off for battery saving
+    if (_display != NULL) {
+      if (_display->isOn()) {
+        _display->turnOff();
+      } else {
+        _display->turnOn();
+        _auto_off = millis() + AUTO_OFF_MILLIS;
+        _next_refresh = 0;
+      }
+    }
+    c = 0; // consume event
+    #else
     c = handleDoubleClick(KEY_PREV);
+    #endif
   } else if (ev == BUTTON_EVENT_TRIPLE_CLICK) {
     c = handleTripleClick(KEY_SELECT);
   }
@@ -947,6 +961,12 @@ void UITask::toggleGPS() {
           _node_prefs->gps_enabled = 1;
           notify(UIEventType::ack);
         }
+        #if defined(LILYGO_TECHO_CARD)
+        // Actually power the L76K down/up at the hardware level.
+        // Without this, toggling GPS off only stops reading position data
+        // while the chip itself stays powered (~25mA draw).
+        board.enableGPS(_node_prefs->gps_enabled);
+        #endif
         the_mesh.savePrefs();
         showAlert(_node_prefs->gps_enabled ? "GPS: Enabled" : "GPS: Disabled", 800);
         _next_refresh = 0;

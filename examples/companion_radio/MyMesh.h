@@ -174,8 +174,18 @@ public:
       sprintf(interval_str, "%u", _prefs.gps_interval);
       sensors.setSettingValue("gps_interval", interval_str);
     }
+    #if defined(LILYGO_TECHO_CARD)
+    // Power the L76K down at boot if GPS is persisted as off.
+    // Without this, board.begin() drives PIN_GPS_EN HIGH unconditionally
+    // and the chip stays powered until the user manually toggles GPS
+    // twice through the menu.
+    board.enableGPS(_prefs.gps_enabled);
+    #endif
   }
 #endif
+
+  // To check if there is pending work
+  bool hasPendingWork() const;
 
 private:
   void writeOKFrame();

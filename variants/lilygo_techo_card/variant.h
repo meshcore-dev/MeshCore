@@ -46,8 +46,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 // UART -- GPS (L76K)
 
-#define PIN_SERIAL1_RX              21    // (0, 21) -- GPS TX → nRF RX
-#define PIN_SERIAL1_TX              19    // (0, 19) -- nRF TX → GPS RX
+#define PIN_SERIAL1_RX              19    // (0, 19) -- GPS TX -> nRF RX
+#define PIN_SERIAL1_TX              21    // (0, 21) -- nRF TX -> GPS RX
 
 ////////////////////////////////////////////////////////////////////////////////
 // I2C (shared: OLED, IMU ICM20948)
@@ -140,8 +140,8 @@
 
 #define HAS_GPS                     1
 #define GPS_BAUDRATE                9600
-#define PIN_GPS_TX                  19    // nRF TX → GPS RX
-#define PIN_GPS_RX                  21    // nRF RX ← GPS TX
+#define PIN_GPS_TX                  21    // nRF TX -> GPS RX (vendor GPS_UART_RX / P0.21)
+#define PIN_GPS_RX                  19    // nRF RX <- GPS TX (vendor GPS_UART_TX / P0.19)
 #define PIN_GPS_EN                  47    // (1, 15)
 #define PIN_GPS_WAKEUP              25    // (0, 25)
 #define PIN_GPS_1PPS                23    // (0, 23)
@@ -167,8 +167,12 @@
 ////////////////////////////////////////////////////////////////////////////////
 // Buzzer
 
+#ifndef HAS_BUZZER
 #define HAS_BUZZER                  1
+#endif
+#ifndef PIN_BUZZER
 #define PIN_BUZZER                  38    // (1, 6)
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 // IMU -- ICM20948
