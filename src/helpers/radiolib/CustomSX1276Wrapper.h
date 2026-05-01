@@ -23,4 +23,5 @@ public:
     int sf = ((CustomSX1276 *)_radio)->spreadingFactor;
     return packetScoreInt(snr, sf, packet_len);
   }
+  uint8_t getSpreadingFactor() const override { return ((CustomSX1276 *)_radio)->spreadingFactor; }
 };

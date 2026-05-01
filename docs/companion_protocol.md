@@ -283,32 +283,110 @@ Bytes 7+: Message Text (UTF-8, variable length)
 
 ### 6. Send Channel Data Datagram
 
-**Purpose**: Send binary datagram data to a channel.
+**Purpose**: Send a binary datagram to a channel. Unlike channel text messages, datagrams carry no built-in sender identity and no timestamp — applications needing either must encode them inside the binary payload.
 
 **Command Format**:
 ```
-Byte 0: 0x3E
-Bytes 1-2: Data Type (`data_type`, 16-bit little-endian)
-Byte 3: Channel Index (0-7)
-Bytes 4+: Binary payload bytes (variable length)
+Byte 0:                         0x3E
+Byte 1:                         Channel Index (0-7)
+Byte 2:                         Path Length (0xFF = flood, otherwise actual path length)
+Bytes 3 .. 2+path_len:          Path (omitted when path_len == 0xFF)
+Next 2 bytes (little-endian):   Data Type (`data_type`, uint16)
+Remaining bytes:                Binary payload (variable length)
+```
+
+**Example** (flood, `DATA_TYPE_DEV`, payload `A1 B2 C3`, channel 1):
+```
+3E 01 FF FF FF A1 B2 C3
 ```
 
 **Data Type / Transport Mapping**:
-- `0x0000` is invalid for this command.
+- `0x0000` (`DATA_TYPE_RESERVED`) is invalid and rejected with `PACKET_ERROR`.
 - `0xFFFF` (`DATA_TYPE_DEV`) is the developer namespace for experimenting and developing apps.
-- Other non-zero values can be used as assigned application/community namespaces.
-
-**Note**: Applications that need a timestamp should encode it inside the binary payload.
+- Values `0x0001`–`0xFFFE` are available for registered application/community namespaces. See the [Registered data_type values](#registered-data_type-values) table below.
 
 **Limits**:
-- Maximum payload length is `163` bytes.
-- Larger payloads are rejected with `PACKET_ERROR`.
+- Maximum payload length is `MAX_CHANNEL_DATA_LENGTH = MAX_FRAME_SIZE - 9 = 163` bytes.
+- Larger payloads are rejected with `PACKET_ERROR` (`ERR_CODE_ILLEGAL_ARG`).
 
-**Response**: `PACKET_OK` (0x00) on success
+**Response**: `PACKET_OK` (0x00) on success, or `PACKET_ERROR` (0x01) with one of:
+- `ERR_CODE_NOT_FOUND` (2) — unknown `channel_idx`
+- `ERR_CODE_ILLEGAL_ARG` (6) — invalid `path_len`, reserved `data_type` (`0x0000`), or payload larger than `MAX_CHANNEL_DATA_LENGTH`
+- `ERR_CODE_TABLE_FULL` (3) — outbound send queue is full; retry later
+
+**Inbound datagrams** are delivered to the host via `RESP_CODE_CHANNEL_DATA_RECV` (0x1B); see [Receive Channel Data Datagram](#receive-channel-data-datagram).
+
+#### Registered `data_type` values
+
+`data_type` is an **application identifier**, not a payload-format identifier. Each registered value identifies an application that owns its own internal payload schemas. The firmware does not inspect payload contents — `data_type` is transported opaquely.
+
+| Value           | Constant             | Purpose                                                                  |
+|-----------------|----------------------|--------------------------------------------------------------------------|
+| 0x0000          | `DATA_TYPE_RESERVED` | Reserved; invalid on send                                                |
+| 0x0001 – 0x00FF | —                    | Reserved for internal use                                                |
+| 0x0100 – 0xFEFF | —                    | Registered application namespaces (see [number_allocations.md](number_allocations.md)) |
+| 0xFF00 – 0xFFFE | —                    | Testing/development; no registration required                            |
+| 0xFFFF          | `DATA_TYPE_DEV`      | Developer/experimental namespace                                         |
+
+To register a new application, submit a PR adding a row to the table in [docs/number_allocations.md](number_allocations.md). Internal sub-formats within an allocated application ID are owned by that application and are not tracked in MeshCore firmware or this document.
 
 ---
 
-### 6. Get Message
+### Receive Channel Data Datagram
+
+Inbound group datagrams (radio-level `PAYLOAD_TYPE_GRP_DATA`, 0x06) are forwarded to the host as `RESP_CODE_CHANNEL_DATA_RECV` notifications.
+
+**Frame Format** (`RESP_CODE_CHANNEL_DATA_RECV`, 0x1B):
+```
+Byte 0:                 0x1B (packet type)
+Byte 1:                 SNR (signed int8, scaled ×4 — divide by 4.0 to recover dB)
+Bytes 2-3:              Reserved (clients MUST ignore)
+Byte 4:                 Channel Index (0-7)
+Byte 5:                 Path Length (actual path length when flooded, otherwise 0xFF for direct)
+Bytes 6-7:              Data Type (uint16 little-endian)
+Byte 8:                 Data Length
+Bytes 9 .. 8+data_len:  Payload
+```
+
+**Path bytes are not forwarded**: Only `path_len` is reported in the receive frame — the path itself is not copied to the host. There are no path bytes between byte 5 and the data_type field at bytes 6–7, regardless of `path_len`.
+
+**Path Length semantics differ between send and receive**:
+
+| Direction | `path_len = 0xFF`               | `path_len ≠ 0xFF`                                                                   |
+|-----------|---------------------------------|-------------------------------------------------------------------------------------|
+| Send      | Flood the network               | Direct route; the encoded path follows (low 6 bits = hash count, top 2 bits + 1 = hash size; on-wire byte count = `hash_count × hash_size`) |
+| Receive   | Packet arrived via direct route | Packet was flooded; this is the encoded `pkt->path_len` field as observed (no path bytes follow) |
+
+In other words, the meaning of `0xFF` is inverted between the two directions, and on receive the field carries metadata only — never a routable path. `path_len` is an encoded byte (see `Packet::isValidPathLen` / `Packet::writePath` in `src/Packet.cpp`), not a raw byte count.
+
+**Note**: The device may also emit `PACKET_MESSAGES_WAITING` (0x83) to notify the host that datagrams are queued; poll with `CMD_SYNC_NEXT_MESSAGE` (0x0A) to retrieve them.
+
+**Parsing Pseudocode**:
+```python
+def parse_channel_data_recv(data):
+    if len(data) < 9:
+        return None
+    snr_byte = data[1]
+    snr = (snr_byte if snr_byte < 128 else snr_byte - 256) / 4.0
+    channel_idx = data[4]
+    path_len = data[5]
+    data_type = int.from_bytes(data[6:8], 'little')
+    data_len = data[8]
+    if 9 + data_len > len(data):
+        return None
+    payload = data[9:9 + data_len]
+    return {
+        'snr': snr,
+        'channel_idx': channel_idx,
+        'path_len': path_len,
+        'data_type': data_type,
+        'payload': bytes(payload),
+    }
+```
+
+---
+
+### 7. Get Message
 
 **Purpose**: Request the next queued message from the device.
 
@@ -325,13 +403,14 @@ Byte 0: 0x0A
 **Response**: 
 - `PACKET_CHANNEL_MSG_RECV` (0x08) or `PACKET_CHANNEL_MSG_RECV_V3` (0x11) for channel messages
 - `PACKET_CONTACT_MSG_RECV` (0x07) or `PACKET_CONTACT_MSG_RECV_V3` (0x10) for contact messages
+- `PACKET_CHANNEL_DATA_RECV` (0x1B) for channel data datagrams
 - `PACKET_NO_MORE_MSGS` (0x0A) if no messages available
 
 **Note**: Poll this command periodically to retrieve queued messages. The device may also send `PACKET_MESSAGES_WAITING` (0x83) as a notification when messages are available.
 
 ---
 
-### 7. Get Battery and Storage
+### 8. Get Battery and Storage
 
 **Purpose**: Query device battery voltage and storage usage.
 
@@ -527,6 +606,15 @@ Use the `SEND_CHANNEL_MESSAGE` command (see [Commands](#commands)).
 
 ## Response Parsing
 
+### Terminology
+
+This document uses a spec-level naming convention (`PACKET_*`) for bytes the firmware sends back to the host. In the firmware source these same values are split across two `#define` families by purpose:
+
+- `RESP_CODE_*` — direct replies to a command (e.g. `RESP_CODE_CHANNEL_DATA_RECV` = `PACKET_CHANNEL_DATA_RECV` = 0x1B).
+- `PUSH_CODE_*` — asynchronous notifications not tied to a specific command (e.g. `PUSH_CODE_MSG_WAITING` = `PACKET_MESSAGES_WAITING` = 0x83).
+
+Byte values are authoritative; names are aliases. When reading firmware source, `RESP_CODE_X` / `PUSH_CODE_X` correspond to this doc's `PACKET_X` of the same numeric value.
+
 ### Packet Types
 
 | Value | Name                       | Description                   |
@@ -547,6 +635,7 @@ Use the `SEND_CHANNEL_MESSAGE` command (see [Commands](#commands)).
 | 0x10  | PACKET_CONTACT_MSG_RECV_V3 | Contact message (V3 with SNR) |
 | 0x11  | PACKET_CHANNEL_MSG_RECV_V3 | Channel message (V3 with SNR) |
 | 0x12  | PACKET_CHANNEL_INFO        | Channel information           |
+| 0x1B  | PACKET_CHANNEL_DATA_RECV   | Channel data datagram         |
 | 0x80  | PACKET_ADVERTISEMENT       | Advertisement packet          |
 | 0x82  | PACKET_ACK                 | Acknowledgment                |
 | 0x83  | PACKET_MESSAGES_WAITING    | Messages waiting notification |
@@ -718,22 +807,18 @@ Bytes 1-6: ACK Code (6 bytes, hex)
 
 ### Error Codes
 
-**PACKET_ERROR** (0x01) may include an error code in byte 1:
+`PACKET_ERROR` (0x01) carries a single-byte error code in byte 1. Values match the `ERR_CODE_*` constants defined in `examples/companion_radio/MyMesh.cpp`:
 
-| Error Code | Description |
-|------------|-------------|
-| 0x00 | Generic error (no specific code) |
-| 0x01 | Invalid command |
-| 0x02 | Invalid parameter |
-| 0x03 | Channel not found |
-| 0x04 | Channel already exists |
-| 0x05 | Channel index out of range |
-| 0x06 | Secret mismatch |
-| 0x07 | Message too long |
-| 0x08 | Device busy |
-| 0x09 | Not enough storage |
+| Code | Constant (firmware)        | Description                                                                  |
+|------|----------------------------|------------------------------------------------------------------------------|
+| 1    | `ERR_CODE_UNSUPPORTED_CMD` | Unknown or unsupported command byte / sub-command                            |
+| 2    | `ERR_CODE_NOT_FOUND`       | Target not found (channel, contact, message, etc.)                           |
+| 3    | `ERR_CODE_TABLE_FULL`      | Internal queue or table is full — retry later                                |
+| 4    | `ERR_CODE_BAD_STATE`       | Operation not valid in current device state (e.g. iterator already running)  |
+| 5    | `ERR_CODE_FILE_IO_ERROR`   | Filesystem or storage I/O failure                                            |
+| 6    | `ERR_CODE_ILLEGAL_ARG`     | Invalid argument (bad length, out-of-range value, reserved field, etc.)      |
 
-**Note**: Error codes may vary by firmware version. Always check byte 1 of `PACKET_ERROR` response.
+**Note**: Error codes may vary by firmware version. Always check byte 1 of `PACKET_ERROR` response, and treat unknown codes as generic errors.
 
 ### Frame Handling
 
@@ -765,7 +850,8 @@ BLE implementations enqueue and deliver one protocol frame per BLE write/notific
      - `GET_CHANNEL` → `PACKET_CHANNEL_INFO`
      - `SET_CHANNEL` → `PACKET_OK` or `PACKET_ERROR`
      - `SEND_CHANNEL_MESSAGE` → `PACKET_MSG_SENT`
-     - `GET_MESSAGE` → `PACKET_CHANNEL_MSG_RECV`, `PACKET_CONTACT_MSG_RECV`, or `PACKET_NO_MORE_MSGS`
+     - `GET_MESSAGE` → `PACKET_CHANNEL_MSG_RECV`, `PACKET_CONTACT_MSG_RECV`, `PACKET_CHANNEL_DATA_RECV`, or `PACKET_NO_MORE_MSGS`
+     - `SEND_CHANNEL_DATA` → `PACKET_OK` or `PACKET_ERROR`
      - `GET_BATTERY` → `PACKET_BATTERY`
 
 4. **Timeout Handling**:

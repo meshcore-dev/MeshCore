@@ -10,7 +10,10 @@
   #include <LittleFS.h>
 #elif defined(ESP32)
   #include <SPIFFS.h>
+#else
+  #include <InternalFileSystem.h>
 #endif
+
 #if defined(KISS_UART_RX) && defined(KISS_UART_TX)
   #include <HardwareSerial.h>
 #endif
@@ -29,7 +32,7 @@ void halt() {
 }
 
 void loadOrCreateIdentity() {
-#if defined(NRF52_PLATFORM)
+#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
   InternalFS.begin();
   IdentityStore store(InternalFS, "");
 #elif defined(ESP32)
