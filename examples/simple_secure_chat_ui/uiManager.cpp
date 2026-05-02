@@ -5,6 +5,7 @@
 #include "uiVars.h"
 
 #include "uiManager.h"
+#include "messageStore.h"
 
 #include "../src/fonts/fonts.h"
 
@@ -23,7 +24,39 @@ const char *UIManager::months[12] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
 
 #define TAG "UIManager"
 
-//extern void handleCommand(char *msg);
+extern void handleCommand(char *msg);
+
+namespace {
+struct UIContactInfo {
+    ContactInfo info;
+    lv_obj_t* badge = nullptr;
+    lv_obj_t* badge_label = nullptr;
+    uint32_t unread = 0;
+};
+
+UIContactInfo* findContactByPubKey(lv_obj_t* list, const uint8_t* pub_key) {
+    if (!list) return nullptr;
+    uint32_t cnt = lv_obj_get_child_cnt(list);
+    for (uint32_t i = 0; i < cnt; i++) {
+        lv_obj_t* row = lv_obj_get_child(list, i);
+        UIContactInfo* uic = (UIContactInfo*) lv_obj_get_user_data(row);
+        if (uic && memcmp(uic->info.id.pub_key, pub_key, 32) == 0) return uic;
+    }
+    return nullptr;
+}
+
+void updateBadge(UIContactInfo* uic) {
+    if (!uic || !uic->badge || !uic->badge_label) return;
+    if (uic->unread == 0) {
+        lv_obj_add_flag(uic->badge, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_obj_clear_flag(uic->badge, LV_OBJ_FLAG_HIDDEN);
+        char buf[8];
+        snprintf(buf, sizeof(buf), "%u", (unsigned)uic->unread);
+        lv_label_set_text(uic->badge_label, buf);
+    }
+}
+} // namespace
 
 UIManager::UIManager() {
 
@@ -351,9 +384,35 @@ static void onContactClick(lv_event_t *e)
 void UIManager::handleContactClick(lv_event_t *e)
 {
     lv_obj_t *row = lv_event_get_target(e);
-    ContactInfo *c = (ContactInfo*) lv_obj_get_user_data(row);
+    UIContactInfo *uic = (UIContactInfo*) lv_obj_get_user_data(row);
+    if (!uic) return;
 
+    ContactInfo* c = &uic->info;
     Serial.printf("Clicked: %s\n", c->name);
+
+    strncpy(currentContactName, c->name, sizeof(currentContactName) - 1);
+    currentContactName[sizeof(currentContactName) - 1] = 0;
+    memcpy(currentContactPubKey, c->id.pub_key, sizeof(currentContactPubKey));
+    hasCurrentContact = true;
+
+    if (ui_ContactName) {
+        lv_label_set_text(ui_ContactName, currentContactName);
+    }
+
+    if (ui_ContactMessages) {
+        lv_obj_clean(ui_ContactMessages);
+    }
+
+    uic->unread = 0;
+    updateBadge(uic);
+
+    setSendStatus(-1);
+
+    char cmd[64];
+    snprintf(cmd, sizeof(cmd), "to %s", currentContactName);
+    handleCommand(cmd);
+
+    msgstore_load_dm(currentContactPubKey);
 }
 
 void UIManager::addContactToUI(ContactInfo c)
@@ -382,8 +441,9 @@ void UIManager::addContactToUI(ContactInfo c)
     lv_obj_set_style_border_color(btn, lv_color_hex(0x222222), 0);
     lv_obj_set_style_bg_color(btn, lv_color_hex(0x111111), LV_STATE_PRESSED);
 
-    // Store ContactInfo
-    auto* store = new ContactInfo(c);
+    // Store wrapper (ContactInfo + badge state)
+    auto* store = new UIContactInfo();
+    store->info = c;
     lv_obj_set_user_data(btn, store);
 
     lv_obj_add_event_cb(btn, onContactClick, LV_EVENT_CLICKED, this);
@@ -460,6 +520,31 @@ void UIManager::addContactToUI(ContactInfo c)
         .wrap(false);
 
     // ============================
+    // Unread badge (top-right corner of row)
+    // ============================
+    lv_obj_t* badge = LvObj(btn)
+        .size(22, 22)
+        .position(ROW_W - 26, 4)
+        .radius(LV_RADIUS_CIRCLE)
+        .bgColor(0xE53935)
+        .border(0)
+        .scrollable(false)
+        .raw();
+    lv_obj_add_flag(badge, LV_OBJ_FLAG_HIDDEN);
+    LvObj(badge, true).clickable(false);
+
+    lv_obj_t* badge_label = LvLabel(badge)
+        .text("0")
+        .font(&lv_font_arial_14)
+        .textColor(0xFFFFFF)
+        .align(LV_ALIGN_CENTER)
+        .raw();
+    LvObj(badge_label, true).clickable(false);
+
+    store->badge = badge;
+    store->badge_label = badge_label;
+
+    // ============================
     // Disable child clicks
     // ============================
     LvObj(avatar, true).clickable(false);
@@ -470,21 +555,33 @@ void UIManager::onShowKeyboard()
 {
     LvKeyboard(ui_Keyboard, true).show(true);
     LvObj(ui_DimOverlay, true).clickable(true);
-    LvObj(ui_ChannelInput, true).positionY(channelInputBaseKeybOnY);
-    LvObj(ui_SendBtn, true).positionY(channelInputBaseKeybOnY);
+    if (activeInput)   LvObj(activeInput,   true).positionY(channelInputBaseKeybOnY);
+    if (activeSendBtn) LvObj(activeSendBtn, true).positionY(channelInputBaseKeybOnY);
 }
 
 void UIManager::onHideKeyboard()
 {
     LvKeyboard(ui_Keyboard, true).show(false);
     LvObj(ui_DimOverlay, true).clickable(false);
-    LvObj(ui_ChannelInput, true).positionY(channelInputBaseY);
-    LvObj(ui_SendBtn, true).positionY(channelInputBaseY);
+    if (activeInput)   LvObj(activeInput,   true).positionY(activeInputBaseY);
+    if (activeSendBtn) LvObj(activeSendBtn, true).positionY(activeInputBaseY);
 }
 
 static void s_onRestartClick(lv_event_t *e)
 {
     ESP.restart();
+}
+
+static void s_onAdvertiseClick(lv_event_t *e)
+{
+    UIManager *self = (UIManager*) lv_event_get_user_data(e);
+    if(self) self->onAdvertiseClick(e);
+}
+
+void UIManager::onAdvertiseClick(lv_event_t* e)
+{
+    char cmd[16] = "advert";
+    handleCommand(cmd);
 }
 
 static void s_onChannelInputFocus(lv_event_t *e)
@@ -498,8 +595,71 @@ void UIManager::onChannelInputFocus(lv_event_t* e)
     lv_obj_t* ta = lv_event_get_target(e);
     if(!ui_Keyboard || !ta) return;
 
+    activeInput      = ui_ChannelInput;
+    activeSendBtn    = ui_SendBtn;
+    activeInputBaseY = channelInputBaseY;
+
     lv_keyboard_set_textarea(ui_Keyboard, ta);
     onShowKeyboard();
+}
+
+static void s_onContactInputFocus(lv_event_t *e)
+{
+    UIManager *self = (UIManager*) lv_event_get_user_data(e);
+    if(self) self->onContactInputFocus(e);
+}
+
+void UIManager::onContactInputFocus(lv_event_t* e)
+{
+    lv_obj_t* ta = lv_event_get_target(e);
+    if(!ui_Keyboard || !ta) return;
+
+    activeInput      = ui_ContactInput;
+    activeSendBtn    = ui_ContactSendBtn;
+    activeInputBaseY = channelInputBaseY;
+
+    lv_keyboard_set_textarea(ui_Keyboard, ta);
+    onShowKeyboard();
+}
+
+static void s_onContactSendClick(lv_event_t *e)
+{
+    UIManager *self = (UIManager*) lv_event_get_user_data(e);
+    if(self) self->onContactSendClick(e);
+}
+
+void UIManager::onContactSendClick(lv_event_t* e)
+{
+    if (!hasCurrentContact) {
+        Serial.println("[ui] no contact selected — DM ignored");
+        return;
+    }
+
+    const char* msg = lv_textarea_get_text(ui_ContactInput);
+    if (msg == nullptr || msg[0] == '\0') return;
+
+    char msgCopy[200];
+    strncpy(msgCopy, msg, sizeof(msgCopy) - 1);
+    msgCopy[sizeof(msgCopy) - 1] = 0;
+
+    lv_textarea_set_text(ui_ContactInput, "");
+
+    char cmd[256];
+    snprintf(cmd, sizeof(cmd), "send %s", msgCopy);
+    handleCommand(cmd);
+
+    char time_buf[16];
+    time_t now = time(NULL);
+    struct tm t;
+    localtime_r(&now, &t);
+    snprintf(time_buf, sizeof(time_buf), "%02d:%02d", t.tm_hour, t.tm_min);
+
+    addPrivateChatBubble(time_buf, msgCopy, true);
+    msgstore_append_dm(currentContactPubKey, (uint32_t)now, true, msgCopy);
+
+    setSendStatus(0);
+
+    onHideKeyboard();
 }
 
 static void s_onSendClick(lv_event_t *e)
@@ -522,7 +682,7 @@ void UIManager::onSendClick(lv_event_t* e)
     lv_textarea_set_text(ui_ChannelInput, "");
 
     snprintf(fullMessage, sizeof(fullMessage), "public %s", msgCopy);
-    //handleCommand(fullMessage);
+    handleCommand(fullMessage);
 
     char time_buf[16];
     time_t now = time(NULL);
@@ -530,9 +690,173 @@ void UIManager::onSendClick(lv_event_t* e)
     localtime_r(&now, &t);
 
     sprintf(time_buf, "%02d:%02d:%02d\n", t.tm_hour, t.tm_min, t.tm_sec);
-    addChatBubble(time_buf, "Me", msgCopy, true);
+    const char* sender = (myNodeName[0] != 0) ? myNodeName : "Me";
+    addChatBubble(time_buf, sender, msgCopy, true);
+    msgstore_append_public((uint32_t)now, sender, true, msgCopy);
 
     onHideKeyboard();
+}
+
+void UIManager::setMyNodeName(const char* name) {
+    if (!name) { myNodeName[0] = 0; return; }
+    strncpy(myNodeName, name, sizeof(myNodeName) - 1);
+    myNodeName[sizeof(myNodeName) - 1] = 0;
+}
+
+void UIManager::routeIncomingDM(const uint8_t* from_pub_key, const char* from_name,
+                                const char* time_str, const char* text)
+{
+    if (hasCurrentContact && memcmp(from_pub_key, currentContactPubKey, 32) == 0) {
+        addPrivateChatBubble(time_str, text, false);
+        return;
+    }
+
+    UIContactInfo* uic = findContactByPubKey(ui_Contacts, from_pub_key);
+    if (uic) {
+        uic->unread++;
+        updateBadge(uic);
+    }
+}
+
+void UIManager::setSendStatus(int state)
+{
+    if (!ui_ContactStatus) return;
+
+    switch (state) {
+    case 0:
+        lv_label_set_text(ui_ContactStatus,
+            #if defined(LANG_GR)
+            "Αποστολή...");
+            #else
+            "Sending...");
+            #endif
+        lv_obj_set_style_text_color(ui_ContactStatus, lv_color_hex(0xFFC107), 0);
+        break;
+    case 1:
+        lv_label_set_text(ui_ContactStatus, LV_SYMBOL_OK
+            #if defined(LANG_GR)
+            "  Παραδόθηκε");
+            #else
+            "  Delivered");
+            #endif
+        lv_obj_set_style_text_color(ui_ContactStatus, lv_color_hex(0x4CAF50), 0);
+        break;
+    case 2:
+        lv_label_set_text(ui_ContactStatus, LV_SYMBOL_CLOSE
+            #if defined(LANG_GR)
+            "  Δεν έγινε ack");
+            #else
+            "  No ack");
+            #endif
+        lv_obj_set_style_text_color(ui_ContactStatus, lv_color_hex(0xE53935), 0);
+        break;
+    default:
+        lv_label_set_text(ui_ContactStatus, "");
+        break;
+    }
+}
+
+static void s_onSettingsInputFocus(lv_event_t *e)
+{
+    UIManager *self = (UIManager*) lv_event_get_user_data(e);
+    if(self) self->onSettingsInputFocus(e);
+}
+
+void UIManager::onSettingsInputFocus(lv_event_t* e)
+{
+    lv_obj_t* ta = lv_event_get_target(e);
+    if(!ui_Keyboard || !ta) return;
+
+    // Settings inputs do not slide up — keyboard floats over the form.
+    activeInput      = nullptr;
+    activeSendBtn    = nullptr;
+
+    lv_keyboard_set_textarea(ui_Keyboard, ta);
+    LvKeyboard(ui_Keyboard, true).show(true);
+    LvObj(ui_DimOverlay, true).clickable(true);
+}
+
+static void s_onSettingsSaveClick(lv_event_t *e)
+{
+    UIManager *self = (UIManager*) lv_event_get_user_data(e);
+    if(self) self->onSettingsSaveClick(e);
+}
+
+void UIManager::onSettingsSaveClick(lv_event_t* e)
+{
+    char cmd[96];
+
+    const char* name = ui_SettingsName ? lv_textarea_get_text(ui_SettingsName) : "";
+    const char* freq = ui_SettingsFreq ? lv_textarea_get_text(ui_SettingsFreq) : "";
+    const char* tx   = ui_SettingsTx   ? lv_textarea_get_text(ui_SettingsTx)   : "";
+
+    if (name && name[0]) {
+        snprintf(cmd, sizeof(cmd), "set name %s", name);
+        handleCommand(cmd);
+    }
+    if (freq && freq[0]) {
+        snprintf(cmd, sizeof(cmd), "set freq %s", freq);
+        handleCommand(cmd);
+    }
+    if (tx && tx[0]) {
+        snprintf(cmd, sizeof(cmd), "set tx %s", tx);
+        handleCommand(cmd);
+    }
+
+    if (ui_SettingsStatus) {
+        #if defined(LANG_GR)
+        lv_label_set_text(ui_SettingsStatus, "Αποθηκεύτηκε. Επανεκκίνηση...");
+        #else
+        lv_label_set_text(ui_SettingsStatus, "Saved. Restarting...");
+        #endif
+    }
+
+    onHideKeyboard();
+
+    Serial.flush();
+    delay(800);
+    ESP.restart();
+}
+
+void UIManager::populateSettings(const char* name, float freq, uint8_t tx_power,
+                                 const char* fw_ver, const char* build_date)
+{
+    if (ui_SettingsName && name) lv_textarea_set_text(ui_SettingsName, name);
+
+    if (ui_SettingsFreq) {
+        char buf[16];
+        snprintf(buf, sizeof(buf), "%.3f", freq);
+        lv_textarea_set_text(ui_SettingsFreq, buf);
+    }
+
+    if (ui_SettingsTx) {
+        char buf[8];
+        snprintf(buf, sizeof(buf), "%u", (unsigned)tx_power);
+        lv_textarea_set_text(ui_SettingsTx, buf);
+    }
+
+    if (ui_SettingsFw && fw_ver && build_date) {
+        char buf[64];
+        snprintf(buf, sizeof(buf), "%s  (%s)", fw_ver, build_date);
+        lv_label_set_text(ui_SettingsFw, buf);
+    }
+}
+
+void UIManager::populateHome(const char* name, const char* pub_key_hex,
+                             int contact_count, float freq)
+{
+    if (ui_HomeNodeName && name) lv_label_set_text(ui_HomeNodeName, name);
+    if (ui_HomePubKey && pub_key_hex) lv_label_set_text(ui_HomePubKey, pub_key_hex);
+
+    if (ui_HomeInfo) {
+        char buf[64];
+        #if defined(LANG_GR)
+        snprintf(buf, sizeof(buf), "%.3f MHz  ·  %d επαφές", freq, contact_count);
+        #else
+        snprintf(buf, sizeof(buf), "%.3f MHz  ·  %d contacts", freq, contact_count);
+        #endif
+        lv_label_set_text(ui_HomeInfo, buf);
+    }
 }
 
 static void s_onKeyboardEvent(lv_event_t *e)
@@ -549,8 +873,8 @@ void UIManager::onKeyboardEvent(lv_event_t* e)
     {
         LvKeyboard(ui_Keyboard, true).show(false);
 
-        LvObj(ui_ChannelInput, true).positionY(channelInputBaseY);
-        LvObj(ui_SendBtn, true).positionY(channelInputBaseY);
+        if (activeInput)   LvObj(activeInput,   true).positionY(activeInputBaseY);
+        if (activeSendBtn) LvObj(activeSendBtn, true).positionY(activeInputBaseY);
 
         LvObj(ui_DimOverlay, true)
             .bgOpa(0)
@@ -623,6 +947,36 @@ void UIManager::ui_Screen1_screen_init(void)
     lv_obj_clear_flag(ui_TabPageChannels, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_clear_flag(ui_TabPageSettings, LV_OBJ_FLAG_SCROLLABLE);
 
+    // Node name (large)
+    ui_HomeNodeName = LvLabel(ui_TabPageHome)
+        .text("...")
+        .width(LV_SIZE_CONTENT)
+        .height(LV_SIZE_CONTENT)
+        .font(&lv_font_arial_26)
+        .textColor(0xFFFFFF)
+        .align(LV_ALIGN_CENTER)
+        .position(0, -200);
+
+    // Public key (short hex)
+    ui_HomePubKey = LvLabel(ui_TabPageHome)
+        .text("")
+        .width(LV_SIZE_CONTENT)
+        .height(LV_SIZE_CONTENT)
+        .font(&lv_font_arial_18)
+        .textColor(0x888888)
+        .align(LV_ALIGN_CENTER)
+        .position(0, -170);
+
+    // Freq + contacts count
+    ui_HomeInfo = LvLabel(ui_TabPageHome)
+        .text("")
+        .width(LV_SIZE_CONTENT)
+        .height(LV_SIZE_CONTENT)
+        .font(&lv_font_arial_20)
+        .textColor(0xAAAAAA)
+        .align(LV_ALIGN_CENTER)
+        .position(0, -140);
+
     ui_ValueDate = LvLabel(ui_TabPageHome)
         .text("--- --/--/----")
         .width(LV_SIZE_CONTENT)
@@ -631,8 +985,7 @@ void UIManager::ui_Screen1_screen_init(void)
         .textColor(0xFFFFFF)
         .opa(255)
         .align(LV_ALIGN_CENTER)
-        .position(0, -165);
-
+        .position(0, -85);
 
     ui_ValueTime = LvLabel(ui_TabPageHome)
         .text("--:--")
@@ -642,12 +995,32 @@ void UIManager::ui_Screen1_screen_init(void)
         .textColor(0xFFFFFF)
         .opa(255)
         .align(LV_ALIGN_CENTER)
-        .position(0, -100);
+        .position(0, -25);
+
+    // Advertise button
+    ui_AdvertiseBtn = LvButton(ui_TabPageHome)
+        .size(220, 56)
+        .align(LV_ALIGN_CENTER)
+        .position(0, 55)
+        .bgColor(0x1565C0)
+        .onClick(s_onAdvertiseClick, this)
+        .raw();
+
+    lv_obj_t* ui_AdvertiseLabel = LvLabel(ui_AdvertiseBtn)
+        #if defined(LANG_GR)
+        .text(LV_SYMBOL_WIFI "  Διαφήμιση")
+        #else
+        .text(LV_SYMBOL_WIFI "  Advertise")
+        #endif
+        .font(&lv_font_arial_22)
+        .textColor(0xFFFFFF)
+        .raw();
+    lv_obj_center(ui_AdvertiseLabel);
 
     lv_obj_t* ui_RestartBtn = LvButton(ui_TabPageHome)
-        .size(200, 56)
+        .size(220, 56)
         .align(LV_ALIGN_CENTER)
-        .position(0, 60)
+        .position(0, 130)
         .bgColor(0xC62828)
         .onClick(s_onRestartClick, nullptr)
         .raw();
@@ -679,11 +1052,20 @@ void UIManager::ui_Screen1_screen_init(void)
     lv_obj_set_style_bg_opa(ui_Contacts, LV_OPA_TRANSP, LV_PART_ITEMS);
     lv_obj_set_style_border_width(ui_Contacts, 0, LV_PART_ITEMS);
 
+    ui_ContactName = LvLabel(ui_TabPageContacts)
+        .text("")
+        .width(300)
+        .height(LV_SIZE_CONTENT)
+        .font(&lv_font_arial_22)
+        .textColor(0xFFFFFF)
+        .align(LV_ALIGN_CENTER)
+        .position(80, -195);
+
     ui_ContactMessages = LvList(ui_TabPageContacts)
         .width(310)
-        .height(400)
+        .height(290)
         .align(LV_ALIGN_CENTER)
-        .position(80, 0)
+        .position(80, -40)
         .transparent()
         .raw();
 
@@ -695,6 +1077,49 @@ void UIManager::ui_Screen1_screen_init(void)
     //lv_obj_set_scrollbar_mode(ui_ContactMessages, LV_SCROLLBAR_MODE_OFF);
     lv_obj_set_style_bg_opa(ui_ContactMessages, LV_OPA_TRANSP, LV_PART_ITEMS);
     lv_obj_set_style_border_width(ui_ContactMessages, 0, LV_PART_ITEMS);
+
+    ui_ContactInput = LvTextArea(ui_TabPageContacts)
+        .size(230, 40)
+        .align(LV_ALIGN_CENTER)
+        .position(40, channelInputBaseY)
+        .oneLine(true)
+        #if defined(LANG_EN)
+        .placeholder("Write message...")
+        #elif defined(LANG_GR)
+        .placeholder("Γράψε μήνυμα...")
+        #endif
+        .font(&lv_font_arial_20)
+        .bgColor(0x111111)
+        .textColor(0xFFFFFF)
+        .borderColor(0x444444)
+        .borderWidth(1)
+        .radius(6)
+        .onFocus(s_onContactInputFocus, this)
+        .raw();
+
+    ui_ContactSendBtn = LvButton(ui_TabPageContacts)
+        .size(70, 42)
+        .align(LV_ALIGN_CENTER)
+        .position(195, channelInputBaseY)
+        .bgColor(0x3A7AFE)
+        .onClick(s_onContactSendClick, this)
+        .raw();
+
+    ui_ContactSendLabel = LvLabel(ui_ContactSendBtn)
+        #if defined(LANG_EN)
+        .text("Send")
+        #elif defined(LANG_GR)
+        .text("Αποστολή")
+        #endif
+        .font(&lv_font_arial_18);
+    lv_obj_center(ui_ContactSendLabel);
+
+    ui_ContactStatus = LvLabel(ui_TabPageContacts)
+        .text("")
+        .font(&lv_font_arial_14)
+        .textColor(0xAAAAAA)
+        .align(LV_ALIGN_CENTER)
+        .position(80, channelInputBaseY + 30);
     
     // LvObj(ui_TabPageContacts)
     //     .size(2, 400)
@@ -787,6 +1212,124 @@ void UIManager::ui_Screen1_screen_init(void)
         #endif
         .font(&lv_font_arial_18);
     lv_obj_center(iu_SendLabel);
+
+    // ---- Settings tab ----
+    const int FIELD_W = 380;
+    const int LABEL_FONT_SIZE_HACK = 0; // placeholder
+
+    // Device name
+    LvLabel(ui_TabPageSettings)
+        #if defined(LANG_GR)
+        .text("Όνομα συσκευής")
+        #else
+        .text("Device name")
+        #endif
+        .font(&lv_font_arial_20)
+        .textColor(0xCCCCCC)
+        .align(LV_ALIGN_CENTER)
+        .position(0, -200);
+
+    ui_SettingsName = LvTextArea(ui_TabPageSettings)
+        .size(FIELD_W, 40)
+        .align(LV_ALIGN_CENTER)
+        .position(0, -170)
+        .oneLine(true)
+        .font(&lv_font_arial_20)
+        .bgColor(0x111111)
+        .textColor(0xFFFFFF)
+        .borderColor(0x444444)
+        .borderWidth(1)
+        .radius(6)
+        .onFocus(s_onSettingsInputFocus, this)
+        .raw();
+
+    // Frequency
+    LvLabel(ui_TabPageSettings)
+        #if defined(LANG_GR)
+        .text("Συχνότητα LoRa (MHz)")
+        #else
+        .text("LoRa frequency (MHz)")
+        #endif
+        .font(&lv_font_arial_20)
+        .textColor(0xCCCCCC)
+        .align(LV_ALIGN_CENTER)
+        .position(0, -120);
+
+    ui_SettingsFreq = LvTextArea(ui_TabPageSettings)
+        .size(FIELD_W, 40)
+        .align(LV_ALIGN_CENTER)
+        .position(0, -90)
+        .oneLine(true)
+        .font(&lv_font_arial_20)
+        .bgColor(0x111111)
+        .textColor(0xFFFFFF)
+        .borderColor(0x444444)
+        .borderWidth(1)
+        .radius(6)
+        .onFocus(s_onSettingsInputFocus, this)
+        .raw();
+
+    // TX power
+    LvLabel(ui_TabPageSettings)
+        #if defined(LANG_GR)
+        .text("Ισχύς εκπομπής (dBm)")
+        #else
+        .text("TX power (dBm)")
+        #endif
+        .font(&lv_font_arial_20)
+        .textColor(0xCCCCCC)
+        .align(LV_ALIGN_CENTER)
+        .position(0, -40);
+
+    ui_SettingsTx = LvTextArea(ui_TabPageSettings)
+        .size(FIELD_W, 40)
+        .align(LV_ALIGN_CENTER)
+        .position(0, -10)
+        .oneLine(true)
+        .font(&lv_font_arial_20)
+        .bgColor(0x111111)
+        .textColor(0xFFFFFF)
+        .borderColor(0x444444)
+        .borderWidth(1)
+        .radius(6)
+        .onFocus(s_onSettingsInputFocus, this)
+        .raw();
+
+    // Firmware (read-only)
+    ui_SettingsFw = LvLabel(ui_TabPageSettings)
+        .text("...")
+        .font(&lv_font_arial_18)
+        .textColor(0x888888)
+        .align(LV_ALIGN_CENTER)
+        .position(0, 40);
+
+    // Save button
+    ui_SettingsSaveBtn = LvButton(ui_TabPageSettings)
+        .size(220, 50)
+        .align(LV_ALIGN_CENTER)
+        .position(0, 90)
+        .bgColor(0x2E7D32)
+        .onClick(s_onSettingsSaveClick, this)
+        .raw();
+
+    lv_obj_t* saveLabel = LvLabel(ui_SettingsSaveBtn)
+        #if defined(LANG_GR)
+        .text(LV_SYMBOL_SAVE "  Αποθήκευση & Επανεκκίνηση")
+        #else
+        .text(LV_SYMBOL_SAVE "  Save & Restart")
+        #endif
+        .font(&lv_font_arial_18)
+        .textColor(0xFFFFFF)
+        .raw();
+    lv_obj_center(saveLabel);
+
+    // Status label
+    ui_SettingsStatus = LvLabel(ui_TabPageSettings)
+        .text("")
+        .font(&lv_font_arial_18)
+        .textColor(0xFFC107)
+        .align(LV_ALIGN_CENTER)
+        .position(0, 145);
 
     ui_Keyboard = LvKeyboard(lv_layer_top())
         .size(480, 200)

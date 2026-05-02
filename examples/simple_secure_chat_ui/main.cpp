@@ -21,13 +21,13 @@
 #define FIRMWARE_VER_TEXT   "v2 (build: 4 Feb 2025)"
 
 #ifndef LORA_FREQ
-  #define LORA_FREQ   915.0
+  #define LORA_FREQ   869.525
 #endif
 #ifndef LORA_BW
   #define LORA_BW     250
 #endif
 #ifndef LORA_SF
-  #define LORA_SF     10
+  #define LORA_SF     11
 #endif
 #ifndef LORA_CR
   #define LORA_CR      5
@@ -59,6 +59,7 @@
 #include "../include/uiManager.h"
 #include "../include/uiTasks.h"
 #include "uiTouch.h"
+#include "messageStore.h"
 
 #define TAG "main"
 
@@ -228,6 +229,95 @@ static uint32_t _atoi(const char* sp) {
     n += (*sp++ - '0');
   }
   return n;
+}
+
+/* -------------------------------------------------------------------------------------- */
+
+static void msgstore_dm_path(char* out, size_t len, const uint8_t* pub_key) {
+  snprintf(out, len, "/m_%02x%02x%02x%02x.log",
+           pub_key[0], pub_key[1], pub_key[2], pub_key[3]);
+}
+
+static const char* MSGSTORE_PUBLIC_PATH = "/m_public.log";
+
+static void msgstore_rotate_if_needed(const char* path) {
+#if defined(ESP32)
+  if (!SPIFFS.exists(path)) return;
+  File f = SPIFFS.open(path, "r");
+  if (!f) return;
+  size_t sz = f.size();
+  f.close();
+  if (sz > MSGSTORE_MAX_BYTES) SPIFFS.remove(path);
+#endif
+}
+
+void msgstore_append_dm(const uint8_t* pub_key, uint32_t ts, bool sent, const char* text) {
+#if defined(ESP32)
+  char path[24];
+  msgstore_dm_path(path, sizeof(path), pub_key);
+  msgstore_rotate_if_needed(path);
+  File f = SPIFFS.open(path, FILE_APPEND);
+  if (!f) return;
+  f.printf("%u|%c|%s\n", (unsigned)ts, sent ? '>' : '<', text ? text : "");
+  f.close();
+#endif
+}
+
+void msgstore_append_public(uint32_t ts, const char* sender, bool sent, const char* text) {
+#if defined(ESP32)
+  msgstore_rotate_if_needed(MSGSTORE_PUBLIC_PATH);
+  File f = SPIFFS.open(MSGSTORE_PUBLIC_PATH, FILE_APPEND);
+  if (!f) return;
+  f.printf("%u|%s|%c|%s\n", (unsigned)ts,
+           sender ? sender : "?", sent ? '>' : '<', text ? text : "");
+  f.close();
+#endif
+}
+
+void msgstore_load_dm(const uint8_t* pub_key) {
+#if defined(ESP32)
+  char path[24];
+  msgstore_dm_path(path, sizeof(path), pub_key);
+  if (!SPIFFS.exists(path)) return;
+  File f = SPIFFS.open(path, "r");
+  if (!f) return;
+  while (f.available()) {
+    String line = f.readStringUntil('\n');
+    int p1 = line.indexOf('|');
+    int p2 = line.indexOf('|', p1 + 1);
+    if (p1 < 1 || p2 < p1 + 2) continue;
+    uint32_t ts = (uint32_t) line.substring(0, p1).toInt();
+    char dir = line.charAt(p1 + 1);
+    String text = line.substring(p2 + 1);
+    char time_buf[16];
+    format_time(ts, time_buf, sizeof(time_buf));
+    uiManager->addPrivateChatBubble(time_buf, text.c_str(), dir == '>');
+  }
+  f.close();
+#endif
+}
+
+void msgstore_load_public() {
+#if defined(ESP32)
+  if (!SPIFFS.exists(MSGSTORE_PUBLIC_PATH)) return;
+  File f = SPIFFS.open(MSGSTORE_PUBLIC_PATH, "r");
+  if (!f) return;
+  while (f.available()) {
+    String line = f.readStringUntil('\n');
+    int p1 = line.indexOf('|');
+    int p2 = line.indexOf('|', p1 + 1);
+    int p3 = line.indexOf('|', p2 + 1);
+    if (p1 < 1 || p2 < p1 + 2 || p3 < p2 + 2) continue;
+    uint32_t ts = (uint32_t) line.substring(0, p1).toInt();
+    String sender = line.substring(p1 + 1, p2);
+    char dir = line.charAt(p2 + 1);
+    String text = line.substring(p3 + 1);
+    char time_buf[16];
+    format_time(ts, time_buf, sizeof(time_buf));
+    uiManager->addChatBubble(time_buf, sender.c_str(), text.c_str(), dir == '>');
+  }
+  f.close();
+#endif
 }
 
 /* -------------------------------------------------------------------------------------- */
@@ -405,7 +495,8 @@ protected:
       Serial.printf("   Got ACK! (round trip: %d millis)\n", _ms->getMillis() - last_msg_sent);
       // NOTE: the same ACK can be received multiple times!
       expected_ack_crc = 0;  // reset our expected hash, now that we have received ACK
-      return NULL;  // TODO: really should return ContactInfo pointer 
+      if (uiManager) uiManager->setSendStatus(1);
+      return NULL;  // TODO: really should return ContactInfo pointer
     }
 
     //uint32_t crc;
@@ -425,9 +516,8 @@ protected:
     char time_buf[16];
     format_time(sender_timestamp, time_buf, sizeof(time_buf));
 
-    bool is_self = (strcmp(from.name, _prefs.node_name) == 0);
-
-    uiManager->addPrivateChatBubble(time_buf, text, is_self);
+    uiManager->routeIncomingDM(from.id.pub_key, from.name, time_buf, text);
+    msgstore_append_dm(from.id.pub_key, sender_timestamp, false, text);
   }
 
   void onCommandDataRecv(const ContactInfo& from, mesh::Packet* pkt, uint32_t sender_timestamp, const char *text) override {
@@ -463,6 +553,7 @@ protected:
     bool is_self = (strcmp(sender, _prefs.node_name) == 0);
 
     uiManager->addChatBubble(time_buf, sender, msg, is_self);
+    msgstore_append_public(timestamp, sender, is_self, msg);
   }
 
   uint8_t onContactRequest(const ContactInfo& contact, uint32_t sender_timestamp, const uint8_t* data, uint8_t len, uint8_t* reply) override {
@@ -486,6 +577,7 @@ protected:
 
   void onSendTimeout() override {
     Serial.println("   ERROR: timed out, no ACK.");
+    if (uiManager) uiManager->setSendStatus(2);
   }
 
 public:
@@ -874,6 +966,23 @@ void initializeMesh() {
   radio_set_tx_power(txpwr);
 
   the_mesh.showWelcome();
+
+  uiManager->populateSettings(the_mesh.getNodeName(),
+                              the_mesh.getFreqPref(),
+                              the_mesh.getTxPowerPref(),
+                              the_mesh.getFirmwareVer(),
+                              the_mesh.getBuildDate());
+
+  char pk_hex[17];
+  mesh::Utils::toHex(pk_hex, the_mesh.self_id.pub_key, 8);
+  pk_hex[16] = 0;
+  uiManager->populateHome(the_mesh.getNodeName(),
+                          pk_hex,
+                          the_mesh.getNumContacts(),
+                          the_mesh.getFreqPref());
+  uiManager->setMyNodeName(the_mesh.getNodeName());
+
+  msgstore_load_public();
 
   Serial.println("[mesh] Sending self-advert...");
   the_mesh.sendSelfAdvert(1200);

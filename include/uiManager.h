@@ -66,14 +66,58 @@ class UIManager {
     lv_obj_t* iu_SendLabel;
     lv_obj_t* ui_ChannelDivider;
 
+    lv_obj_t* ui_ContactName = nullptr;
+    lv_obj_t* ui_ContactInput = nullptr;
+    lv_obj_t* ui_ContactSendBtn = nullptr;
+    lv_obj_t* ui_ContactSendLabel = nullptr;
+    char currentContactName[32] = {0};
+    uint8_t currentContactPubKey[32] = {0};
+    bool hasCurrentContact = false;
+    char myNodeName[32] = {0};
+
+    lv_obj_t* ui_ContactStatus = nullptr;
+
+    lv_obj_t* ui_HomeNodeName = nullptr;
+    lv_obj_t* ui_HomePubKey = nullptr;
+    lv_obj_t* ui_HomeInfo = nullptr;
+    lv_obj_t* ui_AdvertiseBtn = nullptr;
+
+    lv_obj_t* ui_SettingsName = nullptr;
+    lv_obj_t* ui_SettingsFreq = nullptr;
+    lv_obj_t* ui_SettingsTx = nullptr;
+    lv_obj_t* ui_SettingsFw = nullptr;
+    lv_obj_t* ui_SettingsSaveBtn = nullptr;
+    lv_obj_t* ui_SettingsStatus = nullptr;
+
+    // Whichever input/send button last got focus — used by keyboard show/hide
+    lv_obj_t* activeInput = nullptr;
+    lv_obj_t* activeSendBtn = nullptr;
+    int activeInputBaseY = 0;
+
   public:
     UIManager();
 
     void onChannelInputFocus(lv_event_t* e);
+    void onContactInputFocus(lv_event_t* e);
+    void onContactSendClick(lv_event_t* e);
+    void onSettingsInputFocus(lv_event_t* e);
+    void onSettingsSaveClick(lv_event_t* e);
+    void onAdvertiseClick(lv_event_t* e);
     void onDimOverlayClick(lv_event_t* e);
     void onSendClick(lv_event_t* e);
     void onKeyboardEvent(lv_event_t* e);
     void scroll_begin_event(lv_event_t* e);
+
+    void populateSettings(const char* name, float freq, uint8_t tx_power,
+                          const char* fw_ver, const char* build_date);
+    void populateHome(const char* name, const char* pub_key_hex,
+                      int contact_count, float freq);
+    void setMyNodeName(const char* name);
+
+    // Phase 6
+    void routeIncomingDM(const uint8_t* from_pub_key, const char* from_name,
+                         const char* time_str, const char* text);
+    void setSendStatus(int state); // 0=sending, 1=delivered, 2=failed, -1=clear
 
     void updateDateTime(const struct tm timeinfo);
     void updateInfo(const char *str, uint32_t color);
