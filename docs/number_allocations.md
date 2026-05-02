@@ -15,6 +15,7 @@ Once you have a working app/project, you need to be able to demonstrate it exist
 | Data-Type range | App name                    | Contact                                              |
 |-----------------|-----------------------------|------------------------------------------------------|
 | 0000 - 00FF     | -reserved for internal use- |  |
+| 0100            | MeshCore Open               | zsylvester@monitormx.com — https://github.com/zjs81/meshcore-open |
 | FF00 - FFFF     | -reserved for testing/dev-  |  |
 
 (add rows, inside the range 0100 - FEFF for custom apps)

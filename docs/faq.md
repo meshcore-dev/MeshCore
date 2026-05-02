@@ -23,8 +23,8 @@ A list of frequently-asked questions and answers for MeshCore
     - [3.3. Q: What is the password to administer a repeater or a room server?](#33-q-what-is-the-password-to-administer-a-repeater-or-a-room-server)
     - [3.4. Q: What is the password to join a room server?](#34-q-what-is-the-password-to-join-a-room-server)
     - [3.5. Q: Can I retrieve a repeater's private key or set a repeater's private key?](#35-q-can-i-retrieve-a-repeaters-private-key-or-set-a-repeaters-private-key)
-    - [3.6. Q: The first byte of my repeater's public key collides with an exisitng repeater on the mesh.  How do I get a new private key with a matching public key that has its first byte of my choosing?](#36-q-the-first-byte-of-my-repeaters-public-key-collides-with-an-exisitng-repeater-on-the-mesh--how-do-i-get-a-new-private-key-with-a-matching-public-key-that-has-its-first-byte-of-my-choosing)
-    - [3.7. Q: My repeater maybe suffering from deafness due to high power interference near my mesh's frequency, it is not hearing other in-range MeshCore radios.  What can I do?](#37-q-my-repeater-maybe-suffering-from-deafness-due-to-high-power-interference-near-my-meshs-frequency-it-is-not-hearing-other-in-range-meshcore-radios--what-can-i-do)
+    - [3.6. Q: The first byte of my repeater's public key collides with an existing repeater on the mesh.  How do I get a new private key with a matching public key that has its first byte of my choosing?](#36-q-the-first-byte-of-my-repeaters-public-key-collides-with-an-existing-repeater-on-the-mesh--how-do-i-get-a-new-private-key-with-a-matching-public-key-that-has-its-first-byte-of-my-choosing)
+    - [3.7. Q: My repeater may be suffering from deafness due to high power interference near my mesh's frequency, it is not hearing other in-range MeshCore radios.  What can I do?](#37-q-my-repeater-may-be-suffering-from-deafness-due-to-high-power-interference-near-my-meshs-frequency-it-is-not-hearing-other-in-range-meshcore-radios--what-can-i-do)
     - [3.8. Q: How do I make my repeater an observer on the mesh?](#38-q-how-do-i-make-my-repeater-an-observer-on-the-mesh)
     - [3.9. Q: What is multi-byte support?  What do 1-byte, 2-byte, 3-byte adverts and messages mean?](#39-q-what-is-multi-byte-support--what-do-1-byte-2-byte-3-byte-adverts-and-messages-mean)
     - [3.9.1. Q: **What path hash sizes will my repeater forward?**](#391-q-what-path-hash-sizes-will-my-repeater-forward)
@@ -39,7 +39,7 @@ A list of frequently-asked questions and answers for MeshCore
     - [4.3. Q: Why is my T-Deck Plus not getting any satellite lock?](#43-q-why-is-my-t-deck-plus-not-getting-any-satellite-lock)
     - [4.4. Q: Why is my OG (non-Plus) T-Deck not getting any satellite lock?](#44-q-why-is-my-og-non-plus-t-deck-not-getting-any-satellite-lock)
     - [4.5. Q: What size of SD card does the T-Deck support?](#45-q-what-size-of-sd-card-does-the-t-deck-support)
-    - [4.6. Q: what is the public key for the default public channel?](#46-q-what-is-the-public-key-for-the-default-public-channel)
+    - [4.6. Q: What is the public key for the default public channel?](#46-q-what-is-the-public-key-for-the-default-public-channel)
     - [4.7. Q: How do I get maps on T-Deck?](#47-q-how-do-i-get-maps-on-t-deck)
     - [4.8. Q: Where do the map tiles go?](#48-q-where-do-the-map-tiles-go)
     - [4.9. Q: How to unlock deeper map zoom and server management features on T-Deck?](#49-q-how-to-unlock-deeper-map-zoom-and-server-management-features-on-t-deck)
@@ -52,9 +52,9 @@ A list of frequently-asked questions and answers for MeshCore
     - [5.1. Q: What are BW, SF, and CR?](#51-q-what-are-bw-sf-and-cr)
     - [5.2. Q: Do MeshCore clients repeat?](#52-q-do-meshcore-clients-repeat)
     - [5.3. Q: What happens when a node learns a route via a mobile repeater, and that repeater is gone?](#53-q-what-happens-when-a-node-learns-a-route-via-a-mobile-repeater-and-that-repeater-is-gone)
-    - [5.4. Q: How does a node discovery a path to its destination and then use it to send messages in the future, instead of flooding every message it sends like Meshtastic?](#54-q-how-does-a-node-discovery-a-path-to-its-destination-and-then-use-it-to-send-messages-in-the-future-instead-of-flooding-every-message-it-sends-like-meshtastic)
+    - [5.4. Q: How does a node discover a path to its destination and then use it to send messages in the future, instead of flooding every message it sends like Meshtastic?](#54-q-how-does-a-node-discover-a-path-to-its-destination-and-then-use-it-to-send-messages-in-the-future-instead-of-flooding-every-message-it-sends-like-meshtastic)
     - [5.5. Q: Do public channels always flood? Do private channels always flood?](#55-q-do-public-channels-always-flood-do-private-channels-always-flood)
-    - [5.6. Q: what is the public key for the default public channel?](#56-q-what-is-the-public-key-for-the-default-public-channel)
+    - [5.6. Q: What is the public key for the default public channel?](#56-q-what-is-the-public-key-for-the-default-public-channel)
     - [5.7. Q: Is MeshCore open source?](#57-q-is-meshcore-open-source)
     - [5.8. Q: How can I support MeshCore?](#58-q-how-can-i-support-meshcore)
     - [5.9. Q: How do I build MeshCore firmware from source?](#59-q-how-do-i-build-meshcore-firmware-from-source)
@@ -62,7 +62,7 @@ A list of frequently-asked questions and answers for MeshCore
     - [5.11. Q: Does MeshCore support ATAK](#511-q-does-meshcore-support-atak)
     - [5.12. Q: How do I add a node to the MeshCore Map](#512-q-how-do-i-add-a-node-to-the-meshcore-map)
     - [5.13. Q: Can I use a Raspberry Pi to update a MeshCore radio?](#513-q-can-i-use-a-raspberry-pi-to-update-a-meshcore-radio)
-    - [5.14. Q: Are there are projects built around MeshCore?](#514-q-are-there-are-projects-built-around-meshcore)
+    - [5.14. Q: Are there projects built around MeshCore?](#514-q-are-there-projects-built-around-meshcore)
     - [5.15. Q: Are there client applications for Windows or Mac?](#515-q-are-there-client-applications-for-windows-or-mac)
     - [5.16. Q: Are there any resources that compare MeshCore to other LoRa systems?](#516-q-are-there-any-resources-that-compare-meshcore-to-other-lora-systems)
   - [6. Troubleshooting](#6-troubleshooting)
@@ -188,13 +188,13 @@ The T-Deck firmware is free to download and most features are available without 
 ### 2.3. Q: What frequencies are supported by MeshCore?
 **A:** It supports the 868MHz range in the UK/EU and the 915MHz range in New Zealand, Australia, and the USA. Countries and regions in these two frequency ranges are also supported.
 
-Use the smartphone client or the repeater setup feature on there web flasher to set your radios' RF settings by choosing the preset for your regions.
+Use the smartphone client or the repeater setup feature on the web flasher to set your radios' RF settings by choosing the preset for your regions.
 
 Recently, as of October 2025, many regions have moved to the "narrow" setting, aka using BW62.5 and a lower SF number (instead of the original SF11).  For example, USA/Canada (Recommended) preset is 910.525MHz, SF7, BW62.5, CR5.
 
 After extensive testing, many regions have switched or about to switch over to BW62.5 and SF7, 8, or 9.  Narrower bandwidth setting and lower SF setting allow MeshCore's radio signals to fit between interference in the ISM band, provide for a lower noise floor, better SNR, and faster transmissions.
 
-If you have consensus from your community in your region to update your region's preset recommendation, please post your update request on  the [#meshcore-app](https://discord.com/channels/1343693475589263471/1391681655911088241) channel on the [MeshCore Discord server ](https://discord.gg/cYtQNYCCRK) to let Liam Cottle know.
+If you have consensus from your community in your region to update your region's preset recommendation, please post your update request on  the [#meshcore-app](https://discord.com/channels/1343693475589263471/1391681655911088241) channel on the [MeshCore Discord server ](https://meshcore.gg) to let Liam Cottle know.
 
 
 
@@ -272,7 +272,7 @@ You can get the latitude and longitude from Google Maps by right-clicking the lo
 
 Reboot the repeater after `set prv.key <hex>` command for the new private key to take effect.
 
-### 3.6. Q: The first byte of my repeater's public key collides with an exisitng repeater on the mesh.  How do I get a new private key with a matching public key that has its first byte of my choosing?
+### 3.6. Q: The first byte of my repeater's public key collides with an existing repeater on the mesh.  How do I get a new private key with a matching public key that has its first byte of my choosing?
 
 **A:** You can generate a new private key and specific the first byte of its public key here:  https://gessaman.com/mc-keygen/
 
@@ -281,7 +281,7 @@ Having multiple repeaters with the same first byte ID does not negatively affect
 Best practice is when you set up a new repeater, choose a public key that is not in use. If it is not possible to find a unique first byte for your repeater's public key, choose one that is unique within about 10 miles (16 km) to minimize collision with nearby repeaters.
 
 
-### 3.7. Q: My repeater maybe suffering from deafness due to high power interference near my mesh's frequency, it is not hearing other in-range MeshCore radios.  What can I do?
+### 3.7. Q: My repeater may be suffering from deafness due to high power interference near my mesh's frequency, it is not hearing other in-range MeshCore radios.  What can I do?
 
 **A:** This may be due to the SX1262 radio's auto gain control feature.  You can use this command to periodically reset its AGC.  
 
@@ -380,7 +380,7 @@ GPS on T-Deck is always enabled.  You can skip the "GPS clock sync" and the T-De
 ### 4.5. Q: What size of SD card does the T-Deck support?
 **A:** Users have had no issues using 16GB or 32GB SD cards. Format the SD card to **FAT32**.
 
-### 4.6. Q: what is the public key for the default public channel?
+### 4.6. Q: What is the public key for the default public channel?
 **A:**
 T-Deck uses the same key the smartphone apps use but in base64
 `izOH6cXN6mrJ5e26oRXNcg==`
@@ -499,7 +499,7 @@ In MeshCore, only repeaters and room server with `set repeat on` repeat.
 
 In the case if users are moving around frequently, and the paths are breaking, they just see the phone client retries and revert to flood to attempt to re-establish a path.
 
-### 5.4. Q: How does a node discovery a path to its destination and then use it to send messages in the future, instead of flooding every message it sends like Meshtastic?
+### 5.4. Q: How does a node discover a path to its destination and then use it to send messages in the future, instead of flooding every message it sends like Meshtastic?
 
 Routes are stored in sender's contact list.  When you send a message the first time, the message first gets to your destination by flood routing. When your destination node gets the message, it will send back a delivery report to the sender with all repeaters that the original message went through. This delivery report is flood-routed back to you the sender and is a basis for future direct path. When you send the next message, the path will get embedded into the packet and be evaluated by repeaters. If the hop and address of the repeater matches, it will retransmit the message, otherwise it will not retransmit, hence minimizing utilization.
 
@@ -512,7 +512,7 @@ Routes are stored in sender's contact list.  When you send a message the first t
 [Source](https://discord.com/channels/1343693475589263471/1343693475589263474/1350023009527664672)
 
 
-### 5.6. Q: what is the public key for the default public channel?
+### 5.6. Q: What is the public key for the default public channel?
 **A:** The smartphone app key is in hex:
 ` 8b3387e9c5cdea6ac9e5edbaa115cd72`
 
@@ -526,7 +526,7 @@ The third character is the capital letter 'O', not zero `0`
 - Firmware repo: https://github.com/meshcore-dev/MeshCore
 
 ### 5.8. Q: How can I support MeshCore?
-**A:** Provide your honest feedback on GitHub and on [MeshCore Discord server](https://discord.gg/BMwCtwHj5V). Spread the word of MeshCore to your friends and communities; help them get started with MeshCore. Support Scott's MeshCore development at <https://buymeacoffee.com/ripplebiz>.
+**A:** Provide your honest feedback on GitHub and on [MeshCore Discord server](https://meshcore.gg). Spread the word of MeshCore to your friends and communities; help them get started with MeshCore. Support Scott's MeshCore development at <https://buymeacoffee.com/ripplebiz>.
 
 Support Liam Cottle's smartphone client development by unlocking the server administration wait gate with in-app purchase
 
@@ -658,11 +658,11 @@ From here, reference repeater and room server command line commands on MeshCore 
     - https://github.com/meshcore-dev/MeshCore/wiki/Repeater-&-Room-Server-CLI-Reference
 
 
-### 5.14. Q: Are there are projects built around MeshCore?
+### 5.14. Q: Are there projects built around MeshCore?
 
-**A:** Yes, there are many.  MeshCore's protocol is open source using the MIT license.  The MIT license and the open source protocol makes it very easy for the MeshCore community to build new firmware for radios, applications on mobile devices, map tools, and analysis tools, and integration with other projects like Home Asistant.
+**A:** Yes, there are many.  MeshCore's protocol is open source using the MIT license.  The MIT license and the open source protocol makes it very easy for the MeshCore community to build new firmware for radios, applications on mobile devices, map tools, and analysis tools, and integration with other projects like Home Assistant.
 
-As new MeshCore community projects become available on a weekly basis, we have stopped tracking them here in this FAQ.  [samuk](https://github.com/samuk) maintains a very exhausive list of MeshCore community project at https://github.com/samuk/awesome-meshcore/blob/main/README.md.  samuk accepts PRs and merges them regularly.
+As new MeshCore community projects become available on a weekly basis, we have stopped tracking them here in this FAQ.  [samuk](https://github.com/samuk) maintains a very exhaustive list of MeshCore community project at https://github.com/samuk/awesome-meshcore/blob/main/README.md.  samuk accepts PRs and merges them regularly.
 
 
 ### 5.15. Q: Are there client applications for Windows or Mac?
@@ -716,7 +716,7 @@ You can get the epoch time on <https://www.epochconverter.com/> and use it to se
     - For RAK, click the reset button **TWICE**
     - For T1000-e, quickly disconnect and reconnect the magnetic side of the cable from the device **TWICE**
     - For Heltec T114, click the reset button **TWICE** (the bottom button)
-    - For Xiao nRF52, click the reset button once.  If that doesn't work, quickly double click the reset button twice.  If that doesn't work, disconnection the board from your PC and reconnect again ([seeed studio wiki](https://wiki.seeedstudio.com/XIAO_BLE/#access-the-swd-pins-for-debugging-and-reflashing-bootloader))
+    - For Xiao nRF52, click the reset button once.  If that doesn't work, quickly double click the reset button twice.  If that doesn't work, disconnect the board from your PC and reconnect again ([seeed studio wiki](https://wiki.seeedstudio.com/XIAO_BLE/#access-the-swd-pins-for-debugging-and-reflashing-bootloader))
 5. A new folder will appear on your computer's desktop
 6. Download the `flash_erase*.uf2` file for your device on https://flasher.meshcore.io
     - RAK WisBlock and Heltec T114: `Flash_erase-nRF32_softdevice_v6.uf2`
@@ -826,7 +826,7 @@ Edit WIFI_SSID and WIFI_PWD in `./variants/heltec_v3/platformio.ini` and then fl
 
 ### 7.7. Q: I have a Station G2, or a Heltec V4, or an Ikoka Stick, or a radio with a EByte E22-900M30S or a E22-900M33S module, what should their transmit power be set to?
  **A:**
-For companion radios, you can set these radios' transmit power in the smartphone app.  For repeater and room server radios, you can set their transmit power using the command line command `set tx`.  You can get their current value using command line comand `get tx`
+For companion radios, you can set these radios' transmit power in the smartphone app.  For repeater and room server radios, you can set their transmit power using the command line command `set tx`.  You can get their current value using command line command `get tx`
 
 
   ⚠️ **WARNING: Set these values at your own risk. Incorrect power settings can permanently damage your radio hardware.**

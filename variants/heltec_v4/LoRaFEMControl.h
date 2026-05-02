@@ -23,7 +23,7 @@ class LoRaFEMControl
     LoRaFEMType getFEMType(void) const { return fem_type; }
   private:
     LoRaFEMType fem_type=OTHER_FEM_TYPES;
-    bool lna_enabled=true;
+    bool lna_enabled=false;
     bool lna_can_control=false;
 };
 
