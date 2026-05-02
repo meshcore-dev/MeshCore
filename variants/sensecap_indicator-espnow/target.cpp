@@ -105,7 +105,7 @@ bool radio_init() {
   // Wire must be up before TCA9535 access — force full re-init after recovery
   Wire.end();
   delay(5);
-  Wire.begin(PIN_BOARD_SDA, PIN_BOARD_SCL);
+  Wire.begin(PIN_BOARD_SDA, PIN_BOARD_SCL, 400000);
   Wire.setTimeOut(15);  // 15 ms per address for fast scan
   delay(10);
 

@@ -119,6 +119,7 @@ int RadioLibWrapper::recvRaw(uint8_t* bytes, int sz) {
     int err = _radio->startReceive();
     if (err == RADIOLIB_ERR_NONE) {
       state = STATE_RX;
+      state &= ~STATE_INT_READY;  // BUSY transitions during startReceive fire TCA9535 /INT spuriously
     } else {
       MESH_DEBUG_PRINTLN("RadioLibWrapper: error: startReceive(%d)", err);
     }

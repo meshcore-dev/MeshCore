@@ -998,7 +998,7 @@ void setup() {
 #if defined(PIN_BOARD_SDA) && defined(PIN_BOARD_SCL)
   // Initialise I2C early so both the touch controller (FT5x06 @ 0x48)
   // and the IO expander (TCA9535 @ 0x20) are ready before lcd.begin().
-  Wire.begin(PIN_BOARD_SDA, PIN_BOARD_SCL);
+  Wire.begin(PIN_BOARD_SDA, PIN_BOARD_SCL, 400000);
 #endif
 
   initializeDisplay();
