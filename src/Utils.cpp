@@ -60,26 +60,26 @@ int Utils::encrypt(const uint8_t* shared_secret, uint8_t* dest, const uint8_t* s
   return dp - dest;  // will always be multiple of 16
 }
 
-int Utils::encryptThenMAC(const uint8_t* shared_secret, uint8_t* dest, const uint8_t* src, int src_len) {
+int Utils::encryptThenMAC(const uint8_t* shared_secret, int secret_len, uint8_t* dest, const uint8_t* src, int src_len) {
   int enc_len = encrypt(shared_secret, dest + CIPHER_MAC_SIZE, src, src_len);
 
   SHA256 sha;
-  sha.resetHMAC(shared_secret, PUB_KEY_SIZE);
+  sha.resetHMAC(shared_secret, secret_len);
   sha.update(dest + CIPHER_MAC_SIZE, enc_len);
-  sha.finalizeHMAC(shared_secret, PUB_KEY_SIZE, dest, CIPHER_MAC_SIZE);
+  sha.finalizeHMAC(shared_secret, secret_len, dest, CIPHER_MAC_SIZE);
 
   return CIPHER_MAC_SIZE + enc_len;
 }
 
-int Utils::MACThenDecrypt(const uint8_t* shared_secret, uint8_t* dest, const uint8_t* src, int src_len) {
+int Utils::MACThenDecrypt(const uint8_t* shared_secret, int secret_len, uint8_t* dest, const uint8_t* src, int src_len) {
   if (src_len <= CIPHER_MAC_SIZE) return 0;  // invalid src bytes
 
   uint8_t hmac[CIPHER_MAC_SIZE];
   {
     SHA256 sha;
-    sha.resetHMAC(shared_secret, PUB_KEY_SIZE);
+    sha.resetHMAC(shared_secret, secret_len);
     sha.update(src + CIPHER_MAC_SIZE, src_len - CIPHER_MAC_SIZE);
-    sha.finalizeHMAC(shared_secret, PUB_KEY_SIZE, hmac, CIPHER_MAC_SIZE);
+    sha.finalizeHMAC(shared_secret, secret_len, hmac, CIPHER_MAC_SIZE);
   }
   if (memcmp(hmac, src, CIPHER_MAC_SIZE) == 0) {
     return decrypt(shared_secret, dest, src + CIPHER_MAC_SIZE, src_len - CIPHER_MAC_SIZE);
