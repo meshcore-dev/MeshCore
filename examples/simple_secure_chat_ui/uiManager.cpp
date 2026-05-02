@@ -1008,7 +1008,7 @@ void UIManager::ui_Screen1_screen_init(void)
 
     lv_obj_t* ui_AdvertiseLabel = LvLabel(ui_AdvertiseBtn)
         #if defined(LANG_GR)
-        .text(LV_SYMBOL_WIFI "  Διαφήμιση")
+        .text(LV_SYMBOL_WIFI "  Advertise")
         #else
         .text(LV_SYMBOL_WIFI "  Advertise")
         #endif

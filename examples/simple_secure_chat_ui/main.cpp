@@ -149,12 +149,14 @@ void my_touchpad_read(lv_indev_drv_t * indev_driver, lv_indev_data_t * data)
 {
   // Serialize Wire access with SenseCapHAL (TCA9535 radio expander).
   // g_i2c_mutex is nullptr until radio_init() creates it — safe to skip then.
-  if (g_i2c_mutex) xSemaphoreTake(g_i2c_mutex, pdMS_TO_TICKS(20));
+  // Must check the return value: if we don't hold the mutex, skip getTouch()
+  // entirely to avoid racing with TCA9535 I2C transactions and corrupting the bus.
+  bool have_mutex = !g_i2c_mutex || (xSemaphoreTake(g_i2c_mutex, portMAX_DELAY) == pdTRUE);
 
   uint16_t x, y;
-  bool touched = lcd.getTouch(&x, &y);
+  bool touched = have_mutex && lcd.getTouch(&x, &y);
 
-  if (g_i2c_mutex) xSemaphoreGive(g_i2c_mutex);
+  if (have_mutex && g_i2c_mutex) xSemaphoreGive(g_i2c_mutex);
 
   if (touched)
   {
@@ -907,9 +909,6 @@ void initializeDisplay() {
   pinMode(45, OUTPUT);
   digitalWrite(45, HIGH);
   Serial.printf("[display] BL GPIO45 after force HIGH: %d\n", digitalRead(45));
-  lcd.fillScreen(TFT_RED);  // DEBUG: should show solid RED for 3s before LVGL
-  Serial.println("[display] RED fill done — waiting 3s for visual check");
-  delay(3000);
   lcd.setTextSize(2);
   lcd.setRotation(1);
 }
