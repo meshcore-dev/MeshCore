@@ -119,6 +119,7 @@ protected:
   void logRxRaw(float snr, float rssi, const uint8_t raw[], int len) override;
   bool isAutoAddEnabled() const override;
   bool shouldAutoAddContactType(uint8_t type) const override;
+  uint16_t getClockSkewThreshold() const override { return _prefs.clock_skew_threshold; }
   bool shouldOverwriteWhenFull() const override;
   uint8_t getAutoAddMaxHops() const override;
   void onContactsFull() override;

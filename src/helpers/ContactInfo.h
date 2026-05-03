@@ -5,11 +5,17 @@
 
 #define OUT_PATH_UNKNOWN   0xFF
 
+// Bits for ContactInfo.flags2 (the original 'flags' byte is largely claimed by
+// favourite + telemetry-permission bits in the companion build; flags2 is the
+// fresh byte for new per-contact toggles).
+#define CONTACT_FLAG2_TRUST_TIME   0x01  // accept this contact's advert timestamp as a clock reference
+
 struct ContactInfo {
   mesh::Identity id;
   char name[32];
   uint8_t type;   // on of ADV_TYPE_*
   uint8_t flags;
+  uint8_t flags2; // bitfield, see CONTACT_FLAG2_*
   uint8_t out_path_len;
   mutable bool shared_secret_valid; // flag to indicate if shared_secret has been calculated
   uint8_t out_path[MAX_PATH_SIZE];

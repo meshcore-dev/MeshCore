@@ -95,6 +95,10 @@ protected:
 
   // 'UI' concepts, for sub-classes to implement
   virtual bool isAutoAddEnabled() const { return true; }
+  // 0 disables clock correction from trusted advert sources; otherwise it is the
+  // minimum |skew| in seconds required before our clock is stepped to a trusted
+  // contact's advert timestamp. See onAdvertRecv() and CONTACT_FLAG2_TRUST_TIME.
+  virtual uint16_t getClockSkewThreshold() const { return 0; }
   virtual bool shouldAutoAddContactType(uint8_t type) const { return true; }
   virtual void onContactsFull() {};
   virtual bool shouldOverwriteWhenFull() const { return false; }

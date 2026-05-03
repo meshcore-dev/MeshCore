@@ -233,6 +233,8 @@ void DataStore::loadPrefsInt(const char *filename, NodePrefs& _prefs, double& no
     file.read((uint8_t *)&_prefs.rx_boosted_gain, sizeof(_prefs.rx_boosted_gain));         // 89
     file.read((uint8_t *)_prefs.default_scope_name, sizeof(_prefs.default_scope_name));    // 90
     file.read((uint8_t *)_prefs.default_scope_key, sizeof(_prefs.default_scope_key));     // 121
+    // appended fields: read may short-return on legacy files; caller pre-initialises defaults
+    file.read((uint8_t *)&_prefs.clock_skew_threshold, sizeof(_prefs.clock_skew_threshold)); // 137
 
     file.close();
   }
@@ -285,13 +287,13 @@ File file = openRead(_getContactsChannelsFS(), "/contacts3");
       while (!full) {
         ContactInfo c;
         uint8_t pub_key[32];
-        uint8_t unused;
 
         bool success = (file.read(pub_key, 32) == 32);
         success = success && (file.read((uint8_t *)&c.name, 32) == 32);
         success = success && (file.read(&c.type, 1) == 1);
         success = success && (file.read(&c.flags, 1) == 1);
-        success = success && (file.read(&unused, 1) == 1);
+        // Was reserved/unused; now flags2. Legacy files stored 0 here, which decodes as no flags set (correct default).
+        success = success && (file.read(&c.flags2, 1) == 1);
         success = success && (file.read((uint8_t *)&c.sync_since, 4) == 4); // was 'reserved'
         success = success && (file.read((uint8_t *)&c.out_path_len, 1) == 1);
         success = success && (file.read((uint8_t *)&c.last_advert_timestamp, 4) == 4);
@@ -314,14 +316,13 @@ void DataStore::saveContacts(DataStoreHost* host) {
   if (file) {
     uint32_t idx = 0;
     ContactInfo c;
-    uint8_t unused = 0;
 
     while (host->getContactForSave(idx, c)) {
       bool success = (file.write(c.id.pub_key, 32) == 32);
       success = success && (file.write((uint8_t *)&c.name, 32) == 32);
       success = success && (file.write(&c.type, 1) == 1);
       success = success && (file.write(&c.flags, 1) == 1);
-      success = success && (file.write(&unused, 1) == 1);
+      success = success && (file.write(&c.flags2, 1) == 1);
       success = success && (file.write((uint8_t *)&c.sync_since, 4) == 4);
       success = success && (file.write((uint8_t *)&c.out_path_len, 1) == 1);
       success = success && (file.write((uint8_t *)&c.last_advert_timestamp, 4) == 4);

@@ -122,6 +122,26 @@ void BaseChatMesh::onAdvertRecv(mesh::Packet* packet, const mesh::Identity& id, 
     }
   }
 
+  // Opportunistic clock correction from a trusted advert source. The advert's
+  // signature was already verified upstream (Mesh::onRecvPacket) and the per-sender
+  // strict-monotonic check above guards against replay, so by this point we know
+  // the timestamp came from this contact's key and is newer than anything we've
+  // previously accepted from them. If the operator has explicitly trusted this
+  // contact for time, step our local clock when |skew| exceeds the configured
+  // threshold.
+  if (from != NULL && (from->flags2 & CONTACT_FLAG2_TRUST_TIME)) {
+    uint16_t threshold = getClockSkewThreshold();
+    if (threshold > 0) {
+      uint32_t local = getRTCClock()->getCurrentTime();
+      int32_t skew = (int32_t)(timestamp - local);
+      int32_t abs_skew = skew < 0 ? -skew : skew;
+      if (abs_skew > (int32_t)threshold) {
+        MESH_DEBUG_PRINTLN("onAdvertRecv: trusted clock correction from %s skew=%ds", from->name, (int)skew);
+        getRTCClock()->setCurrentTime(timestamp);
+      }
+    }
+  }
+
   // save a copy of raw advert packet (to support "Share..." function)
   int plen;
   {

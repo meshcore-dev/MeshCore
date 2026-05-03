@@ -868,6 +868,7 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
   _prefs.tx_power_dbm = LORA_TX_POWER;
   _prefs.gps_enabled = 0;       // GPS disabled by default
   _prefs.gps_interval = 0;      // No automatic GPS updates by default
+  _prefs.clock_skew_threshold = 300; // 5 minutes; opt-in per contact via CONTACT_FLAG2_TRUST_TIME
   //_prefs.rx_delay_base = 10.0f;  enable once new algo fixed
 #if defined(USE_SX1262) || defined(USE_SX1268)
 #ifdef SX126X_RX_BOOSTED_GAIN
@@ -1981,9 +1982,57 @@ void MyMesh::checkCLIRescueCmd() {
         _prefs.ble_pin = atoi(&config[4]);
         savePrefs();
         Serial.printf("  > pin is now %06d\n", _prefs.ble_pin);
+      } else if (memcmp(config, "clock.skew.threshold ", 21) == 0) {
+        int v = atoi(&config[21]);
+        if (v < 0 || v > 65535) {
+          Serial.println("  Error: clock.skew.threshold must be 0..65535 (seconds; 0 disables)");
+        } else {
+          _prefs.clock_skew_threshold = (uint16_t)v;
+          savePrefs();
+          Serial.printf("  > clock.skew.threshold is now %u\n", (unsigned)_prefs.clock_skew_threshold);
+        }
       } else {
         Serial.printf("  Error: unknown config: %s\n", config);
       }
+    } else if (memcmp(cli_command, "trust time ", 11) == 0
+            || memcmp(cli_command, "untrust time ", 13) == 0) {
+      bool enable = (cli_command[0] == 't');
+      const char* arg = enable ? &cli_command[11] : &cli_command[13];
+      ContactInfo* c = NULL;
+      // Try hex pubkey-prefix first (any even length 2..PUB_KEY_SIZE*2). Fall back to name prefix.
+      int hex_len = strlen(arg);
+      if (hex_len >= 2 && (hex_len & 1) == 0 && hex_len <= PUB_KEY_SIZE * 2) {
+        uint8_t key_buf[PUB_KEY_SIZE];
+        memset(key_buf, 0, sizeof(key_buf));
+        if (mesh::Utils::fromHex(key_buf, hex_len / 2, arg)) {
+          c = lookupContactByPubKey(key_buf, hex_len / 2);
+        }
+      }
+      if (c == NULL) c = searchContactsByPrefix(arg);
+      if (c == NULL) {
+        Serial.printf("  Error: no contact matches '%s'\n", arg);
+      } else {
+        if (enable) {
+          c->flags2 |= CONTACT_FLAG2_TRUST_TIME;
+        } else {
+          c->flags2 &= ~CONTACT_FLAG2_TRUST_TIME;
+        }
+        saveContacts();
+        Serial.printf("  > %s time-trust on '%s'\n", enable ? "set" : "cleared", c->name);
+      }
+    } else if (strcmp(cli_command, "trust list") == 0) {
+      int n = 0;
+      for (int i = 0; i < getNumContacts(); i++) {
+        ContactInfo c;
+        if (getContactByIdx(i, c) && (c.flags2 & CONTACT_FLAG2_TRUST_TIME)) {
+          char hex[2 * 8 + 1];
+          mesh::Utils::toHex(hex, c.id.pub_key, 8);
+          Serial.printf("  %s  %s\n", hex, c.name);
+          n++;
+        }
+      }
+      Serial.printf("  (%d trusted-time contact%s; threshold=%us)\n",
+                    n, n == 1 ? "" : "s", (unsigned)_prefs.clock_skew_threshold);
     } else if (strcmp(cli_command, "rebuild") == 0) {
       bool success = _store->formatFileSystem();
       if (success) {
