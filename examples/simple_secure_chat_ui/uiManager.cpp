@@ -1181,7 +1181,13 @@ void UIManager::ui_Screen1_screen_init(void)
         .scrollable(false)
         .clickable(true)
         .raw();
-    lv_obj_remove_style_all(ui_DimOverlay);             // no border/padding
+    // Remove only border/padding — do NOT use remove_style_all because it also
+    // resets width/height (style props in LVGL8) back to 100×100 default,
+    // which causes the white-square artifact when night mode activates.
+    lv_obj_set_style_border_width(ui_DimOverlay, 0, 0);
+    lv_obj_set_style_outline_width(ui_DimOverlay, 0, 0);
+    lv_obj_set_style_shadow_width(ui_DimOverlay, 0, 0);
+    lv_obj_set_style_pad_all(ui_DimOverlay, 0, 0);
     lv_obj_clear_flag(ui_DimOverlay, LV_OBJ_FLAG_SCROLL_CHAIN_HOR);
     lv_obj_clear_flag(ui_DimOverlay, LV_OBJ_FLAG_SCROLL_CHAIN_VER);
 
@@ -1348,12 +1354,14 @@ void UIManager::ui_Screen1_screen_init(void)
 }
 
 void UIManager::setNightMode(bool night) {
-
     if (!ui_DimOverlay) return;
+    if (night == night_mode_active) return;   // debounce — avoids LVGL redraw every second
+    night_mode_active = night;
     if (night) {
-        lv_obj_set_style_bg_opa(ui_DimOverlay, 192, 0);  // 75% dark
+        lv_obj_set_style_bg_color(ui_DimOverlay, lv_color_black(), 0);  // explicit black
+        lv_obj_set_style_bg_opa(ui_DimOverlay, 192, 0);   // 75% dark
     } else {
-        lv_obj_set_style_bg_opa(ui_DimOverlay, 0, 0);    // none
+        lv_obj_set_style_bg_opa(ui_DimOverlay, 0, 0);     // invisible
     }
 }
 

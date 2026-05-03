@@ -293,8 +293,12 @@ void msgstore_load_dm(const uint8_t* pub_key) {
     int p2 = line.indexOf('|', p1 + 1);
     if (p1 < 1 || p2 < p1 + 2) continue;
     uint32_t ts = (uint32_t) line.substring(0, p1).toInt();
+    if (ts == 0) continue;                   // skip unsync'd entries
     char dir = line.charAt(p1 + 1);
+    if (dir != '>' && dir != '<') continue;  // skip malformed direction
     String text = line.substring(p2 + 1);
+    text.trim();
+    if (text.length() == 0) continue;        // skip empty messages
     char time_buf[16];
     format_time(ts, time_buf, sizeof(time_buf));
     uiManager->addPrivateChatBubble(time_buf, text.c_str(), dir == '>');
@@ -315,9 +319,13 @@ void msgstore_load_public() {
     int p3 = line.indexOf('|', p2 + 1);
     if (p1 < 1 || p2 < p1 + 2 || p3 < p2 + 2) continue;
     uint32_t ts = (uint32_t) line.substring(0, p1).toInt();
+    if (ts == 0) continue;
     String sender = line.substring(p1 + 1, p2);
     char dir = line.charAt(p2 + 1);
+    if (dir != '>' && dir != '<') continue;
     String text = line.substring(p3 + 1);
+    text.trim();
+    if (text.length() == 0) continue;
     char time_buf[16];
     format_time(ts, time_buf, sizeof(time_buf));
     uiManager->addChatBubble(time_buf, sender.c_str(), text.c_str(), dir == '>');

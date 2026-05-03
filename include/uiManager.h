@@ -73,6 +73,7 @@ class UIManager {
     char currentContactName[32] = {0};
     uint8_t currentContactPubKey[32] = {0};
     bool hasCurrentContact = false;
+    bool night_mode_active = false;
     char myNodeName[32] = {0};
 
     lv_obj_t* ui_ContactStatus = nullptr;
