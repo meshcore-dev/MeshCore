@@ -900,10 +900,74 @@ void configureDisplay() {
   lcd.fillScreen(0x000000u);
 }
 
+// ── ROOT CAUSE NOTE ──────────────────────────────────────────────────────────
+// Upstream LovyanGFX 1.2.7 does NOT understand the IO_EXPANDER pin encoding
+// (only the mverch67 fork does).  Our SCIndicatorDisplay.h sets
+//   cfg.pin_cs = 4 | IO_EXPANDER  (= 0x44 = 68)
+// During Panel_ST7701_Base::init(), LovyanGFX calls
+//   lgfx::gpio_lo(pin_cs)  // assert CS
+//   ... send SPI init commands (gamma, voltages, RGB666, sleep-out, etc.) ...
+//   lgfx::gpio_hi(pin_cs)  // deassert CS
+// gpio_lo(68) on ESP32-S3 (max GPIO 48) is a silent no-op → CS is NEVER
+// actually asserted → all SPI init commands are sent into the void →
+// the ST7701 never receives its init sequence.
+//
+// This worked SOMETIMES because:
+//   - on soft reboot the ST7701 retained state from the previous boot
+//   - on cold boot from charged caps it was in some semi-init state
+//   - on cold boot from discharged caps it stayed in factory state → stripes
+//
+// FIX: manually assert TCA9535 P0.4 (real LCD CS) LOW before lcd.begin()
+// and deassert it HIGH after. CS stays LOW for the entire LovyanGFX init,
+// so all SPI commands actually reach the ST7701. The internal gpio_lo/hi
+// calls in LovyanGFX become harmless no-ops (they target a non-existent
+// GPIO 68, but our manual TCA9535 CS state is preserved).
+// ────────────────────────────────────────────────────────────────────────────
+
+static void sensecap_lcd_cs_assert() {
+  const uint8_t TCA = 0x20;
+  // Config Port 0: bit 4 (LCD CS) = OUTPUT, bit 5 (LCD RESX) = OUTPUT,
+  // others = INPUT.  0xCF = 1100 1111 (bits 4,5 cleared = output).
+  Wire.beginTransmission(TCA);
+  Wire.write(0x06);   // CONFIG_P0
+  Wire.write(0xCF);
+  uint8_t e1 = Wire.endTransmission();
+
+  // Output Port 0: bit 4 LOW (CS asserted), bit 5 HIGH (RESX deasserted),
+  // all other latches HIGH.  0xEF = 1110 1111.
+  Wire.beginTransmission(TCA);
+  Wire.write(0x02);   // OUTPUT_P0
+  Wire.write(0xEF);
+  uint8_t e2 = Wire.endTransmission();
+
+  Serial.printf("[lcd_cs] assert LOW: cfg_err=%u out_err=%u\n", e1, e2);
+}
+
+static void sensecap_lcd_cs_deassert() {
+  const uint8_t TCA = 0x20;
+  // Output Port 0: all HIGH (CS deasserted, RESX deasserted).
+  Wire.beginTransmission(TCA);
+  Wire.write(0x02);   // OUTPUT_P0
+  Wire.write(0xFF);
+  uint8_t e = Wire.endTransmission();
+  Serial.printf("[lcd_cs] deassert HIGH: out_err=%u\n", e);
+}
+
 void initializeDisplay() {
   ESP_LOGI(TAG, "Initializing display...");
+
+  // Hold the LCD CS LOW manually for the entire lcd.begin() duration so the
+  // ST7701 actually receives the SPI init sequence.  See ROOT CAUSE NOTE above.
+  sensecap_lcd_cs_assert();
+  delay(5);
+
   bool ok = lcd.begin();
   Serial.printf("[display] lcd.begin() = %s  w=%d h=%d\n", ok ? "OK" : "FAIL", lcd.width(), lcd.height());
+
+  // Release LCD CS now that the SPI init sequence is complete.  Subsequent
+  // RGB pixel data goes via the parallel bus and does not need CS.
+  sensecap_lcd_cs_deassert();
+
   lcd.setBrightness(255);
   // Fallback: force GPIO 45 HIGH in case LovyanGFX Light_PWM LEDC setup failed.
   pinMode(45, OUTPUT);

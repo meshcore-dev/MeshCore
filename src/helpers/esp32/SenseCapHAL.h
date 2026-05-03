@@ -9,11 +9,15 @@
 // Pin encoding matches LovyanGFX convention: (pin_index | IO_EXPANDER)
 //   IO_EXPANDER = 0x40  (defined as build flag in platformio.ini)
 //
-// SX1262 expander pin assignments (TCA9535 Port 0):
-//   pin 0 = NSS   (EXPANDER_IO_RADIO_NSS)
-//   pin 1 = RESET (EXPANDER_IO_RADIO_RST)
-//   pin 2 = BUSY  (EXPANDER_IO_RADIO_BUSY)
-//   pin 3 = DIO1  (EXPANDER_IO_RADIO_DIO_1)
+// TCA9535 Port 0 pin assignments:
+//   pin 0 = NSS   (EXPANDER_IO_RADIO_NSS)       — SX1262 chip-select
+//   pin 1 = RESET (EXPANDER_IO_RADIO_RST)        — SX1262 hardware reset
+//   pin 2 = BUSY  (EXPANDER_IO_RADIO_BUSY)       — SX1262 busy signal
+//   pin 3 = DIO1  (EXPANDER_IO_RADIO_DIO_1)      — SX1262 IRQ
+//   pin 4 =        display SPI CS                — ST7701 chip-select (must stay OUTPUT HIGH)
+//   pin 5 =        display RESX                  — ST7701 hardware reset (LovyanGFX cfg.pin_rst)
+//   pin 6 =        touch INT                     — FT5x06 interrupt (input, not used in SW)
+//   pin 7 =        touch RST                     — FT5x06 reset (not used in SW)
 //
 // DIO1 interrupt: TCA9535 /INT output → GPIO 42 (IO_EXPANDER_IRQ)
 //   The /INT pin fires FALLING when any input changes.
@@ -85,23 +89,22 @@ public:
   // Both this HAL and the touch-read callback must use the same handle.
   void setMutex(SemaphoreHandle_t m) { _mutex = m; }
 
-  // Call once Wire is running.
-  // Configures TCA9535 Port 0 radio pins (bits 0-3) only.
-  // Bits 4-7 are preserved exactly as LovyanGFX left them
-  // (bit 4 = display SPI CS, must stay OUTPUT HIGH so the
-  //  display ignores any SPI clock pulses from the radio).
+  // Call once Wire is running, AFTER lcd.begin() has completed.
+  // Configures TCA9535 Port 0 radio pins (bits 0-3) and locks bit 4 (display CS).
+  // Bits 5-7 are preserved exactly as LovyanGFX left them.
   void initExpander() {
     // Read the current register values set by LovyanGFX
     uint8_t cur_out = readReg(0x02);
     uint8_t cur_cfg = readReg(0x06);
 
-    // Bits 0-3  (radio pins):     inputs initially, output latch HIGH (de-asserted)
-    //                              RadioLib will reconfigure them as needed.
-    // Bit  4    (display SPI CS):  OUTPUT HIGH — permanently de-asserted.
-    //                              LovyanGFX leaves this pin as INPUT after lcd.begin(),
-    //                              which lets it float. When radio SPI transactions drive
-    //                              GPIO 41/48, a floating CS can corrupt the ST7701 display.
-    // Bits 5-7  (other):           preserved exactly as LovyanGFX left them.
+    // Bits 0-3  (radio):           inputs initially; RadioLib reconfigures as needed.
+    //                              Output latch HIGH = de-asserted.
+    // Bit  4    (display CS):      OUTPUT HIGH — permanently de-asserted.
+    //                              LovyanGFX leaves this as INPUT after lcd.begin();
+    //                              a floating CS allows radio SPI to corrupt the ST7701.
+    // Bit  5    (display RESX):    preserved as OUTPUT HIGH — lcd.begin() already pulsed
+    //                              it LOW→HIGH to reset the ST7701 before init commands.
+    // Bits 6-7  (touch INT/RST):   preserved as LovyanGFX left them (inputs).
     _out0 = (cur_out & 0xE0) | 0x1F;  // bits 0-4 = HIGH,   bits 5-7 = preserved
     _cfg0 = (cur_cfg & 0xE0) | 0x0F;  // bits 0-3 = input,  bit 4 = OUTPUT, bits 5-7 = preserved
 

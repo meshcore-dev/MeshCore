@@ -58,12 +58,15 @@ public:
         cfg.offset_x = 0;
         cfg.offset_y = 0;
         cfg.offset_rotation = 0;
+        // pin_rst stays at default (no-connect). Upstream LovyanGFX cannot
+        // toggle expander pins. The ST7701 RESX (TCA9535 bit 5) is pulsed
+        // manually by sensecap_lcd_reset_pulse() in main.cpp before lcd.begin().
         _panel_instance.config(cfg);
     }
 
     {
         auto cfg = _panel_instance.config_detail();
-        cfg.pin_cs = 4 | IO_EXPANDER;
+        cfg.pin_cs  = 4 | IO_EXPANDER;  // TCA9535 bit 4 = ST7701 chip-select
         cfg.pin_sclk = 41;
         cfg.pin_mosi = 48;
         cfg.use_psram = 1;
