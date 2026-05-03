@@ -126,6 +126,7 @@ class UIManager {
     void addPrivateChatBubble(const char *time_str, const char *msg, bool is_self);
     void addChatBubble(const char *time_str, const char *sender, const char *msg,bool is_self);
     void addContactToUI(ContactInfo c);
+    void updateContactLastSeen(const uint8_t* pub_key, uint32_t lastmod);
     void handleContactClick(lv_event_t *e);
     void setNightMode(bool night);
 };

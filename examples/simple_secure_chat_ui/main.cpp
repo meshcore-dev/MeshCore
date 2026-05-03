@@ -1,5 +1,7 @@
 #include <Arduino.h>   // needed for PlatformIO
 #include <Mesh.h>
+#include <time.h>
+#include <sys/time.h>
 
 #if defined(NRF52_PLATFORM)
   #include <InternalFileSystem.h>
@@ -80,6 +82,8 @@ static lv_disp_drv_t disp_drv;
 UIManager *uiManager;
 
 SemaphoreHandle_t semaphoreData;
+
+volatile bool g_clock_synced = false;
 
 TwoWire I2Cone = TwoWire(0);
 #ifndef SEEED_SENSECAP_INDICATOR
@@ -374,14 +378,13 @@ class MyMesh : public BaseChatMesh, ContactVisitor {
           ContactInfo c;
           uint8_t pub_key[32];
           uint8_t unused;
-          uint32_t reserved;
 
           bool success = (file.read(pub_key, 32) == 32);
           success = success && (file.read((uint8_t *) &c.name, 32) == 32);
           success = success && (file.read(&c.type, 1) == 1);
           success = success && (file.read(&c.flags, 1) == 1);
           success = success && (file.read(&unused, 1) == 1);
-          success = success && (file.read((uint8_t *) &reserved, 4) == 4);
+          success = success && (file.read((uint8_t *) &c.lastmod, 4) == 4);
           success = success && (file.read((uint8_t *) &c.out_path_len, 1) == 1);
           success = success && (file.read((uint8_t *) &c.last_advert_timestamp, 4) == 4);
           success = success && (file.read(c.out_path, 64) == 64);
@@ -390,7 +393,6 @@ class MyMesh : public BaseChatMesh, ContactVisitor {
           if (!success) break;  // EOF
 
           c.id = mesh::Identity(pub_key);
-          c.lastmod = 0;
           uiManager->addContactToUI(c);
           if (!addContact(c)) full = true;
         }
@@ -412,7 +414,6 @@ class MyMesh : public BaseChatMesh, ContactVisitor {
       ContactsIterator iter;
       ContactInfo c;
       uint8_t unused = 0;
-      uint32_t reserved = 0;
 
       while (iter.hasNext(this, c)) {
         bool success = (file.write(c.id.pub_key, 32) == 32);
@@ -420,7 +421,7 @@ class MyMesh : public BaseChatMesh, ContactVisitor {
         success = success && (file.write(&c.type, 1) == 1);
         success = success && (file.write(&c.flags, 1) == 1);
         success = success && (file.write(&unused, 1) == 1);
-        success = success && (file.write((uint8_t *) &reserved, 4) == 4);
+        success = success && (file.write((uint8_t *) &c.lastmod, 4) == 4);
         success = success && (file.write((uint8_t *) &c.out_path_len, 1) == 1);
         success = success && (file.write((uint8_t *) &c.last_advert_timestamp, 4) == 4);
         success = success && (file.write(c.out_path, 64) == 64);
@@ -428,17 +429,20 @@ class MyMesh : public BaseChatMesh, ContactVisitor {
         if (!success) break;  // write failed
       }
       file.close();
-      uiManager->addContactToUI(c);
     }
   }
 
   void setClock(uint32_t timestamp) {
-    uint32_t curr = getRTCClock()->getCurrentTime();
-    if (timestamp > curr) {
-      getRTCClock()->setCurrentTime(timestamp);
-      Serial.println("   (OK - clock set!)");
-    } else {
-      Serial.println("   (ERR: clock cannot go backwards)");
+    getRTCClock()->setCurrentTime(timestamp);
+    struct timeval tv = { .tv_sec = (time_t)timestamp, .tv_usec = 0 };
+    settimeofday(&tv, nullptr);
+    g_clock_synced = true;
+    Serial.println("   (OK - clock set!)");
+    if (uiManager) {
+      time_t ts = (time_t)timestamp;
+      struct tm t;
+      localtime_r(&ts, &t);
+      uiManager->updateDateTime(t);
     }
   }
 
@@ -478,12 +482,15 @@ protected:
   }
 
   void onDiscoveredContact(ContactInfo& contact, bool is_new, uint8_t path_len, const uint8_t* path) override {
-    // TODO: if not in favs,  prompt to add as fav(?)
-
     Serial.printf("ADVERT from -> %s\n", contact.name);
     Serial.printf("  type: %s\n", getTypeName(contact.type));
     Serial.print("   public key: "); mesh::Utils::printHex(Serial, contact.id.pub_key, PUB_KEY_SIZE); Serial.println();
 
+    if (is_new) {
+      uiManager->addContactToUI(contact);
+    } else {
+      uiManager->updateContactLastSeen(contact.id.pub_key, contact.lastmod);
+    }
     saveContacts();
   }
 
@@ -511,6 +518,8 @@ protected:
     Serial.printf("(%s) MSG -> from %s\n", pkt->isRouteDirect() ? "DIRECT" : "FLOOD", from.name);
     Serial.printf("   %s\n", text);
 
+    setClock(sender_timestamp);
+
     if (strcmp(text, "clock sync") == 0) {  // special text command
       setClock(sender_timestamp + 1);
     }
@@ -536,6 +545,8 @@ protected:
       Serial.printf("PUBLIC CHANNEL MSG -> (Flood) hops %d\n", pkt->path_len);
     }
     Serial.printf("   %s\n", text);
+
+    setClock(timestamp);
 
     // Only public?
     // if (strcmp(channel.secret, PUBLIC_GROUP_PSK) != 0)
@@ -1054,6 +1065,11 @@ void initializeMesh() {
 
 void setup() {
   Serial.begin(115200);
+
+  // Greece: UTC+2 standard (EET), UTC+3 summer (EEST)
+  // Change this string to match your timezone if needed.
+  setenv("TZ", "EET-2EEST,M3.5.0/3,M10.5.0/4", 1);
+  tzset();
 
 #ifdef PIN_USER_BTN
   pinMode(PIN_USER_BTN, INPUT_PULLUP);

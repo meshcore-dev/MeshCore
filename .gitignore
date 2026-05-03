@@ -17,3 +17,4 @@ compile_commands.json
 .venv/
 venv/
 examples/simple_secure_chat_ui/UI_PLAN.md
+clock_sync_phase1_summary.md

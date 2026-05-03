@@ -133,7 +133,7 @@ void BaseChatMesh::onAdvertRecv(mesh::Packet* packet, const mesh::Identity& id, 
   }
   putBlobByKey(id.pub_key, PUB_KEY_SIZE, temp_buf, plen);
 
-  bool is_new = false; // true = not in contacts[], false = exists in contacts[]
+  bool is_new = false; // true = newly discovered (not previously in contacts[]), false = existing contact
   if (from == NULL) {
     if (!shouldAutoAddContactType(parser.getType())) {
       ContactInfo ci;
@@ -151,10 +151,11 @@ void BaseChatMesh::onAdvertRecv(mesh::Packet* packet, const mesh::Identity& id, 
       MESH_DEBUG_PRINTLN("onAdvertRecv: unable to allocate contact slot for new contact");
       return;
     }
-    
+
     populateContactFromAdvert(*from, id, parser, timestamp);
     from->sync_since = 0;
     from->shared_secret_valid = false;
+    is_new = true;  // slot was just allocated for a brand-new contact
   }
   // update
     StrHelper::strncpy(from->name, parser.getName(), sizeof(from->name));

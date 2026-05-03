@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <time.h>
 
 #include "esp_log.h"
 #include "uiDefines.h"
@@ -8,18 +9,17 @@
 
 void clock_task(void *pvParameters) {
 
-  vTaskSuspend(NULL);
-
   ESP_LOGI(TAG, "Clock manager: Task running on core %d", xPortGetCoreID());
 
   uiManager->clearDateTime();
 
-  // TODO: sync clock
   while (1) {
-    // uiManager->updateDateTime(
-    //   myClock->getTimeStruct()
-    // );
-    // uiManager->updateValues();
+    if (g_clock_synced) {
+      time_t now = time(nullptr);
+      struct tm t;
+      localtime_r(&now, &t);
+      uiManager->updateDateTime(t);
+    }
     vTaskDelay(DELAY_CLOCK_TASK / portTICK_PERIOD_MS);
   }
 }

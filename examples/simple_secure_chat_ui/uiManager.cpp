@@ -31,6 +31,7 @@ struct UIContactInfo {
     ContactInfo info;
     lv_obj_t* badge = nullptr;
     lv_obj_t* badge_label = nullptr;
+    lv_obj_t* label_lastseen = nullptr;
     uint32_t unread = 0;
 };
 
@@ -201,11 +202,11 @@ void UIManager::addChatBubble(const char *time_str, const char *sender, const ch
     lv_obj_set_style_bg_color(bubble,
         is_self ? lv_color_hex(0x1E88E5) : lv_color_hex(0x2C2C2C), 0);
 
-    // IMPORTANT: vertical layout inside bubble
+    // Vertical layout inside bubble; cross-align follows bubble side
     lv_obj_set_flex_flow(bubble, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(bubble,
         LV_FLEX_ALIGN_START,
-        LV_FLEX_ALIGN_START,
+        is_self ? LV_FLEX_ALIGN_END : LV_FLEX_ALIGN_START,
         LV_FLEX_ALIGN_START);
 
     // Header row (sender + time)
@@ -219,8 +220,8 @@ void UIManager::addChatBubble(const char *time_str, const char *sender, const ch
 
     lv_obj_set_flex_flow(hdr, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(hdr,
-        LV_FLEX_ALIGN_SPACE_BETWEEN,
-        LV_FLEX_ALIGN_START, //LV_FLEX_ALIGN_CENTER, // Ευθυγράμμιση ονόματος/ώρας στον κάθετο άξονα
+        is_self ? LV_FLEX_ALIGN_END : LV_FLEX_ALIGN_START,
+        LV_FLEX_ALIGN_CENTER,
         LV_FLEX_ALIGN_START);
 
     lv_obj_t *lbl_sender = lv_label_create(hdr);
@@ -239,6 +240,7 @@ void UIManager::addChatBubble(const char *time_str, const char *sender, const ch
     lv_label_set_text(lbl_msg, msg);
     lv_label_set_long_mode(lbl_msg, LV_LABEL_LONG_WRAP);
     lv_obj_set_width(lbl_msg, lv_pct(100));
+    lv_obj_set_style_text_align(lbl_msg, is_self ? LV_TEXT_ALIGN_RIGHT : LV_TEXT_ALIGN_LEFT, 0);
 
     lv_obj_set_style_text_color(lbl_msg, lv_color_hex(0xFFFFFF), 0);
     lv_obj_set_style_text_font(lbl_msg, &lv_font_arial_26, 0);
@@ -253,11 +255,11 @@ void UIManager::addChatBubble(const char *time_str, const char *sender, const ch
   }
 
 void UIManager::addPrivateChatBubble(const char *time_str, const char *msg, bool is_self) {
-    
+
   lv_obj_set_style_pad_bottom(ui_ContactMessages, 20, 0);
 
-  // 1. Row container
-    lv_obj_t* row = LvObj(ui_ContactMessages)
+  // 1. Row container – pushes bubble to the correct side
+  lv_obj_t* row = LvObj(ui_ContactMessages)
     .width(lv_pct(100))
     .height(LV_SIZE_CONTENT)
     .bgOpa(0)
@@ -266,59 +268,54 @@ void UIManager::addPrivateChatBubble(const char *time_str, const char *msg, bool
     .scrollable(false)
     .flexFlow(LV_FLEX_FLOW_ROW)
     .flexAlign(
-        is_self ? LV_FLEX_ALIGN_END : LV_FLEX_ALIGN_START,
+        is_self ? LV_FLEX_ALIGN_END : LV_FLEX_ALIGN_START,  // sent=right, received=left
         LV_FLEX_ALIGN_START,
         LV_FLEX_ALIGN_START
     );
 
-  // 2. Aligner (Column) - label and time
-    lv_obj_t* aligner = LvObj(row)
-        .width(LV_SIZE_CONTENT)
-        .height(LV_SIZE_CONTENT)
-        .bgOpa(0)
-        .border(0)
-        .padAll(0)
-        .scrollable(false)
-        .flexFlow(LV_FLEX_FLOW_ROW)
-        .flexAlign(
-            is_self ? LV_FLEX_ALIGN_END : LV_FLEX_ALIGN_START, 
-            LV_FLEX_ALIGN_START, 
-            LV_FLEX_ALIGN_START
-        );
-    lv_obj_set_style_pad_row(aligner, 4, 0);
+  // 2. Bubble column: message text + timestamp below
+  lv_obj_t* aligner = LvObj(row)
+    .width(LV_SIZE_CONTENT)
+    .height(LV_SIZE_CONTENT)
+    .bgOpa(0)
+    .border(0)
+    .padAll(0)
+    .scrollable(false)
+    .flexFlow(LV_FLEX_FLOW_COLUMN)
+    .flexAlign(
+        LV_FLEX_ALIGN_START,
+        is_self ? LV_FLEX_ALIGN_END : LV_FLEX_ALIGN_START,
+        LV_FLEX_ALIGN_START
+    );
+  lv_obj_set_style_pad_row(aligner, 2, 0);
 
-  // 3. Το Label-Bubble (Ενοποιημένο)
+  // 3. Message bubble label
   lv_obj_t *lbl_msg = lv_label_create(aligner);
-
-  // Long mode για wrap
   lv_label_set_long_mode(lbl_msg, LV_LABEL_LONG_WRAP);
   lv_label_set_text(lbl_msg, msg);
   lv_obj_set_style_text_font(lbl_msg, &lv_font_arial_22, 0);
-
-  // Fixed max width για wrap
-  lv_obj_set_width(lbl_msg, 270);           // max πλάτος
-  lv_obj_set_height(lbl_msg, LV_SIZE_CONTENT);  // αυτόματο ύψος
-
-  // Bubble style
+  lv_obj_set_width(lbl_msg, 175);           // max width – fits in 310px panel with room to shift
+  lv_obj_set_height(lbl_msg, LV_SIZE_CONTENT);
+  lv_obj_set_style_text_align(lbl_msg, is_self ? LV_TEXT_ALIGN_RIGHT : LV_TEXT_ALIGN_LEFT, 0);
   lv_obj_set_style_bg_opa(lbl_msg, LV_OPA_COVER, 0);
   lv_obj_set_style_radius(lbl_msg, 12, 0);
-  lv_obj_set_style_pad_all(lbl_msg, 12, 0);
+  lv_obj_set_style_pad_all(lbl_msg, 10, 0);
 
-  if(is_self) {
-      lv_obj_set_style_bg_color(lbl_msg, lv_color_hex(0x1E88E5), 0);
-      lv_obj_set_style_text_color(lbl_msg, lv_color_hex(0xFFFFFF), 0);
+  if (is_self) {
+    lv_obj_set_style_bg_color(lbl_msg, lv_color_hex(0x1E88E5), 0);
+    lv_obj_set_style_text_color(lbl_msg, lv_color_hex(0xFFFFFF), 0);
   } else {
-      lv_obj_set_style_bg_color(lbl_msg, lv_color_hex(0xFFFFFF), 0);
-      lv_obj_set_style_text_color(lbl_msg, lv_color_hex(0x000000), 0);
+    lv_obj_set_style_bg_color(lbl_msg, lv_color_hex(0x2C2C2C), 0);
+    lv_obj_set_style_text_color(lbl_msg, lv_color_hex(0xFFFFFF), 0);
   }
 
-  // 4. Η Ώρα
+  // 4. Timestamp below the bubble
   lv_obj_t *lbl_time = lv_label_create(aligner);
   lv_label_set_text(lbl_time, time_str);
   lv_obj_set_style_text_color(lbl_time, lv_color_hex(0x808080), 0);
   lv_obj_set_style_text_font(lbl_time, &lv_font_arial_14, 0);
 
-  lv_obj_scroll_to_view(row, LV_ANIM_ON);
+  lv_obj_scroll_to_view(row, LV_ANIM_OFF);
 }
 
 void UIManager::getInitials(const char *name, char *out) {
@@ -511,13 +508,15 @@ void UIManager::addContactToUI(ContactInfo c)
     char lastSeen[32];
     formatLastSeen(c.lastmod, lastSeen, sizeof(lastSeen));
 
-    LvLabel(text_col)
+    lv_obj_t* lbl_ls = LvLabel(text_col)
         .text(lastSeen)
         .position(0, PAD + 32)
         .width(text_w)
         .font(&lv_font_arial_16)
         .textColor(0x888888)
-        .wrap(false);
+        .wrap(false)
+        .raw();
+    store->label_lastseen = lbl_ls;
 
     // ============================
     // Unread badge (top-right corner of row)
@@ -549,6 +548,16 @@ void UIManager::addContactToUI(ContactInfo c)
     // ============================
     LvObj(avatar, true).clickable(false);
     LvObj(text_col, true).clickable(false);
+}
+
+void UIManager::updateContactLastSeen(const uint8_t* pub_key, uint32_t lastmod)
+{
+    UIContactInfo* uic = findContactByPubKey(ui_Contacts, pub_key);
+    if (!uic || !uic->label_lastseen) return;
+    uic->info.lastmod = lastmod;
+    char buf[32];
+    formatLastSeen(lastmod, buf, sizeof(buf));
+    lv_label_set_text(uic->label_lastseen, buf);
 }
 
 void UIManager::onShowKeyboard()

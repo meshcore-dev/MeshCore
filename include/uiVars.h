@@ -17,4 +17,6 @@ extern SemaphoreHandle_t semaphoreData;
 extern UIManager *uiManager;
 extern lv_obj_t * ui_MainTabView;
 
+extern volatile bool g_clock_synced;
+
 #endif
