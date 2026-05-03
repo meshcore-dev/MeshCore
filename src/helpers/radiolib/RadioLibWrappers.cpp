@@ -209,9 +209,15 @@ bool RadioLibWrapper::isChannelActive() {
       }
       YIELD_TASK();
     }
-    // Channel free: reset busy counter and add small jitter
+    // Channel free: reset busy counter and add airtime-scaled jitter.
+    // JP_LBT_JITTER_DIVISOR controls jitter upper bound:
+    //   /8  -> SF12/BW125 ~975ms, SF7/BW62.5 ~50ms
+    //   /16 -> SF12/BW125 ~490ms, SF7/BW62.5 ~25ms  (default)
+    //   /32 -> SF12/BW125 ~245ms, SF7/BW62.5 ~12ms
     _busy_count = 0;
-    uint32_t jitter_until = millis() + random(0, 500);
+    static const uint8_t JP_LBT_JITTER_DIVISOR = 32;
+    uint32_t airtime_ms = getEstAirtimeFor(MAX_TRANS_UNIT);
+    uint32_t jitter_until = millis() + random(0, airtime_ms / JP_LBT_JITTER_DIVISOR);
     while (millis() < jitter_until) {
       YIELD_TASK();
     }
