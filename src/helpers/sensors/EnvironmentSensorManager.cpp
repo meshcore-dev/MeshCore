@@ -380,8 +380,11 @@ bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, Cayen
       if (BME680.performReading()) {
         telemetry.addTemperature(TELEM_CHANNEL_SELF, BME680.temperature);
         telemetry.addRelativeHumidity(TELEM_CHANNEL_SELF, BME680.humidity);
-        telemetry.addBarometricPressure(TELEM_CHANNEL_SELF, BME680.pressure / 100);
-        telemetry.addAltitude(TELEM_CHANNEL_SELF, 44330.0 * (1.0 - pow((BME680.pressure / 100) / TELEM_BME680_SEALEVELPRESSURE_HPA, 0.1903)));
+        // pressure is uint32_t Pa — use float division so hPa/altitude are not truncated to whole hPa
+        const float pressure_hpa = BME680.pressure / 100.0f;
+        telemetry.addBarometricPressure(TELEM_CHANNEL_SELF, pressure_hpa);
+        telemetry.addAltitude(TELEM_CHANNEL_SELF,
+                              44330.0f * (1.0f - powf(pressure_hpa / (float)TELEM_BME680_SEALEVELPRESSURE_HPA, 0.1903f)));
         telemetry.addAnalogInput(next_available_channel, BME680.gas_resistance);
         next_available_channel++;
       }
