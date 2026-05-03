@@ -10,7 +10,8 @@
 #include <helpers/radiolib/RadioLibWrappers.h>
 #include <helpers/radiolib/CustomSX1262Wrapper.h>
 #include <helpers/AutoDiscoverRTCClock.h>
-#include <helpers/esp32/SenseCapHAL.h>  // TCA9535 IO expander HAL for RadioLib
+#include <helpers/esp32/SenseCapHAL.h>           // TCA9535 IO expander HAL for RadioLib
+#include <helpers/esp32/SenseCapSX1262Wrapper.h>  // DIO1-verified IRQ dispatch
 
 #include <helpers/SensorManager.h>
 #include <helpers/sensors/EnvironmentSensorManager.h>
@@ -34,7 +35,7 @@ extern ESP32Board board;
 // -------------------------------------------------
 // Radio (SX1262 - SenseCAP uses SX1262)
 // -------------------------------------------------
-extern CustomSX1262Wrapper radio_driver;
+extern SenseCapSX1262Wrapper radio_driver;
 
 
 // -------------------------------------------------

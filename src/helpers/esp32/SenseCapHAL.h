@@ -42,6 +42,22 @@ class SenseCapHAL : public ArduinoHal {
   int               _sclk, _miso, _mosi;  // SPI data pins
   SemaphoreHandle_t _mutex;  // shared Wire mutex (set via setMutex() after creation)
 
+  // ── Deferred IRQ dispatch ──────────────────────────────────────────────
+  // The TCA9535 /INT fires for ANY input change on Port 0, not just DIO1.
+  // BUSY transitions, touch-INT (pin 6), and other inputs all trigger GPIO 42.
+  // We cannot do I2C inside an ISR, so the raw ISR just sets a flag.
+  // dispatchPendingIrq() (called from the main loop via recvRaw) reads Port 0
+  // to verify DIO1 is actually HIGH before forwarding the event to RadioLib.
+  inline static volatile bool    _s_pending = false;
+  inline static void (*_s_cb)(void) = nullptr;
+  uint8_t _irqBit = 0;  // Port 0 bit-mask for DIO1, set in attachInterrupt()
+
+  // NOTE: no IRAM_ATTR — class-static IRAM functions cause Xtensa literal-pool
+  // linker errors when defined inline in a header.  Running from flash is fine
+  // here: the SenseCAP uses ESP32-S3 with no mid-operation flash cache disables,
+  // and LoRa packet timescales (tens of ms) dwarf any flash-cache miss latency.
+  static void _rawIsr() { _s_pending = true; }
+
   // A pin is on the expander when its upper nibble equals IO_EXPANDER
   static bool isExp(uint32_t pin) {
     return (pin & ~0x0Fu) == (uint32_t)IO_EXPANDER;
@@ -229,22 +245,47 @@ public:
   // Called with either:
   //   a) raw expander pin (e.g. 0x43) — direct call path
   //   b) IO_EXPANDER_IRQ (42)         — via pinToInterrupt() path (RadioLib 7.x)
-  // In both cases redirect to GPIO 42 FALLING (TCA9535 /INT goes LOW when DIO1 rises).
+  //
+  // DEFERRED DISPATCH: instead of calling `cb` (= RadioLib's setFlag) directly
+  // from the ISR, we attach a lightweight raw ISR that only sets _s_pending.
+  // The real dispatch (reading Port 0 to verify DIO1 is HIGH) happens later
+  // in dispatchPendingIrq(), called from the main loop via recvRaw().
+  // This prevents touch-INT (pin 6), BUSY, and other Port 0 input changes
+  // from triggering false radio-interrupt events.
   void attachInterrupt(uint32_t pin, void (*cb)(void), uint32_t mode) override {
     if (isExp(pin) || pin == (uint32_t)IO_EXPANDER_IRQ) {
+      _s_cb  = cb;                          // save RadioLib's setFlag callback
+      _irqBit = isExp(pin) ? expBit(pin)    // direct expander pin → derive bit
+                           : (uint8_t)(1u << 3u); // pin=42 path → DIO1 is bit 3
       // Clear any pending TCA9535 /INT by reading BOTH port registers.
-      // /INT stays LOW until the port that triggered it is read; floating
-      // Port 1 inputs keep /INT stuck even after reading Port 0 alone.
-      readReg(0x00);  // Input Port 0 (radio pins)
-      readReg(0x01);  // Input Port 1 (prevent spurious /INT from port 1)
+      readReg(0x00);
+      readReg(0x01);
       ::pinMode(IO_EXPANDER_IRQ, INPUT_PULLUP);
       int gpio42 = ::digitalRead(IO_EXPANDER_IRQ);
-      ::attachInterrupt(digitalPinToInterrupt(IO_EXPANDER_IRQ), cb, FALLING);
-      Serial.printf("[SenseCapHAL] DIO1 interrupt → GPIO %d  state=%d (FALLING)\n",
+      ::attachInterrupt(digitalPinToInterrupt(IO_EXPANDER_IRQ), _rawIsr, FALLING);
+      Serial.printf("[SenseCapHAL] DIO1 interrupt → GPIO %d  state=%d (FALLING, deferred)\n",
                     IO_EXPANDER_IRQ, gpio42);
     } else {
       ArduinoHal::attachInterrupt(pin, cb, mode);
     }
+  }
+
+  // ── dispatchPendingIrq ────────────────────────────────────────────────
+  // Call from the main loop (NOT from ISR).  Reads Port 0 to check whether
+  // DIO1 is actually HIGH.  If so, forwards the event to RadioLib (setFlag).
+  // Ignores spurious triggers from BUSY, touch-INT, or any other Port 0 input.
+  void dispatchPendingIrq() {
+    if (!_s_pending) return;
+    _s_pending = false;
+
+    // Reading Port 0 also acknowledges the TCA9535 /INT for ALL inputs,
+    // including touch INT and BUSY — preventing /INT from staying stuck LOW.
+    uint8_t port0 = readReg(0x00);
+    if (_irqBit && (port0 & _irqBit)) {
+      // DIO1 is HIGH → this is a real radio interrupt (RX_DONE or TX_DONE)
+      if (_s_cb) _s_cb();
+    }
+    // else: spurious — BUSY transition, touch INT, etc.  Do nothing.
   }
 
   void detachInterrupt(uint32_t pin) override {
