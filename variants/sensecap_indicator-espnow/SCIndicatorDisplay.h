@@ -135,7 +135,7 @@ public:
         cfg.pin_int = GPIO_NUM_NC; // do NOT use IO_EXPANDER for touch pins
         cfg.pin_rst = GPIO_NUM_NC; // do NOT use IO_EXPANDER for touch pins
         cfg.bus_shared = false;
-        cfg.offset_rotation = 0;
+        cfg.offset_rotation = 2;  // 180° — mirrors Meshtastic bbct.setOrientation(180,480,480)
 
         cfg.i2c_port = 0;
         cfg.i2c_addr = 0x48;

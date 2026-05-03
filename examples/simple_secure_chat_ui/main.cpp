@@ -974,7 +974,7 @@ void initializeDisplay() {
   digitalWrite(45, HIGH);
   Serial.printf("[display] BL GPIO45 after force HIGH: %d\n", digitalRead(45));
   lcd.setTextSize(2);
-  lcd.setRotation(1);
+  lcd.setRotation(0);
 }
 
 void initializeTouchScreen() {
