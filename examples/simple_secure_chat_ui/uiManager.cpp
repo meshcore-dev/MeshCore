@@ -272,6 +272,7 @@ void UIManager::addPrivateChatBubble(const char *time_str, const char *msg, bool
         LV_FLEX_ALIGN_START,
         LV_FLEX_ALIGN_START
     );
+  if (!row) { Serial.println("[ui] OOM: addPrivateChatBubble row alloc failed"); return; }
 
   // 2. Bubble column: message text + timestamp below
   lv_obj_t* aligner = LvObj(row)

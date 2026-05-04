@@ -1152,6 +1152,9 @@ void initializeMesh() {
   msgstore_load_public();
   uiManager->endPublicHistoryLoad();
 
+  Serial.printf("[ui] free heap: %u B  free PSRAM: %u B\n",
+                esp_get_free_heap_size(), esp_get_free_internal_heap_size());
+
   Serial.println("[mesh] Sending self-advert...");
   the_mesh.sendSelfAdvert(1200);
   Serial.println("[mesh] Advert queued (1200ms delay)");
