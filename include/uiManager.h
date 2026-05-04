@@ -84,7 +84,11 @@ class UIManager {
     lv_obj_t* ui_AdvertiseBtn = nullptr;
 
     lv_obj_t* ui_SettingsName = nullptr;
+    lv_obj_t* ui_SettingsPreset = nullptr;
     lv_obj_t* ui_SettingsFreq = nullptr;
+    lv_obj_t* ui_SettingsBw = nullptr;
+    lv_obj_t* ui_SettingsSf = nullptr;
+    lv_obj_t* ui_SettingsCr = nullptr;
     lv_obj_t* ui_SettingsTx = nullptr;
     lv_obj_t* ui_SettingsFw = nullptr;
     lv_obj_t* ui_SettingsSaveBtn = nullptr;
@@ -109,8 +113,9 @@ class UIManager {
     void onKeyboardEvent(lv_event_t* e);
     void scroll_begin_event(lv_event_t* e);
 
-    void populateSettings(const char* name, float freq, uint8_t tx_power,
-                          const char* fw_ver, const char* build_date);
+    void onPresetChange(uint16_t idx);
+    void populateSettings(const char* name, float freq, float bw, uint8_t sf, uint8_t cr,
+                          uint8_t tx_power, const char* fw_ver, const char* build_date);
     void populateHome(const char* name, const char* pub_key_hex,
                       int contact_count, float freq);
     void setMyNodeName(const char* name);
@@ -124,10 +129,15 @@ class UIManager {
     void updateInfo(const char *str, uint32_t color);
     void clearDateTime();
     void updateValues();    
-    void addPrivateChatBubble(const char *time_str, const char *msg, bool is_self);
-    void addChatBubble(const char *time_str, const char *sender, const char *msg,bool is_self);
+    void addPrivateChatBubble(const char *time_str, const char *msg, bool is_self, bool do_scroll = true);
+    void addChatBubble(const char *time_str, const char *sender, const char *msg, bool is_self, bool do_scroll = true);
+    void scrollPrivateChatToBottom();
+    void scrollPublicChatToBottom();
+    void beginPublicHistoryLoad();   // disable flex before bulk load
+    void endPublicHistoryLoad();     // re-enable flex after bulk load
     void addContactToUI(ContactInfo c);
     void updateContactLastSeen(const uint8_t* pub_key, uint32_t lastmod);
+    void refreshLastSeenLabels();
     void handleContactClick(lv_event_t *e);
     void setNightMode(bool night);
 };

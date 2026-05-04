@@ -280,57 +280,110 @@ void msgstore_append_public(uint32_t ts, const char* sender, bool sent, const ch
 #endif
 }
 
+// Returns true if a DM file line is valid; fills ts, dir, text.
+static bool parse_dm_line(const String& line, uint32_t& ts, char& dir, String& text) {
+  int p1 = line.indexOf('|');
+  int p2 = line.indexOf('|', p1 + 1);
+  if (p1 < 1 || p2 < p1 + 2) return false;
+  ts = (uint32_t) line.substring(0, p1).toInt();
+  if (ts == 0) return false;
+  dir = line.charAt(p1 + 1);
+  if (dir != '>' && dir != '<') return false;
+  text = line.substring(p2 + 1);
+  text.trim();
+  return text.length() > 0;
+}
+
 void msgstore_load_dm(const uint8_t* pub_key) {
 #if defined(ESP32)
+  // LVGL heap is 48 KB, shared with all UI widgets. Each bubble needs ~4 LVGL
+  // objects (~600 B). Limit history to the last 20 messages to avoid OOM.
+  static const int MAX_DISPLAY = 20;
+
   char path[24];
   msgstore_dm_path(path, sizeof(path), pub_key);
   if (!SPIFFS.exists(path)) return;
+
+  // Pass 1 — count valid lines so we know how many to skip
   File f = SPIFFS.open(path, "r");
   if (!f) return;
+  int total = 0;
   while (f.available()) {
     String line = f.readStringUntil('\n');
-    int p1 = line.indexOf('|');
-    int p2 = line.indexOf('|', p1 + 1);
-    if (p1 < 1 || p2 < p1 + 2) continue;
-    uint32_t ts = (uint32_t) line.substring(0, p1).toInt();
-    if (ts == 0) continue;                   // skip unsync'd entries
-    char dir = line.charAt(p1 + 1);
-    if (dir != '>' && dir != '<') continue;  // skip malformed direction
-    String text = line.substring(p2 + 1);
-    text.trim();
-    if (text.length() == 0) continue;        // skip empty messages
-    char time_buf[16];
-    format_time(ts, time_buf, sizeof(time_buf));
-    uiManager->addPrivateChatBubble(time_buf, text.c_str(), dir == '>');
+    uint32_t ts; char dir; String text;
+    if (parse_dm_line(line, ts, dir, text)) total++;
   }
   f.close();
+
+  // Pass 2 — skip oldest, render only the last MAX_DISPLAY valid entries
+  f = SPIFFS.open(path, "r");
+  if (!f) return;
+  int skip = (total > MAX_DISPLAY) ? total - MAX_DISPLAY : 0;
+  int seen = 0;
+  while (f.available()) {
+    String line = f.readStringUntil('\n');
+    uint32_t ts; char dir; String text;
+    if (!parse_dm_line(line, ts, dir, text)) continue;
+    if (seen++ < skip) continue;
+    char time_buf[16];
+    format_time(ts, time_buf, sizeof(time_buf));
+    uiManager->addPrivateChatBubble(time_buf, text.c_str(), dir == '>', false);
+  }
+  f.close();
+  uiManager->scrollPrivateChatToBottom();
 #endif
 }
 
 void msgstore_load_public() {
 #if defined(ESP32)
+  static const int MAX_DISPLAY = 20;
+
   if (!SPIFFS.exists(MSGSTORE_PUBLIC_PATH)) return;
+
+  // Pass 1 — count valid lines
   File f = SPIFFS.open(MSGSTORE_PUBLIC_PATH, "r");
   if (!f) return;
+  int total = 0;
   while (f.available()) {
     String line = f.readStringUntil('\n');
     int p1 = line.indexOf('|');
     int p2 = line.indexOf('|', p1 + 1);
     int p3 = line.indexOf('|', p2 + 1);
     if (p1 < 1 || p2 < p1 + 2 || p3 < p2 + 2) continue;
-    uint32_t ts = (uint32_t) line.substring(0, p1).toInt();
+    if ((uint32_t)line.substring(0, p1).toInt() == 0) continue;
+    char dir = line.charAt(p2 + 1);
+    if (dir != '>' && dir != '<') continue;
+    String text = line.substring(p3 + 1); text.trim();
+    if (text.length() == 0) continue;
+    total++;
+  }
+  f.close();
+
+  // Pass 2 — skip oldest, render last MAX_DISPLAY
+  f = SPIFFS.open(MSGSTORE_PUBLIC_PATH, "r");
+  if (!f) return;
+  int skip = (total > MAX_DISPLAY) ? total - MAX_DISPLAY : 0;
+  int seen = 0;
+  while (f.available()) {
+    String line = f.readStringUntil('\n');
+    int p1 = line.indexOf('|');
+    int p2 = line.indexOf('|', p1 + 1);
+    int p3 = line.indexOf('|', p2 + 1);
+    if (p1 < 1 || p2 < p1 + 2 || p3 < p2 + 2) continue;
+    uint32_t ts = (uint32_t)line.substring(0, p1).toInt();
     if (ts == 0) continue;
     String sender = line.substring(p1 + 1, p2);
     char dir = line.charAt(p2 + 1);
     if (dir != '>' && dir != '<') continue;
-    String text = line.substring(p3 + 1);
-    text.trim();
+    String text = line.substring(p3 + 1); text.trim();
     if (text.length() == 0) continue;
+    if (seen++ < skip) continue;
     char time_buf[16];
     format_time(ts, time_buf, sizeof(time_buf));
-    uiManager->addChatBubble(time_buf, sender.c_str(), text.c_str(), dir == '>');
+    uiManager->addChatBubble(time_buf, sender.c_str(), text.c_str(), dir == '>', false);
   }
   f.close();
+  uiManager->scrollPublicChatToBottom();
 #endif
 }
 
@@ -342,7 +395,10 @@ struct NodePrefs {  // persisted to file
   double node_lat, node_lon;
   float freq;
   uint8_t tx_power_dbm;
-  uint8_t unused[3];
+  uint8_t sf;   // was unused[0]
+  uint8_t cr;   // was unused[1]
+  uint8_t _pad; // was unused[2]
+  float bw;     // new field (zeros from old 60-byte files → defaults applied in begin())
 };
 
 #ifndef FIRMWARE_BUILD_DATE
@@ -615,6 +671,9 @@ public:
     #endif
     _prefs.freq = LORA_FREQ;
     _prefs.tx_power_dbm = LORA_TX_POWER;
+    _prefs.bw = LORA_BW;
+    _prefs.sf = LORA_SF;
+    _prefs.cr = LORA_CR;
 
     command[0] = 0;
     curr_recipient = NULL;
@@ -624,6 +683,9 @@ public:
   const char* getRole() { return FIRMWARE_ROLE; }
   const char* getNodeName() { return _prefs.node_name; }
   float getFreqPref() const { return _prefs.freq; }
+  float getBwPref() const { return _prefs.bw; }
+  uint8_t getSfPref() const { return _prefs.sf; }
+  uint8_t getCrPref() const { return _prefs.cr; }
   uint8_t getTxPowerPref() const { return _prefs.tx_power_dbm; }
 
   void begin(FILESYSTEM& fs) {
@@ -668,6 +730,10 @@ public:
         file.close();
       }
     }
+    // Apply defaults for fields that were zero in old saved files
+    if (_prefs.bw == 0.0f) _prefs.bw = LORA_BW;
+    if (_prefs.sf == 0)    _prefs.sf = LORA_SF;
+    if (_prefs.cr == 0)    _prefs.cr = LORA_CR;
 
     loadContacts();
     _public = addChannel("Public", PUBLIC_GROUP_PSK); // pre-configure Andy's public channel
@@ -829,6 +895,18 @@ public:
         Serial.println("  OK - reboot to apply");
       } else if (memcmp(config, "freq ", 5) == 0) {
         _prefs.freq = atof(&config[5]);
+        savePrefs();
+        Serial.println("  OK - reboot to apply");
+      } else if (memcmp(config, "bw ", 3) == 0) {
+        _prefs.bw = atof(&config[3]);
+        savePrefs();
+        Serial.println("  OK - reboot to apply");
+      } else if (memcmp(config, "sf ", 3) == 0) {
+        _prefs.sf = (uint8_t)atoi(&config[3]);
+        savePrefs();
+        Serial.println("  OK - reboot to apply");
+      } else if (memcmp(config, "cr ", 3) == 0) {
+        _prefs.cr = (uint8_t)atoi(&config[3]);
         savePrefs();
         Serial.println("  OK - reboot to apply");
       } else {
@@ -1038,19 +1116,25 @@ void initializeMesh() {
 #endif
   Serial.println("[mesh] the_mesh.begin() done");
 
-  float freq = the_mesh.getFreqPref();
+  float freq  = the_mesh.getFreqPref();
+  float bw    = the_mesh.getBwPref();
+  uint8_t sf  = the_mesh.getSfPref();
+  uint8_t cr  = the_mesh.getCrPref();
   // Always use the build-defined TX power; saved prefs may contain a stale
   // value from a previous firmware version with a different default.
   uint8_t txpwr = LORA_TX_POWER;
   Serial.printf("[mesh] Radio params: freq=%.3f MHz  BW=%.1f  SF=%d  CR=%d  TX=%d dBm\n",
-                freq, (float)LORA_BW, (int)LORA_SF, (int)LORA_CR, (int)txpwr);
-  radio_set_params(freq, LORA_BW, LORA_SF, LORA_CR);
+                freq, bw, (int)sf, (int)cr, (int)txpwr);
+  radio_set_params(freq, bw, sf, cr);
   radio_set_tx_power(txpwr);
 
   the_mesh.showWelcome();
 
   uiManager->populateSettings(the_mesh.getNodeName(),
                               the_mesh.getFreqPref(),
+                              the_mesh.getBwPref(),
+                              the_mesh.getSfPref(),
+                              the_mesh.getCrPref(),
                               the_mesh.getTxPowerPref(),
                               the_mesh.getFirmwareVer(),
                               the_mesh.getBuildDate());
@@ -1064,7 +1148,9 @@ void initializeMesh() {
                           the_mesh.getFreqPref());
   uiManager->setMyNodeName(the_mesh.getNodeName());
 
+  uiManager->beginPublicHistoryLoad();
   msgstore_load_public();
+  uiManager->endPublicHistoryLoad();
 
   Serial.println("[mesh] Sending self-advert...");
   the_mesh.sendSelfAdvert(1200);

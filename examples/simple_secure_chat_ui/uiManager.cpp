@@ -168,7 +168,7 @@ void UIManager::updateInfo(const char *str, uint32_t color) {
   // lv_obj_set_style_text_color(ui_ValueLastUpdate, lv_color_hex(color), LV_PART_MAIN | LV_STATE_DEFAULT);
 }
 
-void UIManager::addChatBubble(const char *time_str, const char *sender, const char *msg,bool is_self)
+void UIManager::addChatBubble(const char *time_str, const char *sender, const char *msg, bool is_self, bool do_scroll)
 {
     // Remove oldest
     if (chat_count >= MAX_CHAT_MESSAGES) {
@@ -251,10 +251,10 @@ void UIManager::addChatBubble(const char *time_str, const char *sender, const ch
 
     chat_items[chat_count++] = row;
 
-    lv_obj_scroll_to_view(row, LV_ANIM_ON);
+    if (do_scroll) lv_obj_scroll_to_view(row, LV_ANIM_ON);
   }
 
-void UIManager::addPrivateChatBubble(const char *time_str, const char *msg, bool is_self) {
+void UIManager::addPrivateChatBubble(const char *time_str, const char *msg, bool is_self, bool do_scroll) {
 
   lv_obj_set_style_pad_bottom(ui_ContactMessages, 20, 0);
 
@@ -315,7 +315,25 @@ void UIManager::addPrivateChatBubble(const char *time_str, const char *msg, bool
   lv_obj_set_style_text_color(lbl_time, lv_color_hex(0x808080), 0);
   lv_obj_set_style_text_font(lbl_time, &lv_font_arial_14, 0);
 
-  lv_obj_scroll_to_view(row, LV_ANIM_OFF);
+  if (do_scroll) lv_obj_scroll_to_view(row, LV_ANIM_OFF);
+}
+
+void UIManager::scrollPrivateChatToBottom() {
+  if (ui_ContactMessages)
+    lv_obj_scroll_to_y(ui_ContactMessages, LV_COORD_MAX, LV_ANIM_OFF);
+}
+
+void UIManager::scrollPublicChatToBottom() {
+  if (ui_ChannelMessages)
+    lv_obj_scroll_to_y(ui_ChannelMessages, LV_COORD_MAX, LV_ANIM_OFF);
+}
+
+void UIManager::beginPublicHistoryLoad() {
+  if (ui_ChannelMessages) lv_obj_set_layout(ui_ChannelMessages, 0);
+}
+
+void UIManager::endPublicHistoryLoad() {
+  if (ui_ChannelMessages) lv_obj_set_flex_flow(ui_ChannelMessages, LV_FLEX_FLOW_COLUMN);
 }
 
 void UIManager::getInitials(const char *name, char *out) {
@@ -409,7 +427,15 @@ void UIManager::handleContactClick(lv_event_t *e)
     snprintf(cmd, sizeof(cmd), "to %s", currentContactName);
     handleCommand(cmd);
 
+    // Disable flex layout before bulk-loading history messages.
+    // Without this, each lv_obj_create() child triggers lv_obj_update_layout()
+    // which recalculates ALL children's positions → O(n²) → watchdog timeout.
+    // lv_obj_set_flex_flow() below re-enables flex and does ONE O(n) pass.
+    if (ui_ContactMessages) lv_obj_set_layout(ui_ContactMessages, 0);
+
     msgstore_load_dm(currentContactPubKey);
+
+    if (ui_ContactMessages) lv_obj_set_flex_flow(ui_ContactMessages, LV_FLEX_FLOW_COLUMN);
 }
 
 void UIManager::addContactToUI(ContactInfo c)
@@ -552,12 +578,27 @@ void UIManager::addContactToUI(ContactInfo c)
 
 void UIManager::updateContactLastSeen(const uint8_t* pub_key, uint32_t lastmod)
 {
+    // Called from Core 1 (mesh task). LVGL is NOT thread-safe, so we must NOT
+    // call any lv_* write functions here. We only update the data field (atomic
+    // 32-bit write on ESP32). The LVGL timer (Core 0) will refresh the label.
     UIContactInfo* uic = findContactByPubKey(ui_Contacts, pub_key);
-    if (!uic || !uic->label_lastseen) return;
-    uic->info.lastmod = lastmod;
-    char buf[32];
-    formatLastSeen(lastmod, buf, sizeof(buf));
-    lv_label_set_text(uic->label_lastseen, buf);
+    if (!uic) return;
+    uic->info.lastmod = lastmod;  // atomic on ESP32, safe without mutex
+}
+
+// Called by an LVGL timer on Core 0 — safe to call lv_* here.
+void UIManager::refreshLastSeenLabels()
+{
+    if (!ui_Contacts) return;
+    uint32_t cnt = lv_obj_get_child_cnt(ui_Contacts);
+    for (uint32_t i = 0; i < cnt; i++) {
+        lv_obj_t* row = lv_obj_get_child(ui_Contacts, i);
+        UIContactInfo* uic = (UIContactInfo*) lv_obj_get_user_data(row);
+        if (!uic || !uic->label_lastseen) continue;
+        char buf[32];
+        formatLastSeen(uic->info.lastmod, buf, sizeof(buf));
+        lv_label_set_text(uic->label_lastseen, buf);
+    }
 }
 
 void UIManager::onShowKeyboard()
@@ -791,12 +832,36 @@ static void s_onSettingsSaveClick(lv_event_t *e)
     if(self) self->onSettingsSaveClick(e);
 }
 
+static void s_onPresetChange(lv_event_t *e)
+{
+    UIManager *self = (UIManager*) lv_event_get_user_data(e);
+    if(self) self->onPresetChange(lv_dropdown_get_selected(lv_event_get_target(e)));
+}
+
+void UIManager::onPresetChange(uint16_t idx)
+{
+    if (idx == 0) {  // Wide band
+        if (ui_SettingsFreq) lv_textarea_set_text(ui_SettingsFreq, "869.525");
+        if (ui_SettingsBw)   lv_textarea_set_text(ui_SettingsBw,   "250");
+        if (ui_SettingsSf)   lv_textarea_set_text(ui_SettingsSf,   "11");
+        if (ui_SettingsCr)   lv_textarea_set_text(ui_SettingsCr,   "5");
+    } else {          // Narrow band
+        if (ui_SettingsFreq) lv_textarea_set_text(ui_SettingsFreq, "869.618");
+        if (ui_SettingsBw)   lv_textarea_set_text(ui_SettingsBw,   "62.5");
+        if (ui_SettingsSf)   lv_textarea_set_text(ui_SettingsSf,   "8");
+        if (ui_SettingsCr)   lv_textarea_set_text(ui_SettingsCr,   "8");
+    }
+}
+
 void UIManager::onSettingsSaveClick(lv_event_t* e)
 {
     char cmd[96];
 
     const char* name = ui_SettingsName ? lv_textarea_get_text(ui_SettingsName) : "";
     const char* freq = ui_SettingsFreq ? lv_textarea_get_text(ui_SettingsFreq) : "";
+    const char* bw   = ui_SettingsBw   ? lv_textarea_get_text(ui_SettingsBw)   : "";
+    const char* sf   = ui_SettingsSf   ? lv_textarea_get_text(ui_SettingsSf)   : "";
+    const char* cr   = ui_SettingsCr   ? lv_textarea_get_text(ui_SettingsCr)   : "";
     const char* tx   = ui_SettingsTx   ? lv_textarea_get_text(ui_SettingsTx)   : "";
 
     if (name && name[0]) {
@@ -805,6 +870,18 @@ void UIManager::onSettingsSaveClick(lv_event_t* e)
     }
     if (freq && freq[0]) {
         snprintf(cmd, sizeof(cmd), "set freq %s", freq);
+        handleCommand(cmd);
+    }
+    if (bw && bw[0]) {
+        snprintf(cmd, sizeof(cmd), "set bw %s", bw);
+        handleCommand(cmd);
+    }
+    if (sf && sf[0]) {
+        snprintf(cmd, sizeof(cmd), "set sf %s", sf);
+        handleCommand(cmd);
+    }
+    if (cr && cr[0]) {
+        snprintf(cmd, sizeof(cmd), "set cr %s", cr);
         handleCommand(cmd);
     }
     if (tx && tx[0]) {
@@ -827,8 +904,8 @@ void UIManager::onSettingsSaveClick(lv_event_t* e)
     ESP.restart();
 }
 
-void UIManager::populateSettings(const char* name, float freq, uint8_t tx_power,
-                                 const char* fw_ver, const char* build_date)
+void UIManager::populateSettings(const char* name, float freq, float bw, uint8_t sf, uint8_t cr,
+                                 uint8_t tx_power, const char* fw_ver, const char* build_date)
 {
     if (ui_SettingsName && name) lv_textarea_set_text(ui_SettingsName, name);
 
@@ -837,17 +914,36 @@ void UIManager::populateSettings(const char* name, float freq, uint8_t tx_power,
         snprintf(buf, sizeof(buf), "%.3f", freq);
         lv_textarea_set_text(ui_SettingsFreq, buf);
     }
-
+    if (ui_SettingsBw) {
+        char buf[16];
+        snprintf(buf, sizeof(buf), "%.1f", bw);
+        lv_textarea_set_text(ui_SettingsBw, buf);
+    }
+    if (ui_SettingsSf) {
+        char buf[8];
+        snprintf(buf, sizeof(buf), "%u", (unsigned)sf);
+        lv_textarea_set_text(ui_SettingsSf, buf);
+    }
+    if (ui_SettingsCr) {
+        char buf[8];
+        snprintf(buf, sizeof(buf), "%u", (unsigned)cr);
+        lv_textarea_set_text(ui_SettingsCr, buf);
+    }
     if (ui_SettingsTx) {
         char buf[8];
         snprintf(buf, sizeof(buf), "%u", (unsigned)tx_power);
         lv_textarea_set_text(ui_SettingsTx, buf);
     }
-
     if (ui_SettingsFw && fw_ver && build_date) {
         char buf[64];
         snprintf(buf, sizeof(buf), "%s  (%s)", fw_ver, build_date);
         lv_label_set_text(ui_SettingsFw, buf);
+    }
+
+    // Select the matching preset (does not fire the VALUE_CHANGED event)
+    if (ui_SettingsPreset) {
+        bool isNarrow = (fabsf(freq - 869.618f) < 0.01f && bw < 100.0f && sf == 8 && cr == 8);
+        lv_dropdown_set_selected(ui_SettingsPreset, isNarrow ? 1 : 0);
     }
 }
 
@@ -954,7 +1050,6 @@ void UIManager::ui_Screen1_screen_init(void)
     lv_obj_clear_flag(ui_TabPageHome, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_clear_flag(ui_TabPageContacts, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_clear_flag(ui_TabPageChannels, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_clear_flag(ui_TabPageSettings, LV_OBJ_FLAG_SCROLLABLE);
 
     // Node name (large)
     ui_HomeNodeName = LvLabel(ui_TabPageHome)
@@ -1228,101 +1323,264 @@ void UIManager::ui_Screen1_screen_init(void)
         .font(&lv_font_arial_18);
     lv_obj_center(iu_SendLabel);
 
-    // ---- Settings tab ----
-    const int FIELD_W = 380;
-    const int LABEL_FONT_SIZE_HACK = 0; // placeholder
+    // ---- Settings tab (scrollable, horizontal label+input rows) ----
+    lv_obj_add_flag(ui_TabPageSettings, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollbar_mode(ui_TabPageSettings, LV_SCROLLBAR_MODE_AUTO);
 
-    // Device name
-    LvLabel(ui_TabPageSettings)
-        #if defined(LANG_GR)
-        .text("Όνομα συσκευής")
-        #else
-        .text("Device name")
-        #endif
-        .font(&lv_font_arial_20)
-        .textColor(0xCCCCCC)
-        .align(LV_ALIGN_CENTER)
-        .position(0, -200);
+    // Layout constants: label on left, input on right, same row Y
+    // Label: width=175, center at x=-115 from tab center  → left=40, right=212
+    // Input: width=240, center at x=100 from tab center   → left=220, right=460
+    const lv_coord_t LBL_X  = -115;
+    const lv_coord_t LBL_W  = 175;
+    const lv_coord_t INP_X  = 100;
+    const lv_coord_t INP_W  = 240;
+    const lv_coord_t INP_H  = 40;
 
-    ui_SettingsName = LvTextArea(ui_TabPageSettings)
-        .size(FIELD_W, 40)
-        .align(LV_ALIGN_CENTER)
-        .position(0, -170)
-        .oneLine(true)
-        .font(&lv_font_arial_20)
-        .bgColor(0x111111)
-        .textColor(0xFFFFFF)
-        .borderColor(0x444444)
-        .borderWidth(1)
-        .radius(6)
-        .onFocus(s_onSettingsInputFocus, this)
-        .raw();
+    lv_coord_t rowY = -195;
 
-    // Frequency
-    LvLabel(ui_TabPageSettings)
-        #if defined(LANG_GR)
-        .text("Συχνότητα LoRa (MHz)")
-        #else
-        .text("LoRa frequency (MHz)")
-        #endif
-        .font(&lv_font_arial_20)
-        .textColor(0xCCCCCC)
-        .align(LV_ALIGN_CENTER)
-        .position(0, -120);
+    // ---- Row 1: Device name ----
+    {
+        lv_obj_t* lbl = LvLabel(ui_TabPageSettings)
+            #if defined(LANG_GR)
+            .text("Όνομα")
+            #else
+            .text("Device name")
+            #endif
+            .font(&lv_font_arial_20)
+            .textColor(0xCCCCCC)
+            .width(LBL_W)
+            .align(LV_ALIGN_CENTER)
+            .position(LBL_X, rowY)
+            .raw();
+        lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_RIGHT, 0);
 
-    ui_SettingsFreq = LvTextArea(ui_TabPageSettings)
-        .size(FIELD_W, 40)
-        .align(LV_ALIGN_CENTER)
-        .position(0, -90)
-        .oneLine(true)
-        .font(&lv_font_arial_20)
-        .bgColor(0x111111)
-        .textColor(0xFFFFFF)
-        .borderColor(0x444444)
-        .borderWidth(1)
-        .radius(6)
-        .onFocus(s_onSettingsInputFocus, this)
-        .raw();
+        ui_SettingsName = LvTextArea(ui_TabPageSettings)
+            .size(INP_W, INP_H)
+            .align(LV_ALIGN_CENTER)
+            .position(INP_X, rowY)
+            .oneLine(true)
+            .font(&lv_font_arial_20)
+            .bgColor(0x111111)
+            .textColor(0xFFFFFF)
+            .borderColor(0x444444)
+            .borderWidth(1)
+            .radius(6)
+            .onFocus(s_onSettingsInputFocus, this)
+            .raw();
+    }
+    rowY += 50;
 
-    // TX power
-    LvLabel(ui_TabPageSettings)
-        #if defined(LANG_GR)
-        .text("Ισχύς εκπομπής (dBm)")
-        #else
-        .text("TX power (dBm)")
-        #endif
-        .font(&lv_font_arial_20)
-        .textColor(0xCCCCCC)
-        .align(LV_ALIGN_CENTER)
-        .position(0, -40);
+    // ---- Row 2: Preset dropdown ----
+    {
+        lv_obj_t* lbl = LvLabel(ui_TabPageSettings)
+            .text("Preset")
+            .font(&lv_font_arial_20)
+            .textColor(0xCCCCCC)
+            .width(LBL_W)
+            .align(LV_ALIGN_CENTER)
+            .position(LBL_X, rowY)
+            .raw();
+        lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_RIGHT, 0);
 
-    ui_SettingsTx = LvTextArea(ui_TabPageSettings)
-        .size(FIELD_W, 40)
-        .align(LV_ALIGN_CENTER)
-        .position(0, -10)
-        .oneLine(true)
-        .font(&lv_font_arial_20)
-        .bgColor(0x111111)
-        .textColor(0xFFFFFF)
-        .borderColor(0x444444)
-        .borderWidth(1)
-        .radius(6)
-        .onFocus(s_onSettingsInputFocus, this)
-        .raw();
+        ui_SettingsPreset = LvDropdown(ui_TabPageSettings)
+            .options("Wide band\nNarrow band")
+            .width(INP_W)
+            .align(LV_ALIGN_CENTER)
+            .position(INP_X, rowY)
+            .raw();
 
-    // Firmware (read-only)
+        lv_obj_set_height(ui_SettingsPreset, INP_H);
+        lv_obj_set_style_bg_color(ui_SettingsPreset, lv_color_hex(0x111111), LV_PART_MAIN);
+        lv_obj_set_style_text_color(ui_SettingsPreset, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
+        lv_obj_set_style_border_color(ui_SettingsPreset, lv_color_hex(0x444444), LV_PART_MAIN);
+        lv_obj_set_style_border_width(ui_SettingsPreset, 1, LV_PART_MAIN);
+        lv_obj_set_style_text_font(ui_SettingsPreset, &lv_font_arial_20, LV_PART_MAIN);
+
+        lv_obj_t* ddList = lv_dropdown_get_list(ui_SettingsPreset);
+        if (ddList) {
+            lv_obj_set_style_bg_color(ddList, lv_color_hex(0x222222), 0);
+            lv_obj_set_style_text_color(ddList, lv_color_hex(0xFFFFFF), 0);
+            lv_obj_set_style_text_font(ddList, &lv_font_arial_20, 0);
+            lv_obj_set_style_border_color(ddList, lv_color_hex(0x444444), 0);
+        }
+        lv_obj_add_event_cb(ui_SettingsPreset, s_onPresetChange, LV_EVENT_VALUE_CHANGED, this);
+    }
+    rowY += 50;
+
+    // ---- Row 3: Frequency ----
+    {
+        lv_obj_t* lbl = LvLabel(ui_TabPageSettings)
+            #if defined(LANG_GR)
+            .text("Συχνότητα (MHz)")
+            #else
+            .text("Frequency (MHz)")
+            #endif
+            .font(&lv_font_arial_20)
+            .textColor(0xCCCCCC)
+            .width(LBL_W)
+            .align(LV_ALIGN_CENTER)
+            .position(LBL_X, rowY)
+            .raw();
+        lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_RIGHT, 0);
+
+        ui_SettingsFreq = LvTextArea(ui_TabPageSettings)
+            .size(INP_W, INP_H)
+            .align(LV_ALIGN_CENTER)
+            .position(INP_X, rowY)
+            .oneLine(true)
+            .font(&lv_font_arial_20)
+            .bgColor(0x111111)
+            .textColor(0xFFFFFF)
+            .borderColor(0x444444)
+            .borderWidth(1)
+            .radius(6)
+            .onFocus(s_onSettingsInputFocus, this)
+            .raw();
+    }
+    rowY += 50;
+
+    // ---- Row 4: Bandwidth ----
+    {
+        lv_obj_t* lbl = LvLabel(ui_TabPageSettings)
+            #if defined(LANG_GR)
+            .text("Bandwidth (kHz)")
+            #else
+            .text("Bandwidth (kHz)")
+            #endif
+            .font(&lv_font_arial_20)
+            .textColor(0xCCCCCC)
+            .width(LBL_W)
+            .align(LV_ALIGN_CENTER)
+            .position(LBL_X, rowY)
+            .raw();
+        lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_RIGHT, 0);
+
+        ui_SettingsBw = LvTextArea(ui_TabPageSettings)
+            .size(INP_W, INP_H)
+            .align(LV_ALIGN_CENTER)
+            .position(INP_X, rowY)
+            .oneLine(true)
+            .font(&lv_font_arial_20)
+            .bgColor(0x111111)
+            .textColor(0xFFFFFF)
+            .borderColor(0x444444)
+            .borderWidth(1)
+            .radius(6)
+            .onFocus(s_onSettingsInputFocus, this)
+            .raw();
+    }
+    rowY += 50;
+
+    // ---- Row 5: Spreading Factor ----
+    {
+        lv_obj_t* lbl = LvLabel(ui_TabPageSettings)
+            #if defined(LANG_GR)
+            .text("Spreading Factor")
+            #else
+            .text("Spreading Factor")
+            #endif
+            .font(&lv_font_arial_20)
+            .textColor(0xCCCCCC)
+            .width(LBL_W)
+            .align(LV_ALIGN_CENTER)
+            .position(LBL_X, rowY)
+            .raw();
+        lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_RIGHT, 0);
+
+        ui_SettingsSf = LvTextArea(ui_TabPageSettings)
+            .size(INP_W, INP_H)
+            .align(LV_ALIGN_CENTER)
+            .position(INP_X, rowY)
+            .oneLine(true)
+            .font(&lv_font_arial_20)
+            .bgColor(0x111111)
+            .textColor(0xFFFFFF)
+            .borderColor(0x444444)
+            .borderWidth(1)
+            .radius(6)
+            .onFocus(s_onSettingsInputFocus, this)
+            .raw();
+    }
+    rowY += 50;
+
+    // ---- Row 6: Coding Rate ----
+    {
+        lv_obj_t* lbl = LvLabel(ui_TabPageSettings)
+            #if defined(LANG_GR)
+            .text("Coding Rate")
+            #else
+            .text("Coding Rate")
+            #endif
+            .font(&lv_font_arial_20)
+            .textColor(0xCCCCCC)
+            .width(LBL_W)
+            .align(LV_ALIGN_CENTER)
+            .position(LBL_X, rowY)
+            .raw();
+        lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_RIGHT, 0);
+
+        ui_SettingsCr = LvTextArea(ui_TabPageSettings)
+            .size(INP_W, INP_H)
+            .align(LV_ALIGN_CENTER)
+            .position(INP_X, rowY)
+            .oneLine(true)
+            .font(&lv_font_arial_20)
+            .bgColor(0x111111)
+            .textColor(0xFFFFFF)
+            .borderColor(0x444444)
+            .borderWidth(1)
+            .radius(6)
+            .onFocus(s_onSettingsInputFocus, this)
+            .raw();
+    }
+    rowY += 50;
+
+    // ---- Row 7: TX power ----
+    {
+        lv_obj_t* lbl = LvLabel(ui_TabPageSettings)
+            #if defined(LANG_GR)
+            .text("Ισχύς (dBm)")
+            #else
+            .text("TX power (dBm)")
+            #endif
+            .font(&lv_font_arial_20)
+            .textColor(0xCCCCCC)
+            .width(LBL_W)
+            .align(LV_ALIGN_CENTER)
+            .position(LBL_X, rowY)
+            .raw();
+        lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_RIGHT, 0);
+
+        ui_SettingsTx = LvTextArea(ui_TabPageSettings)
+            .size(INP_W, INP_H)
+            .align(LV_ALIGN_CENTER)
+            .position(INP_X, rowY)
+            .oneLine(true)
+            .font(&lv_font_arial_20)
+            .bgColor(0x111111)
+            .textColor(0xFFFFFF)
+            .borderColor(0x444444)
+            .borderWidth(1)
+            .radius(6)
+            .onFocus(s_onSettingsInputFocus, this)
+            .raw();
+    }
+    rowY += 43;
+
+    // Firmware (read-only, centered)
     ui_SettingsFw = LvLabel(ui_TabPageSettings)
         .text("...")
         .font(&lv_font_arial_18)
         .textColor(0x888888)
         .align(LV_ALIGN_CENTER)
-        .position(0, 40);
+        .position(0, rowY);
+    rowY += 42;
 
     // Save button
     ui_SettingsSaveBtn = LvButton(ui_TabPageSettings)
-        .size(220, 50)
+        .size(270, 50)
         .align(LV_ALIGN_CENTER)
-        .position(0, 90)
+        .position(0, rowY)
         .bgColor(0x2E7D32)
         .onClick(s_onSettingsSaveClick, this)
         .raw();
@@ -1337,6 +1595,7 @@ void UIManager::ui_Screen1_screen_init(void)
         .textColor(0xFFFFFF)
         .raw();
     lv_obj_center(saveLabel);
+    rowY += 56;
 
     // Status label
     ui_SettingsStatus = LvLabel(ui_TabPageSettings)
@@ -1344,13 +1603,21 @@ void UIManager::ui_Screen1_screen_init(void)
         .font(&lv_font_arial_18)
         .textColor(0xFFC107)
         .align(LV_ALIGN_CENTER)
-        .position(0, 145);
+        .position(0, rowY);
 
     ui_Keyboard = LvKeyboard(lv_layer_top())
         .size(480, 200)
         .align(LV_ALIGN_BOTTOM_MID)
         .show(false)
         .onEvent(s_onKeyboardEvent, this);
+
+    // Refresh last-seen labels from Core 0 (LVGL task) every 30 s.
+    // updateContactLastSeen() only writes the data (Core 1, atomic), this
+    // timer does the actual lv_label_set_text() safely on Core 0.
+    lv_timer_create([](lv_timer_t* t) {
+        UIManager* self = (UIManager*) t->user_data;
+        self->refreshLastSeenLabels();
+    }, 30000, this);
 }
 
 void UIManager::setNightMode(bool night) {
