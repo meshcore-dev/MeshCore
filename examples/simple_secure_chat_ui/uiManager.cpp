@@ -437,6 +437,7 @@ void UIManager::handleContactClick(lv_event_t *e)
     msgstore_load_dm(currentContactPubKey);
 
     if (ui_ContactMessages) lv_obj_set_flex_flow(ui_ContactMessages, LV_FLEX_FLOW_COLUMN);
+    scrollPrivateChatToBottom();  // after layout is recalculated
 }
 
 void UIManager::addContactToUI(ContactInfo c)

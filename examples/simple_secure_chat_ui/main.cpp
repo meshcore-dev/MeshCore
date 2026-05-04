@@ -330,7 +330,7 @@ void msgstore_load_dm(const uint8_t* pub_key) {
     uiManager->addPrivateChatBubble(time_buf, text.c_str(), dir == '>', false);
   }
   f.close();
-  uiManager->scrollPrivateChatToBottom();
+  // scroll is done by the caller (handleContactClick) after flex layout is re-enabled
 #endif
 }
 
@@ -383,7 +383,7 @@ void msgstore_load_public() {
     uiManager->addChatBubble(time_buf, sender.c_str(), text.c_str(), dir == '>', false);
   }
   f.close();
-  uiManager->scrollPublicChatToBottom();
+  // scroll done by caller after endPublicHistoryLoad() re-enables flex
 #endif
 }
 
@@ -1151,6 +1151,7 @@ void initializeMesh() {
   uiManager->beginPublicHistoryLoad();
   msgstore_load_public();
   uiManager->endPublicHistoryLoad();
+  uiManager->scrollPublicChatToBottom();  // after flex layout is recalculated
 
   Serial.printf("[ui] free heap: %u B  free PSRAM: %u B\n",
                 esp_get_free_heap_size(), esp_get_free_internal_heap_size());
