@@ -49,6 +49,22 @@ struct ConnectionInfo {
   uint32_t expected_ack;
 };
 
+#ifndef MAX_PASSIVE_CANDIDATES
+  #define MAX_PASSIVE_CANDIDATES  MAX_CONTACTS
+#endif
+
+struct PassivePathCandidate {
+  uint8_t end_pub_key[PUB_KEY_SIZE];
+  int8_t path_len;
+  uint8_t path[MAX_PATH_SIZE];
+  uint32_t last_seen;
+  uint32_t last_confirmed;
+  uint32_t last_failed;
+  int8_t observed_snr_x4;
+  uint8_t success_count;
+  uint8_t failure_count;
+};
+
 #include "ChannelDetails.h"
 
 /**
@@ -70,9 +86,25 @@ class BaseChatMesh : public mesh::Mesh {
   mesh::Packet* _pendingLoopback;
   uint8_t temp_buf[MAX_TRANS_UNIT];
   ConnectionInfo connections[MAX_CONNECTIONS];
+  PassivePathCandidate passive_candidates[MAX_PASSIVE_CANDIDATES];
+  uint8_t pending_candidate_pub_key[PUB_KEY_SIZE];
+  bool pending_candidate_active;
+  bool path_recv_was_flood;
+  int8_t path_recv_snr_x4;
 
   mesh::Packet* composeMsgPacket(const ContactInfo& recipient, uint32_t timestamp, uint8_t attempt, const char *text, uint32_t& expected_ack);
   void sendAckTo(const ContactInfo& dest, uint32_t ack_hash);
+  int findPassiveCandidateByPubKey(const uint8_t* pub_key) const;
+  void removePassiveCandidateByPubKey(const uint8_t* pub_key);
+  void clearPassiveCandidates();
+  void clearPendingCandidate();
+  void setPendingCandidate(const uint8_t* pub_key);
+  bool pendingCandidateMatches(const ContactInfo& contact) const;
+  void observePassiveCandidate(const uint8_t* pub_key, const uint8_t* path, uint8_t path_len, int8_t observed_snr_x4);
+  int32_t getPassiveCandidateScore(const PassivePathCandidate& candidate, uint32_t now) const;
+  void notePassiveCandidateFailure(const uint8_t* pub_key);
+  bool getPassiveCandidateFor(const ContactInfo& recipient, uint8_t* path, uint8_t& path_len) const;
+  void promotePendingCandidateOnSuccess(ContactInfo& from);
 
 protected:
   BaseChatMesh(mesh::Radio& radio, mesh::MillisecondClock& ms, mesh::RNG& rng, mesh::RTCClock& rtc, mesh::PacketManager& mgr, mesh::MeshTables& tables)
@@ -85,11 +117,25 @@ protected:
   #endif
     txt_send_timeout = 0;
     _pendingLoopback = NULL;
+    memset(pending_candidate_pub_key, 0, sizeof(pending_candidate_pub_key));
+    pending_candidate_active = false;
+    path_recv_was_flood = false;
+    path_recv_snr_x4 = 0;
     memset(connections, 0, sizeof(connections));
+    for (int i = 0; i < MAX_PASSIVE_CANDIDATES; i++) {
+      memset(passive_candidates[i].end_pub_key, 0, sizeof(passive_candidates[i].end_pub_key));
+      passive_candidates[i].path_len = -1;
+      passive_candidates[i].last_seen = 0;
+      passive_candidates[i].last_confirmed = 0;
+      passive_candidates[i].last_failed = 0;
+      passive_candidates[i].observed_snr_x4 = 0;
+      passive_candidates[i].success_count = 0;
+      passive_candidates[i].failure_count = 0;
+    }
   }
 
   void bootstrapRTCfromContacts();
-  void resetContacts() { num_contacts = 0; }
+  void resetContacts() { num_contacts = 0; clearPassiveCandidates(); clearPendingCandidate(); }
   void populateContactFromAdvert(ContactInfo& ci, const mesh::Identity& id, const AdvertDataParser& parser, uint32_t timestamp);
   ContactInfo* allocateContactSlot(); // helper to find slot for new contact
 
