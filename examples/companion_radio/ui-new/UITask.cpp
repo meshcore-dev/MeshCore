@@ -29,6 +29,11 @@
   #define PRESS_LABEL "long press"
 #endif
 
+#if defined(JOYSTICK_ROTATION) && (JOYSTICK_ROTATION == 1 || JOYSTICK_ROTATION == 3) \
+    && (!defined(JOYSTICK_UP) || !defined(JOYSTICK_DOWN))
+  #error "JOYSTICK_ROTATION 1/3 requires JOYSTICK_UP and JOYSTICK_DOWN pin definitions"
+#endif
+
 #include "icons.h"
 
 class SplashScreen : public UIScreen {
@@ -720,6 +725,49 @@ void UITask::loop() {
   } else if (ev == BUTTON_EVENT_LONG_PRESS) {
     c = handleLongPress(KEY_ENTER);  // REVISIT: could be mapped to different key code
   }
+#if defined(JOYSTICK_ROTATION) && JOYSTICK_ROTATION == 1
+  // 90 deg clockwise: physical up/down map to right/left on screen
+  ev = joystick_down.check();
+  if (ev == BUTTON_EVENT_CLICK) {
+    c = checkDisplayOn(KEY_LEFT);
+  } else if (ev == BUTTON_EVENT_LONG_PRESS) {
+    c = handleLongPress(KEY_LEFT);
+  }
+  ev = joystick_up.check();
+  if (ev == BUTTON_EVENT_CLICK) {
+    c = checkDisplayOn(KEY_RIGHT);
+  } else if (ev == BUTTON_EVENT_LONG_PRESS) {
+    c = handleLongPress(KEY_RIGHT);
+  }
+#elif defined(JOYSTICK_ROTATION) && JOYSTICK_ROTATION == 2
+  // 180 deg: physical left/right are swapped
+  ev = joystick_right.check();
+  if (ev == BUTTON_EVENT_CLICK) {
+    c = checkDisplayOn(KEY_LEFT);
+  } else if (ev == BUTTON_EVENT_LONG_PRESS) {
+    c = handleLongPress(KEY_LEFT);
+  }
+  ev = joystick_left.check();
+  if (ev == BUTTON_EVENT_CLICK) {
+    c = checkDisplayOn(KEY_RIGHT);
+  } else if (ev == BUTTON_EVENT_LONG_PRESS) {
+    c = handleLongPress(KEY_RIGHT);
+  }
+#elif defined(JOYSTICK_ROTATION) && JOYSTICK_ROTATION == 3
+  // 270 deg (90 deg counter-clockwise): physical up/down map to left/right on screen
+  ev = joystick_up.check();
+  if (ev == BUTTON_EVENT_CLICK) {
+    c = checkDisplayOn(KEY_LEFT);
+  } else if (ev == BUTTON_EVENT_LONG_PRESS) {
+    c = handleLongPress(KEY_LEFT);
+  }
+  ev = joystick_down.check();
+  if (ev == BUTTON_EVENT_CLICK) {
+    c = checkDisplayOn(KEY_RIGHT);
+  } else if (ev == BUTTON_EVENT_LONG_PRESS) {
+    c = handleLongPress(KEY_RIGHT);
+  }
+#else
   ev = joystick_left.check();
   if (ev == BUTTON_EVENT_CLICK) {
     c = checkDisplayOn(KEY_LEFT);
@@ -732,6 +780,7 @@ void UITask::loop() {
   } else if (ev == BUTTON_EVENT_LONG_PRESS) {
     c = handleLongPress(KEY_RIGHT);
   }
+#endif
   ev = back_btn.check();
   if (ev == BUTTON_EVENT_TRIPLE_CLICK) {
     c = handleTripleClick(KEY_SELECT);
