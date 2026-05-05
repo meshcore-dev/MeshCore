@@ -215,7 +215,6 @@ bool RadioLibWrapper::isChannelActive() {
     //   /16 -> SF12/BW125 ~490ms, SF7/BW62.5 ~25ms
     //   /32 -> SF12/BW125 ~245ms, SF7/BW62.5 ~12ms  (default)
     _busy_count = 0;
-    static const uint8_t JP_LBT_JITTER_DIVISOR = 32;
     uint32_t airtime_ms = getEstAirtimeFor(MAX_TRANS_UNIT);
     uint32_t jitter_until = millis() + random(0, airtime_ms / JP_LBT_JITTER_DIVISOR);
     while (millis() < jitter_until) {

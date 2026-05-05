@@ -46,6 +46,8 @@ public:
   virtual uint8_t getCodingRate() const { return 8; }   // default CR4/8, override in subclass
   virtual float getFreqMHz() const { return 0.0f; }     // default unknown, override in subclass
 						      //
+  static constexpr uint8_t JP_LBT_JITTER_DIVISOR = 32;
+
   bool isAS923_1_JP() const {
     float freq = getFreqMHz();
     return (fabsf(freq - 920.800f) < 0.05f ||
