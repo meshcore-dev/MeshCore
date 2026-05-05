@@ -130,10 +130,17 @@ bool NRF52Board::checkBootVoltage(const PowerMgtConfig* config) {
   // Only trigger shutdown if reading is valid (>1000mV) AND below threshold
   // This prevents spurious shutdowns on ADC glitches or uninitialized reads
   if (boot_voltage_mv > 1000 && boot_voltage_mv < config->voltage_bootlock) {
-    MESH_DEBUG_PRINTLN("PWRMGT: Boot voltage too low - entering protective shutdown");
+    // First reading below threshold - wait for DCDC to stabilize and re-read
+    delay(50);
+    boot_voltage_mv = getBattMilliVolts();
+    MESH_DEBUG_PRINTLN("PWRMGT: Boot voltage (confirmed) = %u mV (threshold = %u mV)",
+        boot_voltage_mv, config->voltage_bootlock);
 
-    initiateShutdown(SHUTDOWN_REASON_BOOT_PROTECT);
-    return false;  // Should never reach this
+    if (boot_voltage_mv > 1000 && boot_voltage_mv < config->voltage_bootlock) {
+      MESH_DEBUG_PRINTLN("PWRMGT: Boot voltage too low - entering protective shutdown");
+      initiateShutdown(SHUTDOWN_REASON_BOOT_PROTECT);
+      return false;  // Should never reach this
+    }
   }
 
   return true;
@@ -177,7 +184,7 @@ void NRF52Board::enterSystemOff(uint8_t reason) {
   NVIC_SystemReset();
 }
 
-void NRF52Board::configureVoltageWake(uint8_t ain_channel, uint8_t refsel) {
+bool NRF52Board::configureVoltageWake(uint8_t ain_channel, uint8_t refsel) {
   // LPCOMP is not managed by SoftDevice - direct register access required
   // Halt and disable before reconfiguration
   NRF_LPCOMP->TASKS_STOP = 1;
@@ -213,6 +220,14 @@ void NRF52Board::configureVoltageWake(uint8_t ain_channel, uint8_t refsel) {
     delayMicroseconds(50);
   }
 
+  // Safety: if voltage is already above threshold, UP detection will never fire
+  if (NRF_LPCOMP->RESULT & LPCOMP_RESULT_RESULT_Msk) {
+    MESH_DEBUG_PRINTLN("PWRMGT: LPCOMP shows voltage above threshold - unsafe for SYSTEMOFF");
+    NRF_LPCOMP->TASKS_STOP = 1;
+    NRF_LPCOMP->ENABLE = LPCOMP_ENABLE_ENABLE_Disabled;
+    return false;
+  }
+
   if (refsel == 7) {
     MESH_DEBUG_PRINTLN("PWRMGT: LPCOMP wake configured (AIN%d, ref=ARef)", ain_channel);
   } else if (refsel <= 6) {
@@ -235,19 +250,23 @@ void NRF52Board::configureVoltageWake(uint8_t ain_channel, uint8_t refsel) {
   }
 
   MESH_DEBUG_PRINTLN("PWRMGT: VBUS wake configured");
+
+  return true;
 }
 #endif
 
 void NRF52BoardDCDC::begin() {
   NRF52Board::begin();
 
-  // Enable DC/DC converter for improved power efficiency
+  // Enable DC/DC converter only when SoftDevice is managing the POWER peripheral.
+  // Without SoftDevice, NRF_POWER->DCDCEN = 1 leaves the DC/DC permanently on,
+  // which causes boot failures on some boards when running on battery alone.
+  // The SoftDevice manages DC/DC dynamically (on during radio, off during idle),
+  // which is the safe way to use it.
   uint8_t sd_enabled = 0;
   sd_softdevice_is_enabled(&sd_enabled);
   if (sd_enabled) {
     sd_power_dcdc_mode_set(NRF_POWER_DCDC_ENABLE);
-  } else {
-    NRF_POWER->DCDCEN = 1;
   }
 }
 
