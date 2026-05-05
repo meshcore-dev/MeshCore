@@ -175,7 +175,7 @@ bool RadioLibWrapper::isSendComplete() {
 void RadioLibWrapper::onSendFinished() {
   _radio->finishTransmit();
   _board->onAfterTransmit();
-  if (isJapanMode()) {
+  if (isAS923_1_JP()) {
     // ARIB STD-T108: wait >= 50ms after TX before next transmission
     delay(50);
   }
@@ -191,7 +191,7 @@ bool RadioLibWrapper::isChannelActive() {
 
   // Activate JP_STRICT LBT on Japan 920MHz band 3 channels only
   // CH25=920.800MHz, CH26=921.000MHz, CH27=921.200MHz (ARIB STD-T108)
-  if (isJapanMode()) {
+  if (isAS923_1_JP()) {
     // ARIB STD-T108 compliant LBT: continuous RSSI sensing for >= 5ms
     // Energy-based sensing required; LoRa CAD not used 
     uint32_t sense_start = millis();

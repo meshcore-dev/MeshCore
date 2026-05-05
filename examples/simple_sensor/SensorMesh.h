@@ -118,7 +118,7 @@ protected:
   bool allowPacketForward(const mesh::Packet* packet) override;
   int calcRxDelay(float score, uint32_t air_time) const override;
   uint32_t getCADFailMaxDuration() const override {
-    if (_radio->isJapanMode()) return UINT32_MAX;  // JP LBT: no forced TX — channel must be free per ARIB STD-T108
+    if (_radio->isAS923_1_JP()) return UINT32_MAX;  // JP LBT: no forced TX — channel must be free per ARIB STD-T108
     return Dispatcher::getCADFailMaxDuration();
   }
   uint32_t getRetransmitDelay(const mesh::Packet* packet) override;
