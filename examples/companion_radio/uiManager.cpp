@@ -389,8 +389,9 @@ void UIManager::addContactToUI(ContactInfo c)
     lv_obj_add_event_cb(btn, onContactClick, LV_EVENT_CLICKED, this);
 
     // ============================
-    // Avatar container
+    // Avatar container (hidden when SHOW_CONTACT_AVATAR is false)
     // ============================
+#ifdef SHOW_CONTACT_AVATAR
     lv_obj_t* content = LvObj(btn)
         .size(ROW_H, ROW_H)
         .position(0, 0)
@@ -422,11 +423,16 @@ void UIManager::addContactToUI(ContactInfo c)
         .font(&lv_font_arial_22)
         .textColor(0xFFFFFF)
         .align(LV_ALIGN_CENTER);
+#endif
 
     // ============================
     // Text column
     // ============================
+#ifdef SHOW_CONTACT_AVATAR
     int text_x = PAD + AVATAR + PAD;
+#else
+    int text_x = 0;
+#endif
     int text_w = ROW_W - text_x - PAD;
 
     lv_obj_t* text_col = LvObj(btn)
@@ -462,7 +468,9 @@ void UIManager::addContactToUI(ContactInfo c)
     // ============================
     // Disable child clicks
     // ============================
+#ifdef SHOW_CONTACT_AVATAR
     LvObj(avatar, true).clickable(false);
+#endif
     LvObj(text_col, true).clickable(false);
 }
 

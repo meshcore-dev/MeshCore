@@ -47,6 +47,9 @@
 #define I2C_SCL 20
 #define LCD_Backlight	2
 
+// Contact list: show avatar circle with initials (disable on small screens)
+//#define SHOW_CONTACT_AVATAR
+
 // Other defines
 #define DELAY_MAIN_TASK 10
 #define DELAY_REFRESH_VIEW 10

@@ -474,8 +474,9 @@ void UIManager::addContactToUI(ContactInfo c)
     lv_obj_add_event_cb(btn, onContactClick, LV_EVENT_CLICKED, this);
 
     // ============================
-    // Avatar container
+    // Avatar container (hidden when SHOW_CONTACT_AVATAR is not defined)
     // ============================
+#ifdef SHOW_CONTACT_AVATAR
     lv_obj_t* content = LvObj(btn)
         .size(ROW_H, ROW_H)
         .position(0, 0)
@@ -507,11 +508,16 @@ void UIManager::addContactToUI(ContactInfo c)
         .font(&lv_font_arial_22)
         .textColor(0xFFFFFF)
         .align(LV_ALIGN_CENTER);
+#endif
 
     // ============================
     // Text column
     // ============================
+#ifdef SHOW_CONTACT_AVATAR
     int text_x = PAD + AVATAR + PAD;
+#else
+    int text_x = 0;
+#endif
     int text_w = ROW_W - text_x - PAD;
 
     lv_obj_t* text_col = LvObj(btn)
@@ -574,7 +580,9 @@ void UIManager::addContactToUI(ContactInfo c)
     // ============================
     // Disable child clicks
     // ============================
+#ifdef SHOW_CONTACT_AVATAR
     LvObj(avatar, true).clickable(false);
+#endif
     LvObj(text_col, true).clickable(false);
 }
 
@@ -1144,9 +1152,9 @@ void UIManager::ui_Screen1_screen_init(void)
 
     ui_Contacts = LvList(ui_TabPageContacts)
         .width(140)
-        .height(400)
+        .height(350)
         .align(LV_ALIGN_CENTER)
-        .position(-155, 0)
+        .position(-155, -25)
         .transparent()
         .raw();
 
@@ -1157,6 +1165,17 @@ void UIManager::ui_Screen1_screen_init(void)
     //lv_obj_set_scrollbar_mode(ui_Contacts, LV_SCROLLBAR_MODE_OFF);
     lv_obj_set_style_bg_opa(ui_Contacts, LV_OPA_TRANSP, LV_PART_ITEMS);
     lv_obj_set_style_border_width(ui_Contacts, 0, LV_PART_ITEMS);
+    lv_obj_set_style_pad_right(ui_Contacts, 8, 0);
+
+    // Vertical divider between contact list and messages panel
+    LvObj(ui_TabPageContacts)
+        .size(1, 350)
+        .align(LV_ALIGN_CENTER)
+        .position(-80, -25)
+        .bgColor(0x333333)
+        .border(0)
+        .scrollable(false)
+        .radius(0);
 
     ui_ContactName = LvLabel(ui_TabPageContacts)
         .text("")
@@ -1183,11 +1202,12 @@ void UIManager::ui_Screen1_screen_init(void)
     //lv_obj_set_scrollbar_mode(ui_ContactMessages, LV_SCROLLBAR_MODE_OFF);
     lv_obj_set_style_bg_opa(ui_ContactMessages, LV_OPA_TRANSP, LV_PART_ITEMS);
     lv_obj_set_style_border_width(ui_ContactMessages, 0, LV_PART_ITEMS);
+    lv_obj_set_style_pad_right(ui_ContactMessages, 8, 0);
 
     ui_ContactInput = LvTextArea(ui_TabPageContacts)
-        .size(230, 40)
+        .size(371, 40)
         .align(LV_ALIGN_CENTER)
-        .position(40, channelInputBaseY)
+        .position(-55, channelInputBaseY)
         .oneLine(true)
         #if defined(LANG_EN)
         .placeholder("Write message...")
@@ -1204,9 +1224,9 @@ void UIManager::ui_Screen1_screen_init(void)
         .raw();
 
     ui_ContactSendBtn = LvButton(ui_TabPageContacts)
-        .size(70, 42)
+        .size(105, 42)
         .align(LV_ALIGN_CENTER)
-        .position(195, channelInputBaseY)
+        .position(188, channelInputBaseY)
         .bgColor(0x3A7AFE)
         .onClick(s_onContactSendClick, this)
         .raw();
