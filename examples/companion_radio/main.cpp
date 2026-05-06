@@ -195,6 +195,15 @@ void setup() {
 
 #ifdef WIFI_SSID
   board.setInhibitSleep(true);   // prevent sleep when WiFi is active
+  // Enable ESP-IDF auto-reconnect
+  WiFi.setAutoReconnect(true);
+  // Attach an event handler to force a reconnect specifically on disconnect events
+  WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info){
+      #ifdef WIFI_DEBUG_LOGGING
+      Serial.println("WiFi disconnected. Forcing reconnect...");
+      #endif
+      WiFi.reconnect();
+  }, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
   WiFi.begin(WIFI_SSID, WIFI_PWD);
   serial_interface.begin(TCP_PORT);
 #elif defined(BLE_PIN_CODE)
