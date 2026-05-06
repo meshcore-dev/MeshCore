@@ -24,7 +24,7 @@ protected:
 public:
   void begin() {
     // for future use, sub-classes SHOULD call this from their begin()
-    startup_reason = BD_STARTUP_NORMAL;    
+    startup_reason = BD_STARTUP_NORMAL;
 
   #ifdef ESP32_CPU_FREQ
     setCpuFrequencyMhz(ESP32_CPU_FREQ);
@@ -47,7 +47,7 @@ public:
    #endif
   #else
     Wire.begin();
-  #endif    
+  #endif
   }
 
   // Temperature from ESP32 MCU
@@ -66,50 +66,6 @@ public:
     return P_LORA_DIO_1; // default for SX1262
   }
 
-  // 27 mins drift in 28 days and 40 mins = 669 ppm
-  const int64_t MICROSECONDS_PER_SECOND_DRIFT = 669;
-  const int64_t DRIFT_THRESHOLD_US = 60000000LL; // 1 minute in microseconds
-
-  void applyTimeTrim() {
-    static int64_t last_trim_us = 0;
-    static int64_t accumulated_drift_us = 0;
-
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-    int64_t now_us = (int64_t)tv.tv_sec * 1000000LL + tv.tv_usec;
-
-    if (last_trim_us == 0) {
-      last_trim_us = now_us;
-      return;
-    }
-
-    // Calculate elapsed time
-    int64_t elapsed_us = now_us - last_trim_us;
-
-    // Add this interval's drift to accumulated drift
-    accumulated_drift_us += (elapsed_us * MICROSECONDS_PER_SECOND_DRIFT) / 1000000LL;
-
-    // Only trim when accumulated drift exceeds threshold
-    if (accumulated_drift_us >= DRIFT_THRESHOLD_US) {
-      // Calculate full seconds to trim
-      uint32_t seconds_to_trim = (uint32_t)(accumulated_drift_us / 1000000LL);
-
-      // Set back the trimmed time to RTC
-      tv.tv_sec -= (time_t)seconds_to_trim;
-      settimeofday(&tv, NULL);
-
-      // Keep the fractional remainder (anything less than a full second)
-      accumulated_drift_us %= 1000000LL;
-
-      // Save for next trim
-      gettimeofday(&tv, NULL);
-      last_trim_us = (int64_t)tv.tv_sec * 1000000LL + tv.tv_usec;
-    } else {
-      // Skip trimming
-      last_trim_us = now_us;
-    }
-  }
-
   void sleep(uint32_t secs) override {
     // Skip if not allow to sleep
     if (inhibit_sleep) {
@@ -117,23 +73,8 @@ public:
       return;
     }
 
-    // Use more accurate clock in sleep
-#if SOC_RTC_SLOW_CLK_SUPPORT_RC_FAST_D256
-    if (rtc_clk_slow_src_get() != SOC_RTC_SLOW_CLK_SRC_RC_FAST) {
-
-      // Switch slow clock source to RC_FAST / 256 (~31.25 kHz)
-      rtc_clk_slow_src_set(SOC_RTC_SLOW_CLK_SRC_RC_FAST);
-
-      // Calibrate slow clock
-      esp_clk_slow_boot_cal(1024);
-    }
-#endif
-
-    // Keep RTC 8M during sleep
-    esp_sleep_pd_config(ESP_PD_DOMAIN_RTC8M, ESP_PD_OPTION_ON);
-
     // Set GPIO wakeup
-    gpio_num_t wakeupPin = (gpio_num_t)getIRQGpio();    
+    gpio_num_t wakeupPin = (gpio_num_t)getIRQGpio();
 
     // Configure timer wakeup
     if (secs > 0) {
@@ -163,9 +104,6 @@ public:
 
     // Enable CPU interrupt servicing
     portEXIT_CRITICAL(&sleepMux);
-
-    // Apply the software trim to correct for RC drift
-    applyTimeTrim();
   }
 
   uint8_t getStartupReason() const override { return startup_reason; }

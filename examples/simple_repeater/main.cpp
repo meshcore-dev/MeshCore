@@ -155,7 +155,7 @@ void loop() {
     board.sleep(1800); // nrf ignores seconds param, sleeps whenever possible
 #else
     if (the_mesh.millisHasNowPassed(POWERSAVING_FIRSTSLEEP_SECS * 1000)) { // To check if it is time to sleep
-      board.sleep(1800); // Sleep. Wake up after 30 minutes or when receiving a LoRa packet
+      board.sleep(30); // Sleep. Wake up after some seconds or when receiving a LoRa packet
     }
 #endif
   }
