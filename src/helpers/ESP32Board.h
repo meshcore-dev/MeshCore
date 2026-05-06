@@ -69,18 +69,6 @@ public:
       return;
     }
 
-    // Use more accurate clock in sleep
-#if SOC_RTC_SLOW_CLK_SUPPORT_RC_FAST_D256
-    if (rtc_clk_slow_src_get() != SOC_RTC_SLOW_CLK_SRC_RC_FAST) {
-
-      // Switch slow clock source to RC_FAST / 256 (~31.25 kHz)
-      rtc_clk_slow_src_set(SOC_RTC_SLOW_CLK_SRC_RC_FAST);
-
-      // Calibrate slow clock
-      esp_clk_slow_boot_cal(1024);
-    }
-#endif
-
     // Set GPIO wakeup
     gpio_num_t wakeupPin = (gpio_num_t)getIRQGpio();    
 
