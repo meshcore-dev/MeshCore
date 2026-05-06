@@ -29,6 +29,7 @@ struct NodePrefs {  // persisted to file
   uint32_t gps_interval;     // GPS read interval in seconds
   uint8_t autoadd_config;    // bitmask for auto-add contacts config
   uint8_t rx_boosted_gain; // SX126x RX boosted gain mode (0=power saving, 1=boosted)
+  uint8_t radio_fem_rxgain;  // LoRa FEM RX gain setting
   uint8_t client_repeat;
   uint8_t path_hash_mode;    // which path mode to use when sending
   uint8_t autoadd_max_hops;  // 0 = no limit, 1 = direct (0 hops), N = up to N-1 hops (max 64)
