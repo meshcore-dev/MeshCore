@@ -4,10 +4,10 @@
 
 class ESPNOWRadio : public mesh::Radio {
 protected:
-  uint32_t n_recv, n_sent;
+  uint32_t n_recv, n_sent, n_recv_errors;
 
 public:
-  ESPNOWRadio() { n_recv = n_sent = 0; }
+  ESPNOWRadio() { n_recv = n_sent = n_recv_errors = 0; }
 
   void init();
   int recvRaw(uint8_t* bytes, int sz) override;
@@ -19,12 +19,21 @@ public:
 
   uint32_t getPacketsRecv() const { return n_recv; }
   uint32_t getPacketsSent() const { return n_sent; }
-  void resetStats() { n_recv = n_sent = 0; }
+  uint32_t getPacketsRecvErrors() const { return n_recv_errors; }
+  void resetStats() { n_recv = n_sent = n_recv_errors = 0; }
 
   virtual float getLastRSSI() const override;
   virtual float getLastSNR() const override;
 
   float packetScore(float snr, int packet_len) override { return 0; }
+
+  /**
+   * These two functions do nothing for ESP-NOW, but are needed for the
+   * Radio interface.
+   */
+  virtual void setRxBoostedGainMode(bool) { }
+  virtual bool getRxBoostedGainMode() const { return false; }
+
   uint32_t intID();
   void setTxPower(uint8_t dbm);
 };
