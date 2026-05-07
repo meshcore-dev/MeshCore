@@ -59,7 +59,10 @@ public:
   const char* getRole() override { return FIRMWARE_ROLE; }
   const char* getNodeName() { return _prefs.node_name; }
   NodePrefs* getNodePrefs() { return &_prefs; }
-  void savePrefs() override { _cli.savePrefs(_fs); }
+  void savePrefs() override {
+    _radio->suspendRadio();
+    _cli.savePrefs(_fs);
+  }
   bool formatFileSystem() override;
   void sendSelfAdvertisement(int delay_millis, bool flood) override;
   void updateAdvertTimer() override;
@@ -138,6 +141,7 @@ private:
   CommonCLI _cli;
   uint8_t reply_data[MAX_PACKET_PAYLOAD];
   unsigned long dirty_contacts_expiry;
+  uint8_t dirty_contacts_defer_count;
   CayenneLPP telemetry;
   TransportKeyStore key_store;
   RegionMap region_map;

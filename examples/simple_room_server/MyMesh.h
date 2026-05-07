@@ -101,6 +101,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   ClientACL acl;
   CommonCLI _cli;
   unsigned long dirty_contacts_expiry;
+  uint8_t dirty_contacts_defer_count;
   uint8_t reply_data[MAX_PACKET_PAYLOAD];
   unsigned long next_push;
   uint16_t _num_posted, _num_post_pushes;
@@ -183,6 +184,7 @@ public:
   }
 
   void savePrefs() override {
+    _radio->suspendRadio();
     _cli.savePrefs(_fs);
   }
 

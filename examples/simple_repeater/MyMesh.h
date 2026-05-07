@@ -103,6 +103,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   unsigned long pending_discover_until;
   bool region_load_active;
   unsigned long dirty_contacts_expiry;
+  uint8_t dirty_contacts_defer_count;
 #if MAX_NEIGHBOURS
   NeighbourInfo neighbours[MAX_NEIGHBOURS];
 #endif
@@ -189,6 +190,7 @@ public:
   }
 
   void savePrefs() override {
+    _radio->suspendRadio();
     _cli.savePrefs(_fs);
   }
 

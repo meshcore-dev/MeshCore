@@ -968,7 +968,19 @@ void SensorMesh::loop() {
 
   // is there are pending dirty contacts write needed?
   if (dirty_contacts_expiry && millisHasNowPassed(dirty_contacts_expiry)) {
-    acl.save(_fs);
-    dirty_contacts_expiry = 0;
+    if (_mgr->getOutboundTotal() > 0 || isRadioBusy()) {
+      dirty_contacts_expiry = futureMillis(200);
+      if (++dirty_contacts_defer_count > 50) {
+        _radio->suspendRadio();
+        acl.save(_fs);
+        dirty_contacts_expiry = 0;
+        dirty_contacts_defer_count = 0;
+      }
+    } else {
+      _radio->suspendRadio();
+      acl.save(_fs);
+      dirty_contacts_expiry = 0;
+      dirty_contacts_defer_count = 0;
+    }
   }
 }

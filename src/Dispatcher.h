@@ -70,6 +70,14 @@ public:
   virtual bool isInRecvMode() const = 0;
 
   /**
+   * \brief  Put radio into standby.  Next recvRaw() call will retsart receive.
+   *         Used to quiesce the SPI bus before flash I/O on nRF52.
+   *         
+   *         Introduced as fix for #2283
+  */
+  virtual void suspendRadio() { }
+
+  /**
    * \returns  true if the radio is currently mid-receive of a packet.
   */
   virtual bool isReceiving() { return false; }
@@ -192,6 +200,9 @@ public:
   // helper methods
   bool millisHasNowPassed(unsigned long timestamp) const;
   unsigned long futureMillis(int millis_from_now) const;
+
+  /// True when a packet is mid-transmit (dequeued, SPI active).
+  bool isRadioBusy() const { return outbound != NULL; }
 
 private:
   bool tryParsePacket(Packet* pkt, const uint8_t* raw, int len);

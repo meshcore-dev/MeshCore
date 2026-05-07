@@ -30,6 +30,7 @@ public:
   bool isSendComplete() override;
   void onSendFinished() override;
   bool isInRecvMode() const override;
+  void suspendRadio() override { idle(); }
   bool isChannelActive();
 
   bool isReceiving() override { 
