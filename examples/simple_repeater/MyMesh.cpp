@@ -1,5 +1,6 @@
 #include "MyMesh.h"
 #include <algorithm>
+#include <cstdlib>
 
 /* ------------------------------ Config -------------------------------- */
 
@@ -1068,8 +1069,145 @@ void MyMesh::clearFloodRetryBridgeState(const mesh::Packet* packet) {
     state->active = false;
   }
 }
+void MyMesh::refreshFloodRetryHeardRecent(const mesh::Packet* packet) {
+  if (packet == NULL || !packet->isRouteFlood() || packet->getPathHashCount() == 0) {
+    return;
+  }
+
+  uint8_t hash_size = packet->getPathHashSize();
+  if (hash_size == 0 || hash_size > MAX_ROUTE_HASH_BYTES) {
+    return;
+  }
+
+  auto* tables = (SimpleMeshTables*)getTables();
+  const uint8_t* path = packet->path;
+  if (_prefs.flood_retry_bridge_enabled) {
+    FloodRetryBridgeState* state = floodRetryBridgeStateFor(packet, false);
+    if (state != NULL) {
+      for (int hop = 0; hop < packet->getPathHashCount(); hop++) {
+        int bucket = floodRetryBucketForPrefix(path, hash_size, true);
+        if (bucket >= 0 && bucket != state->source_bucket && (state->target_mask & (uint8_t)(1U << bucket))) {
+          tables->setRecentRepeater(path, hash_size, packet->_snr, false, true);
+        }
+        path += hash_size;
+      }
+      return;
+    }
+  }
+
+  const uint8_t* heard_prefix = &packet->path[(packet->getPathHashCount() - 1) * hash_size];
+  tables->setRecentRepeater(heard_prefix, hash_size, packet->_snr, false, true);
+}
+void MyMesh::formatFloodRetryPath(char* dest, size_t dest_len, const mesh::Packet* packet) const {
+  if (dest == NULL || dest_len == 0) {
+    return;
+  }
+  dest[0] = 0;
+
+  if (packet == NULL || packet->getPathHashCount() == 0) {
+    StrHelper::strncpy(dest, "-", dest_len);
+    return;
+  }
+
+  uint8_t hash_size = packet->getPathHashSize();
+  if (hash_size == 0 || hash_size > MAX_ROUTE_HASH_BYTES) {
+    StrHelper::strncpy(dest, "invalid", dest_len);
+    return;
+  }
+
+  char* out = dest;
+  size_t remaining = dest_len;
+  const uint8_t* path = packet->path;
+  for (int hop = 0; hop < packet->getPathHashCount(); hop++) {
+    size_t needed = (hop > 0 ? 1 : 0) + ((size_t)hash_size * 2) + 1;
+    if (remaining < needed) {
+      if (remaining > 4) {
+        strcpy(out, "...");
+      }
+      return;
+    }
+    if (hop > 0) {
+      *out++ = '>';
+      remaining--;
+    }
+    mesh::Utils::toHex(out, path, hash_size);
+    out += (size_t)hash_size * 2;
+    remaining -= (size_t)hash_size * 2;
+    path += hash_size;
+  }
+}
+bool MyMesh::formatFloodRetryHeard(char* dest, size_t dest_len, const mesh::Packet* packet) const {
+  if (dest == NULL || dest_len == 0 || packet == NULL || packet->getPathHashCount() == 0) {
+    return false;
+  }
+  dest[0] = 0;
+
+  uint8_t hash_size = packet->getPathHashSize();
+  if (hash_size == 0 || hash_size > MAX_ROUTE_HASH_BYTES) {
+    return false;
+  }
+
+  char* out = dest;
+  size_t remaining = dest_len;
+  bool first = true;
+
+  if (_prefs.flood_retry_bridge_enabled) {
+    FloodRetryBridgeState* state = floodRetryBridgeStateFor(packet, false);
+    if (state == NULL) {
+      return false;
+    }
+    const uint8_t* path = packet->path;
+    for (int hop = 0; hop < packet->getPathHashCount(); hop++) {
+      int bucket = floodRetryBucketForPrefix(path, hash_size, true);
+      if (bucket >= 0 && bucket != state->source_bucket && (state->target_mask & (uint8_t)(1U << bucket))) {
+        size_t needed = (first ? 0 : 1) + 2 + 1 + ((size_t)hash_size * 2) + 1;
+        if (remaining < needed) {
+          if (remaining > 4) {
+            strcpy(out, "...");
+          }
+          return dest[0] != 0;
+        }
+        if (!first) {
+          *out++ = ',';
+          remaining--;
+        }
+        int n = snprintf(out, remaining, "b%d:", bucket + 1);
+        if (n < 0 || (size_t)n >= remaining) {
+          return dest[0] != 0;
+        }
+        out += n;
+        remaining -= n;
+        mesh::Utils::toHex(out, path, hash_size);
+        out += (size_t)hash_size * 2;
+        remaining -= (size_t)hash_size * 2;
+        first = false;
+      }
+      path += hash_size;
+    }
+    return dest[0] != 0;
+  }
+
+  const uint8_t* heard_prefix = &packet->path[(packet->getPathHashCount() - 1) * hash_size];
+  if (remaining < ((size_t)hash_size * 2) + 1) {
+    return false;
+  }
+  mesh::Utils::toHex(out, heard_prefix, hash_size);
+  return true;
+}
 void MyMesh::onFloodRetryEvent(const char* event, const mesh::Packet* packet, uint32_t delay_millis, uint8_t retry_attempt) {
   if (event == NULL || packet == NULL) {
+    return;
+  }
+
+  bool clear_bridge_state = _prefs.flood_retry_bridge_enabled
+      && (strcmp(event, "good") == 0 || strcmp(event, "failure") == 0 || strcmp(event, "failed_all_tries") == 0
+          || strncmp(event, "dropped_", 8) == 0);
+
+  if (clear_bridge_state && strcmp(event, "failure") == 0) {
+    clearFloodRetryBridgeState(packet);
+  }
+
+  if (strcmp(event, "failure") == 0) {
     return;
   }
 
@@ -1083,7 +1221,17 @@ void MyMesh::onFloodRetryEvent(const char* event, const mesh::Packet* packet, ui
     time_label = "echo_ms";
   }
 
-  MESH_DEBUG_PRINTLN("%s flood retry %s (retry=%u, type=%d, route=%s, payload_len=%d, hop=%u, %s=%lu)",
+  char path_log[208];
+  char heard_log[96];
+  char heard_suffix[112];
+  formatFloodRetryPath(path_log, sizeof(path_log), packet);
+  heard_suffix[0] = 0;
+  if (strcmp(event, "good") == 0 && formatFloodRetryHeard(heard_log, sizeof(heard_log), packet)) {
+    refreshFloodRetryHeardRecent(packet);
+    snprintf(heard_suffix, sizeof(heard_suffix), ", heard=%s", heard_log);
+  }
+
+  MESH_DEBUG_PRINTLN("%s flood retry %s (retry=%u, type=%d, route=%s, payload_len=%d, hop=%u, path=%s%s, %s=%lu)",
                      getLogDateTime(),
                      event,
                      (unsigned int)retry_attempt,
@@ -1091,6 +1239,8 @@ void MyMesh::onFloodRetryEvent(const char* event, const mesh::Packet* packet, ui
                      packet->isRouteDirect() ? "D" : "F",
                      (uint32_t)packet->payload_len,
                      (unsigned int)packet->getPathHashCount(),
+                     path_log,
+                     heard_suffix,
                      time_label,
                      (unsigned long)delay_millis);
 
@@ -1098,22 +1248,22 @@ void MyMesh::onFloodRetryEvent(const char* event, const mesh::Packet* packet, ui
     File f = openAppend(PACKET_LOG_FILE);
     if (f) {
       f.print(getLogDateTime());
-      f.printf(": FLOOD RETRY %s (retry=%u, type=%d, route=%s, payload_len=%d, hop=%u, %s=%lu)\n",
+      f.printf(": FLOOD RETRY %s (retry=%u, type=%d, route=%s, payload_len=%d, hop=%u, path=%s%s, %s=%lu)\n",
                event,
                (unsigned int)retry_attempt,
                (uint32_t)packet->getPayloadType(),
                packet->isRouteDirect() ? "D" : "F",
                (uint32_t)packet->payload_len,
                (unsigned int)packet->getPathHashCount(),
+               path_log,
+               heard_suffix,
                time_label,
                (unsigned long)delay_millis);
       f.close();
     }
   }
 
-  if (_prefs.flood_retry_bridge_enabled
-      && (strcmp(event, "failure") == 0 || strcmp(event, "failed_all_tries") == 0
-          || strncmp(event, "dropped_", 8) == 0)) {
+  if (clear_bridge_state) {
     clearFloodRetryBridgeState(packet);
   }
 }
@@ -1146,11 +1296,7 @@ bool MyMesh::isFloodRetryEchoTarget(const mesh::Packet* packet, uint8_t progress
       return false;
     }
     state->heard_mask |= floodRetryBridgeHeardMask(packet, state->source_bucket) & state->target_mask;
-    bool complete = (state->heard_mask & state->target_mask) == state->target_mask;
-    if (complete) {
-      state->active = false;
-    }
-    return complete;
+    return (state->heard_mask & state->target_mask) == state->target_mask;
   }
   if (hasFloodRetryPrefixes()) {
     return floodRetryLastHopMatches(packet);
@@ -1979,16 +2125,58 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
         }
       }
     } else {
-      const SimpleMeshTables::RecentRepeaterInfo* sorted_recent[MAX_RECENT_REPEATERS];
+      const long page_size = sender_timestamp == 0 ? 128 : 7;
+      long page_num = 1;
+      const char* arg = sub;
+
+      if (strncmp(arg, "page ", 5) == 0) {
+        arg += 5;
+        while (*arg == ' ') arg++;
+      }
+
+      if (*arg != 0) {
+        char* end_ptr = NULL;
+        page_num = strtol(arg, &end_ptr, 10);
+        while (end_ptr != NULL && *end_ptr == ' ') end_ptr++;
+        if (end_ptr == NULL || page_num <= 0 || (end_ptr != NULL && *end_ptr != 0)) {
+          strcpy(reply, "Err - usage: get recent.repeater [page]");
+          return;
+        }
+      }
+
+      size_t sorted_size = sizeof(SimpleMeshTables::RecentRepeaterInfo*) * MAX_RECENT_REPEATERS;
+      const SimpleMeshTables::RecentRepeaterInfo** sorted_recent =
+          (const SimpleMeshTables::RecentRepeaterInfo**)malloc(sorted_size);
+      if (sorted_recent == NULL) {
+        strcpy(reply, "Err - unable to allocate recent repeater view");
+        return;
+      }
+
       int total = buildSortedRecentRepeaterView(tables, sorted_recent, MAX_RECENT_REPEATERS);
       if (total <= 0) {
         strcpy(reply, "> none");
       } else {
+        int total_pages = (total + (int)page_size - 1) / (int)page_size;
+        if (page_num > total_pages) {
+          sprintf(reply, "> none (page=%ld/%d)", page_num, total_pages);
+          free(sorted_recent);
+          return;
+        }
+
+        int offset = ((int)page_num - 1) * (int)page_size;
+        int limit = total - offset;
+        if (limit > (int)page_size) {
+          limit = (int)page_size;
+        }
+
         if (sender_timestamp == 0) {
-          // Serial CLI: print all entries (no paging).
-          Serial.printf("Recent repeater table (3-byte,2-byte,1-byte; SNR desc, total=%d):\n", total);
-          for (int i = 0; i < total; i++) {
-            const auto* info = sorted_recent[i];
+          Serial.printf("Recent repeater table (3-byte,2-byte,1-byte; SNR desc, page=%ld/%d, n=%d/%d):\n",
+                        page_num,
+                        total_pages,
+                        limit,
+                        total);
+          for (int i = 0; i < limit; i++) {
+            const auto* info = sorted_recent[offset + i];
             if (info == NULL) {
               continue;
             }
@@ -2002,40 +2190,8 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
                           snr_text,
                           info->snr_locked ? ",l" : "");
           }
-          sprintf(reply, "> n=%d/%d", total, total);
+          sprintf(reply, "> page=%ld/%d n=%d/%d", page_num, total_pages, limit, total);
         } else {
-          // Remote CLI: page by fixed size to fit packet-limited reply payload.
-          long page_num = 1;
-          const long page_size = 4;
-          const char* arg = sub;
-
-          if (strncmp(arg, "page ", 5) == 0) {
-            arg += 5;
-            while (*arg == ' ') arg++;
-          }
-
-          if (*arg != 0) {
-            char* end_ptr = NULL;
-            page_num = strtol(arg, &end_ptr, 10);
-            while (end_ptr != NULL && *end_ptr == ' ') end_ptr++;
-            if (end_ptr == NULL || page_num <= 0 || (end_ptr != NULL && *end_ptr != 0)) {
-              strcpy(reply, "Err - usage: get recent.repeater [page]");
-              return;
-            }
-          }
-
-          int total_pages = (total + (int)page_size - 1) / (int)page_size;
-          if (page_num > total_pages) {
-            sprintf(reply, "> none (page=%ld/%d)", page_num, total_pages);
-            return;
-          }
-
-          int offset = ((int)page_num - 1) * (int)page_size;
-          int limit = total - offset;
-          if (limit > (int)page_size) {
-            limit = (int)page_size;
-          }
-
           int written = snprintf(reply, 160, "> page=%ld/%d n=%d/%d", page_num, total_pages, limit, total);
           bool truncated = false;
           if (written < 0) {
@@ -2075,6 +2231,7 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
           }
         }
       }
+      free(sorted_recent);
     }
   } else if (memcmp(command, "discover.neighbors", 18) == 0) {
     const char* sub = command + 18;

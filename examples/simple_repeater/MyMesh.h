@@ -145,6 +145,9 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   uint8_t floodRetryBridgeHeardMask(const mesh::Packet* packet, uint8_t source_bucket) const;
   FloodRetryBridgeState* floodRetryBridgeStateFor(const mesh::Packet* packet, bool create) const;
   void clearFloodRetryBridgeState(const mesh::Packet* packet);
+  void refreshFloodRetryHeardRecent(const mesh::Packet* packet);
+  void formatFloodRetryPath(char* dest, size_t dest_len, const mesh::Packet* packet) const;
+  bool formatFloodRetryHeard(char* dest, size_t dest_len, const mesh::Packet* packet) const;
   void putNeighbour(const mesh::Identity& id, uint32_t timestamp, float snr);
   uint8_t handleLoginReq(const mesh::Identity& sender, const uint8_t* secret, uint32_t sender_timestamp, const uint8_t* data, bool is_flood);
   uint8_t handleAnonRegionsReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data);

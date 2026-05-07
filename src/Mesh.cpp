@@ -51,6 +51,7 @@ void Mesh::begin() {
     _flood_retries[i].retry_attempts_sent = 0;
     _flood_retries[i].priority = 0;
     _flood_retries[i].progress_marker = 0;
+    _flood_retries[i].waiting_final_echo = false;
     _flood_retries[i].queued = false;
     _flood_retries[i].active = false;
   }
@@ -74,7 +75,25 @@ void Mesh::loop() {
   }
 
   for (int i = 0; i < MAX_FLOOD_RETRY_SLOTS; i++) {
-    if (!_flood_retries[i].active || !_flood_retries[i].queued || !millisHasNowPassed(_flood_retries[i].retry_at)) {
+    if (!_flood_retries[i].active) {
+      continue;
+    }
+
+    if (_flood_retries[i].waiting_final_echo) {
+      if (!millisHasNowPassed(_flood_retries[i].retry_at)) {
+        continue;
+      }
+
+      uint32_t elapsed_millis = _flood_retries[i].retry_started_at == 0
+        ? 0
+        : (uint32_t)(_ms->getMillis() - _flood_retries[i].retry_started_at);
+      onFloodRetryEvent("failed_all_tries", _flood_retries[i].packet, elapsed_millis, _flood_retries[i].retry_attempts_sent);
+      onFloodRetryEvent("failure", _flood_retries[i].packet, elapsed_millis, _flood_retries[i].retry_attempts_sent);
+      clearFloodRetrySlot(i);
+      continue;
+    }
+
+    if (!_flood_retries[i].queued || !millisHasNowPassed(_flood_retries[i].retry_at)) {
       continue;
     }
 
@@ -813,6 +832,9 @@ void Mesh::maybeScheduleDirectRetry(const Packet* packet, uint8_t priority) {
 }
 
 void Mesh::clearFloodRetrySlot(int idx) {
+  if (_flood_retries[idx].waiting_final_echo && _flood_retries[idx].packet != NULL) {
+    releasePacket(_flood_retries[idx].packet);
+  }
   _flood_retries[idx].packet = NULL;
   _flood_retries[idx].trigger_packet = NULL;
   _flood_retries[idx].retry_started_at = 0;
@@ -821,6 +843,7 @@ void Mesh::clearFloodRetrySlot(int idx) {
   _flood_retries[idx].retry_attempts_sent = 0;
   _flood_retries[idx].priority = 0;
   _flood_retries[idx].progress_marker = 0;
+  _flood_retries[idx].waiting_final_echo = false;
   _flood_retries[idx].queued = false;
   _flood_retries[idx].active = false;
 }
@@ -854,8 +877,10 @@ bool Mesh::cancelFloodRetryOnEcho(const Packet* packet) {
     uint32_t echo_millis = _flood_retries[i].retry_started_at == 0
       ? 0
       : (uint32_t)(_ms->getMillis() - _flood_retries[i].retry_started_at);
-    const Packet* event_packet = _flood_retries[i].queued ? _flood_retries[i].packet : _flood_retries[i].trigger_packet;
-    onFloodRetryEvent("good", event_packet, echo_millis, _flood_retries[i].retry_attempts_sent + 1);
+    uint8_t retry_attempt = _flood_retries[i].waiting_final_echo
+      ? _flood_retries[i].retry_attempts_sent
+      : _flood_retries[i].retry_attempts_sent + 1;
+    onFloodRetryEvent("good", packet, echo_millis, retry_attempt);
 
     if (_flood_retries[i].queued) {
       for (int j = 0; j < _mgr->getOutboundTotal(); j++) {
@@ -899,9 +924,19 @@ void Mesh::armFloodRetryOnSendComplete(const Packet* packet) {
         max_attempts = FLOOD_RETRY_MAX_ATTEMPTS_DEFAULT;
       }
       if (_flood_retries[i].retry_attempts_sent >= max_attempts) {
-        onFloodRetryEvent("failed_all_tries", packet, elapsed_millis, _flood_retries[i].retry_attempts_sent);
-        onFloodRetryEvent("failure", packet, elapsed_millis, _flood_retries[i].retry_attempts_sent);
-        clearFloodRetrySlot(i);
+        Packet* final_wait = obtainNewPacket();
+        if (final_wait == NULL) {
+          onFloodRetryEvent("dropped_no_packet", packet, elapsed_millis, _flood_retries[i].retry_attempts_sent);
+          onFloodRetryEvent("failure", packet, elapsed_millis, _flood_retries[i].retry_attempts_sent);
+          clearFloodRetrySlot(i);
+          continue;
+        }
+
+        *final_wait = *packet;
+        _flood_retries[i].packet = final_wait;
+        _flood_retries[i].retry_at = futureMillis(_flood_retries[i].retry_delay);
+        _flood_retries[i].waiting_final_echo = true;
+        _flood_retries[i].queued = false;
         continue;
       }
 
@@ -920,6 +955,7 @@ void Mesh::armFloodRetryOnSendComplete(const Packet* packet) {
         _flood_retries[i].retry_delay = retry_delay;
         _flood_retries[i].retry_at = futureMillis(retry_delay);
         _flood_retries[i].retry_started_at = _ms->getMillis();
+        _flood_retries[i].waiting_final_echo = false;
         onFloodRetryEvent("queued", retry, retry_delay, _flood_retries[i].retry_attempts_sent + 1);
       } else {
         onFloodRetryEvent("dropped_queue_full", retry, retry_delay, _flood_retries[i].retry_attempts_sent + 1);
@@ -948,6 +984,7 @@ void Mesh::armFloodRetryOnSendComplete(const Packet* packet) {
       _flood_retries[i].packet = retry;
       _flood_retries[i].trigger_packet = NULL;
       _flood_retries[i].queued = true;
+      _flood_retries[i].waiting_final_echo = false;
       _flood_retries[i].retry_at = futureMillis(_flood_retries[i].retry_delay);
       _flood_retries[i].retry_started_at = now;
       onFloodRetryEvent("queued", retry, _flood_retries[i].retry_delay, 1);
@@ -1025,6 +1062,7 @@ void Mesh::maybeScheduleFloodRetry(const Packet* packet, uint8_t priority) {
   _flood_retries[slot_idx].retry_attempts_sent = 0;
   _flood_retries[slot_idx].priority = priority;
   _flood_retries[slot_idx].progress_marker = packet->getPathHashCount();
+  _flood_retries[slot_idx].waiting_final_echo = false;
   _flood_retries[slot_idx].queued = false;
   _flood_retries[slot_idx].active = true;
 }

@@ -63,6 +63,7 @@ class Mesh : public Dispatcher {
     uint8_t retry_key[MAX_HASH_SIZE];
     uint8_t priority;
     uint8_t progress_marker;
+    bool waiting_final_echo;
     bool queued;
     bool active;
   };

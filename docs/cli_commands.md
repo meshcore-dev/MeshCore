@@ -132,8 +132,8 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 - Rows are sorted by prefix width (3-byte, 2-byte, 1-byte), then SNR descending.
 - A full direct retry failure lowers the stored SNR by `0.25 dB`.
 - If a full failure has no row yet, it first seeds the row at the active retry cutoff + `2.5 dB`, then applies the `0.25 dB` penalty.
-- Serial CLI prints all rows (no paging).
-- Over LoRa remote CLI, page size is fixed at `4` rows; choose page with `get recent.repeater <page>`.
+- Serial CLI page size is fixed at `128` rows; choose page with `get recent.repeater <page>`.
+- Over LoRa remote CLI, page size is fixed at `7` rows; choose page with `get recent.repeater <page>`.
 
 ---
 
