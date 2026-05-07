@@ -662,6 +662,9 @@ void MyMesh::onDirectRetryEvent(const char* event, const mesh::Packet* packet, u
   if (packet == NULL) {
     return;
   }
+  if (strcmp(event, "failure") == 0) {
+    return;
+  }
 
   uint8_t prefix[MAX_ROUTE_HASH_BYTES] = {0};
   uint8_t prefix_len = 0;

@@ -39,6 +39,7 @@ void Mesh::begin() {
     _direct_retries[i].priority = 0;
     _direct_retries[i].progress_marker = 0;
     _direct_retries[i].expect_path_growth = false;
+    _direct_retries[i].waiting_final_echo = false;
     _direct_retries[i].queued = false;
     _direct_retries[i].active = false;
   }
@@ -62,7 +63,25 @@ void Mesh::loop() {
   Dispatcher::loop();
 
   for (int i = 0; i < MAX_DIRECT_RETRY_SLOTS; i++) {
-    if (!_direct_retries[i].active || !_direct_retries[i].queued || !millisHasNowPassed(_direct_retries[i].retry_at)) {
+    if (!_direct_retries[i].active) {
+      continue;
+    }
+
+    if (_direct_retries[i].waiting_final_echo) {
+      if (!millisHasNowPassed(_direct_retries[i].retry_at)) {
+        continue;
+      }
+
+      uint32_t elapsed_millis = _direct_retries[i].retry_started_at == 0
+        ? 0
+        : (uint32_t)(_ms->getMillis() - _direct_retries[i].retry_started_at);
+      onDirectRetryEvent("failed_all_tries", _direct_retries[i].packet, elapsed_millis, _direct_retries[i].retry_attempts_sent);
+      onDirectRetryEvent("failure", _direct_retries[i].packet, elapsed_millis, _direct_retries[i].retry_attempts_sent);
+      clearDirectRetrySlot(i);
+      continue;
+    }
+
+    if (!_direct_retries[i].queued || !millisHasNowPassed(_direct_retries[i].retry_at)) {
       continue;
     }
 
@@ -542,6 +561,9 @@ void Mesh::routeDirectRecvAcks(Packet* packet, uint32_t delay_millis) {
 }
 
 void Mesh::clearDirectRetrySlot(int idx) {
+  if (_direct_retries[idx].waiting_final_echo && _direct_retries[idx].packet != NULL) {
+    releasePacket(_direct_retries[idx].packet);
+  }
   _direct_retries[idx].packet = NULL;
   _direct_retries[idx].trigger_packet = NULL;
   _direct_retries[idx].retry_started_at = 0;
@@ -552,6 +574,7 @@ void Mesh::clearDirectRetrySlot(int idx) {
   _direct_retries[idx].priority = 0;
   _direct_retries[idx].progress_marker = 0;
   _direct_retries[idx].expect_path_growth = false;
+  _direct_retries[idx].waiting_final_echo = false;
   _direct_retries[idx].queued = false;
   _direct_retries[idx].active = false;
 }
@@ -588,7 +611,7 @@ bool Mesh::cancelDirectRetryOnEcho(const Packet* packet) {
     }
 
     int8_t echo_snr_x4 = packet->_snr;
-    if (_direct_retries[i].queued) {
+    if (_direct_retries[i].queued || _direct_retries[i].waiting_final_echo) {
       if (_direct_retries[i].packet != NULL) {
         // Success quality comes from the received downstream echo, not the original upstream RX.
         _direct_retries[i].packet->_snr = echo_snr_x4;
@@ -596,14 +619,19 @@ bool Mesh::cancelDirectRetryOnEcho(const Packet* packet) {
       uint32_t echo_millis = _direct_retries[i].echo_wait_started_at == 0
         ? 0
         : (uint32_t)(_ms->getMillis() - _direct_retries[i].echo_wait_started_at);
-      onDirectRetryEvent("good", _direct_retries[i].packet, echo_millis, _direct_retries[i].retry_attempts_sent + 1);
-      for (int j = 0; j < _mgr->getOutboundTotal(); j++) {
-        if (_mgr->getOutboundByIdx(j) == _direct_retries[i].packet) {
-          Packet* pending = _mgr->removeOutboundByIdx(j);
-          if (pending) {
-            releasePacket(pending);
+      uint8_t retry_attempt = _direct_retries[i].waiting_final_echo
+        ? _direct_retries[i].retry_attempts_sent
+        : _direct_retries[i].retry_attempts_sent + 1;
+      onDirectRetryEvent("good", _direct_retries[i].packet, echo_millis, retry_attempt);
+      if (_direct_retries[i].queued) {
+        for (int j = 0; j < _mgr->getOutboundTotal(); j++) {
+          if (_mgr->getOutboundByIdx(j) == _direct_retries[i].packet) {
+            Packet* pending = _mgr->removeOutboundByIdx(j);
+            if (pending) {
+              releasePacket(pending);
+            }
+            break;
           }
-          break;
         }
       }
       clearDirectRetrySlot(i);
@@ -645,9 +673,19 @@ void Mesh::armDirectRetryOnSendComplete(const Packet* packet) {
           max_attempts = DIRECT_RETRY_MAX_ATTEMPTS_HARD_MAX;
         }
         if (_direct_retries[i].retry_attempts_sent >= max_attempts) {
-          onDirectRetryEvent("failed_all_tries", packet, elapsed_millis, _direct_retries[i].retry_attempts_sent);
-          onDirectRetryEvent("failure", packet, elapsed_millis, _direct_retries[i].retry_attempts_sent);
-          clearDirectRetrySlot(i);
+          Packet* final_wait = obtainNewPacket();
+          if (final_wait == NULL) {
+            onDirectRetryEvent("dropped_no_packet", packet, elapsed_millis, _direct_retries[i].retry_attempts_sent);
+            onDirectRetryEvent("failure", packet, elapsed_millis, _direct_retries[i].retry_attempts_sent);
+            clearDirectRetrySlot(i);
+            continue;
+          }
+
+          *final_wait = *packet;
+          _direct_retries[i].packet = final_wait;
+          _direct_retries[i].retry_at = futureMillis(_direct_retries[i].retry_delay);
+          _direct_retries[i].waiting_final_echo = true;
+          _direct_retries[i].queued = false;
           continue;
         }
 
@@ -665,6 +703,7 @@ void Mesh::armDirectRetryOnSendComplete(const Packet* packet) {
           _direct_retries[i].packet = retry;
           _direct_retries[i].retry_delay = retry_delay;
           _direct_retries[i].retry_at = futureMillis(retry_delay);
+          _direct_retries[i].waiting_final_echo = false;
           onDirectRetryEvent("queued", retry, retry_delay, _direct_retries[i].retry_attempts_sent + 1);
         } else {
           onDirectRetryEvent("dropped_queue_full", retry, retry_delay, _direct_retries[i].retry_attempts_sent + 1);
@@ -697,6 +736,7 @@ void Mesh::armDirectRetryOnSendComplete(const Packet* packet) {
       _direct_retries[i].packet = retry;
       _direct_retries[i].trigger_packet = NULL;
       _direct_retries[i].queued = true;
+      _direct_retries[i].waiting_final_echo = false;
       _direct_retries[i].retry_at = futureMillis(_direct_retries[i].retry_delay);
       _direct_retries[i].retry_started_at = now;
       _direct_retries[i].echo_wait_started_at = now;
@@ -827,6 +867,7 @@ void Mesh::maybeScheduleDirectRetry(const Packet* packet, uint8_t priority) {
   _direct_retries[slot_idx].priority = priority;
   _direct_retries[slot_idx].progress_marker = progress_marker;
   _direct_retries[slot_idx].expect_path_growth = expect_path_growth;
+  _direct_retries[slot_idx].waiting_final_echo = false;
   _direct_retries[slot_idx].queued = false;
   _direct_retries[slot_idx].active = true;
 }

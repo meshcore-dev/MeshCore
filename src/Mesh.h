@@ -49,6 +49,7 @@ class Mesh : public Dispatcher {
     uint8_t priority;
     uint8_t progress_marker;
     bool expect_path_growth;
+    bool waiting_final_echo;
     bool queued;
     bool active;
   };
