@@ -218,6 +218,11 @@ void setup() {
 #endif
 
 #ifdef DISPLAY_CLASS
+#ifdef RAK_BOARD
+  // sensors.begin() GPS probe may power-cycle 3V3_S rail (via WB_IO2),
+  // which resets the SSD1306. Re-init the display before starting UI.
+  if (disp) display.begin();
+#endif
   ui_task.begin(disp, &sensors, the_mesh.getNodePrefs());  // still want to pass this in as dependency, as prefs might be moved
 #endif
 }

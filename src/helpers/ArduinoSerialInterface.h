@@ -14,11 +14,8 @@ class ArduinoSerialInterface : public BaseSerialInterface {
 public:
   ArduinoSerialInterface() { _isEnabled = false; _state = 0; }
 
-  void begin(Stream& serial) { 
-    _serial = &serial; 
-  #ifdef RAK_4631
-    pinMode(WB_IO2, OUTPUT);
-  #endif  
+  void begin(Stream& serial) {
+    _serial = &serial;
   }
 
   // BaseSerialInterface methods
