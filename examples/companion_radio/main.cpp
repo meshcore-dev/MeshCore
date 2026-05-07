@@ -197,8 +197,9 @@ void setup() {
   board.setInhibitSleep(true);   // prevent sleep when WiFi is active
   WiFi.setAutoReconnect(true);
   WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info){
-      WIFI_DEBUG_PRINTLN("WiFi disconnected. Forcing reconnect...");
-      WiFi.reconnect();
+      if (event == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) {
+          WIFI_DEBUG_PRINTLN("WiFi disconnected. OS handling auto-reconnect...");
+      }
   });
   WiFi.begin(WIFI_SSID, WIFI_PWD);
   serial_interface.begin(TCP_PORT);
