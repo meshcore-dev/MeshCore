@@ -669,7 +669,7 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
 #if defined(NRF52_PLATFORM)
       sprintf(reply, "OK - Watchdog %s (reboot to apply)", val == 0 ? "disabled" : "enabled");
 #else
-      sprintf(reply, "OK - Watchdog currently not implemented on this platform")
+      sprintf(reply, "OK - Watchdog currently not implemented on this platform");
 #endif
     }
   } else if (memcmp(config, "tx ", 3) == 0) {
