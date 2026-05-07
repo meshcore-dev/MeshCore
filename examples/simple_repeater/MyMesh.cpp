@@ -1,5 +1,6 @@
 #include "MyMesh.h"
 #include <algorithm>
+#include <cstdlib>
 
 /* ------------------------------ Config -------------------------------- */
 
@@ -659,6 +660,9 @@ void MyMesh::logTxFail(mesh::Packet *pkt, int len) {
 
 void MyMesh::onDirectRetryEvent(const char* event, const mesh::Packet* packet, uint32_t delay_millis, uint8_t retry_attempt) {
   if (packet == NULL) {
+    return;
+  }
+  if (strcmp(event, "failure") == 0) {
     return;
   }
 
@@ -1686,16 +1690,58 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
         }
       }
     } else {
-      const SimpleMeshTables::RecentRepeaterInfo* sorted_recent[MAX_RECENT_REPEATERS];
+      const long page_size = sender_timestamp == 0 ? 128 : 7;
+      long page_num = 1;
+      const char* arg = sub;
+
+      if (strncmp(arg, "page ", 5) == 0) {
+        arg += 5;
+        while (*arg == ' ') arg++;
+      }
+
+      if (*arg != 0) {
+        char* end_ptr = NULL;
+        page_num = strtol(arg, &end_ptr, 10);
+        while (end_ptr != NULL && *end_ptr == ' ') end_ptr++;
+        if (end_ptr == NULL || page_num <= 0 || (end_ptr != NULL && *end_ptr != 0)) {
+          strcpy(reply, "Err - usage: get recent.repeater [page]");
+          return;
+        }
+      }
+
+      size_t sorted_size = sizeof(SimpleMeshTables::RecentRepeaterInfo*) * MAX_RECENT_REPEATERS;
+      const SimpleMeshTables::RecentRepeaterInfo** sorted_recent =
+          (const SimpleMeshTables::RecentRepeaterInfo**)malloc(sorted_size);
+      if (sorted_recent == NULL) {
+        strcpy(reply, "Err - unable to allocate recent repeater view");
+        return;
+      }
+
       int total = buildSortedRecentRepeaterView(tables, sorted_recent, MAX_RECENT_REPEATERS);
       if (total <= 0) {
         strcpy(reply, "> none");
       } else {
+        int total_pages = (total + (int)page_size - 1) / (int)page_size;
+        if (page_num > total_pages) {
+          sprintf(reply, "> none (page=%ld/%d)", page_num, total_pages);
+          free(sorted_recent);
+          return;
+        }
+
+        int offset = ((int)page_num - 1) * (int)page_size;
+        int limit = total - offset;
+        if (limit > (int)page_size) {
+          limit = (int)page_size;
+        }
+
         if (sender_timestamp == 0) {
-          // Serial CLI: print all entries (no paging).
-          Serial.printf("Recent repeater table (3-byte,2-byte,1-byte; SNR desc, total=%d):\n", total);
-          for (int i = 0; i < total; i++) {
-            const auto* info = sorted_recent[i];
+          Serial.printf("Recent repeater table (3-byte,2-byte,1-byte; SNR desc, page=%ld/%d, n=%d/%d):\n",
+                        page_num,
+                        total_pages,
+                        limit,
+                        total);
+          for (int i = 0; i < limit; i++) {
+            const auto* info = sorted_recent[offset + i];
             if (info == NULL) {
               continue;
             }
@@ -1709,40 +1755,8 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
                           snr_text,
                           info->snr_locked ? ",l" : "");
           }
-          sprintf(reply, "> n=%d/%d", total, total);
+          sprintf(reply, "> page=%ld/%d n=%d/%d", page_num, total_pages, limit, total);
         } else {
-          // Remote CLI: page by fixed size to fit packet-limited reply payload.
-          long page_num = 1;
-          const long page_size = 4;
-          const char* arg = sub;
-
-          if (strncmp(arg, "page ", 5) == 0) {
-            arg += 5;
-            while (*arg == ' ') arg++;
-          }
-
-          if (*arg != 0) {
-            char* end_ptr = NULL;
-            page_num = strtol(arg, &end_ptr, 10);
-            while (end_ptr != NULL && *end_ptr == ' ') end_ptr++;
-            if (end_ptr == NULL || page_num <= 0 || (end_ptr != NULL && *end_ptr != 0)) {
-              strcpy(reply, "Err - usage: get recent.repeater [page]");
-              return;
-            }
-          }
-
-          int total_pages = (total + (int)page_size - 1) / (int)page_size;
-          if (page_num > total_pages) {
-            sprintf(reply, "> none (page=%ld/%d)", page_num, total_pages);
-            return;
-          }
-
-          int offset = ((int)page_num - 1) * (int)page_size;
-          int limit = total - offset;
-          if (limit > (int)page_size) {
-            limit = (int)page_size;
-          }
-
           int written = snprintf(reply, 160, "> page=%ld/%d n=%d/%d", page_num, total_pages, limit, total);
           bool truncated = false;
           if (written < 0) {
@@ -1782,6 +1796,7 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
           }
         }
       }
+      free(sorted_recent);
     }
   } else if (memcmp(command, "discover.neighbors", 18) == 0) {
     const char* sub = command + 18;
