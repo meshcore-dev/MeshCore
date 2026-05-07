@@ -1,6 +1,9 @@
 #pragma once
 
 #include <Mesh.h>
+#if ARDUINO
+  #include <Arduino.h>
+#endif
 
 #ifdef ESP32
   #include <FS.h>
@@ -30,6 +33,7 @@ public:
     uint8_t prefix_len;
     int8_t snr_x4;
     uint8_t snr_locked;
+    uint32_t last_heard_millis;
   };
 
 private:
@@ -178,6 +182,8 @@ public:
 
   bool hasSeen(const mesh::Packet* packet) override {
     if (packet->getPayloadType() == PAYLOAD_TYPE_ACK) {
+      recordRecentRepeater(packet);
+
       uint32_t ack;
       memcpy(&ack, packet->payload, 4);
 
@@ -295,6 +301,11 @@ public:
       } else if (!existing.snr_locked) {
         existing.snr_x4 = weightedSnrX4RoundUp(existing.snr_x4, snr_x4);
       }
+#if ARDUINO
+      existing.last_heard_millis = millis();
+#else
+      existing.last_heard_millis = 0;
+#endif
       return true;
     }
 
@@ -325,6 +336,11 @@ public:
     slot.prefix_len = prefix_len;
     slot.snr_x4 = snr_x4;
     slot.snr_locked = snr_locked ? 1 : 0;
+#if ARDUINO
+    slot.last_heard_millis = millis();
+#else
+    slot.last_heard_millis = 0;
+#endif
     _next_recent_repeater_idx = (slot_idx + 1) % MAX_RECENT_REPEATERS;
     return true;
   }

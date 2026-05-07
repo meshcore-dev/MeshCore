@@ -38,6 +38,19 @@
 #define DIRECT_RETRY_MOBILE_STEP_MS      50
 #define DIRECT_RETRY_MOBILE_MARGIN_X4     0
 
+#ifndef FLOOD_RETRY_PREFIX_SLOTS
+  #define FLOOD_RETRY_PREFIX_SLOTS        8
+#endif
+#ifndef FLOOD_RETRY_PREFIX_LEN
+  #define FLOOD_RETRY_PREFIX_LEN          3
+#endif
+#ifndef FLOOD_RETRY_BRIDGE_BUCKETS
+  #define FLOOD_RETRY_BRIDGE_BUCKETS      6
+#endif
+#ifndef FLOOD_RETRY_BUCKET_PREFIXES
+  #define FLOOD_RETRY_BUCKET_PREFIXES     8
+#endif
+
 struct NodePrefs { // persisted to file
   float airtime_factor;
   char node_name[32];
@@ -88,6 +101,12 @@ struct NodePrefs { // persisted to file
   uint8_t direct_retry_timing_magic[2];
   uint8_t direct_retry_preset;
   uint16_t direct_retry_step_ms;
+  uint8_t flood_retry_attempts;
+  uint8_t flood_retry_path_gate;
+  uint8_t flood_retry_prefs_magic[2];
+  uint8_t flood_retry_prefixes[FLOOD_RETRY_PREFIX_SLOTS][FLOOD_RETRY_PREFIX_LEN];
+  uint8_t flood_retry_bridge_enabled;
+  uint8_t flood_retry_bridge_buckets[FLOOD_RETRY_BRIDGE_BUCKETS][FLOOD_RETRY_BUCKET_PREFIXES][FLOOD_RETRY_PREFIX_LEN];
 };
 
 class CommonCLICallbacks {

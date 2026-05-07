@@ -83,11 +83,12 @@ void StaticPoolPacketManager::free(mesh::Packet* packet) {
   unused.add(packet, 0, 0);
 }
 
-void StaticPoolPacketManager::queueOutbound(mesh::Packet* packet, uint8_t priority, uint32_t scheduled_for) {
+bool StaticPoolPacketManager::queueOutbound(mesh::Packet* packet, uint8_t priority, uint32_t scheduled_for) {
   if (!send_queue.add(packet, priority, scheduled_for)) {
     MESH_DEBUG_PRINTLN("queueOutbound: send queue full, dropping packet");
-    free(packet);
+    return false;
   }
+  return true;
 }
 
 mesh::Packet* StaticPoolPacketManager::getNextOutbound(uint32_t now) {

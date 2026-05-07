@@ -585,7 +585,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 - `rooftop` (`1`): `175 ms` base wait, `15` retries, `100 ms` added per retry, SNR gate is SF floor + `5 dB`
 - `mobile` (`2`): `175 ms` base wait, `15` retries, `50 ms` added per retry, SNR gate is the SF floor
 
-**Note:** Selecting a preset copies those values into the retry settings. You can refine `direct.retry.margin`, `direct.retry.count`, `direct.retry.base`, or `direct.retry.step` afterward. Retry delay is `direct.txdelay` jitter + base wait + packet-length airtime wait + per-attempt step.
+**Note:** Selecting a preset copies those values into the direct retry settings and also resets flood retry defaults. You can refine `direct.retry.margin`, `direct.retry.count`, `direct.retry.base`, `direct.retry.step`, `flood.retry.count`, or `flood.retry.path` afterward. Retry delay is `direct.txdelay` jitter + base wait + packet-length airtime wait + per-attempt step.
 
 ---
 
@@ -751,6 +751,92 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 - `value`: Maximum flood hop count (0-64)
 
 **Default:** `64`
+
+---
+
+#### View or change the flood retry preset
+**Usage:**
+- `get flood.retry.preset`
+- `set flood.retry.preset <value>`
+
+**Parameters:**
+- `value`: `infra`|`rooftop`|`mobile` or `0`|`1`|`2`
+
+**Presets:**
+- `infra` (`0`): `1` retry, path gate `1`
+- `rooftop` (`1`): `3` retries, path gate `2`
+- `mobile` (`2`): `3` retries, path gate `1`
+
+**Note:** This applies only the flood retry defaults. `set direct.retry.preset` also resets these flood retry defaults.
+
+---
+
+#### View or change the number of flood retry attempts
+**Usage:**
+- `get flood.retry.count`
+- `set flood.retry.count <value>`
+
+**Parameters:**
+- `value`: Maximum retry attempts after initial flood TX (`0`-`3`)
+
+**Default:** `3` for `rooftop` and `mobile`, `1` for `infra`
+
+**Note:** `0` disables flood retry.
+
+---
+
+#### View or change the flood retry path gate
+**Usage:**
+- `get flood.retry.path`
+- `set flood.retry.path <value>`
+
+**Parameters:**
+- `value`: Maximum flood path length eligible for retry (`0`-`63`), or `off` to disable the gate
+
+**Default:** `2` for `rooftop`, `1` for `infra` and `mobile`
+
+---
+
+#### View or change flood retry target prefixes
+**Usage:**
+- `get flood.retry.prefixes`
+- `set flood.retry.prefixes <prefixes>`
+
+**Parameters:**
+- `prefixes`: Comma-separated 3-byte hex prefixes, such as `A1B2C3,D4E5F6`; use `none` or `off` to clear
+
+**Default:** `none`
+
+**Note:** Prefixes are stored as 3 bytes. Flood retry skips packets whose path already contains a matching target prefix. When prefixes are configured, only a downstream echo from one of those target prefixes cancels a queued retry; when no prefixes are configured, any downstream echo cancels it. Matching works with 3-byte, 2-byte, or 1-byte flood paths by comparing the matching leading bytes.
+
+---
+
+#### View or change flood retry bridge mode
+**Usage:**
+- `get flood.retry.bridge`
+- `set flood.retry.bridge <state>`
+
+**Parameters:**
+- `state`: `on` or `off`
+
+**Default:** `off`
+
+**Note:** Bridge mode uses bucket definitions instead of the single `flood.retry.prefixes` target list. If a flood comes from one fresh bucket, retry continues until every other fresh configured bucket has been heard or `flood.retry.count` is exhausted.
+
+---
+
+#### View or change flood retry bridge buckets
+**Usage:**
+- `get flood.retry.bucket.<bucket>`
+- `set flood.retry.bucket <bucket> <prefixes>`
+
+**Parameters:**
+- `bucket`: Bucket number (`1`-`6`)
+- `prefixes`: Up to 8 comma-separated 3-byte hex prefixes, such as `AABBCC,223344`; use `none` or `off` to clear
+
+**Default:** all buckets empty
+
+**Note:** Prefixes are stored as 3 bytes but match 3-byte, 2-byte, and 1-byte flood paths by comparing leading bytes. Bucket prefixes are included in bridge retry logic only if they were heard in the recent repeater table within the last hour.
 
 ---
 

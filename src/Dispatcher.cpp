@@ -269,7 +269,10 @@ void Dispatcher::processRecvPacket(Packet* pkt) {
     uint8_t priority = (action >> 24) - 1;
     uint32_t _delay = action & 0xFFFFFF;
 
-    _mgr->queueOutbound(pkt, priority, futureMillis(_delay));
+    if (!queueOutboundPacket(pkt, priority, _delay)) {
+      onSendFail(pkt);
+      releasePacket(pkt);
+    }
   }
 }
 
@@ -320,7 +323,8 @@ void Dispatcher::checkSend() {
 
     if (len + outbound->payload_len > MAX_TRANS_UNIT) {
       MESH_DEBUG_PRINTLN("%s Dispatcher::checkSend(): FATAL: Invalid packet queued... too long, len=%d", getLogDateTime(), len + outbound->payload_len);
-      _mgr->free(outbound);
+      onSendFail(outbound);
+      releasePacket(outbound);
       outbound = NULL;
     } else {
       memcpy(&raw[len], outbound->payload, outbound->payload_len); len += outbound->payload_len;
@@ -332,6 +336,7 @@ void Dispatcher::checkSend() {
         MESH_DEBUG_PRINTLN("%s Dispatcher::loop(): ERROR: send start failed!", getLogDateTime());
 
         logTxFail(outbound, outbound->getRawLength());
+        onSendFail(outbound);
   
         releasePacket(outbound);  // return to pool
         outbound = NULL;
@@ -369,13 +374,21 @@ void Dispatcher::releasePacket(Packet* packet) {
   _mgr->free(packet);
 }
 
-void Dispatcher::sendPacket(Packet* packet, uint8_t priority, uint32_t delay_millis) {
+bool Dispatcher::queueOutboundPacket(Packet* packet, uint8_t priority, uint32_t delay_millis) {
   if (!Packet::isValidPathLen(packet->path_len) || packet->payload_len > MAX_PACKET_PAYLOAD) {
     MESH_DEBUG_PRINTLN("%s Dispatcher::sendPacket(): ERROR: invalid packet... path_len=%d, payload_len=%d", getLogDateTime(), (uint32_t) packet->path_len, (uint32_t) packet->payload_len);
-    _mgr->free(packet);
-  } else {
-    _mgr->queueOutbound(packet, priority, futureMillis(delay_millis));
+    return false;
   }
+  return _mgr->queueOutbound(packet, priority, futureMillis(delay_millis));
+}
+
+bool Dispatcher::sendPacket(Packet* packet, uint8_t priority, uint32_t delay_millis) {
+  if (!queueOutboundPacket(packet, priority, delay_millis)) {
+    onSendFail(packet);
+    releasePacket(packet);
+    return false;
+  }
+  return true;
 }
 
 // Utility function -- handles the case where millis() wraps around back to zero

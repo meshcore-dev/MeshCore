@@ -30,6 +30,10 @@
 #define DIRECT_RETRY_STEP_MS_MIN       0
 #define DIRECT_RETRY_STEP_MS_MAX    5000
 #define DIRECT_RETRY_PRESET_DEFAULT DIRECT_RETRY_PRESET_ROOFTOP
+#define FLOOD_RETRY_PREFS_MAGIC_0  0xF4
+#define FLOOD_RETRY_PREFS_MAGIC_1  0x52
+#define FLOOD_RETRY_COUNT_MIN       0
+#define FLOOD_RETRY_COUNT_MAX       3
 
 // Believe it or not, this std C function is busted on some platforms!
 static uint32_t _atoi(const char* sp) {
@@ -39,6 +43,30 @@ static uint32_t _atoi(const char* sp) {
     n += (*sp++ - '0');
   }
   return n;
+}
+
+static bool parseUint8Strict(const char* value, uint8_t min_value, uint8_t max_value, uint8_t& result) {
+  if (value == NULL || *value == 0) {
+    return false;
+  }
+
+  uint16_t parsed = 0;
+  const char* sp = value;
+  while (*sp) {
+    if (*sp < '0' || *sp > '9') {
+      return false;
+    }
+    parsed = (uint16_t)((parsed * 10) + (*sp - '0'));
+    if (parsed > max_value) {
+      return false;
+    }
+    sp++;
+  }
+  if (parsed < min_value) {
+    return false;
+  }
+  result = (uint8_t)parsed;
+  return true;
 }
 
 static uint8_t directRetryMarginDbToX4(float margin_db) {
@@ -97,6 +125,49 @@ static uint16_t directRetryPresetStepDefault(uint8_t preset) {
   }
 }
 
+static uint8_t floodRetryPresetCountDefault(uint8_t preset) {
+  switch (directRetryPresetOrDefault(preset)) {
+    case DIRECT_RETRY_PRESET_INFRA:
+      return 1;
+    case DIRECT_RETRY_PRESET_MOBILE:
+    case DIRECT_RETRY_PRESET_ROOFTOP:
+    default:
+      return 3;
+  }
+}
+
+static uint8_t floodRetryPresetPathDefault(uint8_t preset) {
+  switch (directRetryPresetOrDefault(preset)) {
+    case DIRECT_RETRY_PRESET_INFRA:
+      return 1;
+    case DIRECT_RETRY_PRESET_MOBILE:
+      return 1;
+    case DIRECT_RETRY_PRESET_ROOFTOP:
+    default:
+      return 2;
+  }
+}
+
+static void applyFloodRetryPreset(NodePrefs* prefs, uint8_t preset) {
+  prefs->flood_retry_attempts = floodRetryPresetCountDefault(preset);
+  prefs->flood_retry_path_gate = floodRetryPresetPathDefault(preset);
+}
+
+static uint8_t floodRetryEffectiveCount(const NodePrefs* prefs) {
+  return constrain(prefs->flood_retry_attempts, (uint8_t)FLOOD_RETRY_COUNT_MIN, (uint8_t)FLOOD_RETRY_COUNT_MAX);
+}
+
+static uint8_t floodRetryPresetForPrefs(const NodePrefs* prefs) {
+  uint8_t count = floodRetryEffectiveCount(prefs);
+  uint8_t path_gate = prefs->flood_retry_path_gate;
+  for (uint8_t preset = DIRECT_RETRY_PRESET_INFRA; preset <= DIRECT_RETRY_PRESET_MOBILE; preset++) {
+    if (count == floodRetryPresetCountDefault(preset) && path_gate == floodRetryPresetPathDefault(preset)) {
+      return preset;
+    }
+  }
+  return directRetryPresetOrDefault(prefs->direct_retry_preset);
+}
+
 static void applyDirectRetryPreset(NodePrefs* prefs, uint8_t preset) {
   prefs->direct_retry_preset = directRetryPresetOrDefault(preset);
   switch (prefs->direct_retry_preset) {
@@ -120,6 +191,138 @@ static void applyDirectRetryPreset(NodePrefs* prefs, uint8_t preset) {
       prefs->direct_retry_snr_margin_db = DIRECT_RETRY_ROOFTOP_MARGIN_X4;
       break;
   }
+  applyFloodRetryPreset(prefs, prefs->direct_retry_preset);
+}
+
+static bool parseFloodRetryPathGate(const char* value, uint8_t& path_gate) {
+  if (value == NULL) {
+    return false;
+  }
+  if (strcmp(value, "off") == 0 || strcmp(value, "disabled") == 0 || strcmp(value, "disable") == 0) {
+    path_gate = FLOOD_RETRY_PATH_GATE_DISABLED;
+    return true;
+  }
+  return parseUint8Strict(value, 0, 63, path_gate);
+}
+
+static void formatFloodRetryPathGate(char* dest, uint8_t path_gate) {
+  if (path_gate == FLOOD_RETRY_PATH_GATE_DISABLED) {
+    strcpy(dest, "off");
+  } else {
+    sprintf(dest, "%u", (unsigned int)path_gate);
+  }
+}
+
+static void formatFloodRetryPrefixes(char* dest, const NodePrefs* prefs) {
+  char* out = dest;
+  bool first = true;
+  for (int i = 0; i < FLOOD_RETRY_PREFIX_SLOTS; i++) {
+    const uint8_t* prefix = prefs->flood_retry_prefixes[i];
+    if (prefix[0] == 0 && prefix[1] == 0 && prefix[2] == 0) {
+      continue;
+    }
+    if (!first) {
+      *out++ = ',';
+    }
+    mesh::Utils::toHex(out, prefix, FLOOD_RETRY_PREFIX_LEN);
+    out += FLOOD_RETRY_PREFIX_LEN * 2;
+    first = false;
+  }
+  *out = 0;
+}
+
+static void formatFloodRetryBridgeBucket(char* dest, const NodePrefs* prefs, uint8_t bucket) {
+  char* out = dest;
+  bool first = true;
+  if (bucket >= FLOOD_RETRY_BRIDGE_BUCKETS) {
+    *out = 0;
+    return;
+  }
+  for (int i = 0; i < FLOOD_RETRY_BUCKET_PREFIXES; i++) {
+    const uint8_t* prefix = prefs->flood_retry_bridge_buckets[bucket][i];
+    if (prefix[0] == 0 && prefix[1] == 0 && prefix[2] == 0) {
+      continue;
+    }
+    if (!first) {
+      *out++ = ',';
+    }
+    mesh::Utils::toHex(out, prefix, FLOOD_RETRY_PREFIX_LEN);
+    out += FLOOD_RETRY_PREFIX_LEN * 2;
+    first = false;
+  }
+  *out = 0;
+}
+
+static bool parseFloodRetryPrefixes(NodePrefs* prefs, const char* value) {
+  uint8_t parsed[FLOOD_RETRY_PREFIX_SLOTS][FLOOD_RETRY_PREFIX_LEN];
+  memset(parsed, 0, sizeof(parsed));
+  if (value == NULL || value[0] == 0 || strcmp(value, "none") == 0 || strcmp(value, "off") == 0) {
+    memcpy(prefs->flood_retry_prefixes, parsed, sizeof(prefs->flood_retry_prefixes));
+    return true;
+  }
+
+  char tmp[96];
+  StrHelper::strncpy(tmp, value, sizeof(tmp));
+  const char* parts[FLOOD_RETRY_PREFIX_SLOTS + 1];
+  int num = mesh::Utils::parseTextParts(tmp, parts, FLOOD_RETRY_PREFIX_SLOTS + 1);
+  if (num > FLOOD_RETRY_PREFIX_SLOTS) {
+    return false;
+  }
+  for (int i = 0; i < num; i++) {
+    if (strlen(parts[i]) != FLOOD_RETRY_PREFIX_LEN * 2) {
+      return false;
+    }
+    for (int j = 0; j < FLOOD_RETRY_PREFIX_LEN * 2; j++) {
+      if (!mesh::Utils::isHexChar(parts[i][j])) {
+        return false;
+      }
+    }
+    if (!mesh::Utils::fromHex(parsed[i], FLOOD_RETRY_PREFIX_LEN, parts[i])) {
+      return false;
+    }
+    const uint8_t* prefix = parsed[i];
+    if (prefix[0] == 0 && prefix[1] == 0 && prefix[2] == 0) {
+      return false;
+    }
+  }
+  memcpy(prefs->flood_retry_prefixes, parsed, sizeof(prefs->flood_retry_prefixes));
+  return true;
+}
+
+static bool parseFloodRetryPrefixList(uint8_t dest[][FLOOD_RETRY_PREFIX_LEN], uint8_t max_prefixes, const char* value) {
+  if (max_prefixes > FLOOD_RETRY_BUCKET_PREFIXES) {
+    return false;
+  }
+  uint8_t parsed[FLOOD_RETRY_BUCKET_PREFIXES][FLOOD_RETRY_PREFIX_LEN];
+  memset(parsed, 0, sizeof(parsed));
+  if (value == NULL || value[0] == 0 || strcmp(value, "none") == 0 || strcmp(value, "off") == 0) {
+    memcpy(dest, parsed, max_prefixes * FLOOD_RETRY_PREFIX_LEN);
+    return true;
+  }
+
+  char tmp[96];
+  StrHelper::strncpy(tmp, value, sizeof(tmp));
+  const char* parts[FLOOD_RETRY_BUCKET_PREFIXES + 1];
+  int num = mesh::Utils::parseTextParts(tmp, parts, FLOOD_RETRY_BUCKET_PREFIXES + 1);
+  if (num > max_prefixes) {
+    return false;
+  }
+  for (int i = 0; i < num; i++) {
+    if (strlen(parts[i]) != FLOOD_RETRY_PREFIX_LEN * 2) {
+      return false;
+    }
+    for (int j = 0; j < FLOOD_RETRY_PREFIX_LEN * 2; j++) {
+      if (!mesh::Utils::isHexChar(parts[i][j])) {
+        return false;
+      }
+    }
+    if (!mesh::Utils::fromHex(parsed[i], FLOOD_RETRY_PREFIX_LEN, parts[i])
+        || (parsed[i][0] == 0 && parsed[i][1] == 0 && parsed[i][2] == 0)) {
+      return false;
+    }
+  }
+  memcpy(dest, parsed, max_prefixes * FLOOD_RETRY_PREFIX_LEN);
+  return true;
 }
 
 static bool parseDirectRetryPreset(const char* value, uint8_t& preset) {
@@ -227,6 +430,13 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     file.read((uint8_t *)&_prefs->direct_retry_preset, sizeof(_prefs->direct_retry_preset));     // 297
     size_t retry_step_read = file.read((uint8_t *)&_prefs->direct_retry_step_ms,
                                        sizeof(_prefs->direct_retry_step_ms));                    // 298
+    size_t flood_retry_attempts_read = file.read((uint8_t *)&_prefs->flood_retry_attempts,
+                                                 sizeof(_prefs->flood_retry_attempts));          // 300
+    file.read((uint8_t *)&_prefs->flood_retry_path_gate, sizeof(_prefs->flood_retry_path_gate)); // 301
+    file.read((uint8_t *)&_prefs->flood_retry_prefs_magic[0], sizeof(_prefs->flood_retry_prefs_magic)); // 302
+    file.read((uint8_t *)&_prefs->flood_retry_prefixes[0][0], sizeof(_prefs->flood_retry_prefixes)); // 304
+    file.read((uint8_t *)&_prefs->flood_retry_bridge_enabled, sizeof(_prefs->flood_retry_bridge_enabled)); // 328
+    file.read((uint8_t *)&_prefs->flood_retry_bridge_buckets[0][0][0], sizeof(_prefs->flood_retry_bridge_buckets)); // 329
     // PowerSaving-only prefs stored radio_fem_rxgain at 291, before direct retry timing existed.
     if (radio_fem_rxgain_read != sizeof(_prefs->radio_fem_rxgain)
         && legacy_retry_attempts_read == sizeof(legacy_retry_attempts_or_radio_fem_rxgain)
@@ -234,7 +444,7 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
             || _prefs->direct_retry_timing_magic[1] != DIRECT_RETRY_TIMING_MAGIC_1)) {
       _prefs->radio_fem_rxgain = constrain(legacy_retry_attempts_or_radio_fem_rxgain, 0, 1);
     }
-    // next: 298
+    // next: 473
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -287,6 +497,20 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
       _prefs->direct_retry_step_ms = directRetryPresetStepDefault(_prefs->direct_retry_preset);
     } else {
       _prefs->direct_retry_step_ms = constrain(_prefs->direct_retry_step_ms, DIRECT_RETRY_STEP_MS_MIN, DIRECT_RETRY_STEP_MS_MAX);
+    }
+    if (flood_retry_attempts_read != sizeof(_prefs->flood_retry_attempts)
+        || _prefs->flood_retry_prefs_magic[0] != FLOOD_RETRY_PREFS_MAGIC_0
+        || _prefs->flood_retry_prefs_magic[1] != FLOOD_RETRY_PREFS_MAGIC_1) {
+      applyFloodRetryPreset(_prefs, _prefs->direct_retry_preset);
+      memset(_prefs->flood_retry_prefixes, 0, sizeof(_prefs->flood_retry_prefixes));
+      _prefs->flood_retry_bridge_enabled = 0;
+      memset(_prefs->flood_retry_bridge_buckets, 0, sizeof(_prefs->flood_retry_bridge_buckets));
+    } else {
+      _prefs->flood_retry_attempts = constrain(_prefs->flood_retry_attempts, FLOOD_RETRY_COUNT_MIN, FLOOD_RETRY_COUNT_MAX);
+      if (_prefs->flood_retry_path_gate > 63 && _prefs->flood_retry_path_gate != FLOOD_RETRY_PATH_GATE_DISABLED) {
+        _prefs->flood_retry_path_gate = floodRetryPresetPathDefault(_prefs->direct_retry_preset);
+      }
+      _prefs->flood_retry_bridge_enabled = constrain(_prefs->flood_retry_bridge_enabled, 0, 1);
     }
 
     file.close();
@@ -360,7 +584,14 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->radio_fem_rxgain, sizeof(_prefs->radio_fem_rxgain));            // 296
     file.write((uint8_t *)&_prefs->direct_retry_preset, sizeof(_prefs->direct_retry_preset));       // 297
     file.write((uint8_t *)&_prefs->direct_retry_step_ms, sizeof(_prefs->direct_retry_step_ms));     // 298
-    // next: 300
+    file.write((uint8_t *)&_prefs->flood_retry_attempts, sizeof(_prefs->flood_retry_attempts));     // 300
+    file.write((uint8_t *)&_prefs->flood_retry_path_gate, sizeof(_prefs->flood_retry_path_gate));   // 301
+    uint8_t flood_retry_magic[2] = { FLOOD_RETRY_PREFS_MAGIC_0, FLOOD_RETRY_PREFS_MAGIC_1 };
+    file.write(flood_retry_magic, sizeof(flood_retry_magic));                                       // 302
+    file.write((uint8_t *)&_prefs->flood_retry_prefixes[0][0], sizeof(_prefs->flood_retry_prefixes)); // 304
+    file.write((uint8_t *)&_prefs->flood_retry_bridge_enabled, sizeof(_prefs->flood_retry_bridge_enabled)); // 328
+    file.write((uint8_t *)&_prefs->flood_retry_bridge_buckets[0][0][0], sizeof(_prefs->flood_retry_bridge_buckets)); // 329
+    // next: 473
 
     file.close();
   }
@@ -516,6 +747,30 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
         sprintf(reply, "> %s", StrHelper::ftoa(_prefs->tx_delay_factor));
       } else if (memcmp(config, "flood.max", 9) == 0) {
         sprintf(reply, "> %d", (uint32_t)_prefs->flood_max);
+      } else if (memcmp(config, "flood.retry.count", 17) == 0) {
+        sprintf(reply, "> %d", (uint32_t)floodRetryEffectiveCount(_prefs));
+      } else if (memcmp(config, "flood.retry.path", 16) == 0) {
+        char path_gate[8];
+        formatFloodRetryPathGate(path_gate, _prefs->flood_retry_path_gate);
+        sprintf(reply, "> %s", path_gate);
+      } else if (memcmp(config, "flood.retry.prefixes", 20) == 0) {
+        formatFloodRetryPrefixes(tmp, _prefs);
+        sprintf(reply, "> %s", tmp[0] ? tmp : "none");
+      } else if (memcmp(config, "flood.retry.bridge", 18) == 0) {
+        sprintf(reply, "> %s", _prefs->flood_retry_bridge_enabled ? "on" : "off");
+      } else if (memcmp(config, "flood.retry.bucket.", 19) == 0) {
+        uint8_t bucket = atoi(&config[19]);
+        if (bucket >= 1 && bucket <= FLOOD_RETRY_BRIDGE_BUCKETS) {
+          formatFloodRetryBridgeBucket(tmp, _prefs, bucket - 1);
+          sprintf(reply, "> %s", tmp[0] ? tmp : "none");
+        } else {
+          sprintf(reply, "Error, bucket 1-%d", FLOOD_RETRY_BRIDGE_BUCKETS);
+        }
+      } else if (memcmp(config, "flood.retry.preset", 18) == 0) {
+        uint8_t preset = floodRetryPresetForPrefs(_prefs);
+        sprintf(reply, "> %d,%s",
+                (uint32_t)preset,
+                directRetryPresetName(preset));
       } else if (memcmp(config, "direct.txdelay", 14) == 0) {
         sprintf(reply, "> %s", StrHelper::ftoa(_prefs->direct_tx_delay_factor));
       } else if (memcmp(config, "direct.retry.heard", 18) == 0) {
@@ -771,6 +1026,65 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
           strcpy(reply, "OK");
         } else {
           strcpy(reply, "Error, max 64");
+        }
+      } else if (memcmp(config, "flood.retry.preset ", 19) == 0) {
+        uint8_t preset;
+        if (parseDirectRetryPreset(&config[19], preset)) {
+          applyFloodRetryPreset(_prefs, preset);
+          savePrefs();
+          strcpy(reply, "OK");
+        } else {
+          strcpy(reply, "Error, must be infra, rooftop, mobile, 0, 1, or 2");
+        }
+      } else if (memcmp(config, "flood.retry.count ", 18) == 0) {
+        uint8_t count;
+        if (parseUint8Strict(&config[18], FLOOD_RETRY_COUNT_MIN, FLOOD_RETRY_COUNT_MAX, count)) {
+          _prefs->flood_retry_attempts = count;
+          savePrefs();
+          strcpy(reply, "OK");
+        } else {
+          sprintf(reply, "Error, min %d and max %d", FLOOD_RETRY_COUNT_MIN, FLOOD_RETRY_COUNT_MAX);
+        }
+      } else if (memcmp(config, "flood.retry.path ", 17) == 0) {
+        uint8_t path_gate;
+        if (parseFloodRetryPathGate(&config[17], path_gate)) {
+          _prefs->flood_retry_path_gate = path_gate;
+          savePrefs();
+          strcpy(reply, "OK");
+        } else {
+          strcpy(reply, "Error, must be 0-63 or off");
+        }
+      } else if (memcmp(config, "flood.retry.prefixes ", 21) == 0) {
+        if (parseFloodRetryPrefixes(_prefs, &config[21])) {
+          savePrefs();
+          strcpy(reply, "OK");
+        } else {
+          strcpy(reply, "Error, use comma-separated 3-byte hex prefixes");
+        }
+      } else if (memcmp(config, "flood.retry.bridge ", 19) == 0) {
+        if (memcmp(&config[19], "on", 2) == 0) {
+          _prefs->flood_retry_bridge_enabled = 1;
+          savePrefs();
+          strcpy(reply, "OK");
+        } else if (memcmp(&config[19], "off", 3) == 0) {
+          _prefs->flood_retry_bridge_enabled = 0;
+          savePrefs();
+          strcpy(reply, "OK");
+        } else {
+          strcpy(reply, "Error, must be on or off");
+        }
+      } else if (memcmp(config, "flood.retry.bucket ", 19) == 0) {
+        const char* params = &config[19];
+        uint8_t bucket = atoi(params);
+        const char* list = strchr(params, ' ');
+        if (bucket < 1 || bucket > FLOOD_RETRY_BRIDGE_BUCKETS || list == NULL || *(list + 1) == 0) {
+          sprintf(reply, "Error, usage: set flood.retry.bucket <1-%d> <prefixes|none>", FLOOD_RETRY_BRIDGE_BUCKETS);
+        } else if (parseFloodRetryPrefixList(_prefs->flood_retry_bridge_buckets[bucket - 1],
+                                             FLOOD_RETRY_BUCKET_PREFIXES, list + 1)) {
+          savePrefs();
+          strcpy(reply, "OK");
+        } else {
+          strcpy(reply, "Error, use up to 8 comma-separated 3-byte hex prefixes");
         }
       } else if (memcmp(config, "direct.txdelay ", 15) == 0) {
         float f = atof(&config[15]);
@@ -1326,6 +1640,65 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     } else {
       strcpy(reply, "Error, max 64");
     }
+  } else if (memcmp(config, "flood.retry.preset ", 19) == 0) {
+    uint8_t preset;
+    if (parseDirectRetryPreset(&config[19], preset)) {
+      applyFloodRetryPreset(_prefs, preset);
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error, must be infra, rooftop, mobile, 0, 1, or 2");
+    }
+  } else if (memcmp(config, "flood.retry.count ", 18) == 0) {
+    uint8_t count;
+    if (parseUint8Strict(&config[18], FLOOD_RETRY_COUNT_MIN, FLOOD_RETRY_COUNT_MAX, count)) {
+      _prefs->flood_retry_attempts = count;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      sprintf(reply, "Error, min %d and max %d", FLOOD_RETRY_COUNT_MIN, FLOOD_RETRY_COUNT_MAX);
+    }
+  } else if (memcmp(config, "flood.retry.path ", 17) == 0) {
+    uint8_t path_gate;
+    if (parseFloodRetryPathGate(&config[17], path_gate)) {
+      _prefs->flood_retry_path_gate = path_gate;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error, must be 0-63 or off");
+    }
+  } else if (memcmp(config, "flood.retry.prefixes ", 21) == 0) {
+    if (parseFloodRetryPrefixes(_prefs, &config[21])) {
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error, use comma-separated 3-byte hex prefixes");
+    }
+  } else if (memcmp(config, "flood.retry.bridge ", 19) == 0) {
+    if (memcmp(&config[19], "on", 2) == 0) {
+      _prefs->flood_retry_bridge_enabled = 1;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else if (memcmp(&config[19], "off", 3) == 0) {
+      _prefs->flood_retry_bridge_enabled = 0;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error, must be on or off");
+    }
+  } else if (memcmp(config, "flood.retry.bucket ", 19) == 0) {
+    const char* params = &config[19];
+    uint8_t bucket = atoi(params);
+    const char* list = strchr(params, ' ');
+    if (bucket < 1 || bucket > FLOOD_RETRY_BRIDGE_BUCKETS || list == NULL || *(list + 1) == 0) {
+      sprintf(reply, "Error, usage: set flood.retry.bucket <1-%d> <prefixes|none>", FLOOD_RETRY_BRIDGE_BUCKETS);
+    } else if (parseFloodRetryPrefixList(_prefs->flood_retry_bridge_buckets[bucket - 1],
+                                         FLOOD_RETRY_BUCKET_PREFIXES, list + 1)) {
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error, use up to 8 comma-separated 3-byte hex prefixes");
+    }
   } else if (memcmp(config, "direct.txdelay ", 15) == 0) {
     float f = atof(&config[15]);
     if (f >= 0) {
@@ -1565,6 +1938,30 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %s", StrHelper::ftoa(_prefs->tx_delay_factor));
   } else if (memcmp(config, "flood.max", 9) == 0) {
     sprintf(reply, "> %d", (uint32_t)_prefs->flood_max);
+  } else if (memcmp(config, "flood.retry.count", 17) == 0) {
+    sprintf(reply, "> %d", (uint32_t)floodRetryEffectiveCount(_prefs));
+  } else if (memcmp(config, "flood.retry.path", 16) == 0) {
+    char path_gate[8];
+    formatFloodRetryPathGate(path_gate, _prefs->flood_retry_path_gate);
+    sprintf(reply, "> %s", path_gate);
+  } else if (memcmp(config, "flood.retry.prefixes", 20) == 0) {
+    formatFloodRetryPrefixes(tmp, _prefs);
+    sprintf(reply, "> %s", tmp[0] ? tmp : "none");
+  } else if (memcmp(config, "flood.retry.bridge", 18) == 0) {
+    sprintf(reply, "> %s", _prefs->flood_retry_bridge_enabled ? "on" : "off");
+  } else if (memcmp(config, "flood.retry.bucket.", 19) == 0) {
+    uint8_t bucket = atoi(&config[19]);
+    if (bucket >= 1 && bucket <= FLOOD_RETRY_BRIDGE_BUCKETS) {
+      formatFloodRetryBridgeBucket(tmp, _prefs, bucket - 1);
+      sprintf(reply, "> %s", tmp[0] ? tmp : "none");
+    } else {
+      sprintf(reply, "Error, bucket 1-%d", FLOOD_RETRY_BRIDGE_BUCKETS);
+    }
+  } else if (memcmp(config, "flood.retry.preset", 18) == 0) {
+    uint8_t preset = floodRetryPresetForPrefs(_prefs);
+    sprintf(reply, "> %d,%s",
+            (uint32_t)preset,
+            directRetryPresetName(preset));
   } else if (memcmp(config, "direct.txdelay", 14) == 0) {
     sprintf(reply, "> %s", StrHelper::ftoa(_prefs->direct_tx_delay_factor));
   } else if (memcmp(config, "direct.retry.heard", 18) == 0) {

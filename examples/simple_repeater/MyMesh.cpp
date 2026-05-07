@@ -854,6 +854,180 @@ uint8_t MyMesh::getDirectRetryConfiguredMaxAttempts() const {
 uint32_t MyMesh::getDirectRetryAttemptStepMillis() const {
   return constrain((uint32_t)_prefs.direct_retry_step_ms, (uint32_t)0, (uint32_t)5000);
 }
+bool MyMesh::hasFloodRetryPrefixes() const {
+  for (int i = 0; i < FLOOD_RETRY_PREFIX_SLOTS; i++) {
+    const uint8_t* configured = _prefs.flood_retry_prefixes[i];
+    if (configured[0] != 0 || configured[1] != 0 || configured[2] != 0) {
+      return true;
+    }
+  }
+  return false;
+}
+bool MyMesh::floodRetryLastHopMatches(const mesh::Packet* packet) const {
+  if (packet == NULL || packet->getPathHashCount() == 0) {
+    return false;
+  }
+
+  uint8_t hash_size = packet->getPathHashSize();
+  if (hash_size == 0 || hash_size > MAX_ROUTE_HASH_BYTES) {
+    return false;
+  }
+
+  const uint8_t* heard_prefix = &packet->path[(packet->getPathHashCount() - 1) * hash_size];
+  for (int i = 0; i < FLOOD_RETRY_PREFIX_SLOTS; i++) {
+    const uint8_t* configured = _prefs.flood_retry_prefixes[i];
+    if ((configured[0] != 0 || configured[1] != 0 || configured[2] != 0)
+        && memcmp(configured, heard_prefix, hash_size) == 0) {
+      return true;
+    }
+  }
+
+  return false;
+}
+bool MyMesh::floodRetryPrefixMatches(const mesh::Packet* packet) const {
+  if (packet == NULL || packet->getPathHashCount() == 0) {
+    return false;
+  }
+
+  uint8_t hash_size = packet->getPathHashSize();
+  if (hash_size == 0 || hash_size > MAX_ROUTE_HASH_BYTES) {
+    return false;
+  }
+
+  const uint8_t* path = packet->path;
+  for (int hop = 0; hop < packet->getPathHashCount(); hop++) {
+    for (int i = 0; i < FLOOD_RETRY_PREFIX_SLOTS; i++) {
+      const uint8_t* configured = _prefs.flood_retry_prefixes[i];
+      if ((configured[0] != 0 || configured[1] != 0 || configured[2] != 0)
+          && memcmp(configured, path, hash_size) == 0) {
+        return true;
+      }
+    }
+    path += hash_size;
+  }
+
+  return false;
+}
+bool MyMesh::floodRetryPrefixFresh(const uint8_t* prefix, uint8_t prefix_len) const {
+  const auto* recent = ((const SimpleMeshTables *)getTables())->findRecentRepeaterByHash(prefix, prefix_len);
+  if (recent == NULL || recent->last_heard_millis == 0) {
+    return false;
+  }
+  return (uint32_t)(millis() - recent->last_heard_millis) <= 3600000UL;
+}
+int MyMesh::floodRetryBucketForPrefix(const uint8_t* prefix, uint8_t prefix_len, bool require_fresh) const {
+  if (prefix == NULL || prefix_len == 0 || prefix_len > MAX_ROUTE_HASH_BYTES) {
+    return -1;
+  }
+  if (require_fresh && !floodRetryPrefixFresh(prefix, prefix_len)) {
+    return -1;
+  }
+  for (int bucket = 0; bucket < FLOOD_RETRY_BRIDGE_BUCKETS; bucket++) {
+    for (int i = 0; i < FLOOD_RETRY_BUCKET_PREFIXES; i++) {
+      const uint8_t* configured = _prefs.flood_retry_bridge_buckets[bucket][i];
+      if ((configured[0] != 0 || configured[1] != 0 || configured[2] != 0)
+          && memcmp(configured, prefix, prefix_len) == 0) {
+        return bucket;
+      }
+    }
+  }
+  return -1;
+}
+int MyMesh::floodRetrySourceBucket(const mesh::Packet* packet) const {
+  if (packet == NULL || packet->getPathHashCount() < 2) {
+    return -1;
+  }
+  uint8_t hash_size = packet->getPathHashSize();
+  if (hash_size == 0 || hash_size > MAX_ROUTE_HASH_BYTES) {
+    return -1;
+  }
+  const uint8_t* source_prefix = &packet->path[(packet->getPathHashCount() - 2) * hash_size];
+  return floodRetryBucketForPrefix(source_prefix, hash_size, true);
+}
+uint8_t MyMesh::floodRetryBridgeTargetMask(uint8_t source_bucket) const {
+  uint8_t mask = 0;
+  for (int bucket = 0; bucket < FLOOD_RETRY_BRIDGE_BUCKETS; bucket++) {
+    if (bucket == source_bucket) {
+      continue;
+    }
+    for (int i = 0; i < FLOOD_RETRY_BUCKET_PREFIXES; i++) {
+      const uint8_t* configured = _prefs.flood_retry_bridge_buckets[bucket][i];
+      if ((configured[0] != 0 || configured[1] != 0 || configured[2] != 0)
+          && floodRetryPrefixFresh(configured, FLOOD_RETRY_PREFIX_LEN)) {
+        mask |= (uint8_t)(1U << bucket);
+        break;
+      }
+    }
+  }
+  return mask;
+}
+uint8_t MyMesh::floodRetryBridgeHeardMask(const mesh::Packet* packet, uint8_t source_bucket) const {
+  if (packet == NULL || packet->getPathHashCount() == 0) {
+    return 0;
+  }
+  uint8_t hash_size = packet->getPathHashSize();
+  if (hash_size == 0 || hash_size > MAX_ROUTE_HASH_BYTES) {
+    return 0;
+  }
+
+  uint8_t mask = 0;
+  const uint8_t* path = packet->path;
+  for (int hop = 0; hop < packet->getPathHashCount(); hop++) {
+    int bucket = floodRetryBucketForPrefix(path, hash_size, true);
+    if (bucket >= 0 && bucket != source_bucket) {
+      mask |= (uint8_t)(1U << bucket);
+    }
+    path += hash_size;
+  }
+  return mask;
+}
+MyMesh::FloodRetryBridgeState* MyMesh::floodRetryBridgeStateFor(const mesh::Packet* packet, bool create) const {
+  if (packet == NULL) {
+    return NULL;
+  }
+
+  uint8_t key[MAX_HASH_SIZE];
+  packet->calculatePacketHash(key);
+  FloodRetryBridgeState* free_slot = NULL;
+  for (int i = 0; i < MAX_FLOOD_RETRY_SLOTS; i++) {
+    if (flood_retry_bridge_states[i].active
+        && memcmp(flood_retry_bridge_states[i].key, key, MAX_HASH_SIZE) == 0) {
+      return &flood_retry_bridge_states[i];
+    }
+    if (!flood_retry_bridge_states[i].active && free_slot == NULL) {
+      free_slot = &flood_retry_bridge_states[i];
+    }
+  }
+  if (!create) {
+    return NULL;
+  }
+  if (free_slot == NULL) {
+    return NULL;
+  }
+
+  int source_bucket = floodRetrySourceBucket(packet);
+  if (source_bucket < 0) {
+    return NULL;
+  }
+
+  uint8_t target_mask = floodRetryBridgeTargetMask((uint8_t)source_bucket);
+  if (target_mask == 0) {
+    return NULL;
+  }
+
+  uint8_t heard_mask = floodRetryBridgeHeardMask(packet, (uint8_t)source_bucket) & target_mask;
+  if ((heard_mask & target_mask) == target_mask) {
+    return NULL;
+  }
+
+  memset(free_slot, 0, sizeof(*free_slot));
+  memcpy(free_slot->key, key, sizeof(free_slot->key));
+  free_slot->source_bucket = (uint8_t)source_bucket;
+  free_slot->target_mask = target_mask;
+  free_slot->heard_mask = heard_mask;
+  free_slot->active = true;
+  return free_slot;
+}
 uint32_t MyMesh::getDirectRetryEchoDelay(const mesh::Packet* packet) const {
   uint32_t base_wait_millis = constrain((uint32_t)_prefs.direct_retry_base_ms, (uint32_t)10, (uint32_t)5000);
   if (packet == NULL) {
@@ -870,6 +1044,121 @@ uint32_t MyMesh::getDirectRetryEchoDelay(const mesh::Packet* packet) const {
   uint32_t bits = ((uint32_t) packet->getRawLength()) * 8;
   uint32_t scaled_wait_millis = (uint32_t) ((((float) bits) * 4.0f) / kbps);
   return base_wait_millis + scaled_wait_millis;
+}
+bool MyMesh::allowFloodRetry(const mesh::Packet* packet) const {
+  if (_prefs.disable_fwd || constrain(_prefs.flood_retry_attempts, (uint8_t)0, (uint8_t)3) == 0) {
+    return false;
+  }
+  if (!_prefs.flood_retry_bridge_enabled) {
+    return true;
+  }
+  FloodRetryBridgeState* state = floodRetryBridgeStateFor(packet, true);
+  if (state == NULL) {
+    return false;
+  }
+  if ((state->heard_mask & state->target_mask) == state->target_mask) {
+    state->active = false;
+    return false;
+  }
+  return true;
+}
+void MyMesh::clearFloodRetryBridgeState(const mesh::Packet* packet) {
+  FloodRetryBridgeState* state = floodRetryBridgeStateFor(packet, false);
+  if (state != NULL) {
+    state->active = false;
+  }
+}
+void MyMesh::onFloodRetryEvent(const char* event, const mesh::Packet* packet, uint32_t delay_millis, uint8_t retry_attempt) {
+  if (event == NULL || packet == NULL) {
+    return;
+  }
+
+  const char* time_label = "time_ms";
+  if (strcmp(event, "queued") == 0 || strcmp(event, "dropped_queue_full") == 0) {
+    time_label = "wait_ms";
+  } else if (strcmp(event, "resent") == 0 || strcmp(event, "failed_all_tries") == 0
+      || strcmp(event, "failure") == 0 || strncmp(event, "dropped_", 8) == 0) {
+    time_label = "elapsed_ms";
+  } else if (strcmp(event, "good") == 0) {
+    time_label = "echo_ms";
+  }
+
+  MESH_DEBUG_PRINTLN("%s flood retry %s (retry=%u, type=%d, route=%s, payload_len=%d, hop=%u, %s=%lu)",
+                     getLogDateTime(),
+                     event,
+                     (unsigned int)retry_attempt,
+                     (uint32_t)packet->getPayloadType(),
+                     packet->isRouteDirect() ? "D" : "F",
+                     (uint32_t)packet->payload_len,
+                     (unsigned int)packet->getPathHashCount(),
+                     time_label,
+                     (unsigned long)delay_millis);
+
+  if (_logging) {
+    File f = openAppend(PACKET_LOG_FILE);
+    if (f) {
+      f.print(getLogDateTime());
+      f.printf(": FLOOD RETRY %s (retry=%u, type=%d, route=%s, payload_len=%d, hop=%u, %s=%lu)\n",
+               event,
+               (unsigned int)retry_attempt,
+               (uint32_t)packet->getPayloadType(),
+               packet->isRouteDirect() ? "D" : "F",
+               (uint32_t)packet->payload_len,
+               (unsigned int)packet->getPathHashCount(),
+               time_label,
+               (unsigned long)delay_millis);
+      f.close();
+    }
+  }
+
+  if (_prefs.flood_retry_bridge_enabled
+      && (strcmp(event, "failure") == 0 || strcmp(event, "failed_all_tries") == 0
+          || strncmp(event, "dropped_", 8) == 0)) {
+    clearFloodRetryBridgeState(packet);
+  }
+}
+bool MyMesh::hasFloodRetryTargetPrefix(const mesh::Packet* packet) const {
+  if (_prefs.flood_retry_bridge_enabled) {
+    return false;
+  }
+  return floodRetryPrefixMatches(packet);
+}
+uint8_t MyMesh::getFloodRetryMaxPathLength(const mesh::Packet* packet) const {
+  uint8_t gate = _prefs.flood_retry_path_gate;
+  if (gate == FLOOD_RETRY_PATH_GATE_DISABLED) {
+    return FLOOD_RETRY_PATH_GATE_DISABLED;
+  }
+  return gate <= 63 ? gate : 2;
+}
+uint8_t MyMesh::getFloodRetryMaxAttempts(const mesh::Packet* packet) const {
+  if (_prefs.disable_fwd) {
+    return 0;
+  }
+  return constrain(_prefs.flood_retry_attempts, (uint8_t)0, (uint8_t)3);
+}
+bool MyMesh::isFloodRetryEchoTarget(const mesh::Packet* packet, uint8_t progress_marker) const {
+  if (packet == NULL || !packet->isRouteFlood()) {
+    return false;
+  }
+  if (_prefs.flood_retry_bridge_enabled) {
+    FloodRetryBridgeState* state = floodRetryBridgeStateFor(packet, false);
+    if (state == NULL) {
+      return false;
+    }
+    state->heard_mask |= floodRetryBridgeHeardMask(packet, state->source_bucket) & state->target_mask;
+    bool complete = (state->heard_mask & state->target_mask) == state->target_mask;
+    if (complete) {
+      state->active = false;
+    }
+    return complete;
+  }
+  if (hasFloodRetryPrefixes()) {
+    return floodRetryLastHopMatches(packet);
+  }
+  if (packet->getPathHashCount() <= progress_marker) {
+    return false;
+  }
+  return true;
 }
 uint8_t MyMesh::getDirectRetryMaxAttempts(const mesh::Packet* packet) const {
   uint8_t configured_attempts = getDirectRetryConfiguredMaxAttempts();
@@ -1222,6 +1511,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   set_radio_at = revert_radio_at = 0;
   _logging = false;
   region_load_active = false;
+  memset(flood_retry_bridge_states, 0, sizeof(flood_retry_bridge_states));
 
 #if MAX_NEIGHBOURS
   memset(neighbours, 0, sizeof(neighbours));
@@ -1239,6 +1529,9 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.direct_retry_base_ms = DIRECT_RETRY_ROOFTOP_BASE_MS;
   _prefs.direct_retry_step_ms = DIRECT_RETRY_ROOFTOP_STEP_MS;
   _prefs.direct_retry_preset = DIRECT_RETRY_PRESET_ROOFTOP;
+  _prefs.flood_retry_attempts = 3;
+  _prefs.flood_retry_path_gate = 2;
+  _prefs.flood_retry_bridge_enabled = 0;
   StrHelper::strncpy(_prefs.node_name, ADVERT_NAME, sizeof(_prefs.node_name));
   _prefs.node_lat = ADVERT_LAT;
   _prefs.node_lon = ADVERT_LON;

@@ -87,7 +87,7 @@ public:
   virtual Packet* allocNew() = 0;
   virtual void free(Packet* packet) = 0;
 
-  virtual void queueOutbound(Packet* packet, uint8_t priority, uint32_t scheduled_for) = 0;
+  virtual bool queueOutbound(Packet* packet, uint8_t priority, uint32_t scheduled_for) = 0;
   virtual Packet* getNextOutbound(uint32_t now) = 0;    // by priority
   virtual int getOutboundCount(uint32_t now) const = 0;
   virtual int getOutboundTotal() const = 0;
@@ -171,6 +171,7 @@ protected:
   virtual int getAGCResetInterval() const { return 0; }    // disabled by default
   virtual unsigned long getDutyCycleWindowMs() const { return 3600000; }
   const Packet* getOutboundInFlight() const { return outbound; }
+  bool queueOutboundPacket(Packet* packet, uint8_t priority, uint32_t delay_millis);
 
 public:
   void begin();
@@ -178,7 +179,7 @@ public:
 
   Packet* obtainNewPacket();
   void releasePacket(Packet* packet);
-  void sendPacket(Packet* packet, uint8_t priority, uint32_t delay_millis=0);
+  bool sendPacket(Packet* packet, uint8_t priority, uint32_t delay_millis=0);
 
   unsigned long getTotalAirTime() const { return total_air_time; }
   unsigned long getReceiveAirTime() const {return rx_air_time; }

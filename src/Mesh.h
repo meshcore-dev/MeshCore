@@ -8,6 +8,14 @@ namespace mesh {
   #define MAX_DIRECT_RETRY_SLOTS  6
 #endif
 
+#ifndef MAX_FLOOD_RETRY_SLOTS
+  #define MAX_FLOOD_RETRY_SLOTS   6
+#endif
+
+#ifndef FLOOD_RETRY_PATH_GATE_DISABLED
+  #define FLOOD_RETRY_PATH_GATE_DISABLED  0xFF
+#endif
+
 class GroupChannel {
 public:
   uint8_t hash[PATH_HASH_SIZE];
@@ -45,10 +53,25 @@ class Mesh : public Dispatcher {
     bool active;
   };
 
+  struct FloodRetryEntry {
+    Packet* packet;
+    Packet* trigger_packet;
+    unsigned long retry_started_at;
+    unsigned long retry_at;
+    uint32_t retry_delay;
+    uint8_t retry_attempts_sent;
+    uint8_t retry_key[MAX_HASH_SIZE];
+    uint8_t priority;
+    uint8_t progress_marker;
+    bool queued;
+    bool active;
+  };
+
   RTCClock* _rtc;
   RNG* _rng;
   MeshTables* _tables;
   DirectRetryEntry _direct_retries[MAX_DIRECT_RETRY_SLOTS];
+  FloodRetryEntry _flood_retries[MAX_FLOOD_RETRY_SLOTS];
 
   void removeSelfFromPath(Packet* packet);
   void routeDirectRecvAcks(Packet* packet, uint32_t delay_millis);
@@ -61,6 +84,12 @@ class Mesh : public Dispatcher {
   bool getDirectRetryTarget(const Packet* packet, const uint8_t*& next_hop_hash, uint8_t& next_hop_hash_len,
                             uint8_t& progress_marker, bool& expect_path_growth) const;
   void maybeScheduleDirectRetry(const Packet* packet, uint8_t priority);
+  void clearFloodRetrySlot(int idx);
+  bool isFloodRetryQueued(const Packet* packet) const;
+  bool cancelFloodRetryOnEcho(const Packet* packet);
+  void armFloodRetryOnSendComplete(const Packet* packet);
+  void clearPendingFloodRetryOnSendFail(const Packet* packet);
+  void maybeScheduleFloodRetry(const Packet* packet, uint8_t priority);
   //void routeRecvAcks(Packet* packet, uint32_t delay_millis);
   DispatcherAction forwardMultipartDirect(Packet* pkt);
 
@@ -118,6 +147,41 @@ protected:
    * \returns  delay before a specific retry attempt, where attempt_idx=0 is the first retry.
    */
   virtual uint32_t getDirectRetryAttemptDelay(const Packet* packet, uint8_t attempt_idx);
+
+  /**
+   * \brief  Decide whether a FLOOD packet should retry when no downstream echo is overheard.
+   */
+  virtual bool allowFloodRetry(const Packet* packet) const;
+
+  /**
+   * \brief  Return true when this FLOOD packet already carries an application-defined target prefix.
+   */
+  virtual bool hasFloodRetryTargetPrefix(const Packet* packet) const;
+
+  /**
+   * \returns  maximum flood path hash count eligible for retry, or FLOOD_RETRY_PATH_GATE_DISABLED.
+   */
+  virtual uint8_t getFloodRetryMaxPathLength(const Packet* packet) const;
+
+  /**
+   * \returns  maximum number of FLOOD retry transmissions after the initial TX.
+   */
+  virtual uint8_t getFloodRetryMaxAttempts(const Packet* packet) const;
+
+  /**
+   * \brief  Return true when a received FLOOD echo is enough to cancel a pending retry.
+   */
+  virtual bool isFloodRetryEchoTarget(const Packet* packet, uint8_t progress_marker) const;
+
+  /**
+   * \returns  delay before a specific flood retry attempt, where attempt_idx=0 is the first retry.
+   */
+  virtual uint32_t getFloodRetryAttemptDelay(const Packet* packet, uint8_t attempt_idx);
+
+  /**
+   * \brief  Optional hook for logging flood-retry lifecycle events.
+   */
+  virtual void onFloodRetryEvent(const char* event, const Packet* packet, uint32_t delay_millis, uint8_t retry_attempt) { }
 
   /**
    * \returns  number of extra (Direct) ACK transmissions wanted.
