@@ -9,8 +9,10 @@
 #define MAX_PACKET_HASHES  128
 #define MAX_PACKET_ACKS     64
 #ifndef MAX_RECENT_REPEATERS
-  // Two defaults. Can be overridden with -D MAX_RECENT_REPEATERS=<n>.
-  #if defined(ESP32)
+  // Platform defaults. Can be overridden with -D MAX_RECENT_REPEATERS=<n>.
+  #if defined(ESP32) || defined(ESP32_PLATFORM)
+    #define MAX_RECENT_REPEATERS  2048
+  #elif defined(NRF52_PLATFORM)
     #define MAX_RECENT_REPEATERS  512
   #else
     #define MAX_RECENT_REPEATERS  64
@@ -23,9 +25,7 @@ public:
   typedef bool (*RecentRepeaterAllowFn)(const uint8_t* prefix, uint8_t prefix_len, void* ctx);
 
   struct RecentRepeaterInfo {
-    // Just enough identity to match a next-hop path prefix plus the SNR that heard it.
-    uint16_t retry_count;
-    uint16_t fail_count;
+    // Identity and link quality for a next-hop path prefix.
     uint8_t prefix[MAX_ROUTE_HASH_BYTES];
     uint8_t prefix_len;
     int8_t snr_x4;
@@ -80,8 +80,8 @@ private:
 
   int8_t weightedSnrX4RoundUp(int8_t curr_snr_x4, int8_t new_snr_x4) const {
     // Keep existing SNR heavier than a single new sample: 75% existing + 25% new.
-    int16_t weighted_sum = ((int16_t)curr_snr_x4 * 3) + (int16_t)new_snr_x4;
-    int16_t blended = weighted_sum / 4;  // truncates toward zero
+    int32_t weighted_sum = ((int32_t)curr_snr_x4 * 3) + (int32_t)new_snr_x4;
+    int32_t blended = weighted_sum / 4;  // truncates toward zero
     // "Round up" means ceil(), which only differs from truncation for positive remainders.
     if (weighted_sum > 0 && (weighted_sum % 4) != 0) {
       blended++;
@@ -160,8 +160,11 @@ public:
     f.read((uint8_t *) &_next_idx, sizeof(_next_idx));
     f.read((uint8_t *) &_acks[0], sizeof(_acks));
     f.read((uint8_t *) &_next_ack_idx, sizeof(_next_ack_idx));
-    f.read((uint8_t *) &_recent_repeaters[0], sizeof(_recent_repeaters));
-    f.read((uint8_t *) &_next_recent_repeater_idx, sizeof(_next_recent_repeater_idx));
+    // Recent repeater entries are intentionally not restored across boots.
+    // This avoids struct-layout migration issues and keeps stale path quality
+    // stats from persisting indefinitely.
+    memset(_recent_repeaters, 0, sizeof(_recent_repeaters));
+    _next_recent_repeater_idx = 0;
   }
   void saveTo(File f) {
     f.write(_hashes, sizeof(_hashes));
@@ -321,95 +324,9 @@ public:
     memcpy(slot.prefix, prefix, prefix_len);
     slot.prefix_len = prefix_len;
     slot.snr_x4 = snr_x4;
-    slot.retry_count = 0;
-    slot.fail_count = 0;
     slot.snr_locked = snr_locked ? 1 : 0;
     _next_recent_repeater_idx = (slot_idx + 1) % MAX_RECENT_REPEATERS;
     return true;
-  }
-  bool incrementRecentRepeaterRetryCount(const uint8_t* prefix, uint8_t prefix_len,
-                                         bool create_if_missing = false, int8_t seed_snr_x4 = 0,
-                                         bool bypass_allow_filter = false) {
-    if (prefix == NULL || prefix_len == 0) {
-      return false;
-    }
-    if (prefix_len > MAX_ROUTE_HASH_BYTES) {
-      prefix_len = MAX_ROUTE_HASH_BYTES;
-    }
-
-    for (int i = 0; i < MAX_RECENT_REPEATERS; i++) {
-      RecentRepeaterInfo& existing = _recent_repeaters[i];
-      if (existing.prefix_len == 0 || !prefixesOverlap(existing.prefix, existing.prefix_len, prefix, prefix_len)) {
-        continue;
-      }
-      if (prefix_len > existing.prefix_len) {
-        memset(existing.prefix, 0, sizeof(existing.prefix));
-        memcpy(existing.prefix, prefix, prefix_len);
-        existing.prefix_len = prefix_len;
-      }
-      if (existing.retry_count < 0xFFFF) {
-        existing.retry_count++;
-      }
-      return true;
-    }
-
-    if (!create_if_missing || !setRecentRepeater(prefix, prefix_len, seed_snr_x4, false, bypass_allow_filter)) {
-      return false;
-    }
-
-    for (int i = 0; i < MAX_RECENT_REPEATERS; i++) {
-      RecentRepeaterInfo& existing = _recent_repeaters[i];
-      if (existing.prefix_len == 0 || !prefixesOverlap(existing.prefix, existing.prefix_len, prefix, prefix_len)) {
-        continue;
-      }
-      if (existing.retry_count < 0xFFFF) {
-        existing.retry_count++;
-      }
-      return true;
-    }
-    return false;
-  }
-  bool incrementRecentRepeaterFailCount(const uint8_t* prefix, uint8_t prefix_len,
-                                        bool create_if_missing = false, int8_t seed_snr_x4 = 0,
-                                        bool bypass_allow_filter = false) {
-    if (prefix == NULL || prefix_len == 0) {
-      return false;
-    }
-    if (prefix_len > MAX_ROUTE_HASH_BYTES) {
-      prefix_len = MAX_ROUTE_HASH_BYTES;
-    }
-
-    for (int i = 0; i < MAX_RECENT_REPEATERS; i++) {
-      RecentRepeaterInfo& existing = _recent_repeaters[i];
-      if (existing.prefix_len == 0 || !prefixesOverlap(existing.prefix, existing.prefix_len, prefix, prefix_len)) {
-        continue;
-      }
-      if (prefix_len > existing.prefix_len) {
-        memset(existing.prefix, 0, sizeof(existing.prefix));
-        memcpy(existing.prefix, prefix, prefix_len);
-        existing.prefix_len = prefix_len;
-      }
-      if (existing.fail_count < 0xFFFF) {
-        existing.fail_count++;
-      }
-      return true;
-    }
-
-    if (!create_if_missing || !setRecentRepeater(prefix, prefix_len, seed_snr_x4, false, bypass_allow_filter)) {
-      return false;
-    }
-
-    for (int i = 0; i < MAX_RECENT_REPEATERS; i++) {
-      RecentRepeaterInfo& existing = _recent_repeaters[i];
-      if (existing.prefix_len == 0 || !prefixesOverlap(existing.prefix, existing.prefix_len, prefix, prefix_len)) {
-        continue;
-      }
-      if (existing.fail_count < 0xFFFF) {
-        existing.fail_count++;
-      }
-      return true;
-    }
-    return false;
   }
   bool decrementRecentRepeaterSnrX4(const uint8_t* prefix, uint8_t prefix_len, uint8_t amount_x4 = 1) {
     if (prefix == NULL || prefix_len == 0 || amount_x4 == 0) {

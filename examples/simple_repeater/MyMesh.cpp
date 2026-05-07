@@ -63,29 +63,6 @@
 
 #define LAZY_CONTACTS_WRITE_DELAY    5000
 
-const NeighbourInfo* MyMesh::findNeighbourByHash(const uint8_t* hash, uint8_t hash_len) const {
-#if MAX_NEIGHBOURS
-  for (int i = 0; i < MAX_NEIGHBOURS; i++) {
-    if (neighbours[i].heard_timestamp > 0 && neighbours[i].id.isHashMatch(hash, hash_len)) {
-      return &neighbours[i];
-    }
-  }
-#else
-  (void)hash;
-  (void)hash_len;
-#endif
-  return NULL;
-}
-
-bool MyMesh::allowRecentRepeaterPrefixStore(const uint8_t* prefix, uint8_t prefix_len, void* ctx) {
-  if (ctx == NULL || prefix == NULL || prefix_len == 0) {
-    return true;
-  }
-
-  const MyMesh* self = (const MyMesh*) ctx;
-  return self->findNeighbourByHash(prefix, prefix_len) == NULL;
-}
-
 static void formatRecentRepeaterPrefix(const SimpleMeshTables::RecentRepeaterInfo* info, char* out, size_t out_len) {
   if (out == NULL || out_len == 0) {
     return;
@@ -122,6 +99,45 @@ static void formatRecentRepeaterSnrX4(int8_t snr_x4, char* out, size_t out_len) 
   } else {
     snprintf(out, out_len, " %s", snr_text);
   }
+}
+
+static int buildSortedRecentRepeaterView(SimpleMeshTables* tables,
+                                         const SimpleMeshTables::RecentRepeaterInfo** out,
+                                         int out_cap) {
+  if (tables == NULL || out == NULL || out_cap <= 0) {
+    return 0;
+  }
+
+  int total = tables->getRecentRepeaterCount();
+  if (total > out_cap) {
+    total = out_cap;
+  }
+
+  int count = 0;
+  for (int i = 0; i < total; i++) {
+    const auto* info = tables->getRecentRepeaterNewestByIdx(i);
+    if (info != NULL) {
+      out[count++] = info;
+    }
+  }
+
+  std::stable_sort(out, out + count, [](const SimpleMeshTables::RecentRepeaterInfo* a,
+                                        const SimpleMeshTables::RecentRepeaterInfo* b) {
+    uint8_t a_len = a->prefix_len;
+    uint8_t b_len = b->prefix_len;
+    if (a_len > MAX_ROUTE_HASH_BYTES) a_len = MAX_ROUTE_HASH_BYTES;
+    if (b_len > MAX_ROUTE_HASH_BYTES) b_len = MAX_ROUTE_HASH_BYTES;
+
+    if (a_len != b_len) {
+      return a_len > b_len;  // 3-byte first, then 2-byte, then 1-byte
+    }
+    if (a->snr_x4 != b->snr_x4) {
+      return a->snr_x4 > b->snr_x4;  // highest SNR first within each prefix size
+    }
+    return false; // keep original newest-first order for ties
+  });
+
+  return count;
 }
 
 static uint8_t decodeTraceHashSize(uint8_t flags, uint8_t route_bytes) {
@@ -641,7 +657,7 @@ void MyMesh::logTxFail(mesh::Packet *pkt, int len) {
   }
 }
 
-void MyMesh::onDirectRetryEvent(const char* event, const mesh::Packet* packet, uint32_t delay_millis) {
+void MyMesh::onDirectRetryEvent(const char* event, const mesh::Packet* packet, uint32_t delay_millis, uint8_t retry_attempt) {
   if (packet == NULL) {
     return;
   }
@@ -656,92 +672,103 @@ void MyMesh::onDirectRetryEvent(const char* event, const mesh::Packet* packet, u
     mesh::Utils::toHex(next_hop_hex, prefix, prefix_len);
   }
   const char* next_hop = (has_prefix && prefix_len > 0) ? next_hop_hex : "unknown";
+  char hop_text[24];
+  if (packet->isRouteDirect() && packet->getPayloadType() == PAYLOAD_TYPE_TRACE && packet->payload_len >= 9) {
+    uint8_t route_bytes = packet->payload_len - 9;
+    uint8_t hash_size = decodeTraceHashSize(packet->payload[8], route_bytes);
+    uint8_t total_hops = (hash_size > 0) ? (route_bytes / hash_size) : 0;
+    if (total_hops > 0) {
+      snprintf(hop_text, sizeof(hop_text), "%u/%u", (unsigned int)packet->path_len, (unsigned int)total_hops);
+    } else {
+      snprintf(hop_text, sizeof(hop_text), "unknown");
+    }
+  } else if (packet->isRouteDirect()) {
+    snprintf(hop_text, sizeof(hop_text), "remaining:%u", (unsigned int)packet->getPathHashCount());
+  } else {
+    snprintf(hop_text, sizeof(hop_text), "unknown");
+  }
+
   // Direct-retry events are TX-side and usually have no trustworthy RX SNR.
   // Cap event SNR at fixed SF floor + 10 dB so trace-start retries can't inflate table SNR.
   uint8_t sf = constrain(active_sf, (uint8_t)5, (uint8_t)12);
   int16_t fallback_snr_x4_raw = direct_retry_floor_x4[sf - 5] + 40;
   int8_t fallback_snr_x4 = (int8_t)constrain(fallback_snr_x4_raw, -128, 127);
-  bool is_success_event = (strcmp(event, "good") == 0 || strcmp(event, "canceled_echo") == 0);
+  bool is_success_event = strcmp(event, "good") == 0;
+  bool updates_quality = strcmp(event, "good") == 0;
   int8_t retry_event_snr_x4;
-  const char* snr_src;
-  if (is_success_event && packet->_snr != 0) {
-    // On success, Mesh.cpp injects echo RX SNR for TRACE retries.
+  if (is_success_event) {
+    // On success, Mesh.cpp injects echo RX SNR for the downstream retry target.
     retry_event_snr_x4 = packet->_snr;
-    snr_src = "packet";
   } else if (existing != NULL) {
     retry_event_snr_x4 = existing->snr_x4;
-    snr_src = "table";
   } else {
     retry_event_snr_x4 = fallback_snr_x4;
-    snr_src = "fallback";
   }
-  char snr_used_text[12];
   char snr_pkt_text[12];
   char snr_table_text[12];
-  snprintf(snr_used_text, sizeof(snr_used_text), "%s", StrHelper::ftoa(((float)retry_event_snr_x4) / 4.0f));
+
+  if (has_prefix && updates_quality) {
+    // Refresh SNR only once per successful echo/progress event, not on queued/resent bookkeeping.
+    tables->setRecentRepeater(prefix, prefix_len, retry_event_snr_x4, false, true);
+  }
+
+  if (strcmp(event, "failed_all_tries") == 0) {
+    if (has_prefix) {
+      if (existing == NULL) {
+        int16_t seed_snr_x4 = (int16_t)getDirectRetryMinSNRX4() + 10;  // +2.5 dB over the active retry cutoff.
+        tables->setRecentRepeater(prefix, prefix_len, (int8_t)constrain(seed_snr_x4, -128, 127), false, true);
+      }
+      // SNR is stored in quarter-dB units, so 1 lowers quality by 0.25 dB.
+      tables->decrementRecentRepeaterSnrX4(prefix, prefix_len, 1);
+    }
+  }
+
   snprintf(snr_pkt_text, sizeof(snr_pkt_text), "%s", StrHelper::ftoa(((float)packet->_snr) / 4.0f));
-  if (existing != NULL) {
-    snprintf(snr_table_text, sizeof(snr_table_text), "%s", StrHelper::ftoa(((float)existing->snr_x4) / 4.0f));
+  const auto* log_existing = has_prefix ? tables->findRecentRepeaterByHash(prefix, prefix_len) : NULL;
+  if (log_existing != NULL) {
+    snprintf(snr_table_text, sizeof(snr_table_text), "%s", StrHelper::ftoa(((float)log_existing->snr_x4) / 4.0f));
   } else {
     snprintf(snr_table_text, sizeof(snr_table_text), "na");
   }
 
-  if (has_prefix && is_success_event) {
-    // Refresh SNR only on successful echo/progress events, not on queued/resent bookkeeping.
-    tables->setRecentRepeater(prefix, prefix_len, retry_event_snr_x4, false, true);
+  const char* time_label = "time_ms";
+  if (strcmp(event, "queued") == 0 || strcmp(event, "dropped_queue_full") == 0) {
+    time_label = "wait_ms";
+  } else if (strcmp(event, "resent") == 0 || strcmp(event, "failed_all_tries") == 0 || strcmp(event, "failure") == 0) {
+    time_label = "elapsed_ms";
+  } else if (strcmp(event, "good") == 0) {
+    time_label = "echo_ms";
   }
 
-  if (strcmp(event, "resent") == 0) {
-    if (has_prefix) {
-      // Retry stats should be visible even when the prefix was never learned into recent.repeater.
-      tables->incrementRecentRepeaterRetryCount(prefix, prefix_len, true, retry_event_snr_x4, true);
-    }
-  } else if (strcmp(event, "failed_all_tries") == 0) {
-    if (has_prefix) {
-      // A failed_all_tries event means all retry attempts for this packet failed.
-      // Count failures by retry-attempts so fail% reflects failed retries, not just failed sessions.
-      uint8_t give_up_retries = getDirectRetryMaxAttempts(packet);
-      uint8_t failed_retries = give_up_retries;
-      if (failed_retries < 1) {
-        failed_retries = 1;
-      }
-      for (uint8_t i = 0; i < failed_retries; i++) {
-        tables->incrementRecentRepeaterFailCount(prefix, prefix_len, true, retry_event_snr_x4, true);
-      }
-      if (failed_retries >= give_up_retries && give_up_retries > 0) {
-        // If all configured retry attempts still fail, slightly degrade stored path quality.
-        tables->decrementRecentRepeaterSnrX4(prefix, prefix_len, 1);
-      }
-    }
-  }
-
-  MESH_DEBUG_PRINTLN("%s direct retry %s (type=%d, route=%s, payload_len=%d, next_hop=%s, snr=%s, snr_src=%s, pkt_snr=%s, table_snr=%s, delay=%lu)",
+  MESH_DEBUG_PRINTLN("%s direct retry %s (retry=%u, type=%d, route=%s, payload_len=%d, hop=%s, next_hop=%s, pkt=%s, tbl=%s, %s=%lu)",
                      getLogDateTime(),
                      event,
+                     (unsigned int)retry_attempt,
                      (uint32_t)packet->getPayloadType(),
                      packet->isRouteDirect() ? "D" : "F",
                      (uint32_t)packet->payload_len,
+                     hop_text,
                      next_hop,
-                     snr_used_text,
-                     snr_src,
                      snr_pkt_text,
                      snr_table_text,
+                     time_label,
                      (unsigned long)delay_millis);
 
   if (_logging) {
     File f = openAppend(PACKET_LOG_FILE);
     if (f) {
       f.print(getLogDateTime());
-      f.printf(": DIRECT RETRY %s (type=%d, route=%s, payload_len=%d, next_hop=%s, snr=%s, snr_src=%s, pkt_snr=%s, table_snr=%s, delay=%lu)\n",
+      f.printf(": DIRECT RETRY %s (retry=%u, type=%d, route=%s, payload_len=%d, hop=%s, next_hop=%s, pkt=%s, tbl=%s, %s=%lu)\n",
                event,
+               (unsigned int)retry_attempt,
                (uint32_t)packet->getPayloadType(),
                packet->isRouteDirect() ? "D" : "F",
                (uint32_t)packet->payload_len,
+               hop_text,
                next_hop,
-               snr_used_text,
-               snr_src,
                snr_pkt_text,
                snr_table_text,
+               time_label,
                (unsigned long)delay_millis);
       f.close();
     }
@@ -764,7 +791,8 @@ uint32_t MyMesh::getDirectRetransmitDelay(const mesh::Packet *packet) {
 int8_t MyMesh::getDirectRetryMinSNRX4() const {
   // Use the live SF so `tempradio` changes immediately affect the retry threshold.
   uint8_t sf = constrain(active_sf, (uint8_t)5, (uint8_t)12);
-  int16_t threshold = direct_retry_floor_x4[sf - 5] + (int16_t)_prefs.direct_retry_snr_margin_db;
+  int16_t margin_x4 = (int16_t)_prefs.direct_retry_snr_margin_db;
+  int16_t threshold = direct_retry_floor_x4[sf - 5] + margin_x4;
   return (int8_t)constrain(threshold, -128, 127);
 }
 bool MyMesh::extractDirectRetryPrefix(const mesh::Packet* packet, uint8_t* prefix, uint8_t& prefix_len) const {
@@ -808,18 +836,30 @@ bool MyMesh::allowDirectRetry(const mesh::Packet* packet, const uint8_t* next_ho
 
   int8_t min_snr_x4 = getDirectRetryMinSNRX4();
   if (_prefs.direct_retry_recent_enabled) {
-    // Prefer the 64-entry recent-prefix cache first, then fall back to neighbours.
     const auto* recent = ((const SimpleMeshTables *)getTables())->findRecentRepeaterByHash(next_hop_hash, next_hop_hash_len);
-    if (recent != NULL && recent->snr_x4 >= min_snr_x4) {
-      return true;
-    }
+    return recent == NULL || recent->snr_x4 >= min_snr_x4;
   }
 
-  const NeighbourInfo* neighbour = findNeighbourByHash(next_hop_hash, next_hop_hash_len);
-  return neighbour != NULL && neighbour->snr >= min_snr_x4;
+  return true;
+}
+uint8_t MyMesh::getDirectRetryPreset() const {
+  if (_prefs.direct_retry_preset <= DIRECT_RETRY_PRESET_MOBILE) {
+    return _prefs.direct_retry_preset;
+  }
+  return DIRECT_RETRY_PRESET_ROOFTOP;
+}
+uint8_t MyMesh::getDirectRetryConfiguredMaxAttempts() const {
+  return constrain(_prefs.direct_retry_attempts, (uint8_t)1, (uint8_t)15);
+}
+uint32_t MyMesh::getDirectRetryAttemptStepMillis() const {
+  return constrain((uint32_t)_prefs.direct_retry_step_ms, (uint32_t)0, (uint32_t)5000);
 }
 uint32_t MyMesh::getDirectRetryEchoDelay(const mesh::Packet* packet) const {
   uint32_t base_wait_millis = constrain((uint32_t)_prefs.direct_retry_base_ms, (uint32_t)10, (uint32_t)5000);
+  if (packet == NULL) {
+    return base_wait_millis;
+  }
+
   // Approximate LoRa line rate in kilobits/sec from the live radio params the repeater is using now.
   float kbps = (((float) active_sf) * active_bw * ((float) active_cr)) / ((float) (1UL << active_sf));
   if (kbps <= 0.0f) {
@@ -832,8 +872,36 @@ uint32_t MyMesh::getDirectRetryEchoDelay(const mesh::Packet* packet) const {
   return base_wait_millis + scaled_wait_millis;
 }
 uint8_t MyMesh::getDirectRetryMaxAttempts(const mesh::Packet* packet) const {
-  (void)packet;
-  return constrain(_prefs.direct_retry_attempts, (uint8_t)1, (uint8_t)15);
+  uint8_t configured_attempts = getDirectRetryConfiguredMaxAttempts();
+  uint8_t total_hops = 0;
+
+  if (packet != NULL) {
+    if (packet->isRouteDirect() && packet->getPayloadType() == PAYLOAD_TYPE_TRACE && packet->payload_len >= 9) {
+      uint8_t route_bytes = packet->payload_len - 9;
+      uint8_t hash_size = decodeTraceHashSize(packet->payload[8], route_bytes);
+      if (hash_size > 0) {
+        total_hops = (uint8_t)(route_bytes / hash_size);
+      }
+    } else {
+      total_hops = packet->getPathHashCount();
+    }
+  }
+
+  uint8_t path_cap = 15;
+  if (total_hops <= 3) {
+    path_cap = 8;
+  } else if (total_hops == 4) {
+    path_cap = 12;
+  }
+
+  return configured_attempts < path_cap ? configured_attempts : path_cap;
+}
+uint32_t MyMesh::getDirectRetryAttemptDelay(const mesh::Packet* packet, uint8_t attempt_idx) {
+  uint32_t retry_delay = getDirectRetryEchoDelay(packet) + ((uint32_t)attempt_idx * getDirectRetryAttemptStepMillis());
+  if (packet == NULL) {
+    return retry_delay;
+  }
+  return getDirectRetransmitDelay(packet) + retry_delay;
 }
 
 bool MyMesh::filterRecvFloodPacket(mesh::Packet* pkt) {
@@ -1166,9 +1234,11 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.tx_delay_factor = 0.5f; // was 0.25f
   _prefs.direct_tx_delay_factor = 0.3f; // was 0.2
   _prefs.direct_retry_recent_enabled = 1;
-  _prefs.direct_retry_snr_margin_db = 10; // 2.5 dB stored in x4 units
-  _prefs.direct_retry_attempts = 15;
-  _prefs.direct_retry_base_ms = 200;
+  _prefs.direct_retry_snr_margin_db = DIRECT_RETRY_ROOFTOP_MARGIN_X4;
+  _prefs.direct_retry_attempts = DIRECT_RETRY_ROOFTOP_COUNT;
+  _prefs.direct_retry_base_ms = DIRECT_RETRY_ROOFTOP_BASE_MS;
+  _prefs.direct_retry_step_ms = DIRECT_RETRY_ROOFTOP_STEP_MS;
+  _prefs.direct_retry_preset = DIRECT_RETRY_PRESET_ROOFTOP;
   StrHelper::strncpy(_prefs.node_name, ADVERT_NAME, sizeof(_prefs.node_name));
   _prefs.node_lat = ADVERT_LAT;
   _prefs.node_lon = ADVERT_LON;
@@ -1213,8 +1283,6 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   active_bw = _prefs.bw;
   active_sf = _prefs.sf;
   active_cr = _prefs.cr;
-
-  ((SimpleMeshTables *)getTables())->setRecentRepeaterAllowFilter(&MyMesh::allowRecentRepeaterPrefixStore, this);
 }
 
 void MyMesh::begin(FILESYSTEM *fs) {
@@ -1612,21 +1680,22 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
             if (tables->setRecentRepeater(prefix, MAX_ROUTE_HASH_BYTES, (int8_t)snr_x4, true)) {
               strcpy(reply, "OK");
             } else {
-              strcpy(reply, "Err - prefix is already in neighbors");
+              strcpy(reply, "Err - unable to store prefix");
             }
           }
         }
       }
     } else {
-      int total = tables->getRecentRepeaterCount();
+      const SimpleMeshTables::RecentRepeaterInfo* sorted_recent[MAX_RECENT_REPEATERS];
+      int total = buildSortedRecentRepeaterView(tables, sorted_recent, MAX_RECENT_REPEATERS);
       if (total <= 0) {
         strcpy(reply, "> none");
       } else {
         if (sender_timestamp == 0) {
           // Serial CLI: print all entries (no paging).
-          Serial.printf("Recent repeater table (newest first, total=%d):\n", total);
+          Serial.printf("Recent repeater table (3-byte,2-byte,1-byte; SNR desc, total=%d):\n", total);
           for (int i = 0; i < total; i++) {
-            const auto* info = tables->getRecentRepeaterNewestByIdx(i);
+            const auto* info = sorted_recent[i];
             if (info == NULL) {
               continue;
             }
@@ -1635,18 +1704,9 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
             formatRecentRepeaterPrefix(info, hex, sizeof(hex));
             char snr_text[12];
             formatRecentRepeaterSnrX4(info->snr_x4, snr_text, sizeof(snr_text));
-            uint32_t fail_pct_x10 = 0;
-            if (info->retry_count > 0) {
-              fail_pct_x10 = (((uint32_t)info->fail_count * 1000UL) + (info->retry_count / 2U)) / (uint32_t)info->retry_count;
-            }
-            Serial.printf("%03d: %s,%s,fp=%lu.%01lu%%,r=%u,f=%u%s\n",
-                          i + 1,
+            Serial.printf("%s,%s%s\n",
                           hex,
                           snr_text,
-                          (unsigned long)(fail_pct_x10 / 10U),
-                          (unsigned long)(fail_pct_x10 % 10U),
-                          (uint32_t)info->retry_count,
-                          (uint32_t)info->fail_count,
                           info->snr_locked ? ",l" : "");
           }
           sprintf(reply, "> n=%d/%d", total, total);
@@ -1692,7 +1752,7 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
 
           for (int i = 0; i < limit; i++) {
             int idx = offset + i;
-            const auto* info = tables->getRecentRepeaterNewestByIdx(idx);
+            const auto* info = sorted_recent[idx];
             if (info == NULL) {
               continue;
             }
@@ -1707,12 +1767,9 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
             formatRecentRepeaterSnrX4(info->snr_x4, snr_text, sizeof(snr_text));
             int n = snprintf(reply + written,
                              160 - written,
-                             "\n%03d:%s,%s,r=%u,f=%u%s",
-                             idx + 1,
+                             "\n%s,%s%s",
                              hex,
                              snr_text,
-                             (uint32_t)info->retry_count,
-                             (uint32_t)info->fail_count,
                              info->snr_locked ? ",l" : "");
             if (n < 0 || n >= (160 - written)) {
               truncated = true;

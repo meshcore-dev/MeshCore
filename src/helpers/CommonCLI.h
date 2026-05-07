@@ -19,6 +19,25 @@
 #define LOOP_DETECT_MODERATE  2
 #define LOOP_DETECT_STRICT    3
 
+#define DIRECT_RETRY_PRESET_INFRA    0
+#define DIRECT_RETRY_PRESET_ROOFTOP  1
+#define DIRECT_RETRY_PRESET_MOBILE   2
+
+#define DIRECT_RETRY_INFRA_BASE_MS      275
+#define DIRECT_RETRY_INFRA_COUNT          4
+#define DIRECT_RETRY_INFRA_STEP_MS      150
+#define DIRECT_RETRY_INFRA_MARGIN_X4     60
+
+#define DIRECT_RETRY_ROOFTOP_BASE_MS    175
+#define DIRECT_RETRY_ROOFTOP_COUNT       15
+#define DIRECT_RETRY_ROOFTOP_STEP_MS    100
+#define DIRECT_RETRY_ROOFTOP_MARGIN_X4   20
+
+#define DIRECT_RETRY_MOBILE_BASE_MS     175
+#define DIRECT_RETRY_MOBILE_COUNT        15
+#define DIRECT_RETRY_MOBILE_STEP_MS      50
+#define DIRECT_RETRY_MOBILE_MARGIN_X4     0
+
 struct NodePrefs { // persisted to file
   float airtime_factor;
   char node_name[32];
@@ -67,6 +86,8 @@ struct NodePrefs { // persisted to file
   uint8_t direct_retry_attempts;
   uint16_t direct_retry_base_ms;
   uint8_t direct_retry_timing_magic[2];
+  uint8_t direct_retry_preset;
+  uint16_t direct_retry_step_ms;
 };
 
 class CommonCLICallbacks {

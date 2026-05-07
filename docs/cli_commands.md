@@ -128,8 +128,10 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 - `page`: 1-based page number
 
 **Notes:**
-- `set` is rejected when the prefix already exists in neighbors.
-- Rows are shown newest-first.
+- `set` stores or updates the prefix in the recent repeater table.
+- Rows are sorted by prefix width (3-byte, 2-byte, 1-byte), then SNR descending.
+- A full direct retry failure lowers the stored SNR by `0.25 dB`.
+- If a full failure has no row yet, it first seeds the row at the active retry cutoff + `2.5 dB`, then applies the `0.25 dB` penalty.
 - Serial CLI prints all rows (no paging).
 - Over LoRa remote CLI, page size is fixed at `4` rows; choose page with `get recent.repeater <page>`.
 
@@ -534,11 +536,13 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 **Parameters:**
 - `value`: Direct transmit delay factor (0-2)
 
-**Default:** `0.2`
+**Default:** `0.3`
+
+**Note:** Direct retry waits include the same airtime-based randomized delay calculation as direct retransmits, so this factor also controls retry echo windows.
 
 ---
 
-#### View or change whether direct retries can fall back to the recently-heard repeater list
+#### View or change whether direct retries use the recent repeater blacklist
 **Usage:**
 - `get direct.retry.heard`
 - `set direct.retry.heard <state>`
@@ -548,7 +552,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 **Default:** `on`
 
-**Note:** When enabled, a repeater can use recently-heard non-duplicate repeater prefixes as a fallback for direct retry eligibility when no suitable neighbor entry is available.
+**Note:** When enabled, the recent repeater table is the only direct retry eligibility gate. Prefixes missing from the table are assumed reachable; prefixes in the table below the active SNR gate are blocked. Neighbor data is not used.
 
 ---
 
@@ -558,11 +562,30 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 - `set direct.retry.margin <value>`
 
 **Parameters:**
-- `value`: Margin in dB above the SF-specific receive floor (minimum `0`, maximum `40`, quarter-dB precision, default `2.5`)
+- `value`: Rooftop preset margin in dB above the SF-specific receive floor (minimum `0`, maximum `40`, quarter-dB precision, default `5.0`)
 
-**Default:** `2.5`
+**Default:** `5.0`
 
-**Note:** The retry gate uses the active SF floor of `SF5=-2.5`, `SF6=-5`, `SF7=-7.5`, `SF8=-10`, `SF9=-12.5`, `SF10=-15`, `SF11=-17.5`, `SF12=-20`, then adds this margin.
+**Note:** `get direct.retry.margin` returns the active preset's effective margin. The retry gate uses the active SF floor of `SF5=-2.5`, `SF6=-5`, `SF7=-7.5`, `SF8=-10`, `SF9=-12.5`, `SF10=-15`, `SF11=-17.5`, `SF12=-20`, then adds this margin.
+
+---
+
+#### View or change the direct retry timing preset
+**Usage:**
+- `get direct.retry.preset`
+- `set direct.retry.preset <value>`
+
+**Parameters:**
+- `value`: `infra`|`rooftop`|`mobile` or `0`|`1`|`2`
+
+**Default:** `rooftop` (`1`)
+
+**Presets:**
+- `infra` (`0`): `275 ms` base wait, `4` retries, `150 ms` added per retry, SNR gate is SF floor + `15 dB`
+- `rooftop` (`1`): `175 ms` base wait, `15` retries, `100 ms` added per retry, SNR gate is SF floor + `5 dB`
+- `mobile` (`2`): `175 ms` base wait, `15` retries, `50 ms` added per retry, SNR gate is the SF floor
+
+**Note:** Selecting a preset copies those values into the retry settings. You can refine `direct.retry.margin`, `direct.retry.count`, `direct.retry.base`, or `direct.retry.step` afterward. Retry delay is `direct.txdelay` jitter + base wait + packet-length airtime wait + per-attempt step.
 
 ---
 
@@ -572,9 +595,11 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 - `set direct.retry.count <value>`
 
 **Parameters:**
-- `value`: Retry attempts after initial TX (`1`-`15`)
+- `value`: Maximum retry attempts after initial TX (`1`-`15`)
 
 **Default:** `15`
+
+**Note:** The effective value is capped by total direct path length: paths of `3` hops or less use at most `8` retries, `4` hops use at most `12`, and `5+` hops use at most `15`. A queued resend is canceled early when the next-hop echo is heard.
 
 ---
 
@@ -586,9 +611,23 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 **Parameters:**
 - `value`: Base wait in milliseconds (`10`-`5000`)
 
-**Default:** `200`
+**Default:** `175`
 
-**Note:** The actual first retry wait is `base + computed_echo_wait_from_live_phy`.
+**Note:** The configured base is added to packet-length airtime and `direct.txdelay` jitter. Preset defaults are already reduced to account for the added `direct.txdelay` component.
+
+---
+
+#### View or change the direct retry per-attempt add time (milliseconds)
+**Usage:**
+- `get direct.retry.step`
+- `set direct.retry.step <value>`
+
+**Parameters:**
+- `value`: Milliseconds added per retry attempt (`0`-`5000`)
+
+**Default:** `100`
+
+**Note:** This controls the linear add after the first retry wait. For example, `base=300` and `step=150` adds `0`, `150`, `300`, ... ms across retry attempts.
 
 ---
 

@@ -32,6 +32,8 @@ class Mesh : public Dispatcher {
   struct DirectRetryEntry {
     Packet* packet;
     Packet* trigger_packet;
+    unsigned long retry_started_at;
+    unsigned long echo_wait_started_at;
     unsigned long retry_at;
     uint32_t retry_delay;
     uint8_t retry_attempts_sent;
@@ -115,7 +117,7 @@ protected:
   /**
    * \returns  delay before a specific retry attempt, where attempt_idx=0 is the first retry.
    */
-  virtual uint32_t getDirectRetryAttemptDelay(const Packet* packet, uint8_t attempt_idx) const;
+  virtual uint32_t getDirectRetryAttemptDelay(const Packet* packet, uint8_t attempt_idx);
 
   /**
    * \returns  number of extra (Direct) ACK transmissions wanted.
@@ -125,7 +127,7 @@ protected:
   /**
    * \brief  Optional hook for logging direct-retry lifecycle events.
    */
-  virtual void onDirectRetryEvent(const char* event, const Packet* packet, uint32_t delay_millis) { }
+  virtual void onDirectRetryEvent(const char* event, const Packet* packet, uint32_t delay_millis, uint8_t retry_attempt) { }
 
   /**
    * \brief  Perform search of local DB of peers/contacts.
