@@ -29,6 +29,16 @@ bool AutoDiscoverRTCClock::i2c_probe(TwoWire& wire, uint8_t addr) {
 void AutoDiscoverRTCClock::begin(TwoWire& wire) {
   if (i2c_probe(wire, DS3231_ADDRESS)) {
     ds3231_success = rtc_3231.begin(&wire);
+        if (ds3231_success) {
+        DateTime now = rtc_3231.now();
+        // sanity check to avoid misidentifying other devices at 0x68 as RTC (like the IMU20948)
+        // values will be nonsensical (minutes > 59, hours > 23, etc.)
+        if (now.month() == 0 || now.month() > 12 ||
+            now.day() == 0   || now.day() > 31 ||
+            now.hour() > 23  || now.minute() > 59) {
+            ds3231_success = false;  // not a real DS3231
+            }
+        }
   }
 
   if (i2c_probe(wire, RV3028_ADDRESS)) {
