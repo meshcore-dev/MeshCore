@@ -281,6 +281,33 @@ Bytes 7+: Message Text (UTF-8, variable length)
 
 ---
 
+### 6. Send Channel Data Datagram
+
+**Purpose**: Send binary datagram data to a channel.
+
+**Command Format**:
+```
+Byte 0: 0x3E
+Bytes 1-2: Data Type (`data_type`, 16-bit little-endian)
+Byte 3: Channel Index (0-7)
+Bytes 4+: Binary payload bytes (variable length)
+```
+
+**Data Type / Transport Mapping**:
+- `0x0000` is invalid for this command.
+- `0xFFFF` (`DATA_TYPE_DEV`) is the developer namespace for experimenting and developing apps.
+- Other non-zero values can be used as assigned application/community namespaces.
+
+**Note**: Applications that need a timestamp should encode it inside the binary payload.
+
+**Limits**:
+- Maximum payload length is `163` bytes.
+- Larger payloads are rejected with `PACKET_ERROR`.
+
+**Response**: `PACKET_OK` (0x00) on success
+
+---
+
 ### 6. Get Message
 
 **Purpose**: Request the next queued message from the device.

@@ -4,6 +4,10 @@
 #include <Arduino.h>
 #include <helpers/NRF52Board.h>
 
+#ifndef USER_BTN_PRESSED
+#define USER_BTN_PRESSED LOW
+#endif
+
 #ifdef XIAO_NRF52
 
 class XiaoNrf52Board : public NRF52BoardDCDC {
@@ -35,7 +39,7 @@ public:
     // set led on and wait for button release before poweroff
     digitalWrite(PIN_LED, LOW);
 #ifdef PIN_USER_BTN
-    while(digitalRead(PIN_USER_BTN) == LOW);
+    while(digitalRead(PIN_USER_BTN) == USER_BTN_PRESSED);
 #endif
     digitalWrite(LED_GREEN, HIGH);
     digitalWrite(LED_BLUE, HIGH);
