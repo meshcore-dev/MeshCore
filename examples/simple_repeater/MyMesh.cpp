@@ -1363,6 +1363,17 @@ bool MyMesh::isFloodRetryEchoTarget(const mesh::Packet* packet, uint8_t progress
     state->heard_mask |= floodRetryBridgeHeardMask(packet, state->source_bucket, state->progress_marker) & state->target_mask;
     return (state->heard_mask & state->target_mask) == state->target_mask;
   }
+  if (packet->getPathHashCount() == 0) {
+    return false;
+  }
+  uint8_t hash_size = packet->getPathHashSize();
+  if (hash_size == 0 || hash_size > MAX_ROUTE_HASH_BYTES) {
+    return false;
+  }
+  const uint8_t* heard_prefix = &packet->path[(packet->getPathHashCount() - 1) * hash_size];
+  if (floodRetryPrefixIgnored(heard_prefix, hash_size)) {
+    return false;
+  }
   if (hasFloodRetryPrefixes()) {
     return floodRetryLastHopMatches(packet);
   }

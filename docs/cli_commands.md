@@ -850,7 +850,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 **Default:** empty
 
-**Note:** Ignored prefixes do not count as a heard bridge bucket or as the implicit catch-all bucket when bridge retry decides whether every target has repeated the flood.
+**Note:** In non-bridge retry, an echo whose last hop matches an ignored prefix does not cancel a queued retry as successful. In bridge mode, ignored prefixes do not count as a heard bridge bucket or as the implicit catch-all bucket when bridge retry decides whether every target has repeated the flood.
 
 ---
 
