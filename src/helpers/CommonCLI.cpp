@@ -213,11 +213,12 @@ static void formatFloodRetryPathGate(char* dest, uint8_t path_gate) {
   }
 }
 
-static void formatFloodRetryPrefixes(char* dest, const NodePrefs* prefs) {
+static void formatFloodRetryPrefixList(char* dest, const uint8_t prefixes[][FLOOD_RETRY_PREFIX_LEN],
+                                       uint8_t max_prefixes) {
   char* out = dest;
   bool first = true;
-  for (int i = 0; i < FLOOD_RETRY_PREFIX_SLOTS; i++) {
-    const uint8_t* prefix = prefs->flood_retry_prefixes[i];
+  for (int i = 0; i < max_prefixes; i++) {
+    const uint8_t* prefix = prefixes[i];
     if (prefix[0] == 0 && prefix[1] == 0 && prefix[2] == 0) {
       continue;
     }
@@ -231,26 +232,16 @@ static void formatFloodRetryPrefixes(char* dest, const NodePrefs* prefs) {
   *out = 0;
 }
 
+static void formatFloodRetryPrefixes(char* dest, const NodePrefs* prefs) {
+  formatFloodRetryPrefixList(dest, prefs->flood_retry_prefixes, FLOOD_RETRY_PREFIX_SLOTS);
+}
+
 static void formatFloodRetryBridgeBucket(char* dest, const NodePrefs* prefs, uint8_t bucket) {
-  char* out = dest;
-  bool first = true;
   if (bucket >= FLOOD_RETRY_BRIDGE_BUCKETS) {
-    *out = 0;
+    dest[0] = 0;
     return;
   }
-  for (int i = 0; i < FLOOD_RETRY_BUCKET_PREFIXES; i++) {
-    const uint8_t* prefix = prefs->flood_retry_bridge_buckets[bucket][i];
-    if (prefix[0] == 0 && prefix[1] == 0 && prefix[2] == 0) {
-      continue;
-    }
-    if (!first) {
-      *out++ = ',';
-    }
-    mesh::Utils::toHex(out, prefix, FLOOD_RETRY_PREFIX_LEN);
-    out += FLOOD_RETRY_PREFIX_LEN * 2;
-    first = false;
-  }
-  *out = 0;
+  formatFloodRetryPrefixList(dest, prefs->flood_retry_bridge_buckets[bucket], FLOOD_RETRY_BUCKET_PREFIXES);
 }
 
 static bool parseFloodRetryPrefixes(NodePrefs* prefs, const char* value) {
@@ -261,7 +252,7 @@ static bool parseFloodRetryPrefixes(NodePrefs* prefs, const char* value) {
     return true;
   }
 
-  char tmp[96];
+  char tmp[FLOOD_RETRY_LIST_TEXT_MAX];
   StrHelper::strncpy(tmp, value, sizeof(tmp));
   const char* parts[FLOOD_RETRY_PREFIX_SLOTS + 1];
   int num = mesh::Utils::parseTextParts(tmp, parts, FLOOD_RETRY_PREFIX_SLOTS + 1);
@@ -290,20 +281,20 @@ static bool parseFloodRetryPrefixes(NodePrefs* prefs, const char* value) {
 }
 
 static bool parseFloodRetryPrefixList(uint8_t dest[][FLOOD_RETRY_PREFIX_LEN], uint8_t max_prefixes, const char* value) {
-  if (max_prefixes > FLOOD_RETRY_BUCKET_PREFIXES) {
+  if (max_prefixes > FLOOD_RETRY_LIST_PREFIXES) {
     return false;
   }
-  uint8_t parsed[FLOOD_RETRY_BUCKET_PREFIXES][FLOOD_RETRY_PREFIX_LEN];
+  uint8_t parsed[FLOOD_RETRY_LIST_PREFIXES][FLOOD_RETRY_PREFIX_LEN];
   memset(parsed, 0, sizeof(parsed));
   if (value == NULL || value[0] == 0 || strcmp(value, "none") == 0 || strcmp(value, "off") == 0) {
     memcpy(dest, parsed, max_prefixes * FLOOD_RETRY_PREFIX_LEN);
     return true;
   }
 
-  char tmp[96];
+  char tmp[FLOOD_RETRY_LIST_TEXT_MAX];
   StrHelper::strncpy(tmp, value, sizeof(tmp));
-  const char* parts[FLOOD_RETRY_BUCKET_PREFIXES + 1];
-  int num = mesh::Utils::parseTextParts(tmp, parts, FLOOD_RETRY_BUCKET_PREFIXES + 1);
+  const char* parts[FLOOD_RETRY_LIST_PREFIXES + 1];
+  int num = mesh::Utils::parseTextParts(tmp, parts, FLOOD_RETRY_LIST_PREFIXES + 1);
   if (num > max_prefixes) {
     return false;
   }
@@ -436,7 +427,11 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     file.read((uint8_t *)&_prefs->flood_retry_prefs_magic[0], sizeof(_prefs->flood_retry_prefs_magic)); // 302
     file.read((uint8_t *)&_prefs->flood_retry_prefixes[0][0], sizeof(_prefs->flood_retry_prefixes)); // 304
     file.read((uint8_t *)&_prefs->flood_retry_bridge_enabled, sizeof(_prefs->flood_retry_bridge_enabled)); // 328
+    memset(_prefs->flood_retry_bridge_buckets, 0, sizeof(_prefs->flood_retry_bridge_buckets));
+    memset(_prefs->flood_retry_ignore_prefixes, 0, sizeof(_prefs->flood_retry_ignore_prefixes));
     file.read((uint8_t *)&_prefs->flood_retry_bridge_buckets[0][0][0], sizeof(_prefs->flood_retry_bridge_buckets)); // 329
+    size_t flood_retry_ignore_read = file.read((uint8_t *)&_prefs->flood_retry_ignore_prefixes[0][0],
+                                               sizeof(_prefs->flood_retry_ignore_prefixes)); // 635
     // PowerSaving-only prefs stored radio_fem_rxgain at 291, before direct retry timing existed.
     if (radio_fem_rxgain_read != sizeof(_prefs->radio_fem_rxgain)
         && legacy_retry_attempts_read == sizeof(legacy_retry_attempts_or_radio_fem_rxgain)
@@ -444,7 +439,7 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
             || _prefs->direct_retry_timing_magic[1] != DIRECT_RETRY_TIMING_MAGIC_1)) {
       _prefs->radio_fem_rxgain = constrain(legacy_retry_attempts_or_radio_fem_rxgain, 0, 1);
     }
-    // next: 473
+    // next: 659
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -505,12 +500,16 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
       memset(_prefs->flood_retry_prefixes, 0, sizeof(_prefs->flood_retry_prefixes));
       _prefs->flood_retry_bridge_enabled = 0;
       memset(_prefs->flood_retry_bridge_buckets, 0, sizeof(_prefs->flood_retry_bridge_buckets));
+      memset(_prefs->flood_retry_ignore_prefixes, 0, sizeof(_prefs->flood_retry_ignore_prefixes));
     } else {
       _prefs->flood_retry_attempts = constrain(_prefs->flood_retry_attempts, FLOOD_RETRY_COUNT_MIN, FLOOD_RETRY_COUNT_MAX);
       if (_prefs->flood_retry_path_gate > 63 && _prefs->flood_retry_path_gate != FLOOD_RETRY_PATH_GATE_DISABLED) {
         _prefs->flood_retry_path_gate = floodRetryPresetPathDefault(_prefs->direct_retry_preset);
       }
       _prefs->flood_retry_bridge_enabled = constrain(_prefs->flood_retry_bridge_enabled, 0, 1);
+      if (flood_retry_ignore_read != sizeof(_prefs->flood_retry_ignore_prefixes)) {
+        memset(_prefs->flood_retry_ignore_prefixes, 0, sizeof(_prefs->flood_retry_ignore_prefixes));
+      }
     }
 
     file.close();
@@ -591,7 +590,8 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->flood_retry_prefixes[0][0], sizeof(_prefs->flood_retry_prefixes)); // 304
     file.write((uint8_t *)&_prefs->flood_retry_bridge_enabled, sizeof(_prefs->flood_retry_bridge_enabled)); // 328
     file.write((uint8_t *)&_prefs->flood_retry_bridge_buckets[0][0][0], sizeof(_prefs->flood_retry_bridge_buckets)); // 329
-    // next: 473
+    file.write((uint8_t *)&_prefs->flood_retry_ignore_prefixes[0][0], sizeof(_prefs->flood_retry_ignore_prefixes)); // 635
+    // next: 659
 
     file.close();
   }
@@ -755,6 +755,9 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
         sprintf(reply, "> %s", path_gate);
       } else if (memcmp(config, "flood.retry.prefixes", 20) == 0) {
         formatFloodRetryPrefixes(tmp, _prefs);
+        sprintf(reply, "> %s", tmp[0] ? tmp : "none");
+      } else if (memcmp(config, "flood.retry.ignore", 18) == 0) {
+        formatFloodRetryPrefixList(tmp, _prefs->flood_retry_ignore_prefixes, FLOOD_RETRY_IGNORE_PREFIXES);
         sprintf(reply, "> %s", tmp[0] ? tmp : "none");
       } else if (memcmp(config, "flood.retry.bridge", 18) == 0) {
         sprintf(reply, "> %s", _prefs->flood_retry_bridge_enabled ? "on" : "off");
@@ -1061,6 +1064,15 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
         } else {
           strcpy(reply, "Error, use comma-separated 3-byte hex prefixes");
         }
+      } else if (memcmp(config, "flood.retry.ignore ", 19) == 0) {
+        if (parseFloodRetryPrefixList(_prefs->flood_retry_ignore_prefixes,
+                                      FLOOD_RETRY_IGNORE_PREFIXES, &config[19])) {
+          savePrefs();
+          strcpy(reply, "OK");
+        } else {
+          sprintf(reply, "Error, use up to %u comma-separated 3-byte hex prefixes",
+                  (unsigned int)FLOOD_RETRY_IGNORE_PREFIXES);
+        }
       } else if (memcmp(config, "flood.retry.bridge ", 19) == 0) {
         if (memcmp(&config[19], "on", 2) == 0) {
           _prefs->flood_retry_bridge_enabled = 1;
@@ -1084,7 +1096,8 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
           savePrefs();
           strcpy(reply, "OK");
         } else {
-          strcpy(reply, "Error, use up to 8 comma-separated 3-byte hex prefixes");
+          sprintf(reply, "Error, use up to %u comma-separated 3-byte hex prefixes",
+                  (unsigned int)FLOOD_RETRY_BUCKET_PREFIXES);
         }
       } else if (memcmp(config, "direct.txdelay ", 15) == 0) {
         float f = atof(&config[15]);
@@ -1674,6 +1687,15 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     } else {
       strcpy(reply, "Error, use comma-separated 3-byte hex prefixes");
     }
+  } else if (memcmp(config, "flood.retry.ignore ", 19) == 0) {
+    if (parseFloodRetryPrefixList(_prefs->flood_retry_ignore_prefixes,
+                                  FLOOD_RETRY_IGNORE_PREFIXES, &config[19])) {
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      sprintf(reply, "Error, use up to %u comma-separated 3-byte hex prefixes",
+              (unsigned int)FLOOD_RETRY_IGNORE_PREFIXES);
+    }
   } else if (memcmp(config, "flood.retry.bridge ", 19) == 0) {
     if (memcmp(&config[19], "on", 2) == 0) {
       _prefs->flood_retry_bridge_enabled = 1;
@@ -1697,7 +1719,8 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       savePrefs();
       strcpy(reply, "OK");
     } else {
-      strcpy(reply, "Error, use up to 8 comma-separated 3-byte hex prefixes");
+      sprintf(reply, "Error, use up to %u comma-separated 3-byte hex prefixes",
+              (unsigned int)FLOOD_RETRY_BUCKET_PREFIXES);
     }
   } else if (memcmp(config, "direct.txdelay ", 15) == 0) {
     float f = atof(&config[15]);
@@ -1946,6 +1969,9 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %s", path_gate);
   } else if (memcmp(config, "flood.retry.prefixes", 20) == 0) {
     formatFloodRetryPrefixes(tmp, _prefs);
+    sprintf(reply, "> %s", tmp[0] ? tmp : "none");
+  } else if (memcmp(config, "flood.retry.ignore", 18) == 0) {
+    formatFloodRetryPrefixList(tmp, _prefs->flood_retry_ignore_prefixes, FLOOD_RETRY_IGNORE_PREFIXES);
     sprintf(reply, "> %s", tmp[0] ? tmp : "none");
   } else if (memcmp(config, "flood.retry.bridge", 18) == 0) {
     sprintf(reply, "> %s", _prefs->flood_retry_bridge_enabled ? "on" : "off");

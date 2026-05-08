@@ -821,7 +821,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 **Default:** `off`
 
-**Note:** Bridge mode uses bucket definitions instead of the single `flood.retry.prefixes` target list. If a flood comes from one fresh bucket, retry continues until every other fresh configured bucket has been heard or `flood.retry.count` is exhausted.
+**Note:** Bridge mode uses bucket definitions instead of the single `flood.retry.prefixes` target list. It also has an implicit unconfigured catch-all bucket. If a flood comes from one fresh configured bucket, retry continues until every other fresh configured bucket plus the catch-all bucket has been heard or `flood.retry.count` is exhausted. If a flood comes from an unconfigured or pathless source, retry targets every fresh configured bucket. This means one configured bucket bridges between that bucket and everything else. Prefixes in `flood.retry.ignore` never count as heard bridge targets.
 
 ---
 
@@ -832,11 +832,25 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 **Parameters:**
 - `bucket`: Bucket number (`1`-`6`)
-- `prefixes`: Up to 8 comma-separated 3-byte hex prefixes, such as `AABBCC,223344`; use `none` or `off` to clear
+- `prefixes`: Up to 17 comma-separated 3-byte hex prefixes, such as `AABBCC,223344`; use `none` or `off` to clear
 
 **Default:** all buckets empty
 
 **Note:** Prefixes are stored as 3 bytes but match 3-byte, 2-byte, and 1-byte flood paths by comparing leading bytes. Bucket prefixes are included in bridge retry logic only if they were heard in the recent repeater table within the last hour.
+
+---
+
+#### View or change flood retry ignored prefixes
+**Usage:**
+- `get flood.retry.ignore`
+- `set flood.retry.ignore <prefixes>`
+
+**Parameters:**
+- `prefixes`: Up to 8 comma-separated 3-byte hex prefixes, such as `AABBCC,223344`; use `none` or `off` to clear
+
+**Default:** empty
+
+**Note:** Ignored prefixes do not count as a heard bridge bucket or as the implicit catch-all bucket when bridge retry decides whether every target has repeated the flood.
 
 ---
 

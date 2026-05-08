@@ -48,7 +48,19 @@
   #define FLOOD_RETRY_BRIDGE_BUCKETS      6
 #endif
 #ifndef FLOOD_RETRY_BUCKET_PREFIXES
-  #define FLOOD_RETRY_BUCKET_PREFIXES     8
+  #define FLOOD_RETRY_BUCKET_PREFIXES     17
+#endif
+#ifndef FLOOD_RETRY_IGNORE_PREFIXES
+  #define FLOOD_RETRY_IGNORE_PREFIXES     8
+#endif
+#ifndef FLOOD_RETRY_LIST_PREFIXES
+  #define FLOOD_RETRY_LIST_PREFIXES       ((FLOOD_RETRY_IGNORE_PREFIXES > FLOOD_RETRY_BUCKET_PREFIXES) ? FLOOD_RETRY_IGNORE_PREFIXES : FLOOD_RETRY_BUCKET_PREFIXES)
+#endif
+#ifndef FLOOD_RETRY_LIST_TEXT_MAX
+  #define FLOOD_RETRY_LIST_TEXT_MAX       (FLOOD_RETRY_LIST_PREFIXES * FLOOD_RETRY_PREFIX_LEN * 2 + FLOOD_RETRY_LIST_PREFIXES)
+#endif
+#ifndef COMMON_CLI_TMP_LEN
+  #define COMMON_CLI_TMP_LEN              ((FLOOD_RETRY_LIST_TEXT_MAX > (PRV_KEY_SIZE * 2 + 4)) ? FLOOD_RETRY_LIST_TEXT_MAX : (PRV_KEY_SIZE * 2 + 4))
 #endif
 
 struct NodePrefs { // persisted to file
@@ -107,6 +119,7 @@ struct NodePrefs { // persisted to file
   uint8_t flood_retry_prefixes[FLOOD_RETRY_PREFIX_SLOTS][FLOOD_RETRY_PREFIX_LEN];
   uint8_t flood_retry_bridge_enabled;
   uint8_t flood_retry_bridge_buckets[FLOOD_RETRY_BRIDGE_BUCKETS][FLOOD_RETRY_BUCKET_PREFIXES][FLOOD_RETRY_PREFIX_LEN];
+  uint8_t flood_retry_ignore_prefixes[FLOOD_RETRY_IGNORE_PREFIXES][FLOOD_RETRY_PREFIX_LEN];
 };
 
 class CommonCLICallbacks {
@@ -166,7 +179,7 @@ class CommonCLI {
   SensorManager* _sensors;
   RegionMap* _region_map;
   ClientACL* _acl;
-  char tmp[PRV_KEY_SIZE*2 + 4];
+  char tmp[COMMON_CLI_TMP_LEN];
 
   mesh::RTCClock* getRTCClock() { return _rtc; }
   void savePrefs();

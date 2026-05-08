@@ -175,8 +175,6 @@ public:
     f.write((const uint8_t *) &_next_idx, sizeof(_next_idx));
     f.write((const uint8_t *) &_acks[0], sizeof(_acks));
     f.write((const uint8_t *) &_next_ack_idx, sizeof(_next_ack_idx));
-    f.write((const uint8_t *) &_recent_repeaters[0], sizeof(_recent_repeaters));
-    f.write((const uint8_t *) &_next_recent_repeater_idx, sizeof(_next_recent_repeater_idx));
   }
 #endif
 

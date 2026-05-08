@@ -1,10 +1,11 @@
-# sh ./build-repeaters-iotthinks.sh
+#!/usr/bin/env bash
+# ./build-iotthinks.sh
 export FIRMWARE_VERSION="PowerSaving15"
 
 ############# Repeaters #############
 # Commonly-used boards
 ## ESP32 - 12 boards
-sh build.sh build-firmware \
+./build.sh build-firmware \
 Heltec_v3_repeater \
 Heltec_WSL3_repeater \
 heltec_v4_repeater \
@@ -19,7 +20,7 @@ Heltec_E290_repeater \
 Heltec_Wireless_Tracker_repeater
 
 ## NRF52 - 13 boards
-sh build.sh build-firmware \
+./build.sh build-firmware \
 RAK_4631_repeater \
 Heltec_t114_repeater \
 Xiao_nrf52_repeater \
@@ -35,25 +36,25 @@ GAT562_30S_Mesh_Kit_repeater \
 GAT562_Mesh_Tracker_Pro_repeater
 
 ## ESP32, SX1276 - 3 boards
-sh build.sh build-firmware \
+./build.sh build-firmware \
 Heltec_v2_repeater \
 LilyGo_TLora_V2_1_1_6_repeater \
 Tbeam_SX1276_repeater
 
 ## Ikoka - 3 boards
-sh build.sh build-firmware \
+./build.sh build-firmware \
 ikoka_nano_nrf_22dbm_repeater \
 ikoka_nano_nrf_30dbm_repeater \
 ikoka_nano_nrf_33dbm_repeater
 
 ############# Room Server #############
 # ESP32
-sh build.sh build-firmware \
+./build.sh build-firmware \
 Heltec_v3_room_server \
 heltec_v4_room_server
 
 # NRF52
-sh build.sh build-firmware \
+./build.sh build-firmware \
 RAK_4631_room_server \
 Heltec_t114_room_server \
 Xiao_nrf52_room_server \
@@ -63,7 +64,7 @@ RAK_3401_room_server
 
 ############# Companions BLE #############
 # ESP32
-sh build.sh build-firmware \
+./build.sh build-firmware \
 Heltec_v3_companion_radio_ble_ps \
 heltec_v4_companion_radio_ble_ps \
 heltec_v4_companion_radio_ble_ps_femoff \
@@ -71,7 +72,7 @@ Xiao_S3_WIO_companion_radio_ble \
 Heltec_Wireless_Paper_companion_radio_ble
 
 # NRF52
-sh build.sh build-firmware \
+./build.sh build-firmware \
 RAK_4631_companion_radio_ble \
 Heltec_t114_companion_radio_ble \
 Xiao_nrf52_companion_radio_ble \
@@ -82,11 +83,11 @@ RAK_3401_companion_radio_ble \
 RAK_WisMesh_Tag_companion_radio_ble
 
 ############# Companions USB #############
-sh build.sh build-firmware \
+./build.sh build-firmware \
 Heltec_v3_companion_radio_usb
 
 ############# Companions BLE PS #############
-sh build.sh build-firmware \
+./build.sh build-firmware \
 Heltec_v3_companion_radio_ble_ps \
 heltec_v4_companion_radio_ble_ps \
 heltec_v4_3_companion_radio_ble_ps_femoff \

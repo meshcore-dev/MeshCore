@@ -912,6 +912,19 @@ bool MyMesh::floodRetryPrefixMatches(const mesh::Packet* packet) const {
 
   return false;
 }
+bool MyMesh::floodRetryPrefixIgnored(const uint8_t* prefix, uint8_t prefix_len) const {
+  if (prefix == NULL || prefix_len == 0 || prefix_len > MAX_ROUTE_HASH_BYTES) {
+    return false;
+  }
+  for (int i = 0; i < FLOOD_RETRY_IGNORE_PREFIXES; i++) {
+    const uint8_t* ignored = _prefs.flood_retry_ignore_prefixes[i];
+    if ((ignored[0] != 0 || ignored[1] != 0 || ignored[2] != 0)
+        && memcmp(ignored, prefix, prefix_len) == 0) {
+      return true;
+    }
+  }
+  return false;
+}
 bool MyMesh::floodRetryPrefixFresh(const uint8_t* prefix, uint8_t prefix_len) const {
   const auto* recent = ((const SimpleMeshTables *)getTables())->findRecentRepeaterByHash(prefix, prefix_len);
   if (recent == NULL || recent->last_heard_millis == 0) {
@@ -919,8 +932,20 @@ bool MyMesh::floodRetryPrefixFresh(const uint8_t* prefix, uint8_t prefix_len) co
   }
   return (uint32_t)(millis() - recent->last_heard_millis) <= 3600000UL;
 }
-int MyMesh::floodRetryBucketForPrefix(const uint8_t* prefix, uint8_t prefix_len, bool require_fresh) const {
+static const uint8_t FLOOD_RETRY_BRIDGE_OTHER_BUCKET = FLOOD_RETRY_BRIDGE_BUCKETS;
+
+static uint8_t floodRetryBucketMask(uint8_t bucket) {
+  if (bucket >= 8) {
+    return 0;
+  }
+  return (uint8_t)(1U << bucket);
+}
+int MyMesh::floodRetryBucketForPrefix(const uint8_t* prefix, uint8_t prefix_len, bool require_fresh,
+                                      bool include_other) const {
   if (prefix == NULL || prefix_len == 0 || prefix_len > MAX_ROUTE_HASH_BYTES) {
+    return -1;
+  }
+  if (floodRetryPrefixIgnored(prefix, prefix_len)) {
     return -1;
   }
   if (require_fresh && !floodRetryPrefixFresh(prefix, prefix_len)) {
@@ -935,18 +960,28 @@ int MyMesh::floodRetryBucketForPrefix(const uint8_t* prefix, uint8_t prefix_len,
       }
     }
   }
+  if (include_other) {
+    return FLOOD_RETRY_BRIDGE_OTHER_BUCKET;
+  }
   return -1;
 }
+int MyMesh::floodRetryBucketForPathHop(const uint8_t* prefix, uint8_t prefix_len, uint8_t hop,
+                                       uint8_t progress_marker) const {
+  return floodRetryBucketForPrefix(prefix, prefix_len, hop < progress_marker, true);
+}
 int MyMesh::floodRetrySourceBucket(const mesh::Packet* packet) const {
-  if (packet == NULL || packet->getPathHashCount() < 2) {
+  if (packet == NULL) {
     return -1;
   }
   uint8_t hash_size = packet->getPathHashSize();
   if (hash_size == 0 || hash_size > MAX_ROUTE_HASH_BYTES) {
     return -1;
   }
+  if (packet->getPathHashCount() < 2) {
+    return FLOOD_RETRY_BRIDGE_OTHER_BUCKET;
+  }
   const uint8_t* source_prefix = &packet->path[(packet->getPathHashCount() - 2) * hash_size];
-  return floodRetryBucketForPrefix(source_prefix, hash_size, true);
+  return floodRetryBucketForPrefix(source_prefix, hash_size, true, true);
 }
 uint8_t MyMesh::floodRetryBridgeTargetMask(uint8_t source_bucket) const {
   uint8_t mask = 0;
@@ -957,15 +992,20 @@ uint8_t MyMesh::floodRetryBridgeTargetMask(uint8_t source_bucket) const {
     for (int i = 0; i < FLOOD_RETRY_BUCKET_PREFIXES; i++) {
       const uint8_t* configured = _prefs.flood_retry_bridge_buckets[bucket][i];
       if ((configured[0] != 0 || configured[1] != 0 || configured[2] != 0)
+          && !floodRetryPrefixIgnored(configured, FLOOD_RETRY_PREFIX_LEN)
           && floodRetryPrefixFresh(configured, FLOOD_RETRY_PREFIX_LEN)) {
-        mask |= (uint8_t)(1U << bucket);
+        mask |= floodRetryBucketMask((uint8_t)bucket);
         break;
       }
     }
   }
+  if (source_bucket != FLOOD_RETRY_BRIDGE_OTHER_BUCKET) {
+    mask |= floodRetryBucketMask(FLOOD_RETRY_BRIDGE_OTHER_BUCKET);
+  }
   return mask;
 }
-uint8_t MyMesh::floodRetryBridgeHeardMask(const mesh::Packet* packet, uint8_t source_bucket) const {
+uint8_t MyMesh::floodRetryBridgeHeardMask(const mesh::Packet* packet, uint8_t source_bucket,
+                                          uint8_t progress_marker) const {
   if (packet == NULL || packet->getPathHashCount() == 0) {
     return 0;
   }
@@ -977,9 +1017,13 @@ uint8_t MyMesh::floodRetryBridgeHeardMask(const mesh::Packet* packet, uint8_t so
   uint8_t mask = 0;
   const uint8_t* path = packet->path;
   for (int hop = 0; hop < packet->getPathHashCount(); hop++) {
-    int bucket = floodRetryBucketForPrefix(path, hash_size, true);
+    if (progress_marker > 0 && hop == progress_marker - 1) {
+      path += hash_size;
+      continue;
+    }
+    int bucket = floodRetryBucketForPathHop(path, hash_size, (uint8_t)hop, progress_marker);
     if (bucket >= 0 && bucket != source_bucket) {
-      mask |= (uint8_t)(1U << bucket);
+      mask |= floodRetryBucketMask((uint8_t)bucket);
     }
     path += hash_size;
   }
@@ -1019,7 +1063,8 @@ MyMesh::FloodRetryBridgeState* MyMesh::floodRetryBridgeStateFor(const mesh::Pack
     return NULL;
   }
 
-  uint8_t heard_mask = floodRetryBridgeHeardMask(packet, (uint8_t)source_bucket) & target_mask;
+  uint8_t progress_marker = packet->getPathHashCount();
+  uint8_t heard_mask = floodRetryBridgeHeardMask(packet, (uint8_t)source_bucket, progress_marker) & target_mask;
   if ((heard_mask & target_mask) == target_mask) {
     return NULL;
   }
@@ -1029,6 +1074,7 @@ MyMesh::FloodRetryBridgeState* MyMesh::floodRetryBridgeStateFor(const mesh::Pack
   free_slot->source_bucket = (uint8_t)source_bucket;
   free_slot->target_mask = target_mask;
   free_slot->heard_mask = heard_mask;
+  free_slot->progress_marker = progress_marker;
   free_slot->active = true;
   return free_slot;
 }
@@ -1088,8 +1134,13 @@ void MyMesh::refreshFloodRetryHeardRecent(const mesh::Packet* packet) {
     FloodRetryBridgeState* state = floodRetryBridgeStateFor(packet, false);
     if (state != NULL) {
       for (int hop = 0; hop < packet->getPathHashCount(); hop++) {
-        int bucket = floodRetryBucketForPrefix(path, hash_size, true);
-        if (bucket >= 0 && bucket != state->source_bucket && (state->target_mask & (uint8_t)(1U << bucket))) {
+        if (state->progress_marker > 0 && hop == state->progress_marker - 1) {
+          path += hash_size;
+          continue;
+        }
+        int bucket = floodRetryBucketForPathHop(path, hash_size, (uint8_t)hop, state->progress_marker);
+        uint8_t bucket_mask = bucket >= 0 ? floodRetryBucketMask((uint8_t)bucket) : 0;
+        if (bucket >= 0 && bucket != state->source_bucket && (state->target_mask & bucket_mask)) {
           tables->setRecentRepeater(path, hash_size, packet->_snr, false, true);
         }
         path += hash_size;
@@ -1161,9 +1212,20 @@ bool MyMesh::formatFloodRetryHeard(char* dest, size_t dest_len, const mesh::Pack
     }
     const uint8_t* path = packet->path;
     for (int hop = 0; hop < packet->getPathHashCount(); hop++) {
-      int bucket = floodRetryBucketForPrefix(path, hash_size, true);
-      if (bucket >= 0 && bucket != state->source_bucket && (state->target_mask & (uint8_t)(1U << bucket))) {
-        size_t needed = (first ? 0 : 1) + 2 + 1 + ((size_t)hash_size * 2) + 1;
+      if (state->progress_marker > 0 && hop == state->progress_marker - 1) {
+        path += hash_size;
+        continue;
+      }
+      int bucket = floodRetryBucketForPathHop(path, hash_size, (uint8_t)hop, state->progress_marker);
+      uint8_t bucket_mask = bucket >= 0 ? floodRetryBucketMask((uint8_t)bucket) : 0;
+      if (bucket >= 0 && bucket != state->source_bucket && (state->target_mask & bucket_mask)) {
+        char bucket_label[8];
+        if ((uint8_t)bucket == FLOOD_RETRY_BRIDGE_OTHER_BUCKET) {
+          strcpy(bucket_label, "other");
+        } else {
+          snprintf(bucket_label, sizeof(bucket_label), "b%d", bucket + 1);
+        }
+        size_t needed = (first ? 0 : 1) + strlen(bucket_label) + 1 + ((size_t)hash_size * 2) + 1;
         if (remaining < needed) {
           if (remaining > 4) {
             strcpy(out, "...");
@@ -1174,7 +1236,7 @@ bool MyMesh::formatFloodRetryHeard(char* dest, size_t dest_len, const mesh::Pack
           *out++ = ',';
           remaining--;
         }
-        int n = snprintf(out, remaining, "b%d:", bucket + 1);
+        int n = snprintf(out, remaining, "%s:", bucket_label);
         if (n < 0 || (size_t)n >= remaining) {
           return dest[0] != 0;
         }
@@ -1298,7 +1360,7 @@ bool MyMesh::isFloodRetryEchoTarget(const mesh::Packet* packet, uint8_t progress
     if (state == NULL) {
       return false;
     }
-    state->heard_mask |= floodRetryBridgeHeardMask(packet, state->source_bucket) & state->target_mask;
+    state->heard_mask |= floodRetryBridgeHeardMask(packet, state->source_bucket, state->progress_marker) & state->target_mask;
     return (state->heard_mask & state->target_mask) == state->target_mask;
   }
   if (hasFloodRetryPrefixes()) {

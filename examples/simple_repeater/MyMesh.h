@@ -104,6 +104,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
     uint8_t source_bucket;
     uint8_t target_mask;
     uint8_t heard_mask;
+    uint8_t progress_marker;
     bool active;
   };
   mutable FloodRetryBridgeState flood_retry_bridge_states[MAX_FLOOD_RETRY_SLOTS];
@@ -138,11 +139,16 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   bool hasFloodRetryPrefixes() const;
   bool floodRetryPrefixMatches(const mesh::Packet* packet) const;
   bool floodRetryLastHopMatches(const mesh::Packet* packet) const;
+  bool floodRetryPrefixIgnored(const uint8_t* prefix, uint8_t prefix_len) const;
   bool floodRetryPrefixFresh(const uint8_t* prefix, uint8_t prefix_len) const;
-  int floodRetryBucketForPrefix(const uint8_t* prefix, uint8_t prefix_len, bool require_fresh) const;
+  int floodRetryBucketForPrefix(const uint8_t* prefix, uint8_t prefix_len, bool require_fresh,
+                                bool include_other) const;
+  int floodRetryBucketForPathHop(const uint8_t* prefix, uint8_t prefix_len, uint8_t hop,
+                                 uint8_t progress_marker) const;
   int floodRetrySourceBucket(const mesh::Packet* packet) const;
   uint8_t floodRetryBridgeTargetMask(uint8_t source_bucket) const;
-  uint8_t floodRetryBridgeHeardMask(const mesh::Packet* packet, uint8_t source_bucket) const;
+  uint8_t floodRetryBridgeHeardMask(const mesh::Packet* packet, uint8_t source_bucket,
+                                    uint8_t progress_marker) const;
   FloodRetryBridgeState* floodRetryBridgeStateFor(const mesh::Packet* packet, bool create) const;
   void clearFloodRetryBridgeState(const mesh::Packet* packet);
   void refreshFloodRetryHeardRecent(const mesh::Packet* packet);
