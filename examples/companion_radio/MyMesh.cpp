@@ -399,6 +399,30 @@ int MyMesh::getRecentlyHeard(AdvertPath dest[], int max_num) {
   return max_num;
 }
 
+int MyMesh::startPing(const ContactInfo& recipient, uint32_t& est_timeout) {
+    if (recipient.out_path_len == OUT_PATH_UNKNOWN) return MSG_SEND_FAILED; // direct path required
+    uint32_t tag = 0;
+    int result = sendRequest(recipient, REQ_TYPE_GET_STATUS, tag, est_timeout);
+    if (result == MSG_SEND_FAILED) return MSG_SEND_FAILED;
+    clearPendingReqs();
+    memcpy(&pending_ping, recipient.id.pub_key, sizeof(pending_ping));
+    pending_ping_at_ms = millis();
+    _ping_result.ready = false;
+    return result;
+}
+
+bool MyMesh::consumePingResult(uint8_t* pub_key_prefix, float& snr, int8_t& rssi, float& out_snr, int16_t& out_rssi, uint16_t& rtt_ms) {
+    if (!_ping_result.ready) return false;
+    memcpy(pub_key_prefix, _ping_result.pubkey_prefix, sizeof(_ping_result.pubkey_prefix));
+    snr = _ping_result.snr;
+    rssi = _ping_result.rssi;
+    out_snr = _ping_result.out_snr;
+    out_rssi = _ping_result.out_rssi;
+    rtt_ms = _ping_result.rtt_ms;
+    _ping_result.ready = false;
+    return true;
+}
+
 void MyMesh::onContactPathUpdated(const ContactInfo &contact) {
   out_frame[0] = PUSH_CODE_PATH_UPDATED;
   memcpy(&out_frame[1], contact.id.pub_key, PUB_KEY_SIZE);
@@ -698,6 +722,22 @@ void MyMesh::onContactResponse(const ContactInfo &contact, const uint8_t *data, 
       i += 6; // pub_key_prefix
     }
     _serial->writeFrame(out_frame, i);
+  } else if (pending_ping && memcmp(&pending_ping, contact.id.pub_key, sizeof(pending_ping)) == 0) {
+    pending_ping = 0;
+    _ping_result.snr = _last_resp_snr;
+    _ping_result.rssi = _last_resp_rssi;
+    _ping_result.out_snr = 0;
+    _ping_result.out_rssi = 0;
+    if (len >= 48) {  // tag(4) + RepeaterStats up through last_snr at offset 42
+      int16_t their_rssi, their_snr_x4;
+      memcpy(&their_rssi, &data[10], sizeof(their_rssi));
+      memcpy(&their_snr_x4, &data[46], sizeof(their_snr_x4));
+      _ping_result.out_snr = their_snr_x4 / 4.0f;
+      _ping_result.out_rssi = their_rssi;
+    }
+    _ping_result.rtt_ms = (uint16_t)(millis() - pending_ping_at_ms);
+    memcpy(_ping_result.pubkey_prefix, contact.id.pub_key, sizeof(_ping_result.pubkey_prefix));
+    _ping_result.ready = true;
   } else if (len > 4 && // check for status response
              pending_status &&
              memcmp(&pending_status, contact.id.pub_key, 4) == 0 // legacy matching scheme

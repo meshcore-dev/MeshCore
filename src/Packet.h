@@ -49,6 +49,7 @@ public:
   uint8_t path[MAX_PATH_SIZE];
   uint8_t payload[MAX_PACKET_PAYLOAD];
   int8_t _snr;
+  int8_t _rssi;
 
   /**
    * \brief calculate the hash of payload + type
@@ -90,6 +91,7 @@ public:
   bool isMarkedDoNotRetransmit() const { return header == 0xFF; }
 
   float getSNR() const { return ((float)_snr) / 4.0f; }
+  int8_t getRSSI() const { return _rssi; }
 
   /**
    * \returns  the encoded/wire format length of this packet
