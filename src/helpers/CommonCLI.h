@@ -19,9 +19,9 @@
 #define LOOP_DETECT_MODERATE  2
 #define LOOP_DETECT_STRICT    3
 
-#define DIRECT_RETRY_PRESET_INFRA    0
-#define DIRECT_RETRY_PRESET_ROOFTOP  1
-#define DIRECT_RETRY_PRESET_MOBILE   2
+#define RETRY_PRESET_INFRA    0
+#define RETRY_PRESET_ROOFTOP  1
+#define RETRY_PRESET_MOBILE   2
 
 #define DIRECT_RETRY_INFRA_BASE_MS      275
 #define DIRECT_RETRY_INFRA_COUNT          4
@@ -111,7 +111,7 @@ struct NodePrefs { // persisted to file
   uint8_t direct_retry_attempts;
   uint16_t direct_retry_base_ms;
   uint8_t direct_retry_timing_magic[2];
-  uint8_t direct_retry_preset;
+  uint8_t retry_preset;
   uint16_t direct_retry_step_ms;
   uint8_t flood_retry_attempts;
   uint8_t flood_retry_path_gate;
@@ -120,6 +120,7 @@ struct NodePrefs { // persisted to file
   uint8_t flood_retry_bridge_enabled;
   uint8_t flood_retry_bridge_buckets[FLOOD_RETRY_BRIDGE_BUCKETS][FLOOD_RETRY_BUCKET_PREFIXES][FLOOD_RETRY_PREFIX_LEN];
   uint8_t flood_retry_ignore_prefixes[FLOOD_RETRY_IGNORE_PREFIXES][FLOOD_RETRY_PREFIX_LEN];
+  uint8_t flood_retry_advert_enabled;
 };
 
 class CommonCLICallbacks {

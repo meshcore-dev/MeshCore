@@ -29,11 +29,12 @@
 #define DIRECT_RETRY_STEP_MS_DEFAULT DIRECT_RETRY_ROOFTOP_STEP_MS
 #define DIRECT_RETRY_STEP_MS_MIN       0
 #define DIRECT_RETRY_STEP_MS_MAX    5000
-#define DIRECT_RETRY_PRESET_DEFAULT DIRECT_RETRY_PRESET_ROOFTOP
+#define RETRY_PRESET_DEFAULT RETRY_PRESET_ROOFTOP
 #define FLOOD_RETRY_PREFS_MAGIC_0  0xF4
 #define FLOOD_RETRY_PREFS_MAGIC_1  0x52
 #define FLOOD_RETRY_COUNT_MIN       0
 #define FLOOD_RETRY_COUNT_MAX       3
+#define FLOOD_RETRY_ADVERT_DEFAULT  0
 
 // Believe it or not, this std C function is busted on some platforms!
 static uint32_t _atoi(const char* sp) {
@@ -78,20 +79,20 @@ static float directRetryMarginX4ToDb(uint8_t margin_x4) {
   return ((float)margin_x4) / 4.0f;
 }
 
-static uint8_t directRetryPresetOrDefault(uint8_t preset) {
-  if (preset <= DIRECT_RETRY_PRESET_MOBILE) {
+static uint8_t retryPresetOrDefault(uint8_t preset) {
+  if (preset <= RETRY_PRESET_MOBILE) {
     return preset;
   }
-  return DIRECT_RETRY_PRESET_DEFAULT;
+  return RETRY_PRESET_DEFAULT;
 }
 
-static const char* directRetryPresetName(uint8_t preset) {
-  switch (directRetryPresetOrDefault(preset)) {
-    case DIRECT_RETRY_PRESET_INFRA:
+static const char* retryPresetName(uint8_t preset) {
+  switch (retryPresetOrDefault(preset)) {
+    case RETRY_PRESET_INFRA:
       return "infra";
-    case DIRECT_RETRY_PRESET_MOBILE:
+    case RETRY_PRESET_MOBILE:
       return "mobile";
-    case DIRECT_RETRY_PRESET_ROOFTOP:
+    case RETRY_PRESET_ROOFTOP:
     default:
       return "rooftop";
   }
@@ -113,36 +114,36 @@ static uint8_t directRetryEffectiveMarginX4(const NodePrefs* prefs) {
   return constrain(prefs->direct_retry_snr_margin_db, (uint8_t)0, (uint8_t)DIRECT_RETRY_SNR_MARGIN_X4_MAX);
 }
 
-static uint16_t directRetryPresetStepDefault(uint8_t preset) {
-  switch (directRetryPresetOrDefault(preset)) {
-    case DIRECT_RETRY_PRESET_INFRA:
+static uint16_t retryPresetStepDefault(uint8_t preset) {
+  switch (retryPresetOrDefault(preset)) {
+    case RETRY_PRESET_INFRA:
       return DIRECT_RETRY_INFRA_STEP_MS;
-    case DIRECT_RETRY_PRESET_MOBILE:
+    case RETRY_PRESET_MOBILE:
       return DIRECT_RETRY_MOBILE_STEP_MS;
-    case DIRECT_RETRY_PRESET_ROOFTOP:
+    case RETRY_PRESET_ROOFTOP:
     default:
       return DIRECT_RETRY_ROOFTOP_STEP_MS;
   }
 }
 
 static uint8_t floodRetryPresetCountDefault(uint8_t preset) {
-  switch (directRetryPresetOrDefault(preset)) {
-    case DIRECT_RETRY_PRESET_INFRA:
+  switch (retryPresetOrDefault(preset)) {
+    case RETRY_PRESET_INFRA:
       return 1;
-    case DIRECT_RETRY_PRESET_MOBILE:
-    case DIRECT_RETRY_PRESET_ROOFTOP:
+    case RETRY_PRESET_MOBILE:
+    case RETRY_PRESET_ROOFTOP:
     default:
       return 3;
   }
 }
 
 static uint8_t floodRetryPresetPathDefault(uint8_t preset) {
-  switch (directRetryPresetOrDefault(preset)) {
-    case DIRECT_RETRY_PRESET_INFRA:
+  switch (retryPresetOrDefault(preset)) {
+    case RETRY_PRESET_INFRA:
       return 1;
-    case DIRECT_RETRY_PRESET_MOBILE:
+    case RETRY_PRESET_MOBILE:
       return 1;
-    case DIRECT_RETRY_PRESET_ROOFTOP:
+    case RETRY_PRESET_ROOFTOP:
     default:
       return 2;
   }
@@ -157,33 +158,22 @@ static uint8_t floodRetryEffectiveCount(const NodePrefs* prefs) {
   return constrain(prefs->flood_retry_attempts, (uint8_t)FLOOD_RETRY_COUNT_MIN, (uint8_t)FLOOD_RETRY_COUNT_MAX);
 }
 
-static uint8_t floodRetryPresetForPrefs(const NodePrefs* prefs) {
-  uint8_t count = floodRetryEffectiveCount(prefs);
-  uint8_t path_gate = prefs->flood_retry_path_gate;
-  for (uint8_t preset = DIRECT_RETRY_PRESET_INFRA; preset <= DIRECT_RETRY_PRESET_MOBILE; preset++) {
-    if (count == floodRetryPresetCountDefault(preset) && path_gate == floodRetryPresetPathDefault(preset)) {
-      return preset;
-    }
-  }
-  return directRetryPresetOrDefault(prefs->direct_retry_preset);
-}
-
-static void applyDirectRetryPreset(NodePrefs* prefs, uint8_t preset) {
-  prefs->direct_retry_preset = directRetryPresetOrDefault(preset);
-  switch (prefs->direct_retry_preset) {
-    case DIRECT_RETRY_PRESET_INFRA:
+static void applyRetryPreset(NodePrefs* prefs, uint8_t preset) {
+  prefs->retry_preset = retryPresetOrDefault(preset);
+  switch (prefs->retry_preset) {
+    case RETRY_PRESET_INFRA:
       prefs->direct_retry_base_ms = DIRECT_RETRY_INFRA_BASE_MS;
       prefs->direct_retry_attempts = DIRECT_RETRY_INFRA_COUNT;
       prefs->direct_retry_step_ms = DIRECT_RETRY_INFRA_STEP_MS;
       prefs->direct_retry_snr_margin_db = DIRECT_RETRY_INFRA_MARGIN_X4;
       break;
-    case DIRECT_RETRY_PRESET_MOBILE:
+    case RETRY_PRESET_MOBILE:
       prefs->direct_retry_base_ms = DIRECT_RETRY_MOBILE_BASE_MS;
       prefs->direct_retry_attempts = DIRECT_RETRY_MOBILE_COUNT;
       prefs->direct_retry_step_ms = DIRECT_RETRY_MOBILE_STEP_MS;
       prefs->direct_retry_snr_margin_db = DIRECT_RETRY_MOBILE_MARGIN_X4;
       break;
-    case DIRECT_RETRY_PRESET_ROOFTOP:
+    case RETRY_PRESET_ROOFTOP:
     default:
       prefs->direct_retry_base_ms = DIRECT_RETRY_ROOFTOP_BASE_MS;
       prefs->direct_retry_attempts = DIRECT_RETRY_ROOFTOP_COUNT;
@@ -191,7 +181,13 @@ static void applyDirectRetryPreset(NodePrefs* prefs, uint8_t preset) {
       prefs->direct_retry_snr_margin_db = DIRECT_RETRY_ROOFTOP_MARGIN_X4;
       break;
   }
-  applyFloodRetryPreset(prefs, prefs->direct_retry_preset);
+  applyFloodRetryPreset(prefs, prefs->retry_preset);
+}
+
+static void formatRetryPreset(char* reply, const NodePrefs* prefs) {
+  sprintf(reply, "> %d,%s",
+          (uint32_t)retryPresetOrDefault(prefs->retry_preset),
+          retryPresetName(prefs->retry_preset));
 }
 
 static bool parseFloodRetryPathGate(const char* value, uint8_t& path_gate) {
@@ -316,21 +312,21 @@ static bool parseFloodRetryPrefixList(uint8_t dest[][FLOOD_RETRY_PREFIX_LEN], ui
   return true;
 }
 
-static bool parseDirectRetryPreset(const char* value, uint8_t& preset) {
+static bool parseRetryPreset(const char* value, uint8_t& preset) {
   if (value == NULL) {
     return false;
   }
   if (strcmp(value, "0") == 0 || strcmp(value, "infra") == 0
       || strcmp(value, "infa") == 0 || strcmp(value, "infrastructure") == 0) {
-    preset = DIRECT_RETRY_PRESET_INFRA;
+    preset = RETRY_PRESET_INFRA;
     return true;
   }
   if (strcmp(value, "1") == 0 || strcmp(value, "rooftop") == 0) {
-    preset = DIRECT_RETRY_PRESET_ROOFTOP;
+    preset = RETRY_PRESET_ROOFTOP;
     return true;
   }
   if (strcmp(value, "2") == 0 || strcmp(value, "mobile") == 0) {
-    preset = DIRECT_RETRY_PRESET_MOBILE;
+    preset = RETRY_PRESET_MOBILE;
     return true;
   }
   return false;
@@ -418,7 +414,7 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     file.read((uint8_t *)&_prefs->direct_retry_timing_magic[0], sizeof(_prefs->direct_retry_timing_magic)); // 294
     size_t radio_fem_rxgain_read = file.read((uint8_t *)&_prefs->radio_fem_rxgain,
                                              sizeof(_prefs->radio_fem_rxgain));                  // 296
-    file.read((uint8_t *)&_prefs->direct_retry_preset, sizeof(_prefs->direct_retry_preset));     // 297
+    file.read((uint8_t *)&_prefs->retry_preset, sizeof(_prefs->retry_preset));                   // 297
     size_t retry_step_read = file.read((uint8_t *)&_prefs->direct_retry_step_ms,
                                        sizeof(_prefs->direct_retry_step_ms));                    // 298
     size_t flood_retry_attempts_read = file.read((uint8_t *)&_prefs->flood_retry_attempts,
@@ -432,6 +428,9 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     file.read((uint8_t *)&_prefs->flood_retry_bridge_buckets[0][0][0], sizeof(_prefs->flood_retry_bridge_buckets)); // 329
     size_t flood_retry_ignore_read = file.read((uint8_t *)&_prefs->flood_retry_ignore_prefixes[0][0],
                                                sizeof(_prefs->flood_retry_ignore_prefixes)); // 635
+    _prefs->flood_retry_advert_enabled = FLOOD_RETRY_ADVERT_DEFAULT;
+    size_t flood_retry_advert_read = file.read((uint8_t *)&_prefs->flood_retry_advert_enabled,
+                                               sizeof(_prefs->flood_retry_advert_enabled)); // 659
     // PowerSaving-only prefs stored radio_fem_rxgain at 291, before direct retry timing existed.
     if (radio_fem_rxgain_read != sizeof(_prefs->radio_fem_rxgain)
         && legacy_retry_attempts_read == sizeof(legacy_retry_attempts_or_radio_fem_rxgain)
@@ -487,28 +486,34 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     // sanitise settings
     _prefs->rx_boosted_gain = constrain(_prefs->rx_boosted_gain, 0, 1); // boolean
     _prefs->radio_fem_rxgain = constrain(_prefs->radio_fem_rxgain, 0, 1); // boolean
-    _prefs->direct_retry_preset = directRetryPresetOrDefault(_prefs->direct_retry_preset);
+    _prefs->retry_preset = retryPresetOrDefault(_prefs->retry_preset);
     if (retry_step_read != sizeof(_prefs->direct_retry_step_ms)) {
-      _prefs->direct_retry_step_ms = directRetryPresetStepDefault(_prefs->direct_retry_preset);
+      _prefs->direct_retry_step_ms = retryPresetStepDefault(_prefs->retry_preset);
     } else {
       _prefs->direct_retry_step_ms = constrain(_prefs->direct_retry_step_ms, DIRECT_RETRY_STEP_MS_MIN, DIRECT_RETRY_STEP_MS_MAX);
     }
     if (flood_retry_attempts_read != sizeof(_prefs->flood_retry_attempts)
         || _prefs->flood_retry_prefs_magic[0] != FLOOD_RETRY_PREFS_MAGIC_0
         || _prefs->flood_retry_prefs_magic[1] != FLOOD_RETRY_PREFS_MAGIC_1) {
-      applyFloodRetryPreset(_prefs, _prefs->direct_retry_preset);
+      applyFloodRetryPreset(_prefs, _prefs->retry_preset);
       memset(_prefs->flood_retry_prefixes, 0, sizeof(_prefs->flood_retry_prefixes));
       _prefs->flood_retry_bridge_enabled = 0;
       memset(_prefs->flood_retry_bridge_buckets, 0, sizeof(_prefs->flood_retry_bridge_buckets));
       memset(_prefs->flood_retry_ignore_prefixes, 0, sizeof(_prefs->flood_retry_ignore_prefixes));
+      _prefs->flood_retry_advert_enabled = FLOOD_RETRY_ADVERT_DEFAULT;
     } else {
       _prefs->flood_retry_attempts = constrain(_prefs->flood_retry_attempts, FLOOD_RETRY_COUNT_MIN, FLOOD_RETRY_COUNT_MAX);
       if (_prefs->flood_retry_path_gate > 63 && _prefs->flood_retry_path_gate != FLOOD_RETRY_PATH_GATE_DISABLED) {
-        _prefs->flood_retry_path_gate = floodRetryPresetPathDefault(_prefs->direct_retry_preset);
+        _prefs->flood_retry_path_gate = floodRetryPresetPathDefault(_prefs->retry_preset);
       }
       _prefs->flood_retry_bridge_enabled = constrain(_prefs->flood_retry_bridge_enabled, 0, 1);
       if (flood_retry_ignore_read != sizeof(_prefs->flood_retry_ignore_prefixes)) {
         memset(_prefs->flood_retry_ignore_prefixes, 0, sizeof(_prefs->flood_retry_ignore_prefixes));
+      }
+      if (flood_retry_advert_read != sizeof(_prefs->flood_retry_advert_enabled)) {
+        _prefs->flood_retry_advert_enabled = FLOOD_RETRY_ADVERT_DEFAULT;
+      } else {
+        _prefs->flood_retry_advert_enabled = constrain(_prefs->flood_retry_advert_enabled, 0, 1);
       }
     }
 
@@ -581,7 +586,7 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     uint8_t retry_timing_magic[2] = { DIRECT_RETRY_TIMING_MAGIC_0, DIRECT_RETRY_TIMING_MAGIC_1 };
     file.write(retry_timing_magic, sizeof(retry_timing_magic));                                     // 294
     file.write((uint8_t *)&_prefs->radio_fem_rxgain, sizeof(_prefs->radio_fem_rxgain));            // 296
-    file.write((uint8_t *)&_prefs->direct_retry_preset, sizeof(_prefs->direct_retry_preset));       // 297
+    file.write((uint8_t *)&_prefs->retry_preset, sizeof(_prefs->retry_preset));                     // 297
     file.write((uint8_t *)&_prefs->direct_retry_step_ms, sizeof(_prefs->direct_retry_step_ms));     // 298
     file.write((uint8_t *)&_prefs->flood_retry_attempts, sizeof(_prefs->flood_retry_attempts));     // 300
     file.write((uint8_t *)&_prefs->flood_retry_path_gate, sizeof(_prefs->flood_retry_path_gate));   // 301
@@ -591,7 +596,8 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->flood_retry_bridge_enabled, sizeof(_prefs->flood_retry_bridge_enabled)); // 328
     file.write((uint8_t *)&_prefs->flood_retry_bridge_buckets[0][0][0], sizeof(_prefs->flood_retry_bridge_buckets)); // 329
     file.write((uint8_t *)&_prefs->flood_retry_ignore_prefixes[0][0], sizeof(_prefs->flood_retry_ignore_prefixes)); // 635
-    // next: 659
+    file.write((uint8_t *)&_prefs->flood_retry_advert_enabled, sizeof(_prefs->flood_retry_advert_enabled)); // 659
+    // next: 660
 
     file.close();
   }
@@ -747,6 +753,8 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
         sprintf(reply, "> %s", StrHelper::ftoa(_prefs->tx_delay_factor));
       } else if (memcmp(config, "flood.max", 9) == 0) {
         sprintf(reply, "> %d", (uint32_t)_prefs->flood_max);
+      } else if (memcmp(config, "retry.preset", 12) == 0) {
+        formatRetryPreset(reply, _prefs);
       } else if (memcmp(config, "flood.retry.count", 17) == 0) {
         sprintf(reply, "> %d", (uint32_t)floodRetryEffectiveCount(_prefs));
       } else if (memcmp(config, "flood.retry.path", 16) == 0) {
@@ -759,6 +767,8 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       } else if (memcmp(config, "flood.retry.ignore", 18) == 0) {
         formatFloodRetryPrefixList(tmp, _prefs->flood_retry_ignore_prefixes, FLOOD_RETRY_IGNORE_PREFIXES);
         sprintf(reply, "> %s", tmp[0] ? tmp : "none");
+      } else if (memcmp(config, "flood.retry.advert", 18) == 0) {
+        sprintf(reply, "> %s", _prefs->flood_retry_advert_enabled ? "on" : "off");
       } else if (memcmp(config, "flood.retry.bridge", 18) == 0) {
         sprintf(reply, "> %s", _prefs->flood_retry_bridge_enabled ? "on" : "off");
       } else if (memcmp(config, "flood.retry.bucket.", 19) == 0) {
@@ -769,21 +779,12 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
         } else {
           sprintf(reply, "Error, bucket 1-%d", FLOOD_RETRY_BRIDGE_BUCKETS);
         }
-      } else if (memcmp(config, "flood.retry.preset", 18) == 0) {
-        uint8_t preset = floodRetryPresetForPrefs(_prefs);
-        sprintf(reply, "> %d,%s",
-                (uint32_t)preset,
-                directRetryPresetName(preset));
       } else if (memcmp(config, "direct.txdelay", 14) == 0) {
         sprintf(reply, "> %s", StrHelper::ftoa(_prefs->direct_tx_delay_factor));
       } else if (memcmp(config, "direct.retry.heard", 18) == 0) {
         sprintf(reply, "> %s", _prefs->direct_retry_recent_enabled ? "on" : "off");
       } else if (memcmp(config, "direct.retry.margin", 19) == 0) {
         sprintf(reply, "> %s", StrHelper::ftoa(directRetryMarginX4ToDb(directRetryEffectiveMarginX4(_prefs))));
-      } else if (memcmp(config, "direct.retry.preset", 19) == 0) {
-        sprintf(reply, "> %d,%s",
-                (uint32_t)directRetryPresetOrDefault(_prefs->direct_retry_preset),
-                directRetryPresetName(_prefs->direct_retry_preset));
       } else if (memcmp(config, "direct.retry.count", 18) == 0) {
         sprintf(reply, "> %d", (uint32_t)directRetryEffectiveCount(_prefs));
       } else if (memcmp(config, "direct.retry.base", 17) == 0) {
@@ -1030,10 +1031,10 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
         } else {
           strcpy(reply, "Error, max 64");
         }
-      } else if (memcmp(config, "flood.retry.preset ", 19) == 0) {
+      } else if (memcmp(config, "retry.preset ", 13) == 0) {
         uint8_t preset;
-        if (parseDirectRetryPreset(&config[19], preset)) {
-          applyFloodRetryPreset(_prefs, preset);
+        if (parseRetryPreset(&config[13], preset)) {
+          applyRetryPreset(_prefs, preset);
           savePrefs();
           strcpy(reply, "OK");
         } else {
@@ -1072,6 +1073,18 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
         } else {
           sprintf(reply, "Error, use up to %u comma-separated 3-byte hex prefixes",
                   (unsigned int)FLOOD_RETRY_IGNORE_PREFIXES);
+        }
+      } else if (memcmp(config, "flood.retry.advert ", 19) == 0) {
+        if (memcmp(&config[19], "on", 2) == 0) {
+          _prefs->flood_retry_advert_enabled = 1;
+          savePrefs();
+          strcpy(reply, "OK");
+        } else if (memcmp(&config[19], "off", 3) == 0) {
+          _prefs->flood_retry_advert_enabled = 0;
+          savePrefs();
+          strcpy(reply, "OK");
+        } else {
+          strcpy(reply, "Error, must be on or off");
         }
       } else if (memcmp(config, "flood.retry.bridge ", 19) == 0) {
         if (memcmp(&config[19], "on", 2) == 0) {
@@ -1128,15 +1141,6 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
           strcpy(reply, "OK");
         } else {
           sprintf(reply, "Error, min 0 and max %d", DIRECT_RETRY_SNR_MARGIN_DB_MAX);
-        }
-      } else if (memcmp(config, "direct.retry.preset ", 20) == 0) {
-        uint8_t preset;
-        if (parseDirectRetryPreset(&config[20], preset)) {
-          applyDirectRetryPreset(_prefs, preset);
-          savePrefs();
-          strcpy(reply, "OK");
-        } else {
-          strcpy(reply, "Error, must be infra, rooftop, mobile, 0, 1, or 2");
         }
       } else if (memcmp(config, "direct.retry.count ", 19) == 0) {
         int count = atoi(&config[19]);
@@ -1653,10 +1657,10 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     } else {
       strcpy(reply, "Error, max 64");
     }
-  } else if (memcmp(config, "flood.retry.preset ", 19) == 0) {
+  } else if (memcmp(config, "retry.preset ", 13) == 0) {
     uint8_t preset;
-    if (parseDirectRetryPreset(&config[19], preset)) {
-      applyFloodRetryPreset(_prefs, preset);
+    if (parseRetryPreset(&config[13], preset)) {
+      applyRetryPreset(_prefs, preset);
       savePrefs();
       strcpy(reply, "OK");
     } else {
@@ -1695,6 +1699,18 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     } else {
       sprintf(reply, "Error, use up to %u comma-separated 3-byte hex prefixes",
               (unsigned int)FLOOD_RETRY_IGNORE_PREFIXES);
+    }
+  } else if (memcmp(config, "flood.retry.advert ", 19) == 0) {
+    if (memcmp(&config[19], "on", 2) == 0) {
+      _prefs->flood_retry_advert_enabled = 1;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else if (memcmp(&config[19], "off", 3) == 0) {
+      _prefs->flood_retry_advert_enabled = 0;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error, must be on or off");
     }
   } else if (memcmp(config, "flood.retry.bridge ", 19) == 0) {
     if (memcmp(&config[19], "on", 2) == 0) {
@@ -1751,15 +1767,6 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       strcpy(reply, "OK");
     } else {
       sprintf(reply, "Error, min 0 and max %d", DIRECT_RETRY_SNR_MARGIN_DB_MAX);
-    }
-  } else if (memcmp(config, "direct.retry.preset ", 20) == 0) {
-    uint8_t preset;
-    if (parseDirectRetryPreset(&config[20], preset)) {
-      applyDirectRetryPreset(_prefs, preset);
-      savePrefs();
-      strcpy(reply, "OK");
-    } else {
-      strcpy(reply, "Error, must be infra, rooftop, mobile, 0, 1, or 2");
     }
   } else if (memcmp(config, "direct.retry.count ", 19) == 0) {
     int count = atoi(&config[19]);
@@ -1961,6 +1968,8 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %s", StrHelper::ftoa(_prefs->tx_delay_factor));
   } else if (memcmp(config, "flood.max", 9) == 0) {
     sprintf(reply, "> %d", (uint32_t)_prefs->flood_max);
+  } else if (memcmp(config, "retry.preset", 12) == 0) {
+    formatRetryPreset(reply, _prefs);
   } else if (memcmp(config, "flood.retry.count", 17) == 0) {
     sprintf(reply, "> %d", (uint32_t)floodRetryEffectiveCount(_prefs));
   } else if (memcmp(config, "flood.retry.path", 16) == 0) {
@@ -1973,6 +1982,8 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
   } else if (memcmp(config, "flood.retry.ignore", 18) == 0) {
     formatFloodRetryPrefixList(tmp, _prefs->flood_retry_ignore_prefixes, FLOOD_RETRY_IGNORE_PREFIXES);
     sprintf(reply, "> %s", tmp[0] ? tmp : "none");
+  } else if (memcmp(config, "flood.retry.advert", 18) == 0) {
+    sprintf(reply, "> %s", _prefs->flood_retry_advert_enabled ? "on" : "off");
   } else if (memcmp(config, "flood.retry.bridge", 18) == 0) {
     sprintf(reply, "> %s", _prefs->flood_retry_bridge_enabled ? "on" : "off");
   } else if (memcmp(config, "flood.retry.bucket.", 19) == 0) {
@@ -1983,21 +1994,12 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     } else {
       sprintf(reply, "Error, bucket 1-%d", FLOOD_RETRY_BRIDGE_BUCKETS);
     }
-  } else if (memcmp(config, "flood.retry.preset", 18) == 0) {
-    uint8_t preset = floodRetryPresetForPrefs(_prefs);
-    sprintf(reply, "> %d,%s",
-            (uint32_t)preset,
-            directRetryPresetName(preset));
   } else if (memcmp(config, "direct.txdelay", 14) == 0) {
     sprintf(reply, "> %s", StrHelper::ftoa(_prefs->direct_tx_delay_factor));
   } else if (memcmp(config, "direct.retry.heard", 18) == 0) {
     sprintf(reply, "> %s", _prefs->direct_retry_recent_enabled ? "on" : "off");
   } else if (memcmp(config, "direct.retry.margin", 19) == 0) {
     sprintf(reply, "> %s", StrHelper::ftoa(directRetryMarginX4ToDb(directRetryEffectiveMarginX4(_prefs))));
-  } else if (memcmp(config, "direct.retry.preset", 19) == 0) {
-    sprintf(reply, "> %d,%s",
-            (uint32_t)directRetryPresetOrDefault(_prefs->direct_retry_preset),
-            directRetryPresetName(_prefs->direct_retry_preset));
   } else if (memcmp(config, "direct.retry.count", 18) == 0) {
     sprintf(reply, "> %d", (uint32_t)directRetryEffectiveCount(_prefs));
   } else if (memcmp(config, "direct.retry.base", 17) == 0) {

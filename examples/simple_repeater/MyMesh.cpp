@@ -847,10 +847,10 @@ bool MyMesh::allowDirectRetry(const mesh::Packet* packet, const uint8_t* next_ho
   return true;
 }
 uint8_t MyMesh::getDirectRetryPreset() const {
-  if (_prefs.direct_retry_preset <= DIRECT_RETRY_PRESET_MOBILE) {
-    return _prefs.direct_retry_preset;
+  if (_prefs.retry_preset <= RETRY_PRESET_MOBILE) {
+    return _prefs.retry_preset;
   }
-  return DIRECT_RETRY_PRESET_ROOFTOP;
+  return RETRY_PRESET_ROOFTOP;
 }
 uint8_t MyMesh::getDirectRetryConfiguredMaxAttempts() const {
   return constrain(_prefs.direct_retry_attempts, (uint8_t)1, (uint8_t)15);
@@ -1097,6 +1097,9 @@ uint32_t MyMesh::getDirectRetryEchoDelay(const mesh::Packet* packet) const {
 }
 bool MyMesh::allowFloodRetry(const mesh::Packet* packet) const {
   if (_prefs.disable_fwd || constrain(_prefs.flood_retry_attempts, (uint8_t)0, (uint8_t)3) == 0) {
+    return false;
+  }
+  if (packet != NULL && packet->getPayloadType() == PAYLOAD_TYPE_ADVERT && !_prefs.flood_retry_advert_enabled) {
     return false;
   }
   if (!_prefs.flood_retry_bridge_enabled) {
@@ -1750,10 +1753,11 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.direct_retry_attempts = DIRECT_RETRY_ROOFTOP_COUNT;
   _prefs.direct_retry_base_ms = DIRECT_RETRY_ROOFTOP_BASE_MS;
   _prefs.direct_retry_step_ms = DIRECT_RETRY_ROOFTOP_STEP_MS;
-  _prefs.direct_retry_preset = DIRECT_RETRY_PRESET_ROOFTOP;
+  _prefs.retry_preset = RETRY_PRESET_ROOFTOP;
   _prefs.flood_retry_attempts = 3;
   _prefs.flood_retry_path_gate = 2;
   _prefs.flood_retry_bridge_enabled = 0;
+  _prefs.flood_retry_advert_enabled = 0;
   StrHelper::strncpy(_prefs.node_name, ADVERT_NAME, sizeof(_prefs.node_name));
   _prefs.node_lat = ADVERT_LAT;
   _prefs.node_lon = ADVERT_LON;

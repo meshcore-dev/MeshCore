@@ -570,10 +570,10 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 ---
 
-#### View or change the direct retry timing preset
+#### View or change the retry preset
 **Usage:**
-- `get direct.retry.preset`
-- `set direct.retry.preset <value>`
+- `get retry.preset`
+- `set retry.preset <value>`
 
 **Parameters:**
 - `value`: `infra`|`rooftop`|`mobile` or `0`|`1`|`2`
@@ -581,11 +581,11 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 **Default:** `rooftop` (`1`)
 
 **Presets:**
-- `infra` (`0`): `275 ms` base wait, `4` retries, `150 ms` added per retry, SNR gate is SF floor + `15 dB`
-- `rooftop` (`1`): `175 ms` base wait, `15` retries, `100 ms` added per retry, SNR gate is SF floor + `5 dB`
-- `mobile` (`2`): `175 ms` base wait, `15` retries, `50 ms` added per retry, SNR gate is the SF floor
+- `infra` (`0`): `275 ms` direct base wait, `4` direct retries, `150 ms` added per direct retry, SNR gate is SF floor + `15 dB`; flood retry defaults to `1` retry and path gate `1`
+- `rooftop` (`1`): `175 ms` direct base wait, `15` direct retries, `100 ms` added per direct retry, SNR gate is SF floor + `5 dB`; flood retry defaults to `3` retries and path gate `2`
+- `mobile` (`2`): `175 ms` direct base wait, `15` direct retries, `50 ms` added per direct retry, SNR gate is the SF floor; flood retry defaults to `3` retries and path gate `1`
 
-**Note:** Selecting a preset copies those values into the direct retry settings and also resets flood retry defaults. You can refine `direct.retry.margin`, `direct.retry.count`, `direct.retry.base`, `direct.retry.step`, `flood.retry.count`, or `flood.retry.path` afterward. Retry delay is `direct.txdelay` jitter + base wait + packet-length airtime wait + per-attempt step.
+**Note:** Selecting a preset copies those values into the direct retry settings and resets flood retry defaults. You can refine `direct.retry.margin`, `direct.retry.count`, `direct.retry.base`, `direct.retry.step`, `flood.retry.count`, or `flood.retry.path` afterward. Retry delay is `direct.txdelay` jitter + base wait + packet-length airtime wait + per-attempt step.
 
 ---
 
@@ -754,23 +754,6 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 ---
 
-#### View or change the flood retry preset
-**Usage:**
-- `get flood.retry.preset`
-- `set flood.retry.preset <value>`
-
-**Parameters:**
-- `value`: `infra`|`rooftop`|`mobile` or `0`|`1`|`2`
-
-**Presets:**
-- `infra` (`0`): `1` retry, path gate `1`
-- `rooftop` (`1`): `3` retries, path gate `2`
-- `mobile` (`2`): `3` retries, path gate `1`
-
-**Note:** This applies only the flood retry defaults. `set direct.retry.preset` also resets these flood retry defaults.
-
----
-
 #### View or change the number of flood retry attempts
 **Usage:**
 - `get flood.retry.count`
@@ -794,6 +777,20 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 - `value`: Maximum flood path length eligible for retry (`0`-`63`), or `off` to disable the gate
 
 **Default:** `2` for `rooftop`, `1` for `infra` and `mobile`
+
+---
+
+#### View or change whether advert packets are flood-retried
+**Usage:**
+- `get flood.retry.advert`
+- `set flood.retry.advert <state>`
+
+**Parameters:**
+- `state`: `on` or `off`
+
+**Default:** `off`
+
+**Note:** When this is `off`, node advert packets (`PAYLOAD_TYPE_ADVERT`, type `4`) are not queued for flood retry.
 
 ---
 
