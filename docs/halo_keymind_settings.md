@@ -5,7 +5,6 @@ This file covers only CLI settings added by the Halo or Keymind branches. Use
 
 ## Quick Start
 
-Use this baseline when bringing a Halo or Keymind repeater onto the network:
 
 ```text
 set retry.preset rooftop
@@ -26,17 +25,7 @@ get flood.retry.prefixes
 get flood.retry.ignore
 ```
 
-Use prefixes from debug logs such as `path=7773D0>BEEBB0` or `heard=C7618C`. Prefix lists are comma-separated hex values, for example `71CE82,C7618C`.
-
-## Prefix Worksheet
-
-Keep Halo and Keymind prefixes in one place before programming buckets or ignore lists.
-
-| Network | Prefix | Node or site | Use | Notes |
-| --- | --- | --- | --- | --- |
-| Halo | `A1B2C3` | example remote relay | bucket/target | Replace with real prefix |
-| Keymind | `71CE82` | example observed relay | ignore/target | Replace with real prefix |
-| Keymind | `C7618C` | example observed relay | ignore/target | Replace with real prefix |
+Use prefixes from the analyzer or neighbors list or `get recent.repeater` after the repeater has been online for a few hours.  
 
 ## Common Examples
 
@@ -47,21 +36,23 @@ set flood.retry.advert off
 get flood.retry.advert
 ```
 
-Ignore a relay as a successful flood retry echo:
+Ignore a repeater as a successful flood retry echo:  
+Use this if you have a car repeater and a house repeater; have the house ignore the car.  
 
 ```text
 set flood.retry.ignore 71CE82,C7618C
 get flood.retry.ignore
 ```
 
-Only accept specific downstream relays as flood retry success:
+Only accept specific downstream relays as flood retry success:  
+You're in a hole and need to hit a mountain top repeater to get out; keep trying till one you see one of these send out your packet.  
 
 ```text
-set flood.retry.prefixes BEEBB0,425E5C
+set flood.retry.prefixes A58296,860CCA,425E5C
 get flood.retry.prefixes
 ```
 
-Bridge two groups of repeaters:
+Bridge two groups of repeaters:  
 
 ```text
 set flood.retry.bridge on
@@ -102,7 +93,7 @@ get recent.repeater 2
 Seed or correct a prefix:
 
 ```text
-set recent.repeater A1B2C3 -8.5
+set recent.repeater A1B2C3 8.5
 ```
 
 Rows are sorted by prefix width, then SNR. A full direct retry failure lowers
@@ -167,30 +158,13 @@ The shared retry preset sets these flood defaults:
 | `rooftop` | `3` | `2` |
 | `mobile` | `3` | `1` |
 
-Example for Keymind path-gated retry:
+Example for path-gated retry:
 
 ```text
 set retry.preset rooftop
 set flood.retry.path 1
 set flood.retry.advert off
 set flood.retry.ignore 71CE82,C7618C
-```
-
-Example for Halo targeted retry:
-
-```text
-set flood.retry.bridge off
-set flood.retry.prefixes A1B2C3,D4E5F6
-set flood.retry.ignore none
-```
-
-Example for Halo/Keymind bridge retry:
-
-```text
-set flood.retry.bridge on
-set flood.retry.bucket 1 A1B2C3,D4E5F6
-set flood.retry.bucket 2 71CE82,C7618C
-set flood.retry.advert off
 ```
 
 ## North South Buckets
@@ -302,7 +276,6 @@ set direct.retry.count 4
 If retries are too sparse:
 
 ```text
-set retry.preset rooftop
-set flood.retry.count 3
+set flood.retry.count 7
 set flood.retry.path 2
 ```
