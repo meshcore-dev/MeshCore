@@ -80,6 +80,22 @@ void Dispatcher::loop() {
   }
   if (!is_recv && _ms->getMillis() - radio_nonrx_start > 8000) {   // radio has not been in Rx mode for 8 seconds!
     _err_flags |= ERR_EVENT_STARTRX_TIMEOUT;
+    
+    // Attempt recovery: if a TX is stuck, force-release it so the
+    // radio can go back into RX mode via checkRecv() → recvRaw().
+    if (outbound) {
+      MESH_DEBUG_PRINTLN("%s Dispatcher::loop(): radio stuck — force-releasing stuck outbound TX", getLogDateTime());
+      _radio->onSendFinished();
+      logTxFail(outbound, 2 + outbound->getPathByteLen() + outbound->payload_len);
+      releasePacket(outbound);
+      outbound = NULL;
+    } else {
+      // No outbound but radio still not in RX — force a sleep/idle cycle
+      // to reset the SX1262 state machine, then let recvRaw() restart RX.
+      MESH_DEBUG_PRINTLN("%s Dispatcher::loop(): radio stuck — forcing radio reset", getLogDateTime());
+      _radio->resetAGC();
+    }
+    radio_nonrx_start = _ms->getMillis();  // avoid firing every loop iteration
   }
 
   if (outbound) {  // waiting for outbound send to be completed
