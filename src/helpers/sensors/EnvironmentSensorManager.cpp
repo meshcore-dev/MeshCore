@@ -56,10 +56,10 @@ static Adafruit_BMP280 BMP280(TELEM_WIRE);
 static Adafruit_SHTC3 SHTC3;
 #endif
 
-#if ENV_INCLUDE_SHT3X
-#define TELEM_SHT3X_ADDRESS 0x44
-#include <Adafruit_SHTC3.h>
-static Adafruit_SHTC3 SHTC3;
+#if ENV_INCLUDE_SHT31
+#define TELEM_SHT31_ADDRESS 0x44
+#include <Adafruit_SHT31.h>
+static Adafruit_SHT31 SHT31;
 #endif
 
 #if ENV_INCLUDE_SHT4X
@@ -275,15 +275,14 @@ static void query_shtc3(uint8_t ch, uint8_t, CayenneLPP& lpp) {
   lpp.addRelativeHumidity(ch, humidity.relative_humidity);
 }
 #endif
-#if ENV_INCLUDE_SHT3X
-static uint8_t init_sht3x(TwoWire* wire, uint8_t) {
-  return SHT3X.begin(wire) ? 1 : 0;
+
+#if ENV_INCLUDE_SHT31
+static uint8_t init_sht31(TwoWire* wire, uint8_t) {
+  return SHT31.begin(wire) ? 1 : 0;
 }
-static void query_sht3x(uint8_t ch, uint8_t, CayenneLPP& lpp) {
-  sensors_event_t humidity, temp;
-  SHT3X.getEvent(&humidity, &temp);
-  lpp.addTemperature(ch, temp.temperature);
-  lpp.addRelativeHumidity(ch, humidity.relative_humidity);
+static void query_sht31(uint8_t ch, uint8_t, CayenneLPP& lpp) {
+  lpp.addTemperature(ch, SHT31.readTemperature());
+  lpp.addRelativeHumidity(ch, SHT31.readHumidity());
 }
 #endif
 
@@ -484,8 +483,8 @@ static const SensorDef SENSOR_TABLE[] = {
 #if ENV_INCLUDE_SHTC3
   { 0x70,                  "SHTC3",        init_shtc3,    query_shtc3    },
 #endif
-#if ENV_INCLUDE_SHT3X
-  { TELEM_SHT3X_ADDRESS,   "SHT3X",        init_sht3x,    query_sht3x    },
+#if ENV_INCLUDE_SHT31
+  { TELEM_SHT31_ADDRESS,   "SHT31",        init_sht31,    query_sht31    },
 #endif
 #if ENV_INCLUDE_SHT4X
   { TELEM_SHT4X_ADDRESS,   "SHT4X",        init_sht4x,    query_sht4x    },
