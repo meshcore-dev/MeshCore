@@ -559,18 +559,18 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 #### View or change adaptive coding rate for direct retry packets
 **Usage:**
 - `get direct.retry.cr`
-- `set direct.retry.cr <cr4_min>,<cr5_min>,<cr8_max>`
-- `set direct.retry.cr <cr4_min>,<cr5_min>,<low>,<low>`
+- `set direct.retry.cr <cr4_min>,<cr5_min>,<cr7_min>,<cr8_max>`
+- `set direct.retry.cr off`
 
 **Parameters:**
 - `cr4_min`: SNR in dB where retry packets use `CR4`
 - `cr5_min`: SNR in dB where retry packets use `CR5`
+- `cr7_min`: SNR in dB where retry packets use `CR7`
 - `cr8_max`: SNR in dB where retry packets use `CR8`
-- `low`: optional repeated low boundary; both low values must match
 
 **Default:** `10.0,7.5,2.5,2.5`
 
-**Note:** DM retry packets with a recent repeater table entry use that entry's SNR to pick a local transmit coding rate. With the default, SNR `10.0 dB` and up uses `CR4`, SNR `7.5 dB` and up uses `CR5`, SNR `2.5 dB` and down uses `CR8`, and the middle band uses `CR7`. `CR6` is never selected. The shorter form `set direct.retry.cr 10.0,7.5,2.5` is equivalent to `set direct.retry.cr 10.0,7.5,2.5,2.5`.
+**Note:** DM retry packets use the next-hop SNR from a recent repeater table entry to pick a local transmit coding rate; if no recent entry is available, retry packets use `CR5`. With the default, SNR `10.0 dB` and up uses `CR4`, SNR `7.5 dB` and up uses `CR5`, SNR `2.5 dB` and down uses `CR8`, and the middle band uses `CR7`. `CR6` is never selected. Use `set direct.retry.cr off` to disable adaptive coding-rate overrides. If adaptive selection chooses `CR4`, retries after the third attempt use `CR5`.
 
 ---
 
@@ -778,7 +778,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 - `set flood.retry.count <value>`
 
 **Parameters:**
-- `value`: Maximum retry attempts after initial flood TX (`0`-`3`)
+- `value`: Maximum retry attempts after initial flood TX (`0`-`15`)
 
 **Default:** `3` for `rooftop` and `mobile`, `1` for `infra`
 

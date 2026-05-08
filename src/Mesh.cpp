@@ -6,6 +6,7 @@ namespace mesh {
 static const uint8_t DIRECT_RETRY_MAX_ATTEMPTS_DEFAULT = 15;
 static const uint8_t DIRECT_RETRY_MAX_ATTEMPTS_HARD_MAX = 15;
 static const uint8_t FLOOD_RETRY_MAX_ATTEMPTS_DEFAULT = 3;
+static const uint8_t FLOOD_RETRY_MAX_ATTEMPTS_HARD_MAX = 15;
 
 static uint8_t decodeTraceHashSize(uint8_t flags, uint8_t route_bytes) {
   uint8_t code = flags & 0x03;
@@ -966,8 +967,8 @@ void Mesh::armFloodRetryOnSendComplete(const Packet* packet) {
       uint8_t max_attempts = getFloodRetryMaxAttempts(packet);
       if (max_attempts < 1) {
         max_attempts = 1;
-      } else if (max_attempts > FLOOD_RETRY_MAX_ATTEMPTS_DEFAULT) {
-        max_attempts = FLOOD_RETRY_MAX_ATTEMPTS_DEFAULT;
+      } else if (max_attempts > FLOOD_RETRY_MAX_ATTEMPTS_HARD_MAX) {
+        max_attempts = FLOOD_RETRY_MAX_ATTEMPTS_HARD_MAX;
       }
       if (_flood_retries[i].retry_attempts_sent >= max_attempts) {
         Packet* final_wait = obtainNewPacket();

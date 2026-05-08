@@ -111,6 +111,15 @@ Direct retry applies to direct-routed packets. A queued resend is canceled when 
 | `direct.retry.count` | Maximum direct retry attempts after initial TX. | `get direct.retry.count`, `set direct.retry.count <1-15>` | `set direct.retry.count 15` |
 | `direct.retry.base` | Base wait in milliseconds before retry. | `get direct.retry.base`, `set direct.retry.base <10-5000>` | `set direct.retry.base 175` |
 | `direct.retry.step` | Milliseconds added per retry attempt. | `get direct.retry.step`, `set direct.retry.step <0-5000>` | `set direct.retry.step 100` |
+| `direct.retry.cr` | Adaptive coding-rate thresholds for direct retry packets. Uses `CR4`, `CR5`, `CR7`, or `CR8`; `CR6` is never selected. | `get direct.retry.cr`, `set direct.retry.cr <cr4_min>,<cr5_min>,<cr7_min>,<cr8_max>`, `set direct.retry.cr off` | `set direct.retry.cr 10.0,7.5,2.5,0` |
+
+The default adaptive coding-rate profile is `10.0,7.5,2.5,2.5`.
+SNR `10.0 dB` and up uses `CR4`, `7.5 dB` and up uses `CR5`,
+`2.5 dB` and down uses `CR8`, and the middle band uses `CR7`. If no
+recent repeater table entry is available, retry packets use `CR5`. Use
+`set direct.retry.cr off` to disable adaptive coding-rate overrides. If
+adaptive selection chooses `CR4`, retries after the third attempt use
+`CR5`.
 
 Preset details:
 
@@ -141,7 +150,7 @@ Flood retry applies to flood-routed packets. A queued retry is canceled when a q
 
 | Setting | What it does | How to use | Example |
 | --- | --- | --- | --- |
-| `flood.retry.count` | Maximum flood retry attempts after initial TX. `0` disables flood retry. | `get flood.retry.count`, `set flood.retry.count <0-3>` | `set flood.retry.count 3` |
+| `flood.retry.count` | Maximum flood retry attempts after initial TX. `0` disables flood retry. | `get flood.retry.count`, `set flood.retry.count <0-15>` | `set flood.retry.count 7` |
 | `flood.retry.path` | Maximum path hash count eligible for flood retry, or `off` to disable the gate. | `get flood.retry.path`, `set flood.retry.path <0-63/off>` | `set flood.retry.path 1` |
 | `flood.retry.advert` | Allows or blocks retry for node advert packets (`type=4`). Default is `off`. | `get flood.retry.advert`, `set flood.retry.advert on/off` | `set flood.retry.advert off` |
 | `flood.retry.prefixes` | Target prefixes. If set, only matching downstream echoes cancel a retry. | `get flood.retry.prefixes`, `set flood.retry.prefixes <prefixes/none/off>` | `set flood.retry.prefixes BEEBB0,425E5C` |

@@ -65,6 +65,7 @@
 
 #define DIRECT_RETRY_CR4_MIN_SNR_X4_DEFAULT  40  // 10.0 dB and up => CR4
 #define DIRECT_RETRY_CR5_MIN_SNR_X4_DEFAULT  30  //  7.5 dB and up => CR5
+#define DIRECT_RETRY_CR7_MIN_SNR_X4_DEFAULT  10  //  2.5 dB and up => CR7
 #define DIRECT_RETRY_CR8_MAX_SNR_X4_DEFAULT  10  //  2.5 dB and down => CR8
 #define DIRECT_RETRY_CR_SNR_X4_MIN         -128
 #define DIRECT_RETRY_CR_SNR_X4_MAX          127
@@ -129,6 +130,7 @@ struct NodePrefs { // persisted to file
   uint8_t flood_retry_advert_enabled;
   int8_t direct_retry_cr4_snr_x4;
   int8_t direct_retry_cr5_snr_x4;
+  int8_t direct_retry_cr7_snr_x4;
   int8_t direct_retry_cr8_snr_x4;
 };
 
