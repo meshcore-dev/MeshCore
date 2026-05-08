@@ -24,6 +24,15 @@ public:
     int sf = ((CustomSX1262 *)_radio)->spreadingFactor;
     return packetScoreInt(snr, sf, packet_len);
   }
+  bool setCodingRate(uint8_t cr) override {
+    idle();
+    int err = ((CustomSX1262 *)_radio)->setCodingRate(cr);
+    if (err != RADIOLIB_ERR_NONE) {
+      MESH_DEBUG_PRINTLN("CustomSX1262Wrapper: error: setCodingRate(%d)=%d", (uint32_t)cr, err);
+      return false;
+    }
+    return true;
+  }
   virtual void powerOff() override {
     ((CustomSX1262 *)_radio)->sleep(false);
   }
