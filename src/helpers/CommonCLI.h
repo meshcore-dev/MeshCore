@@ -61,6 +61,7 @@ struct NodePrefs { // persisted to file
   uint8_t rx_boosted_gain; // power settings
   uint8_t path_hash_mode;   // which path mode to use when sending
   uint8_t loop_detect;
+  uint16_t clock_trust_thresh; // seconds; min |advert_ts - local_ts| diff that triggers a step from a trusted clock source (0 disables)
 };
 
 class CommonCLICallbacks {

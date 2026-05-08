@@ -34,6 +34,7 @@
 #include <helpers/TxtDataHelpers.h>
 #include <helpers/RegionMap.h>
 #include "RateLimiter.h"
+#include "TrustedClockTable.h"
 
 #ifdef WITH_BRIDGE
 extern AbstractBridge* bridge;
@@ -60,6 +61,12 @@ struct RepeaterStats {
 #ifndef MAX_CLIENTS
   #define MAX_CLIENTS           32
 #endif
+
+#define TRUSTED_CLOCKS_FILE     "/trusted_clocks"
+
+// Minimum CLI reply buffer size that all callers of MyMesh::handleCommand must allocate.
+// Used by format helpers as a conservative bound for snprintf-style writes.
+#define MIN_CLI_REPLY_LEN       160
 
 struct NeighbourInfo {
   mesh::Identity id;
@@ -106,6 +113,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
 #if MAX_NEIGHBOURS
   NeighbourInfo neighbours[MAX_NEIGHBOURS];
 #endif
+  TrustedClockTable clock_trust;
   CayenneLPP telemetry;
   unsigned long set_radio_at, revert_radio_at;
   float pending_freq;
@@ -120,6 +128,13 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
 #endif
 
   void putNeighbour(const mesh::Identity& id, uint32_t timestamp, float snr);
+
+  void loadTrustedClocks();
+  void saveTrustedClocks();
+  void formatTrustedClocksReply(char* reply, size_t reply_size);
+  void formatSyncEventsReply(char* reply, size_t reply_size);
+  void maybeStepClockFromTrustedAdvert(const mesh::Identity& id, uint32_t advert_timestamp);
+
   uint8_t handleLoginReq(const mesh::Identity& sender, const uint8_t* secret, uint32_t sender_timestamp, const uint8_t* data, bool is_flood);
   uint8_t handleAnonRegionsReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data);
   uint8_t handleAnonOwnerReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data);
