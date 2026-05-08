@@ -277,8 +277,8 @@ static void query_shtc3(uint8_t ch, uint8_t, CayenneLPP& lpp) {
 #endif
 
 #if ENV_INCLUDE_SHT31
-static uint8_t init_sht31(TwoWire* wire, uint8_t) {
-  return SHT31.begin(wire) ? 1 : 0;
+static uint8_t init_sht31(TwoWire* wire, uint8_t addr) {
+  return SHT31.begin(addr) ? 1 : 0;
 }
 static void query_sht31(uint8_t ch, uint8_t, CayenneLPP& lpp) {
   lpp.addTemperature(ch, SHT31.readTemperature());
