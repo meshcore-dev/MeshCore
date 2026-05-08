@@ -21,6 +21,15 @@ public:
     int sf = ((CustomSTM32WLx *)_radio)->spreadingFactor;
     return packetScoreInt(snr, sf, packet_len);
   }
+  bool setCodingRate(uint8_t cr) override {
+    idle();
+    int err = ((CustomSTM32WLx *)_radio)->setCodingRate(cr);
+    if (err != RADIOLIB_ERR_NONE) {
+      MESH_DEBUG_PRINTLN("CustomSTM32WLxWrapper: error: setCodingRate(%d)=%d", (uint32_t)cr, err);
+      return false;
+    }
+    return true;
+  }
 
   void doResetAGC() override { sx126xResetAGC((SX126x *)_radio); }
 };

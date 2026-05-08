@@ -698,16 +698,19 @@ void Mesh::armDirectRetryOnSendComplete(const Packet* packet) {
         }
 
         *retry = *packet;
+        retry->tx_cr = 0;
+        uint8_t retry_attempt = _direct_retries[i].retry_attempts_sent + 1;
+        configureDirectRetryPacket(retry, packet, retry_attempt);
         uint32_t retry_delay = getDirectRetryAttemptDelay(packet, _direct_retries[i].retry_attempts_sent);
         if (queueOutboundPacket(retry, _direct_retries[i].priority, retry_delay)) {
           _direct_retries[i].packet = retry;
           _direct_retries[i].retry_delay = retry_delay;
           _direct_retries[i].retry_at = futureMillis(retry_delay);
           _direct_retries[i].waiting_final_echo = false;
-          onDirectRetryEvent("queued", retry, retry_delay, _direct_retries[i].retry_attempts_sent + 1);
+          onDirectRetryEvent("queued", retry, retry_delay, retry_attempt);
         } else {
-          onDirectRetryEvent("dropped_queue_full", retry, retry_delay, _direct_retries[i].retry_attempts_sent + 1);
-          onDirectRetryEvent("failure", retry, elapsed_millis, _direct_retries[i].retry_attempts_sent + 1);
+          onDirectRetryEvent("dropped_queue_full", retry, retry_delay, retry_attempt);
+          onDirectRetryEvent("failure", retry, elapsed_millis, retry_attempt);
           releasePacket(retry);
           clearDirectRetrySlot(i);
         }
@@ -729,6 +732,8 @@ void Mesh::armDirectRetryOnSendComplete(const Packet* packet) {
     }
 
     *retry = *packet;
+    retry->tx_cr = 0;
+    configureDirectRetryPacket(retry, packet, 1);
 
     // Start the echo wait only after the initial direct transmission actually completed.
     if (queueOutboundPacket(retry, _direct_retries[i].priority, _direct_retries[i].retry_delay)) {

@@ -196,6 +196,11 @@ protected:
   virtual void onDirectRetryEvent(const char* event, const Packet* packet, uint32_t delay_millis, uint8_t retry_attempt) { }
 
   /**
+   * \brief  Optional hook to set local-only transmit options on a retry packet before it is queued.
+   */
+  virtual void configureDirectRetryPacket(Packet* retry, const Packet* original, uint8_t retry_attempt) { }
+
+  /**
    * \brief  Perform search of local DB of peers/contacts.
    * \returns  Number of peers with matching hash
    */

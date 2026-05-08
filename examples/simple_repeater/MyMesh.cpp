@@ -846,6 +846,55 @@ bool MyMesh::allowDirectRetry(const mesh::Packet* packet, const uint8_t* next_ho
 
   return true;
 }
+uint8_t MyMesh::getDirectRetryCodingRateForSNR(int8_t snr_x4) const {
+  if (snr_x4 >= _prefs.direct_retry_cr4_snr_x4) {
+    return 4;
+  }
+  if (snr_x4 >= _prefs.direct_retry_cr5_snr_x4) {
+    return 5;
+  }
+  if (snr_x4 <= _prefs.direct_retry_cr8_snr_x4) {
+    return 8;
+  }
+  return 7;
+}
+void MyMesh::configureDirectRetryPacket(mesh::Packet* retry, const mesh::Packet* original, uint8_t retry_attempt) {
+  (void) original;
+  (void) retry_attempt;
+
+  if (retry == NULL || !retry->isRouteDirect()) {
+    return;
+  }
+
+  switch (retry->getPayloadType()) {
+    case PAYLOAD_TYPE_ACK:
+    case PAYLOAD_TYPE_PATH:
+    case PAYLOAD_TYPE_REQ:
+    case PAYLOAD_TYPE_RESPONSE:
+    case PAYLOAD_TYPE_TXT_MSG:
+    case PAYLOAD_TYPE_ANON_REQ:
+    case PAYLOAD_TYPE_MULTIPART:
+      break;
+    default:
+      return;
+  }
+
+  uint8_t prefix[MAX_ROUTE_HASH_BYTES];
+  uint8_t prefix_len = 0;
+  if (!extractDirectRetryPrefix(retry, prefix, prefix_len)) {
+    return;
+  }
+
+  const auto* recent = ((const SimpleMeshTables *)getTables())->findRecentRepeaterByHash(prefix, prefix_len);
+  if (recent == NULL) {
+    return;
+  }
+
+  uint8_t retry_cr = getDirectRetryCodingRateForSNR(recent->snr_x4);
+  if (retry_cr >= 4 && retry_cr <= 8 && retry_cr != active_cr) {
+    retry->tx_cr = retry_cr;
+  }
+}
 uint8_t MyMesh::getDirectRetryPreset() const {
   if (_prefs.retry_preset <= RETRY_PRESET_MOBILE) {
     return _prefs.retry_preset;
@@ -1758,6 +1807,9 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.flood_retry_path_gate = 2;
   _prefs.flood_retry_bridge_enabled = 0;
   _prefs.flood_retry_advert_enabled = 0;
+  _prefs.direct_retry_cr4_snr_x4 = DIRECT_RETRY_CR4_MIN_SNR_X4_DEFAULT;
+  _prefs.direct_retry_cr5_snr_x4 = DIRECT_RETRY_CR5_MIN_SNR_X4_DEFAULT;
+  _prefs.direct_retry_cr8_snr_x4 = DIRECT_RETRY_CR8_MAX_SNR_X4_DEFAULT;
   StrHelper::strncpy(_prefs.node_name, ADVERT_NAME, sizeof(_prefs.node_name));
   _prefs.node_lat = ADVERT_LAT;
   _prefs.node_lon = ADVERT_LON;
