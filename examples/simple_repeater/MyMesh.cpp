@@ -744,7 +744,8 @@ void MyMesh::onDirectRetryEvent(const char* event, const mesh::Packet* packet, u
     time_label = "echo_ms";
   }
 
-  MESH_DEBUG_PRINTLN("%s direct retry %s (retry=%u, type=%d, route=%s, payload_len=%d, hop=%s, next_hop=%s, pkt=%s, tbl=%s, %s=%lu)",
+  uint8_t log_cr = (packet->tx_cr >= 4 && packet->tx_cr <= 8) ? packet->tx_cr : active_cr;
+  MESH_DEBUG_PRINTLN("%s direct retry %s (retry=%u, type=%d, route=%s, payload_len=%d, hop=%s, next_hop=%s, pkt=%s, tbl=%s, cr=%u, %s=%lu)",
                      getLogDateTime(),
                      event,
                      (unsigned int)retry_attempt,
@@ -755,6 +756,7 @@ void MyMesh::onDirectRetryEvent(const char* event, const mesh::Packet* packet, u
                      next_hop,
                      snr_pkt_text,
                      snr_table_text,
+                     (unsigned int)log_cr,
                      time_label,
                      (unsigned long)delay_millis);
 
@@ -762,7 +764,7 @@ void MyMesh::onDirectRetryEvent(const char* event, const mesh::Packet* packet, u
     File f = openAppend(PACKET_LOG_FILE);
     if (f) {
       f.print(getLogDateTime());
-      f.printf(": DIRECT RETRY %s (retry=%u, type=%d, route=%s, payload_len=%d, hop=%s, next_hop=%s, pkt=%s, tbl=%s, %s=%lu)\n",
+      f.printf(": DIRECT RETRY %s (retry=%u, type=%d, route=%s, payload_len=%d, hop=%s, next_hop=%s, pkt=%s, tbl=%s, cr=%u, %s=%lu)\n",
                event,
                (unsigned int)retry_attempt,
                (uint32_t)packet->getPayloadType(),
@@ -772,6 +774,7 @@ void MyMesh::onDirectRetryEvent(const char* event, const mesh::Packet* packet, u
                next_hop,
                snr_pkt_text,
                snr_table_text,
+               (unsigned int)log_cr,
                time_label,
                (unsigned long)delay_millis);
       f.close();
@@ -847,6 +850,12 @@ bool MyMesh::allowDirectRetry(const mesh::Packet* packet, const uint8_t* next_ho
   return true;
 }
 uint8_t MyMesh::getDirectRetryCodingRateForSNR(int8_t snr_x4) const {
+  if (_prefs.direct_retry_cr4_snr_x4 == 0
+      && _prefs.direct_retry_cr5_snr_x4 == 0
+      && _prefs.direct_retry_cr7_snr_x4 == 0
+      && _prefs.direct_retry_cr8_snr_x4 == 0) {
+    return 0;
+  }
   if (snr_x4 >= _prefs.direct_retry_cr4_snr_x4) {
     return 4;
   }
@@ -856,11 +865,13 @@ uint8_t MyMesh::getDirectRetryCodingRateForSNR(int8_t snr_x4) const {
   if (snr_x4 <= _prefs.direct_retry_cr8_snr_x4) {
     return 8;
   }
+  if (snr_x4 >= _prefs.direct_retry_cr7_snr_x4) {
+    return 7;
+  }
   return 7;
 }
 void MyMesh::configureDirectRetryPacket(mesh::Packet* retry, const mesh::Packet* original, uint8_t retry_attempt) {
   (void) original;
-  (void) retry_attempt;
 
   if (retry == NULL || !retry->isRouteDirect()) {
     return;
@@ -873,6 +884,7 @@ void MyMesh::configureDirectRetryPacket(mesh::Packet* retry, const mesh::Packet*
     case PAYLOAD_TYPE_RESPONSE:
     case PAYLOAD_TYPE_TXT_MSG:
     case PAYLOAD_TYPE_ANON_REQ:
+    case PAYLOAD_TYPE_TRACE:
     case PAYLOAD_TYPE_MULTIPART:
       break;
     default:
@@ -885,13 +897,20 @@ void MyMesh::configureDirectRetryPacket(mesh::Packet* retry, const mesh::Packet*
     return;
   }
 
-  const auto* recent = ((const SimpleMeshTables *)getTables())->findRecentRepeaterByHash(prefix, prefix_len);
-  if (recent == NULL) {
+  if (_prefs.direct_retry_cr4_snr_x4 == 0
+      && _prefs.direct_retry_cr5_snr_x4 == 0
+      && _prefs.direct_retry_cr7_snr_x4 == 0
+      && _prefs.direct_retry_cr8_snr_x4 == 0) {
     return;
   }
 
-  uint8_t retry_cr = getDirectRetryCodingRateForSNR(recent->snr_x4);
-  if (retry_cr >= 4 && retry_cr <= 8 && retry_cr != active_cr) {
+  const auto* recent = ((const SimpleMeshTables *)getTables())->findRecentRepeaterByHash(prefix, prefix_len);
+  uint8_t retry_cr = (recent != NULL) ? getDirectRetryCodingRateForSNR(recent->snr_x4) : 5;
+  if (retry_cr == 4 && retry_attempt > 3) {
+    retry_cr = 5;
+  }
+
+  if (retry_cr >= 4 && retry_cr <= 8 && retry_cr != 6 && retry_cr != active_cr) {
     retry->tx_cr = retry_cr;
   }
 }
@@ -1294,6 +1313,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.direct_retry_preset = DIRECT_RETRY_PRESET_ROOFTOP;
   _prefs.direct_retry_cr4_snr_x4 = DIRECT_RETRY_CR4_MIN_SNR_X4_DEFAULT;
   _prefs.direct_retry_cr5_snr_x4 = DIRECT_RETRY_CR5_MIN_SNR_X4_DEFAULT;
+  _prefs.direct_retry_cr7_snr_x4 = DIRECT_RETRY_CR7_MIN_SNR_X4_DEFAULT;
   _prefs.direct_retry_cr8_snr_x4 = DIRECT_RETRY_CR8_MAX_SNR_X4_DEFAULT;
   StrHelper::strncpy(_prefs.node_name, ADVERT_NAME, sizeof(_prefs.node_name));
   _prefs.node_lat = ADVERT_LAT;

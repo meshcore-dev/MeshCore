@@ -92,29 +92,53 @@ static float directRetryCrX4ToDb(int8_t snr_x4) {
 static void setDirectRetryCrDefaults(NodePrefs* prefs) {
   prefs->direct_retry_cr4_snr_x4 = DIRECT_RETRY_CR4_MIN_SNR_X4_DEFAULT;
   prefs->direct_retry_cr5_snr_x4 = DIRECT_RETRY_CR5_MIN_SNR_X4_DEFAULT;
+  prefs->direct_retry_cr7_snr_x4 = DIRECT_RETRY_CR7_MIN_SNR_X4_DEFAULT;
   prefs->direct_retry_cr8_snr_x4 = DIRECT_RETRY_CR8_MAX_SNR_X4_DEFAULT;
 }
 
-static bool directRetryCrThresholdsAreValid(int8_t cr4_snr_x4, int8_t cr5_snr_x4, int8_t cr8_snr_x4) {
-  return (cr4_snr_x4 != 0 || cr5_snr_x4 != 0 || cr8_snr_x4 != 0)
-      && cr4_snr_x4 >= cr5_snr_x4
-      && cr5_snr_x4 >= cr8_snr_x4;
+static void setDirectRetryCrOff(NodePrefs* prefs) {
+  prefs->direct_retry_cr4_snr_x4 = 0;
+  prefs->direct_retry_cr5_snr_x4 = 0;
+  prefs->direct_retry_cr7_snr_x4 = 0;
+  prefs->direct_retry_cr8_snr_x4 = 0;
+}
+
+static bool directRetryCrThresholdsAreOff(int8_t cr4_snr_x4, int8_t cr5_snr_x4, int8_t cr7_snr_x4, int8_t cr8_snr_x4) {
+  return cr4_snr_x4 == 0 && cr5_snr_x4 == 0 && cr7_snr_x4 == 0 && cr8_snr_x4 == 0;
+}
+
+static bool directRetryCrThresholdsAreValid(int8_t cr4_snr_x4, int8_t cr5_snr_x4, int8_t cr7_snr_x4, int8_t cr8_snr_x4) {
+  return directRetryCrThresholdsAreOff(cr4_snr_x4, cr5_snr_x4, cr7_snr_x4, cr8_snr_x4)
+      || ((cr4_snr_x4 != 0 || cr5_snr_x4 != 0 || cr7_snr_x4 != 0 || cr8_snr_x4 != 0)
+          && cr4_snr_x4 >= cr5_snr_x4
+          && cr5_snr_x4 >= cr7_snr_x4
+          && cr7_snr_x4 >= cr8_snr_x4);
 }
 
 static void sanitizeDirectRetryCrThresholds(NodePrefs* prefs) {
   if (!directRetryCrThresholdsAreValid(prefs->direct_retry_cr4_snr_x4,
                                        prefs->direct_retry_cr5_snr_x4,
+                                       prefs->direct_retry_cr7_snr_x4,
                                        prefs->direct_retry_cr8_snr_x4)) {
     setDirectRetryCrDefaults(prefs);
   }
 }
 
 static void formatDirectRetryCrThresholds(const NodePrefs* prefs, char* reply) {
-  char cr4[12], cr5[12], cr8[12];
+  if (directRetryCrThresholdsAreOff(prefs->direct_retry_cr4_snr_x4,
+                                    prefs->direct_retry_cr5_snr_x4,
+                                    prefs->direct_retry_cr7_snr_x4,
+                                    prefs->direct_retry_cr8_snr_x4)) {
+    strcpy(reply, "> off");
+    return;
+  }
+
+  char cr4[12], cr5[12], cr7[12], cr8[12];
   strcpy(cr4, StrHelper::ftoa(directRetryCrX4ToDb(prefs->direct_retry_cr4_snr_x4)));
   strcpy(cr5, StrHelper::ftoa(directRetryCrX4ToDb(prefs->direct_retry_cr5_snr_x4)));
+  strcpy(cr7, StrHelper::ftoa(directRetryCrX4ToDb(prefs->direct_retry_cr7_snr_x4)));
   strcpy(cr8, StrHelper::ftoa(directRetryCrX4ToDb(prefs->direct_retry_cr8_snr_x4)));
-  sprintf(reply, "> %s,%s,%s,%s", cr4, cr5, cr8, cr8);
+  sprintf(reply, "> %s,%s,%s,%s", cr4, cr5, cr7, cr8);
 }
 
 static uint16_t directRetryPresetStepDefault(uint8_t preset) {
@@ -198,35 +222,36 @@ static bool parseDirectRetryCrThresholds(char* value, NodePrefs* prefs) {
   if (value == NULL || prefs == NULL) {
     return false;
   }
+  if (strcmp(value, "off") == 0) {
+    setDirectRetryCrOff(prefs);
+    return true;
+  }
 
-  const char* parts[4];
-  int num = mesh::Utils::parseTextParts(value, parts, 4);
-  if (num != 3 && num != 4) {
+  const char* parts[5];
+  int num = mesh::Utils::parseTextParts(value, parts, 5);
+  if (num != 4) {
     return false;
   }
 
   int8_t cr4_snr_x4;
   int8_t cr5_snr_x4;
+  int8_t cr7_snr_x4;
   int8_t cr8_snr_x4;
   if (!parseDirectRetryCrDb(parts[0], cr4_snr_x4)
       || !parseDirectRetryCrDb(parts[1], cr5_snr_x4)
-      || !parseDirectRetryCrDb(parts[num == 4 ? 3 : 2], cr8_snr_x4)) {
+      || !parseDirectRetryCrDb(parts[2], cr7_snr_x4)
+      || !parseDirectRetryCrDb(parts[3], cr8_snr_x4)) {
     return false;
   }
 
-  if (num == 4) {
-    int8_t repeated_low_snr_x4;
-    if (!parseDirectRetryCrDb(parts[2], repeated_low_snr_x4) || repeated_low_snr_x4 != cr8_snr_x4) {
-      return false;
-    }
-  }
-
-  if (!directRetryCrThresholdsAreValid(cr4_snr_x4, cr5_snr_x4, cr8_snr_x4)) {
+  if (directRetryCrThresholdsAreOff(cr4_snr_x4, cr5_snr_x4, cr7_snr_x4, cr8_snr_x4)
+      || !directRetryCrThresholdsAreValid(cr4_snr_x4, cr5_snr_x4, cr7_snr_x4, cr8_snr_x4)) {
     return false;
   }
 
   prefs->direct_retry_cr4_snr_x4 = cr4_snr_x4;
   prefs->direct_retry_cr5_snr_x4 = cr5_snr_x4;
+  prefs->direct_retry_cr7_snr_x4 = cr7_snr_x4;
   prefs->direct_retry_cr8_snr_x4 = cr8_snr_x4;
   return true;
 }
@@ -323,8 +348,10 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
                                sizeof(_prefs->direct_retry_cr4_snr_x4));                        // 300
     retry_cr_read += file.read((uint8_t *)&_prefs->direct_retry_cr5_snr_x4,
                                sizeof(_prefs->direct_retry_cr5_snr_x4));                        // 301
+    retry_cr_read += file.read((uint8_t *)&_prefs->direct_retry_cr7_snr_x4,
+                               sizeof(_prefs->direct_retry_cr7_snr_x4));                        // 302
     retry_cr_read += file.read((uint8_t *)&_prefs->direct_retry_cr8_snr_x4,
-                               sizeof(_prefs->direct_retry_cr8_snr_x4));                        // 302
+                               sizeof(_prefs->direct_retry_cr8_snr_x4));                        // 303
     // PowerSaving-only prefs stored radio_fem_rxgain at 291, before direct retry timing existed.
     if (radio_fem_rxgain_read != sizeof(_prefs->radio_fem_rxgain)
         && legacy_retry_attempts_read == sizeof(legacy_retry_attempts_or_radio_fem_rxgain)
@@ -332,7 +359,7 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
             || _prefs->direct_retry_timing_magic[1] != DIRECT_RETRY_TIMING_MAGIC_1)) {
       _prefs->radio_fem_rxgain = constrain(legacy_retry_attempts_or_radio_fem_rxgain, 0, 1);
     }
-    // next: 303
+    // next: 304
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -386,8 +413,14 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     } else {
       _prefs->direct_retry_step_ms = constrain(_prefs->direct_retry_step_ms, DIRECT_RETRY_STEP_MS_MIN, DIRECT_RETRY_STEP_MS_MAX);
     }
-    if (retry_cr_read != sizeof(_prefs->direct_retry_cr4_snr_x4)
+    if (retry_cr_read == sizeof(_prefs->direct_retry_cr4_snr_x4)
         + sizeof(_prefs->direct_retry_cr5_snr_x4)
+        + sizeof(_prefs->direct_retry_cr7_snr_x4)) {
+      _prefs->direct_retry_cr8_snr_x4 = _prefs->direct_retry_cr7_snr_x4;
+      sanitizeDirectRetryCrThresholds(_prefs);
+    } else if (retry_cr_read != sizeof(_prefs->direct_retry_cr4_snr_x4)
+        + sizeof(_prefs->direct_retry_cr5_snr_x4)
+        + sizeof(_prefs->direct_retry_cr7_snr_x4)
         + sizeof(_prefs->direct_retry_cr8_snr_x4)) {
       setDirectRetryCrDefaults(_prefs);
     } else {
@@ -467,8 +500,9 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->direct_retry_step_ms, sizeof(_prefs->direct_retry_step_ms));     // 298
     file.write((uint8_t *)&_prefs->direct_retry_cr4_snr_x4, sizeof(_prefs->direct_retry_cr4_snr_x4)); // 300
     file.write((uint8_t *)&_prefs->direct_retry_cr5_snr_x4, sizeof(_prefs->direct_retry_cr5_snr_x4)); // 301
-    file.write((uint8_t *)&_prefs->direct_retry_cr8_snr_x4, sizeof(_prefs->direct_retry_cr8_snr_x4)); // 302
-    // next: 303
+    file.write((uint8_t *)&_prefs->direct_retry_cr7_snr_x4, sizeof(_prefs->direct_retry_cr7_snr_x4)); // 302
+    file.write((uint8_t *)&_prefs->direct_retry_cr8_snr_x4, sizeof(_prefs->direct_retry_cr8_snr_x4)); // 303
+    // next: 304
 
     file.close();
   }
@@ -954,7 +988,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
           savePrefs();
           formatDirectRetryCrThresholds(_prefs, reply);
         } else {
-          strcpy(reply, "Error, expected cr4,cr5,cr8 or cr4,cr5,low,low");
+          strcpy(reply, "Error, expected off or cr4,cr5,cr7,cr8");
         }
       } else if (memcmp(config, "owner.info ", 11) == 0) {
         config += 11;
@@ -1516,7 +1550,7 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       savePrefs();
       formatDirectRetryCrThresholds(_prefs, reply);
     } else {
-      strcpy(reply, "Error, expected cr4,cr5,cr8 or cr4,cr5,low,low");
+      strcpy(reply, "Error, expected off or cr4,cr5,cr7,cr8");
     }
   } else if (memcmp(config, "owner.info ", 11) == 0) {
     config += 11;
