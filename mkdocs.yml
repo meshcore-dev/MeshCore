@@ -8,7 +8,7 @@ edit_uri: edit/main/docs/
 
 theme:
   name: material
-  logo: _assets/meshcore_tm.svg
+  logo: _assets/meshcore.svg
   features:
     - content.action.edit
     - content.code.copy

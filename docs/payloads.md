@@ -226,7 +226,7 @@ txt_type
 | reply path     | (variable)      | reply path                                                       |
 
 
-# Group text message / datagram
+# Group text message
 
 | Field        | Size (bytes)    | Description                                |
 |--------------|-----------------|--------------------------------------------|
@@ -235,6 +235,22 @@ txt_type
 | ciphertext   | rest of payload | encrypted message, see below for details   |
 
 The plaintext contained in the ciphertext matches the format described in [plain text message](#plain-text-message). Specifically, it consists of a four byte timestamp, a flags byte, and the message. The flags byte will generally be `0x00` because it is a "plain text message". The message will be of the form `<sender name>: <message body>` (eg., `user123: I'm on my way`).
+
+# Group datagram
+
+| Field        | Size (bytes)    | Description                                |
+|--------------|-----------------|--------------------------------------------|
+| channel hash | 1               | first byte of SHA256 of channel's shared key  |
+| cipher MAC   | 2               | MAC for encrypted data in next field       |
+| ciphertext   | rest of payload | encrypted data, see below for details   |
+
+The data contained in the ciphertext uses the format below:
+
+| Field        | Size (bytes)    | Description                                |
+|--------------|-----------------|--------------------------------------------|
+| data type    | 2               | Identifier for type of data. (See number_allocations.md)  |
+| data len     | 1               | byte length of data         |
+| data         | rest of payload | (depends on data type)     |
 
 
 # Control data

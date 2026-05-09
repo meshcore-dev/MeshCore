@@ -15,8 +15,6 @@
     #include "WiFi.h"
     #include "AsyncTCP.h"
     #include "Update.h"
-    #include "esp_int_wdt.h"
-    #include "esp_task_wdt.h"
 #endif
 
 #include "Hash.h"

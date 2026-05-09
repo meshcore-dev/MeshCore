@@ -29,7 +29,8 @@ MeshCore provides the ability to create wireless mesh networks, similar to Mesht
 ## 🚀 How to Get Started
 
 - Watch the [MeshCore Intro Video](https://www.youtube.com/watch?v=t1qne8uJBAc) by Andy Kirby.
-- Read through our [Frequently Asked Questions](./docs/faq.md) section.
+- Watch the [MeshCore Technical Presentation](https://www.youtube.com/watch?v=OwmkVkZQTf4) by Liam Cottle.
+- Read through our [Frequently Asked Questions](./docs/faq.md) and [Documentation](https://docs.meshcore.io).
 - Flash the MeshCore firmware on a supported device.
 - Connect with a supported client.
 
@@ -51,7 +52,7 @@ The Simple Secure Chat example can be interacted with through the Serial Monitor
 
 We have prebuilt firmware ready to flash on supported devices.
 
-- Launch https://flasher.meshcore.co.uk
+- Launch https://meshcore.io/flasher
 - Select a supported device
 - Flash one of the firmware types:
   - Companion, Repeater or Room Server
@@ -73,13 +74,13 @@ The companion firmware can be connected to via BLE, USB or WiFi depending on the
 
 The repeater and room server firmwares can be setup via USB in the web config tool.
 
-- https://config.meshcore.dev
+- https://config.meshcore.io
 
 They can also be managed via LoRa in the mobile app by using the Remote Management feature.
 
 ## 🛠 Hardware Compatibility
 
-MeshCore is designed for devices listed in the [MeshCore Flasher](https://flasher.meshcore.co.uk)
+MeshCore is designed for devices listed in the [MeshCore Flasher](https://meshcore.io/flasher)
 
 ## 📜 License
 
@@ -96,6 +97,14 @@ Here are some general principals you should try to adhere to:
 * Use the same brace and indenting style that's in the core source modules. (A .clang-format is prob going to be added soon, but please do NOT retroactively re-format existing code. This just creates unnecessary diffs that make finding problems harder)
 
 Help us prioritize! Please react with thumbs-up to issues/PRs you care about most. We look at reaction counts when planning work.
+
+### Running unit tests
+
+To run unit tests, run the following command:
+
+```bash
+pio test --environment native --verbose
+```
 
 ## Road-Map / To-Do
 
@@ -116,4 +125,4 @@ There are a number of fairly major features in the pipeline, with no particular 
 
 - Report bugs and request features on the [GitHub Issues](https://github.com/ripplebiz/MeshCore/issues) page.
 - Find additional guides and components on [my site](https://buymeacoffee.com/ripplebiz).
-- Join [MeshCore Discord](https://discord.gg/BMwCtwHj5V) to chat with the developers and get help from the community.
+- Join [MeshCore Discord](https://meshcore.gg) to chat with the developers and get help from the community.
