@@ -209,13 +209,17 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 - `set tx <dbm>`
 
 **Parameters:**
-- `dbm`: Power level in dBm (1-22)
+- `dbm`: Requested transmit power in dBm
 
 **Set by build flag:** `LORA_TX_POWER`
 
 **Default:** Varies by board
 
-**Notes:** This setting only controls the power level of the LoRa chip. Some nodes have an additional power amplifier stage which increases the total output. Refer to the node's manual for the correct setting to use. **Setting a value too high may violate the laws in your country.**
+**Notes:**
+- MeshCore stores the configured value and passes it to the board/radio layer.
+- Supported values depend on the underlying radio implementation and may differ between LoRa radio families and ESP-NOW builds.
+- On LoRa boards, this controls the LoRa radio transmit power request. Some nodes also have an additional power amplifier stage which increases total output.
+- Refer to the node's manual and the underlying radio documentation for the correct setting to use. **Setting a value too high may violate the laws in your country.**
 
 ---
 
