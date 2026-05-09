@@ -470,7 +470,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 **Note:** the 'path.hash.mode' sets the low-level ID/hash encoding size used when the repeater adverts. This setting has no impact on what packet ID/hash size this repeater forwards, all sizes should be forwarded on firmware >= 1.14. This feature was added in firmware 1.14
 
-**Temporary Note:** adverts with ID/hash sizes of 2 or 3 bytes may have limited flood propogation in your network while this feature is new as v1.13.0 firmware and older will drop packets with multibyte path ID/hashes as only 1-byte hashes are suppored. Consider your install base of firmware >=1.14 has reached a criticality for effective network flooding before implementing higher ID/hash sizes. 
+**Temporary Note:** adverts with ID/hash sizes of 2 or 3 bytes may have limited flood propagation in your network while this feature is new as v1.13.0 firmware and older will drop packets with multibyte path ID/hashes as only 1-byte hashes are supported. Consider your install base of firmware >=1.14 has reached a criticality for effective network flooding before implementing higher ID/hash sizes. 
 
 ---
 
@@ -504,6 +504,8 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 **Default:** `0.5`
 
+**Note:** When multiple nearby repeaters all hear the same flood packet, each waits a random amount of time before retransmitting to avoid simultaneous collisions. This factor scales the size of that random window. Higher values reduce collision risk at the cost of added latency. `0` disables the window entirely.
+
 ---
 
 #### View or change the retransmit delay factor for direct traffic
@@ -516,6 +518,8 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 **Default:** `0.2`
 
+**Note:** Same collision-avoidance random window as `txdelay`, but applied to direct (non-flood, routed) traffic. The default is lower because direct packets are addressed to a specific next hop, so far fewer nodes compete to retransmit them.
+
 ---
 
 #### [Experimental] View or change the processing delay for received traffic
@@ -527,6 +531,8 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 - `value`: Receive delay base (0-20)
 
 **Default:** `0.0`
+
+**Note:** When enabled, repeaters that received a flood packet with a weak signal are held in a delay queue before processing, while those that received it with a strong signal process it immediately. This gives strong-signal paths forwarding priority. By the time weak-signal nodes process their copy, the packet may have already propagated and will be suppressed as a duplicate, reducing redundant retransmissions.
 
 ---
 
@@ -941,7 +947,7 @@ region save
 
 ---
 
-#### View or change thevalue of a sensor
+#### View or change the value of a sensor
 **Usage:** 
 - `sensor get <key>`
 - `sensor set <key> <value>`

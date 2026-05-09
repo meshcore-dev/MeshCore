@@ -17,6 +17,6 @@ class LoRaFEMControl
     bool isLNAEnabled(void) const { return lna_enabled; }
 
   private:
-    bool lna_enabled = true;
+    bool lna_enabled = false;
     bool lna_can_control = false;
 };
