@@ -9,6 +9,14 @@
   #define TXT_ACK_DELAY     200
 #endif
 
+#ifndef PATH_STALE_SECS
+  #define PATH_STALE_SECS 60
+#endif
+
+static inline uint8_t pathHopCount(uint8_t path_len) {
+  return path_len & 0x3F;  // lower 6 bits encode hash count
+}
+
 void BaseChatMesh::sendFloodScoped(const ContactInfo& recipient, mesh::Packet* pkt, uint32_t delay_millis) {
   sendFlood(pkt, delay_millis);
 }
@@ -302,12 +310,22 @@ bool BaseChatMesh::onPeerPathRecv(mesh::Packet* packet, int sender_idx, const ui
 }
 
 bool BaseChatMesh::onContactPathRecv(ContactInfo& from, uint8_t* in_path, uint8_t in_path_len, uint8_t* out_path, uint8_t out_path_len, uint8_t extra_type, uint8_t* extra, uint8_t extra_len) {
-  // NOTE: default impl, we just replace the current 'out_path' regardless, whenever sender sends us a new out_path.
-  // FUTURE: could store multiple out_paths per contact, and try to find which is the 'best'(?)
-  from.out_path_len = mesh::Packet::copyPath(from.out_path, out_path, out_path_len);  // store a copy of path, for sendDirect()
-  from.lastmod = getRTCClock()->getCurrentTime();
+  uint32_t now = getRTCClock()->getCurrentTime();
+  bool has_no_path = (from.out_path_len == OUT_PATH_UNKNOWN);
+  bool better_hops = !has_no_path && (pathHopCount(out_path_len) < pathHopCount(from.out_path_len));
+  bool stale = !has_no_path && (now > from.lastmod + PATH_STALE_SECS);
+  bool accept = has_no_path || better_hops || stale;
 
-  onContactPathUpdated(from);
+  if (accept) {
+    // Accept unknown, better-hop, or stale replacement paths.
+    from.out_path_len = mesh::Packet::copyPath(from.out_path, out_path, out_path_len);
+    from.lastmod = now;
+    onContactPathUpdated(from);
+  } else {
+    MESH_DEBUG_PRINTLN("onContactPathRecv: keeping existing path (curr_hops=%u new_hops=%u)",
+                        (uint32_t)pathHopCount(from.out_path_len),
+                        (uint32_t)pathHopCount(out_path_len));
+  }
 
   if (extra_type == PAYLOAD_TYPE_ACK && extra_len >= 4) {
     // also got an encoded ACK!
