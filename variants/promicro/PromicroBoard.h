@@ -76,4 +76,8 @@ public:
   void powerOff() override {
     sd_power_system_off();
   }
+
+  #ifdef NRF52_POWER_MANAGEMENT
+    void initiateShutdown(uint8_t reason) override;
+  #endif
 };
