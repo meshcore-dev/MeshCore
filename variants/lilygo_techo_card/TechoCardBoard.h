@@ -15,6 +15,7 @@
 #define REAL_VBAT_MV_PER_LSB (VBAT_DIVIDER_COMP * VBAT_MV_PER_LSB)
 
 class TechoCardBoard : public NRF52BoardDCDC {
+  bool _torchStatus = false;
 public:
   TechoCardBoard() : NRF52Board("TECHO_OTA") {}
   void begin();
@@ -29,6 +30,7 @@ public:
 
   void powerOff() override;
 
+  void toggleTorch();
   void turnOffLeds();
   
 };

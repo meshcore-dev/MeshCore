@@ -643,6 +643,15 @@ void UITask::loop() {
     next_backlight_btn_check = millis() + 300;
   }
 #endif
+#if defined(HAS_TORCH)
+  ev = back_btn.check();
+  if (ev == BUTTON_EVENT_CLICK && c == 0) {
+    c = checkDisplayOn(KEY_PREV);
+  } else if (ev == BUTTON_EVENT_DOUBLE_CLICK) {
+    board.toggleTorch();
+    c = 0;
+  }
+#endif
 
   if (c != 0 && curr) {
     curr->handleInput(c);

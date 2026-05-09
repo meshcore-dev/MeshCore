@@ -67,6 +67,18 @@ void TechoCardBoard::onAfterTransmit() {
     Led_A.show();
 }
 
+void TechoCardBoard::toggleTorch() {
+    if (!_torchStatus) {
+        Led_C.setPixelColor(0, 255, 255, 255);
+        Led_C.show();
+        _torchStatus = true;
+    } else {
+        Led_C.setPixelColor(0, 0, 0, 0);
+        Led_C.show();
+        _torchStatus = false;
+        }
+}
+
 void TechoCardBoard::turnOffLeds() {
     for (uint8_t i = 0; i < sizeof(Led) / sizeof(*Led); i++)
     {
