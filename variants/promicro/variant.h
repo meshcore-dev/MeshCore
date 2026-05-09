@@ -22,8 +22,9 @@
 #define PIN_EXT_VCC          (21)
 #define EXT_VCC              (PIN_EXT_VCC)
 
-#define BATTERY_PIN          (17)
-#define ADC_RESOLUTION       12
+#define PIN_VBAT_READ        (17)
+#define ADC_RESOLUTION       (14)
+#define AREF_VOLTAGE         (3.6f) // Using default analog reference (AR_INTERNAL), which maps ADC reading to 0 ... 3.6V
 
 ////////////////////////////////////////////////////////////////////////////////
 // Number of pins
