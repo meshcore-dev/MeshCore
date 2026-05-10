@@ -28,6 +28,7 @@ public:
   const char* getSettingName(int i) const override;
   const char* getSettingValue(int i) const override;
   bool setSettingValue(const char* name, const char* value) override;
+  LocationProvider* getLocationProvider() override { return _location; }
 };
 
 extern HeltecV3Board board;
@@ -43,5 +44,5 @@ extern HWTSensorManager sensors;
 bool radio_init();
 uint32_t radio_get_rng_seed();
 void radio_set_params(float freq, float bw, uint8_t sf, uint8_t cr);
-void radio_set_tx_power(uint8_t dbm);
+void radio_set_tx_power(int8_t dbm);
 mesh::LocalIdentity radio_new_identity();

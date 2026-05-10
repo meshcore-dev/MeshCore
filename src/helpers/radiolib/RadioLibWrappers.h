@@ -16,6 +16,7 @@ protected:
   void startRecv();
   float packetScoreInt(float snr, int sf, int packet_len);
   virtual bool isReceivingPacket() =0;
+  virtual void doResetAGC();
 
   // Called at the start of recvRaw() before checking STATE_INT_READY.
   // Override on boards where the radio IRQ line is shared with other inputs
@@ -61,6 +62,9 @@ public:
   virtual float getLastSNR() const override;
 
   float packetScore(float snr, int packet_len) override { return packetScoreInt(snr, 10, packet_len); }  // assume sf=10
+
+  virtual void setRxBoostedGainMode(bool) { }
+  virtual bool getRxBoostedGainMode() const { return false; }
 };
 
 /**

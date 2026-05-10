@@ -20,6 +20,10 @@ public:
     memcpy(dest, pub_key, PATH_HASH_SIZE);    // hash is just prefix of pub_key
     return PATH_HASH_SIZE;
   }
+  int copyHashTo(uint8_t* dest, uint8_t len) const { 
+    memcpy(dest, pub_key, len);    // hash is just prefix of pub_key
+    return len;
+  }
   bool isHashMatch(const uint8_t* hash) const {
     return memcmp(hash, pub_key, PATH_HASH_SIZE) == 0;
   }

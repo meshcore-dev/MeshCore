@@ -17,6 +17,7 @@
 #define PATH_HASH_SIZE       1
 
 #define MAX_PACKET_PAYLOAD  184
+#define MAX_GROUP_DATA_LENGTH  (MAX_PACKET_PAYLOAD - CIPHER_BLOCK_SIZE - 3)
 #define MAX_PATH_SIZE        64
 #define MAX_TRANS_UNIT      255
 
@@ -55,6 +56,7 @@ public:
   virtual uint32_t getGpio() { return 0; }
   virtual void setGpio(uint32_t values) {}
   virtual uint8_t getStartupReason() const = 0;
+  virtual bool getBootloaderVersion(char* version, size_t max_len) { return false; }
   virtual bool startOTAUpdate(const char* id, char reply[]) { return false; }   // not supported
 
   // Power management interface (boards with power management override these)

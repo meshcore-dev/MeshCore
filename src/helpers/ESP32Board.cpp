@@ -11,6 +11,7 @@
 #include <SPIFFS.h>
 
 bool ESP32Board::startOTAUpdate(const char* id, char reply[]) {
+  inhibit_sleep = true;   // prevent sleep during OTA
   WiFi.softAP("MeshCore-OTA", NULL);
 
   sprintf(reply, "Started: http://%s/update", WiFi.softAPIP().toString().c_str());

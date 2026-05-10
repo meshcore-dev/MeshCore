@@ -38,8 +38,8 @@
   "frameworks": ["arduino"],
   "name": "Minewsemi ME25LS01",
   "upload": {
-    "maximum_ram_size": 248832,
-    "maximum_size": 815104,
+    "maximum_ram_size": 235520,
+    "maximum_size": 811008,
     "speed": 115200,
     "protocol": "nrfutil",
     "protocols": [

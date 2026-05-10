@@ -43,5 +43,5 @@ void ThinknodeM5Board::begin() {
 }
 
   const char* ThinknodeM5Board::getManufacturerName() const {
-    return "Elecrow ThinkNode M2";
+    return "Elecrow ThinkNode M5";
   }

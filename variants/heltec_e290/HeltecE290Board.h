@@ -10,7 +10,7 @@ class HeltecE290Board : public ESP32Board {
 public:
   RefCountedDigitalPin periph_power;
 
-  HeltecE290Board() : periph_power(PIN_VEXT_EN) { }
+  HeltecE290Board() : periph_power(PIN_VEXT_EN, PIN_VEXT_EN_ACTIVE) { }
 
   void begin();
   void enterDeepSleep(uint32_t secs, int pin_wake_btn = -1);

@@ -33,16 +33,18 @@ Shutdown reason codes (stored in GPREGRET2):
 
 ## Supported Boards
 
+
 | Board | Implemented | LPCOMP wake | VBUS wake |
 |-------|-------------|-------------|-----------|
 | Seeed Studio XIAO nRF52840 (`xiao_nrf52`) | Yes | Yes | Yes |
 | RAK4631 (`rak4631`) | Yes | Yes | Yes |
 | Heltec T114 (`heltec_t114`) | Yes | Yes | Yes |
+| GAT562 Mesh Watch13 | Yes | Yes | Yes |
 | Promicro nRF52840 | No | No | No |
 | RAK WisMesh Tag | No | No | No |
 | Heltec Mesh Solar | No | No | No |
 | LilyGo T-Echo / T-Echo Lite | No | No | No |
-| SenseCAP Solar | No | No | No |
+| SenseCAP Solar | Yes | Yes | Yes |
 | WIO Tracker L1 / L1 E-Ink | No | No | No |
 | WIO WM1110 | No | No | No |
 | Mesh Pocket | No | No | No |

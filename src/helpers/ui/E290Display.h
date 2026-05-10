@@ -5,15 +5,20 @@
 #include <SPI.h>
 #include <Wire.h>
 #include <heltec-eink-modules.h>
+#include <CRC32.h>
+#include <helpers/RefCountedDigitalPin.h>
 
 // Display driver for E290 e-ink display
 class E290Display : public DisplayDriver {
   EInkDisplay_VisionMasterE290 display;
   bool _init = false;
   bool _isOn = false;
+  RefCountedDigitalPin* _periph_power;
+  CRC32 display_crc;
+  uint32_t last_display_crc_value = 0;
 
 public:
-  E290Display() : DisplayDriver(296, 128) {}
+  E290Display(RefCountedDigitalPin* periph_power = NULL) : DisplayDriver(296, 128), _periph_power(periph_power) {}
 
   bool begin();
   bool isOn() override { return _isOn; }
