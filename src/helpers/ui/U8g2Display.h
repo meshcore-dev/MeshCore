@@ -29,7 +29,7 @@ class U8g2Display : public DisplayDriver {
 
   void applyFont(int sz) {
     if (sz >= 2) {
-      _u8g2.setFont(u8g2_font_5x7_mr);      // 5×7 — "large" for this display
+      _u8g2.setFont(u8g2_font_6x10_mr); // slightly larger font for better readability. TODO: more font sizes?
     } else {
       _u8g2.setFont(u8g2_font_5x7_mr);
     }
