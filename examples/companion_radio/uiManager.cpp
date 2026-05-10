@@ -612,10 +612,10 @@ void UIManager::ui_Screen1_screen_init(void)
     ui_TabView1 = tabView.raw();
     
     #if defined(LANG_EN) 
-        ui_TabPageHome = ui_TabView1.addTab("Home");           
-        ui_TabPageContacts = ui_TabView1.addTab("Contacts");
-        ui_TabPageChannels = ui_TabView1.addTab("Channels");
-        ui_TabPageSettings = ui_TabView1.addTab("Settings");        
+        ui_TabPageHome = tabView.addTab("Home");           
+        ui_TabPageContacts = tabView.addTab("Contacts");
+        ui_TabPageChannels = tabView.addTab("Channels");
+        ui_TabPageSettings = tabView.addTab("Settings");        
     #elif defined(LANG_GR)
         ui_TabPageHome = tabView.addTab("Αρχική");           
         ui_TabPageContacts = tabView.addTab("Επαφές");
