@@ -98,6 +98,14 @@ Here are some general principals you should try to adhere to:
 
 Help us prioritize! Please react with thumbs-up to issues/PRs you care about most. We look at reaction counts when planning work.
 
+### Running unit tests
+
+To run unit tests, run the following command:
+
+```bash
+pio test --environment native --verbose
+```
+
 ## Road-Map / To-Do
 
 There are a number of fairly major features in the pipeline, with no particular time-frames attached yet. In very rough chronological order:

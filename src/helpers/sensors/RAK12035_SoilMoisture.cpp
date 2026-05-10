@@ -431,7 +431,7 @@ bool RAK12035_SoilMoisture::sensor_on()
     delay(10);                     // Wait for the sensor code to complete initialization
 */
 	uint8_t v = 0;
-    time_t timeout = millis();
+    uint32_t timeout = millis();
 	while ((!query_sensor()))                    //Wait for sensor to respond to I2C commands, 
 	{                                            //indicating it is ready
 		if ((millis() - timeout) > 50){          //0.5 second timeout for sensor to respond
