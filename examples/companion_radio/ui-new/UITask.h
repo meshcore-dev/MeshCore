@@ -78,6 +78,8 @@ public:
   bool hasDisplay() const { return _display != NULL; }
   bool isButtonPressed() const;
 
+  
+  bool playNotification();
   bool isBuzzerQuiet() { 
 #ifdef PIN_BUZZER
     return buzzer.isQuiet();
@@ -87,6 +89,7 @@ public:
   }
 
   void toggleBuzzer();
+  void toggleBuzzerOnSerial();
   bool getGPSState();
   void toggleGPS();
 
