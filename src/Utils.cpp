@@ -28,6 +28,11 @@ void Utils::sha256(uint8_t *hash, size_t hash_len, const uint8_t* frag1, int fra
 }
 
 int Utils::decrypt(const uint8_t* shared_secret, uint8_t* dest, const uint8_t* src, int src_len) {
+  // ciphertext must be a positive multiple of CIPHER_BLOCK_SIZE (AES-128 block size).
+  // Without this the loop below over-reads 'src' and over-writes 'dest' by up to 15 bytes
+  // when 'src_len' is attacker-controlled.
+  if (src_len <= 0 || (src_len & (CIPHER_BLOCK_SIZE - 1))) return 0;
+
   AES128 aes;
   uint8_t* dp = dest;
   const uint8_t* sp = src;
@@ -73,6 +78,10 @@ int Utils::encryptThenMAC(const uint8_t* shared_secret, uint8_t* dest, const uin
 
 int Utils::MACThenDecrypt(const uint8_t* shared_secret, uint8_t* dest, const uint8_t* src, int src_len) {
   if (src_len <= CIPHER_MAC_SIZE) return 0;  // invalid src bytes
+  // ciphertext (the bytes after the MAC) must be aligned to the AES block size.
+  // Defensive belt-and-suspenders: decrypt() also checks this, but rejecting earlier
+  // avoids any chance of a future caller reaching decrypt() with a bad length.
+  if ((src_len - CIPHER_MAC_SIZE) & (CIPHER_BLOCK_SIZE - 1)) return 0;
 
   uint8_t hmac[CIPHER_MAC_SIZE];
   {
