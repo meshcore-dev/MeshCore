@@ -338,6 +338,12 @@ uint8_t SensorMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* 
       return 0;
     }
   } else {
+    // Refuse any password-based login while admin password is at the build default.
+    // Operator must change it via serial CLI before LoRa logins are accepted.
+    if (_prefs.password[0] == 0 || strcmp(_prefs.password, "password") == 0) {
+      MESH_DEBUG_PRINTLN("Login refused: admin password is at default");
+      return 0;
+    }
     if (strcmp((char *) data, _prefs.password) != 0) {  // check for valid admin password
     #if MESH_DEBUG
       MESH_DEBUG_PRINTLN("Invalid password: %s", &data[4]);
