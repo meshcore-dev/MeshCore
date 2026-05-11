@@ -32,16 +32,23 @@
     _flags = app_data[0];
     _valid = false;
     _extra1 = _extra2 = 0;
-  
+
     int i = 1;
+    // Bounds-check each optional field BEFORE memcpy: a crafted advert with all
+    // FLAG_* bits set but app_data_len=1 would otherwise over-read up to 12 bytes
+    // past the buffer (the trailing app_data_len >= i check below only catches it
+    // after the fact). Returning early leaves _valid=false.
     if (_flags & ADV_LATLON_MASK) {
+      if (i + 8 > app_data_len) return;
       memcpy(&_lat, &app_data[i], 4); i += 4;
       memcpy(&_lon, &app_data[i], 4); i += 4;
     }
     if (_flags & ADV_FEAT1_MASK) {
+      if (i + 2 > app_data_len) return;
       memcpy(&_extra1, &app_data[i], 2); i += 2;
     }
     if (_flags & ADV_FEAT2_MASK) {
+      if (i + 2 > app_data_len) return;
       memcpy(&_extra2, &app_data[i], 2); i += 2;
     }
 
