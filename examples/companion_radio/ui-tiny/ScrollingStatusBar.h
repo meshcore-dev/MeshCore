@@ -84,6 +84,7 @@ public:
       ble_on ? "ON" : "OFF"
     );
 
+    display.setTextSize(1);
     _text_width = display.getTextWidth(_status);
     _next_update = millis() + STATUS_BAR_UPDATE_MS;
     _needs_redraw = true;
@@ -104,6 +105,10 @@ public:
 
     display.setTextSize(1);
     display.setColor(DisplayDriver::GREEN);
+
+    // if (_needs_redraw) {
+    //   _text_width = display.getTextWidth(_status);
+    // }
 
     // static text: no scrolling needed
     if (_text_width <= _display_width) {

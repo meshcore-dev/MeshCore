@@ -181,7 +181,7 @@ public:
       #endif
       if (_task->hasConnection()) {
         display.setColor(DisplayDriver::GREEN);
-        display.setTextSize(2);
+        display.setTextSize(1);
         display.drawTextCentered(display.width() / 2, display.height()-8, "< Connected >");
 
       } else if (the_mesh.getBLEPin() != 0) { // BT pin
