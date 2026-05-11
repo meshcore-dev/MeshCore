@@ -13,8 +13,12 @@ void ArduinoSerialInterface::disable() {
   _isEnabled = false;
 }
 
-bool ArduinoSerialInterface::isConnected() const { 
-  return true;   // no way of knowing, so assume yes
+bool ArduinoSerialInterface::isConnected() const {
+#if defined(NRF52_PLATFORM) || defined(ESP32_PLATFORM)
+  return Serial;   // operator bool() checks connection (USB CDC DTR, UART init)
+#else
+  return true;     // platforms without operator bool() on Serial have no way of knowing, so assume yes
+#endif
 }
 
 bool ArduinoSerialInterface::isWriteBusy() const {
