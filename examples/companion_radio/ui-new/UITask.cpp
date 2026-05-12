@@ -863,11 +863,14 @@ char UITask::handleDoubleClick(char c) {
 }
 
 char UITask::handleTripleClick(char c) {
-  MESH_DEBUG_PRINTLN("UITask: triple click triggered");
-  checkDisplayOn(c);
-  toggleBuzzer();
-  c = 0;
-  return c;
+    MESH_DEBUG_PRINTLN("UITask: triple click triggered");
+    checkDisplayOn(c);
+
+    notify(UIEventType::ack);
+    showAlert("TRIPLE CLICK", 1500);
+
+    c = 0;
+    return c;
 }
 
 bool UITask::getGPSState() {
