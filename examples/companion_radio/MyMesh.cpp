@@ -2177,6 +2177,62 @@ void MyMesh::loop() {
 #endif
 }
 
+bool MyMesh::sendSOS() {
+
+    const char *sosMsg = sensors.getSettingByKey("sos_message");
+    const char *sosChannel = sensors.getSettingByKey("sos_channel");
+
+    const char *template_text =
+        (sosMsg && strlen(sosMsg) > 0)
+            ? sosMsg
+            : "SOS - preciso de ajuda! {gps}";
+
+    uint8_t channel_idx =
+        (sosChannel && strlen(sosChannel) > 0)
+            ? atoi(sosChannel)
+            : 5;   // default SOSTEST
+
+    ChannelDetails channel;
+    bool success = getChannel(channel_idx, channel);
+
+    if (!success)
+        return false;
+
+    char gps[64];
+
+    bool has_gps =
+        !(sensors.node_lat == 0.0 && sensors.node_lon == 0.0);
+
+    if (has_gps) {
+        snprintf(gps, sizeof(gps),
+            "%.6f,%.6f",
+            sensors.node_lat,
+            sensors.node_lon
+        );
+    } else {
+        snprintf(gps, sizeof(gps),
+            "GPS sem fix"
+        );
+    }
+
+    String finalText = String(template_text);
+    finalText.replace("{gps}", gps);
+
+    char text[140];
+    strncpy(text, finalText.c_str(), sizeof(text) - 1);
+    text[sizeof(text) - 1] = '\0';
+
+    uint32_t msg_timestamp = millis();
+
+    return sendGroupMessage(
+        msg_timestamp,
+        channel.channel,
+        _prefs.node_name,
+        text,
+        strlen(text)
+    );
+}
+
 bool MyMesh::advert() {
   mesh::Packet* pkt;
   if (_prefs.advert_loc_policy == ADVERT_LOC_NONE) {

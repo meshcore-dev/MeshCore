@@ -866,12 +866,19 @@ char UITask::handleTripleClick(char c) {
     MESH_DEBUG_PRINTLN("UITask: triple click triggered");
     checkDisplayOn(c);
 
+    bool ok = the_mesh.sendSOS();
+
     notify(UIEventType::ack);
-    showAlert("TRIPLE CLICK", 1500);
+
+    if (ok)
+      showAlert("SOS SENT", 1500);
+    else
+      showAlert("SOS FAILED", 1500);
 
     c = 0;
     return c;
 }
+
 
 bool UITask::getGPSState() {
   if (_sensors != NULL) {
