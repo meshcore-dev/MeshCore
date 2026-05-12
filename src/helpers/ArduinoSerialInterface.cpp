@@ -13,12 +13,34 @@ void ArduinoSerialInterface::disable() {
   _isEnabled = false;
 }
 
-bool ArduinoSerialInterface::isConnected() const { 
-  return true;   // no way of knowing, so assume yes
+bool ArduinoSerialInterface::isConnected() const {
+#if defined(NRF52_PLATFORM) && defined(USE_TINYUSB)
+  // Adafruit_USBD_CDC::operator bool() reports DTR/line-state. Assumes
+  // _serial is bound to the global Serial (the TinyUSB CDC), which is true
+  // for every current caller — see begin().
+  // Caveat: tools that don't assert DTR (raw `cat`, some picocom configs)
+  // will appear disconnected; outgoing frames will be skipped rather than
+  // queued. Drivers/apps that open the port normally (Linux CDC ACM, the
+  // MeshCore companion apps, screen, default picocom/minicom) assert DTR.
+  return (bool) Serial;
+#else
+  return true;   // HardwareSerial / other Streams have no connection concept
+#endif
 }
 
 bool ArduinoSerialInterface::isWriteBusy() const {
+#if defined(NRF52_PLATFORM) && defined(USE_TINYUSB)
+  // Pace callers (e.g. the contact iterator in MyMesh::checkSerialInterface)
+  // so we don't blow past the 256-byte TinyUSB CDC TX FIFO. A worst-case
+  // frame is MAX_FRAME_SIZE + 3 header bytes.
+  return _serial->availableForWrite() < MAX_FRAME_SIZE + 3;
+#else
+  // UART-backed TX rings on other platforms are often smaller than a single
+  // frame (RP2040: 32 B, STM32: 64 B), so this threshold would stall the
+  // iterator. Keep the old no-pacing behavior until a per-transport
+  // threshold is introduced.
   return false;
+#endif
 }
 
 size_t ArduinoSerialInterface::writeFrame(const uint8_t src[], size_t len) {
@@ -26,14 +48,20 @@ size_t ArduinoSerialInterface::writeFrame(const uint8_t src[], size_t len) {
     // frame is too big!
     return 0;
   }
+  if (!isConnected()) {
+    return 0;   // don't push data into a closed USB CDC pipe
+  }
 
-  uint8_t hdr[3];
-  hdr[0] = '>';
-  hdr[1] = (len & 0xFF);  // LSB
-  hdr[2] = (len >> 8);    // MSB
+  // Single contiguous write so a partial transfer can't leave a header on the
+  // wire with a truncated payload (which would desync the host parser).
+  uint8_t buf[MAX_FRAME_SIZE + 3];
+  buf[0] = '>';
+  buf[1] = (len & 0xFF);  // LSB
+  buf[2] = (len >> 8);    // MSB
+  memcpy(&buf[3], src, len);
 
-  _serial->write(hdr, 3);
-  return _serial->write(src, len);
+  size_t written = _serial->write(buf, len + 3);
+  return written >= len + 3 ? len : 0;
 }
 
 size_t ArduinoSerialInterface::checkRecvFrame(uint8_t dest[]) {
