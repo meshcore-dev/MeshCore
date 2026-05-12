@@ -440,6 +440,18 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 ---
 
+#### View or change the advert rate limiter (Repeater Only)
+**Usage:**
+- `get advert.ratelimit`
+- `set advert.ratelimit <state>`
+
+**Parameters:**
+- `state`: `on`|`off`
+
+**Default:** `on`
+
+---
+
 #### View or change this node's advert path hash size
 **Usage:**
 - `get path.hash.mode`

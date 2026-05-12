@@ -99,6 +99,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   RegionEntry* recv_pkt_region;
   TransportKey default_scope;
   RateLimiter discover_limiter, anon_limiter;
+  AdaptiveRateLimiter advert_limiter;
   uint32_t pending_discover_tag;
   unsigned long pending_discover_until;
   bool region_load_active;
