@@ -100,7 +100,8 @@ TEST(AdaptiveRateLimiter, StatsInitialState) {
   EXPECT_EQ(5, stats.remaining);
   EXPECT_EQ(0, stats.denied);
   EXPECT_EQ(5, stats.load_avg);
-  EXPECT_EQ(0, stats.last_limit_reached_at);
+  EXPECT_EQ(0, stats.limit_reached);
+  EXPECT_EQ(0, stats.last_limit_reached_ago);
 }
 
 TEST(AdaptiveRateLimiter, StatsRemainingDecreasesOnAllow) {
@@ -114,7 +115,7 @@ TEST(AdaptiveRateLimiter, StatsRemainingDecreasesOnAllow) {
   EXPECT_EQ(0, stats.denied);
 }
 
-TEST(AdaptiveRateLimiter, StatsRecordsDeniedAndLastLimitReachedAt) {
+TEST(AdaptiveRateLimiter, StatsRecordsDeniedAndLastLimitReachedAge) {
   AdaptiveRateLimiter limiter(10, 3, 2);
 
   EXPECT_TRUE(limiter.allow(1));
@@ -126,10 +127,11 @@ TEST(AdaptiveRateLimiter, StatsRecordsDeniedAndLastLimitReachedAt) {
 
   EXPECT_EQ(0, stats.remaining);
   EXPECT_EQ(2, stats.denied);
-  EXPECT_EQ(1, stats.last_limit_reached_at);
+  EXPECT_EQ(1, stats.limit_reached);
+  EXPECT_EQ(2, stats.last_limit_reached_ago);
 }
 
-TEST(AdaptiveRateLimiter, StatsDeniedResetsOnWindowRollover) {
+TEST(AdaptiveRateLimiter, StatsDeniedResetsOnWindowRolloverAndKeepsLimitReachedAge) {
   AdaptiveRateLimiter limiter(10, 3, 2);
 
   EXPECT_TRUE(limiter.allow(1));
@@ -139,7 +141,22 @@ TEST(AdaptiveRateLimiter, StatsDeniedResetsOnWindowRollover) {
   const AdaptiveRateLimiterStats stats = limiter.stats(10);
 
   EXPECT_EQ(0, stats.denied);
-  EXPECT_EQ(1, stats.last_limit_reached_at);
+  EXPECT_EQ(1, stats.limit_reached);
+  EXPECT_EQ(9, stats.last_limit_reached_ago);
+}
+
+TEST(AdaptiveRateLimiter, StatsLimitReachedCountsEachWindowHit) {
+  AdaptiveRateLimiter limiter(10, 1, 1);
+
+  EXPECT_TRUE(limiter.allow(1));
+  EXPECT_FALSE(limiter.allow(1));
+
+  EXPECT_TRUE(limiter.allow(10));
+  EXPECT_FALSE(limiter.allow(10));
+
+  const AdaptiveRateLimiterStats stats = limiter.stats(10);
+
+  EXPECT_EQ(2, stats.limit_reached);
 }
 
 TEST(AdaptiveRateLimiter, StatsDeniedSaturatesAt255) {
@@ -166,7 +183,8 @@ TEST(AdaptiveRateLimiter, ClearStatsOnlyClearsReportingCounters) {
 
   EXPECT_EQ(0, beforeClear.remaining);
   EXPECT_EQ(1, beforeClear.denied);
-  EXPECT_EQ(1, beforeClear.last_limit_reached_at);
+  EXPECT_EQ(1, beforeClear.limit_reached);
+  EXPECT_EQ(1, beforeClear.last_limit_reached_ago);
 
   limiter.clearStats();
   const AdaptiveRateLimiterStats afterClear = limiter.stats(2);
@@ -175,7 +193,8 @@ TEST(AdaptiveRateLimiter, ClearStatsOnlyClearsReportingCounters) {
   EXPECT_EQ(0, afterClear.remaining);
   EXPECT_EQ(0, afterClear.denied);
   EXPECT_EQ(2, afterClear.load_avg);
-  EXPECT_EQ(0, afterClear.last_limit_reached_at);
+  EXPECT_EQ(0, afterClear.limit_reached);
+  EXPECT_EQ(0, afterClear.last_limit_reached_ago);
   EXPECT_FALSE(limiter.allow(2));
 }
 

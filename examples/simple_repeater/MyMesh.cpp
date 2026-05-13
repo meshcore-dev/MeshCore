@@ -1258,9 +1258,9 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
     }
   } else if (memcmp(command, "stats-advert-ratelimit", 22) == 0 && (command[22] == 0 || command[22] == ' ')) {
     AdaptiveRateLimiterStats stats = advert_limiter.stats(rtc_clock.getCurrentTime());
-    sprintf(reply, "{\"limit\":%u,\"remaining\":%u,\"denied\":%u,\"load_avg\":%u,\"last_limit_reached_at\":%lu}",
+    sprintf(reply, "{\"limit\":%u,\"remaining\":%u,\"denied\":%u,\"load_avg\":%u,\"limit_reached\":%u,\"last_limit_reached_ago\":%lu}",
             (unsigned)stats.limit, (unsigned)stats.remaining, (unsigned)stats.denied,
-            (unsigned)stats.load_avg, (unsigned long)stats.last_limit_reached_at);
+            (unsigned)stats.load_avg, (unsigned)stats.limit_reached, (unsigned long)stats.last_limit_reached_ago);
   } else{
     _cli.handleCommand(sender_timestamp, command, reply);  // common CLI commands
   }
