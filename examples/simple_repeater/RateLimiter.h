@@ -28,6 +28,7 @@ public:
 };
 
 class AdaptiveRateLimiter {
+  // EWMA of recent per-window advert counts; cap each window at max(floor, ewma * burst).
   enum {
     EWMA_SMOOTHING = 3,
     EWMA_TOTAL_WEIGHT = EWMA_SMOOTHING + 1,
@@ -85,6 +86,9 @@ class AdaptiveRateLimiter {
   }
 
 public:
+  // secs: window length (seconds) for count reset and EWMA steps
+  // burst: multiplier on EWMA to set max adverts per window
+  // floor: minimum max adverts per window
   AdaptiveRateLimiter(uint16_t secs, uint8_t burst, uint8_t floor)
       : _start(0), _secs(secs), _count(0), _limit(floor), _ewma(floor),
         _burst(burst), _floor(floor) {}
