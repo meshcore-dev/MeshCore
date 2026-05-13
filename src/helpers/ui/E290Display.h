@@ -13,6 +13,7 @@ class E290Display : public DisplayDriver {
   EInkDisplay_VisionMasterE290 display;
   bool _init = false;
   bool _isOn = false;
+  uint8_t _color;
   RefCountedDigitalPin* _periph_power;
   CRC32 display_crc;
   uint32_t last_display_crc_value = 0;
