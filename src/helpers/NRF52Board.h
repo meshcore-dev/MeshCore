@@ -53,6 +53,7 @@ public:
   virtual bool getBootloaderVersion(char* version, size_t max_len) override;
   virtual bool startOTAUpdate(const char *id, char reply[]) override;
   virtual void sleep(uint32_t secs) override;
+  void enterLightSleep(uint32_t secs, int pin_wake_btn = -1) { sleep(secs); }
 
 #ifdef NRF52_POWER_MANAGEMENT
   bool isExternalPowered() override;
