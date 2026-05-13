@@ -128,7 +128,9 @@ void E213Display::setTextSize(int sz) {
 
 void E213Display::setColor(Color c) {
   display_crc.update<Color>(c);
-  // implemented in individual display methods
+  _color = c == 0 ? WHITE : BLACK; // for rectangles
+  display.setTextColor(UINT16_MAX * _color); // for text
+  // keep in mind this is inverted on e-ink
 }
 
 void E213Display::setCursor(int x, int y) {
@@ -147,7 +149,7 @@ void E213Display::fillRect(int x, int y, int w, int h) {
   display_crc.update<int>(y);
   display_crc.update<int>(w);
   display_crc.update<int>(h);
-    display->fillRect(x, y, w, h, BLACK);
+    display->fillRect(x, y, w, h, _color);
 }
 
 void E213Display::drawRect(int x, int y, int w, int h) {
@@ -155,7 +157,7 @@ void E213Display::drawRect(int x, int y, int w, int h) {
   display_crc.update<int>(y);
   display_crc.update<int>(w);
   display_crc.update<int>(h);
-    display->drawRect(x, y, w, h, BLACK);
+    display->drawRect(x, y, w, h, _color);
 }
 
 void E213Display::drawXbm(int x, int y, const uint8_t *bits, int w, int h) {
