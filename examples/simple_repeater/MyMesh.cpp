@@ -1167,6 +1167,7 @@ void MyMesh::clearStats() {
   radio_driver.resetStats();
   resetStats();
   ((SimpleMeshTables *)getTables())->resetStats();
+  advert_limiter.clearStats();
 }
 
 void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply) {
@@ -1255,6 +1256,11 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
       sendNodeDiscoverReq();
       strcpy(reply, "OK - Discover sent");
     }
+  } else if (memcmp(command, "stats-advert-limiter", 20) == 0 && (command[20] == 0 || command[20] == ' ')) {
+    AdaptiveRateLimiterStats stats = advert_limiter.stats(rtc_clock.getCurrentTime());
+    sprintf(reply, "{\"limit\":%u,\"remaining\":%u,\"denied\":%u,\"load_avg\":%u,\"limit_reached_at\":%lu}",
+            (unsigned)stats.limit, (unsigned)stats.remaining, (unsigned)stats.denied,
+            (unsigned)stats.load_avg, (unsigned long)stats.limit_reached_at);
   } else{
     _cli.handleCommand(sender_timestamp, command, reply);  // common CLI commands
   }

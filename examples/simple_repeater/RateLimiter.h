@@ -27,6 +27,14 @@ public:
   }
 };
 
+struct AdaptiveRateLimiterStats {
+  uint8_t limit;
+  uint8_t remaining;
+  uint8_t denied;
+  uint8_t load_avg;
+  uint32_t limit_reached_at;
+};
+
 class AdaptiveRateLimiter {
   // EWMA of recent per-window advert counts; cap each window at max(floor, ewma * burst).
   enum {
@@ -45,6 +53,8 @@ class AdaptiveRateLimiter {
   uint8_t _ewma;
   uint8_t _burst;
   uint8_t _floor;
+  uint8_t _denied;
+  uint32_t _limit_reached_at;
 
   static uint8_t clampU8(uint16_t v) { return v > 255 ? 255 : (uint8_t)v; }
 
@@ -83,6 +93,7 @@ class AdaptiveRateLimiter {
 
     _start = now;
     _count = 0;
+    _denied = 0;
   }
 
 public:
@@ -91,16 +102,32 @@ public:
   // floor: minimum max adverts per window
   AdaptiveRateLimiter(uint16_t secs, uint8_t burst, uint8_t floor)
       : _start(0), _secs(secs), _count(0), _limit(floor), _ewma(floor),
-        _burst(burst), _floor(floor) {}
+        _burst(burst), _floor(floor), _denied(0), _limit_reached_at(0) {}
 
   bool allow(uint32_t now) {
     advanceWindow(now);
 
-    if (_count >= _limit)
+    if (_count >= _limit) {
+      if (_denied < 255) _denied++;
       return false;
+    }
 
     _count++;
-    
+
+    if (_count >= _limit)
+      _limit_reached_at = now;
+
     return true;
+  }
+
+  void clearStats() {
+    _denied = 0;
+    _limit_reached_at = 0;
+  }
+
+  AdaptiveRateLimiterStats stats(uint32_t now) {
+    advanceWindow(now);
+    uint8_t remaining = (_count < _limit) ? (_limit - _count) : 0;
+    return { _limit, remaining, _denied, _ewma, _limit_reached_at };
   }
 };

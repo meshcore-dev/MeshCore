@@ -137,10 +137,17 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 ---
 
-### Packet stats - Packet counters: Received, Sent
+### Packet Stats - Packet counters: Received, Sent
 **Usage:** `stats-packets`
 
 **Serial Only:** Yes
+
+---
+
+### Advert Limiter Stats - Limit, Remaining, Denied, Load Average and Last Limit Time (Repeater Only)
+**Usage:** `stats-advert-limiter`
+
+**Serial Only:** No
 
 ---
 
