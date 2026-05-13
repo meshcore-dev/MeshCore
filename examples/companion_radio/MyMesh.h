@@ -98,6 +98,8 @@ public:
   void loop();
   void handleCmdFrame(size_t len);
   bool advert();
+
+  void updateBLEUnreadCount();
   void enterCLIRescue();
 
   int  getRecentlyHeard(AdvertPath dest[], int max_num);
