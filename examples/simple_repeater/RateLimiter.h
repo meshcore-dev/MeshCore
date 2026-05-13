@@ -32,7 +32,7 @@ struct AdaptiveRateLimiterStats {
   uint8_t remaining;
   uint8_t denied;
   uint8_t load_avg;
-  uint32_t limit_reached_at;
+  uint32_t last_limit_reached_at;
 };
 
 class AdaptiveRateLimiter {
@@ -46,88 +46,85 @@ class AdaptiveRateLimiter {
   static_assert(EWMA_SMOOTHING >= 1 && EWMA_SMOOTHING <= 256, "EWMA_SMOOTHING must be 1-256");
   static_assert(EWMA_GROWTH_CAP >= 1, "EWMA_GROWTH_CAP must be at least 1");
 
-  uint32_t _start;
-  uint16_t _secs;
-  uint8_t _count;
-  uint8_t _limit;
-  uint8_t _ewma;
-  uint8_t _burst;
-  uint8_t _floor;
+  uint32_t _window_start;
+  uint16_t _window_secs;
+  uint8_t _window_count;
+  uint8_t _window_limit;
+  uint8_t _load_avg;
+  uint8_t _burst_multiplier;
+  uint8_t _min_limit;
   uint8_t _denied;
-  uint32_t _limit_reached_at;
+  uint32_t _last_limit_reached_at;
 
   static uint8_t clampU8(uint16_t v) { return v > 255 ? 255 : (uint8_t)v; }
 
   uint8_t nextEwma() const {
-    uint8_t cap = clampU8((uint16_t)_ewma + EWMA_GROWTH_CAP);
-    uint8_t effective = (_count > _ewma) ? cap : _count;
-    uint16_t next = (uint16_t)_ewma * EWMA_SMOOTHING + effective;
+    uint8_t cap = clampU8((uint16_t)_load_avg + EWMA_GROWTH_CAP);
+    uint8_t effective = (_window_count > _load_avg) ? cap : _window_count;
+    uint16_t next = (uint16_t)_load_avg * EWMA_SMOOTHING + effective;
 
     return (uint8_t)(next / EWMA_TOTAL_WEIGHT);
   }
 
   uint8_t computeLimit() const {
-    uint8_t clamped = clampU8((uint16_t)_ewma * _burst);
-    return clamped > _floor ? clamped : _floor;
+    uint8_t clamped = clampU8((uint16_t)_load_avg * _burst_multiplier);
+    return clamped > _min_limit ? clamped : _min_limit;
   }
 
   void advanceWindow(uint32_t now) {
-    if (now - _start < _secs)
+    if (now - _window_start < _window_secs)
       return;
 
-    uint32_t elapsed = (_secs == 0) ? 1 : (now - _start) / _secs;
+    uint32_t elapsed = (_window_secs == 0) ? 1 : (now - _window_start) / _window_secs;
 
     if (elapsed > EWMA_TOTAL_WEIGHT * 8)
       elapsed = EWMA_TOTAL_WEIGHT * 8;
 
-    _ewma = nextEwma();
-    _limit = computeLimit();
+    _load_avg = nextEwma();
+    _window_limit = computeLimit();
 
-    while (elapsed > 1 && _ewma > 0) {
-      _count = 0;
-      _ewma = nextEwma();
-      _limit = computeLimit();
+    while (elapsed > 1 && _load_avg > 0) {
+      _window_count = 0;
+      _load_avg = nextEwma();
+      _window_limit = computeLimit();
 
       elapsed--;
     }
 
-    _start = now;
-    _count = 0;
+    _window_start = now;
+    _window_count = 0;
     _denied = 0;
   }
 
 public:
-  // secs: window length (seconds) for count reset and EWMA steps
-  // burst: multiplier on EWMA to set max adverts per window
-  // floor: minimum max adverts per window
-  AdaptiveRateLimiter(uint16_t secs, uint8_t burst, uint8_t floor)
-      : _start(0), _secs(secs), _count(0), _limit(floor), _ewma(floor),
-        _burst(burst), _floor(floor), _denied(0), _limit_reached_at(0) {}
+  AdaptiveRateLimiter(uint16_t window_secs, uint8_t burst_multiplier, uint8_t min_limit)
+      : _window_start(0), _window_secs(window_secs), _window_count(0), _window_limit(min_limit), _load_avg(min_limit),
+        _burst_multiplier(burst_multiplier), _min_limit(min_limit), _denied(0), _last_limit_reached_at(0) {}
 
   bool allow(uint32_t now) {
     advanceWindow(now);
 
-    if (_count >= _limit) {
+    if (_window_count >= _window_limit) {
       if (_denied < 255) _denied++;
       return false;
     }
 
-    _count++;
+    _window_count++;
 
-    if (_count >= _limit)
-      _limit_reached_at = now;
+    if (_window_count >= _window_limit)
+      _last_limit_reached_at = now;
 
     return true;
   }
 
   void clearStats() {
     _denied = 0;
-    _limit_reached_at = 0;
+    _last_limit_reached_at = 0;
   }
 
   AdaptiveRateLimiterStats stats(uint32_t now) {
     advanceWindow(now);
-    uint8_t remaining = (_count < _limit) ? (_limit - _count) : 0;
-    return { _limit, remaining, _denied, _ewma, _limit_reached_at };
+    uint8_t remaining = (_window_count < _window_limit) ? (_window_limit - _window_count) : 0;
+    return { _window_limit, remaining, _denied, _load_avg, _last_limit_reached_at };
   }
 };

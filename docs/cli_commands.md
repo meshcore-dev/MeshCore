@@ -144,8 +144,8 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 ---
 
-### Advert Limiter Stats - Limit, Remaining, Denied, Load Average and Last Limit Time (Repeater Only)
-**Usage:** `stats-advert-limiter`
+### Advert Limiter Stats - Limit, Remaining, Denied, Load Average and Last Limit Reached Time (Repeater Only)
+**Usage:** `stats-advert-ratelimit`
 
 **Serial Only:** No
 
