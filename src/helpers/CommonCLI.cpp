@@ -89,7 +89,8 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     file.read((uint8_t *)&_prefs->adc_multiplier, sizeof(_prefs->adc_multiplier));                 // 166
     file.read((uint8_t *)_prefs->owner_info, sizeof(_prefs->owner_info));                          // 170
     file.read((uint8_t *)&_prefs->rx_boosted_gain, sizeof(_prefs->rx_boosted_gain));              // 290
-    // next: 291
+    file.read((uint8_t *)&_prefs->flood_path_max, sizeof(_prefs->flood_path_max));                  // 291
+    // next: 292
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -119,6 +120,7 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
 
     // sanitise settings
     _prefs->rx_boosted_gain = constrain(_prefs->rx_boosted_gain, 0, 1); // boolean
+    _prefs->flood_path_max = constrain(_prefs->flood_path_max, 0, 255);
 
     file.close();
   }
@@ -180,7 +182,8 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->adc_multiplier, sizeof(_prefs->adc_multiplier));                 // 166
     file.write((uint8_t *)_prefs->owner_info, sizeof(_prefs->owner_info));                          // 170
     file.write((uint8_t *)&_prefs->rx_boosted_gain, sizeof(_prefs->rx_boosted_gain));              // 290
-    // next: 291
+    file.write((uint8_t *)&_prefs->flood_path_max, sizeof(_prefs->flood_path_max));                  // 291
+    // next: 292
 
     file.close();
   }
@@ -607,6 +610,15 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     } else {
       strcpy(reply, "Error, max 64");
     }
+  } else if (memcmp(config, "flood.path.max ", 15) == 0) {
+    int val = _atoi(&config[15]);
+    if (val < 0 || val > 255) {
+      strcpy(reply, "Error: range is 0-255 (0=off, default=12)");
+    } else {
+      _prefs->flood_path_max = (uint8_t)val;
+      savePrefs();
+      strcpy(reply, "OK");
+    }
   } else if (memcmp(config, "direct.txdelay ", 15) == 0) {
     float f = atof(&config[15]);
     if (f >= 0) {
@@ -782,6 +794,8 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %s", StrHelper::ftoa(_prefs->rx_delay_base));
   } else if (memcmp(config, "txdelay", 7) == 0) {
     sprintf(reply, "> %s", StrHelper::ftoa(_prefs->tx_delay_factor));
+  } else if (memcmp(config, "flood.path.max", 14) == 0) {
+    sprintf(reply, "> %d", (uint32_t) _prefs->flood_path_max);
   } else if (memcmp(config, "flood.max", 9) == 0) {
     sprintf(reply, "> %d", (uint32_t)_prefs->flood_max);
   } else if (memcmp(config, "direct.txdelay", 14) == 0) {
