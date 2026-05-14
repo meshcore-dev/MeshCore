@@ -181,7 +181,7 @@ void E213Display::drawXbm(int x, int y, const uint8_t *bits, int w, int h) {
 
       // If the bit is set, draw the pixel
       if (bitSet) {
-          display->drawPixel(x + bx, y + by, BLACK);
+          display->drawPixel(x + bx, y + by, _color);
       }
     }
   }
