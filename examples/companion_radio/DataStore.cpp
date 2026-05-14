@@ -4,7 +4,7 @@
 #include <helpers/MigrateContactsToChunks.h> // remove when we have migrated to chunked contacts
 
 #if defined(EXTRAFS) || defined(QSPIFLASH)
-  #define MAX_BLOBRECS 100
+  #define MAX_BLOBRECS 40
 #else
   #define MAX_BLOBRECS 20
 #endif
