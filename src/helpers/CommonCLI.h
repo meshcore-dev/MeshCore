@@ -61,6 +61,12 @@ struct NodePrefs { // persisted to file
   uint8_t rx_boosted_gain; // power settings
   uint8_t path_hash_mode;   // which path mode to use when sending
   uint8_t loop_detect;
+  // Ethernet settings
+  uint32_t eth_ip;
+  uint32_t eth_gateway;
+  uint32_t eth_subnet;
+  uint32_t eth_dns1;
+  uint32_t eth_dns2;
 };
 
 class CommonCLICallbacks {

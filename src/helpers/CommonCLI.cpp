@@ -27,6 +27,38 @@ static bool isValidName(const char *n) {
   return true;
 }
 
+// Helper functions for IP address conversion
+// Returns UINT32_MAX on parse error or out-of-range octet. Returns 0 for 0.0.0.0 (DHCP/clear).
+static uint32_t ipStringToUint32(const char* ip_str) {
+  unsigned int a = 0, b = 0, c = 0, d = 0;
+  if (sscanf(ip_str, "%u.%u.%u.%u", &a, &b, &c, &d) != 4) return UINT32_MAX;
+  if (a > 255 || b > 255 || c > 255 || d > 255) return UINT32_MAX;
+  return ((uint32_t)a << 24) | ((uint32_t)b << 16) | ((uint32_t)c << 8) | d;
+}
+
+static void uint32ToIPString(uint32_t ip, char* buffer, size_t size) {
+  uint8_t b1 = (ip >> 24) & 0xFF;
+  uint8_t b2 = (ip >> 16) & 0xFF;
+  uint8_t b3 = (ip >> 8) & 0xFF;
+  uint8_t b4 = ip & 0xFF;
+  snprintf(buffer, size, "%d.%d.%d.%d", b1, b2, b3, b4);
+}
+
+// Reject 0.x.x.x and multicast/reserved (>= 224.x.x.x). 0 is valid (means DHCP/clear).
+// Guards against stale bytes from older prefs-file layouts ending up at the netif.
+static bool isValidUnicastIp(uint32_t ip) {
+  if (ip == 0) return true;
+  uint8_t first = (ip >> 24) & 0xFF;
+  return (first >= 1 && first <= 223);
+}
+
+// Valid subnet mask = contiguous 1s followed by contiguous 0s.
+static bool isValidSubnetMask(uint32_t mask) {
+  if (mask == 0) return true;
+  uint32_t inv = ~mask;
+  return (inv & (inv + 1)) == 0;
+}
+
 void CommonCLI::loadPrefs(FILESYSTEM* fs) {
   if (fs->exists("/com_prefs")) {
     loadPrefsInt(fs, "/com_prefs");   // new filename
@@ -88,8 +120,13 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     file.read((uint8_t *)&_prefs->discovery_mod_timestamp, sizeof(_prefs->discovery_mod_timestamp)); // 162
     file.read((uint8_t *)&_prefs->adc_multiplier, sizeof(_prefs->adc_multiplier));                 // 166
     file.read((uint8_t *)_prefs->owner_info, sizeof(_prefs->owner_info));                          // 170
-    file.read((uint8_t *)&_prefs->rx_boosted_gain, sizeof(_prefs->rx_boosted_gain));              // 290
-    // next: 291
+    file.read((uint8_t *)&_prefs->rx_boosted_gain, sizeof(_prefs->rx_boosted_gain));               // 290
+    file.read((uint8_t *)&_prefs->eth_ip, sizeof(_prefs->eth_ip));                                 // 291
+    file.read((uint8_t *)&_prefs->eth_gateway, sizeof(_prefs->eth_gateway));                       // 295
+    file.read((uint8_t *)&_prefs->eth_subnet, sizeof(_prefs->eth_subnet));                         // 299
+    file.read((uint8_t *)&_prefs->eth_dns1, sizeof(_prefs->eth_dns1));                             // 303
+    file.read((uint8_t *)&_prefs->eth_dns2, sizeof(_prefs->eth_dns2));                             // 307
+    // 311
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -119,6 +156,15 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
 
     // sanitise settings
     _prefs->rx_boosted_gain = constrain(_prefs->rx_boosted_gain, 0, 1); // boolean
+
+    // Sanitise eth_* fields: an older firmware version may have written different
+    // data at these offsets. Drop anything that isn't a plausible unicast IP / mask
+    // so we don't push garbage into esp_netif_set_ip_info() at boot.
+    if (!isValidUnicastIp(_prefs->eth_ip))      _prefs->eth_ip = 0;
+    if (!isValidUnicastIp(_prefs->eth_gateway)) _prefs->eth_gateway = 0;
+    if (!isValidUnicastIp(_prefs->eth_dns1))    _prefs->eth_dns1 = 0;
+    if (!isValidUnicastIp(_prefs->eth_dns2))    _prefs->eth_dns2 = 0;
+    if (!isValidSubnetMask(_prefs->eth_subnet)) _prefs->eth_subnet = 0;
 
     file.close();
   }
@@ -179,9 +225,13 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->discovery_mod_timestamp, sizeof(_prefs->discovery_mod_timestamp)); // 162
     file.write((uint8_t *)&_prefs->adc_multiplier, sizeof(_prefs->adc_multiplier));                 // 166
     file.write((uint8_t *)_prefs->owner_info, sizeof(_prefs->owner_info));                          // 170
-    file.write((uint8_t *)&_prefs->rx_boosted_gain, sizeof(_prefs->rx_boosted_gain));              // 290
-    // next: 291
-
+    file.write((uint8_t *)&_prefs->rx_boosted_gain, sizeof(_prefs->rx_boosted_gain));               // 290
+    file.write((uint8_t *)&_prefs->eth_ip, sizeof(_prefs->eth_ip));                                 // 291
+    file.write((uint8_t *)&_prefs->eth_gateway, sizeof(_prefs->eth_gateway));                       // 295
+    file.write((uint8_t *)&_prefs->eth_subnet, sizeof(_prefs->eth_subnet));                         // 299
+    file.write((uint8_t *)&_prefs->eth_dns1, sizeof(_prefs->eth_dns1));                             // 303
+    file.write((uint8_t *)&_prefs->eth_dns2, sizeof(_prefs->eth_dns2));                             // 307
+    // 311
     file.close();
   }
 }
@@ -727,6 +777,44 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       _prefs->adc_multiplier = 0.0f;
       strcpy(reply, "Error: unsupported by this board");
     };
+#ifdef USE_ETHERNET
+  } else if (memcmp(config, "ip ", 3) == 0) {
+    uint32_t ip = ipStringToUint32(&config[3]);
+    if (ip == UINT32_MAX || (ip != 0 && !isValidUnicastIp(ip))) {
+      strcpy(reply, "Error: invalid IP");
+    } else {
+      _prefs->eth_ip = ip;
+      savePrefs();
+      strcpy(reply, ip == 0 ? "OK - reboot to apply (will use DHCP)" : "OK - reboot to apply");
+    }
+  } else if (memcmp(config, "subnet ", 7) == 0) {
+    uint32_t subnet = ipStringToUint32(&config[7]);
+    if (subnet == UINT32_MAX || !isValidSubnetMask(subnet)) {
+      strcpy(reply, "Error: invalid subnet mask");
+    } else {
+      _prefs->eth_subnet = subnet;
+      savePrefs();
+      strcpy(reply, "OK - reboot to apply");
+    }
+  } else if (memcmp(config, "gw ", 3) == 0) {
+    uint32_t gw = ipStringToUint32(&config[3]);
+    if (gw == UINT32_MAX || (gw != 0 && !isValidUnicastIp(gw))) {
+      strcpy(reply, "Error: invalid IP");
+    } else {
+      _prefs->eth_gateway = gw;
+      savePrefs();
+      strcpy(reply, "OK - reboot to apply");
+    }
+  } else if (memcmp(config, "dns ", 4) == 0) {
+    uint32_t dns = ipStringToUint32(&config[4]);
+    if (dns == UINT32_MAX || (dns != 0 && !isValidUnicastIp(dns))) {
+      strcpy(reply, "Error: invalid IP");
+    } else {
+      _prefs->eth_dns1 = dns;
+      savePrefs();
+      strcpy(reply, "OK - reboot to apply");
+    }
+#endif
   } else {
     strcpy(reply, "unknown config: ");
     StrHelper::strncpy(&reply[16], config, 160-17);
@@ -844,6 +932,24 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %d", (uint32_t)_prefs->bridge_channel);
   } else if (memcmp(config, "bridge.secret", 13) == 0) {
     sprintf(reply, "> %s", _prefs->bridge_secret);
+#endif
+#ifdef USE_ETHERNET
+  } else if (memcmp(config, "ip", 2) == 0) {
+    char ip_str[16];
+    uint32ToIPString(_prefs->eth_ip, ip_str, sizeof(ip_str));
+    sprintf(reply, "> %s", ip_str);
+  } else if (memcmp(config, "subnet", 6) == 0) {
+    char subnet_str[16];
+    uint32ToIPString(_prefs->eth_subnet, subnet_str, sizeof(subnet_str));
+    sprintf(reply, "> %s", subnet_str);
+  } else if (memcmp(config, "gw", 2) == 0) {
+    char gw_str[16];
+    uint32ToIPString(_prefs->eth_gateway, gw_str, sizeof(gw_str));
+    sprintf(reply, "> %s", gw_str);
+  } else if (memcmp(config, "dns", 3) == 0) {
+    char dns_str[16];
+    uint32ToIPString(_prefs->eth_dns1, dns_str, sizeof(dns_str));
+    sprintf(reply, "> %s", dns_str);
 #endif
   } else if (memcmp(config, "bootloader.ver", 14) == 0) {
   #ifdef NRF52_PLATFORM

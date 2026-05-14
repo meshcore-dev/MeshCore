@@ -19,6 +19,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
   - [GPS](#gps-when-gps-support-is-compiled-in)
   - [Sensors](#sensors-when-sensor-support-is-compiled-in)
   - [Bridge](#bridge-when-bridge-support-is-compiled-in)
+  - [Ethernet](#ethernet-when-use_ethernet-is-compiled-in)
 
 ---
 
@@ -1051,5 +1052,71 @@ region save
 **Usage:** `get pwrmgt.bootmv`
 
 **Note:** Returns an error on boards without power management support.
+
+---
+
+### Ethernet (When USE_ETHERNET is compiled in)
+
+#### View or change this node's Ethernet IP address
+**Usage:**
+- `get ip`
+- `set ip <address>`
+
+**Parameters:**
+- `address`: IPv4 address (e.g., `192.168.254.21`)
+
+**Set by build flag:** `ETH_STATIC_IP`
+
+**Default:** `0.0.0.0` (uses DHCP if not configured)
+
+**Note:** Requires reboot to apply. Set to `0.0.0.0` to revert to DHCP. If `ETH_STATIC_IP` is defined in build flags and DHCP fails, that compile-time address is used as fallback.
+
+---
+
+#### View or change this node's Ethernet gateway
+**Usage:**
+- `get gw`
+- `set gw <address>`
+
+**Parameters:**
+- `address`: IPv4 gateway address (e.g., `192.168.254.254`)
+
+**Set by build flag:** `ETH_GATEWAY`
+
+**Default:** `0.0.0.0`
+
+**Note:** Requires reboot to apply
+
+---
+
+#### View or change this node's Ethernet subnet mask
+**Usage:**
+- `get subnet`
+- `set subnet <address>`
+
+**Parameters:**
+- `address`: Subnet mask in dotted decimal notation (e.g., `255.255.255.0`)
+
+**Set by build flag:** `ETH_SUBNET`
+
+**Default:** `0.0.0.0`
+
+**Note:** Requires reboot to apply
+
+---
+
+#### View or change this node's Ethernet DNS server
+**Usage:**
+- `get dns`
+- `set dns <address>`
+
+**Parameters:**
+- `address`: IPv4 DNS address (e.g., `8.8.8.8`)
+
+**Set by build flag:** `ETH_DNS`
+
+**Default:** `0.0.0.0`
+
+**Note:** Requires reboot to apply. Configures DNS1 (primary DNS server).
 
 ---

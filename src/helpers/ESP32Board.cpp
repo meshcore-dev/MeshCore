@@ -3,18 +3,29 @@
 #include "ESP32Board.h"
 
 #if defined(ADMIN_PASSWORD) && !defined(DISABLE_WIFI_OTA)   // Repeater or Room Server only
-#include <WiFi.h>
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <AsyncElegantOTA.h>
-
 #include <SPIFFS.h>
 
-bool ESP32Board::startOTAUpdate(const char* id, char reply[]) {
-  inhibit_sleep = true;   // prevent sleep during OTA
-  WiFi.softAP("MeshCore-OTA", NULL);
+#if defined(USE_ETHERNET)
+  extern String eth_local_ip;  // defined in TEthEliteBoard.cpp
+#else
+  #include <WiFi.h>
+#endif
 
+bool ESP32Board::startOTAUpdate(const char* id, char reply[]) {
+  inhibit_sleep = true;
+
+#if defined(USE_ETHERNET)
+  Serial.println("OTA: using ETH");
+  sprintf(reply, "Started: http://%s/update", eth_local_ip.c_str());
+#else
+  Serial.println("OTA: using WiFi SoftAP");
+  WiFi.softAP("MeshCore-OTA", NULL);
   sprintf(reply, "Started: http://%s/update", WiFi.softAPIP().toString().c_str());
+#endif
+
   MESH_DEBUG_PRINTLN("startOTAUpdate: %s", reply);
 
   static char id_buf[60];
@@ -32,7 +43,7 @@ bool ESP32Board::startOTAUpdate(const char* id, char reply[]) {
   });
 
   AsyncElegantOTA.setID(id_buf);
-  AsyncElegantOTA.begin(server);    // Start ElegantOTA
+  AsyncElegantOTA.begin(server);
   server->begin();
 
   return true;
@@ -44,4 +55,4 @@ bool ESP32Board::startOTAUpdate(const char* id, char reply[]) {
 }
 #endif
 
-#endif
+#endif  // ESP_PLATFORM

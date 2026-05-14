@@ -3,6 +3,11 @@
 
 #include "MyMesh.h"
 
+#if defined(TCP_CONSOLE_PORT)
+  #include <helpers/esp32/TCPConsole.h>
+  TCPConsole tcp_console(nullptr);  // prefs set in setup()
+#endif
+
 #ifdef DISPLAY_CLASS
   #include "UITask.h"
   static UITask ui_task(display);
@@ -23,6 +28,10 @@ void setup() {
   delay(1000);
 
   board.begin();
+
+  #if defined(ESP32) && defined(TCP_CONSOLE_PORT)
+    tcp_console.begin();
+  #endif
 
 #ifdef DISPLAY_CLASS
   if (display.begin()) {
@@ -72,6 +81,17 @@ void setup() {
 
   the_mesh.begin(fs);
 
+#ifdef USE_ETHERNET
+    NodePrefs* prefs = the_mesh.getNodePrefs();
+    if (prefs->eth_ip != 0) {
+      board.reconfigureEthernet(prefs->eth_ip, prefs->eth_gateway, prefs->eth_subnet, prefs->eth_dns1);
+    }
+#endif
+
+ #if defined(TCP_CONSOLE_PORT)
+  tcp_console.setPrefs(the_mesh.getNodePrefs());
+#endif
+
 #ifdef DISPLAY_CLASS
   ui_task.begin(the_mesh.getNodePrefs(), FIRMWARE_BUILD_DATE, FIRMWARE_VERSION);
 #endif
@@ -108,9 +128,13 @@ void loop() {
   }
 
   the_mesh.loop();
+  #if defined(ESP32) && defined(TCP_CONSOLE_PORT)
+    tcp_console.loop(the_mesh);
+  #endif
+
   sensors.loop();
-#ifdef DISPLAY_CLASS
-  ui_task.loop();
-#endif
+    #ifdef DISPLAY_CLASS
+      ui_task.loop();
+    #endif
   rtc_clock.tick();
 }
