@@ -1,5 +1,6 @@
 #include "Utils.h"
 #include <AES.h>
+#include <Crypto.h>
 #include <SHA256.h>
 
 #ifdef ARDUINO
@@ -81,7 +82,7 @@ int Utils::MACThenDecrypt(const uint8_t* shared_secret, uint8_t* dest, const uin
     sha.update(src + CIPHER_MAC_SIZE, src_len - CIPHER_MAC_SIZE);
     sha.finalizeHMAC(shared_secret, PUB_KEY_SIZE, hmac, CIPHER_MAC_SIZE);
   }
-  if (memcmp(hmac, src, CIPHER_MAC_SIZE) == 0) {
+  if (secure_compare(hmac, src, CIPHER_MAC_SIZE)) {
     return decrypt(shared_secret, dest, src + CIPHER_MAC_SIZE, src_len - CIPHER_MAC_SIZE);
   }
   return 0; // invalid HMAC
