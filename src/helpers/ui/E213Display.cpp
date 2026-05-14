@@ -128,7 +128,7 @@ void E213Display::setTextSize(int sz) {
 
 void E213Display::setColor(Color c) {
   display_crc.update<Color>(c);
-  _color = c == 0 ? WHITE : BLACK; // for rectangles
+  _color = c == 0 ? WHITE : BLACK; // for rectangles and bitmaps
   display.setTextColor(UINT16_MAX * _color); // for text
   // keep in mind this is inverted on e-ink
 }
