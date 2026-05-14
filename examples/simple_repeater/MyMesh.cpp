@@ -852,7 +852,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
       telemetry(MAX_PACKET_PAYLOAD - 4),
       discover_limiter(4, 120),  // max 4 every 2 minutes
       anon_limiter(4, 180),  // max 4 every 3 minutes
-      advert_limiter(300, 3, 5)  // 5-min window, 3x burst, floor 5
+      advert_limiter(150, 3, 9)  // 150s window, 3x burst, floor 9
 #if defined(WITH_RS232_BRIDGE)
       , bridge(&_prefs, WITH_RS232_BRIDGE, _mgr, &rtc)
 #endif
