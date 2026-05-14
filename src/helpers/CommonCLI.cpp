@@ -89,6 +89,8 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     file.read((uint8_t *)&_prefs->adc_multiplier, sizeof(_prefs->adc_multiplier));                 // 166
     file.read((uint8_t *)_prefs->owner_info, sizeof(_prefs->owner_info));                          // 170
     file.read((uint8_t *)&_prefs->rx_boosted_gain, sizeof(_prefs->rx_boosted_gain));              // 290
+    file.read((uint8_t *)&_prefs->flood_advert_base, sizeof(_prefs->flood_advert_base));                 // 290
+
     // next: 291
 
     // sanitise bad pref values
@@ -119,6 +121,7 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
 
     // sanitise settings
     _prefs->rx_boosted_gain = constrain(_prefs->rx_boosted_gain, 0, 1); // boolean
+    _prefs->flood_advert_base = constrain(_prefs->flood_advert_base, 0, 1);
 
     file.close();
   }
@@ -181,6 +184,7 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)_prefs->owner_info, sizeof(_prefs->owner_info));                          // 170
     file.write((uint8_t *)&_prefs->rx_boosted_gain, sizeof(_prefs->rx_boosted_gain));              // 290
     // next: 291
+    file.write((uint8_t *)&_prefs->flood_advert_base, sizeof(_prefs->flood_advert_base));            
 
     file.close();
   }
@@ -508,6 +512,15 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       savePrefs();
       strcpy(reply, "OK");
     }
+  } else if (memcmp(config, "flood.advert.base ", 18) == 0) {
+    float f = atof(&config[18]);
+    if (f >= 0.0f && f <= 1.0f) {
+      _prefs->flood_advert_base = f;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: base must be between 0 and 1");
+  }            
   } else if (memcmp(config, "advert.interval ", 16) == 0) {
     int mins = _atoi(&config[16]);
     if ((mins > 0 && mins < MIN_LOCAL_ADVERT_INTERVAL) || (mins > 240)) {
@@ -752,6 +765,8 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %s", _prefs->allow_read_only ? "on" : "off");
   } else if (memcmp(config, "flood.advert.interval", 21) == 0) {
     sprintf(reply, "> %d", ((uint32_t) _prefs->flood_advert_interval));
+  } else if (memcmp(config, "flood.advert.base", 17) == 0) {
+    sprintf(reply, "> %s", StrHelper::ftoa(_prefs->flood_advert_base));  
   } else if (memcmp(config, "advert.interval", 15) == 0) {
     sprintf(reply, "> %d", ((uint32_t) _prefs->advert_interval) * 2);
   } else if (memcmp(config, "guest.password", 14) == 0) {
