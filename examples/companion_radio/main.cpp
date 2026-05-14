@@ -42,8 +42,13 @@ static uint32_t _atoi(const char* sp) {
       #define TCP_PORT 5000
     #endif
   #elif defined(BLE_PIN_CODE)
-    #include <helpers/esp32/SerialBLEInterface.h>
-    SerialBLEInterface serial_interface;
+    #ifdef BLE_USE_NIMBLE
+      #include <helpers/esp32/SerialNimBLEInterface.h>
+      SerialNimBLEInterface serial_interface;
+    #else
+      #include <helpers/esp32/SerialBLEInterface.h>
+      SerialBLEInterface serial_interface;
+    #endif
   #elif defined(SERIAL_RX)
     #include <helpers/ArduinoSerialInterface.h>
     ArduinoSerialInterface serial_interface;
