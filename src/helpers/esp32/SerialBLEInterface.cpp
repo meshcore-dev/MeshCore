@@ -28,6 +28,10 @@ void SerialBLEInterface::begin(const char* prefix, char* name, uint32_t pin_code
   BLEDevice::setSecurityCallbacks(this);
   BLEDevice::setMTU(MAX_FRAME_SIZE);
 
+  deviceConnected = false;
+  oldDeviceConnected = false;
+  adv_restart_time = 0;
+  
   BLESecurity  sec;
   sec.setStaticPIN(pin_code);
   sec.setAuthenticationMode(ESP_LE_AUTH_REQ_SC_MITM_BOND);
@@ -76,14 +80,19 @@ bool SerialBLEInterface::onSecurityRequest() {
 
 void SerialBLEInterface::onAuthenticationComplete(esp_ble_auth_cmpl_t cmpl) {
   if (cmpl.success) {
-    BLE_DEBUG_PRINTLN(" - SecurityCallback - Authentication Success");
-    deviceConnected = true;
+    if (_isEnabled) {
+      BLE_DEBUG_PRINTLN(" - SecurityCallback - Authentication Success");
+      deviceConnected = true;
+    } else {
+      BLE_DEBUG_PRINTLN("Auth success but not enabled, disconnecting");
+      pServer->disconnect(pServer->getConnId());
+    }
   } else {
     BLE_DEBUG_PRINTLN(" - SecurityCallback - Authentication Failure*");
-
-    //pServer->removePeerDevice(pServer->getConnId(), true);
     pServer->disconnect(pServer->getConnId());
-    adv_restart_time = millis() + ADVERT_RESTART_DELAY;
+    if (_isEnabled) {
+      adv_restart_time = millis() + ADVERT_RESTART_DELAY;
+    }
   }
 }
 
@@ -103,6 +112,7 @@ void SerialBLEInterface::onMtuChanged(BLEServer* pServer, esp_ble_gatts_cb_param
 
 void SerialBLEInterface::onDisconnect(BLEServer* pServer) {
   BLE_DEBUG_PRINTLN("onDisconnect()");
+  deviceConnected = false;
   if (_isEnabled) {
     adv_restart_time = millis() + ADVERT_RESTART_DELAY;
 
