@@ -1,7 +1,7 @@
 #pragma once
 
 #include <MeshCore.h>
-#include <Stream.h>
+#include <Print.h>
 #include <string.h>
 
 namespace mesh {
@@ -69,7 +69,7 @@ public:
   /**
    * \brief  Prints the hexadecimal representation of 'src' bytes of given length, to Stream 's'.
   */
-  static void printHex(Stream& s, const uint8_t* src, size_t len);
+  static void printHex(Print& s, const uint8_t* src, size_t len);
 
   /**
    * \brief  parse 'text' into parts separated by 'separator' char.
