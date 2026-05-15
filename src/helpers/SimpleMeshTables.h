@@ -12,7 +12,7 @@
 class SimpleMeshTables : public mesh::MeshTables {
   uint8_t _hashes[MAX_PACKET_HASHES*MAX_HASH_SIZE];
   int _next_idx;
-  uint32_t _acks[MAX_PACKET_ACKS];
+  uint8_t _acks[MAX_PACKET_ACKS*MAX_HASH_SIZE];
   int _next_ack_idx;
   uint32_t _direct_dups, _flood_dups;
 
@@ -42,8 +42,8 @@ public:
 
   bool hasSeen(const mesh::Packet* packet) override {
     if (packet->getPayloadType() == PAYLOAD_TYPE_ACK) {
-      uint32_t ack;
-      memcpy(&ack, packet->payload, 4);
+      uint8_t ack;
+      memcpy(&ack, packet->payload, MAX_HASH_SIZE);
       for (int i = 0; i < MAX_PACKET_ACKS; i++) {
         if (ack == _acks[i]) { 
           if (packet->isRouteDirect()) {
@@ -82,8 +82,8 @@ public:
 
   void clear(const mesh::Packet* packet) override {
     if (packet->getPayloadType() == PAYLOAD_TYPE_ACK) {
-      uint32_t ack;
-      memcpy(&ack, packet->payload, 4);
+      uint8_t ack;
+      memcpy(&ack, packet->payload, MAX_HASH_SIZE);
       for (int i = 0; i < MAX_PACKET_ACKS; i++) {
         if (ack == _acks[i]) { 
           _acks[i] = 0;

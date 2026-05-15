@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include <math.h>
 
-#define MAX_HASH_SIZE        8
+#define MAX_HASH_SIZE        4
 #define PUB_KEY_SIZE        32
 #define PRV_KEY_SIZE        64
 #define SEED_SIZE           32
