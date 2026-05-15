@@ -23,7 +23,7 @@
 // - use cli to 'set adc.multiplier' (repeaters / rooms)
 
 #ifndef ADC_MULTIPLIER
-#define ADC_MULTIPLIER (1.667f) // Dependent on voltage divider resistors. Default 1MOhm & 1.5MOhm divider
+#define ADC_MULTIPLIER (2.0f) // Dependent on voltage divider resistors. Default 1MOhm resistors
 #endif
 
 class PromicroBoard : public NRF52BoardDCDC {
