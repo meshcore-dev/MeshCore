@@ -9,14 +9,16 @@
   #define TXT_ACK_DELAY     200
 #endif
 
-// Path-stickiness window (seconds): a stored direct path that is younger than
-// this threshold will not be replaced by a longer-hop incoming path.
-// Addresses issue #1775 (unconditional path replacement instability).
+// Path-stickiness window (seconds): once a path is stored, ANY replacement is
+// blocked for this long.  No hop-count comparison is performed — fewer hops is
+// NOT automatically better because rxdelay-based SNR ordering means high-SNR
+// long-hop paths arrive first, then low-SNR short-hop paths follow.  A blanket
+// first-arrived lock avoids that bias entirely.
+// 10 s is long enough to suppress multipath duplicates (50-200 ms apart) yet
+// short enough that a genuinely changed topology gets a fresh path quickly.
+// Addresses issue #1775.
 #ifndef PATH_STICKINESS_WINDOW_SECS
-  #define PATH_STICKINESS_WINDOW_SECS  30u    // 30 seconds: long enough to ignore
-                                              // multipath duplicates (50-200 ms apart)
-                                              // but short enough to allow legitimate
-                                              // path updates in a changing topology
+  #define PATH_STICKINESS_WINDOW_SECS  10u
 #endif
 
 // Number of independent flood-ACK transmissions at increasing delays.
@@ -334,27 +336,27 @@ bool BaseChatMesh::onPeerPathRecv(mesh::Packet* packet, int sender_idx, const ui
 bool BaseChatMesh::onContactPathRecv(ContactInfo& from, uint8_t* in_path, uint8_t in_path_len, uint8_t* out_path, uint8_t out_path_len, uint8_t extra_type, uint8_t* extra, uint8_t extra_len) {
   uint32_t now = getRTCClock()->getCurrentTime();
 
-  // Path quality gating (issue #1775): do not replace a fresh stored path with
-  // a longer-hop incoming path.  A path is "sticky" for PATH_STICKINESS_WINDOW_SECS
-  // after it was last accepted, protecting a working direct route from being
-  // silently downgraded by a suboptimal first-arriving multipath duplicate.
+  // Path-stickiness lock (issue #1775): block ANY replacement of a freshly
+  // stored path for PATH_STICKINESS_WINDOW_SECS seconds.  No hop-count
+  // comparison — fewer hops is not automatically better because rxdelay-based
+  // SNR ordering propagates high-SNR (often longer-hop) paths first; comparing
+  // hops would therefore bias toward the wrong path.  A blanket first-arrived
+  // lock is simpler and avoids that bias.
+  // The embedded ACK/response is always processed regardless of the lock.
   if (from.out_path_len != OUT_PATH_UNKNOWN && from.out_path_timestamp != 0) {
     uint32_t age_secs = now - from.out_path_timestamp;
     if (age_secs < PATH_STICKINESS_WINDOW_SECS) {
-      uint8_t stored_hops = from.out_path_len & 63;
-      uint8_t new_hops    = out_path_len & 63;
-      if (new_hops > stored_hops) {
-        // Incoming path has more hops – keep the fresher, shorter stored path.
-        onContactPathUpdated(from);
-        if (extra_type == PAYLOAD_TYPE_ACK && extra_len >= 4) {
-          if (processAck(extra) != NULL) {
-            txt_send_timeout = 0;
-          }
-        } else if (extra_type == PAYLOAD_TYPE_RESPONSE && extra_len > 0) {
-          onContactResponse(from, extra, extra_len);
+      // Path is still within the lock window — keep it, but still process any
+      // embedded ACK or response so the sender's retry timer is cancelled.
+      onContactPathUpdated(from);
+      if (extra_type == PAYLOAD_TYPE_ACK && extra_len >= 4) {
+        if (processAck(extra) != NULL) {
+          txt_send_timeout = 0;
         }
-        return true;
+      } else if (extra_type == PAYLOAD_TYPE_RESPONSE && extra_len > 0) {
+        onContactResponse(from, extra, extra_len);
       }
+      return true;
     }
   }
 
