@@ -61,6 +61,7 @@ struct NodePrefs { // persisted to file
   uint8_t rx_boosted_gain; // power settings
   uint8_t path_hash_mode;   // which path mode to use when sending
   uint8_t loop_detect;
+  uint8_t auto_tune_delays; // when on, tx/direct tx delay factors auto-follow neighbor count
 };
 
 class CommonCLICallbacks {
@@ -108,6 +109,10 @@ public:
   };
 
   virtual void setRxBoostedGain(bool enable) {
+    // no op by default
+  };
+
+  virtual void onAutoTuneChanged(bool enable) {
     // no op by default
   };
 };
