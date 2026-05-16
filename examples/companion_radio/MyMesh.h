@@ -100,6 +100,12 @@ public:
   bool advert();
   void enterCLIRescue();
 
+  void factoryReset() { _store->formatFileSystem(); }
+  void saveContacts() { _store->saveContacts(this); }
+  void saveChannels() { _store->saveChannels(this); }
+  void queueOutgoingMessageForBLE(const ContactInfo* contact, const ChannelDetails* channel,
+                                  const char* from_name, const char* text, uint32_t timestamp);
+
   int  getRecentlyHeard(AdvertPath dest[], int max_num);
 
 protected:
@@ -196,9 +202,7 @@ private:
   void checkSerialInterface();
   bool isValidClientRepeatFreq(uint32_t f) const;
 
-  // helpers, short-cuts
-  void saveChannels() { _store->saveChannels(this); }
-  void saveContacts() { _store->saveContacts(this); }
+  // helpers, short-cuts (public versions above)
 
   DataStore* _store;
   NodePrefs _prefs;

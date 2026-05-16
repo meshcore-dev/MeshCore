@@ -2191,3 +2191,44 @@ bool MyMesh::advert() {
     return false;
   }
 }
+
+void MyMesh::queueOutgoingMessageForBLE(const ContactInfo* contact, const ChannelDetails* channel,
+                                         const char* from_name, const char* text, uint32_t timestamp) {
+  int i = 0;
+  uint8_t frame[MAX_FRAME_SIZE];
+  bool is_channel = (channel != NULL);
+
+  if (is_channel) {
+    if (app_target_ver >= 3) {
+      frame[i++] = RESP_CODE_CHANNEL_MSG_RECV_V3;
+      frame[i++] = 0; frame[i++] = 0; frame[i++] = 0;
+    } else {
+      frame[i++] = RESP_CODE_CHANNEL_MSG_RECV;
+    }
+    uint8_t channel_idx = findChannelIdx(channel->channel);
+    frame[i++] = channel_idx;
+    frame[i++] = 0xFF;
+    frame[i++] = TXT_TYPE_PLAIN;
+    memcpy(&frame[i], &timestamp, 4); i += 4;
+    int name_len = strlen(from_name);
+    if (name_len > 30) name_len = 30;
+    memcpy(&frame[i], from_name, name_len); i += name_len;
+    frame[i++] = ':'; frame[i++] = ' ';
+  } else if (contact) {
+    if (app_target_ver >= 3) {
+      frame[i++] = RESP_CODE_CONTACT_MSG_RECV_V3;
+      frame[i++] = 0; frame[i++] = 0; frame[i++] = 0;
+    } else {
+      frame[i++] = RESP_CODE_CONTACT_MSG_RECV;
+    }
+    memcpy(&frame[i], contact->id.pub_key, 6); i += 6;
+    frame[i++] = 0xFF;
+    frame[i++] = TXT_TYPE_PLAIN;
+    memcpy(&frame[i], &timestamp, 4); i += 4;
+  }
+
+  int text_len = strlen(text);
+  if (i + text_len > MAX_FRAME_SIZE) text_len = MAX_FRAME_SIZE - i;
+  memcpy(&frame[i], text, text_len); i += text_len;
+  addToOfflineQueue(frame, i);
+}
