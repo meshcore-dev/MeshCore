@@ -13,7 +13,10 @@
 // this threshold will not be replaced by a longer-hop incoming path.
 // Addresses issue #1775 (unconditional path replacement instability).
 #ifndef PATH_STICKINESS_WINDOW_SECS
-  #define PATH_STICKINESS_WINDOW_SECS  600u   // 10 minutes
+  #define PATH_STICKINESS_WINDOW_SECS  30u    // 30 seconds: long enough to ignore
+                                              // multipath duplicates (50-200 ms apart)
+                                              // but short enough to allow legitimate
+                                              // path updates in a changing topology
 #endif
 
 // Number of independent flood-ACK transmissions at increasing delays.
@@ -245,6 +248,12 @@ void BaseChatMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender
         mesh::Packet* path = createPathReturn(from.id, secret, packet->path, packet->path_len,
                                                 PAYLOAD_TYPE_ACK, (uint8_t *) &ack_hash, 4);
         if (path) sendFloodScoped(from, path, TXT_ACK_DELAY);
+        // Also send a standalone flood ACK as backup: the PATH+ACK above is a single packet
+        // whose ciphertext (AES-ECB) was deterministic before the nonce fix.  Even with the
+        // nonce, RF loss can drop the PATH+ACK entirely.  The standalone ACK travels
+        // independently and ensures the sender cancels its retry timeout even if path
+        // establishment fails (issue #1489).
+        sendAckTo(from, ack_hash);
       } else {
         sendAckTo(from, ack_hash);
       }
@@ -272,6 +281,8 @@ void BaseChatMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender
         mesh::Packet* path = createPathReturn(from.id, secret, packet->path, packet->path_len,
                                                 PAYLOAD_TYPE_ACK, (uint8_t *) &ack_hash, 4);
         if (path) sendFloodScoped(from, path, TXT_ACK_DELAY);
+        // Standalone flood ACK backup — same rationale as TXT_TYPE_PLAIN above
+        sendAckTo(from, ack_hash);
       } else {
         sendAckTo(from, ack_hash);
       }

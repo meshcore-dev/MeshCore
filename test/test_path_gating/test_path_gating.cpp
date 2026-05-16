@@ -18,7 +18,10 @@
 // ---- Constants mirrored from BaseChatMesh.cpp --------------------------------
 // If these are changed in the implementation the tests will need updating too.
 #define OUT_PATH_UNKNOWN            0xFF
-#define PATH_STICKINESS_WINDOW_SECS 600u   // 10 minutes
+// Reduced from 600 s to 30 s: long enough to reject multipath duplicates
+// (50-200 ms apart) but short enough to allow legitimate path updates after
+// topology changes, preventing stale paths from silently dropping ACKs.
+#define PATH_STICKINESS_WINDOW_SECS 30u
 
 // ---- Path-gating decision extracted as a pure function ----------------------
 // Logic must remain an exact transcription of the condition inside
@@ -65,23 +68,36 @@ TEST(PathGating, VeryOldStoredPath_AcceptsLonger) {
   EXPECT_FALSE(shouldKeepStoredPath(now, 1, 1u, 3));  // ~9999 seconds old
 }
 
+// After exactly 30 s the window expires — path replacement must be allowed again
+TEST(PathGating, PathExpires_After30Seconds_AcceptsLonger) {
+  uint32_t now = 1000;
+  uint32_t ts  = now - PATH_STICKINESS_WINDOW_SECS;  // exactly at boundary (expired)
+  EXPECT_FALSE(shouldKeepStoredPath(now, 1, ts, 5));
+}
+
+TEST(PathGating, PathExpires_OneSecondPast_AcceptsLonger) {
+  uint32_t now = 1000;
+  uint32_t ts  = now - (PATH_STICKINESS_WINDOW_SECS + 1);
+  EXPECT_FALSE(shouldKeepStoredPath(now, 1, ts, 5));
+}
+
 // Fresh stored path + LONGER incoming path — gating must block
 
 TEST(PathGating, FreshPath_LongerIncoming_KeepsStored) {
   uint32_t now = 1000;
-  uint32_t ts  = now - 100;  // 100 s old, well within 600-second window
+  uint32_t ts  = now - 5;  // 5 s old, well within 30-second window
   EXPECT_TRUE(shouldKeepStoredPath(now, 1, ts, 3));   // stored=1 hop, new=3 hops
 }
 
 TEST(PathGating, FreshPath_MuchLongerIncoming_KeepsStored) {
   uint32_t now = 1000;
-  uint32_t ts  = now - 1;
+  uint32_t ts  = now - 1;  // 1 s old
   EXPECT_TRUE(shouldKeepStoredPath(now, 1, ts, 10));
 }
 
 TEST(PathGating, FreshPath_JustInsideWindow_KeepsStored) {
   uint32_t now = 1000;
-  uint32_t ts  = now - (PATH_STICKINESS_WINDOW_SECS - 1);  // 1 second inside window
+  uint32_t ts  = now - (PATH_STICKINESS_WINDOW_SECS - 1);  // 1 s inside the 30-s window
   EXPECT_TRUE(shouldKeepStoredPath(now, 1, ts, 5));
 }
 
@@ -90,19 +106,19 @@ TEST(PathGating, FreshPath_JustInsideWindow_KeepsStored) {
 
 TEST(PathGating, FreshPath_SameHopCount_AcceptsNew) {
   uint32_t now = 1000;
-  uint32_t ts  = now - 100;
+  uint32_t ts  = now - 5;
   EXPECT_FALSE(shouldKeepStoredPath(now, 2, ts, 2));  // equal hops → no gate
 }
 
 TEST(PathGating, FreshPath_ShorterIncoming_AcceptsNew) {
   uint32_t now = 1000;
-  uint32_t ts  = now - 100;
+  uint32_t ts  = now - 5;
   EXPECT_FALSE(shouldKeepStoredPath(now, 3, ts, 1));  // new path is better → accept
 }
 
 TEST(PathGating, FreshPath_OneHopBetter_AcceptsNew) {
   uint32_t now = 1000;
-  uint32_t ts  = now - 50;
+  uint32_t ts  = now - 5;
   EXPECT_FALSE(shouldKeepStoredPath(now, 4, ts, 3));
 }
 
@@ -117,7 +133,7 @@ TEST(PathGating, ZeroTimestamp_AlwaysAcceptsNew) {
 
 TEST(PathGating, PathLenEncodingUpperBitsIgnored) {
   uint32_t now = 1000;
-  uint32_t ts  = now - 100;
+  uint32_t ts  = now - 5;
   // stored_path_len = 0xC1 → hop count bits = 0xC1 & 63 = 1
   // new_path_len    = 0x83 → hop count bits = 0x83 & 63 = 3
   EXPECT_TRUE(shouldKeepStoredPath(now, 0xC1, ts, 0x83));
@@ -125,7 +141,7 @@ TEST(PathGating, PathLenEncodingUpperBitsIgnored) {
 
 TEST(PathGating, PathLenEncodingUpperBitsIgnored_SameHops) {
   uint32_t now = 1000;
-  uint32_t ts  = now - 100;
+  uint32_t ts  = now - 5;
   // Both encode 2 hops with different upper bits — should NOT gate
   EXPECT_FALSE(shouldKeepStoredPath(now, 0x42, ts, 0x82));
 }

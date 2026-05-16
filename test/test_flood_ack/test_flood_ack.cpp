@@ -159,6 +159,52 @@ TEST(FloodAck, ExpectedDelaysTableMatchesConstants) {
   EXPECT_EQ(2000u,          EXPECTED_FLOOD_DELAYS[2]);
 }
 
+// =============================================================================
+// Backup ACK for flood-received messages
+//
+// When a flood message is received, the responder sends a PATH+ACK (one packet
+// that serves both path-establishment and ACK delivery).  If the PATH+ACK is
+// lost, the sender never gets the ACK.  The fix: also call sendAckTo() to send
+// independent flood ACKs as a backup.  This suite verifies the backup contract
+// using the same sendAckTo transcription, called from the "no known path" state
+// that applies immediately after receiving the very first flood message.
+// =============================================================================
+
+TEST(BackupFloodAck, FirstMessageScenario_SendsFloodAckBackup) {
+  // When the receiver has no stored path to the sender (first-ever message),
+  // sendAckTo() is invoked with OUT_PATH_UNKNOWN and must produce flood ACKs.
+  reset_sched();
+  testSendAckTo(OUT_PATH_UNKNOWN, 0xCAFEBABE);
+  EXPECT_EQ(FLOOD_ACK_RETRY_COUNT, sched_count);
+  for (int i = 0; i < sched_count; i++) {
+    EXPECT_TRUE(sched_buf[i].is_flood)
+        << "Backup ACK " << i << " must be flood (no path known yet)";
+  }
+}
+
+TEST(BackupFloodAck, BackupAndPathAck_AreIndependent) {
+  // The backup standalone ACK (sendAckTo) and the PATH+ACK are independent
+  // packets.  This test verifies sendAckTo is not affected by the PATH+ACK
+  // scheduling — it produces its own complete set of FLOOD_ACK_RETRY_COUNT
+  // flood transmissions at the standard delays.
+  reset_sched();
+  testSendAckTo(OUT_PATH_UNKNOWN, 0x11223344);
+  ASSERT_EQ(FLOOD_ACK_RETRY_COUNT, sched_count);
+  EXPECT_EQ(TXT_ACK_DELAY, sched_buf[0].delay_ms);
+  EXPECT_EQ(800u,           sched_buf[1].delay_ms);
+  EXPECT_EQ(2000u,          sched_buf[2].delay_ms);
+}
+
+TEST(BackupFloodAck, KnownReturnPath_SendsDirectAckBackup) {
+  // If the receiver already has a stored direct path back to the sender
+  // (e.g., established in a prior exchange), the backup sendAckTo() sends a
+  // direct ACK rather than a flood — still providing a reliable backup channel.
+  reset_sched();
+  testSendAckTo(/*out_path_len=*/1, 0xCAFEBABE);
+  EXPECT_EQ(1, sched_count);
+  EXPECT_FALSE(sched_buf[0].is_flood);
+}
+
 
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
