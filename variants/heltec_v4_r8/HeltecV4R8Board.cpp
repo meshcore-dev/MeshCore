@@ -11,6 +11,10 @@ void HeltecV4R8Board::begin() {
 #ifdef PIN_TOUCH_RST
   pinMode(PIN_TOUCH_RST, OUTPUT);
   digitalWrite(PIN_TOUCH_RST, HIGH);
+  delay(10);
+  digitalWrite(PIN_TOUCH_RST, LOW);
+  delay(100);
+  digitalWrite(PIN_TOUCH_RST, HIGH);
 #endif
 
   esp_reset_reason_t reason = esp_reset_reason();
