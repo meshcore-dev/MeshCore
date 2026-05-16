@@ -1,0 +1,32 @@
+name: Host Tests
+
+on:
+  pull_request:
+    branches: [main, dev]
+    paths:
+      - 'src/**'
+      - 'examples/**'
+      - 'test/**'
+      - 'platformio.ini'
+      - '.github/workflows/host-tests.yml'
+  push:
+    branches: [main, dev]
+    paths:
+      - 'src/**'
+      - 'examples/**'
+      - 'test/**'
+      - 'platformio.ini'
+      - '.github/workflows/host-tests.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone Repo
+        uses: actions/checkout@v4
+
+      - name: Setup Build Environment
+        uses: ./.github/actions/setup-build-environment
+
+      - name: Run host tests
+        run: pio test -e native

@@ -60,6 +60,129 @@
 
 #define LAZY_CONTACTS_WRITE_DELAY    5000
 
+// On-disk format owned by TrustedClockTable (serialize/deserialize). MyMesh just maps
+// the file open/read/write idioms required for each platform.
+void MyMesh::loadTrustedClocks() {
+  clock_trust.reset();
+  if (!_fs->exists(TRUSTED_CLOCKS_FILE)) return;
+#if defined(RP2040_PLATFORM)
+  File f = _fs->open(TRUSTED_CLOCKS_FILE, "r");
+#else
+  File f = _fs->open(TRUSTED_CLOCKS_FILE);
+#endif
+  if (!f) return;
+  uint8_t buf[TrustedClockTable::HEADER_SIZE
+              + (size_t)MAX_TRUSTED_CLOCK_KEYS * TrustedClockTable::RECORD_SIZE];
+  int n = f.read(buf, sizeof(buf));
+  f.close();
+  if (n > 0) clock_trust.deserialize(buf, (size_t)n);
+}
+
+void MyMesh::saveTrustedClocks() {
+#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
+  _fs->remove(TRUSTED_CLOCKS_FILE);
+  File f = _fs->open(TRUSTED_CLOCKS_FILE, FILE_O_WRITE);
+#elif defined(RP2040_PLATFORM)
+  File f = _fs->open(TRUSTED_CLOCKS_FILE, "w");
+#else
+  File f = _fs->open(TRUSTED_CLOCKS_FILE, "w", true);
+#endif
+  if (!f) return;
+  uint8_t buf[TrustedClockTable::HEADER_SIZE
+              + (size_t)MAX_TRUSTED_CLOCK_KEYS * TrustedClockTable::RECORD_SIZE];
+  size_t n = clock_trust.serialize(buf, sizeof(buf));
+  if (n > 0) f.write(buf, n);
+  f.close();
+}
+
+void MyMesh::formatSyncEventsReply(char* reply, size_t reply_size) {
+  if (reply_size == 0) return;
+  uint8_t n = clock_trust.syncEventCount();
+  if (n == 0) {
+    StrHelper::strncpy(reply, "(none)", reply_size);
+    return;
+  }
+  // Walk newest-first. Per line: <hex16> <name> <±delta>s.
+  reply[0] = 0;
+  size_t used = 0;
+  for (uint8_t k = 0; k < n; k++) {
+    const ClockSyncEvent& ev = clock_trust.syncEventNewestFirst(k);
+    char hex[17];
+    mesh::Utils::toHex(hex, ev.pub_key_prefix, sizeof(ev.pub_key_prefix));
+    hex[16] = 0;
+    int32_t delta = (int32_t)(ev.advert_timestamp - ev.local_before);
+    const char* nm = ev.name[0] ? ev.name : "(no name)";
+    int written = snprintf(reply + used, reply_size - used,
+                           "%s%s %s %+lds", used == 0 ? "" : "\n", hex, nm, (long)delta);
+    if (written < 0 || (size_t)written >= reply_size - used) {
+      reply[reply_size - 1] = 0;
+      break;
+    }
+    used += (size_t)written;
+  }
+}
+
+void MyMesh::formatTrustedClocksReply(char* reply, size_t reply_size) {
+  if (reply_size == 0) return;
+  if (clock_trust.count() == 0) {
+    StrHelper::strncpy(reply, "(none)", reply_size);
+    return;
+  }
+  // Compact listing: <16-hex-prefix> <name> per line. Truncates safely when out of room.
+  reply[0] = 0;
+  size_t used = 0;
+  for (uint8_t i = 0; i < clock_trust.count(); i++) {
+    const TrustedClockSource& s = clock_trust.at(i);
+    char hex[17];
+    mesh::Utils::toHex(hex, s.pub_key, 8);
+    hex[16] = 0;
+    const char* nm = s.name[0] ? s.name : "(no name)";
+    int written = snprintf(reply + used, reply_size - used,
+                           "%s%s %s", used == 0 ? "" : "\n", hex, nm);
+    if (written < 0 || (size_t)written >= reply_size - used) {
+      reply[reply_size - 1] = 0;
+      break;
+    }
+    used += (size_t)written;
+  }
+}
+
+void MyMesh::maybeStepClockFromTrustedAdvert(const mesh::Identity& id, uint32_t advert_timestamp) {
+  TrustedClockSource* src = clock_trust.find(id.pub_key);
+  if (src == NULL) return;
+
+  const char* src_name = src->name[0] ? src->name : "(no name)";
+  char src_hex[17];
+  mesh::Utils::toHex(src_hex, src->pub_key, 8);
+  src_hex[16] = 0;
+
+  // Replay guard: must be strictly newer than what we last accepted from this key.
+  // last_timestamp is RAM-only (resets to 0 on reboot, then re-converges on the next legit advert).
+  if (!TrustedClockTable::passesReplay(advert_timestamp, src->last_timestamp)) {
+    MESH_DEBUG_PRINTLN("trusted-clock: replay/stale advert from %s [%s] (ts=%u <= last=%u), ignoring",
+                       src_name, src_hex, (unsigned)advert_timestamp, (unsigned)src->last_timestamp);
+    return;
+  }
+  src->last_timestamp = advert_timestamp;
+
+  uint32_t now = getRTCClock()->getCurrentTime();
+  uint16_t threshold = _prefs.clock_trust_thresh;
+  if (!TrustedClockTable::shouldStep(now, advert_timestamp, threshold)) {
+    if (threshold != 0) {
+      MESH_DEBUG_PRINTLN("trusted-clock: advert from %s [%s] within threshold (diff=%u < %u), no step",
+                         src_name, src_hex,
+                         (unsigned)TrustedClockTable::absDiff(now, advert_timestamp),
+                         (unsigned)threshold);
+    }
+    return;
+  }
+  uint32_t diff = TrustedClockTable::absDiff(now, advert_timestamp);
+  MESH_DEBUG_PRINTLN("trusted-clock: stepping local clock by %s%u secs from %s [%s]",
+                     advert_timestamp > now ? "+" : "-", (unsigned)diff, src_name, src_hex);
+  clock_trust.recordSyncEvent(src->pub_key, src->name, now, advert_timestamp);
+  getRTCClock()->setCurrentTime(advert_timestamp);
+}
+
 void MyMesh::putNeighbour(const mesh::Identity &id, uint32_t timestamp, float snr) {
 #if MAX_NEIGHBOURS // check if neighbours enabled
   // find existing neighbour, else use least recently updated
@@ -634,6 +757,10 @@ void MyMesh::onAdvertRecv(mesh::Packet *packet, const mesh::Identity &id, uint32
                           const uint8_t *app_data, size_t app_data_len) {
   mesh::Mesh::onAdvertRecv(packet, id, timestamp, app_data, app_data_len); // chain to super impl
 
+  // signature was already verified by caller, so this advert authentically came from id.pub_key.
+  // If this pubkey is on our trusted-clock list, use the timestamp to (maybe) step our local clock.
+  maybeStepClockFromTrustedAdvert(id, timestamp);
+
   // if this a zero hop advert (and not via 'Share'), add it to neighbours
   if (packet->path_len == 0 && !isShare(packet)) {
     AdvertDataParser parser(app_data, app_data_len);
@@ -868,6 +995,8 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   memset(neighbours, 0, sizeof(neighbours));
 #endif
 
+  clock_trust.reset();
+
   // defaults
   memset(&_prefs, 0, sizeof(_prefs));
   _prefs.airtime_factor = 1.0;
@@ -903,6 +1032,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.advert_loc_policy = ADVERT_LOC_PREFS;
 
   _prefs.adc_multiplier = 0.0f; // 0.0f means use default board multiplier
+  _prefs.clock_trust_thresh = 60; // step the clock when |advert_ts - local_ts| >= 60s from a trusted source
 
 #if defined(USE_SX1262) || defined(USE_SX1268)
 #ifdef SX126X_RX_BOOSTED_GAIN
@@ -926,6 +1056,7 @@ void MyMesh::begin(FILESYSTEM *fs) {
   acl.load(_fs, self_id);
   // TODO: key_store.begin();
   region_map.load(_fs);
+  loadTrustedClocks();
 
   // establish default-scope
   {
@@ -1242,6 +1373,57 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
       Serial.printf("\n");
     }
     reply[0] = 0;
+  } else if (memcmp(command, "clock.trust ", 12) == 0) {
+    char* sub = command + 12;
+    while (*sub == ' ') sub++;
+    if (memcmp(sub, "list", 4) == 0) {
+      formatTrustedClocksReply(reply, MIN_CLI_REPLY_LEN);
+    } else if (memcmp(sub, "events", 6) == 0) {
+      formatSyncEventsReply(reply, MIN_CLI_REPLY_LEN);
+    } else if (memcmp(sub, "add ", 4) == 0) {
+      char* hex = sub + 4;
+      while (*hex == ' ') hex++;
+      // optional name follows the hex pubkey, separated by a space
+      char* name = strchr(hex, ' ');
+      if (name) {
+        *name++ = 0;
+        while (*name == ' ') name++;
+      }
+      uint8_t pubkey[PUB_KEY_SIZE];
+      if (strlen(hex) == PUB_KEY_SIZE * 2 && mesh::Utils::fromHex(pubkey, PUB_KEY_SIZE, hex)) {
+        if (memcmp(pubkey, self_id.pub_key, PUB_KEY_SIZE) == 0) {
+          strcpy(reply, "Err - cannot trust self");
+        } else if (clock_trust.add(pubkey, name)) {
+          saveTrustedClocks();
+          strcpy(reply, "OK");
+        } else {
+          sprintf(reply, "Err - trusted-clock list full (max %d)", MAX_TRUSTED_CLOCK_KEYS);
+        }
+      } else {
+        strcpy(reply, "Err - bad pubkey (need 64 hex chars)");
+      }
+    } else if (memcmp(sub, "remove ", 7) == 0) {
+      const char* arg = sub + 7;
+      while (*arg == ' ') arg++;
+      uint8_t pubkey[PUB_KEY_SIZE];
+      // accept either a full hex pubkey or a name match
+      bool removed = false;
+      if (strlen(arg) == PUB_KEY_SIZE * 2 && mesh::Utils::fromHex(pubkey, PUB_KEY_SIZE, arg)) {
+        removed = clock_trust.remove(pubkey);
+        strcpy(reply, removed ? "OK" : "Err - not found");
+      } else {
+        TrustedClockSource* by_name = clock_trust.findByName(arg);
+        if (by_name) {
+          removed = clock_trust.remove(by_name->pub_key);
+          strcpy(reply, removed ? "OK" : "Err - not found");
+        } else {
+          strcpy(reply, "Err - not found (use full hex pubkey or name)");
+        }
+      }
+      if (removed) saveTrustedClocks();
+    } else {
+      strcpy(reply, "Err - usage: clock.trust [list|events|add <pubkey> [name]|remove <pubkey-or-name>]");
+    }
   } else if (memcmp(command, "discover.neighbors", 18) == 0) {
     const char* sub = command + 18;
     while (*sub == ' ') sub++;
