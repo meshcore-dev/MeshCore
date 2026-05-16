@@ -28,6 +28,13 @@ static unsigned long userBtnDownAt = 0;
 #define USER_BTN_HOLD_OFF_MILLIS 1500
 #endif
 
+#if defined(PIN_USER_BTN_ANA) && !defined(_SEEED_SENSECAP_SOLAR_H_)
+static unsigned long anaBtnDownAt = 0;
+#define ANA_BTN_HOLD_OFF_MILLIS  5000
+#define ANA_BTN_SHORT_MILLIS      500
+static bool anaBtnShortHandled = false;
+#endif
+
 void setup() {
   Serial.begin(115200);
   delay(1000);
@@ -144,6 +151,37 @@ void loop() {
     }
   } else {
     userBtnDownAt = 0;
+  }
+#endif
+
+#if defined(PIN_USER_BTN_ANA) && !defined(_SEEED_SENSECAP_SOLAR_H_)
+  bool anaPressed = (digitalRead(PIN_USER_BTN_ANA) == LOW);
+  if (anaPressed) {
+    if (anaBtnDownAt == 0) {
+      anaBtnDownAt = millis();
+      anaBtnShortHandled = false;
+    }
+    unsigned long held = (unsigned long)(millis() - anaBtnDownAt);
+    if (held >= ANA_BTN_HOLD_OFF_MILLIS) {
+      Serial.println("AIN1 shutdown triggered");
+#ifdef DISPLAY_CLASS
+      display.turnOn();
+      display.startFrame();
+      display.setCursor(0, 20);
+      display.print("Shutting down...");
+      display.endFrame();
+      delay(1500);
+      display.turnOff();
+#endif
+      board.powerOff();
+    } else if (!anaBtnShortHandled && held >= ANA_BTN_SHORT_MILLIS) {
+      anaBtnShortHandled = true;
+#ifdef DISPLAY_CLASS
+      ui_task.showStatus(board.getBattMilliVolts(), millis(), board.isExternalPowered());
+#endif
+    }
+  } else {
+    anaBtnDownAt = 0;
   }
 #endif
 

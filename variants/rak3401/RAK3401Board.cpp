@@ -24,6 +24,20 @@ void RAK3401Board::initiateShutdown(uint8_t reason) {
     configureVoltageWake(power_config.lpcomp_ain_channel, power_config.lpcomp_refsel);
   }
 
+#ifdef PIN_USER_BTN_ANA
+  // Configure AIN1 button as GPIO SENSE wake source (active LOW)
+  // Wait for button release first — SENSE is level-triggered
+  while (digitalRead(PIN_USER_BTN_ANA) == LOW) delay(10);
+  delay(50);  // debounce
+
+  // Configure pin for SENSE LOW wake via nRF52 GPIO registers
+  uint32_t pin = (uint32_t)PIN_USER_BTN_ANA;
+  NRF_GPIO->PIN_CNF[pin] = (GPIO_PIN_CNF_DIR_Input << GPIO_PIN_CNF_DIR_Pos)
+                         | (GPIO_PIN_CNF_INPUT_Connect << GPIO_PIN_CNF_INPUT_Pos)
+                         | (GPIO_PIN_CNF_PULL_Pullup << GPIO_PIN_CNF_PULL_Pos)
+                         | (GPIO_PIN_CNF_SENSE_Low << GPIO_PIN_CNF_SENSE_Pos);
+#endif
+
   enterSystemOff(reason);
 }
 #endif

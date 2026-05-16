@@ -8,6 +8,18 @@
 
 #define AUTO_OFF_MILLIS      20000  // 20 seconds
 #define BOOT_SCREEN_MILLIS   4000   // 4 seconds
+#define STATUS_SCREEN_MILLIS 5000   // 5 seconds
+
+// Electric plug icon 16x7px (side profile, cord left, prongs right)
+static const uint8_t charging_icon [] PROGMEM = {
+  0x01, 0xE0,  // .......####.....
+  0x03, 0xE0,  // ......#####.....
+  0x03, 0xFE,  // ......#########.
+  0xFF, 0xE0,  // ###########.....
+  0x03, 0xFE,  // ......#########.
+  0x03, 0xE0,  // ......#####.....
+  0x01, 0xE0,  // .......####.....
+};
 
 // 'meshcore', 128x13px
 static const uint8_t meshcore_logo [] PROGMEM = {
@@ -26,61 +38,156 @@ static const uint8_t meshcore_logo [] PROGMEM = {
     0xe3, 0xe3, 0x8f, 0xff, 0x1f, 0xfc, 0x3c, 0x0e, 0x1f, 0xf8, 0xff, 0xf8, 0x70, 0x3c, 0x7f, 0xf8, 
 };
 
+// Draw a horizontal rule
+static void drawHRule(DisplayDriver* d, int x, int y, int w) {
+  d->setColor(DisplayDriver::LIGHT);
+  d->fillRect(x, y, w, 1);
+}
+
 void UITask::begin(NodePrefs* node_prefs, const char* build_date, const char* firmware_version) {
   _prevBtnState = HIGH;
   _auto_off = millis() + AUTO_OFF_MILLIS;
   _node_prefs = node_prefs;
   _display->turnOn();
 
-  // strip off dash and commit hash by changing dash to null terminator
-  // e.g: v1.2.3-abcdef -> v1.2.3
   char *version = strdup(firmware_version);
   char *dash = strchr(version, '-');
-  if(dash){
-    *dash = 0;
-  }
+  if(dash) *dash = 0;
 
-  // v1.2.3 (1 Jan 2025)
   sprintf(_version_info, "%s (%s)", version, build_date);
+}
+
+void UITask::showStatus(uint16_t batt_mv, unsigned long uptime_ms, bool charging) {
+  _status_batt_mv = batt_mv;
+  _status_uptime_ms = uptime_ms;
+  _status_charging = charging;
+  _status_until = millis() + STATUS_SCREEN_MILLIS;
+  _auto_off = _status_until + AUTO_OFF_MILLIS;
+  _next_refresh = 0;
+  _display->turnOn();
 }
 
 void UITask::renderCurrScreen() {
   char tmp[80];
-  if (millis() < BOOT_SCREEN_MILLIS) { // boot screen
-    // meshcore logo
-    _display->setColor(DisplayDriver::BLUE);
-    int logoWidth = 128;
-    _display->drawXbm((_display->width() - logoWidth) / 2, 3, meshcore_logo, logoWidth, 13);
+  int W = _display->width();
 
-    // version info
+  if (millis() < BOOT_SCREEN_MILLIS) {
+    // ── BOOT SCREEN ──
+
+    // logo centered
     _display->setColor(DisplayDriver::LIGHT);
-    _display->setTextSize(1);
-    uint16_t versionWidth = _display->getTextWidth(_version_info);
-    _display->setCursor((_display->width() - versionWidth) / 2, 22);
-    _display->print(_version_info);
+    _display->drawXbm((W - 128) / 2, 6, meshcore_logo, 128, 13);
 
-    // node type
-    const char* node_type = "< Repeater >";
-    uint16_t typeWidth = _display->getTextWidth(node_type);
-    _display->setCursor((_display->width() - typeWidth) / 2, 35);
-    _display->print(node_type);
-  } else {  // home screen
-    // node name
-    _display->setCursor(0, 0);
-    _display->setTextSize(1);
-    _display->setColor(DisplayDriver::GREEN);
-    _display->print(_node_prefs->node_name);
+    // thin rule under logo
+    drawHRule(_display, 10, 22, W - 20);
 
-    // freq / sf
-    _display->setCursor(0, 20);
-    _display->setColor(DisplayDriver::YELLOW);
-    sprintf(tmp, "FREQ: %06.3f SF%d", _node_prefs->freq, _node_prefs->sf);
+    // version centered
+    _display->setTextSize(1);
+    _display->setColor(DisplayDriver::LIGHT);
+    _display->drawTextCentered(W / 2, 27, _version_info);
+
+    // role label in brackets
+    drawHRule(_display, 10, 39, W - 20);
+    _display->drawTextCentered(W / 2, 44, "[ REPEATER ]");
+
+  } else if (_status_until > 0 && millis() < _status_until) {
+    // ── STATUS SCREEN ──
+
+    // header bar: inverted "STATUS" label
+    _display->setColor(DisplayDriver::LIGHT);
+    _display->fillRect(0, 0, W, 11);
+    _display->setTextSize(1);
+    _display->setColor(DisplayDriver::DARK);
+    _display->drawTextCentered(W / 2, 2, "STATUS");
+
+    // Battery: clamp to 0-100%
+    int pct = 0;
+    if (_status_batt_mv >= 4200) pct = 100;
+    else if (_status_batt_mv > 3000) pct = (_status_batt_mv - 3000) * 100 / 1200;
+
+    // uptime row
+    _display->setColor(DisplayDriver::LIGHT);
+    unsigned long secs = _status_uptime_ms / 1000;
+    unsigned long mins = secs / 60;
+    unsigned long hrs  = mins / 60;
+    unsigned long days = hrs / 24;
+
+    _display->setCursor(4, 15);
+    _display->print("UPTIME");
+    if (days > 0) {
+      sprintf(tmp, "%lud %luh %lum", days, hrs % 24, mins % 60);
+    } else if (hrs > 0) {
+      sprintf(tmp, "%luh %lum %lus", hrs, mins % 60, secs % 60);
+    } else {
+      sprintf(tmp, "%lum %lus", mins, secs % 60);
+    }
+    _display->drawTextRightAlign(W - 4, 15, tmp);
+
+    drawHRule(_display, 4, 25, W - 8);
+
+    // battery voltage row
+    _display->setCursor(4, 29);
+    _display->print("BATT");
+    sprintf(tmp, "%u.%02uV  %d%%", _status_batt_mv / 1000, (_status_batt_mv % 1000) / 10, pct);
+    _display->drawTextRightAlign(W - 4, 29, tmp);
+
+    drawHRule(_display, 4, 39, W - 8);
+
+    // battery bar (full width gauge)
+    int barX = 4, barY = 43, barW = W - 8, barH = 8;
+    _display->drawRect(barX, barY, barW, barH);
+    int fillW = (pct * (barW - 4)) / 100;
+    if (fillW > 0) _display->fillRect(barX + 2, barY + 2, fillW, barH - 4);
+
+    // percentage label centered under bar, with charging icon if applicable
+    sprintf(tmp, "%d%%", pct);
+    if (_status_charging) {
+      int txtW = _display->getTextWidth(tmp);
+      int totalW = 18 + 2 + txtW + 4 + _display->getTextWidth("CHG");
+      int startX = (W - totalW) / 2;
+      _display->drawXbm(startX, 55, charging_icon, 16, 7);
+      _display->setCursor(startX + 20, 54);
+      _display->print(tmp);
+      _display->print(" CHG");
+    } else {
+      _display->drawTextCentered(W / 2, 54, tmp);
+    }
+
+  } else {
+    // ── HOME SCREEN ──
+
+    // header bar: inverted node name
+    _display->setColor(DisplayDriver::LIGHT);
+    _display->fillRect(0, 0, W, 11);
+    _display->setTextSize(1);
+    _display->setColor(DisplayDriver::DARK);
+    _display->drawTextCentered(W / 2, 2, _node_prefs->node_name);
+
+    // radio params
+    _display->setColor(DisplayDriver::LIGHT);
+
+    _display->setCursor(4, 16);
+    _display->print("FREQ");
+    sprintf(tmp, "%06.3f MHz", _node_prefs->freq);
+    _display->drawTextRightAlign(W - 4, 16, tmp);
+
+    drawHRule(_display, 4, 26, W - 8);
+
+    _display->setCursor(4, 30);
+    _display->print("SF");
+    sprintf(tmp, "%d", _node_prefs->sf);
+    _display->setCursor(4 + _display->getTextWidth("SF "), 30);
     _display->print(tmp);
 
-    // bw / cr
-    _display->setCursor(0, 30);
-    sprintf(tmp, "BW: %03.2f CR: %d", _node_prefs->bw, _node_prefs->cr);
-    _display->print(tmp);
+    sprintf(tmp, "CR %d", _node_prefs->cr);
+    _display->drawTextRightAlign(W - 4, 30, tmp);
+
+    drawHRule(_display, 4, 40, W - 8);
+
+    _display->setCursor(4, 44);
+    _display->print("BW");
+    sprintf(tmp, "%03.1f kHz", _node_prefs->bw);
+    _display->drawTextRightAlign(W - 4, 44, tmp);
   }
 }
 
@@ -89,17 +196,17 @@ void UITask::loop() {
   if (millis() >= _next_read) {
     int btnState = digitalRead(PIN_USER_BTN);
     if (btnState != _prevBtnState) {
-      if (btnState == USER_BTN_PRESSED) {  // pressed?
+      if (btnState == USER_BTN_PRESSED) {
         if (_display->isOn()) {
           // TODO: any action ?
         } else {
           _display->turnOn();
         }
-        _auto_off = millis() + AUTO_OFF_MILLIS;   // extend auto-off timer
+        _auto_off = millis() + AUTO_OFF_MILLIS;
       }
       _prevBtnState = btnState;
     }
-    _next_read = millis() + 200;  // 5 reads per second
+    _next_read = millis() + 200;
   }
 #endif
 
@@ -109,7 +216,7 @@ void UITask::loop() {
       renderCurrScreen();
       _display->endFrame();
 
-      _next_refresh = millis() + 1000;   // refresh every second
+      _next_refresh = millis() + 1000;
     }
     if (millis() > _auto_off) {
       _display->turnOff();
