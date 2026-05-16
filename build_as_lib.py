@@ -6,6 +6,7 @@ menv=env # type: ignore
 src_filter = [
   '+<*.cpp>',
   '+<helpers/*.cpp>',
+  '+<helpers/packet_filter/*.cpp>',
   '+<helpers/sensors>',
   '+<helpers/radiolib/*.cpp>',
   '+<helpers/ui/MomentaryButton.cpp>',

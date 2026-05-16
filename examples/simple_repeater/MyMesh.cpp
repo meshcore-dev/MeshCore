@@ -447,6 +447,10 @@ bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
       return false;
     }
   }
+  if (!packet_filter.shouldRepeatPacket(packet)) {
+    MESH_DEBUG_PRINTLN("allowPacketForward: packet blocked by packet filter");
+    return false;
+  }
   return true;
 }
 
@@ -845,6 +849,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
                mesh::RTCClock &rtc, mesh::MeshTables &tables)
     : mesh::Mesh(radio, ms, rng, rtc, *new StaticPoolPacketManager(32), tables),
       region_map(key_store), temp_map(key_store),
+      packet_filter(&rng),
       _cli(board, rtc, sensors, region_map, acl, &_prefs, this),
       telemetry(MAX_PACKET_PAYLOAD - 4),
       discover_limiter(4, 120),  // max 4 every 2 minutes
@@ -926,6 +931,7 @@ void MyMesh::begin(FILESYSTEM *fs) {
   acl.load(_fs, self_id);
   // TODO: key_store.begin();
   region_map.load(_fs);
+  packet_filter.load(_fs, PACKET_FILTER_RULES_FILE);
 
   // establish default-scope
   {
@@ -1163,6 +1169,7 @@ void MyMesh::clearStats() {
   radio_driver.resetStats();
   resetStats();
   ((SimpleMeshTables *)getTables())->resetStats();
+  packet_filter.resetStats();
 }
 
 void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply) {
@@ -1251,6 +1258,9 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
       sendNodeDiscoverReq();
       strcpy(reply, "OK - Discover sent");
     }
+  } else if (memcmp(command, "block", 5) == 0 && (command[5] == 0 || command[5] == ' ')) {
+    // Packet filtering coommands.
+    packet_filter.handleBlockCommand(_fs, PACKET_FILTER_RULES_FILE, command, reply, 160);
   } else{
     _cli.handleCommand(sender_timestamp, command, reply);  // common CLI commands
   }
