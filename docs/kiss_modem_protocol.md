@@ -156,6 +156,7 @@ Response codes use the high-bit convention: `response = command | 0x80`. Generic
 | MacFailed | `0x04` | MAC verification failed |
 | UnknownCmd | `0x05` | Unknown sub-command |
 | EncryptFailed | `0x06` | Encryption failed |
+| TxBusy | `0x07` | Transmit busy |
 
 ### Unsolicited Events
 
