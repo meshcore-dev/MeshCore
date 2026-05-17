@@ -16,6 +16,8 @@ namespace mesh {
 #define ROUTE_TYPE_DIRECT            0x02    // direct route, 'path' is supplied
 #define ROUTE_TYPE_TRANSPORT_DIRECT  0x03    // direct route + transport codes
 
+#define TRANSPORT_CODE_ALL           0xFFFF  // special transport code: forward to all regions
+
 #define PAYLOAD_TYPE_REQ         0x00    // request (prefixed with dest/src hashes, MAC) (enc data: timestamp, blob)
 #define PAYLOAD_TYPE_RESPONSE    0x01    // response to REQ or ANON_REQ (prefixed with dest/src hashes, MAC) (enc data: timestamp, blob)
 #define PAYLOAD_TYPE_TXT_MSG     0x02    // a plain text message (prefixed with dest/src hashes, MAC) (enc data: timestamp, text)

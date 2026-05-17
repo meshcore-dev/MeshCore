@@ -429,7 +429,9 @@ void MyMesh::sendFloodReply(mesh::Packet* packet, unsigned long delay_millis, ui
 bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
   if (_prefs.disable_fwd) return false;
   if (packet->isRouteFlood() && packet->getPathHashCount() >= _prefs.flood_max) return false;
-  if (packet->isRouteFlood() && recv_pkt_region == NULL) {
+  if (packet->isRouteFlood() && packet->hasTransportCodes() && packet->transport_codes[0] == TRANSPORT_CODE_ALL) {
+    // ALL region: always forward regardless of region config
+  } else if (packet->isRouteFlood() && recv_pkt_region == NULL) {
     MESH_DEBUG_PRINTLN("allowPacketForward: unknown transport code, or wildcard not allowed for FLOOD packet");
     return false;
   }
@@ -548,12 +550,41 @@ uint32_t MyMesh::getDirectRetransmitDelay(const mesh::Packet *packet) {
 bool MyMesh::filterRecvFloodPacket(mesh::Packet* pkt) {
   // just try to determine region for packet (apply later in allowPacketForward())
   if (pkt->getRouteType() == ROUTE_TYPE_TRANSPORT_FLOOD) {
-    recv_pkt_region = region_map.findMatch(pkt, REGION_DENY_FLOOD);
+    if (pkt->transport_codes[0] == TRANSPORT_CODE_ALL) {
+      recv_pkt_region = &region_map.getWildcard();  // ALL: always allow
+    } else {
+      recv_pkt_region = region_map.findMatch(pkt, REGION_DENY_FLOOD);
+    }
   } else if (pkt->getRouteType() == ROUTE_TYPE_FLOOD) {
-    if (region_map.getWildcard().flags & REGION_DENY_FLOOD) {
+    // untagged packet: tag with home region if auto-tagging is enabled and a home region is configured
+    RegionEntry* home = region_map.getHomeRegion();
+    if (_prefs.region_autotag && home && home->id != 0
+        && pkt->getPathHashCount() <= _prefs.region_autotag_max_hops) {
+      // calculate transport code for home region and stamp onto packet
+      TransportKey key;
+      if (home->name[0] == '$') {
+        // private region: load key from store
+        if (key_store.loadKeysFor(home->id, &key, 1) < 1) {
+          recv_pkt_region = NULL;
+          return false;
+        }
+      } else if (home->name[0] == '#') {
+        key_store.getAutoKeyFor(home->id, home->name, key);
+      } else {
+        char tmp[sizeof(home->name) + 1];
+        tmp[0] = '#';
+        strcpy(&tmp[1], home->name);
+        key_store.getAutoKeyFor(home->id, tmp, key);
+      }
+      pkt->transport_codes[0] = key.calcTransportCode(pkt);
+      pkt->transport_codes[1] = 0;
+      pkt->header = (pkt->header & ~PH_ROUTE_MASK) | ROUTE_TYPE_TRANSPORT_FLOOD;
+
+      recv_pkt_region = home;
+    } else if (region_map.getWildcard().flags & REGION_DENY_FLOOD) {
       recv_pkt_region = NULL;
     } else {
-      recv_pkt_region =  &region_map.getWildcard();
+      recv_pkt_region = &region_map.getWildcard();
     }
   } else {
     recv_pkt_region = NULL;
@@ -886,6 +917,8 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.advert_interval = 1;        // default to 2 minutes for NEW installs
   _prefs.flood_advert_interval = 12; // 12 hours
   _prefs.flood_max = 64;
+  _prefs.region_autotag = 0;           // opt-in, default off
+  _prefs.region_autotag_max_hops = 1;  // only tag zero-hop / 1-hop packets by default
   _prefs.interference_threshold = 0; // disabled
 
   // bridge defaults

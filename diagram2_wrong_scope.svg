@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 420" font-family="system-ui, -apple-system, sans-serif" font-size="14">
+  <defs>
+    <marker id="arrow2" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#059669"/>
+    </marker>
+    <marker id="arrow2r" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#dc2626"/>
+    </marker>
+    <marker id="arrow2y" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#b45309"/>
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="360" y="30" text-anchor="middle" font-size="16" font-weight="bold" fill="#1e293b">Scenario 2: Arbitrary scope (tagged as R2 instead of home region)</text>
+
+  <!-- R1 zone -->
+  <rect x="40" y="60" width="520" height="320" rx="16" fill="#fef2f2" stroke="#fca5a5" stroke-width="2" stroke-dasharray="8 4"/>
+  <text x="60" y="88" font-size="13" font-weight="600" fill="#dc2626">R1 zone</text>
+
+  <!-- R2 zone -->
+  <rect x="580" y="60" width="120" height="160" rx="16" fill="#fef3c7" stroke="#fbbf24" stroke-width="2" stroke-dasharray="8 4"/>
+  <text x="600" y="88" font-size="13" font-weight="600" fill="#b45309">R2 zone</text>
+
+  <!-- R1-A (scope=R2) -->
+  <rect x="120" y="160" width="140" height="70" rx="10" fill="#ffffff" stroke="#dc2626" stroke-width="2"/>
+  <text x="190" y="188" text-anchor="middle" font-weight="bold" fill="#1e293b">R1-A</text>
+  <text x="190" y="210" text-anchor="middle" font-size="12" fill="#dc2626">scope = R2</text>
+
+  <!-- R1-B -->
+  <rect x="380" y="110" width="120" height="56" rx="10" fill="#ffffff" stroke="#dc2626" stroke-width="2"/>
+  <text x="440" y="144" text-anchor="middle" font-weight="bold" fill="#1e293b">R1-B</text>
+
+  <!-- R1-C -->
+  <rect x="380" y="230" width="120" height="56" rx="10" fill="#ffffff" stroke="#dc2626" stroke-width="2"/>
+  <text x="440" y="264" text-anchor="middle" font-weight="bold" fill="#1e293b">R1-C</text>
+
+  <!-- R2-A -->
+  <rect x="600" y="120" width="80" height="56" rx="10" fill="#ffffff" stroke="#b45309" stroke-width="2"/>
+  <text x="640" y="154" text-anchor="middle" font-weight="bold" fill="#1e293b">R2-A</text>
+
+  <!-- Incoming untagged packet -->
+  <line x1="10" y1="195" x2="115" y2="195" stroke="#059669" stroke-width="2.5" marker-end="url(#arrow2)"/>
+  <rect x="2" y="168" width="95" height="22" rx="4" fill="#d1fae5"/>
+  <text x="50" y="183" text-anchor="middle" font-size="11" font-weight="600" fill="#065f46">Untagged flood</text>
+
+  <!-- Arrow R1-A to R1-B (tagged R2 - BLOCKED) -->
+  <line x1="260" y1="180" x2="375" y2="145" stroke="#dc2626" stroke-width="2" marker-end="url(#arrow2r)"/>
+  <rect x="278" y="144" width="72" height="20" rx="4" fill="#fee2e2"/>
+  <text x="314" y="158" text-anchor="middle" font-size="11" font-weight="600" fill="#991b1b">tagged R2</text>
+
+  <!-- Arrow R1-A to R1-C (tagged R2 - BLOCKED) -->
+  <line x1="260" y1="210" x2="375" y2="250" stroke="#dc2626" stroke-width="2" marker-end="url(#arrow2r)"/>
+  <rect x="278" y="234" width="72" height="20" rx="4" fill="#fee2e2"/>
+  <text x="314" y="248" text-anchor="middle" font-size="11" font-weight="600" fill="#991b1b">tagged R2</text>
+
+  <!-- Arrow R1-A to R2-A (tagged R2 - accepted) -->
+  <line x1="260" y1="175" x2="595" y2="145" stroke="#b45309" stroke-width="2" marker-end="url(#arrow2y)"/>
+  <rect x="400" y="152" width="72" height="20" rx="4" fill="#fef3c7"/>
+  <text x="436" y="166" text-anchor="middle" font-size="11" font-weight="600" fill="#92400e">tagged R2</text>
+
+  <!-- X marks for blocked -->
+  <text x="370" y="128" font-size="22" font-weight="bold" fill="#dc2626">&#10008;</text>
+  <text x="370" y="270" font-size="22" font-weight="bold" fill="#dc2626">&#10008;</text>
+  <!-- Check for R2-A -->
+  <text x="682" y="152" font-size="18" fill="#059669">&#10004;</text>
+
+  <!-- Blocked labels -->
+  <text x="490" y="128" font-size="11" fill="#dc2626" font-weight="600">DROPPED</text>
+  <text x="490" y="270" font-size="11" fill="#dc2626" font-weight="600">DROPPED</text>
+
+  <!-- Explanation -->
+  <rect x="40" y="350" width="520" height="40" rx="4" fill="#fee2e2"/>
+  <text x="50" y="367" font-size="12" fill="#991b1b">R1-A tags packet as R2. R1-B and R1-C drop it (wrong region).</text>
+  <text x="50" y="383" font-size="12" fill="#991b1b">Responses tagged R2 also can't route back through R1 neighbours.</text>
+</svg>

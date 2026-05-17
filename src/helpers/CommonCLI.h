@@ -14,6 +14,8 @@
 #define ADVERT_LOC_SHARE      1
 #define ADVERT_LOC_PREFS      2
 
+#define REGION_AUTOTAG_MAX_HOPS_LIMIT 8    // upper bound for region.autotag.max.hops pref
+
 #define LOOP_DETECT_OFF       0
 #define LOOP_DETECT_MINIMAL   1
 #define LOOP_DETECT_MODERATE  2
@@ -61,6 +63,8 @@ struct NodePrefs { // persisted to file
   uint8_t rx_boosted_gain; // power settings
   uint8_t path_hash_mode;   // which path mode to use when sending
   uint8_t loop_detect;
+  uint8_t region_autotag;          // boolean: auto-tag untagged flood packets with home region's transport code
+  uint8_t region_autotag_max_hops; // only auto-tag packets received with pathHashCount <= this value (0 = zero-hop only)
 };
 
 class CommonCLICallbacks {

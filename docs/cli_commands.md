@@ -734,6 +734,40 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 **Parameters:**
 - `name`: Region name
 
+**Note:** The home region is used by the auto-tag feature (see `region.autotag` below) to stamp a transport code onto untagged flood packets this repeater receives, converting them from `ROUTE_TYPE_FLOOD` to `ROUTE_TYPE_TRANSPORT_FLOOD`. When selecting a home region, choose the **most specific region in the local region hierarchy that includes all nodes this repeater can possibly hear** (including via hops you intend to cover — see `region.autotag.max.hops`). Choosing a home region that is too narrow will cause unscoped packets originating from neighbouring regions to be tagged incorrectly; choosing one that is too broad defeats the purpose of scoping.
+
+**When no home region is set:** the repeater has no scope to apply, so auto-tagging is effectively disabled regardless of the `region.autotag` setting — untagged flood packets are forwarded based on the wildcard (`*`) region's flood permission only. To participate in auto-tagging, both a home region must be configured here **and** `region.autotag` must be `on`.
+
+---
+
+#### View or change whether this repeater auto-tags untagged flood packets
+**Usage:**
+- `get region.autotag`
+- `set region.autotag <state>`
+
+**Parameters:**
+- `state`: `on` (enable) or `off` (disable)
+
+**Default:** `off`
+
+**Note:** When enabled, the repeater stamps its home region's transport code onto untagged flood packets (`ROUTE_TYPE_FLOOD`) it receives, converting them to `ROUTE_TYPE_TRANSPORT_FLOOD` before re-broadcast. This scopes legacy / un-scoped traffic into the configured home region, but requires a home region to be configured (see `region home`). Because mis-tagging is possible when the repeater can hear traffic originating outside its home region, this feature is opt-in. See also `region.autotag.max.hops` to limit how far a packet may have travelled before becoming eligible for auto-tagging. The reserved transport code `0xFFFF` (TRANSPORT_CODE_ALL) is always forwarded regardless of local region configuration, allowing explicit mesh-wide flooding when a sender requests it.
+
+---
+
+#### View or change the max hop count for auto-tagging
+**Usage:**
+- `get region.autotag.max.hops`
+- `set region.autotag.max.hops <value>`
+
+**Parameters:**
+- `value`: Maximum path hash count. `0` means only auto-tag packets without scope received directly (zero-hop); higher values also auto-tag packets without scope that already traversed that many repeaters.
+
+**Range:** `0` to `8` (inclusive). Values outside this range are rejected by `set` and clamped to this range on load. The upper bound of `8` is intentionally well below the default `flood.max` of `64`, because auto-tagging packets from far across the mesh almost always produces incorrect region assignments — the limit exists to keep admins honest about the geographic scope they can actually account for.
+
+**Default:** `1`
+
+**Note:** Only applies when `region.autotag` is `on`. Keep this small (0-2) unless you are certain no untagged / older-firmware repeaters exist within that many hops, otherwise distant-origin traffic forwarded through them may be tagged with the wrong region.
+
 ---
 
 #### View or change the default scope region for this node
