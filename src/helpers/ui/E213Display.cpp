@@ -46,8 +46,7 @@ bool E213Display::begin() {
     display = detectEInk();
   }
   display->begin();
-  // Set to landscape mode rotated 180 degrees
-  display->setRotation(3);
+  display->setRotation(_rotation);
 
   _init = true;
   _isOn = true;
@@ -56,6 +55,14 @@ bool E213Display::begin() {
   display->fastmodeOn(); // Enable fast mode for quicker (partial) updates
 
   return true;
+}
+
+void E213Display::setRotation(uint8_t r) {
+  if (r > 3) return; // ignore invalid values; CLI validates but belt-and-braces
+  _rotation = r;
+  if (_init && display != NULL) {
+    display->setRotation(_rotation);
+  }
 }
 
 void E213Display::powerOn() {

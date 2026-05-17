@@ -13,6 +13,7 @@ class E213Display : public DisplayDriver {
   BaseDisplay* display=NULL;
   bool _init = false;
   bool _isOn = false;
+  uint8_t _rotation = 3; // default matches prior hardcoded value; overridden via setRotation()
   RefCountedDigitalPin* _periph_power;
   CRC32 display_crc;
   uint32_t last_display_crc_value = 0;
@@ -25,6 +26,7 @@ public:
     }
   }
   bool begin();
+  void setRotation(uint8_t r) override;
   bool isOn() override { return _isOn; }
   void turnOn() override;
   void turnOff() override;

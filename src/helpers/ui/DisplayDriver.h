@@ -13,6 +13,11 @@ public:
   int width() const { return _w; }
   int height() const { return _h; }
 
+  // Rotation 0-3, same semantics as Arduino GFX setRotation().
+  // Default no-op lets main.cpp call this uniformly across boards that
+  // don't honor runtime rotation. Concrete drivers override as needed.
+  virtual void setRotation(uint8_t r) { (void)r; }
+
   virtual bool isOn() = 0;
   virtual void turnOn() = 0;
   virtual void turnOff() = 0;

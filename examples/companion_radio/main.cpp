@@ -236,6 +236,9 @@ void setup() {
 #endif
 
 #ifdef DISPLAY_CLASS
+  if (disp != NULL) {
+    disp->setRotation(the_mesh.getNodePrefs()->display_rotation);
+  }
   ui_task.begin(disp, &sensors, the_mesh.getNodePrefs());  // still want to pass this in as dependency, as prefs might be moved
 #endif
 }
