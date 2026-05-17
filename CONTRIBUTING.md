@@ -38,7 +38,7 @@ Thanks for considering contributing to this project!
   - Bad: `update`
 - Reference any related issue (`Fixes #123`, `Closes #89`, etc.)
 - If you change public API, update README.md and library.properties
-- New features should include an example sketch in `examples/`
+- New features should include an example sketch in `meshcore/`
 
 ## Coding Style
 

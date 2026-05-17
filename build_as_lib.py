@@ -41,7 +41,7 @@ for item in menv.get("CPPDEFINES", []):
     # INCLUDE EXAMPLE CODE IN BUILD (to provide your own support files without touching the tree)
     elif isinstance(item, tuple) and item[0] == "BUILD_EXAMPLE":
         example_name = item[1]
-        src_filter.append(f"+<../examples/{example_name}/*.cpp>")
+        src_filter.append(f"+<../meshcore/{example_name}/*.cpp>")
 
     # EXCLUDE A SOURCE FILE FROM AN EXAMPLE (must be placed after example name or boom)
     elif isinstance(item, tuple) and item[0] == "EXCLUDE_FROM_EXAMPLE":
@@ -49,7 +49,7 @@ for item in menv.get("CPPDEFINES", []):
         if example_name is None:
             print("***** PLEASE DEFINE EXAMPLE FIRST *****")
             break
-        src_filter.append(f"-<../examples/{example_name}/{exclude_name}>")
+        src_filter.append(f"-<../meshcore/{example_name}/{exclude_name}>")
 
     # DEAL WITH UI VARIANT FOR AN EXAMPLE
     elif isinstance(item, tuple) and item[0] == "MC_UI_FLAVOR":
@@ -57,7 +57,7 @@ for item in menv.get("CPPDEFINES", []):
         if example_name is None:
             print("***** PLEASE DEFINE EXAMPLE FIRST *****")
             break
-        src_filter.append(f"+<../examples/{example_name}/{ui_flavor}/*.cpp>")
+        src_filter.append(f"+<../meshcore/{example_name}/{ui_flavor}/*.cpp>")
         
 menv.Replace(SRC_FILTER=src_filter)
 

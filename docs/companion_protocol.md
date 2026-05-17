@@ -807,7 +807,7 @@ Bytes 1-6: ACK Code (6 bytes, hex)
 
 ### Error Codes
 
-`PACKET_ERROR` (0x01) carries a single-byte error code in byte 1. Values match the `ERR_CODE_*` constants defined in `examples/companion_radio/MyMesh.cpp`:
+`PACKET_ERROR` (0x01) carries a single-byte error code in byte 1. Values match the `ERR_CODE_*` constants defined in `meshcore/companion_radio/MyMesh.cpp`:
 
 | Code | Constant (firmware)        | Description                                                                  |
 |------|----------------------------|------------------------------------------------------------------------------|

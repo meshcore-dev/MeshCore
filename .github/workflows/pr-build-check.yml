@@ -5,7 +5,7 @@ on:
     branches: [main, dev]
     paths:
       - 'src/**'
-      - 'examples/**'
+      - 'meshcore/**'
       - 'variants/**'
       - 'platformio.ini'
       - '.github/workflows/pr-build-check.yml'
@@ -13,7 +13,7 @@ on:
     branches: [main, dev]
     paths:
       - 'src/**'
-      - 'examples/**'
+      - 'meshcore/**'
       - 'variants/**'
       - 'platformio.ini'
       - '.github/workflows/pr-build-check.yml'
