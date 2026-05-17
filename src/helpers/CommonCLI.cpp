@@ -126,8 +126,12 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
 
 void CommonCLI::savePrefs(FILESYSTEM* fs) {
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
-  fs->remove("/com_prefs");
-  File file = fs->open("/com_prefs", FILE_O_WRITE);
+  // Atomic write: write to temp file, then rename over the real file.
+  // LittleFS rename() is a single metadata commit -- atomic even on power loss.
+  const char* tmp_path = "/com_prefs.tmp";
+  const char* real_path = "/com_prefs";
+  fs->remove(tmp_path);  // clean up any stale temp from previous failed write
+  File file = fs->open(tmp_path, FILE_O_WRITE);
 #elif defined(RP2040_PLATFORM)
   File file = fs->open("/com_prefs", "w");
 #else
@@ -183,6 +187,13 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     // next: 291
 
     file.close();
+
+#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
+    if (!fs->rename(tmp_path, real_path)) {
+      fs->remove(tmp_path);
+      MESH_DEBUG_PRINTLN("ERROR: savePrefs rename failed!");
+    }
+#endif
   }
 }
 
