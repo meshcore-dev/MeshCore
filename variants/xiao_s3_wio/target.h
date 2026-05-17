@@ -11,6 +11,9 @@
   #include <helpers/ui/SSD1306Display.h>
   #include <helpers/ui/MomentaryButton.h>
 #endif
+#ifdef ENV_INCLUDE_GPS
+    #include <helpers/sensors/MicroNMEALocationProvider.h>
+#endif
 #include "XiaoS3WIOBoard.h"
 
 extern XiaoS3WIOBoard board;
