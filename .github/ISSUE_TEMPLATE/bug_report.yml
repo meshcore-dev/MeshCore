@@ -1,0 +1,161 @@
+name: Bug Report
+description: Report a bug in MeshCore firmware or applications.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: checkboxes
+    id: prerequisites
+    attributes:
+      label: Prerequisites
+      description: Please confirm the following before submitting.
+      options:
+        - label: I have searched [existing issues](https://github.com/meshcore-dev/MeshCore/issues) for duplicates.
+          required: true
+
+  - type: dropdown
+    id: board
+    attributes:
+      label: Board / Hardware
+      description: Which board/hardware are you using?
+      options:
+        - Seeed T1000-E (Card Tracker)
+        - Seeed SenseCAP Solar Node
+        - Seeed Wio Tracker L1
+        - LilyGo T-Echo
+        - LilyGo T-Echo Lite
+        - LilyGo T-Deck
+        - LilyGo T-Beam Supreme
+        - LilyGo T-Beam-1W
+        - LilyGo T3-S3
+        - LilyGo TLora V2.1-1.6
+        - LilyGo TLora C6
+        - RAK4631
+        - RAK3172
+        - RAK3401
+        - Heltec LoRa32 v2
+        - Heltec LoRa32 v3
+        - Heltec LoRa32 v4
+        - Heltec Mesh Pocket
+        - Heltec Mesh Solar
+        - Heltec T114
+        - Heltec Wireless Paper
+        - Heltec Wireless Tracker
+        - Heltec Tracker v2
+        - Heltec Vision Master E213
+        - Heltec Vision Master E290
+        - Heltec Vision Master T190
+        - Heltec CT62
+        - ThinkNode M1 (ELECROW eink)
+        - ThinkNode M3 (ELECROW nrf)
+        - ThinkNode M6 (ELECROW solar)
+        - Station G2
+        - Ikoka Handheld
+        - Ikoka Nano
+        - Ikoka Stick
+        - WHY2025 Badge
+        - Meshtiny
+        - Xiao nRF52840
+        - Xiao ESP32-S3
+        - Xiao ESP32-C3
+        - Xiao ESP32-C6
+        - Xiao RP2040
+        - M5Stack Unit C6L
+        - ProMicro nRF52840
+        - Waveshare RP2040 LoRa
+        - Raspberry Pi Pico W
+        - Other (describe in Additional Context)
+    validations:
+      required: true
+
+  - type: input
+    id: firmware-version
+    attributes:
+      label: Firmware Version
+      description: >-
+        Exact version string from the companion app device info or CLI 'version'
+        command (e.g. "1.5.2" or "1.5.2-abc1234").
+      placeholder: "e.g., 1.5.2-abc1234"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: firmware-type
+    attributes:
+      label: Firmware Type
+      description: Which firmware variant are you running?
+      options:
+        - Companion Radio (BLE)
+        - Companion Radio (USB)
+        - Companion Radio (WiFi)
+        - Simple Repeater
+        - Room Server
+        - KISS Protocol
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      description: What area is affected? Select all that apply.
+      multiple: true
+      options:
+        - BLE
+        - LoRa / Mesh Routing
+        - Serial / USB
+        - WiFi
+        - Display / UI
+        - GPS
+        - Sensors
+        - Power Management
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: What happened? What did you expect to happen instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: Detailed steps to reproduce the behavior.
+      placeholder: |
+        1. Flash firmware version X on board Y
+        2. Pair with companion app
+        3. Send a message to...
+        4. Observe that...
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant Log Output
+      description: >-
+        Paste serial/USB log output, BLE debug output, or crash traces.
+        Leave blank if not applicable.
+      render: shell
+
+  - type: input
+    id: companion-app
+    attributes:
+      label: Companion App & Version
+      description: >-
+        If relevant, which companion app and version?
+        (e.g., "MeshCore Android 2.1.0", "MeshCore iOS 1.3.0")
+      placeholder: "e.g., MeshCore Android 2.1.0"
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: >-
+        Screenshots, radio configuration, frequency/region preset, mesh
+        topology, or anything else relevant.
