@@ -107,7 +107,11 @@ class HomeScreen : public UIScreen {
   uint8_t _page;
   bool _shutdown_init;
   AdvertPath recent[UI_RECENT_LIST_SIZE];
-
+  bool _select_mode = false;
+  int  _select_idx = 0;
+  unsigned long _select_at_ms = 0;
+  bool _ping_in_flight = false;
+  unsigned long _ping_deadline = 0;
 
   void renderBatteryIndicator(DisplayDriver& display, uint16_t batteryMilliVolts) {
     // Convert millivolts to percentage
@@ -185,6 +189,26 @@ public:
     if (_shutdown_init && !_task->isButtonPressed()) {  // must wait for USR button to be released
       _task->shutdown();
     }
+    if (_select_mode && millis() - _select_at_ms > 10000) {
+      _select_mode = false;
+    }
+    if (_ping_in_flight) {
+      uint8_t pubkey[6];
+      float snr, out_snr;
+      int8_t rssi;
+      int16_t out_rssi;
+      uint16_t rtt_ms;
+      if (the_mesh.consumePingResult(pubkey, snr, rssi, out_snr, out_rssi, rtt_ms)) {
+        char buf[80];
+        sprintf(buf, "rx SNR %.1f RSSI %d\ntx SNR %.1f RSSI %d  %dms",
+                snr, rssi, out_snr, out_rssi, rtt_ms);
+        _task->showAlert(buf, 5000);
+        _ping_in_flight = false;
+      } else if (millis() > _ping_deadline) {
+        _task->showAlert("no response", 3000);
+        _ping_in_flight = false;
+      }
+    }
   }
 
   int render(DisplayDriver& display) override {
@@ -241,6 +265,12 @@ public:
       for (int i = 0; i < UI_RECENT_LIST_SIZE; i++, y += 11) {
         auto a = &recent[i];
         if (a->name[0] == 0) continue;  // empty slot
+        display.setColor(DisplayDriver::GREEN);
+        if (_select_mode && i == _select_idx) {
+          display.setColor(DisplayDriver::YELLOW);
+          display.drawRect(0, y - 1, display.width(), 11);
+          display.setColor(DisplayDriver::GREEN);  // restore for text
+        }
         int secs = _rtc->getCurrentTime() - a->recv_timestamp;
         if (secs < 60) {
           sprintf(tmp, "%ds", secs);
@@ -414,6 +444,35 @@ public:
   }
 
   bool handleInput(char c) override {
+    if (_page == HomePage::RECENT && _select_mode) {
+        if (c == KEY_NEXT || c == KEY_RIGHT) {
+            for (int i = 1; i <= UI_RECENT_LIST_SIZE; i++) {
+                int idx = (_select_idx + i) % UI_RECENT_LIST_SIZE;
+                if (recent[idx].name[0] != 0) { _select_idx = idx; break; }
+            }
+            _select_at_ms = millis();
+            return true;
+        }
+        if (c == KEY_ENTER) {
+            auto* contact = the_mesh.lookupContactByPubKey(recent[_select_idx].pubkey_prefix, 6);
+            if (contact == NULL) {
+                _task->showAlert("not in contacts", 2000);
+            } else {
+                uint32_t est_timeout = 0;
+                int result = the_mesh.startPing(*contact, est_timeout);
+                if (result == MSG_SEND_FAILED) {
+                    _task->showAlert("no direct path", 2000);
+                } else {
+                    _task->showAlert("Pinging...", 800);
+                    _ping_in_flight = true;
+                    _ping_deadline = millis() + 7000;
+                }
+            }
+            _select_mode = false;
+            return true;
+        }
+        return false;
+    }
     if (c == KEY_LEFT || c == KEY_PREV) {
       _page = (_page + HomePage::Count - 1) % HomePage::Count;
       return true;
@@ -432,6 +491,16 @@ public:
         _task->enableSerial();
       }
       return true;
+    }
+    if (c == KEY_ENTER && _page == HomePage::RECENT) {
+        for (int i = 0; i < UI_RECENT_LIST_SIZE; i++) {
+            if (recent[i].name[0] != 0) {
+                _select_idx = i;
+                _select_mode = true;
+                _select_at_ms = millis();
+                return true;
+            }
+        }
     }
     if (c == KEY_ENTER && _page == HomePage::ADVERT) {
       _task->notify(UIEventType::ack);
@@ -592,8 +661,21 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
 }
 
 void UITask::showAlert(const char* text, int duration_millis) {
-  strcpy(_alert, text);
+  strncpy(_alert, text, sizeof(_alert) - 1);
+  _alert[sizeof(_alert) - 1] = '\0';
+  _alert_line_count = 1;
+  for (char* p = _alert; *p; p++) {
+    if (*p == '\n') {
+      *p = '\0';
+      _alert_line_count++;
+    }
+  }
   _alert_expiry = millis() + duration_millis;
+  if (_display != NULL && !_display->isOn() && !hasConnection()) {
+    _display->turnOn();
+  }
+  _auto_off = millis() + AUTO_OFF_MILLIS;
+  _next_refresh = 100;
 }
 
 void UITask::notify(UIEventType t) {
@@ -797,11 +879,19 @@ void UITask::loop() {
         _display->setTextSize(1);
         int y = _display->height() / 3;
         int p = _display->height() / 32;
+        const int line_h = 12;
+        int box_h = y;
+        int needed = p*6 + line_h * _alert_line_count;
+        if (needed > box_h) box_h = needed;
         _display->setColor(DisplayDriver::DARK);
-        _display->fillRect(p, y, _display->width() - p*2, y);
+        _display->fillRect(p, y, _display->width() - p*2, box_h);
         _display->setColor(DisplayDriver::LIGHT);  // draw box border
-        _display->drawRect(p, y, _display->width() - p*2, y);
-        _display->drawTextCentered(_display->width() / 2, y + p*3, _alert);
+        _display->drawRect(p, y, _display->width() - p*2, box_h);
+        const char* line = _alert;
+        for (uint8_t i = 0; i < _alert_line_count; i++) {
+          _display->drawTextCentered(_display->width() / 2, y + p*3 + i*line_h, line);
+          line += strlen(line) + 1;  // step past the '\0' separator
+        }
         _next_refresh = _alert_expiry;   // will need refresh when alert is dismissed
       } else {
         _next_refresh = millis() + delay_millis;
