@@ -151,6 +151,7 @@ uint8_t MyMesh::handleAnonRegionsReq(const mesh::Identity& sender, uint32_t send
     reply_path_hash_size = (*data >> 6) + 1;
     data++;
 
+    if (reply_path_len * reply_path_hash_size > MAX_PATH_SIZE) return 0;
     memcpy(reply_path, data, ((uint8_t)reply_path_len) * reply_path_hash_size);
     // data += (uint8_t)reply_path_len * reply_path_hash_size;
 
@@ -170,6 +171,7 @@ uint8_t MyMesh::handleAnonOwnerReq(const mesh::Identity& sender, uint32_t sender
     reply_path_hash_size = (*data >> 6) + 1;
     data++;
 
+    if (reply_path_len * reply_path_hash_size > MAX_PATH_SIZE) return 0;
     memcpy(reply_path, data, ((uint8_t)reply_path_len) * reply_path_hash_size);
     // data += (uint8_t)reply_path_len * reply_path_hash_size;
 
@@ -190,6 +192,7 @@ uint8_t MyMesh::handleAnonClockReq(const mesh::Identity& sender, uint32_t sender
     reply_path_hash_size = (*data >> 6) + 1;
     data++;
 
+    if (reply_path_len * reply_path_hash_size > MAX_PATH_SIZE) return 0;
     memcpy(reply_path, data, ((uint8_t)reply_path_len) * reply_path_hash_size);
     // data += (uint8_t)reply_path_len * reply_path_hash_size;
 
