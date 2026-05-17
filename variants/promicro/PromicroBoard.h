@@ -17,8 +17,14 @@
 #define SX126X_DIO2_AS_RF_SWITCH  true
 #define SX126X_DIO3_TCXO_VOLTAGE (1.8f)
 
-#define  PIN_VBAT_READ 17
-#define  ADC_MULTIPLIER   (1.815f) // dependent on voltage divider resistors. TODO: more accurate battery tracking
+// Default values for battery monitoring voltage divider
+// To override, either:
+// - set build flags in variant's platformio.ini file
+// - use cli to 'set adc.multiplier' (repeaters / rooms)
+
+#ifndef ADC_MULTIPLIER
+#define ADC_MULTIPLIER (2.0f) // Dependent on voltage divider resistors. Default 1MOhm resistors
+#endif
 
 class PromicroBoard : public NRF52BoardDCDC {
 protected:
@@ -32,14 +38,14 @@ public:
   #define BATTERY_SAMPLES 8
 
   uint16_t getBattMilliVolts() override {
-    analogReadResolution(12);
+    analogReadResolution(ADC_RESOLUTION);
 
     uint32_t raw = 0;
     for (int i = 0; i < BATTERY_SAMPLES; i++) {
       raw += analogRead(PIN_VBAT_READ);
     }
     raw = raw / BATTERY_SAMPLES;
-    return (adc_mult * raw);
+    return (raw * (AREF_VOLTAGE * 1000) * adc_mult / (1 << (ADC_RESOLUTION)));
   }
 
   bool setAdcMultiplier(float multiplier) override {
