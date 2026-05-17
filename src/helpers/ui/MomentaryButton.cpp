@@ -1,6 +1,63 @@
 #include "MomentaryButton.h"
 
+#if defined(M5STACK_CARDPUTER) && defined(CARDPUTER_KEYBOARD_UI_NAV)
+  #include <M5Cardputer.h>
+#endif
+
 #define MULTI_CLICK_WINDOW_MS  280
+
+#if defined(M5STACK_CARDPUTER) && defined(CARDPUTER_KEYBOARD_UI_NAV)
+static bool cardputerWordHas(const Keyboard_Class::KeysState& keys, char a, char b = 0, char c = 0, char d = 0) {
+  for (char ch : keys.word) {
+    if (ch == a || (b != 0 && ch == b) || (c != 0 && ch == c) || (d != 0 && ch == d)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static int cardputerKeyboardNavEvent() {
+  static bool was_pressed = false;
+  static uint32_t last_event_ms = 0;
+
+  M5Cardputer.update();
+  M5Cardputer.Keyboard.updateKeyList();
+  M5Cardputer.Keyboard.updateKeysState();
+
+  auto& keys = M5Cardputer.Keyboard.keysState();
+
+  // Cardputer uses the punctuation keys with arrow legends for navigation:
+  //   left:  ',' / '<'
+  //   right: '/' / '?'  ('.' / '>' is also accepted on layouts that mark it as right)
+  //   enter: physical Enter
+  bool left = cardputerWordHas(keys, ',', '<');
+  bool right = cardputerWordHas(keys, '/', '?', '.', '>');
+  bool enter = keys.enter;
+  bool any = left || right || enter;
+
+  if (!any) {
+    was_pressed = false;
+    return BUTTON_EVENT_NONE;
+  }
+
+  if (was_pressed) {
+    return BUTTON_EVENT_NONE;
+  }
+
+  uint32_t now = millis();
+  if ((uint32_t)(now - last_event_ms) < 120UL) {
+    return BUTTON_EVENT_NONE;
+  }
+
+  was_pressed = true;
+  last_event_ms = now;
+
+  if (enter) return BUTTON_EVENT_LONG_PRESS;   // existing UI maps long press to KEY_ENTER
+  if (left) return BUTTON_EVENT_DOUBLE_CLICK;  // existing UI maps double click to KEY_PREV
+  if (right) return BUTTON_EVENT_CLICK;        // existing UI maps click to KEY_NEXT
+  return BUTTON_EVENT_NONE;
+}
+#endif
 
 MomentaryButton::MomentaryButton(int8_t pin, int long_press_millis, bool reverse, bool pulldownup, bool multiclick) { 
   _pin = pin;
@@ -64,6 +121,13 @@ bool MomentaryButton::isPressed(int level) const {
 
 int MomentaryButton::check(bool repeat_click) {
   if (_pin < 0) return BUTTON_EVENT_NONE;
+
+#if defined(M5STACK_CARDPUTER) && defined(CARDPUTER_KEYBOARD_UI_NAV) && defined(PIN_USER_BTN)
+  if (_pin == PIN_USER_BTN && _threshold == 0) {
+    int keyboard_event = cardputerKeyboardNavEvent();
+    if (keyboard_event != BUTTON_EVENT_NONE) return keyboard_event;
+  }
+#endif
 
   int event = BUTTON_EVENT_NONE;
   int btn = _threshold > 0 ? (analogRead(_pin) < _threshold) : digitalRead(_pin);

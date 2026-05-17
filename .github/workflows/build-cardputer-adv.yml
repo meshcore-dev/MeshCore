@@ -1,0 +1,42 @@
+name: Build Cardputer ADV
+
+on:
+  push:
+    branches:
+      - cardputer-ui-new-port
+    paths:
+      - 'boards/**'
+      - 'src/**'
+      - 'examples/**'
+      - 'variants/**'
+      - '.github/workflows/build-cardputer-adv.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'boards/**'
+      - 'src/**'
+      - 'examples/**'
+      - 'variants/**'
+      - '.github/workflows/build-cardputer-adv.yml'
+  workflow_dispatch:
+
+jobs:
+  build-cardputer:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        environment:
+          - M5stack_cardputer_cap_lora1262_companion_radio_ble
+          - M5stack_cardputer_cap_lora1262_companion_radio_usb
+
+    steps:
+      - name: Clone Repo
+        uses: actions/checkout@v4
+
+      - name: Setup Build Environment
+        uses: ./.github/actions/setup-build-environment
+
+      - name: Build ${{ matrix.environment }}
+        run: pio run -e ${{ matrix.environment }}
