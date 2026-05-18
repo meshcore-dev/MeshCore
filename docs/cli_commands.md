@@ -942,6 +942,7 @@ so the probe's first hop reaches marginal near neighbours — see the tuning not
 - `get outpath`
 - `set outpath <hop1_hex,hop2_hex,...>`
 - `set outpath clear`
+- `set outpath flood`
 
 **Parameters:**
 - `hopN_hex`: Hop hash, `2`, `4`, or `6` hex characters. All hops must use the same width.
@@ -950,6 +951,8 @@ so the probe's first hop reaches marginal near neighbours — see the tuning not
 - These commands require remote client context (they target the caller's ACL entry).
 - The path hash size is inferred from the hop hash width.
 - `outpath` overrides the primary direct route used for replies to the caller.
+- `clear` forgets the current direct path and allows normal path discovery to repopulate it.
+- `flood` forces replies to use flood packets and ignores later discovered direct paths.
 
 ---
 
