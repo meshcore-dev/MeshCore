@@ -98,12 +98,13 @@ static bool ethernet_handle_command(const char* command, char* reply) {
   return false;
 }
 
-// Check for new TCP client connections, replacing any existing connection
+// Check for new TCP client connections, replacing any existing connection.
+// Use accept() (not available()) so we only see newly-accepted sockets;
+// available() also returns existing connected sockets that have data, which
+// would force us to disambiguate every inbound packet from a real new client.
 static void ethernet_check_client() {
-  auto newClient = ethernet_server.available();
+  auto newClient = ethernet_server.accept();
   if (newClient) {
-    // Only replace if this is actually a different client
-    if (newClient == ethernet_client && ethernet_client.connected()) return;
     if (ethernet_client) ethernet_client.stop();
     ethernet_client = newClient;
     IPAddress ip = ethernet_client.remoteIP();

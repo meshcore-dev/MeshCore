@@ -120,34 +120,21 @@ bool SerialEthernetInterface::isWriteBusy() const {
 }
 
 size_t SerialEthernetInterface::checkRecvFrame(uint8_t dest[]) {
-  // check if new client connected; new connections replace existing ones
-  auto newClient = server.available();
+  // Use accept() (not available()) so we only see newly-accepted sockets.
+  // available() also returns existing connected sockets that have data,
+  // which would cause us to treat each inbound packet as a "new client"
+  // and stop() the underlying socket — disconnecting the companion.
+  auto newClient = server.accept();
   if (newClient) {
     IPAddress new_ip = newClient.remoteIP();
     uint16_t new_port = newClient.remotePort();
     ETHERNET_DEBUG_PRINTLN(
-        "New client available %u.%u.%u.%u:%u",
+        "New client accepted %u.%u.%u.%u:%u",
         new_ip[0],
         new_ip[1],
         new_ip[2],
         new_ip[3],
         new_port);
-    if (client && client.connected()) {
-      IPAddress cur_ip = client.remoteIP();
-      uint16_t cur_port = client.remotePort();
-      ETHERNET_DEBUG_PRINTLN(
-          "Current client %u.%u.%u.%u:%u",
-          cur_ip[0],
-          cur_ip[1],
-          cur_ip[2],
-          cur_ip[3],
-          cur_port);
-      if (cur_ip == new_ip && cur_port == new_port) {
-        ETHERNET_DEBUG_PRINTLN("Ignoring duplicate client");
-        newClient.stop();
-        return 0;
-      }
-    }
 
     deviceConnected = false;
     if (client) {
