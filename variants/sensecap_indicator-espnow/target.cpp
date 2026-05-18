@@ -29,18 +29,6 @@ bool radio_init() {
   return true;  // success
 }
 
-uint32_t radio_get_rng_seed() {
-  return millis() + radio_driver.intID();  // TODO: where to get some entropy?
-}
-
-void radio_set_params(float freq, float bw, uint8_t sf, uint8_t cr) {
-  // no-op
-}
-
-void radio_set_tx_power(int8_t dbm) {
-  radio_driver.setTxPower(dbm);
-}
-
 // NOTE: as we are using the WiFi radio, the ESP_IDF will have enabled hardware RNG:
 //    https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/system/random.html
 class ESP_RNG : public mesh::RNG {

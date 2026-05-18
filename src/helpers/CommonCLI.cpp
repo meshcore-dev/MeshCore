@@ -2,6 +2,7 @@
 #include "CommonCLI.h"
 #include "TxtDataHelpers.h"
 #include "AdvertDataHelpers.h"
+#include "TxtDataHelpers.h"
 #include <RTClib.h>
 
 #ifndef BRIDGE_MAX_BAUD
@@ -285,7 +286,8 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       // change admin password
       StrHelper::strncpy(_prefs->password, &command[9], sizeof(_prefs->password));
       savePrefs();
-      sprintf(reply, "password now: %s", _prefs->password);   // echo back just to let admin know for sure!!
+      sprintf(reply, "password now: ");
+      StrHelper::strncpy(&reply[14], _prefs->password, 160-15);   // echo back just to let admin know for sure!!
     } else if (memcmp(command, "clear stats", 11) == 0) {
       _callbacks->clearStats();
       strcpy(reply, "(OK - stats reset)");
@@ -726,7 +728,8 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       strcpy(reply, "Error: unsupported by this board");
     };
   } else {
-    sprintf(reply, "unknown config: %s", config);
+    strcpy(reply, "unknown config: ");
+    StrHelper::strncpy(&reply[16], config, 160-17);
   }
 }
 
@@ -784,10 +787,11 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
   } else if (memcmp(config, "direct.txdelay", 14) == 0) {
     sprintf(reply, "> %s", StrHelper::ftoa(_prefs->direct_tx_delay_factor));
   } else if (memcmp(config, "owner.info", 10) == 0) {
+    auto start = reply;
     *reply++ = '>';
     *reply++ = ' ';
     const char* sp = _prefs->owner_info;
-    while (*sp) {
+    while (*sp && reply - start < 159) {
       *reply++ = (*sp == '\n') ? '|' : *sp;    // translate newline back to orig '|'
       sp++;
     }

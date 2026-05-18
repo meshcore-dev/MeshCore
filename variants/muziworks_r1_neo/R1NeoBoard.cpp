@@ -14,8 +14,11 @@ const PowerMgtConfig power_config = {
 
 void R1NeoBoard::initiateShutdown(uint8_t reason) {
   // Disable LoRa module power before shutdown
-  MESH_DEBUG_PRINTLN("R1Neo: shutting down");
   digitalWrite(SX126X_POWER_EN, LOW);
+
+  // Signal IO controller that MCU is off, then release DCDC latch
+  digitalWrite(PIN_SOFT_SHUTDOWN, LOW);
+  digitalWrite(PIN_DCDC_EN_MCU_HOLD, LOW);
 
   if (reason == SHUTDOWN_REASON_LOW_VOLTAGE ||
       reason == SHUTDOWN_REASON_BOOT_PROTECT) {
