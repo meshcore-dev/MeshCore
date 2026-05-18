@@ -42,7 +42,7 @@ class MicroNMEALocationProvider : public LocationProvider {
     int8_t _claims = 0;
     int _pin_reset;
     int _pin_en;
-    long next_check = 0;
+    uint32_t last_check = 0;
     long time_valid = 0;
     unsigned long _last_time_sync = 0;
     static const unsigned long TIME_SYNC_INTERVAL = 1800000; // Re-sync every 30 minutes
@@ -143,10 +143,11 @@ public :
 
         if (!isValid()) time_valid = 0;
 
-        if (millis() > next_check) {
-            next_check = millis() + 1000;
+        if ((uint32_t)(millis() - last_check) >= 1000) {
+            last_check = millis();
             // Re-enable time sync periodically when GPS has valid fix
-            if (!_time_sync_needed && _clock != NULL && (millis() - _last_time_sync) > TIME_SYNC_INTERVAL) {
+            if (!_time_sync_needed && _clock != NULL &&
+                (uint32_t)(millis() - _last_time_sync) > TIME_SYNC_INTERVAL) {
                 _time_sync_needed = true;
             }
             if (_time_sync_needed && time_valid > 2) {

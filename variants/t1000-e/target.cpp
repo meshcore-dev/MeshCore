@@ -147,18 +147,18 @@ bool T1000SensorManager::querySensors(uint8_t requester_permissions, CayenneLPP&
 }
 
 void T1000SensorManager::loop() {
-  static long next_gps_update = 0;
+  static uint32_t last_gps_update = 0;
+  constexpr uint32_t GPS_UPDATE_INTERVAL_MS = 1000;
 
   _nmea->loop();
 
-  if (millis() > next_gps_update) {
+  if ((uint32_t)(millis() - last_gps_update) >= GPS_UPDATE_INTERVAL_MS) {
     if (gps_active && _nmea->isValid()) {
       node_lat = ((double)_nmea->getLatitude())/1000000.;
       node_lon = ((double)_nmea->getLongitude())/1000000.;
       node_altitude = ((double)_nmea->getAltitude()) / 1000.0;
-      //Serial.printf("lat %f lon %f\r\n", _lat, _lon);
     }
-    next_gps_update = millis() + 1000;
+    last_gps_update = millis();
   }
 }
 

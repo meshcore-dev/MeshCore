@@ -32,11 +32,12 @@ static int8_t ntc_temp2[136] = {
 };
 
 static float get_heater_temperature(unsigned int vcc_volt, unsigned int ntc_volt) {
+  if (ntc_volt == 0) {
+    return 0.0f;  // avoid division by zero on open circuit / sensor fault
+  }
   int i = 0;
-  float Vout = 0, Rt = 0, temp = 0;
-  Vout = ntc_volt;
-
-  Rt = (HEATER_NTC_RP * vcc_volt) / Vout - HEATER_NTC_RP;
+  float Rt = 0, temp = 0;
+  Rt = (HEATER_NTC_RP * (float)vcc_volt) / ntc_volt - HEATER_NTC_RP;
 
   for (i = 0; i < 136; i++) {
     if (Rt >= ntc_res2[i]) {
@@ -44,7 +45,17 @@ static float get_heater_temperature(unsigned int vcc_volt, unsigned int ntc_volt
     }
   }
 
-  temp = ntc_temp2[i - 1] + 1 * (ntc_res2[i - 1] - Rt) / (float)(ntc_res2[i - 1] - ntc_res2[i]);
+  if (i <= 0) {
+    return (float)ntc_temp2[0];
+  }
+  if (i >= 136) {
+    return (float)ntc_temp2[135];
+  }
+  int denom = ntc_res2[i - 1] - ntc_res2[i];
+  if (denom == 0) {
+    return (float)ntc_temp2[i - 1];
+  }
+  temp = ntc_temp2[i - 1] + 1 * (ntc_res2[i - 1] - Rt) / (float)denom;
 
   temp = (temp * 100 + 5) / 100;
   return temp;
