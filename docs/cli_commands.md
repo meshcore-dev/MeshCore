@@ -441,6 +441,11 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 ---
 
+#### View this node's firmware version
+**Usage:** `ver`
+
+---
+
 #### View this node's configured role
 **Usage:** `get role`
 
