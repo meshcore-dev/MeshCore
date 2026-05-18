@@ -19,6 +19,31 @@
   #define LORA_TX_POWER 20
 #endif
 
+#ifndef DEFAULT_RX_DELAY_BASE
+  #define DEFAULT_RX_DELAY_BASE 0.0f
+#endif
+#ifndef DEFAULT_LOOP_DETECT
+  #define DEFAULT_LOOP_DETECT LOOP_DETECT_OFF
+#endif
+#ifndef DEFAULT_POWERSAVING_ENABLED
+  #define DEFAULT_POWERSAVING_ENABLED 0
+#endif
+#ifndef DEFAULT_AGC_RESET_INTERVAL
+  #define DEFAULT_AGC_RESET_INTERVAL 0
+#endif
+#ifndef DEFAULT_ADVERT_INTERVAL
+  #define DEFAULT_ADVERT_INTERVAL 1
+#endif
+#ifndef DEFAULT_FLOOD_ADVERT_INTERVAL
+  #define DEFAULT_FLOOD_ADVERT_INTERVAL 12
+#endif
+#ifndef DEFAULT_MULTI_ACKS
+  #define DEFAULT_MULTI_ACKS 0
+#endif
+#ifndef DEFAULT_PATH_HASH_MODE
+  #define DEFAULT_PATH_HASH_MODE 0
+#endif
+
 #ifndef ADVERT_NAME
   #define ADVERT_NAME "repeater"
 #endif
@@ -871,7 +896,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   // defaults
   memset(&_prefs, 0, sizeof(_prefs));
   _prefs.airtime_factor = 1.0;
-  _prefs.rx_delay_base = 0.0f;   // turn off by default, was 10.0;
+  _prefs.rx_delay_base = DEFAULT_RX_DELAY_BASE;
   _prefs.tx_delay_factor = 0.5f; // was 0.25f
   _prefs.direct_tx_delay_factor = 0.3f; // was 0.2
   StrHelper::strncpy(_prefs.node_name, ADVERT_NAME, sizeof(_prefs.node_name));
@@ -883,10 +908,15 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.bw = LORA_BW;
   _prefs.cr = LORA_CR;
   _prefs.tx_power_dbm = LORA_TX_POWER;
-  _prefs.advert_interval = 1;        // default to 2 minutes for NEW installs
-  _prefs.flood_advert_interval = 12; // 12 hours
+  _prefs.advert_interval = DEFAULT_ADVERT_INTERVAL;
+  _prefs.flood_advert_interval = DEFAULT_FLOOD_ADVERT_INTERVAL;
   _prefs.flood_max = 64;
   _prefs.interference_threshold = 0; // disabled
+  _prefs.agc_reset_interval = DEFAULT_AGC_RESET_INTERVAL;
+  _prefs.multi_acks = DEFAULT_MULTI_ACKS;
+  _prefs.path_hash_mode = DEFAULT_PATH_HASH_MODE;
+  _prefs.loop_detect = DEFAULT_LOOP_DETECT;
+  _prefs.powersaving_enabled = DEFAULT_POWERSAVING_ENABLED;
 
   // bridge defaults
   _prefs.bridge_enabled = 1;    // enabled
@@ -923,6 +953,16 @@ void MyMesh::begin(FILESYSTEM *fs) {
   _fs = fs;
   // load persisted prefs
   _cli.loadPrefs(_fs);
+#ifdef CASCADIA_PROFILE
+  _prefs.rx_delay_base = DEFAULT_RX_DELAY_BASE;
+  _prefs.agc_reset_interval = DEFAULT_AGC_RESET_INTERVAL;
+  _prefs.advert_interval = DEFAULT_ADVERT_INTERVAL;
+  _prefs.flood_advert_interval = DEFAULT_FLOOD_ADVERT_INTERVAL;
+  _prefs.multi_acks = DEFAULT_MULTI_ACKS;
+  _prefs.path_hash_mode = DEFAULT_PATH_HASH_MODE;
+  _prefs.loop_detect = DEFAULT_LOOP_DETECT;
+  _prefs.powersaving_enabled = DEFAULT_POWERSAVING_ENABLED;
+#endif
   acl.load(_fs, self_id);
   // TODO: key_store.begin();
   region_map.load(_fs);
