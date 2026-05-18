@@ -128,7 +128,7 @@ uint8_t MyMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* secr
     }
   }
 
-  if (is_flood && client->out_path_len != OUT_PATH_FORCE_FLOOD) {
+  if (is_flood) {
     client->out_path_len = OUT_PATH_UNKNOWN;  // need to rediscover out_path
   }
 
