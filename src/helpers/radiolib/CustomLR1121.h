@@ -36,4 +36,6 @@ class CustomLR1121 : public LR1121 {
       bool detected = ((irq & RADIOLIB_LR11X0_IRQ_SYNC_WORD_HEADER_VALID) || (irq & RADIOLIB_LR11X0_IRQ_PREAMBLE_DETECTED));
       return detected;
     }
+    uint8_t getSpreadingFactor() const { return spreadingFactor; }
+
 };
