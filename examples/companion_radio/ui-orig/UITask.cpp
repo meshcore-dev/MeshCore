@@ -1,6 +1,7 @@
 #include "UITask.h"
 #include <Arduino.h>
 #include <helpers/TxtDataHelpers.h>
+#include <helpers/Battery.h>
 #include "../MyMesh.h"
 
 #define AUTO_OFF_MILLIS     15000   // 15 seconds
@@ -150,17 +151,7 @@ void UITask::newMsg(uint8_t path_len, const char* from_name, const char* text, i
 
 void UITask::renderBatteryIndicator(uint16_t batteryMilliVolts) {
   // Convert millivolts to percentage
-#ifndef BATT_MIN_MILLIVOLTS
-  #define BATT_MIN_MILLIVOLTS 3000
-#endif
-#ifndef BATT_MAX_MILLIVOLTS
-  #define BATT_MAX_MILLIVOLTS 4200
-#endif
-  const int minMilliVolts = BATT_MIN_MILLIVOLTS;
-  const int maxMilliVolts = BATT_MAX_MILLIVOLTS;
-  int batteryPercentage = ((batteryMilliVolts - minMilliVolts) * 100) / (maxMilliVolts - minMilliVolts);
-  if (batteryPercentage < 0) batteryPercentage = 0; // Clamp to 0%
-  if (batteryPercentage > 100) batteryPercentage = 100; // Clamp to 100%
+  int batteryPercentage = batteryPercentFromMilliVolts(batteryMilliVolts);
 
   // battery icon
   int iconWidth = 24;
