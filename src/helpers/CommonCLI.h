@@ -19,6 +19,32 @@
 #define LOOP_DETECT_MODERATE  2
 #define LOOP_DETECT_STRICT    3
 
+#define DIRECT_RETRY_PRESET_INFRA    0
+#define DIRECT_RETRY_PRESET_ROOFTOP  1
+#define DIRECT_RETRY_PRESET_MOBILE   2
+
+#define DIRECT_RETRY_INFRA_BASE_MS      275
+#define DIRECT_RETRY_INFRA_COUNT          4
+#define DIRECT_RETRY_INFRA_STEP_MS      150
+#define DIRECT_RETRY_INFRA_MARGIN_X4     60
+
+#define DIRECT_RETRY_ROOFTOP_BASE_MS    175
+#define DIRECT_RETRY_ROOFTOP_COUNT       15
+#define DIRECT_RETRY_ROOFTOP_STEP_MS    100
+#define DIRECT_RETRY_ROOFTOP_MARGIN_X4   20
+
+#define DIRECT_RETRY_MOBILE_BASE_MS     175
+#define DIRECT_RETRY_MOBILE_COUNT        15
+#define DIRECT_RETRY_MOBILE_STEP_MS      50
+#define DIRECT_RETRY_MOBILE_MARGIN_X4     0
+
+#define DIRECT_RETRY_CR4_MIN_SNR_X4_DEFAULT  40  // 10.0 dB and up => CR4
+#define DIRECT_RETRY_CR5_MIN_SNR_X4_DEFAULT  30  //  7.5 dB and up => CR5
+#define DIRECT_RETRY_CR7_MIN_SNR_X4_DEFAULT  10  //  2.5 dB and up => CR7
+#define DIRECT_RETRY_CR8_MAX_SNR_X4_DEFAULT  10  //  2.5 dB and down => CR8
+#define DIRECT_RETRY_CR_SNR_X4_MIN         -128
+#define DIRECT_RETRY_CR_SNR_X4_MAX          127
+
 struct NodePrefs { // persisted to file
   float airtime_factor;
   char node_name[32];
@@ -33,7 +59,9 @@ struct NodePrefs { // persisted to file
   float tx_delay_factor;
   char guest_password[16];
   float direct_tx_delay_factor;
-  uint32_t guard;
+  uint8_t direct_retry_recent_enabled;
+  uint8_t direct_retry_snr_margin_db; // stored in quarter-dB units (x4)
+  uint8_t direct_retry_prefs_magic[2];
   uint8_t sf;
   uint8_t cr;
   uint8_t allow_read_only;
@@ -59,8 +87,18 @@ struct NodePrefs { // persisted to file
   float adc_multiplier;
   char owner_info[120];
   uint8_t rx_boosted_gain; // power settings
+  uint8_t radio_fem_rxgain; // LoRa FEM RX gain setting
   uint8_t path_hash_mode;   // which path mode to use when sending
   uint8_t loop_detect;
+  uint8_t direct_retry_attempts;
+  uint16_t direct_retry_base_ms;
+  uint8_t direct_retry_timing_magic[2];
+  uint8_t direct_retry_preset;
+  uint16_t direct_retry_step_ms;
+  int8_t direct_retry_cr4_snr_x4;
+  int8_t direct_retry_cr5_snr_x4;
+  int8_t direct_retry_cr7_snr_x4;
+  int8_t direct_retry_cr8_snr_x4;
 };
 
 class CommonCLICallbacks {

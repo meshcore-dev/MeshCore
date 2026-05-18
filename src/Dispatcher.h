@@ -47,6 +47,12 @@ public:
   virtual bool startSendRaw(const uint8_t* bytes, int len) = 0;
 
   /**
+   * \brief  Sets LoRa coding rate for subsequent transmits/receives.
+   * \returns true if the radio accepted the coding rate.
+  */
+  virtual bool setCodingRate(uint8_t cr) { return false; }
+
+  /**
    * \returns true if the previous 'startSendRaw()' completed successfully.
   */
   virtual bool isSendComplete() = 0;
@@ -116,6 +122,7 @@ typedef uint32_t  DispatcherAction;
 class Dispatcher {
   Packet* outbound;  // current outbound packet
   unsigned long outbound_expiry, outbound_start, total_air_time, rx_air_time;
+  uint8_t outbound_restore_cr;
   unsigned long next_tx_time;
   unsigned long cad_busy_start;
   unsigned long radio_nonrx_start;
@@ -128,6 +135,7 @@ class Dispatcher {
   unsigned long duty_cycle_window_ms;
 
   void processRecvPacket(Packet* pkt);
+  void restoreOutboundCodingRate();
   void updateTxBudget();
 
 protected:
@@ -140,6 +148,7 @@ protected:
     : _radio(&radio), _ms(&ms), _mgr(&mgr)
   {
     outbound = NULL;
+    outbound_restore_cr = 0;
     total_air_time = rx_air_time = 0;
     next_tx_time = ms.getMillis();
     cad_busy_start = 0;
@@ -159,15 +168,19 @@ protected:
   virtual void logRx(Packet* packet, int len, float score) { }   // hooks for custom logging
   virtual void logTx(Packet* packet, int len) { }
   virtual void logTxFail(Packet* packet, int len) { }
+  virtual void onSendComplete(Packet* packet) { }
+  virtual void onSendFail(Packet* packet) { }
   virtual const char* getLogDateTime() { return ""; }
 
   virtual float getAirtimeBudgetFactor() const;
   virtual int calcRxDelay(float score, uint32_t air_time) const;
   virtual uint32_t getCADFailRetryDelay() const;
   virtual uint32_t getCADFailMaxDuration() const;
+  virtual uint8_t getDefaultTxCodingRate() const { return 0; }
   virtual int getInterferenceThreshold() const { return 0; }    // disabled by default
   virtual int getAGCResetInterval() const { return 0; }    // disabled by default
   virtual unsigned long getDutyCycleWindowMs() const { return 3600000; }
+  const Packet* getOutboundInFlight() const { return outbound; }
 
 public:
   void begin();
