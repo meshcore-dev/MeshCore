@@ -128,7 +128,7 @@ uint8_t MyMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* secr
     }
   }
 
-  if (is_flood) {
+  if (is_flood && client->out_path_len != OUT_PATH_FORCE_FLOOD) {
     client->out_path_len = OUT_PATH_UNKNOWN;  // need to rediscover out_path
   }
 
@@ -672,7 +672,7 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
         mesh::Packet *reply =
             createDatagram(PAYLOAD_TYPE_RESPONSE, client->id, secret, reply_data, reply_len);
         if (reply) {
-          if (client->out_path_len != OUT_PATH_UNKNOWN) { // we have an out_path, so send DIRECT
+          if (mesh::Packet::isValidPathLen(client->out_path_len)) { // we have an out_path, so send DIRECT
             sendDirect(reply, client->out_path, client->out_path_len, SERVER_RESPONSE_DELAY);
           } else {
             sendFloodReply(reply, SERVER_RESPONSE_DELAY, packet->getPathHashSize());
@@ -705,10 +705,10 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
 
         mesh::Packet *ack = createAck(ack_hash);
         if (ack) {
-          if (client->out_path_len == OUT_PATH_UNKNOWN) {
-            sendFloodReply(ack, TXT_ACK_DELAY, packet->getPathHashSize());
-          } else {
+          if (mesh::Packet::isValidPathLen(client->out_path_len)) {
             sendDirect(ack, client->out_path, client->out_path_len, TXT_ACK_DELAY);
+          } else {
+            sendFloodReply(ack, TXT_ACK_DELAY, packet->getPathHashSize());
           }
         }
       }
@@ -733,10 +733,10 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
 
         auto reply = createDatagram(PAYLOAD_TYPE_TXT_MSG, client->id, secret, temp, 5 + text_len);
         if (reply) {
-          if (client->out_path_len == OUT_PATH_UNKNOWN) {
-            sendFloodReply(reply, CLI_REPLY_DELAY_MILLIS, packet->getPathHashSize());
-          } else {
+          if (mesh::Packet::isValidPathLen(client->out_path_len)) {
             sendDirect(reply, client->out_path, client->out_path_len, CLI_REPLY_DELAY_MILLIS);
+          } else {
+            sendFloodReply(reply, CLI_REPLY_DELAY_MILLIS, packet->getPathHashSize());
           }
         }
       }
@@ -756,7 +756,9 @@ bool MyMesh::onPeerPathRecv(mesh::Packet *packet, int sender_idx, const uint8_t 
     auto client = acl.getClientByIdx(i);
 
     // store a copy of path, for sendDirect()
-    client->out_path_len = mesh::Packet::copyPath(client->out_path, path, path_len);
+    if (client->out_path_len != OUT_PATH_FORCE_FLOOD) {
+      client->out_path_len = mesh::Packet::copyPath(client->out_path, path, path_len);
+    }
     client->last_activity = getRTCClock()->getCurrentTime();
   } else {
     MESH_DEBUG_PRINTLN("onPeerPathRecv: invalid peer idx: %d", i);
@@ -1188,6 +1190,10 @@ static bool parsePathCommand(char* raw, uint8_t* out_path, uint8_t& out_path_len
     out_path_len = OUT_PATH_UNKNOWN;
     return true;
   }
+  if (strcmp(spec, "flood") == 0) {
+    out_path_len = OUT_PATH_FORCE_FLOOD;
+    return true;
+  }
 
   uint8_t hash_size = 0;
   uint8_t hop_count = 0;
@@ -1233,6 +1239,10 @@ static bool parsePathCommand(char* raw, uint8_t* out_path, uint8_t& out_path_len
 }
 
 static void formatPathReply(const uint8_t* path, uint8_t path_len, char* out, size_t out_len) {
+  if (path_len == OUT_PATH_FORCE_FLOOD) {
+    snprintf(out, out_len, "> flood");
+    return;
+  }
   if (path_len == OUT_PATH_UNKNOWN) {
     snprintf(out, out_len, "> unknown");
     return;
@@ -1345,9 +1355,9 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, ClientInfo* sender, char *
       if (!parsePathCommand(spec, path, path_len, err)) {
         strcpy(reply, err ? err : "Err - invalid path");
       } else {
-        if (path_len == OUT_PATH_UNKNOWN) {
-          sender->out_path_len = OUT_PATH_UNKNOWN;
+        if (path_len == OUT_PATH_UNKNOWN || path_len == OUT_PATH_FORCE_FLOOD) {
           memset(sender->out_path, 0, sizeof(sender->out_path));
+          sender->out_path_len = path_len;
         } else {
           sender->out_path_len = mesh::Packet::copyPath(sender->out_path, path, path_len);
         }
