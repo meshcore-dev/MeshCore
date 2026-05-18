@@ -745,6 +745,24 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 ---
 
+#### View or set the direct path override for the current remote client
+**Usage:**
+- `get outpath`
+- `set outpath <hash_size> <path_hex>`
+- `set outpath <hop1_hex,hop2_hex,...>`
+- `set outpath clear`
+
+**Parameters:**
+- `hash_size`: Path hash size (`1`, `2`, or `3` bytes per hop)
+- `path_hex`: Concatenated hop hashes (must align to `hash_size`)
+- `hopN_hex`: Comma-separated hop hashes, each `2`, `4`, or `6` hex characters and all the same width
+
+**Notes:**
+- These commands require remote client context (they target the caller's ACL entry).
+- `outpath` overrides the primary direct route used for replies to the caller.
+
+---
+
 #### Create a new region
 **Usage:** 
 - `region put <name> [parent_name]`

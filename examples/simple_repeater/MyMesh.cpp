@@ -719,7 +719,7 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
       if (is_retry) {
         *reply = 0;
       } else {
-        handleCommand(sender_timestamp, command, reply);
+        handleCommand(sender_timestamp, client, command, reply);
       }
       int text_len = strlen(reply);
       if (text_len > 0) {
@@ -1165,7 +1165,124 @@ void MyMesh::clearStats() {
   ((SimpleMeshTables *)getTables())->resetStats();
 }
 
-void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply) {
+static char* trimSpaces(char* s) {
+  while (*s == ' ') s++;
+  char* end = s + strlen(s);
+  while (end > s && end[-1] == ' ') end--;
+  *end = 0;
+  return s;
+}
+
+static bool parsePathCommand(char* raw, uint8_t* out_path, uint8_t& out_path_len, const char*& err) {
+  if (raw == NULL || out_path == NULL) {
+    err = "Err - bad params";
+    return false;
+  }
+
+  char* spec = trimSpaces(raw);
+  if (*spec == 0) {
+    err = "Err - missing path";
+    return false;
+  }
+  if (strcmp(spec, "clear") == 0 || strcmp(spec, "-") == 0 || strcmp(spec, "none") == 0) {
+    out_path_len = OUT_PATH_UNKNOWN;
+    return true;
+  }
+
+  char* space = strchr(spec, ' ');
+  if (space != NULL) {
+    char* sep = space;
+    *space++ = 0;
+    space = trimSpaces(space);
+
+    char* end_ptr = NULL;
+    long hash_size = strtol(spec, &end_ptr, 10);
+    if (end_ptr != spec && *end_ptr == 0 && hash_size >= 1 && hash_size <= 3 && *space != 0) {
+      int hex_len = strlen(space);
+      int step = (int)hash_size * 2;
+      if ((hex_len % step) != 0) {
+        err = "Err - hex length must align to hash size";
+        return false;
+      }
+
+      int hop_count = hex_len / step;
+      if (hop_count <= 0 || hop_count > 63 || hop_count * hash_size > MAX_PATH_SIZE) {
+        err = "Err - invalid hop count";
+        return false;
+      }
+      if (!mesh::Utils::fromHex(out_path, hop_count * hash_size, space)) {
+        err = "Err - bad hex";
+        return false;
+      }
+      out_path_len = (((uint8_t)hash_size - 1) << 6) | ((uint8_t)hop_count & 63);
+      return true;
+    }
+
+    *sep = ' ';
+  }
+
+  uint8_t hash_size = 0;
+  uint8_t hop_count = 0;
+  char* token = spec;
+  while (token && *token) {
+    char* comma = strchr(token, ',');
+    if (comma) *comma = 0;
+    token = trimSpaces(token);
+
+    int hex_len = strlen(token);
+    if (!(hex_len == 2 || hex_len == 4 || hex_len == 6)) {
+      err = "Err - each hop must be 1/2/3 bytes hex";
+      return false;
+    }
+
+    uint8_t hop_hash_size = (uint8_t)(hex_len / 2);
+    if (hash_size == 0) {
+      hash_size = hop_hash_size;
+    } else if (hash_size != hop_hash_size) {
+      err = "Err - mixed hash sizes in path";
+      return false;
+    }
+
+    if (hop_count >= 63 || (hop_count + 1) * hash_size > MAX_PATH_SIZE) {
+      err = "Err - path too long";
+      return false;
+    }
+    if (!mesh::Utils::fromHex(&out_path[hop_count * hash_size], hash_size, token)) {
+      err = "Err - bad hex";
+      return false;
+    }
+
+    hop_count++;
+    token = comma ? comma + 1 : NULL;
+  }
+
+  if (hash_size == 0 || hop_count == 0) {
+    err = "Err - missing path";
+    return false;
+  }
+  out_path_len = ((hash_size - 1) << 6) | (hop_count & 63);
+  return true;
+}
+
+static void formatPathReply(const uint8_t* path, uint8_t path_len, char* out, size_t out_len) {
+  if (path_len == OUT_PATH_UNKNOWN) {
+    snprintf(out, out_len, "> unknown");
+    return;
+  }
+  if (!mesh::Packet::isValidPathLen(path_len)) {
+    snprintf(out, out_len, "> invalid");
+    return;
+  }
+
+  uint8_t hash_size = (path_len >> 6) + 1;
+  uint8_t hop_count = path_len & 63;
+  uint8_t byte_len = hop_count * hash_size;
+  char hex[(MAX_PATH_SIZE * 2) + 1];
+  mesh::Utils::toHex(hex, path, byte_len);
+  snprintf(out, out_len, "> hs=%u hops=%u hex=%s", (uint32_t)hash_size, (uint32_t)hop_count, hex);
+}
+
+void MyMesh::handleCommand(uint32_t sender_timestamp, ClientInfo* sender, char *command, char *reply) {
   if (region_load_active) {
     if (StrHelper::isBlank(command)) {  // empty/blank line, signal to terminate 'load' operation
       region_map = temp_map;  // copy over the temp instance as new current map
@@ -1242,6 +1359,34 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
       Serial.printf("\n");
     }
     reply[0] = 0;
+  } else if (strcmp(command, "get outpath") == 0
+          || strcmp(command, "set outpath") == 0
+          || strncmp(command, "set outpath ", 12) == 0) {
+    bool is_get = strncmp(command, "get ", 4) == 0;
+    if (sender == NULL) {
+      strcpy(reply, "Err - command needs remote client context");
+    } else if (is_get) {
+      formatPathReply(sender->out_path, sender->out_path_len, reply, 160);
+    } else {
+      char* spec = command + 11;  // length of "set outpath"
+      if (*spec == ' ') spec++;
+
+      uint8_t path[MAX_PATH_SIZE];
+      uint8_t path_len = OUT_PATH_UNKNOWN;
+      const char* err = NULL;
+      if (!parsePathCommand(spec, path, path_len, err)) {
+        strcpy(reply, err ? err : "Err - invalid path");
+      } else {
+        if (path_len == OUT_PATH_UNKNOWN) {
+          sender->out_path_len = OUT_PATH_UNKNOWN;
+          memset(sender->out_path, 0, sizeof(sender->out_path));
+        } else {
+          sender->out_path_len = mesh::Packet::copyPath(sender->out_path, path, path_len);
+        }
+        dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY);
+        formatPathReply(sender->out_path, sender->out_path_len, reply, 160);
+      }
+    }
   } else if (memcmp(command, "discover.neighbors", 18) == 0) {
     const char* sub = command + 18;
     while (*sub == ' ') sub++;
