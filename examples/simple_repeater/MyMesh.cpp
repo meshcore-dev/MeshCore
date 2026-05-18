@@ -1189,38 +1189,6 @@ static bool parsePathCommand(char* raw, uint8_t* out_path, uint8_t& out_path_len
     return true;
   }
 
-  char* space = strchr(spec, ' ');
-  if (space != NULL) {
-    char* sep = space;
-    *space++ = 0;
-    space = trimSpaces(space);
-
-    char* end_ptr = NULL;
-    long hash_size = strtol(spec, &end_ptr, 10);
-    if (end_ptr != spec && *end_ptr == 0 && hash_size >= 1 && hash_size <= 3 && *space != 0) {
-      int hex_len = strlen(space);
-      int step = (int)hash_size * 2;
-      if ((hex_len % step) != 0) {
-        err = "Err - hex length must align to hash size";
-        return false;
-      }
-
-      int hop_count = hex_len / step;
-      if (hop_count <= 0 || hop_count > 63 || hop_count * hash_size > MAX_PATH_SIZE) {
-        err = "Err - invalid hop count";
-        return false;
-      }
-      if (!mesh::Utils::fromHex(out_path, hop_count * hash_size, space)) {
-        err = "Err - bad hex";
-        return false;
-      }
-      out_path_len = (((uint8_t)hash_size - 1) << 6) | ((uint8_t)hop_count & 63);
-      return true;
-    }
-
-    *sep = ' ';
-  }
-
   uint8_t hash_size = 0;
   uint8_t hop_count = 0;
   char* token = spec;
@@ -1231,7 +1199,7 @@ static bool parsePathCommand(char* raw, uint8_t* out_path, uint8_t& out_path_len
 
     int hex_len = strlen(token);
     if (!(hex_len == 2 || hex_len == 4 || hex_len == 6)) {
-      err = "Err - each hop must be 1/2/3 bytes hex";
+      err = "Err - bad params";
       return false;
     }
 
@@ -1239,12 +1207,12 @@ static bool parsePathCommand(char* raw, uint8_t* out_path, uint8_t& out_path_len
     if (hash_size == 0) {
       hash_size = hop_hash_size;
     } else if (hash_size != hop_hash_size) {
-      err = "Err - mixed hash sizes in path";
+      err = "Err - bad params";
       return false;
     }
 
     if (hop_count >= 63 || (hop_count + 1) * hash_size > MAX_PATH_SIZE) {
-      err = "Err - path too long";
+      err = "Err - bad params";
       return false;
     }
     if (!mesh::Utils::fromHex(&out_path[hop_count * hash_size], hash_size, token)) {
