@@ -216,6 +216,8 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
       uint8_t flags = pkt->payload[i++];
       uint8_t len = pkt->payload_len - i;
       uint8_t hash_size = decodeTraceHashSize(flags, len);
+      // path_len*entry_size can exceed 255 (path_len up to 63, entry_size up to 8);
+      // a uint8_t offset would wrap and steer the isHashMatch() read to the wrong place.
       uint16_t offset = (uint16_t)pkt->path_len * (uint16_t)hash_size;
       if (offset >= len) {   // TRACE has reached end of given path
         onTraceRecv(pkt, trace_tag, auth_code, flags, pkt->path, &pkt->payload[i], len);
