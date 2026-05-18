@@ -22,7 +22,7 @@ void TechoCardBoard::begin() {
     NRF52BoardDCDC::begin();
     Wire.begin();
 
-    for (uint8_t i = 0; i < sizeof(Led) / sizeof(*Led); i++)
+    for (uint8_t i = 0; i < sizeof(Led) / sizeof(Led[0]); i++)
     {
         Led[i]->begin();
         delay(3); // allow the LEDs to initialise, otherwise they can get stuck
@@ -88,7 +88,7 @@ void TechoCardBoard::turnOffLeds() {
 }
 
 void TechoCardBoard::powerOff() {
-  nrf_gpio_cfg_sense_input(BUTTON_PIN, NRF_GPIO_PIN_PULLUP, NRF_GPIO_PIN_SENSE_LOW);\
+  nrf_gpio_cfg_sense_input(BUTTON_PIN, NRF_GPIO_PIN_PULLUP, NRF_GPIO_PIN_SENSE_LOW);
   turnOffLeds();
   digitalWrite(PIN_PWR_EN, LOW);
   sd_power_system_off();
