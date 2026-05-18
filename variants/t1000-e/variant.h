@@ -25,8 +25,9 @@
 #define BATTERY_IMMUTABLE
 #define ADC_MULTIPLIER          (2.0F)
 
-#define EXT_CHRG_DETECT         (35)            // P1.3
-#define EXT_PWR_DETECT          (5)             // P0.5
+#define CHARGER_STATE_DETECT    (35)            // P1.3 Charger State
+#define CHARGER_INSERT_DETECT   (5)             // P0.5 Charger insert detect
+#define CHARGER_INSERT_ACTIVE   HIGH
 
 #define ADC_RESOLUTION          (14)
 #define BATTERY_SENSE_RES       (12)
