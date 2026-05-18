@@ -952,7 +952,7 @@ so the probe's first hop reaches marginal near neighbours — see the tuning not
 - The path hash size is inferred from the hop hash width.
 - `outpath` overrides the primary direct route used for replies to the caller.
 - `clear` forgets the current direct path and allows normal path discovery to repopulate it.
-- `flood` forces replies to use flood packets and ignores later discovered direct paths.
+- `flood` forces replies to use flood packets until the client logs in again.
 
 ---
 
