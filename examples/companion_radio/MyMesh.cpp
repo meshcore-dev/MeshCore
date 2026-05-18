@@ -1453,7 +1453,11 @@ void MyMesh::handleCmdFrame(size_t len) {
     memcpy(&reply[i], &total, 4); i += 4;
     _serial->writeFrame(reply, i);
   } else if (cmd_frame[0] == CMD_EXPORT_PRIVATE_KEY) {
-#if ENABLE_PRIVATE_KEY_EXPORT
+// On WiFi builds the host interface is an unauthenticated TCP socket on the
+// configured WIFI_SSID network, so anyone on the LAN can issue any CMD_*.
+// Gate identity-stealing and device-wipe commands behind an opt-in build flag.
+// Serial/BLE remain unchanged (serial is local-only; BLE has PIN bonding).
+#if ENABLE_PRIVATE_KEY_EXPORT && (!defined(WIFI_SSID) || defined(ALLOW_UNAUTHENTICATED_TCP_PRIVATE_KEY))
     uint8_t reply[65];
     reply[0] = RESP_CODE_PRIVATE_KEY;
     self_id.writeTo(&reply[1], 64);
@@ -1462,7 +1466,7 @@ void MyMesh::handleCmdFrame(size_t len) {
     writeDisabledFrame();
 #endif
   } else if (cmd_frame[0] == CMD_IMPORT_PRIVATE_KEY && len >= 65) {
-#if ENABLE_PRIVATE_KEY_IMPORT
+#if ENABLE_PRIVATE_KEY_IMPORT && (!defined(WIFI_SSID) || defined(ALLOW_UNAUTHENTICATED_TCP_PRIVATE_KEY))
     if (!mesh::LocalIdentity::validatePrivateKey(&cmd_frame[1])) {
         writeErrFrame(ERR_CODE_ILLEGAL_ARG); // invalid key
     } else {
@@ -1871,6 +1875,9 @@ void MyMesh::handleCmdFrame(size_t len) {
       writeErrFrame(ERR_CODE_ILLEGAL_ARG); // invalid stats sub-type
     }
   } else if (cmd_frame[0] == CMD_FACTORY_RESET && memcmp(&cmd_frame[1], "reset", 5) == 0) {
+// See note above on CMD_EXPORT_PRIVATE_KEY — factory-reset over unauthenticated
+// TCP is just as bad as key extraction.
+#if (!defined(WIFI_SSID) || defined(ALLOW_UNAUTHENTICATED_TCP_PRIVATE_KEY))
     if (_serial) {
       MESH_DEBUG_PRINTLN("Factory reset: disabling serial interface to prevent reconnects (BLE/WiFi)");
       _serial->disable(); // Phone app disconnects before we can send OK frame so it's safe here
@@ -1883,6 +1890,9 @@ void MyMesh::handleCmdFrame(size_t len) {
     } else {
       writeErrFrame(ERR_CODE_FILE_IO_ERROR);
     }
+#else
+    writeDisabledFrame();
+#endif
   } else if (cmd_frame[0] == CMD_SET_FLOOD_SCOPE_KEY && len >= 2 && cmd_frame[1] == 0) {
     if (len >= 2 + 16) {
       memcpy(send_scope.key, &cmd_frame[2], sizeof(send_scope.key));  // set curr scope TransportKey
