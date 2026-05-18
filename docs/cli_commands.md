@@ -30,6 +30,16 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 ---
 
+### Enter the UF2 bootloader (nRF52 only)
+**Usage:**
+- `uf2reset`
+
+**Serial Only:** Yes
+
+**Note:** Reboots directly into the UF2 bootloader on supported nRF52 boards.
+
+---
+
 ### Reset the clock and reboot
 **Usage:**
 - `clkreboot`
