@@ -52,12 +52,16 @@ public:
   virtual void onAfterTransmit() { }
   virtual void reboot() = 0;
   virtual void powerOff() { /* no op */ }
+  virtual uint32_t getIRQGpio() { return -1; } // not supported. Returns DIO1 (SX1262) and DIO0 (SX127x)
   virtual void sleep(uint32_t secs)  { /* no op */ }
   virtual uint32_t getGpio() { return 0; }
   virtual void setGpio(uint32_t values) {}
   virtual uint8_t getStartupReason() const = 0;
   virtual bool getBootloaderVersion(char* version, size_t max_len) { return false; }
   virtual bool startOTAUpdate(const char* id, char reply[]) { return false; }   // not supported
+  virtual bool setLoRaFemLnaEnabled(bool enable) { return false; }
+  virtual bool canControlLoRaFemLna() const { return false; }
+  virtual bool isLoRaFemLnaEnabled() const { return false; }
 
   // Power management interface (boards with power management override these)
   virtual bool isExternalPowered() { return false; }

@@ -165,7 +165,7 @@ protected:
 
 public:
   void savePrefs() { _store->savePrefs(_prefs, sensors.node_lat, sensors.node_lon); }
-
+  
 #if ENV_INCLUDE_GPS == 1
   void applyGpsPrefs() {
     sensors.setSettingValue("gps", _prefs.gps_enabled ? "1" : "0");
@@ -176,6 +176,9 @@ public:
     }
   }
 #endif
+
+  // To check if there is pending work
+  bool hasPendingWork() const;
 
 private:
   void writeOKFrame();

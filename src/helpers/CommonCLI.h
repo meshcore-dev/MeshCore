@@ -19,6 +19,57 @@
 #define LOOP_DETECT_MODERATE  2
 #define LOOP_DETECT_STRICT    3
 
+#define RETRY_PRESET_INFRA    0
+#define RETRY_PRESET_ROOFTOP  1
+#define RETRY_PRESET_MOBILE   2
+
+#define DIRECT_RETRY_INFRA_BASE_MS      275
+#define DIRECT_RETRY_INFRA_COUNT          4
+#define DIRECT_RETRY_INFRA_STEP_MS      150
+#define DIRECT_RETRY_INFRA_MARGIN_X4     60
+
+#define DIRECT_RETRY_ROOFTOP_BASE_MS    175
+#define DIRECT_RETRY_ROOFTOP_COUNT       15
+#define DIRECT_RETRY_ROOFTOP_STEP_MS    100
+#define DIRECT_RETRY_ROOFTOP_MARGIN_X4   20
+
+#define DIRECT_RETRY_MOBILE_BASE_MS     175
+#define DIRECT_RETRY_MOBILE_COUNT        15
+#define DIRECT_RETRY_MOBILE_STEP_MS      50
+#define DIRECT_RETRY_MOBILE_MARGIN_X4     0
+
+#ifndef FLOOD_RETRY_PREFIX_SLOTS
+  #define FLOOD_RETRY_PREFIX_SLOTS        8
+#endif
+#ifndef FLOOD_RETRY_PREFIX_LEN
+  #define FLOOD_RETRY_PREFIX_LEN          3
+#endif
+#ifndef FLOOD_RETRY_BRIDGE_BUCKETS
+  #define FLOOD_RETRY_BRIDGE_BUCKETS      6
+#endif
+#ifndef FLOOD_RETRY_BUCKET_PREFIXES
+  #define FLOOD_RETRY_BUCKET_PREFIXES     17
+#endif
+#ifndef FLOOD_RETRY_IGNORE_PREFIXES
+  #define FLOOD_RETRY_IGNORE_PREFIXES     8
+#endif
+#ifndef FLOOD_RETRY_LIST_PREFIXES
+  #define FLOOD_RETRY_LIST_PREFIXES       ((FLOOD_RETRY_IGNORE_PREFIXES > FLOOD_RETRY_BUCKET_PREFIXES) ? FLOOD_RETRY_IGNORE_PREFIXES : FLOOD_RETRY_BUCKET_PREFIXES)
+#endif
+#ifndef FLOOD_RETRY_LIST_TEXT_MAX
+  #define FLOOD_RETRY_LIST_TEXT_MAX       (FLOOD_RETRY_LIST_PREFIXES * FLOOD_RETRY_PREFIX_LEN * 2 + FLOOD_RETRY_LIST_PREFIXES)
+#endif
+#ifndef COMMON_CLI_TMP_LEN
+  #define COMMON_CLI_TMP_LEN              ((FLOOD_RETRY_LIST_TEXT_MAX > (PRV_KEY_SIZE * 2 + 4)) ? FLOOD_RETRY_LIST_TEXT_MAX : (PRV_KEY_SIZE * 2 + 4))
+#endif
+
+#define DIRECT_RETRY_CR4_MIN_SNR_X4_DEFAULT  40  // 10.0 dB and up => CR4
+#define DIRECT_RETRY_CR5_MIN_SNR_X4_DEFAULT  30  //  7.5 dB and up => CR5
+#define DIRECT_RETRY_CR7_MIN_SNR_X4_DEFAULT  10  //  2.5 dB and up => CR7
+#define DIRECT_RETRY_CR8_MAX_SNR_X4_DEFAULT  10  //  2.5 dB and down => CR8
+#define DIRECT_RETRY_CR_SNR_X4_MIN         -128
+#define DIRECT_RETRY_CR_SNR_X4_MAX          127
+
 struct NodePrefs { // persisted to file
   float airtime_factor;
   char node_name[32];
@@ -33,7 +84,9 @@ struct NodePrefs { // persisted to file
   float tx_delay_factor;
   char guest_password[16];
   float direct_tx_delay_factor;
-  uint32_t guard;
+  uint8_t direct_retry_recent_enabled;
+  uint8_t direct_retry_snr_margin_db; // stored in quarter-dB units (x4)
+  uint8_t direct_retry_prefs_magic[2];
   uint8_t sf;
   uint8_t cr;
   uint8_t allow_read_only;
@@ -59,8 +112,26 @@ struct NodePrefs { // persisted to file
   float adc_multiplier;
   char owner_info[120];
   uint8_t rx_boosted_gain; // power settings
+  uint8_t radio_fem_rxgain; // LoRa FEM RX gain setting
   uint8_t path_hash_mode;   // which path mode to use when sending
   uint8_t loop_detect;
+  uint8_t direct_retry_attempts;
+  uint16_t direct_retry_base_ms;
+  uint8_t direct_retry_timing_magic[2];
+  uint8_t retry_preset;
+  uint16_t direct_retry_step_ms;
+  uint8_t flood_retry_attempts;
+  uint8_t flood_retry_path_gate;
+  uint8_t flood_retry_prefs_magic[2];
+  uint8_t flood_retry_prefixes[FLOOD_RETRY_PREFIX_SLOTS][FLOOD_RETRY_PREFIX_LEN];
+  uint8_t flood_retry_bridge_enabled;
+  uint8_t flood_retry_bridge_buckets[FLOOD_RETRY_BRIDGE_BUCKETS][FLOOD_RETRY_BUCKET_PREFIXES][FLOOD_RETRY_PREFIX_LEN];
+  uint8_t flood_retry_ignore_prefixes[FLOOD_RETRY_IGNORE_PREFIXES][FLOOD_RETRY_PREFIX_LEN];
+  uint8_t flood_retry_advert_enabled;
+  int8_t direct_retry_cr4_snr_x4;
+  int8_t direct_retry_cr5_snr_x4;
+  int8_t direct_retry_cr7_snr_x4;
+  int8_t direct_retry_cr8_snr_x4;
 };
 
 class CommonCLICallbacks {
@@ -120,7 +191,7 @@ class CommonCLI {
   SensorManager* _sensors;
   RegionMap* _region_map;
   ClientACL* _acl;
-  char tmp[PRV_KEY_SIZE*2 + 4];
+  char tmp[COMMON_CLI_TMP_LEN];
 
   mesh::RTCClock* getRTCClock() { return _rtc; }
   void savePrefs();

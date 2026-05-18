@@ -731,6 +731,7 @@ SensorMesh::SensorMesh(mesh::MainBoard& board, mesh::Radio& radio, mesh::Millise
   _prefs.gps_enabled = 0;
   _prefs.gps_interval = 0;
   _prefs.advert_loc_policy = ADVERT_LOC_PREFS;
+  _prefs.radio_fem_rxgain = 1;
 
   memset(default_scope.key, 0, sizeof(default_scope.key));
 }
@@ -766,6 +767,7 @@ void SensorMesh::begin(FILESYSTEM* fs) {
 
   radio_set_params(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
   radio_set_tx_power(_prefs.tx_power_dbm);
+  board.setLoRaFemLnaEnabled(_prefs.radio_fem_rxgain);
 
   updateAdvertTimer();
   updateFloodAdvertTimer();

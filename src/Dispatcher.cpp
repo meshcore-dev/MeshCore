@@ -52,6 +52,13 @@ void Dispatcher::updateTxBudget() {
   }
 }
 
+void Dispatcher::restoreOutboundCodingRate() {
+  if (outbound_restore_cr != 0) {
+    _radio->setCodingRate(outbound_restore_cr);
+    outbound_restore_cr = 0;
+  }
+}
+
 int Dispatcher::calcRxDelay(float score, uint32_t air_time) const {
   return (int) ((pow(10, 0.85f - score) - 1.0) * air_time);
 }
@@ -105,7 +112,9 @@ void Dispatcher::loop() {
       }
 
       _radio->onSendFinished();
+      restoreOutboundCodingRate();
       logTx(outbound, 2 + outbound->getPathByteLen() + outbound->payload_len);
+      onSendComplete(outbound);
       if (outbound->isRouteFlood()) {
         n_sent_flood++;
       } else {
@@ -117,7 +126,9 @@ void Dispatcher::loop() {
       MESH_DEBUG_PRINTLN("%s Dispatcher::loop(): WARNING: outbound packed send timed out!", getLogDateTime());
 
       _radio->onSendFinished();
+      restoreOutboundCodingRate();
       logTxFail(outbound, 2 + outbound->getPathByteLen() + outbound->payload_len);
+      onSendFail(outbound);
 
       releasePacket(outbound);  // return to pool
       outbound = NULL;
@@ -148,6 +159,7 @@ void Dispatcher::loop() {
 bool Dispatcher::tryParsePacket(Packet* pkt, const uint8_t* raw, int len) {
   int i = 0;
 
+  pkt->tx_cr = 0;
   pkt->header = raw[i++];
   if (pkt->getPayloadVer() > PAYLOAD_VER_1) {
     MESH_DEBUG_PRINTLN("%s Dispatcher::checkRecv(): unsupported packet version", getLogDateTime());
@@ -267,7 +279,10 @@ void Dispatcher::processRecvPacket(Packet* pkt) {
     uint8_t priority = (action >> 24) - 1;
     uint32_t _delay = action & 0xFFFFFF;
 
-    _mgr->queueOutbound(pkt, priority, futureMillis(_delay));
+    if (!queueOutboundPacket(pkt, priority, _delay)) {
+      onSendFail(pkt);
+      releasePacket(pkt);
+    }
   }
 }
 
@@ -318,18 +333,32 @@ void Dispatcher::checkSend() {
 
     if (len + outbound->payload_len > MAX_TRANS_UNIT) {
       MESH_DEBUG_PRINTLN("%s Dispatcher::checkSend(): FATAL: Invalid packet queued... too long, len=%d", getLogDateTime(), len + outbound->payload_len);
-      _mgr->free(outbound);
+      onSendFail(outbound);
+      releasePacket(outbound);
       outbound = NULL;
     } else {
       memcpy(&raw[len], outbound->payload, outbound->payload_len); len += outbound->payload_len;
 
       uint32_t max_airtime = _radio->getEstAirtimeFor(len)*3/2;
+      outbound_restore_cr = 0;
+      uint8_t default_cr = getDefaultTxCodingRate();
+      if (outbound->tx_cr >= 4 && outbound->tx_cr <= 8 && default_cr >= 4 && default_cr <= 8
+          && outbound->tx_cr != default_cr) {
+        if (_radio->setCodingRate(outbound->tx_cr)) {
+          outbound_restore_cr = default_cr;
+          max_airtime = _radio->getEstAirtimeFor(len)*3/2;
+        } else {
+          MESH_DEBUG_PRINTLN("%s Dispatcher::checkSend(): WARN: failed to set packet CR%d", getLogDateTime(), (uint32_t)outbound->tx_cr);
+        }
+      }
       outbound_start = _ms->getMillis();
       bool success = _radio->startSendRaw(raw, len);
       if (!success) {
         MESH_DEBUG_PRINTLN("%s Dispatcher::loop(): ERROR: send start failed!", getLogDateTime());
 
+        restoreOutboundCodingRate();
         logTxFail(outbound, outbound->getRawLength());
+        onSendFail(outbound);
   
         releasePacket(outbound);  // return to pool
         outbound = NULL;
@@ -359,6 +388,7 @@ Packet* Dispatcher::obtainNewPacket() {
   } else {
     pkt->payload_len = pkt->path_len = 0;
     pkt->_snr = 0;
+    pkt->tx_cr = 0;
   }
   return pkt;
 }
@@ -367,13 +397,21 @@ void Dispatcher::releasePacket(Packet* packet) {
   _mgr->free(packet);
 }
 
-void Dispatcher::sendPacket(Packet* packet, uint8_t priority, uint32_t delay_millis) {
+bool Dispatcher::queueOutboundPacket(Packet* packet, uint8_t priority, uint32_t delay_millis) {
   if (!Packet::isValidPathLen(packet->path_len) || packet->payload_len > MAX_PACKET_PAYLOAD) {
     MESH_DEBUG_PRINTLN("%s Dispatcher::sendPacket(): ERROR: invalid packet... path_len=%d, payload_len=%d", getLogDateTime(), (uint32_t) packet->path_len, (uint32_t) packet->payload_len);
-    _mgr->free(packet);
-  } else {
-    _mgr->queueOutbound(packet, priority, futureMillis(delay_millis));
+    return false;
   }
+  return _mgr->queueOutbound(packet, priority, futureMillis(delay_millis));
+}
+
+bool Dispatcher::sendPacket(Packet* packet, uint8_t priority, uint32_t delay_millis) {
+  if (!queueOutboundPacket(packet, priority, delay_millis)) {
+    onSendFail(packet);
+    releasePacket(packet);
+    return false;
+  }
+  return true;
 }
 
 // Utility function -- handles the case where millis() wraps around back to zero

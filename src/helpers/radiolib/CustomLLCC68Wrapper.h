@@ -20,6 +20,15 @@ public:
     int sf = ((CustomLLCC68 *)_radio)->spreadingFactor;
     return packetScoreInt(snr, sf, packet_len);
   }
+  bool setCodingRate(uint8_t cr) override {
+    idle();
+    int err = ((CustomLLCC68 *)_radio)->setCodingRate(cr);
+    if (err != RADIOLIB_ERR_NONE) {
+      MESH_DEBUG_PRINTLN("CustomLLCC68Wrapper: error: setCodingRate(%d)=%d", (uint32_t)cr, err);
+      return false;
+    }
+    return true;
+  }
 
   void doResetAGC() override { sx126xResetAGC((SX126x *)_radio); }
 

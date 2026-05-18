@@ -61,6 +61,8 @@
 #define CMD_SEND_CHANNEL_DATA         62
 #define CMD_SET_DEFAULT_FLOOD_SCOPE   63
 #define CMD_GET_DEFAULT_FLOOD_SCOPE   64
+#define CMD_GET_RADIO_FEM_RXGAIN      65
+#define CMD_SET_RADIO_FEM_RXGAIN      66
 
 // Stats sub-types for CMD_GET_STATS
 #define STATS_TYPE_CORE               0
@@ -876,6 +878,7 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
   _prefs.rx_boosted_gain = 1; // enabled by default
 #endif
 #endif
+  _prefs.radio_fem_rxgain = 1;
 }
 
 void MyMesh::begin(bool has_display) {
@@ -925,6 +928,7 @@ void MyMesh::begin(bool has_display) {
   _prefs.tx_power_dbm = constrain(_prefs.tx_power_dbm, -9, MAX_LORA_TX_POWER);
   _prefs.gps_enabled = constrain(_prefs.gps_enabled, 0, 1);  // Ensure boolean 0 or 1
   _prefs.gps_interval = constrain(_prefs.gps_interval, 0, 86400);  // Max 24 hours
+  _prefs.radio_fem_rxgain = constrain(_prefs.radio_fem_rxgain, 0, 1);
 
 #ifdef BLE_PIN_CODE // 123456 by default
   if (_prefs.ble_pin == 0) {
@@ -954,6 +958,7 @@ void MyMesh::begin(bool has_display) {
   radio_set_params(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
   radio_set_tx_power(_prefs.tx_power_dbm);
   radio_driver.setRxBoostedGainMode(_prefs.rx_boosted_gain);
+  board.setLoRaFemLnaEnabled(_prefs.radio_fem_rxgain);
   MESH_DEBUG_PRINTLN("RX Boosted Gain Mode: %s",
                      radio_driver.getRxBoostedGainMode() ? "Enabled" : "Disabled");
 }
@@ -1798,6 +1803,30 @@ void MyMesh::handleCmdFrame(size_t len) {
     } else {
       writeErrFrame(ERR_CODE_ILLEGAL_ARG);
     }
+  } else if (cmd_frame[0] == CMD_GET_RADIO_FEM_RXGAIN) {
+    if (!board.canControlLoRaFemLna()) {
+      writeErrFrame(ERR_CODE_UNSUPPORTED_CMD);
+    } else {
+      out_frame[0] = RESP_CODE_OK;
+      uint8_t value = board.isLoRaFemLnaEnabled() ? 1 : 0;
+      memcpy(&out_frame[1], &value, 1);
+      _serial->writeFrame(out_frame, 2);
+    }
+  } else if (cmd_frame[0] == CMD_SET_RADIO_FEM_RXGAIN && len >= 2) {
+    uint8_t value = cmd_frame[1];
+    if (!board.canControlLoRaFemLna()) {
+      writeErrFrame(ERR_CODE_UNSUPPORTED_CMD);
+    } else if (value <= 1) {
+      _prefs.radio_fem_rxgain = value;
+      if (board.setLoRaFemLnaEnabled(value != 0)) {
+        savePrefs();
+        writeOKFrame();
+      } else {
+        writeErrFrame(ERR_CODE_UNSUPPORTED_CMD);
+      }
+    } else {
+      writeErrFrame(ERR_CODE_ILLEGAL_ARG);
+    }
   } else if (cmd_frame[0] == CMD_GET_ADVERT_PATH && len >= PUB_KEY_SIZE+2) {
     // FUTURE use:  uint8_t reserved = cmd_frame[1];
     uint8_t *pub_key = &cmd_frame[2];
@@ -2190,4 +2219,12 @@ bool MyMesh::advert() {
   } else {
     return false;
   }
+}
+
+// To check if there is pending work
+bool MyMesh::hasPendingWork() const {
+#if defined(WITH_BRIDGE)
+  if (bridge.isRunning()) return true; // bridge needs WiFi radio, can't sleep
+#endif
+  return _mgr->getOutboundTotal() > 0;
 }

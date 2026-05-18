@@ -115,6 +115,28 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 ---
 
+### Get or set recent repeater fallback prefix/SNR
+**Usage:**
+- `get recent.repeater`
+- `get recent.repeater <page>`
+- `get recent.repeater page <page>`
+- `set recent.repeater <prefix_hex_6> <snr_db>`
+
+**Parameters:**
+- `prefix_hex_6`: Exactly 3 bytes of next-hop prefix in hex (6 chars)
+- `snr_db`: SNR in dB (supports decimals; stored at x4 precision)
+- `page`: 1-based page number
+
+**Notes:**
+- `set` stores or updates the prefix in the recent repeater table.
+- Rows are sorted by prefix width (3-byte, 2-byte, 1-byte), then SNR descending.
+- A full direct retry failure lowers the stored SNR by `0.25 dB`.
+- If a full failure has no row yet, it first seeds the row at the active retry cutoff + `2.5 dB`, then applies the `0.25 dB` penalty.
+- Serial CLI page size is fixed at `128` rows; choose page with `get recent.repeater <page>`.
+- Over LoRa remote CLI, page size is fixed at `7` rows; choose page with `get recent.repeater <page>`.
+
+---
+
 ## Statistics
 
 ### Clear Stats
@@ -274,6 +296,20 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 **Default:** `on`
 
 **Temporary Note:** If you upgraded from an older version to 1.14.1 without erasing flash, this setting is `off` because of [#2118](https://github.com/meshcore-dev/MeshCore/issues/2118)
+
+---
+
+#### View or change the LoRa FEM receive-path gain state on supported boards
+**Usage:**
+- `get radio.fem.rxgain`
+- `set radio.fem.rxgain <state>`
+
+**Parameters:**
+- `state`: `on`|`off`
+
+**Notes:**
+- This controls the external LoRa FEM receive-path LNA where the board supports it.
+- This is separate from `radio.rxgain`, which controls the radio chip receive gain mode.
 
 ---
 
@@ -505,7 +541,116 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 **Parameters:**
 - `value`: Direct transmit delay factor (0-2)
 
-**Default:** `0.2`
+**Default:** `0.3`
+
+**Note:** Direct retry waits include the same airtime-based randomized delay calculation as direct retransmits, so this factor also controls retry echo windows.
+
+---
+
+#### View or change whether direct retries use the recent repeater blacklist
+**Usage:**
+- `get direct.retry.heard`
+- `set direct.retry.heard <state>`
+
+**Parameters:**
+- `state`: `on`|`off`
+
+**Default:** `on`
+
+**Note:** When enabled, the recent repeater table is the only direct retry eligibility gate. Prefixes missing from the table are assumed reachable; prefixes in the table below the active SNR gate are blocked. Neighbor data is not used.
+
+---
+
+#### View or change adaptive coding rate for direct retry packets
+**Usage:**
+- `get direct.retry.cr`
+- `set direct.retry.cr <cr4_min>,<cr5_min>,<cr7_min>,<cr8_max>`
+- `set direct.retry.cr off`
+
+**Parameters:**
+- `cr4_min`: SNR in dB where retry packets use `CR4`
+- `cr5_min`: SNR in dB where retry packets use `CR5`
+- `cr7_min`: SNR in dB where retry packets use `CR7`
+- `cr8_max`: SNR in dB where retry packets use `CR8`
+
+**Default:** `10.0,7.5,2.5,2.5`
+
+**Note:** DM retry packets use the next-hop SNR from a recent repeater table entry to pick a local transmit coding rate; if no recent entry is available, retry packets use `CR5`. With the default, SNR `10.0 dB` and up uses `CR4`, SNR `7.5 dB` and up uses `CR5`, SNR `2.5 dB` and down uses `CR8`, and the middle band uses `CR7`. `CR6` is never selected. Use `set direct.retry.cr off` to disable adaptive coding-rate overrides. If adaptive selection chooses `CR4`, retries after the third attempt use `CR5`.
+
+---
+
+#### View or change the SNR margin used for direct retry eligibility
+**Usage:**
+- `get direct.retry.margin`
+- `set direct.retry.margin <value>`
+
+**Parameters:**
+- `value`: Rooftop preset margin in dB above the SF-specific receive floor (minimum `0`, maximum `40`, quarter-dB precision, default `5.0`)
+
+**Default:** `5.0`
+
+**Note:** `get direct.retry.margin` returns the active preset's effective margin. The retry gate uses the active SF floor of `SF5=-2.5`, `SF6=-5`, `SF7=-7.5`, `SF8=-10`, `SF9=-12.5`, `SF10=-15`, `SF11=-17.5`, `SF12=-20`, then adds this margin.
+
+---
+
+#### View or change the retry preset
+**Usage:**
+- `get retry.preset`
+- `set retry.preset <value>`
+
+**Parameters:**
+- `value`: `infra`|`rooftop`|`mobile` or `0`|`1`|`2`
+
+**Default:** `rooftop` (`1`)
+
+**Presets:**
+- `infra` (`0`): `275 ms` direct base wait, `4` direct retries, `150 ms` added per direct retry, SNR gate is SF floor + `15 dB`; flood retry defaults to `1` retry and path gate `1`
+- `rooftop` (`1`): `175 ms` direct base wait, `15` direct retries, `100 ms` added per direct retry, SNR gate is SF floor + `5 dB`; flood retry defaults to `3` retries and path gate `2`
+- `mobile` (`2`): `175 ms` direct base wait, `15` direct retries, `50 ms` added per direct retry, SNR gate is the SF floor; flood retry defaults to `3` retries and path gate `1`
+
+**Note:** Selecting a preset copies those values into the direct retry settings and resets flood retry defaults. You can refine `direct.retry.margin`, `direct.retry.count`, `direct.retry.base`, `direct.retry.step`, `flood.retry.count`, or `flood.retry.path` afterward. Retry delay is `direct.txdelay` jitter + base wait + packet-length airtime wait + per-attempt step.
+
+---
+
+#### View or change the number of direct retry attempts
+**Usage:**
+- `get direct.retry.count`
+- `set direct.retry.count <value>`
+
+**Parameters:**
+- `value`: Maximum retry attempts after initial TX (`1`-`15`)
+
+**Default:** `15`
+
+**Note:** The effective value is capped by total direct path length: paths of `3` hops or less use at most `8` retries, `4` hops use at most `12`, and `5+` hops use at most `15`. A queued resend is canceled early when the next-hop echo is heard.
+
+---
+
+#### View or change the base direct retry wait (milliseconds)
+**Usage:**
+- `get direct.retry.base`
+- `set direct.retry.base <value>`
+
+**Parameters:**
+- `value`: Base wait in milliseconds (`10`-`5000`)
+
+**Default:** `175`
+
+**Note:** The configured base is added to packet-length airtime and `direct.txdelay` jitter. Preset defaults are already reduced to account for the added `direct.txdelay` component.
+
+---
+
+#### View or change the direct retry per-attempt add time (milliseconds)
+**Usage:**
+- `get direct.retry.step`
+- `set direct.retry.step <value>`
+
+**Parameters:**
+- `value`: Milliseconds added per retry attempt (`0`-`5000`)
+
+**Default:** `100`
+
+**Note:** This controls the linear add after the first retry wait. For example, `base=300` and `step=150` adds `0`, `150`, `300`, ... ms across retry attempts.
 
 ---
 
@@ -629,6 +774,103 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 - `value`: Maximum flood hop count (0-64)
 
 **Default:** `64`
+
+---
+
+#### View or change the number of flood retry attempts
+**Usage:**
+- `get flood.retry.count`
+- `set flood.retry.count <value>`
+
+**Parameters:**
+- `value`: Maximum retry attempts after initial flood TX (`0`-`15`)
+
+**Default:** `3` for `rooftop` and `mobile`, `1` for `infra`
+
+**Note:** `0` disables flood retry.
+
+---
+
+#### View or change the flood retry path gate
+**Usage:**
+- `get flood.retry.path`
+- `set flood.retry.path <value>`
+
+**Parameters:**
+- `value`: Maximum flood path length eligible for retry (`0`-`63`), or `off` to disable the gate
+
+**Default:** `2` for `rooftop`, `1` for `infra` and `mobile`
+
+---
+
+#### View or change whether advert packets are flood-retried
+**Usage:**
+- `get flood.retry.advert`
+- `set flood.retry.advert <state>`
+
+**Parameters:**
+- `state`: `on` or `off`
+
+**Default:** `off`
+
+**Note:** When this is `off`, node advert packets (`PAYLOAD_TYPE_ADVERT`, type `4`) are not queued for flood retry.
+
+---
+
+#### View or change flood retry target prefixes
+**Usage:**
+- `get flood.retry.prefixes`
+- `set flood.retry.prefixes <prefixes>`
+
+**Parameters:**
+- `prefixes`: Comma-separated 3-byte hex prefixes, such as `A1B2C3,D4E5F6`; use `none` or `off` to clear
+
+**Default:** `none`
+
+**Note:** Prefixes are stored as 3 bytes. Flood retry skips packets whose path already contains a matching target prefix. When prefixes are configured, only a downstream echo from one of those target prefixes cancels a queued retry; when no prefixes are configured, any downstream echo cancels it. Matching works with 3-byte, 2-byte, or 1-byte flood paths by comparing the matching leading bytes.
+
+---
+
+#### View or change flood retry bridge mode
+**Usage:**
+- `get flood.retry.bridge`
+- `set flood.retry.bridge <state>`
+
+**Parameters:**
+- `state`: `on` or `off`
+
+**Default:** `off`
+
+**Note:** Bridge mode uses bucket definitions instead of the single `flood.retry.prefixes` target list. It also has an implicit unconfigured catch-all bucket. If a flood comes from one fresh configured bucket, retry continues until every other fresh configured bucket plus the catch-all bucket has been heard or `flood.retry.count` is exhausted. If a flood comes from an unconfigured or pathless source, retry targets every fresh configured bucket. This means one configured bucket bridges between that bucket and everything else. Prefixes in `flood.retry.ignore` never count as heard bridge targets.
+
+---
+
+#### View or change flood retry bridge buckets
+**Usage:**
+- `get flood.retry.bucket.<bucket>`
+- `set flood.retry.bucket <bucket> <prefixes>`
+
+**Parameters:**
+- `bucket`: Bucket number (`1`-`6`)
+- `prefixes`: Up to 17 comma-separated 3-byte hex prefixes, such as `AABBCC,223344`; use `none` or `off` to clear
+
+**Default:** all buckets empty
+
+**Note:** Prefixes are stored as 3 bytes but match 3-byte, 2-byte, and 1-byte flood paths by comparing leading bytes. Bucket prefixes are included in bridge retry logic only if they were heard in the recent repeater table within the last hour.
+
+---
+
+#### View or change flood retry ignored prefixes
+**Usage:**
+- `get flood.retry.ignore`
+- `set flood.retry.ignore <prefixes>`
+
+**Parameters:**
+- `prefixes`: Up to 8 comma-separated 3-byte hex prefixes, such as `AABBCC,223344`; use `none` or `off` to clear
+
+**Default:** empty
+
+**Note:** In non-bridge retry, an echo whose last hop matches an ignored prefix does not cancel a queued retry as successful. In bridge mode, ignored prefixes do not count as a heard bridge bucket or as the implicit catch-all bucket when bridge retry decides whether every target has repeated the flood.
 
 ---
 
