@@ -68,7 +68,7 @@ void setup() {
 
   if (!radio_init()) { halt(); }
 
-  fast_rng.begin(radio_get_rng_seed());
+  fast_rng.begin(radio_driver.getRngSeed());
 
   FILESYSTEM* fs;
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)

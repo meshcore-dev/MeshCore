@@ -28,7 +28,10 @@ bool ST7735Display::begin() {
 #endif
     digitalWrite(PIN_TFT_RST, HIGH);
 
-#if defined(HELTEC_TRACKER_V2) || defined(HELTEC_T096)
+#if defined(HELTEC_T1)
+    display.initR(INITR_MINI160x80);
+    display.setRotation(DISPLAY_ROTATION);
+#elif defined(HELTEC_TRACKER_V2) || defined(HELTEC_T096)
     display.initR(INITR_MINI160x80);
     display.setRotation(DISPLAY_ROTATION);
     uint8_t madctl = ST77XX_MADCTL_MY | ST77XX_MADCTL_MV |ST7735_MADCTL_BGR;//Adjust color to BGR
