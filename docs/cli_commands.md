@@ -981,10 +981,10 @@ region save
 
 **Parameters:**
 - `source`: 
-  - `logRx`: bridges received packets
-  - `logTx`: bridges transmitted packets
+  - `rx`: bridges received packets
+  - `tx`: bridges transmitted packets
 
-**Default:** `logTx`
+**Default:** `tx`
 
 ---
 
