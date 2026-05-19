@@ -8,11 +8,11 @@
 #include <helpers/RefCountedDigitalPin.h>
 
 #ifndef PIN_OLED_RESET
-  #define PIN_OLED_RESET        21 // Reset pin # (or -1 if sharing Arduino reset pin)
+#define PIN_OLED_RESET -1
 #endif
 
 #ifndef DISPLAY_ADDRESS
-  #define DISPLAY_ADDRESS   0x3C
+#define DISPLAY_ADDRESS 0x3C
 #endif
 
 class SSD1306Display : public DisplayDriver {
