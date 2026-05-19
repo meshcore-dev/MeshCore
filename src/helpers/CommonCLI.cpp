@@ -900,8 +900,37 @@ void CommonCLI::handleRegionCmd(char* command, char* reply) {
 
   const char* parts[4];
   int n = mesh::Utils::parseTextParts(command, parts, 4, ' ');
-  if (n == 1) {
-    _region_map->exportTo(reply, 160);
+  if (n == 1 || (n >= 2 && parts[1][0] >= '0' && parts[1][0] <= '9')) {
+    int start = (n >= 2) ? atoi(parts[1]) : 0;
+    if (start < 0) start = 0;
+    int total = _region_map->getCount();
+    char *dp = reply;
+    char *limit = reply + 148;  // leave 12 bytes for ">NN\0" footer + safety
+    if (start == 0) {
+      const RegionEntry& wc = _region_map->getWildcard();
+      int wlen = snprintf(dp, (size_t)(limit - dp), "*%s\n",
+                          (wc.flags & REGION_DENY_FLOOD) ? "" : " F");
+      if (wlen > 0 && dp + wlen < limit) dp += wlen;
+    }
+    int i = start;
+    for (; i < total; i++) {
+      const RegionEntry* r = _region_map->getByIdx(i);
+      const char* name = r->name[0] == '#' ? r->name + 1 : r->name;
+      int rlen = snprintf(dp, (size_t)(limit - dp), "%s%s\n",
+                          name,
+                          (r->flags & REGION_DENY_FLOOD) ? "" : " F");
+      if (rlen > 0 && dp + rlen < limit) {
+        dp += rlen;
+      } else {
+        break;
+      }
+    }
+    if (i < total) {
+      snprintf(dp, (size_t)(reply + 160 - dp), ">%d", i);
+    } else if (dp > reply) {
+      *(dp - 1) = 0;  // trim trailing newline on last page
+    }
+    if (reply[0] == 0) strcpy(reply, "-none-");
   } else if (n >= 2 && strcmp(parts[1], "load") == 0) {
     _callbacks->startRegionsLoad();
   } else if (n >= 2 && strcmp(parts[1], "save") == 0) {
