@@ -2012,9 +2012,20 @@ void MyMesh::checkCLIRescueCmd() {
         _prefs.ble_pin = atoi(&config[4]);
         savePrefs();
         Serial.printf("  > pin is now %06d\n", _prefs.ble_pin);
+
+      } else if (memcmp(config, "radio.rxgain ", 13) == 0) {
+        _prefs.rx_boosted_gain = memcmp(&config[13], "on", 2) == 0;
+        savePrefs();
+        radio_driver.setRxBoostedGainMode(_prefs.rx_boosted_gain);
+        Serial.println("  > OK");
+
       } else {
         Serial.printf("  Error: unknown config: %s\n", config);
       }
+
+    } else if (memcmp(cli_command, "get radio.rxgain", 16) == 0) {
+      Serial.printf("  > %s\n", _prefs.rx_boosted_gain ? "on" : "off");
+
     } else if (strcmp(cli_command, "rebuild") == 0) {
       bool success = _store->formatFileSystem();
       if (success) {
