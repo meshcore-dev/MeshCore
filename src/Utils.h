@@ -46,13 +46,13 @@ public:
    * \brief  encrypts bytes in src, then calculates MAC on ciphertext, inserting into leading bytes of 'dest'.
    * \returns  total length of bytes in 'dest' (MAC + ciphertext)
   */
-  static int encryptThenMAC(const uint8_t* shared_secret, uint8_t* dest, const uint8_t* src, int src_len);
+  static int encryptThenMAC(const uint8_t* shared_secret, int secret_len, uint8_t* dest, const uint8_t* src, int src_len);
 
   /**
    * \brief  checks the MAC (in leading bytes of 'src'), then if valid, decrypts remaining bytes in src.
    * \returns  zero if MAC is invalid, otherwise the length of decrypted bytes in 'dest'
   */
-  static int MACThenDecrypt(const uint8_t* shared_secret, uint8_t* dest, const uint8_t* src, int src_len);
+  static int MACThenDecrypt(const uint8_t* shared_secret, int secret_len, uint8_t* dest, const uint8_t* src, int src_len);
 
   /**
    * \brief  converts 'src' bytes with given length to Hex representation, and null terminates.
