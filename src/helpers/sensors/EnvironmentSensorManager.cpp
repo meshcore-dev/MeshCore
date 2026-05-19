@@ -56,6 +56,12 @@ static Adafruit_BMP280 BMP280(TELEM_WIRE);
 static Adafruit_SHTC3 SHTC3;
 #endif
 
+#if ENV_INCLUDE_SHT31
+#define TELEM_SHT31_ADDRESS 0x44
+#include <Adafruit_SHT31.h>
+static Adafruit_SHT31 SHT31;
+#endif
+
 #if ENV_INCLUDE_SHT4X
 #define TELEM_SHT4X_ADDRESS 0x44
 #include <SensirionI2cSht4x.h>
@@ -270,6 +276,16 @@ static void query_shtc3(uint8_t ch, uint8_t, CayenneLPP& lpp) {
 }
 #endif
 
+#if ENV_INCLUDE_SHT31
+static uint8_t init_sht31(TwoWire* wire, uint8_t addr) {
+  return SHT31.begin(addr) ? 1 : 0;
+}
+static void query_sht31(uint8_t ch, uint8_t, CayenneLPP& lpp) {
+  lpp.addTemperature(ch, SHT31.readTemperature());
+  lpp.addRelativeHumidity(ch, SHT31.readHumidity());
+}
+#endif
+
 #if ENV_INCLUDE_SHT4X
 static uint8_t init_sht4x(TwoWire* wire, uint8_t addr) {
   // SensirionI2cSht4x::begin() does not probe the hardware; use serialNumber()
@@ -466,6 +482,9 @@ static const SensorDef SENSOR_TABLE[] = {
 #endif
 #if ENV_INCLUDE_SHTC3
   { 0x70,                  "SHTC3",        init_shtc3,    query_shtc3    },
+#endif
+#if ENV_INCLUDE_SHT31
+  { TELEM_SHT31_ADDRESS,   "SHT31",        init_sht31,    query_sht31    },
 #endif
 #if ENV_INCLUDE_SHT4X
   { TELEM_SHT4X_ADDRESS,   "SHT4X",        init_sht4x,    query_sht4x    },
