@@ -1,0 +1,6 @@
+# udev rules for meshcored — grant the meshcore group access to SPI and GPIO devices.
+# Works on Arch Linux, Debian/Raspberry Pi OS, and other distributions.
+# Install: sudo cp 99-meshcore.rules /etc/udev/rules.d/
+
+SUBSYSTEM=="spidev", GROUP="meshcore", MODE="0660"
+KERNEL=="gpiochip*", GROUP="meshcore", MODE="0660"
