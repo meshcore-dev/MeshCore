@@ -218,10 +218,11 @@ void BaseChatMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender
       from.lastmod = getRTCClock()->getCurrentTime(); // update last heard time
       onMessageRecv(from, packet, timestamp, (const char *) &data[5]);  // let UI know
 
+      int text_len = strlen((char *)&data[5]);
       uint8_t ack_hash[5];    // calc truncated hash of the message timestamp + text + sender pub_key, to prove to sender that we got it
-      mesh::Utils::sha256(ack_hash, 4, data, 5 + strlen((char *)&data[5]), from.id.pub_key, PUB_KEY_SIZE);
+      mesh::Utils::sha256(ack_hash, 4, data, 5 + text_len, from.id.pub_key, PUB_KEY_SIZE);
       // NEW: append (potential) extended attempt byte (to make packethash unique)
-      ack_hash[4] = data[len - 1];
+      ack_hash[4] = data[5 + text_len + 1];
 
       if (packet->isRouteFlood()) {
         // let this sender know path TO here, so they can use sendDirect(), and ALSO encode the ACK
