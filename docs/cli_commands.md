@@ -756,6 +756,46 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 ---
 
+#### Define region hierarchy (single line)
+**Usage:**
+- `region def <token> [<token> ...]`
+
+**Parameters (tokens):** Space-separated. A logical **cursor** starts at the wildcard `*`.
+
+- **`name`** — Create `name` as a child of the current cursor (same as `region put name` with that parent). Cursor moves to `name`.
+- **`name|jump`** or **`name,jump`** — Create `name` as a child of the current cursor, then move the cursor to `jump` (must already exist: created earlier in this command or already on the node). `jump` is **not** the parent of `name`; use this to pop back up and start another branch.
+
+**Note:** Same flood defaults as `region put` (flood allowed on each created region).
+
+**Note:** Does **not** persist to flash. The reply is the region tree (same format as bare `region`) so you can review before **`region save`**.
+
+**Note:** On error, the reply is a short `Err - ...` message; regions placed before the failure remain (same as a partial chain of `region put`).
+
+**Note:** Repeater serial accepts one line up to **160 characters** total; split very large trees across multiple `region def` commands.
+
+**Note:** `|` only splits once per token. `region def a|b|c|d` is **not** a flat-list shorthand — use `region def a|* b|* c|* d|*` for multiple children of `*`.
+
+**Example — linear chain:**
+```
+region def west pnw wa w-wa sea
+region save
+```
+
+**Example — branched tree** (equivalent to `region put west` … `region put sw-wa wa`):
+```
+region def west pnw or pdx|pnw wa sw-wa
+region save
+```
+Same with comma as jump delimiter: `region def west pnw or pdx,pnw wa sw-wa`
+
+**Example — flat list** (each region child of `*`):
+```
+region def west|* pnw|* or|* pdx|* wa|* sw-wa
+region save
+```
+
+---
+
 #### Remove a region
 **Usage:** 
 - `region remove <name>`

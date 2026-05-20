@@ -898,6 +898,70 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
 void CommonCLI::handleRegionCmd(char* command, char* reply) {
   reply[0] = 0;
 
+  // `region def ...` — cursor-walk over space-separated tokens (must run before
+  // parseTextParts, which only keeps 4 segments and mutates the buffer).
+  char* cmd = command;
+  while (*cmd == ' ') cmd++;
+  if (strncmp(cmd, "region def", 10) == 0 && (cmd[10] == ' ' || cmd[10] == '\0')) {
+    char* payload = cmd + 10;
+    while (*payload == ' ') payload++;
+    if (*payload == '\0') {
+      snprintf(reply, 160, "Err - empty def");
+      return;
+    }
+    RegionEntry* cursor = &_region_map->getWildcard();
+    char* p = payload;
+    while (*p) {
+      while (*p == ' ') p++;
+      if (*p == '\0') break;
+      char* tok = p;
+      while (*p && *p != ' ') p++;
+      if (*p) *p++ = '\0';
+
+      char* jump = nullptr;
+      for (char* q = tok; *q; q++) {
+        if (*q == '|' || *q == ',') {
+          *q = '\0';
+          jump = q + 1;
+          break;
+        }
+      }
+      char* name = tok;
+      while (*name == ' ') name++;
+      if (jump) {
+        while (*jump == ' ') jump++;
+        char* je = jump + strlen(jump);
+        while (je > jump && je[-1] == ' ') *--je = '\0';
+      }
+      if (*name == '\0') {
+        snprintf(reply, 160, "Err - empty name");
+        return;
+      }
+      if (jump && *jump == '\0') {
+        snprintf(reply, 160, "Err - empty jump");
+        return;
+      }
+      auto r = _region_map->putRegion(name, cursor->id);
+      if (r == NULL) {
+        snprintf(reply, 160, "Err - put failed: %s", name);
+        return;
+      }
+      r->flags = 0;
+      if (jump) {
+        auto j = _region_map->findByNamePrefix(jump);
+        if (j == NULL) {
+          snprintf(reply, 160, "Err - unknown jump: %s", jump);
+          return;
+        }
+        cursor = j;
+      } else {
+        cursor = r;
+      }
+    }
+    _region_map->exportTo(reply, 160);
+    return;
+  }
+
   const char* parts[4];
   int n = mesh::Utils::parseTextParts(command, parts, 4, ' ');
   if (n == 1) {
