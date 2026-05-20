@@ -44,6 +44,10 @@ static uint32_t _atoi(const char* sp) {
   #elif defined(BLE_PIN_CODE)
     #include <helpers/esp32/SerialBLEInterface.h>
     SerialBLEInterface serial_interface;
+  #elif defined(HAS_ETHERNET)
+    #include <helpers/esp32/SerialEthernetInterface.h>
+    extern SerialEthernetInterface eth_interface;
+    SerialEthernetInterface& serial_interface = eth_interface;
   #elif defined(SERIAL_RX)
     #include <helpers/ArduinoSerialInterface.h>
     ArduinoSerialInterface serial_interface;
@@ -217,6 +221,8 @@ void setup() {
   serial_interface.begin(TCP_PORT);
 #elif defined(BLE_PIN_CODE)
   serial_interface.begin(BLE_NAME_PREFIX, the_mesh.getNodePrefs()->node_name, the_mesh.getBLEPin());
+#elif defined(HAS_ETHERNET)
+  board.setInhibitSleep(true);   // prevent sleep while Ethernet is active
 #elif defined(SERIAL_RX)
   companion_serial.setPins(SERIAL_RX, SERIAL_TX);
   companion_serial.begin(115200);
