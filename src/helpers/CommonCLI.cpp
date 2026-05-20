@@ -89,7 +89,9 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     file.read((uint8_t *)&_prefs->adc_multiplier, sizeof(_prefs->adc_multiplier));                 // 166
     file.read((uint8_t *)_prefs->owner_info, sizeof(_prefs->owner_info));                          // 170
     file.read((uint8_t *)&_prefs->rx_boosted_gain, sizeof(_prefs->rx_boosted_gain));              // 290
-    // next: 291
+    file.read((uint8_t *)&_prefs->advert_ratelimit, sizeof(_prefs->advert_ratelimit));              // 291
+    file.read((uint8_t *)&_prefs->advert_jail, sizeof(_prefs->advert_jail));                        // 293
+    // next: 294
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -119,6 +121,8 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
 
     // sanitise settings
     _prefs->rx_boosted_gain = constrain(_prefs->rx_boosted_gain, 0, 1); // boolean
+    _prefs->advert_ratelimit = constrain(_prefs->advert_ratelimit, 0, 3600);
+    _prefs->advert_jail = constrain(_prefs->advert_jail, 0, 168);
 
     file.close();
   }
@@ -180,7 +184,9 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->adc_multiplier, sizeof(_prefs->adc_multiplier));                 // 166
     file.write((uint8_t *)_prefs->owner_info, sizeof(_prefs->owner_info));                          // 170
     file.write((uint8_t *)&_prefs->rx_boosted_gain, sizeof(_prefs->rx_boosted_gain));              // 290
-    // next: 291
+    file.write((uint8_t *)&_prefs->advert_ratelimit, sizeof(_prefs->advert_ratelimit));              // 291
+    file.write((uint8_t *)&_prefs->advert_jail, sizeof(_prefs->advert_jail));                        // 293
+    // next: 294
 
     file.close();
   }
@@ -256,6 +262,8 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       }
     } else if (memcmp(command, "neighbors", 9) == 0) {
       _callbacks->formatNeighborsReply(reply);
+    } else if (memcmp(command, "jail", 4) == 0 && (command[4] == 0 || command[4] == ' ')) {
+      _callbacks->formatAdvertJailReply(reply);
     } else if (memcmp(command, "neighbor.remove ", 16) == 0) {
       const char* hex = &command[16];
       uint8_t pubkey[PUB_KEY_SIZE];
@@ -518,6 +526,24 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       savePrefs();
       strcpy(reply, "OK");
     }
+  } else if (memcmp(config, "advert.ratelimit ", 17) == 0) {
+    int secs = _atoi(&config[17]);
+    if (secs < 0 || secs > 3600) {
+      strcpy(reply, "Error: range is 0-3600 seconds (0=off)");
+    } else {
+      _prefs->advert_ratelimit = (uint16_t)secs;
+      savePrefs();
+      strcpy(reply, "OK");
+    }
+  } else if (memcmp(config, "advert.jail ", 12) == 0) {
+    int hours = _atoi(&config[12]);
+    if (hours < 0 || hours > 168) {
+      strcpy(reply, "Error: range is 0-168 hours (0=off)");
+    } else {
+      _prefs->advert_jail = (uint8_t)hours;
+      savePrefs();
+      strcpy(reply, "OK");
+    }
   } else if (memcmp(config, "guest.password ", 15) == 0) {
     StrHelper::strncpy(_prefs->guest_password, &config[15], sizeof(_prefs->guest_password));
     savePrefs();
@@ -754,6 +780,10 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %d", ((uint32_t) _prefs->flood_advert_interval));
   } else if (memcmp(config, "advert.interval", 15) == 0) {
     sprintf(reply, "> %d", ((uint32_t) _prefs->advert_interval) * 2);
+  } else if (memcmp(config, "advert.ratelimit", 16) == 0) {
+    sprintf(reply, "> %d", (uint32_t) _prefs->advert_ratelimit);
+  } else if (memcmp(config, "advert.jail", 11) == 0) {
+    sprintf(reply, "> %d", (uint32_t) _prefs->advert_jail);
   } else if (memcmp(config, "guest.password", 14) == 0) {
     sprintf(reply, "> %s", _prefs->guest_password);
   } else if (sender_timestamp == 0 && memcmp(config, "prv.key", 7) == 0) {  // from serial command line only
