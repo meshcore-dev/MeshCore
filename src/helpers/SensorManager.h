@@ -1,6 +1,10 @@
 #pragma once
 
+#ifdef NATIVE_PLATFORM
+struct CayenneLPP;  // Work around a clash between CayenneLPP & ArduinoNative
+#else
 #include <CayenneLPP.h>
+#endif
 #include "sensors/LocationProvider.h"
 
 #define TELEM_PERM_BASE         0x01   // 'base' permission includes battery

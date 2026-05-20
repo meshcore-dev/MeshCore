@@ -14,6 +14,7 @@ Commands:
   build-companion-firmwares: Build all companion firmwares for all build targets.
   build-repeater-firmwares: Build all repeater firmwares for all build targets.
   build-room-server-firmwares: Build all chat room server firmwares for all build targets.
+  test: Run test on the given target (typically 'native')
 
 Examples:
 Build firmware for the "RAK_4631_repeater" device target
@@ -89,6 +90,27 @@ get_pio_envs_ending_with_string() {
   done
 }
 
+set_build_env() {
+  # get git commit sha
+  COMMIT_HASH=$(git rev-parse --short HEAD)
+
+  # set firmware build date
+  FIRMWARE_BUILD_DATE=$(date '+%d-%b-%Y')
+
+  # get FIRMWARE_VERSION, which should be provided by the environment
+  if [ -z "$FIRMWARE_VERSION" ]; then
+    echo "FIRMWARE_VERSION must be set in environment"
+    exit 1
+  fi
+
+  # set firmware version string
+  # e.g: v1.0.0-abcdef
+  FIRMWARE_VERSION_STRING="${FIRMWARE_VERSION}-${COMMIT_HASH}"
+
+  # add firmware version info to end of existing platformio build flags in environment vars
+  export PLATFORMIO_BUILD_FLAGS="${PLATFORMIO_BUILD_FLAGS} -DFIRMWARE_BUILD_DATE='\"${FIRMWARE_BUILD_DATE}\"' -DFIRMWARE_VERSION='\"${FIRMWARE_VERSION_STRING}\"'"
+}
+
 # get platform flag for a given environment
 # $1 should be the environment name
 get_platform_for_env() {
@@ -120,28 +142,11 @@ build_firmware() {
   # get env platform for post build actions
   ENV_PLATFORM=($(get_platform_for_env $1))
 
-  # get git commit sha
-  COMMIT_HASH=$(git rev-parse --short HEAD)
-
-  # set firmware build date
-  FIRMWARE_BUILD_DATE=$(date '+%d-%b-%Y')
-
-  # get FIRMWARE_VERSION, which should be provided by the environment
-  if [ -z "$FIRMWARE_VERSION" ]; then
-    echo "FIRMWARE_VERSION must be set in environment"
-    exit 1
-  fi
-
-  # set firmware version string
-  # e.g: v1.0.0-abcdef
-  FIRMWARE_VERSION_STRING="${FIRMWARE_VERSION}-${COMMIT_HASH}"
+  set_build_env
 
   # craft filename
   # e.g: RAK_4631_Repeater-v1.0.0-SHA
   FIRMWARE_FILENAME="$1-${FIRMWARE_VERSION_STRING}"
-
-  # add firmware version info to end of existing platformio build flags in environment vars
-  export PLATFORMIO_BUILD_FLAGS="${PLATFORMIO_BUILD_FLAGS} -DFIRMWARE_BUILD_DATE='\"${FIRMWARE_BUILD_DATE}\"' -DFIRMWARE_VERSION='\"${FIRMWARE_VERSION_STRING}\"'"
 
   # disable debug flags if requested
   disable_debug_flags
@@ -245,6 +250,18 @@ build_firmwares() {
   build_room_server_firmwares
 }
 
+run_tests() {
+  envs=($(get_pio_envs_containing_string "$1"))
+  for env in "${envs[@]}"; do
+      run_test $env
+  done
+}
+
+run_test() {
+  set_build_env
+  pio test -e $1
+}
+
 # clean build dir
 rm -rf out
 mkdir -p out
@@ -275,4 +292,6 @@ elif [[ $1 == "build-repeater-firmwares" ]]; then
   build_repeater_firmwares
 elif [[ $1 == "build-room-server-firmwares" ]]; then
   build_room_server_firmwares
+elif [[ $1 == "test" ]] ; then
+  run_tests "$2"
 fi

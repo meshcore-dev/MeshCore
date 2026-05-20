@@ -160,7 +160,8 @@ bool Adafruit_LittleFS::mkdir (char const *filepath)
   // make intermediate parent directory(ies)
   while ( NULL != (slash = strchr(slash, '/')) )
   {
-    char parent[slash - filepath + 1] = { 0 };
+    char parent[slash - filepath + 1];
+    parent[0] = 0;
     memcpy(parent, filepath, slash - filepath);
 
     int rc = lfs_mkdir(&_lfs, parent);
