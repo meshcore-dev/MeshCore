@@ -9,6 +9,24 @@
   #define TXT_ACK_DELAY     200
 #endif
 
+// Path-stickiness window (seconds): once a path is stored, ANY replacement is
+// blocked for this long.  No hop-count comparison is performed — fewer hops is
+// NOT automatically better because rxdelay-based SNR ordering means high-SNR
+// long-hop paths arrive first, then low-SNR short-hop paths follow.  A blanket
+// first-arrived lock avoids that bias entirely.
+// 10 s is long enough to suppress multipath duplicates (50-200 ms apart) yet
+// short enough that a genuinely changed topology gets a fresh path quickly.
+// Addresses issue #1775.
+#ifndef PATH_STICKINESS_WINDOW_SECS
+  #define PATH_STICKINESS_WINDOW_SECS  10u
+#endif
+
+// Number of independent flood-ACK transmissions at increasing delays.
+// Addresses issue #1489 (single flood ACK lost in noisy RF environments).
+#ifndef FLOOD_ACK_RETRY_COUNT
+  #define FLOOD_ACK_RETRY_COUNT  3
+#endif
+
 void BaseChatMesh::sendFloodScoped(const ContactInfo& recipient, mesh::Packet* pkt, uint32_t delay_millis) {
   sendFlood(pkt, delay_millis);
 }
@@ -40,8 +58,14 @@ mesh::Packet* BaseChatMesh::createSelfAdvert(const char* name, double lat, doubl
 
 void BaseChatMesh::sendAckTo(const ContactInfo& dest, uint32_t ack_hash) {
   if (dest.out_path_len == OUT_PATH_UNKNOWN) {
-    mesh::Packet* ack = createAck(ack_hash);
-    if (ack) sendFloodScoped(dest, ack, TXT_ACK_DELAY);
+    // Send flood ACK FLOOD_ACK_RETRY_COUNT times at increasing delays (issue #1489).
+    // Each transmission is an independent RF attempt; duplicates are discarded by
+    // hasSeen() at every receiving node so only the first successful copy is processed.
+    static const uint32_t flood_ack_delays[FLOOD_ACK_RETRY_COUNT] = { TXT_ACK_DELAY, 800, 2000 };
+    for (int i = 0; i < FLOOD_ACK_RETRY_COUNT; i++) {
+      mesh::Packet* ack = createAck(ack_hash);
+      if (ack) sendFloodScoped(dest, ack, flood_ack_delays[i]);
+    }
   } else {
     uint32_t d = TXT_ACK_DELAY;
     if (getExtraAckTransmitCount() > 0) {
@@ -226,6 +250,12 @@ void BaseChatMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender
         mesh::Packet* path = createPathReturn(from.id, secret, packet->path, packet->path_len,
                                                 PAYLOAD_TYPE_ACK, (uint8_t *) &ack_hash, 4);
         if (path) sendFloodScoped(from, path, TXT_ACK_DELAY);
+        // Also send a standalone flood ACK as backup: the PATH+ACK above is a single packet
+        // whose ciphertext (AES-ECB) was deterministic before the nonce fix.  Even with the
+        // nonce, RF loss can drop the PATH+ACK entirely.  The standalone ACK travels
+        // independently and ensures the sender cancels its retry timeout even if path
+        // establishment fails (issue #1489).
+        sendAckTo(from, ack_hash);
       } else {
         sendAckTo(from, ack_hash);
       }
@@ -253,6 +283,8 @@ void BaseChatMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender
         mesh::Packet* path = createPathReturn(from.id, secret, packet->path, packet->path_len,
                                                 PAYLOAD_TYPE_ACK, (uint8_t *) &ack_hash, 4);
         if (path) sendFloodScoped(from, path, TXT_ACK_DELAY);
+        // Standalone flood ACK backup — same rationale as TXT_TYPE_PLAIN above
+        sendAckTo(from, ack_hash);
       } else {
         sendAckTo(from, ack_hash);
       }
@@ -302,10 +334,37 @@ bool BaseChatMesh::onPeerPathRecv(mesh::Packet* packet, int sender_idx, const ui
 }
 
 bool BaseChatMesh::onContactPathRecv(ContactInfo& from, uint8_t* in_path, uint8_t in_path_len, uint8_t* out_path, uint8_t out_path_len, uint8_t extra_type, uint8_t* extra, uint8_t extra_len) {
-  // NOTE: default impl, we just replace the current 'out_path' regardless, whenever sender sends us a new out_path.
-  // FUTURE: could store multiple out_paths per contact, and try to find which is the 'best'(?)
+  uint32_t now = getRTCClock()->getCurrentTime();
+
+  // Path-stickiness lock (issue #1775): block ANY replacement of a freshly
+  // stored path for PATH_STICKINESS_WINDOW_SECS seconds.  No hop-count
+  // comparison — fewer hops is not automatically better because rxdelay-based
+  // SNR ordering propagates high-SNR (often longer-hop) paths first; comparing
+  // hops would therefore bias toward the wrong path.  A blanket first-arrived
+  // lock is simpler and avoids that bias.
+  // The embedded ACK/response is always processed regardless of the lock.
+  if (from.out_path_len != OUT_PATH_UNKNOWN && from.out_path_timestamp != 0) {
+    uint32_t age_secs = now - from.out_path_timestamp;
+    if (age_secs < PATH_STICKINESS_WINDOW_SECS) {
+      // Path is still within the lock window — keep it, but still process any
+      // embedded ACK or response so the sender's retry timer is cancelled.
+      onContactPathUpdated(from);
+      if (extra_type == PAYLOAD_TYPE_ACK && extra_len >= 4) {
+        if (processAck(extra) != NULL) {
+          txt_send_timeout = 0;
+        }
+      } else if (extra_type == PAYLOAD_TYPE_RESPONSE && extra_len > 0) {
+        onContactResponse(from, extra, extra_len);
+      }
+      return true;
+    }
+  }
+
+  // Accept the new path.
   from.out_path_len = mesh::Packet::copyPath(from.out_path, out_path, out_path_len);  // store a copy of path, for sendDirect()
-  from.lastmod = getRTCClock()->getCurrentTime();
+  from.out_path_timestamp = now;   // record when this path was accepted
+  from.path_ack_count = 0;         // reset delivery counter for the new path
+  from.lastmod = now;
 
   onContactPathUpdated(from);
 
@@ -325,6 +384,13 @@ void BaseChatMesh::onAckRecv(mesh::Packet* packet, uint32_t ack_crc) {
   if ((from = processAck((uint8_t *)&ack_crc)) != NULL) {
     txt_send_timeout = 0;   // matched one we're waiting for, cancel timeout timer
     packet->markDoNotRetransmit();   // ACK was for this node, so don't retransmit
+
+    // Track per-contact direct-path delivery success (issue #1775).
+    // Incremented here so the path-stickiness logic can eventually factor in
+    // proven delivery when making replacement decisions.
+    if (!packet->isRouteFlood() && from->out_path_len != OUT_PATH_UNKNOWN) {
+      if (from->path_ack_count < 255) from->path_ack_count++;
+    }
 
     if (packet->isRouteFlood() && from->out_path_len != OUT_PATH_UNKNOWN) {
       // we have direct path, but other node is still sending flood, so maybe they didn't receive reciprocal path properly(?)

@@ -17,6 +17,8 @@ struct ContactInfo {
   uint32_t lastmod;  // by OUR clock
   int32_t gps_lat, gps_lon;    // 6 dec places
   uint32_t sync_since;
+  uint32_t out_path_timestamp;  // RTC time (secs) when out_path was last accepted; 0 = never set
+  uint8_t  path_ack_count;      // saturating count of direct-path ACKs received (delivery tracking)
 
   const uint8_t* getSharedSecret(const mesh::LocalIdentity& self_id) const {
     if (!shared_secret_valid) {

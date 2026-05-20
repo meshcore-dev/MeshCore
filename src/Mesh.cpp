@@ -457,11 +457,16 @@ Packet* Mesh::createPathReturn(const uint8_t* dest_hash, const uint8_t* secret, 
     if (extra_len > 0) {
       data[data_len++] = extra_type;
       memcpy(&data[data_len], extra, extra_len); data_len += extra_len;
-    } else {
-      // append a timestamp, or random blob (to make packet_hash unique)
-      data[data_len++] = 0xFF;  // dummy payload type
-      getRNG()->random(&data[data_len], 4); data_len += 4;
     }
+    // Always append a random nonce regardless of extra presence.
+    // AES-ECB is deterministic: without a nonce, identical plaintext produces
+    // identical ciphertext → identical calculatePacketHash() → hasSeen() treats
+    // every retransmission of the same PATH+ACK as a duplicate and drops it.
+    // The nonce is ignored by the receiver (it reads only the typed extra fields).
+    // This mirrors the original no-extra handling above (issue: nonce was missing
+    // for the extra_len > 0 branch, breaking flood-ACK retry reliability).
+    data[data_len++] = 0xFF;  // dummy payload type (ignored by receiver)
+    getRNG()->random(&data[data_len], 4); data_len += 4;
 
     len += Utils::encryptThenMAC(secret, &packet->payload[len], data, data_len);
   }
