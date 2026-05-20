@@ -49,6 +49,17 @@ struct ConnectionInfo {
   uint32_t expected_ack;
 };
 
+#ifndef MAX_PASSIVE_CANDIDATES
+  #define MAX_PASSIVE_CANDIDATES  MAX_CONTACTS
+#endif
+
+struct PassivePathCandidate {
+  uint8_t end_hash;
+  int8_t path_len;
+  uint8_t path[MAX_PATH_SIZE];
+  uint32_t last_seen;
+};
+
 #include "ChannelDetails.h"
 
 /**
@@ -70,8 +81,16 @@ class BaseChatMesh : public mesh::Mesh {
   mesh::Packet* _pendingLoopback;
   uint8_t temp_buf[MAX_TRANS_UNIT];
   ConnectionInfo connections[MAX_CONNECTIONS];
+  PassivePathCandidate passive_candidates[MAX_PASSIVE_CANDIDATES];
+  ContactInfo* pending_candidate_contact;
+  bool path_recv_was_flood;
 
   mesh::Packet* composeMsgPacket(const ContactInfo& recipient, uint32_t timestamp, uint8_t attempt, const char *text, uint32_t& expected_ack);
+  int findPassiveCandidateByHash(uint8_t end_hash) const;
+  void removePassiveCandidateByHash(uint8_t end_hash);
+  void observePassiveCandidate(uint8_t end_hash, const uint8_t* path, uint8_t path_len);
+  bool getPassiveCandidateFor(const ContactInfo& recipient, uint8_t* path, uint8_t& path_len) const;
+  void promotePendingCandidateOnSuccess(ContactInfo& from);
   void sendAckTo(const ContactInfo& dest, uint32_t ack_hash);
 
 protected:
@@ -85,7 +104,14 @@ protected:
   #endif
     txt_send_timeout = 0;
     _pendingLoopback = NULL;
+    pending_candidate_contact = NULL;
+    path_recv_was_flood = false;
     memset(connections, 0, sizeof(connections));
+    for (int i = 0; i < MAX_PASSIVE_CANDIDATES; i++) {
+      passive_candidates[i].path_len = -1;
+      passive_candidates[i].end_hash = 0;
+      passive_candidates[i].last_seen = 0;
+    }
   }
 
   void bootstrapRTCfromContacts();
