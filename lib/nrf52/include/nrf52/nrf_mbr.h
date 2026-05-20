@@ -164,7 +164,7 @@ typedef struct
  */
 typedef struct
 {
-  uint32_t *bl_src;  /**< Pointer to the source of the bootloader to be be copied.*/
+  uint32_t *bl_src;  /**< Pointer to the source of the bootloader to be copied.*/
   uint32_t bl_len;   /**< Number of 32 bit words to copy for BootLoader. */
 } sd_mbr_command_copy_bl_t;
 
