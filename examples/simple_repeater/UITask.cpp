@@ -41,7 +41,8 @@ void UITask::begin(NodePrefs* node_prefs, const char* build_date, const char* fi
   }
 
   // v1.2.3 (1 Jan 2025)
-  sprintf(_version_info, "%s (%s)", version, build_date);
+  snprintf(_version_info, sizeof(_version_info), "%s (%s)", version, build_date);
+  free(version);
 }
 
 void UITask::renderCurrScreen() {
