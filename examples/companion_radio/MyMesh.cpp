@@ -61,8 +61,9 @@
 #define CMD_SEND_CHANNEL_DATA         62
 #define CMD_SET_DEFAULT_FLOOD_SCOPE   63
 #define CMD_GET_DEFAULT_FLOOD_SCOPE   64
-#define CMD_GET_RADIO_FEM_RXGAIN      65
-#define CMD_SET_RADIO_FEM_RXGAIN      66
+#define CMD_SEND_RAW_PACKET           65
+#define CMD_GET_RADIO_FEM_RXGAIN      66
+#define CMD_SET_RADIO_FEM_RXGAIN      67
 
 // Stats sub-types for CMD_GET_STATS
 #define STATS_TYPE_CORE               0
@@ -1992,6 +1993,19 @@ void MyMesh::handleCmdFrame(size_t len) {
       memcpy(&out_frame[i], &r->upper_freq, 4); i += 4;
     }
     _serial->writeFrame(out_frame, i);
+  } else if (cmd_frame[0] == CMD_SEND_RAW_PACKET && len >= 4) {
+    auto pkt = obtainNewPacket();
+    if (pkt) {
+      uint8_t priority = cmd_frame[1];
+      if (tryParsePacket(pkt, &cmd_frame[2], len - 2)) {
+        sendPacket(pkt, priority, 0);
+        writeOKFrame();
+      } else {
+        writeErrFrame(ERR_CODE_ILLEGAL_ARG);
+      }
+    } else {
+      writeErrFrame(ERR_CODE_TABLE_FULL);
+    }
   } else {
     writeErrFrame(ERR_CODE_UNSUPPORTED_CMD);
     MESH_DEBUG_PRINTLN("ERROR: unknown command: %02X", cmd_frame[0]);

@@ -1,3 +1,4 @@
+#include "Arduino.h"
 #ifdef PIN_BUZZER
 #include "buzzer.h"
 
