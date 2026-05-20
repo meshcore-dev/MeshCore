@@ -11,7 +11,25 @@ bool SH1106Display::i2c_probe(TwoWire &wire, uint8_t addr)
 
 bool SH1106Display::begin()
 {
-  return display.begin(DISPLAY_ADDRESS, true) && i2c_probe(Wire, DISPLAY_ADDRESS);
+  // Some T-Beam S3 Supreme revisions ship a QMC6310N magnetometer whose
+  // configurable I2C address (0x3C / 0x3D) collides with the OLED's. Probe
+  // both candidate addresses and disambiguate via the magnetometer's chip-ID
+  // register: read of reg 0x00 returns 0x80 on the QMC6310N. Same trick
+  // LilyGo's factory firmware uses.
+  uint8_t candidates[] = { DISPLAY_ADDRESS, 0x3D };
+  uint8_t found = 0;
+  for (uint8_t addr : candidates) {
+    if (!i2c_probe(Wire, addr)) continue;
+    Wire.beginTransmission(addr);
+    Wire.write((uint8_t)0x00);
+    if (Wire.endTransmission() != 0) continue;
+    if (Wire.requestFrom((int)addr, (int)1) != 1) continue;
+    if (Wire.read() == 0x80) continue;  // magnetometer, not the OLED
+    found = addr;
+    break;
+  }
+  if (found == 0) return false;
+  return display.begin(found, true);
 }
 
 void SH1106Display::turnOn()
