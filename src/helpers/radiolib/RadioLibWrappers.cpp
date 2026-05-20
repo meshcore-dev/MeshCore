@@ -2,6 +2,13 @@
 #define RADIOLIB_STATIC_ONLY 1
 #include "RadioLibWrappers.h"
 
+// Platform-safe yield for use in busy-wait loops
+#ifdef NRF52_PLATFORM
+  #define YIELD_TASK() vTaskDelay(1)
+#else
+  #define YIELD_TASK() delay(1)
+#endif
+
 #define STATE_IDLE       0
 #define STATE_RX         1
 #define STATE_TX_WAIT    3
@@ -36,6 +43,7 @@ void RadioLibWrapper::begin() {
 
   _noise_floor = 0;
   _threshold = 0;
+  _busy_count = 0;  // initialize exponential backoff counter
 
   // start average out some samples
   _num_floor_samples = 0;
@@ -175,13 +183,56 @@ bool RadioLibWrapper::isSendComplete() {
 void RadioLibWrapper::onSendFinished() {
   _radio->finishTransmit();
   _board->onAfterTransmit();
+  if (isAS923_1_JP()) {
+    // ARIB STD-T108: wait >= 50ms after TX before next transmission
+    delay(50);
+  }
   state = STATE_IDLE;
 }
 
+int16_t RadioLibWrapper::performChannelScan() {
+  return _radio->scanChannel();
+}
+
 bool RadioLibWrapper::isChannelActive() {
-  return _threshold == 0 
-          ? false    // interference check is disabled
-          : getCurrentRSSI() > _noise_floor + _threshold;
+  if (_threshold == 0) return false;    // interference check is disabled
+
+  // Activate JP_STRICT LBT on Japan 920MHz band 3 channels only
+  // CH25=920.800MHz, CH26=921.000MHz, CH27=921.200MHz (ARIB STD-T108)
+  if (isAS923_1_JP()) {
+    // ARIB STD-T108 compliant LBT: continuous RSSI sensing for >= 5ms
+    // Energy-based sensing required; LoRa CAD not used 
+    uint32_t sense_start = millis();
+    while (millis() - sense_start < 5) {
+      if (getCurrentRSSI() > -80.0f) {
+        // Channel busy: exponential backoff (tuned for JP 4s airtime)
+        _busy_count++;
+        uint32_t base_ms = 2000;
+        uint32_t max_backoff = min(base_ms * (1u << _busy_count), (uint32_t)16000);
+        uint32_t backoff_until = millis() + random(max_backoff / 2, max_backoff);
+        while (millis() < backoff_until) {
+          YIELD_TASK();
+        }
+        return true;
+      }
+      YIELD_TASK();
+    }
+    // Channel free: reset busy counter and add airtime-scaled jitter.
+    // JP_LBT_JITTER_DIVISOR controls jitter upper bound:
+    //   /8  -> SF12/BW125 ~975ms, SF7/BW62.5 ~50ms
+    //   /16 -> SF12/BW125 ~490ms, SF7/BW62.5 ~25ms
+    //   /32 -> SF12/BW125 ~245ms, SF7/BW62.5 ~12ms  (default)
+    _busy_count = 0;
+    uint32_t airtime_ms = getEstAirtimeFor(MAX_TRANS_UNIT);
+    uint32_t jitter_until = millis() + random(0, airtime_ms / JP_LBT_JITTER_DIVISOR);
+    while (millis() < jitter_until) {
+      YIELD_TASK();
+    }
+    return false;
+  }
+
+  // Non-JP: original behavior (RSSI threshold only)
+  return getCurrentRSSI() > _noise_floor + _threshold;
 }
 
 float RadioLibWrapper::getLastRSSI() const {

@@ -42,4 +42,11 @@ public:
   bool getRxBoostedGainMode() const override {
     return ((CustomLR1110 *)_radio)->getRxBoostedGainMode();
   }
+
+  uint8_t getCodingRate() const override {
+    return ((CustomLR1110 *)_radio)->getCodingRate();
+  }
+  float getFreqMHz() const override {
+    return ((CustomLR1110 *)_radio)->getFreqMHz();
+  }
 };

@@ -537,10 +537,22 @@ int MyMesh::calcRxDelay(float score, uint32_t air_time) const {
 }
 
 uint32_t MyMesh::getRetransmitDelay(const mesh::Packet *packet) {
+  if (_radio->isAS923_1_JP()) {
+    // JP LBT: suppress txdelay to jitter-scale to avoid adding unnecessary
+    // latency on top of LBT backoff. A window equal to jitter_max gives
+    // ~33% collision reduction vs zero, scales naturally with airtime as
+    // CR changes, and keeps average added delay to ~56ms at SF12/BW125.
+    uint32_t jitter_max = _radio->getEstAirtimeFor(MAX_TRANS_UNIT) / RadioLibWrapper::JP_LBT_JITTER_DIVISOR;
+    return getRNG()->nextInt(0, jitter_max + 1);
+  }
   uint32_t t = (_radio->getEstAirtimeFor(packet->getPathByteLen() + packet->payload_len + 2) * _prefs.tx_delay_factor);
   return getRNG()->nextInt(0, 5*t + 1);
 }
 uint32_t MyMesh::getDirectRetransmitDelay(const mesh::Packet *packet) {
+  if (_radio->isAS923_1_JP()) {
+    uint32_t jitter_max = _radio->getEstAirtimeFor(MAX_TRANS_UNIT) / RadioLibWrapper::JP_LBT_JITTER_DIVISOR;
+    return getRNG()->nextInt(0, jitter_max + 1);
+  }
   uint32_t t = (_radio->getEstAirtimeFor(packet->getPathByteLen() + packet->payload_len + 2) * _prefs.direct_tx_delay_factor);
   return getRNG()->nextInt(0, 5*t + 1);
 }
@@ -886,7 +898,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.advert_interval = 1;        // default to 2 minutes for NEW installs
   _prefs.flood_advert_interval = 12; // 12 hours
   _prefs.flood_max = 64;
-  _prefs.interference_threshold = 0; // disabled
+  _prefs.interference_threshold = 1; // non-zero enables hardware CAD before TX
 
   // bridge defaults
   _prefs.bridge_enabled = 1;    // enabled
