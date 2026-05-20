@@ -630,16 +630,34 @@ static bool isShare(const mesh::Packet *packet) {
   return false;
 }
 
+void MyMesh::considerAdvertTimeSync(const mesh::Identity &id, uint32_t timestamp) {
+  uint32_t curr = getRTCClock()->getCurrentTime();
+  uint32_t synced_time;
+  if (clock_sync.considerAdvert(id.pub_key, timestamp, (uint32_t)_ms->getMillis(), curr, synced_time)) {
+    getRTCClock()->setCurrentTime(synced_time);
+    MESH_DEBUG_PRINTLN("Clock auto-synced from repeater adverts");
+  }
+}
+
 void MyMesh::onAdvertRecv(mesh::Packet *packet, const mesh::Identity &id, uint32_t timestamp,
                           const uint8_t *app_data, size_t app_data_len) {
   mesh::Mesh::onAdvertRecv(packet, id, timestamp, app_data, app_data_len); // chain to super impl
 
+  if (isShare(packet)) {
+    return;
+  }
+  if (app_data_len == 0) {
+    return;
+  }
+
+  AdvertDataParser parser(app_data, app_data_len);
+  if (parser.isValid() && parser.getType() == ADV_TYPE_REPEATER) {
+    considerAdvertTimeSync(id, timestamp);
+  }
+
   // if this a zero hop advert (and not via 'Share'), add it to neighbours
-  if (packet->path_len == 0 && !isShare(packet)) {
-    AdvertDataParser parser(app_data, app_data_len);
-    if (parser.isValid() && parser.getType() == ADV_TYPE_REPEATER) { // just keep neigbouring Repeaters
-      putNeighbour(id, timestamp, packet->getSNR());
-    }
+  if (packet->path_len == 0 && parser.isValid() && parser.getType() == ADV_TYPE_REPEATER) {
+    putNeighbour(id, timestamp, packet->getSNR());
   }
 }
 
