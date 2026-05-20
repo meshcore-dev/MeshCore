@@ -27,6 +27,9 @@ protected:
   bool gps_detected = false;
   bool gps_active = false;
   uint32_t gps_update_interval_sec = 1;  // Default 1 second
+  char sos_message[128] = "SOS - preciso de ajuda! {gps}";
+  char sos_channel[8] = "9";
+
 
   #if ENV_INCLUDE_GPS
   LocationProvider* _location;

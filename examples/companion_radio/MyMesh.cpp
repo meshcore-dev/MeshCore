@@ -144,6 +144,16 @@
 #define AUTO_ADD_ROOM_SERVER      (1 << 3)  // 0x08 - auto-add Room Server (ADV_TYPE_ROOM)
 #define AUTO_ADD_SENSOR           (1 << 4)  // 0x10 - auto-add Sensor (ADV_TYPE_SENSOR)
 
+#define SOS_DEBUG 0
+
+#if SOS_DEBUG
+#define SOS_LOG(...) Serial.printf(__VA_ARGS__)
+#define SOS_LOGLN(x) Serial.println(x)
+#else
+#define SOS_LOG(...)
+#define SOS_LOGLN(x)
+#endif
+
 void MyMesh::writeOKFrame() {
   uint8_t buf[1];
   buf[0] = RESP_CODE_OK;
@@ -2175,6 +2185,98 @@ void MyMesh::loop() {
 #ifdef DISPLAY_CLASS
   if (_ui) _ui->setHasConnection(_serial->isConnected());
 #endif
+}
+
+bool MyMesh::sendSOS() {
+
+    SOS_LOGLN("[SOS] sendSOS() START");
+
+    const char *sosMsg = sensors.getSettingByKey("sos_message");
+    const char *sosChannel = sensors.getSettingByKey("sos_channel");
+
+    const char *template_text =
+        (sosMsg && strlen(sosMsg) > 0)
+            ? sosMsg
+            : "SOS - preciso de ajuda! {gps}";
+
+    uint8_t channel_idx = 9;   // default SOS slot
+
+    if (sosChannel && strlen(sosChannel) > 0) {
+        int parsed = atoi(sosChannel);
+
+        if (parsed >= 0 && parsed <= 255) {
+            channel_idx = (uint8_t)parsed;
+        }
+    }
+
+    SOS_LOG("[SOS] Using requested channel slot: %u\n", channel_idx);
+
+    ChannelDetails channel;
+    bool success = getChannel(channel_idx, channel);
+
+    if (!success) {
+        SOS_LOG("[SOS] Channel slot %u not found, falling back to Public slot 0\n", channel_idx);
+
+        channel_idx = 0;
+        success = getChannel(channel_idx, channel);
+
+        if (!success) {
+            SOS_LOGLN("[SOS] ABORT: Public channel slot 0 also not found");
+            return false;
+        }
+    }
+
+    SOS_LOG("[SOS] Final channel slot: %u\n", channel_idx);
+    SOS_LOG("[SOS] channel.channel: %u\n", channel.channel);
+
+    char gps[64];
+
+    bool has_gps =
+        !(sensors.node_lat == 0.0 && sensors.node_lon == 0.0);
+
+    if (has_gps) {
+        snprintf(gps, sizeof(gps),
+            "%.6f, %.6f",
+            sensors.node_lat,
+            sensors.node_lon
+        );
+    } else {
+        snprintf(gps, sizeof(gps), "GPS sem fix");
+    }
+
+    String finalText = String(template_text);
+    finalText.replace("{gps}", gps);
+
+    if (has_gps) {
+        char mapsLink[96];
+
+        snprintf(mapsLink, sizeof(mapsLink),
+            "\nhttps://maps.google.com/?q=%.6f,%.6f",
+            sensors.node_lat,
+            sensors.node_lon
+        );
+
+        finalText += mapsLink;
+    }
+
+    char text[192];
+    strncpy(text, finalText.c_str(), sizeof(text) - 1);
+    text[sizeof(text) - 1] = '\0';
+
+    uint32_t msg_timestamp = millis();
+
+    bool sent = sendGroupMessage(
+        msg_timestamp,
+        channel.channel,
+        _prefs.node_name,
+        text,
+        strlen(text)
+    );
+
+    SOS_LOG("[SOS] sendGroupMessage result: %d\n", sent);
+    SOS_LOGLN("[SOS] sendSOS() END");
+
+    return sent;
 }
 
 bool MyMesh::advert() {

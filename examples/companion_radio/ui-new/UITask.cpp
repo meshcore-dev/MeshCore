@@ -82,6 +82,7 @@ class HomeScreen : public UIScreen {
     RADIO,
     BLUETOOTH,
     ADVERT,
+    SOS,
 #if ENV_INCLUDE_GPS == 1
     GPS,
 #endif
@@ -281,8 +282,16 @@ public:
       display.setColor(DisplayDriver::GREEN);
       display.drawXbm((display.width() - 32) / 2, 18, advert_icon, 32, 32);
       display.drawTextCentered(display.width() / 2, 64 - 11, "advert: " PRESS_LABEL);
+     } else if (_page == HomePage::SOS) {
+      display.setColor(DisplayDriver::RED);
+      display.setTextSize(2);
+      display.drawXbm((display.width() - 32) / 2, 18, sos_icon, 32, 32);
+      display.setTextSize(1);
+      display.setColor(DisplayDriver::GREEN);
+      display.drawTextCentered(display.width() / 2, 64 - 11, "send: " PRESS_LABEL);
+}
 #if ENV_INCLUDE_GPS == 1
-    } else if (_page == HomePage::GPS) {
+      else if (_page == HomePage::GPS) {
       LocationProvider* nmea = sensors.getLocationProvider();
       char buf[50];
       int y = 18;
@@ -434,6 +443,15 @@ public:
       }
       return true;
     }
+    if (c == KEY_ENTER && _page == HomePage::SOS) {
+      _task->notify(UIEventType::ack);
+      if (the_mesh.sendSOS()) {
+        _task->showAlert("SOS SENT", 1000);
+      } else {
+        _task->showAlert("SOS FAILED", 1000);
+      }
+      return true;
+}
 #if ENV_INCLUDE_GPS == 1
     if (c == KEY_ENTER && _page == HomePage::GPS) {
       _task->toggleGPS();
@@ -863,12 +881,22 @@ char UITask::handleDoubleClick(char c) {
 }
 
 char UITask::handleTripleClick(char c) {
-  MESH_DEBUG_PRINTLN("UITask: triple click triggered");
-  checkDisplayOn(c);
-  toggleBuzzer();
-  c = 0;
-  return c;
+    MESH_DEBUG_PRINTLN("UITask: triple click triggered");
+    checkDisplayOn(c);
+
+    bool ok = the_mesh.sendSOS();
+
+    notify(UIEventType::ack);
+
+    if (ok)
+      showAlert("SOS SENT", 1500);
+    else
+      showAlert("SOS FAILED", 1500);
+
+    c = 0;
+    return c;
 }
+
 
 bool UITask::getGPSState() {
   if (_sensors != NULL) {

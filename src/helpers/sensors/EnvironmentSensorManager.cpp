@@ -545,6 +545,7 @@ int EnvironmentSensorManager::getNumSettings() const {
   #if ENV_INCLUDE_GPS
     if (gps_detected) settings++;  // only show GPS setting if GPS is detected
   #endif
+  settings += 2; // sos_message, sos_channel
   return settings;
 }
 
@@ -557,6 +558,8 @@ const char* EnvironmentSensorManager::getSettingName(int i) const {
   #endif
   // convenient way to add params (needed for some tests)
 //  if (i == settings++) return "param.2";
+  if (i == settings++) return "sos_message";
+  if (i == settings++) return "sos_channel";
   return NULL;
 }
 
@@ -569,6 +572,8 @@ const char* EnvironmentSensorManager::getSettingValue(int i) const {
   #endif
   // convenient way to add params ...
 //  if (i == settings++) return "2";
+  if (i == settings++) return sos_message;
+  if (i == settings++) return sos_channel;
   return NULL;
 }
 
@@ -592,6 +597,19 @@ bool EnvironmentSensorManager::setSettingValue(const char* name, const char* val
     return true;
   }
   #endif
+
+  if (strcmp(name, "sos_message") == 0) {
+    strncpy(sos_message, value, sizeof(sos_message) - 1);
+    sos_message[sizeof(sos_message) - 1] = '\0';
+    return true;
+  }
+
+  if (strcmp(name, "sos_channel") == 0) {
+    strncpy(sos_channel, value, sizeof(sos_channel) - 1);
+    sos_channel[sizeof(sos_channel) - 1] = '\0';
+    return true;
+  }
+
   return false;  // not supported
 }
 
