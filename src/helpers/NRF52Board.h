@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Arduino.h>
+#include <nrf.h>
 #include <MeshCore.h>
 
 #if defined(NRF52_PLATFORM)
@@ -48,6 +49,11 @@ public:
   NRF52Board(char *otaname) : ota_name(otaname) {}
   virtual void begin();
   virtual uint8_t getStartupReason() const override { return startup_reason; }
+
+  void initWatchdog(uint8_t timeout_secs) override;
+  inline void feedWatchdog() override { if (_wdt_running) NRF_WDT->RR[0] = WDT_RR_RR_Reload; }
+  bool _wdt_running = false;
+
   virtual float getMCUTemperature() override;
   virtual void reboot() override { NVIC_SystemReset(); }
   virtual bool getBootloaderVersion(char* version, size_t max_len) override;

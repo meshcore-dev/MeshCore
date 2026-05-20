@@ -59,6 +59,10 @@ public:
   virtual bool getBootloaderVersion(char* version, size_t max_len) { return false; }
   virtual bool startOTAUpdate(const char* id, char reply[]) { return false; }   // not supported
 
+  // Watchdog interface — override on platforms that support hardware WDT
+  virtual void initWatchdog(uint8_t timeout_secs) { }
+  virtual void feedWatchdog() { }
+
   // Power management interface (boards with power management override these)
   virtual bool isExternalPowered() { return false; }
   virtual uint16_t getBootVoltage() { return 0; }

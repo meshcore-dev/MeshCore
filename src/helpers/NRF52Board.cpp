@@ -20,6 +20,49 @@ static void disconnect_callback(uint16_t conn_handle, uint8_t reason) {
 
 void NRF52Board::begin() {
   startup_reason = BD_STARTUP_NORMAL;
+  // NOTE: WDT is NOT started here. It is started from the application's
+  // setup() AFTER loading prefs, by calling initWatchdog(prefs.wdt_timeout_secs).
+  // This allows the timeout to be configured via CLI (set wdt N).
+}
+
+void NRF52Board::initWatchdog(uint8_t timeout_secs) {
+  // 0 = watchdog disabled
+  if (timeout_secs == 0) {
+    MESH_DEBUG_PRINTLN("WDT: Disabled by configuration (set wdt <secs> to enable)");
+    return;
+  }
+
+  // WDT can only be configured once after reset (before TASKS_START).
+  // After START, CRV and CONFIG are read-only and locked until next reset.
+  if (_wdt_running) return;
+
+  // Convert seconds to 32.768 kHz ticks
+  uint32_t ticks = (uint32_t)timeout_secs * 32768UL;
+
+  // Configure WDT behavior:
+  // Bit 0 (SLEEP): 1 = Run in SLEEP mode (keep counting during WFE/WFI)
+  // Bit 3 (HALT):  1 = Run in HALT (debug) mode
+  // This is the safest configuration — WDT counts in all power states.
+  //
+  // NOTE: SLEEP_Run means the WDT keeps counting during board.sleep() / WFE.
+  // This is safe because the Adafruit nRF52 BSP runs FreeRTOS with a ~1ms
+  // tick timer that wakes the CPU from WFE frequently, so loop() and
+  // feedWatchdog() run well within the timeout window. If a future change
+  // enables FreeRTOS tickless idle or any sleep >timeout without waking,
+  // the timeout must be increased or SLEEP_Pause used instead.
+  NRF_WDT->CONFIG = (WDT_CONFIG_SLEEP_Run << WDT_CONFIG_SLEEP_Pos) |
+                     (WDT_CONFIG_HALT_Run << WDT_CONFIG_HALT_Pos);
+
+  NRF_WDT->CRV = ticks;
+  NRF_WDT->RREN = WDT_RREN_RR0_Enabled << WDT_RREN_RR0_Pos;
+  NRF_WDT->TASKS_START = 1;
+
+  _wdt_running = true;
+
+  // Initial kick so the full timeout window is available
+  NRF_WDT->RR[0] = WDT_RR_RR_Reload;
+
+  MESH_DEBUG_PRINTLN("WDT: Started with %u second timeout", (unsigned)timeout_secs);
 }
 
 #ifdef NRF52_POWER_MANAGEMENT
