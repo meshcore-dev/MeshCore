@@ -37,7 +37,8 @@
     "onboard_tools": [
       "jlink"
     ],
-    "svd_path": "nrf52840.svd"
+    "svd_path": "nrf52840.svd",
+    "openocd_target": "nrf52.cfg"
   },
   "frameworks": [
     "arduino"
