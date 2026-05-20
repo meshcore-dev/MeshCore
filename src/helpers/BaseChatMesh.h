@@ -14,6 +14,7 @@
 #define MSG_SEND_FAILED       0
 #define MSG_SEND_SENT_FLOOD   1
 #define MSG_SEND_SENT_DIRECT  2
+#define PATH_DIRECT_BLOCK_MILLIS  15000
 
 #define REQ_TYPE_GET_STATUS      0x01   // same as _GET_STATS
 #define REQ_TYPE_KEEP_ALIVE      0x02
@@ -70,8 +71,26 @@ class BaseChatMesh : public mesh::Mesh {
   mesh::Packet* _pendingLoopback;
   uint8_t temp_buf[MAX_TRANS_UNIT];
   ConnectionInfo connections[MAX_CONNECTIONS];
+  uint8_t pending_direct_contact_pub_key[PUB_KEY_SIZE];
+  bool pending_direct_contact_set;
 
   mesh::Packet* composeMsgPacket(const ContactInfo& recipient, uint32_t timestamp, uint8_t attempt, const char *text, uint32_t& expected_ack);
+  int sendUsingBestRouteWithTxtAck(const ContactInfo& recipient, mesh::Packet* pkt, uint32_t pkt_airtime_millis, uint32_t& est_timeout);
+  int sendUsingBestRouteNoTxtAck(const ContactInfo& recipient, mesh::Packet* pkt, uint32_t pkt_airtime_millis, uint32_t& est_timeout);
+  static uint8_t getPathByteLen(uint8_t path_len);
+  static uint8_t getPathHashCount(uint8_t path_len);
+  static bool isPathBetter(uint8_t candidate_len, uint8_t current_len);
+  void resetRouteFailoverState(ContactInfo& contact);
+  void resetAllRouteState(ContactInfo& contact);
+  bool hasUsableBackupPath(ContactInfo& contact, uint32_t now);
+  bool canUseDirectNow(const ContactInfo& contact) const;
+  void activateBackupPath(ContactInfo& contact, uint32_t now);
+  void noteDirectPathFailure(ContactInfo& contact);
+  void noteDirectPathSuccess(ContactInfo& contact);
+  bool updatePathForContact(ContactInfo& from, const uint8_t* out_path, uint8_t out_path_len);
+  void clearPendingDirectContact();
+  void setPendingDirectContact(const ContactInfo& contact);
+  bool isPendingDirectContact(const ContactInfo& contact) const;
   void sendAckTo(const ContactInfo& dest, uint32_t ack_hash);
 
 protected:
@@ -85,11 +104,13 @@ protected:
   #endif
     txt_send_timeout = 0;
     _pendingLoopback = NULL;
+    pending_direct_contact_set = false;
+    memset(pending_direct_contact_pub_key, 0, sizeof(pending_direct_contact_pub_key));
     memset(connections, 0, sizeof(connections));
   }
 
   void bootstrapRTCfromContacts();
-  void resetContacts() { num_contacts = 0; }
+  void resetContacts() { num_contacts = 0; clearPendingDirectContact(); }
   void populateContactFromAdvert(ContactInfo& ci, const mesh::Identity& id, const AdvertDataParser& parser, uint32_t timestamp);
   ContactInfo* allocateContactSlot(); // helper to find slot for new contact
 
