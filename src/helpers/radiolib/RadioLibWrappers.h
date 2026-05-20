@@ -19,6 +19,14 @@ protected:
   virtual bool isReceivingPacket() =0;
   virtual void doResetAGC();
 
+  // Called at the start of recvRaw() before checking STATE_INT_READY.
+  // Override on boards where the radio IRQ line is shared with other inputs
+  // (e.g. TCA9535 Port 0 also carries BUSY and touch INT).  The override
+  // must read the physical IRQ pin and, ONLY if the radio has actually
+  // asserted it, call setFlag() to set STATE_INT_READY.  Default: no-op
+  // (interrupt-driven boards set STATE_INT_READY directly in the ISR).
+  virtual void dispatchPendingIrq() {}
+
 public:
   RadioLibWrapper(PhysicalLayer& radio, mesh::MainBoard& board) : _radio(&radio), _board(&board), _preamble_sf(0) { n_recv = n_sent = 0; }
 

@@ -383,7 +383,7 @@ void MyMesh::onDiscoveredContact(ContactInfo &contact, bool is_new, uint8_t path
     p->path_len = mesh::Packet::copyPath(p->path, path, path_len);
   }
 
-  if (!is_new) dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY); // only schedule lazy write for contacts that are in contacts[]
+  dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY); // contact is in contacts[], schedule lazy write
 }
 
 static int sort_by_recent(const void *a, const void *b) {
@@ -971,6 +971,10 @@ void MyMesh::begin(bool has_display) {
 const char *MyMesh::getNodeName() {
   return _prefs.node_name;
 }
+
+const char* MyMesh::getFirmwareVer() { return FIRMWARE_VERSION; }
+const char* MyMesh::getBuildDate() { return FIRMWARE_BUILD_DATE; }
+
 NodePrefs *MyMesh::getNodePrefs() {
   return &_prefs;
 }
@@ -1987,6 +1991,22 @@ void MyMesh::enterCLIRescue() {
   _cli_rescue = true;
   cli_command[0] = 0;
   Serial.println("========= CLI Rescue =========");
+}
+
+void MyMesh::handleCommand(const char* command) {
+    while (*command == ' ') command++;  // skip leading space
+    if (strcmp(command, "erase") == 0) {
+      bool success = _store->formatFileSystem();
+      if (success) {
+        Serial.println("  > erase done");
+      } else {
+        Serial.println("  Error: erase failed");
+      }
+    } else if (strcmp(command, "reboot") == 0) {
+      board.reboot();  // doesn't return
+    } else {
+      Serial.println("  Error: unknown command");
+    }
 }
 
 void MyMesh::checkCLIRescueCmd() {
