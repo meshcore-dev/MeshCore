@@ -67,10 +67,10 @@ void RAK12035_SoilMoisture::setup(TwoWire &i2c)
 // setup() and that the bus has been initialized externally (Wire.begin()).
 // It uses the passed in I2C Address (default 0x20)
 //
-// ***  This code does not supprt three sensors ***
+// ***  This code does not support three sensors ***
 //      The RAK12023 has three connectors, but each of the sensors attached must
 //      all have a different I2C addresses.
-//      This code has a function to set the I2C adress of a sensor
+//      This code has a function to set the I2C address of a sensor
 //      and currently only supports one address 0x20 (the default).
 //      To support three sensors, EnvironmentSensorManager would need to be modified
 //      to support multiple instances of the RAK12035_SoilMoisture class,
@@ -78,7 +78,7 @@ void RAK12035_SoilMoisture::setup(TwoWire &i2c)
 //      The begin() function would need to be modified to loop through the three addresses
 //
 // DEBUG STATEMENTS: Can be enabled by uncommenting or adding:
-//      File:    varients/rak4631 platformio.ini
+//      File:    variants/rak4631 platformio.ini
 //      Section example: [env:RAK_4631_companion_radio_ble] 
 //      Enable Debug statements: -D MESH_DEBUG=1
 // 
@@ -107,7 +107,7 @@ bool RAK12035_SoilMoisture::begin(uint8_t addr)
  *      Change the value to 1 in the RAK12035_SoilMoisture.h file
  * 
  * Calibration Procedure:
- * 1) Flash the the Calibration version of the firmware.
+ * 1) Flash the Calibration version of the firmware.
  * 2) Leave the sensor dry, power up the device.
  * 3) After detecting the RAK12035 this firmware will display calibration data on Channel 3
  * 

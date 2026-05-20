@@ -846,7 +846,7 @@ void OLEDDisplay::drawLogBuffer(uint16_t xMove, uint16_t yMove) {
     if (this->logBuffer[i] == 10) {
       length++;
       // Draw string on line `line` from lastPos to length
-      // Passing 0 as the lenght because we are in TEXT_ALIGN_LEFT
+      // Passing 0 as the length because we are in TEXT_ALIGN_LEFT
       drawStringInternal(xMove, yMove + (line++) * lineHeight, &this->logBuffer[lastPos], length, 0, false);
       // Remember last pos
       lastPos = i;

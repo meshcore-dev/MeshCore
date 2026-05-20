@@ -67,7 +67,7 @@ public:
 /*
  * The NRF52 has an internal DC/DC regulator that allows increased efficiency
  * compared to the LDO regulator. For being able to use it, the module/board
- * needs to have the required inductors and and capacitors populated. If the
+ * needs to have the required inductors and capacitors populated. If the
  * hardware requirements are met, this subclass can be used to enable the DC/DC
  * regulator.
  */
