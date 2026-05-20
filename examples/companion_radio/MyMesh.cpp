@@ -2190,7 +2190,7 @@ bool MyMesh::sendSOS() {
     uint8_t channel_idx =
         (sosChannel && strlen(sosChannel) > 0)
             ? atoi(sosChannel)
-            : 5;   // default SOSTEST
+            : 9;   // default SOSTEST
 
     ChannelDetails channel;
     bool success = getChannel(channel_idx, channel);
@@ -2205,7 +2205,7 @@ bool MyMesh::sendSOS() {
 
     if (has_gps) {
         snprintf(gps, sizeof(gps),
-            "%.6f,%.6f",
+            "%.6f, %.6f",
             sensors.node_lat,
             sensors.node_lon
         );
@@ -2218,7 +2218,19 @@ bool MyMesh::sendSOS() {
     String finalText = String(template_text);
     finalText.replace("{gps}", gps);
 
-    char text[140];
+    if (has_gps) {
+        char mapsLink[96];
+
+        snprintf(mapsLink, sizeof(mapsLink),
+            "\nhttps://maps.google.com/?q=%.6f,%.6f",
+            sensors.node_lat,
+            sensors.node_lon
+        );
+
+        finalText += mapsLink;
+    }
+
+    char text[192];
     strncpy(text, finalText.c_str(), sizeof(text) - 1);
     text[sizeof(text) - 1] = '\0';
 
