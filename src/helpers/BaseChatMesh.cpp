@@ -219,18 +219,19 @@ void BaseChatMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender
       onMessageRecv(from, packet, timestamp, (const char *) &data[5]);  // let UI know
 
       int text_len = strlen((char *)&data[5]);
-      uint8_t ack_hash[5];    // calc truncated hash of the message timestamp + text + sender pub_key, to prove to sender that we got it
+      uint8_t ack_hash[6];    // calc truncated hash of the message timestamp + text + sender pub_key, to prove to sender that we got it
       mesh::Utils::sha256(ack_hash, 4, data, 5 + text_len, from.id.pub_key, PUB_KEY_SIZE);
       // NEW: append (potential) extended attempt byte (to make packethash unique)
       ack_hash[4] = data[5 + text_len + 1];
+      getRNG()->random(&ack_hash[5], 1);  // make 6th byte random
 
       if (packet->isRouteFlood()) {
         // let this sender know path TO here, so they can use sendDirect(), and ALSO encode the ACK
         mesh::Packet* path = createPathReturn(from.id, secret, packet->path, packet->path_len,
-                                                PAYLOAD_TYPE_ACK, (uint8_t *) &ack_hash, 5);
+                                                PAYLOAD_TYPE_ACK, (uint8_t *) &ack_hash, 6);
         if (path) sendFloodScoped(from, path, TXT_ACK_DELAY);
       } else {
-        sendAckTo(from, ack_hash, 5);
+        sendAckTo(from, ack_hash, 6);
       }
     } else if (flags == TXT_TYPE_CLI_DATA) {
       onCommandDataRecv(from, packet, timestamp, (const char *) &data[5]);  // let UI know
