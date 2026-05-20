@@ -185,8 +185,10 @@ public:
   Packet* createDatagram(uint8_t type, const Identity& dest, const uint8_t* secret, const uint8_t* data, size_t len);
   Packet* createAnonDatagram(uint8_t type, const LocalIdentity& sender, const Identity& dest, const uint8_t* secret, const uint8_t* data, size_t data_len);
   Packet* createGroupDatagram(uint8_t type, const GroupChannel& channel, const uint8_t* data, size_t data_len);
-  Packet* createAck(uint32_t ack_crc);
-  Packet* createMultiAck(uint32_t ack_crc, uint8_t remaining);
+  Packet* createAck(const uint8_t* ack, uint8_t len);
+  Packet* createAck(uint32_t ack_crc) { return createAck((uint8_t *) &ack_crc, 4); }
+  Packet* createMultiAck(const uint8_t* ack, uint8_t len, uint8_t remaining);
+  Packet* createMultiAck(uint32_t ack_crc, uint8_t remaining) { return createMultiAck((uint8_t *)&ack_crc, 4, remaining); }
   Packet* createPathReturn(const uint8_t* dest_hash, const uint8_t* secret, const uint8_t* path, uint8_t path_len, uint8_t extra_type, const uint8_t*extra, size_t extra_len);
   Packet* createPathReturn(const Identity& dest, const uint8_t* secret, const uint8_t* path, uint8_t path_len, uint8_t extra_type, const uint8_t*extra, size_t extra_len);
   Packet* createRawData(const uint8_t* data, size_t len);

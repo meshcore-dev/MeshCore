@@ -361,13 +361,10 @@ DispatcherAction Mesh::forwardMultipartDirect(Packet* pkt) {
 
 void Mesh::routeDirectRecvAcks(Packet* packet, uint32_t delay_millis) {
   if (!packet->isMarkedDoNotRetransmit()) {
-    uint32_t crc;
-    memcpy(&crc, packet->payload, 4);
-
     uint8_t extra = getExtraAckTransmitCount();
     while (extra > 0) {
       delay_millis += getDirectRetransmitDelay(packet) + 300;
-      auto a1 = createMultiAck(crc, extra);
+      auto a1 = createMultiAck(packet->payload, packet->payload_len, extra);
       if (a1) {
         a1->path_len = Packet::copyPath(a1->path, packet->path, packet->path_len);
         a1->header &= ~PH_ROUTE_MASK;
@@ -377,7 +374,7 @@ void Mesh::routeDirectRecvAcks(Packet* packet, uint32_t delay_millis) {
       extra--;
     }
 
-    auto a2 = createAck(crc);
+    auto a2 = createAck(packet->payload, packet->payload_len);
     if (a2) {
       a2->path_len = Packet::copyPath(a2->path, packet->path, packet->path_len);
       a2->header &= ~PH_ROUTE_MASK;
@@ -543,7 +540,7 @@ Packet* Mesh::createGroupDatagram(uint8_t type, const GroupChannel& channel, con
   return packet;
 }
 
-Packet* Mesh::createAck(uint32_t ack_crc) {
+Packet* Mesh::createAck(const uint8_t* ack, uint8_t len) {
   Packet* packet = obtainNewPacket();
   if (packet == NULL) {
     MESH_DEBUG_PRINTLN("%s Mesh::createAck(): error, packet pool empty", getLogDateTime());
@@ -551,13 +548,13 @@ Packet* Mesh::createAck(uint32_t ack_crc) {
   }
   packet->header = (PAYLOAD_TYPE_ACK << PH_TYPE_SHIFT);  // ROUTE_TYPE_* set later
 
-  memcpy(packet->payload, &ack_crc, 4);
-  packet->payload_len = 4;
+  memcpy(packet->payload, ack, len);
+  packet->payload_len = len;
 
   return packet;
 }
 
-Packet* Mesh::createMultiAck(uint32_t ack_crc, uint8_t remaining) {
+Packet* Mesh::createMultiAck(const uint8_t* ack, uint8_t len, uint8_t remaining) {
   Packet* packet = obtainNewPacket();
   if (packet == NULL) {
     MESH_DEBUG_PRINTLN("%s Mesh::createMultiAck(): error, packet pool empty", getLogDateTime());
@@ -566,8 +563,8 @@ Packet* Mesh::createMultiAck(uint32_t ack_crc, uint8_t remaining) {
   packet->header = (PAYLOAD_TYPE_MULTIPART << PH_TYPE_SHIFT);  // ROUTE_TYPE_* set later
 
   packet->payload[0] = (remaining << 4) | PAYLOAD_TYPE_ACK;
-  memcpy(&packet->payload[1], &ack_crc, 4);
-  packet->payload_len = 5;
+  memcpy(&packet->payload[1], ack, len);
+  packet->payload_len = 1 + len;
 
   return packet;
 }

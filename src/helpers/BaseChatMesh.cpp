@@ -38,19 +38,19 @@ mesh::Packet* BaseChatMesh::createSelfAdvert(const char* name, double lat, doubl
   return createAdvert(self_id, app_data, app_data_len);
 }
 
-void BaseChatMesh::sendAckTo(const ContactInfo& dest, uint32_t ack_hash) {
+void BaseChatMesh::sendAckTo(const ContactInfo& dest, const uint8_t* ack_hash, uint8_t ack_len) {
   if (dest.out_path_len == OUT_PATH_UNKNOWN) {
-    mesh::Packet* ack = createAck(ack_hash);
+    mesh::Packet* ack = createAck(ack_hash, ack_len);
     if (ack) sendFloodScoped(dest, ack, TXT_ACK_DELAY);
   } else {
     uint32_t d = TXT_ACK_DELAY;
     if (getExtraAckTransmitCount() > 0) {
-      mesh::Packet* a1 = createMultiAck(ack_hash, 1);
+      mesh::Packet* a1 = createMultiAck(ack_hash, ack_len, 1);
       if (a1) sendDirect(a1, dest.out_path, dest.out_path_len, d);
       d += 300;
     }
 
-    mesh::Packet* a2 = createAck(ack_hash);
+    mesh::Packet* a2 = createAck(ack_hash, ack_len);
     if (a2) sendDirect(a2, dest.out_path, dest.out_path_len, d);
   }
 }
@@ -218,16 +218,20 @@ void BaseChatMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender
       from.lastmod = getRTCClock()->getCurrentTime(); // update last heard time
       onMessageRecv(from, packet, timestamp, (const char *) &data[5]);  // let UI know
 
-      uint32_t ack_hash;    // calc truncated hash of the message timestamp + text + sender pub_key, to prove to sender that we got it
-      mesh::Utils::sha256((uint8_t *) &ack_hash, 4, data, 5 + strlen((char *)&data[5]), from.id.pub_key, PUB_KEY_SIZE);
+      int text_len = strlen((char *)&data[5]);
+      uint8_t ack_hash[6];    // calc truncated hash of the message timestamp + text + sender pub_key, to prove to sender that we got it
+      mesh::Utils::sha256(ack_hash, 4, data, 5 + text_len, from.id.pub_key, PUB_KEY_SIZE);
+      // NEW: append (potential) extended attempt byte (to make packethash unique)
+      ack_hash[4] = data[5 + text_len + 1];
+      getRNG()->random(&ack_hash[5], 1);  // make 6th byte random
 
       if (packet->isRouteFlood()) {
         // let this sender know path TO here, so they can use sendDirect(), and ALSO encode the ACK
         mesh::Packet* path = createPathReturn(from.id, secret, packet->path, packet->path_len,
-                                                PAYLOAD_TYPE_ACK, (uint8_t *) &ack_hash, 4);
+                                                PAYLOAD_TYPE_ACK, (uint8_t *) &ack_hash, 6);
         if (path) sendFloodScoped(from, path, TXT_ACK_DELAY);
       } else {
-        sendAckTo(from, ack_hash);
+        sendAckTo(from, ack_hash, 6);
       }
     } else if (flags == TXT_TYPE_CLI_DATA) {
       onCommandDataRecv(from, packet, timestamp, (const char *) &data[5]);  // let UI know
@@ -254,7 +258,7 @@ void BaseChatMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender
                                                 PAYLOAD_TYPE_ACK, (uint8_t *) &ack_hash, 4);
         if (path) sendFloodScoped(from, path, TXT_ACK_DELAY);
       } else {
-        sendAckTo(from, ack_hash);
+        sendAckTo(from, (uint8_t *) &ack_hash);
       }
     } else {
       MESH_DEBUG_PRINTLN("onPeerDataRecv: unsupported message type: %u", (uint32_t) flags);
