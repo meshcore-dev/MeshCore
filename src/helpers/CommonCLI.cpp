@@ -89,7 +89,8 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     file.read((uint8_t *)&_prefs->adc_multiplier, sizeof(_prefs->adc_multiplier));                 // 166
     file.read((uint8_t *)_prefs->owner_info, sizeof(_prefs->owner_info));                          // 170
     file.read((uint8_t *)&_prefs->rx_boosted_gain, sizeof(_prefs->rx_boosted_gain));              // 290
-    // next: 291
+    file.read((uint8_t *)&_prefs->disable_advert_rate_limiter, sizeof(_prefs->disable_advert_rate_limiter));   // 291
+    // next: 292
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -180,7 +181,8 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->adc_multiplier, sizeof(_prefs->adc_multiplier));                 // 166
     file.write((uint8_t *)_prefs->owner_info, sizeof(_prefs->owner_info));                          // 170
     file.write((uint8_t *)&_prefs->rx_boosted_gain, sizeof(_prefs->rx_boosted_gain));              // 290
-    // next: 291
+    file.write((uint8_t *)&_prefs->disable_advert_rate_limiter, sizeof(_prefs->disable_advert_rate_limiter)); // 291
+    // next: 292
 
     file.close();
   }
@@ -547,6 +549,10 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     _prefs->disable_fwd = memcmp(&config[7], "off", 3) == 0;
     savePrefs();
     strcpy(reply, _prefs->disable_fwd ? "OK - repeat is now OFF" : "OK - repeat is now ON");
+  } else if (memcmp(config, "advert.ratelimit ", 17) == 0) {
+    _prefs->disable_advert_rate_limiter = memcmp(&config[17], "off", 3) == 0;
+    savePrefs();
+    strcpy(reply, _prefs->disable_advert_rate_limiter ? "OK - advert rate limiter OFF" : "OK - advert rate limiter ON");
 #if defined(USE_SX1262) || defined(USE_SX1268)
   } else if (memcmp(config, "radio.rxgain ", 13) == 0) {
     _prefs->rx_boosted_gain = memcmp(&config[13], "on", 2) == 0;
@@ -765,6 +771,8 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %s", _prefs->node_name);
   } else if (memcmp(config, "repeat", 6) == 0) {
     sprintf(reply, "> %s", _prefs->disable_fwd ? "off" : "on");
+  } else if (memcmp(config, "advert.ratelimit", 16) == 0) {
+    sprintf(reply, "> %s", _prefs->disable_advert_rate_limiter ? "off" : "on");
   } else if (memcmp(config, "lat", 3) == 0) {
     sprintf(reply, "> %s", StrHelper::ftoa(_prefs->node_lat));
   } else if (memcmp(config, "lon", 3) == 0) {

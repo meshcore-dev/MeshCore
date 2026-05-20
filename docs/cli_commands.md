@@ -137,10 +137,17 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 ---
 
-### Packet stats - Packet counters: Received, Sent
+### Packet Stats - Packet counters: Received, Sent
 **Usage:** `stats-packets`
 
 **Serial Only:** Yes
+
+---
+
+### Advert Limiter Stats - Limit, Remaining, Denied, Load Average, Limit Hit Count and Last Limit Hit Age (Repeater Only)
+**Usage:** `stats-advert-ratelimit`
+
+**Serial Only:** No
 
 ---
 
@@ -435,6 +442,18 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 **Parameters:**
   - `state`: `on`|`off`
+
+**Default:** `on`
+
+---
+
+#### View or change the advert rate limiter (Repeater Only)
+**Usage:**
+- `get advert.ratelimit`
+- `set advert.ratelimit <state>`
+
+**Parameters:**
+- `state`: `on`|`off`
 
 **Default:** `on`
 

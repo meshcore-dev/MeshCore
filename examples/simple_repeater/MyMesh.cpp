@@ -428,6 +428,9 @@ void MyMesh::sendFloodReply(mesh::Packet* packet, unsigned long delay_millis, ui
 
 bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
   if (_prefs.disable_fwd) return false;
+  if (!_prefs.disable_advert_rate_limiter
+      && packet->getPayloadType() == PAYLOAD_TYPE_ADVERT
+      && !advert_limiter.allow(rtc_clock.getCurrentTime())) return false;
   if (packet->isRouteFlood() && packet->getPathHashCount() >= _prefs.flood_max) return false;
   if (packet->isRouteFlood() && recv_pkt_region == NULL) {
     MESH_DEBUG_PRINTLN("allowPacketForward: unknown transport code, or wildcard not allowed for FLOOD packet");
@@ -848,7 +851,8 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
       _cli(board, rtc, sensors, region_map, acl, &_prefs, this),
       telemetry(MAX_PACKET_PAYLOAD - 4),
       discover_limiter(4, 120),  // max 4 every 2 minutes
-      anon_limiter(4, 180)   // max 4 every 3 minutes
+      anon_limiter(4, 180),  // max 4 every 3 minutes
+      advert_limiter(150, 3, 9)  // 150s window, 3x burst, floor 9
 #if defined(WITH_RS232_BRIDGE)
       , bridge(&_prefs, WITH_RS232_BRIDGE, _mgr, &rtc)
 #endif
@@ -1163,6 +1167,7 @@ void MyMesh::clearStats() {
   radio_driver.resetStats();
   resetStats();
   ((SimpleMeshTables *)getTables())->resetStats();
+  advert_limiter.clearStats();
 }
 
 void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply) {
@@ -1251,6 +1256,11 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
       sendNodeDiscoverReq();
       strcpy(reply, "OK - Discover sent");
     }
+  } else if (memcmp(command, "stats-advert-ratelimit", 22) == 0 && (command[22] == 0 || command[22] == ' ')) {
+    AdaptiveRateLimiterStats stats = advert_limiter.stats(rtc_clock.getCurrentTime());
+    sprintf(reply, "{\"limit\":%u,\"remaining\":%u,\"denied\":%u,\"load_avg\":%u,\"limit_reached\":%u,\"last_limit_reached_ago\":%lu}",
+            (unsigned)stats.limit, (unsigned)stats.remaining, (unsigned)stats.denied,
+            (unsigned)stats.load_avg, (unsigned)stats.limit_reached, (unsigned long)stats.last_limit_reached_ago);
   } else{
     _cli.handleCommand(sender_timestamp, command, reply);  // common CLI commands
   }
