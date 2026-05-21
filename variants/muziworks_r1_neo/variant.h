@@ -80,7 +80,7 @@ extern "C"
 
 /* LEDs */
 #define LED_GREEN   (36) // P1.04 (28) GRN_LED_RAK
-#define LED_BLUE    (28) // P0.28 (31) BLU_LED_RAK
+#define LED_BLUE    (-1) // Disable annoying flashing caused by Bluefruit
 
 #define LED_BUILTIN (0xFF)
 
