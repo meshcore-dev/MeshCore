@@ -2,12 +2,19 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#ifdef ARDULINUX_HARDWARE
 #include "linux/gpio/LinuxGPIOPin.h"
+#endif
 #include "LinuxBoard.h"
+#include "AppInfo.h"
+
+const char *ardulinuxAppName        = "meshcored";
+const char *ardulinuxAppDescription = "a meshcore daemon for linux";
+const char *ardulinuxAppBugAddress  = "https://github.com/meshcore-dev/MeshCore";
 
 int initGPIOPin(uint8_t pinNum, const std::string gpioChipName, uint8_t line)
 {
-#ifdef PORTDUINO_LINUX_HARDWARE
+#ifdef ARDULINUX_HARDWARE
   char gpio_name[32];
   snprintf(gpio_name, sizeof(gpio_name), "GPIO%d", pinNum);
 
@@ -26,22 +33,22 @@ int initGPIOPin(uint8_t pinNum, const std::string gpioChipName, uint8_t line)
 #endif
 }
 
-void portduinoSetup() {
+void ardulinuxSetup() {
 }
 
 void LinuxBoard::begin() {
   config.load("/etc/meshcored/meshcored.ini");
 
-  Serial.printf("SPI begin %s\n", config.spidev);
-  SPI.begin(config.spidev);
+  printf("SPI begin %s\n", config.spidev);
+  SPI.begin(config.spidev, 2000000);
 
-  Serial.printf("LoRa pins NSS=%d BUSY=%d IRQ=%d RESET=%d TX=%d RX=%d\n",
-                (int)config.lora_nss_pin,
-                (int)config.lora_busy_pin,
-                (int)config.lora_irq_pin,
-                (int)config.lora_reset_pin,
-                (int)config.lora_rxen_pin,
-                (int)config.lora_txen_pin);
+  printf("LoRa pins NSS=%d BUSY=%d IRQ=%d RESET=%d TX=%d RX=%d\n",
+         (int)config.lora_nss_pin,
+         (int)config.lora_busy_pin,
+         (int)config.lora_irq_pin,
+         (int)config.lora_reset_pin,
+         (int)config.lora_rxen_pin,
+         (int)config.lora_txen_pin);
 
   if (config.lora_nss_pin != RADIOLIB_NC) {
     initGPIOPin(config.lora_nss_pin, "gpiochip0", config.lora_nss_pin);

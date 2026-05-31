@@ -1,20 +1,25 @@
 #include <Arduino.h>
 #include "target.h"
 
-class PortduinoHal : public ArduinoHal
+class ArduLinuxHal : public ArduinoHal
 {
 public:
-  PortduinoHal(SPIClass &spi, SPISettings spiSettings) : ArduinoHal(spi, spiSettings){};
+  ArduLinuxHal(SPIClass &spi, SPISettings spiSettings) : ArduinoHal(spi, spiSettings){};
 
+  // ArduLinux's SPIClass exposes only an in-place transfer(buf, len) that
+  // overwrites buf with the received bytes. RadioLib's HAL expects a
+  // full-duplex transfer(out, len, in), so copy out -> in first, then run the
+  // in-place exchange (out and in are distinct, non-overlapping buffers).
   void spiTransfer(uint8_t *out, size_t len, uint8_t *in) {
-    spi->transfer(out, in, len);
+    memcpy(in, out, len);
+    spi->transfer(in, len);
   }
 };
 
 LinuxBoard board;
 
 SPISettings spiSettings = SPISettings(2000000, MSBFIRST, SPI_MODE0);
-ArduinoHal *hal = new PortduinoHal(SPI, spiSettings);
+ArduinoHal *hal = new ArduLinuxHal(SPI, spiSettings);
 RADIO_CLASS radio = new Module(hal, RADIOLIB_NC, RADIOLIB_NC, RADIOLIB_NC, RADIOLIB_NC);
 WRAPPER_CLASS radio_driver(radio, board);
 

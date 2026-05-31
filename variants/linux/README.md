@@ -1,6 +1,6 @@
 # MeshCore Linux Variant
 
-Native Linux support for MeshCore, targeting Raspberry Pi (Zero, 3, 4, 5) and similar SBCs with an SX1262 LoRa radio attached over SPI. Uses the [Portduino](https://github.com/meshtastic/platform-native) Arduino-compatibility layer to run the same firmware codebase on Linux without modification to the core library.
+Native Linux support for MeshCore, targeting Raspberry Pi (Zero, 3, 4, 5) and similar SBCs with an SX1262 LoRa radio attached over SPI. Uses [ArduLinux — Arduino API for Linux](https://github.com/l5yth/ardulinux) to run the same firmware codebase on Linux without modification to the core library.
 
 ## Hardware
 
@@ -14,17 +14,33 @@ Native Linux support for MeshCore, targeting Raspberry Pi (Zero, 3, 4, 5) and si
 
 ```sh
 # Arch Linux
-sudo pacman -S libgpiod i2c-tools
+sudo pacman -S libgpiod i2c-tools bluez-libs libuv
 
 # Debian/Raspberry Pi OS
-sudo apt install libgpiod-dev libi2c-dev
+sudo apt install libgpiod-dev libi2c-dev libbluetooth-dev libuv1-dev
+```
+
+The ArduLinux platform always links `bluetooth`, `uv`, `pthread`, and
+`stdc++fs`; `gpiod`/`i2c` are added automatically when libgpiod is detected via
+`pkg-config` (without it the build falls back to simulated GPIO/I2C). Missing
+`bluez-libs`/`libbluetooth-dev` shows up as a `cannot find -lbluetooth` link
+error.
+
+You also need **PlatformIO Core** (`pio`) to build:
+
+```sh
+# Arch Linux
+sudo pacman -S platformio        # or: pipx install platformio
+
+# Debian/Raspberry Pi OS
+pipx install platformio          # or: pip install --user platformio
 ```
 
 **Build with `build.sh`** (recommended — embeds version and commit hash):
 
 ```sh
 FIRMWARE_VERSION=dev ./build.sh build-firmware linux_repeater
-# binary: .pio/build/linux_repeater/program
+# binary: .pio/build/linux_repeater/meshcored
 ```
 
 Alternatively, build directly with PlatformIO (no version metadata):
@@ -38,7 +54,7 @@ FIRMWARE_VERSION=dev pio run -e linux_repeater
 ### 1. Install the binary
 
 ```sh
-sudo cp .pio/build/linux_repeater/program /usr/bin/meshcored
+sudo install -m 755 .pio/build/linux_repeater/meshcored /usr/bin/meshcored
 ```
 
 ### 2. Create the config file
@@ -51,9 +67,8 @@ Two ready-made templates are provided in `variants/linux/`:
 | `meshcored.ini.waveshare` | RPi 3/4/5 + Waveshare SX1262 LoRa HAT |
 
 ```sh
-sudo mkdir -p /etc/meshcored
-# Pick the template that matches your hardware:
-sudo cp variants/linux/meshcored.ini.waveshare /etc/meshcored/meshcored.ini
+# Pick the template that matches your hardware (install -D creates /etc/meshcored):
+sudo install -D -m 644 variants/linux/meshcored.ini.waveshare /etc/meshcored/meshcored.ini
 sudo nano /etc/meshcored/meshcored.ini
 ```
 
@@ -71,12 +86,17 @@ Key settings:
 | `lora_reset_pin` | (none) | GPIO line number for RESET |
 | `lora_nss_pin` | (none) | GPIO line number for NSS/CS (if not handled by the SPI driver) |
 | `lora_busy_pin` | (none) | GPIO line number for BUSY |
+| `lora_rxen_pin` | (none) | GPIO line number for RX enable (RF switch); omit if unused |
+| `lora_txen_pin` | (none) | GPIO line number for TX enable (RF switch); omit if unused |
 | `lora_freq` | `869.618` | Frequency in MHz |
 | `lora_bw` | `62.5` | Bandwidth in kHz |
 | `lora_sf` | `8` | Spreading factor |
 | `lora_cr` | `8` | Coding rate |
 | `lora_tcxo` | `1.8` | TCXO voltage (V); set to `0.0` if your module has no TCXO |
 | `lora_tx_power` | `22` | TX power in dBm |
+| `current_limit` | `140` | Radio over-current protection limit in mA |
+| `dio2_as_rf_switch` | `0` | Set to `1` to use DIO2 as the RF switch control (depends on module wiring) |
+| `rx_boosted_gain` | `1` | `1` enables the SX126x RX boosted-gain mode; `0` disables |
 | `advert_name` | `"Linux Repeater"` | Node name — first-run default only |
 | `admin_password` | `"password"` | Admin password — **change this**, first-run default only |
 | `lat` / `lon` | `0.0` | GPS coordinates for advertisement — first-run default only |
@@ -84,16 +104,32 @@ Key settings:
 
 ### 3. Enable SPI and GPIO access
 
+First make sure the SPI interface is actually enabled — the radio needs a
+`/dev/spidev*` node. Check with `ls /dev/spidev*`; if there is none:
+
 ```sh
 # Raspberry Pi OS
-sudo raspi-config          # Interface Options → SPI → Enable
+sudo raspi-config          # Interface Options → SPI → Enable, then reboot
+
+# Arch Linux ARM (no raspi-config): enable the SPI device-tree overlay
+echo 'dtparam=spi=on' | sudo tee -a /boot/config.txt   # then reboot
+```
+
+> The boot config path varies by image — it is `/boot/config.txt` on most
+> Raspberry Pi images but `/boot/firmware/config.txt` on some. After rebooting,
+> confirm `/dev/spidev0.0` exists.
+
+Then grant access to the SPI and GPIO devices. On Raspberry Pi OS you can use the
+`spi`/`gpio` groups:
+
+```sh
 sudo usermod -aG spi,gpio $USER
 ```
 
-On Arch Linux and other distributions without `spi`/`gpio` groups, use the provided udev rules instead (also works on Raspberry Pi OS):
+On Arch Linux and other distributions without `spi`/`gpio` groups, use the provided udev rules instead (also works on Raspberry Pi OS); these grant access to the `meshcore` group used by the systemd service:
 
 ```sh
-sudo cp variants/linux/99-meshcore.rules /etc/udev/rules.d/
+sudo install -m 644 variants/linux/99-meshcore.rules /etc/udev/rules.d/
 sudo udevadm control --reload-rules && sudo udevadm trigger
 ```
 
@@ -110,8 +146,8 @@ sudo /usr/bin/meshcored
 **As a systemd service** (recommended for production):
 
 ```sh
-sudo cp variants/linux/meshcored.service /etc/systemd/system/
-sudo cp variants/linux/99-meshcore.rules /etc/udev/rules.d/
+sudo install -m 644 variants/linux/meshcored.service /etc/systemd/system/
+sudo install -m 644 variants/linux/99-meshcore.rules /etc/udev/rules.d/
 sudo udevadm control --reload-rules && sudo udevadm trigger
 sudo useradd -r -s /sbin/nologin meshcore
 sudo mkdir -p /var/lib/meshcore
@@ -145,8 +181,8 @@ sudo systemctl restart meshcored
 
 ## Known Gaps / TODO
 
-- **No CLI argument parsing** — config path is hardcoded to `/etc/meshcored/meshcored.ini`; `data_dir` is only configurable via the INI file.
+- **Config path is hardcoded** — meshcored always loads `/etc/meshcored/meshcored.ini`; there is no flag to point it elsewhere. (The ArduLinux runtime itself accepts some flags such as `--fsdir`; how that interacts with the INI's `data_dir` is not yet verified on hardware — TODO.)
 - **Only repeater firmware** — there is no `linux_companion` target yet; companion radio support (BLE/serial interface to a phone app) is not implemented for Linux.
 - **`formatFileSystem()`** returns `false` (not implemented) — the CLI `format` command will report failure on Linux.
 - **No power management** — `board.sleep()` is a no-op; the power-saving loop in `main.cpp` never actually sleeps.
-- **Portduino branding** — on startup the binary identifies itself as "An application written with portduino" with a Meshtastic bug URL. This is hardcoded in the Portduino framework and cannot be changed without patching the framework.
+- **Upstream-sync fragility** — the radio wrapper (`LinuxSX1262Wrapper`) implements the `RadioLibWrapper` interface by hand, so an upstream change that adds a pure-virtual method (e.g. `setParams()`) breaks the Linux build until the override is added. Mirror `CustomSX1262Wrapper` when this happens.

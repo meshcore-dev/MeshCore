@@ -386,7 +386,7 @@ mesh::Packet *MyMesh::createSelfAdvert() {
 File MyMesh::openAppend(const char *fname) {
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
   return _fs->open(fname, FILE_O_WRITE);
-#elif defined(RP2040_PLATFORM) || defined(ARCH_PORTDUINO)
+#elif defined(RP2040_PLATFORM) || defined(ARDULINUX_PLATFORM)
   return _fs->open(fname, "a");
 #else
   return _fs->open(fname, "a", true);
@@ -944,7 +944,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
 void MyMesh::begin(FILESYSTEM *fs) {
   mesh::Mesh::begin();
   _fs = fs;
-#if defined(ARCH_PORTDUINO)
+#if defined(ARDULINUX_PLATFORM)
   // Apply runtime INI config as first-run defaults before loading persisted prefs.
   // If /com_prefs exists, loadPrefs() below will overwrite these with the saved values.
   StrHelper::strncpy(_prefs.node_name, board.config.advert_name, sizeof(_prefs.node_name));
@@ -1036,7 +1036,7 @@ bool MyMesh::formatFileSystem() {
   return LittleFS.format();
 #elif defined(ESP32)
   return SPIFFS.format();
-#elif defined(ARCH_PORTDUINO)
+#elif defined(ARDULINUX_PLATFORM)
   return false;  // not supported on Linux
 #else
 #error "need to implement file system erase"
@@ -1193,7 +1193,7 @@ void MyMesh::formatPacketStatsReply(char *reply) {
 void MyMesh::saveIdentity(const mesh::LocalIdentity &new_id) {
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
   IdentityStore store(*_fs, "");
-#elif defined(ESP32) || defined(RP2040_PLATFORM) || defined(ARCH_PORTDUINO)
+#elif defined(ESP32) || defined(RP2040_PLATFORM) || defined(ARDULINUX_PLATFORM)
   IdentityStore store(*_fs, "/identity");
 #else
 #error "need to define saveIdentity()"

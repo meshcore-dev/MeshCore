@@ -11,8 +11,9 @@
   },
   "connectivity": ["wifi", "bluetooth"],
   "debug": {},
-  "frameworks": ["portduino", "linux"],
+  "frameworks": ["arduino", "ardulinux", "linux"],
   "name": "Linux",
+  "url": "https://github.com/l5yth/ardulinux",
   "upload": {
     "maximum_ram_size": 0,
     "maximum_size": 0
