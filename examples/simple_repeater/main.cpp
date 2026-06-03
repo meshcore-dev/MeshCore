@@ -37,7 +37,14 @@ static unsigned long userBtnDownAt = 0;
 
 void setup() {
   Serial.begin(115200);
+#ifdef WITH_W5100S_POE
+  // PoE cold-start: get to board.begin() (which activates the W5100S load)
+  // ASAP, before the RAK19018/Silvertel converter folds back. Skip the 1 s
+  // serial-settle delay — there is no operator on the serial port on PoE.
+  delay(20);
+#else
   delay(1000);
+#endif
 
   board.begin();
 
@@ -195,6 +202,12 @@ void loop() {
 #ifdef HAS_EXTERNAL_WATCHDOG
   external_watchdog.loop();
 #endif
+
+#ifdef WITH_W5100S_POE
+  // PoE-powered (RAK19018/Silvertel): the device must NEVER sleep. CPU sleep
+  // drops the current draw below the converter's ~125 mA hold threshold,
+  // making it fold back and reset. Skip the powersaving/sleep path entirely.
+#else
   if (the_mesh.getNodePrefs()->powersaving_enabled && !the_mesh.hasPendingWork()) {
 #if defined(NRF52_PLATFORM)
     board.sleep(0); // nrf ignores seconds param, sleeps whenever possible
@@ -204,4 +217,5 @@ void loop() {
     }
 #endif
   }
+#endif // WITH_W5100S_POE
 }
