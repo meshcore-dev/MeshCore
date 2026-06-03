@@ -47,6 +47,18 @@ static File openWrite(FILESYSTEM* fs, const char* filename) {
 #endif
 }
 
+static bool renameFile(FILESYSTEM* fs, const char* oldname, const char* newname) {
+  // LittleFS supports atomic rename, but SPIFFS does not.
+  #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM) || defined(RP2040_PLATFORM)
+    return fs->rename(oldname, newname);
+  #else
+    if (fs->exists(newname)) {
+      fs->remove(newname);
+    }
+    return fs->rename(oldname, newname);
+  #endif
+}
+
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
   static uint32_t _ContactsChannelsTotalBlocks = 0;
 #endif
@@ -497,21 +509,21 @@ void DataStore::saveContacts(DataStoreHost* host, bool (*filter)(const ContactIn
     snprintf(filename, sizeof(filename), "/contacts3_%02d", chunk_idx);
     snprintf(tempname, sizeof(tempname), "/contacts3_%02d.tmp", chunk_idx);
 
-    MESH_DEBUG_PRINTLN("saveContacts: writing %s", tempname);
-    File file = openWrite(_getContactsChannelsFS(), tempname);
-    
-    if (file) {
-        bool ok = (file.write(chunkBuf, chunkSize) == chunkSize);
-        file.close();
-        if (ok) {
-            MESH_DEBUG_PRINTLN("saveContacts: renaming %s to %s", tempname, filename);
-            _getContactsChannelsFS()->rename(tempname, filename);
-        } else {
-            _getContactsChannelsFS()->remove(tempname);
+        MESH_DEBUG_PRINTLN("saveContacts: writing %s", tempname);
+        File file = openWrite(_getContactsChannelsFS(), tempname);
+        
+        if (file) {
+            bool ok = (file.write(chunkBuf, chunkSize) == chunkSize);
+            file.close();
+            if (ok) {
+                MESH_DEBUG_PRINTLN("saveContacts: renaming %s to %s", tempname, filename);
+                renameFile(_getContactsChannelsFS(), tempname, filename);
+            } else {
+                _getContactsChannelsFS()->remove(tempname);
+            }
         }
     }
-  }
-  _saving_contacts = false;
+    _saving_contacts = false;
 }
 
 void DataStore::loadChannels(DataStoreHost* host) {
