@@ -75,7 +75,7 @@ sudo nano /etc/meshcored/meshcored.ini
 The config file has two roles:
 
 - **Hardware config** (always read on every startup): SPI device, GPIO pin numbers, LoRa radio parameters.
-- **First-run node defaults**: `advert_name`, `admin_password`, `lat`, `lon`. On the first boot these are saved to `data_dir`. After that, use the serial CLI to change them (`set name`, `set password`, etc.) — the INI values are no longer consulted for these fields.
+- **First-run node defaults**: `advert_name`, `admin_password`, `lat`, `lon`. On the first boot these are saved to the node's persisted prefs (`com_prefs`). After that, use the serial CLI to change them (`set name`, `set password`, etc.) — the INI values are no longer consulted for these fields.
 
 Key settings:
 
@@ -95,12 +95,11 @@ Key settings:
 | `lora_tcxo` | `1.8` | TCXO voltage (V); set to `0.0` if your module has no TCXO |
 | `lora_tx_power` | `22` | TX power in dBm |
 | `current_limit` | `140` | Radio over-current protection limit in mA |
-| `dio2_as_rf_switch` | `0` | Set to `1` to use DIO2 as the RF switch control (depends on module wiring) |
+| `dio2_as_rf_switch` | `0` | `1` = use DIO2 to drive the TX/RX RF switch. **Required for the Waveshare Core1262** (without it the radio inits but TX/RX are dead); depends on module wiring |
 | `rx_boosted_gain` | `1` | `1` enables the SX126x RX boosted-gain mode; `0` disables |
 | `advert_name` | `"Linux Repeater"` | Node name — first-run default only |
 | `admin_password` | `"password"` | Admin password — **change this**, first-run default only |
 | `lat` / `lon` | `0.0` | GPS coordinates for advertisement — first-run default only |
-| `data_dir` | `/var/lib/meshcore` | Where identity and node prefs are persisted |
 
 ### 3. Enable SPI and GPIO access
 
@@ -118,46 +117,68 @@ echo 'dtparam=spi=on' | sudo tee -a /boot/config.txt   # then reboot
 > The boot config path varies by image — it is `/boot/config.txt` on most
 > Raspberry Pi images but `/boot/firmware/config.txt` on some. After rebooting,
 > confirm `/dev/spidev0.0` exists.
+>
+> **Arch Linux kernel caveat:** `dtparam=spi=on` is only honored by the Raspberry
+> Pi `linux-rpi` (vendor) kernel. The mainline `linux-aarch64` kernel boots via
+> U-Boot, which loads its own device tree and ignores `config.txt` overlays — so
+> `/dev/spidev*` never appears regardless of `config.txt`. If SPI is missing after
+> enabling it and rebooting, switch to the vendor kernel
+> (`sudo pacman -S linux-rpi`, remove `linux-aarch64`) and reboot.
 
-Then grant access to the SPI and GPIO devices. On Raspberry Pi OS you can use the
-`spi`/`gpio` groups:
+Then grant non-root access to the SPI and GPIO devices using the provided udev
+rules, which place `/dev/spidev*` and `/dev/gpiochip*` in a `meshcore` group.
+Create the group, add yourself to it, and install the rules:
 
 ```sh
-sudo usermod -aG spi,gpio $USER
-```
-
-On Arch Linux and other distributions without `spi`/`gpio` groups, use the provided udev rules instead (also works on Raspberry Pi OS); these grant access to the `meshcore` group used by the systemd service:
-
-```sh
+sudo groupadd -f -r meshcore
+sudo usermod -aG meshcore "$USER"     # log out/in afterwards for this to take effect
 sudo install -m 644 variants/linux/99-meshcore.rules /etc/udev/rules.d/
 sudo udevadm control --reload-rules && sudo udevadm trigger
 ```
 
-### 4. Run
-
-**Directly** (for testing):
+Confirm the device nodes are now group-owned by `meshcore`:
 
 ```sh
-sudo /usr/bin/meshcored
+ls -l /dev/gpiochip* /dev/spidev*    # → crw-rw---- root meshcore
 ```
 
-`sudo` is needed on first run to create `data_dir` if it doesn't exist. Once the directory is created and owned appropriately, it can run as a non-root user.
+Your current login session won't pick up the new group until you log out and
+back in. To use it immediately in one shell, prefix the command with
+`sg meshcore -c '…'`. (On Raspberry Pi OS you can instead use the built-in
+`spi`/`gpio` groups: `sudo usermod -aG spi,gpio $USER`.)
 
-**As a systemd service** (recommended for production):
+### 4. Run
+
+**Directly** (for testing). With the udev rules in place you can run as your own
+user — no `sudo`. Data is persisted under the VFS root, which defaults to the XDG
+data dir; pass `--fsdir` to choose another location:
+
+```sh
+meshcored                              # VFS root: ~/.local/share/meshcored/default
+meshcored --fsdir /var/lib/meshcore    # explicit location
+# before re-logging in (group not yet active in this shell):
+sg meshcore -c 'meshcored --fsdir /var/lib/meshcore'
+```
+
+**As a systemd service** (recommended for production). The unit runs as the
+`meshcore` user and passes `--fsdir /var/lib/meshcore`:
 
 ```sh
 sudo install -m 644 variants/linux/meshcored.service /etc/systemd/system/
 sudo install -m 644 variants/linux/99-meshcore.rules /etc/udev/rules.d/
 sudo udevadm control --reload-rules && sudo udevadm trigger
 sudo useradd -r -s /sbin/nologin meshcore
-sudo mkdir -p /var/lib/meshcore
-sudo chown meshcore:meshcore /var/lib/meshcore
 sudo chmod 640 /etc/meshcored/meshcored.ini
 sudo chown root:meshcore /etc/meshcored/meshcored.ini
 sudo systemctl daemon-reload
 sudo systemctl enable --now meshcored
 sudo journalctl -u meshcored -f
 ```
+
+> The unit's `ExecStartPre` creates and chowns `/var/lib/meshcore`, so you don't
+> need to pre-create it. If you smoke-tested by running directly first, clear any
+> stale state so the service first-boots with the INI defaults:
+> `sudo rm -rf /var/lib/meshcore/*`
 
 ### 5. Reconfiguring after first run
 
@@ -181,8 +202,8 @@ sudo systemctl restart meshcored
 
 ## Known Gaps / TODO
 
-- **Config path is hardcoded** — meshcored always loads `/etc/meshcored/meshcored.ini`; there is no flag to point it elsewhere. (The ArduLinux runtime itself accepts some flags such as `--fsdir`; how that interacts with the INI's `data_dir` is not yet verified on hardware — TODO.)
+- **Config path is hardcoded** — meshcored always loads `/etc/meshcored/meshcored.ini`; there is no flag to point it elsewhere. (The data *path* is separate and configurable: it is the ArduLinux VFS root, set with `--fsdir`.)
 - **Only repeater firmware** — there is no `linux_companion` target yet; companion radio support (BLE/serial interface to a phone app) is not implemented for Linux.
 - **`formatFileSystem()`** returns `false` (not implemented) — the CLI `format` command will report failure on Linux.
 - **No power management** — `board.sleep()` is a no-op; the power-saving loop in `main.cpp` never actually sleeps.
-- **Upstream-sync fragility** — the radio wrapper (`LinuxSX1262Wrapper`) implements the `RadioLibWrapper` interface by hand, so an upstream change that adds a pure-virtual method (e.g. `setParams()`) breaks the Linux build until the override is added. Mirror `CustomSX1262Wrapper` when this happens.
+- **Upstream-sync fragility** — the radio wrapper (`LinuxSX1262Wrapper`) implements the `RadioLibWrapper` interface by hand, so it can drift from upstream in two ways: a new **pure-virtual** method breaks the Linux build (e.g. `setParams()`), and a new **virtual-with-default** method silently no-ops on Linux until overridden (e.g. `set`/`getRxBoostedGainMode()`, which reported and applied the wrong state until added). Mirror `CustomSX1262Wrapper` when syncing.

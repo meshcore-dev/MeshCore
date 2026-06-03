@@ -20,5 +20,5 @@ admin_password = changeme
 lat = 0.0
 lon = 0.0
 
-# data_dir — where identity and node prefs are persisted (default shown):
-#data_dir = /var/lib/meshcore
+# Data is persisted under the VFS root set by the --fsdir CLI flag (default
+# ~/.local/share/meshcored/default; the systemd unit uses /var/lib/meshcore).

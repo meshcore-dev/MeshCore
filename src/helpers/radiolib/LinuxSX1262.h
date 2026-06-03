@@ -45,4 +45,10 @@ class LinuxSX1262 : public SX1262 {
       bool detected = (irq & SX126X_IRQ_HEADER_VALID) || (irq & SX126X_IRQ_PREAMBLE_DETECTED);
       return detected;
     }
+
+    bool getRxBoostedGainMode() {
+      uint8_t rxGain = 0;
+      readRegister(RADIOLIB_SX126X_REG_RX_GAIN, &rxGain, 1);
+      return (rxGain == RADIOLIB_SX126X_RX_GAIN_BOOSTED);
+    }
 };

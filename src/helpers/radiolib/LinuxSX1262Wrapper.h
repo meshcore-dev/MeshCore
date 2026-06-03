@@ -29,4 +29,11 @@ public:
     return packetScoreInt(snr, sf, packet_len);
   }
   uint8_t getSpreadingFactor() const override { return ((LinuxSX1262 *)_radio)->spreadingFactor; }
+
+  void setRxBoostedGainMode(bool en) override {
+    ((LinuxSX1262 *)_radio)->setRxBoostedGainMode(en);
+  }
+  bool getRxBoostedGainMode() const override {
+    return ((LinuxSX1262 *)_radio)->getRxBoostedGainMode();
+  }
 };

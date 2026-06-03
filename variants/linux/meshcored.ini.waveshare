@@ -13,6 +13,9 @@ lora_sf = 8
 lora_cr = 8
 lora_tcxo = 1.8
 lora_tx_power = 22
+# DIO2 drives the TX/RX RF switch on the Waveshare Core1262 — required for this HAT
+# (without it the radio inits fine but TX/RX stay dead). 1 = enabled, 0 = disabled.
+dio2_as_rf_switch = 1
 
 # First-run node defaults (ignored after first boot; use CLI to change):
 advert_name = Waveshare Linux Repeater
@@ -20,5 +23,5 @@ admin_password = changeme
 lat = 0.0
 lon = 0.0
 
-# data_dir — where identity and node prefs are persisted (default shown):
-#data_dir = /var/lib/meshcore
+# Data is persisted under the VFS root set by the --fsdir CLI flag (default
+# ~/.local/share/meshcored/default; the systemd unit uses /var/lib/meshcore).

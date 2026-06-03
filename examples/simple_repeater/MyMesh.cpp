@@ -956,6 +956,7 @@ void MyMesh::begin(FILESYSTEM *fs) {
   _prefs.sf   = board.config.lora_sf;
   _prefs.cr   = board.config.lora_cr;
   _prefs.tx_power_dbm = board.config.lora_tx_power;
+  _prefs.rx_boosted_gain = board.config.rx_boosted_gain;
 #endif
   // load persisted prefs
   _cli.loadPrefs(_fs);

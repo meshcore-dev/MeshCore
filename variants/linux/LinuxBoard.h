@@ -38,7 +38,6 @@ public:
   char *admin_password = "password";
   float lat = 0.0f;
   float lon = 0.0f;
-  char *data_dir = "/var/lib/meshcore";
 
   int load(const char *filename);
 };
