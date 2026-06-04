@@ -387,12 +387,11 @@ void DataStore::loadContacts(DataStoreHost* host) {
   const uint32_t chunkSize = sizeof(ChunkHeader) + (SLOTS_PER_CHUNK * CONTACT_RECORD_SIZE);
   static uint8_t chunkBuf[chunkSize];
 
-  // if monolithic contacts3 exists, migrate it to chunks
-  if (_getContactsChannelsFS()->exists("/contacts3")) {
-      if (migrateContactsFromFile(_getContactsChannelsFS(), chunkBuf))
-          _getContactsChannelsFS()->remove("/contacts3");
-      else
-          return;
+  // check for monolithic contacts file on _fs and _fsExtra, migrate it to chunked format
+  if (_fs->exists("/contacts3")) {
+      if (migrateContactsFromFile(_fs, _getContactsChannelsFS(), chunkBuf)) _fs->remove("/contacts3");
+  } else if (_getContactsChannelsFS()->exists("/contacts3")) {
+      if (migrateContactsFromFile(_getContactsChannelsFS(), _getContactsChannelsFS(), chunkBuf)) _getContactsChannelsFS()->remove("/contacts3");
   }
 
 

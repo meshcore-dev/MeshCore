@@ -6,4 +6,4 @@
 void migrateContactsFromBuffer(FILESYSTEM* fs, const uint8_t* data, uint32_t dataSize);
 
 // called from loadContacts
-bool migrateContactsFromFile(FILESYSTEM* fs, uint8_t* chunkBuf);
+bool migrateContactsFromFile(FILESYSTEM* srcFS, FILESYSTEM* dstFS, uint8_t* chunkBuf);

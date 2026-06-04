@@ -77,8 +77,8 @@ void migrateContactsFromBuffer(FILESYSTEM* fs, const uint8_t* data, uint32_t dat
     free(chunkBuf);
 }
 
-bool migrateContactsFromFile(FILESYSTEM* fs, uint8_t* chunkBuf) {
-    File in = openRead(fs, "/contacts3");
+bool migrateContactsFromFile(FILESYSTEM* srcFS, FILESYSTEM* dstFS, uint8_t* chunkBuf) {
+    File in = openRead(srcFS, "/contacts3");
     if (!in) return false;
 
     uint32_t numContacts = in.size() / CONTACT_RECORD_SIZE;
@@ -97,7 +97,7 @@ bool migrateContactsFromFile(FILESYSTEM* fs, uint8_t* chunkBuf) {
             return false;
         }
 
-        writeContactChunk(fs, chunkBuf, chunk_idx, count);   // fs is a reference now, no *
+        writeContactChunk(dstFS, chunkBuf, chunk_idx, count);
 
         remaining -= count;
         chunk_idx++;
