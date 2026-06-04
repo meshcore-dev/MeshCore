@@ -19,12 +19,13 @@ ProtectSystem=strict
 ProtectHome=yes
 PrivateTmp=yes
 NoNewPrivileges=yes
-# Allow writing only to its own data dir
-ReadWritePaths=/var/lib/meshcore
 
-# Create data dir with correct ownership if it doesn't exist
-ExecStartPre=/bin/mkdir -p /var/lib/meshcore
-ExecStartPre=/bin/chown meshcore:meshcore /var/lib/meshcore
+# systemd creates /var/lib/meshcore owned by User:Group before the namespace is
+# set up, and makes it the unit's only writable path. This must come from
+# StateDirectory rather than ExecStartPre+ReadWritePaths: with ProtectSystem=strict
+# the read-write path has to exist when the mount namespace is built, which happens
+# before ExecStartPre runs (a mkdir there fails with status=226/NAMESPACE).
+StateDirectory=meshcore
 
 [Install]
 WantedBy=multi-user.target

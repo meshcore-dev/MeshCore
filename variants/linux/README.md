@@ -30,7 +30,7 @@ You also need **PlatformIO Core** (`pio`) to build:
 
 ```sh
 # Arch Linux
-sudo pacman -S platformio        # or: pipx install platformio
+sudo pacman -S platformio-core   # or: pipx install platformio
 
 # Debian/Raspberry Pi OS
 pipx install platformio          # or: pip install --user platformio
@@ -149,6 +149,15 @@ back in. To use it immediately in one shell, prefix the command with
 
 ### 4. Run
 
+`meshcored` takes a small set of options, parsed by the ArduLinux core:
+
+| Flag | Description |
+|------|-------------|
+| `-d`, `--fsdir=DIR` | Directory to use as the VFS root, where all data is persisted. Default: `~/.local/share/meshcored/default` |
+| `-e`, `--erase` | Recursively wipe the VFS root, then start. This is a **full reset**: it also removes the node identity, so the node comes back with a new Repeater ID (see step 5). Never put this in the systemd unit. |
+| `--usage`, `-?` / `--help` | Short usage / full option list |
+| `-V`, `--version` | Print the firmware version |
+
 **Directly** (for testing). With the udev rules in place you can run as your own
 user — no `sudo`. Data is persisted under the VFS root, which defaults to the XDG
 data dir; pass `--fsdir` to choose another location:
@@ -167,7 +176,7 @@ sg meshcore -c 'meshcored --fsdir /var/lib/meshcore'
 sudo install -m 644 variants/linux/meshcored.service /etc/systemd/system/
 sudo install -m 644 variants/linux/99-meshcore.rules /etc/udev/rules.d/
 sudo udevadm control --reload-rules && sudo udevadm trigger
-sudo useradd -r -s /sbin/nologin meshcore
+sudo useradd -r -g meshcore -s /sbin/nologin meshcore   # -g: reuse the existing meshcore group (its udev rules grant device access)
 sudo chmod 640 /etc/meshcored/meshcored.ini
 sudo chown root:meshcore /etc/meshcored/meshcored.ini
 sudo systemctl daemon-reload
@@ -175,10 +184,10 @@ sudo systemctl enable --now meshcored
 sudo journalctl -u meshcored -f
 ```
 
-> The unit's `ExecStartPre` creates and chowns `/var/lib/meshcore`, so you don't
-> need to pre-create it. If you smoke-tested by running directly first, clear any
-> stale state so the service first-boots with the INI defaults:
-> `sudo rm -rf /var/lib/meshcore/*`
+> The unit's `StateDirectory=meshcore` makes systemd create `/var/lib/meshcore`
+> owned by `meshcore:meshcore` before startup, so you don't need to pre-create it.
+> If you smoke-tested by running directly first, clear any stale state so the
+> service first-boots with the INI defaults: `sudo rm -rf /var/lib/meshcore/*`
 
 ### 5. Reconfiguring after first run
 
@@ -191,12 +200,24 @@ set lat <lat>
 set lon <lon>
 ```
 
-To reset all node prefs and re-apply the INI file defaults, delete the saved prefs and restart:
+There are two levels of reset:
+
+**Prefs only** — keeps the node identity (same Repeater ID). Delete the saved prefs so the INI first-run defaults are re-applied on the next boot:
 
 ```sh
 sudo rm /var/lib/meshcore/com_prefs
 sudo systemctl restart meshcored
 ```
+
+**Full reset** — also discards the identity, so the node returns with a **new** Repeater ID. This wipes the whole VFS root. The built-in `-e`/`--erase` flag does exactly that before starting, but for the managed service just clear the directory while it is stopped (keep `--erase` out of the unit — see the note below):
+
+```sh
+sudo systemctl stop meshcored
+sudo rm -rf /var/lib/meshcore/*
+sudo systemctl start meshcored
+```
+
+> When running **directly** (not under systemd), `meshcored --fsdir /var/lib/meshcore --erase` is the equivalent one-shot full reset. Do **not** add `--erase` to the service unit: systemd re-runs `ExecStart` on every restart, so it would wipe the filesystem and regenerate the identity each time. (The firmware's own `reboot()` strips `--erase` to avoid self-wiping, but that protection does not extend to a systemd restart.)
 
 > **Note:** LoRa radio parameters (`lora_freq`, `lora_bw`, `lora_sf`, `lora_cr`, `lora_tx_power`) are also first-run defaults. After first boot they are saved in `com_prefs` and the INI values are no longer read for those fields. To apply a changed radio parameter, use the CLI (`set freq`, `set sf`, etc.) or reset prefs as above.
 
@@ -204,6 +225,6 @@ sudo systemctl restart meshcored
 
 - **Config path is hardcoded** — meshcored always loads `/etc/meshcored/meshcored.ini`; there is no flag to point it elsewhere. (The data *path* is separate and configurable: it is the ArduLinux VFS root, set with `--fsdir`.)
 - **Only repeater firmware** — there is no `linux_companion` target yet; companion radio support (BLE/serial interface to a phone app) is not implemented for Linux.
-- **`formatFileSystem()`** returns `false` (not implemented) — the CLI `format` command will report failure on Linux.
+- **Serial `erase` command is a no-op** — `formatFileSystem()` returns `false` on Linux, so the interactive serial `erase` command reports failure. To wipe the filesystem, use the `--erase` *startup* flag (or clear the VFS dir) instead — see step 5.
 - **No power management** — `board.sleep()` is a no-op; the power-saving loop in `main.cpp` never actually sleeps.
 - **Upstream-sync fragility** — the radio wrapper (`LinuxSX1262Wrapper`) implements the `RadioLibWrapper` interface by hand, so it can drift from upstream in two ways: a new **pure-virtual** method breaks the Linux build (e.g. `setParams()`), and a new **virtual-with-default** method silently no-ops on Linux until overridden (e.g. `set`/`getRxBoostedGainMode()`, which reported and applied the wrong state until added). Mirror `CustomSX1262Wrapper` when syncing.
