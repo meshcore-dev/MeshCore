@@ -59,6 +59,7 @@ public:
   File openRead(FILESYSTEM* fs, const char* filename);
   bool removeFile(const char* filename);
   bool removeFile(FILESYSTEM* fs, const char* filename);
+  bool relocateFile(FILESYSTEM* srcFS, FILESYSTEM* dstFS, const char* filename);
   uint32_t getStorageUsedKb() const;
   uint32_t getStorageTotalKb() const;
 

@@ -181,6 +181,44 @@ bool DataStore::removeFile(FILESYSTEM* fs, const char* filename) {
   return fs->remove(filename);
 }
 
+bool DataStore::relocateFile(FILESYSTEM* src, FILESYSTEM* dst, const char* filename) {
+  if (!src->exists(filename)) return false;
+
+  char tempfile[24];
+  snprintf(tempfile, sizeof(tempfile), "%s.tmp", filename);
+  File oldFile = openRead(src, filename);
+  File newFile = openWrite(dst, tempfile);
+  if (!oldFile || !newFile) {
+    if (oldFile) oldFile.close();
+    if (newFile) newFile.close();
+    return false;
+  }
+
+  bool ok = true;
+  uint8_t buf[64];
+  int n;
+  while ((n = oldFile.read(buf, sizeof(buf))) > 0) {
+    if (newFile.write(buf, n) != n) { ok = false; break; };
+  }
+  if (n < 0) ok = false;
+
+  oldFile.close();
+  newFile.close();
+
+  if (ok) {
+    ok = renameFile(dst, tempfile, filename);
+    if (ok) {
+      ok = src->remove(filename);
+    }
+    if (!ok) {
+      dst->remove(tempfile);
+    }
+  }
+  MESH_DEBUG_PRINTLN("Relocate %s: %s", filename, ok ? "success" : "failed");
+
+  return ok;
+}
+
 bool DataStore::formatFileSystem() {
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
   if (_fsExtra == nullptr) {
