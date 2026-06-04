@@ -44,32 +44,51 @@ bool IdentityStore::load(const char *name, mesh::LocalIdentity& id, char display
 
 bool IdentityStore::save(const char *name, const mesh::LocalIdentity& id) {
   char filename[40];
+  char tempfilename[44];
   sprintf(filename, "%s/%s.id", _dir, name);
+  sprintf(tempfilename, "%s/%s.id.tmp", _dir, name);
 
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
-  _fs->remove(filename);
-  File file = _fs->open(filename, FILE_O_WRITE);
+  _fs->remove(tempfilename);
+  File file = _fs->open(tempfilename, FILE_O_WRITE);
 #elif defined(RP2040_PLATFORM)
-  File file = _fs->open(filename, "w");
+  File file = _fs->open(tempfilename, "w");
 #else
-  File file = _fs->open(filename, "w", true);
+  File file = _fs->open(tempfilename, "w", true);
 #endif
   if (file) {
     bool success = id.writeTo(file);
     file.close();
-    MESH_DEBUG_PRINTLN("IdentityStore::save() write - %s", success ? "OK" : "Err");
-    return true;
+    if (!success) { _fs->remove(tempfilename);
+      MESH_DEBUG_PRINTLN("IdentityStore::save() write failed");
+      return false;
+    }
+    #if defined(ESP32_PLATFORM)
+    _fs->remove(filename); // SPIFFS doesn't support atomic rename, must remove old file first
+    success = _fs->rename(tempfilename, filename); 
+    #else
+    success = _fs->rename(tempfilename, filename);
+    #endif
+    if (!success) { 
+      _fs->remove(tempfilename);
+      MESH_DEBUG_PRINTLN("IdentityStore::save() rename failed");
+      return false;
+    }
+    MESH_DEBUG_PRINTLN("IdentityStore::save() write - OK");
+    return success;
   }
-  MESH_DEBUG_PRINTLN("IdentityStore::save() failed");
+  MESH_DEBUG_PRINTLN("IdentityStore::save() failed to open file for writing");
   return false;
 }
 
 bool IdentityStore::save(const char *name, const mesh::LocalIdentity& id, const char display_name[]) {
   char filename[40];
+  char tempfilename[44];
   sprintf(filename, "%s/%s.id", _dir, name);
+  sprintf(tempfilename, "%s/%s.id.tmp", _dir, name);
 
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
-  _fs->remove(filename);
+  _fs->remove(tempfilename);
   File file = _fs->open(filename, FILE_O_WRITE);
 #elif defined(RP2040_PLATFORM)
   File file = _fs->open(filename, "w");
@@ -87,6 +106,10 @@ bool IdentityStore::save(const char *name, const mesh::LocalIdentity& id, const 
     file.write(tmp, sizeof(tmp));
 
     file.close();
+    #if defined(ESP32_PLATFORM)
+    if (_fs->exists(filename)) _fs->remove(filename); 
+    #endif
+    _fs->rename(tempfilename, filename);
     return true;
   }
   return false;
