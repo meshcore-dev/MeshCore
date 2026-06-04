@@ -2095,6 +2095,10 @@ static bool parsePathCommand(char* raw, uint8_t* out_path, uint8_t& out_path_len
     out_path_len = OUT_PATH_FORCE_FLOOD;
     return true;
   }
+  if (strcmp(spec, "direct") == 0) {
+    out_path_len = 0;
+    return true;
+  }
 
   uint8_t hash_size = 0;
   uint8_t hop_count = 0;
@@ -2150,6 +2154,10 @@ static void formatPathReply(const uint8_t* path, uint8_t path_len, char* out, si
   }
   if (!mesh::Packet::isValidPathLen(path_len)) {
     snprintf(out, out_len, "> invalid");
+    return;
+  }
+  if ((path_len & 63) == 0) {
+    snprintf(out, out_len, "> direct");
     return;
   }
 
