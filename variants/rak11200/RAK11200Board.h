@@ -4,7 +4,7 @@
 #include <helpers/ESP32Board.h>
 
 // LoRa radio module pins when paired with the RAK13300 SX1262 module
-#define  P_LORA_DIO_1   22    // GPIO22 (ESP32 pin 36 -> IO6/DIO1)
+// P_LORA_DIO_1 is defined as a build flag (platformio.ini) so the base ESP32Board.h sees it
 #define  P_LORA_NSS     32    // GPIO32 (ESP32 pin 8 -> SPI_CS)
 #define  P_LORA_RESET   23    // GPIO23 (ESP32 pin 37 -> IO4/NRESET)
 #define  P_LORA_BUSY    13    // GPIO13 (ESP32 pin 16 -> IO5)
