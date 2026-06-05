@@ -5,11 +5,6 @@ class ArduLinuxHal : public ArduinoHal
 {
 public:
   ArduLinuxHal(SPIClass &spi, SPISettings spiSettings) : ArduinoHal(spi, spiSettings){};
-
-  // ArduLinux's SPIClass exposes only an in-place transfer(buf, len) that
-  // overwrites buf with the received bytes. RadioLib's HAL expects a
-  // full-duplex transfer(out, len, in), so copy out -> in first, then run the
-  // in-place exchange (out and in are distinct, non-overlapping buffers).
   void spiTransfer(uint8_t *out, size_t len, uint8_t *in) {
     memcpy(in, out, len);
     spi->transfer(in, len);

@@ -1,6 +1,6 @@
-# meshcored.ini — Waveshare SX1262 LoRa HAT on Raspberry Pi 3/4/5
+# meshcored.ini - Waveshare SX1262 LoRa HAT on Raspberry Pi 3/4/5
 # GPIO numbering is BCM (the number after "GPIO", e.g. GPIO16 = 16).
-#
+
 # Hardware config (read on every startup):
 spidev = /dev/spidev0.0
 lora_irq_pin = 16
@@ -13,8 +13,7 @@ lora_sf = 8
 lora_cr = 8
 lora_tcxo = 1.8
 lora_tx_power = 22
-# DIO2 drives the TX/RX RF switch on the Waveshare Core1262 — required for this HAT
-# (without it the radio inits fine but TX/RX stay dead). 1 = enabled, 0 = disabled.
+# DIO2 drives the TX/RX RF switch on the Waveshare Core1262
 dio2_as_rf_switch = 1
 
 # First-run node defaults (ignored after first boot; use CLI to change):
@@ -23,5 +22,3 @@ admin_password = changeme
 lat = 0.0
 lon = 0.0
 
-# Data is persisted under the VFS root set by the --fsdir CLI flag (default
-# ~/.local/share/meshcored/default; the systemd unit uses /var/lib/meshcore).

@@ -1,12 +1,12 @@
-# meshcored.ini — PoW SX1262 HAT on Raspberry Pi Zero 2W
+# meshcored.ini - PoW SX1262 HAT on Raspberry Pi Zero 2W
 # GPIO numbering is BCM (the number after "GPIO", e.g. GPIO22 = 22).
-#
+
 # Hardware config (read on every startup):
 spidev = /dev/spidev0.0
 lora_irq_pin = 22
 lora_reset_pin = 13
-# lora_nss_pin — SS is handled by the SPI driver; not needed
-# lora_busy_pin — not wired on this HAT
+# lora_nss_pin - SS is handled by the SPI driver; not needed
+# lora_busy_pin - not wired on this HAT
 lora_freq = 869.618
 lora_bw = 62.5
 lora_sf = 8
@@ -20,5 +20,3 @@ admin_password = changeme
 lat = 0.0
 lon = 0.0
 
-# Data is persisted under the VFS root set by the --fsdir CLI flag (default
-# ~/.local/share/meshcored/default; the systemd unit uses /var/lib/meshcore).

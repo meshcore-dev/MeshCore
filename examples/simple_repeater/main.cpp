@@ -82,9 +82,8 @@ void setup() {
   IdentityStore store(LittleFS, "/identity");
   store.begin();
 #elif defined(ARDULINUX_PLATFORM)
-  // The VFS root is established by the ArduLinux core from --fsdir (default: the
-  // XDG data dir, e.g. ~/.local/share/meshcored/default), so there is no per-app
-  // mountpoint override here — --fsdir is the single source of truth for the data path.
+  // the VFS root is established by the ArduLinux core from --fsdir
+  // (default: the XDG data dir, e.g. ~/.local/share/meshcored/default)
   fs = &ArduLinuxFS;
   IdentityStore store(ArduLinuxFS, "/identity");
   store.begin();

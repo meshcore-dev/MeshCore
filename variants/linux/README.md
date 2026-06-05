@@ -1,6 +1,6 @@
 # MeshCore Linux Variant
 
-Native Linux support for MeshCore, targeting Raspberry Pi (Zero, 3, 4, 5) and similar SBCs with an SX1262 LoRa radio attached over SPI. Uses [ArduLinux — Arduino API for Linux](https://github.com/l5yth/ardulinux) to run the same firmware codebase on Linux without modification to the core library.
+Native Linux support for MeshCore, targeting Raspberry Pi (Zero, 3, 4, 5) and similar SBCs with an SX1262 LoRa radio attached over SPI. Uses [ArduLinux, Arduino API for Linux](https://github.com/l5yth/ardulinux) to run the same firmware codebase on Linux without modification to the core library.
 
 ## Hardware
 
@@ -36,7 +36,7 @@ sudo pacman -S platformio-core   # or: pipx install platformio
 pipx install platformio          # or: pip install --user platformio
 ```
 
-**Build with `build.sh`** (recommended — embeds version and commit hash):
+**Build with `build.sh`** (recommended, embeds version and commit hash):
 
 ```sh
 FIRMWARE_VERSION=dev ./build.sh build-firmware linux_repeater
@@ -75,7 +75,7 @@ sudo nano /etc/meshcored/meshcored.ini
 The config file has two roles:
 
 - **Hardware config** (always read on every startup): SPI device, GPIO pin numbers, LoRa radio parameters.
-- **First-run node defaults**: `advert_name`, `admin_password`, `lat`, `lon`. On the first boot these are saved to the node's persisted prefs (`com_prefs`). After that, use the serial CLI to change them (`set name`, `set password`, etc.) — the INI values are no longer consulted for these fields.
+- **First-run node defaults**: `advert_name`, `admin_password`, `lat`, `lon`. On the first boot these are saved to the node's persisted prefs (`com_prefs`). After that, use the serial CLI to change them (`set name`, `set password`, etc.), the INI values are no longer consulted for these fields.
 
 Key settings:
 
@@ -97,13 +97,13 @@ Key settings:
 | `current_limit` | `140` | Radio over-current protection limit in mA |
 | `dio2_as_rf_switch` | `0` | `1` = use DIO2 to drive the TX/RX RF switch. **Required for the Waveshare Core1262** (without it the radio inits but TX/RX are dead); depends on module wiring |
 | `rx_boosted_gain` | `1` | `1` enables the SX126x RX boosted-gain mode; `0` disables |
-| `advert_name` | `"Linux Repeater"` | Node name — first-run default only |
-| `admin_password` | `"password"` | Admin password — **change this**, first-run default only |
-| `lat` / `lon` | `0.0` | GPS coordinates for advertisement — first-run default only |
+| `advert_name` | `"Linux Repeater"` | Node name, first-run default only |
+| `admin_password` | `"password"` | Admin password, **change this**, first-run default only |
+| `lat` / `lon` | `0.0` | GPS coordinates for advertisement, first-run default only |
 
 ### 3. Enable SPI and GPIO access
 
-First make sure the SPI interface is actually enabled — the radio needs a
+First make sure the SPI interface is actually enabled, the radio needs a
 `/dev/spidev*` node. Check with `ls /dev/spidev*`; if there is none:
 
 ```sh
@@ -114,13 +114,13 @@ sudo raspi-config          # Interface Options → SPI → Enable, then reboot
 echo 'dtparam=spi=on' | sudo tee -a /boot/config.txt   # then reboot
 ```
 
-> The boot config path varies by image — it is `/boot/config.txt` on most
+> The boot config path varies by image, it is `/boot/config.txt` on most
 > Raspberry Pi images but `/boot/firmware/config.txt` on some. After rebooting,
 > confirm `/dev/spidev0.0` exists.
 >
 > **Arch Linux kernel caveat:** `dtparam=spi=on` is only honored by the Raspberry
 > Pi `linux-rpi` (vendor) kernel. The mainline `linux-aarch64` kernel boots via
-> U-Boot, which loads its own device tree and ignores `config.txt` overlays — so
+> U-Boot, which loads its own device tree and ignores `config.txt` overlays, so
 > `/dev/spidev*` never appears regardless of `config.txt`. If SPI is missing after
 > enabling it and rebooting, switch to the vendor kernel
 > (`sudo pacman -S linux-rpi`, remove `linux-aarch64`) and reboot.
@@ -159,7 +159,7 @@ back in. To use it immediately in one shell, prefix the command with
 | `-V`, `--version` | Print the firmware version |
 
 **Directly** (for testing). With the udev rules in place you can run as your own
-user — no `sudo`. Data is persisted under the VFS root, which defaults to the XDG
+user, no `sudo`. Data is persisted under the VFS root, which defaults to the XDG
 data dir; pass `--fsdir` to choose another location:
 
 ```sh
@@ -202,14 +202,14 @@ set lon <lon>
 
 There are two levels of reset:
 
-**Prefs only** — keeps the node identity (same Repeater ID). Delete the saved prefs so the INI first-run defaults are re-applied on the next boot:
+**Prefs only**, keeps the node identity (same Repeater ID). Delete the saved prefs so the INI first-run defaults are re-applied on the next boot:
 
 ```sh
 sudo rm /var/lib/meshcore/com_prefs
 sudo systemctl restart meshcored
 ```
 
-**Full reset** — also discards the identity, so the node returns with a **new** Repeater ID. This wipes the whole VFS root. The built-in `-e`/`--erase` flag does exactly that before starting, but for the managed service just clear the directory while it is stopped (keep `--erase` out of the unit — see the note below):
+**Full reset**, also discards the identity, so the node returns with a **new** Repeater ID. This wipes the whole VFS root. The built-in `-e`/`--erase` flag does exactly that before starting, but for the managed service just clear the directory while it is stopped (keep `--erase` out of the unit, see the note below):
 
 ```sh
 sudo systemctl stop meshcored
@@ -223,8 +223,8 @@ sudo systemctl start meshcored
 
 ## Known Gaps / TODO
 
-- **Config path is hardcoded** — meshcored always loads `/etc/meshcored/meshcored.ini`; there is no flag to point it elsewhere. (The data *path* is separate and configurable: it is the ArduLinux VFS root, set with `--fsdir`.)
-- **Only repeater firmware** — there is no `linux_companion` target yet; companion radio support (BLE/serial interface to a phone app) is not implemented for Linux.
-- **Serial `erase` command is a no-op** — `formatFileSystem()` returns `false` on Linux, so the interactive serial `erase` command reports failure. To wipe the filesystem, use the `--erase` *startup* flag (or clear the VFS dir) instead — see step 5.
-- **No power management** — `board.sleep()` is a no-op; the power-saving loop in `main.cpp` never actually sleeps.
-- **Upstream-sync fragility** — the radio wrapper (`LinuxSX1262Wrapper`) implements the `RadioLibWrapper` interface by hand, so it can drift from upstream in two ways: a new **pure-virtual** method breaks the Linux build (e.g. `setParams()`), and a new **virtual-with-default** method silently no-ops on Linux until overridden (e.g. `set`/`getRxBoostedGainMode()`, which reported and applied the wrong state until added). Mirror `CustomSX1262Wrapper` when syncing.
+- **Config path is hardcoded**, meshcored always loads `/etc/meshcored/meshcored.ini`; there is no flag to point it elsewhere. (The data *path* is separate and configurable: it is the ArduLinux VFS root, set with `--fsdir`.)
+- **Only repeater firmware**, there is no `linux_companion` target yet; companion radio support (BLE/serial interface to a phone app) is not implemented for Linux.
+- **Serial `erase` command is a no-op**, `formatFileSystem()` returns `false` on Linux, so the interactive serial `erase` command reports failure. To wipe the filesystem, use the `--erase` *startup* flag (or clear the VFS dir) instead, see step 5.
+- **No power management**, `board.sleep()` is a no-op; the power-saving loop in `main.cpp` never actually sleeps.
+- **Upstream-sync fragility**, the radio wrapper (`LinuxSX1262Wrapper`) implements the `RadioLibWrapper` interface by hand, so it can drift from upstream in two ways: a new **pure-virtual** method breaks the Linux build (e.g. `setParams()`), and a new **virtual-with-default** method silently no-ops on Linux until overridden (e.g. `set`/`getRxBoostedGainMode()`, which reported and applied the wrong state until added). Mirror `CustomSX1262Wrapper` when syncing.
