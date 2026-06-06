@@ -103,15 +103,14 @@ MyMesh the_mesh(radio_driver, fast_rng, rtc_clock, tables, store
 
 /* END GLOBAL OBJECTS */
 
+#if defined(WIFI_SSID) && defined(ESP32)
+static char _wifi_ssid[33];
+static char _wifi_pwd[65];
+#endif
+
 void halt() {
   while (1) ;
 }
-
-/* WIFI RECONNECT TRACKERS */
-#if defined(ESP32) && defined(WIFI_SSID)
-  bool wifi_needs_reconnect = false;
-  unsigned long last_wifi_reconnect_attempt = 0;
-#endif
 
 void setup() {
   Serial.begin(115200);
@@ -193,37 +192,33 @@ void setup() {
 // add wifi interface
 #ifdef WIFI_SSID
   board.setInhibitSleep(true);   // prevent sleep when WiFi is active
-  WiFi.setAutoReconnect(true);
 
-  WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info){
-      if (event == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) {
-          WIFI_DEBUG_PRINTLN("WiFi disconnected. Flagging for reconnect...");
-          wifi_needs_reconnect = true;
-      } else if (event == ARDUINO_EVENT_WIFI_STA_GOT_IP) {
-          WIFI_DEBUG_PRINTLN("WiFi connected successfully!");
-          wifi_needs_reconnect = false;
-      }
-  });
+  // Load credentials from flash if provisioned via CLI rescue; fall back to compiled-in defaults
+  strncpy(_wifi_ssid, WIFI_SSID, sizeof(_wifi_ssid) - 1);
+  strncpy(_wifi_pwd,  WIFI_PWD,  sizeof(_wifi_pwd)  - 1);
+  {
+    File wf = SPIFFS.open("/wifi_config", "r");
+    if (wf) {
+      String ssid = wf.readStringUntil('\n');
+      String pwd  = wf.readStringUntil('\n');
+      wf.close();
+      ssid.trim();
+      pwd.trim();
+      ssid.toCharArray(_wifi_ssid, sizeof(_wifi_ssid));
+      pwd.toCharArray(_wifi_pwd,   sizeof(_wifi_pwd));
+      WIFI_DEBUG_PRINTLN("Loaded credentials from flash, SSID: %s", _wifi_ssid);
+    } else {
+      WIFI_DEBUG_PRINTLN("No /wifi_config found, using compiled-in SSID: %s", _wifi_ssid);
+    }
+  }
 
-  WiFi.begin(WIFI_SSID, WIFI_PWD);
-  wifi_interface.begin(TCP_PORT);
-  interface_manager.addInterface(InterfaceType::WiFi, &wifi_interface);
-#endif
-
-// add usb interface
-#if defined(ENABLE_USB_INTERFACE)
-  usb_serial_interface.begin(Serial);
-  interface_manager.addInterface(InterfaceType::USB, &usb_serial_interface);
-#endif
-
-// add ethernet interface
-#if defined(ETHERNET_ENABLED)
-  ethernet_interface.begin();
-  interface_manager.addInterface(InterfaceType::Ethernet, &ethernet_interface);
-#endif
-
-// add hardware serial interface
-#if defined(SERIAL_RX)
+  WiFi.persistent(false);        // don't use/overwrite NVS-cached credentials
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(_wifi_ssid, _wifi_pwd);
+  serial_interface.begin(TCP_PORT);
+#elif defined(BLE_PIN_CODE)
+  serial_interface.begin(BLE_NAME_PREFIX, the_mesh.getNodePrefs()->node_name, the_mesh.getBLEPin());
+#elif defined(SERIAL_RX)
   companion_serial.setPins(SERIAL_RX, SERIAL_TX);
   companion_serial.begin(115200);
   hardware_serial_interface.begin(companion_serial);
@@ -244,6 +239,39 @@ void setup() {
   board.onBootComplete();
 }
 
+#if defined(WIFI_SSID) && defined(ESP32)
+static void wifi_reconnect_check() {
+  constexpr uint32_t CHECK_INTERVAL_MS  = 5000;
+  constexpr uint32_t RECONNECT_AFTER_MS = 30000;
+
+  static uint32_t last_check = 0;
+  static uint32_t down_since = 0;
+
+  if (millis() - last_check < CHECK_INTERVAL_MS) return;
+  last_check = millis();
+
+  if (WiFi.status() == WL_CONNECTED) {
+    down_since = 0;
+    return;
+  }
+
+  if (down_since == 0) {
+    down_since = millis();
+    WIFI_DEBUG_PRINTLN("WiFi disconnected, waiting to reconnect...");
+    return;
+  }
+
+  if (millis() - down_since >= RECONNECT_AFTER_MS) {
+    WIFI_DEBUG_PRINTLN("WiFi reconnecting...");
+    WiFi.disconnect(true);
+    WiFi.persistent(false);
+    WiFi.mode(WIFI_STA);
+    WiFi.begin(_wifi_ssid, _wifi_pwd);
+    down_since = 0;
+  }
+}
+#endif
+
 void loop() {
   the_mesh.loop();
   interface_manager.loop();
@@ -263,12 +291,6 @@ void loop() {
   }
 
 #if defined(ESP32) && defined(WIFI_SSID)
-  // Safely attempt to reconnect every 10 seconds if flagged
-  if (wifi_needs_reconnect && (millis() - last_wifi_reconnect_attempt > 10000)) {
-    WIFI_DEBUG_PRINTLN("Attempting manual WiFi reconnect...");
-    WiFi.disconnect();
-    WiFi.reconnect();
-    last_wifi_reconnect_attempt = millis();
-  }
+  wifi_reconnect_check();
 #endif
 }
