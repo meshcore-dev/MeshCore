@@ -803,7 +803,8 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
         memcpy(temp, &timestamp, 4);        // mostly an extra blob to help make packet_hash unique
         temp[4] = (TXT_TYPE_CLI_DATA << 2); // NOTE: legacy was: TXT_TYPE_PLAIN
 
-        auto reply = createDatagram(PAYLOAD_TYPE_TXT_MSG, client->id, acl.getEncryptionKey(*client), temp, 5 + text_len, acl.getEncryptionNonce(*client));
+        const uint8_t* send_key = acl.getEncryptionKey(*client);  // key before nonce: the nonce call advances fallback state
+        auto reply = createDatagram(PAYLOAD_TYPE_TXT_MSG, client->id, send_key, temp, 5 + text_len, acl.getEncryptionNonce(*client));
         if (reply) {
           if (client->out_path_len == OUT_PATH_UNKNOWN) {
             sendFloodReply(reply, CLI_REPLY_DELAY_MILLIS, packet->getPathHashSize());

@@ -492,17 +492,20 @@ void ClientACL::saveSessionKeys() {
   if (!_fs) return;
 
   // 1. Read old flash file into buffer (variable-length records)
-  uint8_t old_buf[MAX_SESSION_KEYS_FLASH * SESSION_KEY_RECORD_SIZE];
+  // heap, not stack: ~3.4KB is too large for the nRF52 loop stack
+  const int old_cap = MAX_SESSION_KEYS_FLASH * SESSION_KEY_RECORD_SIZE;
+  uint8_t* old_buf = (uint8_t*)malloc(old_cap);
+  if (!old_buf) return;
   int old_len = 0;
   File rf = openReadACL(_fs, "/s_sess_keys");
   if (rf) {
     while (true) {
-      if (old_len + SESSION_KEY_RECORD_MIN_SIZE > (int)sizeof(old_buf)) break;
+      if (old_len + SESSION_KEY_RECORD_MIN_SIZE > old_cap) break;
       if (rf.read(&old_buf[old_len], SESSION_KEY_RECORD_MIN_SIZE) != SESSION_KEY_RECORD_MIN_SIZE) break;
       uint8_t flags = old_buf[old_len + 4];
       int rec_len = SESSION_KEY_RECORD_MIN_SIZE;
       if (flags & SESSION_FLAG_PREV_VALID) {
-        if (old_len + SESSION_KEY_RECORD_SIZE > (int)sizeof(old_buf)) break;
+        if (old_len + SESSION_KEY_RECORD_SIZE > old_cap) break;
         if (rf.read(&old_buf[old_len + SESSION_KEY_RECORD_MIN_SIZE], SESSION_KEY_SIZE) != SESSION_KEY_SIZE) break;
         rec_len = SESSION_KEY_RECORD_SIZE;
       }
@@ -513,7 +516,7 @@ void ClientACL::saveSessionKeys() {
 
   // 2. Write merged file
   File wf = openWrite(_fs, "/s_sess_keys");
-  if (!wf) return;
+  if (!wf) { free(old_buf); return; }
 
   // Write kept old records (variable-length)
   int pos = 0;
@@ -547,4 +550,5 @@ void ClientACL::saveSessionKeys() {
   wf.close();
   _session_keys_dirty = false;
   session_keys.clearRemoved();
+  free(old_buf);
 }

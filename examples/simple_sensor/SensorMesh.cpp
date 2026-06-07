@@ -271,7 +271,8 @@ void SensorMesh::sendAlert(const ClientInfo* c, Trigger* t) {
   mesh::Utils::sha256((uint8_t *)&t->expected_acks[t->attempt], 4, data, 5 + text_len, self_id.pub_key, PUB_KEY_SIZE);
   t->attempt++;
 
-  auto pkt = createDatagram(PAYLOAD_TYPE_TXT_MSG, c->id, acl.getEncryptionKey(*c), data, 5 + text_len, acl.getEncryptionNonce(*c));
+  const uint8_t* send_key = acl.getEncryptionKey(*c);  // key before nonce: the nonce call advances fallback state
+  auto pkt = createDatagram(PAYLOAD_TYPE_TXT_MSG, c->id, send_key, data, 5 + text_len, acl.getEncryptionNonce(*c));
   if (pkt) {
     if (c->out_path_len != OUT_PATH_UNKNOWN) {  // we have an out_path, so send DIRECT
       sendDirect(pkt, c->out_path, c->out_path_len);
@@ -706,7 +707,8 @@ void SensorMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender_i
 
           if (packet->isRouteFlood()) {
             // let this sender know path TO here, so they can use sendDirect(), and ALSO encode the ACK
-            mesh::Packet* path = createPathReturn(from->id, acl.getEncryptionKey(*from), packet->path, packet->path_len,
+            const uint8_t* send_key = acl.getEncryptionKey(*from);  // key before nonce: the nonce call advances fallback state
+            mesh::Packet* path = createPathReturn(from->id, send_key, packet->path, packet->path_len,
                                                   PAYLOAD_TYPE_ACK, (uint8_t *) &ack_hash, 4, acl.getEncryptionNonce(*from));
             if (path) sendFloodReply(path, TXT_ACK_DELAY, packet->getPathHashSize());
           } else {
@@ -735,7 +737,8 @@ void SensorMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender_i
           memcpy(temp, &timestamp, 4);   // mostly an extra blob to help make packet_hash unique
           temp[4] = (TXT_TYPE_CLI_DATA << 2);
 
-          auto reply = createDatagram(PAYLOAD_TYPE_TXT_MSG, from->id, acl.getEncryptionKey(*from), temp, 5 + text_len, acl.getEncryptionNonce(*from));
+          const uint8_t* send_key = acl.getEncryptionKey(*from);  // key before nonce: the nonce call advances fallback state
+          auto reply = createDatagram(PAYLOAD_TYPE_TXT_MSG, from->id, send_key, temp, 5 + text_len, acl.getEncryptionNonce(*from));
           if (reply) {
             if (from->out_path_len == OUT_PATH_UNKNOWN) {
               sendFloodReply(reply, CLI_REPLY_DELAY_MILLIS, packet->getPathHashSize());

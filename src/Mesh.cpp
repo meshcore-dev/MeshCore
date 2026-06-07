@@ -221,7 +221,8 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
                 if (onPeerPathRecv(pkt, j, secret, path, path_len, extra_type, extra, extra_len)) {
                   if (pkt->isRouteFlood()) {
                     // send a reciprocal return path to sender, but send DIRECTLY!
-                    mesh::Packet* rpath = createPathReturn(&src_hash, getPeerEncryptionKey(j, secret), pkt->path, pkt->path_len, 0, NULL, 0, getPeerEncryptionNonce(j));
+                    const uint8_t* enc_key = getPeerEncryptionKey(j, secret);  // key before nonce: the nonce call advances fallback state
+                    mesh::Packet* rpath = createPathReturn(&src_hash, enc_key, pkt->path, pkt->path_len, 0, NULL, 0, getPeerEncryptionNonce(j));
                     if (rpath) sendDirect(rpath, path, path_len, 500);
                   }
                 }
