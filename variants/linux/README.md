@@ -14,17 +14,20 @@ Native Linux support for MeshCore, targeting Raspberry Pi (Zero, 3, 4, 5) and si
 
 ```sh
 # Arch Linux
-sudo pacman -S libgpiod i2c-tools bluez-libs libuv
+sudo pacman -S pkgconf libgpiod i2c-tools bluez-libs libuv
 
 # Debian/Raspberry Pi OS
-sudo apt install libgpiod-dev libi2c-dev libbluetooth-dev libuv1-dev
+sudo apt install pkg-config libgpiod-dev libi2c-dev libbluetooth-dev libuv1-dev
 ```
+
+> On DietPi the base image does not include `pkg-config`; without it the build
+> silently falls back to simulated GPIO/I2C even when `libgpiod-dev` is
+> installed, and the resulting `meshcored` won't talk to the radio.
 
 The ArduLinux platform always links `bluetooth`, `uv`, `pthread`, and
 `stdc++fs`; `gpiod`/`i2c` are added automatically when libgpiod is detected via
-`pkg-config` (without it the build falls back to simulated GPIO/I2C). Missing
-`bluez-libs`/`libbluetooth-dev` shows up as a `cannot find -lbluetooth` link
-error.
+`pkg-config`. Missing `bluez-libs`/`libbluetooth-dev` shows up as a `cannot
+find -lbluetooth` link error.
 
 You also need **PlatformIO Core** (`pio`) to build:
 
