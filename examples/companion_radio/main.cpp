@@ -84,8 +84,9 @@ static uint32_t _atoi(const char* sp) {
     #ifndef TCP_PORT
       #define TCP_PORT 5000
     #endif
-    // Static IP (no DHCP): predictable address for Home Assistant AND avoids
-    // the multi-second blocking DHCP that reboot-loops the device on PoE.
+    // Fallback static IP, used only if DHCP fails (or if ETH_STATIC_ONLY is
+    // set). DHCP is the default and is done deferred, after the PoE supply is
+    // latched, so it no longer reboot-loops the device on cold start.
     // Override per network if needed (octets are comma-separated).
     #ifndef ETH_STATIC_IP
       #define ETH_STATIC_IP  192,168,1,50
@@ -376,11 +377,30 @@ void loop() {
   // collapse the marginal PoE supply if done during setup() (reboot loop).
   static bool _eth_up = false;
   if (!_eth_up && millis() > 6000) {
+#if defined(ETH_STATIC_ONLY)
+    // Static-only (opt-out of DHCP via -D ETH_STATIC_ONLY).
     IPAddress sip(ETH_STATIC_IP), sgw(ETH_GATEWAY), ssn(ETH_SUBNET);
     Ethernet.begin(g_eth_mac, sip, sgw, sgw, ssn);  // inits chip mode/sockets (PHY soft-reset)
     serial_interface.begin(TCP_PORT);               // start TCP server
     delay(50);
     eth_write_netcfg(g_eth_mac);                    // force IP/GW/SN/MAC (reliable here)
+#else
+    // Default: DHCP, but only HERE (deferred) where the PoE supply is already
+    // latched, so the blocking DHCP exchange can't collapse the converter at
+    // cold start. Bounded timeout; fall back to the static IP if no DHCP server
+    // answers, so the node is always reachable and never reboot-loops. Use a
+    // DHCP reservation on the router for a stable address.
+    Serial.println("Ethernet: trying DHCP (deferred)...");
+    int dhcp_ok = Ethernet.begin(g_eth_mac, 12000, 4000);  // 12s lease, 4s resp
+    if (!dhcp_ok) {
+      IPAddress sip(ETH_STATIC_IP), sgw(ETH_GATEWAY), ssn(ETH_SUBNET);
+      Ethernet.begin(g_eth_mac, sip, sgw, sgw, ssn);
+      delay(50);
+      eth_write_netcfg(g_eth_mac);                  // force static into W5100S regs
+      Serial.println("Ethernet: DHCP failed -> static IP fallback");
+    }
+    serial_interface.begin(TCP_PORT);               // start TCP server
+#endif
     _eth_up = true;
     IPAddress ip = Ethernet.localIP();
     Serial.print("Ethernet up (deferred): ");
@@ -388,5 +408,10 @@ void loop() {
     Serial.print(ip[2]); Serial.print('.'); Serial.print(ip[3]);
     Serial.print(":"); Serial.println(TCP_PORT);
   }
+#if !defined(ETH_STATIC_ONLY)
+  else if (_eth_up) {
+    Ethernet.maintain();   // renew the DHCP lease in the background
+  }
+#endif
 #endif
 }
