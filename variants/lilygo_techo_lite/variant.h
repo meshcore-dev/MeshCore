@@ -95,9 +95,6 @@
 #define PIN_BUTTON2             _PINNUM(0, 18)
 #define BUTTON_PIN2             PIN_BUTTON2
 
-#define EXTERNAL_FLASH_DEVICES MX25R1635F
-#define EXTERNAL_FLASH_USE_QSPI
-
 ////////////////////////////////////////////////////////////////////////////////
 // Lora
 
