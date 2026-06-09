@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <exception>
 #ifdef ARDULINUX_HARDWARE
 #include "linux/gpio/LinuxGPIOPin.h"
 #endif
@@ -24,8 +25,13 @@ int initGPIOPin(uint8_t pinNum, const std::string gpioChipName, uint8_t line)
     csPin->setSilent();
     gpioBind(csPin);
     return 0;
+  } catch (const std::exception& e) {
+    printf("ERROR: cannot claim GPIO line %d on %s for pin %d: %s\n",
+           (int)line, gpioChipName.c_str(), (int)pinNum, e.what());
+    return 1;
   } catch (...) {
-    MESH_DEBUG_PRINTLN("Warning, cannot claim pin %d", pinNum);
+    printf("ERROR: cannot claim GPIO line %d on %s for pin %d (unknown exception)\n",
+           (int)line, gpioChipName.c_str(), (int)pinNum);
     return 1;
   }
 #else
@@ -37,6 +43,17 @@ void ardulinuxSetup() {
 }
 
 void LinuxBoard::begin() {
+#ifndef ARDULINUX_HARDWARE
+  printf("FATAL: meshcored was built without libgpiod support; all GPIO/I2C\n"
+         "       operations would be simulated and the radio cannot be driven.\n"
+         "       Install pkg-config and libgpiod-dev on the build machine, clear\n"
+         "       the PlatformIO cache, and rebuild:\n"
+         "         sudo apt install -y pkg-config libgpiod-dev\n"
+         "         rm -rf ~/.platformio/platforms/ardulinux* .pio\n"
+         "         pio run -e linux_repeater\n");
+  exit(1);
+#endif
+
   config.load("/etc/meshcored/meshcored.ini");
 
   printf("SPI begin %s\n", config.spidev);
@@ -50,23 +67,29 @@ void LinuxBoard::begin() {
          (int)config.lora_rxen_pin,
          (int)config.lora_txen_pin);
 
+  int failures = 0;
   if (config.lora_nss_pin != RADIOLIB_NC) {
-    initGPIOPin(config.lora_nss_pin, "gpiochip0", config.lora_nss_pin);
+    failures += initGPIOPin(config.lora_nss_pin, "gpiochip0", config.lora_nss_pin);
   }
   if (config.lora_busy_pin != RADIOLIB_NC) {
-    initGPIOPin(config.lora_busy_pin, "gpiochip0", config.lora_busy_pin);
+    failures += initGPIOPin(config.lora_busy_pin, "gpiochip0", config.lora_busy_pin);
   }
   if (config.lora_irq_pin != RADIOLIB_NC) {
-    initGPIOPin(config.lora_irq_pin, "gpiochip0", config.lora_irq_pin);
+    failures += initGPIOPin(config.lora_irq_pin, "gpiochip0", config.lora_irq_pin);
   }
   if (config.lora_reset_pin != RADIOLIB_NC) {
-    initGPIOPin(config.lora_reset_pin, "gpiochip0", config.lora_reset_pin);
+    failures += initGPIOPin(config.lora_reset_pin, "gpiochip0", config.lora_reset_pin);
   }
   if (config.lora_rxen_pin != RADIOLIB_NC) {
-    initGPIOPin(config.lora_rxen_pin, "gpiochip0", config.lora_rxen_pin);
+    failures += initGPIOPin(config.lora_rxen_pin, "gpiochip0", config.lora_rxen_pin);
   }
   if (config.lora_txen_pin != RADIOLIB_NC) {
-    initGPIOPin(config.lora_txen_pin, "gpiochip0", config.lora_txen_pin);
+    failures += initGPIOPin(config.lora_txen_pin, "gpiochip0", config.lora_txen_pin);
+  }
+
+  if (failures > 0) {
+    printf("FATAL: %d GPIO pin(s) failed to bind; cannot start radio.\n", failures);
+    exit(1);
   }
 }
 
