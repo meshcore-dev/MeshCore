@@ -69,22 +69,22 @@ void LinuxBoard::begin() {
 
   int failures = 0;
   if (config.lora_nss_pin != RADIOLIB_NC) {
-    failures += initGPIOPin(config.lora_nss_pin, "gpiochip0", config.lora_nss_pin);
+    failures += initGPIOPin(config.lora_nss_pin, config.lora_gpiochip, config.lora_nss_pin);
   }
   if (config.lora_busy_pin != RADIOLIB_NC) {
-    failures += initGPIOPin(config.lora_busy_pin, "gpiochip0", config.lora_busy_pin);
+    failures += initGPIOPin(config.lora_busy_pin, config.lora_gpiochip, config.lora_busy_pin);
   }
   if (config.lora_irq_pin != RADIOLIB_NC) {
-    failures += initGPIOPin(config.lora_irq_pin, "gpiochip0", config.lora_irq_pin);
+    failures += initGPIOPin(config.lora_irq_pin, config.lora_gpiochip, config.lora_irq_pin);
   }
   if (config.lora_reset_pin != RADIOLIB_NC) {
-    failures += initGPIOPin(config.lora_reset_pin, "gpiochip0", config.lora_reset_pin);
+    failures += initGPIOPin(config.lora_reset_pin, config.lora_gpiochip, config.lora_reset_pin);
   }
   if (config.lora_rxen_pin != RADIOLIB_NC) {
-    failures += initGPIOPin(config.lora_rxen_pin, "gpiochip0", config.lora_rxen_pin);
+    failures += initGPIOPin(config.lora_rxen_pin, config.lora_gpiochip, config.lora_rxen_pin);
   }
   if (config.lora_txen_pin != RADIOLIB_NC) {
-    failures += initGPIOPin(config.lora_txen_pin, "gpiochip0", config.lora_txen_pin);
+    failures += initGPIOPin(config.lora_txen_pin, config.lora_gpiochip, config.lora_txen_pin);
   }
 
   if (failures > 0) {
@@ -149,6 +149,7 @@ int LinuxConfig::load(const char *filename) {
     }
 
     if (strcmp(key, "spidev") == 0)         spidev = safe_copy(value, 32);
+    else if (strcmp(key, "lora_gpiochip") == 0) lora_gpiochip = safe_copy(value, 32);
     else if (strcmp(key, "lora_freq") == 0) lora_freq = atof(value);
     else if (strcmp(key, "lora_bw") == 0)   lora_bw = atof(value);
     else if (strcmp(key, "lora_sf") == 0)   lora_sf = (uint8_t)atoi(value);

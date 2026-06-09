@@ -20,14 +20,14 @@ sudo pacman -S pkgconf libgpiod i2c-tools bluez-libs libuv
 sudo apt install pkg-config libgpiod-dev libi2c-dev libbluetooth-dev libuv1-dev
 ```
 
-> On DietPi the base image does not include `pkg-config`; without it the build
-> silently falls back to simulated GPIO/I2C even when `libgpiod-dev` is
-> installed, and the resulting `meshcored` won't talk to the radio.
-
 The ArduLinux platform always links `bluetooth`, `uv`, `pthread`, and
 `stdc++fs`; `gpiod`/`i2c` are added automatically when libgpiod is detected via
-`pkg-config`. Missing `bluez-libs`/`libbluetooth-dev` shows up as a `cannot
-find -lbluetooth` link error.
+`pkg-config`. If `pkg-config` is missing (e.g. on DietPi, which does not ship
+it in the base image), libgpiod goes undetected and the build falls back to
+simulated GPIO/I2C — the resulting `meshcored` will refuse to start with a
+`FATAL: meshcored was built without libgpiod support` message pointing back at
+the missing dep. Missing `bluez-libs`/`libbluetooth-dev` shows up at link time
+as `cannot find -lbluetooth`.
 
 You also need **PlatformIO Core** (`pio`) to build:
 
@@ -85,6 +85,7 @@ Key settings:
 | Key | Default | Notes |
 |-----|---------|-------|
 | `spidev` | `/dev/spidev0.0` | SPI device node |
+| `lora_gpiochip` | `gpiochip0` | Name of the `/dev/gpiochip*` device (or kernel label). `gpiochip0` is correct for Pi 3/4/Zero 2W; Pi 5 may need `gpiochip4` or `pinctrl-rp1` depending on kernel |
 | `lora_irq_pin` | (none) | GPIO line number for IRQ |
 | `lora_reset_pin` | (none) | GPIO line number for RESET |
 | `lora_nss_pin` | (none) | GPIO line number for NSS/CS (if not handled by the SPI driver) |

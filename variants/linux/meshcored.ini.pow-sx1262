@@ -3,6 +3,7 @@
 
 # Hardware config (read on every startup):
 spidev = /dev/spidev0.0
+# lora_gpiochip = gpiochip0   # Pi 3/4/Zero 2W default; Pi 5 may need gpiochip4 or pinctrl-rp1
 lora_irq_pin = 22
 lora_reset_pin = 13
 # lora_nss_pin - SS is handled by the SPI driver; not needed

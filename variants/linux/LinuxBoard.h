@@ -31,6 +31,7 @@ public:
   bool rx_boosted_gain = true;
 
   char* spidev = "/dev/spidev0.0";
+  char* lora_gpiochip = "gpiochip0";
 
   float lora_tcxo = 1.8f;
 
