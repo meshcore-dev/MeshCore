@@ -36,8 +36,8 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 ### Power-off the node
 **Usage:**
 - `poweroff`, or
-- `shutdown
-`
+- `shutdown`
+
 **Note:** No reply is sent.
 
 ---
@@ -674,7 +674,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 **Parameters:**
 - `value`: Maximum flood hop count (0-64) for a packet without a scope (no region set)
 
-**Default:** `64` - indicates it hasn't been set, will track flood.max until it is.
+**Default:** `64` - (`0xFF` indicates it hasn't been set, will track flood.max until it is.)
 
 **Note:** An alternative to `region denyf *`, setting `flood.max.unscoped` to a lower value such as `3` would allow for local unscoped messages to propagate, while preventing noisy neighbors from flooding a local region.
 
