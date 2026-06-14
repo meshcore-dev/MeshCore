@@ -1,9 +1,30 @@
 #include <helpers/MigrateContactsToChunks.h>
 #include <helpers/ContactInfo.h>
-#include <Adafruit_LittleFS.h>
-using namespace Adafruit_LittleFS_Namespace;
 
-static void writeContactChunk(Adafruit_LittleFS& fs, uint8_t* chunkBuf, uint8_t chunkIndex, uint8_t count) {
+// openWrite/Read are mirrored from DataStore so that we can use the platform abstraction layer without
+// depending on full DataStore, so that we can more cleanly remove the MigrateContactsToChunks code in future
+static File openWrite(FILESYSTEM* fs, const char* filename) {
+#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
+  fs->remove(filename);
+  return fs->open(filename, FILE_O_WRITE);
+#elif defined(RP2040_PLATFORM)
+  return fs->open(filename, "w");
+#else
+  return fs->open(filename, "w", true);
+#endif
+}
+
+static File openRead(FILESYSTEM* fs, const char* filename) {
+#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
+  return fs->open(filename, FILE_O_READ);
+#elif defined(RP2040_PLATFORM)
+  return fs->open(filename, "r");
+#else
+  return fs->open(filename, "r", false);
+#endif
+}
+
+static void writeContactChunk(FILESYSTEM* fs, uint8_t* chunkBuf, uint8_t chunkIndex, uint8_t count) {
     const uint32_t chunkSize = sizeof(ChunkHeader) + (SLOTS_PER_CHUNK * CONTACT_RECORD_SIZE);
     const uint32_t usedBytes = (uint32_t)count * CONTACT_RECORD_SIZE;
 
@@ -24,11 +45,11 @@ static void writeContactChunk(Adafruit_LittleFS& fs, uint8_t* chunkBuf, uint8_t 
 
     char filename[20];
     snprintf(filename, sizeof(filename), "/contacts3_%02d", chunkIndex);
-    File f = fs.open(filename, FILE_O_WRITE);
+    File f = openWrite(fs, filename);
     if (f) { f.write(chunkBuf, chunkSize); f.close(); }
 }
 
-void migrateContactsFromBuffer(Adafruit_LittleFS& fs, const uint8_t* data, uint32_t dataSize) {
+void migrateContactsFromBuffer(FILESYSTEM* fs, const uint8_t* data, uint32_t dataSize) {
     const uint32_t chunkSize = sizeof(ChunkHeader) + (SLOTS_PER_CHUNK * CONTACT_RECORD_SIZE);
     uint32_t numContacts = dataSize / CONTACT_RECORD_SIZE;
     uint32_t numChunks   = (numContacts + SLOTS_PER_CHUNK - 1) / SLOTS_PER_CHUNK;
@@ -56,8 +77,8 @@ void migrateContactsFromBuffer(Adafruit_LittleFS& fs, const uint8_t* data, uint3
     free(chunkBuf);
 }
 
-bool migrateContactsFromFile(Adafruit_LittleFS& fs, uint8_t* chunkBuf) {
-    File in = fs.open("/contacts3", FILE_O_READ);
+bool migrateContactsFromFile(FILESYSTEM* fs, uint8_t* chunkBuf) {
+    File in = openRead(fs, "/contacts3");
     if (!in) return false;
 
     uint32_t numContacts = in.size() / CONTACT_RECORD_SIZE;

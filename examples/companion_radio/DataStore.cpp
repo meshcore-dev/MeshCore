@@ -339,7 +339,7 @@ void DataStore::loadContacts(DataStoreHost* host) {
 
   // if monolithic contacts3 exists, migrate it to chunks
   if (_getContactsChannelsFS()->exists("/contacts3")) {
-      if (migrateContactsFromFile(*_getContactsChannelsFS(), chunkBuf))
+      if (migrateContactsFromFile(_getContactsChannelsFS(), chunkBuf))
           _getContactsChannelsFS()->remove("/contacts3");
       else
           return;

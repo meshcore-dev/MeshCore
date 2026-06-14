@@ -92,7 +92,7 @@ void migrateTo4kBlocks(CustomLFS2& secondaryFS, uint32_t oldBlockSize) {
 
             if (reformatTo4K(secondaryFS)) {
                 if (contacts.data && contacts.size > 0) {
-                    migrateContactsFromBuffer(secondaryFS, contacts.data, contacts.size);
+                    migrateContactsFromBuffer(&secondaryFS, contacts.data, contacts.size);
                 }
 
                 if (channels.data && channels.size > 0) {
