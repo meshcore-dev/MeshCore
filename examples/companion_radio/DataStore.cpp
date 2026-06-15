@@ -26,7 +26,7 @@ DataStore::DataStore(FILESYSTEM& fs, mesh::RTCClock& clock) : _fs(&fs), _fsExtra
 #if defined(EXTRAFS) || defined(QSPIFLASH)
 DataStore::DataStore(FILESYSTEM& fs, FILESYSTEM& fsExtra, mesh::RTCClock& clock) : _fs(&fs), _fsExtra(&fsExtra), _clock(&clock),
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
-    identity_store(fs, "")
+    identity_store(fsExtra, "", fs)
 #elif defined(RP2040_PLATFORM)
     identity_store(fs, "/identity")
 #else
