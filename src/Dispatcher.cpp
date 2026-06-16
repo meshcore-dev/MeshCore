@@ -210,6 +210,7 @@ void Dispatcher::checkRecv() {
       } else {
         if (tryParsePacket(pkt, raw, len)) {
           pkt->_snr = _radio->getLastSNR() * 4.0f;
+          pkt->_tx_cr = 0;   // pool slots are reused without zeroing; clear stale CR override so flood/non-direct retransmits use the default CR
           score = _radio->packetScore(_radio->getLastSNR(), len);
           air_time = _radio->getEstAirtimeFor(len);
           rx_air_time += air_time;
