@@ -74,7 +74,10 @@ uint32_t Dispatcher::estimateLoRaAirtimeFor(int len_bytes, uint8_t sf, float bw_
   float low_data_rate_optimize = ldro_enabled ? 1.0f : 0.0f;
   float implicit_header = 0.0f;
   float crc_enabled = 1.0f;
-  float preamble_symbols = 16.0f;
+  // Preamble length is SF-dependent (RadioLibWrapper::preambleLengthForSF): 32 symbols for
+  // SF<=8, else 16. Hardcoding 16 under-counts airtime by 16 symbols on SF7/SF8 (the default
+  // is SF8), which would skew retransmit delays and the TX-expiry watchdog.
+  float preamble_symbols = (sf <= 8) ? 32.0f : 16.0f;
   float payload_symbols = 8.0f + fmaxf(ceilf((8.0f * (float)len_bytes - 4.0f * (float)sf + 28.0f + 16.0f * crc_enabled - 20.0f * implicit_header) /
                                              (4.0f * (float)sf - 8.0f * low_data_rate_optimize)) * (float)cr, 0.0f);
   float total_symbols = preamble_symbols + payload_symbols + 4.25f;
