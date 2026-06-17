@@ -72,12 +72,13 @@ static uint8_t* _channelsData = NULL;
 static uint32_t _channelsSize = 0;
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
   #include <InternalFileSystem.h>
-  #include "helpers/nrf52/MigrateTo4K.h"
   #if defined(QSPIFLASH)
+  #include "helpers/nrf52/MigrateTo4K.h"
     #include <CustomLFS2_QSPIFlash.h>
     DataStore store(InternalFS, QSPIFlash, rtc_clock);
   #else
   #if defined(EXTRAFS)
+  #include "helpers/nrf52/MigrateTo4K.h"
     #include <CustomLFS2.h>
     CustomLFS2 ExtraFS(0xD4000, 0x19000, 4096);
     DataStore store(InternalFS, ExtraFS, rtc_clock);
