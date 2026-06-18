@@ -596,6 +596,27 @@ Lists the **attached leaf clients** — companion/sensor/room-server nodes for w
 
 ---
 
+#### View or set the reply path override for the current remote client
+**Usage:**
+- `get outpath`
+- `set outpath <hop1_hex,hop2_hex,...>`
+- `set outpath direct`
+- `set outpath clear`
+- `set outpath flood`
+
+**Parameters:**
+- `hopN_hex`: Hop hash, `2`, `4`, or `6` hex characters. All hops must use the same width.
+
+**Notes:**
+- These commands require remote client context (they target the caller's ACL entry).
+- The path hash size is inferred from the hop hash width.
+- A configured hop list replaces the stored direct reply route used for that caller.
+- `direct` sets a zero-hop direct route for a caller reachable without repeaters.
+- `clear` forgets the current direct path and allows normal path discovery to repopulate it.
+- `flood` forces replies to use flood packets until the client logs in again.
+
+---
+
 #### [Experimental] View or change the processing delay for received traffic
 **Usage:**
 - `get rxdelay`
@@ -934,27 +955,6 @@ so the probe's first hop reaches marginal near neighbours — see the tuning not
 
 **Parameters:**
 - `name`: Region name,  or <null> to reset/clear
-
----
-
-#### View or set the direct path override for the current remote client
-**Usage:**
-- `get outpath`
-- `set outpath <hop1_hex,hop2_hex,...>`
-- `set outpath direct`
-- `set outpath clear`
-- `set outpath flood`
-
-**Parameters:**
-- `hopN_hex`: Hop hash, `2`, `4`, or `6` hex characters. All hops must use the same width.
-
-**Notes:**
-- These commands require remote client context (they target the caller's ACL entry).
-- The path hash size is inferred from the hop hash width.
-- `outpath` overrides the primary direct route used for replies to the caller.
-- `direct` sets a zero-hop direct route for a caller reachable without repeaters.
-- `clear` forgets the current direct path and allows normal path discovery to repopulate it.
-- `flood` forces replies to use flood packets until the client logs in again.
 
 ---
 
