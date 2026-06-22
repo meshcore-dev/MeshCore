@@ -189,6 +189,9 @@ bool RadioLibWrapper::isSendComplete() {
 void RadioLibWrapper::onSendFinished() {
   _radio->finishTransmit();
   _board->onAfterTransmit();
+  if (isJapanMode()) {
+    delay(50);  // ARIB STD-T108 §3.4.1: >= 50ms between transmissions
+  }
   state = STATE_IDLE;
 }
 
