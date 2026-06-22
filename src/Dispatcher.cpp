@@ -60,7 +60,7 @@ uint32_t Dispatcher::getCADFailRetryDelay() const {
   return 200;
 }
 uint32_t Dispatcher::getCADFailMaxDuration() const {
-  if (_radio->isJapanMode()) return UINT32_MAX;  // ARIB STD-T108: never force TX during LBT
+  if (_radio->isAS923_1_JP()) return UINT32_MAX;  // ARIB STD-T108: never force TX during LBT
   return 4000;   // 4 seconds
 }
 

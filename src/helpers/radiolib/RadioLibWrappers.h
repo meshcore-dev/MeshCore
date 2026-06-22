@@ -60,7 +60,7 @@ public:
   virtual uint8_t getCodingRate() const { return 8; }   // default CR4/8, override in subclass
   virtual float getFreqMHz() const { return 0.0f; }     // default unknown, override in subclass
 
-  bool isJapanMode() const override {
+  bool isAS923_1_JP() const override {
     float freq = getFreqMHz();
     return (fabsf(freq - 920.800f) < 0.05f ||
             fabsf(freq - 921.000f) < 0.05f ||
@@ -68,7 +68,7 @@ public:
   }
 
   int getMaxTextLen() const {
-    if (!isJapanMode()) return 10 * 16;  // default 160 bytes
+    if (!isAS923_1_JP()) return 10 * 16;  // default 160 bytes
     uint8_t cr = getCodingRate();
     if (cr <= 5) return 64;  // 3874ms @ SF12/BW125/CR4-5
     if (cr == 6) return 48;  // 3874ms @ SF12/BW125/CR4-6
@@ -77,7 +77,7 @@ public:
   }
 
   int getMaxGroupTextLen() const {
-    if (!isJapanMode()) return 10 * 16;  // default 160 bytes
+    if (!isAS923_1_JP()) return 10 * 16;  // default 160 bytes
     uint8_t cr = getCodingRate();
     if (cr <= 5) return 64;  // 3710ms @ SF12/BW125/CR4-5
     if (cr == 6) return 48;  // 3678ms @ SF12/BW125/CR4-6
