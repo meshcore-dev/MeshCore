@@ -56,6 +56,34 @@ public:
   static uint16_t preambleLengthForSF(uint8_t sf) { return sf <= 8 ? 32 : 16; }
   void updatePreamble(uint8_t sf) { _preamble_sf = sf; _radio->setPreambleLength(preambleLengthForSF(sf)); }
   PacketMillis calcMaxPacketMillis(uint8_t sf, float bw, uint8_t cr, uint8_t preambleSymbols);
+  virtual uint8_t getCodingRate() const { return 8; }   // default CR4/8, override in subclass
+  virtual float getFreqMHz() const { return 0.0f; }     // default unknown, override in subclass
+
+  bool isJapanMode() const {
+    float freq = getFreqMHz();
+    return (fabsf(freq - 920.800f) < 0.05f ||
+            fabsf(freq - 921.000f) < 0.05f ||
+            fabsf(freq - 921.200f) < 0.05f);
+  }
+
+  int getMaxTextLen() const {
+    if (!isJapanMode()) return 10 * 16;  // default 160 bytes
+    uint8_t cr = getCodingRate();
+    if (cr <= 5) return 64;  // 3874ms @ SF12/BW125/CR4-5
+    if (cr == 6) return 48;  // 3874ms @ SF12/BW125/CR4-6
+    if (cr == 7) return 32;  // 3678ms @ SF12/BW125/CR4-7
+    return 24;               // 3547ms @ SF12/BW125/CR4-8
+  }
+
+  int getMaxGroupTextLen() const {
+    if (!isJapanMode()) return 10 * 16;  // default 160 bytes
+    uint8_t cr = getCodingRate();
+    if (cr <= 5) return 64;  // 3710ms @ SF12/BW125/CR4-5
+    if (cr == 6) return 48;  // 3678ms @ SF12/BW125/CR4-6
+    if (cr == 7) return 39;  // 3907ms @ SF12/BW125/CR4-7
+    return 29;               // 3809ms @ SF12/BW125/CR4-8
+  }
+
   virtual int16_t performChannelScan();
 
   int getNoiseFloor() const override { return _noise_floor; }
