@@ -60,7 +60,7 @@ public:
   virtual uint8_t getCodingRate() const { return 8; }   // default CR4/8, override in subclass
   virtual float getFreqMHz() const { return 0.0f; }     // default unknown, override in subclass
 
-  bool isJapanMode() const {
+  bool isJapanMode() const override {
     float freq = getFreqMHz();
     return (fabsf(freq - 920.800f) < 0.05f ||
             fabsf(freq - 921.000f) < 0.05f ||
