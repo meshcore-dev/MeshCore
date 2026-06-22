@@ -419,8 +419,9 @@ void BaseChatMesh::onGroupDataRecv(mesh::Packet* packet, uint8_t type, const mes
 
 mesh::Packet* BaseChatMesh::composeMsgPacket(const ContactInfo& recipient, uint32_t timestamp, uint8_t attempt, const char *text, uint32_t& expected_ack) {
   int text_len = strlen(text);
-  if (text_len > MAX_TEXT_LEN) return NULL;
-  if (attempt > 3 && text_len > MAX_TEXT_LEN-2) return NULL;
+  int max_len = _radio->getMaxTextLen();
+  if (text_len > max_len) return NULL;
+  if (attempt > 3 && text_len > max_len - 2) return NULL;
 
   uint8_t temp[5+MAX_TEXT_LEN+1];
   memcpy(temp, &timestamp, 4);   // mostly an extra blob to help make packet_hash unique
@@ -460,7 +461,8 @@ int  BaseChatMesh::sendMessage(const ContactInfo& recipient, uint32_t timestamp,
 
 int  BaseChatMesh::sendCommandData(const ContactInfo& recipient, uint32_t timestamp, uint8_t attempt, const char* text, uint32_t& est_timeout) {
   int text_len = strlen(text);
-  if (text_len > MAX_TEXT_LEN) return MSG_SEND_FAILED;
+  int max_len = _radio->getMaxTextLen();
+  if (text_len > max_len) return MSG_SEND_FAILED;
 
   uint8_t temp[5+MAX_TEXT_LEN+1];
   memcpy(temp, &timestamp, 4);   // mostly an extra blob to help make packet_hash unique
@@ -493,7 +495,8 @@ bool BaseChatMesh::sendGroupMessage(uint32_t timestamp, mesh::GroupChannel& chan
   char *ep = strchr((char *) &temp[5], 0);
   int prefix_len = ep - (char *) &temp[5];
 
-  if (text_len + prefix_len > MAX_TEXT_LEN) text_len = MAX_TEXT_LEN - prefix_len;
+  int max_len = _radio->getMaxGroupTextLen();
+  if (text_len + prefix_len > max_len) text_len = max_len - prefix_len;
   memcpy(ep, text, text_len);
   ep[text_len] = 0;  // null terminator
 

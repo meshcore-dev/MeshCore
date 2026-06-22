@@ -80,6 +80,9 @@ public:
   virtual float getLastSNR() const { return 0; }
 
   virtual bool isAS923_1_JP() const { return false; }
+
+  virtual int getMaxTextLen() const { return 10 * 16; }       // default 160 bytes
+  virtual int getMaxGroupTextLen() const { return 10 * 16; }  // default 160 bytes
 };
 
 /**

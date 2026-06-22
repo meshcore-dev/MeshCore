@@ -67,7 +67,7 @@ public:
             fabsf(freq - 921.200f) < 0.05f);
   }
 
-  int getMaxTextLen() const {
+  int getMaxTextLen() const override {
     if (!isAS923_1_JP()) return 10 * 16;  // default 160 bytes
     uint8_t cr = getCodingRate();
     if (cr <= 5) return 64;  // 3874ms @ SF12/BW125/CR4-5
@@ -76,7 +76,7 @@ public:
     return 24;               // 3547ms @ SF12/BW125/CR4-8
   }
 
-  int getMaxGroupTextLen() const {
+  int getMaxGroupTextLen() const override {
     if (!isAS923_1_JP()) return 10 * 16;  // default 160 bytes
     uint8_t cr = getCodingRate();
     if (cr <= 5) return 64;  // 3710ms @ SF12/BW125/CR4-5
