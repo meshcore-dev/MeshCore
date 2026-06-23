@@ -7,40 +7,41 @@
 // widening the PlatformIO test build filter.
 #include "../../src/helpers/StaticPoolPacketManager.cpp"
 
-TEST(StaticPoolPacketManager, PeekNextOutboundReturnsBestDuePacketWithoutRemovingIt) {
-    StaticPoolPacketManager manager(4);
-
-    mesh::Packet* low_priority = manager.allocNew();
-    mesh::Packet* high_priority = manager.allocNew();
-    mesh::Packet* future = manager.allocNew();
-
-    ASSERT_NE(nullptr, low_priority);
-    ASSERT_NE(nullptr, high_priority);
-    ASSERT_NE(nullptr, future);
-
-    manager.queueOutbound(low_priority, 5, 100);
-    manager.queueOutbound(high_priority, 1, 100);
-    manager.queueOutbound(future, 0, 200);
-
-    EXPECT_EQ(high_priority, manager.peekNextOutbound(100));
-    EXPECT_EQ(3, manager.getOutboundTotal());
-
-    EXPECT_EQ(high_priority, manager.getNextOutbound(100));
-    EXPECT_EQ(2, manager.getOutboundTotal());
-    EXPECT_EQ(low_priority, manager.peekNextOutbound(100));
+namespace mesh {
+Packet::Packet() {
+    header = 0;
+    path_len = 0;
+    payload_len = 0;
+}
 }
 
-TEST(StaticPoolPacketManager, PeekNextOutboundIgnoresFuturePackets) {
-    StaticPoolPacketManager manager(2);
+TEST(PacketQueue, PeekReturnsBestDuePacketWithoutRemovingIt) {
+    PacketQueue queue(4);
+    mesh::Packet* low_priority = reinterpret_cast<mesh::Packet*>(0x01);
+    mesh::Packet* high_priority = reinterpret_cast<mesh::Packet*>(0x02);
+    mesh::Packet* future = reinterpret_cast<mesh::Packet*>(0x03);
 
-    mesh::Packet* future = manager.allocNew();
-    ASSERT_NE(nullptr, future);
+    ASSERT_TRUE(queue.add(low_priority, 5, 100));
+    ASSERT_TRUE(queue.add(high_priority, 1, 100));
+    ASSERT_TRUE(queue.add(future, 0, 200));
 
-    manager.queueOutbound(future, 0, 200);
+    EXPECT_EQ(high_priority, queue.peek(100));
+    EXPECT_EQ(3, queue.count());
 
-    EXPECT_EQ(nullptr, manager.peekNextOutbound(100));
-    EXPECT_EQ(future, manager.peekNextOutbound(200));
-    EXPECT_EQ(1, manager.getOutboundTotal());
+    EXPECT_EQ(high_priority, queue.get(100));
+    EXPECT_EQ(2, queue.count());
+    EXPECT_EQ(low_priority, queue.peek(100));
+}
+
+TEST(PacketQueue, PeekIgnoresFuturePackets) {
+    PacketQueue queue(2);
+    mesh::Packet* future = reinterpret_cast<mesh::Packet*>(0x01);
+
+    ASSERT_TRUE(queue.add(future, 0, 200));
+
+    EXPECT_EQ(nullptr, queue.peek(100));
+    EXPECT_EQ(future, queue.peek(200));
+    EXPECT_EQ(1, queue.count());
 }
 
 int main(int argc, char **argv) {
