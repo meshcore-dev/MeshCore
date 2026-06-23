@@ -7,6 +7,9 @@ MEMORY
 {
   FLASH (rx)     : ORIGIN = 0x27000, LENGTH = 0xD4000 - 0x27000
 
+  /* To keep data in RAM across resets */
+  PERSISTENT_RAM (rwx) : ORIGIN = 0x20006000, LENGTH = 8
+
   /* SRAM required by Softdevice depend on
    * - Attribute Table Size (Number of Services and Characteristics)
    * - Vendor UUID count
