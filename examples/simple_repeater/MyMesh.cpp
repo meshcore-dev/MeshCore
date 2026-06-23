@@ -1178,8 +1178,12 @@ void MyMesh::formatPacketStatsReply(char *reply) {
                                        getNumRecvFlood(), getNumRecvDirect());
 }
 
-void MyMesh::formatMacStatsReply(char *reply) {
-  StatsFormatHelper::formatMacStats(reply, getMacStats());
+void MyMesh::formatMacCadStatsReply(char *reply) {
+  StatsFormatHelper::formatMacCadStats(reply, getMacStats());
+}
+
+void MyMesh::formatMacTxStatsReply(char *reply) {
+  StatsFormatHelper::formatMacTxStats(reply, getMacStats());
 }
 
 void MyMesh::saveIdentity(const mesh::LocalIdentity &new_id) {

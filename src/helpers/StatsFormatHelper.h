@@ -54,12 +54,18 @@ public:
     );
   }
 
-  static void formatMacStats(char* reply, const mesh::MacStats& stats) {
+  static void formatMacCadStats(char* reply, const mesh::MacStats& stats) {
     sprintf(reply,
-      "{\"cb\":%u,\"cto\":%u,\"cf\":%u,\"ts\":%u,\"tok\":%u,\"tf\":%u,\"tto\":%u,\"rxd\":%u,\"rtx\":%u,\"pf\":%u,\"bq\":%u}",
+      "{\"busy\":%u,\"timeouts\":%u,\"forced_tx\":%u}",
       stats.cad_busy,
       stats.cad_timeout,
-      stats.cad_forced_tx,
+      stats.cad_forced_tx
+    );
+  }
+
+  static void formatMacTxStats(char* reply, const mesh::MacStats& stats) {
+    sprintf(reply,
+      "{\"started\":%u,\"completed\":%u,\"start_fail\":%u,\"timeouts\":%u,\"rx_delay\":%u,\"retransmits\":%u,\"pool_full\":%u,\"bad_queue\":%u}",
       stats.tx_start,
       stats.tx_done,
       stats.tx_start_fail,

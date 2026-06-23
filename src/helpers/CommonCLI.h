@@ -89,7 +89,10 @@ public:
   virtual void formatStatsReply(char *reply) = 0;
   virtual void formatRadioStatsReply(char *reply) = 0;
   virtual void formatPacketStatsReply(char *reply) = 0;
-  virtual void formatMacStatsReply(char *reply) {
+  virtual void formatMacCadStatsReply(char *reply) {
+    strcpy(reply, "unsupported");
+  }
+  virtual void formatMacTxStatsReply(char *reply) {
     strcpy(reply, "unsupported");
   }
   virtual mesh::LocalIdentity& getSelfId() = 0;

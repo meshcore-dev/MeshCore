@@ -479,8 +479,10 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       _callbacks->formatRadioStatsReply(reply);
     } else if (memcmp(command, "stats-core", 10) == 0 && (command[10] == 0 || command[10] == ' ')) {
       _callbacks->formatStatsReply(reply);
-    } else if (memcmp(command, "stats-mac", 9) == 0 && (command[9] == 0 || command[9] == ' ')) {
-      _callbacks->formatMacStatsReply(reply);
+    } else if (memcmp(command, "stats-mac-cad", 13) == 0 && (command[13] == 0 || command[13] == ' ')) {
+      _callbacks->formatMacCadStatsReply(reply);
+    } else if (memcmp(command, "stats-mac-tx", 12) == 0 && (command[12] == 0 || command[12] == ' ')) {
+      _callbacks->formatMacTxStatsReply(reply);
     } else {
       strcpy(reply, "Unknown command");
     }

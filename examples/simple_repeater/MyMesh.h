@@ -219,7 +219,8 @@ public:
   void formatStatsReply(char *reply) override;
   void formatRadioStatsReply(char *reply) override;
   void formatPacketStatsReply(char *reply) override;
-  void formatMacStatsReply(char *reply) override;
+  void formatMacCadStatsReply(char *reply) override;
+  void formatMacTxStatsReply(char *reply) override;
   void startRegionsLoad() override;
   bool saveRegions() override;
   void onDefaultRegionChanged(const RegionEntry* r) override;

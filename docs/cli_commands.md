@@ -144,15 +144,32 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 ---
 
-### MAC stats - CAD, TX, retransmit and pool counters
-**Usage:** `stats-mac`
+### MAC CAD stats - CAD deferral and timeout counters
+**Usage:** `stats-mac-cad`
 
 **Serial Only:** No
 
-Returns compact JSON counters: `cb` CAD busy deferrals, `cto` CAD timeouts, `cf` CAD forced
-transmits, `ts` TX starts, `tok` TX completions, `tf` TX start failures, `tto` TX timeouts,
-`rxd` delayed RX packets, `rtx` scheduled retransmits, `pf` packet pool full events, and `bq`
-invalid queued packets.
+Returns JSON with:
+- `busy`: local radio/CAD busy deferrals before the timeout threshold
+- `timeouts`: times local CAD busy state exceeded the maximum busy duration
+- `forced_tx`: CAD timeout events that force-transmitted because fail-open mode was selected
+
+---
+
+### MAC TX stats - TX, retransmit and queue counters
+**Usage:** `stats-mac-tx`
+
+**Serial Only:** No
+
+Returns JSON with:
+- `started`: transmit attempts started by the dispatcher
+- `completed`: transmit completions reported by the radio
+- `start_fail`: transmit attempts that failed to start
+- `timeouts`: transmit operations that timed out
+- `rx_delay`: received packets delayed before local processing
+- `retransmits`: packets scheduled for retransmit or forward
+- `pool_full`: packet allocation failures caused by pool exhaustion
+- `bad_queue`: invalid queued packets dropped before transmit
 
 ---
 
