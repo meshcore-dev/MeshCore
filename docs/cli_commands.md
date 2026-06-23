@@ -126,21 +126,33 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 **Usage:** 
 - `stats-core`
 
-**Serial Only:** Yes
+**Serial Only:** No
 
 ---
 
 ### Radio Stats - Noise floor, Last RSSI/SNR, Airtime, Receive errors
 **Usage:** `stats-radio`
 
-**Serial Only:** Yes
+**Serial Only:** No
 
 ---
 
 ### Packet stats - Packet counters: Received, Sent
 **Usage:** `stats-packets`
 
-**Serial Only:** Yes
+**Serial Only:** No
+
+---
+
+### MAC stats - CAD, TX, retransmit and pool counters
+**Usage:** `stats-mac`
+
+**Serial Only:** No
+
+Returns compact JSON counters: `cb` CAD busy deferrals, `cto` CAD timeouts, `cf` CAD forced
+transmits, `ts` TX starts, `tok` TX completions, `tf` TX start failures, `tto` TX timeouts,
+`rxd` delayed RX packets, `rtx` scheduled retransmits, `pf` packet pool full events, and `bq`
+invalid queued packets.
 
 ---
 

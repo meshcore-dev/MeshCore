@@ -535,6 +535,32 @@ void MyMesh::logTxFail(mesh::Packet *pkt, int len) {
   }
 }
 
+void MyMesh::logMacEvent(const char* event, mesh::Packet* pkt, int len, uint8_t priority,
+                         uint32_t delay_millis, uint32_t airtime_millis, uint32_t value) {
+  if (_logging) {
+    File f = openAppend(PACKET_LOG_FILE);
+    if (f) {
+      f.print(getLogDateTime());
+      f.printf(": MAC, ms=%lu event=%s len=%d pri=%u delay=%lu airtime=%lu value=%lu q=%d free=%d nf=%d rssi=%d snr=%d",
+               _ms->getMillis(), event, len, (uint32_t)priority, (unsigned long)delay_millis,
+               (unsigned long)airtime_millis, (unsigned long)value,
+               _mgr->getOutboundTotal(), _mgr->getFreeCount(), (int)_radio->getNoiseFloor(),
+               (int)radio_driver.getLastRSSI(), (int)(radio_driver.getLastSNR() * 4));
+
+      if (pkt) {
+        uint8_t packet_hash[MAX_HASH_SIZE];
+        pkt->calculatePacketHash(packet_hash);
+        f.printf(" type=%d route=%s payload_len=%d path_count=%d path_hash_size=%d hash=",
+                 pkt->getPayloadType(), pkt->isRouteDirect() ? "D" : "F", pkt->payload_len,
+                 pkt->getPathHashCount(), pkt->getPathHashSize());
+        mesh::Utils::printHex(f, packet_hash, 4);
+      }
+      f.printf("\n");
+      f.close();
+    }
+  }
+}
+
 int MyMesh::calcRxDelay(float score, uint32_t air_time) const {
   if (_prefs.rx_delay_base <= 0.0f) return 0;
   return (int)((pow(_prefs.rx_delay_base, 0.85f - score) - 1.0) * air_time);
@@ -1150,6 +1176,10 @@ void MyMesh::formatRadioStatsReply(char *reply) {
 void MyMesh::formatPacketStatsReply(char *reply) {
   StatsFormatHelper::formatPacketStats(reply, radio_driver, getNumSentFlood(), getNumSentDirect(), 
                                        getNumRecvFlood(), getNumRecvDirect());
+}
+
+void MyMesh::formatMacStatsReply(char *reply) {
+  StatsFormatHelper::formatMacStats(reply, getMacStats());
 }
 
 void MyMesh::saveIdentity(const mesh::LocalIdentity &new_id) {
