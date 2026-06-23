@@ -35,6 +35,8 @@ public:
   float getLastSNR() const override { return ((CustomLR1110 *)_radio)->getSNR(); }
 
   uint8_t getSpreadingFactor() const override { return ((CustomLR1110 *)_radio)->getSpreadingFactor(); }
+  uint8_t getCodingRate() const override { return ((CustomLR1110 *)_radio)->getCodingRate(); }
+  float getFreqMHz() const override { return ((CustomLR1110 *)_radio)->getFreqMHz(); }
   
   void setRxBoostedGainMode(bool en) override {
     ((CustomLR1110 *)_radio)->setRxBoostedGainMode(en);

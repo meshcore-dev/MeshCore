@@ -34,6 +34,8 @@ public:
     return packetScoreInt(snr, sf, packet_len);
   }
   uint8_t getSpreadingFactor() const override { return ((CustomSX1262 *)_radio)->spreadingFactor; }
+  uint8_t getCodingRate() const override { return ((CustomSX1262 *)_radio)->codingRate + 4; }  // RadioLib stores 1-4, return 5-8
+  float getFreqMHz() const override { return ((CustomSX1262 *)_radio)->freqMHz; }
   virtual void powerOff() override {
     ((CustomSX1262 *)_radio)->sleep(false);
   }

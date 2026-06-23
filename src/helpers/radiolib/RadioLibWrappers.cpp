@@ -2,6 +2,12 @@
 #define RADIOLIB_STATIC_ONLY 1
 #include "RadioLibWrappers.h"
 
+#ifdef NRF52_PLATFORM
+  #define YIELD_TASK() vTaskDelay(1)
+#else
+  #define YIELD_TASK() delay(1)
+#endif
+
 #define STATE_IDLE       0
 #define STATE_RX         1
 #define STATE_TX_WAIT    3
@@ -176,6 +182,9 @@ bool RadioLibWrapper::isSendComplete() {
 void RadioLibWrapper::onSendFinished() {
   _radio->finishTransmit();
   _board->onAfterTransmit();
+  if (isAS923_1_JP()) {
+    delay(50);  // ARIB STD-T108 §3.4.1: >= 50ms between transmissions
+  }
   state = STATE_IDLE;
 }
 
@@ -184,10 +193,40 @@ int16_t RadioLibWrapper::performChannelScan() {
 }
 
 bool RadioLibWrapper::isChannelActive() {
-  // int.thresh: RSSI-based interference detection (relative to noise floor)
-  if (_threshold != 0 && getCurrentRSSI() > _noise_floor + _threshold) return true;
+  if (isAS923_1_JP()) {
+    // ARIB STD-T108: 5ms continuous RSSI sensing, -80dBm absolute threshold
+    uint32_t sense_start = millis();
+    while (millis() - sense_start < 5) {
+      if (getCurrentRSSI() > -80.0f) {
+        _busy_count++;
+        uint32_t base_ms = 2000;
+        uint32_t max_backoff = min(base_ms * (1u << _busy_count), (uint32_t)16000);
+        uint32_t backoff_until = millis() + random(max_backoff / 2, max_backoff);
+        while (millis() < backoff_until) {
+          YIELD_TASK();
+        }
+        return true;
+      }
+      YIELD_TASK();
+    }
+    // Channel free: reset busy counter and add airtime-scaled jitter.
+    // JP_LBT_JITTER_DIVISOR controls jitter upper bound:
+    //   /8  -> SF12/BW125 ~975ms, SF7/BW62.5 ~50ms
+    //   /16 -> SF12/BW125 ~490ms, SF7/BW62.5 ~25ms
+    //   /32 -> SF12/BW125 ~245ms, SF7/BW62.5 ~12ms  (default)
+    _busy_count = 0;
+    uint32_t airtime_ms = getEstAirtimeFor(MAX_TRANS_UNIT);
+    uint32_t jitter_until = millis() + random(0, airtime_ms / JP_LBT_JITTER_DIVISOR);
+    while (millis() < jitter_until) {
+      YIELD_TASK();
+    }
+    // JP RSSI sensing passed; fall through to CAD if enabled
+  } else {
+    // Non-JP: RSSI-based interference detection (relative to noise floor)
+    if (_threshold != 0 && getCurrentRSSI() > _noise_floor + _threshold) return true;
+  }
 
-  // cad: hardware channel activity detection
+  // hardware channel activity detection (JP and non-JP)
   if (_cad_enabled) {
     int16_t result = performChannelScan();
     // scanChannel() triggers DIO interrupt (CAD done) which sets STATE_INT_READY

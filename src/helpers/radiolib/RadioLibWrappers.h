@@ -10,6 +10,7 @@ protected:
   uint32_t n_recv, n_sent, n_recv_errors;
   int16_t _noise_floor, _threshold;
   bool _cad_enabled;
+  uint8_t _busy_count;
   uint16_t _num_floor_samples;
   int32_t _floor_sample_sum;
   uint8_t _preamble_sf;
@@ -21,7 +22,7 @@ protected:
   virtual void doResetAGC();
 
 public:
-  RadioLibWrapper(PhysicalLayer& radio, mesh::MainBoard& board) : _radio(&radio), _board(&board), _preamble_sf(0) { n_recv = n_sent = 0; }
+  RadioLibWrapper(PhysicalLayer& radio, mesh::MainBoard& board) : _radio(&radio), _board(&board), _busy_count(0), _preamble_sf(0) { n_recv = n_sent = 0; }
 
   void begin() override;
   virtual void powerOff() { _radio->sleep(); }
@@ -47,6 +48,36 @@ public:
   virtual uint8_t getSpreadingFactor() const { return LORA_SF; }
   static uint16_t preambleLengthForSF(uint8_t sf) { return sf <= 8 ? 32 : 16; }
   void updatePreamble(uint8_t sf) { _preamble_sf = sf; _radio->setPreambleLength(preambleLengthForSF(sf)); }
+  virtual uint8_t getCodingRate() const { return 8; }   // default CR4/8, override in subclass
+  virtual float getFreqMHz() const { return 0.0f; }     // default unknown, override in subclass
+
+  static constexpr uint8_t JP_LBT_JITTER_DIVISOR = 32;
+
+  bool isAS923_1_JP() const override {
+    float freq = getFreqMHz();
+    return (fabsf(freq - 920.800f) < 0.05f ||
+            fabsf(freq - 921.000f) < 0.05f ||
+            fabsf(freq - 921.200f) < 0.05f);
+  }
+
+  int getMaxTextLen() const override {
+    if (!isAS923_1_JP()) return 10 * 16;  // default 160 bytes
+    uint8_t cr = getCodingRate();
+    if (cr <= 5) return 64;  // 3874ms @ SF12/BW125/CR4-5
+    if (cr == 6) return 48;  // 3874ms @ SF12/BW125/CR4-6
+    if (cr == 7) return 32;  // 3678ms @ SF12/BW125/CR4-7
+    return 24;               // 3547ms @ SF12/BW125/CR4-8
+  }
+
+  int getMaxGroupTextLen() const override {
+    if (!isAS923_1_JP()) return 10 * 16;  // default 160 bytes
+    uint8_t cr = getCodingRate();
+    if (cr <= 5) return 64;  // 3710ms @ SF12/BW125/CR4-5
+    if (cr == 6) return 48;  // 3678ms @ SF12/BW125/CR4-6
+    if (cr == 7) return 39;  // 3907ms @ SF12/BW125/CR4-7
+    return 29;               // 3809ms @ SF12/BW125/CR4-8
+  }
+
   virtual int16_t performChannelScan();
 
   int getNoiseFloor() const override { return _noise_floor; }
