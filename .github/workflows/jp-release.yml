@@ -1,0 +1,144 @@
+name: Build JP Firmwares
+
+permissions:
+  contents: write
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'jp-v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone Repo
+        uses: actions/checkout@v4
+
+      - name: Setup Build Environment
+        uses: ./.github/actions/setup-build-environment
+
+      - name: Build JP Firmwares
+        env:
+          FIRMWARE_VERSION: ${{ env.GIT_TAG_VERSION || 'dev' }}
+
+          PLATFORMIO_BUILD_FLAGS: >-
+            -w -DNDEBUG -DRADIOLIB_STATIC_ONLY=1 -DRADIOLIB_GODMODE=1
+            -D LORA_FREQ=920.800
+            -D LORA_BW=125.0
+            -D LORA_SF=12
+            -D LORA_CR=8
+            -D ENABLE_ADVERT_ON_BOOT=1
+            -D ENABLE_PRIVATE_KEY_IMPORT=1
+            -D ENABLE_PRIVATE_KEY_EXPORT=1
+            -D RADIOLIB_EXCLUDE_CC1101=1
+            -D RADIOLIB_EXCLUDE_RF69=1
+            -D RADIOLIB_EXCLUDE_SX1231=1
+            -D RADIOLIB_EXCLUDE_SI443X=1
+            -D RADIOLIB_EXCLUDE_RFM2X=1
+            -D RADIOLIB_EXCLUDE_SX128X=1
+            -D RADIOLIB_EXCLUDE_AFSK=1
+            -D RADIOLIB_EXCLUDE_AX25=1
+            -D RADIOLIB_EXCLUDE_HELLSCHREIBER=1
+            -D RADIOLIB_EXCLUDE_MORSE=1
+            -D RADIOLIB_EXCLUDE_APRS=1
+            -D RADIOLIB_EXCLUDE_BELL=1
+            -D RADIOLIB_EXCLUDE_RTTY=1
+            -D RADIOLIB_EXCLUDE_SSTV=1
+
+        run: |
+          mkdir -p out_jp
+          # JP TX power制限 (13dBm)
+          sed -i 's/-D LORA_TX_POWER=22/-D LORA_TX_POWER=13/g' \
+            variants/rak_wismesh_tag/platformio.ini \
+            variants/t1000-e/platformio.ini \
+            variants/lilygo_techo_lite/platformio.ini \
+            variants/xiao_nrf52/platformio.ini \
+            variants/xiao_s3_wio/platformio.ini \
+            variants/heltec_t114/platformio.ini
+          bash build.sh build-firmware RAK_WisMesh_Tag_companion_radio_ble
+          bash build.sh build-firmware RAK_WisMesh_Tag_companion_radio_usb
+          bash build.sh build-firmware RAK_WisMesh_Tag_repeater
+          bash build.sh build-firmware RAK_WisMesh_Tag_room_server
+          bash build.sh build-firmware t1000e_companion_radio_ble
+          bash build.sh build-firmware t1000e_companion_radio_usb
+          bash build.sh build-firmware t1000e_repeater 
+          bash build.sh build-firmware t1000e_room_server
+          bash build.sh build-firmware LilyGo_T-Echo-Lite_companion_radio_ble
+          bash build.sh build-firmware LilyGo_T-Echo-Lite_repeater
+          bash build.sh build-firmware LilyGo_T-Echo-Lite_room_server
+          bash build.sh build-firmware Xiao_nrf52_companion_radio_ble
+          bash build.sh build-firmware Xiao_nrf52_companion_radio_usb
+          bash build.sh build-firmware Xiao_nrf52_repeater
+          bash build.sh build-firmware Xiao_nrf52_room_server
+          bash build.sh build-firmware Xiao_S3_WIO_companion_radio_ble
+          bash build.sh build-firmware Xiao_S3_WIO_companion_radio_usb
+          bash build.sh build-firmware Xiao_S3_WIO_repeater
+          bash build.sh build-firmware Xiao_S3_WIO_room_server
+          bash build.sh build-firmware Heltec_t114_without_display_companion_radio_ble
+          bash build.sh build-firmware Heltec_t114_without_display_companion_radio_usb
+          bash build.sh build-firmware Heltec_t114_without_display_repeater
+          bash build.sh build-firmware Heltec_t114_without_display_room_server
+          bash build.sh build-firmware Heltec_t114_companion_radio_ble
+          bash build.sh build-firmware Heltec_t114_companion_radio_usb
+          bash build.sh build-firmware Heltec_t114_repeater
+          bash build.sh build-firmware Heltec_t114_room_server
+
+      - name: Copy artifacts to out/
+        run: |
+          ls -la .pio/build/*/firmware.uf2 2>/dev/null || echo "no uf2 found"
+          mkdir -p out_jp
+          HASH=$(git rev-parse --short HEAD)
+          TAG=$(git describe --tags --exact-match 2>/dev/null || echo "dev")
+          for ENV in RAK_WisMesh_Tag_companion_radio_ble RAK_WisMesh_Tag_companion_radio_usb RAK_WisMesh_Tag_repeater RAK_WisMesh_Tag_room_server t1000e_companion_radio_ble t1000e_companion_radio_usb t1000e_repeater t1000e_room_server LilyGo_T-Echo-Lite_companion_radio_ble LilyGo_T-Echo-Lite_repeater LilyGo_T-Echo-Lite_room_server Xiao_nrf52_companion_radio_ble Xiao_nrf52_companion_radio_usb Xiao_nrf52_repeater Xiao_nrf52_room_server Heltec_t114_without_display_companion_radio_ble Heltec_t114_without_display_companion_radio_usb Heltec_t114_without_display_repeater Heltec_t114_without_display_room_server Heltec_t114_companion_radio_ble Heltec_t114_companion_radio_usb Heltec_t114_repeater Heltec_t114_room_server; do
+
+            NAME="${ENV}-${TAG}-${HASH}"
+            cp ".pio/build/${ENV}/firmware.uf2" "out_jp/${NAME}.uf2" 2>/dev/null || true
+            cp ".pio/build/${ENV}/firmware.zip" "out_jp/${NAME}_dfu.zip" 2>/dev/null || true
+          done
+           # ESP32系は.binと-merged.binをコピー
+          for ENV in Xiao_S3_WIO_companion_radio_ble Xiao_S3_WIO_companion_radio_usb Xiao_S3_WIO_repeater Xiao_S3_WIO_room_server; do
+            NAME="${ENV}-${TAG}-${HASH}"
+            cp ".pio/build/${ENV}/firmware.bin" "out_jp/${NAME}.bin" 2>/dev/null || true
+            cp ".pio/build/${ENV}/firmware-merged.bin" "out_jp/${NAME}-merged.bin" 2>/dev/null || true
+          done
+          ls -la out_jp/
+
+      - name: Upload Workflow Artifacts
+        uses: actions/upload-artifact@v4
+
+        with:
+          name: jp-firmwares
+          path: out_jp
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          name: JP Firmware ${{ env.GIT_TAG_VERSION }}
+          body: |
+            ## 日本向け MeshCore ファームウェア
+
+            ### 対応デバイス
+            | デバイス | ファイル | 書き込み方法 |
+            |---|---|---|
+            | WisMesh Tag | `RAK_WisMesh_Tag_companion_radio_ble-*.uf2` | UF2ドラッグ&ドロップ |
+            | T1000-E | `t1000e_companion_radio_ble-*.uf2` | UF2ドラッグ&ドロップ |
+            | T-Echo Lite | `LilyGo_T-Echo-Lite_companion_radio_ble-*.uf2` | UF2ドラッグ&ドロップ |
+            | XIAO nRF52840 | `Xiao_nrf52_companion_radio_ble-*.uf2` | UF2ドラッグ&ドロップ |
+            | Heltec T114 (ディスプレイなし) | `Heltec_t114_without_display_companion_radio_ble-*.uf2` | UF2ドラッグ&ドロップ |
+            | Heltec T114 (ディスプレイあり) | `Heltec_t114_companion_radio_ble-*.uf2` | UF2ドラッグ&ドロップ |
+
+            以上の表に載っていないデバイスや、リピーター、ルームサーバーもリリースしていますが、実験的です。
+
+            ### 日本での運用設定
+            フラッシュ後、スマホアプリで以下を確認してください：
+            - 周波数: `920.8 MHz`
+            - TX出力: `13 dBm以下`
+            - BW: `125 kHz` / SF: `12` / CR: `4/8`（都市部推奨）
+
+            ### 技適について
+            カスタムファームウェア書き込み後は技適の対象外です。詳細は [README_JP.md](https://github.com/jirogit/MeshCore/blob/dev/README_JP.md) を参照してください。
+          draft: true
+          files: out_jp/*
