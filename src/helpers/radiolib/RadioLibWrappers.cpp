@@ -20,6 +20,14 @@
 
 static volatile uint8_t state = STATE_IDLE;
 
+static bool isTrustedNoiseFloorValue(int16_t noise_floor) {
+  return noise_floor != 0 && noise_floor > MIN_NOISE_FLOOR_SAMPLE;
+}
+
+static uint16_t addStatCounter(uint16_t value, uint16_t increment) {
+  return (uint16_t)mesh::cappedStatCounter((uint32_t)value + increment);
+}
+
 // this function is called when a complete packet
 // is transmitted by the module
 static 
@@ -31,11 +39,15 @@ void setFlag(void) {
   state |= STATE_INT_READY;
 }
 
-void RadioLibWrapper::resetNoiseFloorBatch() {
+void RadioLibWrapper::resetNoiseFloorSamples() {
   _num_floor_samples = 0;
   _floor_sample_min = 0;
   _floor_sample_median = 0;
   _floor_sample_max = 0;
+}
+
+void RadioLibWrapper::resetNoiseFloorBatch() {
+  resetNoiseFloorSamples();
   _floor_rejected_low_bound = 0;
   _floor_rejected_high_bound = 0;
 }
@@ -106,7 +118,7 @@ void RadioLibWrapper::loop() {
     if (!isReceivingPacket()) {
       int16_t rssi = (int16_t)getCurrentRSSI();
       bool low_bound_sample = rssi <= MIN_NOISE_FLOOR_SAMPLE + LOW_BOUND_REJECT_MARGIN_DB;
-      bool trusted_published_floor = _noise_floor != 0 && _noise_floor > MIN_NOISE_FLOOR_SAMPLE;
+      bool trusted_published_floor = isTrustedNoiseFloorValue(_noise_floor);
       bool no_trusted_floor = !trusted_published_floor;
       bool healthy_floor_would_jump_down = trusted_published_floor &&
           (_noise_floor - rssi) >= LOW_BOUND_REJECT_JUMP_DB;
@@ -148,10 +160,30 @@ void RadioLibWrapper::loop() {
         std::sort(_floor_samples, _floor_samples + NUM_NOISE_FLOOR_SAMPLES);
         _floor_sample_median = ((int32_t)_floor_samples[(NUM_NOISE_FLOOR_SAMPLES / 2) - 1] +
                                 _floor_samples[NUM_NOISE_FLOOR_SAMPLES / 2]) / 2;
-        _noise_floor = _floor_sample_median;
-        if (_noise_floor < -120) {
-          _noise_floor = -120;    // clamp to lower bound of -120dBi
+        bool completed_low_bound_batch =
+            _floor_sample_median <= MIN_NOISE_FLOOR_SAMPLE + LOW_BOUND_REJECT_MARGIN_DB;
+        bool completed_high_activity_batch =
+            no_trusted_floor && _floor_sample_median >= MAX_NOISE_FLOOR_SAMPLE;
+        bool completed_batch_would_jump_down = trusted_published_floor &&
+            (_noise_floor - _floor_sample_median) >= LOW_BOUND_REJECT_JUMP_DB;
+        bool completed_batch_would_jump_up = trusted_published_floor &&
+            (_floor_sample_median - _noise_floor) >= HIGH_BOUND_REJECT_JUMP_DB;
+
+        // The per-sample gates should normally stop invalid batches before
+        // they complete. Keep the publish path defensive as well, so a stale
+        // or boundary-filled batch cannot re-publish -120 dBm as a real floor.
+        if (completed_low_bound_batch || completed_batch_would_jump_down) {
+          _floor_rejected_low_bound = addStatCounter(_floor_rejected_low_bound, _num_floor_samples);
+          resetNoiseFloorSamples();
+          return;
         }
+        if (completed_high_activity_batch || completed_batch_would_jump_up) {
+          _floor_rejected_high_bound = addStatCounter(_floor_rejected_high_bound, _num_floor_samples);
+          resetNoiseFloorSamples();
+          return;
+        }
+
+        _noise_floor = _floor_sample_median;
 
         MESH_DEBUG_PRINTLN("RadioLibWrapper: noise_floor=%d accepted=%u min=%d median=%d max=%d rejected_low=%u rejected_high=%u",
           (int)_noise_floor,
@@ -180,7 +212,33 @@ bool RadioLibWrapper::isInRecvMode() const {
 }
 
 bool RadioLibWrapper::hasNoiseFloor() const {
-  return _noise_floor != 0 && _num_floor_samples >= NUM_NOISE_FLOOR_SAMPLES;
+  return isTrustedNoiseFloorValue(_noise_floor) && _num_floor_samples >= NUM_NOISE_FLOOR_SAMPLES;
+}
+
+int RadioLibWrapper::getNoiseFloor() const {
+  return isTrustedNoiseFloorValue(_noise_floor) ? _noise_floor : 0;
+}
+
+mesh::NoiseFloorStats RadioLibWrapper::getNoiseFloorStats() const {
+  if (!isTrustedNoiseFloorValue(_noise_floor) && _num_floor_samples >= NUM_NOISE_FLOOR_SAMPLES) {
+    return {
+      0,
+      0,
+      0,
+      0,
+      _floor_rejected_low_bound,
+      _floor_rejected_high_bound
+    };
+  }
+
+  return {
+    _num_floor_samples,
+    _floor_sample_min,
+    _floor_sample_median,
+    _floor_sample_max,
+    _floor_rejected_low_bound,
+    _floor_rejected_high_bound
+  };
 }
 
 int RadioLibWrapper::recvRaw(uint8_t* bytes, int sz) {

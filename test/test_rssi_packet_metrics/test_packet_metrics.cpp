@@ -162,7 +162,7 @@ TEST(RssiNoiseFloor, ClampedLowFloorStillRejectsLaterLowBoundSamples) {
   wrapper.enterReceiveMode();
   wrapper.collectNoiseFloorSamples();
 
-  EXPECT_EQ(-120, wrapper.getNoiseFloor());
+  EXPECT_EQ(0, wrapper.getNoiseFloor());
   mesh::NoiseFloorStats stats = wrapper.getNoiseFloorStats();
   EXPECT_EQ(0, stats.accepted_count);
   EXPECT_EQ(64, stats.rejected_low_bound_count);
@@ -181,7 +181,7 @@ TEST(RssiNoiseFloor, ClampedLowFloorStillRejectsStrongSamples) {
   wrapper.enterReceiveMode();
   wrapper.collectNoiseFloorSamples();
 
-  EXPECT_EQ(-120, wrapper.getNoiseFloor());
+  EXPECT_EQ(0, wrapper.getNoiseFloor());
   mesh::NoiseFloorStats stats = wrapper.getNoiseFloorStats();
   EXPECT_EQ(0, stats.accepted_count);
   EXPECT_EQ(0, stats.rejected_low_bound_count);
@@ -338,6 +338,22 @@ TEST(RssiNoiseFloor, LowBoundStartupSamplesDoNotContaminateLaterHealthyBatch) {
   EXPECT_EQ(-102, stats.sample_max);
   EXPECT_EQ(64, stats.rejected_low_bound_count);
   EXPECT_EQ(0, stats.rejected_high_bound_count);
+}
+
+TEST(RssiNoiseFloor, CompletedLowBoundBatchIsNotReportedAsAccepted) {
+  FakePhysicalLayer radio;
+  FakeBoard board;
+  TestRadioLibWrapper wrapper(radio, board);
+
+  wrapper.begin();
+  wrapper.forceNoiseFloorStats(-120, 64, -121, -120, -119, 0, 0);
+
+  EXPECT_EQ(0, wrapper.getNoiseFloor());
+  mesh::NoiseFloorStats stats = wrapper.getNoiseFloorStats();
+  EXPECT_EQ(0, stats.accepted_count);
+  EXPECT_EQ(0, stats.sample_min);
+  EXPECT_EQ(0, stats.sample_median);
+  EXPECT_EQ(0, stats.sample_max);
 }
 
 TEST(RssiNoiseFloor, ResetAGCPreservesPreviousFloorUntilValidBatchCompletes) {
