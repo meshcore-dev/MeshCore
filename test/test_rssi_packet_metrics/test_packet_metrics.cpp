@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include <vector>
+
 #include "helpers/radiolib/RadioLibWrappers.h"
 
 #include "../../src/helpers/radiolib/RadioLibWrappers.cpp"
@@ -25,6 +27,10 @@ class TestRadioLibWrapper : public RadioLibWrapper {
 public:
   TestRadioLibWrapper(PhysicalLayer& radio, mesh::MainBoard& board) : RadioLibWrapper(radio, board) { }
 
+  std::vector<float> current_rssi_samples;
+  size_t current_rssi_index = 0;
+  bool receiving_packet = false;
+
   void setParams(float freq, float bw, uint8_t sf, uint8_t cr) override {
     (void)freq;
     (void)bw;
@@ -32,11 +38,32 @@ public:
     (void)cr;
   }
 
-  float getCurrentRSSI() override { return -120.0f; }
-  bool isReceivingPacket() override { return false; }
+  float getCurrentRSSI() override {
+    if (current_rssi_index < current_rssi_samples.size()) {
+      return current_rssi_samples[current_rssi_index++];
+    }
+    return -120.0f;
+  }
+
+  bool isReceivingPacket() override { return receiving_packet; }
 
   void cachePacketMetrics(float rssi, float snr) {
     updateLastPacketMetrics(rssi, snr);
+  }
+
+  void setCurrentRssiSamples(const std::vector<float>& samples) {
+    current_rssi_samples = samples;
+    current_rssi_index = 0;
+  }
+
+  void enterReceiveMode() {
+    startRecv();
+  }
+
+  void collectNoiseFloorSamples(uint16_t sample_count = 64) {
+    for (uint16_t i = 0; i < sample_count; i++) {
+      loop();
+    }
   }
 };
 
@@ -76,6 +103,76 @@ TEST(RssiPacketMetrics, NewPacketMetricsReplacePreviousPacketMetrics) {
 
   EXPECT_EQ(-91.0f, wrapper.getLastRSSI());
   EXPECT_EQ(-3.5f, wrapper.getLastSNR());
+}
+
+TEST(RssiNoiseFloor, LowStartupOutliersDoNotDominateMedianFloor) {
+  FakePhysicalLayer radio;
+  FakeBoard board;
+  TestRadioLibWrapper wrapper(radio, board);
+  std::vector<float> samples;
+
+  samples.insert(samples.end(), 16, -130.0f);
+  samples.insert(samples.end(), 48, -103.0f);
+
+  wrapper.begin();
+  wrapper.setCurrentRssiSamples(samples);
+  wrapper.enterReceiveMode();
+  wrapper.collectNoiseFloorSamples();
+
+  EXPECT_EQ(-103, wrapper.getNoiseFloor());
+}
+
+TEST(RssiNoiseFloor, ClampedLowFloorDoesNotRejectLaterHealthySamples) {
+  FakePhysicalLayer radio;
+  FakeBoard board;
+  TestRadioLibWrapper wrapper(radio, board);
+
+  wrapper.begin();
+  wrapper.setCurrentRssiSamples(std::vector<float>(64, -130.0f));
+  wrapper.enterReceiveMode();
+  wrapper.collectNoiseFloorSamples();
+
+  EXPECT_EQ(-120, wrapper.getNoiseFloor());
+
+  wrapper.triggerNoiseFloorCalibrate(0);
+  wrapper.setCurrentRssiSamples(std::vector<float>(64, -102.0f));
+  wrapper.collectNoiseFloorSamples();
+
+  EXPECT_EQ(-102, wrapper.getNoiseFloor());
+}
+
+TEST(RssiNoiseFloor, VeryLowSamplesClampToLowerBound) {
+  FakePhysicalLayer radio;
+  FakeBoard board;
+  TestRadioLibWrapper wrapper(radio, board);
+
+  wrapper.begin();
+  wrapper.setCurrentRssiSamples(std::vector<float>(64, -130.0f));
+  wrapper.enterReceiveMode();
+  wrapper.collectNoiseFloorSamples();
+
+  EXPECT_EQ(-120, wrapper.getNoiseFloor());
+}
+
+TEST(RssiNoiseFloor, ReceivingPacketSkipsNoiseFloorSampling) {
+  FakePhysicalLayer radio;
+  FakeBoard board;
+  TestRadioLibWrapper wrapper(radio, board);
+
+  wrapper.begin();
+  wrapper.setCurrentRssiSamples(std::vector<float>(64, -101.0f));
+  wrapper.enterReceiveMode();
+
+  wrapper.receiving_packet = true;
+  wrapper.collectNoiseFloorSamples(10);
+
+  EXPECT_EQ(0, wrapper.current_rssi_index);
+  EXPECT_EQ(0, wrapper.getNoiseFloor());
+
+  wrapper.receiving_packet = false;
+  wrapper.collectNoiseFloorSamples();
+
+  EXPECT_EQ(-101, wrapper.getNoiseFloor());
 }
 
 int main(int argc, char **argv) {

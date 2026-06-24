@@ -8,12 +8,13 @@ class RadioLibWrapper : public mesh::Radio {
 protected:
   PhysicalLayer* _radio;
   mesh::MainBoard* _board;
+  static constexpr uint16_t NUM_NOISE_FLOOR_SAMPLES = 64;
   uint32_t n_recv, n_sent, n_recv_errors;
   int16_t _noise_floor, _threshold;
   bool _cad_enabled;
   float _last_packet_rssi, _last_packet_snr;
   uint16_t _num_floor_samples;
-  int32_t _floor_sample_sum;
+  int16_t _floor_samples[NUM_NOISE_FLOOR_SAMPLES];
   uint8_t _preamble_sf;
 
   void idle();

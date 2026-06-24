@@ -10,8 +10,6 @@
 #define STATE_TX_DONE    4
 #define STATE_INT_READY 16
 
-#define NUM_NOISE_FLOOR_SAMPLES  64
-#define SAMPLING_THRESHOLD  14
 #define RSSI_CARRIER_SENSE_SAMPLES  5
 #define RSSI_CARRIER_SENSE_REQUIRED 3
 
@@ -42,9 +40,8 @@ void RadioLibWrapper::begin() {
   _threshold = 0;
   _cad_enabled = false;
 
-  // start average out some samples
+  // Start a fresh batch of idle RSSI samples for noise-floor calibration.
   _num_floor_samples = 0;
-  _floor_sample_sum = 0;
 }
 
 uint32_t RadioLibWrapper::getRngSeed() {
@@ -64,7 +61,6 @@ void RadioLibWrapper::triggerNoiseFloorCalibrate(int threshold) {
   _threshold = threshold;
   if (_num_floor_samples >= NUM_NOISE_FLOOR_SAMPLES) {  // ignore trigger if currently sampling
     _num_floor_samples = 0;
-    _floor_sample_sum = 0;
   }
 }
 
@@ -79,32 +75,29 @@ void RadioLibWrapper::resetAGC() {
   doResetAGC();
   state = STATE_IDLE;   // trigger a startReceive()
 
-  // Reset noise floor sampling so it reconverges from scratch.
-  // Without this, a stuck _noise_floor of -120 makes the sampling threshold
-  // too low (-106) to accept normal samples (~-105), self-reinforcing the
-  // stuck value even after the receiver has recovered.
+  // Reset noise floor sampling so it reconverges from fresh idle RSSI samples
+  // after the receiver frontend has been reset.
   _noise_floor = 0;
   _num_floor_samples = 0;
-  _floor_sample_sum = 0;
 }
 
 void RadioLibWrapper::loop() {
   if (state == STATE_RX && _num_floor_samples < NUM_NOISE_FLOOR_SAMPLES) {
     if (!isReceivingPacket()) {
-      int rssi = getCurrentRSSI();
-      if (rssi < _noise_floor + SAMPLING_THRESHOLD) {  // only consider samples below current floor + sampling THRESHOLD
-        _num_floor_samples++;
-        _floor_sample_sum += rssi;
+      _floor_samples[_num_floor_samples] = (int16_t)getCurrentRSSI();
+      _num_floor_samples++;
+
+      if (_num_floor_samples >= NUM_NOISE_FLOOR_SAMPLES) {
+        std::sort(_floor_samples, _floor_samples + NUM_NOISE_FLOOR_SAMPLES);
+        _noise_floor = ((int32_t)_floor_samples[(NUM_NOISE_FLOOR_SAMPLES / 2) - 1] +
+                        _floor_samples[NUM_NOISE_FLOOR_SAMPLES / 2]) / 2;
+        if (_noise_floor < -120) {
+          _noise_floor = -120;    // clamp to lower bound of -120dBi
+        }
+
+        MESH_DEBUG_PRINTLN("RadioLibWrapper: noise_floor = %d", (int)_noise_floor);
       }
     }
-  } else if (_num_floor_samples >= NUM_NOISE_FLOOR_SAMPLES && _floor_sample_sum != 0) {
-    _noise_floor = _floor_sample_sum / NUM_NOISE_FLOOR_SAMPLES;
-    if (_noise_floor < -120) {
-      _noise_floor = -120;    // clamp to lower bound of -120dBi
-    }
-    _floor_sample_sum = 0;
-
-    MESH_DEBUG_PRINTLN("RadioLibWrapper: noise_floor = %d", (int)_noise_floor);
   }
 }
 
