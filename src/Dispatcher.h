@@ -19,6 +19,14 @@ public:
 /**
  * \brief  Abstraction of this device's packet radio.
 */
+struct NoiseFloorStats {
+  uint16_t accepted_count;
+  int16_t sample_min;
+  int16_t sample_median;
+  int16_t sample_max;
+  uint16_t rejected_low_bound_count;
+};
+
 class Radio {
 public:
   virtual void begin() { }
@@ -62,6 +70,7 @@ public:
   virtual void loop() { }
 
   virtual int getNoiseFloor() const { return 0; }
+  virtual NoiseFloorStats getNoiseFloorStats() const { return {0, 0, 0, 0, 0}; }
 
   virtual void triggerNoiseFloorCalibrate(int threshold) { }
 

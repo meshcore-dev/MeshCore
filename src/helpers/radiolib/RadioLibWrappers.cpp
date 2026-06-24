@@ -12,6 +12,8 @@
 
 #define RSSI_CARRIER_SENSE_SAMPLES  5
 #define RSSI_CARRIER_SENSE_REQUIRED 3
+#define MIN_NOISE_FLOOR_SAMPLE -120
+#define LOW_BOUND_REJECT_JUMP_DB 14
 
 static volatile uint8_t state = STATE_IDLE;
 
@@ -24,6 +26,14 @@ static
 void setFlag(void) {
   // we sent a packet, set the flag
   state |= STATE_INT_READY;
+}
+
+void RadioLibWrapper::resetNoiseFloorBatch() {
+  _num_floor_samples = 0;
+  _floor_sample_min = 0;
+  _floor_sample_median = 0;
+  _floor_sample_max = 0;
+  _floor_rejected_low_bound = 0;
 }
 
 void RadioLibWrapper::begin() {
@@ -41,7 +51,7 @@ void RadioLibWrapper::begin() {
   _cad_enabled = false;
 
   // Start a fresh batch of idle RSSI samples for noise-floor calibration.
-  _num_floor_samples = 0;
+  resetNoiseFloorBatch();
 }
 
 uint32_t RadioLibWrapper::getRngSeed() {
@@ -60,7 +70,7 @@ void RadioLibWrapper::idle() {
 void RadioLibWrapper::triggerNoiseFloorCalibrate(int threshold) {
   _threshold = threshold;
   if (_num_floor_samples >= NUM_NOISE_FLOOR_SAMPLES) {  // ignore trigger if currently sampling
-    _num_floor_samples = 0;
+    resetNoiseFloorBatch();
   }
 }
 
@@ -75,27 +85,54 @@ void RadioLibWrapper::resetAGC() {
   doResetAGC();
   state = STATE_IDLE;   // trigger a startReceive()
 
-  // Reset noise floor sampling so it reconverges from fresh idle RSSI samples
-  // after the receiver frontend has been reset.
-  _noise_floor = 0;
-  _num_floor_samples = 0;
+  // Reset the in-progress batch after the receiver frontend has been reset.
+  // Keep the last published floor until a valid post-reset batch completes,
+  // because early post-reset RSSI readings can sit at the low reporting bound.
+  resetNoiseFloorBatch();
 }
 
 void RadioLibWrapper::loop() {
   if (state == STATE_RX && _num_floor_samples < NUM_NOISE_FLOOR_SAMPLES) {
     if (!isReceivingPacket()) {
-      _floor_samples[_num_floor_samples] = (int16_t)getCurrentRSSI();
+      int16_t rssi = (int16_t)getCurrentRSSI();
+      if (_noise_floor != 0 &&
+          _noise_floor > MIN_NOISE_FLOOR_SAMPLE &&
+          rssi <= MIN_NOISE_FLOOR_SAMPLE &&
+          (_noise_floor - rssi) >= LOW_BOUND_REJECT_JUMP_DB) {
+        _floor_rejected_low_bound++;
+        return;
+      }
+
+      if (_num_floor_samples == 0) {
+        _floor_sample_min = rssi;
+        _floor_sample_max = rssi;
+      } else {
+        if (rssi < _floor_sample_min) {
+          _floor_sample_min = rssi;
+        }
+        if (rssi > _floor_sample_max) {
+          _floor_sample_max = rssi;
+        }
+      }
+      _floor_samples[_num_floor_samples] = rssi;
       _num_floor_samples++;
 
       if (_num_floor_samples >= NUM_NOISE_FLOOR_SAMPLES) {
         std::sort(_floor_samples, _floor_samples + NUM_NOISE_FLOOR_SAMPLES);
-        _noise_floor = ((int32_t)_floor_samples[(NUM_NOISE_FLOOR_SAMPLES / 2) - 1] +
-                        _floor_samples[NUM_NOISE_FLOOR_SAMPLES / 2]) / 2;
+        _floor_sample_median = ((int32_t)_floor_samples[(NUM_NOISE_FLOOR_SAMPLES / 2) - 1] +
+                                _floor_samples[NUM_NOISE_FLOOR_SAMPLES / 2]) / 2;
+        _noise_floor = _floor_sample_median;
         if (_noise_floor < -120) {
           _noise_floor = -120;    // clamp to lower bound of -120dBi
         }
 
-        MESH_DEBUG_PRINTLN("RadioLibWrapper: noise_floor = %d", (int)_noise_floor);
+        MESH_DEBUG_PRINTLN("RadioLibWrapper: noise_floor=%d accepted=%u min=%d median=%d max=%d rejected_low=%u",
+          (int)_noise_floor,
+          _num_floor_samples,
+          (int)_floor_sample_min,
+          (int)_floor_sample_median,
+          (int)_floor_sample_max,
+          _floor_rejected_low_bound);
       }
     }
   }

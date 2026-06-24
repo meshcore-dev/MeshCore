@@ -15,8 +15,11 @@ protected:
   float _last_packet_rssi, _last_packet_snr;
   uint16_t _num_floor_samples;
   int16_t _floor_samples[NUM_NOISE_FLOOR_SAMPLES];
+  int16_t _floor_sample_min, _floor_sample_median, _floor_sample_max;
+  uint16_t _floor_rejected_low_bound;
   uint8_t _preamble_sf;
 
+  void resetNoiseFloorBatch();
   void idle();
   void startRecv();
   bool hasNoiseFloor() const;
@@ -30,9 +33,10 @@ protected:
 
 public:
   RadioLibWrapper(PhysicalLayer& radio, mesh::MainBoard& board) :
-      _radio(&radio), _board(&board), _last_packet_rssi(0), _last_packet_snr(0), _preamble_sf(0) {
-    n_recv = n_sent = n_recv_errors = 0;
-  }
+      _radio(&radio), _board(&board), n_recv(0), n_sent(0), n_recv_errors(0),
+      _noise_floor(0), _threshold(0), _last_packet_rssi(0), _last_packet_snr(0),
+      _num_floor_samples(0), _floor_sample_min(0), _floor_sample_median(0),
+      _floor_sample_max(0), _floor_rejected_low_bound(0), _preamble_sf(0) { }
 
   void begin() override;
   virtual void powerOff() { _radio->sleep(); }
@@ -61,6 +65,15 @@ public:
   virtual int16_t performChannelScan();
 
   int getNoiseFloor() const override { return _noise_floor; }
+  mesh::NoiseFloorStats getNoiseFloorStats() const override {
+    return {
+      _num_floor_samples,
+      _floor_sample_min,
+      _floor_sample_median,
+      _floor_sample_max,
+      _floor_rejected_low_bound
+    };
+  }
   void triggerNoiseFloorCalibrate(int threshold) override;
   void setCADEnabled(bool enable) override { _cad_enabled = enable; }
   void resetAGC() override;

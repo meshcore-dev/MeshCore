@@ -1,7 +1,9 @@
 #include <gtest/gtest.h>
 
+#include <cstring>
 #include <vector>
 
+#include "helpers/StatsFormatHelper.h"
 #include "helpers/radiolib/RadioLibWrappers.h"
 
 #include "../../src/helpers/radiolib/RadioLibWrappers.cpp"
@@ -49,6 +51,11 @@ public:
 
   void cachePacketMetrics(float rssi, float snr) {
     updateLastPacketMetrics(rssi, snr);
+  }
+
+  void forceNoiseFloor(int16_t noise_floor) {
+    _noise_floor = noise_floor;
+    _num_floor_samples = NUM_NOISE_FLOOR_SAMPLES;
   }
 
   void setCurrentRssiSamples(const std::vector<float>& samples) {
@@ -112,14 +119,20 @@ TEST(RssiNoiseFloor, LowStartupOutliersDoNotDominateMedianFloor) {
   std::vector<float> samples;
 
   samples.insert(samples.end(), 16, -130.0f);
-  samples.insert(samples.end(), 48, -103.0f);
+  samples.insert(samples.end(), 64, -103.0f);
 
   wrapper.begin();
   wrapper.setCurrentRssiSamples(samples);
   wrapper.enterReceiveMode();
-  wrapper.collectNoiseFloorSamples();
+  wrapper.collectNoiseFloorSamples(80);
 
   EXPECT_EQ(-103, wrapper.getNoiseFloor());
+  mesh::NoiseFloorStats stats = wrapper.getNoiseFloorStats();
+  EXPECT_EQ(64, stats.accepted_count);
+  EXPECT_EQ(-130, stats.sample_min);
+  EXPECT_EQ(-103, stats.sample_median);
+  EXPECT_EQ(-103, stats.sample_max);
+  EXPECT_EQ(0, stats.rejected_low_bound_count);
 }
 
 TEST(RssiNoiseFloor, ClampedLowFloorDoesNotRejectLaterHealthySamples) {
@@ -128,20 +141,16 @@ TEST(RssiNoiseFloor, ClampedLowFloorDoesNotRejectLaterHealthySamples) {
   TestRadioLibWrapper wrapper(radio, board);
 
   wrapper.begin();
-  wrapper.setCurrentRssiSamples(std::vector<float>(64, -130.0f));
-  wrapper.enterReceiveMode();
-  wrapper.collectNoiseFloorSamples();
-
-  EXPECT_EQ(-120, wrapper.getNoiseFloor());
-
+  wrapper.forceNoiseFloor(-120);
   wrapper.triggerNoiseFloorCalibrate(0);
   wrapper.setCurrentRssiSamples(std::vector<float>(64, -102.0f));
+  wrapper.enterReceiveMode();
   wrapper.collectNoiseFloorSamples();
 
   EXPECT_EQ(-102, wrapper.getNoiseFloor());
 }
 
-TEST(RssiNoiseFloor, VeryLowSamplesClampToLowerBound) {
+TEST(RssiNoiseFloor, VeryLowSamplesCanPublishWhenNoPreviousFloorExists) {
   FakePhysicalLayer radio;
   FakeBoard board;
   TestRadioLibWrapper wrapper(radio, board);
@@ -152,6 +161,33 @@ TEST(RssiNoiseFloor, VeryLowSamplesClampToLowerBound) {
   wrapper.collectNoiseFloorSamples();
 
   EXPECT_EQ(-120, wrapper.getNoiseFloor());
+  mesh::NoiseFloorStats stats = wrapper.getNoiseFloorStats();
+  EXPECT_EQ(64, stats.accepted_count);
+  EXPECT_EQ(-130, stats.sample_min);
+  EXPECT_EQ(-130, stats.sample_median);
+  EXPECT_EQ(-130, stats.sample_max);
+  EXPECT_EQ(0, stats.rejected_low_bound_count);
+}
+
+TEST(RssiNoiseFloor, ResetAGCPreservesPreviousFloorUntilValidBatchCompletes) {
+  FakePhysicalLayer radio;
+  FakeBoard board;
+  TestRadioLibWrapper wrapper(radio, board);
+
+  wrapper.begin();
+  wrapper.forceNoiseFloor(-103);
+  wrapper.resetAGC();
+  wrapper.enterReceiveMode();
+  wrapper.setCurrentRssiSamples(std::vector<float>(64, -130.0f));
+  wrapper.collectNoiseFloorSamples();
+
+  EXPECT_EQ(-103, wrapper.getNoiseFloor());
+  mesh::NoiseFloorStats stats = wrapper.getNoiseFloorStats();
+  EXPECT_EQ(0, stats.accepted_count);
+  EXPECT_EQ(0, stats.sample_min);
+  EXPECT_EQ(0, stats.sample_median);
+  EXPECT_EQ(0, stats.sample_max);
+  EXPECT_EQ(64, stats.rejected_low_bound_count);
 }
 
 TEST(RssiNoiseFloor, ReceivingPacketSkipsNoiseFloorSampling) {
@@ -173,6 +209,26 @@ TEST(RssiNoiseFloor, ReceivingPacketSkipsNoiseFloorSampling) {
   wrapper.collectNoiseFloorSamples();
 
   EXPECT_EQ(-101, wrapper.getNoiseFloor());
+}
+
+TEST(RssiNoiseFloor, RadioStatsExposeCalibrationDiagnostics) {
+  FakePhysicalLayer radio;
+  FakeBoard board;
+  TestRadioLibWrapper wrapper(radio, board);
+  char reply[512];
+
+  wrapper.begin();
+  wrapper.setCurrentRssiSamples(std::vector<float>(64, -101.0f));
+  wrapper.enterReceiveMode();
+  wrapper.collectNoiseFloorSamples();
+
+  StatsFormatHelper::formatRadioStats(reply, &wrapper, wrapper, 1000, 2000);
+
+  EXPECT_NE(nullptr, std::strstr(reply, "\"noise_floor_sample_count\":64"));
+  EXPECT_NE(nullptr, std::strstr(reply, "\"noise_floor_sample_min\":-101"));
+  EXPECT_NE(nullptr, std::strstr(reply, "\"noise_floor_sample_median\":-101"));
+  EXPECT_NE(nullptr, std::strstr(reply, "\"noise_floor_sample_max\":-101"));
+  EXPECT_NE(nullptr, std::strstr(reply, "\"noise_floor_rejected_low_bound\":0"));
 }
 
 int main(int argc, char **argv) {
