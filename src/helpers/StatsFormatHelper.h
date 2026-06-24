@@ -28,7 +28,8 @@ public:
     sprintf(reply, 
       "{\"noise_floor\":%d,\"last_rssi\":%d,\"last_snr\":%.2f,\"tx_air_secs\":%u,\"rx_air_secs\":%u,"
       "\"noise_floor_sample_count\":%u,\"noise_floor_sample_min\":%d,\"noise_floor_sample_median\":%d,"
-      "\"noise_floor_sample_max\":%d,\"noise_floor_rejected_low_bound\":%u}",
+      "\"noise_floor_sample_max\":%d,\"noise_floor_rejected_low_bound\":%u,"
+      "\"noise_floor_rejected_high_bound\":%u}",
       (int16_t)radio->getNoiseFloor(),
       (int16_t)driver.getLastRSSI(),
       driver.getLastSNR(),
@@ -38,7 +39,8 @@ public:
       nf_stats.sample_min,
       nf_stats.sample_median,
       nf_stats.sample_max,
-      nf_stats.rejected_low_bound_count
+      nf_stats.rejected_low_bound_count,
+      nf_stats.rejected_high_bound_count
     );
   }
 

@@ -13,8 +13,10 @@
 #define RSSI_CARRIER_SENSE_SAMPLES  5
 #define RSSI_CARRIER_SENSE_REQUIRED 3
 #define MIN_NOISE_FLOOR_SAMPLE -120
+#define MAX_NOISE_FLOOR_SAMPLE -80
 #define LOW_BOUND_REJECT_MARGIN_DB 1
 #define LOW_BOUND_REJECT_JUMP_DB 14
+#define HIGH_BOUND_REJECT_JUMP_DB 14
 
 static volatile uint8_t state = STATE_IDLE;
 
@@ -35,6 +37,7 @@ void RadioLibWrapper::resetNoiseFloorBatch() {
   _floor_sample_median = 0;
   _floor_sample_max = 0;
   _floor_rejected_low_bound = 0;
+  _floor_rejected_high_bound = 0;
 }
 
 void RadioLibWrapper::begin() {
@@ -70,7 +73,13 @@ void RadioLibWrapper::idle() {
 
 void RadioLibWrapper::triggerNoiseFloorCalibrate(int threshold) {
   _threshold = threshold;
-  if (_num_floor_samples >= NUM_NOISE_FLOOR_SAMPLES) {  // ignore trigger if currently sampling
+  if (_num_floor_samples >= NUM_NOISE_FLOOR_SAMPLES ||
+      (_num_floor_samples == 0 &&
+       (_floor_rejected_low_bound > 0 || _floor_rejected_high_bound > 0))) {
+    // Start a new stats window after a completed batch, or after a
+    // rejected-only interval. Without the second case, a device sitting on the
+    // low RSSI reporting bound can accumulate a stale count for the whole
+    // uptime even though no calibration batch is progressing.
     resetNoiseFloorBatch();
   }
 }
@@ -100,13 +109,23 @@ void RadioLibWrapper::loop() {
       bool no_published_floor = _noise_floor == 0;
       bool healthy_floor_would_jump_down = _noise_floor > MIN_NOISE_FLOOR_SAMPLE &&
           (_noise_floor - rssi) >= LOW_BOUND_REJECT_JUMP_DB;
+      bool high_bound_sample = rssi >= MAX_NOISE_FLOOR_SAMPLE;
+      bool healthy_floor_would_jump_up = _noise_floor > MIN_NOISE_FLOOR_SAMPLE &&
+          (rssi - _noise_floor) >= HIGH_BOUND_REJECT_JUMP_DB;
 
       // SX126x RSSI readings can sit on the receiver's low reporting bound
       // during startup or after an AGC reset. Those readings are not useful
       // calibration input: publishing them traps the floor at -120 dBm until
       // healthier samples are allowed back in.
       if (low_bound_sample && (no_published_floor || healthy_floor_would_jump_down)) {
-        _floor_rejected_low_bound++;
+        _floor_rejected_low_bound = mesh::incrementStatCounter(_floor_rejected_low_bound);
+        return;
+      }
+      // Strong instantaneous RSSI is channel activity, not idle floor. Median
+      // resists a few of these samples, but rejecting them keeps the batch
+      // diagnostics honest and prevents a busy period from becoming the floor.
+      if ((no_published_floor && high_bound_sample) || healthy_floor_would_jump_up) {
+        _floor_rejected_high_bound = mesh::incrementStatCounter(_floor_rejected_high_bound);
         return;
       }
 
@@ -133,13 +152,14 @@ void RadioLibWrapper::loop() {
           _noise_floor = -120;    // clamp to lower bound of -120dBi
         }
 
-        MESH_DEBUG_PRINTLN("RadioLibWrapper: noise_floor=%d accepted=%u min=%d median=%d max=%d rejected_low=%u",
+        MESH_DEBUG_PRINTLN("RadioLibWrapper: noise_floor=%d accepted=%u min=%d median=%d max=%d rejected_low=%u rejected_high=%u",
           (int)_noise_floor,
           _num_floor_samples,
           (int)_floor_sample_min,
           (int)_floor_sample_median,
           (int)_floor_sample_max,
-          _floor_rejected_low_bound);
+          _floor_rejected_low_bound,
+          _floor_rejected_high_bound);
       }
     }
   }

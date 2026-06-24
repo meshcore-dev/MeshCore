@@ -25,6 +25,7 @@ struct NoiseFloorStats {
   int16_t sample_median;
   int16_t sample_max;
   uint16_t rejected_low_bound_count;
+  uint16_t rejected_high_bound_count;
 };
 
 class Radio {
@@ -70,7 +71,7 @@ public:
   virtual void loop() { }
 
   virtual int getNoiseFloor() const { return 0; }
-  virtual NoiseFloorStats getNoiseFloorStats() const { return {0, 0, 0, 0, 0}; }
+  virtual NoiseFloorStats getNoiseFloorStats() const { return {0, 0, 0, 0, 0, 0}; }
 
   virtual void triggerNoiseFloorCalibrate(int threshold) { }
 
