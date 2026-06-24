@@ -11,6 +11,7 @@ protected:
   uint32_t n_recv, n_sent, n_recv_errors;
   int16_t _noise_floor, _threshold;
   bool _cad_enabled;
+  float _last_packet_rssi, _last_packet_snr;
   uint16_t _num_floor_samples;
   int32_t _floor_sample_sum;
   uint8_t _preamble_sf;
@@ -18,12 +19,19 @@ protected:
   void idle();
   void startRecv();
   bool hasNoiseFloor() const;
+  void updateLastPacketMetrics(float rssi, float snr) {
+    _last_packet_rssi = rssi;
+    _last_packet_snr = snr;
+  }
   float packetScoreInt(float snr, int sf, int packet_len);
   virtual bool isReceivingPacket() =0;
   virtual void doResetAGC();
 
 public:
-  RadioLibWrapper(PhysicalLayer& radio, mesh::MainBoard& board) : _radio(&radio), _board(&board), _preamble_sf(0) { n_recv = n_sent = 0; }
+  RadioLibWrapper(PhysicalLayer& radio, mesh::MainBoard& board) :
+      _radio(&radio), _board(&board), _last_packet_rssi(0), _last_packet_snr(0), _preamble_sf(0) {
+    n_recv = n_sent = n_recv_errors = 0;
+  }
 
   void begin() override;
   virtual void powerOff() { _radio->sleep(); }
@@ -63,8 +71,8 @@ public:
   uint32_t getPacketsSent() const { return n_sent; }
   void resetStats() { n_recv = n_sent = n_recv_errors = 0; }
 
-  virtual float getLastRSSI() const override;
-  virtual float getLastSNR() const override;
+  virtual float getLastRSSI() const override { return _last_packet_rssi; }
+  virtual float getLastSNR() const override { return _last_packet_snr; }
 
   float packetScore(float snr, int packet_len) override { return packetScoreInt(snr, 10, packet_len); }  // assume sf=10
 

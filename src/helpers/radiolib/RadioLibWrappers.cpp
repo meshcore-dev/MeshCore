@@ -2,6 +2,8 @@
 #define RADIOLIB_STATIC_ONLY 1
 #include "RadioLibWrappers.h"
 
+#include <algorithm>
+
 #define STATE_IDLE       0
 #define STATE_RX         1
 #define STATE_TX_WAIT    3
@@ -135,6 +137,10 @@ int RadioLibWrapper::recvRaw(uint8_t* bytes, int sz) {
         len = 0;
         n_recv_errors++;
       } else {
+        // Capture packet signal metrics while the completed packet status is
+        // still the current radio context. Later instantaneous RSSI sampling
+        // for carrier sense/noise floor must not change "last packet" stats.
+        updateLastPacketMetrics(_radio->getRSSI(), _radio->getSNR());
       //  Serial.print("  readData() -> "); Serial.println(len);
         n_recv++;
       }
@@ -226,13 +232,6 @@ bool RadioLibWrapper::isChannelActive() {
   return false;
 }
 
-float RadioLibWrapper::getLastRSSI() const {
-  return _radio->getRSSI();
-}
-float RadioLibWrapper::getLastSNR() const {
-  return _radio->getSNR();
-}
-
 // Approximate SNR threshold per SF for successful reception (based on Semtech datasheets)
 static float snr_threshold[] = {
     -7.5,  // SF7 needs at least -7.5 dB SNR
@@ -248,8 +247,8 @@ float RadioLibWrapper::packetScoreInt(float snr, int sf, int packet_len) {
   
   if (snr < snr_threshold[sf - 7]) return 0.0f;    // Below threshold, no chance of success
 
-  auto success_rate_based_on_snr = (snr - snr_threshold[sf - 7]) / 10.0;
-  auto collision_penalty = 1 - (packet_len / 256.0);   // Assuming max packet of 256 bytes
+  auto success_rate_based_on_snr = (snr - snr_threshold[sf - 7]) / 10.0f;
+  auto collision_penalty = 1.0f - (packet_len / 256.0f);   // Assuming max packet of 256 bytes
 
-  return max(0.0, min(1.0, success_rate_based_on_snr * collision_penalty));
+  return std::max(0.0f, std::min(1.0f, success_rate_based_on_snr * collision_penalty));
 }

@@ -23,8 +23,6 @@ public:
   float getCurrentRSSI() override {
     return ((CustomSTM32WLx *)_radio)->getRSSI(false);
   }
-  float getLastRSSI() const override { return ((CustomSTM32WLx *)_radio)->getRSSI(); }
-  float getLastSNR() const override { return ((CustomSTM32WLx *)_radio)->getSNR(); }
 
   float packetScore(float snr, int packet_len) override {
     int sf = ((CustomSTM32WLx *)_radio)->spreadingFactor;

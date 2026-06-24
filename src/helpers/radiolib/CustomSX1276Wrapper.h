@@ -25,8 +25,6 @@ public:
   float getCurrentRSSI() override {
     return ((CustomSX1276 *)_radio)->getRSSI(false);
   }
-  float getLastRSSI() const override { return ((CustomSX1276 *)_radio)->getRSSI(); }
-  float getLastSNR() const override { return ((CustomSX1276 *)_radio)->getSNR(); }
 
   float packetScore(float snr, int packet_len) override {
     int sf = ((CustomSX1276 *)_radio)->spreadingFactor;
