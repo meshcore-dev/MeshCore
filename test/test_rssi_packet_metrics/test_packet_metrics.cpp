@@ -150,6 +150,44 @@ TEST(RssiNoiseFloor, ClampedLowFloorDoesNotRejectLaterHealthySamples) {
   EXPECT_EQ(-102, wrapper.getNoiseFloor());
 }
 
+TEST(RssiNoiseFloor, ClampedLowFloorStillRejectsLaterLowBoundSamples) {
+  FakePhysicalLayer radio;
+  FakeBoard board;
+  TestRadioLibWrapper wrapper(radio, board);
+
+  wrapper.begin();
+  wrapper.forceNoiseFloor(-120);
+  wrapper.triggerNoiseFloorCalibrate(0);
+  wrapper.setCurrentRssiSamples(std::vector<float>(64, -120.0f));
+  wrapper.enterReceiveMode();
+  wrapper.collectNoiseFloorSamples();
+
+  EXPECT_EQ(-120, wrapper.getNoiseFloor());
+  mesh::NoiseFloorStats stats = wrapper.getNoiseFloorStats();
+  EXPECT_EQ(0, stats.accepted_count);
+  EXPECT_EQ(64, stats.rejected_low_bound_count);
+  EXPECT_EQ(0, stats.rejected_high_bound_count);
+}
+
+TEST(RssiNoiseFloor, ClampedLowFloorStillRejectsStrongSamples) {
+  FakePhysicalLayer radio;
+  FakeBoard board;
+  TestRadioLibWrapper wrapper(radio, board);
+
+  wrapper.begin();
+  wrapper.forceNoiseFloor(-120);
+  wrapper.triggerNoiseFloorCalibrate(0);
+  wrapper.setCurrentRssiSamples(std::vector<float>(64, -58.0f));
+  wrapper.enterReceiveMode();
+  wrapper.collectNoiseFloorSamples();
+
+  EXPECT_EQ(-120, wrapper.getNoiseFloor());
+  mesh::NoiseFloorStats stats = wrapper.getNoiseFloorStats();
+  EXPECT_EQ(0, stats.accepted_count);
+  EXPECT_EQ(0, stats.rejected_low_bound_count);
+  EXPECT_EQ(64, stats.rejected_high_bound_count);
+}
+
 TEST(RssiNoiseFloor, VeryLowSamplesDoNotPublishWhenNoPreviousFloorExists) {
   FakePhysicalLayer radio;
   FakeBoard board;
