@@ -13,6 +13,7 @@
 #define RSSI_CARRIER_SENSE_SAMPLES  5
 #define RSSI_CARRIER_SENSE_REQUIRED 3
 #define MIN_NOISE_FLOOR_SAMPLE -120
+#define LOW_BOUND_REJECT_MARGIN_DB 1
 #define LOW_BOUND_REJECT_JUMP_DB 14
 
 static volatile uint8_t state = STATE_IDLE;
@@ -95,10 +96,16 @@ void RadioLibWrapper::loop() {
   if (state == STATE_RX && _num_floor_samples < NUM_NOISE_FLOOR_SAMPLES) {
     if (!isReceivingPacket()) {
       int16_t rssi = (int16_t)getCurrentRSSI();
-      if (_noise_floor != 0 &&
-          _noise_floor > MIN_NOISE_FLOOR_SAMPLE &&
-          rssi <= MIN_NOISE_FLOOR_SAMPLE &&
-          (_noise_floor - rssi) >= LOW_BOUND_REJECT_JUMP_DB) {
+      bool low_bound_sample = rssi <= MIN_NOISE_FLOOR_SAMPLE + LOW_BOUND_REJECT_MARGIN_DB;
+      bool no_published_floor = _noise_floor == 0;
+      bool healthy_floor_would_jump_down = _noise_floor > MIN_NOISE_FLOOR_SAMPLE &&
+          (_noise_floor - rssi) >= LOW_BOUND_REJECT_JUMP_DB;
+
+      // SX126x RSSI readings can sit on the receiver's low reporting bound
+      // during startup or after an AGC reset. Those readings are not useful
+      // calibration input: publishing them traps the floor at -120 dBm until
+      // healthier samples are allowed back in.
+      if (low_bound_sample && (no_published_floor || healthy_floor_would_jump_down)) {
         _floor_rejected_low_bound++;
         return;
       }

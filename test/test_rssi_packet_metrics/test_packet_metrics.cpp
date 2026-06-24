@@ -129,10 +129,10 @@ TEST(RssiNoiseFloor, LowStartupOutliersDoNotDominateMedianFloor) {
   EXPECT_EQ(-103, wrapper.getNoiseFloor());
   mesh::NoiseFloorStats stats = wrapper.getNoiseFloorStats();
   EXPECT_EQ(64, stats.accepted_count);
-  EXPECT_EQ(-130, stats.sample_min);
+  EXPECT_EQ(-103, stats.sample_min);
   EXPECT_EQ(-103, stats.sample_median);
   EXPECT_EQ(-103, stats.sample_max);
-  EXPECT_EQ(0, stats.rejected_low_bound_count);
+  EXPECT_EQ(16, stats.rejected_low_bound_count);
 }
 
 TEST(RssiNoiseFloor, ClampedLowFloorDoesNotRejectLaterHealthySamples) {
@@ -150,7 +150,7 @@ TEST(RssiNoiseFloor, ClampedLowFloorDoesNotRejectLaterHealthySamples) {
   EXPECT_EQ(-102, wrapper.getNoiseFloor());
 }
 
-TEST(RssiNoiseFloor, VeryLowSamplesCanPublishWhenNoPreviousFloorExists) {
+TEST(RssiNoiseFloor, VeryLowSamplesDoNotPublishWhenNoPreviousFloorExists) {
   FakePhysicalLayer radio;
   FakeBoard board;
   TestRadioLibWrapper wrapper(radio, board);
@@ -160,13 +160,36 @@ TEST(RssiNoiseFloor, VeryLowSamplesCanPublishWhenNoPreviousFloorExists) {
   wrapper.enterReceiveMode();
   wrapper.collectNoiseFloorSamples();
 
-  EXPECT_EQ(-120, wrapper.getNoiseFloor());
+  EXPECT_EQ(0, wrapper.getNoiseFloor());
+  mesh::NoiseFloorStats stats = wrapper.getNoiseFloorStats();
+  EXPECT_EQ(0, stats.accepted_count);
+  EXPECT_EQ(0, stats.sample_min);
+  EXPECT_EQ(0, stats.sample_median);
+  EXPECT_EQ(0, stats.sample_max);
+  EXPECT_EQ(64, stats.rejected_low_bound_count);
+}
+
+TEST(RssiNoiseFloor, LowBoundStartupSamplesDoNotContaminateLaterHealthyBatch) {
+  FakePhysicalLayer radio;
+  FakeBoard board;
+  TestRadioLibWrapper wrapper(radio, board);
+  std::vector<float> samples;
+
+  samples.insert(samples.end(), 64, -120.0f);
+  samples.insert(samples.end(), 64, -102.0f);
+
+  wrapper.begin();
+  wrapper.setCurrentRssiSamples(samples);
+  wrapper.enterReceiveMode();
+  wrapper.collectNoiseFloorSamples(128);
+
+  EXPECT_EQ(-102, wrapper.getNoiseFloor());
   mesh::NoiseFloorStats stats = wrapper.getNoiseFloorStats();
   EXPECT_EQ(64, stats.accepted_count);
-  EXPECT_EQ(-130, stats.sample_min);
-  EXPECT_EQ(-130, stats.sample_median);
-  EXPECT_EQ(-130, stats.sample_max);
-  EXPECT_EQ(0, stats.rejected_low_bound_count);
+  EXPECT_EQ(-102, stats.sample_min);
+  EXPECT_EQ(-102, stats.sample_median);
+  EXPECT_EQ(-102, stats.sample_max);
+  EXPECT_EQ(64, stats.rejected_low_bound_count);
 }
 
 TEST(RssiNoiseFloor, ResetAGCPreservesPreviousFloorUntilValidBatchCompletes) {
