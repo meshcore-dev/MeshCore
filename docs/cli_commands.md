@@ -148,6 +148,20 @@ Returns JSON with:
 
 ---
 
+### Noise-floor calibration stats
+**Usage:** `stats-noise`
+
+**Serial Only:** No
+
+Returns JSON with:
+- `floor`: current radio noise floor estimate in dBm
+- `accepted`: RSSI samples accepted into the current or most recent calibration batch
+- `min` / `median` / `max`: accepted RSSI sample range in dBm. `floor` is estimated from the lower quartile of the accepted batch.
+- `rejected_low`: RSSI samples rejected because they would cause a suspicious downward jump
+- `rejected_high`: strong RSSI samples rejected because they look like channel activity rather than idle noise
+
+---
+
 ### Noise-floor calibration settings
 **Usage:** `get noise.sample.ms`
 

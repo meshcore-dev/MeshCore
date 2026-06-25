@@ -867,6 +867,10 @@ void SensorMesh::formatRadioStatsReply(char *reply) {
   StatsFormatHelper::formatRadioStats(reply, _radio, radio_driver, getTotalAirTime(), getReceiveAirTime());
 }
 
+void SensorMesh::formatNoiseFloorStatsReply(char *reply) {
+  StatsFormatHelper::formatNoiseFloorStats(reply, _radio);
+}
+
 void SensorMesh::formatPacketStatsReply(char *reply) {
   StatsFormatHelper::formatPacketStats(reply, radio_driver, getNumSentFlood(), getNumSentDirect(), 
                                        getNumRecvFlood(), getNumRecvDirect());

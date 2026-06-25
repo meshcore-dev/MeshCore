@@ -44,6 +44,21 @@ public:
     );
   }
 
+  static void formatNoiseFloorStats(char* reply, mesh::Radio* radio) {
+    mesh::NoiseFloorStats nf_stats = radio->getNoiseFloorStats();
+    sprintf(reply,
+      "{\"floor\":%d,\"accepted\":%u,\"min\":%d,\"median\":%d,\"max\":%d,"
+      "\"rejected_low\":%u,\"rejected_high\":%u}",
+      (int16_t)radio->getNoiseFloor(),
+      nf_stats.accepted_count,
+      nf_stats.sample_min,
+      nf_stats.sample_median,
+      nf_stats.sample_max,
+      nf_stats.rejected_low_bound_count,
+      nf_stats.rejected_high_bound_count
+    );
+  }
+
   template<typename RadioDriverType>
   static void formatPacketStats(char* reply,
                                RadioDriverType& driver,

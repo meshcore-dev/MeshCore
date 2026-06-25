@@ -603,6 +603,28 @@ TEST(RssiNoiseFloor, RadioStatsExposeCalibrationDiagnostics) {
   EXPECT_NE(nullptr, std::strstr(reply, "\"noise_floor_rejected_high_bound\":0"));
 }
 
+TEST(RssiNoiseFloor, NoiseStatsExposeCalibrationDiagnostics) {
+  FakePhysicalLayer radio;
+  FakeBoard board;
+  TestRadioLibWrapper wrapper(radio, board);
+  char reply[512];
+
+  wrapper.begin();
+  wrapper.setCurrentRssiSamples(std::vector<float>(64, -101.0f));
+  wrapper.enterReceiveMode();
+  wrapper.collectNoiseFloorSamples();
+
+  StatsFormatHelper::formatNoiseFloorStats(reply, &wrapper);
+
+  EXPECT_NE(nullptr, std::strstr(reply, "\"floor\":-101"));
+  EXPECT_NE(nullptr, std::strstr(reply, "\"accepted\":64"));
+  EXPECT_NE(nullptr, std::strstr(reply, "\"min\":-101"));
+  EXPECT_NE(nullptr, std::strstr(reply, "\"median\":-101"));
+  EXPECT_NE(nullptr, std::strstr(reply, "\"max\":-101"));
+  EXPECT_NE(nullptr, std::strstr(reply, "\"rejected_low\":0"));
+  EXPECT_NE(nullptr, std::strstr(reply, "\"rejected_high\":0"));
+}
+
 int main(int argc, char **argv) {
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
