@@ -9,6 +9,8 @@ protected:
   PhysicalLayer* _radio;
   mesh::MainBoard* _board;
   static constexpr uint16_t NUM_NOISE_FLOOR_SAMPLES = 64;
+  static constexpr uint16_t DEFAULT_NOISE_FLOOR_SAMPLE_INTERVAL_MS = 250;
+  static constexpr uint32_t DEFAULT_NOISE_FLOOR_MAX_CALIB_WINDOW_MS = 30000;
   uint32_t n_recv, n_sent, n_recv_errors;
   int16_t _noise_floor, _threshold;
   bool _cad_enabled;
@@ -18,6 +20,12 @@ protected:
   int16_t _floor_sample_min, _floor_sample_median, _floor_sample_max;
   uint16_t _floor_rejected_low_bound;
   uint16_t _floor_rejected_high_bound;
+  uint16_t _noise_floor_sample_interval_ms;
+  uint32_t _noise_floor_max_calib_window_ms;
+  unsigned long _noise_floor_batch_started_at;
+  unsigned long _last_noise_floor_sample_at;
+  bool _noise_floor_batch_active;
+  bool _has_last_noise_floor_sample;
   uint8_t _preamble_sf;
 
   void resetNoiseFloorSamples();
@@ -25,6 +33,7 @@ protected:
   void idle();
   void startRecv();
   bool hasNoiseFloor() const;
+  virtual unsigned long getMillis() const;
   void updateLastPacketMetrics(float rssi, float snr) {
     _last_packet_rssi = rssi;
     _last_packet_snr = snr;
@@ -39,7 +48,12 @@ public:
       _noise_floor(0), _threshold(0), _last_packet_rssi(0), _last_packet_snr(0),
       _num_floor_samples(0), _floor_sample_min(0), _floor_sample_median(0),
       _floor_sample_max(0), _floor_rejected_low_bound(0),
-      _floor_rejected_high_bound(0), _preamble_sf(0) { }
+      _floor_rejected_high_bound(0),
+      _noise_floor_sample_interval_ms(DEFAULT_NOISE_FLOOR_SAMPLE_INTERVAL_MS),
+      _noise_floor_max_calib_window_ms(DEFAULT_NOISE_FLOOR_MAX_CALIB_WINDOW_MS),
+      _noise_floor_batch_started_at(0), _last_noise_floor_sample_at(0),
+      _noise_floor_batch_active(false), _has_last_noise_floor_sample(false),
+      _preamble_sf(0) { }
 
   void begin() override;
   virtual void powerOff() { _radio->sleep(); }
@@ -69,6 +83,7 @@ public:
 
   int getNoiseFloor() const override;
   mesh::NoiseFloorStats getNoiseFloorStats() const override;
+  void setNoiseFloorCalibration(uint16_t sample_interval_ms, uint32_t max_calib_window_ms) override;
   void triggerNoiseFloorCalibrate(int threshold) override;
   void setCADEnabled(bool enable) override { _cad_enabled = enable; }
   void resetAGC() override;

@@ -24,6 +24,10 @@ static bool isTrustedNoiseFloorValue(int16_t noise_floor) {
   return noise_floor != 0 && noise_floor > MIN_NOISE_FLOOR_SAMPLE;
 }
 
+static bool elapsedAtLeast(unsigned long now, unsigned long started_at, uint32_t interval_ms) {
+  return (uint32_t)(now - started_at) >= interval_ms;
+}
+
 static uint16_t addStatCounter(uint16_t value, uint16_t increment) {
   return (uint16_t)mesh::cappedStatCounter((uint32_t)value + increment);
 }
@@ -44,6 +48,10 @@ void RadioLibWrapper::resetNoiseFloorSamples() {
   _floor_sample_min = 0;
   _floor_sample_median = 0;
   _floor_sample_max = 0;
+  _noise_floor_batch_started_at = 0;
+  _last_noise_floor_sample_at = 0;
+  _noise_floor_batch_active = false;
+  _has_last_noise_floor_sample = false;
 }
 
 void RadioLibWrapper::resetNoiseFloorBatch() {
@@ -96,6 +104,20 @@ void RadioLibWrapper::triggerNoiseFloorCalibrate(int threshold) {
   }
 }
 
+unsigned long RadioLibWrapper::getMillis() const {
+#if defined(ARDUINO)
+  return millis();
+#else
+  return 0;
+#endif
+}
+
+void RadioLibWrapper::setNoiseFloorCalibration(uint16_t sample_interval_ms, uint32_t max_calib_window_ms) {
+  _noise_floor_sample_interval_ms = sample_interval_ms;
+  _noise_floor_max_calib_window_ms = max_calib_window_ms;
+  resetNoiseFloorBatch();
+}
+
 void RadioLibWrapper::doResetAGC() {
   _radio->sleep();  // warm sleep to reset analog frontend
 }
@@ -116,6 +138,28 @@ void RadioLibWrapper::resetAGC() {
 void RadioLibWrapper::loop() {
   if (state == STATE_RX && _num_floor_samples < NUM_NOISE_FLOOR_SAMPLES) {
     if (!isReceivingPacket()) {
+      unsigned long now = getMillis();
+      if (_noise_floor_batch_active &&
+          _noise_floor_max_calib_window_ms > 0 &&
+          elapsedAtLeast(now, _noise_floor_batch_started_at, _noise_floor_max_calib_window_ms)) {
+        // A calibration window that cannot complete is probably observing
+        // unstable receiver state or channel activity. Drop the partial
+        // window so old accepted samples cannot mix with later conditions.
+        resetNoiseFloorBatch();
+        return;
+      }
+      if (_has_last_noise_floor_sample &&
+          _noise_floor_sample_interval_ms > 0 &&
+          !elapsedAtLeast(now, _last_noise_floor_sample_at, _noise_floor_sample_interval_ms)) {
+        return;
+      }
+      if (!_noise_floor_batch_active) {
+        _noise_floor_batch_started_at = now;
+        _noise_floor_batch_active = true;
+      }
+      _last_noise_floor_sample_at = now;
+      _has_last_noise_floor_sample = true;
+
       int16_t rssi = (int16_t)getCurrentRSSI();
       bool low_bound_sample = rssi <= MIN_NOISE_FLOOR_SAMPLE + LOW_BOUND_REJECT_MARGIN_DB;
       bool trusted_published_floor = isTrustedNoiseFloorValue(_noise_floor);

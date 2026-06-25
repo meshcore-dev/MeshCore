@@ -27,10 +27,13 @@ public:
 
 class TestRadioLibWrapper : public RadioLibWrapper {
 public:
-  TestRadioLibWrapper(PhysicalLayer& radio, mesh::MainBoard& board) : RadioLibWrapper(radio, board) { }
+  TestRadioLibWrapper(PhysicalLayer& radio, mesh::MainBoard& board) : RadioLibWrapper(radio, board) {
+    setNoiseFloorCalibration(0, 30000);
+  }
 
   std::vector<float> current_rssi_samples;
   size_t current_rssi_index = 0;
+  unsigned long current_millis = 0;
   bool receiving_packet = false;
 
   void setParams(float freq, float bw, uint8_t sf, uint8_t cr) override {
@@ -48,6 +51,12 @@ public:
   }
 
   bool isReceivingPacket() override { return receiving_packet; }
+
+  unsigned long getMillis() const override { return current_millis; }
+
+  void advanceMillis(unsigned long millis) {
+    current_millis += millis;
+  }
 
   void cachePacketMetrics(float rssi, float snr) {
     updateLastPacketMetrics(rssi, snr);
@@ -397,6 +406,58 @@ TEST(RssiNoiseFloor, ReceivingPacketSkipsNoiseFloorSampling) {
   wrapper.collectNoiseFloorSamples();
 
   EXPECT_EQ(-101, wrapper.getNoiseFloor());
+}
+
+TEST(RssiNoiseFloor, SamplingIsRateLimited) {
+  FakePhysicalLayer radio;
+  FakeBoard board;
+  TestRadioLibWrapper wrapper(radio, board);
+
+  wrapper.begin();
+  wrapper.setNoiseFloorCalibration(250, 30000);
+  wrapper.setCurrentRssiSamples(std::vector<float>(64, -101.0f));
+  wrapper.enterReceiveMode();
+
+  wrapper.collectNoiseFloorSamples(10);
+  mesh::NoiseFloorStats stats = wrapper.getNoiseFloorStats();
+  EXPECT_EQ(1, stats.accepted_count);
+
+  wrapper.advanceMillis(249);
+  wrapper.collectNoiseFloorSamples(10);
+  stats = wrapper.getNoiseFloorStats();
+  EXPECT_EQ(1, stats.accepted_count);
+
+  wrapper.advanceMillis(1);
+  wrapper.collectNoiseFloorSamples(10);
+  stats = wrapper.getNoiseFloorStats();
+  EXPECT_EQ(2, stats.accepted_count);
+}
+
+TEST(RssiNoiseFloor, CalibrationWindowDropsStalePartialBatch) {
+  FakePhysicalLayer radio;
+  FakeBoard board;
+  TestRadioLibWrapper wrapper(radio, board);
+
+  wrapper.begin();
+  wrapper.setNoiseFloorCalibration(250, 1000);
+  wrapper.setCurrentRssiSamples(std::vector<float>(64, -101.0f));
+  wrapper.enterReceiveMode();
+
+  wrapper.collectNoiseFloorSamples();
+  wrapper.advanceMillis(250);
+  wrapper.collectNoiseFloorSamples();
+
+  mesh::NoiseFloorStats stats = wrapper.getNoiseFloorStats();
+  EXPECT_EQ(2, stats.accepted_count);
+
+  wrapper.advanceMillis(750);
+  wrapper.collectNoiseFloorSamples(1);
+
+  stats = wrapper.getNoiseFloorStats();
+  EXPECT_EQ(0, stats.accepted_count);
+  EXPECT_EQ(0, stats.sample_min);
+  EXPECT_EQ(0, stats.sample_median);
+  EXPECT_EQ(0, stats.sample_max);
 }
 
 TEST(RssiNoiseFloor, RadioStatsExposeCalibrationDiagnostics) {

@@ -148,6 +148,24 @@ Returns JSON with:
 
 ---
 
+### Noise-floor calibration settings
+**Usage:** `get noise.sample.ms`
+
+**Usage:** `set noise.sample.ms <milliseconds>`
+
+**Usage:** `get noise.window.secs`
+
+**Usage:** `set noise.window.secs <seconds>`
+
+**Serial Only:** No
+
+Controls the RSSI sampling cadence and maximum calibration attempt window used by noise-floor calibration.
+
+- `noise.sample.ms`: minimum delay between instantaneous RSSI samples. Range: `50`-`5000` ms. Default: `250`.
+- `noise.window.secs`: maximum age of a partial calibration batch before it is discarded. Range: `1`-`600` seconds. Default: `30`.
+
+---
+
 ### Packet stats - Packet counters: Received, Sent
 **Usage:** `stats-packets`
 

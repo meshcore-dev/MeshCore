@@ -19,6 +19,9 @@
 #define LOOP_DETECT_MODERATE  2
 #define LOOP_DETECT_STRICT    3
 
+#define DEFAULT_NOISE_SAMPLE_INTERVAL_MS 250
+#define DEFAULT_NOISE_CALIB_WINDOW_SECS  30
+
 struct NodePrefs { // persisted to file
   float airtime_factor;
   char node_name[32];
@@ -65,6 +68,8 @@ struct NodePrefs { // persisted to file
   uint8_t path_hash_mode;   // which path mode to use when sending
   uint8_t loop_detect;
   uint8_t cad_enabled;      // hardware Channel Activity Detection before TX (boolean)
+  uint16_t noise_sample_interval_ms;
+  uint16_t noise_calib_window_secs;
 };
 
 class CommonCLICallbacks {
@@ -113,6 +118,11 @@ public:
 
   virtual bool setRxBoostedGain(bool enable) {
     return false; // CommonCLI reports unsupported if not overridden by wrapper
+  };
+
+  virtual void setNoiseFloorCalibration(uint16_t sample_interval_ms, uint16_t max_calib_window_secs) {
+    (void)sample_interval_ms;
+    (void)max_calib_window_secs;
   };
 };
 

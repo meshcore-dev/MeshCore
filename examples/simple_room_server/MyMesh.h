@@ -216,6 +216,9 @@ public:
   void startRegionsLoad() override;
   bool saveRegions() override;
   void onDefaultRegionChanged(const RegionEntry* r) override;
+  void setNoiseFloorCalibration(uint16_t sample_interval_ms, uint16_t max_calib_window_secs) override {
+    _radio->setNoiseFloorCalibration(sample_interval_ms, ((uint32_t)max_calib_window_secs) * 1000U);
+  }
 
   mesh::LocalIdentity& getSelfId() override { return self_id; }
 

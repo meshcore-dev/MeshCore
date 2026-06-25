@@ -88,6 +88,11 @@ public:
 
   virtual float getLastRSSI() const { return 0; }
   virtual float getLastSNR() const { return 0; }
+
+  virtual void setNoiseFloorCalibration(uint16_t sample_interval_ms, uint32_t max_calib_window_ms) {
+    (void)sample_interval_ms;
+    (void)max_calib_window_ms;
+  }
 };
 
 /**

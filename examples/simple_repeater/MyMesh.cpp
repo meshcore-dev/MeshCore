@@ -893,6 +893,8 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.flood_max_advert = 8;
   _prefs.interference_threshold = 0; // disabled
   _prefs.cad_enabled = 0;            // hardware CAD before TX (off by default; 'set cad on')
+  _prefs.noise_sample_interval_ms = DEFAULT_NOISE_SAMPLE_INTERVAL_MS;
+  _prefs.noise_calib_window_secs = DEFAULT_NOISE_CALIB_WINDOW_SECS;
 
   // bridge defaults
   _prefs.bridge_enabled = 1;    // enabled
@@ -962,6 +964,8 @@ void MyMesh::begin(FILESYSTEM *fs) {
 
   radio_driver.setParams(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
   radio_driver.setTxPower(_prefs.tx_power_dbm);
+  radio_driver.setNoiseFloorCalibration(_prefs.noise_sample_interval_ms,
+                                        _prefs.noise_calib_window_secs * 1000U);
 
   radio_driver.setRxBoostedGainMode(_prefs.rx_boosted_gain);
   MESH_DEBUG_PRINTLN("RX Boosted Gain Mode: %s",
