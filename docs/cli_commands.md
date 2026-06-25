@@ -133,7 +133,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 ### Radio Stats - Noise floor, Last RSSI/SNR, Airtime, Receive errors
 **Usage:** `stats-radio`
 
-**Serial Only:** Yes
+**Serial Only:** No
 
 Returns JSON with:
 - `noise_floor`: current radio noise floor estimate in dBm
@@ -141,10 +141,6 @@ Returns JSON with:
 - `last_snr`: SNR from the most recent received packet
 - `tx_air_secs`: accumulated transmit airtime in seconds
 - `rx_air_secs`: accumulated receive airtime estimate in seconds
-- `noise_floor_sample_count`: RSSI samples accepted into the current or most recent calibration batch
-- `noise_floor_sample_min` / `noise_floor_sample_median` / `noise_floor_sample_max`: accepted RSSI sample range in dBm. `noise_floor` is estimated from the lower quartile of the accepted batch.
-- `noise_floor_rejected_low_bound`: RSSI samples rejected because they would cause a suspicious downward jump
-- `noise_floor_rejected_high_bound`: strong RSSI samples rejected because they look like channel activity rather than idle noise
 
 ---
 
@@ -627,12 +623,9 @@ Controls the RSSI sampling cadence and maximum calibration attempt window used b
 - `set int.thresh <value>`
 
 **Parameters:**
-- `value`: Interference threshold value in dB above the calibrated noise floor.
-  `0` disables RSSI carrier-sense. When enabled, transmit deferral uses a short
-  majority of instantaneous RSSI samples so a single spike does not mark the
-  channel busy.
+- `value`: Interference threshold value
 
-**Default:** `10`
+**Default:** `0.0`
 
 ---
 

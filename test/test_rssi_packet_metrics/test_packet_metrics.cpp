@@ -582,25 +582,28 @@ TEST(RssiNoiseFloor, CalibrationWindowDropsStalePartialBatch) {
   EXPECT_EQ(0, stats.sample_max);
 }
 
-TEST(RssiNoiseFloor, RadioStatsExposeCalibrationDiagnostics) {
+TEST(RssiNoiseFloor, RadioStatsKeepOriginalCompactShape) {
   FakePhysicalLayer radio;
   FakeBoard board;
   TestRadioLibWrapper wrapper(radio, board);
   char reply[512];
 
   wrapper.begin();
+  wrapper.cachePacketMetrics(radio.getRSSI(), radio.getSNR());
   wrapper.setCurrentRssiSamples(std::vector<float>(64, -101.0f));
   wrapper.enterReceiveMode();
   wrapper.collectNoiseFloorSamples();
 
   StatsFormatHelper::formatRadioStats(reply, &wrapper, wrapper, 1000, 2000);
 
-  EXPECT_NE(nullptr, std::strstr(reply, "\"noise_floor_sample_count\":64"));
-  EXPECT_NE(nullptr, std::strstr(reply, "\"noise_floor_sample_min\":-101"));
-  EXPECT_NE(nullptr, std::strstr(reply, "\"noise_floor_sample_median\":-101"));
-  EXPECT_NE(nullptr, std::strstr(reply, "\"noise_floor_sample_max\":-101"));
-  EXPECT_NE(nullptr, std::strstr(reply, "\"noise_floor_rejected_low_bound\":0"));
-  EXPECT_NE(nullptr, std::strstr(reply, "\"noise_floor_rejected_high_bound\":0"));
+  EXPECT_NE(nullptr, std::strstr(reply, "\"noise_floor\":-101"));
+  EXPECT_NE(nullptr, std::strstr(reply, "\"last_rssi\":-73"));
+  EXPECT_NE(nullptr, std::strstr(reply, "\"last_snr\":8.25"));
+  EXPECT_NE(nullptr, std::strstr(reply, "\"tx_air_secs\":1"));
+  EXPECT_NE(nullptr, std::strstr(reply, "\"rx_air_secs\":2"));
+  EXPECT_EQ(nullptr, std::strstr(reply, "\"noise_floor_sample_count\""));
+  EXPECT_EQ(nullptr, std::strstr(reply, "\"noise_floor_rejected_low_bound\""));
+  EXPECT_EQ(nullptr, std::strstr(reply, "\"noise_floor_rejected_high_bound\""));
 }
 
 TEST(RssiNoiseFloor, NoiseStatsExposeCalibrationDiagnostics) {

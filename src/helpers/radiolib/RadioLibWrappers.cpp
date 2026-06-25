@@ -10,8 +10,6 @@
 #define STATE_TX_DONE    4
 #define STATE_INT_READY 16
 
-#define RSSI_CARRIER_SENSE_SAMPLES  5
-#define RSSI_CARRIER_SENSE_REQUIRED 3
 #define LOW_BOUND_REJECT_JUMP_DB 14
 #define HIGH_BOUND_REJECT_JUMP_DB 14
 
@@ -400,25 +398,8 @@ int16_t RadioLibWrapper::performChannelScan() {
 
 bool RadioLibWrapper::isChannelActive() {
   // int.thresh: RSSI-based interference detection (relative to noise floor)
-  if (_threshold != 0 && hasNoiseFloor()) {
-    int16_t samples[RSSI_CARRIER_SENSE_SAMPLES];
-    for (uint8_t i = 0; i < RSSI_CARRIER_SENSE_SAMPLES; i++) {
-      samples[i] = (int16_t)getCurrentRSSI();
-    }
-
-    mesh::RssiCarrierSenseConfig config = {
-      _noise_floor,
-      _threshold,
-      true,
-      RSSI_CARRIER_SENSE_REQUIRED
-    };
-
-    // Instantaneous RSSI can spike briefly, so carrier sense requires a short
-    // majority of busy samples. This is only a local RSSI guard; it cannot
-    // detect hidden-node collisions at another receiver.
-    if (mesh::RssiCarrierSense::isActive(config, samples, RSSI_CARRIER_SENSE_SAMPLES)) {
-      return true;
-    }
+  if (_threshold != 0 && getCurrentRSSI() > _noise_floor + _threshold) {
+    return true;
   }
 
   // cad: hardware channel activity detection

@@ -2,7 +2,6 @@
 
 #include <Mesh.h>
 #include <RadioLib.h>
-#include "RssiCarrierSense.h"
 
 class RadioLibWrapper : public mesh::Radio {
 protected:

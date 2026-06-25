@@ -5,6 +5,7 @@
 
 #define RADIOLIB_ERR_NONE 0
 #define RADIOLIB_ERR_UNKNOWN -1
+#define RADIOLIB_CHANNEL_FREE 0
 #define LORA_SF 10
 
 inline long random(long min, long max) {
@@ -43,6 +44,7 @@ public:
     return RADIOLIB_ERR_NONE;
   }
   virtual void finishTransmit() { }
+  virtual int16_t scanChannel() { return RADIOLIB_CHANNEL_FREE; }
   virtual uint8_t randomByte() { return 0; }
   virtual float getRSSI() { return RADIOLIB_ERR_UNKNOWN; }
   virtual float getSNR() { return RADIOLIB_ERR_UNKNOWN; }
