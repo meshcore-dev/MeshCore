@@ -21,6 +21,13 @@
 
 #define DEFAULT_NOISE_SAMPLE_INTERVAL_MS 50
 #define DEFAULT_NOISE_CALIB_WINDOW_SECS  60
+#define DEFAULT_NOISE_CLAMP_LOW_DBM     -125
+#define DEFAULT_NOISE_CLAMP_HIGH_DBM    -80
+
+#define MIN_NOISE_CLAMP_LOW_DBM         -150
+#define MAX_NOISE_CLAMP_LOW_DBM         -80
+#define MIN_NOISE_CLAMP_HIGH_DBM        -120
+#define MAX_NOISE_CLAMP_HIGH_DBM        -40
 
 struct NodePrefs { // persisted to file
   float airtime_factor;
@@ -70,6 +77,8 @@ struct NodePrefs { // persisted to file
   uint8_t cad_enabled;      // hardware Channel Activity Detection before TX (boolean)
   uint16_t noise_sample_interval_ms;
   uint16_t noise_calib_window_secs;
+  int16_t noise_clamp_low_dbm;
+  int16_t noise_clamp_high_dbm;
 };
 
 class CommonCLICallbacks {
@@ -123,6 +132,11 @@ public:
   virtual void setNoiseFloorCalibration(uint16_t sample_interval_ms, uint16_t max_calib_window_secs) {
     (void)sample_interval_ms;
     (void)max_calib_window_secs;
+  };
+
+  virtual void setNoiseFloorClamps(int16_t low_bound, int16_t high_bound) {
+    (void)low_bound;
+    (void)high_bound;
   };
 };
 

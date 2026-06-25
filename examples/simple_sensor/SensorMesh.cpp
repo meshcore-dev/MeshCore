@@ -732,6 +732,8 @@ SensorMesh::SensorMesh(mesh::MainBoard& board, mesh::Radio& radio, mesh::Millise
   _prefs.cad_enabled = 0;             // hardware CAD before TX (off by default; 'set cad on')
   _prefs.noise_sample_interval_ms = DEFAULT_NOISE_SAMPLE_INTERVAL_MS;
   _prefs.noise_calib_window_secs = DEFAULT_NOISE_CALIB_WINDOW_SECS;
+  _prefs.noise_clamp_low_dbm = DEFAULT_NOISE_CLAMP_LOW_DBM;
+  _prefs.noise_clamp_high_dbm = DEFAULT_NOISE_CLAMP_HIGH_DBM;
 
   // GPS defaults
   _prefs.gps_enabled = 0;
@@ -774,6 +776,8 @@ void SensorMesh::begin(FILESYSTEM* fs) {
   radio_driver.setParams(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
   radio_driver.setNoiseFloorCalibration(_prefs.noise_sample_interval_ms,
                                         _prefs.noise_calib_window_secs * 1000U);
+  radio_driver.setNoiseFloorClamps(_prefs.noise_clamp_low_dbm,
+                                   _prefs.noise_clamp_high_dbm);
   radio_driver.setTxPower(_prefs.tx_power_dbm);
   board.setLoRaFemLnaEnabled(_prefs.radio_fem_rxgain);
 

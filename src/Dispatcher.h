@@ -93,6 +93,15 @@ public:
     (void)sample_interval_ms;
     (void)max_calib_window_ms;
   }
+
+  virtual void setNoiseFloorClamps(int16_t low_bound, int16_t high_bound) {
+    (void)low_bound;
+    (void)high_bound;
+  }
+
+  virtual void scheduleNoiseFloorCalibration(uint32_t settle_ms) {
+    (void)settle_ms;
+  }
 };
 
 /**
@@ -126,6 +135,7 @@ typedef uint32_t  DispatcherAction;
 #define ERR_EVENT_CAD_TIMEOUT       (1 << 1)
 #define ERR_EVENT_STARTRX_TIMEOUT   (1 << 2)
 
+#define DEFAULT_NOISE_FLOOR_SETTLE_MS   500
 /**
  * \brief  The low-level task that manages detecting incoming Packets, and the queueing
  *      and scheduling of outbound Packets.
@@ -146,6 +156,7 @@ class Dispatcher {
 
   void processRecvPacket(Packet* pkt);
   void updateTxBudget();
+  void scheduleNoiseFloorRefreshAfterRadioAnomaly();
 
 protected:
   PacketManager* _mgr;

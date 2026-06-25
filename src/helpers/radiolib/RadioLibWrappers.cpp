@@ -12,8 +12,6 @@
 
 #define RSSI_CARRIER_SENSE_SAMPLES  5
 #define RSSI_CARRIER_SENSE_REQUIRED 3
-#define MIN_NOISE_FLOOR_SAMPLE -130
-#define MAX_NOISE_FLOOR_SAMPLE -80
 #define LOW_BOUND_REJECT_JUMP_DB 14
 #define HIGH_BOUND_REJECT_JUMP_DB 14
 
@@ -27,8 +25,31 @@ static bool elapsedAtLeast(unsigned long now, unsigned long started_at, uint32_t
   return (uint32_t)(now - started_at) >= interval_ms;
 }
 
+static bool millisReached(unsigned long now, unsigned long timestamp) {
+  return (long)(now - timestamp) >= 0;
+}
+
+static uint16_t incrementNoiseFloorCounter(uint16_t value) {
+  return value < UINT16_MAX ? value + 1 : UINT16_MAX;
+}
+
 static uint16_t addStatCounter(uint16_t value, uint16_t increment) {
-  return (uint16_t)mesh::cappedStatCounter((uint32_t)value + increment);
+  uint32_t next = (uint32_t)value + increment;
+  return next < UINT16_MAX ? (uint16_t)next : UINT16_MAX;
+}
+
+static int16_t medianOfSamples(const int16_t samples[], uint16_t count) {
+  int16_t sorted[64];
+  for (uint16_t i = 0; i < count; i++) {
+    sorted[i] = samples[i];
+  }
+  std::sort(sorted, sorted + count);
+
+  uint16_t midpoint = count / 2;
+  if ((count & 1) != 0) {
+    return sorted[midpoint];
+  }
+  return ((int32_t)sorted[midpoint - 1] + sorted[midpoint]) / 2;
 }
 
 // this function is called when a complete packet
@@ -55,6 +76,7 @@ void RadioLibWrapper::resetNoiseFloorSamples() {
 
 void RadioLibWrapper::resetNoiseFloorBatch() {
   resetNoiseFloorSamples();
+  _noise_floor_calibration_scheduled_at = 0;
   _floor_rejected_low_bound = 0;
   _floor_rejected_high_bound = 0;
 }
@@ -117,6 +139,20 @@ void RadioLibWrapper::setNoiseFloorCalibration(uint16_t sample_interval_ms, uint
   resetNoiseFloorBatch();
 }
 
+void RadioLibWrapper::setNoiseFloorClamps(int16_t low_bound, int16_t high_bound) {
+  if (low_bound >= high_bound) {
+    return;
+  }
+  _noise_floor_low_bound = low_bound;
+  _noise_floor_high_bound = high_bound;
+  resetNoiseFloorBatch();
+}
+
+void RadioLibWrapper::scheduleNoiseFloorCalibration(uint32_t settle_ms) {
+  unsigned long scheduled_at = getMillis() + settle_ms;
+  _noise_floor_calibration_scheduled_at = scheduled_at == 0 ? 1 : scheduled_at;
+}
+
 void RadioLibWrapper::doResetAGC() {
   _radio->sleep();  // warm sleep to reset analog frontend
 }
@@ -135,6 +171,14 @@ void RadioLibWrapper::resetAGC() {
 }
 
 void RadioLibWrapper::loop() {
+  if (_noise_floor_calibration_scheduled_at != 0 &&
+      millisReached(getMillis(), _noise_floor_calibration_scheduled_at)) {
+    // Abnormal TX/CAD paths can leave partial RSSI samples tied to a
+    // transient frontend state. Drop the partial batch after a short settle
+    // delay, then let normal RX-idle sampling rebuild it.
+    resetNoiseFloorBatch();
+  }
+
   if (state == STATE_RX && _num_floor_samples < NUM_NOISE_FLOOR_SAMPLES) {
     if (!isReceivingPacket()) {
       unsigned long now = getMillis();
@@ -160,14 +204,14 @@ void RadioLibWrapper::loop() {
       _has_last_noise_floor_sample = true;
 
       int16_t rssi = (int16_t)getCurrentRSSI();
-      if (rssi < MIN_NOISE_FLOOR_SAMPLE) {
-        rssi = MIN_NOISE_FLOOR_SAMPLE;
+      if (rssi < _noise_floor_low_bound) {
+        rssi = _noise_floor_low_bound;
       }
       bool trusted_published_floor = isTrustedNoiseFloorValue(_noise_floor);
       bool no_trusted_floor = !trusted_published_floor;
       bool healthy_floor_would_jump_down = trusted_published_floor &&
           (_noise_floor - rssi) >= LOW_BOUND_REJECT_JUMP_DB;
-      bool high_bound_sample = rssi >= MAX_NOISE_FLOOR_SAMPLE;
+      bool high_bound_sample = rssi >= _noise_floor_high_bound;
       bool healthy_floor_would_jump_up = trusted_published_floor &&
           (rssi - _noise_floor) >= HIGH_BOUND_REJECT_JUMP_DB;
 
@@ -176,14 +220,14 @@ void RadioLibWrapper::loop() {
       // trusted floor, low RSSI samples are allowed because analyser readings
       // around -118 dBm, with occasional lower samples, are expected.
       if (healthy_floor_would_jump_down) {
-        _floor_rejected_low_bound = mesh::incrementStatCounter(_floor_rejected_low_bound);
+        _floor_rejected_low_bound = incrementNoiseFloorCounter(_floor_rejected_low_bound);
         return;
       }
       // Strong instantaneous RSSI is channel activity, not idle floor. Median
       // resists a few of these samples, but rejecting them keeps the batch
       // diagnostics honest and prevents a busy period from becoming the floor.
       if ((no_trusted_floor && high_bound_sample) || healthy_floor_would_jump_up) {
-        _floor_rejected_high_bound = mesh::incrementStatCounter(_floor_rejected_high_bound);
+        _floor_rejected_high_bound = incrementNoiseFloorCounter(_floor_rejected_high_bound);
         return;
       }
 
@@ -200,14 +244,13 @@ void RadioLibWrapper::loop() {
       }
       _floor_samples[_num_floor_samples] = rssi;
       _num_floor_samples++;
+      _floor_sample_median = medianOfSamples(_floor_samples, _num_floor_samples);
 
       if (_num_floor_samples >= NUM_NOISE_FLOOR_SAMPLES) {
         std::sort(_floor_samples, _floor_samples + NUM_NOISE_FLOOR_SAMPLES);
-        _floor_sample_median = ((int32_t)_floor_samples[(NUM_NOISE_FLOOR_SAMPLES / 2) - 1] +
-                                _floor_samples[NUM_NOISE_FLOOR_SAMPLES / 2]) / 2;
         int16_t floor_estimate = _floor_samples[NUM_NOISE_FLOOR_SAMPLES / 4];
         bool completed_high_activity_batch =
-            no_trusted_floor && floor_estimate >= MAX_NOISE_FLOOR_SAMPLE;
+            no_trusted_floor && floor_estimate >= _noise_floor_high_bound;
         bool completed_batch_would_jump_down = trusted_published_floor &&
             (_noise_floor - floor_estimate) >= LOW_BOUND_REJECT_JUMP_DB;
         bool completed_batch_would_jump_up = trusted_published_floor &&

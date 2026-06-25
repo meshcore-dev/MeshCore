@@ -157,12 +157,24 @@ Returns JSON with:
 
 **Usage:** `set noise.window.secs <seconds>`
 
+**Usage:** `get noise.clamp.low`
+
+**Usage:** `set noise.clamp.low <dBm>`
+
+**Usage:** `get noise.clamp.high`
+
+**Usage:** `set noise.clamp.high <dBm>`
+
 **Serial Only:** No
 
 Controls the RSSI sampling cadence and maximum calibration attempt window used by noise-floor calibration.
 
 - `noise.sample.ms`: minimum delay between instantaneous RSSI samples. Range: `50`-`5000` ms. Default: `50`.
 - `noise.window.secs`: maximum age of a partial calibration batch before it is discarded. Range: `1`-`600` seconds. Default: `60`.
+- `noise.clamp.low`: lowest RSSI value accepted into calibration after clamping. Range: `-150` to `-80` dBm. Default: `-125`.
+- `noise.clamp.high`: RSSI level treated as channel activity rather than idle noise. Range: `-120` to `-40` dBm. Default: `-80`.
+
+`noise.clamp.low` must be lower than `noise.clamp.high`.
 
 ---
 
