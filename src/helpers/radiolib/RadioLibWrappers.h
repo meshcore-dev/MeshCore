@@ -2,6 +2,7 @@
 
 #include <Mesh.h>
 #include <RadioLib.h>
+#include "RssiCarrierSense.h"
 
 class RadioLibWrapper : public mesh::Radio {
 protected:
@@ -16,6 +17,7 @@ protected:
 
   void idle();
   void startRecv();
+  bool hasNoiseFloor() const;
   float packetScoreInt(float snr, int sf, int packet_len);
   virtual bool isReceivingPacket() =0;
   virtual void doResetAGC();

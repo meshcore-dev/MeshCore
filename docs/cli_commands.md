@@ -572,9 +572,12 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 - `set int.thresh <value>`
 
 **Parameters:**
-- `value`: Interference threshold value
+- `value`: Interference threshold value in dB above the calibrated noise floor.
+  `0` disables RSSI carrier-sense. When enabled, transmit deferral uses a short
+  majority of instantaneous RSSI samples so a single spike does not mark the
+  channel busy.
 
-**Default:** `0.0`
+**Default:** `10`
 
 ---
 
