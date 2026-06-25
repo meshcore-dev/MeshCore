@@ -142,8 +142,8 @@ Returns JSON with:
 - `tx_air_secs`: accumulated transmit airtime in seconds
 - `rx_air_secs`: accumulated receive airtime estimate in seconds
 - `noise_floor_sample_count`: RSSI samples accepted into the current or most recent calibration batch
-- `noise_floor_sample_min` / `noise_floor_sample_median` / `noise_floor_sample_max`: accepted RSSI sample range in dBm
-- `noise_floor_rejected_low_bound`: low-bound RSSI samples rejected because they would cause a suspicious downward jump
+- `noise_floor_sample_min` / `noise_floor_sample_median` / `noise_floor_sample_max`: accepted RSSI sample range in dBm. `noise_floor` is estimated from the lower quartile of the accepted batch.
+- `noise_floor_rejected_low_bound`: RSSI samples rejected because they would cause a suspicious downward jump
 - `noise_floor_rejected_high_bound`: strong RSSI samples rejected because they look like channel activity rather than idle noise
 
 ---
@@ -161,8 +161,8 @@ Returns JSON with:
 
 Controls the RSSI sampling cadence and maximum calibration attempt window used by noise-floor calibration.
 
-- `noise.sample.ms`: minimum delay between instantaneous RSSI samples. Range: `50`-`5000` ms. Default: `250`.
-- `noise.window.secs`: maximum age of a partial calibration batch before it is discarded. Range: `1`-`600` seconds. Default: `30`.
+- `noise.sample.ms`: minimum delay between instantaneous RSSI samples. Range: `50`-`5000` ms. Default: `50`.
+- `noise.window.secs`: maximum age of a partial calibration batch before it is discarded. Range: `1`-`600` seconds. Default: `60`.
 
 ---
 

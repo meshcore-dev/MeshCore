@@ -12,16 +12,15 @@
 
 #define RSSI_CARRIER_SENSE_SAMPLES  5
 #define RSSI_CARRIER_SENSE_REQUIRED 3
-#define MIN_NOISE_FLOOR_SAMPLE -120
+#define MIN_NOISE_FLOOR_SAMPLE -130
 #define MAX_NOISE_FLOOR_SAMPLE -80
-#define LOW_BOUND_REJECT_MARGIN_DB 1
 #define LOW_BOUND_REJECT_JUMP_DB 14
 #define HIGH_BOUND_REJECT_JUMP_DB 14
 
 static volatile uint8_t state = STATE_IDLE;
 
 static bool isTrustedNoiseFloorValue(int16_t noise_floor) {
-  return noise_floor != 0 && noise_floor > MIN_NOISE_FLOOR_SAMPLE;
+  return noise_floor != 0;
 }
 
 static bool elapsedAtLeast(unsigned long now, unsigned long started_at, uint32_t interval_ms) {
@@ -161,7 +160,9 @@ void RadioLibWrapper::loop() {
       _has_last_noise_floor_sample = true;
 
       int16_t rssi = (int16_t)getCurrentRSSI();
-      bool low_bound_sample = rssi <= MIN_NOISE_FLOOR_SAMPLE + LOW_BOUND_REJECT_MARGIN_DB;
+      if (rssi < MIN_NOISE_FLOOR_SAMPLE) {
+        rssi = MIN_NOISE_FLOOR_SAMPLE;
+      }
       bool trusted_published_floor = isTrustedNoiseFloorValue(_noise_floor);
       bool no_trusted_floor = !trusted_published_floor;
       bool healthy_floor_would_jump_down = trusted_published_floor &&
@@ -170,11 +171,11 @@ void RadioLibWrapper::loop() {
       bool healthy_floor_would_jump_up = trusted_published_floor &&
           (rssi - _noise_floor) >= HIGH_BOUND_REJECT_JUMP_DB;
 
-      // SX126x RSSI readings can sit on the receiver's low reporting bound
-      // during startup or after an AGC reset. Those readings are not useful
-      // calibration input: publishing them traps the floor at -120 dBm until
-      // healthier samples are allowed back in.
-      if (low_bound_sample && (no_trusted_floor || healthy_floor_would_jump_down)) {
+      // Once a plausible floor exists, sudden large jumps are more likely to
+      // be AGC/channel artefacts than a real idle-floor change. Without a
+      // trusted floor, low RSSI samples are allowed because analyser readings
+      // around -118 dBm, with occasional lower samples, are expected.
+      if (healthy_floor_would_jump_down) {
         _floor_rejected_low_bound = mesh::incrementStatCounter(_floor_rejected_low_bound);
         return;
       }
@@ -204,19 +205,18 @@ void RadioLibWrapper::loop() {
         std::sort(_floor_samples, _floor_samples + NUM_NOISE_FLOOR_SAMPLES);
         _floor_sample_median = ((int32_t)_floor_samples[(NUM_NOISE_FLOOR_SAMPLES / 2) - 1] +
                                 _floor_samples[NUM_NOISE_FLOOR_SAMPLES / 2]) / 2;
-        bool completed_low_bound_batch =
-            _floor_sample_median <= MIN_NOISE_FLOOR_SAMPLE + LOW_BOUND_REJECT_MARGIN_DB;
+        int16_t floor_estimate = _floor_samples[NUM_NOISE_FLOOR_SAMPLES / 4];
         bool completed_high_activity_batch =
-            no_trusted_floor && _floor_sample_median >= MAX_NOISE_FLOOR_SAMPLE;
+            no_trusted_floor && floor_estimate >= MAX_NOISE_FLOOR_SAMPLE;
         bool completed_batch_would_jump_down = trusted_published_floor &&
-            (_noise_floor - _floor_sample_median) >= LOW_BOUND_REJECT_JUMP_DB;
+            (_noise_floor - floor_estimate) >= LOW_BOUND_REJECT_JUMP_DB;
         bool completed_batch_would_jump_up = trusted_published_floor &&
-            (_floor_sample_median - _noise_floor) >= HIGH_BOUND_REJECT_JUMP_DB;
+            (floor_estimate - _noise_floor) >= HIGH_BOUND_REJECT_JUMP_DB;
 
         // The per-sample gates should normally stop invalid batches before
         // they complete. Keep the publish path defensive as well, so a stale
-        // or boundary-filled batch cannot re-publish -120 dBm as a real floor.
-        if (completed_low_bound_batch || completed_batch_would_jump_down) {
+        // or activity-filled batch cannot make the published floor jump.
+        if (completed_batch_would_jump_down) {
           _floor_rejected_low_bound = addStatCounter(_floor_rejected_low_bound, _num_floor_samples);
           resetNoiseFloorSamples();
           return;
@@ -227,7 +227,7 @@ void RadioLibWrapper::loop() {
           return;
         }
 
-        _noise_floor = _floor_sample_median;
+        _noise_floor = floor_estimate;
 
         MESH_DEBUG_PRINTLN("RadioLibWrapper: noise_floor=%d accepted=%u min=%d median=%d max=%d rejected_low=%u rejected_high=%u",
           (int)_noise_floor,

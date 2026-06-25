@@ -19,8 +19,8 @@
 #define LOOP_DETECT_MODERATE  2
 #define LOOP_DETECT_STRICT    3
 
-#define DEFAULT_NOISE_SAMPLE_INTERVAL_MS 250
-#define DEFAULT_NOISE_CALIB_WINDOW_SECS  30
+#define DEFAULT_NOISE_SAMPLE_INTERVAL_MS 50
+#define DEFAULT_NOISE_CALIB_WINDOW_SECS  60
 
 struct NodePrefs { // persisted to file
   float airtime_factor;

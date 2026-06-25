@@ -9,8 +9,8 @@ protected:
   PhysicalLayer* _radio;
   mesh::MainBoard* _board;
   static constexpr uint16_t NUM_NOISE_FLOOR_SAMPLES = 64;
-  static constexpr uint16_t DEFAULT_NOISE_FLOOR_SAMPLE_INTERVAL_MS = 250;
-  static constexpr uint32_t DEFAULT_NOISE_FLOOR_MAX_CALIB_WINDOW_MS = 30000;
+  static constexpr uint16_t DEFAULT_NOISE_FLOOR_SAMPLE_INTERVAL_MS = 50;
+  static constexpr uint32_t DEFAULT_NOISE_FLOOR_MAX_CALIB_WINDOW_MS = 60000;
   uint32_t n_recv, n_sent, n_recv_errors;
   int16_t _noise_floor, _threshold;
   bool _cad_enabled;
