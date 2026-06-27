@@ -8,7 +8,7 @@ NiceRFLR2021Board board;
 // your board, define USE_ESPIDF_HAL in platformio.ini to use the ESP-IDF SPI
 // HAL workaround (see EspIdfHal.h for details).
 #ifdef USE_ESPIDF_HAL
-#include "EspIdfHal.h"
+#include <helpers/radiolib/EspIdfHal.h>
 static EspIdfHal hal(P_LORA_SCLK, P_LORA_MISO, P_LORA_MOSI);
 RADIO_CLASS radio(new Module(&hal, P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET,
                              P_LORA_BUSY));
