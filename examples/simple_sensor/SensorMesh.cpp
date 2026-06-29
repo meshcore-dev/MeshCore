@@ -63,6 +63,24 @@
 
 #define ALERT_ACK_EXPIRY_MILLIS         8000   // wait 8 secs for ACKs to alert messages
 
+struct SensorStatus {
+  uint16_t batt_milli_volts;
+  uint16_t curr_tx_queue_len;
+  int16_t  noise_floor;
+  int16_t  last_rssi;
+  uint32_t n_packets_recv;
+  uint32_t n_packets_sent;
+  uint32_t total_air_time_secs;
+  uint32_t total_up_time_secs;
+  uint32_t n_sent_flood, n_sent_direct;
+  uint32_t n_recv_flood, n_recv_direct;
+  uint16_t err_events;
+  int16_t  last_snr;   // x4
+  uint16_t n_direct_dups, n_flood_dups;
+  uint32_t total_rx_air_time_secs;
+  uint32_t n_recv_errors;
+};
+
 static File openAppend(FILESYSTEM* _fs, const char* fname) {
   #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
     return _fs->open(fname, FILE_O_WRITE);
@@ -173,11 +191,37 @@ static uint8_t putFloat(uint8_t * dest, float value, uint8_t size, uint32_t mult
 uint8_t SensorMesh::handleRequest(uint8_t perms, uint32_t sender_timestamp, uint8_t req_type, uint8_t* payload, size_t payload_len) {
   memcpy(reply_data, &sender_timestamp, 4);   // reflect sender_timestamp back in response packet (kind of like a 'tag')
 
+  if (req_type == REQ_TYPE_GET_STATUS) {
+    SensorStatus stats;
+    stats.batt_milli_volts = board.getBattMilliVolts();
+    stats.curr_tx_queue_len = _mgr->getOutboundTotal();
+    stats.noise_floor = (int16_t)_radio->getNoiseFloor();
+    stats.last_rssi = (int16_t)radio_driver.getLastRSSI();
+    stats.n_packets_recv = radio_driver.getPacketsRecv();
+    stats.n_packets_sent = radio_driver.getPacketsSent();
+    stats.total_air_time_secs = getTotalAirTime() / 1000;
+    stats.total_up_time_secs = millis() / 1000;
+    stats.n_sent_flood = getNumSentFlood();
+    stats.n_sent_direct = getNumSentDirect();
+    stats.n_recv_flood = getNumRecvFlood();
+    stats.n_recv_direct = getNumRecvDirect();
+    stats.err_events = _err_flags;
+    stats.last_snr = (int16_t)(radio_driver.getLastSNR() * 4);
+    stats.n_direct_dups = ((SimpleMeshTables *)getTables())->getNumDirectDups();
+    stats.n_flood_dups = ((SimpleMeshTables *)getTables())->getNumFloodDups();
+    stats.total_rx_air_time_secs = getReceiveAirTime() / 1000;
+    stats.n_recv_errors = radio_driver.getPacketsRecvErrors();
+
+    memcpy(&reply_data[4], &stats, sizeof(stats));
+    return 4 + sizeof(stats);
+  }
+
   if (req_type == REQ_TYPE_GET_TELEMETRY_DATA) {  // allow all
     uint8_t perm_mask = ~(payload[0]);    // NEW: first reserved byte (of 4), is now inverse mask to apply to permissions
 
     telemetry.reset();
-    telemetry.addVoltage(TELEM_CHANNEL_SELF, (float)board.getBattMilliVolts() / 1000.0f);
+    uint16_t batt_mv = board.getBattMilliVolts();
+    telemetry.addVoltage(TELEM_CHANNEL_SELF, (float)batt_mv / 1000.0f);
     float temperature = board.getMCUTemperature();
     if (temperature == temperature) {
       telemetry.addTemperature(TELEM_CHANNEL_SELF, temperature); // Built-in MCU temperature
@@ -727,6 +771,7 @@ SensorMesh::SensorMesh(mesh::MainBoard& board, mesh::Radio& radio, mesh::Millise
   _prefs.tx_power_dbm = LORA_TX_POWER;
   _prefs.advert_interval = 1;  // default to 2 minutes for NEW installs
   _prefs.flood_advert_interval = 0;   // disabled
+  _prefs.path_hash_mode = 1;   // force 2-byte path hash by default
   _prefs.disable_fwd = true;
   _prefs.flood_max = 64;
   _prefs.interference_threshold = 0;  // disabled
@@ -744,6 +789,9 @@ void SensorMesh::begin(FILESYSTEM* fs) {
   _fs = fs;
   // load persisted prefs
   _cli.loadPrefs(_fs);
+
+  // Keep sensor floods on 2-byte path hashes even if older prefs saved mode 0.
+  _prefs.path_hash_mode = 1;
 
   acl.load(_fs, self_id);
   region_map.load(_fs);
@@ -925,7 +973,8 @@ void SensorMesh::loop() {
   uint32_t curr = getRTCClock()->getCurrentTime();
   if (curr >= last_read_time + SENSOR_READ_INTERVAL_SECS) {
     telemetry.reset();
-    telemetry.addVoltage(TELEM_CHANNEL_SELF, (float)board.getBattMilliVolts() / 1000.0f);
+    uint16_t batt_mv = board.getBattMilliVolts();
+    telemetry.addVoltage(TELEM_CHANNEL_SELF, (float)batt_mv / 1000.0f);
     float temperature = board.getMCUTemperature();
     if (temperature == temperature) {
       telemetry.addTemperature(TELEM_CHANNEL_SELF, temperature); // Built-in MCU temperature
