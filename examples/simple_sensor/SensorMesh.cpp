@@ -178,6 +178,10 @@ uint8_t SensorMesh::handleRequest(uint8_t perms, uint32_t sender_timestamp, uint
 
     telemetry.reset();
     telemetry.addVoltage(TELEM_CHANNEL_SELF, (float)board.getBattMilliVolts() / 1000.0f);
+    float temperature = board.getMCUTemperature();
+    if (temperature == temperature) {
+      telemetry.addTemperature(TELEM_CHANNEL_SELF, temperature); // Built-in MCU temperature
+    }
     // query other sensors -- target specific
     sensors.querySensors(0xFF & perm_mask, telemetry);  // allow all telemetry permissions for admin or guest
     // TODO: let requester know permissions they have:  telemetry.addPresence(TELEM_CHANNEL_SELF, perms);
@@ -922,6 +926,10 @@ void SensorMesh::loop() {
   if (curr >= last_read_time + SENSOR_READ_INTERVAL_SECS) {
     telemetry.reset();
     telemetry.addVoltage(TELEM_CHANNEL_SELF, (float)board.getBattMilliVolts() / 1000.0f);
+    float temperature = board.getMCUTemperature();
+    if (temperature == temperature) {
+      telemetry.addTemperature(TELEM_CHANNEL_SELF, temperature); // Built-in MCU temperature
+    }
     // query other sensors -- target specific
     sensors.querySensors(0xFF, telemetry);  // allow all telemetry permissions
 
