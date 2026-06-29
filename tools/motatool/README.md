@@ -16,7 +16,7 @@ cross-checked byte-for-byte against the Python reference packager `tools/mota/mo
 | `build`  | Create a **full** or **delta** `.mota` from a firmware (local file **or** http(s) URL). |
 | `verify` | Validate one or more `.mota` (merkle tree, leaves vs payload, image hash, Ed25519 signature). `--pub` requires a specific signer; `--base` confirms a sequential delta rebuilds its image. |
 | `inspect`| Print every field of a `.mota`'s manifest (debugging). |
-| `serve`  | Serve a **folder** of `.mota` to a node over USB serial. Invalid files are warned about and skipped — one corrupt file never sinks the rest. |
+| `serve`  | Serve a **folder** of `.mota` to a node over USB serial (`--serial`) or WiFi (`--tcp`). Invalid files are warned about and skipped — one corrupt file never sinks the rest. |
 | `keygen` | Generate an Ed25519 signing keypair (hex). |
 
 Every command has detailed, example-rich help: `motatool <command> --help`.
@@ -71,8 +71,9 @@ $MT verify delta.mota  --base old_firmware.bin
 # 4. dump a single .mota's manifest fields
 $MT inspect ./motas/RAK4631_04D413FD_v1.16.0_full_ABCD1234.mota
 
-# 5. serve a folder to a node over its USB serial (recursive; skips non-.mota; warns on corrupt)
-$MT serve --dir ./motas --serial /dev/ttyUSB0 --baud 115200 -v
+# 5. serve a folder to a node (recursive; skips non-.mota; warns on corrupt)
+$MT serve --dir ./motas --serial /dev/ttyUSB0 --baud 115200 -v   # over USB serial
+$MT serve --dir ./motas --tcp 192.168.1.50:5001 -v               # …or over WiFi (ESP32 companion, port 5001)
 ```
 
 `build` notes:
@@ -95,8 +96,10 @@ The protocol is split so the serving logic is reusable across links:
 
 - **`SeederCore`** (`src/serve.{h,cpp}`) is transport-free: it maps a request `(op, args)` to a response
   `(status, payload)` — `COUNT` / `DESCRIBE(idx)` / `READ(idx, off, len)` over the validated catalog.
-- **`SerialTransport` + `serve_serial()`** wrap it with the byte-stream framing (magic + XOR checksum +
-  resync) for the unreliable USB-UART link (`MotaSeederProto.h`).
+- **`Transport` + `serve_loop()`** wrap it with the byte-stream framing (magic + XOR checksum + resync,
+  `MotaSeederProto.h`). Two transports ship: **`SerialTransport`** (`--serial`, USB-UART) and
+  **`TcpTransport`** (`--tcp <host[:port]>`, WiFi — connects to the node's dedicated seeder port, default
+  `5001`, which the ESP32 companion runs alongside its phone-app port so both work at once).
 
 To serve the same folder over **BLE** (e.g. an Android phone relaying to a MeshCore node), implement the
 transport at the GATT layer — a request characteristic write hands `(op, args)` straight to

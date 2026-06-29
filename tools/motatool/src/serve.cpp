@@ -5,6 +5,8 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/select.h>
+#include <sys/socket.h>
+#include <netdb.h>
 #include "util.h"
 
 namespace fs = std::filesystem;
@@ -138,7 +140,48 @@ bool SerialTransport::write(const uint8_t* p, size_t n) {
   return true;
 }
 
-// ---- serial framing loop --------------------------------------------------------------------------
+// ---- TcpTransport ---------------------------------------------------------------------------------
+std::string TcpTransport::open(const std::string& host, int port) {
+  addrinfo hints{}; hints.ai_family = AF_UNSPEC; hints.ai_socktype = SOCK_STREAM;
+  addrinfo* res = nullptr;
+  std::string portstr = std::to_string(port);
+  if (getaddrinfo(host.c_str(), portstr.c_str(), &hints, &res) != 0 || !res)
+    return "cannot resolve host: " + host;
+  std::string err = "cannot connect to " + host + ":" + portstr;
+  for (addrinfo* p = res; p; p = p->ai_next) {
+    int fd = ::socket(p->ai_family, p->ai_socktype, p->ai_protocol);
+    if (fd < 0) continue;
+    if (::connect(fd, p->ai_addr, p->ai_addrlen) == 0) { fd_ = fd; err.clear(); break; }
+    ::close(fd);
+  }
+  freeaddrinfo(res);
+  return err;
+}
+
+TcpTransport::~TcpTransport() { if (fd_ >= 0) ::close(fd_); }
+
+int TcpTransport::read_byte(int timeout_ms) {
+  if (fd_ < 0) return -1;
+  fd_set rs; FD_ZERO(&rs); FD_SET(fd_, &rs);
+  timeval tv{ timeout_ms / 1000, (timeout_ms % 1000) * 1000 };
+  if (select(fd_ + 1, &rs, nullptr, nullptr, &tv) <= 0) return -1;
+  uint8_t b;
+  ssize_t n = ::recv(fd_, &b, 1, 0);
+  return n == 1 ? (int)b : -1;                                  // 0 == peer closed -> treated as timeout/closed
+}
+
+bool TcpTransport::write(const uint8_t* p, size_t n) {
+  if (fd_ < 0) return false;
+  size_t off = 0;
+  while (off < n) {
+    ssize_t w = ::send(fd_, p + off, n - off, 0);
+    if (w < 0) return false;
+    off += (size_t)w;
+  }
+  return true;
+}
+
+// ---- seeder framing loop --------------------------------------------------------------------------
 static uint8_t xor_bytes(const uint8_t* p, size_t n, uint8_t seed = 0) {
   uint8_t x = seed; for (size_t i = 0; i < n; i++) x ^= p[i]; return x;
 }
@@ -162,9 +205,9 @@ static void send_response(Transport& t, uint8_t op, uint8_t status, const std::v
   t.write(frame.data(), frame.size());
 }
 
-void serve_serial(Transport& t, const SeederCore& core, bool verbose,
-                  const std::function<void(const std::string&)>& devline,
-                  const volatile bool* stop) {
+void serve_loop(Transport& t, const SeederCore& core, bool verbose,
+                const std::function<void(const std::string&)>& devline,
+                const volatile bool* stop) {
   std::string line;
   int prev = -1;
   auto flush_line = [&]() {

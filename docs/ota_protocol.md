@@ -496,11 +496,12 @@ blocks) and streams payload blocks from the source on demand; proofs are generat
 
 ### 10.2 The `mota-seeder` transport (`MotaSeederProto.h`)
 
-A `MotaSource` is fed by a host that serves a folder over the device's **USB serial — the same console the
-CLI uses** (no extra hardware). The host is the self-contained C++ tool `tools/motatool/` (`motatool serve`,
-which also builds + validates `.mota` and runs on small hardware). The device only emits request frames
-*while actively serving a fetch*, and reads the reply synchronously, so binary frames coexist with the text
-CLI/logs (resync on magic + checksum). Little-endian, XOR-checksummed:
+A `MotaSource` is fed by a host that serves a folder over the device's **USB serial** (the same console the
+CLI uses — no extra hardware) or, on an ESP32 WiFi companion, over **WiFi (TCP)**. The host is the
+self-contained C++ tool `tools/motatool/` (`motatool serve --serial <port>` / `--tcp <host[:port]>`, which
+also builds + validates `.mota` and runs on small hardware). The device only emits request frames *while
+actively serving a fetch*, and reads the reply synchronously, so over the shared USB console binary frames
+coexist with the text CLI/logs (resync on magic + checksum). Little-endian, XOR-checksummed:
 
 ```
 request  (device → host):  'M' 'S'  op(1)  args...                 xsum(1 = XOR of op+args)
@@ -516,16 +517,23 @@ status: 0 = OK, non-zero = error (out of range / past EOF).
 
 Device CLI: `ota folder on` (attach + announce), `ota folder` (list), `ota folder off`. Build flag
 `OTA_FOLDER_SERIAL` (default stream = console `Serial`; override `OTA_FOLDER_SERIAL_STREAM` + define
-`OTA_FOLDER_SERIAL_BEGIN` for a dedicated UART). Verified on hardware: a RAK4631 relays a host folder to a
-Heltec V3 over one USB cable, every block merkle-checked.
+`OTA_FOLDER_SERIAL_BEGIN` for a dedicated UART). On an ESP32 WiFi companion the node also runs a second
+`WiFiServer` on a **dedicated seeder port** (`OTA_SEEDER_TCP_PORT`, default `5001`), separate from the
+companion app port (`TCP_PORT`, default `5000`) — so `motatool serve --tcp` can feed updates while a phone
+app stays connected. The node auto-attaches the source when a seeder client connects and detaches when it
+closes (no `ota folder on` needed over TCP). Verified on hardware: a RAK4631 relays a host folder to a
+Heltec V3 over one USB cable, and a host feeds a Heltec V3 over WiFi (`:5001`) while the companion serves a
+phone on `:5000` — every block merkle-checked.
 
 **Transport-agnostic by design.** The request/response *semantics* (`COUNT` / `DESCRIBE(idx)` /
 `READ(idx, off, len)` over a folder catalog) are independent of the link. The 2-byte magic + XOR checksum +
-resync framing above exists only because a shared USB-UART is an unreliable, unframed byte stream. Over a
-framed/reliable link such as **BLE GATT** (e.g. an Android phone relaying a folder to a node), the same ops
-carry over directly — a request characteristic write delivers `op + args` and the reply is a notification
-of `status + payload`, with no magic/checksum needed. `motatool` reflects this split: a transport-free
-`SeederCore` (the catalog logic) under a serial framing layer, so a BLE transport reuses the core verbatim.
+resync framing above exists for the shared USB-UART (an unframed byte stream); it is harmless over a
+reliable stream and the **WiFi (TCP)** transport reuses it as-is — both ends just treat the socket as a
+byte stream (on-device, `SerialMotaSource` runs verbatim over an Arduino `Stream`-compatible `WiFiClient`;
+`motatool`'s `TcpTransport` mirrors its `SerialTransport`). A future framed link such as **BLE GATT** (an
+Android phone relaying a folder) could carry the same ops with no magic/checksum at all — a request
+characteristic write delivers `op + args`, the reply notifies `status + payload`. `motatool` reflects this
+split: a transport-free `SeederCore` (the catalog logic) under a swappable framing/transport layer.
 
 ---
 

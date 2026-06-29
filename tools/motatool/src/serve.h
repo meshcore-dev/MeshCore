@@ -59,10 +59,23 @@ private:
   int fd_ = -1;
 };
 
-// Serial framing loop: resync on 'M''S', verify the request checksum, dispatch to `core`, frame the
-// reply. Device text/log lines sharing the wire are surfaced via `devline`. Runs until *stop becomes true.
-void serve_serial(Transport& t, const SeederCore& core, bool verbose,
-                  const std::function<void(const std::string&)>& devline,
-                  const volatile bool* stop);
+// TCP client transport: connect to a node's WiFi seeder port (a dedicated port, NOT the companion port),
+// then run the same seeder framing over the socket. Lets `serve` feed a WiFi node the same way as serial.
+class TcpTransport : public Transport {
+public:
+  std::string open(const std::string& host, int port);  // "" on success
+  ~TcpTransport() override;
+  int  read_byte(int timeout_ms) override;
+  bool write(const uint8_t* p, size_t n) override;
+private:
+  int fd_ = -1;
+};
+
+// Seeder framing loop (transport-agnostic): resync on 'M''S', verify the request checksum, dispatch to
+// `core`, frame the reply. Device text/log lines sharing the wire are surfaced via `devline` (serial
+// only; the TCP seeder port carries no log text). Runs until *stop becomes true.
+void serve_loop(Transport& t, const SeederCore& core, bool verbose,
+                const std::function<void(const std::string&)>& devline,
+                const volatile bool* stop);
 
 } // namespace mota

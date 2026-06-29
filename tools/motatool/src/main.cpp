@@ -81,7 +81,7 @@ static void help_top() {
 "  build    Package a firmware as a .mota (a full image, or a small delta vs a previous build).\n"
 "  verify   Check that .mota files are valid (block hashes, image hash, signature).\n"
 "  inspect  Print every field of a .mota's manifest (debugging).\n"
-"  serve    Serve a folder of .mota to a node over USB serial (corrupt files are skipped).\n"
+"  serve    Serve a folder of .mota to a node over USB serial or WiFi (corrupt files are skipped).\n"
 "  keygen   Generate an Ed25519 signing keypair.\n"
 "\n"
 "TYPICAL WORKFLOW\n"
@@ -194,29 +194,34 @@ static void help_inspect() {
 
 static void help_serve() {
   std::cout <<
-"motatool serve — serve a folder of .mota to a MeshCore node over USB serial.\n"
+"motatool serve — serve a folder of .mota to a MeshCore node over USB serial or WiFi (TCP).\n"
 "\n"
 "USAGE\n"
-"  motatool serve --dir <folder> --serial <port> [options]\n"
+"  motatool serve --dir <folder> --serial <port> [options]      # over USB serial\n"
+"  motatool serve --dir <folder> --tcp <host[:port]> [options]  # over WiFi (ESP32 companion)\n"
 "\n"
 "It scans the folder for .mota files, validates each, and serves the valid ones to the node.\n"
 "Corrupt/invalid files are reported and skipped — one bad file never stops the rest. The node\n"
 "advertises them to the mesh as if it held them, and any node whose hardware matches can fetch\n"
 "them. The relay is trustless: fetchers verify every block, so this host never needs the keys.\n"
 "\n"
-"OPTIONS (--dir and --serial are required)\n"
-"  --dir    <folder>  folder of .mota to serve (searched recursively by default).\n"
-"  --serial <port>    the node's USB serial port (e.g. /dev/ttyUSB0 or /dev/ttyACM0).\n"
-"  --baud   <n>       serial speed (default 115200).\n"
-"  --no-recursive     serve only the top folder; don't descend into sub-folders.\n"
-"  --no-enable        don't auto-send 'ota folder on'/'off' to the node (run them on its CLI yourself).\n"
-"  -v, --verbose      log each request the node makes (COUNT / DESCRIBE / READ).\n"
+"OPTIONS (--dir and one of --serial / --tcp are required)\n"
+"  --dir    <folder>     folder of .mota to serve (searched recursively by default).\n"
+"  --serial <port>       the node's USB serial port (e.g. /dev/ttyUSB0 or /dev/ttyACM0).\n"
+"  --tcp    <host[:port]> the node's WiFi seeder address (default port 5001). This is a DEDICATED\n"
+"                        port, separate from the companion port (5000), so serving doesn't disturb a\n"
+"                        phone app connected to the node. The node auto-enables relaying on connect.\n"
+"  --baud   <n>          serial speed (default 115200; --serial only).\n"
+"  --no-recursive        serve only the top folder; don't descend into sub-folders.\n"
+"  --no-enable           (--serial only) don't auto-send 'ota folder on'/'off' on the node's CLI.\n"
+"  -v, --verbose         log each request the node makes (COUNT / DESCRIBE / READ).\n"
 "\n"
-"Leave it running; press Ctrl-C to stop (it tells the node to stop relaying first). It shares the\n"
-"same USB cable as the node's text console — the node only pulls bytes while actively fetching.\n"
+"Leave it running; press Ctrl-C to stop. Over serial it shares the USB cable with the node's text\n"
+"console; over TCP it uses the node's dedicated seeder port. The node only pulls while fetching.\n"
 "\n"
-"EXAMPLE\n"
-"  motatool serve --dir ./motas --serial /dev/ttyUSB0 -v\n";
+"EXAMPLES\n"
+"  motatool serve --dir ./motas --serial /dev/ttyUSB0 -v\n"
+"  motatool serve --dir ./motas --tcp 192.168.4.234 -v\n";
 }
 
 static void help_keygen() {
@@ -442,8 +447,9 @@ static int cmd_keygen(const Args& a) {
 
 static int cmd_serve(const Args& a) {
   if (a.has("help")) { help_serve(); return 0; }
-  if (!a.has("dir") || !a.has("serial")) {
-    std::cerr << "error: --dir and --serial are required\n\n"; help_serve(); return 2;
+  bool use_tcp = a.has("tcp");
+  if (!a.has("dir") || (!a.has("serial") && !use_tcp)) {
+    std::cerr << "error: --dir and one of --serial / --tcp are required\n\n"; help_serve(); return 2;
   }
   bool recursive = !a.has("no-recursive");
   bool verbose = a.has("verbose");
@@ -465,20 +471,39 @@ static int cmd_serve(const Args& a) {
   }
   if (n == 0) std::cerr << "  (nothing valid to serve)\n";
 
-  SerialTransport t;
-  std::string e = t.open(a.get("serial"), std::atoi(a.get("baud", "115200").c_str()));
-  if (!e.empty()) { std::cerr << "error: " << e << "\n"; return 1; }
+  // Pick the transport: a serial port, or a TCP connection to the node's WiFi seeder port (host[:port],
+  // default port 5001). The node runs the seeder on a DEDICATED port, separate from its companion port,
+  // so serving over WiFi doesn't disturb a phone app connected to the companion.
+  SerialTransport st;
+  TcpTransport    tt;
+  Transport*  t = nullptr;
+  std::string target;
+  if (use_tcp) {
+    std::string hp = a.get("tcp");
+    size_t colon = hp.rfind(':');
+    std::string host = (colon == std::string::npos) ? hp : hp.substr(0, colon);
+    int port = (colon == std::string::npos) ? 5001 : std::atoi(hp.substr(colon + 1).c_str());
+    std::string e = tt.open(host, port);
+    if (!e.empty()) { std::cerr << "error: " << e << "\n"; return 1; }
+    t = &tt; target = host + ":" + std::to_string(port);
+  } else {
+    std::string e = st.open(a.get("serial"), std::atoi(a.get("baud", "115200").c_str()));
+    if (!e.empty()) { std::cerr << "error: " << e << "\n"; return 1; }
+    t = &st; target = a.get("serial") + " @ " + a.get("baud", "115200");
+  }
 
   std::signal(SIGINT, on_sigint);
-  bool enable = !a.has("no-enable");
-  if (enable) { usleep(500000); t.write_str("ota folder on\r\n"); std::cout << "sent `ota folder on`\n"; }
-  std::cout << "serving on " << a.get("serial") << " @ " << a.get("baud", "115200") << " — Ctrl-C to stop\n";
+  // The CLI auto-enable only applies to the serial console; the TCP seeder port auto-enables relaying on
+  // the node side when this connection opens (and stops when it closes), so there's nothing to send.
+  bool enable = !use_tcp && !a.has("no-enable");
+  if (enable) { usleep(500000); t->write_str("ota folder on\r\n"); std::cout << "sent `ota folder on`\n"; }
+  std::cout << "serving on " << target << " — Ctrl-C to stop\n";
 
   SeederCore core(folder);
-  serve_serial(t, core, verbose,
-               [](const std::string& l) { std::cout << "  [dev] " << l << "\n"; }, &g_stop);
+  serve_loop(*t, core, verbose,
+             [](const std::string& l) { std::cout << "  [dev] " << l << "\n"; }, &g_stop);
 
-  if (enable) { t.write_str("ota folder off\r\n"); usleep(200000); }
+  if (enable) { t->write_str("ota folder off\r\n"); usleep(200000); }
   std::cout << "\nbye\n";
   return 0;
 }

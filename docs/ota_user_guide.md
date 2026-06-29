@@ -162,16 +162,22 @@ folder of firmware files to the mesh — without storing them itself. Useful for
 remote area.
 
 1. Put the firmware files (`.mota` files — see below) in a folder on the computer.
-2. Build the helper tool once (`tools/motatool/`), then point it at your node's USB port and the folder:
+2. Build the helper tool once (`tools/motatool/`), then point it at your node and the folder — over the
+   node's **USB serial**, or over **WiFi** if it's an ESP32 companion on your network:
    ```
    cmake -S tools/motatool -B tools/motatool/build && cmake --build tools/motatool/build
+   # over USB serial:
    ./tools/motatool/build/motatool serve --dir ./my_firmware/ --serial /dev/ttyACM0 -v
+   # …or over WiFi (ESP32 companion): the seeder is on a DEDICATED port (5001), separate from the
+   # phone-app port (5000), so a phone can stay connected while you serve:
+   ./tools/motatool/build/motatool serve --dir ./my_firmware/ --tcp 192.168.1.50:5001 -v
    ```
-   It turns the relay on for you and then answers the node's requests. Your node now advertises those
-   updates to neighbours, who can `ota get` them like any other. (Details: [tools/motatool/README.md](../tools/motatool/README.md).)
+   It answers the node's requests; your node then advertises those updates to neighbours, who can
+   `ota get` them like any other. (A WiFi node prints its IP + seeder port to the serial log on connect.
+   Details: [tools/motatool/README.md](../tools/motatool/README.md).)
 
-To turn it off, stop the daemon (or run `ota folder off` on the node). `ota folder` on its own lists what
-your node is currently offering.
+To stop, just stop the daemon — over WiFi the node auto-detaches when the connection closes; over USB you
+can also run `ota folder off` on the node. `ota folder` on its own lists what your node is offering.
 
 ### Everyone helps share
 
