@@ -5,16 +5,22 @@
 #include "helpers/ota/OtaProtocol.h"  // decode_adv -> the `ota neighbors` discovery table
 #include "helpers/ota/OtaSelf.h"      // ota_self_firmware -> auto-advertise our own image
 #ifndef OTA_ANNOUNCE_BOOT_MS
-#define OTA_ANNOUNCE_BOOT_MS      30000UL     // first self-advert ~30 s after boot (let the node settle)
+#define OTA_ANNOUNCE_BOOT_MS      8000UL      // first self-advert ~8 s after boot (settled, but quick to discover)
 #endif
 #ifndef OTA_ANNOUNCE_BURST
 #define OTA_ANNOUNCE_BURST        4           // a few closely-spaced boot adverts so co-booting peers catch one
 #endif
 #ifndef OTA_ANNOUNCE_BURST_MS
-#define OTA_ANNOUNCE_BURST_MS     45000UL     // spacing during the boot burst (~3 min total), then ...
+#define OTA_ANNOUNCE_BURST_MS     20000UL     // spacing during the boot burst (~1 min total), then ...
 #endif
-#ifndef OTA_ANNOUNCE_INTERVAL_MS
-#define OTA_ANNOUNCE_INTERVAL_MS  86400000UL  // ... every 24 h — all lowest priority, duty-gated
+// ... then re-announce at a RANDOM interval in [MIN, MAX] so a long-running node stays discoverable
+// (a fresh `ota ls` neighbour sees it within minutes, not at boot only) without all nodes beaconing in
+// lockstep. The beacon is tiny + lowest-priority + duty-gated, so a few-minute cadence is cheap.
+#ifndef OTA_ANNOUNCE_INTERVAL_MIN_MS
+#define OTA_ANNOUNCE_INTERVAL_MIN_MS  180000UL   // 3 min
+#endif
+#ifndef OTA_ANNOUNCE_INTERVAL_MAX_MS
+#define OTA_ANNOUNCE_INTERVAL_MAX_MS  600000UL   // 10 min
 #endif
 #endif
 
@@ -88,9 +94,12 @@ void Mesh::loop() {
     // beacon (announce) advertises our served set and peers can QUERY + fetch it.
     if (!oc.serving) oc.serving = ota::ota_serve_self(oc, 0);
     oc.manager.announce();
-    // boot burst (a few closely-spaced adverts so a co-booting peer catches one), then settle to daily
-    _next_ota_announce = futureMillis(_ota_announce_count < OTA_ANNOUNCE_BURST
-                                      ? OTA_ANNOUNCE_BURST_MS : OTA_ANNOUNCE_INTERVAL_MS);
+    // boot burst (a few closely-spaced adverts so a co-booting peer catches one), then a random
+    // few-minute cadence so a node stays discoverable long after boot (not just at boot).
+    uint32_t gap = (_ota_announce_count < OTA_ANNOUNCE_BURST)
+                   ? OTA_ANNOUNCE_BURST_MS
+                   : _rng->nextInt(OTA_ANNOUNCE_INTERVAL_MIN_MS, OTA_ANNOUNCE_INTERVAL_MAX_MS);
+    _next_ota_announce = futureMillis(gap);
     if (_ota_announce_count < 250) _ota_announce_count++;
   }
   {   // auto-install (once per COMPLETE fetch): only signed images, and apply_fetched enforces trust

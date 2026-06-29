@@ -141,13 +141,16 @@ bool handle_ota_command(const char* command, char* reply, mesh::MainBoard& board
       bool on = cur && memcmp(cur, h->mid, 4) == 0;
       uint32_t age = (now - h->last_ms) / 1000; if (age > 99999) age = 99999;
       char ver[20]; ver_str(ver, sizeof ver, h->fw_version);
-      // What is this update for? "yours" if same hw+role as us; else the target's env name when we know it
-      // (named locally from its 4-byte target_id — no string travels on the wire); else other hw / '?'.
+      // What is this update for? "yours" if same target (hw+role) as us; else the target's env name when we
+      // know it (named locally from its 4-byte target_id — no string travels on the wire); else the raw
+      // target_id hex (an env this build's OtaTargets.h table doesn't know) or '?' for an unset target.
+      char hwbuf[16];
       const char* fit;
       const char* env = ota_target_env_name(h->target_id);
       if (myt && h->target_id == myt) fit = "yours";
       else if (env)                   fit = env;
-      else                            fit = (h->target_id == 0) ? "?" : "other hw";
+      else if (h->target_id == 0)     fit = "?";
+      else { snprintf(hwbuf, sizeof hwbuf, "hw %08X", (unsigned)h->target_id); fit = hwbuf; }
       n += snprintf(reply + n, CAP - n, "\n %d) %s %s [%s] %un %us%s", shown + 1, ver,
                     codec_kind(h->codec), fit, (unsigned)h->n_seeders, (unsigned)age,
                     on ? " [downloading]" : "");
