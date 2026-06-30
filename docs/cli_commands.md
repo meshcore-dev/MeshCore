@@ -1123,8 +1123,10 @@ unusable BAT sensing report `invalid`, and missing power-management
 configuration reports `unknown`. VUSB has no configured millivolt thresholds;
 it is detected through the nRF52 `USBREGSTATUS.VBUSDETECT` hardware signal.
 BAT readings below 1000mV are treated as absent/floating for boot-lock
-decisions. Readings from 1000mV up to the boot-lock threshold still trigger
-protective shutdown; high readings above 4500mV are treated as unsafe evidence.
+decisions and are not reported as a BAT source. With VBUS detected this reports
+`vusb-only:valid`; without VBUS detect this reports `vusb-only:possible-battery`.
+Readings from 1000mV up to the boot-lock threshold still trigger protective
+shutdown; high readings above 4500mV are treated as unsafe evidence.
 If a battery is connected to VUSB and falls below the hardware VBUS-detect
 point while still powering the MCU, the source is reported as
 `vusb-only:possible-battery`.

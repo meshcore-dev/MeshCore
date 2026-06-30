@@ -34,7 +34,7 @@ Confidence suffixes are assigned as follows:
 | Suffix          | Condition                                                                                 | Protective BAT decisions |
 |-----------------|-------------------------------------------------------------------------------------------|--------------------------|
 | `:valid`        | Battery sense is enabled for the board and the reading is within the configured range      | Allowed                  |
-| `:implausible`  | Battery sense is enabled for the board but the reading is below minimum or above maximum   | Present low readings still shut down; absent/floating and high readings are blocked |
+| `:implausible`  | Battery sense is enabled, the reading is present, and it is below the plausible range or above maximum | Present low readings still shut down; absent/floating and high readings are blocked |
 | `:invalid`      | Battery sense is not valid for the board's supported wiring or operating mode              | Blocked                  |
 | `:unknown`      | Power management has no active board configuration when the source is queried              | Blocked                  |
 | `:possible-battery` | VBUS detect is low, BAT sense is invalid, and VUSB may be acting as a battery input   | Blocked                  |
@@ -48,6 +48,8 @@ The current nRF52 power-management board configs all use these plausibility thre
 | `battery_max_plausible_mv`   | `4500`           | Readings above 4500mV are `:implausible` and skipped for boot protection |
 
 The confidence range is inclusive: `2500mV <= battery_mv <= 4500mV` is `:valid` when the board's battery sense path is enabled. Boot protection uses the lower present threshold separately: `1000mV <= battery_mv < voltage_bootlock` enters protective shutdown. Boards can override these fields in their own `PowerMgtConfig`.
+
+Readings below `battery_min_present_mv` are treated as no BAT source. With VBUS detected, the source is reported as `vusb-only:valid`; without VBUS detect, the source is reported as `vusb-only:possible-battery` because the board is still powered and VUSB may be acting as the battery input.
 
 There are no configured VUSB millivolt confidence thresholds in the current implementation. VUSB state is based on the nRF52 `USBREGSTATUS.VBUSDETECT` hardware signal, not a firmware ADC voltage reading centred around 5V. `PowerMgtConfig::vbus_wake_valid` only records whether VBUS wake is supported for the board.
 
@@ -73,7 +75,7 @@ Shutdown reason codes (stored in GPREGRET2):
 
 | Board                                     | Implemented | LPCOMP wake | VBUS wake | Runtime POF shutdown |
 |-------------------------------------------|-------------|-------------|-----------|----------------------|
-| Seeed Studio XIAO nRF52840 (`xiao_nrf52`) | Yes         | No          | Yes       | Yes                  |
+| Seeed Studio XIAO nRF52840 (`xiao_nrf52`) | Yes         | No          | Yes       | USB builds only      |
 | RAK4631 (`rak4631`)                       | Yes         | Yes         | Yes       | No                   |
 | Heltec T114 (`heltec_t114`)               | Yes         | Yes         | Yes       | No                   |
 | GAT562 Mesh Watch13                       | Yes         | Yes         | Yes       | No                   |
@@ -97,7 +99,7 @@ Notes:
 - User power-off on Heltec T114 does not enable LPCOMP wake.
 - VBUS detection is used to skip boot lockout on external power. VBUS wake is configured independently from LPCOMP where supported hardware exposes VBUS to the nRF52.
 - XIAO nRF52 disables trusted BAT/LPCOMP protection by default because BAT+ may be disconnected while VUSB is the actual supply.
-- Runtime POF shutdown uses the nRF52 power-fail warning comparator. On XIAO it is configured for regulated VDD at 2.8 V and arms VBUS wake for SYSTEMOFF recovery.
+- Runtime POF shutdown uses the nRF52 power-fail warning comparator. On XIAO USB builds it is configured for regulated VDD at 2.8 V and arms VBUS wake for SYSTEMOFF recovery. XIAO BLE companion builds leave direct POF disabled because SoftDevice is enabled after `board.begin()` and owns POWER events once started.
 
 ## Technical Details
 
@@ -199,7 +201,7 @@ Runtime power-fail shutdown is configured by optional `PowerMgtConfig` fields:
 | `power_fail_vdd_threshold` | `0` | Disabled when `0`; otherwise an nRF52 `POWER_POFCON_THRESHOLD_*` value for regulated VDD |
 | `power_fail_vbus_wake` | `false` | When true, the POF handler arms VBUS detect as the SYSTEMOFF wake source |
 
-For nRF52840 VDD, supported POF thresholds are 1.7 V through 2.8 V in 0.1 V steps. The XIAO nRF52840 default uses `POWER_POFCON_THRESHOLD_V28`, the highest available regulated-VDD threshold, so firmware gets the earliest available warning when the 3.3 V rail starts to collapse.
+For nRF52840 VDD, supported POF thresholds are 1.7 V through 2.8 V in 0.1 V steps. The XIAO nRF52840 USB-build default uses `POWER_POFCON_THRESHOLD_V28`, the highest available regulated-VDD threshold, so firmware gets the earliest available warning when the 3.3 V rail starts to collapse.
 
 For nRF52840 VDDH, hardware also supports 2.7 V through 4.2 V thresholds. MeshCore does not currently use the VDDH threshold for XIAO because a battery on the XIAO VUSB pin is not the same as direct nRF52840 VDDH measurement in the board abstraction.
 

@@ -20,7 +20,13 @@ const PowerMgtConfig power_config = {
   .battery_min_present_mv = 1000,
   .battery_min_plausible_mv = 2500,
   .battery_max_plausible_mv = 4500,
+#ifdef BLE_PIN_CODE
+  // BLE companion builds enable SoftDevice after board.begin(). Do not install
+  // a direct nrfx POWER/POF interrupt before SoftDevice takes ownership.
+  .power_fail_vdd_threshold = 0,
+#else
   .power_fail_vdd_threshold = PWRMGT_POWER_FAIL_VDD_THRESHOLD,
+#endif
   .power_fail_vbus_wake = true
 };
 

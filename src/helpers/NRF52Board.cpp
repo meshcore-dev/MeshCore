@@ -352,6 +352,10 @@ const char* NRF52Board::getPowerSourceState() {
     return vusb_connected ? "vusb-only:valid" : "vusb-only:possible-battery";
   }
 
+  if (battery_mv < active_power_config->battery_min_present_mv) {
+    return vusb_connected ? "vusb-only:valid" : "vusb-only:possible-battery";
+  }
+
   if (!isBatteryVoltagePlausible(battery_mv, active_power_config)) {
     return vusb_connected ? "vusb+bat:implausible" : "bat-only:implausible";
   }
