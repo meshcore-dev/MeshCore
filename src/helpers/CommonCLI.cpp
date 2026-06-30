@@ -948,7 +948,7 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
 #endif
   } else if (memcmp(config, "pwrmgt.source", 13) == 0) {
 #ifdef NRF52_POWER_MANAGEMENT
-    strcpy(reply, _board->isExternalPowered() ? "> external" : "> battery");
+    sprintf(reply, "> %s", _board->getPowerSourceState());
 #else
     strcpy(reply, "ERROR: Power management not supported");
 #endif

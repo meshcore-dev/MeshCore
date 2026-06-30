@@ -131,6 +131,7 @@ const char* NRF52Board::getShutdownReasonString(uint8_t reason) {
 }
 
 bool NRF52Board::checkBootVoltage(const PowerMgtConfig* config) {
+  active_power_config = config;
   initPowerMgr();
 
   // Read boot voltage
@@ -149,9 +150,17 @@ bool NRF52Board::checkBootVoltage(const PowerMgtConfig* config) {
   MESH_DEBUG_PRINTLN("PWRMGT: Boot voltage = %u mV (threshold = %u mV)",
       boot_voltage_mv, config->voltage_bootlock);
 
-  // Only trigger shutdown if reading is valid (>1000mV) AND below threshold
-  // This prevents spurious shutdowns on ADC glitches or uninitialized reads
-  if (boot_voltage_mv > 1000 && boot_voltage_mv < config->voltage_bootlock) {
+  if (!config->battery_voltage_sense_valid) {
+    MESH_DEBUG_PRINTLN("PWRMGT: Boot check skipped (battery voltage sense invalid)");
+    return true;
+  }
+
+  if (!isBatteryVoltagePlausible(boot_voltage_mv, config)) {
+    MESH_DEBUG_PRINTLN("PWRMGT: Boot check skipped (implausible battery voltage)");
+    return true;
+  }
+
+  if (boot_voltage_mv < config->voltage_bootlock) {
     MESH_DEBUG_PRINTLN("PWRMGT: Boot voltage too low - entering protective shutdown");
 
     initiateShutdown(SHUTDOWN_REASON_BOOT_PROTECT);
@@ -253,8 +262,32 @@ void NRF52Board::configureVoltageWake(uint8_t ain_channel, uint8_t refsel) {
       ain_channel, ref_num);
   }
 
-  // Configure VBUS (USB power) wake alongside LPCOMP.
-  configureVbusWake();
+}
+
+void NRF52Board::configureVoltageWake(const PowerMgtConfig* config) {
+  if (config == nullptr) return;
+
+  if (config->lpcomp_voltage_wake_valid) {
+    configureVoltageWake(config->lpcomp_ain_channel, config->lpcomp_refsel);
+  } else {
+    MESH_DEBUG_PRINTLN("PWRMGT: LPCOMP wake skipped (voltage sense invalid)");
+  }
+
+  if (config->vbus_wake_valid) {
+    configureVbusWake();
+  }
+}
+
+void NRF52Board::configureVbusWake() {
+  uint8_t sd_enabled = 0;
+  sd_softdevice_is_enabled(&sd_enabled);
+  if (sd_enabled) {
+    sd_power_usbdetected_enable(1);
+  } else {
+    nrf52_configure_vbus_wake_direct();
+  }
+
+  MESH_DEBUG_PRINTLN("PWRMGT: VBUS wake configured");
 }
 
 void NRF52Board::configurePowerFailShutdown(const PowerMgtConfig* config) {
@@ -300,6 +333,32 @@ void NRF52Board::configurePowerFailShutdown(const PowerMgtConfig* config) {
   MESH_DEBUG_PRINTLN("PWRMGT: POF shutdown configured (VDD threshold code = %u; VBUS wake = %s)",
     config->power_fail_vdd_threshold,
     config->power_fail_vbus_wake ? "yes" : "no");
+}
+
+bool NRF52Board::isBatteryVoltagePlausible(uint16_t millivolts, const PowerMgtConfig* config) const {
+  if (config == nullptr) return false;
+  return millivolts >= config->battery_min_plausible_mv &&
+         millivolts <= config->battery_max_plausible_mv;
+}
+
+const char* NRF52Board::getPowerSourceState() {
+  bool vusb_connected = isExternalPowered();
+
+  if (active_power_config == nullptr) {
+    return vusb_connected ? "vusb-only:unknown" : "none:unknown";
+  }
+
+  uint16_t battery_mv = getBattMilliVolts();
+
+  if (!active_power_config->battery_voltage_sense_valid) {
+    return vusb_connected ? "vusb-only:invalid" : "none:invalid";
+  }
+
+  if (!isBatteryVoltagePlausible(battery_mv, active_power_config)) {
+    return vusb_connected ? "vusb+bat:implausible" : "bat-only:implausible";
+  }
+
+  return vusb_connected ? "vusb+bat:valid" : "bat-only:valid";
 }
 #endif
 

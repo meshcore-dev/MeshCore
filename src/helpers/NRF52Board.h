@@ -22,6 +22,17 @@ struct PowerMgtConfig {
   // Set to 0 to disable boot protection
   uint16_t voltage_bootlock;
 
+  // Capability flags describe what this board can prove from its sense wiring.
+  // They prevent VBUS loss from being treated as proof that a BAT sense node is valid.
+  bool battery_voltage_sense_valid;
+  bool lpcomp_voltage_wake_valid;
+  bool vbus_wake_valid;
+
+  // Broad plausibility limits for a sensed battery voltage. Readings outside
+  // this range are treated as unsafe evidence for protective shutdown decisions.
+  uint16_t battery_min_plausible_mv;
+  uint16_t battery_max_plausible_mv;
+
   // Optional nRF52 power-fail warning threshold for regulated VDD.
   // Set to 0 to disable runtime power-fail shutdown. Threshold values are
   // the nRF52 POWER_POFCON_THRESHOLD_* enum values, for example
@@ -49,13 +60,16 @@ protected:
   uint32_t reset_reason;              // RESETREAS register value
   uint8_t shutdown_reason;            // GPREGRET value (why we entered last SYSTEMOFF)
   uint16_t boot_voltage_mv;           // Battery voltage at boot (millivolts)
+  const PowerMgtConfig* active_power_config = nullptr;
 
   bool checkBootVoltage(const PowerMgtConfig* config);
   void enterSystemOff(uint8_t reason);
   void configureVoltageWake(uint8_t ain_channel, uint8_t refsel);
+  void configureVoltageWake(const PowerMgtConfig* config);
   void configureVbusWake();
   void configurePowerFailShutdown(const PowerMgtConfig* config);
   virtual void initiateShutdown(uint8_t reason);
+  bool isBatteryVoltagePlausible(uint16_t millivolts, const PowerMgtConfig* config) const;
 #endif
 
 public:
@@ -71,6 +85,7 @@ public:
 
 #ifdef NRF52_POWER_MANAGEMENT
   uint16_t getBootVoltage() override { return boot_voltage_mv; }
+  const char* getPowerSourceState() override;
   virtual uint32_t getResetReason() const override { return reset_reason; }
   uint8_t getShutdownReason() const override { return shutdown_reason; }
   const char* getResetReasonString(uint32_t reason) override;

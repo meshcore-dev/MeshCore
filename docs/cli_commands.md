@@ -1111,6 +1111,9 @@ region save
 #### View the current power source
 **Usage:** `get pwrmgt.source`
 
+Returns a composite source and confidence state, for example `vusb+bat:valid`,
+`vusb-only:invalid`, `bat-only:implausible`, or `none:unknown`.
+
 **Note:** Returns an error on boards without power management support.
 
 ---

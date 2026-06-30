@@ -9,7 +9,12 @@
 const PowerMgtConfig power_config = {
   .lpcomp_ain_channel = PWRMGT_LPCOMP_AIN,
   .lpcomp_refsel = PWRMGT_LPCOMP_REFSEL,
-  .voltage_bootlock = PWRMGT_VOLTAGE_BOOTLOCK
+  .voltage_bootlock = PWRMGT_VOLTAGE_BOOTLOCK,
+  .battery_voltage_sense_valid = true,
+  .lpcomp_voltage_wake_valid = true,
+  .vbus_wake_valid = true,
+  .battery_min_plausible_mv = 1000,
+  .battery_max_plausible_mv = 6500
 };
 
 void RAK3401Board::initiateShutdown(uint8_t reason) {
@@ -21,7 +26,7 @@ void RAK3401Board::initiateShutdown(uint8_t reason) {
 
   if (reason == SHUTDOWN_REASON_LOW_VOLTAGE ||
       reason == SHUTDOWN_REASON_BOOT_PROTECT) {
-    configureVoltageWake(power_config.lpcomp_ain_channel, power_config.lpcomp_refsel);
+    configureVoltageWake(&power_config);
   }
 
   enterSystemOff(reason);
