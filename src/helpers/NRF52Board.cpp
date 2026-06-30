@@ -283,18 +283,6 @@ void NRF52Board::configureVoltageWake(const PowerMgtConfig* config) {
   }
 }
 
-void NRF52Board::configureVbusWake() {
-  uint8_t sd_enabled = 0;
-  sd_softdevice_is_enabled(&sd_enabled);
-  if (sd_enabled) {
-    sd_power_usbdetected_enable(1);
-  } else {
-    nrf52_configure_vbus_wake_direct();
-  }
-
-  MESH_DEBUG_PRINTLN("PWRMGT: VBUS wake configured");
-}
-
 void NRF52Board::configurePowerFailShutdown(const PowerMgtConfig* config) {
   if (config->power_fail_vdd_threshold == 0) return;
 
