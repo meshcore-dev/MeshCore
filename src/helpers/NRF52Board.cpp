@@ -351,7 +351,7 @@ const char* NRF52Board::getPowerSourceState() {
   uint16_t battery_mv = getBattMilliVolts();
 
   if (!active_power_config->battery_voltage_sense_valid) {
-    return vusb_connected ? "vusb-only:invalid" : "none:invalid";
+    return vusb_connected ? "vusb-only:valid" : "undetected";
   }
 
   if (!isBatteryVoltagePlausible(battery_mv, active_power_config)) {

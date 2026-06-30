@@ -24,9 +24,32 @@ The nRF52 Power Management module provides battery protection features to preven
 - Does not replace hardware brownout behaviour: if voltage collapses before firmware runs the handler, recovery is controlled by reset and regulator hardware
 
 ### Power Source State
-- `get pwrmgt.source` returns a composite state with a confidence suffix: `vusb+bat`, `vusb-only`, `bat-only`, or `none`, followed by `:valid`, `:implausible`, `:invalid`, or `:unknown`
+- `get pwrmgt.source` returns a source state. Normal detected sources use a confidence suffix: `vusb+bat`, `vusb-only`, `bat-only`, or `none`, followed by `:valid`, `:implausible`, `:invalid`, or `:unknown`
 - `invalid` means the board cannot use the configured battery sense path for protective decisions
 - `implausible` means the sensed voltage is outside the board's configured plausible range
+- `undetected` means the board is powered, but neither VBUS detect nor a valid BAT sense path can prove which input is supplying it
+
+Confidence suffixes are assigned as follows:
+
+| Suffix          | Condition                                                                                 | Protective BAT decisions |
+|-----------------|-------------------------------------------------------------------------------------------|--------------------------|
+| `:valid`        | Battery sense is enabled for the board and the reading is within the configured range      | Allowed                  |
+| `:implausible`  | Battery sense is enabled for the board but the reading is below minimum or above maximum   | Blocked                  |
+| `:invalid`      | Battery sense is not valid for the board's supported wiring or operating mode              | Blocked                  |
+| `:unknown`      | Power management has no active board configuration when the source is queried              | Blocked                  |
+
+The current nRF52 power-management board configs all use these plausibility thresholds:
+
+| `PowerMgtConfig` field       | Configured value | Meaning                                      |
+|------------------------------|------------------|----------------------------------------------|
+| `battery_min_plausible_mv`   | `2500`           | Readings below 2500mV are `:implausible`     |
+| `battery_max_plausible_mv`   | `4500`           | Readings above 4500mV are `:implausible`     |
+
+The range is inclusive: `2500mV <= battery_mv <= 4500mV` is `:valid` when the board's battery sense path is enabled. Boards can override these fields in their own `PowerMgtConfig`.
+
+There are no configured VUSB millivolt confidence thresholds in the current implementation. VUSB state is based on the nRF52 `USBREGSTATUS.VBUSDETECT` hardware signal, not a firmware ADC voltage reading centred around 5V. `PowerMgtConfig::vbus_wake_valid` only records whether VBUS wake is supported for the board.
+
+This means a battery connected to VUSB is reported as `vusb-only:valid` while `VBUSDETECT` is asserted. If that VUSB battery falls below the hardware detection point but still powers the MCU, firmware cannot prove the input path and reports `undetected` rather than `none`.
 
 ### Early Boot Register Capture
 - Captures RESETREAS (reset reason) and GPREGRET2 (shutdown reason) before SystemInit() clears them
@@ -115,8 +138,8 @@ To enable power management on a board variant:
      .battery_voltage_sense_valid = true,
      .lpcomp_voltage_wake_valid = true,
      .vbus_wake_valid = true,
-     .battery_min_plausible_mv = 1000,
-     .battery_max_plausible_mv = 6500,
+     .battery_min_plausible_mv = 2500,
+     .battery_max_plausible_mv = 4500,
      .power_fail_vdd_threshold = 0,    // Optional; 0 disables runtime POF shutdown
      .power_fail_vbus_wake = false     // Optional; true arms VBUS wake after POF shutdown
    };

@@ -1112,7 +1112,18 @@ region save
 **Usage:** `get pwrmgt.source`
 
 Returns a composite source and confidence state, for example `vusb+bat:valid`,
-`vusb-only:invalid`, `bat-only:implausible`, or `none:unknown`.
+`vusb-only:valid`, `bat-only:implausible`, or `undetected`.
+
+Confidence thresholds are board-configured in `PowerMgtConfig`. The current
+nRF52 power-management board configs all set `battery_min_plausible_mv = 2500`
+and `battery_max_plausible_mv = 4500`, so BAT voltage is `valid` from 2500mV
+to 4500mV inclusive. Readings outside that range are `implausible`, boards with
+unusable BAT sensing report `invalid`, and missing power-management
+configuration reports `unknown`. VUSB has no configured millivolt thresholds;
+it is detected through the nRF52 `USBREGSTATUS.VBUSDETECT` hardware signal.
+If a battery is connected to VUSB and falls below the hardware VBUS-detect
+point while still powering the MCU, the source is reported as
+`undetected`.
 
 **Note:** Returns an error on boards without power management support.
 
