@@ -24,10 +24,12 @@ void NRF52Board::begin() {
 
 #ifdef NRF52_POWER_MANAGEMENT
 #include "nrf.h"
+#include <nrfx_power.h>
 
 // Power Management global variables
 uint32_t g_nrf52_reset_reason = 0;     // Reset/Startup reason
 uint8_t g_nrf52_shutdown_reason = 0;   // Shutdown reason
+static bool nrf52_power_fail_vbus_wake = false;
 
 // Early constructor - runs before SystemInit() clears the registers
 // Priority 101 ensures this runs before SystemInit (102) and before
@@ -35,6 +37,39 @@ uint8_t g_nrf52_shutdown_reason = 0;   // Shutdown reason
 static void __attribute__((constructor(101))) nrf52_early_reset_capture() {
   g_nrf52_reset_reason = NRF_POWER->RESETREAS;
   g_nrf52_shutdown_reason = NRF_POWER->GPREGRET2;
+}
+
+static void nrf52_record_shutdown_reason(uint8_t reason) {
+  uint8_t sd_enabled = 0;
+  sd_softdevice_is_enabled(&sd_enabled);
+  if (sd_enabled) {
+    sd_power_gpregret_clr(1, 0xFF);
+    sd_power_gpregret_set(1, reason);
+  } else {
+    NRF_POWER->GPREGRET2 = reason;
+  }
+}
+
+static void nrf52_configure_vbus_wake_direct() {
+#ifdef POWER_INTENSET_USBDETECTED_Msk
+  NRF_POWER->EVENTS_USBDETECTED = 0;
+  NRF_POWER->INTENSET = POWER_INTENSET_USBDETECTED_Msk;
+#endif
+}
+
+static void nrf52_power_fail_warning_handler() {
+  // This callback runs in the POWER interrupt with the SoftDevice disabled.
+  // Keep the path register-only: Serial, delay(), and board callbacks are not
+  // safe when VDD is already falling.
+  nrfx_power_pof_disable();
+  nrf52_record_shutdown_reason(SHUTDOWN_REASON_LOW_VOLTAGE);
+
+  if (nrf52_power_fail_vbus_wake) {
+    nrf52_configure_vbus_wake_direct();
+  }
+
+  NRF_POWER->SYSTEMOFF = POWER_SYSTEMOFF_SYSTEMOFF_Enter;
+  while (1) { }
 }
 
 void NRF52Board::initPowerMgr() {
@@ -100,6 +135,7 @@ bool NRF52Board::checkBootVoltage(const PowerMgtConfig* config) {
 
   // Read boot voltage
   boot_voltage_mv = getBattMilliVolts();
+  configurePowerFailShutdown(config);
   
   if (config->voltage_bootlock == 0) return true;  // Protection disabled
 
@@ -135,12 +171,7 @@ void NRF52Board::enterSystemOff(uint8_t reason) {
   // Record shutdown reason in GPREGRET2
   uint8_t sd_enabled = 0;
   sd_softdevice_is_enabled(&sd_enabled);
-  if (sd_enabled) {
-    sd_power_gpregret_clr(1, 0xFF);
-    sd_power_gpregret_set(1, reason);
-  } else {
-    NRF_POWER->GPREGRET2 = reason;
-  }
+  nrf52_record_shutdown_reason(reason);
 
   // Flush serial buffers
   Serial.flush();
@@ -161,6 +192,18 @@ void NRF52Board::enterSystemOff(uint8_t reason) {
 
   // If we get here, something went wrong. Reset to recover.
   NVIC_SystemReset();
+}
+
+void NRF52Board::configureVbusWake() {
+  uint8_t sd_enabled = 0;
+  sd_softdevice_is_enabled(&sd_enabled);
+  if (sd_enabled) {
+    sd_power_usbdetected_enable(1);
+  } else {
+    nrf52_configure_vbus_wake_direct();
+  }
+
+  MESH_DEBUG_PRINTLN("PWRMGT: VBUS wake configured");
 }
 
 void NRF52Board::configureVoltageWake(uint8_t ain_channel, uint8_t refsel) {
@@ -210,17 +253,53 @@ void NRF52Board::configureVoltageWake(uint8_t ain_channel, uint8_t refsel) {
       ain_channel, ref_num);
   }
 
-  // Configure VBUS (USB power) wake alongside LPCOMP
+  // Configure VBUS (USB power) wake alongside LPCOMP.
+  configureVbusWake();
+}
+
+void NRF52Board::configurePowerFailShutdown(const PowerMgtConfig* config) {
+  if (config->power_fail_vdd_threshold == 0) return;
+
   uint8_t sd_enabled = 0;
   sd_softdevice_is_enabled(&sd_enabled);
   if (sd_enabled) {
-    sd_power_usbdetected_enable(1);
-  } else {
-    NRF_POWER->EVENTS_USBDETECTED = 0;
-    NRF_POWER->INTENSET = POWER_INTENSET_USBDETECTED_Msk;
+    // SoftDevice delivers POFWARN through its SoC event queue. The current
+    // framework consumes that queue internally and does not expose a power-fail
+    // callback, so leave runtime power-fail shutdown disabled rather than
+    // installing a competing interrupt handler.
+    MESH_DEBUG_PRINTLN("PWRMGT: POF shutdown skipped (SoftDevice active)");
+    return;
   }
 
-  MESH_DEBUG_PRINTLN("PWRMGT: VBUS wake configured");
+  nrfx_power_config_t power_config = {};
+  power_config.dcdcen = NRF_POWER->DCDCEN != 0;
+#if NRFX_POWER_SUPPORTS_DCDCEN_VDDH
+  power_config.dcdcenhv = NRF_POWER->DCDCEN0 != 0;
+#endif
+
+  nrfx_err_t err = nrfx_power_init(&power_config);
+  if (err != NRFX_SUCCESS && err != NRFX_ERROR_ALREADY_INITIALIZED) {
+    MESH_DEBUG_PRINTLN("PWRMGT: POF shutdown setup failed (nrfx init %lu)", (unsigned long)err);
+    return;
+  }
+
+  nrf52_power_fail_vbus_wake = config->power_fail_vbus_wake;
+
+  nrfx_power_pofwarn_config_t pof_config = {};
+  pof_config.handler = nrf52_power_fail_warning_handler;
+#if NRFX_POWER_SUPPORTS_POFCON
+  pof_config.thr = (nrf_power_pof_thr_t)config->power_fail_vdd_threshold;
+#endif
+#if NRFX_POWER_SUPPORTS_POFCON_VDDH
+  pof_config.thrvddh = NRF_POWER_POFTHRVDDH_V27;
+#endif
+
+  nrfx_power_pof_init(&pof_config);
+  nrfx_power_pof_enable(&pof_config);
+
+  MESH_DEBUG_PRINTLN("PWRMGT: POF shutdown configured (VDD threshold code = %u; VBUS wake = %s)",
+    config->power_fail_vdd_threshold,
+    config->power_fail_vbus_wake ? "yes" : "no");
 }
 #endif
 

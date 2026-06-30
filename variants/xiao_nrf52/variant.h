@@ -79,6 +79,13 @@ static const uint8_t D10 = 10;
 // Set to 0 to disable boot protection
 #define PWRMGT_VOLTAGE_BOOTLOCK    3300   // Won't boot below this voltage
 
+// Runtime power-fail warning for VUSB-battery builds.
+// The nRF52840 can warn on regulated VDD down to configurable thresholds, but
+// it cannot directly measure VUSB without a board-level ADC path. Use the
+// highest VDD threshold so firmware can deliberately enter SYSTEMOFF before an
+// uncontrolled brownout when the regulator output starts to collapse.
+#define PWRMGT_POWER_FAIL_VDD_THRESHOLD  POWER_POFCON_THRESHOLD_V28
+
 // LPCOMP wake configuration (voltage recovery from SYSTEMOFF)
 #define PWRMGT_LPCOMP_AIN           7     // AIN7 = P0.31 = PIN_VBAT
 // IMPORTANT: The XIAO exposes battery via a resistor divider (ADC_MULTIPLIER = 3.0).

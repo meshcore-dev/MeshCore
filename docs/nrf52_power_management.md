@@ -17,6 +17,12 @@ The nRF52 Power Management module provides battery protection features to preven
 - Enables USB VBUS detection so external power can wake the device
 - Device automatically wakes when battery voltage rises above recovery threshold or when VBUS is detected
 
+### Runtime Power-Fail Shutdown
+- Optionally arms the nRF52 power-fail warning comparator on regulated VDD
+- Allows firmware to enter SYSTEMOFF before an uncontrolled brownout if VDD falls through the configured threshold
+- Can arm VBUS detection as the recovery wake source for builds powered by a battery connected to VUSB
+- Does not replace hardware brownout behaviour: if voltage collapses before firmware runs the handler, recovery is controlled by reset and regulator hardware
+
 ### Early Boot Register Capture
 - Captures RESETREAS (reset reason) and GPREGRET2 (shutdown reason) before SystemInit() clears them
 - Allows firmware to determine why it booted (cold boot, watchdog, LPCOMP wake, etc.)
@@ -35,31 +41,32 @@ Shutdown reason codes (stored in GPREGRET2):
 ## Supported Boards
 
 
-| Board                                     | Implemented | LPCOMP wake | VBUS wake |
-|-------------------------------------------|-------------|-------------|-----------|
-| Seeed Studio XIAO nRF52840 (`xiao_nrf52`) | Yes         | Yes         | Yes       |
-| RAK4631 (`rak4631`)                       | Yes         | Yes         | Yes       |
-| Heltec T114 (`heltec_t114`)               | Yes         | Yes         | Yes       |
-| GAT562 Mesh Watch13                       | Yes         | Yes         | Yes       |
-| Promicro nRF52840                         | No          | No          | No        |
-| RAK WisMesh Tag                           | No          | No          | No        |
-| Heltec Mesh Solar                         | No          | No          | No        |
-| LilyGo T-Echo / T-Echo Lite               | No          | No          | No        |
-| SenseCAP Solar                            | Yes         | Yes         | Yes       |
-| WIO Tracker L1 / L1 E-Ink                 | No          | No          | No        |
-| WIO WM1110                                | No          | No          | No        |
-| Mesh Pocket                               | No          | No          | No        |
-| Nano G2 Ultra                             | No          | No          | No        |
-| ThinkNode M1/M3/M6                        | No          | No          | No        |
-| T1000-E                                   | No          | No          | No        |
-| Ikoka Nano/Stick/Handheld (nRF)           | No          | No          | No        |
-| Keepteen LT1                              | No          | No          | No        |
-| Minewsemi ME25LS01                        | No          | No          | No        |
+| Board                                     | Implemented | LPCOMP wake | VBUS wake | Runtime POF shutdown |
+|-------------------------------------------|-------------|-------------|-----------|----------------------|
+| Seeed Studio XIAO nRF52840 (`xiao_nrf52`) | Yes         | Yes         | Yes       | Yes                  |
+| RAK4631 (`rak4631`)                       | Yes         | Yes         | Yes       | No                   |
+| Heltec T114 (`heltec_t114`)               | Yes         | Yes         | Yes       | No                   |
+| GAT562 Mesh Watch13                       | Yes         | Yes         | Yes       | No                   |
+| Promicro nRF52840                         | No          | No          | No        | No                   |
+| RAK WisMesh Tag                           | No          | No          | No        | No                   |
+| Heltec Mesh Solar                         | No          | No          | No        | No                   |
+| LilyGo T-Echo / T-Echo Lite               | No          | No          | No        | No                   |
+| SenseCAP Solar                            | Yes         | Yes         | Yes       | No                   |
+| WIO Tracker L1 / L1 E-Ink                 | No          | No          | No        | No                   |
+| WIO WM1110                                | No          | No          | No        | No                   |
+| Mesh Pocket                               | No          | No          | No        | No                   |
+| Nano G2 Ultra                             | No          | No          | No        | No                   |
+| ThinkNode M1/M3/M6                        | No          | No          | No        | No                   |
+| T1000-E                                   | No          | No          | No        | No                   |
+| Ikoka Nano/Stick/Handheld (nRF)           | No          | No          | No        | No                   |
+| Keepteen LT1                              | No          | No          | No        | No                   |
+| Minewsemi ME25LS01                        | No          | No          | No        | No                   |
 
 Notes:
 - "Implemented" reflects Phase 1 (boot lockout + shutdown reason capture).
 - User power-off on Heltec T114 does not enable LPCOMP wake.
 - VBUS detection is used to skip boot lockout on external power, and VBUS wake is configured alongside LPCOMP when supported hardware exposes VBUS to the nRF52.
+- Runtime POF shutdown uses the nRF52 power-fail warning comparator. On XIAO it is configured for regulated VDD at 2.8 V and arms VBUS wake for SYSTEMOFF recovery.
 
 ## Technical Details
 
@@ -89,6 +96,7 @@ To enable power management on a board variant:
    #define PWRMGT_VOLTAGE_BOOTLOCK    3300   // Won't boot below this voltage (mV)
    #define PWRMGT_LPCOMP_AIN          7      // AIN channel for voltage sensing
    #define PWRMGT_LPCOMP_REFSEL       2      // REFSEL (0-6=1/8..7/8, 7=ARef, 8-15=1/16..15/16)
+   #define PWRMGT_POWER_FAIL_VDD_THRESHOLD POWER_POFCON_THRESHOLD_V28 // Optional; 2.8 V regulated VDD
    ```
 
 3. **Implement in board .cpp file**:
@@ -97,7 +105,9 @@ To enable power management on a board variant:
    const PowerMgtConfig power_config = {
      .lpcomp_ain_channel = PWRMGT_LPCOMP_AIN,
      .lpcomp_refsel = PWRMGT_LPCOMP_REFSEL,
-     .voltage_bootlock = PWRMGT_VOLTAGE_BOOTLOCK
+     .voltage_bootlock = PWRMGT_VOLTAGE_BOOTLOCK,
+     .power_fail_vdd_threshold = 0,    // Optional; 0 disables runtime POF shutdown
+     .power_fail_vbus_wake = false     // Optional; true arms VBUS wake after POF shutdown
    };
 
    void MyBoard::initiateShutdown(uint8_t reason) {
@@ -142,6 +152,25 @@ The LPCOMP (Low Power Comparator) is configured to:
 - Wake the device from SYSTEMOFF when triggered
 
 VBUS wake is enabled via the POWER peripheral USBDETECTED event whenever `configureVoltageWake()` is used. This requires USB VBUS to be routed to the nRF52 (typical on nRF52840 boards with native USB).
+
+### Runtime Power-Fail Configuration
+
+Runtime power-fail shutdown is configured by optional `PowerMgtConfig` fields:
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `power_fail_vdd_threshold` | `0` | Disabled when `0`; otherwise an nRF52 `POWER_POFCON_THRESHOLD_*` value for regulated VDD |
+| `power_fail_vbus_wake` | `false` | When true, the POF handler arms VBUS detect as the SYSTEMOFF wake source |
+
+For nRF52840 VDD, supported POF thresholds are 1.7 V through 2.8 V in 0.1 V steps. The XIAO nRF52840 default uses `POWER_POFCON_THRESHOLD_V28`, the highest available regulated-VDD threshold, so firmware gets the earliest available warning when the 3.3 V rail starts to collapse.
+
+For nRF52840 VDDH, hardware also supports 2.7 V through 4.2 V thresholds. MeshCore does not currently use the VDDH threshold for XIAO because a battery on the XIAO VUSB pin is not the same as direct nRF52840 VDDH measurement in the board abstraction.
+
+This path is deliberately separate from SYSTEMOFF wake source selection:
+- If supply voltage simply collapses, firmware does not choose a wake source; reset and regulator hardware determine when execution resumes.
+- POF shutdown only applies if the MCU is still executing when VDD crosses the configured threshold.
+- When POF shutdown succeeds and `power_fail_vbus_wake` is true, recovery happens when the nRF52 VBUS detector sees VUSB again, not when BAT sense rises.
+- SoftDevice builds need a SoftDevice SoC event hook for `NRF_EVT_POWER_FAILURE_WARNING`. The current Adafruit nRF52 framework consumes that event internally, so this branch only enables direct POF shutdown when SoftDevice is not active.
 
 **LPCOMP Reference Selection (PWRMGT_LPCOMP_REFSEL)**:
 

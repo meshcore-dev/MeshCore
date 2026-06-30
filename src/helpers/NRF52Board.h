@@ -21,6 +21,18 @@ struct PowerMgtConfig {
   // Boot protection voltage threshold (millivolts)
   // Set to 0 to disable boot protection
   uint16_t voltage_bootlock;
+
+  // Optional nRF52 power-fail warning threshold for regulated VDD.
+  // Set to 0 to disable runtime power-fail shutdown. Threshold values are
+  // the nRF52 POWER_POFCON_THRESHOLD_* enum values, for example
+  // POWER_POFCON_THRESHOLD_V28 for 2.8 V.
+  uint8_t power_fail_vdd_threshold;
+
+  // If true, runtime power-fail shutdown arms VBUS detect as the SYSTEMOFF
+  // wake source. This is useful for boards powered by a battery on VUSB where
+  // BAT sense is not available, but it only applies after a deliberate
+  // firmware shutdown before uncontrolled brownout.
+  bool power_fail_vbus_wake;
 };
 #endif
 
@@ -41,6 +53,8 @@ protected:
   bool checkBootVoltage(const PowerMgtConfig* config);
   void enterSystemOff(uint8_t reason);
   void configureVoltageWake(uint8_t ain_channel, uint8_t refsel);
+  void configureVbusWake();
+  void configurePowerFailShutdown(const PowerMgtConfig* config);
   virtual void initiateShutdown(uint8_t reason);
 #endif
 
