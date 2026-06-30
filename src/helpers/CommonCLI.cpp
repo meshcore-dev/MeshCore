@@ -52,6 +52,7 @@ void CommonCLI::syncOtaConfigFromPrefs() {
   mesh::ota::OtaContext& c = mesh::ota::ota_ctx();
   c.manager.set_autofetch(_prefs->ota_autofetch);
   c.manager.set_checkpoint_blocks(_prefs->ota_checkpoint_blocks);
+  c.manager.set_advert_mins(_prefs->ota_advert_interval);
   c.autoinstall = _prefs->ota_autoinstall;
   c.allow.clear();
   for (uint8_t i = 0; i < _prefs->ota_signer_count && i < MAX_OTA_SIGNERS; i++)
@@ -117,12 +118,14 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     // defaults: a short file makes the reads below no-ops (read returns 0 bytes, values unchanged).
     _prefs->ota_autofetch = 0; _prefs->ota_autoinstall = 0; _prefs->ota_signer_count = 0;
     _prefs->ota_checkpoint_blocks = 4;   // = OTA_CHECKPOINT_BLOCKS; older prefs lack it -> stays at default
+    _prefs->ota_advert_interval = 1440;  // = OTA_ADVERT_INTERVAL_MINS (24h); older prefs lack it -> stays default
     file.read((uint8_t *)&_prefs->ota_autofetch, sizeof(_prefs->ota_autofetch));                   // 293
     file.read((uint8_t *)&_prefs->ota_autoinstall, sizeof(_prefs->ota_autoinstall));               // 294
     file.read((uint8_t *)&_prefs->ota_signer_count, sizeof(_prefs->ota_signer_count));             // 295
     file.read((uint8_t *)_prefs->ota_signers, sizeof(_prefs->ota_signers));                        // 296
     file.read((uint8_t *)&_prefs->ota_checkpoint_blocks, sizeof(_prefs->ota_checkpoint_blocks));   // 424
-    // next: 426
+    file.read((uint8_t *)&_prefs->ota_advert_interval, sizeof(_prefs->ota_advert_interval));       // 426
+    // next: 428
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -155,6 +158,7 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     _prefs->ota_autofetch = constrain(_prefs->ota_autofetch, 0, 2);
     _prefs->ota_autoinstall = constrain(_prefs->ota_autoinstall, 0, 1);
     if (_prefs->ota_checkpoint_blocks > 4096) _prefs->ota_checkpoint_blocks = 4;   // 0=never; cap absurd
+    if (_prefs->ota_advert_interval > 10080) _prefs->ota_advert_interval = 1440;   // 0=off; cap at 7 days
     if (_prefs->ota_signer_count > 4) _prefs->ota_signer_count = 0;     // corrupt count -> drop keys
 
     file.close();
@@ -224,7 +228,8 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->ota_signer_count, sizeof(_prefs->ota_signer_count));             // 295
     file.write((uint8_t *)_prefs->ota_signers, sizeof(_prefs->ota_signers));                        // 296
     file.write((uint8_t *)&_prefs->ota_checkpoint_blocks, sizeof(_prefs->ota_checkpoint_blocks));   // 424
-    // next: 426
+    file.write((uint8_t *)&_prefs->ota_advert_interval, sizeof(_prefs->ota_advert_interval));       // 426
+    // next: 428
 
     file.close();
   }
@@ -353,6 +358,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
         mesh::ota::OtaContext& c = mesh::ota::ota_ctx();
         _prefs->ota_autofetch = c.manager.autofetch();
         _prefs->ota_checkpoint_blocks = c.manager.checkpoint_blocks();
+        _prefs->ota_advert_interval = c.manager.advert_mins();
         _prefs->ota_autoinstall = c.autoinstall;
         _prefs->ota_signer_count = c.allow.count();
         for (uint8_t i = 0; i < c.allow.count() && i < MAX_OTA_SIGNERS; i++)

@@ -310,7 +310,10 @@ Message types:
 Because a node may serve **many** mOTAs (its own firmware plus an external folder — §10), discovery is split
 so the periodic beacon stays tiny regardless of catalog size:
 
-**Tier 1 — `OTA_ADV` beacon** (10 bytes, constant, flooded periodically):
+**Tier 1 — `OTA_ADV` beacon** (10 bytes, constant). Flooded as a short burst at boot, then every
+`advert_mins` minutes (default 24h; runtime-tunable via `ota config advert`, `0` disables the periodic
+re-advertise). It is also emitted immediately whenever the served set changes (e.g. a `motatool` folder is
+attached/detached), so peers learn about newly-available firmware without waiting for the next interval:
 
 ```
 seeder_id[4]    advertiser node id = pubkey[0:4]; the QUERY address + distinct-source id

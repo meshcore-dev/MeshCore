@@ -130,6 +130,7 @@ void halt() {
     if (ota_seeder_client && ota_seeder_client.connected()) return;     // still serving the current client
     if (ota_seeder_attached) {                                          // previous client just disconnected
       mesh::ota::ota_ctx().detach_folder();
+      mesh::ota::ota_ctx().manager.announce();   // served set shrank back to our own fw -> re-advertise
       ota_seeder_attached = false;
       WIFI_DEBUG_PRINTLN("OTA seeder: client disconnected, relay stopped");
     }
@@ -138,6 +139,7 @@ void halt() {
       ota_seeder_client = c;                                            // rebind the persistent Stream to it
       if (mesh::ota::ota_ctx().manager.add_source(&ota_seeder_source)) {
         ota_seeder_attached = true;
+        mesh::ota::ota_ctx().manager.announce();   // new served set -> advertise the folder's fw to peers
         WIFI_DEBUG_PRINTLN("OTA seeder: client connected, relaying its folder");
       } else {
         ota_seeder_client.stop();                                      // no free source slot

@@ -13,14 +13,12 @@
 #ifndef OTA_ANNOUNCE_BURST_MS
 #define OTA_ANNOUNCE_BURST_MS     20000UL     // spacing during the boot burst (~1 min total), then ...
 #endif
-// ... then re-announce at a RANDOM interval in [MIN, MAX] so a long-running node stays discoverable
-// (a fresh `ota ls` neighbour sees it within minutes, not at boot only) without all nodes beaconing in
-// lockstep. The beacon is tiny + lowest-priority + duty-gated, so a few-minute cadence is cheap.
-#ifndef OTA_ANNOUNCE_INTERVAL_MIN_MS
-#define OTA_ANNOUNCE_INTERVAL_MIN_MS  180000UL   // 3 min
-#endif
-#ifndef OTA_ANNOUNCE_INTERVAL_MAX_MS
-#define OTA_ANNOUNCE_INTERVAL_MAX_MS  600000UL   // 10 min
+// ... then re-announce at a FIXED cadence so a long-running node stays discoverable (a fresh `ota ls`
+// neighbour eventually sees it, not at boot only). The cadence is OtaManager::advert_mins() minutes (default
+// 24h, runtime-tunable via `ota config advert` + persisted; 0 = disabled = boot burst only). The beacon is
+// tiny + lowest-priority + duty-gated, so even a frequent cadence is cheap.
+#ifndef OTA_ANNOUNCE_DISABLED_POLL_MS
+#define OTA_ANNOUNCE_DISABLED_POLL_MS  600000UL  // when periodic advert is off, re-check config every 10 min
 #endif
 #endif
 
@@ -90,17 +88,21 @@ void Mesh::loop() {
   }
   if (millisHasNowPassed(_next_ota_announce)) {   // auto-advertise so peers discover us (tiny beacon)
     ota::OtaContext& oc = ota::ota_ctx();
-    // To be discoverable as a source of our OWN firmware, set up flash-backed self-serve once; then the
-    // beacon (announce) advertises our served set and peers can QUERY + fetch it.
-    if (!oc.serving) oc.serving = ota::ota_serve_self(oc, 0);
-    oc.manager.announce();
-    // boot burst (a few closely-spaced adverts so a co-booting peer catches one), then a random
-    // few-minute cadence so a node stays discoverable long after boot (not just at boot).
-    uint32_t gap = (_ota_announce_count < OTA_ANNOUNCE_BURST)
-                   ? OTA_ANNOUNCE_BURST_MS
-                   : _rng->nextInt(OTA_ANNOUNCE_INTERVAL_MIN_MS, OTA_ANNOUNCE_INTERVAL_MAX_MS);
+    bool in_burst = _ota_announce_count < OTA_ANNOUNCE_BURST;
+    uint32_t mins = oc.manager.advert_mins();     // periodic cadence in minutes; 0 = disabled (boot burst only)
+    if (in_burst || mins != 0) {
+      // To be discoverable as a source of our OWN firmware, set up flash-backed self-serve once; then the
+      // beacon (announce) advertises our served set and peers can QUERY + fetch it.
+      if (!oc.serving) oc.serving = ota::ota_serve_self(oc, 0);
+      oc.manager.announce();
+      if (_ota_announce_count < 250) _ota_announce_count++;
+    }
+    // Re-arm: tight spacing during the boot burst; afterwards the fixed cadence (default 24h). When periodic
+    // advert is disabled (0), re-check on a slow timer so a later `ota config advert <mins>` takes effect live.
+    uint32_t gap = in_burst       ? OTA_ANNOUNCE_BURST_MS
+                 : (mins != 0)    ? mins * 60000UL
+                                  : OTA_ANNOUNCE_DISABLED_POLL_MS;
     _next_ota_announce = futureMillis(gap);
-    if (_ota_announce_count < 250) _ota_announce_count++;
   }
   {   // auto-install (once per COMPLETE fetch): only signed images, and apply_fetched enforces trust
     ota::OtaContext& oc = ota::ota_ctx();

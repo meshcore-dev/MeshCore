@@ -129,6 +129,9 @@ ota config autofetch off        # back to manual (default)
 ota config autoinstall trusted  # auto-INSTALL a downloaded update IF it's signed by a key you trust
 ota config autoinstall off      # never auto-install (default)
 
+ota config advert 1440          # re-advertise this node every N minutes (default 1440 = 24h)
+ota config advert 0             # disable periodic re-advertise (still advertises briefly at boot)
+
 ota config                      # show the current settings
 ```
 

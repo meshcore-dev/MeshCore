@@ -69,6 +69,7 @@ struct NodePrefs { // persisted to file
   uint8_t ota_signer_count;     // # of allowlisted signer pubkeys below
   uint8_t ota_signers[4][32];   // trusted Ed25519 signer pubkeys (== MAX_OTA_SIGNERS)
   uint16_t ota_checkpoint_blocks; // resume checkpoint cadence (blocks); 0=never. Default 4 (runtime-tunable)
+  uint16_t ota_advert_interval;   // OTA beacon re-advertise cadence (mins); 0=off. Default 1440 (24h, tunable)
 };
 
 class CommonCLICallbacks {

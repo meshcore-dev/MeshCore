@@ -37,6 +37,9 @@ typedef bool (*ServeReadFn)(void* ctx, uint32_t off, uint8_t* buf, uint32_t len)
 #ifndef OTA_CHECKPOINT_BLOCKS
 #define OTA_CHECKPOINT_BLOCKS 4     // persist progress (store.checkpoint) every N committed blocks (resume)
 #endif
+#ifndef OTA_ADVERT_INTERVAL_MINS
+#define OTA_ADVERT_INTERVAL_MINS 1440   // re-advertise our served set every N minutes after the boot burst (24h)
+#endif
 #ifndef OTA_MF_FRAG
 #define OTA_MF_FRAG 176             // manifest bytes per OTA_MANIFEST fragment (<= MAX_PACKET_PAYLOAD - header)
 #endif
@@ -204,6 +207,12 @@ public:
   // committed blocks. 0 = never (resume only from a finalized container). Default OTA_CHECKPOINT_BLOCKS.
   void set_checkpoint_blocks(uint16_t n) { _checkpoint_blocks = n; }
   uint16_t checkpoint_blocks() const { return _checkpoint_blocks; }
+
+  // Beacon re-advertise cadence in MINUTES (runtime-tunable, persisted in NodePrefs): after the boot burst,
+  // re-send the discovery beacon every N minutes so a long-running node stays discoverable. 0 = disabled
+  // (boot burst only). Default OTA_ADVERT_INTERVAL_MINS (24h).
+  void set_advert_mins(uint16_t m) { _advert_mins = m; }
+  uint16_t advert_mins() const { return _advert_mins; }
   bool fetched_is_signed() const { return (_fflags & MFLAG_SIGNED) != 0; }  // flags of the fetched manifest
 
   // This node's id (pubkey[0:4]), stamped into adverts we send so receivers can count distinct seeders.
@@ -325,6 +334,7 @@ private:
   uint8_t    _seeder_id[4] = {0,0,0,0};        // our node id (pubkey[0:4]) for advert seeder counting
   uint8_t    _autofetch = AUTOFETCH_OFF;       // auto-fetch policy (persisted in NodePrefs)
   uint16_t   _checkpoint_blocks = OTA_CHECKPOINT_BLOCKS;  // resume checkpoint cadence (persisted)
+  uint16_t   _advert_mins = OTA_ADVERT_INTERVAL_MINS;    // beacon re-advertise cadence, minutes; 0=off (persisted)
   uint8_t    _fflags = 0;                       // flags of the manifest currently being fetched
   // multi-fragment reassembly of the current block (per-block 2-phase: fetch data, then its proof)
   uint32_t   _reasm_block = NO_BLOCK;          // block being reassembled / awaiting proof (none)
