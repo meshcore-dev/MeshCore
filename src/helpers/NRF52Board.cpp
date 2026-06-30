@@ -30,6 +30,7 @@ void NRF52Board::begin() {
 uint32_t g_nrf52_reset_reason = 0;     // Reset/Startup reason
 uint8_t g_nrf52_shutdown_reason = 0;   // Shutdown reason
 static bool nrf52_power_fail_vbus_wake = false;
+static bool nrf52_power_fail_configured = false;
 
 // Early constructor - runs before SystemInit() clears the registers
 // Priority 101 ensures this runs before SystemInit (102) and before
@@ -322,10 +323,28 @@ void NRF52Board::configurePowerFailShutdown(const PowerMgtConfig* config) {
 
   nrfx_power_pof_init(&pof_config);
   nrfx_power_pof_enable(&pof_config);
+  nrf52_power_fail_configured = true;
 
   MESH_DEBUG_PRINTLN("PWRMGT: POF shutdown configured (VDD threshold code = %u; VBUS wake = %s)",
     config->power_fail_vdd_threshold,
     config->power_fail_vbus_wake ? "yes" : "no");
+}
+
+void NRF52Board::disablePowerFailShutdown() {
+  if (!nrf52_power_fail_configured) return;
+
+  uint8_t sd_enabled = 0;
+  sd_softdevice_is_enabled(&sd_enabled);
+  if (sd_enabled) {
+    MESH_DEBUG_PRINTLN("PWRMGT: POF shutdown left unchanged (SoftDevice active)");
+    return;
+  }
+
+  nrfx_power_pof_disable();
+  nrfx_power_pof_uninit();
+  nrf52_power_fail_configured = false;
+  nrf52_power_fail_vbus_wake = false;
+  MESH_DEBUG_PRINTLN("PWRMGT: POF shutdown disabled");
 }
 
 bool NRF52Board::isBatteryVoltagePlausible(uint16_t millivolts, const PowerMgtConfig* config) const {
@@ -462,6 +481,12 @@ bool NRF52Board::startOTAUpdate(const char *id, char reply[]) {
   // Note: All config***() function must be called before begin()
   Bluefruit.configPrphBandwidth(BANDWIDTH_MAX);
   Bluefruit.configPrphConn(92, BLE_GAP_EVENT_LENGTH_MIN, 16, 16);
+
+#ifdef NRF52_POWER_MANAGEMENT
+  // OTA enables SoftDevice after normal board startup. Release the direct
+  // nrfx POWER/POF handler first so SoftDevice owns POWER events cleanly.
+  disablePowerFailShutdown();
+#endif
 
   Bluefruit.begin(1, 0);
   // Set max power. Accepted values are: -40, -30, -20, -16, -12, -8, -4, 0, 4

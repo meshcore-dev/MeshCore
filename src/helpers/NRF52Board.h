@@ -71,6 +71,7 @@ protected:
   void configureVoltageWake(const PowerMgtConfig* config);
   void configureVbusWake();
   void configurePowerFailShutdown(const PowerMgtConfig* config);
+  void disablePowerFailShutdown();
   virtual void initiateShutdown(uint8_t reason);
   bool isBatteryVoltagePlausible(uint16_t millivolts, const PowerMgtConfig* config) const;
 #endif

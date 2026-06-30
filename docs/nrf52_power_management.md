@@ -99,7 +99,7 @@ Notes:
 - User power-off on Heltec T114 does not enable LPCOMP wake.
 - VBUS detection is used to skip boot lockout on external power. VBUS wake is configured independently from LPCOMP where supported hardware exposes VBUS to the nRF52.
 - XIAO nRF52 disables trusted BAT/LPCOMP protection by default because BAT+ may be disconnected while VUSB is the actual supply.
-- Runtime POF shutdown uses the nRF52 power-fail warning comparator. On XIAO USB builds it is configured for regulated VDD at 2.8 V and arms VBUS wake for SYSTEMOFF recovery. XIAO BLE companion builds leave direct POF disabled because SoftDevice is enabled after `board.begin()` and owns POWER events once started.
+- Runtime POF shutdown uses the nRF52 power-fail warning comparator. On XIAO USB builds it is configured for regulated VDD at 2.8 V and arms VBUS wake for SYSTEMOFF recovery. XIAO BLE companion builds leave direct POF disabled because SoftDevice is enabled after `board.begin()` and owns POWER events once started. USB builds that later enter OTA disable the direct POF handler before starting SoftDevice.
 
 ## Technical Details
 
@@ -209,7 +209,7 @@ This path is deliberately separate from SYSTEMOFF wake source selection:
 - If supply voltage simply collapses, firmware does not choose a wake source; reset and regulator hardware determine when execution resumes.
 - POF shutdown only applies if the MCU is still executing when VDD crosses the configured threshold.
 - When POF shutdown succeeds and `power_fail_vbus_wake` is true, recovery happens when the nRF52 VBUS detector sees VUSB again, not when BAT sense rises.
-- SoftDevice builds need a SoftDevice SoC event hook for `NRF_EVT_POWER_FAILURE_WARNING`. The current Adafruit nRF52 framework consumes that event internally, so this branch only enables direct POF shutdown when SoftDevice is not active.
+- SoftDevice builds need a SoftDevice SoC event hook for `NRF_EVT_POWER_FAILURE_WARNING`. The current Adafruit nRF52 framework consumes that event internally, so this branch only enables direct POF shutdown while SoftDevice is not active and disables it before OTA starts SoftDevice.
 
 **LPCOMP Reference Selection (PWRMGT_LPCOMP_REFSEL)**:
 
