@@ -52,14 +52,14 @@ public:
 
   // Temperature from ESP32 MCU
   float getMCUTemperature() override {
-    uint32_t raw = 0;
+    float raw = 0;
 
     // To get and average the temperature so it is more accurate, especially in low temperature
     for (int i = 0; i < 4; i++) {
       raw += temperatureRead();
     }
 
-    return raw / 4;
+    return raw / 4.0f;
   }
 
   uint32_t getIRQGpio() override {

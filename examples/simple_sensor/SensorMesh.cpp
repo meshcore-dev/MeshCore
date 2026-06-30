@@ -40,6 +40,10 @@
   #define TXT_ACK_DELAY     200
 #endif
 
+#ifndef ENABLE_BUILTIN_MCU_TEMPERATURE
+  #define ENABLE_BUILTIN_MCU_TEMPERATURE 1
+#endif
+
 #ifndef SENSOR_READ_INTERVAL_SECS
   #define SENSOR_READ_INTERVAL_SECS  60
 #endif
@@ -222,10 +226,12 @@ uint8_t SensorMesh::handleRequest(uint8_t perms, uint32_t sender_timestamp, uint
     telemetry.reset();
     uint16_t batt_mv = board.getBattMilliVolts();
     telemetry.addVoltage(TELEM_CHANNEL_SELF, (float)batt_mv / 1000.0f);
+  #if ENABLE_BUILTIN_MCU_TEMPERATURE
     float temperature = board.getMCUTemperature();
     if (temperature == temperature) {
       telemetry.addTemperature(TELEM_CHANNEL_SELF, temperature); // Built-in MCU temperature
     }
+  #endif
     // query other sensors -- target specific
     sensors.querySensors(0xFF & perm_mask, telemetry);  // allow all telemetry permissions for admin or guest
     // TODO: let requester know permissions they have:  telemetry.addPresence(TELEM_CHANNEL_SELF, perms);
@@ -975,10 +981,12 @@ void SensorMesh::loop() {
     telemetry.reset();
     uint16_t batt_mv = board.getBattMilliVolts();
     telemetry.addVoltage(TELEM_CHANNEL_SELF, (float)batt_mv / 1000.0f);
+  #if ENABLE_BUILTIN_MCU_TEMPERATURE
     float temperature = board.getMCUTemperature();
     if (temperature == temperature) {
       telemetry.addTemperature(TELEM_CHANNEL_SELF, temperature); // Built-in MCU temperature
     }
+  #endif
     // query other sensors -- target specific
     sensors.querySensors(0xFF, telemetry);  // allow all telemetry permissions
 
