@@ -75,7 +75,7 @@ Shutdown reason codes (stored in GPREGRET2):
 
 | Board                                     | Implemented | LPCOMP wake | VBUS wake | Runtime POF shutdown |
 |-------------------------------------------|-------------|-------------|-----------|----------------------|
-| Seeed Studio XIAO nRF52840 (`xiao_nrf52`) | Yes         | No          | Yes       | USB builds only      |
+| Seeed Studio XIAO nRF52840 (`xiao_nrf52`) | Yes         | No          | Yes       | Yes                  |
 | RAK4631 (`rak4631`)                       | Yes         | Yes         | Yes       | No                   |
 | Heltec T114 (`heltec_t114`)               | Yes         | Yes         | Yes       | No                   |
 | GAT562 Mesh Watch13                       | Yes         | Yes         | Yes       | No                   |
