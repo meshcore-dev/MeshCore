@@ -17,6 +17,7 @@ const PowerMgtConfig power_config = {
   .battery_voltage_sense_valid = false,
   .lpcomp_voltage_wake_valid = false,
   .vbus_wake_valid = true,
+  .battery_min_present_mv = 1000,
   .battery_min_plausible_mv = 2500,
   .battery_max_plausible_mv = 4500,
   .power_fail_vdd_threshold = PWRMGT_POWER_FAIL_VDD_THRESHOLD,

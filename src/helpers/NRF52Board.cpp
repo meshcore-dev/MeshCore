@@ -155,8 +155,13 @@ bool NRF52Board::checkBootVoltage(const PowerMgtConfig* config) {
     return true;
   }
 
-  if (!isBatteryVoltagePlausible(boot_voltage_mv, config)) {
-    MESH_DEBUG_PRINTLN("PWRMGT: Boot check skipped (implausible battery voltage)");
+  if (boot_voltage_mv < config->battery_min_present_mv) {
+    MESH_DEBUG_PRINTLN("PWRMGT: Boot check skipped (battery absent or floating)");
+    return true;
+  }
+
+  if (boot_voltage_mv > config->battery_max_plausible_mv) {
+    MESH_DEBUG_PRINTLN("PWRMGT: Boot check skipped (implausibly high battery voltage)");
     return true;
   }
 
@@ -339,6 +344,11 @@ bool NRF52Board::isBatteryVoltagePlausible(uint16_t millivolts, const PowerMgtCo
   if (config == nullptr) return false;
   return millivolts >= config->battery_min_plausible_mv &&
          millivolts <= config->battery_max_plausible_mv;
+}
+
+bool NRF52Board::isBootVoltageValid() {
+  return active_power_config != nullptr &&
+         active_power_config->battery_voltage_sense_valid;
 }
 
 const char* NRF52Board::getPowerSourceState() {

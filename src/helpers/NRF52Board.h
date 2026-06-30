@@ -28,8 +28,11 @@ struct PowerMgtConfig {
   bool lpcomp_voltage_wake_valid;
   bool vbus_wake_valid;
 
-  // Broad plausibility limits for a sensed battery voltage. Readings outside
-  // this range are treated as unsafe evidence for protective shutdown decisions.
+  // Battery voltage interpretation thresholds. Readings below the present
+  // threshold are treated as absent/floating, not as a discharged battery.
+  uint16_t battery_min_present_mv;
+
+  // Broad plausibility limits for source-state confidence reporting.
   uint16_t battery_min_plausible_mv;
   uint16_t battery_max_plausible_mv;
 
@@ -85,6 +88,7 @@ public:
 
 #ifdef NRF52_POWER_MANAGEMENT
   uint16_t getBootVoltage() override { return boot_voltage_mv; }
+  bool isBootVoltageValid() override;
   const char* getPowerSourceState() override;
   virtual uint32_t getResetReason() const override { return reset_reason; }
   uint8_t getShutdownReason() const override { return shutdown_reason; }

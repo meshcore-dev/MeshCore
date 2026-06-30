@@ -72,6 +72,7 @@ public:
   virtual bool isExternalPowered() { return false; }
   virtual const char* getPowerSourceState() { return isExternalPowered() ? "vusb-only:unknown" : "none:unknown"; }
   virtual uint16_t getBootVoltage() { return 0; }
+  virtual bool isBootVoltageValid() { return false; }
   virtual uint32_t getResetReason() const { return 0; }
   virtual const char* getResetReasonString(uint32_t reason) { return "Not available"; }
   virtual uint8_t getShutdownReason() const { return 0; }

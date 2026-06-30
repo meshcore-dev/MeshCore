@@ -1115,12 +1115,16 @@ Returns a composite source and confidence state, for example `vusb+bat:valid`,
 `vusb-only:valid`, `bat-only:implausible`, or `vusb-only:possible-battery`.
 
 Confidence thresholds are board-configured in `PowerMgtConfig`. The current
-nRF52 power-management board configs all set `battery_min_plausible_mv = 2500`
+nRF52 power-management board configs all set `battery_min_present_mv = 1000`,
+`battery_min_plausible_mv = 2500`
 and `battery_max_plausible_mv = 4500`, so BAT voltage is `valid` from 2500mV
 to 4500mV inclusive. Readings outside that range are `implausible`, boards with
 unusable BAT sensing report `invalid`, and missing power-management
 configuration reports `unknown`. VUSB has no configured millivolt thresholds;
 it is detected through the nRF52 `USBREGSTATUS.VBUSDETECT` hardware signal.
+BAT readings below 1000mV are treated as absent/floating for boot-lock
+decisions. Readings from 1000mV up to the boot-lock threshold still trigger
+protective shutdown; high readings above 4500mV are treated as unsafe evidence.
 If a battery is connected to VUSB and falls below the hardware VBUS-detect
 point while still powering the MCU, the source is reported as
 `vusb-only:possible-battery`.
@@ -1138,6 +1142,9 @@ point while still powering the MCU, the source is reported as
 
 #### View the boot voltage
 **Usage:** `get pwrmgt.bootmv`
+
+Adds `invalid` when the board configuration marks BAT voltage sensing as
+untrusted, for example `> 426 mV invalid`.
 
 **Note:** Returns an error on boards without power management support.
 

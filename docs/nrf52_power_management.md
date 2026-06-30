@@ -10,7 +10,7 @@ The nRF52 Power Management module provides battery protection features to preven
 - Checks battery voltage immediately after boot and before mesh operations commence
 - If voltage is below a configurable threshold (e.g., 3300mV), and the board declares the battery sense path valid, the device configures voltage wake and enters protective shutdown (SYSTEMOFF)
 - Prevents boot loops when battery is critically low
-- Skipped when external power (USB VBUS) is detected, or when the battery voltage evidence is invalid or implausible
+- Skipped when external power (USB VBUS) is detected, when the battery voltage sense path is invalid, when the battery reading is below the configured present threshold, or when the battery voltage evidence is implausibly high
 
 ### Voltage Wake (LPCOMP + VBUS)
 - Configures the nRF52's Low Power Comparator (LPCOMP) before entering SYSTEMOFF only when the board declares the LPCOMP sense node valid
@@ -34,7 +34,7 @@ Confidence suffixes are assigned as follows:
 | Suffix          | Condition                                                                                 | Protective BAT decisions |
 |-----------------|-------------------------------------------------------------------------------------------|--------------------------|
 | `:valid`        | Battery sense is enabled for the board and the reading is within the configured range      | Allowed                  |
-| `:implausible`  | Battery sense is enabled for the board but the reading is below minimum or above maximum   | Blocked                  |
+| `:implausible`  | Battery sense is enabled for the board but the reading is below minimum or above maximum   | Present low readings still shut down; absent/floating and high readings are blocked |
 | `:invalid`      | Battery sense is not valid for the board's supported wiring or operating mode              | Blocked                  |
 | `:unknown`      | Power management has no active board configuration when the source is queried              | Blocked                  |
 | `:possible-battery` | VBUS detect is low, BAT sense is invalid, and VUSB may be acting as a battery input   | Blocked                  |
@@ -43,10 +43,11 @@ The current nRF52 power-management board configs all use these plausibility thre
 
 | `PowerMgtConfig` field       | Configured value | Meaning                                      |
 |------------------------------|------------------|----------------------------------------------|
-| `battery_min_plausible_mv`   | `2500`           | Readings below 2500mV are `:implausible`     |
-| `battery_max_plausible_mv`   | `4500`           | Readings above 4500mV are `:implausible`     |
+| `battery_min_present_mv`     | `1000`           | Readings below 1000mV are treated as absent/floating and skipped for boot protection |
+| `battery_min_plausible_mv`   | `2500`           | Readings below 2500mV are reported as `:implausible`; readings at or above 1000mV still trigger boot protection when below `voltage_bootlock` |
+| `battery_max_plausible_mv`   | `4500`           | Readings above 4500mV are `:implausible` and skipped for boot protection |
 
-The range is inclusive: `2500mV <= battery_mv <= 4500mV` is `:valid` when the board's battery sense path is enabled. Boards can override these fields in their own `PowerMgtConfig`.
+The confidence range is inclusive: `2500mV <= battery_mv <= 4500mV` is `:valid` when the board's battery sense path is enabled. Boot protection uses the lower present threshold separately: `1000mV <= battery_mv < voltage_bootlock` enters protective shutdown. Boards can override these fields in their own `PowerMgtConfig`.
 
 There are no configured VUSB millivolt confidence thresholds in the current implementation. VUSB state is based on the nRF52 `USBREGSTATUS.VBUSDETECT` hardware signal, not a firmware ADC voltage reading centred around 5V. `PowerMgtConfig::vbus_wake_valid` only records whether VBUS wake is supported for the board.
 
@@ -139,6 +140,7 @@ To enable power management on a board variant:
      .battery_voltage_sense_valid = true,
      .lpcomp_voltage_wake_valid = true,
      .vbus_wake_valid = true,
+     .battery_min_present_mv = 1000,
      .battery_min_plausible_mv = 2500,
      .battery_max_plausible_mv = 4500,
      .power_fail_vdd_threshold = 0,    // Optional; 0 disables runtime POF shutdown
@@ -248,7 +250,7 @@ Power management status can be queried via the CLI:
 | `get pwrmgt.support`    | Returns "supported" or "unsupported"                                  |
 | `get pwrmgt.source`     | Returns composite source and confidence, e.g. `vusb+bat:valid`        |
 | `get pwrmgt.bootreason` | Returns reset and shutdown reason strings                             |
-| `get pwrmgt.bootmv`     | Returns boot voltage in millivolts                                    |
+| `get pwrmgt.bootmv`     | Returns boot voltage in millivolts, with `invalid` when BAT sense is not trustworthy |
 
 On boards without power management enabled, all commands except `get pwrmgt.support` return:
 ```
