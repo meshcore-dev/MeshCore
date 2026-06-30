@@ -27,7 +27,7 @@ The nRF52 Power Management module provides battery protection features to preven
 - `get pwrmgt.source` returns a source state. Normal detected sources use a confidence suffix: `vusb+bat`, `vusb-only`, `bat-only`, or `none`, followed by `:valid`, `:implausible`, `:invalid`, or `:unknown`
 - `invalid` means the board cannot use the configured battery sense path for protective decisions
 - `implausible` means the sensed voltage is outside the board's configured plausible range
-- `undetected` means the board is powered, but neither VBUS detect nor a valid BAT sense path can prove which input is supplying it
+- `possible-battery` means the board is powered without VBUS detect, and the board cannot prove whether VUSB is being used as a battery input
 
 Confidence suffixes are assigned as follows:
 
@@ -37,6 +37,7 @@ Confidence suffixes are assigned as follows:
 | `:implausible`  | Battery sense is enabled for the board but the reading is below minimum or above maximum   | Blocked                  |
 | `:invalid`      | Battery sense is not valid for the board's supported wiring or operating mode              | Blocked                  |
 | `:unknown`      | Power management has no active board configuration when the source is queried              | Blocked                  |
+| `:possible-battery` | VBUS detect is low, BAT sense is invalid, and VUSB may be acting as a battery input   | Blocked                  |
 
 The current nRF52 power-management board configs all use these plausibility thresholds:
 
@@ -49,7 +50,7 @@ The range is inclusive: `2500mV <= battery_mv <= 4500mV` is `:valid` when the bo
 
 There are no configured VUSB millivolt confidence thresholds in the current implementation. VUSB state is based on the nRF52 `USBREGSTATUS.VBUSDETECT` hardware signal, not a firmware ADC voltage reading centred around 5V. `PowerMgtConfig::vbus_wake_valid` only records whether VBUS wake is supported for the board.
 
-This means a battery connected to VUSB is reported as `vusb-only:valid` while `VBUSDETECT` is asserted. If that VUSB battery falls below the hardware detection point but still powers the MCU, firmware cannot prove the input path and reports `undetected` rather than `none`.
+This means a battery connected to VUSB is reported as `vusb-only:valid` while `VBUSDETECT` is asserted. If that VUSB battery falls below the hardware detection point but still powers the MCU, firmware reports `vusb-only:possible-battery` rather than `none`.
 
 ### Early Boot Register Capture
 - Captures RESETREAS (reset reason) and GPREGRET2 (shutdown reason) before SystemInit() clears them
