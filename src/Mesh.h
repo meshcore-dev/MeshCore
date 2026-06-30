@@ -3,12 +3,15 @@
 #include <Dispatcher.h>
 
 #if defined(ENABLE_OTA)
-  // OTA-over-LoRa: lowest TX priority (selected only after all real traffic) + default hop cap.
+  // OTA-over-LoRa: lowest TX priority (selected only after all real traffic). The hop limit is runtime-
+  // tunable (OtaManager::max_hops(), `ota config hops`); the default lives in OtaManager.h.
   #ifndef OTA_TX_PRIORITY
   #define OTA_TX_PRIORITY 250
   #endif
-  #ifndef OTA_HOP_LIMIT_DEFAULT
-  #define OTA_HOP_LIMIT_DEFAULT 3
+  // An OTA flood is relayed only while this many pool slots stay free, so heavy OTA (best-effort, low-
+  // priority) can never monopolise the shared packet pool and starve real traffic.
+  #ifndef OTA_FWD_MIN_FREE
+  #define OTA_FWD_MIN_FREE 4
   #endif
 #endif
 
@@ -161,8 +164,8 @@ protected:
    */
   virtual void onOtaRecv(Packet* packet) { }
 
-  /** \returns  the max hop count for forwarding OTA flood packets (default 3). */
-  virtual uint8_t getOtaHopLimit() const { return OTA_HOP_LIMIT_DEFAULT; }
+  /** \returns  max OTA flood reach in hops — accept up to N, relay while < N (0=direct). `ota config hops`. */
+  virtual uint8_t getOtaHopLimit() const;
 
   // OTA mesh-integration is centralized in Mesh::begin()/loop()/dispatch, so every role (repeater,
   // companion, room, sensor, ...) gets fetch/serve/apply without per-example wiring.

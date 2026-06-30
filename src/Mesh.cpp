@@ -31,6 +31,10 @@ void Mesh::otaSendAdapter(void* ctx, const uint8_t* msg, uint16_t len, bool /*fl
   Packet* p = m->createOtaPacket(msg, len);
   if (p) m->sendOtaFlood(p);
 }
+
+// Runtime OTA flood reach (`ota config hops`, persisted in NodePrefs): accept packets up to N hops away and
+// relay those still under N hops. 0 = direct only. Overridable per-role by subclassing.
+uint8_t Mesh::getOtaHopLimit() const { return ota::ota_ctx().manager.max_hops(); }
 #endif
 
 void Mesh::begin() {
@@ -419,21 +423,27 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
 
 #if defined(ENABLE_OTA)
     case PAYLOAD_TYPE_OTA: {
-      // ALWAYS process every received copy: OTA handlers are idempotent, and "eventually reliable"
-      // retries deliberately re-send IDENTICAL requests — if we gated processing on hasSeen(), the
-      // dedup would suppress those retries and the transfer could never recover from a lost reply.
-      // hasSeen() is used ONLY to avoid re-flooding the same packet more than once.
+      uint8_t n = pkt->getPathHashCount();   // hops travelled to reach us (flood path-hash count)
+      // Accept-gate (duty-cycle horizon): ignore OTA from further than our hop limit — neither process nor
+      // relay it. 0 = only directly-received OTA. Runtime-tunable via `ota config hops`.
+      if (n > getOtaHopLimit()) break;
+      // ALWAYS process every accepted copy: OTA handlers are idempotent, and "eventually reliable" retries
+      // deliberately re-send IDENTICAL requests — if we gated processing on hasSeen(), the dedup would
+      // suppress those retries and the transfer could never recover from a lost reply. hasSeen() is used
+      // ONLY to avoid re-flooding the same packet more than once.
       bool seen = _tables->hasSeen(pkt);
       ota::ota_ctx().manager.set_clock(_ms->getMillis());                 // discovery jitter/ages
       ota::ota_ctx().manager.on_message(pkt->payload, pkt->payload_len);  // central OTA receive (beacon/query/
                                                                          // have/manifest/data/proof; all roles)
       ota::ota_ctx().track_session(ota::ota_ctx().manager.fetchState(), _ms->getMillis());
       onOtaRecv(pkt);                                                     // optional per-example hook
-      // Re-flood with a hop cap and the LOWEST priority, so OTA never competes with mesh traffic.
-      uint8_t n = pkt->getPathHashCount();
+      // Re-flood at the LOWEST priority and only while still under the hop limit, so OTA never competes with
+      // mesh traffic. The free-pool guard keeps heavy OTA from monopolising the shared packet pool — dropping
+      // a relay is safe (OTA is best-effort; the source retries).
       if (!seen && pkt->isRouteFlood() && !pkt->isMarkedDoNotRetransmit()
           && n < getOtaHopLimit()
           && (n + 1) * pkt->getPathHashSize() <= MAX_PATH_SIZE
+          && _mgr->getFreeCount() > OTA_FWD_MIN_FREE
           && allowPacketForward(pkt)) {
         self_id.copyHashTo(&pkt->path[n * pkt->getPathHashSize()], pkt->getPathHashSize());
         pkt->setPathHashCount(n + 1);

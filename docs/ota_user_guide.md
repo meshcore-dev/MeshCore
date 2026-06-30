@@ -132,6 +132,9 @@ ota config autoinstall off      # never auto-install (default)
 ota config advert 1440          # re-advertise this node every N minutes (default 1440 = 24h)
 ota config advert 0             # disable periodic re-advertise (still advertises briefly at boot)
 
+ota config hops 3               # how far OTA travels: accept from / relay up to N repeater hops (default 3)
+ota config hops 0               # only exchange OTA with directly-connected nodes (never relay)
+
 ota config                      # show the current settings
 ```
 

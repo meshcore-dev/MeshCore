@@ -40,6 +40,9 @@ typedef bool (*ServeReadFn)(void* ctx, uint32_t off, uint8_t* buf, uint32_t len)
 #ifndef OTA_ADVERT_INTERVAL_MINS
 #define OTA_ADVERT_INTERVAL_MINS 1440   // re-advertise our served set every N minutes after the boot burst (24h)
 #endif
+#ifndef OTA_HOP_LIMIT_DEFAULT
+#define OTA_HOP_LIMIT_DEFAULT 3         // default OTA flood reach in hops: accept <= N, relay while < N (0=direct)
+#endif
 #ifndef OTA_MF_FRAG
 #define OTA_MF_FRAG 176             // manifest bytes per OTA_MANIFEST fragment (<= MAX_PACKET_PAYLOAD - header)
 #endif
@@ -213,6 +216,12 @@ public:
   // (boot burst only). Default OTA_ADVERT_INTERVAL_MINS (24h).
   void set_advert_mins(uint16_t m) { _advert_mins = m; }
   uint16_t advert_mins() const { return _advert_mins; }
+
+  // Max OTA flood reach in HOPS (runtime-tunable, persisted): a node accepts OTA from up to N hops away and
+  // relays packets still under N hops; 0 = direct only (accept path_count 0, never relay). Bounds duty-cycle
+  // when crossing repeaters. Default OTA_HOP_LIMIT_DEFAULT. Set via `ota config hops`.
+  void set_max_hops(uint8_t h) { _max_hops = h; }
+  uint8_t max_hops() const { return _max_hops; }
   bool fetched_is_signed() const { return (_fflags & MFLAG_SIGNED) != 0; }  // flags of the fetched manifest
 
   // This node's id (pubkey[0:4]), stamped into adverts we send so receivers can count distinct seeders.
@@ -335,6 +344,7 @@ private:
   uint8_t    _autofetch = AUTOFETCH_OFF;       // auto-fetch policy (persisted in NodePrefs)
   uint16_t   _checkpoint_blocks = OTA_CHECKPOINT_BLOCKS;  // resume checkpoint cadence (persisted)
   uint16_t   _advert_mins = OTA_ADVERT_INTERVAL_MINS;    // beacon re-advertise cadence, minutes; 0=off (persisted)
+  uint8_t    _max_hops = OTA_HOP_LIMIT_DEFAULT;          // OTA flood reach in hops; 0=direct only (persisted)
   uint8_t    _fflags = 0;                       // flags of the manifest currently being fetched
   // multi-fragment reassembly of the current block (per-block 2-phase: fetch data, then its proof)
   uint32_t   _reasm_block = NO_BLOCK;          // block being reassembled / awaiting proof (none)

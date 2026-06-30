@@ -304,6 +304,11 @@ Message types:
 - **Relay:** replies are flooded, so transparent relay needs no per-requester addressing, and the transfer
   is trustless (the fetcher verifies every block against the signed root). Any neighbor may serve any
   fragment it has.
+- **Hop limit + duty cycle:** OTA floods accumulate one path-hash per relay (the mesh's flood routing). A
+  node *accepts* a packet only if it arrived within `ota config hops` hops (default 3; `0` = direct only)
+  and *relays* it only while still under that limit, appending its own hash. Relays are lowest-priority and
+  are skipped when the packet pool runs low (the source retries), so heavy OTA can never monopolise a
+  repeater's RAM or starve real traffic.
 
 ### 8.1 Two-tier discovery
 

@@ -277,12 +277,18 @@ bool handle_ota_command(const char* command, char* reply, mesh::MainBoard& board
       if (m < 0 || m > 10080) { strcpy(reply, "ERR usage: ota config advert <0..10080>  (minutes; 0=disable)"); return true; }
       c.manager.set_advert_mins((uint16_t)m); c.config_dirty = true;
       sprintf(reply, "OK re-advertise every %ld min (saved)%s", m, m == 0 ? " — periodic advert disabled" : "");
+    } else if (strncmp(p, "hops ", 5) == 0) {           // OTA flood reach in hops (0 = direct only)
+      long h = atol(p + 5);
+      if (h < 0 || h > 8) { strcpy(reply, "ERR usage: ota config hops <0..8>  (hops; 0 = direct only)"); return true; }
+      c.manager.set_max_hops((uint8_t)h); c.config_dirty = true;
+      sprintf(reply, "OK OTA reach = %ld hop%s (saved)%s", h, h == 1 ? "" : "s", h == 0 ? " — direct only" : "");
     } else {                                            // show current policy
       uint8_t af = c.manager.autofetch();
-      sprintf(reply, "ota config: autofetch=%s autoinstall=%s checkpoint=%u advert=%umin keys=%u  (persisted)",
+      sprintf(reply, "ota config: autofetch=%s autoinstall=%s checkpoint=%u advert=%umin hops=%u keys=%u  (persisted)",
               af == OtaManager::AUTOFETCH_ANY ? "any" : af == OtaManager::AUTOFETCH_SIGNED ? "signed" : "off",
               c.autoinstall == OtaContext::AUTOINSTALL_TRUSTED ? "trusted" : "off",
-              (unsigned)c.manager.checkpoint_blocks(), (unsigned)c.manager.advert_mins(), (unsigned)c.allow.count());
+              (unsigned)c.manager.checkpoint_blocks(), (unsigned)c.manager.advert_mins(),
+              (unsigned)c.manager.max_hops(), (unsigned)c.allow.count());
     }
 
   // ---- trusted signer allowlist (security config; persisted): `ota key add|rm <hex>` / `ota key` lists ----
