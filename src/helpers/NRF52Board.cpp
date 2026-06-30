@@ -1,5 +1,6 @@
 #if defined(NRF52_PLATFORM)
 #include "NRF52Board.h"
+#include "RadioInitDiagnostics.h"
 
 #include <bluefruit.h>
 #include <nrf_soc.h>
@@ -77,6 +78,7 @@ void NRF52Board::initPowerMgr() {
   // Copy early-captured register values
   reset_reason = g_nrf52_reset_reason;
   shutdown_reason = g_nrf52_shutdown_reason;
+  radioInitCaptureBoot(reset_reason, shutdown_reason);
   boot_voltage_mv = 0;  // Will be set by checkBootVoltage()
 
   // Clear registers for next boot

@@ -253,11 +253,14 @@ Power management status can be queried via the CLI:
 | `get pwrmgt.source`     | Returns composite source and confidence, e.g. `vusb+bat:valid`        |
 | `get pwrmgt.bootreason` | Returns reset and shutdown reason strings                             |
 | `get pwrmgt.bootmv`     | Returns boot voltage in millivolts, with `invalid` when BAT sense is not trustworthy |
+| `get diag.boot`         | Returns current and previous reset-retained boot/radio diagnostics     |
 
 On boards without power management enabled, all commands except `get pwrmgt.support` return:
 ```
 ERROR: Power management not supported
 ```
+
+`get diag.boot` includes raw current and previous boot records. The shutdown fields include all `GPREGRET2` markers, not only radio initialisation failure, so low-voltage and boot-protection context is preserved when diagnosing reset loops. The previous slot is retained across MCU resets where RAM is preserved; it is not a flash-backed history and may be lost after a complete power loss.
 
 ## Debug Output
 
