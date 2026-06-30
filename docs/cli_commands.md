@@ -1142,6 +1142,6 @@ region save
 #### View compact boot diagnostics
 **Usage:** `get diag.boot`
 
-**Note:** Returns raw reset reason, radio fault marker, boot stage, RadioLib status, and radio initialisation attempts.
+**Note:** Returns current and previous reset-retained boot diagnostics. `cur_sd` and `prev_sd` are raw shutdown/fault markers, including low voltage, boot protection, user shutdown, and radio initialisation failure.
 
 ---

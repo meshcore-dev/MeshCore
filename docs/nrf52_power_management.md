@@ -186,12 +186,14 @@ Power management status can be queried via the CLI:
 | `get pwrmgt.source`     | Returns current power source - "battery" or "external" (5V/USB power) |
 | `get pwrmgt.bootreason` | Returns reset and shutdown reason strings                             |
 | `get pwrmgt.bootmv`     | Returns boot voltage in millivolts                                    |
-| `get diag.boot`         | Returns compact raw boot and radio initialisation diagnostics          |
+| `get diag.boot`         | Returns current and previous reset-retained boot/radio diagnostics     |
 
 On boards without power management enabled, all commands except `get pwrmgt.support` return:
 ```
 ERROR: Power management not supported
 ```
+
+`get diag.boot` includes raw current and previous boot records. The shutdown fields include all `GPREGRET2` markers, not only radio initialisation failure, so low-voltage and boot-protection context is preserved when diagnosing reset loops. The previous slot is retained across MCU resets where RAM is preserved; it is not a flash-backed history and may be lost after a complete power loss.
 
 ## Debug Output
 

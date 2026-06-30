@@ -968,12 +968,19 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
   } else if (memcmp(config, "radio.init_attempts", 19) == 0) {
     sprintf(reply, "> %u", (unsigned)g_radio_init_attempts);
   } else if (memcmp(config, "diag.boot", 9) == 0) {
-    sprintf(reply, "> rr=0x%08lX fault=0x%02X stage=0x%02X radio=%d attempts=%u",
-      (unsigned long)_board->getResetReason(),
-      (unsigned)g_radio_init_fault,
-      (unsigned)g_radio_init_boot_stage,
-      (int)g_last_radio_init_status,
-      (unsigned)g_radio_init_attempts);
+    RadioInitBootRecord cur = radioInitCurrentBootRecord();
+    RadioInitBootRecord prev = radioInitPreviousBootRecord();
+    sprintf(reply, "> cur_rr=0x%08lX cur_sd=0x%02X cur_st=0x%02X cur_radio=%d cur_att=%u prev_rr=0x%08lX prev_sd=0x%02X prev_st=0x%02X prev_radio=%d prev_att=%u",
+      (unsigned long)cur.reset_reason,
+      (unsigned)cur.shutdown_reason,
+      (unsigned)cur.boot_stage,
+      (int)cur.radio_status,
+      (unsigned)cur.attempts,
+      (unsigned long)prev.reset_reason,
+      (unsigned)prev.shutdown_reason,
+      (unsigned)prev.boot_stage,
+      (int)prev.radio_status,
+      (unsigned)prev.attempts);
   } else {
     sprintf(reply, "??: %s", config);
   }
