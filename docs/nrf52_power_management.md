@@ -31,6 +31,7 @@ Shutdown reason codes (stored in GPREGRET2):
 | 0x4C | LOW_VOLTAGE  | Runtime low voltage threshold reached |
 | 0x55 | USER         | User requested powerOff()             |
 | 0x42 | BOOT_PROTECT | Boot voltage protection triggered     |
+| 0x52 | RADIO_INIT_FAIL | Radio initialisation failed before startup completed |
 
 ## Supported Boards
 
@@ -185,6 +186,7 @@ Power management status can be queried via the CLI:
 | `get pwrmgt.source`     | Returns current power source - "battery" or "external" (5V/USB power) |
 | `get pwrmgt.bootreason` | Returns reset and shutdown reason strings                             |
 | `get pwrmgt.bootmv`     | Returns boot voltage in millivolts                                    |
+| `get diag.boot`         | Returns compact raw boot and radio initialisation diagnostics          |
 
 On boards without power management enabled, all commands except `get pwrmgt.support` return:
 ```

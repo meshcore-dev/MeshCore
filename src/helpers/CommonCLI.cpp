@@ -3,6 +3,7 @@
 #include "TxtDataHelpers.h"
 #include "AdvertDataHelpers.h"
 #include "TxtDataHelpers.h"
+#include "RadioInitDiagnostics.h"
 #include <RTClib.h>
 
 #ifndef BRIDGE_MAX_BAUD
@@ -962,6 +963,17 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
 #else
     strcpy(reply, "ERROR: Power management not supported");
 #endif
+  } else if (memcmp(config, "radio.init_status", 17) == 0) {
+    sprintf(reply, "> %d", (int)g_last_radio_init_status);
+  } else if (memcmp(config, "radio.init_attempts", 19) == 0) {
+    sprintf(reply, "> %u", (unsigned)g_radio_init_attempts);
+  } else if (memcmp(config, "diag.boot", 9) == 0) {
+    sprintf(reply, "> rr=0x%08lX fault=0x%02X stage=0x%02X radio=%d attempts=%u",
+      (unsigned long)_board->getResetReason(),
+      (unsigned)g_radio_init_fault,
+      (unsigned)g_radio_init_boot_stage,
+      (int)g_last_radio_init_status,
+      (unsigned)g_radio_init_attempts);
   } else {
     sprintf(reply, "??: %s", config);
   }
