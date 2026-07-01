@@ -67,6 +67,27 @@ public:
   virtual bool setLoRaFemLnaEnabled(bool enable) { return false; }
   virtual bool canControlLoRaFemLna() const { return false; }
   virtual bool isLoRaFemLnaEnabled() const { return false; }
+#if defined(ENABLE_OTA)
+  // 4-byte build-target discriminator for OTA-over-LoRa (docs/ota_protocol.md §9). Default is the
+  // MOTA_TARGET_ID build flag injected by build.sh; 0 when unset (e.g. a bare IDE build).
+  virtual uint32_t getOtaTargetId() const {
+  #ifdef MOTA_TARGET_ID
+    return (uint32_t)(MOTA_TARGET_ID);
+  #else
+    return 0;
+  #endif
+  }
+  // Human-readable hardware tag (<=32 ASCII chars, e.g. "RAK4631") naming the hardware this firmware can
+  // boot on. Same tag == bootable-compatible; the OTA applier refuses a `.mota` whose hw_id differs (brick-
+  // safety). Defined per-variant via the MOTA_HW_ID build flag; "" when unset (then the check is skipped).
+  virtual const char* getOtaHwId() const {
+  #ifdef MOTA_HW_ID
+    return MOTA_HW_ID;
+  #else
+    return "";
+  #endif
+  }
+#endif
 
   // Power management interface (boards with power management override these)
   virtual bool isExternalPowered() { return false; }

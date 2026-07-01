@@ -2,6 +2,19 @@
 
 #include <Dispatcher.h>
 
+#if defined(ENABLE_OTA)
+  // OTA-over-LoRa: lowest TX priority (selected only after all real traffic). The hop limit is runtime-
+  // tunable (OtaManager::max_hops(), `ota config hops`); the default lives in OtaManager.h.
+  #ifndef OTA_TX_PRIORITY
+  #define OTA_TX_PRIORITY 250
+  #endif
+  // An OTA flood is relayed only while this many pool slots stay free, so heavy OTA (best-effort, low-
+  // priority) can never monopolise the shared packet pool and starve real traffic.
+  #ifndef OTA_FWD_MIN_FREE
+  #define OTA_FWD_MIN_FREE 4
+  #endif
+#endif
+
 namespace mesh {
 
 class GroupChannel {
@@ -144,6 +157,26 @@ protected:
   */
   virtual void onRawDataRecv(Packet* packet) { }
 
+#if defined(ENABLE_OTA)
+  /**
+   * \brief  An OTA-over-LoRa packet (PAYLOAD_TYPE_OTA) has been received. Subclasses forward the
+   *         payload bytes to their OtaManager. See docs/ota_protocol.md.
+   */
+  virtual void onOtaRecv(Packet* packet) { }
+
+  /** \returns  max OTA flood reach in hops — accept up to N, relay while < N (0=direct). `ota config hops`. */
+  virtual uint8_t getOtaHopLimit() const;
+
+  // OTA mesh-integration is centralized in Mesh::begin()/loop()/dispatch, so every role (repeater,
+  // companion, room, sensor, ...) gets fetch/serve/apply without per-example wiring.
+  static void otaSendAdapter(void* ctx, const uint8_t* msg, uint16_t len, bool flood);
+  unsigned long _next_ota_tick = 0;
+  unsigned long _next_ota_announce = 0;   // auto-advertise our own fw: boot burst + every OTA_ANNOUNCE_INTERVAL
+  uint8_t       _ota_announce_count = 0;  // adverts sent so far (boot burst before settling to daily)
+  bool          _ota_resumed = false;     // one-shot: resumed an interrupted fetch staged in flash on boot
+  bool          _ota_autoinstall_tried = false;  // attempted auto-install for the current COMPLETE fetch
+#endif
+
   /**
    * \brief  Perform search of local DB of matching GroupChannels.
    * \param  channels  OUT - store matching channels in this array, up to max_matches
@@ -192,6 +225,13 @@ public:
   Packet* createPathReturn(const uint8_t* dest_hash, const uint8_t* secret, const uint8_t* path, uint8_t path_len, uint8_t extra_type, const uint8_t*extra, size_t extra_len);
   Packet* createPathReturn(const Identity& dest, const uint8_t* secret, const uint8_t* path, uint8_t path_len, uint8_t extra_type, const uint8_t*extra, size_t extra_len);
   Packet* createRawData(const uint8_t* data, size_t len);
+
+#if defined(ENABLE_OTA)
+  // Build a PAYLOAD_TYPE_OTA packet from raw OTA message bytes (route set by sendOtaFlood).
+  Packet* createOtaPacket(const uint8_t* data, size_t len);
+  // Flood-send at the lowest priority (so OTA never competes with mesh traffic).
+  void sendOtaFlood(Packet* packet, uint32_t delay_millis = 0);
+#endif
   Packet* createTrace(uint32_t tag, uint32_t auth_code, uint8_t flags = 0);
   Packet* createControlData(const uint8_t* data, size_t len);
 

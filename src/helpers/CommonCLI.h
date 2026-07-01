@@ -65,6 +65,14 @@ struct NodePrefs { // persisted to file
   uint8_t path_hash_mode;   // which path mode to use when sending
   uint8_t loop_detect;
   uint8_t cad_enabled;      // hardware Channel Activity Detection before TX (boolean)
+  // OTA config (persisted; synced to OtaContext on load, written on change). 0 = conservative defaults.
+  uint8_t ota_autofetch;        // OtaManager AUTOFETCH_* (0=off, 1=any-compatible, 2=signed-only)
+  uint8_t ota_autoinstall;      // OtaContext AUTOINSTALL_* (0=off, 1=trusted-only)
+  uint8_t ota_signer_count;     // # of allowlisted signer pubkeys below
+  uint8_t ota_signers[4][32];   // trusted Ed25519 signer pubkeys (== MAX_OTA_SIGNERS)
+  uint16_t ota_checkpoint_blocks; // resume checkpoint cadence (blocks); 0=never. Default 4 (runtime-tunable)
+  uint16_t ota_advert_interval;   // OTA beacon re-advertise cadence (mins); 0=off. Default 1440 (24h, tunable)
+  uint8_t ota_max_hops;           // OTA flood reach in hops; 0=direct only. Default 3 (runtime-tunable)
 };
 
 class CommonCLICallbacks {
@@ -129,6 +137,9 @@ class CommonCLI {
   mesh::RTCClock* getRTCClock() { return _rtc; }
   void savePrefs();
   void loadPrefsInt(FILESYSTEM* _fs, const char* filename);
+#if defined(ENABLE_OTA)
+  void syncOtaConfigFromPrefs();   // persisted OTA policy + signer allowlist -> running OtaContext
+#endif
 
   void handleRegionCmd(char* command, char* reply);
   void handleGetCmd(uint32_t sender_timestamp, char* command, char* reply);
