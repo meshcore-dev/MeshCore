@@ -63,7 +63,7 @@ static void nrf52_power_fail_warning_handler() {
   // Keep the path register-only: Serial, delay(), and board callbacks are not
   // safe when VDD is already falling.
   nrfx_power_pof_disable();
-  nrf52_record_shutdown_reason(SHUTDOWN_REASON_LOW_VOLTAGE);
+  NRF_POWER->GPREGRET2 = SHUTDOWN_REASON_LOW_VOLTAGE;
 
   if (nrf52_power_fail_vbus_wake) {
     nrf52_configure_vbus_wake_direct();
@@ -342,9 +342,10 @@ void NRF52Board::disablePowerFailShutdown() {
 
   nrfx_power_pof_disable();
   nrfx_power_pof_uninit();
+  nrfx_power_uninit();
   nrf52_power_fail_configured = false;
   nrf52_power_fail_vbus_wake = false;
-  MESH_DEBUG_PRINTLN("PWRMGT: POF shutdown disabled");
+  MESH_DEBUG_PRINTLN("PWRMGT: POF shutdown disabled and POWER released");
 }
 
 bool NRF52Board::isBatteryVoltagePlausible(uint16_t millivolts, const PowerMgtConfig* config) const {
