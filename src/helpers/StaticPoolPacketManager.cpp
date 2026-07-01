@@ -19,7 +19,7 @@ int PacketQueue::countBefore(uint32_t now) const {
   return n;
 }
 
-mesh::Packet* PacketQueue::get(uint32_t now) {
+int PacketQueue::findBest(uint32_t now) const {
   uint8_t min_pri = 0xFF;
   int best_idx = -1;
   for (int j = 0; j < _num; j++) {
@@ -29,6 +29,17 @@ mesh::Packet* PacketQueue::get(uint32_t now) {
       best_idx = j;
     }
   }
+  return best_idx;
+}
+
+mesh::Packet* PacketQueue::peek(uint32_t now) const {
+  int best_idx = findBest(now);
+  if (best_idx < 0) return NULL;   // empty, or all items are still in the future
+  return _table[best_idx];
+}
+
+mesh::Packet* PacketQueue::get(uint32_t now) {
+  int best_idx = findBest(now);
   if (best_idx < 0) return NULL;   // empty, or all items are still in the future
 
   mesh::Packet* top = _table[best_idx];
@@ -93,6 +104,10 @@ void StaticPoolPacketManager::queueOutbound(mesh::Packet* packet, uint8_t priori
 mesh::Packet* StaticPoolPacketManager::getNextOutbound(uint32_t now) {
   //send_queue.sort();   // sort by scheduled_for/priority first
   return send_queue.get(now);
+}
+
+mesh::Packet* StaticPoolPacketManager::peekNextOutbound(uint32_t now) {
+  return send_queue.peek(now);
 }
 
 int  StaticPoolPacketManager::getOutboundCount(uint32_t now) const {
