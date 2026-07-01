@@ -68,6 +68,7 @@ public:
   uint8_t path_hash_mode = 0;   // which path mode to use when sending
   uint8_t loop_detect = 0;
   uint8_t cad_enabled = 0;      // hardware Channel Activity Detection before TX (boolean)
+  uint8_t extra_sf[4];
 
 private:
   class RadioPrefs : public ConfigSerializer {
@@ -238,6 +239,12 @@ public:
   virtual bool setRxBoostedGain(bool enable) {
     return false; // CommonCLI reports unsupported if not overridden by wrapper
   };
+
+  #if defined(USE_LR2021)
+  virtual bool configSideDetectors(const uint8_t sideDetSFs[], uint8_t num) {
+    return false; // Override in wrapper
+  } 
+  #endif
 };
 
 class CommonCLI {

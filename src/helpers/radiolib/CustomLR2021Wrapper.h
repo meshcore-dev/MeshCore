@@ -21,6 +21,46 @@ public:
     ((CustomLR2021 *)_radio)->setBandwidth(bw);
     ((CustomLR2021 *)_radio)->setCodingRate(cr);
     updatePreamble(sf);
+    applySideDetectorConfig();
+  }
+
+  bool configSideDetectors(const uint8_t* sideDetSFs, uint8_t num) override {
+    LR2021LoRaSideDetector_t tmp[3];
+    uint8_t sf = getSpreadingFactor();
+
+    if (sf >= 10 && num > 1) { return false; }  // only 1 side detector allowed when primary SF >= 10
+    for (int i = 0; i < num; i++) {
+      if (sideDetSFs[i] > 12 || sideDetSFs[i] < 5) { return false; }  // must be valid SF
+      if (sideDetSFs[i] <= sf) { return false; }  // must be < primary SF
+      if (sideDetSFs[i] > sf + 4) { return false; }  // span must not be > 4
+
+      tmp[i].sf = sideDetSFs[i];
+      if (sideDetSFs[i] == 10) { // TODO: set ldro=true when tSym >=16
+        tmp[i].ldro = true;
+      } else {
+        tmp[i].ldro = false; 
+      }
+      tmp[i].invertIQ = false;
+      tmp[i].syncWord = 0x12;
+    }
+    int16_t status = ((CustomLR2021 *)_radio)->setSideDetector(tmp, num);
+    RadioLibWrapper::idle(); // trigger startReceive()
+    MESH_DEBUG_PRINTLN("setSideDetector() returned %d", status);
+
+    if (status == RADIOLIB_ERR_NONE) {
+      for (int i = 0; i < num; i++) { _sideDet[i] = tmp[i]; }
+      _numSideDet = num;
+    } else {
+      return false;
+    }
+    
+    return true;
+  }
+
+  int16_t applySideDetectorConfig() {
+    int16_t status = ((CustomLR2021 *)_radio)->setSideDetector(_sideDet, _numSideDet);
+    RadioLibWrapper::idle(); // trigger startReceive()
+    return status;
   }
 
   bool isReceivingPacket() override {
@@ -44,7 +84,7 @@ public:
   uint8_t getSpreadingFactor() const override { return ((CustomLR2021 *)_radio)->getSpreadingFactor(); }
   
   bool setRxBoostedGainMode(bool en) override {
-    ((CustomLR2021 *)_radio)->standby(); // radio must be in standby to accept the setRxBoostedGainMode command, otherwise it returns -707 error.
+    ((CustomLR2021 *)_radio)->standby(); // LR2021 must be in standby to accept setRxBoostedGainMode
     int16_t status = ((CustomLR2021 *)_radio)->setRxBoostedGainMode(en ? LR2021_RX_BOOST_LEVEL: 0);
     RadioLibWrapper::idle(); // trigger startReceive()
     return status == RADIOLIB_ERR_NONE;
@@ -53,5 +93,10 @@ public:
   bool getRxBoostedGainMode() const override {
     return ((CustomLR2021 *)_radio)->getRxBoostedGainMode();
   }
+
+  protected:
+    LR2021LoRaSideDetector_t _sideDet[3];
+    size_t _numSideDet = 0;
+
 
 };
