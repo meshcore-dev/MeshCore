@@ -120,11 +120,13 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
       memcpy(&ack_crc, &pkt->payload[i], 4); i += 4;
       if (i > pkt->payload_len) {
         MESH_DEBUG_PRINTLN("%s Mesh::onRecvPacket(): incomplete ACK packet", getLogDateTime());
-      } else if (!_tables->wasSeen(pkt)) {
+        break;
+      }
+      if (!_tables->wasSeen(pkt)) {
         _tables->markSeen(pkt);
         onAckRecv(pkt, ack_crc);
-        action = routeRecvPacket(pkt);
       }
+      action = routeRecvPacket(pkt);
       break;
     }
     case PAYLOAD_TYPE_PATH:
@@ -138,8 +140,9 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
       uint8_t* macAndData = &pkt->payload[i];   // MAC + encrypted data 
       if (i + CIPHER_MAC_SIZE >= pkt->payload_len) {
         MESH_DEBUG_PRINTLN("%s Mesh::onRecvPacket(): incomplete data packet", getLogDateTime());
-      } else if (!_tables->wasSeen(pkt)) {
-        _tables->markSeen(pkt);
+      } else {
+        bool already_dispatched = _tables->wasSeen(pkt);
+        if (!already_dispatched) _tables->markSeen(pkt);
         // NOTE: this is a 'first packet wins' impl. When receiving from multiple paths, the first to arrive wins.
         //       For flood mode, the path may not be the 'best' in terms of hops.
         // FUTURE: could send back multiple paths, using createPathReturn(), and let sender choose which to use(?)
@@ -170,14 +173,14 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
                 uint8_t extra_type = data[k++] & 0x0F;   // upper 4 bits reserved for future use
                 uint8_t* extra = &data[k];
                 uint8_t extra_len = len - k;   // remainder of packet (may be padded with zeroes!)
-                if (onPeerPathRecv(pkt, j, secret, path, path_len, extra_type, extra, extra_len)) {
+                if (!already_dispatched && onPeerPathRecv(pkt, j, secret, path, path_len, extra_type, extra, extra_len)) {
                   if (pkt->isRouteFlood()) {
                     // send a reciprocal return path to sender, but send DIRECTLY!
                     mesh::Packet* rpath = createPathReturn(&src_hash, secret, pkt->path, pkt->path_len, 0, NULL, 0);
                     if (rpath) sendDirect(rpath, path, path_len, 500);
                   }
                 }
-              } else {
+              } else if (!already_dispatched) {
                 onPeerDataRecv(pkt, pkt->getPayloadType(), j, secret, data, len);
               }
               found = true;
@@ -186,7 +189,7 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
           }
           if (found) {
             pkt->markDoNotRetransmit();  // packet was for this node, so don't retransmit
-          } else {
+          } else if (!already_dispatched) {
             MESH_DEBUG_PRINTLN("%s recv matches no peers, src_hash=%02X", getLogDateTime(), (uint32_t)src_hash);
           }
         }
@@ -202,8 +205,9 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
       uint8_t* macAndData = &pkt->payload[i];   // MAC + encrypted data 
       if (i + 2 >= pkt->payload_len) {
         MESH_DEBUG_PRINTLN("%s Mesh::onRecvPacket(): incomplete data packet", getLogDateTime());
-      } else if (!_tables->wasSeen(pkt)) {
-        _tables->markSeen(pkt);
+      } else {
+        bool already_dispatched = _tables->wasSeen(pkt);
+        if (!already_dispatched) _tables->markSeen(pkt);
         if (self_id.isHashMatch(&dest_hash)) {
           Identity sender(sender_pub_key);
 
@@ -214,7 +218,7 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
           uint8_t data[MAX_PACKET_PAYLOAD];
           int len = Utils::MACThenDecrypt(secret, data, macAndData, pkt->payload_len - i);
           if (len > 0) {  // success!
-            onAnonDataRecv(pkt, secret, sender, data, len);
+            if (!already_dispatched) onAnonDataRecv(pkt, secret, sender, data, len);
             pkt->markDoNotRetransmit();
           }
         }
@@ -230,23 +234,27 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
       uint8_t* macAndData = &pkt->payload[i];   // MAC + encrypted data 
       if (i + 2 >= pkt->payload_len) {
         MESH_DEBUG_PRINTLN("%s Mesh::onRecvPacket(): incomplete data packet", getLogDateTime());
-      } else if (!_tables->wasSeen(pkt)) {
-        _tables->markSeen(pkt);
-        // scan channels DB, for all matching hashes of 'channel_hash' (max 4 matches supported ATM)
-        GroupChannel channels[4];
-        int num = searchChannelsByHash(&channel_hash, channels, 4);
-        // for each matching channel, try to decrypt data
-        for (int j = 0; j < num; j++) {
-          // decrypt, checking MAC is valid
-          uint8_t data[MAX_PACKET_PAYLOAD];
-          int len = Utils::MACThenDecrypt(channels[j].secret, data, macAndData, pkt->payload_len - i);
-          if (len > 0) {  // success!
-            onGroupDataRecv(pkt, pkt->getPayloadType(), channels[j], data, len);
-            break;
-          }
-        }
-        action = routeRecvPacket(pkt);
+        break;
       }
+      if (_tables->wasSeen(pkt)) {
+        action = routeRecvPacket(pkt);
+        break;
+      }
+      _tables->markSeen(pkt);
+      // scan channels DB, for all matching hashes of 'channel_hash' (max 4 matches supported ATM)
+      GroupChannel channels[4];
+      int num = searchChannelsByHash(&channel_hash, channels, 4);
+      // for each matching channel, try to decrypt data
+      for (int j = 0; j < num; j++) {
+        // decrypt, checking MAC is valid
+        uint8_t data[MAX_PACKET_PAYLOAD];
+        int len = Utils::MACThenDecrypt(channels[j].secret, data, macAndData, pkt->payload_len - i);
+        if (len > 0) {  // success!
+          onGroupDataRecv(pkt, pkt->getPayloadType(), channels[j], data, len);
+          break;
+        }
+      }
+      action = routeRecvPacket(pkt);
       break;
     }
     case PAYLOAD_TYPE_ADVERT: {
@@ -262,8 +270,9 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
         MESH_DEBUG_PRINTLN("%s Mesh::onRecvPacket(): incomplete advertisement packet", getLogDateTime());
       } else if (self_id.matches(id.pub_key)) {
         MESH_DEBUG_PRINTLN("%s Mesh::onRecvPacket(): receiving SELF advert packet", getLogDateTime());
-      } else if (!_tables->wasSeen(pkt)) {
-        _tables->markSeen(pkt);
+      } else {
+        bool already_dispatched = _tables->wasSeen(pkt);
+        if (!already_dispatched) _tables->markSeen(pkt);
         uint8_t* app_data = &pkt->payload[i];
         int app_data_len = pkt->payload_len - i;
         if (app_data_len > MAX_ADVERT_DATA_SIZE) { app_data_len = MAX_ADVERT_DATA_SIZE; }
@@ -281,7 +290,7 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
         }
         if (is_ok) {
           MESH_DEBUG_PRINTLN("%s Mesh::onRecvPacket(): valid advertisement received!", getLogDateTime());
-          onAdvertRecv(pkt, id, timestamp, app_data, app_data_len);
+          if (!already_dispatched) onAdvertRecv(pkt, id, timestamp, app_data, app_data_len);
           action = routeRecvPacket(pkt);
         } else {
           MESH_DEBUG_PRINTLN("%s Mesh::onRecvPacket(): received advertisement with forged signature! (app_data_len=%d)", getLogDateTime(), app_data_len);
@@ -344,7 +353,9 @@ void Mesh::removeSelfFromPath(Packet* pkt) {
 DispatcherAction Mesh::routeRecvPacket(Packet* packet) {
   uint8_t n = packet->getPathHashCount();
   if (packet->isRouteFlood() && !packet->isMarkedDoNotRetransmit()
-    && (n + 1)*packet->getPathHashSize() <= MAX_PATH_SIZE && allowPacketForward(packet)) {
+    && (n + 1)*packet->getPathHashSize() <= MAX_PATH_SIZE && allowPacketForward(packet)
+    && !_tables->wasForwarded(packet)) {
+    _tables->markForwarded(packet);
     // append this node's hash to 'path'
     self_id.copyHashTo(&packet->path[n * packet->getPathHashSize()], packet->getPathHashSize());
     packet->setPathHashCount(n + 1);
@@ -649,6 +660,7 @@ void Mesh::sendFlood(Packet* packet, uint32_t delay_millis, uint8_t path_hash_si
   packet->setPathHashSizeAndCount(path_hash_size, 0);
 
   _tables->markSeen(packet); // mark this packet as already sent in case it is rebroadcast back to us
+  _tables->markForwarded(packet); // and do not forward rebroadcast copies of our own flood
 
   uint8_t pri;
   if (packet->getPayloadType() == PAYLOAD_TYPE_PATH) {
@@ -678,6 +690,7 @@ void Mesh::sendFlood(Packet* packet, uint16_t* transport_codes, uint32_t delay_m
   packet->setPathHashSizeAndCount(path_hash_size, 0);
 
   _tables->markSeen(packet); // mark this packet as already sent in case it is rebroadcast back to us
+  _tables->markForwarded(packet); // and do not forward rebroadcast copies of our own flood
 
   uint8_t pri;
   if (packet->getPayloadType() == PAYLOAD_TYPE_PATH) {

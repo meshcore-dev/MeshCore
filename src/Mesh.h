@@ -17,6 +17,8 @@ class MeshTables {
 public:
   virtual bool wasSeen(const Packet* packet) = 0;
   virtual void markSeen(const Packet* packet) = 0;
+  virtual bool wasForwarded(const Packet* packet) = 0;
+  virtual void markForwarded(const Packet* packet) = 0;
   virtual void clear(const Packet* packet) = 0;    // remove this packet hash from table
 };
 

@@ -66,6 +66,23 @@ TEST(SimpleMeshTables, QueryThenMark_WorksCorrectly) {
     EXPECT_TRUE(t.wasSeen(&p));
 }
 
+// ── forwarding state ─────────────────────────────────────────────────────────
+
+TEST(SimpleMeshTables, MarkSeen_DoesNotMarkForwarded) {
+    SimpleMeshTables t;
+    Packet p = makeFloodPacket(0x01);
+    t.markSeen(&p);
+    EXPECT_FALSE(t.wasForwarded(&p));
+}
+
+TEST(SimpleMeshTables, MarkForwarded_DoesNotMarkSeen) {
+    SimpleMeshTables t;
+    Packet p = makeFloodPacket(0x01);
+    t.markForwarded(&p);
+    EXPECT_TRUE(t.wasForwarded(&p));
+    EXPECT_FALSE(t.wasSeen(&p));
+}
+
 // ── dup stats ────────────────────────────────────────────────────────────────
 
 TEST(SimpleMeshTables, WasSeen_IncrementsFloodDupStat) {
@@ -92,9 +109,12 @@ TEST(SimpleMeshTables, Clear_RemovesSeenPacket) {
     SimpleMeshTables t;
     Packet p = makeFloodPacket(0x01);
     t.markSeen(&p);
+    t.markForwarded(&p);
     ASSERT_TRUE(t.wasSeen(&p));
+    ASSERT_TRUE(t.wasForwarded(&p));
     t.clear(&p);
     EXPECT_FALSE(t.wasSeen(&p));
+    EXPECT_FALSE(t.wasForwarded(&p));
 }
 
 int main(int argc, char** argv) {
