@@ -390,16 +390,21 @@ void Mesh::routeDirectRecvAcks(Packet* packet, uint32_t delay_millis) {
   }
 }
 
+Packet* Mesh::allocForType(uint8_t type) {
+  Packet* packet = obtainNewPacket();
+  if (packet == NULL) {
+    MESH_DEBUG_PRINTLN("%s Mesh::allocForType(): error, packet pool empty", getLogDateTime());
+    return NULL;
+  }
+  packet->header = (type << PH_TYPE_SHIFT);  // ROUTE_TYPE_* is set later
+  return packet;
+}
+
 Packet* Mesh::createAdvert(const LocalIdentity& id, const uint8_t* app_data, size_t app_data_len) {
   if (app_data_len > MAX_ADVERT_DATA_SIZE) return NULL;
 
-  Packet* packet = obtainNewPacket();
-  if (packet == NULL) {
-    MESH_DEBUG_PRINTLN("%s Mesh::createAdvert(): error, packet pool empty", getLogDateTime());
-    return NULL;
-  }
-
-  packet->header = (PAYLOAD_TYPE_ADVERT << PH_TYPE_SHIFT);  // ROUTE_TYPE_* is set later
+  Packet* packet = allocForType(PAYLOAD_TYPE_ADVERT);
+  if (!packet) return NULL;
 
   int len = 0;
   memcpy(&packet->payload[len], id.pub_key, PUB_KEY_SIZE); len += PUB_KEY_SIZE;
@@ -440,12 +445,8 @@ Packet* Mesh::createPathReturn(const uint8_t* dest_hash, const uint8_t* secret, 
 
   if (path_hash_count*path_hash_size + extra_len + 5 > MAX_COMBINED_PATH) return NULL;  // too long!!
 
-  Packet* packet = obtainNewPacket();
-  if (packet == NULL) {
-    MESH_DEBUG_PRINTLN("%s Mesh::createPathReturn(): error, packet pool empty", getLogDateTime());
-    return NULL;
-  }
-  packet->header = (PAYLOAD_TYPE_PATH << PH_TYPE_SHIFT);  // ROUTE_TYPE_* set later
+  Packet* packet = allocForType(PAYLOAD_TYPE_PATH);
+  if (!packet) return NULL;
 
   int len = 0;
   memcpy(&packet->payload[len], dest_hash, PATH_HASH_SIZE); len += PATH_HASH_SIZE;  // dest hash
@@ -481,12 +482,8 @@ Packet* Mesh::createDatagram(uint8_t type, const Identity& dest, const uint8_t* 
     return NULL;  // invalid type
   }
 
-  Packet* packet = obtainNewPacket();
-  if (packet == NULL) {
-    MESH_DEBUG_PRINTLN("%s Mesh::createDatagram(): error, packet pool empty", getLogDateTime());
-    return NULL;
-  }
-  packet->header = (type << PH_TYPE_SHIFT);  // ROUTE_TYPE_* set later
+  Packet* packet = allocForType(type);
+  if (!packet) return NULL;
 
   int len = 0;
   len += dest.copyHashTo(&packet->payload[len]);  // dest hash
@@ -505,12 +502,8 @@ Packet* Mesh::createAnonDatagram(uint8_t type, const LocalIdentity& sender, cons
     return NULL;  // invalid type
   }
 
-  Packet* packet = obtainNewPacket();
-  if (packet == NULL) {
-    MESH_DEBUG_PRINTLN("%s Mesh::createAnonDatagram(): error, packet pool empty", getLogDateTime());
-    return NULL;
-  }
-  packet->header = (type << PH_TYPE_SHIFT);  // ROUTE_TYPE_* set later
+  Packet* packet = allocForType(type);
+  if (!packet) return NULL;
 
   int len = 0;
   if (type == PAYLOAD_TYPE_ANON_REQ) {
@@ -530,12 +523,8 @@ Packet* Mesh::createGroupDatagram(uint8_t type, const GroupChannel& channel, con
   if (!(type == PAYLOAD_TYPE_GRP_TXT || type == PAYLOAD_TYPE_GRP_DATA)) return NULL;   // invalid type
   if (data_len + 1 + CIPHER_BLOCK_SIZE-1 > MAX_PACKET_PAYLOAD) return NULL; // too long
 
-  Packet* packet = obtainNewPacket();
-  if (packet == NULL) {
-    MESH_DEBUG_PRINTLN("%s Mesh::createGroupDatagram(): error, packet pool empty", getLogDateTime());
-    return NULL;
-  }
-  packet->header = (type << PH_TYPE_SHIFT);  // ROUTE_TYPE_* set later
+  Packet* packet = allocForType(type);
+  if (!packet) return NULL;
 
   int len = 0;
   memcpy(&packet->payload[len], channel.hash, PATH_HASH_SIZE); len += PATH_HASH_SIZE;
@@ -547,12 +536,8 @@ Packet* Mesh::createGroupDatagram(uint8_t type, const GroupChannel& channel, con
 }
 
 Packet* Mesh::createAck(const uint8_t* ack, uint8_t len) {
-  Packet* packet = obtainNewPacket();
-  if (packet == NULL) {
-    MESH_DEBUG_PRINTLN("%s Mesh::createAck(): error, packet pool empty", getLogDateTime());
-    return NULL;
-  }
-  packet->header = (PAYLOAD_TYPE_ACK << PH_TYPE_SHIFT);  // ROUTE_TYPE_* set later
+  Packet* packet = allocForType(PAYLOAD_TYPE_ACK);
+  if (!packet) return NULL;
 
   memcpy(packet->payload, ack, len);
   packet->payload_len = len;
@@ -561,12 +546,8 @@ Packet* Mesh::createAck(const uint8_t* ack, uint8_t len) {
 }
 
 Packet* Mesh::createMultiAck(const uint8_t* ack, uint8_t len, uint8_t remaining) {
-  Packet* packet = obtainNewPacket();
-  if (packet == NULL) {
-    MESH_DEBUG_PRINTLN("%s Mesh::createMultiAck(): error, packet pool empty", getLogDateTime());
-    return NULL;
-  }
-  packet->header = (PAYLOAD_TYPE_MULTIPART << PH_TYPE_SHIFT);  // ROUTE_TYPE_* set later
+  Packet* packet = allocForType(PAYLOAD_TYPE_MULTIPART);
+  if (!packet) return NULL;
 
   packet->payload[0] = (remaining << 4) | PAYLOAD_TYPE_ACK;
   memcpy(&packet->payload[1], ack, len);
@@ -578,12 +559,8 @@ Packet* Mesh::createMultiAck(const uint8_t* ack, uint8_t len, uint8_t remaining)
 Packet* Mesh::createRawData(const uint8_t* data, size_t len) {
   if (len > sizeof(Packet::payload)) return NULL;  // invalid arg
 
-  Packet* packet = obtainNewPacket();
-  if (packet == NULL) {
-    MESH_DEBUG_PRINTLN("%s Mesh::createRawData(): error, packet pool empty", getLogDateTime());
-    return NULL;
-  }
-  packet->header = (PAYLOAD_TYPE_RAW_CUSTOM << PH_TYPE_SHIFT);  // ROUTE_TYPE_* set later
+  Packet* packet = allocForType(PAYLOAD_TYPE_RAW_CUSTOM);
+  if (!packet) return NULL;
 
   memcpy(packet->payload, data, len);
   packet->payload_len = len;
@@ -592,12 +569,8 @@ Packet* Mesh::createRawData(const uint8_t* data, size_t len) {
 }
 
 Packet* Mesh::createTrace(uint32_t tag, uint32_t auth_code, uint8_t flags) {
-  Packet* packet = obtainNewPacket();
-  if (packet == NULL) {
-    MESH_DEBUG_PRINTLN("%s Mesh::createTrace(): error, packet pool empty", getLogDateTime());
-    return NULL;
-  }
-  packet->header = (PAYLOAD_TYPE_TRACE << PH_TYPE_SHIFT);  // ROUTE_TYPE_* set later
+  Packet* packet = allocForType(PAYLOAD_TYPE_TRACE);
+  if (!packet) return NULL;
 
   memcpy(packet->payload, &tag, 4);
   memcpy(&packet->payload[4], &auth_code, 4);
@@ -610,12 +583,8 @@ Packet* Mesh::createTrace(uint32_t tag, uint32_t auth_code, uint8_t flags) {
 Packet* Mesh::createControlData(const uint8_t* data, size_t len) {
   if (len > sizeof(Packet::payload)) return NULL;  // invalid arg
 
-  Packet* packet = obtainNewPacket();
-  if (packet == NULL) {
-    MESH_DEBUG_PRINTLN("%s Mesh::createControlData(): error, packet pool empty", getLogDateTime());
-    return NULL;
-  }
-  packet->header = (PAYLOAD_TYPE_CONTROL << PH_TYPE_SHIFT);  // ROUTE_TYPE_* set later
+  Packet* packet = allocForType(PAYLOAD_TYPE_CONTROL);
+  if (!packet) return NULL;
 
   memcpy(packet->payload, data, len);
   packet->payload_len = len;

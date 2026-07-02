@@ -32,6 +32,7 @@ class Mesh : public Dispatcher {
   void routeDirectRecvAcks(Packet* packet, uint32_t delay_millis);
   //void routeRecvAcks(Packet* packet, uint32_t delay_millis);
   DispatcherAction forwardMultipartDirect(Packet* pkt);
+  Packet* allocForType(uint8_t type);
 
 protected:
   DispatcherAction onRecvPacket(Packet* pkt) override;
