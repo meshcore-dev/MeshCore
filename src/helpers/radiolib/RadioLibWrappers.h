@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Arduino.h>   // min/max/random (RadioLib's generic build omits these)
 #include <Mesh.h>
 #include <RadioLib.h>
 

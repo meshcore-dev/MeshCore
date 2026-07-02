@@ -1,0 +1,5 @@
+# Zephyr build artifacts (we build out-of-tree to /tmp, but ignore any local build dirs)
+build/
+build-*/
+*.hex
+*.elf

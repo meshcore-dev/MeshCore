@@ -104,6 +104,7 @@ void RadioLibWrapper::loop() {
 }
 
 void RadioLibWrapper::startRecv() {
+  _radio->standby();   // LR2021: re-arming (setRxPath) while still in continuous RX -> CMD_PERR
   int err = _radio->startReceive();
   if (err == RADIOLIB_ERR_NONE) {
     state = STATE_RX;
@@ -128,7 +129,6 @@ int RadioLibWrapper::recvRaw(uint8_t* bytes, int sz) {
         len = 0;
         n_recv_errors++;
       } else {
-      //  Serial.print("  readData() -> "); Serial.println(len);
         n_recv++;
       }
     }
@@ -136,6 +136,8 @@ int RadioLibWrapper::recvRaw(uint8_t* bytes, int sz) {
   }
 
   if (state != STATE_RX) {
+    _radio->standby();   // back to standby first: re-arming from continuous RX makes the
+                         // LR2021 reject setRxPath with CMD_PERR (-706) and wedges the receiver
     int err = _radio->startReceive();
     if (err == RADIOLIB_ERR_NONE) {
       state = STATE_RX;

@@ -56,7 +56,7 @@ void setup() {
   fast_rng.begin(radio_driver.getRngSeed());
 
   FILESYSTEM* fs;
-#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
+#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM) || defined(NRF54_PLATFORM)
   InternalFS.begin();
   fs = &InternalFS;
   IdentityStore store(InternalFS, "");
@@ -107,12 +107,15 @@ void loop() {
   int len = strlen(command);
   while (Serial.available() && len < sizeof(command)-1) {
     char c = Serial.read();
-    if (c != '\n') {
-      command[len++] = c;
+    if (c == '\r' || c == '\n') {   // end of line: accept CR, LF or CRLF
+      if (len == 0) continue;       // skip empty lines (the LF of a CRLF)
+      command[len++] = '\r';        // normalise to the '\r' sentinel used below
       command[len] = 0;
-      Serial.print(c);
+      break;
     }
-    if (c == '\r') break;
+    command[len++] = c;
+    command[len] = 0;
+    Serial.print(c);
   }
   if (len == sizeof(command)-1) {  // command buffer full
     command[sizeof(command)-1] = '\r';
