@@ -365,6 +365,14 @@ void MyMesh::onDiscoveredContact(ContactInfo &contact, bool is_new, uint8_t path
 #endif
   }
 
+#ifdef DISPLAY_CLASS
+  if (_ui && is_new) {
+    char act[40];
+    snprintf(act, sizeof(act), "New: %s", contact.name);
+    _ui->onClientActivity(act);
+  }
+#endif
+
   // add inbound-path to mem cache
   if (path && mesh::Packet::isValidPathLen(path_len)) {  // check path is valid
     AdvertPath* p = advert_paths;
@@ -940,19 +948,21 @@ void MyMesh::begin(bool has_display) {
   _prefs.gps_interval = constrain(_prefs.gps_interval, 0, 86400);  // Max 24 hours
 
 #ifdef BLE_PIN_CODE // 123456 by default
-  if (_prefs.ble_pin == 0) {
+  if (_prefs.ble_pin != 0) {
+    _active_ble_pin = _prefs.ble_pin; // pin configured via app
+  } else if (BLE_PIN_CODE != 123456) {
+    _active_ble_pin = BLE_PIN_CODE; // pin configured at build time
+  } else {
 #ifdef DISPLAY_CLASS
-    if (has_display && BLE_PIN_CODE == 123456) {
+    if (has_display) {
       StdRNG rng;
-      _active_ble_pin = rng.nextInt(100000, 999999); // random pin each session
+      _active_ble_pin = rng.nextInt(100000, 999999); // generated each session, shown on screen
     } else {
-      _active_ble_pin = BLE_PIN_CODE; // otherwise static pin
+      _active_ble_pin = BLE_PIN_CODE;
     }
 #else
-    _active_ble_pin = BLE_PIN_CODE; // otherwise static pin
+    _active_ble_pin = BLE_PIN_CODE;
 #endif
-  } else {
-    _active_ble_pin = _prefs.ble_pin;
   }
 #else
   _active_ble_pin = 0;
@@ -2230,19 +2240,22 @@ void MyMesh::loop() {
 #endif
 }
 
-bool MyMesh::advert() {
+bool MyMesh::advert(bool flood) {
   mesh::Packet* pkt;
   if (_prefs.advert_loc_policy == ADVERT_LOC_NONE) {
     pkt = createSelfAdvert(_prefs.node_name);
   } else {
     pkt = createSelfAdvert(_prefs.node_name, sensors.node_lat, sensors.node_lon);
   }
-  if (pkt) {
-    sendZeroHop(pkt);
-    return true;
+  if (!pkt) return false;
+  if (flood) {
+    TransportKey default_scope;
+    memcpy(&default_scope.key, _prefs.default_scope_key, sizeof(default_scope.key));
+    sendFloodScoped(default_scope, pkt, 0);
   } else {
-    return false;
+    sendZeroHop(pkt);
   }
+  return true;
 }
 
 // To check if there is pending work

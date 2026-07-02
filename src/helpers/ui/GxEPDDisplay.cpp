@@ -61,6 +61,17 @@ void GxEPDDisplay::clear() {
   display_crc.reset();
 }
 
+void GxEPDDisplay::fullRefresh() {
+  if (!_init) begin();
+  display.setFullWindow();
+  display.fillScreen(GxEPD_WHITE);
+  display.display(false);
+  display.setPartialWindow(0, 0, display.width(), display.height());
+  display_crc.reset();
+  last_display_crc_value = 0;
+  _force_full = true;
+}
+
 void GxEPDDisplay::startFrame(Color bkg) {
   display.fillScreen(GxEPD_WHITE);
   display.setTextColor(_curr_color = GxEPD_BLACK);
@@ -171,6 +182,14 @@ uint16_t GxEPDDisplay::getTextWidth(const char* str) {
 }
 
 void GxEPDDisplay::endFrame() {
+  if (_force_full) {
+    display.setFullWindow();
+    display.display(false);
+    display.setPartialWindow(0, 0, display.width(), display.height());
+    last_display_crc_value = display_crc.finalize();
+    _force_full = false;
+    return;
+  }
   uint32_t crc = display_crc.finalize();
   if (crc != last_display_crc_value) {
     display.display(true);

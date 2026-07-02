@@ -33,6 +33,7 @@ class GxEPDDisplay : public DisplayDriver {
 #endif
   bool _init = false;
   bool _isOn = false;
+  bool _force_full = false;
   uint16_t _curr_color;
   CRC32 display_crc;
   int last_display_crc_value = 0;
@@ -51,6 +52,7 @@ public:
   void turnOn() override;
   void turnOff() override;
   void clear() override;
+  void fullRefresh() override;
   void startFrame(Color bkg = DARK) override;
   void setTextSize(int sz) override;
   void setColor(Color c) override;

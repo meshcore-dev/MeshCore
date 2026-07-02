@@ -51,7 +51,22 @@ class UITask : public AbstractUITask {
   UIScreen* splash;
   UIScreen* home;
   UIScreen* msg_preview;
+  UIScreen* menu;
   UIScreen* curr;
+
+  struct Activity {
+    uint32_t ts;
+    char text[40];
+  };
+  #define UI_ACTIVITY_SIZE 6
+  Activity _activity[UI_ACTIVITY_SIZE];
+  int _activity_head = -1;
+  int _activity_count = 0;
+  bool _prev_conn = false;
+  bool _prev_charging = false;
+  bool _low_batt_shutdown = false;
+
+  void drawHibernation();
 
   void userLedHandler();
 
@@ -77,6 +92,16 @@ public:
   int  getMsgCount() const { return _msgcount; }
   bool hasDisplay() const { return _display != NULL; }
   bool isButtonPressed() const;
+
+  enum MenuKind { MENU_ADVERT, MENU_BLE, MENU_GPS };
+  void openMenu(MenuKind kind);
+  void menuSelect(MenuKind kind, int item);
+  void resyncGPS();
+
+  void onClientActivity(const char* text) override;
+  int getActivityCount() const { return _activity_count; }
+  const char* getActivityText(int i) const;
+  uint32_t getActivityTime(int i) const;
 
   bool isBuzzerQuiet() { 
 #ifdef PIN_BUZZER

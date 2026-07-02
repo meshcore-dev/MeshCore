@@ -17,3 +17,4 @@ compile_commands.json
 .venv/
 venv/
 platformio.local.ini
+.devcontainer/devcontainer-lock.json

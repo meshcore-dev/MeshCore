@@ -162,6 +162,7 @@ void setup() {
   serial_interface.begin(Serial);
 #endif
   the_mesh.startInterface(serial_interface);
+  serial_interface.setPairingAllowed(!the_mesh.getNodePrefs()->pairing_locked);
 #elif defined(RP2040_PLATFORM)
   LittleFS.begin();
   store.begin();

@@ -11,6 +11,7 @@ class SerialBLEInterface : public BaseSerialInterface {
   BLEDfu bledfu;
   BLEUart bleuart;
   bool _isEnabled;
+  bool _allowPairing;
   bool _isDeviceConnected;
   uint16_t _conn_handle;
   unsigned long _last_health_check;
@@ -45,6 +46,7 @@ class SerialBLEInterface : public BaseSerialInterface {
 public:
   SerialBLEInterface() {
     _isEnabled = false;
+    _allowPairing = true;
     _isDeviceConnected = false;
     _conn_handle = BLE_CONN_HANDLE_INVALID;
     _last_health_check = 0;
@@ -69,6 +71,22 @@ public:
   bool isWriteBusy() const override;
   size_t writeFrame(const uint8_t src[], size_t len) override;
   size_t checkRecvFrame(uint8_t dest[]) override;
+  void setPairingAllowed(bool allowed) override {
+    _allowPairing = allowed;
+    // stop Bluefruit's blue advertising/conn LED while pairing is locked
+    Bluefruit.autoConnLed(allowed);
+    if (!allowed) {
+#ifdef LED_BLUE
+      pinMode(LED_BLUE, OUTPUT);
+  #ifdef LED_STATE_ON
+      digitalWrite(LED_BLUE, !LED_STATE_ON);
+  #else
+      digitalWrite(LED_BLUE, HIGH);
+  #endif
+#endif
+    }
+  }
+  bool isPairingAllowed() const override { return _allowPairing; }
 };
 
 #if BLE_DEBUG_LOGGING && ARDUINO

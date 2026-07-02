@@ -79,6 +79,10 @@ bool SerialBLEInterface::onPairingPasskey(uint16_t connection_handle, uint8_t co
   (void)connection_handle;
   (void)passkey;
   BLE_DEBUG_PRINTLN("SerialBLEInterface: pairing passkey request match=%d", match_request);
+  if (instance && !instance->_allowPairing) {
+    BLE_DEBUG_PRINTLN("SerialBLEInterface: pairing locked, rejecting new device");
+    return false;
+  }
   return true;
 }
 

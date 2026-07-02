@@ -13,8 +13,12 @@ void ArduinoSerialInterface::disable() {
   _isEnabled = false;
 }
 
-bool ArduinoSerialInterface::isConnected() const { 
+bool ArduinoSerialInterface::isConnected() const {
+#if defined(NRF52_PLATFORM)
+  return (bool)Serial;
+#else
   return true;   // no way of knowing, so assume yes
+#endif
 }
 
 bool ArduinoSerialInterface::isWriteBusy() const {
