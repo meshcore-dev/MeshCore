@@ -29,6 +29,7 @@ static char fstate_char(OtaManager::FetchState s) {
     case OtaManager::WANT_MANIFEST: return 'W';
     case OtaManager::FETCHING: return 'F';
     case OtaManager::COMPLETE: return 'C';
+    case OtaManager::PAUSED: return 'P';
     default: return 'X';
   }
 }
@@ -44,6 +45,7 @@ static const char* state_word(OtaManager::FetchState s) {
     case OtaManager::FETCHING:      return "downloading";
     case OtaManager::COMPLETE:      return "ready to install";
     case OtaManager::FAILED:        return "failed";
+    case OtaManager::PAUSED:        return "paused (folder link lost — reconnect to resume)";
     default:                        return "?";
   }
 }

@@ -446,7 +446,7 @@ void OtaManager::handleHave(const uint8_t* m, uint16_t n) {
 }
 
 bool OtaManager::wantRow(const uint8_t* mid, uint32_t target, uint8_t codec, uint8_t flags) const {
-  if (!_fetch || _fstate == FETCHING || _fstate == WANT_MANIFEST) return false;   // busy with a session
+  if (!_fetch || _fstate == FETCHING || _fstate == WANT_MANIFEST || _fstate == PAUSED) return false;  // busy
   if (_fstate == COMPLETE && memcmp(mid, _fid, 4) == 0) return false;             // already have it
   if (!codecOk(codec)) return false;                                              // can't apply this codec
   if (_have_desired_mid)                                                          // manual pull of a specific mid
@@ -475,7 +475,7 @@ void OtaManager::armFirstReqHold() {
 // Begin (or resume) fetching a chosen mid: try a staged-partial resume first, else request the manifest.
 void OtaManager::startFetch(const uint8_t* mid, uint32_t target) {
   (void)target;
-  if (!_fetch || _fstate == FETCHING || _fstate == WANT_MANIFEST) return;
+  if (!_fetch || _fstate == FETCHING || _fstate == WANT_MANIFEST || _fstate == PAUSED) return;
   if (resumeStaged(mid)) return;                 // resume a partial container left in flash
   memcpy(_fid, mid, 4);
   seedBlockRng();                                // per-node block-pick/jitter sequence (distinct per node)
@@ -642,10 +642,15 @@ void OtaManager::handleProof(const uint8_t* m, uint16_t n) {
     clearReassembly();                                                      // bad -> drop, re-fetch the block
     return;
   }
-  // verified -> commit the payload block, then its leaf (the present marker)
-  if (!_fetch->write(_fpoff + (uint32_t)_reasm_block * _fbs, _reasm_buf, blen)) return;
+  // verified -> commit the payload block, then its leaf (the present marker). A write failure here means a
+  // FOLDER destination's seeder link dropped mid-transfer: PAUSE (hold progress on the host, stop
+  // requesting, do NOT fall back to RAM/flash). The block is left uncommitted (its leaf stays 0xFF), so on
+  // reconnect resumeStaged() re-requests exactly it. (A flash store never fails these writes.)
   uint8_t leaf[4]; merkle_leaf(leaf, _reasm_buf, blen);
-  if (!_fetch->write(_floff + (uint32_t)_reasm_block * 4, leaf, 4)) return;
+  if (!_fetch->write(_fpoff + (uint32_t)_reasm_block * _fbs, _reasm_buf, blen) ||
+      !_fetch->write(_floff + (uint32_t)_reasm_block * 4, leaf, 4)) {
+    _fstate = PAUSED; clearReassembly(); return;
+  }
   _have++;
   OTA_DBG("OTA: block %u OK  have=%u/%u\n", (unsigned)_reasm_block, (unsigned)_have, (unsigned)_fbc);
   clearReassembly();

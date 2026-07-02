@@ -96,7 +96,10 @@ typedef bool (*ServeReadFn)(void* ctx, uint32_t off, uint8_t* buf, uint32_t len)
 
 class OtaManager {
 public:
-  enum FetchState : uint8_t { IDLE, WANT_MANIFEST, FETCHING, COMPLETE, FAILED };
+  // PAUSED: a folder-destination write failed mid-transfer (the seeder link dropped). Progress is held on
+  // the host; the manager stops requesting and does NOT fall back to RAM/flash. resumeStaged() (called on
+  // reconnect) re-STATs the host file, recomputes which blocks are missing, and resumes.
+  enum FetchState : uint8_t { IDLE, WANT_MANIFEST, FETCHING, COMPLETE, FAILED, PAUSED };
 
   // Sentinel for "no block" in the reassembly / peer-REQ / recently-served slots (a real block index is
   // a small uint16, so 0xFFFFFFFF is never valid).

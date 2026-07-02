@@ -145,6 +145,9 @@ void halt() {
         ota_seeder_attached = true;
         char di[24]; snprintf(di, sizeof di, "tcp %s", ota_seeder_client.remoteIP().toString().c_str());
         mesh::ota::ota_ctx().set_folder_dest(&ota_folder_store, di);   // offer `ota pull <#> folder`
+        // if a folder pull PAUSED when the link dropped, the host still holds the partial: rescan + resume
+        if (mesh::ota::ota_ctx().manager.fetchState() == mesh::ota::OtaManager::PAUSED)
+          mesh::ota::ota_ctx().manager.resumeStaged(nullptr);
         mesh::ota::ota_ctx().manager.announce();   // new served set -> advertise the folder's fw to peers
         WIFI_DEBUG_PRINTLN("OTA seeder: client connected (%s) — relay + folder pull-dest ready", di);
       } else {
