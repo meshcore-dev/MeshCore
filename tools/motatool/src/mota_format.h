@@ -84,9 +84,15 @@ static constexpr uint8_t MS_RSP_MAGIC0 = 'm', MS_RSP_MAGIC1 = 's';
 static constexpr uint8_t MS_OP_COUNT    = 0x01;   // -> count(1)
 static constexpr uint8_t MS_OP_DESCRIBE = 0x02;   // idx(1) -> MotaDesc(38)
 static constexpr uint8_t MS_OP_READ     = 0x03;   // idx(1) off(4) len(2) -> bytes
+static constexpr uint8_t MS_OP_STAT     = 0x04;   // storage: mid(4) -> present(1) total(4)
+static constexpr uint8_t MS_OP_BEGIN    = 0x05;   // storage: mid(4) total(4) -> OK (create 0xFF-filled)
+static constexpr uint8_t MS_OP_WRITE    = 0x06;   // storage: mid(4) off(4) len(2) data(len) -> OK
+static constexpr uint8_t MS_OP_SREAD    = 0x07;   // storage: mid(4) off(4) len(2) -> bytes (0xFF=unwritten)
+static constexpr uint8_t MS_OP_FIN      = 0x08;   // storage: mid(4) -> OK (validate + make servable)
 static constexpr uint8_t MS_STATUS_OK   = 0x00;
 static constexpr uint8_t MS_STATUS_ERR  = 0x01;
 static constexpr uint16_t MOTA_DESC_WIRE = 38;
+static constexpr uint16_t MOTA_SEEDER_WRITE_MAX = 512;  // max data bytes per OP_WRITE/OP_SREAD
 // MotaDesc wire (38 B): mid[4] target_id(4) fw_version(4) codec(1) flags(1) total_size(4)
 //                       leaves_off(4) block_count(4) payload_off(4) payload_size(4)  [+2 reserved]
 

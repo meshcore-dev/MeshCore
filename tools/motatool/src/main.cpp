@@ -499,7 +499,7 @@ static int cmd_serve(const Args& a) {
   if (enable) { usleep(500000); t->write_str("ota folder on\r\n"); std::cout << "sent `ota folder on`\n"; }
   std::cout << "serving on " << target << " — Ctrl-C to stop\n";
 
-  SeederCore core(folder);
+  SeederCore core(folder, a.get("dir"));   // same folder doubles as "pull to folder" storage
   serve_loop(*t, core, verbose,
              [](const std::string& l) { std::cout << "  [dev] " << l << "\n"; }, &g_stop);
 

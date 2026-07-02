@@ -33,12 +33,18 @@ private:
 // would call this directly from a characteristic-write handler and notify the reply — no framing needed.
 class SeederCore {
 public:
-  explicit SeederCore(const Folder& f) : folder_(f) {}
+  // `store_dir` (optional): folder where the "pull to folder" storage ops capture a `.mota` a device is
+  // fetching off-mesh — the SAME --dir as serving. A partial pull is `<midhex>.mota.part`; OP_FIN publishes
+  // it as `<midhex>.mota`. Empty store_dir = storage ops are refused (serve-only).
+  explicit SeederCore(const Folder& f, std::string store_dir = "")
+      : folder_(f), store_dir_(std::move(store_dir)) {}
   bool handle(uint8_t op, const uint8_t* args, size_t arglen,
               uint8_t& status, std::vector<uint8_t>& payload) const;
   static std::array<uint8_t, MOTA_DESC_WIRE> describe(const ServedMota& s);
 private:
+  std::string store_path(const uint8_t mid[4], bool part) const;   // <store_dir>/<midhex>.mota[.part]
   const Folder& folder_;
+  std::string   store_dir_;
 };
 
 // A bidirectional byte link (the serial seeder needs this; BLE would reuse SeederCore directly).

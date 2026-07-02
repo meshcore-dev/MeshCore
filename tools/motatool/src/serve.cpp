@@ -4,6 +4,7 @@
 #include <termios.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <sys/stat.h>
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <netdb.h>
@@ -64,6 +65,14 @@ std::array<uint8_t, MOTA_DESC_WIRE> SeederCore::describe(const ServedMota& s) {
   return w;
 }
 
+std::string SeederCore::store_path(const uint8_t mid[4], bool part) const {
+  static const char* H = "0123456789abcdef";
+  std::string name;
+  for (int i = 0; i < 4; i++) { name += H[mid[i] >> 4]; name += H[mid[i] & 0xF]; }
+  name += part ? ".mota.part" : ".mota";
+  return store_dir_ + "/" + name;
+}
+
 bool SeederCore::handle(uint8_t op, const uint8_t* args, size_t arglen,
                         uint8_t& status, std::vector<uint8_t>& payload) const {
   payload.clear();
@@ -88,6 +97,70 @@ bool SeederCore::handle(uint8_t op, const uint8_t* args, size_t arglen,
     if (!s || (uint64_t)off + len > s->bytes.size()) { status = MS_STATUS_ERR; return true; }
     payload.assign(s->bytes.begin() + off, s->bytes.begin() + off + len);
     return true;
+  }
+  // --- STORAGE ops: "pull to folder" — capture a .mota the device is fetching off-mesh into <store_dir>.
+  //     All keyed by mid[4]; a partial pull is <midhex>.mota.part, published to <midhex>.mota on OP_FIN. ---
+  if (op == MS_OP_STAT || op == MS_OP_BEGIN || op == MS_OP_WRITE || op == MS_OP_SREAD || op == MS_OP_FIN) {
+    if (store_dir_.empty() || arglen < 4) { status = MS_STATUS_ERR; return true; }
+    const std::string part = store_path(args, true), done = store_path(args, false);
+
+    if (op == MS_OP_STAT) {                                      // present + size (completed wins over partial)
+      struct stat sx{}; uint8_t present = 0; uint32_t total = 0;
+      if (::stat(done.c_str(), &sx) == 0)      { present = 1; total = (uint32_t)sx.st_size; }
+      else if (::stat(part.c_str(), &sx) == 0) { present = 1; total = (uint32_t)sx.st_size; }
+      payload.push_back(present);
+      uint8_t tb[4]; wr_u32(tb, total); payload.insert(payload.end(), tb, tb + 4);
+      return true;
+    }
+    if (op == MS_OP_BEGIN) {                                     // fresh 0xFF-filled partial (start from 0)
+      if (arglen < 8) { status = MS_STATUS_ERR; return true; }
+      uint32_t total = rd_u32(args + 4);
+      int fd = ::open(part.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+      if (fd < 0) { status = MS_STATUS_ERR; return true; }
+      uint8_t ff[4096]; memset(ff, 0xFF, sizeof ff);
+      uint32_t left = total; bool ok = true;
+      while (left && ok) { uint32_t c = left < sizeof ff ? left : (uint32_t)sizeof ff; ok = ::write(fd, ff, c) == (ssize_t)c; left -= c; }
+      ::close(fd);
+      status = ok ? MS_STATUS_OK : MS_STATUS_ERR;
+      return true;
+    }
+    if (op == MS_OP_WRITE) {
+      if (arglen < 10) { status = MS_STATUS_ERR; return true; }
+      uint32_t off = rd_u32(args + 4);
+      uint16_t len = (uint16_t)(args[8] | (args[9] << 8));
+      if (arglen < (size_t)10 + len) { status = MS_STATUS_ERR; return true; }
+      int fd = ::open(part.c_str(), O_WRONLY);
+      if (fd < 0) { status = MS_STATUS_ERR; return true; }
+      bool ok = ::pwrite(fd, args + 10, len, off) == (ssize_t)len;
+      ::close(fd);
+      status = ok ? MS_STATUS_OK : MS_STATUS_ERR;
+      return true;
+    }
+    if (op == MS_OP_SREAD) {                                     // read back (resume: recompute missing blocks)
+      if (arglen < 10) { status = MS_STATUS_ERR; return true; }
+      uint32_t off = rd_u32(args + 4);
+      uint16_t len = (uint16_t)(args[8] | (args[9] << 8));
+      const std::string src = (::access(part.c_str(), F_OK) == 0) ? part : done;
+      int fd = ::open(src.c_str(), O_RDONLY);
+      if (fd < 0) { status = MS_STATUS_ERR; return true; }
+      payload.resize(len);
+      bool ok = ::pread(fd, payload.data(), len, off) == (ssize_t)len;
+      ::close(fd);
+      if (!ok) { payload.clear(); status = MS_STATUS_ERR; }
+      return true;
+    }
+    if (op == MS_OP_FIN) {                                       // light-validate (MAGIC + size) then publish
+      struct stat sx{};
+      if (::stat(part.c_str(), &sx) != 0) { status = MS_STATUS_ERR; return true; }
+      uint8_t hd[8] = {0}; int fd = ::open(part.c_str(), O_RDONLY);
+      bool got = fd >= 0 && ::read(fd, hd, 8) == 8;
+      if (fd >= 0) ::close(fd);
+      bool magic = got && hd[0] == 'm' && hd[1] == 'O' && hd[2] == 'T' && hd[3] == 'A';
+      if (!magic || rd_u32(hd + 4) != (uint32_t)sx.st_size) { status = MS_STATUS_ERR; return true; }
+      std::error_code ec; fs::rename(part, done, ec);
+      status = ec ? MS_STATUS_ERR : MS_STATUS_OK;
+      return true;
+    }
   }
   return false;                                                 // unknown op -> ignore (device retries)
 }
@@ -222,10 +295,20 @@ void serve_loop(Transport& t, const SeederCore& core, bool verbose,
       prev = -1;
       uint8_t op;
       if (!read_exact(t, &op, 1)) continue;
-      size_t arglen = (op == MS_OP_DESCRIBE) ? 1 : (op == MS_OP_READ ? 7 : (op == MS_OP_COUNT ? 0 : SIZE_MAX));
-      if (arglen == SIZE_MAX) continue;                         // unknown op
-      uint8_t args[7];
-      if (arglen && !read_exact(t, args, arglen)) continue;
+      // fixed header bytes per op; OP_WRITE additionally reads `len` data bytes after its 10-byte header
+      size_t hdr = (op == MS_OP_COUNT) ? 0 : (op == MS_OP_DESCRIBE) ? 1 : (op == MS_OP_READ) ? 7
+                 : (op == MS_OP_STAT || op == MS_OP_FIN) ? 4 : (op == MS_OP_BEGIN) ? 8
+                 : (op == MS_OP_SREAD || op == MS_OP_WRITE) ? 10 : SIZE_MAX;
+      if (hdr == SIZE_MAX) continue;                            // unknown op
+      uint8_t args[10 + MOTA_SEEDER_WRITE_MAX];
+      if (hdr && !read_exact(t, args, hdr)) continue;
+      size_t arglen = hdr;
+      if (op == MS_OP_WRITE) {                                  // variable payload: header(10) + data(len)
+        uint16_t dlen = (uint16_t)(args[8] | (args[9] << 8));
+        if (dlen > MOTA_SEEDER_WRITE_MAX) continue;             // guard a runaway frame
+        if (dlen && !read_exact(t, args + 10, dlen)) continue;
+        arglen = (size_t)10 + dlen;
+      }
       uint8_t xs;
       if (!read_exact(t, &xs, 1)) continue;
       if (xs != xor_bytes(args, arglen, op)) continue;          // bad checksum -> ignore; device retries

@@ -282,6 +282,38 @@ static void t_folder_and_seeder() {
   uint8_t reof[7]; reof[0] = 0; wr_u32(reof + 1, (uint32_t)s0->bytes.size()); reof[5] = 16; reof[6] = 0;
   CHECK(core.handle(MS_OP_READ, reof, 7, status, pl) && status == MS_STATUS_ERR);
 
+  // --- STORAGE ops ("pull to folder"): STAT -> BEGIN -> WRITE -> SREAD -> FIN round-trip ---
+  fs::path sdir = dir / "store"; fs::create_directories(sdir);
+  SeederCore store(folder, sdir.string());
+  uint8_t mid[4] = {0xDE, 0xAD, 0xBE, 0xEF};
+  auto midpath = [&](bool part) {
+    static const char* H = "0123456789abcdef"; std::string nm;
+    for (int i = 0; i < 4; i++) { nm += H[mid[i] >> 4]; nm += H[mid[i] & 0xF]; }
+    nm += part ? ".mota.part" : ".mota"; return (sdir / nm).string();
+  };
+  // STAT before anything -> present=0
+  CHECK(store.handle(MS_OP_STAT, mid, 4, status, pl) && status == MS_STATUS_OK && pl.size() == 5 && pl[0] == 0);
+  // BEGIN total=64 -> 0xFF-filled partial
+  uint8_t beg[8]; std::memcpy(beg, mid, 4); wr_u32(beg + 4, 64);
+  CHECK(store.handle(MS_OP_BEGIN, beg, 8, status, pl) && status == MS_STATUS_OK);
+  CHECK(store.handle(MS_OP_STAT, mid, 4, status, pl) && pl[0] == 1 && rd_u32(pl.data() + 1) == 64);
+  // WRITE the header (MAGIC + total) + a blob at offset 0
+  const uint8_t blob[16] = {'m','O','T','A', 64,0,0,0, 1,2,3,4,5,6,7,8};
+  uint8_t wr[10 + 16]; std::memcpy(wr, mid, 4); wr_u32(wr + 4, 0); wr[8] = 16; wr[9] = 0; std::memcpy(wr + 10, blob, 16);
+  CHECK(store.handle(MS_OP_WRITE, wr, 10 + 16, status, pl) && status == MS_STATUS_OK);
+  // SREAD back the 16 written bytes; an unwritten region reads 0xFF
+  uint8_t srd[10]; std::memcpy(srd, mid, 4); wr_u32(srd + 4, 0); srd[8] = 16; srd[9] = 0;
+  CHECK(store.handle(MS_OP_SREAD, srd, 10, status, pl) && pl.size() == 16 && std::memcmp(pl.data(), blob, 16) == 0);
+  wr_u32(srd + 4, 32); srd[8] = 8; srd[9] = 0;
+  CHECK(store.handle(MS_OP_SREAD, srd, 10, status, pl) && pl.size() == 8 && pl[0] == 0xFF && pl[7] == 0xFF);
+  // FIN -> validates + publishes <mid>.mota
+  CHECK(fs::exists(midpath(true)) && !fs::exists(midpath(false)));
+  CHECK(store.handle(MS_OP_FIN, mid, 4, status, pl) && status == MS_STATUS_OK);
+  CHECK(!fs::exists(midpath(true)) && fs::exists(midpath(false)) && fs::file_size(midpath(false)) == 64);
+  CHECK(store.handle(MS_OP_STAT, mid, 4, status, pl) && pl[0] == 1 && rd_u32(pl.data() + 1) == 64);
+  // storage refused on a serve-only core (empty store_dir)
+  CHECK(core.handle(MS_OP_STAT, mid, 4, status, pl) && status == MS_STATUS_ERR);
+
   fs::remove_all(dir);
 }
 
