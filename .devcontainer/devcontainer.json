@@ -5,7 +5,23 @@
 		"ghcr.io/devcontainers/features/node:1": {},
 		"ghcr.io/rocker-org/devcontainer-features/apt-packages:1": {
 			"packages": [
-				"sudo"
+				"sudo",
+				// Zephyr / nRF Connect SDK host build dependencies
+				"git",
+				"cmake",
+				"ninja-build",
+				"gperf",
+				"ccache",
+				"dfu-util",
+				"device-tree-compiler",
+				"wget",
+				"xz-utils",
+				"file",
+				"make",
+				"libsdl2-dev",
+				"libmagic1",
+				"python3-venv",
+				"python3-dev"
 			]
 		}
 	},
@@ -20,7 +36,12 @@
 	],
 	"postCreateCommand": {
 		"platformio": "pipx install platformio",
-		"opencode": "curl -fsSL https://opencode.ai/install | bash"
+		"opencode": "curl -fsSL https://opencode.ai/install | bash",
+		// HEAVY (multi-GB, slow first run). Comment this out and run the script
+		// manually (`bash .devcontainer/setup-zephyr.sh`) if you'd rather not pay
+		// the cost on every container (re)create. Non-fatal: PlatformIO still works
+		// even if this fails.
+		"zephyr": "bash .devcontainer/setup-zephyr.sh || echo 'Zephyr setup skipped/failed; run .devcontainer/setup-zephyr.sh manually'"
 	},
 	"customizations": {
 		"vscode": {
