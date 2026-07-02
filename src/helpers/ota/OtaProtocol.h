@@ -46,7 +46,10 @@ struct HaveMsg {
 static const uint8_t OTA_HAVE_ROW_BYTES = 16;   // mid4 + target4 + fwver4 + codec1 + flags1 + have_count2
 
 // ---- OTA_GET_MANIFEST: request the manifest for a content id (direct) ----
-struct GetManifestMsg { uint8_t manifest_id[4]; };
+// body: manifest_id(4) want_mask(2). want_mask bit k = "send manifest fragment k"; 0xFFFF = "send all"
+// (used on the first ask, before frag_total is known). A retry requests only the still-missing fragments,
+// so a lost manifest fragment doesn't force the whole manifest to be re-bursted (same rationale as OTA_REQ).
+struct GetManifestMsg { uint8_t manifest_id[4]; uint16_t want_mask; };
 
 // ---- OTA_MANIFEST: the manifest-minus-leaves[], fragmented (direct) ----
 // body: manifest_id(4) frag_idx(1) frag_total(1) bytes[]
@@ -56,8 +59,12 @@ struct ManifestMsg {
   const uint8_t* bytes; uint16_t len;
 };
 
-// ---- OTA_REQ: request a window of blocks (direct) ----
-struct ReqMsg { uint8_t manifest_id[4]; uint16_t start_block; uint8_t count; };
+// ---- OTA_REQ: request specific fragments of ONE block (direct) ----
+// body: manifest_id(4) block_idx(2) want_mask(2). want_mask bit k = "send fragment k" (the slice at byte
+// offset k*OTA_FRAG_DATA). A fetcher requests the full mask ((1<<nf)-1) for a fresh block and only the
+// missing bits to recover holes, so a lost fragment costs one fragment to re-send — not the whole block
+// (saves airtime and avoids the re-REQ colliding with a multi-fragment burst on half-duplex radios).
+struct ReqMsg { uint8_t manifest_id[4]; uint16_t block_idx; uint16_t want_mask; };
 
 // ---- OTA_DATA: one self-describing fragment of a block's data (proof is fetched separately) ----
 // body: manifest_id(4) block_idx(2) frag_off(2) data[]
@@ -68,6 +75,21 @@ struct DataMsg {
   uint16_t block_idx;
   uint16_t frag_off;
   const uint8_t* data; uint16_t data_len;
+};
+
+// ---- OTA_GET_LEAVES: request the target's merkle leaves[] in bulk (direct; motatool warm-start only) ----
+// body: manifest_id(4) want_mask(2). want_mask bit k = "send leaves fragment k"; 0xFFFF = "send all" on the
+// first ask (before frag_total is known); a retry requests only the still-missing fragments (anti-burst,
+// same rationale as OTA_GET_MANIFEST). Lets a folder-capture fetcher diff a seed build's blocks against the
+// target's authenticated leaves and pull DATA only for the ones that differ.
+struct GetLeavesMsg { uint8_t manifest_id[4]; uint16_t want_mask; };
+
+// ---- OTA_LEAVES: one fragment of the leaves[] array (block_count*4 bytes total), direct ----
+// body: manifest_id(4) frag_idx(1) frag_total(1) bytes[]   (up to OTA_LEAVES_FRAG leaf bytes per fragment)
+struct LeavesMsg {
+  uint8_t  manifest_id[4];
+  uint8_t  frag_idx, frag_total;
+  const uint8_t* bytes; uint16_t len;
 };
 
 // ---- OTA_REQ_PROOF: request the merkle proof for one (reassembled) block (direct) ----
@@ -99,6 +121,12 @@ bool     decode_req(const uint8_t* buf, uint16_t len, ReqMsg& m);
 
 uint16_t encode_data(uint8_t* buf, uint16_t cap, const DataMsg& m);
 bool     decode_data(const uint8_t* buf, uint16_t len, DataMsg& m);
+
+uint16_t encode_get_leaves(uint8_t* buf, uint16_t cap, const GetLeavesMsg& m);
+bool     decode_get_leaves(const uint8_t* buf, uint16_t len, GetLeavesMsg& m);
+
+uint16_t encode_leaves(uint8_t* buf, uint16_t cap, const LeavesMsg& m);
+bool     decode_leaves(const uint8_t* buf, uint16_t len, LeavesMsg& m);
 
 uint16_t encode_req_proof(uint8_t* buf, uint16_t cap, const ReqProofMsg& m);
 bool     decode_req_proof(const uint8_t* buf, uint16_t len, ReqProofMsg& m);

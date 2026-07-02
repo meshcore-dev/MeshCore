@@ -27,6 +27,7 @@ static char fstate_char(OtaManager::FetchState s) {
   switch (s) {
     case OtaManager::IDLE: return 'I';
     case OtaManager::WANT_MANIFEST: return 'W';
+    case OtaManager::WANT_LEAVES: return 'L';
     case OtaManager::FETCHING: return 'F';
     case OtaManager::COMPLETE: return 'C';
     case OtaManager::PAUSED: return 'P';
@@ -42,6 +43,7 @@ static const char* state_word(OtaManager::FetchState s) {
   switch (s) {
     case OtaManager::IDLE:          return "idle";
     case OtaManager::WANT_MANIFEST: return "starting";
+    case OtaManager::WANT_LEAVES:   return "validating seed";
     case OtaManager::FETCHING:      return "downloading";
     case OtaManager::COMPLETE:      return "ready to install";
     case OtaManager::FAILED:        return "failed";
@@ -195,17 +197,21 @@ bool handle_ota_command(const char* command, char* reply, mesh::MainBoard& board
       return true;
     }
     if (c.apply_pending) { strcpy(reply, "ERR busy applying"); return true; }
+    // optional 3rd token: `folder validate` -> leaf-diff warm-start against a seed motatool staged (capture only)
+    bool validate = false;
+    { const char* q = dst; while (*q && *q != ' ') q++; while (*q == ' ') q++;
+      if (strncmp(q, "validate", 8) == 0) validate = true; }
     uint8_t selmid[4]; uint32_t seltgt = sel->target_id; memcpy(selmid, sel->mid, 4);   // sel may move on reset
     OtaStore* store; const char* dname;
     if (strncmp(dst, "flash", 5) == 0) {
-      store = &c.fetch_store; c.fetch_store.clear(); dname = "flash";
+      store = &c.fetch_store; c.fetch_store.clear(); dname = "flash"; validate = false;   // seed lives in the folder
     } else if (strncmp(dst, "folder", 6) == 0) {
       if (!c.folder_dest) { strcpy(reply, "ERR no folder connected (run motatool serve --tcp/--serial)"); return true; }
-      c.folder_dest->set_mid(selmid); store = c.folder_dest; dname = "folder";
+      c.folder_dest->set_mid(selmid); store = c.folder_dest; dname = validate ? "folder+validate" : "folder";
     } else { strcpy(reply, "ERR destination must be `flash` or `folder`"); return true; }
     c.manager.reset_session();
     c.manager.set_fetch_store(store);                        // stage this pull to the chosen destination
-    c.manager.pull(selmid, seltgt);                          // sets want + begins the manifest fetch now
+    c.manager.pull(selmid, seltgt, validate);                // sets want + begins the manifest fetch now
     char midhx[9]; mesh::Utils::toHex(midhx, selmid, 4);
     snprintf(reply, 160, "OK pulling mid=%s -> %s (low priority)", midhx, dname);
 

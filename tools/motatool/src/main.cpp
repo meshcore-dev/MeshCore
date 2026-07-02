@@ -214,6 +214,9 @@ static void help_serve() {
 "  --baud   <n>          serial speed (default 115200; --serial only).\n"
 "  --no-recursive        serve only the top folder; don't descend into sub-folders.\n"
 "  --no-enable           (--serial only) don't auto-send 'ota folder on'/'off' on the node's CLI.\n"
+"  --seed   <file.mota>  warm-start: stage this (similar) build's payload into each captured .part so an\n"
+"                        `ota pull <#> folder validate` diffs it against the target's merkle leaves and pulls\n"
+"                        only the differing blocks — capture a non-deterministic rebuild in seconds.\n"
 "  -v, --verbose         log each request the node makes (COUNT / DESCRIBE / READ).\n"
 "\n"
 "Leave it running; press Ctrl-C to stop. Over serial it shares the USB cable with the node's text\n"
@@ -500,6 +503,22 @@ static int cmd_serve(const Args& a) {
   std::cout << "serving on " << target << " — Ctrl-C to stop\n";
 
   SeederCore core(folder, a.get("dir"));   // same folder doubles as "pull to folder" storage
+  // Optional warm-start seed: a *similar* build's .mota. Its payload is dropped into each captured `.part`
+  // so a `ota pull … folder validate` diffs it against the target's leaves and pulls only the differing
+  // blocks (huge airtime saving when capturing a non-deterministic rebuild of the same firmware).
+  if (a.has("seed")) {
+    std::vector<uint8_t> sb;
+    if (!read_file(a.get("seed"), sb)) { std::cerr << "error: cannot read seed " << a.get("seed") << "\n"; return 1; }
+    Manifest sm; std::string e = parse(sb, sm);
+    if (!e.empty()) { std::cerr << "error: bad seed .mota: " << e << "\n"; return 1; }
+    uint32_t poff = sm.payload_off();
+    if ((uint64_t)poff + sm.payload_size > sb.size()) { std::cerr << "error: seed payload out of range\n"; return 1; }
+    core.set_seed(std::vector<uint8_t>(sb.begin() + poff, sb.begin() + poff + sm.payload_size), sm.block_count);
+    std::cout << "seed: " << fs::path(a.get("seed")).filename().string()
+              << " mid=" << to_hex(sm.merkle_root.data(), 4)
+              << " blocks=" << sm.block_count << " payload=" << sm.payload_size
+              << " (staged into each capture for `ota pull … validate`)\n";
+  }
   serve_loop(*t, core, verbose,
              [](const std::string& l) { std::cout << "  [dev] " << l << "\n"; }, &g_stop);
 

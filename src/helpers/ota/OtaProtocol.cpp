@@ -64,12 +64,13 @@ bool decode_have(const uint8_t* buf, uint16_t len, HaveMsg& m) {
 }
 
 uint16_t encode_get_manifest(uint8_t* buf, uint16_t cap, const GetManifestMsg& m) {
-  W w(buf, cap); w.u8(OTA_GET_MANIFEST); w.raw(m.manifest_id, 4);
+  W w(buf, cap); w.u8(OTA_GET_MANIFEST); w.raw(m.manifest_id, 4); w.u16(m.want_mask);
   return w.ok ? w.n : 0;
 }
 bool decode_get_manifest(const uint8_t* buf, uint16_t len, GetManifestMsg& m) {
   R r(buf, len); if (r.u8() != OTA_GET_MANIFEST) return false;
   const uint8_t* id = r.raw(4); if (id) memcpy(m.manifest_id, id, 4);
+  m.want_mask = r.u16();
   return r.ok;
 }
 
@@ -87,13 +88,13 @@ bool decode_manifest(const uint8_t* buf, uint16_t len, ManifestMsg& m) {
 }
 
 uint16_t encode_req(uint8_t* buf, uint16_t cap, const ReqMsg& m) {
-  W w(buf, cap); w.u8(OTA_REQ); w.raw(m.manifest_id, 4); w.u16(m.start_block); w.u8(m.count);
+  W w(buf, cap); w.u8(OTA_REQ); w.raw(m.manifest_id, 4); w.u16(m.block_idx); w.u16(m.want_mask);
   return w.ok ? w.n : 0;
 }
 bool decode_req(const uint8_t* buf, uint16_t len, ReqMsg& m) {
   R r(buf, len); if (r.u8() != OTA_REQ) return false;
   const uint8_t* id = r.raw(4); if (id) memcpy(m.manifest_id, id, 4);
-  m.start_block = r.u16(); m.count = r.u8();
+  m.block_idx = r.u16(); m.want_mask = r.u16();
   return r.ok;
 }
 
@@ -130,6 +131,30 @@ bool decode_proof(const uint8_t* buf, uint16_t len, ProofMsg& m) {
   R r(buf, len); if (r.u8() != OTA_PROOF) return false;
   const uint8_t* id = r.raw(4); if (id) memcpy(m.manifest_id, id, 4);
   m.block_idx = r.u16(); m.n_proof = r.u8(); m.proof = r.raw((uint16_t)m.n_proof * 4);
+  return r.ok;
+}
+
+uint16_t encode_get_leaves(uint8_t* buf, uint16_t cap, const GetLeavesMsg& m) {
+  W w(buf, cap); w.u8(OTA_GET_LEAVES); w.raw(m.manifest_id, 4); w.u16(m.want_mask);
+  return w.ok ? w.n : 0;
+}
+bool decode_get_leaves(const uint8_t* buf, uint16_t len, GetLeavesMsg& m) {
+  R r(buf, len); if (r.u8() != OTA_GET_LEAVES) return false;
+  const uint8_t* id = r.raw(4); if (id) memcpy(m.manifest_id, id, 4);
+  m.want_mask = r.u16();
+  return r.ok;
+}
+
+uint16_t encode_leaves(uint8_t* buf, uint16_t cap, const LeavesMsg& m) {
+  W w(buf, cap); w.u8(OTA_LEAVES); w.raw(m.manifest_id, 4); w.u8(m.frag_idx); w.u8(m.frag_total);
+  w.raw(m.bytes, m.len);
+  return w.ok ? w.n : 0;
+}
+bool decode_leaves(const uint8_t* buf, uint16_t len, LeavesMsg& m) {
+  R r(buf, len); if (r.u8() != OTA_LEAVES) return false;
+  const uint8_t* id = r.raw(4); if (id) memcpy(m.manifest_id, id, 4);
+  m.frag_idx = r.u8(); m.frag_total = r.u8();
+  m.len = r.remaining(); m.bytes = r.raw(m.len);
   return r.ok;
 }
 

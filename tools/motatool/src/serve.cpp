@@ -120,6 +120,15 @@ bool SeederCore::handle(uint8_t op, const uint8_t* args, size_t arglen,
       uint8_t ff[4096]; memset(ff, 0xFF, sizeof ff);
       uint32_t left = total; bool ok = true;
       while (left && ok) { uint32_t c = left < sizeof ff ? left : (uint32_t)sizeof ff; ok = ::write(fd, ff, c) == (ssize_t)c; left -= c; }
+      // Warm-start seed: drop a similar build's payload into the payload region so the device's leaf-diff
+      // (`ota pull … validate`) keeps the blocks that match the target and pulls only the differing ones.
+      // Header + leaves stay 0xFF (the device writes the real manifest; leaves mark "present" as they pass).
+      if (ok && !seed_payload_.empty()) {
+        uint32_t payload_off = 8 + MOTA_MFL + seed_bc_ * 4;
+        uint32_t n = (uint32_t)seed_payload_.size();
+        if (payload_off + n > total) n = (payload_off < total) ? total - payload_off : 0;   // clamp to the file
+        if (n) ok = ::pwrite(fd, seed_payload_.data(), n, payload_off) == (ssize_t)n;
+      }
       ::close(fd);
       status = ok ? MS_STATUS_OK : MS_STATUS_ERR;
       return true;

@@ -41,10 +41,18 @@ public:
   bool handle(uint8_t op, const uint8_t* args, size_t arglen,
               uint8_t& status, std::vector<uint8_t>& payload) const;
   static std::array<uint8_t, MOTA_DESC_WIRE> describe(const ServedMota& s);
+  // Warm-start seed (motatool folder-capture): a *similar* build's payload. On OP_BEGIN, after the 0xFF-fill,
+  // the seed payload is written into the new `.part` at its payload region so the device can validate matching
+  // blocks against the target's merkle leaves and pull DATA only for the ones that differ (`ota pull … validate`).
+  void set_seed(std::vector<uint8_t> payload, uint32_t block_count) {
+    seed_payload_ = std::move(payload); seed_bc_ = block_count;
+  }
 private:
   std::string store_path(const uint8_t mid[4], bool part) const;   // <store_dir>/<midhex>.mota[.part]
   const Folder& folder_;
   std::string   store_dir_;
+  std::vector<uint8_t> seed_payload_;   // similar-build payload injected on OP_BEGIN (empty = no seed)
+  uint32_t      seed_bc_ = 0;           // seed's block_count (fixes payload_off = 8 + MOTA_MFL + bc*4)
 };
 
 // A bidirectional byte link (the serial seeder needs this; BLE would reuse SeederCore directly).

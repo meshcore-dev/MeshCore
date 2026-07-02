@@ -83,6 +83,8 @@ enum OtaMsgType : uint8_t {
   OTA_DATA         = 0x07,   // one fragment of a block's data (self-describing by frag_off; no proof)
   OTA_REQ_PROOF    = 0x08,   // request the merkle proof for one block (data + proof are fetched separately)
   OTA_PROOF        = 0x09,   // the merkle proof for one block
+  OTA_GET_LEAVES   = 0x0A,   // request the target's merkle leaves[] (motatool warm-start; bitmap-fragmented)
+  OTA_LEAVES       = 0x0B,   // a fragment of the leaves[] array (for host-side seed leaf-diff)
 };
 
 static const uint16_t OTA_DEFAULT_BLOCK_SIZE = 1024;

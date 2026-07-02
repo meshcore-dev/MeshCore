@@ -288,12 +288,14 @@ Message types:
 | `OTA_ADV`          | 0x01 | flood  | tiny per-node beacon (discovery tier 1) |
 | `OTA_QUERY`        | 0x02 | flood  | ask a source for its catalog (discovery tier 2) |
 | `OTA_HAVE`         | 0x03 | flood  | the catalog reply (fragmented, digest-tagged) |
-| `OTA_GET_MANIFEST` | 0x04 | direct | request a manifest by `manifest_id` |
+| `OTA_GET_MANIFEST` | 0x04 | direct | request a manifest's fragments (`want_mask`) by `manifest_id` |
 | `OTA_MANIFEST`     | 0x05 | direct | the manifest-minus-leaves, fragmented |
-| `OTA_REQ`          | 0x06 | direct | request a window of blocks' DATA |
+| `OTA_REQ`          | 0x06 | direct | request specific DATA fragments of one block (`want_mask`) |
 | `OTA_DATA`         | 0x07 | direct | one self-describing fragment of a block's data |
 | `OTA_REQ_PROOF`    | 0x08 | direct | request the merkle proof for one block |
 | `OTA_PROOF`        | 0x09 | direct | the merkle proof for one block |
+| `OTA_GET_LEAVES`   | 0x0A | direct | request the target's `leaves[]` fragments (`want_mask`) — warm-start only |
+| `OTA_LEAVES`       | 0x0B | direct | a fragment of the `leaves[]` array (for host-side seed leaf-diff) |
 
 - **`manifest_id`** = the manifest's `merkle_root` (4 bytes) — a compact content id present in every
   transfer message, so a multi-mota server dispatches each request to the right image.
@@ -364,12 +366,12 @@ Net effect: a digest change costs ~1 query + ~1 HAVE flood mesh-wide; a stable m
 
 ```
 fetcher                                   server (any node that has the mid)
-  OTA_GET_MANIFEST(mid)        ───────►
-                               ◄───────   OTA_MANIFEST(mid, frag_idx, frag_total, bytes)   × frag_total
+  OTA_GET_MANIFEST(mid, want_mask)  ►     (want_mask=0xFFFF first; only missing fragments on retry)
+                               ◄───────   OTA_MANIFEST(mid, frag_idx, frag_total, bytes)   × requested frags
   (reassemble manifest, verify, compute geometry: BC, block_size, payload_size)
-  for each missing block window:
-    OTA_REQ(mid, start_block, count)  ►
-                               ◄───────   OTA_DATA(mid, block_idx, frag_off, data) × (per block)
+  for each missing block:
+    OTA_REQ(mid, block_idx, want_mask) ►  (want_mask=all fragments first; only the holes on retry)
+                               ◄───────   OTA_DATA(mid, block_idx, frag_off, data) × requested frags
     (reassemble block from frag_off slices)
     OTA_REQ_PROOF(mid, block_idx) ────►
                                ◄───────   OTA_PROOF(mid, block_idx, n_proof, proof)
@@ -382,18 +384,42 @@ fetcher                                   server (any node that has the mid)
 All offsets after the 1-byte type. Encoders/decoders in `OtaProtocol.cpp`; constants in `OtaManager.h`.
 
 ```
-OTA_GET_MANIFEST:  manifest_id[4]
+OTA_GET_MANIFEST:  manifest_id[4]  want_mask(uint16)   # bit k = send manifest fragment k; 0xFFFF = all
 OTA_MANIFEST:      manifest_id[4]  frag_idx(1)  frag_total(1)  bytes[]     # up to OTA_MF_FRAG=176 B/frag
-OTA_REQ:           manifest_id[4]  start_block(uint16)  count(1)
+OTA_REQ:           manifest_id[4]  block_idx(uint16)  want_mask(uint16)    # bit k = send fragment k of block
 OTA_DATA:          manifest_id[4]  block_idx(uint16)  frag_off(uint16)  data[]   # up to OTA_FRAG_DATA=160 B
 OTA_REQ_PROOF:     manifest_id[4]  block_idx(uint16)
 OTA_PROOF:         manifest_id[4]  block_idx(uint16)  n_proof(1)  proof[]   # n_proof × 4 bytes
+OTA_GET_LEAVES:    manifest_id[4]  want_mask(uint16)   # bit k = send leaves fragment k; 0xFFFF = all
+OTA_LEAVES:        manifest_id[4]  frag_idx(1)  frag_total(1)  bytes[]      # up to OTA_LEAVES_FRAG=176 leaf bytes
 ```
+
+- **Warm-start / leaf-diff (`OTA_GET_LEAVES`/`OTA_LEAVES`) — motatool folder-capture only.** Capturing a
+  device's firmware into a `motatool serve` folder is slow (a full image is hundreds of blocks). Because
+  builds here are non-deterministic, you cannot reproduce the exact target on the host — but a *similar*
+  build (e.g. a fresh recompile) is ~99% identical. So `motatool serve --seed <similar.mota>` stages that
+  build's payload into the destination `.part`, and `ota pull <#> folder validate` makes the fetcher (1) bulk-
+  fetch the target's `leaves[]` via `OTA_GET_LEAVES`/`OTA_LEAVES` (bitmap-fragmented with a `want_mask`, same
+  anti-burst rule as `OTA_MANIFEST`), (2) recompute the merkle root from them and check it equals the
+  manifest root (authenticate), then (3) keep every seeded block whose leaf matches and pull full `OTA_DATA`
+  only for the blocks that differ. The `want_mask` is a fixed **uint16**, so `leaves[]` is capped at
+  `OTA_LEAVES_MAXFRAG=16` fragments (`OTA_DIFF_MAX_BLOCKS=704` blocks); larger images just fall back to a full
+  fetch. **Normal P2P nodes never use this** — they target only the blocks they want; the only always-on part
+  is answering `OTA_GET_LEAVES` with leaves the node already holds, so any node's firmware can be captured.
 
 - **Block ⇆ fragments:** a 1 KB block is split into self-describing `OTA_DATA` fragments. `frag_off` is the
   byte offset of `data` within the block, so the global position is `block_idx*block_size + frag_off` —
   a fragment is self-placing and may be requested from **any** peer (BitTorrent-style). The fetcher tracks a
   per-block slice bitmap and reassembles before requesting the proof.
+- **Fragment-level requests (anti-deadlock + anti-congestion):** both `OTA_REQ` and `OTA_GET_MANIFEST` carry
+  a `want_mask` — bit *k* asks for fragment *k*. A fetcher requests the **full** mask on the first ask
+  (`(1<<nf)-1`, or `0xFFFF` before `frag_total` is known) and **only the still-missing bits** on any retry,
+  so recovering one lost fragment re-sends *one* fragment, not the whole block/manifest. This is essential on
+  half-duplex radios: re-requesting a whole multi-fragment burst let the periodic retry (a transmit) collide
+  with the tail of the in-flight burst and drop the same fragment forever — a hang. Requesting only the hole
+  removes the burst, so there is nothing to collide with. The mask is 16 bits, matching the reassembly bitmap
+  (≤16 fragments/block; 1 KB blocks = 7). `OTA_HAVE` (broadcast catalog gossip that self-heals via re-query)
+  and `OTA_PROOF` (a single packet) have no such burst and need no mask.
 - **Data and proof are separate phases.** `OTA_DATA` carries no proof; the proof is fetched once per block
   via `OTA_REQ_PROOF`/`OTA_PROOF` after the block's data is complete.
 

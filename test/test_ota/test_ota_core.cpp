@@ -390,10 +390,11 @@ TEST(OtaProtocol, CodecRoundTrips) {
   EXPECT_EQ(h2.frag_total, 1); EXPECT_EQ(h2.n_rows, 2);
   EXPECT_EQ(0, memcmp(h2.rows, rows, 2 * OTA_HAVE_ROW_BYTES));
 
-  GetManifestMsg gm{{1,2,3,4}};
+  GetManifestMsg gm{{1,2,3,4}, 0x0002};   // want only manifest fragment 1 (recovery)
   n = encode_get_manifest(buf, sizeof(buf), gm);
   GetManifestMsg g2; ASSERT_TRUE(decode_get_manifest(buf, n, g2));
   EXPECT_EQ(0, memcmp(g2.manifest_id, gm.manifest_id, 4));
+  EXPECT_EQ(g2.want_mask, 0x0002);
 
   uint8_t mbytes[40]; for (int i = 0; i < 40; i++) mbytes[i] = (uint8_t)(i + 1);
   ManifestMsg mm{{9,8,7,6}, 0, 1, mbytes, 40};
@@ -402,10 +403,26 @@ TEST(OtaProtocol, CodecRoundTrips) {
   EXPECT_EQ(m2.frag_idx, 0); EXPECT_EQ(m2.frag_total, 1); EXPECT_EQ(m2.len, 40);
   EXPECT_EQ(0, memcmp(m2.bytes, mbytes, 40));
 
-  ReqMsg rq{{4,3,2,1}, 7, 5};
+  ReqMsg rq{{4,3,2,1}, 7, 0x005f};        // block 7, want fragments {0,1,2,3,4,6} (a recovery mask)
   n = encode_req(buf, sizeof(buf), rq);
   ReqMsg r2; ASSERT_TRUE(decode_req(buf, n, r2));
-  EXPECT_EQ(r2.start_block, 7); EXPECT_EQ(r2.count, 5);
+  EXPECT_EQ(r2.block_idx, 7); EXPECT_EQ(r2.want_mask, 0x005f);
+
+  // GET_LEAVES: bulk-fetch the target leaves[] with a fragment want_mask (motatool warm-start)
+  GetLeavesMsg gl{{5,6,7,8}, 0x0007};     // want leaves fragments {0,1,2}
+  n = encode_get_leaves(buf, sizeof(buf), gl);
+  ASSERT_GT(n, 0); EXPECT_EQ(ota_msg_type(buf, n), OTA_GET_LEAVES);
+  GetLeavesMsg gl2; ASSERT_TRUE(decode_get_leaves(buf, n, gl2));
+  EXPECT_EQ(0, memcmp(gl2.manifest_id, gl.manifest_id, 4)); EXPECT_EQ(gl2.want_mask, 0x0007);
+
+  // LEAVES: one fragment of the leaves[] array
+  uint8_t lbytes[80]; for (int i = 0; i < 80; i++) lbytes[i] = (uint8_t)(200 - i);
+  LeavesMsg lm{{5,6,7,8}, 1, 4, lbytes, 80};
+  n = encode_leaves(buf, sizeof(buf), lm);
+  ASSERT_GT(n, 0); EXPECT_EQ(ota_msg_type(buf, n), OTA_LEAVES);
+  LeavesMsg lm2; ASSERT_TRUE(decode_leaves(buf, n, lm2));
+  EXPECT_EQ(lm2.frag_idx, 1); EXPECT_EQ(lm2.frag_total, 4); EXPECT_EQ(lm2.len, 80);
+  EXPECT_EQ(0, memcmp(lm2.bytes, lbytes, 80));
 
   // DATA is one self-describing fragment of a block (frag_off places it; proof is fetched separately)
   uint8_t data[100]; for (int i = 0; i < 100; i++) data[i] = (uint8_t)(i * 3);
@@ -964,6 +981,36 @@ TEST(Detools, InPlaceCrlePatchReproducesTarget) {
                                                  (size_t)DT_IP_PATCH_LEN, &c);
   ASSERT_EQ(r, (int)DT_IP_TARGET_LEN);                     // returns to-size on success
   EXPECT_EQ(0, std::memcmp(c.mem.data(), DT_IP_TARGET, DT_IP_TARGET_LEN));
+}
+
+// --- leaf-diff warm-start core (motatool folder-capture): the device fetches the target leaves[], recomputes
+// the root to authenticate them, then keeps every seed block whose leaf matches and refetches only the rest.
+// This exercises that logic (leaf authentication + per-block diff) with no store/fetch machinery. ----------
+TEST(OtaWarmStart, LeafDiffAuthenticatesAndFindsDifferingBlocks) {
+  const uint32_t BS = 16, BC = 5;
+  std::vector<uint8_t> target(BS * BC), seed(BS * BC);
+  for (uint32_t i = 0; i < target.size(); i++) target[i] = seed[i] = (uint8_t)(i * 7 + 3);
+  seed[1 * BS + 5] ^= 0xFF;      // blocks 1 and 3 differ in the seed (a non-deterministic-rebuild style diff)
+  seed[3 * BS + 0] ^= 0x01;
+
+  // target leaves + root (what the device receives over OTA_LEAVES + the manifest merkle_root)
+  uint8_t tleaves[BC * 4], troot[4];
+  for (uint32_t i = 0; i < BC; i++) merkle_leaf(tleaves + i * 4, target.data() + i * BS, BS);
+  merkle_root(troot, tleaves, BC);
+
+  // authenticate the fetched leaves: recomputing the root from them must equal the manifest root
+  uint8_t chk[4]; merkle_root(chk, tleaves, BC);
+  EXPECT_EQ(0, memcmp(chk, troot, 4));
+
+  // diff: a seed block is kept iff its leaf equals the (authenticated) target leaf
+  int nmiss = 0; bool miss[BC] = {false};
+  for (uint32_t i = 0; i < BC; i++) {
+    uint8_t sl[4]; merkle_leaf(sl, seed.data() + i * BS, BS);
+    if (memcmp(sl, tleaves + i * 4, 4) != 0) { miss[i] = true; nmiss++; }
+  }
+  EXPECT_EQ(nmiss, 2);
+  EXPECT_TRUE(miss[1]);  EXPECT_TRUE(miss[3]);
+  EXPECT_FALSE(miss[0]); EXPECT_FALSE(miss[2]); EXPECT_FALSE(miss[4]);
 }
 
 int main(int argc, char** argv) {

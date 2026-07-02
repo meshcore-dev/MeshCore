@@ -74,7 +74,17 @@ $MT inspect ./motas/RAK4631_04D413FD_v1.16.0_full_ABCD1234.mota
 # 5. serve a folder to a node (recursive; skips non-.mota; warns on corrupt)
 $MT serve --dir ./motas --serial /dev/ttyUSB0 --baud 115200 -v   # over USB serial
 $MT serve --dir ./motas --tcp 192.168.1.50:5001 -v               # …or over WiFi (ESP32 companion, port 5001)
+
+# 5b. warm-start a capture: seed the pull with a SIMILAR build, then `ota pull <#> folder validate` on the
+#     node pulls only the blocks that differ (fast capture of a non-deterministic rebuild of the same fw)
+$MT serve --dir ./captured --tcp 192.168.1.50:5001 --seed ./similar_build.mota -v
 ```
+
+`serve` doubles as the **pull-to-folder storage**: a node's `ota pull <#> folder` captures the firmware it's
+fetching off-mesh into `--dir` as `<mid>.mota`. With `--seed <similar.mota>`, that seed's payload is staged
+into each capture so a `ota pull <#> folder validate` on the node bulk-fetches the target's merkle leaves,
+keeps every block the seed already matches, and transfers over LoRa only the differing ones — a byte-exact,
+verifiable capture in seconds instead of a full-image download (see [`../../docs/ota_protocol.md`](../../docs/ota_protocol.md) §8, "warm-start").
 
 `build` notes:
 - **Identity is self-described.** A firmware built by the project's `pio_endf.py` carries its

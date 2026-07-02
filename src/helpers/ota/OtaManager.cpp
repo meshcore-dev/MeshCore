@@ -5,6 +5,7 @@
 #include "OtaByteIO.h"
 #include "OtaDebug.h"
 #include <string.h>
+#include <stdlib.h>   // malloc/free for the (transient) leaf-diff buffer
 
 namespace mesh {
 namespace ota {
@@ -256,11 +257,13 @@ void OtaManager::handleGetManifest(const uint8_t* m, uint16_t n) {
   ServeView* v = resolve(gm.manifest_id);
   if (!v) return;
   // A signed v2 manifest (with hw_id[32]) exceeds one LoRa packet, so send it as fragments. Each carries
-  // up to OTA_MF_FRAG manifest bytes; the client reassembles by frag_idx. (Re-sent in full on a retry.)
+  // up to OTA_MF_FRAG manifest bytes; the client reassembles by frag_idx. Only the fragments requested in
+  // want_mask are sent (0xFFFF = all), so a retry re-sends just the holes, not the whole manifest.
   uint32_t mfl = v->mfl;
   const uint8_t* src = v->m.manifest_start;
   uint8_t ftotal = (uint8_t)((mfl + OTA_MF_FRAG - 1) / OTA_MF_FRAG); if (ftotal == 0) ftotal = 1;
   for (uint8_t fi = 0; fi < ftotal; fi++) {
+    if (!(gm.want_mask & (1u << fi))) continue;      // fetcher didn't ask for this manifest fragment
     uint32_t off = (uint32_t)fi * OTA_MF_FRAG;
     uint32_t fl = mfl - off; if (fl > OTA_MF_FRAG) fl = OTA_MF_FRAG;
     ManifestMsg mm;
@@ -272,9 +275,42 @@ void OtaManager::handleGetManifest(const uint8_t* m, uint16_t n) {
   }
 }
 
-// Emit one block's data as self-describing DATA fragments (frag_off); the proof is fetched separately.
-void OtaManager::emitBlockData(const uint8_t* mid, uint32_t idx, const uint8_t* data, uint32_t blen) {
-  for (uint32_t fo = 0; fo < blen; fo += OTA_FRAG_DATA) {
+// Serve the target's merkle leaves[] in fragments (for a motatool folder-capture warm-start). Only the
+// fragments set in want_mask are emitted, so a want_mask retry re-sends just the holes — never a full burst
+// (same anti-deadlock rationale as OTA_MANIFEST). This is the only leaf-diff piece that runs on every node.
+void OtaManager::handleGetLeaves(const uint8_t* m, uint16_t n) {
+  GetLeavesMsg gl;
+  if (!decode_get_leaves(m, n, gl)) return;
+  ServeView* v = resolve(gl.manifest_id);
+  if (!v || !v->m.leaves) return;
+  uint32_t leaves_len = v->m.block_count * 4;
+  uint8_t ftotal = (uint8_t)((leaves_len + OTA_LEAVES_FRAG - 1) / OTA_LEAVES_FRAG); if (ftotal == 0) ftotal = 1;
+  for (uint8_t fi = 0; fi < ftotal; fi++) {
+    if (!(gl.want_mask & (1u << fi))) continue;      // fetcher didn't ask for this leaves fragment
+    uint32_t off = (uint32_t)fi * OTA_LEAVES_FRAG;
+    uint32_t fl = leaves_len - off; if (fl > OTA_LEAVES_FRAG) fl = OTA_LEAVES_FRAG;
+    LeavesMsg lm;
+    memcpy(lm.manifest_id, v->m.merkle_root, 4);
+    lm.frag_idx = fi; lm.frag_total = ftotal;
+    lm.bytes = v->m.leaves + off; lm.len = (uint16_t)fl;
+    uint8_t b[MAX_PACKET_PAYLOAD];
+    emit(b, encode_leaves(b, sizeof(b), lm), false);
+  }
+}
+
+// Smallest mask covering `nf` fragments: bit k set for k in [0, nf). Caps at 16 (matches _reasm_mask and
+// the manifest reassembly), which bounds a block at 16 fragments — our 1 KB blocks are 7.
+static inline uint16_t frag_full_mask(uint32_t nf) {
+  return (nf >= 16) ? 0xFFFFu : (uint16_t)((1u << nf) - 1);
+}
+
+// Emit one block's data as self-describing DATA fragments (frag_off); only the fragments whose bit is set
+// in `want_mask` are sent (bit k = the slice at k*OTA_FRAG_DATA). The proof is fetched separately.
+void OtaManager::emitBlockData(const uint8_t* mid, uint32_t idx, const uint8_t* data, uint32_t blen,
+                               uint16_t want_mask) {
+  uint32_t k = 0;
+  for (uint32_t fo = 0; fo < blen; fo += OTA_FRAG_DATA, k++) {
+    if (!(want_mask & (1u << k))) continue;         // fetcher didn't ask for this fragment
     uint32_t fl = (fo + OTA_FRAG_DATA <= blen) ? OTA_FRAG_DATA : (blen - fo);
     DataMsg dm;
     memcpy(dm.manifest_id, mid, 4);
@@ -303,36 +339,29 @@ void OtaManager::noteOverheardData(const uint8_t* m, uint16_t n) {
 void OtaManager::handleReq(const uint8_t* m, uint16_t n) {
   ReqMsg rq;
   if (!decode_req(m, n, rq)) return;
+  uint32_t idx = rq.block_idx;
   ServeView* v = resolve(rq.manifest_id);
   if (v) {                                          // serve a fully-held mota (own fw / folder / completed fetch)
+    if (idx >= v->m.block_count || recentlyServed(idx)) return;   // another holder just broadcast it — don't dup
     uint32_t bs = v->m.block_size();
-    for (uint32_t k = 0; k < rq.count; k++) {
-      uint32_t idx = rq.start_block + k;
-      if (idx >= v->m.block_count) break;
-      if (recentlyServed(idx)) continue;            // another holder just broadcast it — don't duplicate
-      uint32_t off = idx * bs;
-      uint32_t blen = (off + bs <= v->m.payload_size) ? bs : (v->m.payload_size - off);
-      uint8_t blk[OTA_MAX_BLOCK];
-      const uint8_t* data;
-      if (v->read) { if (!v->read(v->read_ctx, off, blk, blen)) break; data = blk; }
-      else         { data = v->m.payload + off; }
-      emitBlockData(v->m.merkle_root, idx, data, blen);
-    }
+    uint32_t off = idx * bs;
+    uint32_t blen = (off + bs <= v->m.payload_size) ? bs : (v->m.payload_size - off);
+    uint8_t blk[OTA_MAX_BLOCK];
+    const uint8_t* data;
+    if (v->read) { if (!v->read(v->read_ctx, off, blk, blen)) return; data = blk; }
+    else         { data = v->m.payload + off; }
+    emitBlockData(v->m.merkle_root, idx, data, blen, rq.want_mask);
     return;
   }
-  // Partial re-serve (swarm DURING the transfer): we're fetching this mid and already hold some of these
-  // blocks — serve their DATA (not proofs; we may lack sibling leaves) from our staging store, so peers can
-  // source from us, not only the origin. Reactive + lowest-priority, so real traffic is never impacted.
+  // Partial re-serve (swarm DURING the transfer): we're fetching this mid and already hold this block — serve
+  // its requested DATA (not proofs; we may lack sibling leaves) from our staging store, so peers can source
+  // from us, not only the origin. Reactive + lowest-priority, so real traffic is never impacted.
   if (_fetch && _fstate == FETCHING && memcmp(rq.manifest_id, _fid, 4) == 0) {
-    for (uint32_t k = 0; k < rq.count; k++) {
-      uint32_t idx = rq.start_block + k;
-      if (idx >= _fbc) break;
-      if (!blockPresent(idx) || recentlyServed(idx)) continue;
-      uint8_t blk[OTA_MAX_BLOCK];
-      uint32_t blen = blockLen(idx);
-      if (!_fetch->read(_fpoff + idx * _fbs, blk, blen)) continue;
-      emitBlockData(_fid, idx, blk, blen);
-    }
+    if (idx >= _fbc || !blockPresent(idx) || recentlyServed(idx)) return;
+    uint8_t blk[OTA_MAX_BLOCK];
+    uint32_t blen = blockLen(idx);
+    if (!_fetch->read(_fpoff + idx * _fbs, blk, blen)) return;
+    emitBlockData(_fid, idx, blk, blen, rq.want_mask);
   }
 }
 
@@ -473,15 +502,18 @@ void OtaManager::armFirstReqHold() {
 }
 
 // Begin (or resume) fetching a chosen mid: try a staged-partial resume first, else request the manifest.
-void OtaManager::startFetch(const uint8_t* mid, uint32_t target) {
+void OtaManager::startFetch(const uint8_t* mid, uint32_t target, bool validate) {
   (void)target;
-  if (!_fetch || _fstate == FETCHING || _fstate == WANT_MANIFEST || _fstate == PAUSED) return;
-  if (resumeStaged(mid)) return;                 // resume a partial container left in flash
+  if (!_fetch || _fstate == FETCHING || _fstate == WANT_MANIFEST || _fstate == WANT_LEAVES || _fstate == PAUSED) return;
+  _validate = validate;                          // motatool folder-capture warm-start (seed leaf-diff)
+  // A validate pull is a FRESH seed capture, not a resume: the store already holds the seed's payload (not a
+  // real partial), so never adopt it via resumeStaged — always re-begin and run the manifest→leaves→diff.
+  if (!validate && resumeStaged(mid)) return;    // (non-validate) resume a partial container left in flash
   memcpy(_fid, mid, 4);
   seedBlockRng();                                // per-node block-pick/jitter sequence (distinct per node)
   _fstate = WANT_MANIFEST;
-  _mf_total = 0; _mf_mask = 0; _mf_len = 0; _mf_retries = 0;   // fresh manifest reassembly
-  GetManifestMsg gm; memcpy(gm.manifest_id, _fid, 4);
+  _mf_total = 0; _mf_mask = 0; _mf_len = 0; _mf_retries = 0; _loop_last_mfmask = 0;   // fresh manifest reassembly
+  GetManifestMsg gm; memcpy(gm.manifest_id, _fid, 4); gm.want_mask = 0xFFFF;   // first ask: send all fragments
   uint8_t b[16];
   emit(b, encode_get_manifest(b, sizeof(b), gm), false);
 }
@@ -537,12 +569,93 @@ void OtaManager::handleManifest(const uint8_t* m, uint16_t n) {
 
   _fflags = mf[1];   // manifest flags (FULL/SIGNED) of the fetch in progress (auto-install gate)
   _fpoff = payload_off; _floff = leaves_off; _fpsize = payload_size; _fbc = bc; _fbs = bs;
-  _ftotal = total; _have = 0; _fstate = FETCHING;
+  _ftotal = total; _have = 0;
   clearReassembly();                             // fresh transfer: drop any prior per-block state
   _loop_last_have = 0; _loop_last_mask = 0;
   if (_rng == 0) seedBlockRng();
+  // Warm-start (folder-capture): if requested and the image is small enough for the fixed leaves bitmap,
+  // bulk-fetch the target leaves and diff the seed already staged in the store; else just transfer normally.
+  if (_validate && beginLeafDiff()) {
+    OTA_DBG("OTA: WANT_LEAVES bc=%u (seed leaf-diff)\n", (unsigned)bc);
+    return;
+  }
+  _fstate = FETCHING;
   armFirstReqHold();
   OTA_DBG("OTA: FETCHING bc=%u bs=%u total=%u\n", (unsigned)bc, (unsigned)bs, (unsigned)total);
+}
+
+// --- leaf-diff warm-start (fetcher side; motatool folder-capture only) -----------------------------
+
+void OtaManager::freeLeaves() {
+  if (_leaves_buf) { free(_leaves_buf); _leaves_buf = nullptr; }
+  _lv_total = 0; _lv_mask = 0; _diffing = false; _diff_idx = 0;
+}
+
+// Enter WANT_LEAVES: allocate the target-leaves buffer and request them (bitmap-fragmented). Returns false
+// — caller falls back to a normal full fetch — if the image is too big for the fixed uint16 leaves bitmap or
+// the heap allocation fails. Called from handleManifest once geometry is known.
+bool OtaManager::beginLeafDiff() {
+  freeLeaves();
+  if (_fbc == 0 || _fbc > OTA_DIFF_MAX_BLOCKS) return false;   // must fit the fixed want_mask (16 fragments)
+  _leaves_buf = (uint8_t*)malloc((size_t)_fbc * 4);
+  if (!_leaves_buf) return false;
+  _lv_total = 0; _lv_mask = 0; _lv_retries = 0; _loop_last_lvmask = 0;
+  _fstate = WANT_LEAVES;
+  GetLeavesMsg gl; memcpy(gl.manifest_id, _fid, 4); gl.want_mask = 0xFFFF;   // first ask: all fragments
+  uint8_t b[16];
+  emit(b, encode_get_leaves(b, sizeof(b), gl), false);
+  return true;
+}
+
+// Reassemble the target leaves[] (like the manifest), authenticate them against _froot, then diff the seed.
+void OtaManager::handleLeaves(const uint8_t* m, uint16_t n) {
+  LeavesMsg lv;
+  if (!decode_leaves(m, n, lv) || !_fetch || !_leaves_buf) return;
+  if (_fstate != WANT_LEAVES || memcmp(lv.manifest_id, _fid, 4) != 0) return;
+  uint32_t leaves_len = _fbc * 4;
+  uint8_t ftotal = (uint8_t)((leaves_len + OTA_LEAVES_FRAG - 1) / OTA_LEAVES_FRAG); if (ftotal == 0) ftotal = 1;
+  if (lv.frag_total != ftotal || lv.frag_idx >= ftotal) return;
+  uint32_t foff = (uint32_t)lv.frag_idx * OTA_LEAVES_FRAG;
+  if (foff + lv.len > leaves_len) return;                       // slice out of range
+  if (lv.frag_total != _lv_total) { _lv_total = lv.frag_total; _lv_mask = 0; }   // (re)start
+  memcpy(_leaves_buf + foff, lv.bytes, lv.len);
+  _lv_mask |= (uint16_t)(1u << lv.frag_idx);
+  OTA_DBG("OTA: LEAVES rx frag=%u/%u len=%u mask=%04x\n",
+          (unsigned)lv.frag_idx, (unsigned)lv.frag_total, (unsigned)lv.len, (unsigned)_lv_mask);
+  uint16_t full = (ftotal >= 16) ? 0xFFFF : (uint16_t)((1u << ftotal) - 1);
+  if (_lv_mask != full) return;                                 // wait for every fragment
+  uint8_t root[4]; merkle_root(root, _leaves_buf, _fbc);        // authenticate the leaves against the manifest root
+  if (memcmp(root, _froot, 4) != 0) {                           // can't trust them -> just fetch normally
+    OTA_DBG("OTA: leaves root mismatch -> full fetch\n");
+    freeLeaves(); _fstate = FETCHING; armFirstReqHold(); requestMissing(); return;
+  }
+  // leaves authenticated -> diff the seed against them a batch at a time in loop() (559 store reads must not
+  // block the mesh loop / starve the radio / trip the watchdog). Stay WANT_LEAVES; diffStep() drives it.
+  _diffing = true; _diff_idx = 0;
+  OTA_DBG("OTA: leaves ok (root match); diffing seed...\n");
+}
+
+// Diff up to OTA_DIFF_BATCH seed blocks per call: every block whose seed bytes (already staged in the store
+// payload) hash to the authenticated target leaf is marked present; the rest stay missing and are pulled over
+// LoRa. When all blocks are diffed, continue as a normal FETCHING of the holes (or finalize if none differ).
+void OtaManager::diffStep() {
+  uint8_t blk[OTA_MAX_BLOCK];
+  for (uint32_t k = 0; k < OTA_DIFF_BATCH && _diff_idx < _fbc; k++, _diff_idx++) {
+    uint32_t blen = blockLen(_diff_idx);
+    if (!_fetch->read(_fpoff + _diff_idx * _fbs, blk, blen)) continue;      // read fail -> leave missing
+    uint8_t leaf[4]; merkle_leaf(leaf, blk, blen);
+    if (memcmp(leaf, _leaves_buf + (size_t)_diff_idx * 4, 4) == 0 &&        // seed block == target block
+        _fetch->write(_floff + _diff_idx * 4, _leaves_buf + (size_t)_diff_idx * 4, 4))
+      _have++;                                                             // mark present (payload already seeded)
+  }
+  if (_diff_idx < _fbc) return;                                            // more to diff on the next tick
+  OTA_DBG("OTA: leaf-diff %u/%u already valid; fetching the rest\n", (unsigned)_have, (unsigned)_fbc);
+  freeLeaves();                                                            // clears _diffing + frees the buffer
+  if (_have >= _fbc) {                                                      // seed covered the whole image
+    _fstate = COMPLETE; _fetch->finalize(); serveFetched();
+    return;
+  }
+  _fstate = FETCHING; armFirstReqHold(); requestMissing();
 }
 
 bool OtaManager::resumeStaged(const uint8_t* want_mid) {
@@ -687,11 +800,19 @@ void OtaManager::requestMissing() {
   uint32_t start = pickMissingBlock();
   if (start >= _fbc) return;
   _req_start = start; _req_count = 1;
+  // Ask only for fragments we still lack: the holes of the in-flight partial block (_reasm_need & ~mask),
+  // or all fragments of a fresh block. A lost fragment then costs one fragment to re-fetch, not the whole
+  // block — and the re-REQ can't collide with a multi-fragment burst (half-duplex) as before.
+  uint32_t nf = (blockLen(start) + OTA_FRAG_DATA - 1) / OTA_FRAG_DATA;
+  uint16_t need = frag_full_mask(nf);
+  uint16_t have = (start == _reasm_block) ? _reasm_mask : 0;
+  uint16_t want = (uint16_t)(need & ~have);
+  if (want == 0) want = need;                       // safety: never send an empty request
   ReqMsg rq; memcpy(rq.manifest_id, _fid, 4);
-  rq.start_block = (uint16_t)start; rq.count = 1;
+  rq.block_idx = (uint16_t)start; rq.want_mask = want;
   uint8_t b[16];
-  OTA_DBG("OTA: REQ block=%u (have=%u/%u mask=%04x)\n",
-          (unsigned)start, (unsigned)_have, (unsigned)_fbc, (unsigned)_reasm_mask);
+  OTA_DBG("OTA: REQ block=%u want=%04x (have=%u/%u mask=%04x)\n",
+          (unsigned)start, (unsigned)want, (unsigned)_have, (unsigned)_fbc, (unsigned)_reasm_mask);
   emit(b, encode_req(b, sizeof(b), rq), false);
 }
 
@@ -736,7 +857,7 @@ void OtaManager::noteOverheardReq(const uint8_t* m, uint16_t n) {
   if (_fstate != FETCHING) return;
   ReqMsg rq;
   if (!decode_req(m, n, rq) || memcmp(rq.manifest_id, _fid, 4) != 0) return;
-  _peer_req_block = rq.start_block;
+  _peer_req_block = rq.block_idx;
   _peer_req_at = _now_ms;
 }
 
@@ -747,12 +868,37 @@ void OtaManager::loop() {
     sendQuery(_pq_seeder, _pq_digest, 0);    // unfiltered: one broadcast HAVE serves everyone
   }
   if (_fstate == WANT_MANIFEST) {
-    // the MANIFEST reply may have been lost on a marginal link — retry GET_MANIFEST, but give up after a
-    // cap so an unreachable mid doesn't pin the single fetch slot (or emit) forever.
-    if (++_mf_retries > OTA_MANIFEST_MAX_RETRY) { _fstate = FAILED; return; }
-    GetManifestMsg gm; memcpy(gm.manifest_id, _fid, 4);
-    uint8_t b[16];
-    emit(b, encode_get_manifest(b, sizeof(b), gm), false);
+    // Retry GET_MANIFEST ONLY when a tick passed with no new fragment — re-bursting every tick would congest
+    // the link and burn the retry cap while fragments are still arriving (mirrors FETCHING + WANT_LEAVES).
+    // Give up after a cap of stalled retries so an unreachable mid doesn't pin the single fetch slot forever.
+    if (_mf_mask == _loop_last_mfmask) {
+      if (++_mf_retries > OTA_MANIFEST_MAX_RETRY) { _fstate = FAILED; return; }
+      GetManifestMsg gm; memcpy(gm.manifest_id, _fid, 4);
+      // request only the manifest fragments still missing; 0xFFFF ("send all") until we know frag_total
+      gm.want_mask = (_mf_total > 0) ? (uint16_t)(frag_full_mask(_mf_total) & ~_mf_mask) : 0xFFFF;
+      if (gm.want_mask == 0) gm.want_mask = 0xFFFF;    // safety: never send an empty request
+      uint8_t b[16];
+      emit(b, encode_get_manifest(b, sizeof(b), gm), false);
+    }
+    _loop_last_mfmask = _mf_mask;
+    return;
+  }
+  if (_fstate == WANT_LEAVES) {
+    if (_diffing) { diffStep(); return; }   // leaves in — diff the seed a batch at a time (non-blocking)
+    // Re-request ONLY when a whole tick passed with no new fragment — otherwise re-bursting the holes every
+    // tick congests the link (and burns the retry cap) while fragments are still streaming in. On a stall,
+    // ask for just the missing bitmap (anti-burst); give up (FAILED) after a cap of stalled retries.
+    if (_lv_mask == _loop_last_lvmask) {
+      if (++_lv_retries > OTA_LEAVES_MAX_RETRY) { freeLeaves(); _fstate = FAILED; return; }
+      GetLeavesMsg gl; memcpy(gl.manifest_id, _fid, 4);
+      gl.want_mask = (_lv_total > 0) ? (uint16_t)(frag_full_mask(_lv_total) & ~_lv_mask) : 0xFFFF;
+      if (gl.want_mask == 0) gl.want_mask = 0xFFFF;    // safety: never send an empty request
+      OTA_DBG("OTA: GET_LEAVES retry=%u want=%04x (mask=%04x/%u)\n",
+              (unsigned)_lv_retries, (unsigned)gl.want_mask, (unsigned)_lv_mask, (unsigned)_lv_total);
+      uint8_t b[16];
+      emit(b, encode_get_leaves(b, sizeof(b), gl), false);
+    }
+    _loop_last_lvmask = _lv_mask;
     return;
   }
   if (_fstate != FETCHING) return;
@@ -773,6 +919,8 @@ void OtaManager::on_message(const uint8_t* msg, uint16_t len) {
     case OTA_HAVE:         handleHave(msg, len); break;
     case OTA_GET_MANIFEST: handleGetManifest(msg, len); break;
     case OTA_MANIFEST:     handleManifest(msg, len); break;
+    case OTA_GET_LEAVES:   handleGetLeaves(msg, len); break;
+    case OTA_LEAVES:       handleLeaves(msg, len); break;
     case OTA_REQ:          noteOverheardReq(msg, len); handleReq(msg, len); break;
     case OTA_DATA:         handleData(msg, len); noteOverheardData(msg, len); break;
     case OTA_REQ_PROOF:    handleReqProof(msg, len); break;

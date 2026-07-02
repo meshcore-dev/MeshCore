@@ -52,6 +52,24 @@ typedef bool (*ServeReadFn)(void* ctx, uint32_t off, uint8_t* buf, uint32_t len)
 #ifndef OTA_MANIFEST_MAX_RETRY
 #define OTA_MANIFEST_MAX_RETRY 20   // give up (FAILED) after this many GET_MANIFEST retries — frees the slot
 #endif
+// Leaf-diff warm-start (motatool folder-capture only): bulk-fetch the target's leaves[], diff a seed build
+// locally, pull DATA only for mismatches. OTA_LEAVES is bitmap-fragmented like OTA_MANIFEST so a want_mask
+// retry never re-bursts (anti-deadlock). The mask is a fixed uint16, so leaves are capped at MAXFRAG frags.
+#ifndef OTA_LEAVES_FRAG
+#define OTA_LEAVES_FRAG 176         // leaf bytes per OTA_LEAVES fragment (<= MAX_PACKET_PAYLOAD - 7 header) = 44 leaves
+#endif
+#ifndef OTA_LEAVES_MAXFRAG
+#define OTA_LEAVES_MAXFRAG 16       // fixed want_mask width (uint16) -> at most 16 leaf fragments
+#endif
+#ifndef OTA_DIFF_MAX_BLOCKS
+#define OTA_DIFF_MAX_BLOCKS 704     // = MAXFRAG*(OTA_LEAVES_FRAG/4); warm-start unavailable above this (full fetch)
+#endif
+#ifndef OTA_LEAVES_MAX_RETRY
+#define OTA_LEAVES_MAX_RETRY 20     // give up (FAILED) after this many GET_LEAVES retries
+#endif
+#ifndef OTA_DIFF_BATCH
+#define OTA_DIFF_BATCH 48           // seed blocks diffed per loop tick (bounded so the diff never blocks the
+#endif                              // main loop long enough to starve the radio / trip the watchdog)
 #ifndef OTA_MAX_SOURCES
 #define OTA_MAX_SOURCES 12          // heard OTA sources (beacon senders) tracked (LRU); ~12 B each
 #endif
@@ -99,7 +117,7 @@ public:
   // PAUSED: a folder-destination write failed mid-transfer (the seeder link dropped). Progress is held on
   // the host; the manager stops requesting and does NOT fall back to RAM/flash. resumeStaged() (called on
   // reconnect) re-STATs the host file, recomputes which blocks are missing, and resumes.
-  enum FetchState : uint8_t { IDLE, WANT_MANIFEST, FETCHING, COMPLETE, FAILED, PAUSED };
+  enum FetchState : uint8_t { IDLE, WANT_MANIFEST, WANT_LEAVES, FETCHING, COMPLETE, FAILED, PAUSED };
 
   // Sentinel for "no block" in the reassembly / peer-REQ / recently-served slots (a real block index is
   // a small uint16, so 0xFFFFFFFF is never valid).
@@ -188,7 +206,12 @@ public:
 
   // Begin fetching a chosen mid now (sets want + starts the manifest fetch / resume). Used by `ota pull`
   // once the user picks a catalogued mOTA (the source is reached via the flooded GET_MANIFEST).
-  void pull(const uint8_t* mid, uint32_t target) { want(target); want_mid(mid); startFetch(mid, target); }
+  // `validate` enables the motatool folder-capture warm-start: bulk-fetch the target leaves, diff a seed
+  // build already staged in the destination, and pull DATA only for the differing blocks. Ignored unless a
+  // seed is present (a plain fetch just re-transfers everything). Normal P2P pulls pass false.
+  void pull(const uint8_t* mid, uint32_t target, bool validate = false) {
+    want(target); want_mid(mid); startFetch(mid, target, validate);
+  }
   // Ask every known source for its catalog (populates `ota neighbors`). Async — rows arrive via OTA_HAVE.
   void queryAll();
   // Coarse clock for source/catalog ages + LRU (the Mesh adapter feeds millis; 0 in host tests is fine).
@@ -240,7 +263,8 @@ public:
     _fstate = IDLE; _have = 0; _req_count = 0; _mf_retries = 0;
     clearReassembly();
     _loop_last_have = 0; _loop_last_mask = 0;
-    _mf_total = 0; _mf_mask = 0; _mf_len = 0;
+    _mf_total = 0; _mf_mask = 0; _mf_len = 0; _loop_last_mfmask = 0;
+    freeLeaves(); _validate = false; _lv_retries = 0; _loop_last_lvmask = 0;
     unserveFetched();
   }
 
@@ -271,11 +295,16 @@ private:
   void handleHave(const uint8_t* m, uint16_t n);    // peer: catalog rows (+ startFetch if a row matches)
   void handleGetManifest(const uint8_t* m, uint16_t n);
   void handleManifest(const uint8_t* m, uint16_t n);
+  void handleGetLeaves(const uint8_t* m, uint16_t n);    // serve: send the requested leaf fragments
+  void handleLeaves(const uint8_t* m, uint16_t n);       // fetcher (validate): reassemble the target leaves
+  bool beginLeafDiff();                                  // enter WANT_LEAVES if a seed diff is viable
+  void diffStep();                                       // diff one batch of seed blocks per loop tick
+  void freeLeaves();                                     // release the heap leaves buffer + diff state
   void handleReq(const uint8_t* m, uint16_t n);
   void handleData(const uint8_t* m, uint16_t n);
   void handleReqProof(const uint8_t* m, uint16_t n);
   void handleProof(const uint8_t* m, uint16_t n);
-  void startFetch(const uint8_t* mid, uint32_t target);   // begin/resume a fetch of a chosen mid
+  void startFetch(const uint8_t* mid, uint32_t target, bool validate = false);   // begin/resume a fetch
   bool wantRow(const uint8_t* mid, uint32_t target, uint8_t codec, uint8_t flags) const;  // fetch this row?
   void noteOverheardReq(const uint8_t* m, uint16_t n);    // observe a peer's OTA_REQ (swarm de-dup)
   uint32_t rngNext() { _rng = _rng * 1664525u + 1013904223u; return _rng; }  // per-node LCG (block pick/jitter)
@@ -290,7 +319,8 @@ private:
   static bool srcReadTramp(void* c, uint32_t off, uint8_t* buf, uint32_t len);  // source payload reader
   void serveFetched();                                    // after COMPLETE: re-seed the staged mota (epidemic)
   void unserveFetched();                                  // stop re-seeding (store about to be overwritten)
-  void emitBlockData(const uint8_t* mid, uint32_t idx, const uint8_t* data, uint32_t blen);  // DATA fragments
+  void emitBlockData(const uint8_t* mid, uint32_t idx, const uint8_t* data, uint32_t blen,
+                     uint16_t want_mask);   // emit only the requested DATA fragments of one block
   bool recentlyServed(uint32_t blk) const;                // a peer just broadcast this block's DATA?
   void noteOverheardData(const uint8_t* m, uint16_t n);   // remember overheard DATA (serve de-dup)
   void sendQuery(const uint8_t* seeder, const uint8_t* digest, uint32_t filter_target);  // ask a source for its catalog
@@ -361,7 +391,18 @@ private:
   uint16_t   _mf_retries = 0;                          // GET_MANIFEST retries while WANT_MANIFEST (give up after a cap)
   uint8_t    _mf_total = 0;                    // frag_total of the manifest being reassembled (0 = none)
   uint16_t   _mf_mask = 0;                     // received manifest-fragment bitmap
+  uint16_t   _loop_last_mfmask = 0;            // manifest bitmap last loop tick (retry only on no-progress)
   uint32_t   _mf_len = 0;                      // assembled manifest length (set by the last fragment)
+
+  // leaf-diff warm-start (motatool folder-capture only; buffer is heap-allocated only while WANT_LEAVES)
+  bool       _validate = false;                // this fetch should try the seed leaf-diff before transferring
+  uint8_t*   _leaves_buf = nullptr;            // target leaves[] (bc*4), malloc'd on WANT_LEAVES, freed after diff
+  uint8_t    _lv_total = 0;                    // frag_total of the leaves reply being reassembled (0 = none)
+  uint16_t   _lv_mask = 0;                     // received leaves-fragment bitmap
+  uint16_t   _lv_retries = 0;                  // GET_LEAVES *stalled* retries while WANT_LEAVES
+  uint16_t   _loop_last_lvmask = 0;            // leaves bitmap last loop tick (retry only on no-progress)
+  bool       _diffing = false;                 // leaves are in; diffing the seed a batch per tick
+  uint32_t   _diff_idx = 0;                    // next block index to diff against the seed
 
   // discovery: heard sources (beacon senders) + the catalog assembled from their OTA_HAVE replies
   struct Source { uint8_t seeder[4]; uint8_t digest[4]; uint8_t n_motas; uint32_t last_ms; bool have_catalog; };

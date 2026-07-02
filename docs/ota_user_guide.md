@@ -78,8 +78,9 @@ downloaded yet; this is just looking around. (`ota neighbors` / `ota updates` al
 Pick one from the list by its **number**, and say **where** to put it:
 
 ```
-ota pull 1 flash      # stage it in this node's flash, to install here
-ota pull 1 folder     # capture it onto a connected motatool folder as <id>.mota (don't install here)
+ota pull 1 flash            # stage it in this node's flash, to install here
+ota pull 1 folder           # capture it onto a connected motatool folder as <id>.mota (don't install here)
+ota pull 1 folder validate  # same capture, warm-started from a motatool --seed build (much faster; below)
 ```
 
 The destination is required — `ota pull 1` on its own just shows the choices. **`flash`** is always
@@ -88,6 +89,12 @@ attached (it shows the link, e.g. `folder: tcp 192.168.4.5`); it streams the fir
 host folder — nothing is staged on this node. That's how you grab an **exact copy of another device's
 firmware** off the mesh (to a `.mota` file) so you can later build a *delta* against firmware you don't
 otherwise have. (`ota get` is an alias.)
+
+**`validate` (warm-start, advanced).** Capturing a full image over the radio is slow. If you have a
+*similar* build on the computer (e.g. a fresh recompile of the same firmware), run motatool with
+`--seed <that.mota>` and add **`validate`**: the node fetches just the target's block fingerprints, keeps
+every block your seed already matches, and pulls over the radio only the handful that actually differ —
+turning a ~30-minute capture into seconds. The result is still a byte-exact, verified copy of the target.
 
 The node fetches in the background, **at low priority**, a piece at a time — possibly from several
 neighbours at once. Check progress with `ota status`. You can keep using your node normally meanwhile.
