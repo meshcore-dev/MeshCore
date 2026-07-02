@@ -70,9 +70,6 @@
 #define PIN_QSPI_IO2            _PINNUM(1, 9)
 #define PIN_QSPI_IO3            _PINNUM(0, 26)
 
-#define EXTERNAL_FLASH_DEVICES ZD25WQ32CEIGR
-#define EXTERNAL_FLASH_USE_QSPI
-
 ////////////////////////////////////////////////////////////////////////////////
 // Builtin LEDs
 
