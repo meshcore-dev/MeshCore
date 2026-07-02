@@ -116,20 +116,24 @@ void halt() {
 #if defined(ESP32) && defined(WIFI_SSID) && defined(ENABLE_OTA)
   #include <helpers/ota/OtaContext.h>
   #include <helpers/ota/MotaSourceSerial.h>
+  #include <helpers/ota/FolderMotaStore.h>   // `ota pull <#> folder` destination over this same connection
   #ifndef OTA_SEEDER_TCP_PORT
     #define OTA_SEEDER_TCP_PORT 5001
   #endif
   static WiFiServer ota_seeder_server(OTA_SEEDER_TCP_PORT);
   static WiFiClient ota_seeder_client;                                  // the live seeder connection (reused)
-  static mesh::ota::SerialMotaSource ota_seeder_source(ota_seeder_client, 3000);
+  static mesh::ota::SerialMotaSource ota_seeder_source(ota_seeder_client, 3000);   // SERVE: read folder -> relay
+  static mesh::ota::FolderMotaStore  ota_folder_store(ota_seeder_client, 3000);    // PULL: capture .mota -> folder
   static bool ota_seeder_attached = false;
 
-  // Accept one motatool connection at a time; while connected, register its folder as a serve source so
-  // the node advertises + relays it over LoRa. Drop the source the moment the connection closes.
+  // Accept one motatool connection at a time. While connected, the same link both SERVES the host folder
+  // over LoRa (register it as a source) and is offered as a `folder` PULL destination (`ota pull <#> folder`
+  // captures a fetched .mota back to that folder). Drop both the moment the connection closes.
   static void ota_seeder_loop() {
     if (ota_seeder_client && ota_seeder_client.connected()) return;     // still serving the current client
     if (ota_seeder_attached) {                                          // previous client just disconnected
       mesh::ota::ota_ctx().detach_folder();
+      mesh::ota::ota_ctx().clear_folder_dest();  // the `folder` pull destination is gone too
       mesh::ota::ota_ctx().manager.announce();   // served set shrank back to our own fw -> re-advertise
       ota_seeder_attached = false;
       WIFI_DEBUG_PRINTLN("OTA seeder: client disconnected, relay stopped");
@@ -139,8 +143,10 @@ void halt() {
       ota_seeder_client = c;                                            // rebind the persistent Stream to it
       if (mesh::ota::ota_ctx().manager.add_source(&ota_seeder_source)) {
         ota_seeder_attached = true;
+        char di[24]; snprintf(di, sizeof di, "tcp %s", ota_seeder_client.remoteIP().toString().c_str());
+        mesh::ota::ota_ctx().set_folder_dest(&ota_folder_store, di);   // offer `ota pull <#> folder`
         mesh::ota::ota_ctx().manager.announce();   // new served set -> advertise the folder's fw to peers
-        WIFI_DEBUG_PRINTLN("OTA seeder: client connected, relaying its folder");
+        WIFI_DEBUG_PRINTLN("OTA seeder: client connected (%s) — relay + folder pull-dest ready", di);
       } else {
         ota_seeder_client.stop();                                      // no free source slot
       }

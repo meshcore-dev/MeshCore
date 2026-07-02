@@ -37,6 +37,8 @@
 namespace mesh {
 namespace ota {
 
+class FolderMotaStore;   // pull destination over the seeder link (full type only where instantiated/used)
+
 #ifndef OTA_SERVE_BUF_SIZE
 #define OTA_SERVE_BUF_SIZE 16384
 #endif
@@ -72,6 +74,19 @@ struct OtaContext {
   uint8_t  autoinstall = AUTOINSTALL_OFF;   // 1 = auto-apply a COMPLETE fetch IF signed + allowlisted
   bool     config_dirty = false;            // CLI set a policy/key -> CommonCLI persists + clears
   char     hw_id[33] = {0};                 // this device's hardware tag (from board.getOtaHwId(), set in begin)
+
+  // ---- Pull destinations (`ota pull <#> <dest>`): where a fetched .mota is staged. `flash` (fetch_store,
+  //      always present) or `folder` — an external host folder over the seeder link, registered by the app
+  //      while a motatool `serve` connection is attached (else no `folder` dest is offered). Captures the
+  //      container to the host as <mid>.mota so an exact firmware copy can be pulled for delta-building. ----
+  FolderMotaStore* folder_dest = nullptr;   // non-null == a folder destination is currently connected
+  char     folder_dest_info[24] = {0};      // human id of the link (e.g. "tcp 192.168.4.5", "serial")
+  void set_folder_dest(FolderMotaStore* fs, const char* info) {
+    folder_dest = fs;
+    strncpy(folder_dest_info, info ? info : "?", sizeof(folder_dest_info) - 1);
+    folder_dest_info[sizeof(folder_dest_info) - 1] = 0;
+  }
+  void clear_folder_dest() { folder_dest = nullptr; folder_dest_info[0] = 0; }
 
   // True if the staged .mota's hw_id is compatible with this device: equal tags, or either side empty
   // ("unknown" -> can't enforce -> permissive). Brick-safety gate for apply (esp. manual cross-target).

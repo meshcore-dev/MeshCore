@@ -1,5 +1,6 @@
 #include "OtaCli.h"
 #include "OtaContext.h"
+#include "FolderMotaStore.h"   // `ota pull <#> folder` destination (set_mid on the connected folder store)
 #include "OtaVerify.h"
 #include "OtaSelf.h"
 #include "OtaTargets.h"   // ota_target_env_name(): human-readable name for a target_id (no string on the wire)
@@ -161,23 +162,50 @@ bool handle_ota_command(const char* command, char* reply, mesh::MainBoard& board
 
   // ---- start fetching a specific catalogued mOTA (by list index or manifest_id) ----
   } else if (is_cmd(a, "pull|get|download", &rest)) {
-    const char* p = rest;
-    if (*p == 0) { strcpy(reply, "usage: ota get <#>   (see the numbers in `ota ls`)"); return true; }
+    const char* p = rest; while (*p == ' ') p++;
+    // split into "<selector> [destination]": selector = #N / N (catalogue index) or mid hex; destination =
+    // flash | folder (MANDATORY — `folder` captures the .mota onto the connected motatool folder as <mid>.mota).
+    char selstr[24]; int i = 0;
+    while (p[i] && p[i] != ' ' && i < (int)sizeof(selstr) - 1) { selstr[i] = p[i]; i++; }
+    selstr[i] = 0;
+    const char* dst = p + i; while (*dst == ' ') dst++;
+    if (selstr[0] == 0) { strcpy(reply, "usage: ota pull <#> <flash|folder>   (see `ota ls`)"); return true; }
+    // resolve the catalogue row (index or explicit manifest_id)
     const OtaManager::CatRow* sel = nullptr; uint8_t mid[4];
-    if (*p == '#' || (p[0] >= '1' && p[0] <= '9' && (p[1] == 0 || p[1] == ' '))) {   // index among catalogue
-      int idx = atoi(*p == '#' ? p + 1 : p);
+    bool isnum = (selstr[0] == '#');
+    if (!isnum) { isnum = true; for (const char* x = selstr; *x; x++) if (*x < '0' || *x > '9') { isnum = false; break; } }
+    if (isnum) {
+      int idx = atoi(selstr[0] == '#' ? selstr + 1 : selstr);
       if (idx >= 1 && idx <= c.manager.catalogCount()) sel = c.manager.catalogRow((uint8_t)(idx - 1));
-    } else if (mesh::Utils::fromHex(mid, 4, p)) {                                    // explicit manifest_id
-      for (uint8_t i = 0; i < c.manager.catalogCount(); i++)
-        if (memcmp(c.manager.catalogRow(i)->mid, mid, 4) == 0) { sel = c.manager.catalogRow(i); break; }
+    } else if (mesh::Utils::fromHex(mid, 4, selstr)) {
+      for (uint8_t k = 0; k < c.manager.catalogCount(); k++)
+        if (memcmp(c.manager.catalogRow(k)->mid, mid, 4) == 0) { sel = c.manager.catalogRow(k); break; }
     }
     if (!sel) { strcpy(reply, "ERR no such update (see the numbers in `ota ls`)"); return true; }
+    // destination is MANDATORY: with none given, show the choices (flash always; folder iff a link is up).
+    if (*dst == 0) {
+      if (c.folder_dest)
+        snprintf(reply, 160, "choose a destination: `ota pull %s flash` | `ota pull %s folder`  (folder: %s)",
+                 selstr, selstr, c.folder_dest_info);
+      else
+        snprintf(reply, 160, "choose a destination: `ota pull %s flash`  (folder: none connected — motatool serve)",
+                 selstr);
+      return true;
+    }
     if (c.apply_pending) { strcpy(reply, "ERR busy applying"); return true; }
     uint8_t selmid[4]; uint32_t seltgt = sel->target_id; memcpy(selmid, sel->mid, 4);   // sel may move on reset
-    c.manager.reset_session(); c.fetch_store.clear();
+    OtaStore* store; const char* dname;
+    if (strncmp(dst, "flash", 5) == 0) {
+      store = &c.fetch_store; c.fetch_store.clear(); dname = "flash";
+    } else if (strncmp(dst, "folder", 6) == 0) {
+      if (!c.folder_dest) { strcpy(reply, "ERR no folder connected (run motatool serve --tcp/--serial)"); return true; }
+      c.folder_dest->set_mid(selmid); store = c.folder_dest; dname = "folder";
+    } else { strcpy(reply, "ERR destination must be `flash` or `folder`"); return true; }
+    c.manager.reset_session();
+    c.manager.set_fetch_store(store);                        // stage this pull to the chosen destination
     c.manager.pull(selmid, seltgt);                          // sets want + begins the manifest fetch now
     char midhx[9]; mesh::Utils::toHex(midhx, selmid, 4);
-    sprintf(reply, "OK pulling mid=%s target=%08X (low priority)", midhx, (unsigned)seltgt);
+    snprintf(reply, 160, "OK pulling mid=%s -> %s (low priority)", midhx, dname);
 
   // ---- discard the current session (e.g. a stalled old fetch) to free the slot ----
   } else if (is_cmd(a, "drop|cancel|stop", &rest)) {
@@ -185,8 +213,9 @@ bool handle_ota_command(const char* command, char* reply, mesh::MainBoard& board
     char midhx[9]; strcpy(midhx, "-");
     if (fs != OtaManager::IDLE) mesh::Utils::toHex(midhx, c.manager.fetchManifestId(), 4);
     c.manager.reset_session(); c.manager.want(0); c.manager.want_mid(nullptr);
+    c.manager.set_fetch_store(&c.fetch_store);   // revert to the default flash store (a folder pull switched it)
     c.fetch_store.clear(); c.serving = false; c.serve_expected = 0; c.session_started_ms = 0;
-    sprintf(reply, "OK dropped session (was %c mid=%s); slot free for a new pull", fstate_char(fs), midhx);
+    snprintf(reply, 160, "OK dropped session (was %c mid=%s); slot free for a new pull", fstate_char(fs), midhx);
 
   // ---- broadcast our tiny beacon so peers discover us. If not already serving, set up flash-backed
   //      self-serve first (so we're a real, fetchable source of our own running firmware). ----
