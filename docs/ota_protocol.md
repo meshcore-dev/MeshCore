@@ -482,6 +482,14 @@ verify everything). The serve side (`OtaManager`) keeps a lightweight registry o
 resident "views": `view0` (its own firmware) and one on-demand view loaded from a source when a request
 targets an external mota. Every fetch message carries `manifest_id`, so dispatch is a registry lookup.
 
+The same host-folder link is also a **pull destination** (the reverse direction): `ota pull <#> folder`
+fetches a `.mota` off the mesh and streams it onto the host as `<mid>.mota` via the seeder STORAGE ops
+(`OP_STAT/BEGIN/WRITE/SREAD/FIN`, see `MotaSeederProto.h`), using a `FolderMotaStore` as the fetch's
+`OtaStore` instead of RAM/flash. This captures an exact copy of a device's firmware — e.g. to build a delta
+against firmware you don't have. Resume is bookkeeping-free: `BEGIN` 0xFF-fills the file and, on reconnect
+after a link drop (the fetch PAUSES, holding progress on the host — no RAM/flash fallback), `STAT`+`SREAD`
+let the fetcher recompute and refill only the missing blocks.
+
 ### 10.1 The `MotaSource` abstraction (`OtaSource.h`)
 
 Transport-agnostic provider of one or more complete `.mota` as random-access bytes. The same serve code

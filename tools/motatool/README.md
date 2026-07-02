@@ -16,7 +16,7 @@ cross-checked byte-for-byte against the Python reference packager `tools/mota/mo
 | `build`  | Create a **full** or **delta** `.mota` from a firmware (local file **or** http(s) URL). |
 | `verify` | Validate one or more `.mota` (merkle tree, leaves vs payload, image hash, Ed25519 signature). `--pub` requires a specific signer; `--base` confirms a sequential delta rebuilds its image. |
 | `inspect`| Print every field of a `.mota`'s manifest (debugging). |
-| `serve`  | Serve a **folder** of `.mota` to a node over USB serial (`--serial`) or WiFi (`--tcp`). Invalid files are warned about and skipped — one corrupt file never sinks the rest. |
+| `serve`  | Serve a **folder** of `.mota` to a node over USB serial (`--serial`) or WiFi (`--tcp`). Invalid files are warned about and skipped — one corrupt file never sinks the rest. The same link also **stores** a node's `ota pull … folder` captures into that folder as `<id>.mota` — pull a device's exact firmware off the mesh to build deltas against firmware you don't otherwise have. |
 | `keygen` | Generate an Ed25519 signing keypair (hex). |
 
 Every command has detailed, example-rich help: `motatool <command> --help`.

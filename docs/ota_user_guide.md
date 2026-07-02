@@ -75,17 +75,26 @@ downloaded yet; this is just looking around. (`ota neighbors` / `ota updates` al
 
 ### 3. Download an update
 
-Pick one from the list by its **number**:
+Pick one from the list by its **number**, and say **where** to put it:
 
 ```
-ota get 1
+ota pull 1 flash      # stage it in this node's flash, to install here
+ota pull 1 folder     # capture it onto a connected motatool folder as <id>.mota (don't install here)
 ```
 
-The node starts fetching it in the background, **at low priority**, a piece at a time — possibly from
-several neighbours at once. Check progress any time with `ota status` (you'll see it climb, e.g.
-`download: downloading 120/525 (23%)`). You can keep using your node normally meanwhile.
+The destination is required — `ota pull 1` on its own just shows the choices. **`flash`** is always
+available (stage here, then `ota install`). **`folder`** appears only while a `motatool serve` link is
+attached (it shows the link, e.g. `folder: tcp 192.168.4.5`); it streams the firmware straight onto the
+host folder — nothing is staged on this node. That's how you grab an **exact copy of another device's
+firmware** off the mesh (to a `.mota` file) so you can later build a *delta* against firmware you don't
+otherwise have. (`ota get` is an alias.)
 
-To **stop** a download you no longer want:
+The node fetches in the background, **at low priority**, a piece at a time — possibly from several
+neighbours at once. Check progress with `ota status`. You can keep using your node normally meanwhile.
+
+If a `folder` pull loses its link mid-transfer, `ota status` shows **paused** — the host keeps the
+partial and the pull resumes (filling only what's missing) the moment you reconnect motatool; it never
+falls back to flash. To **stop** a download you no longer want:
 
 ```
 ota cancel
