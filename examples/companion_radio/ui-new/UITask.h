@@ -6,6 +6,7 @@
 #include <helpers/SensorManager.h>
 #include <helpers/BaseSerialInterface.h>
 #include <Arduino.h>
+#include <helpers/ArduinoTimer.h>
 #include <helpers/sensors/LPPDataHelpers.h>
 
 #ifndef LED_STATE_ON
@@ -37,7 +38,7 @@ class UITask : public AbstractUITask {
   unsigned long _alert_expiry;
   int _msgcount;
   unsigned long ui_started_at, next_batt_chck;
-  int next_backlight_btn_check = 0;
+  uint32_t next_backlight_btn_check = 0;
 #ifdef PIN_STATUS_LED
   int led_state = 0;
   int next_led_change = 0;

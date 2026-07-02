@@ -1,6 +1,7 @@
 #include "UITask.h"
 #include "target.h"
 #include <Arduino.h>
+#include <helpers/ArduinoTimer.h>
 #include <helpers/CommonCLI.h>
 
 #ifndef USER_BTN_PRESSED
@@ -129,14 +130,14 @@ void UITask::loop() {
 #endif
 
   if (_display->isOn()) {
-    if (millis() >= _next_refresh) {
+    if (millisHasPassed(_next_refresh)) {
       _display->startFrame();
       renderCurrScreen();
       _display->endFrame();
 
       _next_refresh = millis() + 1000;   // refresh every second
     }
-    if (millis() > _auto_off) {
+    if (millisHasPassed(_auto_off)) {
       _display->turnOff();
     }
   }

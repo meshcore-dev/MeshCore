@@ -69,8 +69,8 @@ bool ThinkNodeM1SensorManager::querySensors(uint8_t requester_permissions, Cayen
 }
 
 void ThinkNodeM1SensorManager::loop() {
-  static long next_gps_update = 0;
-  static long last_switch_check = 0;
+  static uint32_t next_gps_update = 0;
+  static uint32_t last_switch_check = 0;
 
   // Check GPS switch state every second
   if (millis() - last_switch_check > 1000) {
@@ -98,7 +98,7 @@ void ThinkNodeM1SensorManager::loop() {
 
   _location->loop();
 
-  if (millis() > next_gps_update) {
+  if (millisHasPassed(next_gps_update)) {
     if (_location->isValid()) {
       node_lat = ((double)_location->getLatitude())/1000000.;
       node_lon = ((double)_location->getLongitude())/1000000.;

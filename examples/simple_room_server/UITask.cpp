@@ -1,5 +1,6 @@
 #include "UITask.h"
 #include <Arduino.h>
+#include <helpers/ArduinoTimer.h>
 #include <helpers/CommonCLI.h>
 
 #ifndef USER_BTN_PRESSED
@@ -95,7 +96,7 @@ void UITask::renderCurrScreen() {
 
 void UITask::loop() {
 #ifdef PIN_USER_BTN
-  if (millis() >= _next_read) {
+  if (millisHasPassed(_next_read)) {
     int btnState = digitalRead(PIN_USER_BTN);
     if (btnState != _prevBtnState) {
       if (btnState == USER_BTN_PRESSED) {  // pressed?
@@ -113,14 +114,14 @@ void UITask::loop() {
 #endif
 
   if (_display->isOn()) {
-    if (millis() >= _next_refresh) {
+    if (millisHasPassed(_next_refresh)) {
       _display->startFrame();
       renderCurrScreen();
       _display->endFrame();
 
       _next_refresh = millis() + 1000;   // refresh every second
     }
-    if (millis() > _auto_off) {
+    if (millisHasPassed(_auto_off)) {
       _display->turnOff();
     }
   }
