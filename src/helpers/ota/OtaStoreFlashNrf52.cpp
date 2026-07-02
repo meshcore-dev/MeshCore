@@ -56,16 +56,16 @@ uint8_t* OtaStoreFlashNrf52::write_slot(uint32_t pos) {
 
 bool OtaStoreFlashNrf52::begin(uint32_t total_size) {
   clear();
-  if (total_size < 13 || total_size > capacity()) return false;   // 13 = header(8) + trailer(5)
-
-  // bottom-align against FS_START so the trailer ends exactly at FS_START (bootloader scans for it)
-  uint32_t start = align_down(MOTA_NRF52_FS_START - total_size, PG);
 
   // never collide with the running application image (its extent comes from its EndF trailer)
   uint32_t app_end = MOTA_NRF52_APP_BASE;
   SelfFwInfo fi;
   if (ota_self_firmware(fi) && fi.valid) app_end = MOTA_NRF52_APP_BASE + fi.image_len;
-  if (start < app_end) return false;
+
+  // bottom-align below FS_START + reject if it won't fit above the running image (the FS/prefs-safe
+  // bounds check; pure + unit-tested in test/test_ota/test_ota_flashplan.cpp)
+  uint32_t start;
+  if (!mota_nrf52_stage_plan(total_size, app_end, start)) return false;
 
   _write_start = start;
   _total = total_size;
@@ -139,8 +139,8 @@ bool OtaStoreFlashNrf52::reopen() {
     const uint8_t* p = (const uint8_t*)(uintptr_t)start;
     if (memcmp(p, MOTA_MAGIC, 4) != 0) continue;
     uint32_t total = rd_u32le(p + 4);
-    if (total < 13 || total > capacity()) continue;
-    if (align_down(MOTA_NRF52_FS_START - total, PG) != start) continue;   // must match begin()'s placement
+    uint32_t want;   // must be valid + placed exactly where begin() would have staged it (same bounds fn)
+    if (!mota_nrf52_stage_plan(total, app_end, want) || want != start) continue;
     _write_start = start;
     _total = total;
     memcpy(_meta_page, p, PG);                  // load page 0 (header+manifest+leaves) into RAM to continue

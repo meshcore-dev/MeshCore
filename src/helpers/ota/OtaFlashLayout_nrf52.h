@@ -35,5 +35,33 @@ static const uint32_t MOTA_NRF52_INPLACE_MEMORY = 0x00098000u;  // 608 KB (APP_B
 static const uint32_t MOTA_NRF52_BL_START = 0x000F4000u;
 static const uint32_t MOTA_NRF52_BL_END   = 0x000FE000u;
 
+// Compile-time layout-ordering invariants. If a constant above is edited inconsistently these fail the
+// BUILD rather than silently letting a stage/apply corrupt the filesystem (user prefs) or the app.
+static_assert((MOTA_NRF52_APP_BASE % MOTA_NRF52_FLASH_PAGE) == 0, "APP_BASE must be page-aligned");
+static_assert((MOTA_NRF52_FS_START % MOTA_NRF52_FLASH_PAGE) == 0, "FS_START must be page-aligned");
+static_assert(MOTA_NRF52_APP_BASE < MOTA_NRF52_FS_START,  "app must precede the staging ceiling");
+static_assert(MOTA_NRF52_FS_START < MOTA_NRF52_BL_START,  "staging (+FS) must end below the bootloader");
+static_assert(MOTA_NRF52_BL_START < MOTA_NRF52_BL_END,    "bootloader region must be non-empty");
+// The in-place apply workspace [APP_BASE, APP_BASE+INPLACE_MEMORY) must end at/below the staging ceiling,
+// so an in-place apply never writes into ExtraFS/InternalFS (where user prefs live).
+static_assert(MOTA_NRF52_APP_BASE + MOTA_NRF52_INPLACE_MEMORY <= MOTA_NRF52_FS_START,
+              "in-place apply workspace must end at or below the staging ceiling");
+
+// Plan where to stage a received `.mota` of `total_size` bytes. It is placed bottom-aligned so its
+// 5-byte trailer ends exactly at FS_START (the bootloader scans downward from there), and it must sit
+// ENTIRELY within [app_end, FS_START): above the running image (`app_end` = APP_BASE + its EndF image_len)
+// and below the filesystem region (ExtraFS/InternalFS — where user prefs live, assumed immutable).
+// Returns false (and leaves out_start untouched) if it does not fit. This is the SINGLE place the FS
+// ceiling + app-collision bounds are enforced; begin()/reopen() both go through it. Pure — no flash I/O —
+// so it is unit-tested natively in test/test_ota/test_ota_flashplan.cpp.
+inline bool mota_nrf52_stage_plan(uint32_t total_size, uint32_t app_end, uint32_t& out_start) {
+  const uint32_t capacity = MOTA_NRF52_FS_START - MOTA_NRF52_APP_BASE;
+  if (total_size < 13 || total_size > capacity) return false;   // 13 = header(8)+trailer(5); must fit below FS
+  uint32_t start = (MOTA_NRF52_FS_START - total_size) & ~(MOTA_NRF52_FLASH_PAGE - 1);   // bottom-align down
+  if (start < app_end) return false;                            // would overlap the running image
+  out_start = start;
+  return true;
+}
+
 } // namespace ota
 } // namespace mesh
