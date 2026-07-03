@@ -106,6 +106,15 @@ otherwise have. (`ota get` is an alias.)
 every block your seed already matches, and pulls over the radio only the handful that actually differ —
 turning a ~30-minute capture into seconds. The result is still a byte-exact, verified copy of the target.
 
+*Where the seed comes from:* it is the **`--seed <file>` you pass to `motatool serve`** — **not** a file you
+drop into the capture (`--dir`) folder, which is only the destination and starts empty. There is exactly one
+configured seed. When you run `... folder validate`, the node asks motatool to begin the capture and motatool
+stamps that seed's payload into the fresh `.part` in the same step — so it is always the file you named, with
+no guessing. **`validate` is the switch:** a plain `folder` pull ignores any seed and fetches from scratch;
+re-running a `validate` pull re-begins fresh (it never resumes a stale partial). Nothing about the seed is
+trusted — every kept block is checked against the target's own fingerprints, so a mismatched or missing seed
+just means those blocks are fetched over the radio (correct result, only slower).
+
 The node fetches in the background, **at low priority**, a piece at a time — possibly from several
 neighbours at once. Check progress with `ota status`. You can keep using your node normally meanwhile.
 
