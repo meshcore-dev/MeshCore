@@ -174,6 +174,8 @@ public:
   uint8_t servedCount() const { return _n_serve; }   // total mOTAs we offer (own fw + folder)
   // Read-only view of one served entry (for `ota serve` listing): mid/target/fwver/codec/flags + is_self.
   const ServeEntry* servedEntry(uint8_t i) const { return i < _n_serve ? &_serve[i] : nullptr; }
+  // 4-byte fingerprint of our served set (== the set_digest carried in the beacon); for admin OTA stats.
+  void servedDigest(uint8_t out[4]) const { setDigest(out); }
 
   // Broadcast the tiny per-node BEACON (OTA_ADV): seeder_id + count + set-digest of everything we serve.
   // Constant size regardless of how many mOTAs — peers ask for the catalog via OTA_QUERY only on interest.

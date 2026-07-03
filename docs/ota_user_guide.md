@@ -47,6 +47,16 @@ ota status
 Shows your current firmware version, your node's update "target" (its hardware/role id), and whether a
 download is in progress.
 
+For a denser admin view — your firmware's content id (`mid`) **and** its body hash, the fingerprint of the
+set you're serving, live download progress, and the current policy — use:
+
+```
+ota stats
+```
+
+On a remote node this is **admin-only** (the remote command console requires the admin password) — send it
+from the app's repeater command screen, or the WiFi/serial OTA console.
+
 ### 2. Find updates available near me
 
 ```
@@ -229,6 +239,7 @@ that only contains what changed). You get them by:
 |---|---|
 | List all commands | `ota help` |
 | See my firmware + any download | `ota status` (or just `ota`) |
+| Admin: ids/hashes + serving + policy | `ota stats` (admin-only remotely) |
 | Find updates nearby | `ota ls` |
 | Download update #1 | `ota get 1` |
 | Cancel a download | `ota cancel` |

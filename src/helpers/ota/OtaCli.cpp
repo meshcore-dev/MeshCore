@@ -52,6 +52,19 @@ static const char* state_word(OtaManager::FetchState s) {
   }
 }
 
+// A compact one-word fetch state for the dense `ota stats` line (state_word's phrases are too long).
+static const char* state_short(OtaManager::FetchState s) {
+  switch (s) {
+    case OtaManager::WANT_MANIFEST: return "manifest";
+    case OtaManager::WANT_LEAVES:   return "leaves";
+    case OtaManager::FETCHING:      return "dl";
+    case OtaManager::COMPLETE:      return "done";
+    case OtaManager::FAILED:        return "failed";
+    case OtaManager::PAUSED:        return "paused";
+    default:                        return "idle";
+  }
+}
+
 // Render the packed fw_version as "v1.2.3" (or "v1.2.3.4" when a prerelease byte is set).
 static void ver_str(char* out, size_t cap, uint32_t v) {
   FwVersion fw = FwVersion::unpack(v);
@@ -97,8 +110,8 @@ bool handle_ota_command(const char* command, char* reply, mesh::MainBoard& board
   // ---- help: list the commands in plain words (aliases in parentheses) ----
   if (is_cmd(a, "help|?|h", &rest)) {
     snprintf(reply, 160,
-      "OTA: status | ls=find updates | get <#>=download | install | cancel | announce | self | "
-      "folder | config | key. Try `ota ls`.");
+      "OTA: status | stats=admin ids/hashes | ls=find updates | get <#>=download | install | cancel | "
+      "announce | self | folder | config | key. Try `ota ls`.");
 
   // ---- inventory dashboard: running fw (self), the one fetch session, serving state ----
   } else if (*a == 0 || is_cmd(a, "status|st", &rest)) {
@@ -127,6 +140,41 @@ bool handle_ota_command(const char* command, char* reply, mesh::MainBoard& board
     if (n < 146) n += snprintf(reply + n, 160 - n, " | bl:%s blrc:%02X",
                                c.bootloaderCaps().present ? "apply" : "NONE", ota_bootloader_last_rc());
 #endif
+
+  // ---- admin OTA stats: crypto identities (our fw's content-id + body_hash), serving set, live fetch,
+  //      policy — one dense line. The remote-admin CLI path is admin-gated, so this is admin-only over the
+  //      mesh (send it from the app's repeater command screen, or the WiFi/serial OTA console).
+  } else if (is_cmd(a, "stats", &rest)) {
+    // our running fw's merkle content-id (mid) comes from the self serve entry; the EndF body_hash (fw
+    // identity, matched against a delta base) is separate — surface BOTH (only body_hash showed before).
+    const OtaManager::ServeEntry* self = nullptr;
+    for (uint8_t i = 0; i < c.manager.servedCount(); i++) {
+      const OtaManager::ServeEntry* e = c.manager.servedEntry(i);
+      if (e && e->is_self) { self = e; break; }
+    }
+    SelfFwInfo fi; bool sok = ota_self_firmware(fi);
+    char midhx[9], bodyhx[9], verbuf[20], dighx[9];
+    if (self)            mesh::Utils::toHex(midhx, self->mid, 4);        else strcpy(midhx, "?");
+    if (sok && fi.valid) mesh::Utils::toHex(bodyhx, fi.body_hash, 4);    else strcpy(bodyhx, "?");
+    if (self)            ver_str(verbuf, sizeof verbuf, self->fw_version); else strcpy(verbuf, "v?");
+    uint8_t dig[4]; c.manager.servedDigest(dig); mesh::Utils::toHex(dighx, dig, 4);
+    OtaManager::FetchState fs = c.manager.fetchState();
+    char fbuf[72];
+    if (fs == OtaManager::IDLE) {
+      strcpy(fbuf, "fetch idle");
+    } else {
+      char fmid[9]; mesh::Utils::toHex(fmid, c.manager.fetchManifestId(), 4);
+      unsigned have = (unsigned)c.manager.blocksHave(), tot = (unsigned)c.manager.blocksTotal();
+      unsigned pct = tot ? (unsigned)((uint64_t)have * 100 / tot) : 0;
+      unsigned age = c.session_started_ms ? (unsigned)((millis() - c.session_started_ms) / 1000) : 0;
+      snprintf(fbuf, sizeof fbuf, "fetch %s %u/%u %u%% id=%s %us", state_short(fs), have, tot, pct, fmid, age);
+    }
+    uint8_t af = c.manager.autofetch();
+    snprintf(reply, 160, "OTA | fw %s id=%s body=%s %ub %uK | serv %u dg=%s | %s | af=%s hops=%u",
+             verbuf, midhx, bodyhx, (unsigned)(self ? self->have_count : 0),
+             (unsigned)((sok ? fi.image_len : 0) / 1024), (unsigned)c.manager.servedCount(), dighx, fbuf,
+             af == OtaManager::AUTOFETCH_ANY ? "any" : af == OtaManager::AUTOFETCH_SIGNED ? "signed" : "off",
+             (unsigned)c.manager.max_hops());
 
   // ---- what's available around me (catalogued from beacons + OTA_HAVE), best/most-recent first ----
   } else if (is_cmd(a, "neighbors|nbrs|updates|ls|n", &rest)) {
