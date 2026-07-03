@@ -11,4 +11,4 @@ Recommanded channels for ISM2400 (2400-2483 MHz) : 2403 MHz, 2425 MHz, 2479 MHz 
 * [ ] support USER button (send advert on double click)
 * [ ] support OLED screen
 * [ ] fix persistence of BLE pairing
-* [ ] add FLRC modulation for high-speed datarates
+* [ ] add FLRC modulation for high-speed datarates (EU868 and [ISM2400](https://hal.science/hal-05429890))
