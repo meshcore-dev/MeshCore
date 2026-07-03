@@ -52,14 +52,61 @@ def _cppdef(name):                                # value of a -D<name>=<value> 
     return None
 
 
+def _version_from_headers():
+    """FIRMWARE_VERSION is a header ``#define`` in the example (upstream MeshCore convention), not a -D, so
+    _cppdef() can't see it and the EndF version would otherwise default to 0. Read it from the source WITHOUT
+    changing where MeshCore authors it: prefer the example this env actually builds (from build_src_filter),
+    else fall back to the repo-wide value when it's unambiguous. Purely additive — no MeshCore file changes,
+    and a -D override (checked first in _firmware_ident) still wins for release builds."""
+    import re, glob
+    proj = env["PROJECT_DIR"]                                 # noqa: F821
+    pat = re.compile(r'#\s*define\s+FIRMWARE_VERSION\s+"([^"]+)"')
+
+    def scan(paths):                                          # {version_string: first_path_seen}
+        vals = {}
+        for p in paths:
+            try:
+                with open(p, encoding="utf-8", errors="ignore") as f:
+                    for line in f:
+                        mm = pat.search(line)
+                        if mm:
+                            vals.setdefault(mm.group(1), p)
+            except OSError:
+                pass
+        return vals
+
+    # 1) restrict to the example(s) this env compiles (build_src_filter -> examples/<name>)
+    srcf = ""
+    for getter in (lambda: env.GetProjectOption("build_src_filter", ""),   # noqa: F821
+                   lambda: env.GetProjectOption("src_filter", ""),         # noqa: F821
+                   lambda: env.get("SRC_FILTER", "")):                     # noqa: F821
+        try:
+            v = getter()
+            srcf += " " + (" ".join(map(str, v)) if isinstance(v, (list, tuple)) else str(v))
+        except Exception:
+            pass
+    ex_dirs = set(re.findall(r"examples[/\\]([A-Za-z0-9_]+)", srcf))
+    hdrs = []
+    for d in ex_dirs:
+        hdrs += glob.glob(os.path.join(proj, "examples", d, "*.h"))
+    vals = scan(hdrs)
+    if len(vals) == 1:
+        return next(iter(vals))
+    # 2) fall back to the repo-wide value; use it only if all examples agree (they do today: v1.17.0)
+    vals = scan(glob.glob(os.path.join(proj, "examples", "*", "*.h")))
+    return next(iter(vals)) if len(vals) == 1 else ""
+
+
 def _firmware_ident():
     """Self-describing identity to embed in EndF (docs/ota_protocol.md §2): target_id is computed from the
     PlatformIO env name (so it's correct even without build.sh's -D MOTA_TARGET_ID), hw_id from MOTA_HW_ID,
-    fw_version parsed from FIRMWARE_VERSION."""
+    fw_version from FIRMWARE_VERSION (a -D if set, else the example's header #define)."""
     import re
     target_id = ml.target_id_for_env(env["PIOENV"])           # noqa: F821
     hw_id = (_cppdef("MOTA_HW_ID") or "").replace("\\", "").strip().strip('"').strip("'")
     ver_s = (_cppdef("FIRMWARE_VERSION") or "").replace("\\", "").strip().strip('"').strip("'")
+    if not ver_s:                                             # not a -D -> read the header MeshCore ships
+        ver_s = _version_from_headers()
     m = re.search(r"(\d+)\.(\d+)(?:\.(\d+))?", ver_s)
     fw_version = ml.pack_version(f"{m.group(1)}.{m.group(2)}.{m.group(3) or 0}") if m else 0
     return ml.FwIdent(fw_version=fw_version, target_id=target_id, hw_id=hw_id)
