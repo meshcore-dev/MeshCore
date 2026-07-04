@@ -37,6 +37,8 @@ static uint32_t _atoi(const char* sp) {
 #ifdef ESP32
   #ifdef WIFI_SSID
     #include <helpers/esp32/SerialWifiInterface.h>
+    #include <esp_mac.h>
+    #include <esp_wifi.h>
     SerialWifiInterface serial_interface;
     #ifndef TCP_PORT
       #define TCP_PORT 5000
@@ -201,6 +203,24 @@ void setup() {
 
 #ifdef WIFI_SSID
   board.setInhibitSleep(true);   // prevent sleep when WiFi is active
+  WiFi.mode(WIFI_STA);
+
+  // Pin STA MAC to the eFuse factory value to avoid per-interface/address confusion.
+  uint8_t factory_mac[6] = {0};
+  esp_efuse_mac_get_default(factory_mac);
+  esp_err_t set_mac_err = esp_wifi_set_mac(WIFI_IF_STA, factory_mac);
+  if (set_mac_err != ESP_OK) {
+    WIFI_DEBUG_PRINTLN("Failed to set STA MAC from eFuse, err=%d", (int)set_mac_err);
+  }
+
+  WIFI_DEBUG_PRINTLN(
+      "Factory MAC: %02X:%02X:%02X:%02X:%02X:%02X",
+      factory_mac[0], factory_mac[1], factory_mac[2],
+      factory_mac[3], factory_mac[4], factory_mac[5]);
+
+  String sta_mac = WiFi.macAddress();
+  WIFI_DEBUG_PRINTLN("STA MAC in use: %s", sta_mac.c_str());
+
   WiFi.setAutoReconnect(true);
 
   WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info){
