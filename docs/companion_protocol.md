@@ -1,7 +1,7 @@
 # Companion Protocol
 
-- **Last Updated**: 2026-03-08
-- **Protocol Version**: Companion Firmware v1.12.0+
+- **Last Updated**: 2026-07-04
+- **Protocol Version**: Companion Firmware v1.16.0+
 
 > NOTE: This document is still in development. Some information may be inaccurate.
 
@@ -107,6 +107,12 @@ The default BLE MTU is 23 bytes (20 bytes payload). For larger commands like `SE
     - iOS: `peripheral.maximumWriteValueLength(for:)`
     - Python (bleak): MTU is negotiated automatically
 
+### Companion Frame Size Limits
+
+Firmware transports use `MAX_FRAME_SIZE = 176` as the companion frame buffer size.
+
+When an app advertises target protocol version 14 or newer in `CMD_DEVICE_QUERY`, firmware emits `PACKET_FRAME_FRAGMENT` for original firmware-to-app companion frames larger than `MAX_FRAME_SIZE`. Frames up to 176 bytes are sent unchanged. Each emitted fragment is also kept at or below `MAX_FRAME_SIZE`. Apps that do not advertise version 14 keep the legacy behavior based on the older single-frame transport limit.
+
 ### Command Sequencing
 
 **Critical**: Commands must be sent in the correct sequence:
@@ -187,13 +193,15 @@ Bytes 8+: Application name (UTF-8, optional)
 **Command Format**:
 ```
 Byte 0: 0x16
-Byte 1: 0x03
+Byte 1: App target protocol version
 ```
 
 **Example** (hex):
 ```
-16 03
+16 0E
 ```
+
+Set byte 1 to the highest companion protocol version the app understands. Firmware uses this value to decide whether it may emit newer optional frame formats. Apps that support `PACKET_FRAME_FRAGMENT` should send `0x0E` (14) or higher.
 
 **Response**: `PACKET_DEVICE_INFO` (0x0D) with device information
 
@@ -395,18 +403,37 @@ def parse_channel_data_recv(data):
 Byte 0: 0x0A
 ```
 
+**Command Format With Fragment ACK** (app target version 14+ only):
+```
+Byte 0: 0x0A
+Byte 1: Flags
+Bytes 2-3: ACK Fragment ID (uint16 little-endian)
+Byte 4: ACK Fragment Index
+```
+
+Flags:
+- Bit 0 (`0x01`): Fragment ACK is present
+
 **Example** (hex):
 ```
 0A
+```
+
+**Example With Fragment ACK** (hex, ACK fragment ID `0x1234`, index `1`):
+```
+0A 01 34 12 01
 ```
 
 **Response**: 
 - `PACKET_CHANNEL_MSG_RECV` (0x08) or `PACKET_CHANNEL_MSG_RECV_V3` (0x11) for channel messages
 - `PACKET_CONTACT_MSG_RECV` (0x07) or `PACKET_CONTACT_MSG_RECV_V3` (0x10) for contact messages
 - `PACKET_CHANNEL_DATA_RECV` (0x1B) for channel data datagrams
+- `PACKET_FRAME_FRAGMENT` (0x91) for one fragment of an oversized queued frame when the app advertised target protocol version 14+
 - `PACKET_NO_MORE_MSGS` (0x0A) if no messages available
 
 **Note**: Poll this command periodically to retrieve queued messages. The device may also send `PACKET_MESSAGES_WAITING` (0x83) as a notification when messages are available.
+
+For fragmented queued frames, apps that advertised target protocol version 14+ must ACK the previous fragment in the next `CMD_SYNC_NEXT_MESSAGE` request before the firmware advances to the next fragment. If the ACK is missing or does not match the last sent fragment, the firmware repeats that fragment. After the app ACKs the last fragment, the firmware removes the original queued frame and returns the next queued frame or `PACKET_NO_MORE_MSGS`.
 
 ---
 
@@ -640,8 +667,34 @@ Byte values are authoritative; names are aliases. When reading firmware source, 
 | 0x82  | PACKET_ACK                 | Acknowledgment                |
 | 0x83  | PACKET_MESSAGES_WAITING    | Messages waiting notification |
 | 0x88  | PACKET_LOG_DATA            | RF log data (can be ignored)  |
+| 0x91  | PACKET_FRAME_FRAGMENT      | Fragment of a larger frame    |
 
 ### Parsing Responses
+
+**PACKET_FRAME_FRAGMENT** (0x91, app target version 14+):
+
+Firmware emits this wrapper only when the app has advertised target protocol version 14 or newer in `CMD_DEVICE_QUERY`, and only when an original companion frame is larger than `MAX_FRAME_SIZE` (176 bytes). Frames up to 176 bytes are sent unchanged.
+
+Queued messages are stored by the firmware as full logical companion frames. The firmware chooses the delivery format when the app polls `CMD_SYNC_NEXT_MESSAGE`: apps that advertised protocol version 14+ receive oversized queued frames as `PACKET_FRAME_FRAGMENT`; older apps receive the same legacy truncated single-frame form they received before fragmentation support. Queued fragments require ACKs via `CMD_SYNC_NEXT_MESSAGE`; the firmware repeats the last sent fragment until the app acknowledges it.
+
+Oversized live push frames, such as raw packet data, control data, and RF log data, may also be emitted as `PACKET_FRAME_FRAGMENT` when the app advertised protocol version 14+. Live push frames up to `MAX_FRAME_SIZE` are sent unchanged for v14 apps. Live push fragments are not ACKed by `CMD_SYNC_NEXT_MESSAGE`.
+
+Each fragment frame is also capped to `MAX_FRAME_SIZE` (176 bytes). With the 10-byte fragment header, the maximum chunk size is 166 bytes.
+
+The fragment payload contains a chunk of the original companion frame, including that original frame's byte 0. Apps must reassemble all chunks with the same Fragment ID, then parse the reconstructed bytes as the original companion frame.
+
+```
+Byte 0: 0x91
+Bytes 1-2: Fragment ID (uint16 little-endian)
+Byte 3: Fragment Index (0-based)
+Byte 4: Fragment Count
+Byte 5: Original Frame Type (copy of reconstructed byte 0)
+Bytes 6-7: Original Frame Length (uint16 little-endian)
+Bytes 8-9: Chunk Offset in original frame (uint16 little-endian)
+Bytes 10+: Chunk bytes
+```
+
+Fragment IDs are scoped to the current device connection/session and may wrap. Apps should discard incomplete fragment sets on disconnect, timeout, duplicate metadata mismatch, or if the accumulated chunks do not exactly match the advertised original frame length.
 
 **PACKET_OK** (0x00):
 ```
@@ -826,7 +879,9 @@ BLE implementations enqueue and deliver one protocol frame per BLE write/notific
 
 - Apps should treat each characteristic write/notification as exactly one companion protocol frame
 - Apps should still validate frame lengths before parsing
-- Future transports or firmware revisions may differ, so avoid assuming fixed payload sizes for variable-length responses
+- For app target protocol version 14+, apps should accept unfragmented firmware-to-app frames up to `MAX_FRAME_SIZE` (176 bytes) and `PACKET_FRAME_FRAGMENT` frames up to the same size
+- Future transports or firmware revisions may differ, so avoid assuming fixed payload sizes beyond the negotiated protocol behavior
+- Apps that send target protocol version 14+ in `CMD_DEVICE_QUERY` must handle `PACKET_FRAME_FRAGMENT` and reassemble the original companion frame before normal parsing
 
 ### Response Handling
 
