@@ -5,7 +5,7 @@
 #include "AbstractUITask.h"
 
 /*------------ Frame Protocol --------------*/
-#define FIRMWARE_VER_CODE 13
+#define FIRMWARE_VER_CODE 14
 
 #ifndef FIRMWARE_BUILD_DATE
 #define FIRMWARE_BUILD_DATE "6 Jun 2026"
@@ -33,6 +33,15 @@
 #include <helpers/SimpleMeshTables.h>
 #include <helpers/StaticPoolPacketManager.h>
 #include <target.h>
+
+// Fragment frames wrap an existing companion frame when it does not fit in the
+// firmware companion frame buffer. Apps reassemble the original frame before
+// handing it to the normal companion protocol parser.
+#define APP_TARGET_VER_FRAME_FRAGMENTS 14
+#define PUSH_CODE_FRAME_FRAGMENT       0x91
+#define FRAME_FRAGMENT_HEADER_LEN      10
+#define FRAME_FRAGMENT_CHUNK_LEN       (MAX_FRAME_SIZE - FRAME_FRAGMENT_HEADER_LEN)
+#define MAX_COMPANION_LONG_FRAME_SIZE  (MAX_TRANS_UNIT + 4)
 
 /* ---------------------------------- CONFIGURATION ------------------------------------- */
 
@@ -187,8 +196,18 @@ private:
   void writeDisabledFrame();
   void writeContactRespFrame(uint8_t code, const ContactInfo &contact);
   void updateContactFromFrame(ContactInfo &contact, uint32_t& last_mod, const uint8_t *frame, int len);
-  void addToOfflineQueue(const uint8_t frame[], int len);
-  int getFromOfflineQueue(uint8_t frame[]);
+  void addToOfflineQueue(const uint8_t frame[], uint16_t len);
+  int getFromOfflineQueue(uint8_t frame[], bool has_fragment_ack=false, uint16_t ack_fragment_id=0,
+                          uint8_t ack_fragment_index=0);
+  bool canSendFrameFragments() const;
+  bool makeRoomInOfflineQueue(int slots_needed);
+  void removeTopOfflineQueue();
+  void resetQueuedFragmentState();
+  uint16_t allocFrameFragmentId();
+  void writeFrameMaybeFragmented(const uint8_t frame[], uint16_t len);
+  void writeFrameFragments(const uint8_t frame[], uint16_t len);
+  void writePacketPayloadFrameMaybeFragmented(mesh::Packet *packet, uint8_t push_code, uint8_t path_byte,
+                                              const char *debug_name);
   int getBlobByKey(const uint8_t key[], int key_len, uint8_t dest_buf[]) override { 
     return _store->getBlobByKey(key, key_len, dest_buf);
   }
@@ -222,6 +241,10 @@ private:
   bool send_unscoped;   // force un-scoped flood (instead of using send_scope)
   char cli_command[80];
   uint8_t app_target_ver;
+  uint16_t next_fragment_id;
+  uint16_t queued_fragment_id;
+  uint8_t queued_fragment_index;
+  bool queued_fragment_ack_pending;
   uint8_t *sign_data;
   uint32_t sign_data_len;
   unsigned long dirty_contacts_expiry;
@@ -233,8 +256,8 @@ private:
   CayenneLPP telemetry;
 
   struct Frame {
-    uint8_t len;
-    uint8_t buf[MAX_FRAME_SIZE];
+    uint16_t len;
+    uint8_t buf[MAX_COMPANION_LONG_FRAME_SIZE];
 
     bool isChannelMsg() const;
   };
