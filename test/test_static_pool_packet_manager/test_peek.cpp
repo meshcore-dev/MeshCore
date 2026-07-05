@@ -7,14 +7,6 @@
 // widening the PlatformIO test build filter.
 #include "../../src/helpers/StaticPoolPacketManager.cpp"
 
-namespace mesh {
-Packet::Packet() {
-    header = 0;
-    path_len = 0;
-    payload_len = 0;
-}
-}
-
 TEST(PacketQueue, PeekReturnsBestDuePacketWithoutRemovingIt) {
     PacketQueue queue(4);
     mesh::Packet* low_priority = reinterpret_cast<mesh::Packet*>(0x01);
