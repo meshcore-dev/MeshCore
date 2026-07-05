@@ -11,6 +11,7 @@
 #define SHUTDOWN_REASON_LOW_VOLTAGE   0x4C  // 'L' - Runtime low voltage threshold
 #define SHUTDOWN_REASON_USER          0x55  // 'U' - User requested powerOff()
 #define SHUTDOWN_REASON_BOOT_PROTECT  0x42  // 'B' - Boot voltage protection
+#define SHUTDOWN_REASON_RADIO_INIT_FAIL 0x52  // 'R' - Radio init failed before startup completed
 
 // Boards provide this struct with their hardware-specific settings and callbacks.
 struct PowerMgtConfig {

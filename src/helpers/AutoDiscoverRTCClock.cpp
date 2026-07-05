@@ -2,6 +2,7 @@
 #include "RTClib.h"
 #include <Melopero_RV3028.h>
 #include "RTC_RX8130CE.h"
+#include "RadioInitDiagnostics.h"
 
 static RTC_DS3231 rtc_3231;
 static bool ds3231_success = false;
@@ -27,6 +28,8 @@ bool AutoDiscoverRTCClock::i2c_probe(TwoWire& wire, uint8_t addr) {
 }
 
 void AutoDiscoverRTCClock::begin(TwoWire& wire) {
+  radioInitSetBootStage(RADIO_BOOT_STAGE_RTC_BEGIN_ENTERED);
+
   #if !defined(DISABLE_DS3231_PROBE)
   if (i2c_probe(wire, DS3231_ADDRESS)) {
     ds3231_success = rtc_3231.begin(&wire);
@@ -51,6 +54,8 @@ void AutoDiscoverRTCClock::begin(TwoWire& wire) {
     rtc_8130_success = true;
     MESH_DEBUG_PRINTLN("RX8130CE: Initialized");
   }
+
+  radioInitSetBootStage(RADIO_BOOT_STAGE_RTC_BEGIN_RETURNED);
 }
 
 uint32_t AutoDiscoverRTCClock::getCurrentTime() {

@@ -1128,3 +1128,20 @@ region save
 **Note:** Returns an error on boards without power management support.
 
 ---
+
+#### View the last radio initialisation status
+**Usage:** `get radio.init_status`
+
+---
+
+#### View the radio initialisation attempt count
+**Usage:** `get radio.init_attempts`
+
+---
+
+#### View compact boot diagnostics
+**Usage:** `get diag.boot`
+
+**Note:** Returns current and previous reset-retained boot diagnostics. `cur_sd` and `prev_sd` are raw shutdown/fault markers, including low voltage, boot protection, user shutdown, and radio initialisation failure.
+
+---

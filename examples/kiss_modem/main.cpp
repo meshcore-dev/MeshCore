@@ -2,6 +2,7 @@
 #include <target.h>
 #include <helpers/ArduinoHelpers.h>
 #include <helpers/IdentityStore.h>
+#include <helpers/RadioInitDiagnostics.h>
 #include "KissModem.h"
 
 #if defined(NRF52_PLATFORM)
@@ -76,8 +77,10 @@ void onGetStats(uint32_t* rx, uint32_t* tx, uint32_t* errors) {
 void setup() {
   board.begin();
 
+  radioInitSetBootStage(RADIO_BOOT_STAGE_RADIO_INIT_ENTERED);
   if (!radio_init()) {
-    halt();
+    MESH_DEBUG_PRINTLN("Radio init failed!");
+    radioInitRebootAfterFault(board, RADIO_INIT_FAULT_RADIO_INIT_FAIL);
   }
 
   radio_driver.begin();

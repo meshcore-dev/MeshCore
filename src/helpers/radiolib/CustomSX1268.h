@@ -1,6 +1,7 @@
 #pragma once
 
 #include <RadioLib.h>
+#include <helpers/RadioInitDiagnostics.h>
 
 #define SX126X_IRQ_HEADER_VALID                0b0000010000  //  4     4     valid LoRa header received
 #define SX126X_IRQ_PREAMBLE_DETECTED           0x04
@@ -42,17 +43,41 @@ class CustomSX1268 : public SX1268 {
       if (spi) spi->begin(P_LORA_SCLK, P_LORA_MISO, P_LORA_MOSI);
     #endif
   #endif
-      int status = begin(LORA_FREQ, LORA_BW, LORA_SF, cr, RADIOLIB_SX126X_SYNC_WORD_PRIVATE, LORA_TX_POWER, 16, tcxo);
+      radioInitSetBootStage(RADIO_BOOT_STAGE_RADIO_STD_INIT_ENTERED);
+
+      int status = RADIOLIB_ERR_NONE;
+#ifdef NRF52_PLATFORM
+      for (uint8_t attempt = 1; attempt <= 3; attempt++) {
+        radioInitRecordAttempt(attempt);
+        radioInitPrepareAttempt(attempt);
+
+        if (!radioInitWaitBusyLow(250)) {
+          status = g_last_radio_init_status;
+        } else {
+          status = begin(LORA_FREQ, LORA_BW, LORA_SF, cr, RADIOLIB_SX126X_SYNC_WORD_PRIVATE, LORA_TX_POWER, 16, tcxo);
+          radioInitRecordStatus(status);
+        }
+
+        if (status == RADIOLIB_ERR_NONE) break;
+        delay(100 * attempt);
+      }
+#else
+      radioInitRecordAttempt(1);
+      status = begin(LORA_FREQ, LORA_BW, LORA_SF, cr, RADIOLIB_SX126X_SYNC_WORD_PRIVATE, LORA_TX_POWER, 16, tcxo);
       // if radio init fails with -707/-706, try again with tcxo voltage set to 0.0f
       if (status == RADIOLIB_ERR_SPI_CMD_FAILED || status == RADIOLIB_ERR_SPI_CMD_INVALID) {
         tcxo = 0.0f;
         status = begin(LORA_FREQ, LORA_BW, LORA_SF, cr, RADIOLIB_SX126X_SYNC_WORD_PRIVATE, LORA_TX_POWER, 16, tcxo);
       }
+      radioInitRecordStatus(status);
+#endif
       if (status != RADIOLIB_ERR_NONE) {
+        radioInitSetBootStage(RADIO_BOOT_STAGE_RADIO_STD_INIT_FAIL);
         Serial.print("ERROR: radio init failed: ");
         Serial.println(status);
         return false;  // fail
       }
+      radioInitSetBootStage(RADIO_BOOT_STAGE_RADIO_STD_INIT_SUCCESS);
     
       setCRC(1);
   

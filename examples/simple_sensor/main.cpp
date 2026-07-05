@@ -1,4 +1,5 @@
 #include "SensorMesh.h"
+#include <helpers/RadioInitDiagnostics.h>
 
 #ifdef DISPLAY_CLASS
   #include "UITask.h"
@@ -66,7 +67,11 @@ void setup() {
   }
 #endif
 
-  if (!radio_init()) { halt(); }
+  radioInitSetBootStage(RADIO_BOOT_STAGE_RADIO_INIT_ENTERED);
+  if (!radio_init()) {
+    MESH_DEBUG_PRINTLN("Radio init failed!");
+    radioInitRebootAfterFault(board, RADIO_INIT_FAULT_RADIO_INIT_FAIL);
+  }
 
   fast_rng.begin(radio_driver.getRngSeed());
 

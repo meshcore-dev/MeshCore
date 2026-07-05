@@ -33,6 +33,13 @@ SECTIONS
     KEEP(*(.fs_data))
     PROVIDE(__stop_fs_data = .);
   } > RAM
+
+  .noinit (NOLOAD) :
+  {
+    . = ALIGN(4);
+    KEEP(*(.noinit))
+    . = ALIGN(4);
+  } > RAM
 } INSERT AFTER .data;
 
 INCLUDE "nrf52_common.ld"
