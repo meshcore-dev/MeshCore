@@ -9,6 +9,12 @@
   #define TXT_ACK_DELAY     200
 #endif
 
+#ifdef MAX_GROUP_CHANNELS
+namespace {
+static const uint8_t ZERO_CHANNEL_SECRET[32] = {};
+}
+#endif
+
 void BaseChatMesh::sendFloodScoped(const ContactInfo& recipient, mesh::Packet* pkt, uint32_t delay_millis) {
   sendFlood(pkt, delay_millis);
 }
@@ -368,6 +374,10 @@ void BaseChatMesh::handleReturnPathRetry(const ContactInfo& contact, const uint8
 int BaseChatMesh::searchChannelsByHash(const uint8_t* hash, mesh::GroupChannel dest[], int max_matches) {
   int n = 0;
   for (int i = 0; i < MAX_GROUP_CHANNELS && n < max_matches; i++) {
+    if (memcmp(channels[i].channel.secret, ZERO_CHANNEL_SECRET, sizeof(ZERO_CHANNEL_SECRET)) == 0) {
+      continue;
+    }
+
     if (channels[i].channel.hash[0] == hash[0]) {
       dest[n++] = channels[i].channel;
     }
@@ -903,6 +913,11 @@ bool BaseChatMesh::setChannel(int idx, const ChannelDetails& src) {
   static uint8_t zeroes[] = { 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 };
 
   if (idx >= 0 && idx < MAX_GROUP_CHANNELS) {
+    if (memcmp(src.channel.secret, ZERO_CHANNEL_SECRET, sizeof(ZERO_CHANNEL_SECRET)) == 0) {
+      memset(&channels[idx], 0, sizeof(channels[idx]));
+      return true;
+    }
+
     channels[idx] = src;
     if (memcmp(&src.channel.secret[16], zeroes, 16) == 0) {
       mesh::Utils::sha256(channels[idx].channel.hash, sizeof(channels[idx].channel.hash), src.channel.secret, 16);  // 128-bit key
@@ -914,7 +929,11 @@ bool BaseChatMesh::setChannel(int idx, const ChannelDetails& src) {
   return false;
 }
 int BaseChatMesh::findChannelIdx(const mesh::GroupChannel& ch) {
+  if (memcmp(ch.secret, ZERO_CHANNEL_SECRET, sizeof(ZERO_CHANNEL_SECRET)) == 0) return -1;
+
   for (int i = 0; i < MAX_GROUP_CHANNELS; i++) {
+    if (memcmp(channels[i].channel.secret, ZERO_CHANNEL_SECRET, sizeof(ZERO_CHANNEL_SECRET)) == 0) continue;
+
     if (memcmp(ch.secret, channels[i].channel.secret, sizeof(ch.secret)) == 0) return i;
   }
   return -1;  // not found
