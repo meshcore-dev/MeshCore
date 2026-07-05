@@ -7,7 +7,13 @@
 const PowerMgtConfig power_config = {
   .lpcomp_ain_channel = PWRMGT_LPCOMP_AIN,
   .lpcomp_refsel = PWRMGT_LPCOMP_REFSEL,
-  .voltage_bootlock = PWRMGT_VOLTAGE_BOOTLOCK
+  .voltage_bootlock = PWRMGT_VOLTAGE_BOOTLOCK,
+  .battery_voltage_sense_valid = true,
+  .lpcomp_voltage_wake_valid = true,
+  .vbus_wake_valid = true,
+  .battery_min_present_mv = 1000,
+  .battery_min_plausible_mv = 2500,
+  .battery_max_plausible_mv = 4500
 };
 
 void SenseCapSolarBoard::initiateShutdown(uint8_t reason) {
@@ -18,7 +24,7 @@ void SenseCapSolarBoard::initiateShutdown(uint8_t reason) {
   digitalWrite(VBAT_ENABLE, enable_lpcomp ? LOW : HIGH);
 
   if (enable_lpcomp) {
-    configureVoltageWake(power_config.lpcomp_ain_channel, power_config.lpcomp_refsel);
+    configureVoltageWake(&power_config);
   }
 
   enterSystemOff(reason);

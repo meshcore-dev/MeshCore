@@ -8,14 +8,52 @@ The nRF52 Power Management module provides battery protection features to preven
 
 ### Boot Voltage Protection
 - Checks battery voltage immediately after boot and before mesh operations commence
-- If voltage is below a configurable threshold (e.g., 3300mV), the device configures voltage wake (LPCOMP + VBUS) and enters protective shutdown (SYSTEMOFF)
+- If voltage is below a configurable threshold (e.g., 3300mV), and the board declares the battery sense path valid, the device configures voltage wake and enters protective shutdown (SYSTEMOFF)
 - Prevents boot loops when battery is critically low
-- Skipped when external power (USB VBUS) is detected
+- Skipped when external power (USB VBUS) is detected, when the battery voltage sense path is invalid, when the battery reading is below the configured present threshold, or when the battery voltage evidence is implausibly high
 
 ### Voltage Wake (LPCOMP + VBUS)
-- Configures the nRF52's Low Power Comparator (LPCOMP) before entering SYSTEMOFF
-- Enables USB VBUS detection so external power can wake the device
+- Configures the nRF52's Low Power Comparator (LPCOMP) before entering SYSTEMOFF only when the board declares the LPCOMP sense node valid
+- Enables USB VBUS detection independently where hardware supports VBUS wake
 - Device automatically wakes when battery voltage rises above recovery threshold or when VBUS is detected
+
+### Runtime Power-Fail Shutdown
+- Optionally arms the nRF52 power-fail warning comparator on regulated VDD
+- Allows firmware to enter SYSTEMOFF before an uncontrolled brownout if VDD falls through the configured threshold
+- Can arm VBUS detection as the recovery wake source for builds powered by a battery connected to VUSB
+- Does not replace hardware brownout behaviour: if voltage collapses before firmware runs the handler, recovery is controlled by reset and regulator hardware
+
+### Power Source State
+- `get pwrmgt.source` returns a source state. Normal detected sources use a confidence suffix: `vusb+bat`, `vusb-only`, `bat-only`, or `none`, followed by `:valid`, `:implausible`, `:invalid`, or `:unknown`
+- `invalid` means the board cannot use the configured battery sense path for protective decisions
+- `implausible` means the sensed voltage is outside the board's configured plausible range
+- `possible-battery` means the board is powered without VBUS detect, and the board cannot prove whether VUSB is being used as a battery input
+
+Confidence suffixes are assigned as follows:
+
+| Suffix          | Condition                                                                                 | Protective BAT decisions |
+|-----------------|-------------------------------------------------------------------------------------------|--------------------------|
+| `:valid`        | Battery sense is enabled for the board and the reading is within the configured range      | Allowed                  |
+| `:implausible`  | Battery sense is enabled, the reading is present, and it is below the plausible range or above maximum | Present low readings still shut down; absent/floating and high readings are blocked |
+| `:invalid`      | Battery sense is not valid for the board's supported wiring or operating mode              | Blocked                  |
+| `:unknown`      | Power management has no active board configuration when the source is queried              | Blocked                  |
+| `:possible-battery` | VBUS detect is low, BAT sense is invalid, and VUSB may be acting as a battery input   | Blocked                  |
+
+The current nRF52 power-management board configs all use these plausibility thresholds:
+
+| `PowerMgtConfig` field       | Configured value | Meaning                                      |
+|------------------------------|------------------|----------------------------------------------|
+| `battery_min_present_mv`     | `1000`           | Readings below 1000mV are treated as absent/floating and skipped for boot protection |
+| `battery_min_plausible_mv`   | `2500`           | Readings below 2500mV are reported as `:implausible`; readings at or above 1000mV still trigger boot protection when below `voltage_bootlock` |
+| `battery_max_plausible_mv`   | `4500`           | Readings above 4500mV are `:implausible` and skipped for boot protection |
+
+The confidence range is inclusive: `2500mV <= battery_mv <= 4500mV` is `:valid` when the board's battery sense path is enabled. Boot protection uses the lower present threshold separately: `1000mV <= battery_mv < voltage_bootlock` enters protective shutdown. Boards can override these fields in their own `PowerMgtConfig`.
+
+Readings below `battery_min_present_mv` are treated as no BAT source. With VBUS detected, the source is reported as `vusb-only:valid`; without VBUS detect, the source is reported as `vusb-only:possible-battery` because the board is still powered and VUSB may be acting as the battery input.
+
+There are no configured VUSB millivolt confidence thresholds in the current implementation. VUSB state is based on the nRF52 `USBREGSTATUS.VBUSDETECT` hardware signal, not a firmware ADC voltage reading centred around 5V. `PowerMgtConfig::vbus_wake_valid` only records whether VBUS wake is supported for the board.
+
+This means a battery connected to VUSB is reported as `vusb-only:valid` while `VBUSDETECT` is asserted. If that VUSB battery falls below the hardware detection point but still powers the MCU, firmware reports `vusb-only:possible-battery` rather than `none`.
 
 ### Early Boot Register Capture
 - Captures RESETREAS (reset reason) and GPREGRET2 (shutdown reason) before SystemInit() clears them
@@ -35,31 +73,33 @@ Shutdown reason codes (stored in GPREGRET2):
 ## Supported Boards
 
 
-| Board                                     | Implemented | LPCOMP wake | VBUS wake |
-|-------------------------------------------|-------------|-------------|-----------|
-| Seeed Studio XIAO nRF52840 (`xiao_nrf52`) | Yes         | Yes         | Yes       |
-| RAK4631 (`rak4631`)                       | Yes         | Yes         | Yes       |
-| Heltec T114 (`heltec_t114`)               | Yes         | Yes         | Yes       |
-| GAT562 Mesh Watch13                       | Yes         | Yes         | Yes       |
-| Promicro nRF52840                         | No          | No          | No        |
-| RAK WisMesh Tag                           | No          | No          | No        |
-| Heltec Mesh Solar                         | No          | No          | No        |
-| LilyGo T-Echo / T-Echo Lite               | No          | No          | No        |
-| SenseCAP Solar                            | Yes         | Yes         | Yes       |
-| WIO Tracker L1 / L1 E-Ink                 | No          | No          | No        |
-| WIO WM1110                                | No          | No          | No        |
-| Mesh Pocket                               | No          | No          | No        |
-| Nano G2 Ultra                             | No          | No          | No        |
-| ThinkNode M1/M3/M6                        | No          | No          | No        |
-| T1000-E                                   | No          | No          | No        |
-| Ikoka Nano/Stick/Handheld (nRF)           | No          | No          | No        |
-| Keepteen LT1                              | No          | No          | No        |
-| Minewsemi ME25LS01                        | No          | No          | No        |
+| Board                                     | Implemented | LPCOMP wake | VBUS wake | Runtime POF shutdown |
+|-------------------------------------------|-------------|-------------|-----------|----------------------|
+| Seeed Studio XIAO nRF52840 (`xiao_nrf52`) | Yes         | No          | Yes       | Yes                  |
+| RAK4631 (`rak4631`)                       | Yes         | Yes         | Yes       | No                   |
+| Heltec T114 (`heltec_t114`)               | Yes         | Yes         | Yes       | No                   |
+| GAT562 Mesh Watch13                       | Yes         | Yes         | Yes       | No                   |
+| Promicro nRF52840                         | No          | No          | No        | No                   |
+| RAK WisMesh Tag                           | No          | No          | No        | No                   |
+| Heltec Mesh Solar                         | No          | No          | No        | No                   |
+| LilyGo T-Echo / T-Echo Lite               | No          | No          | No        | No                   |
+| SenseCAP Solar                            | Yes         | Yes         | Yes       | No                   |
+| WIO Tracker L1 / L1 E-Ink                 | No          | No          | No        | No                   |
+| WIO WM1110                                | No          | No          | No        | No                   |
+| Mesh Pocket                               | No          | No          | No        | No                   |
+| Nano G2 Ultra                             | No          | No          | No        | No                   |
+| ThinkNode M1/M3/M6                        | No          | No          | No        | No                   |
+| T1000-E                                   | No          | No          | No        | No                   |
+| Ikoka Nano/Stick/Handheld (nRF)           | No          | No          | No        | No                   |
+| Keepteen LT1                              | No          | No          | No        | No                   |
+| Minewsemi ME25LS01                        | No          | No          | No        | No                   |
 
 Notes:
 - "Implemented" reflects Phase 1 (boot lockout + shutdown reason capture).
 - User power-off on Heltec T114 does not enable LPCOMP wake.
-- VBUS detection is used to skip boot lockout on external power, and VBUS wake is configured alongside LPCOMP when supported hardware exposes VBUS to the nRF52.
+- VBUS detection is used to skip boot lockout on external power. VBUS wake is configured independently from LPCOMP where supported hardware exposes VBUS to the nRF52.
+- XIAO nRF52 disables trusted BAT/LPCOMP protection by default because BAT+ may be disconnected while VUSB is the actual supply.
+- Runtime POF shutdown uses the nRF52 power-fail warning comparator. On XIAO USB builds it is configured for regulated VDD at 2.8 V and arms VBUS wake for SYSTEMOFF recovery. XIAO BLE companion builds leave direct POF disabled because SoftDevice is enabled after `board.begin()` and owns POWER events once started. USB builds that later enter OTA disable the direct POF handler before starting SoftDevice.
 
 ## Technical Details
 
@@ -89,6 +129,7 @@ To enable power management on a board variant:
    #define PWRMGT_VOLTAGE_BOOTLOCK    3300   // Won't boot below this voltage (mV)
    #define PWRMGT_LPCOMP_AIN          7      // AIN channel for voltage sensing
    #define PWRMGT_LPCOMP_REFSEL       2      // REFSEL (0-6=1/8..7/8, 7=ARef, 8-15=1/16..15/16)
+   #define PWRMGT_POWER_FAIL_VDD_THRESHOLD POWER_POFCON_THRESHOLD_V28 // Optional; 2.8 V regulated VDD
    ```
 
 3. **Implement in board .cpp file**:
@@ -97,7 +138,15 @@ To enable power management on a board variant:
    const PowerMgtConfig power_config = {
      .lpcomp_ain_channel = PWRMGT_LPCOMP_AIN,
      .lpcomp_refsel = PWRMGT_LPCOMP_REFSEL,
-     .voltage_bootlock = PWRMGT_VOLTAGE_BOOTLOCK
+     .voltage_bootlock = PWRMGT_VOLTAGE_BOOTLOCK,
+     .battery_voltage_sense_valid = true,
+     .lpcomp_voltage_wake_valid = true,
+     .vbus_wake_valid = true,
+     .battery_min_present_mv = 1000,
+     .battery_min_plausible_mv = 2500,
+     .battery_max_plausible_mv = 4500,
+     .power_fail_vdd_threshold = 0,    // Optional; 0 disables runtime POF shutdown
+     .power_fail_vbus_wake = false     // Optional; true arms VBUS wake after POF shutdown
    };
 
    void MyBoard::initiateShutdown(uint8_t reason) {
@@ -106,7 +155,7 @@ To enable power management on a board variant:
                            reason == SHUTDOWN_REASON_BOOT_PROTECT);
 
      if (enable_lpcomp) {
-       configureVoltageWake(power_config.lpcomp_ain_channel, power_config.lpcomp_refsel);
+       configureVoltageWake(&power_config);
      }
 
      enterSystemOff(reason);
@@ -142,6 +191,25 @@ The LPCOMP (Low Power Comparator) is configured to:
 - Wake the device from SYSTEMOFF when triggered
 
 VBUS wake is enabled via the POWER peripheral USBDETECTED event whenever `configureVoltageWake()` is used. This requires USB VBUS to be routed to the nRF52 (typical on nRF52840 boards with native USB).
+
+### Runtime Power-Fail Configuration
+
+Runtime power-fail shutdown is configured by optional `PowerMgtConfig` fields:
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `power_fail_vdd_threshold` | `0` | Disabled when `0`; otherwise an nRF52 `POWER_POFCON_THRESHOLD_*` value for regulated VDD |
+| `power_fail_vbus_wake` | `false` | When true, the POF handler arms VBUS detect as the SYSTEMOFF wake source |
+
+For nRF52840 VDD, supported POF thresholds are 1.7 V through 2.8 V in 0.1 V steps. The XIAO nRF52840 USB-build default uses `POWER_POFCON_THRESHOLD_V28`, the highest available regulated-VDD threshold, so firmware gets the earliest available warning when the 3.3 V rail starts to collapse.
+
+For nRF52840 VDDH, hardware also supports 2.7 V through 4.2 V thresholds. MeshCore does not currently use the VDDH threshold for XIAO because a battery on the XIAO VUSB pin is not the same as direct nRF52840 VDDH measurement in the board abstraction.
+
+This path is deliberately separate from SYSTEMOFF wake source selection:
+- If supply voltage simply collapses, firmware does not choose a wake source; reset and regulator hardware determine when execution resumes.
+- POF shutdown only applies if the MCU is still executing when VDD crosses the configured threshold.
+- When POF shutdown succeeds and `power_fail_vbus_wake` is true, recovery happens when the nRF52 VBUS detector sees VUSB again, not when BAT sense rises.
+- SoftDevice builds need a SoftDevice SoC event hook for `NRF_EVT_POWER_FAILURE_WARNING`. The current Adafruit nRF52 framework consumes that event internally, so this branch only enables direct POF shutdown while SoftDevice is not active and disables it before OTA starts SoftDevice.
 
 **LPCOMP Reference Selection (PWRMGT_LPCOMP_REFSEL)**:
 
@@ -182,14 +250,17 @@ Power management status can be queried via the CLI:
 | Command                 | Description                                                           |
 |-------------------------|-----------------------------------------------------------------------|
 | `get pwrmgt.support`    | Returns "supported" or "unsupported"                                  |
-| `get pwrmgt.source`     | Returns current power source - "battery" or "external" (5V/USB power) |
+| `get pwrmgt.source`     | Returns composite source and confidence, e.g. `vusb+bat:valid`        |
 | `get pwrmgt.bootreason` | Returns reset and shutdown reason strings                             |
-| `get pwrmgt.bootmv`     | Returns boot voltage in millivolts                                    |
+| `get pwrmgt.bootmv`     | Returns boot voltage in millivolts, with `invalid` when BAT sense is not trustworthy |
+| `get diag.boot`         | Returns current and previous reset-retained boot/radio diagnostics     |
 
 On boards without power management enabled, all commands except `get pwrmgt.support` return:
 ```
 ERROR: Power management not supported
 ```
+
+`get diag.boot` includes raw current and previous boot records. The shutdown fields include all `GPREGRET2` markers, not only radio initialisation failure, so low-voltage and boot-protection context is preserved when diagnosing reset loops. The previous slot is retained across MCU resets where RAM is preserved; it is not a flash-backed history and may be lost after a complete power loss.
 
 ## Debug Output
 

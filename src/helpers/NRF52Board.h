@@ -21,6 +21,32 @@ struct PowerMgtConfig {
   // Boot protection voltage threshold (millivolts)
   // Set to 0 to disable boot protection
   uint16_t voltage_bootlock;
+
+  // Capability flags describe what this board can prove from its sense wiring.
+  // They prevent VBUS loss from being treated as proof that a BAT sense node is valid.
+  bool battery_voltage_sense_valid;
+  bool lpcomp_voltage_wake_valid;
+  bool vbus_wake_valid;
+
+  // Battery voltage interpretation thresholds. Readings below the present
+  // threshold are treated as absent/floating, not as a discharged battery.
+  uint16_t battery_min_present_mv;
+
+  // Broad plausibility limits for source-state confidence reporting.
+  uint16_t battery_min_plausible_mv;
+  uint16_t battery_max_plausible_mv;
+
+  // Optional nRF52 power-fail warning threshold for regulated VDD.
+  // Set to 0 to disable runtime power-fail shutdown. Threshold values are
+  // the nRF52 POWER_POFCON_THRESHOLD_* enum values, for example
+  // POWER_POFCON_THRESHOLD_V28 for 2.8 V.
+  uint8_t power_fail_vdd_threshold;
+
+  // If true, runtime power-fail shutdown arms VBUS detect as the SYSTEMOFF
+  // wake source. This is useful for boards powered by a battery on VUSB where
+  // BAT sense is not available, but it only applies after a deliberate
+  // firmware shutdown before uncontrolled brownout.
+  bool power_fail_vbus_wake;
 };
 #endif
 
@@ -37,11 +63,17 @@ protected:
   uint32_t reset_reason;              // RESETREAS register value
   uint8_t shutdown_reason;            // GPREGRET value (why we entered last SYSTEMOFF)
   uint16_t boot_voltage_mv;           // Battery voltage at boot (millivolts)
+  const PowerMgtConfig* active_power_config = nullptr;
 
   bool checkBootVoltage(const PowerMgtConfig* config);
   void enterSystemOff(uint8_t reason);
   void configureVoltageWake(uint8_t ain_channel, uint8_t refsel);
+  void configureVoltageWake(const PowerMgtConfig* config);
+  void configureVbusWake();
+  void configurePowerFailShutdown(const PowerMgtConfig* config);
+  void disablePowerFailShutdown();
   virtual void initiateShutdown(uint8_t reason);
+  bool isBatteryVoltagePlausible(uint16_t millivolts, const PowerMgtConfig* config) const;
 #endif
 
 public:
@@ -57,6 +89,8 @@ public:
 
 #ifdef NRF52_POWER_MANAGEMENT
   uint16_t getBootVoltage() override { return boot_voltage_mv; }
+  bool isBootVoltageValid() override;
+  const char* getPowerSourceState() override;
   virtual uint32_t getResetReason() const override { return reset_reason; }
   uint8_t getShutdownReason() const override { return shutdown_reason; }
   const char* getResetReasonString(uint32_t reason) override;

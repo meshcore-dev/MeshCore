@@ -3,6 +3,7 @@
 #include "TxtDataHelpers.h"
 #include "AdvertDataHelpers.h"
 #include "TxtDataHelpers.h"
+#include "RadioInitDiagnostics.h"
 #include <RTClib.h>
 
 #ifndef BRIDGE_MAX_BAUD
@@ -948,7 +949,7 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
 #endif
   } else if (memcmp(config, "pwrmgt.source", 13) == 0) {
 #ifdef NRF52_POWER_MANAGEMENT
-    strcpy(reply, _board->isExternalPowered() ? "> external" : "> battery");
+    sprintf(reply, "> %s", _board->getPowerSourceState());
 #else
     strcpy(reply, "ERROR: Power management not supported");
 #endif
@@ -958,10 +959,29 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
       _board->getShutdownReasonString(_board->getShutdownReason()));
   } else if (memcmp(config, "pwrmgt.bootmv", 13) == 0) {
 #ifdef NRF52_POWER_MANAGEMENT
-    sprintf(reply, "> %u mV", _board->getBootVoltage());
+    sprintf(reply, _board->isBootVoltageValid() ? "> %u mV" : "> %u mV invalid",
+      _board->getBootVoltage());
 #else
     strcpy(reply, "ERROR: Power management not supported");
 #endif
+  } else if (memcmp(config, "radio.init_status", 17) == 0) {
+    sprintf(reply, "> %d", (int)g_last_radio_init_status);
+  } else if (memcmp(config, "radio.init_attempts", 19) == 0) {
+    sprintf(reply, "> %u", (unsigned)g_radio_init_attempts);
+  } else if (memcmp(config, "diag.boot", 9) == 0) {
+    RadioInitBootRecord cur = radioInitCurrentBootRecord();
+    RadioInitBootRecord prev = radioInitPreviousBootRecord();
+    sprintf(reply, "> cur_rr=0x%08lX cur_sd=0x%02X cur_st=0x%02X cur_radio=%d cur_att=%u prev_rr=0x%08lX prev_sd=0x%02X prev_st=0x%02X prev_radio=%d prev_att=%u",
+      (unsigned long)cur.reset_reason,
+      (unsigned)cur.shutdown_reason,
+      (unsigned)cur.boot_stage,
+      (int)cur.radio_status,
+      (unsigned)cur.attempts,
+      (unsigned long)prev.reset_reason,
+      (unsigned)prev.shutdown_reason,
+      (unsigned)prev.boot_stage,
+      (int)prev.radio_status,
+      (unsigned)prev.attempts);
   } else {
     sprintf(reply, "??: %s", config);
   }
