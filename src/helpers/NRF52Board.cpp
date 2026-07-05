@@ -129,6 +129,8 @@ const char* NRF52Board::getShutdownReasonString(uint8_t reason) {
     case SHUTDOWN_REASON_LOW_VOLTAGE:  return "Low Voltage";
     case SHUTDOWN_REASON_USER:         return "User Request";
     case SHUTDOWN_REASON_BOOT_PROTECT: return "Boot Protection";
+    case RADIO_INIT_FAULT_RADIO_INIT_FAIL:
+      return "Radio Init Fail";
   }
   return "Unknown";
 }
@@ -357,8 +359,16 @@ bool NRF52Board::isBatteryVoltagePlausible(uint16_t millivolts, const PowerMgtCo
 }
 
 bool NRF52Board::isBootVoltageValid() {
-  return active_power_config != nullptr &&
-         active_power_config->battery_voltage_sense_valid;
+  if (active_power_config == nullptr ||
+      !active_power_config->battery_voltage_sense_valid) {
+    return false;
+  }
+
+  if (boot_voltage_mv < active_power_config->battery_min_present_mv) {
+    return false;
+  }
+
+  return isBatteryVoltagePlausible(boot_voltage_mv, active_power_config);
 }
 
 const char* NRF52Board::getPowerSourceState() {
