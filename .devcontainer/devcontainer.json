@@ -6,7 +6,7 @@
 		"ghcr.io/rocker-org/devcontainer-features/apt-packages:1": {
 			"packages": [
 				"sudo",
-				// Zephyr / nRF Connect SDK host build dependencies
+				// Mainline Zephyr host build dependencies (companion is NOT built on NCS)
 				"git",
 				"cmake",
 				"ninja-build",
@@ -21,7 +21,10 @@
 				"libsdl2-dev",
 				"libmagic1",
 				"python3-venv",
-				"python3-dev"
+				"python3-dev",
+				// pyocd (CMSIS-DAP flash/RTT for the XIAO nRF54L15 on-board debugger)
+				"libusb-1.0-0",
+				"libhidapi-hidraw0"
 			]
 		}
 	},
