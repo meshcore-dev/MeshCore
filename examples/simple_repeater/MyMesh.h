@@ -249,7 +249,7 @@ public:
   // To check if there is pending work
   bool hasPendingWork() const;
 
-#if defined(USE_SX1262) || defined(USE_SX1268)
+#if defined(USE_SX1262) || defined(USE_SX1268) || defined(USE_LR1110) || defined(USE_LR1121)
   void setRxBoostedGain(bool enable) override;
 #endif
 };
