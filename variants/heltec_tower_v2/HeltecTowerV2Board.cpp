@@ -58,6 +58,20 @@ void HeltecTowerV2Board::begin() {
   pinMode(PIN_GPS_STANDBY, OUTPUT);
   digitalWrite(PIN_GPS_STANDBY, HIGH);
   loRaFEMControl.init();
+
+#ifdef HAS_HARDWARE_WATCHDOG
+  pinMode(HARDWARE_WATCHDOG_DONE, OUTPUT);
+  digitalWrite(HARDWARE_WATCHDOG_DONE, LOW);
+  pinMode(HARDWARE_WATCHDOG_WAKE, INPUT);
+
+  watchdog_timer.begin(60000, [](TimerHandle_t xTimerID) {
+    (void)xTimerID;
+    MESH_DEBUG_PRINTLN("PWRMGT: Fed hardware watchdog (t=%lu ms)", millis());
+    digitalWrite(HARDWARE_WATCHDOG_DONE, HIGH);
+    digitalWrite(HARDWARE_WATCHDOG_DONE, LOW);
+  });
+  watchdog_timer.start();
+#endif
 }
 
 void HeltecTowerV2Board::onBeforeTransmit() {

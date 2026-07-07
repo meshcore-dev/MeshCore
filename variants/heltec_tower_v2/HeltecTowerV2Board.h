@@ -21,4 +21,8 @@ public:
   uint16_t getBattMilliVolts() override;
   const char* getManufacturerName() const override;
   void powerOff() override;
+#ifdef HAS_HARDWARE_WATCHDOG
+private:
+  SoftwareTimer watchdog_timer;
+#endif
 };
