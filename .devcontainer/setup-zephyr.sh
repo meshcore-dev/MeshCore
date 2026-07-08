@@ -9,8 +9,10 @@
 #   1. a west/Zephyr workspace from zephyrproject-rtos/zephyr  -> $ZEPHYR_WORKSPACE
 #   2. the matching Zephyr SDK (compilers)                      via `west sdk install`
 #   3. pyocd (CMSIS-DAP flash/RTT for the XIAO's on-board debugger)
-#   4. arduino-cli + the three Arduino libraries the CMake references by
-#      absolute path ($HOME/Arduino/libraries/{RadioLib,Crypto,base64})
+#   4. arduino-cli + the three Arduino libraries the companion actually
+#      compiles ($HOME/Arduino/libraries/{RadioLib,Crypto,base64}); the other
+#      libs its CMakeLists.txt names (CayenneLPP/RTClib/ArduinoJson) are
+#      header-shimmed in compat/ and not installed
 #
 # It is intentionally idempotent: re-running skips work that's already done.
 # It is HEAVY (multi-GB clone + Zephyr SDK). Expect the first run to take a while.
@@ -81,16 +83,18 @@ pip install -r zephyr/scripts/requirements.txt >/dev/null
 
 # 4) Zephyr SDK (toolchain). `west sdk install` auto-selects the version that
 #    matches this Zephyr tree, so we don't hardcode (and mis-pin) an SDK version.
+#    Only the Arm toolchain is needed (nRF54L15 = Cortex-M33); without -t it
+#    would download every architecture's toolchain.
 echo ">> Installing the matching Zephyr SDK (compilers)..."
-west sdk install || {
+west sdk install -t arm-zephyr-eabi || {
   echo "!! 'west sdk install' failed. On older west you may need to install the"
   echo "!! Zephyr SDK manually: https://docs.zephyrproject.org/latest/develop/getting_started/index.html"
 }
 
-# 5) arduino-cli + the Arduino libraries the companion CMake references by
-#    absolute path. arduino-cli's default sketchbook is $HOME/Arduino, so the
-#    libraries land in $HOME/Arduino/libraries/{RadioLib,Crypto,base64} exactly
-#    where CMakeLists.txt looks.
+# 5) arduino-cli + the Arduino libraries the companion build compiles.
+#    arduino-cli's default sketchbook is $HOME/Arduino, so the libraries land
+#    in $HOME/Arduino/libraries/{RadioLib,Crypto,base64} exactly where
+#    CMakeLists.txt looks.
 if ! command -v arduino-cli >/dev/null 2>&1; then
   echo ">> Installing arduino-cli (user space -> ~/.local/bin)..."
   mkdir -p "$HOME/.local/bin"
@@ -99,7 +103,8 @@ if ! command -v arduino-cli >/dev/null 2>&1; then
   export PATH="$HOME/.local/bin:$PATH"
 fi
 # Keep libraries in $HOME/Arduino so they match the CMake absolute paths.
-arduino-cli config init --overwrite >/dev/null 2>&1 || true
+# No --overwrite: an existing config is kept; directories.user is pinned below.
+arduino-cli config init >/dev/null 2>&1 || true
 arduino-cli config set directories.user "${ARDUINO_DIR}" >/dev/null 2>&1 || true
 echo ">> Installing Arduino libraries (RadioLib/Crypto/base64) into ${ARDUINO_DIR}/libraries..."
 arduino-cli lib update-index >/dev/null
@@ -124,11 +129,11 @@ cat <<EOF
 ============================================================================
 Zephyr toolchain + companion deps ready.
 
-  Zephyr workspace : ${ZEPHYR_WORKSPACE}   (mainline, VERSION 4.4.99)
+  Zephyr workspace : ${ZEPHYR_WORKSPACE}   (mainline @ ${ZEPHYR_REV})
   Zephyr base      : ${ZEPHYR_WORKSPACE}/zephyr
   Python venv      : ${VENV_DIR}
   Arduino libs     : ${ARDUINO_DIR}/libraries/{RadioLib,Crypto,base64}
-  Flash/RTT tool   : pyocd (target: nrf54)
+  Flash/RTT tool   : pyocd (target: nrf54l)
 
 To build & flash the companion:
     source ${VENV_DIR}/bin/activate
@@ -136,8 +141,8 @@ To build & flash the companion:
 
     cd zephyr-port/07_companion
     west build -b ${BOARD} -d build . --pristine
-    pyocd flash -t nrf54 -e chip build/zephyr/zephyr.hex
-    pyocd reset -t nrf54
+    pyocd flash -t nrf54l -e chip build/zephyr/zephyr.hex
+    pyocd reset -t nrf54l
 
 PlatformIO is untouched and still drives the existing ESP32/nRF52/etc. variants.
 ============================================================================

@@ -26,12 +26,26 @@
  * build; a 2G4 build needs no app interaction (and the choice persists in prefs). The app
  * has no 2.4 GHz preset of its own, presets are app-side and sub-GHz only, so this flag is
  * the practical way to put the node on 2.4 GHz for the RF test. */
+/* NOTE: the real build-time source of these is CMakeLists.txt (global -D flags,
+ * mirroring platformio.ini): core headers such as RadioLibWrappers.h expand
+ * LORA_SF in translation units that never include this file. The block below is
+ * only a fallback for tooling (clangd/IDE) parsing this header standalone. */
 #ifdef MC_BAND_2G4
+  #ifndef LORA_FREQ
   #define LORA_FREQ      LORA_FREQ_2G4
+  #endif
+  #ifndef LORA_BW
   #define LORA_BW        LORA_BW_2G4
+  #endif
+  #ifndef LORA_SF
   #define LORA_SF        LORA_SF_2G4
+  #endif
+  #ifndef LORA_CR
   #define LORA_CR        LORA_CR_2G4
+  #endif
+  #ifndef LORA_TX_POWER
   #define LORA_TX_POWER  LORA_TX_POWER_2G4
+  #endif
 #else
   #ifndef LORA_FREQ
   #define LORA_FREQ      869.618f

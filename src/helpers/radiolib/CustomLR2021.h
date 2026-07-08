@@ -22,6 +22,11 @@ class CustomLR2021 : public LR2021 {
 public:
   CustomLR2021(Module *mod) : LR2021(mod) { }
 
+  // route the host IRQ to the DIO the board actually wires (std_init does this
+  // too; callers that do their own begin() sequence use this directly)
+  void setIrqDio(uint8_t n) { irqDioNum = n; }
+
+#if defined(ARDUINO)   // Arduino-core bring-up; Zephyr (compat shim, no SPIClass) drives begin() itself
   bool std_init(SPIClass* spi = NULL) {
     // route the host IRQ to the DIO the board actually wires (default DIO8)
     irqDioNum = LR2021_IRQ_DIO;
@@ -62,6 +67,7 @@ public:
 
     return true;  // success
   }
+#endif  // ARDUINO
 
   size_t getPacketLength(bool update) override {
     size_t len = LR2021::getPacketLength(update);
@@ -72,6 +78,18 @@ public:
     }
     return len;
   }
+
+#if RADIOLIB_GODMODE
+  int16_t startReceive() override {
+    // re-assert max payload length before every RX: a TX leaves the chip's
+    // packet-length param at the last TX size, which would clip longer
+    // incoming packets. Needs GODMODE (setLoRaPacketParams is private).
+    setLoRaPacketParams(this->preambleLengthLoRa, this->headerType,
+                        RADIOLIB_LR2021_MAX_PACKET_LENGTH, this->crcTypeLoRa,
+                        this->invertIQEnabled);
+    return LR2021::startReceive();
+  }
+#endif
 
   bool isReceiving() {
     uint32_t irq = getIrqFlags();

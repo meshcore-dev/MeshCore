@@ -65,7 +65,15 @@ target_compile_definitions(app PRIVATE
 # instead of the default 865 MHz sub-GHz. The app has no 2.4 GHz preset, so this is how to put
 # the node on 2.4 GHz for the over-the-air RF test (the choice then persists in prefs).
 option(MC_BAND_2G4 "Boot on the 2.4 GHz LoRa preset instead of sub-GHz" OFF)
+# LoRa boot params must be global -D flags (mirroring platformio.ini), not header
+# defines: core headers (e.g. RadioLibWrappers.h getSpreadingFactor) expand LORA_SF
+# in translation units that never include target.h. Keep in sync with the presets
+# documented in src/target.h.
 if(MC_BAND_2G4)
-  target_compile_definitions(app PRIVATE MC_BAND_2G4=1)
+  target_compile_definitions(app PRIVATE MC_BAND_2G4=1
+    LORA_FREQ=2450.0f LORA_BW=500.0f LORA_SF=8 LORA_CR=5 LORA_TX_POWER=12)
   message(STATUS "MeshCore: building for 2.4 GHz band (2450 MHz / 500 kHz / SF8 / CR5)")
+else()
+  target_compile_definitions(app PRIVATE
+    LORA_FREQ=869.618f LORA_BW=62.5f LORA_SF=8 LORA_CR=5 LORA_TX_POWER=22)
 endif()

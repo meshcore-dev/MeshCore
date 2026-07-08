@@ -13,8 +13,22 @@ public:
   CustomLR2021Wrapper(CustomLR2021& radio, mesh::MainBoard& board)
     : RadioLibWrapper(radio, board) { }
 
+  void setParams(float freq, float bw, uint8_t sf, uint8_t cr) override {
+    ((CustomLR2021 *)_radio)->setFrequency(freq);
+    ((CustomLR2021 *)_radio)->setSpreadingFactor(sf);
+    ((CustomLR2021 *)_radio)->setBandwidth(bw);
+    ((CustomLR2021 *)_radio)->setCodingRate(cr);
+    updatePreamble(sf);
+  }
+
   bool isReceivingPacket() override {
     return ((CustomLR2021 *)_radio)->isReceiving();
+  }
+
+  void onBeforeStartRecv() override {
+    // re-arming (setRxPath) while still in continuous RX -> CMD_PERR (-706)
+    // and a wedged receiver; drop to standby before every startReceive()
+    _radio->standby();
   }
 
   float getCurrentRSSI() override {

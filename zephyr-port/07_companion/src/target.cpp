@@ -1,56 +1,19 @@
 #include "target.h"
 #include "zephyr_radiolib_hal.h"
-#include <helpers/radiolib/RadioLibWrappers.h>
-#include <RadioLib.h>
+/* Chip quirks (header-CRC standby, RX max-length re-assert) and the mesh wrapper
+ * (standby-before-re-arm, RSSI hooks) are shared with the bare-metal variant via
+ * CustomLR2021 / CustomLR2021Wrapper — single source for the LR2021 fixes. */
+#include <helpers/radiolib/CustomLR2021Wrapper.h>
 #include <zephyr/sys/reboot.h>
-
-#define LR2021_IRQ_DIO 8
-#ifndef LR2021_RX_BOOST_LEVEL
-#define LR2021_RX_BOOST_LEVEL 7   /* matches Semtech usp_zephyr rx-boost-cfg / CustomLR2021 */
-#endif
 
 static ZephyrHal hal;
 
-class LR2021Z : public LR2021 {
-  public:
-	explicit LR2021Z(Module *m) : LR2021(m) {}
-	void setIrqDio(uint8_t n) { this->irqDioNum = n; }
-	/* Match the known-good bare-metal CustomLR2021: on a corrupted LoRa header the
-	 * stock driver returns len 0 and can leave RX half-wedged; force standby so the
-	 * wrapper re-arms cleanly. */
-	size_t getPacketLength(bool update) override {
-		size_t len = LR2021::getPacketLength(update);
-		if (len == 0 && (getIrqFlags() & RADIOLIB_LR2021_IRQ_LORA_HDR_CRC_ERROR)) {
-			standby();
-		}
-		return len;
-	}
-
-	int16_t startReceive() override {
-		setLoRaPacketParams(this->preambleLengthLoRa, this->headerType,
-				    RADIOLIB_LR2021_MAX_PACKET_LENGTH, this->crcTypeLoRa,
-				    this->invertIQEnabled);
-		return LR2021::startReceive();
-	}
-};
-
 static Module s_mod(&hal, LR_PIN_NSS, LR_PIN_DIO1, LR_PIN_RESET, LR_PIN_BUSY);
-static LR2021Z s_lora(&s_mod);
+static CustomLR2021 s_lora(&s_mod);
 
 ZBoard board;   /* defined before the radio wrapper that references it */
 
-class LR2021Mesh : public RadioLibWrapper {
-  public:
-	LR2021Mesh(LR2021 &r, mesh::MainBoard &b) : RadioLibWrapper(r, b) {}
-
-	bool isReceivingPacket() override {
-		uint32_t irq = ((LR2021 *)_radio)->getIrqFlags();
-		return (irq & RADIOLIB_LR2021_IRQ_PREAMBLE_DETECTED) ||
-		       (irq & RADIOLIB_LR2021_IRQ_LORA_HEADER_VALID);
-	}
-	float getCurrentRSSI() override { return ((LR2021 *)_radio)->getRSSI(); }
-};
-static LR2021Mesh s_radio(s_lora, board);
+static CustomLR2021Wrapper s_radio(s_lora, board);
 
 RadioLibWrapper &radio_driver = s_radio;
 VolatileRTCClock rtc_clock;

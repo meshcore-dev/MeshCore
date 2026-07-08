@@ -10,14 +10,17 @@ straight from this repo; the radio driver is stock RadioLib in generic (non-Ardu
 | Path | Role |
 |---|---|
 | `src/main.cpp` | Zephyr entry point; runs the MeshCore companion loop |
-| `src/target.cpp`, `src/target.h` | board/radio bring-up: `LR2021` subclass (RX/length fixes), pin map, band presets, TX-power clamp |
+| `src/target.cpp`, `src/target.h` | board/radio bring-up: pin map, band presets, TX-power clamp; radio = the shared `CustomLR2021`/`CustomLR2021Wrapper` |
 | `src/serial_ble_interface.cpp/.h` | BLE transport: custom encryption-gated Nordic-UART (NUS) GATT service; central-driven pairing |
 | `src/zephyr_internal_fs.cpp` | `InternalFileSystem` backed by a Zephyr flash partition (LittleFS) for prefs/identity |
 | `compat/` | header-only shims (CayenneLPP, RTClib, Arduino glue) so the core builds without those libs |
 | `dts/`, `app.overlay`, `prj.conf` | devicetree overlay (SPI/GPIO for the LR2021) and Kconfig |
 
-The companion also pulls one modified core file, `src/helpers/radiolib/RadioLibWrappers.cpp`
-(standby-before-`startReceive` for the LR2021), from the repo root.
+All LR2021-specific radio fixes (standby before re-arming RX, header-CRC recovery, RX
+max-length re-assert) live in `src/helpers/radiolib/CustomLR2021.h` /
+`CustomLR2021Wrapper.h` at the repo root, shared with the bare-metal variant
+(`variants/xiao_nrf54l15`). The core `RadioLibWrapper` exposes a neutral
+`onBeforeStartRecv()` hook for the standby quirk, so other radios keep stock behaviour.
 
 ## Prerequisites
 
