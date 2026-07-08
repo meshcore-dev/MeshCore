@@ -21,19 +21,22 @@ protected:
   int32_t _floor_sample_sum;
   uint8_t _preamble_sf;
   bool _rx_ps_enabled;
+  bool _rx_ps_armed;      // radio is currently in RX duty-cycle mode
   uint32_t _rx_ps_rx_us;
   uint32_t _rx_ps_sleep_us;
 
   void idle();
   void startRecv();
   virtual int startReceiveMode();
+  virtual void stopReceiveDutyCycle();
+  virtual bool isPacketReady();
   float packetScoreInt(float snr, int sf, int packet_len);
   virtual bool isReceivingPacket() =0;
   virtual void doResetAGC();
 
 public:
   RadioLibWrapper(PhysicalLayer& radio, mesh::MainBoard& board)
-      : _radio(&radio), _board(&board), _preamble_sf(0), _rx_ps_enabled(false),
+      : _radio(&radio), _board(&board), _preamble_sf(0), _rx_ps_enabled(false), _rx_ps_armed(false),
         _rx_ps_rx_us(RX_PS_FALLBACK_RX_US), _rx_ps_sleep_us(RX_PS_FALLBACK_SLEEP_US) { n_recv = n_sent = n_recv_errors = 0; }
 
   void begin() override;

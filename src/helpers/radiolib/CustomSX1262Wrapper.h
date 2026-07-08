@@ -42,6 +42,12 @@ public:
 
 protected:
   int startReceiveMode() override {
+    if (_rx_ps_armed) {
+      // leaving duty-cycle mode (after RxDone or a reconfig): stop the
+      // sequencer and the still-running RTC, or its pending event can
+      // silently abort the RX we are about to start
+      stopReceiveDutyCycle();
+    }
     if (!_rx_ps_enabled) {
       return _radio->startReceive();
     }
@@ -55,11 +61,18 @@ protected:
 
     int err = ((CustomSX1262 *)_radio)->startReceiveDutyCycle(_rx_ps_rx_us, _rx_ps_sleep_us, irqFlags, irqMask);
     if (err == RADIOLIB_ERR_NONE) {
+      _rx_ps_armed = true;
       return err;
     }
 
     MESH_DEBUG_PRINTLN("CustomSX1262Wrapper: error: startReceiveDutyCycle(%d), falling back to continuous RX", err);
     return _radio->startReceive();
+  }
+
+  void stopReceiveDutyCycle() override {
+    _radio->standby();   // also wakes the chip if it is in the sleep window
+    ((CustomSX1262 *)_radio)->stopRTC();
+    _rx_ps_armed = false;
   }
 
 public:

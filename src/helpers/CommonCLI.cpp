@@ -779,12 +779,16 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       enable = 0;
     } else if (strcmp(value, "on") == 0 || strcmp(value, "conservative") == 0) {
       enable = 1;
-      rx_us = RX_POWERSAVING_DEFAULT_RX_US;
-      sleep_us = RX_POWERSAVING_DEFAULT_SLEEP_US;
+      level = RX_POWERSAVING_CONSERVATIVE_LEVEL;
+      preamble = RX_POWERSAVING_PROFILE_PREAMBLE;
+      level_requested = true;
+      preamble_overridden = true;
     } else if (strcmp(value, "balanced") == 0) {
       enable = 1;
-      rx_us = RX_POWERSAVING_DEFAULT_RX_US;
-      sleep_us = RX_POWERSAVING_BALANCED_SLEEP_US;
+      level = RX_POWERSAVING_BALANCED_LEVEL;
+      preamble = RX_POWERSAVING_PROFILE_PREAMBLE;
+      level_requested = true;
+      preamble_overridden = true;
     } else {
       StrHelper::strncpy(tmp, value, sizeof(tmp));
       const char *parts[4];
@@ -812,11 +816,11 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
         strcpy(reply, "ERROR: use off|on|conservative|balanced|level <1-10>|<rx_us> <sleep_us>");
         return;
       }
+    }
 
-      if (level_requested && !calcRxPowerSavingLevel(level, _prefs->sf, _prefs->bw, preamble, &rx_us, &sleep_us)) {
-        strcpy(reply, "ERROR: level range is 1-10; preamble is 16 or 32");
-        return;
-      }
+    if (level_requested && !calcRxPowerSavingLevel(level, _prefs->sf, _prefs->bw, preamble, &rx_us, &sleep_us)) {
+      strcpy(reply, "ERROR: level range is 1-10; preamble is 16 or 32");
+      return;
     }
 
     if (!isValidRxPowerSavingPeriod(rx_us) || !isValidRxPowerSavingPeriod(sleep_us)) {
@@ -839,7 +843,8 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       _prefs->rx_ps_level = level;
       _prefs->rx_ps_preamble = preamble_overridden ? preamble : 0;   // 0 = auto (derive from SF)
     } else if (strcmp(value, "off") != 0) {
-      // on/conservative/balanced/manual timings are fixed, not level-derived.
+      // manual <rx_us> <sleep_us> timings are fixed, not level-derived
+      // (the named profiles set level_requested and are handled above)
       _prefs->rx_ps_level = 0;
       _prefs->rx_ps_preamble = 0;
     }

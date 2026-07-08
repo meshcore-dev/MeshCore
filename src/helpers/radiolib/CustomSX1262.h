@@ -87,9 +87,33 @@ class CustomSX1262 : public SX1262 {
     }
 
     bool isReceiving() {
+      // BUSY high means the chip is asleep (RX duty-cycle sleep window) or mid
+      // command, so it cannot be mid-receive - and the SPI read below would
+      // stall until the chip's next listen window.
+      uint32_t busy = this->mod->getGpio();
+      if (busy != RADIOLIB_NC && this->mod->hal->digitalRead(busy)) return false;
+
       uint16_t irq = getIrqFlags();
       bool detected = (irq & SX126X_IRQ_HEADER_VALID) || (irq & SX126X_IRQ_PREAMBLE_DETECTED);
       return detected;
+    }
+
+    // Port of Semtech's sx126x_stop_rtc() (same registers as RadioLib's
+    // fixImplicitTimeout / datasheet errata 15.3): after duty-cycle RX ends via
+    // RxDone or SetStandby, the internal RTC keeps running and its pending
+    // event can silently knock a subsequently started RX back to standby with
+    // no IRQ, leaving the node deaf. Must be called before re-arming RX.
+    int16_t stopRTC() {
+      uint8_t rtcStop = 0x00;
+      int16_t state = writeRegister(RADIOLIB_SX126X_REG_RTC_CTRL, &rtcStop, 1);
+      RADIOLIB_ASSERT(state);
+
+      uint8_t rtcEvent = 0;
+      state = readRegister(RADIOLIB_SX126X_REG_EVENT_MASK, &rtcEvent, 1);
+      RADIOLIB_ASSERT(state);
+
+      rtcEvent |= 0x02;   // clear the RX timeout event
+      return writeRegister(RADIOLIB_SX126X_REG_EVENT_MASK, &rtcEvent, 1);
     }
 
     bool getRxBoostedGainMode() {

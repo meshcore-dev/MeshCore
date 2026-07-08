@@ -121,6 +121,24 @@ int RadioLibWrapper::startReceiveMode() {
   return _radio->startReceive();
 }
 
+void RadioLibWrapper::stopReceiveDutyCycle() {
+  // The duty-cycle sequencer only stops on RxDone or an explicit standby;
+  // issuing other mode commands while it runs leads to undefined behaviour.
+  _radio->standby();
+  _rx_ps_armed = false;
+}
+
+bool RadioLibWrapper::isPacketReady() {
+  if (!_rx_ps_armed) return true;   // continuous RX: DIO1 only fires for RxDone/TxDone here
+
+  // In duty-cycle RX the DIO1 interrupt also fires for RX timeout (false
+  // preamble detect) and header errors. GetRxBufferStatus still reports the
+  // *previous* packet's length then, so reading the buffer would re-deliver
+  // stale bytes as a ghost packet. Only read when the radio reports RxDone.
+  // (checkIrq errors are treated as ready, falling back to old behaviour.)
+  return _radio->checkIrq(RADIOLIB_IRQ_RX_DONE) != 0;
+}
+
 bool RadioLibWrapper::isInRecvMode() const {
   return (state & ~STATE_INT_READY) == STATE_RX;
 }
@@ -146,17 +164,19 @@ bool RadioLibWrapper::setRxPowerSaving(bool enabled, uint32_t rx_us, uint32_t sl
 int RadioLibWrapper::recvRaw(uint8_t* bytes, int sz) {
   int len = 0;
   if (state & STATE_INT_READY) {
-    len = _radio->getPacketLength();
-    if (len > 0) {
-      if (len > sz) { len = sz; }
-      int err = _radio->readData(bytes, len);
-      if (err != RADIOLIB_ERR_NONE) {
-        MESH_DEBUG_PRINTLN("RadioLibWrapper: error: readData(%d)", err);
-        len = 0;
-        n_recv_errors++;
-      } else {
-      //  Serial.print("  readData() -> "); Serial.println(len);
-        n_recv++;
+    if (isPacketReady()) {
+      len = _radio->getPacketLength();
+      if (len > 0) {
+        if (len > sz) { len = sz; }
+        int err = _radio->readData(bytes, len);
+        if (err != RADIOLIB_ERR_NONE) {
+          MESH_DEBUG_PRINTLN("RadioLibWrapper: error: readData(%d)", err);
+          len = 0;
+          n_recv_errors++;
+        } else {
+        //  Serial.print("  readData() -> "); Serial.println(len);
+          n_recv++;
+        }
       }
     }
     state = STATE_IDLE;   // need another startReceive()
@@ -173,6 +193,11 @@ uint32_t RadioLibWrapper::getEstAirtimeFor(int len_bytes) {
 }
 
 bool RadioLibWrapper::startSendRaw(const uint8_t* bytes, int len) {
+  if (_rx_ps_armed) {
+    // stop the duty-cycle sequencer before SetTx, otherwise its next RTC
+    // event can fire mid-transmission and abort the TX
+    stopReceiveDutyCycle();
+  }
   _board->onBeforeTransmit();
   int err = _radio->startTransmit((uint8_t *) bytes, len);
   if (err == RADIOLIB_ERR_NONE) {
@@ -205,8 +230,11 @@ int16_t RadioLibWrapper::performChannelScan() {
 }
 
 bool RadioLibWrapper::isChannelActive() {
-  // int.thresh: RSSI-based interference detection (relative to noise floor)
-  if (_threshold != 0 && getCurrentRSSI() > _noise_floor + _threshold) return true;
+  // int.thresh: RSSI-based interference detection (relative to noise floor).
+  // Skipped in RX duty-cycle mode: the frontend sleeps part of the time, so an
+  // instantaneous RSSI is meaningless and the SPI read would block until the
+  // chip's next listen window.
+  if (!_rx_ps_enabled && _threshold != 0 && getCurrentRSSI() > _noise_floor + _threshold) return true;
 
   // cad: hardware channel activity detection
   if (_cad_enabled) {
