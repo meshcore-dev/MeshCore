@@ -71,6 +71,9 @@ public:
 
   virtual bool isInRecvMode() const = 0;
 
+  virtual bool supportsRxPowerSaving() const { return false; }
+  virtual bool setRxPowerSaving(bool enabled, uint32_t rx_us, uint32_t sleep_us) { return !enabled; }
+
   /**
    * \returns  true if the radio is currently mid-receive of a packet.
   */

@@ -896,6 +896,8 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.flood_max_advert = 8;
   _prefs.interference_threshold = 0; // disabled
   _prefs.cad_enabled = 0;            // hardware CAD before TX (off by default; 'set cad on')
+  _prefs.rx_ps_rx_us = RX_POWERSAVING_DEFAULT_RX_US;
+  _prefs.rx_ps_sleep_us = RX_POWERSAVING_DEFAULT_SLEEP_US;
 
   // bridge defaults
   _prefs.bridge_enabled = 1;    // enabled
@@ -970,6 +972,7 @@ void MyMesh::begin(FILESYSTEM *fs) {
   MESH_DEBUG_PRINTLN("RX Boosted Gain Mode: %s",
                      radio_driver.getRxBoostedGainMode() ? "Enabled" : "Disabled");
   board.setLoRaFemLnaEnabled(_prefs.radio_fem_rxgain);
+  setRxPowerSaving(_prefs.rx_powersaving_enabled, _prefs.rx_ps_rx_us, _prefs.rx_ps_sleep_us);
 
   updateAdvertTimer();
   updateFloodAdvertTimer();
@@ -1062,6 +1065,16 @@ void MyMesh::dumpLogFile() {
 
 void MyMesh::setTxPower(int8_t power_dbm) {
   radio_driver.setTxPower(power_dbm);
+}
+
+bool MyMesh::setRxPowerSaving(bool enable, uint32_t rx_us, uint32_t sleep_us) {
+  bool ok = radio_driver.setRxPowerSaving(enable, rx_us, sleep_us);
+  MESH_DEBUG_PRINTLN("RX Power Saving: %s (%lu/%lu us)%s",
+                     enable ? "Enabled" : "Disabled",
+                     (unsigned long)rx_us,
+                     (unsigned long)sleep_us,
+                     ok ? "" : " unsupported");
+  return ok;
 }
 
 #if defined(USE_SX1262) || defined(USE_SX1268)

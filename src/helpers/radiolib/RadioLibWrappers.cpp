@@ -85,7 +85,11 @@ void RadioLibWrapper::resetAGC() {
 }
 
 void RadioLibWrapper::loop() {
-  if (state == STATE_RX && _num_floor_samples < NUM_NOISE_FLOOR_SAMPLES) {
+  // In RX duty-cycle (powersaving) mode the radio auto-sleeps between listen
+  // windows, so getCurrentRSSI() would read a sleeping frontend and corrupt the
+  // noise floor. Skip adaptive sampling; note this also degrades interference
+  // detection (isChannelActive) while powersaving is enabled.
+  if (!_rx_ps_enabled && state == STATE_RX && _num_floor_samples < NUM_NOISE_FLOOR_SAMPLES) {
     if (!isReceivingPacket()) {
       int rssi = getCurrentRSSI();
       if (rssi < _noise_floor + SAMPLING_THRESHOLD) {  // only consider samples below current floor + sampling THRESHOLD
@@ -105,16 +109,38 @@ void RadioLibWrapper::loop() {
 }
 
 void RadioLibWrapper::startRecv() {
-  int err = _radio->startReceive();
+  int err = startReceiveMode();
   if (err == RADIOLIB_ERR_NONE) {
     state = STATE_RX;
   } else {
-    MESH_DEBUG_PRINTLN("RadioLibWrapper: error: startReceive(%d)", err);
+    MESH_DEBUG_PRINTLN("RadioLibWrapper: error: startReceiveMode(%d)", err);
   }
+}
+
+int RadioLibWrapper::startReceiveMode() {
+  return _radio->startReceive();
 }
 
 bool RadioLibWrapper::isInRecvMode() const {
   return (state & ~STATE_INT_READY) == STATE_RX;
+}
+
+bool RadioLibWrapper::setRxPowerSaving(bool enabled, uint32_t rx_us, uint32_t sleep_us) {
+  if (enabled && !supportsRxPowerSaving()) {
+    return false;
+  }
+
+  _rx_ps_enabled = enabled;
+  _rx_ps_rx_us = rx_us;
+  _rx_ps_sleep_us = sleep_us;
+  // Force the next recvRaw() to arm the requested RX mode, but don't clobber a
+  // completed-but-unread packet (STATE_INT_READY): recvRaw() will consume it and
+  // then re-arm with the new mode. Also leave an in-flight TX alone. (Same
+  // non-atomic guard style as resetAGC().)
+  if ((state & STATE_INT_READY) == 0 && (state & ~STATE_INT_READY) != STATE_TX_WAIT) {
+    state = STATE_IDLE;
+  }
+  return true;
 }
 
 int RadioLibWrapper::recvRaw(uint8_t* bytes, int sz) {
@@ -137,12 +163,7 @@ int RadioLibWrapper::recvRaw(uint8_t* bytes, int sz) {
   }
 
   if (state != STATE_RX) {
-    int err = _radio->startReceive();
-    if (err == RADIOLIB_ERR_NONE) {
-      state = STATE_RX;
-    } else {
-      MESH_DEBUG_PRINTLN("RadioLibWrapper: error: startReceive(%d)", err);
-    }
+    startRecv();
   }
   return len;
 }

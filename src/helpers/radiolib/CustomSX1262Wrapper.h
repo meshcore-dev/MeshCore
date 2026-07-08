@@ -38,6 +38,31 @@ public:
     ((CustomSX1262 *)_radio)->sleep(false);
   }
 
+  bool supportsRxPowerSaving() const override { return true; }
+
+protected:
+  int startReceiveMode() override {
+    if (!_rx_ps_enabled) {
+      return _radio->startReceive();
+    }
+
+    const RadioLibIrqFlags_t irqFlags = RADIOLIB_IRQ_RX_DEFAULT_FLAGS;
+    const RadioLibIrqFlags_t irqMask =
+        (1UL << RADIOLIB_IRQ_RX_DONE) |
+        (1UL << RADIOLIB_IRQ_TIMEOUT) |
+        (1UL << RADIOLIB_IRQ_CRC_ERR) |
+        (1UL << RADIOLIB_IRQ_HEADER_ERR);
+
+    int err = ((CustomSX1262 *)_radio)->startReceiveDutyCycle(_rx_ps_rx_us, _rx_ps_sleep_us, irqFlags, irqMask);
+    if (err == RADIOLIB_ERR_NONE) {
+      return err;
+    }
+
+    MESH_DEBUG_PRINTLN("CustomSX1262Wrapper: error: startReceiveDutyCycle(%d), falling back to continuous RX", err);
+    return _radio->startReceive();
+  }
+
+public:
   void doResetAGC() override { sx126xResetAGC((SX126x *)_radio); }
 
   void setRxBoostedGainMode(bool en) override {

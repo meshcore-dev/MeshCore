@@ -24,6 +24,40 @@ class CustomLR1110 : public LR1110 {
     
     float getFreqMHz() const { return freqMHz; }
 
+    int16_t startReceiveDutyCycle(uint32_t rxPeriod, uint32_t sleepPeriod,
+                                  RadioLibIrqFlags_t irqFlags = RADIOLIB_IRQ_RX_DEFAULT_FLAGS,
+                                  RadioLibIrqFlags_t irqMask = RADIOLIB_IRQ_RX_DEFAULT_MASK) {
+      // RadioLib's LR11x0 duty-cycle path stages RX but does not call
+      // launchMode(), where the software RF switch is normally set to RX.
+      uint32_t transitionTime = this->tcxoDelay + 1000;
+      sleepPeriod -= transitionTime;
+
+      uint32_t rxPeriodRaw = (rxPeriod * 32768UL) / 1000000UL;
+      uint32_t sleepPeriodRaw = (sleepPeriod * 32768UL) / 1000000UL;
+
+      if ((rxPeriodRaw & 0xFF000000) || (rxPeriodRaw == 0)) {
+        return RADIOLIB_ERR_INVALID_RX_PERIOD;
+      }
+
+      if ((sleepPeriodRaw & 0xFF000000) || (sleepPeriodRaw == 0)) {
+        return RADIOLIB_ERR_INVALID_SLEEP_PERIOD;
+      }
+
+      RadioModeConfig_t cfg = {
+        .receive = {
+          .timeout = RADIOLIB_LR11X0_RX_TIMEOUT_INF,
+          .irqFlags = irqFlags,
+          .irqMask = irqMask,
+          .len = 0,
+        }
+      };
+      int16_t state = this->stageMode(RADIOLIB_RADIO_MODE_RX, &cfg);
+      RADIOLIB_ASSERT(state);
+
+      this->mod->setRfSwitchState(Module::MODE_RX);
+      return this->setRxDutyCycle(rxPeriodRaw, sleepPeriodRaw, RADIOLIB_LR11X0_RX_DUTY_CYCLE_MODE_RX);
+    }
+
     int16_t setRxBoostedGainMode(bool en) {
       _rx_boosted = en;
       return LR1110::setRxBoostedGainMode(en);

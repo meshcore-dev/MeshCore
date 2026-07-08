@@ -31,6 +31,27 @@ public:
     _radio->setPreambleLength(preambleLengthForSF(getSpreadingFactor())); // overcomes weird issues with small and big pkts
   }
 
+  bool supportsRxPowerSaving() const override { return true; }
+
+protected:
+  int startReceiveMode() override {
+    if (!_rx_ps_enabled) {
+      return _radio->startReceive();
+    }
+
+    const RadioLibIrqFlags_t irqFlags = RADIOLIB_IRQ_RX_DEFAULT_FLAGS;
+    const RadioLibIrqFlags_t irqMask = RADIOLIB_IRQ_RX_DEFAULT_MASK;
+
+    int err = ((CustomLR1110 *)_radio)->startReceiveDutyCycle(_rx_ps_rx_us, _rx_ps_sleep_us, irqFlags, irqMask);
+    if (err == RADIOLIB_ERR_NONE) {
+      return err;
+    }
+
+    MESH_DEBUG_PRINTLN("CustomLR1110Wrapper: error: startReceiveDutyCycle(%d), falling back to continuous RX", err);
+    return _radio->startReceive();
+  }
+
+public:
   float getLastRSSI() const override { return ((CustomLR1110 *)_radio)->getRSSI(); }
   float getLastSNR() const override { return ((CustomLR1110 *)_radio)->getSNR(); }
 
