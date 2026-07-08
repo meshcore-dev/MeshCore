@@ -20,8 +20,11 @@ public:
     updatePreamble(sf);
   }
 
-  bool isReceivingPacket() override { 
+  bool isReceivingPacket() override {
     return ((CustomSX1262 *)_radio)->isReceiving();
+  }
+  bool isChipBusy() override {
+    return ((CustomSX1262 *)_radio)->isChipBusy();
   }
   float getCurrentRSSI() override {
     return ((CustomSX1262 *)_radio)->getRSSI(false);

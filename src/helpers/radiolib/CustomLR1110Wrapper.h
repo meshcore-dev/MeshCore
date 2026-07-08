@@ -20,6 +20,9 @@ public:
   bool isReceivingPacket() override {
     return ((CustomLR1110 *)_radio)->isReceiving();
   }
+  bool isChipBusy() override {
+    return ((CustomLR1110 *)_radio)->isChipBusy();
+  }
   float getCurrentRSSI() override {
     float rssi = -110;
     ((CustomLR1110 *)_radio)->getRssiInst(&rssi);

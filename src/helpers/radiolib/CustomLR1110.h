@@ -65,12 +65,15 @@ class CustomLR1110 : public LR1110 {
 
     bool getRxBoostedGainMode() const { return _rx_boosted; }
 
-    bool isReceiving() {
-      // BUSY high means the chip is asleep (RX duty-cycle sleep window) or mid
-      // command, so it cannot be mid-receive - and the SPI read below would
-      // stall until the chip's next listen window.
+    // BUSY high means the chip is asleep (RX duty-cycle sleep window) or mid
+    // command; any SPI access would stall until the chip's next listen window.
+    bool isChipBusy() {
       uint32_t busy = this->mod->getGpio();
-      if (busy != RADIOLIB_NC && this->mod->hal->digitalRead(busy)) return false;
+      return busy != RADIOLIB_NC && this->mod->hal->digitalRead(busy);
+    }
+
+    bool isReceiving() {
+      if (isChipBusy()) return false;   // asleep, cannot be mid-receive
 
       uint16_t irq = getIrqStatus();
       bool detected = ((irq & RADIOLIB_LR11X0_IRQ_SYNC_WORD_HEADER_VALID) || (irq & RADIOLIB_LR11X0_IRQ_PREAMBLE_DETECTED));

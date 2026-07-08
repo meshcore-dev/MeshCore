@@ -85,12 +85,11 @@ void RadioLibWrapper::resetAGC() {
 }
 
 void RadioLibWrapper::loop() {
-  // In RX duty-cycle (powersaving) mode the radio auto-sleeps between listen
-  // windows, so getCurrentRSSI() would read a sleeping frontend and corrupt the
-  // noise floor. Skip adaptive sampling; note this also degrades interference
-  // detection (isChannelActive) while powersaving is enabled.
-  if (!_rx_ps_enabled && state == STATE_RX && _num_floor_samples < NUM_NOISE_FLOOR_SAMPLES) {
-    if (!isReceivingPacket()) {
+  if (state == STATE_RX && _num_floor_samples < NUM_NOISE_FLOOR_SAMPLES) {
+    // In RX duty-cycle (powersaving) mode only sample while the chip is in a
+    // listen window: during the sleep window the frontend is off, so the RSSI
+    // is meaningless and the SPI read would stall until the next window.
+    if (!(_rx_ps_armed && isChipBusy()) && !isReceivingPacket()) {
       int rssi = getCurrentRSSI();
       if (rssi < _noise_floor + SAMPLING_THRESHOLD) {  // only consider samples below current floor + sampling THRESHOLD
         _num_floor_samples++;
@@ -231,10 +230,10 @@ int16_t RadioLibWrapper::performChannelScan() {
 
 bool RadioLibWrapper::isChannelActive() {
   // int.thresh: RSSI-based interference detection (relative to noise floor).
-  // Skipped in RX duty-cycle mode: the frontend sleeps part of the time, so an
-  // instantaneous RSSI is meaningless and the SPI read would block until the
-  // chip's next listen window.
-  if (!_rx_ps_enabled && _threshold != 0 && getCurrentRSSI() > _noise_floor + _threshold) return true;
+  // In RX duty-cycle mode only checked while the chip is in a listen window
+  // (during the sleep window the frontend is off and the read would stall).
+  if (_threshold != 0 && !(_rx_ps_armed && isChipBusy())
+      && getCurrentRSSI() > _noise_floor + _threshold) return true;
 
   // cad: hardware channel activity detection
   if (_cad_enabled) {

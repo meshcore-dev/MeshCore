@@ -30,6 +30,9 @@ protected:
   virtual int startReceiveMode();
   virtual void stopReceiveDutyCycle();
   virtual bool isPacketReady();
+  // true while the chip cannot service SPI (RX duty-cycle sleep window, or
+  // briefly while processing a command); radios expose this via the BUSY pin
+  virtual bool isChipBusy() { return false; }
   float packetScoreInt(float snr, int sf, int packet_len);
   virtual bool isReceivingPacket() =0;
   virtual void doResetAGC();

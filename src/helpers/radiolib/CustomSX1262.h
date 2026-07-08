@@ -86,12 +86,15 @@ class CustomSX1262 : public SX1262 {
       return true;  // success
     }
 
-    bool isReceiving() {
-      // BUSY high means the chip is asleep (RX duty-cycle sleep window) or mid
-      // command, so it cannot be mid-receive - and the SPI read below would
-      // stall until the chip's next listen window.
+    // BUSY high means the chip is asleep (RX duty-cycle sleep window) or mid
+    // command; any SPI access would stall until the chip's next listen window.
+    bool isChipBusy() {
       uint32_t busy = this->mod->getGpio();
-      if (busy != RADIOLIB_NC && this->mod->hal->digitalRead(busy)) return false;
+      return busy != RADIOLIB_NC && this->mod->hal->digitalRead(busy);
+    }
+
+    bool isReceiving() {
+      if (isChipBusy()) return false;   // asleep, cannot be mid-receive
 
       uint16_t irq = getIrqFlags();
       bool detected = (irq & SX126X_IRQ_HEADER_VALID) || (irq & SX126X_IRQ_PREAMBLE_DETECTED);
