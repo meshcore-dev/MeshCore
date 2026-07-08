@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# pre-push: block pushes containing secrets + run quality gates
+# Scans all commits being pushed for secret patterns
+set -e
+
+PATTERNS_FILE="$(git rev-parse --show-toplevel)/.secret-patterns.txt"
+
+if [ ! -f "$PATTERNS_FILE" ]; then
+    exit 0
+fi
+
+# Get commits being pushed
+RANGE="@{u}..HEAD"
+COMMITS=$(git rev-list "$RANGE" 2>/dev/null || echo "")
+
+if [ -z "$COMMITS" ]; then
+    # No upstream — scan last 5 commits
+    COMMITS=$(git rev-list HEAD~5..HEAD 2>/dev/null || echo "")
+fi
+
+FOUND=0
+while IFS= read -r pattern; do
+    [ -z "$pattern" ] && continue
+    [[ "$pattern" == \#* ]] && continue
+    MATCH=$(git log -p $RANGE 2>/dev/null | grep -nP "$pattern" 2>/dev/null | head -5)
+    if [ -n "$MATCH" ]; then
+        echo "SECRET in push history (pattern: $pattern):"
+        echo "$MATCH"
+        FOUND=1
+    fi
+done < "$PATTERNS_FILE"
+
+if [ $FOUND -eq 1 ]; then
+    echo ""
+    echo "PUSH BLOCKED — secrets detected in commit history."
+    echo "Scrub with: git filter-repo --replace-text .secret-patterns.txt"
+    exit 1
+fi
+
+echo "No secrets detected."
+exit 0

@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# pre-commit: block commits containing secrets
+# Scans staged files for known secret patterns
+set -e
+
+PATTERNS_FILE="$(git rev-parse --show-toplevel)/.secret-patterns.txt"
+STAGED=$(git diff --cached --name-only --diff-filter=ACM 2>/dev/null)
+
+if [ ! -f "$PATTERNS_FILE" ]; then
+    exit 0  # no patterns file = no scanning
+fi
+
+FOUND=0
+for file in $STAGED; do
+    [ -f "$file" ] || continue
+    while IFS= read -r pattern; do
+        [ -z "$pattern" ] && continue
+        [[ "$pattern" == \#* ]] && continue
+        MATCH=$(git diff --cached -- "$file" | grep -nP "$pattern" 2>/dev/null | head -3)
+        if [ -n "$MATCH" ]; then
+            echo "SECRET DETECTED in $file (pattern: $pattern):"
+            echo "$MATCH"
+            FOUND=1
+        fi
+    done < "$PATTERNS_FILE"
+done
+
+if [ $FOUND -eq 1 ]; then
+    echo ""
+    echo "COMMIT BLOCKED — secret pattern detected."
+    echo "Override (NOT RECOMMENDED): git commit --no-verify"
+    exit 1
+fi
+
+exit 0
