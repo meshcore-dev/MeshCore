@@ -1076,6 +1076,11 @@ bool MyMesh::setRxPowerSaving(bool enable, uint32_t rx_us, uint32_t sleep_us) {
                      ok ? "" : " unsupported");
   return ok;
 }
+void MyMesh::getRxPsWatchdogCounts(uint32_t* soft, uint32_t* hard) {
+  *soft = radio_driver.getRxPsWatchdogSoftCount();
+  *hard = radio_driver.getRxPsWatchdogHardCount();
+}
+
 
 #if defined(USE_SX1262) || defined(USE_SX1268)
 void MyMesh::setRxBoostedGain(bool enable) {

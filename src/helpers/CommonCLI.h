@@ -136,6 +136,10 @@ public:
   virtual bool setRxPowerSaving(bool enable, uint32_t rx_us, uint32_t sleep_us) {
     return !enable;
   };
+
+  virtual void getRxPsWatchdogCounts(uint32_t* soft, uint32_t* hard) {
+    *soft = 0; *hard = 0;
+  };
 };
 
 class CommonCLI {

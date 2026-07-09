@@ -855,6 +855,11 @@ void SensorMesh::setTxPower(int8_t power_dbm) {
 bool SensorMesh::setRxPowerSaving(bool enable, uint32_t rx_us, uint32_t sleep_us) {
   return radio_driver.setRxPowerSaving(enable, rx_us, sleep_us);
 }
+void SensorMesh::getRxPsWatchdogCounts(uint32_t* soft, uint32_t* hard) {
+  *soft = radio_driver.getRxPsWatchdogSoftCount();
+  *hard = radio_driver.getRxPsWatchdogHardCount();
+}
+
 
 void SensorMesh::formatStatsReply(char *reply) {
   StatsFormatHelper::formatCoreStats(reply, board, *_ms, _err_flags, _mgr);

@@ -48,6 +48,8 @@ uint32_t RadioLibWrapper::getRngSeed() {
 }
 
 void RadioLibWrapper::setTxPower(int8_t dbm) {
+  _cur_dbm = dbm;
+  _dbm_valid = true;
   _radio->setOutputPower(dbm);
 }
 
@@ -84,7 +86,54 @@ void RadioLibWrapper::resetAGC() {
   _floor_sample_sum = 0;
 }
 
+void RadioLibWrapper::rxPsWatchdogCheck() {
+  // don't interfere mid-transmit or with a completed-but-unread packet
+  if ((state & STATE_INT_READY) != 0 || (state & ~STATE_INT_READY) == STATE_TX_WAIT) return;
+
+  unsigned long now = millis();
+  bool tripped = false;
+
+  if (_rx_ps_armed && state == STATE_RX && _wd_stuck_thresh > 0) {
+    bool busy = isChipBusy();
+    if (busy != _wd_last_busy) {
+      _wd_last_busy = busy;
+      _wd_last_transition = now;
+      _wd_stage = 0;    // the sleep/listen wave is present -> radio healthy
+    } else if (now - _wd_last_transition > _wd_stuck_thresh) {
+      tripped = true;   // BUSY frozen: chip fell out of the duty cycle with no IRQ
+    }
+  }
+  if (_startrx_fails >= 3) tripped = true;  // can't even re-arm receive mode
+
+  if (!tripped) return;
+
+  _wd_last_transition = now;   // grace period before the next escalation
+  _startrx_fails = 0;
+
+  if (_wd_stage == 0) {
+    _wd_stage = 1;
+    n_wd_soft++;
+    MESH_DEBUG_PRINTLN("RadioLibWrapper: watchdog: RX duty-cycle stuck, soft re-arm");
+    state = STATE_IDLE;   // next recvRaw() re-arms receive mode
+  } else {
+    _wd_stage = 2;
+    n_wd_hard++;
+    MESH_DEBUG_PRINTLN("RadioLibWrapper: watchdog: still stuck, hard radio reset");
+    if (radioDeepInit()) {
+      _rx_ps_armed = false;   // chip is factory-fresh after NRST
+      _radio->setPacketReceivedAction(setFlag);
+      if (_params_valid) setParams(_cur_freq, _cur_bw, _cur_sf, _cur_cr);
+      if (_dbm_valid) _radio->setOutputPower(_cur_dbm);
+    }
+    state = STATE_IDLE;   // re-arm (rx powersaving settings are kept in members)
+  }
+}
+
 void RadioLibWrapper::loop() {
+  if (_rx_ps_enabled) {
+    rxPsWatchdogCheck();
+  }
+
   if (state == STATE_RX && _num_floor_samples < NUM_NOISE_FLOOR_SAMPLES) {
     // In RX duty-cycle (powersaving) mode only sample while the chip is in a
     // listen window: during the sleep window the frontend is off, so the RSSI
@@ -111,7 +160,20 @@ void RadioLibWrapper::startRecv() {
   int err = startReceiveMode();
   if (err == RADIOLIB_ERR_NONE) {
     state = STATE_RX;
+    _startrx_fails = 0;
+    if (_rx_ps_armed) {
+      // (re)base the duty-cycle watchdog on the freshly armed cycle
+      _wd_last_busy = isChipBusy();
+      _wd_last_transition = millis();
+      // Longest legitimate silence on the BUSY pin: one full cycle, plus the
+      // extended RX after a (possibly false) preamble detect (2*rx + sleep),
+      // plus a worst-case packet airtime, plus margin for TCXO/transitions.
+      uint32_t rx_ms = _rx_ps_rx_us / 1000, sleep_ms = _rx_ps_sleep_us / 1000;
+      _wd_stuck_thresh = (rx_ms + sleep_ms) + 2 * (2 * rx_ms + sleep_ms)
+                         + getEstAirtimeFor(MAX_TRANS_UNIT) + 1000;
+    }
   } else {
+    if (_startrx_fails < 255) _startrx_fails++;
     MESH_DEBUG_PRINTLN("RadioLibWrapper: error: startReceiveMode(%d)", err);
   }
 }

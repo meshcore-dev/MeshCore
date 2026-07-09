@@ -814,6 +814,11 @@ void MyMesh::setTxPower(int8_t power_dbm) {
 bool MyMesh::setRxPowerSaving(bool enable, uint32_t rx_us, uint32_t sleep_us) {
   return radio_driver.setRxPowerSaving(enable, rx_us, sleep_us);
 }
+void MyMesh::getRxPsWatchdogCounts(uint32_t* soft, uint32_t* hard) {
+  *soft = radio_driver.getRxPsWatchdogSoftCount();
+  *hard = radio_driver.getRxPsWatchdogHardCount();
+}
+
 
 void MyMesh::saveIdentity(const mesh::LocalIdentity &new_id) {
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)

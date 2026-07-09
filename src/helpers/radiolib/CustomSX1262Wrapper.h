@@ -13,6 +13,7 @@ public:
   CustomSX1262Wrapper(CustomSX1262& radio, mesh::MainBoard& board) : RadioLibWrapper(radio, board) { }
 
   void setParams(float freq, float bw, uint8_t sf, uint8_t cr) override {
+    cacheParams(freq, bw, sf, cr);
     ((CustomSX1262 *)_radio)->setFrequency(freq);
     ((CustomSX1262 *)_radio)->setSpreadingFactor(sf);
     ((CustomSX1262 *)_radio)->setBandwidth(bw);
@@ -76,6 +77,12 @@ protected:
     _radio->standby();   // also wakes the chip if it is in the sleep window
     ((CustomSX1262 *)_radio)->stopRTC();
     _rx_ps_armed = false;
+  }
+
+  bool radioDeepInit() override {
+    // std_init() re-runs RadioLib begin(), which starts with a hardware reset
+    // via NRST - the only way out of a hard-locked chip (BUSY stuck high).
+    return ((CustomSX1262 *)_radio)->std_init();
   }
 
 public:

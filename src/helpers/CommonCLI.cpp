@@ -1125,6 +1125,10 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     ensureRxPowerSavingDefaults(_prefs);
     sprintf(reply, "> %s,%lu,%lu", _prefs->rx_powersaving_enabled ? "on" : "off",
             (unsigned long)_prefs->rx_ps_rx_us, (unsigned long)_prefs->rx_ps_sleep_us);
+  } else if (memcmp(config, "rxps.wd", 7) == 0) {
+    uint32_t wd_soft, wd_hard;
+    _callbacks->getRxPsWatchdogCounts(&wd_soft, &wd_hard);
+    sprintf(reply, "> soft=%lu,hard=%lu", (unsigned long)wd_soft, (unsigned long)wd_hard);
   } else if (memcmp(config, "radio", 5) == 0) {
     char freq[16], bw[16];
     strcpy(freq, StrHelper::ftoa(_prefs->freq));
