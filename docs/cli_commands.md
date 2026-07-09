@@ -323,6 +323,20 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 ---
 
+#### View or change this node's power source
+**Usage:**
+- `get power.source`
+- `set power.source <source>`
+
+**Parameters:**
+- `source`: One of `unknown`, `battery`, `solar`, `mains`
+
+**Default:** `unknown`
+
+**Note:** Broadcast in the node's advert; costs 0 extra bytes at `unknown`, 2 bytes otherwise. Only applies to repeater, room server, and sensor firmware, not companion radio.
+
+---
+
 #### View or change this node's identity (Private Key)
 **Usage:**
 - `get prv.key`

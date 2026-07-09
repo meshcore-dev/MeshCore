@@ -93,7 +93,8 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     file.read((uint8_t *)&_prefs->flood_max_advert, sizeof(_prefs->flood_max_advert));             // 292
     file.read((uint8_t *)&_prefs->radio_fem_rxgain, sizeof(_prefs->radio_fem_rxgain));             // 293
     file.read((uint8_t *)&_prefs->cad_enabled, sizeof(_prefs->cad_enabled));                       // 294
-    // next: 295
+    file.read((uint8_t *)&_prefs->node_power_flags, sizeof(_prefs->node_power_flags));             // 295
+    // next: 296
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -125,6 +126,7 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     _prefs->rx_boosted_gain = constrain(_prefs->rx_boosted_gain, 0, 1); // boolean
     _prefs->radio_fem_rxgain = constrain(_prefs->radio_fem_rxgain, 0, 1); // boolean
     _prefs->cad_enabled = constrain(_prefs->cad_enabled, 0, 1); // boolean
+    _prefs->node_power_flags = constrain(_prefs->node_power_flags, 0, 3);
 
     file.close();
   }
@@ -190,7 +192,8 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->flood_max_advert, sizeof(_prefs->flood_max_advert));             // 292
     file.write((uint8_t *)&_prefs->radio_fem_rxgain, sizeof(_prefs->radio_fem_rxgain));             // 293
     file.write((uint8_t *)&_prefs->cad_enabled, sizeof(_prefs->cad_enabled));                       // 294
-    // next: 295
+    file.write((uint8_t *)&_prefs->node_power_flags, sizeof(_prefs->node_power_flags));             // 295
+    // next: 296
 
     file.close();
   }
@@ -208,12 +211,15 @@ void CommonCLI::savePrefs() {
 uint8_t CommonCLI::buildAdvertData(uint8_t node_type, uint8_t* app_data) {
   if (_prefs->advert_loc_policy == ADVERT_LOC_NONE) {
     AdvertDataBuilder builder(node_type, _prefs->node_name);
+    builder.setFeat1(_prefs->node_power_flags);
     return builder.encodeTo(app_data);
   } else if (_prefs->advert_loc_policy == ADVERT_LOC_SHARE) {
     AdvertDataBuilder builder(node_type, _prefs->node_name, _sensors->node_lat, _sensors->node_lon);
+    builder.setFeat1(_prefs->node_power_flags);
     return builder.encodeTo(app_data);
   } else {
     AdvertDataBuilder builder(node_type, _prefs->node_name, _prefs->node_lat, _prefs->node_lon);
+    builder.setFeat1(_prefs->node_power_flags);
     return builder.encodeTo(app_data);
   }
 }
@@ -571,6 +577,21 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     _prefs->disable_fwd = memcmp(&config[7], "off", 3) == 0;
     savePrefs();
     strcpy(reply, _prefs->disable_fwd ? "OK - repeat is now OFF" : "OK - repeat is now ON");
+  } else if (memcmp(config, "power.source ", 13) == 0) {
+    const char* v = &config[13];
+    uint8_t src;
+    if (memcmp(v, "unknown", 7) == 0) src = ADV_FEAT1_POWER_UNKNOWN;
+    else if (memcmp(v, "battery", 7) == 0) src = ADV_FEAT1_POWER_BATTERY;
+    else if (memcmp(v, "solar", 5) == 0) src = ADV_FEAT1_POWER_SOLAR;
+    else if (memcmp(v, "mains", 5) == 0) src = ADV_FEAT1_POWER_MAINS;
+    else src = 0xFF;
+    if (src == 0xFF) {
+      strcpy(reply, "Error, must be: unknown, battery, solar, or mains");
+    } else {
+      _prefs->node_power_flags = src;
+      savePrefs();
+      strcpy(reply, "OK");
+    }
   } else if (memcmp(config, "radio.rxgain ", 13) == 0) {
     bool enabled = memcmp(&config[13], "on", 2) == 0;
     _prefs->rx_boosted_gain = enabled;
@@ -833,6 +854,12 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %s", _prefs->node_name);
   } else if (memcmp(config, "repeat", 6) == 0) {
     sprintf(reply, "> %s", _prefs->disable_fwd ? "off" : "on");
+  } else if (memcmp(config, "power.source", 12) == 0) {
+    uint8_t src = _prefs->node_power_flags;
+    const char* name = src == ADV_FEAT1_POWER_SOLAR ? "solar"
+                      : src == ADV_FEAT1_POWER_MAINS ? "mains"
+                      : src == ADV_FEAT1_POWER_BATTERY ? "battery" : "unknown";
+    sprintf(reply, "> %s", name);
   } else if (memcmp(config, "lat", 3) == 0) {
     sprintf(reply, "> %s", StrHelper::ftoa(_prefs->node_lat));
   } else if (memcmp(config, "lon", 3) == 0) {

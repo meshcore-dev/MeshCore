@@ -12,9 +12,15 @@
 //FUTURE: 5..15
 
 #define ADV_LATLON_MASK       0x10
-#define ADV_FEAT1_MASK        0x20   // FUTURE
+#define ADV_FEAT1_MASK        0x20   // feat1 bits 0-1 = power source, see ADV_FEAT1_POWER_*
 #define ADV_FEAT2_MASK        0x40   // FUTURE
 #define ADV_NAME_MASK         0x80
+
+#define ADV_FEAT1_POWER_MASK      0x0003
+#define ADV_FEAT1_POWER_UNKNOWN   0x0000
+#define ADV_FEAT1_POWER_BATTERY   0x0001
+#define ADV_FEAT1_POWER_SOLAR     0x0002
+#define ADV_FEAT1_POWER_MAINS     0x0003
 
 class AdvertDataBuilder {
   uint8_t _type;
@@ -54,6 +60,8 @@ public:
   uint8_t getType() const { return _flags & 0x0F; }
   uint16_t getFeat1() const { return _extra1; }
   uint16_t getFeat2() const { return _extra2; }
+
+  uint8_t getPowerSource() const { return _extra1 & ADV_FEAT1_POWER_MASK; }
 
   bool hasName() const { return _name[0] != 0; }
   const char* getName() const { return _name; }

@@ -40,7 +40,7 @@ Appdata
 | flags         | 1               | specifies which of the fields are present, see below  |
 | latitude      | 4 (optional)    | decimal latitude multiplied by 1000000, integer       |
 | longitude     | 4 (optional)    | decimal longitude multiplied by 1000000, integer      |
-| feature 1     | 2  (optional)   | reserved for future use                               |
+| feature 1     | 2  (optional)   | capability flags; bits 0-1 = power source, see below  |
 | feature 2     | 2  (optional)   | reserved for future use                               |
 | name          | rest of appdata | name of the node                                      |
 
@@ -53,9 +53,16 @@ Appdata Flags
 | `0x03` | is room server | advert is for a room server           |
 | `0x04` | is sensor      | advert is for a sensor server         |
 | `0x10` | has location   | appdata contains lat/long information |
-| `0x20` | has feature 1  | Reserved for future use.              |
+| `0x20` | has feature 1  | appdata contains feature 1, see below                 |
 | `0x40` | has feature 2  | Reserved for future use.              |
 | `0x80` | has name       | appdata contains a node name          |
+
+Feature 1
+
+| Bits     | Mask     | Name           | Description                                        |
+|----------|----------|----------------|-----------------------------------------------------|
+| 0-1      | `0x0003` | power source   | `0`=unknown, `1`=battery, `2`=solar, `3`=mains/grid  |
+| 2-15     | -        | reserved       | for future use                                     |
 
 # Acknowledgement
 

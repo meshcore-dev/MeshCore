@@ -65,6 +65,7 @@ struct NodePrefs { // persisted to file
   uint8_t path_hash_mode;   // which path mode to use when sending
   uint8_t loop_detect;
   uint8_t cad_enabled;      // hardware Channel Activity Detection before TX (boolean)
+  uint8_t node_power_flags;
 };
 
 class CommonCLICallbacks {
