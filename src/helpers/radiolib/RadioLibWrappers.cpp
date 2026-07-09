@@ -11,6 +11,14 @@
 #define NUM_NOISE_FLOOR_SAMPLES  64
 #define SAMPLING_THRESHOLD  14
 
+// ambient CAD auto-calibration: probe CAD periodically while idle, and raise/lower detPeak
+// so ambient activity (sub-decode-threshold distant traffic, interference) stops tripping LBT
+#define CAD_PROBE_INTERVAL     4000   // millis between ambient CAD probes
+#define CAD_PROBE_WINDOW         32   // probes per evaluation window
+#define CAD_PROBE_RAISE_HITS     10   // >= ~30% ambient detect rate -> desensitize
+#define CAD_PROBE_LOWER_HITS      3   // <= ~10% ambient detect rate -> re-sensitize
+#define CAD_PEAK_OFFSET_MAX      10
+
 static volatile uint8_t state = STATE_IDLE;
 
 // this function is called when a complete packet
@@ -37,6 +45,10 @@ void RadioLibWrapper::begin() {
   _noise_floor = 0;
   _threshold = 0;
   _cad_enabled = false;
+  _cad_peak_offset = 0;
+  _cad_probe_count = _cad_probe_hits = 0;
+  _cad_last_count = _cad_last_hits = 0;
+  _last_cad_probe = 0;
 
   // start average out some samples
   _num_floor_samples = 0;
@@ -101,6 +113,44 @@ void RadioLibWrapper::loop() {
     _floor_sample_sum = 0;
 
     MESH_DEBUG_PRINTLN("RadioLibWrapper: noise_floor = %d", (int)_noise_floor);
+  }
+
+  if (_cad_enabled && state == STATE_RX && getCADDetPeakBase() > 0
+      && millis() - _last_cad_probe >= CAD_PROBE_INTERVAL) {
+    _last_cad_probe = millis();
+    if (!isReceivingPacket()) {
+      int16_t result = performChannelScan();
+      // CAD-done DIO interrupt sets STATE_INT_READY via setFlag() ISR. Clear it
+      // before restarting RX so recvRaw() doesn't try to read a non-existent packet.
+      state = STATE_IDLE;
+      startRecv();
+
+      if (result == RADIOLIB_CHANNEL_FREE) {
+        _cad_probe_count++;
+      } else if (result == RADIOLIB_LORA_DETECTED || result == RADIOLIB_PREAMBLE_DETECTED) {
+        _cad_probe_count++;
+        _cad_probe_hits++;
+      }
+      // else: scan error, don't count the sample
+
+      if (_cad_probe_hits >= CAD_PROBE_RAISE_HITS) {   // ambient rate too high, don't wait out the window
+        if (_cad_peak_offset < CAD_PEAK_OFFSET_MAX) {
+          _cad_peak_offset++;
+          MESH_DEBUG_PRINTLN("RadioLibWrapper: CAD ambient %d/%d, detPeak offset -> %d",
+              (int)_cad_probe_hits, (int)_cad_probe_count, (int)_cad_peak_offset);
+        }
+        _cad_last_hits = _cad_probe_hits; _cad_last_count = _cad_probe_count;
+        _cad_probe_count = _cad_probe_hits = 0;
+      } else if (_cad_probe_count >= CAD_PROBE_WINDOW) {
+        if (_cad_probe_hits <= CAD_PROBE_LOWER_HITS && _cad_peak_offset > 0) {
+          _cad_peak_offset--;
+          MESH_DEBUG_PRINTLN("RadioLibWrapper: CAD ambient %d/%d, detPeak offset -> %d",
+              (int)_cad_probe_hits, (int)_cad_probe_count, (int)_cad_peak_offset);
+        }
+        _cad_last_hits = _cad_probe_hits; _cad_last_count = _cad_probe_count;
+        _cad_probe_count = _cad_probe_hits = 0;
+      }
+    }
   }
 }
 
@@ -187,6 +237,21 @@ void RadioLibWrapper::onSendFinished() {
 }
 
 int16_t RadioLibWrapper::performChannelScan() {
+  uint8_t peak_base = getCADDetPeakBase();
+  if (_cad_peak_offset > 0 && peak_base > 0) {
+    ChannelScanConfig_t cfg = {
+      .cad = {
+        .symNum = 0xFF,    // 0xFF -> radio-specific default (RADIOLIB_*_CAD_PARAM_DEFAULT)
+        .detPeak = (uint8_t)(peak_base + _cad_peak_offset),
+        .detMin = 0xFF,
+        .exitMode = 0xFF,
+        .timeout = 0,
+        .irqFlags = RADIOLIB_IRQ_CAD_DEFAULT_FLAGS,
+        .irqMask = RADIOLIB_IRQ_CAD_DEFAULT_MASK,
+      },
+    };
+    return _radio->scanChannel(cfg);
+  }
   return _radio->scanChannel();
 }
 

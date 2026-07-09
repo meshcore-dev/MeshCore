@@ -206,6 +206,7 @@ public:
   virtual void eraseLogFile() = 0;
   virtual void dumpLogFile() = 0;
   virtual void setTxPower(int8_t power_dbm) = 0;
+  virtual mesh::Radio* getRadio() { return NULL; }
   virtual void formatNeighborsReply(char *reply) = 0;
   virtual void removeNeighbor(const uint8_t* pubkey, int key_len) {
     // no op by default
