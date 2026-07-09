@@ -48,9 +48,21 @@ protected:
   int8_t _cur_dbm;
   bool _params_valid, _dbm_valid;
 
+  // Periodic noise-floor calibration (only while RX duty-cycle powersaving is
+  // armed): a duty-cycled receiver can't be sampled reliably, so at least once
+  // a minute the wrapper drops to plain continuous RX, collects a fresh sample
+  // batch exactly like the non-powersaving path does, publishes the average
+  // into _noise_floor and re-arms the duty cycle.
+  bool _nf_calib_active;
+  unsigned long _nf_last_calib;       // millis of last completed/attempted window
+  unsigned long _nf_calib_deadline;   // abort window if the batch can't complete
+  unsigned long _nf_sample_from;      // no samples before this (RX entry settle)
+
   void idle();
   void startRecv();
   void rxPsWatchdogCheck();
+  void noiseFloorCalibCheck();
+  void endNoiseFloorCalib(unsigned long now);
   void cacheParams(float freq, float bw, uint8_t sf, uint8_t cr) {
     _cur_freq = freq; _cur_bw = bw; _cur_sf = sf; _cur_cr = cr; _params_valid = true;
   }
@@ -73,7 +85,9 @@ public:
         _rx_ps_rx_us(RX_PS_FALLBACK_RX_US), _rx_ps_sleep_us(RX_PS_FALLBACK_SLEEP_US),
         _wd_last_busy(false), _wd_stage(0), _wd_strikes(0), _startrx_fails(0), _wd_last_transition(0),
         _wd_stuck_thresh(0), _wd_observe_until(0), _wd_observe_ms(0),
-        _params_valid(false), _dbm_valid(false) { n_recv = n_sent = n_recv_errors = n_wd_soft = n_wd_hard = 0; }
+        _params_valid(false), _dbm_valid(false),
+        _nf_calib_active(false), _nf_last_calib(0), _nf_calib_deadline(0), _nf_sample_from(0)
+        { n_recv = n_sent = n_recv_errors = n_wd_soft = n_wd_hard = 0; }
 
   void begin() override;
   virtual void powerOff() { _radio->sleep(); }
@@ -117,6 +131,10 @@ public:
   // true while the watchdog is actively watching for BUSY transitions; used by
   // the app's hasPendingWork() to keep the MCU out of light sleep for the window
   bool isWatchdogObserving() const { return _wd_observe_until != 0; }
+  // true while a periodic noise-floor calibration window is in progress; the
+  // app's hasPendingWork() must keep the MCU awake so the sample batch and the
+  // return to duty-cycle complete promptly
+  bool isCalibratingNoiseFloor() const { return _nf_calib_active; }
   void resetStats() { n_recv = n_sent = n_recv_errors = 0; }
 
   virtual float getLastRSSI() const override;

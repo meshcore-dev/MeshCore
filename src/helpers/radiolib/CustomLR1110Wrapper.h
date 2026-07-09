@@ -43,7 +43,9 @@ protected:
       // reconfiguring the radio
       stopReceiveDutyCycle();
     }
-    if (!_rx_ps_enabled) {
+    if (!_rx_ps_enabled || _nf_calib_active) {
+      // plain continuous RX: powersaving off, or a periodic noise-floor
+      // calibration window is in progress
       return _radio->startReceive();
     }
 

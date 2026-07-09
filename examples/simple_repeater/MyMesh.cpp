@@ -1465,5 +1465,6 @@ bool MyMesh::hasPendingWork() const {
   if (bridge.isRunning()) return true;  // bridge needs WiFi radio, can't sleep
 #endif
   if (radio_driver.isWatchdogObserving()) return true;  // keep MCU awake for one radio duty cycle
+  if (radio_driver.isCalibratingNoiseFloor()) return true;  // keep MCU awake for the noise-floor window
   return _mgr->getOutboundTotal() > 0;
 }
