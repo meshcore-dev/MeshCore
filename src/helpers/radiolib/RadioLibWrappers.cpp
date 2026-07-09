@@ -88,7 +88,12 @@ void RadioLibWrapper::resetAGC() {
 
 void RadioLibWrapper::rxPsWatchdogCheck() {
   // don't interfere mid-transmit or with a completed-but-unread packet
-  if ((state & STATE_INT_READY) != 0 || (state & ~STATE_INT_READY) == STATE_TX_WAIT) return;
+  // (a pending DIO1 event is itself proof the radio is alive; recvRaw() will
+  // re-arm and re-base the watchdog)
+  if ((state & STATE_INT_READY) != 0 || (state & ~STATE_INT_READY) == STATE_TX_WAIT) {
+    _wd_observe_until = 0;
+    return;
+  }
 
   unsigned long now = millis();
   bool tripped = false;
@@ -96,12 +101,35 @@ void RadioLibWrapper::rxPsWatchdogCheck() {
   if (_rx_ps_armed && state == STATE_RX && _wd_stuck_thresh > 0) {
     bool busy = isChipBusy();
     if (busy != _wd_last_busy) {
+      // the sleep/listen wave is present -> radio healthy
       _wd_last_busy = busy;
       _wd_last_transition = now;
-      _wd_stage = 0;    // the sleep/listen wave is present -> radio healthy
+      _wd_stage = 0;
+      _wd_strikes = 0;
+      _wd_observe_until = 0;
+    } else if (_wd_observe_until != 0) {
+      // active observation window in progress (MCU kept awake via
+      // isWatchdogObserving()); a healthy chip must toggle BUSY within it
+      if ((long)(now - _wd_observe_until) >= 0) {
+        _wd_observe_until = 0;
+        if (!busy && isReceivingPacket()) {
+          // BUSY held low by an ongoing reception (extended RX) - alive
+          _wd_last_transition = now;
+          _wd_strikes = 0;
+        } else if (++_wd_strikes >= 2) {
+          _wd_strikes = 0;
+          tripped = true;
+        } else {
+          _wd_last_transition = now;   // full threshold before the next window
+        }
+      }
     } else if (now - _wd_last_transition > _wd_stuck_thresh) {
-      tripped = true;   // BUSY frozen: chip fell out of the duty cycle with no IRQ
+      // no proof of life for too long: actively watch one full cycle
+      _wd_observe_until = now + _wd_observe_ms;
+      if (_wd_observe_until == 0) _wd_observe_until = 1;  // 0 means "off"
     }
+  } else {
+    _wd_observe_until = 0;
   }
   if (_startrx_fails >= 3) tripped = true;  // can't even re-arm receive mode
 
@@ -109,6 +137,7 @@ void RadioLibWrapper::rxPsWatchdogCheck() {
 
   _wd_last_transition = now;   // grace period before the next escalation
   _startrx_fails = 0;
+  _wd_observe_until = 0;
 
   if (_wd_stage == 0) {
     _wd_stage = 1;
@@ -168,9 +197,15 @@ void RadioLibWrapper::startRecv() {
       // Longest legitimate silence on the BUSY pin: one full cycle, plus the
       // extended RX after a (possibly false) preamble detect (2*rx + sleep),
       // plus a worst-case packet airtime, plus margin for TCXO/transitions.
+      // Floored at 60s so a light-sleeping MCU (ESP32 wakes every ~30s) opens
+      // an observation window every couple of wakeups instead of on each one.
       uint32_t rx_ms = _rx_ps_rx_us / 1000, sleep_ms = _rx_ps_sleep_us / 1000;
       _wd_stuck_thresh = (rx_ms + sleep_ms) + 2 * (2 * rx_ms + sleep_ms)
                          + getEstAirtimeFor(MAX_TRANS_UNIT) + 1000;
+      if (_wd_stuck_thresh < 60000) _wd_stuck_thresh = 60000;
+      // active observation window must cover one full duty cycle
+      _wd_observe_ms = rx_ms + sleep_ms + 50;
+      if (_wd_observe_ms > 1500) _wd_observe_ms = 1500;
     }
   } else {
     if (_startrx_fails < 255) _startrx_fails++;
