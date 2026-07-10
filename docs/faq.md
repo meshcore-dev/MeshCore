@@ -603,13 +603,18 @@ For ESP-based devices (e.g. Heltec V3) you need:
 2. Confirm the `ttyXXXX` device path on your Raspberry Pi.
     - Go to the `/dev` directory and run the `ls` command to find your device path.
     - It is usually `/dev/ttyUSB0` for ESP devices.
-3. Install esptool from the shell.
-    - `pip install esptool --break-system-packages`
-4. Flash the firmware.
+3. Create a python virtual environment
+    - `python3 -m venv meshcoreenv`
+    - `source meshcoreenv/bin/activate`
+5. Install esptool from the shell.
+    - `pip install esptool`
+6. Flash the firmware.
     - For non-merged bin:
         - `esptool.py -p /dev/ttyUSB0 --chip esp32-s3 write_flash 0x10000 <non-merged_firmware>.bin`
     - For merged bin:
         - `esptool.py -p /dev/ttyUSB0 --chip esp32-s3 write_flash 0x00000 <merged_firmware>.bin`
+
+*Make sure to activate this venv when you need esptool. If you need it all the time, just add the activation to your ~/.bashrc or similar for other shells.*
 
 **Instructions for nRF devices:**
 
