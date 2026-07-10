@@ -29,6 +29,7 @@
 #include <helpers/CommonCLI.h>
 #include <helpers/IdentityStore.h>
 #include <helpers/SimpleMeshTables.h>
+#include <helpers/FloodSuppression.h>
 #include <helpers/StaticPoolPacketManager.h>
 #include <helpers/StatsFormatHelper.h>
 #include <helpers/TxtDataHelpers.h>
@@ -99,6 +100,13 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   RegionEntry* recv_pkt_region;
   TransportKey default_scope;
   RateLimiter discover_limiter, anon_limiter;
+  FloodSuppressionTable _flood_supp;   // redundancy-aware FLOOD suppression state
+  // Adaptive (neighbour-derived) effective params, recomputed in loop() under #if MAX_NEIGHBOURS.
+  uint8_t  _fs_eff_c;            // derived threshold C (0 = off); used when _fs_adaptive_active
+  int8_t   _fs_eff_hi;           // derived snr_hi (dB); used when _fs_adaptive_active
+  bool     _fs_adaptive_active;  // neighbour data available this cycle? (else static fallback)
+  uint8_t  _fs_pending_c;        // debounce: candidate c awaiting a 2nd confirming cycle
+  uint32_t _fs_next_recompute_ms;
   uint32_t pending_discover_tag;
   unsigned long pending_discover_until;
   bool region_load_active;
@@ -120,6 +128,11 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
 #endif
 
   void putNeighbour(const mesh::Identity& id, uint32_t timestamp, float snr);
+  void touchNeighbourByHash(const mesh::Packet* packet);  // refresh a KNOWN neighbour's liveness/SNR from an overheard forward
+  void cancelPendingFloodOutbound(const uint8_t* hash);   // cancel our scheduled flood rebroadcast (if any)
+  void updateAdaptiveFloodParams();                       // derive _fs_eff_c/_fs_eff_hi from neighbour table
+  uint8_t effectiveFloodSuppressC() const;                // adaptive? _fs_eff_c : flood_suppress_c
+  int8_t effectiveFloodSuppressSnrHi() const;             // adaptive? _fs_eff_hi : flood_suppress_snr_hi
   uint8_t handleLoginReq(const mesh::Identity& sender, const uint8_t* secret, uint32_t sender_timestamp, const uint8_t* data, bool is_flood);
   uint8_t handleAnonRegionsReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data);
   uint8_t handleAnonOwnerReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data);
@@ -182,7 +195,7 @@ public:
   MyMesh(mesh::MainBoard& board, mesh::Radio& radio, mesh::MillisecondClock& ms, mesh::RNG& rng, mesh::RTCClock& rtc, mesh::MeshTables& tables);
 
   void begin(FILESYSTEM* fs);
-  void sendNodeDiscoverReq();
+  void sendNodeDiscoverReq(uint32_t delay_millis = 0);
   const char* getFirmwareVer() override { return FIRMWARE_VERSION; }
   const char* getBuildDate() override { return FIRMWARE_BUILD_DATE; }
   const char* getRole() override { return FIRMWARE_ROLE; }

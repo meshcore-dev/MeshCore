@@ -87,6 +87,33 @@ void MyMesh::putNeighbour(const mesh::Identity &id, uint32_t timestamp, float sn
 #endif
 }
 
+// Refresh a *known* neighbour's liveness from an overheard forward, without waiting
+// for its (rare) advert. A forwarded FLOOD carries only the forwarders' path
+// *hashes*, not full identities, so this can only update an entry already seeded by
+// an advert / node-discovery (putNeighbour) -- it cannot create a new one (empty
+// slots have no identity to match, hence the heard_timestamp == 0 skip). The LAST
+// path hash is the most recent forwarder, i.e. our immediate RF neighbour.
+// SNR is stored as a running mean (x4 fixed-point, same scale as NeighbourInfo::snr)
+// so a single outlier copy does not skew the link-quality estimate used by
+// updateAdaptiveFloodParams().
+void MyMesh::touchNeighbourByHash(const mesh::Packet* packet) {
+#if MAX_NEIGHBOURS
+  uint8_t count = packet->getPathHashCount();
+  if (count < 1) return;                       // no forwarder hash -> immediate sender not identifiable
+  uint8_t hs = packet->getPathHashSize();
+  const uint8_t* last = packet->path + (count - 1) * hs;   // most recent forwarder == our RF neighbour
+  int8_t new_snr = (int8_t)(packet->getSNR() * 4);          // x4, same scale as NeighbourInfo::snr
+  for (int i = 0; i < MAX_NEIGHBOURS; i++) {
+    if (neighbours[i].heard_timestamp == 0) continue;       // empty slot: no identity to match (cannot seed here)
+    if (neighbours[i].id.isHashMatch(last, hs)) {
+      neighbours[i].heard_timestamp = getRTCClock()->getCurrentTime();
+      neighbours[i].snr = (neighbours[i].snr + new_snr) / 2;   // smoothed link quality (x4)
+      return;   // at most one slot matches a given hash
+    }
+  }
+#endif
+}
+
 uint8_t MyMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* secret, uint32_t sender_timestamp, const uint8_t* data, bool is_flood) {
   ClientInfo* client = NULL;
   if (data[0] == 0) {   // blank password, just check if sender is in ACL
@@ -426,9 +453,107 @@ void MyMesh::sendFloodReply(mesh::Packet* packet, unsigned long delay_millis, ui
   }
 }
 
+void MyMesh::cancelPendingFloodOutbound(const uint8_t* hash) {
+  // Remove our own already-scheduled flood rebroadcast for this hash (if any).
+  // At most one such outbound exists per flood; the hash is path-independent,
+  // so it matches the inbound copies we counted.
+  int n = _mgr->getOutboundTotal();
+  for (int i = 0; i < n; i++) {
+    mesh::Packet* p = _mgr->getOutboundByIdx(i);
+    if (p && p->isRouteFlood()) {
+      uint8_t h[MAX_HASH_SIZE];
+      p->calculatePacketHash(h);
+      if (memcmp(h, hash, MAX_HASH_SIZE) == 0) {
+        mesh::Packet* removed = _mgr->removeOutboundByIdx(i);
+        if (removed) releasePacket(removed);   // return to pool
+        return;   // a node schedules at most one rebroadcast per flood
+      }
+    }
+  }
+}
+
+// Static C used when the neighbour table is unavailable (no MAX_NEIGHBOURS, cold start, or no
+// fresh neighbours yet): a moderate threshold — the counter still won't fire for genuinely sparse
+// nodes (too few overheard forwards reach it), so this is safe as a zero-admin default.
+static const uint8_t FLOOD_SUPPRESS_FALLBACK_C = 2;
+
+// Effective params: the master switch gates everything; adaptive values apply when neighbour data
+// is available, otherwise the static fallback (configured snr_hi/lo/delay + FLOOD_SUPPRESS_FALLBACK_C).
+uint8_t MyMesh::effectiveFloodSuppressC() const {
+  if (!_prefs.flood_suppress) return 0;
+  return _fs_adaptive_active ? _fs_eff_c : FLOOD_SUPPRESS_FALLBACK_C;
+}
+int8_t MyMesh::effectiveFloodSuppressSnrHi() const {
+  if (!_prefs.flood_suppress) return _prefs.flood_suppress_snr_hi;   // moot: effective c == 0
+  return _fs_adaptive_active ? _fs_eff_hi : _prefs.flood_suppress_snr_hi;
+}
+
+// Derive effective c (from neighbour density) and snr_hi (from link-SNR p75). Runs throttled from
+// loop(); sets _fs_adaptive_active. Under #if MAX_NEIGHBOURS (else adaptive stays inactive and
+// effectiveFloodSuppressC falls back to FLOOD_SUPPRESS_FALLBACK_C).
+void MyMesh::updateAdaptiveFloodParams() {
+#if MAX_NEIGHBOURS
+  int n = 0;
+  int8_t snr_x4[MAX_NEIGHBOURS];
+  uint32_t now = getRTCClock()->getCurrentTime();      // seconds (RTC)
+  const uint32_t NEIGHBOUR_FRESH_S = 600;              // 10 min: table has no aging
+  for (int i = 0; i < MAX_NEIGHBOURS; i++) {
+    if (neighbours[i].heard_timestamp == 0) continue;              // empty slot
+    if ((now - neighbours[i].heard_timestamp) > NEIGHBOUR_FRESH_S) continue;  // stale
+    snr_x4[n++] = neighbours[i].snr;                     // stored x4
+  }
+
+  if (n < 1) {
+    _fs_adaptive_active = false;                        // no fresh neighbours -> static fallback
+    return;
+  }
+  _fs_adaptive_active = true;
+
+  // c from density: <3 fresh => 0 (edge node, don't suppress); 3-4 => 3; >=5 => 2.
+  uint8_t derived_c = (n < 3) ? 0 : (n <= 4) ? 3 : 2;
+
+  // snr_hi = p75 of fresh link SNRs (dB), clamped to [lo+4, lo+12]; needs >=4 samples.
+  int8_t derived_hi = _prefs.flood_suppress_snr_hi;     // else keep configured
+  if (n >= 4) {
+    for (int i = 1; i < n; i++) {                        // insertion sort (<=50 elems)
+      int8_t v = snr_x4[i]; int j = i - 1;
+      while (j >= 0 && snr_x4[j] > v) { snr_x4[j + 1] = snr_x4[j]; j--; }
+      snr_x4[j + 1] = v;
+    }
+    int8_t hi_db = (int8_t)(snr_x4[((n - 1) * 3) / 4] / 4);   // p75, x4 -> dB
+    int8_t lo = _prefs.flood_suppress_snr_lo;
+    if (hi_db < lo + 4) hi_db = lo + 4;
+    if (hi_db > lo + 12) hi_db = lo + 12;
+    derived_hi = hi_db;
+  }
+
+  // Debounce c: adopt a change only after a 2nd confirming cycle (avoid flapping).
+  uint8_t new_c = (derived_c == _fs_pending_c) ? derived_c : _fs_eff_c;
+  _fs_pending_c = derived_c;
+
+  if (new_c != _fs_eff_c || derived_hi != _fs_eff_hi) {
+    MESH_DEBUG_PRINTLN("%s flood-suppress adaptive: neighbours=%d -> c=%d (was %d), snr_hi=%d (was %d)",
+                       getLogDateTime(), n, new_c, _fs_eff_c, (int)derived_hi, (int)_fs_eff_hi);
+  }
+  _fs_eff_c = new_c;
+  _fs_eff_hi = derived_hi;
+#else
+  _fs_adaptive_active = false;   // no neighbour table compiled in -> static fallback
+#endif
+}
+
 bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
   if (_prefs.disable_fwd) return false;
   if (packet->isRouteFlood()) {
+    if (effectiveFloodSuppressC() > 0) {
+      // If overheard forwards already made our rebroadcast redundant, do not
+      // schedule it at all (covers the case where the 2nd copy arrived and was
+      // flagged suppressed before the 1st copy was processed/scheduled).
+      uint8_t hash[MAX_HASH_SIZE];
+      packet->calculatePacketHash(hash);
+      FloodSuppressionEntry* e = _flood_supp.find(hash, millis());
+      if (e && e->suppressed) return false;
+    }
     if (packet->getPathHashCount() >= _prefs.flood_max) return false;
     if (packet->getRouteType() == ROUTE_TYPE_FLOOD && packet->getPathHashCount() >= _prefs.flood_max_unscoped) return false;
     if (packet->getPayloadType() == PAYLOAD_TYPE_ADVERT && packet->getPathHashCount() >= _prefs.flood_max_advert) return false;
@@ -473,6 +598,46 @@ void MyMesh::logRxRaw(float snr, float rssi, const uint8_t raw[], int len) {
 }
 
 void MyMesh::logRx(mesh::Packet *pkt, int len, float score) {
+  // Refresh known-neighbour liveness from this overheard forward. logRx fires for
+  // EVERY received packet (allowPacketForward does not -- it runs only for the
+  // first copy), so this is the reliable place to keep heard_timestamp current.
+  // Adverts may be hours apart; forwarded floods are frequent, so the neighbour
+  // table no longer goes entirely stale between adverts.
+  if (pkt->isRouteFlood()) {
+    touchNeighbourByHash(pkt);
+  }
+
+  // --- Redundancy-aware FLOOD suppression ---------------------------------
+  // Count overheard forwards at RX-ARRIVAL time (here, before calcRxDelay).
+  // The packet hash is path-independent for floods, so every copy of one flood
+  // shares an identity. First copy -> record; later copies -> a neighbour has
+  // already re-broadcast, so accumulate an SNR-weighted count and, once it
+  // reaches the threshold C, cancel our own (redundant) scheduled rebroadcast.
+  if (effectiveFloodSuppressC() > 0 && pkt->isRouteFlood()) {
+    uint8_t hash[MAX_HASH_SIZE];
+    pkt->calculatePacketHash(hash);
+    bool is_new = false;
+    FloodSuppressionEntry* e = _flood_supp.touch(hash, millis(), &is_new);
+    if (e) {
+      int8_t snr_x4 = (int8_t)(pkt->getSNR() * 4.0f);
+      if (is_new) {
+        e->first_snr_x4 = snr_x4;               // record distance-to-source proxy
+      } else if (!e->suppressed) {
+        // an overheard forward by a neighbour: SNR-weighted (correct sign).
+        int8_t lo_x4 = (int8_t)(_prefs.flood_suppress_snr_lo * 4);
+        int8_t hi_x4 = (int8_t)(effectiveFloodSuppressSnrHi() * 4);
+        uint8_t w = (snr_x4 < lo_x4) ? 0 : (snr_x4 >= hi_x4) ? 2 : 1;
+        if (w) {
+          e->weighted_count += w;
+          if (snr_x4 > e->strongest_overheard_x4) e->strongest_overheard_x4 = snr_x4;
+        }
+        if (e->weighted_count >= effectiveFloodSuppressC()) {
+          e->suppressed = true;
+          cancelPendingFloodOutbound(hash);     // our rebroadcast is redundant
+        }
+      }
+    }
+  }
 #ifdef WITH_BRIDGE
   if (_prefs.bridge_pkt_src == 1) {
     bridge.sendPacket(pkt);
@@ -542,7 +707,15 @@ int MyMesh::calcRxDelay(float score, uint32_t air_time) const {
 
 uint32_t MyMesh::getRetransmitDelay(const mesh::Packet *packet) {
   uint32_t t = (_radio->getEstAirtimeFor(packet->getPathByteLen() + packet->payload_len + 2) * _prefs.tx_delay_factor);
-  return getRNG()->nextInt(0, 5*t + 1);
+  uint32_t delay = getRNG()->nextInt(0, 5*t + 1);
+  // Central flood relays (strong RX SNR) wait longer -> wider window to observe
+  // overheard forwards and be cancelled as redundant. Edge relays keep the short
+  // delay so they extend reach quickly.
+  if (effectiveFloodSuppressC() > 0 && packet->isRouteFlood()
+      && packet->getSNR() >= effectiveFloodSuppressSnrHi()) {
+    delay *= (1 + _prefs.flood_suppress_delay_x);
+  }
+  return delay;
 }
 uint32_t MyMesh::getDirectRetransmitDelay(const mesh::Packet *packet) {
   uint32_t t = (_radio->getEstAirtimeFor(packet->getPathByteLen() + packet->payload_len + 2) * _prefs.direct_tx_delay_factor);
@@ -827,19 +1000,29 @@ void MyMesh::onControlDataRecv(mesh::Packet* packet) {
   }
 }
 
-void MyMesh::sendNodeDiscoverReq() {
+void MyMesh::sendNodeDiscoverReq(uint32_t delay_millis) {
   uint8_t data[10];
   data[0] = CTL_TYPE_NODE_DISCOVER_REQ; // prefix_only=0
   data[1] = (1 << ADV_TYPE_REPEATER);
   getRNG()->random(&data[2], 4); // tag
   memcpy(&pending_discover_tag, &data[2], 4);
-  pending_discover_until = futureMillis(60000);
+
+  // When scheduled in the future (e.g. fired after the boot advert), add a small random jitter
+  // so a fleet reboot doesn't synchronise all discover requests, and shift the reply window
+  // past the actual send time so responses arriving after the delayed TX aren't dropped.
+  uint32_t effective_delay = delay_millis;
+  if (delay_millis > 0) {
+    uint8_t jb[1]; getRNG()->random(jb, 1);
+    effective_delay += (uint32_t)jb[0] * 16u;   // 0..4080 ms jitter
+  }
+  pending_discover_until = futureMillis(60000 + effective_delay);
+
   uint32_t since = 0;
   memcpy(&data[6], &since, 4);
 
   auto pkt = createControlData(data, sizeof(data));
   if (pkt) {
-    sendZeroHop(pkt);
+    sendZeroHop(pkt, effective_delay);
   }
 }
 
@@ -860,6 +1043,11 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
 {
   last_millis = 0;
   uptime_millis = 0;
+  _fs_eff_c = 0;                     // adaptive: off until neighbour table fills
+  _fs_eff_hi = 9;
+  _fs_pending_c = 0;
+  _fs_adaptive_active = false;       // until neighbour data is available -> static fallback
+  _fs_next_recompute_ms = 0;
   next_local_advert = next_flood_advert = 0;
   dirty_contacts_expiry = 0;
   set_radio_at = revert_radio_at = 0;
@@ -893,6 +1081,10 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.flood_max_advert = 8;
   _prefs.interference_threshold = 0; // disabled
   _prefs.cad_enabled = 0;            // hardware CAD before TX (off by default; 'set cad on')
+  _prefs.flood_suppress = 1;          // redundancy-aware flood suppression ON by default (adaptive + static fallback)
+  _prefs.flood_suppress_snr_hi = 9;  // dB: strong overheard forward => counts double
+  _prefs.flood_suppress_snr_lo = 0;  // dB: weak overheard forward => ignored (preserve edge)
+  _prefs.flood_suppress_delay_x = 2; // extra TX-delay multiplier for central flood relays
 
   // bridge defaults
   _prefs.bridge_enabled = 1;    // enabled
@@ -1268,6 +1460,13 @@ void MyMesh::loop() {
 #endif
 
   mesh::Mesh::loop();
+
+  _flood_supp.purge(millis());   // evict stale flood-suppression entries
+
+  if (_prefs.flood_suppress && millisHasNowPassed(_fs_next_recompute_ms)) {
+    updateAdaptiveFloodParams();              // derive _fs_eff_c/_fs_eff_hi from neighbour table
+    _fs_next_recompute_ms = futureMillis(60UL * 1000);  // every 1 min (reaction latency; cost is negligible)
+  }
 
   if (next_flood_advert && millisHasNowPassed(next_flood_advert)) {
     mesh::Packet *pkt = createSelfAdvert();

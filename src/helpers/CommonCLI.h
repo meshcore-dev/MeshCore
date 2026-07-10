@@ -65,6 +65,13 @@ struct NodePrefs { // persisted to file
   uint8_t path_hash_mode;   // which path mode to use when sending
   uint8_t loop_detect;
   uint8_t cad_enabled;      // hardware Channel Activity Detection before TX (boolean)
+  // Redundancy-aware FLOOD suppression (simple_repeater). One master switch + SNR/delay params.
+  // The threshold C is derived from the neighbour table (adaptive) with a static fallback
+  // when no neighbour data is available; it is not user-configurable.
+  uint8_t flood_suppress;          // master switch (0=off, 1=on); default on
+  int8_t  flood_suppress_snr_hi;   // dB: overheard forward with SNR>=this counts double (central/redundant)
+  int8_t  flood_suppress_snr_lo;   // dB: overheard forward with SNR<this counts 0 (preserve edge)
+  uint8_t flood_suppress_delay_x;  // extra TX-delay multiplier for central flood relays
 };
 
 class CommonCLICallbacks {
