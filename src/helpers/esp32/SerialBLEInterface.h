@@ -26,10 +26,16 @@ class SerialBLEInterface : public BaseSerialInterface, BLESecurityCallbacks, BLE
   #define FRAME_QUEUE_SIZE  4
   int recv_queue_len;
   Frame recv_queue[FRAME_QUEUE_SIZE];
+  portMUX_TYPE recv_queue_mux = portMUX_INITIALIZER_UNLOCKED;
   int send_queue_len;
   Frame send_queue[FRAME_QUEUE_SIZE];
 
-  void clearBuffers() { recv_queue_len = 0; send_queue_len = 0; }
+  void clearBuffers() {
+    portENTER_CRITICAL(&recv_queue_mux);
+    recv_queue_len = 0;
+    portEXIT_CRITICAL(&recv_queue_mux);
+    send_queue_len = 0;
+  }
 
 protected:
   // BLESecurityCallbacks methods
