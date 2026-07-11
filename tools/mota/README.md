@@ -4,10 +4,10 @@ The Python side of MeshCore's `.mota` OTA system. It is the **reference implemen
 spec ([`docs/ota_protocol.md`](../../docs/ota_protocol.md)) and the **build + test infrastructure** — it is
 no longer a user-facing CLI.
 
-> **Want to build / verify / inspect / serve `.mota` from the command line?** Use the self-contained C++
-> tool [`tools/motatool/`](../motatool/). It supersedes the old `mota.py` / `mota_seeder.py` (now removed),
-> produces byte-identical containers, and runs on small hardware. The files here are the spec oracle and
-> the firmware build/test glue.
+> **Want to build / verify / inspect / serve `.mota` from the command line?** Use the standalone
+> [`motatool`](https://github.com/vk496/motatool) Rust CLI (its own repository). It supersedes the old
+> `mota.py` / `mota_seeder.py` (now removed) and produces byte-identical containers. The files here are
+> the spec oracle and the firmware build/test glue.
 
 ## Setup
 

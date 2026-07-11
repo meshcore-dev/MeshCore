@@ -33,7 +33,7 @@ where a section names a source file, that file is the authoritative reference fo
 | Staging stores | `OtaStore.h`, `OtaStoreFlashNrf52.*`, `OtaStoreFlashEsp32.*` |
 | Apply | `OtaApply.*`, bootloader `Adafruit_nRF52_Bootloader_OTAFIX` |
 | Device glue (CLI/context) | `OtaCli.cpp`, `OtaContext.h` |
-| Host tooling | `tools/motatool/` (C++ CLI: build/verify/inspect/serve); `tools/mota/` (Python reference lib `motalib.py` + build/test glue) |
+| Host tooling | [`motatool`](https://github.com/vk496/motatool) (standalone Rust CLI: build/verify/inspect/serve); `tools/mota/` (Python reference lib `motalib.py` + build/test glue) |
 
 ---
 
@@ -540,8 +540,8 @@ blocks) and streams payload blocks from the source on demand; proofs are generat
 
 A `MotaSource` is fed by a host that serves a folder over the device's **USB serial** (the same console the
 CLI uses — no extra hardware) or, on an ESP32 WiFi companion, over **WiFi (TCP)**. The host is the
-self-contained C++ tool `tools/motatool/` (`motatool serve --serial <port>` / `--tcp <host[:port]>`, which
-also builds + validates `.mota` and runs on small hardware). The device only emits request frames *while
+standalone Rust tool [`motatool`](https://github.com/vk496/motatool) (`motatool serve --serial <port>` /
+`--tcp <host[:port]>`, which also builds + verifies + inspects `.mota`). The device only emits request frames *while
 actively serving a fetch*, and reads the reply synchronously, so over the shared USB console binary frames
 coexist with the text CLI/logs (resync on magic + checksum). Little-endian, XOR-checksummed:
 
