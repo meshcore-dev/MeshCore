@@ -3,6 +3,8 @@
 #include <Mesh.h>
 #include <RadioLib.h>
 
+#define NUM_NOISE_FLOOR_SAMPLES  64   // RSSI samples reduced to a median per noise-floor calibration block
+
 struct PacketMillis {
   uint32_t preambleMillis;  // preamble-detect -> header-valid deadline
   uint32_t payloadMillis;   // header-valid   -> rx-done deadline
@@ -16,7 +18,8 @@ protected:
   int16_t _noise_floor, _threshold;
   bool _cad_enabled;
   uint16_t _num_floor_samples;
-  int32_t _floor_sample_sum;
+  int16_t _floor_samples[NUM_NOISE_FLOOR_SAMPLES];
+  bool _floor_block_ready;   // true once a full block has been reduced to a median (waits for trigger to restart)
   uint8_t _preamble_sf;
 
   void idle();
