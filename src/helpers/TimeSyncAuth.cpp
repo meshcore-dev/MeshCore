@@ -66,14 +66,18 @@ bool TimeSyncAuth::parseUint16Strict(const char* text, size_t len, uint16_t& val
 
 bool TimeSyncAuth::buildCanonical(char* dest, size_t dest_len, const mesh::GroupChannel& channel,
                                   const char* display_name, uint32_t timestamp, uint16_t sequence) {
-  // Bind the signature to the actual configured channel hash, not only text.
-  char channel_hash_hex[PATH_HASH_SIZE * 2 + 1];
-  bytesToLowerHex(channel_hash_hex, channel.hash, PATH_HASH_SIZE);
+  // Bind the signature to a collision-resistant identifier for the configured
+  // channel. PATH_HASH_SIZE is only one byte, so it is not strong enough for
+  // signature scope; use SHA-256 over the full raw channel secret instead.
+  uint8_t channel_id[32];
+  char channel_id_hex[sizeof(channel_id) * 2 + 1];
+  mesh::Utils::sha256(channel_id, sizeof(channel_id), channel.secret, 16);
+  bytesToLowerHex(channel_id_hex, channel_id, sizeof(channel_id));
 
   // Build the exact ASCII bytes that both sender and receiver must sign.
   int written = snprintf(dest, dest_len, "%s\n%s\n%s\n%lu\n%u\n",
                          TIME_SYNC_CANONICAL_DOMAIN,
-                         channel_hash_hex,
+                         channel_id_hex,
                          display_name,
                          (unsigned long)timestamp,
                          (unsigned int)sequence);

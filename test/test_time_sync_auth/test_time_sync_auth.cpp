@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <helpers/TimeSyncAuth.h>
+#include <Utils.h>
 #include <ed_25519.h>
 #include <stdio.h>
 #include <string.h>
@@ -35,21 +36,23 @@ static void bytesToLowerHex(char* dest, const uint8_t* src, size_t len) {
     dest[i * 2 + 1] = hex[src[i] & 0x0F];
   }
 
-  // Null terminate because the canonical builder treats the hash as C text.
+  // Null terminate because the canonical builder treats the channel ID as C text.
   dest[len * 2] = 0;
 }
 
 static void signMessage(const mesh::GroupChannel& channel, const char* display_name,
                         uint32_t timestamp, uint16_t sequence, uint8_t signature[SIGNATURE_SIZE]) {
-  // Convert the configured channel hash to the canonical ASCII field.
-  char channel_hash[PATH_HASH_SIZE * 2 + 1];
+  // Convert the full configured channel identity to the canonical ASCII field.
+  uint8_t channel_id[32];
+  char channel_id_hex[sizeof(channel_id) * 2 + 1];
   char canonical[TIME_SYNC_CANONICAL_MAX_LEN];
-  bytesToLowerHex(channel_hash, channel.hash, PATH_HASH_SIZE);
+  mesh::Utils::sha256(channel_id, sizeof(channel_id), channel.secret, 16);
+  bytesToLowerHex(channel_id_hex, channel_id, sizeof(channel_id));
 
   // Build the exact byte string documented in docs/payloads.md.
   snprintf(canonical, sizeof(canonical), "%s\n%s\n%s\n%lu\n%u\n",
            TIME_SYNC_CANONICAL_DOMAIN,
-           channel_hash,
+           channel_id_hex,
            display_name,
            (unsigned long)timestamp,
            (unsigned int)sequence);
@@ -205,6 +208,22 @@ TEST(TimeSyncAuth, RejectsSignatureFromAnotherDisplayName) {
   TimeSyncConfigView config = makeConfig(channel);
   uint8_t data[96];
   size_t data_len = makeBinary(data, channel, 1783862400UL, 12345, "TimeBot", "OtherBot");
+
+  TimeSyncMessage msg;
+  EXPECT_EQ(TIME_SYNC_SIGNATURE_INVALID, TimeSyncAuth::parseAndVerifyBinary(config, data, data_len, msg));
+}
+
+TEST(TimeSyncAuth, RejectsSignatureFromAnotherChannel) {
+  // The signature is scoped to the configured channel identity, not only the
+  // display name, timestamp and sequence.
+  mesh::GroupChannel configured_channel;
+  TimeSyncConfigView config = makeConfig(configured_channel);
+
+  // Sign the wire fields for a different hashtag channel.
+  mesh::GroupChannel other_channel;
+  TimeSyncAuth::configureHashtagChannel(other_channel, "#other-time");
+  uint8_t data[96];
+  size_t data_len = makeBinary(data, other_channel, 1783862400UL, 12345, "TimeBot", "TimeBot");
 
   TimeSyncMessage msg;
   EXPECT_EQ(TIME_SYNC_SIGNATURE_INVALID, TimeSyncAuth::parseAndVerifyBinary(config, data, data_len, msg));

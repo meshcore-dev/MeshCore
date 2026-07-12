@@ -279,13 +279,13 @@ The signature covers this ASCII byte string, including the final newline:
 
 ```text
 MeshCore-Time-v1
-<channel-hash-hex>
+<channel-id-hex>
 <display-name>
 <unix-seconds>
 <sequence>
 ```
 
-`channel-hash-hex` is the lowercase hexadecimal representation of the configured MeshCore group channel hash bytes. The display name is an exact case-sensitive filter and is not an authentication control.
+`channel-id-hex` is the lowercase hexadecimal SHA-256 digest of the configured raw 16-byte MeshCore group channel secret. It is used instead of the one-byte MeshCore channel hash so signatures are bound to a collision-resistant channel identity. The display name is an exact case-sensitive filter and is not an authentication control.
 
 ### Clock and replay policy
 
@@ -301,6 +301,7 @@ This vector uses a test-only keypair and the hashtag channel `#time`.
 
 - Channel secret: first 16 bytes of `sha256("#time")`, `5d13043d9a5e61bc61aeb63208f5c64e`
 - Channel hash: `e4`
+- Channel ID: `e4235ac672871e72d2aeaf8654e0a39893de9fca7c06ccb5c3a788f95a6aeada`
 - Display name: `TimeBot`
 - Timestamp: `1783862400`
 - Sequence: `12345`
@@ -311,7 +312,7 @@ Canonical signed bytes:
 
 ```text
 MeshCore-Time-v1
-e4
+e4235ac672871e72d2aeaf8654e0a39893de9fca7c06ccb5c3a788f95a6aeada
 TimeBot
 1783862400
 12345
@@ -320,19 +321,19 @@ TimeBot
 Expected signature, lowercase hex:
 
 ```text
-cd5adc2232022eddd70babf0c02a68c50d7b56aab5d60a81dd5dbb77b22ddfb6e406454aa6131381f90de50be08dc7fa1884894646d6e8326043c94b59cab000
+c9e0785bc99e910c813b8984df76c45cab7b1b6157594cb710b457eefedd0ede66f568cbdfc117fb57266283b9d5bbe3d4ac5d331bbd44b190c14e35bd712108
 ```
 
 Expected `Tv1` data bytes, lowercase hex:
 
 ```text
-5476318094536a39300754696d65426f74cd5adc2232022eddd70babf0c02a68c50d7b56aab5d60a81dd5dbb77b22ddfb6e406454aa6131381f90de50be08dc7fa1884894646d6e8326043c94b59cab000
+5476318094536a39300754696d65426f74c9e0785bc99e910c813b8984df76c45cab7b1b6157594cb710b457eefedd0ede66f568cbdfc117fb57266283b9d5bbe3d4ac5d331bbd44b190c14e35bd712108
 ```
 
 Expected complete group-datagram data field, including little-endian `0x0121` type and one-byte data length:
 
 ```text
-2101515476318094536a39300754696d65426f74cd5adc2232022eddd70babf0c02a68c50d7b56aab5d60a81dd5dbb77b22ddfb6e406454aa6131381f90de50be08dc7fa1884894646d6e8326043c94b59cab000
+2101515476318094536a39300754696d65426f74c9e0785bc99e910c813b8984df76c45cab7b1b6157594cb710b457eefedd0ede66f568cbdfc117fb57266283b9d5bbe3d4ac5d331bbd44b190c14e35bd712108
 ```
 
 
