@@ -93,6 +93,14 @@ static bool parseUint32Config(const char* text, uint32_t& value) {
   return true;
 }
 
+static bool isWrappedSequenceNewer(uint16_t previous, uint16_t current) {
+  // Treat sequence numbers as a wrapping uint16 space.
+  uint16_t delta = (uint16_t)(current - previous);
+
+  // Equal is not newer, and deltas in the upper half are older values.
+  return delta != 0 && delta < 0x8000;
+}
+
 bool MyMesh::isTimeSyncConfigured() const {
   // The consumer needs all three trust inputs before it can be enabled.
   return _prefs.time_sync_channel_name[0] != 0
@@ -179,16 +187,23 @@ void MyMesh::handleTimeSyncResult(TimeSyncResult result, const TimeSyncMessage& 
       return;
   }
 
-  // Sequence replay protection is scoped to this boot and configured authority.
-  if (time_sync_accepted_this_boot && msg.sequence <= time_sync_last_sequence) {
-    time_sync_stats.replayed_sequence++;
-    return;
-  }
+  if (time_sync_accepted_this_boot) {
+    // Older timestamps are stale regardless of sequence value.
+    if (msg.timestamp < time_sync_last_timestamp) {
+      time_sync_stats.stale_timestamp++;
+      return;
+    }
 
-  // Timestamp replay protection complements the forward-only RTC policy.
-  if (time_sync_accepted_this_boot && msg.timestamp <= time_sync_last_timestamp) {
-    time_sync_stats.stale_timestamp++;
-    return;
+    // Equal timestamps cannot move the RTC forward, but classify non-advancing
+    // sequence values as replay diagnostics using uint16 wrap-aware ordering.
+    if (msg.timestamp == time_sync_last_timestamp) {
+      if (!isWrappedSequenceNewer(time_sync_last_sequence, msg.sequence)) {
+        time_sync_stats.replayed_sequence++;
+      } else {
+        time_sync_stats.stale_timestamp++;
+      }
+      return;
+    }
   }
 
   // Update replay state only after the RTC policy accepts the message.
@@ -308,6 +323,9 @@ void MyMesh::handleTimeSyncCommand(char* command, char* reply) {
 
     // Persist the operator-facing channel name alongside the derived channel.
     StrHelper::strncpy(_prefs.time_sync_channel_name, value, sizeof(_prefs.time_sync_channel_name));
+    // Channel changes alter the signed authority scope, so old replay values
+    // must not block a valid feed on the newly configured channel.
+    resetTimeSyncReplay();
     savePrefs();
     strcpy(reply, "OK");
   } else if (strcmp(key, "display_name") == 0) {

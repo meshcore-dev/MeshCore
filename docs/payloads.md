@@ -289,7 +289,7 @@ MeshCore-Time-v1
 
 ### Clock and replay policy
 
-Repeaters only move the clock forwards after signature verification succeeds. Timestamps below the firmware fallback epoch or above the supported upper bound are rejected. Once the clock is initialised, a forward jump greater than `time_sync.max_forward_step` is rejected. Replay state is kept in RAM as the last accepted timestamp and sequence; it is not written to flash for every received message. After reboot, the forward-only clock check still limits replay when a valid RTC value is retained.
+Repeaters only move the clock forwards after signature verification succeeds. Timestamps below the firmware fallback epoch or above the supported upper bound are rejected. Once the clock is initialised, a forward jump greater than `time_sync.max_forward_step` is rejected. Replay state is kept in RAM as the last accepted timestamp and sequence; it is not written to flash for every received message. A newer timestamp is allowed even when the 16-bit sequence has wrapped or restarted, while equal timestamps are rejected and non-advancing equal-timestamp sequences are counted as replay. After reboot, the forward-only clock check still limits replay when a valid RTC value is retained.
 
 ### Threat model
 
