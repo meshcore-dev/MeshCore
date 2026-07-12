@@ -766,7 +766,7 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
         sideDetSFs[i] = atoi(parts[i]);
       }
       sideDetSFs[num] = 0;
-      if (_callbacks->configSideDetectors(sideDetSFs, num)) {
+      if (_callbacks->configSideDetectors(sideDetSFs, num, _prefs->bw)) {
         for (int i = 0; i <= num; i++) _prefs->extra_sf[i] = sideDetSFs[i];
         savePrefs();
         sprintf(reply, "OK - extra SFs set");

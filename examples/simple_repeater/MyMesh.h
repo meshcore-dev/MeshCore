@@ -256,7 +256,7 @@ public:
   bool setRxBoostedGain(bool enable) override;
 
   #if defined(USE_LR2021)
-  virtual bool configSideDetectors(const uint8_t sideDetSFs[], uint8_t num) override;
+  virtual bool configSideDetectors(const uint8_t sideDetSFs[], uint8_t num, float bw) override;
   #endif
 
 };

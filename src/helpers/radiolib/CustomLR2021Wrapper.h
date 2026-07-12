@@ -24,7 +24,7 @@ public:
     applySideDetectorConfig();
   }
 
-  bool configSideDetectors(const uint8_t* sideDetSFs, uint8_t num) override {
+  bool configSideDetectors(const uint8_t* sideDetSFs, uint8_t num, float bw) override {
     LR2021LoRaSideDetector_t tmp[3];
     uint8_t sf = getSpreadingFactor();
 
@@ -35,7 +35,8 @@ public:
       if (sideDetSFs[i] > sf + 4) { return false; }  // span must not be > 4
 
       tmp[i].sf = sideDetSFs[i];
-      if (sideDetSFs[i] == 10) { // TODO: set ldro=true when tSym >=16
+      float tSym = calcTsym(tmp[i].sf, bw);
+      if (tSym >= 16.0f) {
         tmp[i].ldro = true;
       } else {
         tmp[i].ldro = false; 
@@ -61,6 +62,11 @@ public:
     int16_t status = ((CustomLR2021 *)_radio)->setSideDetector(_sideDet, _numSideDet);
     RadioLibWrapper::idle(); // trigger startReceive()
     return status;
+  }
+
+  float calcTsym(uint8_t sf, float bw) {
+    float tSym = (float)(uint32_t(1) << sf) / (float)bw;
+    return tSym;
   }
 
   bool isReceivingPacket() override {
@@ -97,6 +103,5 @@ public:
   protected:
     LR2021LoRaSideDetector_t _sideDet[3];
     size_t _numSideDet = 0;
-
 
 };
