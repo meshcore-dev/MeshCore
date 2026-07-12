@@ -60,6 +60,321 @@
 
 #define LAZY_CONTACTS_WRITE_DELAY    5000
 
+static bool parseStrictHex(uint8_t* dest, size_t dest_len, const char* text) {
+  // Require the CLI value to be exactly one complete byte string.
+  if (strlen(text) != dest_len * 2) return false;
+
+  // Validate every character before decoding so partial writes cannot occur.
+  for (size_t i = 0; i < dest_len; i++) {
+    char hi = text[i * 2];
+    char lo = text[i * 2 + 1];
+    if (!mesh::Utils::isHexChar(hi) || !mesh::Utils::isHexChar(lo)) return false;
+  }
+
+  // Decode only after the length and character set checks have passed.
+  return mesh::Utils::fromHex(dest, dest_len, text);
+}
+
+static bool parseUint32Config(const char* text, uint32_t& value) {
+  // Empty CLI values are rejected rather than being treated as zero.
+  if (text == NULL || *text == 0) return false;
+
+  // Accumulate in uint32_t with an explicit overflow check for each digit.
+  uint32_t acc = 0;
+  while (*text) {
+    // Accept decimal digits only; signs and whitespace are not valid here.
+    if (*text < '0' || *text > '9') return false;
+    uint32_t digit = (uint32_t)(*text++ - '0');
+    if (acc > (UINT32_MAX - digit) / 10UL) return false;
+    acc = acc * 10UL + digit;
+  }
+
+  value = acc;
+  return true;
+}
+
+bool MyMesh::isTimeSyncConfigured() const {
+  // The consumer needs all three trust inputs before it can be enabled.
+  return _prefs.time_sync_channel_name[0] != 0
+      && TimeSyncAuth::isValidDisplayName(_prefs.time_sync_display_name)
+      && TimeSyncAuth::isValidPublicKey(_prefs.time_sync_public_key);
+}
+
+TimeSyncConfigView MyMesh::getTimeSyncConfig() const {
+  // Build a read-only view of persisted settings for the parser.
+  TimeSyncConfigView config;
+
+  // Treat incomplete configuration as disabled even if the stored flag is set.
+  config.enabled = _prefs.time_sync_enabled && isTimeSyncConfigured();
+  config.channel = _prefs.time_sync_channel;
+  config.display_name = _prefs.time_sync_display_name;
+  config.public_key = _prefs.time_sync_public_key;
+  return config;
+}
+
+void MyMesh::resetTimeSyncReplay() {
+  // Replay state is deliberately RAM-only to avoid flash wear per packet.
+  time_sync_last_timestamp = 0;
+  time_sync_last_sequence = 0;
+
+  // This flag also marks whether the fallback-clock exception has been used.
+  time_sync_accepted_this_boot = false;
+}
+
+bool MyMesh::applyTimeSyncClock(uint32_t timestamp) {
+  // Reject timestamps outside the firmware-supported Unix range.
+  if (timestamp < TIME_SYNC_MIN_UNIX_TIME || timestamp > TIME_SYNC_MAX_UNIX_TIME) {
+    time_sync_stats.stale_timestamp++;
+    return false;
+  }
+
+  // Read the current RTC value only after authentication has succeeded.
+  uint32_t current = getRTCClock()->getCurrentTime();
+
+  // The time-sync consumer is forward-only and never moves the clock back.
+  if (timestamp <= current) {
+    time_sync_stats.stale_timestamp++;
+    return false;
+  }
+
+  // VolatileRTCClock and ESP32 power-on fallback both start at this epoch.
+  // Treat only the early fallback window as uninitialised, so a signed packet
+  // cannot push an already-running repeater decades forward after long uptime.
+  bool fallback_clock = !time_sync_accepted_this_boot
+      && current >= TIME_SYNC_MIN_UNIX_TIME
+      && current <= TIME_SYNC_MIN_UNIX_TIME + 86400UL;
+
+  // A stored zero is repaired to the default so policy remains fail-closed.
+  uint32_t max_step = _prefs.time_sync_max_forward_step;
+  if (max_step == 0) max_step = TIME_SYNC_DEFAULT_MAX_FORWARD_STEP;
+
+  // Once the clock is past the fallback window, limit authenticated jumps.
+  if (!fallback_clock && timestamp - current > max_step) {
+    time_sync_stats.excessive_forward_step++;
+    return false;
+  }
+
+  // Apply the authenticated, policy-accepted timestamp to the RTC abstraction.
+  getRTCClock()->setCurrentTime(timestamp);
+  time_sync_stats.clock_updates++;
+  return true;
+}
+
+void MyMesh::handleTimeSyncResult(TimeSyncResult result, const TimeSyncMessage& msg) {
+  // Convert parser outcomes into diagnostics before any clock policy runs.
+  switch (result) {
+    case TIME_SYNC_OK:
+      break;
+    case TIME_SYNC_DISABLED:
+      return;
+    case TIME_SYNC_DISPLAY_NAME_MISMATCH:
+      time_sync_stats.display_name_mismatch++;
+      return;
+    case TIME_SYNC_SIGNATURE_INVALID:
+      time_sync_stats.signature_invalid++;
+      return;
+    case TIME_SYNC_MALFORMED:
+    default:
+      time_sync_stats.malformed++;
+      return;
+  }
+
+  // Sequence replay protection is scoped to this boot and configured authority.
+  if (time_sync_accepted_this_boot && msg.sequence <= time_sync_last_sequence) {
+    time_sync_stats.replayed_sequence++;
+    return;
+  }
+
+  // Timestamp replay protection complements the forward-only RTC policy.
+  if (time_sync_accepted_this_boot && msg.timestamp <= time_sync_last_timestamp) {
+    time_sync_stats.stale_timestamp++;
+    return;
+  }
+
+  // Update replay state only after the RTC policy accepts the message.
+  if (!applyTimeSyncClock(msg.timestamp)) return;
+
+  // Record the last accepted authority message for later replay checks.
+  time_sync_last_timestamp = msg.timestamp;
+  time_sync_last_sequence = msg.sequence;
+  time_sync_accepted_this_boot = true;
+  time_sync_stats.accepted++;
+}
+
+void MyMesh::formatTimeSyncStatus(char* reply) {
+  // Prefer a short fingerprint in status output over echoing the public key.
+  char fp[7];
+  if (TimeSyncAuth::isValidPublicKey(_prefs.time_sync_public_key)) {
+    TimeSyncAuth::fingerprintLast3Hex(fp, _prefs.time_sync_public_key);
+  } else {
+    strcpy(fp, "none");
+  }
+
+  // Keep the reply within the existing 160-byte command response buffer.
+  snprintf(reply, 160,
+           "%s ch=%s name=%s fp=%s ts=%lu seq=%u rx=%lu ok=%lu bad=%lu sig=%lu stale=%lu replay=%lu step=%lu clk=%lu",
+           _prefs.time_sync_enabled ? "on" : "off",
+           _prefs.time_sync_channel_name[0] ? _prefs.time_sync_channel_name : "-",
+           _prefs.time_sync_display_name[0] ? _prefs.time_sync_display_name : "-",
+           fp,
+           (unsigned long)time_sync_last_timestamp,
+           (unsigned int)time_sync_last_sequence,
+           (unsigned long)time_sync_stats.received,
+           (unsigned long)time_sync_stats.accepted,
+           (unsigned long)(time_sync_stats.malformed + time_sync_stats.display_name_mismatch),
+           (unsigned long)time_sync_stats.signature_invalid,
+           (unsigned long)time_sync_stats.stale_timestamp,
+           (unsigned long)time_sync_stats.replayed_sequence,
+           (unsigned long)time_sync_stats.excessive_forward_step,
+           (unsigned long)time_sync_stats.clock_updates);
+}
+
+void MyMesh::formatTimeSyncCounters(char* reply) {
+  // Counters are compact so they remain usable over remote command links.
+  snprintf(reply, 160,
+           "rx=%lu ok=%lu dn=%lu mal=%lu sig=%lu stale=%lu replay=%lu step=%lu clk=%lu",
+           (unsigned long)time_sync_stats.received,
+           (unsigned long)time_sync_stats.accepted,
+           (unsigned long)time_sync_stats.display_name_mismatch,
+           (unsigned long)time_sync_stats.malformed,
+           (unsigned long)time_sync_stats.signature_invalid,
+           (unsigned long)time_sync_stats.stale_timestamp,
+           (unsigned long)time_sync_stats.replayed_sequence,
+           (unsigned long)time_sync_stats.excessive_forward_step,
+           (unsigned long)time_sync_stats.clock_updates);
+}
+
+void MyMesh::handleTimeSyncCommand(char* command, char* reply) {
+  // Status commands do not mutate preferences or replay state.
+  if (strcmp(command, "time_sync.status") == 0 || strcmp(command, "get time_sync.status") == 0) {
+    formatTimeSyncStatus(reply);
+    return;
+  }
+
+  // Counter output is separate from status so diagnostics can be polled cheaply.
+  if (strcmp(command, "time_sync.counters") == 0 || strcmp(command, "get time_sync.counters") == 0) {
+    formatTimeSyncCounters(reply);
+    return;
+  }
+
+  // Read-only configuration queries follow the existing `get` command style.
+  if (memcmp(command, "get time_sync.", 14) == 0) {
+    const char* key = command + 14;
+    if (strcmp(key, "enabled") == 0) {
+      sprintf(reply, "> %s", _prefs.time_sync_enabled ? "on" : "off");
+    } else if (strcmp(key, "channel") == 0) {
+      sprintf(reply, "> %s", _prefs.time_sync_channel_name[0] ? _prefs.time_sync_channel_name : "-");
+    } else if (strcmp(key, "display_name") == 0) {
+      sprintf(reply, "> %s", _prefs.time_sync_display_name);
+    } else if (strcmp(key, "public_key") == 0) {
+      char fp[7];
+      TimeSyncAuth::fingerprintLast3Hex(fp, _prefs.time_sync_public_key);
+      sprintf(reply, "> fingerprint:%s", TimeSyncAuth::isValidPublicKey(_prefs.time_sync_public_key) ? fp : "none");
+    } else if (strcmp(key, "max_forward_step") == 0) {
+      sprintf(reply, "> %lu", (unsigned long)_prefs.time_sync_max_forward_step);
+    } else {
+      strcpy(reply, "Err - unknown time_sync setting");
+    }
+    return;
+  }
+
+  // All mutating commands must use the explicit `set time_sync.` prefix.
+  if (memcmp(command, "set time_sync.", 14) != 0) {
+    strcpy(reply, "Err - bad time_sync command");
+    return;
+  }
+
+  // Split the command in place, matching the surrounding CLI parser style.
+  char* key = command + 14;
+  char* value = strchr(key, ' ');
+  if (value == NULL) {
+    strcpy(reply, "Err - missing value");
+    return;
+  }
+  *value++ = 0;
+
+  if (strcmp(key, "channel") == 0) {
+    // `public` uses MeshCore's documented default public channel secret.
+    if (strcmp(value, "public") == 0) {
+      TimeSyncAuth::configureDefaultPublicChannel(_prefs.time_sync_channel);
+
+    // Hashtag channels are derived with the repository's existing convention.
+    } else if (value[0] == '#' && value[1] != 0 && strlen(value) < sizeof(_prefs.time_sync_channel_name)) {
+      TimeSyncAuth::configureHashtagChannel(_prefs.time_sync_channel, value);
+    } else {
+      strcpy(reply, "Err - channel must be public or #name");
+      return;
+    }
+
+    // Persist the operator-facing channel name alongside the derived channel.
+    StrHelper::strncpy(_prefs.time_sync_channel_name, value, sizeof(_prefs.time_sync_channel_name));
+    savePrefs();
+    strcpy(reply, "OK");
+  } else if (strcmp(key, "display_name") == 0) {
+    // Empty names and CR/LF are rejected so there is no wildcard-like sender.
+    if (!TimeSyncAuth::isValidDisplayName(value) || strlen(value) >= sizeof(_prefs.time_sync_display_name)) {
+      strcpy(reply, "Err - invalid display_name");
+      return;
+    }
+
+    // Authority changes reset replay state because old sequence values no longer apply.
+    StrHelper::strncpy(_prefs.time_sync_display_name, value, sizeof(_prefs.time_sync_display_name));
+    resetTimeSyncReplay();
+    savePrefs();
+    strcpy(reply, "OK");
+  } else if (strcmp(key, "public_key") == 0) {
+    // Require exactly one complete 32-byte Ed25519 public key in hex.
+    uint8_t pubkey[PUB_KEY_SIZE];
+    if (!parseStrictHex(pubkey, sizeof(pubkey), value) || !TimeSyncAuth::isValidPublicKey(pubkey)) {
+      strcpy(reply, "Err - invalid public_key");
+      return;
+    }
+
+    // Store only the public key; private signing material is never accepted.
+    memcpy(_prefs.time_sync_public_key, pubkey, sizeof(_prefs.time_sync_public_key));
+    resetTimeSyncReplay();
+    savePrefs();
+    strcpy(reply, "OK");
+  } else if (strcmp(key, "max_forward_step") == 0) {
+    // Limit configured jumps to one day so mistakes cannot authorise decades.
+    uint32_t step;
+    if (!parseUint32Config(value, step) || step == 0 || step > 86400UL) {
+      strcpy(reply, "Err - invalid max_forward_step");
+      return;
+    }
+
+    // Persist the accepted policy value immediately.
+    _prefs.time_sync_max_forward_step = step;
+    savePrefs();
+    strcpy(reply, "OK");
+  } else if (strcmp(key, "enabled") == 0) {
+    // Accept the same boolean spelling used by nearby repeater commands.
+    bool enable;
+    if (strcmp(value, "on") == 0) {
+      enable = true;
+    } else if (strcmp(value, "off") == 0) {
+      enable = false;
+    } else {
+      strcpy(reply, "Err - enabled must be on or off");
+      return;
+    }
+
+    // Enabling is refused unless the full pinned authority config is present.
+    if (enable && !isTimeSyncConfigured()) {
+      strcpy(reply, "Err - configure channel, display_name and public_key first");
+      return;
+    }
+
+    // Reset replay state whenever the consumer is toggled.
+    _prefs.time_sync_enabled = enable ? 1 : 0;
+    resetTimeSyncReplay();
+    savePrefs();
+    strcpy(reply, "OK");
+  } else {
+    strcpy(reply, "Err - unknown time_sync setting");
+  }
+}
+
 void MyMesh::putNeighbour(const mesh::Identity &id, uint32_t timestamp, float snr) {
 #if MAX_NEIGHBOURS // check if neighbours enabled
   // find existing neighbour, else use least recently updated
@@ -827,6 +1142,65 @@ void MyMesh::onControlDataRecv(mesh::Packet* packet) {
   }
 }
 
+int MyMesh::searchChannelsByHash(const uint8_t* hash, mesh::GroupChannel channels[], int max_matches) {
+  // Do not expose a candidate channel unless time sync is enabled and complete.
+  if (max_matches <= 0 || !_prefs.time_sync_enabled || !isTimeSyncConfigured()) return 0;
+
+  // Match only the configured time-sync channel hash.
+  if (memcmp(hash, _prefs.time_sync_channel.hash, PATH_HASH_SIZE) != 0) return 0;
+
+  // Return the exact configured channel so Mesh.cpp can decrypt normally.
+  channels[0] = _prefs.time_sync_channel;
+  return 1;
+}
+
+void MyMesh::onGroupDataRecv(mesh::Packet* packet, uint8_t type, const mesh::GroupChannel& channel, uint8_t* data, size_t len) {
+  // Time sync does not need the packet metadata after Mesh.cpp has decrypted it.
+  (void)packet;
+  (void)channel;
+
+  // Disabled or incomplete configuration means no local consumption attempt.
+  if (!_prefs.time_sync_enabled || !isTimeSyncConfigured()) return;
+
+  // Snapshot the current authority config for this packet.
+  TimeSyncConfigView config = getTimeSyncConfig();
+  TimeSyncMessage msg;
+  TimeSyncResult result = TIME_SYNC_MALFORMED;
+
+  // Time sync is binary-only; group text messages are not parsed.
+  if (type != PAYLOAD_TYPE_GRP_DATA) {
+    time_sync_stats.received++;
+    time_sync_stats.malformed++;
+    return;
+  }
+
+  // Group datagrams require a 2-byte type and 1-byte data length prefix.
+  if (len < 3) {
+    time_sync_stats.received++;
+    time_sync_stats.malformed++;
+    return;
+  }
+
+  // Decode the group-datagram application type and embedded data length.
+  uint16_t data_type = ((uint16_t)data[0]) | (((uint16_t)data[1]) << 8);
+  uint8_t data_len = data[2];
+  size_t available_len = len - 3;
+
+  // Ignore every application type except the allocated repeater time sync type.
+  if (data_len > available_len || data_type != TIME_SYNC_BINARY_DATA_TYPE) {
+    time_sync_stats.received++;
+    time_sync_stats.malformed++;
+    return;
+  }
+
+  // Parse and verify the inner Tv1 payload before considering clock policy.
+  time_sync_stats.received++;
+  result = TimeSyncAuth::parseAndVerifyBinary(config, &data[3], data_len, msg);
+
+  // Applying the clock is separated so authentication and policy stay distinct.
+  handleTimeSyncResult(result, msg);
+}
+
 void MyMesh::sendNodeDiscoverReq() {
   uint8_t data[10];
   data[0] = CTL_TYPE_NODE_DISCOVER_REQ; // prefix_only=0
@@ -866,6 +1240,9 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _logging = false;
   region_load_active = false;
   recv_pkt_region = NULL;
+  // Initialise volatile diagnostics and replay state before any packets arrive.
+  memset(&time_sync_stats, 0, sizeof(time_sync_stats));
+  resetTimeSyncReplay();
 
 #if MAX_NEIGHBOURS
   memset(neighbours, 0, sizeof(neighbours));
@@ -893,6 +1270,10 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.flood_max_advert = 8;
   _prefs.interference_threshold = 0; // disabled
   _prefs.cad_enabled = 0;            // hardware CAD before TX (off by default; 'set cad on')
+  // Time sync is opt-in and remains disabled until all authority fields are set.
+  _prefs.time_sync_enabled = 0;       // opt-in authenticated time sync
+  // Default to a conservative one-hour forward step after the clock is initialised.
+  _prefs.time_sync_max_forward_step = TIME_SYNC_DEFAULT_MAX_FORWARD_STEP;
 
   // bridge defaults
   _prefs.bridge_enabled = 1;    // enabled
@@ -930,6 +1311,10 @@ void MyMesh::begin(FILESYSTEM *fs) {
   _fs = fs;
   // load persisted prefs
   _cli.loadPrefs(_fs);
+  // Preserve old preference files by disabling impossible partial configs.
+  if (_prefs.time_sync_enabled && !isTimeSyncConfigured()) {
+    _prefs.time_sync_enabled = 0;
+  }
   acl.load(_fs, self_id);
   // TODO: key_store.begin();
   region_map.load(_fs);
@@ -1212,6 +1597,14 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
     memcpy(reply, command, 3);                    // reflect the prefix back
     reply += 3;
     command += 3;
+  }
+
+  if (strcmp(command, "time_sync.status") == 0 || strcmp(command, "time_sync.counters") == 0
+      || memcmp(command, "get time_sync.", 14) == 0
+      || memcmp(command, "set time_sync.", 14) == 0) {
+    // Route time-sync commands before generic ACL handling consumes them.
+    handleTimeSyncCommand(command, reply);
+    return;
   }
 
   // handle ACL related commands

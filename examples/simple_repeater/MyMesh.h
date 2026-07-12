@@ -31,6 +31,7 @@
 #include <helpers/SimpleMeshTables.h>
 #include <helpers/StaticPoolPacketManager.h>
 #include <helpers/StatsFormatHelper.h>
+#include <helpers/TimeSyncAuth.h>
 #include <helpers/TxtDataHelpers.h>
 #include <helpers/RegionMap.h>
 #include "RateLimiter.h"
@@ -68,6 +69,20 @@ struct NeighbourInfo {
   int8_t snr; // multiplied by 4, user should divide to get float value
 };
 
+// Runtime-only counters for the authenticated time-sync consumer. These are
+// not persisted, so receiving time beacons does not create flash wear.
+struct TimeSyncStats {
+  uint32_t received;
+  uint32_t accepted;
+  uint32_t display_name_mismatch;
+  uint32_t malformed;
+  uint32_t signature_invalid;
+  uint32_t stale_timestamp;
+  uint32_t replayed_sequence;
+  uint32_t excessive_forward_step;
+  uint32_t clock_updates;
+};
+
 #ifndef FIRMWARE_BUILD_DATE
   #define FIRMWARE_BUILD_DATE   "6 Jun 2026"
 #endif
@@ -103,6 +118,11 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   unsigned long pending_discover_until;
   bool region_load_active;
   unsigned long dirty_contacts_expiry;
+  // Time-sync diagnostics and replay state are local to this repeater boot.
+  TimeSyncStats time_sync_stats;
+  uint32_t time_sync_last_timestamp;
+  uint16_t time_sync_last_sequence;
+  bool time_sync_accepted_this_boot;
 #if MAX_NEIGHBOURS
   NeighbourInfo neighbours[MAX_NEIGHBOURS];
 #endif
@@ -129,6 +149,16 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
 
   File openAppend(const char* fname);
   bool isLooped(const mesh::Packet* packet, const uint8_t max_counters[]);
+  // Time-sync helpers keep configuration, parsing result handling and clock
+  // policy local to repeater firmware.
+  bool isTimeSyncConfigured() const;
+  TimeSyncConfigView getTimeSyncConfig() const;
+  void resetTimeSyncReplay();
+  void handleTimeSyncResult(TimeSyncResult result, const TimeSyncMessage& msg);
+  bool applyTimeSyncClock(uint32_t timestamp);
+  void handleTimeSyncCommand(char* command, char* reply);
+  void formatTimeSyncStatus(char* reply);
+  void formatTimeSyncCounters(char* reply);
 
 protected:
   float getAirtimeBudgetFactor() const override {
@@ -175,6 +205,10 @@ protected:
   void onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender_idx, const uint8_t* secret, uint8_t* data, size_t len) override;
   bool onPeerPathRecv(mesh::Packet* packet, int sender_idx, const uint8_t* secret, uint8_t* path, uint8_t path_len, uint8_t extra_type, uint8_t* extra, uint8_t extra_len) override;
   void onControlDataRecv(mesh::Packet* packet) override;
+  // These overrides add the configured time-sync channel to group lookup and
+  // consume only authenticated binary time-sync datagrams.
+  int searchChannelsByHash(const uint8_t* hash, mesh::GroupChannel channels[], int max_matches) override;
+  void onGroupDataRecv(mesh::Packet* packet, uint8_t type, const mesh::GroupChannel& channel, uint8_t* data, size_t len) override;
 
   void sendFloodReply(mesh::Packet* packet, unsigned long delay_millis, uint8_t path_hash_size);
 

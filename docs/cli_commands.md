@@ -403,6 +403,33 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 #### View this node's public key
 **Usage:** `get public.key`
 
+### Repeater authenticated time sync
+
+Repeater builds support an opt-in authenticated time-sync consumer.
+
+Configuration:
+
+- `set time_sync.channel public`
+- `set time_sync.channel #time`
+- `set time_sync.display_name <exact-name>`
+- `set time_sync.public_key <64-hex-ed25519-public-key>`
+- `set time_sync.max_forward_step <seconds>`
+- `set time_sync.enabled on|off`
+
+Status:
+
+- `time_sync.status`
+- `time_sync.counters`
+- `get time_sync.enabled`
+- `get time_sync.channel`
+- `get time_sync.display_name`
+- `get time_sync.public_key`
+- `get time_sync.max_forward_step`
+
+`set time_sync.enabled on` fails unless the channel, exact display name and complete public key are already configured. The public channel is transport only: the channel MAC and displayed sender name do not prove sender identity. The repeater verifies each accepted `Tv1` message with the pinned 32-byte Ed25519 public key.
+
+Status output shows whether the consumer is enabled, configured channel, display name, a short public-key fingerprint, and last accepted timestamp and sequence. `time_sync.counters` exposes received, accepted, display-name mismatch, malformed, invalid signature, stale timestamp, replayed sequence, excessive forward step and clock-update counters. It does not echo private key material.
+
 ---
 
 #### View this node's firmware version

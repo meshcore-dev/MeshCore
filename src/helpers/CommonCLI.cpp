@@ -3,6 +3,7 @@
 #include "TxtDataHelpers.h"
 #include "AdvertDataHelpers.h"
 #include "TxtDataHelpers.h"
+#include "TimeSyncAuth.h"
 #include <RTClib.h>
 
 #ifndef BRIDGE_MAX_BAUD
@@ -93,7 +94,15 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     file.read((uint8_t *)&_prefs->flood_max_advert, sizeof(_prefs->flood_max_advert));             // 292
     file.read((uint8_t *)&_prefs->radio_fem_rxgain, sizeof(_prefs->radio_fem_rxgain));             // 293
     file.read((uint8_t *)&_prefs->cad_enabled, sizeof(_prefs->cad_enabled));                       // 294
-    // next: 295
+    // Time-sync fields are appended so older preference files retain their
+    // existing offsets. Short reads leave constructor defaults in place.
+    file.read((uint8_t *)&_prefs->time_sync_enabled, sizeof(_prefs->time_sync_enabled));            // 295
+    file.read((uint8_t *)&_prefs->time_sync_channel, sizeof(_prefs->time_sync_channel));            // 296
+    file.read((uint8_t *)_prefs->time_sync_channel_name, sizeof(_prefs->time_sync_channel_name));   // 329
+    file.read((uint8_t *)_prefs->time_sync_display_name, sizeof(_prefs->time_sync_display_name));   // 361
+    file.read((uint8_t *)_prefs->time_sync_public_key, sizeof(_prefs->time_sync_public_key));       // 393
+    file.read((uint8_t *)&_prefs->time_sync_max_forward_step, sizeof(_prefs->time_sync_max_forward_step)); // 425
+    // next: 429
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -125,6 +134,15 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     _prefs->rx_boosted_gain = constrain(_prefs->rx_boosted_gain, 0, 1); // boolean
     _prefs->radio_fem_rxgain = constrain(_prefs->radio_fem_rxgain, 0, 1); // boolean
     _prefs->cad_enabled = constrain(_prefs->cad_enabled, 0, 1); // boolean
+    // Time sync remains opt-in after load; corrupt booleans are clamped.
+    _prefs->time_sync_enabled = constrain(_prefs->time_sync_enabled, 0, 1); // boolean
+    // Repair unusable clock-step policy values to the conservative default.
+    if (_prefs->time_sync_max_forward_step == 0 || _prefs->time_sync_max_forward_step > 86400UL) {
+      _prefs->time_sync_max_forward_step = TIME_SYNC_DEFAULT_MAX_FORWARD_STEP;
+    }
+    // Force C-string termination in case persisted data filled the buffers.
+    _prefs->time_sync_channel_name[sizeof(_prefs->time_sync_channel_name) - 1] = 0;
+    _prefs->time_sync_display_name[sizeof(_prefs->time_sync_display_name) - 1] = 0;
 
     file.close();
   }
@@ -190,7 +208,14 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->flood_max_advert, sizeof(_prefs->flood_max_advert));             // 292
     file.write((uint8_t *)&_prefs->radio_fem_rxgain, sizeof(_prefs->radio_fem_rxgain));             // 293
     file.write((uint8_t *)&_prefs->cad_enabled, sizeof(_prefs->cad_enabled));                       // 294
-    // next: 295
+    // Persist new time-sync settings only after the old preference layout.
+    file.write((uint8_t *)&_prefs->time_sync_enabled, sizeof(_prefs->time_sync_enabled));            // 295
+    file.write((uint8_t *)&_prefs->time_sync_channel, sizeof(_prefs->time_sync_channel));            // 296
+    file.write((uint8_t *)_prefs->time_sync_channel_name, sizeof(_prefs->time_sync_channel_name));   // 329
+    file.write((uint8_t *)_prefs->time_sync_display_name, sizeof(_prefs->time_sync_display_name));   // 361
+    file.write((uint8_t *)_prefs->time_sync_public_key, sizeof(_prefs->time_sync_public_key));       // 393
+    file.write((uint8_t *)&_prefs->time_sync_max_forward_step, sizeof(_prefs->time_sync_max_forward_step)); // 425
+    // next: 429
 
     file.close();
   }
