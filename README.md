@@ -34,10 +34,32 @@ MeshCore provides the ability to create wireless mesh networks, similar to Mesht
 - Flash the MeshCore firmware on a supported device.
 - Connect with a supported client.
 
+### RAK13800 Ethernet Companion Targets
+
+- `RAK_RAK13800_companion_radio_eth` is the production board-support target.
+- `RAK_RAK13800_companion_radio_eth_static_diag` is the static diagnostic target.
+- The old `RAK_4631_companion_radio_eth_clean` and `RAK_4631_companion_radio_eth_static_diag` names remain compatibility aliases only.
+- Static diagnostic settings:
+  - IP `10.245.94.47`
+  - Gateway `10.245.94.33`
+  - DNS `10.245.94.33`
+  - Subnet `255.255.255.224`
+  - TCP port `4403`
+  - `ETH_STATIC_ONLY=1`
+  - `ETH_DEBUG_LOGGING=1`
+- Production settings:
+  - DHCP first or DHCP with static fallback
+  - TCP port `4403`
+  - `ETH_DEBUG_LOGGING=0`
+  - `FORCE_CLIENT_REPEAT=0`
+  - `MAX_CONTACTS=128` unless RAM testing proves a higher value is safe
+
 For developers:
 
 - Install [PlatformIO](https://docs.platformio.org) in [Visual Studio Code](https://code.visualstudio.com).
 - Clone and open the MeshCore repository in Visual Studio Code.
+- The RAK13800 Ethernet Companion board-support targets use the canonical PlatformIO env names `RAK_RAK13800_companion_radio_eth` and `RAK_RAK13800_companion_radio_eth_static_diag`.
+- These targets extend the RAK4631 MCU platform, but the supported hardware stack is `RAK 4631 / RAK13800 + W5100S`.
 - See the example applications you can modify and run:
   - [Companion Radio](./examples/companion_radio) - For use with an external chat app, over BLE, USB or Wi-Fi.
   - [KISS Modem](./examples/kiss_modem) - Serial KISS protocol bridge for host applications. ([protocol docs](./docs/kiss_modem_protocol.md))
