@@ -9,7 +9,13 @@ extern void variant_shutdown();
 const PowerMgtConfig power_config = {
   .lpcomp_ain_channel = PWRMGT_LPCOMP_AIN,
   .lpcomp_refsel = PWRMGT_LPCOMP_REFSEL,
-  .voltage_bootlock = PWRMGT_VOLTAGE_BOOTLOCK
+  .voltage_bootlock = PWRMGT_VOLTAGE_BOOTLOCK,
+  .battery_voltage_sense_valid = true,
+  .lpcomp_voltage_wake_valid = true,
+  .vbus_wake_valid = false,
+  .battery_min_present_mv = 1000,
+  .battery_min_plausible_mv = 2500,
+  .battery_max_plausible_mv = 4500
 };
 
 void HeltecTowerV2Board::initiateShutdown(uint8_t reason) {
@@ -27,7 +33,7 @@ void HeltecTowerV2Board::initiateShutdown(uint8_t reason) {
   digitalWrite(PIN_BAT_CTL, enable_lpcomp ? HIGH : LOW);
 
   if (enable_lpcomp) {
-    configureVoltageWake(power_config.lpcomp_ain_channel, power_config.lpcomp_refsel);
+    configureVoltageWake(&power_config);
   }
 
   variant_shutdown();

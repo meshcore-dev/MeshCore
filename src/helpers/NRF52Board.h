@@ -24,6 +24,9 @@ struct PowerMgtConfig {
 
   // Capability flags describe what this board can prove from its sense wiring.
   // They prevent VBUS loss from being treated as proof that a BAT sense node is valid.
+  // Keep every board initialiser explicit because this aggregate is compiled
+  // by older nRF52 toolchains that do not safely combine designated
+  // initialisers with in-struct defaults.
   bool battery_voltage_sense_valid;
   bool lpcomp_voltage_wake_valid;
   bool vbus_wake_valid;
