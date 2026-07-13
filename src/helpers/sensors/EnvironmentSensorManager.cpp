@@ -980,7 +980,7 @@ void EnvironmentSensorManager::loop() {
   if (gps_active) {
     _location->loop();
   }
-  if (millis() - next_gps_update > 0) {
+  if ((long)(millis() - next_gps_update) > 0) {
 
     if(gps_active){
     #ifdef RAK_WISBLOCK_GPS
