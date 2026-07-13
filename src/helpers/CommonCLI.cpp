@@ -442,7 +442,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       _prefs->powersaving_enabled = 1;
       savePrefs();
       strcpy(reply, "on - Immediate effect");
-#elif defined(ESP32) && !defined(WITH_BRIDGE)
+#elif (defined(ESP32) || defined(STM32_PLATFORM)) && !defined(WITH_BRIDGE)
       _prefs->powersaving_enabled = 1;
       savePrefs();
       strcpy(reply, "on - After 2 minutes");
