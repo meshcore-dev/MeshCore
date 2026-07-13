@@ -5,6 +5,7 @@
 #include <helpers/SensorManager.h>
 #include <helpers/ClientACL.h>
 #include <helpers/RegionMap.h>
+#include <helpers/TimeSyncAuth.h>
 
 #if defined(WITH_RS232_BRIDGE) || defined(WITH_ESPNOW_BRIDGE)
 #define WITH_BRIDGE
@@ -78,6 +79,10 @@ struct NodePrefs { // persisted to file
   uint8_t time_sync_public_key[PUB_KEY_SIZE];
   // Maximum accepted forward clock step once the RTC is initialised.
   uint32_t time_sync_max_forward_step;
+  // Additional authorities are appended after the original single-source
+  // layout. Slot 0 remains time_sync_display_name/time_sync_public_key.
+  char time_sync_extra_display_names[TIME_SYNC_MAX_SOURCES - 1][32];
+  uint8_t time_sync_extra_public_keys[TIME_SYNC_MAX_SOURCES - 1][PUB_KEY_SIZE];
 };
 
 class CommonCLICallbacks {

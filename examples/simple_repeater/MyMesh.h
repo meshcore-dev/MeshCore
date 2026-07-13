@@ -32,6 +32,7 @@
 #include <helpers/StaticPoolPacketManager.h>
 #include <helpers/StatsFormatHelper.h>
 #include <helpers/TimeSyncAuth.h>
+#include <helpers/TimeSyncConsumer.h>
 #include <helpers/TxtDataHelpers.h>
 #include <helpers/RegionMap.h>
 #include "RateLimiter.h"
@@ -67,20 +68,6 @@ struct NeighbourInfo {
   uint32_t advert_timestamp;
   uint32_t heard_timestamp;
   int8_t snr; // multiplied by 4, user should divide to get float value
-};
-
-// Runtime-only counters for the authenticated time-sync consumer. These are
-// not persisted, so receiving time beacons does not create flash wear.
-struct TimeSyncStats {
-  uint32_t received;
-  uint32_t accepted;
-  uint32_t display_name_mismatch;
-  uint32_t malformed;
-  uint32_t signature_invalid;
-  uint32_t stale_timestamp;
-  uint32_t replayed_sequence;
-  uint32_t excessive_forward_step;
-  uint32_t clock_updates;
 };
 
 #ifndef FIRMWARE_BUILD_DATE
@@ -120,9 +107,9 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   unsigned long dirty_contacts_expiry;
   // Time-sync diagnostics and replay state are local to this repeater boot.
   TimeSyncStats time_sync_stats;
-  uint32_t time_sync_last_timestamp;
-  uint16_t time_sync_last_sequence;
-  bool time_sync_accepted_this_boot;
+  TimeSyncReplayState time_sync_replay[TIME_SYNC_MAX_SOURCES];
+  uint8_t time_sync_last_source;
+  bool time_sync_clock_accepted_this_boot;
 #if MAX_NEIGHBOURS
   NeighbourInfo neighbours[MAX_NEIGHBOURS];
 #endif
@@ -152,8 +139,11 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   // Time-sync helpers keep configuration, parsing result handling and clock
   // policy local to repeater firmware.
   bool isTimeSyncConfigured() const;
-  TimeSyncConfigView getTimeSyncConfig() const;
+  bool isTimeSyncSourceConfigured(uint8_t source_idx) const;
+  uint8_t populateTimeSyncSources(TimeSyncAuthorityConfig sources[TIME_SYNC_MAX_SOURCES]) const;
+  TimeSyncConfigView getTimeSyncConfig(TimeSyncAuthorityConfig sources[TIME_SYNC_MAX_SOURCES]) const;
   void resetTimeSyncReplay();
+  void resetTimeSyncReplay(uint8_t source_idx);
   void handleTimeSyncResult(TimeSyncResult result, const TimeSyncMessage& msg);
   bool applyTimeSyncClock(uint32_t timestamp);
   void handleTimeSyncCommand(char* command, char* reply);

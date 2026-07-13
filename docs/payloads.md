@@ -254,7 +254,7 @@ The data contained in the ciphertext uses the format below:
 
 ## Repeater authenticated time sync
 
-Repeater firmware can optionally consume authenticated time announcements from one configured group channel. Public/group channel authentication only proves knowledge of the channel secret; it does not prove which station wrote the displayed sender name. Time-sync messages therefore require an Ed25519 signature from the pinned authority public key configured on the repeater.
+Repeater firmware can optionally consume authenticated time announcements from one configured group channel. Public/group channel authentication only proves knowledge of the channel secret; it does not prove which station wrote the displayed sender name. Time-sync messages therefore require an Ed25519 signature from one of the pinned authority public keys configured on the repeater.
 
 `Tv1` is carried only as a binary group datagram. The earlier text-message shape is not used because a visible text message plus an Ed25519 signature does not fit the practical group-channel payload budget.
 
@@ -273,6 +273,10 @@ The group datagram `data type` is `0x0121`. Its data bytes are:
 
 The configured time-sync display name is limited to 20 bytes. With that limit, the `Tv1` data field is at most 94 bytes before the group-datagram type and length header.
 
+Repeaters may be configured with multiple time authorities. The `display name`
+field selects the configured authority slot, but it is not itself trusted; the
+signature must verify against that slot's pinned public key.
+
 ### Canonical signed bytes
 
 The signature covers this ASCII byte string, including the final newline:
@@ -289,7 +293,7 @@ MeshCore-Time-v1
 
 ### Clock and replay policy
 
-Repeaters only move the clock forwards after signature verification succeeds. Timestamps below the firmware fallback epoch or above the supported upper bound are rejected. Once the clock is initialised, a forward jump greater than `time_sync.max_forward_step` is rejected. Replay state is kept in RAM as the last accepted timestamp and sequence; it is not written to flash for every received message. A newer timestamp is allowed even when the 16-bit sequence has wrapped or restarted, while equal timestamps are rejected and non-advancing equal-timestamp sequences are counted as replay. After reboot, the forward-only clock check still limits replay when a valid RTC value is retained.
+Repeaters only move the clock forwards after signature verification succeeds. Timestamps below the firmware fallback epoch or above the supported upper bound are rejected. Once the clock is initialised, a forward jump greater than `time_sync.max_forward_step` is rejected. Replay state is kept in RAM as the last accepted timestamp and sequence per configured authority; it is not written to flash for every received message. A newer timestamp is allowed even when the 16-bit sequence has wrapped or restarted, while equal timestamps are rejected and non-advancing equal-timestamp sequences are counted as replay. After reboot, the forward-only clock check still limits replay when a valid RTC value is retained.
 
 ### Threat model
 

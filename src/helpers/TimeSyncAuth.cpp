@@ -33,35 +33,19 @@ static void bytesToLowerHex(char* dest, const uint8_t* src, size_t len) {
   *dest = 0;
 }
 
-bool TimeSyncAuth::parseUint32Strict(const char* text, size_t len, uint32_t& value) {
-  // Empty numeric fields are not valid decimal numbers.
-  if (len == 0) return false;
+static bool parseStrictHex(uint8_t* dest, size_t dest_len, const char* text) {
+  // Require the CLI value to be exactly one complete byte string.
+  if (text == NULL || strlen(text) != dest_len * 2) return false;
 
-  uint32_t acc = 0;
-  for (size_t i = 0; i < len; i++) {
-    // Accept decimal digits only; signs, prefixes and whitespace are rejected.
-    char ch = text[i];
-    if (ch < '0' || ch > '9') return false;
-
-    // Check overflow before multiplying by ten and adding the next digit.
-    uint32_t digit = (uint32_t)(ch - '0');
-    if (acc > (UINT32_MAX - digit) / 10UL) return false;
-    acc = acc * 10UL + digit;
+  // Validate every character before decoding so partial writes cannot occur.
+  for (size_t i = 0; i < dest_len; i++) {
+    char hi = text[i * 2];
+    char lo = text[i * 2 + 1];
+    if (!mesh::Utils::isHexChar(hi) || !mesh::Utils::isHexChar(lo)) return false;
   }
 
-  // Return the parsed value only after the whole field has been validated.
-  value = acc;
-  return true;
-}
-
-bool TimeSyncAuth::parseUint16Strict(const char* text, size_t len, uint16_t& value) {
-  // Parse with the wider helper first so overflow handling is centralised.
-  uint32_t tmp;
-  if (!parseUint32Strict(text, len, tmp) || tmp > UINT16_MAX) return false;
-
-  // Narrow only after proving the value fits the wire sequence field.
-  value = (uint16_t)tmp;
-  return true;
+  // Decode only after the length and character set checks have passed.
+  return mesh::Utils::fromHex(dest, dest_len, text);
 }
 
 bool TimeSyncAuth::buildCanonical(char* dest, size_t dest_len, const mesh::GroupChannel& channel,
@@ -86,16 +70,16 @@ bool TimeSyncAuth::buildCanonical(char* dest, size_t dest_len, const mesh::Group
   return written > 0 && (size_t)written < dest_len;
 }
 
-bool TimeSyncAuth::verifyParsed(const TimeSyncConfigView& config, uint32_t timestamp, uint16_t sequence,
-                                const uint8_t signature[SIGNATURE_SIZE]) {
+bool TimeSyncAuth::verifyParsed(const mesh::GroupChannel& channel, const TimeSyncAuthorityConfig& source,
+                                uint32_t timestamp, uint16_t sequence, const uint8_t signature[SIGNATURE_SIZE]) {
   // Reconstruct the canonical message from local configuration and parsed fields.
   char canonical[TIME_SYNC_CANONICAL_MAX_LEN];
-  if (!buildCanonical(canonical, sizeof(canonical), config.channel, config.display_name, timestamp, sequence)) {
+  if (!buildCanonical(canonical, sizeof(canonical), channel, source.display_name, timestamp, sequence)) {
     return false;
   }
 
   // Verify against the exact pinned authority public key from configuration.
-  mesh::Identity authority(config.public_key);
+  mesh::Identity authority(source.public_key);
   return authority.verify(signature, (const uint8_t*)canonical, strlen(canonical));
 }
 
@@ -162,11 +146,85 @@ void TimeSyncAuth::configureDefaultPublicChannel(mesh::GroupChannel& dest) {
   mesh::Utils::sha256(dest.hash, sizeof(dest.hash), dest.secret, sizeof(DEFAULT_PUBLIC_CHANNEL_SECRET));
 }
 
-TimeSyncResult TimeSyncAuth::parseAndVerifyBinary(const TimeSyncConfigView& config, const uint8_t* data,
-                                                  size_t data_len, TimeSyncMessage& msg) {
+bool TimeSyncAuth::parseSourceSettingKey(const char* key, TimeSyncSourceSettingKey& parsed) {
+  // Source keys are deliberately small and explicit: source.<slot>.<field>.
+  if (key == NULL || memcmp(key, "source.", 7) != 0) return false;
+
+  // TIME_SYNC_MAX_SOURCES is 4, so one decimal digit is the full slot range.
+  char slot = key[7];
+  if (slot < '0' || slot >= (char)('0' + TIME_SYNC_MAX_SOURCES)) return false;
+
+  parsed.source_index = (uint8_t)(slot - '0');
+  if (key[8] == 0) {
+    parsed.field = key + 8;
+    return true;
+  }
+  if (key[8] != '.') return false;
+
+  parsed.field = key + 9;
+  return true;
+}
+
+TimeSyncSourceSettingResult TimeSyncAuth::applySourceSetting(char* display_name, size_t display_name_len,
+                                                             uint8_t public_key[PUB_KEY_SIZE],
+                                                             const char* field, const char* value) {
+  // The caller passes storage selected from the configured source slot.
+  if (display_name == NULL || display_name_len == 0 || public_key == NULL || field == NULL) {
+    return TIME_SYNC_SOURCE_SETTING_UNKNOWN_FIELD;
+  }
+
+  if (strcmp(field, "display_name") == 0) {
+    // Empty names, names with CR/LF, and oversized names are rejected.
+    if (!isValidDisplayName(value) || strlen(value) >= display_name_len) {
+      return TIME_SYNC_SOURCE_SETTING_INVALID_DISPLAY_NAME;
+    }
+
+    // Copy without depending on Arduino String helpers in host tests.
+    size_t len = strlen(value);
+    memcpy(display_name, value, len);
+    display_name[len] = 0;
+    return TIME_SYNC_SOURCE_SETTING_OK;
+  }
+
+  if (strcmp(field, "public_key") == 0) {
+    // Decode into a temporary so invalid hex cannot partially mutate prefs.
+    uint8_t parsed_key[PUB_KEY_SIZE];
+    if (!parseStrictHex(parsed_key, sizeof(parsed_key), value) || !isValidPublicKey(parsed_key)) {
+      return TIME_SYNC_SOURCE_SETTING_INVALID_PUBLIC_KEY;
+    }
+
+    memcpy(public_key, parsed_key, PUB_KEY_SIZE);
+    return TIME_SYNC_SOURCE_SETTING_OK;
+  }
+
+  if (strcmp(field, "clear") == 0) {
+    if (value == NULL || strcmp(value, "yes") != 0) {
+      return TIME_SYNC_SOURCE_SETTING_CLEAR_REQUIRES_YES;
+    }
+
+    memset(display_name, 0, display_name_len);
+    memset(public_key, 0, PUB_KEY_SIZE);
+    return TIME_SYNC_SOURCE_SETTING_OK;
+  }
+
+  return TIME_SYNC_SOURCE_SETTING_UNKNOWN_FIELD;
+}
+
+TimeSyncResult TimeSyncAuth::parseAndVerifyBinaryMulti(const TimeSyncConfigView& config, const uint8_t* data,
+                                                       size_t data_len, TimeSyncMessage& msg) {
   // Fail closed before parsing if the feature or required authority config is absent.
   if (!config.enabled) return TIME_SYNC_DISABLED;
-  if (!isValidDisplayName(config.display_name) || !isValidPublicKey(config.public_key)) return TIME_SYNC_DISABLED;
+  if (config.source_count == 0 || config.sources == NULL) return TIME_SYNC_DISABLED;
+  uint8_t source_count = config.source_count;
+  if (source_count > TIME_SYNC_MAX_SOURCES) source_count = TIME_SYNC_MAX_SOURCES;
+  bool has_valid_source = false;
+  for (uint8_t i = 0; i < source_count; i++) {
+    if (isValidDisplayName(config.sources[i].display_name) && isValidPublicKey(config.sources[i].public_key)) {
+      has_valid_source = true;
+      break;
+    }
+  }
+  if (!has_valid_source) return TIME_SYNC_DISABLED;
 
   // Enforce the minimum fixed fields plus the 64-byte raw signature.
   if (data_len < 3 + 4 + 2 + 1 + SIGNATURE_SIZE) return TIME_SYNC_MALFORMED;
@@ -190,16 +248,44 @@ TimeSyncResult TimeSyncAuth::parseAndVerifyBinary(const TimeSyncConfigView& conf
   uint8_t display_len = data[pos++];
   if (display_len == 0 || display_len > TIME_SYNC_MAX_DISPLAY_NAME_LEN) return TIME_SYNC_MALFORMED;
   if (pos + display_len + SIGNATURE_SIZE != data_len) return TIME_SYNC_MALFORMED;
-  if (strlen(config.display_name) != display_len || memcmp(&data[pos], config.display_name, display_len) != 0) {
+
+  // Find exactly one configured source by display name. The display name is
+  // only a selector; signature verification below is the trust decision.
+  const TimeSyncAuthorityConfig* matched_source = NULL;
+  for (uint8_t i = 0; i < source_count; i++) {
+    const TimeSyncAuthorityConfig& source = config.sources[i];
+    if (!isValidDisplayName(source.display_name) || !isValidPublicKey(source.public_key)) continue;
+    if (strlen(source.display_name) == display_len && memcmp(&data[pos], source.display_name, display_len) == 0) {
+      matched_source = &source;
+      break;
+    }
+  }
+  if (matched_source == NULL) {
     return TIME_SYNC_DISPLAY_NAME_MISMATCH;
   }
   pos += display_len;
 
   // Authenticate the canonical fields using the raw signature at the tail.
-  if (!verifyParsed(config, timestamp, sequence, &data[pos])) return TIME_SYNC_SIGNATURE_INVALID;
+  if (!verifyParsed(config.channel, *matched_source, timestamp, sequence, &data[pos])) return TIME_SYNC_SIGNATURE_INVALID;
 
   // Return the authenticated timestamp and sequence to the repeater policy code.
   msg.timestamp = timestamp;
   msg.sequence = sequence;
+  msg.source_index = matched_source->slot_index;
   return TIME_SYNC_OK;
+}
+
+TimeSyncResult TimeSyncAuth::parseAndVerifyBinary(const TimeSyncConfigView& config, const uint8_t* data,
+                                                  size_t data_len, TimeSyncMessage& msg) {
+  // Preserve the original single-source API by wrapping legacy fields in a
+  // one-entry authority list and then using the multi-source parser.
+  TimeSyncAuthorityConfig source;
+  source.slot_index = 0;
+  source.display_name = config.display_name;
+  source.public_key = config.public_key;
+
+  TimeSyncConfigView wrapped = config;
+  wrapped.source_count = 1;
+  wrapped.sources = &source;
+  return parseAndVerifyBinaryMulti(wrapped, data, data_len, msg);
 }
