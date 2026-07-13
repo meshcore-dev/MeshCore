@@ -7,9 +7,14 @@ class STM32Board : public mesh::MainBoard {
 protected:
   uint8_t startup_reason;
 
+  // Performs one-time low-power configuration at boot (the SMPS on STM32WL); it is
+  // a no-op on other STM32 parts.
+  void lowPowerInit();
+
 public:
   virtual void begin() {
     startup_reason = BD_STARTUP_NORMAL;
+    lowPowerInit();
   }
 
   uint8_t getStartupReason() const override { return startup_reason; }
@@ -31,6 +36,9 @@ public:
     __disable_irq();
     HAL_PWREx_EnterSHUTDOWNMode();
   }
+
+  // Low-power sleep until a LoRa frame arrives or 'secs' elapse (STM32WL only).
+  void sleep(uint32_t secs) override;
 
 #if defined(P_LORA_TX_LED)
   void onBeforeTransmit() override {
