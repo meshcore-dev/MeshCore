@@ -414,6 +414,7 @@ Configuration:
 - `set time_sync.display_name <exact-name>`
 - `set time_sync.public_key <64-hex-ed25519-public-key>`
 - `set time_sync.max_forward_step <seconds>`
+- `set time_sync.max_forward_step` to restore the default 3600-second limit
 - `set time_sync.enabled on|off`
 
 Status:

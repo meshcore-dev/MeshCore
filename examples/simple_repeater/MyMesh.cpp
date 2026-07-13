@@ -302,11 +302,15 @@ void MyMesh::handleTimeSyncCommand(char* command, char* reply) {
   // Split the command in place, matching the surrounding CLI parser style.
   char* key = command + 14;
   char* value = strchr(key, ' ');
-  if (value == NULL) {
+  if (value != NULL) {
+    // Terminate the key in place so each setting branch can inspect only its
+    // own value.  Commands without a value are handled per setting below.
+    *value++ = 0;
+  }
+  if ((value == NULL || *value == 0) && strcmp(key, "max_forward_step") != 0) {
     strcpy(reply, "Err - missing value");
     return;
   }
-  *value++ = 0;
 
   if (strcmp(key, "channel") == 0) {
     // `public` uses MeshCore's documented default public channel secret.
@@ -354,9 +358,16 @@ void MyMesh::handleTimeSyncCommand(char* command, char* reply) {
     savePrefs();
     strcpy(reply, "OK");
   } else if (strcmp(key, "max_forward_step") == 0) {
+    // Omitting the value restores the firmware default, currently one hour.
+    // This gives operators a safe recovery path without remembering the number.
+    uint32_t step = TIME_SYNC_DEFAULT_MAX_FORWARD_STEP;
+    if (value != NULL && *value != 0 && !parseUint32Config(value, step)) {
+      strcpy(reply, "Err - invalid max_forward_step");
+      return;
+    }
+
     // Limit configured jumps to one day so mistakes cannot authorise decades.
-    uint32_t step;
-    if (!parseUint32Config(value, step) || step == 0 || step > 86400UL) {
+    if (step == 0 || step > 86400UL) {
       strcpy(reply, "Err - invalid max_forward_step");
       return;
     }
@@ -366,6 +377,11 @@ void MyMesh::handleTimeSyncCommand(char* command, char* reply) {
     savePrefs();
     strcpy(reply, "OK");
   } else if (strcmp(key, "enabled") == 0) {
+    if (value == NULL || *value == 0) {
+      strcpy(reply, "Err - missing value");
+      return;
+    }
+
     // Accept the same boolean spelling used by nearby repeater commands.
     bool enable;
     if (strcmp(value, "on") == 0) {
