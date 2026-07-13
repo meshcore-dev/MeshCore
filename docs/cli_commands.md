@@ -263,6 +263,20 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 ---
 
+#### View or change the LoRa FEM receive-path gain state on supported boards
+**Usage:**
+- `get radio.fem.rxgain`
+- `set radio.fem.rxgain <state>`
+
+**Parameters:**
+- `state`: `on`|`off`
+
+**Notes:**
+- This controls the external LoRa FEM receive-path LNA where the board supports it.
+- This is separate from `radio.rxgain`, which controls the radio chip receive gain mode.
+
+---
+
 ### System
 
 #### View or change this node's name
@@ -368,7 +382,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 **Note:** `|` characters are translated to newlines
 
-**Note:** Requires firmware 1.12.+
+**Note:** Requires firmware 1.12+
 
 ---
 
@@ -391,6 +405,11 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 ---
 
+#### View this node's firmware version
+**Usage:** `ver`
+
+---
+
 #### View this node's configured role
 **Usage:** `get role`
 
@@ -406,7 +425,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 - `on`: enable power saving
 - `off`: disable power saving
 
-**Default:** `on`
+**Default:** `off`
 
 **Note:** When enabled, device enters sleep mode between radio transmissions
 
@@ -460,7 +479,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
   
 **Default:** `off`
 
-**Note:** When it is enabled, repeaters will now reject flood packets which look like they are in a loop. This has been happening recently in some meshes when there is just a single 'bad' repeater firmware out there (prob some forked or custom firmware). If the payload is messed with, then forwarded, the same packet ends up causing a packet storm, repeated up to the max 64 hops. This feature was added in firmware 1.14
+**Note:** When it is enabled, repeaters will now reject flood packets which look like they are in a loop. This has been happening recently in some meshes when there is just a single 'bad' repeater firmware out there (probably some forked or custom firmware). If the payload is messed with, then forwarded, the same packet ends up causing a packet storm, repeated up to the max 64 hops. This feature was added in firmware 1.14
 
 **Example:** If preference is `loop.detect minimal`, and a 1-byte path size packet is received, the repeater will see if its own ID/hash is already in the path. If it's already encoded 4 times, it will reject the packet.  If the packet uses 2-byte path size, and repeater's own ID/hash is already encoded 2 times, it rejects. If the packet uses 3-byte path size, and the repeater's own ID/hash is already encoded 1 time, it rejects. 
 
@@ -559,6 +578,20 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 ---
 
+#### Enable or disable hardware Channel Activity Detection (CAD)
+**Usage:**
+- `get cad`
+- `set cad <on|off>`
+
+**Description:** When enabled, the radio performs a hardware Channel Activity Detection scan before transmitting and defers if the channel is busy. Runs independently of `int.thresh` — either, both, or none may be active.
+
+**Parameters:**
+- `on|off`: Enable or disable hardware CAD
+
+**Default:** `off`
+
+---
+
 #### View or change the AGC Reset Interval
 **Usage:**
 - `get agc.reset.interval`
@@ -616,6 +649,21 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 - `value`: Maximum flood hop count (0-64)
 
 **Default:** `64`
+
+---
+
+#### Limit the number of hops for an unscoped flood message
+**Usage:**
+- `get flood.max.unscoped`
+- `set flood.max.unscoped <value>`
+
+**Parameters:**
+- `value`: Maximum flood hop count (0-64) for a packet without a scope (no region set)
+
+**Default:** `0xFF` - indicates it hasn't been set, will track flood.max until it is.
+
+**Note:** An alternative to `region denyf *`, setting `flood.max.unscoped` to a lower value such as `3` would allow for local unscoped messages to propagate, while preventing noisy neighbors from flooding a local region.
+
 
 ---
 
@@ -803,7 +851,7 @@ region save
 **Parameters:**
 - `filter`: `allowed`|`denied`
 
-**Note:** Requires firmware 1.12.+
+**Note:** Requires firmware 1.12+
 
 ---
 

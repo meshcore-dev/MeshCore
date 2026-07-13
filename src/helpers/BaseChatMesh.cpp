@@ -67,23 +67,37 @@ void BaseChatMesh::bootstrapRTCfromContacts() {
   }
 }
 
-ContactInfo* BaseChatMesh::allocateContactSlot() {
-  if (num_contacts < MAX_CONTACTS) {
-    return &contacts[num_contacts++];
-  } else if (shouldOverwriteWhenFull()) {
-    // Find oldest non-favourite contact by oldest lastmod timestamp
-    int oldest_idx = -1;
-    uint32_t oldest_lastmod = 0xFFFFFFFF;
-    for (int i = 0; i < num_contacts; i++) {
-      bool is_favourite = (contacts[i].flags & 0x01) != 0;
-      if (!is_favourite && contacts[i].lastmod < oldest_lastmod) {
+ContactInfo* BaseChatMesh::allocateContactSlot(bool transient_only) {
+  int oldest_idx = -1;
+  uint32_t oldest_lastmod = 0xFFFFFFFF;
+  if (transient_only) {
+    // only allocate from first N
+    for (int i = 0; i < MAX_ANON_CONTACTS; i++) {
+      if (contacts[i].type == ADV_TYPE_NONE && contacts[i].lastmod < oldest_lastmod) {
         oldest_lastmod = contacts[i].lastmod;
         oldest_idx = i;
       }
     }
     if (oldest_idx >= 0) {
-      onContactOverwrite(contacts[oldest_idx].id.pub_key);
+      // NOTE: do NOT call onContactOverwrite()
       return &contacts[oldest_idx];
+    }
+  } else {
+    if (num_contacts < MAX_ANON_CONTACTS+MAX_CONTACTS) {
+      return &contacts[num_contacts++];
+    } else if (shouldOverwriteWhenFull()) {
+      // Find oldest non-favourite contact by oldest lastmod timestamp
+      for (int i = MAX_ANON_CONTACTS; i < num_contacts; i++) {
+        bool is_favourite = (contacts[i].flags & 0x01) != 0;
+        if (!is_favourite && contacts[i].lastmod < oldest_lastmod) {
+          oldest_lastmod = contacts[i].lastmod;
+          oldest_idx = i;
+        }
+      }
+      if (oldest_idx >= 0) {
+        onContactOverwrite(contacts[oldest_idx].id.pub_key);
+        return &contacts[oldest_idx];
+      }
     }
   }
   return NULL; // no space, no overwrite or all contacts are all favourites
@@ -132,6 +146,11 @@ void BaseChatMesh::onAdvertRecv(mesh::Packet* packet, const mesh::Identity& id, 
     packet->header = save;
   }
 
+  if (from && from->type == ADV_TYPE_NONE) {   // already in contacts, but from a temporary ANON_REQ ?
+    memset(from, 0, sizeof(*from));  // clear the anon/temp slot
+    from = NULL;  // do normal 'add' flow
+  }
+
   bool is_new = false; // true = not in contacts[], false = exists in contacts[]
   if (from == NULL) {
     if (!shouldAutoAddContactType(parser.getType())) {
@@ -164,16 +183,17 @@ void BaseChatMesh::onAdvertRecv(mesh::Packet* packet, const mesh::Identity& id, 
     from->sync_since = 0;
     from->shared_secret_valid = false;
   }
+
   // update
-    putBlobByKey(id.pub_key, PUB_KEY_SIZE, temp_buf, plen);
-    StrHelper::strncpy(from->name, parser.getName(), sizeof(from->name));
-    from->type = parser.getType();
-    if (parser.hasLatLon()) {
-      from->gps_lat = parser.getIntLat();
-      from->gps_lon = parser.getIntLon();
-    }
-    from->last_advert_timestamp = timestamp;
-    from->lastmod = getRTCClock()->getCurrentTime();
+  putBlobByKey(id.pub_key, PUB_KEY_SIZE, temp_buf, plen);
+  StrHelper::strncpy(from->name, parser.getName(), sizeof(from->name));
+  from->type = parser.getType();
+  if (parser.hasLatLon()) {
+    from->gps_lat = parser.getIntLat();
+    from->gps_lon = parser.getIntLon();
+  }
+  from->last_advert_timestamp = timestamp;
+  from->lastmod = getRTCClock()->getCurrentTime();
 
   onDiscoveredContact(*from, is_new, packet->path_len, packet->path);       // let UI know
 }
@@ -829,7 +849,7 @@ ContactInfo* BaseChatMesh::lookupContactByPubKey(const uint8_t* pub_key, int pre
 }
 
 bool BaseChatMesh::addContact(const ContactInfo& contact) {
-  ContactInfo* dest = allocateContactSlot();
+  ContactInfo* dest = allocateContactSlot(contact.type == ADV_TYPE_NONE);
   if (dest) {
     *dest = contact;
     dest->shared_secret_valid = false; // mark shared_secret as needing calculation
@@ -922,11 +942,11 @@ bool BaseChatMesh::getContactByIdx(uint32_t idx, ContactInfo& contact) {
 }
 
 ContactsIterator BaseChatMesh::startContactsIterator() {
-  return ContactsIterator();
+  return ContactsIterator(MAX_ANON_CONTACTS);   // start at offset, skip the anon entries
 }
 
 bool ContactsIterator::hasNext(const BaseChatMesh* mesh, ContactInfo& dest) {
-  if (next_idx >= mesh->getNumContacts()) return false;
+  if (next_idx >= mesh->getTotalContactSlots()) return false;
 
   dest = mesh->contacts[next_idx++];
   return true;

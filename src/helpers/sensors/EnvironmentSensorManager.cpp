@@ -975,12 +975,12 @@ void EnvironmentSensorManager::stop_gps() {
 void EnvironmentSensorManager::loop() {
 
   #if ENV_INCLUDE_GPS
-  static long next_gps_update = 0;
+  static unsigned long next_gps_update = 0;
   static uint8_t gps_debug_skip = 0;   // throttle: print roughly every 10th update tick
   if (gps_active) {
     _location->loop();
   }
-  if (millis() > next_gps_update) {
+  if (millis() - next_gps_update > 0) {
 
     if(gps_active){
     #ifdef RAK_WISBLOCK_GPS

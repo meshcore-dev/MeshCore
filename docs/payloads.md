@@ -59,7 +59,7 @@ Appdata Flags
 
 # Acknowledgement
 
-An acknowledgement that a message was received. Note that for returned path messages, an acknowledgement can be sent in the "extra" payload (see [Returned Path](#returned-path)) instead of as a separate ackowledgement packet. CLI commands do not cause acknowledgement responses, neither discrete nor extra.
+An acknowledgement that a message was received. Note that for returned path messages, an acknowledgement can be sent in the "extra" payload (see [Returned Path](#returned-path)) instead of as a separate acknowledgement packet. CLI commands do not cause acknowledgement responses, neither discrete nor extra.
 
 | Field    | Size (bytes) | Description                                                |
 |----------|--------------|------------------------------------------------------------|
@@ -97,10 +97,10 @@ Returned path messages provide a description of the route a packet took from the
 
 For the common chat/server helpers in `BaseChatMesh`, the current request type values are:
 
-| Value  | Name                 | Description                           |
-|--------|----------------------|---------------------------------------|
-| `0x01` | get stats            | get stats of repeater or room server  |
-| `0x02` | keepalive            | keep-alive request used for maintained connections |
+| Value  | Name      | Description                                        |
+|--------|-----------|----------------------------------------------------|
+| `0x01` | get stats | get stats of repeater or room server               |
+| `0x02` | keepalive | keep-alive request used for maintained connections |
 
 ### Get stats
 
@@ -141,7 +141,7 @@ Not defined in `BaseChatMesh`.
 
 Not defined in `BaseChatMesh`.
 
-### Get Neighors
+### Get Neighbors
 
 Not defined in `BaseChatMesh`.
 
@@ -152,26 +152,26 @@ Not defined in `BaseChatMesh`.
 
 ## Response
 
-| Field   | Size (bytes)    | Description |
-|---------|-----------------|-------------|
+| Field   | Size (bytes)    | Description                       |
+|---------|-----------------|-----------------------------------|
 | content | rest of payload | application-defined response body |
 
 Response contents are opaque application data. There is no single generic response envelope beyond the encrypted payload wrapper shown above.
 
 ## Plain text message
 
-| Field              | Size (bytes)    | Description                                                  |
-|--------------------|-----------------|--------------------------------------------------------------|
-| timestamp          | 4               | send time (unix timestamp)                                   |
+| Field              | Size (bytes)    | Description                                                                       |
+|--------------------|-----------------|-----------------------------------------------------------------------------------|
+| timestamp          | 4               | send time (unix timestamp)                                                        |
 | txt_type + attempt | 1               | upper six bits are txt_type (see below), lower two bits are attempt number (0..3) |
-| message            | rest of payload | the message content, see next table                          |
+| message            | rest of payload | the message content, see next table                                               |
 
 txt_type
 
-| Value  | Description               | Message content                                            |
-|--------|---------------------------|------------------------------------------------------------|
-| `0x00` | plain text message        | the plain text of the message                              |
-| `0x01` | CLI command               | the command text of the message                            |
+| Value  | Description               | Message content                                                          |
+|--------|---------------------------|--------------------------------------------------------------------------|
+| `0x00` | plain text message        | the plain text of the message                                            |
+| `0x01` | CLI command               | the command text of the message                                          |
 | `0x02` | signed plain text message | first four bytes is sender pubkey prefix, followed by plain text message |
 
 # Anonymous request
@@ -200,57 +200,57 @@ txt_type
 
 ## Repeater - Regions request
 
-| Field          | Size (bytes)    | Description                                                                   |
-|----------------|-----------------|-------------------------------------------------------------------------------|
-| timestamp      | 4               | sender time (unix timestamp)                                                  |
-| req type       | 1               | 0x01 (request sub type)                                                       |
-| reply path len | 1               | path len for reply                                                       |
-| reply path     | (variable)      | reply path                                                       |
+| Field          | Size (bytes) | Description                  |
+|----------------|--------------|------------------------------|
+| timestamp      | 4            | sender time (unix timestamp) |
+| req type       | 1            | 0x01 (request sub type)      |
+| reply path len | 1            | path len for reply           |
+| reply path     | (variable)   | reply path                   |
 
 ## Repeater - Owner info request
 
-| Field          | Size (bytes)    | Description                                                                   |
-|----------------|-----------------|-------------------------------------------------------------------------------|
-| timestamp      | 4               | sender time (unix timestamp)                                                  |
-| req type       | 1               | 0x02 (request sub type)                                                       |
-| reply path len | 1               | path len for reply                                                       |
-| reply path     | (variable)      | reply path                                                       |
+| Field          | Size (bytes) | Description                  |
+|----------------|--------------|------------------------------|
+| timestamp      | 4            | sender time (unix timestamp) |
+| req type       | 1            | 0x02 (request sub type)      |
+| reply path len | 1            | path len for reply           |
+| reply path     | (variable)   | reply path                   |
 
 ## Repeater - Clock and status request
 
-| Field          | Size (bytes)    | Description                                                                   |
-|----------------|-----------------|-------------------------------------------------------------------------------|
-| timestamp      | 4               | sender time (unix timestamp)                                                  |
-| req type       | 1               | 0x03 (request sub type)                                                       |
-| reply path len | 1               | path len for reply                                                       |
-| reply path     | (variable)      | reply path                                                       |
+| Field          | Size (bytes) | Description                  |
+|----------------|--------------|------------------------------|
+| timestamp      | 4            | sender time (unix timestamp) |
+| req type       | 1            | 0x03 (request sub type)      |
+| reply path len | 1            | path len for reply           |
+| reply path     | (variable)   | reply path                   |
 
 
 # Group text message
 
-| Field        | Size (bytes)    | Description                                |
-|--------------|-----------------|--------------------------------------------|
-| channel hash | 1               | first byte of SHA256 of channel's shared key  |
-| cipher MAC   | 2               | MAC for encrypted data in next field       |
-| ciphertext   | rest of payload | encrypted message, see below for details   |
+| Field        | Size (bytes)    | Description                                  |
+|--------------|-----------------|----------------------------------------------|
+| channel hash | 1               | first byte of SHA256 of channel's shared key |
+| cipher MAC   | 2               | MAC for encrypted data in next field         |
+| ciphertext   | rest of payload | encrypted message, see below for details     |
 
 The plaintext contained in the ciphertext matches the format described in [plain text message](#plain-text-message). Specifically, it consists of a four byte timestamp, a flags byte, and the message. The flags byte will generally be `0x00` because it is a "plain text message". The message will be of the form `<sender name>: <message body>` (eg., `user123: I'm on my way`).
 
 # Group datagram
 
-| Field        | Size (bytes)    | Description                                |
-|--------------|-----------------|--------------------------------------------|
-| channel hash | 1               | first byte of SHA256 of channel's shared key  |
-| cipher MAC   | 2               | MAC for encrypted data in next field       |
-| ciphertext   | rest of payload | encrypted data, see below for details   |
+| Field        | Size (bytes)    | Description                                  |
+|--------------|-----------------|----------------------------------------------|
+| channel hash | 1               | first byte of SHA256 of channel's shared key |
+| cipher MAC   | 2               | MAC for encrypted data in next field         |
+| ciphertext   | rest of payload | encrypted data, see below for details        |
 
 The data contained in the ciphertext uses the format below:
 
-| Field        | Size (bytes)    | Description                                |
-|--------------|-----------------|--------------------------------------------|
-| data type    | 2               | Identifier for type of data. (See number_allocations.md)  |
-| data len     | 1               | byte length of data         |
-| data         | rest of payload | (depends on data type)     |
+| Field     | Size (bytes)    | Description                                              |
+|-----------|-----------------|----------------------------------------------------------|
+| data type | 2               | Identifier for type of data. (See number_allocations.md) |
+| data len  | 1               | byte length of data                                      |
+| data      | rest of payload | (depends on data type)                                   |
 
 
 # Control data

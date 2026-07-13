@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #include "target.h"
 
-TBeamBoard board;
+LilygoTBeamSX1276Board board;
 
 #if defined(P_LORA_SCLK)
   static SPIClass spi;

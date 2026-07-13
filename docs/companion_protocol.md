@@ -73,7 +73,7 @@ MeshCore Companion devices expose a BLE service with the following UUIDs:
 
 5. **Send Initial Commands**
     - Send `CMD_APP_START` to identify your app to firmware and get radio settings
-    - Send `CMD_DEVICE_QEURY` to fetch device info and negotiate supported protocol versions
+    - Send `CMD_DEVICE_QUERY` to fetch device info and negotiate supported protocol versions
     - Send `CMD_SET_DEVICE_TIME` to set the firmware clock
     - Send `CMD_GET_CONTACTS` to fetch all contacts
     - Send `CMD_GET_CHANNEL` multiple times to fetch all channel slots
@@ -320,13 +320,13 @@ Remaining bytes:                Binary payload (variable length)
 
 `data_type` is an **application identifier**, not a payload-format identifier. Each registered value identifies an application that owns its own internal payload schemas. The firmware does not inspect payload contents — `data_type` is transported opaquely.
 
-| Value           | Constant             | Purpose                                                                  |
-|-----------------|----------------------|--------------------------------------------------------------------------|
-| 0x0000          | `DATA_TYPE_RESERVED` | Reserved; invalid on send                                                |
-| 0x0001 – 0x00FF | —                    | Reserved for internal use                                                |
+| Value           | Constant             | Purpose                                                                                |
+|-----------------|----------------------|----------------------------------------------------------------------------------------|
+| 0x0000          | `DATA_TYPE_RESERVED` | Reserved; invalid on send                                                              |
+| 0x0001 – 0x00FF | —                    | Reserved for internal use                                                              |
 | 0x0100 – 0xFEFF | —                    | Registered application namespaces (see [number_allocations.md](number_allocations.md)) |
-| 0xFF00 – 0xFFFE | —                    | Testing/development; no registration required                            |
-| 0xFFFF          | `DATA_TYPE_DEV`      | Developer/experimental namespace                                         |
+| 0xFF00 – 0xFFFE | —                    | Testing/development; no registration required                                          |
+| 0xFFFF          | `DATA_TYPE_DEV`      | Developer/experimental namespace                                                       |
 
 To register a new application, submit a PR adding a row to the table in [docs/number_allocations.md](number_allocations.md). Internal sub-formats within an allocated application ID are owned by that application and are not tracked in MeshCore firmware or this document.
 
@@ -352,10 +352,10 @@ Bytes 9 .. 8+data_len:  Payload
 
 **Path Length semantics differ between send and receive**:
 
-| Direction | `path_len = 0xFF`               | `path_len ≠ 0xFF`                                                                   |
-|-----------|---------------------------------|-------------------------------------------------------------------------------------|
+| Direction | `path_len = 0xFF`               | `path_len ≠ 0xFF`                                                                                                                           |
+|-----------|---------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------|
 | Send      | Flood the network               | Direct route; the encoded path follows (low 6 bits = hash count, top 2 bits + 1 = hash size; on-wire byte count = `hash_count × hash_size`) |
-| Receive   | Packet arrived via direct route | Packet was flooded; this is the encoded `pkt->path_len` field as observed (no path bytes follow) |
+| Receive   | Packet arrived via direct route | Packet was flooded; this is the encoded `pkt->path_len` field as observed (no path bytes follow)                                            |
 
 In other words, the meaning of `0xFF` is inverted between the two directions, and on receive the field carries metadata only — never a routable path. `path_len` is an encoded byte (see `Packet::isValidPathLen` / `Packet::writePath` in `src/Packet.cpp`), not a raw byte count.
 
@@ -955,7 +955,7 @@ def on_notification_received(data):
 
 3. **Message Handling**:
    - Send `CMD_SYNC_NEXT_MESSAGE` when `PUSH_CODE_MSG_WAITING` is received
-   - Implement message deduplication to avoid display the same message twice
+   - Implement message deduplication to avoid displaying the same message twice
 
 4. **Channel Management**:
     - Fetch all channel slots even if you encounter an empty slot
