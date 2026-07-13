@@ -403,6 +403,39 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 #### View this node's public key
 **Usage:** `get public.key`
 
+### Repeater authenticated time sync
+
+Repeater builds support an opt-in authenticated time-sync consumer.
+
+Configuration:
+
+- `set time_sync.channel public`
+- `set time_sync.channel #time`
+- `set time_sync.display_name <exact-name>`
+- `set time_sync.public_key <64-hex-ed25519-public-key>`
+- `set time_sync.source.<n>.display_name <exact-name>`
+- `set time_sync.source.<n>.public_key <64-hex-ed25519-public-key>`
+- `set time_sync.source.<n>.clear yes`
+- `set time_sync.max_forward_step <seconds>`
+- `set time_sync.max_forward_step` to restore the default 3600-second limit
+- `set time_sync.enabled on|off`
+
+Status:
+
+- `time_sync.status`
+- `time_sync.counters`
+- `get time_sync.enabled`
+- `get time_sync.channel`
+- `get time_sync.display_name`
+- `get time_sync.public_key`
+- `get time_sync.source.<n>`
+- `get time_sync.sources`
+- `get time_sync.max_forward_step`
+
+`set time_sync.enabled on` fails unless the channel and at least one complete source are configured. The original `time_sync.display_name` and `time_sync.public_key` commands configure source `0`; source slots `1` to `3` are configured through `time_sync.source.<n>.*`. The public channel is transport only: the channel MAC and displayed sender name do not prove sender identity. The repeater verifies each accepted `Tv1` message with the pinned 32-byte Ed25519 public key for the matching source slot.
+
+Status output shows whether the consumer is enabled, configured channel, configured source count, last accepted source, and last accepted timestamp and sequence. `time_sync.counters` exposes received, accepted, display-name mismatch, malformed, invalid signature, stale timestamp, replayed sequence, excessive forward step and clock-update counters. It does not echo private key material.
+
 ---
 
 #### View this node's firmware version

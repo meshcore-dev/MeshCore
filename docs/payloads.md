@@ -252,6 +252,94 @@ The data contained in the ciphertext uses the format below:
 | data len  | 1               | byte length of data                                      |
 | data      | rest of payload | (depends on data type)                                   |
 
+## Repeater authenticated time sync
+
+Repeater firmware can optionally consume authenticated time announcements from one configured group channel. Public/group channel authentication only proves knowledge of the channel secret; it does not prove which station wrote the displayed sender name. Time-sync messages therefore require an Ed25519 signature from one of the pinned authority public keys configured on the repeater.
+
+`Tv1` is carried only as a binary group datagram. The earlier text-message shape is not used because a visible text message plus an Ed25519 signature does not fit the practical group-channel payload budget.
+
+### Binary datagram
+
+The group datagram `data type` is `0x0121`. Its data bytes are:
+
+| Field        | Size              | Description                                  |
+|--------------|-------------------|----------------------------------------------|
+| marker       | 3                 | ASCII `Tv1`, exact case-sensitive marker    |
+| timestamp    | 4                 | little-endian unsigned Unix timestamp        |
+| sequence     | 2                 | little-endian unsigned 16-bit sequence       |
+| name length  | 1                 | byte length of display name                  |
+| display name | variable          | exact configured display name                |
+| signature    | 64                | raw Ed25519 signature                        |
+
+The configured time-sync display name is limited to 20 bytes. With that limit, the `Tv1` data field is at most 94 bytes before the group-datagram type and length header.
+
+Repeaters may be configured with multiple time authorities. The `display name`
+field selects the configured authority slot, but it is not itself trusted; the
+signature must verify against that slot's pinned public key.
+
+### Canonical signed bytes
+
+The signature covers this ASCII byte string, including the final newline:
+
+```text
+MeshCore-Time-v1
+<channel-id-hex>
+<display-name>
+<unix-seconds>
+<sequence>
+```
+
+`channel-id-hex` is the lowercase hexadecimal SHA-256 digest of the configured raw 16-byte MeshCore group channel secret. It is used instead of the one-byte MeshCore channel hash so signatures are bound to a collision-resistant channel identity. The display name is an exact case-sensitive filter and is not an authentication control.
+
+### Clock and replay policy
+
+Repeaters only move the clock forwards after signature verification succeeds. Timestamps below the firmware fallback epoch or above the supported upper bound are rejected. Once the clock is initialised, a forward jump greater than `time_sync.max_forward_step` is rejected. Replay state is kept in RAM as the last accepted timestamp and sequence per configured authority; it is not written to flash for every received message. A newer timestamp is allowed even when the 16-bit sequence has wrapped or restarted, while equal timestamps are rejected and non-advancing equal-timestamp sequences are counted as replay. After reboot, the forward-only clock check still limits replay when a valid RTC value is retained.
+
+### Threat model
+
+The configured public channel is only a transport. A valid channel MAC, matching display name, or matching diagnostic fingerprint is not sender authentication. The Ed25519 signature made by the configured full 32-byte public key is the authentication control. The receiver never trusts a public key supplied in a time message.
+
+### Test vector
+
+This vector uses a test-only keypair and the hashtag channel `#time`.
+
+- Channel secret: first 16 bytes of `sha256("#time")`, `5d13043d9a5e61bc61aeb63208f5c64e`
+- Channel hash: `e4`
+- Channel ID: `e4235ac672871e72d2aeaf8654e0a39893de9fca7c06ccb5c3a788f95a6aeada`
+- Display name: `TimeBot`
+- Timestamp: `1783862400`
+- Sequence: `12345`
+- Public key: `1ec77175b0918ed206f9ae04ec136d6d5d4315bb26305427f645b492e9350c10`
+- Private key: `7065e18fd9fabb70c1ed90dca19907de698c88b709ea146eafd93d9b830c7b60c4681193c79bbc39945ba8064104bb618f8fd7a84a0af6f57033d6e8ddcd6471`
+
+Canonical signed bytes:
+
+```text
+MeshCore-Time-v1
+e4235ac672871e72d2aeaf8654e0a39893de9fca7c06ccb5c3a788f95a6aeada
+TimeBot
+1783862400
+12345
+```
+
+Expected signature, lowercase hex:
+
+```text
+c9e0785bc99e910c813b8984df76c45cab7b1b6157594cb710b457eefedd0ede66f568cbdfc117fb57266283b9d5bbe3d4ac5d331bbd44b190c14e35bd712108
+```
+
+Expected `Tv1` data bytes, lowercase hex:
+
+```text
+5476318094536a39300754696d65426f74c9e0785bc99e910c813b8984df76c45cab7b1b6157594cb710b457eefedd0ede66f568cbdfc117fb57266283b9d5bbe3d4ac5d331bbd44b190c14e35bd712108
+```
+
+Expected complete group-datagram data field, including little-endian `0x0121` type and one-byte data length:
+
+```text
+2101515476318094536a39300754696d65426f74c9e0785bc99e910c813b8984df76c45cab7b1b6157594cb710b457eefedd0ede66f568cbdfc117fb57266283b9d5bbe3d4ac5d331bbd44b190c14e35bd712108
+```
+
 
 # Control data
 

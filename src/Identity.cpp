@@ -2,7 +2,11 @@
 #include <string.h>
 #define ED25519_NO_SEED  1
 #include <ed_25519.h>
+// Native unit tests do not link the Arduino Ed25519 wrapper, so keep that
+// include on firmware builds only.
+#ifndef UNIT_TEST
 #include <Ed25519.h>
+#endif
 
 namespace mesh {
 
@@ -15,7 +19,10 @@ Identity::Identity(const char* pub_hex) {
 }
 
 bool Identity::verify(const uint8_t* sig, const uint8_t* message, int msg_len) const {
-#if 0
+#ifdef UNIT_TEST
+  // Host tests verify time-sync signatures through the vendored C Ed25519 code.
+  return ed25519_verify(sig, message, msg_len, pub_key);
+#elif 0
   // NOTE:  memory corruption bug was found in this function!!
   return ed25519_verify(sig, message, msg_len, pub_key);
 #else
