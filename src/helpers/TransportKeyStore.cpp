@@ -1,5 +1,6 @@
 #include "TransportKeyStore.h"
 #include <SHA256.h>
+#include <string.h>
 
 uint16_t TransportKey::calcTransportCode(const mesh::Packet* packet) const {
   uint16_t code;
@@ -68,25 +69,45 @@ int TransportKeyStore::loadKeysFor(uint16_t id, TransportKey keys[], int max_num
 }
 
 bool TransportKeyStore::saveKeysFor(uint16_t id, const TransportKey keys[], int num) {
-  invalidateCache();
+  if (id == 0 || num < 0 || num > MAX_TKS_ENTRIES || (num > 0 && keys == NULL)) {
+    return false;
+  }
 
-  // TODO: update hardware keystore
+  // Build the replacement off to the side so a full store leaves the current
+  // cache untouched. Multiple keys for one private region remain contiguous.
+  uint16_t next_ids[MAX_TKS_ENTRIES];
+  TransportKey next_keys[MAX_TKS_ENTRIES];
+  int next_num = 0;
+  for (int i = 0; i < num_cache; i++) {
+    if (cache_ids[i] == id) continue;
+    next_ids[next_num] = cache_ids[i];
+    next_keys[next_num++] = cache_keys[i];
+  }
+  if (next_num + num > MAX_TKS_ENTRIES) return false;
+  for (int i = 0; i < num; i++) {
+    next_ids[next_num] = id;
+    next_keys[next_num++] = keys[i];
+  }
 
-  return false;  // failed
+  memcpy(cache_ids, next_ids, sizeof(uint16_t) * next_num);
+  memcpy(cache_keys, next_keys, sizeof(TransportKey) * next_num);
+  num_cache = next_num;
+  return true;
 }
 
 bool TransportKeyStore::removeKeys(uint16_t id) {
-  invalidateCache();
-
-  // TODO: remove from hardware keystore
-
-  return false;  // failed
+  if (id == 0) return false;
+  int dest = 0;
+  for (int i = 0; i < num_cache; i++) {
+    if (cache_ids[i] == id) continue;
+    cache_ids[dest] = cache_ids[i];
+    cache_keys[dest++] = cache_keys[i];
+  }
+  num_cache = dest;
+  return true;
 }
 
 bool TransportKeyStore::clear() {
   invalidateCache();
-
-  // TODO: clear hardware keystore
-
-  return false;  // failed
+  return true;
 }
