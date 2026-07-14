@@ -3,6 +3,10 @@
 #include <Mesh.h>
 #include <RadioLib.h>
 
+#ifdef USE_CC310_ED25519
+#include <Adafruit_nRFCrypto.h>
+#endif
+
 class RadioLibWrapper : public mesh::Radio {
 protected:
   PhysicalLayer* _radio;
@@ -80,8 +84,15 @@ public:
   RadioNoiseListener(PhysicalLayer& radio): _radio(&radio) { }
 
   void random(uint8_t* dest, size_t sz) override {
+#ifdef USE_CC310_ED25519
+    // CC310 TRNG is higher quality and environment-independent vs radio RSSI noise.
+    nRFCrypto.begin();
+    nRFCrypto.Random.generate(dest, (uint16_t)sz);
+    nRFCrypto.end();
+#else
     for (int i = 0; i < sz; i++) {
       dest[i] = _radio->randomByte() ^ (::random(0, 256) & 0xFF);
     }
+#endif
   }
 };
