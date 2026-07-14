@@ -26,6 +26,11 @@ public:
     return rssi;
   }
 
+  uint32_t getEstAirtimeFor(int len_bytes) override {
+    auto airtime = RadioLibWrapper::getEstAirtimeFor(len_bytes);
+    return airtime < 200 ? 200 : airtime;   // at least 200 millis
+  }
+
   void onSendFinished() override {
     RadioLibWrapper::onSendFinished();
     _radio->setPreambleLength(preambleLengthForSF(getSpreadingFactor())); // overcomes weird issues with small and big pkts
@@ -36,8 +41,8 @@ public:
 
   uint8_t getSpreadingFactor() const override { return ((CustomLR1110 *)_radio)->getSpreadingFactor(); }
   
-  void setRxBoostedGainMode(bool en) override {
-    ((CustomLR1110 *)_radio)->setRxBoostedGainMode(en);
+  bool setRxBoostedGainMode(bool en) override {
+    return ((CustomLR1110 *)_radio)->setRxBoostedGainMode(en) == RADIOLIB_ERR_NONE;
   }
   bool getRxBoostedGainMode() const override {
     return ((CustomLR1110 *)_radio)->getRxBoostedGainMode();

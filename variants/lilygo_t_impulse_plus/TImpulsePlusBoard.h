@@ -48,12 +48,10 @@ public:
   }
 
   void powerOff() override {
+    // power off system
+    NRF52Board::powerOff();
 
     // turn off 3.3v
     digitalWrite(RT9080_EN, LOW);
-
-    // power off system
-    sd_power_system_off();
-
   }
 };

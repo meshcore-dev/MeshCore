@@ -66,11 +66,11 @@ class CustomLLCC68 : public LLCC68 {
       setRxBoostedGainMode(SX126X_RX_BOOSTED_GAIN);
   #endif
   #if defined(SX126X_RXEN) || defined(SX126X_TXEN)
-    #ifndef SX1262X_RXEN
-      #define SX1262X_RXEN RADIOLIB_NC
+    #ifndef SX126X_RXEN
+      #define SX126X_RXEN RADIOLIB_NC
     #endif
-    #ifndef SX1262X_TXEN
-      #define SX1262X_TXEN RADIOLIB_NC
+    #ifndef SX126X_TXEN
+      #define SX126X_TXEN RADIOLIB_NC
     #endif
       setRfSwitchPins(SX126X_RXEN, SX126X_TXEN);
   #endif 

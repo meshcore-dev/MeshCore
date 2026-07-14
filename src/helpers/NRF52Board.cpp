@@ -1,5 +1,6 @@
 #if defined(NRF52_PLATFORM)
 #include "NRF52Board.h"
+#include <target.h>
 
 #include <bluefruit.h>
 #include <nrf_soc.h>
@@ -295,6 +296,37 @@ float NRF52Board::getMCUTemperature() {
   NRF_TEMP->TASKS_STOP = 1;
 
   return temp * 0.25f; // Convert to *C
+}
+
+void NRF52Board::powerOff() {
+  // Power off the display if any
+#ifdef DISPLAY_CLASS
+  display.turnOff();
+#endif
+
+  // Power off LoRa
+  radio_driver.powerOff();
+
+  // Keep LoRa inactive during deepsleep
+  digitalWrite(P_LORA_NSS, HIGH);
+
+  // Power off GPS if any
+  if(sensors.getLocationProvider() != NULL) {
+    sensors.getLocationProvider()->stop();
+  }
+
+  // Flush serial buffers
+  Serial.flush();
+  delay(100);
+
+  // Enter SYSTEMOFF
+  uint8_t sd_enabled = 0;
+  sd_softdevice_is_enabled(&sd_enabled);
+  if (sd_enabled) { // SoftDevice is enabled
+    sd_power_system_off();
+  } else { // SoftDevice is not enable
+    NRF_POWER->SYSTEMOFF = POWER_SYSTEMOFF_SYSTEMOFF_Enter;
+  }
 }
 
 bool NRF52Board::getBootloaderVersion(char* out, size_t max_len) {

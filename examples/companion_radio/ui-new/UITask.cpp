@@ -697,8 +697,10 @@ void UITask::shutdown(bool restart){
   if (restart) {
     _board->reboot();
   } else {
+    // still necessary until all boards are refactored to use poweroff
     _display->turnOff();
     radio_driver.powerOff();
+    // Power off board including radio, display, GPS and components
     _board->powerOff();
   }
 }

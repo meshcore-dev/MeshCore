@@ -116,6 +116,10 @@ void setup() {
 
   board.begin();
 
+#ifdef HAS_EXTERNAL_WATCHDOG
+  external_watchdog.begin();
+#endif
+
 #ifdef DISPLAY_CLASS
   DisplayDriver* disp = NULL;
   if (display.begin()) {
@@ -249,7 +253,10 @@ void loop() {
   ui_task.loop();
 #endif
   rtc_clock.tick();
-
+#ifdef HAS_EXTERNAL_WATCHDOG
+  external_watchdog.loop();
+#endif
+  
   if (!the_mesh.hasPendingWork()) {
 #if defined(NRF52_PLATFORM)
     board.sleep(0); // nrf ignores seconds param, sleeps whenever possible

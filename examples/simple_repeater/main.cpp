@@ -33,6 +33,10 @@ void setup() {
 
   board.begin();
 
+#ifdef HAS_EXTERNAL_WATCHDOG
+  external_watchdog.begin();
+#endif
+
 #if defined(MESH_DEBUG) && defined(NRF52_PLATFORM)
   // give some extra time for serial to settle so
   // boot debug messages can be seen on terminal
@@ -152,7 +156,13 @@ void loop() {
 #endif
   rtc_clock.tick();
 
+#ifdef HAS_EXTERNAL_WATCHDOG
+  external_watchdog.loop();
+#endif
   if (the_mesh.getNodePrefs()->powersaving_enabled && !the_mesh.hasPendingWork()) {
+#ifdef HAS_EXTERNAL_WATCHDOG
+    external_watchdog.feed();
+#endif
 #if defined(NRF52_PLATFORM)
     board.sleep(0); // nrf ignores seconds param, sleeps whenever possible
 #else

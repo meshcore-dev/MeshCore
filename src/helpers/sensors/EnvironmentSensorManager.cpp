@@ -889,11 +889,11 @@ void EnvironmentSensorManager::stop_gps() {
 void EnvironmentSensorManager::loop() {
 
   #if ENV_INCLUDE_GPS
-  static long next_gps_update = 0;
+  static unsigned long next_gps_update = 0;
   if (gps_active) {
     _location->loop();
   }
-  if (millis() > next_gps_update) {
+  if ((long)(millis() - next_gps_update) > 0) {
 
     if(gps_active){
     #ifdef RAK_WISBLOCK_GPS
