@@ -1,6 +1,55 @@
 #include "MyMesh.h"
 #include <algorithm>
 
+#ifdef WITH_CHANNEL_FILTER
+#include "UnicodeFold.h"
+
+/* --------------------- public-channel content filter ------------------ */
+
+// The well-known MeshCore public channel PSK ("izOH6cXN6mrJ5e26oRXNcg==")
+static const uint8_t PUBLIC_CHANNEL_SECRET[16] = {
+  0x8b, 0x33, 0x87, 0xe9, 0xc5, 0xcd, 0xea, 0x6a,
+  0xc9, 0xe5, 0xed, 0xba, 0xa1, 0x15, 0xcd, 0x72
+};
+
+static int b64Val(char c) {
+  if (c >= 'A' && c <= 'Z') return c - 'A';
+  if (c >= 'a' && c <= 'z') return c - 'a' + 26;
+  if (c >= '0' && c <= '9') return c - '0' + 52;
+  if (c == '+') return 62;
+  if (c == '/') return 63;
+  return -1;
+}
+
+static int decodeBase64(const char* in, uint8_t* out, int max_out) {
+  int bits = 0, nbits = 0, n = 0;
+  for (const char* p = in; *p && *p != '='; p++) {
+    int v = b64Val(*p);
+    if (v < 0) continue;   // skip whitespace and other non-alphabet chars
+    bits = (bits << 6) | v;
+    nbits += 6;
+    if (nbits >= 8) {
+      nbits -= 8;
+      if (n >= max_out) return -1;
+      out[n++] = (bits >> nbits) & 0xFF;
+    }
+  }
+  return n;
+}
+
+// A 16/32-byte key in hex is 32/64 chars; base64 PSKs are 24/44 chars, so the
+// length is unambiguous as long as every char is a hex digit.
+static bool isHexKey(const char* s) {
+  int n = 0;
+  for (const char* p = s; *p; p++, n++) {
+    char c = *p;
+    if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'))) return false;
+  }
+  return n == 32 || n == 64;
+}
+#endif  // WITH_CHANNEL_FILTER
+
+
 /* ------------------------------ Config -------------------------------- */
 
 #ifndef LORA_FREQ
@@ -625,6 +674,320 @@ void MyMesh::getPeerSharedSecret(uint8_t *dest_secret, int peer_idx) {
   }
 }
 
+#ifdef WITH_CHANNEL_FILTER
+// Resolve a channel spec (#name | hex | base64 | "public") into a GroupChannel.
+static bool decodeChannelKey(const char *psk, mesh::GroupChannel *ch) {
+  memset(ch->secret, 0, sizeof(ch->secret));
+
+  int len;
+  if (strcmp(psk, "public") == 0) {
+    memcpy(ch->secret, PUBLIC_CHANNEL_SECRET, sizeof(PUBLIC_CHANNEL_SECRET));
+    len = sizeof(PUBLIC_CHANNEL_SECRET);
+  } else if (psk[0] == '#') {   // hashtag channel: key = first 16 bytes of SHA256(name)
+    // hashtag names are [a-z0-9-], so lowercase the input to forgive operator case
+    char name[40];
+    int n = 0;
+    for (; psk[n] && n < (int)sizeof(name) - 1; n++) {
+      char c = psk[n];
+      name[n] = (c >= 'A' && c <= 'Z') ? c + 32 : c;
+    }
+    name[n] = 0;
+    uint8_t full[32];
+    mesh::Utils::sha256(full, sizeof(full), (const uint8_t *)name, n);
+    memcpy(ch->secret, full, 16);
+    len = 16;
+  } else if (isHexKey(psk)) {
+    len = strlen(psk) / 2;
+    if (!mesh::Utils::fromHex(ch->secret, len, psk)) return false;
+  } else {
+    len = decodeBase64(psk, ch->secret, sizeof(ch->secret));
+  }
+  if (len != 16 && len != 32) return false;
+
+  mesh::Utils::sha256(ch->hash, sizeof(ch->hash), ch->secret, len);
+  return true;
+}
+
+bool MyMesh::addFilterChannel(const char *psk) {
+  if (num_filter_channels >= MAX_FILTER_CHANNELS) return false;
+  if (!decodeChannelKey(psk, &filter_channels[num_filter_channels])) return false;
+  num_filter_channels++;
+  return true;
+}
+
+bool MyMesh::removeFilterChannel(const char *psk) {
+  mesh::GroupChannel ch;
+  if (!decodeChannelKey(psk, &ch)) return false;
+  for (int i = 0; i < num_filter_channels; i++) {
+    if (memcmp(filter_channels[i].secret, ch.secret, sizeof(ch.secret)) == 0) {
+      for (int j = i; j < num_filter_channels - 1; j++) filter_channels[j] = filter_channels[j + 1];
+      num_filter_channels--;
+      return true;
+    }
+  }
+  return false;  // no channel with that key
+}
+
+// Remove an exact term from a keyword/sender list (shift the rest down).
+static bool removeFilterTerm(char terms[][FILTER_TERM_LEN], uint8_t &count, const char *val) {
+  for (int i = 0; i < count; i++) {
+    if (strcmp(terms[i], val) == 0) {
+      for (int j = i; j < count - 1; j++) memcpy(terms[j], terms[j + 1], FILTER_TERM_LEN);
+      count--;
+      return true;
+    }
+  }
+  return false;
+}
+
+int MyMesh::searchChannelsByHash(const uint8_t *hash, mesh::GroupChannel channels[], int max_matches) {
+  int n = 0;
+  for (int i = 0; i < num_filter_channels && n < max_matches; i++) {
+    if (filter_channels[i].hash[0] == hash[0]) {
+      channels[n++] = filter_channels[i];
+    }
+  }
+  return n;
+}
+
+void MyMesh::onGroupDataRecv(mesh::Packet *packet, uint8_t type, const mesh::GroupChannel &channel,
+                             uint8_t *data, size_t len) {
+  if (type != PAYLOAD_TYPE_GRP_TXT) return; // only inspect channel text messages
+  if (len < 6) return;
+  if ((data[4] >> 2) != 0) return; // not a plain-text message
+  if (len >= MAX_PACKET_PAYLOAD) return; // crafted over-long payload; avoid OOB on data[len]
+
+  data[len] = 0; // make a C string: "sender_name: text"
+  const char *msg = (const char *)&data[5];
+
+  const char *sep = strstr(msg, ": ");
+
+  // Unicode-fold so homoglyph / zero-width tricks can't evade the blocklist (see
+  // UnicodeFold.h). Keywords match the whole message (sender + text) so a blocked
+  // word can't be hidden in the self-declared sender name. Terms are folded the
+  // same way at match time.
+  char folded_msg[MAX_PACKET_PAYLOAD];
+  ufold::foldUtf8(msg, folded_msg, sizeof(folded_msg));
+
+  char folded_sender[40];
+  folded_sender[0] = 0;
+  if (sep) {
+    char sender[40];
+    int slen = sep - msg;
+    if (slen >= (int)sizeof(sender)) slen = sizeof(sender) - 1;
+    memcpy(sender, msg, slen);
+    sender[slen] = 0;
+    ufold::foldUtf8(sender, folded_sender, sizeof(folded_sender));
+  }
+
+  bool blocked = false;
+  const char *reason = "keyword";
+  char fterm[FILTER_TERM_LEN];
+
+  for (int i = 0; i < num_block_senders && !blocked; i++) {
+    ufold::foldUtf8(block_senders[i], fterm, sizeof(fterm));
+    if (fterm[0] && strstr(folded_sender, fterm)) { blocked = true; reason = "sender"; }
+  }
+  for (int i = 0; i < num_block_keywords && !blocked; i++) {
+    ufold::foldUtf8(block_keywords[i], fterm, sizeof(fterm));
+    if (fterm[0] && strstr(folded_msg, fterm)) blocked = true;
+  }
+
+  if (blocked) {
+    packet->markDoNotRetransmit(); // routeRecvPacket() will now release instead of forwarding
+    n_filtered++;
+    MESH_DEBUG_PRINTLN("filter: dropping channel msg (%s): %s", reason, msg);
+    if (_logging) {
+      File f = openAppend(PACKET_LOG_FILE);
+      if (f) {
+        f.print(getLogDateTime());
+        f.printf(": FILTERED (%s): %s\n", reason, msg);
+        f.close();
+      }
+    }
+  }
+}
+
+void MyMesh::loadChannelFilter() {
+  num_filter_channels = 0;
+  num_block_keywords = 0;
+  num_block_senders = 0;
+
+#if defined(RP2040_PLATFORM)
+  File f = _fs->open(CHANNEL_FILTER_FILE, "r");
+#else
+  File f = _fs->open(CHANNEL_FILTER_FILE);
+#endif
+  if (!f) return;
+
+  if (f.read() != CHANNEL_FILTER_FMT) { f.close(); return; }  // unknown/legacy file -> start empty
+
+  int n = f.read();
+  if (n < 0 || n > MAX_FILTER_CHANNELS) { f.close(); return; }
+  for (int i = 0; i < n; i++) {
+    auto ch = &filter_channels[num_filter_channels];
+    if (f.readBytes((char *)ch->hash, sizeof(ch->hash)) != sizeof(ch->hash)) break;
+    if (f.readBytes((char *)ch->secret, sizeof(ch->secret)) != sizeof(ch->secret)) break;
+    num_filter_channels++;
+  }
+
+  n = f.read();
+  if (n < 0 || n > MAX_FILTER_TERMS) { f.close(); return; }
+  for (int i = 0; i < n; i++) {
+    int l = f.read();
+    if (l < 0 || l >= FILTER_TERM_LEN) break;
+    if (f.readBytes(block_keywords[num_block_keywords], l) != (size_t)l) break;
+    block_keywords[num_block_keywords][l] = 0;
+    num_block_keywords++;
+  }
+
+  n = f.read();
+  if (n < 0 || n > MAX_FILTER_TERMS) { f.close(); return; }
+  for (int i = 0; i < n; i++) {
+    int l = f.read();
+    if (l < 0 || l >= FILTER_TERM_LEN) break;
+    if (f.readBytes(block_senders[num_block_senders], l) != (size_t)l) break;
+    block_senders[num_block_senders][l] = 0;
+    num_block_senders++;
+  }
+  f.close();
+}
+
+// Binary layout: [fmt][n_chan]{hash[1] secret[32]}*  [n_kw]{len text}*  [n_snd]{len text}*
+// Channel keys are never displayed, so the decoded GroupChannel is stored directly
+// rather than the original PSK string.
+void MyMesh::saveChannelFilter() {
+  _fs->remove(CHANNEL_FILTER_FILE);
+  File f = openAppend(CHANNEL_FILTER_FILE);
+  if (!f) return;
+  f.write((uint8_t)CHANNEL_FILTER_FMT);
+  f.write((uint8_t)num_filter_channels);
+  for (int i = 0; i < num_filter_channels; i++) {
+    f.write(filter_channels[i].hash, sizeof(filter_channels[i].hash));
+    f.write(filter_channels[i].secret, sizeof(filter_channels[i].secret));
+  }
+  f.write((uint8_t)num_block_keywords);
+  for (int i = 0; i < num_block_keywords; i++) {
+    uint8_t l = strlen(block_keywords[i]);
+    f.write(l);
+    f.write((const uint8_t *)block_keywords[i], l);
+  }
+  f.write((uint8_t)num_block_senders);
+  for (int i = 0; i < num_block_senders; i++) {
+    uint8_t l = strlen(block_senders[i]);
+    f.write(l);
+    f.write((const uint8_t *)block_senders[i], l);
+  }
+  f.close();
+}
+
+void MyMesh::handleFilterCommand(char *command, char *reply) {
+  char *arg = command + 6; // skip "filter"
+  while (*arg == ' ') arg++;
+
+  if (*arg == 0 || strcmp(arg, "list") == 0) {
+    char *dp = reply;
+    dp += sprintf(dp, "channels:%d keywords:%d senders:%d filtered:%u", num_filter_channels,
+                  num_block_keywords, num_block_senders, (unsigned)n_filtered);
+    for (int i = 0; i < num_block_keywords && dp - reply < 120; i++) dp += sprintf(dp, "\nK:%s", block_keywords[i]);
+    for (int i = 0; i < num_block_senders && dp - reply < 120; i++) dp += sprintf(dp, "\nS:%s", block_senders[i]);
+    return;
+  }
+  if (memcmp(arg, "stats", 5) == 0 && (arg[5] == 0 || arg[5] == ' ')) {
+    char *sub = arg + 5;
+    while (*sub == ' ') sub++;
+    if (strcmp(sub, "reset") == 0) {
+      n_filtered = 0;
+      strcpy(reply, "OK - stats reset");
+    } else {
+      sprintf(reply, "filtered:%u channels:%d keywords:%d senders:%d", (unsigned)n_filtered,
+              num_filter_channels, num_block_keywords, num_block_senders);
+    }
+    return;
+  }
+  if (memcmp(arg, "channel ", 8) == 0) {
+    char *val = arg + 8;
+    while (*val == ' ') val++;
+    if (strcmp(val, "clear") == 0) {
+      num_filter_channels = 0;
+      saveChannelFilter();
+      strcpy(reply, "OK - channels cleared");
+    } else if (memcmp(val, "remove ", 7) == 0) {
+      char *spec = val + 7;
+      while (*spec == ' ') spec++;
+      if (removeFilterChannel(spec)) {
+        saveChannelFilter();
+        sprintf(reply, "OK - %d channel(s)", num_filter_channels);
+      } else {
+        strcpy(reply, "Err - channel not found");
+      }
+    } else if (addFilterChannel(val)) {
+      saveChannelFilter();
+      sprintf(reply, "OK - %d channel(s)", num_filter_channels);
+    } else {
+      strcpy(reply, "Err - bad PSK or list full");
+    }
+    return;
+  }
+  if (memcmp(arg, "block ", 6) == 0) {
+    char *val = arg + 6;
+    while (*val == ' ') val++;
+    if (*val == 0) { strcpy(reply, "Err - empty keyword"); return; }
+    if (num_block_keywords >= MAX_FILTER_TERMS) { strcpy(reply, "Err - keyword list full"); return; }
+    StrHelper::strncpy(block_keywords[num_block_keywords++], val, FILTER_TERM_LEN);
+    saveChannelFilter();
+    sprintf(reply, "OK - %d keyword(s)", num_block_keywords);
+    return;
+  }
+  if (memcmp(arg, "sender ", 7) == 0) {
+    char *val = arg + 7;
+    while (*val == ' ') val++;
+    if (*val == 0) { strcpy(reply, "Err - empty sender"); return; }
+    if (num_block_senders >= MAX_FILTER_TERMS) { strcpy(reply, "Err - sender list full"); return; }
+    StrHelper::strncpy(block_senders[num_block_senders++], val, FILTER_TERM_LEN);
+    saveChannelFilter();
+    sprintf(reply, "OK - %d sender(s)", num_block_senders);
+    return;
+  }
+  if (memcmp(arg, "unblock ", 8) == 0) {
+    char *val = arg + 8;
+    while (*val == ' ') val++;
+    if (removeFilterTerm(block_keywords, num_block_keywords, val)) {
+      saveChannelFilter();
+      sprintf(reply, "OK - %d keyword(s)", num_block_keywords);
+    } else {
+      strcpy(reply, "Err - keyword not found");
+    }
+    return;
+  }
+  if (memcmp(arg, "unsender ", 9) == 0) {
+    char *val = arg + 9;
+    while (*val == ' ') val++;
+    if (removeFilterTerm(block_senders, num_block_senders, val)) {
+      saveChannelFilter();
+      sprintf(reply, "OK - %d sender(s)", num_block_senders);
+    } else {
+      strcpy(reply, "Err - sender not found");
+    }
+    return;
+  }
+  if (strcmp(arg, "clear") == 0) {
+    num_block_keywords = 0;
+    num_block_senders = 0;
+    saveChannelFilter();
+    strcpy(reply, "OK - blocks cleared");
+    return;
+  }
+  if (strcmp(arg, "reset") == 0) {
+    num_filter_channels = num_block_keywords = num_block_senders = 0;
+    saveChannelFilter();
+    strcpy(reply, "OK - filter reset");
+    return;
+  }
+  strcpy(reply, "Err - usage: filter [list|stats [reset]|channel <#name|b64|hex|public|remove <key>|clear>|block/unblock <kw>|sender/unsender <name>|clear|reset]");
+}
+#endif  // WITH_CHANNEL_FILTER
+
 static bool isShare(const mesh::Packet *packet) {
   if (packet->hasTransportCodes()) {
     return packet->transport_codes[0] == 0 && packet->transport_codes[1] == 0;  // codes { 0, 0 } means 'send to nowhere'
@@ -860,6 +1223,12 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
 {
   last_millis = 0;
   uptime_millis = 0;
+#ifdef WITH_CHANNEL_FILTER
+  num_filter_channels = 0;
+  num_block_keywords = 0;
+  num_block_senders = 0;
+  n_filtered = 0;
+#endif
   next_local_advert = next_flood_advert = 0;
   dirty_contacts_expiry = 0;
   set_radio_at = revert_radio_at = 0;
@@ -931,6 +1300,9 @@ void MyMesh::begin(FILESYSTEM *fs) {
   // load persisted prefs
   _cli.loadPrefs(_fs);
   acl.load(_fs, self_id);
+#ifdef WITH_CHANNEL_FILTER
+  loadChannelFilter();
+#endif
   // TODO: key_store.begin();
   region_map.load(_fs);
 
@@ -1257,6 +1629,10 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
       sendNodeDiscoverReq();
       strcpy(reply, "OK - Discover sent");
     }
+#ifdef WITH_CHANNEL_FILTER
+  } else if (memcmp(command, "filter", 6) == 0 && (command[6] == 0 || command[6] == ' ')) {
+    handleFilterCommand(command, reply);
+#endif
   } else{
     _cli.handleCommand(sender_timestamp, command, reply);  // common CLI commands
   }

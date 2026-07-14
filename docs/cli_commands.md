@@ -19,6 +19,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
   - [GPS](#gps-when-gps-support-is-compiled-in)
   - [Sensors](#sensors-when-sensor-support-is-compiled-in)
   - [Bridge](#bridge-when-bridge-support-is-compiled-in)
+  - [Channel Content Filter](#channel-content-filter-when-channel-filtering-is-compiled-in)
 
 ---
 
@@ -1126,5 +1127,89 @@ region save
 **Usage:** `get pwrmgt.bootmv`
 
 **Note:** Returns an error on boards without power management support.
+
+---
+
+### Channel Content Filter (When channel filtering is compiled in)
+
+Repeater only. Lets a repeater decrypt channels it holds the key for, inspect the plaintext, and refuse to retransmit messages that match a blocked keyword or sender name. With nothing configured, behaviour is identical to a stock repeater.
+
+**How it works:** the repeater only decrypts channels you explicitly load a key for (see `filter channel`). For those channels it reads the sender name and message text; any message matching a blocked keyword (text, case-insensitive substring) or blocked sender (case-insensitive substring of the sender name) is dropped instead of forwarded. All other channels — and direct messages — are never decrypted and forward exactly as before.
+
+**Unicode handling:** before matching, both the message and your blocked terms are Unicode-folded so common evasion tricks don't slip through — look-alike characters (fullwidth, mathematical bold/italic, circled/squared letters, regional-indicator "flag" letters, and common Cyrillic/Greek homoglyphs) are mapped to the plain ASCII letter they imitate, accents are stripped, and zero-width / combining / variation-selector characters are removed.
+
+**Limitations:**
+- This only stops **this** repeater from forwarding the message. Other repeaters running stock firmware still forward it, so this thins coverage at your node rather than removing the message from the mesh.
+- Only works for channels whose key the repeater holds (the built-in public channel, plus any channel PSK you add).
+- Sender names are self-declared in the channel payload and easily spoofed, so `filter sender` is a weak control on its own.
+
+**Config storage:** persisted to `/channel_filter` on the node's filesystem.
+
+---
+
+#### Show the current filter configuration
+**Usage:**
+- `filter`
+- `filter list`
+
+**Note:** Reports channel/keyword/sender counts, the lifetime filtered-message count, and the configured keyword and sender terms.
+
+---
+
+#### View or reset the filtered-message counter
+**Usage:**
+- `filter stats`
+- `filter stats reset`
+
+**Note:** `filter stats` reports `filtered:<n> channels:<n> keywords:<n> senders:<n>`. The counter is a runtime value and is not persisted, so it also resets on reboot.
+
+---
+
+#### Add or remove a channel to decrypt
+**Usage:**
+- `filter channel <#name>`
+- `filter channel <psk>`
+- `filter channel public`
+- `filter channel remove <#name|psk|public>`
+- `filter channel clear`
+
+**Parameters:**
+- `#name`: A hashtag channel, given by its name (e.g. `#selftest`). The key is derived the same way MeshCore clients derive it — the first 16 bytes of `SHA256("#name")` — so you don't need to paste a key. Case-insensitive: the name is lowercased before hashing (hashtag names are `[a-z0-9-]`). Only works for hashtag channels (named channels like `public` use a random key, not a name-derived one).
+- `psk`: Channel pre-shared key, as either Base64 (the form MeshCore clients share, e.g. `izOH6cXN6mrJ5e26oRXNcg==`) or raw hex (`62be0e1267c401381f4ea6f44217d7a9`). Either way it must decode to 16 or 32 bytes. The literal `public` is a shortcut for the well-known public channel key.
+
+**Note:** Adding a channel only enables decryption/inspection of that channel; messages still forward normally unless they match a blocked keyword or sender. `filter channel remove <key>` drops a single channel — give it the same `#name`/PSK/`public` you added it with (it's matched by the resulting key, so any equivalent form works). `filter channel clear` removes all channel keys (the repeater stops decrypting and forwards everything blind again).
+
+---
+
+#### Block or unblock a keyword
+**Usage:**
+- `filter block <keyword>`
+- `filter unblock <keyword>`
+
+**Parameters:**
+- `keyword`: Text to match (case-insensitive substring) against the whole message. Max 23 characters.
+
+**Note:** Matches anywhere in the message — both the body and the sender name — so a blocked word can't be hidden in a self-declared sender name. `filter unblock <keyword>` removes a single keyword; give it the exact term as stored (`filter list` shows them under `K:`).
+
+---
+
+#### Block or unblock a sender name
+**Usage:**
+- `filter sender <name>`
+- `filter unsender <name>`
+
+**Parameters:**
+- `name`: Text to match (case-insensitive substring) against the sender's display name. Max 23 characters.
+
+**Note:** `filter unsender <name>` removes a single sender; give it the exact term as stored (`filter list` shows them under `S:`).
+
+---
+
+#### Clear or reset filter terms
+**Usage:**
+- `filter clear`
+- `filter reset`
+
+**Note:** `filter clear` empties the keyword and sender lists but keeps the loaded channel keys. `filter reset` wipes everything — channel keys, keywords and senders.
 
 ---
