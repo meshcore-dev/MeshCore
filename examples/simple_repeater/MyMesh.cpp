@@ -37,6 +37,13 @@
   #define SERVER_RESPONSE_DELAY 300
 #endif
 
+#ifndef DC_GATE_INTERVAL_MS
+  #define DC_GATE_INTERVAL_MS       10000   // how often to re-evaluate duty-cycle gating
+#endif
+#ifndef DC_GATE_RECOVER_JITTER_MS
+  #define DC_GATE_RECOVER_JITTER_MS 30000   // extra random delay per recovery step (desync repeaters)
+#endif
+
 #ifndef TXT_ACK_DELAY
   #define TXT_ACK_DELAY 200
 #endif
@@ -554,7 +561,7 @@ bool MyMesh::filterRecvFloodPacket(mesh::Packet* pkt) {
   if (pkt->getRouteType() == ROUTE_TYPE_TRANSPORT_FLOOD) {
     recv_pkt_region = region_map.findMatch(pkt, REGION_DENY_FLOOD);
   } else if (pkt->getRouteType() == ROUTE_TYPE_FLOOD) {
-    if (region_map.getWildcard().flags & REGION_DENY_FLOOD) {
+    if (region_map.getWildcard().effectiveFlags() & REGION_DENY_FLOOD) {   // config or runtime gate
       recv_pkt_region = NULL;
     } else {
       recv_pkt_region =  &region_map.getWildcard();
@@ -867,6 +874,8 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   set_radio_at = revert_radio_at = 0;
   _logging = false;
   region_load_active = false;
+  next_dc_gate_check = 0;
+  dc_gate_level = 0;
 
 #if MAX_NEIGHBOURS
   memset(neighbours, 0, sizeof(neighbours));
@@ -893,6 +902,11 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.flood_max_unscoped = 64;
   _prefs.flood_max_advert = 8;
   _prefs.interference_threshold = 0; // disabled
+
+  // duty-cycle region gating defaults (feature is opt-in, off by default)
+  _prefs.dc_gate_enabled = 0;
+  _prefs.dc_gate_threshold = 70;  // start gating above 70% TX duty cycle
+  _prefs.dc_gate_hysteresis = 10; // recover below 60%
 
   // bridge defaults
   _prefs.bridge_enabled = 1;    // enabled
@@ -1257,6 +1271,9 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
       sendNodeDiscoverReq();
       strcpy(reply, "OK - Discover sent");
     }
+  } else if (strcmp(command, "get dc.gate.status") == 0) {
+    sprintf(reply, "> duty %d%%, gate level %d/%d", (int)getTxDutyCyclePercent(),
+            (int)dc_gate_level, (int)region_map.getMaxGateLevel());
   } else{
     _cli.handleCommand(sender_timestamp, command, reply);  // common CLI commands
   }
@@ -1299,6 +1316,35 @@ void MyMesh::loop() {
   if (dirty_contacts_expiry && millisHasNowPassed(dirty_contacts_expiry)) {
     acl.save(_fs);
     dirty_contacts_expiry = 0;
+  }
+
+  // duty-cycle region gating: progressively shed outer regions when TX duty cycle is high,
+  // restoring them inside-out (with jitter) once it recovers. Purely transient (rt_flags);
+  // never persisted, so a reboot or 'region save' can't leave regions permanently gated.
+  if (_prefs.dc_gate_enabled) {
+    if (millisHasNowPassed(next_dc_gate_check)) {
+      uint8_t duty = getTxDutyCyclePercent();
+      uint8_t maxLevel = region_map.getMaxGateLevel();
+      uint8_t recover = _prefs.dc_gate_threshold > _prefs.dc_gate_hysteresis
+                          ? _prefs.dc_gate_threshold - _prefs.dc_gate_hysteresis : 0;
+      uint32_t next = DC_GATE_INTERVAL_MS;
+      if (duty > _prefs.dc_gate_threshold && dc_gate_level < maxLevel) {
+        dc_gate_level++;                          // gate one more (outer) layer
+        MESH_DEBUG_PRINTLN("duty gate: level up to %d (duty %d%%)", (int)dc_gate_level, (int)duty);
+      } else if (dc_gate_level > 0 && duty < recover) {
+        dc_gate_level--;                          // re-enable innermost gated layer
+        next += getRNG()->nextInt(0, DC_GATE_RECOVER_JITTER_MS);   // desync recovery across repeaters
+        MESH_DEBUG_PRINTLN("duty gate: level down to %d (duty %d%%)", (int)dc_gate_level, (int)duty);
+      }
+      // re-assert every tick (not just on change): 'region load' commits and other region
+      // edits rebuild entries with cleared rt_flags, so the gate state must be reapplied
+      region_map.applyDutyGate(dc_gate_level);
+      next_dc_gate_check = futureMillis(next);
+    }
+  } else if (dc_gate_level > 0) {   // feature was disabled while gated: lift the gate
+    dc_gate_level = 0;
+    region_map.applyDutyGate(0);
+    MESH_DEBUG_PRINTLN("duty gate: disabled, gating lifted");
   }
 
   // update uptime

@@ -63,6 +63,9 @@ struct NodePrefs { // persisted to file
   uint8_t rx_boosted_gain; // power settings
   uint8_t path_hash_mode;   // which path mode to use when sending
   uint8_t loop_detect;
+  uint8_t dc_gate_enabled;    // duty-cycle region gating: 0 = off (opt-in)
+  uint8_t dc_gate_threshold;  // TX duty-cycle % above which outer regions start being gated
+  uint8_t dc_gate_hysteresis; // recover margin in %: re-enable regions below (threshold - hysteresis)
 };
 
 class CommonCLICallbacks {

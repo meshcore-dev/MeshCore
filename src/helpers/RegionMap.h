@@ -16,8 +16,10 @@ struct RegionEntry {
   uint16_t parent;
   uint8_t flags;
   char name[31];
+  uint8_t rt_flags;   // transient runtime overlay (eg. duty-cycle gating); NEVER persisted
 
   bool isWildcard() const { return id == 0; }
+  uint8_t effectiveFlags() const { return flags | rt_flags; }
 };
 
 class RegionMap {
@@ -28,6 +30,7 @@ class RegionMap {
   RegionEntry wildcard;
 
   void printChildRegions(int indent, const RegionEntry* parent, Stream& out) const;
+  int depthOf(const RegionEntry* region) const;
 
 public:
   RegionMap(TransportKeyStore& store);
@@ -53,6 +56,11 @@ public:
   int getCount() const { return num_regions; }
   const RegionEntry* getByIdx(int i) const { return &regions[i]; }
   const RegionEntry* getRoot() const { return &wildcard; }
+
+  // --- duty-cycle region gating (transient, via rt_flags; see applyDutyGate) ---
+  int getMaxDepth() const;               // deepest named-region depth (wildcard=0, its children=1, ...)
+  uint8_t getMaxGateLevel() const;       // highest gate level that still protects the innermost cluster
+  void applyDutyGate(uint8_t level);     // gate '*' first (level>=1), then broadest depth inward
   int exportNamesTo(char *dest, int max_len, uint8_t mask, bool invert = false);
   int getTransportKeysFor(const RegionEntry& src, TransportKey dest[], int max_num);
 

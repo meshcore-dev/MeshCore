@@ -52,6 +52,17 @@ void Dispatcher::updateTxBudget() {
   }
 }
 
+uint8_t Dispatcher::getTxDutyCyclePercent() {
+  updateTxBudget();   // refill first, so the reading is current even when the mesh is idle
+  float duty_cycle = 1.0f / (1.0f + getAirtimeBudgetFactor());
+  unsigned long max_budget = (unsigned long)(getDutyCycleWindowMs() * duty_cycle);
+  if (max_budget == 0) return 0;
+  float used = 1.0f - (float)tx_budget_ms / (float)max_budget;
+  if (used <= 0.0f) return 0;
+  if (used >= 1.0f) return 100;
+  return (uint8_t)(used * 100.0f + 0.5f);
+}
+
 int Dispatcher::calcRxDelay(float score, uint32_t air_time) const {
   return (int) ((pow(10, 0.85f - score) - 1.0) * air_time);
 }
