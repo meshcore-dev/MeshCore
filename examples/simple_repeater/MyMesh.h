@@ -14,6 +14,10 @@
 #endif
 
 #ifdef WITH_RS232_BRIDGE
+#ifdef WITH_USB_SERIAL_BRIDGE
+#include <Adafruit_TinyUSB.h>
+extern Adafruit_USBD_CDC bridgeSerial;
+#endif
 #include "helpers/bridges/RS232Bridge.h"
 #define WITH_BRIDGE
 #endif

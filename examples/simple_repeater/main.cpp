@@ -3,6 +3,10 @@
 
 #include "MyMesh.h"
 
+#ifdef WITH_USB_SERIAL_BRIDGE
+Adafruit_USBD_CDC bridgeSerial;
+#endif
+
 #ifdef DISPLAY_CLASS
   #include "UITask.h"
   static UITask ui_task(display);
@@ -36,6 +40,10 @@ static unsigned long userBtnDownAt = 0;
 #endif
 
 void setup() {
+#ifdef WITH_USB_SERIAL_BRIDGE
+  // Register the second CDC interface before Serial mounts the USB device.
+  bridgeSerial.begin(115200);
+#endif
   Serial.begin(115200);
   delay(1000);
 

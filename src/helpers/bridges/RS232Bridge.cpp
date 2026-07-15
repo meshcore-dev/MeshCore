@@ -2,6 +2,10 @@
 
 #include <HardwareSerial.h>
 
+#ifdef WITH_USB_SERIAL_BRIDGE
+#include <Adafruit_TinyUSB.h>
+#endif
+
 #ifdef WITH_RS232_BRIDGE
 
 RS232Bridge::RS232Bridge(NodePrefs *prefs, Stream &serial, mesh::PacketManager *mgr, mesh::RTCClock *rtc)
@@ -9,6 +13,9 @@ RS232Bridge::RS232Bridge(NodePrefs *prefs, Stream &serial, mesh::PacketManager *
 
 void RS232Bridge::begin() {
   BRIDGE_DEBUG_PRINTLN("Initializing at %d baud...\n", _prefs->bridge_baud);
+#ifdef WITH_USB_SERIAL_BRIDGE
+  static_cast<Adafruit_USBD_CDC*>(_serial)->begin(_prefs->bridge_baud);
+#else
 #if !defined(WITH_RS232_BRIDGE_RX) || !defined(WITH_RS232_BRIDGE_TX)
 #error "WITH_RS232_BRIDGE_RX and WITH_RS232_BRIDGE_TX must be defined"
 #endif
@@ -28,6 +35,7 @@ void RS232Bridge::begin() {
 #error RS232Bridge was not tested on the current platform
 #endif
   ((HardwareSerial *)_serial)->begin(_prefs->bridge_baud);
+#endif
 
   // Update bridge state
   _initialized = true;
@@ -35,7 +43,11 @@ void RS232Bridge::begin() {
 
 void RS232Bridge::end() {
   BRIDGE_DEBUG_PRINTLN("Stopping...\n");
+#ifdef WITH_USB_SERIAL_BRIDGE
+  static_cast<Adafruit_USBD_CDC*>(_serial)->end();
+#else
   ((HardwareSerial *)_serial)->end();
+#endif
 
   // Update bridge state
   _initialized = false;
