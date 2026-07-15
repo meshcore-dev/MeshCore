@@ -31,8 +31,10 @@ class NRF52Board : public mesh::MainBoard {
 
 protected:
   uint8_t startup_reason;
+  uint8_t sd_enabled;
   char *ota_name;
 
+  bool is_softdevice(void);
 #ifdef NRF52_POWER_MANAGEMENT
   uint32_t reset_reason;              // RESETREAS register value
   uint8_t shutdown_reason;            // GPREGRET value (why we entered last SYSTEMOFF)
@@ -45,7 +47,7 @@ protected:
 #endif
 
 public:
-  NRF52Board(char *otaname) : ota_name(otaname) {}
+  NRF52Board(char *otaname) : ota_name(otaname),sd_enabled(0) {}
   virtual void begin();
   virtual uint8_t getStartupReason() const override { return startup_reason; }
   virtual float getMCUTemperature() override;

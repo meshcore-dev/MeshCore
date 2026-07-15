@@ -38,6 +38,12 @@ static void __attribute__((constructor(101))) nrf52_early_reset_capture() {
   g_nrf52_shutdown_reason = NRF_POWER->GPREGRET2;
 }
 
+bool NRF52Board::is_softdevice() {
+  // Is it needed to query this each time? Can it change?
+  sd_softdevice_is_enabled(&sd_enabled);
+  return sd_enabled != 0;
+}
+
 void NRF52Board::initPowerMgr() {
   // Copy early-captured register values
   reset_reason = g_nrf52_reset_reason;
@@ -46,9 +52,7 @@ void NRF52Board::initPowerMgr() {
 
   // Clear registers for next boot
   // Note: At this point SoftDevice may or may not be enabled
-  uint8_t sd_enabled = 0;
-  sd_softdevice_is_enabled(&sd_enabled);
-  if (sd_enabled) {
+  if (is_softdevice()) {
     sd_power_reset_reason_clr(0xFFFFFFFF);
     sd_power_gpregret_clr(1, 0xFF);
   } else {
@@ -134,9 +138,7 @@ void NRF52Board::enterSystemOff(uint8_t reason) {
   MESH_DEBUG_PRINTLN("PWRMGT: Entering SYSTEMOFF (%s)", getShutdownReasonString(reason));
 
   // Record shutdown reason in GPREGRET2
-  uint8_t sd_enabled = 0;
-  sd_softdevice_is_enabled(&sd_enabled);
-  if (sd_enabled) {
+  if (is_softdevice()) {
     sd_power_gpregret_clr(1, 0xFF);
     sd_power_gpregret_set(1, reason);
   } else {
@@ -212,9 +214,7 @@ void NRF52Board::configureVoltageWake(uint8_t ain_channel, uint8_t refsel) {
   }
 
   // Configure VBUS (USB power) wake alongside LPCOMP
-  uint8_t sd_enabled = 0;
-  sd_softdevice_is_enabled(&sd_enabled);
-  if (sd_enabled) {
+  if (is_softdevice()) {
     sd_power_usbdetected_enable(1);
   } else {
     NRF_POWER->EVENTS_USBDETECTED = 0;
@@ -229,9 +229,7 @@ void NRF52BoardDCDC::begin() {
   NRF52Board::begin();
 
   // Enable DC/DC converter for improved power efficiency
-  uint8_t sd_enabled = 0;
-  sd_softdevice_is_enabled(&sd_enabled);
-  if (sd_enabled) {
+  if (is_softdevice()) {
     sd_power_dcdc_mode_set(NRF_POWER_DCDC_ENABLE);
   } else {
     NRF_POWER->DCDCEN = 1;
@@ -240,10 +238,7 @@ void NRF52BoardDCDC::begin() {
 
 bool NRF52Board::isExternalPowered() {
   // Check if SoftDevice is enabled before using its API
-  uint8_t sd_enabled = 0;
-  sd_softdevice_is_enabled(&sd_enabled);
-
-  if (sd_enabled) {
+  if (is_softdevice()) {
     uint32_t usb_status;
     sd_power_usbregstatus_get(&usb_status);
     return (usb_status & POWER_USBREGSTATUS_VBUSDETECT_Msk) != 0;
@@ -263,10 +258,7 @@ void NRF52Board::sleep(uint32_t secs) {
 
   // On nRF52, we use event-driven sleep instead of timed sleep
   // The 'secs' parameter is ignored - we wake on any interrupt
-  uint8_t sd_enabled = 0;
-  sd_softdevice_is_enabled(&sd_enabled);
-
-  if (sd_enabled) {
+  if (is_softdevice()) {
     // first call processes pending softdevice events, second call sleeps.
     sd_app_evt_wait();
     sd_app_evt_wait();
@@ -280,15 +272,10 @@ void NRF52Board::sleep(uint32_t secs) {
 
 // Temperature from NRF52 MCU
 float NRF52Board::getMCUTemperature() {
-  uint8_t sd_enabled = 0;
-  sd_softdevice_is_enabled(&sd_enabled);
-  if (sd_enabled) {
-    uint32_t err_code;
-    int32_t temp;
-    err_code = sd_temp_get(&temp);
-    if (err_code == NRF_SUCCESS) {
-      return (float)temp * 0.25f;
-    } else {
+  int32_t temp;
+  if (is_softdevice()) {
+    uint32_t err_code = sd_temp_get(&temp);
+    if (err_code != NRF_SUCCESS) {
       return NAN;
     }
   } else {
@@ -301,13 +288,11 @@ float NRF52Board::getMCUTemperature() {
         return NAN;
       }
     }
+    NRF_TEMP->EVENTS_DATARDY = 0; // Clear event flag
+
+    temp = NRF_TEMP->TEMP; // In 0.25 *C units
+    NRF_TEMP->TASKS_STOP = 1;
   }
-
-  NRF_TEMP->EVENTS_DATARDY = 0; // Clear event flag
-
-  int32_t temp = NRF_TEMP->TEMP; // In 0.25 *C units
-  NRF_TEMP->TASKS_STOP = 1;
-
   return temp * 0.25f; // Convert to *C
 }
 
@@ -333,9 +318,7 @@ void NRF52Board::powerOff() {
   delay(100);
 
   // Enter SYSTEMOFF
-  uint8_t sd_enabled = 0;
-  sd_softdevice_is_enabled(&sd_enabled);
-  if (sd_enabled) { // SoftDevice is enabled
+  if (is_softdevice()) { // SoftDevice is enabled
     sd_power_system_off();
   } else { // SoftDevice is not enable
     NRF_POWER->SYSTEMOFF = POWER_SYSTEMOFF_SYSTEMOFF_Enter;
