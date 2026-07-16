@@ -120,7 +120,7 @@ public :
         return alt;
     }
     long satellitesCount() override { return nmea.getNumSatellites(); }
-    bool isValid() override { return nmea.isValid(); }
+    bool isValid() override { return nmea.isValid() && nmea.getYear() < 2030; } // TODO: Pending better validation
 
     long getTimestamp() override { 
         DateTime dt(nmea.getYear(), nmea.getMonth(),nmea.getDay(),nmea.getHour(),nmea.getMinute(),nmea.getSecond());
@@ -154,9 +154,10 @@ public :
                     _clock->setCurrentTime(getTimestamp());
                     _time_sync_needed = false;
                     _last_time_sync = millis();
+                    _last_valid_time_sync = _clock->getCurrentTime();
                 }
             }
-            if (isValid()) {
+            if (isValid() && satellitesCount() >= 5) {
                 time_valid ++;
             }
         }

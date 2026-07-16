@@ -368,7 +368,12 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       if (_sensors->setSettingValue("gps", "1")) {
         _prefs->gps_enabled = 1;
         savePrefs();
-        strcpy(reply, "ok");
+
+        if (_prefs->powersaving_enabled) { // Power Saving
+          strcpy(reply, "on (powersaving)");
+        } else { // Normal mode
+          strcpy(reply, "ok");
+        }
       } else {
         strcpy(reply, "gps toggle not found");
       }
@@ -384,7 +389,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       LocationProvider * l = _sensors->getLocationProvider();
       if (l != NULL) {
         l->syncTime();
-        strcpy(reply, "ok");
+        strcpy(reply, "scheduled");
       } else {
         strcpy(reply, "gps provider not found");
       }
@@ -430,13 +435,35 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
         bool fix = l->isValid();       // has fix ?
         int sats = l->satellitesCount();
         bool active = !strcmp(_sensors->getSettingByKey("gps"), "1");
-        if (enabled) {
-          sprintf(reply, "on, %s, %s, %d sats",
-            active?"active":"deactivated",
-            fix?"fix":"no fix",
-            sats);
-        } else {
-          strcpy(reply, "off");
+
+        if (_prefs->powersaving_enabled && l->getGPSPowerSaving()) { // GPS Power Saving
+          if (enabled) {
+            sprintf(reply, "on (powersaving, sleep in %lum), %s, %s, %d sats",
+              (l->getNextGPSOff() - millis()) / 60000UL,
+              active?"active":"deactivated",
+              fix?"fix":"no fix",
+              sats);
+          } else {
+            sprintf(reply, "off (powersaving, wake in %lum)", (l->getNextGPSOn() - millis()) / 60000UL);
+          }
+
+          // "last sync" from GPS
+          DateTime dt = DateTime(l->getLastValidTimeSync());
+          if (dt.unixtime() == 0) {
+            sprintf(reply + strlen(reply), ", last sync: none");
+          } else {
+            sprintf(reply + strlen(reply), ", last sync: %02d:%02d - %d/%d/%d UTC", dt.hour(), dt.minute(),
+                    dt.day(), dt.month(), dt.year());
+          }
+        } else { // Normal mode
+          if (enabled) {
+            sprintf(reply, "on, %s, %s, %d sats",
+              active?"active":"deactivated",
+              fix?"fix":"no fix",
+              sats);
+          } else {
+            strcpy(reply, "off");
+          }
         }
       } else {
         strcpy(reply, "Can't find GPS");
