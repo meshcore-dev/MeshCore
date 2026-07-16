@@ -1,4 +1,5 @@
 #include "MyMesh.h"
+#include "RepeaterTimeSyncBuildDefaults.h"
 #include <algorithm>
 
 /* ------------------------------ Config -------------------------------- */
@@ -1334,8 +1335,37 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.flood_max_advert = 8;
   _prefs.interference_threshold = 0; // disabled
   _prefs.cad_enabled = 0;            // hardware CAD before TX (off by default; 'set cad on')
-  // Time sync is opt-in and remains disabled until all authority fields are set.
-  _prefs.time_sync_enabled = 0;       // opt-in authenticated time sync
+  // Seed authenticated time-sync settings before begin() loads any persisted
+  // preferences. Existing device configuration therefore takes precedence.
+  const char* time_sync_channel = repeater_time_sync_build_defaults::CHANNEL;
+  bool valid_time_sync_channel = false;
+  if (strcmp(time_sync_channel, "public") == 0) {
+    TimeSyncAuth::configureDefaultPublicChannel(_prefs.time_sync_channel);
+    valid_time_sync_channel = true;
+  } else if (time_sync_channel[0] == '#' && time_sync_channel[1] != 0) {
+    TimeSyncAuth::configureHashtagChannel(_prefs.time_sync_channel, time_sync_channel);
+    valid_time_sync_channel = true;
+  }
+  if (valid_time_sync_channel) {
+    StrHelper::strncpy(_prefs.time_sync_channel_name, time_sync_channel,
+                       sizeof(_prefs.time_sync_channel_name));
+  }
+
+  // Reuse the CLI validators so build defaults and remotely supplied settings
+  // have identical display-name and pinned-public-key security constraints.
+  bool valid_time_sync_name = TimeSyncAuth::applySourceSetting(
+    _prefs.time_sync_display_name, sizeof(_prefs.time_sync_display_name),
+    _prefs.time_sync_public_key, "display_name",
+    repeater_time_sync_build_defaults::DISPLAY_NAME) == TIME_SYNC_SOURCE_SETTING_OK;
+  bool valid_time_sync_key = TimeSyncAuth::applySourceSetting(
+    _prefs.time_sync_display_name, sizeof(_prefs.time_sync_display_name),
+    _prefs.time_sync_public_key, "public_key",
+    repeater_time_sync_build_defaults::PUBLIC_KEY) == TIME_SYNC_SOURCE_SETTING_OK;
+
+  // Enable only when the build requests it and every pinned-authority field
+  // passes validation; incomplete configuration always remains disabled.
+  _prefs.time_sync_enabled = repeater_time_sync_build_defaults::ENABLED &&
+                             valid_time_sync_channel && valid_time_sync_name && valid_time_sync_key;
   // Default to a conservative one-hour forward step after the clock is initialised.
   _prefs.time_sync_max_forward_step = TIME_SYNC_DEFAULT_MAX_FORWARD_STEP;
 

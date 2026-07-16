@@ -407,6 +407,24 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 Repeater builds support an opt-in authenticated time-sync consumer.
 
+Private repeater builds can seed the authenticated time-sync configuration with
+PlatformIO build flags. The values initialise blank or older preference files;
+an existing persisted setting is loaded afterwards and always takes precedence.
+
+```ini
+build_flags =
+  -D REPEATER_DEFAULT_TIME_SYNC_CHANNEL='"#time"'
+  -D REPEATER_DEFAULT_TIME_SYNC_DISPLAY_NAME='"SquirrelBot"'
+  -D REPEATER_DEFAULT_TIME_SYNC_PUBLIC_KEY='"12e621a0005eb20955c82f8a971a81a7504e080803aed50591f8c703b4219d5e"'
+  -D REPEATER_DEFAULT_TIME_SYNC_ENABLED=1
+```
+
+Ordinary builds leave these values empty and disabled. An enabled build must
+provide `public` or a hashtag channel, a display name of at most 20 characters,
+and one complete 64-character hexadecimal Ed25519 public key. Invalid literals
+stop compilation; runtime validation additionally rejects all-zero and all-FF
+wildcard-like public keys. Only public verification material is compiled in.
+
 Configuration:
 
 - `set time_sync.channel public`
