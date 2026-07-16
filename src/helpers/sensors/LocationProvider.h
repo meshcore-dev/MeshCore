@@ -17,9 +17,9 @@ public:
     virtual void stopTimeSync() { _time_sync_needed = false; }
     virtual void setGPSPowerSaving(bool enabled) { powersaving_enabled = enabled; _next_gps_off = 0; _next_gps_on = 0; }
     virtual bool getGPSPowerSaving() { return powersaving_enabled; }
-    virtual unsigned long setNextGPSOff(unsigned long _millis) { _next_gps_off = _millis; }
+    virtual void setNextGPSOff(unsigned long _millis) { _next_gps_off = _millis; }
     virtual unsigned long getNextGPSOff() { return _next_gps_off; }
-    virtual unsigned long setNextGPSOn(unsigned long _millis) { _next_gps_on = _millis; }
+    virtual void setNextGPSOn(unsigned long _millis) { _next_gps_on = _millis; }
     virtual unsigned long getNextGPSOn() { return _next_gps_on; }
     virtual unsigned long getLastValidTimeSync() { return _last_valid_time_sync; }
     virtual long getLatitude() = 0;
