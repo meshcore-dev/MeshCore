@@ -33,6 +33,10 @@ public:
   }
 
   const char* getManufacturerName() const override {
+#if defined(ETHERNET_ENABLED)
+    return "RAK 4631 / RAK13800 + W5100S";
+#else
     return "RAK 4631";
+#endif
   }
 };

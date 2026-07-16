@@ -827,6 +827,7 @@ For companion radios, you can set these radios' transmit power in the smartphone
 ### 7.8. Q: How do I use Ethernet with a RAK4631?
  **A:**
 MeshCore supports Ethernet on RAK4631 boards using the [RAK13800](https://docs.rakwireless.com/product-categories/wisblock/rak13800/datasheet/) WisBlock Ethernet module (based on the W5100S chip).
+This companion Ethernet support builds on the Ethernet foundation merged in pull request #1983.
 
 **Hardware required:**
 - RAK4631 WisBlock Core
@@ -838,12 +839,21 @@ MeshCore supports Ethernet on RAK4631 boards using the [RAK13800](https://docs.r
 Flash one of the Ethernet-enabled firmware variants:
 - `RAK_4631_repeater_ethernet` - Repeater with Ethernet CLI access
 - `RAK_4631_room_server_ethernet` - Room server with Ethernet CLI access
-- `RAK_4631_companion_radio_ethernet` - Companion radio over Ethernet (replaces BLE)
+- `RAK_RAK13800_companion_radio_eth` - Companion radio over Ethernet using the framed MeshCore Companion TCP API
+- `RAK_RAK13800_companion_radio_eth_static_diag` - Companion radio with a repeatable static validation IP
+- `RAK_4631_companion_radio_ethernet` - Compatibility alias for the canonical RAK13800 target
+
+**Important**
+- This is not Meshtastic.
+- Companion Ethernet is not the repeater CLI target.
+- Companion Ethernet is not MQTT.
+- Companion Ethernet does not use raw line mode.
 
 **Connecting:**
 - The device obtains an IP address via DHCP automatically on boot.
 - For repeaters and room servers, connect to the device on TCP port 23 using any TCP client (e.g. `nc <ip> 23` or PuTTY in raw mode). This gives you the same CLI available over serial/USB.
-- For companion radio firmware, the Ethernet interface replaces BLE as the transport to companion apps. Connect on TCP port 5000 (same as the WiFi companion radio).
+- For companion radio firmware, the Ethernet interface replaces BLE as the transport to companion apps. Connect to `DEVICE_IP:4403` for the MeshCore Crow-compatible target. Upstream #1983 defaults to TCP port 5000, but this repo's Crow validation target overrides it to 4403.
+- The framed Companion TCP transport uses `'<'+uint16_le_length+payload` from client to radio and `'>'+uint16_le_length+payload` from radio to client.
 - Use the `eth.status` CLI command to check connection status and see the assigned IP address.
 
 ---

@@ -18,8 +18,27 @@ SPIClass ETHERNET_SPI_PORT(NRF_SPIM1, PIN_SPI1_MISO, PIN_SPI1_SCK, PIN_SPI1_MOSI
 #define RECV_STATE_LEN1_FOUND  2
 #define RECV_STATE_LEN2_FOUND  3
 
-bool SerialEthernetInterface::begin() {
+void SerialEthernetInterface::clearClientState(int idx) {
+  if (idx < 0 || idx >= MAX_ETH_CLIENTS) {
+    return;
+  }
+  clients[idx].stop();
+  rx_header[idx].state = RECV_STATE_IDLE;
+  rx_header[idx].frame_len = 0;
+  rx_header[idx].rx_len = 0;
+  memset(rx_header[idx].rx_buf, 0, sizeof(rx_header[idx].rx_buf));
+}
 
+static bool anyClientConnected(EthernetClient clients[]) {
+  for (int i = 0; i < MAX_ETH_CLIENTS; i++) {
+    if (clients[i] && clients[i].connected()) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool SerialEthernetInterface::begin() {
   ETHERNET_DEBUG_PRINTLN("Ethernet initializing");
 
   // WB_IO2 (power enable) is already driven HIGH by early constructor
@@ -27,8 +46,8 @@ bool SerialEthernetInterface::begin() {
   // Skip hardware reset — the W5100S comes out of power-on reset cleanly,
   // and toggling reset kills the PHY link which breaks POE power.
 #ifdef PIN_ETHERNET_RESET
-        pinMode(PIN_ETHERNET_RESET, OUTPUT);
-        digitalWrite(PIN_ETHERNET_RESET, HIGH);
+  pinMode(PIN_ETHERNET_RESET, OUTPUT);
+  digitalWrite(PIN_ETHERNET_RESET, HIGH);
 #endif
 
   uint8_t mac[6];
@@ -46,32 +65,30 @@ bool SerialEthernetInterface::begin() {
   Ethernet.init(ETHERNET_SPI_PORT, PIN_ETHERNET_SS);
 
   // Use static IP if build flags are defined, otherwise DHCP
-  #if defined(ETHERNET_STATIC_IP) && defined(ETHERNET_STATIC_GATEWAY) && defined(ETHERNET_STATIC_SUBNET) && defined(ETHERNET_STATIC_DNS)
+#if defined(ETHERNET_STATIC_IP) && defined(ETHERNET_STATIC_GATEWAY) && defined(ETHERNET_STATIC_SUBNET) && defined(ETHERNET_STATIC_DNS)
   IPAddress ip(ETHERNET_STATIC_IP);
   IPAddress gateway(ETHERNET_STATIC_GATEWAY);
   IPAddress subnet(ETHERNET_STATIC_SUBNET);
   IPAddress dns(ETHERNET_STATIC_DNS);
   Ethernet.begin(mac, ip, dns, gateway, subnet);
-  #else
+#else
   ETHERNET_DEBUG_PRINTLN("Begin");
   if (Ethernet.begin(mac) == 0) {
     ETHERNET_DEBUG_PRINTLN("Begin failed.");
 
     // DHCP failed -- let's figure out why
-    if (Ethernet.hardwareStatus() == EthernetNoHardware)  // Check for Ethernet hardware present.
-    {
+    if (Ethernet.hardwareStatus() == EthernetNoHardware) {
       ETHERNET_DEBUG_PRINTLN("Ethernet hardware not found.");
       return false;
     }
-    if (Ethernet.linkStatus() == LinkOFF)     // No physical connection
-    {
+    if (Ethernet.linkStatus() == LinkOFF) {
       ETHERNET_DEBUG_PRINTLN("Ethernet cable not connected.");
       return false;
     }
     ETHERNET_DEBUG_PRINTLN("Ethernet: DHCP failed for unknown reason.");
     return false;
   }
-  #endif
+#endif
   ETHERNET_DEBUG_PRINTLN("Ethernet begin complete");
   ETHERNET_DEBUG_PRINT_IP("IP", Ethernet.localIP());
   ETHERNET_DEBUG_PRINT_IP("Subnet", Ethernet.subnetMask());
@@ -79,6 +96,11 @@ bool SerialEthernetInterface::begin() {
 
   server.begin();   // start listening for clients
   ETHERNET_DEBUG_PRINTLN("Ethernet: listening on TCP port: %d", ETHERNET_TCP_PORT);
+
+  clearBuffers();
+  _last_rx = -1;
+  _rr = 0;
+  deviceConnected = false;
 
   return true;
 }
@@ -95,35 +117,83 @@ void SerialEthernetInterface::disable() {
 }
 
 size_t SerialEthernetInterface::writeFrame(const uint8_t src[], size_t len) {
-  if (len > MAX_FRAME_SIZE) {
-    ETHERNET_DEBUG_PRINTLN("writeFrame(), frame too big, len=%d\n", len);
+  if (!_isEnabled || len == 0) {
     return 0;
   }
 
-  if (deviceConnected && len > 0) {
-    if (send_queue_len >= FRAME_QUEUE_SIZE) {
-      ETHERNET_DEBUG_PRINTLN("writeFrame(), send_queue is full!");
-      return 0;
-    }
-
-    send_queue[send_queue_len].len = len;  // add to send queue
-    memcpy(send_queue[send_queue_len].buf, src, len);
-    send_queue_len++;
-
-    return len;
+  if (len > MAX_FRAME_SIZE) {
+    ETHERNET_DEBUG_PRINTLN("writeFrame(), frame too big, len=%d", len);
+    return 0;
   }
-  return 0;
+
+  const bool broadcast = src[0] >= 0x80;
+  if (!broadcast && (_last_rx < 0 || _last_rx >= MAX_ETH_CLIENTS)) {
+    return 0;
+  }
+
+  if (send_queue_len >= ETH_FRAME_QUEUE_SIZE) {
+    ETHERNET_DEBUG_PRINTLN("writeFrame(), send_queue is full!");
+    return 0;
+  }
+
+  Frame& frame = send_queue[send_queue_len];
+  frame.len = len;
+  frame.target = broadcast ? -1 : (int8_t)_last_rx;
+  frame.broadcast = broadcast;
+  memcpy(frame.buf, src, len);
+  send_queue_len++;
+
+  return len;
 }
 
 bool SerialEthernetInterface::isWriteBusy() const {
   return false;
 }
 
+static bool parseClientByte(SerialEthernetInterface::FrameHeader& rx, uint8_t c, uint8_t dest[]) {
+  switch (rx.state) {
+    case RECV_STATE_IDLE:
+      if (c == '<') {
+        rx.state = RECV_STATE_HDR_FOUND;
+      }
+      break;
+    case RECV_STATE_HDR_FOUND:
+      rx.frame_len = (uint8_t)c;
+      rx.state = RECV_STATE_LEN1_FOUND;
+      break;
+    case RECV_STATE_LEN1_FOUND:
+      rx.frame_len |= ((uint16_t)c) << 8;
+      rx.rx_len = 0;
+      rx.state = rx.frame_len > 0 ? RECV_STATE_LEN2_FOUND : RECV_STATE_IDLE;
+      break;
+    default:
+      if (rx.rx_len < MAX_FRAME_SIZE) {
+        rx.rx_buf[rx.rx_len] = c;
+      }
+      rx.rx_len++;
+      if (rx.rx_len >= rx.frame_len) {
+        if (rx.frame_len > MAX_FRAME_SIZE) {
+          rx.frame_len = MAX_FRAME_SIZE;
+        }
+        memcpy(dest, rx.rx_buf, rx.frame_len);
+        rx.state = RECV_STATE_IDLE;
+        return true;
+      }
+      break;
+  }
+  return false;
+}
+
+static void sendFrameToClient(EthernetClient& client, const uint8_t* frame, size_t len) {
+  uint8_t pkt[3 + MAX_FRAME_SIZE];
+  pkt[0] = '>';
+  pkt[1] = (uint8_t)(len & 0xFF);
+  pkt[2] = (uint8_t)((len >> 8) & 0xFF);
+  memcpy(&pkt[3], frame, len);
+  client.write(pkt, 3 + len);
+}
+
 size_t SerialEthernetInterface::checkRecvFrame(uint8_t dest[]) {
-  // Use accept() (not available()) so we only see newly-accepted sockets.
-  // available() also returns existing connected sockets that have data,
-  // which would cause us to treat each inbound packet as a "new client"
-  // and stop() the underlying socket — disconnecting the companion.
   auto newClient = server.accept();
   if (newClient) {
     IPAddress new_ip = newClient.remoteIP();
@@ -136,118 +206,89 @@ size_t SerialEthernetInterface::checkRecvFrame(uint8_t dest[]) {
         new_ip[3],
         new_port);
 
-    deviceConnected = false;
-    if (client) {
-      ETHERNET_DEBUG_PRINTLN("Closing previous client");
-      client.stop();
-    }
-    _state = RECV_STATE_IDLE;
-    _frame_len = 0;
-    _rx_len = 0;
-    client = newClient;
-    ETHERNET_DEBUG_PRINTLN("Switched to new client");
-  }
-
-  if (client.connected()) {
-    if (!deviceConnected) {
-      ETHERNET_DEBUG_PRINTLN(
-          "Got connection %u.%u.%u.%u:%u",
-          client.remoteIP()[0],
-          client.remoteIP()[1],
-          client.remoteIP()[2],
-          client.remoteIP()[3],
-          client.remotePort());
-      deviceConnected = true;
-    }
-  } else {
-    if (deviceConnected) {
-      deviceConnected = false;
-      ETHERNET_DEBUG_PRINTLN("Disconnected");
-    }
-  }
-
-  if (deviceConnected) {
-    if (send_queue_len > 0) {   // first, check send queue
-
-      _last_write = millis();
-      int len = send_queue[0].len;
-
-#if ETHERNET_RAW_LINE
-      ETHERNET_DEBUG_PRINTLN("TX line len=%d", len);
-      client.write(send_queue[0].buf, len);
-      client.write("\r\n", 2);
-#else
-      uint8_t pkt[3+len]; // use same header as serial interface so client can delimit frames
-      pkt[0] = '>';
-      pkt[1] = (len & 0xFF);  // LSB
-      pkt[2] = (len >> 8);    // MSB
-      memcpy(&pkt[3], send_queue[0].buf, send_queue[0].len);
-      ETHERNET_DEBUG_PRINTLN("Sending frame len=%d", len);
-      #if ETHERNET_DEBUG_LOGGING && ARDUINO
-      ETHERNET_DEBUG_PRINTLN("TX frame len=%d", len);
-      #endif
-      client.write(pkt, 3 + len);
-#endif
-      send_queue_len--;
-      for (int i = 0; i < send_queue_len; i++) {   // delete top item from queue
-        send_queue[i] = send_queue[i + 1];
+    int slot = -1;
+    for (int i = 0; i < MAX_ETH_CLIENTS; i++) {
+      if (!clients[i] || !clients[i].connected()) {
+        slot = i;
+        break;
       }
-    } else {
-      while (client.available()) {
-        int c = client.read();
-        if (c < 0) break;
+    }
 
-#if ETHERNET_RAW_LINE
-        if (c == '\r' || c == '\n') {
-          if (_rx_len == 0) {
-            continue;
-          }
-          uint16_t out_len = _rx_len;
-          if (out_len > MAX_FRAME_SIZE) {
-            out_len = MAX_FRAME_SIZE;
-          }
-          memcpy(dest, _rx_buf, out_len);
-          _rx_len = 0;
-          return out_len;
+    if (slot >= 0) {
+      clients[slot].stop();
+      clients[slot] = newClient;
+      rx_header[slot].state = RECV_STATE_IDLE;
+      rx_header[slot].frame_len = 0;
+      rx_header[slot].rx_len = 0;
+      _last_rx = slot;
+      deviceConnected = true;
+      ETHERNET_DEBUG_PRINTLN("Accepted client in slot %d", slot);
+    } else {
+      ETHERNET_DEBUG_PRINTLN("All client slots full, rejecting new connection");
+      newClient.stop();
+    }
+  }
+
+  deviceConnected = anyClientConnected(clients);
+
+  for (int i = 0; i < MAX_ETH_CLIENTS; i++) {
+    if (!clients[i]) {
+      continue;
+    }
+    if (!clients[i].connected()) {
+      if (_last_rx == i) {
+        _last_rx = -1;
+      }
+      clearClientState(i);
+      continue;
+    }
+  }
+
+  if (!deviceConnected) {
+    return 0;
+  }
+
+  if (send_queue_len > 0) {
+    _last_write = millis();
+    Frame& frame = send_queue[0];
+    bool sent = false;
+
+    if (frame.broadcast) {
+      for (int i = 0; i < MAX_ETH_CLIENTS; i++) {
+        if (clients[i] && clients[i].connected()) {
+          sendFrameToClient(clients[i], frame.buf, frame.len);
+          sent = true;
         }
-        if (_rx_len < MAX_FRAME_SIZE) {
-          _rx_buf[_rx_len] = (uint8_t)c;
-          _rx_len++;
-        }
-#else
-        switch (_state) {
-          case RECV_STATE_IDLE:
-            if (c == '<') {
-              _state = RECV_STATE_HDR_FOUND;
-            }
-            break;
-          case RECV_STATE_HDR_FOUND:
-            _frame_len = (uint8_t)c;
-            _state = RECV_STATE_LEN1_FOUND;
-            break;
-          case RECV_STATE_LEN1_FOUND:
-            _frame_len |= ((uint16_t)c) << 8;
-            _rx_len = 0;
-            _state = _frame_len > 0 ? RECV_STATE_LEN2_FOUND : RECV_STATE_IDLE;
-            break;
-          default:
-            if (_rx_len < MAX_FRAME_SIZE) {
-              _rx_buf[_rx_len] = (uint8_t)c;
-            }
-            _rx_len++;
-            if (_rx_len >= _frame_len) {
-              if (_frame_len > MAX_FRAME_SIZE) {
-                _frame_len = MAX_FRAME_SIZE;
-              }
-              #if ETHERNET_DEBUG_LOGGING && ARDUINO
-              ETHERNET_DEBUG_PRINTLN("RX frame len=%d", _frame_len);
-              #endif
-              memcpy(dest, _rx_buf, _frame_len);
-              _state = RECV_STATE_IDLE;
-              return _frame_len;
-            }
-        }
-#endif
+      }
+    } else if (frame.target >= 0 && frame.target < MAX_ETH_CLIENTS && clients[frame.target] && clients[frame.target].connected()) {
+      sendFrameToClient(clients[frame.target], frame.buf, frame.len);
+      sent = true;
+    } else {
+      ETHERNET_DEBUG_PRINTLN("Dropping queued frame for disconnected client");
+    }
+
+    send_queue_len--;
+    for (int i = 0; i < send_queue_len; i++) {
+      send_queue[i] = send_queue[i + 1];
+    }
+
+    if (!sent) {
+      return 0;
+    }
+  }
+
+  for (int offset = 0; offset < MAX_ETH_CLIENTS; offset++) {
+    int idx = (_rr + offset) % MAX_ETH_CLIENTS;
+    if (!clients[idx] || !clients[idx].connected()) {
+      continue;
+    }
+    while (clients[idx].available()) {
+      int c = clients[idx].read();
+      if (c < 0) break;
+      if (parseClientByte(rx_header[idx], (uint8_t)c, dest)) {
+        _last_rx = idx;
+        _rr = (idx + 1) % MAX_ETH_CLIENTS;
+        return rx_header[idx].frame_len;
       }
     }
   }

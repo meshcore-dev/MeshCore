@@ -7,47 +7,66 @@
 #ifndef ETHERNET_TCP_PORT
   #define ETHERNET_TCP_PORT 5000
 #endif
-// define ETHERNET_RAW_LINE=1 to use raw line-based CLI instead of framed packets
+
+#ifndef MAX_ETH_CLIENTS
+  #define MAX_ETH_CLIENTS 3
+#endif
+
+#ifndef ETH_FRAME_QUEUE_SIZE
+  #define ETH_FRAME_QUEUE_SIZE 16
+#endif
 
 class SerialEthernetInterface : public BaseSerialInterface {
-  bool deviceConnected;
-  bool _isEnabled;
-  unsigned long _last_write;
-  uint8_t _state;
-  uint16_t _frame_len;
-  uint16_t _rx_len;
-  uint8_t _rx_buf[MAX_FRAME_SIZE];
+public:
+  struct FrameHeader {
+    uint8_t state;
+    uint16_t frame_len;
+    uint16_t rx_len;
+    uint8_t rx_buf[MAX_FRAME_SIZE];
+  };
 
-  EthernetServer server;
-  EthernetClient client;
-
+private:
   struct Frame {
-    uint8_t len;
+    uint16_t len;
+    int8_t target;
+    bool broadcast;
     uint8_t buf[MAX_FRAME_SIZE];
   };
 
-  #define FRAME_QUEUE_SIZE 4
-  int send_queue_len;
-  Frame send_queue[FRAME_QUEUE_SIZE];
+  bool deviceConnected;
+  bool _isEnabled;
+  unsigned long _last_write;
+  int _last_rx;
+  int _rr;
 
+  EthernetServer server;
+  EthernetClient clients[MAX_ETH_CLIENTS];
+  FrameHeader rx_header[MAX_ETH_CLIENTS];
+
+  int send_queue_len;
+  Frame send_queue[ETH_FRAME_QUEUE_SIZE];
+
+  void clearClientState(int idx);
   void clearBuffers() {
     send_queue_len = 0;
-    _state = 0;
-    _frame_len = 0;
-    _rx_len = 0;
+    for (int i = 0; i < MAX_ETH_CLIENTS; i++) {
+      clearClientState(i);
+    }
   }
 
-  protected:
+protected:
 
-  public:
-    SerialEthernetInterface() : server(EthernetServer(ETHERNET_TCP_PORT)) {
+public:
+    SerialEthernetInterface() : server(ETHERNET_TCP_PORT) {
         deviceConnected = false;
         _isEnabled = false;
         _last_write = 0;
+        _last_rx = -1;
+        _rr = 0;
         send_queue_len = 0;
-        _state = 0;
-        _frame_len = 0;
-        _rx_len = 0;
+        for (int i = 0; i < MAX_ETH_CLIENTS; i++) {
+          clearClientState(i);
+        }
     }
     bool begin();
 

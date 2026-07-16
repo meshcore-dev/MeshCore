@@ -933,6 +933,10 @@ void MyMesh::begin(bool has_display) {
   // load persisted prefs
   _store->loadPrefs(_prefs, sensors.node_lat, sensors.node_lon);
 
+#ifdef FORCE_CLIENT_REPEAT
+  _prefs.client_repeat = FORCE_CLIENT_REPEAT;
+#endif
+
   // sanitise bad pref values
   _prefs.rx_delay_base = constrain(_prefs.rx_delay_base, 0, 20.0f);
   _prefs.airtime_factor = constrain(_prefs.airtime_factor, 0, 9.0f);
