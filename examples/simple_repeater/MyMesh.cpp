@@ -198,9 +198,13 @@ uint8_t MyMesh::handleAnonClockReq(const mesh::Identity& sender, uint32_t sender
     memcpy(&reply_data[4], &now, 4);     // include our clock (for easy clock sync, and packet hash uniqueness)
     reply_data[8] = 0;  // features
 #ifdef WITH_RS232_BRIDGE
-    reply_data[8] |= 0x01;  // is bridge, type UART
+    reply_data[8] |= RS232_BRIDGE;  // is bridge, type UART
 #elif WITH_ESPNOW_BRIDGE
-    reply_data[8] |= 0x03;  // is bridge, type ESP-NOW
+    reply_data[8] |= ESPNOW_BRIDGE;  // is bridge, type ESP-NOW
+#elif WITH_USB_SERIAL_BRIDGE
+    reply_data[8] |= USB_SERIAL_BRIDGE;  // is bridge, type USB serial
+#elif WITH_TCP_BRIDGE
+    reply_data[8] |= TCP_BRIDGE;  // is bridge, type TCP
 #endif
     if (_prefs.disable_fwd) {   // is this repeater currently disabled
       reply_data[8] |= 0x80;  // is disabled
@@ -344,7 +348,7 @@ int MyMesh::handleRequest(ClientInfo *sender, uint32_t sender_timestamp, uint8_t
       int results_offset = 0;
       uint8_t results_buffer[130];
       for(int index = 0; index < count && index + offset < neighbours_count; index++){
-        
+
         // stop if we can't fit another entry in results
         int entry_size = pubkey_prefix_length + 4 + 1;
         if(results_offset + entry_size > sizeof(results_buffer)){
@@ -859,6 +863,12 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
 #if defined(WITH_ESPNOW_BRIDGE)
       , bridge(&_prefs, _mgr, &rtc)
 #endif
+#if defined(WITH_USB_SERIAL_BRIDGE)
+      , bridge(&_prefs, WITH_USB_SERIAL_BRIDGE, _mgr, &rtc)
+#endif
+#if defined(WITH_TCP_BRIDGE)
+      , bridge(&_prefs, _mgr, &rtc, WITH_TCP_BRIDGE)
+#endif
 {
   last_millis = 0;
   uptime_millis = 0;
@@ -1148,7 +1158,7 @@ void MyMesh::formatRadioStatsReply(char *reply) {
 }
 
 void MyMesh::formatPacketStatsReply(char *reply) {
-  StatsFormatHelper::formatPacketStats(reply, radio_driver, getNumSentFlood(), getNumSentDirect(), 
+  StatsFormatHelper::formatPacketStats(reply, radio_driver, getNumSentFlood(), getNumSentDirect(),
                                        getNumRecvFlood(), getNumRecvDirect());
 }
 

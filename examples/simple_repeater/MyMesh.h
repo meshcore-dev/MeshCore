@@ -23,6 +23,16 @@
 #define WITH_BRIDGE
 #endif
 
+#ifdef WITH_USB_SERIAL_BRIDGE
+#include "helpers/bridges/USBSerialBridge.h"
+#define WITH_BRIDGE
+#endif
+
+#ifdef WITH_TCP_BRIDGE
+#include "helpers/bridges/TCPBridge.h"
+#define WITH_BRIDGE
+#endif
+
 #include <helpers/AdvertDataHelpers.h>
 #include <helpers/ArduinoHelpers.h>
 #include <helpers/ClientACL.h>
@@ -37,7 +47,12 @@
 
 #ifdef WITH_BRIDGE
 extern AbstractBridge* bridge;
+#define RS232_BRIDGE       0x01
+#define ESPNOW_BRIDGE      0x03
+#define USB_SERIAL_BRIDGE  0x04
+#define TCP_BRIDGE         0x05
 #endif
+
 
 struct RepeaterStats {
   uint16_t batt_milli_volts;
@@ -117,6 +132,10 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   RS232Bridge bridge;
 #elif defined(WITH_ESPNOW_BRIDGE)
   ESPNowBridge bridge;
+#elif defined(WITH_USB_SERIAL_BRIDGE)
+  USBSerialBridge bridge;
+#elif defined(WITH_TCP_BRIDGE)
+  TCPBridge bridge;
 #endif
 
   void putNeighbour(const mesh::Identity& id, uint32_t timestamp, float snr);
@@ -233,7 +252,7 @@ public:
     {
       bridge.begin();
     }
-    else 
+    else
     {
       bridge.end();
     }

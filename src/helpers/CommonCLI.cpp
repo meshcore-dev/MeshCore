@@ -859,6 +859,10 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
             "rs232"
 #elif WITH_ESPNOW_BRIDGE
             "espnow"
+#elif WITH_USB_SERIAL_BRIDGE
+            "usbserial"
+#elif WITH_TCP_BRIDGE
+            "tcp"
 #else
             "none"
 #endif
@@ -1102,7 +1106,7 @@ void CommonCLI::handleRegionCmd(char* command, char* reply) {
   } else if (n >= 3 && strcmp(parts[1], "list") == 0) {
     uint8_t mask = 0;
     bool invert = false;
-    
+
     if (strcmp(parts[2], "allowed") == 0) {
       mask = REGION_DENY_FLOOD;
       invert = false;  // list regions that DON'T have DENY flag
@@ -1113,7 +1117,7 @@ void CommonCLI::handleRegionCmd(char* command, char* reply) {
       strcpy(reply, "Err - use 'allowed' or 'denied'");
       return;
     }
-    
+
     int len = _region_map->exportNamesTo(reply, 160, mask, invert);
     if (len == 0) {
       strcpy(reply, "-none-");
