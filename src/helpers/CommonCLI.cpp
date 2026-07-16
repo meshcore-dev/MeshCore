@@ -438,13 +438,18 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
 
         if (_prefs->powersaving_enabled && l->getGPSPowerSaving()) { // GPS Power Saving
           if (enabled) {
-            sprintf(reply, "on (powersaving, sleep in %lum), %s, %s, %d sats",
-              (l->getNextGPSOff() - millis()) / 60000UL,
-              active?"active":"deactivated",
-              fix?"fix":"no fix",
+            unsigned long mins = (l->getNextGPSOff() - millis()) / 60000UL;
+            sprintf(reply, "on (powersaving, sleep in %luh %lum), %s, %s, %d sats", 
+              mins / 60UL, 
+              mins % 60UL,
+              active ? "active" : "deactivated", 
+              fix ? "fix" : "no fix", 
               sats);
           } else {
-            sprintf(reply, "off (powersaving, wake in %lum)", (l->getNextGPSOn() - millis()) / 60000UL);
+            unsigned long mins = (l->getNextGPSOn() - millis()) / 60000UL;
+            sprintf(reply, "off (powersaving, wake in %luh %lum)",
+              mins / 60UL,
+              mins % 60UL);
           }
 
           // "last sync" from GPS
@@ -472,10 +477,12 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
     } else if (memcmp(command, "powersaving on", 14) == 0) {
 #if defined(NRF52_PLATFORM)
       _prefs->powersaving_enabled = 1;
+      _sensors->powersaving_enabled = 1;
       savePrefs();
       strcpy(reply, "on - Immediate effect");
 #elif defined(ESP32) && !defined(WITH_BRIDGE)
       _prefs->powersaving_enabled = 1;
+      _sensors->powersaving_enabled = 1;
       savePrefs();
       strcpy(reply, "on - After 2 minutes");
 #elif defined(WITH_BRIDGE)
@@ -485,6 +492,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
 #endif
     } else if (memcmp(command, "powersaving off", 15) == 0) {
       _prefs->powersaving_enabled = 0;
+      _sensors->powersaving_enabled = 0;
       savePrefs();
       strcpy(reply, "off");
     } else if (memcmp(command, "powersaving", 11) == 0) {
