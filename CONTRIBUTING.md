@@ -38,7 +38,7 @@ Thanks for considering contributing to this project!
   - Bad: `update`
 - Reference any related issue (`Fixes #123`, `Closes #89`, etc.)
 - If you change public API, update README.md and library.properties
-- New features should include an example sketch in `apps/`
+- New features should include an example sketch in `firmware/`
 
 ## Coding Style
 
