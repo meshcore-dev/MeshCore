@@ -111,7 +111,7 @@ bool ConfigSerializer::loadSerial(Stream& s) {
       if (sp < CONFIG_MAX_DEPTH - 1) {
         sp++;
       } else {
-        Serial.printf("Error: max nesting reached"); // TODO: debug logging
+        //Serial.printf("Error: max nesting reached"); // TODO: debug logging
         context.success = false;
         break;
       }
@@ -119,7 +119,7 @@ bool ConfigSerializer::loadSerial(Stream& s) {
       if (sp > 0) {
         sp--;
       } else {
-        Serial.printf("Error: too many closing '}'"); // TODO: debug logging
+        //Serial.printf("Error: too many closing '}'"); // TODO: debug logging
         context.success = false;
         break;
       }
