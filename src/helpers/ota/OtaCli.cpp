@@ -185,13 +185,22 @@ bool handle_ota_command(const char* command, char* reply, mesh::MainBoard& board
     const int CAP = 160;
     int n = snprintf(reply, CAP, "Updates nearby (%u src) — `ota get <#>` to download:",
                      (unsigned)c.manager.sourceCount());
-    const uint8_t* cur = (c.manager.fetchState() != OtaManager::IDLE) ? c.manager.fetchManifestId() : nullptr;
+    OtaManager::FetchState fs = c.manager.fetchState();
+    const uint8_t* cur = (fs != OtaManager::IDLE) ? c.manager.fetchManifestId() : nullptr;
     uint32_t myt = c.manager.target();   // effective target (EndF identity if present, else build flag)
     uint32_t now = millis(); int shown = 0, more = 0;
     for (uint8_t i = 0; i < c.manager.catalogCount(); i++) {
       const OtaManager::CatRow* h = c.manager.catalogRow(i);
       if (CAP - n < 48) { more++; continue; }
       bool on = cur && memcmp(cur, h->mid, 4) == 0;
+      // Tag the active session by real fetch state (not always "downloading" — COMPLETE is ready).
+      const char* tag = "";
+      if (on) {
+        if (fs == OtaManager::COMPLETE)      tag = " [ready]";
+        else if (fs == OtaManager::PAUSED)   tag = " [paused]";
+        else if (fs == OtaManager::FAILED)   tag = " [failed]";
+        else                                 tag = " [downloading]";  // WANT_*/FETCHING
+      }
       uint32_t age = (now - h->last_ms) / 1000; if (age > 99999) age = 99999;
       char ver[20]; ver_str(ver, sizeof ver, h->fw_version);
       // What is this update for? "yours" if same target (hw+role) as us; else the target's env name when we
@@ -205,8 +214,7 @@ bool handle_ota_command(const char* command, char* reply, mesh::MainBoard& board
       else if (h->target_id == 0)     fit = "?";
       else { snprintf(hwbuf, sizeof hwbuf, "hw %08X", (unsigned)h->target_id); fit = hwbuf; }
       n += snprintf(reply + n, CAP - n, "\n %d) %s %s [%s] %un %us%s", shown + 1, ver,
-                    codec_kind(h->codec), fit, (unsigned)h->n_seeders, (unsigned)age,
-                    on ? " [downloading]" : "");
+                    codec_kind(h->codec), fit, (unsigned)h->n_seeders, (unsigned)age, tag);
       shown++;
     }
     if (more && n < CAP) snprintf(reply + n, CAP - n, "\n +%d more", more);
