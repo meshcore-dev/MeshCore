@@ -76,6 +76,8 @@ int ConfigSerializer::Context::readNext() {
       return TOK_ERROR;
 
     case EXPECT_STRING_ESCAPE:
+      if ((c == 'n') && rd_len < CONFIG_MAX_TOKEN_LEN-1) { rd_buf[rd_len++] = '\n'; rd_mode = EXPECT_STRING_VAL; return TOK_WHITESPACE; }
+      if ((c == 'r') && rd_len < CONFIG_MAX_TOKEN_LEN-1) { rd_buf[rd_len++] = '\r'; rd_mode = EXPECT_STRING_VAL; return TOK_WHITESPACE; }
       if ((c == '"' || c == '\\' || c == '/') && rd_len < CONFIG_MAX_TOKEN_LEN-1) { rd_buf[rd_len++] = c; rd_mode = EXPECT_STRING_VAL; return TOK_WHITESPACE; }
       return TOK_ERROR;  // unsupport escape
 

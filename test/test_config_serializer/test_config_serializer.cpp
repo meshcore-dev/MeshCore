@@ -81,6 +81,25 @@ TEST(ConfigSerializer, SaveSerial_Basic) {
     EXPECT_TRUE(match);
 }
 
+TEST(ConfigSerializer, SaveSerial_EscChars) {
+    MockPrintStream s;
+    TestStruct data;
+
+    data.age = TEST_INT;
+    data.flags = TEST_INT;
+    strcpy(data.name, "\"Scott\"\n");
+
+    bool success = data.saveSerial(s);
+    EXPECT_TRUE(success);
+
+    auto l = s.getLength();
+    const char* expect = "{age:" TEST_INT_S ",flags:" TEST_INT_S ",name:\"\\\"Scott\\\"\\n\"}";
+    EXPECT_EQ(strlen(expect), l);
+
+    bool match = memcmp(s.getBytes(), expect, l) == 0;
+    EXPECT_TRUE(match);
+}
+
 // ── loadSerial: basic ───────────────────────────────────────────────────────
 
 TEST(ConfigSerializer, LoadSerial_Basic) {
@@ -93,6 +112,30 @@ TEST(ConfigSerializer, LoadSerial_Basic) {
     EXPECT_EQ(TEST_INT, data.age);
     EXPECT_EQ(TEST_INT, data.flags);
     bool match = strcmp("Scott", data.name) == 0;
+    EXPECT_TRUE(match);
+}
+
+TEST(ConfigSerializer, LoadSerial_HandleWhitespace) {
+    MockInputStream s("  { age:  " TEST_INT_S " ,  flags:  " TEST_INT_S " ,  name:  \"Scott\" }  ");
+    TestStruct data;
+
+    bool success = data.loadSerial(s);
+    EXPECT_TRUE(success);
+
+    EXPECT_EQ(TEST_INT, data.age);
+    EXPECT_EQ(TEST_INT, data.flags);
+    bool match = strcmp("Scott", data.name) == 0;
+    EXPECT_TRUE(match);
+}
+
+TEST(ConfigSerializer, LoadSerial_EscChars) {
+    MockInputStream s("{age:" TEST_INT_S ",flags:" TEST_INT_S ",name:\"\\\"Scott\\\"\\n\"}");
+    TestStruct data;
+
+    bool success = data.loadSerial(s);
+    EXPECT_TRUE(success);
+
+    bool match = strcmp("\"Scott\"\n", data.name) == 0;
     EXPECT_TRUE(match);
 }
 
