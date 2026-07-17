@@ -1,6 +1,6 @@
 # Companion Protocol
 
-- **Last Updated**: 2026-03-08
+- **Last Updated**: 2026-07-17
 - **Protocol Version**: Companion Firmware v1.12.0+
 
 > NOTE: This document is still in development. Some information may be inaccurate.
@@ -625,7 +625,7 @@ Byte values are authoritative; names are aliases. When reading firmware source, 
 | 0x03  | PACKET_CONTACT             | Contact information           |
 | 0x04  | PACKET_CONTACT_END         | End of contact list           |
 | 0x05  | PACKET_SELF_INFO           | Device self-information       |
-| 0x06  | PACKET_MSG_SENT            | Message sent confirmation     |
+| 0x06  | PACKET_MSG_SENT            | Message accepted for sending  |
 | 0x07  | PACKET_CONTACT_MSG_RECV    | Contact message (standard)    |
 | 0x08  | PACKET_CHANNEL_MSG_RECV    | Channel message (standard)    |
 | 0x09  | PACKET_CURRENT_TIME        | Current time response         |
@@ -640,6 +640,7 @@ Byte values are authoritative; names are aliases. When reading firmware source, 
 | 0x82  | PACKET_ACK                 | Acknowledgment                |
 | 0x83  | PACKET_MESSAGES_WAITING    | Messages waiting notification |
 | 0x88  | PACKET_LOG_DATA            | RF log data (can be ignored)  |
+| 0x91  | PACKET_SEND_TX_STATUS      | Local radio TX status (v14+)  |
 
 ### Parsing Responses
 
@@ -799,10 +800,39 @@ Bytes 2-5: Tag / Expected ACK (4 bytes, little-endian)
 Bytes 6-9: Suggested Timeout (32-bit little-endian, milliseconds)
 ```
 
+This response means the firmware accepted the message for sending. It does not mean the radio has
+transmitted it or that the recipient received it.
+
+**PACKET_SEND_TX_STATUS** (0x91, app target version 14+):
+```
+Byte 0: 0x91
+Bytes 1-4: Tag / Expected ACK (4 bytes, little-endian)
+Byte 5: Local TX status
+```
+
+Local TX status values:
+
+| Value | Meaning |
+|-------|---------|
+| 0 | The local radio driver reported transmission complete |
+| 1 | The local radio rejected the transmission before it started |
+| 2 | The radio did not report completion before the firmware timeout; the over-air outcome is unknown |
+
+The tag matches the value returned in `PACKET_MSG_SENT`, allowing clients to update the correct
+message. Status 0 only confirms transmission by the local radio; it does not confirm receipt by the
+destination or any intermediate hop. Status 2 must not be presented as definite non-delivery because
+the packet may have been transmitted even though completion was not observed.
+
+Clients supporting protocol version 14 should start the suggested ACK timeout after status 0. If the
+timeout expires without `PACKET_ACK`, the accurate state is "delivery unconfirmed," not "delivery
+failed." Firmware emits no 0x91 frames when the app target version is below 14.
+
 **PACKET_ACK** (0x82):
 ```
 Byte 0: 0x82
-Bytes 1-6: ACK Code (6 bytes, hex)
+Bytes 1-4: ACK Code (4 bytes, little-endian)
+Bytes 5-8: Elapsed time since the message was accepted for sending
+           (32-bit little-endian, milliseconds; includes local queue delay)
 ```
 
 ### Error Codes

@@ -106,6 +106,7 @@ void Dispatcher::loop() {
       }
 
       _radio->onSendFinished();
+      onPacketTxStatus(outbound, PACKET_TX_COMPLETE);
       logTx(outbound, 2 + outbound->getPathByteLen() + outbound->payload_len);
       if (outbound->isRouteFlood()) {
         n_sent_flood++;
@@ -118,6 +119,7 @@ void Dispatcher::loop() {
       MESH_DEBUG_PRINTLN("%s Dispatcher::loop(): WARNING: outbound packed send timed out!", getLogDateTime());
 
       _radio->onSendFinished();
+      onPacketTxStatus(outbound, PACKET_TX_TIMEOUT);
       logTxFail(outbound, 2 + outbound->getPathByteLen() + outbound->payload_len);
 
       releasePacket(outbound);  // return to pool
@@ -330,6 +332,7 @@ void Dispatcher::checkSend() {
       if (!success) {
         MESH_DEBUG_PRINTLN("%s Dispatcher::loop(): ERROR: send start failed!", getLogDateTime());
 
+        onPacketTxStatus(outbound, PACKET_TX_START_FAILED);
         logTxFail(outbound, outbound->getRawLength());
   
         releasePacket(outbound);  // return to pool

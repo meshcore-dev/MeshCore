@@ -102,6 +102,12 @@ public:
 
 typedef uint32_t  DispatcherAction;
 
+enum PacketTxStatus : uint8_t {
+  PACKET_TX_COMPLETE = 0,
+  PACKET_TX_START_FAILED = 1,
+  PACKET_TX_TIMEOUT = 2
+};
+
 #define ACTION_RELEASE           (0)
 #define ACTION_MANUAL_HOLD       (1)
 #define ACTION_RETRANSMIT(pri)   (((uint32_t)1 + (pri))<<24)
@@ -161,6 +167,7 @@ protected:
   virtual void logRx(Packet* packet, int len, float score) { }   // hooks for custom logging
   virtual void logTx(Packet* packet, int len) { }
   virtual void logTxFail(Packet* packet, int len) { }
+  virtual void onPacketTxStatus(Packet* packet, PacketTxStatus status) { }
   virtual const char* getLogDateTime() { return ""; }
 
   virtual float getAirtimeBudgetFactor() const;
