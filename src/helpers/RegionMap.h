@@ -60,7 +60,8 @@ public:
   // --- duty-cycle region gating (transient, via rt_flags; see applyDutyGate) ---
   int getMaxDepth() const;               // deepest named-region depth (wildcard=0, its children=1, ...)
   uint8_t getMaxGateLevel() const;       // highest gate level that still protects the innermost cluster
-  void applyDutyGate(uint8_t level);     // gate '*' first (level>=1), then broadest depth inward
+  void applyDutyGate(uint8_t level);     // gate '*' first (level>=1), then broadest depth inward;
+                                         // the innermost layer and the home region are never gated
   int exportNamesTo(char *dest, int max_len, uint8_t mask, bool invert = false);
   int getTransportKeysFor(const RegionEntry& src, TransportKey dest[], int max_num);
 

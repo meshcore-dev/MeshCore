@@ -350,11 +350,12 @@ void RegionMap::applyDutyGate(uint8_t level) {
   else                            wildcard.rt_flags &= (uint8_t)~REGION_DENY_FLOOD;
 
   // Named regions: level 2 gates depth 1, level 3 gates depth 2, ... The innermost
-  // layer (depth == maxDepth) is always protected.
+  // layer (depth == maxDepth) is always protected, as is the home region (an explicit
+  // operator signal of this repeater's own cluster, which depth alone can't express).
   for (int i = 0; i < num_regions; i++) {
     RegionEntry* r = &regions[i];
     int d = depthOf(r);
-    bool gate = (level >= 2) && (d <= (int)level - 1) && (d < maxDepth);
+    bool gate = (level >= 2) && (d <= (int)level - 1) && (d < maxDepth) && (r->id != home_id);
     if (gate) r->rt_flags |= REGION_DENY_FLOOD;
     else      r->rt_flags &= (uint8_t)~REGION_DENY_FLOOD;
   }
