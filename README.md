@@ -39,12 +39,12 @@ For developers:
 - Install [PlatformIO](https://docs.platformio.org) in [Visual Studio Code](https://code.visualstudio.com).
 - Clone and open the MeshCore repository in Visual Studio Code.
 - See the example applications you can modify and run:
-  - [Companion Radio](./examples/companion_radio) - For use with an external chat app, over BLE, USB or Wi-Fi.
-  - [KISS Modem](./examples/kiss_modem) - Serial KISS protocol bridge for host applications. ([protocol docs](./docs/kiss_modem_protocol.md))
-  - [Simple Repeater](./examples/simple_repeater) - Extends network coverage by relaying messages.
-  - [Simple Room Server](./examples/simple_room_server) - A simple BBS server for shared Posts.
-  - [Simple Secure Chat](./examples/simple_secure_chat) - Secure terminal based text communication between devices.
-  - [Simple Sensor](./examples/simple_sensor) - Remote sensor node with telemetry and alerting.
+  - [Companion Radio](./firmware/companion_radio) - For use with an external chat app, over BLE, USB or Wi-Fi.
+  - [KISS Modem](./firmware/kiss_modem) - Serial KISS protocol bridge for host applications. ([protocol docs](./docs/kiss_modem_protocol.md))
+  - [Simple Repeater](./firmware/simple_repeater) - Extends network coverage by relaying messages.
+  - [Simple Room Server](./firmware/simple_room_server) - A simple BBS server for shared Posts.
+  - [Simple Secure Chat](./firmware/simple_secure_chat) - Secure terminal based text communication between devices.
+  - [Simple Sensor](./firmware/simple_sensor) - Remote sensor node with telemetry and alerting.
 
 The Simple Secure Chat example can be interacted with through the Serial Monitor in Visual Studio Code, or with a Serial USB Terminal on Android.
 
