@@ -48,6 +48,7 @@ protected:
   ConfigSerializer() { }
 
   void def(const char* key, char* value, size_t max_len);  // max_len inclusive of null
+  void def(const char* key, void* value, size_t len);  // binary blob (encoded in hex)
   void def(const char* key, int32_t& value);
   void def(const char* key, int16_t& value);
   void def(const char* key, int8_t& value);

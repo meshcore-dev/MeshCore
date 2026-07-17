@@ -140,6 +140,23 @@ void ConfigSerializer::writeComma() {
   }
 }
 
+#include <Utils.h>
+
+void ConfigSerializer::def(const char* key, void* value, size_t len) {
+  if (_context->op() == OP::WRITE) {
+    writeComma();
+    _context->file()->print(key);
+    _context->file()->print(":\"");
+    mesh::Utils::printHex(*_context->file(), (uint8_t*) value, len);
+    _context->file()->print("\"");
+  } else {
+    if (_context->keyMatch(_depth, key)) {
+      memset(value, 0, len);
+      mesh::Utils::fromHex((uint8_t *)value, len, _context->getToken());
+    }
+  }
+}
+
 void ConfigSerializer::def(const char* key, char* value, size_t max_len) {
   if (_context->op() == OP::WRITE) {
     writeComma();
