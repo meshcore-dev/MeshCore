@@ -4,7 +4,7 @@
 #include <ed_25519.h>
 #include <Ed25519.h>
 
-#ifdef USE_CC310_ED25519
+#ifdef USE_CC310_HW_CRYPTO
 #include <Adafruit_nRFCrypto.h>
 #include "nrf_cc310/include/crys_ec_edw_api.h"
 #endif
@@ -20,7 +20,7 @@ Identity::Identity(const char* pub_hex) {
 }
 
 bool Identity::verify(const uint8_t* sig, const uint8_t* message, int msg_len) const {
-#ifdef USE_CC310_ED25519
+#ifdef USE_CC310_HW_CRYPTO
   // nRF52840 CryptoCell CC310 hardware Ed25519 verification. The software
   // implementations need ~3KB of stack (which can overflow the Adafruit core's
   // 4KB loop task stack from the advert receive path); the hardware path

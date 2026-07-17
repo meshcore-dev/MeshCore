@@ -2,7 +2,7 @@
 #include <AES.h>
 #include <SHA256.h>
 
-#ifdef USE_CC310_ED25519
+#ifdef USE_CC310_HW_CRYPTO
 #include <Adafruit_nRFCrypto.h>
 #include "nrf_cc310/include/crys_hash.h"
 #include "nrf_cc310/include/crys_hmac.h"
@@ -22,7 +22,7 @@ uint32_t RNG::nextInt(uint32_t _min, uint32_t _max) {
 }
 
 void Utils::sha256(uint8_t *hash, size_t hash_len, const uint8_t* msg, int msg_len) {
-#ifdef USE_CC310_ED25519
+#ifdef USE_CC310_HW_CRYPTO
   static CRYS_HASH_Result_t result;
   nRFCrypto.begin();
   CRYS_HASH(CRYS_HASH_SHA256_mode, (uint8_t*)msg, (size_t)msg_len, result);
@@ -36,7 +36,7 @@ void Utils::sha256(uint8_t *hash, size_t hash_len, const uint8_t* msg, int msg_l
 }
 
 void Utils::sha256(uint8_t *hash, size_t hash_len, const uint8_t* frag1, int frag1_len, const uint8_t* frag2, int frag2_len) {
-#ifdef USE_CC310_ED25519
+#ifdef USE_CC310_HW_CRYPTO
   static CRYS_HASHUserContext_t ctx;
   static CRYS_HASH_Result_t result;
   nRFCrypto.begin();
@@ -55,7 +55,7 @@ void Utils::sha256(uint8_t *hash, size_t hash_len, const uint8_t* frag1, int fra
 }
 
 int Utils::decrypt(const uint8_t* shared_secret, uint8_t* dest, const uint8_t* src, int src_len) {
-#ifdef USE_CC310_ED25519
+#ifdef USE_CC310_HW_CRYPTO
   static SaSiAesUserContext_t ctx;
   SaSiAesUserKeyData_t keyData = { (uint8_t*)shared_secret, CIPHER_KEY_SIZE };
   uint8_t* dp = dest;
@@ -89,7 +89,7 @@ int Utils::decrypt(const uint8_t* shared_secret, uint8_t* dest, const uint8_t* s
 }
 
 int Utils::encrypt(const uint8_t* shared_secret, uint8_t* dest, const uint8_t* src, int src_len) {
-#ifdef USE_CC310_ED25519
+#ifdef USE_CC310_HW_CRYPTO
   static SaSiAesUserContext_t ctx;
   SaSiAesUserKeyData_t keyData = { (uint8_t*)shared_secret, CIPHER_KEY_SIZE };
   uint8_t* dp = dest;
@@ -135,7 +135,7 @@ int Utils::encrypt(const uint8_t* shared_secret, uint8_t* dest, const uint8_t* s
 int Utils::encryptThenMAC(const uint8_t* shared_secret, uint8_t* dest, const uint8_t* src, int src_len) {
   int enc_len = encrypt(shared_secret, dest + CIPHER_MAC_SIZE, src, src_len);
 
-#ifdef USE_CC310_ED25519
+#ifdef USE_CC310_HW_CRYPTO
   static CRYS_HMACUserContext_t hmac_ctx;
   static CRYS_HASH_Result_t hmac_result;
   nRFCrypto.begin();
@@ -158,7 +158,7 @@ int Utils::MACThenDecrypt(const uint8_t* shared_secret, uint8_t* dest, const uin
   if (src_len <= CIPHER_MAC_SIZE) return 0;  // invalid src bytes
 
   uint8_t hmac[CIPHER_MAC_SIZE];
-#ifdef USE_CC310_ED25519
+#ifdef USE_CC310_HW_CRYPTO
   {
     static CRYS_HMACUserContext_t hmac_ctx;
     static CRYS_HASH_Result_t hmac_result;
