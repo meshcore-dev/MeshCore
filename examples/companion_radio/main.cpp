@@ -48,6 +48,9 @@ static uint32_t _atoi(const char* sp) {
     #include <helpers/ArduinoSerialInterface.h>
     ArduinoSerialInterface serial_interface;
     HardwareSerial companion_serial(1);
+  #elif defined(ETHERNET_ENABLED)
+    #include <helpers/ethernet/Ethernet.h>
+    ETHERNET_CLASS serial_interface;
   #else
     #include <helpers/ArduinoSerialInterface.h>
     ArduinoSerialInterface serial_interface;
@@ -240,6 +243,8 @@ void setup() {
   companion_serial.setPins(SERIAL_RX, SERIAL_TX);
   companion_serial.begin(115200);
   serial_interface.begin(companion_serial);
+#elif defined(ETHERNET_ENABLED)
+  serial_interface.begin();
 #else
   serial_interface.begin(Serial);
 #endif
