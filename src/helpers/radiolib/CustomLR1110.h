@@ -27,13 +27,26 @@ class CustomLR1110 : public LR1110 {
     int16_t startReceiveDutyCycle(uint32_t rxPeriod, uint32_t sleepPeriod,
                                   RadioLibIrqFlags_t irqFlags = RADIOLIB_IRQ_RX_DEFAULT_FLAGS,
                                   RadioLibIrqFlags_t irqMask = RADIOLIB_IRQ_RX_DEFAULT_MASK) {
-      // RadioLib's LR11x0 duty-cycle path stages RX but does not call
-      // launchMode(), where the software RF switch is normally set to RX.
+      uint32_t symbolPeriod = (uint32_t)(((1000.0f * (float)(1UL << this->spreadingFactor)) /
+                                          this->bandwidthKhz) + 0.999f);
       uint32_t transitionTime = this->tcxoDelay + 1000;
-      sleepPeriod -= transitionTime;
+      if (sleepPeriod <= transitionTime) {
+        return RADIOLIB_ERR_INVALID_SLEEP_PERIOD;
+      }
+      uint32_t programmedSleepPeriod = sleepPeriod - transitionTime;
 
-      uint32_t rxPeriodRaw = (rxPeriod * 32768UL) / 1000000UL;
-      uint32_t sleepPeriodRaw = (sleepPeriod * 32768UL) / 1000000UL;
+      // PreambleDetected restarts the timeout at 2*rx + sleep. LR1110 testing
+      // established 78 ms RX / 26.851 ms sleep as the production minimum at
+      // SF8, BW 62.5 kHz. Preamble + 11 symbols plus 1 ms preserves that margin.
+      uint64_t requiredExtendedPeriod =
+          ((uint64_t)this->preambleLengthLoRa + 11ULL) * symbolPeriod + 1000ULL;
+      uint64_t extendedPeriod = 2ULL * rxPeriod + programmedSleepPeriod;
+      if (extendedPeriod < requiredExtendedPeriod) {
+        rxPeriod = (uint32_t)((requiredExtendedPeriod - programmedSleepPeriod + 1ULL) / 2ULL);
+      }
+
+      uint32_t rxPeriodRaw = (uint32_t)(((uint64_t)rxPeriod * 32768UL) / 1000000UL);
+      uint32_t sleepPeriodRaw = (uint32_t)(((uint64_t)programmedSleepPeriod * 32768UL) / 1000000UL);
 
       if ((rxPeriodRaw & 0xFF000000) || (rxPeriodRaw == 0)) {
         return RADIOLIB_ERR_INVALID_RX_PERIOD;
@@ -43,6 +56,13 @@ class CustomLR1110 : public LR1110 {
         return RADIOLIB_ERR_INVALID_SLEEP_PERIOD;
       }
 
+      // Semtech requires Standby RC and an explicitly configured RTC source
+      // before SetRxDutyCycle. RadioLib does neither in its LoRa RXPS path.
+      int16_t state = standby(RADIOLIB_LR11X0_STANDBY_RC);
+      RADIOLIB_ASSERT(state);
+      state = configLfClock(RADIOLIB_LR11X0_LF_CLK_RC | RADIOLIB_LR11X0_LF_BUSY_RELEASE_ENABLED);
+      RADIOLIB_ASSERT(state);
+
       RadioModeConfig_t cfg = {
         .receive = {
           .timeout = RADIOLIB_LR11X0_RX_TIMEOUT_INF,
@@ -51,10 +71,11 @@ class CustomLR1110 : public LR1110 {
           .len = 0,
         }
       };
-      int16_t state = this->stageMode(RADIOLIB_RADIO_MODE_RX, &cfg);
+      state = this->stageMode(RADIOLIB_RADIO_MODE_RX, &cfg);
       RADIOLIB_ASSERT(state);
 
-      this->mod->setRfSwitchState(Module::MODE_RX);
+      // Send the already converted values. RadioLib 7.7.1 converts them again
+      // with 32-bit arithmetic, which overflows for periods above about 131 ms.
       return this->setRxDutyCycle(rxPeriodRaw, sleepPeriodRaw, RADIOLIB_LR11X0_RX_DUTY_CYCLE_MODE_RX);
     }
 

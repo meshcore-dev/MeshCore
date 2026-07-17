@@ -48,11 +48,10 @@ protected:
   int8_t _cur_dbm;
   bool _params_valid, _dbm_valid;
 
-  // Periodic noise-floor calibration (only while RX duty-cycle powersaving is
-  // armed): a duty-cycled receiver can't be sampled reliably, so at least once
-  // a minute the wrapper drops to plain continuous RX, collects a fresh sample
-  // batch exactly like the non-powersaving path does, publishes the average
-  // into _noise_floor and re-arms the duty cycle.
+  // Initial and periodic noise-floor calibration (only while RX duty-cycle
+  // powersaving is armed): a duty-cycled receiver can't be sampled reliably,
+  // so at least once a minute the wrapper drops to plain continuous RX,
+  // collects a fresh sample batch, publishes it and re-arms the duty cycle.
   bool _nf_calib_active;
   unsigned long _nf_last_calib;       // millis of last completed/attempted window
   unsigned long _nf_calib_deadline;   // abort window if the batch can't complete

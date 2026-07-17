@@ -163,7 +163,7 @@ void RadioLibWrapper::rxPsWatchdogCheck() {
   }
 }
 
-// Periodic noise-floor calibration, active only with RX duty-cycle powersaving:
+// Initial and periodic noise-floor calibration, active only with RX duty-cycle powersaving:
 // a duty-cycled receiver can't be sampled reliably (the frontend is off in the
 // sleep windows and settling right after each wake), so at least once a minute
 // the receive mode is dropped to plain continuous RX, a fresh sample batch is
@@ -178,7 +178,7 @@ void RadioLibWrapper::noiseFloorCalibCheck() {
       endNoiseFloorCalib(now);
     }
   } else if (_rx_ps_enabled && _rx_ps_armed && state == STATE_RX
-             && now - _nf_last_calib >= NF_CALIB_INTERVAL_MS
+             && (_nf_last_calib == 0 || now - _nf_last_calib >= NF_CALIB_INTERVAL_MS)
              && !isReceivingPacket()) {
     // never interrupt an ongoing reception to calibrate (a TX in flight is
     // already excluded by state == STATE_RX); retries next loop iteration
