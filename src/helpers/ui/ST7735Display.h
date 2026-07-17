@@ -6,6 +6,18 @@
 #include "TFT_eSPI.h"
 #include <helpers/RefCountedDigitalPin.h>
 
+#if defined(ESP32) && defined(FS_NO_GLOBALS)
+// TFT_eSPI with SMOOTH_FONT defines FS_NO_GLOBALS before including FS.h,
+// which suppresses the global aliases the rest of the codebase relies on.
+#include <FS.h>
+using fs::FS;
+using fs::File;
+using fs::SeekMode;
+using fs::SeekSet;
+using fs::SeekCur;
+using fs::SeekEnd;
+#endif
+
 class ST7735Display : public DisplayDriver {
   bool _isOn;
   RefCountedDigitalPin* _peripher_power;
