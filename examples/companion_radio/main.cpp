@@ -49,7 +49,7 @@ static uint32_t _atoi(const char* sp) {
     ArduinoSerialInterface serial_interface;
     HardwareSerial companion_serial(1);
   #elif defined(ETHERNET_ENABLED)
-    #include <helpers/ethernet/Ethernet.h>
+    #include <helpers/ethernet/EthernetInterface.h>
     ETHERNET_CLASS serial_interface;
   #else
     #include <helpers/ArduinoSerialInterface.h>
