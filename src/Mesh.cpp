@@ -55,6 +55,7 @@ void Mesh::begin() {
 }
 
 void Mesh::loop() {
+  tickHopRetryPending();
   Dispatcher::loop();
 #if defined(ENABLE_OTA)
   // Deferred apply-reboot: a verified `ota applydelta` approves the update but does NOT reboot inline,
@@ -138,6 +139,107 @@ uint8_t Mesh::getExtraAckTransmitCount() const {
   return 0;
 }
 
+void Mesh::copyPacketFields(Packet* dest, const Packet* src) {
+  dest->header = src->header;
+  dest->path_len = src->path_len;
+  dest->payload_len = src->payload_len;
+  dest->transport_codes[0] = src->transport_codes[0];
+  dest->transport_codes[1] = src->transport_codes[1];
+  dest->_snr = 0;
+  memcpy(dest->path, src->path, src->getPathByteLen());
+  memcpy(dest->payload, src->payload, src->payload_len);
+}
+
+void Mesh::clearHopRetryPending(int idx) {
+  if (_hop_retry_pending[idx].pkt) {
+    releasePacket(_hop_retry_pending[idx].pkt);
+  }
+  _hop_retry_pending[idx].pkt = NULL;
+  _hop_retry_pending[idx].retries_left = 0;
+}
+
+void Mesh::clearHopRetryPendingByHash(const uint8_t* hash) {
+  for (int i = 0; i < HOP_RETRY_PENDING_MAX; i++) {
+    if (_hop_retry_pending[i].pkt && memcmp(_hop_retry_pending[i].hash, hash, MAX_HASH_SIZE) == 0) {
+      clearHopRetryPending(i);
+    }
+  }
+}
+
+void Mesh::armHopRetryPending(const Packet* forwarded, uint32_t initial_delay_ms) {
+  uint8_t retries = getHopRetryCount();
+  if (retries == 0 || forwarded->getPathHashCount() == 0) return;
+  if (_mgr->getFreeCount() < HOP_RETRY_MIN_FREE) return;
+
+  uint8_t hash[MAX_HASH_SIZE];
+  forwarded->calculatePacketHash(hash);
+  clearHopRetryPendingByHash(hash);
+
+  int slot = -1;
+  for (int i = 0; i < HOP_RETRY_PENDING_MAX; i++) {
+    if (_hop_retry_pending[i].pkt == NULL) {
+      slot = i;
+      break;
+    }
+  }
+  if (slot < 0) {
+    clearHopRetryPending(0);
+    slot = 0;
+  }
+
+  Packet* clone = obtainNewPacket();
+  if (clone == NULL) return;
+
+  copyPacketFields(clone, forwarded);
+  memcpy(_hop_retry_pending[slot].hash, hash, MAX_HASH_SIZE);
+  _hop_retry_pending[slot].next_hop_sz = forwarded->getPathHashSize();
+  memcpy(_hop_retry_pending[slot].next_hop, forwarded->path, _hop_retry_pending[slot].next_hop_sz);
+  _hop_retry_pending[slot].pkt = clone;
+  _hop_retry_pending[slot].retries_left = retries;
+  _hop_retry_pending[slot].deadline = futureMillis(getHopRetryTimeoutMs() + initial_delay_ms);
+}
+
+void Mesh::checkHopRetryOverhear(const Packet* pkt) {
+  if (!pkt->isRouteDirect()) return;
+
+  uint8_t hash[MAX_HASH_SIZE];
+  pkt->calculatePacketHash(hash);
+
+  for (int i = 0; i < HOP_RETRY_PENDING_MAX; i++) {
+    HopRetryPending* p = &_hop_retry_pending[i];
+    if (p->pkt == NULL) continue;
+    if (memcmp(p->hash, hash, MAX_HASH_SIZE) != 0) continue;
+
+    bool next_hop_still_front = pkt->getPathHashCount() > 0
+      && memcmp(pkt->path, p->next_hop, p->next_hop_sz) == 0;
+    if (!next_hop_still_front) {
+      clearHopRetryPending(i);
+    }
+  }
+}
+
+void Mesh::tickHopRetryPending() {
+  for (int i = 0; i < HOP_RETRY_PENDING_MAX; i++) {
+    HopRetryPending* p = &_hop_retry_pending[i];
+    if (p->pkt == NULL) continue;
+    if (!millisHasNowPassed(p->deadline)) continue;
+
+    if (p->retries_left == 0) {
+      clearHopRetryPending(i);
+      continue;
+    }
+
+    Packet* retry = obtainNewPacket();
+    if (retry == NULL) continue;
+
+    copyPacketFields(retry, p->pkt);
+    uint32_t d = getDirectRetransmitDelay(retry);
+    sendPacket(retry, 0, d);
+    p->retries_left--;
+    p->deadline = futureMillis(getHopRetryTimeoutMs() + d);
+  }
+}
+
 uint32_t Mesh::getCADFailRetryDelay() const {
   return _rng->nextInt(1, 4)*120;
 }
@@ -186,6 +288,10 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
     return ACTION_RELEASE;
   }
 
+  if (pkt->isRouteDirect()) {
+    checkHopRetryOverhear(pkt);
+  }
+
   if (pkt->isRouteDirect() && pkt->getPathHashCount() > 0) {
     // check for 'early received' ACK
     if (pkt->getPayloadType() == PAYLOAD_TYPE_ACK) {
@@ -203,6 +309,7 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
       } else if (pkt->getPayloadType() == PAYLOAD_TYPE_ACK) {
         if (!_tables->hasSeen(pkt)) {  // don't retransmit!
           removeSelfFromPath(pkt);
+          armHopRetryPending(pkt, 0);
           routeDirectRecvAcks(pkt, 0);
         }
         return ACTION_RELEASE;
@@ -210,8 +317,9 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
 
       if (!_tables->hasSeen(pkt)) {
         removeSelfFromPath(pkt);
-
         uint32_t d = getDirectRetransmitDelay(pkt);
+        armHopRetryPending(pkt, d);
+
         return ACTION_RETRANSMIT_DELAYED(0, d);  // Routed traffic is HIGHEST priority 
       }
     }
@@ -498,7 +606,9 @@ DispatcherAction Mesh::forwardMultipartDirect(Packet* pkt) {
 
     if (!_tables->hasSeen(&tmp)) {   // don't retransmit!
       removeSelfFromPath(&tmp);
-      routeDirectRecvAcks(&tmp, ((uint32_t)remaining + 1) * 300);  // expect multipart ACKs 300ms apart (x2)
+      uint32_t d = ((uint32_t)remaining + 1) * 300;
+      armHopRetryPending(&tmp, d);
+      routeDirectRecvAcks(&tmp, d);  // expect multipart ACKs 300ms apart (x2)
     }
   }
   return ACTION_RELEASE;

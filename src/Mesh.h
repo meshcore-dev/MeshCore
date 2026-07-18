@@ -46,6 +46,30 @@ class Mesh : public Dispatcher {
   //void routeRecvAcks(Packet* packet, uint32_t delay_millis);
   DispatcherAction forwardMultipartDirect(Packet* pkt);
 
+#ifndef HOP_RETRY_PENDING_MAX
+#define HOP_RETRY_PENDING_MAX 4
+#endif
+#ifndef HOP_RETRY_MIN_FREE
+#define HOP_RETRY_MIN_FREE 4
+#endif
+
+  struct HopRetryPending {
+    uint8_t hash[MAX_HASH_SIZE];
+    uint8_t next_hop[MAX_PATH_SIZE];
+    uint8_t next_hop_sz;
+    Packet* pkt;
+    uint8_t retries_left;
+    unsigned long deadline;
+  };
+  HopRetryPending _hop_retry_pending[HOP_RETRY_PENDING_MAX];
+
+  void copyPacketFields(Packet* dest, const Packet* src);
+  void armHopRetryPending(const Packet* forwarded, uint32_t initial_delay_ms = 0);
+  void checkHopRetryOverhear(const Packet* pkt);
+  void clearHopRetryPending(int idx);
+  void clearHopRetryPendingByHash(const uint8_t* hash);
+  void tickHopRetryPending();
+
 protected:
   DispatcherAction onRecvPacket(Packet* pkt) override;
 
@@ -82,6 +106,16 @@ protected:
    * \returns  number of extra (Direct) ACK transmissions wanted.
    */
   virtual uint8_t getExtraAckTransmitCount() const;
+
+  /**
+   * \returns  extra direct-path retransmits if the next hop is not overheard (0 = off).
+   */
+  virtual uint8_t getHopRetryCount() const { return 0; }
+
+  /**
+   * \returns  milliseconds to wait for the next hop's relay before retrying.
+   */
+  virtual uint16_t getHopRetryTimeoutMs() const { return 1500; }
 
   /**
    * \brief  Perform search of local DB of peers/contacts.
@@ -201,6 +235,9 @@ protected:
   Mesh(Radio& radio, MillisecondClock& ms, RNG& rng, RTCClock& rtc, PacketManager& mgr, MeshTables& tables)
     : Dispatcher(radio, ms, mgr), _rng(&rng), _rtc(&rtc), _tables(&tables)
   {
+    for (int i = 0; i < HOP_RETRY_PENDING_MAX; i++) {
+      _hop_retry_pending[i].pkt = NULL;
+    }
   }
 
   MeshTables* getTables() const { return _tables; }

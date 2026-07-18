@@ -159,6 +159,12 @@ protected:
   uint8_t getExtraAckTransmitCount() const override {
     return _prefs.multi_acks;
   }
+  uint8_t getHopRetryCount() const override {
+    return _prefs.hop_retry;
+  }
+  uint16_t getHopRetryTimeoutMs() const override {
+    return _prefs.hop_retry_ms;
+  }
 
 #if ENV_INCLUDE_GPS == 1
   void applyGpsPrefs() {

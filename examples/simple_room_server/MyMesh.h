@@ -150,6 +150,12 @@ protected:
   uint8_t getExtraAckTransmitCount() const override {
     return _prefs.multi_acks;
   }
+  uint8_t getHopRetryCount() const override {
+    return _prefs.hop_retry;
+  }
+  uint16_t getHopRetryTimeoutMs() const override {
+    return _prefs.hop_retry_ms;
+  }
 
   bool filterRecvFloodPacket(mesh::Packet* pkt) override;
 

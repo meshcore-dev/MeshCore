@@ -71,6 +71,8 @@ struct NodePrefs { // persisted to file
   uint16_t ota_checkpoint_blocks; // resume checkpoint cadence (blocks); 0=never. Default 4 (runtime-tunable)
   uint16_t ota_advert_interval;   // OTA beacon re-advertise cadence (mins); 0=off. Default 1440 (24h, tunable)
   uint8_t ota_max_hops;           // OTA flood reach in hops; 0=direct only. Default 3 (runtime-tunable)
+  uint8_t hop_retry;              // extra direct-path TX if next hop not overheard (0=off). Default 0 (opt-in)
+  uint16_t hop_retry_ms;          // listen TTL before retry (ms). Default 1500
 };
 
 class CommonCLICallbacks {

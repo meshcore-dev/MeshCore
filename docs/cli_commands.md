@@ -499,6 +499,21 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 ---
 
+#### View or change next-hop retry for direct-path relays
+**Usage:**
+- `get hop.retry`
+- `set hop.retry <count>`
+- `get hop.retry.ms`
+- `set hop.retry.ms <milliseconds>`
+
+**Parameters:**
+- `count`: Extra retransmits if the next hop is not overheard relaying (0-5). `0` disables hop retry (fire-and-forget). Default `2` means up to 3 total transmissions (initial + 2 retries).
+- `milliseconds`: Listen window before each retry (200-10000). Default `1500`.
+
+**Note:** When a repeater forwards a direct-path packet, it listens for the next hop's retransmit as a soft ACK. If nothing is heard within `hop.retry.ms`, it sends again. Not used on the last hop (zero-hop delivery to the destination). Prefer `set multi.acks 0` when hop retry is enabled — hop retry already covers ACK reliability per hop.
+
+---
+
 #### [Experimental] View or change the processing delay for received traffic
 **Usage:**
 - `get rxdelay`
@@ -585,6 +600,8 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 - `state`: `0` (disable) or `1` (enable)
 
 **Default:** `0`
+
+**Note:** Sends extra copies of direct ACKs. With hop retry enabled (`hop.retry` > 0), prefer leaving this off — hop retry listens for the next hop's relay instead of blind duplicate ACKs.
 
 ---
 
