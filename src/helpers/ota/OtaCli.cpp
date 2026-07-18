@@ -180,16 +180,29 @@ bool handle_ota_command(const char* command, char* reply, mesh::MainBoard& board
   } else if (is_cmd(a, "neighbors|nbrs|updates|ls|n", &rest)) {
     // Kick a fresh round of catalog queries (async — rows arrive over the next seconds); render what we
     // have now in plain words. The reply buffer is 160 B (serial / one LoRa packet for remote-admin), so
-    // writes are bounded and extra rows collapse to "+N more".
+    // writes are bounded and extra rows collapse to "+N more". Optional `ota ls <N>` starts at entry N.
     c.manager.queryAll();
     const int CAP = 160;
+    const char* p = rest; while (*p == ' ') p++;
+    int start = 1;
+    if (*p >= '0' && *p <= '9') {
+      start = (int)parse_u32(p);
+      if (start < 1) { strcpy(reply, "ERR usage: ota ls [N]  (start at entry N, default 1)"); return true; }
+    }
+    uint8_t cat_n = c.manager.catalogCount();
+    if (start > cat_n && cat_n > 0) {
+      snprintf(reply, CAP, "ERR entry %d > catalog (%u)", start, (unsigned)cat_n);
+      return true;
+    }
     int n = snprintf(reply, CAP, "Updates nearby (%u src) — `ota get <#>` to download:",
                      (unsigned)c.manager.sourceCount());
     OtaManager::FetchState fs = c.manager.fetchState();
     const uint8_t* cur = (fs != OtaManager::IDLE) ? c.manager.fetchManifestId() : nullptr;
     uint32_t myt = c.manager.target();   // effective target (EndF identity if present, else build flag)
     uint32_t now = millis(); int shown = 0, more = 0;
-    for (uint8_t i = 0; i < c.manager.catalogCount(); i++) {
+    for (uint8_t i = 0; i < cat_n; i++) {
+      const int num = i + 1;
+      if (num < start) continue;
       const OtaManager::CatRow* h = c.manager.catalogRow(i);
       if (CAP - n < 48) { more++; continue; }
       bool on = cur && memcmp(cur, h->mid, 4) == 0;
@@ -213,7 +226,7 @@ bool handle_ota_command(const char* command, char* reply, mesh::MainBoard& board
       else if (env)                   fit = env;
       else if (h->target_id == 0)     fit = "?";
       else { snprintf(hwbuf, sizeof hwbuf, "hw %08X", (unsigned)h->target_id); fit = hwbuf; }
-      n += snprintf(reply + n, CAP - n, "\n %d) %s %s [%s] %un %us%s", shown + 1, ver,
+      n += snprintf(reply + n, CAP - n, "\n %d) %s %s [%s] %un %us%s", num, ver,
                     codec_kind(h->codec), fit, (unsigned)h->n_seeders, (unsigned)age, tag);
       shown++;
     }
