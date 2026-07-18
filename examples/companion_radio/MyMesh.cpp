@@ -267,6 +267,18 @@ bool MyMesh::getCADEnabled() const {
   return true; // hardware CAD before TX (no CLI toggle on companion; enabled by default)
 }
 
+#if defined(RXPS_FIXED_ENABLED) || defined(RXPS_FIXED_LEVEL) || defined(RXPS_FIXED_PREAMBLE)
+#if !defined(RXPS_FIXED_ENABLED) || !defined(RXPS_FIXED_LEVEL) || !defined(RXPS_FIXED_PREAMBLE)
+#error "RXPS_FIXED_ENABLED, RXPS_FIXED_LEVEL, and RXPS_FIXED_PREAMBLE must be defined together"
+#endif
+#if RXPS_FIXED_LEVEL < 1 || RXPS_FIXED_LEVEL > 10
+#error "RXPS_FIXED_LEVEL must be between 1 and 10"
+#endif
+#if RXPS_FIXED_PREAMBLE != 16 && RXPS_FIXED_PREAMBLE != 32
+#error "RXPS_FIXED_PREAMBLE must be 16 or 32"
+#endif
+#endif
+
 #ifdef RXPS_FIXED_ENABLED
 static uint32_t ceilPositiveFloat(float value) {
   uint32_t rounded = (uint32_t)value;
