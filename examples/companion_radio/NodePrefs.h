@@ -65,7 +65,7 @@ private:
   };
   RadioPrefs radio;
 
-  class GPSPrefs : public ConfigSerializer {  // COPIED from CommionCLI (for now)
+  class GPSPrefs : public ConfigSerializer {  // COPIED from CommonCLI (for now)
     NodePrefs* _parent;
   protected:
     void structure() override {
@@ -78,7 +78,7 @@ private:
   };
   GPSPrefs gps;
 
-  class RepeatPrefs : public ConfigSerializer {  // COPIED from CommionCLI (for now)
+  class RepeatPrefs : public ConfigSerializer {  // COPIED from CommonCLI (for now)
   public:
     uint8_t disable_fwd = 1;
   protected:

@@ -28,8 +28,12 @@ static bool isValidName(const char *n) {
 }
 
 void CommonCLI::loadPrefs(FILESYSTEM* fs) {
-  if (fs->exists("/ser_prefs")) {
-    File file = fs->open("/ser_prefs");
+  if (fs->exists("/prefs.json")) {
+#if defined(RP2040_PLATFORM)
+    File file = fs->open("/prefs.json", "r");
+#else
+    File file = fs->open("/prefs.json");
+#endif
     if (file) {
       _prefs->loadSerial(file);   // new Serial prefs
       file.close();
@@ -137,12 +141,12 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {  // Legacy 
 
 bool CommonCLI::savePrefs(FILESYSTEM* fs) {
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
-  fs->remove("/ser_prefs");
-  File file = fs->open("/ser_prefs", FILE_O_WRITE);
+  fs->remove("/prefs.json");
+  File file = fs->open("/prefs.json", FILE_O_WRITE);
 #elif defined(RP2040_PLATFORM)
-  File file = fs->open("/ser_prefs", "w");
+  File file = fs->open("/prefs.json", "w");
 #else
-  File file = fs->open("/ser_prefs", "w", true);
+  File file = fs->open("/prefs.json", "w", true);
 #endif
   if (file) {
     bool success = _prefs->saveSerial(file);
