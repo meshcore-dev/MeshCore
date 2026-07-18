@@ -16,12 +16,14 @@ protected:
   mesh::MainBoard* _board;
   uint32_t n_recv, n_sent, n_recv_errors;
   int16_t _noise_floor, _threshold;
+  float _last_rssi, _last_snr;
   bool _cad_enabled;
   uint16_t _num_floor_samples;
   int32_t _floor_sample_sum;
   uint8_t _preamble_sf;
   bool _rx_ps_enabled;
   bool _rx_ps_armed;      // radio is currently in RX duty-cycle mode
+  bool _rx_hold_continuous;
   uint32_t _rx_ps_rx_us;
   uint32_t _rx_ps_sleep_us;
 
@@ -81,16 +83,18 @@ protected:
 public:
   RadioLibWrapper(PhysicalLayer& radio, mesh::MainBoard& board)
       : _radio(&radio), _board(&board), _preamble_sf(0), _rx_ps_enabled(false), _rx_ps_armed(false),
+        _rx_hold_continuous(false),
         _rx_ps_rx_us(RX_PS_FALLBACK_RX_US), _rx_ps_sleep_us(RX_PS_FALLBACK_SLEEP_US),
         _wd_last_busy(false), _wd_stage(0), _wd_strikes(0), _startrx_fails(0), _wd_last_transition(0),
         _wd_stuck_thresh(0), _wd_observe_until(0), _wd_observe_ms(0),
         _params_valid(false), _dbm_valid(false),
         _nf_calib_active(false), _nf_last_calib(0), _nf_calib_deadline(0), _nf_sample_from(0)
-        { n_recv = n_sent = n_recv_errors = n_wd_soft = n_wd_hard = 0; }
+        { n_recv = n_sent = n_recv_errors = n_wd_soft = n_wd_hard = 0; _last_rssi = _last_snr = 0; }
 
   void begin() override;
   virtual void powerOff() { _radio->sleep(); }
   int recvRaw(uint8_t* bytes, int sz) override;
+  void onReceiveProcessed() override;
   uint32_t getEstAirtimeFor(int len_bytes) override;
   bool startSendRaw(const uint8_t* bytes, int len) override;
   bool isSendComplete() override;
@@ -136,8 +140,8 @@ public:
   bool isCalibratingNoiseFloor() const { return _nf_calib_active; }
   void resetStats() { n_recv = n_sent = n_recv_errors = 0; }
 
-  virtual float getLastRSSI() const override;
-  virtual float getLastSNR() const override;
+  float getLastRSSI() const override final;
+  float getLastSNR() const override final;
 
   float packetScore(float snr, int packet_len) override { return packetScoreInt(snr, 10, packet_len); }  // assume sf=10
 

@@ -314,9 +314,14 @@ int RadioLibWrapper::recvRaw(uint8_t* bytes, int sz) {
   int len = 0;
   if (state & STATE_INT_READY) {
     if (isPacketReady()) {
+      if (_rx_ps_armed) {
+        stopReceiveDutyCycle();
+      }
       len = _radio->getPacketLength();
       if (len > 0) {
         if (len > sz) { len = sz; }
+        _last_snr = _radio->getSNR();
+        _last_rssi = _radio->getRSSI();
         int err = _radio->readData(bytes, len);
         if (err != RADIOLIB_ERR_NONE) {
           MESH_DEBUG_PRINTLN("RadioLibWrapper: error: readData(%d)", err);
@@ -331,10 +336,42 @@ int RadioLibWrapper::recvRaw(uint8_t* bytes, int sz) {
     state = STATE_IDLE;   // need another startReceive()
   }
 
+  if (len > 0 && _rx_ps_enabled) {
+    _rx_hold_continuous = true;
+    int err = _radio->startReceive();
+    if (err == RADIOLIB_ERR_NONE) {
+      state = STATE_RX;
+      if (_nf_calib_active) {
+        _nf_sample_from = millis() + NF_CALIB_SETTLE_MS;
+      }
+    } else {
+      MESH_DEBUG_PRINTLN("RadioLibWrapper: error: startReceive after packet (%d)", err);
+    }
+    return len;
+  }
+
   if (state != STATE_RX) {
     startRecv();
   }
   return len;
+}
+
+void RadioLibWrapper::onReceiveProcessed() {
+  if (!_rx_hold_continuous) return;
+
+  if ((state & ~STATE_INT_READY) == STATE_TX_WAIT) {
+    _rx_hold_continuous = false;
+    return;
+  }
+  if ((state & STATE_INT_READY) != 0 || isReceivingPacket()) {
+    return;
+  }
+
+  _rx_hold_continuous = false;
+  if (!_rx_ps_enabled || _nf_calib_active) return;
+
+  state = STATE_IDLE;
+  startRecv();
 }
 
 uint32_t RadioLibWrapper::getEstAirtimeFor(int len_bytes) {
@@ -403,10 +440,10 @@ bool RadioLibWrapper::isChannelActive() {
 }
 
 float RadioLibWrapper::getLastRSSI() const {
-  return _radio->getRSSI();
+  return _last_rssi;
 }
 float RadioLibWrapper::getLastSNR() const {
-  return _radio->getSNR();
+  return _last_snr;
 }
 
 // Approximate SNR threshold per SF for successful reception (based on Semtech datasheets)
