@@ -201,6 +201,18 @@ int16_t RadioLibWrapper::performChannelScan() {
 
 bool RadioLibWrapper::isChannelActive() {
   if (isAS923_1_JP()) {
+    // Non-blocking backoff: if a prior busy detection armed a backoff wait,
+    // report busy and let Dispatcher::checkSend() re-poll on the next loop()
+    // pass instead of spin-waiting here (which used to block the Dispatcher
+    // loop for up to 16s).
+    if (_lbt_backoff_active) {
+      if ((int32_t)(millis() - _lbt_deadline) < 0) {
+        return true;  // still waiting; re-checked next call
+      }
+      _lbt_backoff_active = false;
+      return isChannelActive();  // backoff elapsed -- re-sense (bounded, single-level recursion)
+    }
+
     // ARIB STD-T108: 5ms continuous RSSI sensing, -80dBm absolute threshold
     uint32_t sense_start = millis();
     while (millis() - sense_start < 5) {
@@ -208,10 +220,8 @@ bool RadioLibWrapper::isChannelActive() {
         _busy_count++;
         uint32_t base_ms = 2000;
         uint32_t max_backoff = min(base_ms * (1u << _busy_count), (uint32_t)16000);
-        uint32_t backoff_until = millis() + random(max_backoff / 2, max_backoff);
-        while (millis() < backoff_until) {
-          YIELD_TASK();
-        }
+        _lbt_deadline = millis() + random(max_backoff / 2, max_backoff);
+        _lbt_backoff_active = true;
         return true;
       }
       YIELD_TASK();

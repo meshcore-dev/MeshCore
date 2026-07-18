@@ -23,6 +23,9 @@ protected:
   int32_t _floor_sample_sum;
   uint8_t _preamble_sf;
 
+  bool _lbt_backoff_active;   // non-blocking wait after RSSI busy detection (up to 16s)
+  uint32_t _lbt_deadline;
+
   void idle();
   void startRecv();
   float packetScoreInt(float snr, int sf, int packet_len);
@@ -30,7 +33,7 @@ protected:
   virtual void doResetAGC();
 
 public:
-  RadioLibWrapper(PhysicalLayer& radio, mesh::MainBoard& board) : _radio(&radio), _board(&board), _busy_count(0), _preamble_sf(0) { n_recv = n_sent = 0; }
+  RadioLibWrapper(PhysicalLayer& radio, mesh::MainBoard& board) : _radio(&radio), _board(&board), _busy_count(0), _preamble_sf(0), _lbt_backoff_active(false), _lbt_deadline(0) { n_recv = n_sent = 0; }
 
   void begin() override;
   virtual void powerOff() { _radio->sleep(); }
