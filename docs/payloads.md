@@ -278,6 +278,17 @@ The data contained in the ciphertext uses the format below:
 | tag          | 4               | reflected back from DISCOVER_REQ           |
 | pubkey       | 8 or 32         | node's ID (or prefix)                      |
 
+## HOP_ACK (sub_type)
+
+Per-hop confirmation sent by a repeater after forwarding a direct-path packet. Zero-hop only (`path_len == 0`).
+
+| Field        | Size (bytes)    | Description                                              |
+|--------------|-----------------|----------------------------------------------------------|
+| flags        | 1               | `0xA0` (`CTL_TYPE_HOP_ACK`)                              |
+| fwd_hash     | 8               | `Packet::calculatePacketHash` of the forwarded packet    |
+| hash_size    | 1               | byte length of `sender_hash` (1, 2, or 3)                |
+| sender_hash  | 1–3             | path hash prefix of the ACK sender (not full pubkey)     |
+
 
 # Custom packet
 

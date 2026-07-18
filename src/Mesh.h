@@ -52,6 +52,10 @@ class Mesh : public Dispatcher {
 #ifndef HOP_RETRY_MIN_FREE
 #define HOP_RETRY_MIN_FREE 4
 #endif
+#ifndef HOP_ACK_CAPABLE_MAX
+#define HOP_ACK_CAPABLE_MAX 24
+#endif
+#define CTL_TYPE_HOP_ACK  0xA0
 
   struct HopRetryPending {
     uint8_t hash[MAX_HASH_SIZE];
@@ -63,9 +67,21 @@ class Mesh : public Dispatcher {
   };
   HopRetryPending _hop_retry_pending[HOP_RETRY_PENDING_MAX];
 
+  struct HopAckCapableEntry {
+    uint8_t hash[MAX_PATH_SIZE];
+    uint8_t hash_sz;
+    uint32_t last_seen;
+    bool in_use;
+  };
+  HopAckCapableEntry _hop_ack_capable[HOP_ACK_CAPABLE_MAX];
+  uint32_t _hop_ack_capable_seq;
+
   void copyPacketFields(Packet* dest, const Packet* src);
   void armHopRetryPending(const Packet* forwarded, uint32_t initial_delay_ms = 0);
-  void checkHopRetryOverhear(const Packet* pkt);
+  void checkHopRetryAck(const Packet* pkt);
+  void sendHopAck(const Packet* forwarded, uint32_t delay_millis);
+  void markHopAckCapable(const uint8_t* hash, uint8_t sz);
+  bool isHopAckCapable(const uint8_t* next_hop, uint8_t sz) const;
   void clearHopRetryPending(int idx);
   void clearHopRetryPendingByHash(const uint8_t* hash);
   void tickHopRetryPending();
@@ -108,12 +124,12 @@ protected:
   virtual uint8_t getExtraAckTransmitCount() const;
 
   /**
-   * \returns  extra direct-path retransmits if the next hop is not overheard (0 = off).
+   * \returns  extra direct-path retransmits if the next hop's hop ACK is not received (0 = off).
    */
   virtual uint8_t getHopRetryCount() const { return 0; }
 
   /**
-   * \returns  milliseconds to wait for the next hop's relay before retrying.
+   * \returns  milliseconds to wait for the next hop's hop ACK before retrying.
    */
   virtual uint16_t getHopRetryTimeoutMs() const { return 1500; }
 
@@ -233,10 +249,13 @@ protected:
   virtual void onAckRecv(Packet* packet, uint32_t ack_crc) { }
 
   Mesh(Radio& radio, MillisecondClock& ms, RNG& rng, RTCClock& rtc, PacketManager& mgr, MeshTables& tables)
-    : Dispatcher(radio, ms, mgr), _rng(&rng), _rtc(&rtc), _tables(&tables)
+    : Dispatcher(radio, ms, mgr), _rng(&rng), _rtc(&rtc), _tables(&tables), _hop_ack_capable_seq(0)
   {
     for (int i = 0; i < HOP_RETRY_PENDING_MAX; i++) {
       _hop_retry_pending[i].pkt = NULL;
+    }
+    for (int i = 0; i < HOP_ACK_CAPABLE_MAX; i++) {
+      _hop_ack_capable[i].in_use = false;
     }
   }
 
