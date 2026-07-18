@@ -5,7 +5,7 @@
 
 #ifdef DISPLAY_CLASS
   #include "UITask.h"
-  static UITask ui_task(display);
+  static UITask ui_task(board, display);
 #endif
 
 #ifdef ETHERNET_ENABLED
@@ -170,7 +170,7 @@ void loop() {
   }
 #endif
 
-#if defined(PIN_USER_BTN) && defined(_SEEED_SENSECAP_SOLAR_H_)
+#if defined(PIN_USER_BTN) && defined(_SEEED_SENSECAP_SOLAR_H_) && !defined(DISPLAY_CLASS)
   // Hold the user button to power off the SenseCAP Solar repeater.
   int btnState = digitalRead(PIN_USER_BTN);
   if (btnState == LOW) {
