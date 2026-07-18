@@ -23,51 +23,51 @@
 class NodePrefs : public ConfigSerializer {
 public:
   // in-memory backing data
-  float airtime_factor;
+  float airtime_factor = 0;
   char node_name[32];
-  double node_lat, node_lon;
+  double node_lat = 0, node_lon = 0;
   char password[16];
-  float freq;
-  int8_t tx_power_dbm;
-  uint8_t disable_fwd;
-  uint8_t advert_interval;       // minutes / 2
-  uint8_t flood_advert_interval; // hours
-  float rx_delay_base;
-  float tx_delay_factor;
+  float freq = 0;
+  int8_t tx_power_dbm = 0;
+  uint8_t disable_fwd = 0;
+  uint8_t advert_interval = 0;       // minutes / 2
+  uint8_t flood_advert_interval = 0; // hours
+  float rx_delay_base = 0;
+  float tx_delay_factor = 0;
   char guest_password[16];
-  float direct_tx_delay_factor;
+  float direct_tx_delay_factor = 0;
   uint32_t guard;
-  uint8_t sf;
-  uint8_t cr;
-  uint8_t allow_read_only;
-  uint8_t multi_acks;
-  float bw;
-  uint8_t flood_max;
-  uint8_t flood_max_unscoped;
-  uint8_t flood_max_advert;
-  uint8_t interference_threshold;
-  uint8_t agc_reset_interval; // secs / 4
+  uint8_t sf = 0;
+  uint8_t cr = 0;
+  uint8_t allow_read_only = 0;
+  uint8_t multi_acks = 0;
+  float bw = 0;
+  uint8_t flood_max = 0;
+  uint8_t flood_max_unscoped = 0;
+  uint8_t flood_max_advert = 0;
+  uint8_t interference_threshold = 0;
+  uint8_t agc_reset_interval = 0; // secs / 4
   // Bridge settings
-  uint8_t bridge_enabled; // boolean
-  uint16_t bridge_delay;  // milliseconds (default 500 ms)
-  uint8_t bridge_pkt_src; // 0 = logTx, 1 = logRx (default logTx)
-  uint32_t bridge_baud;   // 9600, 19200, 38400, 57600, 115200 (default 115200)
-  uint8_t bridge_channel; // 1-14 (ESP-NOW only)
+  uint8_t bridge_enabled = 0; // boolean
+  uint16_t bridge_delay = 0;  // milliseconds (default 500 ms)
+  uint8_t bridge_pkt_src = 0; // 0 = logTx, 1 = logRx (default logTx)
+  uint32_t bridge_baud = 0;   // 9600, 19200, 38400, 57600, 115200 (default 115200)
+  uint8_t bridge_channel = 0; // 1-14 (ESP-NOW only)
   char bridge_secret[16]; // for XOR encryption of bridge packets (ESP-NOW only)
   // Power setting
-  uint8_t powersaving_enabled; // boolean
+  uint8_t powersaving_enabled = 0; // boolean
   // Gps settings
-  uint8_t gps_enabled;
-  uint32_t gps_interval; // in seconds
-  uint8_t advert_loc_policy;
-  uint32_t discovery_mod_timestamp;
-  float adc_multiplier;
+  uint8_t gps_enabled = 0;
+  uint32_t gps_interval = 0; // in seconds
+  uint8_t advert_loc_policy = 0;
+  uint32_t discovery_mod_timestamp = 0;
+  float adc_multiplier = 0;
   char owner_info[120];
-  uint8_t rx_boosted_gain; // power settings
-  uint8_t radio_fem_rxgain; // LoRa FEM RX gain setting
-  uint8_t path_hash_mode;   // which path mode to use when sending
-  uint8_t loop_detect;
-  uint8_t cad_enabled;      // hardware Channel Activity Detection before TX (boolean)
+  uint8_t rx_boosted_gain = 0; // power settings
+  uint8_t radio_fem_rxgain = 0; // LoRa FEM RX gain setting
+  uint8_t path_hash_mode = 0;   // which path mode to use when sending
+  uint8_t loop_detect = 0;
+  uint8_t cad_enabled = 0;      // hardware Channel Activity Detection before TX (boolean)
 
 private:
   class RadioPrefs : public ConfigSerializer {
@@ -182,7 +182,13 @@ protected:
   }
 
 public:
-  NodePrefs() : ConfigSerializer(), bridge(this), gps(this), radio(this), power(this), repeat(this), room(this) { }
+  NodePrefs() : ConfigSerializer(), bridge(this), gps(this), radio(this), power(this), repeat(this), room(this) {
+    node_name[0] = 0;
+    password[0] = 0;
+    guest_password[0] = 0;
+    bridge_secret[0] = 0;
+    owner_info[0] = 0;
+  }
 };
 
 class CommonCLICallbacks {
