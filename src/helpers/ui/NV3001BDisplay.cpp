@@ -2,6 +2,14 @@
 #include <Arduino.h>
 #include <string.h>
 
+#if NV3001B_USE_FAST_GPIO
+  #if !defined(CONFIG_IDF_TARGET_ESP32C6)
+    #error "NV3001B_USE_FAST_GPIO is only supported on ESP32-C6"
+  #endif
+  #include <hal/gpio_ll.h>
+  #include <soc/gpio_struct.h>
+#endif
+
 #ifndef SPI_FREQUENCY
   #define SPI_FREQUENCY 8000000
 #endif
@@ -202,26 +210,71 @@ static void writeOptionalPin(int pin, int level) {
   digitalWrite(pin, level);
 }
 
-void NV3001BDisplay::writeCommand(uint8_t cmd) {
+void NV3001BDisplay::beginTransport() {
+#if NV3001B_USE_SOFTWARE_SPI
+  pinMode(PIN_TFT_SCL, OUTPUT);
+  pinMode(PIN_TFT_SDA, OUTPUT);
+  digitalWrite(PIN_TFT_SCL, LOW);
+  digitalWrite(PIN_TFT_SDA, LOW);
+#else
+  spi.begin(PIN_TFT_SCL, PIN_TFT_MISO, PIN_TFT_SDA, PIN_TFT_CS);
+#endif
+}
+
+void NV3001BDisplay::beginTransfer() {
+#if NV3001B_USE_SOFTWARE_SPI
+  digitalWrite(PIN_TFT_SCL, LOW);
+#else
   spi.beginTransaction(SPISettings(SPI_FREQUENCY, MSBFIRST, SPI_MODE0));
+#endif
+}
+
+void NV3001BDisplay::transferByte(uint8_t value) {
+#if NV3001B_USE_SOFTWARE_SPI
+  for (uint8_t mask = 0x80; mask != 0; mask >>= 1) {
+  #if NV3001B_USE_FAST_GPIO
+    gpio_ll_set_level(&GPIO, PIN_TFT_SDA, (value & mask) ? HIGH : LOW);
+    gpio_ll_set_level(&GPIO, PIN_TFT_SCL, HIGH);
+    gpio_ll_set_level(&GPIO, PIN_TFT_SCL, LOW);
+  #else
+    digitalWrite(PIN_TFT_SDA, (value & mask) ? HIGH : LOW);
+    digitalWrite(PIN_TFT_SCL, HIGH);
+    digitalWrite(PIN_TFT_SCL, LOW);
+  #endif
+  }
+#else
+  spi.transfer(value);
+#endif
+}
+
+void NV3001BDisplay::endTransfer() {
+#if NV3001B_USE_SOFTWARE_SPI
+  digitalWrite(PIN_TFT_SCL, LOW);
+#else
+  spi.endTransaction();
+#endif
+}
+
+void NV3001BDisplay::writeCommand(uint8_t cmd) {
+  beginTransfer();
   digitalWrite(PIN_TFT_DC, LOW);
   digitalWrite(PIN_TFT_CS, LOW);
-  spi.transfer(cmd);
+  transferByte(cmd);
   digitalWrite(PIN_TFT_CS, HIGH);
-  spi.endTransaction();
+  endTransfer();
 }
 
 void NV3001BDisplay::writeBytes(const uint8_t* data, size_t len) {
   if (!data || len == 0) return;
 
-  spi.beginTransaction(SPISettings(SPI_FREQUENCY, MSBFIRST, SPI_MODE0));
+  beginTransfer();
   digitalWrite(PIN_TFT_DC, HIGH);
   digitalWrite(PIN_TFT_CS, LOW);
   for (size_t i = 0; i < len; i++) {
-    spi.transfer(data[i]);
+    transferByte(data[i]);
   }
   digitalWrite(PIN_TFT_CS, HIGH);
-  spi.endTransaction();
+  endTransfer();
 }
 
 void NV3001BDisplay::writeCommandData(uint8_t cmd, const uint8_t* data, size_t len) {
@@ -253,15 +306,15 @@ void NV3001BDisplay::writeColor(uint16_t rgb, uint32_t count) {
   uint8_t hi = rgb >> 8;
   uint8_t lo = rgb & 0xff;
 
-  spi.beginTransaction(SPISettings(SPI_FREQUENCY, MSBFIRST, SPI_MODE0));
+  beginTransfer();
   digitalWrite(PIN_TFT_DC, HIGH);
   digitalWrite(PIN_TFT_CS, LOW);
   while (count--) {
-    spi.transfer(hi);
-    spi.transfer(lo);
+    transferByte(hi);
+    transferByte(lo);
   }
   digitalWrite(PIN_TFT_CS, HIGH);
-  spi.endTransaction();
+  endTransfer();
 }
 
 void NV3001BDisplay::initPanel() {
@@ -427,7 +480,7 @@ bool NV3001BDisplay::begin() {
   digitalWrite(PIN_TFT_DC, HIGH);
   delay(20);
 
-  spi.begin(PIN_TFT_SCL, PIN_TFT_MISO, PIN_TFT_SDA, PIN_TFT_CS);
+  beginTransport();
   if (PIN_TFT_RST >= 0) {
     pinMode(PIN_TFT_RST, OUTPUT);
     digitalWrite(PIN_TFT_RST, HIGH);
