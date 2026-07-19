@@ -12,6 +12,67 @@ static uint32_t _atoi(const char* sp) {
   return n;
 }
 
+// interface manager
+#include <helpers/MultiSerialInterface.h>
+MultiSerialInterface interface_manager;
+
+// include bluetooth interface
+#if defined(BLE_PIN_CODE)
+  #ifdef ESP32
+    // include esp32 bluetooth interface
+    #include <helpers/esp32/SerialBLEInterface.h>
+    SerialBLEInterface bluetooth_interface;
+  #elif defined(NRF52_PLATFORM)
+    // include nrf52 bluetooth interface
+    #include <helpers/nrf52/SerialBLEInterface.h>
+    SerialBLEInterface bluetooth_interface;
+  #else
+    #error "SerialBLEInterface is not defined for this platform"
+  #endif
+#endif
+
+// include wifi interface
+#ifdef WIFI_SSID
+  #ifndef TCP_PORT
+    #define TCP_PORT 5000
+  #endif
+  #ifdef ESP32
+    // include esp32 wifi interface
+    #include <helpers/esp32/SerialWifiInterface.h>
+    SerialWifiInterface wifi_interface;
+  #else
+    #error "SerialWifiInterface is not defined for this platform"
+  #endif
+#endif
+
+// include usb interface
+#if defined(ENABLE_USB_INTERFACE)
+  #include <helpers/ArduinoSerialInterface.h>
+  ArduinoSerialInterface usb_serial_interface;
+#endif
+
+// include ethernet interface
+#if defined(ETHERNET_ENABLED)
+  // todo refactor rak/nrf52 SerialEthernetInterface to new EthernetInterface
+  #if defined(NRF52_PLATFORM)
+    // include nrf52 ethernet interface
+    #include <helpers/nrf52/SerialEthernetInterface.h>
+    SerialEthernetInterface ethernet_interface;
+  #else
+    // include ethernet interface
+    #include <helpers/ethernet/EthernetInterface.h>
+    ETHERNET_CLASS ethernet_interface;
+  #endif
+#endif
+
+// include hardware serial interface
+#if defined(SERIAL_RX)
+  #include <helpers/ArduinoSerialInterface.h>
+  ArduinoSerialInterface hardware_serial_interface;
+  HardwareSerial companion_serial(1);
+#endif
+
+// platform file system
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
   #include <InternalFileSystem.h>
   #if defined(QSPIFLASH)
@@ -34,67 +95,10 @@ static uint32_t _atoi(const char* sp) {
   DataStore store(SPIFFS, rtc_clock);
 #endif
 
-#ifdef ESP32
-  #ifdef WIFI_SSID
-    #include <helpers/esp32/SerialWifiInterface.h>
-    SerialWifiInterface serial_interface;
-    #ifndef TCP_PORT
-      #define TCP_PORT 5000
-    #endif
-  #elif defined(BLE_PIN_CODE)
-    #include <helpers/esp32/SerialBLEInterface.h>
-    SerialBLEInterface serial_interface;
-  #elif defined(SERIAL_RX)
-    #include <helpers/ArduinoSerialInterface.h>
-    ArduinoSerialInterface serial_interface;
-    HardwareSerial companion_serial(1);
-  #elif defined(ETHERNET_ENABLED)
-    #include <helpers/ethernet/EthernetInterface.h>
-    ETHERNET_CLASS serial_interface;
-  #else
-    #include <helpers/ArduinoSerialInterface.h>
-    ArduinoSerialInterface serial_interface;
-  #endif
-#elif defined(RP2040_PLATFORM)
-  //#ifdef WIFI_SSID
-  //  #include <helpers/rp2040/SerialWifiInterface.h>
-  //  SerialWifiInterface serial_interface;
-  //  #ifndef TCP_PORT
-  //    #define TCP_PORT 5000
-  //  #endif
-  // #elif defined(BLE_PIN_CODE)
-  //   #include <helpers/rp2040/SerialBLEInterface.h>
-  //   SerialBLEInterface serial_interface;
-  #if defined(SERIAL_RX)
-    #include <helpers/ArduinoSerialInterface.h>
-    ArduinoSerialInterface serial_interface;
-    HardwareSerial companion_serial(1);
-  #else
-    #include <helpers/ArduinoSerialInterface.h>
-    ArduinoSerialInterface serial_interface;
-  #endif
-#elif defined(NRF52_PLATFORM)
-  #ifdef BLE_PIN_CODE
-    #include <helpers/nrf52/SerialBLEInterface.h>
-    SerialBLEInterface serial_interface;
-  #elif defined(ETHERNET_ENABLED)
-    #include <helpers/nrf52/SerialEthernetInterface.h>
-    SerialEthernetInterface serial_interface;
-  #else
-    #include <helpers/ArduinoSerialInterface.h>
-    ArduinoSerialInterface serial_interface;
-  #endif
-#elif defined(STM32_PLATFORM)
-  #include <helpers/ArduinoSerialInterface.h>
-  ArduinoSerialInterface serial_interface;
-#else
-  #error "need to define a serial interface"
-#endif
-
 /* GLOBAL OBJECTS */
 #ifdef DISPLAY_CLASS
   #include "UITask.h"
-  UITask ui_task(&board, &serial_interface);
+  UITask ui_task(&board, &interface_manager);
 #endif
 
 StdRNG fast_rng;
@@ -164,26 +168,6 @@ void setup() {
         false
     #endif
   );
-
-#ifdef BLE_PIN_CODE
-  serial_interface.begin(BLE_NAME_PREFIX, the_mesh.getNodePrefs()->node_name, the_mesh.getBLEPin());
-  the_mesh.startInterface(serial_interface);
-#elif defined(ETHERNET_ENABLED)
-  Serial.print("Waiting for serial to connect...\n");
-  unsigned long timeout = millis();
-  while (!Serial) {
-    if ((millis() - timeout) < 5000) { delay(100); } else { break; }
-  }
-  Serial.println("Initializing Ethernet adapter...");
-  if (serial_interface.begin()) {
-    the_mesh.startInterface(serial_interface);
-  } else {
-    Serial.println("ETH: Init failed, continuing without Ethernet (mesh only)");
-  }
-#else
-  serial_interface.begin(Serial);
-  the_mesh.startInterface(serial_interface);
-#endif
 #elif defined(RP2040_PLATFORM)
   LittleFS.begin();
   store.begin();
@@ -194,22 +178,6 @@ void setup() {
         false
     #endif
   );
-
-  //#ifdef WIFI_SSID
-  //  WiFi.begin(WIFI_SSID, WIFI_PWD);
-  //  serial_interface.begin(TCP_PORT);
-  // #elif defined(BLE_PIN_CODE)
-  //   char dev_name[32+16];
-  //   sprintf(dev_name, "%s%s", BLE_NAME_PREFIX, the_mesh.getNodeName());
-  //   serial_interface.begin(dev_name, the_mesh.getBLEPin());
-  #if defined(SERIAL_RX)
-    companion_serial.setPins(SERIAL_RX, SERIAL_TX);
-    companion_serial.begin(115200);
-    serial_interface.begin(companion_serial);
-  #else
-    serial_interface.begin(Serial);
-  #endif
-    the_mesh.startInterface(serial_interface);
 #elif defined(ESP32)
   SPIFFS.begin(true);
   store.begin();
@@ -220,7 +188,17 @@ void setup() {
         false
     #endif
   );
+#else
+  #error "need to define filesystem"
+#endif
 
+// add bluetooth interface
+#if defined(BLE_PIN_CODE)
+  bluetooth_interface.begin(BLE_NAME_PREFIX, the_mesh.getNodePrefs()->node_name, the_mesh.getBLEPin());
+  interface_manager.addInterface(InterfaceType::Bluetooth, &bluetooth_interface);
+#endif
+
+// add wifi interface
 #ifdef WIFI_SSID
   board.setInhibitSleep(true);   // prevent sleep when WiFi is active
   WiFi.setAutoReconnect(true);
@@ -236,23 +214,31 @@ void setup() {
   });
 
   WiFi.begin(WIFI_SSID, WIFI_PWD);
-  serial_interface.begin(TCP_PORT);
-#elif defined(BLE_PIN_CODE)
-  serial_interface.begin(BLE_NAME_PREFIX, the_mesh.getNodePrefs()->node_name, the_mesh.getBLEPin());
-#elif defined(SERIAL_RX)
-  companion_serial.setPins(SERIAL_RX, SERIAL_TX);
-  companion_serial.begin(115200);
-  serial_interface.begin(companion_serial);
-#elif defined(ETHERNET_ENABLED)
-  serial_interface.begin();
-#else
-  serial_interface.begin(Serial);
-#endif
-  the_mesh.startInterface(serial_interface);
-#else
-  #error "need to define filesystem"
+  wifi_interface.begin(TCP_PORT);
+  interface_manager.addInterface(InterfaceType::WiFi, &wifi_interface);
 #endif
 
+// add usb interface
+#if defined(ENABLE_USB_INTERFACE)
+  usb_serial_interface.begin(Serial);
+  interface_manager.addInterface(InterfaceType::USB, &usb_serial_interface);
+#endif
+
+// add ethernet interface
+#if defined(ETHERNET_ENABLED)
+  ethernet_interface.begin();
+  interface_manager.addInterface(InterfaceType::Ethernet, &ethernet_interface);
+#endif
+
+// add hardware serial interface
+#if defined(SERIAL_RX)
+  companion_serial.setPins(SERIAL_RX, SERIAL_TX);
+  companion_serial.begin(115200);
+  hardware_serial_interface.begin(companion_serial);
+  interface_manager.addInterface(InterfaceType::HardwareSerial, &hardware_serial_interface);
+#endif
+
+  the_mesh.startInterface(interface_manager);
   sensors.begin();
 
 #if ENV_INCLUDE_GPS == 1
@@ -268,6 +254,7 @@ void setup() {
 
 void loop() {
   the_mesh.loop();
+  interface_manager.loop();
   sensors.loop();
 #ifdef DISPLAY_CLASS
   ui_task.loop();
@@ -275,10 +262,6 @@ void loop() {
   rtc_clock.tick();
 #ifdef HAS_EXTERNAL_WATCHDOG
   external_watchdog.loop();
-#endif
-
-#ifdef ETHERNET_ENABLED
-  serial_interface.loop();
 #endif
 
   if (!the_mesh.hasPendingWork()) {
