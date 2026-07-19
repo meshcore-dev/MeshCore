@@ -42,6 +42,7 @@ void AutoDiscoverRTCClock::begin(TwoWire& wire) {
   }
 
   if (i2c_probe(wire, PCF8563_ADDRESS)) {
+    MESH_DEBUG_PRINTLN("PCF8563: Found");
     rtc_8563_success = rtc_8563.begin(&wire);
   }
 

@@ -60,7 +60,7 @@ public:
     nrf_gpio_cfg_sense_input(g_ADigitalPinMap[PIN_USER_BTN], NRF_GPIO_PIN_PULLUP, NRF_GPIO_PIN_SENSE_LOW);
 #endif
 
-    sd_power_system_off();
+    NRF52Board::powerOff();
   }
 
 };
