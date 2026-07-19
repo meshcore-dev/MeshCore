@@ -18,6 +18,14 @@
   #define SCALE_Y  2.109375f   // 135 / 64
 #endif
 
+#ifdef DISPLAY_SCALE_X
+  #define SCALE_X DISPLAY_SCALE_X
+#endif
+
+#ifdef DISPLAY_SCALE_Y
+  #define SCALE_Y DISPLAY_SCALE_Y
+#endif
+
 bool ST7789Display::begin() {
   if(!_isOn) {
     pinMode(PIN_TFT_VDD_CTL, OUTPUT);
@@ -32,6 +40,9 @@ bool ST7789Display::begin() {
 
     display.init();
     display.landscapeScreen();
+    #ifdef DISPLAY_FLIP_VERTICALLY
+    display.flipScreenVertically();
+    #endif
     display.displayOn();
     setCursor(0,0);
 
@@ -49,6 +60,9 @@ void ST7789Display::turnOn() {
     // Re-initialize the display
     display.init();
     display.displayOn();
+    #ifdef DISPLAY_FLIP_VERTICALLY
+    display.flipScreenVertically();
+    #endif
     delay(20);
 
     // Now turn on the backlight
