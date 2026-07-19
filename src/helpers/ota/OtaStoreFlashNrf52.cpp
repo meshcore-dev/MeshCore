@@ -17,7 +17,7 @@ namespace ota {
 // never reaches into ExtraFS.
 void OtaStoreFlashNrf52::flush_page(uint32_t page_idx, const uint8_t* buf) {
   uint32_t addr = _write_start + page_idx * PG;
-  if (addr + PG > MOTA_NRF52_FS_START) return;        // defensive: never cross the staging ceiling
+  if (addr + PG > MOTA_NRF52_STAGE_CEILING) return;   // defensive: never cross the staging ceiling
   OTA_DBG("OTA flash: write page %u @ %08x\n", (unsigned)page_idx, (unsigned)addr);
   flash_nrf5x_write(addr, buf, PG);
   flash_nrf5x_flush();
@@ -65,7 +65,7 @@ bool OtaStoreFlashNrf52::begin(uint32_t total_size) {
   // bottom-align below FS_START + reject if it won't fit above the running image (the FS/prefs-safe
   // bounds check; pure + unit-tested in test/test_ota/test_ota_flashplan.cpp)
   uint32_t start;
-  if (!mota_nrf52_stage_plan(total_size, app_end, start)) return false;
+  if (!mota_nrf52_stage_plan(total_size, app_end, MOTA_NRF52_STAGE_CEILING, start)) return false;
 
   _write_start = start;
   _total = total_size;
@@ -135,12 +135,12 @@ bool OtaStoreFlashNrf52::reopen() {
   uint32_t app_end = MOTA_NRF52_APP_BASE;
   SelfFwInfo fi;
   if (ota_self_firmware(fi) && fi.valid) app_end = MOTA_NRF52_APP_BASE + fi.image_len;
-  for (uint32_t start = align_down(MOTA_NRF52_FS_START - PG, PG); start >= app_end; start -= PG) {
+  for (uint32_t start = align_down(MOTA_NRF52_STAGE_CEILING - PG, PG); start >= app_end; start -= PG) {
     const uint8_t* p = (const uint8_t*)(uintptr_t)start;
     if (memcmp(p, MOTA_MAGIC, 4) != 0) continue;
     uint32_t total = rd_u32le(p + 4);
     uint32_t want;   // must be valid + placed exactly where begin() would have staged it (same bounds fn)
-    if (!mota_nrf52_stage_plan(total, app_end, want) || want != start) continue;
+    if (!mota_nrf52_stage_plan(total, app_end, MOTA_NRF52_STAGE_CEILING, want) || want != start) continue;
     _write_start = start;
     _total = total;
     memcpy(_meta_page, p, PG);                  // load page 0 (header+manifest+leaves) into RAM to continue

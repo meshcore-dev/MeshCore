@@ -57,7 +57,7 @@ public:
   bool begin(uint32_t total_size) override;
   bool write(uint32_t offset, const uint8_t* data, uint32_t len) override;
   bool read(uint32_t offset, uint8_t* buf, uint32_t len) const override;
-  uint32_t capacity() const override { return MOTA_NRF52_FS_START - MOTA_NRF52_APP_BASE; }
+  uint32_t capacity() const override { return MOTA_NRF52_STAGE_CEILING - MOTA_NRF52_APP_BASE; }
   uint32_t staged_size() const override { return _total; }
   void clear() override { _total = 0; _pay_idx = 0; _flushed = false; }
   bool set_meta_size(uint32_t meta_bytes) override { return meta_bytes <= PG; }  // leaves must fit page 0

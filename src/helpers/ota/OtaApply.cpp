@@ -21,6 +21,7 @@
   #include "OtaSelf.h"
   #include "OtaFlashLayout_nrf52.h"
   #include "OtaBlInfo.h"            // read the bootloader capability marker before arming an apply
+  #include "OtaByteIO.h"
   #include "flash/flash_nrf5x.h"  // Adafruit core internal-flash driver (has its own extern "C")
   #include "nrf.h"
   #include "nrf_soc.h"
@@ -408,6 +409,24 @@ void ota_reboot_to_apply() { esp_restart(); }  // boots the slot armed by ota_ap
 
 #elif defined(NRF52_PLATFORM)  // single-slot: verify + mark APPROVED + hand off to the bootloader
 
+static const uint8_t PATCH_TYPE_IN_PLACE = 1u;
+
+// Parse the detools in-place patch header (memory_size + to_size) from the staged payload.
+static bool parse_inplace_patch_dims(const uint8_t* payload, uint32_t payload_len,
+                                     uint32_t& memory_size, uint32_t& to_size) {
+  if (!payload || payload_len < 2) return false;
+  if (((payload[0] >> 4) & 0x7u) != PATCH_TYPE_IN_PLACE) return false;
+  ByteReader r(payload, payload_len);
+  r.u8();   // header byte (already checked)
+  int32_t mem = 0, seg = 0, shift = 0, from = 0, to = 0;
+  if (!r.detools_size(mem) || !r.detools_size(seg) || !r.detools_size(shift)
+      || !r.detools_size(from) || !r.detools_size(to) || !r.ok) return false;
+  if (mem <= 0 || to <= 0) return false;
+  memory_size = (uint32_t)mem;
+  to_size = (uint32_t)to;
+  return true;
+}
+
 // ESP32 A/B-only entry points are unsupported on nRF52.
 bool ota_apply_slot_info(uint32_t*, uint32_t*) { return false; }
 bool ota_apply_set_manifest(const uint8_t*, uint32_t, const SignerAllowlist&, ApplyState& st) { st = ApplyState(); return false; }
@@ -476,6 +495,23 @@ bool ota_apply_mota_nrf52(const uint8_t* buf, uint32_t len, const SignerAllowlis
   if (vr.is_signed) {
     if (!vr.sig_ok)  { strcpy(msg, "bad signature"); return false; }
     if (!vr.trusted) { strcpy(msg, "untrusted signer (pubkey not in allowlist)"); return false; }
+  }
+
+  // 4) in-place geometry: the patch memory window must fit below this staged container (the bootloader
+  //    sets ws_hi = mota start). Refuse before writing APRV — a mis-sized patch would fail mid-apply.
+  {
+    uint32_t mota_start = (uint32_t)(uintptr_t)buf;
+    uint32_t patch_mem = 0, patch_to = 0;
+    if (!m.payload || !parse_inplace_patch_dims(m.payload, m.payload_size, patch_mem, patch_to)) {
+      strcpy(msg, "bad in-place patch header"); return false;
+    }
+    if (patch_to != m.image_size) { strcpy(msg, "patch to_size != manifest image_size"); return false; }
+    if (patch_to > patch_mem) { strcpy(msg, "target image exceeds patch memory window"); return false; }
+    if (MOTA_NRF52_APP_BASE + patch_mem > mota_start) {
+      snprintf(msg, 159, "patch memory 0x%x too large for staging at 0x%x",
+               (unsigned)patch_mem, (unsigned)mota_start);
+      return false;
+    }
   }
 
   // mark the staged manifest APPROVED in flash (buf is the memory-mapped staging region, so

@@ -68,7 +68,7 @@ bool ota_self_firmware(SelfFwInfo& out) {
 // firmware's own trailer), ignoring any staged `.mota` (which carries its own embedded EndF) higher up.
 bool ota_self_firmware(SelfFwInfo& out) {
   const uint8_t* region = (const uint8_t*)(uintptr_t)MOTA_NRF52_APP_BASE;
-  uint32_t region_len = MOTA_NRF52_FS_START - MOTA_NRF52_APP_BASE;
+  uint32_t region_len = MOTA_NRF52_STAGE_CEILING - MOTA_NRF52_APP_BASE;
   return find_self_firmware(region, region_len, out, /*verify_body=*/true);
 }
 #else
@@ -86,7 +86,7 @@ bool ota_self_read(uint32_t off, uint8_t* buf, uint32_t len) {
 }
 #elif defined(NRF52_PLATFORM)
 bool ota_self_read(uint32_t off, uint8_t* buf, uint32_t len) {
-  if ((uint64_t)MOTA_NRF52_APP_BASE + off + len > MOTA_NRF52_FS_START) return false;
+  if ((uint64_t)MOTA_NRF52_APP_BASE + off + len > MOTA_NRF52_STAGE_CEILING) return false;
   memcpy(buf, (const uint8_t*)(uintptr_t)(MOTA_NRF52_APP_BASE + off), len);
   return true;
 }

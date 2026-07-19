@@ -52,6 +52,22 @@ struct ByteReader {
     const uint8_t* r = p + n; n += k; return r;
   }
   void skip(uint32_t k) { if (!fits(k)) { ok = false; return; } n += k; }
+
+  // detools signed size varint (patch header fields). Matches detools chunk_unpack_header_size.
+  bool detools_size(int32_t& out) {
+    if (!ok || n >= len) { ok = false; return false; }
+    uint8_t byte = p[n++];
+    int32_t value = byte & 0x3f;
+    uint32_t offset = 6;
+    while (byte & 0x80) {
+      if (n >= len) { ok = false; return false; }
+      byte = p[n++];
+      value |= (int32_t)(byte & 0x7f) << (int)offset;
+      offset += 7;
+    }
+    out = value;
+    return true;
+  }
 };
 
 } // namespace ota

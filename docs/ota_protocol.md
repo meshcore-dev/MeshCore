@@ -619,6 +619,21 @@ ota dev ...                        bring-up helpers (stage/recv/serve/verify)
      running firmware's `EndF.body_hash` (recomputed by scanning for `EndF` — never trust `bank_0_size`),
   3. applies the in-place codec over the app region and boots only if the result hashes to `image_hash`.
 
+**nRF52 flash layout (RAK4631 class).** Constants in `OtaFlashLayout_nrf52.h` / `ota_layout.h`:
+
+| Region | Address | Role |
+|--------|---------|------|
+| App | `0x26000` … | Running firmware (+ EndF trailer) |
+| ExtraFS | `0xD4000` … `0xED000` | Companion LittleFS only; **unused on repeaters** |
+| Staging ceiling | `0xD4000` (companion) or `0xED000` (repeater/room-server) | Per-env `MOTA_STAGE_CEILING`; `.mota` bottom-aligned here |
+| InternalFS | `0xED000` … | Primary LittleFS (`/com_prefs`) — never staged into |
+| Bootloader scan | `[APP_BASE, 0xED000)` | OTAFIX scans for staged `.mota`; apply workspace ends at `mota_start` |
+
+In-place deltas carry a per-patch `memory_size` in the detools header. `motatool build --patch-type in-place`
+derives it from the target's staging ceiling and patch size (override with `--inplace-memory`). Before
+writing `APRV`, the device refuses a patch whose `APP_BASE + memory_size` would reach into the staged
+container.
+
 The signature proves author authenticity; `approval` proves local owner consent — both required to apply.
 
 > **Bootloader testing note:** always test apply with a *real different* image (base ≠ target). A same-image
