@@ -713,10 +713,17 @@ const char* EnvironmentSensorManager::getSettingValue(int i) const {
 bool EnvironmentSensorManager::setSettingValue(const char* name, const char* value) {
   #if ENV_INCLUDE_GPS
   if (gps_detected && strcmp(name, "gps") == 0) {
-    if (strcmp(value, "0") == 0) {
-      stop_gps();
-    } else {
-      start_gps();
+    bool want_on = (strcmp(value, "0") != 0);
+    // Only act on an actual state change. start_gps()/stop_gps() ultimately
+    // claim()/release() the GPS power rail through a ref-counted pin, so a
+    // repeated "gps=1" would push the claim count above 1 and a single
+    // "gps=0" would then fail to actually power the module down.
+    if (want_on != gps_active) {
+      if (want_on) {
+        start_gps();
+      } else {
+        stop_gps();
+      }
     }
     return true;
   }
