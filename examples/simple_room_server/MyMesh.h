@@ -127,6 +127,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   void storePost(const mesh::Identity& author, const char* postData);
   void pushPostToClient(ClientInfo* client, PostInfo& post);
   void pushTopicToClient(ClientInfo* client);
+  void pushPostInternal(ClientInfo* client, uint32_t timestamp, const mesh::Identity& author, const char* prefix, const char* text);
   uint8_t getUnsyncedCount(ClientInfo* client);
   bool processAck(const uint8_t *data);
   mesh::Packet* createSelfAdvert();

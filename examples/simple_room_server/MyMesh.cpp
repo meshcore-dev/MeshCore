@@ -68,25 +68,40 @@ void MyMesh::storePost(const mesh::Identity &author, const char *postData) {
 
 void MyMesh::pushPostToClient(ClientInfo *client, PostInfo &post) {
   MESH_DEBUG_PRINTLN("room.post: pushPostToClient text=%s", post.text);
+  pushPostInternal(client, post.post_timestamp, post.author, nullptr, post.text);
+}
+
+void MyMesh::pushTopicToClient(ClientInfo *client) {
+  pushPostInternal(client, topic_timestamp, self_id, "Topic: ", topic);
+}
+
+void MyMesh::pushPostInternal(ClientInfo* client, uint32_t timestamp, const mesh::Identity& author,
+                              const char* prefix, const char* text) {
   int len = 0;
-  memcpy(&reply_data[len], &post.post_timestamp, 4);
+  memcpy(&reply_data[len], &timestamp, 4);
   len += 4; // this is a PAST timestamp... but should be accepted by client
 
   uint8_t attempt;
   getRNG()->random(&attempt, 1); // need this for re-tries, so packet hash (and ACK) will be different
   reply_data[len++] = (TXT_TYPE_SIGNED_PLAIN << 2) | (attempt & 3); // 'signed' plain text
 
-  // encode prefix of post.author.pub_key
-  memcpy(&reply_data[len], post.author.pub_key, 4);
+  // encode prefix of author.pub_key
+  memcpy(&reply_data[len], author.pub_key, 4);
   len += 4; // just first 4 bytes
 
-  int text_len = strlen(post.text);
-  memcpy(&reply_data[len], post.text, text_len);
+  if (prefix) {
+    int prefix_len = strlen(prefix);
+    memcpy(&reply_data[len], prefix, prefix_len);
+    len += prefix_len;
+  }
+
+  int text_len = strlen(text);
+  memcpy(&reply_data[len], text, text_len);
   len += text_len;
 
   // calc expected ACK reply
   mesh::Utils::sha256((uint8_t *)&client->extra.room.pending_ack, 4, reply_data, len, client->id.pub_key, PUB_KEY_SIZE);
-  client->extra.room.push_post_timestamp = post.post_timestamp;
+  client->extra.room.push_post_timestamp = timestamp;
 
   auto reply = createDatagram(PAYLOAD_TYPE_TXT_MSG, client->id, client->shared_secret, reply_data, len);
   if (reply) {
@@ -104,49 +119,6 @@ void MyMesh::pushPostToClient(ClientInfo *client, PostInfo &post) {
   } else {
     client->extra.room.pending_ack = 0;
     MESH_DEBUG_PRINTLN("Unable to push post to client");
-  }
-}
-
-void MyMesh::pushTopicToClient(ClientInfo *client) {
-  int len = 0;
-  memcpy(&reply_data[len], &topic_timestamp, 4);
-  len += 4; // this is a PAST timestamp... but should be accepted by client
-
-  uint8_t attempt;
-  getRNG()->random(&attempt, 1); // need this for re-tries, so packet hash (and ACK) will be different
-  reply_data[len++] = (TXT_TYPE_SIGNED_PLAIN << 2) | (attempt & 3); // 'signed' plain text
-
-  // encode prefix of self_id.pub_key
-  memcpy(&reply_data[len], self_id.pub_key, 4);
-  len += 4; // just first 4 bytes
-
-  memcpy(&reply_data[len], "Topic: ", 7);
-  len += 7;
-
-  int text_len = strlen(topic);
-  memcpy(&reply_data[len], topic, text_len);
-  len += text_len;
-
-  // calc expected ACK reply
-  mesh::Utils::sha256((uint8_t *)&client->extra.room.pending_ack, 4, reply_data, len, client->id.pub_key, PUB_KEY_SIZE);
-  client->extra.room.push_post_timestamp = topic_timestamp;
-
-  auto reply = createDatagram(PAYLOAD_TYPE_TXT_MSG, client->id, client->shared_secret, reply_data, len);
-  if (reply) {
-    if (client->out_path_len == OUT_PATH_UNKNOWN) {
-      unsigned long delay_millis = 0;
-      sendFloodScoped(default_scope, reply, delay_millis, _prefs.path_hash_mode + 1); // REVISIT
-      client->extra.room.ack_timeout = futureMillis(PUSH_ACK_TIMEOUT_FLOOD);
-    } else {
-      sendDirect(reply, client->out_path, client->out_path_len);
-
-      uint8_t path_hash_count = client->out_path_len & 63;
-      client->extra.room.ack_timeout = futureMillis(PUSH_TIMEOUT_BASE + PUSH_ACK_TIMEOUT_FACTOR * (path_hash_count + 1));
-    }
-    _num_post_pushes++; // stats
-  } else {
-    client->extra.room.pending_ack = 0;
-    MESH_DEBUG_PRINTLN("Unable to push topic to client");
   }
 }
 
