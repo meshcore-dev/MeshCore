@@ -13,6 +13,10 @@ TEST(RoomAuth, AdminPasswordTakesPriorityWhenPasswordsMatch) {
   EXPECT_EQ(LoginPermission::Admin, resolveLoginPermission("shared", "shared", "shared", true));
 }
 
+TEST(RoomAuth, BlankAdminPasswordDoesNotGrantAdmin) {
+  EXPECT_EQ(LoginPermission::Guest, resolveLoginPermission("", "", "guest", true));
+}
+
 TEST(RoomAuth, MatchingNonEmptyGuestPasswordTakesPriorityOverOpenReadOnly) {
   EXPECT_EQ(LoginPermission::ReadWrite, resolveLoginPermission("guest", "admin", "guest", true));
 }
