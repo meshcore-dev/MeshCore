@@ -95,10 +95,10 @@
 #define PIN_GPS_RX                  (22)    
 #define PIN_GPS_TX                  (20)
 
-#define PIN_GPS_POWER               (14)
+#define PIN_GPS_POWER               (14)            // load switch feeding the module, active HIGH
 #define PIN_GPS_EN                  (21)            // STANDBY
 #define PIN_GPS_RESET               (25)            // REINIT
-#define GPS_RESET_ACTIVE            LOW
+#define PIN_GPS_RESET_ACTIVE        HIGH            // reset is asserted HIGH (idle LOW)
 #define GPS_EN_ACTIVE               HIGH
 #define GPS_BAUDRATE                9600
 

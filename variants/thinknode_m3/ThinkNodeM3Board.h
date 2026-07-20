@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include <MeshCore.h>
 #include <helpers/NRF52Board.h>
+#include <helpers/RefCountedDigitalPin.h>
 
 #define ADC_FACTOR ((1000.0*ADC_MULTIPLIER*AREF_VOLTAGE)/ADC_MAX)
 
@@ -14,7 +15,11 @@ protected:
   uint8_t btn_prev_state;
 
 public:
-  ThinkNodeM3Board() : NRF52Board("THINKNODE_M3_OTA") {}
+  // load switch feeding the GNSS module (pin 14, active HIGH); the module also
+  // has a standby pin (PIN_GPS_EN=21) but without this it is completely unpowered
+  RefCountedDigitalPin periph_power;
+
+  ThinkNodeM3Board() : NRF52Board("THINKNODE_M3_OTA"), periph_power(PIN_GPS_POWER, HIGH) {}
   void begin();
   uint16_t getBattMilliVolts() override;
 

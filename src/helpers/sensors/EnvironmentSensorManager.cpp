@@ -748,8 +748,19 @@ void EnvironmentSensorManager::initBasicGPS() {
     MESH_DEBUG_PRINTLN("No GPS wake/reset pin found for this board. Continuing on...");
   #endif
 
-  // Give GPS a moment to power up and send data
-  delay(1000);
+  // Give GPS a moment to power up and send data. A single fixed delay is not
+  // enough for modules that need several seconds to emit their first NMEA
+  // sentence after power-on, so poll until data shows up or we time out.
+#ifndef GPS_DETECT_TIMEOUT_MS
+  #define GPS_DETECT_TIMEOUT_MS 10000
+#endif
+  unsigned long gps_detect_start = millis();
+  while (millis() - gps_detect_start < GPS_DETECT_TIMEOUT_MS) {
+    if (Serial1.available() > 0) break;
+    delay(50);
+  }
+  MESH_DEBUG_PRINTLN("GPS detect: waited %d ms, %d bytes on Serial1",
+                     (int)(millis() - gps_detect_start), (int)Serial1.available());
 
   // We'll consider GPS detected if we see any data on Serial1
 #ifdef ENV_SKIP_GPS_DETECT

@@ -8,6 +8,8 @@ void ThinkNodeM3Board::begin() {
   NRF52Board::begin();
   btn_prev_state = HIGH;
 
+  periph_power.begin();
+
   Wire.begin();
 
   delay(10);   // give sx1262 some time to power up
