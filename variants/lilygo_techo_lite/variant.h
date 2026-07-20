@@ -152,8 +152,8 @@ extern const int SCK;
 // GPS — per LilyGo t_echo_lite_config.h
 // PIN_GPS_TX/RX named from GPS module's perspective
 
-#define PIN_GPS_TX              _PINNUM(0, 29) // GPS UART TX → MCU RX
-#define PIN_GPS_RX              _PINNUM(1, 10) // GPS UART RX ← MCU TX
+#define PIN_GPS_RX              _PINNUM(0, 29) // GPS UART TX → MCU RX
+#define PIN_GPS_TX              _PINNUM(1, 10) // GPS UART RX ← MCU TX
 #define GPS_EN                  _PINNUM(1, 11) // GPS RT9080 power enable
 #define PIN_GPS_STANDBY         _PINNUM(1, 13) // GPS wake-up
 #define PIN_GPS_PPS             _PINNUM(1, 15) // GPS 1PPS
