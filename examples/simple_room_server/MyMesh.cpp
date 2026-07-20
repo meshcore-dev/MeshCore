@@ -199,6 +199,14 @@ int MyMesh::handleRequest(ClientInfo *sender, uint32_t sender_timestamp, uint8_t
   return 0; // unknown command
 }
 
+namespace {
+const char* packetLogTypeLabel(const mesh::Packet* pkt) {
+  static char label[40];
+  mesh::formatPayloadType(pkt->getPayloadType(), label, sizeof label);
+  return label;
+}
+}
+
 void MyMesh::logRxRaw(float snr, float rssi, const uint8_t raw[], int len) {
 #if MESH_PACKET_LOGGING
   Serial.print(getLogDateTime());
@@ -210,8 +218,8 @@ void MyMesh::logRxRaw(float snr, float rssi, const uint8_t raw[], int len) {
 
 void MyMesh::mirrorPacketLogRxToSerial(mesh::Packet *pkt, int len, float score) {
   Serial.print(getLogDateTime());
-  Serial.printf(": RX, len=%d (type=%d, route=%s, payload_len=%d) SNR=%d RSSI=%d score=%d", len,
-                 pkt->getPayloadType(), pkt->isRouteDirect() ? "D" : "F", pkt->payload_len,
+  Serial.printf(": RX, len=%d (type=%s, route=%s, payload_len=%d) SNR=%d RSSI=%d score=%d", len,
+                 packetLogTypeLabel(pkt), pkt->isRouteDirect() ? "D" : "F", pkt->payload_len,
                  (int)_radio->getLastSNR(), (int)_radio->getLastRSSI(), (int)(score * 1000));
 
   if (pkt->getPayloadType() == PAYLOAD_TYPE_PATH || pkt->getPayloadType() == PAYLOAD_TYPE_REQ ||
@@ -223,7 +231,7 @@ void MyMesh::mirrorPacketLogRxToSerial(mesh::Packet *pkt, int len, float score) 
 
 void MyMesh::mirrorPacketLogTxToSerial(mesh::Packet *pkt, int len) {
   Serial.print(getLogDateTime());
-  Serial.printf(": TX, len=%d (type=%d, route=%s, payload_len=%d)", len, pkt->getPayloadType(),
+  Serial.printf(": TX, len=%d (type=%s, route=%s, payload_len=%d)", len, packetLogTypeLabel(pkt),
                  pkt->isRouteDirect() ? "D" : "F", pkt->payload_len);
 
   if (pkt->getPayloadType() == PAYLOAD_TYPE_PATH || pkt->getPayloadType() == PAYLOAD_TYPE_REQ ||
@@ -235,7 +243,7 @@ void MyMesh::mirrorPacketLogTxToSerial(mesh::Packet *pkt, int len) {
 
 void MyMesh::mirrorPacketLogTxFailToSerial(mesh::Packet *pkt, int len) {
   Serial.print(getLogDateTime());
-  Serial.printf(": TX FAIL!, len=%d (type=%d, route=%s, payload_len=%d)", len, pkt->getPayloadType(),
+  Serial.printf(": TX FAIL!, len=%d (type=%s, route=%s, payload_len=%d)", len, packetLogTypeLabel(pkt),
                  pkt->isRouteDirect() ? "D" : "F", pkt->payload_len);
   Serial.print("\r\n");
 }
@@ -245,8 +253,8 @@ void MyMesh::logRx(mesh::Packet *pkt, int len, float score) {
     File f = openAppend(PACKET_LOG_FILE);
     if (f) {
       f.print(getLogDateTime());
-      f.printf(": RX, len=%d (type=%d, route=%s, payload_len=%d) SNR=%d RSSI=%d score=%d", len,
-               pkt->getPayloadType(), pkt->isRouteDirect() ? "D" : "F", pkt->payload_len,
+      f.printf(": RX, len=%d (type=%s, route=%s, payload_len=%d) SNR=%d RSSI=%d score=%d", len,
+               packetLogTypeLabel(pkt), pkt->isRouteDirect() ? "D" : "F", pkt->payload_len,
                (int)_radio->getLastSNR(), (int)_radio->getLastRSSI(), (int)(score * 1000));
 
       if (pkt->getPayloadType() == PAYLOAD_TYPE_PATH || pkt->getPayloadType() == PAYLOAD_TYPE_REQ ||
@@ -267,7 +275,7 @@ void MyMesh::logTx(mesh::Packet *pkt, int len) {
     File f = openAppend(PACKET_LOG_FILE);
     if (f) {
       f.print(getLogDateTime());
-      f.printf(": TX, len=%d (type=%d, route=%s, payload_len=%d)", len, pkt->getPayloadType(),
+      f.printf(": TX, len=%d (type=%s, route=%s, payload_len=%d)", len, packetLogTypeLabel(pkt),
                pkt->isRouteDirect() ? "D" : "F", pkt->payload_len);
 
       if (pkt->getPayloadType() == PAYLOAD_TYPE_PATH || pkt->getPayloadType() == PAYLOAD_TYPE_REQ ||
@@ -288,7 +296,7 @@ void MyMesh::logTxFail(mesh::Packet *pkt, int len) {
     File f = openAppend(PACKET_LOG_FILE);
     if (f) {
       f.print(getLogDateTime());
-      f.printf(": TX FAIL!, len=%d (type=%d, route=%s, payload_len=%d)\n", len, pkt->getPayloadType(),
+      f.printf(": TX FAIL!, len=%d (type=%s, route=%s, payload_len=%d)\n", len, packetLogTypeLabel(pkt),
                pkt->isRouteDirect() ? "D" : "F", pkt->payload_len);
       f.close();
     }
