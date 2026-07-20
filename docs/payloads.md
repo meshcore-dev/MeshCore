@@ -174,6 +174,8 @@ txt_type
 | `0x01` | CLI command               | the command text of the message                                          |
 | `0x02` | signed plain text message | first four bytes is sender pubkey prefix, followed by plain text message |
 
+The message is supposed to be an UTF-8 encoded, zero terminated string.
+
 # Anonymous request
 
 | Field            | Size (bytes)    | Description                               |
@@ -235,6 +237,8 @@ txt_type
 | ciphertext   | rest of payload | encrypted message, see below for details     |
 
 The plaintext contained in the ciphertext matches the format described in [plain text message](#plain-text-message). Specifically, it consists of a four byte timestamp, a flags byte, and the message. The flags byte will generally be `0x00` because it is a "plain text message". The message will be of the form `<sender name>: <message body>` (eg., `user123: I'm on my way`).
+
+The ciphertext is limited to 160 bytes (10 blocks of 128 bit / 16 bytes) of length.
 
 # Group datagram
 
