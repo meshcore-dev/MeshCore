@@ -798,6 +798,7 @@ void EnvironmentSensorManager::initBasicGPS() {
 // gps code for rak might be moved to MicroNMEALoactionProvider
 // or make a new location provider ...
 #ifdef RAK_WISBLOCK_GPS
+static int8_t RAK_GPS_EN = -1;
 void EnvironmentSensorManager::rakGPSInit(){
 
   Serial1.setPins(PIN_GPS_TX, PIN_GPS_RX);
@@ -809,13 +810,13 @@ void EnvironmentSensorManager::rakGPSInit(){
   #endif
 
   //search for the correct IO standby pin depending on socket used
-  if(gpsIsAwake(WB_IO2)){
-  }
-  else if(gpsIsAwake(WB_IO4)){
-  }
-  else if(gpsIsAwake(WB_IO5)){
-  }
-  else{
+  if (gpsIsAwake(WB_IO2)) {
+    RAK_GPS_EN = WB_IO2;
+  } else if (gpsIsAwake(WB_IO4)) {
+    RAK_GPS_EN = WB_IO4;
+  } else if (gpsIsAwake(WB_IO5)) {
+    RAK_GPS_EN = WB_IO5;
+  } else {
     MESH_DEBUG_PRINTLN("No GPS found");
     gps_active = false;
     gps_detected = false;
@@ -889,6 +890,7 @@ void EnvironmentSensorManager::start_gps() {
   #ifdef RAK_WISBLOCK_GPS
     pinMode(gpsResetPin, OUTPUT);
     digitalWrite(gpsResetPin, HIGH);
+    gpsIsAwake(RAK_GPS_EN); // Turn on UART L76K for RAK12500 or I2C for RAK12501
     return;
   #endif
 
@@ -913,6 +915,7 @@ void EnvironmentSensorManager::stop_gps() {
   #ifdef RAK_WISBLOCK_GPS
     pinMode(gpsResetPin, OUTPUT);
     digitalWrite(gpsResetPin, LOW);
+    digitalWrite(RAK_GPS_EN, LOW); // Cut off power
     return;
   #endif
 
