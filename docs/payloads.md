@@ -280,7 +280,7 @@ The data contained in the ciphertext uses the format below:
 
 ## HOP_ACK (sub_type)
 
-Per-hop confirmation sent by a repeater after forwarding a direct-path packet. Zero-hop only (`path_len == 0`).
+Per-hop confirmation sent by a repeater when it receives a **duplicate** direct-path packet still addressed to itself (upstream retry after a missed echo). Zero-hop only (`path_len == 0`). Not sent on the first forward.
 
 | Field        | Size (bytes)    | Description                                              |
 |--------------|-----------------|----------------------------------------------------------|

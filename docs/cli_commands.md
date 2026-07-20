@@ -521,10 +521,10 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 - `set hop.retry.ms <milliseconds>`
 
 **Parameters:**
-- `count`: Extra retransmits if the next hop's hop ACK is not received (0-5). `0` disables hop retry (fire-and-forget). Default `2` means up to 3 total transmissions (initial + 2 retries).
-- `milliseconds`: Listen window before each retry (200-10000). Default `1500`.
+- `count`: Extra retransmits if the next hop's echo or HOP_ACK is not received (0-5). `0` disables hop retry (fire-and-forget). Default `2` means up to 3 total transmissions (initial + 2 retries).
+- `milliseconds`: Base listen window before each retry (200-10000). Default `1500`. Actual deadline also includes forward delay and packet airtime.
 
-**Note:** When a repeater forwards a direct-path packet, it waits for a zero-hop **HOP_ACK** from the next hop (if that hop is known to support hop ACK). If nothing is heard within `hop.retry.ms`, it sends again. Retry is only armed for next hops that have previously sent HOP_ACK; stock repeaters stay single-shot. Not used on the last hop (zero-hop delivery to the destination). Prefer `set multi.acks 0` when hop retry is enabled.
+**Note:** When a repeater forwards a direct-path packet, it waits for the next hop's **echo** (hearing its own packet retransmitted downstream). If the echo is missed within the listen window, it retries. A hop that receives a duplicate addressed to itself replies with a zero-hop **HOP_ACK** instead of forwarding again — this terminates the retry loop when the first delivery succeeded but the echo was lost. No extra airtime in the healthy case. Not used on the last hop (zero-hop delivery to the destination). Prefer `set multi.acks 0` when hop retry is enabled.
 
 ---
 
@@ -627,7 +627,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 **Default:** `0`
 
-**Note:** Sends extra copies of direct ACKs. With hop retry enabled (`hop.retry` > 0), prefer leaving this off — hop retry waits for the next hop's HOP_ACK instead of blind duplicate ACKs.
+**Note:** Sends extra copies of direct ACKs. With hop retry enabled (`hop.retry` > 0), prefer leaving this off — hop retry uses echo confirmation and duplicate-triggered HOP_ACK instead of blind duplicate ACKs.
 
 ---
 
