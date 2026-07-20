@@ -82,6 +82,9 @@
 
 #define MAX_POST_TEXT_LEN    (160-9)
 
+// subtract 7 for "Topic: " prefix
+#define MAX_TOPIC_TEXT_LEN (MAX_POST_TEXT_LEN - 7)
+
 struct PostInfo {
   mesh::Identity author;
   uint32_t post_timestamp;   // by OUR clock
@@ -107,6 +110,8 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   int next_client_idx;  // for round-robin polling
   int next_post_idx;
   PostInfo posts[MAX_UNSYNCED_POSTS];   // cyclic queue
+  char topic[MAX_TOPIC_TEXT_LEN + 1];
+  uint32_t topic_timestamp;   // by OUR clock
   CayenneLPP telemetry;
   RegionEntry* load_stack[8];
   RegionEntry* recv_pkt_region;
@@ -121,6 +126,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   void addPost(ClientInfo* client, const char* postData);
   void storePost(const mesh::Identity& author, const char* postData);
   void pushPostToClient(ClientInfo* client, PostInfo& post);
+  void pushTopicToClient(ClientInfo* client);
   uint8_t getUnsyncedCount(ClientInfo* client);
   bool processAck(const uint8_t *data);
   mesh::Packet* createSelfAdvert();

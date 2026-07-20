@@ -107,6 +107,49 @@ void MyMesh::pushPostToClient(ClientInfo *client, PostInfo &post) {
   }
 }
 
+void MyMesh::pushTopicToClient(ClientInfo *client) {
+  int len = 0;
+  memcpy(&reply_data[len], &topic_timestamp, 4);
+  len += 4; // this is a PAST timestamp... but should be accepted by client
+
+  uint8_t attempt;
+  getRNG()->random(&attempt, 1); // need this for re-tries, so packet hash (and ACK) will be different
+  reply_data[len++] = (TXT_TYPE_SIGNED_PLAIN << 2) | (attempt & 3); // 'signed' plain text
+
+  // encode prefix of self_id.pub_key
+  memcpy(&reply_data[len], self_id.pub_key, 4);
+  len += 4; // just first 4 bytes
+
+  memcpy(&reply_data[len], "Topic: ", 7);
+  len += 7;
+
+  int text_len = strlen(topic);
+  memcpy(&reply_data[len], topic, text_len);
+  len += text_len;
+
+  // calc expected ACK reply
+  mesh::Utils::sha256((uint8_t *)&client->extra.room.pending_ack, 4, reply_data, len, client->id.pub_key, PUB_KEY_SIZE);
+  client->extra.room.push_post_timestamp = topic_timestamp;
+
+  auto reply = createDatagram(PAYLOAD_TYPE_TXT_MSG, client->id, client->shared_secret, reply_data, len);
+  if (reply) {
+    if (client->out_path_len == OUT_PATH_UNKNOWN) {
+      unsigned long delay_millis = 0;
+      sendFloodScoped(default_scope, reply, delay_millis, _prefs.path_hash_mode + 1); // REVISIT
+      client->extra.room.ack_timeout = futureMillis(PUSH_ACK_TIMEOUT_FLOOD);
+    } else {
+      sendDirect(reply, client->out_path, client->out_path_len);
+
+      uint8_t path_hash_count = client->out_path_len & 63;
+      client->extra.room.ack_timeout = futureMillis(PUSH_TIMEOUT_BASE + PUSH_ACK_TIMEOUT_FACTOR * (path_hash_count + 1));
+    }
+    _num_post_pushes++; // stats
+  } else {
+    client->extra.room.pending_ack = 0;
+    MESH_DEBUG_PRINTLN("Unable to push topic to client");
+  }
+}
+
 uint8_t MyMesh::getUnsyncedCount(ClientInfo *client) {
   uint8_t count = 0;
   for (int k = 0; k < MAX_UNSYNCED_POSTS; k++) {
@@ -688,6 +731,8 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   next_client_idx = 0;
   next_push = 0;
   memset(posts, 0, sizeof(posts));
+  memset(topic, 0, sizeof(topic));
+  topic_timestamp = 0;
   _num_posted = _num_post_pushes = 0;
 
   memset(default_scope.key, 0, sizeof(default_scope.key));
@@ -925,10 +970,35 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
   while (*command == ' ')
     command++; // skip leading spaces
 
-  if (strlen(command) > 4 && command[2] == '|') { // optional prefix (for companion radio CLI)
+  int command_length = strlen(command);
+
+  if (command_length > 4 && command[2] == '|') { // optional prefix (for companion radio CLI)
     memcpy(reply, command, 3);                    // reflect the prefix back
     reply += 3;
     command += 3;
+    command_length -= 3;
+  }
+
+  // handle topic related commands
+  if (command_length >= 10 && memcmp(command, "set topic ", 10) == 0) {
+    char* new_topic = &command[10];
+    int len = strlen(new_topic);
+
+    if (len > MAX_TOPIC_TEXT_LEN) {
+      sprintf(reply, "Err - length (%d) > maximum (%d)", len, MAX_TOPIC_TEXT_LEN);
+      return;
+    }
+
+    strcpy(topic, new_topic);
+    topic_timestamp = getRTCClock()->getCurrentTimeUnique();
+
+    sprintf(reply, "New topic set with length %d", len);
+
+    return;
+  } else if (command_length >= 9 && memcmp(command, "get topic", 9) == 0) {
+    sprintf(reply, "Topic: %s", topic);
+
+    return;
   }
 
   // handle ACL related commands
@@ -1003,18 +1073,26 @@ void MyMesh::loop() {
         client->extra.room.push_failures < 3) { // not already waiting for ACK, AND not evicted, AND retries not max
       MESH_DEBUG_PRINTLN("loop - checking for client %02X", (uint32_t)client->id.pub_key[0]);
       uint32_t now = getRTCClock()->getCurrentTime();
-      for (int k = 0, idx = next_post_idx; k < MAX_UNSYNCED_POSTS; k++) {
-        auto p = &posts[idx];
-        if (now >= p->post_timestamp + POST_SYNC_DELAY_SECS &&
-            p->post_timestamp > client->extra.room.sync_since // is new post for this Client?
-            && !p->author.matches(client->id)) {   // don't push posts to the author
-          // push this post to Client, then wait for ACK
-          pushPostToClient(client, *p);
-          did_push = true;
-          MESH_DEBUG_PRINTLN("loop - pushed to client %02X: %s", (uint32_t)client->id.pub_key[0], p->text);
-          break;
+
+      if (now >= topic_timestamp + POST_SYNC_DELAY_SECS && topic_timestamp > client->extra.room.sync_since) {
+        // client hasn't seen this topic; push it, then wait for ACK
+        pushTopicToClient(client);
+        did_push = true;
+        MESH_DEBUG_PRINTLN("loop - pushed to client %02X: %s", (uint32_t)client->id.pub_key[0], p->text);
+      } else {
+        for (int k = 0, idx = next_post_idx; k < MAX_UNSYNCED_POSTS; k++) {
+          auto p = &posts[idx];
+          if (now >= p->post_timestamp + POST_SYNC_DELAY_SECS &&
+              p->post_timestamp > client->extra.room.sync_since // is new post for this Client?
+              && !p->author.matches(client->id)) {   // don't push posts to the author
+            // push this post to Client, then wait for ACK
+            pushPostToClient(client, *p);
+            did_push = true;
+            MESH_DEBUG_PRINTLN("loop - pushed to client %02X: %s", (uint32_t)client->id.pub_key[0], p->text);
+            break;
+          }
+          idx = (idx + 1) % MAX_UNSYNCED_POSTS; // wrap to start of cyclic queue
         }
-        idx = (idx + 1) % MAX_UNSYNCED_POSTS; // wrap to start of cyclic queue
       }
     } else {
       MESH_DEBUG_PRINTLN("loop - skipping busy (or evicted) client %02X", (uint32_t)client->id.pub_key[0]);
