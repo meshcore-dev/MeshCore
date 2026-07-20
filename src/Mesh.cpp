@@ -213,6 +213,19 @@ void Mesh::checkHopRetryEcho(const Packet* pkt) {
   clearHopRetryPendingByHash(hash);
 }
 
+bool Mesh::isDirectZeroHopForSelf(const Packet* pkt) const {
+  switch (pkt->getPayloadType()) {
+    case PAYLOAD_TYPE_TXT_MSG:
+    case PAYLOAD_TYPE_REQ:
+    case PAYLOAD_TYPE_RESPONSE:
+    case PAYLOAD_TYPE_PATH:
+    case PAYLOAD_TYPE_ANON_REQ:
+      return pkt->payload_len >= 1 && self_id.isHashMatch(&pkt->payload[0], 1);
+    default:
+      return false;
+  }
+}
+
 void Mesh::checkHopRetryAck(const Packet* pkt) {
   if (pkt->payload_len < 11) return;
   if (pkt->payload[0] != CTL_TYPE_HOP_ACK) return;
@@ -326,6 +339,14 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
     }
     // just zero-hop control packets allowed (for this subset of payloads)
     return ACTION_RELEASE;
+  }
+
+  if (pkt->isRouteDirect() && pkt->getPathHashCount() == 0 && pkt->getPayloadType() != PAYLOAD_TYPE_CONTROL) {
+    // Last repeater hop often forwards zero-hop to the destination; upstream still overhears it as echo.
+    if (!isDirectZeroHopForSelf(pkt)) {
+      checkHopRetryEcho(pkt);
+      return ACTION_RELEASE;
+    }
   }
 
   if (pkt->isRouteDirect() && pkt->getPathHashCount() > 0) {

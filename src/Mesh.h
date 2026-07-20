@@ -68,6 +68,7 @@ class Mesh : public Dispatcher {
   void copyPacketFields(Packet* dest, const Packet* src);
   void armHopRetryPending(const Packet* forwarded, uint32_t initial_delay_ms = 0);
   void checkHopRetryEcho(const Packet* pkt);
+  bool isDirectZeroHopForSelf(const Packet* pkt) const;
   void checkHopRetryAck(const Packet* pkt);
   void sendHopAck(const Packet* forwarded, uint32_t delay_millis);
   uint32_t getHopRetryDeadlineMs(const Packet* pkt, uint32_t initial_delay_ms) const;
