@@ -234,6 +234,18 @@ void setup() {
   #error "need to define filesystem"
 #endif
 
+#if ENV_INCLUDE_GPS == 1
+  // Apply PowerSaving profile for GPS
+  if(sensors.getLocationProvider() != NULL) {
+    // Enable by default
+    sensors.powersaving_enabled = true;
+    sensors.getLocationProvider()->enablePowerSaving(true);
+
+    // Set GPS on and off duration in seconds
+    sensors.getLocationProvider()->setPowerSavingProfile(600, 300); // Max 10 minutes, 5 minutes
+  }
+#endif
+
   sensors.begin();
 
 #if ENV_INCLUDE_GPS == 1

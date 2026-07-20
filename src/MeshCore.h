@@ -37,6 +37,15 @@
 #define BRIDGE_DEBUG_PRINTLN(...) {}
 #endif
 
+#if POWERSAVING_DEBUG && ARDUINO
+  #include <Arduino.h>
+  #define POWERSAVING_DEBUG_PRINT(F, ...) Serial.printf("POWERSAVING: " F, ##__VA_ARGS__)
+  #define POWERSAVING_DEBUG_PRINTLN(F, ...) Serial.printf("POWERSAVING: " F "\n", ##__VA_ARGS__)
+#else
+  #define POWERSAVING_DEBUG_PRINT(...) {}
+  #define POWERSAVING_DEBUG_PRINTLN(...) {}
+#endif
+
 namespace mesh {
 
 #define  BD_STARTUP_NORMAL     0  // getStartupReason() codes

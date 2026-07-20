@@ -622,12 +622,6 @@ static const SensorDef SENSOR_TABLE[] = {
 static const size_t SENSOR_TABLE_SIZE = (sizeof(SENSOR_TABLE) / sizeof(SENSOR_TABLE[0])) - 1;
 
 // ============================================================
-// Power Saving GPS
-// ============================================================
-static unsigned long GPS_ON_DURATION_SECS = 600;    // 10 minutes
-static unsigned long GPS_OFF_DURATION_SECS = 86400; // 1 day
-
-// ============================================================
 // begin() — scan the I2C bus, then initialize only what was
 // found. A sensor whose address does not ACK during the scan
 // is never touched by a library call, preventing hangs or
@@ -737,13 +731,13 @@ bool EnvironmentSensorManager::setSettingValue(const char* name, const char* val
   if (gps_detected && strcmp(name, "gps") == 0) {
     if (strcmp(value, "0") == 0) {
       if (powersaving_enabled) {
-        _location->setGPSPowerSaving(false);
+        _location->enablePowerSaving(false);
       }
 
       stop_gps();
     } else {
       if (powersaving_enabled) {
-        _location->setGPSPowerSaving(true);
+        _location->enablePowerSaving(true);
       }
 
       start_gps();
@@ -885,6 +879,13 @@ bool EnvironmentSensorManager::gpsIsAwake(uint8_t ioPin){
 
 void EnvironmentSensorManager::start_gps() {
   gps_active = true;
+
+  if (powersaving_enabled && _location->isPowerSavingEnabled()) {
+    gps_wake = true;           // gps_active is true
+    _location->syncTime();     // Clear GPS data and force sync time
+    _location->setNextSleep(); // Next time to off
+  }
+
   #ifdef RAK_WISBLOCK_GPS
     pinMode(gpsResetPin, OUTPUT);
     digitalWrite(gpsResetPin, HIGH);
@@ -897,22 +898,19 @@ void EnvironmentSensorManager::start_gps() {
 #ifndef PIN_GPS_EN
   MESH_DEBUG_PRINTLN("Start GPS is N/A on this board. Actual GPS state unchanged");
 #endif
-
-  if (powersaving_enabled && _location->getGPSPowerSaving()) {
-    _location->syncTime();  // Clear GPS data and force sync time
-    _location->setNextGPSOff(millis() + GPS_ON_DURATION_SECS * 1000UL); // Next time to off
-  }
 }
 
 void EnvironmentSensorManager::stop_gps() {
-  gps_active = false;
-
-  if (powersaving_enabled && _location->getGPSPowerSaving()) {
+  if (powersaving_enabled && _location->isPowerSavingEnabled()) {
+    gps_wake = false;          // gps_active is unchanged (true) even the GPS sleep (e.g: off)
     _location->stopTimeSync(); // Stop time sync
-    _location->setNextGPSOn(millis() + GPS_OFF_DURATION_SECS * 1000UL); // Next time to on
+    _location->setNextWake();  // Next time to on
+  } else {
+    gps_active = false;
+    gps_wake = false; // When GPS is off, wake is false to be sure
   }
 
-#ifdef RAK_WISBLOCK_GPS
+  #ifdef RAK_WISBLOCK_GPS
     pinMode(gpsResetPin, OUTPUT);
     digitalWrite(gpsResetPin, LOW);
     return;
@@ -934,37 +932,35 @@ void EnvironmentSensorManager::loop() {
 
   // PowerSaving
   if (powersaving_enabled) {
-    if (gps_detected && _location->getGPSPowerSaving()) {
-      if (gps_active && ((int32_t)(millis() - _location->getNextGPSOff()) >= 0 ||
+    if (gps_detected && _location->isPowerSavingEnabled()) {
+      if (gps_wake && ((int32_t)(millis() - _location->getNextSleep()) >= 0 ||
                          !_location->waitingTimeSync())) { // Time to off or GPS set
-        // --- TO REMOVE
-        if ((int32_t)(millis() - _location->getNextGPSOff()) >= 0) Serial.println("Timeout, off");
-        else if (!_location->waitingTimeSync()) Serial.println("GPS set, off early");
-        // --- TO REMOVE
+        if ((int32_t)(millis() - _location->getNextSleep()) >= 0) {
+          POWERSAVING_DEBUG_PRINTLN("GPS wake timeout. Enter sleep");
+        }
+        else if (!_location->waitingTimeSync()) {
+          POWERSAVING_DEBUG_PRINTLN("GPS set. Enter sleep early");
+        }
 
         stop_gps();
-      } else if (!gps_active && ((int32_t)(millis() - _location->getNextGPSOn()) >= 0)) { // Time to on
-        // --- TO REMOVE
-        Serial.println("Timeout, on");
-        // --- TO REMOVE
+      } else if (!gps_wake && ((int32_t)(millis() - _location->getNextWake()) >= 0)) { // Time to on
+        POWERSAVING_DEBUG_PRINTLN("GPS sleep timeout. Wakeup.");
 
         start_gps();
-      } else if (!gps_active && _location->waitingTimeSync()) { // On for "gps sync"
-        // --- TO REMOVE
-        Serial.println("gps sync CLI, on");
-        // --- TO REMOVE
+      } else if (!gps_wake && _location->waitingTimeSync()) { // On for "gps sync"
+        POWERSAVING_DEBUG_PRINTLN("CLI gps sync. Wakeup");
         
         start_gps();
       }
     }
   }
 
-  if (gps_active) {
+  if ((!powersaving_enabled && gps_active) || (powersaving_enabled && gps_wake)) {
     _location->loop();
   }
 
   if ((int32_t)(millis() - next_gps_update) >= 0) {
-    if(gps_active){
+    if((!powersaving_enabled && gps_active) || (powersaving_enabled && gps_wake)){
     #ifdef RAK_WISBLOCK_GPS
     if ((i2cGPSFlag || serialGPSFlag) && _location->isValid()) {
       node_lat = ((double)_location->getLatitude())/1000000.;

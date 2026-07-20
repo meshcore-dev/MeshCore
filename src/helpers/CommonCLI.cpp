@@ -436,9 +436,9 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
         int sats = l->satellitesCount();
         bool active = !strcmp(_sensors->getSettingByKey("gps"), "1");
 
-        if (_prefs->powersaving_enabled && l->getGPSPowerSaving()) { // GPS Power Saving
+        if (_prefs->powersaving_enabled && l->isPowerSavingEnabled()) { // GPS Power Saving
           if (enabled) {
-            unsigned long mins = (l->getNextGPSOff() - millis()) / 60000UL;
+            unsigned long mins = (l->getNextSleep() - millis()) / 60000UL;
             sprintf(reply, "on (powersaving, sleep in %luh %lum), %s, %s, %d sats", 
               mins / 60UL, 
               mins % 60UL,
@@ -446,7 +446,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
               fix ? "fix" : "no fix", 
               sats);
           } else {
-            unsigned long mins = (l->getNextGPSOn() - millis()) / 60000UL;
+            unsigned long mins = (l->getNextWake() - millis()) / 60000UL;
             sprintf(reply, "off (powersaving, wake in %luh %lum)",
               mins / 60UL,
               mins % 60UL);
