@@ -1,4 +1,5 @@
 #include "MyMesh.h"
+#include "CompanionTxStatus.h"
 
 #include <Arduino.h> // needed for PlatformIO
 #include <Mesh.h>
@@ -437,14 +438,13 @@ void MyMesh::onPacketTxStatus(mesh::Packet* packet, mesh::PacketTxStatus status)
 
   for (int i = 0; i < EXPECTED_ACK_TABLE_SIZE; i++) {
     auto& entry = expected_ack_table[i];
-    if (entry.ack == 0 || memcmp(entry.packet_hash, packet_hash, sizeof(packet_hash)) != 0) continue;
-
-    // A packet may be transmitted more than once by future retry strategies. Once one local TX
-    // completed, a later failed retry must not downgrade the message's state.
-    if (entry.tx_status == mesh::PACKET_TX_COMPLETE || entry.tx_status == status) return;
+    // Identical resends can share a packet hash. A terminal callback belongs to the oldest
+    // still-pending entry, not an earlier timed-out attempt whose outcome remains unknown.
+    if (!companion::isPendingTxMatch(entry.ack, entry.tx_status, entry.packet_hash, packet_hash,
+                                     sizeof(packet_hash))) continue;
 
     entry.tx_status = status;
-    if (app_target_ver >= 14) {
+    if (companion::shouldPushTxStatus(app_target_ver)) {
       out_frame[0] = PUSH_CODE_SEND_TX_STATUS;
       memcpy(&out_frame[1], &entry.ack, 4);
       out_frame[5] = status;
@@ -1142,7 +1142,7 @@ void MyMesh::handleCmdFrame(size_t len) {
           expected_ack_table[next_ack_idx].ack = expected_ack;
           expected_ack_table[next_ack_idx].contact = recipient;
           memcpy(expected_ack_table[next_ack_idx].packet_hash, packet_hash, sizeof(packet_hash));
-          expected_ack_table[next_ack_idx].tx_status = 0xFF; // queued, no local TX outcome yet
+          expected_ack_table[next_ack_idx].tx_status = companion::TX_STATUS_PENDING;
           next_ack_idx = (next_ack_idx + 1) % EXPECTED_ACK_TABLE_SIZE;
         }
 
