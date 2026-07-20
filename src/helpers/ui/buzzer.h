@@ -15,7 +15,8 @@
     - make message ring tone configurable
 
 */
-
+#define BUZZER_QUIET_ALWAYS       (1 << 0) // 0x01 - buzzer disabled
+#define BUZZER_QUIET_ON_SERIAL    (1 << 1) // 0x02 - buzzer disabled on serial  
 class genericBuzzer
 {
     public:

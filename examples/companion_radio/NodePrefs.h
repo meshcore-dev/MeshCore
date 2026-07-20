@@ -24,7 +24,7 @@ struct NodePrefs {  // persisted to file
   float rx_delay_base;
   uint32_t ble_pin;
   uint8_t  advert_loc_policy;
-  uint8_t  buzzer_quiet;
+  uint8_t  buzzer_quiet;     // bitmask (0-3) for speaker config
   uint8_t  gps_enabled;      // GPS enabled flag (0=disabled, 1=enabled)
   uint32_t gps_interval;     // GPS read interval in seconds
   uint8_t autoadd_config;    // bitmask for auto-add contacts config
