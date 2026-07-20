@@ -533,6 +533,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       }
     } else if (sender_timestamp == 0 && memcmp(command, "log tail on", 11) == 0
                && (command[11] == 0 || command[11] == ' ')) {
+      _callbacks->setLoggingOn(true);
       _callbacks->setTailOn(true);
       strcpy(reply, "   tail on");
     } else if (sender_timestamp == 0 && memcmp(command, "log tail off", 12) == 0
