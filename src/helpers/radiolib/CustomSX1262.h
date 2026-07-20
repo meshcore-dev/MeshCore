@@ -100,6 +100,11 @@ class CustomSX1262 : public SX1262 {
       return true;  // success
     }
 
+    int16_t startReceive() override {
+      // include the PREAMBLE_DETECTED irq bit in reported flags
+      return SX1262::startReceive(RADIOLIB_SX126X_RX_TIMEOUT_INF, RADIOLIB_IRQ_RX_DEFAULT_FLAGS | (1UL << RADIOLIB_IRQ_PREAMBLE_DETECTED), RADIOLIB_IRQ_RX_DEFAULT_MASK, 0);
+    }
+
     bool isReceiving() {
       uint32_t irq = getIrqFlags();
       bool preamble = irq & RADIOLIB_SX126X_IRQ_PREAMBLE_DETECTED; // bit 2
