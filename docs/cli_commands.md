@@ -277,6 +277,32 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 ---
 
+#### View or change RX duty-cycle power saving
+**Usage:**
+- `get radio.rxps`
+- `get rxps.wd`
+- `set radio.rxps off`
+- `set radio.rxps on`
+- `set radio.rxps conservative`
+- `set radio.rxps balanced`
+- `set radio.rxps <1-10>`
+- `set radio.rxps level <1-10>`
+- `set radio.rxps level <1-10> preamble <16|32>`
+- `set radio.rxps <rx_us> <sleep_us>`
+
+**Parameters:**
+- `rx_us`, `sleep_us`: Receive and sleep durations in microseconds (`1000`-`30000000`).
+- `level`: A power-saving level from `1` (most conservative) to `10` (least power saving).
+- `preamble`: LoRa preamble length in symbols; `16` or `32`.
+
+**Notes:**
+- `get rxps.wd` reports the RXPS watchdog's soft and hard recovery counts.
+- `on` and `conservative` select level `1` with a 16-symbol preamble; `balanced` selects level `5` with a 16-symbol preamble.
+- Level-based settings automatically recalculate their timings when the spreading factor or bandwidth changes. Custom `<rx_us> <sleep_us>` timings remain fixed.
+- The selected mode is applied immediately, persisted, and restored after reboot.
+
+---
+
 #### View or change the LoRa FEM receive-path gain state on supported boards
 **Usage:**
 - `get radio.fem.rxgain`
