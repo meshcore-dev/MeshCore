@@ -44,6 +44,12 @@ namespace mesh {
 
 class MainBoard {
 public:
+  enum PacketLedRole : uint8_t {
+    PACKET_LED_LOCAL = 0,      // TX, flood/direct destined for us
+    PACKET_LED_RELAY,          // routed traffic we forward
+    PACKET_LED_UNRELATED,      // overheard / discarded
+  };
+
   virtual uint16_t getBattMilliVolts() = 0;
   virtual float getMCUTemperature() { return NAN; }
   virtual bool setAdcMultiplier(float multiplier) { return false; };
@@ -51,12 +57,15 @@ public:
   virtual const char* getManufacturerName() const = 0;
   virtual void onBeforeTransmit() { }
   virtual void onAfterTransmit() { }
+  virtual void onPacketLed(PacketLedRole role) { (void)role; }
   virtual void reboot() = 0;
   virtual void powerOff() { /* no op */ }
   // Called by example setup() functions to signal that boot is complete.
   // Boards may override to stop a boot-indicator LED sequence or similar.
   // Default no-op: boards that don't care need not implement anything.
   virtual void onBootComplete() { /* no op */ }
+  // Optional periodic hook (buzzer RTTTL, activity LED timeout, etc.)
+  virtual void loop() { /* no op */ }
   virtual uint32_t getIRQGpio() { return -1; } // not supported. Returns DIO1 (SX1262) and DIO0 (SX127x)
   virtual void sleep(uint32_t secs)  { /* no op */ }
   virtual uint32_t getGpio() { return 0; }

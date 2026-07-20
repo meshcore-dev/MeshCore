@@ -590,8 +590,43 @@ uint32_t MyMesh::getDirectRetransmitDelay(const mesh::Packet *packet) {
   return getRNG()->nextInt(0, 5*t + 1);
 }
 
-bool MyMesh::filterRecvFloodPacket(mesh::Packet* pkt) {
-  // just try to determine region for packet (apply later in allowPacketForward())
+#if defined(RAK_WISMESH_TAG)
+static bool isDestSelf(const mesh::Packet* pkt, const mesh::LocalIdentity& id) {
+  switch (pkt->getPayloadType()) {
+    case PAYLOAD_TYPE_TXT_MSG:
+    case PAYLOAD_TYPE_REQ:
+    case PAYLOAD_TYPE_RESPONSE:
+    case PAYLOAD_TYPE_PATH:
+    case PAYLOAD_TYPE_ANON_REQ:
+      return pkt->payload_len >= 1 && id.isHashMatch(&pkt->payload[0], 1);
+    default:
+      return false;
+  }
+}
+
+static bool isOnDirectPath(const mesh::Packet* pkt, const mesh::LocalIdentity& id) {
+  return pkt->isRouteDirect() && pkt->getPathHashCount() > 0
+      && id.isHashMatch(pkt->path, pkt->getPathHashSize());
+}
+
+void MyMesh::signalWismeshPacketLed(mesh::Packet* pkt, mesh::DispatcherAction action) {
+  if (action != ACTION_RELEASE) {
+    board.onPacketLed(mesh::MainBoard::PACKET_LED_RELAY);
+    return;
+  }
+  if (isDestSelf(pkt, self_id)) {
+    board.onPacketLed(mesh::MainBoard::PACKET_LED_LOCAL);
+    return;
+  }
+  if (isOnDirectPath(pkt, self_id)) {
+    board.onPacketLed(mesh::MainBoard::PACKET_LED_RELAY);
+    return;
+  }
+  board.onPacketLed(mesh::MainBoard::PACKET_LED_UNRELATED);
+}
+#endif
+
+mesh::DispatcherAction MyMesh::onRecvPacket(mesh::Packet* pkt) {
   if (pkt->getRouteType() == ROUTE_TYPE_TRANSPORT_FLOOD) {
     recv_pkt_region = region_map.findMatch(pkt, REGION_DENY_FLOOD);
   } else if (pkt->getRouteType() == ROUTE_TYPE_FLOOD) {
@@ -603,8 +638,11 @@ bool MyMesh::filterRecvFloodPacket(mesh::Packet* pkt) {
   } else {
     recv_pkt_region = NULL;
   }
-  // do normal processing
-  return false;
+  mesh::DispatcherAction action = Mesh::onRecvPacket(pkt);
+#if defined(RAK_WISMESH_TAG)
+  signalWismeshPacketLed(pkt, action);
+#endif
+  return action;
 }
 
 void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const mesh::Identity &sender,

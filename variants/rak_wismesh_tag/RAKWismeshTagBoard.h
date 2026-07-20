@@ -9,18 +9,21 @@
 #define  ADC_MULTIPLIER   (3 * 1.73 * 1.187 * 1000)
 
 class RAKWismeshTagBoard : public NRF52BoardDCDC {
+  int _activity_led_pin = -1;
+  unsigned long _activity_led_until = 0;
+
+  void pulseLed(int pin, unsigned long ms = 50);
+  void activityLedOff();
+
 public:
   RAKWismeshTagBoard() : NRF52Board("WISMESHTAG_OTA") {}
   void begin();
+  void loop() override;
+  void onBootComplete() override;
+  void onPacketLed(PacketLedRole role) override;
 
-#if defined(P_LORA_TX_LED) && defined(LED_STATE_ON)
-  void onBeforeTransmit() override {
-    digitalWrite(P_LORA_TX_LED, LED_STATE_ON);   // turn TX LED on
-  }
-  void onAfterTransmit() override {
-    digitalWrite(P_LORA_TX_LED, !LED_STATE_ON);   // turn TX LED off
-  }
-#endif
+  void onBeforeTransmit() override;
+  void onAfterTransmit() override;
 
   #define BATTERY_SAMPLES 8
 
