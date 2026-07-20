@@ -528,6 +528,18 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 ---
 
+#### Test mode: drop next N direct-forward opportunities
+**Usage:**
+- `get hop.ignore`
+- `set hop.ignore <count>`
+
+**Parameters:**
+- `count`: Number of upcoming direct-forward opportunities to silently discard (0-255). `0` disables (default).
+
+**Note:** For the next `count` times this node would forward a direct-routed packet, it discards it instead — no forward, no HOP_ACK, no dedup mark (so an upstream retry of the same packet is evaluated again next time). Simulates a dead/unreachable next hop without power-cycling it, to exercise `hop.retry` on the upstream node. **Not persisted** — resets to 0 on reboot, unlike `hop.retry`/`hop.retry.ms`.
+
+---
+
 #### [Experimental] View or change the processing delay for received traffic
 **Usage:**
 - `get rxdelay`

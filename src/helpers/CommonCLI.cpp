@@ -750,6 +750,14 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     } else {
       strcpy(reply, "Error, must be 200-10000");
     }
+  } else if (memcmp(config, "hop.ignore ", 11) == 0) {
+    int n = atoi(&config[11]);
+    if (n >= 0 && n <= 255) {
+      _callbacks->setHopAckIgnore((uint8_t)n);
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error, must be 0-255");
+    }
   } else if (memcmp(config, "owner.info ", 11) == 0) {
     config += 11;
     char *dp = _prefs->owner_info;
@@ -926,6 +934,8 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %s", StrHelper::ftoa(_prefs->direct_tx_delay_factor));
   } else if (memcmp(config, "hop.retry.ms", 12) == 0) {
     sprintf(reply, "> %u", (unsigned)_prefs->hop_retry_ms);
+  } else if (memcmp(config, "hop.ignore", 10) == 0) {
+    sprintf(reply, "> %u", (unsigned)_callbacks->getHopAckIgnore());
   } else if (memcmp(config, "hop.retry", 9) == 0) {
     sprintf(reply, "> %u", (unsigned)_prefs->hop_retry);
   } else if (memcmp(config, "owner.info", 10) == 0) {

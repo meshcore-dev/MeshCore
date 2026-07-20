@@ -219,6 +219,9 @@ public:
 
   void setTailOn(bool enable) override { _tailing = enable; }
 
+  void setHopAckIgnore(uint8_t count) override { setHopAckIgnoreCount(count); }
+  uint8_t getHopAckIgnore() override { return getHopAckIgnoreCount(); }
+
   void eraseLogFile() override {
     _fs->remove(PACKET_LOG_FILE);
   }

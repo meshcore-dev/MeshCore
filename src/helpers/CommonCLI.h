@@ -123,6 +123,9 @@ public:
   virtual void setRxBoostedGain(bool enable) {
     // no op by default
   };
+
+  virtual void setHopAckIgnore(uint8_t count) { }
+  virtual uint8_t getHopAckIgnore() { return 0; }
 };
 
 class CommonCLI {

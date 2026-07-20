@@ -75,6 +75,7 @@ class Mesh : public Dispatcher {
   };
   HopAckCapableEntry _hop_ack_capable[HOP_ACK_CAPABLE_MAX];
   uint32_t _hop_ack_capable_seq;
+  uint8_t _hop_ack_ignore_remaining;
 
   void copyPacketFields(Packet* dest, const Packet* src);
   void armHopRetryPending(const Packet* forwarded, uint32_t initial_delay_ms = 0);
@@ -249,7 +250,8 @@ protected:
   virtual void onAckRecv(Packet* packet, uint32_t ack_crc) { }
 
   Mesh(Radio& radio, MillisecondClock& ms, RNG& rng, RTCClock& rtc, PacketManager& mgr, MeshTables& tables)
-    : Dispatcher(radio, ms, mgr), _rng(&rng), _rtc(&rtc), _tables(&tables), _hop_ack_capable_seq(0)
+    : Dispatcher(radio, ms, mgr), _rng(&rng), _rtc(&rtc), _tables(&tables), _hop_ack_capable_seq(0),
+      _hop_ack_ignore_remaining(0)
   {
     for (int i = 0; i < HOP_RETRY_PENDING_MAX; i++) {
       _hop_retry_pending[i].pkt = NULL;
@@ -269,6 +271,9 @@ public:
 
   RNG* getRNG() const { return _rng; }
   RTCClock* getRTCClock() const { return _rtc; }
+
+  void setHopAckIgnoreCount(uint8_t count) { _hop_ack_ignore_remaining = count; }
+  uint8_t getHopAckIgnoreCount() const { return _hop_ack_ignore_remaining; }
 
   Packet* createAdvert(const LocalIdentity& id, const uint8_t* app_data=NULL, size_t app_data_len=0);
   Packet* createDatagram(uint8_t type, const Identity& dest, const uint8_t* secret, const uint8_t* data, size_t len);
