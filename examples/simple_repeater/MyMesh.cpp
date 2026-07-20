@@ -472,6 +472,38 @@ void MyMesh::logRxRaw(float snr, float rssi, const uint8_t raw[], int len) {
 #endif
 }
 
+void MyMesh::mirrorPacketLogRxToSerial(mesh::Packet *pkt, int len, float score) {
+  Serial.print(getLogDateTime());
+  Serial.printf(": RX, len=%d (type=%d, route=%s, payload_len=%d) SNR=%d RSSI=%d score=%d", len,
+                 pkt->getPayloadType(), pkt->isRouteDirect() ? "D" : "F", pkt->payload_len,
+                 (int)_radio->getLastSNR(), (int)_radio->getLastRSSI(), (int)(score * 1000));
+
+  if (pkt->getPayloadType() == PAYLOAD_TYPE_PATH || pkt->getPayloadType() == PAYLOAD_TYPE_REQ ||
+      pkt->getPayloadType() == PAYLOAD_TYPE_RESPONSE || pkt->getPayloadType() == PAYLOAD_TYPE_TXT_MSG) {
+    Serial.printf(" [%02X -> %02X]", (uint32_t)pkt->payload[1], (uint32_t)pkt->payload[0]);
+  }
+  Serial.print("\r\n");
+}
+
+void MyMesh::mirrorPacketLogTxToSerial(mesh::Packet *pkt, int len) {
+  Serial.print(getLogDateTime());
+  Serial.printf(": TX, len=%d (type=%d, route=%s, payload_len=%d)", len, pkt->getPayloadType(),
+                 pkt->isRouteDirect() ? "D" : "F", pkt->payload_len);
+
+  if (pkt->getPayloadType() == PAYLOAD_TYPE_PATH || pkt->getPayloadType() == PAYLOAD_TYPE_REQ ||
+      pkt->getPayloadType() == PAYLOAD_TYPE_RESPONSE || pkt->getPayloadType() == PAYLOAD_TYPE_TXT_MSG) {
+    Serial.printf(" [%02X -> %02X]", (uint32_t)pkt->payload[1], (uint32_t)pkt->payload[0]);
+  }
+  Serial.print("\r\n");
+}
+
+void MyMesh::mirrorPacketLogTxFailToSerial(mesh::Packet *pkt, int len) {
+  Serial.print(getLogDateTime());
+  Serial.printf(": TX FAIL!, len=%d (type=%d, route=%s, payload_len=%d)", len, pkt->getPayloadType(),
+                 pkt->isRouteDirect() ? "D" : "F", pkt->payload_len);
+  Serial.print("\r\n");
+}
+
 void MyMesh::logRx(mesh::Packet *pkt, int len, float score) {
 #ifdef WITH_BRIDGE
   if (_prefs.bridge_pkt_src == 1) {
@@ -495,6 +527,9 @@ void MyMesh::logRx(mesh::Packet *pkt, int len, float score) {
       }
       f.close();
     }
+  }
+  if (_logging && _tailing) {
+    mirrorPacketLogRxToSerial(pkt, len, score);
   }
 }
 
@@ -521,6 +556,9 @@ void MyMesh::logTx(mesh::Packet *pkt, int len) {
       f.close();
     }
   }
+  if (_logging && _tailing) {
+    mirrorPacketLogTxToSerial(pkt, len);
+  }
 }
 
 void MyMesh::logTxFail(mesh::Packet *pkt, int len) {
@@ -532,6 +570,9 @@ void MyMesh::logTxFail(mesh::Packet *pkt, int len) {
                pkt->isRouteDirect() ? "D" : "F", pkt->payload_len);
       f.close();
     }
+  }
+  if (_logging && _tailing) {
+    mirrorPacketLogTxFailToSerial(pkt, len);
   }
 }
 
@@ -866,6 +907,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   dirty_contacts_expiry = 0;
   set_radio_at = revert_radio_at = 0;
   _logging = false;
+  _tailing = false;
   region_load_active = false;
 
 #if MAX_NEIGHBOURS

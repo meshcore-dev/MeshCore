@@ -156,6 +156,20 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 ---
 
+### Mirror packet log to serial (live)
+**Usage:** `log tail on`
+
+**Note:** Streams RX/TX log lines to USB serial as they are captured. No-op unless `log start` is active. Serial-only (not available via remote admin).
+
+---
+
+### Stop live serial log mirror
+**Usage:** `log tail off`
+
+**Serial Only:** Yes
+
+---
+
 ### Erase captured log
 **Usage:** `log erase`
 
