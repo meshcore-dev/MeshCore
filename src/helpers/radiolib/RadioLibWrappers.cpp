@@ -228,3 +228,21 @@ float RadioLibWrapper::packetScoreInt(float snr, int sf, int packet_len) {
 
   return max(0.0, min(1.0, success_rate_based_on_snr * collision_penalty));
 }
+
+PacketMillis RadioLibWrapper::calcMaxPacketMillis(uint8_t sf, float bw, uint8_t cr, uint8_t preambleSymbols) {
+  // based on RadioLib's calculateTimeOnAir()
+  uint32_t tsym_us = ((uint32_t)10000 << sf) / (bw * 10);
+  uint32_t sfCoeff1_x4 = (sf == 5 || sf == 6) ? 25 : 17; // 6.25 : 4.25, semtech magic numbers to account for sync word + sfd
+
+  // preamble + syncword + sfd + header
+  uint32_t preamble_us = (((preambleSymbols + 8) * 4 + sfCoeff1_x4) * tsym_us) / 4;
+  
+  // airtime for max packet at current radio settings
+  uint32_t total_us   = _radio->getTimeOnAir(MAX_TRANS_UNIT);
+  // airtime for payload only (no preamble, header or SOF)
+  uint32_t payload_us = total_us > preamble_us ? total_us - preamble_us : 4000 - preamble_us; // fallback to 4 secs at worst case
+  // rescale payload_us for max possible CR
+  if (cr >= 5 && cr < 8) { payload_us = (payload_us * 8) / cr; }
+
+  return PacketMillis {(preamble_us + 999) / 1000, (payload_us + 999) / 1000};
+}

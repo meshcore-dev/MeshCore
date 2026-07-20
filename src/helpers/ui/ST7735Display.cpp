@@ -255,6 +255,10 @@ static const uint8_t PROGMEM
       0x00, 0x00,                   //     XSTART = 0
       0x00, 0x9F },                 //     XEND = 159
 
+  Rcmd2invert[] = {      // Tracker V1, part 2 
+    1,                              //  1 command in list:
+    ST77XX_INVON,  0 },             //    1: Display is inverted
+
   Rcmd3[] = {                       // 7735R init, part 3 (red or green tab)
     2,                              //  2 commands in list:
     ST7735_GMCTRP1, 16      ,       //  1: Gamma Adjustments (pos. polarity), 16 args + delay:
@@ -447,8 +451,13 @@ bool ST7735Display::begin() {
 
     _height = 80;
     _width = 160;
+#if defined(HELTEC_LORA_V3)  // Tracker v1
+    _colstart = 26;
+    _rowstart = 1;
+#else
     _colstart = 24;
     _rowstart = 0;
+#endif
 
     _resetAndInit();
     
@@ -474,6 +483,8 @@ void ST7735Display::_resetAndInit() {
     displayInit(Rcmd2green160x80);
     //uint8_t madctl = ST77XX_MADCTL_MY | ST77XX_MADCTL_MV |ST7735_MADCTL_BGR;//Adjust color to BGR
     //display.sendCommand(ST77XX_MADCTL, &madctl, 1);
+#elif defined(HELTEC_LORA_V3)  // Tracker v1
+    displayInit(Rcmd2invert);   // invert RGB
 #endif
     displayInit(Rcmd3);
     setRotation(DISPLAY_ROTATION);
