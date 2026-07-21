@@ -864,10 +864,10 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
       , bridge(&_prefs, _mgr, &rtc)
 #endif
 #if defined(WITH_USB_SERIAL_BRIDGE)
-      , bridge(&_prefs, WITH_USB_SERIAL_BRIDGE, _mgr, &rtc)
+      , bridge(&_prefs, USB_SERIAL_STREAM, _mgr, &rtc)
 #endif
 #if defined(WITH_TCP_BRIDGE)
-      , bridge(&_prefs, _mgr, &rtc, WITH_TCP_BRIDGE)
+      , bridge(&_prefs, _mgr, &rtc, TCP_BRIDGE_PORT)
 #endif
 {
   last_millis = 0;
