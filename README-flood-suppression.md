@@ -160,11 +160,8 @@ analogous to `feature/repeater-swarm-2`:
   (de-synchronises a fleet reboot); `examples/simple_repeater/main.cpp` fires it at
   ~21 s after the boot advert, gated on `flood_suppress`. The table then fills
   within ~30–60 s on hardware.
-- When combined with the neighbour-swarm relay (whose boot discovery is gated on
-  `direct_swarm_fwd`), **unify the two into one call** gated on
-  `(direct_swarm_fwd || flood_suppress)` to avoid a duplicate discover REQ.
 
-### Simulator caveat
+### Simulator caveat (mcsim)
 
 The neighbour table does **not** populate in the simulator: all repeaters boot
 synchronously, so their periodic adverts collide and no one receives them, and the

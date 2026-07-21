@@ -119,14 +119,11 @@ void setup() {
   the_mesh.sendSelfAdvertisement(16000, false);
 #endif
 
-  // When adaptive flood suppression is enabled, actively discover direct neighbours shortly
+  // When flood suppression is enabled, actively discover direct neighbours shortly
   // after boot so the neighbour list — which adaptive c/snr_hi derivation relies on — fills
   // fast (~30-60s), instead of waiting for periodic adverts. Fired after the boot self-advert;
   // jitter inside sendNodeDiscoverReq de-synchronises a fleet reboot.
-  // NOTE: if coupled with the neighbour-swarm relay (whose boot discovery is gated on
-  // direct_swarm_fwd), unify into ONE call gated on (direct_swarm_fwd || flood_suppress_adaptive)
-  // to avoid a duplicate discover REQ.
-  if (the_mesh.getNodePrefs()->flood_suppress_adaptive) {
+  if (the_mesh.getNodePrefs()->flood_suppress) {
     the_mesh.sendNodeDiscoverReq(16000 + 5000);   // ~21s + jitter
   }
 
