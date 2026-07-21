@@ -163,6 +163,6 @@ jobs:
             > ℹ️ Wio-SX1262搭載機（XIAO nRF52840/ESP32S3+Wio-SX1262、Wio Tracker L1 Pro）はモジュール単体で技適取得済み（工事設計認証201-250230、Seeed社確認済み・書面回答2026/7/20）。ただし証明出力は10dBmのみのため、本ビルドは当該機種のTX出力を10dBmに制限しています。
 
             ### 技適について
-            カスタムファームウェア書き込み後は技適の対象外です。詳細は [README_JP.md](https://github.com/jirogit/MeshCore/blob/dev/README_JP.md) を参照してください。
+            カスタムファームウェア書き込み後、Wio-SX1262搭載機（XIAO nRF52840/ESP32S3+Wio-SX1262、Wio Tracker L1 Pro）は技適の範囲内（送信出力10dBm厳守）、それ以外の機種は技適の対象外です。詳細は [README_JP.md](https://github.com/jirogit/MeshCore/blob/dev/README_JP.md) を参照してください。
           draft: true
           files: out_jp/*
