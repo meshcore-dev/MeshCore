@@ -93,7 +93,9 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     file.read((uint8_t *)&_prefs->flood_max_advert, sizeof(_prefs->flood_max_advert));             // 292
     file.read((uint8_t *)&_prefs->radio_fem_rxgain, sizeof(_prefs->radio_fem_rxgain));             // 293
     file.read((uint8_t *)&_prefs->cad_enabled, sizeof(_prefs->cad_enabled));                       // 294
-    // next: 295
+    file.read((uint8_t *)&_prefs->repeat_unrestricted_hops, sizeof(_prefs->repeat_unrestricted_hops)); // 295
+    file.read((uint8_t *)&_prefs->repeat_restrict_path_hash_size, sizeof(_prefs->repeat_restrict_path_hash_size)); // 296
+    // next: 297
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -190,7 +192,9 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->flood_max_advert, sizeof(_prefs->flood_max_advert));             // 292
     file.write((uint8_t *)&_prefs->radio_fem_rxgain, sizeof(_prefs->radio_fem_rxgain));             // 293
     file.write((uint8_t *)&_prefs->cad_enabled, sizeof(_prefs->cad_enabled));                       // 294
-    // next: 295
+    file.write((uint8_t *)&_prefs->repeat_unrestricted_hops, sizeof(_prefs->repeat_unrestricted_hops)); // 295
+    file.write((uint8_t *)&_prefs->repeat_restrict_path_hash_size, sizeof(_prefs->repeat_restrict_path_hash_size)); // 296
+    // next: 297
 
     file.close();
   }
@@ -664,6 +668,24 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     } else {
       strcpy(reply, "Error, max 64");
     }
+  } else if (memcmp(config, "repeat.unrestricted.hops ", 25) == 0) {
+    uint8_t m = atoi(&config[25]);
+    if (m <= 64) {
+      _prefs->repeat_unrestricted_hops = m;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error, max 64");
+    }
+  } else if (memcmp(config, "repeat.restrict.path.hash.size ", 31) == 0) {
+    uint8_t m = atoi(&config[31]);
+    if (m >= 1 && m <= 3) {
+      _prefs->repeat_restrict_path_hash_size = m;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error, between 1 and 3");
+    }
   } else if (memcmp(config, "flood.max ", 10) == 0) {
     uint8_t m = atoi(&config[10]);
     if (m <= 64) {
@@ -831,6 +853,10 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %s", tmp);
   } else if (memcmp(config, "name", 4) == 0) {
     sprintf(reply, "> %s", _prefs->node_name);
+  } else if (memcmp(config, "repeat.restrict.path.hash.size", 30) == 0) {
+    sprintf(reply, "> %d", _prefs->repeat_restrict_path_hash_size);
+  } else if (memcmp(config, "repeat.unrestricted.hops", 24) == 0) {
+    sprintf(reply, "> %d", _prefs->repeat_unrestricted_hops);
   } else if (memcmp(config, "repeat", 6) == 0) {
     sprintf(reply, "> %s", _prefs->disable_fwd ? "off" : "on");
   } else if (memcmp(config, "lat", 3) == 0) {

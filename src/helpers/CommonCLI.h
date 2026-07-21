@@ -42,6 +42,8 @@ struct NodePrefs { // persisted to file
   uint8_t flood_max;
   uint8_t flood_max_unscoped;
   uint8_t flood_max_advert;
+  uint8_t repeat_unrestricted_hops;
+  uint8_t repeat_restrict_path_hash_size;
   uint8_t interference_threshold;
   uint8_t agc_reset_interval; // secs / 4
   // Bridge settings

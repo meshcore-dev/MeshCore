@@ -428,6 +428,10 @@ void MyMesh::sendFloodReply(mesh::Packet* packet, unsigned long delay_millis, ui
 
 bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
   if (_prefs.disable_fwd) return false;
+  if (packet->getPathHashCount() > _prefs.repeat_unrestricted_hops) {
+    if (packet->getRouteType() == ROUTE_TYPE_FLOOD) return false;
+    if (packet->getPathHashSize() < _prefs.repeat_restrict_path_hash_size) return false;
+  }
   if (packet->isRouteFlood()) {
     if (packet->getPathHashCount() >= _prefs.flood_max) return false;
     if (packet->getRouteType() == ROUTE_TYPE_FLOOD && packet->getPathHashCount() >= _prefs.flood_max_unscoped) return false;
@@ -891,6 +895,8 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.flood_max = 64;
   _prefs.flood_max_unscoped = 64;
   _prefs.flood_max_advert = 8;
+  _prefs.repeat_unrestricted_hops = 64; // disabled
+  _prefs.repeat_restrict_path_hash_size = 1; // min x for x-Byte paths
   _prefs.interference_threshold = 0; // disabled
   _prefs.cad_enabled = 0;            // hardware CAD before TX (off by default; 'set cad on')
 
