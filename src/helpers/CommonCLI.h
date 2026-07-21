@@ -6,7 +6,7 @@
 #include <helpers/ClientACL.h>
 #include <helpers/RegionMap.h>
 
-#if defined(WITH_RS232_BRIDGE) || defined(WITH_ESPNOW_BRIDGE)
+#if defined(WITH_RS232_BRIDGE) || defined(WITH_ESPNOW_BRIDGE) || defined(WITH_MQTT_BRIDGE)
 #define WITH_BRIDGE
 #endif
 
