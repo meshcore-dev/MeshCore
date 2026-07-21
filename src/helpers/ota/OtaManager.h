@@ -250,6 +250,12 @@ public:
   // when crossing repeaters. Default OTA_HOP_LIMIT_DEFAULT. Set via `ota config hops`.
   void set_max_hops(uint8_t h) { _max_hops = h; }
   uint8_t max_hops() const { return _max_hops; }
+  // Promiscuous catalog discovery: query every heard beacon (superseeder SD cache).
+  void set_promiscuous(bool p) { _promiscuous = p; }
+  bool promiscuous() const { return _promiscuous; }
+  // Capture-to-serve: accept any codec when staging for re-seed (not self-apply).
+  void set_capture_mode(bool c) { _capture_mode = c; }
+  bool capture_mode() const { return _capture_mode; }
   bool fetched_is_signed() const { return (_fflags & MFLAG_SIGNED) != 0; }  // flags of the fetched manifest
 
   // This node's id (pubkey[0:4]), stamped into adverts we send so receivers can count distinct seeders.
@@ -380,6 +386,8 @@ private:
   uint16_t   _checkpoint_blocks = OTA_CHECKPOINT_BLOCKS;  // resume checkpoint cadence (persisted)
   uint16_t   _advert_mins = OTA_ADVERT_INTERVAL_MINS;    // beacon re-advertise cadence, minutes; 0=off (persisted)
   uint8_t    _max_hops = OTA_HOP_LIMIT_DEFAULT;          // OTA flood reach in hops; 0=direct only (persisted)
+  bool       _promiscuous = false;                       // query every heard beacon's catalog
+  bool       _capture_mode = false;                      // accept any codec (SD capture, not self-apply)
   uint8_t    _fflags = 0;                       // flags of the manifest currently being fetched
   // multi-fragment reassembly of the current block (per-block 2-phase: fetch data, then its proof)
   uint32_t   _reasm_block = NO_BLOCK;          // block being reassembled / awaiting proof (none)

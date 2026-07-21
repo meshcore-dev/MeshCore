@@ -405,8 +405,8 @@ void OtaManager::handleAdv(const uint8_t* m, uint16_t n) {
   s.n_motas = a.n_motas; s.last_ms = _now_ms;
   if (changed) s.have_catalog = false;
 
-  // interested = auto-fetch enabled, or a manual pull/want is pending. (Browsing queries via queryAll().)
-  bool interested = (_autofetch != AUTOFETCH_OFF) || _have_desired_mid || _desired_target;
+  // interested = auto-fetch enabled, manual pull/want pending, or promiscuous catalog discovery.
+  bool interested = _promiscuous || (_autofetch != AUTOFETCH_OFF) || _have_desired_mid || _desired_target;
   if (interested && !s.have_catalog) scheduleQuery(a.seeder_id, a.set_digest);  // jittered + suppressible
 }
 
@@ -537,7 +537,7 @@ void OtaManager::handleManifest(const uint8_t* m, uint16_t n) {
   const uint8_t* mf = _mf_buf;                   // fully reassembled manifest-minus-leaves
   uint32_t mfl = _mf_len;
   if (mfl != MOTA_MFL) { _fstate = FAILED; return; }   // manifest-minus-leaves is a fixed 197 bytes
-  if (!codecOk(mf[56])) { _fstate = IDLE; return; }   // codec we can't apply (lying/stale ADV) — abort
+  if (!_capture_mode && !codecOk(mf[56])) { _fstate = IDLE; return; }   // codec we can't apply — abort
   uint32_t payload_size = rd_u32le(mf + 15);
   uint8_t  bsl = mf[19];
   uint32_t bs = 1u << bsl;
@@ -670,7 +670,7 @@ bool OtaManager::resumeStaged(const uint8_t* want_mid) {
   MotaManifest m;
   if (!_fetch->read(8, mbuf, mread) || !mota_parse_manifest(mbuf, mread, m)) return false;
   if (want_mid && memcmp(m.merkle_root, want_mid, 4) != 0) return false;   // a different fw is staged
-  if (!codecOk(m.codec_id)) return false;
+  if (!_capture_mode && !codecOk(m.codec_id)) return false;
   uint32_t mfl = (uint32_t)(m.approval - m.manifest_start) + 4;            // manifest-minus-leaves length
   uint32_t bs = m.block_size();
   if (bs == 0 || bs > OTA_MAX_BLOCK) return false;

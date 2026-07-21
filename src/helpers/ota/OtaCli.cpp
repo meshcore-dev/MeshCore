@@ -140,6 +140,9 @@ bool handle_ota_command(const char* command, char* reply, mesh::MainBoard& board
     if (n < 146) n += snprintf(reply + n, 160 - n, " | bl:%s blrc:%02X",
                                c.bootloaderCaps().present ? "apply" : "NONE", ota_bootloader_last_rc());
 #endif
+#if defined(OTA_SD_SEEDER)
+    if (n < 152) n += snprintf(reply + n, 160 - n, " | sd:%s", c.sd_active ? "on" : "off");
+#endif
 
   // ---- admin OTA stats: crypto identities (our fw's content-id + body_hash), serving set, live fetch,
   //      policy — one dense line. The remote-admin CLI path is admin-gated, so this is admin-only over the
@@ -333,6 +336,30 @@ bool handle_ota_command(const char* command, char* reply, mesh::MainBoard& board
 
   // ---- external folder relay: advertise + serve `.mota` from a host daemon over the seeder UART, so the
   //      node hosts MANY images (any architecture) it doesn't hold in flash. Trustless (fetchers verify). --
+  } else if (is_cmd(a, "sd", &rest)) {
+#if defined(OTA_SD_SEEDER)
+    if (!c.sd_active) {
+      strcpy(reply, "ERR SD superseeder not active (mount failed at boot?)");
+      return true;
+    }
+    OtaManager::FetchState fs = c.manager.fetchState();
+    if (c.superseeder.capturing() && fs != OtaManager::IDLE) {
+      char midhx[9]; mesh::Utils::toHex(midhx, c.manager.fetchManifestId(), 4);
+      unsigned have = (unsigned)c.manager.blocksHave(), tot = (unsigned)c.manager.blocksTotal();
+      unsigned pct = tot ? (unsigned)((uint64_t)have * 100 / tot) : 0;
+      snprintf(reply, 160, "SD superseeder | files=%u %uK | capture %s %u/%u (%u%%) id=%s",
+               (unsigned)c.superseeder.fileCount(),
+               (unsigned)(c.superseeder.totalBytes() / 1024),
+               state_short(fs), have, tot, pct, midhx);
+    } else {
+      snprintf(reply, 160, "SD superseeder | mounted | files=%u %uK | capture idle",
+               (unsigned)c.superseeder.fileCount(),
+               (unsigned)(c.superseeder.totalBytes() / 1024));
+    }
+#else
+    strcpy(reply, "ERR not built with OTA_SD_SEEDER");
+#endif
+
   } else if (is_cmd(a, "folder|fold", &rest)) {
     const char* p = rest;
     if (strncmp(p, "on", 2) == 0) {

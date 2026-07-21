@@ -25,6 +25,9 @@
   // The console Serial is already begun by the example; a DEDICATED UART (override the stream) needs init,
   // so define OTA_FOLDER_SERIAL_BEGIN to have attach_folder() call .begin(baud) on it.
 #endif
+#if defined(OTA_SD_SEEDER)
+  #include "SuperSeeder.h"
+#endif
 
 // Per-device OTA singleton shared by the CLI (OtaCli) and the mesh adapter (the example's MyMesh).
 // Holds the session engine, a staging store (fetch), a RAM serve buffer, and the signer allowlist.
@@ -152,6 +155,10 @@ struct OtaContext {
   uint32_t session_started_ms = 0;   // when the fetch session last left IDLE (for the age display)
   uint8_t  prev_fstate = OtaManager::IDLE;
   bool     folder_active = false;    // an external `.mota` folder is attached + being relayed
+#if defined(OTA_SD_SEEDER)
+  SuperSeeder superseeder;
+  bool        sd_active = false;     // SD superseeder mounted + serving
+#endif
 
   // Attach/detach an external folder of `.mota` served by a host daemon over the seeder UART (the node
   // then advertises + relays them alongside its own fw). Only built when OTA_FOLDER_SERIAL is configured.
@@ -170,6 +177,21 @@ struct OtaContext {
   }
 #endif
   void detach_folder() { manager.clear_sources(); folder_active = false; }
+
+#if defined(OTA_SD_SEEDER)
+  bool attach_sd(char* msg, size_t cap) {
+    superseeder.begin(*this);
+    if (!superseeder.mounted()) { strncpy(msg, "ERR SD mount failed", cap); return false; }
+    sd_active = superseeder.active();
+    if (!sd_active) { strncpy(msg, "ERR SD source slot full", cap); return false; }
+    snprintf(msg, cap, "OK SD superseeder — serving %u mOTA total (own fw + SD)",
+             (unsigned)manager.servedCount());
+    return true;
+  }
+  void superseeder_loop() {
+    if (sd_active) superseeder.loop();
+  }
+#endif
 
   void track_session(uint8_t fstate, uint32_t now) {            // stamp the session start (age display)
     if (fstate != prev_fstate) {

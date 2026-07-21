@@ -50,6 +50,12 @@ void Mesh::begin() {
   #endif
   ota::ota_ctx().begin(my_tid, Mesh::otaSendAdapter, this, my_hw);   // also sets the platform apply codec
   ota::ota_ctx().manager.set_seeder_id(self_id.pub_key);      // node id (pubkey[0:4]) for advert seeder count
+#if defined(OTA_SD_SEEDER)
+  {
+    char sdmsg[80];
+    ota::ota_ctx().attach_sd(sdmsg, sizeof sdmsg);
+  }
+#endif
   _next_ota_announce = futureMillis(OTA_ANNOUNCE_BOOT_MS);    // advertise our own fw shortly after boot
 #endif
 }
@@ -89,6 +95,9 @@ void Mesh::loop() {
     }
     ota::ota_ctx().manager.set_clock(_ms->getMillis());   // for discovery jitter/ages + the pending-query timer
     ota::ota_ctx().manager.loop();         // re-request still-missing OTA blocks + fire scheduled queries
+#if defined(OTA_SD_SEEDER)
+    ota::ota_ctx().superseeder_loop();
+#endif
     _next_ota_tick = futureMillis(3000);
   }
   if (millisHasNowPassed(_next_ota_announce)) {   // auto-advertise so peers discover us (tiny beacon)
