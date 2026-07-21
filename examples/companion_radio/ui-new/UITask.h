@@ -35,6 +35,8 @@ class UITask : public AbstractUITask {
   NodePrefs* _node_prefs;
   char _alert[80];
   unsigned long _alert_expiry;
+  // Flag indicating whether the screen is locked to prevent accidental input
+  bool _screen_locked;
   int _msgcount;
   unsigned long ui_started_at, next_batt_chck;
   int next_backlight_btn_check = 0;
@@ -65,7 +67,8 @@ class UITask : public AbstractUITask {
 
 public:
 
-  UITask(mesh::MainBoard* board, BaseSerialInterface* serial) : AbstractUITask(board, serial), _display(NULL), _sensors(NULL) {
+  UITask(mesh::MainBoard* board, BaseSerialInterface* serial) : AbstractUITask(board, serial), _display(NULL), _sensors(NULL),
+    _screen_locked(false) {
     next_batt_chck = _next_refresh = 0;
     ui_started_at = 0;
     curr = NULL;
@@ -77,6 +80,7 @@ public:
   int  getMsgCount() const { return _msgcount; }
   bool hasDisplay() const { return _display != NULL; }
   bool isButtonPressed() const;
+  bool isScreenLocked() const { return _screen_locked; }
 
   bool isBuzzerQuiet() { 
 #ifdef PIN_BUZZER
