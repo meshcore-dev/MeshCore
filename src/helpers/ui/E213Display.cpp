@@ -51,6 +51,7 @@ bool E213Display::begin() {
 
   _init = true;
   _isOn = true;
+  _color = WHITE;
 
   clear();
   display->fastmodeOn(); // Enable fast mode for quicker (partial) updates
@@ -123,23 +124,25 @@ void E213Display::startFrame(Color bkg) {
 void E213Display::setTextSize(int sz) {
   display_crc.update<int>(sz);
   // The library handles text size internally
-    display->setTextSize(sz);
+  display->setTextSize(sz);
 }
 
 void E213Display::setColor(Color c) {
   display_crc.update<Color>(c);
-  // implemented in individual display methods
+  // keep in mind this is inverted on e-ink
+  _color = c == 0 ? WHITE : BLACK; // for rectangles and bitmaps
+  display->setTextColor(UINT16_MAX * _color); // for text
 }
 
 void E213Display::setCursor(int x, int y) {
   display_crc.update<int>(x);
   display_crc.update<int>(y);
-    display->setCursor(x, y);
+  display->setCursor(x, y);
 }
 
 void E213Display::print(const char *str) {
   display_crc.update<char>(str, strlen(str));
-    display->print(str);
+  display->print(str);
 }
 
 void E213Display::fillRect(int x, int y, int w, int h) {
@@ -147,7 +150,7 @@ void E213Display::fillRect(int x, int y, int w, int h) {
   display_crc.update<int>(y);
   display_crc.update<int>(w);
   display_crc.update<int>(h);
-    display->fillRect(x, y, w, h, BLACK);
+  display->fillRect(x, y, w, h, _color);
 }
 
 void E213Display::drawRect(int x, int y, int w, int h) {
@@ -155,7 +158,7 @@ void E213Display::drawRect(int x, int y, int w, int h) {
   display_crc.update<int>(y);
   display_crc.update<int>(w);
   display_crc.update<int>(h);
-    display->drawRect(x, y, w, h, BLACK);
+  display->drawRect(x, y, w, h, _color);
 }
 
 void E213Display::drawXbm(int x, int y, const uint8_t *bits, int w, int h) {
@@ -179,7 +182,7 @@ void E213Display::drawXbm(int x, int y, const uint8_t *bits, int w, int h) {
 
       // If the bit is set, draw the pixel
       if (bitSet) {
-          display->drawPixel(x + bx, y + by, BLACK);
+          display->drawPixel(x + bx, y + by, _color);
       }
     }
   }
