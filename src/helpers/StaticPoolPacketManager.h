@@ -7,10 +7,12 @@ class PacketQueue {
   uint8_t* _pri_table;
   uint32_t* _schedule_table;
   int _size, _num;
+  int findBest(uint32_t now) const;
 
 public:
   PacketQueue(int max_entries);
   mesh::Packet* get(uint32_t now);
+  mesh::Packet* peek(uint32_t now) const;
   bool add(mesh::Packet* packet, uint8_t priority, uint32_t scheduled_for);
   int count() const { return _num; }
   int countBefore(uint32_t now) const;
@@ -28,6 +30,7 @@ public:
   void free(mesh::Packet* packet) override;
   void queueOutbound(mesh::Packet* packet, uint8_t priority, uint32_t scheduled_for) override;
   mesh::Packet* getNextOutbound(uint32_t now) override;
+  mesh::Packet* peekNextOutbound(uint32_t now) override;
   int getOutboundCount(uint32_t now) const override;
   int getOutboundTotal() const override;
   int getFreeCount() const override;

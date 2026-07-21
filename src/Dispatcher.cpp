@@ -273,11 +273,15 @@ void Dispatcher::processRecvPacket(Packet* pkt) {
 }
 
 void Dispatcher::checkSend() {
-  if (_mgr->getOutboundCount(_ms->getMillis()) == 0) return;
+  unsigned long now = _ms->getMillis();
+  if (_mgr->getOutboundCount(now) == 0) return;
   
   updateTxBudget();
   
-  uint32_t est_airtime = _radio->getEstAirtimeFor(MAX_TRANS_UNIT);
+  Packet* next_outbound = _mgr->peekNextOutbound(now);
+  if (next_outbound == NULL) return;
+
+  uint32_t est_airtime = _radio->getEstAirtimeFor(next_outbound->getRawLength());
   if (tx_budget_ms < est_airtime / MIN_TX_BUDGET_AIRTIME_DIV) {
     float duty_cycle = 1.0f / (1.0f + getAirtimeBudgetFactor());
     unsigned long needed = est_airtime / MIN_TX_BUDGET_AIRTIME_DIV - tx_budget_ms;
@@ -304,7 +308,7 @@ void Dispatcher::checkSend() {
   }
   cad_busy_start = 0;  // reset busy state
 
-  outbound = _mgr->getNextOutbound(_ms->getMillis());
+  outbound = _mgr->getNextOutbound(now);
   if (outbound) {
     int len = 0;
     uint8_t raw[MAX_TRANS_UNIT];
