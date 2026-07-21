@@ -44,6 +44,48 @@ static File openWrite(FILESYSTEM* fs, const char* filename) {
 
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
   static uint32_t _ContactsChannelsTotalBlocks = 0;
+
+/* Boot-time filesystem integrity check.
+ *
+ * A littlefs whose superblock is intact but whose interior metadata is damaged (e.g. flash
+ * region partially overwritten, or interrupted writes) mounts successfully, then wedges the
+ * device on the FIRST write after boot: lfs_deorphan() -- run lazily by lfs_remove()/
+ * lfs_file_open() once per power cycle -- walks every metadata block, and littlefs v1
+ * follows corrupt tail pointers into an unbounded loop, or (with LFS_NO_ASSERT) reads/writes
+ * a wild out-of-range block address, hard-faulting the MCU. Either way the node freezes
+ * until manually reset, and every reboot repeats the cycle.
+ *
+ * Walking the whole tree up-front detects this state safely: lfs_traverse() invokes the
+ * callback on each block number BEFORE reading it, so out-of-range pointers are caught
+ * without touching bad addresses, and a visited-block count exceeding block_count can only
+ * mean a metadata cycle. On failure the filesystem is reformatted -- losing its contents,
+ * but recovering the node without a chip erase.
+ */
+struct FsckState {
+  lfs_size_t visited;
+  lfs_size_t block_count;
+};
+
+static int _fsckBlock(void *p, lfs_block_t block) {
+  FsckState *s = (FsckState *) p;
+  if (block >= s->block_count) return LFS_ERR_CORRUPT;    // pointer outside the filesystem
+  if (++s->visited > s->block_count) return LFS_ERR_CORRUPT;  // more blocks than exist -> cycle
+  return 0;
+}
+
+static bool _isFilesystemIntact(FILESYSTEM* fs) {
+  FsckState s;
+  s.visited = 0;
+  s.block_count = fs->_getFS()->cfg->block_count;
+  return lfs_traverse(fs->_getFS(), _fsckBlock, &s) == 0;
+}
+
+static void _fsckAndRecover(FILESYSTEM* fs, const char* name) {
+  if (!_isFilesystemIntact(fs)) {
+    MESH_DEBUG_PRINTLN("ERROR: %s filesystem is corrupted - reformatting!", name);
+    fs->format();
+  }
+}
 #endif
 
 void DataStore::begin() {
@@ -52,6 +94,12 @@ void DataStore::begin() {
 #endif
 
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
+  // must run before the first filesystem write (checkAdvBlobFile/migrateToSecondaryFS below)
+  _fsckAndRecover(_fs, "primary");
+  if (_fsExtra != nullptr) {
+    _fsckAndRecover(_fsExtra, "secondary");
+  }
+
   _ContactsChannelsTotalBlocks = _getContactsChannelsFS()->_getFS()->cfg->block_count;
   checkAdvBlobFile();
   #if defined(EXTRAFS) || defined(QSPIFLASH)
