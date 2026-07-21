@@ -51,6 +51,53 @@ TEST(UtilsToHex, NullTerminatesOnEmptyInput) {
     EXPECT_EQ('\0', output[0]);
 }
 
+TEST(UtilsParseTextParts, PreservesEmptyPartsByDefault) {
+    char input[] = "region default  ";
+    const char* parts[4];
+
+    int count = Utils::parseTextParts(input, parts, 4, ' ');
+
+    ASSERT_EQ(3, count);
+    EXPECT_STREQ("region", parts[0]);
+    EXPECT_STREQ("default", parts[1]);
+    EXPECT_STREQ("", parts[2]);
+}
+
+TEST(UtilsParseTextParts, SkippingEmptyTreatsTrailingSpacesAsNoArgument) {
+    char input[] = "region default  ";
+    const char* parts[4];
+
+    int count = Utils::parseTextPartsSkippingEmpty(input, parts, 4, ' ');
+
+    ASSERT_EQ(2, count);
+    EXPECT_STREQ("region", parts[0]);
+    EXPECT_STREQ("default", parts[1]);
+}
+
+TEST(UtilsParseTextParts, SkippingEmptyKeepsNamedArgumentBetweenRepeatedSpaces) {
+    char input[] = "region  default  au-nsw  ";
+    const char* parts[4];
+
+    int count = Utils::parseTextPartsSkippingEmpty(input, parts, 4, ' ');
+
+    ASSERT_EQ(3, count);
+    EXPECT_STREQ("region", parts[0]);
+    EXPECT_STREQ("default", parts[1]);
+    EXPECT_STREQ("au-nsw", parts[2]);
+}
+
+TEST(UtilsParseTextParts, KeepsExplicitNullRegionArgument) {
+    char input[] = "region  default  <null>  ";
+    const char* parts[4];
+
+    int count = Utils::parseTextPartsSkippingEmpty(input, parts, 4, ' ');
+
+    ASSERT_EQ(3, count);
+    EXPECT_STREQ("region", parts[0]);
+    EXPECT_STREQ("default", parts[1]);
+    EXPECT_STREQ("<null>", parts[2]);
+}
+
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
