@@ -27,6 +27,12 @@ static unsigned long userBtnDownAt = 0;
 #define USER_BTN_HOLD_OFF_MILLIS 1500
 #endif
 
+#ifdef ESP32
+  #ifdef WIFI_SSID
+    #include <helpers/esp32/SerialWifiInterface.h>
+  #endif
+#endif
+
 void setup() {
   Serial.begin(115200);
   delay(1000);
@@ -81,6 +87,11 @@ void setup() {
     }
     store.save("_main", the_mesh.self_id);
   }
+
+#ifdef WIFI_SSID
+  board.setInhibitSleep(true);   // prevent sleep when WiFi is active
+  WiFi.begin(WIFI_SSID, WIFI_PWD);
+#endif
 
   Serial.print("Repeater ID: ");
   mesh::Utils::printHex(Serial, the_mesh.self_id.pub_key, PUB_KEY_SIZE); Serial.println();
