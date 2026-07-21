@@ -134,7 +134,16 @@ typedef uint32_t  DispatcherAction;
 // runtime-adaptive C via EWMA on overheard forwards was removed as over-engineering: the forward
 // latency is stable, so the EWMA converged to the same value a correctly-set static C0 gives.)
 #ifndef RESEND_DEFERRAL_FIXED_MS
-  #define RESEND_DEFERRAL_FIXED_MS   600   // C0: measured fixed forward-latency component (relay processing + CAD-retry + scheduling). Observer runs SF8 w/ & w/o interferer: residual = forward_latency - K*airtime median ~575 ms. SF-independent; raise if dwell/CAD config adds fixed latency.
+  // C0: fixed (airtime-INDEPENDENT) forward-latency component = relay processing + CAD-retry +
+  // quiet-dwell gate + scheduling. Recalibrated for SF10 + quiet-dwell from the long-message HW A/B
+  // (feature/repeated-sending-3, 2026-07-21): prompt-forward latency ~2.85 s minus the 2*airtime term
+  // (~1.56 s for a 160 B / ~780 ms-airtime packet) leaves a fixed residual of ~1.29 s median, with the
+  // prompt-forward cluster reaching ~1.76 s. The prior 600 ms was calibrated on SF8 observer runs and
+  // under-covered SF10 long messages, where the downstream forward alone takes 2-3 s — so the resend
+  // became eligible before the forward could cancel it and every long message picked up a redundant,
+  // colliding resend. 1500 ms covers the prompt-forward regime; a heavily congested repeater (forward
+  // pushed to 5-10 s) will still race, but that is a channel-load problem, not a window-sizing one.
+  #define RESEND_DEFERRAL_FIXED_MS   1500
 #endif
 #ifndef RESEND_DEFERRAL_AIRTIME_X
   #define RESEND_DEFERRAL_AIRTIME_X  2     // K: forward TX (1x) + mean downstream retransmit_delay (~1x), expressed in airtimes
@@ -142,8 +151,17 @@ typedef uint32_t  DispatcherAction;
 #ifndef RESEND_DEFERRAL_MARGIN_MS
   #define RESEND_DEFERRAL_MARGIN_MS  40    // extra safety for scheduling jitter / latency variance
 #endif
-#ifndef RESEND_DEFERRAL_MAX_MS
-  #define RESEND_DEFERRAL_MAX_MS     1500  // hard ceiling on W (bounds recovery latency at high SF / extreme airtime)
+// Airtime-PROPORTIONAL ceiling on W, replacing the earlier flat RESEND_DEFERRAL_MAX_MS (=1500). The
+// flat cap clipped the formula's K*airtime term for any payload > ~85 B at SF10, so long messages were
+// pinned at 1500 ms regardless of length — below even the fastest observed forward latency. The
+// ceiling now grows with airtime: CAP_BASE + CAP_AIRTIME_X*airtime. CAP_AIRTIME_X (3) >= K (2), so the
+// ceiling always sits above the formula for realistic packets and the formula governs; it only bounds
+// genuinely pathological cases (very high SF / extreme airtime) to keep recovery latency finite.
+#ifndef RESEND_DEFERRAL_CAP_BASE_MS
+  #define RESEND_DEFERRAL_CAP_BASE_MS   1500  // ceiling floor (tiny-packet / low-SF case)
+#endif
+#ifndef RESEND_DEFERRAL_CAP_AIRTIME_X
+  #define RESEND_DEFERRAL_CAP_AIRTIME_X 3     // ceiling slope in airtimes (>= K so it never under-covers)
 #endif
 #ifndef RESEND_BACKOFF_JITTER_MS
   #define RESEND_BACKOFF_JITTER_MS   100   // per-attempt stretch (attempt-1)*100 - the light stretch for 2nd/3rd attempt
