@@ -25,7 +25,7 @@ struct NodePrefs { // persisted to file
   double node_lat, node_lon;
   char password[16];
   float freq;
-  int8_t tx_power_dbm;
+  int8_t tx_power_dbm; // requested radio TX power in dBm (board/radio dependent)
   uint8_t disable_fwd;
   uint8_t advert_interval;       // minutes / 2
   uint8_t flood_advert_interval; // hours
