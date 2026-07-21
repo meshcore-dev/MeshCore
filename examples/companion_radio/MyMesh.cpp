@@ -877,7 +877,7 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
 
   // defaults
   memset(&_prefs, 0, sizeof(_prefs));
-  _prefs.airtime_factor = 1.0;
+  _prefs.airtime_factor = 1.0f;
   strcpy(_prefs.node_name, "NONAME");
   _prefs.freq = LORA_FREQ;
   _prefs.sf = LORA_SF;
@@ -1391,8 +1391,8 @@ void MyMesh::handleCmdFrame(size_t len) {
         bw <= 500000) {
       _prefs.sf = sf;
       _prefs.cr = cr;
-      _prefs.freq = (float)freq / 1000.0;
-      _prefs.bw = (float)bw / 1000.0;
+      _prefs.freq = (float)freq / 1000.0f;
+      _prefs.bw = (float)bw / 1000.0f;
       _prefs.client_repeat = repeat;
       savePrefs();
 

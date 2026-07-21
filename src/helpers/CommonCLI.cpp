@@ -487,7 +487,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
 void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* reply) {
   const char* config = &command[4];
   if (memcmp(config, "dutycycle ", 10) == 0) {
-    float dc = atof(&config[10]);
+    float dc = strtof(&config[10], nullptr);
     if (dc < 1 || dc > 100) {
       strcpy(reply, "ERROR: dutycycle must be 1-100");
     } else {
@@ -499,7 +499,7 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       sprintf(reply, "OK - %d.%d%%", a_int, a_frac);
     }
   } else if (memcmp(config, "af ", 3) == 0) {
-    _prefs->airtime_factor = atof(&config[3]);
+    _prefs->airtime_factor = strtof(&config[3], nullptr);
     savePrefs();
     strcpy(reply, "OK");
   } else if (memcmp(config, "int.thresh ", 11) == 0) {
@@ -629,7 +629,7 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     savePrefs();
     strcpy(reply, "OK");
   } else if (memcmp(config, "rxdelay ", 8) == 0) {
-    float db = atof(&config[8]);
+    float db = strtof(&config[8], nullptr);
     if (db >= 0 && db <= 20.0f) {
       _prefs->rx_delay_base = db;
       savePrefs();
@@ -638,7 +638,7 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       strcpy(reply, "Error, must be 0-20");
     }
   } else if (memcmp(config, "txdelay ", 8) == 0) {
-    float f = atof(&config[8]);
+    float f = strtof(&config[8], nullptr);
     if (f >= 0 && f <= 2.0f) {
       _prefs->tx_delay_factor = f;
       savePrefs();
@@ -674,7 +674,7 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       strcpy(reply, "Error, max 64");
     }
   } else if (memcmp(config, "direct.txdelay ", 15) == 0) {
-    float f = atof(&config[15]);
+    float f = strtof(&config[15], nullptr);
     if (f >= 0 && f <= 2.0f) {
       _prefs->direct_tx_delay_factor = f;
       savePrefs();
@@ -728,7 +728,7 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     _callbacks->setTxPower(_prefs->tx_power_dbm);
     strcpy(reply, "OK");
   } else if (sender_timestamp == 0 && memcmp(config, "freq ", 5) == 0) {
-    _prefs->freq = atof(&config[5]);
+    _prefs->freq = strtof(&config[5], nullptr);
     savePrefs();
     strcpy(reply, "OK - reboot to apply");
 #ifdef WITH_BRIDGE
@@ -781,7 +781,7 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     strcpy(reply, "OK");
 #endif
   } else if (memcmp(config, "adc.multiplier ", 15) == 0) {
-    _prefs->adc_multiplier = atof(&config[15]);
+    _prefs->adc_multiplier = strtof(&config[15], nullptr);
     if (_board->setAdcMultiplier(_prefs->adc_multiplier)) {
       savePrefs();
       if (_prefs->adc_multiplier == 0.0f) {

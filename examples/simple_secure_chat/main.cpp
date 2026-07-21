@@ -475,7 +475,7 @@ public:
     } else if (memcmp(command, "set ", 4) == 0) {
       const char* config = &command[4];
       if (memcmp(config, "af ", 3) == 0) {
-        _prefs.airtime_factor = atof(&config[3]);
+        _prefs.airtime_factor = strtof(&config[3], nullptr);
         savePrefs();
         Serial.println("  OK");
       } else if (memcmp(config, "name ", 5) == 0) {
@@ -495,7 +495,7 @@ public:
         savePrefs();
         Serial.println("  OK - reboot to apply");
       } else if (memcmp(config, "freq ", 5) == 0) {
-        _prefs.freq = atof(&config[5]);
+        _prefs.freq = strtof(&config[5], nullptr);
         savePrefs();
         Serial.println("  OK - reboot to apply");
       } else {
