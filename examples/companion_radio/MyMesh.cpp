@@ -106,6 +106,10 @@
 #define DIRECT_SEND_PERHOP_EXTRA_MILLIS 250
 #define LAZY_CONTACTS_WRITE_DELAY       5000
 
+#ifndef RESEND_INTERFERENCE_MARGIN
+  #define RESEND_INTERFERENCE_MARGIN   12   // dB above noise floor that blocks a resend (non-invasive LBT)
+#endif
+
 #define PUBLIC_GROUP_PSK                "izOH6cXN6mrJ5e26oRXNcg=="
 
 // these are _pushed_ to client app at any time
@@ -265,6 +269,15 @@ bool MyMesh::getCADEnabled() const {
   return true; // hardware CAD before TX (no CLI toggle on companion; enabled by default)
 }
 
+bool MyMesh::isResendChannelActive() {
+  // Non-invasive resend LBT (NO CAD, so RX stays open to overhear the downstream forward
+  // and cancel the resend). Block the resend when a LoRa preamble/header is being received
+  // (often that forward itself) OR the live channel energy is well above the noise floor
+  // (foreign interference). isReceivingPacket()/getCurrentRSSI() are IRQ/register reads.
+  int margin = (int)radio_driver.getCurrentRSSI() - _radio->getNoiseFloor();
+  return radio_driver.isReceivingPacket() || (margin >= RESEND_INTERFERENCE_MARGIN);
+}
+
 int MyMesh::calcRxDelay(float score, uint32_t air_time) const {
   if (_prefs.rx_delay_base <= 0.0f) return 0;
   return (int)((pow(_prefs.rx_delay_base, 0.85f - score) - 1.0) * air_time);
@@ -274,6 +287,7 @@ uint32_t MyMesh::getRetransmitDelay(const mesh::Packet *packet) {
   uint32_t t = (_radio->getEstAirtimeFor(packet->getPathByteLen() + packet->payload_len + 2) * 0.5f);
   return getRNG()->nextInt(0, 5*t + 1);
 }
+
 uint32_t MyMesh::getDirectRetransmitDelay(const mesh::Packet *packet) {
   uint32_t t = (_radio->getEstAirtimeFor(packet->getPathByteLen() + packet->payload_len + 2) * 0.2f);
   return getRNG()->nextInt(0, 5*t + 1);
@@ -886,6 +900,7 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
   _prefs.tx_power_dbm = LORA_TX_POWER;
   _prefs.gps_enabled = 0;       // GPS disabled by default
   _prefs.gps_interval = 0;      // No automatic GPS updates by default
+  _prefs.max_resend_attempts = 2;
   //_prefs.rx_delay_base = 10.0f;  enable once new algo fixed
 #if defined(USE_SX1262) || defined(USE_SX1268)
 #ifdef SX126X_RX_BOOSTED_GAIN
@@ -943,6 +958,7 @@ void MyMesh::begin(bool has_display) {
   _prefs.tx_power_dbm = constrain(_prefs.tx_power_dbm, -9, MAX_LORA_TX_POWER);
   _prefs.gps_enabled = constrain(_prefs.gps_enabled, 0, 1);  // Ensure boolean 0 or 1
   _prefs.gps_interval = constrain(_prefs.gps_interval, 0, 86400);  // Max 24 hours
+  _prefs.max_resend_attempts = constrain(_prefs.max_resend_attempts, 0, 3);
 
 #ifdef BLE_PIN_CODE // 123456 by default
   if (_prefs.ble_pin == 0) {
@@ -1445,6 +1461,9 @@ void MyMesh::handleCmdFrame(size_t len) {
         _prefs.advert_loc_policy = cmd_frame[3];
         if (len >= 5) {
           _prefs.multi_acks = cmd_frame[4];
+          if (len >= 6) {
+            _prefs.max_resend_attempts = constrain(cmd_frame[5], 0, 3);
+          }
         }
       }
     }

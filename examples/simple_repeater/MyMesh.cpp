@@ -60,6 +60,10 @@
 
 #define LAZY_CONTACTS_WRITE_DELAY    5000
 
+#ifndef RESEND_INTERFERENCE_MARGIN
+  #define RESEND_INTERFERENCE_MARGIN  12   // dB above noise floor that blocks a resend (non-invasive LBT)
+#endif
+
 void MyMesh::putNeighbour(const mesh::Identity &id, uint32_t timestamp, float snr) {
 #if MAX_NEIGHBOURS // check if neighbours enabled
   // find existing neighbour, else use least recently updated
@@ -549,6 +553,14 @@ uint32_t MyMesh::getDirectRetransmitDelay(const mesh::Packet *packet) {
   return getRNG()->nextInt(0, 5*t + 1);
 }
 
+bool MyMesh::isResendChannelActive() {
+  // Non-invasive resend LBT (NO CAD, so RX stays open to overhear the downstream forward
+  // and cancel the resend). Block when a LoRa preamble/header is being received (often that
+  // forward) OR the live channel energy is well above the noise floor (foreign interference).
+  int margin = (int)radio_driver.getCurrentRSSI() - _radio->getNoiseFloor();
+  return radio_driver.isReceivingPacket() || (margin >= RESEND_INTERFERENCE_MARGIN);
+}
+
 mesh::DispatcherAction MyMesh::onRecvPacket(mesh::Packet* pkt) {
   if (pkt->getRouteType() == ROUTE_TYPE_TRANSPORT_FLOOD) {
     recv_pkt_region = region_map.findMatch(pkt, REGION_DENY_FLOOD);
@@ -877,6 +889,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.rx_delay_base = 0.0f;   // turn off by default, was 10.0;
   _prefs.tx_delay_factor = 0.5f; // was 0.25f
   _prefs.direct_tx_delay_factor = 0.3f; // was 0.2
+  _prefs.max_resend_attempts = 2;
   StrHelper::strncpy(_prefs.node_name, ADVERT_NAME, sizeof(_prefs.node_name));
   _prefs.node_lat = ADVERT_LAT;
   _prefs.node_lon = ADVERT_LON;

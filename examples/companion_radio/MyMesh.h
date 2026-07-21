@@ -106,10 +106,12 @@ protected:
   float getAirtimeBudgetFactor() const override;
   int getInterferenceThreshold() const override;
   bool getCADEnabled() const override;
+  bool isResendChannelActive() override;
   int calcRxDelay(float score, uint32_t air_time) const override;
   uint32_t getRetransmitDelay(const mesh::Packet *packet) override;
   uint32_t getDirectRetransmitDelay(const mesh::Packet *packet) override;
   uint8_t getExtraAckTransmitCount() const override;
+  uint8_t getMaxResendAttempts() const override { return _prefs.max_resend_attempts; }
   bool filterRecvFloodPacket(mesh::Packet* packet) override;
   bool allowPacketForward(const mesh::Packet* packet) override;
 

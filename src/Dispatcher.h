@@ -91,6 +91,7 @@ public:
 
   virtual void queueOutbound(Packet* packet, uint8_t priority, uint32_t scheduled_for) = 0;
   virtual Packet* getNextOutbound(uint32_t now) = 0;    // by priority
+  virtual Packet* peekNextOutbound(uint32_t now) { return NULL; }   // same as getNextOutbound but non-consuming (default: none)
   virtual int getOutboundCount(uint32_t now) const = 0;
   virtual int getOutboundTotal() const = 0;
   virtual int getFreeCount() const = 0;
@@ -111,12 +112,52 @@ typedef uint32_t  DispatcherAction;
 #define ERR_EVENT_CAD_TIMEOUT       (1 << 1)
 #define ERR_EVENT_STARTRX_TIMEOUT   (1 << 2)
 
+// Pool-shedding backpressure: when the free packet pool (slots available for allocNew/RX) drops
+// to or below this threshold, skip DIRECT resends (resendPacket) to protect RX liveness. The
+// PRIMARY direct forward is never shed (different path) — only redundant resends. Tune per pool
+// size (repeaters=32, companions=16); default covers a short RX burst.
+#ifndef POOL_SHED_FREE_THRESHOLD
+  #define POOL_SHED_FREE_THRESHOLD  6
+#endif
+
+// Resend window model. The resend must wait for the DOWNSTREAM relay's forward to arrive and
+// cancel it via isRetryMatch. The forward latency decomposes into:
+//   - a fixed part: relay processing + LBT/CAD-retry (in 120ms units) + optional dwell + scheduling,
+//   - an airtime-proportional part: the relay's forward TX (~1x airtime) + its retransmit_delay.
+// The window is therefore modelled as:   W = C0 + K*airtime + margin + (attempt-1)*jitter
+// C0 (RESEND_DEFERRAL_FIXED_MS) is a STATIC value calibrated from observer runs — the measured
+// fixed forward-latency component, SF-INDEPENDENT because the SF-dependent forward TX airtime is
+// carried entirely by the K*airtime term (getEstAirtimeFor already encodes the configured SF/BW/CR).
+// So one formula covers any spreading factor without a per-regime constant or an SF branch. The
+// former flat 5x-airtime multiplier could not represent the fixed part and under-covered it at low SF
+// (SF5/SF8), where airtime is only a few ms while the fixed relay deferral is ~600 ms. (An earlier
+// runtime-adaptive C via EWMA on overheard forwards was removed as over-engineering: the forward
+// latency is stable, so the EWMA converged to the same value a correctly-set static C0 gives.)
+#ifndef RESEND_DEFERRAL_FIXED_MS
+  #define RESEND_DEFERRAL_FIXED_MS   600   // C0: measured fixed forward-latency component (relay processing + CAD-retry + scheduling). Observer runs SF8 w/ & w/o interferer: residual = forward_latency - K*airtime median ~575 ms. SF-independent; raise if dwell/CAD config adds fixed latency.
+#endif
+#ifndef RESEND_DEFERRAL_AIRTIME_X
+  #define RESEND_DEFERRAL_AIRTIME_X  2     // K: forward TX (1x) + mean downstream retransmit_delay (~1x), expressed in airtimes
+#endif
+#ifndef RESEND_DEFERRAL_MARGIN_MS
+  #define RESEND_DEFERRAL_MARGIN_MS  40    // extra safety for scheduling jitter / latency variance
+#endif
+#ifndef RESEND_DEFERRAL_MAX_MS
+  #define RESEND_DEFERRAL_MAX_MS     1500  // hard ceiling on W (bounds recovery latency at high SF / extreme airtime)
+#endif
+#ifndef RESEND_BACKOFF_JITTER_MS
+  #define RESEND_BACKOFF_JITTER_MS   100   // per-attempt stretch (attempt-1)*100 - the light stretch for 2nd/3rd attempt
+#endif
+
 /**
  * \brief  The low-level task that manages detecting incoming Packets, and the queueing
  *      and scheduling of outbound Packets.
 */
 class Dispatcher {
+protected:
   Packet* outbound;  // current outbound packet
+
+private:
   unsigned long outbound_expiry, outbound_start, total_air_time, rx_air_time;
   unsigned long next_tx_time;
   unsigned long cad_busy_start;
@@ -128,6 +169,9 @@ class Dispatcher {
   unsigned long tx_budget_ms;
   unsigned long last_budget_update;
   unsigned long duty_cycle_window_ms;
+
+  // W = C0 + K*airtime + margin + (attempt-1)*jitter, with C0 = RESEND_DEFERRAL_FIXED_MS (static).
+  uint32_t resendWindowFor(uint16_t airtime_ms, uint8_t sending_attempts) const;
 
   void processRecvPacket(Packet* pkt);
   void updateTxBudget();
@@ -169,8 +213,18 @@ protected:
   virtual uint32_t getCADFailMaxDuration() const;
   virtual int getInterferenceThreshold() const { return 0; }    // disabled by default
   virtual bool getCADEnabled() const { return false; }    // hardware CAD disabled by default
+  // Channel-busy check used ONLY for resend TX gating (direct packets with sending_attempts>0).
+  // Default falls back to CAD carrier sense; examples override with a NON-invasive check
+  // (preamble/header IRQ + RSSI margin) so RX stays open to overhear the downstream forward
+  // and cancel the resend. Non-const because _radio->isReceiving() is non-const.
+  virtual bool isResendChannelActive() { return _radio->isReceiving(); }
   virtual int getAGCResetInterval() const { return 0; }    // disabled by default
   virtual unsigned long getDutyCycleWindowMs() const { return 3600000; }
+
+  /**
+   * \returns  maximum number of direct-route resend attempts (0 = disabled, default = 2, max = 3).
+   */
+  virtual uint8_t getMaxResendAttempts() const { return 2; }
 
 public:
   void begin();
@@ -179,6 +233,21 @@ public:
   Packet* obtainNewPacket();
   void releasePacket(Packet* packet);
   void sendPacket(Packet* packet, uint8_t priority, uint32_t delay_millis=0);
+  /**
+   * \brief  re-send the given packet (for retransmission) if conditions apply.
+   * \return true, if packet was re-sent.
+   */
+  bool resendPacket(Packet *packet);
+
+  /**
+   * \returns  number of milliseconds delay to apply to retransmitting the given packet.
+   */
+  virtual uint32_t getRetransmitDelay(const Packet *packet) { return 0; };
+
+  /**
+   * \returns  number of milliseconds delay to apply to retransmitting the given packet, for DIRECT mode.
+   */
+  virtual uint32_t getDirectRetransmitDelay(const Packet *packet) { return 0; };
 
   unsigned long getTotalAirTime() const { return total_air_time; }
   unsigned long getReceiveAirTime() const {return rx_air_time; }

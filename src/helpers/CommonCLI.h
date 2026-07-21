@@ -64,7 +64,8 @@ struct NodePrefs { // persisted to file
   uint8_t radio_fem_rxgain; // LoRa FEM RX gain setting
   uint8_t path_hash_mode;   // which path mode to use when sending
   uint8_t loop_detect;
-  uint8_t cad_enabled;      // hardware Channel Activity Detection before TX (boolean)
+  uint8_t max_resend_attempts; // 0 = disabled, 1-3, default 2
+  uint8_t cad_enabled;         // hardware Channel Activity Detection before TX (boolean)
 };
 
 class CommonCLICallbacks {

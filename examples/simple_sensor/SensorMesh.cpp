@@ -715,6 +715,7 @@ SensorMesh::SensorMesh(mesh::MainBoard& board, mesh::Radio& radio, mesh::Millise
   _prefs.rx_delay_base =   0.0f;  // turn off by default, was 10.0;
   _prefs.tx_delay_factor = 0.5f;   // was 0.25f
   _prefs.direct_tx_delay_factor = 0.2f; // was zero
+  _prefs.max_resend_attempts = 2;
   StrHelper::strncpy(_prefs.node_name, ADVERT_NAME, sizeof(_prefs.node_name));
   _prefs.node_lat = ADVERT_LAT;
   _prefs.node_lon = ADVERT_LON;
