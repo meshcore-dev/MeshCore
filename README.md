@@ -78,6 +78,52 @@ The repeater and room server firmware can be set up via USB in the web config to
 
 They can also be managed via LoRa in the mobile app by using the Remote Management feature.
 
+### Local USB Configurator
+
+This repo also includes a local serial configurator for MeshCore repeater and room-server firmware:
+
+```bash
+python3 tools/meshcore_configurator.py
+```
+
+It can configure radio settings, TX power, node name, passwords, GPS options, raw CLI commands, and ESP32 firmware updates without using Web Serial in a browser.
+
+Examples:
+
+```bash
+python3 tools/meshcore_configurator.py --list-ports
+python3 tools/meshcore_configurator.py --port /dev/ttyUSB0 --set radio 910.525,62.5,7,5
+python3 tools/meshcore_configurator.py --port /dev/ttyUSB0 --set tx 22
+python3 tools/meshcore_configurator.py --port /dev/ttyUSB0 --command "gps on"
+python3 tools/meshcore_configurator.py --port /dev/ttyUSB0 --flash .pio/build/hammer_sx1262_repeater/firmware-merged.bin
+```
+
+Dependencies:
+
+```bash
+python3 -m pip install pyserial esptool
+```
+
+On Linux, the user may need serial-port permissions:
+
+```bash
+sudo usermod -aG dialout $USER
+```
+
+Then log out and back in.
+
+To build a portable Windows executable:
+
+```bat
+tools\build_windows_exe.bat
+```
+
+The resulting executable is created at:
+
+```text
+dist\meshcore-configurator.exe
+```
+
 ## 🛠 Hardware Compatibility
 
 MeshCore is designed for devices listed in the [MeshCore Flasher](https://meshcore.io/flasher)
