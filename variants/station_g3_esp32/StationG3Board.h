@@ -73,36 +73,7 @@ public:
     setPrimaryLNAControl(true);
   }
 
-  void enterDeepSleep(uint32_t secs, int pin_wake_btn = -1) {
-    esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
-
-    rtc_gpio_set_direction((gpio_num_t)P_LORA_DIO_1, RTC_GPIO_MODE_INPUT_ONLY);
-    rtc_gpio_pulldown_en((gpio_num_t)P_LORA_DIO_1);
-
-    rtc_gpio_hold_en((gpio_num_t)P_LORA_NSS);
-
-#ifdef P_PA1_EN
-    setPAModeHigh(false);
-    rtc_gpio_hold_en((gpio_num_t)P_PA1_EN);
-#endif
-
-#ifdef P_PRIMARY_LNA_EN
-    setPrimaryLNAControl(true);
-    rtc_gpio_hold_en((gpio_num_t)P_PRIMARY_LNA_EN);
-#endif
-
-    if (pin_wake_btn < 0) {
-      esp_sleep_enable_ext1_wakeup((1ULL << P_LORA_DIO_1), ESP_EXT1_WAKEUP_ANY_HIGH);
-    } else {
-      esp_sleep_enable_ext1_wakeup((1ULL << P_LORA_DIO_1) | (1ULL << pin_wake_btn), ESP_EXT1_WAKEUP_ANY_HIGH);
-    }
-
-    if (secs > 0) {
-      esp_sleep_enable_timer_wakeup(secs * 1000000);
-    }
-
-    esp_deep_sleep_start();
-  }
+  void powerOff() override;
 
   uint16_t getBattMilliVolts() override {
     return 0;

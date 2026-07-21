@@ -307,7 +307,7 @@ void UITask::shutdown(bool restart){
   if (restart) {
     _board->reboot();
   } else {
-    radio_driver.powerOff();
+    // Power off board including radio, display, GPS and components
     _board->powerOff();
   }
 }
