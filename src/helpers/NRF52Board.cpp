@@ -314,14 +314,38 @@ float NRF52Board::getMCUTemperature() {
 void NRF52Board::shutdownPeripherals() {
   // Power off the display if any
 #ifdef DISPLAY_CLASS
-  display.turnOff();
+  if (display.isOn()) {
+    display.turnOff();
+  }
 #endif
-
+  // Prep LoRa radio for power down
+  #ifdef P_LORA_RESET
+    digitalWrite(P_LORA_RESET, HIGH);  // preload OUT latch so pinMode can't glitch NRESET low
+    pinMode(P_LORA_RESET, OUTPUT);
+    digitalWrite(P_LORA_RESET, LOW);   // deliberate hardware reset (datasheet: >=100us)
+    delayMicroseconds(200);
+    digitalWrite(P_LORA_RESET, HIGH);
+  #endif
+  #if defined(P_LORA_SCLK) && defined(P_LORA_MISO) && defined(P_LORA_MOSI)
+    SPI.setPins(P_LORA_MISO, P_LORA_SCLK, P_LORA_MOSI);
+    SPI.begin(); // SPI may not be started on some shutdown paths, need it to shut down radio
+  #endif
+  #ifdef P_LORA_BUSY
+    pinMode(P_LORA_BUSY, INPUT);
+    uint32_t started_at = millis();
+    while (digitalRead(P_LORA_BUSY) && millis() - started_at < 10) {} //wait for radio to be ready
+  #endif
+  #ifdef P_LORA_NSS
+    pinMode(P_LORA_NSS, OUTPUT);
+    digitalWrite(P_LORA_NSS, HIGH);
+  #endif
   // Power off LoRa
   radio_driver.powerOff();
 
   // Keep LoRa inactive during deepsleep
-  digitalWrite(P_LORA_NSS, HIGH);
+  #ifdef P_LORA_NSS
+    digitalWrite(P_LORA_NSS, HIGH);
+  #endif
 
   // Power off GPS if any
   if(sensors.getLocationProvider() != NULL) {

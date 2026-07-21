@@ -13,8 +13,12 @@
     #endif
 #endif
 
-#ifndef PIN_GPS_EN_ACTIVE
-    #define PIN_GPS_EN_ACTIVE HIGH
+#ifndef GPS_EN_ACTIVE
+    #ifdef PIN_GPS_EN_ACTIVE
+        #define GPS_EN_ACTIVE PIN_GPS_EN_ACTIVE
+    #else
+        #define GPS_EN_ACTIVE HIGH
+    #endif
 #endif
 
 #ifndef GPS_RESET
@@ -25,11 +29,11 @@
     #endif
 #endif
 
-#ifndef GPS_RESET_FORCE
+#ifndef GPS_RESET_ACTIVE
     #ifdef PIN_GPS_RESET_ACTIVE
-        #define GPS_RESET_FORCE PIN_GPS_RESET_ACTIVE
+        #define GPS_RESET_ACTIVE PIN_GPS_RESET_ACTIVE
     #else
-        #define GPS_RESET_FORCE LOW
+        #define GPS_RESET_ACTIVE LOW
     #endif
 #endif
 
@@ -52,11 +56,11 @@ public :
     nmea(_nmeaBuffer, sizeof(_nmeaBuffer)), _clock(clock), _gps_serial(&ser), _peripher_power(peripher_power), _pin_reset(pin_reset), _pin_en(pin_en) {
         if (_pin_reset != -1) {
             pinMode(_pin_reset, OUTPUT);
-            digitalWrite(_pin_reset, GPS_RESET_FORCE);
+            digitalWrite(_pin_reset, GPS_RESET_ACTIVE);
         }
         if (_pin_en != -1) {
             pinMode(_pin_en, OUTPUT);
-            digitalWrite(_pin_en, LOW);
+            digitalWrite(_pin_en, !GPS_EN_ACTIVE);
         }
     }
 
@@ -74,27 +78,27 @@ public :
     void begin() override {
         claim();
         if (_pin_en != -1) {
-            digitalWrite(_pin_en, PIN_GPS_EN_ACTIVE);
+            digitalWrite(_pin_en, GPS_EN_ACTIVE);
         }
         if (_pin_reset != -1) {
-            digitalWrite(_pin_reset, !GPS_RESET_FORCE);
+            digitalWrite(_pin_reset, !GPS_RESET_ACTIVE);
         }
     }
 
     void reset() override {
         if (_pin_reset != -1) {
-            digitalWrite(_pin_reset, GPS_RESET_FORCE);
+            digitalWrite(_pin_reset, GPS_RESET_ACTIVE);
             delay(10);
-            digitalWrite(_pin_reset, !GPS_RESET_FORCE);
+            digitalWrite(_pin_reset, !GPS_RESET_ACTIVE);
         }
     }
 
     void stop() override {
         if (_pin_en != -1) {
-            digitalWrite(_pin_en, !PIN_GPS_EN_ACTIVE);
+            digitalWrite(_pin_en, !GPS_EN_ACTIVE);
         }
         if (_pin_reset != -1) {
-            digitalWrite(_pin_reset, GPS_RESET_FORCE);
+            digitalWrite(_pin_reset, GPS_RESET_ACTIVE);
         }
         release();
     }
@@ -103,7 +107,7 @@ public :
         // directly read the enable pin if present as gps can be
         // activated/deactivated outside of here ...
         if (_pin_en != -1) {
-            return digitalRead(_pin_en) == PIN_GPS_EN_ACTIVE;
+            return digitalRead(_pin_en) == GPS_EN_ACTIVE;
         } else {
             return true; // no enable so must be active
         }

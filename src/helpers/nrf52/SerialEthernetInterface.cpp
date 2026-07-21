@@ -1,3 +1,5 @@
+#ifdef ETHERNET_ENABLED
+
 #include "SerialEthernetInterface.h"
 #include "EthernetMac.h"
 #include <SPI.h>
@@ -262,3 +264,5 @@ bool SerialEthernetInterface::isConnected() const {
 void SerialEthernetInterface::loop() {
   Ethernet.maintain();
 }
+
+#endif // ETHERNET_ENABLED
