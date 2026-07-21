@@ -1,6 +1,7 @@
 #pragma once
 
 #include <CayenneLPP.h>
+#include <helpers/IdentityStore.h>   // for FILESYSTEM
 #include "sensors/LocationProvider.h"
 
 #define TELEM_PERM_BASE         0x01   // 'base' permission includes battery
@@ -23,6 +24,8 @@ public:
   virtual const char* getSettingValue(int i) const { return NULL; }
   virtual bool setSettingValue(const char* name, const char* value) { return false; }
   virtual LocationProvider* getLocationProvider() { return NULL; }
+  // Lets implementations persist runtime config (eg. I2C address overrides) across reboots.
+  virtual void setFileSystem(FILESYSTEM* fs) { }
 
   // Helper functions to manage setting by keys (useful in many places ...)
   const char* getSettingByKey(const char* key) {

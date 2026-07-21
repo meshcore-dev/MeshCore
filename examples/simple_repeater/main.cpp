@@ -102,6 +102,7 @@ void setup() {
   ethernet_command[0] = 0;
 #endif
 
+  sensors.setFileSystem(fs);
   sensors.begin();
 
   the_mesh.begin(fs);

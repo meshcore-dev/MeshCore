@@ -248,6 +248,13 @@ void setup() {
   #error "need to define filesystem"
 #endif
 
+#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
+  sensors.setFileSystem(&InternalFS);
+#elif defined(RP2040_PLATFORM)
+  sensors.setFileSystem(&LittleFS);
+#elif defined(ESP32)
+  sensors.setFileSystem(&SPIFFS);
+#endif
   sensors.begin();
 
 #if ENV_INCLUDE_GPS == 1

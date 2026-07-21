@@ -19,6 +19,8 @@ protected:
   int          _active_sensor_count = 0;
   uint8_t      next_available_channel = TELEM_CHANNEL_SELF + 1;
 
+  FILESYSTEM* _fs = NULL;   // set via setFileSystem(), used to persist I2C address overrides
+
   bool     gps_detected = false;
   bool     gps_active = false;
   uint32_t gps_update_interval_sec = 1;
@@ -50,4 +52,5 @@ public:
   const char* getSettingName(int i) const override;
   const char* getSettingValue(int i) const override;
   bool setSettingValue(const char* name, const char* value) override;
+  void setFileSystem(FILESYSTEM* fs) override { _fs = fs; }
 };

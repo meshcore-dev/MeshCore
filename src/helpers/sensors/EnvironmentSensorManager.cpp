@@ -606,6 +606,78 @@ static const SensorDef SENSOR_TABLE[] = {
 static const size_t SENSOR_TABLE_SIZE = (sizeof(SENSOR_TABLE) / sizeof(SENSOR_TABLE[0])) - 1;
 
 // ============================================================
+// Per-sensor I2C address overrides.
+//
+// Lets a sensor wired to a non-default address (eg. a BME680
+// on 0x77 instead of this firmware's default 0x76) still be
+// found, via "sensor set addr_<name> <hex>", persisted to
+// flash so it survives reboot. Matched by name rather than
+// table position so it stays valid across firmware updates
+// that reorder SENSOR_TABLE. Takes effect on next begin() —
+// changing it does not re-scan the bus immediately.
+// ============================================================
+
+#define SENSOR_ADDR_OVERRIDE_FILE "/sensor_addr.bin"
+#define SENSOR_ADDR_OVERRIDE_NONE 0xFF
+
+struct AddrOverrideRecord {
+  char    name[16];
+  uint8_t address;
+};
+
+// "> 0 ? : 1" avoids a zero-length array on boards with no ENV_INCLUDE_* I2C sensors compiled in.
+static uint8_t addr_override[SENSOR_TABLE_SIZE > 0 ? SENSOR_TABLE_SIZE : 1];
+
+static int findSensorIndexByName(const char* name) {
+  for (size_t i = 0; i < SENSOR_TABLE_SIZE; i++) {
+    if (strcmp(SENSOR_TABLE[i].name, name) == 0) return (int)i;
+  }
+  return -1;
+}
+
+static void loadAddrOverrides(FILESYSTEM* fs) {
+  for (size_t i = 0; i < SENSOR_TABLE_SIZE; i++) addr_override[i] = SENSOR_ADDR_OVERRIDE_NONE;
+  if (fs == NULL) return;
+
+#if defined(RP2040_PLATFORM)
+  File file = fs->open(SENSOR_ADDR_OVERRIDE_FILE, "r");
+#else
+  File file = fs->open(SENSOR_ADDR_OVERRIDE_FILE);
+#endif
+  if (!file) return;
+
+  AddrOverrideRecord rec;
+  while (file.read((uint8_t *)&rec, sizeof(rec)) == sizeof(rec)) {
+    int idx = findSensorIndexByName(rec.name);
+    if (idx >= 0) addr_override[idx] = rec.address;
+  }
+  file.close();
+}
+
+static void saveAddrOverrides(FILESYSTEM* fs) {
+  if (fs == NULL) return;
+
+#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
+  fs->remove(SENSOR_ADDR_OVERRIDE_FILE);
+  File file = fs->open(SENSOR_ADDR_OVERRIDE_FILE, FILE_O_WRITE);
+#elif defined(RP2040_PLATFORM)
+  File file = fs->open(SENSOR_ADDR_OVERRIDE_FILE, "w");
+#else
+  File file = fs->open(SENSOR_ADDR_OVERRIDE_FILE, "w", true);
+#endif
+  if (!file) return;
+
+  for (size_t i = 0; i < SENSOR_TABLE_SIZE; i++) {
+    AddrOverrideRecord rec;
+    memset(&rec, 0, sizeof(rec));
+    strncpy(rec.name, SENSOR_TABLE[i].name, sizeof(rec.name) - 1);
+    rec.address = addr_override[i];
+    file.write((const uint8_t *)&rec, sizeof(rec));
+  }
+  file.close();
+}
+
+// ============================================================
 // begin() — scan the I2C bus, then initialize only what was
 // found. A sensor whose address does not ACK during the scan
 // is never touched by a library call, preventing hangs or
@@ -636,20 +708,23 @@ bool EnvironmentSensorManager::begin() {
   bool detected[128] = {};
   scanI2CBus(TELEM_WIRE, detected);
 
+  loadAddrOverrides(_fs);
+
   // Walk the sensor table and initialize only detected devices.
   _active_sensor_count = 0;
   for (size_t i = 0; i < SENSOR_TABLE_SIZE && _active_sensor_count < MAX_ACTIVE_SENSORS; i++) {
     const SensorDef& def = SENSOR_TABLE[i];
-    if (!detected[def.address]) {
-      MESH_DEBUG_PRINTLN("%s not detected at I2C address %02X", def.name, def.address);
+    uint8_t addr = (addr_override[i] != SENSOR_ADDR_OVERRIDE_NONE) ? addr_override[i] : def.address;
+    if (!detected[addr]) {
+      MESH_DEBUG_PRINTLN("%s not detected at I2C address %02X", def.name, addr);
       continue;
     }
-    uint8_t n = def.init(TELEM_WIRE, def.address);
+    uint8_t n = def.init(TELEM_WIRE, addr);
     if (n == 0) {
-      MESH_DEBUG_PRINTLN("%s found at %02X but failed to initialize", def.name, def.address);
+      MESH_DEBUG_PRINTLN("%s found at %02X but failed to initialize", def.name, addr);
       continue;
     }
-    MESH_DEBUG_PRINTLN("Found %s at address: %02X", def.name, def.address);
+    MESH_DEBUG_PRINTLN("Found %s at address: %02X", def.name, addr);
     for (uint8_t sub = 0; sub < n && _active_sensor_count < MAX_ACTIVE_SENSORS; sub++) {
       _active_sensors[_active_sensor_count++] = { def.query, sub };
     }
@@ -687,6 +762,7 @@ int EnvironmentSensorManager::getNumSettings() const {
   #if ENV_INCLUDE_GPS
     if (gps_detected) settings++;  // only show GPS setting if GPS is detected
   #endif
+  settings += (int)SENSOR_TABLE_SIZE;  // one "addr_<name>" setting per known sensor type
   return settings;
 }
 
@@ -697,6 +773,12 @@ const char* EnvironmentSensorManager::getSettingName(int i) const {
       return "gps";
     }
   #endif
+  int idx = i - settings;
+  if (idx >= 0 && idx < (int)SENSOR_TABLE_SIZE) {
+    static char key[24];
+    sprintf(key, "addr_%s", SENSOR_TABLE[idx].name);
+    return key;
+  }
   return NULL;
 }
 
@@ -707,6 +789,13 @@ const char* EnvironmentSensorManager::getSettingValue(int i) const {
       return gps_active ? "1" : "0";
     }
   #endif
+  int idx = i - settings;
+  if (idx >= 0 && idx < (int)SENSOR_TABLE_SIZE) {
+    static char val[8];
+    uint8_t addr = (addr_override[idx] != SENSOR_ADDR_OVERRIDE_NONE) ? addr_override[idx] : SENSOR_TABLE[idx].address;
+    sprintf(val, "0x%02X", addr);
+    return val;
+  }
   return NULL;
 }
 
@@ -726,6 +815,15 @@ bool EnvironmentSensorManager::setSettingValue(const char* name, const char* val
     return true;
   }
   #endif
+  if (memcmp(name, "addr_", 5) == 0) {
+    int idx = findSensorIndexByName(name + 5);
+    if (idx < 0) return false;
+    uint8_t addr = (uint8_t)strtoul(value, NULL, 0);
+    if (addr < 0x08 || addr > 0x77) return false;  // outside valid 7-bit I2C address range
+    addr_override[idx] = addr;
+    saveAddrOverrides(_fs);
+    return true;  // takes effect on next begin()/reboot
+  }
   return false;  // not supported
 }
 
