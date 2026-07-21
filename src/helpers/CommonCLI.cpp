@@ -679,9 +679,17 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       strcpy(reply, "Error: delay must be between 0-10000 ms");
     }
   } else if (memcmp(config, "bridge.source ", 14) == 0) {
-    _prefs->bridge_pkt_src = memcmp(&config[14], "rx", 2) == 0;
-    savePrefs();
-    strcpy(reply, "OK");
+    if (memcmp(&config[14], "rx", 2) == 0) {
+      _prefs->bridge_pkt_src = 1;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else if (memcmp(&config[14], "tx", 2) == 0) {
+      _prefs->bridge_pkt_src = 0;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: source must be rx or tx.");
+    }
 #endif
 #ifdef WITH_RS232_BRIDGE
   } else if (memcmp(config, "bridge.baud ", 12) == 0) {
