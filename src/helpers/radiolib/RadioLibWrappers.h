@@ -3,6 +3,11 @@
 #include <Mesh.h>
 #include <RadioLib.h>
 
+struct PacketMillis {
+  uint32_t preambleMillis;  // preamble-detect -> header-valid deadline
+  uint32_t payloadMillis;   // header-valid   -> rx-done deadline
+};
+
 class RadioLibWrapper : public mesh::Radio {
 protected:
   PhysicalLayer* _radio;
@@ -78,6 +83,7 @@ public:
     return 29;               // 3809ms @ SF12/BW125/CR4-8
   }
 
+  PacketMillis calcMaxPacketMillis(uint8_t sf, float bw, uint8_t cr, uint8_t preambleSymbols);
   virtual int16_t performChannelScan();
 
   int getNoiseFloor() const override { return _noise_floor; }
@@ -97,7 +103,7 @@ public:
 
   float packetScore(float snr, int packet_len) override { return packetScoreInt(snr, 10, packet_len); }  // assume sf=10
 
-  virtual void setRxBoostedGainMode(bool) { }
+  virtual bool setRxBoostedGainMode(bool) { return false; }
   virtual bool getRxBoostedGainMode() const { return false; }
 };
 

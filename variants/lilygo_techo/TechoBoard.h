@@ -23,7 +23,8 @@ public:
     return "LilyGo T-Echo";
   }
 
-  void powerOff() override {
+  void shutdownPeripherals() override {
+    NRF52Board::shutdownPeripherals();
     #ifdef LED_RED
     digitalWrite(LED_RED, HIGH);
     #endif
@@ -39,6 +40,5 @@ public:
     #ifdef PIN_PWR_EN
     digitalWrite(PIN_PWR_EN, LOW);
     #endif
-    sd_power_system_off();
   }
 };

@@ -3,7 +3,6 @@
 #include <helpers/ESP32Board.h>
 #include <Arduino.h>
 
-#include <driver/rtc_io.h>
 #include <driver/uart.h>
 
 class XiaoC3Board : public ESP32Board {
@@ -38,37 +37,6 @@ public:
     pinMode(P_LORA_TX_LED, OUTPUT);
     digitalWrite(P_LORA_TX_LED, LOW);
   #endif
-  }
-
-  void enterDeepSleep(uint32_t secs, int8_t wake_pin = -1) {
-    gpio_set_direction(gpio_num_t(P_LORA_DIO_1), GPIO_MODE_INPUT);
-    if (wake_pin >= 0) {
-      gpio_set_direction((gpio_num_t)wake_pin, GPIO_MODE_INPUT);
-    }
-
-    //hold disable, isolate and power domain config functions may be unnecessary
-    //gpio_deep_sleep_hold_dis();
-    //esp_sleep_config_gpio_isolate();
-    gpio_deep_sleep_hold_en();
-
-#if defined(LORA_TX_BOOST_PIN)
-    gpio_hold_en((gpio_num_t) LORA_TX_BOOST_PIN);
-    gpio_deep_sleep_hold_en();
-#endif
-    esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
-
-    if (wake_pin >= 0) {
-      esp_deep_sleep_enable_gpio_wakeup((1 << P_LORA_DIO_1) | (1 << wake_pin), ESP_GPIO_WAKEUP_GPIO_HIGH);
-    } else {
-      esp_deep_sleep_enable_gpio_wakeup(1 << P_LORA_DIO_1, ESP_GPIO_WAKEUP_GPIO_HIGH);
-    }
-
-    if (secs > 0) {
-      esp_sleep_enable_timer_wakeup(secs * 1000000);
-    }
-
-    // Finally set ESP32 into sleep
-    esp_deep_sleep_start();  // CPU halts here and never returns!
   }
 
 #if defined(LORA_TX_BOOST_PIN) || defined(P_LORA_TX_LED)

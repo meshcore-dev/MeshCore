@@ -4,6 +4,10 @@
 #include "MeshCore.h"
 
 class CustomLR1110 : public LR1110 {
+  uint32_t _preambleMillis = 66;
+  uint32_t _maxPayloadMillis = 3934;
+  uint32_t _activityAt = 0;
+  bool _headerSeen = false;
   bool _rx_boosted = false;
 
   public:
@@ -32,9 +36,49 @@ class CustomLR1110 : public LR1110 {
     bool getRxBoostedGainMode() const { return _rx_boosted; }
 
     bool isReceiving() {
-      uint16_t irq = getIrqStatus();
-      bool detected = ((irq & RADIOLIB_LR11X0_IRQ_SYNC_WORD_HEADER_VALID) || (irq & RADIOLIB_LR11X0_IRQ_PREAMBLE_DETECTED));
-      return detected;
+      uint32_t irq = getIrqStatus();
+      bool preamble = irq & RADIOLIB_LR11X0_IRQ_PREAMBLE_DETECTED;      // bit 4
+      bool header   = irq & RADIOLIB_LR11X0_IRQ_SYNC_WORD_HEADER_VALID; // bit 5
+      bool hdrErr   = irq & RADIOLIB_LR11X0_IRQ_HEADER_ERR;             // bit 6
+      uint32_t now  = millis();
+      if (hdrErr) {
+        clearIrqState(RADIOLIB_LR11X0_IRQ_PREAMBLE_DETECTED | RADIOLIB_LR11X0_IRQ_SYNC_WORD_HEADER_VALID | RADIOLIB_LR11X0_IRQ_HEADER_ERR);
+        _activityAt = 0;
+        _headerSeen = false;
+        return false;
+      }
+      if (header) {
+        if (!_headerSeen) { _headerSeen = true; _activityAt = now; };
+        if (now - _activityAt > _maxPayloadMillis) {
+          MESH_DEBUG_PRINTLN("Clearing header IRQ after %ums", _maxPayloadMillis);
+          clearIrqState(RADIOLIB_LR11X0_IRQ_PREAMBLE_DETECTED | RADIOLIB_LR11X0_IRQ_SYNC_WORD_HEADER_VALID | RADIOLIB_LR11X0_IRQ_HEADER_ERR);
+          _activityAt = 0; _headerSeen = false;
+          return false;
+        }
+        return true;
+      }
+      if (preamble) {
+        if (_activityAt == 0) _activityAt = now;
+        if (now - _activityAt > _preambleMillis) {
+          clearIrqState(RADIOLIB_LR11X0_IRQ_PREAMBLE_DETECTED);
+          _activityAt = 0;
+          MESH_DEBUG_PRINTLN("Clearing preamble IRQ after %ums", _preambleMillis);
+
+          return false;
+        }
+        return true;
+      }
+      _activityAt = 0; _headerSeen = false;
+      return false;
+    }
+    
+    void setPreambleMillis(uint32_t preambleMillis) {
+      _preambleMillis = preambleMillis;
+      MESH_DEBUG_PRINTLN("Set _preambleMillis=%u", _preambleMillis);
+    }
+    void setMaxPayloadMillis(uint32_t payloadMillis) {
+      _maxPayloadMillis = payloadMillis;
+      MESH_DEBUG_PRINTLN("Set _maxPayloadMillis=%u", _maxPayloadMillis);
     }
 
     uint8_t getSpreadingFactor() const { return spreadingFactor; }

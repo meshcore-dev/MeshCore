@@ -697,8 +697,7 @@ void UITask::shutdown(bool restart){
   if (restart) {
     _board->reboot();
   } else {
-    _display->turnOff();
-    radio_driver.powerOff();
+    // Power off board including radio, display, GPS and components
     _board->powerOff();
   }
 }
@@ -746,6 +745,16 @@ void UITask::loop() {
     c = handleDoubleClick(KEY_PREV);
   } else if (ev == BUTTON_EVENT_TRIPLE_CLICK) {
     c = handleTripleClick(KEY_SELECT);
+  }
+#endif
+#if defined(UI_HAS_ROTARY_INPUT)
+  RotaryInputEvent rotaryEv = rotary_input.poll();
+  if (c == 0 && _display != NULL && _display->isOn()) {
+    if (rotaryEv == RotaryInputEvent::Next) {
+      c = KEY_NEXT;
+    } else if (rotaryEv == RotaryInputEvent::Prev) {
+      c = KEY_PREV;
+    }
   }
 #endif
 #if defined(PIN_USER_BTN_ANA)
