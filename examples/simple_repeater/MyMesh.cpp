@@ -849,7 +849,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
                mesh::RTCClock &rtc, mesh::MeshTables &tables)
     : mesh::Mesh(radio, ms, rng, rtc, *new StaticPoolPacketManager(32), tables),
       region_map(key_store), temp_map(key_store),
-      _cli(board, rtc, sensors, region_map, acl, &_prefs, this),
+      _cli(board, rtc, bridge, sensors, region_map, acl, &_prefs, this),
       telemetry(MAX_PACKET_PAYLOAD - 4),
       discover_limiter(4, 120),  // max 4 every 2 minutes
       anon_limiter(4, 180)   // max 4 every 3 minutes
@@ -858,7 +858,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
 #elif defined(WITH_ESPNOW_BRIDGE)
       , bridge(&_prefs, _mgr, &rtc)
 #elif defined(WITH_MQTT_BRIDGE)
-      , bridge(&_prefs, _mgr, &rtc)
+      , bridge(&_prefs, _mgr, &rtc, self_id.pub_key)
 #endif
 {
   last_millis = 0;

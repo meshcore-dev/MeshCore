@@ -52,13 +52,18 @@
  */
 class MQTTBridge : public BridgeBase {
 public:
-  MQTTBridge(NodePrefs *prefs, mesh::PacketManager *mgr, mesh::RTCClock *rtc);
+  MQTTBridge(NodePrefs *prefs, mesh::PacketManager *mgr, mesh::RTCClock *rtc, const uint8_t *pubKey);
+
+  char mqtt_host[65];
+  uint mqtt_port;
+  char mqtt_topic[65];
 
   void begin() override;
   void end() override;
   void loop() override;
   void sendPacket(mesh::Packet *packet) override;
   void onPacketReceived(mesh::Packet *packet) override;
+  bool reconnect();
 
 private:
   static MQTTBridge *_instance;
@@ -66,6 +71,10 @@ private:
   WiFiClient _wifiClient;
   PubSubClient _mqttClient;
   unsigned long _lastReconnectAttempt;
+  const uint8_t *_pubKey;
+
+  char _mqtt_username[33];
+  char _mqtt_password[65];
 
   // Buffer sized for maximum hex-encoded mesh packet
   static constexpr size_t HEX_BUF_SIZE = (MAX_TRANS_UNIT + 1) * 2 + 1;
@@ -73,7 +82,6 @@ private:
 
   static void mqttCallback(char *topic, uint8_t *payload, unsigned int length);
   void onMqttMessage(char *topic, uint8_t *payload, unsigned int length);
-  bool reconnect();
 };
 
 #endif

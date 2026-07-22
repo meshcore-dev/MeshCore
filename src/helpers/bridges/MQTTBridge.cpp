@@ -1,4 +1,8 @@
 #include "MQTTBridge.h"
+#include "Identity.h"
+#include <helpers/esp32/SerialWifiInterface.h>
+#include <helpers/TxtDataHelpers.h>
+#include <string>
 
 #ifdef WITH_MQTT_BRIDGE
 
@@ -14,8 +18,8 @@
 
 MQTTBridge *MQTTBridge::_instance = nullptr;
 
-MQTTBridge::MQTTBridge(NodePrefs *prefs, mesh::PacketManager *mgr, mesh::RTCClock *rtc)
-    : BridgeBase(prefs, mgr, rtc), _mqttClient(_wifiClient), _lastReconnectAttempt(0) {
+MQTTBridge::MQTTBridge(NodePrefs *prefs, mesh::PacketManager *mgr, mesh::RTCClock *rtc, const uint8_t *pubKey)
+    : BridgeBase(prefs, mgr, rtc), _mqttClient(_wifiClient), _lastReconnectAttempt(0), _pubKey(pubKey) {
   _instance = this;
 }
 
@@ -37,11 +41,21 @@ void MQTTBridge::begin() {
   }
 #endif
 
-  _mqttClient.setServer(MQTT_HOST, MQTT_PORT);
+  // ensure that all strings are null terminated after the copy
+  mqtt_host[65] = _mqtt_username[33] = _mqtt_password[65] = mqtt_topic[65] = '\0';
+
+  // save MQTT settings for access from CLI
+  StrHelper::strzcpy(mqtt_host, MQTT_HOST, 64);
+  mqtt_port = MQTT_PORT;
+  StrHelper::strzcpy(_mqtt_username, MQTT_USERNAME, 32);
+  StrHelper::strzcpy(_mqtt_password, MQTT_PASSWORD, 64);
+  StrHelper::strzcpy(mqtt_topic, MQTT_TOPIC, 64);
+
+  _mqttClient.setServer(mqtt_host, mqtt_port);
   _mqttClient.setCallback(mqttCallback);
 
   _initialized = true;
-  MQTT_DEBUG_PRINTLN("Initialized, broker=%s:%d topic=%s", MQTT_HOST, MQTT_PORT, MQTT_TOPIC);
+  MQTT_DEBUG_PRINTLN("Initialized, broker=%s:%d topic=%s", mqtt_host, mqtt_port, mqtt_topic);
 }
 
 void MQTTBridge::end() {
@@ -58,22 +72,24 @@ bool MQTTBridge::reconnect() {
     return false;
   }
 
-  MQTT_DEBUG_PRINTLN("Connecting to %s:%d...", MQTT_HOST, MQTT_PORT);
+  MQTT_DEBUG_PRINTLN("Connecting to %s:%d...", mqtt_host, mqtt_port);
 
-  const char *clientId = "meshcore-bridge";
+  char clientId[32]; // "meshcore-mqtt-bridge-" (21) + 6 hex chars + null
+  snprintf(clientId, sizeof(clientId), "meshcore-mqtt-bridge-%02X%02X%02X",
+           _pubKey[0], _pubKey[1], _pubKey[2]);
   bool ok;
 
 #if defined(MQTT_USERNAME) && defined(MQTT_PASSWORD)
-  ok = _mqttClient.connect(clientId, MQTT_USERNAME, MQTT_PASSWORD);
+  ok = _mqttClient.connect(clientId, _mqtt_username, _mqtt_password);
 #elif defined(MQTT_USERNAME)
-  ok = _mqttClient.connect(clientId, MQTT_USERNAME, nullptr);
+  ok = _mqttClient.connect(clientId, _mqtt_username, nullptr);
 #else
   ok = _mqttClient.connect(clientId);
 #endif
 
   if (ok) {
-    _mqttClient.subscribe(MQTT_TOPIC);
-    MQTT_DEBUG_PRINTLN("Connected, subscribed to %s", MQTT_TOPIC);
+    _mqttClient.subscribe(mqtt_topic);
+    MQTT_DEBUG_PRINTLN("Connected, subscribed to %s", mqtt_topic);
   } else {
     MQTT_DEBUG_PRINTLN("Connect failed, rc=%d", _mqttClient.state());
   }
@@ -117,7 +133,7 @@ void MQTTBridge::sendPacket(mesh::Packet *packet) {
     }
     _hexBuf[len * 2] = '\0';
 
-    if (_mqttClient.publish(MQTT_TOPIC, _hexBuf)) {
+    if (_mqttClient.publish(mqtt_topic, _hexBuf)) {
       MQTT_DEBUG_PRINTLN("TX len=%d hex_len=%d", len, len * 2);
     } else {
       MQTT_DEBUG_PRINTLN("TX publish failed len=%d", len);

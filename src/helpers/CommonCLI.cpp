@@ -5,6 +5,10 @@
 #include "TxtDataHelpers.h"
 #include <RTClib.h>
 
+#ifdef WITH_MQTT_BRIDGE
+  #include <helpers/bridges/MQTTBridge.h>
+#endif
+
 #ifndef BRIDGE_MAX_BAUD
 #define BRIDGE_MAX_BAUD 115200
 #endif
@@ -654,7 +658,7 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       strcpy(reply, "OK");
     } else {
       strcpy(reply, "Error, max 64");
-    } 
+    }
   } else if (memcmp(config, "flood.max.advert ", 17) == 0) {
     uint8_t m = atoi(&config[17]);
     if (m <= 64) {
@@ -780,6 +784,28 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     savePrefs();
     strcpy(reply, "OK");
 #endif
+#ifdef WITH_MQTT_BRIDGE
+  } else if (memcmp(config, "mqtt.host ", 10) == 0) {
+    static_cast<MQTTBridge*>(_bridge)->end();
+    StrHelper::strncpy(static_cast<MQTTBridge*>(_bridge)->mqtt_host,
+                       &config[10], 64);
+    static_cast<MQTTBridge*>(_bridge)->reconnect();
+    strcpy(reply, "OK");
+  } else if (memcmp(config, "mqtt.port ", 10) == 0) {
+    static_cast<MQTTBridge*>(_bridge)->end();
+    static_cast<MQTTBridge*>(_bridge)->mqtt_port = atoi(&config[10]);
+    static_cast<MQTTBridge*>(_bridge)->reconnect();
+    strcpy(reply, "OK");
+  } else if (memcmp(config, "mqtt.topic ", 11) == 0) {
+    static_cast<MQTTBridge*>(_bridge)->end();
+    StrHelper::strncpy(static_cast<MQTTBridge*>(_bridge)->mqtt_topic,
+                       &config[11], 64);
+    if (static_cast<MQTTBridge*>(_bridge)->reconnect()) {
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: failed to subscribe to new topic");
+    }
+#endif
   } else if (memcmp(config, "adc.multiplier ", 15) == 0) {
     _prefs->adc_multiplier = atof(&config[15]);
     if (_board->setAdcMultiplier(_prefs->adc_multiplier)) {
@@ -899,6 +925,8 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
             "rs232"
 #elif WITH_ESPNOW_BRIDGE
             "espnow"
+#elif WITH_MQTT_BRIDGE
+            "mqtt"
 #else
             "none"
 #endif
@@ -920,6 +948,14 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %d", (uint32_t)_prefs->bridge_channel);
   } else if (memcmp(config, "bridge.secret", 13) == 0) {
     sprintf(reply, "> %s", _prefs->bridge_secret);
+#endif
+#ifdef WITH_MQTT_BRIDGE
+  } else if (memcmp(config, "mqtt.host", 9) == 0) {
+    sprintf(reply, "> %s", static_cast<MQTTBridge*>(_bridge)->mqtt_host);
+  } else if (memcmp(config, "mqtt.port", 9) == 0) {
+    sprintf(reply, "> %s", static_cast<MQTTBridge*>(_bridge)->mqtt_port);
+  } else if (memcmp(config, "mqtt.topic", 10) == 0) {
+    sprintf(reply, "> %s", static_cast<MQTTBridge*>(_bridge)->mqtt_topic);
 #endif
   } else if (memcmp(config, "bootloader.ver", 14) == 0) {
   #ifdef NRF52_PLATFORM
@@ -1138,7 +1174,7 @@ void CommonCLI::handleRegionCmd(char* command, char* reply) {
   } else if (n >= 3 && strcmp(parts[1], "list") == 0) {
     uint8_t mask = 0;
     bool invert = false;
-    
+
     if (strcmp(parts[2], "allowed") == 0) {
       mask = REGION_DENY_FLOOD;
       invert = false;  // list regions that DON'T have DENY flag
@@ -1149,7 +1185,7 @@ void CommonCLI::handleRegionCmd(char* command, char* reply) {
       strcpy(reply, "Err - use 'allowed' or 'denied'");
       return;
     }
-    
+
     int len = _region_map->exportNamesTo(reply, 160, mask, invert);
     if (len == 0) {
       strcpy(reply, "-none-");

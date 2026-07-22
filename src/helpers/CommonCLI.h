@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Mesh.h"
+#include "AbstractBridge.h"
 #include <helpers/IdentityStore.h>
 #include <helpers/SensorManager.h>
 #include <helpers/ClientACL.h>
@@ -121,6 +122,7 @@ class CommonCLI {
   NodePrefs* _prefs;
   CommonCLICallbacks* _callbacks;
   mesh::MainBoard* _board;
+  AbstractBridge* _bridge;
   SensorManager* _sensors;
   RegionMap* _region_map;
   ClientACL* _acl;
@@ -135,8 +137,8 @@ class CommonCLI {
   void handleSetCmd(uint32_t sender_timestamp, char* command, char* reply);
 
 public:
-  CommonCLI(mesh::MainBoard& board, mesh::RTCClock& rtc, SensorManager& sensors, RegionMap& region_map, ClientACL& acl, NodePrefs* prefs, CommonCLICallbacks* callbacks)
-      : _board(&board), _rtc(&rtc), _sensors(&sensors), _region_map(&region_map), _acl(&acl), _prefs(prefs), _callbacks(callbacks) { }
+  CommonCLI(mesh::MainBoard& board, mesh::RTCClock& rtc, AbstractBridge& bridge, SensorManager& sensors, RegionMap& region_map, ClientACL& acl, NodePrefs* prefs, CommonCLICallbacks* callbacks)
+      : _board(&board), _rtc(&rtc), _bridge(&bridge), _sensors(&sensors), _region_map(&region_map), _acl(&acl), _prefs(prefs), _callbacks(callbacks) { }
 
   void loadPrefs(FILESYSTEM* _fs);
   void savePrefs(FILESYSTEM* _fs);
