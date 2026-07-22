@@ -134,6 +134,9 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   File openAppend(const char* fname);
   int handleRequest(ClientInfo* sender, uint32_t sender_timestamp, uint8_t* payload, size_t payload_len);
 
+  void loadRoomPrefs();
+  void saveRoomPrefs();
+
 protected:
   float getAirtimeBudgetFactor() const override {
     return _prefs.airtime_factor;
@@ -194,13 +197,10 @@ public:
     return &_prefs;
   }
 
-  void savePrefs() override {
-    _cli.savePrefs(_fs);
-  }
-
   void sendFloodScoped(const TransportKey& scope, mesh::Packet* pkt, uint32_t delay_millis, uint8_t path_hash_size);
 
   // CommonCLICallbacks
+  void savePrefs() override;
   void applyTempRadioParams(float freq, float bw, uint8_t sf, uint8_t cr, int timeout_mins) override;
   bool formatFileSystem() override;
   void sendSelfAdvertisement(int delay_millis, bool flood) override;

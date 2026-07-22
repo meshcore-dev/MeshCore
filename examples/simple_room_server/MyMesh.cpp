@@ -714,6 +714,7 @@ void MyMesh::begin(FILESYSTEM *fs) {
   mesh::Mesh::begin();
   _fs = fs;
   // load persisted prefs
+  loadRoomPrefs();
   _cli.loadPrefs(_fs);
 
   acl.load(_fs, self_id);
@@ -747,11 +748,54 @@ void MyMesh::begin(FILESYSTEM *fs) {
   updateAdvertTimer();
   updateFloodAdvertTimer();
 
+  if (strlen(topic) > 0) {
+    topic_timestamp = getRTCClock()->getCurrentTimeUnique();
+  }
+
   board.setAdcMultiplier(_prefs.adc_multiplier);
 
 #if ENV_INCLUDE_GPS == 1
   applyGpsPrefs();
 #endif
+}
+
+#define PREFS_FILE_PATH "/room_prefs"
+
+void MyMesh::loadRoomPrefs() {
+#if defined(RP2040_PLATFORM)
+  File file = _fs->open(PREFS_FILE_PATH, "r");
+#else
+  File file = _fs->open(PREFS_FILE_PATH);
+#endif
+  if (file) {
+    file.read((uint8_t *)&topic[0], sizeof(topic));                     // 0
+    topic[MAX_TOPIC_TEXT_LEN] = '\0';
+    // next: 144
+
+    file.close();
+  }
+}
+
+void MyMesh::saveRoomPrefs() {
+#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
+  _fs->remove(PREFS_FILE_PATH);
+  File file = _fs->open(PREFS_FILE_PATH, FILE_O_WRITE);
+#elif defined(RP2040_PLATFORM)
+  File file = _fs->open(PREFS_FILE_PATH, "w");
+#else
+  File file = _fs->open(PREFS_FILE_PATH, "w", true);
+#endif
+  if (file) {
+    file.write((uint8_t *)&topic[0], sizeof(topic));                    // 0
+    // next: 144
+
+    file.close();
+  }
+}
+
+void MyMesh::savePrefs() {
+  saveRoomPrefs();
+  _cli.savePrefs(_fs);
 }
 
 void MyMesh::sendFloodScoped(const TransportKey& scope, mesh::Packet* pkt, uint32_t delay_millis, uint8_t path_hash_size) {
@@ -963,6 +1007,8 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
 
     strcpy(topic, new_topic);
     topic_timestamp = getRTCClock()->getCurrentTimeUnique();
+
+    saveRoomPrefs();
 
     sprintf(reply, "New topic set with length %d", len);
 
