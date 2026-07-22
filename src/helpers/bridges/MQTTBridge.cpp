@@ -41,16 +41,17 @@ void MQTTBridge::begin() {
   }
 #endif
 
-  // ensure that all strings are null terminated after the copy
-  mqtt_host[65] = _mqtt_username[33] = _mqtt_password[65] = mqtt_topic[65] = '\0';
-
   // save MQTT settings for access from CLI
-  StrHelper::strzcpy(mqtt_host, MQTT_HOST, 64);
+  StrHelper::strzcpy(mqtt_host, MQTT_HOST, sizeof(mqtt_host));
   mqtt_port = MQTT_PORT;
-  StrHelper::strzcpy(_mqtt_username, MQTT_USERNAME, 32);
-  StrHelper::strzcpy(_mqtt_password, MQTT_PASSWORD, 64);
-  StrHelper::strzcpy(mqtt_topic, MQTT_TOPIC, 64);
+  StrHelper::strzcpy(_mqtt_username, MQTT_USERNAME, sizeof(_mqtt_username));
+  StrHelper::strzcpy(_mqtt_password, MQTT_PASSWORD, sizeof(_mqtt_password));
+  StrHelper::strzcpy(mqtt_topic, MQTT_TOPIC, sizeof(mqtt_topic));
 
+  initialize();
+}
+
+void MQTTBridge::initialize() {
   _mqttClient.setServer(mqtt_host, mqtt_port);
   _mqttClient.setCallback(mqttCallback);
 
@@ -112,16 +113,22 @@ void MQTTBridge::loop() {
 }
 
 void MQTTBridge::sendPacket(mesh::Packet *packet) {
-  if (!_initialized || !packet) return;
+  if (!_initialized || !packet) {
+    MQTT_DEBUG_PRINTLN("connection not initialized");
+    return;
+  }
 
-  if (!_mqttClient.connected()) return;
+  if (!_mqttClient.connected()) {
+    MQTT_DEBUG_PRINTLN("connection is not connected");
+    return;
+  }
 
   if (!_seen_packets.hasSeen(packet)) {
     uint8_t buf[MAX_TRANS_UNIT + 1];
     uint16_t len = packet->writeTo(buf);
 
     if (len == 0 || len > sizeof(buf)) {
-      BRIDGE_DEBUG_PRINTLN("TX invalid packet length %d", len);
+      MQTT_DEBUG_PRINTLN("TX invalid packet length %d", len);
       return;
     }
 

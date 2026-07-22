@@ -21,7 +21,7 @@
 #include <PubSubClient.h>
 
 #if MQTT_DEBUG && ARDUINO
-  #define MQTT_DEBUG_PRINTLN(F, ...) Serial.printf("%s MQTT: " F, getLogDateTime(), ##__VA_ARGS__)
+  #define MQTT_DEBUG_PRINTLN(F, ...) Serial.printf("%s MQTT: " F "\n", getLogDateTime(), ##__VA_ARGS__)
 #else
   #define MQTT_DEBUG_PRINTLN(...) {}
 #endif
@@ -54,15 +54,16 @@ class MQTTBridge : public BridgeBase {
 public:
   MQTTBridge(NodePrefs *prefs, mesh::PacketManager *mgr, mesh::RTCClock *rtc, const uint8_t *pubKey);
 
-  char mqtt_host[65];
+  char mqtt_host[64];
   uint mqtt_port;
-  char mqtt_topic[65];
+  char mqtt_topic[64];
 
   void begin() override;
   void end() override;
   void loop() override;
   void sendPacket(mesh::Packet *packet) override;
   void onPacketReceived(mesh::Packet *packet) override;
+  void initialize();
   bool reconnect();
 
 private:
@@ -73,8 +74,8 @@ private:
   unsigned long _lastReconnectAttempt;
   const uint8_t *_pubKey;
 
-  char _mqtt_username[33];
-  char _mqtt_password[65];
+  char _mqtt_username[32];
+  char _mqtt_password[64];
 
   // Buffer sized for maximum hex-encoded mesh packet
   static constexpr size_t HEX_BUF_SIZE = (MAX_TRANS_UNIT + 1) * 2 + 1;

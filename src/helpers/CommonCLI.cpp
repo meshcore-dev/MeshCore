@@ -789,17 +789,20 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     static_cast<MQTTBridge*>(_bridge)->end();
     StrHelper::strncpy(static_cast<MQTTBridge*>(_bridge)->mqtt_host,
                        &config[10], 64);
+    static_cast<MQTTBridge*>(_bridge)->initialize();
     static_cast<MQTTBridge*>(_bridge)->reconnect();
     strcpy(reply, "OK");
   } else if (memcmp(config, "mqtt.port ", 10) == 0) {
     static_cast<MQTTBridge*>(_bridge)->end();
     static_cast<MQTTBridge*>(_bridge)->mqtt_port = atoi(&config[10]);
+    static_cast<MQTTBridge*>(_bridge)->initialize();
     static_cast<MQTTBridge*>(_bridge)->reconnect();
     strcpy(reply, "OK");
   } else if (memcmp(config, "mqtt.topic ", 11) == 0) {
     static_cast<MQTTBridge*>(_bridge)->end();
     StrHelper::strncpy(static_cast<MQTTBridge*>(_bridge)->mqtt_topic,
                        &config[11], 64);
+    static_cast<MQTTBridge*>(_bridge)->initialize();
     if (static_cast<MQTTBridge*>(_bridge)->reconnect()) {
       strcpy(reply, "OK");
     } else {
