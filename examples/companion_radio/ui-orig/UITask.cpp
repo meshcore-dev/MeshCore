@@ -167,7 +167,7 @@ void UITask::renderBatteryIndicator(uint16_t batteryMilliVolts) {
   int iconHeight = 12;
   int iconX = _display->width() - iconWidth - 5; // Position the icon near the top-right corner
   int iconY = 0;
-  _display->setColor(DisplayDriver::GREEN);
+  _display->setColor(UIColor::primary_txt);
 
   // battery outline
   _display->drawRect(iconX, iconY, iconWidth, iconHeight);
@@ -188,7 +188,7 @@ void UITask::renderCurrScreen() {
     _display->setTextSize(1.4);
     uint16_t textWidth = _display->getTextWidth(_alert);
     _display->setCursor((_display->width() - textWidth) / 2, 22);
-    _display->setColor(DisplayDriver::GREEN);
+    _display->setColor(UIColor::warning_txt);
     _display->print(_alert);
     _alert[0] = 0;
     _need_refresh = true;
@@ -197,30 +197,29 @@ void UITask::renderCurrScreen() {
     // render message preview
     _display->setCursor(0, 0);
     _display->setTextSize(1);
-    _display->setColor(DisplayDriver::GREEN);
+    _display->setColor(UIColor::primary_txt);
     _display->print(_node_prefs->node_name);
 
     _display->setCursor(0, 12);
-    _display->setColor(DisplayDriver::YELLOW);
+    _display->setColor(UIColor::secondary_txt);
     _display->print(_origin);
     _display->setCursor(0, 24);
-    _display->setColor(DisplayDriver::LIGHT);
     _display->print(_msg);
 
     _display->setCursor(_display->width() - 28, 9);
     _display->setTextSize(2);
-    _display->setColor(DisplayDriver::ORANGE);
+    _display->setColor(UIColor::primary_txt);
     sprintf(tmp, "%d", _msgcount);
     _display->print(tmp);
-    _display->setColor(DisplayDriver::YELLOW); // last color will be kept on T114
+    _display->setColor(UIColor::secondary_txt); // last color will be kept on T114
   } else if ((millis() - ui_started_at) < BOOT_SCREEN_MILLIS) { // boot screen
     // meshcore logo
-    _display->setColor(DisplayDriver::BLUE);
+    _display->setColor(UIColor::corp_blue);
     int logoWidth = 128;
     _display->drawXbm((_display->width() - logoWidth) / 2, 3, meshcore_logo, logoWidth, 13);
 
     // version info
-    _display->setColor(DisplayDriver::LIGHT);
+    _display->setColor(UIColor::primary_txt);
     _display->setTextSize(1);
     uint16_t textWidth = _display->getTextWidth(_version_info);
     _display->setCursor((_display->width() - textWidth) / 2, 22);
@@ -229,7 +228,7 @@ void UITask::renderCurrScreen() {
     // node name
     _display->setCursor(0, 0);
     _display->setTextSize(1);
-    _display->setColor(DisplayDriver::GREEN);
+    _display->setColor(UIColor::primary_txt);
     _display->print(_node_prefs->node_name);
 
     // battery voltage
@@ -237,7 +236,7 @@ void UITask::renderCurrScreen() {
 
     // freq / sf
     _display->setCursor(0, 20);
-    _display->setColor(DisplayDriver::YELLOW);
+    _display->setColor(UIColor::secondary_txt);
     sprintf(tmp, "FREQ: %06.3f SF%d", _node_prefs->freq, _node_prefs->sf);
     _display->print(tmp);
 
@@ -248,14 +247,14 @@ void UITask::renderCurrScreen() {
 
     // BT pin
     if (!_connected && the_mesh.getBLEPin() != 0) {
-      _display->setColor(DisplayDriver::RED);
+      _display->setColor(UIColor::warning_txt);
       _display->setTextSize(2);
       _display->setCursor(0, 43);
       sprintf(tmp, "Pin:%d", the_mesh.getBLEPin());
       _display->print(tmp);
-      _display->setColor(DisplayDriver::GREEN);
+      _display->setColor(UIColor::primary_txt);
     } else {
-      _display->setColor(DisplayDriver::LIGHT); 
+      _display->setColor(UIColor::primary_txt); 
     }
   }
   _need_refresh = false;

@@ -26,6 +26,17 @@
   #define SCALE_Y DISPLAY_SCALE_Y
 #endif
 
+// Color scheme
+ColorVal UIColor::window_bkg = ST77XX_WHITE;
+ColorVal UIColor::title_bkg = ST77XX_BLUE;
+ColorVal UIColor::title_txt = ST77XX_WHITE;
+ColorVal UIColor::primary_txt = ST77XX_BLACK;
+ColorVal UIColor::secondary_txt = (18 << 11) | (36 << 5) | 18;  // mid-gray
+ColorVal UIColor::warning_txt = ST77XX_ORANGE;
+ColorVal UIColor::popup_bkg = ST77XX_CYAN;
+ColorVal UIColor::popup_txt = ST77XX_BLACK;
+ColorVal UIColor::corp_blue = 0x001A;
+
 bool ST7789Display::begin() {
   if(!_isOn) {
     pinMode(PIN_TFT_VDD_CTL, OUTPUT);
@@ -90,9 +101,9 @@ void ST7789Display::clear() {
   display.clear();
 }
 
-void ST7789Display::startFrame(Color bkg) {
-  display.clear();
-  _color = ST77XX_WHITE;
+void ST7789Display::startFrame(ColorVal bkg) {
+  display.fillRect(0, 0, display.width(), display.height());
+  _color = UIColor::primary_txt;
   display.setRGB(_color);
   display.setFont(ArialMT_Plain_16);
 }
@@ -110,38 +121,8 @@ void ST7789Display::setTextSize(int sz) {
   }
 }
 
-void ST7789Display::setColor(Color c) {
-  switch (c) {
-    case DisplayDriver::DARK :
-      _color = ST77XX_BLACK;
-      display.setColor(OLEDDISPLAY_COLOR::BLACK);
-      break;
-#if 0
-    case DisplayDriver::LIGHT : 
-      _color = ST77XX_WHITE;
-      break;
-    case DisplayDriver::RED : 
-      _color = ST77XX_RED;
-      break;
-    case DisplayDriver::GREEN : 
-      _color = ST77XX_GREEN;
-      break;
-    case DisplayDriver::BLUE : 
-      _color = ST77XX_BLUE;
-      break;
-    case DisplayDriver::YELLOW : 
-      _color = ST77XX_YELLOW;
-      break;
-    case DisplayDriver::ORANGE : 
-      _color = ST77XX_ORANGE;
-      break;
-#endif
-    default:
-      _color = ST77XX_WHITE;
-      display.setColor(OLEDDISPLAY_COLOR::WHITE);
-      break;
-  }
-  display.setRGB(_color);
+void ST7789Display::setColor(ColorVal c) {
+  display.setRGB(_color = c);
 }
 
 void ST7789Display::setCursor(int x, int y) {
