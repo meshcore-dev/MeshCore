@@ -42,13 +42,11 @@ extern "C" {
 #define PWRMGT_LPCOMP_REFSEL 1
 
 #define WIRE_INTERFACES_COUNT 1
-// Default board-package I2C pins.
-#define PIN_WIRE_SDA (0 + 6)
-#define PIN_WIRE_SCL (0 + 29)
 
-// External connector I2C used by MeshCore sensors/rotary input.
 #define PIN_BOARD_SDA (32 + 11) // P1.11
 #define PIN_BOARD_SCL (0 + 2)   // P0.02
+#define PIN_WIRE_SDA PIN_BOARD_SDA
+#define PIN_WIRE_SCL PIN_BOARD_SCL
 #define SENSOR_POWER_CTRL_PIN (0 + 12)
 #define SENSOR_POWER_ON HIGH
 #define SENSOR_INT (0 + 20)

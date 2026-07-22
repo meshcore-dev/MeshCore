@@ -48,9 +48,7 @@ void variant_shutdown()
   digitalWrite(RADIOCORE_FEM_EN, LOW);
   digitalWrite(RADIOCORE_VFEM_CTRL, LOW);
   digitalWrite(PIN_ADC_CTRL, !ADC_CTRL_ENABLED);
-#ifdef PIN_BUZZER
-  digitalWrite(PIN_BUZZER, LOW);
-#endif
+
   digitalWrite(PIN_TFT_BL, !PIN_TFT_BL_ACTIVE);
   digitalWrite(PIN_TFT_EN, !PIN_TFT_EN_ACTIVE);
 
@@ -64,7 +62,6 @@ void variant_shutdown()
   nrf_gpio_cfg_default(PIN_TFT_EN);
   nrf_gpio_cfg_default(PIN_TFT_CS);
   nrf_gpio_cfg_default(PIN_TFT_DC);
-  nrf_gpio_cfg_default(PIN_TFT_MOSI);
   nrf_gpio_cfg_default(PIN_TFT_RST);
 
   nrf_gpio_cfg_default(PIN_SPI_MISO);
