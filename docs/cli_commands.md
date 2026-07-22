@@ -20,13 +20,14 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
   - [Sensors](#sensors-when-sensor-support-is-compiled-in)
   - [Bridge](#bridge-when-bridge-support-is-compiled-in)
   - [Ethernet](#ethernet-when-ethernet-support-is-compiled-in)
+- [Board Status](#board-status)
 
 ---
 
 ## Operational
 
 ### Reboot the node
-**Usage:** 
+**Usage:**
 - `reboot`
 
 **Note:** No reply is sent.
@@ -51,7 +52,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 ---
 
 ### Sync the clock with the remote device
-**Usage:** 
+**Usage:**
 - `clock sync`
 
 ---
@@ -63,7 +64,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 ---
 
 ### Set the time to a specific timestamp
-**Usage:** 
+**Usage:**
 - `time <epoch_seconds>`
 
 **Parameters:**
@@ -72,7 +73,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 ---
 
 ### Send a flood advert
-**Usage:** 
+**Usage:**
 - `advert`
 
 ---
@@ -102,7 +103,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 ## Neighbors (Repeater Only)
 
 ### List nearby neighbors
-**Usage:** 
+**Usage:**
 - `neighbors`
 
 **Note:** The output of this command is limited to the 8 most recent adverts.
@@ -112,10 +113,10 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 ---
 
 ### Remove a neighbor
-**Usage:** 
+**Usage:**
 - `neighbor.remove <pubkey_prefix>`
 
-**Parameters:** 
+**Parameters:**
 - `pubkey_prefix`: The public key of the node to remove from the neighbors list. This can be a short prefix or the full key. All neighbors matching the provided prefix will be removed.
 
 **Note:** You can remove all neighbors by sending a space character as the prefix. The space indicates an empty prefix, which matches all existing neighbors.
@@ -124,7 +125,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 ### Discover zero hop neighbors
 
-**Usage:** 
+**Usage:**
 - `discover.neighbors`
 
 ---
@@ -137,7 +138,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 ---
 
 ### System Stats - Battery, Uptime, Queue Length and Debug Flags
-**Usage:** 
+**Usage:**
 - `stats-core`
 
 **Serial Only:** Yes
@@ -234,7 +235,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 ---
 
 #### Change the radio parameters for a set duration
-**Usage:** 
+**Usage:**
 - `tempradio <freq>,<bw>,<sf>,<cr>,<timeout_mins>`
 
 **Parameters:**
@@ -435,7 +436,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 - `powersaving on`
 - `powersaving off`
 
-**Parameters:** 
+**Parameters:**
 - `on`: enable power saving
 - `off`: disable power saving
 
@@ -469,13 +470,13 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
   - `0`: 1 Byte hash size (256 unique ids)[64 max flood]
   - `1`: 2 Byte hash size (65,536 unique ids)[32 max flood]
   - `2`: 3 Byte hash size (16,777,216 unique ids)[21 max flood]
-  - `3`: DO NOT USE (Reserved) 
+  - `3`: DO NOT USE (Reserved)
 
 **Default:** `0`
 
 **Note:** the 'path.hash.mode' sets the low-level ID/hash encoding size used when the repeater adverts. This setting has no impact on what packet ID/hash size this repeater forwards, all sizes should be forwarded on firmware >= 1.14. This feature was added in firmware 1.14
 
-**Temporary Note:** adverts with ID/hash sizes of 2 or 3 bytes may have limited flood propagation in your network while this feature is new as v1.13.0 firmware and older will drop packets with multibyte path ID/hashes as only 1-byte hashes are supported. Consider your install base of firmware >=1.14 has reached a criticality for effective network flooding before implementing higher ID/hash sizes. 
+**Temporary Note:** adverts with ID/hash sizes of 2 or 3 bytes may have limited flood propagation in your network while this feature is new as v1.13.0 firmware and older will drop packets with multibyte path ID/hashes as only 1-byte hashes are supported. Consider your install base of firmware >=1.14 has reached a criticality for effective network flooding before implementing higher ID/hash sizes.
 
 ---
 
@@ -485,17 +486,17 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 - `set loop.detect <state>`
 
 **Parameters:**
-- `state`: 
+- `state`:
   - `off`: no loop detection is performed
   - `minimal`: packets are dropped if repeater's ID/hash appears 4 or more times (1-byte), 2 or more (2-byte), 1 or more (3-byte)
   - `moderate`: packets are dropped if repeater's ID/hash appears 2 or more times (1-byte), 1 or more (2-byte), 1 or more (3-byte)
   - `strict`: packets are dropped if repeater's ID/hash appears 1 or more times (1-byte), 1 or more (2-byte), 1 or more (3-byte)
-  
+
 **Default:** `off`
 
 **Note:** When it is enabled, repeaters will now reject flood packets which look like they are in a loop. This has been happening recently in some meshes when there is just a single 'bad' repeater firmware out there (probably some forked or custom firmware). If the payload is messed with, then forwarded, the same packet ends up causing a packet storm, repeated up to the max 64 hops. This feature was added in firmware 1.14
 
-**Example:** If preference is `loop.detect minimal`, and a 1-byte path size packet is received, the repeater will see if its own ID/hash is already in the path. If it's already encoded 4 times, it will reject the packet.  If the packet uses 2-byte path size, and repeater's own ID/hash is already encoded 2 times, it rejects. If the packet uses 3-byte path size, and the repeater's own ID/hash is already encoded 1 time, it rejects. 
+**Example:** If preference is `loop.detect minimal`, and a 1-byte path size packet is received, the repeater will see if its own ID/hash is already in the path. If it's already encoded 4 times, it will reject the packet.  If the packet uses 2-byte path size, and repeater's own ID/hash is already encoded 2 times, it rejects. If the packet uses 3-byte path size, and the repeater's own ID/hash is already encoded 1 time, it rejects.
 
 ---
 
@@ -695,12 +696,12 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 ### ACL
 
 #### Add, update or remove permissions for a companion
-**Usage:** 
+**Usage:**
 - `setperm <pubkey> <permissions>`
 
 **Parameters:**
 - `pubkey`: Companion public key
-- `permissions`: 
+- `permissions`:
   - `0`: Guest
   - `1`: Read-only
   - `2`: Read-write
@@ -711,7 +712,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 ---
 
 #### View the current ACL
-**Usage:** 
+**Usage:**
 - `get acl`
 
 **Serial Only:** Yes
@@ -733,7 +734,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 ### Region Management (v1.10.+)
 
 #### Bulk-load region lists
-**Usage:** 
+**Usage:**
 - `region load`
 - `region load <name> [flood_flag]`
 
@@ -749,16 +750,16 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 ---
 
 #### Save any changes to regions made since reboot
-**Usage:** 
+**Usage:**
 - `region save`
 
 ---
 
 #### Allow a region
-**Usage:** 
+**Usage:**
 - `region allowf <name>`
 
-**Parameters:** 
+**Parameters:**
 - `name`: Region name (or `*` for wildcard)
 
 **Note:** Setting on wildcard `*` allows packets without region transport codes
@@ -766,10 +767,10 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 ---
 
 #### Block a region
-**Usage:** 
+**Usage:**
 - `region denyf <name>`
 
-**Parameters:** 
+**Parameters:**
 - `name`: Region name (or `*` for wildcard)
 
 **Note:** Setting on wildcard `*` drops packets without region transport codes
@@ -777,7 +778,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 ---
 
 #### Show information for a region
-**Usage:** 
+**Usage:**
 - `region get <name>`
 
 **Parameters:**
@@ -786,7 +787,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 ---
 
 #### View or change the home region for this node
-**Usage:** 
+**Usage:**
 - `region home`
 - `region home <name>`
 
@@ -796,7 +797,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 ---
 
 #### View or change the default scope region for this node
-**Usage:** 
+**Usage:**
 - `region default`
 - `region default {name|<null>}`
 
@@ -806,7 +807,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 ---
 
 #### Create a new region
-**Usage:** 
+**Usage:**
 - `region put <name> [parent_name]`
 
 **Parameters:**
@@ -857,18 +858,18 @@ region save
 ---
 
 #### Remove a region
-**Usage:** 
+**Usage:**
 - `region remove <name>`
 
 **Parameters:**
 - `name`: Region name
 
-**Note:** Must remove all child regions before the region can be removed 
+**Note:** Must remove all child regions before the region can be removed
 
 ---
 
 #### View all regions
-**Usage:** 
+**Usage:**
 - `region list <filter>`
 
 **Serial Only:** Yes
@@ -881,7 +882,7 @@ region save
 ---
 
 #### Dump all defined regions and flood permissions
-**Usage:** 
+**Usage:**
 - `region`
 
 **Serial Only:** For firmware older than 1.12.0
@@ -906,7 +907,7 @@ region save
 
 **Example 2: Using Wildcard with F Flag**
 ```
-region load 
+region load
 * F
 <blank line to end region load>
 region save
@@ -921,7 +922,7 @@ region save
 
 **Example 3: Using Wildcard Without F Flag**
 ```
-region load 
+region load
 *
 <blank line to end region load>
 region save
@@ -935,7 +936,7 @@ region save
 
 **Example 4: Nested Public Region with F Flag**
 ```
-region load 
+region load
 #Europe F
   #UK
     #London
@@ -956,7 +957,7 @@ region save
 
 **Example 5: Wildcard with Nested Public Regions**
 ```
-region load 
+region load
 * F
   #NorthAmerica
     #USA
@@ -995,13 +996,13 @@ region save
 ---
 
 #### Sync this node's clock with GPS time
-**Usage:** 
+**Usage:**
 - `gps sync`
 
 ---
 
 #### Set this node's location based on the GPS coordinates
-**Usage:** 
+**Usage:**
 - `gps setloc`
 
 ---
@@ -1011,8 +1012,8 @@ region save
 - `gps advert`
 - `gps advert <policy>`
 
-**Parameters:** 
-- `policy`: `none`|`share`|`prefs` 
+**Parameters:**
+- `policy`: `none`|`share`|`prefs`
   - `none`: don't include location in adverts
   - `share`: share gps location (from SensorManager)
   - `prefs`: location stored in node's lat and lon settings
@@ -1034,7 +1035,7 @@ region save
 ---
 
 #### View or change the value of a sensor
-**Usage:** 
+**Usage:**
 - `sensor get <key>`
 - `sensor set <key> <value>`
 
@@ -1081,7 +1082,7 @@ region save
 - `set bridge.source <source>`
 
 **Parameters:**
-- `source`: 
+- `source`:
   - `logRx`: bridges received packets
   - `logTx`: bridges transmitted packets
 
@@ -1111,8 +1112,8 @@ region save
 
 ---
 
-#### Set the ESP-Now secret
-**Usage:** 
+#### Set the ESP-Now secret (ESPNow only)
+**Usage:**
 - `get bridge.secret`
 - `set bridge.secret <secret>`
 
@@ -1122,6 +1123,44 @@ region save
 **Default:** Varies by board
 
 ---
+
+#### Set MQTT host (MQTT bridge only)
+**Usage:**
+- `get mqtt.host`
+- `set mqtt.host <host>`
+
+**Parameters:**
+- `host`: Hostname or IP of MQTT server
+
+**Default:** Set at compile time. If changed reverts to compile time value.
+
+---
+
+#### Set MQTT port (MQTT bridge only)
+**Usage:**
+- `get mqtt.port`
+- `set mqtt.port <port_number>`
+
+**Parameters:**
+- `port_number`: MQTT server port for connection
+
+**Default:** Set at compile time. If changed reverts to compile time value.
+
+---
+
+#### Set MQTT topic (MQTT bridge only)
+**Usage:**
+- `get mqtt.topic`
+- `set mqtt.topic <new_topic>`
+
+**Parameters:**
+- `new_topic`: MQTT topic for publication and subscription
+
+**Default:** Set at compile time. If changed reverts to compile time value.
+
+---
+
+## Board Status
 
 #### View the bootloader version (nRF52 only)
 **Usage:** `get bootloader.ver`
