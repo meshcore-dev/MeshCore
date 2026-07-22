@@ -111,6 +111,14 @@ public :
         }
     }
 
+    void setPinEn(int pin_en) override {
+        _pin_en = pin_en;
+    }
+
+    int getPinEn() override {
+        return _pin_en;
+    }
+
     void syncTime() override { nmea.clear(); LocationProvider::syncTime(); }
     long getLatitude() override { return nmea.getLatitude(); }
     long getLongitude() override { return nmea.getLongitude(); }

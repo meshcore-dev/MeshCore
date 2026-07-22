@@ -44,4 +44,6 @@ public:
     virtual void stop() = 0;
     virtual void loop() = 0;
     virtual bool isEnabled() = 0;
+    virtual void setPinEn(int pin_en) = 0;
+    virtual int getPinEn() = 0;
 };
