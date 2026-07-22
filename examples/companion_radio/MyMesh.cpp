@@ -106,6 +106,18 @@
 #define DIRECT_SEND_PERHOP_EXTRA_MILLIS 250
 #define LAZY_CONTACTS_WRITE_DELAY       5000
 
+// Fixed RSSI margin (dB above the noise floor) at which a DIRECT resend treats the channel as busy
+// (isResendChannelActive(): busy when isReceivingPacket() || currentRSSI - noiseFloor >= this). It is
+// the resend-only counterpart of the general-LBT _prefs.interference_threshold, which flows through
+// getInterferenceThreshold() -> triggerNoiseFloorCalibrate() -> RadioLibWrapper::isChannelActive().
+// They are separate today only because interference_threshold is blanket-initialised to 0 (disabled;
+// see getInterferenceThreshold(), cited there as a currentRSSI() reliability concern). The margin
+// currentRSSI-noiseFloor is only as trustworthy as both terms: the median noise-floor estimator
+// (PR #2933) stabilises getNoiseFloor() and removes the dominant drift source (the old one-way
+// ratchet to -120 that inflated every margin), substantially rehabilitating the threshold path.
+// Once interference_threshold is enabled across the fleet, this constant can be superseded by it.
+// NB: here getInterferenceThreshold() is hardcoded to 0 (not prefs-driven), so superseding this
+// constant via interference_threshold additionally requires dropping that override.
 #ifndef RESEND_INTERFERENCE_MARGIN
   #define RESEND_INTERFERENCE_MARGIN   12   // dB above noise floor that blocks a resend (non-invasive LBT)
 #endif
