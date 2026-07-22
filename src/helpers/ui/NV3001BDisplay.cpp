@@ -203,25 +203,25 @@ static void writeOptionalPin(int pin, int level) {
 }
 
 void NV3001BDisplay::writeCommand(uint8_t cmd) {
-  spi.beginTransaction(SPISettings(SPI_FREQUENCY, MSBFIRST, SPI_MODE0));
+  spi->beginTransaction(SPISettings(SPI_FREQUENCY, MSBFIRST, SPI_MODE0));
   digitalWrite(PIN_TFT_DC, LOW);
   digitalWrite(PIN_TFT_CS, LOW);
-  spi.transfer(cmd);
+  spi->transfer(cmd);
   digitalWrite(PIN_TFT_CS, HIGH);
-  spi.endTransaction();
+  spi->endTransaction();
 }
 
 void NV3001BDisplay::writeBytes(const uint8_t* data, size_t len) {
   if (!data || len == 0) return;
 
-  spi.beginTransaction(SPISettings(SPI_FREQUENCY, MSBFIRST, SPI_MODE0));
+  spi->beginTransaction(SPISettings(SPI_FREQUENCY, MSBFIRST, SPI_MODE0));
   digitalWrite(PIN_TFT_DC, HIGH);
   digitalWrite(PIN_TFT_CS, LOW);
   for (size_t i = 0; i < len; i++) {
-    spi.transfer(data[i]);
+    spi->transfer(data[i]);
   }
   digitalWrite(PIN_TFT_CS, HIGH);
-  spi.endTransaction();
+  spi->endTransaction();
 }
 
 void NV3001BDisplay::writeCommandData(uint8_t cmd, const uint8_t* data, size_t len) {
@@ -253,15 +253,15 @@ void NV3001BDisplay::writeColor(uint16_t rgb, uint32_t count) {
   uint8_t hi = rgb >> 8;
   uint8_t lo = rgb & 0xff;
 
-  spi.beginTransaction(SPISettings(SPI_FREQUENCY, MSBFIRST, SPI_MODE0));
+  spi->beginTransaction(SPISettings(SPI_FREQUENCY, MSBFIRST, SPI_MODE0));
   digitalWrite(PIN_TFT_DC, HIGH);
   digitalWrite(PIN_TFT_CS, LOW);
   while (count--) {
-    spi.transfer(hi);
-    spi.transfer(lo);
+    spi->transfer(hi);
+    spi->transfer(lo);
   }
   digitalWrite(PIN_TFT_CS, HIGH);
-  spi.endTransaction();
+  spi->endTransaction();
 }
 
 void NV3001BDisplay::initPanel() {
@@ -416,6 +416,7 @@ void NV3001BDisplay::drawChar(int x, int y, char ch) {
 
 bool NV3001BDisplay::begin() {
   if (is_on) return true;
+  if (!spi) return false;
 
   if (periph_power) periph_power->claim();
 
@@ -427,7 +428,13 @@ bool NV3001BDisplay::begin() {
   digitalWrite(PIN_TFT_DC, HIGH);
   delay(20);
 
-  spi.begin(PIN_TFT_SCL, PIN_TFT_MISO, PIN_TFT_SDA, PIN_TFT_CS);
+#if defined(NRF52_PLATFORM)
+  spi->begin();
+#elif defined(ESP_PLATFORM) || defined(ESP32_PLATFORM)
+  spi->begin(PIN_TFT_SCL, PIN_TFT_MISO, PIN_TFT_SDA, PIN_TFT_CS);
+#else
+  spi->begin();
+#endif
   if (PIN_TFT_RST >= 0) {
     pinMode(PIN_TFT_RST, OUTPUT);
     digitalWrite(PIN_TFT_RST, HIGH);
