@@ -299,7 +299,6 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
     }
     case PAYLOAD_TYPE_MULTIPART:
       if (pkt->payload_len > 2) {
-        uint8_t remaining = pkt->payload[0] >> 4;  // num of packets in this multipart sequence still to be sent
         uint8_t type = pkt->payload[0] & 0x0F;
 
         if (type == PAYLOAD_TYPE_ACK && pkt->payload_len >= 5) {    // a multipart ACK

@@ -188,7 +188,7 @@ void MyMesh::writeContactRespFrame(uint8_t code, const ContactInfo &contact) {
 
 void MyMesh::updateContactFromFrame(ContactInfo &contact, uint32_t& last_mod, const uint8_t *frame, int len) {
   int i = 0;
-  uint8_t code = frame[i++]; // eg. CMD_ADD_UPDATE_CONTACT
+  i++; // skip command code byte (eg. CMD_ADD_UPDATE_CONTACT)
   memcpy(contact.id.pub_key, &frame[i], PUB_KEY_SIZE);
   i += PUB_KEY_SIZE;
   contact.type = frame[i++];
