@@ -476,7 +476,7 @@ void MyMesh::logRxRaw(float snr, float rssi, const uint8_t raw[], int len) {
 
 void MyMesh::logRx(mesh::Packet *pkt, int len, float score) {
 #ifdef WITH_BRIDGE
-  if (_prefs.bridge_pkt_src == 1) {
+  if (_prefs.bridge_pkt_src & BRIDGE_SOURCE_RX) {
     bridge.sendPacket(pkt);
   }
 #endif
@@ -502,7 +502,7 @@ void MyMesh::logRx(mesh::Packet *pkt, int len, float score) {
 
 void MyMesh::logTx(mesh::Packet *pkt, int len) {
 #ifdef WITH_BRIDGE
-  if (_prefs.bridge_pkt_src == 0) {
+  if (_prefs.bridge_pkt_src & BRIDGE_SOURCE_TX) {
     bridge.sendPacket(pkt);
   }
 #endif
@@ -900,7 +900,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   // bridge defaults
   _prefs.bridge_enabled = 1;    // enabled
   _prefs.bridge_delay   = 500;  // milliseconds
-  _prefs.bridge_pkt_src = 0;    // logTx
+  _prefs.bridge_pkt_src = BRIDGE_SOURCE_TX;    // logTx
   _prefs.bridge_baud = 115200;  // baud rate
   _prefs.bridge_channel = 1;    // channel 1
 

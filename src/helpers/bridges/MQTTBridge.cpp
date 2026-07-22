@@ -54,6 +54,7 @@ void MQTTBridge::begin() {
 void MQTTBridge::initialize() {
   _mqttClient.setServer(mqtt_host, mqtt_port);
   _mqttClient.setCallback(mqttCallback);
+  _mqttClient.setBufferSize(2*MAX_TRANS_UNIT);
 
   _initialized = true;
   MQTT_DEBUG_PRINTLN("Initialized, broker=%s:%d topic=%s", mqtt_host, mqtt_port, mqtt_topic);
@@ -75,7 +76,7 @@ bool MQTTBridge::reconnect() {
 
   MQTT_DEBUG_PRINTLN("Connecting to %s:%d...", mqtt_host, mqtt_port);
 
-  char clientId[32]; // "meshcore-mqtt-bridge-" (21) + 6 hex chars + null
+  char clientId[28]; // "meshcore-mqtt-bridge-" (21) + 6 hex chars + null
   snprintf(clientId, sizeof(clientId), "meshcore-mqtt-bridge-%02X%02X%02X",
            _pubKey[0], _pubKey[1], _pubKey[2]);
   bool ok;
@@ -113,22 +114,16 @@ void MQTTBridge::loop() {
 }
 
 void MQTTBridge::sendPacket(mesh::Packet *packet) {
-  if (!_initialized || !packet) {
-    MQTT_DEBUG_PRINTLN("connection not initialized");
-    return;
-  }
+  if (!_initialized || !packet) return;
 
-  if (!_mqttClient.connected()) {
-    MQTT_DEBUG_PRINTLN("connection is not connected");
-    return;
-  }
+  if (!_mqttClient.connected()) return;
 
   if (!_seen_packets.hasSeen(packet)) {
     uint8_t buf[MAX_TRANS_UNIT + 1];
     uint16_t len = packet->writeTo(buf);
 
     if (len == 0 || len > sizeof(buf)) {
-      MQTT_DEBUG_PRINTLN("TX invalid packet length %d", len);
+      MQTT_DEBUG_PRINTLN("PUB invalid packet length %d", len);
       return;
     }
 
@@ -141,9 +136,9 @@ void MQTTBridge::sendPacket(mesh::Packet *packet) {
     _hexBuf[len * 2] = '\0';
 
     if (_mqttClient.publish(mqtt_topic, _hexBuf)) {
-      MQTT_DEBUG_PRINTLN("TX len=%d hex_len=%d", len, len * 2);
+      MQTT_DEBUG_PRINTLN("PUB raw=%s", _hexBuf);
     } else {
-      MQTT_DEBUG_PRINTLN("TX publish failed len=%d", len);
+      MQTT_DEBUG_PRINTLN("PUB failed len=%d", len);
     }
   }
 }
@@ -163,13 +158,13 @@ void MQTTBridge::onMqttMessage(char *topic, uint8_t *payload, unsigned int lengt
 
   // Expect even number of hex chars
   if (length == 0 || length % 2 != 0) {
-    MQTT_DEBUG_PRINTLN("RX invalid hex length %u", length);
+    MQTT_DEBUG_PRINTLN("SUB invalid hex length %u", length);
     return;
   }
 
   uint16_t byte_len = length / 2;
   if (byte_len > MAX_TRANS_UNIT + 1) {
-    MQTT_DEBUG_PRINTLN("RX packet too large %u bytes", byte_len);
+    MQTT_DEBUG_PRINTLN("SUB packet too large %u bytes", byte_len);
     return;
   }
 
@@ -183,27 +178,31 @@ void MQTTBridge::onMqttMessage(char *topic, uint8_t *payload, unsigned int lengt
     if      (hi >= '0' && hi <= '9') hi_val = hi - '0';
     else if (hi >= 'A' && hi <= 'F') hi_val = hi - 'A' + 10;
     else if (hi >= 'a' && hi <= 'f') hi_val = hi - 'a' + 10;
-    else { MQTT_DEBUG_PRINTLN("RX invalid hex char '%c'", hi); return; }
+    else { MQTT_DEBUG_PRINTLN("SUB invalid hex char '%c'", hi); return; }
 
     if      (lo >= '0' && lo <= '9') lo_val = lo - '0';
     else if (lo >= 'A' && lo <= 'F') lo_val = lo - 'A' + 10;
     else if (lo >= 'a' && lo <= 'f') lo_val = lo - 'a' + 10;
-    else { MQTT_DEBUG_PRINTLN("RX invalid hex char '%c'", lo); return; }
+    else { MQTT_DEBUG_PRINTLN("SUB invalid hex char '%c'", lo); return; }
 
     buf[i] = (hi_val << 4) | lo_val;
   }
 
   mesh::Packet *pkt = _mgr->allocNew();
   if (!pkt) {
-    MQTT_DEBUG_PRINTLN("RX alloc failed");
+    MQTT_DEBUG_PRINTLN("SUB alloc failed");
     return;
   }
 
   if (pkt->readFrom(buf, byte_len)) {
-    MQTT_DEBUG_PRINTLN("RX len=%u", byte_len);
-    onPacketReceived(pkt);
+    if (_seen_packets.hasSeen(pkt)) {
+      _mgr->free(pkt);
+    } else {
+      MQTT_DEBUG_PRINTLN("SUB raw=%.*s", payload);
+      onPacketReceived(pkt);
+    }
   } else {
-    MQTT_DEBUG_PRINTLN("RX parse failed len=%u", byte_len);
+    MQTT_DEBUG_PRINTLN("SUB parse failed len=%u", byte_len);
     _mgr->free(pkt);
   }
 }
