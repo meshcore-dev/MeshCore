@@ -49,6 +49,9 @@ void HeltecRC52Board::begin()
 #ifdef NRF52_POWER_MANAGEMENT
   checkBootVoltage(&power_config);
 #endif
+  pinMode(P_LORA_TX_LED, OUTPUT);
+  digitalWrite(P_LORA_TX_LED, LOW); // off by default, active high
+
   periph_power.begin();
   periph_power.claim();
 }
@@ -57,6 +60,14 @@ void HeltecRC52Board::shutdownPeripherals()
 {
   NRF52Board::shutdownPeripherals();
   variant_shutdown();
+}
+
+void HeltecRC52Board::onBeforeTransmit() {
+  digitalWrite(P_LORA_TX_LED, HIGH);
+}
+
+void HeltecRC52Board::onAfterTransmit() {
+  digitalWrite(P_LORA_TX_LED, LOW);
 }
 
 uint16_t HeltecRC52Board::getBattMilliVolts()

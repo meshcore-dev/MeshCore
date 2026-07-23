@@ -17,6 +17,8 @@ public:
   HeltecRC52Board() : NRF52Board("RC52_OTA"), periph_power(SENSOR_POWER_CTRL_PIN, SENSOR_POWER_ON) {}
 
   void begin() override;
+  void onBeforeTransmit() override;
+  void onAfterTransmit() override;
   void shutdownPeripherals() override;
   uint16_t getBattMilliVolts() override;
   const char* getManufacturerName() const override;
