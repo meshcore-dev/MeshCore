@@ -27,7 +27,7 @@ class NV3001BDisplay : public DisplayDriver {
 #endif
   SPIClass owned_spi;
 #endif
-  SPIClass* spi;
+  SPIClass& spi;
   RefCountedDigitalPin* periph_power;
   bool is_on = false;
   uint16_t color = 0xffff;
@@ -48,14 +48,14 @@ public:
 #if defined(ESP_PLATFORM) || defined(ESP32_PLATFORM)
   NV3001BDisplay(RefCountedDigitalPin* power = nullptr) :
       DisplayDriver(NV3001B_LOGICAL_WIDTH, NV3001B_LOGICAL_HEIGHT),
-      owned_spi(NV3001B_SPI_HOST), spi(&owned_spi), periph_power(power) { }
+      owned_spi(NV3001B_SPI_HOST), spi(owned_spi), periph_power(power) { }
 
   NV3001BDisplay(SPIClass* displaySpi, RefCountedDigitalPin* power = nullptr) :
       DisplayDriver(NV3001B_LOGICAL_WIDTH, NV3001B_LOGICAL_HEIGHT),
-      owned_spi(NV3001B_SPI_HOST), spi(displaySpi ? displaySpi : &owned_spi), periph_power(power) { }
+      owned_spi(NV3001B_SPI_HOST), spi(displaySpi ? *displaySpi : owned_spi), periph_power(power) { }
 #else
   NV3001BDisplay(SPIClass* displaySpi = &SPI, RefCountedDigitalPin* power = nullptr) :
-      DisplayDriver(NV3001B_LOGICAL_WIDTH, NV3001B_LOGICAL_HEIGHT), spi(displaySpi), periph_power(power) { }
+      DisplayDriver(NV3001B_LOGICAL_WIDTH, NV3001B_LOGICAL_HEIGHT), spi(displaySpi ? *displaySpi : SPI), periph_power(power) { }
 #endif
 
   bool begin();

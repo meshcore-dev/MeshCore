@@ -53,8 +53,8 @@ extern "C" {
 #define SENSOR_RST_PIN (32 + 15)
 
 
-#define PIN_GPS_TX (0 + 8) // GPS TX toward MCU RX
-#define PIN_GPS_RX (0 + 7) // MCU TX toward GPS RX
+#define PIN_GPS_TX (0 + 8)
+#define PIN_GPS_RX (0 + 7)
 #define PIN_GPS_EN (32 + 9)
 #define PIN_GPS_PPS (32 + 1)
 #define PIN_GPS_RESET (32 + 6)
