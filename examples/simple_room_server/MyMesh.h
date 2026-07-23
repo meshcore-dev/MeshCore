@@ -82,8 +82,7 @@
 
 #define MAX_POST_TEXT_LEN    (160-9)
 
-// subtract 7 for "Topic: " prefix
-#define MAX_TOPIC_TEXT_LEN (MAX_POST_TEXT_LEN - 7)
+#define MAX_TOPIC_TEXT_LEN MAX_POST_TEXT_LEN
 
 struct PostInfo {
   mesh::Identity author;
@@ -127,7 +126,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   void storePost(const mesh::Identity& author, const char* postData);
   void pushPostToClient(ClientInfo* client, PostInfo& post);
   void pushTopicToClient(ClientInfo* client);
-  void pushPostInternal(ClientInfo* client, uint32_t timestamp, const mesh::Identity& author, const char* prefix, const char* text);
+  void pushPostInternal(ClientInfo* client, uint32_t timestamp, const mesh::Identity& author, const char* text);
   uint8_t getUnsyncedCount(ClientInfo* client);
   bool processAck(const uint8_t *data);
   mesh::Packet* createSelfAdvert();

@@ -68,15 +68,14 @@ void MyMesh::storePost(const mesh::Identity &author, const char *postData) {
 
 void MyMesh::pushPostToClient(ClientInfo *client, PostInfo &post) {
   MESH_DEBUG_PRINTLN("room.post: pushPostToClient text=%s", post.text);
-  pushPostInternal(client, post.post_timestamp, post.author, nullptr, post.text);
+  pushPostInternal(client, post.post_timestamp, post.author, post.text);
 }
 
 void MyMesh::pushTopicToClient(ClientInfo *client) {
-  pushPostInternal(client, topic_timestamp, self_id, "Topic: ", topic);
+  pushPostInternal(client, topic_timestamp, self_id, topic);
 }
 
-void MyMesh::pushPostInternal(ClientInfo* client, uint32_t timestamp, const mesh::Identity& author,
-                              const char* prefix, const char* text) {
+void MyMesh::pushPostInternal(ClientInfo* client, uint32_t timestamp, const mesh::Identity& author, const char* text) {
   int len = 0;
   memcpy(&reply_data[len], &timestamp, 4);
   len += 4; // this is a PAST timestamp... but should be accepted by client
@@ -88,12 +87,6 @@ void MyMesh::pushPostInternal(ClientInfo* client, uint32_t timestamp, const mesh
   // encode prefix of author.pub_key
   memcpy(&reply_data[len], author.pub_key, 4);
   len += 4; // just first 4 bytes
-
-  if (prefix) {
-    int prefix_len = strlen(prefix);
-    memcpy(&reply_data[len], prefix, prefix_len);
-    len += prefix_len;
-  }
 
   int text_len = strlen(text);
   memcpy(&reply_data[len], text, text_len);
@@ -770,7 +763,7 @@ void MyMesh::loadRoomPrefs() {
   if (file) {
     file.read((uint8_t *)&topic[0], sizeof(topic));                     // 0
     topic[MAX_TOPIC_TEXT_LEN] = '\0';
-    // next: 144
+    // next: 151
 
     file.close();
   }
@@ -787,7 +780,7 @@ void MyMesh::saveRoomPrefs() {
 #endif
   if (file) {
     file.write((uint8_t *)&topic[0], sizeof(topic));                    // 0
-    // next: 144
+    // next: 151
 
     file.close();
   }
