@@ -41,20 +41,16 @@ void HeltecRC52Board::begin()
 #endif
   Wire.begin();
 
-  pinMode(RADIOCORE_VFEM_CTRL, OUTPUT);
-  digitalWrite(RADIOCORE_VFEM_CTRL, HIGH);
-  pinMode(RADIOCORE_FEM_EN, OUTPUT);
-  digitalWrite(RADIOCORE_FEM_EN, HIGH);
-
   pinMode(SENSOR_RST_PIN, OUTPUT);
   digitalWrite(SENSOR_RST_PIN, HIGH);
   pinMode(SENSOR_INT, INPUT);
 
-  periph_power.begin();
 
 #ifdef NRF52_POWER_MANAGEMENT
   checkBootVoltage(&power_config);
 #endif
+  periph_power.begin();
+  periph_power.claim();
 }
 
 void HeltecRC52Board::shutdownPeripherals()
