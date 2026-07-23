@@ -133,3 +133,64 @@ Xiao_C6_companion_radio_ble_ \
 RAK_4631_companion_radio_ble \
 Heltec_t096_companion_radio_ble \
 Heltec_t096_companion_radio_ble_femoff
+
+############# GPS PowerSaving #############
+export FIRMWARE_VERSION="PowerSaving16.1.1"
+sh build.sh build-firmware \
+heltec_v4_repeater \
+Heltec_t114_repeater \
+Heltec_t096_repeater \
+WioTrackerL1_repeater \
+LilyGo_T-Echo_repeater \
+Station_G2_repeater \
+Heltec_Wireless_Tracker_repeater \
+heltec_tracker_v2_repeater \
+Heltec_mesh_solar_repeater \
+SenseCap_Solar_repeater
+
+sh build.sh build-firmware \
+Heltec_t114_companion_radio_ble \
+t1000e_companion_radio_ble \
+LilyGo_T-Echo_companion_radio_ble \
+WioTrackerL1_companion_radio_ble \
+SenseCap_Solar_companion_radio_ble \
+Heltec_t096_companion_radio_ble \
+Heltec_t096_companion_radio_ble_femoff \
+heltec_v4_companion_radio_ble_ps \
+heltec_v4_3_companion_radio_ble_ps_femoff \
+LilyGo_TBeam_1W_companion_radio_ble_ps \
+Heltec_Wireless_Tracker_companion_radio_ble_ps \
+heltec_tracker_v2_companion_radio_ble_ps \
+T_Beam_S3_Supreme_SX1262 \
+Tbeam_SX1262_companion_radio_ble_ps \
+heltec_v4_expansionkit_tft_companion_radio_ble_ps
+
+export FIRMWARE_VERSION="PowerSaving16.1.2"
+sh build.sh build-firmware \
+RAK_4631_repeater \
+RAK_3401_repeater \
+RAK_WisMesh_Tag_repeater \
+GAT562_30S_Mesh_Kit_repeater \
+GAT562_Mesh_Tracker_Pro_repeater \
+RAK_4631_companion_radio_ble \
+RAK_3401_companion_radio_ble \
+RAK_WisMesh_Tag_companion_radio_ble
+
+export FIRMWARE_VERSION="PowerSaving16.1.2"
+sh build.sh build-firmware \
+Tbeam_SX1262_repeater \
+T_Beam_S3_Supreme_SX1262_repeater \
+LilyGo_TBeam_1W_repeater \
+Tbeam_SX1262_companion_radio_ble_ps \
+T_Beam_S3_Supreme_SX1262_companion_radio_ble_ps \
+LilyGo_TBeam_1W_companion_radio_ble_ps
+
+export FIRMWARE_VERSION="PowerSaving16.1.2"
+sh build.sh build-firmware \
+t1000e_repeater \
+t1000e_companion_radio_ble \
+Heltec_mesh_solar_repeater \
+Heltec_mesh_solar_companion_radio_ble \
+Heltec_Wireless_Tracker_repeater \
+Heltec_Wireless_Tracker_companion_radio_ble_ps \
+

@@ -14,6 +14,7 @@
 
 class T1000SensorManager: public SensorManager {
   bool gps_active = false;
+  bool gps_wake = false;  // In PowerSaving, gps_active can have gps_wake true or false
   LocationProvider * _nmea;
 
   void start_gps();
