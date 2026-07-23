@@ -11,7 +11,10 @@ bool SH1106Display::i2c_probe(TwoWire &wire, uint8_t addr)
 
 bool SH1106Display::begin()
 {
-  return display.begin(DISPLAY_ADDRESS, true) && i2c_probe(Wire, DISPLAY_ADDRESS);
+  // Wire must already be initialised by board.begin() before this is called.
+  // Boards with non-standard SH1106 addresses should define DISPLAY_ADDRESS
+  // in their variant/platformio configuration.
+  return i2c_probe(Wire, DISPLAY_ADDRESS) && display.begin(DISPLAY_ADDRESS, true);
 }
 
 void SH1106Display::turnOn()
