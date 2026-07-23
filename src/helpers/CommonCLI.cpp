@@ -93,7 +93,11 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     file.read((uint8_t *)&_prefs->flood_max_advert, sizeof(_prefs->flood_max_advert));             // 292
     file.read((uint8_t *)&_prefs->radio_fem_rxgain, sizeof(_prefs->radio_fem_rxgain));             // 293
     file.read((uint8_t *)&_prefs->cad_enabled, sizeof(_prefs->cad_enabled));                       // 294
-    // next: 295
+    file.read((uint8_t *)&_prefs->noise_sample_interval_ms, sizeof(_prefs->noise_sample_interval_ms)); // 295
+    file.read((uint8_t *)&_prefs->noise_calib_window_secs, sizeof(_prefs->noise_calib_window_secs));   // 297
+    file.read((uint8_t *)&_prefs->noise_clamp_low_dbm, sizeof(_prefs->noise_clamp_low_dbm));           // 299
+    file.read((uint8_t *)&_prefs->noise_clamp_high_dbm, sizeof(_prefs->noise_clamp_high_dbm));         // 301
+    // next: 303
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -125,6 +129,14 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     _prefs->rx_boosted_gain = constrain(_prefs->rx_boosted_gain, 0, 1); // boolean
     _prefs->radio_fem_rxgain = constrain(_prefs->radio_fem_rxgain, 0, 1); // boolean
     _prefs->cad_enabled = constrain(_prefs->cad_enabled, 0, 1); // boolean
+    _prefs->noise_sample_interval_ms = constrain(_prefs->noise_sample_interval_ms, 50, 5000);
+    _prefs->noise_calib_window_secs = constrain(_prefs->noise_calib_window_secs, 1, 600);
+    _prefs->noise_clamp_low_dbm = constrain(_prefs->noise_clamp_low_dbm, MIN_NOISE_CLAMP_LOW_DBM, MAX_NOISE_CLAMP_LOW_DBM);
+    _prefs->noise_clamp_high_dbm = constrain(_prefs->noise_clamp_high_dbm, MIN_NOISE_CLAMP_HIGH_DBM, MAX_NOISE_CLAMP_HIGH_DBM);
+    if (_prefs->noise_clamp_low_dbm >= _prefs->noise_clamp_high_dbm) {
+      _prefs->noise_clamp_low_dbm = DEFAULT_NOISE_CLAMP_LOW_DBM;
+      _prefs->noise_clamp_high_dbm = DEFAULT_NOISE_CLAMP_HIGH_DBM;
+    }
 
     file.close();
   }
@@ -190,7 +202,11 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->flood_max_advert, sizeof(_prefs->flood_max_advert));             // 292
     file.write((uint8_t *)&_prefs->radio_fem_rxgain, sizeof(_prefs->radio_fem_rxgain));             // 293
     file.write((uint8_t *)&_prefs->cad_enabled, sizeof(_prefs->cad_enabled));                       // 294
-    // next: 295
+    file.write((uint8_t *)&_prefs->noise_sample_interval_ms, sizeof(_prefs->noise_sample_interval_ms)); // 295
+    file.write((uint8_t *)&_prefs->noise_calib_window_secs, sizeof(_prefs->noise_calib_window_secs));   // 297
+    file.write((uint8_t *)&_prefs->noise_clamp_low_dbm, sizeof(_prefs->noise_clamp_low_dbm));           // 299
+    file.write((uint8_t *)&_prefs->noise_clamp_high_dbm, sizeof(_prefs->noise_clamp_high_dbm));         // 301
+    // next: 303
 
     file.close();
   }
@@ -475,8 +491,10 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       strcpy(reply, "   EOF");
     } else if (sender_timestamp == 0 && memcmp(command, "stats-packets", 13) == 0 && (command[13] == 0 || command[13] == ' ')) {
       _callbacks->formatPacketStatsReply(reply);
-    } else if (sender_timestamp == 0 && memcmp(command, "stats-radio", 11) == 0 && (command[11] == 0 || command[11] == ' ')) {
+    } else if (memcmp(command, "stats-radio", 11) == 0 && (command[11] == 0 || command[11] == ' ')) {
       _callbacks->formatRadioStatsReply(reply);
+    } else if (memcmp(command, "stats-noise", 11) == 0 && (command[11] == 0 || command[11] == ' ')) {
+      _callbacks->formatNoiseFloorStatsReply(reply);
     } else if (sender_timestamp == 0 && memcmp(command, "stats-core", 10) == 0 && (command[10] == 0 || command[10] == ' ')) {
       _callbacks->formatStatsReply(reply);
     } else {
@@ -514,6 +532,50 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     _prefs->agc_reset_interval = atoi(&config[19]) / 4;
     savePrefs();
     sprintf(reply, "OK - interval rounded to %d", ((uint32_t) _prefs->agc_reset_interval) * 4);
+  } else if (memcmp(config, "noise.sample.ms ", 16) == 0) {
+    uint32_t interval_ms = _atoi(&config[16]);
+    if (interval_ms >= 50 && interval_ms <= 5000) {
+      _prefs->noise_sample_interval_ms = (uint16_t)interval_ms;
+      _callbacks->setNoiseFloorCalibration(_prefs->noise_sample_interval_ms, _prefs->noise_calib_window_secs);
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error, must be 50-5000 ms");
+    }
+  } else if (memcmp(config, "noise.window.secs ", 18) == 0) {
+    uint32_t window_secs = _atoi(&config[18]);
+    if (window_secs >= 1 && window_secs <= 600) {
+      _prefs->noise_calib_window_secs = (uint16_t)window_secs;
+      _callbacks->setNoiseFloorCalibration(_prefs->noise_sample_interval_ms, _prefs->noise_calib_window_secs);
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error, must be 1-600 seconds");
+    }
+  } else if (memcmp(config, "noise.clamp.low ", 16) == 0) {
+    int clamp_low = atoi(&config[16]);
+    if (clamp_low < MIN_NOISE_CLAMP_LOW_DBM || clamp_low > MAX_NOISE_CLAMP_LOW_DBM) {
+      strcpy(reply, "Error, must be -150 to -80 dBm");
+    } else if (clamp_low >= _prefs->noise_clamp_high_dbm) {
+      strcpy(reply, "Error, must be below noise.clamp.high");
+    } else {
+      _prefs->noise_clamp_low_dbm = (int16_t)clamp_low;
+      _callbacks->setNoiseFloorClamps(_prefs->noise_clamp_low_dbm, _prefs->noise_clamp_high_dbm);
+      savePrefs();
+      strcpy(reply, "OK");
+    }
+  } else if (memcmp(config, "noise.clamp.high ", 17) == 0) {
+    int clamp_high = atoi(&config[17]);
+    if (clamp_high < MIN_NOISE_CLAMP_HIGH_DBM || clamp_high > MAX_NOISE_CLAMP_HIGH_DBM) {
+      strcpy(reply, "Error, must be -120 to -40 dBm");
+    } else if (_prefs->noise_clamp_low_dbm >= clamp_high) {
+      strcpy(reply, "Error, must be above noise.clamp.low");
+    } else {
+      _prefs->noise_clamp_high_dbm = (int16_t)clamp_high;
+      _callbacks->setNoiseFloorClamps(_prefs->noise_clamp_low_dbm, _prefs->noise_clamp_high_dbm);
+      savePrefs();
+      strcpy(reply, "OK");
+    }
   } else if (memcmp(config, "multi.acks ", 11) == 0) {
     _prefs->multi_acks = atoi(&config[11]);
     savePrefs();
@@ -814,6 +876,14 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %s", _prefs->cad_enabled ? "on" : "off");
   } else if (memcmp(config, "agc.reset.interval", 18) == 0) {
     sprintf(reply, "> %d", ((uint32_t) _prefs->agc_reset_interval) * 4);
+  } else if (memcmp(config, "noise.sample.ms", 15) == 0) {
+    sprintf(reply, "> %u", (uint32_t)_prefs->noise_sample_interval_ms);
+  } else if (memcmp(config, "noise.window.secs", 17) == 0) {
+    sprintf(reply, "> %u", (uint32_t)_prefs->noise_calib_window_secs);
+  } else if (memcmp(config, "noise.clamp.low", 15) == 0) {
+    sprintf(reply, "> %d", (int)_prefs->noise_clamp_low_dbm);
+  } else if (memcmp(config, "noise.clamp.high", 16) == 0) {
+    sprintf(reply, "> %d", (int)_prefs->noise_clamp_high_dbm);
   } else if (memcmp(config, "multi.acks", 10) == 0) {
     sprintf(reply, "> %d", (uint32_t) _prefs->multi_acks);
   } else if (memcmp(config, "allow.read.only", 15) == 0) {

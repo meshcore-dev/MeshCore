@@ -19,6 +19,15 @@ public:
 /**
  * \brief  Abstraction of this device's packet radio.
 */
+struct NoiseFloorStats {
+  uint16_t accepted_count;
+  int16_t sample_min;
+  int16_t sample_median;
+  int16_t sample_max;
+  uint16_t rejected_low_bound_count;
+  uint16_t rejected_high_bound_count;
+};
+
 class Radio {
 public:
   virtual void begin() { }
@@ -62,6 +71,7 @@ public:
   virtual void loop() { }
 
   virtual int getNoiseFloor() const { return 0; }
+  virtual NoiseFloorStats getNoiseFloorStats() const { return {0, 0, 0, 0, 0, 0}; }
 
   virtual void triggerNoiseFloorCalibrate(int threshold) { }
 
@@ -78,6 +88,20 @@ public:
 
   virtual float getLastRSSI() const { return 0; }
   virtual float getLastSNR() const { return 0; }
+
+  virtual void setNoiseFloorCalibration(uint16_t sample_interval_ms, uint32_t max_calib_window_ms) {
+    (void)sample_interval_ms;
+    (void)max_calib_window_ms;
+  }
+
+  virtual void setNoiseFloorClamps(int16_t low_bound, int16_t high_bound) {
+    (void)low_bound;
+    (void)high_bound;
+  }
+
+  virtual void scheduleNoiseFloorCalibration(uint32_t settle_ms) {
+    (void)settle_ms;
+  }
 };
 
 /**
@@ -111,6 +135,7 @@ typedef uint32_t  DispatcherAction;
 #define ERR_EVENT_CAD_TIMEOUT       (1 << 1)
 #define ERR_EVENT_STARTRX_TIMEOUT   (1 << 2)
 
+#define DEFAULT_NOISE_FLOOR_SETTLE_MS   500
 /**
  * \brief  The low-level task that manages detecting incoming Packets, and the queueing
  *      and scheduling of outbound Packets.
@@ -131,6 +156,7 @@ class Dispatcher {
 
   void processRecvPacket(Packet* pkt);
   void updateTxBudget();
+  void scheduleNoiseFloorRefreshAfterRadioAnomaly();
 
 protected:
   PacketManager* _mgr;

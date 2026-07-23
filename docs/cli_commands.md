@@ -147,7 +147,58 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 ### Radio Stats - Noise floor, Last RSSI/SNR, Airtime, Receive errors
 **Usage:** `stats-radio`
 
-**Serial Only:** Yes
+**Serial Only:** No
+
+Returns JSON with:
+- `noise_floor`: current radio noise floor estimate in dBm
+- `last_rssi`: RSSI from the most recent received packet
+- `last_snr`: SNR from the most recent received packet
+- `tx_air_secs`: accumulated transmit airtime in seconds
+- `rx_air_secs`: accumulated receive airtime estimate in seconds
+
+---
+
+### Noise-floor calibration stats
+**Usage:** `stats-noise`
+
+**Serial Only:** No
+
+Returns JSON with:
+- `floor`: current radio noise floor estimate in dBm
+- `accepted`: RSSI samples accepted into the current or most recent calibration batch
+- `min` / `median` / `max`: accepted RSSI sample range in dBm. `floor` is estimated from the lower quartile of the accepted batch.
+- `rejected_low`: RSSI samples rejected because they would cause a suspicious downward jump
+- `rejected_high`: strong RSSI samples rejected because they look like channel activity rather than idle noise
+
+---
+
+### Noise-floor calibration settings
+**Usage:** `get noise.sample.ms`
+
+**Usage:** `set noise.sample.ms <milliseconds>`
+
+**Usage:** `get noise.window.secs`
+
+**Usage:** `set noise.window.secs <seconds>`
+
+**Usage:** `get noise.clamp.low`
+
+**Usage:** `set noise.clamp.low <dBm>`
+
+**Usage:** `get noise.clamp.high`
+
+**Usage:** `set noise.clamp.high <dBm>`
+
+**Serial Only:** No
+
+Controls the RSSI sampling cadence and maximum calibration attempt window used by noise-floor calibration.
+
+- `noise.sample.ms`: minimum delay between instantaneous RSSI samples. Range: `50`-`5000` ms. Default: `50`.
+- `noise.window.secs`: maximum age of a partial calibration batch before it is discarded. Range: `1`-`600` seconds. Default: `60`.
+- `noise.clamp.low`: lowest RSSI value accepted into calibration after clamping. Range: `-150` to `-80` dBm. Default: `-125`.
+- `noise.clamp.high`: RSSI level treated as channel activity rather than idle noise. Range: `-120` to `-40` dBm. Default: `-80`.
+
+`noise.clamp.low` must be lower than `noise.clamp.high`.
 
 ---
 

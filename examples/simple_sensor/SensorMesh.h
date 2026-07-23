@@ -73,7 +73,14 @@ public:
   }
   void formatStatsReply(char *reply) override;
   void formatRadioStatsReply(char *reply) override;
+  void formatNoiseFloorStatsReply(char *reply) override;
   void formatPacketStatsReply(char *reply) override;
+  void setNoiseFloorCalibration(uint16_t sample_interval_ms, uint16_t max_calib_window_secs) override {
+    _radio->setNoiseFloorCalibration(sample_interval_ms, ((uint32_t)max_calib_window_secs) * 1000U);
+  }
+  void setNoiseFloorClamps(int16_t low_bound, int16_t high_bound) override {
+    _radio->setNoiseFloorClamps(low_bound, high_bound);
+  }
   mesh::LocalIdentity& getSelfId() override { return self_id; }
   void saveIdentity(const mesh::LocalIdentity& new_id) override;
   void clearStats() override { }
