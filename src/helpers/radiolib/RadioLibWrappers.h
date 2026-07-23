@@ -24,6 +24,7 @@ protected:
   uint8_t _cad_peak_offset;
   uint8_t _cad_probe_count, _cad_probe_hits;
   uint8_t _cad_last_count, _cad_last_hits;
+  uint16_t _cad_probe_interval;
   unsigned long _last_cad_probe;
 
   void idle();
