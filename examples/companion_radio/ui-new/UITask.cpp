@@ -204,7 +204,11 @@ public:
     renderBatteryIndicator(display, _task->getBattMilliVolts());
 
     // curr page indicator
-    display.setColor(UIColor::title_bkg);
+    if (UIColor::title_bkg == UIColor::window_bkg) {
+      display.setColor(UIColor::title_txt);
+    } else {
+      display.setColor(UIColor::title_bkg);
+    }
     int y = 14;
     int x = display.width() / 2 - 5 * (HomePage::Count-1);
     for (uint8_t i = 0; i < HomePage::Count; i++, x += 10) {

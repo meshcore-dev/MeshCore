@@ -27,15 +27,15 @@
 #endif
 
 // Color scheme
-ColorVal UIColor::window_bkg = OLEDDISPLAY_COLOR::WHITE;
-ColorVal UIColor::title_bkg = OLEDDISPLAY_COLOR::WHITE;
-ColorVal UIColor::title_txt = OLEDDISPLAY_COLOR::BLACK;
-ColorVal UIColor::primary_txt = OLEDDISPLAY_COLOR::BLACK;
-ColorVal UIColor::secondary_txt = OLEDDISPLAY_COLOR::BLACK;
-ColorVal UIColor::warning_txt = OLEDDISPLAY_COLOR::BLACK;
-ColorVal UIColor::popup_bkg = OLEDDISPLAY_COLOR::WHITE;
-ColorVal UIColor::popup_txt = OLEDDISPLAY_COLOR::BLACK;
-ColorVal UIColor::corp_blue = OLEDDISPLAY_COLOR::BLACK;
+ColorVal UIColor::window_bkg = OLEDDISPLAY_COLOR::BLACK;
+ColorVal UIColor::title_bkg = OLEDDISPLAY_COLOR::BLACK;
+ColorVal UIColor::title_txt = OLEDDISPLAY_COLOR::WHITE;
+ColorVal UIColor::primary_txt = OLEDDISPLAY_COLOR::WHITE;
+ColorVal UIColor::secondary_txt = OLEDDISPLAY_COLOR::WHITE;
+ColorVal UIColor::warning_txt = OLEDDISPLAY_COLOR::WHITE;
+ColorVal UIColor::popup_bkg = OLEDDISPLAY_COLOR::BLACK;
+ColorVal UIColor::popup_txt = OLEDDISPLAY_COLOR::WHITE;
+ColorVal UIColor::corp_blue = OLEDDISPLAY_COLOR::WHITE;
 
 bool ST7789Display::begin() {
   if(!_isOn) {
