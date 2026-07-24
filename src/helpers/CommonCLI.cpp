@@ -93,7 +93,10 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     file.read((uint8_t *)&_prefs->flood_max_advert, sizeof(_prefs->flood_max_advert));             // 292
     file.read((uint8_t *)&_prefs->radio_fem_rxgain, sizeof(_prefs->radio_fem_rxgain));             // 293
     file.read((uint8_t *)&_prefs->cad_enabled, sizeof(_prefs->cad_enabled));                       // 294
-    // next: 295
+    file.read((uint8_t *)&_prefs->flood_max_request, sizeof(_prefs->flood_max_request));	   // 295
+    file.read((uint8_t *)&_prefs->flood_max_anon_request, sizeof(_prefs->flood_max_anon_request)); // 296
+    file.read((uint8_t *)&_prefs->flood_max_response, sizeof(_prefs->flood_max_response));	   // 297
+    // next: 298
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -190,7 +193,10 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->flood_max_advert, sizeof(_prefs->flood_max_advert));             // 292
     file.write((uint8_t *)&_prefs->radio_fem_rxgain, sizeof(_prefs->radio_fem_rxgain));             // 293
     file.write((uint8_t *)&_prefs->cad_enabled, sizeof(_prefs->cad_enabled));                       // 294
-    // next: 295
+    file.write((uint8_t *)&_prefs->flood_max_request, sizeof(_prefs->flood_max_request));	    // 295
+    file.write((uint8_t *)&_prefs->flood_max_anon_request, sizeof(_prefs->flood_max_anon_request)); // 296
+    file.write((uint8_t *)&_prefs->flood_max_response, sizeof(_prefs->flood_max_response));	    // 297
+    // next: 298
 
     file.close();
   }
@@ -664,6 +670,33 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     } else {
       strcpy(reply, "Error, max 64");
     }
+  } else if (memcmp(config, "flood.max.request ", 18) == 0) {
+    uint8_t m = atoi(&config[18]);
+    if (m <= 64) {
+      _prefs->flood_max_request = m;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error, max 64");
+    }
+  } else if (memcmp(config, "flood.max.anon.request ", 23) == 0) {
+    uint8_t m = atoi(&config[23]);
+    if (m <= 64) {
+      _prefs->flood_max_anon_request = m;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error, max 64");
+    }
+  } else if (memcmp(config, "flood.max.response ", 19) == 0) {
+    uint8_t m = atoi(&config[18]);
+    if (m <= 64) {
+      _prefs->flood_max_response = m;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error, max 64");
+    }
   } else if (memcmp(config, "flood.max ", 10) == 0) {
     uint8_t m = atoi(&config[10]);
     if (m <= 64) {
@@ -858,6 +891,12 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %d", (uint32_t)_prefs->flood_max_advert);
   } else if (memcmp(config, "flood.max.unscoped", 18) == 0) {
     sprintf(reply, "> %d", (uint32_t)_prefs->flood_max_unscoped);
+  } else if (memcmp(config, "flood.max.request", 17) == 0) {
+    sprintf(reply, "> %d", (uint32_t)_prefs->flood_max_request);
+  } else if (memcmp(config, "flood.max.anon.request", 22) == 0) {
+    sprintf(reply, "> %d", (uint32_t)_prefs->flood_max_anon_request);
+  } else if (memcmp(config, "flood.max.response", 18) == 0) {
+    sprintf(reply, "> %d", (uint32_t)_prefs->flood_max_response);
   } else if (memcmp(config, "flood.max", 9) == 0) {
     sprintf(reply, "> %d", (uint32_t)_prefs->flood_max);
   } else if (memcmp(config, "direct.txdelay", 14) == 0) {
