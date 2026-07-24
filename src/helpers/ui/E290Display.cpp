@@ -4,13 +4,13 @@
 
 // Color scheme
 ColorVal UIColor::window_bkg = WHITE;
-ColorVal UIColor::title_bkg = BLACK;
-ColorVal UIColor::title_txt = WHITE;
+ColorVal UIColor::title_bkg = WHITE;
+ColorVal UIColor::title_txt = BLACK;
 ColorVal UIColor::primary_txt = BLACK;
 ColorVal UIColor::secondary_txt = BLACK;
 ColorVal UIColor::warning_txt = BLACK;
-ColorVal UIColor::popup_bkg = BLACK;
-ColorVal UIColor::popup_txt = WHITE;
+ColorVal UIColor::popup_bkg = WHITE;
+ColorVal UIColor::popup_txt = BLACK;
 ColorVal UIColor::corp_blue = BLACK;
 
 bool E290Display::begin() {
