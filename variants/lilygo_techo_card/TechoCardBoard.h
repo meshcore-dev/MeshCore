@@ -28,7 +28,7 @@ public:
     return "LilyGo T-Echo Card";
   }
 
-  void powerOff() override;
+  void shutdownPeripherals() override;
 
   void toggleTorch();
   void turnOffLeds();

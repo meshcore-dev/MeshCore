@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef ETHERNET_ENABLED
+
 #include "helpers/BaseSerialInterface.h"
 #include <SPI.h>
 #include <RAK13800_W5100S.h>
@@ -76,3 +78,5 @@ class SerialEthernetInterface : public BaseSerialInterface {
   #define ETHERNET_DEBUG_PRINTLN(...) {}
   #define ETHERNET_DEBUG_PRINT_IP(...) {}
 #endif
+
+#endif // ETHERNET_ENABLED

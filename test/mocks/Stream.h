@@ -53,7 +53,9 @@ public:
 class Stream: public Print
 {
 public:
+    virtual ~Stream() = default;
     virtual int available() { return 0; }
+    virtual int availableForWrite() { return 0; }
     virtual int read() { return -1; }
     virtual int peek() { return 0; }
 

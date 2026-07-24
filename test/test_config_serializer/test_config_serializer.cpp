@@ -81,6 +81,7 @@ TEST(ConfigSerializer, SaveSerial_Basic) {
     EXPECT_TRUE(match);
 }
 
+
 TEST(ConfigSerializer, SaveSerial_EscChars) {
     MockPrintStream s;
     TestStruct data;
