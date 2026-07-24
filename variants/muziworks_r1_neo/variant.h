@@ -94,7 +94,7 @@ extern "C"
 #define PIN_USER_BTN (26)
 
 /* Buzzer */
-#define PIN_BUZZER    (3)
+// #define PIN_BUZZER    (3) // Disabled: beeper is undesirable on this device
 
 /* Analog pins */
 // Arduino makes me angry
