@@ -5,7 +5,7 @@
 #include "AbstractUITask.h"
 
 /*------------ Frame Protocol --------------*/
-#define FIRMWARE_VER_CODE 13
+#define FIRMWARE_VER_CODE 14
 
 #ifndef FIRMWARE_BUILD_DATE
 #define FIRMWARE_BUILD_DATE "6 Jun 2026"
@@ -118,6 +118,7 @@ protected:
   void sendFloodScoped(const mesh::GroupChannel& channel, mesh::Packet* pkt, uint32_t delay_millis=0) override;
 
   void logRxRaw(float snr, float rssi, const uint8_t raw[], int len) override;
+  void onPacketTxStatus(mesh::Packet* packet, mesh::PacketTxStatus status) override;
   bool isAutoAddEnabled() const override;
   bool shouldAutoAddContactType(uint8_t type) const override;
   bool shouldOverwriteWhenFull() const override;
@@ -245,6 +246,8 @@ private:
     unsigned long msg_sent;
     uint32_t ack;
     ContactInfo* contact;
+    uint8_t packet_hash[MAX_HASH_SIZE];
+    uint8_t tx_status;
   };
   #define EXPECTED_ACK_TABLE_SIZE 8
   AckTableEntry expected_ack_table[EXPECTED_ACK_TABLE_SIZE]; // circular table

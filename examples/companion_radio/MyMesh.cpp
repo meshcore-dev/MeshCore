@@ -1,4 +1,5 @@
 #include "MyMesh.h"
+#include "CompanionTxStatus.h"
 
 #include <Arduino.h> // needed for PlatformIO
 #include <Mesh.h>
@@ -126,6 +127,7 @@
 #define PUSH_CODE_CONTROL_DATA          0x8E   // v8+
 #define PUSH_CODE_CONTACT_DELETED       0x8F // used to notify client app of deleted contact when overwriting oldest
 #define PUSH_CODE_CONTACTS_FULL         0x90 // used to notify client app that contacts storage is full
+#define PUSH_CODE_SEND_TX_STATUS        0x91 // v14+, local radio TX outcome for an ACK-tracked message
 
 #define ERR_CODE_UNSUPPORTED_CMD        1
 #define ERR_CODE_NOT_FOUND              2
@@ -414,7 +416,8 @@ void MyMesh::onContactPathUpdated(const ContactInfo &contact) {
 ContactInfo*  MyMesh::processAck(const uint8_t *data) {
   // see if matches any in a table
   for (int i = 0; i < EXPECTED_ACK_TABLE_SIZE; i++) {
-    if (memcmp(data, &expected_ack_table[i].ack, 4) == 0) { // got an ACK from recipient
+    if (expected_ack_table[i].ack != 0 &&
+        memcmp(data, &expected_ack_table[i].ack, 4) == 0) { // got an ACK from recipient
       out_frame[0] = PUSH_CODE_SEND_CONFIRMED;
       memcpy(&out_frame[1], data, 4);
       uint32_t trip_time = _ms->getMillis() - expected_ack_table[i].msg_sent;
@@ -427,6 +430,35 @@ ContactInfo*  MyMesh::processAck(const uint8_t *data) {
     }
   }
   return checkConnectionsAck(data);
+}
+
+void MyMesh::onPacketTxStatus(mesh::Packet* packet, mesh::PacketTxStatus status) {
+  uint8_t packet_hash[MAX_HASH_SIZE];
+  packet->calculatePacketHash(packet_hash);
+
+  for (int i = 0; i < EXPECTED_ACK_TABLE_SIZE; i++) {
+    auto& entry = expected_ack_table[i];
+    // Identical resends can share a packet hash. A terminal callback belongs to the oldest
+    // still-pending entry, not an earlier timed-out attempt whose outcome remains unknown.
+    if (!companion::isPendingTxMatch(entry.ack, entry.tx_status, entry.packet_hash, packet_hash,
+                                     sizeof(packet_hash))) continue;
+
+    entry.tx_status = status;
+    if (companion::shouldPushTxStatus(app_target_ver)) {
+      out_frame[0] = PUSH_CODE_SEND_TX_STATUS;
+      memcpy(&out_frame[1], &entry.ack, 4);
+      out_frame[5] = status;
+      _serial->writeFrame(out_frame, 6);
+    }
+
+    // startSendRaw() returning false guarantees that this attempt never started. A completion
+    // timeout is deliberately retained because the packet may have gone over the air and a late
+    // ACK can still confirm delivery.
+    if (status == mesh::PACKET_TX_START_FAILED) {
+      entry.ack = 0;
+    }
+    return;
+  }
 }
 
 void MyMesh::queueMessage(const ContactInfo &from, uint8_t txt_type, mesh::Packet *pkt,
@@ -869,6 +901,7 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
   app_target_ver = 0;
   clearPendingReqs();
   next_ack_idx = 0;
+  memset(expected_ack_table, 0, sizeof(expected_ack_table));
   sign_data = NULL;
   dirty_contacts_expiry = 0;
   memset(advert_paths, 0, sizeof(advert_paths));
@@ -1093,14 +1126,14 @@ void MyMesh::handleCmdFrame(size_t len) {
       text[tlen] = 0; // ensure null
       int result;
       uint32_t expected_ack;
+      uint8_t packet_hash[MAX_HASH_SIZE] = {0};
       if (txt_type == TXT_TYPE_CLI_DATA) {
         msg_timestamp = getRTCClock()->getCurrentTimeUnique(); // Use node's RTC instead of app timestamp to avoid tripping replay protection
         result = sendCommandData(*recipient, msg_timestamp, attempt, text, est_timeout);
         expected_ack = 0; // no Ack expected
       } else {
-        result = sendMessage(*recipient, msg_timestamp, attempt, text, expected_ack, est_timeout);
+        result = sendMessage(*recipient, msg_timestamp, attempt, text, expected_ack, est_timeout, packet_hash);
       }
-      // TODO: add expected ACK to table
       if (result == MSG_SEND_FAILED) {
         writeErrFrame(ERR_CODE_TABLE_FULL);
       } else {
@@ -1108,6 +1141,8 @@ void MyMesh::handleCmdFrame(size_t len) {
           expected_ack_table[next_ack_idx].msg_sent = _ms->getMillis(); // add to circular table
           expected_ack_table[next_ack_idx].ack = expected_ack;
           expected_ack_table[next_ack_idx].contact = recipient;
+          memcpy(expected_ack_table[next_ack_idx].packet_hash, packet_hash, sizeof(packet_hash));
+          expected_ack_table[next_ack_idx].tx_status = companion::TX_STATUS_PENDING;
           next_ack_idx = (next_ack_idx + 1) % EXPECTED_ACK_TABLE_SIZE;
         }
 
