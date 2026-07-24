@@ -432,6 +432,7 @@ bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
     if (packet->getPathHashCount() >= _prefs.flood_max) return false;
     if (packet->getRouteType() == ROUTE_TYPE_FLOOD && packet->getPathHashCount() >= _prefs.flood_max_unscoped) return false;
     if (packet->getPayloadType() == PAYLOAD_TYPE_ADVERT && packet->getPathHashCount() >= _prefs.flood_max_advert) return false;
+    if (packet->getPathHashSize() < (_prefs.min_path_hash_mode + 1)) return false;
   }
   if (packet->isRouteFlood() && recv_pkt_region == NULL) {
     MESH_DEBUG_PRINTLN("allowPacketForward: unknown transport code, or wildcard not allowed for FLOOD packet");
@@ -891,6 +892,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.flood_max = 64;
   _prefs.flood_max_unscoped = 64;
   _prefs.flood_max_advert = 8;
+  _prefs.min_path_hash_mode = 0; // default minimum (mode 0 = hash_size 1)
   _prefs.interference_threshold = 0; // disabled
   _prefs.cad_enabled = 0;            // hardware CAD before TX (off by default; 'set cad on')
 

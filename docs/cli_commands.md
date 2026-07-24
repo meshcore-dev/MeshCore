@@ -475,7 +475,24 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 **Note:** the 'path.hash.mode' sets the low-level ID/hash encoding size used when the repeater adverts. This setting has no impact on what packet ID/hash size this repeater forwards, all sizes should be forwarded on firmware >= 1.14. This feature was added in firmware 1.14
 
-**Temporary Note:** adverts with ID/hash sizes of 2 or 3 bytes may have limited flood propagation in your network while this feature is new as v1.13.0 firmware and older will drop packets with multibyte path ID/hashes as only 1-byte hashes are supported. Consider your install base of firmware >=1.14 has reached a criticality for effective network flooding before implementing higher ID/hash sizes. 
+**Temporary Note:** adverts with ID/hash sizes of 2 or 3 bytes may have limited flood propagation in your network while this feature is new as v1.13.0 firmware and older will drop packets with multibyte path ID/hashes as only 1-byte hashes are supported. Consider your install base of firmware >=1.14 has reached a criticality for effective network flooding before implementing higher ID/hash sizes.
+
+---
+
+#### View or change minimum path hash size for forwarded packets (repeaters only)
+**Usage:**
+- `get path.hash.mode.min`
+- `set path.hash.mode.min <value>`
+
+**Parameters:**
+- `value`: Minimum path hash mode (0-2)
+  - `0`: No minimum (forward all packets)
+  - `1`: Require hash size >= 2 bytes (drop 1-byte hashes)
+  - `2`: Require hash size >= 3 bytes (drop 1-2 byte hashes)
+
+**Default:** `0`
+
+**Note:** This setting only applies to repeaters and only affects flood packet forwarding. When set to a non-zero value, the repeater will drop flood packets whose embedded path hash size is smaller than the minimum.
 
 ---
 

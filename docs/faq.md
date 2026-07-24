@@ -299,7 +299,12 @@ However, with 1 byte, there are only 254 unique IDs (exclude 00 and FF which are
 Firmware version 1.14 and newer introduces the ability for repeaters to advert with 1-, 2-, or 3-byte adverts. Companions can also send out channel and direct messages with 1-, 2-, or 3-byte path. Adverts and messages sent in 1-byte path is compatible with repeater firmware older or newer than 1.14. They will travel up to 64 hops. 2-byte adverts and messages will travel up to 32 hops. 3-byte adverts and messages will travel up to 21 hops.
 
 ### 3.9.1. Q: **What path hash sizes will my repeater forward?**
-Repeaters running firmware 1.14+ repeat packets sent with 1-, 2-, or 3-byte path hash. Repeaters on firmware older than 1.14 only repeat 1-byte path hash packets and silently drop 2- and 3-byte packets.
+Repeaters running firmware 1.14+ repeat packets sent with 1-, 2-, or 3-byte path hash by default. Repeaters on firmware older than 1.14 only repeat 1-byte path hash packets and silently drop 2- and 3-byte packets.
+
+Repeaters can optionally enforce a minimum path hash size using the `set path.hash.mode.min <value>` CLI command:
+- `0`: No minimum (forward all packets, default)
+- `1`: Require hash size >= 2 bytes (drop 1-byte packets)
+- `2`: Require hash size >= 3 bytes (drop 1-2 byte packets)
 
 ### 3.9.2. Q: **What determines a packet's path hash size?**
 The original packet sender determines the path hash size. The most common original sender is a companion app. The other common original sender is a repeater, when it broadcasts its advert.
