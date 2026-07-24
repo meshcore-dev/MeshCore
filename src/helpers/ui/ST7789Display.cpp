@@ -27,15 +27,15 @@
 #endif
 
 // Color scheme
-ColorVal UIColor::window_bkg = ST77XX_WHITE;
-ColorVal UIColor::title_bkg = ST77XX_BLUE;
-ColorVal UIColor::title_txt = ST77XX_WHITE;
-ColorVal UIColor::primary_txt = ST77XX_BLACK;
-ColorVal UIColor::secondary_txt = (18 << 11) | (36 << 5) | 18;  // mid-gray
-ColorVal UIColor::warning_txt = ST77XX_ORANGE;
-ColorVal UIColor::popup_bkg = ST77XX_CYAN;
-ColorVal UIColor::popup_txt = ST77XX_BLACK;
-ColorVal UIColor::corp_blue = 0x001A;
+ColorVal UIColor::window_bkg = OLEDDISPLAY_COLOR::WHITE;
+ColorVal UIColor::title_bkg = OLEDDISPLAY_COLOR::WHITE;
+ColorVal UIColor::title_txt = OLEDDISPLAY_COLOR::BLACK;
+ColorVal UIColor::primary_txt = OLEDDISPLAY_COLOR::BLACK;
+ColorVal UIColor::secondary_txt = OLEDDISPLAY_COLOR::BLACK;
+ColorVal UIColor::warning_txt = OLEDDISPLAY_COLOR::BLACK;
+ColorVal UIColor::popup_bkg = OLEDDISPLAY_COLOR::WHITE;
+ColorVal UIColor::popup_txt = OLEDDISPLAY_COLOR::BLACK;
+ColorVal UIColor::corp_blue = OLEDDISPLAY_COLOR::BLACK;
 
 bool ST7789Display::begin() {
   if(!_isOn) {
@@ -102,9 +102,8 @@ void ST7789Display::clear() {
 }
 
 void ST7789Display::startFrame(ColorVal bkg) {
-  display.fillRect(0, 0, display.width(), display.height());
-  _color = UIColor::primary_txt;
-  display.setRGB(_color);
+  display.clear();  // TODO: use bkg
+  setColor(UIColor::primary_txt);
   display.setFont(ArialMT_Plain_16);
 }
 
@@ -122,7 +121,9 @@ void ST7789Display::setTextSize(int sz) {
 }
 
 void ST7789Display::setColor(ColorVal c) {
-  display.setRGB(_color = c);
+  _color = c;
+  display.setColor((OLEDDISPLAY_COLOR)_color);
+  display.setRGB(_color == OLEDDISPLAY_COLOR::WHITE ? ST77XX_WHITE : ST77XX_BLACK);
 }
 
 void ST7789Display::setCursor(int x, int y) {
