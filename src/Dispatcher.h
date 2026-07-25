@@ -184,6 +184,7 @@ private:
   bool  prev_isrecv_mode;
   uint32_t n_sent_flood, n_sent_direct;
   uint32_t n_recv_flood, n_recv_direct;
+  uint32_t n_resent_direct;  // subset of n_sent_direct that were resend TXs (sending_attempts>0)
   unsigned long tx_budget_ms;
   unsigned long last_budget_update;
   unsigned long duty_cycle_window_ms;
@@ -274,8 +275,12 @@ public:
   uint32_t getNumSentDirect() const { return n_sent_direct; }
   uint32_t getNumRecvFlood() const { return n_recv_flood; }
   uint32_t getNumRecvDirect() const { return n_recv_direct; }
+  // resend TXs (subset of n_sent_direct): direct-route transmissions with sending_attempts>0, i.e.
+  // re-sends rather than first/forward sends. Reported as n_resends / n_sent_direct. NOTE: TRACE
+  // last-hop forwards pre-set sending_attempts (Mesh.cpp) and therefore also tally here, by design.
+  uint32_t getNumResentDirect() const { return n_resent_direct; }
   void resetStats() {
-    n_sent_flood = n_sent_direct = n_recv_flood = n_recv_direct = 0;
+    n_sent_flood = n_sent_direct = n_recv_flood = n_recv_direct = n_resent_direct = 0;
     _err_flags = 0;
   }
 

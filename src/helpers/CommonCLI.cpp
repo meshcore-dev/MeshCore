@@ -830,6 +830,7 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %d", (uint32_t) _prefs->multi_acks);
   } else if (memcmp(config, "max.resend", 10) == 0) {
     sprintf(reply, "> %d", (uint32_t) _prefs->max_resend_attempts);
+    _callbacks->formatResendRatioReply(reply + strlen(reply));
   } else if (memcmp(config, "allow.read.only", 15) == 0) {
     sprintf(reply, "> %s", _prefs->allow_read_only ? "on" : "off");
   } else if (memcmp(config, "flood.advert.interval", 21) == 0) {

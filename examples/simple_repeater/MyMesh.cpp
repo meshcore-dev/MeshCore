@@ -1171,8 +1171,12 @@ void MyMesh::formatRadioStatsReply(char *reply) {
 }
 
 void MyMesh::formatPacketStatsReply(char *reply) {
-  StatsFormatHelper::formatPacketStats(reply, radio_driver, getNumSentFlood(), getNumSentDirect(), 
+  StatsFormatHelper::formatPacketStats(reply, radio_driver, getNumSentFlood(), getNumSentDirect(),
                                        getNumRecvFlood(), getNumRecvDirect());
+}
+
+void MyMesh::formatResendRatioReply(char *reply) {
+  StatsFormatHelper::formatResendRatio(reply, getNumResentDirect(), getNumSentDirect());
 }
 
 void MyMesh::saveIdentity(const mesh::LocalIdentity &new_id) {

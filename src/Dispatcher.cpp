@@ -23,6 +23,7 @@ namespace mesh {
 void Dispatcher::begin() {
   n_sent_flood = n_sent_direct = 0;
   n_recv_flood = n_recv_direct = 0;
+  n_resent_direct = 0;
   _err_flags = 0;
   radio_nonrx_start = _ms->getMillis();
 
@@ -115,6 +116,7 @@ void Dispatcher::loop() {
         n_sent_flood++;
       } else {
         n_sent_direct++;
+        if (outbound->sending_attempts > 0) n_resent_direct++;  // resend TX (subset of n_sent_direct)
       }
       // allow for possible retransmission for reliability
       if (!resendPacket(outbound)) {

@@ -89,6 +89,9 @@ public:
   virtual void formatStatsReply(char *reply) = 0;
   virtual void formatRadioStatsReply(char *reply) = 0;
   virtual void formatPacketStatsReply(char *reply) = 0;
+  // Appends the resend-ratio suffix (", resends N/M (P%)") to the max.resend get-reply. Default is a
+  // no-op so wrappers without Dispatcher access keep the plain "> N" reply.
+  virtual void formatResendRatioReply(char *reply) { }
   virtual mesh::LocalIdentity& getSelfId() = 0;
   virtual void saveIdentity(const mesh::LocalIdentity& new_id) = 0;
   virtual void clearStats() = 0;
