@@ -107,6 +107,8 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   bool     _fs_adaptive_active;  // neighbour data available this cycle? (else static fallback)
   uint8_t  _fs_pending_c;        // debounce: candidate c awaiting a 2nd confirming cycle
   uint32_t _fs_next_recompute_ms;
+  uint32_t _fs_seen;        // distinct floods heard (denominator of suppression ratio)
+  uint32_t _fs_suppressed;  // floods whose rebroadcast was made redundant (numerator)
   uint32_t pending_discover_tag;
   unsigned long pending_discover_until;
   bool region_load_active;
@@ -230,6 +232,7 @@ public:
   void formatStatsReply(char *reply) override;
   void formatRadioStatsReply(char *reply) override;
   void formatPacketStatsReply(char *reply) override;
+  void formatFloodSuppressRatioReply(char *reply) override;
   void startRegionsLoad() override;
   bool saveRegions() override;
   void onDefaultRegionChanged(const RegionEntry* r) override;

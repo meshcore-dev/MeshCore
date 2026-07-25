@@ -848,6 +848,7 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %d dB", (int) _prefs->flood_suppress_snr_lo);
   } else if (memcmp(config, "flood.suppress", 14) == 0) {
     sprintf(reply, "> %s", _prefs->flood_suppress ? "on" : "off");
+    _callbacks->formatFloodSuppressRatioReply(reply + strlen(reply));
   } else if (memcmp(config, "agc.reset.interval", 18) == 0) {
     sprintf(reply, "> %d", ((uint32_t) _prefs->agc_reset_interval) * 4);
   } else if (memcmp(config, "multi.acks", 10) == 0) {

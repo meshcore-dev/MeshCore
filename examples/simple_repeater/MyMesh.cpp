@@ -621,6 +621,7 @@ void MyMesh::logRx(mesh::Packet *pkt, int len, float score) {
     if (e) {
       int8_t snr_x4 = (int8_t)(pkt->getSNR() * 4.0f);
       if (is_new) {
+        _fs_seen++;                          // distinct flood heard -> candidate for our rebroadcast
         e->first_snr_x4 = snr_x4;               // record distance-to-source proxy
       } else if (!e->suppressed) {
         // an overheard forward by a neighbour: SNR-weighted (correct sign).
@@ -633,6 +634,7 @@ void MyMesh::logRx(mesh::Packet *pkt, int len, float score) {
         }
         if (e->weighted_count >= effectiveFloodSuppressC()) {
           e->suppressed = true;
+          _fs_suppressed++;                  // our rebroadcast was made redundant
           cancelPendingFloodOutbound(hash);     // our rebroadcast is redundant
         }
       }
@@ -1048,6 +1050,8 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _fs_pending_c = 0;
   _fs_adaptive_active = false;       // until neighbour data is available -> static fallback
   _fs_next_recompute_ms = 0;
+  _fs_seen = 0;
+  _fs_suppressed = 0;
   next_local_advert = next_flood_advert = 0;
   dirty_contacts_expiry = 0;
   set_radio_at = revert_radio_at = 0;
@@ -1344,6 +1348,11 @@ void MyMesh::formatPacketStatsReply(char *reply) {
                                        getNumRecvFlood(), getNumRecvDirect());
 }
 
+void MyMesh::formatFloodSuppressRatioReply(char *reply) {
+  if (!_prefs.flood_suppress) return;  // plain "> off" when the master switch is off
+  StatsFormatHelper::formatFloodSuppressRatio(reply, _fs_suppressed, _fs_seen);
+}
+
 void MyMesh::saveIdentity(const mesh::LocalIdentity &new_id) {
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
   IdentityStore store(*_fs, "");
@@ -1361,6 +1370,8 @@ void MyMesh::clearStats() {
   radio_driver.resetStats();
   resetStats();
   ((SimpleMeshTables *)getTables())->resetStats();
+  _fs_seen = 0;
+  _fs_suppressed = 0;
 }
 
 void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply) {

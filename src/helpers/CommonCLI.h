@@ -95,6 +95,9 @@ public:
   virtual void formatStatsReply(char *reply) = 0;
   virtual void formatRadioStatsReply(char *reply) = 0;
   virtual void formatPacketStatsReply(char *reply) = 0;
+  // Appends the suppression-ratio suffix (", suppressed N/M (P%)") to the flood.suppress get-reply.
+  // Default is a no-op so non-repeater roles keep the plain "> on/off" reply.
+  virtual void formatFloodSuppressRatioReply(char *reply) { }
   virtual mesh::LocalIdentity& getSelfId() = 0;
   virtual void saveIdentity(const mesh::LocalIdentity& new_id) = 0;
   virtual void clearStats() = 0;
