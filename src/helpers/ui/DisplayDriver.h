@@ -14,6 +14,7 @@ public:
   int height() const { return _h; }
 
   virtual bool isOn() = 0;
+  virtual bool isEink() { return false; } // default to non-eink, override in eink drivers
   virtual void turnOn() = 0;
   virtual void turnOff() = 0;
   virtual void clear() = 0;

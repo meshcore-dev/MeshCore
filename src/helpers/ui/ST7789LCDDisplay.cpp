@@ -1,5 +1,9 @@
 #include "ST7789LCDDisplay.h"
 
+#ifndef PIN_TFT_MISO
+  #define PIN_TFT_MISO -1
+#endif
+
 #ifndef DISPLAY_ROTATION
   #define DISPLAY_ROTATION 3
 #endif
@@ -27,16 +31,10 @@ bool ST7789LCDDisplay::begin() {
       pinMode(PIN_TFT_LEDA_CTL, OUTPUT);
       digitalWrite(PIN_TFT_LEDA_CTL, HIGH);
     }
-    if (PIN_TFT_RST != -1) {
-      pinMode(PIN_TFT_RST, OUTPUT);
-      digitalWrite(PIN_TFT_RST, LOW); 
-      delay(10);
-      digitalWrite(PIN_TFT_RST, HIGH);
-    }
 
     // Im not sure if this is just a t-deck problem or not, if your display is slow try this.
-    #if defined(LILYGO_TDECK) || defined(HELTEC_LORA_V4_TFT)
-      displaySPI.begin(PIN_TFT_SCL, -1, PIN_TFT_SDA, PIN_TFT_CS);
+    #if defined(LILYGO_TDECK) || defined(HELTEC_LORA_V4_TFT) || defined(HELTEC_V4_R8_TFT)
+      displaySPI.begin(PIN_TFT_SCL, PIN_TFT_MISO, PIN_TFT_SDA, PIN_TFT_CS);
     #endif
 
     display.init(DISPLAY_WIDTH, DISPLAY_HEIGHT);

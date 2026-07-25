@@ -28,14 +28,17 @@ public:
 class BaseChatMesh;
 
 class ContactsIterator {
-  int next_idx = 0;
+  int next_idx;
 public:
+  ContactsIterator(int start) { next_idx = start; }
   bool hasNext(const BaseChatMesh* mesh, ContactInfo& dest);
 };
 
 #ifndef MAX_CONTACTS
   #define MAX_CONTACTS  32
 #endif
+
+#define MAX_ANON_CONTACTS  8
 
 #ifndef MAX_CONNECTIONS
   #define MAX_CONNECTIONS  16
@@ -58,9 +61,9 @@ class BaseChatMesh : public mesh::Mesh {
 
   friend class ContactsIterator;
 
-  ContactInfo contacts[MAX_CONTACTS];
+  ContactInfo contacts[MAX_CONTACTS+MAX_ANON_CONTACTS];
   int num_contacts;
-  int sort_array[MAX_CONTACTS];
+  int sort_array[MAX_CONTACTS+MAX_ANON_CONTACTS];
   int matching_peer_indexes[MAX_SEARCH_RESULTS];
   unsigned long txt_send_timeout;
 #ifdef MAX_GROUP_CHANNELS
@@ -72,13 +75,14 @@ class BaseChatMesh : public mesh::Mesh {
   ConnectionInfo connections[MAX_CONNECTIONS];
 
   mesh::Packet* composeMsgPacket(const ContactInfo& recipient, uint32_t timestamp, uint8_t attempt, const char *text, uint32_t& expected_ack);
-  void sendAckTo(const ContactInfo& dest, uint32_t ack_hash);
+  void sendAckTo(const ContactInfo& dest, const uint8_t* ack_hash, uint8_t ack_len=4);
 
 protected:
   BaseChatMesh(mesh::Radio& radio, mesh::MillisecondClock& ms, mesh::RNG& rng, mesh::RTCClock& rtc, mesh::PacketManager& mgr, mesh::MeshTables& tables)
       : mesh::Mesh(radio, ms, rng, rtc, mgr, tables)
-  { 
-    num_contacts = 0;
+  {
+    resetContacts();
+
   #ifdef MAX_GROUP_CHANNELS
     memset(channels, 0, sizeof(channels));
     num_channels = 0;
@@ -89,9 +93,13 @@ protected:
   }
 
   void bootstrapRTCfromContacts();
-  void resetContacts() { num_contacts = 0; }
+
+  void resetContacts() {
+    memset(contacts, 0, sizeof(contacts[0])*MAX_ANON_CONTACTS);   // set all to have type = ADV_TYPE_NONE(0)
+    num_contacts = MAX_ANON_CONTACTS;  // seed the first contacts for anon requests
+  }
   void populateContactFromAdvert(ContactInfo& ci, const mesh::Identity& id, const AdvertDataParser& parser, uint32_t timestamp);
-  ContactInfo* allocateContactSlot(); // helper to find slot for new contact
+  ContactInfo* allocateContactSlot(bool transient_only=false); // helper to find slot for new contact
 
   // 'UI' concepts, for sub-classes to implement
   virtual bool isAutoAddEnabled() const { return true; }
@@ -164,7 +172,8 @@ public:
   ContactInfo* lookupContactByPubKey(const uint8_t* pub_key, int prefix_len);
   bool  removeContact(ContactInfo& contact);
   bool  addContact(const ContactInfo& contact);
-  int getNumContacts() const { return num_contacts; }
+  int getTotalContactSlots() const { return num_contacts; }
+  int getNumContacts() const { return num_contacts - MAX_ANON_CONTACTS; }  // don't include the reserved slots at start
   bool getContactByIdx(uint32_t idx, ContactInfo& contact);
   ContactsIterator startContactsIterator();
   ChannelDetails* addChannel(const char* name, const char* psk_base64);

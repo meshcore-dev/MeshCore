@@ -3,14 +3,21 @@
 #include <Mesh.h>
 #include <RadioLib.h>
 
+struct PacketMillis {
+  uint32_t preambleMillis;  // preamble-detect -> header-valid deadline
+  uint32_t payloadMillis;   // header-valid   -> rx-done deadline
+};
+
 class RadioLibWrapper : public mesh::Radio {
 protected:
   PhysicalLayer* _radio;
   mesh::MainBoard* _board;
   uint32_t n_recv, n_sent, n_recv_errors;
   int16_t _noise_floor, _threshold;
+  bool _cad_enabled;
   uint16_t _num_floor_samples;
   int32_t _floor_sample_sum;
+  uint8_t _preamble_sf;
 
   void idle();
   void startRecv();
@@ -19,7 +26,7 @@ protected:
   virtual void doResetAGC();
 
 public:
-  RadioLibWrapper(PhysicalLayer& radio, mesh::MainBoard& board) : _radio(&radio), _board(&board) { n_recv = n_sent = 0; }
+  RadioLibWrapper(PhysicalLayer& radio, mesh::MainBoard& board) : _radio(&radio), _board(&board), _preamble_sf(0) { n_recv = n_sent = 0; }
 
   void begin() override;
   virtual void powerOff() { _radio->sleep(); }
@@ -31,16 +38,26 @@ public:
   bool isInRecvMode() const override;
   bool isChannelActive();
 
-  bool isReceiving() override { 
+  bool isReceiving() override {
     if (isReceivingPacket()) return true;
 
     return isChannelActive();
   }
 
+  virtual void setParams(float freq, float bw, uint8_t sf, uint8_t cr) = 0;
+  uint32_t getRngSeed();
+  void setTxPower(int8_t dbm);
+
   virtual float getCurrentRSSI() =0;
+  virtual uint8_t getSpreadingFactor() const { return LORA_SF; }
+  static uint16_t preambleLengthForSF(uint8_t sf) { return sf <= 8 ? 32 : 16; }
+  void updatePreamble(uint8_t sf) { _preamble_sf = sf; _radio->setPreambleLength(preambleLengthForSF(sf)); }
+  PacketMillis calcMaxPacketMillis(uint8_t sf, float bw, uint8_t cr, uint8_t preambleSymbols);
+  virtual int16_t performChannelScan();
 
   int getNoiseFloor() const override { return _noise_floor; }
   void triggerNoiseFloorCalibrate(int threshold) override;
+  void setCADEnabled(bool enable) override { _cad_enabled = enable; }
   void resetAGC() override;
 
   void loop() override;
@@ -55,7 +72,7 @@ public:
 
   float packetScore(float snr, int packet_len) override { return packetScoreInt(snr, 10, packet_len); }  // assume sf=10
 
-  virtual void setRxBoostedGainMode(bool) { }
+  virtual bool setRxBoostedGainMode(bool) { return false; }
   virtual bool getRxBoostedGainMode() const { return false; }
 };
 

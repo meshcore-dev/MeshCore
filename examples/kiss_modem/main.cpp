@@ -10,13 +10,18 @@
   #include <LittleFS.h>
 #elif defined(ESP32)
   #include <SPIFFS.h>
+#else
+  #include <InternalFileSystem.h>
 #endif
+
 #if defined(KISS_UART_RX) && defined(KISS_UART_TX)
   #include <HardwareSerial.h>
 #endif
 
 #define NOISE_FLOOR_CALIB_INTERVAL_MS 2000
 #define AGC_RESET_INTERVAL_MS 30000
+#define USB_TX_TIMEOUT_MS 50
+#define USB_TX_BUFFER_SIZE 1024
 
 StdRNG rng;
 mesh::LocalIdentity identity;
@@ -29,7 +34,7 @@ void halt() {
 }
 
 void loadOrCreateIdentity() {
-#if defined(NRF52_PLATFORM)
+#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
   InternalFS.begin();
   IdentityStore store(InternalFS, "");
 #elif defined(ESP32)
@@ -53,11 +58,11 @@ void loadOrCreateIdentity() {
 }
 
 void onSetRadio(float freq, float bw, uint8_t sf, uint8_t cr) {
-  radio_set_params(freq, bw, sf, cr);
+  radio_driver.setParams(freq, bw, sf, cr);
 }
 
 void onSetTxPower(uint8_t power) {
-  radio_set_tx_power(power);
+  radio_driver.setTxPower(power);
 }
 
 float onGetCurrentRssi() {
@@ -79,7 +84,7 @@ void setup() {
 
   radio_driver.begin();
 
-  rng.begin(radio_get_rng_seed());
+  rng.begin(radio_driver.getRngSeed());
   loadOrCreateIdentity();
 
   sensors.begin();
@@ -108,6 +113,10 @@ void setup() {
   uint32_t start = millis();
   while (!Serial && millis() - start < 3000) delay(10);
   delay(100);
+#if defined(ESP32) && ARDUINO_USB_MODE
+  Serial.setTxTimeoutMs(USB_TX_TIMEOUT_MS);
+  Serial.setTxBufferSize(USB_TX_BUFFER_SIZE);
+#endif
   modem = new KissModem(Serial, identity, rng, radio_driver, board, sensors);
 #endif
 
@@ -116,12 +125,14 @@ void setup() {
   modem->setGetCurrentRssiCallback(onGetCurrentRssi);
   modem->setGetStatsCallback(onGetStats);
   modem->begin();
+
+  board.onBootComplete();
 }
 
 void loop() {
   modem->loop();
 
-  if (!modem->isActuallyTransmitting()) {
+  if (!modem->isActuallyTransmitting() && !modem->isHostOutputBackedUp()) {
     if (!modem->isTxBusy()) {
       if ((uint32_t)(millis() - next_agc_reset_ms) >= AGC_RESET_INTERVAL_MS) {
         radio_driver.resetAGC();

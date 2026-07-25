@@ -58,6 +58,10 @@ void setup() {
 
   board.begin();
 
+#ifdef HAS_EXTERNAL_WATCHDOG
+  external_watchdog.begin();
+#endif
+
 #ifdef DISPLAY_CLASS
   if (display.begin()) {
     display.startFrame();
@@ -68,7 +72,7 @@ void setup() {
 
   if (!radio_init()) { halt(); }
 
-  fast_rng.begin(radio_get_rng_seed());
+  fast_rng.begin(radio_driver.getRngSeed());
 
   FILESYSTEM* fs;
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
@@ -147,4 +151,7 @@ void loop() {
   ui_task.loop();
 #endif
   rtc_clock.tick();
+#ifdef HAS_EXTERNAL_WATCHDOG
+  external_watchdog.loop();
+#endif
 }

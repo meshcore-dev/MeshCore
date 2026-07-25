@@ -40,6 +40,8 @@ struct NodePrefs { // persisted to file
   uint8_t multi_acks;
   float bw;
   uint8_t flood_max;
+  uint8_t flood_max_unscoped;
+  uint8_t flood_max_advert;
   uint8_t interference_threshold;
   uint8_t agc_reset_interval; // secs / 4
   // Bridge settings
@@ -59,8 +61,10 @@ struct NodePrefs { // persisted to file
   float adc_multiplier;
   char owner_info[120];
   uint8_t rx_boosted_gain; // power settings
+  uint8_t radio_fem_rxgain; // LoRa FEM RX gain setting
   uint8_t path_hash_mode;   // which path mode to use when sending
   uint8_t loop_detect;
+  uint8_t cad_enabled;      // hardware Channel Activity Detection before TX (boolean)
 };
 
 class CommonCLICallbacks {
@@ -107,8 +111,8 @@ public:
     // no op by default
   };
 
-  virtual void setRxBoostedGain(bool enable) {
-    // no op by default
+  virtual bool setRxBoostedGain(bool enable) {
+    return false; // CommonCLI reports unsupported if not overridden by wrapper
   };
 };
 

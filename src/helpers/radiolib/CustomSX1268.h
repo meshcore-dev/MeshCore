@@ -2,9 +2,6 @@
 
 #include <RadioLib.h>
 
-#define SX126X_IRQ_HEADER_VALID                0b0000010000  //  4     4     valid LoRa header received
-#define SX126X_IRQ_PREAMBLE_DETECTED           0x04
-
 class CustomSX1268 : public SX1268 {
   public:
     CustomSX1268(Module *mod) : SX1268(mod) { }
@@ -66,11 +63,11 @@ class CustomSX1268 : public SX1268 {
       setRxBoostedGainMode(SX126X_RX_BOOSTED_GAIN);
   #endif
   #if defined(SX126X_RXEN) || defined(SX126X_TXEN)
-    #ifndef SX1262X_RXEN
-      #define SX1262X_RXEN RADIOLIB_NC
+    #ifndef SX126X_RXEN
+      #define SX126X_RXEN RADIOLIB_NC
     #endif
-    #ifndef SX1262X_TXEN
-      #define SX1262X_TXEN RADIOLIB_NC
+    #ifndef SX126X_TXEN
+      #define SX126X_TXEN RADIOLIB_NC
     #endif
       setRfSwitchPins(SX126X_RXEN, SX126X_TXEN);
   #endif 
@@ -78,9 +75,14 @@ class CustomSX1268 : public SX1268 {
       return true;  // success
     }
 
+    int16_t startReceive() override {
+      // include the PREAMBLE_DETECTED irq bit in reported flags
+      return SX1268::startReceive(RADIOLIB_SX126X_RX_TIMEOUT_INF, RADIOLIB_IRQ_RX_DEFAULT_FLAGS | (1UL << RADIOLIB_IRQ_PREAMBLE_DETECTED), RADIOLIB_IRQ_RX_DEFAULT_MASK, 0);
+    }
+
     bool isReceiving() {
       uint16_t irq = getIrqFlags();
-      bool detected = (irq & SX126X_IRQ_HEADER_VALID) || (irq & SX126X_IRQ_PREAMBLE_DETECTED);
+      bool detected = (irq & RADIOLIB_SX126X_IRQ_HEADER_VALID) || (irq & RADIOLIB_SX126X_IRQ_PREAMBLE_DETECTED);
       return detected;
     }
 
