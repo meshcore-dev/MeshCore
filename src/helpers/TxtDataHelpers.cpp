@@ -1,4 +1,7 @@
 #include "TxtDataHelpers.h"
+#if defined(ARDULINUX_PLATFORM)
+  #include <inttypes.h>
+#endif
 
 void StrHelper::strncpy(char* dest, const char* src, size_t buf_sz) {
   while (buf_sz > 1 && *src) {
@@ -102,7 +105,11 @@ static void _ftoa(float f, char *p, int *status)
     *p++ = '0';
   else 
   {
+#if defined(ARDULINUX_PLATFORM)
+    sprintf(p, "%" PRId32, int_part);
+#else
     ltoa(int_part, p, 10);
+#endif
     while (*p)
       p++;
   }

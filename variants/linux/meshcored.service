@@ -1,0 +1,23 @@
+# /var/lib/systemd/system/meshcored.service
+[Unit]
+Description=Meshcore Daemon (meshcored)
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=meshcore
+Group=meshcore
+ExecStart=/usr/bin/stdbuf -oL /usr/bin/meshcored --fsdir /var/lib/meshcore
+WorkingDirectory=/var/lib/meshcore
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65535
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+StateDirectory=meshcore
+
+[Install]
+WantedBy=multi-user.target

@@ -81,6 +81,12 @@ void setup() {
   fs = &LittleFS;
   IdentityStore store(LittleFS, "/identity");
   store.begin();
+#elif defined(ARDULINUX_PLATFORM)
+  // the VFS root is established by the ArduLinux core from --fsdir
+  // (default: the XDG data dir, e.g. ~/.local/share/meshcored/default)
+  fs = &ArduLinuxFS;
+  IdentityStore store(ArduLinuxFS, "/identity");
+  store.begin();
 #else
   #error "need to define filesystem"
 #endif
