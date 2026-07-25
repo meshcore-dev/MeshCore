@@ -91,6 +91,7 @@ public:
 
   virtual void queueOutbound(Packet* packet, uint8_t priority, uint32_t scheduled_for) = 0;
   virtual Packet* getNextOutbound(uint32_t now) = 0;    // by priority
+  virtual Packet* peekNextOutbound(uint32_t now) { return NULL; }
   virtual int getOutboundCount(uint32_t now) const = 0;
   virtual int getOutboundTotal() const = 0;
   virtual int getFreeCount() const = 0;
@@ -111,6 +112,20 @@ typedef uint32_t  DispatcherAction;
 #define ERR_EVENT_CAD_TIMEOUT       (1 << 1)
 #define ERR_EVENT_STARTRX_TIMEOUT   (1 << 2)
 
+struct MacStats {
+  uint32_t cad_busy;
+  uint32_t cad_timeout;
+  uint32_t cad_forced_tx;
+  uint32_t tx_start;
+  uint32_t tx_done;
+  uint32_t tx_start_fail;
+  uint32_t tx_timeout;
+  uint32_t rx_delay;
+  uint32_t retransmit;
+  uint32_t pool_full;
+  uint32_t invalid_queue;
+};
+
 /**
  * \brief  The low-level task that manages detecting incoming Packets, and the queueing
  *      and scheduling of outbound Packets.
@@ -128,6 +143,7 @@ class Dispatcher {
   unsigned long tx_budget_ms;
   unsigned long last_budget_update;
   unsigned long duty_cycle_window_ms;
+  MacStats mac_stats;
 
   void processRecvPacket(Packet* pkt);
   void updateTxBudget();
@@ -161,6 +177,8 @@ protected:
   virtual void logRx(Packet* packet, int len, float score) { }   // hooks for custom logging
   virtual void logTx(Packet* packet, int len) { }
   virtual void logTxFail(Packet* packet, int len) { }
+  virtual void logMacEvent(const char* event, Packet* packet, int len, uint8_t priority,
+                           uint32_t delay_millis, uint32_t airtime_millis, uint32_t value) { }
   virtual const char* getLogDateTime() { return ""; }
 
   virtual float getAirtimeBudgetFactor() const;
@@ -187,8 +205,10 @@ public:
   uint32_t getNumSentDirect() const { return n_sent_direct; }
   uint32_t getNumRecvFlood() const { return n_recv_flood; }
   uint32_t getNumRecvDirect() const { return n_recv_direct; }
+  const MacStats& getMacStats() const { return mac_stats; }
   void resetStats() {
     n_sent_flood = n_sent_direct = n_recv_flood = n_recv_direct = 0;
+    memset(&mac_stats, 0, sizeof(mac_stats));
     _err_flags = 0;
   }
 

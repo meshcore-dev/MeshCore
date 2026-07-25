@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Mesh.h"
+#include <stdio.h>
 
 class StatsFormatHelper {
 public:
@@ -50,6 +51,29 @@ public:
       n_recv_flood,
       n_recv_direct,
       driver.getPacketsRecvErrors()
+    );
+  }
+
+  static void formatMacCadStats(char* reply, const mesh::MacStats& stats) {
+    sprintf(reply,
+      "{\"busy\":%u,\"timeouts\":%u,\"forced_tx\":%u}",
+      stats.cad_busy,
+      stats.cad_timeout,
+      stats.cad_forced_tx
+    );
+  }
+
+  static void formatMacTxStats(char* reply, const mesh::MacStats& stats) {
+    sprintf(reply,
+      "{\"started\":%u,\"completed\":%u,\"start_fail\":%u,\"timeouts\":%u,\"rx_delay\":%u,\"retransmits\":%u,\"pool_full\":%u,\"bad_queue\":%u}",
+      stats.tx_start,
+      stats.tx_done,
+      stats.tx_start_fail,
+      stats.tx_timeout,
+      stats.rx_delay,
+      stats.retransmit,
+      stats.pool_full,
+      stats.invalid_queue
     );
   }
 };
