@@ -10,7 +10,9 @@
 #include <helpers/sensors/EnvironmentSensorManager.h>
 #include <helpers/sensors/LocationProvider.h>
 #ifdef DISPLAY_CLASS
-  #include <helpers/ui/GxEPDDisplay.h>
+  // The M6 is screenless; DISPLAY_CLASS=NullDisplayDriver is used only to run
+  // UITask headless so the status LED (PIN_STATUS_LED) and button work.
+  #include <helpers/ui/NullDisplayDriver.h>
   #include <helpers/ui/MomentaryButton.h>
 #endif
 
