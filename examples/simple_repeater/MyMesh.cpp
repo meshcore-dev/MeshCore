@@ -1176,6 +1176,7 @@ void MyMesh::formatPacketStatsReply(char *reply) {
 }
 
 void MyMesh::formatResendRatioReply(char *reply) {
+  if (!_prefs.max_resend_attempts) return;  // plain "> 0" when resends are disabled
   StatsFormatHelper::formatResendRatio(reply, getNumResentDirect(), getNumSentDirect());
 }
 
