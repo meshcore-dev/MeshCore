@@ -112,6 +112,7 @@ protected:
   uint8_t getExtraAckTransmitCount() const override;
   bool filterRecvFloodPacket(mesh::Packet* packet) override;
   bool allowPacketForward(const mesh::Packet* packet) override;
+  bool shouldSelectivelyRelay(const mesh::Packet* packet);
 
   void sendFloodScoped(const TransportKey& scope, mesh::Packet* pkt, uint32_t delay_millis);
   void sendFloodScoped(const ContactInfo& recipient, mesh::Packet* pkt, uint32_t delay_millis=0) override;
@@ -210,6 +211,9 @@ private:
   uint32_t pending_status;
   uint32_t pending_telemetry, pending_discovery;   // pending _TELEMETRY_REQ
   uint32_t pending_req;   // pending _BINARY_REQ
+  uint32_t _selective_relays;        // count of allowlisted floods relayed
+  uint32_t _selective_drops;         // reserved; kept for STATS wire compat
+
   BaseSerialInterface *_serial;
   AbstractUITask* _ui;
 
