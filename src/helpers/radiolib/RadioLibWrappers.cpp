@@ -424,6 +424,17 @@ bool RadioLibWrapper::isChannelActive() {
 
   // cad: hardware channel activity detection
   if (_cad_enabled) {
+    if (_rx_ps_armed) {
+      // CAD must not be issued on top of a running duty-cycle sequencer. The
+      // sequencer's RTC keeps running across the SetStandby that the scan does
+      // first (same errata as stopRTC() documents for RX), and its pending event
+      // can knock the chip back to standby mid-CAD without raising an IRQ. The
+      // CAD-done then never arrives and RadioLib's scanChannel() waits for it
+      // forever, hanging the whole main loop. Stop the sequencer and its RTC
+      // first, exactly like startSendRaw() and startReceiveMode() do; the
+      // startRecv() below re-arms the duty cycle.
+      stopReceiveDutyCycle();
+    }
     int16_t result = performChannelScan();
     // scanChannel() triggers DIO interrupt (CAD done) which sets STATE_INT_READY
     // via setFlag() ISR. Clear it before restarting RX so recvRaw() doesn't
