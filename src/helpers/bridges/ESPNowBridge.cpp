@@ -20,7 +20,7 @@ void ESPNowBridge::recv_cb(const esp_now_recv_info_t *info, const uint8_t *data,
   _instance->_rx_frames.push(data, (size_t)len);
 }
 #else
-void ESPNowBridge::recv_cb(const uint8_t *mac, const uint8_t *data, int32_t len) {
+void ESPNowBridge::recv_cb(const uint8_t *mac, const uint8_t *data, int len) {
   if (_instance == nullptr || len <= 0) return;
   _instance->_rx_frames.push(data, (size_t)len);
 }

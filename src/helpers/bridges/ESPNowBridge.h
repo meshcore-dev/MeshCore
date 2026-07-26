@@ -55,7 +55,9 @@ private:
 #if defined(ESP_IDF_VERSION_MAJOR) && ESP_IDF_VERSION_MAJOR >= 5
   static void recv_cb(const esp_now_recv_info_t *info, const uint8_t *data, int len);
 #else
-  static void recv_cb(const uint8_t *mac, const uint8_t *data, int32_t len);
+  // int, not int32_t: esp_now_recv_cb_t spells the length `int`, and on the
+  // RISC-V targets int32_t is `long int`, so int32_t here fails to convert.
+  static void recv_cb(const uint8_t *mac, const uint8_t *data, int len);
 #endif
   static void send_cb(const uint8_t *mac, esp_now_send_status_t status);
 
