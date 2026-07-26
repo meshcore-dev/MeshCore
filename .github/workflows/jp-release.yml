@@ -55,10 +55,12 @@ jobs:
             variants/xiao_nrf52/platformio.ini \
             variants/xiao_s3_wio/platformio.ini \
             variants/wio-tracker-l1/platformio.ini
+          # T1000-E: Seeed確認済み証明上限19mW(≈12.79dBm)のため12dBmに制限
+          sed -i 's/-D LORA_TX_POWER=22/-D LORA_TX_POWER=12/g' \
+            variants/t1000-e/platformio.ini
           # それ以外はARIB STD-T108上限の13dBmのまま
           sed -i 's/-D LORA_TX_POWER=22/-D LORA_TX_POWER=13/g' \
             variants/rak_wismesh_tag/platformio.ini \
-            variants/t1000-e/platformio.ini \
             variants/lilygo_techo_lite/platformio.ini \
             variants/heltec_t114/platformio.ini \
             variants/m5stack_unit_c6l/platformio.ini \
