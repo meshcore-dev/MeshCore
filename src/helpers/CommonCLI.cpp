@@ -297,7 +297,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       StrHelper::strncpy(_prefs->password, &command[9], sizeof(_prefs->password));
       savePrefs();
       sprintf(reply, "password now: ");
-      StrHelper::strncpy(&reply[14], _prefs->password, 160-15);   // echo back just to let admin know for sure!!
+      StrHelper::strncpy(&reply[14], _prefs->password, MAX_REPLY_LEN-15);   // echo back just to let admin know for sure!!
     } else if (memcmp(command, "clear stats", 11) == 0) {
       _callbacks->clearStats();
       strcpy(reply, "(OK - stats reset)");
@@ -798,7 +798,7 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     };
   } else {
     strcpy(reply, "unknown config: ");
-    StrHelper::strncpy(&reply[16], config, 160-17);
+    StrHelper::strncpy(&reply[16], config, MAX_REPLY_LEN-17);
   }
 }
 

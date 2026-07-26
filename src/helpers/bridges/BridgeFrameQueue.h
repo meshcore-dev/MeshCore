@@ -48,6 +48,14 @@ public:
    */
   size_t pop(uint8_t *out, size_t out_cap);
 
+  /**
+   * @brief Discard every queued frame. Consumer side.
+   *
+   * Releases all slots at once, so teardown does not need a throwaway buffer to
+   * pop into and the dropped-frame counters are left alone.
+   */
+  void clear();
+
   bool isEmpty() const;
   uint8_t count() const;
   uint8_t capacity() const { return _capacity; }

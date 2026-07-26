@@ -94,6 +94,7 @@ private:
 
   void transmit(uint32_t now);
   void scheduleRetry(uint32_t now);
+  void goIdle();
 
   BridgeFrameQueue _queue;
   BridgeFrameSender *_sender;
@@ -107,8 +108,11 @@ private:
   uint8_t _attempts;
 
   State _state;
-  uint32_t _sent_at;
-  uint32_t _next_attempt_at;
+
+  // One deadline serves both waiting states, which are mutually exclusive: when
+  // PENDING it is the time of the next attempt, when IN_FLIGHT the time the
+  // completion stops being worth waiting for.
+  uint32_t _deadline;
 
   // The radio owes exactly one completion per accepted send, but its callback
   // carries no token identifying which send it belongs to. Counting completions

@@ -87,6 +87,11 @@ size_t BridgeFrameQueue::pop(uint8_t *out, size_t out_cap) {
   return written;
 }
 
+void BridgeFrameQueue::clear() {
+  // release: matches pop(), so the producer only reuses slots we are done reading
+  _tail.store(_head.load(std::memory_order_acquire), std::memory_order_release);
+}
+
 bool BridgeFrameQueue::isEmpty() const {
   return _head.load(std::memory_order_acquire) == _tail.load(std::memory_order_acquire);
 }

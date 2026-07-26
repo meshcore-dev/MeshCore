@@ -107,33 +107,31 @@ public:
    */
   void onPacketReceived(mesh::Packet *packet) override;
 
-private:
   /**
-   * RS232 Protocol Structure:
-   * - Magic header: 2 bytes (packet identification)
-   * - Length field: 2 bytes (payload length)
-   * - Payload: variable bytes (mesh packet data)
-   * - Checksum: 2 bytes (Fletcher-16 over payload)
-   * Total overhead: 6 bytes
+   * @brief Writes the receive-side counters into @p dest.
+   *
+   * Line noise and checksum failures look very different from pool exhaustion.
    */
+  void getRxStats(char *dest, size_t dest_size) const;
 
-  /**
-   * @brief The total overhead of the serial protocol in bytes.
-   * Includes: MAGIC_WORD (2) + LENGTH (2) + CHECKSUM (2) = 6 bytes
-   */
-  static constexpr uint16_t SERIAL_OVERHEAD = BRIDGE_MAGIC_SIZE + BRIDGE_LENGTH_SIZE + BRIDGE_CHECKSUM_SIZE;
+  /** @brief Writes the transmit-side counters into @p dest. */
+  void getTxStats(char *dest, size_t dest_size) const;
+
+  /** Zeroes every counter, so a measurement can start from a known point. */
+  void resetStats();
+
+private:
+  /** Largest mesh packet blob this bridge will carry. */
+  static constexpr uint16_t MAX_PAYLOAD_SIZE = MAX_TRANS_UNIT + 1;
 
   /**
    * @brief The maximum size of a complete packet on the serial line.
    *
-   * This is calculated as the sum of:
-   * - MAX_TRANS_UNIT + 1 for the maximum mesh packet size
-   * - SERIAL_OVERHEAD for the framing (magic + length + checksum)
+   * The framing overhead comes from BridgeSerialFramer, which owns the wire
+   * layout, so this cannot drift out of step with the encoder.
    */
-  static constexpr uint16_t MAX_SERIAL_PACKET_SIZE = (MAX_TRANS_UNIT + 1) + SERIAL_OVERHEAD;
-
-  /** Largest mesh packet blob this bridge will carry. */
-  static constexpr uint16_t MAX_PAYLOAD_SIZE = MAX_TRANS_UNIT + 1;
+  static constexpr uint16_t MAX_SERIAL_PACKET_SIZE =
+      MAX_PAYLOAD_SIZE + BridgeSerialFramer::FRAME_OVERHEAD;
 
   /** Complete frames buffered between the UART reader and the mesh. */
   static constexpr uint8_t RX_QUEUE_DEPTH = 4;
@@ -153,25 +151,6 @@ private:
    * while the reader keeps draining the UART.
    */
   BridgeFrameQueue _rx_frames;
-
-  uint32_t _rx_no_packet;  ///< mesh packet pool was empty
-  uint32_t _rx_unparsed;   ///< framed cleanly but was not a valid mesh packet
-  uint32_t _tx_duplicates; ///< not bridged because this node had already sent it
-  uint32_t _tx_oversized;  ///< mesh packet too large to frame
-
-public:
-  /**
-   * @brief Writes the receive-side counters into @p dest.
-   *
-   * Line noise and checksum failures look very different from pool exhaustion.
-   */
-  void getRxStats(char *dest, size_t dest_size) const;
-
-  /** @brief Writes the transmit-side counters into @p dest. */
-  void getTxStats(char *dest, size_t dest_size) const;
-
-  /** Zeroes every counter, so a measurement can start from a known point. */
-  void resetStats();
 };
 
 #endif

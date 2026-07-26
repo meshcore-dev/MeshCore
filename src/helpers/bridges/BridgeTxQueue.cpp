@@ -14,9 +14,8 @@ BridgeTxQueue::BridgeTxQueue(uint8_t capacity, uint16_t max_frame_len, uint8_t m
     : _queue(capacity, max_frame_len), _sender(nullptr),
       _max_attempts(max_attempts < 1 ? 1 : max_attempts), _ack_timeout_ms(ack_timeout_ms),
       _retry_delay_ms(retry_delay_ms), _pending(nullptr), _pending_len(0), _attempts(0),
-      _state(STATE_IDLE), _sent_at(0), _next_attempt_at(0), _cb_count(0), _cb_status(0),
-      _cb_consumed(0), _owed(0), _sent(0), _retries(0), _failed(0), _timeouts(0),
-      _radio_refusals(0) {
+      _state(STATE_IDLE), _deadline(0), _cb_count(0), _cb_status(0), _cb_consumed(0), _owed(0),
+      _sent(0), _retries(0), _failed(0), _timeouts(0), _radio_refusals(0) {
   _pending = new uint8_t[max_frame_len];
 }
 
@@ -49,13 +48,11 @@ void BridgeTxQueue::loop(uint32_t now) {
     if (fresh > 0) {
       if (_cb_status.load(std::memory_order_relaxed) != 0) {
         _sent++;
-        _pending_len = 0;
-        _attempts = 0;
-        _state = STATE_IDLE;
+        goIdle();
       } else {
         scheduleRetry(now);
       }
-    } else if (hasElapsed(now, _sent_at + _ack_timeout_ms)) {
+    } else if (hasElapsed(now, _deadline)) {
       // Never wait forever, or the bridge goes silent. The radio still owes us
       // this attempt's completion, so remember not to believe it later.
       _timeouts++;
@@ -70,11 +67,11 @@ void BridgeTxQueue::loop(uint32_t now) {
     if (_pending_len == 0) return;  // nothing waiting
 
     _attempts = 0;
-    _next_attempt_at = now;
+    _deadline = now;
     _state = STATE_PENDING;
   }
 
-  if (_state == STATE_PENDING && hasElapsed(now, _next_attempt_at)) {
+  if (_state == STATE_PENDING && hasElapsed(now, _deadline)) {
     transmit(now);
   }
 }
@@ -82,9 +79,7 @@ void BridgeTxQueue::loop(uint32_t now) {
 void BridgeTxQueue::transmit(uint32_t now) {
   if (_attempts >= _max_attempts) {
     _failed++;  // out of attempts; drop it so the frames behind it still move
-    _pending_len = 0;
-    _attempts = 0;
-    _state = STATE_IDLE;
+    goIdle();
     return;
   }
 
@@ -96,7 +91,7 @@ void BridgeTxQueue::transmit(uint32_t now) {
     return;
   }
 
-  _sent_at = now;
+  _deadline = now + _ack_timeout_ms;
 
   if (_sender->sendFrame(_pending, _pending_len)) {
     _state = STATE_IN_FLIGHT;
@@ -108,24 +103,24 @@ void BridgeTxQueue::transmit(uint32_t now) {
 }
 
 void BridgeTxQueue::scheduleRetry(uint32_t now) {
-  _next_attempt_at = now + _retry_delay_ms;
+  _deadline = now + _retry_delay_ms;
   _state = STATE_PENDING;
 }
 
+void BridgeTxQueue::goIdle() {
+  _pending_len = 0;
+  _attempts = 0;
+  _state = STATE_IDLE;
+}
+
 void BridgeTxQueue::reset() {
-  // pop() always advances, discarding anything that will not fit, so this drains.
-  uint8_t discard[1];
-  while (!_queue.isEmpty()) {
-    _queue.pop(discard, sizeof(discard));
-  }
+  _queue.clear();
 
   // An in-flight send still completes after this returns; do not credit it to
   // whatever the next session sends first.
   if (_state == STATE_IN_FLIGHT) _owed++;
 
-  _pending_len = 0;
-  _attempts = 0;
-  _state = STATE_IDLE;
+  goIdle();
 }
 
 void BridgeTxQueue::resetStats() {

@@ -35,7 +35,7 @@ ESPNowBridge::ESPNowBridge(NodePrefs *prefs, mesh::PacketManager *mgr, mesh::RTC
     : BridgeBase(prefs, mgr, rtc), _rx_frames(RX_QUEUE_DEPTH, MAX_ESPNOW_PACKET_SIZE),
       _tx_frames(TX_QUEUE_DEPTH, MAX_ESPNOW_PACKET_SIZE, TX_MAX_ATTEMPTS, TX_ACK_TIMEOUT_MS,
                  TX_RETRY_DELAY_MS),
-      _rx_invalid(0), _rx_no_packet(0), _rx_unparsed(0), _tx_duplicates(0), _tx_oversized(0) {
+      _rx_invalid(0) {
   _instance = this;
   _tx_frames.setSender(this);
 }
@@ -107,54 +107,30 @@ void ESPNowBridge::end() {
 
   // Drop anything still buffered; it belongs to a radio that no longer exists
   _tx_frames.reset();
-  uint8_t discard[MAX_ESPNOW_PACKET_SIZE];
-  while (!_rx_frames.isEmpty()) {
-    _rx_frames.pop(discard, sizeof(discard));
-  }
+  _rx_frames.clear();
 }
 
 void ESPNowBridge::loop() {
   if (!_initialized) return;
 
   uint8_t frame[MAX_ESPNOW_PACKET_SIZE];
-
-  for (uint8_t drained = 0; drained < RX_DRAIN_PER_LOOP && !_rx_frames.isEmpty(); drained++) {
-    // Take a pool slot first: if the pool is empty the frame stays queued for a
-    // later loop, costing latency instead of a message.
-    mesh::Packet *pkt = _mgr->allocNew();
-    if (pkt == nullptr) {
-      _rx_no_packet++;
-      break;
-    }
-
-    const size_t len = _rx_frames.pop(frame, sizeof(frame));
-    if (len == 0) {
-      _mgr->free(pkt);
-      break;
-    }
-
-    uint8_t payload[MAX_PAYLOAD_SIZE];
-    const int payload_len =
-        BridgeCodec::decode(frame, len, _prefs->bridge_secret, payload, sizeof(payload));
-    if (payload_len <= 0) {
-      // Wrong magic, bad checksum, or another network's secret
-      BRIDGE_DEBUG_PRINTLN("RX invalid frame, len=%d\n", (int)len);
-      _rx_invalid++;
-      _mgr->free(pkt);
-      continue;
-    }
-
-    BRIDGE_DEBUG_PRINTLN("RX, payload_len=%d\n", payload_len);
-
-    if (pkt->readFrom(payload, (uint8_t)payload_len)) {
-      onPacketReceived(pkt);  // takes ownership
-    } else {
-      _rx_unparsed++;
-      _mgr->free(pkt);
-    }
-  }
+  drainRxFrames(_rx_frames, RX_DRAIN_PER_LOOP, frame, sizeof(frame));
 
   _tx_frames.loop(millis());
+}
+
+const uint8_t *ESPNowBridge::unwrapFrame(const uint8_t *frame, size_t frame_len, size_t &blob_len) {
+  const int payload_len =
+      BridgeCodec::decode(frame, frame_len, _prefs->bridge_secret, _rx_blob, sizeof(_rx_blob));
+  if (payload_len <= 0) {
+    // Wrong magic, bad checksum, or another network's secret
+    BRIDGE_DEBUG_PRINTLN("RX invalid frame, len=%d\n", (int)frame_len);
+    _rx_invalid++;
+    return nullptr;
+  }
+
+  blob_len = (size_t)payload_len;
+  return _rx_blob;
 }
 
 void ESPNowBridge::sendPacket(mesh::Packet *packet) {
@@ -229,13 +205,8 @@ void ESPNowBridge::getTxStats(char *dest, size_t dest_size) const {
 }
 
 void ESPNowBridge::resetStats() {
+  resetBaseStats();
   _rx_invalid = 0;
-  _rx_no_packet = 0;
-  _rx_unparsed = 0;
-  _tx_duplicates = 0;
-  _tx_oversized = 0;
-  _rx_delivered = 0;
-  _rx_duplicates = 0;
   _rx_frames.resetStats();
   _tx_frames.resetStats();
 }

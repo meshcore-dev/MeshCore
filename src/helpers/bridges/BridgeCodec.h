@@ -39,10 +39,14 @@ public:
   /**
    * @brief XOR a buffer with a repeating secret, in place.
    *
+   * @p offset says how far into the encrypted region @p data starts, which lets
+   * decode() decrypt the checksum and the payload separately without staging the
+   * whole frame in a temporary buffer.
+   *
    * Does nothing when @p secret is null or empty, so a node configured with a
    * blank secret still interoperates (unencrypted) instead of dividing by zero.
    */
-  static void xorCrypt(uint8_t *data, size_t len, const char *secret);
+  static void xorCrypt(uint8_t *data, size_t len, const char *secret, size_t offset = 0);
 
   /**
    * @brief Frame and encrypt a mesh packet blob.

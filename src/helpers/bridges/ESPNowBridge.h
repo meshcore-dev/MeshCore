@@ -97,11 +97,17 @@ private:
   /** Outbound frames, paced one at a time and retried when the radio refuses. */
   BridgeTxQueue _tx_frames;
 
-  uint32_t _rx_invalid;    ///< failed magic or checksum: foreign network, or corrupt
-  uint32_t _rx_no_packet;  ///< mesh packet pool was empty
-  uint32_t _rx_unparsed;   ///< decoded cleanly but was not a valid mesh packet
-  uint32_t _tx_duplicates; ///< not bridged because this node had already sent it
-  uint32_t _tx_oversized;  ///< mesh packet too large to fit an ESP-NOW frame
+  /**
+   * Decrypted payload handed to the mesh. A member rather than a local so that
+   * unwrapFrame() can return it; loop() holds the encrypted frame at the same
+   * time, so this costs no more than the two stack buffers it replaces.
+   */
+  uint8_t _rx_blob[MAX_PAYLOAD_SIZE];
+
+  uint32_t _rx_invalid;  ///< failed magic or checksum: foreign network, or corrupt
+
+  /** Decrypts a received frame; see BridgeBase::unwrapFrame(). */
+  const uint8_t *unwrapFrame(const uint8_t *frame, size_t frame_len, size_t &blob_len) override;
 
 public:
   /**

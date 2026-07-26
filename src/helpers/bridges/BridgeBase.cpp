@@ -15,13 +15,51 @@ const char *BridgeBase::getLogDateTime() {
   return tmp;
 }
 
-uint16_t BridgeBase::fletcher16(const uint8_t *data, size_t len) {
-  return BridgeCodec::fletcher16(data, len);
+void BridgeBase::resetBaseStats() {
+  _rx_delivered = 0;
+  _rx_duplicates = 0;
+  _rx_no_packet = 0;
+  _rx_unparsed = 0;
+  _tx_duplicates = 0;
+  _tx_oversized = 0;
 }
 
-bool BridgeBase::validateChecksum(const uint8_t *data, size_t len, uint16_t received_checksum) {
-  uint16_t calculated_checksum = fletcher16(data, len);
-  return received_checksum == calculated_checksum;
+void BridgeBase::drainRxFrames(BridgeFrameQueue &queue, uint8_t max_frames, uint8_t *scratch,
+                               size_t scratch_cap) {
+  for (uint8_t drained = 0; drained < max_frames && !queue.isEmpty(); drained++) {
+    // Take a pool slot first: if the pool is empty the frame stays queued for a
+    // later loop, costing latency instead of a message.
+    mesh::Packet *pkt = _mgr->allocNew();
+    if (pkt == nullptr) {
+      _rx_no_packet++;
+      break;
+    }
+
+    const size_t frame_len = queue.pop(scratch, scratch_cap);
+    if (frame_len == 0) {
+      _mgr->free(pkt);
+      break;
+    }
+
+    size_t blob_len = 0;
+    const uint8_t *blob = unwrapFrame(scratch, frame_len, blob_len);
+    if (blob == nullptr) {
+      _mgr->free(pkt);  // the override counted why
+      continue;
+    }
+
+    BRIDGE_DEBUG_PRINTLN("RX, len=%d\n", (int)blob_len);
+
+    // readFrom() takes a uint8_t length, and a mesh packet can never be longer
+    // than MAX_TRANS_UNIT + 1 anyway.
+    if (blob_len > 0 && blob_len <= 255 && pkt->readFrom(blob, (uint8_t)blob_len)) {
+      onPacketReceived(pkt);  // takes ownership
+    } else {
+      BRIDGE_DEBUG_PRINTLN("RX failed to parse packet\n");
+      _rx_unparsed++;
+      _mgr->free(pkt);
+    }
+  }
 }
 
 void BridgeBase::handleReceivedPacket(mesh::Packet *packet) {

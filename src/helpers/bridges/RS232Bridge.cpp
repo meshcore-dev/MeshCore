@@ -7,8 +7,7 @@
 
 RS232Bridge::RS232Bridge(NodePrefs *prefs, Stream &serial, mesh::PacketManager *mgr, mesh::RTCClock *rtc)
     : BridgeBase(prefs, mgr, rtc), _serial(&serial), _framer(MAX_PAYLOAD_SIZE),
-      _rx_frames(RX_QUEUE_DEPTH, MAX_PAYLOAD_SIZE), _rx_no_packet(0), _rx_unparsed(0),
-      _tx_duplicates(0), _tx_oversized(0) {}
+      _rx_frames(RX_QUEUE_DEPTH, MAX_PAYLOAD_SIZE) {}
 
 void RS232Bridge::begin() {
   BRIDGE_DEBUG_PRINTLN("Initializing at %d baud...\n", _prefs->bridge_baud);
@@ -45,10 +44,7 @@ void RS232Bridge::end() {
 
   // Drop anything half-received; the link is going away
   _framer.reset();
-  uint8_t discard[MAX_PAYLOAD_SIZE];
-  while (!_rx_frames.isEmpty()) {
-    _rx_frames.pop(discard, sizeof(discard));
-  }
+  _rx_frames.clear();
 }
 
 void RS232Bridge::loop() {
@@ -58,41 +54,19 @@ void RS232Bridge::loop() {
   }
 
   // Keep draining the UART even when the mesh cannot take packets: stalling
-  // here would let the receive FIFO overrun mid-frame and corrupt it.
-  while (_serial->available()) {
+  // here would let the receive FIFO overrun mid-frame and corrupt it. available()
+  // takes the UART driver lock, so ask once per loop rather than once per byte.
+  for (int pending = _serial->available(); pending > 0; pending--) {
     const uint16_t payload_len = _framer.offer((uint8_t)_serial->read());
     if (payload_len > 0) {
       _rx_frames.push(_framer.payload(), payload_len);
     }
   }
 
+  // The framer has already stripped the serial framing, so the queued frames are
+  // mesh packet blobs and the default unwrapFrame() passes them straight through.
   uint8_t payload[MAX_PAYLOAD_SIZE];
-
-  for (uint8_t drained = 0; drained < RX_DRAIN_PER_LOOP && !_rx_frames.isEmpty(); drained++) {
-    // Take a pool slot first: if the pool is empty the frame stays queued for a
-    // later loop rather than being thrown away.
-    mesh::Packet *pkt = _mgr->allocNew();
-    if (pkt == nullptr) {
-      _rx_no_packet++;
-      break;
-    }
-
-    const size_t len = _rx_frames.pop(payload, sizeof(payload));
-    if (len == 0) {
-      _mgr->free(pkt);
-      break;
-    }
-
-    BRIDGE_DEBUG_PRINTLN("RX, len=%d\n", (int)len);
-
-    if (pkt->readFrom(payload, (uint8_t)len)) {
-      onPacketReceived(pkt);  // takes ownership
-    } else {
-      BRIDGE_DEBUG_PRINTLN("RX failed to parse packet\n");
-      _rx_unparsed++;
-      _mgr->free(pkt);
-    }
-  }
+  drainRxFrames(_rx_frames, RX_DRAIN_PER_LOOP, payload, sizeof(payload));
 }
 
 void RS232Bridge::sendPacket(mesh::Packet *packet) {
@@ -151,12 +125,7 @@ void RS232Bridge::getTxStats(char *dest, size_t dest_size) const {
 }
 
 void RS232Bridge::resetStats() {
-  _rx_no_packet = 0;
-  _rx_unparsed = 0;
-  _tx_duplicates = 0;
-  _tx_oversized = 0;
-  _rx_delivered = 0;
-  _rx_duplicates = 0;
+  resetBaseStats();
   _framer.resetStats();
   _rx_frames.resetStats();
 }
