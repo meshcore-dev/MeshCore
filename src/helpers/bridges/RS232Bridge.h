@@ -1,6 +1,8 @@
 #pragma once
 
 #include "helpers/bridges/BridgeBase.h"
+#include "helpers/bridges/BridgeFrameQueue.h"
+#include "helpers/bridges/BridgeSerialFramer.h"
 
 #include <Stream.h>
 
@@ -75,13 +77,8 @@ public:
   /**
    * @brief Main loop handler for processing incoming serial data
    *
-   * Implements a state machine for packet reception:
-   * 1. Searches for magic header bytes for packet synchronization
-   * 2. Reads length field to determine expected packet size
-   * 3. Validates packet length against maximum allowed size
-   * 4. Receives complete packet payload and checksum
-   * 5. Validates Fletcher-16 checksum for data integrity
-   * 6. Creates mesh packet and forwards if valid
+   * Drains the UART through BridgeSerialFramer, then turns completed frames into
+   * mesh packets as pool slots become available.
    */
   void loop() override;
 
@@ -135,14 +132,46 @@ private:
    */
   static constexpr uint16_t MAX_SERIAL_PACKET_SIZE = (MAX_TRANS_UNIT + 1) + SERIAL_OVERHEAD;
 
+  /** Largest mesh packet blob this bridge will carry. */
+  static constexpr uint16_t MAX_PAYLOAD_SIZE = MAX_TRANS_UNIT + 1;
+
+  /** Complete frames buffered between the UART reader and the mesh. */
+  static constexpr uint8_t RX_QUEUE_DEPTH = 4;
+
+  /** Received frames turned into mesh packets per loop() call. */
+  static constexpr uint8_t RX_DRAIN_PER_LOOP = 4;
+
   /** Hardware serial port interface */
   Stream *_serial;
 
-  /** Buffer for building received packets */
-  uint8_t _rx_buffer[MAX_SERIAL_PACKET_SIZE];
+  /** Decodes the byte stream into complete, checksum-verified frames */
+  BridgeSerialFramer _framer;
 
-  /** Current position in the receive buffer */
-  uint16_t _rx_buffer_pos = 0;
+  /**
+   * Frames waiting to become mesh packets. Decoupling the UART reader from packet
+   * allocation lets an exhausted pool delay a frame instead of destroying it,
+   * while the reader keeps draining the UART.
+   */
+  BridgeFrameQueue _rx_frames;
+
+  uint32_t _rx_no_packet;  ///< mesh packet pool was empty
+  uint32_t _rx_unparsed;   ///< framed cleanly but was not a valid mesh packet
+  uint32_t _tx_duplicates; ///< not bridged because this node had already sent it
+  uint32_t _tx_oversized;  ///< mesh packet too large to frame
+
+public:
+  /**
+   * @brief Writes the receive-side counters into @p dest.
+   *
+   * Line noise and checksum failures look very different from pool exhaustion.
+   */
+  void getRxStats(char *dest, size_t dest_size) const;
+
+  /** @brief Writes the transmit-side counters into @p dest. */
+  void getTxStats(char *dest, size_t dest_size) const;
+
+  /** Zeroes every counter, so a measurement can start from a known point. */
+  void resetStats();
 };
 
 #endif
