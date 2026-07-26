@@ -750,6 +750,9 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     _prefs->bridge_pkt_src = memcmp(&config[14], "rx", 2) == 0;
     savePrefs();
     strcpy(reply, "OK");
+  } else if (memcmp(config, "bridge.stats reset", 18) == 0) {
+    // zero the counters so a measurement can start from a known point
+    strcpy(reply, _callbacks->resetBridgeStats() ? "OK" : "Bridge stats not supported");
 #endif
 #ifdef WITH_RS232_BRIDGE
   } else if (memcmp(config, "bridge.baud ", 12) == 0) {
@@ -910,6 +913,18 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %d", (uint32_t)_prefs->bridge_delay);
   } else if (memcmp(config, "bridge.source", 13) == 0) {
     sprintf(reply, "> %s", _prefs->bridge_pkt_src ? "logRx" : "logTx");
+  } else if (memcmp(config, "bridge.rxstats", 14) == 0) {
+    // Every way the bridge can lose a frame, so a mismatch between two bridged
+    // nodes can be attributed instead of guessed at.
+    strcpy(reply, "> ");
+    if (!_callbacks->getBridgeRxStats(&reply[2], MAX_REPLY_LEN - 2)) {
+      strcpy(reply, "Bridge stats not supported");
+    }
+  } else if (memcmp(config, "bridge.txstats", 14) == 0) {
+    strcpy(reply, "> ");
+    if (!_callbacks->getBridgeTxStats(&reply[2], MAX_REPLY_LEN - 2)) {
+      strcpy(reply, "Bridge stats not supported");
+    }
 #endif
 #ifdef WITH_RS232_BRIDGE
   } else if (memcmp(config, "bridge.baud", 11) == 0) {

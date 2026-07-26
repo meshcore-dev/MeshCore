@@ -111,10 +111,35 @@ public:
     // no op by default
   };
 
+  /**
+   * Writes the bridge's receive-side counters into dest.
+   * @return false if this build has no bridge that reports statistics
+   */
+  virtual bool getBridgeRxStats(char* dest, size_t dest_size) {
+    return false;
+  };
+
+  /** Writes the bridge's transmit-side counters into dest. */
+  virtual bool getBridgeTxStats(char* dest, size_t dest_size) {
+    return false;
+  };
+
+  /** Zeroes the bridge's counters. @return false if unsupported */
+  virtual bool resetBridgeStats() {
+    return false;
+  };
+
   virtual bool setRxBoostedGain(bool enable) {
     return false; // CommonCLI reports unsupported if not overridden by wrapper
   };
 };
+
+/**
+ * Size of the reply buffer every handleCommand() caller provides. The serial
+ * console uses char[160] and remote admin carves 161 bytes out of a 166 byte
+ * frame, so 160 is what a reply can safely assume.
+ */
+#define MAX_REPLY_LEN  160
 
 class CommonCLI {
   mesh::RTCClock* _rtc;
