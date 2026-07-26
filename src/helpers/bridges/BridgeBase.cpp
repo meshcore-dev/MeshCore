@@ -16,14 +16,7 @@ const char *BridgeBase::getLogDateTime() {
 }
 
 uint16_t BridgeBase::fletcher16(const uint8_t *data, size_t len) {
-  uint8_t sum1 = 0, sum2 = 0;
-
-  for (size_t i = 0; i < len; i++) {
-    sum1 = (sum1 + data[i]) % 255;
-    sum2 = (sum2 + sum1) % 255;
-  }
-
-  return (sum2 << 8) | sum1;
+  return BridgeCodec::fletcher16(data, len);
 }
 
 bool BridgeBase::validateChecksum(const uint8_t *data, size_t len, uint16_t received_checksum) {
@@ -43,7 +36,9 @@ void BridgeBase::handleReceivedPacket(mesh::Packet *packet) {
     _seen_packets.markSeen(packet);
     // bridge_delay provides a buffer to prevent immediate processing conflicts in the mesh network.
     _mgr->queueInbound(packet, millis() + _prefs->bridge_delay);
+    _rx_delivered++;
   } else {
     _mgr->free(packet);
+    _rx_duplicates++;
   }
 }

@@ -3,6 +3,7 @@
 #include "helpers/AbstractBridge.h"
 #include "helpers/CommonCLI.h"
 #include "helpers/SimpleMeshTables.h"
+#include "helpers/bridges/BridgeCodec.h"
 
 #include <RTClib.h>
 
@@ -29,13 +30,22 @@ public:
    */
   bool isRunning() const override;
 
+  /** Packets this bridge handed to the mesh inbound queue. */
+  uint32_t getRxDelivered() const { return _rx_delivered; }
+
+  /** Packets this bridge discarded on arrival as already seen. */
+  uint32_t getRxDuplicates() const { return _rx_duplicates; }
+
   /**
    * @brief Common magic number used by all bridge implementations for packet identification
    *
    * This magic number is placed at the beginning of bridge packets to identify
    * them as mesh bridge packets and provide frame synchronization.
+   *
+   * Defined by BridgeCodec so the framing has a single source of truth that can
+   * be unit tested without pulling in the Arduino/mesh headers.
    */
-  static constexpr uint16_t BRIDGE_PACKET_MAGIC = 0xC03E;
+  static constexpr uint16_t BRIDGE_PACKET_MAGIC = BridgeCodec::BRIDGE_PACKET_MAGIC;
 
   /**
    * @brief Common field sizes used by bridge implementations
@@ -45,9 +55,9 @@ public:
    * BRIDGE_LENGTH_SIZE is used by bridges that need explicit length fields (like RS232).
    * BRIDGE_CHECKSUM_SIZE is used by all bridges for Fletcher-16 checksums.
    */
-  static constexpr uint16_t BRIDGE_MAGIC_SIZE = sizeof(BRIDGE_PACKET_MAGIC);
-  static constexpr uint16_t BRIDGE_LENGTH_SIZE = sizeof(uint16_t);
-  static constexpr uint16_t BRIDGE_CHECKSUM_SIZE = sizeof(uint16_t);
+  static constexpr uint16_t BRIDGE_MAGIC_SIZE = BridgeCodec::BRIDGE_MAGIC_SIZE;
+  static constexpr uint16_t BRIDGE_LENGTH_SIZE = BridgeCodec::BRIDGE_LENGTH_SIZE;
+  static constexpr uint16_t BRIDGE_CHECKSUM_SIZE = BridgeCodec::BRIDGE_CHECKSUM_SIZE;
 
 protected:
   /** Tracks bridge state */
@@ -64,6 +74,12 @@ protected:
 
   /** Tracks seen packets to prevent loops in broadcast communications */
   SimpleMeshTables _seen_packets;
+
+  /** Packets handed to the mesh inbound queue */
+  uint32_t _rx_delivered = 0;
+
+  /** Packets dropped on arrival because this node had already seen them */
+  uint32_t _rx_duplicates = 0;
 
   /**
    * @brief Constructs a BridgeBase instance
