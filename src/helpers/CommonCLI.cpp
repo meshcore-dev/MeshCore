@@ -93,7 +93,11 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     file.read((uint8_t *)&_prefs->flood_max_advert, sizeof(_prefs->flood_max_advert));             // 292
     file.read((uint8_t *)&_prefs->radio_fem_rxgain, sizeof(_prefs->radio_fem_rxgain));             // 293
     file.read((uint8_t *)&_prefs->cad_enabled, sizeof(_prefs->cad_enabled));                       // 294
-    // next: 295
+    _prefs->hop_retry = 2;
+    _prefs->hop_retry_ms = 1500;
+    file.read((uint8_t *)&_prefs->hop_retry, sizeof(_prefs->hop_retry));                         // 295
+    file.read((uint8_t *)&_prefs->hop_retry_ms, sizeof(_prefs->hop_retry_ms));                   // 296
+    // next: 298
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -125,6 +129,9 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     _prefs->rx_boosted_gain = constrain(_prefs->rx_boosted_gain, 0, 1); // boolean
     _prefs->radio_fem_rxgain = constrain(_prefs->radio_fem_rxgain, 0, 1); // boolean
     _prefs->cad_enabled = constrain(_prefs->cad_enabled, 0, 1); // boolean
+    _prefs->hop_retry = constrain(_prefs->hop_retry, 0, 5);
+    if (_prefs->hop_retry_ms < 200) _prefs->hop_retry_ms = 200;
+    if (_prefs->hop_retry_ms > 10000) _prefs->hop_retry_ms = 10000;
 
     file.close();
   }
@@ -190,7 +197,9 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->flood_max_advert, sizeof(_prefs->flood_max_advert));             // 292
     file.write((uint8_t *)&_prefs->radio_fem_rxgain, sizeof(_prefs->radio_fem_rxgain));             // 293
     file.write((uint8_t *)&_prefs->cad_enabled, sizeof(_prefs->cad_enabled));                       // 294
-    // next: 295
+    file.write((uint8_t *)&_prefs->hop_retry, sizeof(_prefs->hop_retry));                         // 295
+    file.write((uint8_t *)&_prefs->hop_retry_ms, sizeof(_prefs->hop_retry_ms));                   // 296
+    // next: 298
 
     file.close();
   }
@@ -682,6 +691,32 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     } else {
       strcpy(reply, "Error, must be 0-2");
     }
+  } else if (memcmp(config, "hop.retry ", 10) == 0) {
+    int n = atoi(&config[10]);
+    if (n >= 0 && n <= 5) {
+      _prefs->hop_retry = (uint8_t)n;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error, must be 0-5");
+    }
+  } else if (memcmp(config, "hop.retry.ms ", 13) == 0) {
+    int n = atoi(&config[13]);
+    if (n >= 200 && n <= 10000) {
+      _prefs->hop_retry_ms = (uint16_t)n;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error, must be 200-10000");
+    }
+  } else if (memcmp(config, "hop.ignore ", 11) == 0) {
+    int n = atoi(&config[11]);
+    if (n >= 0 && n <= 255) {
+      _callbacks->setHopAckIgnore((uint8_t)n);
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error, must be 0-255");
+    }
   } else if (memcmp(config, "owner.info ", 11) == 0) {
     config += 11;
     char *dp = _prefs->owner_info;
@@ -862,6 +897,12 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %d", (uint32_t)_prefs->flood_max);
   } else if (memcmp(config, "direct.txdelay", 14) == 0) {
     sprintf(reply, "> %s", StrHelper::ftoa(_prefs->direct_tx_delay_factor));
+  } else if (memcmp(config, "hop.retry.ms", 12) == 0) {
+    sprintf(reply, "> %u", (unsigned)_prefs->hop_retry_ms);
+  } else if (memcmp(config, "hop.ignore", 10) == 0) {
+    sprintf(reply, "> %u", (unsigned)_callbacks->getHopAckIgnore());
+  } else if (memcmp(config, "hop.retry", 9) == 0) {
+    sprintf(reply, "> %u", (unsigned)_prefs->hop_retry);
   } else if (memcmp(config, "owner.info", 10) == 0) {
     auto start = reply;
     *reply++ = '>';

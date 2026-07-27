@@ -34,6 +34,36 @@ class Mesh : public Dispatcher {
   //void routeRecvAcks(Packet* packet, uint32_t delay_millis);
   DispatcherAction forwardMultipartDirect(Packet* pkt);
 
+#ifndef HOP_RETRY_PENDING_MAX
+#define HOP_RETRY_PENDING_MAX 4
+#endif
+#ifndef HOP_RETRY_MIN_FREE
+#define HOP_RETRY_MIN_FREE 4
+#endif
+#define CTL_TYPE_HOP_ACK  0xA0
+
+  struct HopRetryPending {
+    uint8_t hash[MAX_HASH_SIZE];
+    uint8_t next_hop[MAX_PATH_SIZE];
+    uint8_t next_hop_sz;
+    Packet* pkt;
+    uint8_t retries_left;
+    unsigned long deadline;
+  };
+  HopRetryPending _hop_retry_pending[HOP_RETRY_PENDING_MAX];
+  uint8_t _hop_ack_ignore_remaining;
+
+  void copyPacketFields(Packet* dest, const Packet* src);
+  void armHopRetryPending(const Packet* forwarded, uint32_t initial_delay_ms = 0);
+  void checkHopRetryEcho(const Packet* pkt);
+  bool isDirectZeroHopForSelf(const Packet* pkt) const;
+  void checkHopRetryAck(const Packet* pkt);
+  void sendHopAck(const Packet* forwarded, uint32_t delay_millis);
+  uint32_t getHopRetryDeadlineMs(const Packet* pkt, uint32_t initial_delay_ms) const;
+  void clearHopRetryPending(int idx);
+  void clearHopRetryPendingByHash(const uint8_t* hash);
+  void tickHopRetryPending();
+
 protected:
   DispatcherAction onRecvPacket(Packet* pkt) override;
 
@@ -70,6 +100,16 @@ protected:
    * \returns  number of extra (Direct) ACK transmissions wanted.
    */
   virtual uint8_t getExtraAckTransmitCount() const;
+
+  /**
+   * \returns  extra direct-path retransmits if the next hop's echo/ACK is not received (0 = off).
+   */
+  virtual uint8_t getHopRetryCount() const { return 0; }
+
+  /**
+   * \returns  base milliseconds to wait for echo or HOP_ACK before retrying.
+   */
+  virtual uint16_t getHopRetryTimeoutMs() const { return 1500; }
 
   /**
    * \brief  Perform search of local DB of peers/contacts.
@@ -167,8 +207,11 @@ protected:
   virtual void onAckRecv(Packet* packet, uint32_t ack_crc) { }
 
   Mesh(Radio& radio, MillisecondClock& ms, RNG& rng, RTCClock& rtc, PacketManager& mgr, MeshTables& tables)
-    : Dispatcher(radio, ms, mgr), _rng(&rng), _rtc(&rtc), _tables(&tables)
+    : Dispatcher(radio, ms, mgr), _rng(&rng), _rtc(&rtc), _tables(&tables), _hop_ack_ignore_remaining(0)
   {
+    for (int i = 0; i < HOP_RETRY_PENDING_MAX; i++) {
+      _hop_retry_pending[i].pkt = NULL;
+    }
   }
 
   MeshTables* getTables() const { return _tables; }
@@ -181,6 +224,9 @@ public:
 
   RNG* getRNG() const { return _rng; }
   RTCClock* getRTCClock() const { return _rtc; }
+
+  void setHopAckIgnoreCount(uint8_t count) { _hop_ack_ignore_remaining = count; }
+  uint8_t getHopAckIgnoreCount() const { return _hop_ack_ignore_remaining; }
 
   Packet* createAdvert(const LocalIdentity& id, const uint8_t* app_data=NULL, size_t app_data_len=0);
   Packet* createDatagram(uint8_t type, const Identity& dest, const uint8_t* secret, const uint8_t* data, size_t len);

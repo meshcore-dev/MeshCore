@@ -153,6 +153,12 @@ protected:
   uint8_t getExtraAckTransmitCount() const override {
     return _prefs.multi_acks;
   }
+  uint8_t getHopRetryCount() const override {
+    return _prefs.hop_retry;
+  }
+  uint16_t getHopRetryTimeoutMs() const override {
+    return _prefs.hop_retry_ms;
+  }
 
   mesh::DispatcherAction onRecvPacket(mesh::Packet* pkt) override;
 
@@ -199,6 +205,9 @@ public:
   void updateFloodAdvertTimer() override;
 
   void setLoggingOn(bool enable) override { _logging = enable; }
+
+  void setHopAckIgnore(uint8_t count) override { setHopAckIgnoreCount(count); }
+  uint8_t getHopAckIgnore() override { return getHopAckIgnoreCount(); }
 
   void eraseLogFile() override {
     _fs->remove(PACKET_LOG_FILE);

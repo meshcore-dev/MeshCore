@@ -53,6 +53,7 @@ A list of frequently-asked questions and answers for MeshCore
     - [5.2. Q: Do MeshCore clients repeat?](#52-q-do-meshcore-clients-repeat)
     - [5.3. Q: What happens when a node learns a route via a mobile repeater, and that repeater is gone?](#53-q-what-happens-when-a-node-learns-a-route-via-a-mobile-repeater-and-that-repeater-is-gone)
     - [5.4. Q: How does a node discover a path to its destination and then use it to send messages in the future, instead of flooding every message it sends like Meshtastic?](#54-q-how-does-a-node-discover-a-path-to-its-destination-and-then-use-it-to-send-messages-in-the-future-instead-of-flooding-every-message-it-sends-like-meshtastic)
+    - [5.4.1. Q: What is next-hop retry on repeaters?](#541-q-what-is-next-hop-retry-on-repeaters)
     - [5.5. Q: Do public channels always flood? Do private channels always flood?](#55-q-do-public-channels-always-flood-do-private-channels-always-flood)
     - [5.6. Q: What is the public key for the default public channel?](#56-q-what-is-the-public-key-for-the-default-public-channel)
     - [5.7. Q: Is MeshCore open source?](#57-q-is-meshcore-open-source)
@@ -486,6 +487,9 @@ In the case if users are moving around frequently, and the paths are breaking, t
 Routes are stored in sender's contact list. When you send a message the first time, the message first gets to your destination by flood routing. When your destination node gets the message, it will send back a delivery report to the sender with all repeaters that the original message went through. This delivery report is flood-routed back to you the sender and is a basis for future direct path. When you send the next message, the path will get embedded into the packet and be evaluated by repeaters. If the hop and address of the repeater matches, it will retransmit the message, otherwise it will not retransmit, hence minimizing utilization.
 
 [Source](https://discord.com/channels/826570251612323860/1330643963501351004/1351279141630119996)
+
+### 5.4.1. Q: What is next-hop retry on repeaters?
+When a repeater forwards a direct-path packet, it normally transmits once and moves on. With hop retry enabled (default on repeaters: `hop.retry 2`, `hop.retry.ms 1500`), the repeater waits for the **echo** of its forward (hearing the same packet retransmitted by the next hop). If the echo is missed within the listen window, it sends again (up to `hop.retry` extra times). A next hop that receives a duplicate addressed to itself replies with a zero-hop **HOP_ACK** control packet instead of forwarding again — this stops the retry loop when delivery succeeded but the echo was lost. No extra airtime in the healthy case. This does not apply on the last hop before the destination. Clients still use end-to-end ACK timeouts for delivery confirmation; hop retry fixes silent mid-path relays. Prefer `set multi.acks 0` when using hop retry.
 
 ### 5.5. Q: Do public channels always flood? Do private channels always flood?
 **A:** Yes, group channels are A to B, so there is no defined path. They have to flood. Repeaters can however deny flood traffic up to some hop limit, with the `set flood.max` CLI command. Administrators of repeaters get to set the rules of their repeaters.

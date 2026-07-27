@@ -8,6 +8,7 @@ void Mesh::begin() {
 }
 
 void Mesh::loop() {
+  tickHopRetryPending();
   Dispatcher::loop();
 }
 
@@ -24,6 +25,156 @@ uint32_t Mesh::getDirectRetransmitDelay(const Packet* packet) {
 }
 uint8_t Mesh::getExtraAckTransmitCount() const {
   return 0;
+}
+
+void Mesh::copyPacketFields(Packet* dest, const Packet* src) {
+  dest->header = src->header;
+  dest->path_len = src->path_len;
+  dest->payload_len = src->payload_len;
+  dest->transport_codes[0] = src->transport_codes[0];
+  dest->transport_codes[1] = src->transport_codes[1];
+  dest->_snr = 0;
+  memcpy(dest->path, src->path, src->getPathByteLen());
+  memcpy(dest->payload, src->payload, src->payload_len);
+}
+
+void Mesh::clearHopRetryPending(int idx) {
+  if (_hop_retry_pending[idx].pkt) {
+    releasePacket(_hop_retry_pending[idx].pkt);
+  }
+  _hop_retry_pending[idx].pkt = NULL;
+  _hop_retry_pending[idx].retries_left = 0;
+}
+
+void Mesh::clearHopRetryPendingByHash(const uint8_t* hash) {
+  for (int i = 0; i < HOP_RETRY_PENDING_MAX; i++) {
+    if (_hop_retry_pending[i].pkt && memcmp(_hop_retry_pending[i].hash, hash, MAX_HASH_SIZE) == 0) {
+      clearHopRetryPending(i);
+    }
+  }
+}
+
+void Mesh::armHopRetryPending(const Packet* forwarded, uint32_t initial_delay_ms) {
+  uint8_t retries = getHopRetryCount();
+  if (retries == 0 || forwarded->getPathHashCount() == 0) return;
+  if (forwarded->getPayloadType() == PAYLOAD_TYPE_TRACE) return;
+  if (_mgr->getFreeCount() < HOP_RETRY_MIN_FREE) return;
+
+  uint8_t hash[MAX_HASH_SIZE];
+  forwarded->calculatePacketHash(hash);
+  clearHopRetryPendingByHash(hash);
+
+  int slot = -1;
+  for (int i = 0; i < HOP_RETRY_PENDING_MAX; i++) {
+    if (_hop_retry_pending[i].pkt == NULL) {
+      slot = i;
+      break;
+    }
+  }
+  if (slot < 0) {
+    clearHopRetryPending(0);
+    slot = 0;
+  }
+
+  Packet* clone = obtainNewPacket();
+  if (clone == NULL) return;
+
+  copyPacketFields(clone, forwarded);
+  memcpy(_hop_retry_pending[slot].hash, hash, MAX_HASH_SIZE);
+  _hop_retry_pending[slot].next_hop_sz = forwarded->getPathHashSize();
+  memcpy(_hop_retry_pending[slot].next_hop, forwarded->path, _hop_retry_pending[slot].next_hop_sz);
+  _hop_retry_pending[slot].pkt = clone;
+  _hop_retry_pending[slot].retries_left = retries;
+  _hop_retry_pending[slot].deadline = futureMillis(getHopRetryDeadlineMs(forwarded, initial_delay_ms));
+}
+
+uint32_t Mesh::getHopRetryDeadlineMs(const Packet* pkt, uint32_t initial_delay_ms) const {
+  uint32_t airtime = _radio->getEstAirtimeFor(pkt->getRawLength());
+  return getHopRetryTimeoutMs() + initial_delay_ms + 2 * airtime;
+}
+
+void Mesh::checkHopRetryEcho(const Packet* pkt) {
+  if (pkt->getPayloadType() == PAYLOAD_TYPE_TRACE) return;
+
+  uint8_t hash[MAX_HASH_SIZE];
+  pkt->calculatePacketHash(hash);
+  clearHopRetryPendingByHash(hash);
+}
+
+bool Mesh::isDirectZeroHopForSelf(const Packet* pkt) const {
+  switch (pkt->getPayloadType()) {
+    case PAYLOAD_TYPE_TXT_MSG:
+    case PAYLOAD_TYPE_REQ:
+    case PAYLOAD_TYPE_RESPONSE:
+    case PAYLOAD_TYPE_PATH:
+    case PAYLOAD_TYPE_ANON_REQ:
+      return pkt->payload_len >= 1 && self_id.isHashMatch(&pkt->payload[0], 1);
+    default:
+      return false;
+  }
+}
+
+void Mesh::checkHopRetryAck(const Packet* pkt) {
+  if (pkt->payload_len < 11) return;
+  if (pkt->payload[0] != CTL_TYPE_HOP_ACK) return;
+
+  uint8_t hash_sz = pkt->payload[9];
+  if (hash_sz < 1 || hash_sz > 3) return;
+  if (pkt->payload_len < 10 + hash_sz) return;
+
+  const uint8_t* fwd_hash = &pkt->payload[1];
+  const uint8_t* sender_hash = &pkt->payload[10];
+
+  for (int i = 0; i < HOP_RETRY_PENDING_MAX; i++) {
+    HopRetryPending* p = &_hop_retry_pending[i];
+    if (p->pkt == NULL) continue;
+    if (memcmp(p->hash, fwd_hash, MAX_HASH_SIZE) != 0) continue;
+    if (hash_sz != p->next_hop_sz) continue;
+    if (memcmp(p->next_hop, sender_hash, hash_sz) != 0) continue;
+    clearHopRetryPending(i);
+    break;
+  }
+}
+
+void Mesh::sendHopAck(const Packet* forwarded, uint32_t delay_millis) {
+  if (!allowPacketForward(forwarded)) return;
+  if (forwarded->getPathHashCount() == 0) return;
+  if (_mgr->getFreeCount() < HOP_RETRY_MIN_FREE) return;
+
+  uint8_t hash_sz = forwarded->getPathHashSize();
+  if (hash_sz == 0 || hash_sz > 3) return;
+
+  uint8_t payload[14];
+  payload[0] = CTL_TYPE_HOP_ACK;
+  forwarded->calculatePacketHash(&payload[1]);
+  payload[9] = hash_sz;
+  self_id.copyHashTo(&payload[10], hash_sz);
+  size_t len = 10 + hash_sz;
+
+  Packet* ack = createControlData(payload, len);
+  if (ack) sendZeroHop(ack, delay_millis);
+}
+
+void Mesh::tickHopRetryPending() {
+  for (int i = 0; i < HOP_RETRY_PENDING_MAX; i++) {
+    HopRetryPending* p = &_hop_retry_pending[i];
+    if (p->pkt == NULL) continue;
+    if (!millisHasNowPassed(p->deadline)) continue;
+
+    if (p->retries_left == 0) {
+      clearHopRetryPending(i);
+      continue;
+    }
+
+    Packet* retry = obtainNewPacket();
+    if (retry == NULL) continue;
+
+    copyPacketFields(retry, p->pkt);
+    uint32_t d = getDirectRetransmitDelay(retry);
+    sendPacket(retry, 0, d);
+    p->retries_left--;
+    p->deadline = futureMillis(getHopRetryDeadlineMs(p->pkt, d));
+  }
 }
 
 uint32_t Mesh::getCADFailRetryDelay() const {
@@ -67,12 +218,24 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
     return ACTION_RELEASE;
   }
 
-  if (pkt->isRouteDirect() && pkt->getPayloadType() == PAYLOAD_TYPE_CONTROL && (pkt->payload[0] & 0x80) != 0) {
-    if (pkt->getPathHashCount() == 0) {
+  if (pkt->isRouteDirect() && pkt->getPayloadType() == PAYLOAD_TYPE_CONTROL && pkt->getPathHashCount() == 0) {
+    if (pkt->payload_len >= 11 && pkt->payload[0] == CTL_TYPE_HOP_ACK) {
+      checkHopRetryAck(pkt);
+      return ACTION_RELEASE;
+    }
+    if ((pkt->payload[0] & 0x80) != 0) {
       onControlDataRecv(pkt);
     }
     // just zero-hop control packets allowed (for this subset of payloads)
     return ACTION_RELEASE;
+  }
+
+  if (pkt->isRouteDirect() && pkt->getPathHashCount() == 0 && pkt->getPayloadType() != PAYLOAD_TYPE_CONTROL) {
+    // Last repeater hop often forwards zero-hop to the destination; upstream still overhears it as echo.
+    if (!isDirectZeroHopForSelf(pkt)) {
+      checkHopRetryEcho(pkt);
+      return ACTION_RELEASE;
+    }
   }
 
   if (pkt->isRouteDirect() && pkt->getPathHashCount() > 0) {
@@ -86,27 +249,39 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
       }
     }
 
-    if (self_id.isHashMatch(pkt->path, pkt->getPathHashSize()) && allowPacketForward(pkt)) {
-      if (pkt->getPayloadType() == PAYLOAD_TYPE_MULTIPART) {
-        return forwardMultipartDirect(pkt);
-      } else if (pkt->getPayloadType() == PAYLOAD_TYPE_ACK) {
-        if (!_tables->wasSeen(pkt)) {  // don't retransmit!
-          _tables->markSeen(pkt);
-          removeSelfFromPath(pkt);
-          routeDirectRecvAcks(pkt, 0);
-        }
-        return ACTION_RELEASE;
-      }
+    if (!self_id.isHashMatch(pkt->path, pkt->getPathHashSize()) || !allowPacketForward(pkt)) {
+      checkHopRetryEcho(pkt);
+      return ACTION_RELEASE;
+    }
 
-      if (!_tables->wasSeen(pkt)) {
+    if (_hop_ack_ignore_remaining > 0) {
+      _hop_ack_ignore_remaining--;
+      return ACTION_RELEASE;
+    }
+    if (pkt->getPayloadType() == PAYLOAD_TYPE_MULTIPART) {
+      return forwardMultipartDirect(pkt);
+    } else if (pkt->getPayloadType() == PAYLOAD_TYPE_ACK) {
+      if (!_tables->wasSeen(pkt)) {  // don't retransmit!
         _tables->markSeen(pkt);
         removeSelfFromPath(pkt);
-
-        uint32_t d = getDirectRetransmitDelay(pkt);
-        return ACTION_RETRANSMIT_DELAYED(0, d);  // Routed traffic is HIGHEST priority 
+        armHopRetryPending(pkt, 0);
+        routeDirectRecvAcks(pkt, 0);
+      } else {
+        sendHopAck(pkt, 0);
       }
+      return ACTION_RELEASE;
     }
-    return ACTION_RELEASE;   // this node is NOT the next hop (OR this packet has already been forwarded), so discard.
+
+    if (!_tables->wasSeen(pkt)) {
+      _tables->markSeen(pkt);
+      removeSelfFromPath(pkt);
+      uint32_t d = getDirectRetransmitDelay(pkt);
+      armHopRetryPending(pkt, d);
+
+      return ACTION_RETRANSMIT_DELAYED(0, d);  // Routed traffic is HIGHEST priority 
+    }
+    sendHopAck(pkt, 0);
+    return ACTION_RELEASE;
   }
 
   if (pkt->isRouteFlood() && filterRecvFloodPacket(pkt)) return ACTION_RELEASE;
@@ -370,7 +545,11 @@ DispatcherAction Mesh::forwardMultipartDirect(Packet* pkt) {
     if (!_tables->wasSeen(&tmp)) {   // don't retransmit!
       _tables->markSeen(&tmp);
       removeSelfFromPath(&tmp);
-      routeDirectRecvAcks(&tmp, ((uint32_t)remaining + 1) * 300);  // expect multipart ACKs 300ms apart (x2)
+      uint32_t d = ((uint32_t)remaining + 1) * 300;
+      armHopRetryPending(&tmp, d);
+      routeDirectRecvAcks(&tmp, d);  // expect multipart ACKs 300ms apart (x2)
+    } else {
+      sendHopAck(&tmp, 0);
     }
   }
   return ACTION_RELEASE;

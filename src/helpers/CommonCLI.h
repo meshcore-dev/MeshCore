@@ -65,6 +65,8 @@ struct NodePrefs { // persisted to file
   uint8_t path_hash_mode;   // which path mode to use when sending
   uint8_t loop_detect;
   uint8_t cad_enabled;      // hardware Channel Activity Detection before TX (boolean)
+  uint8_t hop_retry;              // extra direct-path TX if next hop hop ACK missing (0=off). Default 2
+  uint16_t hop_retry_ms;          // listen TTL before retry (ms). Default 1500
 };
 
 class CommonCLICallbacks {
@@ -114,6 +116,9 @@ public:
   virtual bool setRxBoostedGain(bool enable) {
     return false; // CommonCLI reports unsupported if not overridden by wrapper
   };
+
+  virtual void setHopAckIgnore(uint8_t count) { }
+  virtual uint8_t getHopAckIgnore() { return 0; }
 };
 
 class CommonCLI {
