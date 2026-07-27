@@ -64,6 +64,11 @@ uint32_t Dispatcher::getCADFailMaxDuration() const {
   return 4000;   // 4 seconds
 }
 
+uint32_t Dispatcher::getMaxTxAirtimeMs() const {
+  if (_radio->isAS923_1_JP()) return 4000;   // ARIB STD-T108: single transmission must be <=4s
+  return UINT32_MAX;   // no limit for other regions
+}
+
 void Dispatcher::loop() {
   if (millisHasNowPassed(next_floor_calib_time)) {
     _radio->triggerNoiseFloorCalibrate(getInterferenceThreshold());
@@ -324,6 +329,16 @@ void Dispatcher::checkSend() {
       outbound = NULL;
     } else {
       memcpy(&raw[len], outbound->payload, outbound->payload_len); len += outbound->payload_len;
+
+      uint32_t send_airtime = _radio->getEstAirtimeFor(len);
+      if (send_airtime > getMaxTxAirtimeMs()) {
+        MESH_DEBUG_PRINTLN("%s Dispatcher::checkSend(): DROPPED, airtime %dms exceeds limit", getLogDateTime(), send_airtime);
+        n_tx_dropped_airtime++;
+        logTxFail(outbound, len);
+        releasePacket(outbound);
+        outbound = NULL;
+        return;
+      }
 
       uint32_t max_airtime = _radio->getEstAirtimeFor(len)*3/2;
       outbound_start = _ms->getMillis();

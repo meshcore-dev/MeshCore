@@ -130,6 +130,7 @@ class Dispatcher {
   bool  prev_isrecv_mode;
   uint32_t n_sent_flood, n_sent_direct;
   uint32_t n_recv_flood, n_recv_direct;
+  uint32_t n_tx_dropped_airtime;   // packets dropped: would exceed getMaxTxAirtimeMs()
   unsigned long tx_budget_ms;
   unsigned long last_budget_update;
   unsigned long duty_cycle_window_ms;
@@ -157,6 +158,7 @@ protected:
     tx_budget_ms = 0;
     last_budget_update = 0;
     duty_cycle_window_ms = 3600000;
+    n_tx_dropped_airtime = 0;
   }
 
   virtual DispatcherAction onRecvPacket(Packet* pkt) = 0;
@@ -172,6 +174,7 @@ protected:
   virtual int calcRxDelay(float score, uint32_t air_time) const;
   virtual uint32_t getCADFailRetryDelay() const;
   virtual uint32_t getCADFailMaxDuration() const;
+  virtual uint32_t getMaxTxAirtimeMs() const;   // single-transmission airtime cap (JP: 4000ms per ARIB STD-T108)
   virtual int getInterferenceThreshold() const { return 0; }    // disabled by default
   virtual bool getCADEnabled() const { return false; }    // hardware CAD disabled by default
   virtual int getAGCResetInterval() const { return 0; }    // disabled by default
@@ -192,8 +195,10 @@ public:
   uint32_t getNumSentDirect() const { return n_sent_direct; }
   uint32_t getNumRecvFlood() const { return n_recv_flood; }
   uint32_t getNumRecvDirect() const { return n_recv_direct; }
+  uint32_t getNumTxDroppedAirtime() const { return n_tx_dropped_airtime; }
   void resetStats() {
     n_sent_flood = n_sent_direct = n_recv_flood = n_recv_direct = 0;
+    n_tx_dropped_airtime = 0;
     _err_flags = 0;
   }
 
