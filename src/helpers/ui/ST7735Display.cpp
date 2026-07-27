@@ -417,6 +417,17 @@ bool ST7735Display::i2c_probe(TwoWire& wire, uint8_t addr) {
   #define PIN_TFT_LEDA_CTL_ACTIVE  HIGH
 #endif
 
+// Color scheme
+ColorVal UIColor::window_bkg = ST77XX_WHITE;
+ColorVal UIColor::title_bkg = ST77XX_BLUE;
+ColorVal UIColor::title_txt = ST77XX_WHITE;
+ColorVal UIColor::primary_txt = ST77XX_BLACK;
+ColorVal UIColor::secondary_txt = (18 << 11) | (36 << 5) | 18;  // mid-gray
+ColorVal UIColor::warning_txt = ST77XX_ORANGE;
+ColorVal UIColor::popup_bkg = ST77XX_CYAN;
+ColorVal UIColor::popup_txt = ST77XX_BLACK;
+ColorVal UIColor::corp_blue = 0x001A;
+
 bool ST7735Display::begin() {
   if (!sprite) {
     // alloc offscreen canvas
@@ -527,9 +538,9 @@ void ST7735Display::clear() {
   sprite->fillScreen(ST77XX_BLACK);
 }
 
-void ST7735Display::startFrame(Color bkg) {
-  sprite->fillScreen(ST77XX_BLACK);
-  sprite->setTextColor(curr_color = ST77XX_WHITE);
+void ST7735Display::startFrame(ColorVal bkg) {
+  sprite->fillScreen(bkg);
+  sprite->setTextColor(curr_color = UIColor::primary_txt);
   sprite->setFreeFont();
   sprite->setTextSize(1);      // This one affects size of Please wait... message
   //sprite->cp437(true);         // Use full 256 char 'Code Page 437' font
@@ -539,33 +550,8 @@ void ST7735Display::setTextSize(int sz) {
   sprite->setTextSize(sz);
 }
 
-void ST7735Display::setColor(Color c) {
-  switch (c) {
-    case DisplayDriver::DARK :
-      curr_color = ST77XX_BLACK;
-      break;
-    case DisplayDriver::LIGHT : 
-      curr_color = ST77XX_WHITE;
-      break;
-    case DisplayDriver::RED : 
-      curr_color = ST77XX_RED;
-      break;
-    case DisplayDriver::GREEN : 
-      curr_color = ST77XX_GREEN;
-      break;
-    case DisplayDriver::BLUE : 
-      curr_color = ST77XX_BLUE;
-      break;
-    case DisplayDriver::YELLOW : 
-      curr_color = ST77XX_YELLOW;
-      break;
-    case DisplayDriver::ORANGE : 
-      curr_color = ST77XX_ORANGE;
-      break;
-    default:
-      curr_color = ST77XX_WHITE;
-      break;
-  }
+void ST7735Display::setColor(ColorVal c) {
+  curr_color = c;
   sprite->setTextColor(curr_color);
 }
 

@@ -96,18 +96,16 @@
   #define NV3001B_TEXT_SIZE2_SCALE_Y 3
 #endif
 
-static uint16_t mapColor(DisplayDriver::Color c) {
-  switch (c) {
-    case DisplayDriver::DARK: return 0x0000;
-    case DisplayDriver::LIGHT: return 0xffff;
-    case DisplayDriver::RED: return 0xf800;
-    case DisplayDriver::GREEN: return 0x07e0;
-    case DisplayDriver::BLUE: return 0x001f;
-    case DisplayDriver::YELLOW: return 0xffe0;
-    case DisplayDriver::ORANGE: return 0xfd20;
-    default: return 0xffff;
-  }
-}
+// Color scheme
+ColorVal UIColor::window_bkg = 0xFFFF;
+ColorVal UIColor::title_bkg = 0x001F;
+ColorVal UIColor::title_txt = 0xFFFF;
+ColorVal UIColor::primary_txt = 0x0000;
+ColorVal UIColor::secondary_txt = (18 << 11) | (36 << 5) | 18;  // mid-gray
+ColorVal UIColor::warning_txt = 0xFD20;
+ColorVal UIColor::popup_bkg =  0x07FF;  // CYAN
+ColorVal UIColor::popup_txt = 0x0000;
+ColorVal UIColor::corp_blue = 0x001A;
 
 static int scaleX(int x) {
   return (int)(x * DISPLAY_SCALE_X);
@@ -465,15 +463,15 @@ void NV3001BDisplay::turnOff() {
 
 void NV3001BDisplay::clear() {
   uint16_t saved = color;
-  color = 0x0000;
+  color = UIColor::window_bkg;
   fillPhysicalRect(0, 0, NV3001B_SCREEN_WIDTH, NV3001B_SCREEN_HEIGHT);
   color = saved;
 }
 
-void NV3001BDisplay::startFrame(Color bkg) {
-  color = mapColor(bkg);
+void NV3001BDisplay::startFrame(ColorVal bkg) {
+  color = bkg;
   fillPhysicalRect(0, 0, NV3001B_SCREEN_WIDTH, NV3001B_SCREEN_HEIGHT);
-  color = 0xffff;
+  color = UIColor::primary_txt;
   text_size = 1;
   cursor_x = 0;
   cursor_y = 0;
@@ -483,8 +481,8 @@ void NV3001BDisplay::setTextSize(int sz) {
   text_size = sz < 1 ? 1 : sz;
 }
 
-void NV3001BDisplay::setColor(Color c) {
-  color = mapColor(c);
+void NV3001BDisplay::setColor(ColorVal c) {
+  color = c;
 }
 
 void NV3001BDisplay::setCursor(int x, int y) {
