@@ -308,22 +308,37 @@ public:
       display.drawTextLeftAlign(0, y, buf);
       if (nmea == NULL) {
         y = y + 12;
-        display.drawTextLeftAlign(0, y, "Can't access GPS");
+        display.drawTextLeftAlign(0, y, "No GPS detected");
       } else {
-        strcpy(buf, nmea->isValid()?"fix":"no fix");
+        if (!gps_state) {
+          strcpy(buf, "off");
+        } else switch (nmea->getFixType()) {
+          case 3:  strcpy(buf, "3D"); break;
+          case 2:  strcpy(buf, "2D"); break;
+          default: strcpy(buf, "no fix"); break;
+        }
         display.drawTextRightAlign(display.width()-1, y, buf);
         y = y + 12;
         display.drawTextLeftAlign(0, y, "sat");
         sprintf(buf, "%d", nmea->satellitesCount());
         display.drawTextRightAlign(display.width()-1, y, buf);
         y = y + 12;
+        bool has_pos = (nmea->getLatitude() != 0 || nmea->getLongitude() != 0);
         display.drawTextLeftAlign(0, y, "pos");
-        sprintf(buf, "%.4f %.4f",
-          nmea->getLatitude()/1000000., nmea->getLongitude()/1000000.);
+        if (has_pos) {
+          sprintf(buf, "%.4f %.4f",
+            nmea->getLatitude()/1000000., nmea->getLongitude()/1000000.);
+        } else {
+          strcpy(buf, "---");
+        }
         display.drawTextRightAlign(display.width()-1, y, buf);
         y = y + 12;
         display.drawTextLeftAlign(0, y, "alt");
-        sprintf(buf, "%.2f", nmea->getAltitude()/1000.);
+        if (has_pos) {
+          sprintf(buf, "%.2f", nmea->getAltitude()/1000.);
+        } else {
+          strcpy(buf, "---");
+        }
         display.drawTextRightAlign(display.width()-1, y, buf);
         y = y + 12;
       }

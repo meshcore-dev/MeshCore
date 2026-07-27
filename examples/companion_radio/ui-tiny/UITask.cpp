@@ -267,7 +267,7 @@ public:
       display.drawTextLeftAlign(0, y, buf);
       if (nmea == NULL) {
         // y = y + 8;
-        display.drawTextLeftAlign(0, y, "Can't access GPS");
+        display.drawTextLeftAlign(0, y, "No GPS detected");
       } else {
         if (!gps_state || !nmea->isValid()) {
             strcpy(buf, "no fix");

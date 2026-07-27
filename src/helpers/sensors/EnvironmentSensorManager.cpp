@@ -165,7 +165,9 @@ static RAK12035_SoilMoisture RAK12035;
 #endif
 
 #ifdef RAK_WISBLOCK_GPS
-static uint32_t gpsResetPin = 0;
+// -1 = no enable pin; out-of-range values are no-ops in pinMode/digitalWrite,
+// while 0 would be a real GPIO (P0.00 = LFXO crystal on nRF52)
+static uint32_t gpsResetPin = -1;
 static bool i2cGPSFlag = false;
 static bool serialGPSFlag = false;
 #ifndef TELEM_RAK12500_ADDRESS
@@ -181,28 +183,71 @@ class RAK12500LocationProvider : public LocationProvider {
   int _sats = 0;
   long _epoch = 0;
   bool _fix = false;
+  uint8_t _fixType = 0;
+  unsigned long _next_poll = 0;
 public:
   long getLatitude() override { return _lat; }
   long getLongitude() override { return _lng; }
   long getAltitude() override { return _alt; }
   long satellitesCount() override { return _sats; }
   bool isValid() override { return _fix; }
+  uint8_t getFixType() override { return _fixType; }
   long getTimestamp() override { return _epoch; }
   void sendSentence(const char * sentence) override { }
   void reset() override { }
   void begin() override { }
   void stop() override { }
   void loop() override {
-    if (ublox_GNSS.getGnssFixOk(8)) {
-      _fix = true;
-      _lat = ublox_GNSS.getLatitude(2) / 10;
-      _lng = ublox_GNSS.getLongitude(2) / 10;
-      _alt = ublox_GNSS.getAltitude(2);
-      _sats = ublox_GNSS.getSIV(2);
+    // Throttle the I²C poll to ~1 Hz. The getXxx() calls below each issue a
+    // synchronous ublox poll that blocks up to its maxWait; the GNSS solution only
+    // updates at the 1 Hz navigation rate (setMeasurementRate(1000)), so polling on
+    // every main-loop iteration just burns the loop on redundant I²C round-trips —
+    // that stall is what made the AIN1 button sluggish and drop double-clicks.
+    // Polling once per nav epoch keeps the fix/time fresh while leaving the loop
+    // free for button sampling the rest of the time.
+    if (millis() < _next_poll) {
+      return;
+    }
+    _next_poll = millis() + 1000;
+
+    // The numeric arg is maxWait (ms) for the I²C poll, not a field index.
+    // The previous 2/8 ms values were below the ublox response window, so polls
+    // routinely timed out and returned stale/garbage PVT data (observed: random
+    // wrong-hemisphere longitudes despite getGnssFixOk() returning true).
+    // 250 ms is a ceiling; a responsive module returns well before that. getPVT()
+    // does the single poll here, then every getter reads that same cached packet
+    // (passing no maxWait, so they never re-poll). Gating all reads on getPVT()
+    // succeeding matters: if the poll times out, a getter with a stale cache would
+    // otherwise fire its own poll at the library default (~1100 ms) and stall hard.
+    if (!ublox_GNSS.getPVT(250)) {
+      return;   // no response this tick — keep last reported values
+    }
+
+    // Show the position EAGERLY: as soon as there's a real 2D/3D solution (SIV>0,
+    // fixType>=2) with valid coords, display it -- don't wait for gnssFixOk, which can
+    // take up to ~30 s to assert. Coords must be present (0/0 is the "no data" value) and
+    // in range: the module emits 0/0 and ~999deg junk while cold/re-tracking, so rejecting
+    // those keeps _lat/_lng at 0 (-> "---"). Telemetry is stricter: _fix (= isValid()) only
+    // goes true once gnssFixOk passes on a full 3D fix, and node_lat is gated on isValid()
+    // -- so the screen can show a settling fix while we withhold a loose one from the mesh.
+    _sats = ublox_GNSS.getSIV();           // valid without a fix -- shows acquisition progress
+    long lat = ublox_GNSS.getLatitude() / 10;
+    long lng = ublox_GNSS.getLongitude() / 10;
+    uint8_t ft = (_sats > 0) ? ublox_GNSS.getFixType() : 0;
+    bool coords_ok = (lat != 0 || lng != 0) &&
+                     lat >= -90000000  && lat <= 90000000 &&     // +/-90 deg  (1e6 scale)
+                     lng >= -180000000 && lng <= 180000000;      // +/-180 deg
+    if (ft >= 2 && coords_ok) {
+      _fixType = ft;                        // 2 or 3 -- shown on screen with the coords
+      _lat = lat;
+      _lng = lng;
+      _alt = ublox_GNSS.getAltitudeMSL();   // height above mean sea level, not ellipsoid
+      _fix = (ft == 3 && ublox_GNSS.getGnssFixOk());   // isValid()/telemetry: accuracy-OK 3D only
     } else {
+      _fixType = 0;                         // no usable fix -> "no fix" + held/--- position
       _fix = false;
     }
-    _epoch = ublox_GNSS.getUnixEpoch(2);
+    _epoch = ublox_GNSS.getUnixEpoch();
   }
   bool isEnabled() override { return true; }
 };
@@ -787,16 +832,25 @@ void EnvironmentSensorManager::rakGPSInit(){
   //search for the correct IO standby pin depending on socket used
   if(gpsIsAwake(WB_IO2)){
   }
-  else if(gpsIsAwake(WB_IO4)){
-  }
-  else if(gpsIsAwake(WB_IO5)){
-  }
-  else{
-    MESH_DEBUG_PRINTLN("No GPS found");
-    gps_active = false;
-    gps_detected = false;
-    Serial1.end();
-    return;
+  else {
+    // WB_IO2 controls the 3V3_S switched peripheral rail on these RAK boards.
+    // gpsIsAwake() leaves the pin as INPUT on failure, which drops the rail and
+    // takes I²C peripherals (RTC, display, the GPS itself) down with it.
+    // Restore it before probing other sockets.
+    pinMode(WB_IO2, OUTPUT);
+    digitalWrite(WB_IO2, HIGH);
+
+    if(gpsIsAwake(WB_IO4)){
+    }
+    else if(gpsIsAwake(WB_IO5)){
+    }
+    else{
+      MESH_DEBUG_PRINTLN("No GPS found");
+      gps_active = false;
+      gps_detected = false;
+      Serial1.end();
+      return;
+    }
   }
 
   #ifndef FORCE_GPS_ALIVE // for use with repeaters, until GPS toggle is implimented
@@ -844,7 +898,7 @@ bool EnvironmentSensorManager::gpsIsAwake(uint8_t ioPin){
   } else if (Serial1.available()) {
     MESH_DEBUG_PRINTLN("Serial GPS init correctly and is turned on");
 #ifdef PIN_GPS_EN
-    if(PIN_GPS_EN){
+    if(PIN_GPS_EN >= 0){
       gpsResetPin = PIN_GPS_EN;
     }
 #endif
@@ -863,8 +917,23 @@ bool EnvironmentSensorManager::gpsIsAwake(uint8_t ioPin){
 void EnvironmentSensorManager::start_gps() {
   gps_active = true;
   #ifdef RAK_WISBLOCK_GPS
-    pinMode(gpsResetPin, OUTPUT);
-    digitalWrite(gpsResetPin, HIGH);
+    #if defined(PIN_GPS_EN) && (PIN_GPS_EN >= 0)
+      pinMode(gpsResetPin, OUTPUT);
+      digitalWrite(gpsResetPin, HIGH);   // dedicated GPS enable pin
+    #else
+      // No dedicated enable pin: gpsResetPin is the shared 3V3_S rail (WB_IO2),
+      // which also powers the RTC/boost and must stay HIGH. Wake the receiver in
+      // software instead of touching the rail.
+      if (i2cGPSFlag) {
+        // UBX-CFG-RST "controlled GNSS start": resume the receiver stopped below.
+        static const uint8_t ubxGnssStart[] = {0xB5,0x62,0x06,0x04,0x04,0x00,0x00,0x00,0x09,0x00,0x17,0x76};
+        Wire.beginTransmission((uint8_t)TELEM_RAK12500_ADDRESS);
+        Wire.write(ubxGnssStart, sizeof(ubxGnssStart));
+        Wire.endTransmission();
+      } else if (serialGPSFlag) {
+        Serial1.write((uint8_t)0xFF);                              // wake MTK/Quectel from standby
+      }
+    #endif
     return;
   #endif
 
@@ -879,8 +948,25 @@ void EnvironmentSensorManager::start_gps() {
 void EnvironmentSensorManager::stop_gps() {
   gps_active = false;
   #ifdef RAK_WISBLOCK_GPS
-    pinMode(gpsResetPin, OUTPUT);
-    digitalWrite(gpsResetPin, LOW);
+    #if defined(PIN_GPS_EN) && (PIN_GPS_EN >= 0)
+      pinMode(gpsResetPin, OUTPUT);
+      digitalWrite(gpsResetPin, LOW);   // dedicated GPS enable pin
+    #else
+      // No dedicated enable pin: gpsResetPin is the shared 3V3_S rail (WB_IO2),
+      // which also powers the RTC/boost and must stay HIGH. Don't drop it; put
+      // the receiver into software low-power instead (rail/RTC stay up, warm-start).
+      if (i2cGPSFlag) {
+        // UBX-CFG-RST "controlled GNSS stop": stops RF/tracking but keeps the host
+        // interface alive, so it restarts reliably over I2C. (PMREQ backup only wakes
+        // on EXTINT/UART, not I2C -- confirmed dead on this hardware.)
+        static const uint8_t ubxGnssStop[] = {0xB5,0x62,0x06,0x04,0x04,0x00,0x00,0x00,0x08,0x00,0x16,0x74};
+        Wire.beginTransmission((uint8_t)TELEM_RAK12500_ADDRESS);
+        Wire.write(ubxGnssStop, sizeof(ubxGnssStop));
+        Wire.endTransmission();
+      } else if (serialGPSFlag) {
+        Serial1.println("$PMTK161,0*28");     // Quectel/MTK standby
+      }
+    #endif
     return;
   #endif
 
@@ -897,6 +983,7 @@ void EnvironmentSensorManager::loop() {
 
   #if ENV_INCLUDE_GPS
   static unsigned long next_gps_update = 0;
+  static uint8_t gps_debug_skip = 0;   // throttle: print roughly every 10th update tick
   if (gps_active) {
     _location->loop();
   }
@@ -907,17 +994,21 @@ void EnvironmentSensorManager::loop() {
     if ((i2cGPSFlag || serialGPSFlag) && _location->isValid()) {
       node_lat = ((double)_location->getLatitude())/1000000.;
       node_lon = ((double)_location->getLongitude())/1000000.;
-      MESH_DEBUG_PRINTLN("lat %f lon %f", node_lat, node_lon);
       node_altitude = ((double)_location->getAltitude()) / 1000.0;
-      MESH_DEBUG_PRINTLN("lat %f lon %f alt %f", node_lat, node_lon, node_altitude);
+      if (gps_debug_skip-- == 0) {
+        gps_debug_skip = 9;
+        MESH_DEBUG_PRINTLN("lat %f lon %f alt %f", node_lat, node_lon, node_altitude);
+      }
     }
     #else
     if (_location->isValid()) {
       node_lat = ((double)_location->getLatitude())/1000000.;
       node_lon = ((double)_location->getLongitude())/1000000.;
-      MESH_DEBUG_PRINTLN("lat %f lon %f", node_lat, node_lon);
       node_altitude = ((double)_location->getAltitude()) / 1000.0;
-      MESH_DEBUG_PRINTLN("lat %f lon %f alt %f", node_lat, node_lon, node_altitude);
+      if (gps_debug_skip-- == 0) {
+        gps_debug_skip = 9;
+        MESH_DEBUG_PRINTLN("lat %f lon %f alt %f", node_lat, node_lon, node_altitude);
+      }
     }
     #endif
     }

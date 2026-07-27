@@ -37,7 +37,9 @@ protected:
 public:
   #if ENV_INCLUDE_GPS
   EnvironmentSensorManager(LocationProvider &location): _location(&location){};
-  LocationProvider* getLocationProvider() { return _location; }
+  // NULL when no GPS was detected, so the UI shows "No GPS detected" (CLI: "gps provider
+  // not found") instead of an unfixed-but-present GPS. All consumers already null-check.
+  LocationProvider* getLocationProvider() { return gps_detected ? _location : NULL; }
   #else
   EnvironmentSensorManager(){};
   #endif

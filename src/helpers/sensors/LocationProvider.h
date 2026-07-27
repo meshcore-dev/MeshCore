@@ -15,6 +15,7 @@ public:
     virtual long getAltitude() = 0;
     virtual long satellitesCount() = 0;
     virtual bool isValid() = 0;
+    virtual uint8_t getFixType() { return isValid() ? 3 : 0; }  // 0=none, 2=2D, 3=3D; providers may override
     virtual long getTimestamp() = 0;
     virtual void sendSentence(const char * sentence);
     virtual void reset() = 0;

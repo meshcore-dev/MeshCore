@@ -114,15 +114,20 @@ public :
     }
 
     void syncTime() override { nmea.clear(); LocationProvider::syncTime(); }
-    long getLatitude() override { return nmea.getLatitude(); }
-    long getLongitude() override { return nmea.getLongitude(); }
+    // MicroNMEA reports lat/lng = 999000000 (999 deg) when there is no fix; map that to 0
+    // (the codebase's no-data value) so the UI shows "---" and node_lat stays 0.
+    long getLatitude() override  { long v = nmea.getLatitude();  return v == 999000000L ? 0 : v; }
+    long getLongitude() override { long v = nmea.getLongitude(); return v == 999000000L ? 0 : v; }
     long getAltitude() override { 
         long alt = 0;
         nmea.getAltitude(alt);
         return alt;
     }
     long satellitesCount() override { return nmea.getNumSatellites(); }
-    bool isValid() override { return nmea.isValid(); }
+    // Require actual coordinates, not just the RMC 'A' status flag: some MTK/Quectel
+    // receivers assert 'A' for seconds before the position is computed -- and MicroNMEA
+    // reports lat==999000000 until then. Without this it'd show "fix" with no coords.
+    bool isValid() override { return nmea.isValid() && nmea.getLatitude() != 999000000L; }
 
     long getTimestamp() override { 
         DateTime dt(nmea.getYear(), nmea.getMonth(),nmea.getDay(),nmea.getHour(),nmea.getMinute(),nmea.getSecond());
