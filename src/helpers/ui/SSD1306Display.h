@@ -19,6 +19,9 @@ class SSD1306Display : public DisplayDriver {
   Adafruit_SSD1306 display;
   bool _isOn;
   uint8_t _color;
+#ifdef CYRILLIC
+  uint8_t _size;
+#endif
   RefCountedDigitalPin* _peripher_power;
 
   bool i2c_probe(TwoWire& wire, uint8_t addr);
