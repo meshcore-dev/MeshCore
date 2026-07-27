@@ -300,8 +300,9 @@ flasher.meshcore.ioでは単体イレースができません（"Flash"ボタン
 
 > **📡 注意：** 本実装はチャネルが空いていることを確認してから送信します（Listen Before Talk）。  
 > 周囲に強い電波干渉がある環境では、送信の遅延や困難が生じる場合があります。  
-> これは仕様であり、ARIB STD-T108への準拠によるものです。詳しくは [Issue #2079](https://github.com/meshcore-dev/MeshCore/issues/2079) を参照してください。
 
+> バックオフの長さや、ジッターは私が調整、追加したものですが、それ以外の仕様は、ARIB STD-T108への準拠によるものです。詳しくは [Issue #2079](https://github.com/meshcore-dev/MeshCore/issues/2079) を参照してください。
+> 参考にした物：[ARIB STD-T108 v1.5](https://www.arib.or.jp/english/html/overview/doc/5-STD-T108v1_5-E1.pdf)（英訳、参考資料）。法的根拠としては[平成元年郵政省告示第49号](https://www.tele.soumu.go.jp/horei/law_honbun/72138100.html)（日本語原文）。内容に差がある場合は告示（日本語原文）を優先したつもりです。
 ---
 
 ## ライセンス
