@@ -53,16 +53,8 @@ MultiSerialInterface interface_manager;
 
 // include ethernet interface
 #if defined(ETHERNET_ENABLED)
-  // todo refactor rak/nrf52 SerialEthernetInterface to new EthernetInterface
-  #if defined(NRF52_PLATFORM)
-    // include nrf52 ethernet interface
-    #include <helpers/nrf52/SerialEthernetInterface.h>
-    SerialEthernetInterface ethernet_interface;
-  #else
-    // include ethernet interface
-    #include <helpers/ethernet/EthernetInterface.h>
-    ETHERNET_CLASS ethernet_interface;
-  #endif
+  #include <helpers/ethernet/EthernetInterface.h>
+  ETHERNET_CLASS ethernet_interface;
 #endif
 
 // include hardware serial interface
