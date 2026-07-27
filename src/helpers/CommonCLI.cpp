@@ -112,7 +112,7 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     // sanitise bad bridge pref values
     _prefs->bridge_enabled = constrain(_prefs->bridge_enabled, 0, 1);
     _prefs->bridge_delay = constrain(_prefs->bridge_delay, 0, 10000);
-    _prefs->bridge_pkt_src = constrain(_prefs->bridge_pkt_src, 0, 1);
+    _prefs->bridge_pkt_src = constrain(_prefs->bridge_pkt_src, 0, 3);   // log Rx and Tx = 3
     _prefs->bridge_baud = constrain(_prefs->bridge_baud, 9600, BRIDGE_MAX_BAUD);
     _prefs->bridge_channel = constrain(_prefs->bridge_channel, 0, 14);
 
@@ -654,7 +654,7 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       strcpy(reply, "OK");
     } else {
       strcpy(reply, "Error, max 64");
-    } 
+    }
   } else if (memcmp(config, "flood.max.advert ", 17) == 0) {
     uint8_t m = atoi(&config[17]);
     if (m <= 64) {
@@ -747,9 +747,20 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       strcpy(reply, "Error: delay must be between 0-10000 ms");
     }
   } else if (memcmp(config, "bridge.source ", 14) == 0) {
-    _prefs->bridge_pkt_src = memcmp(&config[14], "rx", 2) == 0;
-    savePrefs();
-    strcpy(reply, "OK");
+    if (memcmp(&config[14], "log", 3) == 0) {
+      if (memcmp(&config[17], "Rx", 2) == 0 || memcmp(&config[17], "rx", 2) == 0) {
+        _prefs->bridge_pkt_src = BRIDGE_SOURCE_RX;
+        strcpy(reply, "OK");
+      } else if (memcmp(&config[17], "Tx", 2) == 0 || memcmp(&config[17], "tx", 2) == 0) {
+        _prefs->bridge_pkt_src = BRIDGE_SOURCE_TX;
+        strcpy(reply, "OK");
+      }
+    }
+    if (memcmp(reply, "OK", 2) == 0) {
+      savePrefs();
+    } else {
+      strcpy(reply, "Error: source must be logRx or logTx.");
+    }
 #endif
 #ifdef WITH_RS232_BRIDGE
   } else if (memcmp(config, "bridge.baud ", 12) == 0) {
@@ -1138,7 +1149,7 @@ void CommonCLI::handleRegionCmd(char* command, char* reply) {
   } else if (n >= 3 && strcmp(parts[1], "list") == 0) {
     uint8_t mask = 0;
     bool invert = false;
-    
+
     if (strcmp(parts[2], "allowed") == 0) {
       mask = REGION_DENY_FLOOD;
       invert = false;  // list regions that DON'T have DENY flag
@@ -1149,7 +1160,7 @@ void CommonCLI::handleRegionCmd(char* command, char* reply) {
       strcpy(reply, "Err - use 'allowed' or 'denied'");
       return;
     }
-    
+
     int len = _region_map->exportNamesTo(reply, 160, mask, invert);
     if (len == 0) {
       strcpy(reply, "-none-");
