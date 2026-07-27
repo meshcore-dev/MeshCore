@@ -305,6 +305,8 @@ void BaseChatMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender
       }
     }
   } else if (type == PAYLOAD_TYPE_RESPONSE && len > 0) {
+    _last_resp_snr = packet->getSNR();
+    _last_resp_rssi = packet->getRSSI();
     onContactResponse(from, data, len);
     if (packet->isRouteFlood() && from.out_path_len != OUT_PATH_UNKNOWN) {
       // we have direct path, but other node is still sending flood response, so maybe they didn't receive reciprocal path properly(?)
@@ -322,6 +324,8 @@ bool BaseChatMesh::onPeerPathRecv(mesh::Packet* packet, int sender_idx, const ui
 
   ContactInfo& from = contacts[i];
 
+  _last_resp_snr = packet->getSNR();
+  _last_resp_rssi = packet->getRSSI();
   return onContactPathRecv(from, packet->path, packet->path_len, path, path_len, extra_type, extra, extra_len);
 }
 

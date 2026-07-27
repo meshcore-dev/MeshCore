@@ -35,6 +35,7 @@ class UITask : public AbstractUITask {
   NodePrefs* _node_prefs;
   char _alert[80];
   unsigned long _alert_expiry;
+  uint8_t _alert_line_count;
   int _msgcount;
   unsigned long ui_started_at, next_batt_chck;
   int next_backlight_btn_check = 0;

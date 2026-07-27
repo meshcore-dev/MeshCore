@@ -101,6 +101,8 @@ public:
   void enterCLIRescue();
 
   int  getRecentlyHeard(AdvertPath dest[], int max_num);
+  int  startPing(const ContactInfo& recipient, uint32_t& est_timeout);
+  bool consumePingResult(uint8_t* pub_key_prefix, float& snr, int8_t& rssi, float& out_snr, int16_t& out_rssi, uint16_t& rtt_ms);
 
 protected:
   float getAirtimeBudgetFactor() const override;
@@ -161,7 +163,7 @@ protected:
   bool getChannelForSave(uint8_t channel_idx, ChannelDetails& ch) override { return getChannel(channel_idx, ch); }
 
   void clearPendingReqs() {
-    pending_login = pending_status = pending_telemetry = pending_discovery = pending_req = 0;
+    pending_login = pending_status = pending_telemetry = pending_discovery = pending_req = pending_ping = 0;
   }
 
 public:
@@ -210,6 +212,19 @@ private:
   uint32_t pending_status;
   uint32_t pending_telemetry, pending_discovery;   // pending _TELEMETRY_REQ
   uint32_t pending_req;   // pending _BINARY_REQ
+
+  uint32_t pending_ping;
+  unsigned long pending_ping_at_ms;
+  struct {
+	  uint8_t pubkey_prefix[6];
+	  bool ready;
+	  float snr;
+	  int8_t rssi;
+	  float out_snr;
+	  int16_t out_rssi;
+	  uint16_t rtt_ms;
+  } _ping_result;
+
   BaseSerialInterface *_serial;
   AbstractUITask* _ui;
 
