@@ -183,6 +183,8 @@ extern "C"
 #define EXTERNAL_FLASH_USE_QSPI
 
 #define PIN_GPS_RX PIN_SERIAL1_RX
+#define PIN_GPS_TX PIN_SERIAL1_TX
+
 #define GPS_BAUD_RATE   9600
 #define GPS_ADDRESS   0x42  //i2c address for GPS
 
