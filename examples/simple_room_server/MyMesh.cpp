@@ -39,18 +39,43 @@ struct ServerStats {
 };
 
 void MyMesh::addPost(ClientInfo *client, const char *postData) {
-  // TODO: suggested postData format: <title>/<descrption>
-  posts[next_post_idx].author = client->id; // add to cyclic queue
-  StrHelper::strncpy(posts[next_post_idx].text, postData, MAX_POST_TEXT_LEN);
+  storePost(client->id, postData);
+}
 
-  posts[next_post_idx].post_timestamp = getRTCClock()->getCurrentTimeUnique();
+void MyMesh::addSystemPost(const char *postData) {
+  if (!postData || postData[0] == 0) return;
+
+#if defined(ENABLE_ROOM_POST_DEBUG) && ENABLE_ROOM_POST_DEBUG == 1
+  Serial.print("room.post: addSystemPost: "); Serial.println(postData);
+#endif
+
+  storePost(self_id, postData);
+}
+
+void MyMesh::storePost(const mesh::Identity &author, const char *postData) {
+  int idx = next_post_idx;
+  // TODO: suggested postData format: <title>/<descrption>
+  posts[idx].author = author; // add to cyclic queue
+  StrHelper::strncpy(posts[idx].text, postData, MAX_POST_TEXT_LEN);
+
+  posts[idx].post_timestamp = getRTCClock()->getCurrentTimeUnique();
+#if defined(ENABLE_ROOM_POST_DEBUG) && ENABLE_ROOM_POST_DEBUG == 1
+  Serial.printf("room.post: storePost idx=%d text=%s\n", idx, posts[idx].text);
+  Serial.printf("room.post: timestamp=%u\n", posts[idx].post_timestamp);
+#endif
   next_post_idx = (next_post_idx + 1) % MAX_UNSYNCED_POSTS;
 
   next_push = futureMillis(PUSH_NOTIFY_DELAY_MILLIS);
   _num_posted++; // stats
+#if defined(ENABLE_ROOM_POST_DEBUG) && ENABLE_ROOM_POST_DEBUG == 1
+  Serial.printf("room.post: next_post_idx=%d num_posted=%d push scheduled\n", next_post_idx, _num_posted);
+#endif
 }
 
 void MyMesh::pushPostToClient(ClientInfo *client, PostInfo &post) {
+#if defined(ENABLE_ROOM_POST_DEBUG) && ENABLE_ROOM_POST_DEBUG == 1
+  Serial.print("room.post: pushPostToClient text="); Serial.println(post.text);
+#endif
   int len = 0;
   memcpy(&reply_data[len], &post.post_timestamp, 4);
   len += 4; // this is a PAST timestamp... but should be accepted by client
@@ -948,6 +973,15 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
       Serial.printf("\n");
     }
     reply[0] = 0;
+  } else if (strncmp(command, "room.post", 9) == 0) {
+    char* msg = command + 9;
+    while (*msg == ' ') msg++;
+    if (*msg == 0) {
+      snprintf(reply, MAX_POST_TEXT_LEN, "ERR empty message");
+    } else {
+      addSystemPost(msg);
+      snprintf(reply, MAX_POST_TEXT_LEN, "OK");
+    }
   } else{
     _cli.handleCommand(sender_timestamp, command, reply);  // common CLI commands
   }

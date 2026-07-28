@@ -119,6 +119,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   int  matching_peer_indexes[MAX_CLIENTS];
 
   void addPost(ClientInfo* client, const char* postData);
+  void storePost(const mesh::Identity& author, const char* postData);
   void pushPostToClient(ClientInfo* client, PostInfo& post);
   uint8_t getUnsyncedCount(ClientInfo* client);
   bool processAck(const uint8_t *data);
@@ -176,6 +177,7 @@ public:
   MyMesh(mesh::MainBoard& board, mesh::Radio& radio, mesh::MillisecondClock& ms, mesh::RNG& rng, mesh::RTCClock& rtc, mesh::MeshTables& tables);
 
   void begin(FILESYSTEM* fs);
+  void addSystemPost(const char* postData);
 
   const char* getFirmwareVer() override { return FIRMWARE_VERSION; }
   const char* getBuildDate() override { return FIRMWARE_BUILD_DATE; }
