@@ -24,17 +24,16 @@
 ### JP版ファームウェアを書き込む
 
 1. [jirogit/MeshCore Releases](https://github.com/jirogit/MeshCore/releases) から最新の `jp-v*` リリースを開く
-2. お使いの機種に対応するファイルをダウンロードする
 
-NRF52系
-WioTrackerL1_companion_radio_ble-*.uf2
-t1000e_companion_radio_ble-*.uf2
-Xiao_nrf52_companion_radio_ble-*.uf2
+- NRF52系
+- WioTrackerL1_companion_radio_ble-*.uf2
+- t1000e_companion_radio_ble-*.uf2
+- Xiao_nrf52_companion_radio_ble-*.uf2
 
-ESP32系
-Xiao_S3_WIO_companion_radio_ble-*-merged.bin
+- ESP32系
+- Xiao_S3_WIO_companion_radio_ble-*-merged.bin
 
-3. 機種ごとの書き込み手順:
+2. 機種ごとの書き込み手順:
 
 **Wio Tracker L1 Pro**
 - ファイル WioTrackerL1_companion_radio_ble-*.uf2 を、PCにダウンロードしておく。
