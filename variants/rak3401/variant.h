@@ -38,6 +38,27 @@ extern "C"
 {
 #endif // __cplusplus
 
+/*
+ * WisBlock Base GPIO definitions
+ */
+	static const uint8_t WB_IO1 = 17;	   // SLOT_A P.12 / SLOT_B P.10
+	static const uint8_t WB_IO2 = 34;	   // SLOT_A P.10 / SLOT_B P.12
+	static const uint8_t WB_IO3 = 21;	   // SLOT_C P.12
+	static const uint8_t WB_IO4 = 4;	   // SLOT_C P.10
+	static const uint8_t WB_IO5 = 9;	   // SLOT_D P.12
+	static const uint8_t WB_IO6 = 10;	   // SLOT_D P.10
+	static const uint8_t WB_SW1 = 33;	   // IO_SLOT
+	static const uint8_t WB_A0 = 5;		   // IO_SLOT
+	static const uint8_t WB_A1 = 31;	   // IO_SLOT
+	static const uint8_t WB_I2C1_SDA = 13; // SENSOR_SLOT IO_SLOT
+	static const uint8_t WB_I2C1_SCL = 14; // SENSOR_SLOT IO_SLOT
+	static const uint8_t WB_I2C2_SDA = 24; // IO_SLOT
+	static const uint8_t WB_I2C2_SCL = 25; // IO_SLOT
+	static const uint8_t WB_SPI_CS = 26;   // IO_SLOT
+	static const uint8_t WB_SPI_CLK = 3;   // IO_SLOT
+	static const uint8_t WB_SPI_MISO = 29; // IO_SLOT
+	static const uint8_t WB_SPI_MOSI = 30; // IO_SLOT
+
 // Number of pins defined in PinDescription array
 #define PINS_COUNT (48)
 #define NUM_DIGITAL_PINS (48)
@@ -92,8 +113,6 @@ extern "C"
 
 #define PIN_AREF (2)
 #define PIN_NFC1 (9)
-#define WB_IO5 PIN_NFC1
-#define WB_IO4 (4)
 #define PIN_NFC2 (10)
 
 static const uint8_t AREF = PIN_AREF;
@@ -178,20 +197,10 @@ static const uint8_t AREF = PIN_AREF;
 // enables 3.3V periphery like GPS or IO Module
 // Do not toggle this for GPS power savings
 #define PIN_3V3_EN (34)
-#define WB_IO2 PIN_3V3_EN
-
-// RAK1910 GPS module
-// If using the wisblock GPS module and pluged into Port A on WisBlock base
-// IO1 is hooked to PPS (pin 12 on header) = gpio 17
-// IO2 is hooked to GPS RESET = gpio 34, but it can not be used to this because IO2 is ALSO used to control 3V3_S power (1 is on).
-// Therefore must be 1 to keep peripherals powered
-// Power is on the controllable 3V3_S rail
-#define PIN_GPS_PPS (17) // Pulse per second input from the GPS
 
 #define PIN_GPS_RX PIN_SERIAL1_RX
 #define PIN_GPS_TX PIN_SERIAL1_TX
 
-#define PIN_GPS_1PPS PIN_GPS_PPS
 #define GPS_BAUD_RATE 9600
 #define GPS_ADDRESS 0x42  //i2c address for GPS
 

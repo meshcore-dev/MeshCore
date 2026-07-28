@@ -38,15 +38,15 @@ extern "C"
 {
 #endif // __cplusplus
 
-	/*
+/*
  * WisBlock Base GPIO definitions
  */
-	static const uint8_t WB_IO1 = 17;	   // SLOT_A SLOT_B
-	static const uint8_t WB_IO2 = 34;	   // SLOT_A SLOT_B
-	static const uint8_t WB_IO3 = 21;	   // SLOT_C
-	static const uint8_t WB_IO4 = 4;	   // SLOT_C
-	static const uint8_t WB_IO5 = 9;	   // SLOT_D
-	static const uint8_t WB_IO6 = 10;	   // SLOT_D
+	static const uint8_t WB_IO1 = 17;	   // SLOT_A P.12 / SLOT_B P.10
+	static const uint8_t WB_IO2 = 34;	   // SLOT_A P.10 / SLOT_B P.12
+	static const uint8_t WB_IO3 = 21;	   // SLOT_C P.12
+	static const uint8_t WB_IO4 = 4;	   // SLOT_C P.10
+	static const uint8_t WB_IO5 = 9;	   // SLOT_D P.12
+	static const uint8_t WB_IO6 = 10;	   // SLOT_D P.10
 	static const uint8_t WB_SW1 = 33;	   // IO_SLOT
 	static const uint8_t WB_A0 = 5;		   // IO_SLOT
 	static const uint8_t WB_A1 = 31;	   // IO_SLOT
