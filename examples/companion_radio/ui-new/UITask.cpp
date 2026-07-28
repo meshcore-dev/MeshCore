@@ -145,7 +145,10 @@ class HomeScreen : public UIScreen {
     // keeping the fill bar itself clean and uninterrupted
     bool charging = board.isExternalPowered();
     if (charging) {
-      const uint8_t* symbol = (batteryPercentage < 100) ? charging_icon : plug_icon;
+      // There's no charge-complete signal on most boards, so "full" is a high
+      // voltage band rather than an exact 100% (a real pack rarely reads 4.2V).
+      const int BATT_FULL_PCT = 95;
+      const uint8_t* symbol = (batteryPercentage >= BATT_FULL_PCT) ? plug_icon : charging_icon;
       display.setColor(UIColor::title_txt);
       display.drawXbm(iconX - 9, iconY + 1, symbol, 8, 8);
     }
