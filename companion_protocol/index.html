@@ -2206,6 +2206,8 @@ Bytes 9 .. 8+data_len:  Payload
 <li>Uses a secret key derived from the channel name</li>
 <li>It is the first 16 bytes of <code>sha256("#test")</code></li>
 <li>For example hashtag channel <code>#test</code> has the key: <code>9cd8fcf22a47333b591d96a2b848b73f</code></li>
+<li>Traffic is encrypted on air, but anyone who knows or guesses the channel
+  name can derive the key. Hashtag channels should not be treated as private.</li>
 <li>Used as a topic based public group chat, separate from the default public channel</li>
 </ul>
 </li>

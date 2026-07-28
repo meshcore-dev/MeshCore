@@ -1278,6 +1278,8 @@
 </tbody>
 </table>
 <p>The plaintext contained in the ciphertext matches the format described in <a href="#plain-text-message">plain text message</a>. Specifically, it consists of a four byte timestamp, a flags byte, and the message. The flags byte will generally be <code>0x00</code> because it is a "plain text message". The message will be of the form <code>&lt;sender name&gt;: &lt;message body&gt;</code> (eg., <code>user123: I'm on my way</code>).</p>
+<p>The sender name is unverified message text. Group messages contain no sender
+signature, so any channel-key holder can choose any sender name.</p>
 <h1 id="group-datagram">Group datagram</h1>
 <table>
 <thead>
