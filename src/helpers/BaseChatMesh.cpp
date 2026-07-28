@@ -872,7 +872,7 @@ ChannelDetails* BaseChatMesh::addChannel(const char* name, const char* psk_base6
     memset(dest->channel.secret, 0, sizeof(dest->channel.secret));
     int len = decode_base64((unsigned char *) psk_base64, strlen(psk_base64), dest->channel.secret);
     if (len == 32 || len == 16) {
-      mesh::Utils::sha256(dest->channel.hash, sizeof(dest->channel.hash), dest->channel.secret, len);
+      dest->channel.deriveHash(len);
       StrHelper::strncpy(dest->name, name, sizeof(dest->name));
       num_channels++;
       return dest;
@@ -888,15 +888,9 @@ bool BaseChatMesh::getChannel(int idx, ChannelDetails& dest) {
   return false;
 }
 bool BaseChatMesh::setChannel(int idx, const ChannelDetails& src) {
-  static uint8_t zeroes[] = { 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 };
-
   if (idx >= 0 && idx < MAX_GROUP_CHANNELS) {
     channels[idx] = src;
-    if (memcmp(&src.channel.secret[16], zeroes, 16) == 0) {
-      mesh::Utils::sha256(channels[idx].channel.hash, sizeof(channels[idx].channel.hash), src.channel.secret, 16);  // 128-bit key
-    } else {
-      mesh::Utils::sha256(channels[idx].channel.hash, sizeof(channels[idx].channel.hash), src.channel.secret, 32);  // 256-bit key
-    }
+    channels[idx].channel.deriveHash();
     return true;
   }
   return false;

@@ -33,6 +33,7 @@
 #include <helpers/StatsFormatHelper.h>
 #include <helpers/TxtDataHelpers.h>
 #include <helpers/RegionMap.h>
+#include <helpers/PacketFilter.h>
 #include "RateLimiter.h"
 
 #ifdef WITH_BRIDGE
@@ -79,6 +80,7 @@ struct NeighbourInfo {
 #define FIRMWARE_ROLE "repeater"
 
 #define PACKET_LOG_FILE  "/packet_log"
+#define PACKET_FILTER_RULES_FILE "/packet_filter"
 
 class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   FILESYSTEM* _fs;
@@ -95,6 +97,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   uint8_t reply_path_hash_size;
   TransportKeyStore key_store;
   RegionMap region_map, temp_map;
+  PacketFilter packet_filter;
   RegionEntry* load_stack[8];
   RegionEntry* recv_pkt_region;
   TransportKey default_scope;

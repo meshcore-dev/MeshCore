@@ -1,14 +1,9 @@
 #pragma once
 
 #include <Dispatcher.h>
+#include <GroupChannel.h>
 
 namespace mesh {
-
-class GroupChannel {
-public:
-  uint8_t hash[PATH_HASH_SIZE];
-  uint8_t secret[PUB_KEY_SIZE];
-};
 
 /**
  * An abstraction of the data tables needed to be maintained
