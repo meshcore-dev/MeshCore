@@ -7,6 +7,10 @@
 
 ---
 
+👉 まずはこれだけ読めば始められます: [QUICKSTART_JP.md](./QUICKSTART_JP.md)
+
+---
+
 ## 📥 ファームウェアのダウンロードと書き込み
 
 ### 最新リリース → [Releases ページ](https://github.com/jirogit/MeshCore/releases/latest)
