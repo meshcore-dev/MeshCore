@@ -46,6 +46,7 @@ RegionMap::RegionMap(TransportKeyStore& store) : _store(&store) {
   default_id = home_id = 0;
   wildcard.id = wildcard.parent = 0;
   wildcard.flags = 0;  // default behaviour, allow flood and direct
+  wildcard.rt_flags = 0;
   strcpy(wildcard.name, "*");
 }
 
@@ -100,6 +101,8 @@ bool RegionMap::load(FILESYSTEM* _fs, const char* path) {
           success = success && file.read(pad, sizeof(pad)) == sizeof(pad);
 
           if (!success) break; // EOF
+
+          r->rt_flags = 0;   // runtime overlay is never persisted; start clean
 
           if (r->id >= next_id) {    // make sure next_id is valid
             next_id = r->id + 1;
@@ -161,6 +164,7 @@ RegionEntry* RegionMap::putRegion(const char* name, uint16_t parent_id, uint16_t
 
     region = &regions[num_regions++];   // alloc new RegionEntry
     region->flags = REGION_DENY_FLOOD;     // DENY by default
+    region->rt_flags = 0;
     region->id = id == 0 ? next_id++ : id;
     StrHelper::strncpy(region->name, name, sizeof(region->name));
     region->parent = parent_id;
@@ -188,7 +192,7 @@ int RegionMap::getTransportKeysFor(const RegionEntry& src, TransportKey dest[], 
 RegionEntry* RegionMap::findMatch(mesh::Packet* packet, uint8_t mask) {
   for (int i = 0; i < num_regions; i++) {
     auto region = &regions[i];
-    if ((region->flags & mask) == 0) {   // does region allow this? (per 'mask' param)
+    if ((region->effectiveFlags() & mask) == 0) {   // does region allow this? (config + runtime gate)
       TransportKey keys[4];
       int num = getTransportKeysFor(*region, keys, 4);
       for (int j = 0; j < num; j++) {
@@ -303,6 +307,58 @@ void RegionMap::printChildRegions(int indent, const RegionEntry* parent, Stream&
 
 void RegionMap::exportTo(Stream& out) const {
   printChildRegions(0, &wildcard, out);   // recursive
+}
+
+int RegionMap::depthOf(const RegionEntry* region) const {
+  int depth = 0;
+  uint16_t pid = region->parent;
+  // walk up parent links to the wildcard root (id 0); guard against cycles / missing parents
+  while (pid != 0 && depth < MAX_REGION_ENTRIES) {
+    const RegionEntry* p = NULL;
+    for (int i = 0; i < num_regions; i++) {
+      if (regions[i].id == pid) { p = &regions[i]; break; }
+    }
+    if (!p) break;   // dangling parent -> treat current chain as the root
+    depth++;
+    pid = p->parent;
+  }
+  return depth + 1;   // wildcard's direct children are depth 1
+}
+
+int RegionMap::getMaxDepth() const {
+  int maxDepth = 0;
+  for (int i = 0; i < num_regions; i++) {
+    int d = depthOf(&regions[i]);
+    if (d > maxDepth) maxDepth = d;
+  }
+  return maxDepth;   // 0 when there are no named regions (wildcard only)
+}
+
+uint8_t RegionMap::getMaxGateLevel() const {
+  int maxDepth = getMaxDepth();
+  // No named regions -> the wildcard IS the local cluster, so nothing may be gated.
+  // Otherwise the highest level gates '*' + all depths except the innermost (deepest) one.
+  return maxDepth <= 0 ? 0 : (uint8_t)maxDepth;
+}
+
+void RegionMap::applyDutyGate(uint8_t level) {
+  int maxDepth = getMaxDepth();
+
+  // Wildcard is the outermost layer: gated from level 1 onwards (but only if named
+  // regions exist to keep serving the local cluster).
+  if (level >= 1 && maxDepth > 0) wildcard.rt_flags |= REGION_DENY_FLOOD;
+  else                            wildcard.rt_flags &= (uint8_t)~REGION_DENY_FLOOD;
+
+  // Named regions: level 2 gates depth 1, level 3 gates depth 2, ... The innermost
+  // layer (depth == maxDepth) is always protected, as is the home region (an explicit
+  // operator signal of this repeater's own cluster, which depth alone can't express).
+  for (int i = 0; i < num_regions; i++) {
+    RegionEntry* r = &regions[i];
+    int d = depthOf(r);
+    bool gate = (level >= 2) && (d <= (int)level - 1) && (d < maxDepth) && (r->id != home_id);
+    if (gate) r->rt_flags |= REGION_DENY_FLOOD;
+    else      r->rt_flags &= (uint8_t)~REGION_DENY_FLOOD;
+  }
 }
 
 size_t RegionMap::exportTo(char *dest, size_t max_len) const {
