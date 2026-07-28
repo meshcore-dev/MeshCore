@@ -81,6 +81,16 @@ public:
    */
   static int parseTextParts(char* text, const char* parts[], int max_num, char separator=',');
 
+  /**
+   * \brief  parse 'text' into non-empty parts separated by 'separator' char.
+   * \param  text  the text to parse (note is MODIFIED!)
+   * \param  parts  destination array to store pointers to starts of parse parts
+   * \param  max_num  max elements to store in 'parts' array
+   * \param  separator  the separator character; consecutive instances are treated as one
+   * \returns  the number of non-empty parts parsed (in 'parts')
+   */
+  static int parseTextPartsSkippingEmpty(char* text, const char* parts[], int max_num, char separator=',');
+
   static bool isHexChar(char c);
 };
 

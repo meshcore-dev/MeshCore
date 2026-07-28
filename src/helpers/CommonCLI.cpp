@@ -1002,7 +1002,7 @@ void CommonCLI::handleRegionCmd(char* command, char* reply) {
   }
 
   const char* parts[4];
-  int n = mesh::Utils::parseTextParts(command, parts, 4, ' ');
+  int n = mesh::Utils::parseTextPartsSkippingEmpty(command, parts, 4, ' ');
   if (n == 1) {
     _region_map->exportTo(reply, 160);
   } else if (n >= 2 && strcmp(parts[1], "load") == 0) {

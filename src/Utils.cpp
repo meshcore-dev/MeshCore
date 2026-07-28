@@ -150,4 +150,20 @@ int Utils::parseTextParts(char* text, const char* parts[], int max_num, char sep
   return num;
 }
 
+int Utils::parseTextPartsSkippingEmpty(char* text, const char* parts[], int max_num, char separator) {
+  int num = 0;
+  char* sp = text;
+  while (*sp && num < max_num) {
+    while (*sp == separator) sp++;
+    if (*sp == '\0') break;
+
+    parts[num++] = sp;
+    while (*sp && *sp != separator) sp++;
+    if (*sp) {
+      *sp++ = 0;
+    }
+  }
+  return num;
+}
+
 }
