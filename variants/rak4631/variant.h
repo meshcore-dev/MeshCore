@@ -182,7 +182,7 @@ extern "C"
 #define EXTERNAL_FLASH_DEVICES IS25LP080D
 #define EXTERNAL_FLASH_USE_QSPI
 
-#define PIN_GPS_1PPS      17  //GPS PPS pin
+#define PIN_GPS_RX PIN_SERIAL1_RX
 #define GPS_BAUD_RATE   9600
 #define GPS_ADDRESS   0x42  //i2c address for GPS
 
