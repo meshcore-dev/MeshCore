@@ -114,6 +114,50 @@ void MyMesh::touchNeighbourByHash(const mesh::Packet* packet) {
 #endif
 }
 
+// Is neighbours[i] a "near" coverage peer? fresh (<= NEIGHBOUR_FRESH_S) and link
+// SNR >= flood_suppress_snr_lo. Distant/weak neighbours are edge nodes, excluded
+// (same intent as the old SNR-weighting weight-0).
+bool MyMesh::isNearNeighbour(int i, uint32_t now) const {
+#if MAX_NEIGHBOURS
+  if (neighbours[i].heard_timestamp == 0) return false;                              // empty slot
+  if ((uint32_t)(now - neighbours[i].heard_timestamp) > NEIGHBOUR_FRESH_S) return false;  // stale
+  int8_t lo_x4 = (int8_t)(_prefs.flood_suppress_snr_lo * 4);
+  return neighbours[i].snr >= lo_x4;
+#else
+  return false;
+#endif
+}
+
+// Return the index of a NEAR neighbour whose path-hash matches (or -1). A
+// forwarded flood carries only forwarder path hashes, so this matches known
+// neighbours only (cannot seed new ones -- same limit as touchNeighbourByHash).
+int8_t MyMesh::findNearNeighbour(const uint8_t* h, uint8_t hs, uint32_t now) const {
+#if MAX_NEIGHBOURS
+  for (int i = 0; i < MAX_NEIGHBOURS; i++) {
+    if (!isNearNeighbour(i, now)) continue;
+    if (neighbours[i].id.isHashMatch(h, hs)) return (int8_t)i;
+  }
+#endif
+  return -1;
+}
+
+// True iff at least one near neighbour exists AND every CURRENT near neighbour
+// is recorded as covered in e. Iterating current near neighbours makes this
+// robust to a neighbour going stale mid-flood (a stale one simply isn't checked).
+bool MyMesh::allNearNeighboursCovered(const FloodSuppressionEntry& e, uint32_t now) const {
+#if MAX_NEIGHBOURS
+  bool any = false;
+  for (int i = 0; i < MAX_NEIGHBOURS; i++) {
+    if (!isNearNeighbour(i, now)) continue;
+    any = true;
+    if (!e.covers((uint8_t)i)) return false;
+  }
+  return any;
+#else
+  return false;
+#endif
+}
+
 uint8_t MyMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* secret, uint32_t sender_timestamp, const uint8_t* data, bool is_flood) {
   ClientInfo* client = NULL;
   if (data[0] == 0) {   // blank password, just check if sender is in ACL
@@ -496,7 +540,6 @@ void MyMesh::updateAdaptiveFloodParams() {
   int n = 0;
   int8_t snr_x4[MAX_NEIGHBOURS];
   uint32_t now = getRTCClock()->getCurrentTime();      // seconds (RTC)
-  const uint32_t NEIGHBOUR_FRESH_S = 600;              // 10 min: table has no aging
   for (int i = 0; i < MAX_NEIGHBOURS; i++) {
     if (neighbours[i].heard_timestamp == 0) continue;              // empty slot
     if ((now - neighbours[i].heard_timestamp) > NEIGHBOUR_FRESH_S) continue;  // stale
@@ -607,36 +650,37 @@ void MyMesh::logRx(mesh::Packet *pkt, int len, float score) {
     touchNeighbourByHash(pkt);
   }
 
-  // --- Redundancy-aware FLOOD suppression ---------------------------------
-  // Count overheard forwards at RX-ARRIVAL time (here, before calcRxDelay).
-  // The packet hash is path-independent for floods, so every copy of one flood
-  // shares an identity. First copy -> record; later copies -> a neighbour has
-  // already re-broadcast, so accumulate an SNR-weighted count and, once it
-  // reaches the threshold C, cancel our own (redundant) scheduled rebroadcast.
+  // --- Coverage-test FLOOD suppression ------------------------------------
+  // M suppresses its rebroadcast of F iff every NEAR neighbour is already known
+  // to have F. "Known to have F" = the neighbour appears on the path of some
+  // forward of F that M overheard -- every hop on a decoded path forwarded F, so
+  // it has it (certain evidence, no SNR/inference). Walk this copy's full path
+  // and mark any near neighbours covered; once the covered set spans all current
+  // near neighbours, cancel our own (redundant) rebroadcast. Runs at RX-arrival
+  // (before the scheduling decision), so the first copy may even suppress before
+  // scheduling (caught by allowPacketForward's suppressed-entry early-out).
   if (effectiveFloodSuppressC() > 0 && pkt->isRouteFlood()) {
     uint8_t hash[MAX_HASH_SIZE];
     pkt->calculatePacketHash(hash);
     bool is_new = false;
     FloodSuppressionEntry* e = _flood_supp.touch(hash, millis(), &is_new);
-    if (e) {
-      int8_t snr_x4 = (int8_t)(pkt->getSNR() * 4.0f);
-      if (is_new) {
-        _fs_seen++;                          // distinct flood heard -> candidate for our rebroadcast
-        e->first_snr_x4 = snr_x4;               // record distance-to-source proxy
-      } else if (!e->suppressed) {
-        // an overheard forward by a neighbour: SNR-weighted (correct sign).
-        int8_t lo_x4 = (int8_t)(_prefs.flood_suppress_snr_lo * 4);
-        int8_t hi_x4 = (int8_t)(effectiveFloodSuppressSnrHi() * 4);
-        uint8_t w = (snr_x4 < lo_x4) ? 0 : (snr_x4 >= hi_x4) ? 2 : 1;
-        if (w) {
-          e->weighted_count += w;
-          if (snr_x4 > e->strongest_overheard_x4) e->strongest_overheard_x4 = snr_x4;
-        }
-        if (e->weighted_count >= effectiveFloodSuppressC()) {
-          e->suppressed = true;
-          _fs_suppressed++;                  // our rebroadcast was made redundant
-          cancelPendingFloodOutbound(hash);     // our rebroadcast is redundant
-        }
+    if (e && !e->suppressed) {
+      if (is_new) _fs_seen++;                // distinct flood heard -> candidate for our rebroadcast
+      uint32_t now = getRTCClock()->getCurrentTime();   // seconds (RTC), for near-neighbour freshness
+      // every hop on this decoded path forwarded F -> has it; mark near neighbours covered
+      uint8_t hs = pkt->getPathHashSize();
+      uint8_t count = pkt->getPathHashCount();
+      const uint8_t* p = pkt->path;
+      for (uint8_t k = 0; k < count; k++) {
+        int8_t idx = findNearNeighbour(p, hs, now);
+        if (idx >= 0) e->addCovered((uint8_t)idx);
+        p += hs;
+      }
+      // suppress iff every current near neighbour is now known to have F
+      if (allNearNeighboursCovered(*e, now)) {
+        e->suppressed = true;
+        _fs_suppressed++;                    // our rebroadcast was made redundant
+        cancelPendingFloodOutbound(hash);
       }
     }
   }

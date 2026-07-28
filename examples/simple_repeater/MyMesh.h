@@ -101,6 +101,9 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   TransportKey default_scope;
   RateLimiter discover_limiter, anon_limiter;
   FloodSuppressionTable _flood_supp;   // redundancy-aware FLOOD suppression state
+  // Near-neighbour freshness window for the coverage test and the adaptive-density
+  // count, 60 min
+  static const uint32_t NEIGHBOUR_FRESH_S = 3600;
   // Adaptive (neighbour-derived) effective params, recomputed in loop() under #if MAX_NEIGHBOURS.
   uint8_t  _fs_eff_c;            // derived threshold C (0 = off); used when _fs_adaptive_active
   int8_t   _fs_eff_hi;           // derived snr_hi (dB); used when _fs_adaptive_active
@@ -131,6 +134,9 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
 
   void putNeighbour(const mesh::Identity& id, uint32_t timestamp, float snr);
   void touchNeighbourByHash(const mesh::Packet* packet);  // refresh a KNOWN neighbour's liveness/SNR from an overheard forward
+  bool isNearNeighbour(int i, uint32_t now) const;        // fresh (<=NEIGHBOUR_FRESH_S) and SNR>=snr_lo
+  int8_t findNearNeighbour(const uint8_t* h, uint8_t hs, uint32_t now) const;  // index of near neighbour matching hash, else -1
+  bool allNearNeighboursCovered(const FloodSuppressionEntry& e, uint32_t now) const;  // >=1 near && every near neighbour in e.covered
   void cancelPendingFloodOutbound(const uint8_t* hash);   // cancel our scheduled flood rebroadcast (if any)
   void updateAdaptiveFloodParams();                       // derive _fs_eff_c/_fs_eff_hi from neighbour table
   uint8_t effectiveFloodSuppressC() const;                // adaptive? _fs_eff_c : flood_suppress_c
