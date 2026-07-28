@@ -52,6 +52,11 @@ public:
   virtual void reboot() override { NVIC_SystemReset(); }
   virtual bool getBootloaderVersion(char* version, size_t max_len) override;
   virtual bool startOTAUpdate(const char *id, char reply[]) override;
+
+  // Bring up the Bluefruit/SoftDevice stack exactly once. Bluefruit.begin() has no
+  // double-init guard, so any feature that needs BLE (FindMy beacon, OTA DFU) must
+  // route through here instead of calling Bluefruit.begin() directly.
+  static bool beginBluefruitOnce();
   virtual void sleep(uint32_t secs) override;
   bool isExternalPowered() override;
 

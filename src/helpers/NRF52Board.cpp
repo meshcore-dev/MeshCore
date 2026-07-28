@@ -6,6 +6,16 @@
 
 static BLEDfu bledfu;
 
+// Tracks whether Bluefruit.begin() has already run (it is not idempotent).
+static bool _bluefruit_begun = false;
+
+bool NRF52Board::beginBluefruitOnce() {
+  if (!_bluefruit_begun) {
+    _bluefruit_begun = Bluefruit.begin();
+  }
+  return _bluefruit_begun;
+}
+
 static void connect_callback(uint16_t conn_handle) {
   (void)conn_handle;
   MESH_DEBUG_PRINTLN("BLE client connected");
@@ -317,13 +327,22 @@ bool NRF52Board::getBootloaderVersion(char* out, size_t max_len) {
 }
 
 bool NRF52Board::startOTAUpdate(const char *id, char reply[]) {
-  // Config the peripheral connection with maximum bandwidth
-  // more SRAM required by SoftDevice
-  // Note: All config***() function must be called before begin()
-  Bluefruit.configPrphBandwidth(BANDWIDTH_MAX);
-  Bluefruit.configPrphConn(92, BLE_GAP_EVENT_LENGTH_MIN, 16, 16);
+  if (!_bluefruit_begun) {
+    // Config the peripheral connection with maximum bandwidth
+    // more SRAM required by SoftDevice
+    // Note: All config***() function must be called before begin()
+    Bluefruit.configPrphBandwidth(BANDWIDTH_MAX);
+    Bluefruit.configPrphConn(92, BLE_GAP_EVENT_LENGTH_MIN, 16, 16);
 
-  Bluefruit.begin(1, 0);
+    _bluefruit_begun = Bluefruit.begin(1, 0);
+  } else {
+    // Stack already up (e.g. FindMy beacon). Reuse it: stop the beacon advert and
+    // reset the advertising payload/type so we can advertise the DFU service instead.
+    Bluefruit.Advertising.stop();
+    Bluefruit.Advertising.clearData();
+    Bluefruit.ScanResponse.clearData();
+    Bluefruit.Advertising.setType(BLE_GAP_ADV_TYPE_CONNECTABLE_SCANNABLE_UNDIRECTED);
+  }
   // Set max power. Accepted values are: -40, -30, -20, -16, -12, -8, -4, 0, 4
   Bluefruit.setTxPower(4);
   // Set the BLE device name

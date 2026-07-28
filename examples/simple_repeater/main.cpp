@@ -8,6 +8,10 @@
   static UITask ui_task(display);
 #endif
 
+#ifdef WITH_FINDMY_BEACON
+  #include <helpers/nrf52/FindMyBeacon.h>
+#endif
+
 StdRNG fast_rng;
 SimpleMeshTables tables;
 
@@ -91,6 +95,11 @@ void setup() {
 
   the_mesh.begin(fs);
 
+#ifdef WITH_FINDMY_BEACON
+  findmy_beacon.begin(rtc_clock);
+  if (findmy_beacon.isRunning()) Serial.println("FindMy beacon started");
+#endif
+
 #ifdef DISPLAY_CLASS
   ui_task.begin(the_mesh.getNodePrefs(), FIRMWARE_BUILD_DATE, FIRMWARE_VERSION);
 #endif
@@ -147,6 +156,9 @@ void loop() {
 
   the_mesh.loop();
   sensors.loop();
+#ifdef WITH_FINDMY_BEACON
+  findmy_beacon.loop(millis());
+#endif
 #ifdef DISPLAY_CLASS
   ui_task.loop();
 #endif

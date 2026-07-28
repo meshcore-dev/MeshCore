@@ -1,6 +1,10 @@
 #include "MyMesh.h"
 #include <algorithm>
 
+#ifdef WITH_FINDMY_BEACON
+#include <helpers/nrf52/FindMyBeacon.h>
+#endif
+
 /* ------------------------------ Config -------------------------------- */
 
 #ifndef LORA_FREQ
@@ -1257,6 +1261,10 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
       sendNodeDiscoverReq();
       strcpy(reply, "OK - Discover sent");
     }
+#ifdef WITH_FINDMY_BEACON
+  } else if (findmy_beacon.handleCommand(sender_timestamp, command, reply)) {
+    // FindMy beacon command handled (set/get findmy ...)
+#endif
   } else{
     _cli.handleCommand(sender_timestamp, command, reply);  // common CLI commands
   }
