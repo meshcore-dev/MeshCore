@@ -490,7 +490,7 @@ void ST7735Display::_resetAndInit() {
 
     // run init commands
     displayInit(Rcmd1);
-#if defined(HELTEC_TRACKER_V2) || defined(HELTEC_T096)
+#if defined(HELTEC_TRACKER_V2) || defined(HELTEC_T096) || defined(HELTEC_T1)
     displayInit(Rcmd2green160x80);
     //uint8_t madctl = ST77XX_MADCTL_MY | ST77XX_MADCTL_MV |ST7735_MADCTL_BGR;//Adjust color to BGR
     //display.sendCommand(ST77XX_MADCTL, &madctl, 1);
@@ -580,20 +580,16 @@ uint16_t ST7735Display::getTextWidth(const char* str) {
 }
 
 void ST7735Display::endFrame() {
-  // blit the canvas buffer to LCD
+  // full-frame blit (row windows show as flicker)
   set_CS(LOW);
   _spi->beginTransaction(_spiSettings);
-  uint16_t x, y;
   uint16_t* pixels = (uint16_t *) ((TFT_eSprite *) sprite)->getPointer();
-  for (y = 0; y < 80; y++, pixels += 160) {
-    setAddrWindow(0, y, 160, 1);
+  setAddrWindow(0, 0, 160, 80);
 #ifdef ESP_PLATFORM
-    _spi->transferBytes((uint8_t *)pixels, NULL, 2 * 160);
+  _spi->transferBytes((uint8_t *)pixels, NULL, 2 * 160 * 80);
 #else
-    _spi->transfer(pixels, NULL, 2 * 160);
+  _spi->transfer(pixels, NULL, 2 * 160 * 80);
 #endif
-  }
-
   _spi->endTransaction();
   set_CS(HIGH);
 }
