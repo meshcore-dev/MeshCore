@@ -11,17 +11,20 @@
 // and our own scheduled outbound re-broadcast all share ONE hash identity.
 //
 // M suppresses its rebroadcast of flood F if every NEAR neighbour is already
-// known to have F.  "Known to have F" = the neighbour appears on the path of
-// some forward of F that M overheard -- every hop on a decoded path forwarded F,
-// so it has it (certain evidence, no SNR/inference).
+// known to have F.  A neighbour is "known to have F" if either (a) it forwarded
+// F (it appears on the path of an overheard forward -- certain), or (b) it was
+// REACHED by a forwarder: some near forwarder fi has a fresh DIRECTED reach edge
+// fi->N (see NeighbourLinkTable), so N very likely heard fi's forward (inferred).
+// Edges are directed because RF links can be asymmetric.  Coverage accumulates
+// across multiple overheard forwards, so the combined reach of several forwarders
+// can cover all of M's neighbours.
 // This is sound for directional/co-located antennas -- a downstream neighbour
-// that has not received F is on no path M decodes, so it stays uncovered and M
-// forwards.
+// that no forwarder reaches stays uncovered, so M forwards (never deafens).
 //
-// Per entry we keep a small dedup set of the near-neighbour indices seen on
-// overheard forwards' paths (indices into MyMesh::neighbours[]).  Suppression
-// fires when that set spans all CURRENT near neighbours (checked from MyMesh,
-// which owns the neighbour table and the "near" definition: fresh + SNR>=snr_lo).
+// Per entry we keep a small dedup set of the near-neighbour indices known to be
+// covered (indices into MyMesh::neighbours[]).  Suppression fires when that set
+// spans all CURRENT near neighbours (checked from MyMesh, which owns the
+// neighbour table, the reach graph and the "near" definition: fresh + SNR>=snr_lo).
 //
 // The table is a small ring with TTL eviction (swept from loop()).  It is app
 // local and touches neither the core dedup table nor the persisted prefs.
@@ -47,6 +50,8 @@ struct FloodSuppressionEntry {
   uint8_t  covered_count;
   uint32_t first_seen_ms;           // for TTL eviction
   bool     suppressed;              // our rebroadcast already cancelled/suppressed
+  bool     must_cover_self;         // an isolated (no near-edges) near neighbour didn't forward F:
+                                    //   only M's own TX can cover it -> M must forward, no point widening
   bool     active;
 
   // Record a near-neighbour index as covered (dedup). Returns true if newly added.
@@ -102,6 +107,7 @@ public:
     e->covered_count = 0;
     e->first_seen_ms = now;
     e->suppressed = false;
+    e->must_cover_self = false;
     e->active = true;
     if (is_new) *is_new = true;
     return e;

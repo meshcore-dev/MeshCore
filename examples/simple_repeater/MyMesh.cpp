@@ -158,6 +158,105 @@ bool MyMesh::allNearNeighboursCovered(const FloodSuppressionEntry& e, uint32_t n
 #endif
 }
 
+// Is there a FRESH DIRECTED reach edge from neighbours[from_i] to neighbours[to_j]?
+// (to_j heard from_i's transmissions.) Edges are recorded from consecutive path
+// hops in forwarding order (later heard earlier -> earlier reaches later), so this
+// is DIRECTIONAL: RF links can be asymmetric, and we must not infer "to_j heard
+// from_i" from a reverse observation. Used to infer coverage: a forwarder fi
+// covers its 1-hop graph neighbours (fi reaches N). Keyed by path hash, so robust
+// to LRU reordering of neighbours[]. hs is the path-hash width of the current flood.
+bool MyMesh::nearReaches(int from_i, int to_j, uint8_t hs, uint32_t now) const {
+#if MAX_NEIGHBOURS
+  uint8_t hfrom[MAX_HASH_SIZE], hto[MAX_HASH_SIZE];
+  neighbours[from_i].id.copyHashTo(hfrom, hs);
+  neighbours[to_j].id.copyHashTo(hto, hs);
+  return _nbr_links.hasEdge(hfrom, hto, hs, now);
+#else
+  return false;
+#endif
+}
+
+// Client-aware suppression gate. ALWAYS active: a dense mesh always has clients
+// (possibly unlearned), so there is NO "empty set -> suppress everything" fallback.
+// Returns true = "suppressing this flood is safe for attached clients".
+//   Tier A (TRACE/CONTROL):   pure infrastructure -> clients never need -> suppress OK.
+//   Tier C (REQ/RESPONSE/TXT_MSG/PATH/ANON_REQ): addressed -> forward iff dest is an
+//                             attached client, so suppress OK iff dest is NOT one.
+//   Tier B (ADVERT/GRP_*/ACK/MULTIPART/...): broadcast, can't address-check, clients may
+//                             need -> NEVER suppress (always forward).
+bool MyMesh::clientProtectionAllowsSuppress(const mesh::Packet* pkt, uint32_t now) const {
+  uint8_t pt = pkt->getPayloadType();
+  if (pt == PAYLOAD_TYPE_TRACE || pt == PAYLOAD_TYPE_CONTROL) return true;          // Tier A
+  if (pt == PAYLOAD_TYPE_REQ || pt == PAYLOAD_TYPE_RESPONSE || pt == PAYLOAD_TYPE_TXT_MSG ||
+      pt == PAYLOAD_TYPE_PATH || pt == PAYLOAD_TYPE_ANON_REQ) {
+    if (pkt->payload_len < 1) return false;                                         // malformed -> forward (safe)
+    return !attachedClientMatches(pkt->payload[0], now);                            // Tier C
+  }
+  return false;                                                                     // Tier B
+}
+
+// Seed/refresh a directly-attached leaf client (M is its first hop). Small LRU ring.
+// `prefix[0]` is the 1-byte match key; `plen` is how many identity bytes are known
+// (4 from an advert, 1 from a message src_hash). On refresh, upgrade the stored
+// prefix only if we now know MORE bytes (never downgrade).
+void MyMesh::addOrRefreshAttachedClient(const uint8_t* prefix, uint8_t plen, uint32_t now) {
+  uint8_t h1 = prefix[0];
+  for (int i = 0; i < MAX_ATTACHED_CLIENTS; i++) {           // refresh existing (match on prefix[0])
+    if (_attached[i].active && _attached[i].prefix[0] == h1) {
+      _attached[i].last_seen = now;
+      if (plen > _attached[i].prefix_len) {
+        memcpy(_attached[i].prefix, prefix, plen);
+        _attached[i].prefix_len = plen;
+      }
+      return;
+    }
+  }
+  int slot = 0; uint32_t oldest = 0xFFFFFFFF;                // else reuse inactive or oldest
+  for (int i = 0; i < MAX_ATTACHED_CLIENTS; i++) {
+    if (!_attached[i].active) { slot = i; break; }
+    if (_attached[i].last_seen < oldest) { oldest = _attached[i].last_seen; slot = i; }
+  }
+  memcpy(_attached[slot].prefix, prefix, plen);
+  _attached[slot].prefix_len = plen;
+  _attached[slot].last_seen = now;
+  _attached[slot].active = true;
+}
+
+bool MyMesh::attachedClientMatches(uint8_t hash1, uint32_t now) const {
+  for (int i = 0; i < MAX_ATTACHED_CLIENTS; i++) {
+    if (_attached[i].active && _attached[i].prefix[0] == hash1 &&
+        (uint32_t)(now - _attached[i].last_seen) <= ATTACHED_CLIENT_FRESH_S) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void MyMesh::removeAttachedClient(uint8_t hash1) {
+  for (int i = 0; i < MAX_ATTACHED_CLIENTS; i++) {
+    if (_attached[i].active && _attached[i].prefix[0] == hash1) _attached[i].active = false;
+  }
+}
+
+void MyMesh::purgeAttachedClients(uint32_t now) {
+  for (int i = 0; i < MAX_ATTACHED_CLIENTS; i++) {
+    if (_attached[i].active && (uint32_t)(now - _attached[i].last_seen) > ATTACHED_CLIENT_FRESH_S) {
+      _attached[i].active = false;
+    }
+  }
+}
+
+// Does this 1-byte hash match a known REPEATER neighbour? (Used to avoid seeding a
+// repeater as a client; repeaters are handled by the coverage test, not client-protection.)
+bool MyMesh::isKnownRepeaterHash1(uint8_t hash1) const {
+#if MAX_NEIGHBOURS
+  for (int i = 0; i < MAX_NEIGHBOURS; i++) {
+    if (neighbours[i].heard_timestamp != 0 && neighbours[i].id.pub_key[0] == hash1) return true;
+  }
+#endif
+  return false;
+}
+
 uint8_t MyMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* secret, uint32_t sender_timestamp, const uint8_t* data, bool is_flood) {
   ClientInfo* client = NULL;
   if (data[0] == 0) {   // blank password, just check if sender is in ACL
@@ -650,15 +749,31 @@ void MyMesh::logRx(mesh::Packet *pkt, int len, float score) {
     touchNeighbourByHash(pkt);
   }
 
-  // --- Coverage-test FLOOD suppression ------------------------------------
+  // --- Attached-client learning -------------------------------------------
+  // A count==0 packet (empty path) means M is the originator's FIRST hop, i.e. the
+  // originator is a directly-attached neighbour -- a leaf CLIENT if not a known
+  // repeater. Seed/refresh it from the stable src_hash the payload carries
+  // (adverts are seeded in onAdvertRecv, which has the parsed identity). Route-type-
+  // agnostic: a zero-hop DIRECT packet counts too. Pathed packets (count>0) are
+  // ignored -- path[0]==self at every relay makes the originator ambiguous there.
+  if (pkt->getPathHashCount() == 0) {
+    uint8_t pt = pkt->getPayloadType();
+    if ((pt == PAYLOAD_TYPE_REQ || pt == PAYLOAD_TYPE_RESPONSE || pt == PAYLOAD_TYPE_TXT_MSG || pt == PAYLOAD_TYPE_PATH)
+        && pkt->payload_len >= 2) {
+      uint8_t h1 = pkt->payload[1];          // src_hash (originator == attached client)
+      if (!isKnownRepeaterHash1(h1)) addOrRefreshAttachedClient(&h1, 1, getRTCClock()->getCurrentTime());
+    }
+  }
+
+  // --- Coverage-test FLOOD suppression (graph-reach) ----------------------
   // M suppresses its rebroadcast of F iff every NEAR neighbour is already known
-  // to have F. "Known to have F" = the neighbour appears on the path of some
-  // forward of F that M overheard -- every hop on a decoded path forwarded F, so
-  // it has it (certain evidence, no SNR/inference). Walk this copy's full path
-  // and mark any near neighbours covered; once the covered set spans all current
-  // near neighbours, cancel our own (redundant) rebroadcast. Runs at RX-arrival
-  // (before the scheduling decision), so the first copy may even suppress before
-  // scheduling (caught by allowPacketForward's suppressed-entry early-out).
+  // to have F. A neighbour is covered if it FORWARDED F (it is on an overheard
+  // path -- certain) OR if it was REACHED by a near forwarder fi that has a fresh
+  // inter-neighbour edge fi<->N (N heard fi's forward -- inferred). Coverage
+  // accumulates across overheard forwards, so combined reach can cover everyone.
+  // Runs at RX-arrival (before scheduling), so a later overheard copy can cancel
+  // a pending rebroadcast early (allowPacketForward also early-outs suppressed
+  // entries for the copy-before-decision ordering).
   if (effectiveFloodSuppressC() > 0 && pkt->isRouteFlood()) {
     uint8_t hash[MAX_HASH_SIZE];
     pkt->calculatePacketHash(hash);
@@ -666,22 +781,72 @@ void MyMesh::logRx(mesh::Packet *pkt, int len, float score) {
     FloodSuppressionEntry* e = _flood_supp.touch(hash, millis(), &is_new);
     if (e && !e->suppressed) {
       if (is_new) _fs_seen++;                // distinct flood heard -> candidate for our rebroadcast
+#if MAX_NEIGHBOURS
       uint32_t now = getRTCClock()->getCurrentTime();   // seconds (RTC), for near-neighbour freshness
-      // every hop on this decoded path forwarded F -> has it; mark near neighbours covered
+      uint32_t now_ms = millis();                        // milliseconds, for edge TTL
       uint8_t hs = pkt->getPathHashSize();
       uint8_t count = pkt->getPathHashCount();
       const uint8_t* p = pkt->path;
+
+      // (a) REACH-GRAPH: path hops are in forwarding order, so a consecutive near
+      //     pair (prev_near, idx) means idx heard prev_near -> prev_near REACHES idx
+      //     (directed; RF links can be asymmetric). Record that directed edge. Also
+      //     flag which near neighbours are on THIS path (they forwarded F => have it).
+      bool on_path[MAX_NEIGHBOURS] = { false };
+      int8_t prev_near = -1;
       for (uint8_t k = 0; k < count; k++) {
         int8_t idx = findNearNeighbour(p, hs, now);
-        if (idx >= 0) e->addCovered((uint8_t)idx);
+        if (idx >= 0) {
+          on_path[idx] = true;
+          if (prev_near >= 0) {
+            // prev_near (earlier) reaches idx (later): idx heard prev_near's forward.
+            _nbr_links.addEdge(neighbours[prev_near].id.pub_key, neighbours[idx].id.pub_key, hs, now_ms);
+          }
+          prev_near = idx;
+        } else {
+          prev_near = -1;     // a non-near hop breaks adjacency
+        }
         p += hs;
       }
-      // suppress iff every current near neighbour is now known to have F
-      if (allNearNeighboursCovered(*e, now)) {
+
+      // (b) COVERAGE: each near forwarder covers itself + the near neighbours it
+      //     REACHES (directed: N heard fi's forward => N has F, inferred).
+      for (int i = 0; i < MAX_NEIGHBOURS; i++) {
+        if (!on_path[i]) continue;                 // i must be a near forwarder on this path
+        e->addCovered((uint8_t)i);                 // i forwarded F => i has F (certain)
+        for (int j = 0; j < MAX_NEIGHBOURS; j++) { // i reaches its fresh graph neighbours
+          if (j == i || on_path[j] || !isNearNeighbour(j, now)) continue;
+          if (nearReaches(i, j, hs, now)) e->addCovered((uint8_t)j);  // i reaches j (j heard i)
+        }
+      }
+
+      // (c) ISOLATED-NEIGHBOUR FAST-FORWARD: a near neighbour that NO near
+      //     forwarder reaches (in-degree 0) can ONLY be covered by M's own TX. If
+      //     one exists that did NOT forward F, M must forward (it is uncovered) ->
+      //     suppression is impossible and waiting cannot change that, so skip the
+      //     window widening (getRetransmitDelay reads this flag). Also the natural
+      //     cold-start behaviour (sparse graph).
+      e->must_cover_self = false;
+      for (int i = 0; i < MAX_NEIGHBOURS && !e->must_cover_self; i++) {
+        if (!isNearNeighbour(i, now) || on_path[i]) continue;
+        bool reachable = false;
+        for (int j = 0; j < MAX_NEIGHBOURS; j++) {     // does any near j reach i?
+          if (j == i || !isNearNeighbour(j, now)) continue;
+          if (nearReaches(j, i, hs, now)) { reachable = true; break; }
+        }
+        if (!reachable) e->must_cover_self = true;
+      }
+
+      // (d) suppress iff no isolated-uncovered neighbour, everyone covered, and
+      //     client-protection allows it (3-tier, always active -- see
+      //     clientProtectionAllowsSuppress).
+      if (!e->must_cover_self && allNearNeighboursCovered(*e, now)
+          && clientProtectionAllowsSuppress(pkt, now)) {
         e->suppressed = true;
         _fs_suppressed++;                    // our rebroadcast was made redundant
         cancelPendingFloodOutbound(hash);
       }
+#endif
     }
   }
 #ifdef WITH_BRIDGE
@@ -756,10 +921,17 @@ uint32_t MyMesh::getRetransmitDelay(const mesh::Packet *packet) {
   uint32_t delay = getRNG()->nextInt(0, 5*t + 1);
   // Central flood relays (strong RX SNR) wait longer -> wider window to observe
   // overheard forwards and be cancelled as redundant. Edge relays keep the short
-  // delay so they extend reach quickly.
+  // delay so they extend reach quickly. Skip the widening when M must forward
+  // regardless (an isolated, uncovered near neighbour) -- waiting cannot change
+  // that outcome, so forward at the base delay.
   if (effectiveFloodSuppressC() > 0 && packet->isRouteFlood()
       && packet->getSNR() >= effectiveFloodSuppressSnrHi()) {
-    delay *= (1 + _prefs.flood_suppress_delay_x);
+    uint8_t hash[MAX_HASH_SIZE];
+    packet->calculatePacketHash(hash);
+    FloodSuppressionEntry* e = _flood_supp.find(hash, millis());
+    if (!(e && e->must_cover_self)) {
+      delay *= (1 + _prefs.flood_suppress_delay_x);
+    }
   }
   return delay;
 }
@@ -855,11 +1027,18 @@ void MyMesh::onAdvertRecv(mesh::Packet *packet, const mesh::Identity &id, uint32
                           const uint8_t *app_data, size_t app_data_len) {
   mesh::Mesh::onAdvertRecv(packet, id, timestamp, app_data, app_data_len); // chain to super impl
 
-  // if this a zero hop advert (and not via 'Share'), add it to neighbours
+  // if this a zero hop advert (and not via 'Share'), classify the originator
   if (packet->getPathHashCount() == 0 && !isShare(packet)) {
     AdvertDataParser parser(app_data, app_data_len);
-    if (parser.isValid() && parser.getType() == ADV_TYPE_REPEATER) { // just keep neigbouring Repeaters
-      putNeighbour(id, timestamp, packet->getSNR());
+    if (parser.isValid()) {
+      if (parser.getType() == ADV_TYPE_REPEATER) {           // just keep neighbouring Repeaters
+        putNeighbour(id, timestamp, packet->getSNR());
+        uint8_t h1; id.copyHashTo(&h1, 1);
+        removeAttachedClient(h1);            // reconciled: this node is a repeater, not a client
+      } else {                                // CHAT/ROOM/SENSOR/... -> a directly-attached leaf client
+        uint8_t p[4]; id.copyHashTo(p, 4);   // advert carries the full identity -> 4-byte prefix
+        addOrRefreshAttachedClient(p, 4, getRTCClock()->getCurrentTime());
+      }
     }
   }
 }
@@ -1397,6 +1576,77 @@ void MyMesh::formatFloodSuppressRatioReply(char *reply) {
   StatsFormatHelper::formatFloodSuppressRatio(reply, _fs_suppressed, _fs_seen);
 }
 
+// `clients` reply: one line per attached leaf client "<hash>:<age>s" -- the hash is
+// the learned identity prefix (8-hex when seeded from an advert, 2-hex when seeded
+// only from a message src_hash), `:` age in seconds + `s`. Newline-separated,
+// "-none-" if empty. Byte-minimal -- this text travels over LoRa as the REQ->RESPONSE
+// payload. Mirrors formatNeighborsReply (same 134-byte guard).
+void MyMesh::formatClientsReply(char *reply) {
+  char *dp = reply;
+  uint32_t now = getRTCClock()->getCurrentTime();
+  for (int i = 0; i < MAX_ATTACHED_CLIENTS && dp - reply < 134; i++) {
+    if (!_attached[i].active) continue;
+    if (dp != reply) *dp++ = '\n';
+    char hex[9];
+    mesh::Utils::toHex(hex, _attached[i].prefix, _attached[i].prefix_len);
+    uint32_t secs = now - _attached[i].last_seen;
+    sprintf(dp, "%s:%us", hex, (unsigned)secs);
+    while (*dp) dp++;
+  }
+  if (dp == reply) strcpy(reply, "-none-");
+}
+
+// `reach <hash>` reply: directed reach edges of one NEAR repeater, as two lines:
+//   line 1 '<' + reached-by  (incoming: near neighbours that reach this node)
+//   line 2 '>' + reaches     (outgoing: near neighbours this node reaches)
+// Endpoints are 4-byte/8-hex prefixes resolved from the neighbour table (so they
+// cross-reference `neighbors`); '-' marks an empty list. Byte-minimal (LoRa).
+// Status words for the non-near cases: notnear / unknown / ambig.
+void MyMesh::formatReachReply(char *reply, const uint8_t* hash, uint8_t hash_len) {
+#if MAX_NEIGHBOURS
+  uint32_t now = getRTCClock()->getCurrentTime();
+  int8_t me = -1; int near_matches = 0, known_matches = 0;
+  for (int i = 0; i < MAX_NEIGHBOURS; i++) {
+    if (neighbours[i].heard_timestamp == 0) continue;
+    if (neighbours[i].id.isHashMatch(hash, hash_len)) {
+      known_matches++;
+      if (isNearNeighbour(i, now)) { near_matches++; me = i; }
+    }
+  }
+  if (near_matches == 0) { strcpy(reply, known_matches == 0 ? "unknown" : "notnear"); return; }
+  if (near_matches > 1) { strcpy(reply, "ambig"); return; }
+
+  uint8_t hs = PATH_HASH_SIZE;
+  char *dp = reply;
+  *dp++ = '<';                                  // line 1: reached-by (j -> me)
+  int n = 0;
+  for (int j = 0; j < MAX_NEIGHBOURS; j++) {
+    if (j == me || !isNearNeighbour(j, now) || !nearReaches(j, me, hs, now)) continue;
+    if (dp - reply > 138) { strcpy(dp, "..."); dp += 3; break; }   // overflow guard
+    if (n > 0) *dp++ = ',';
+    char hex[9]; mesh::Utils::toHex(hex, neighbours[j].id.pub_key, 4);
+    for (const char *s = hex; *s; ) *dp++ = *s++;
+    n++;
+  }
+  if (n == 0) *dp++ = '-';
+  *dp++ = '\n';
+  *dp++ = '>';                                  // line 2: reaches (me -> j)
+  n = 0;
+  for (int j = 0; j < MAX_NEIGHBOURS; j++) {
+    if (j == me || !isNearNeighbour(j, now) || !nearReaches(me, j, hs, now)) continue;
+    if (dp - reply > 150) { strcpy(dp, "..."); dp += 3; break; }
+    if (n > 0) *dp++ = ',';
+    char hex[9]; mesh::Utils::toHex(hex, neighbours[j].id.pub_key, 4);
+    for (const char *s = hex; *s; ) *dp++ = *s++;
+    n++;
+  }
+  if (n == 0) *dp++ = '-';
+  *dp = 0;
+#else
+  strcpy(reply, "unknown");
+#endif
+}
+
 void MyMesh::saveIdentity(const mesh::LocalIdentity &new_id) {
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
   IdentityStore store(*_fs, "");
@@ -1517,6 +1767,8 @@ void MyMesh::loop() {
   mesh::Mesh::loop();
 
   _flood_supp.purge(millis());   // evict stale flood-suppression entries
+  _nbr_links.purge(millis());    // evict stale inter-neighbour reach edges (~1 day TTL)
+  purgeAttachedClients(getRTCClock()->getCurrentTime());  // evict stale attached-client entries (~24h)
 
   if (_prefs.flood_suppress && millisHasNowPassed(_fs_next_recompute_ms)) {
     updateAdaptiveFloodParams();              // derive _fs_eff_c/_fs_eff_hi from neighbour table

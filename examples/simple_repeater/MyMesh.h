@@ -30,6 +30,7 @@
 #include <helpers/IdentityStore.h>
 #include <helpers/SimpleMeshTables.h>
 #include <helpers/FloodSuppression.h>
+#include <helpers/NeighbourLinkTable.h>
 #include <helpers/StaticPoolPacketManager.h>
 #include <helpers/StatsFormatHelper.h>
 #include <helpers/TxtDataHelpers.h>
@@ -62,11 +63,29 @@ struct RepeaterStats {
   #define MAX_CLIENTS           32
 #endif
 
+#ifndef MAX_ATTACHED_CLIENTS
+  #define MAX_ATTACHED_CLIENTS  16
+#endif
+#ifndef ATTACHED_CLIENT_FRESH_S
+  #define ATTACHED_CLIENT_FRESH_S  (24UL * 3600UL)   // ~24h -- attached leaf clients are stable
+#endif
+
 struct NeighbourInfo {
   mesh::Identity id;
   uint32_t advert_timestamp;
   uint32_t heard_timestamp;
   int8_t snr; // multiplied by 4, user should divide to get float value
+};
+
+// A leaf CLIENT (companion/sensor/room-server) directly attached to this repeater
+// (M is its first hop). Tracked so suppression does not starve attached clients of
+// floods they need. Match key is the 1-byte path hash (prefix[0]); `prefix` carries
+// up to 4 identity bytes for display (4 from an advert, 1 from a message src_hash).
+struct AttachedClient {
+  uint8_t  prefix[4];   // identity prefix learned (match key = prefix[0])
+  uint8_t  prefix_len;  // bytes actually known: 4 (advert) or 1 (msg src_hash)
+  uint32_t last_seen;   // RTC seconds
+  bool     active;
 };
 
 #ifndef FIRMWARE_BUILD_DATE
@@ -101,6 +120,8 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   TransportKey default_scope;
   RateLimiter discover_limiter, anon_limiter;
   FloodSuppressionTable _flood_supp;   // redundancy-aware FLOOD suppression state
+  NeighbourLinkTable _nbr_links;       // inter-near-neighbour reach edges (coverage inference)
+  AttachedClient _attached[MAX_ATTACHED_CLIENTS] = {};  // directly-attached leaf clients (client-aware suppression)
   // Near-neighbour freshness window for the coverage test and the adaptive-density
   // count, 60 min
   static const uint32_t NEIGHBOUR_FRESH_S = 3600;
@@ -137,6 +158,13 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   bool isNearNeighbour(int i, uint32_t now) const;        // fresh (<=NEIGHBOUR_FRESH_S) and SNR>=snr_lo
   int8_t findNearNeighbour(const uint8_t* h, uint8_t hs, uint32_t now) const;  // index of near neighbour matching hash, else -1
   bool allNearNeighboursCovered(const FloodSuppressionEntry& e, uint32_t now) const;  // >=1 near && every near neighbour in e.covered
+  bool nearReaches(int from_i, int to_j, uint8_t hs, uint32_t now) const;  // fresh DIRECTED reach edge: neighbours[from_i] reaches neighbours[to_j] (to_j heard from_i)
+  bool clientProtectionAllowsSuppress(const mesh::Packet* pkt, uint32_t now) const;  // 3-tier client-aware gate (always active)
+  void addOrRefreshAttachedClient(const uint8_t* prefix, uint8_t plen, uint32_t now);  // seed/refresh attached leaf client (prefix[0] is the match key)
+  bool attachedClientMatches(uint8_t hash1, uint32_t now) const; // is hash1 a fresh attached client? (hash1 vs prefix[0])
+  void removeAttachedClient(uint8_t hash1);                      // reconcile: node turned out to be a repeater (hash1 vs prefix[0])
+  void purgeAttachedClients(uint32_t now);                        // evict stale clients (~24h)
+  bool isKnownRepeaterHash1(uint8_t hash1) const;                 // does this 1-byte hash match a known repeater neighbour?
   void cancelPendingFloodOutbound(const uint8_t* hash);   // cancel our scheduled flood rebroadcast (if any)
   void updateAdaptiveFloodParams();                       // derive _fs_eff_c/_fs_eff_hi from neighbour table
   uint8_t effectiveFloodSuppressC() const;                // adaptive? _fs_eff_c : flood_suppress_c
@@ -234,6 +262,8 @@ public:
   void dumpLogFile() override;
   void setTxPower(int8_t power_dbm) override;
   void formatNeighborsReply(char *reply) override;
+  void formatClientsReply(char *reply) override;                 // list attached leaf clients
+  void formatReachReply(char *reply, const uint8_t* hash, uint8_t hash_len) override;  // reach edges of a near repeater
   void removeNeighbor(const uint8_t* pubkey, int key_len) override;
   void formatStatsReply(char *reply) override;
   void formatRadioStatsReply(char *reply) override;

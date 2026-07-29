@@ -98,6 +98,11 @@ public:
   // Appends the suppression-ratio suffix (", suppressed N/M (P%)") to the flood.suppress get-reply.
   // Default is a no-op so non-repeater roles keep the plain "> on/off" reply.
   virtual void formatFloodSuppressRatioReply(char *reply) { }
+  // List directly-attached leaf clients (client-aware suppression). Default no-op.
+  virtual void formatClientsReply(char *reply) { }
+  // Reach edges of one near repeater (directed inter-neighbour graph), looked up by
+  // a hash prefix. Default no-op. hash_len is the number of prefix bytes parsed.
+  virtual void formatReachReply(char *reply, const uint8_t* hash, uint8_t hash_len) { }
   virtual mesh::LocalIdentity& getSelfId() = 0;
   virtual void saveIdentity(const mesh::LocalIdentity& new_id) = 0;
   virtual void clearStats() = 0;

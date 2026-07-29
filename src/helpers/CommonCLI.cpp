@@ -289,6 +289,23 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       } else {
         strcpy(reply, "ERR: bad pubkey");
       }
+    } else if (memcmp(command, "clients", 7) == 0) {
+      _callbacks->formatClientsReply(reply);
+    } else if (memcmp(command, "reach", 5) == 0) {
+      const char* hex = &command[5];
+      while (*hex == ' ') hex++;                       // skip spaces after the verb
+      if (*hex == 0) {
+        strcpy(reply, "reach HASH");
+      } else {
+        int hex_len = min((int)strlen(hex), MAX_HASH_SIZE * 2);
+        int hash_len = hex_len / 2;
+        uint8_t hash[MAX_HASH_SIZE];
+        if (hash_len > 0 && mesh::Utils::fromHex(hash, hash_len, hex)) {
+          _callbacks->formatReachReply(reply, hash, hash_len);
+        } else {
+          strcpy(reply, "ERR: bad hash");
+        }
+      }
     } else if (memcmp(command, "tempradio ", 10) == 0) {
       strcpy(tmp, &command[10]);
       const char *parts[5];
