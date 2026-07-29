@@ -52,6 +52,11 @@ class CustomLR1110 : public LR1110 {
         _headerSeen = false;
         return false;
       }
+      if (!header && _headerSeen) {
+        // something cleared the header flag, reset our state.
+        _activityAt = 0; _headerSeen = false;
+        return false;
+      }
       if (header) {
         if (!_headerSeen) { _headerSeen = true; _activityAt = now; };
         if (now - _activityAt > _maxPayloadMillis) {
