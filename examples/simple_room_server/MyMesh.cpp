@@ -45,9 +45,7 @@ void MyMesh::addPost(ClientInfo *client, const char *postData) {
 void MyMesh::addSystemPost(const char *postData) {
   if (!postData || postData[0] == 0) return;
 
-#if defined(ENABLE_ROOM_POST_DEBUG) && ENABLE_ROOM_POST_DEBUG == 1
-  Serial.print("room.post: addSystemPost: "); Serial.println(postData);
-#endif
+  MESH_DEBUG_PRINTLN("room.post: addSystemPost: %s", postData);
 
   storePost(self_id, postData);
 }
@@ -59,23 +57,17 @@ void MyMesh::storePost(const mesh::Identity &author, const char *postData) {
   StrHelper::strncpy(posts[idx].text, postData, MAX_POST_TEXT_LEN);
 
   posts[idx].post_timestamp = getRTCClock()->getCurrentTimeUnique();
-#if defined(ENABLE_ROOM_POST_DEBUG) && ENABLE_ROOM_POST_DEBUG == 1
-  Serial.printf("room.post: storePost idx=%d text=%s\n", idx, posts[idx].text);
-  Serial.printf("room.post: timestamp=%u\n", posts[idx].post_timestamp);
-#endif
+  MESH_DEBUG_PRINTLN("room.post: storePost idx=%d text=%s", idx, posts[idx].text);
+  MESH_DEBUG_PRINTLN("room.post: timestamp=%u", posts[idx].post_timestamp);
   next_post_idx = (next_post_idx + 1) % MAX_UNSYNCED_POSTS;
 
   next_push = futureMillis(PUSH_NOTIFY_DELAY_MILLIS);
   _num_posted++; // stats
-#if defined(ENABLE_ROOM_POST_DEBUG) && ENABLE_ROOM_POST_DEBUG == 1
-  Serial.printf("room.post: next_post_idx=%d num_posted=%d push scheduled\n", next_post_idx, _num_posted);
-#endif
+  MESH_DEBUG_PRINTLN("room.post: next_post_idx=%d num_posted=%d push scheduled", next_post_idx, _num_posted);
 }
 
 void MyMesh::pushPostToClient(ClientInfo *client, PostInfo &post) {
-#if defined(ENABLE_ROOM_POST_DEBUG) && ENABLE_ROOM_POST_DEBUG == 1
-  Serial.print("room.post: pushPostToClient text="); Serial.println(post.text);
-#endif
+  MESH_DEBUG_PRINTLN("room.post: pushPostToClient text=%s", post.text);
   int len = 0;
   memcpy(&reply_data[len], &post.post_timestamp, 4);
   len += 4; // this is a PAST timestamp... but should be accepted by client
