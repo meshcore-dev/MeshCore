@@ -15,6 +15,20 @@ void ThinkNodeM6Board::begin() {
   digitalWrite(P_LORA_TX_LED, LOW);
 #endif
 
+#ifdef PIN_USER_BTN
+  pinMode(PIN_USER_BTN, INPUT_PULLUP);
+#endif
+
+#ifdef PIN_LED_RED
+  // blink the power LED a few times to confirm power-on/wake
+  for (int i = 0; i < 3; i++) {
+    digitalWrite(PIN_LED_RED, HIGH);
+    delay(150);
+    digitalWrite(PIN_LED_RED, LOW);
+    delay(150);
+  }
+#endif
+
   delay(10); // give sx1262 some time to power up
 }
 

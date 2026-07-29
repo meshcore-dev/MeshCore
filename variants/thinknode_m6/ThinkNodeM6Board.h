@@ -43,6 +43,12 @@ public:
     digitalWrite(P_LORA_TX_LED, LOW);
     #endif
 
+    #ifdef PIN_USER_BTN
+    while (digitalRead(PIN_USER_BTN) == LOW);  // wait for release, avoid instant re-trigger
+    // keep pull-up enabled in system-off so the wake line doesn't float low
+    nrf_gpio_cfg_sense_input(digitalPinToInterrupt(g_ADigitalPinMap[PIN_USER_BTN]), NRF_GPIO_PIN_PULLUP, NRF_GPIO_PIN_SENSE_LOW);
+    #endif
+
     // power off board
     NRF52Board::powerOff();
   }
