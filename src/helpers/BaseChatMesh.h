@@ -79,7 +79,7 @@ class BaseChatMesh : public mesh::Mesh {
 protected:
   BaseChatMesh(mesh::Radio& radio, mesh::MillisecondClock& ms, mesh::RNG& rng, mesh::RTCClock& rtc, mesh::PacketManager& mgr, mesh::MeshTables& tables)
       : mesh::Mesh(radio, ms, rng, rtc, mgr, tables)
-  { 
+  {
     num_contacts = 0;
   #ifdef MAX_GROUP_CHANNELS
     memset(channels, 0, sizeof(channels));
@@ -90,7 +90,6 @@ protected:
     memset(connections, 0, sizeof(connections));
   }
 
-  void bootstrapRTCfromContacts();
   void resetContacts() { num_contacts = 0; }
   void populateContactFromAdvert(ContactInfo& ci, const mesh::Identity& id, const AdvertDataParser& parser, uint32_t timestamp);
   ContactInfo* allocateContactSlot(bool transient_only=false); // helper to find slot for new contact

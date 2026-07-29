@@ -55,18 +55,6 @@ void BaseChatMesh::sendAckTo(const ContactInfo& dest, const uint8_t* ack_hash, u
   }
 }
 
-void BaseChatMesh::bootstrapRTCfromContacts() {
-  uint32_t latest = 0;
-  for (int i = 0; i < num_contacts; i++) {
-    if (contacts[i].lastmod > latest) {
-      latest = contacts[i].lastmod;
-    }
-  }
-  if (latest != 0) {
-    getRTCClock()->setCurrentTime(latest + 1);
-  }
-}
-
 ContactInfo* BaseChatMesh::allocateContactSlot(bool transient_only) {
   if (num_contacts < MAX_CONTACTS) {
     return &contacts[num_contacts++];
@@ -166,7 +154,7 @@ void BaseChatMesh::onAdvertRecv(mesh::Packet* packet, const mesh::Identity& id, 
       MESH_DEBUG_PRINTLN("onAdvertRecv: unable to allocate contact slot for new contact");
       return;
     }
-    
+
     populateContactFromAdvert(*from, id, parser, timestamp);
     from->sync_since = 0;
     from->shared_secret_valid = false;
@@ -773,7 +761,7 @@ void BaseChatMesh::checkConnections() {
       memcpy(data, &now, 4);
       data[4] = REQ_TYPE_KEEP_ALIVE;
       memcpy(&data[5], &contact->sync_since, 4);
-    
+
       // calc expected ACK reply
       mesh::Utils::sha256((uint8_t *)&connections[i].expected_ack, 4, data, 9, self_id.pub_key, PUB_KEY_SIZE);
 
@@ -781,7 +769,7 @@ void BaseChatMesh::checkConnections() {
       if (pkt) {
         sendDirect(pkt, contact->out_path, contact->out_path_len);
       }
-    
+
       // schedule next KEEP_ALIVE
       connections[i].next_ping = futureMillis(connections[i].keep_alive_millis);
     }
