@@ -28,8 +28,9 @@ public:
 class BaseChatMesh;
 
 class ContactsIterator {
-  int next_idx = 0;
+  int next_idx;
 public:
+  ContactsIterator(int start) { next_idx = start; }
   bool hasNext(const BaseChatMesh* mesh, ContactInfo& dest);
 };
 
@@ -79,8 +80,9 @@ class BaseChatMesh : public mesh::Mesh {
 protected:
   BaseChatMesh(mesh::Radio& radio, mesh::MillisecondClock& ms, mesh::RNG& rng, mesh::RTCClock& rtc, mesh::PacketManager& mgr, mesh::MeshTables& tables)
       : mesh::Mesh(radio, ms, rng, rtc, mgr, tables)
-  { 
-    num_contacts = 0;
+  {
+    resetContacts();
+
   #ifdef MAX_GROUP_CHANNELS
     memset(channels, 0, sizeof(channels));
     num_channels = 0;
@@ -91,7 +93,11 @@ protected:
   }
 
   void bootstrapRTCfromContacts();
-  void resetContacts() { num_contacts = 0; }
+
+  void resetContacts() {
+    memset(contacts, 0, sizeof(contacts[0])*MAX_ANON_CONTACTS);   // set all to have type = ADV_TYPE_NONE(0)
+    num_contacts = MAX_ANON_CONTACTS;  // seed the first contacts for anon requests
+  }
   void populateContactFromAdvert(ContactInfo& ci, const mesh::Identity& id, const AdvertDataParser& parser, uint32_t timestamp);
   ContactInfo* allocateContactSlot(bool transient_only=false); // helper to find slot for new contact
 
@@ -166,7 +172,8 @@ public:
   ContactInfo* lookupContactByPubKey(const uint8_t* pub_key, int prefix_len);
   bool  removeContact(ContactInfo& contact);
   bool  addContact(const ContactInfo& contact);
-  int getNumContacts() const { return num_contacts; }
+  int getTotalContactSlots() const { return num_contacts; }
+  int getNumContacts() const { return num_contacts - MAX_ANON_CONTACTS; }  // don't include the reserved slots at start
   bool getContactByIdx(uint32_t idx, ContactInfo& contact);
   ContactsIterator startContactsIterator();
   ChannelDetails* addChannel(const char* name, const char* psk_base64);

@@ -135,7 +135,7 @@ class MyMesh : public BaseChatMesh, ContactVisitor {
     File file = _fs->open("/contacts", "w", true);
 #endif
     if (file) {
-      ContactsIterator iter;
+      ContactsIterator iter = startContactsIterator();
       ContactInfo c;
       uint8_t unused = 0;
       uint32_t reserved = 0;

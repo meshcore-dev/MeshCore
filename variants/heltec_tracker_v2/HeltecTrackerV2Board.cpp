@@ -82,3 +82,21 @@ void HeltecTrackerV2Board::begin() {
   const char* HeltecTrackerV2Board::getManufacturerName() const {
     return "Heltec Tracker V2";
   }
+
+  bool HeltecTrackerV2Board::setLoRaFemLnaEnabled(bool enable) {
+    if (!loRaFEMControl.isLnaCanControl()) {
+      return false;
+    }
+
+    loRaFEMControl.setLNAEnable(enable);
+    loRaFEMControl.setRxModeEnable();
+    return true;
+  }
+
+  bool HeltecTrackerV2Board::canControlLoRaFemLna() const {
+    return loRaFEMControl.isLnaCanControl();
+  }
+
+  bool HeltecTrackerV2Board::isLoRaFemLnaEnabled() const {
+    return loRaFEMControl.isLNAEnabled();
+  }
