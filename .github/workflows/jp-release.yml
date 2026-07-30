@@ -27,8 +27,8 @@ jobs:
             -w -DNDEBUG -DRADIOLIB_STATIC_ONLY=1 -DRADIOLIB_GODMODE=1
             -D LORA_FREQ=920.800
             -D LORA_BW=125.0
-            -D LORA_SF=12
-            -D LORA_CR=8
+            -D LORA_SF=10
+            -D LORA_CR=6
             -D ENABLE_ADVERT_ON_BOOT=1
             -D ENABLE_PRIVATE_KEY_IMPORT=1
             -D ENABLE_PRIVATE_KEY_EXPORT=1
