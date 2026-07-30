@@ -53,16 +53,16 @@ static uint32_t _atoi(const char* sp) {
     ArduinoSerialInterface serial_interface;
   #endif
 #elif defined(RP2040_PLATFORM)
-  //#ifdef WIFI_SSID
-  //  #include <helpers/rp2040/SerialWifiInterface.h>
-  //  SerialWifiInterface serial_interface;
-  //  #ifndef TCP_PORT
-  //    #define TCP_PORT 5000
-  //  #endif
-  // #elif defined(BLE_PIN_CODE)
-  //   #include <helpers/rp2040/SerialBLEInterface.h>
-  //   SerialBLEInterface serial_interface;
-  #if defined(SERIAL_RX)
+  #ifdef WIFI_SSID
+    #include <helpers/rp2040/SerialWifiInterface.h>
+    SerialWifiInterface serial_interface;
+    #ifndef TCP_PORT
+      #define TCP_PORT 5000
+    #endif
+  #elif defined(BLE_PIN_CODE)
+    #include <helpers/rp2040/SerialBLEInterface.h>
+    SerialBLEInterface serial_interface;
+  #elif defined(SERIAL_RX)
     #include <helpers/ArduinoSerialInterface.h>
     ArduinoSerialInterface serial_interface;
     HardwareSerial companion_serial(1);
@@ -173,21 +173,19 @@ void setup() {
     #endif
   );
 
-  //#ifdef WIFI_SSID
-  //  WiFi.begin(WIFI_SSID, WIFI_PWD);
-  //  serial_interface.begin(TCP_PORT);
-  // #elif defined(BLE_PIN_CODE)
-  //   char dev_name[32+16];
-  //   sprintf(dev_name, "%s%s", BLE_NAME_PREFIX, the_mesh.getNodeName());
-  //   serial_interface.begin(dev_name, the_mesh.getBLEPin());
-  #if defined(SERIAL_RX)
+  #ifdef WIFI_SSID
+    WiFi.begin(WIFI_SSID, WIFI_PWD);
+    serial_interface.begin(TCP_PORT);
+  #elif defined(BLE_PIN_CODE)
+    serial_interface.begin(BLE_NAME_PREFIX, the_mesh.getNodePrefs()->node_name, the_mesh.getBLEPin());
+  #elif defined(SERIAL_RX)
     companion_serial.setPins(SERIAL_RX, SERIAL_TX);
     companion_serial.begin(115200);
     serial_interface.begin(companion_serial);
   #else
     serial_interface.begin(Serial);
   #endif
-    the_mesh.startInterface(serial_interface);
+  the_mesh.startInterface(serial_interface);
 #elif defined(ESP32)
   SPIFFS.begin(true);
   store.begin();
