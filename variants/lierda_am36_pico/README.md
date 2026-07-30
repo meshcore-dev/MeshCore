@@ -4,11 +4,15 @@ Community variant for the Lierda AM36 Pico evaluation board. The on-board
 L-LRMAM36-FANN4 module is an **ESP32-S3** (8MB flash / 8MB PSRAM) paired with a
 **Semtech LR2021** Generation-4 LoRa transceiver.
 
-> Status: **hardware-validated** (Jul 2026) against a live US915 MeshCore mesh:
-> radio init, noise floor sampling (~-119 dBm), BLE pairing with the iOS
-> companion app, flood + direct TX with interrupt-driven send-complete, and
-> two-way channel messaging through a third-party repeater
-> (SNR up 11.5 dB / down 13.0 dB, replies received at SNR 3.25 dB).
+> Status: **hardware-validated** (Jul 2026) on a live mesh: radio init, noise
+> floor sampling (~-119 dBm), BLE pairing with the iOS companion app, flood +
+> direct TX with interrupt-driven send-complete, and two-way messaging with a
+> Heltec Tracker v2 (SX1262) peer - i.e. confirmed LR2021 <-> SX1262 interop -
+> at 927.875 MHz / BW 62.5 / SF9 / CR7, both nodes using muzi works 17 cm whip
+> antennas (replies at SNR 3.25 dB). Also received channel messages from six
+> third-party senders at 3-9 hops with full path reconstruction, and measured a
+> third-party repeater (not operated by the author) at
+> up 11.5 dB / down 13.0 dB.
 > Requires the `CustomLR2021` radio classes from MeshCore PR #2944.
 
 ## Hardware facts used by this variant
