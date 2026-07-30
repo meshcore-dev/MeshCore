@@ -98,6 +98,8 @@ public:
    */
   virtual void tick() { /* no op */}
 
+  virtual const char* getSourceName() const { return "internal"; }
+
   uint32_t getCurrentTimeUnique() {
     uint32_t t = getCurrentTime();
     if (t <= last_unique) {

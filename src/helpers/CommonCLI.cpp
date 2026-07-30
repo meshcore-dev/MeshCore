@@ -926,6 +926,13 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
 #else
     strcpy(reply, "ERROR: Power management not supported");
 #endif
+  } else if (memcmp(config, "rtcclock", 8) == 0) {
+    uint32_t now = getRTCClock()->getCurrentTime();
+    DateTime dt = DateTime(now);
+    sprintf(reply, "> %s | %04d-%02d-%02d %02d:%02d:%02d UTC",
+            getRTCClock()->getSourceName(),
+            dt.year(), dt.month(), dt.day(),
+            dt.hour(), dt.minute(), dt.second());
   } else {
     sprintf(reply, "??: %s", config);
   }

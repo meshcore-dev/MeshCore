@@ -26,6 +26,17 @@ bool AutoDiscoverRTCClock::i2c_probe(TwoWire& wire, uint8_t addr) {
   return (error == 0);
 }
 
+void AutoDiscoverRTCClock::syncSystemClock() {
+  uint32_t hw_time = getCurrentTime();
+  if (hw_time <= 1704067200UL) return;  // DS3231 not set or lost power (before 2024-01-01)
+
+  uint32_t sys_time = _fallback->getCurrentTime();
+  int32_t drift = (int32_t)(hw_time - sys_time);
+  if (drift > 2 || drift < -2) {
+    _fallback->setCurrentTime(hw_time);
+  }
+}
+
 void AutoDiscoverRTCClock::begin(TwoWire& wire) {
   #if !defined(DISABLE_DS3231_PROBE)
   if (i2c_probe(wire, DS3231_ADDRESS)) {
@@ -50,6 +61,17 @@ void AutoDiscoverRTCClock::begin(TwoWire& wire) {
     rtc_8130.begin(&wire);
     rtc_8130_success = true;
     MESH_DEBUG_PRINTLN("RX8130CE: Initialized");
+  }
+
+  if (ds3231_success)       _source_name = "DS3231";
+  else if (rv3028_success)  _source_name = "RV3028";
+  else if (rtc_8563_success) _source_name = "PCF8563";
+  else if (rtc_8130_success) _source_name = "RX8130CE";
+
+  _has_hw_rtc = ds3231_success || rv3028_success || rtc_8563_success || rtc_8130_success;
+  if (_has_hw_rtc) {
+    syncSystemClock();
+    _last_sync_ms = millis();
   }
 }
 
