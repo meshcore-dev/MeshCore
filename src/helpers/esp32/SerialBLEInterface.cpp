@@ -50,7 +50,10 @@ void SerialBLEInterface::begin(const char* prefix, char* name, uint32_t pin_code
   pRxCharacteristic->setAccessPermissions(ESP_GATT_PERM_WRITE_ENC_MITM);
   pRxCharacteristic->setCallbacks(this);
 
-  pServer->getAdvertising()->addServiceUUID(SERVICE_UUID);
+  // Setup advertising with manufacturer data
+  pAdvertising = pServer->getAdvertising();
+  pAdvertising->addServiceUUID(SERVICE_UUID);
+  applyAdvertisingData();
 }
 
 // -------- BLESecurityCallbacks methods
@@ -140,10 +143,10 @@ void SerialBLEInterface::enable() {
 
   // Start advertising
 
-  //pServer->getAdvertising()->setMinInterval(500);
-  //pServer->getAdvertising()->setMaxInterval(1000);
+  //pAdvertising->setMinInterval(500);
+  //pAdvertising->setMaxInterval(1000);
 
-  pServer->getAdvertising()->start();
+  pAdvertising->start();
   adv_restart_time = 0;
 }
 
@@ -152,7 +155,7 @@ void SerialBLEInterface::disable() {
 
   BLE_DEBUG_PRINTLN("SerialBLEInterface::disable");
 
-  pServer->getAdvertising()->stop();
+  pAdvertising->stop();
   pServer->disconnect(last_conn_id);
   pService->stop();
   oldDeviceConnected = deviceConnected = false;
@@ -223,8 +226,8 @@ size_t SerialBLEInterface::checkRecvFrame(uint8_t dest[]) {
 
       BLE_DEBUG_PRINTLN("SerialBLEInterface -> disconnecting...");
 
-      //pServer->getAdvertising()->setMinInterval(500);
-      //pServer->getAdvertising()->setMaxInterval(1000);
+      //pAdvertising->setMinInterval(500);
+      //pAdvertising->setMaxInterval(1000);
 
       adv_restart_time = millis() + ADVERT_RESTART_DELAY;
     } else {
@@ -232,7 +235,7 @@ size_t SerialBLEInterface::checkRecvFrame(uint8_t dest[]) {
       BLE_DEBUG_PRINTLN("SerialBLEInterface -> connecting...");
       // connecting
       // do stuff here on connecting
-      pServer->getAdvertising()->stop();
+      pAdvertising->stop();
       adv_restart_time = 0;
     }
     oldDeviceConnected = deviceConnected;
@@ -241,13 +244,78 @@ size_t SerialBLEInterface::checkRecvFrame(uint8_t dest[]) {
   if (adv_restart_time && millis() >= adv_restart_time) {
     if (pServer->getConnectedCount() == 0) {
       BLE_DEBUG_PRINTLN("SerialBLEInterface -> re-starting advertising");
-      pServer->getAdvertising()->start();  // re-Start advertising
+      pAdvertising->start();  // re-Start advertising
     }
     adv_restart_time = 0;
   }
+
+  // Apply pending advertising data changes when not connected
+  if (_advDataDirty && !deviceConnected) {
+    applyAdvertisingData();
+    _advDataDirty = false;
+  }
+
   return 0;
 }
 
 bool SerialBLEInterface::isConnected() const {
   return deviceConnected;  //pServer != NULL && pServer->getConnectedCount() > 0;
+}
+
+void SerialBLEInterface::setUnreadCount(uint8_t count) {
+  if (_advStatus.unread_count == count) return;
+  _advStatus.unread_count = count;
+  onAdvStatusChanged();
+}
+
+void SerialBLEInterface::setBatteryMilliVolts(uint16_t millivolts) {
+  uint8_t encoded;
+  if (millivolts < 2500) {
+    encoded = 0;
+  } else if (millivolts > 5000) {
+    encoded = 250;
+  } else {
+    encoded = (millivolts - 2500) / 10;
+  }
+  if (_advStatus.battery_voltage == encoded) return;
+  _advStatus.battery_voltage = encoded;
+  onAdvStatusChanged();
+}
+
+void SerialBLEInterface::onAdvStatusChanged() {
+  if (deviceConnected) {
+    _advDataDirty = true;
+  } else if (_isEnabled) {
+    applyAdvertisingData();
+  }
+}
+
+void SerialBLEInterface::applyAdvertisingData() {
+  if (!pAdvertising) {
+    return;
+  }
+
+  // Build manufacturer specific data:
+  // Bytes 0-1: Manufacturer ID (little-endian)
+  // Bytes 2-3: AdvertisingStatus struct
+  uint8_t mfr_data[4];
+  mfr_data[0] = MESHCORE_MANUFACTURER_ID & 0xFF;         // Manufacturer ID low byte
+  mfr_data[1] = (MESHCORE_MANUFACTURER_ID >> 8) & 0xFF;  // Manufacturer ID high byte
+  mfr_data[2] = _advStatus.unread_count;
+  mfr_data[3] = _advStatus.battery_voltage;
+
+  // Slave Connection Interval Range (AD type 0x12)
+  // min=40ms (0x0020), max=80ms (0x0040)
+  uint8_t conn_interval[] = {0x05, 0x12, 0x20, 0x00, 0x40, 0x00};
+
+  BLEAdvertisementData advData;
+  advData.setFlags(ESP_BLE_ADV_FLAG_GEN_DISC | ESP_BLE_ADV_FLAG_BREDR_NOT_SPT);
+  advData.setCompleteServices(BLEUUID(SERVICE_UUID));
+  advData.setManufacturerData(std::string((char*)mfr_data, sizeof(mfr_data)));
+  advData.addData(std::string((char*)conn_interval, sizeof(conn_interval)));
+
+  pAdvertising->setAdvertisementData(advData);
+
+  BLE_DEBUG_PRINTLN("applyAdvertisingData: unread=%d, battery_voltage=%d",
+                    _advStatus.unread_count, _advStatus.battery_voltage);
 }

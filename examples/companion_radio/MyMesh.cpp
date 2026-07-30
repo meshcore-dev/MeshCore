@@ -145,6 +145,8 @@
 #define AUTO_ADD_ROOM_SERVER      (1 << 3)  // 0x08 - auto-add Room Server (ADV_TYPE_ROOM)
 #define AUTO_ADD_SENSOR           (1 << 4)  // 0x10 - auto-add Sensor (ADV_TYPE_SENSOR)
 
+#define BLE_ADV_UPDATE_INTERVAL_MS  30000  // Update BLE advertising every 30 seconds
+
 void MyMesh::writeOKFrame() {
   uint8_t buf[1];
   buf[0] = RESP_CODE_OK;
@@ -238,6 +240,8 @@ void MyMesh::addToOfflineQueue(const uint8_t frame[], int len) {
     memcpy(offline_queue[offline_queue_len].buf, frame, len);
     offline_queue_len++;
   }
+
+  updateBLEUnreadCount();
 }
 
 int MyMesh::getFromOfflineQueue(uint8_t frame[]) {
@@ -249,9 +253,17 @@ int MyMesh::getFromOfflineQueue(uint8_t frame[]) {
     for (int i = 0; i < offline_queue_len; i++) { // delete top item from queue
       offline_queue[i] = offline_queue[i + 1];
     }
+
+    updateBLEUnreadCount();
+
     return len;
   }
   return 0; // queue is empty
+}
+
+void MyMesh::updateBLEUnreadCount() {
+  if (!_serial) return;
+  _serial->setUnreadCount((uint8_t)min(offline_queue_len, 255));
 }
 
 float MyMesh::getAirtimeBudgetFactor() const {
@@ -2214,6 +2226,8 @@ void MyMesh::checkSerialInterface() {
 }
 
 void MyMesh::loop() {
+  static unsigned long last_adv_update = 0;
+
   BaseChatMesh::loop();
 
   if (_cli_rescue) {
@@ -2226,6 +2240,14 @@ void MyMesh::loop() {
   if (dirty_contacts_expiry && millisHasNowPassed(dirty_contacts_expiry)) {
     saveContacts();
     dirty_contacts_expiry = 0;
+  }
+
+  // Periodically update battery level in BLE advertising
+  if (millis() - last_adv_update >= BLE_ADV_UPDATE_INTERVAL_MS) {
+    if (_serial) {
+      _serial->setBatteryMilliVolts(board.getBattMilliVolts());
+    }
+    last_adv_update = millis();
   }
 
 #ifdef DISPLAY_CLASS
