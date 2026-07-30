@@ -97,8 +97,8 @@
 
 920.8 MHz
 BW 125.0 kHz
-SF 12
-CR 8
+SF 10
+CR 6
 Transmit Power: T1000-eが12dBm それ以外のデバイスは10dBm
 
 ### DMの送り方
