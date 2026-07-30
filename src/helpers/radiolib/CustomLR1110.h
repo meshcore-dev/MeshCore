@@ -36,8 +36,15 @@ class CustomLR1110 : public LR1110 {
     bool getRxBoostedGainMode() const { return _rx_boosted; }
 
     int16_t startReceive() override {
-      // include the PREAMBLE_DETECTED irq bit in reported flags
-      return LR1110::startReceive(RADIOLIB_LR11X0_IRQ_PREAMBLE_DETECTED, RADIOLIB_IRQ_RX_DEFAULT_FLAGS | (1UL << RADIOLIB_IRQ_PREAMBLE_DETECTED), RADIOLIB_IRQ_RX_DEFAULT_MASK, 0);
+      // include the PREAMBLE_DETECTED irq bit in reported flags.
+      //
+      // NOTE: the first argument is the RX *timeout*, not an IRQ mask. Passing
+      // RADIOLIB_LR11X0_IRQ_PREAMBLE_DETECTED (1<<4 = 16) here armed the receiver
+      // with a 16-tick timeout -- at the LR11x0's 30.52us tick that is a ~488us
+      // receive window, so the radio dropped out of RX before any packet could
+      // arrive and the node never received anything. It must stay RX_TIMEOUT_INF
+      // (continuous RX), which is what LR11x0::startReceive() itself passes.
+      return LR1110::startReceive(RADIOLIB_LR11X0_RX_TIMEOUT_INF, RADIOLIB_IRQ_RX_DEFAULT_FLAGS | (1UL << RADIOLIB_IRQ_PREAMBLE_DETECTED), RADIOLIB_IRQ_RX_DEFAULT_MASK, 0);
     }
 
     bool isReceiving() {
