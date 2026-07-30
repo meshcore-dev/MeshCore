@@ -76,7 +76,7 @@ public:
   }
 
   void powerOff() override {
-    enterDeepSleep(0);
+    enterDeepSleep(0, PIN_USER_BTN);
   }
 
   uint16_t getBattMilliVolts() override {
