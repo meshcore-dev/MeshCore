@@ -1,0 +1,109 @@
+name: Build Zephyr Companion (XIAO nRF54L15 + LR2021)
+
+# Builds zephyr-port/07_companion against the mainline Zephyr revision pinned in
+# .devcontainer/setup-zephyr.sh (single source for the pin and the Arduino library
+# versions), for both band presets. This is the only build coverage the nRF54L15 +
+# LR2021 port has — keep the path filters in sync with what the companion compiles.
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'zephyr-port/**'
+      - 'src/**'
+      - 'examples/companion_radio/**'
+      - 'arch/stm32/Adafruit_LittleFS_stm32/**'
+      - 'lib/ed25519/**'
+      - '.devcontainer/setup-zephyr.sh'
+      - '.github/workflows/build-zephyr-companion.yml'
+  pull_request:
+    paths:
+      - 'zephyr-port/**'
+      - 'src/**'
+      - 'examples/companion_radio/**'
+      - 'arch/stm32/Adafruit_LittleFS_stm32/**'
+      - 'lib/ed25519/**'
+      - '.devcontainer/setup-zephyr.sh'
+      - '.github/workflows/build-zephyr-companion.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - band: subghz
+            extra_args: ''
+          - band: 2g4
+            extra_args: '-- -DMC_BAND_2G4=ON'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read pinned versions from setup-zephyr.sh
+        id: pins
+        run: |
+          eval "$(grep -E '^(ZEPHYR_REV|RADIOLIB_VER|CRYPTO_VER|BASE64_VER)=' .devcontainer/setup-zephyr.sh)"
+          {
+            echo "zephyr_rev=${ZEPHYR_REV}"
+            echo "radiolib=${RADIOLIB_VER}"
+            echo "crypto=${CRYPTO_VER}"
+            echo "base64=${BASE64_VER}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Install host dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake ninja-build gperf ccache device-tree-compiler \
+            wget xz-utils file make python3-dev python3-venv
+
+      - name: Cache Zephyr workspace and SDK
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/zephyrproject
+            ~/zephyr-sdk-*
+          key: zephyr-${{ steps.pins.outputs.zephyr_rev }}-arm-v1
+
+      - name: Set up west workspace (pinned mainline Zephyr)
+        run: |
+          python3 -m venv ~/.zephyr-venv
+          source ~/.zephyr-venv/bin/activate
+          pip install --quiet --upgrade pip west
+          if [ ! -d ~/zephyrproject/.west ]; then
+            west init -m https://github.com/zephyrproject-rtos/zephyr \
+              --mr "${{ steps.pins.outputs.zephyr_rev }}" ~/zephyrproject
+          fi
+          cd ~/zephyrproject
+          west update --narrow -o=--depth=1
+          west zephyr-export
+          pip install --quiet -r zephyr/scripts/requirements.txt
+          west sdk install -t arm-zephyr-eabi
+
+      - name: Install Arduino libraries (RadioLib/Crypto/base64)
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh \
+            | BINDIR="$HOME/.local/bin" sh
+          export PATH="$HOME/.local/bin:$PATH"
+          arduino-cli config init >/dev/null 2>&1 || true
+          arduino-cli config set directories.user "$HOME/Arduino"
+          arduino-cli lib update-index
+          arduino-cli lib install \
+            "RadioLib@${{ steps.pins.outputs.radiolib }}" \
+            "Crypto@${{ steps.pins.outputs.crypto }}" \
+            "base64@${{ steps.pins.outputs.base64 }}"
+
+      - name: Build companion (${{ matrix.band }})
+        run: |
+          source ~/.zephyr-venv/bin/activate
+          export ZEPHYR_BASE=$HOME/zephyrproject/zephyr
+          cd zephyr-port/07_companion
+          west build -b xiao_nrf54l15/nrf54l15/cpuapp -d build . --pristine ${{ matrix.extra_args }}
+
+      - name: Upload firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: meshcore-companion-xiao_nrf54l15-lr2021-${{ matrix.band }}
+          path: zephyr-port/07_companion/build/zephyr/zephyr.hex

@@ -104,6 +104,7 @@ void RadioLibWrapper::loop() {
 }
 
 void RadioLibWrapper::startRecv() {
+  onBeforeStartRecv();
   int err = _radio->startReceive();
   if (err == RADIOLIB_ERR_NONE) {
     state = STATE_RX;
@@ -128,7 +129,6 @@ int RadioLibWrapper::recvRaw(uint8_t* bytes, int sz) {
         len = 0;
         n_recv_errors++;
       } else {
-      //  Serial.print("  readData() -> "); Serial.println(len);
         n_recv++;
       }
     }
@@ -136,6 +136,7 @@ int RadioLibWrapper::recvRaw(uint8_t* bytes, int sz) {
   }
 
   if (state != STATE_RX) {
+    onBeforeStartRecv();
     int err = _radio->startReceive();
     if (err == RADIOLIB_ERR_NONE) {
       state = STATE_RX;

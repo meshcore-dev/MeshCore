@@ -3,6 +3,8 @@
 
 #if defined(NRF52_PLATFORM)
   #include <InternalFileSystem.h>
+#elif defined(NRF54_PLATFORM)
+  #include <helpers/nrf54/InternalFileSystem.h>
 #elif defined(RP2040_PLATFORM)
   #include <LittleFS.h>
 #elif defined(ESP32)
@@ -42,7 +44,10 @@
 
 #include <helpers/BaseChatMesh.h>
 
-#define SEND_TIMEOUT_BASE_MILLIS          500
+#define SEND_TIMEOUT_BASE_MILLIS          3000   // generous base so first-contact (cold path
+                                                 // discovery) ACKs land inside the window; warm
+                                                 // round-trips are 600-800ms so this only affects
+                                                 // how long a genuine no-ACK takes to report
 #define FLOOD_SEND_TIMEOUT_FACTOR         16.0f
 #define DIRECT_SEND_PERHOP_FACTOR         6.0f
 #define DIRECT_SEND_PERHOP_EXTRA_MILLIS   250
@@ -126,7 +131,7 @@ class MyMesh : public BaseChatMesh, ContactVisitor {
   }
 
   void saveContacts() {
-#if defined(NRF52_PLATFORM)
+#if defined(NRF52_PLATFORM) || defined(NRF54_PLATFORM)
     _fs->remove("/contacts");
     File file = _fs->open("/contacts", FILE_O_WRITE);
 #elif defined(RP2040_PLATFORM)
@@ -218,11 +223,14 @@ protected:
   }
 
   ContactInfo* processAck(const uint8_t *data) override {
-    if (memcmp(data, &expected_ack_crc, 4) == 0) {     // got an ACK from recipient
+    if (expected_ack_crc != 0 && memcmp(data, &expected_ack_crc, 4) == 0) {  // got an ACK from recipient
       Serial.printf("   Got ACK! (round trip: %d millis)\n", _ms->getMillis() - last_msg_sent);
       // NOTE: the same ACK can be received multiple times!
       expected_ack_crc = 0;  // reset our expected hash, now that we have received ACK
-      return NULL;  // TODO: really should return ContactInfo pointer 
+      // Return the matched contact (the recipient we sent to) so BaseChatMesh cancels its
+      // send-timeout; returning NULL here left txt_send_timeout running, so onSendTimeout()
+      // fired a spurious "ERROR: timed out, no ACK." right after a successful "Got ACK!".
+      return curr_recipient;
     }
 
     //uint32_t crc;
@@ -298,7 +306,7 @@ public:
 
     BaseChatMesh::begin();
 
-  #if defined(NRF52_PLATFORM)
+  #if defined(NRF52_PLATFORM) || defined(NRF54_PLATFORM)
     IdentityStore store(fs, "");
   #elif defined(RP2040_PLATFORM)
     IdentityStore store(fs, "/identity");
@@ -341,7 +349,7 @@ public:
   }
 
   void savePrefs() {
-#if defined(NRF52_PLATFORM)
+#if defined(NRF52_PLATFORM) || defined(NRF54_PLATFORM)
     _fs->remove("/node_prefs");
     File file = _fs->open("/node_prefs", FILE_O_WRITE);
 #elif defined(RP2040_PLATFORM)
@@ -528,10 +536,9 @@ public:
     int len = strlen(command);
     while (Serial.available() && len < sizeof(command)-1) {
       char c = Serial.read();
-      if (c != '\n') { 
-        command[len++] = c;
-        command[len] = 0;
-      }
+      if (c == '\n') c = '\r';   // accept LF or CRLF (arduino-cli monitor sends LF)
+      command[len++] = c;
+      command[len] = 0;
       Serial.print(c);
     }
     if (len == sizeof(command)-1) {  // command buffer full
@@ -564,7 +571,7 @@ void setup() {
 
   fast_rng.begin(radio_driver.getRngSeed());
 
-#if defined(NRF52_PLATFORM)
+#if defined(NRF52_PLATFORM) || defined(NRF54_PLATFORM)
   InternalFS.begin();
   the_mesh.begin(InternalFS);
 #elif defined(RP2040_PLATFORM)

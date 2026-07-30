@@ -17,6 +17,8 @@
 
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
 #include <InternalFileSystem.h>
+#elif defined(NRF54_PLATFORM)
+#include <helpers/nrf54/InternalFileSystem.h>
 #elif defined(RP2040_PLATFORM)
 #include <LittleFS.h>
 #elif defined(ESP32)

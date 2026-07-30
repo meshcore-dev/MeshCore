@@ -26,6 +26,9 @@ static uint32_t _atoi(const char* sp) {
     DataStore store(InternalFS, rtc_clock);
   #endif
   #endif
+#elif defined(NRF54_PLATFORM)
+  #include <helpers/nrf54/InternalFileSystem.h>
+  DataStore store(InternalFS, rtc_clock);
 #elif defined(RP2040_PLATFORM)
   #include <LittleFS.h>
   DataStore store(LittleFS, rtc_clock);
@@ -73,6 +76,14 @@ static uint32_t _atoi(const char* sp) {
 #elif defined(NRF52_PLATFORM)
   #ifdef BLE_PIN_CODE
     #include <helpers/nrf52/SerialBLEInterface.h>
+    SerialBLEInterface serial_interface;
+  #else
+    #include <helpers/ArduinoSerialInterface.h>
+    ArduinoSerialInterface serial_interface;
+  #endif
+#elif defined(NRF54_PLATFORM)
+  #ifdef BLE_PIN_CODE
+    #include <helpers/nrf54/SerialBLEInterface.h>
     SerialBLEInterface serial_interface;
   #else
     #include <helpers/ArduinoSerialInterface.h>
@@ -147,6 +158,23 @@ void setup() {
       ExtraFS.begin();
   #endif
   #endif
+  store.begin();
+  the_mesh.begin(
+    #ifdef DISPLAY_CLASS
+        disp != NULL
+    #else
+        false
+    #endif
+  );
+
+#ifdef BLE_PIN_CODE
+  serial_interface.begin(BLE_NAME_PREFIX, the_mesh.getNodePrefs()->node_name, the_mesh.getBLEPin());
+#else
+  serial_interface.begin(Serial);
+#endif
+  the_mesh.startInterface(serial_interface);
+#elif defined(NRF54_PLATFORM)
+  InternalFS.begin();
   store.begin();
   the_mesh.begin(
     #ifdef DISPLAY_CLASS

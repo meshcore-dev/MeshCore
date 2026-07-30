@@ -1,0 +1,20 @@
+description: |
+  LR2021 control GPIOs driven directly by RadioLib (NSS/DIO1/RESET/BUSY).
+  Not a real device node; just a holder so GPIO_DT_SPEC_GET generates the
+  pin/flags cell macros for these phandle-array properties.
+
+compatible: "mc,lora-ctrl"
+
+properties:
+  nss-gpios:
+    type: phandle-array
+    required: true
+  dio1-gpios:
+    type: phandle-array
+    required: true
+  reset-gpios:
+    type: phandle-array
+    required: true
+  busy-gpios:
+    type: phandle-array
+    required: true

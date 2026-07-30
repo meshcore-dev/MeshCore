@@ -1,0 +1,44 @@
+/*
+ * LR2021 wiring on the XIAO nRF54L15 (matches variants/xiao_nrf54l15/target.h):
+ *   SPI  = spi00 (xiao_spi): SCK=P2.1(D8) MOSI=P2.2(D10) MISO=P2.4(D9)
+ *   NSS  = P1.7 (D3)   DIO1 = P1.4 (D0)   RESET = P1.6 (D2)   BUSY = P1.5 (D1)
+ *
+ * RadioLib drives NSS itself (digitalWrite), so the SPI controller is used WITHOUT
+ * a hardware CS. The four control pins are plain GPIOs (flags=0 / active-high; the
+ * HAL uses raw ops so RadioLib's LOW/HIGH map to physical levels, as on Arduino).
+ */
+&spi00 {
+	status = "okay";
+};
+
+/*
+ * Split the 36 KB RRAM storage region (0x174000..0x17D000): MeshCore's LittleFS keeps
+ * 24 KB; a 12 KB NVS settings partition holds BLE bonds (CONFIG_BT_SETTINGS) so the app
+ * doesn't have to re-pair after every reboot.
+ */
+&storage_partition {
+	reg = <0x174000 DT_SIZE_K(24)>;
+};
+
+/* add the settings partition as a sibling under the existing fixed-partitions node */
+&{/soc/rram-controller@5004b000/rram@0/partitions} {
+	settings_partition: partition@17a000 {
+		compatible = "zephyr,mapped-partition";
+		reg = <0x17a000 DT_SIZE_K(12)>;
+		label = "settings";
+	};
+};
+
+/ {
+	chosen {
+		zephyr,settings-partition = &settings_partition;
+	};
+
+	lora0: lora0 {
+		compatible = "mc,lora-ctrl";
+		nss-gpios   = <&gpio1 7 0>;
+		dio1-gpios  = <&gpio1 4 0>;
+		reset-gpios = <&gpio1 6 0>;
+		busy-gpios  = <&gpio1 5 0>;
+	};
+};

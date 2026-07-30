@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Arduino.h>   // min/max/random (RadioLib's generic build omits these)
 #include <Mesh.h>
 #include <RadioLib.h>
 
@@ -18,6 +19,10 @@ protected:
   float packetScoreInt(float snr, int sf, int packet_len);
   virtual bool isReceivingPacket() =0;
   virtual void doResetAGC();
+  // Called right before every startReceive(). Default no-op; radios that cannot
+  // re-arm RX while already in continuous RX (LR2021) override this to drop to
+  // standby first.
+  virtual void onBeforeStartRecv() { }
 
 public:
   RadioLibWrapper(PhysicalLayer& radio, mesh::MainBoard& board) : _radio(&radio), _board(&board), _preamble_sf(0) { n_recv = n_sent = 0; }
