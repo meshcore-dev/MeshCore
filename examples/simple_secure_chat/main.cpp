@@ -564,7 +564,16 @@ void setup() {
   external_watchdog.begin();
 #endif
 
-  if (!radio_init()) { halt(); }
+  int radioinit_attempts = 0;
+  while (!radio_init()) {
+    ++radioinit_attempts;
+    MESH_DEBUG_PRINTLN("Radio init failed! (attempt %d)", radioinit_attempts);
+    if (radioinit_attempts >= 3) {
+      MESH_DEBUG_PRINTLN("Radio init failed 3x - rebooting");
+      board.reboot();
+    }
+    delay(500);
+  }
 
   fast_rng.begin(radio_driver.getRngSeed());
 
