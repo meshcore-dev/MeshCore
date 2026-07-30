@@ -79,6 +79,19 @@ void UITask::renderCurrScreen() {
     _display->setColor(DisplayDriver::GREEN);
     _display->print(_node_prefs->node_name);
 
+#if ENV_INCLUDE_GPS
+    if (_gps && _gps->isEnabled()) {
+      _display->setCursor(0, 10);
+      _display->setColor(DisplayDriver::YELLOW);
+      if (_gps->isValid()) {
+        sprintf(tmp, "GPS: fix %ld sat", _gps->satellitesCount());
+      } else {
+        sprintf(tmp, "GPS: no fix %ld sat", _gps->satellitesCount());
+      }
+      _display->print(tmp);
+    }
+#endif
+
     // freq / sf
     _display->setCursor(0, 20);
     _display->setColor(DisplayDriver::YELLOW);

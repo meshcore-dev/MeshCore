@@ -418,7 +418,8 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
         bool enabled = l->isEnabled(); // is EN pin on ?
         bool fix = l->isValid();       // has fix ?
         int sats = l->satellitesCount();
-        bool active = !strcmp(_sensors->getSettingByKey("gps"), "1");
+        const char* gps_val = _sensors->getSettingByKey("gps");
+        bool active = (gps_val != NULL) && !strcmp(gps_val, "1");
         if (enabled) {
           sprintf(reply, "on, %s, %s, %d sats",
             active?"active":"deactivated",

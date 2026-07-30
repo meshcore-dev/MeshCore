@@ -93,6 +93,9 @@ void setup() {
 
 #ifdef DISPLAY_CLASS
   ui_task.begin(the_mesh.getNodePrefs(), FIRMWARE_BUILD_DATE, FIRMWARE_VERSION);
+  #if ENV_INCLUDE_GPS
+  ui_task.setGPS(sensors.getLocationProvider());
+  #endif
 #endif
 
   // send out initial zero hop Advertisement to the mesh

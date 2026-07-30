@@ -748,8 +748,10 @@ void EnvironmentSensorManager::initBasicGPS() {
     MESH_DEBUG_PRINTLN("No GPS wake/reset pin found for this board. Continuing on...");
   #endif
 
+#ifndef ENV_SKIP_GPS_DETECT
   // Give GPS a moment to power up and send data
   delay(1000);
+#endif
 
   // We'll consider GPS detected if we see any data on Serial1
 #ifdef ENV_SKIP_GPS_DETECT
