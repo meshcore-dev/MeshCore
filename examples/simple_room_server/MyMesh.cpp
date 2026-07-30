@@ -75,7 +75,8 @@ void MyMesh::pushTopicToClient(ClientInfo *client) {
   pushPostInternal(client, topic_timestamp, self_id, topic);
 }
 
-void MyMesh::pushPostInternal(ClientInfo* client, uint32_t timestamp, const mesh::Identity& author, const char* text) {
+void MyMesh::pushPostInternal(ClientInfo* client, uint32_t timestamp, const mesh::Identity& author,
+    const char* text) {
   int len = 0;
   memcpy(&reply_data[len], &timestamp, 4);
   len += 4; // this is a PAST timestamp... but should be accepted by client
