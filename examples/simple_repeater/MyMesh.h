@@ -25,6 +25,7 @@
 #endif
 
 #include <helpers/AdvertDataHelpers.h>
+#include <helpers/ChannelHistory.h>
 #include <helpers/ArduinoHelpers.h>
 #include <helpers/ClientACL.h>
 #include <helpers/CommonCLI.h>
@@ -69,6 +70,24 @@ struct NeighbourInfo {
   int8_t snr; // multiplied by 4, user should divide to get float value
 };
 
+#ifndef MAX_CHANNEL_HISTORY
+  #define MAX_CHANNEL_HISTORY   32   // recent public-channel (GRP_TXT) packets kept for store-and-forward
+#endif
+
+// Largest GRP_TXT payload we can cache. A cached packet must fit, verbatim, inside a
+// single RESPONSE packet (reply_data is MAX_PACKET_PAYLOAD) alongside the response
+// framing: 4-byte reply tag + 1-byte record count + 4-byte recv_ts + 1-byte raw_len.
+#define CHANNEL_HISTORY_MAX_RAW  (MAX_PACKET_PAYLOAD - 10)
+// size of the optional channel-history request params: {channel_hash}{since_ts:u32}{max_count}
+#define CHANNEL_HISTORY_PARAMS_LEN  6
+// Cap on the channel-history reply. reply_data is MAX_PACKET_PAYLOAD (184), but that is
+// not the binding limit: a companion hands the response to its host app in a serial frame
+// of {push code}{reserved}{tag:4} + (reply padded to the AES block size - 4), i.e.
+// padded_len + 2, and MAX_FRAME_SIZE is 176. A reply of <= 160 bytes pads to at most 160
+// and so always fits; a larger one is transmitted by the repeater but silently dropped
+// before it reaches the app. Clients page for the remainder using `since`.
+#define CHANNEL_HISTORY_MAX_REPLY   160
+
 #ifndef FIRMWARE_BUILD_DATE
   #define FIRMWARE_BUILD_DATE   "6 Jun 2026"
 #endif
@@ -107,6 +126,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
 #if MAX_NEIGHBOURS
   NeighbourInfo neighbours[MAX_NEIGHBOURS];
 #endif
+  ChannelHistory<MAX_CHANNEL_HISTORY, CHANNEL_HISTORY_MAX_RAW> channel_history;  // recent public-channel packets
   CayenneLPP telemetry;
   unsigned long set_radio_at, revert_radio_at;
   float pending_freq;
@@ -121,10 +141,12 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
 #endif
 
   void putNeighbour(const mesh::Identity& id, uint32_t timestamp, float snr);
+  void captureChannelPacket(const mesh::Packet* pkt);
   uint8_t handleLoginReq(const mesh::Identity& sender, const uint8_t* secret, uint32_t sender_timestamp, const uint8_t* data, bool is_flood);
   uint8_t handleAnonRegionsReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data);
   uint8_t handleAnonOwnerReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data);
   uint8_t handleAnonClockReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data);
+  uint8_t handleAnonChannelHistoryReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data, size_t len);
   int handleRequest(ClientInfo* sender, uint32_t sender_timestamp, uint8_t* payload, size_t payload_len);
   mesh::Packet* createSelfAdvert();
 

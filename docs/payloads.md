@@ -149,7 +149,6 @@ Not defined in `BaseChatMesh`.
 
 Not defined in `BaseChatMesh`.
 
-
 ### Response
 
 | Field   | Size (bytes)    | Description                       |
@@ -224,6 +223,65 @@ txt_type
 | req type       | 1            | 0x03 (request sub type)      |
 | reply path len | 1            | path len for reply           |
 | reply path     | (variable)   | reply path                   |
+
+### Repeater - Channel history request
+
+Implemented by the **repeater** firmware. A repeater relays every public-channel
+(`GRP_TXT`) packet that passes through it; with this feature it also keeps a bounded,
+in-RAM ring buffer of those packets, so a client that was out of range can pull back
+what it missed. It is an **anonymous** request — **no login required** — because public
+channel data isn't admin-only. The repeater holds no channel key: packets are cached and
+replayed still-encrypted, so a non-member who asks just receives ciphertext it can't
+read, and a member decrypts with its own channel key. History is served **directly to the
+requesting client** (never re-flooded), so it adds no broadcast airtime.
+
+The request must be sent **route-direct** (like the other anonymous sub-type requests,
+which the repeater gates behind `isRouteDirect()`), and is rate-limited by the shared
+anonymous-request limiter.
+
+| Field          | Size (bytes) | Description                                                       |
+|----------------|--------------|------------------------------------------------------------------|
+| timestamp      | 4            | sender time (unix timestamp)                                     |
+| req type       | 1            | 0x04 (request sub type)                                          |
+| reply path len | 1            | path len for reply                                               |
+| reply path     | (variable)   | reply path                                                       |
+| params len     | 1            | *optional*; `6` if the params below follow, otherwise absent      |
+| channel hash   | 1            | only return this channel's packets; `0xFF` = any channel         |
+| since          | 4            | unix timestamp; only packets received strictly after are returned |
+| max count      | 1            | cap on records in this response; `0` = as many as fit            |
+
+Everything from *params len* onwards is **optional**: a client that sends only a reply
+path (which is all the stock companion's anonymous-request path emits) gets the defaults
+`channel hash = 0xFF`, `since = 0`, `max count = 0` — i.e. recent history for all
+channels. The explicit length byte is what makes this safe to detect: the request
+plaintext is zero-padded to the AES block size, so a params len read out of that padding
+is `0`, which is not `6` and therefore reads as "no params".
+
+The response is the reflected 4-byte tag, then a record count, then that many records of
+`{recv_ts:4}{raw_len:1}{raw:raw_len}`, oldest first. Each `raw` is the original
+channel-encrypted `GRP_TXT` payload exactly as it was relayed, so a channel member decrypts
+it with its own key and a non-member cannot read it.
+
+The response is size-capped, so a client must be prepared to page: re-request with *since*
+set to the newest `recv_ts` received, until a response comes back with a count of zero.
+
+Response (after the standard 4-byte reflected-timestamp tag):
+
+| Field   | Size (bytes) | Description                        |
+|---------|--------------|------------------------------------|
+| count   | 1            | number of records that follow      |
+| records | rest         | `count` × record, oldest → newest  |
+
+Each record:
+
+| Field   | Size (bytes) | Description                                          |
+|---------|--------------|------------------------------------------------------|
+| recv ts | 4            | when the repeater received the packet                |
+| raw len | 1            | length of the raw payload                            |
+| raw     | `raw len`    | the original `GRP_TXT` payload, verbatim (encrypted) |
+
+A response carries only as many records as fit in one packet. The client pages by
+re-requesting with `since` set to the newest `recv ts` it received.
 
 
 ## Group text message
