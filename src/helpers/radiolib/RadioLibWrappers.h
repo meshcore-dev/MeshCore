@@ -65,24 +65,6 @@ public:
             fabsf(freq - 921.200f) < 0.05f);
   }
 
-  int getMaxTextLen() const override {
-    if (!isAS923_1_JP()) return 10 * 16;  // default 160 bytes
-    uint8_t cr = getCodingRate();
-    if (cr <= 5) return 64;  // 3874ms @ SF12/BW125/CR4-5
-    if (cr == 6) return 48;  // 3874ms @ SF12/BW125/CR4-6
-    if (cr == 7) return 32;  // 3678ms @ SF12/BW125/CR4-7
-    return 24;               // 3547ms @ SF12/BW125/CR4-8
-  }
-
-  int getMaxGroupTextLen() const override {
-    if (!isAS923_1_JP()) return 10 * 16;  // default 160 bytes
-    uint8_t cr = getCodingRate();
-    if (cr <= 5) return 64;  // 3710ms @ SF12/BW125/CR4-5
-    if (cr == 6) return 48;  // 3678ms @ SF12/BW125/CR4-6
-    if (cr == 7) return 39;  // 3907ms @ SF12/BW125/CR4-7
-    return 29;               // 3809ms @ SF12/BW125/CR4-8
-  }
-
   PacketMillis calcMaxPacketMillis(uint8_t sf, float bw, uint8_t cr, uint8_t preambleSymbols);
   virtual int16_t performChannelScan();
 
