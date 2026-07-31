@@ -886,8 +886,8 @@ region save
 
 **Parameters:**
 - `pubkey`: Public key of the repeater to subscribe to. A prefix (4 bytes or more) is accepted if
-  that node is a current neighbor, such as the prefixes reported by `discover.regions`; otherwise
-  give the full key.
+  it uniquely identifies a current neighbor, such as the prefixes reported by `discover.regions`;
+  an ambiguous prefix is rejected. Otherwise, give the full key.
 
 **Note:** The node asks the subscribed repeater which regions it floods, and adds any it does not
 already have. This is **additive**: a region already on this node is left exactly as it is, keeping

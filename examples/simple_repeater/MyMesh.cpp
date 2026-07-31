@@ -52,8 +52,8 @@
 
 #define RESP_SERVER_LOGIN_OK        0 // response to ANON_REQ
 
-// createDatagram() rejects a reply longer than this, once the MAC and the cipher block
-// padding are added. The exporters below MUST keep within it, or no reply is sent at all.
+// createDatagram() rejects anything longer, once MAC and block padding are added, so a
+// reply over this size is never sent at all
 #define MAX_ANON_REPLY_LEN   (MAX_PACKET_PAYLOAD - CIPHER_MAC_SIZE - (CIPHER_BLOCK_SIZE - 1))
 
 #define ANON_REQ_TYPE_REGIONS      0x01
@@ -64,19 +64,17 @@
 
 #define LAZY_CONTACTS_WRITE_DELAY    5000
 
-#define REGION_QUERY_NONE           0
-#define REGION_QUERY_DISCOVER       1   // 'discover.regions' pass over the neighbours table
-#define REGION_QUERY_SUBSCRIBE        2   // scheduled fetch from the subscribed node
+#define REGION_QUERY_NONE            0
+#define REGION_QUERY_DISCOVER        1   // 'discover.regions' pass over the neighbours
+#define REGION_QUERY_SUBSCRIBE       2   // scheduled fetch from the subscribed node
+#define REGION_QUERY_PEER_IDX     1000   // peer index for the node being queried
 
-#define REGION_QUERY_TIMEOUT       20000   // millis to wait for one regions reply
-#define REGION_FETCH_START_DELAY 120000  // first fetch after boot
-#define REGION_FETCH_INTERVAL   (72*3600000)   // between successful fetches
-#define REGION_FETCH_RETRY         60000       // after an unanswered fetch
-#define REGION_FETCH_MAX_TRIES         5   // ..then back off to:
-#define REGION_FETCH_BACKOFF    (12*3600000)   // ..until one succeeds
-
-// peer index (see searchPeersByHash) for the node we are querying for regions
-#define REGION_QUERY_PEER_IDX      1000
+#define REGION_QUERY_TIMEOUT       20000        // to wait for one regions reply
+#define REGION_FETCH_START_DELAY  120000        // first fetch after boot
+#define REGION_FETCH_INTERVAL  (72*3600000)     // between successful fetches
+#define REGION_FETCH_RETRY         60000        // after an unanswered fetch
+#define REGION_FETCH_MAX_TRIES         5        // ..then back off to:
+#define REGION_FETCH_BACKOFF   (12*3600000)     // ..until one succeeds
 
 void MyMesh::putNeighbour(const mesh::Identity &id, uint32_t timestamp, float snr) {
 #if MAX_NEIGHBOURS // check if neighbours enabled
@@ -176,8 +174,7 @@ uint8_t MyMesh::handleAnonRegionsReq(const mesh::Identity& sender, uint32_t send
     uint32_t now = getRTCClock()->getCurrentTime();
     memcpy(&reply_data[4], &now, 4);     // include our clock (for easy clock sync, and packet hash uniqueness)
 
-    // NOTE: a region map that doesn't fit is truncated at a name boundary. Asking for more
-    // than one packet's worth would need a paged request, which this reply has no room for.
+    // NOTE: a map that doesn't fit is truncated at a name boundary (no paged request yet)
     return 8 + region_map.exportNamesTo((char *) &reply_data[8], MAX_ANON_REPLY_LEN - 8, REGION_DENY_FLOOD);   // reply length
   }
   return 0;
@@ -632,10 +629,9 @@ int MyMesh::searchPeersByHash(const uint8_t *hash) {
       matching_peer_indexes[n++] = i; // store the INDEXES of matching contacts (for subsequent 'peer' methods)
     }
   }
-  // the node we are querying for regions is not (necessarily) a client, so match it
-  // separately, to be able to decode its reply. MUST come after the clients: the caller
-  // stops at the first match that decrypts, and a client that IS the queried node has the
-  // same shared secret, so matching it here first would swallow its normal traffic.
+  // the node we are querying for regions needn't be a client, so match it separately.
+  // MUST stay after the clients: caller stops at the first match that decrypts, and a
+  // queried node that IS a client shares the same secret, so we'd eat its normal traffic
   if (region_query_mode != REGION_QUERY_NONE && region_query_id.isHashMatch(hash) && n < MAX_CLIENTS) {
     matching_peer_indexes[n++] = REGION_QUERY_PEER_IDX;
   }
@@ -883,19 +879,24 @@ void MyMesh::sendNodeDiscoverReq() {
   }
 }
 
-// Expand a pubkey prefix to the full key of a heard neighbour, so that operators can
-// use the (short) keys that 'discover.regions' reports.
-bool MyMesh::resolveNeighbourPubKey(uint8_t *pubkey, int prefix_len) {
+// expand a pubkey prefix (as 'discover.regions' reports) to a full key.
+// returns the number of matches, capped at 2: none, unique, or ambiguous
+int MyMesh::resolveNeighbourPubKey(uint8_t *pubkey, int prefix_len) {
 #if MAX_NEIGHBOURS
+  const uint8_t *resolved = NULL;
   for (int i = 0; i < MAX_NEIGHBOURS; i++) {
     auto neighbour = &neighbours[i];
     if (neighbour->heard_timestamp > 0 && neighbour->id.isHashMatch(pubkey, prefix_len)) {
-      memcpy(pubkey, neighbour->id.pub_key, PUB_KEY_SIZE);
-      return true;
+      if (resolved != NULL) return 2;   // ambiguous
+      resolved = neighbour->id.pub_key;
     }
   }
+  if (resolved != NULL) {
+    memcpy(pubkey, resolved, PUB_KEY_SIZE);
+    return 1;
+  }
 #endif
-  return false;   // not found
+  return 0;   // not found
 }
 
 void MyMesh::formatRegionSubscribeReply(char *reply) {
@@ -906,23 +907,22 @@ void MyMesh::formatRegionSubscribeReply(char *reply) {
 
   char hex[10];
   mesh::Utils::toHex(hex, _prefs.region_src_pubkey, 4);
+  char *dp = reply + sprintf(reply, "OK - subscribed to %s ", hex);
+
   long remaining = (long)(next_region_fetch - futureMillis(0));   // can be due already
   uint32_t retry_secs = remaining > 0 ? (uint32_t) remaining / 1000 : 0;
 
   if (region_query_mode == REGION_QUERY_SUBSCRIBE) {
-    sprintf(reply, "OK - subscribed to %s (querying now)", hex);
-  } else if (region_save_pending) {   // ..report the save, not the retry counter it bumped
-    sprintf(reply, "OK - subscribed to %s (%d added but NOT SAVED, retry in %d secs)", hex,
-            (int) region_fetch_added, retry_secs);
+    strcpy(dp, "(querying now)");
+  } else if (region_save_pending) {   // report the save, not the retry counter it bumped
+    sprintf(dp, "(%d added but NOT SAVED, retry in %d secs)", (int) region_fetch_added, retry_secs);
   } else if (region_fetch_fails > 0) {
-    sprintf(reply, "OK - subscribed to %s (%d failed, retry in %d secs)", hex,
-            (int) region_fetch_fails, retry_secs);
+    sprintf(dp, "(%d failed, retry in %d secs)", (int) region_fetch_fails, retry_secs);
   } else if (region_fetch_at == 0) {
-    sprintf(reply, "OK - subscribed to %s (no reply yet)", hex);
+    strcpy(dp, "(no reply yet)");
   } else {
-    uint32_t secs_ago = getRTCClock()->getCurrentTime() - region_fetch_at;
-    sprintf(reply, "OK - subscribed to %s (%d added, %d known, %d secs ago)%s", hex,
-            (int) region_fetch_added, (int) region_fetch_known, secs_ago,
+    sprintf(dp, "(%d added, %d known, %d secs ago)%s", (int) region_fetch_added,
+            (int) region_fetch_known, getRTCClock()->getCurrentTime() - region_fetch_at,
             region_fetch_full ? " - region table full" : "");
   }
 }
@@ -934,8 +934,7 @@ bool MyMesh::isRegionSrcSet() const {
   return false;   // all zeroes means 'not configured'
 }
 
-// Client side of the anon-regions request (handleAnonRegionsReq is the server side).
-// Asks 'target' which regions it floods. Only ONE of these is ever in flight.
+// ask 'target' which regions it floods (handleAnonRegionsReq is the server side)
 bool MyMesh::sendRegionsReq(const mesh::Identity &target) {
   uint8_t secret[PUB_KEY_SIZE];
   self_id.calcSharedSecret(secret, target);
@@ -980,9 +979,6 @@ bool MyMesh::handleRegionsResponse(const uint8_t *data, size_t len) {
   return true;
 }
 
-// Merge the regions of the subscribed node into our region map. The merge itself is
-// additive (see RegionMap::importNamesFrom), so the operator's own flags and hierarchy
-// always win.
 bool MyMesh::mergeSubscribedRegions(const uint8_t *names, size_t len) {
   int known = 0;
   bool was_full = false;
@@ -993,15 +989,14 @@ bool MyMesh::mergeSubscribedRegions(const uint8_t *names, size_t len) {
   region_fetch_known = known;
   region_fetch_full = was_full;
 
-  // a failed save leaves the new regions in RAM only, where the next fetch counts them as
-  // 'known' and would not try again, so keep asking until one succeeds
+  // an unsaved import stays in RAM, where the next fetch counts it as 'known' and would
+  // not save it again, so keep re-trying the save
   if (added > 0 || region_save_pending) {
     _prefs.discovery_mod_timestamp = region_fetch_at;
     savePrefs();
     region_save_pending = !saveRegions();
   }
-  MESH_DEBUG_PRINTLN("mergeSubscribedRegions: %d added, %d known, full=%d, unsaved=%d",
-                     added, known, (uint32_t) was_full, (uint32_t) region_save_pending);
+  MESH_DEBUG_PRINTLN("regions merged: %d added, %d known", added, known);
   return !region_save_pending;
 }
 
@@ -1027,39 +1022,34 @@ void MyMesh::startRegionDiscover(char *reply) {
 #endif
 }
 
-// Record the result for the neighbour we just queried ('names' is NULL if it didn't
-// answer), then move on to the next one. Queries are sent one at a time.
+// record the result for the neighbour just queried ('names' is NULL if it didn't answer),
+// then query the next one. Only one request is in flight at a time.
 void MyMesh::advanceRegionDiscover(const uint8_t *names, size_t len) {
 #if MAX_NEIGHBOURS
   if (region_discover_next > 0) {   // ..we have a result to record
     char hex[10];
     mesh::Utils::toHex(hex, region_query_id.pub_key, 4);
 
-    // the reply is padded out to the cipher block size, so the names stop at the padding
-    size_t n = 0;
-    while (names != NULL && n < len && names[n] != 0) n++;
-
-    // print the WHOLE list, however long: the serial log is the complete record
-    if (names == NULL) {
-      Serial.printf("regions: %s:?\n", hex);
-    } else {
-      Serial.printf("regions: %s:%.*s\n", hex, (int) n, names);
+    const char* list = "?";   // no reply
+    size_t list_len = 1;
+    if (names != NULL) {
+      list = (const char *) names;
+      // the reply is padded out to the cipher block size, so stop at the padding
+      for (list_len = 0; list_len < len && names[list_len] != 0; list_len++) ;
     }
 
-    // ..the 'list' reply can only hold so much, so an entry goes in whole, or not at all
+    Serial.printf("regions: %s:%.*s\n", hex, (int) list_len, list);   // never truncated
+
+    // the 'list' reply is limited, so an entry goes in whole, or not at all
     int used = strlen(region_discover_reply);
-    int need = (used > 0 ? 1 : 0) + 9 + (names == NULL ? 1 : (int) n);   // "\n{prefix}:{names}"
+    int need = (used > 0 ? 1 : 0) + (int) strlen(hex) + 1 + (int) list_len;
     if (used + need < (int) sizeof(region_discover_reply)) {
       if (used > 0) { region_discover_reply[used++] = '\n'; }
       used += sprintf(&region_discover_reply[used], "%s:", hex);
-      if (names == NULL) {
-        region_discover_reply[used++] = '?';
-      } else {
-        memcpy(&region_discover_reply[used], names, n); used += n;
-      }
-      region_discover_reply[used] = 0;
+      memcpy(&region_discover_reply[used], list, list_len);
+      region_discover_reply[used + list_len] = 0;
     } else if (region_discover_dropped < 0xFF) {
-      region_discover_dropped++;   // report how many are missing, rather than a partial entry
+      region_discover_dropped++;   // count it, rather than storing a partial entry
     }
   }
 
@@ -1071,8 +1061,8 @@ void MyMesh::advanceRegionDiscover(const uint8_t *names, size_t len) {
   region_query_mode = REGION_QUERY_NONE;   // no more neighbours to query
 }
 
-// Forget the configured source: any in-flight request for it is abandoned, and the
-// last result no longer describes what we have.
+// forget the subscription: any in-flight request is abandoned, and the last result no
+// longer describes what we have
 void MyMesh::cancelRegionSubscribe() {
   if (region_query_mode == REGION_QUERY_SUBSCRIBE) {
     region_query_mode = REGION_QUERY_NONE;
@@ -1082,10 +1072,8 @@ void MyMesh::cancelRegionSubscribe() {
   region_fetch_fails = 0;
 }
 
-// A request can go unanswered because it was lost, or because the other node is
-// rate-limiting anon requests (it allows only a few per minute). Retry soon for the first
-// few attempts, then keep retrying on the backoff (which is shorter than the interval
-// between successful fetches, so a node that was down is picked up again sooner).
+// a request can go unanswered because it was lost, or because the other node is rate
+// limiting anon requests. Retry soon at first, then on the (shorter than normal) backoff
 void MyMesh::scheduleRegionFetchRetry() {
   if (region_fetch_fails < 0xFF) region_fetch_fails++;
   next_region_fetch = futureMillis(
@@ -1584,16 +1572,21 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
       if (hex_len < 8 || hex_len > PUB_KEY_SIZE*2 || (hex_len & 1)
           || !mesh::Utils::fromHex(pubkey, hex_len / 2, sub)) {
         strcpy(reply, "Err - bad pubkey");
-      } else if (hex_len < PUB_KEY_SIZE*2 && !resolveNeighbourPubKey(pubkey, hex_len / 2)) {
-        strcpy(reply, "Err - not a known neighbor, need full pubkey");
-      } else if (self_id.matches(pubkey)) {
-        strcpy(reply, "Err - that is this node");
       } else {
-        cancelRegionSubscribe();
-        memcpy(_prefs.region_src_pubkey, pubkey, PUB_KEY_SIZE);
-        next_region_fetch = futureMillis(1);   // fetch from the new source now
-        savePrefs();
-        formatRegionSubscribeReply(reply);
+        int matches = hex_len < PUB_KEY_SIZE*2 ? resolveNeighbourPubKey(pubkey, hex_len / 2) : 1;
+        if (matches == 0) {
+          strcpy(reply, "Err - not a known neighbor, need full pubkey");
+        } else if (matches > 1) {
+          strcpy(reply, "Err - ambiguous neighbor pubkey, use a longer prefix");
+        } else if (self_id.matches(pubkey)) {
+          strcpy(reply, "Err - that is this node");
+        } else {
+          cancelRegionSubscribe();
+          memcpy(_prefs.region_src_pubkey, pubkey, PUB_KEY_SIZE);
+          next_region_fetch = futureMillis(1);   // fetch from the new source now
+          savePrefs();
+          formatRegionSubscribeReply(reply);
+        }
       }
     }
   } else{

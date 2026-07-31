@@ -54,16 +54,7 @@ public:
   const RegionEntry* getByIdx(int i) const { return &regions[i]; }
   const RegionEntry* getRoot() const { return &wildcard; }
   int exportNamesTo(char *dest, int max_len, uint8_t mask, bool invert = false);
-
-  /**
-   * \brief  Add Regions from a comma separated list of names, as written by exportNamesTo().
-   *      This is additive: a name already in the map is left exactly as it is, keeping its
-   *      flags and its parent. New names are added as flood-allowed children of the wildcard.
-   *      The wildcard and private ('$') Regions in the list are skipped.
-   * \param  num_known  OUT - optional, how many names were already in the map
-   * \param  was_full  OUT - optional, true if the map filled up and names had to be dropped
-   * \returns  the number of Regions added
-  */
+  // additive: existing names keep their flags and parent. Returns the number added
   int importNamesFrom(const char *src, int len, int* num_known = NULL, bool* was_full = NULL);
   int getTransportKeysFor(const RegionEntry& src, TransportKey dest[], int max_num);
 

@@ -347,7 +347,7 @@ int RegionMap::exportNamesTo(char *dest, int max_len, uint8_t mask, bool invert)
   return dp - dest;   // return length
 }
 
-// Take the next region name from 'src', starting at *cursor. Returns false at the end.
+// take the next name from 'src', starting at *cursor. Returns false at the end
 static bool next_name(const char *src, int len, int *cursor, char dest[], int dest_size) {
   while (*cursor < len) {
     int n = 0;
@@ -355,7 +355,7 @@ static bool next_name(const char *src, int len, int *cursor, char dest[], int de
     while (*cursor < len && src[*cursor] != ',') {
       uint8_t c = src[(*cursor)++];
       if (!RegionMap::is_name_char(c)) { valid = false; continue; }   // don't trust the sender
-      if (n + 1 < dest_size) { dest[n++] = c; } else { valid = false; }   // too long for a name
+      if (n + 1 < dest_size) { dest[n++] = c; } else { valid = false; }   // too long
     }
     (*cursor)++;   // skip the separator
 
@@ -371,15 +371,11 @@ int RegionMap::importNamesFrom(const char *src, int len, int* num_known, bool* w
 
   if (was_full) { *was_full = false; }
 
-  // a decrypted payload is padded out to the cipher block size, so the list can be
-  // followed by null bytes. Without this, the last name runs into the padding.
-  for (int i = 0; i < len; i++) {
-    if (src[i] == 0) { len = i; break; }
-  }
+  const char* end = (const char *) memchr(src, 0, len);   // stop at any cipher block padding
+  if (end) { len = end - src; }
 
   while (next_name(src, len, &cursor, name, sizeof(name))) {
-    // the wildcard is not a Region, and private ('$') Regions have keys we cannot derive
-    if (name[0] == '*' || name[0] == '$') continue;
+    if (name[0] == '*' || name[0] == '$') continue;  // not a Region, and '$' keys aren't derivable
 
     if (findByName(name)) {
       known++;   // already in the map, leave it exactly as it is
@@ -387,14 +383,14 @@ int RegionMap::importNamesFrom(const char *src, int len, int* num_known, bool* w
     }
 
     auto region = putRegion(name, 0);   // add as a child of the wildcard
-    if (region == NULL) {   // full! (the name is already known to be valid)
+    if (region == NULL) {   // full! (name was already validated, so that's the only cause)
       if (was_full) { *was_full = true; }
-      break;   // the rest of the list cannot be added
+      break;
     }
     region->flags = 0;   // allow flood
     added++;
   }
 
   if (num_known) { *num_known = known; }
-  return added;   // return number of new Regions
+  return added;
 }

@@ -117,16 +117,16 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   mesh::Identity region_query_id;    // node we are currently asking for regions
   uint32_t region_query_tag;
   unsigned long region_query_until;
-  uint8_t region_query_mode;         // one of SCOPE_QUERY_*
+  uint8_t region_query_mode;         // one of REGION_QUERY_*
   uint8_t region_discover_next;      // index into neighbours[], for the 'discover.regions' pass
-  char region_discover_reply[134];   // results of last pass, for 'discover.regions list'
+  char region_discover_reply[134];   // last pass results, for 'discover.regions list'
   uint8_t region_discover_dropped;   // ..entries from that pass which did not fit
-  unsigned long next_region_fetch; // when to re-fetch from the subscribed node (0 = never)
-  uint32_t region_fetch_at;        // when the last fetch completed (0 = not yet)
+  unsigned long next_region_fetch;   // when to re-fetch from the subscribed node (0 = never)
+  uint32_t region_fetch_at;          // when the last fetch completed (0 = not yet)
   uint8_t region_fetch_added, region_fetch_known;
-  uint8_t region_fetch_fails;       // consecutive unanswered fetches
-  bool region_fetch_full;           // last fetch hit the region table limit
-  bool region_save_pending;         // imported regions are in RAM but not on disk
+  uint8_t region_fetch_fails;        // consecutive unanswered fetches
+  bool region_fetch_full;            // last fetch hit the region table limit
+  bool region_save_pending;          // imported regions are in RAM but not on disk
 #if defined(WITH_RS232_BRIDGE)
   RS232Bridge bridge;
 #elif defined(WITH_ESPNOW_BRIDGE)
@@ -134,7 +134,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
 #endif
 
   bool isRegionSrcSet() const;
-  bool resolveNeighbourPubKey(uint8_t* pubkey, int prefix_len);
+  int resolveNeighbourPubKey(uint8_t* pubkey, int prefix_len);
   void formatRegionSubscribeReply(char* reply);
   bool sendRegionsReq(const mesh::Identity& target);
   bool handleRegionsResponse(const uint8_t* data, size_t len);
