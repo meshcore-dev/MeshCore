@@ -199,8 +199,8 @@ static const uint8_t AREF = PIN_AREF;
 // Do NOT use this for GPS power savings as this will interfere with LoRa functionality
 #define PIN_3V3_EN (34)
 
-#define PIN_GPS_RX PIN_SERIAL1_RX
-#define PIN_GPS_TX PIN_SERIAL1_TX
+#define PIN_GPS_TX PIN_SERIAL1_RX
+#define PIN_GPS_RX PIN_SERIAL1_TX
 
 #define GPS_BAUD_RATE 9600
 #define GPS_ADDRESS 0x42  //i2c address for GPS

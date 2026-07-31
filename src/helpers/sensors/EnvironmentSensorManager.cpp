@@ -774,7 +774,7 @@ void EnvironmentSensorManager::initBasicGPS() {
 // or make a new location provider ...
 #ifdef RAK_WISBLOCK_GPS
 void EnvironmentSensorManager::rakGPSInit(){
-  Serial1.setPins(PIN_GPS_RX, PIN_GPS_TX);
+  Serial1.setPins(PIN_GPS_TX, PIN_GPS_RX);
 
   #ifdef GPS_BAUD_RATE
   Serial1.begin(GPS_BAUD_RATE);
