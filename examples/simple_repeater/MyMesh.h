@@ -134,8 +134,11 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   NeighbourLinkTable _nbr_links;       // inter-near-neighbour reach edges (coverage inference)
   AttachedClient _attached[MAX_ATTACHED_CLIENTS] = {};  // directly-attached leaf clients (client-aware suppression)
   // Near-neighbour freshness window for the coverage test and the adaptive-density
-  // count, 60 min
-  static const uint32_t NEIGHBOUR_FRESH_S = 3600;
+  // count. Träge (6 h): a repeater briefly unheard (>1 h) but still reachable via the
+  // forwarded floods it relays (touchNeighbourByHash) must not drop out of the near
+  // set -- that churn would re-measure its coverage pairs. Local adverts (2 min) and
+  // every forwarded flood refresh 1-hop neighbours far more often than this window.
+  static const uint32_t NEIGHBOUR_FRESH_S = 6UL * 3600UL;
   // Adaptive (neighbour-derived) effective params, recomputed in loop() under #if MAX_NEIGHBOURS.
   uint8_t  _fs_eff_c;            // derived threshold C (0 = off); used when _fs_adaptive_active
   int8_t   _fs_eff_hi;           // derived snr_hi (dB); used when _fs_adaptive_active
@@ -158,7 +161,8 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   unsigned long _next_meas_check_ms = 0;   // cadenced diff/expiry check
   unsigned long _meas_jitter_until = 0;    // inter-burst jitter backoff
   unsigned long _trace_tx_revert_at = 0;   // restore TX power after a burst
-  uint32_t      _meas_sent = 0, _meas_returned = 0, _meas_edge = 0, _meas_timeout = 0;  // coverage-TRACE observability (surfaced in `near`)
+  uint8_t       _meas_rr_offset = 0;       // round-robin start index into the flat directed-pair list (advanced per probe)
+  uint32_t      _meas_sent = 0, _meas_returned = 0, _meas_edge = 0, _meas_timeout = 0, _meas_neg = 0;  // coverage-TRACE observability (surfaced in `near`)
   uint32_t pending_discover_tag;
   unsigned long pending_discover_until;
   bool region_load_active;

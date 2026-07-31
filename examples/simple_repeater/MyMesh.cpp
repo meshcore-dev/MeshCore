@@ -272,6 +272,11 @@ void MyMesh::onTraceRecv(mesh::Packet* /*packet*/, uint32_t tag, uint32_t /*auth
     if (snr_x4 >= (int8_t)(_prefs.flood_suppress_snr_lo * 4)) {
       _nbr_links.addEdge(path_hashes, path_hashes + entry_sz, entry_sz, millis());
       _meas_edge++;                                    // ...and the a->b link was strong enough to record
+    } else {
+      // Returned but weak: the a->b link exists yet cannot carry coverage. Cache as no-edge so it
+      // is not re-probed every tick; it retries only after NEIGHBOUR_LINK_NEG_TTL_MILLIS (~10h).
+      _nbr_links.addNegative(path_hashes, path_hashes + entry_sz, entry_sz, millis());
+      _meas_neg++;
     }
   }
   for (uint8_t i = 0; i < TRACE_PENDING_MAX; i++) {    // retire the matching pending entry (success)
@@ -312,6 +317,8 @@ void MyMesh::stepCoverageMeasurement() {
     } else {
       _trace_pending[i].active = false;                 // second miss -> link does not exist (no edge)
       _meas_timeout++;
+      _nbr_links.addNegative(_trace_pending[i].a, _trace_pending[i].b, TRACE_MEAS_HASH_SIZE, now);
+      _meas_neg++;                                      // cache no-edge so we don't re-probe every tick
     }
   }
 
@@ -334,42 +341,51 @@ void MyMesh::stepCoverageMeasurement() {
   uint8_t top_n = topNearNeighbours(top, NEAR_NEIGHBOUR_COVERAGE_CAP, getRTCClock()->getCurrentTime());
   if (top_n < 2) return;
 
+  // Enumerate the P = top_n*(top_n-1) directed pairs (x != y) as a flat list and scan from a rotating
+  // offset (_meas_rr_offset), so we don't fixate on the same first absent pair every tick. Decode pair
+  // index p -> (x,y) via x = p/(top_n-1); y = p%(top_n-1); if (y >= x) y++;  (bijection onto x!=y).
+  // At most ONE trace is sent per cadence tick.
+  uint8_t P = top_n * (top_n - 1);
+  uint8_t base = _meas_rr_offset % P;
   uint8_t ha[TRACE_MEAS_HASH_SIZE], hb[TRACE_MEAS_HASH_SIZE];
   bool burst_started = false, stop = false;
-  for (uint8_t x = 0; x < top_n && !stop; x++) {
+  for (uint8_t k = 0; k < P && !stop; k++) {
+    uint8_t p = (base + k) % P;
+    uint8_t x = p / (top_n - 1);
+    uint8_t y = p % (top_n - 1);
+    if (y >= x) y++;                                     // skip the x==y diagonal
     neighbours[top[x]].id.copyHashTo(ha, TRACE_MEAS_HASH_SIZE);
-    for (uint8_t y = 0; y < top_n && !stop; y++) {
-      if (x == y) continue;
-      neighbours[top[y]].id.copyHashTo(hb, TRACE_MEAS_HASH_SIZE);
-      if (_nbr_links.hasEdge(ha, hb, TRACE_MEAS_HASH_SIZE, now)) continue;   // measured & fresh
-      bool inflight = false;                                                 // already probing this direction?
-      for (uint8_t i = 0; i < TRACE_PENDING_MAX && !inflight; i++)
-        if (_trace_pending[i].active && memcmp(_trace_pending[i].a, ha, 2) == 0 && memcmp(_trace_pending[i].b, hb, 2) == 0) inflight = true;
-      if (inflight) continue;
-      int8_t slot = -1;                                                       // free pending slot?
-      for (uint8_t i = 0; i < TRACE_PENDING_MAX; i++) if (!_trace_pending[i].active) { slot = (int8_t)i; break; }
-      if (slot < 0) { stop = true; break; }
-      if (!burst_started) {
-        burst_started = true;
-        if (_prefs.trace_tx_power_dbm != _prefs.tx_power_dbm) {
-          radio_driver.setTxPower(_prefs.trace_tx_power_dbm);
-          _trace_tx_revert_at = futureMillis(TRACE_TX_POWER_RESTORE_MS);
-        }
+    neighbours[top[y]].id.copyHashTo(hb, TRACE_MEAS_HASH_SIZE);
+    if (_nbr_links.hasEdge(ha, hb, TRACE_MEAS_HASH_SIZE, now)) continue;        // measured & fresh (positive)
+    if (_nbr_links.hasNegative(ha, hb, TRACE_MEAS_HASH_SIZE, now)) continue;    // probed, no edge -> backoff (~10h)
+    bool inflight = false;                                                          // already probing this direction?
+    for (uint8_t i = 0; i < TRACE_PENDING_MAX && !inflight; i++)
+      if (_trace_pending[i].active && memcmp(_trace_pending[i].a, ha, 2) == 0 && memcmp(_trace_pending[i].b, hb, 2) == 0) inflight = true;
+    if (inflight) continue;
+    int8_t slot = -1;                                                               // free pending slot?
+    for (uint8_t i = 0; i < TRACE_PENDING_MAX; i++) if (!_trace_pending[i].active) { slot = (int8_t)i; break; }
+    if (slot < 0) { stop = true; break; }
+    if (!burst_started) {
+      burst_started = true;
+      if (_prefs.trace_tx_power_dbm != _prefs.tx_power_dbm) {
+        radio_driver.setTxPower(_prefs.trace_tx_power_dbm);
+        _trace_tx_revert_at = futureMillis(TRACE_TX_POWER_RESTORE_MS);
       }
-      uint32_t tag = sendCoverageTrace(neighbours[top[x]].id, neighbours[top[y]].id);
-      if (!tag) { stop = true; break; }                                       // pool full -> wait
-      _meas_sent++;
-      _trace_pending[slot].active = true;
-      _trace_pending[slot].retries = 0;
-      _trace_pending[slot].tag = tag;
-      _trace_pending[slot].sent_ms = now;
-      memcpy(_trace_pending[slot].a, ha, 2);
-      memcpy(_trace_pending[slot].b, hb, 2);
-      stop = true; break;                                                     // ONE trace per cadence tick
-      // (a pair's two directions are ~180ms*3hops round-trips; sending them
-      // back-to-back makes the 2nd collide with the 1st's return relay. Spacing
-      // to one-per-tick lets each round trip complete cleanly.)
     }
+    uint32_t tag = sendCoverageTrace(neighbours[top[x]].id, neighbours[top[y]].id);
+    if (!tag) { stop = true; break; }                                       // pool full -> wait
+    _meas_sent++;
+    _trace_pending[slot].active = true;
+    _trace_pending[slot].retries = 0;
+    _trace_pending[slot].tag = tag;
+    _trace_pending[slot].sent_ms = now;
+    memcpy(_trace_pending[slot].a, ha, 2);
+    memcpy(_trace_pending[slot].b, hb, 2);
+    _meas_rr_offset = (uint8_t)((p + 1) % P);        // next tick starts after the pair just probed
+    stop = true; break;                                                     // ONE trace per cadence tick
+    // (a pair's two directions are ~180ms*3hops round-trips; sending them
+    // back-to-back makes the 2nd collide with the 1st's return relay. Spacing
+    // to one-per-tick lets each round trip complete cleanly.)
   }
   if (burst_started) _meas_jitter_until = futureMillis((int)getRNG()->nextInt(500, 3000));
 #endif
@@ -1879,12 +1895,13 @@ void MyMesh::formatNearReply(char *reply) {
   while (*dp) dp++;
 
   // coverage-TRACE health: sent=attempts, ret=round-trips that came back, edge=links
-  // recorded (ret with SNR>=snr_lo), tmo=pairs that timed out twice (no link). If sent>0
+  // recorded (ret with SNR>=snr_lo), tmo=pairs that timed out twice (no link), neg=pairs cached
+  // as no-edge (timeout or weak return) and skipped until the ~10h backoff expires. If sent>0
   // but ret==0 the round trips never complete (loss/collisions); if ret>0 but edge==0 the
   // measured inter-neighbour links are below snr_lo; if sent==0 no top-N>=2 window yet.
-  sprintf(dp, "\nmeas sent=%lu ret=%lu edge=%lu tmo=%lu",
+  sprintf(dp, "\nmeas sent=%lu ret=%lu edge=%lu tmo=%lu neg=%lu",
           (unsigned long)_meas_sent, (unsigned long)_meas_returned,
-          (unsigned long)_meas_edge, (unsigned long)_meas_timeout);
+          (unsigned long)_meas_edge, (unsigned long)_meas_timeout, (unsigned long)_meas_neg);
   while (*dp) dp++;
 
   // 150-byte ceiling minus a worst-case entry (~26B: \n + ~ + 8hex + :secs:snr)
@@ -2025,6 +2042,7 @@ void MyMesh::loop() {
 
   _flood_supp.purge(millis());   // evict stale flood-suppression entries
   _nbr_links.purge(millis());    // evict stale inter-neighbour reach edges (~36h TTL)
+  _nbr_links.purgeNegative(millis());  // evict expired no-edge cache entries (~10h TTL)
   purgeAttachedClients(getRTCClock()->getCurrentTime());  // evict stale attached-client entries (~24h)
 
   stepCoverageMeasurement();     // actively probe (TRACE) coverage among top-N near neighbours
