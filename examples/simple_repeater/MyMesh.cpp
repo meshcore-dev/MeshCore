@@ -997,6 +997,7 @@ void MyMesh::startRegionDiscover(char *reply) {
   region_query_mode = REGION_QUERY_DISCOVER;
   region_discover_next = 0;
   region_discover_reply[0] = 0;
+  region_discover_dropped = 0;
   advanceRegionDiscover(NULL, 0);   // query the first neighbour
 
   if (region_query_mode == REGION_QUERY_NONE) {
@@ -1031,9 +1032,11 @@ void MyMesh::advanceRegionDiscover(const uint8_t *names, size_t len) {
     Serial.printf("regions: %s\n", entry);   // ..for the serial CLI, as they arrive
 
     int used = strlen(region_discover_reply);
-    if (used + 1 + (dp - entry) < (int) sizeof(region_discover_reply)) {   // else drop, reply is full
+    if (used + 1 + (dp - entry) < (int) sizeof(region_discover_reply)) {
       if (used > 0) { region_discover_reply[used++] = '\n'; }
       strcpy(&region_discover_reply[used], entry);
+    } else if (region_discover_dropped < 0xFF) {
+      region_discover_dropped++;   // 'list' is full, so just report how many are missing
     }
   }
 
@@ -1118,6 +1121,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   region_query_until = 0;
   region_discover_next = 0;
   region_discover_reply[0] = 0;
+  region_discover_dropped = 0;
   next_region_fetch = 0;
   region_fetch_at = 0;
   region_fetch_added = region_fetch_known = region_fetch_fails = 0;
@@ -1521,7 +1525,13 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
     if (*sub == 0) {
       startRegionDiscover(reply);
     } else if (strcmp(sub, "list") == 0) {
-      strcpy(reply, region_discover_reply[0] ? region_discover_reply : "-none-");
+      if (region_discover_reply[0] == 0) {
+        strcpy(reply, "-none-");
+      } else if (region_discover_dropped > 0) {   // ..so a short list isn't mistaken for the whole pass
+        sprintf(reply, "%s\n+%d more", region_discover_reply, (int) region_discover_dropped);
+      } else {
+        strcpy(reply, region_discover_reply);
+      }
     } else {
       strcpy(reply, "Err - unknown option");
     }

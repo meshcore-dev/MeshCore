@@ -120,6 +120,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   uint8_t region_query_mode;         // one of SCOPE_QUERY_*
   uint8_t region_discover_next;      // index into neighbours[], for the 'discover.regions' pass
   char region_discover_reply[134];   // results of last pass, for 'discover.regions list'
+  uint8_t region_discover_dropped;   // ..entries from that pass which did not fit
   unsigned long next_region_fetch; // when to re-fetch from the subscribed node (0 = never)
   uint32_t region_fetch_at;        // when the last fetch completed (0 = not yet)
   uint8_t region_fetch_added, region_fetch_known;

@@ -142,8 +142,9 @@ the serial terminal as they land.
 **Note:** `discover.regions list` reports the results of the last run, as `{pubkey-prefix}:{regions}`
 per line. A `?` in place of the regions means that neighbor did not answer — it may be out of range,
 running older firmware, or simply rate-limiting anonymous requests (repeaters answer at most 4 per
-3 minutes). This reply is capped at 134 characters, so on a node with many neighbors it may not
-show them all — the serial output always does.
+3 minutes). This reply is capped at 134 characters, so on a node with many neighbors it may not show
+them all; when entries do not fit, the last line is `+N more`. The serial output always shows every
+result.
 
 **Note:** The pubkey prefixes reported here can be passed straight to `regions.subscribe`.
 
