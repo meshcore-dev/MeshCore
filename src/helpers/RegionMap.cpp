@@ -346,3 +346,50 @@ int RegionMap::exportNamesTo(char *dest, int max_len, uint8_t mask, bool invert)
   *dp = 0;  // set null terminator
   return dp - dest;   // return length
 }
+
+// Take the next region name from 'src', starting at *cursor. Returns false at the end.
+static bool next_name(const char *src, int len, int *cursor, char dest[], int dest_size) {
+  while (*cursor < len) {
+    int n = 0;
+    bool valid = true;
+    while (*cursor < len && src[*cursor] != ',') {
+      uint8_t c = src[(*cursor)++];
+      if (!RegionMap::is_name_char(c)) { valid = false; continue; }   // don't trust the sender
+      if (n + 1 < dest_size) { dest[n++] = c; } else { valid = false; }   // too long for a name
+    }
+    (*cursor)++;   // skip the separator
+
+    dest[n] = 0;
+    if (valid && n > 0) return true;
+  }
+  return false;  // no more names
+}
+
+int RegionMap::importNamesFrom(const char *src, int len, int* num_known) {
+  char name[sizeof(RegionEntry::name)];
+  int cursor = 0, added = 0, known = 0;
+
+  // a decrypted payload is padded out to the cipher block size, so the list can be
+  // followed by null bytes. Without this, the last name runs into the padding.
+  for (int i = 0; i < len; i++) {
+    if (src[i] == 0) { len = i; break; }
+  }
+
+  while (next_name(src, len, &cursor, name, sizeof(name))) {
+    // the wildcard is not a Region, and private ('$') Regions have keys we cannot derive
+    if (name[0] == '*' || name[0] == '$') continue;
+
+    if (findByName(name)) {
+      known++;   // already in the map, leave it exactly as it is
+      continue;
+    }
+
+    auto region = putRegion(name, 0);   // add as a child of the wildcard
+    if (region == NULL) break;   // full!
+    region->flags = 0;   // allow flood
+    added++;
+  }
+
+  if (num_known) { *num_known = known; }
+  return added;   // return number of new Regions
+}

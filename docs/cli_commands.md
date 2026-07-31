@@ -129,6 +129,26 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 ---
 
+### Discover the regions of zero hop neighbors
+
+**Usage:**
+- `discover.regions`
+- `discover.regions list`
+
+**Note:** Asks each neighbor in turn which regions it floods, one request at a time. The reply
+is `OK - querying neighbors`; results arrive over the following seconds and are printed to
+the serial terminal as they land.
+
+**Note:** `discover.regions list` reports the results of the last run, as `{pubkey-prefix}:{regions}`
+per line. A `?` in place of the regions means that neighbor did not answer — it may be out of range,
+running older firmware, or simply rate-limiting anonymous requests (repeaters answer at most 4 per
+3 minutes). This reply is capped at 134 characters, so on a node with many neighbors it may not
+show them all — the serial output always does.
+
+**Note:** The pubkey prefixes reported here can be passed straight to `regions.subscribe`.
+
+---
+
 ## Statistics
 
 ### Clear Stats
@@ -853,6 +873,48 @@ The reply is `Err - unknown jump: nope`. `a`, `b`, and `c` were placed before th
 region def a|* b|* c|* d|* e|* f
 region save
 ```
+
+---
+
+#### Subscribe to the regions of another repeater (Repeater Only)
+**Usage:**
+- `regions.subscribe`
+- `regions.subscribe <pubkey>`
+- `regions.subscribe now`
+- `regions.subscribe off`
+
+**Parameters:**
+- `pubkey`: Public key of the repeater to subscribe to. A prefix (4 bytes or more) is accepted if
+  that node is a current neighbor, such as the prefixes reported by `discover.regions`; otherwise
+  give the full key.
+
+**Note:** The node asks the subscribed repeater which regions it floods, and adds any it does not
+already have. This is **additive**: a region already on this node is left exactly as it is, keeping
+its flags and its place in the hierarchy, so a region you have deliberately denied stays denied.
+New regions are added as flood-allowed children of the wildcard `*`, and are saved automatically.
+
+**Note:** The subscribed node must be within direct radio range — the request and its reply are both
+sent zero-hop, so a repeater that is only reachable over several hops will never answer. A node also
+answers at most 4 anonymous requests every 3 minutes, so a fetch issued right after `discover.regions`
+can go unanswered. Unanswered fetches are retried after 1 minute for the first 5 attempts, and every
+12 hours after that until one succeeds; `regions.subscribe` reports the failure count and the next
+retry.
+
+**Note:** The fetch repeats every 72 hours (2 minutes after boot, and immediately when the
+subscription is set or `regions.subscribe now` is used), so new regions added to the subscribed node
+are picked up. Nothing is ever removed by this command. `region remove` deletes a region locally, but
+if the subscribed node still floods it, the next fetch adds it back as flood-allowed — to drop it for
+good, either `regions.subscribe off` first, or keep the region and `region denyf` it, which a fetch
+will not override.
+
+**Note:** A reply carries at most ~158 characters of region names. A subscribed node with a larger
+map has its list truncated at a name boundary, and the names past that point are not inherited.
+
+**Note:** Private (`$`) regions are skipped, since their transport keys are not derived from the name.
+
+**Note:** Bare `regions.subscribe` reports the subscription and the result of the last fetch, for
+example `OK - subscribed to a1b2c3d4 (2 added, 5 known, 43 secs ago)`. `regions.subscribe off`
+clears it and replies `OK - unsubscribed`.
 
 ---
 

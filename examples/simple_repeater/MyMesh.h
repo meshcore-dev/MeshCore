@@ -114,11 +114,34 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   uint8_t pending_sf;
   uint8_t pending_cr;
   int  matching_peer_indexes[MAX_CLIENTS];
+  mesh::Identity region_query_id;    // node we are currently asking for regions
+  uint32_t region_query_tag;
+  unsigned long region_query_until;
+  uint8_t region_query_mode;         // one of SCOPE_QUERY_*
+  uint8_t region_discover_next;      // index into neighbours[], for the 'discover.regions' pass
+  char region_discover_reply[134];   // results of last pass, for 'discover.regions list'
+  unsigned long next_region_fetch; // when to re-fetch from the subscribed node (0 = never)
+  uint32_t region_fetch_at;        // when the last fetch completed (0 = not yet)
+  uint8_t region_fetch_added, region_fetch_known;
+  uint8_t region_fetch_fails;       // consecutive unanswered fetches
 #if defined(WITH_RS232_BRIDGE)
   RS232Bridge bridge;
 #elif defined(WITH_ESPNOW_BRIDGE)
   ESPNowBridge bridge;
 #endif
+
+  bool isRegionSrcSet() const;
+  bool resolveNeighbourPubKey(uint8_t* pubkey, int prefix_len);
+  void formatRegionSubscribeReply(char* reply);
+  bool sendRegionsReq(const mesh::Identity& target);
+  bool handleRegionsResponse(const uint8_t* data, size_t len);
+  void mergeSubscribedRegions(const uint8_t* names, size_t len);
+  void startRegionDiscover(char* reply);
+  void advanceRegionDiscover(const uint8_t* names, size_t len);
+  void cancelRegionSubscribe();
+  void scheduleRegionFetchRetry();
+  void startRegionFetch();
+  void loopRegionQuery();
 
   void putNeighbour(const mesh::Identity& id, uint32_t timestamp, float snr);
   uint8_t handleLoginReq(const mesh::Identity& sender, const uint8_t* secret, uint32_t sender_timestamp, const uint8_t* data, bool is_flood);
