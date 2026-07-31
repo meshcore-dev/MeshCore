@@ -97,7 +97,8 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     file.read((uint8_t *)&_prefs->flood_suppress_snr_hi, sizeof(_prefs->flood_suppress_snr_hi));    // 296
     file.read((uint8_t *)&_prefs->flood_suppress_snr_lo, sizeof(_prefs->flood_suppress_snr_lo));    // 297
     file.read((uint8_t *)&_prefs->flood_suppress_delay_x, sizeof(_prefs->flood_suppress_delay_x));  // 298
-    // next: 299
+    file.read((uint8_t *)&_prefs->trace_tx_power_dbm, sizeof(_prefs->trace_tx_power_dbm));          // 299
+    // next: 300
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -133,6 +134,7 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     _prefs->flood_suppress_snr_hi = constrain(_prefs->flood_suppress_snr_hi, -30, 30);
     _prefs->flood_suppress_snr_lo = constrain(_prefs->flood_suppress_snr_lo, -30, 30);
     _prefs->flood_suppress_delay_x = constrain(_prefs->flood_suppress_delay_x, 0, 8);
+    _prefs->trace_tx_power_dbm = constrain(_prefs->trace_tx_power_dbm, -9, 30);
 
     file.close();
   }
@@ -202,7 +204,8 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->flood_suppress_snr_hi, sizeof(_prefs->flood_suppress_snr_hi));    // 296
     file.write((uint8_t *)&_prefs->flood_suppress_snr_lo, sizeof(_prefs->flood_suppress_snr_lo));    // 297
     file.write((uint8_t *)&_prefs->flood_suppress_delay_x, sizeof(_prefs->flood_suppress_delay_x));  // 298
-    // next: 299
+    file.write((uint8_t *)&_prefs->trace_tx_power_dbm, sizeof(_prefs->trace_tx_power_dbm));          // 299
+    // next: 300
 
     file.close();
   }
@@ -306,6 +309,8 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
           strcpy(reply, "ERR: bad hash");
         }
       }
+    } else if (memcmp(command, "near", 4) == 0) {
+      _callbacks->formatNearReply(reply);
     } else if (memcmp(command, "tempradio ", 10) == 0) {
       strcpy(tmp, &command[10]);
       const char *parts[5];
@@ -555,6 +560,10 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     int n = atoi(&config[28]);
     if (n >= 0 && n <= 8) { _prefs->flood_suppress_delay_x = n; savePrefs(); strcpy(reply, "OK"); }
     else strcpy(reply, "Error, must be 0..8");
+  } else if (memcmp(config, "trace.tx.power ", 15) == 0) {
+    int db = atoi(&config[15]);
+    if (db >= -9 && db <= 30) { _prefs->trace_tx_power_dbm = db; savePrefs(); strcpy(reply, "OK"); }
+    else strcpy(reply, "Error, must be -9..30 dB");
   } else if (memcmp(config, "agc.reset.interval ", 19) == 0) {
     _prefs->agc_reset_interval = atoi(&config[19]) / 4;
     savePrefs();
@@ -940,6 +949,8 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     }
   } else if (memcmp(config, "tx", 2) == 0 && (config[2] == 0 || config[2] == ' ')) {
     sprintf(reply, "> %d", (int32_t) _prefs->tx_power_dbm);
+  } else if (memcmp(config, "trace.tx.power", 14) == 0) {
+    sprintf(reply, "> %d dB", (int) _prefs->trace_tx_power_dbm);
   } else if (memcmp(config, "freq", 4) == 0) {
     sprintf(reply, "> %s", StrHelper::ftoa(_prefs->freq));
   } else if (memcmp(config, "public.key", 10) == 0) {

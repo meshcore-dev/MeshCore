@@ -141,36 +141,73 @@ int8_t MyMesh::findNearNeighbour(const uint8_t* h, uint8_t hs, uint32_t now) con
   return -1;
 }
 
-// True iff at least one near neighbour exists AND every CURRENT near neighbour
-// is recorded as covered in e. Iterating current near neighbours makes this
-// robust to a neighbour going stale mid-flood (a stale one simply isn't checked).
-bool MyMesh::allNearNeighboursCovered(const FloodSuppressionEntry& e, uint32_t now) const {
+// Fill out[] with up to max_n near-neighbour INDICES, strongest SNR first (stable on
+// ties by index). Near = isNearNeighbour (fresh + SNR>=snr_lo). Coverage is only
+// guaranteed for this capped strongest set (see NEAR_NEIGHBOUR_COVERAGE_CAP): the
+// adaptive C threshold still counts ALL fresh neighbours for density, so it is
+// unaffected. O(MAX_NEIGHBOURS * max_n).
+uint8_t MyMesh::topNearNeighbours(int8_t out[], uint8_t max_n, uint32_t now) const {
 #if MAX_NEIGHBOURS
-  bool any = false;
+  uint8_t n = 0;
   for (int i = 0; i < MAX_NEIGHBOURS; i++) {
     if (!isNearNeighbour(i, now)) continue;
-    any = true;
-    if (!e.covers((uint8_t)i)) return false;
+    int8_t s_i = neighbours[i].snr;
+    uint8_t pos = n;
+    while (pos > 0 && neighbours[out[pos - 1]].snr < s_i) {   // insertion sort, desc
+      if (pos < max_n) out[pos] = out[pos - 1];
+      pos--;
+    }
+    if (pos < max_n) out[pos] = (int8_t)i;
+    if (n < max_n) n++;
   }
-  return any;
+  return n;
+#else
+  return 0;
+#endif
+}
+
+// Index (into neighbours[]) of a top-N peer whose hash matches, else -1.
+int8_t MyMesh::findInTopNear(const uint8_t* h, uint8_t hs, const int8_t* top, uint8_t top_n) const {
+#if MAX_NEIGHBOURS
+  for (uint8_t k = 0; k < top_n; k++) {
+    if (neighbours[top[k]].id.isHashMatch(h, hs)) return top[k];
+  }
+#else
+  (void)h; (void)hs; (void)top; (void)top_n;
+#endif
+  return -1;
+}
+
+// True iff at least one top-N near neighbour exists AND every CURRENT top-N near
+// neighbour is recorded as covered in e. Only the capped strongest set is checked:
+// a rank-(cap+1) neighbour is not owed coverage (deliberate trade-off).
+bool MyMesh::allNearNeighboursCovered(const FloodSuppressionEntry& e, uint32_t now) const {
+#if MAX_NEIGHBOURS
+  int8_t top[NEAR_NEIGHBOUR_COVERAGE_CAP];
+  uint8_t n = topNearNeighbours(top, NEAR_NEIGHBOUR_COVERAGE_CAP, now);
+  for (uint8_t k = 0; k < n; k++) {
+    if (!e.covers((uint8_t)top[k])) return false;
+  }
+  return n > 0;
 #else
   return false;
 #endif
 }
 
 // Is there a FRESH DIRECTED reach edge from neighbours[from_i] to neighbours[to_j]?
-// (to_j heard from_i's transmissions.) Edges are recorded from consecutive path
-// hops in forwarding order (later heard earlier -> earlier reaches later), so this
-// is DIRECTIONAL: RF links can be asymmetric, and we must not infer "to_j heard
-// from_i" from a reverse observation. Used to infer coverage: a forwarder fi
-// covers its 1-hop graph neighbours (fi reaches N). Keyed by path hash, so robust
-// to LRU reordering of neighbours[]. hs is the path-hash width of the current flood.
-bool MyMesh::nearReaches(int from_i, int to_j, uint8_t hs, uint32_t now) const {
+// (to_j heard from_i's transmissions.) DIRECTIONAL: RF links can be asymmetric, and
+// we must not infer "to_j heard from_i" from a reverse observation. Used to infer
+// coverage: a forwarder fi covers its 1-hop graph neighbours (fi reaches N). Keyed
+// by path hash, so robust to LRU reordering of neighbours[]. hs is the hash width
+// (the canonical TRACE_MEAS_HASH_SIZE for measured edges). NOTE: freshness is checked
+// in MILLIS (the table's TTL is ms-based and addEdge/purge use millis()), NOT in the
+// RTC seconds the callers use for near-neighbour freshness.
+bool MyMesh::nearReaches(int from_i, int to_j, uint8_t hs) const {
 #if MAX_NEIGHBOURS
   uint8_t hfrom[MAX_HASH_SIZE], hto[MAX_HASH_SIZE];
   neighbours[from_i].id.copyHashTo(hfrom, hs);
   neighbours[to_j].id.copyHashTo(hto, hs);
-  return _nbr_links.hasEdge(hfrom, hto, hs, now);
+  return _nbr_links.hasEdge(hfrom, hto, hs, millis());
 #else
   return false;
 #endif
@@ -193,6 +230,149 @@ bool MyMesh::clientProtectionAllowsSuppress(const mesh::Packet* pkt, uint32_t no
     return !attachedClientMatches(pkt->payload[0], now);                            // Tier C
   }
   return false;                                                                     // Tier B
+}
+
+// --- Active TRACE coverage measurement ----------------------------------------
+// Send one round-trip coverage TRACE: visit-list [a, b, self] with 2-byte hashes.
+// It walks self->a->b->self; the SNR measured at b of a's forward (path_snrs[1])
+// tells whether b can hear a (a reaches b). TRACE_FLAG_TERMINATE_AT_LAST makes it
+// deliver onTraceRecv back HERE (at self) instead of at a bystander. Returns the
+// trace tag (0 if the packet pool was full).
+uint32_t MyMesh::sendCoverageTrace(const mesh::Identity& a, const mesh::Identity& b) {
+  const uint8_t psz = TRACE_MEAS_HASH_SIZE;            // 2 bytes
+  uint8_t visit[3 * MAX_HASH_SIZE];
+  uint8_t n = 0;
+  a.copyHashTo(&visit[n], psz);     n += psz;          // hop 0: a (reacher)
+  b.copyHashTo(&visit[n], psz);     n += psz;          // hop 1: b (reached)
+  self_id.copyHashTo(&visit[n], psz); n += psz;        // hop 2: self (terminator -> result returns here)
+
+  uint8_t path_sz_code = 1;                            // 1<<1 == 2 bytes
+  uint32_t tag = _trace_tag_next++;
+  uint8_t flags = path_sz_code | TRACE_FLAG_TERMINATE_AT_LAST;
+  mesh::Packet* pkt = createTrace(tag, 0, flags);
+  if (!pkt) return 0;
+  sendDirect(pkt, visit, n);                           // appends visit-list to payload, pri 5
+  return tag;
+}
+
+// A coverage TRACE we initiated has returned. Record the measured directed edge
+// a->b (path_hashes[0..psz)=a, [psz..2psz)=b) iff the link is strong enough (SNR at
+// b of a's forward >= snr_lo), then retire the pending entry. Only our own [a,b,self]
+// traces reach us here: every node terminates at itself, so onTraceRecv fires at the
+// initiator, never at a relay or bystander.
+void MyMesh::onTraceRecv(mesh::Packet* /*packet*/, uint32_t tag, uint32_t /*auth_code*/, uint8_t flags,
+                         const uint8_t* path_snrs, const uint8_t* path_hashes, uint8_t path_len) {
+#if MAX_NEIGHBOURS
+  uint8_t path_sz = flags & 0x03;
+  uint8_t entry_sz = 1 << path_sz;
+  uint8_t n_hops = path_len >> path_sz;                // == number of SNRs collected
+  if (n_hops == 3 && entry_sz == TRACE_MEAS_HASH_SIZE) {
+    _meas_returned++;                                  // a coverage TRACE round-trip completed back here
+    int8_t snr_x4 = (int8_t)path_snrs[1];              // SNR at b of a's forward = a reaches b
+    if (snr_x4 >= (int8_t)(_prefs.flood_suppress_snr_lo * 4)) {
+      _nbr_links.addEdge(path_hashes, path_hashes + entry_sz, entry_sz, millis());
+      _meas_edge++;                                    // ...and the a->b link was strong enough to record
+    }
+  }
+  for (uint8_t i = 0; i < TRACE_PENDING_MAX; i++) {    // retire the matching pending entry (success)
+    if (_trace_pending[i].active && _trace_pending[i].tag == tag) { _trace_pending[i].active = false; break; }
+  }
+#else
+  (void)tag; (void)flags; (void)path_snrs; (void)path_hashes; (void)path_len;
+#endif
+}
+
+// Cadenced coverage measurement. (1) sweep in-flight traces for timeout + single
+// retry; (2) every ~60s (~10-15s in sim) find top-N coverage peers whose directed
+// edges are missing/expired and probe them with [a,b,self] traces. Bounded by
+// TRACE_PENDING_MAX in flight; jittered so simultaneously-booted nodes don't all
+// probe at once. TX power is lowered for the burst window (near links are strong)
+// and restored afterwards.
+void MyMesh::stepCoverageMeasurement() {
+#if MAX_NEIGHBOURS
+  uint32_t now = millis();
+
+  // restore normal TX power once the burst window has elapsed
+  if (_trace_tx_revert_at && millisHasNowPassed(_trace_tx_revert_at)) {
+    radio_driver.setTxPower(_prefs.tx_power_dbm);
+    _trace_tx_revert_at = 0;
+  }
+
+  // (1) timeout / single-retry sweep
+  for (uint8_t i = 0; i < TRACE_PENDING_MAX; i++) {
+    if (!_trace_pending[i].active) continue;
+    if ((uint32_t)(now - _trace_pending[i].sent_ms) <= TRACE_MEAS_TIMEOUT_MS) continue;
+    if (_trace_pending[i].retries < 1) {
+      _trace_pending[i].retries = 1;
+      int8_t ia = findNearNeighbour(_trace_pending[i].a, TRACE_MEAS_HASH_SIZE, getRTCClock()->getCurrentTime());
+      int8_t ib = findNearNeighbour(_trace_pending[i].b, TRACE_MEAS_HASH_SIZE, getRTCClock()->getCurrentTime());
+      uint32_t tag = (ia >= 0 && ib >= 0) ? sendCoverageTrace(neighbours[ia].id, neighbours[ib].id) : 0;
+      if (tag) { _trace_pending[i].tag = tag; _trace_pending[i].sent_ms = now; _meas_sent++; }
+      else _trace_pending[i].active = false;            // pair no longer resolvable -> drop
+    } else {
+      _trace_pending[i].active = false;                 // second miss -> link does not exist (no edge)
+      _meas_timeout++;
+    }
+  }
+
+  if (!_prefs.flood_suppress) return;
+
+  // (2) cadenced diff/expiry + send
+  if (!millisHasNowPassed(_next_meas_check_ms)) return;
+#if SIM_BUILD
+  _next_meas_check_ms = futureMillis((int)getRNG()->nextInt(10000, 15000));
+#else
+  _next_meas_check_ms = futureMillis(60000);
+#endif
+  if (_meas_jitter_until == 0) {                        // first ever: spread this node's first burst
+    _meas_jitter_until = futureMillis((int)getRNG()->nextInt(500, 5000));   // (desyncs simultaneously-booted nodes)
+    return;
+  }
+  if (!millisHasNowPassed(_meas_jitter_until)) return;  // inter-burst backoff (de-conflicts simultaneous nodes)
+
+  int8_t top[NEAR_NEIGHBOUR_COVERAGE_CAP];
+  uint8_t top_n = topNearNeighbours(top, NEAR_NEIGHBOUR_COVERAGE_CAP, getRTCClock()->getCurrentTime());
+  if (top_n < 2) return;
+
+  uint8_t ha[TRACE_MEAS_HASH_SIZE], hb[TRACE_MEAS_HASH_SIZE];
+  bool burst_started = false, stop = false;
+  for (uint8_t x = 0; x < top_n && !stop; x++) {
+    neighbours[top[x]].id.copyHashTo(ha, TRACE_MEAS_HASH_SIZE);
+    for (uint8_t y = 0; y < top_n && !stop; y++) {
+      if (x == y) continue;
+      neighbours[top[y]].id.copyHashTo(hb, TRACE_MEAS_HASH_SIZE);
+      if (_nbr_links.hasEdge(ha, hb, TRACE_MEAS_HASH_SIZE, now)) continue;   // measured & fresh
+      bool inflight = false;                                                 // already probing this direction?
+      for (uint8_t i = 0; i < TRACE_PENDING_MAX && !inflight; i++)
+        if (_trace_pending[i].active && memcmp(_trace_pending[i].a, ha, 2) == 0 && memcmp(_trace_pending[i].b, hb, 2) == 0) inflight = true;
+      if (inflight) continue;
+      int8_t slot = -1;                                                       // free pending slot?
+      for (uint8_t i = 0; i < TRACE_PENDING_MAX; i++) if (!_trace_pending[i].active) { slot = (int8_t)i; break; }
+      if (slot < 0) { stop = true; break; }
+      if (!burst_started) {
+        burst_started = true;
+        if (_prefs.trace_tx_power_dbm != _prefs.tx_power_dbm) {
+          radio_driver.setTxPower(_prefs.trace_tx_power_dbm);
+          _trace_tx_revert_at = futureMillis(TRACE_TX_POWER_RESTORE_MS);
+        }
+      }
+      uint32_t tag = sendCoverageTrace(neighbours[top[x]].id, neighbours[top[y]].id);
+      if (!tag) { stop = true; break; }                                       // pool full -> wait
+      _meas_sent++;
+      _trace_pending[slot].active = true;
+      _trace_pending[slot].retries = 0;
+      _trace_pending[slot].tag = tag;
+      _trace_pending[slot].sent_ms = now;
+      memcpy(_trace_pending[slot].a, ha, 2);
+      memcpy(_trace_pending[slot].b, hb, 2);
+      stop = true; break;                                                     // ONE trace per cadence tick
+      // (a pair's two directions are ~180ms*3hops round-trips; sending them
+      // back-to-back makes the 2nd collide with the 1st's return relay. Spacing
+      // to one-per-tick lets each round trip complete cleanly.)
+    }
+  }
+  if (burst_started) _meas_jitter_until = futureMillis((int)getRNG()->nextInt(500, 3000));
+#endif
 }
 
 // Seed/refresh a directly-attached leaf client (M is its first hop). Small LRU ring.
@@ -783,63 +963,57 @@ void MyMesh::logRx(mesh::Packet *pkt, int len, float score) {
       if (is_new) _fs_seen++;                // distinct flood heard -> candidate for our rebroadcast
 #if MAX_NEIGHBOURS
       uint32_t now = getRTCClock()->getCurrentTime();   // seconds (RTC), for near-neighbour freshness
-      uint32_t now_ms = millis();                        // milliseconds, for edge TTL
       uint8_t hs = pkt->getPathHashSize();
       uint8_t count = pkt->getPathHashCount();
       const uint8_t* p = pkt->path;
 
-      // (a) REACH-GRAPH: path hops are in forwarding order, so a consecutive near
-      //     pair (prev_near, idx) means idx heard prev_near -> prev_near REACHES idx
-      //     (directed; RF links can be asymmetric). Record that directed edge. Also
-      //     flag which near neighbours are on THIS path (they forwarded F => have it).
+      // The reach graph (_nbr_links) is now populated by ACTIVE TRACE measurement
+      // (stepCoverageMeasurement), NOT inferred from this flood's path. So here we
+      // only record which COVERAGE peers (M's top-N strongest near neighbours)
+      // forwarded F, then read the measured graph to infer who else was reached.
+      int8_t top[NEAR_NEIGHBOUR_COVERAGE_CAP];
+      uint8_t top_n = topNearNeighbours(top, NEAR_NEIGHBOUR_COVERAGE_CAP, now);
+
       bool on_path[MAX_NEIGHBOURS] = { false };
-      int8_t prev_near = -1;
       for (uint8_t k = 0; k < count; k++) {
-        int8_t idx = findNearNeighbour(p, hs, now);
-        if (idx >= 0) {
-          on_path[idx] = true;
-          if (prev_near >= 0) {
-            // prev_near (earlier) reaches idx (later): idx heard prev_near's forward.
-            _nbr_links.addEdge(neighbours[prev_near].id.pub_key, neighbours[idx].id.pub_key, hs, now_ms);
-          }
-          prev_near = idx;
-        } else {
-          prev_near = -1;     // a non-near hop breaks adjacency
-        }
+        int8_t idx = findInTopNear(p, hs, top, top_n);
+        if (idx >= 0) on_path[idx] = true;          // this coverage peer forwarded F => has F
         p += hs;
       }
 
-      // (b) COVERAGE: each near forwarder covers itself + the near neighbours it
-      //     REACHES (directed: N heard fi's forward => N has F, inferred).
-      for (int i = 0; i < MAX_NEIGHBOURS; i++) {
-        if (!on_path[i]) continue;                 // i must be a near forwarder on this path
-        e->addCovered((uint8_t)i);                 // i forwarded F => i has F (certain)
-        for (int j = 0; j < MAX_NEIGHBOURS; j++) { // i reaches its fresh graph neighbours
-          if (j == i || on_path[j] || !isNearNeighbour(j, now)) continue;
-          if (nearReaches(i, j, hs, now)) e->addCovered((uint8_t)j);  // i reaches j (j heard i)
+      // (b) COVERAGE: each coverage-peer forwarder covers itself + the coverage peers
+      //     it REACHES via a fresh measured edge (N heard fi's forward => N has F).
+      //     Graph edges are measured at the canonical TRACE hash width.
+      for (uint8_t a = 0; a < top_n; a++) {
+        int i = top[a];
+        if (!on_path[i]) continue;                   // i must be a forwarder of F
+        e->addCovered((uint8_t)i);                   // i forwarded F => i has F (certain)
+        for (uint8_t b = 0; b < top_n; b++) {
+          int j = top[b];
+          if (j == i || on_path[j]) continue;        // j already has F
+          if (nearReaches(i, j, TRACE_MEAS_HASH_SIZE)) e->addCovered((uint8_t)j);
         }
       }
 
-      // (c) ISOLATED-NEIGHBOUR FAST-FORWARD: a near neighbour that NO near
-      //     forwarder reaches (in-degree 0) can ONLY be covered by M's own TX. If
-      //     one exists that did NOT forward F, M must forward (it is uncovered) ->
-      //     suppression is impossible and waiting cannot change that, so skip the
-      //     window widening (getRetransmitDelay reads this flag). Also the natural
-      //     cold-start behaviour (sparse graph).
+      // (c) ISOLATED-PEER FAST-FORWARD: a coverage peer that NO other coverage peer
+      //     reaches (in-degree 0) and did NOT forward F can ONLY be covered by M's
+      //     own TX -> M must forward. Also the cold-start behaviour (graph empty
+      //     before any TRACE completes). getRetransmitDelay reads must_cover_self.
       e->must_cover_self = false;
-      for (int i = 0; i < MAX_NEIGHBOURS && !e->must_cover_self; i++) {
-        if (!isNearNeighbour(i, now) || on_path[i]) continue;
+      for (uint8_t a = 0; a < top_n && !e->must_cover_self; a++) {
+        int i = top[a];
+        if (on_path[i]) continue;                    // i forwarded F -> covered
         bool reachable = false;
-        for (int j = 0; j < MAX_NEIGHBOURS; j++) {     // does any near j reach i?
-          if (j == i || !isNearNeighbour(j, now)) continue;
-          if (nearReaches(j, i, hs, now)) { reachable = true; break; }
+        for (uint8_t b = 0; b < top_n; b++) {        // does any coverage peer j reach i?
+          int j = top[b];
+          if (j == i) continue;
+          if (nearReaches(j, i, TRACE_MEAS_HASH_SIZE)) { reachable = true; break; }
         }
         if (!reachable) e->must_cover_self = true;
       }
 
-      // (d) suppress iff no isolated-uncovered neighbour, everyone covered, and
-      //     client-protection allows it (3-tier, always active -- see
-      //     clientProtectionAllowsSuppress).
+      // (d) suppress iff no isolated-uncovered peer, every coverage peer covered, and
+      //     client-protection allows it (3-tier, always active).
       if (!e->must_cover_self && allNearNeighboursCovered(*e, now)
           && clientProtectionAllowsSuppress(pkt, now)) {
         e->suppressed = true;
@@ -1306,12 +1480,21 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.flood_max = 64;
   _prefs.flood_max_unscoped = 64;
   _prefs.flood_max_advert = 8;
+#if SIM_BUILD
+  // SIM ONLY: the simulator accelerates adverts to ~20s (see updateAdvertTimer). At the real
+  // default of 8 hops, every advert floods across the whole grid (9 TX/advert in multi_path),
+  // saturating the channel so almost no advert survives to seed neighbour tables. Neighbour
+  // discovery only needs zero-hop adverts (the originator's direct TX), so limiting advert
+  // propagation to 2 hops preserves discovery while cutting advert airtime ~4x. HW unchanged.
+  _prefs.flood_max_advert = 2;
+#endif
   _prefs.interference_threshold = 0; // disabled
   _prefs.cad_enabled = 0;            // hardware CAD before TX (off by default; 'set cad on')
   _prefs.flood_suppress = 1;          // redundancy-aware flood suppression ON by default (adaptive + static fallback)
   _prefs.flood_suppress_snr_hi = 9;  // dB: strong overheard forward => counts double
   _prefs.flood_suppress_snr_lo = 0;  // dB: weak overheard forward => ignored (preserve edge)
   _prefs.flood_suppress_delay_x = 2; // extra TX-delay multiplier for central flood relays
+  _prefs.trace_tx_power_dbm = 10;    // TX power for coverage TRACE probes only (near links are strong; less disturbance)
 
   // bridge defaults
   _prefs.bridge_enabled = 1;    // enabled
@@ -1445,11 +1628,32 @@ void MyMesh::sendSelfAdvertisement(int delay_millis, bool flood) {
 }
 
 void MyMesh::updateAdvertTimer() {
+#if SIM_BUILD
+  // SIMULATOR ONLY (hardware builds take the #else path unchanged).
+  //
+  // Two sim-specific reasons the real 2-minute, advert_interval-gated timer does not populate
+  // neighbour tables in the simulator:
+  //   1. The simulator boots every node at (near) the same instant and drives an ABSOLUTE
+  //      firmware clock, so all nodes' adverts fire in the same ~1-2s window and collide at
+  //      dense nodes (equal-SNR neighbours, no capture winner) -> ALL discarded.
+  //   2. The sim zeros _prefs.advert_interval via prefs-save validation (the 2-minute default
+  //      fails the "manually configured" < 60-minute check) after the first advert cycle, which
+  //      would halt adverts entirely under the real advert_interval-gated path.
+  // Fix: schedule UNCONDITIONALLY at an accelerated (~20s), per-node-randomised cadence. Real
+  // hardware desyncs naturally via independent clocks; this emulates that for observable
+  // coverage dynamics. Independent of advert_interval so the zeroing cannot stop it.
+  // ~60s cadence (avg): enough rounds to populate within ~420s while keeping advert airtime
+  // low in a dense grid. (Local adverts use sendZeroHop = 1 TX each, no forwarding; still, in a
+  // 9-node all-hears-all grid the sim's any-overlap/<6dB collision model is harsh, so a 20s
+  // cadence saturated the channel. ~60s is the sweet spot for multi_path.)
+  next_local_advert = futureMillis(getRNG()->nextInt(30000, 90000));
+#else
   if (_prefs.advert_interval > 0) { // schedule local advert timer
     next_local_advert = futureMillis(((uint32_t)_prefs.advert_interval) * 2 * 60 * 1000);
   } else {
     next_local_advert = 0; // stop the timer
   }
+#endif
 }
 
 void MyMesh::updateFloodAdvertTimer() {
@@ -1616,12 +1820,12 @@ void MyMesh::formatReachReply(char *reply, const uint8_t* hash, uint8_t hash_len
   if (near_matches == 0) { strcpy(reply, known_matches == 0 ? "unknown" : "notnear"); return; }
   if (near_matches > 1) { strcpy(reply, "ambig"); return; }
 
-  uint8_t hs = PATH_HASH_SIZE;
+  uint8_t hs = TRACE_MEAS_HASH_SIZE;           // reach edges are measured at the TRACE hash width
   char *dp = reply;
   *dp++ = '<';                                  // line 1: reached-by (j -> me)
   int n = 0;
   for (int j = 0; j < MAX_NEIGHBOURS; j++) {
-    if (j == me || !isNearNeighbour(j, now) || !nearReaches(j, me, hs, now)) continue;
+    if (j == me || !isNearNeighbour(j, now) || !nearReaches(j, me, hs)) continue;
     if (dp - reply > 138) { strcpy(dp, "..."); dp += 3; break; }   // overflow guard
     if (n > 0) *dp++ = ',';
     char hex[9]; mesh::Utils::toHex(hex, neighbours[j].id.pub_key, 4);
@@ -1633,7 +1837,7 @@ void MyMesh::formatReachReply(char *reply, const uint8_t* hash, uint8_t hash_len
   *dp++ = '>';                                  // line 2: reaches (me -> j)
   n = 0;
   for (int j = 0; j < MAX_NEIGHBOURS; j++) {
-    if (j == me || !isNearNeighbour(j, now) || !nearReaches(me, j, hs, now)) continue;
+    if (j == me || !isNearNeighbour(j, now) || !nearReaches(me, j, hs)) continue;
     if (dp - reply > 150) { strcpy(dp, "..."); dp += 3; break; }
     if (n > 0) *dp++ = ',';
     char hex[9]; mesh::Utils::toHex(hex, neighbours[j].id.pub_key, 4);
@@ -1644,6 +1848,59 @@ void MyMesh::formatReachReply(char *reply, const uint8_t* hash, uint8_t hash_len
   *dp = 0;
 #else
   strcpy(reply, "unknown");
+#endif
+}
+
+// `near` reply: the near coverage peers (fresh + SNR>=snr_lo), strongest first -- the
+// exact set the coverage test / TRACE measurement acts on. The header carries the active
+// snr_lo threshold and the coverage cap, so the cutoff is visible. Entries beyond
+// NEAR_NEIGHBOUR_COVERAGE_CAP are marked '~' (near but NOT owed coverage -- only the
+// capped strongest set is guaranteed/TRACE-measured). HASH:secs_ago:snr mirrors
+// formatNeighborsReply (snr is x4). Byte budget like formatNeighborsReply (~150 ceiling).
+void MyMesh::formatNearReply(char *reply) {
+#if MAX_NEIGHBOURS
+  char *dp = reply;
+  uint32_t now = getRTCClock()->getCurrentTime();
+
+  // collect near-neighbour indices, then insertion-sort by SNR desc (stable on ties)
+  int8_t idx[MAX_NEIGHBOURS];
+  uint8_t n = 0;
+  for (int i = 0; i < MAX_NEIGHBOURS; i++) {
+    if (isNearNeighbour(i, now)) idx[n++] = (int8_t)i;
+  }
+  for (uint8_t a = 1; a < n; a++) {
+    int8_t v = idx[a]; int8_t vs = neighbours[v].snr; uint8_t b = a;
+    while (b > 0 && neighbours[idx[b - 1]].snr < vs) { idx[b] = idx[b - 1]; b--; }
+    idx[b] = v;
+  }
+
+  sprintf(dp, "near snr_lo=%d cap=%d n=%u", (int)_prefs.flood_suppress_snr_lo,
+          (int)NEAR_NEIGHBOUR_COVERAGE_CAP, (unsigned)n);
+  while (*dp) dp++;
+
+  // coverage-TRACE health: sent=attempts, ret=round-trips that came back, edge=links
+  // recorded (ret with SNR>=snr_lo), tmo=pairs that timed out twice (no link). If sent>0
+  // but ret==0 the round trips never complete (loss/collisions); if ret>0 but edge==0 the
+  // measured inter-neighbour links are below snr_lo; if sent==0 no top-N>=2 window yet.
+  sprintf(dp, "\nmeas sent=%lu ret=%lu edge=%lu tmo=%lu",
+          (unsigned long)_meas_sent, (unsigned long)_meas_returned,
+          (unsigned long)_meas_edge, (unsigned long)_meas_timeout);
+  while (*dp) dp++;
+
+  // 150-byte ceiling minus a worst-case entry (~26B: \n + ~ + 8hex + :secs:snr)
+  for (uint8_t k = 0; k < n && dp - reply < 150 - 26; k++) {
+    *dp++ = '\n';
+    if (k >= NEAR_NEIGHBOUR_COVERAGE_CAP) *dp++ = '~';   // near but beyond the coverage cap
+    char hex[10];
+    mesh::Utils::toHex(hex, neighbours[idx[k]].id.pub_key, 4);
+    uint32_t secs_ago = now - neighbours[idx[k]].heard_timestamp;
+    sprintf(dp, "%s:%d:%d", hex, (int)secs_ago, (int)neighbours[idx[k]].snr);
+    while (*dp) dp++;
+  }
+  if (n == 0) { *dp++ = '\n'; strcpy(dp, "-none-"); while (*dp) dp++; }
+  *dp = 0;
+#else
+  strcpy(reply, "near: disabled");
 #endif
 }
 
@@ -1767,8 +2024,10 @@ void MyMesh::loop() {
   mesh::Mesh::loop();
 
   _flood_supp.purge(millis());   // evict stale flood-suppression entries
-  _nbr_links.purge(millis());    // evict stale inter-neighbour reach edges (~1 day TTL)
+  _nbr_links.purge(millis());    // evict stale inter-neighbour reach edges (~36h TTL)
   purgeAttachedClients(getRTCClock()->getCurrentTime());  // evict stale attached-client entries (~24h)
+
+  stepCoverageMeasurement();     // actively probe (TRACE) coverage among top-N near neighbours
 
   if (_prefs.flood_suppress && millisHasNowPassed(_fs_next_recompute_ms)) {
     updateAdaptiveFloodParams();              // derive _fs_eff_c/_fs_eff_hi from neighbour table

@@ -12,9 +12,12 @@
 // would mark N falsely covered -> M would suppress and starve N (the deafening
 // this feature exists to prevent). Edges are therefore directed and never flipped.
 //
-// Direction comes for free from the flood path: path hops are in forwarding order
-// [R1..Rn], so a consecutive pair (X, Y) means Y forwarded right after X, i.e.
-// Y heard X -> X reaches Y -> directed edge X->Y is recorded.
+// Direction is established by ACTIVE TRACE measurement (simple_repeater): the
+// repeater sends a coverage TRACE [a,b,self] that returns to it; the SNR measured
+// at b of a's forward tells whether b can hear a -> a reaches b -> directed edge
+// a->b is recorded. (Earlier revisions inferred this passively from consecutive
+// flood-path hops; that built up too slowly in sparse/mast topologies, so the
+// graph is now measured.)
 //
 // simple_repeater uses these edges to INFER coverage: if a near neighbour fi
 // forwarded flood F, then every near neighbour N with a fresh edge fi->N very
@@ -23,16 +26,18 @@
 //
 // Edges are keyed by PATH HASH (the public-key prefix), NOT by neighbour-table
 // index, so they survive LRU reordering of MyMesh::neighbours[].  A stored
-// hash_size lets edges coexist across deployments of different hash widths
-// (VER_1 -> 1 byte); only that many bytes are ever compared.  Small ring with
-// TTL eviction (~1 day -- repeater topology is stable); swept from loop().
+// hash_size records the width at which the edge was measured; LOOKUPS (hasEdge)
+// are width-tolerant and match on the COMMON PREFIX (min of the query and stored
+// widths), so a 2-byte measured edge is found by a query of ANY width -- it is
+// never missed solely because the caller used a different hash width.  Small ring
+// with TTL eviction (~36 h -- repeater topology is stable); swept from loop().
 
 #ifndef NEIGHBOUR_LINK_TABLE_SIZE
   #define NEIGHBOUR_LINK_TABLE_SIZE   128
 #endif
 
 #ifndef NEIGHBOUR_LINK_TTL_MILLIS
-  #define NEIGHBOUR_LINK_TTL_MILLIS   (24UL * 60UL * 60UL * 1000UL)   // ~1 day
+  #define NEIGHBOUR_LINK_TTL_MILLIS   (36UL * 60UL * 60UL * 1000UL)   // ~36h -- coverage is re-measured on expiry
 #endif
 
 class NeighbourLinkTable {
@@ -61,7 +66,11 @@ public:
 
   // Record/refresh a DIRECTED edge src->dst (hs-byte path hashes). src reaches dst.
   // A bidirectional link occupies two separate entries (src->dst and dst->src),
-  // each observed and refreshed independently -- this preserves asymmetry.
+  // each observed and refreshed independently -- this preserves asymmetry. Dedup
+  // here is EXACT-width (only an identical-width entry is refreshed): unlike the
+  // prefix-tolerant hasEdge() lookup, the WRITE side must NOT merge two distinct
+  // neighbours that merely share a short common prefix. (simple_repeater records
+  // only at TRACE_MEAS_HASH_SIZE, so distinct measurements are never coalesced.)
   void addEdge(const uint8_t* src, const uint8_t* dst, uint8_t hs, uint32_t now) {
     for (int i = 0; i < NEIGHBOUR_LINK_TABLE_SIZE; i++) {
       Link& l = _links[i];
@@ -79,12 +88,22 @@ public:
     l.active = true;
   }
 
-  // Is there a FRESH directed edge src->dst (hs-byte hashes)? (i.e. dst can hear src)
+  // Is there a FRESH directed edge src->dst? (i.e. dst can hear src). WIDTH-TOLERANT
+  // PREFIX match: the edge may have been recorded at a hash width that differs from
+  // this query's `hs`, so we compare the COMMON PREFIX -- min(hs, l.hash_size) bytes
+  // -- instead of requiring an exact width. Edges are measured at TRACE_MEAS_HASH_SIZE
+  // (2 bytes); thus a WIDER query (hs>2) matches on the 2 measured bytes (no loss
+  // beyond measurement resolution), and a NARROWER query (hs=1) matches on 1 byte (a
+  // small collision approximation -- two neighbours sharing that byte cannot be told
+  // apart at that width). simple_repeater always queries at the measurement width (2),
+  // so this is primarily a robustness safety net: a measured edge is never missed
+  // solely because a caller happened to use a different hash width.
   bool hasEdge(const uint8_t* src, const uint8_t* dst, uint8_t hs, uint32_t now) const {
     for (int i = 0; i < NEIGHBOUR_LINK_TABLE_SIZE; i++) {
       const Link& l = _links[i];
-      if (l.active && l.hash_size == hs && !_expired(l, now) &&
-          _same(l.src, src, hs) && _same(l.dst, dst, hs)) {
+      if (!l.active || _expired(l, now)) continue;
+      uint8_t m = (hs < l.hash_size) ? hs : l.hash_size;   // common-prefix width
+      if (_same(l.src, src, m) && _same(l.dst, dst, m)) {
         return true;
       }
     }

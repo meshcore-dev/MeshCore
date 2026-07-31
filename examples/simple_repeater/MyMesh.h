@@ -70,6 +70,17 @@ struct RepeaterStats {
   #define ATTACHED_CLIENT_FRESH_S  (24UL * 3600UL)   // ~24h -- attached leaf clients are stable
 #endif
 
+// --- Active TRACE coverage measurement (populates _nbr_links) ---
+// Coverage among M's near neighbours is MEASURED by round-trip TRACEs, not inferred
+// from overheard flood paths. Capped to the strongest few neighbours to bound airtime.
+#ifndef NEAR_NEIGHBOUR_COVERAGE_CAP
+  #define NEAR_NEIGHBOUR_COVERAGE_CAP  5    // max near neighbours M guarantees coverage for
+#endif
+#define TRACE_MEAS_HASH_SIZE           2    // bytes/hash in a coverage TRACE visit-list (2 avoids prefix collisions)
+#define TRACE_MEAS_TIMEOUT_MS          3000 // retry once, then give up, if a coverage TRACE does not return in time
+#define TRACE_TX_POWER_RESTORE_MS      2000 // restore normal TX power this long after a measurement burst
+#define TRACE_PENDING_MAX              8    // in-flight coverage traces (<=4 pairs x 2 directions)
+
 struct NeighbourInfo {
   mesh::Identity id;
   uint32_t advert_timestamp;
@@ -133,6 +144,21 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   uint32_t _fs_next_recompute_ms;
   uint32_t _fs_seen;        // distinct floods heard (denominator of suppression ratio)
   uint32_t _fs_suppressed;  // floods whose rebroadcast was made redundant (numerator)
+  // --- Active TRACE coverage measurement state (populates _nbr_links) ---
+  struct PendingTrace {
+    uint32_t tag;
+    uint8_t  a[TRACE_MEAS_HASH_SIZE];   // reacher hash prefix (a reaches b)
+    uint8_t  b[TRACE_MEAS_HASH_SIZE];   // reached  hash prefix
+    uint32_t sent_ms;
+    uint8_t  retries;                    // 0 or 1 (single retry on timeout)
+    bool     active;
+  };
+  PendingTrace _trace_pending[TRACE_PENDING_MAX] = {};
+  uint32_t      _trace_tag_next = 1;   // 0 reserved as sendCoverageTrace() failure sentinel
+  unsigned long _next_meas_check_ms = 0;   // cadenced diff/expiry check
+  unsigned long _meas_jitter_until = 0;    // inter-burst jitter backoff
+  unsigned long _trace_tx_revert_at = 0;   // restore TX power after a burst
+  uint32_t      _meas_sent = 0, _meas_returned = 0, _meas_edge = 0, _meas_timeout = 0;  // coverage-TRACE observability (surfaced in `near`)
   uint32_t pending_discover_tag;
   unsigned long pending_discover_until;
   bool region_load_active;
@@ -157,8 +183,12 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   void touchNeighbourByHash(const mesh::Packet* packet);  // refresh a KNOWN neighbour's liveness/SNR from an overheard forward
   bool isNearNeighbour(int i, uint32_t now) const;        // fresh (<=NEIGHBOUR_FRESH_S) and SNR>=snr_lo
   int8_t findNearNeighbour(const uint8_t* h, uint8_t hs, uint32_t now) const;  // index of near neighbour matching hash, else -1
-  bool allNearNeighboursCovered(const FloodSuppressionEntry& e, uint32_t now) const;  // >=1 near && every near neighbour in e.covered
-  bool nearReaches(int from_i, int to_j, uint8_t hs, uint32_t now) const;  // fresh DIRECTED reach edge: neighbours[from_i] reaches neighbours[to_j] (to_j heard from_i)
+  uint8_t topNearNeighbours(int8_t out[], uint8_t max_n, uint32_t now) const;  // fill out[] with up to max_n near-neighbour INDICES, strongest SNR first
+  int8_t findInTopNear(const uint8_t* h, uint8_t hs, const int8_t* top, uint8_t top_n) const;  // index (into neighbours[]) of a top-N peer matching hash, else -1
+  bool allNearNeighboursCovered(const FloodSuppressionEntry& e, uint32_t now) const;  // >=1 top-N near && every one in e.covered
+  bool nearReaches(int from_i, int to_j, uint8_t hs) const;  // fresh DIRECTED reach edge: neighbours[from_i] reaches neighbours[to_j] (to_j heard from_i). Freshness is millis-based (TTL is in ms).
+  uint32_t sendCoverageTrace(const mesh::Identity& a, const mesh::Identity& b);  // round-trip [a,b,self] TRACE measuring a->b; returns tag (0 on pool-full)
+  void stepCoverageMeasurement();  // cadenced: timeout/retry sweep + top-N diff/expiry + send
   bool clientProtectionAllowsSuppress(const mesh::Packet* pkt, uint32_t now) const;  // 3-tier client-aware gate (always active)
   void addOrRefreshAttachedClient(const uint8_t* prefix, uint8_t plen, uint32_t now);  // seed/refresh attached leaf client (prefix[0] is the match key)
   bool attachedClientMatches(uint8_t hash1, uint32_t now) const; // is hash1 a fresh attached client? (hash1 vs prefix[0])
@@ -189,6 +219,7 @@ protected:
   void logRxRaw(float snr, float rssi, const uint8_t raw[], int len) override;
 
   void logRx(mesh::Packet* pkt, int len, float score) override;
+  void onTraceRecv(mesh::Packet* packet, uint32_t tag, uint32_t auth_code, uint8_t flags, const uint8_t* path_snrs, const uint8_t* path_hashes, uint8_t path_len) override;
   void logTx(mesh::Packet* pkt, int len) override;
   void logTxFail(mesh::Packet* pkt, int len) override;
   int calcRxDelay(float score, uint32_t air_time) const override;
@@ -264,6 +295,7 @@ public:
   void formatNeighborsReply(char *reply) override;
   void formatClientsReply(char *reply) override;                 // list attached leaf clients
   void formatReachReply(char *reply, const uint8_t* hash, uint8_t hash_len) override;  // reach edges of a near repeater
+  void formatNearReply(char *reply) override;                    // near coverage peers + snr_lo threshold
   void removeNeighbor(const uint8_t* pubkey, int key_len) override;
   void formatStatsReply(char *reply) override;
   void formatRadioStatsReply(char *reply) override;

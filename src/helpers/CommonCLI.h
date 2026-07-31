@@ -72,6 +72,7 @@ struct NodePrefs { // persisted to file
   int8_t  flood_suppress_snr_hi;   // dB: overheard forward with SNR>=this counts double (central/redundant)
   int8_t  flood_suppress_snr_lo;   // dB: overheard forward with SNR<this counts 0 (preserve edge)
   uint8_t flood_suppress_delay_x;  // extra TX-delay multiplier for central flood relays
+  int8_t  trace_tx_power_dbm;      // TX power (dBm) used ONLY for coverage TRACE probes (lower = less disturbance)
 };
 
 class CommonCLICallbacks {
@@ -103,6 +104,9 @@ public:
   // Reach edges of one near repeater (directed inter-neighbour graph), looked up by
   // a hash prefix. Default no-op. hash_len is the number of prefix bytes parsed.
   virtual void formatReachReply(char *reply, const uint8_t* hash, uint8_t hash_len) { }
+  // Near coverage peers (fresh + SNR>=snr_lo), strongest first, with the active
+  // snr_lo threshold and the coverage cap. Default no-op.
+  virtual void formatNearReply(char *reply) { }
   virtual mesh::LocalIdentity& getSelfId() = 0;
   virtual void saveIdentity(const mesh::LocalIdentity& new_id) = 0;
   virtual void clearStats() = 0;
