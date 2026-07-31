@@ -97,7 +97,11 @@
 
 #define PIN_GPS_POWER               (14)
 #define PIN_GPS_EN                  (21)            // STANDBY
-#define PIN_GPS_RESET               (25)            // REINIT
+#define PIN_GPS_RESET               (25)            // REINIT - must FLOAT; driving it (esp. HIGH) silences the L76K
+// The M6's L76K streams NMEA on its own and must not have its REINIT pin driven.
+// Tell the location provider there is no reset pin so it never touches pin 25
+// (driving it HIGH holds the module silent).
+#define GPS_RESET                   (-1)
 #define GPS_RESET_ACTIVE            LOW
 #define GPS_EN_ACTIVE               HIGH
 #define GPS_BAUDRATE                9600
