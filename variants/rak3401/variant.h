@@ -181,6 +181,7 @@ static const uint8_t AREF = PIN_AREF;
 //   in hardware via SetDIO2AsRfSwitchCtrl (microsecond-accurate, no GPIO needed).
 //   The 5V boost for the PA is enabled by WB_IO2 (P0.34 = PIN_3V3_EN).
 #define SX126X_POWER_EN (21)        // P0.21 = IO3 -> SKY66122 CSD+CPS (FEM enable)
+#define SKY66122
 
 // CTX is driven by SX1262 DIO2, not a GPIO
 #define SX126X_DIO2_AS_RF_SWITCH
@@ -194,8 +195,8 @@ static const uint8_t AREF = PIN_AREF;
 #define P_LORA_BUSY SX126X_BUSY
 #define P_LORA_RESET SX126X_RESET
 
-// enables 3.3V periphery like GPS or IO Module
-// Do not toggle this for GPS power savings
+// enables 3.3V periphery like GPS, the IO Module, and the SKY66122 5V boost
+// Do NOT use this for GPS power savings as this will interfere with LoRa functionality
 #define PIN_3V3_EN (34)
 
 #define PIN_GPS_RX PIN_SERIAL1_RX

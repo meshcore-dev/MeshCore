@@ -30,7 +30,7 @@ protected:
   void initBasicGPS();
   #ifdef RAK_BOARD
   void rakGPSInit();
-  bool gpsIsAwake(uint8_t ioPin);
+  bool gpsIsAwake();
   #endif
   #endif
 

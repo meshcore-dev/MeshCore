@@ -165,16 +165,15 @@ static RAK12035_SoilMoisture RAK12035;
 #endif
 
 #ifdef RAK_WISBLOCK_GPS
-static uint32_t gpsResetPin = 0;
 static bool i2cGPSFlag = false;
 static bool serialGPSFlag = false;
 #ifndef TELEM_RAK12500_ADDRESS
-#define TELEM_RAK12500_ADDRESS   0x42     //RAK12500 Ublox GPS via i2c
+#define TELEM_RAK12500_ADDRESS   0x42     // RAK12500 u-blox ZOE-M8Q GPS via i2c
 #endif
 #include <SparkFun_u-blox_GNSS_Arduino_Library.h>
-static SFE_UBLOX_GNSS ublox_GNSS;
+static SFE_UBLOX_GNSS ublox_GNSS; // RAK12500 u-blox ZOE-M8Q GPS via UART
 
-class RAK12500LocationProvider : public LocationProvider {
+class RAKI2CLocationProvider : public LocationProvider {
   long _lat = 0;
   long _lng = 0;
   long _alt = 0;
@@ -207,7 +206,7 @@ public:
   bool isEnabled() override { return true; }
 };
 
-static RAK12500LocationProvider RAK12500_provider;
+static RAKI2CLocationProvider RAK12500_provider;
 #endif
 
 // ============================================================
@@ -783,14 +782,14 @@ void EnvironmentSensorManager::rakGPSInit(){
   Serial1.begin(9600);
   #endif
 
-  //search for the correct IO standby pin depending on socket used
-  if(gpsIsAwake(WB_IO2)){
-  }
-  else if(gpsIsAwake(WB_IO4)){
-  }
-  else if(gpsIsAwake(WB_IO5)){
-  }
-  else{
+  #ifdef PIN_3V3_EN
+  digitalWrite(PIN_3V3_EN,LOW);
+  delay(1000);
+  digitalWrite(PIN_3V3_EN,HIGH);
+  delay(2000);
+  #endif
+
+  if(!gpsIsAwake()){
     MESH_DEBUG_PRINTLN("No GPS found");
     gps_active = false;
     gps_detected = false;
@@ -804,25 +803,10 @@ void EnvironmentSensorManager::rakGPSInit(){
   #endif
 }
 
-bool EnvironmentSensorManager::gpsIsAwake(uint8_t ioPin){
-
-  #if defined(ETHERNET_ENABLED) && defined(RAK_BOARD)
-    if (ioPin == WB_IO2) {
-      // WB_IO2 powers the Ethernet module on RAK baseboards.
-      return false;
-    }
-  #endif
-
-  //set initial waking state
-  pinMode(ioPin,OUTPUT);
-  digitalWrite(ioPin,LOW);
-  delay(500);
-  digitalWrite(ioPin,HIGH);
-  delay(500);
-
+bool EnvironmentSensorManager::gpsIsAwake(){
   //Try to init RAK12500 on I2C
   if (ublox_GNSS.begin(Wire) == true){
-    MESH_DEBUG_PRINTLN("RAK12500 GPS init correctly with pin %i",ioPin);
+    MESH_DEBUG_PRINTLN("RAK12500 I2C GPS init");
     ublox_GNSS.setI2COutput(COM_TYPE_UBX);
     ublox_GNSS.enableGNSS(true, SFE_UBLOX_GNSS_ID_GPS);
     ublox_GNSS.enableGNSS(true, SFE_UBLOX_GNSS_ID_GALILEO);
@@ -833,7 +817,6 @@ bool EnvironmentSensorManager::gpsIsAwake(uint8_t ioPin){
     ublox_GNSS.enableGNSS(true, SFE_UBLOX_GNSS_ID_QZSS);
     ublox_GNSS.setMeasurementRate(1000);
     ublox_GNSS.saveConfigSelective(VAL_CFG_SUBSEC_IOPORT);
-    gpsResetPin = ioPin;
     i2cGPSFlag = true;
     gps_active = true;
     gps_detected = true;
@@ -841,20 +824,13 @@ bool EnvironmentSensorManager::gpsIsAwake(uint8_t ioPin){
     _location = &RAK12500_provider;
     return true;
   } else if (Serial1.available()) {
-    MESH_DEBUG_PRINTLN("Serial GPS init correctly and is turned on");
-#ifdef PIN_GPS_EN
-    if(PIN_GPS_EN){
-      gpsResetPin = PIN_GPS_EN;
-    }
-#endif
+    MESH_DEBUG_PRINTLN("Serial GPS init correctly");
     serialGPSFlag = true;
     gps_active = true;
     gps_detected = true;
     return true;
   }
 
-  pinMode(ioPin, INPUT);
-  MESH_DEBUG_PRINTLN("GPS did not init with this IO pin... try the next");
   return false;
 }
 #endif
@@ -862,8 +838,8 @@ bool EnvironmentSensorManager::gpsIsAwake(uint8_t ioPin){
 void EnvironmentSensorManager::start_gps() {
   gps_active = true;
   #ifdef RAK_WISBLOCK_GPS
-    pinMode(gpsResetPin, OUTPUT);
-    digitalWrite(gpsResetPin, HIGH);
+    pinMode(PIN_3V3_EN, OUTPUT);
+    digitalWrite(PIN_3V3_EN, HIGH);
     return;
   #endif
 
@@ -878,8 +854,12 @@ void EnvironmentSensorManager::start_gps() {
 void EnvironmentSensorManager::stop_gps() {
   gps_active = false;
   #ifdef RAK_WISBLOCK_GPS
-    pinMode(gpsResetPin, OUTPUT);
-    digitalWrite(gpsResetPin, LOW);
+    #ifdef SKY66122
+      MESH_DEBUG_PRINTLN("GPS cannot be disabled as this would also disable SKY66122.");
+      return;
+    #endif
+    pinMode(PIN_3V3_EN, OUTPUT);
+    digitalWrite(PIN_3V3_EN, LOW);
     return;
   #endif
 
