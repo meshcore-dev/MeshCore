@@ -854,6 +854,10 @@ void EnvironmentSensorManager::start_gps() {
 void EnvironmentSensorManager::stop_gps() {
   gps_active = false;
   #ifdef RAK_WISBLOCK_GPS
+    #ifdef ETHERNET_ENABLED
+      MESH_DEBUG_PRINTLN("GPS cannot be disabled as this would also disable Ethernet.");
+      return;
+    #endif
     #ifdef SKY66122
       MESH_DEBUG_PRINTLN("GPS cannot be disabled as this would also disable SKY66122.");
       return;
