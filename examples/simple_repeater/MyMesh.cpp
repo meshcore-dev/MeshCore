@@ -906,18 +906,24 @@ void MyMesh::formatRegionSubscribeReply(char *reply) {
 
   char hex[10];
   mesh::Utils::toHex(hex, _prefs.region_src_pubkey, 4);
+  long remaining = (long)(next_region_fetch - futureMillis(0));   // can be due already
+  uint32_t retry_secs = remaining > 0 ? (uint32_t) remaining / 1000 : 0;
+
   if (region_query_mode == REGION_QUERY_SUBSCRIBE) {
     sprintf(reply, "OK - subscribed to %s (querying now)", hex);
+  } else if (region_save_pending) {   // ..report the save, not the retry counter it bumped
+    sprintf(reply, "OK - subscribed to %s (%d added but NOT SAVED, retry in %d secs)", hex,
+            (int) region_fetch_added, retry_secs);
   } else if (region_fetch_fails > 0) {
-    long remaining = (long)(next_region_fetch - futureMillis(0));   // can be due already
     sprintf(reply, "OK - subscribed to %s (%d failed, retry in %d secs)", hex,
-            (int) region_fetch_fails, remaining > 0 ? (uint32_t) remaining / 1000 : 0);
+            (int) region_fetch_fails, retry_secs);
   } else if (region_fetch_at == 0) {
     sprintf(reply, "OK - subscribed to %s (no reply yet)", hex);
   } else {
     uint32_t secs_ago = getRTCClock()->getCurrentTime() - region_fetch_at;
-    sprintf(reply, "OK - subscribed to %s (%d added, %d known, %d secs ago)", hex,
-            (int) region_fetch_added, (int) region_fetch_known, secs_ago);
+    sprintf(reply, "OK - subscribed to %s (%d added, %d known, %d secs ago)%s", hex,
+            (int) region_fetch_added, (int) region_fetch_known, secs_ago,
+            region_fetch_full ? " - region table full" : "");
   }
 }
 
@@ -959,9 +965,15 @@ bool MyMesh::handleRegionsResponse(const uint8_t *data, size_t len) {
   if (tag != region_query_tag) return false;   // not the reply we are waiting for
 
   if (region_query_mode == REGION_QUERY_SUBSCRIBE) {
-    mergeSubscribedRegions(&data[8], len - 8);
     region_query_mode = REGION_QUERY_NONE;
-    next_region_fetch = futureMillis(REGION_FETCH_INTERVAL);
+    if (region_load_active) {   // 'region load' is about to replace the map, so discard this
+      scheduleRegionFetchRetry();
+    } else if (mergeSubscribedRegions(&data[8], len - 8)) {
+      region_fetch_fails = 0;
+      next_region_fetch = futureMillis(REGION_FETCH_INTERVAL);
+    } else {
+      scheduleRegionFetchRetry();   // couldn't be saved, so come back and try again
+    }
   } else {
     advanceRegionDiscover(&data[8], len - 8);
   }
@@ -971,21 +983,26 @@ bool MyMesh::handleRegionsResponse(const uint8_t *data, size_t len) {
 // Merge the regions of the subscribed node into our region map. The merge itself is
 // additive (see RegionMap::importNamesFrom), so the operator's own flags and hierarchy
 // always win.
-void MyMesh::mergeSubscribedRegions(const uint8_t *names, size_t len) {
+bool MyMesh::mergeSubscribedRegions(const uint8_t *names, size_t len) {
   int known = 0;
-  int added = region_map.importNamesFrom((const char *) names, (int) len, &known);
+  bool was_full = false;
+  int added = region_map.importNamesFrom((const char *) names, (int) len, &known, &was_full);
 
   region_fetch_at = getRTCClock()->getCurrentTime();
   region_fetch_added = added;
   region_fetch_known = known;
-  region_fetch_fails = 0;
+  region_fetch_full = was_full;
 
-  if (added > 0) {   // only touch the filesystem when the map actually changed
+  // a failed save leaves the new regions in RAM only, where the next fetch counts them as
+  // 'known' and would not try again, so keep asking until one succeeds
+  if (added > 0 || region_save_pending) {
     _prefs.discovery_mod_timestamp = region_fetch_at;
     savePrefs();
-    saveRegions();
+    region_save_pending = !saveRegions();
   }
-  MESH_DEBUG_PRINTLN("mergeSubscribedRegions: %d added, %d already known", added, known);
+  MESH_DEBUG_PRINTLN("mergeSubscribedRegions: %d added, %d known, full=%d, unsaved=%d",
+                     added, known, (uint32_t) was_full, (uint32_t) region_save_pending);
+  return !region_save_pending;
 }
 
 void MyMesh::startRegionDiscover(char *reply) {
@@ -1015,28 +1032,34 @@ void MyMesh::startRegionDiscover(char *reply) {
 void MyMesh::advanceRegionDiscover(const uint8_t *names, size_t len) {
 #if MAX_NEIGHBOURS
   if (region_discover_next > 0) {   // ..we have a result to record
-    char entry[64];
     char hex[10];
     mesh::Utils::toHex(hex, region_query_id.pub_key, 4);
 
-    char *dp = entry + sprintf(entry, "%s:", hex);
-    if (names == NULL) {
-      *dp++ = '?';   // no reply
-    } else {
-      // stop at the cipher block padding, else it is counted as part of the entry
-      for (size_t i = 0; i < len && names[i] != 0 && dp - entry < (int)sizeof(entry) - 1; i++) {
-        *dp++ = names[i];
-      }
-    }
-    *dp = 0;
-    Serial.printf("regions: %s\n", entry);   // ..for the serial CLI, as they arrive
+    // the reply is padded out to the cipher block size, so the names stop at the padding
+    size_t n = 0;
+    while (names != NULL && n < len && names[n] != 0) n++;
 
+    // print the WHOLE list, however long: the serial log is the complete record
+    if (names == NULL) {
+      Serial.printf("regions: %s:?\n", hex);
+    } else {
+      Serial.printf("regions: %s:%.*s\n", hex, (int) n, names);
+    }
+
+    // ..the 'list' reply can only hold so much, so an entry goes in whole, or not at all
     int used = strlen(region_discover_reply);
-    if (used + 1 + (dp - entry) < (int) sizeof(region_discover_reply)) {
+    int need = (used > 0 ? 1 : 0) + 9 + (names == NULL ? 1 : (int) n);   // "\n{prefix}:{names}"
+    if (used + need < (int) sizeof(region_discover_reply)) {
       if (used > 0) { region_discover_reply[used++] = '\n'; }
-      strcpy(&region_discover_reply[used], entry);
+      used += sprintf(&region_discover_reply[used], "%s:", hex);
+      if (names == NULL) {
+        region_discover_reply[used++] = '?';
+      } else {
+        memcpy(&region_discover_reply[used], names, n); used += n;
+      }
+      region_discover_reply[used] = 0;
     } else if (region_discover_dropped < 0xFF) {
-      region_discover_dropped++;   // 'list' is full, so just report how many are missing
+      region_discover_dropped++;   // report how many are missing, rather than a partial entry
     }
   }
 
@@ -1089,7 +1112,8 @@ void MyMesh::loopRegionQuery() {
     } else {
       advanceRegionDiscover(NULL, 0);
     }
-  } else if (next_region_fetch && millisHasNowPassed(next_region_fetch) && isRegionSrcSet()) {
+  } else if (next_region_fetch && millisHasNowPassed(next_region_fetch) && isRegionSrcSet()
+             && !region_load_active) {   // a 'region load' in progress will replace the map
     startRegionFetch();
   }
 }
@@ -1125,6 +1149,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   next_region_fetch = 0;
   region_fetch_at = 0;
   region_fetch_added = region_fetch_known = region_fetch_fails = 0;
+  region_fetch_full = region_save_pending = false;
 
 #if MAX_NEIGHBOURS
   memset(neighbours, 0, sizeof(neighbours));

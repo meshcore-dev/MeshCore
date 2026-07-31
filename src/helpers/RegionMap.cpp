@@ -365,9 +365,11 @@ static bool next_name(const char *src, int len, int *cursor, char dest[], int de
   return false;  // no more names
 }
 
-int RegionMap::importNamesFrom(const char *src, int len, int* num_known) {
+int RegionMap::importNamesFrom(const char *src, int len, int* num_known, bool* was_full) {
   char name[sizeof(RegionEntry::name)];
   int cursor = 0, added = 0, known = 0;
+
+  if (was_full) { *was_full = false; }
 
   // a decrypted payload is padded out to the cipher block size, so the list can be
   // followed by null bytes. Without this, the last name runs into the padding.
@@ -385,7 +387,10 @@ int RegionMap::importNamesFrom(const char *src, int len, int* num_known) {
     }
 
     auto region = putRegion(name, 0);   // add as a child of the wildcard
-    if (region == NULL) break;   // full!
+    if (region == NULL) {   // full! (the name is already known to be valid)
+      if (was_full) { *was_full = true; }
+      break;   // the rest of the list cannot be added
+    }
     region->flags = 0;   // allow flood
     added++;
   }

@@ -61,9 +61,10 @@ public:
    *      flags and its parent. New names are added as flood-allowed children of the wildcard.
    *      The wildcard and private ('$') Regions in the list are skipped.
    * \param  num_known  OUT - optional, how many names were already in the map
+   * \param  was_full  OUT - optional, true if the map filled up and names had to be dropped
    * \returns  the number of Regions added
   */
-  int importNamesFrom(const char *src, int len, int* num_known = NULL);
+  int importNamesFrom(const char *src, int len, int* num_known = NULL, bool* was_full = NULL);
   int getTransportKeysFor(const RegionEntry& src, TransportKey dest[], int max_num);
 
   void    exportTo(Stream& out) const;

@@ -915,7 +915,11 @@ map has its list truncated at a name boundary, and the names past that point are
 
 **Note:** Bare `regions.subscribe` reports the subscription and the result of the last fetch, for
 example `OK - subscribed to a1b2c3d4 (2 added, 5 known, 43 secs ago)`. `regions.subscribe off`
-clears it and replies `OK - unsubscribed`.
+clears it and replies `OK - unsubscribed`. Two suffixes flag an incomplete fetch:
+`- region table full` (the node already holds the maximum 32 regions, so the rest of the list was
+dropped — remove regions to make room), and `- NOT SAVED` (the regions were added in memory but
+could not be written to flash, so they will be lost on reboot; the fetch is retried until a save
+succeeds).
 
 ---
 

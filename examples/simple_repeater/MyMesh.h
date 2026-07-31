@@ -125,6 +125,8 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   uint32_t region_fetch_at;        // when the last fetch completed (0 = not yet)
   uint8_t region_fetch_added, region_fetch_known;
   uint8_t region_fetch_fails;       // consecutive unanswered fetches
+  bool region_fetch_full;           // last fetch hit the region table limit
+  bool region_save_pending;         // imported regions are in RAM but not on disk
 #if defined(WITH_RS232_BRIDGE)
   RS232Bridge bridge;
 #elif defined(WITH_ESPNOW_BRIDGE)
@@ -136,7 +138,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   void formatRegionSubscribeReply(char* reply);
   bool sendRegionsReq(const mesh::Identity& target);
   bool handleRegionsResponse(const uint8_t* data, size_t len);
-  void mergeSubscribedRegions(const uint8_t* names, size_t len);
+  bool mergeSubscribedRegions(const uint8_t* names, size_t len);
   void startRegionDiscover(char* reply);
   void advanceRegionDiscover(const uint8_t* names, size_t len);
   void cancelRegionSubscribe();
