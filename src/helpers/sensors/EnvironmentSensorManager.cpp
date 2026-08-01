@@ -428,7 +428,7 @@ static void query_ina260(uint8_t ch, uint8_t, CayenneLPP& lpp) {
 static uint8_t init_ina226(TwoWire*, uint8_t) {
   // INA226 static instance was constructed with address and wire.
   if (!INA226.begin()) return 0;
-  INA226.setMaxCurrentShunt(TELEM_INA226_MAX_AMP, TELEM_INA226_SHUNT_VALUE);
+  if (!INA226.setMaxCurrentShunt(TELEM_INA226_MAX_AMP, TELEM_INA226_SHUNT_VALUE)) return 0;
   return 1;
 }
 static void query_ina226(uint8_t ch, uint8_t, CayenneLPP& lpp) {
