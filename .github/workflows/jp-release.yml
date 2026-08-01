@@ -152,7 +152,7 @@ jobs:
             | M5Stack Unit C6L | `M5Stack_Unit_C6L_companion_radio_ble-*-merged.bin` | esptool書き込み |
             | T-DECK | `LilyGo_TDeck_companion_radio_ble-*-merged.bin` | esptool書き込み |
 
-            > ⚠️ Wio Tracker L1 Pro / M5Stack Unit C6L / T-DECK はCIビルド確認のみで、実機での動作検証はまだです。特にM5Stack Unit C6Lは既知の不具合報告（upstream #2229）が未解決の可能性があります。動作報告歓迎します。
+            > ⚠️ Wio Tracker L1 Pro / T-DECK はCIビルド確認のみで、実機での動作検証はまだです。動作報告歓迎します。M5Stack Unit C6Lは起動時クラッシュループ（upstream #2229）を修正し、実機での動作を確認済みです。
 
             以上の表に載っていないデバイスや、リピーター、ルームサーバーもリリースしていますが、実験的です。
 
