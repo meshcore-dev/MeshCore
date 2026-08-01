@@ -41,7 +41,7 @@ Maximum unescaped frame size: 512 bytes.
 
 | Command     | Value  | Data               | Description                                                 |
 |-------------|--------|--------------------|-------------------------------------------------------------|
-| Data        | `0x00` | Raw packet         | Queue packet for transmission                               |
+| Data        | `0x00` | Raw packet         | Queue packet for transmission (one pending at a time)       |
 | TXDELAY     | `0x01` | Delay (1 byte)     | Transmitter keyup delay in 10ms units (default: 50 = 500ms) |
 | Persistence | `0x02` | P (1 byte)         | CSMA persistence parameter 0-255 (default: 63)              |
 | SlotTime    | `0x03` | Interval (1 byte)  | CSMA slot interval in 10ms units (default: 10 = 100ms)      |
@@ -57,6 +57,12 @@ Maximum unescaped frame size: 512 bytes.
 | Data | `0x00` | Raw packet | Received packet from radio |
 
 Data frames carry raw packet data only, with no metadata prepended. The Data command payload is limited to 255 bytes to match the MeshCore maximum transmission unit (MAX_TRANS_UNIT); frames larger than 255 bytes are silently dropped. The KISS specification recommends at least 1024 bytes for general-purpose TNCs; this modem is intended for MeshCore packets only, whose protocol MTU is 255 bytes.
+
+Only one packet may be pending for radio transmission at a time. If the host sends a second Data frame before the first has completed, the modem responds with Error (0xF1) and TxBusy (0x07).
+
+### Host Output Backpressure
+
+Outbound frames are encoded into a 2-slot queue and flushed when serial output space is available; `loop()` never blocks on writes. Radio TX state advances independently of host read speed. TxDone is retained until it can be queued. If the outbound queue is full, the modem responds with Error (0xF1) and TxBusy (0x07). Hosts should read serial promptly to avoid delayed responses.
 
 ### CSMA Behavior
 
@@ -156,15 +162,15 @@ Response codes use the high-bit convention: `response = command | 0x80`. Generic
 | MacFailed     | `0x04` | MAC verification failed |
 | UnknownCmd    | `0x05` | Unknown sub-command     |
 | EncryptFailed | `0x06` | Encryption failed       |
-| TxBusy        | `0x07` | Transmit busy           |
+| TxBusy        | `0x07` | Radio TX busy, or host output queue full |
 
 ### Unsolicited Events
 
 The TNC sends these SetHardware frames without a preceding request:
 
-**TxDone (0xF8)**: Sent after a packet has been transmitted. Contains a single byte: 0x01 for success, 0x00 for failure.
+**TxDone (0xF8)**: Sent after radio transmission completes. Contains a single byte: 0x01 for success, 0x00 for failure. Delivery to the host may be delayed under serial backpressure but is not dropped.
 
-**RxMeta (0xF9)**: Sent immediately after each standard data frame (type 0x00) with metadata for the received packet. Contains SNR (1 byte, signed, value x4 for 0.25 dB precision) followed by RSSI (1 byte, signed, dBm). Enabled by default; can be toggled with SetSignalReport. Standard KISS clients ignore this frame.
+**RxMeta (0xF9)**: Sent after each standard data frame (type 0x00) with SNR (1 byte, signed, value x4) and RSSI (1 byte, signed, dBm). Queued with the data frame; omitted if the data frame cannot be queued. Enabled by default; toggle with SetSignalReport. Standard KISS clients ignore this frame.
 
 ## Data Formats
 

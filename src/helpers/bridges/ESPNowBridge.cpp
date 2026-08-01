@@ -32,7 +32,7 @@ void ESPNowBridge::begin() {
   // Initialize WiFi in station mode
   WiFi.mode(WIFI_STA);
   
-  // Set wifi channel
+  // Set Wi-Fi channel
   if (esp_wifi_set_channel(_prefs->bridge_channel, WIFI_SECOND_CHAN_NONE) != ESP_OK) {
     BRIDGE_DEBUG_PRINTLN("Error setting WIFI channel to %d\n", _prefs->bridge_channel);
     return;
@@ -167,7 +167,8 @@ void ESPNowBridge::sendPacket(mesh::Packet *packet) {
     return;
   }
 
-  if (!_seen_packets.hasSeen(packet)) {
+  if (!_seen_packets.wasSeen(packet)) {
+    _seen_packets.markSeen(packet);
     // Create a temporary buffer just for size calculation and reuse for actual writing
     uint8_t sizingBuffer[MAX_PAYLOAD_SIZE];
     uint16_t meshPacketLen = packet->writeTo(sizingBuffer);

@@ -21,7 +21,9 @@ public:
     return "LilyGo T-Echo Lite";
   }
 
-  void powerOff() override {
+  void shutdownPeripherals() override {
+    NRF52Board::shutdownPeripherals();
+
     digitalWrite(PIN_VBAT_MEAS_EN, LOW);
     #ifdef LED_RED
     digitalWrite(LED_RED, LOW);
@@ -38,6 +40,5 @@ public:
     #ifdef PIN_PWR_EN
     digitalWrite(PIN_PWR_EN, LOW);
     #endif
-    sd_power_system_off();
   }
 };

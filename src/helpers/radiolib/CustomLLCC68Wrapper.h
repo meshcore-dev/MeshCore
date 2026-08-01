@@ -14,6 +14,10 @@ public:
     ((CustomLLCC68 *)_radio)->setBandwidth(bw);
     ((CustomLLCC68 *)_radio)->setCodingRate(cr);
     updatePreamble(sf);
+    PacketMillis pm = calcMaxPacketMillis(sf, bw, cr, preambleLengthForSF(sf));
+    ((CustomLLCC68 *)_radio)->setPreambleMillis(pm.preambleMillis);
+    ((CustomLLCC68 *)_radio)->setMaxPayloadMillis(pm.payloadMillis);
+
   }
 
   bool isReceivingPacket() override { 
@@ -33,8 +37,8 @@ public:
 
   void doResetAGC() override { sx126xResetAGC((SX126x *)_radio); }
 
-  void setRxBoostedGainMode(bool en) override {
-    ((CustomLLCC68 *)_radio)->setRxBoostedGainMode(en);
+  bool setRxBoostedGainMode(bool en) override {
+    return ((CustomLLCC68 *)_radio)->setRxBoostedGainMode(en) == RADIOLIB_ERR_NONE;
   }
   bool getRxBoostedGainMode() const override {
     return ((CustomLLCC68 *)_radio)->getRxBoostedGainMode();
