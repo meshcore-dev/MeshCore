@@ -31,6 +31,7 @@ public:
   bool formatFileSystem();
   FILESYSTEM* getPrimaryFS() const { return _fs; }
   FILESYSTEM* getSecondaryFS() const { return _fsExtra; }
+  FILESYSTEM* getMessageFS() const { return _fsExtra ? _fsExtra : _fs; }
   bool loadMainIdentity(mesh::LocalIdentity &identity);
   bool saveMainIdentity(const mesh::LocalIdentity &identity);
   void loadPrefs(NodePrefs& prefs, double& node_lat, double& node_lon);

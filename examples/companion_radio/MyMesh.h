@@ -84,6 +84,21 @@ struct AdvertPath {
   uint8_t path[MAX_PATH_SIZE];
 };
 
+struct QueuedMessageInfo {
+  bool is_channel;
+  bool is_outgoing;
+  uint8_t channel_idx;
+  uint8_t pubkey_prefix[6];
+  uint8_t path_len;
+  uint8_t hop_count;
+  uint8_t path_hash_size;
+  uint8_t path[MAX_PATH_SIZE];
+  int8_t snr_quarter_db;
+  uint8_t txt_type;
+  uint32_t timestamp;
+  char text[MAX_FRAME_SIZE + 1];
+};
+
 class MyMesh : public BaseChatMesh, public DataStoreHost {
 public:
   MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMeshTables &tables, DataStore& store, AbstractUITask* ui=NULL);
@@ -101,6 +116,12 @@ public:
   void enterCLIRescue();
 
   int  getRecentlyHeard(AdvertPath dest[], int max_num);
+  uint16_t getQueuedMessageCount() const;
+  uint16_t getQueuedIncomingMessageCount() const;
+  bool getQueuedMessage(uint16_t index, QueuedMessageInfo& result) const;
+  bool deleteQueuedMessage(uint16_t index);
+  bool sendUiContactMessage(const ContactInfo& recipient, const char* text);
+  bool sendUiChannelMessage(uint8_t channel_idx, const char* text);
 
 protected:
   float getAirtimeBudgetFactor() const override;
@@ -129,6 +150,10 @@ protected:
   ContactInfo* processAck(const uint8_t *data) override;
   void queueMessage(const ContactInfo &from, uint8_t txt_type, mesh::Packet *pkt, uint32_t sender_timestamp,
                     const uint8_t *extra, int extra_len, const char *text);
+  void queueOutgoingContactMessage(const ContactInfo& recipient, uint32_t timestamp,
+                                   const char* text);
+  void queueOutgoingChannelMessage(uint8_t channel_idx, uint32_t timestamp,
+                                   const char* text);
 
   void onMessageRecv(const ContactInfo &from, mesh::Packet *pkt, uint32_t sender_timestamp,
                      const char *text) override;
@@ -181,13 +206,22 @@ public:
   bool hasPendingWork() const;
 
 private:
+  struct Frame;
   void writeOKFrame();
   void writeErrFrame(uint8_t err_code);
   void writeDisabledFrame();
   void writeContactRespFrame(uint8_t code, const ContactInfo &contact);
   void updateContactFromFrame(ContactInfo &contact, uint32_t& last_mod, const uint8_t *frame, int len);
-  void addToOfflineQueue(const uint8_t frame[], int len);
+  void addToOfflineQueue(const uint8_t frame[], int len, const mesh::Packet* packet = NULL,
+                         bool outgoing = false);
   int getFromOfflineQueue(uint8_t frame[]);
+  void loadOfflineQueue();
+  bool appendOfflineQueueRecord(uint8_t operation, const uint8_t* data, uint8_t len);
+  bool compactOfflineQueue();
+  bool removeOfflineQueueAt(uint16_t index, bool persist = true);
+  void addToOfflineQueueMemory(const uint8_t frame[], int len,
+                               const mesh::Packet* packet = NULL, bool outgoing = false);
+  bool decodeQueuedMessage(const Frame& frame, QueuedMessageInfo& result) const;
   int getBlobByKey(const uint8_t key[], int key_len, uint8_t dest_buf[]) override { 
     return _store->getBlobByKey(key, key_len, dest_buf);
   }
@@ -234,10 +268,15 @@ private:
   struct Frame {
     uint8_t len;
     uint8_t buf[MAX_FRAME_SIZE];
+    bool outgoing;
+    uint8_t path_len;
+    uint8_t path_hash_size;
+    uint8_t path[MAX_PATH_SIZE];
 
     bool isChannelMsg() const;
   };
   int offline_queue_len;
+  uint16_t offline_journal_ops;
   Frame offline_queue[OFFLINE_QUEUE_SIZE];
 
   struct AckTableEntry {

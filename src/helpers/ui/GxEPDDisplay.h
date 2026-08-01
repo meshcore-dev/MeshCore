@@ -9,6 +9,9 @@
 #include <GxEPD2_3C.h>
 #include <GxEPD2_4C.h>
 #include <GxEPD2_7C.h>
+#if defined(EINK_GDEM0154Z91)
+  #include "GxEPD2_154_Z91c.h"
+#endif
 #include <Fonts/FreeSans9pt7b.h>
 #include <Fonts/FreeSansBold12pt7b.h>
 #include <Fonts/FreeSans18pt7b.h>
@@ -18,14 +21,19 @@
 
 class GxEPDDisplay : public DisplayDriver {
 
-#if defined(EINK_DISPLAY_MODEL)
+#if defined(EINK_DISPLAY_MODEL) && defined(EINK_DISPLAY_3C)
+  GxEPD2_3C<EINK_DISPLAY_MODEL, EINK_DISPLAY_MODEL::HEIGHT> display;
+#elif defined(EINK_DISPLAY_MODEL)
   GxEPD2_BW<EINK_DISPLAY_MODEL, EINK_DISPLAY_MODEL::HEIGHT> display;
+#else
+  GxEPD2_BW<GxEPD2_150_BN, 200> display;
+#endif
+#if defined(EINK_DISPLAY_MODEL)
   const float scale_x  = EINK_SCALE_X; 
   const float scale_y  = EINK_SCALE_Y;
   const float offset_x = EINK_X_OFFSET;
   const float offset_y = EINK_Y_OFFSET;
 #else
-  GxEPD2_BW<GxEPD2_150_BN, 200> display;
   const float scale_x  = 1.5625f;
   const float scale_y  = 1.5625f;
   const float offset_x = 0;

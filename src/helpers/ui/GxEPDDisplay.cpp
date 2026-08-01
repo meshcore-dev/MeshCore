@@ -26,8 +26,10 @@ bool GxEPDDisplay::begin() {
   setTextSize(1);  // Default to size 1
   display.setPartialWindow(0, 0, display.width(), display.height());
 
+#if !defined(EINK_SLOW_FULL_REFRESH)
   display.fillScreen(GxEPD_WHITE);
   display.display(true);
+#endif
   #if DISP_BACKLIGHT
   digitalWrite(DISP_BACKLIGHT, LOW);
   pinMode(DISP_BACKLIGHT, OUTPUT);
@@ -90,6 +92,10 @@ void GxEPDDisplay::setColor(Color c) {
   // colours need to be inverted for epaper displays
   if (c == DARK) {
     display.setTextColor(_curr_color = GxEPD_WHITE);
+#if defined(EINK_DISPLAY_3C)
+  } else if (c == RED) {
+    display.setTextColor(_curr_color = GxEPD_RED);
+#endif
   } else {
     display.setTextColor(_curr_color = GxEPD_BLACK);
   }
@@ -173,7 +179,11 @@ uint16_t GxEPDDisplay::getTextWidth(const char* str) {
 void GxEPDDisplay::endFrame() {
   uint32_t crc = display_crc.finalize();
   if (crc != last_display_crc_value) {
+#if defined(EINK_DISPLAY_3C)
+    display.display(false);
+#else
     display.display(true);
+#endif
     last_display_crc_value = crc;
   }
 }

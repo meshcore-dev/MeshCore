@@ -8,6 +8,11 @@
 #include <Arduino.h>
 #include <helpers/sensors/LPPDataHelpers.h>
 
+#if defined(T_ECHO_LITE_KEYPAD)
+  #include <Wire.h>
+  #include "MenuModel.h"
+#endif
+
 #ifndef LED_STATE_ON
   #define LED_STATE_ON 1
 #endif
@@ -38,6 +43,36 @@ class UITask : public AbstractUITask {
   int _msgcount;
   unsigned long ui_started_at, next_batt_chck;
   int next_backlight_btn_check = 0;
+#if defined(T_ECHO_LITE_KEYPAD)
+  bool _keypad_found = false;
+  bool _keypad_has_event = false;
+  uint8_t _keypad_event = 0;
+  uint8_t _keypad_code = 0;
+  uint8_t _keypad_row = 0;
+  uint8_t _keypad_col = 0;
+  bool _diagnostic_is_gpio = false;
+  bool _button1_state = true;
+  bool _button2_state = true;
+  uint8_t _diagnostic_gpio = 0;
+  static const uint8_t KEY_QUEUE_SIZE = 16;
+  char _key_queue[KEY_QUEUE_SIZE] = {0};
+  uint8_t _key_queue_head = 0;
+  uint8_t _key_queue_tail = 0;
+  MenuModel::LedBehaviour _notification_led_settings[2][7];
+  MenuModel::LedPattern _notification_led_patterns[2];
+
+  void queueKey(char key);
+  bool dequeueKey(char& key);
+  bool keypadWrite(uint8_t reg, uint8_t value);
+  uint8_t keypadRead(uint8_t reg);
+  void beginKeypadDiagnostic();
+  void pollKeypadDiagnostic();
+  void pollDiagnosticButtons();
+  void renderKeypadDiagnostic();
+  void triggerNotificationLeds(uint8_t event);
+  void notificationLedHandler();
+  void writeNotificationLed(uint8_t led, bool on);
+#endif
 #ifdef PIN_STATUS_LED
   int led_state = 0;
   int next_led_change = 0;
@@ -90,6 +125,9 @@ public:
   bool getGPSState();
   void toggleGPS();
 
+#if defined(T_ECHO_LITE_KEYPAD)
+  void configureNotificationLed(uint8_t led, uint8_t event, MenuModel::LedBehaviour behaviour);
+#endif
 
   // from AbstractUITask
   void msgRead(int msgcount) override;

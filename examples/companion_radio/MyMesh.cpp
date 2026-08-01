@@ -136,6 +136,14 @@
 
 #define MAX_SIGN_DATA_LEN               (8 * 1024) // 8K
 
+#define OFFLINE_QUEUE_FILE              "/msg_queue"
+#define OFFLINE_QUEUE_TEMP_FILE         "/msg_queue.tmp"
+#define OFFLINE_QUEUE_MAGIC             0x514D
+#define OFFLINE_QUEUE_OP_ADD            1
+#define OFFLINE_QUEUE_OP_REMOVE         2
+#define OFFLINE_QUEUE_OP_ADD_META       3
+#define OFFLINE_QUEUE_COMPACT_OPS       512
+
 // Auto-add config bitmask
 // Bit 0: If set, overwrite oldest non-favourite contact when contacts file is full
 // Bits 1-4: these indicate which contact types to auto-add when manual_contact_mode = 0x01
@@ -216,42 +224,307 @@ bool MyMesh::Frame::isChannelMsg() const {
          buf[0] == RESP_CODE_CHANNEL_DATA_RECV;
 }
 
-void MyMesh::addToOfflineQueue(const uint8_t frame[], int len) {
+void MyMesh::addToOfflineQueue(const uint8_t frame[], int len,
+                               const mesh::Packet* packet, bool outgoing) {
+  if (len <= 0 || len > MAX_FRAME_SIZE) return;
   if (offline_queue_len >= OFFLINE_QUEUE_SIZE) {
     MESH_DEBUG_PRINTLN("WARN: offline_queue is full!");
     int pos = 0;
     while (pos < offline_queue_len) {
       if (offline_queue[pos].isChannelMsg()) {
-        for (int i = pos; i < offline_queue_len - 1; i++) { // delete oldest channel msg from queue
-          offline_queue[i] = offline_queue[i + 1];
-        }
+        if (!removeOfflineQueueAt(pos)) return;
         MESH_DEBUG_PRINTLN("INFO: removed oldest channel message from queue.");
-        offline_queue[offline_queue_len - 1].len = len;
-        memcpy(offline_queue[offline_queue_len - 1].buf, frame, len);
-        return;
+        break;
       }
       pos++;
     }
-    MESH_DEBUG_PRINTLN("INFO: no channel messages to remove from queue.");
-  } else {
-    offline_queue[offline_queue_len].len = len;
-    memcpy(offline_queue[offline_queue_len].buf, frame, len);
-    offline_queue_len++;
+    if (offline_queue_len >= OFFLINE_QUEUE_SIZE) {
+      MESH_DEBUG_PRINTLN("INFO: no channel messages to remove from queue.");
+      return;
+    }
   }
+  uint8_t record[255];
+  uint8_t path_bytes = packet ? packet->getPathByteLen() : 0;
+  int record_len = 5 + path_bytes + len;
+  if (record_len > (int)sizeof(record)) return;
+  record[0] = outgoing ? 1 : 0;
+  record[1] = packet ? packet->getPathHashCount() : 0;
+  record[2] = packet ? packet->getPathHashSize() : 0;
+  record[3] = path_bytes;
+  record[4] = len;
+  if (path_bytes) memcpy(&record[5], packet->path, path_bytes);
+  memcpy(&record[5 + path_bytes], frame, len);
+  if (!appendOfflineQueueRecord(OFFLINE_QUEUE_OP_ADD_META, record, record_len)) {
+    MESH_DEBUG_PRINTLN("ERROR: could not persist offline message.");
+    return;
+  }
+  addToOfflineQueueMemory(frame, len, packet, outgoing);
+  if (offline_journal_ops >= OFFLINE_QUEUE_COMPACT_OPS) compactOfflineQueue();
 }
 
 int MyMesh::getFromOfflineQueue(uint8_t frame[]) {
-  if (offline_queue_len > 0) {         // check offline queue
-    size_t len = offline_queue[0].len; // take from top of queue
-    memcpy(frame, offline_queue[0].buf, len);
-
-    offline_queue_len--;
-    for (int i = 0; i < offline_queue_len; i++) { // delete top item from queue
-      offline_queue[i] = offline_queue[i + 1];
-    }
+  for (int index = 0; index < offline_queue_len; index++) {
+    if (offline_queue[index].outgoing) continue;
+    size_t len = offline_queue[index].len;
+    memcpy(frame, offline_queue[index].buf, len);
+    if (!removeOfflineQueueAt(index)) return 0;
     return len;
   }
   return 0; // queue is empty
+}
+
+static uint16_t offlineQueueChecksum(uint8_t operation, uint8_t len, const uint8_t* data) {
+  uint16_t checksum = 0x6D51;
+  checksum = (checksum << 5) ^ (checksum >> 11) ^ operation;
+  checksum = (checksum << 5) ^ (checksum >> 11) ^ len;
+  for (uint8_t i = 0; i < len; i++) {
+    checksum = (checksum << 5) ^ (checksum >> 11) ^ data[i];
+  }
+  return checksum;
+}
+
+static File openOfflineQueueWrite(FILESYSTEM* fs, const char* path, bool append) {
+#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
+  File file = fs->open(path, FILE_O_WRITE);
+  if (file && append) file.seek(file.size());
+  return file;
+#elif defined(RP2040_PLATFORM)
+  return fs->open(path, append ? "a" : "w");
+#else
+  return fs->open(path, append ? "a" : "w", true);
+#endif
+}
+
+void MyMesh::addToOfflineQueueMemory(const uint8_t frame[], int len,
+                                     const mesh::Packet* packet, bool outgoing) {
+  if (offline_queue_len >= OFFLINE_QUEUE_SIZE || len <= 0 || len > MAX_FRAME_SIZE) return;
+  Frame& entry = offline_queue[offline_queue_len];
+  entry.len = len;
+  memcpy(entry.buf, frame, len);
+  entry.outgoing = outgoing;
+  entry.path_len = packet ? packet->getPathHashCount() : 0;
+  entry.path_hash_size = packet ? packet->getPathHashSize() : 0;
+  memset(entry.path, 0, sizeof(entry.path));
+  if (packet && packet->getPathByteLen() <= sizeof(entry.path)) {
+    memcpy(entry.path, packet->path, packet->getPathByteLen());
+  }
+  offline_queue_len++;
+}
+
+bool MyMesh::appendOfflineQueueRecord(uint8_t operation, const uint8_t* data, uint8_t len) {
+  FILESYSTEM* fs = _store->getMessageFS();
+  File file = openOfflineQueueWrite(fs, OFFLINE_QUEUE_FILE, true);
+  if (!file) return false;
+  uint16_t magic = OFFLINE_QUEUE_MAGIC;
+  uint16_t checksum = offlineQueueChecksum(operation, len, data);
+  bool ok = file.write((uint8_t*)&magic, sizeof(magic)) == sizeof(magic) &&
+            file.write(&operation, 1) == 1 &&
+            file.write(&len, 1) == 1 &&
+            file.write((uint8_t*)&checksum, sizeof(checksum)) == sizeof(checksum) &&
+            (len == 0 || file.write(data, len) == len);
+  file.flush();
+  file.close();
+  if (ok) offline_journal_ops++;
+  return ok;
+}
+
+bool MyMesh::removeOfflineQueueAt(uint16_t index, bool persist) {
+  if (index >= offline_queue_len) return false;
+  if (persist) {
+    uint8_t data[2] = { (uint8_t)(index & 0xFF), (uint8_t)(index >> 8) };
+    if (!appendOfflineQueueRecord(OFFLINE_QUEUE_OP_REMOVE, data, sizeof(data))) return false;
+  }
+  offline_queue_len--;
+  for (int i = index; i < offline_queue_len; i++) {
+    offline_queue[i] = offline_queue[i + 1];
+  }
+  if (persist && offline_journal_ops >= OFFLINE_QUEUE_COMPACT_OPS) compactOfflineQueue();
+  return true;
+}
+
+bool MyMesh::compactOfflineQueue() {
+  FILESYSTEM* fs = _store->getMessageFS();
+  fs->remove(OFFLINE_QUEUE_TEMP_FILE);
+  File file = openOfflineQueueWrite(fs, OFFLINE_QUEUE_TEMP_FILE, false);
+  if (!file) return false;
+  bool ok = true;
+  for (int i = 0; i < offline_queue_len && ok; i++) {
+    uint8_t operation = OFFLINE_QUEUE_OP_ADD_META;
+    uint8_t path_bytes = offline_queue[i].path_len * offline_queue[i].path_hash_size;
+    uint8_t data[255];
+    uint8_t len = 5 + path_bytes + offline_queue[i].len;
+    data[0] = offline_queue[i].outgoing ? 1 : 0;
+    data[1] = offline_queue[i].path_len;
+    data[2] = offline_queue[i].path_hash_size;
+    data[3] = path_bytes;
+    data[4] = offline_queue[i].len;
+    if (path_bytes) memcpy(&data[5], offline_queue[i].path, path_bytes);
+    memcpy(&data[5 + path_bytes], offline_queue[i].buf, offline_queue[i].len);
+    uint16_t magic = OFFLINE_QUEUE_MAGIC;
+    uint16_t checksum = offlineQueueChecksum(operation, len, data);
+    ok = file.write((uint8_t*)&magic, sizeof(magic)) == sizeof(magic) &&
+         file.write(&operation, 1) == 1 &&
+         file.write(&len, 1) == 1 &&
+         file.write((uint8_t*)&checksum, sizeof(checksum)) == sizeof(checksum) &&
+         file.write(data, len) == len;
+  }
+  file.flush();
+  file.close();
+  if (!ok) {
+    fs->remove(OFFLINE_QUEUE_TEMP_FILE);
+    return false;
+  }
+  // LittleFS rename replaces the destination atomically, so the previous
+  // valid journal remains available until the compacted file is committed.
+  if (!fs->rename(OFFLINE_QUEUE_TEMP_FILE, OFFLINE_QUEUE_FILE)) return false;
+  offline_journal_ops = offline_queue_len;
+  return true;
+}
+
+void MyMesh::loadOfflineQueue() {
+  offline_queue_len = 0;
+  offline_journal_ops = 0;
+  FILESYSTEM* fs = _store->getMessageFS();
+  File file = _store->openRead(fs, OFFLINE_QUEUE_FILE);
+  if (!file) return;
+  bool repair = false;
+  while (file.available()) {
+    uint16_t magic;
+    uint8_t operation;
+    uint8_t len;
+    uint16_t checksum;
+    if (file.read((uint8_t*)&magic, sizeof(magic)) != sizeof(magic) ||
+        file.read(&operation, 1) != 1 ||
+        file.read(&len, 1) != 1 ||
+        file.read((uint8_t*)&checksum, sizeof(checksum)) != sizeof(checksum) ||
+        magic != OFFLINE_QUEUE_MAGIC) {
+      repair = true;
+      break;
+    }
+    uint8_t data[255];
+    if (len && file.read(data, len) != len) {
+      repair = true;
+      break;
+    }
+    if (checksum != offlineQueueChecksum(operation, len, data)) {
+      repair = true;
+      break;
+    }
+    offline_journal_ops++;
+    if (operation == OFFLINE_QUEUE_OP_ADD) {
+      if (len > MAX_FRAME_SIZE) repair = true;
+      else addToOfflineQueueMemory(data, len);
+    } else if (operation == OFFLINE_QUEUE_OP_ADD_META && len >= 5) {
+      uint8_t path_bytes = data[3];
+      uint8_t frame_len = data[4];
+      if (path_bytes > MAX_PATH_SIZE || 5 + path_bytes + frame_len != len) {
+        repair = true;
+      } else {
+        addToOfflineQueueMemory(&data[5 + path_bytes], frame_len, NULL, data[0] != 0);
+        if (offline_queue_len > 0) {
+          Frame& entry = offline_queue[offline_queue_len - 1];
+          entry.path_len = data[1];
+          entry.path_hash_size = data[2];
+          if (path_bytes) memcpy(entry.path, &data[5], path_bytes);
+        }
+      }
+    } else if (operation == OFFLINE_QUEUE_OP_REMOVE && len == 2) {
+      uint16_t index = data[0] | ((uint16_t)data[1] << 8);
+      if (!removeOfflineQueueAt(index, false)) repair = true;
+    } else {
+      repair = true;
+    }
+    if (repair) break;
+  }
+  file.close();
+  if (repair || offline_journal_ops >= OFFLINE_QUEUE_COMPACT_OPS) {
+    compactOfflineQueue();
+  }
+}
+
+bool MyMesh::decodeQueuedMessage(const Frame& frame, QueuedMessageInfo& result) const {
+  if (frame.len == 0) return false;
+  memset(&result, 0, sizeof(result));
+  result.is_outgoing = frame.outgoing;
+  result.hop_count = frame.path_len;
+  result.path_hash_size = frame.path_hash_size;
+  if (frame.path_len && frame.path_hash_size) {
+    memcpy(result.path, frame.path, frame.path_len * frame.path_hash_size);
+  }
+  uint8_t code = frame.buf[0];
+  int i;
+
+  if (code == RESP_CODE_CONTACT_MSG_RECV || code == RESP_CODE_CONTACT_MSG_RECV_V3) {
+    if (code == RESP_CODE_CONTACT_MSG_RECV_V3) result.snr_quarter_db = frame.buf[1];
+    i = code == RESP_CODE_CONTACT_MSG_RECV_V3 ? 4 : 1;
+    if (frame.len < i + 12) return false;
+    result.is_channel = false;
+    memcpy(result.pubkey_prefix, &frame.buf[i], sizeof(result.pubkey_prefix));
+    i += sizeof(result.pubkey_prefix);
+    result.path_len = frame.buf[i++];
+    result.txt_type = frame.buf[i++];
+    memcpy(&result.timestamp, &frame.buf[i], sizeof(result.timestamp));
+    i += sizeof(result.timestamp);
+    if (result.txt_type == TXT_TYPE_SIGNED_PLAIN) i += 4;
+    if (result.txt_type != TXT_TYPE_PLAIN && result.txt_type != TXT_TYPE_SIGNED_PLAIN) return false;
+  } else if (code == RESP_CODE_CHANNEL_MSG_RECV || code == RESP_CODE_CHANNEL_MSG_RECV_V3) {
+    if (code == RESP_CODE_CHANNEL_MSG_RECV_V3) result.snr_quarter_db = frame.buf[1];
+    i = code == RESP_CODE_CHANNEL_MSG_RECV_V3 ? 4 : 1;
+    if (frame.len < i + 7) return false;
+    result.is_channel = true;
+    result.channel_idx = frame.buf[i++];
+    result.path_len = frame.buf[i++];
+    result.txt_type = frame.buf[i++];
+    memcpy(&result.timestamp, &frame.buf[i], sizeof(result.timestamp));
+    i += sizeof(result.timestamp);
+    if (result.txt_type != TXT_TYPE_PLAIN) return false;
+  } else {
+    return false;
+  }
+
+  if (i > frame.len) return false;
+  int text_len = frame.len - i;
+  if (text_len > MAX_FRAME_SIZE) text_len = MAX_FRAME_SIZE;
+  memcpy(result.text, &frame.buf[i], text_len);
+  result.text[text_len] = 0;
+  return true;
+}
+
+uint16_t MyMesh::getQueuedMessageCount() const {
+  uint16_t count = 0;
+  QueuedMessageInfo ignored;
+  for (int i = 0; i < offline_queue_len; i++) {
+    if (decodeQueuedMessage(offline_queue[i], ignored)) count++;
+  }
+  return count;
+}
+
+uint16_t MyMesh::getQueuedIncomingMessageCount() const {
+  uint16_t count = 0;
+  QueuedMessageInfo message;
+  for (int i = 0; i < offline_queue_len; i++) {
+    if (decodeQueuedMessage(offline_queue[i], message) && !message.is_outgoing) count++;
+  }
+  return count;
+}
+
+bool MyMesh::getQueuedMessage(uint16_t index, QueuedMessageInfo& result) const {
+  uint16_t found = 0;
+  for (int i = 0; i < offline_queue_len; i++) {
+    if (!decodeQueuedMessage(offline_queue[i], result)) continue;
+    if (found++ == index) return true;
+  }
+  return false;
+}
+
+bool MyMesh::deleteQueuedMessage(uint16_t index) {
+  uint16_t found = 0;
+  QueuedMessageInfo message;
+  for (int i = 0; i < offline_queue_len; i++) {
+    if (!decodeQueuedMessage(offline_queue[i], message)) continue;
+    if (found++ == index) return removeOfflineQueueAt(i);
+  }
+  return false;
 }
 
 float MyMesh::getAirtimeBudgetFactor() const {
@@ -453,7 +726,7 @@ void MyMesh::queueMessage(const ContactInfo &from, uint8_t txt_type, mesh::Packe
   }
   memcpy(&out_frame[i], text, tlen);
   i += tlen;
-  addToOfflineQueue(out_frame, i);
+  addToOfflineQueue(out_frame, i, pkt);
 
   if (_serial->isConnected()) {
     uint8_t frame[1];
@@ -471,6 +744,81 @@ void MyMesh::queueMessage(const ContactInfo &from, uint8_t txt_type, mesh::Packe
     }
   }
 #endif
+}
+
+void MyMesh::queueOutgoingContactMessage(const ContactInfo& recipient,
+                                         uint32_t timestamp, const char* text) {
+  int i = 0;
+  out_frame[i++] = RESP_CODE_CONTACT_MSG_RECV_V3;
+  out_frame[i++] = 0;
+  out_frame[i++] = 0;
+  out_frame[i++] = 0;
+  memcpy(&out_frame[i], recipient.id.pub_key, 6);
+  i += 6;
+  out_frame[i++] = 0xFF;
+  out_frame[i++] = TXT_TYPE_PLAIN;
+  memcpy(&out_frame[i], &timestamp, 4);
+  i += 4;
+  int text_len = strlen(text);
+  if (i + text_len > MAX_FRAME_SIZE) text_len = MAX_FRAME_SIZE - i;
+  memcpy(&out_frame[i], text, text_len);
+  i += text_len;
+  addToOfflineQueue(out_frame, i, NULL, true);
+}
+
+void MyMesh::queueOutgoingChannelMessage(uint8_t channel_idx,
+                                         uint32_t timestamp, const char* text) {
+  int i = 0;
+  out_frame[i++] = RESP_CODE_CHANNEL_MSG_RECV_V3;
+  out_frame[i++] = 0;
+  out_frame[i++] = 0;
+  out_frame[i++] = 0;
+  out_frame[i++] = channel_idx;
+  out_frame[i++] = 0xFF;
+  out_frame[i++] = TXT_TYPE_PLAIN;
+  memcpy(&out_frame[i], &timestamp, 4);
+  i += 4;
+  int prefix_len = snprintf((char*)&out_frame[i], MAX_FRAME_SIZE - i,
+                            "%s: ", _prefs.node_name);
+  if (prefix_len < 0) prefix_len = 0;
+  if (prefix_len > MAX_FRAME_SIZE - i) prefix_len = MAX_FRAME_SIZE - i;
+  i += prefix_len;
+  int text_len = strlen(text);
+  if (i + text_len > MAX_FRAME_SIZE) text_len = MAX_FRAME_SIZE - i;
+  memcpy(&out_frame[i], text, text_len);
+  i += text_len;
+  addToOfflineQueue(out_frame, i, NULL, true);
+}
+
+bool MyMesh::sendUiContactMessage(const ContactInfo& recipient, const char* text) {
+  if (!text || !text[0]) return false;
+  uint32_t timestamp = getRTCClock()->getCurrentTimeUnique();
+  uint32_t expected_ack = 0;
+  uint32_t est_timeout = 0;
+  int result = sendMessage(recipient, timestamp, 0, text, expected_ack, est_timeout);
+  if (result == MSG_SEND_FAILED) return false;
+  queueOutgoingContactMessage(recipient, timestamp, text);
+  if (expected_ack) {
+    expected_ack_table[next_ack_idx].msg_sent = _ms->getMillis();
+    expected_ack_table[next_ack_idx].ack = expected_ack;
+    expected_ack_table[next_ack_idx].contact =
+      lookupContactByPubKey(recipient.id.pub_key, 6);
+    next_ack_idx = (next_ack_idx + 1) % EXPECTED_ACK_TABLE_SIZE;
+  }
+  return true;
+}
+
+bool MyMesh::sendUiChannelMessage(uint8_t channel_idx, const char* text) {
+  if (!text || !text[0]) return false;
+  ChannelDetails channel;
+  uint32_t timestamp = getRTCClock()->getCurrentTimeUnique();
+  if (!getChannel(channel_idx, channel) ||
+      !sendGroupMessage(timestamp, channel.channel, _prefs.node_name,
+                        text, strlen(text))) {
+    return false;
+  }
+  queueOutgoingChannelMessage(channel_idx, timestamp, text);
+  return true;
 }
 
 bool MyMesh::filterRecvFloodPacket(mesh::Packet* packet) {
@@ -564,7 +912,7 @@ void MyMesh::onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packe
   }
   memcpy(&out_frame[i], text, tlen);
   i += tlen;
-  addToOfflineQueue(out_frame, i);
+  addToOfflineQueue(out_frame, i, pkt);
 
   if (_serial->isConnected()) {
     uint8_t frame[1];
@@ -858,6 +1206,7 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
   _iter_started = false;
   _cli_rescue = false;
   offline_queue_len = 0;
+  offline_journal_ops = 0;
   app_target_ver = 0;
   clearPendingReqs();
   next_ack_idx = 0;
@@ -960,6 +1309,7 @@ void MyMesh::begin(bool has_display) {
   bootstrapRTCfromContacts();
   addChannel("Public", PUBLIC_GROUP_PSK); // pre-configure Andy's public channel
   _store->loadChannels(this);
+  loadOfflineQueue();
 
   radio_driver.setParams(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
   radio_driver.setTxPower(_prefs.tx_power_dbm);
@@ -1096,6 +1446,9 @@ void MyMesh::handleCmdFrame(size_t len) {
       if (result == MSG_SEND_FAILED) {
         writeErrFrame(ERR_CODE_TABLE_FULL);
       } else {
+        if (txt_type == TXT_TYPE_PLAIN) {
+          queueOutgoingContactMessage(*recipient, msg_timestamp, text);
+        }
         if (expected_ack) {
           expected_ack_table[next_ack_idx].msg_sent = _ms->getMillis(); // add to circular table
           expected_ack_table[next_ack_idx].ack = expected_ack;
@@ -1129,6 +1482,7 @@ void MyMesh::handleCmdFrame(size_t len) {
       ChannelDetails channel;
       bool success = getChannel(channel_idx, channel);
       if (success && sendGroupMessage(msg_timestamp, channel.channel, _prefs.node_name, text, len - i)) {
+        queueOutgoingChannelMessage(channel_idx, msg_timestamp, text);
         writeOKFrame();
       } else {
         writeErrFrame(ERR_CODE_NOT_FOUND); // bad channel_idx

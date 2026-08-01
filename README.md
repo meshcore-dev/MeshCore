@@ -1,3 +1,38 @@
+# AIDAS9
+
+**LIZDEIKA EDITION**
+
+*Messages beyond infrastructure.*
+
+AIDAS9 is pre-release communicator firmware for the LILYGO T-Echo Lite Kit,
+developed and maintained by members of
+[KSK Lizdeika](https://github.com/ksk-lizdeika). It is based on the upstream
+[MeshCore project](https://github.com/meshcore-dev/MeshCore). AIDAS9-specific
+changes are maintained independently; upstream MeshCore and third-party code
+retain their original copyright and license terms. See [license.txt](./license.txt).
+
+AIDAS9 is an independent community firmware project. It is not an official
+MeshCore or LILYGO product.
+
+> [!WARNING]
+> AIDAS9 is currently pre-release software under active development.
+> Known bugs and incomplete features remain; test carefully before relying on it.
+
+## AI-Assisted Development Disclosure
+
+AIDAS9 is developed with substantial assistance from AI coding tools and
+automated code-generation agents. This is not a wholly autonomous or
+"100% vibe-coded" project: a software engineer defines the requirements and
+architecture, directs the implementation, evaluates proposed changes, makes
+the final technical decisions, and performs debugging, build verification,
+testing, and hardware validation.
+
+AI-generated output is treated as an implementation aid rather than an
+authority. It may be revised or rejected when it does not meet the project's
+technical requirements. As with any pre-release firmware, contributors and
+users are encouraged to review the source, report defects, and avoid relying
+on the software for safety-critical communication.
+
 ## About MeshCore
 
 MeshCore is a lightweight, portable C++ library that enables multi-hop packet routing for embedded projects using LoRa and other packet radios. It is designed for developers who want to create resilient, decentralized communication networks that work without the internet.
@@ -123,6 +158,7 @@ There are a number of fairly major features in the pipeline, with no particular 
 
 ## 📞 Get Support
 
-- Report bugs and request features on the [GitHub Issues](https://github.com/ripplebiz/MeshCore/issues) page.
-- Find additional guides and components on [my site](https://buymeacoffee.com/ripplebiz).
+- Report AIDAS9 bugs and request AIDAS9 features on the [AIDAS9 GitHub Issues](https://github.com/ksk-lizdeika/MeshCore/issues) page.
+- Report upstream MeshCore issues to the [upstream MeshCore project](https://github.com/meshcore-dev/MeshCore/issues).
+- Support upstream MeshCore development through [Ripple Radios](https://buymeacoffee.com/ripplebiz).
 - Join [MeshCore Discord](https://meshcore.gg) to chat with the developers and get help from the community.

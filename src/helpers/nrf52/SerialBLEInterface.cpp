@@ -129,8 +129,12 @@ void SerialBLEInterface::begin(const char* prefix, char* name, uint32_t pin_code
   char charpin[20];
   snprintf(charpin, sizeof(charpin), "%lu", (unsigned long)pin_code);
   
-  // If we want to control BLE LED ourselves, uncomment this:
-  // Bluefruit.autoConnLed(false);
+#if defined(T_ECHO_LITE_KEYPAD)
+  // Notification settings own the blue LED on the T-Echo Lite. Disable
+  // Bluefruit's connection-status blinker so the two controllers do not
+  // compete for the same physical pin.
+  Bluefruit.autoConnLed(false);
+#endif
   Bluefruit.configPrphBandwidth(BANDWIDTH_MAX);
   Bluefruit.begin();
  

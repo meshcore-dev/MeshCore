@@ -13,6 +13,7 @@
 #define KEY_NEXT           0xF1
 #define KEY_PREV           0xF2
 #define KEY_CONTEXT_MENU   0xF3
+#define KEY_BACKSPACE      0xF4
 
 class UIScreen {
 protected:
@@ -22,4 +23,3 @@ public:
   virtual bool handleInput(char c) { return false; }
   virtual void poll() { }
 };
-
