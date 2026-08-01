@@ -83,6 +83,14 @@ static Adafruit_BMP280 BMP280(TELEM_WIRE);
 static Adafruit_SHTC3 SHTC3;
 #endif
 
+#if ENV_INCLUDE_SHT3X
+#ifndef TELEM_SHT3X_ADDRESS
+#define TELEM_SHT3X_ADDRESS 0x44
+#endif
+#include <SensirionI2cSht3x.h>
+static SensirionI2cSht3x SHT3X;
+#endif
+
 #if ENV_INCLUDE_SHT4X
 #ifndef TELEM_SHT4X_ADDRESS
 #define TELEM_SHT4X_ADDRESS 0x44
@@ -314,6 +322,24 @@ static void query_shtc3(uint8_t ch, uint8_t, CayenneLPP& lpp) {
 }
 #endif
 
+#if ENV_INCLUDE_SHT3X
+static uint8_t init_sht3x(TwoWire* wire, uint8_t addr) {
+  // SensirionI2cSht3x::begin() does not probe the hardware; use readStatusRegister()
+  // as the actual presence check since it performs a real I2C transaction.
+  SHT3X.begin(*wire, addr);
+  uint16_t status = 0;
+  return (SHT3X.readStatusRegister(status) == NO_ERROR) ? 1 : 0;
+}
+static void query_sht3x(uint8_t ch, uint8_t, CayenneLPP& lpp) {
+  float temperature = 0.0f;
+  float humidity = 0.0f;
+  if (SHT3X.measureSingleShot(REPEATABILITY_LOW, false, temperature, humidity) == NO_ERROR) {
+    lpp.addTemperature(ch, temperature);
+    lpp.addRelativeHumidity(ch, humidity);
+  }
+}
+#endif
+
 #if ENV_INCLUDE_SHT4X
 static uint8_t init_sht4x(TwoWire* wire, uint8_t addr) {
   // SensirionI2cSht4x::begin() does not probe the hardware; use serialNumber()
@@ -323,7 +349,8 @@ static uint8_t init_sht4x(TwoWire* wire, uint8_t addr) {
   return (SHT4X.serialNumber(serial) == 0) ? 1 : 0;
 }
 static void query_sht4x(uint8_t ch, uint8_t, CayenneLPP& lpp) {
-  float temperature, humidity;
+  float temperature = 0.0f;
+  float humidity = 0.0f;
   if (SHT4X.measureLowestPrecision(temperature, humidity) == 0) {
     lpp.addTemperature(ch, temperature);
     lpp.addRelativeHumidity(ch, humidity);
@@ -569,6 +596,9 @@ static const SensorDef SENSOR_TABLE[] = {
 #endif
 #if ENV_INCLUDE_SHTC3
   { 0x70,                  "SHTC3",        init_shtc3,    query_shtc3    },
+#endif
+#if ENV_INCLUDE_SHT3X
+  { TELEM_SHT3X_ADDRESS,   "SHT3X",        init_sht3x,    query_sht3x    },
 #endif
 #if ENV_INCLUDE_SHT4X
   { TELEM_SHT4X_ADDRESS,   "SHT4X",        init_sht4x,    query_sht4x    },
