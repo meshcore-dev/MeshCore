@@ -47,9 +47,9 @@ public:
     return "LilyGo T-Impulse-Plus";
   }
 
-  void powerOff() override {
+  void shutdownPeripherals() override {
     // power off system
-    NRF52Board::powerOff();
+    NRF52Board::shutdownPeripherals();
 
     // turn off 3.3v
     digitalWrite(RT9080_EN, LOW);

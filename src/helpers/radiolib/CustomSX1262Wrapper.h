@@ -18,6 +18,9 @@ public:
     ((CustomSX1262 *)_radio)->setBandwidth(bw);
     ((CustomSX1262 *)_radio)->setCodingRate(cr);
     updatePreamble(sf);
+    PacketMillis pm = calcMaxPacketMillis(sf, bw, cr, preambleLengthForSF(sf));
+    ((CustomSX1262 *)_radio)->setPreambleMillis(pm.preambleMillis);
+    ((CustomSX1262 *)_radio)->setMaxPayloadMillis(pm.payloadMillis);
   }
 
   bool isReceivingPacket() override { 

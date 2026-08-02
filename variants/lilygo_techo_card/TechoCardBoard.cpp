@@ -87,11 +87,11 @@ void TechoCardBoard::turnOffLeds() {
     }
 }
 
-void TechoCardBoard::powerOff() {
+void TechoCardBoard::shutdownPeripherals() {
   nrf_gpio_cfg_sense_input(BUTTON_PIN, NRF_GPIO_PIN_PULLUP, NRF_GPIO_PIN_SENSE_LOW);
   turnOffLeds();
   digitalWrite(PIN_PWR_EN, LOW);
-  NRF52Board::powerOff();
+  NRF52Board::shutdownPeripherals();
 }
 
 #endif
