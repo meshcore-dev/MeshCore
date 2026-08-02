@@ -18,6 +18,7 @@ public:
     virtual long getTimestamp() = 0;
     virtual void sendSentence(const char * sentence);
     virtual void reset() = 0;
+    virtual void configure() = 0;
     virtual void begin() = 0;
     virtual void stop() = 0;
     virtual void loop() = 0;

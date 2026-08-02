@@ -75,6 +75,14 @@ public :
         if (_peripher_power) _peripher_power->release();
     }
 
+    void configure() override {
+        // Attempt to use proprietary NMEA sentences to configure GPS
+        // Unsupported sentences will be ignored
+        
+        // Quectel L76K
+        sendSentence("$PCAS04,7"); // Set constellation - GPS + BeiDou + GLONASS
+    }
+
     void begin() override {
         claim();
         if (_pin_en != -1) {

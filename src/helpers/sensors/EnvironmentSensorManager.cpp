@@ -173,7 +173,7 @@ static bool serialGPSFlag = false;
 #include <SparkFun_u-blox_GNSS_Arduino_Library.h>
 static SFE_UBLOX_GNSS ublox_GNSS; // RAK12500 u-blox ZOE-M8Q GPS via UART
 
-class RAKI2CLocationProvider : public LocationProvider {
+class UbloxLocationProvider : public LocationProvider {
   long _lat = 0;
   long _lng = 0;
   long _alt = 0;
@@ -189,8 +189,38 @@ public:
   long getTimestamp() override { return _epoch; }
   void sendSentence(const char * sentence) override { }
   void reset() override { }
-  void begin() override { }
-  void stop() override { }
+  void configure() override {
+    ublox_GNSS.setI2COutput(COM_TYPE_UBX); // Disable NMEA output (the ublox library can use the more efficient proprietary UBX protocol)
+    // Configure constellations
+    ublox_GNSS.enableGNSS(true, SFE_UBLOX_GNSS_ID_GPS);
+    ublox_GNSS.enableGNSS(true, SFE_UBLOX_GNSS_ID_GALILEO);
+    ublox_GNSS.enableGNSS(true, SFE_UBLOX_GNSS_ID_GLONASS);
+    ublox_GNSS.enableGNSS(true, SFE_UBLOX_GNSS_ID_SBAS);
+    ublox_GNSS.enableGNSS(true, SFE_UBLOX_GNSS_ID_BEIDOU);
+    ublox_GNSS.enableGNSS(true, SFE_UBLOX_GNSS_ID_IMES);
+    ublox_GNSS.enableGNSS(true, SFE_UBLOX_GNSS_ID_QZSS);
+
+    ublox_GNSS.setAopCfg(1); // Enable AssistNow Autonomous for faster positioning
+    ublox_GNSS.setMeasurementRate(1000); // Take one measurement per second
+    ublox_GNSS.saveConfigSelective(VAL_CFG_SUBSEC_IOPORT);
+  }
+  void begin() override {
+    pinMode(PIN_3V3_EN, OUTPUT);
+    digitalWrite(PIN_3V3_EN, HIGH);
+  }
+  void stop() override {
+    #ifdef ETHERNET_ENABLED
+      MESH_DEBUG_PRINTLN("GPS cannot be disabled as this would also disable Ethernet.");
+      return;
+    #endif
+    #ifdef SKY66122
+      MESH_DEBUG_PRINTLN("GPS cannot be disabled as this would also disable SKY66122.");
+      return;
+    #endif
+    pinMode(PIN_3V3_EN, OUTPUT);
+    digitalWrite(PIN_3V3_EN, LOW);
+    return;
+  }
   void loop() override {
     if (ublox_GNSS.getGnssFixOk(8)) {
       _fix = true;
@@ -206,7 +236,7 @@ public:
   bool isEnabled() override { return true; }
 };
 
-static RAKI2CLocationProvider RAK12500_provider;
+static UbloxLocationProvider Ublox_provider;
 #endif
 
 // ============================================================
@@ -759,6 +789,7 @@ void EnvironmentSensorManager::initBasicGPS() {
 
   if (gps_detected) {
     MESH_DEBUG_PRINTLN("GPS detected");
+    _location->configure();
     #ifdef PERSISTANT_GPS
       gps_active = true;
       return;
@@ -807,27 +838,23 @@ bool EnvironmentSensorManager::gpsIsAwake(){
   //Try to init RAK12500 on I2C
   if (ublox_GNSS.begin(Wire) == true){
     MESH_DEBUG_PRINTLN("RAK12500 I2C GPS init");
-    ublox_GNSS.setI2COutput(COM_TYPE_UBX);
-    ublox_GNSS.enableGNSS(true, SFE_UBLOX_GNSS_ID_GPS);
-    ublox_GNSS.enableGNSS(true, SFE_UBLOX_GNSS_ID_GALILEO);
-    ublox_GNSS.enableGNSS(true, SFE_UBLOX_GNSS_ID_GLONASS);
-    ublox_GNSS.enableGNSS(true, SFE_UBLOX_GNSS_ID_SBAS);
-    ublox_GNSS.enableGNSS(true, SFE_UBLOX_GNSS_ID_BEIDOU);
-    ublox_GNSS.enableGNSS(true, SFE_UBLOX_GNSS_ID_IMES);
-    ublox_GNSS.enableGNSS(true, SFE_UBLOX_GNSS_ID_QZSS);
-    ublox_GNSS.setMeasurementRate(1000);
-    ublox_GNSS.saveConfigSelective(VAL_CFG_SUBSEC_IOPORT);
     i2cGPSFlag = true;
     gps_active = true;
     gps_detected = true;
 
-    _location = &RAK12500_provider;
+    _location = &Ublox_provider;
+
+    _location->begin();
+    _location->configure();
+
     return true;
   } else if (Serial1.available()) {
     MESH_DEBUG_PRINTLN("Serial GPS init correctly");
     serialGPSFlag = true;
     gps_active = true;
     gps_detected = true;
+
+    _location->configure();
     return true;
   }
 
@@ -837,39 +864,21 @@ bool EnvironmentSensorManager::gpsIsAwake(){
 
 void EnvironmentSensorManager::start_gps() {
   gps_active = true;
-  #ifdef RAK_WISBLOCK_GPS
-    pinMode(PIN_3V3_EN, OUTPUT);
-    digitalWrite(PIN_3V3_EN, HIGH);
-    return;
-  #endif
 
   _location->begin();
   _location->reset();
 
-#ifndef PIN_GPS_EN
+  #if !defined(PIN_GPS_EN) && !defined(RAK_WISBLOCK_GPS)
   MESH_DEBUG_PRINTLN("Start GPS is N/A on this board. Actual GPS state unchanged");
-#endif
+  #endif
 }
 
 void EnvironmentSensorManager::stop_gps() {
   gps_active = false;
-  #ifdef RAK_WISBLOCK_GPS
-    #ifdef ETHERNET_ENABLED
-      MESH_DEBUG_PRINTLN("GPS cannot be disabled as this would also disable Ethernet.");
-      return;
-    #endif
-    #ifdef SKY66122
-      MESH_DEBUG_PRINTLN("GPS cannot be disabled as this would also disable SKY66122.");
-      return;
-    #endif
-    pinMode(PIN_3V3_EN, OUTPUT);
-    digitalWrite(PIN_3V3_EN, LOW);
-    return;
-  #endif
 
   _location->stop();
 
-  #ifndef PIN_GPS_EN
+  #if !defined(PIN_GPS_EN) && !defined(RAK_WISBLOCK_GPS)
   MESH_DEBUG_PRINTLN("Stop GPS is N/A on this board. Actual GPS state unchanged");
   #endif
 }
