@@ -28,6 +28,7 @@
 #include <helpers/ArduinoHelpers.h>
 #include <helpers/ClientACL.h>
 #include <helpers/CommonCLI.h>
+#include <helpers/DeferredCliCommand.h>
 #include <helpers/IdentityStore.h>
 #include <helpers/SimpleMeshTables.h>
 #include <helpers/StaticPoolPacketManager.h>
@@ -86,6 +87,12 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   uint32_t last_millis;
   uint64_t uptime_millis;
   unsigned long next_local_advert, next_flood_advert;
+  mesh::DeferredCliCommand deferred_cli_command;
+  TransportKey deferred_cli_reply_scope;
+  bool deferred_cli_reply_scoped;
+  uint32_t pending_self_advert_delay;
+  bool pending_self_advert;
+  bool pending_self_advert_flood;
   bool _logging;
   NodePrefs _prefs;
   ClientACL  acl;
@@ -127,6 +134,15 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   uint8_t handleAnonClockReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data);
   int handleRequest(ClientInfo* sender, uint32_t sender_timestamp, uint8_t* payload, size_t payload_len);
   mesh::Packet* createSelfAdvert();
+  void processDeferredCliCommand();
+  void sendRemoteCliReply(ClientInfo* client, const uint8_t* secret,
+                          uint8_t path_hash_size, uint32_t sender_timestamp,
+                          const char* reply, const TransportKey* fallback_scope);
+  void sendClientReplyWithFallbackScope(ClientInfo* client, mesh::Packet* packet,
+                                        unsigned long delay_millis, uint8_t path_hash_size,
+                                        const TransportKey* fallback_scope);
+  void servicePostMeshLoop();
+  void sendSelfAdvertisementNow(uint32_t delay_millis, bool flood);
 
   File openAppend(const char* fname);
   bool isLooped(const mesh::Packet* packet, const uint8_t max_counters[]);
