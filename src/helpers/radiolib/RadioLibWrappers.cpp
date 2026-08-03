@@ -218,8 +218,8 @@ bool RadioLibWrapper::isChannelActive() {
     while (millis() - sense_start < 5) {
       if (getCurrentRSSI() > -80.0f) {
         _busy_count++;
-        uint32_t base_ms = 2000;
-        uint32_t max_backoff = min(base_ms * (1u << _busy_count), (uint32_t)16000);
+        uint32_t base_ms = 500;
+        uint32_t max_backoff = min(base_ms * (1u << _busy_count), (uint32_t)4000);
         _lbt_deadline = millis() + random(max_backoff / 2, max_backoff);
         _lbt_backoff_active = true;
         return true;
