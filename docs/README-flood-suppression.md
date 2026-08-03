@@ -29,7 +29,8 @@ can see — it only removes rebroadcasts that would be redundant.
 ## Concepts
 
 ### Near neighbours — the coverage set
-- **Near** = heard recently (`<= 1 h`) **and** link SNR `>= flood.suppress.snr.lo`.
+- **Near** = heard recently (`<= 6 h` — a deliberately wide window so a briefly-silent but
+  still-reachable repeater doesn't churn out of the set) **and** link SNR `>= flood.suppress.snr.lo`.
 - Coverage is guaranteed only for the **strongest few** near neighbours
   (`NEAR_NEIGHBOUR_COVERAGE_CAP = 5`). A rank-6+ near peer is *not* owed coverage — the
   strongest forwarders cover the most nodes, so guaranteeing only the top few bounds
@@ -42,38 +43,51 @@ Two sources, combined across every overheard copy of F:
 
 1. **Direct** — the neighbour itself forwarded F (M saw its hash on an overheard path). Certain.
 2. **Reach-graph** — the neighbour was *reached* by a near forwarder **fi** via a fresh
-   **directed** measured edge `fi -> N` (N heard fi's forward of F). Inferred from the
-   reach graph below.
+   **directed** edge `fi -> N` (N heard fi's forward of F). Inferred from the reach graph
+   below. **fi** may be *any* near forwarder (rank-6+ too, not only the top-5), so an edge
+   from a weaker forwarder can still mark a top-5 neighbour covered.
 
-### The reach graph — actively measured, not inferred
+### The reach graph — measured (actively + passively), not inferred from flood paths
 - An edge `fi -> N` means *"N can hear fi's transmissions"* (fi reaches N).
 - **Directed.** RF links are asymmetric — A hearing B does **not** mean B hears A. The
   graph must not infer forward reach from a reverse observation, or M could suppress a
   rebroadcast and starve a neighbour that is actually deaf toward the forwarder.
-- Edges are established by **active TRACE coverage probes** (the earlier design inferred
-  them from overheard flood paths, but that stayed empty in sparse/mast topologies where
-  two of M's near neighbours never appear consecutively in one flood path).
-- **Probe:** a round-trip TRACE with visit-list `[a, b, self]` (2-byte hashes) walks
-  `self -> a -> b -> self`. The SNR measured at **b** of **a**'s forward is exactly
-  *"does b hear a"*. A new core flag `TRACE_FLAG_TERMINATE_AT_LAST` delivers the result
-  back at the initiator instead of a bystander.
-- Measured only on demand: when the top-5 set changes (new member / displacement) or after
-  a **36 h** refresh. One probe per cadence tick (HW ~60 s) to avoid round-trip collisions.
-- An edge is recorded iff the measured SNR `>= flood.suppress.snr.lo`; TTL 36 h.
+- Edges come from **two sources**:
+  1. **Active probe** — a round-trip TRACE with visit-list `[a, b, self]` (2-byte hashes)
+     walks `self -> a -> b -> self`. The SNR measured at **b** of **a**'s forward is
+     exactly *"does b hear a"*. The core flag `TRACE_FLAG_TERMINATE_AT_LAST` delivers the
+     result back at the initiator instead of a bystander. (The earlier design inferred
+     edges from overheard flood paths, but that stayed empty in sparse/mast topologies.)
+  2. **Passive harvest** — TRACEs are cleartext, so when a neighbouring repeater runs its
+     *own* coverage probe `[a, b, initiator]`, any radio in range can read it. M overhears
+     the probe's final leg (which carries the measured a→b SNR) and adopts the a→b edge
+     itself. A cluster thus builds a shared graph without each node re-probing every pair.
+     M ignores probes it initiated and ones whose `a`/`b` are not both its own near
+     neighbours. **No extra airtime** — receive-only.
+- **Probing cadence:** when the top-5 set changes (new member / displacement) or after
+  refresh; **one probe per cadence tick** (HW ~60 s), the pair chosen **round-robin** so no
+  single pair is fixated on. An edge is recorded iff the measured SNR
+  `>= flood.suppress.snr.lo`; positive edges TTL **36 h**.
+- **Negative cache:** a pair that yields *no* edge (probe timed out twice, or returned
+  below `snr.lo`) is cached for **10 h** and not re-probed meanwhile — otherwise probing
+  never converges (early hardware showed `sent` climbing forever). Coverage inference reads
+  **positive** edges only, so a cached absence is never treated as coverage.
 - **1-hop, not transitive** — "reached by fi" means *could hear fi's specific forward*.
 
-### SNR weighting of overheard forwards
-Each overheard neighbour forward counts toward "covered", weighted by the SNR it was
-heard at:
-- `>= flood.suppress.snr.hi` → counts **double** (a strong/central relay almost certainly reached others too);
-- `< flood.suppress.snr.lo` → counts **0** (a marginal relay likely didn't reach the edge — preserve reach).
+### The SNR thresholds — what they actually gate
+Coverage itself is **binary** — a neighbour either forwarded F, or was reached by a
+forwarder's edge. It is *not* SNR-weighted. The two thresholds gate other things:
+- **`snr.lo`** — the **near-set floor** (only neighbours heard at ≥ this are "near" / owed
+  coverage) and the **reach-edge floor** (an a→b link is recorded only if measured ≥ this).
+- **`snr.hi`** — drives **cancel-window widening** for central relays (next section) and
+  feeds the adaptive density estimate.
 
-### Adaptive threshold C (not user-configurable)
-The cancellation threshold **C** — how much "already covered" weight is needed before M
-suppresses — is **derived from the neighbour table** (an adaptive density estimate: more
-near neighbours ⇒ more redundancy required before cancelling) with a static fallback. So a
-dense cluster tolerates more redundancy before suppressing; a sparse one stays
-conservative. There is no `set flood.suppress.c`.
+### Adaptive enable C (not user-configurable)
+Suppression only runs when the neighbour table is dense enough to be worth it: **C** is
+**derived from the neighbour table** (an adaptive density estimate) with a static fallback,
+and the feature engages only while `C > 0`. C is **not** a "covered weight" threshold — the
+decision itself is the binary coverage test above; C merely gates whether that test runs at
+all, so a sparse or isolated node doesn't churn on it. There is no `set flood.suppress.c`.
 
 ### Cancel-window widening (`delay.factor`)
 A flood M would relay centrally (heard at SNR `>= snr.hi`) gets its random TX-delay window
@@ -99,6 +113,20 @@ Before any TRACE completes, the reach graph is empty ⇒ uncovered peers trigger
 `must_cover_self` ⇒ **M forwards everything**. No starvation, no regression vs. firmware
 without the feature. Suppression only begins once real reachability has been measured.
 
+### Unidirectional links (heard but not reachable)
+Near-set membership is based on M *hearing* N (the N→M link). The reverse direction (M→N)
+is never measured directly — yet a neighbour M cannot actually *reach* (e.g. M's sector
+antenna doesn't cover it) should not block suppression: M's rebroadcast would never reach
+it anyway. M infers M→N from coverage-probe outcomes: a probe `[a=N, b, self]` returns iff
+M's transmission reached N, and **always times out** when M→N is broken. After a couple of
+first-hop-N timeouts with no success, such an N is flagged M-unreachable and **dropped from
+the protection set** — it no longer forces `must_cover_self`, so one asymmetric link can't
+deadlock M's suppression. An unreachable N may still *contribute* coverage as a forwarder
+(its N→j edges stay valid). A single later successful probe re-protects N permanently
+(sticky confirm, with a 24 h re-test for antenna drift), and it can never starve N: M's TX
+never reached it, and its flood supply comes from forwarders it can hear. The `unr` token
+in [`near`](cli_commands.md#near) counts neighbours currently excluded.
+
 ---
 
 ## When it helps vs. when it is inert
@@ -111,6 +139,9 @@ without the feature. Suppression only begins once real reachability has been mea
 - Even with an empty graph, the **direct-coverage** path can still suppress: once M has
   overheard *every* near neighbour forward F, `allNearNeighboursCovered` fires and the
   rebroadcast is cancelled — no reach edge required.
+- **Shared-neighbour clusters** benefit most from the passive harvest: when several
+  coverage-capable repeaters are mutually in range, each adopts edges from the others'
+  probes, so the graph fills faster and more cross-forwarder coverage is inferred.
 
 ---
 
@@ -119,11 +150,11 @@ without the feature. Suppression only begins once real reachability has been mea
 | Command | Effect |
 |---------|--------|
 | `get/set flood.suppress <on\|off>` | Master switch. `get` also prints the suppression ratio (`suppressed a/b (p%)`). |
-| `get/set flood.suppress.snr.hi <dB>` | SNR `>=` this counts double (`-30..30`, default `9`). |
-| `get/set flood.suppress.snr.lo <dB>` | SNR `<` this counts 0; also the near-set floor and reach-edge floor (`-30..30`, default `0`). |
+| `get/set flood.suppress.snr.hi <dB>` | Central-relay threshold: a flood heard at `>=` this gets its cancel window widened, and it feeds the adaptive density estimate (`-30..30`, default `9`). |
+| `get/set flood.suppress.snr.lo <dB>` | Near-set floor (a neighbour must be heard at `>=` this to be "near") and reach-edge floor (an a→b link is recorded only if measured `>=` this) (`-30..30`, default `0`). |
 | `get/set flood.suppress.delay.factor <n>` | Cancel-window multiplier for central relays (`0..8`, default `2`). |
 | `get/set trace.tx.power <dBm>` | TX power for coverage TRACE probes only (`-9..30`, default `10`). |
-| `near` | Near coverage peers (strongest first) + TRACE probe health (`meas sent/ret/edge/tmo`). |
+| `near` | Near coverage peers (strongest first) + the probe-health line `meas sent=… ret=… edge=… tmo=… neg=… harv=… unr=…` (tokens explained under Tuning). |
 | `reach <hash>` | Directed reach edges of one near repeater. |
 | `clients` | Attached leaf clients. |
 
@@ -134,7 +165,7 @@ Full syntax and output formats: [`cli_commands.md`](cli_commands.md#flood-suppre
 ## Tuning & troubleshooting
 
 ### Read the state first
-- `near` → the near set and the `meas sent=… ret=… edge=… tmo=…` probe-health line.
+- `near` → the near set and the `meas sent=… ret=… edge=… tmo=… neg=… harv=… unr=…` probe-health line.
 - `reach <hash>` → whether measured directed edges exist for a given peer.
 - `get flood.suppress` → on/off + the live suppression ratio.
 
@@ -154,6 +185,9 @@ line's `ret` should rise and edges appear in `reach`. Reading the `meas` line:
 | `sent>0 ret=0` | Probes go out but no round trip completes — loss/collisions, or the first hop failing (see `trace.tx.power`). |
 | `ret>0 edge=0` | Round trips complete but the measured link is below `snr.lo` — genuinely weak / no inter-neighbour reachability. |
 | `ret>0 edge>0` | Edges recorded — `reach` should list them. |
+| `neg>0` | Pairs cached as no-edge (timed out / weak); not re-probed for ~10 h. Expected to grow as the graph converges, after which `sent` levels off. |
+| `harv>0` | Edges adopted from *overheard* neighbours' probes (passive harvest). `0` is normal when no other coverage-capable repeater is in range. |
+| `unr>0` | Near neighbours M cannot transmit-reach (asymmetric link), excluded from the protection set. |
 
 ### Near set churning (peers blink in/out)
 At a low `snr.lo` (e.g. `0`), marginal neighbours keep crossing the threshold. Raise
@@ -168,18 +202,19 @@ near peers, faster graph convergence.
 ---
 
 ## How it is wired (files)
-- `src/helpers/NeighbourLinkTable.h` — the directed reach-graph (`addEdge`/`hasEdge`/`purge`, ring 128, 36 h TTL). `hasEdge` is width-tolerant (prefix match); writes are exact-width.
+- `src/helpers/NeighbourLinkTable.h` — the directed reach-graph (`addEdge`/`hasEdge`/`purge`, ring 128, 36 h positive TTL) **plus a negative-result ring** (`addNegative`/`hasNegative`/`purgeNegative`, 10 h TTL) so no-edge pairs aren't re-probed to death. `hasEdge` is width-tolerant (prefix match); writes are exact-width.
 - `src/helpers/FloodSuppression.h` — per-flood entry with `covered` set, `must_cover_self`, cancel + wait-window.
 - `src/Mesh.cpp` + `src/Packet.h` — `TRACE_FLAG_TERMINATE_AT_LAST`: delivers a coverage TRACE back at its initiator (the one core change).
-- `examples/simple_repeater/MyMesh.{h,cpp}` — the coverage test (`logRx`), `stepCoverageMeasurement()` (active TRACE scheduling, from `loop()`), `onTraceRecv` (records edges), the always-on 3-tier `clientProtectionAllowsSuppress`, the `near`/`reach`/`clients` reply formatters, and the `trace_tx_power_dbm` burst handling.
+- `examples/simple_repeater/MyMesh.{h,cpp}` — the coverage test (`logRx`: suppression decision + passive TRACE harvest), `stepCoverageMeasurement()` (active TRACE scheduling with round-robin pair selection, from `loop()`), `onTraceRecv` (records edges + confirms M-reachability), `isExcludedFromProtection` (unidirectional-link handling), the always-on 3-tier `clientProtectionAllowsSuppress`, the `near`/`reach`/`clients` reply formatters, and the `trace_tx_power_dbm` burst handling.
 - `src/helpers/CommonCLI.{h,cpp}` + `NodePrefs` — the CLI commands and persisted prefs above.
 
 ---
 
 ## Honest limits
 - Coverage is guaranteed only for the **top-5** near neighbours.
-- **Invisible neighbours** (asymmetric, absent from M's table) cannot be protected by any
-  table-based method. `set flood.suppress off` (or manual per-neighbour exclusion) remains
-  the safety net.
+- **Unidirectional links** (M hears N but cannot reach N) are detected and excluded from
+  the protection set (above) — but **truly invisible** neighbours (asymmetric, absent from
+  M's table entirely) cannot be protected by any table-based method. `set flood.suppress
+  off` (or manual per-neighbour exclusion) remains the safety net there.
 - Reach is inferred from a *historically measured* edge ⇒ a small false-positive risk if
   an edge has since gone stale, mitigated by fresh-edge-only use + 36 h TTL + cold-start safety.
