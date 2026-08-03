@@ -14,7 +14,7 @@ void LoRaFEMControl::init(void)
     pinMode(P_LORA_KCT8103L_PA_CSD, OUTPUT);
     digitalWrite(P_LORA_KCT8103L_PA_CSD, HIGH);
     pinMode(P_LORA_KCT8103L_PA_CTX, OUTPUT);
-    digitalWrite(P_LORA_KCT8103L_PA_CTX, HIGH);
+    digitalWrite(P_LORA_KCT8103L_PA_CTX, lna_enabled ? LOW : HIGH);
     setLnaCanControl(true);
 }
 

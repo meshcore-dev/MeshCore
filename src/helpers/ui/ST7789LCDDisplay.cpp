@@ -27,12 +27,6 @@ bool ST7789LCDDisplay::begin() {
       pinMode(PIN_TFT_LEDA_CTL, OUTPUT);
       digitalWrite(PIN_TFT_LEDA_CTL, HIGH);
     }
-    if (PIN_TFT_RST != -1) {
-      pinMode(PIN_TFT_RST, OUTPUT);
-      digitalWrite(PIN_TFT_RST, LOW); 
-      delay(10);
-      digitalWrite(PIN_TFT_RST, HIGH);
-    }
 
     // Im not sure if this is just a t-deck problem or not, if your display is slow try this.
     #if defined(LILYGO_TDECK) || defined(HELTEC_LORA_V4_TFT)

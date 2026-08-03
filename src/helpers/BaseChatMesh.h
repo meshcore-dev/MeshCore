@@ -37,6 +37,8 @@ public:
   #define MAX_CONTACTS  32
 #endif
 
+#define MAX_ANON_CONTACTS  8
+
 #ifndef MAX_CONNECTIONS
   #define MAX_CONNECTIONS  16
 #endif
@@ -58,9 +60,9 @@ class BaseChatMesh : public mesh::Mesh {
 
   friend class ContactsIterator;
 
-  ContactInfo contacts[MAX_CONTACTS];
+  ContactInfo contacts[MAX_CONTACTS+MAX_ANON_CONTACTS];
   int num_contacts;
-  int sort_array[MAX_CONTACTS];
+  int sort_array[MAX_CONTACTS+MAX_ANON_CONTACTS];
   int matching_peer_indexes[MAX_SEARCH_RESULTS];
   unsigned long txt_send_timeout;
 #ifdef MAX_GROUP_CHANNELS
@@ -72,7 +74,7 @@ class BaseChatMesh : public mesh::Mesh {
   ConnectionInfo connections[MAX_CONNECTIONS];
 
   mesh::Packet* composeMsgPacket(const ContactInfo& recipient, uint32_t timestamp, uint8_t attempt, const char *text, uint32_t& expected_ack);
-  void sendAckTo(const ContactInfo& dest, uint32_t ack_hash);
+  void sendAckTo(const ContactInfo& dest, const uint8_t* ack_hash, uint8_t ack_len=4);
 
 protected:
   BaseChatMesh(mesh::Radio& radio, mesh::MillisecondClock& ms, mesh::RNG& rng, mesh::RTCClock& rtc, mesh::PacketManager& mgr, mesh::MeshTables& tables)
@@ -91,7 +93,7 @@ protected:
   void bootstrapRTCfromContacts();
   void resetContacts() { num_contacts = 0; }
   void populateContactFromAdvert(ContactInfo& ci, const mesh::Identity& id, const AdvertDataParser& parser, uint32_t timestamp);
-  ContactInfo* allocateContactSlot(); // helper to find slot for new contact
+  ContactInfo* allocateContactSlot(bool transient_only=false); // helper to find slot for new contact
 
   // 'UI' concepts, for sub-classes to implement
   virtual bool isAutoAddEnabled() const { return true; }
@@ -111,6 +113,8 @@ protected:
   virtual uint32_t calcDirectTimeoutMillisFor(uint32_t pkt_airtime_millis, uint8_t path_len) const = 0;
   virtual void onSendTimeout() = 0;
   virtual void onChannelMessageRecv(const mesh::GroupChannel& channel, mesh::Packet* pkt, uint32_t timestamp, const char *text) = 0;
+  virtual void onChannelDataRecv(const mesh::GroupChannel& channel, mesh::Packet* pkt, uint16_t data_type,
+                                 const uint8_t* data, size_t data_len) {}
   virtual uint8_t onContactRequest(const ContactInfo& contact, uint32_t sender_timestamp, const uint8_t* data, uint8_t len, uint8_t* reply) = 0;
   virtual void onContactResponse(const ContactInfo& contact, const uint8_t* data, uint8_t len) = 0;
   virtual void handleReturnPathRetry(const ContactInfo& contact, const uint8_t* path, uint8_t path_len);
@@ -148,6 +152,7 @@ public:
   int  sendMessage(const ContactInfo& recipient, uint32_t timestamp, uint8_t attempt, const char* text, uint32_t& expected_ack, uint32_t& est_timeout);
   int  sendCommandData(const ContactInfo& recipient, uint32_t timestamp, uint8_t attempt, const char* text, uint32_t& est_timeout);
   bool sendGroupMessage(uint32_t timestamp, mesh::GroupChannel& channel, const char* sender_name, const char* text, int text_len);
+  bool sendGroupData(mesh::GroupChannel& channel, uint8_t* path, uint8_t path_len, uint16_t data_type, const uint8_t* data, int data_len);
   int  sendLogin(const ContactInfo& recipient, const char* password, uint32_t& est_timeout);
   int  sendAnonReq(const ContactInfo& recipient, const uint8_t* data, uint8_t len, uint32_t& tag, uint32_t& est_timeout);
   int  sendRequest(const ContactInfo& recipient, uint8_t req_type, uint32_t& tag, uint32_t& est_timeout);

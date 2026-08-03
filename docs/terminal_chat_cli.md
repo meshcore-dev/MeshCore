@@ -28,9 +28,14 @@ set lon {longitude}
 Sets your advertisement map longitude. (decimal degrees)
 
 ```
+set dutycycle {percent}
+```
+Sets the transmit duty cycle limit (1-100%). Example: `set dutycycle 10` for 10%.
+
+```
 set af {air-time-factor}
 ```
-Sets the transmit air-time-factor.
+Sets the transmit air-time-factor. Deprecated — use `set dutycycle` instead.
 
 
 ```
@@ -58,7 +63,7 @@ Shows the device version and firmware build date.
 ```
 card
 ```
-Displays *your* 'business card', for other to manually _import_
+Displays *your* 'business card', for others to manually _import_
 
 ```
 import {card}

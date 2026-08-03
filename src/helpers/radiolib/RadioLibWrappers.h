@@ -11,6 +11,7 @@ protected:
   int16_t _noise_floor, _threshold;
   uint16_t _num_floor_samples;
   int32_t _floor_sample_sum;
+  uint8_t _preamble_sf;
 
   void idle();
   void startRecv();
@@ -19,7 +20,7 @@ protected:
   virtual void doResetAGC();
 
 public:
-  RadioLibWrapper(PhysicalLayer& radio, mesh::MainBoard& board) : _radio(&radio), _board(&board) { n_recv = n_sent = 0; }
+  RadioLibWrapper(PhysicalLayer& radio, mesh::MainBoard& board) : _radio(&radio), _board(&board), _preamble_sf(0) { n_recv = n_sent = 0; }
 
   void begin() override;
   virtual void powerOff() { _radio->sleep(); }
@@ -37,7 +38,14 @@ public:
     return isChannelActive();
   }
 
+  virtual void setParams(float freq, float bw, uint8_t sf, uint8_t cr) = 0;
+  uint32_t getRngSeed();
+  void setTxPower(int8_t dbm);
+
   virtual float getCurrentRSSI() =0;
+  virtual uint8_t getSpreadingFactor() const { return LORA_SF; }
+  static uint16_t preambleLengthForSF(uint8_t sf) { return sf <= 8 ? 32 : 16; }
+  void updatePreamble(uint8_t sf) { _preamble_sf = sf; _radio->setPreambleLength(preambleLengthForSF(sf)); }
 
   int getNoiseFloor() const override { return _noise_floor; }
   void triggerNoiseFloorCalibrate(int threshold) override;

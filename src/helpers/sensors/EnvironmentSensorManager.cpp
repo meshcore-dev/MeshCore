@@ -1,9 +1,40 @@
 #include "EnvironmentSensorManager.h"
 
+#include <Wire.h>
+
 #if ENV_PIN_SDA && ENV_PIN_SCL
 #define TELEM_WIRE &Wire1  // Use Wire1 as the I2C bus for Environment Sensors
 #else
 #define TELEM_WIRE &Wire  // Use default I2C bus for Environment Sensors
+#endif
+
+// ============================================================
+// Sensor library includes and static driver instances
+// ============================================================
+
+#if ENV_INCLUDE_BME680_BSEC
+#ifndef TELEM_BME680_ADDRESS
+#define TELEM_BME680_ADDRESS 0x76
+#endif
+#define TELEM_BME680_SEALEVELPRESSURE_HPA (1013.25)
+#include <bsec.h>
+#include <Adafruit_LittleFS.h>
+#include <InternalFileSystem.h>
+static const uint8_t bsec_config_iaq[] = {
+#include "config/generic_33v_3s_28d/bsec_iaq.txt" // 3.3v, LP, 28 day background calibration window
+};
+static Bsec     bsec_iaq;
+static float    bsec_temperature     = 0;
+static float    bsec_humidity        = 0;
+static float    bsec_pressure_hpa    = 0;
+static float    bsec_iaq_val         = 0;
+static uint8_t  bsec_accuracy        = 0;
+static bool     bsec_active          = false;
+static bool     bsec_data_ready      = false;
+static bool     bsec_first_save_done = false;
+static uint32_t bsec_last_save_ms    = 0;
+#define BSEC_STATE_FILE "/bsec_state.bin"
+#define BSEC_SAVE_INTERVAL_MS (8UL * 60 * 60 * 1000) // 8 hour state-save interval
 #endif
 
 #ifdef ENV_INCLUDE_BME680
@@ -12,7 +43,7 @@
 #endif
 #define TELEM_BME680_SEALEVELPRESSURE_HPA (1013.25)
 #include <Adafruit_BME680.h>
-static Adafruit_BME680 BME680;
+static Adafruit_BME680 BME680(TELEM_WIRE);
 #endif
 
 #ifdef ENV_INCLUDE_BMP085
@@ -22,7 +53,9 @@ static Adafruit_BMP085 BMP085;
 #endif
 
 #if ENV_INCLUDE_AHTX0
+#ifndef TELEM_AHTX_ADDRESS
 #define TELEM_AHTX_ADDRESS      0x38      // AHT10, AHT20 temperature and humidity sensor I2C address
+#endif
 #include <Adafruit_AHTX0.h>
 static Adafruit_AHTX0 AHTX0;
 #endif
@@ -31,7 +64,7 @@ static Adafruit_AHTX0 AHTX0;
 #ifndef TELEM_BME280_ADDRESS
 #define TELEM_BME280_ADDRESS    0x76      // BME280 environmental sensor I2C address
 #endif
-#define TELEM_BME280_SEALEVELPRESSURE_HPA (1013.25)    // Athmospheric pressure at sea level
+#define TELEM_BME280_SEALEVELPRESSURE_HPA (1013.25)    // Atmospheric pressure at sea level
 #include <Adafruit_BME280.h>
 static Adafruit_BME280 BME280;
 #endif
@@ -40,7 +73,7 @@ static Adafruit_BME280 BME280;
 #ifndef TELEM_BMP280_ADDRESS
 #define TELEM_BMP280_ADDRESS    0x76      // BMP280 environmental sensor I2C address
 #endif
-#define TELEM_BMP280_SEALEVELPRESSURE_HPA (1013.25)    // Athmospheric pressure at sea level
+#define TELEM_BMP280_SEALEVELPRESSURE_HPA (1013.25)    // Atmospheric pressure at sea level
 #include <Adafruit_BMP280.h>
 static Adafruit_BMP280 BMP280(TELEM_WIRE);
 #endif
@@ -51,7 +84,9 @@ static Adafruit_SHTC3 SHTC3;
 #endif
 
 #if ENV_INCLUDE_SHT4X
-#define TELEM_SHT4X_ADDRESS 0x44  //0x44 - 0x46
+#ifndef TELEM_SHT4X_ADDRESS
+#define TELEM_SHT4X_ADDRESS 0x44
+#endif
 #include <SensirionI2cSht4x.h>
 static SensirionI2cSht4x SHT4X;
 #endif
@@ -62,43 +97,67 @@ LPS22HBClass LPS22HB(*TELEM_WIRE);
 #endif
 
 #if ENV_INCLUDE_INA3221
-#define TELEM_INA3221_ADDRESS   0x42      // INA3221 3 channel current sensor I2C address
+#ifndef TELEM_INA3221_ADDRESS
+#define TELEM_INA3221_ADDRESS     0x42    // INA3221 3 channel current sensor I2C address
+#endif
+#ifndef TELEM_INA3221_SHUNT_VALUE
 #define TELEM_INA3221_SHUNT_VALUE 0.100 // most variants will have a 0.1 ohm shunts
+#endif
+#ifndef TELEM_INA3221_NUM_CHANNELS
 #define TELEM_INA3221_NUM_CHANNELS 3
+#endif
 #include <Adafruit_INA3221.h>
 static Adafruit_INA3221 INA3221;
 #endif
 
 #if ENV_INCLUDE_INA219
+#ifndef TELEM_INA219_ADDRESS
 #define TELEM_INA219_ADDRESS    0x40      // INA219 single channel current sensor I2C address
+#endif
 #include <Adafruit_INA219.h>
 static Adafruit_INA219 INA219(TELEM_INA219_ADDRESS);
 #endif
 
 #if ENV_INCLUDE_INA260
+#ifndef TELEM_INA260_ADDRESS
 #define TELEM_INA260_ADDRESS    0x41      // INA260 single channel current sensor I2C address
+#endif
 #include <Adafruit_INA260.h>
 static Adafruit_INA260 INA260;
 #endif
 
 #if ENV_INCLUDE_INA226
-#define TELEM_INA226_ADDRESS    0x44
+#ifndef TELEM_INA226_ADDRESS
+#define TELEM_INA226_ADDRESS     0x44
+#endif
 #define TELEM_INA226_SHUNT_VALUE 0.100
-#define TELEM_INA226_MAX_AMP 0.8
+#define TELEM_INA226_MAX_AMP     0.8
 #include <INA226.h>
 static INA226 INA226(TELEM_INA226_ADDRESS, TELEM_WIRE);
 #endif
 
 #if ENV_INCLUDE_MLX90614
+#ifndef TELEM_MLX90614_ADDRESS
 #define TELEM_MLX90614_ADDRESS 0x5A      // MLX90614 IR temperature sensor I2C address
+#endif
 #include <Adafruit_MLX90614.h>
 static Adafruit_MLX90614 MLX90614;
 #endif
 
 #if ENV_INCLUDE_VL53L0X
+#ifndef TELEM_VL53L0X_ADDRESS
 #define TELEM_VL53L0X_ADDRESS 0x29      // VL53L0X time-of-flight distance sensor I2C address
+#endif
 #include <Adafruit_VL53L0X.h>
 static Adafruit_VL53L0X VL53L0X;
+#endif
+
+#if ENV_INCLUDE_RAK12035
+#ifndef TELEM_RAK12035_ADDRESS
+#define TELEM_RAK12035_ADDRESS 0x20      // RAK12035 Soil Moisture sensor I2C address
+#endif
+#include "RAK12035_SoilMoisture.h"
+static RAK12035_SoilMoisture RAK12035;
 #endif
 
 #if ENV_INCLUDE_GPS && defined(RAK_BOARD) && !defined(RAK_WISMESH_TAG)
@@ -109,7 +168,9 @@ static Adafruit_VL53L0X VL53L0X;
 static uint32_t gpsResetPin = 0;
 static bool i2cGPSFlag = false;
 static bool serialGPSFlag = false;
+#ifndef TELEM_RAK12500_ADDRESS
 #define TELEM_RAK12500_ADDRESS   0x42     //RAK12500 Ublox GPS via i2c
+#endif
 #include <SparkFun_u-blox_GNSS_Arduino_Library.h>
 static SFE_UBLOX_GNSS ublox_GNSS;
 
@@ -149,10 +210,412 @@ public:
 static RAK12500LocationProvider RAK12500_provider;
 #endif
 
+// ============================================================
+// I2C bus scanner
+// Probes every valid address and records which ones ACK.
+// This runs before any sensor library is touched, so a missing
+// or misbehaving device cannot stall or crash the boot sequence.
+// ============================================================
+
+static void scanI2CBus(TwoWire* wire, bool found[128]) {
+  for (uint8_t addr = 0x08; addr < 0x78; addr++) {
+    wire->beginTransmission(addr);
+    found[addr] = (wire->endTransmission() == 0);
+  }
+}
+
+// ============================================================
+// Per-sensor init and query functions
+//
+// init(wire, address) — called only when the address was seen
+//   on the bus. Returns 0 on failure, or the number of
+//   telemetry channels the sensor will consume (1 for all
+//   single-output sensors; INA3221 returns one per enabled
+//   hardware channel; MLX90614 and RAK12035+calibration
+//   return 2).
+//
+// query(channel, sub_channel, lpp) — called once per active
+//   sensor entry during querySensors(). sub_channel is always
+//   0 for single-output sensors.
+// ============================================================
+
+#if ENV_INCLUDE_AHTX0
+static uint8_t init_ahtx0(TwoWire* wire, uint8_t addr) {
+  return AHTX0.begin(wire, 0, addr) ? 1 : 0;
+}
+static void query_ahtx0(uint8_t ch, uint8_t, CayenneLPP& lpp) {
+  sensors_event_t humidity, temp;
+  AHTX0.getEvent(&humidity, &temp);
+  lpp.addTemperature(ch, temp.temperature);
+  lpp.addRelativeHumidity(ch, humidity.relative_humidity);
+}
+#endif
+
+#ifdef ENV_INCLUDE_BME680
+static uint8_t init_bme680(TwoWire*, uint8_t addr) {
+  // Wire was set in the static constructor; begin() takes address only.
+  return BME680.begin(addr) ? 1 : 0;
+}
+static void query_bme680(uint8_t ch, uint8_t, CayenneLPP& lpp) {
+  if (BME680.performReading()) {
+    lpp.addTemperature(ch, BME680.temperature);
+    lpp.addRelativeHumidity(ch, BME680.humidity);
+    const float pressure_hpa = BME680.pressure / 100.0f;
+    lpp.addBarometricPressure(ch, pressure_hpa);
+    lpp.addAltitude(ch, 44330.0f * (1.0f - powf(pressure_hpa / (float)TELEM_BME680_SEALEVELPRESSURE_HPA, 0.1903f)));
+    lpp.addGenericSensor(ch, BME680.gas_resistance);
+  }
+}
+#endif
+
+#if ENV_INCLUDE_BME280
+static uint8_t init_bme280(TwoWire* wire, uint8_t addr) {
+  if (!BME280.begin(addr, wire)) return 0;
+  BME280.setSampling(Adafruit_BME280::MODE_FORCED,
+                     Adafruit_BME280::SAMPLING_X1,
+                     Adafruit_BME280::SAMPLING_X1,
+                     Adafruit_BME280::SAMPLING_X1,
+                     Adafruit_BME280::FILTER_OFF,
+                     Adafruit_BME280::STANDBY_MS_1000);
+  return 1;
+}
+static void query_bme280(uint8_t ch, uint8_t, CayenneLPP& lpp) {
+  if (BME280.takeForcedMeasurement()) {
+    lpp.addTemperature(ch, BME280.readTemperature());
+    lpp.addRelativeHumidity(ch, BME280.readHumidity());
+    lpp.addBarometricPressure(ch, BME280.readPressure() / 100);
+    lpp.addAltitude(ch, BME280.readAltitude(TELEM_BME280_SEALEVELPRESSURE_HPA));
+  }
+}
+#endif
+
+#if ENV_INCLUDE_BMP280
+static uint8_t init_bmp280(TwoWire*, uint8_t addr) {
+  // BMP280 static instance was constructed with TELEM_WIRE; begin() uses it.
+  return BMP280.begin(addr) ? 1 : 0;
+}
+static void query_bmp280(uint8_t ch, uint8_t, CayenneLPP& lpp) {
+  lpp.addTemperature(ch, BMP280.readTemperature());
+  lpp.addBarometricPressure(ch, BMP280.readPressure() / 100);
+  lpp.addAltitude(ch, BMP280.readAltitude(TELEM_BMP280_SEALEVELPRESSURE_HPA));
+}
+#endif
+
+#if ENV_INCLUDE_SHTC3
+static uint8_t init_shtc3(TwoWire* wire, uint8_t) {
+  // Adafruit_SHTC3::begin() does not accept an address (fixed at 0x70).
+  return SHTC3.begin(wire) ? 1 : 0;
+}
+static void query_shtc3(uint8_t ch, uint8_t, CayenneLPP& lpp) {
+  sensors_event_t humidity, temp;
+  SHTC3.getEvent(&humidity, &temp);
+  lpp.addTemperature(ch, temp.temperature);
+  lpp.addRelativeHumidity(ch, humidity.relative_humidity);
+}
+#endif
+
+#if ENV_INCLUDE_SHT4X
+static uint8_t init_sht4x(TwoWire* wire, uint8_t addr) {
+  // SensirionI2cSht4x::begin() does not probe the hardware; use serialNumber()
+  // as the actual presence check since it performs a real I2C transaction.
+  SHT4X.begin(*wire, addr);
+  uint32_t serial = 0;
+  return (SHT4X.serialNumber(serial) == 0) ? 1 : 0;
+}
+static void query_sht4x(uint8_t ch, uint8_t, CayenneLPP& lpp) {
+  float temperature, humidity;
+  if (SHT4X.measureLowestPrecision(temperature, humidity) == 0) {
+    lpp.addTemperature(ch, temperature);
+    lpp.addRelativeHumidity(ch, humidity);
+  }
+}
+#endif
+
+#if ENV_INCLUDE_LPS22HB
+static uint8_t init_lps22hb(TwoWire*, uint8_t) {
+  // LPS22HBClass is constructed with the wire reference; begin() uses it.
+  return LPS22HB.begin() ? 1 : 0;
+}
+static void query_lps22hb(uint8_t ch, uint8_t, CayenneLPP& lpp) {
+  lpp.addTemperature(ch, LPS22HB.readTemperature());
+  lpp.addBarometricPressure(ch, LPS22HB.readPressure() * 10); // convert kPa to hPa
+}
+#endif
+
+#if ENV_INCLUDE_INA3221
+static uint8_t init_ina3221(TwoWire* wire, uint8_t addr) {
+  if (!INA3221.begin(addr, wire)) return 0;
+  for (int i = 0; i < TELEM_INA3221_NUM_CHANNELS; i++) {
+    INA3221.setShuntResistance(i, TELEM_INA3221_SHUNT_VALUE);
+  }
+  // Each enabled hardware channel becomes its own telemetry channel.
+  uint8_t enabled = 0;
+  for (int i = 0; i < TELEM_INA3221_NUM_CHANNELS; i++) {
+    if (INA3221.isChannelEnabled(i)) enabled++;
+  }
+  return enabled > 0 ? enabled : 1;
+}
+static void query_ina3221(uint8_t ch, uint8_t sub_ch, CayenneLPP& lpp) {
+  // sub_ch is the index of the nth enabled hardware channel.
+  uint8_t seen = 0;
+  for (int i = 0; i < TELEM_INA3221_NUM_CHANNELS; i++) {
+    if (INA3221.isChannelEnabled(i)) {
+      if (seen == sub_ch) {
+        float v = INA3221.getBusVoltage(i);
+        float c = INA3221.getCurrentAmps(i);
+        lpp.addVoltage(ch, v);
+        lpp.addCurrent(ch, c);
+        lpp.addPower(ch, v * c);
+        return;
+      }
+      seen++;
+    }
+  }
+}
+#endif
+
+#if ENV_INCLUDE_INA219
+static uint8_t init_ina219(TwoWire* wire, uint8_t) {
+  // INA219 static instance was constructed with the address; begin() uses it.
+  return INA219.begin(wire) ? 1 : 0;
+}
+static void query_ina219(uint8_t ch, uint8_t, CayenneLPP& lpp) {
+  lpp.addVoltage(ch, INA219.getBusVoltage_V());
+  lpp.addCurrent(ch, INA219.getCurrent_mA() / 1000.0f);
+  lpp.addPower(ch, INA219.getPower_mW() / 1000.0f);
+}
+#endif
+
+#if ENV_INCLUDE_INA260
+static uint8_t init_ina260(TwoWire* wire, uint8_t addr) {
+  return INA260.begin(addr, wire) ? 1 : 0;
+}
+static void query_ina260(uint8_t ch, uint8_t, CayenneLPP& lpp) {
+  lpp.addVoltage(ch, INA260.readBusVoltage() / 1000.0f);
+  lpp.addCurrent(ch, INA260.readCurrent() / 1000.0f);
+  lpp.addPower(ch, INA260.readPower() / 1000.0f);
+}
+#endif
+
+#if ENV_INCLUDE_INA226
+static uint8_t init_ina226(TwoWire*, uint8_t) {
+  // INA226 static instance was constructed with address and wire.
+  if (!INA226.begin()) return 0;
+  INA226.setMaxCurrentShunt(TELEM_INA226_MAX_AMP, TELEM_INA226_SHUNT_VALUE);
+  return 1;
+}
+static void query_ina226(uint8_t ch, uint8_t, CayenneLPP& lpp) {
+  lpp.addVoltage(ch, INA226.getBusVoltage());
+  lpp.addCurrent(ch, INA226.getCurrent_mA() / 1000.0f);
+  lpp.addPower(ch, INA226.getPower_mW() / 1000.0f);
+}
+#endif
+
+#if ENV_INCLUDE_MLX90614
+static uint8_t init_mlx90614(TwoWire* wire, uint8_t addr) {
+  return MLX90614.begin(addr, wire) ? 2 : 0;  // 2 channels: object temp, ambient temp
+}
+static void query_mlx90614(uint8_t ch, uint8_t sub_ch, CayenneLPP& lpp) {
+  if (sub_ch == 0)
+    lpp.addTemperature(ch, MLX90614.readObjectTempC());
+  else
+    lpp.addTemperature(ch, MLX90614.readAmbientTempC());
+}
+#endif
+
+#if ENV_INCLUDE_VL53L0X
+static uint8_t init_vl53l0x(TwoWire* wire, uint8_t addr) {
+  return VL53L0X.begin(addr, false, wire) ? 1 : 0;
+}
+static void query_vl53l0x(uint8_t ch, uint8_t, CayenneLPP& lpp) {
+  VL53L0X_RangingMeasurementData_t measure;
+  VL53L0X.rangingTest(&measure, false);
+  lpp.addDistance(ch, measure.RangeStatus != 4 ? measure.RangeMilliMeter / 1000.0f : 0.0f);
+}
+#endif
+
+#ifdef ENV_INCLUDE_BMP085
+static uint8_t init_bmp085(TwoWire* wire, uint8_t) {
+  return BMP085.begin(0, wire) ? 1 : 0;  // mode 0 = ULTRALOWPOWER
+}
+static void query_bmp085(uint8_t ch, uint8_t, CayenneLPP& lpp) {
+  lpp.addTemperature(ch, BMP085.readTemperature());
+  lpp.addBarometricPressure(ch, BMP085.readPressure() / 100);
+  lpp.addAltitude(ch, BMP085.readAltitude(TELEM_BMP085_SEALEVELPRESSURE_HPA * 100));
+}
+#endif
+
+#if ENV_INCLUDE_RAK12035
+static uint8_t init_rak12035(TwoWire* wire, uint8_t addr) {
+  // RAK12035 requires setup() before begin().
+  RAK12035.setup(*wire);
+  if (!RAK12035.begin(addr)) return 0;
+#ifdef ENABLE_RAK12035_CALIBRATION
+  return 2;  // moisture channel + calibration channel
+#else
+  return 1;
+#endif
+}
+static void query_rak12035(uint8_t ch, uint8_t sub_ch, CayenneLPP& lpp) {
+  if (sub_ch == 0) {
+    lpp.addTemperature(ch, RAK12035.get_sensor_temperature());
+    lpp.addPercentage(ch, RAK12035.get_sensor_moisture());
+  } else {
+#ifdef ENABLE_RAK12035_CALIBRATION
+    float cap = RAK12035.get_sensor_capacitance();
+    float wet = RAK12035.get_humidity_full();
+    float dry = RAK12035.get_humidity_zero();
+    lpp.addFrequency(ch, cap);
+    lpp.addTemperature(ch, wet);
+    lpp.addPower(ch, dry);
+    if (cap > dry) RAK12035.set_humidity_zero(cap);
+    if (cap < wet) RAK12035.set_humidity_full(cap);
+#endif
+  }
+}
+#endif
+
+#if ENV_INCLUDE_BME680_BSEC
+static void bsec_load_state() {
+  using namespace Adafruit_LittleFS_Namespace;
+  File f = InternalFS.open(BSEC_STATE_FILE, FILE_O_READ);
+  if (!f) return;
+  uint8_t state[BSEC_MAX_STATE_BLOB_SIZE];
+  f.read(state, BSEC_MAX_STATE_BLOB_SIZE);
+  f.close();
+  bsec_iaq.setState(state);
+}
+
+static void bsec_save_state() {
+  using namespace Adafruit_LittleFS_Namespace;
+  uint8_t state[BSEC_MAX_STATE_BLOB_SIZE];
+  bsec_iaq.getState(state);
+  InternalFS.remove(BSEC_STATE_FILE);
+  File f = InternalFS.open(BSEC_STATE_FILE, FILE_O_WRITE);
+  if (!f) return;
+  f.write(state, BSEC_MAX_STATE_BLOB_SIZE);
+  f.close();
+}
+
+static uint8_t init_bme680_bsec(TwoWire* wire, uint8_t addr) {
+  bsec_iaq.begin(addr, *wire);
+  if (bsec_iaq.bsecStatus != BSEC_OK) return 0;
+
+  bsec_iaq.setConfig(bsec_config_iaq);
+  if (bsec_iaq.bsecStatus != BSEC_OK) return 0;
+
+  bsec_virtual_sensor_t outputs[] = {
+    BSEC_OUTPUT_IAQ,
+    BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_TEMPERATURE,
+    BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_HUMIDITY,
+    BSEC_OUTPUT_RAW_PRESSURE,
+    BSEC_OUTPUT_STABILIZATION_STATUS,
+    BSEC_OUTPUT_RUN_IN_STATUS,
+  };
+  bsec_iaq.updateSubscription(outputs, 6, BSEC_SAMPLE_RATE_LP);
+  if (bsec_iaq.bsecStatus != BSEC_OK) return 0;
+
+  bsec_load_state();
+  bsec_active = true;
+  return 1;
+}
+
+static void query_bme680_bsec(uint8_t ch, uint8_t, CayenneLPP& lpp) {
+  if (!bsec_data_ready) return;
+  lpp.addTemperature(ch, bsec_temperature);
+  lpp.addRelativeHumidity(ch, bsec_humidity);
+  lpp.addBarometricPressure(ch, bsec_pressure_hpa);
+  lpp.addAltitude(ch, 44330.0f * (1.0f - powf(bsec_pressure_hpa / (float)TELEM_BME680_SEALEVELPRESSURE_HPA, 0.1903f)));
+  lpp.addGenericSensor(ch, (uint16_t)bsec_iaq_val);
+  lpp.addAnalogInput(ch, (float)bsec_accuracy);
+}
+#endif
+
+// ============================================================
+// Sensor descriptor table
+//
+// Each entry maps an I2C address to a sensor's init and query
+// functions. Only entries whose ENV_INCLUDE_* guard is defined
+// are compiled in. The sentinel at the end keeps the array
+// non-empty regardless of which sensors are enabled.
+//
+// Ordering here determines channel assignment at runtime:
+// the first detected+initialized sensor gets channel 2, the
+// next gets channel 3, and so on.
+// ============================================================
+
+struct SensorDef {
+  uint8_t     address;
+  const char* name;
+  uint8_t   (*init)(TwoWire* wire, uint8_t address);
+  void      (*query)(uint8_t channel, uint8_t sub_channel, CayenneLPP& telemetry);
+};
+
+static const SensorDef SENSOR_TABLE[] = {
+#if ENV_INCLUDE_AHTX0
+  { TELEM_AHTX_ADDRESS,    "AHT10/AHT20", init_ahtx0,    query_ahtx0    },
+#endif
+#ifdef ENV_INCLUDE_BME680
+  { TELEM_BME680_ADDRESS,  "BME680",       init_bme680,   query_bme680   },
+#endif
+#if ENV_INCLUDE_BME680_BSEC
+  { TELEM_BME680_ADDRESS,  "BME680+BSEC",   init_bme680_bsec, query_bme680_bsec },
+#endif
+#if ENV_INCLUDE_BME280
+  { TELEM_BME280_ADDRESS,  "BME280",       init_bme280,   query_bme280   },
+#endif
+#if ENV_INCLUDE_BMP280
+  { TELEM_BMP280_ADDRESS,  "BMP280",       init_bmp280,   query_bmp280   },
+#endif
+#if ENV_INCLUDE_SHTC3
+  { 0x70,                  "SHTC3",        init_shtc3,    query_shtc3    },
+#endif
+#if ENV_INCLUDE_SHT4X
+  { TELEM_SHT4X_ADDRESS,   "SHT4X",        init_sht4x,    query_sht4x    },
+#endif
+#if ENV_INCLUDE_LPS22HB
+  { 0x5C,                  "LPS22HB",      init_lps22hb,  query_lps22hb  },
+#endif
+#if ENV_INCLUDE_INA3221
+  { TELEM_INA3221_ADDRESS, "INA3221",      init_ina3221,  query_ina3221  },
+#endif
+#if ENV_INCLUDE_INA219
+  { TELEM_INA219_ADDRESS,  "INA219",       init_ina219,   query_ina219   },
+#endif
+#if ENV_INCLUDE_INA260
+  { TELEM_INA260_ADDRESS,  "INA260",       init_ina260,   query_ina260   },
+#endif
+#if ENV_INCLUDE_INA226
+  { TELEM_INA226_ADDRESS,  "INA226",       init_ina226,   query_ina226   },
+#endif
+#if ENV_INCLUDE_MLX90614
+  { TELEM_MLX90614_ADDRESS,"MLX90614",     init_mlx90614, query_mlx90614 },
+#endif
+#if ENV_INCLUDE_VL53L0X
+  { TELEM_VL53L0X_ADDRESS, "VL53L0X",      init_vl53l0x,  query_vl53l0x  },
+#endif
+#ifdef ENV_INCLUDE_BMP085
+  { 0x77,                  "BMP085",       init_bmp085,   query_bmp085   },
+#endif
+#if ENV_INCLUDE_RAK12035
+  { TELEM_RAK12035_ADDRESS,"RAK12035",     init_rak12035, query_rak12035 },
+#endif
+  { 0, nullptr, nullptr, nullptr }  // sentinel — keeps the array non-empty
+};
+
+static const size_t SENSOR_TABLE_SIZE = (sizeof(SENSOR_TABLE) / sizeof(SENSOR_TABLE[0])) - 1;
+
+// ============================================================
+// begin() — scan the I2C bus, then initialize only what was
+// found. A sensor whose address does not ACK during the scan
+// is never touched by a library call, preventing hangs or
+// crashes caused by absent or misbehaving hardware.
+// ============================================================
+
 bool EnvironmentSensorManager::begin() {
   #if ENV_INCLUDE_GPS
   #ifdef RAK_WISBLOCK_GPS
-  rakGPSInit();   //probe base board/sockets for GPS
+  rakGPSInit();
   #else
   initBasicGPS();
   #endif
@@ -169,320 +632,50 @@ bool EnvironmentSensorManager::begin() {
   MESH_DEBUG_PRINTLN("Second I2C initialized on pins SDA: %d SCL: %d", ENV_PIN_SDA, ENV_PIN_SCL);
   #endif
 
-  #if ENV_INCLUDE_AHTX0
-  if (AHTX0.begin(TELEM_WIRE, 0, TELEM_AHTX_ADDRESS)) {
-    MESH_DEBUG_PRINTLN("Found AHT10/AHT20 at address: %02X", TELEM_AHTX_ADDRESS);
-    AHTX0_initialized = true;
-  } else {
-    AHTX0_initialized = false;
-    MESH_DEBUG_PRINTLN("AHT10/AHT20 was not found at I2C address %02X", TELEM_AHTX_ADDRESS);
-  }
-  #endif
+  // Scan the I2C bus before touching any sensor library.
+  bool detected[128] = {};
+  scanI2CBus(TELEM_WIRE, detected);
 
-  #if ENV_INCLUDE_BME680
-  if (BME680.begin(TELEM_BME680_ADDRESS, TELEM_WIRE)) {
-    MESH_DEBUG_PRINTLN("Found BME680 at address: %02X", TELEM_BME680_ADDRESS);
-    BME680_initialized = true;
-  } else {
-    BME680_initialized = false;
-    MESH_DEBUG_PRINTLN("BME680 was not found at I2C address %02X", TELEM_BME680_ADDRESS);
-  }
-  #endif
-
-  #if ENV_INCLUDE_BME280
-  if (BME280.begin(TELEM_BME280_ADDRESS, TELEM_WIRE)) {
-    MESH_DEBUG_PRINTLN("Found BME280 at address: %02X", TELEM_BME280_ADDRESS);
-    MESH_DEBUG_PRINTLN("BME sensor ID: %02X", BME280.sensorID());
-    // Reduce self-heating: single-shot conversions, light oversampling, long standby.
-    BME280.setSampling(Adafruit_BME280::MODE_FORCED,
-                       Adafruit_BME280::SAMPLING_X1,   // temperature
-                       Adafruit_BME280::SAMPLING_X1,   // pressure
-                       Adafruit_BME280::SAMPLING_X1,   // humidity
-                       Adafruit_BME280::FILTER_OFF,
-                       Adafruit_BME280::STANDBY_MS_1000);
-    BME280_initialized = true;
-  } else {
-    BME280_initialized = false;
-    MESH_DEBUG_PRINTLN("BME280 was not found at I2C address %02X", TELEM_BME280_ADDRESS);
-  }
-  #endif
-
-  #if ENV_INCLUDE_BMP280
-  if (BMP280.begin(TELEM_BMP280_ADDRESS)) {
-    MESH_DEBUG_PRINTLN("Found BMP280 at address: %02X", TELEM_BMP280_ADDRESS);
-    MESH_DEBUG_PRINTLN("BMP sensor ID: %02X", BMP280.sensorID());
-    BMP280_initialized = true;
-  } else {
-    BMP280_initialized = false;
-    MESH_DEBUG_PRINTLN("BMP280 was not found at I2C address %02X", TELEM_BMP280_ADDRESS);
-  }
-  #endif
-
-  #if ENV_INCLUDE_SHTC3
-  if (SHTC3.begin(TELEM_WIRE)) {
-    MESH_DEBUG_PRINTLN("Found sensor: SHTC3");
-    SHTC3_initialized = true;
-  } else {
-    SHTC3_initialized = false;
-    MESH_DEBUG_PRINTLN("SHTC3 was not found at I2C address %02X", 0x70);
-  }
-  #endif
-
-
-  #if ENV_INCLUDE_SHT4X
-  SHT4X.begin(*TELEM_WIRE, TELEM_SHT4X_ADDRESS);
-  uint32_t serialNumber = 0;
-  int16_t sht4x_error;
-  sht4x_error = SHT4X.serialNumber(serialNumber);
-  if (sht4x_error == 0) {
-    MESH_DEBUG_PRINTLN("Found SHT4X at address: %02X", TELEM_SHT4X_ADDRESS);
-    SHT4X_initialized = true;
-  } else {
-    SHT4X_initialized = false;
-    MESH_DEBUG_PRINTLN("SHT4X was not found at I2C address %02X", TELEM_SHT4X_ADDRESS);
-  }
-  #endif
-
-  #if ENV_INCLUDE_LPS22HB
-  if (LPS22HB.begin()) {
-    MESH_DEBUG_PRINTLN("Found sensor: LPS22HB");
-    LPS22HB_initialized = true;
-  } else {
-    LPS22HB_initialized = false;
-    MESH_DEBUG_PRINTLN("LPS22HB was not found at I2C address %02X", 0x5C);
-  }
-  #endif
-
-  #if ENV_INCLUDE_INA3221
-  if (INA3221.begin(TELEM_INA3221_ADDRESS, TELEM_WIRE)) {
-    MESH_DEBUG_PRINTLN("Found INA3221 at address: %02X", TELEM_INA3221_ADDRESS);
-    MESH_DEBUG_PRINTLN("%04X %04X", INA3221.getDieID(), INA3221.getManufacturerID());
-
-    for(int i = 0; i < 3; i++) {
-      INA3221.setShuntResistance(i, TELEM_INA3221_SHUNT_VALUE);
+  // Walk the sensor table and initialize only detected devices.
+  _active_sensor_count = 0;
+  for (size_t i = 0; i < SENSOR_TABLE_SIZE && _active_sensor_count < MAX_ACTIVE_SENSORS; i++) {
+    const SensorDef& def = SENSOR_TABLE[i];
+    if (!detected[def.address]) {
+      MESH_DEBUG_PRINTLN("%s not detected at I2C address %02X", def.name, def.address);
+      continue;
     }
-    INA3221_initialized = true;
-  } else {
-    INA3221_initialized = false;
-    MESH_DEBUG_PRINTLN("INA3221 was not found at I2C address %02X", TELEM_INA3221_ADDRESS);
+    uint8_t n = def.init(TELEM_WIRE, def.address);
+    if (n == 0) {
+      MESH_DEBUG_PRINTLN("%s found at %02X but failed to initialize", def.name, def.address);
+      continue;
+    }
+    MESH_DEBUG_PRINTLN("Found %s at address: %02X", def.name, def.address);
+    for (uint8_t sub = 0; sub < n && _active_sensor_count < MAX_ACTIVE_SENSORS; sub++) {
+      _active_sensors[_active_sensor_count++] = { def.query, sub };
+    }
   }
-  #endif
-
-  #if ENV_INCLUDE_INA219
-  if (INA219.begin(TELEM_WIRE)) {
-    MESH_DEBUG_PRINTLN("Found INA219 at address: %02X", TELEM_INA219_ADDRESS);
-    INA219_initialized = true;
-  } else {
-    INA219_initialized = false;
-    MESH_DEBUG_PRINTLN("INA219 was not found at I2C address %02X", TELEM_INA219_ADDRESS);
-  }
-  #endif
-
-  #if ENV_INCLUDE_INA260
-  if (INA260.begin(TELEM_INA260_ADDRESS, TELEM_WIRE)) {
-    MESH_DEBUG_PRINTLN("Found INA260 at address: %02X", TELEM_INA260_ADDRESS);
-    INA260_initialized = true;
-  } else {
-    INA260_initialized = false;
-    MESH_DEBUG_PRINTLN("INA260 was not found at I2C address %02X", TELEM_INA260_ADDRESS);
-  }
-  #endif
-
-  #if ENV_INCLUDE_INA226
-  if (INA226.begin()) {
-    MESH_DEBUG_PRINTLN("Found INA226 at address: %02X", TELEM_INA226_ADDRESS);
-    INA226.setMaxCurrentShunt(TELEM_INA226_MAX_AMP, TELEM_INA226_SHUNT_VALUE);
-    INA226_initialized = true;
-  } else {
-    INA226_initialized = false;
-    MESH_DEBUG_PRINTLN("INA226 was not found at I2C address %02X", TELEM_INA226_ADDRESS);
-  }
-  #endif
-
-  #if ENV_INCLUDE_MLX90614
-  if (MLX90614.begin(TELEM_MLX90614_ADDRESS, TELEM_WIRE)) {
-    MESH_DEBUG_PRINTLN("Found MLX90614 at address: %02X", TELEM_MLX90614_ADDRESS);
-    MLX90614_initialized = true;
-  } else {
-    MLX90614_initialized = false;
-    MESH_DEBUG_PRINTLN("MLX90614 was not found at I2C address %02X", TELEM_MLX90614_ADDRESS);
-  }
-  #endif
-
-  #if ENV_INCLUDE_VL53L0X
-  if (VL53L0X.begin(TELEM_VL53L0X_ADDRESS, false, TELEM_WIRE)) {
-    MESH_DEBUG_PRINTLN("Found VL53L0X at address: %02X", TELEM_VL53L0X_ADDRESS);
-    VL53L0X_initialized = true;
-  } else {
-    VL53L0X_initialized = false;
-    MESH_DEBUG_PRINTLN("VL53L0X was not found at I2C address %02X", TELEM_VL53L0X_ADDRESS);
-  }
-  #endif
-
-  #if ENV_INCLUDE_BMP085
-  // First argument is  MODE (aka oversampling)
-  // choose ULTRALOWPOWER
-  if (BMP085.begin(0, TELEM_WIRE)) {
-    MESH_DEBUG_PRINTLN("Found sensor BMP085");
-    BMP085_initialized = true;
-  } else {
-    BMP085_initialized = false;
-    MESH_DEBUG_PRINTLN("BMP085 was not found at I2C address %02X", 0x77);
-  }
-  #endif
 
   return true;
 }
+
+// ============================================================
+// querySensors() — GPS stays on channel 1; each active sensor
+// gets the next available channel in the order it was
+// initialized.
+// ============================================================
 
 bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, CayenneLPP& telemetry) {
   next_available_channel = TELEM_CHANNEL_SELF + 1;
 
   if (requester_permissions & TELEM_PERM_LOCATION && gps_active) {
-    telemetry.addGPS(TELEM_CHANNEL_SELF, node_lat, node_lon, node_altitude); // allow lat/lon via telemetry even if no GPS is detected
+    telemetry.addGPS(TELEM_CHANNEL_SELF, node_lat, node_lon, node_altitude);
   }
 
   if (requester_permissions & TELEM_PERM_ENVIRONMENT) {
-
-    #if ENV_INCLUDE_AHTX0
-    if (AHTX0_initialized) {
-      sensors_event_t humidity, temp;
-      AHTX0.getEvent(&humidity, &temp);
-      telemetry.addTemperature(TELEM_CHANNEL_SELF, temp.temperature);
-      telemetry.addRelativeHumidity(TELEM_CHANNEL_SELF, humidity.relative_humidity);
-    }
-    #endif
-
-    #if ENV_INCLUDE_BME680
-    if (BME680_initialized) {
-      if (BME680.performReading()) {
-        telemetry.addTemperature(TELEM_CHANNEL_SELF, BME680.temperature);
-        telemetry.addRelativeHumidity(TELEM_CHANNEL_SELF, BME680.humidity);
-        telemetry.addBarometricPressure(TELEM_CHANNEL_SELF, BME680.pressure / 100);
-        telemetry.addAltitude(TELEM_CHANNEL_SELF, 44330.0 * (1.0 - pow((BME680.pressure / 100) / TELEM_BME680_SEALEVELPRESSURE_HPA, 0.1903)));
-        telemetry.addAnalogInput(next_available_channel, BME680.gas_resistance);
-        next_available_channel++;
-      }
-    }
-    #endif
-
-    #if ENV_INCLUDE_BME280
-    if (BME280_initialized) {
-      if (BME280.takeForcedMeasurement()) {  // trigger a fresh reading in forced mode
-        telemetry.addTemperature(TELEM_CHANNEL_SELF, BME280.readTemperature());
-        telemetry.addRelativeHumidity(TELEM_CHANNEL_SELF, BME280.readHumidity());
-        telemetry.addBarometricPressure(TELEM_CHANNEL_SELF, BME280.readPressure()/100);
-        telemetry.addAltitude(TELEM_CHANNEL_SELF, BME280.readAltitude(TELEM_BME280_SEALEVELPRESSURE_HPA));
-      }
-    }
-    #endif
-
-    #if ENV_INCLUDE_BMP280
-    if (BMP280_initialized) {
-      telemetry.addTemperature(TELEM_CHANNEL_SELF, BMP280.readTemperature());
-      telemetry.addBarometricPressure(TELEM_CHANNEL_SELF, BMP280.readPressure()/100);
-      telemetry.addAltitude(TELEM_CHANNEL_SELF, BMP280.readAltitude(TELEM_BMP280_SEALEVELPRESSURE_HPA));
-    }
-    #endif
-
-    #if ENV_INCLUDE_SHTC3
-    if (SHTC3_initialized) {
-      sensors_event_t humidity, temp;
-      SHTC3.getEvent(&humidity, &temp);
-
-      telemetry.addTemperature(TELEM_CHANNEL_SELF, temp.temperature);
-      telemetry.addRelativeHumidity(TELEM_CHANNEL_SELF, humidity.relative_humidity);
-    }
-    #endif
-
-    #if ENV_INCLUDE_SHT4X
-    if (SHT4X_initialized) {
-      float sht4x_humidity, sht4x_temperature;
-      int16_t sht4x_error;
-      sht4x_error = SHT4X.measureLowestPrecision(sht4x_temperature, sht4x_humidity);
-      if (sht4x_error == 0) {
-        telemetry.addTemperature(TELEM_CHANNEL_SELF, sht4x_temperature);
-        telemetry.addRelativeHumidity(TELEM_CHANNEL_SELF, sht4x_humidity);
-      }
-    }
-    #endif
-
-    #if ENV_INCLUDE_LPS22HB
-    if (LPS22HB_initialized) {
-      telemetry.addTemperature(TELEM_CHANNEL_SELF, LPS22HB.readTemperature());
-      telemetry.addBarometricPressure(TELEM_CHANNEL_SELF, LPS22HB.readPressure() * 10); // convert kPa to hPa
-    }
-    #endif
-
-    #if ENV_INCLUDE_INA3221
-    if (INA3221_initialized) {
-      for(int i = 0; i < TELEM_INA3221_NUM_CHANNELS; i++) {
-        // add only enabled INA3221 channels to telemetry
-        if (INA3221.isChannelEnabled(i)) {
-          float voltage = INA3221.getBusVoltage(i);
-          float current = INA3221.getCurrentAmps(i);
-          telemetry.addVoltage(next_available_channel, voltage);
-          telemetry.addCurrent(next_available_channel, current);
-          telemetry.addPower(next_available_channel, voltage * current);
-          next_available_channel++;
-        }
-      }
-    }
-    #endif
-
-    #if ENV_INCLUDE_INA219
-    if (INA219_initialized) {
-      telemetry.addVoltage(next_available_channel, INA219.getBusVoltage_V());
-      telemetry.addCurrent(next_available_channel, INA219.getCurrent_mA() / 1000);
-      telemetry.addPower(next_available_channel, INA219.getPower_mW() / 1000);
+    for (int i = 0; i < _active_sensor_count; i++) {
+      _active_sensors[i].query(next_available_channel, _active_sensors[i].sub_channel, telemetry);
       next_available_channel++;
     }
-    #endif
-
-    #if ENV_INCLUDE_INA260
-    if (INA260_initialized) {
-      telemetry.addVoltage(next_available_channel, INA260.readBusVoltage() / 1000);
-      telemetry.addCurrent(next_available_channel, INA260.readCurrent() / 1000);
-      telemetry.addPower(next_available_channel, INA260.readPower() / 1000);
-      next_available_channel++;
-    }
-    #endif
-
-    #if ENV_INCLUDE_INA226
-    if (INA226_initialized) {
-      telemetry.addVoltage(next_available_channel, INA226.getBusVoltage());
-      telemetry.addCurrent(next_available_channel, INA226.getCurrent_mA() / 1000.0);
-      telemetry.addPower(next_available_channel, INA226.getPower_mW() / 1000.0);
-      next_available_channel++;
-    }
-    #endif
-
-    #if ENV_INCLUDE_MLX90614
-    if (MLX90614_initialized) {
-      telemetry.addTemperature(TELEM_CHANNEL_SELF, MLX90614.readObjectTempC());
-      telemetry.addTemperature(TELEM_CHANNEL_SELF + 1, MLX90614.readAmbientTempC());
-    }
-    #endif
-
-    #if ENV_INCLUDE_VL53L0X
-    if (VL53L0X_initialized) {
-      VL53L0X_RangingMeasurementData_t measure;
-      VL53L0X.rangingTest(&measure, false); // pass in 'true' to get debug data
-      if (measure.RangeStatus != 4) { // phase failures
-        telemetry.addDistance(TELEM_CHANNEL_SELF, measure.RangeMilliMeter / 1000.0f); // convert mm to m
-      } else {
-        telemetry.addDistance(TELEM_CHANNEL_SELF, 0.0f); // no valid measurement
-      }
-    }
-    #endif
-
-    #if ENV_INCLUDE_BMP085
-    if (BMP085_initialized) {
-        telemetry.addTemperature(TELEM_CHANNEL_SELF, BMP085.readTemperature());
-        telemetry.addBarometricPressure(TELEM_CHANNEL_SELF, BMP085.readPressure() / 100);
-        telemetry.addAltitude(TELEM_CHANNEL_SELF, BMP085.readAltitude(TELEM_BMP085_SEALEVELPRESSURE_HPA * 100));
-    }
-    #endif
-
   }
 
   return true;
@@ -504,8 +697,6 @@ const char* EnvironmentSensorManager::getSettingName(int i) const {
       return "gps";
     }
   #endif
-  // convenient way to add params (needed for some tests)
-//  if (i == settings++) return "param.2";
   return NULL;
 }
 
@@ -516,8 +707,6 @@ const char* EnvironmentSensorManager::getSettingValue(int i) const {
       return gps_active ? "1" : "0";
     }
   #endif
-  // convenient way to add params ...
-//  if (i == settings++) return "2";
   return NULL;
 }
 
@@ -533,11 +722,7 @@ bool EnvironmentSensorManager::setSettingValue(const char* name, const char* val
   }
   if (strcmp(name, "gps_interval") == 0) {
     uint32_t interval_seconds = atoi(value);
-    if (interval_seconds > 0) {
-      gps_update_interval_sec = interval_seconds;
-    } else {
-      gps_update_interval_sec = 1;  // Default to 1 second if 0
-    }
+    gps_update_interval_sec = interval_seconds > 0 ? interval_seconds : 1;
     return true;
   }
   #endif
@@ -601,16 +786,10 @@ void EnvironmentSensorManager::rakGPSInit(){
 
   //search for the correct IO standby pin depending on socket used
   if(gpsIsAwake(WB_IO2)){
-  //  MESH_DEBUG_PRINTLN("RAK base board is RAK19007/10");
-  //  MESH_DEBUG_PRINTLN("GPS is installed on Socket A");
   }
   else if(gpsIsAwake(WB_IO4)){
-  //  MESH_DEBUG_PRINTLN("RAK base board is RAK19003/9");
-  //  MESH_DEBUG_PRINTLN("GPS is installed on Socket C");
   }
   else if(gpsIsAwake(WB_IO5)){
-  //  MESH_DEBUG_PRINTLN("RAK base board is RAK19001/11");
-  //  MESH_DEBUG_PRINTLN("GPS is installed on Socket F");
   }
   else{
     MESH_DEBUG_PRINTLN("No GPS found");
@@ -657,9 +836,11 @@ bool EnvironmentSensorManager::gpsIsAwake(uint8_t ioPin){
     return true;
   } else if (Serial1.available()) {
     MESH_DEBUG_PRINTLN("Serial GPS init correctly and is turned on");
+#ifdef PIN_GPS_EN
     if(PIN_GPS_EN){
       gpsResetPin = PIN_GPS_EN;
     }
+#endif
     serialGPSFlag = true;
     gps_active = true;
     gps_detected = true;
@@ -702,11 +883,13 @@ void EnvironmentSensorManager::stop_gps() {
   MESH_DEBUG_PRINTLN("Stop GPS is N/A on this board. Actual GPS state unchanged");
   #endif
 }
+#endif // ENV_INCLUDE_GPS
 
+#if ENV_INCLUDE_GPS || defined(ENV_INCLUDE_BME680_BSEC)
 void EnvironmentSensorManager::loop() {
-  static long next_gps_update = 0;
 
   #if ENV_INCLUDE_GPS
+  static long next_gps_update = 0;
   if (gps_active) {
     _location->loop();
   }
@@ -734,5 +917,27 @@ void EnvironmentSensorManager::loop() {
     next_gps_update = millis() + (gps_update_interval_sec * 1000);
   }
   #endif
+  #if ENV_INCLUDE_BME680_BSEC
+  if (bsec_active && bsec_iaq.run()) {
+    uint8_t prev_accuracy = bsec_accuracy;
+    bsec_temperature  = bsec_iaq.temperature;
+    bsec_humidity     = bsec_iaq.humidity;
+    bsec_pressure_hpa = bsec_iaq.pressure / 100.0f;
+    bsec_iaq_val      = bsec_iaq.iaq;
+    bsec_accuracy     = bsec_iaq.iaqAccuracy;
+    bsec_data_ready   = true;
+
+    if (bsec_accuracy == 3) {
+      if (!bsec_first_save_done) {
+        bsec_save_state();
+        bsec_last_save_ms = millis();
+        bsec_first_save_done = true;
+      } else if ((millis() - bsec_last_save_ms) >= BSEC_SAVE_INTERVAL_MS) {
+        bsec_save_state();
+        bsec_last_save_ms = millis();
+      }
+    }
+  }
+  #endif  // ENV_INCLUDE_BME680_BSEC
 }
-#endif
+#endif // ENV_INCLUDE_GPS || ENV_INCLUDE_BME680_BSEC

@@ -63,7 +63,7 @@ public:
     digitalWrite(LED_PIN, LOW);
     #endif
     #ifdef BUTTON_PIN
-    nrf_gpio_cfg_sense_input(digitalPinToInterrupt(BUTTON_PIN), NRF_GPIO_PIN_PULLUP, NRF_GPIO_PIN_SENSE_HIGH);
+    nrf_gpio_cfg_sense_input(digitalPinToInterrupt(BUTTON_PIN), NRF_GPIO_PIN_PULLUP, NRF_GPIO_PIN_SENSE_LOW);
     #endif
     sd_power_system_off();
   }

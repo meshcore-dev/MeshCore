@@ -842,11 +842,11 @@ void OLEDDisplay::drawLogBuffer(uint16_t xMove, uint16_t yMove) {
   uint16_t lastPos  = 0;
 
   for (uint16_t i=0;i<this->logBufferFilled;i++){
-    // Everytime we have a \n print
+    // Every time we have a \n print
     if (this->logBuffer[i] == 10) {
       length++;
       // Draw string on line `line` from lastPos to length
-      // Passing 0 as the lenght because we are in TEXT_ALIGN_LEFT
+      // Passing 0 as the length because we are in TEXT_ALIGN_LEFT
       drawStringInternal(xMove, yMove + (line++) * lineHeight, &this->logBuffer[lastPos], length, 0, false);
       // Remember last pos
       lastPos = i;
@@ -1155,7 +1155,7 @@ void OLEDDisplay::setFontTableLookupFunction(FontTableLookupFunction function) {
 
 char DefaultFontTableLookup(const uint8_t ch) {
     // UTF-8 to font table index converter
-    // Code form http://playground.arduino.cc/Main/Utf8ascii
+    // Code from http://playground.arduino.cc/Main/Utf8ascii
 	static uint8_t LASTCHAR;
 
 	if (ch < 128) { // Standard ASCII-set 0..0x7F handling

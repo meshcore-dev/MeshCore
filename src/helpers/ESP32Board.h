@@ -3,22 +3,28 @@
 #include <MeshCore.h>
 #include <Arduino.h>
 
+#ifndef USER_BTN_PRESSED
+#define USER_BTN_PRESSED LOW
+#endif
+
 #if defined(ESP_PLATFORM)
 
 #include <rom/rtc.h>
 #include <sys/time.h>
 #include <Wire.h>
-#include "driver/rtc_io.h"
+#include "soc/rtc.h"
+#include "esp_system.h"
 
 class ESP32Board : public mesh::MainBoard {
 protected:
   uint8_t startup_reason;
   bool inhibit_sleep = false;
+  static inline portMUX_TYPE sleepMux = portMUX_INITIALIZER_UNLOCKED;
 
 public:
   void begin() {
     // for future use, sub-classes SHOULD call this from their begin()
-    startup_reason = BD_STARTUP_NORMAL;
+    startup_reason = BD_STARTUP_NORMAL;    
 
   #ifdef ESP32_CPU_FREQ
     setCpuFrequencyMhz(ESP32_CPU_FREQ);
@@ -41,7 +47,7 @@ public:
    #endif
   #else
     Wire.begin();
-  #endif
+  #endif    
   }
 
   // Temperature from ESP32 MCU
@@ -56,25 +62,48 @@ public:
     return raw / 4;
   }
 
-  void enterLightSleep(uint32_t secs) {
-#if defined(CONFIG_IDF_TARGET_ESP32S3) && defined(P_LORA_DIO_1) // Supported ESP32 variants
-    if (rtc_gpio_is_valid_gpio((gpio_num_t)P_LORA_DIO_1)) { // Only enter sleep mode if P_LORA_DIO_1 is RTC pin
-      esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
-      esp_sleep_enable_ext1_wakeup((1L << P_LORA_DIO_1), ESP_EXT1_WAKEUP_ANY_HIGH); // To wake up when receiving a LoRa packet
-
-      if (secs > 0) {
-        esp_sleep_enable_timer_wakeup(secs * 1000000); // To wake up every hour to do periodically jobs
-      }
-
-      esp_light_sleep_start(); // CPU enters light sleep
-    }
-#endif
+  uint32_t getIRQGpio() override {
+    return P_LORA_DIO_1; // default for SX1262
   }
 
   void sleep(uint32_t secs) override {
-    if (!inhibit_sleep) {
-      enterLightSleep(secs);      // To wake up after "secs" seconds or when receiving a LoRa packet
+    // Skip if not allow to sleep
+    if (inhibit_sleep) {
+      delay(1); // Give MCU to OTA to run
+      return;
     }
+
+    // Set GPIO wakeup
+    gpio_num_t wakeupPin = (gpio_num_t)getIRQGpio();    
+
+    // Configure timer wakeup
+    if (secs > 0) {
+      esp_sleep_enable_timer_wakeup(secs * 1000000ULL); // Wake up periodically to do scheduled jobs
+    }
+
+    // Disable CPU interrupt servicing
+    portENTER_CRITICAL(&sleepMux);
+
+    // Skip sleep if there is a LoRa packet
+    if (gpio_get_level(wakeupPin) == HIGH) {
+      portEXIT_CRITICAL(&sleepMux);
+      delay(1);
+      return;
+    }
+
+    // Configure GPIO wakeup
+    esp_sleep_enable_gpio_wakeup();
+    gpio_wakeup_enable((gpio_num_t)wakeupPin, GPIO_INTR_HIGH_LEVEL); // Wake up when receiving a LoRa packet
+
+    // MCU enters light sleep
+    esp_light_sleep_start();
+
+    // Avoid ISR flood during wakeup due to HIGH LEVEL interrupt
+    gpio_wakeup_disable(wakeupPin);
+    gpio_set_intr_type(wakeupPin, GPIO_INTR_POSEDGE);
+
+    // Enable CPU interrupt servicing
+    portEXIT_CRITICAL(&sleepMux);
   }
 
   uint8_t getStartupReason() const override { return startup_reason; }
@@ -98,7 +127,7 @@ public:
 #endif
 
   uint16_t getBattMilliVolts() override {
-  #ifdef PIN_VBAT_READ
+    #ifdef PIN_VBAT_READ
     analogReadResolution(12);
 
     uint32_t raw = 0;
@@ -137,16 +166,16 @@ public:
       // start with some date/time in the recent past
       struct timeval tv;
       tv.tv_sec = 1715770351;  // 15 May 2024, 8:50pm
-      tv.tv_usec = 0;
-      settimeofday(&tv, NULL);
-    }
+    tv.tv_usec = 0;
+    settimeofday(&tv, NULL);
+  }
   }
   uint32_t getCurrentTime() override {
     time_t _now;
     time(&_now);
     return _now;
   }
-  void setCurrentTime(uint32_t time) override { 
+  void setCurrentTime(uint32_t time) override {
     struct timeval tv;
     tv.tv_sec = time;
     tv.tv_usec = 0;

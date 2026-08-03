@@ -4,14 +4,12 @@
 #include <Arduino.h>
 #include <helpers/NRF52Board.h>
 
-// built-ins
-#define VBAT_MV_PER_LSB   (0.73242188F)   // 3.0V ADC range and 12-bit ADC resolution = 3000mV/4096
-
-#define VBAT_DIVIDER      (0.5F)          // 150K + 150K voltage divider on VBAT
-#define VBAT_DIVIDER_COMP (2.0F)          // Compensation factor for the VBAT divider
-
-#define PIN_VBAT_READ     (4)
-#define REAL_VBAT_MV_PER_LSB (VBAT_DIVIDER_COMP * VBAT_MV_PER_LSB)
+// ============================================================
+// T-Echo Lite battery pins — hardcoded from LilyGo t_echo_lite_config.h
+// NOT using any defines from variant.h for battery measurement
+// ============================================================
+#define PIN_VBAT_READ         _PINNUM(0, 2)   // BATTERY_ADC_DATA
+#define PIN_VBAT_MEAS_EN      _PINNUM(0, 31)  // BATTERY_MEASUREMENT_CONTROL
 
 class TechoBoard : public NRF52BoardDCDC {
 public:
@@ -20,10 +18,11 @@ public:
   uint16_t getBattMilliVolts() override;
 
   const char* getManufacturerName() const override {
-    return "LilyGo T-Echo";
+    return "LilyGo T-Echo Lite";
   }
 
   void powerOff() override {
+    digitalWrite(PIN_VBAT_MEAS_EN, LOW);
     #ifdef LED_RED
     digitalWrite(LED_RED, LOW);
     #endif
