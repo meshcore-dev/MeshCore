@@ -199,8 +199,8 @@ bool RadioLibWrapper::isChannelActive() {
     while (millis() - sense_start < 5) {
       if (getCurrentRSSI() > -80.0f) {
         _busy_count++;
-        uint32_t base_ms = 2000;
-        uint32_t max_backoff = min(base_ms * (1u << _busy_count), (uint32_t)16000);
+        uint32_t base_ms = 500;
+        uint32_t max_backoff = min(base_ms * (1u << _busy_count), (uint32_t)4000);
         uint32_t backoff_until = millis() + random(max_backoff / 2, max_backoff);
         while (millis() < backoff_until) {
           YIELD_TASK();
