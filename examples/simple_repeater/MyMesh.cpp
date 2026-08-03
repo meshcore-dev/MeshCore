@@ -304,7 +304,7 @@ void MyMesh::onTraceRecv(mesh::Packet* /*packet*/, uint32_t tag, uint32_t /*auth
       _meas_edge++;                                    // ...and the a->b link was strong enough to record
     } else {
       // Returned but weak: the a->b link exists yet cannot carry coverage. Cache as no-edge so it
-      // is not re-probed every tick; it retries only after NEIGHBOUR_LINK_NEG_TTL_MILLIS (~10h).
+      // is not re-probed every tick; it retries on a per-pair exponential backoff (capped ~10h).
       _nbr_links.addNegative(path_hashes, path_hashes + entry_sz, entry_sz, millis());
       _meas_neg++;
     }
@@ -1976,7 +1976,8 @@ void MyMesh::formatNearReply(char *reply) {
 
   // coverage-TRACE health: sent=attempts, ret=round-trips that came back, edge=links
   // recorded (ret with SNR>=snr_lo), tmo=pairs that timed out twice (no link), neg=pairs cached
-  // as no-edge (timeout or weak return) and skipped until the ~10h backoff expires. If sent>0
+  // as no-edge (timeout or weak return) and skipped on a per-pair exponential backoff (capped
+  // ~10h; a transient failure retries within ~2 min, a permanent one ramps to ~10h). If sent>0
   // but ret==0 the round trips never complete (loss/collisions); if ret>0 but edge==0 the
   // measured inter-neighbour links are below snr_lo; if sent==0 no top-N>=2 window yet.
   // harv=edges/negatives adopted from overheard neighbours' TRACES (Part 2); unr=near neighbours
