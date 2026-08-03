@@ -136,6 +136,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         with:
           name: JP Firmware ${{ env.GIT_TAG_VERSION }}
+          generate_release_notes: true
           body: |
             ## 日本向け MeshCore ファームウェア
 
