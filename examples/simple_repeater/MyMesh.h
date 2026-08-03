@@ -80,12 +80,22 @@ struct RepeaterStats {
 #define TRACE_MEAS_TIMEOUT_MS          3000 // retry once, then give up, if a coverage TRACE does not return in time
 #define TRACE_TX_POWER_RESTORE_MS      2000 // restore normal TX power this long after a measurement burst
 #define TRACE_PENDING_MAX              8    // in-flight coverage traces (<=4 pairs x 2 directions)
+// Part 3 -- unidirectional-link handling. M->N is never measured directly; it is inferred
+// from coverage-TRACE first-hop outcomes: a [N,*] trace returns iff M's TX reached N. After
+// K consecutive first-hop-N 2nd-miss timeouts (and no success), N is treated M-unreachable
+// and dropped from the protection set (M owes coverage only to neighbours it can reach).
+#define M_REACH_UNREACHABLE_TIMEOUTS  2                  // consec first-hop-N timeouts -> M-unreachable
+#define M_REACH_RECONFIRM_MS          (24UL*3600UL*1000UL)  // re-test a confirmed link after this idle (antenna drift)
 
 struct NeighbourInfo {
   mesh::Identity id;
   uint32_t advert_timestamp;
   uint32_t heard_timestamp;
   int8_t snr; // multiplied by 4, user should divide to get float value
+  // Part 3: M->this-neighbour reachability, inferred from coverage-TRACE first-hop outcomes.
+  bool     m_reach_confirmed;     // a [N,*] coverage trace has returned (M->N works)
+  uint8_t  m_reach_timeouts;      // consecutive first-hop-N 2nd-miss timeouts since last confirm
+  uint32_t m_reach_last_ok_ms;    // millis() of the last first-hop-N success (aging)
 };
 
 // A leaf CLIENT (companion/sensor/room-server) directly attached to this repeater
@@ -163,6 +173,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   unsigned long _trace_tx_revert_at = 0;   // restore TX power after a burst
   uint8_t       _meas_rr_offset = 0;       // round-robin start index into the flat directed-pair list (advanced per probe)
   uint32_t      _meas_sent = 0, _meas_returned = 0, _meas_edge = 0, _meas_timeout = 0, _meas_neg = 0;  // coverage-TRACE observability (surfaced in `near`)
+  uint32_t      _meas_harvested = 0, _meas_harvest_neg = 0;  // Part 2: edges/negatives adopted from overheard neighbours' TRACES (surfaced in `near` as harv)
   uint32_t pending_discover_tag;
   unsigned long pending_discover_until;
   bool region_load_active;
@@ -186,6 +197,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   void putNeighbour(const mesh::Identity& id, uint32_t timestamp, float snr);
   void touchNeighbourByHash(const mesh::Packet* packet);  // refresh a KNOWN neighbour's liveness/SNR from an overheard forward
   bool isNearNeighbour(int i, uint32_t now) const;        // fresh (<=NEIGHBOUR_FRESH_S) and SNR>=snr_lo
+  bool isExcludedFromProtection(int i, uint32_t now_ms) const;  // M cannot transmit-reach neighbours[i] -> not owed coverage
   int8_t findNearNeighbour(const uint8_t* h, uint8_t hs, uint32_t now) const;  // index of near neighbour matching hash, else -1
   uint8_t topNearNeighbours(int8_t out[], uint8_t max_n, uint32_t now) const;  // fill out[] with up to max_n near-neighbour INDICES, strongest SNR first
   int8_t findInTopNear(const uint8_t* h, uint8_t hs, const int8_t* top, uint8_t top_n) const;  // index (into neighbours[]) of a top-N peer matching hash, else -1

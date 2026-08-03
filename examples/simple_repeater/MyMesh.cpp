@@ -79,6 +79,14 @@ void MyMesh::putNeighbour(const mesh::Identity &id, uint32_t timestamp, float sn
     }
   }
 
+  // Part 3: a NEW identity in this slot (empty slot, or LRU eviction of a *different* neighbour)
+  // must start with unknown M-reachability. A refresh of the SAME neighbour (the common case --
+  // putNeighbour runs on every ~2-min advert) keeps its reachability state intact.
+  if (!neighbour->id.matches(id)) {
+    neighbour->m_reach_confirmed = false;
+    neighbour->m_reach_timeouts = 0;
+    neighbour->m_reach_last_ok_ms = 0;
+  }
   // update neighbour info
   neighbour->id = id;
   neighbour->advert_timestamp = timestamp;
@@ -125,6 +133,25 @@ bool MyMesh::isNearNeighbour(int i, uint32_t now) const {
   return neighbours[i].snr >= lo_x4;
 #else
   return false;
+#endif
+}
+
+// Part 3: should neighbours[i] be EXCLUDED from the flood-suppression protection set? True when M
+// cannot transmit-reach it -- inferred from coverage-TRACE first-hop outcomes (M->N is never
+// measured directly). A confirmed link (a [N,*] trace returned within M_REACH_RECONFIRM_MS) is
+// protected: sticky -- never excluded on later transient timeouts, so no starvation regression vs
+// today. An unconfirmed (or aged) link with >= M_REACH_UNREACHABLE_TIMEOUTS consecutive first-hop
+// timeouts is M-unreachable: M owes it no coverage (M's rebroadcast never reached it anyway), so it
+// must not force a futile self-forward or block suppression.
+bool MyMesh::isExcludedFromProtection(int i, uint32_t now_ms) const {
+#if MAX_NEIGHBOURS
+  const NeighbourInfo& ni = neighbours[i];
+  bool confirmed = ni.m_reach_confirmed &&
+                   (uint32_t)(now_ms - ni.m_reach_last_ok_ms) < M_REACH_RECONFIRM_MS;   // aging
+  if (confirmed) return false;                                  // M->i known good -> protect
+  return ni.m_reach_timeouts >= M_REACH_UNREACHABLE_TIMEOUTS;   // never confirmed (or aged) & failing
+#else
+  (void)i; (void)now_ms; return false;
 #endif
 }
 
@@ -185,12 +212,15 @@ bool MyMesh::allNearNeighboursCovered(const FloodSuppressionEntry& e, uint32_t n
 #if MAX_NEIGHBOURS
   int8_t top[NEAR_NEIGHBOUR_COVERAGE_CAP];
   uint8_t n = topNearNeighbours(top, NEAR_NEIGHBOUR_COVERAGE_CAP, now);
+  uint8_t prot = 0;                       // protected (M-reachable) peers M owes coverage
   for (uint8_t k = 0; k < n; k++) {
+    if (isExcludedFromProtection(top[k], millis())) continue;   // Part 3: M can't reach -> not owed
+    prot++;
     if (!e.covers((uint8_t)top[k])) return false;
   }
-  return n > 0;
+  return prot > 0;
 #else
-  return false;
+  (void)e; (void)now; return false;
 #endif
 }
 
@@ -278,6 +308,15 @@ void MyMesh::onTraceRecv(mesh::Packet* /*packet*/, uint32_t tag, uint32_t /*auth
       _nbr_links.addNegative(path_hashes, path_hashes + entry_sz, entry_sz, millis());
       _meas_neg++;
     }
+    // Part 3: this trace returned, so its FIRST HOP a (= path_hashes) received M's TX -> M->a
+    // works. Confirm a so it is never excluded from the protection set on later transient
+    // first-hop timeouts (sticky-confirm with aging -- see isExcludedFromProtection).
+    int8_t ia = findNearNeighbour(path_hashes, TRACE_MEAS_HASH_SIZE, getRTCClock()->getCurrentTime());
+    if (ia >= 0) {
+      neighbours[ia].m_reach_confirmed = true;
+      neighbours[ia].m_reach_timeouts = 0;
+      neighbours[ia].m_reach_last_ok_ms = millis();
+    }
   }
   for (uint8_t i = 0; i < TRACE_PENDING_MAX; i++) {    // retire the matching pending entry (success)
     if (_trace_pending[i].active && _trace_pending[i].tag == tag) { _trace_pending[i].active = false; break; }
@@ -319,6 +358,11 @@ void MyMesh::stepCoverageMeasurement() {
       _meas_timeout++;
       _nbr_links.addNegative(_trace_pending[i].a, _trace_pending[i].b, TRACE_MEAS_HASH_SIZE, now);
       _meas_neg++;                                      // cache no-edge so we don't re-probe every tick
+      // Part 3: the FIRST HOP a may be M-unreachable (M->a broken -> the trace never left M, so it
+      // timed out regardless of b). Bump a's consecutive-failure count; once it reaches the
+      // threshold without ever being confirmed, isExcludedFromProtection drops it from protection.
+      int8_t ia = findNearNeighbour(_trace_pending[i].a, TRACE_MEAS_HASH_SIZE, getRTCClock()->getCurrentTime());
+      if (ia >= 0 && neighbours[ia].m_reach_timeouts < 255) neighbours[ia].m_reach_timeouts++;
     }
   }
 
@@ -990,40 +1034,43 @@ void MyMesh::logRx(mesh::Packet *pkt, int len, float score) {
       int8_t top[NEAR_NEIGHBOUR_COVERAGE_CAP];
       uint8_t top_n = topNearNeighbours(top, NEAR_NEIGHBOUR_COVERAGE_CAP, now);
 
-      bool on_path[MAX_NEIGHBOURS] = { false };
+      // Which NEAR neighbours forwarded F. Uses findNearNeighbour (ALL near, not just top-N) so
+      // a rank-(cap+1) forwarder with a harvested cross-rank edge to a top-N neighbour can still
+      // mark it covered in (b). forwarded[f] true => f is a near neighbour that forwarded F.
+      bool forwarded[MAX_NEIGHBOURS] = { false };
       for (uint8_t k = 0; k < count; k++) {
-        int8_t idx = findInTopNear(p, hs, top, top_n);
-        if (idx >= 0) on_path[idx] = true;          // this coverage peer forwarded F => has F
+        int8_t idx = findNearNeighbour(p, hs, now);
+        if (idx >= 0) forwarded[idx] = true;          // this near neighbour forwarded F => has F
         p += hs;
       }
 
-      // (b) COVERAGE: each coverage-peer forwarder covers itself + the coverage peers
-      //     it REACHES via a fresh measured edge (N heard fi's forward => N has F).
-      //     Graph edges are measured at the canonical TRACE hash width.
+      // (b) COVERAGE: a protected peer j has F if it forwarded F (certain), or if any near
+      //     forwarder f REACHES it via a fresh measured/harvested edge f->j (j heard f's forward
+      //     => j has F, inferred). Edges at the canonical TRACE hash width. This is where a
+      //     harvested cross-rank edge f(rank>cap)->j(top-N) first pays off (Part 2).
       for (uint8_t a = 0; a < top_n; a++) {
-        int i = top[a];
-        if (!on_path[i]) continue;                   // i must be a forwarder of F
-        e->addCovered((uint8_t)i);                   // i forwarded F => i has F (certain)
-        for (uint8_t b = 0; b < top_n; b++) {
-          int j = top[b];
-          if (j == i || on_path[j]) continue;        // j already has F
-          if (nearReaches(i, j, TRACE_MEAS_HASH_SIZE)) e->addCovered((uint8_t)j);
+        int j = top[a];
+        if (forwarded[j]) { e->addCovered((uint8_t)j); continue; }   // j forwarded F => has F (certain)
+        for (int f = 0; f < MAX_NEIGHBOURS; f++) {                   // any near forwarder reaches j?
+          if (f == j || !forwarded[f]) continue;
+          if (nearReaches(f, j, TRACE_MEAS_HASH_SIZE)) { e->addCovered((uint8_t)j); break; }
         }
       }
 
-      // (c) ISOLATED-PEER FAST-FORWARD: a coverage peer that NO other coverage peer
-      //     reaches (in-degree 0) and did NOT forward F can ONLY be covered by M's
-      //     own TX -> M must forward. Also the cold-start behaviour (graph empty
-      //     before any TRACE completes). getRetransmitDelay reads must_cover_self.
+      // (c) MUST-COVER-SELF: a protected non-forwarder i that NO near forwarder reaches can only
+      //     be covered by M's own TX -> M must forward. (Cold-start: graph empty before any TRACE
+      //     completes, so every i is unreachable -> M forwards, as intended.) Part 3: skip i that
+      //     M cannot transmit-reach -- M's TX would never reach it anyway, so it must not force a
+      //     futile self-forward (nor block suppression for the peers M CAN reach).
       e->must_cover_self = false;
       for (uint8_t a = 0; a < top_n && !e->must_cover_self; a++) {
         int i = top[a];
-        if (on_path[i]) continue;                    // i forwarded F -> covered
+        if (isExcludedFromProtection(i, millis())) continue;   // Part 3: M->i broken -> not owed coverage
+        if (forwarded[i]) continue;                            // i forwarded F -> covered
         bool reachable = false;
-        for (uint8_t b = 0; b < top_n; b++) {        // does any coverage peer j reach i?
-          int j = top[b];
-          if (j == i) continue;
-          if (nearReaches(j, i, TRACE_MEAS_HASH_SIZE)) { reachable = true; break; }
+        for (int f = 0; f < MAX_NEIGHBOURS; f++) {             // does any near forwarder f reach i?
+          if (f == i || !forwarded[f]) continue;
+          if (nearReaches(f, i, TRACE_MEAS_HASH_SIZE)) { reachable = true; break; }
         }
         if (!reachable) e->must_cover_self = true;
       }
@@ -1039,6 +1086,39 @@ void MyMesh::logRx(mesh::Packet *pkt, int len, float score) {
 #endif
     }
   }
+#if MAX_NEIGHBOURS
+  // --- Passive TRACE harvest (Part 2) -----------------------------------------
+  // Overhear a coverage TRACE [a,b,initiator] that another repeater emitted for ITS own suppression
+  // and adopt its measured a->b edge -- a richer reach graph at 0 extra airtime (TRACEs are
+  // cleartext; logRx fires for every received packet). Only the FINAL leg carries path[1] = the
+  // a->b SNR (b just appended it), so gate on getPathHashCount()>=2. Same SNR gate / direction /
+  // width / negative-on-weak as onTraceRecv; skip our own trace and any whose a/b are not both ours.
+  if (effectiveFloodSuppressC() > 0 && pkt->isRouteDirect()
+      && pkt->getPayloadType() == PAYLOAD_TYPE_TRACE
+      && pkt->payload_len >= 9 + 3 * TRACE_MEAS_HASH_SIZE) {
+    uint8_t flags = pkt->payload[8];
+    uint8_t entry_sz = 1 << (flags & 0x03);
+    if ((flags & TRACE_FLAG_TERMINATE_AT_LAST) && entry_sz == TRACE_MEAS_HASH_SIZE
+        && (pkt->payload_len - 9) / entry_sz == 3                     // exactly [a,b,initiator]
+        && pkt->getPathHashCount() >= 2) {                            // final leg: path[1] = a->b SNR
+      const uint8_t* visit = pkt->payload + 9;                        // [a(2), b(2), initiator(2)]
+      if (!self_id.isHashMatch(visit + 2 * entry_sz, entry_sz)) {     // not our own trace
+        uint32_t now = getRTCClock()->getCurrentTime();
+        if (findNearNeighbour(visit, entry_sz, now) >= 0
+            && findNearNeighbour(visit + entry_sz, entry_sz, now) >= 0) {   // both a,b are our near
+          int8_t snr_ab_x4 = (int8_t)pkt->path[1];
+          if (snr_ab_x4 >= (int8_t)(_prefs.flood_suppress_snr_lo * 4)) {
+            _nbr_links.addEdge(visit, visit + entry_sz, entry_sz, millis());   // a reaches b (clears stale neg)
+            _meas_harvested++;
+          } else {
+            _nbr_links.addNegative(visit, visit + entry_sz, entry_sz, millis());
+            _meas_harvest_neg++;
+          }
+        }
+      }
+    }
+  }
+#endif
 #ifdef WITH_BRIDGE
   if (_prefs.bridge_pkt_src == 1) {
     bridge.sendPacket(pkt);
@@ -1899,9 +1979,15 @@ void MyMesh::formatNearReply(char *reply) {
   // as no-edge (timeout or weak return) and skipped until the ~10h backoff expires. If sent>0
   // but ret==0 the round trips never complete (loss/collisions); if ret>0 but edge==0 the
   // measured inter-neighbour links are below snr_lo; if sent==0 no top-N>=2 window yet.
-  sprintf(dp, "\nmeas sent=%lu ret=%lu edge=%lu tmo=%lu neg=%lu",
+  // harv=edges/negatives adopted from overheard neighbours' TRACES (Part 2); unr=near neighbours
+  // M cannot transmit-reach and so excludes from the protection set (Part 3).
+  uint8_t unr = 0;
+  for (int i = 0; i < MAX_NEIGHBOURS; i++)
+    if (isNearNeighbour(i, now) && isExcludedFromProtection(i, millis())) unr++;
+  sprintf(dp, "\nmeas sent=%lu ret=%lu edge=%lu tmo=%lu neg=%lu harv=%lu unr=%u",
           (unsigned long)_meas_sent, (unsigned long)_meas_returned,
-          (unsigned long)_meas_edge, (unsigned long)_meas_timeout, (unsigned long)_meas_neg);
+          (unsigned long)_meas_edge, (unsigned long)_meas_timeout, (unsigned long)_meas_neg,
+          (unsigned long)_meas_harvested, (unsigned)unr);
   while (*dp) dp++;
 
   // 150-byte ceiling minus a worst-case entry (~26B: \n + ~ + 8hex + :secs:snr)
