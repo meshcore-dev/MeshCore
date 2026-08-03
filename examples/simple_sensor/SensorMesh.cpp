@@ -730,6 +730,8 @@ SensorMesh::SensorMesh(mesh::MainBoard& board, mesh::Radio& radio, mesh::Millise
   _prefs.flood_max = 64;
   _prefs.interference_threshold = 0;  // disabled
   _prefs.cad_enabled = 0;             // hardware CAD before TX (off by default; 'set cad on')
+  _prefs.rx_ps_rx_us = RX_POWERSAVING_DEFAULT_RX_US;
+  _prefs.rx_ps_sleep_us = RX_POWERSAVING_DEFAULT_SLEEP_US;
 
   // GPS defaults
   _prefs.gps_enabled = 0;
@@ -770,6 +772,7 @@ void SensorMesh::begin(FILESYSTEM* fs) {
 
   radio_driver.setParams(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
   radio_driver.setTxPower(_prefs.tx_power_dbm);
+  setRxPowerSaving(_prefs.rx_powersaving_enabled, _prefs.rx_ps_rx_us, _prefs.rx_ps_sleep_us);
 
   updateAdvertTimer();
   updateFloodAdvertTimer();
@@ -848,6 +851,15 @@ void SensorMesh::updateFloodAdvertTimer() {
 void SensorMesh::setTxPower(int8_t power_dbm) {
   radio_driver.setTxPower(power_dbm);
 }
+
+bool SensorMesh::setRxPowerSaving(bool enable, uint32_t rx_us, uint32_t sleep_us) {
+  return radio_driver.setRxPowerSaving(enable, rx_us, sleep_us);
+}
+void SensorMesh::getRxPsWatchdogCounts(uint32_t* soft, uint32_t* hard) {
+  *soft = radio_driver.getRxPsWatchdogSoftCount();
+  *hard = radio_driver.getRxPsWatchdogHardCount();
+}
+
 
 void SensorMesh::formatStatsReply(char *reply) {
   StatsFormatHelper::formatCoreStats(reply, board, *_ms, _err_flags, _mgr);

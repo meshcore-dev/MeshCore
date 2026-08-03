@@ -267,6 +267,62 @@ bool MyMesh::getCADEnabled() const {
   return true; // hardware CAD before TX (no CLI toggle on companion; enabled by default)
 }
 
+#if defined(RXPS_FIXED_ENABLED) || defined(RXPS_FIXED_LEVEL) || defined(RXPS_FIXED_PREAMBLE)
+#if !defined(RXPS_FIXED_ENABLED) || !defined(RXPS_FIXED_LEVEL) || !defined(RXPS_FIXED_PREAMBLE)
+#error "RXPS_FIXED_ENABLED, RXPS_FIXED_LEVEL, and RXPS_FIXED_PREAMBLE must be defined together"
+#endif
+#if RXPS_FIXED_LEVEL < 1 || RXPS_FIXED_LEVEL > 10
+#error "RXPS_FIXED_LEVEL must be between 1 and 10"
+#endif
+#if RXPS_FIXED_PREAMBLE != 16 && RXPS_FIXED_PREAMBLE != 32
+#error "RXPS_FIXED_PREAMBLE must be 16 or 32"
+#endif
+#endif
+
+#ifdef RXPS_FIXED_ENABLED
+static uint32_t ceilPositiveFloat(float value) {
+  uint32_t rounded = (uint32_t)value;
+  return value > (float)rounded ? rounded + 1 : rounded;
+}
+
+static bool calcFixedRxPowerSaving(uint8_t sf, float bw, uint32_t* rx_us, uint32_t* sleep_us) {
+  if (RXPS_FIXED_LEVEL < 1 || RXPS_FIXED_LEVEL > 10 || sf < 5 || sf > 12 ||
+      bw <= 0.0f || (RXPS_FIXED_PREAMBLE != 16 && RXPS_FIXED_PREAMBLE != 32)) {
+    return false;
+  }
+
+  const float symbol_us = (1000.0f * (float)(1UL << sf)) / bw;
+  const float amount = (float)(RXPS_FIXED_LEVEL - 1) / 9.0f;
+  const float rx_start_symbols = RXPS_FIXED_PREAMBLE == 16 ? 12.0f : 16.0f;
+  const float sleep_start_symbols = RXPS_FIXED_PREAMBLE == 16 ? 2.0f : 15.0f;
+  const float rx_edge_symbols = 8.0f;
+  const float sleep_edge_symbols = (float)RXPS_FIXED_PREAMBLE + 4.25f - 8.0f;
+
+  const float rx_symbols = rx_start_symbols + amount * (rx_edge_symbols - rx_start_symbols);
+  const float sleep_symbols = sleep_start_symbols + amount * (sleep_edge_symbols - sleep_start_symbols);
+
+  *rx_us = ceilPositiveFloat(rx_symbols * symbol_us);
+  *sleep_us = (uint32_t)(sleep_symbols * symbol_us);
+  return true;
+}
+
+static void applyFixedRxPowerSaving(uint8_t sf, float bw) {
+  uint32_t rx_us, sleep_us;
+  if (!calcFixedRxPowerSaving(sf, bw, &rx_us, &sleep_us)) {
+    MESH_DEBUG_PRINTLN("RX Power Saving fixed profile invalid");
+    return;
+  }
+
+  bool ok = radio_driver.setRxPowerSaving(true, rx_us, sleep_us);
+  MESH_DEBUG_PRINTLN("RX Power Saving fixed level %d p%d: %s (%lu/%lu us)",
+                     RXPS_FIXED_LEVEL,
+                     RXPS_FIXED_PREAMBLE,
+                     ok ? "Enabled" : "Unsupported",
+                     (unsigned long)rx_us,
+                     (unsigned long)sleep_us);
+}
+#endif
+
 int MyMesh::calcRxDelay(float score, uint32_t air_time) const {
   if (_prefs.rx_delay_base <= 0.0f) return 0;
   return (int)((pow(_prefs.rx_delay_base, 0.85f - score) - 1.0) * air_time);
@@ -972,6 +1028,9 @@ void MyMesh::begin(bool has_display) {
   radio_driver.setTxPower(_prefs.tx_power_dbm);
   radio_driver.setRxBoostedGainMode(_prefs.rx_boosted_gain);
   board.setLoRaFemLnaEnabled(_prefs.radio_fem_rxgain);
+#ifdef RXPS_FIXED_ENABLED
+  applyFixedRxPowerSaving(_prefs.sf, _prefs.bw);
+#endif
   MESH_DEBUG_PRINTLN("RX Boosted Gain Mode: %s",
                      radio_driver.getRxBoostedGainMode() ? "Enabled" : "Disabled");
 }
@@ -1397,6 +1456,9 @@ void MyMesh::handleCmdFrame(size_t len) {
       savePrefs();
 
       radio_driver.setParams(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
+#ifdef RXPS_FIXED_ENABLED
+      applyFixedRxPowerSaving(_prefs.sf, _prefs.bw);
+#endif
       MESH_DEBUG_PRINTLN("OK: CMD_SET_RADIO_PARAMS: f=%d, bw=%d, sf=%d, cr=%d", freq, bw, (uint32_t)sf,
                          (uint32_t)cr);
 

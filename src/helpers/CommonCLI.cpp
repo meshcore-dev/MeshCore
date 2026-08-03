@@ -29,6 +29,80 @@ static bool isValidName(const char *n) {
   return true;
 }
 
+static bool isValidRxPowerSavingPeriod(uint32_t us) {
+  return us >= RX_POWERSAVING_MIN_PERIOD_US && us <= RX_POWERSAVING_MAX_PERIOD_US;
+}
+
+// MeshCore preamble convention used for the RX powersaving timing calculation.
+// Must stay in sync with RadioLibWrapper::preambleLengthForSF() (the value the
+// radio actually transmits); kept local here because CommonCLI is radio-agnostic.
+static uint16_t rxPowerSavingPreambleForSF(uint8_t sf) {
+  return sf <= 8 ? 32 : 16;
+}
+
+static bool isNumeric(const char* sp) {
+  if (!sp || !*sp) return false;
+  while (*sp) {
+    if (*sp < '0' || *sp > '9') return false;
+    sp++;
+  }
+  return true;
+}
+
+static uint32_t ceilPositiveFloat(float value) {
+  uint32_t rounded = (uint32_t)value;
+  return value > (float)rounded ? rounded + 1 : rounded;
+}
+
+static bool calcRxPowerSavingLevel(uint32_t level, uint8_t sf, float bw, uint32_t preamble,
+                                   uint32_t* rx_us, uint32_t* sleep_us) {
+  if (level < 1 || level > 10 || sf < 5 || sf > 12 || bw <= 0.0f || (preamble != 16 && preamble != 32)) {
+    return false;
+  }
+
+  const float symbol_us = (1000.0f * (float)(1UL << sf)) / bw;
+  const float amount = (float)(level - 1) / 9.0f;
+  const float rx_start_symbols = preamble == 16 ? 12.0f : 16.0f;
+  const float sleep_start_symbols = preamble == 16 ? 2.0f : 15.0f;
+  const float rx_edge_symbols = 8.0f;
+  const float sleep_edge_symbols = (float)preamble + 4.25f - 8.0f;
+
+  const float rx_symbols = rx_start_symbols + amount * (rx_edge_symbols - rx_start_symbols);
+  const float sleep_symbols = sleep_start_symbols + amount * (sleep_edge_symbols - sleep_start_symbols);
+
+  *rx_us = ceilPositiveFloat(rx_symbols * symbol_us);
+  *sleep_us = (uint32_t)(sleep_symbols * symbol_us);
+  return true;
+}
+
+static void ensureRxPowerSavingDefaults(NodePrefs* prefs) {
+  if (!isValidRxPowerSavingPeriod(prefs->rx_ps_rx_us)) {
+    prefs->rx_ps_rx_us = RX_POWERSAVING_DEFAULT_RX_US;
+  }
+  if (!isValidRxPowerSavingPeriod(prefs->rx_ps_sleep_us)) {
+    prefs->rx_ps_sleep_us = RX_POWERSAVING_DEFAULT_SLEEP_US;
+  }
+}
+
+// Recomputes rx_ps_rx_us/rx_ps_sleep_us from the stored level and the current
+// radio SF/BW. No-op (returns false) for manual timings (rx_ps_level == 0).
+// Lets level-based RX powersaving auto-retune when SF/BW change.
+static bool recalcRxPowerSavingFromLevel(NodePrefs* prefs) {
+  if (prefs->rx_ps_level < 1 || prefs->rx_ps_level > 10) return false;  // manual: nothing to recompute
+  uint32_t preamble = prefs->rx_ps_preamble ? prefs->rx_ps_preamble
+                                            : rxPowerSavingPreambleForSF(prefs->sf);
+  uint32_t rx_us, sleep_us;
+  if (!calcRxPowerSavingLevel(prefs->rx_ps_level, prefs->sf, prefs->bw, preamble, &rx_us, &sleep_us)) {
+    return false;
+  }
+  if (!isValidRxPowerSavingPeriod(rx_us) || !isValidRxPowerSavingPeriod(sleep_us)) {
+    return false;
+  }
+  prefs->rx_ps_rx_us = rx_us;
+  prefs->rx_ps_sleep_us = sleep_us;
+  return true;
+}
+
 void CommonCLI::loadPrefs(FILESYSTEM* fs) {
   if (fs->exists("/com_prefs")) {
     loadPrefsInt(fs, "/com_prefs");   // new filename
@@ -96,7 +170,12 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     file.read((uint8_t *)&_prefs->flood_max_advert, sizeof(_prefs->flood_max_advert));       // 292
     file.read((uint8_t *)&_prefs->radio_fem_rxgain, sizeof(_prefs->radio_fem_rxgain));            // 293
     file.read((uint8_t *)&_prefs->cad_enabled, sizeof(_prefs->cad_enabled));                      // 294
-    // next: 295
+    file.read((uint8_t *)&_prefs->rx_powersaving_enabled, sizeof(_prefs->rx_powersaving_enabled)); // 295
+    file.read((uint8_t *)&_prefs->rx_ps_rx_us, sizeof(_prefs->rx_ps_rx_us));                       // 296
+    file.read((uint8_t *)&_prefs->rx_ps_sleep_us, sizeof(_prefs->rx_ps_sleep_us));                 // 300
+    file.read((uint8_t *)&_prefs->rx_ps_level, sizeof(_prefs->rx_ps_level));                       // 304
+    file.read((uint8_t *)&_prefs->rx_ps_preamble, sizeof(_prefs->rx_ps_preamble));                 // 305
+    // next: 306
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -129,6 +208,13 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     _prefs->rx_boosted_gain = constrain(_prefs->rx_boosted_gain, 0, 1); // boolean
     _prefs->radio_fem_rxgain = constrain(_prefs->radio_fem_rxgain, 0, 1); // boolean
     _prefs->cad_enabled = constrain(_prefs->cad_enabled, 0, 1); // boolean
+    _prefs->rx_powersaving_enabled = constrain(_prefs->rx_powersaving_enabled, 0, 1);
+    _prefs->rx_ps_level = constrain(_prefs->rx_ps_level, 0, 10);
+    if (_prefs->rx_ps_preamble != 16 && _prefs->rx_ps_preamble != 32) {
+      _prefs->rx_ps_preamble = 0;   // 0 = auto (derive from SF)
+    }
+    ensureRxPowerSavingDefaults(_prefs);
+    recalcRxPowerSavingFromLevel(_prefs);   // retune level-based timings to the loaded SF/BW
 
     file.close();
   }
@@ -195,7 +281,12 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->flood_max_advert, sizeof(_prefs->flood_max_advert));       // 292
     file.write((uint8_t *)&_prefs->radio_fem_rxgain, sizeof(_prefs->radio_fem_rxgain));       // 293
     file.write((uint8_t *)&_prefs->cad_enabled, sizeof(_prefs->cad_enabled));                 // 294
-    // next: 295
+    file.write((uint8_t *)&_prefs->rx_powersaving_enabled, sizeof(_prefs->rx_powersaving_enabled)); // 295
+    file.write((uint8_t *)&_prefs->rx_ps_rx_us, sizeof(_prefs->rx_ps_rx_us));                       // 296
+    file.write((uint8_t *)&_prefs->rx_ps_sleep_us, sizeof(_prefs->rx_ps_sleep_us));                 // 300
+    file.write((uint8_t *)&_prefs->rx_ps_level, sizeof(_prefs->rx_ps_level));                       // 304
+    file.write((uint8_t *)&_prefs->rx_ps_preamble, sizeof(_prefs->rx_ps_preamble));                 // 305
+    // next: 306
 
     file.close();
   }
@@ -670,6 +761,105 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     } else {
       strcpy(reply, "Error: state must be on or off");
     }
+  } else if (memcmp(config, "radio.rxps ", 11) == 0) {
+    const char* value = &config[11];
+    uint8_t enable = _prefs->rx_powersaving_enabled;
+    uint32_t rx_us = _prefs->rx_ps_rx_us;
+    uint32_t sleep_us = _prefs->rx_ps_sleep_us;
+    uint32_t level = 0;
+    uint32_t preamble = rxPowerSavingPreambleForSF(_prefs->sf);
+    bool level_requested = false;
+    bool preamble_overridden = false;
+
+    ensureRxPowerSavingDefaults(_prefs);
+    rx_us = _prefs->rx_ps_rx_us;
+    sleep_us = _prefs->rx_ps_sleep_us;
+
+    if (strcmp(value, "off") == 0) {
+      enable = 0;
+    } else if (strcmp(value, "on") == 0 || strcmp(value, "conservative") == 0) {
+      enable = 1;
+      level = RX_POWERSAVING_CONSERVATIVE_LEVEL;
+      preamble = RX_POWERSAVING_PROFILE_PREAMBLE;
+      level_requested = true;
+      preamble_overridden = true;
+    } else if (strcmp(value, "balanced") == 0) {
+      enable = 1;
+      level = RX_POWERSAVING_BALANCED_LEVEL;
+      preamble = RX_POWERSAVING_PROFILE_PREAMBLE;
+      level_requested = true;
+      preamble_overridden = true;
+    } else {
+      StrHelper::strncpy(tmp, value, sizeof(tmp));
+      const char *parts[4];
+      int num = mesh::Utils::parseTextParts(tmp, parts, 4, ' ');
+      if (num == 1 && isNumeric(parts[0])) {
+        level = _atoi(parts[0]);
+        level_requested = true;
+        enable = 1;
+      } else if (num == 2 && strcmp(parts[0], "level") == 0 && isNumeric(parts[1])) {
+        level = _atoi(parts[1]);
+        level_requested = true;
+        enable = 1;
+      } else if (num == 4 && strcmp(parts[0], "level") == 0 && isNumeric(parts[1]) &&
+                 strcmp(parts[2], "preamble") == 0 && isNumeric(parts[3])) {
+        level = _atoi(parts[1]);
+        preamble = _atoi(parts[3]);
+        level_requested = true;
+        preamble_overridden = true;
+        enable = 1;
+      } else if (num == 2 && isNumeric(parts[0]) && isNumeric(parts[1])) {
+        rx_us = _atoi(parts[0]);
+        sleep_us = _atoi(parts[1]);
+        enable = 1;
+      } else {
+        strcpy(reply, "ERROR: use off|on|conservative|balanced|level <1-10>|<rx_us> <sleep_us>");
+        return;
+      }
+    }
+
+    if (level_requested && !calcRxPowerSavingLevel(level, _prefs->sf, _prefs->bw, preamble, &rx_us, &sleep_us)) {
+      strcpy(reply, "ERROR: level range is 1-10; preamble is 16 or 32");
+      return;
+    }
+
+    if (!isValidRxPowerSavingPeriod(rx_us) || !isValidRxPowerSavingPeriod(sleep_us)) {
+      sprintf(reply, "ERROR: range is %lu-%lu us",
+              (unsigned long)RX_POWERSAVING_MIN_PERIOD_US,
+              (unsigned long)RX_POWERSAVING_MAX_PERIOD_US);
+      return;
+    }
+
+    if (!_callbacks->setRxPowerSaving(enable, rx_us, sleep_us)) {
+      strcpy(reply, "ERROR: RX powersaving unsupported");
+      return;
+    }
+
+    _prefs->rx_powersaving_enabled = enable;
+    _prefs->rx_ps_rx_us = rx_us;
+    _prefs->rx_ps_sleep_us = sleep_us;
+    if (level_requested) {
+      // Remember the intent so the timings can auto-retune when SF/BW change.
+      _prefs->rx_ps_level = level;
+      _prefs->rx_ps_preamble = preamble_overridden ? preamble : 0;   // 0 = auto (derive from SF)
+    } else if (strcmp(value, "off") != 0) {
+      // manual <rx_us> <sleep_us> timings are fixed, not level-derived
+      // (the named profiles set level_requested and are handled above)
+      _prefs->rx_ps_level = 0;
+      _prefs->rx_ps_preamble = 0;
+    }
+    savePrefs();
+    if (level_requested) {
+      sprintf(reply, "OK - level %lu,%s,%lu,%lu,preamble=%lu",
+              (unsigned long)level,
+              enable ? "on" : "off",
+              (unsigned long)rx_us,
+              (unsigned long)sleep_us,
+              (unsigned long)preamble);
+    } else {
+      sprintf(reply, "OK - %s,%lu,%lu", enable ? "on" : "off",
+              (unsigned long)rx_us, (unsigned long)sleep_us);
+    }
   } else if (memcmp(config, "radio ", 6) == 0) {
     strcpy(tmp, &config[6]);
     const char *parts[4];
@@ -683,8 +873,11 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       _prefs->cr = cr;
       _prefs->freq = freq;
       _prefs->bw = bw;
+      // Retune level-based RX powersaving to the new SF/BW. Persist only; the
+      // radio itself is "reboot to apply", and begin() re-arms the timings then.
+      bool rxps_retuned = recalcRxPowerSavingFromLevel(_prefs);
       _callbacks->savePrefs();
-      strcpy(reply, "OK - reboot to apply");
+      strcpy(reply, rxps_retuned ? "OK - reboot to apply (rxps retuned)" : "OK - reboot to apply");
     } else {
       strcpy(reply, "Error, invalid radio params");
     }
@@ -928,6 +1121,14 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     } else {
       sprintf(reply, "> %s", _board->isLoRaFemLnaEnabled() ? "on" : "off");
     }
+  } else if (memcmp(config, "radio.rxps", 10) == 0) {
+    ensureRxPowerSavingDefaults(_prefs);
+    sprintf(reply, "> %s,%lu,%lu", _prefs->rx_powersaving_enabled ? "on" : "off",
+            (unsigned long)_prefs->rx_ps_rx_us, (unsigned long)_prefs->rx_ps_sleep_us);
+  } else if (memcmp(config, "rxps.wd", 7) == 0) {
+    uint32_t wd_soft, wd_hard;
+    _callbacks->getRxPsWatchdogCounts(&wd_soft, &wd_hard);
+    sprintf(reply, "> soft=%lu,hard=%lu", (unsigned long)wd_soft, (unsigned long)wd_hard);
   } else if (memcmp(config, "radio", 5) == 0) {
     char freq[16], bw[16];
     strcpy(freq, StrHelper::ftoa(_prefs->freq));

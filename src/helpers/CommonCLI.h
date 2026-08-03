@@ -19,6 +19,18 @@
 #define LOOP_DETECT_MODERATE  2
 #define LOOP_DETECT_STRICT    3
 
+#define RX_POWERSAVING_DEFAULT_RX_US     65625UL
+#define RX_POWERSAVING_DEFAULT_SLEEP_US  60000UL
+#define RX_POWERSAVING_MIN_PERIOD_US     1000UL
+#define RX_POWERSAVING_MAX_PERIOD_US     30000000UL
+
+// The named profiles are level presets pinned to a 16-symbol preamble: most
+// deployed senders still transmit 16-symbol preambles regardless of the newer
+// SF-based rule (32 for SF <= 8). Revisit once the field has largely migrated.
+#define RX_POWERSAVING_CONSERVATIVE_LEVEL 1UL
+#define RX_POWERSAVING_BALANCED_LEVEL     5UL
+#define RX_POWERSAVING_PROFILE_PREAMBLE   16UL
+
 struct NodePrefs { // persisted to file
   float airtime_factor;
   char node_name[32];
@@ -66,6 +78,11 @@ struct NodePrefs { // persisted to file
   uint8_t path_hash_mode;   // which path mode to use when sending
   uint8_t loop_detect;
   uint8_t cad_enabled;      // hardware Channel Activity Detection before TX (boolean)
+  uint8_t rx_powersaving_enabled; // boolean
+  uint32_t rx_ps_rx_us;
+  uint32_t rx_ps_sleep_us;
+  uint8_t rx_ps_level;      // 0 = manual/explicit us timings; 1..10 = level-derived (auto-retunes on SF/BW change)
+  uint8_t rx_ps_preamble;   // 0 = auto (derive from SF); else 16 or 32 = explicit override for level calc
 };
 
 class CommonCLICallbacks {
@@ -114,6 +131,14 @@ public:
 
   virtual void setRxBoostedGain(bool enable) {
     // no op by default
+  };
+
+  virtual bool setRxPowerSaving(bool enable, uint32_t rx_us, uint32_t sleep_us) {
+    return !enable;
+  };
+
+  virtual void getRxPsWatchdogCounts(uint32_t* soft, uint32_t* hard) {
+    *soft = 0; *hard = 0;
   };
 };
 

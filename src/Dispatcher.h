@@ -31,6 +31,9 @@ public:
   */
   virtual int recvRaw(uint8_t* bytes, int sz) = 0;
 
+  /** Called after the received packet and its radio metadata have been processed. */
+  virtual void onReceiveProcessed() { }
+
   /**
    * \returns  estimated transmit air-time needed for packet of 'len_bytes', in milliseconds.
   */
@@ -70,6 +73,9 @@ public:
   virtual void resetAGC() { }
 
   virtual bool isInRecvMode() const = 0;
+
+  virtual bool supportsRxPowerSaving() const { return false; }
+  virtual bool setRxPowerSaving(bool enabled, uint32_t rx_us, uint32_t sleep_us) { return !enabled; }
 
   /**
    * \returns  true if the radio is currently mid-receive of a packet.
