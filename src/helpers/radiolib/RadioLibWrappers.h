@@ -3,6 +3,9 @@
 #include <Mesh.h>
 #include <RadioLib.h>
 
+#ifdef USE_CC310_HW_CRYPTO
+#include <Adafruit_nRFCrypto.h>
+#endif
 struct PacketMillis {
   uint32_t preambleMillis;  // preamble-detect -> header-valid deadline
   uint32_t payloadMillis;   // header-valid   -> rx-done deadline
@@ -86,8 +89,15 @@ public:
   RadioNoiseListener(PhysicalLayer& radio): _radio(&radio) { }
 
   void random(uint8_t* dest, size_t sz) override {
+#ifdef USE_CC310_HW_CRYPTO
+    // CC310 TRNG is higher quality and environment-independent vs radio RSSI noise.
+    nRFCrypto.begin();
+    nRFCrypto.Random.generate(dest, (uint16_t)sz);
+    nRFCrypto.end();
+#else
     for (int i = 0; i < sz; i++) {
       dest[i] = _radio->randomByte() ^ (::random(0, 256) & 0xFF);
     }
+#endif
   }
 };
