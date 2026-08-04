@@ -26,6 +26,8 @@ void setFlag(void) {
 
 void RadioLibWrapper::begin() {
   _radio->setPacketReceivedAction(setFlag);  // this is also SentComplete interrupt
+  _preamble_sf = getSpreadingFactor();
+  _radio->setPreambleLength(preambleLengthForSF(_preamble_sf)); // longer preamble for lower SF improves reliability
   state = STATE_IDLE;
 
   if (_board->getStartupReason() == BD_STARTUP_RX_PACKET) {  // received a LoRa packet (while in deep sleep)
@@ -38,6 +40,14 @@ void RadioLibWrapper::begin() {
   // start average out some samples
   _num_floor_samples = 0;
   _floor_sample_sum = 0;
+}
+
+uint32_t RadioLibWrapper::getRngSeed() {
+  return _radio->random(0x7FFFFFFF);
+}
+
+void RadioLibWrapper::setTxPower(int8_t dbm) {
+  _radio->setOutputPower(dbm);
 }
 
 void RadioLibWrapper::idle() {
