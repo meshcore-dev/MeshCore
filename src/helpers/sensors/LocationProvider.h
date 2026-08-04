@@ -5,9 +5,31 @@
 
 class LocationProvider {
 protected:
+    mesh::RTCClock* _clock;
     bool _time_sync_needed = true;
+    unsigned long _last_time_sync = 0;
+    long _time_valid = 0;
+
+    void _syncTimeIfNeeded() {
+        if (isValid()) {
+            _time_valid ++;
+        } else {
+            _time_valid = 0;
+        }
+
+        if (_time_sync_needed && _time_valid > 3) {
+            if (_clock != NULL) {
+                _clock->setCurrentTime(getTimestamp());
+                MESH_DEBUG_PRINTLN("Synced time from GPS: %u", _clock->getCurrentTime());
+                _time_sync_needed = false;
+                _last_time_sync = millis();
+            }
+        }
+    };
 
 public:
+    LocationProvider(mesh::RTCClock* clock = NULL) :
+    _clock(clock) {}
     virtual void syncTime() { _time_sync_needed = true; }
     virtual bool waitingTimeSync() { return _time_sync_needed; }
     virtual long getLatitude() = 0;

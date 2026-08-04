@@ -28,7 +28,8 @@ protected:
   void start_gps();
   void stop_gps();
   void initBasicGPS();
-  #ifdef RAK_BOARD
+  #ifdef ENV_INCLUDE_RAK12500
+  mesh::RTCClock* _clock;
   void rakGPSInit();
   bool gpsIsAwake();
   #endif
@@ -36,8 +37,12 @@ protected:
 
 public:
   #if ENV_INCLUDE_GPS
-  EnvironmentSensorManager(LocationProvider &location): _location(&location){};
-  LocationProvider* getLocationProvider() { return _location; }
+    #ifdef ENV_INCLUDE_RAK12500
+    EnvironmentSensorManager(LocationProvider &location, mesh::RTCClock* rtc_clock): _location(&location), _clock(rtc_clock) {};
+    #else
+    EnvironmentSensorManager(LocationProvider &location): _location(&location) {};
+    #endif
+    LocationProvider* getLocationProvider() { return _location; }
   #else
   EnvironmentSensorManager(){};
   #endif
