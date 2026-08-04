@@ -73,6 +73,10 @@ struct NodePrefs { // persisted to file
   uint8_t ota_max_hops;           // OTA flood reach in hops; 0=direct only. Default 3 (runtime-tunable)
   uint8_t hop_retry;              // extra direct-path TX if next hop hop ACK missing (0=off). Default 0 (opt-in)
   uint16_t hop_retry_ms;          // listen TTL before retry (ms). Default 1500
+  // Superseeder target filter (persisted). filter=0 → admit all (default); filter=1 → only listed.
+  uint8_t ota_seeder_allow_count;
+  uint8_t ota_seeder_allow_filter;  // 0=all, 1=filter (empty filter admits nothing)
+  uint32_t ota_seeder_allow[8];     // target_ids (== MAX_OTA_SEEDER_ALLOW)
 };
 
 class CommonCLICallbacks {

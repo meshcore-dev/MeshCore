@@ -1,16 +1,18 @@
 #pragma once
 
-#if defined(OTA_SD_SEEDER)
+#if defined(OTA_SUPERSEEDER)
 
 #include "OtaStore.h"
+#include <string.h>
 
 namespace mesh {
 namespace ota {
 
-// OtaStore that captures an in-transit `.mota` onto SD as OTA_SD_DIR/<midhex>.mota.part -> .mota.
-class SdMotaStore : public OtaStore {
+// OtaStore that captures an in-transit `.mota` onto the seeder FS as
+// OTA_SEEDER_DIR/<midhex>.mota.part -> .mota.
+class SeederMotaStore : public OtaStore {
 public:
-  SdMotaStore() = default;
+  SeederMotaStore() = default;
 
   void set_mid(const uint8_t mid[4]) { memcpy(_mid, mid, 4); }
 
@@ -24,18 +26,17 @@ public:
   bool reopen() override;
 
   bool set_meta_size(uint32_t) override { return true; }
-  bool plan_layout(bool, uint32_t, uint32_t, uint32_t) override { return true; }
+  // Superseeder library is deltas-only — refuse full snapshots at store admission.
+  bool plan_layout(bool is_full, uint32_t, uint32_t, uint32_t) override { return !is_full; }
 
 private:
-  bool openPart(bool create, uint32_t fill_size = 0);
   void partPath(char* out, size_t cap) const;
 
   uint8_t  _mid[4] = {0};
   uint32_t _total = 0;
-  mutable void* _file = nullptr;   // FsFile* while open (lazy)
 };
 
-} // namespace ota
-} // namespace mesh
+}  // namespace ota
+}  // namespace mesh
 
 #endif
