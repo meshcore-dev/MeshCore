@@ -68,6 +68,7 @@ public:
   uint8_t path_hash_mode = 0;   // which path mode to use when sending
   uint8_t loop_detect = 0;
   uint8_t cad_enabled = 0;      // hardware Channel Activity Detection before TX (boolean)
+  uint8_t region_src_pubkey[PUB_KEY_SIZE];   // node to subscribe to regions from (all zeroes = none)
 
 private:
   class RadioPrefs : public ConfigSerializer {
@@ -146,6 +147,7 @@ private:
       def("f_max_uns", _parent->flood_max_unscoped);
       def("f_max_adv", _parent->flood_max_advert);
       def("loop", _parent->loop_detect);
+      def("region_src", _parent->region_src_pubkey, sizeof(_parent->region_src_pubkey));
     }
   public:
     RepeatPrefs(NodePrefs* parent) : _parent(parent) { }
@@ -171,6 +173,7 @@ protected:
     def("owner", owner_info, sizeof(owner_info));
     def("adv_int", advert_interval);
     def("f_adv_int", flood_advert_interval);
+    def("disc_mod", discovery_mod_timestamp);   // else 'since' filtered DISCOVERs miss us after a reboot
     def("lat", node_lat);
     def("lon", node_lon);
     def("radio", radio);
@@ -188,6 +191,7 @@ public:
     guest_password[0] = 0;
     bridge_secret[0] = 0;
     owner_info[0] = 0;
+    memset(region_src_pubkey, 0, sizeof(region_src_pubkey));
   }
 };
 

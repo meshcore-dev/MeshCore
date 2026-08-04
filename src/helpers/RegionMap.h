@@ -54,6 +54,8 @@ public:
   const RegionEntry* getByIdx(int i) const { return &regions[i]; }
   const RegionEntry* getRoot() const { return &wildcard; }
   int exportNamesTo(char *dest, int max_len, uint8_t mask, bool invert = false);
+  // additive: existing names keep their flags and parent. Returns the number added
+  int importNamesFrom(const char *src, int len, int* num_known = NULL, bool* was_full = NULL);
   int getTransportKeysFor(const RegionEntry& src, TransportKey dest[], int max_num);
 
   void    exportTo(Stream& out) const;
