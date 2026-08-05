@@ -62,7 +62,8 @@ const uint32_t g_ADigitalPinMap[PINS_COUNT + 1] =
 void initVariant()
 {
   pinMode(BATTERY_PIN, INPUT);
-  pinMode(EXT_CHRG_DETECT, INPUT);
+  pinMode(EXT_CHRG_DETECT, INPUT_PULLUP);
+  pinMode(EXT_CHRG_DONE, INPUT_PULLUP);
   pinMode(EXT_PWR_DETECT, INPUT);
   pinMode(PIN_BUTTON1, INPUT_PULLDOWN);
 

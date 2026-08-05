@@ -337,6 +337,36 @@ void UITask::userLedHandler() {
     next_batt_check = cur_time + 60000;
   }
 
+#ifdef EXT_CHRG_DETECT
+  // charge status display while docked (skipped when messages are waiting,
+  // so the unread indication is never masked)
+  static unsigned long next_pwr_check = 0;
+  static bool ext_powered = false, ext_charging = false;
+  if (cur_time > next_pwr_check) {
+    ext_powered = _board->isExternalPowered();
+    bool chrg = digitalRead(EXT_CHRG_DETECT) == LOW;
+  #ifdef EXT_CHRG_DONE
+    if (digitalRead(EXT_CHRG_DONE) == LOW) chrg = false;   // charge-done wins
+  #endif
+    ext_charging = ext_powered && chrg;
+    next_pwr_check = cur_time + 1000;
+  }
+  if (ext_powered && _msgcount == 0) {
+    if (ext_charging) {
+      // amber breathing while charging
+      int ph = cur_time % 2000;
+      int v = ph < 1000 ? ph : 2000 - ph;
+      uint8_t lvl = (uint8_t)(v * 255 / 1000);
+      statusLedWrite(lvl, (uint8_t)(lvl * 35 / 100), 0);
+    } else {
+      statusLedWrite(0, 40, 0);   // dim solid green: charge complete
+    }
+    state = 0;
+    next_change = cur_time;
+    return;
+  }
+#endif
+
   if (cur_time > next_change) {
     if (state == 0) {
       state = 1;

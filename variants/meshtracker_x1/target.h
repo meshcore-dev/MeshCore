@@ -8,12 +8,15 @@
 #include <helpers/ArduinoHelpers.h>
 #include <helpers/SensorManager.h>
 #include <helpers/sensors/LocationProvider.h>
+#include <Adafruit_SPA06_003.h>
 #ifdef DISPLAY_CLASS
   #include "NullDisplayDriver.h"
 #endif
 
 class MeshTrackerX1SensorManager: public SensorManager {
   bool gps_active = false;
+  bool baro_ok = false;
+  Adafruit_SPA06_003 spa06;
   LocationProvider * _nmea;
 
   void start_gps();

@@ -25,6 +25,7 @@
 #define ADC_MULTIPLIER          (2.0F)
 
 #define EXT_CHRG_DETECT         (35)            // P1.3, LOW while charging
+#define EXT_CHRG_DONE           (36)            // P1.4, LOW when charge complete
 #define EXT_PWR_DETECT          (5)             // P0.5
 
 #define ADC_RESOLUTION          (14)
