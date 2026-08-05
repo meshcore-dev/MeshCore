@@ -1060,6 +1060,12 @@ bool MyMesh::setRxBoostedGain(bool enable) {
   return radio_driver.setRxBoostedGainMode(enable);
 }
 
+#if defined(USE_LR2021)
+bool MyMesh::configSideDetectors(const uint8_t sideDetSFs[], uint8_t num, float bw) {
+  return radio_driver.configSideDetectors(sideDetSFs, num, bw);
+}
+#endif
+
 void MyMesh::formatNeighborsReply(char *reply) {
   char *dp = reply;
 
