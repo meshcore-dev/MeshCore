@@ -309,7 +309,7 @@ File file = openRead(_getContactsChannelsFS(), "/contacts3");
     }
 }
 
-void DataStore::saveContacts(DataStoreHost* host) {
+void DataStore::saveContacts(DataStoreHost* host, bool (*filter)(const ContactInfo& c)) {
   File file = openWrite(_getContactsChannelsFS(), "/contacts3");
   if (file) {
     uint32_t idx = 0;
@@ -317,6 +317,10 @@ void DataStore::saveContacts(DataStoreHost* host) {
     uint8_t unused = 0;
 
     while (host->getContactForSave(idx, c)) {
+      if (filter && !filter(c)) {
+        idx++;  // advance to next contact
+        continue;
+      }
       bool success = (file.write(c.id.pub_key, 32) == 32);
       success = success && (file.write((uint8_t *)&c.name, 32) == 32);
       success = success && (file.write(&c.type, 1) == 1);

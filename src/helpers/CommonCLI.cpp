@@ -89,7 +89,9 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     file.read((uint8_t *)&_prefs->adc_multiplier, sizeof(_prefs->adc_multiplier));                 // 166
     file.read((uint8_t *)_prefs->owner_info, sizeof(_prefs->owner_info));                          // 170
     file.read((uint8_t *)&_prefs->rx_boosted_gain, sizeof(_prefs->rx_boosted_gain));              // 290
-    // next: 291
+    file.read((uint8_t *)&_prefs->flood_max_unscoped, sizeof(_prefs->flood_max_unscoped));   // 291
+    file.read((uint8_t *)&_prefs->flood_max_advert, sizeof(_prefs->flood_max_advert));       // 292
+    // next: 293
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -180,7 +182,9 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->adc_multiplier, sizeof(_prefs->adc_multiplier));                 // 166
     file.write((uint8_t *)_prefs->owner_info, sizeof(_prefs->owner_info));                          // 170
     file.write((uint8_t *)&_prefs->rx_boosted_gain, sizeof(_prefs->rx_boosted_gain));              // 290
-    // next: 291
+    file.write((uint8_t *)&_prefs->flood_max_unscoped, sizeof(_prefs->flood_max_unscoped));   // 291
+    file.write((uint8_t *)&_prefs->flood_max_advert, sizeof(_prefs->flood_max_advert));       // 292
+    // next: 293
 
     file.close();
   }
@@ -428,13 +432,23 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       }
 #endif
     } else if (memcmp(command, "powersaving on", 14) == 0) {
+#if defined(NRF52_PLATFORM)
       _prefs->powersaving_enabled = 1;
       savePrefs();
-      strcpy(reply, "ok"); // TODO: to return Not supported if required
+      strcpy(reply, "on - Immediate effect");
+#elif defined(ESP32) && !defined(WITH_BRIDGE)
+      _prefs->powersaving_enabled = 1;
+      savePrefs();
+      strcpy(reply, "on - After 2 minutes");
+#elif defined(WITH_BRIDGE)
+      strcpy(reply, "Bridge not supported");
+#else
+      strcpy(reply, "Board not supported");
+#endif
     } else if (memcmp(command, "powersaving off", 15) == 0) {
       _prefs->powersaving_enabled = 0;
       savePrefs();
-      strcpy(reply, "ok");
+      strcpy(reply, "off");
     } else if (memcmp(command, "powersaving", 11) == 0) {
       if (_prefs->powersaving_enabled) {
         strcpy(reply, "on");
@@ -547,7 +561,7 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     _prefs->disable_fwd = memcmp(&config[7], "off", 3) == 0;
     savePrefs();
     strcpy(reply, _prefs->disable_fwd ? "OK - repeat is now OFF" : "OK - repeat is now ON");
-#if defined(USE_SX1262) || defined(USE_SX1268)
+#if defined(USE_SX1262) || defined(USE_SX1268) || defined(USE_LR1110)
   } else if (memcmp(config, "radio.rxgain ", 13) == 0) {
     _prefs->rx_boosted_gain = memcmp(&config[13], "on", 2) == 0;
     strcpy(reply, "OK");
@@ -582,21 +596,39 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     strcpy(reply, "OK");
   } else if (memcmp(config, "rxdelay ", 8) == 0) {
     float db = atof(&config[8]);
-    if (db >= 0) {
+    if (db >= 0 && db <= 20.0f) {
       _prefs->rx_delay_base = db;
       savePrefs();
       strcpy(reply, "OK");
     } else {
-      strcpy(reply, "Error, cannot be negative");
+      strcpy(reply, "Error, must be 0-20");
     }
   } else if (memcmp(config, "txdelay ", 8) == 0) {
     float f = atof(&config[8]);
-    if (f >= 0) {
+    if (f >= 0 && f <= 2.0f) {
       _prefs->tx_delay_factor = f;
       savePrefs();
       strcpy(reply, "OK");
     } else {
-      strcpy(reply, "Error, cannot be negative");
+      strcpy(reply, "Error, must be 0-2");
+    }
+  } else if (memcmp(config, "flood.max.unscoped ", 19) == 0) {
+    uint8_t m = atoi(&config[19]);
+    if (m <= 64) {
+      _prefs->flood_max_unscoped = m;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error, max 64");
+    } 
+  } else if (memcmp(config, "flood.max.advert ", 17) == 0) {
+    uint8_t m = atoi(&config[17]);
+    if (m <= 64) {
+      _prefs->flood_max_advert = m;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error, max 64");
     }
   } else if (memcmp(config, "flood.max ", 10) == 0) {
     uint8_t m = atoi(&config[10]);
@@ -609,12 +641,12 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     }
   } else if (memcmp(config, "direct.txdelay ", 15) == 0) {
     float f = atof(&config[15]);
-    if (f >= 0) {
+    if (f >= 0 && f <= 2.0f) {
       _prefs->direct_tx_delay_factor = f;
       savePrefs();
       strcpy(reply, "OK");
     } else {
-      strcpy(reply, "Error, cannot be negative");
+      strcpy(reply, "Error, must be 0-2");
     }
   } else if (memcmp(config, "owner.info ", 11) == 0) {
     config += 11;
@@ -769,7 +801,7 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %s", StrHelper::ftoa(_prefs->node_lat));
   } else if (memcmp(config, "lon", 3) == 0) {
     sprintf(reply, "> %s", StrHelper::ftoa(_prefs->node_lon));
-#if defined(USE_SX1262) || defined(USE_SX1268)
+#if defined(USE_SX1262) || defined(USE_SX1268) || defined(USE_LR1110)
   } else if (memcmp(config, "radio.rxgain", 12) == 0) {
     sprintf(reply, "> %s", _prefs->rx_boosted_gain ? "on" : "off");
 #endif
@@ -782,6 +814,10 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %s", StrHelper::ftoa(_prefs->rx_delay_base));
   } else if (memcmp(config, "txdelay", 7) == 0) {
     sprintf(reply, "> %s", StrHelper::ftoa(_prefs->tx_delay_factor));
+  } else if (memcmp(config, "flood.max.advert", 16) == 0) {
+    sprintf(reply, "> %d", (uint32_t)_prefs->flood_max_advert);
+  } else if (memcmp(config, "flood.max.unscoped", 18) == 0) {
+    sprintf(reply, "> %d", (uint32_t)_prefs->flood_max_unscoped);
   } else if (memcmp(config, "flood.max", 9) == 0) {
     sprintf(reply, "> %d", (uint32_t)_prefs->flood_max);
   } else if (memcmp(config, "direct.txdelay", 14) == 0) {
@@ -895,8 +931,75 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
   }
 }
 
+static char* skipSpaces(char* s) {
+  while (*s == ' ') s++;
+  return s;
+}
+
+static void rtrimSpaces(char* s) {
+  char* e = s + strlen(s);
+  while (e > s && e[-1] == ' ') *--e = '\0';
+}
+
+static char* takeToken(char** cursor) {
+  char* p = skipSpaces(*cursor);
+  if (*p == '\0') { *cursor = p; return nullptr; }
+  char* tok = p;
+  while (*p && *p != ' ') p++;
+  if (*p) *p++ = '\0';
+  *cursor = p;
+  return tok;
+}
+
+static char* splitNameJump(char* tok) {
+  for (char* q = tok; *q; q++) {
+    if (*q == '|' || *q == ',') {
+      *q = '\0';
+      char* jump = skipSpaces(q + 1);
+      rtrimSpaces(jump);
+      return jump;
+    }
+  }
+  return nullptr;
+}
+
+static bool processRegionDefSegment(RegionMap* map, char* tok, RegionEntry** cursor, char* reply) {
+  char* jump = splitNameJump(tok);
+  char* name = skipSpaces(tok);
+  if (*name == '\0') { snprintf(reply, 160, "Err - empty name"); return false; }
+  if (jump && *jump == '\0') { snprintf(reply, 160, "Err - empty jump"); return false; }
+
+  RegionEntry* r = map->putRegion(name, (*cursor)->id);
+  if (r == NULL) { snprintf(reply, 160, "Err - put failed: %s", name); return false; }
+  r->flags = 0;
+
+  if (jump) {
+    RegionEntry* j = map->findByNamePrefix(jump);
+    if (j == NULL) { snprintf(reply, 160, "Err - unknown jump: %s", jump); return false; }
+    *cursor = j;
+  } else {
+    *cursor = r;
+  }
+  return true;
+}
+
 void CommonCLI::handleRegionCmd(char* command, char* reply) {
   reply[0] = 0;
+
+  // `region def`: must run before parseTextParts mutates the buffer
+  char* cmd = skipSpaces(command);
+  if (strncmp(cmd, "region def", 10) == 0 && (cmd[10] == ' ' || cmd[10] == '\0')) {
+    char* payload = skipSpaces(cmd + 10);
+    rtrimSpaces(payload);
+    if (*payload == '\0') { snprintf(reply, 160, "Err - empty def"); return; }
+
+    RegionEntry* cursor = &_region_map->getWildcard();
+    for (char* tok; (tok = takeToken(&payload)) != nullptr; ) {
+      if (!processRegionDefSegment(_region_map, tok, &cursor, reply)) return;
+    }
+    _region_map->exportTo(reply, 160);
+    return;
+  }
 
   const char* parts[4];
   int n = mesh::Utils::parseTextParts(command, parts, 4, ' ');

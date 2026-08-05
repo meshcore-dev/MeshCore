@@ -1,6 +1,6 @@
 # Number Allocations
 
-This document lists unique numbers/identifiers used in various MeshCore protcol payloads.
+This document lists unique numbers/identifiers used in various MeshCore protocol payloads.
 
 # Group Data Types
 
@@ -12,9 +12,11 @@ NOTE: the range FF00 - FFFF is for use while you're developing, doing POC, and f
 
 Once you have a working app/project, you need to be able to demonstrate it exists/works, and THEN request type IDs. So, just use the testing/dev range while developing, then request IDs before you transition to publishing your project.
 
-| Data-Type range | App name                    | Contact                                              |
-|-----------------|-----------------------------|------------------------------------------------------|
-| 0000 - 00FF     | -reserved for internal use- |  |
-| FF00 - FFFF     | -reserved for testing/dev-  |  |
+| Data-Type range | App name                    | Contact                                                           |
+|-----------------|-----------------------------|-------------------------------------------------------------------|
+| 0000 - 00FF     | -reserved for internal use- |                                                                   |
+| 0100            | MeshCore Open               | zsylvester@monitormx.com — https://github.com/zjs81/meshcore-open |
+| 0110 - 011F     | Ripple                      | ripple_biz@protonmail.com — https://buymeacoffee.com/ripplebiz    |
+| FF00 - FFFF     | -reserved for testing/dev-  |                                                                   |
 
 (add rows, inside the range 0100 - FEFF for custom apps)

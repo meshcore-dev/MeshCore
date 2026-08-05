@@ -27,9 +27,11 @@ bool AutoDiscoverRTCClock::i2c_probe(TwoWire& wire, uint8_t addr) {
 }
 
 void AutoDiscoverRTCClock::begin(TwoWire& wire) {
+  #if !defined(DISABLE_DS3231_PROBE)
   if (i2c_probe(wire, DS3231_ADDRESS)) {
     ds3231_success = rtc_3231.begin(&wire);
   }
+  #endif
 
   if (i2c_probe(wire, RV3028_ADDRESS)) {
     rtc_rv3028.initI2C(wire);

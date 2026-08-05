@@ -66,20 +66,6 @@ void NRF52Board::initPowerMgr() {
   }
 }
 
-bool NRF52Board::isExternalPowered() {
-  // Check if SoftDevice is enabled before using its API
-  uint8_t sd_enabled = 0;
-  sd_softdevice_is_enabled(&sd_enabled);
-
-  if (sd_enabled) {
-    uint32_t usb_status;
-    sd_power_usbregstatus_get(&usb_status);
-    return (usb_status & POWER_USBREGSTATUS_VBUSDETECT_Msk) != 0;
-  } else {
-    return (NRF_POWER->USBREGSTATUS & POWER_USBREGSTATUS_VBUSDETECT_Msk) != 0;
-  }
-}
-
 const char* NRF52Board::getResetReasonString(uint32_t reason) {
   if (reason & POWER_RESETREAS_RESETPIN_Msk) return "Reset Pin";
   if (reason & POWER_RESETREAS_DOG_Msk) return "Watchdog";
@@ -248,6 +234,20 @@ void NRF52BoardDCDC::begin() {
     sd_power_dcdc_mode_set(NRF_POWER_DCDC_ENABLE);
   } else {
     NRF_POWER->DCDCEN = 1;
+  }
+}
+
+bool NRF52Board::isExternalPowered() {
+  // Check if SoftDevice is enabled before using its API
+  uint8_t sd_enabled = 0;
+  sd_softdevice_is_enabled(&sd_enabled);
+
+  if (sd_enabled) {
+    uint32_t usb_status;
+    sd_power_usbregstatus_get(&usb_status);
+    return (usb_status & POWER_USBREGSTATUS_VBUSDETECT_Msk) != 0;
+  } else {
+    return (NRF_POWER->USBREGSTATUS & POWER_USBREGSTATUS_VBUSDETECT_Msk) != 0;
   }
 }
 
