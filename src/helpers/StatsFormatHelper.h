@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Mesh.h"
-#include <string.h>   // strlen (used by formatResendRatio)
+#include <string.h>   // strlen (used by formatResendRatio / formatFloodSuppressRatio)
 
 class StatsFormatHelper {
 public:
@@ -59,5 +59,13 @@ public:
   static void formatResendRatio(char* reply, uint32_t n_resent, uint32_t n_sent_direct) {
     uint32_t pct = (n_sent_direct > 0) ? (n_resent * 100U) / n_sent_direct : 0;
     sprintf(reply + strlen(reply), ", resends %u/%u (%u%%)", n_resent, n_sent_direct, pct);
+  }
+
+  // Appends ", suppressed <n_suppressed>/<n_seen> (<pct>%)" to reply (which already holds the
+  // flood.suppress on/off state). Reports the share of distinct floods heard whose rebroadcast
+  // this node suppressed; pct is 0 when none were heard.
+  static void formatFloodSuppressRatio(char* reply, uint32_t n_suppressed, uint32_t n_seen) {
+    uint32_t pct = (n_seen > 0) ? (n_suppressed * 100U) / n_seen : 0;
+    sprintf(reply + strlen(reply), ", suppressed %u/%u (%u%%)", n_suppressed, n_seen, pct);
   }
 };

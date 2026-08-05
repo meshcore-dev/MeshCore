@@ -52,13 +52,25 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
       uint8_t len = pkt->payload_len - i;
       // path_len*entry_size can exceed 255 (path_len up to 63, entry_size up to 8);
       // a uint8_t offset would wrap and steer the isHashMatch() read to the wrong place.
+      uint8_t entry_sz = 1 << path_sz;
       uint16_t offset = (uint16_t)pkt->path_len << path_sz;
+      // is the current entry the FINAL visit-list entry? (used by terminate-at-last below)
+      bool last_entry = ((uint16_t)offset + entry_sz) >= len;
       if (offset >= len) {   // TRACE has reached end of given path
         onTraceRecv(pkt, trace_tag, auth_code, flags, pkt->path, &pkt->payload[i], len);
-      } else if (self_id.isHashMatch(&pkt->payload[i + offset], 1 << path_sz) && allowPacketForward(pkt) && !_tables->wasSeen(pkt)) {
+      } else if (self_id.isHashMatch(&pkt->payload[i + offset], entry_sz) && allowPacketForward(pkt) && !_tables->wasSeen(pkt)) {
         _tables->markSeen(pkt);
         // append SNR (Not hash!)
         pkt->path[pkt->path_len++] = (int8_t) (pkt->getSNR()*4);
+
+        // TRACE_FLAG_TERMINATE_AT_LAST: deliver the result HERE when this self match
+        // is the final visit-list entry, and do NOT retransmit past it. Lets a
+        // coverage trace whose visit-list ends at the initiator (e.g. [a,b,self])
+        // return its SNR vector to the initiator instead of to a bystander node.
+        if ((flags & TRACE_FLAG_TERMINATE_AT_LAST) && last_entry) {
+          onTraceRecv(pkt, trace_tag, auth_code, flags, pkt->path, &pkt->payload[i], len);
+          return ACTION_RELEASE;
+        }
 
         // Last forwarding hop before the TRACE destination: the destination does not forward,
         // so a retry could never be cancelled by overhearing a downstream forward. To avoid

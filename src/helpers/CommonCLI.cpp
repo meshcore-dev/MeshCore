@@ -103,7 +103,12 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {  // Legacy 
     file.read((uint8_t *)&_prefs->radio_fem_rxgain, sizeof(_prefs->radio_fem_rxgain));             // 293
     file.read((uint8_t *)&_prefs->cad_enabled, sizeof(_prefs->cad_enabled));                       // 294
     file.read((uint8_t *)&_prefs->max_resend_attempts, sizeof(_prefs->max_resend_attempts));       // 295
-    // next: 296
+    file.read((uint8_t *)&_prefs->flood_suppress, sizeof(_prefs->flood_suppress));                  // 296
+    file.read((uint8_t *)&_prefs->flood_suppress_snr_hi, sizeof(_prefs->flood_suppress_snr_hi));    // 297
+    file.read((uint8_t *)&_prefs->flood_suppress_snr_lo, sizeof(_prefs->flood_suppress_snr_lo));    // 298
+    file.read((uint8_t *)&_prefs->flood_suppress_delay_x, sizeof(_prefs->flood_suppress_delay_x));  // 299
+    file.read((uint8_t *)&_prefs->trace_tx_power_dbm, sizeof(_prefs->trace_tx_power_dbm));          // 300
+    // next: 301
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -136,6 +141,11 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {  // Legacy 
     _prefs->radio_fem_rxgain = constrain(_prefs->radio_fem_rxgain, 0, 1); // boolean
     _prefs->cad_enabled = constrain(_prefs->cad_enabled, 0, 1); // boolean
     _prefs->max_resend_attempts = constrain(_prefs->max_resend_attempts, 0, 3);
+    _prefs->flood_suppress = constrain(_prefs->flood_suppress, 0, 1); // boolean (master switch)
+    _prefs->flood_suppress_snr_hi = constrain(_prefs->flood_suppress_snr_hi, -30, 30);
+    _prefs->flood_suppress_snr_lo = constrain(_prefs->flood_suppress_snr_lo, -30, 30);
+    _prefs->flood_suppress_delay_x = constrain(_prefs->flood_suppress_delay_x, 0, 8);
+    _prefs->trace_tx_power_dbm = constrain(_prefs->trace_tx_power_dbm, -9, 30);
 
     file.close();
   }
@@ -239,6 +249,25 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       } else {
         strcpy(reply, "ERR: bad pubkey");
       }
+    } else if (memcmp(command, "clients", 7) == 0) {
+      _callbacks->formatClientsReply(reply);
+    } else if (memcmp(command, "reach", 5) == 0) {
+      const char* hex = &command[5];
+      while (*hex == ' ') hex++;                       // skip spaces after the verb
+      if (*hex == 0) {
+        strcpy(reply, "reach HASH");
+      } else {
+        int hex_len = min((int)strlen(hex), MAX_HASH_SIZE * 2);
+        int hash_len = hex_len / 2;
+        uint8_t hash[MAX_HASH_SIZE];
+        if (hash_len > 0 && mesh::Utils::fromHex(hash, hash_len, hex)) {
+          _callbacks->formatReachReply(reply, hash, hash_len);
+        } else {
+          strcpy(reply, "ERR: bad hash");
+        }
+      }
+    } else if (memcmp(command, "near", 4) == 0) {
+      _callbacks->formatNearReply(reply);
     } else if (memcmp(command, "tempradio ", 10) == 0) {
       strcpy(tmp, &command[10]);
       const char *parts[5];
@@ -472,6 +501,26 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     _prefs->cad_enabled = memcmp(&config[4], "on", 2) == 0;
     savePrefs();
     strcpy(reply, "OK");
+  } else if (memcmp(config, "flood.suppress ", 15) == 0) {
+    _prefs->flood_suppress = memcmp(&config[15], "on", 2) == 0;
+    savePrefs();
+    strcpy(reply, "OK");
+  } else if (memcmp(config, "flood.suppress.snr.hi ", 22) == 0) {
+    int db = atoi(&config[22]);
+    if (db >= -30 && db <= 30) { _prefs->flood_suppress_snr_hi = db; savePrefs(); strcpy(reply, "OK"); }
+    else strcpy(reply, "Error, must be -30..30 dB");
+  } else if (memcmp(config, "flood.suppress.snr.lo ", 22) == 0) {
+    int db = atoi(&config[22]);
+    if (db >= -30 && db <= 30) { _prefs->flood_suppress_snr_lo = db; savePrefs(); strcpy(reply, "OK"); }
+    else strcpy(reply, "Error, must be -30..30 dB");
+  } else if (memcmp(config, "flood.suppress.delay.factor ", 28) == 0) {
+    int n = atoi(&config[28]);
+    if (n >= 0 && n <= 8) { _prefs->flood_suppress_delay_x = n; savePrefs(); strcpy(reply, "OK"); }
+    else strcpy(reply, "Error, must be 0..8");
+  } else if (memcmp(config, "trace.tx.power ", 15) == 0) {
+    int db = atoi(&config[15]);
+    if (db >= -9 && db <= 30) { _prefs->trace_tx_power_dbm = db; savePrefs(); strcpy(reply, "OK"); }
+    else strcpy(reply, "Error, must be -9..30 dB");
   } else if (memcmp(config, "agc.reset.interval ", 19) == 0) {
     _prefs->agc_reset_interval = atoi(&config[19]) / 4;
     savePrefs();
@@ -805,6 +854,15 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %d", (uint32_t) _prefs->interference_threshold);
   } else if (memcmp(config, "cad", 3) == 0) {
     sprintf(reply, "> %s", _prefs->cad_enabled ? "on" : "off");
+  } else if (memcmp(config, "flood.suppress.delay.factor", 27) == 0) {
+    sprintf(reply, "> %d", (uint32_t) _prefs->flood_suppress_delay_x);
+  } else if (memcmp(config, "flood.suppress.snr.hi", 21) == 0) {
+    sprintf(reply, "> %d dB", (int) _prefs->flood_suppress_snr_hi);
+  } else if (memcmp(config, "flood.suppress.snr.lo", 21) == 0) {
+    sprintf(reply, "> %d dB", (int) _prefs->flood_suppress_snr_lo);
+  } else if (memcmp(config, "flood.suppress", 14) == 0) {
+    sprintf(reply, "> %s", _prefs->flood_suppress ? "on" : "off");
+    _callbacks->formatFloodSuppressRatioReply(reply + strlen(reply));
   } else if (memcmp(config, "agc.reset.interval", 18) == 0) {
     sprintf(reply, "> %d", ((uint32_t) _prefs->agc_reset_interval) * 4);
   } else if (memcmp(config, "multi.acks", 10) == 0) {
@@ -882,6 +940,8 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     }
   } else if (memcmp(config, "tx", 2) == 0 && (config[2] == 0 || config[2] == ' ')) {
     sprintf(reply, "> %d", (int32_t) _prefs->tx_power_dbm);
+  } else if (memcmp(config, "trace.tx.power", 14) == 0) {
+    sprintf(reply, "> %d dB", (int) _prefs->trace_tx_power_dbm);
   } else if (memcmp(config, "freq", 4) == 0) {
     sprintf(reply, "> %s", StrHelper::ftoa(_prefs->freq));
   } else if (memcmp(config, "public.key", 10) == 0) {
