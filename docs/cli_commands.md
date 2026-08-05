@@ -232,6 +232,20 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 ---
 
+#### View or change the boosted receive gain mode
+**Usage:**
+- `get radio.rxgain`
+- `set radio.rxgain <state>`
+
+**Parameters:**
+- `state`: `on`|`off`
+
+**Default:** `off`
+
+**Note:** Only available on SX1262 and SX1268 based boards.
+
+---
+
 #### Change the radio parameters for a set duration
 **Usage:** 
 - `tempradio <freq>,<bw>,<sf>,<cr>,<timeout_mins>`
@@ -273,6 +287,46 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 **Default:** `on`
 
 **Temporary Note:** If you upgraded from an older version to 1.14.1 without erasing flash, this setting is `off` because of [#2118](https://github.com/meshcore-dev/MeshCore/issues/2118)
+
+---
+
+#### View or change RX duty-cycle power saving
+**Usage:**
+- `get radio.rxps`
+- `get rxps.wd`
+- `set radio.rxps off`
+- `set radio.rxps on`
+- `set radio.rxps conservative`
+- `set radio.rxps balanced`
+- `set radio.rxps <1-10>`
+- `set radio.rxps level <1-10>`
+- `set radio.rxps level <1-10> preamble <16|32>`
+- `set radio.rxps <rx_us> <sleep_us>`
+
+**Parameters:**
+- `rx_us`, `sleep_us`: Receive and sleep durations in microseconds (`1000`-`30000000`).
+- `level`: A power-saving level from `1` (most conservative) to `10` (least power saving).
+- `preamble`: LoRa preamble length in symbols; `16` or `32`.
+
+**Notes:**
+- `get rxps.wd` reports the RXPS watchdog's soft and hard recovery counts.
+- `on` and `conservative` select level `1` with a 16-symbol preamble; `balanced` selects level `5` with a 16-symbol preamble.
+- Level-based settings automatically recalculate their timings when the spreading factor or bandwidth changes. Custom `<rx_us> <sleep_us>` timings remain fixed.
+- The selected mode is applied immediately, persisted, and restored after reboot.
+
+---
+
+#### View or change the LoRa FEM receive-path gain state on supported boards
+**Usage:**
+- `get radio.fem.rxgain`
+- `set radio.fem.rxgain <state>`
+
+**Parameters:**
+- `state`: `on`|`off`
+
+**Notes:**
+- This controls the external LoRa FEM receive-path LNA where the board supports it.
+- This is separate from `radio.rxgain`, which controls the radio chip receive gain mode.
 
 ---
 
@@ -430,6 +484,18 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 ---
 
+#### View or set reboot interval (Repeater and room server)
+**Usage:**
+- `get reboot.interval`
+- `set reboot.interval <hours>`
+
+**Parameters:** 
+- `hours`: 0-255. 0 is disabled
+
+**Default:** `0` (disabled)
+
+---
+
 ### Routing
 
 #### View or change this node's repeat flag
@@ -574,6 +640,20 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 - `value`: Interference threshold value
 
 **Default:** `0.0`
+
+---
+
+#### Enable or disable hardware Channel Activity Detection (CAD)
+**Usage:**
+- `get cad`
+- `set cad <on|off>`
+
+**Description:** When enabled, the radio performs a hardware Channel Activity Detection scan before transmitting and defers if the channel is busy. Runs independently of `int.thresh` — either, both, or none may be active.
+
+**Parameters:**
+- `on|off`: Enable or disable hardware CAD
+
+**Default:** `off`
 
 ---
 
@@ -773,6 +853,27 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 **Parameters:**
 - `name`: Region name,  or <null> to reset/clear
+
+---
+
+#### View or set the direct path override for the current remote client
+**Usage:**
+- `get outpath`
+- `set outpath <hop1_hex,hop2_hex,...>`
+- `set outpath direct`
+- `set outpath clear`
+- `set outpath flood`
+
+**Parameters:**
+- `hopN_hex`: Hop hash, `2`, `4`, or `6` hex characters. All hops must use the same width.
+
+**Notes:**
+- These commands require remote client context (they target the caller's ACL entry).
+- The path hash size is inferred from the hop hash width.
+- `outpath` overrides the primary direct route used for replies to the caller.
+- `direct` sets a zero-hop direct route for a caller reachable without repeaters.
+- `clear` forgets the current direct path and allows normal path discovery to repopulate it.
+- `flood` forces replies to use flood packets until the client logs in again.
 
 ---
 

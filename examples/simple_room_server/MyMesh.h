@@ -144,6 +144,9 @@ protected:
   int getInterferenceThreshold() const override {
     return _prefs.interference_threshold;
   }
+  bool getCADEnabled() const override {
+    return _prefs.cad_enabled;
+  }
   int getAGCResetInterval() const override {
     return ((int)_prefs.agc_reset_interval) * 4000;   // milliseconds
   }
@@ -203,6 +206,8 @@ public:
 
   void dumpLogFile() override;
   void setTxPower(int8_t power_dbm) override;
+  bool setRxPowerSaving(bool enable, uint32_t rx_us, uint32_t sleep_us) override;
+  void getRxPsWatchdogCounts(uint32_t* soft, uint32_t* hard) override;
 
   void formatNeighborsReply(char *reply) override {
     strcpy(reply, "not supported");
@@ -222,4 +227,7 @@ public:
   void clearStats() override;
   void handleCommand(uint32_t sender_timestamp, char* command, char* reply);
   void loop();
+
+  // To check if there is pending work
+  bool hasPendingWork() const;
 };

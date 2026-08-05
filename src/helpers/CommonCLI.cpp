@@ -4,6 +4,8 @@
 #include "AdvertDataHelpers.h"
 #include "TxtDataHelpers.h"
 #include <RTClib.h>
+#define STR_HELPER(x) #x
+#define STR(x) STR_HELPER(x)
 
 #ifndef BRIDGE_MAX_BAUD
 #define BRIDGE_MAX_BAUD 115200
@@ -24,6 +26,80 @@ static bool isValidName(const char *n) {
     if (*n == '[' || *n == ']' || *n == '\\' || *n == ':' || *n == ',' || *n == '?' || *n == '*') return false;
     n++;
   }
+  return true;
+}
+
+static bool isValidRxPowerSavingPeriod(uint32_t us) {
+  return us >= RX_POWERSAVING_MIN_PERIOD_US && us <= RX_POWERSAVING_MAX_PERIOD_US;
+}
+
+// MeshCore preamble convention used for the RX powersaving timing calculation.
+// Must stay in sync with RadioLibWrapper::preambleLengthForSF() (the value the
+// radio actually transmits); kept local here because CommonCLI is radio-agnostic.
+static uint16_t rxPowerSavingPreambleForSF(uint8_t sf) {
+  return sf <= 8 ? 32 : 16;
+}
+
+static bool isNumeric(const char* sp) {
+  if (!sp || !*sp) return false;
+  while (*sp) {
+    if (*sp < '0' || *sp > '9') return false;
+    sp++;
+  }
+  return true;
+}
+
+static uint32_t ceilPositiveFloat(float value) {
+  uint32_t rounded = (uint32_t)value;
+  return value > (float)rounded ? rounded + 1 : rounded;
+}
+
+static bool calcRxPowerSavingLevel(uint32_t level, uint8_t sf, float bw, uint32_t preamble,
+                                   uint32_t* rx_us, uint32_t* sleep_us) {
+  if (level < 1 || level > 10 || sf < 5 || sf > 12 || bw <= 0.0f || (preamble != 16 && preamble != 32)) {
+    return false;
+  }
+
+  const float symbol_us = (1000.0f * (float)(1UL << sf)) / bw;
+  const float amount = (float)(level - 1) / 9.0f;
+  const float rx_start_symbols = preamble == 16 ? 12.0f : 16.0f;
+  const float sleep_start_symbols = preamble == 16 ? 2.0f : 15.0f;
+  const float rx_edge_symbols = 8.0f;
+  const float sleep_edge_symbols = (float)preamble + 4.25f - 8.0f;
+
+  const float rx_symbols = rx_start_symbols + amount * (rx_edge_symbols - rx_start_symbols);
+  const float sleep_symbols = sleep_start_symbols + amount * (sleep_edge_symbols - sleep_start_symbols);
+
+  *rx_us = ceilPositiveFloat(rx_symbols * symbol_us);
+  *sleep_us = (uint32_t)(sleep_symbols * symbol_us);
+  return true;
+}
+
+static void ensureRxPowerSavingDefaults(NodePrefs* prefs) {
+  if (!isValidRxPowerSavingPeriod(prefs->rx_ps_rx_us)) {
+    prefs->rx_ps_rx_us = RX_POWERSAVING_DEFAULT_RX_US;
+  }
+  if (!isValidRxPowerSavingPeriod(prefs->rx_ps_sleep_us)) {
+    prefs->rx_ps_sleep_us = RX_POWERSAVING_DEFAULT_SLEEP_US;
+  }
+}
+
+// Recomputes rx_ps_rx_us/rx_ps_sleep_us from the stored level and the current
+// radio SF/BW. No-op (returns false) for manual timings (rx_ps_level == 0).
+// Lets level-based RX powersaving auto-retune when SF/BW change.
+static bool recalcRxPowerSavingFromLevel(NodePrefs* prefs) {
+  if (prefs->rx_ps_level < 1 || prefs->rx_ps_level > 10) return false;  // manual: nothing to recompute
+  uint32_t preamble = prefs->rx_ps_preamble ? prefs->rx_ps_preamble
+                                            : rxPowerSavingPreambleForSF(prefs->sf);
+  uint32_t rx_us, sleep_us;
+  if (!calcRxPowerSavingLevel(prefs->rx_ps_level, prefs->sf, prefs->bw, preamble, &rx_us, &sleep_us)) {
+    return false;
+  }
+  if (!isValidRxPowerSavingPeriod(rx_us) || !isValidRxPowerSavingPeriod(sleep_us)) {
+    return false;
+  }
+  prefs->rx_ps_rx_us = rx_us;
+  prefs->rx_ps_sleep_us = sleep_us;
   return true;
 }
 
@@ -81,7 +157,8 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     file.read((uint8_t *)&_prefs->bridge_channel, sizeof(_prefs->bridge_channel));                 // 135
     file.read((uint8_t *)&_prefs->bridge_secret, sizeof(_prefs->bridge_secret));                   // 136
     file.read((uint8_t *)&_prefs->powersaving_enabled, sizeof(_prefs->powersaving_enabled));       // 152
-    file.read(pad, 3);                                                                             // 153
+    file.read((uint8_t *)&_prefs->reboot_interval, sizeof(_prefs->reboot_interval));               // 153
+    file.read(pad, 2);                                                                             // 154
     file.read((uint8_t *)&_prefs->gps_enabled, sizeof(_prefs->gps_enabled));                       // 156
     file.read((uint8_t *)&_prefs->gps_interval, sizeof(_prefs->gps_interval));                     // 157
     file.read((uint8_t *)&_prefs->advert_loc_policy, sizeof (_prefs->advert_loc_policy));          // 161
@@ -91,7 +168,14 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     file.read((uint8_t *)&_prefs->rx_boosted_gain, sizeof(_prefs->rx_boosted_gain));              // 290
     file.read((uint8_t *)&_prefs->flood_max_unscoped, sizeof(_prefs->flood_max_unscoped));   // 291
     file.read((uint8_t *)&_prefs->flood_max_advert, sizeof(_prefs->flood_max_advert));       // 292
-    // next: 293
+    file.read((uint8_t *)&_prefs->radio_fem_rxgain, sizeof(_prefs->radio_fem_rxgain));            // 293
+    file.read((uint8_t *)&_prefs->cad_enabled, sizeof(_prefs->cad_enabled));                      // 294
+    file.read((uint8_t *)&_prefs->rx_powersaving_enabled, sizeof(_prefs->rx_powersaving_enabled)); // 295
+    file.read((uint8_t *)&_prefs->rx_ps_rx_us, sizeof(_prefs->rx_ps_rx_us));                       // 296
+    file.read((uint8_t *)&_prefs->rx_ps_sleep_us, sizeof(_prefs->rx_ps_sleep_us));                 // 300
+    file.read((uint8_t *)&_prefs->rx_ps_level, sizeof(_prefs->rx_ps_level));                       // 304
+    file.read((uint8_t *)&_prefs->rx_ps_preamble, sizeof(_prefs->rx_ps_preamble));                 // 305
+    // next: 306
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -115,12 +199,22 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {
     _prefs->bridge_channel = constrain(_prefs->bridge_channel, 0, 14);
 
     _prefs->powersaving_enabled = constrain(_prefs->powersaving_enabled, 0, 1);
+    _prefs->reboot_interval = constrain(_prefs->reboot_interval, 0, 255);
 
     _prefs->gps_enabled = constrain(_prefs->gps_enabled, 0, 1);
     _prefs->advert_loc_policy = constrain(_prefs->advert_loc_policy, 0, 2);
 
     // sanitise settings
     _prefs->rx_boosted_gain = constrain(_prefs->rx_boosted_gain, 0, 1); // boolean
+    _prefs->radio_fem_rxgain = constrain(_prefs->radio_fem_rxgain, 0, 1); // boolean
+    _prefs->cad_enabled = constrain(_prefs->cad_enabled, 0, 1); // boolean
+    _prefs->rx_powersaving_enabled = constrain(_prefs->rx_powersaving_enabled, 0, 1);
+    _prefs->rx_ps_level = constrain(_prefs->rx_ps_level, 0, 10);
+    if (_prefs->rx_ps_preamble != 16 && _prefs->rx_ps_preamble != 32) {
+      _prefs->rx_ps_preamble = 0;   // 0 = auto (derive from SF)
+    }
+    ensureRxPowerSavingDefaults(_prefs);
+    recalcRxPowerSavingFromLevel(_prefs);   // retune level-based timings to the loaded SF/BW
 
     file.close();
   }
@@ -174,7 +268,8 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->bridge_channel, sizeof(_prefs->bridge_channel));                 // 135
     file.write((uint8_t *)&_prefs->bridge_secret, sizeof(_prefs->bridge_secret));                   // 136
     file.write((uint8_t *)&_prefs->powersaving_enabled, sizeof(_prefs->powersaving_enabled));       // 152
-    file.write(pad, 3);                                                                             // 153
+    file.write((uint8_t *)&_prefs->reboot_interval, sizeof(_prefs->reboot_interval));               // 153
+    file.write(pad, 2);                                                                             // 154
     file.write((uint8_t *)&_prefs->gps_enabled, sizeof(_prefs->gps_enabled));                       // 156
     file.write((uint8_t *)&_prefs->gps_interval, sizeof(_prefs->gps_interval));                     // 157
     file.write((uint8_t *)&_prefs->advert_loc_policy, sizeof(_prefs->advert_loc_policy));           // 161
@@ -184,7 +279,14 @@ void CommonCLI::savePrefs(FILESYSTEM* fs) {
     file.write((uint8_t *)&_prefs->rx_boosted_gain, sizeof(_prefs->rx_boosted_gain));              // 290
     file.write((uint8_t *)&_prefs->flood_max_unscoped, sizeof(_prefs->flood_max_unscoped));   // 291
     file.write((uint8_t *)&_prefs->flood_max_advert, sizeof(_prefs->flood_max_advert));       // 292
-    // next: 293
+    file.write((uint8_t *)&_prefs->radio_fem_rxgain, sizeof(_prefs->radio_fem_rxgain));       // 293
+    file.write((uint8_t *)&_prefs->cad_enabled, sizeof(_prefs->cad_enabled));                 // 294
+    file.write((uint8_t *)&_prefs->rx_powersaving_enabled, sizeof(_prefs->rx_powersaving_enabled)); // 295
+    file.write((uint8_t *)&_prefs->rx_ps_rx_us, sizeof(_prefs->rx_ps_rx_us));                       // 296
+    file.write((uint8_t *)&_prefs->rx_ps_sleep_us, sizeof(_prefs->rx_ps_sleep_us));                 // 300
+    file.write((uint8_t *)&_prefs->rx_ps_level, sizeof(_prefs->rx_ps_level));                       // 304
+    file.write((uint8_t *)&_prefs->rx_ps_preamble, sizeof(_prefs->rx_ps_preamble));                 // 305
+    // next: 306
 
     file.close();
   }
@@ -357,7 +459,12 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       if (_sensors->setSettingValue("gps", "1")) {
         _prefs->gps_enabled = 1;
         savePrefs();
-        strcpy(reply, "ok");
+
+        if (_prefs->powersaving_enabled) { // Power Saving
+          strcpy(reply, "on (powersaving)");
+        } else { // Normal mode
+          strcpy(reply, "ok");
+        }
       } else {
         strcpy(reply, "gps toggle not found");
       }
@@ -373,7 +480,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       LocationProvider * l = _sensors->getLocationProvider();
       if (l != NULL) {
         l->syncTime();
-        strcpy(reply, "ok");
+        strcpy(reply, "scheduled");
       } else {
         strcpy(reply, "gps provider not found");
       }
@@ -419,13 +526,40 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
         bool fix = l->isValid();       // has fix ?
         int sats = l->satellitesCount();
         bool active = !strcmp(_sensors->getSettingByKey("gps"), "1");
-        if (enabled) {
-          sprintf(reply, "on, %s, %s, %d sats",
-            active?"active":"deactivated",
-            fix?"fix":"no fix",
-            sats);
-        } else {
-          strcpy(reply, "off");
+
+        if (_prefs->powersaving_enabled && l->isPowerSavingEnabled()) { // GPS Power Saving
+          if (enabled) {
+            unsigned long mins = (l->getNextSleep() - millis()) / 60000UL;
+            sprintf(reply, "on (powersaving, sleep in %luh %lum), %s, %s, %d sats", 
+              mins / 60UL, 
+              mins % 60UL,
+              active ? "active" : "deactivated", 
+              fix ? "fix" : "no fix", 
+              sats);
+          } else {
+            unsigned long mins = (l->getNextWake() - millis()) / 60000UL;
+            sprintf(reply, "off (powersaving, wake in %luh %lum)",
+              mins / 60UL,
+              mins % 60UL);
+          }
+
+          // "last sync" from GPS
+          DateTime dt = DateTime(l->getLastValidTimeSync());
+          if (dt.unixtime() == 0) {
+            sprintf(reply + strlen(reply), ", last sync: none");
+          } else {
+            sprintf(reply + strlen(reply), ", last sync: %02d:%02d - %d/%d/%d UTC", dt.hour(), dt.minute(),
+                    dt.day(), dt.month(), dt.year());
+          }
+        } else { // Normal mode
+          if (enabled) {
+            sprintf(reply, "on, %s, %s, %d sats",
+              active?"active":"deactivated",
+              fix?"fix":"no fix",
+              sats);
+          } else {
+            strcpy(reply, "off");
+          }
         }
       } else {
         strcpy(reply, "Can't find GPS");
@@ -434,10 +568,12 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
     } else if (memcmp(command, "powersaving on", 14) == 0) {
 #if defined(NRF52_PLATFORM)
       _prefs->powersaving_enabled = 1;
+      _sensors->powersaving_enabled = 1;
       savePrefs();
       strcpy(reply, "on - Immediate effect");
 #elif defined(ESP32) && !defined(WITH_BRIDGE)
       _prefs->powersaving_enabled = 1;
+      _sensors->powersaving_enabled = 1;
       savePrefs();
       strcpy(reply, "on - After 2 minutes");
 #elif defined(WITH_BRIDGE)
@@ -447,6 +583,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
 #endif
     } else if (memcmp(command, "powersaving off", 15) == 0) {
       _prefs->powersaving_enabled = 0;
+      _sensors->powersaving_enabled = 0;
       savePrefs();
       strcpy(reply, "off");
     } else if (memcmp(command, "powersaving", 11) == 0) {
@@ -455,6 +592,36 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       } else {
         strcpy(reply, "off");
       }
+    } else if (memcmp(command, "sensor", 6) == 0) {
+      // I2C
+#if defined(ENV_PIN_SDA) && defined(ENV_PIN_SCL)
+      sprintf(reply, "I2C Wire1: SDA=%s,SCL=%s\r\n", STR(ENV_PIN_SDA), STR(ENV_PIN_SCL));
+#elif defined(PIN_BOARD_SDA) && defined(PIN_BOARD_SCL)
+      sprintf(reply, "I2C Wire: SDA=%s, SCL=%s\r\n", STR(PIN_BOARD_SDA), STR(PIN_BOARD_SCL));
+#elif defined(PIN_WIRE_SDA) && defined(PIN_WIRE_SCL)
+      sprintf(reply, "I2C Wire: SDA=%s, SCL=%s\r\n", STR(PIN_WIRE_SDA), STR(PIN_WIRE_SCL));
+#else
+      sprintf(reply, "I2C GPIOs not defined\r\n");
+#endif
+
+      // GPS
+#if defined(PIN_GPS_RX) && defined(PIN_GPS_TX)
+      sprintf(reply + strlen(reply), "GPS Serial: RX=%s, TX=%s", STR(PIN_GPS_RX), STR(PIN_GPS_TX));
+#ifdef ENV_INCLUDE_GPS> 0
+      sprintf(reply + strlen(reply), ". Configured");
+#else
+      sprintf(reply + strlen(reply), ". Not configured");
+#endif
+#else
+      sprintf(reply + strlen(reply), "GPS Serial not defined");
+#endif
+    } else if (memcmp(command, "powerlog", 8) == 0) {
+      sprintf(reply, "Last reset reason: %s", _board->getResetReasonString(_board->getResetReason()));
+#if defined(NRF52_PLATFORM)
+      sprintf(reply + strlen(reply), "\r\nLast shutdown reason: %s",
+              _board->getShutdownReasonString(_board->getShutdownReason()));
+      sprintf(reply + strlen(reply), "\r\nLast boot voltage: %u mV", _board->getBootVoltage());
+#endif
     } else if (memcmp(command, "log start", 9) == 0) {
       _callbacks->setLoggingOn(true);
       strcpy(reply, "   logging on");
@@ -498,6 +665,10 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     strcpy(reply, "OK");
   } else if (memcmp(config, "int.thresh ", 11) == 0) {
     _prefs->interference_threshold = atoi(&config[11]);
+    savePrefs();
+    strcpy(reply, "OK");
+  } else if (memcmp(config, "cad ", 4) == 0) {
+    _prefs->cad_enabled = memcmp(&config[4], "on", 2) == 0;
     savePrefs();
     strcpy(reply, "OK");
   } else if (memcmp(config, "agc.reset.interval ", 19) == 0) {
@@ -568,6 +739,127 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     savePrefs();
     _callbacks->setRxBoostedGain(_prefs->rx_boosted_gain);
 #endif
+  } else if (memcmp(config, "radio.fem.rxgain ", 17) == 0) {
+    if (!_board->canControlLoRaFemLna()) {
+      strcpy(reply, "Error: unsupported");
+    } else if (memcmp(&config[17], "on", 2) == 0) {
+      if (_board->setLoRaFemLnaEnabled(true)) {
+        _prefs->radio_fem_rxgain = 1;
+        savePrefs();
+        strcpy(reply, "OK - LoRa FEM RX gain on");
+      } else {
+        strcpy(reply, "Error: failed to apply LoRa FEM RX gain");
+      }
+    } else if (memcmp(&config[17], "off", 3) == 0) {
+      if (_board->setLoRaFemLnaEnabled(false)) {
+        _prefs->radio_fem_rxgain = 0;
+        savePrefs();
+        strcpy(reply, "OK - LoRa FEM RX gain off");
+      } else {
+        strcpy(reply, "Error: failed to apply LoRa FEM RX gain");
+      }
+    } else {
+      strcpy(reply, "Error: state must be on or off");
+    }
+  } else if (memcmp(config, "radio.rxps ", 11) == 0) {
+    const char* value = &config[11];
+    uint8_t enable = _prefs->rx_powersaving_enabled;
+    uint32_t rx_us = _prefs->rx_ps_rx_us;
+    uint32_t sleep_us = _prefs->rx_ps_sleep_us;
+    uint32_t level = 0;
+    uint32_t preamble = rxPowerSavingPreambleForSF(_prefs->sf);
+    bool level_requested = false;
+    bool preamble_overridden = false;
+
+    ensureRxPowerSavingDefaults(_prefs);
+    rx_us = _prefs->rx_ps_rx_us;
+    sleep_us = _prefs->rx_ps_sleep_us;
+
+    if (strcmp(value, "off") == 0) {
+      enable = 0;
+    } else if (strcmp(value, "on") == 0 || strcmp(value, "conservative") == 0) {
+      enable = 1;
+      level = RX_POWERSAVING_CONSERVATIVE_LEVEL;
+      preamble = RX_POWERSAVING_PROFILE_PREAMBLE;
+      level_requested = true;
+      preamble_overridden = true;
+    } else if (strcmp(value, "balanced") == 0) {
+      enable = 1;
+      level = RX_POWERSAVING_BALANCED_LEVEL;
+      preamble = RX_POWERSAVING_PROFILE_PREAMBLE;
+      level_requested = true;
+      preamble_overridden = true;
+    } else {
+      StrHelper::strncpy(tmp, value, sizeof(tmp));
+      const char *parts[4];
+      int num = mesh::Utils::parseTextParts(tmp, parts, 4, ' ');
+      if (num == 1 && isNumeric(parts[0])) {
+        level = _atoi(parts[0]);
+        level_requested = true;
+        enable = 1;
+      } else if (num == 2 && strcmp(parts[0], "level") == 0 && isNumeric(parts[1])) {
+        level = _atoi(parts[1]);
+        level_requested = true;
+        enable = 1;
+      } else if (num == 4 && strcmp(parts[0], "level") == 0 && isNumeric(parts[1]) &&
+                 strcmp(parts[2], "preamble") == 0 && isNumeric(parts[3])) {
+        level = _atoi(parts[1]);
+        preamble = _atoi(parts[3]);
+        level_requested = true;
+        preamble_overridden = true;
+        enable = 1;
+      } else if (num == 2 && isNumeric(parts[0]) && isNumeric(parts[1])) {
+        rx_us = _atoi(parts[0]);
+        sleep_us = _atoi(parts[1]);
+        enable = 1;
+      } else {
+        strcpy(reply, "ERROR: use off|on|conservative|balanced|level <1-10>|<rx_us> <sleep_us>");
+        return;
+      }
+    }
+
+    if (level_requested && !calcRxPowerSavingLevel(level, _prefs->sf, _prefs->bw, preamble, &rx_us, &sleep_us)) {
+      strcpy(reply, "ERROR: level range is 1-10; preamble is 16 or 32");
+      return;
+    }
+
+    if (!isValidRxPowerSavingPeriod(rx_us) || !isValidRxPowerSavingPeriod(sleep_us)) {
+      sprintf(reply, "ERROR: range is %lu-%lu us",
+              (unsigned long)RX_POWERSAVING_MIN_PERIOD_US,
+              (unsigned long)RX_POWERSAVING_MAX_PERIOD_US);
+      return;
+    }
+
+    if (!_callbacks->setRxPowerSaving(enable, rx_us, sleep_us)) {
+      strcpy(reply, "ERROR: RX powersaving unsupported");
+      return;
+    }
+
+    _prefs->rx_powersaving_enabled = enable;
+    _prefs->rx_ps_rx_us = rx_us;
+    _prefs->rx_ps_sleep_us = sleep_us;
+    if (level_requested) {
+      // Remember the intent so the timings can auto-retune when SF/BW change.
+      _prefs->rx_ps_level = level;
+      _prefs->rx_ps_preamble = preamble_overridden ? preamble : 0;   // 0 = auto (derive from SF)
+    } else if (strcmp(value, "off") != 0) {
+      // manual <rx_us> <sleep_us> timings are fixed, not level-derived
+      // (the named profiles set level_requested and are handled above)
+      _prefs->rx_ps_level = 0;
+      _prefs->rx_ps_preamble = 0;
+    }
+    savePrefs();
+    if (level_requested) {
+      sprintf(reply, "OK - level %lu,%s,%lu,%lu,preamble=%lu",
+              (unsigned long)level,
+              enable ? "on" : "off",
+              (unsigned long)rx_us,
+              (unsigned long)sleep_us,
+              (unsigned long)preamble);
+    } else {
+      sprintf(reply, "OK - %s,%lu,%lu", enable ? "on" : "off",
+              (unsigned long)rx_us, (unsigned long)sleep_us);
+    }
   } else if (memcmp(config, "radio ", 6) == 0) {
     strcpy(tmp, &config[6]);
     const char *parts[4];
@@ -581,8 +873,11 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       _prefs->cr = cr;
       _prefs->freq = freq;
       _prefs->bw = bw;
+      // Retune level-based RX powersaving to the new SF/BW. Persist only; the
+      // radio itself is "reboot to apply", and begin() re-arms the timings then.
+      bool rxps_retuned = recalcRxPowerSavingFromLevel(_prefs);
       _callbacks->savePrefs();
-      strcpy(reply, "OK - reboot to apply");
+      strcpy(reply, rxps_retuned ? "OK - reboot to apply (rxps retuned)" : "OK - reboot to apply");
     } else {
       strcpy(reply, "Error, invalid radio params");
     }
@@ -759,6 +1054,19 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       _prefs->adc_multiplier = 0.0f;
       strcpy(reply, "Error: unsupported by this board");
     };
+  } else if (memcmp(config, "reboot.interval ", 16) == 0) {
+    int hours = _atoi(&config[16]);
+    if (hours == 0) {
+      _prefs->reboot_interval = 0;
+      savePrefs();
+      strcpy(reply, "reboot.interval disabled");
+    } else if (hours < 1 || 255 < hours) {
+      strcpy(reply, "Error: interval range is 1-255 hours");
+    } else {
+      _prefs->reboot_interval = hours;
+      savePrefs();
+      sprintf(reply, "OK - reboot.interval set to %d", _prefs->reboot_interval);
+    }
   } else {
     strcpy(reply, "unknown config: ");
     StrHelper::strncpy(&reply[16], config, 160-17);
@@ -776,6 +1084,8 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %s", StrHelper::ftoa(_prefs->airtime_factor));
   } else if (memcmp(config, "int.thresh", 10) == 0) {
     sprintf(reply, "> %d", (uint32_t) _prefs->interference_threshold);
+  } else if (memcmp(config, "cad", 3) == 0) {
+    sprintf(reply, "> %s. # channel busy: %u", _prefs->cad_enabled ? "on" : "off", _board->n_cad_busy);
   } else if (memcmp(config, "agc.reset.interval", 18) == 0) {
     sprintf(reply, "> %d", ((uint32_t) _prefs->agc_reset_interval) * 4);
   } else if (memcmp(config, "multi.acks", 10) == 0) {
@@ -805,6 +1115,20 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
   } else if (memcmp(config, "radio.rxgain", 12) == 0) {
     sprintf(reply, "> %s", _prefs->rx_boosted_gain ? "on" : "off");
 #endif
+  } else if (memcmp(config, "radio.fem.rxgain", 16) == 0) {
+    if (!_board->canControlLoRaFemLna()) {
+      strcpy(reply, "Error: unsupported");
+    } else {
+      sprintf(reply, "> %s", _board->isLoRaFemLnaEnabled() ? "on" : "off");
+    }
+  } else if (memcmp(config, "radio.rxps", 10) == 0) {
+    ensureRxPowerSavingDefaults(_prefs);
+    sprintf(reply, "> %s,%lu,%lu", _prefs->rx_powersaving_enabled ? "on" : "off",
+            (unsigned long)_prefs->rx_ps_rx_us, (unsigned long)_prefs->rx_ps_sleep_us);
+  } else if (memcmp(config, "rxps.wd", 7) == 0) {
+    uint32_t wd_soft, wd_hard;
+    _callbacks->getRxPsWatchdogCounts(&wd_soft, &wd_hard);
+    sprintf(reply, "> soft=%lu,hard=%lu", (unsigned long)wd_soft, (unsigned long)wd_hard);
   } else if (memcmp(config, "radio", 5) == 0) {
     char freq[16], bw[16];
     strcpy(freq, StrHelper::ftoa(_prefs->freq));
@@ -926,6 +1250,12 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
 #else
     strcpy(reply, "ERROR: Power management not supported");
 #endif
+  } else if (memcmp(config, "reboot.interval", 15) == 0) {
+    if (_prefs->reboot_interval == 0) {
+      strcpy(reply, "disabled");
+    } else {
+      sprintf(reply, "> %d", (uint8_t)_prefs->reboot_interval);
+    }
   } else {
     sprintf(reply, "??: %s", config);
   }

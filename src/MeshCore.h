@@ -37,6 +37,15 @@
 #define BRIDGE_DEBUG_PRINTLN(...) {}
 #endif
 
+#if POWERSAVING_DEBUG && ARDUINO
+  #include <Arduino.h>
+  #define POWERSAVING_DEBUG_PRINT(F, ...) Serial.printf("POWERSAVING: " F, ##__VA_ARGS__)
+  #define POWERSAVING_DEBUG_PRINTLN(F, ...) Serial.printf("POWERSAVING: " F "\n", ##__VA_ARGS__)
+#else
+  #define POWERSAVING_DEBUG_PRINT(...) {}
+  #define POWERSAVING_DEBUG_PRINTLN(...) {}
+#endif
+
 namespace mesh {
 
 #define  BD_STARTUP_NORMAL     0  // getStartupReason() codes
@@ -64,6 +73,9 @@ public:
   virtual uint8_t getStartupReason() const = 0;
   virtual bool getBootloaderVersion(char* version, size_t max_len) { return false; }
   virtual bool startOTAUpdate(const char* id, char reply[]) { return false; }   // not supported
+  virtual bool setLoRaFemLnaEnabled(bool enable) { return false; }
+  virtual bool canControlLoRaFemLna() const { return false; }
+  virtual bool isLoRaFemLnaEnabled() const { return false; }
   virtual void loop() { /* no op */ }  // override to implement periodic tasks in the main loop
   // Power management interface (boards with power management override these)
   virtual bool isExternalPowered() { return false; }
@@ -72,6 +84,8 @@ public:
   virtual const char* getResetReasonString(uint32_t reason) { return "Not available"; }
   virtual uint8_t getShutdownReason() const { return 0; }
   virtual const char* getShutdownReasonString(uint8_t reason) { return "Not available"; }
+
+  inline static uint32_t n_cad_busy = 0;
 };
 
 /**

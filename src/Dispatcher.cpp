@@ -66,6 +66,7 @@ uint32_t Dispatcher::getCADFailMaxDuration() const {
 void Dispatcher::loop() {
   if (millisHasNowPassed(next_floor_calib_time)) {
     _radio->triggerNoiseFloorCalibrate(getInterferenceThreshold());
+    _radio->setCADEnabled(getCADEnabled());
     next_floor_calib_time = futureMillis(NOISE_FLOOR_CALIB_INTERVAL);
   }
   _radio->loop();
@@ -190,20 +191,24 @@ bool Dispatcher::tryParsePacket(Packet* pkt, const uint8_t* raw, int len) {
 void Dispatcher::checkRecv() {
   Packet* pkt;
   float score;
+  float snr;
+  float rssi;
   uint32_t air_time;
   {
     uint8_t raw[MAX_TRANS_UNIT+1];
     int len = _radio->recvRaw(raw, MAX_TRANS_UNIT);
     if (len > 0) {
-      logRxRaw(_radio->getLastSNR(), _radio->getLastRSSI(), raw, len);
+      snr = _radio->getLastSNR();
+      rssi = _radio->getLastRSSI();
+      logRxRaw(snr, rssi, raw, len);
 
       pkt = _mgr->allocNew();
       if (pkt == NULL) {
         MESH_DEBUG_PRINTLN("%s Dispatcher::checkRecv(): WARNING: received data, no unused packets available!", getLogDateTime());
       } else {
         if (tryParsePacket(pkt, raw, len)) {
-          pkt->_snr = _radio->getLastSNR() * 4.0f;
-          score = _radio->packetScore(_radio->getLastSNR(), len);
+          pkt->_snr = snr * 4.0f;
+          score = _radio->packetScore(snr, len);
           air_time = _radio->getEstAirtimeFor(len);
           rx_air_time += air_time;
         } else {
@@ -220,7 +225,7 @@ void Dispatcher::checkRecv() {
     Serial.print(getLogDateTime());
     Serial.printf(": RX, len=%d (type=%d, route=%s, payload_len=%d) SNR=%d RSSI=%d score=%d time=%d", 
             pkt->getRawLength(), pkt->getPayloadType(), pkt->isRouteDirect() ? "D" : "F", pkt->payload_len,
-            (int)pkt->getSNR(), (int)_radio->getLastRSSI(), (int)(score*1000), air_time);
+            (int)pkt->getSNR(), (int)rssi, (int)(score*1000), air_time);
 
     static uint8_t packet_hash[MAX_HASH_SIZE];
     pkt->calculatePacketHash(packet_hash);
@@ -255,6 +260,7 @@ void Dispatcher::checkRecv() {
       processRecvPacket(pkt);
     }
   }
+  _radio->onReceiveProcessed();
 }
 
 void Dispatcher::processRecvPacket(Packet* pkt) {

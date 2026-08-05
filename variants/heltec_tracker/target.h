@@ -15,6 +15,7 @@
 
 class HWTSensorManager : public SensorManager {
   bool gps_active = false;
+  bool gps_wake = false; // In PowerSaving, gps_active can have gps_wake true or false
   LocationProvider * _location;
 
   void start_gps();

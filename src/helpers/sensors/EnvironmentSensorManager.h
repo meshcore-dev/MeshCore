@@ -21,6 +21,7 @@ protected:
 
   bool     gps_detected = false;
   bool     gps_active = false;
+  bool     gps_wake = false;  // In PowerSaving, gps_active can have gps_wake true or false
   uint32_t gps_update_interval_sec = 1;
 
   #if ENV_INCLUDE_GPS

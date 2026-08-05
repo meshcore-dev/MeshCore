@@ -31,6 +31,9 @@ public:
   */
   virtual int recvRaw(uint8_t* bytes, int sz) = 0;
 
+  /** Called after the received packet and its radio metadata have been processed. */
+  virtual void onReceiveProcessed() { }
+
   /**
    * \returns  estimated transmit air-time needed for packet of 'len_bytes', in milliseconds.
   */
@@ -65,9 +68,14 @@ public:
 
   virtual void triggerNoiseFloorCalibrate(int threshold) { }
 
+  virtual void setCADEnabled(bool enable) { }
+
   virtual void resetAGC() { }
 
   virtual bool isInRecvMode() const = 0;
+
+  virtual bool supportsRxPowerSaving() const { return false; }
+  virtual bool setRxPowerSaving(bool enabled, uint32_t rx_us, uint32_t sleep_us) { return !enabled; }
 
   /**
    * \returns  true if the radio is currently mid-receive of a packet.
@@ -166,6 +174,7 @@ protected:
   virtual uint32_t getCADFailRetryDelay() const;
   virtual uint32_t getCADFailMaxDuration() const;
   virtual int getInterferenceThreshold() const { return 0; }    // disabled by default
+  virtual bool getCADEnabled() const { return false; }    // hardware CAD disabled by default
   virtual int getAGCResetInterval() const { return 0; }    // disabled by default
   virtual unsigned long getDutyCycleWindowMs() const { return 3600000; }
 

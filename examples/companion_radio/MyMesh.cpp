@@ -62,6 +62,8 @@
 #define CMD_SET_DEFAULT_FLOOD_SCOPE   63
 #define CMD_GET_DEFAULT_FLOOD_SCOPE   64
 #define CMD_SEND_RAW_PACKET           65
+#define CMD_GET_RADIO_FEM_RXGAIN      66
+#define CMD_SET_RADIO_FEM_RXGAIN      67
 
 // Stats sub-types for CMD_GET_STATS
 #define STATS_TYPE_CORE               0
@@ -261,6 +263,65 @@ float MyMesh::getAirtimeBudgetFactor() const {
 int MyMesh::getInterferenceThreshold() const {
   return 0; // disabled for now, until currentRSSI() problem is resolved
 }
+bool MyMesh::getCADEnabled() const {
+  return true; // hardware CAD before TX (no CLI toggle on companion; enabled by default)
+}
+
+#if defined(RXPS_FIXED_ENABLED) || defined(RXPS_FIXED_LEVEL) || defined(RXPS_FIXED_PREAMBLE)
+#if !defined(RXPS_FIXED_ENABLED) || !defined(RXPS_FIXED_LEVEL) || !defined(RXPS_FIXED_PREAMBLE)
+#error "RXPS_FIXED_ENABLED, RXPS_FIXED_LEVEL, and RXPS_FIXED_PREAMBLE must be defined together"
+#endif
+#if RXPS_FIXED_LEVEL < 1 || RXPS_FIXED_LEVEL > 10
+#error "RXPS_FIXED_LEVEL must be between 1 and 10"
+#endif
+#if RXPS_FIXED_PREAMBLE != 16 && RXPS_FIXED_PREAMBLE != 32
+#error "RXPS_FIXED_PREAMBLE must be 16 or 32"
+#endif
+#endif
+
+#ifdef RXPS_FIXED_ENABLED
+static uint32_t ceilPositiveFloat(float value) {
+  uint32_t rounded = (uint32_t)value;
+  return value > (float)rounded ? rounded + 1 : rounded;
+}
+
+static bool calcFixedRxPowerSaving(uint8_t sf, float bw, uint32_t* rx_us, uint32_t* sleep_us) {
+  if (RXPS_FIXED_LEVEL < 1 || RXPS_FIXED_LEVEL > 10 || sf < 5 || sf > 12 ||
+      bw <= 0.0f || (RXPS_FIXED_PREAMBLE != 16 && RXPS_FIXED_PREAMBLE != 32)) {
+    return false;
+  }
+
+  const float symbol_us = (1000.0f * (float)(1UL << sf)) / bw;
+  const float amount = (float)(RXPS_FIXED_LEVEL - 1) / 9.0f;
+  const float rx_start_symbols = RXPS_FIXED_PREAMBLE == 16 ? 12.0f : 16.0f;
+  const float sleep_start_symbols = RXPS_FIXED_PREAMBLE == 16 ? 2.0f : 15.0f;
+  const float rx_edge_symbols = 8.0f;
+  const float sleep_edge_symbols = (float)RXPS_FIXED_PREAMBLE + 4.25f - 8.0f;
+
+  const float rx_symbols = rx_start_symbols + amount * (rx_edge_symbols - rx_start_symbols);
+  const float sleep_symbols = sleep_start_symbols + amount * (sleep_edge_symbols - sleep_start_symbols);
+
+  *rx_us = ceilPositiveFloat(rx_symbols * symbol_us);
+  *sleep_us = (uint32_t)(sleep_symbols * symbol_us);
+  return true;
+}
+
+static void applyFixedRxPowerSaving(uint8_t sf, float bw) {
+  uint32_t rx_us, sleep_us;
+  if (!calcFixedRxPowerSaving(sf, bw, &rx_us, &sleep_us)) {
+    MESH_DEBUG_PRINTLN("RX Power Saving fixed profile invalid");
+    return;
+  }
+
+  bool ok = radio_driver.setRxPowerSaving(true, rx_us, sleep_us);
+  MESH_DEBUG_PRINTLN("RX Power Saving fixed level %d p%d: %s (%lu/%lu us)",
+                     RXPS_FIXED_LEVEL,
+                     RXPS_FIXED_PREAMBLE,
+                     ok ? "Enabled" : "Unsupported",
+                     (unsigned long)rx_us,
+                     (unsigned long)sleep_us);
+}
+#endif
 
 int MyMesh::calcRxDelay(float score, uint32_t air_time) const {
   if (_prefs.rx_delay_base <= 0.0f) return 0;
@@ -886,6 +947,7 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
   _prefs.rx_boosted_gain = 1; // enabled by default
 #endif
 #endif
+  _prefs.radio_fem_rxgain = 1;
 }
 
 void MyMesh::begin(bool has_display) {
@@ -935,6 +997,7 @@ void MyMesh::begin(bool has_display) {
   _prefs.tx_power_dbm = constrain(_prefs.tx_power_dbm, -9, MAX_LORA_TX_POWER);
   _prefs.gps_enabled = constrain(_prefs.gps_enabled, 0, 1);  // Ensure boolean 0 or 1
   _prefs.gps_interval = constrain(_prefs.gps_interval, 0, 86400);  // Max 24 hours
+  _prefs.radio_fem_rxgain = constrain(_prefs.radio_fem_rxgain, 0, 1);
 
 #ifdef BLE_PIN_CODE // 123456 by default
   if (_prefs.ble_pin == 0) {
@@ -964,6 +1027,10 @@ void MyMesh::begin(bool has_display) {
   radio_driver.setParams(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
   radio_driver.setTxPower(_prefs.tx_power_dbm);
   radio_driver.setRxBoostedGainMode(_prefs.rx_boosted_gain);
+  board.setLoRaFemLnaEnabled(_prefs.radio_fem_rxgain);
+#ifdef RXPS_FIXED_ENABLED
+  applyFixedRxPowerSaving(_prefs.sf, _prefs.bw);
+#endif
   MESH_DEBUG_PRINTLN("RX Boosted Gain Mode: %s",
                      radio_driver.getRxBoostedGainMode() ? "Enabled" : "Disabled");
 }
@@ -1389,6 +1456,9 @@ void MyMesh::handleCmdFrame(size_t len) {
       savePrefs();
 
       radio_driver.setParams(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
+#ifdef RXPS_FIXED_ENABLED
+      applyFixedRxPowerSaving(_prefs.sf, _prefs.bw);
+#endif
       MESH_DEBUG_PRINTLN("OK: CMD_SET_RADIO_PARAMS: f=%d, bw=%d, sf=%d, cr=%d", freq, bw, (uint32_t)sf,
                          (uint32_t)cr);
 
@@ -1821,6 +1891,30 @@ void MyMesh::handleCmdFrame(size_t len) {
     } else {
       writeErrFrame(ERR_CODE_ILLEGAL_ARG);
     }
+  } else if (cmd_frame[0] == CMD_GET_RADIO_FEM_RXGAIN) {
+    if (!board.canControlLoRaFemLna()) {
+      writeErrFrame(ERR_CODE_UNSUPPORTED_CMD);
+    } else {
+      out_frame[0] = RESP_CODE_OK;
+      uint8_t value = board.isLoRaFemLnaEnabled() ? 1 : 0;
+      memcpy(&out_frame[1], &value, 1);
+      _serial->writeFrame(out_frame, 2);
+    }
+  } else if (cmd_frame[0] == CMD_SET_RADIO_FEM_RXGAIN && len >= 2) {
+    uint8_t value = cmd_frame[1];
+    if (!board.canControlLoRaFemLna()) {
+      writeErrFrame(ERR_CODE_UNSUPPORTED_CMD);
+    } else if (value <= 1) {
+      _prefs.radio_fem_rxgain = value;
+      if (board.setLoRaFemLnaEnabled(value != 0)) {
+        savePrefs();
+        writeOKFrame();
+      } else {
+        writeErrFrame(ERR_CODE_UNSUPPORTED_CMD);
+      }
+    } else {
+      writeErrFrame(ERR_CODE_ILLEGAL_ARG);
+    }
   } else if (cmd_frame[0] == CMD_GET_ADVERT_PATH && len >= PUB_KEY_SIZE+2) {
     // FUTURE use:  uint8_t reserved = cmd_frame[1];
     uint8_t *pub_key = &cmd_frame[2];
@@ -1981,6 +2075,7 @@ void MyMesh::handleCmdFrame(size_t len) {
         sendPacket(pkt, priority, 0);
         writeOKFrame();
       } else {
+        releasePacket(pkt);
         writeErrFrame(ERR_CODE_ILLEGAL_ARG);
       }
     } else {

@@ -22,8 +22,8 @@ void initVariant() {
 
   pinMode(LED_RED, OUTPUT);
   pinMode(LED_GREEN, OUTPUT);
-  pinMode(LED_BLUE, OUTPUT);
-  digitalWrite(LED_BLUE, HIGH);
+  // pinMode(LED_BLUE, OUTPUT);
+  // digitalWrite(LED_BLUE, HIGH);
   digitalWrite(LED_GREEN, HIGH);
   digitalWrite(LED_RED, HIGH);
 

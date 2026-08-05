@@ -32,33 +32,12 @@ void HeltecV4Board::begin() {
     loRaFEMControl.setRxModeEnable();
   }
 
-  void HeltecV4Board::enterDeepSleep(uint32_t secs, int pin_wake_btn) {
-    esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
+  void HeltecV4Board::powerOff() {
+    // Turn off PA
+    digitalWrite(P_LORA_PA_POWER, LOW);
+    rtc_gpio_hold_en((gpio_num_t)P_LORA_PA_POWER);
 
-    // Make sure the DIO1 and NSS GPIOs are hold on required levels during deep sleep
-    rtc_gpio_set_direction((gpio_num_t)P_LORA_DIO_1, RTC_GPIO_MODE_INPUT_ONLY);
-    rtc_gpio_pulldown_en((gpio_num_t)P_LORA_DIO_1);
-
-    rtc_gpio_hold_en((gpio_num_t)P_LORA_NSS);
-
-    loRaFEMControl.setRxModeEnableWhenMCUSleep();//It also needs to be enabled in receive mode
-
-    if (pin_wake_btn < 0) {
-      esp_sleep_enable_ext1_wakeup( (1L << P_LORA_DIO_1), ESP_EXT1_WAKEUP_ANY_HIGH);  // wake up on: recv LoRa packet
-    } else {
-      esp_sleep_enable_ext1_wakeup( (1L << P_LORA_DIO_1) | (1L << pin_wake_btn), ESP_EXT1_WAKEUP_ANY_HIGH);  // wake up on: recv LoRa packet OR wake btn
-    }
-
-    if (secs > 0) {
-      esp_sleep_enable_timer_wakeup(secs * 1000000);
-    }
-
-    // Finally set ESP32 into sleep
-    esp_deep_sleep_start();   // CPU halts here and never returns!
-  }
-
-  void HeltecV4Board::powerOff()  {
-    enterDeepSleep(0);
+    ESP32Board::powerOff();
   }
 
   uint16_t HeltecV4Board::getBattMilliVolts()  {
@@ -82,4 +61,26 @@ void HeltecV4Board::begin() {
 #else
     return loRaFEMControl.getFEMType() == KCT8103L_PA ? "Heltec V4.3 OLED" : "Heltec V4 OLED";
 #endif
+  }
+
+  bool HeltecV4Board::setLoRaFemLnaEnabled(bool enable) {
+#if defined(RADIO_FEM_RXGAIN) && (RADIO_FEM_RXGAIN == 0)
+    enable = false;
+#endif
+
+    if (!loRaFEMControl.isLnaCanControl()) {
+      return false;
+    }
+
+    loRaFEMControl.setLNAEnable(enable);
+    loRaFEMControl.setRxModeEnable();
+    return true;
+  }
+
+  bool HeltecV4Board::canControlLoRaFemLna() const {
+    return loRaFEMControl.isLnaCanControl();
+  }
+
+  bool HeltecV4Board::isLoRaFemLnaEnabled() const {
+    return loRaFEMControl.isLNAEnabled();
   }

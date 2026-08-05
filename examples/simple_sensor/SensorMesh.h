@@ -68,6 +68,8 @@ public:
   void eraseLogFile() override { }
   void dumpLogFile() override { }
   void setTxPower(int8_t power_dbm) override;
+  bool setRxPowerSaving(bool enable, uint32_t rx_us, uint32_t sleep_us) override;
+  void getRxPsWatchdogCounts(uint32_t* soft, uint32_t* hard) override;
   void formatNeighborsReply(char *reply) override {
     strcpy(reply, "not supported");
   }
@@ -120,6 +122,7 @@ protected:
   uint32_t getRetransmitDelay(const mesh::Packet* packet) override;
   uint32_t getDirectRetransmitDelay(const mesh::Packet* packet) override;
   int getInterferenceThreshold() const override;
+  bool getCADEnabled() const override;
   int getAGCResetInterval() const override;
   void onAnonDataRecv(mesh::Packet* packet, const uint8_t* secret, const mesh::Identity& sender, uint8_t* data, size_t len) override;
   int searchPeersByHash(const uint8_t* hash) override;

@@ -401,6 +401,10 @@ bool SerialBLEInterface::isConnected() const {
   return _isDeviceConnected && Bluefruit.connected() > 0;
 }
 
+bool SerialBLEInterface::isReadBusy() const {
+  return (recv_queue_len > 0);
+}
+
 bool SerialBLEInterface::isWriteBusy() const {
   return send_queue_len >= (FRAME_QUEUE_SIZE * 2 / 3);
 }
