@@ -87,6 +87,7 @@ public:
   }
 
   void toggleBuzzer();
+  void toggleInvertDisplay();
   bool getGPSState();
   void toggleGPS();
 
