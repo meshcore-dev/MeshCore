@@ -357,13 +357,13 @@ void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const m
       }
 
       client = acl.putClient(sender, 0);  // add to known clients (if not already known)
-      if (sender_timestamp <= client->last_timestamp) {
+      if (sender_timestamp <= client->last_login_timestamp) {
         MESH_DEBUG_PRINTLN("possible replay attack!");
         return;
       }
 
       MESH_DEBUG_PRINTLN("Login success!");
-      client->last_timestamp = sender_timestamp;
+      client->last_login_timestamp = sender_timestamp;
       client->extra.room.sync_since = sender_sync_since;
       client->extra.room.pending_ack = 0;
       client->extra.room.push_failures = 0;
