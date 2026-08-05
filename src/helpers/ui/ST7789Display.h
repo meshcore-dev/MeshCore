@@ -27,9 +27,9 @@ public:
   void turnOn() override;
   void turnOff() override;
   void clear() override;
-  void startFrame(Color bkg = DARK) override;
+  void startFrame(ColorVal bkg = UIColor::window_bkg) override;
   void setTextSize(int sz) override;
-  void setColor(Color c) override;
+  void setColor(ColorVal c) override;
   void setCursor(int x, int y) override;
   void print(const char* str) override;
   void printWordWrap(const char* str, int max_width) override;
