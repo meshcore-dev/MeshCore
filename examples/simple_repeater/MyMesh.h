@@ -11,6 +11,7 @@
   #include <LittleFS.h>
 #elif defined(ESP32)
   #include <SPIFFS.h>
+  using File = fs::File;
 #endif
 
 #ifdef WITH_RS232_BRIDGE
@@ -91,8 +92,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   CommonCLI _cli;
   uint8_t reply_data[MAX_PACKET_PAYLOAD];
   uint8_t reply_path[MAX_PATH_SIZE];
-  int8_t  reply_path_len;
-  uint8_t reply_path_hash_size;
+  uint8_t reply_path_len;
   TransportKeyStore key_store;
   RegionMap region_map, temp_map;
   RegionEntry* load_stack[8];
@@ -270,5 +270,9 @@ public:
   bool hasPendingWork() const;
 
   bool setRxBoostedGain(bool enable) override;
+
+  #if defined(USE_LR2021)
+  virtual bool configSideDetectors(const uint8_t sideDetSFs[], uint8_t num, float bw) override;
+  #endif
 
 };

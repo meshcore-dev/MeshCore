@@ -57,18 +57,17 @@ void UITask::renderCurrScreen() {
   char tmp[80];
   if (millis() < _started_at + BOOT_SCREEN_MILLIS) { // boot screen
     // meshcore logo
-    _display->setColor(DisplayDriver::BLUE);
+    _display->setColor(UIColor::corp_blue);
     int logoWidth = 128;
     _display->drawXbm((_display->width() - logoWidth) / 2, 3, meshcore_logo, logoWidth, 13);
 
     // meshcore website
     const char* website = "https://meshcore.io";
-    _display->setColor(DisplayDriver::LIGHT);
+    _display->setColor(UIColor::primary_txt);
     _display->setTextSize(1);
     _display->drawTextCentered(_display->width() / 2, 22, website);
 
     // version info
-    _display->setColor(DisplayDriver::LIGHT);
     _display->setTextSize(1);
     _display->drawTextCentered(_display->width() / 2, 35, _version_info);
 
@@ -77,13 +76,13 @@ void UITask::renderCurrScreen() {
     _display->drawTextCentered(_display->width() / 2, 48, node_type);
   } else if (_powering_off_at > 0) {
     // meshcore logo
-    _display->setColor(DisplayDriver::BLUE);
+    _display->setColor(UIColor::corp_blue);
     int logoWidth = 128;
     _display->drawXbm((_display->width() - logoWidth) / 2, 3, meshcore_logo, logoWidth, 13);
 
     // meshcore website
     const char* website = "https://meshcore.io";
-    _display->setColor(DisplayDriver::LIGHT);
+    _display->setColor(UIColor::primary_txt);
     _display->setTextSize(1);
     _display->drawTextCentered(_display->width()/ 2, 22, website);
 
@@ -95,12 +94,11 @@ void UITask::renderCurrScreen() {
   } else {
     _display->setCursor(0, 0);
     _display->setTextSize(1);
-    _display->setColor(DisplayDriver::GREEN);
+    _display->setColor(UIColor::primary_txt);
     _display->print(_node_prefs->node_name);
 
     // freq / sf
     _display->setCursor(0, 20);
-    _display->setColor(DisplayDriver::YELLOW);
     sprintf(tmp, "FREQ: %06.3f SF%d", _node_prefs->freq, _node_prefs->sf);
     _display->print(tmp);
 

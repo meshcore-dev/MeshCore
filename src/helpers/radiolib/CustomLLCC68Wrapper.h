@@ -14,6 +14,10 @@ public:
     ((CustomLLCC68 *)_radio)->setBandwidth(bw);
     ((CustomLLCC68 *)_radio)->setCodingRate(cr);
     updatePreamble(sf);
+    PacketMillis pm = calcMaxPacketMillis(sf, bw, cr, preambleLengthForSF(sf));
+    ((CustomLLCC68 *)_radio)->setPreambleMillis(pm.preambleMillis);
+    ((CustomLLCC68 *)_radio)->setMaxPayloadMillis(pm.payloadMillis);
+
   }
 
   bool isReceivingPacket() override { 
