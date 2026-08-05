@@ -60,6 +60,20 @@
 
 #define LAZY_CONTACTS_WRITE_DELAY    5000
 
+// Fixed RSSI margin (dB above the noise floor) at which a DIRECT resend treats the channel as busy
+// (isResendChannelActive(): busy when isReceivingPacket() || currentRSSI - noiseFloor >= this). It is
+// the resend-only counterpart of the general-LBT _prefs.interference_threshold, which flows through
+// getInterferenceThreshold() -> triggerNoiseFloorCalibrate() -> RadioLibWrapper::isChannelActive().
+// They are separate today only because interference_threshold is blanket-initialised to 0 (disabled;
+// see getInterferenceThreshold(), cited there as a currentRSSI() reliability concern). The margin
+// currentRSSI-noiseFloor is only as trustworthy as both terms: the median noise-floor estimator
+// (PR #2933) stabilises getNoiseFloor() and removes the dominant drift source (the old one-way
+// ratchet to -120 that inflated every margin), substantially rehabilitating the threshold path.
+// Once interference_threshold is enabled across the fleet, this constant can be superseded by it.
+#ifndef RESEND_INTERFERENCE_MARGIN
+  #define RESEND_INTERFERENCE_MARGIN  12   // dB above noise floor that blocks a resend (non-invasive LBT)
+#endif
+
 void MyMesh::putNeighbour(const mesh::Identity &id, uint32_t timestamp, float snr) {
 #if MAX_NEIGHBOURS // check if neighbours enabled
   // find existing neighbour, else use least recently updated
@@ -546,6 +560,14 @@ uint32_t MyMesh::getDirectRetransmitDelay(const mesh::Packet *packet) {
   return getRNG()->nextInt(0, 5*t + 1);
 }
 
+bool MyMesh::isResendChannelActive() {
+  // Non-invasive resend LBT (NO CAD, so RX stays open to overhear the downstream forward
+  // and cancel the resend). Block when a LoRa preamble/header is being received (often that
+  // forward) OR the live channel energy is well above the noise floor (foreign interference).
+  int margin = (int)radio_driver.getCurrentRSSI() - _radio->getNoiseFloor();
+  return radio_driver.isReceivingPacket() || (margin >= RESEND_INTERFERENCE_MARGIN);
+}
+
 mesh::DispatcherAction MyMesh::onRecvPacket(mesh::Packet* pkt) {
   if (pkt->getRouteType() == ROUTE_TYPE_TRANSPORT_FLOOD) {
     recv_pkt_region = region_map.findMatch(pkt, REGION_DENY_FLOOD);
@@ -872,6 +894,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.rx_delay_base = 0.0f;   // turn off by default, was 10.0;
   _prefs.tx_delay_factor = 0.5f; // was 0.25f
   _prefs.direct_tx_delay_factor = 0.3f; // was 0.2
+  _prefs.max_resend_attempts = 2;
   StrHelper::strncpy(_prefs.node_name, ADVERT_NAME, sizeof(_prefs.node_name));
   _prefs.node_lat = ADVERT_LAT;
   _prefs.node_lon = ADVERT_LON;
@@ -1149,8 +1172,13 @@ void MyMesh::formatRadioStatsReply(char *reply) {
 }
 
 void MyMesh::formatPacketStatsReply(char *reply) {
-  StatsFormatHelper::formatPacketStats(reply, radio_driver, getNumSentFlood(), getNumSentDirect(), 
+  StatsFormatHelper::formatPacketStats(reply, radio_driver, getNumSentFlood(), getNumSentDirect(),
                                        getNumRecvFlood(), getNumRecvDirect());
+}
+
+void MyMesh::formatResendRatioReply(char *reply) {
+  if (!_prefs.max_resend_attempts) return;  // plain "> 0" when resends are disabled
+  StatsFormatHelper::formatResendRatio(reply, getNumResentDirect(), getNumSentDirect());
 }
 
 void MyMesh::saveIdentity(const mesh::LocalIdentity &new_id) {

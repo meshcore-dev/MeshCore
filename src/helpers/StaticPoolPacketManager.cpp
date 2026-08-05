@@ -43,6 +43,20 @@ mesh::Packet* PacketQueue::get(uint32_t now) {
   return top;
 }
 
+mesh::Packet* PacketQueue::peek(uint32_t now) const {
+  // Same selection as get() (highest-priority, non-future entry) but without removing it.
+  uint8_t min_pri = 0xFF;
+  int best_idx = -1;
+  for (int j = 0; j < _num; j++) {
+    if ((int32_t)(_schedule_table[j] - now) > 0) continue;   // scheduled for future... ignore
+    if (_pri_table[j] < min_pri) {
+      min_pri = _pri_table[j];
+      best_idx = j;
+    }
+  }
+  return (best_idx >= 0) ? _table[best_idx] : NULL;
+}
+
 mesh::Packet* PacketQueue::removeByIdx(int i) {
   if (i >= _num) return NULL;  // invalid index
 
@@ -80,6 +94,15 @@ mesh::Packet* StaticPoolPacketManager::allocNew() {
 }
 
 void StaticPoolPacketManager::free(mesh::Packet* packet) {
+  memset(packet->hash, 0, MAX_HASH_SIZE);  // clear stale cached hash so calculatePacketHash() recomputes on next use
+  packet->hash_hex[0] = '\0';
+  // Reset per-send resend state. sending_attempts and final_hop_ack_resend are otherwise only
+  // zeroed by the Packet ctor, so a reused pool slot would keep a stale sending_attempts >=
+  // getMaxResendAttempts(). resendPacket() would then silently skip resends for every subsequent
+  // direct packet routed through that slot — resends degrade to zero once the pool has turned over
+  // (~pool_size direct sends), even though forwards (which don't check sending_attempts) keep working.
+  packet->sending_attempts = 0;
+  packet->final_hop_ack_resend = false;
   unused.add(packet, 0, 0);
 }
 
@@ -93,6 +116,10 @@ void StaticPoolPacketManager::queueOutbound(mesh::Packet* packet, uint8_t priori
 mesh::Packet* StaticPoolPacketManager::getNextOutbound(uint32_t now) {
   //send_queue.sort();   // sort by scheduled_for/priority first
   return send_queue.get(now);
+}
+
+mesh::Packet* StaticPoolPacketManager::peekNextOutbound(uint32_t now) {
+  return send_queue.peek(now);
 }
 
 int  StaticPoolPacketManager::getOutboundCount(uint32_t now) const {

@@ -67,6 +67,7 @@ public:
   uint8_t radio_fem_rxgain = 0; // LoRa FEM RX gain setting
   uint8_t path_hash_mode = 0;   // which path mode to use when sending
   uint8_t loop_detect = 0;
+  uint8_t max_resend_attempts; // 0 = disabled, 1-3, default 2 (repeated sending)
   uint8_t cad_enabled = 0;      // hardware Channel Activity Detection before TX (boolean)
   uint8_t extra_sf[4];
 
@@ -174,6 +175,7 @@ protected:
     def("f_adv_int", flood_advert_interval);
     def("lat", node_lat);
     def("lon", node_lon);
+    def("max_resend", max_resend_attempts);  // repeated sending (feature)
     def("radio", radio);
     def("bridge", bridge);
     def("gps", gps);
@@ -213,6 +215,9 @@ public:
   virtual void formatStatsReply(char *reply) = 0;
   virtual void formatRadioStatsReply(char *reply) = 0;
   virtual void formatPacketStatsReply(char *reply) = 0;
+  // Appends the resend-ratio suffix (", resends N/M (P%)") to the max.resend get-reply. Default is a
+  // no-op so wrappers without Dispatcher access keep the plain "> N" reply.
+  virtual void formatResendRatioReply(char *reply) { }
   virtual mesh::LocalIdentity& getSelfId() = 0;
   virtual void saveIdentity(const mesh::LocalIdentity& new_id) = 0;
   virtual void clearStats() = 0;
