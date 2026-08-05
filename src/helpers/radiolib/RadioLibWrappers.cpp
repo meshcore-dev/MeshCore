@@ -133,7 +133,11 @@ int RadioLibWrapper::recvRaw(uint8_t* bytes, int sz) {
         n_recv++;
       }
     }
+    #if defined(USE_LR2021)
+    state = STATE_RX;     // LR2021 stays in Rx after readData, if we issue another startReceive while still in Rx we get -706 errors.
+    #else
     state = STATE_IDLE;   // need another startReceive()
+    #endif
   }
 
   if (state != STATE_RX) {
