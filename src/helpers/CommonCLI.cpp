@@ -261,6 +261,11 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
     } else if (memcmp(command, "clear stats", 11) == 0) {
       _callbacks->clearStats();
       strcpy(reply, "(OK - stats reset)");
+#ifdef WITH_BRIDGE
+    } else if (memcmp(command, "bridge.stats reset", 18) == 0) {
+      // zero the counters so a measurement can start from a known point
+      strcpy(reply, _callbacks->resetBridgeStats() ? "OK" : "Bridge stats not supported");
+#endif
     } else if (memcmp(command, "get ", 4) == 0) {
       handleGetCmd(sender_timestamp, command, reply);
     } else if (memcmp(command, "set ", 4) == 0) {
@@ -710,9 +715,6 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     _prefs->bridge_pkt_src = memcmp(&config[14], "rx", 2) == 0;
     savePrefs();
     strcpy(reply, "OK");
-  } else if (memcmp(config, "bridge.stats reset", 18) == 0) {
-    // zero the counters so a measurement can start from a known point
-    strcpy(reply, _callbacks->resetBridgeStats() ? "OK" : "Bridge stats not supported");
 #endif
 #ifdef WITH_RS232_BRIDGE
   } else if (memcmp(config, "bridge.baud ", 12) == 0) {

@@ -1127,7 +1127,7 @@ region save
 **Usage:**
 - `get bridge.rxstats`
 - `get bridge.txstats`
-- `set bridge.stats reset`
+- `bridge.stats reset`
 
 Counts every way a frame can be lost, so a message-count mismatch between two
 bridged nodes can be attributed rather than guessed at. Compare the sending
