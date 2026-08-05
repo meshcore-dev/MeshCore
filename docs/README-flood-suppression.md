@@ -1,220 +1,273 @@
-# Flood Suppression
+# Flood Suppression — Redundancy-Aware Rebroadcast Cancellation
 
-> **Status:** experimental · repeater-only (`simple_repeater`) · branch `feature/flood-suppression-coverage`.
-> Not yet merged; still being tuned and measured on hardware.
+A `simple_repeater` feature that cancels a repeater's **own scheduled flood
+re-broadcast when neighbouring repeaters have already forwarded the same flood**
+— i.e. when its re-broadcast would be redundant. It cuts on-air flood traffic and
+collisions while preserving reach.
 
-In a dense mesh every repeater rebroadcasts every flood, so most nodes receive many
-redundant copies and the air fills with collisions. **Flood suppression** lets a repeater
-cancel its *own* scheduled rebroadcast of a flood when its near neighbours are already
-covered — cutting redundant on-air traffic while preserving reach.
-
-See [`cli_commands.md`](cli_commands.md) for the exact command syntax; this document
-explains the mechanism and how to tune it.
+It is implemented entirely at the **application layer** (`simple_repeater`); the
+core library (`Mesh`, `Dispatcher`, `Packet`) is not modified.
 
 ---
 
-## The decision, in one paragraph
+## Mechanism
 
-Repeater **M** suppresses its rebroadcast of flood **F** **iff**
+A flood propagates by every repeater re-broadcasting it once. In a dense mesh
+many of those re-broadcasts cover nodes that have already received the flood from
+someone else — pure redundancy that only consumes airtime and causes collisions.
 
-1. every **near** neighbour is **covered** (already has F),
-2. no **isolated uncovered** near neighbour exists (`must_cover_self`), and
-3. the **client-aware** protection gate allows it.
+This feature turns each repeater into a *listener before it transmits*:
 
-Otherwise M forwards F as normal. Reach is never sacrificed for a neighbour the feature
-can see — it only removes rebroadcasts that would be redundant.
+1. **One identity per flood.** `Packet::calculatePacketHash` is path-independent
+   for floods (it hashes only `payloadType + payload`). So the original, every
+   overheard forward, and the node's own scheduled outbound re-broadcast all
+   share **one hash**.
 
----
+2. **Count overheard forwards at RX-arrival time.** In `MyMesh::logRx` — which
+   fires after parse but *before* `calcRxDelay`/`queueInbound` (`Dispatcher.cpp`)
+   — every received flood copy is attributed to its hash. The first copy is
+   recorded; each later copy is an **overheard forward** by a neighbour and
+   increments a per-hash counter.
 
-## Concepts
+3. **SNR-weighted counter (correct sign).** The weight of each overheard forward
+   depends on its RX SNR, which is a proxy for how central vs. edge the node is:
+   | RX SNR of the overheard forward | Weight | Meaning |
+   |---|---|---|
+   | `>= snr.hi` | **+2** | Strong forward nearby → you are central, your rebroadcast is redundant |
+   | `< snr.lo`  | **0**  | Weak forward → you are at the edge, keep extending reach |
+   | otherwise   | **+1** | Neutral |
 
-### Near neighbours — the coverage set
-- **Near** = heard recently (`<= 6 h` — a deliberately wide window so a briefly-silent but
-  still-reachable repeater doesn't churn out of the set) **and** link SNR `>= flood.suppress.snr.lo`.
-- Coverage is guaranteed only for the **strongest few** near neighbours
-  (`NEAR_NEIGHBOUR_COVERAGE_CAP = 5`). A rank-6+ near peer is *not* owed coverage — the
-  strongest forwarders cover the most nodes, so guaranteeing only the top few bounds
-  airtime while preserving reach. (The adaptive density estimate still counts *all* fresh
-  neighbours, so this cap does not weaken the threshold.)
-- Inspect live with [`near`](cli_commands.md#near).
+4. **Cancel when redundant.** Once the weighted count reaches the threshold **C**,
+   the hash entry is flagged `suppressed` and the already scheduled outbound
+   re-broadcast is removed from the TX queue (`cancelPendingFloodOutbound` →
+   `_mgr->removeOutboundByIdx` + `releasePacket`).
 
-### Coverage — how M knows a neighbour already has F
-Two sources, combined across every overheard copy of F:
+5. **Scheduling gate.** `allowPacketForward` refuses to schedule a rebroadcast
+   whose hash is already flagged `suppressed`. This covers the ordering case where
+   a later copy arrives and is flagged before the first copy is processed.
 
-1. **Direct** — the neighbour itself forwarded F (M saw its hash on an overheard path). Certain.
-2. **Reach-graph** — the neighbour was *reached* by a near forwarder **fi** via a fresh
-   **directed** edge `fi -> N` (N heard fi's forward of F). Inferred from the reach graph
-   below. **fi** may be *any* near forwarder (rank-6+ too, not only the top-5), so an edge
-   from a weaker forwarder can still mark a top-5 neighbour covered.
+6. **TX-delay bias.** `getRetransmitDelay` widens the TX window for central relays
+   (RX SNR `>= snr.hi`) so they have more time to observe overheard forwards and
+   be cancelled; edge relays keep the short delay and extend reach quickly.
 
-### The reach graph — measured (actively + passively), not inferred from flood paths
-- An edge `fi -> N` means *"N can hear fi's transmissions"* (fi reaches N).
-- **Directed.** RF links are asymmetric — A hearing B does **not** mean B hears A. The
-  graph must not infer forward reach from a reverse observation, or M could suppress a
-  rebroadcast and starve a neighbour that is actually deaf toward the forwarder.
-- Edges come from **two sources**:
-  1. **Active probe** — a round-trip TRACE with visit-list `[a, b, self]` (2-byte hashes)
-     walks `self -> a -> b -> self`. The SNR measured at **b** of **a**'s forward is
-     exactly *"does b hear a"*. The core flag `TRACE_FLAG_TERMINATE_AT_LAST` delivers the
-     result back at the initiator instead of a bystander. (The earlier design inferred
-     edges from overheard flood paths, but that stayed empty in sparse/mast topologies.)
-  2. **Passive harvest** — TRACEs are cleartext, so when a neighbouring repeater runs its
-     *own* coverage probe `[a, b, initiator]`, any radio in range can read it. M overhears
-     the probe's final leg (which carries the measured a→b SNR) and adopts the a→b edge
-     itself. A cluster thus builds a shared graph without each node re-probing every pair.
-     M ignores probes it initiated and ones whose `a`/`b` are not both its own near
-     neighbours. **No extra airtime** — receive-only.
-- **Probing cadence:** when the top-5 set changes (new member / displacement) or after
-  refresh; **one probe per cadence tick** (HW ~60 s), the pair chosen **round-robin** so no
-  single pair is fixated on. An edge is recorded iff the measured SNR
-  `>= flood.suppress.snr.lo`; positive edges TTL **36 h**.
-- **Negative cache:** a pair that yields *no* edge (probe timed out twice, or returned
-  below `snr.lo`) is cached for **10 h** and not re-probed meanwhile — otherwise probing
-  never converges (early hardware showed `sent` climbing forever). Coverage inference reads
-  **positive** edges only, so a cached absence is never treated as coverage.
-- **1-hop, not transitive** — "reached by fi" means *could hear fi's specific forward*.
+Per-hash bookkeeping lives in a small ring with TTL eviction
+(`src/helpers/FloodSuppression.h`), purged from `MyMesh::loop()`.
 
-### The SNR thresholds — what they actually gate
-Coverage itself is **binary** — a neighbour either forwarded F, or was reached by a
-forwarder's edge. It is *not* SNR-weighted. The two thresholds gate other things:
-- **`snr.lo`** — the **near-set floor** (only neighbours heard at ≥ this are "near" / owed
-  coverage) and the **reach-edge floor** (an a→b link is recorded only if measured ≥ this).
-- **`snr.hi`** — drives **cancel-window widening** for central relays (next section) and
-  feeds the adaptive density estimate.
+### Why the counter runs in `logRx` (arrival time)
 
-### Adaptive enable C (not user-configurable)
-Suppression only runs when the neighbour table is dense enough to be worth it: **C** is
-**derived from the neighbour table** (an adaptive density estimate) with a static fallback,
-and the feature engages only while `C > 0`. C is **not** a "covered weight" threshold — the
-decision itself is the binary coverage test above; C merely gates whether that test runs at
-all, so a sparse or isolated node doesn't churn on it. There is no `set flood.suppress.c`.
-
-### Cancel-window widening (`delay.factor`)
-A flood M would relay centrally (heard at SNR `>= snr.hi`) gets its random TX-delay window
-multiplied by `(1 + flood.suppress.delay.factor)`. A wider window gives a redundant
-rebroadcast more time to be observed and cancelled before it is transmitted.
-
-### Client-aware protection (always on)
-Suppression must never starve an **attached leaf client** (a companion/sensor/room-server
-for which M is the first hop) of a flood it needs. A 3-tier gate is **always active**
-(there is no "empty client set ⇒ suppress everything" fallback):
-
-| Tier | Payload types | Behaviour |
-|------|---------------|-----------|
-| **A** | TRACE, CONTROL | Pure infrastructure → **suppress OK** |
-| **B** | ADVERT, GRP_*, ACK, MULTIPART, … | Broadcast, can't address-check → **never suppress** (always forward) |
-| **C** | REQ, RESPONSE, TXT_MSG, PATH, ANON_REQ | Addressed → suppress iff destination is **not** an attached client |
-
-The attached-client set (16 slots, ~24 h TTL) is seeded from count-0 addressed packets and
-non-repeater adverts. Inspect with [`clients`](cli_commands.md#clients).
-
-### Cold-start safety
-Before any TRACE completes, the reach graph is empty ⇒ uncovered peers trigger
-`must_cover_self` ⇒ **M forwards everything**. No starvation, no regression vs. firmware
-without the feature. Suppression only begins once real reachability has been measured.
-
-### Unidirectional links (heard but not reachable)
-Near-set membership is based on M *hearing* N (the N→M link). The reverse direction (M→N)
-is never measured directly — yet a neighbour M cannot actually *reach* (e.g. M's sector
-antenna doesn't cover it) should not block suppression: M's rebroadcast would never reach
-it anyway. M infers M→N from coverage-probe outcomes: a probe `[a=N, b, self]` returns iff
-M's transmission reached N, and **always times out** when M→N is broken. After a couple of
-first-hop-N timeouts with no success, such an N is flagged M-unreachable and **dropped from
-the protection set** — it no longer forces `must_cover_self`, so one asymmetric link can't
-deadlock M's suppression. An unreachable N may still *contribute* coverage as a forwarder
-(its N→j edges stay valid). A single later successful probe re-protects N permanently
-(sticky confirm, with a 24 h re-test for antenna drift), and it can never starve N: M's TX
-never reached it, and its flood supply comes from forwarders it can hear. The `unr` token
-in [`near`](cli_commands.md#near) counts neighbours currently excluded.
+`allowPacketForward` and `filterRecvFloodPacket` are not suitable counting hooks:
+the former is called only for the first copy, the latter runs after the inbound
+delay. `logRx` runs for **every** received packet, after parse, **before**
+`calcRxDelay` — so overheard forwards are counted the instant they arrive, not
+after their own RX delay. This makes the cancellation deadline
+`own_TX_fire_time` instead of `own_TX_fire_time − neighbour_calcRxDelay`, i.e.
+cancels reliably land before the redundant TX goes out.
 
 ---
 
-## When it helps vs. when it is inert
-- **Dense omni cluster** (near neighbours mutually in range): edges populate ⇒ redundant
-  rebroadcasts cancelled ⇒ large airtime/collision reduction.
-- **Sparse / linear / hub-spoke / mast** (near neighbours don't hear each other): the
-  graph is **correctly empty** ⇒ little graph-based suppression, because M must cover each
-  spoke itself. This is the safe, intended behaviour — the feature never infers
-  reachability it has not measured.
-- Even with an empty graph, the **direct-coverage** path can still suppress: once M has
-  overheard *every* near neighbour forward F, `allNearNeighboursCovered` fires and the
-  rebroadcast is cancelled — no reach edge required.
-- **Shared-neighbour clusters** benefit most from the passive harvest: when several
-  coverage-capable repeaters are mutually in range, each adopts edges from the others'
-  probes, so the graph fills faster and more cross-forwarder coverage is inferred.
+## Configuration
 
----
+There is **one master switch** and three tuning parameters. The threshold **C is
+not user-configurable** — it is derived from the neighbour table (adaptive) with a
+static fallback (see *Adaptive mode*).
 
-## CLI summary
+`NodePrefs` fields (`src/helpers/CommonCLI.h`), persisted at file bytes 295–298
+(`src/helpers/CommonCLI.cpp`):
+
+| Field | Type | Default | Meaning |
+|---|---|---|---|
+| `flood_suppress` | `uint8_t` | `1` (on) | **Master switch.** `0` = feature fully off; `1` = on (adaptive + static fallback). |
+| `flood_suppress_snr_hi` | `int8_t` (dB) | `9` | Overheard forward with SNR `>=` this counts **double**. |
+| `flood_suppress_snr_lo` | `int8_t` (dB) | `0` | Overheard forward with SNR `<` this counts **0** (preserve edge). |
+| `flood_suppress_delay_x` | `uint8_t` | `2` | Extra TX-delay multiplier for central flood relays. |
+
+The feature is **on by default**; `set flood.suppress off` (or YAML
+`flood_suppress: 0`) disables it completely.
+
+> **Real-HW note:** adding these trailing bytes changes the persisted prefs binary
+> layout. Older prefs files simply leave the fields at the constructor defaults
+> (on) — no migration step required.
+
+### CLI (dot-notation)
 
 | Command | Effect |
-|---------|--------|
-| `get/set flood.suppress <on\|off>` | Master switch. `get` also prints the suppression ratio (`suppressed a/b (p%)`). |
-| `get/set flood.suppress.snr.hi <dB>` | Central-relay threshold: a flood heard at `>=` this gets its cancel window widened, and it feeds the adaptive density estimate (`-30..30`, default `9`). |
-| `get/set flood.suppress.snr.lo <dB>` | Near-set floor (a neighbour must be heard at `>=` this to be "near") and reach-edge floor (an a→b link is recorded only if measured `>=` this) (`-30..30`, default `0`). |
-| `get/set flood.suppress.delay.factor <n>` | Cancel-window multiplier for central relays (`0..8`, default `2`). |
-| `get/set trace.tx.power <dBm>` | TX power for coverage TRACE probes only (`-9..30`, default `10`). |
-| `near` | Near coverage peers (strongest first) + the probe-health line `meas sent=… ret=… edge=… tmo=… neg=… harv=… unr=…` (tokens explained under Tuning). |
-| `reach <hash>` | Directed reach edges of one near repeater. |
-| `clients` | Attached leaf clients. |
-
-Full syntax and output formats: [`cli_commands.md`](cli_commands.md#flood-suppression-coverage-repeater-only).
+|---|---|
+| `set flood.suppress on` / `off` | master switch (`get flood.suppress`) |
+| `set flood.suppress.snr.hi <dB>` | `-30..30` (`get flood.suppress.snr.hi`) |
+| `set flood.suppress.snr.lo <dB>` | `-30..30` (`get flood.suppress.snr.lo`) |
+| `set flood.suppress.delay.factor <n>` | `0..8` (`get flood.suppress.delay.factor`) |
 
 ---
 
-## Tuning & troubleshooting
+## Adaptive mode (self-tuning, zero-admin)
 
-### Read the state first
-- `near` → the near set and the `meas sent=… ret=… edge=… tmo=… neg=… harv=… unr=…` probe-health line.
-- `reach <hash>` → whether measured directed edges exist for a given peer.
-- `get flood.suppress` → on/off + the live suppression ratio.
+With the master switch **on**, the threshold **C** and `snr.hi` are **derived from
+the repeater's neighbour table** (`simple_repeater`'s `neighbours[]`, seeded from
+zero-hop repeater adverts / node-discovery and kept fresh by overheard forwards),
+with a safe **static fallback**
+when no neighbour data is available. No per-topology tuning is required.
 
-### `reach` is empty on hardware, but `near` shows peers?
-The coverage-probe TX power is lowered to `trace.tx.power` (default **10 dBm**) **only on
-the initiator**. The probe's first hop (`self -> a`) then runs at reduced power; for a
-marginal near neighbour (admitted at a low `snr.lo`) that hop can drop below margin, so the
-probe never reaches `a`, no round trip completes, and no edge is recorded. The simulator
-ignores TX power, so this only manifests on hardware.
+`MyMesh::updateAdaptiveFloodParams()` runs throttled (~every 1 min) from `loop()`
+and caches the **effective** values; the consumption sites read
+`effectiveFloodSuppressC()` / `effectiveFloodSuppressSnrHi()`. The whole derivation
+is under `#if MAX_NEIGHBOURS` (the table is a build flag).
 
-**Fix:** `set trace.tx.power 20` (match normal TX power) and re-check `near` — the `meas`
-line's `ret` should rise and edges appear in `reach`. Reading the `meas` line:
+**Derivation** (only **fresh** neighbours counted — `heard_timestamp` age ≤ 600 s,
+i.e. heard within the last 10 min):
 
-| `meas` reading | Meaning |
-|----------------|---------|
-| `sent=0` | No `>= 2` near-neighbour window yet, or `flood.suppress off`. |
-| `sent>0 ret=0` | Probes go out but no round trip completes — loss/collisions, or the first hop failing (see `trace.tx.power`). |
-| `ret>0 edge=0` | Round trips complete but the measured link is below `snr.lo` — genuinely weak / no inter-neighbour reachability. |
-| `ret>0 edge>0` | Edges recorded — `reach` should list them. |
-| `neg>0` | Pairs cached as no-edge (timed out / weak); not re-probed for ~10 h. Expected to grow as the graph converges, after which `sent` levels off. |
-| `harv>0` | Edges adopted from *overheard* neighbours' probes (passive harvest). `0` is normal when no other coverage-capable repeater is in range. |
-| `unr>0` | Near neighbours M cannot transmit-reach (asymmetric link), excluded from the protection set. |
+A neighbour's `heard_timestamp` is set when it is first learned (zero-hop advert or
+node-discovery reply) **and kept current by every overheard forward**: `logRx` calls
+`touchNeighbourByHash`, which matches the received flood's *last* path hash — the
+immediate RF neighbour that relayed it — against the table and refreshes
+`heard_timestamp` plus a smoothed SNR (running mean, x4 fixed-point). This matters
+because adverts can be spaced many hours apart (default 47 h, up to ~150 h): without
+the activity refresh the whole table would age past 600 s and adaptive would collapse
+to the static fallback within 10 min of boot. The refresh can only update
+*already-known* neighbours — a forwarded flood carries only a path hash, not a full
+identity, so seeding brand-new neighbours still needs an advert / node-discovery.
 
-### Near set churning (peers blink in/out)
-At a low `snr.lo` (e.g. `0`), marginal neighbours keep crossing the threshold. Raise
-`snr.lo` (e.g. `6`–`10`) to focus coverage on the stable, strong core — fewer, stabler
-near peers, faster graph convergence.
+| Parameter | Derived from | Rule |
+|---|---|---|
+| `effective_c` | neighbour **density** `n` (fresh count) | `n < 3 → 0` (edge node — don't suppress) · `3–4 → 3` · `≥ 5 → 2` (dense core — aggressive) |
+| `effective_snr_hi` | link-SNR **p75** of fresh neighbours | `clamp(p75, snr.lo+4, snr.lo+12)`; needs ≥ 4 samples, else the configured `snr.hi` |
 
-### Suppressing too little / too much
-- Too little: lower `snr.hi`, or raise `delay.factor` so more redundant rebroadcasts are
-  observed in time.
-- Too much / worried about reach: raise `snr.lo` (stricter near set), or `set flood.suppress off`.
+A 2-cycle debounce on `c` prevents flapping when the neighbour count fluctuates (at
+a 1-min recompute cadence an adopted change lands within ~2 min; the recompute cost
+itself is negligible, so the cadence bounds *reaction latency*, not CPU load).
+
+**Static fallback** — when the neighbour table is unavailable the feature still
+works with a built-in threshold (`FLOOD_SUPPRESS_FALLBACK_C = 2` in `MyMesh.cpp`)
+plus the configured `snr.hi`/`snr.lo`/`delay.factor`:
+
+| Condition | `effective_c` |
+|---|---|
+| master switch **off** | `0` (feature disabled) |
+| master on, ≥ 1 fresh neighbour (adaptive active) | derived from density (above) |
+| master on, no fresh neighbours / `MAX_NEIGHBOURS` undefined / cold start | `FLOOD_SUPPRESS_FALLBACK_C` (= 2) |
+
+So a node that knows its neighbourhood adapts (incl. turning off if it is sparse);
+a node that does not yet know it (cold start, or no table compiled in) uses the
+gentle static fallback. The counter mechanism itself protects genuinely sparse
+nodes regardless — too few overheard forwards ever reach the threshold.
+
+### Self-contained boot discovery
+
+Adaptive needs the neighbour table populated soon after boot. Rather than depend on
+another feature being enabled, flood suppression brings its **own** boot discovery,
+analogous to `feature/repeater-swarm-2`:
+
+- `sendNodeDiscoverReq(uint32_t delay_millis)` accepts a future, jittered send
+  (de-synchronises a fleet reboot); `examples/simple_repeater/main.cpp` fires it at
+  ~21 s after the boot advert, gated on `flood_suppress`. The table then fills
+  within ~30–60 s on hardware.
+
+### Simulator caveat (mcsim)
+
+The neighbour table does **not** populate in the simulator: all repeaters boot
+synchronously, so their periodic adverts collide and no one receives them, and the
+sim (`sim_main.cpp`) deliberately omits the boot discovery for the same reason.
+Consequently adaptive stays on the **static fallback** in sim — which still
+demonstrates the suppression effect (see measured result) and verifies the safe
+fallback, but the *adaptive* c/hi tuning itself must be measured on hardware (boot
+discovery with jitter de-synchronises real reboots). The overheard-forward liveness
+refresh (`touchNeighbourByHash`) does **not** change this: it only refreshes
+already-known neighbours, and in sim none are ever seeded, so sim still runs on the
+static fallback. The refresh is a hardware-only improvement.
 
 ---
 
-## How it is wired (files)
-- `src/helpers/NeighbourLinkTable.h` — the directed reach-graph (`addEdge`/`hasEdge`/`purge`, ring 128, 36 h positive TTL) **plus a negative-result ring** (`addNegative`/`hasNegative`/`purgeNegative`, 10 h TTL) so no-edge pairs aren't re-probed to death. `hasEdge` is width-tolerant (prefix match); writes are exact-width.
-- `src/helpers/FloodSuppression.h` — per-flood entry with `covered` set, `must_cover_self`, cancel + wait-window.
-- `src/Mesh.cpp` + `src/Packet.h` — `TRACE_FLAG_TERMINATE_AT_LAST`: delivers a coverage TRACE back at its initiator (the one core change).
-- `examples/simple_repeater/MyMesh.{h,cpp}` — the coverage test (`logRx`: suppression decision + passive TRACE harvest), `stepCoverageMeasurement()` (active TRACE scheduling with round-robin pair selection, from `loop()`), `onTraceRecv` (records edges + confirms M-reachability), `isExcludedFromProtection` (unidirectional-link handling), the always-on 3-tier `clientProtectionAllowsSuppress`, the `near`/`reach`/`clients` reply formatters, and the `trace_tx_power_dbm` burst handling.
-- `src/helpers/CommonCLI.{h,cpp}` + `NodePrefs` — the CLI commands and persisted prefs above.
+## Code locations (firmware)
+
+| File | Change |
+|---|---|
+| `src/helpers/FloodSuppression.h` | **New.** Per-hash ring: `{hash, weighted_count, first_snr, strongest_overheard, first_seen, suppressed, active}` + `find` / `touch` / `purge`. |
+| `examples/simple_repeater/MyMesh.h` | Helper include; `_flood_supp` + adaptive state (`_fs_eff_c`, `_fs_eff_hi`, `_fs_adaptive_active`, …); `cancelPendingFloodOutbound`, `updateAdaptiveFloodParams`, `effectiveFloodSuppressC/Hi`, `touchNeighbourByHash`; `sendNodeDiscoverReq(delay_millis)`. |
+| `examples/simple_repeater/MyMesh.cpp` | `logRx` (count + SNR-bias + cancel + neighbour-liveness refresh via `touchNeighbourByHash`), `allowPacketForward` (gate), `cancelPendingFloodOutbound`, `touchNeighbourByHash` (refresh known neighbour from an overheard forward's last path hash + smoothed SNR), `getRetransmitDelay` (delay bias), `loop()` (purge + adaptive recompute @ 1 min), `updateAdaptiveFloodParams` + effective accessors + `FLOOD_SUPPRESS_FALLBACK_C`, `sendNodeDiscoverReq(delay)`, constructor defaults. Consumption reads *effective* values. |
+| `examples/simple_repeater/main.cpp` | Boot discovery: `sendNodeDiscoverReq(…)` gated on `flood_suppress`. |
+| `src/helpers/CommonCLI.h` / `CommonCLI.cpp` | `NodePrefs` fields + persisted read/write + defaults + `set/get flood.suppress*` CLI handlers. |
+
+`companion_radio`, `simple_room_server` and `simple_sensor` are unaffected — only
+`simple_repeater` overrides `logRx`/`allowPacketForward` for suppression.
 
 ---
 
-## Honest limits
-- Coverage is guaranteed only for the **top-5** near neighbours.
-- **Unidirectional links** (M hears N but cannot reach N) are detected and excluded from
-  the protection set (above) — but **truly invisible** neighbours (asymmetric, absent from
-  M's table entirely) cannot be protected by any table-based method. `set flood.suppress
-  off` (or manual per-neighbour exclusion) remains the safety net there.
-- Reach is inferred from a *historically measured* edge ⇒ a small false-positive risk if
-  an edge has since gone stale, mitigated by fresh-edge-only use + 36 h TTL + cold-start safety.
+## Simulator integration (mcsim)
+
+The feature is exercised through the simulator, plumbed end-to-end:
+
+- **Properties** `firmware/flood_suppress`, `firmware/flood_suppress_{snr_hi,snr_lo,delay_x}`
+  (`crates/mcsim-model/src/properties/definitions.rs`, registered in `registry.rs`,
+  re-exported in `mod.rs`, applied in `crates/mcsim-model/src/lib.rs`).
+- **Config structs** `RepeaterConfig` (`crates/mcsim-firmware/src/lib.rs`) and the
+  FFI `NodeConfig` (`crates/mcsim-firmware/src/dll.rs`) — both gained the four
+  fields; `_reserved` shrank 36 → 32 bytes to keep the C ABI identical to
+  `SimNodeConfig` (`simulator/common/include/sim_api.h`).
+- **Forwarding** in `simulator/repeater/sim_main.cpp`, guarded by
+  `SIM_FW_HAS_FLOOD_SUPPRESS`.
+- **Feature detection** in `crates/mcsim-firmware/build.rs` — defines the macro
+  when `CommonCLI.h` contains a `flood_suppress*` field. The sim build also defines
+  `MAX_NEIGHBOURS=50` (matching HW variants) so the neighbour table compiles in sim.
+
+### A/B testing
+
+Topology YAMLs are merged (later overrides earlier), so a tiny overlay toggles the
+feature without duplicating the topology:
+
+```yaml
+# fsupp_baseline.yaml — feature OFF (unsuppressed baseline)
+defaults:
+  node:
+    firmware:
+      flood_suppress: 0
+```
+
+```bash
+# baseline (off)
+cargo run -- run examples/topologies/multi_path.yaml examples/behaviors/broadcast.yaml \
+  examples/topologies/fsupp_baseline.yaml \
+  --seed 42 --duration 120s --metrics-output json --metrics-file baseline.json \
+  --metric mcsim.flood.* --metric mcsim.radio.tx_packets/route_type \
+  --metric mcsim.radio.tx_airtime_us/route_type --metric mcsim.radio.rx_collided
+
+# on (default; no overlay needed — or use fsupp_on.yaml to pin the params)
+cargo run -- run examples/topologies/multi_path.yaml examples/behaviors/broadcast.yaml \
+  --seed 42 --duration 120s ...   # same metrics
+```
+
+**Relevant metrics**
+- `mcsim.flood.coverage` — gauge `reached_nodes / total_nodes`; the reach signal.
+- `mcsim.radio.tx_packets{route_type=flood}` / `mcsim.radio.tx_airtime_us{route_type=flood}` — flood cost.
+- `mcsim.radio.rx_collided` — collision count.
+- (`mcsim.flood.nodes_reached` is a histogram that mixes channel broadcasts with
+  repeater advert floods — treat its tail as noise, not as a reach signal.)
+
+### Measured result (`multi_path.yaml` + `broadcast.yaml`, seed 42, 120 s)
+
+In the sim adaptive stays on the static fallback (`FLOOD_SUPPRESS_FALLBACK_C = 2`),
+so this is the fallback-path effect:
+
+| Config | Flood TX | Flood airtime | Collisions | Coverage |
+|---|---|---|---|---|
+| `off` (baseline) | 237 | 38.0 M | 142 | 0.308 |
+| `on` (default) | 163 (**−31 %**) | **−31 %** | 57 (**−60 %**) | 0.308 |
+
+`coverage` is stable at `0.308 = 4/13` (= all four companion recipients reached) —
+**reach is preserved**; the reduction is in *redundant copies*, exactly the intent.
+
+---
+
+## Tuning guidance
+
+In adaptive mode `c` is self-tuned, so these mainly adjust the SNR-weighting and
+the cancel window (and serve as the static fallback when no neighbour data exists).
+
+- `flood.suppress.snr.hi` is the main aggressiveness lever and should sit in the
+  upper portion of the topology's link-SNR range: if almost every link exceeds it,
+  every overheard forward counts double and the threshold is reached after a single
+  forward (very aggressive → may over-suppress). Raise it to suppress only the
+  genuinely redundant, central relays.
+- `flood.suppress.snr.lo` should sit below the weakest link you still want to *use*
+  for reach, so edge relays are never suppressed by their own weak inbound.
+- `flood.suppress.delay.factor` widens the cancel window for central relays
+  (higher → more time to observe overheard forwards and be cancelled).
+- Monotonic: lower `snr.hi` → more aggressive; higher → gentler.

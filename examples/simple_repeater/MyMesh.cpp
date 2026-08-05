@@ -79,10 +79,11 @@ void MyMesh::putNeighbour(const mesh::Identity &id, uint32_t timestamp, float sn
     }
   }
 
+  bool is_refresh = neighbour->id.matches(id);   // same neighbour already in this slot? (computed before the id overwrite below)
   // Part 3: a NEW identity in this slot (empty slot, or LRU eviction of a *different* neighbour)
   // must start with unknown M-reachability. A refresh of the SAME neighbour (the common case --
   // putNeighbour runs on every ~2-min advert) keeps its reachability state intact.
-  if (!neighbour->id.matches(id)) {
+  if (!is_refresh) {
     neighbour->m_reach_confirmed = false;
     neighbour->m_reach_timeouts = 0;
     neighbour->m_reach_last_ok_ms = 0;
@@ -91,7 +92,12 @@ void MyMesh::putNeighbour(const mesh::Identity &id, uint32_t timestamp, float sn
   neighbour->id = id;
   neighbour->advert_timestamp = timestamp;
   neighbour->heard_timestamp = getRTCClock()->getCurrentTime();
-  neighbour->snr = (int8_t)(snr * 4);
+  // Smooth the link-quality estimate on a refresh of a KNOWN neighbour (the common ~2-min advert
+  // path), so a single weak/strong advert does not jump the value the adaptive p75 / near test read.
+  // A NEW slot (different id) is seeded from the single advert sample. EMA α≈0.25 (x4), matching
+  // touchNeighbourByHash -- without this the advert hard-replace would reset that smoothing ~2 min.
+  int8_t adv = (int8_t)(snr * 4);
+  neighbour->snr = is_refresh ? (3 * neighbour->snr + adv) / 4 : adv;
 #endif
 }
 
@@ -115,7 +121,7 @@ void MyMesh::touchNeighbourByHash(const mesh::Packet* packet) {
     if (neighbours[i].heard_timestamp == 0) continue;       // empty slot: no identity to match (cannot seed here)
     if (neighbours[i].id.isHashMatch(last, hs)) {
       neighbours[i].heard_timestamp = getRTCClock()->getCurrentTime();
-      neighbours[i].snr = (neighbours[i].snr + new_snr) / 2;   // smoothed link quality (x4)
+      neighbours[i].snr = (3 * neighbours[i].snr + new_snr) / 4;  // EMA α≈0.25 (x4): new sample 25%, outlier shifts ≤3 dB not halfway
       return;   // at most one slot matches a given hash
     }
   }
@@ -404,7 +410,7 @@ void MyMesh::stepCoverageMeasurement() {
     if (_nbr_links.hasNegative(ha, hb, TRACE_MEAS_HASH_SIZE, now)) continue;    // probed, no edge -> backoff (~10h)
     bool inflight = false;                                                          // already probing this direction?
     for (uint8_t i = 0; i < TRACE_PENDING_MAX && !inflight; i++)
-      if (_trace_pending[i].active && memcmp(_trace_pending[i].a, ha, 2) == 0 && memcmp(_trace_pending[i].b, hb, 2) == 0) inflight = true;
+      if (_trace_pending[i].active && memcmp(_trace_pending[i].a, ha, TRACE_MEAS_HASH_SIZE) == 0 && memcmp(_trace_pending[i].b, hb, TRACE_MEAS_HASH_SIZE) == 0) inflight = true;
     if (inflight) continue;
     int8_t slot = -1;                                                               // free pending slot?
     for (uint8_t i = 0; i < TRACE_PENDING_MAX; i++) if (!_trace_pending[i].active) { slot = (int8_t)i; break; }
@@ -423,8 +429,8 @@ void MyMesh::stepCoverageMeasurement() {
     _trace_pending[slot].retries = 0;
     _trace_pending[slot].tag = tag;
     _trace_pending[slot].sent_ms = now;
-    memcpy(_trace_pending[slot].a, ha, 2);
-    memcpy(_trace_pending[slot].b, hb, 2);
+    memcpy(_trace_pending[slot].a, ha, TRACE_MEAS_HASH_SIZE);
+    memcpy(_trace_pending[slot].b, hb, TRACE_MEAS_HASH_SIZE);
     _meas_rr_offset = (uint8_t)((p + 1) % P);        // next tick starts after the pair just probed
     stop = true; break;                                                     // ONE trace per cadence tick
     // (a pair's two directions are ~180ms*3hops round-trips; sending them
@@ -2027,6 +2033,8 @@ void MyMesh::clearStats() {
   ((SimpleMeshTables *)getTables())->resetStats();
   _fs_seen = 0;
   _fs_suppressed = 0;
+  _meas_sent = _meas_returned = _meas_edge = _meas_timeout = _meas_neg = 0;
+  _meas_harvested = _meas_harvest_neg = 0;
 }
 
 void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply) {
