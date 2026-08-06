@@ -56,6 +56,7 @@ jobs:
         env:
           FIRMWARE_VERSION: ${{ env.GIT_TAG_VERSION }}
           DISABLE_DEBUG: "1"
+          CFG_DEBUG: "0"
         run: /usr/bin/env bash build.sh build-firmware ${{ matrix.target }}
 
       - name: Upload Workflow Artifacts
