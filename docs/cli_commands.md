@@ -362,7 +362,7 @@ Lists the **attached leaf clients** — companion/sensor/room-server nodes for w
 
 **Default:** Varies by board
 
-**Note:** Max length varies. If a location is set, the max length is 24 bytes; 32 otherwise. Emoji and unicode characters may take more than one byte.
+**Note:** Advertised names can use up to 23 bytes when location is included and 31 bytes otherwise. Emoji and Unicode characters may take more than one byte. Names that exceed the available advert space are truncated at a valid UTF-8 code point boundary.
 
 ---
 

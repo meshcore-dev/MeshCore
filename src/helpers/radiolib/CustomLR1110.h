@@ -35,6 +35,11 @@ class CustomLR1110 : public LR1110 {
 
     bool getRxBoostedGainMode() const { return _rx_boosted; }
 
+    int16_t startReceive() override {
+      // include the PREAMBLE_DETECTED irq bit in reported flags.
+      return LR1110::startReceive(RADIOLIB_LR11X0_RX_TIMEOUT_INF, RADIOLIB_IRQ_RX_DEFAULT_FLAGS | (1UL << RADIOLIB_IRQ_PREAMBLE_DETECTED), RADIOLIB_IRQ_RX_DEFAULT_MASK, 0);
+    }
+
     bool isReceiving() {
       uint32_t irq = getIrqStatus();
       bool preamble = irq & RADIOLIB_LR11X0_IRQ_PREAMBLE_DETECTED;      // bit 4
@@ -45,6 +50,11 @@ class CustomLR1110 : public LR1110 {
         clearIrqState(RADIOLIB_LR11X0_IRQ_PREAMBLE_DETECTED | RADIOLIB_LR11X0_IRQ_SYNC_WORD_HEADER_VALID | RADIOLIB_LR11X0_IRQ_HEADER_ERR);
         _activityAt = 0;
         _headerSeen = false;
+        return false;
+      }
+      if (!header && _headerSeen) {
+        // something cleared the header flag, reset our state.
+        _activityAt = 0; _headerSeen = false;
         return false;
       }
       if (header) {
