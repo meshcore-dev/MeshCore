@@ -68,8 +68,8 @@ void GxEPDDisplay::turnOff() {
 }
 
 void GxEPDDisplay::clear() {
-  display.fillScreen(GxEPD_WHITE);
-  display.setTextColor(GxEPD_BLACK);
+  display.fillScreen(UIColor::window_bkg);
+  display.setTextColor(UIColor::primary_txt);
   display_crc.reset();
 }
 
@@ -183,4 +183,21 @@ void GxEPDDisplay::endFrame() {
     display.display(true);
     last_display_crc_value = crc;
   }
+}
+
+void GxEPDDisplay::setInverted(bool inv) {
+  if (inv == _inverted) return;
+  _inverted = inv;
+
+  UIColor::window_bkg = inv ? GxEPD_BLACK : GxEPD_WHITE;
+  UIColor::title_bkg = UIColor::window_bkg;
+  UIColor::popup_bkg = UIColor::window_bkg;
+  UIColor::title_txt = inv ? GxEPD_WHITE : GxEPD_BLACK;
+  UIColor::primary_txt = UIColor::title_txt;
+  UIColor::secondary_txt = UIColor::title_txt;
+  UIColor::warning_txt = UIColor::title_txt;
+  UIColor::popup_txt = UIColor::title_txt;
+  UIColor::corp_blue = UIColor::title_txt;
+
+  last_display_crc_value = 0;  // force full redraw on next frame
 }
