@@ -267,7 +267,7 @@ void loop() {
     if (display.isEink()) {
       display.startFrame();
       display.setTextSize(2);
-      display.setColor(DisplayDriver::LIGHT);
+      display.setColor(UIColor::primary_txt);
       display.drawTextCentered(display.width() / 2, 28, "Powered off.");
       display.endFrame();
     } else {

@@ -723,7 +723,7 @@ void UITask::shutdown(bool restart){
     if (_display != NULL) {
       _display->startFrame();
       _display->setTextSize(1);
-      _display->setColor(DisplayDriver::LIGHT);
+      _display->setColor(UIColor::primary_txt);
       _display->drawTextCentered(_display->width() / 2, 20, "Shutting down...");
       _display->endFrame();
     }
