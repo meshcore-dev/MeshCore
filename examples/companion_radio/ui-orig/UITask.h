@@ -14,11 +14,18 @@
 
 #include "Button.h"
 
+#ifdef HAS_DRV2605
+  #include <helpers/ui/DRV2605Vibration.h>
+#endif
+
 class UITask : public AbstractUITask {
   DisplayDriver* _display;
   SensorManager* _sensors;
 #ifdef PIN_BUZZER
   genericBuzzer buzzer;
+#endif
+#ifdef HAS_DRV2605
+  DRV2605Vibration vibration;
 #endif
   unsigned long _next_refresh, _auto_off;
   NodePrefs* _node_prefs;
@@ -54,7 +61,7 @@ class UITask : public AbstractUITask {
  
 public:
 
-  UITask(mesh::MainBoard* board, BaseSerialInterface* serial) : AbstractUITask(board, serial), _display(NULL), _sensors(NULL) {
+  UITask(mesh::MainBoard* board, MultiSerialInterface* serial) : AbstractUITask(board, serial), _display(NULL), _sensors(NULL) {
       _next_refresh = 0;
       ui_started_at = 0;
   }

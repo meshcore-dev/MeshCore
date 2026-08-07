@@ -39,18 +39,35 @@ struct ServerStats {
 };
 
 void MyMesh::addPost(ClientInfo *client, const char *postData) {
-  // TODO: suggested postData format: <title>/<descrption>
-  posts[next_post_idx].author = client->id; // add to cyclic queue
-  StrHelper::strncpy(posts[next_post_idx].text, postData, MAX_POST_TEXT_LEN);
+  storePost(client->id, postData);
+}
 
-  posts[next_post_idx].post_timestamp = getRTCClock()->getCurrentTimeUnique();
+void MyMesh::addSystemPost(const char *postData) {
+  if (!postData || postData[0] == 0) return;
+
+  MESH_DEBUG_PRINTLN("room.post: addSystemPost: %s", postData);
+
+  storePost(self_id, postData);
+}
+
+void MyMesh::storePost(const mesh::Identity &author, const char *postData) {
+  int idx = next_post_idx;
+  // TODO: suggested postData format: <title>/<descrption>
+  posts[idx].author = author; // add to cyclic queue
+  StrHelper::strncpy(posts[idx].text, postData, MAX_POST_TEXT_LEN);
+
+  posts[idx].post_timestamp = getRTCClock()->getCurrentTimeUnique();
+  MESH_DEBUG_PRINTLN("room.post: storePost idx=%d text=%s", idx, posts[idx].text);
+  MESH_DEBUG_PRINTLN("room.post: timestamp=%u", posts[idx].post_timestamp);
   next_post_idx = (next_post_idx + 1) % MAX_UNSYNCED_POSTS;
 
   next_push = futureMillis(PUSH_NOTIFY_DELAY_MILLIS);
   _num_posted++; // stats
+  MESH_DEBUG_PRINTLN("room.post: next_post_idx=%d num_posted=%d push scheduled", next_post_idx, _num_posted);
 }
 
 void MyMesh::pushPostToClient(ClientInfo *client, PostInfo &post) {
+  MESH_DEBUG_PRINTLN("room.post: pushPostToClient text=%s", post.text);
   int len = 0;
   memcpy(&reply_data[len], &post.post_timestamp, 4);
   len += 4; // this is a PAST timestamp... but should be accepted by client
@@ -285,12 +302,12 @@ bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
   if (packet->isRouteFlood()) {
     if (packet->getPathHashCount() >= _prefs.flood_max) return false;
     if (packet->getRouteType() == ROUTE_TYPE_FLOOD && packet->getPathHashCount() >= _prefs.flood_max_unscoped) return false;
+    if (packet->getPayloadType() == PAYLOAD_TYPE_ADVERT && packet->getPathHashCount() >= _prefs.flood_max_advert) return false;
   }
   return true;
 }
 
-bool MyMesh::filterRecvFloodPacket(mesh::Packet* pkt) {
-  // just try to determine region for packet (apply later in allowPacketForward())
+mesh::DispatcherAction MyMesh::onRecvPacket(mesh::Packet* pkt) {
   if (pkt->getRouteType() == ROUTE_TYPE_TRANSPORT_FLOOD) {
     recv_pkt_region = region_map.findMatch(pkt, REGION_DENY_FLOOD);
   } else if (pkt->getRouteType() == ROUTE_TYPE_FLOOD) {
@@ -302,8 +319,7 @@ bool MyMesh::filterRecvFloodPacket(mesh::Packet* pkt) {
   } else {
     recv_pkt_region = NULL;
   }
-  // do normal processing
-  return false;
+  return Mesh::onRecvPacket(pkt);
 }
 
 void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const mesh::Identity &sender,
@@ -626,9 +642,9 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _logging = false;
   region_load_active = false;
   set_radio_at = revert_radio_at = 0;
+  recv_pkt_region = NULL;
 
   // defaults
-  memset(&_prefs, 0, sizeof(_prefs));
   _prefs.airtime_factor = 1.0;
   _prefs.rx_delay_base = 0.0f;   // off by default, was 10.0
   _prefs.tx_delay_factor = 0.5f; // was 0.25f;
@@ -647,7 +663,9 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.flood_advert_interval = 47; // 47 hours
   _prefs.flood_max = 64;
   _prefs.flood_max_unscoped = 64;
+  _prefs.flood_max_advert = 8;
   _prefs.interference_threshold = 0; // disabled
+  _prefs.cad_enabled = 0;            // hardware CAD before TX (off by default; 'set cad on')
 #ifdef ROOM_PASSWORD
   StrHelper::strncpy(_prefs.guest_password, ROOM_PASSWORD, sizeof(_prefs.guest_password));
 #endif
@@ -656,6 +674,15 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.gps_enabled = 0;
   _prefs.gps_interval = 0;
   _prefs.advert_loc_policy = ADVERT_LOC_PREFS;
+
+#if defined(USE_SX1262) || defined(USE_SX1268)
+#ifdef SX126X_RX_BOOSTED_GAIN
+  _prefs.rx_boosted_gain = SX126X_RX_BOOSTED_GAIN;
+#else
+  _prefs.rx_boosted_gain = 1; // enabled by default;
+#endif
+#endif
+  _prefs.radio_fem_rxgain = 1;
 
   next_post_idx = 0;
   next_client_idx = 0;
@@ -697,6 +724,8 @@ void MyMesh::begin(FILESYSTEM *fs) {
 
   radio_driver.setParams(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
   radio_driver.setTxPower(_prefs.tx_power_dbm);
+  radio_driver.setRxBoostedGainMode(_prefs.rx_boosted_gain);
+  board.setLoRaFemLnaEnabled(_prefs.radio_fem_rxgain);
 
   updateAdvertTimer();
   updateFloodAdvertTimer();
@@ -801,6 +830,10 @@ void MyMesh::dumpLogFile() {
 
 void MyMesh::setTxPower(int8_t power_dbm) {
   radio_driver.setTxPower(power_dbm);
+}
+
+bool MyMesh::setRxBoostedGain(bool enable) {
+  return radio_driver.setRxBoostedGainMode(enable);
 }
 
 void MyMesh::saveIdentity(const mesh::LocalIdentity &new_id) {
@@ -932,6 +965,15 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
       Serial.printf("\n");
     }
     reply[0] = 0;
+  } else if (strncmp(command, "room.post", 9) == 0) {
+    char* msg = command + 9;
+    while (*msg == ' ') msg++;
+    if (*msg == 0) {
+      snprintf(reply, MAX_POST_TEXT_LEN, "ERR empty message");
+    } else {
+      addSystemPost(msg);
+      snprintf(reply, MAX_POST_TEXT_LEN, "OK");
+    }
   } else{
     _cli.handleCommand(sender_timestamp, command, reply);  // common CLI commands
   }
