@@ -262,7 +262,7 @@ int MyMesh::getInterferenceThreshold() const {
   return 0; // disabled for now, until currentRSSI() problem is resolved
 }
 bool MyMesh::getCADEnabled() const {
-  return true; // hardware CAD before TX (no CLI toggle on companion; enabled by default)
+  return false; // hardware CAD before TX (disabled by default, until configurable)
 }
 
 int MyMesh::calcRxDelay(float score, uint32_t air_time) const {
@@ -483,7 +483,7 @@ bool MyMesh::filterRecvFloodPacket(mesh::Packet* packet) {
 }
 
 bool MyMesh::allowPacketForward(const mesh::Packet* packet) {
-  return _prefs.client_repeat != 0;
+  return _prefs.isRepeatEn();
 }
 
 void MyMesh::sendFloodScoped(const TransportKey& scope, mesh::Packet* pkt, uint32_t delay_millis) {
@@ -876,7 +876,6 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
   send_unscoped = false;
 
   // defaults
-  memset(&_prefs, 0, sizeof(_prefs));
   _prefs.airtime_factor = 1.0;
   strcpy(_prefs.node_name, "NONAME");
   _prefs.freq = LORA_FREQ;
@@ -887,6 +886,7 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
   _prefs.gps_enabled = 0;       // GPS disabled by default
   _prefs.gps_interval = 0;      // No automatic GPS updates by default
   //_prefs.rx_delay_base = 10.0f;  enable once new algo fixed
+  _prefs.setRepeatEn(false);
 #if defined(USE_SX1262) || defined(USE_SX1268)
 #ifdef SX126X_RX_BOOSTED_GAIN
   _prefs.rx_boosted_gain = SX126X_RX_BOOSTED_GAIN;
@@ -931,7 +931,9 @@ void MyMesh::begin(bool has_display) {
 #endif
 
   // load persisted prefs
-  _store->loadPrefs(_prefs, sensors.node_lat, sensors.node_lon);
+  _store->loadPrefs(_prefs);
+  sensors.node_lat = _prefs.node_lat;
+  sensors.node_lon = _prefs.node_lon;
 
   // sanitise bad pref values
   _prefs.rx_delay_base = constrain(_prefs.rx_delay_base, 0, 20.0f);
@@ -1031,7 +1033,7 @@ void MyMesh::handleCmdFrame(size_t len) {
     i += 40;
     StrHelper::strzcpy((char *)&out_frame[i], FIRMWARE_VERSION, 20);
     i += 20;
-    out_frame[i++] = _prefs.client_repeat;   // v9+
+    out_frame[i++] = _prefs.isRepeatEn() ? 1 : 0;   // v9+
     out_frame[i++] = _prefs.path_hash_mode;  // v10+
     _serial->writeFrame(out_frame, i);
   } else if (cmd_frame[0] == CMD_APP_START &&
@@ -1393,7 +1395,7 @@ void MyMesh::handleCmdFrame(size_t len) {
       _prefs.cr = cr;
       _prefs.freq = (float)freq / 1000.0;
       _prefs.bw = (float)bw / 1000.0;
-      _prefs.client_repeat = repeat;
+      _prefs.setRepeatEn(repeat != 0);
       savePrefs();
 
       radio_driver.setParams(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
