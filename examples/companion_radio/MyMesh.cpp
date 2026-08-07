@@ -1100,7 +1100,27 @@ void MyMesh::handleCmdFrame(size_t len) {
         result = sendCommandData(*recipient, msg_timestamp, attempt, text, est_timeout);
         expected_ack = 0; // no Ack expected
       } else {
+        const uint32_t app_timestamp = msg_timestamp;
+        const bool is_room_message = recipient->type == ADV_TYPE_ROOM;
+        uint8_t message_fingerprint[MAX_HASH_SIZE];
+        if (is_room_message) {
+          mesh::Utils::sha256(message_fingerprint, sizeof(message_fingerprint),
+                              recipient->id.pub_key, PUB_KEY_SIZE,
+                              (const uint8_t*)text, strlen(text));
+          if (!room_message_timestamps.find(message_fingerprint, app_timestamp,
+                                            &msg_timestamp)) {
+            // Older room servers compare posts with login and keep-alive
+            // timestamps, which already come from this monotonic clock.
+            msg_timestamp = getRTCClock()->getCurrentTimeUnique();
+          }
+        }
         result = sendMessage(*recipient, msg_timestamp, attempt, text, expected_ack, est_timeout);
+        if (result != MSG_SEND_FAILED && is_room_message) {
+          // Preserve the translated timestamp across application retries so
+          // the room can ACK the retry without storing a duplicate post.
+          room_message_timestamps.remember(message_fingerprint, app_timestamp,
+                                           msg_timestamp);
+        }
       }
       // TODO: add expected ACK to table
       if (result == MSG_SEND_FAILED) {
