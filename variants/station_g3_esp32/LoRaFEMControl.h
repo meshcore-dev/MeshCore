@@ -15,6 +15,8 @@ public:
   bool isPAGainEnabled() const { return pa_gain_enabled; }
 
 private:
+  void applyPAGain();
+
   bool lna_enabled = true;
   bool pa_gain_enabled = false;
 };

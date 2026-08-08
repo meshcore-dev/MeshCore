@@ -7,7 +7,7 @@ void LoRaFEMControl::init() {
 #ifdef P_PA1_EN
   rtc_gpio_hold_dis((gpio_num_t)P_PA1_EN);
   pinMode(P_PA1_EN, OUTPUT);
-  setPAGainEnable(pa_gain_enabled);
+  applyPAGain();
 #endif
 
 #ifdef P_PRIMARY_LNA_EN
@@ -29,6 +29,10 @@ void LoRaFEMControl::setSleepModeEnable() {
 }
 
 void LoRaFEMControl::setTxModeEnable() {
+  // Latch the requested PA level here, before the SX1262 starts driving the PA. PA PL1
+  // retargets the PA's DC-DC rail, so moving it mid-transmit collapses the supply while
+  // the PA is still driven at full input power.
+  applyPAGain();
 #ifdef P_PRIMARY_LNA_EN
   digitalWrite(P_PRIMARY_LNA_EN, !P_PRIMARY_LNA_EN_ACTIVE);
 #endif
@@ -46,9 +50,15 @@ void LoRaFEMControl::setLNAEnable(bool enabled) {
 }
 
 void LoRaFEMControl::setPAGainEnable(bool enabled) {
+  // Recorded only -- the pin is driven from setTxModeEnable(). The PA level only matters
+  // while transmitting, so deferring costs nothing and keeps the rail change out of an
+  // in-flight transmit (the CLI runs on every main-loop pass, including mid-TX).
   pa_gain_enabled = enabled;
+}
+
+void LoRaFEMControl::applyPAGain() {
 #ifdef P_PA1_EN
-  digitalWrite(P_PA1_EN, enabled ? P_PA1_EN_ACTIVE : !P_PA1_EN_ACTIVE);
+  digitalWrite(P_PA1_EN, pa_gain_enabled ? P_PA1_EN_ACTIVE : !P_PA1_EN_ACTIVE);
 #endif
 }
 
