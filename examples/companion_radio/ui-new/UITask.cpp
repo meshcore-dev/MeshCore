@@ -2,8 +2,13 @@
 #include <helpers/TxtDataHelpers.h>
 #include "../MyMesh.h"
 #include "target.h"
+#include <time.h>
 #ifdef WIFI_SSID
   #include <WiFi.h>
+#endif
+
+#ifndef UI_TZ_OFFSET
+  #define UI_TZ_OFFSET 0
 #endif
 
 #ifndef AUTO_OFF_MILLIS
@@ -23,7 +28,7 @@
   #define UI_RECENT_LIST_SIZE 4
 #endif
 
-#if UI_HAS_JOYSTICK
+#if UI_HAS_JOYSTICK || UI_HAS_ROTARY_INPUT
   #define PRESS_LABEL "press Enter"
 #else
   #define PRESS_LABEL "long press"
@@ -224,7 +229,19 @@ public:
       display.setTextSize(2);
       sprintf(tmp, "MSG: %d", _task->getMsgCount());
       display.drawTextCentered(display.width() / 2, 22, tmp);
-
+      
+      #ifdef UI_SHOW_CLOCK
+      display.setTextSize(3);
+      uint32_t now = _rtc->getCurrentTime();
+      int8_t tz = UI_TZ_OFFSET; // for now draw time from Santo Domingo ...
+      now += (int32_t)tz * 3600;
+      DateTime dt (now);
+      sprintf(tmp, "%02d:%02d", dt.hour(), dt.minute());
+      display.drawTextCentered(display.width() / 2, 60, tmp);
+      display.setTextSize(1);
+      sprintf(tmp, "%02d/%02d/%d", dt.day(), dt.month(), dt.year());
+      display.drawTextCentered(display.width() / 2, 80, tmp);
+      #endif
       #ifdef WIFI_SSID
         IPAddress ip = WiFi.localIP();
         snprintf(tmp, sizeof(tmp), "IP: %d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
@@ -234,13 +251,21 @@ public:
       if (_task->hasConnection()) {
         display.setColor(UIColor::warning_txt);
         display.setTextSize(1);
+        #ifdef UI_SHOW_CLOCK
+        display.drawTextCentered(display.width() / 2, 110, "< Connected >");
+        #else
         display.drawTextCentered(display.width() / 2, 43, "< Connected >");
-
+        #endif
       } else if (the_mesh.getBLEPin() != 0) { // BT pin
         display.setColor(UIColor::warning_txt);
-        display.setTextSize(2);
         sprintf(tmp, "Pin:%d", the_mesh.getBLEPin());
+        #ifdef UI_SHOW_CLOCK
+        display.setTextSize(1);
+        display.drawTextCentered(display.width() / 2, 110, tmp);
+        #else
+        display.setTextSize(2);
         display.drawTextCentered(display.width() / 2, 43, tmp);
+        #endif
       }
     } else if (_page == HomePage::RECENT) {
       the_mesh.getRecentlyHeard(recent, UI_RECENT_LIST_SIZE);
@@ -720,6 +745,9 @@ void UITask::shutdown(bool restart){
   if (restart) {
     _board->reboot();
   } else {
+    display.forceFullRefresh();
+    display.clear();
+    display.endFrame();
     // Power off board including radio, display, GPS and components
     _board->powerOff();
   }
@@ -760,6 +788,17 @@ void UITask::loop() {
   }
 #elif defined(PIN_USER_BTN)
   int ev = user_btn.check();
+  #ifdef UI_HAS_NAV_INPUT
+  if (ev == BUTTON_EVENT_CLICK) {
+    c = checkDisplayOn(KEY_ENTER);
+  } else if (ev == BUTTON_EVENT_LONG_PRESS) {
+    display.turnOff();
+  } else if (ev == BUTTON_EVENT_DOUBLE_CLICK) {
+    c = handleDoubleClick(KEY_SELECT);
+  } else if (ev == BUTTON_EVENT_TRIPLE_CLICK) {
+    c = handleTripleClick(KEY_SELECT);
+  }
+  #else
   if (ev == BUTTON_EVENT_CLICK) {
     c = checkDisplayOn(KEY_NEXT);
   } else if (ev == BUTTON_EVENT_LONG_PRESS) {
@@ -769,6 +808,7 @@ void UITask::loop() {
   } else if (ev == BUTTON_EVENT_TRIPLE_CLICK) {
     c = handleTripleClick(KEY_SELECT);
   }
+  #endif  
 #endif
 #if defined(UI_HAS_ROTARY_INPUT)
   RotaryInputEvent rotaryEv = rotary_input.poll();
