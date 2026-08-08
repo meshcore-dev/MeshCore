@@ -236,6 +236,9 @@ txt_type
 
 The plaintext contained in the ciphertext matches the format described in [plain text message](#plain-text-message). Specifically, it consists of a four byte timestamp, a flags byte, and the message. The flags byte will generally be `0x00` because it is a "plain text message". The message will be of the form `<sender name>: <message body>` (eg., `user123: I'm on my way`).
 
+The sender name is unverified message text. Group messages contain no sender
+signature, so any channel-key holder can choose any sender name.
+
 # Group datagram
 
 | Field        | Size (bytes)    | Description                                  |
