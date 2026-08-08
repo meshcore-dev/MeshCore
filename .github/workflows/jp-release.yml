@@ -29,6 +29,7 @@ jobs:
             -D LORA_BW=125.0
             -D LORA_SF=10
             -D LORA_CR=6
+            -D 'ALLOWED_REPEAT_FREQ_RANGE={921200,921200}'
             -D ENABLE_ADVERT_ON_BOOT=1
             -D ENABLE_PRIVATE_KEY_IMPORT=1
             -D ENABLE_PRIVATE_KEY_EXPORT=1
