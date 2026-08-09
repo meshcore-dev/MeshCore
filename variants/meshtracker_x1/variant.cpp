@@ -63,12 +63,14 @@ void initVariant()
 {
   pinMode(BATTERY_PIN, INPUT);
   pinMode(EXT_CHRG_DETECT, INPUT_PULLUP);
-  pinMode(EXT_CHRG_DONE, INPUT_PULLUP);
   pinMode(EXT_PWR_DETECT, INPUT);
   pinMode(PIN_BUTTON1, INPUT_PULLDOWN);
 
   pinMode(PIN_3V3_EN, OUTPUT);
   digitalWrite(PIN_3V3_EN, HIGH);
+
+  pinMode(PIN_FLASH_EN, OUTPUT);
+  digitalWrite(PIN_FLASH_EN, HIGH);
 
   pinMode(PIN_BAT_ADC_EN, OUTPUT);
   digitalWrite(PIN_BAT_ADC_EN, HIGH);
