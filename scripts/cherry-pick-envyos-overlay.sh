@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Cherry-pick vk496 OTA commits + EnvyOS overlay onto companion-v1.16.0.
-# Run from envycore/ after: git reset --hard companion-v1.16.0
+# Cherry-pick vk496 OTA commits + EnvyOS overlay onto companion-v1.17.0.
+# Run from envycore/ after: git reset --hard companion-v1.17.0
 set -euo pipefail
 
 COMMITS=(
@@ -51,6 +51,8 @@ COMMITS=(
   2e7d5a61
   899ba168
   0e70236c
+  481c9aa6
+  502b2e9e
 )
 
 for sha in "${COMMITS[@]}"; do

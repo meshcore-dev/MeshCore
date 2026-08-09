@@ -4,8 +4,8 @@
 # See .cursor/skills/envyos-freshen/SKILL.md.
 
 mode: release
-companion_tag: companion-v1.16.0
-companion_sha: 07a3ca9e
+companion_tag: companion-v1.17.0
+companion_sha: 727fc051
 ota_commits:
   - 07b20f04  # ota: .mota container format, merkle, EndF
   - 6b4f2355  # ota: detools decoder
@@ -53,5 +53,10 @@ overlay_commits:
   - 2e7d5a61  # payload log labels
   - 899ba168  # SD superseeder
   - 0e70236c  # hop retry default off
-last_freshen: 2026-07-27
-notes: envyos/main reset from companion-v1.16.0; OTA cherry-picked from vk496/feature/ota-lora (not merged). Backup branch envyos/main-pre-companion-reset.
+  - 481c9aa6  # sensecap slim repeater OTA env
+  - 502b2e9e  # NOR/SD superseeder allow CLI
+last_freshen: 2026-08-09
+notes: >-
+  envyos/main merged onto companion-v1.17.0 (JSON ConfigSerializer base).
+  OTA prefs adapted to OtaPrefs nested serializer; hop retry uses v1.17 wasSeen/markSeen.
+  Cherry-pick script retained for vk496 OTA stack replay; overlay applied via merge for v1.17.
