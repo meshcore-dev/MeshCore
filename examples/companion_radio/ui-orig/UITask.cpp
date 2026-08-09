@@ -344,11 +344,7 @@ void UITask::userLedHandler() {
   static bool ext_powered = false, ext_charging = false;
   if (cur_time > next_pwr_check) {
     ext_powered = _board->isExternalPowered();
-    bool chrg = digitalRead(EXT_CHRG_DETECT) == LOW;
-  #ifdef EXT_CHRG_DONE
-    if (digitalRead(EXT_CHRG_DONE) == LOW) chrg = false;   // charge-done wins
-  #endif
-    ext_charging = ext_powered && chrg;
+    ext_charging = ext_powered && digitalRead(EXT_CHRG_DETECT) == LOW;
     next_pwr_check = cur_time + 1000;
   }
   if (ext_powered && _msgcount == 0) {
