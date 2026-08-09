@@ -17,3 +17,13 @@ compile_commands.json
 .venv/
 venv/
 platformio.local.ini
+
+# Claude Code / AI assistant artifacts
+.claude/
+CLAUDE.md
+
+# Personal, untracked notes & readme overrides (e.g. readme.npo.md)
+*.npo.md
+
+# Local build/flash helper (personal defaults, e.g. COM port)
+flash.ps1
