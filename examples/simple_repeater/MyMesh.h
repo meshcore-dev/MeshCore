@@ -2,6 +2,9 @@
 
 #include <Arduino.h>
 #include <Mesh.h>
+#if defined(ENABLE_OTA)
+  #include <helpers/ota/OtaContext.h>
+#endif
 #include <RTClib.h>
 #include <target.h>
 
@@ -87,6 +90,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   uint64_t uptime_millis;
   unsigned long next_local_advert, next_flood_advert;
   bool _logging;
+  bool _tailing;
   NodePrefs _prefs;
   ClientACL  acl;
   CommonCLI _cli;
@@ -129,6 +133,9 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
 
   File openAppend(const char* fname);
   bool isLooped(const mesh::Packet* packet, const uint8_t max_counters[]);
+  void mirrorPacketLogRxToSerial(mesh::Packet* pkt, int len, float score);
+  void mirrorPacketLogTxToSerial(mesh::Packet* pkt, int len);
+  void mirrorPacketLogTxFailToSerial(mesh::Packet* pkt, int len);
 
 protected:
   float getAirtimeBudgetFactor() const override {
@@ -159,6 +166,12 @@ protected:
   uint8_t getExtraAckTransmitCount() const override {
     return _prefs.multi_acks;
   }
+  uint8_t getHopRetryCount() const override {
+    return _prefs.hop_retry;
+  }
+  uint16_t getHopRetryTimeoutMs() const override {
+    return _prefs.hop_retry_ms;
+  }
 
 #if ENV_INCLUDE_GPS == 1
   void applyGpsPrefs() {
@@ -167,6 +180,9 @@ protected:
 #endif
 
   mesh::DispatcherAction onRecvPacket(mesh::Packet* pkt) override;
+#if defined(RAK_WISMESH_TAG)
+  void signalWismeshPacketLed(mesh::Packet* pkt, mesh::DispatcherAction action);
+#endif
 
   void onAnonDataRecv(mesh::Packet* packet, const uint8_t* secret, const mesh::Identity& sender, uint8_t* data, size_t len) override;
   int searchPeersByHash(const uint8_t* hash) override;
@@ -175,6 +191,7 @@ protected:
   void onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender_idx, const uint8_t* secret, uint8_t* data, size_t len) override;
   bool onPeerPathRecv(mesh::Packet* packet, int sender_idx, const uint8_t* secret, uint8_t* path, uint8_t path_len, uint8_t extra_type, uint8_t* extra, uint8_t extra_len) override;
   void onControlDataRecv(mesh::Packet* packet) override;
+  // OTA mesh-integration is centralized in mesh::Mesh (no per-example onOtaRecv / send adapter / tick).
 
   void sendFloodReply(mesh::Packet* packet, unsigned long delay_millis, uint8_t path_hash_size);
 
@@ -205,6 +222,11 @@ public:
   void updateFloodAdvertTimer() override;
 
   void setLoggingOn(bool enable) override { _logging = enable; }
+
+  void setTailOn(bool enable) override { _tailing = enable; }
+
+  void setHopAckIgnore(uint8_t count) override { setHopAckIgnoreCount(count); }
+  uint8_t getHopAckIgnore() override { return getHopAckIgnoreCount(); }
 
   void eraseLogFile() override {
     _fs->remove(PACKET_LOG_FILE);

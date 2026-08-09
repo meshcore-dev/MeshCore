@@ -94,6 +94,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   uint64_t uptime_millis;
   unsigned long next_local_advert, next_flood_advert;
   bool _logging;
+  bool _tailing;
   bool region_load_active;
   NodePrefs _prefs;
   TransportKeyStore key_store;
@@ -125,6 +126,9 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   bool processAck(const uint8_t *data);
   mesh::Packet* createSelfAdvert();
   File openAppend(const char* fname);
+  void mirrorPacketLogRxToSerial(mesh::Packet* pkt, int len, float score);
+  void mirrorPacketLogTxToSerial(mesh::Packet* pkt, int len);
+  void mirrorPacketLogTxFailToSerial(mesh::Packet* pkt, int len);
   int handleRequest(ClientInfo* sender, uint32_t sender_timestamp, uint8_t* payload, size_t payload_len);
 
 protected:
@@ -153,6 +157,12 @@ protected:
   }
   uint8_t getExtraAckTransmitCount() const override {
     return _prefs.multi_acks;
+  }
+  uint8_t getHopRetryCount() const override {
+    return _prefs.hop_retry;
+  }
+  uint16_t getHopRetryTimeoutMs() const override {
+    return _prefs.hop_retry_ms;
   }
 
   mesh::DispatcherAction onRecvPacket(mesh::Packet* pkt) override;
@@ -201,6 +211,11 @@ public:
   void updateFloodAdvertTimer() override;
 
   void setLoggingOn(bool enable) override { _logging = enable; }
+
+  void setTailOn(bool enable) override { _tailing = enable; }
+
+  void setHopAckIgnore(uint8_t count) override { setHopAckIgnoreCount(count); }
+  uint8_t getHopAckIgnore() override { return getHopAckIgnoreCount(); }
 
   void eraseLogFile() override {
     _fs->remove(PACKET_LOG_FILE);

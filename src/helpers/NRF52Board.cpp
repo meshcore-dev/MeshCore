@@ -2,8 +2,12 @@
 #include "NRF52Board.h"
 #include <target.h>
 
-#include <bluefruit.h>
 #include <nrf_soc.h>
+
+// BLE_DFU_DISABLED drops the Bluefruit BLE DFU fallback (`start ota` CLI) so slim/headless roles
+// don't link the BLE stack (~15 KB flash) they never otherwise use.
+#ifndef BLE_DFU_DISABLED
+#include <bluefruit.h>
 
 static BLEDfu bledfu;
 
@@ -18,6 +22,7 @@ static void disconnect_callback(uint16_t conn_handle, uint8_t reason) {
 
   MESH_DEBUG_PRINTLN("BLE client disconnected");
 }
+#endif
 
 void NRF52Board::begin() {
   startup_reason = BD_STARTUP_NORMAL;
@@ -389,6 +394,11 @@ bool NRF52Board::getBootloaderVersion(char* out, size_t max_len) {
     return false;
 }
 
+#ifdef BLE_DFU_DISABLED
+bool NRF52Board::startOTAUpdate(const char *id, char reply[]) {
+  return false;   // BLE DFU compiled out
+}
+#else
 bool NRF52Board::startOTAUpdate(const char *id, char reply[]) {
   // Config the peripheral connection with maximum bandwidth
   // more SRAM required by SoftDevice
@@ -437,4 +447,5 @@ bool NRF52Board::startOTAUpdate(const char *id, char reply[]) {
 
   return true;
 }
+#endif  // BLE_DFU_DISABLED
 #endif

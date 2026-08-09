@@ -460,6 +460,14 @@ const char *MyMesh::getLogDateTime() {
   return tmp;
 }
 
+namespace {
+const char* packetLogTypeLabel(const mesh::Packet* pkt) {
+  static char label[40];
+  mesh::formatPayloadType(pkt->getPayloadType(), label, sizeof label);
+  return label;
+}
+}
+
 void MyMesh::logRxRaw(float snr, float rssi, const uint8_t raw[], int len) {
 #if MESH_PACKET_LOGGING
   Serial.print(getLogDateTime());
@@ -467,6 +475,38 @@ void MyMesh::logRxRaw(float snr, float rssi, const uint8_t raw[], int len) {
   mesh::Utils::printHex(Serial, raw, len);
   Serial.println();
 #endif
+}
+
+void MyMesh::mirrorPacketLogRxToSerial(mesh::Packet *pkt, int len, float score) {
+  Serial.print(getLogDateTime());
+  Serial.printf(": RX, len=%d (type=%s, route=%s, payload_len=%d) SNR=%d RSSI=%d score=%d", len,
+                 packetLogTypeLabel(pkt), pkt->isRouteDirect() ? "D" : "F", pkt->payload_len,
+                 (int)_radio->getLastSNR(), (int)_radio->getLastRSSI(), (int)(score * 1000));
+
+  if (pkt->getPayloadType() == PAYLOAD_TYPE_PATH || pkt->getPayloadType() == PAYLOAD_TYPE_REQ ||
+      pkt->getPayloadType() == PAYLOAD_TYPE_RESPONSE || pkt->getPayloadType() == PAYLOAD_TYPE_TXT_MSG) {
+    Serial.printf(" [%02X -> %02X]", (uint32_t)pkt->payload[1], (uint32_t)pkt->payload[0]);
+  }
+  Serial.print("\r\n");
+}
+
+void MyMesh::mirrorPacketLogTxToSerial(mesh::Packet *pkt, int len) {
+  Serial.print(getLogDateTime());
+  Serial.printf(": TX, len=%d (type=%s, route=%s, payload_len=%d)", len, packetLogTypeLabel(pkt),
+                 pkt->isRouteDirect() ? "D" : "F", pkt->payload_len);
+
+  if (pkt->getPayloadType() == PAYLOAD_TYPE_PATH || pkt->getPayloadType() == PAYLOAD_TYPE_REQ ||
+      pkt->getPayloadType() == PAYLOAD_TYPE_RESPONSE || pkt->getPayloadType() == PAYLOAD_TYPE_TXT_MSG) {
+    Serial.printf(" [%02X -> %02X]", (uint32_t)pkt->payload[1], (uint32_t)pkt->payload[0]);
+  }
+  Serial.print("\r\n");
+}
+
+void MyMesh::mirrorPacketLogTxFailToSerial(mesh::Packet *pkt, int len) {
+  Serial.print(getLogDateTime());
+  Serial.printf(": TX FAIL!, len=%d (type=%s, route=%s, payload_len=%d)", len, packetLogTypeLabel(pkt),
+                 pkt->isRouteDirect() ? "D" : "F", pkt->payload_len);
+  Serial.print("\r\n");
 }
 
 void MyMesh::logRx(mesh::Packet *pkt, int len, float score) {
@@ -480,8 +520,8 @@ void MyMesh::logRx(mesh::Packet *pkt, int len, float score) {
     File f = openAppend(PACKET_LOG_FILE);
     if (f) {
       f.print(getLogDateTime());
-      f.printf(": RX, len=%d (type=%d, route=%s, payload_len=%d) SNR=%d RSSI=%d score=%d", len,
-               pkt->getPayloadType(), pkt->isRouteDirect() ? "D" : "F", pkt->payload_len,
+      f.printf(": RX, len=%d (type=%s, route=%s, payload_len=%d) SNR=%d RSSI=%d score=%d", len,
+               packetLogTypeLabel(pkt), pkt->isRouteDirect() ? "D" : "F", pkt->payload_len,
                (int)_radio->getLastSNR(), (int)_radio->getLastRSSI(), (int)(score * 1000));
 
       if (pkt->getPayloadType() == PAYLOAD_TYPE_PATH || pkt->getPayloadType() == PAYLOAD_TYPE_REQ ||
@@ -492,6 +532,9 @@ void MyMesh::logRx(mesh::Packet *pkt, int len, float score) {
       }
       f.close();
     }
+  }
+  if (_logging && _tailing) {
+    mirrorPacketLogRxToSerial(pkt, len, score);
   }
 }
 
@@ -506,7 +549,7 @@ void MyMesh::logTx(mesh::Packet *pkt, int len) {
     File f = openAppend(PACKET_LOG_FILE);
     if (f) {
       f.print(getLogDateTime());
-      f.printf(": TX, len=%d (type=%d, route=%s, payload_len=%d)", len, pkt->getPayloadType(),
+      f.printf(": TX, len=%d (type=%s, route=%s, payload_len=%d)", len, packetLogTypeLabel(pkt),
                pkt->isRouteDirect() ? "D" : "F", pkt->payload_len);
 
       if (pkt->getPayloadType() == PAYLOAD_TYPE_PATH || pkt->getPayloadType() == PAYLOAD_TYPE_REQ ||
@@ -518,6 +561,9 @@ void MyMesh::logTx(mesh::Packet *pkt, int len) {
       f.close();
     }
   }
+  if (_logging && _tailing) {
+    mirrorPacketLogTxToSerial(pkt, len);
+  }
 }
 
 void MyMesh::logTxFail(mesh::Packet *pkt, int len) {
@@ -525,10 +571,13 @@ void MyMesh::logTxFail(mesh::Packet *pkt, int len) {
     File f = openAppend(PACKET_LOG_FILE);
     if (f) {
       f.print(getLogDateTime());
-      f.printf(": TX FAIL!, len=%d (type=%d, route=%s, payload_len=%d)\n", len, pkt->getPayloadType(),
+      f.printf(": TX FAIL!, len=%d (type=%s, route=%s, payload_len=%d)\n", len, packetLogTypeLabel(pkt),
                pkt->isRouteDirect() ? "D" : "F", pkt->payload_len);
       f.close();
     }
+  }
+  if (_logging && _tailing) {
+    mirrorPacketLogTxFailToSerial(pkt, len);
   }
 }
 
@@ -546,6 +595,42 @@ uint32_t MyMesh::getDirectRetransmitDelay(const mesh::Packet *packet) {
   return getRNG()->nextInt(0, 5*t + 1);
 }
 
+#if defined(RAK_WISMESH_TAG)
+static bool isDestSelf(const mesh::Packet* pkt, const mesh::LocalIdentity& id) {
+  switch (pkt->getPayloadType()) {
+    case PAYLOAD_TYPE_TXT_MSG:
+    case PAYLOAD_TYPE_REQ:
+    case PAYLOAD_TYPE_RESPONSE:
+    case PAYLOAD_TYPE_PATH:
+    case PAYLOAD_TYPE_ANON_REQ:
+      return pkt->payload_len >= 1 && id.isHashMatch(&pkt->payload[0], 1);
+    default:
+      return false;
+  }
+}
+
+static bool isOnDirectPath(const mesh::Packet* pkt, const mesh::LocalIdentity& id) {
+  return pkt->isRouteDirect() && pkt->getPathHashCount() > 0
+      && id.isHashMatch(pkt->path, pkt->getPathHashSize());
+}
+
+void MyMesh::signalWismeshPacketLed(mesh::Packet* pkt, mesh::DispatcherAction action) {
+  if (action != ACTION_RELEASE) {
+    board.onPacketLed(mesh::MainBoard::PACKET_LED_RELAY);
+    return;
+  }
+  if (isDestSelf(pkt, self_id)) {
+    board.onPacketLed(mesh::MainBoard::PACKET_LED_LOCAL);
+    return;
+  }
+  if (isOnDirectPath(pkt, self_id)) {
+    board.onPacketLed(mesh::MainBoard::PACKET_LED_RELAY);
+    return;
+  }
+  board.onPacketLed(mesh::MainBoard::PACKET_LED_UNRELATED);
+}
+#endif
+
 mesh::DispatcherAction MyMesh::onRecvPacket(mesh::Packet* pkt) {
   if (pkt->getRouteType() == ROUTE_TYPE_TRANSPORT_FLOOD) {
     recv_pkt_region = region_map.findMatch(pkt, REGION_DENY_FLOOD);
@@ -558,7 +643,11 @@ mesh::DispatcherAction MyMesh::onRecvPacket(mesh::Packet* pkt) {
   } else {
     recv_pkt_region = NULL;
   }
-  return Mesh::onRecvPacket(pkt);
+  mesh::DispatcherAction action = Mesh::onRecvPacket(pkt);
+#if defined(RAK_WISMESH_TAG)
+  signalWismeshPacketLed(pkt, action);
+#endif
+  return action;
 }
 
 void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const mesh::Identity &sender,
@@ -860,6 +949,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   dirty_contacts_expiry = 0;
   set_radio_at = revert_radio_at = 0;
   _logging = false;
+  _tailing = false;
   region_load_active = false;
   recv_pkt_region = NULL;
 
@@ -872,6 +962,8 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.rx_delay_base = 0.0f;   // turn off by default, was 10.0;
   _prefs.tx_delay_factor = 0.5f; // was 0.25f
   _prefs.direct_tx_delay_factor = 0.3f; // was 0.2
+  _prefs.hop_retry = 0;
+  _prefs.hop_retry_ms = 1500;
   StrHelper::strncpy(_prefs.node_name, ADVERT_NAME, sizeof(_prefs.node_name));
   _prefs.node_lat = ADVERT_LAT;
   _prefs.node_lon = ADVERT_LON;
@@ -920,8 +1012,10 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   memset(default_scope.key, 0, sizeof(default_scope.key));
 }
 
+// OTA mesh-integration (receive/begin/loop) is centralized in mesh::Mesh — no per-example wiring.
+
 void MyMesh::begin(FILESYSTEM *fs) {
-  mesh::Mesh::begin();
+  mesh::Mesh::begin();   // also starts OTA (ota_ctx().begin) for all roles
   _fs = fs;
   // load persisted prefs
   _cli.loadPrefs(_fs);
@@ -1268,7 +1362,7 @@ void MyMesh::loop() {
   bridge.loop();
 #endif
 
-  mesh::Mesh::loop();
+  mesh::Mesh::loop();   // also drives the OTA fetch loop (centralized in mesh::Mesh)
 
   if (next_flood_advert && millisHasNowPassed(next_flood_advert)) {
     mesh::Packet *pkt = createSelfAdvert();

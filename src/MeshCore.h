@@ -44,6 +44,12 @@ namespace mesh {
 
 class MainBoard {
 public:
+  enum PacketLedRole : uint8_t {
+    PACKET_LED_LOCAL = 0,      // TX, flood/direct destined for us
+    PACKET_LED_RELAY,          // routed traffic we forward
+    PACKET_LED_UNRELATED,      // overheard / discarded
+  };
+
   virtual uint16_t getBattMilliVolts() = 0;
   virtual float getMCUTemperature() { return NAN; }
   virtual bool setAdcMultiplier(float multiplier) { return false; };
@@ -51,12 +57,15 @@ public:
   virtual const char* getManufacturerName() const = 0;
   virtual void onBeforeTransmit() { }
   virtual void onAfterTransmit() { }
+  virtual void onPacketLed(PacketLedRole role) { (void)role; }
   virtual void reboot() = 0;
   virtual void powerOff() { /* no op */ }
   // Called by example setup() functions to signal that boot is complete.
   // Boards may override to stop a boot-indicator LED sequence or similar.
   // Default no-op: boards that don't care need not implement anything.
   virtual void onBootComplete() { /* no op */ }
+  // Optional periodic hook (buzzer RTTTL, activity LED timeout, etc.)
+  virtual void loop() { /* no op */ }
   virtual uint32_t getIRQGpio() { return -1; } // not supported. Returns DIO1 (SX1262) and DIO0 (SX127x)
   virtual void sleep(uint32_t secs)  { /* no op */ }
   virtual uint32_t getGpio() { return 0; }
@@ -67,6 +76,27 @@ public:
   virtual bool setLoRaFemLnaEnabled(bool enable) { return false; }
   virtual bool canControlLoRaFemLna() const { return false; }
   virtual bool isLoRaFemLnaEnabled() const { return false; }
+#if defined(ENABLE_OTA)
+  // 4-byte build-target discriminator for OTA-over-LoRa (docs/ota_protocol.md §9). Default is the
+  // MOTA_TARGET_ID build flag injected by build.sh; 0 when unset (e.g. a bare IDE build).
+  virtual uint32_t getOtaTargetId() const {
+  #ifdef MOTA_TARGET_ID
+    return (uint32_t)(MOTA_TARGET_ID);
+  #else
+    return 0;
+  #endif
+  }
+  // Human-readable hardware tag (<=32 ASCII chars, e.g. "RAK4631") naming the hardware this firmware can
+  // boot on. Same tag == bootable-compatible; the OTA applier refuses a `.mota` whose hw_id differs (brick-
+  // safety). Defined per-variant via the MOTA_HW_ID build flag; "" when unset (then the check is skipped).
+  virtual const char* getOtaHwId() const {
+  #ifdef MOTA_HW_ID
+    return MOTA_HW_ID;
+  #else
+    return "";
+  #endif
+  }
+#endif
 
   // Power management interface (boards with power management override these)
   virtual bool isExternalPowered() { return false; }

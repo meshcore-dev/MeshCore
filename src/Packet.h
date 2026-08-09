@@ -28,6 +28,7 @@ namespace mesh {
 #define PAYLOAD_TYPE_TRACE       0x09    // trace a path, collecting SNR for each hop
 #define PAYLOAD_TYPE_MULTIPART   0x0A    // packet is one of a set of packets
 #define PAYLOAD_TYPE_CONTROL     0x0B    // a control/discovery packet
+#define PAYLOAD_TYPE_OTA         0x0C    // OTA-over-LoRa firmware distribution (see docs/ota_protocol.md)
 //...
 #define PAYLOAD_TYPE_RAW_CUSTOM   0x0F    // custom packet as raw bytes, for applications with custom encryption, payloads, etc
 
@@ -110,5 +111,8 @@ public:
    */
   bool readFrom(const uint8_t src[], uint8_t len);
 };
+
+const char* payloadTypeName(uint8_t type);
+void formatPayloadType(uint8_t type, char* buf, size_t cap);
 
 }

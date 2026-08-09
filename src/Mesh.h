@@ -2,6 +2,19 @@
 
 #include <Dispatcher.h>
 
+#if defined(ENABLE_OTA)
+  // OTA-over-LoRa: lowest TX priority (selected only after all real traffic). The hop limit is runtime-
+  // tunable (OtaManager::max_hops(), `ota config hops`); the default lives in OtaManager.h.
+  #ifndef OTA_TX_PRIORITY
+  #define OTA_TX_PRIORITY 250
+  #endif
+  // An OTA flood is relayed only while this many pool slots stay free, so heavy OTA (best-effort, low-
+  // priority) can never monopolise the shared packet pool and starve real traffic.
+  #ifndef OTA_FWD_MIN_FREE
+  #define OTA_FWD_MIN_FREE 4
+  #endif
+#endif
+
 namespace mesh {
 
 class GroupChannel {
@@ -33,6 +46,36 @@ class Mesh : public Dispatcher {
   void routeDirectRecvAcks(Packet* packet, uint32_t delay_millis);
   //void routeRecvAcks(Packet* packet, uint32_t delay_millis);
   DispatcherAction forwardMultipartDirect(Packet* pkt);
+
+#ifndef HOP_RETRY_PENDING_MAX
+#define HOP_RETRY_PENDING_MAX 4
+#endif
+#ifndef HOP_RETRY_MIN_FREE
+#define HOP_RETRY_MIN_FREE 4
+#endif
+#define CTL_TYPE_HOP_ACK  0xA0
+
+  struct HopRetryPending {
+    uint8_t hash[MAX_HASH_SIZE];
+    uint8_t next_hop[MAX_PATH_SIZE];
+    uint8_t next_hop_sz;
+    Packet* pkt;
+    uint8_t retries_left;
+    unsigned long deadline;
+  };
+  HopRetryPending _hop_retry_pending[HOP_RETRY_PENDING_MAX];
+  uint8_t _hop_ack_ignore_remaining;
+
+  void copyPacketFields(Packet* dest, const Packet* src);
+  void armHopRetryPending(const Packet* forwarded, uint32_t initial_delay_ms = 0);
+  void checkHopRetryEcho(const Packet* pkt);
+  bool isDirectZeroHopForSelf(const Packet* pkt) const;
+  void checkHopRetryAck(const Packet* pkt);
+  void sendHopAck(const Packet* forwarded, uint32_t delay_millis);
+  uint32_t getHopRetryDeadlineMs(const Packet* pkt, uint32_t initial_delay_ms) const;
+  void clearHopRetryPending(int idx);
+  void clearHopRetryPendingByHash(const uint8_t* hash);
+  void tickHopRetryPending();
 
 protected:
   DispatcherAction onRecvPacket(Packet* pkt) override;
@@ -70,6 +113,16 @@ protected:
    * \returns  number of extra (Direct) ACK transmissions wanted.
    */
   virtual uint8_t getExtraAckTransmitCount() const;
+
+  /**
+   * \returns  extra direct-path retransmits if the next hop's echo/ACK is not received (0 = off).
+   */
+  virtual uint8_t getHopRetryCount() const { return 0; }
+
+  /**
+   * \returns  base milliseconds to wait for echo or HOP_ACK before retrying.
+   */
+  virtual uint16_t getHopRetryTimeoutMs() const { return 1500; }
 
   /**
    * \brief  Perform search of local DB of peers/contacts.
@@ -145,6 +198,26 @@ protected:
   */
   virtual void onRawDataRecv(Packet* packet) { }
 
+#if defined(ENABLE_OTA)
+  /**
+   * \brief  An OTA-over-LoRa packet (PAYLOAD_TYPE_OTA) has been received. Subclasses forward the
+   *         payload bytes to their OtaManager. See docs/ota_protocol.md.
+   */
+  virtual void onOtaRecv(Packet* packet) { }
+
+  /** \returns  max OTA flood reach in hops — accept up to N, relay while < N (0=direct). `ota config hops`. */
+  virtual uint8_t getOtaHopLimit() const;
+
+  // OTA mesh-integration is centralized in Mesh::begin()/loop()/dispatch, so every role (repeater,
+  // companion, room, sensor, ...) gets fetch/serve/apply without per-example wiring.
+  static void otaSendAdapter(void* ctx, const uint8_t* msg, uint16_t len, bool flood);
+  unsigned long _next_ota_tick = 0;
+  unsigned long _next_ota_announce = 0;   // auto-advertise our own fw: boot burst + every OTA_ANNOUNCE_INTERVAL
+  uint8_t       _ota_announce_count = 0;  // adverts sent so far (boot burst before settling to daily)
+  bool          _ota_resumed = false;     // one-shot: resumed an interrupted fetch staged in flash on boot
+  bool          _ota_autoinstall_tried = false;  // attempted auto-install for the current COMPLETE fetch
+#endif
+
   /**
    * \brief  Perform search of local DB of matching GroupChannels.
    * \param  channels  OUT - store matching channels in this array, up to max_matches
@@ -167,8 +240,11 @@ protected:
   virtual void onAckRecv(Packet* packet, uint32_t ack_crc) { }
 
   Mesh(Radio& radio, MillisecondClock& ms, RNG& rng, RTCClock& rtc, PacketManager& mgr, MeshTables& tables)
-    : Dispatcher(radio, ms, mgr), _rng(&rng), _rtc(&rtc), _tables(&tables)
+    : Dispatcher(radio, ms, mgr), _rng(&rng), _rtc(&rtc), _tables(&tables), _hop_ack_ignore_remaining(0)
   {
+    for (int i = 0; i < HOP_RETRY_PENDING_MAX; i++) {
+      _hop_retry_pending[i].pkt = NULL;
+    }
   }
 
   MeshTables* getTables() const { return _tables; }
@@ -182,6 +258,9 @@ public:
   RNG* getRNG() const { return _rng; }
   RTCClock* getRTCClock() const { return _rtc; }
 
+  void setHopAckIgnoreCount(uint8_t count) { _hop_ack_ignore_remaining = count; }
+  uint8_t getHopAckIgnoreCount() const { return _hop_ack_ignore_remaining; }
+
   Packet* createAdvert(const LocalIdentity& id, const uint8_t* app_data=NULL, size_t app_data_len=0);
   Packet* createDatagram(uint8_t type, const Identity& dest, const uint8_t* secret, const uint8_t* data, size_t len);
   Packet* createAnonDatagram(uint8_t type, const LocalIdentity& sender, const Identity& dest, const uint8_t* secret, const uint8_t* data, size_t data_len);
@@ -193,6 +272,13 @@ public:
   Packet* createPathReturn(const uint8_t* dest_hash, const uint8_t* secret, const uint8_t* path, uint8_t path_len, uint8_t extra_type, const uint8_t*extra, size_t extra_len);
   Packet* createPathReturn(const Identity& dest, const uint8_t* secret, const uint8_t* path, uint8_t path_len, uint8_t extra_type, const uint8_t*extra, size_t extra_len);
   Packet* createRawData(const uint8_t* data, size_t len);
+
+#if defined(ENABLE_OTA)
+  // Build a PAYLOAD_TYPE_OTA packet from raw OTA message bytes (route set by sendOtaFlood).
+  Packet* createOtaPacket(const uint8_t* data, size_t len);
+  // Flood-send at the lowest priority (so OTA never competes with mesh traffic).
+  void sendOtaFlood(Packet* packet, uint32_t delay_millis = 0);
+#endif
   Packet* createTrace(uint32_t tag, uint32_t auth_code, uint8_t flags = 0);
   Packet* createControlData(const uint8_t* data, size_t len);
 

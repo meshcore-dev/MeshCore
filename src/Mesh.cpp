@@ -1,14 +1,136 @@
 #include "Mesh.h"
 //#include <Arduino.h>
+#if defined(ENABLE_OTA)
+#include "helpers/ota/OtaContext.h"   // OTA mesh-integration is centralized here so every role gets it
+#include "helpers/ota/OtaProtocol.h"  // decode_adv -> the `ota neighbors` discovery table
+#include "helpers/ota/OtaSelf.h"      // ota_self_firmware -> auto-advertise our own image
+#ifndef OTA_ANNOUNCE_BOOT_MS
+#define OTA_ANNOUNCE_BOOT_MS      8000UL      // first self-advert ~8 s after boot (settled, but quick to discover)
+#endif
+#ifndef OTA_ANNOUNCE_BURST
+#define OTA_ANNOUNCE_BURST        4           // a few closely-spaced boot adverts so co-booting peers catch one
+#endif
+#ifndef OTA_ANNOUNCE_BURST_MS
+#define OTA_ANNOUNCE_BURST_MS     20000UL     // spacing during the boot burst (~1 min total), then ...
+#endif
+// ... then re-announce at a FIXED cadence so a long-running node stays discoverable (a fresh `ota ls`
+// neighbour eventually sees it, not at boot only). The cadence is OtaManager::advert_mins() minutes (default
+// 24h, runtime-tunable via `ota config advert` + persisted; 0 = disabled = boot burst only). The beacon is
+// tiny + lowest-priority + duty-gated, so even a frequent cadence is cheap.
+#ifndef OTA_ANNOUNCE_DISABLED_POLL_MS
+#define OTA_ANNOUNCE_DISABLED_POLL_MS  600000UL  // when periodic advert is off, re-check config every 10 min
+#endif
+#endif
 
 namespace mesh {
 
+#if defined(ENABLE_OTA)
+// Adapter so the portable OtaManager can emit packets through the mesh (lowest priority, hop-capped).
+void Mesh::otaSendAdapter(void* ctx, const uint8_t* msg, uint16_t len, bool /*flood*/) {
+  Mesh* m = (Mesh*)ctx;
+  Packet* p = m->createOtaPacket(msg, len);
+  if (p) m->sendOtaFlood(p);
+}
+
+// Runtime OTA flood reach (`ota config hops`, persisted in NodePrefs): accept packets up to N hops away and
+// relay those still under N hops. 0 = direct only. Overridable per-role by subclassing.
+uint8_t Mesh::getOtaHopLimit() const { return ota::ota_ctx().manager.max_hops(); }
+#endif
+
 void Mesh::begin() {
   Dispatcher::begin();
+#if defined(ENABLE_OTA)
+  uint32_t my_tid = 0;
+  #ifdef MOTA_TARGET_ID
+    my_tid = (uint32_t)(MOTA_TARGET_ID);   // sha2-256:4(env name), injected by build.sh
+  #endif
+  const char* my_hw = "";
+  #ifdef MOTA_HW_ID
+    my_hw = MOTA_HW_ID;                     // human-readable hardware tag (per-variant), for the apply hw gate
+  #endif
+  ota::ota_ctx().begin(my_tid, Mesh::otaSendAdapter, this, my_hw);   // also sets the platform apply codec
+  ota::ota_ctx().manager.set_seeder_id(self_id.pub_key);      // node id (pubkey[0:4]) for advert seeder count
+#if defined(OTA_SUPERSEEDER)
+  {
+    char seedmsg[80];
+    ota::ota_ctx().attach_seeder(seedmsg, sizeof seedmsg);
+  }
+#endif
+  _next_ota_announce = futureMillis(OTA_ANNOUNCE_BOOT_MS);    // advertise our own fw shortly after boot
+#endif
 }
 
 void Mesh::loop() {
+  tickHopRetryPending();
   Dispatcher::loop();
+#if defined(ENABLE_OTA)
+  // Deferred apply-reboot: a verified `ota applydelta` approves the update but does NOT reboot inline,
+  // so its "verified; applying" reply can be delivered first (over LoRa that reply is the operator's
+  // only confirmation the apply started). Reboot once that reply has actually been transmitted (the
+  // outbound queue drains) after a short grace to let it be queued, with a hard cap for a busy node
+  // whose queue never idles.
+  {
+    ota::OtaContext& oc = ota::ota_ctx();
+    if (oc.apply_pending) {
+      if (oc.apply_at == 0) {
+        oc.apply_at = futureMillis(1500);
+        oc.apply_hard = futureMillis(15000);
+      } else if (millisHasNowPassed(oc.apply_at) &&
+                 (_mgr->getOutboundTotal() == 0 || millisHasNowPassed(oc.apply_hard))) {
+        ota::ota_reboot_to_apply();          // does not return
+      }
+    }
+  }
+  if (millisHasNowPassed(_next_ota_tick)) {
+    // one-shot on first tick: resume an interrupted fetch left staged in flash before a reboot. Only adopt
+    // a PARTIAL container (continue fetching the holes); a COMPLETE one is left for manual/auto-install,
+    // not re-adopted at boot. requestMissing() (inside resumeStaged) drives the rest via REQ/DATA.
+    if (!_ota_resumed) {
+      _ota_resumed = true;
+      ota::OtaContext& oc = ota::ota_ctx();
+      if (oc.manager.fetchState() == ota::OtaManager::IDLE && oc.manager.resumeStaged(nullptr)
+          && oc.manager.fetchState() == ota::OtaManager::COMPLETE) {
+        oc.manager.reset_session();        // don't auto-adopt a complete staged container on boot
+      }
+    }
+    ota::ota_ctx().manager.set_clock(_ms->getMillis());   // for discovery jitter/ages + the pending-query timer
+    ota::ota_ctx().manager.loop();         // re-request still-missing OTA blocks + fire scheduled queries
+#if defined(OTA_SUPERSEEDER)
+    ota::ota_ctx().superseeder_loop();
+#endif
+    _next_ota_tick = futureMillis(3000);
+  }
+  if (millisHasNowPassed(_next_ota_announce)) {   // auto-advertise so peers discover us (tiny beacon)
+    ota::OtaContext& oc = ota::ota_ctx();
+    bool in_burst = _ota_announce_count < OTA_ANNOUNCE_BURST;
+    uint32_t mins = oc.manager.advert_mins();     // periodic cadence in minutes; 0 = disabled (boot burst only)
+    if (in_burst || mins != 0) {
+      // To be discoverable as a source of our OWN firmware, set up flash-backed self-serve once; then the
+      // beacon (announce) advertises our served set and peers can QUERY + fetch it.
+      if (!oc.serving) oc.serving = ota::ota_serve_self(oc, 0);
+      oc.manager.announce();
+      if (_ota_announce_count < 250) _ota_announce_count++;
+    }
+    // Re-arm: tight spacing during the boot burst; afterwards the fixed cadence (default 24h). When periodic
+    // advert is disabled (0), re-check on a slow timer so a later `ota config advert <mins>` takes effect live.
+    uint32_t gap = in_burst       ? OTA_ANNOUNCE_BURST_MS
+                 : (mins != 0)    ? mins * 60000UL
+                                  : OTA_ANNOUNCE_DISABLED_POLL_MS;
+    _next_ota_announce = futureMillis(gap);
+  }
+  {   // auto-install (once per COMPLETE fetch): only signed images, and apply_fetched enforces trust
+    ota::OtaContext& oc = ota::ota_ctx();
+    if (oc.manager.fetchState() != ota::OtaManager::COMPLETE) {
+      _ota_autoinstall_tried = false;
+    } else if (!_ota_autoinstall_tried && !oc.apply_pending
+               && oc.autoinstall == ota::OtaContext::AUTOINSTALL_TRUSTED
+               && oc.manager.fetched_is_signed()) {
+      _ota_autoinstall_tried = true;
+      char msg[100];
+      oc.apply_fetched(msg);   // arms + sets apply_pending only if signed & allowlisted; refused otherwise
+    }
+  }
+#endif
 }
 
 bool Mesh::allowPacketForward(const mesh::Packet* packet) { 
@@ -24,6 +146,156 @@ uint32_t Mesh::getDirectRetransmitDelay(const Packet* packet) {
 }
 uint8_t Mesh::getExtraAckTransmitCount() const {
   return 0;
+}
+
+void Mesh::copyPacketFields(Packet* dest, const Packet* src) {
+  dest->header = src->header;
+  dest->path_len = src->path_len;
+  dest->payload_len = src->payload_len;
+  dest->transport_codes[0] = src->transport_codes[0];
+  dest->transport_codes[1] = src->transport_codes[1];
+  dest->_snr = 0;
+  memcpy(dest->path, src->path, src->getPathByteLen());
+  memcpy(dest->payload, src->payload, src->payload_len);
+}
+
+void Mesh::clearHopRetryPending(int idx) {
+  if (_hop_retry_pending[idx].pkt) {
+    releasePacket(_hop_retry_pending[idx].pkt);
+  }
+  _hop_retry_pending[idx].pkt = NULL;
+  _hop_retry_pending[idx].retries_left = 0;
+}
+
+void Mesh::clearHopRetryPendingByHash(const uint8_t* hash) {
+  for (int i = 0; i < HOP_RETRY_PENDING_MAX; i++) {
+    if (_hop_retry_pending[i].pkt && memcmp(_hop_retry_pending[i].hash, hash, MAX_HASH_SIZE) == 0) {
+      clearHopRetryPending(i);
+    }
+  }
+}
+
+void Mesh::armHopRetryPending(const Packet* forwarded, uint32_t initial_delay_ms) {
+  uint8_t retries = getHopRetryCount();
+  if (retries == 0 || forwarded->getPathHashCount() == 0) return;
+  if (forwarded->getPayloadType() == PAYLOAD_TYPE_TRACE) return;
+  if (_mgr->getFreeCount() < HOP_RETRY_MIN_FREE) return;
+
+  uint8_t hash[MAX_HASH_SIZE];
+  forwarded->calculatePacketHash(hash);
+  clearHopRetryPendingByHash(hash);
+
+  int slot = -1;
+  for (int i = 0; i < HOP_RETRY_PENDING_MAX; i++) {
+    if (_hop_retry_pending[i].pkt == NULL) {
+      slot = i;
+      break;
+    }
+  }
+  if (slot < 0) {
+    clearHopRetryPending(0);
+    slot = 0;
+  }
+
+  Packet* clone = obtainNewPacket();
+  if (clone == NULL) return;
+
+  copyPacketFields(clone, forwarded);
+  memcpy(_hop_retry_pending[slot].hash, hash, MAX_HASH_SIZE);
+  _hop_retry_pending[slot].next_hop_sz = forwarded->getPathHashSize();
+  memcpy(_hop_retry_pending[slot].next_hop, forwarded->path, _hop_retry_pending[slot].next_hop_sz);
+  _hop_retry_pending[slot].pkt = clone;
+  _hop_retry_pending[slot].retries_left = retries;
+  _hop_retry_pending[slot].deadline = futureMillis(getHopRetryDeadlineMs(forwarded, initial_delay_ms));
+}
+
+uint32_t Mesh::getHopRetryDeadlineMs(const Packet* pkt, uint32_t initial_delay_ms) const {
+  uint32_t airtime = _radio->getEstAirtimeFor(pkt->getRawLength());
+  return getHopRetryTimeoutMs() + initial_delay_ms + 2 * airtime;
+}
+
+void Mesh::checkHopRetryEcho(const Packet* pkt) {
+  if (pkt->getPayloadType() == PAYLOAD_TYPE_TRACE) return;
+
+  uint8_t hash[MAX_HASH_SIZE];
+  pkt->calculatePacketHash(hash);
+  clearHopRetryPendingByHash(hash);
+}
+
+bool Mesh::isDirectZeroHopForSelf(const Packet* pkt) const {
+  switch (pkt->getPayloadType()) {
+    case PAYLOAD_TYPE_TXT_MSG:
+    case PAYLOAD_TYPE_REQ:
+    case PAYLOAD_TYPE_RESPONSE:
+    case PAYLOAD_TYPE_PATH:
+    case PAYLOAD_TYPE_ANON_REQ:
+      return pkt->payload_len >= 1 && self_id.isHashMatch(&pkt->payload[0], 1);
+    default:
+      return false;
+  }
+}
+
+void Mesh::checkHopRetryAck(const Packet* pkt) {
+  if (pkt->payload_len < 11) return;
+  if (pkt->payload[0] != CTL_TYPE_HOP_ACK) return;
+
+  uint8_t hash_sz = pkt->payload[9];
+  if (hash_sz < 1 || hash_sz > 3) return;
+  if (pkt->payload_len < 10 + hash_sz) return;
+
+  const uint8_t* fwd_hash = &pkt->payload[1];
+  const uint8_t* sender_hash = &pkt->payload[10];
+
+  for (int i = 0; i < HOP_RETRY_PENDING_MAX; i++) {
+    HopRetryPending* p = &_hop_retry_pending[i];
+    if (p->pkt == NULL) continue;
+    if (memcmp(p->hash, fwd_hash, MAX_HASH_SIZE) != 0) continue;
+    if (hash_sz != p->next_hop_sz) continue;
+    if (memcmp(p->next_hop, sender_hash, hash_sz) != 0) continue;
+    clearHopRetryPending(i);
+    break;
+  }
+}
+
+void Mesh::sendHopAck(const Packet* forwarded, uint32_t delay_millis) {
+  if (!allowPacketForward(forwarded)) return;
+  if (forwarded->getPathHashCount() == 0) return;
+  if (_mgr->getFreeCount() < HOP_RETRY_MIN_FREE) return;
+
+  uint8_t hash_sz = forwarded->getPathHashSize();
+  if (hash_sz == 0 || hash_sz > 3) return;
+
+  uint8_t payload[14];
+  payload[0] = CTL_TYPE_HOP_ACK;
+  forwarded->calculatePacketHash(&payload[1]);
+  payload[9] = hash_sz;
+  self_id.copyHashTo(&payload[10], hash_sz);
+  size_t len = 10 + hash_sz;
+
+  Packet* ack = createControlData(payload, len);
+  if (ack) sendZeroHop(ack, delay_millis);
+}
+
+void Mesh::tickHopRetryPending() {
+  for (int i = 0; i < HOP_RETRY_PENDING_MAX; i++) {
+    HopRetryPending* p = &_hop_retry_pending[i];
+    if (p->pkt == NULL) continue;
+    if (!millisHasNowPassed(p->deadline)) continue;
+
+    if (p->retries_left == 0) {
+      clearHopRetryPending(i);
+      continue;
+    }
+
+    Packet* retry = obtainNewPacket();
+    if (retry == NULL) continue;
+
+    copyPacketFields(retry, p->pkt);
+    uint32_t d = getDirectRetransmitDelay(retry);
+    sendPacket(retry, 0, d);
+    p->retries_left--;
+    p->deadline = futureMillis(getHopRetryDeadlineMs(p->pkt, d));
+  }
 }
 
 uint32_t Mesh::getCADFailRetryDelay() const {
@@ -67,12 +339,24 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
     return ACTION_RELEASE;
   }
 
-  if (pkt->isRouteDirect() && pkt->getPayloadType() == PAYLOAD_TYPE_CONTROL && (pkt->payload[0] & 0x80) != 0) {
-    if (pkt->getPathHashCount() == 0) {
+  if (pkt->isRouteDirect() && pkt->getPayloadType() == PAYLOAD_TYPE_CONTROL && pkt->getPathHashCount() == 0) {
+    if (pkt->payload_len >= 11 && pkt->payload[0] == CTL_TYPE_HOP_ACK) {
+      checkHopRetryAck(pkt);
+      return ACTION_RELEASE;
+    }
+    if ((pkt->payload[0] & 0x80) != 0) {
       onControlDataRecv(pkt);
     }
     // just zero-hop control packets allowed (for this subset of payloads)
     return ACTION_RELEASE;
+  }
+
+  if (pkt->isRouteDirect() && pkt->getPathHashCount() == 0 && pkt->getPayloadType() != PAYLOAD_TYPE_CONTROL) {
+    // Last repeater hop often forwards zero-hop to the destination; upstream still overhears it as echo.
+    if (!isDirectZeroHopForSelf(pkt)) {
+      checkHopRetryEcho(pkt);
+      return ACTION_RELEASE;
+    }
   }
 
   if (pkt->isRouteDirect() && pkt->getPathHashCount() > 0) {
@@ -86,27 +370,39 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
       }
     }
 
-    if (self_id.isHashMatch(pkt->path, pkt->getPathHashSize()) && allowPacketForward(pkt)) {
-      if (pkt->getPayloadType() == PAYLOAD_TYPE_MULTIPART) {
-        return forwardMultipartDirect(pkt);
-      } else if (pkt->getPayloadType() == PAYLOAD_TYPE_ACK) {
-        if (!_tables->wasSeen(pkt)) {  // don't retransmit!
-          _tables->markSeen(pkt);
-          removeSelfFromPath(pkt);
-          routeDirectRecvAcks(pkt, 0);
-        }
-        return ACTION_RELEASE;
-      }
+    if (!self_id.isHashMatch(pkt->path, pkt->getPathHashSize()) || !allowPacketForward(pkt)) {
+      checkHopRetryEcho(pkt);
+      return ACTION_RELEASE;
+    }
 
-      if (!_tables->wasSeen(pkt)) {
+    if (_hop_ack_ignore_remaining > 0) {
+      _hop_ack_ignore_remaining--;
+      return ACTION_RELEASE;
+    }
+    if (pkt->getPayloadType() == PAYLOAD_TYPE_MULTIPART) {
+      return forwardMultipartDirect(pkt);
+    } else if (pkt->getPayloadType() == PAYLOAD_TYPE_ACK) {
+      if (!_tables->wasSeen(pkt)) {  // don't retransmit!
         _tables->markSeen(pkt);
         removeSelfFromPath(pkt);
-
-        uint32_t d = getDirectRetransmitDelay(pkt);
-        return ACTION_RETRANSMIT_DELAYED(0, d);  // Routed traffic is HIGHEST priority 
+        armHopRetryPending(pkt, 0);
+        routeDirectRecvAcks(pkt, 0);
+      } else {
+        sendHopAck(pkt, 0);
       }
+      return ACTION_RELEASE;
     }
-    return ACTION_RELEASE;   // this node is NOT the next hop (OR this packet has already been forwarded), so discard.
+
+    if (!_tables->wasSeen(pkt)) {
+      _tables->markSeen(pkt);
+      removeSelfFromPath(pkt);
+      uint32_t d = getDirectRetransmitDelay(pkt);
+      armHopRetryPending(pkt, d);
+
+      return ACTION_RETRANSMIT_DELAYED(0, d);  // Routed traffic is HIGHEST priority 
+    }
+    sendHopAck(pkt, 0);
+    return ACTION_RELEASE;
   }
 
   if (pkt->isRouteFlood() && filterRecvFloodPacket(pkt)) return ACTION_RELEASE;
@@ -323,6 +619,38 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
       }
       break;
 
+#if defined(ENABLE_OTA)
+    case PAYLOAD_TYPE_OTA: {
+      uint8_t n = pkt->getPathHashCount();   // hops travelled to reach us (flood path-hash count)
+      // Accept-gate (duty-cycle horizon): ignore OTA from further than our hop limit — neither process nor
+      // relay it. 0 = only directly-received OTA. Runtime-tunable via `ota config hops`.
+      if (n > getOtaHopLimit()) break;
+      // ALWAYS process every accepted copy: OTA handlers are idempotent, and "eventually reliable" retries
+      // deliberately re-send IDENTICAL requests — if we gated processing on wasSeen(), the dedup would
+      // suppress those retries and the transfer could never recover from a lost reply. wasSeen() is used
+      // ONLY to avoid re-flooding the same packet more than once.
+      bool seen = _tables->wasSeen(pkt);
+      if (!seen) _tables->markSeen(pkt);
+      ota::ota_ctx().manager.set_clock(_ms->getMillis());                 // discovery jitter/ages
+      ota::ota_ctx().manager.on_message(pkt->payload, pkt->payload_len);  // central OTA receive (beacon/query/
+                                                                         // have/manifest/data/proof; all roles)
+      ota::ota_ctx().track_session(ota::ota_ctx().manager.fetchState(), _ms->getMillis());
+      onOtaRecv(pkt);                                                     // optional per-example hook
+      // Re-flood at the LOWEST priority and only while still under the hop limit, so OTA never competes with
+      // mesh traffic. The free-pool guard keeps heavy OTA from monopolising the shared packet pool — dropping
+      // a relay is safe (OTA is best-effort; the source retries).
+      if (!seen && pkt->isRouteFlood() && !pkt->isMarkedDoNotRetransmit()
+          && n < getOtaHopLimit()
+          && (n + 1) * pkt->getPathHashSize() <= MAX_PATH_SIZE
+          && _mgr->getFreeCount() > OTA_FWD_MIN_FREE
+          && allowPacketForward(pkt)) {
+        self_id.copyHashTo(&pkt->path[n * pkt->getPathHashSize()], pkt->getPathHashSize());
+        pkt->setPathHashCount(n + 1);
+        action = ACTION_RETRANSMIT_DELAYED(OTA_TX_PRIORITY, getRetransmitDelay(pkt));
+      }
+      break;
+    }
+#endif
     default:
       MESH_DEBUG_PRINTLN("%s Mesh::onRecvPacket(): unknown payload type, header: %d", getLogDateTime(), (int) pkt->header);
       // Don't flood route unknown packet types!   action = routeRecvPacket(pkt);
@@ -370,7 +698,11 @@ DispatcherAction Mesh::forwardMultipartDirect(Packet* pkt) {
     if (!_tables->wasSeen(&tmp)) {   // don't retransmit!
       _tables->markSeen(&tmp);
       removeSelfFromPath(&tmp);
-      routeDirectRecvAcks(&tmp, ((uint32_t)remaining + 1) * 300);  // expect multipart ACKs 300ms apart (x2)
+      uint32_t d = ((uint32_t)remaining + 1) * 300;
+      armHopRetryPending(&tmp, d);
+      routeDirectRecvAcks(&tmp, d);  // expect multipart ACKs 300ms apart (x2)
+    } else {
+      sendHopAck(&tmp, 0);
     }
   }
   return ACTION_RELEASE;
@@ -633,6 +965,29 @@ Packet* Mesh::createControlData(const uint8_t* data, size_t len) {
 
   return packet;
 }
+
+#if defined(ENABLE_OTA)
+Packet* Mesh::createOtaPacket(const uint8_t* data, size_t len) {
+  if (len > sizeof(Packet::payload)) return NULL;
+  Packet* packet = obtainNewPacket();
+  if (packet == NULL) {
+    MESH_DEBUG_PRINTLN("%s Mesh::createOtaPacket(): error, packet pool empty", getLogDateTime());
+    return NULL;
+  }
+  packet->header = (PAYLOAD_TYPE_OTA << PH_TYPE_SHIFT);  // ROUTE_TYPE_* set by sendOtaFlood
+  memcpy(packet->payload, data, len);
+  packet->payload_len = len;
+  return packet;
+}
+
+void Mesh::sendOtaFlood(Packet* packet, uint32_t delay_millis) {
+  packet->header &= ~PH_ROUTE_MASK;
+  packet->header |= ROUTE_TYPE_FLOOD;
+  packet->setPathHashSizeAndCount(1, 0);
+  _tables->markSeen(packet);   // mark as sent, in case it floods back to us
+  sendPacket(packet, OTA_TX_PRIORITY, delay_millis);
+}
+#endif
 
 void Mesh::sendFlood(Packet* packet, uint32_t delay_millis, uint8_t path_hash_size) {
   if (packet->getPayloadType() == PAYLOAD_TYPE_TRACE) {

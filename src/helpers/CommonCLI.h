@@ -69,6 +69,20 @@ public:
   uint8_t loop_detect = 0;
   uint8_t cad_enabled = 0;      // hardware Channel Activity Detection before TX (boolean)
   uint8_t extra_sf[4];
+  // OTA config (persisted; synced to OtaContext on load, written on change). 0 = conservative defaults.
+  uint8_t ota_autofetch = 0;        // OtaManager AUTOFETCH_* (0=off, 1=any-compatible, 2=signed-only)
+  uint8_t ota_autoinstall = 0;      // OtaContext AUTOINSTALL_* (0=off, 1=trusted-only)
+  uint8_t ota_signer_count = 0;     // # of allowlisted signer pubkeys below
+  uint8_t ota_signers[4][32];       // trusted Ed25519 signer pubkeys (== MAX_OTA_SIGNERS)
+  uint16_t ota_checkpoint_blocks = 4; // resume checkpoint cadence (blocks); 0=never
+  uint16_t ota_advert_interval = 1440; // OTA beacon re-advertise cadence (mins); 0=off
+  uint8_t ota_max_hops = 3;           // OTA flood reach in hops; 0=direct only
+  uint8_t hop_retry = 0;              // extra direct-path TX if next hop hop ACK missing (0=off)
+  uint16_t hop_retry_ms = 1500;       // listen TTL before retry (ms)
+  // Superseeder target filter (persisted). filter=0 → admit all (default); filter=1 → only listed.
+  uint8_t ota_seeder_allow_count = 0;
+  uint8_t ota_seeder_allow_filter = 0;  // 0=all, 1=filter (empty filter admits nothing)
+  uint32_t ota_seeder_allow[8];         // target_ids (== MAX_OTA_SEEDER_ALLOW)
 
 private:
   class RadioPrefs : public ConfigSerializer {
@@ -153,6 +167,28 @@ private:
   };
   RepeatPrefs repeat;
 
+  class OtaPrefs : public ConfigSerializer {
+    NodePrefs* _parent;
+  protected:
+    void structure() override {
+      def("autofetch", _parent->ota_autofetch);
+      def("autoinstall", _parent->ota_autoinstall);
+      def("signer_cnt", _parent->ota_signer_count);
+      def("signers", _parent->ota_signers, sizeof(_parent->ota_signers));
+      def("ckpt_blocks", _parent->ota_checkpoint_blocks);
+      def("adv_int", _parent->ota_advert_interval);
+      def("max_hops", _parent->ota_max_hops);
+      def("hop_retry", _parent->hop_retry);
+      def("hop_retry_ms", _parent->hop_retry_ms);
+      def("seeder_cnt", _parent->ota_seeder_allow_count);
+      def("seeder_filter", _parent->ota_seeder_allow_filter);
+      def("seeder_allow", _parent->ota_seeder_allow, sizeof(_parent->ota_seeder_allow));
+    }
+  public:
+    OtaPrefs(NodePrefs* parent) : _parent(parent) { }
+  };
+  OtaPrefs ota;
+
   class RoomPrefs : public ConfigSerializer {
     NodePrefs* _parent;
   protected:
@@ -180,10 +216,11 @@ protected:
     def("repeat", repeat);
     def("room", room);
     def("power", power);
+    def("ota", ota);
   }
 
 public:
-  NodePrefs() : ConfigSerializer(), bridge(this), gps(this), radio(this), power(this), repeat(this), room(this) {
+  NodePrefs() : ConfigSerializer(), bridge(this), gps(this), radio(this), power(this), repeat(this), room(this), ota(this) {
     node_name[0] = 0;
     password[0] = 0;
     guest_password[0] = 0;
@@ -203,6 +240,7 @@ public:
   virtual void updateAdvertTimer() = 0;
   virtual void updateFloodAdvertTimer() = 0;
   virtual void setLoggingOn(bool enable) = 0;
+  virtual void setTailOn(bool enable) = 0;
   virtual void eraseLogFile() = 0;
   virtual void dumpLogFile() = 0;
   virtual void setTxPower(int8_t power_dbm) = 0;
@@ -240,10 +278,13 @@ public:
     return false; // CommonCLI reports unsupported if not overridden by wrapper
   };
 
+  virtual void setHopAckIgnore(uint8_t count) { }
+  virtual uint8_t getHopAckIgnore() { return 0; }
+
   #if defined(USE_LR2021)
   virtual bool configSideDetectors(const uint8_t sideDetSFs[], uint8_t num, float bw) {
     return false; // Override in wrapper
-  } 
+  }
   #endif
 };
 
@@ -260,6 +301,9 @@ class CommonCLI {
   mesh::RTCClock* getRTCClock() { return _rtc; }
   void savePrefs();
   void loadPrefsInt(FILESYSTEM* _fs, const char* filename);
+#if defined(ENABLE_OTA)
+  void syncOtaConfigFromPrefs();   // persisted OTA policy + signer allowlist -> running OtaContext
+#endif
 
   void handleRegionCmd(char* command, char* reply);
   void handleGetCmd(uint32_t sender_timestamp, char* command, char* reply);

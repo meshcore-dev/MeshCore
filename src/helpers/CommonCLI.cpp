@@ -4,6 +4,10 @@
 #include "AdvertDataHelpers.h"
 #include "TxtDataHelpers.h"
 #include <RTClib.h>
+#if defined(ENABLE_OTA)
+  #include "ota/OtaCli.h"
+  #include "ota/OtaContext.h"   // persist/sync OTA policy + signer allowlist with NodePrefs
+#endif
 
 #ifndef BRIDGE_MAX_BAUD
 #define BRIDGE_MAX_BAUD 115200
@@ -28,6 +32,7 @@ static bool isValidName(const char *n) {
 }
 
 void CommonCLI::loadPrefs(FILESYSTEM* fs) {
+  bool loaded = false;
   if (fs->exists("/prefs.json")) {
 #if defined(RP2040_PLATFORM)
     File file = fs->open("/prefs.json", "r");
@@ -35,16 +40,45 @@ void CommonCLI::loadPrefs(FILESYSTEM* fs) {
     File file = fs->open("/prefs.json");
 #endif
     if (file) {
-      _prefs->loadSerial(file);   // new Serial prefs
+      _prefs->loadSerial(file);   // new JSON prefs
       file.close();
+      loaded = true;
     }
   } else if (fs->exists("/com_prefs")) {
     loadPrefsInt(fs, "/com_prefs");
-    if (savePrefs(fs)) {  // save to new Serial prefs
+    if (savePrefs(fs)) {  // migrate to JSON prefs
   //    fs->remove("/com_prefs");  // remove old
     }
+    loaded = true;
   }
+#if defined(ENABLE_OTA)
+  if (loaded) syncOtaConfigFromPrefs();   // persisted OTA policy/keys -> OtaContext (else keep safe defaults)
+#endif
 }
+
+#if defined(ENABLE_OTA)
+// Push the persisted OTA policy + signer allowlist into the running OtaContext (called after load).
+void CommonCLI::syncOtaConfigFromPrefs() {
+  mesh::ota::OtaContext& c = mesh::ota::ota_ctx();
+  c.manager.set_autofetch(_prefs->ota_autofetch);
+  c.manager.set_checkpoint_blocks(_prefs->ota_checkpoint_blocks);
+  c.manager.set_advert_mins(_prefs->ota_advert_interval);
+  c.manager.set_max_hops(_prefs->ota_max_hops);
+  c.autoinstall = _prefs->ota_autoinstall;
+  c.allow.clear();
+  for (uint8_t i = 0; i < _prefs->ota_signer_count && i < MAX_OTA_SIGNERS; i++)
+    c.allow.add(_prefs->ota_signers[i]);
+#if defined(OTA_SUPERSEEDER)
+  if (_prefs->ota_seeder_allow_filter) {
+    c.seeder_allow.clear();  // filter mode, admit nothing until entries added
+    for (uint8_t i = 0; i < _prefs->ota_seeder_allow_count && i < 8; i++)
+      c.seeder_allow.add(_prefs->ota_seeder_allow[i]);
+  } else {
+    c.seeder_allow.reset();  // admit all
+  }
+#endif
+}
+#endif
 
 void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {  // Legacy prefs loader
 #if defined(RP2040_PLATFORM)
@@ -102,7 +136,31 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {  // Legacy 
     file.read((uint8_t *)&_prefs->flood_max_advert, sizeof(_prefs->flood_max_advert));             // 292
     file.read((uint8_t *)&_prefs->radio_fem_rxgain, sizeof(_prefs->radio_fem_rxgain));             // 293
     file.read((uint8_t *)&_prefs->cad_enabled, sizeof(_prefs->cad_enabled));                       // 294
-    // next: 295
+    // OTA config (295+). Default first so older prefs files (which lack these) keep conservative
+    // defaults: a short file makes the reads below no-ops (read returns 0 bytes, values unchanged).
+    _prefs->ota_autofetch = 0; _prefs->ota_autoinstall = 0; _prefs->ota_signer_count = 0;
+    _prefs->ota_checkpoint_blocks = 4;
+    _prefs->ota_advert_interval = 1440;
+    _prefs->ota_max_hops = 3;
+    file.read((uint8_t *)&_prefs->ota_autofetch, sizeof(_prefs->ota_autofetch));                   // 295
+    file.read((uint8_t *)&_prefs->ota_autoinstall, sizeof(_prefs->ota_autoinstall));               // 296
+    file.read((uint8_t *)&_prefs->ota_signer_count, sizeof(_prefs->ota_signer_count));             // 297
+    file.read((uint8_t *)_prefs->ota_signers, sizeof(_prefs->ota_signers));                        // 298
+    file.read((uint8_t *)&_prefs->ota_checkpoint_blocks, sizeof(_prefs->ota_checkpoint_blocks));   // 426
+    file.read((uint8_t *)&_prefs->ota_advert_interval, sizeof(_prefs->ota_advert_interval));       // 428
+    file.read((uint8_t *)&_prefs->ota_max_hops, sizeof(_prefs->ota_max_hops));                     // 430
+    _prefs->hop_retry = 0;
+    _prefs->hop_retry_ms = 1500;
+    file.read((uint8_t *)&_prefs->hop_retry, sizeof(_prefs->hop_retry));                         // 431
+    file.read((uint8_t *)&_prefs->hop_retry_ms, sizeof(_prefs->hop_retry_ms));                   // 432
+    _prefs->ota_seeder_allow_count = 0;
+    _prefs->ota_seeder_allow_filter = 0;
+    memset(_prefs->ota_seeder_allow, 0, sizeof(_prefs->ota_seeder_allow));
+    file.read((uint8_t *)&_prefs->ota_seeder_allow_count, sizeof(_prefs->ota_seeder_allow_count)); // 434
+    file.read((uint8_t *)&_prefs->ota_seeder_allow_filter, sizeof(_prefs->ota_seeder_allow_filter)); // 435
+    file.read(pad, 2);                                                                              // 436
+    file.read((uint8_t *)_prefs->ota_seeder_allow, sizeof(_prefs->ota_seeder_allow));              // 438
+    // next: 470
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -134,6 +192,17 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {  // Legacy 
     _prefs->rx_boosted_gain = constrain(_prefs->rx_boosted_gain, 0, 1); // boolean
     _prefs->radio_fem_rxgain = constrain(_prefs->radio_fem_rxgain, 0, 1); // boolean
     _prefs->cad_enabled = constrain(_prefs->cad_enabled, 0, 1); // boolean
+    _prefs->ota_autofetch = constrain(_prefs->ota_autofetch, 0, 2);
+    _prefs->ota_autoinstall = constrain(_prefs->ota_autoinstall, 0, 1);
+    if (_prefs->ota_checkpoint_blocks > 4096) _prefs->ota_checkpoint_blocks = 4;
+    if (_prefs->ota_advert_interval > 10080) _prefs->ota_advert_interval = 1440;
+    if (_prefs->ota_max_hops > 8) _prefs->ota_max_hops = 3;
+    if (_prefs->ota_signer_count > 4) _prefs->ota_signer_count = 0;
+    if (_prefs->ota_seeder_allow_count > 8) _prefs->ota_seeder_allow_count = 0;
+    if (_prefs->ota_seeder_allow_filter > 1) _prefs->ota_seeder_allow_filter = 0;
+    _prefs->hop_retry = constrain(_prefs->hop_retry, 0, 5);
+    if (_prefs->hop_retry_ms < 200) _prefs->hop_retry_ms = 200;
+    if (_prefs->hop_retry_ms > 10000) _prefs->hop_retry_ms = 10000;
 
     file.close();
   }
@@ -272,6 +341,29 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       sprintf(reply, "%s (Build: %s)", _callbacks->getFirmwareVer(), _callbacks->getBuildDate());
     } else if (memcmp(command, "board", 5) == 0) {
       sprintf(reply, "%s", _board->getManufacturerName());
+#if defined(ENABLE_OTA)
+    } else if (memcmp(command, "ota", 3) == 0 && (command[3] == 0 || command[3] == ' ')) {
+      mesh::ota::handle_ota_command(command, reply, *_board);
+      if (mesh::ota::ota_ctx().config_dirty) {        // a policy/key changed via the CLI -> persist it
+        mesh::ota::OtaContext& c = mesh::ota::ota_ctx();
+        _prefs->ota_autofetch = c.manager.autofetch();
+        _prefs->ota_checkpoint_blocks = c.manager.checkpoint_blocks();
+        _prefs->ota_advert_interval = c.manager.advert_mins();
+        _prefs->ota_max_hops = c.manager.max_hops();
+        _prefs->ota_autoinstall = c.autoinstall;
+        _prefs->ota_signer_count = c.allow.count();
+        for (uint8_t i = 0; i < c.allow.count() && i < MAX_OTA_SIGNERS; i++)
+          memcpy(_prefs->ota_signers[i], c.allow.get(i), 32);
+#if defined(OTA_SUPERSEEDER)
+        _prefs->ota_seeder_allow_filter = c.seeder_allow.filtering() ? 1 : 0;
+        _prefs->ota_seeder_allow_count = c.seeder_allow.count();
+        for (uint8_t i = 0; i < c.seeder_allow.count() && i < 8; i++)
+          _prefs->ota_seeder_allow[i] = c.seeder_allow.get(i);
+#endif
+        _callbacks->savePrefs();
+        c.config_dirty = false;
+      }
+#endif
     } else if (memcmp(command, "sensor get ", 11) == 0) {
       const char* key = command + 11;
       const char* val = _sensors->getSettingByKey(key);
@@ -421,6 +513,15 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       } else {
         strcpy(reply, "off");
       }
+    } else if (sender_timestamp == 0 && memcmp(command, "log tail on", 11) == 0
+               && (command[11] == 0 || command[11] == ' ')) {
+      _callbacks->setLoggingOn(true);
+      _callbacks->setTailOn(true);
+      strcpy(reply, "   tail on");
+    } else if (sender_timestamp == 0 && memcmp(command, "log tail off", 12) == 0
+               && (command[12] == 0 || command[12] == ' ')) {
+      _callbacks->setTailOn(false);
+      strcpy(reply, "   tail off");
     } else if (memcmp(command, "log start", 9) == 0) {
       _callbacks->setLoggingOn(true);
       strcpy(reply, "   logging on");
@@ -642,6 +743,32 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     } else {
       strcpy(reply, "Error, must be 0-2");
     }
+  } else if (memcmp(config, "hop.retry ", 10) == 0) {
+    int n = atoi(&config[10]);
+    if (n >= 0 && n <= 5) {
+      _prefs->hop_retry = (uint8_t)n;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error, must be 0-5");
+    }
+  } else if (memcmp(config, "hop.retry.ms ", 13) == 0) {
+    int n = atoi(&config[13]);
+    if (n >= 200 && n <= 10000) {
+      _prefs->hop_retry_ms = (uint16_t)n;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error, must be 200-10000");
+    }
+  } else if (memcmp(config, "hop.ignore ", 11) == 0) {
+    int n = atoi(&config[11]);
+    if (n >= 0 && n <= 255) {
+      _callbacks->setHopAckIgnore((uint8_t)n);
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error, must be 0-255");
+    }
   } else if (memcmp(config, "owner.info ", 11) == 0) {
     config += 11;
     char *dp = _prefs->owner_info;
@@ -844,6 +971,12 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %d", (uint32_t)_prefs->flood_max);
   } else if (memcmp(config, "direct.txdelay", 14) == 0) {
     sprintf(reply, "> %s", StrHelper::ftoa(_prefs->direct_tx_delay_factor));
+  } else if (memcmp(config, "hop.retry.ms", 12) == 0) {
+    sprintf(reply, "> %u", (unsigned)_prefs->hop_retry_ms);
+  } else if (memcmp(config, "hop.ignore", 10) == 0) {
+    sprintf(reply, "> %u", (unsigned)_callbacks->getHopAckIgnore());
+  } else if (memcmp(config, "hop.retry", 9) == 0) {
+    sprintf(reply, "> %u", (unsigned)_prefs->hop_retry);
   } else if (memcmp(config, "owner.info", 10) == 0) {
     auto start = reply;
     *reply++ = '>';

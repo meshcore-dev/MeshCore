@@ -170,6 +170,20 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 ---
 
+### Mirror packet log to serial (live)
+**Usage:** `log tail on`
+
+**Note:** Streams RX/TX log lines to USB serial as they are captured. Enables logging if not already active (`log start`). Serial-only (not available via remote admin).
+
+---
+
+### Stop live serial log mirror
+**Usage:** `log tail off`
+
+**Serial Only:** Yes
+
+---
+
 ### Erase captured log
 **Usage:** `log erase`
 
@@ -527,6 +541,33 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 ---
 
+#### View or change next-hop retry for direct-path relays
+**Usage:**
+- `get hop.retry`
+- `set hop.retry <count>`
+- `get hop.retry.ms`
+- `set hop.retry.ms <milliseconds>`
+
+**Parameters:**
+- `count`: Extra retransmits if the next hop's echo or HOP_ACK is not received (0-5). `0` disables hop retry (fire-and-forget). Default `0` (opt-in); e.g. `2` means up to 3 total transmissions (initial + 2 retries).
+- `milliseconds`: Base listen window before each retry (200-10000). Default `1500`. Actual deadline also includes forward delay and packet airtime.
+
+**Note:** When a repeater forwards a direct-path packet, it waits for the next hop's **echo** (hearing its own packet retransmitted downstream). If the echo is missed within the listen window, it retries. A hop that receives a duplicate addressed to itself replies with a zero-hop **HOP_ACK** instead of forwarding again — this terminates the retry loop when the first delivery succeeded but the echo was lost. No extra airtime in the healthy case. Not used on the last hop (zero-hop delivery to the destination). Prefer `set multi.acks 0` when hop retry is enabled.
+
+---
+
+#### Test mode: drop next N direct-forward opportunities
+**Usage:**
+- `get hop.ignore`
+- `set hop.ignore <count>`
+
+**Parameters:**
+- `count`: Number of upcoming direct-forward opportunities to silently discard (0-255). `0` disables (default).
+
+**Note:** For the next `count` times this node would forward a direct-routed packet, it discards it instead — no forward, no HOP_ACK, no dedup mark (so an upstream retry of the same packet is evaluated again next time). Simulates a dead/unreachable next hop without power-cycling it, to exercise `hop.retry` on the upstream node. **Not persisted** — resets to 0 on reboot, unlike `hop.retry`/`hop.retry.ms`.
+
+---
+
 #### [Experimental] View or change the processing delay for received traffic
 **Usage:**
 - `get rxdelay`
@@ -627,6 +668,8 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 - `state`: `0` (disable) or `1` (enable)
 
 **Default:** `0`
+
+**Note:** Sends extra copies of direct ACKs. With hop retry enabled (`hop.retry` > 0), prefer leaving this off — hop retry uses echo confirmation and duplicate-triggered HOP_ACK instead of blind duplicate ACKs.
 
 ---
 

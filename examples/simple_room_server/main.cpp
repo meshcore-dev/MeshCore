@@ -107,6 +107,11 @@ void loop() {
   int len = strlen(command);
   while (Serial.available() && len < sizeof(command)-1) {
     char c = Serial.read();
+    if (c == 3) {  // Ctrl+C — stop live log tail
+      the_mesh.setTailOn(false);
+      Serial.print("\r\n  -> tail off\r\n");
+      continue;
+    }
     if (c != '\n') {
       command[len++] = c;
       command[len] = 0;
