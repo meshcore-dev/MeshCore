@@ -1322,6 +1322,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#78-q-how-do-i-use-ethernet-with-a-rak4631" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.8. Q: How do I use Ethernet with a RAK4631?
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2506,6 +2517,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#78-q-how-do-i-use-ethernet-with-a-rak4631" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7.8. Q: How do I use Ethernet with a RAK4631?
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2636,6 +2658,7 @@
 <li><a href="#75-q-what-is-the-format-of-a-contact-or-channel-qr-code">7.5. Q: What is the format of a contact or channel QR code?</a></li>
 <li><a href="#76-q-how-do-i-connect-to-the-companion-via-wi-fi-eg-using-a-heltec-v3">7.6. Q: How do I connect to the companion via Wi-Fi, e.g. using a Heltec V3?</a></li>
 <li><a href="#77-q-i-have-a-station-g2-or-a-heltec-v4-or-an-ikoka-stick-or-a-radio-with-an-ebyte-e22-900m30s-or-an-ebyte-e22-900m33s-module-what-should-their-transmit-power-be-set-to">7.7. Q: I have a Station G2, or a Heltec V4, or an Ikoka Stick, or a radio with an EByte E22-900M30S or an EByte E22-900M33S module, what should their transmit power be set to?</a></li>
+<li><a href="#78-q-how-do-i-use-ethernet-with-a-rak4631">7.8. Q: How do I use Ethernet with a RAK4631?</a></li>
 </ul>
 </li>
 </ul>
@@ -3277,6 +3300,26 @@ For companion radios, you can set these radios' transmit power in the smartphone
 </tr>
 </tbody>
 </table>
+<hr />
+<h3 id="78-q-how-do-i-use-ethernet-with-a-rak4631">7.8. Q: How do I use Ethernet with a RAK4631?</h3>
+<p><strong>A:</strong>
+MeshCore supports Ethernet on RAK4631 boards using the <a href="https://docs.rakwireless.com/product-categories/wisblock/rak13800/datasheet/">RAK13800</a> WisBlock Ethernet module (based on the W5100S chip).</p>
+<p><strong>Hardware required:</strong>
+- RAK4631 WisBlock Core
+- RAK19007 or RAK19018 WisBlock Base Board (with an available IO slot)
+- RAK13800 WisBlock Ethernet module
+- Ethernet cable connected to a network with a DHCP server</p>
+<p><strong>Firmware:</strong>
+Flash one of the Ethernet-enabled firmware variants:
+- <code>RAK_4631_repeater_ethernet</code> - Repeater with Ethernet CLI access
+- <code>RAK_4631_room_server_ethernet</code> - Room server with Ethernet CLI access
+- <code>RAK_4631_companion_radio_ethernet</code> - Companion radio over Ethernet (replaces BLE)</p>
+<p><strong>Connecting:</strong>
+- The device obtains an IP address via DHCP automatically on boot.
+- For repeaters and room servers, connect to the device on TCP port 23 using any TCP client (e.g. <code>nc &lt;ip&gt; 23</code> or PuTTY in raw mode). This gives you the same CLI available over serial/USB.
+- For companion radio firmware, the Ethernet interface replaces BLE as the transport to companion apps. Connect on TCP port 5000 (same as the WiFi companion radio).
+- Use the <code>eth.status</code> CLI command to check connection status and see the assigned IP address.</p>
+<hr />
 
 
 
