@@ -5,7 +5,7 @@ cd "$HOME/meshcore"
 source bin/activate
 cd MeshCore
 
-export FIRMWARE_VERSION="v1.1x.0.muX"
+export FIRMWARE_VERSION="v1.17.0.mu-ufo1"
 export DISABLE_DEBUG=0
 
 FIRMWARE_BASE="$HOME/meshcore/Firmware-MU"
