@@ -494,6 +494,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#host-output-backpressure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Host Output Backpressure
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#csma-behavior" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1049,6 +1060,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#host-output-backpressure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Host Output Backpressure
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#csma-behavior" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1414,7 +1436,7 @@
 <td>Data</td>
 <td><code>0x00</code></td>
 <td>Raw packet</td>
-<td>Queue packet for transmission</td>
+<td>Queue packet for transmission (one pending at a time)</td>
 </tr>
 <tr>
 <td>TXDELAY</td>
@@ -1480,6 +1502,9 @@
 </tbody>
 </table>
 <p>Data frames carry raw packet data only, with no metadata prepended. The Data command payload is limited to 255 bytes to match the MeshCore maximum transmission unit (MAX_TRANS_UNIT); frames larger than 255 bytes are silently dropped. The KISS specification recommends at least 1024 bytes for general-purpose TNCs; this modem is intended for MeshCore packets only, whose protocol MTU is 255 bytes.</p>
+<p>Only one packet may be pending for radio transmission at a time. If the host sends a second Data frame before the first has completed, the modem responds with Error (0xF1) and TxBusy (0x07).</p>
+<h3 id="host-output-backpressure">Host Output Backpressure</h3>
+<p>Outbound frames are encoded into a 2-slot queue and flushed when serial output space is available; <code>loop()</code> never blocks on writes. Radio TX state advances independently of host read speed. TxDone is retained until it can be queued. If the outbound queue is full, the modem responds with Error (0xF1) and TxBusy (0x07). Hosts should read serial promptly to avoid delayed responses.</p>
 <h3 id="csma-behavior">CSMA Behavior</h3>
 <p>The TNC implements p-persistent CSMA for half-duplex operation:</p>
 <ol>
@@ -1825,14 +1850,14 @@
 <tr>
 <td>TxBusy</td>
 <td><code>0x07</code></td>
-<td>Transmit busy</td>
+<td>Radio TX busy, or host output queue full</td>
 </tr>
 </tbody>
 </table>
 <h3 id="unsolicited-events">Unsolicited Events</h3>
 <p>The TNC sends these SetHardware frames without a preceding request:</p>
-<p><strong>TxDone (0xF8)</strong>: Sent after a packet has been transmitted. Contains a single byte: 0x01 for success, 0x00 for failure.</p>
-<p><strong>RxMeta (0xF9)</strong>: Sent immediately after each standard data frame (type 0x00) with metadata for the received packet. Contains SNR (1 byte, signed, value x4 for 0.25 dB precision) followed by RSSI (1 byte, signed, dBm). Enabled by default; can be toggled with SetSignalReport. Standard KISS clients ignore this frame.</p>
+<p><strong>TxDone (0xF8)</strong>: Sent after radio transmission completes. Contains a single byte: 0x01 for success, 0x00 for failure. Delivery to the host may be delayed under serial backpressure but is not dropped.</p>
+<p><strong>RxMeta (0xF9)</strong>: Sent after each standard data frame (type 0x00) with SNR (1 byte, signed, value x4) and RSSI (1 byte, signed, dBm). Queued with the data frame; omitted if the data frame cannot be queued. Enabled by default; toggle with SetSignalReport. Standard KISS clients ignore this frame.</p>
 <h2 id="data-formats">Data Formats</h2>
 <h3 id="radio-parameters-setradio-radio-response">Radio Parameters (SetRadio / Radio response)</h3>
 <p>All values little-endian.</p>
