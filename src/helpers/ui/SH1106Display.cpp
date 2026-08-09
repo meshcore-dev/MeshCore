@@ -23,9 +23,25 @@ ColorVal UIColor::corp_blue = SH110X_WHITE;
 bool SH1106Display::begin()
 {
   // Wire must already be initialised by board.begin() before this is called.
-  // Boards with non-standard SH1106 addresses should define DISPLAY_ADDRESS
-  // in their variant/platformio configuration.
-  return i2c_probe(Wire, DISPLAY_ADDRESS) && display.begin(DISPLAY_ADDRESS, true);
+  // Some boards (e.g. T-Beam S3 Supreme) ship a magnetometer whose configurable
+  // I2C address collides with the OLED's, at either 0x3C or 0x3D depending on
+  // hardware revision. Probe both candidates and disambiguate via the
+  // magnetometer's chip-ID register: a read of reg 0x00 returns 0x80 on a
+  // QMC6310N. Same trick LilyGo's factory firmware uses. (from PR #2591)
+  uint8_t candidates[] = { DISPLAY_ADDRESS, (DISPLAY_ADDRESS == 0x3C) ? (uint8_t)0x3D : (uint8_t)0x3C };
+  uint8_t found = 0;
+  for (uint8_t addr : candidates) {
+    if (!i2c_probe(Wire, addr)) continue;
+    Wire.beginTransmission(addr);
+    Wire.write((uint8_t)0x00);
+    if (Wire.endTransmission() != 0) continue;
+    if (Wire.requestFrom((int)addr, (int)1) != 1) continue;
+    if (Wire.read() == 0x80) continue;  // magnetometer, not the OLED
+    found = addr;
+    break;
+  }
+  if (found == 0) return false;
+  return display.begin(found, true);
 }
 
 void SH1106Display::turnOn()
