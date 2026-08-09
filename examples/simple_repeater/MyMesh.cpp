@@ -1577,7 +1577,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
 #endif
 
   // defaults
-  _prefs.airtime_factor = 1.0;
+  _prefs.airtime_factor = 9.0; // EU regulation
   _prefs.rx_delay_base = 0.0f;   // // Default for "Local" class
   _prefs.tx_delay_factor = 0.3f; // Default for "Local" class
   _prefs.direct_tx_delay_factor = 0.1f; // Default for "Local" class
@@ -1596,7 +1596,6 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.flood_max = 18; // Default for "Local" class
   _prefs.flood_max_unscoped = 4; // Default for "Local" class
   _prefs.flood_max_advert = 4; // Default for "Local" class
-  _prefs.dutycycle = 10; // EU regulation
   _prefs.multi_acks = 1;
   _prefs.path_hash_mode = 2; 
   _prefs.loop_detect = LOOP_DETECT_MINIMAL;
