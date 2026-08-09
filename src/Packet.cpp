@@ -83,7 +83,7 @@ void Packet::calculatePacketHash(uint8_t* hash) const {
   uint8_t t = getPayloadType();
   sha.update(&t, 1);
   if (t == PAYLOAD_TYPE_TRACE) {
-    sha.update(&path_len, sizeof(path_len));   // CAVEAT: TRACE packets can revisit same node on return path
+    sha.update(reinterpret_cast<const uint8_t*>(&path_len), sizeof(path_len));   // CAVEAT: TRACE packets can revisit same node on return path
   }
   sha.update(payload, payload_len);
   sha.finalize(hash, MAX_HASH_SIZE);

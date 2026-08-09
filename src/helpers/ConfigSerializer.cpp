@@ -1,4 +1,5 @@
 #include "ConfigSerializer.h"
+#include <stdlib.h>
 
 bool ConfigSerializer::saveSerial(Stream& s) {
   Context context(&s, OP::WRITE);
