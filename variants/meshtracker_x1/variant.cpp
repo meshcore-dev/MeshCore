@@ -70,6 +70,9 @@ void initVariant()
   pinMode(PIN_3V3_EN, OUTPUT);
   digitalWrite(PIN_3V3_EN, HIGH);
 
+  pinMode(PIN_FLASH_EN, OUTPUT);
+  digitalWrite(PIN_FLASH_EN, HIGH);
+
   pinMode(PIN_BAT_ADC_EN, OUTPUT);
   digitalWrite(PIN_BAT_ADC_EN, HIGH);
 

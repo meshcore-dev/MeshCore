@@ -122,3 +122,17 @@
 // Buzzer
 
 #define BUZZER_PIN              (25)            // P0.25, pwm output
+
+////////////////////////////////////////////////////////////////////////////////
+// QSPI Flash
+
+#define PIN_FLASH_EN           (15)             // P0.15 (Flash power enable)
+
+#define PIN_QSPI_SCK           (19)             // P0.19
+#define PIN_QSPI_CS            (20)             // P0.20
+#define PIN_QSPI_IO0           (21)             // P0.21
+#define PIN_QSPI_IO1           (22)             // P0.22
+#define PIN_QSPI_IO2           (23)             // P0.23
+#define PIN_QSPI_IO3           (32)             // P1.00
+
+#define EXTERNAL_FLASH_DEVICES  GD25Q64C
