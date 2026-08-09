@@ -239,7 +239,7 @@ The plaintext contained in the ciphertext matches the format described in [plain
 The sender name is unverified message text. Group messages contain no sender
 signature, so any channel-key holder can choose any sender name.
 
-# Group datagram
+## Group datagram
 
 | Field        | Size (bytes)    | Description                                  |
 |--------------|-----------------|----------------------------------------------|
