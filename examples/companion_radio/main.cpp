@@ -215,10 +215,24 @@ void setup() {
   WiFi.persistent(false);        // don't use/overwrite NVS-cached credentials
   WiFi.mode(WIFI_STA);
   WiFi.begin(_wifi_ssid, _wifi_pwd);
-  serial_interface.begin(TCP_PORT);
-#elif defined(BLE_PIN_CODE)
-  serial_interface.begin(BLE_NAME_PREFIX, the_mesh.getNodePrefs()->node_name, the_mesh.getBLEPin());
-#elif defined(SERIAL_RX)
+  wifi_interface.begin(TCP_PORT);
+  interface_manager.addInterface(InterfaceType::WiFi, &wifi_interface);
+#endif
+
+// add usb interface
+#if defined(ENABLE_USB_INTERFACE)
+  usb_serial_interface.begin(Serial);
+  interface_manager.addInterface(InterfaceType::USB, &usb_serial_interface);
+#endif
+
+// add ethernet interface
+#if defined(ETHERNET_ENABLED)
+  ethernet_interface.begin();
+  interface_manager.addInterface(InterfaceType::Ethernet, &ethernet_interface);
+#endif
+
+// add hardware serial interface
+#if defined(SERIAL_RX)
   companion_serial.setPins(SERIAL_RX, SERIAL_TX);
   companion_serial.begin(115200);
   hardware_serial_interface.begin(companion_serial);
