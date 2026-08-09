@@ -226,14 +226,14 @@ static float snr_threshold[] = {
 };
   
 float RadioLibWrapper::packetScoreInt(float snr, int sf, int packet_len) {
-  if (sf < 7) return 0.0f;
+  if (sf < 7 || sf > 12) return 0.0f;
   
   if (snr < snr_threshold[sf - 7]) return 0.0f;    // Below threshold, no chance of success
 
-  auto success_rate_based_on_snr = (snr - snr_threshold[sf - 7]) / 10.0;
-  auto collision_penalty = 1 - (packet_len / 256.0);   // Assuming max packet of 256 bytes
+  auto success_rate_based_on_snr = (snr - snr_threshold[sf - 7]) * 0.1f;
+  auto collision_penalty = 1 - (packet_len / 256.0f);   // Assuming max packet of 256 bytes
 
-  return max(0.0, min(1.0, success_rate_based_on_snr * collision_penalty));
+  return max(0.0f, min(1.0f, success_rate_based_on_snr * collision_penalty));
 }
 
 PacketMillis RadioLibWrapper::calcMaxPacketMillis(uint8_t sf, float bw, uint8_t cr, uint8_t preambleSymbols) {
