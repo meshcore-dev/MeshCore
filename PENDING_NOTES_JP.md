@@ -7,5 +7,3 @@ jirogit/dev への直接push（fork限定ドキュメント等）だけをここ
 
 ---
 
-- fix(jp-lbt): reduce backoff parameters for SF10 airtime (base_ms 2000→500, max_backoff 16000→4000) — c49d26d4
-- feat(jp-release): restrict Off-Grid Repeat to 921.2MHz only (ARIB STD-T108 JP LBT range)
