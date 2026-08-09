@@ -13,6 +13,14 @@
 
 #define KISS_MAX_FRAME_SIZE  512
 #define KISS_MAX_PACKET_SIZE 255
+#define KISS_FRAME_BOUNDARY_BYTES 2
+#define KISS_TYPE_BYTES 1
+#define KISS_HW_SUBCMD_BYTES 1
+#define KISS_MAX_ESCAPABLE_BYTES (KISS_MAX_FRAME_SIZE + KISS_TYPE_BYTES + KISS_HW_SUBCMD_BYTES)
+#define KISS_MAX_ESCAPED_PAYLOAD_SIZE (2 * KISS_MAX_ESCAPABLE_BYTES)
+#define KISS_MAX_ENCODED_FRAME_SIZE (KISS_FRAME_BOUNDARY_BYTES + KISS_MAX_ESCAPED_PAYLOAD_SIZE)
+#define KISS_TX_FRAME_QUEUE_DEPTH 2
+#define KISS_HW_MAX_PAYLOAD_SIZE (KISS_MAX_FRAME_SIZE + KISS_HW_SUBCMD_BYTES)
 
 #define KISS_CMD_DATA        0x00
 #define KISS_CMD_TXDELAY     0x01
@@ -94,7 +102,8 @@ enum TxState {
   TX_WAIT_CLEAR,
   TX_SLOT_WAIT,
   TX_DELAY,
-  TX_SENDING
+  TX_SENDING,
+  TX_DONE_PENDING
 };
 
 class KissModem {
@@ -130,10 +139,28 @@ class KissModem {
 
   RadioConfig _config;
   bool _signal_report_enabled;
+  uint8_t _tx_frame_buf[KISS_TX_FRAME_QUEUE_DEPTH][KISS_MAX_ENCODED_FRAME_SIZE];
+  uint16_t _tx_frame_len[KISS_TX_FRAME_QUEUE_DEPTH];
+  uint16_t _tx_frame_written[KISS_TX_FRAME_QUEUE_DEPTH];
+  uint8_t _tx_frame_head;
+  uint8_t _tx_frame_tail;
+  uint8_t _tx_frame_count;
+  bool _tx_busy_error_pending;
+  bool _tx_done_pending;
+  uint8_t _tx_done_result;
+  uint8_t _tx_hw_payload[KISS_HW_MAX_PAYLOAD_SIZE];
 
-  void writeByte(uint8_t b);
-  void writeFrame(uint8_t type, const uint8_t* data, uint16_t len);
-  void writeHardwareFrame(uint8_t sub_cmd, const uint8_t* data, uint16_t len);
+  static uint16_t appendEscapedByte(uint8_t* dest, uint16_t idx, uint16_t max_len, uint8_t b);
+  static uint16_t encodeFrame(uint8_t type, const uint8_t* data, uint16_t len, uint8_t* dest, uint16_t max_len);
+  void resetOutputQueue();
+  void popTxFrame();
+  bool tryFlushFrames();
+  bool queueFrame(uint8_t type, const uint8_t* data, uint16_t len, bool mark_busy_error = true);
+  bool queuePendingBusyError();
+  bool queueHardwareFrame(uint8_t sub_cmd, const uint8_t* data, uint16_t len, bool mark_busy_error);
+  bool queuePendingTxDone();
+  void setTxDonePending(uint8_t result);
+  bool writeHardwareFrame(uint8_t sub_cmd, const uint8_t* data, uint16_t len);
   void writeHardwareError(uint8_t error_code);
   void processFrame();
   void handleHardwareCommand(uint8_t sub_cmd, const uint8_t* data, uint16_t len);
@@ -182,4 +209,5 @@ public:
   bool isTxBusy() const { return _tx_state != TX_IDLE; }
   /** True only when radio is actually transmitting; use to skip recvRaw in main loop. */
   bool isActuallyTransmitting() const { return _tx_state == TX_SENDING; }
+  bool isHostOutputBackedUp() const { return _tx_frame_count > 0 || _tx_busy_error_pending || _tx_done_pending; }
 };

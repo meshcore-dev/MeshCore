@@ -27,11 +27,11 @@
 /* ------------------------------ Config -------------------------------- */
 
 #ifndef FIRMWARE_BUILD_DATE
-  #define FIRMWARE_BUILD_DATE   "6 Jun 2026"
+  #define FIRMWARE_BUILD_DATE   "9 Aug 2026"
 #endif
 
 #ifndef FIRMWARE_VERSION
-  #define FIRMWARE_VERSION   "v1.16.0"
+  #define FIRMWARE_VERSION   "v1.17.0"
 #endif
 
 #ifndef LORA_FREQ
@@ -119,6 +119,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   int  matching_peer_indexes[MAX_CLIENTS];
 
   void addPost(ClientInfo* client, const char* postData);
+  void storePost(const mesh::Identity& author, const char* postData);
   void pushPostToClient(ClientInfo* client, PostInfo& post);
   uint8_t getUnsyncedCount(ClientInfo* client);
   bool processAck(const uint8_t *data);
@@ -144,6 +145,9 @@ protected:
   int getInterferenceThreshold() const override {
     return _prefs.interference_threshold;
   }
+  bool getCADEnabled() const override {
+    return _prefs.cad_enabled;
+  }
   int getAGCResetInterval() const override {
     return ((int)_prefs.agc_reset_interval) * 4000;   // milliseconds
   }
@@ -151,7 +155,7 @@ protected:
     return _prefs.multi_acks;
   }
 
-  bool filterRecvFloodPacket(mesh::Packet* pkt) override;
+  mesh::DispatcherAction onRecvPacket(mesh::Packet* pkt) override;
 
   bool allowPacketForward(const mesh::Packet* packet) override;
   void onAnonDataRecv(mesh::Packet* packet, const uint8_t* secret, const mesh::Identity& sender, uint8_t* data, size_t len) override;
@@ -173,6 +177,7 @@ public:
   MyMesh(mesh::MainBoard& board, mesh::Radio& radio, mesh::MillisecondClock& ms, mesh::RNG& rng, mesh::RTCClock& rtc, mesh::MeshTables& tables);
 
   void begin(FILESYSTEM* fs);
+  void addSystemPost(const char* postData);
 
   const char* getFirmwareVer() override { return FIRMWARE_VERSION; }
   const char* getBuildDate() override { return FIRMWARE_BUILD_DATE; }
@@ -203,6 +208,7 @@ public:
 
   void dumpLogFile() override;
   void setTxPower(int8_t power_dbm) override;
+  bool setRxBoostedGain(bool enable) override;
 
   void formatNeighborsReply(char *reply) override {
     strcpy(reply, "not supported");
