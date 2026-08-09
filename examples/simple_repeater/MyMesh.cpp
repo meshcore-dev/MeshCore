@@ -1593,7 +1593,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.bw = LORA_BW;
   _prefs.cr = LORA_CR;
   _prefs.tx_power_dbm = LORA_TX_POWER;
-  _prefs.advert_interval = 239;        // 239 minutes
+  _prefs.advert_interval = 120;        // 240 minutes
   _prefs.flood_advert_interval = 167; // 167 hours
   _prefs.flood_max = 18; // Default for "Local" class
   _prefs.flood_max_unscoped = 4; // Default for "Local" class
@@ -1611,7 +1611,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.flood_max_advert = 2;
 #endif
   _prefs.interference_threshold = 0; // disabled
-  _prefs.cad_enabled = 1;            // hardware CAD before TX (off by default; 'set cad on')
+  _prefs.cad_enabled = 0;            // hardware CAD before TX (off by default; 'set cad on') | OFF for UFO firmware!
   _prefs.flood_suppress = 1;          // redundancy-aware flood suppression ON by default (adaptive + static fallback)
   _prefs.flood_suppress_snr_hi = 9;  // dB: strong overheard forward => counts double
   _prefs.flood_suppress_snr_lo = 0;  // dB: weak overheard forward => ignored (preserve edge)
