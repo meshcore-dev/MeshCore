@@ -3,16 +3,16 @@
 /* ------------------------------ Config -------------------------------- */
 
 #ifndef LORA_FREQ
-  #define LORA_FREQ   915.0
+  #define LORA_FREQ 869.618
 #endif
 #ifndef LORA_BW
-  #define LORA_BW     250
+  #define LORA_BW 62.5
 #endif
 #ifndef LORA_SF
-  #define LORA_SF     10
+  #define LORA_SF 8
 #endif
 #ifndef LORA_CR
-  #define LORA_CR      5
+  #define LORA_CR 8
 #endif
 #ifndef LORA_TX_POWER
   #define LORA_TX_POWER  20

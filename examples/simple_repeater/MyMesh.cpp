@@ -4,16 +4,16 @@
 /* ------------------------------ Config -------------------------------- */
 
 #ifndef LORA_FREQ
-  #define LORA_FREQ 915.0
+  #define LORA_FREQ 869.618
 #endif
 #ifndef LORA_BW
-  #define LORA_BW 250
+  #define LORA_BW 62.5
 #endif
 #ifndef LORA_SF
-  #define LORA_SF 10
+  #define LORA_SF 8
 #endif
 #ifndef LORA_CR
-  #define LORA_CR 5
+  #define LORA_CR 8
 #endif
 #ifndef LORA_TX_POWER
   #define LORA_TX_POWER 20
@@ -1578,9 +1578,9 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
 
   // defaults
   _prefs.airtime_factor = 1.0;
-  _prefs.rx_delay_base = 0.0f;   // turn off by default, was 10.0;
-  _prefs.tx_delay_factor = 0.5f; // was 0.25f
-  _prefs.direct_tx_delay_factor = 0.3f; // was 0.2
+  _prefs.rx_delay_base = 0.0f;   // // Default for "Local" class
+  _prefs.tx_delay_factor = 0.3f; // Default for "Local" class
+  _prefs.direct_tx_delay_factor = 0.1f; // Default for "Local" class
   _prefs.max_resend_attempts = 2;
   StrHelper::strncpy(_prefs.node_name, ADVERT_NAME, sizeof(_prefs.node_name));
   _prefs.node_lat = ADVERT_LAT;
@@ -1591,12 +1591,17 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.bw = LORA_BW;
   _prefs.cr = LORA_CR;
   _prefs.tx_power_dbm = LORA_TX_POWER;
-  _prefs.advert_interval = 1;        // default to 2 minutes for NEW installs
-  _prefs.flood_advert_interval = 47; // 47 hours
-  _prefs.flood_max = 64;
-  _prefs.flood_max_unscoped = 64;
-  _prefs.flood_max_advert = 8;
-#if SIM_BUILD
+  _prefs.advert_interval = 239;        // 239 minutes
+  _prefs.flood_advert_interval = 167; // 167 hours
+  _prefs.flood_max = 18; // Default for "Local" class
+  _prefs.flood_max_unscoped = 4; // Default for "Local" class
+  _prefs.flood_max_advert = 4; // Default for "Local" class
+  _prefs.dutycycle = 10; // EU regulation
+  _prefs.multi_acks = 1;
+  _prefs.path_hash_mode = 2; 
+  _prefs.loop_detect = LOOP_DETECT_MINIMAL;
+  _prefs.agc_reset_interval = 0;
+  #if SIM_BUILD
   // SIM ONLY: the simulator accelerates adverts to ~20s (see updateAdvertTimer). At the real
   // default of 8 hops, every advert floods across the whole grid (9 TX/advert in multi_path),
   // saturating the channel so almost no advert survives to seed neighbour tables. Neighbour
@@ -1605,7 +1610,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.flood_max_advert = 2;
 #endif
   _prefs.interference_threshold = 0; // disabled
-  _prefs.cad_enabled = 0;            // hardware CAD before TX (off by default; 'set cad on')
+  _prefs.cad_enabled = 1;            // hardware CAD before TX (off by default; 'set cad on')
   _prefs.flood_suppress = 1;          // redundancy-aware flood suppression ON by default (adaptive + static fallback)
   _prefs.flood_suppress_snr_hi = 9;  // dB: strong overheard forward => counts double
   _prefs.flood_suppress_snr_lo = 0;  // dB: weak overheard forward => ignored (preserve edge)
