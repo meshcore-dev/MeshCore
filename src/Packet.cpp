@@ -34,6 +34,22 @@ uint8_t Packet::copyPath(uint8_t* dest, const uint8_t* src, uint8_t path_len) {
   return path_len;
 }
 
+uint8_t Packet::getPathHashCountExcludingLeadingZeros() const {
+  uint8_t hash_count = getPathHashCount();
+  uint8_t hash_size = getPathHashSize();
+  if (hash_size > 3) return hash_count;
+  if (hash_count == 0 || path[0] != 0) return hash_count;
+
+  uint8_t path_byte_len = hash_count * hash_size;
+  uint8_t zero_bytes = 1;
+  while (zero_bytes < path_byte_len && path[zero_bytes] == 0) {
+    zero_bytes++;
+  }
+
+  uint8_t padding_count = zero_bytes / hash_size;
+  return hash_count - padding_count;
+}
+
 int Packet::getRawLength() const {
   return 2 + getPathByteLen() + payload_len + (hasTransportCodes() ? 4 : 0);
 }

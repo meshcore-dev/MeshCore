@@ -78,6 +78,7 @@ public:
 
   uint8_t getPathHashSize() const { return (path_len >> 6) + 1; }
   uint8_t getPathHashCount() const { return path_len & 63; }
+  uint8_t getPathHashCountExcludingLeadingZeros() const;
   uint8_t getPathByteLen() const { return getPathHashCount() * getPathHashSize(); }
   void setPathHashCount(uint8_t n) { path_len &= ~63; path_len |= n; }
   void setPathHashSizeAndCount(uint8_t sz, uint8_t n) { path_len = ((sz - 1) << 6) | (n & 63); }
