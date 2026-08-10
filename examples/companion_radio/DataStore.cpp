@@ -60,7 +60,7 @@ static bool renameFile(FILESYSTEM* fs, const char* oldname, const char* newname)
 }
 
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
-  static uint32_t _ContactsChannelsTotalBlocks = 0;
+  static uint32_t _storageFSTotalBlocks = 0;
 #endif
 
 void DataStore::begin() {
@@ -69,7 +69,7 @@ void DataStore::begin() {
 #endif
 
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
-  _ContactsChannelsTotalBlocks = _getContactsChannelsFS()->_getFS()->cfg->block_count;
+  _storageFSTotalBlocks = _getStorageFS()->_getFS()->cfg->block_count;
   checkAdvBlobFile();
   #if defined(EXTRAFS) || defined(QSPIFLASH)
   migrateToSecondaryFS();
@@ -97,7 +97,7 @@ void DataStore::begin() {
 
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
 int _countLfsBlock(void *p, lfs_block_t block){
-      if (block > _ContactsChannelsTotalBlocks) {
+      if (block > _storageFSTotalBlocks) {
         MESH_DEBUG_PRINTLN("ERROR: Block %d exceeds filesystem bounds - CORRUPTION DETECTED!", block);
         return LFS_ERR_CORRUPT;  // return error to abort lfs_traverse() gracefully
     }
@@ -127,8 +127,8 @@ uint32_t DataStore::getStorageUsedKb() const {
   _fs->info(info);
   return info.usedBytes / 1024;
 #elif defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
-  const lfs_config* config = _getContactsChannelsFS()->_getFS()->cfg;
-  int usedBlockCount = _getLfsUsedBlockCount(_getContactsChannelsFS());
+  const lfs_config* config = _getStorageFS()->_getFS()->cfg;
+  int usedBlockCount = _getLfsUsedBlockCount(_getStorageFS());
   int usedBytes = config->block_size * usedBlockCount;
   return usedBytes / 1024;
 #else
@@ -145,7 +145,7 @@ uint32_t DataStore::getStorageTotalKb() const {
   _fs->info(info);
   return info.totalBytes / 1024;
 #elif defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
-  const lfs_config* config = _getContactsChannelsFS()->_getFS()->cfg;
+  const lfs_config* config = _getStorageFS()->_getFS()->cfg;
   int totalBytes = config->block_size * config->block_count;
   return totalBytes / 1024;
 #else
@@ -246,22 +246,22 @@ bool DataStore::saveMainIdentity(const mesh::LocalIdentity &identity) {
 }
 
 void DataStore::loadPrefs(NodePrefs& prefs) {
-  if (_getContactsChannelsFS()->exists("/prefs.json")) {
-    File file = openRead(_getContactsChannelsFS(), "/prefs.json");
+  if (_getStorageFS()->exists("/prefs.json")) {
+    File file = openRead(_getStorageFS(), "/prefs.json");
     if (file) {
       prefs.loadSerial(file);   // new Serial prefs
       file.close();
     }
-  } else if (_getContactsChannelsFS()->exists("/new_prefs")) {
+  } else if (_getStorageFS()->exists("/new_prefs")) {
     loadPrefsInt("/new_prefs", prefs);
     if (savePrefs(prefs) ) {                // save to new format
-      //_getContactsChannelsFS()->remove("/new_prefs"); // remove old
+      //_getStorageFS()->remove("/new_prefs"); // remove old
     }
   }
 }
 
 void DataStore::loadPrefsInt(const char *filename, NodePrefs& _prefs) {
-  File file = openRead(_getContactsChannelsFS(), filename);
+  File file = openRead(_getStorageFS(), filename);
   if (file) {
     uint8_t pad[8];
 
@@ -307,13 +307,13 @@ bool DataStore::savePrefs(NodePrefs& _prefs) {
   char tempname[sizeof(filename) + 4];
   snprintf(tempname, sizeof(tempname), "%s.tmp", filename);
 
-  File file = openWrite(_getContactsChannelsFS(), tempname);
+  File file = openWrite(_getStorageFS(), tempname);
   if (!file) return false;
 
   bool writeOk = _prefs.saveSerial(file);
   file.close();
 
-  return writeOk && renameFile(_getContactsChannelsFS(), tempname, filename);
+  return writeOk && renameFile(_getStorageFS(), tempname, filename);
 }
 
 void DataStore::allocateChunkSlot(ContactInfo& contact)
@@ -393,9 +393,9 @@ void DataStore::loadContacts(DataStoreHost* host) {
 
   // check for monolithic contacts file on _fs and _fsExtra, migrate it to chunked format
   if (_fs->exists("/contacts3")) {
-      if (migrateContactsFromFile(_fs, _getContactsChannelsFS(), chunkBuf)) _fs->remove("/contacts3");
-  } else if (_getContactsChannelsFS()->exists("/contacts3")) {
-      if (migrateContactsFromFile(_getContactsChannelsFS(), _getContactsChannelsFS(), chunkBuf)) _getContactsChannelsFS()->remove("/contacts3");
+      if (migrateContactsFromFile(_fs, _getStorageFS(), chunkBuf)) _fs->remove("/contacts3");
+  } else if (_getStorageFS()->exists("/contacts3")) {
+      if (migrateContactsFromFile(_getStorageFS(), _getStorageFS(), chunkBuf)) _getStorageFS()->remove("/contacts3");
   }
 
 
@@ -405,7 +405,7 @@ void DataStore::loadContacts(DataStoreHost* host) {
       char filename[20];
       snprintf(filename, sizeof(filename), "/contacts3_%02d", chunk_idx);
 
-      File file = openRead(_getContactsChannelsFS(), filename);
+      File file = openRead(_getStorageFS(), filename);
       if (!file) continue;
 
       MESH_DEBUG_PRINTLN("loadContacts: reading contact chunk file %s", filename);
@@ -551,16 +551,16 @@ void DataStore::saveContacts(DataStoreHost* host, bool (*filter)(const ContactIn
     snprintf(tempname, sizeof(tempname), "/contacts3_%02d.tmp", chunk_idx);
 
         MESH_DEBUG_PRINTLN("saveContacts: writing %s", tempname);
-        File file = openWrite(_getContactsChannelsFS(), tempname);
+        File file = openWrite(_getStorageFS(), tempname);
         
         if (file) {
             bool ok = (file.write(chunkBuf, chunkSize) == chunkSize);
             file.close();
             if (ok) {
                 MESH_DEBUG_PRINTLN("saveContacts: renaming %s to %s", tempname, filename);
-                renameFile(_getContactsChannelsFS(), tempname, filename);
+                renameFile(_getStorageFS(), tempname, filename);
             } else {
-                _getContactsChannelsFS()->remove(tempname);
+                _getStorageFS()->remove(tempname);
             }
         }
     }
@@ -568,7 +568,7 @@ void DataStore::saveContacts(DataStoreHost* host, bool (*filter)(const ContactIn
 }
 
 void DataStore::loadChannels(DataStoreHost* host) {
-    File file = openRead(_getContactsChannelsFS(), "/channels2");
+    File file = openRead(_getStorageFS(), "/channels2");
     if (file) {
       bool full = false;
       uint8_t channel_idx = 0;
@@ -593,7 +593,7 @@ void DataStore::loadChannels(DataStoreHost* host) {
 }
 
 void DataStore::saveChannels(DataStoreHost* host) {
-  File file = openWrite(_getContactsChannelsFS(), "/channels2");
+  File file = openWrite(_getStorageFS(), "/channels2");
   if (file) {
     uint8_t channel_idx = 0;
     ChannelDetails ch;
@@ -624,8 +624,8 @@ struct BlobRec {
 };
 
 void DataStore::checkAdvBlobFile() {
-  if (!_getContactsChannelsFS()->exists("/adv_blobs")) {
-    File file = openWrite(_getContactsChannelsFS(), "/adv_blobs");
+  if (!_getStorageFS()->exists("/adv_blobs")) {
+    File file = openWrite(_getStorageFS(), "/adv_blobs");
     if (file) {
       BlobRec zeroes;
       memset(&zeroes, 0, sizeof(zeroes));
@@ -674,7 +674,7 @@ void DataStore::migrateToSecondaryFS() {
 }
 
 uint8_t DataStore::getBlobByKey(const uint8_t key[], int key_len, uint8_t dest_buf[]) {
-  File file = openRead(_getContactsChannelsFS(), "/adv_blobs");
+  File file = openRead(_getStorageFS(), "/adv_blobs");
   uint8_t len = 0;  // 0 = not found
   if (file) {
     BlobRec tmp;
@@ -693,7 +693,7 @@ uint8_t DataStore::getBlobByKey(const uint8_t key[], int key_len, uint8_t dest_b
 bool DataStore::putBlobByKey(const uint8_t key[], int key_len, const uint8_t src_buf[], uint8_t len) {
   if (len < PUB_KEY_SIZE+4+SIGNATURE_SIZE || len > MAX_ADVERT_PKT_LEN) return false;
   checkAdvBlobFile();
-  File file = _getContactsChannelsFS()->open("/adv_blobs", FILE_O_WRITE);
+  File file = _getStorageFS()->open("/adv_blobs", FILE_O_WRITE);
   if (file) {
     uint32_t pos = 0, found_pos = 0;
     uint32_t min_timestamp = 0xFFFFFFFF;

@@ -64,5 +64,5 @@ public:
   uint32_t getStorageTotalKb() const;
 
 private:
-  FILESYSTEM* _getContactsChannelsFS() const { if (_fsExtra) return _fsExtra; return _fs;};
+  FILESYSTEM* _getStorageFS() const { if (_fsExtra) return _fsExtra; return _fs;};
 };
