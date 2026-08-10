@@ -280,10 +280,11 @@ void loop() {
   }
 #endif
 
-  // Power saving when BLE/WiFi is disabled
+#if defined(BLE_PIN_CODE) && !defined(WIFI_SSID) && !defined(ETHERNET_ENABLED)
+  // Power saving when BLE is disabled
   // Don't sleep if GPS is enabled - it needs continuous operation to maintain fix
-  // Note: Disabling BLE/WiFi via UI actually turns off the radio to save power
-  if (!serial_interface.isEnabled() && !the_mesh.getNodePrefs()->gps_enabled) {
+  // Note: Disabling BLE via UI actually turns off the radio to save power
+  if (!bluetooth_interface.isEnabled() && !the_mesh.getNodePrefs()->gps_enabled) {
     // Check for pending work and update activity timer
     if (the_mesh.hasPendingWork()) {
       lastActive = millis();
@@ -306,4 +307,5 @@ void loop() {
       nextSleepInSecs = WORK_TIME_SECS; // Stay awake for 5s after wake
     }
   }
+#endif
 }
