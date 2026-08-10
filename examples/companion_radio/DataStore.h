@@ -19,6 +19,13 @@ class DataStore {
   mesh::RTCClock* _clock;
   IdentityStore identity_store;
 
+  // contact chunk management vars
+  uint32_t _chunk_free_slots[MAX_CHUNKS]; // array of bitmasks for free slots in each chunk, 1=free, 0=used
+  uint16_t _chunks_to_write = 0; // bitmask of chunks that are dirty and we need to write to storage
+  uint32_t _contactsChanged = 0; // timestamp of when contacts were last modified, used to trigger delayed save
+  uint32_t _contacts_dirty_since = 0; // timestamp of when contacts became dirty, used to force save after max delay
+  bool _saving_contacts = false; // flag to indicate if saveContacts() is is in progress
+
   void loadPrefsInt(const char *filename, NodePrefs& prefs);
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
   void checkAdvBlobFile();
@@ -39,6 +46,11 @@ public:
   void saveContacts(DataStoreHost* host, bool (*filter)(const ContactInfo& c) = NULL);
   void loadChannels(DataStoreHost* host);
   void saveChannels(DataStoreHost* host);
+  void allocateChunkSlot(ContactInfo& contact);
+  void releaseChunkSlot(ContactInfo& contact);
+  void markContactDirty(const ContactInfo& contact);
+  bool shouldSaveContacts(uint32_t now);
+  bool hasDirtyChunks() const { return _chunks_to_write != 0; };
   void migrateToSecondaryFS();
   uint8_t getBlobByKey(const uint8_t key[], int key_len, uint8_t dest_buf[]);
   bool putBlobByKey(const uint8_t key[], int key_len, const uint8_t src_buf[], uint8_t len);
