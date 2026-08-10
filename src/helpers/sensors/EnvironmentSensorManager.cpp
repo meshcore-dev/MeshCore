@@ -160,6 +160,14 @@ static Adafruit_VL53L0X VL53L0X;
 static RAK12035_SoilMoisture RAK12035;
 #endif
 
+#if ENV_INCLUDE_OPT3001
+#ifndef TELEM_OPT3001_ADDRESS
+#define TELEM_OPT3001_ADDRESS 0x44 // OPT3001 ambient light sensor (RAK1903) I2C address
+#endif
+#include "OPT3001.h"
+static OPT3001 OPT3001;
+#endif
+
 #if ENV_INCLUDE_GPS && defined(RAK_BOARD) && !defined(RAK_WISMESH_TAG)
 #define RAK_WISBLOCK_GPS
 #endif
@@ -401,6 +409,7 @@ static void query_ina260(uint8_t ch, uint8_t, CayenneLPP& lpp) {
 static uint8_t init_ina226(TwoWire*, uint8_t) {
   // INA226 static instance was constructed with address and wire.
   if (!INA226.begin()) return 0;
+  if (INA226.getManufacturerID() != 0x5449 || INA226.getDieID() != 0x2260) return 0;
   INA226.setMaxCurrentShunt(TELEM_INA226_MAX_AMP, TELEM_INA226_SHUNT_VALUE);
   return 1;
 }
@@ -531,6 +540,24 @@ static void query_bme680_bsec(uint8_t ch, uint8_t, CayenneLPP& lpp) {
 }
 #endif
 
+#if ENV_INCLUDE_OPT3001
+static uint8_t init_opt3001(TwoWire* wire, uint8_t addr) {
+  // probe() is read-only. 0x44 may also be an SHT4X or INA226,
+  // so chip is identified by manufacturer/device ID before any
+  // config is written.
+  if(!OPT3001.probe(wire, addr)) return 0;
+  return OPT3001.begin() ? 1 : 0;
+}
+
+static void query_opt3001(uint8_t ch, uint8_t, CayenneLPP& lpp) {
+  float lux;
+  if (OPT3001.readLux(lux)) {
+    lpp.addLuminosity(ch, lux);
+  }
+}
+
+#endif
+
 // ============================================================
 // Sensor descriptor table
 //
@@ -599,6 +626,9 @@ static const SensorDef SENSOR_TABLE[] = {
 #endif
 #if ENV_INCLUDE_RAK12035
   { TELEM_RAK12035_ADDRESS,"RAK12035",     init_rak12035, query_rak12035 },
+#endif
+#if ENV_INCLUDE_OPT3001
+  { TELEM_OPT3001_ADDRESS,"OPT3001",       init_opt3001,  query_opt3001  },
 #endif
   { 0, nullptr, nullptr, nullptr }  // sentinel — keeps the array non-empty
 };
