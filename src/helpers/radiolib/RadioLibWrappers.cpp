@@ -52,6 +52,7 @@ void RadioLibWrapper::begin() {
   // start average out some samples
   _num_floor_samples = 0;
   _floor_block_ready = false;
+  _last_floor_sample_at = 0;
 }
 
 uint32_t RadioLibWrapper::getRngSeed() {
@@ -97,12 +98,15 @@ void RadioLibWrapper::resetAGC() {
 
 void RadioLibWrapper::loop() {
   if (state == STATE_RX && _num_floor_samples < NUM_NOISE_FLOOR_SAMPLES) {
-    if (!isReceivingPacket()) {
-      // Accept every idle sample. The old "rssi < floor + threshold" filter was a one-way
-      // ratchet: it only ever accepted samples below the current floor, so the block average
-      // drifted downward to the -120 clamp and never recovered — leaving _noise_floor stuck
-      // low and the RSSI-margin LBT permanently over-sensitive.
+    uint32_t now = millis();
+    if (!isReceivingPacket() && now - _last_floor_sample_at >= NOISE_FLOOR_SAMPLE_INTERVAL_MS) {
+      // Accept every idle sample, spaced NOISE_FLOOR_SAMPLE_INTERVAL_MS apart so the block spans a real
+      // ~3.2 s window and the median rejects transient transmissions (not a few-ms snapshot). The old
+      // "rssi < floor + threshold" filter was a one-way ratchet: it only accepted samples below the
+      // current floor, so the block average drifted to the -120 clamp and never recovered — leaving
+      // _noise_floor stuck low and the RSSI-margin LBT permanently over-sensitive.
       _floor_samples[_num_floor_samples++] = (int16_t)getCurrentRSSI();
+      _last_floor_sample_at = now;
     }
   } else if (_num_floor_samples >= NUM_NOISE_FLOOR_SAMPLES && !_floor_block_ready) {
     // Block complete: reduce to the median. The median rejects transient interference
@@ -112,13 +116,21 @@ void RadioLibWrapper::loop() {
     sortInt16(_floor_samples, NUM_NOISE_FLOOR_SAMPLES);
     int16_t median = (int16_t)(((int32_t)_floor_samples[NUM_NOISE_FLOOR_SAMPLES / 2 - 1]
                               + (int32_t)_floor_samples[NUM_NOISE_FLOOR_SAMPLES / 2]) / 2);
-    _noise_floor = median;
-    if (_noise_floor < -120) {
-      _noise_floor = -120;    // clamp to lower bound of -120dBi
+    // One-sided hold: a median jumping far ABOVE the published floor is activity-contaminated
+    // (inter-packet energy slips past the !isReceivingPacket() idle guard). Hold the old value so
+    // the RSSI-margin LBT stays meaningful under load; near-stable/quieter blocks publish at once.
+    // First block always publishes (_noise_floor=0 from begin()), so the hold binds only post-boot.
+    if (median > _noise_floor + NOISE_FLOOR_MAX_RISE_DB) {
+      MESH_DEBUG_PRINTLN("RadioLibWrapper: noise_floor held at %d (block median %d contaminated)",
+                         (int)_noise_floor, (int)median);
+    } else {
+      _noise_floor = median;
+      if (_noise_floor < -120) {
+        _noise_floor = -120;    // clamp to lower bound of -120dBi
+      }
+      MESH_DEBUG_PRINTLN("RadioLibWrapper: noise_floor = %d (median)", (int)_noise_floor);
     }
     _floor_block_ready = true;
-
-    MESH_DEBUG_PRINTLN("RadioLibWrapper: noise_floor = %d (median)", (int)_noise_floor);
   }
 }
 
