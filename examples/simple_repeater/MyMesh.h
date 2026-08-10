@@ -153,11 +153,15 @@ protected:
   bool getCADEnabled() const override {
     return _prefs.cad_enabled;
   }
+  bool isResendChannelActive() override;   // non-invasive resend LBT (preamble/RSSI, no CAD)
   int getAGCResetInterval() const override {
     return ((int)_prefs.agc_reset_interval) * 4000;   // milliseconds
   }
   uint8_t getExtraAckTransmitCount() const override {
     return _prefs.multi_acks;
+  }
+  uint8_t getMaxResendAttempts() const override {
+    return _prefs.max_resend_attempts;
   }
 
 #if ENV_INCLUDE_GPS == 1
@@ -217,6 +221,7 @@ public:
   void formatStatsReply(char *reply) override;
   void formatRadioStatsReply(char *reply) override;
   void formatPacketStatsReply(char *reply) override;
+  void formatResendRatioReply(char *reply) override;
   void startRegionsLoad() override;
   bool saveRegions() override;
   void onDefaultRegionChanged(const RegionEntry* r) override;

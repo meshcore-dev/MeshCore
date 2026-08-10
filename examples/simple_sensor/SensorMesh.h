@@ -122,6 +122,7 @@ protected:
   int getInterferenceThreshold() const override;
   bool getCADEnabled() const override;
   int getAGCResetInterval() const override;
+  uint8_t getMaxResendAttempts() const override { return _prefs.max_resend_attempts; }
   void onAnonDataRecv(mesh::Packet* packet, const uint8_t* secret, const mesh::Identity& sender, uint8_t* data, size_t len) override;
   int searchPeersByHash(const uint8_t* hash) override;
   void getPeerSharedSecret(uint8_t* dest_secret, int peer_idx) override;

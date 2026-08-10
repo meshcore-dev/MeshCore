@@ -4,6 +4,10 @@
   #include <Arduino.h>
 #endif
 
+#ifdef MESHCORE_SIMULATOR
+  #include "sim_context.h"
+#endif
+
 #include <math.h>
 
 namespace mesh {
@@ -19,6 +23,7 @@ namespace mesh {
 void Dispatcher::begin() {
   n_sent_flood = n_sent_direct = 0;
   n_recv_flood = n_recv_direct = 0;
+  n_resent_direct = 0;
   _err_flags = 0;
   radio_nonrx_start = _ms->getMillis();
 
@@ -111,8 +116,12 @@ void Dispatcher::loop() {
         n_sent_flood++;
       } else {
         n_sent_direct++;
+        if (outbound->sending_attempts > 0) n_resent_direct++;  // resend TX (subset of n_sent_direct)
       }
-      releasePacket(outbound);  // return to pool
+      // allow for possible retransmission for reliability
+      if (!resendPacket(outbound)) {
+        releasePacket(outbound); // return to pool
+      }
       outbound = NULL;
     } else if (millisHasNowPassed(outbound_expiry)) {
       MESH_DEBUG_PRINTLN("%s Dispatcher::loop(): WARNING: outbound packed send timed out!", getLogDateTime());
@@ -223,10 +232,9 @@ void Dispatcher::checkRecv() {
             pkt->getRawLength(), pkt->getPayloadType(), pkt->isRouteDirect() ? "D" : "F", pkt->payload_len,
             (int)pkt->getSNR(), (int)_radio->getLastRSSI(), (int)(score*1000), air_time);
 
-    static uint8_t packet_hash[MAX_HASH_SIZE];
-    pkt->calculatePacketHash(packet_hash);
+    pkt->calculatePacketHash();
     Serial.print(" hash=");
-    mesh::Utils::printHex(Serial, packet_hash, MAX_HASH_SIZE);
+    mesh::Utils::printHex(Serial, pkt->hash, MAX_HASH_SIZE);
 
     if (pkt->getPayloadType() == PAYLOAD_TYPE_PATH || pkt->getPayloadType() == PAYLOAD_TYPE_REQ
         || pkt->getPayloadType() == PAYLOAD_TYPE_RESPONSE || pkt->getPayloadType() == PAYLOAD_TYPE_TXT_MSG) {
@@ -286,7 +294,16 @@ void Dispatcher::checkSend() {
   }
   
   if (!millisHasNowPassed(next_tx_time)) return;
-  if (_radio->isReceiving()) {
+
+  // Pick the channel-busy check by packet kind. Resends (direct, already attempted)
+  // use a NON-invasive gate via isResendChannelActive() so the radio stays in RX and
+  // can still overhear the downstream forward → resend cancellation. First sends keep
+  // the CAD-based carrier sense (collision avoidance worth the momentary deafness).
+  Packet* pending = _mgr->peekNextOutbound(_ms->getMillis());
+  bool resend_lbt = pending && pending->isRouteDirect() && pending->sending_attempts > 0;
+  bool channel_busy = resend_lbt ? isResendChannelActive() : _radio->isReceiving();
+
+  if (channel_busy) {
     if (cad_busy_start == 0) {
       cad_busy_start = _ms->getMillis();   // record when CAD busy state started
     }
@@ -298,7 +315,22 @@ void Dispatcher::checkSend() {
       // channel activity has gone on too long... (Radio might be in a bad state)
       // force the pending transmit below...
     } else {
-      next_tx_time = futureMillis(getCADFailRetryDelay());
+      if (resend_lbt) {
+        // Deterministic per-hop busy-recheck bucket for DIRECT resends (Problem 1: when an
+        // interferer clears, deferred resenders that share a re-check cadence fire on the same
+        // loop tick and collide). getPathHashCount() decreases by exactly 1 each forwarding hop,
+        // so the originator and every relay of the SAME direct packet carry distinct counts
+        // (N, N-1, N-2, ...). count%3 therefore assigns mutually-in-range chain neighbours to
+        // different re-check cadences: any two nodes <=2 hops apart differ by <=2 in count, hence
+        // are always distinct mod 3. The only same-bucket pairs are >=3 hops apart and do not
+        // radio-interfere. Same {120,240,360} ms range as the random draw -> no latency inflation,
+        // and NOT a quiet-dwell-style window-inflating stagger (the cancel window in
+        // resendPacket() is untouched). First sends keep the randomized getCADFailRetryDelay().
+        uint32_t pos = pending->getPathHashCount() % 3;
+        next_tx_time = futureMillis((pos + 1) * 120);
+      } else {
+        next_tx_time = futureMillis(getCADFailRetryDelay());
+      }
       return;
     }
   }
@@ -340,8 +372,8 @@ void Dispatcher::checkSend() {
 
     #if MESH_PACKET_LOGGING
       Serial.print(getLogDateTime());
-      Serial.printf(": TX, len=%d (type=%d, route=%s, payload_len=%d)", 
-            len, outbound->getPayloadType(), outbound->isRouteDirect() ? "D" : "F", outbound->payload_len);
+      Serial.printf(": TX, len=%d (type=%d, route=%s, payload_len=%d, attempt=%d)", len,
+                    outbound->getPayloadType(), outbound->isRouteDirect() ? "D" : "F", outbound->payload_len, outbound->sending_attempts);
       if (outbound->getPayloadType() == PAYLOAD_TYPE_PATH || outbound->getPayloadType() == PAYLOAD_TYPE_REQ
         || outbound->getPayloadType() == PAYLOAD_TYPE_RESPONSE || outbound->getPayloadType() == PAYLOAD_TYPE_TXT_MSG) {
         Serial.printf(" [%02X -> %02X]\n", (uint32_t)outbound->payload[1], (uint32_t)outbound->payload[0]);
@@ -384,7 +416,72 @@ bool Dispatcher::millisHasNowPassed(unsigned long timestamp) const {
 }
 
 unsigned long Dispatcher::futureMillis(int millis_from_now) const {
-  return _ms->getMillis() + millis_from_now;
+  unsigned long wake_time = _ms->getMillis() + millis_from_now;
+#ifdef MESHCORE_SIMULATOR // Register wake time with simulator for accurate scheduling
+  if (auto *ctx = SIM_CTX()) {
+    ctx->wake_registry.registerWakeTime(wake_time);
+  }
+#endif
+  return wake_time;
+}
+
+bool Dispatcher::resendPacket(mesh::Packet *packet) {
+
+  // Pool-shedding: under low free-pool pressure, do NOT queue a resend. A resend consumes a
+  // pool slot shared with RX (allocNew in checkRecv); under sustained load it would exhaust
+  // the pool and deafen this node. The PRIMARY direct forward already transmitted, so shedding
+  // here only drops the REDUNDANT retry.
+  if (_mgr->getFreeCount() <= POOL_SHED_FREE_THRESHOLD) {
+    return false;
+  }
+
+  // prepare error correction via potential retransmit:
+  // re-send only direct routed packets that carry at least one relay hash, so that a
+  // downstream relay's forward can be overheard to cancel this re-send.
+  // The final relay hop (path empty after removeSelfFromPath, flagged via
+  // final_hop_ack_resend) is the exception: there is no downstream forward to overhear, but
+  // the destination ACKs receipt. Allow exactly one resend there (sending_attempts == 0),
+  // cancellable by the returning ACK (see Mesh::cancelPendingFinalHopResend).
+  if (packet->isRouteDirect() && packet->sending_attempts < getMaxResendAttempts() &&
+      (packet->getPathHashCount() > 0 ||
+       (packet->final_hop_ack_resend && packet->sending_attempts == 0))) {
+    packet->sending_attempts++;
+
+    MESH_DEBUG_PRINTLN("Dispatcher::resendPacket %s attempt=%d", packet->getHashHex(),
+                       packet->sending_attempts);
+
+    // Resend window: W = C0 + K*airtime + margin + (attempt-1)*jitter. C0 (RESEND_DEFERRAL_FIXED_MS)
+    // is a static, SF-independent constant calibrated to the measured fixed forward-latency
+    // component; the K*airtime term carries the SF-dependence (airtime comes from getEstAirtimeFor(),
+    // i.e. from the configured SF/BW/CR), so the window tracks the spreading factor automatically —
+    // no per-regime constant. The K*airtime term already covers the downstream relay's forward TX
+    // and its getDirectRetransmitDelay() spread, so the originator's OWN direct-retransmit delay is
+    // NOT added on top here — it would only inflate the wait without covering any forward-latency
+    // component. getDirectRetransmitDelay() stays in force for actual relaying (see Mesh.cpp).
+    uint32_t packet_airtime_ms = _radio->getEstAirtimeFor(packet->getPathByteLen() + packet->payload_len + 2);
+    uint32_t cancel_window = resendWindowFor((uint16_t)packet_airtime_ms, packet->sending_attempts);
+    _mgr->queueOutbound(packet, 1, futureMillis((int)cancel_window));
+    return true;
+  }
+
+  return false;
+}
+
+// W = C0 + K*airtime + margin + (attempt-1)*jitter, capped at an AIRTIME-PROPORTIONAL ceiling
+// (CAP_BASE + CAP_AIRTIME_X*airtime). C0 = RESEND_DEFERRAL_FIXED_MS (static); the K*airtime term
+// carries SF-dependence. The ceiling grows with airtime (CAP_AIRTIME_X >= K) so it never clips the
+// formula's K*airtime term for long packets / high SF — the earlier flat 1500 ms ceiling under-covered
+// SF10 long messages (downstream forward alone is ~2-3 s), so the resend fired before the forward
+// could cancel it and every long message picked up a redundant, colliding resend.
+uint32_t Dispatcher::resendWindowFor(uint16_t airtime_ms, uint8_t sending_attempts) const {
+  uint32_t w = (uint32_t)RESEND_DEFERRAL_FIXED_MS
+             + (uint32_t)airtime_ms * RESEND_DEFERRAL_AIRTIME_X
+             + RESEND_DEFERRAL_MARGIN_MS
+             + (uint32_t)(sending_attempts - 1) * RESEND_BACKOFF_JITTER_MS;
+  uint32_t cap = (uint32_t)RESEND_DEFERRAL_CAP_BASE_MS
+               + (uint32_t)airtime_ms * RESEND_DEFERRAL_CAP_AIRTIME_X;
+  if (w > cap) w = cap;
+  return w;
 }
 
 }
