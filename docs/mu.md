@@ -34,7 +34,7 @@ This document provides an overview of CLI commands which are specific to the MU 
 
 ---
 
-#### [Experimental] Flood suppression — redundancy-aware rebroadcast cancellation
+## [Experimental] Flood suppression — redundancy-aware rebroadcast cancellation
 
 **Repeater Only:** Yes
 
@@ -115,10 +115,41 @@ near snr_lo=<dB> cap=<5> n=<count>
 meas sent=<N> ret=<N> edge=<N> tmo=<N>
 <HASH>:<secs_ago>:<snr*4>
 ...
-
+```
 
 - **Header:** the active `snr.lo` cutoff, the coverage cap (only the strongest `cap` peers are owed coverage / actively TRACE-measured), and `n` = current near count.
 - **`meas` line:** coverage-TRACE health — `sent` = probe attempts, `ret` = round-trips that returned to this node, `edge` = reach links recorded (returned with SNR `>= snr.lo`), `tmo` = pairs that timed out twice (no link). Reading it: `sent>0 ret=0` ⇒ round trips not completing (loss, collisions, or the first probe hop not reaching a marginal near neighbour — see `trace.tx.power`); `ret>0 edge=0` ⇒ inter-neighbour links exist but are below `snr.lo`; `sent=0` ⇒ no `>= 2` near-neighbour window yet (or `flood.suppress off`).
 - **Per-peer lines:** `<HASH>:<secs_ago>:<snr>` where `snr` is `×4` (divide by 4 for dB), same encoding as `neighbors`. Peers beyond the cap are prefixed `~` (near but **not** owed coverage). `-none-` if empty.
+
+---
+
+### reach \<hash\>
+
+**Usage:**
+- `reach <hash>`
+
+Shows the **directed reach edges** of one near repeater — the measured inter-neighbour reach graph used to infer coverage.
+
+**Parameters:**
+- `hash`: Hex prefix of the neighbour to query, any even length (e.g. the 8-hex prefix printed by `neighbors`/`near`). No argument replies `reach HASH`.
+
+**Output:** two lines:
+- Line 1 `<…` — **reached-by**: near neighbours that reach this node (incoming edges).
+- Line 2 `>…` — **reaches**: near neighbours this node reaches (outgoing edges).
+
+Endpoints are 8-hex prefixes, comma-separated; `-` when empty. Status words: `notnear` (known neighbour, but not currently near), `unknown` (no matching neighbour), `ambig` (matches more than one near neighbour).
+
+**Note:** Edges are populated by the active TRACE coverage measurement (see [`README-flood-suppression.md`](README-flood-suppression.md)). On a sparse, linear, or hub-spoke mesh where near neighbours don't hear each other, the graph is correctly empty and `reach` shows `<-` / `>-`.
+
+---
+
+### clients
+
+**Usage:**
+- `clients`
+
+Lists the **attached leaf clients** — companion/sensor/room-server nodes for which this repeater is the first hop — tracked by the always-on client-aware protection gate (so suppression never starves them of a flood they need).
+
+**Output:** one line per client `<hash>:<age>s`, where `hash` is the learned identity prefix (8-hex when seeded from an advert, 2-hex when seeded from a message src_hash) and `age` is seconds since last seen. `-none-` if empty.
 
 ---
