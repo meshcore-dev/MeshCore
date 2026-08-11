@@ -1,14 +1,8 @@
 #pragma once
 
 #include "DisplayDriver.h"
+#include <U8g2lib.h>
 #include <Wire.h>
-#include <Adafruit_GFX.h>
-#define SH110X_NO_SPLASH
-#include <Adafruit_SH110X.h>
-
-#ifndef PIN_OLED_RESET
-#define PIN_OLED_RESET -1
-#endif
 
 #ifndef DISPLAY_ADDRESS
 #define DISPLAY_ADDRESS 0x3C
@@ -16,14 +10,17 @@
 
 class SH1106Display : public DisplayDriver
 {
-  Adafruit_SH1106G display;
+  U8G2_SH1106_128X64_NONAME_F_HW_I2C _u8g2;
   bool _isOn;
-  uint8_t _color;
+  uint8_t _drawColor;
+  int _cursorX, _cursorY;
 
   bool i2c_probe(TwoWire &wire, uint8_t addr);
+  void applyFont(int sz);
 
 public:
-  SH1106Display() : DisplayDriver(128, 64), display(128, 64, &Wire, PIN_OLED_RESET) { _isOn = false; }
+  SH1106Display() : DisplayDriver(128, 64), _u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE),
+      _isOn(false), _drawColor(1), _cursorX(0), _cursorY(0) {}
   bool begin();
 
   bool isOn() override { return _isOn; }
@@ -40,4 +37,13 @@ public:
   void drawXbm(int x, int y, const uint8_t *bits, int w, int h) override;
   uint16_t getTextWidth(const char *str) override;
   void endFrame() override;
+
+  // The Cyrillic-capable U8g2 fonts used below can render the real UTF-8 text
+  // directly, so skip the base class's default block-character fallback.
+  void translateUTF8ToBlocks(char* dest, const char* src, size_t dest_size) override {
+    size_t len = strlen(src);
+    if (len >= dest_size) len = dest_size - 1;
+    memcpy(dest, src, len);
+    dest[len] = 0;
+  }
 };
