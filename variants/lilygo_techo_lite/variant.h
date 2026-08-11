@@ -105,12 +105,14 @@
 #define LORA_CS                 _PINNUM(0, 11)
 #define SX126X_POWER_EN         _PINNUM(0, 30)
 #define SX126X_DIO1             _PINNUM(1, 8)
+#define SX126X_DIO2             _PINNUM(0, 5)
 #define SX126X_BUSY             _PINNUM(0, 14)
 #define SX126X_RESET            _PINNUM(0, 7)
 #define SX126X_RXEN             _PINNUM(1, 1)
 #define SX126X_TXEN             _PINNUM(0, 27)
 
 #define P_LORA_DIO_1            SX126X_DIO1
+#define P_LORA_DIO_2            SX126X_DIO2
 #define P_LORA_NSS              LORA_CS
 #define P_LORA_RESET            SX126X_RESET
 #define P_LORA_BUSY             SX126X_BUSY

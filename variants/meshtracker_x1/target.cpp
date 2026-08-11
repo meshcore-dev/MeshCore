@@ -67,6 +67,17 @@ void MeshTrackerX1SensorManager::stop_gps() {
 bool MeshTrackerX1SensorManager::begin() {
   // init GPS
   Serial1.begin(GPS_BAUD_RATE);
+
+  // init SPA06-003 barometer
+  baro_ok = spa06.begin(SPA06_003_DEFAULT_ADDR, &Wire) || spa06.begin(0x76, &Wire);
+  if (baro_ok) {
+    spa06.setPressureOversampling(SPA06_003_OVERSAMPLE_8);
+    spa06.setTemperatureOversampling(SPA06_003_OVERSAMPLE_8);
+    // 1 Hz continuous keeps reads non-blocking at minimal power cost
+    spa06.setPressureMeasureRate(SPA06_003_RATE_1);
+    spa06.setTemperatureMeasureRate(SPA06_003_RATE_1);
+    spa06.setMeasurementMode(SPA06_003_MEAS_CONTINUOUS_BOTH);
+  }
   return true;
 }
 
@@ -74,11 +85,16 @@ bool MeshTrackerX1SensorManager::querySensors(uint8_t requester_permissions, Cay
   if (requester_permissions & TELEM_PERM_LOCATION) {   // does requester have permission?
     telemetry.addGPS(TELEM_CHANNEL_SELF, node_lat, node_lon, node_altitude);
   }
+  if (requester_permissions & TELEM_PERM_ENVIRONMENT && baro_ok) {
+    telemetry.addTemperature(TELEM_CHANNEL_SELF, spa06.readTemperature());
+    telemetry.addBarometricPressure(TELEM_CHANNEL_SELF, spa06.readPressure());
+  }
   return true;
 }
 
 void MeshTrackerX1SensorManager::loop() {
   static long next_gps_update = 0;
+
 
   _nmea->loop();
 

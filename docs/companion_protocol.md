@@ -440,6 +440,8 @@ Byte 0: 0x14
     - Uses a secret key derived from the channel name
     - It is the first 16 bytes of `sha256("#test")`
     - For example hashtag channel `#test` has the key: `9cd8fcf22a47333b591d96a2b848b73f`
+    - Traffic is encrypted on air, but anyone who knows or guesses the channel
+      name can derive the key. Hashtag channels should not be treated as private.
     - Used as a topic based public group chat, separate from the default public channel
 3. **Private Channels**
     - Uses a randomly generated 16-byte secret key
