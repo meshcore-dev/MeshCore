@@ -26,7 +26,7 @@ static void sortInt16(int16_t* a, int n) {
 
 // this function is called when a complete packet
 // is transmitted by the module
-static 
+static
 #if defined(ESP8266) || defined(ESP32)
   ICACHE_RAM_ATTR
 #endif
@@ -118,7 +118,9 @@ void RadioLibWrapper::loop() {
     }
     _floor_block_ready = true;
 
+    #ifdef MESH_DEBUG_NOISE_FLOOR
     MESH_DEBUG_PRINTLN("RadioLibWrapper: noise_floor = %d (median)", (int)_noise_floor);
+    #endif
   }
 }
 
@@ -242,10 +244,10 @@ static float snr_threshold[] = {
     -17.5,// SF11 needs at least -17.5 dB SNR
     -20   // SF12 needs at least -20 dB SNR
 };
-  
+
 float RadioLibWrapper::packetScoreInt(float snr, int sf, int packet_len) {
   if (sf < 7) return 0.0f;
-  
+
   if (snr < snr_threshold[sf - 7]) return 0.0f;    // Below threshold, no chance of success
 
   auto success_rate_based_on_snr = (snr - snr_threshold[sf - 7]) / 10.0;
@@ -261,7 +263,7 @@ PacketMillis RadioLibWrapper::calcMaxPacketMillis(uint8_t sf, float bw, uint8_t 
 
   // preamble + syncword + sfd + header
   uint32_t preamble_us = (((preambleSymbols + 8) * 4 + sfCoeff1_x4) * tsym_us) / 4;
-  
+
   // airtime for max packet at current radio settings
   uint32_t total_us   = _radio->getTimeOnAir(MAX_TRANS_UNIT);
   // airtime for payload only (no preamble, header or SOF)
