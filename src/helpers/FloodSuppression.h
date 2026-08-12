@@ -54,6 +54,18 @@ struct FloodSuppressionEntry {
                                     //   only M's own TX can cover it -> M must forward, no point widening
   bool     active;
 
+  // --- SNR fallback (per-flood weighted overheard-forward counter) ---
+  // Revived from the original redundancy-aware design (commit 02043366): count each
+  // overheard forward of THIS flood, weighted by its RX SNR at arrival time
+  // (SNR >= snr_hi -> +2, SNR < snr_lo -> 0, else +1). When the weighted count
+  // reaches the effective threshold C the flood's rebroadcast is redundant even
+  // if the coverage-graph could not prove it (e.g. forwarders are rank >cap, so
+  // no measured TRACE edges exist). Checked AFTER the graph test fails, so the
+  // sound graph path always wins; the fallback only widens the suppression set.
+  // Saturating at 255 is fine (threshold C is a small integer).
+  uint8_t  snr_fallback_wcount;
+  bool     snr_fallback_suppressed;
+
   // Record a near-neighbour index as covered (dedup). Returns true if newly added.
   bool addCovered(uint8_t idx) {
     for (uint8_t i = 0; i < covered_count; i++)
@@ -108,6 +120,8 @@ public:
     e->first_seen_ms = now;
     e->suppressed = false;
     e->must_cover_self = false;
+    e->snr_fallback_wcount = 0;
+    e->snr_fallback_suppressed = false;
     e->active = true;
     if (is_new) *is_new = true;
     return e;

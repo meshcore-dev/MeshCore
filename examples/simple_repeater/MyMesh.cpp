@@ -268,6 +268,49 @@ bool MyMesh::clientProtectionAllowsSuppress(const mesh::Packet* pkt, uint32_t no
   return false;                                                                     // Tier B
 }
 
+// --- Payload-class suppression policy (noise-aware) -----------------------------
+// A repeater's retransmit ADDS airtime. On a congested/noisy channel every extra TX
+// worsens the collision problem, so "stay silent rather than repeat" applies to the
+// payload classes whose loss is cheap/self-healing. The class decides whether a
+// redundant rebroadcast may be cancelled on a busy channel:
+//   0 = NEVER (payload-critical): REQ, RESPONSE, TXT_MSG, ACK, MULTIPART -- always
+//       re-forward (subject to the normal dedup/coverage logic); noise never vetoes.
+//   1 = CONFIDENCE-ONLY (best-effort but not disposable): TRACE, CONTROL, GRP_TXT,
+//       GRP_DATA, PATH, ANON_REQ -- suppressible on a quiet channel, forwarded on a
+//       noisy one. TRACE/CONTROL live here (NOT in tier 2): they are measurement and
+//       discovery plumbing -- TRACE feeds the coverage graph this suppressor relies
+//       on, CONTROL drives neighbour discovery -- so dropping them on a noisy channel
+//       would starve that data and risk a self-reinforcing collapse of the reach graph.
+//   2 = CHEAP (self-healing): ADVERT (periodic re-send) -- suppressible even on a noisy
+//       channel (silence > repeat); adverts are rate-limited and re-sent periodically.
+uint8_t MyMesh::floodSuppressTier(const mesh::Packet* pkt) const {
+  switch (pkt->getPayloadType()) {
+  case PAYLOAD_TYPE_ADVERT:
+    return 2; // cheap: self-healing (periodic re-send) -- suppressible even when noisy
+  case PAYLOAD_TYPE_TRACE:
+  case PAYLOAD_TYPE_CONTROL:
+  case PAYLOAD_TYPE_GRP_TXT:
+  case PAYLOAD_TYPE_GRP_DATA:
+  case PAYLOAD_TYPE_PATH:
+  case PAYLOAD_TYPE_ANON_REQ:
+    return 1; // confidence-only: suppressible only on a quiet channel (forwarded when noisy)
+  default:
+    return 0; // never: REQ/RESPONSE/TXT_MSG/ACK/MULTIPART/RAW_CUSTOM
+  }
+}
+
+// Channel-state gate for suppression. On a busy/noisy channel an extra TX amplifies the
+// collision problem, so when the channel IS busy we suppress only the cheap (self-healing)
+// class (silence > repeat) and keep the confidence-only classes forwarding. A high noise
+// floor = busy/interfered channel. `_radio->getNoiseFloor()` is maintained by the core's
+// calibration loop (RadioLibWrappers).
+bool MyMesh::noiseGateAllowsSuppress(const mesh::Packet* pkt) const {
+  uint8_t tier = floodSuppressTier(pkt);
+  if (tier == 0) return false;                        // payload-critical: never suppress
+  bool noisy = ((int)_radio->getNoiseFloor() >= (int)_prefs.flood_suppress_noise_floor);
+  return noisy ? (tier == 2) : true;                  // noisy: only cheap; quiet: tier 1 or 2
+}
+
 // --- Active TRACE coverage measurement ----------------------------------------
 // Send one round-trip coverage TRACE: visit-list [a, b, self] with 2-byte hashes.
 // It walks self->a->b->self; the SNR measured at b of a's forward (path_snrs[1])
@@ -1079,14 +1122,50 @@ void MyMesh::logRx(mesh::Packet *pkt, int len, float score) {
       }
 
       // (d) suppress iff no isolated-uncovered peer, every coverage peer covered, and
-      //     client-protection allows it (3-tier, always active).
+      //     client-protection allows it (3-tier, always active). The noise gate then
+      //     decides by payload class: on a busy channel only cheap (self-healing)
+      //     payloads are suppressed (silence > repeat); payload-critical ones forward.
       if (!e->must_cover_self && allNearNeighboursCovered(*e, now)
           && clientProtectionAllowsSuppress(pkt, now)) {
-        e->suppressed = true;
-        _fs_suppressed++;                    // our rebroadcast was made redundant
-        cancelPendingFloodOutbound(hash);
+        if (noiseGateAllowsSuppress(pkt)) {
+          e->suppressed = true;
+          _fs_suppressed++;                    // our rebroadcast was made redundant
+          _fs_supp_graph++;
+          cancelPendingFloodOutbound(hash);
+        } else {
+          _fs_noise_blocked++;                 // graph said redundant, noise gate vetoed
+        }
       }
 #endif
+    }
+
+    // --- SNR-repeat fallback (soundness-preserving) -----------------------------
+    // Runs for every overheard copy EXCEPT the first (entry-creating) one, when the
+    // graph test did NOT suppress. Revives the original weighted counter: weight by
+    // this copy's RX SNR (>=snr_hi -> +2, <snr_lo -> 0, else +1). When the weighted
+    // count reaches the effective C, the rebroadcast is redundant even without graph
+    // proof (e.g. the forwarders are rank >cap, so no TRACE edge covers them). The
+    // graph result always wins: this only fires when the graph could not prove
+    // coverage, and never overrides must_cover_self (an uncovered top-N neighbour M
+    // definitively owes coverage to -- only M's own TX can reach it). Same noise gate
+    // + client protection as the graph path.
+    if (e && !e->suppressed && !is_new) {
+      uint8_t c = effectiveFloodSuppressC();
+      if (c > 0 && e->snr_fallback_wcount < 255) {
+        float snr = pkt->getSNR();
+        int8_t hi = effectiveFloodSuppressSnrHi();
+        int8_t lo = _prefs.flood_suppress_snr_lo;
+        e->snr_fallback_wcount += (snr >= hi) ? 2 : (snr < lo) ? 0 : 1;
+        if (e->snr_fallback_wcount >= c && !e->snr_fallback_suppressed && !e->must_cover_self &&
+            clientProtectionAllowsSuppress(pkt, getRTCClock()->getCurrentTime()) &&
+            noiseGateAllowsSuppress(pkt)) {
+          e->snr_fallback_suppressed = true;
+          e->suppressed = true;
+          _fs_suppressed++;
+          _fs_supp_snr_fallback++;
+          cancelPendingFloodOutbound(hash);
+        }
+      }
     }
   }
 #if MAX_NEIGHBOURS
@@ -1547,6 +1626,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _fs_next_recompute_ms = 0;
   _fs_seen = 0;
   _fs_suppressed = 0;
+  _fs_supp_graph = _fs_supp_snr_fallback = _fs_noise_blocked = 0;
   next_local_advert = next_flood_advert = 0;
   dirty_contacts_expiry = 0;
   set_radio_at = revert_radio_at = 0;
@@ -1590,8 +1670,10 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.flood_suppress = 1;          // redundancy-aware flood suppression ON by default (adaptive + static fallback)
   _prefs.flood_suppress_snr_hi = 9;  // dB: strong overheard forward => counts double
   _prefs.flood_suppress_snr_lo = 0;  // dB: weak overheard forward => ignored (preserve edge)
-  _prefs.flood_suppress_delay_x = 2; // extra TX-delay multiplier for central flood relays
+  _prefs.flood_suppress_delay_x = 3; // extra TX-delay multiplier for central flood relays (wider cancel window)
   _prefs.trace_tx_power_dbm = 10;    // TX power for coverage TRACE probes only (near links are strong; less disturbance)
+  // SNR-repeat fallback and noise gate are fixed ON (not configurable).
+  _prefs.flood_suppress_noise_floor = -95; // dBm: noise floor >= this => channel considered noisy
 
   // bridge defaults
   _prefs.bridge_enabled = 1;    // enabled
@@ -1881,6 +1963,13 @@ void MyMesh::formatPacketStatsReply(char *reply) {
 void MyMesh::formatFloodSuppressRatioReply(char *reply) {
   if (!_prefs.flood_suppress) return;  // plain "> off" when the master switch is off
   StatsFormatHelper::formatFloodSuppressRatio(reply, _fs_suppressed, _fs_seen);
+  // Append the suppression-path breakdown: graph=coverage-graph suppressions,
+  // snr_fallback=SNR-repeat fallback suppressions, nblk=graph-suppressions vetoed
+  // by the noise gate. Lets the operator see WHICH mechanism is doing the work.
+  char extra[64];
+  sprintf(extra, " (graph=%lu snr_fallback=%lu nblk=%lu)", (unsigned long)_fs_supp_graph,
+          (unsigned long)_fs_supp_snr_fallback, (unsigned long)_fs_noise_blocked);
+  strcat(reply, extra);
 }
 
 // `clients` reply: one line per attached leaf client "<hash>:<age>s" -- the hash is
@@ -2034,6 +2123,7 @@ void MyMesh::clearStats() {
   ((SimpleMeshTables *)getTables())->resetStats();
   _fs_seen = 0;
   _fs_suppressed = 0;
+  _fs_supp_graph = _fs_supp_snr_fallback = _fs_noise_blocked = 0;
   _meas_sent = _meas_returned = _meas_edge = _meas_timeout = _meas_neg = 0;
   _meas_harvested = _meas_harvest_neg = 0;
 }

@@ -77,6 +77,8 @@ public:
   int8_t  flood_suppress_snr_lo = 0;   // dB: overheard forward with SNR<this counts 0 (preserve edge)
   uint8_t flood_suppress_delay_x = 0;  // extra TX-delay multiplier for central flood relays
   int8_t  trace_tx_power_dbm = 0;      // TX power (dBm) used ONLY for coverage TRACE probes (lower = less disturbance)
+  // SNR-repeat fallback and noise gate are fixed ON (not configurable).
+  int8_t  flood_suppress_noise_floor = 0;  // dBm: noise floor >= this => channel considered noisy
 
 private:
   class RadioPrefs : public ConfigSerializer {
@@ -160,6 +162,7 @@ private:
       def("fs_lo", _parent->flood_suppress_snr_lo);
       def("fs_dx", _parent->flood_suppress_delay_x);
       def("fs_tx", _parent->trace_tx_power_dbm);
+      def("fs_nf", _parent->flood_suppress_noise_floor);
     }
   public:
     RepeatPrefs(NodePrefs* parent) : _parent(parent) { }

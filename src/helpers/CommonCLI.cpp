@@ -107,7 +107,8 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {  // Legacy 
     file.read((uint8_t *)&_prefs->flood_suppress_snr_lo, sizeof(_prefs->flood_suppress_snr_lo));    // 297
     file.read((uint8_t *)&_prefs->flood_suppress_delay_x, sizeof(_prefs->flood_suppress_delay_x));  // 298
     file.read((uint8_t *)&_prefs->trace_tx_power_dbm, sizeof(_prefs->trace_tx_power_dbm));          // 299
-    // next: 300
+    file.read((uint8_t *)&_prefs->flood_suppress_noise_floor, sizeof(_prefs->flood_suppress_noise_floor)); // 300
+    // next: 301
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -144,6 +145,7 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {  // Legacy 
     _prefs->flood_suppress_snr_lo = constrain(_prefs->flood_suppress_snr_lo, -30, 30);
     _prefs->flood_suppress_delay_x = constrain(_prefs->flood_suppress_delay_x, 0, 8);
     _prefs->trace_tx_power_dbm = constrain(_prefs->trace_tx_power_dbm, -9, 30);
+    _prefs->flood_suppress_noise_floor = constrain(_prefs->flood_suppress_noise_floor, -120, 0);
 
     file.close();
   }
@@ -515,6 +517,10 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     int n = atoi(&config[28]);
     if (n >= 0 && n <= 8) { _prefs->flood_suppress_delay_x = n; savePrefs(); strcpy(reply, "OK"); }
     else strcpy(reply, "Error, must be 0..8");
+  } else if (memcmp(config, "flood.suppress.noise.floor ", 27) == 0) {
+    int dbm = atoi(&config[27]);
+    if (dbm >= -120 && dbm <= 0) { _prefs->flood_suppress_noise_floor = dbm; savePrefs(); strcpy(reply, "OK"); }
+    else strcpy(reply, "Error, must be -120..0 dBm");
   } else if (memcmp(config, "trace.tx.power ", 15) == 0) {
     int db = atoi(&config[15]);
     if (db >= -9 && db <= 30) { _prefs->trace_tx_power_dbm = db; savePrefs(); strcpy(reply, "OK"); }
@@ -849,6 +855,8 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %d dB", (int) _prefs->flood_suppress_snr_hi);
   } else if (memcmp(config, "flood.suppress.snr.lo", 21) == 0) {
     sprintf(reply, "> %d dB", (int) _prefs->flood_suppress_snr_lo);
+  } else if (memcmp(config, "flood.suppress.noise.floor", 26) == 0) {
+    sprintf(reply, "> %d dBm", (int) _prefs->flood_suppress_noise_floor);
   } else if (memcmp(config, "flood.suppress", 14) == 0) {
     sprintf(reply, "> %s", _prefs->flood_suppress ? "on" : "off");
     _callbacks->formatFloodSuppressRatioReply(reply + strlen(reply));

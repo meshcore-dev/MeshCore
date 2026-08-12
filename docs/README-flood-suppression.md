@@ -67,11 +67,11 @@ cancels reliably land before the redundant TX goes out.
 
 ## Configuration
 
-There is **one master switch** and three tuning parameters. The threshold **C is
+There is **one master switch** and five tuning parameters. The threshold **C is
 not user-configurable** — it is derived from the neighbour table (adaptive) with a
 static fallback (see *Adaptive mode*).
 
-`NodePrefs` fields (`src/helpers/CommonCLI.h`), persisted at file bytes 295–298
+`NodePrefs` fields (`src/helpers/CommonCLI.h`), persisted at file bytes 295–302
 (`src/helpers/CommonCLI.cpp`):
 
 | Field | Type | Default | Meaning |
@@ -79,7 +79,9 @@ static fallback (see *Adaptive mode*).
 | `flood_suppress` | `uint8_t` | `1` (on) | **Master switch.** `0` = feature fully off; `1` = on (adaptive + static fallback). |
 | `flood_suppress_snr_hi` | `int8_t` (dB) | `9` | Overheard forward with SNR `>=` this counts **double**. |
 | `flood_suppress_snr_lo` | `int8_t` (dB) | `0` | Overheard forward with SNR `<` this counts **0** (preserve edge). |
-| `flood_suppress_delay_x` | `uint8_t` | `2` | Extra TX-delay multiplier for central flood relays. |
+| `flood_suppress_delay_x` | `uint8_t` | `3` | Extra TX-delay multiplier for central flood relays. |
+| `trace_tx_power_dbm` | `int8_t` (dBm) | `10` | TX power for coverage TRACE probes only (lower = less disturbance). |
+| `flood_suppress_noise_floor` | `int8_t` (dBm) | `-95` | Noise floor `>=` this marks the channel as noisy; on a noisy channel only cheap (self-healing) payloads are suppressed. |
 
 The feature is **on by default**; `set flood.suppress off` (or YAML
 `flood_suppress: 0`) disables it completely.
@@ -96,6 +98,42 @@ The feature is **on by default**; `set flood.suppress off` (or YAML
 | `set flood.suppress.snr.hi <dB>` | `-30..30` (`get flood.suppress.snr.hi`) |
 | `set flood.suppress.snr.lo <dB>` | `-30..30` (`get flood.suppress.snr.lo`) |
 | `set flood.suppress.delay.factor <n>` | `0..8` (`get flood.suppress.delay.factor`) |
+| `set flood.suppress.noise.floor <dBm>` | `-120..0` (`get flood.suppress.noise.floor`) |
+| `set trace.tx.power <dBm>` | `-9..30` (`get trace.tx.power`) |
+
+### Payload-class noise gate
+
+A repeater's retransmit **adds** airtime; on a congested channel every extra TX
+worsens the collision problem. The noise gate therefore applies a payload-class
+policy whenever the channel is noisy (`noise_floor >= flood_suppress_noise_floor`):
+
+| Class | Payload types | On a noisy channel |
+|---|---|---|
+| **Cheap / self-healing** | `ADVERT` | may be suppressed (silence > repeat) |
+| **Confidence-only** | `TRACE`, `CONTROL`, `GRP_TXT`, `GRP_DATA`, `PATH`, `ANON_REQ` | forwarded (only suppressed on a quiet channel) |
+| **Payload-critical** | `REQ`, `RESPONSE`, `TXT_MSG`, `ACK`, `MULTIPART` | never suppressed by the gate |
+
+The gate is fixed ON and not configurable; only the noise-floor threshold above
+is adjustable.
+
+`TRACE` and `CONTROL` are deliberately **not** in the cheap class: `TRACE` feeds the
+coverage graph this suppressor depends on, and `CONTROL` drives neighbour discovery, so
+dropping them on a noisy channel would starve the very data the gate relies on and risk
+a self-reinforcing collapse of the reach graph. They are still suppressible on a *quiet*
+channel (redundant copies cost airtime for no benefit); only the noisy-channel drop is
+withheld.
+
+### SNR-repeat fallback
+
+The coverage-graph test is intentionally conservative: it only suppresses when it
+can **prove** every near neighbour already has the flood. When the graph cannot
+prove coverage (e.g. the forwarders are beyond the top-N coverage cap, so no
+measured TRACE edge exists), a secondary **legacy SNR-repeat counter** still
+applies: each overheard forward of the same hash increments a per-flood weighted
+counter (`SNR >= snr.hi` → +2, `< snr.lo` → 0, else +1). Once the weighted count
+reaches the effective **C**, the rebroadcast is cancelled even without graph
+proof. The graph result always wins; the fallback only widens the suppression
+set. It is fixed ON and not configurable.
 
 ---
 
