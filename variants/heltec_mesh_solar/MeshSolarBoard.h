@@ -22,7 +22,7 @@
 
 class MeshSolarBoard : public NRF52BoardDCDC {
 public:
-  MeshSolarBoard() : NRF52Board("MESH_SOLAR_OTA") {}
+  MeshSolarBoard() : NRF52BoardDCDC("MESH_SOLAR_OTA") {}
   void begin();
 
   uint16_t getBattMilliVolts() override {

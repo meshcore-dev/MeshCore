@@ -13,7 +13,7 @@ protected:
   float adc_mult = ADC_MULTIPLIER;
 
 public:
-  PromicroBoard() : NRF52Board("ProMicro_OTA") {}
+  PromicroBoard() : NRF52BoardDCDC("ProMicro_OTA") {}
   void begin();
 
   #define BATTERY_SAMPLES 8

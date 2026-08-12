@@ -11,7 +11,7 @@
 
 class HeltecMeshPocket : public NRF52BoardDCDC {
 public:
-  HeltecMeshPocket() : NRF52Board("MESH_POCKET_OTA") {}
+  HeltecMeshPocket() : NRF52BoardDCDC("MESH_POCKET_OTA") {}
   void begin();
 
   uint16_t getBattMilliVolts() override {

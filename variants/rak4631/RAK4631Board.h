@@ -15,7 +15,7 @@ protected:
 #endif
 
 public:
-  RAK4631Board() : NRF52Board("RAK4631_OTA") {}
+  RAK4631Board() : NRF52BoardDCDC("RAK4631_OTA") {}
   void begin();
 
   #define BATTERY_SAMPLES 8

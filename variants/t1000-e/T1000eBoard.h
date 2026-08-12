@@ -9,7 +9,7 @@ protected:
   uint8_t btn_prev_state;
 
 public:
-  T1000eBoard() : NRF52Board("T1000E_OTA") {}
+  T1000eBoard() : NRF52BoardDCDC("T1000E_OTA") {}
   void begin();
 
   uint16_t getBattMilliVolts() override {

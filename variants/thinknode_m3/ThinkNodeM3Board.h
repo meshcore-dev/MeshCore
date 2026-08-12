@@ -14,7 +14,7 @@ protected:
   uint8_t btn_prev_state;
 
 public:
-  ThinkNodeM3Board() : NRF52Board("THINKNODE_M3_OTA") {}
+  ThinkNodeM3Board() : NRF52BoardDCDC("THINKNODE_M3_OTA") {}
   void begin();
   uint16_t getBattMilliVolts() override;
 

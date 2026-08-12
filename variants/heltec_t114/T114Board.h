@@ -16,7 +16,7 @@ protected:
 #endif
 
 public:
-  T114Board() : NRF52Board("T114_OTA") {}
+  T114Board() : NRF52BoardDCDC("T114_OTA") {}
   void begin();
 
 #if defined(P_LORA_TX_LED)

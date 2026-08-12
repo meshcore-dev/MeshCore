@@ -25,7 +25,7 @@ protected:
   uint8_t btn_prev_state;
 
 public:
-  MinewsemiME25LS01Board() : NRF52Board("Minewsemi_OTA") {}
+  MinewsemiME25LS01Board() : NRF52BoardDCDC("Minewsemi_OTA") {}
   void begin();
 
 #define BATTERY_SAMPLES 8

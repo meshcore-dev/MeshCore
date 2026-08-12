@@ -17,7 +17,7 @@ protected:
   void initiateShutdown(uint8_t reason) override;
 #endif
 public:
-  RAK3401Board() : NRF52Board("RAK3401_OTA") {}
+  RAK3401Board() : NRF52BoardDCDC("RAK3401_OTA") {}
   void begin();
 
   #define BATTERY_SAMPLES 8

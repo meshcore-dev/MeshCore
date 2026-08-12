@@ -15,7 +15,7 @@ protected:
 public:
   RefCountedDigitalPin periph_power;
 
-  T1Board() : periph_power(PIN_TFT_VDD_CTL, PIN_TFT_VDD_CTL_ACTIVE), NRF52Board("T1_OTA") {}
+  T1Board() : NRF52BoardDCDC("T1_OTA"), periph_power(PIN_TFT_VDD_CTL, PIN_TFT_VDD_CTL_ACTIVE) {}
 
   void begin();
   void onBeforeTransmit() override;

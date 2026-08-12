@@ -9,7 +9,7 @@ protected:
   uint8_t btn_prev_state;
 
 public:
-  MeshtinyBoard() : NRF52Board("Meshtiny OTA") {}
+  MeshtinyBoard() : NRF52BoardDCDC("Meshtiny OTA") {}
   void begin();
 
 #if defined(P_LORA_TX_LED)

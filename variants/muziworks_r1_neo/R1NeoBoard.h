@@ -15,7 +15,7 @@ protected:
 #endif
 
 public:
-  R1NeoBoard() : NRF52Board("R1NEO_OTA") {}
+  R1NeoBoard() : NRF52BoardDCDC("R1NEO_OTA") {}
   void begin();
 
 #ifdef NRF52_POWER_MANAGEMENT

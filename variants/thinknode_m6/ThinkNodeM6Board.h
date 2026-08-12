@@ -19,7 +19,7 @@ protected:
 #endif
 
 public:
-  ThinkNodeM6Board() : NRF52Board("THINKNODE_M6_OTA") {}
+  ThinkNodeM6Board() : NRF52BoardDCDC("THINKNODE_M6_OTA") {}
   void begin();
   uint16_t getBattMilliVolts() override;
 

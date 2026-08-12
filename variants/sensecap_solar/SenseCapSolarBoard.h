@@ -11,7 +11,7 @@ protected:
 #endif
 
 public:
-  SenseCapSolarBoard() : NRF52Board("SENSECAP_SOLAR_OTA") {}
+  SenseCapSolarBoard() : NRF52BoardDCDC("SENSECAP_SOLAR_OTA") {}
   void begin();
 
 #if defined(P_LORA_TX_LED)

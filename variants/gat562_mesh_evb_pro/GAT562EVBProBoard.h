@@ -12,7 +12,7 @@ protected:
 #endif
 
 public:
-  GAT562EVBProBoard() : NRF52Board("GAT562_OTA") {}
+  GAT562EVBProBoard() : NRF52BoardDCDC("GAT562_OTA") {}
   void begin();
 
   #define BATTERY_SAMPLES 8

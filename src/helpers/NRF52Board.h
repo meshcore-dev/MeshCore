@@ -31,7 +31,7 @@ class NRF52Board : public mesh::MainBoard {
 
 protected:
   uint8_t startup_reason;
-  char *ota_name;
+  const char *ota_name;
 
 #ifdef NRF52_POWER_MANAGEMENT
   uint32_t reset_reason;              // RESETREAS register value
@@ -45,7 +45,7 @@ protected:
 #endif
 
 public:
-  NRF52Board(char *otaname) : ota_name(otaname) {}
+  NRF52Board(const char *otaname) : ota_name(otaname) {}
   virtual void begin();
   virtual uint8_t getStartupReason() const override { return startup_reason; }
   virtual float getMCUTemperature() override;
@@ -73,9 +73,11 @@ public:
  * hardware requirements are met, this subclass can be used to enable the DC/DC
  * regulator.
  */
-class NRF52BoardDCDC : virtual public NRF52Board {
+class NRF52BoardDCDC : public NRF52Board {
 public:
-  NRF52BoardDCDC() {}
+  NRF52BoardDCDC() : NRF52Board(NULL) {}
+  NRF52BoardDCDC(const char *otaname) : NRF52Board(otaname) {}
+
   virtual void begin() override;
 };
 #endif

@@ -9,7 +9,7 @@ protected:
   uint8_t btn_prev_state;
 
 public:
-  TImpulsePlusBoard() : NRF52Board("T-Impulse-Plus OTA") {}
+  TImpulsePlusBoard() : NRF52BoardDCDC("T-Impulse-Plus OTA") {}
   void begin();
 
 #if defined(P_LORA_TX_LED)

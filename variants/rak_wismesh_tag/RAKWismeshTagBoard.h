@@ -10,7 +10,7 @@
 
 class RAKWismeshTagBoard : public NRF52BoardDCDC {
 public:
-  RAKWismeshTagBoard() : NRF52Board("WISMESHTAG_OTA") {}
+  RAKWismeshTagBoard() : NRF52BoardDCDC("WISMESHTAG_OTA") {}
   void begin();
 
 #if defined(P_LORA_TX_LED) && defined(LED_STATE_ON)

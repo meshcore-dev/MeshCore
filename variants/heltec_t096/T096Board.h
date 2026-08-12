@@ -17,7 +17,7 @@ public:
   RefCountedDigitalPin periph_power;
   LoRaFEMControl loRaFEMControl;
 
-  T096Board() :periph_power(PIN_VEXT_EN,PIN_VEXT_EN_ACTIVE), NRF52Board("T096_OTA") {}
+  T096Board() : NRF52BoardDCDC("T096_OTA"), periph_power(PIN_VEXT_EN,PIN_VEXT_EN_ACTIVE) {}
   void begin();
 
   void onBeforeTransmit(void) override;

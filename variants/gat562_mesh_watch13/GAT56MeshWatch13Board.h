@@ -12,7 +12,7 @@ protected:
 #endif
 
 public:
-  GAT56MeshWatch13Board() : NRF52Board("GAT562_OTA") {}
+  GAT56MeshWatch13Board() : NRF52BoardDCDC("GAT562_OTA") {}
   void begin();
 
   #define BATTERY_SAMPLES 8

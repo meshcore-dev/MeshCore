@@ -8,7 +8,7 @@
 
 class IkokaNrf52Board : public NRF52BoardDCDC {
 public:
-  IkokaNrf52Board() : NRF52Board("XIAO_NRF52_OTA") {}
+  IkokaNrf52Board() : NRF52BoardDCDC("XIAO_NRF52_OTA") {}
   void begin();
 
 #if defined(P_LORA_TX_LED)

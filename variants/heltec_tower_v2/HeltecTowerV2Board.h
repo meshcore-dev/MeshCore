@@ -14,7 +14,7 @@ protected:
 public:
   LoRaFEMControl loRaFEMControl;
 
-  HeltecTowerV2Board() : NRF52Board("TOWER_V2_OTA") {}
+  HeltecTowerV2Board() : NRF52BoardDCDC("TOWER_V2_OTA") {}
   void begin();
   void onBeforeTransmit() override;
   void onAfterTransmit() override;

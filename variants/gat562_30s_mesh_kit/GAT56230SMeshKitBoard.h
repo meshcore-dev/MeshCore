@@ -12,7 +12,7 @@ protected:
 #endif
 
 public:
-  GAT56230SMeshKitBoard() : NRF52Board("GAT562_OTA") {}
+  GAT56230SMeshKitBoard() : NRF52BoardDCDC("GAT562_OTA") {}
   void begin();
 
   #define BATTERY_SAMPLES 8

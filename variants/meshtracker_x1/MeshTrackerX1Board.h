@@ -9,7 +9,7 @@ protected:
   uint8_t btn_prev_state;
 
 public:
-  MeshTrackerX1Board() : NRF52Board("X1_OTA") {}
+  MeshTrackerX1Board() : NRF52BoardDCDC("X1_OTA") {}
   void begin();
 
   uint16_t getBattMilliVolts() override {
