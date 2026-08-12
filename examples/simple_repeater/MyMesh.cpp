@@ -129,13 +129,13 @@ void MyMesh::touchNeighbourByHash(const mesh::Packet* packet) {
 }
 
 // Is neighbours[i] a "near" coverage peer? fresh (<= NEIGHBOUR_FRESH_S) and link
-// SNR >= flood_suppress_snr_lo. Distant/weak neighbours are edge nodes, excluded
-// (same intent as the old SNR-weighting weight-0).
+// SNR >= effective snr_lo (adaptive p25). Distant/weak neighbours are edge nodes,
+// excluded (same intent as the old SNR-weighting weight-0).
 bool MyMesh::isNearNeighbour(int i, uint32_t now) const {
 #if MAX_NEIGHBOURS
   if (neighbours[i].heard_timestamp == 0) return false;                              // empty slot
   if ((uint32_t)(now - neighbours[i].heard_timestamp) > NEIGHBOUR_FRESH_S) return false;  // stale
-  int8_t lo_x4 = (int8_t)(_prefs.flood_suppress_snr_lo * 4);
+  int8_t lo_x4 = (int8_t)(effectiveFloodSuppressSnrLo() * 4);
   return neighbours[i].snr >= lo_x4;
 #else
   return false;
@@ -300,14 +300,19 @@ uint8_t MyMesh::floodSuppressTier(const mesh::Packet* pkt) const {
 }
 
 // Channel-state gate for suppression. On a busy/noisy channel an extra TX amplifies the
-// collision problem, so when the channel IS busy we suppress only the cheap (self-healing)
-// class (silence > repeat) and keep the confidence-only classes forwarding. A high noise
-// floor = busy/interfered channel. `_radio->getNoiseFloor()` is maintained by the core's
-// calibration loop (RadioLibWrappers).
+// collision problem, so when the channel IS noisy we suppress only the cheap (self-healing)
+// class (silence > repeat) and keep the confidence-only classes forwarding. "Noisy" is relative:
+// the measured floor is at least `margin` dB above THIS SITE's slowly-tracked quiet baseline
+// (see updateAdaptiveFloodParams), so no expert absolute-dBm value is needed. Margin is AUTO
+// (firmware default) unless an explicit CLI override is set. Until the baseline is learned
+// (first cycle, ~60s) we assume noisy -- the safe direction (keep confidence classes forwarding).
 bool MyMesh::noiseGateAllowsSuppress(const mesh::Packet* pkt) const {
   uint8_t tier = floodSuppressTier(pkt);
   if (tier == 0) return false;                        // payload-critical: never suppress
-  bool noisy = ((int)_radio->getNoiseFloor() >= (int)_prefs.flood_suppress_noise_floor);
+  int8_t margin = (_prefs.flood_suppress_noise_margin == FLOOD_SUPPRESS_NOISE_MARGIN_AUTO)
+                  ? FLOOD_SUPPRESS_NOISE_MARGIN_DEFAULT : _prefs.flood_suppress_noise_margin;
+  bool noisy = (_fs_floor_baseline <= -999) ||
+               ((int)_radio->getNoiseFloor() >= _fs_floor_baseline + (int)margin);
   return noisy ? (tier == 2) : true;                  // noisy: only cheap; quiet: tier 1 or 2
 }
 
@@ -348,7 +353,7 @@ void MyMesh::onTraceRecv(mesh::Packet* /*packet*/, uint32_t tag, uint32_t /*auth
   if (n_hops == 3 && entry_sz == TRACE_MEAS_HASH_SIZE) {
     _meas_returned++;                                  // a coverage TRACE round-trip completed back here
     int8_t snr_x4 = (int8_t)path_snrs[1];              // SNR at b of a's forward = a reaches b
-    if (snr_x4 >= (int8_t)(_prefs.flood_suppress_snr_lo * 4)) {
+    if (snr_x4 >= (int8_t)(effectiveFloodSuppressSnrLo() * 4)) {
       _nbr_links.addEdge(path_hashes, path_hashes + entry_sz, entry_sz, millis());
       _meas_edge++;                                    // ...and the a->b link was strong enough to record
     } else {
@@ -906,6 +911,11 @@ void MyMesh::cancelPendingFloodOutbound(const uint8_t* hash) {
 // nodes (too few overheard forwards reach it), so this is safe as a zero-admin default.
 static const uint8_t FLOOD_SUPPRESS_FALLBACK_C = 2;
 
+// Clamp for the derived snr_lo (near-membership threshold). LoRa decodes below 0 dB SNR, so the
+// floor keeps usable weak links "near"; the cap stops membership becoming trivially loose.
+static const int8_t FLOOD_SUPPRESS_SNR_LO_MIN = -5;
+static const int8_t FLOOD_SUPPRESS_SNR_LO_MAX = 15;
+
 // Effective params: the master switch gates everything; adaptive values apply when neighbour data
 // is available, otherwise the static fallback (configured snr_hi/lo/delay + FLOOD_SUPPRESS_FALLBACK_C).
 uint8_t MyMesh::effectiveFloodSuppressC() const {
@@ -916,11 +926,26 @@ int8_t MyMesh::effectiveFloodSuppressSnrHi() const {
   if (!_prefs.flood_suppress) return _prefs.flood_suppress_snr_hi;   // moot: effective c == 0
   return _fs_adaptive_active ? _fs_eff_hi : _prefs.flood_suppress_snr_hi;
 }
+int8_t MyMesh::effectiveFloodSuppressSnrLo() const {
+  if (!_prefs.flood_suppress) return _prefs.flood_suppress_snr_lo;   // moot: effective c == 0
+  return _fs_adaptive_active ? _fs_eff_lo : _prefs.flood_suppress_snr_lo;
+}
 
 // Derive effective c (from neighbour density) and snr_hi (from link-SNR p75). Runs throttled from
 // loop(); sets _fs_adaptive_active. Under #if MAX_NEIGHBOURS (else adaptive stays inactive and
 // effectiveFloodSuppressC falls back to FLOOD_SUPPRESS_FALLBACK_C).
 void MyMesh::updateAdaptiveFloodParams() {
+  // --- Noise-floor baseline (relative noise gate) ---
+  // getNoiseFloor() is the median-estimated ambient (RadioLibWrappers). We track its quiet
+  // minimum as THIS SITE's baseline: fast follow downward (got quieter), slow 1/16 approach
+  // upward (a persistent rise -- e.g. a new interferer -- slowly becomes the new baseline, so the
+  // gate eventually re-opens; mirrors the median estimator's bounded hold-release). "noisy" is
+  // then floor >= baseline + margin -- deployment-independent, no expert absolute-dBm. Runs every
+  // cycle (60s) when flood suppression is on, independent of MAX_NEIGHBOURS.
+  int cur_floor = _radio->getNoiseFloor();
+  if (_fs_floor_baseline <= -999) _fs_floor_baseline = cur_floor;            // first sample
+  else if (cur_floor < _fs_floor_baseline) _fs_floor_baseline = cur_floor;   // fast down
+  else _fs_floor_baseline += (cur_floor - _fs_floor_baseline) / 16;          // slow up
 #if MAX_NEIGHBOURS
   int n = 0;
   int8_t snr_x4[MAX_NEIGHBOURS];
@@ -940,18 +965,25 @@ void MyMesh::updateAdaptiveFloodParams() {
   // c from density: <3 fresh => 0 (edge node, don't suppress); 3-4 => 3; >=5 => 2.
   uint8_t derived_c = (n < 3) ? 0 : (n <= 4) ? 3 : 2;
 
-  // snr_hi = p75 of fresh link SNRs (dB), clamped to [lo+4, lo+12]; needs >=4 samples.
+  // snr_lo = p25 (near-membership threshold) and snr_hi = p75 of fresh link SNRs (dB). lo anchors
+  // hi's clamp [lo+4, lo+12]; both need >=4 samples, else keep configured. Adaptive lo means the
+  // near set self-calibrates to the deployment (strong mesh -> weak links become "edge"); it does
+  // NOT feed back into n (n counts fresh neighbours by timestamp only), so no oscillation loop.
+  int8_t derived_lo = _prefs.flood_suppress_snr_lo;     // else keep configured
   int8_t derived_hi = _prefs.flood_suppress_snr_hi;     // else keep configured
   if (n >= 4) {
-    for (int i = 1; i < n; i++) {                        // insertion sort (<=50 elems)
+    for (int i = 1; i < n; i++) {                        // insertion sort ascending (<=50 elems)
       int8_t v = snr_x4[i]; int j = i - 1;
       while (j >= 0 && snr_x4[j] > v) { snr_x4[j + 1] = snr_x4[j]; j--; }
       snr_x4[j + 1] = v;
     }
+    int8_t lo_db = (int8_t)(snr_x4[((n - 1) * 1) / 4] / 4);   // p25, x4 -> dB
+    if (lo_db < FLOOD_SUPPRESS_SNR_LO_MIN) lo_db = FLOOD_SUPPRESS_SNR_LO_MIN;
+    if (lo_db > FLOOD_SUPPRESS_SNR_LO_MAX) lo_db = FLOOD_SUPPRESS_SNR_LO_MAX;
+    derived_lo = lo_db;
     int8_t hi_db = (int8_t)(snr_x4[((n - 1) * 3) / 4] / 4);   // p75, x4 -> dB
-    int8_t lo = _prefs.flood_suppress_snr_lo;
-    if (hi_db < lo + 4) hi_db = lo + 4;
-    if (hi_db > lo + 12) hi_db = lo + 12;
+    if (hi_db < lo_db + 4) hi_db = lo_db + 4;
+    if (hi_db > lo_db + 12) hi_db = lo_db + 12;
     derived_hi = hi_db;
   }
 
@@ -959,11 +991,12 @@ void MyMesh::updateAdaptiveFloodParams() {
   uint8_t new_c = (derived_c == _fs_pending_c) ? derived_c : _fs_eff_c;
   _fs_pending_c = derived_c;
 
-  if (new_c != _fs_eff_c || derived_hi != _fs_eff_hi) {
-    MESH_DEBUG_PRINTLN("%s flood-suppress adaptive: neighbours=%d -> c=%d (was %d), snr_hi=%d (was %d)",
-                       getLogDateTime(), n, new_c, _fs_eff_c, (int)derived_hi, (int)_fs_eff_hi);
+  if (new_c != _fs_eff_c || derived_hi != _fs_eff_hi || derived_lo != _fs_eff_lo) {
+    MESH_DEBUG_PRINTLN("%s flood-suppress adaptive: neighbours=%d -> c=%d (was %d), snr_lo=%d (was %d), snr_hi=%d (was %d)",
+                       getLogDateTime(), n, new_c, _fs_eff_c, (int)derived_lo, (int)_fs_eff_lo, (int)derived_hi, (int)_fs_eff_hi);
   }
   _fs_eff_c = new_c;
+  _fs_eff_lo = derived_lo;
   _fs_eff_hi = derived_hi;
 #else
   _fs_adaptive_active = false;   // no neighbour table compiled in -> static fallback
@@ -1154,7 +1187,7 @@ void MyMesh::logRx(mesh::Packet *pkt, int len, float score) {
       if (c > 0 && e->snr_fallback_wcount < 255) {
         float snr = pkt->getSNR();
         int8_t hi = effectiveFloodSuppressSnrHi();
-        int8_t lo = _prefs.flood_suppress_snr_lo;
+        int8_t lo = effectiveFloodSuppressSnrLo();
         e->snr_fallback_wcount += (snr >= hi) ? 2 : (snr < lo) ? 0 : 1;
         if (e->snr_fallback_wcount >= c && !e->snr_fallback_suppressed && !e->must_cover_self &&
             clientProtectionAllowsSuppress(pkt, getRTCClock()->getCurrentTime()) &&
@@ -1189,7 +1222,7 @@ void MyMesh::logRx(mesh::Packet *pkt, int len, float score) {
         if (findNearNeighbour(visit, entry_sz, now) >= 0
             && findNearNeighbour(visit + entry_sz, entry_sz, now) >= 0) {   // both a,b are our near
           int8_t snr_ab_x4 = (int8_t)pkt->path[1];
-          if (snr_ab_x4 >= (int8_t)(_prefs.flood_suppress_snr_lo * 4)) {
+          if (snr_ab_x4 >= (int8_t)(effectiveFloodSuppressSnrLo() * 4)) {
             _nbr_links.addEdge(visit, visit + entry_sz, entry_sz, millis());   // a reaches b (clears stale neg)
             _meas_harvested++;
           } else {
@@ -1621,9 +1654,11 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   uptime_millis = 0;
   _fs_eff_c = 0;                     // adaptive: off until neighbour table fills
   _fs_eff_hi = 9;
+  _fs_eff_lo = 0;
   _fs_pending_c = 0;
   _fs_adaptive_active = false;       // until neighbour data is available -> static fallback
   _fs_next_recompute_ms = 0;
+  _fs_floor_baseline = -999;         // noise-floor baseline: not yet learned -> gate assumes noisy
   _fs_seen = 0;
   _fs_suppressed = 0;
   _fs_supp_graph = _fs_supp_snr_fallback = _fs_noise_blocked = 0;
@@ -1672,8 +1707,9 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.flood_suppress_snr_lo = 0;  // dB: weak overheard forward => ignored (preserve edge)
   _prefs.flood_suppress_delay_x = 3; // extra TX-delay multiplier for central flood relays (wider cancel window)
   _prefs.trace_tx_power_dbm = 10;    // TX power for coverage TRACE probes only (near links are strong; less disturbance)
-  // SNR-repeat fallback and noise gate are fixed ON (not configurable).
-  _prefs.flood_suppress_noise_floor = -95; // dBm: noise floor >= this => channel considered noisy
+  // SNR-repeat fallback is fixed ON (not configurable). The noise gate's margin defaults to AUTO
+  // (firmware derives "noisy" relative to this site's baseline); an explicit override is optional.
+  _prefs.flood_suppress_noise_margin = FLOOD_SUPPRESS_NOISE_MARGIN_AUTO; // relative gate (auto margin)
 
   // bridge defaults
   _prefs.bridge_enabled = 1;    // enabled
@@ -2066,7 +2102,7 @@ void MyMesh::formatNearReply(char *reply) {
     idx[b] = v;
   }
 
-  sprintf(dp, "near snr_lo=%d cap=%d n=%u", (int)_prefs.flood_suppress_snr_lo,
+  sprintf(dp, "near snr_lo=%d cap=%d n=%u", (int)effectiveFloodSuppressSnrLo(),
           (int)NEAR_NEIGHBOUR_COVERAGE_CAP, (unsigned)n);
   while (*dp) dp++;
 

@@ -67,9 +67,11 @@ cancels reliably land before the redundant TX goes out.
 
 ## Configuration
 
-There is **one master switch** and five tuning parameters. The threshold **C is
-not user-configurable** — it is derived from the neighbour table (adaptive) with a
-static fallback (see *Adaptive mode*).
+There is **one master switch** and five tuning parameters. The threshold **C**,
+`snr.hi` and `snr.lo` are **not user-configurable** — they are derived from the
+neighbour table (adaptive) with static fallbacks (see *Adaptive mode*). The noise
+gate's threshold is also **not an absolute value**: it is measured relative to each
+site's own quiet baseline.
 
 `NodePrefs` fields (`src/helpers/CommonCLI.h`), persisted at file bytes 295–302
 (`src/helpers/CommonCLI.cpp`):
@@ -77,11 +79,11 @@ static fallback (see *Adaptive mode*).
 | Field | Type | Default | Meaning |
 |---|---|---|---|
 | `flood_suppress` | `uint8_t` | `1` (on) | **Master switch.** `0` = feature fully off; `1` = on (adaptive + static fallback). |
-| `flood_suppress_snr_hi` | `int8_t` (dB) | `9` | Overheard forward with SNR `>=` this counts **double**. |
-| `flood_suppress_snr_lo` | `int8_t` (dB) | `0` | Overheard forward with SNR `<` this counts **0** (preserve edge). |
+| `flood_suppress_snr_hi` | `int8_t` (dB) | `9` | Overheard forward with SNR `>=` this counts **double** (adaptive p75; configured value is the fallback). |
+| `flood_suppress_snr_lo` | `int8_t` (dB) | `0` | Near-membership threshold; overheard forward with SNR `<` this counts **0** (adaptive p25; configured value is the fallback). |
 | `flood_suppress_delay_x` | `uint8_t` | `3` | Extra TX-delay multiplier for central flood relays. |
 | `trace_tx_power_dbm` | `int8_t` (dBm) | `10` | TX power for coverage TRACE probes only (lower = less disturbance). |
-| `flood_suppress_noise_floor` | `int8_t` (dBm) | `-95` | Noise floor `>=` this marks the channel as noisy; on a noisy channel only cheap (self-healing) payloads are suppressed. |
+| `flood_suppress_noise_margin` | `int8_t` (dB) | `AUTO` (10) | Margin above the site's quiet baseline at which the channel counts as noisy; `AUTO` = firmware default. On a noisy channel only cheap (self-healing) payloads are suppressed. |
 
 The feature is **on by default**; `set flood.suppress off` (or YAML
 `flood_suppress: 0`) disables it completely.
@@ -96,16 +98,19 @@ The feature is **on by default**; `set flood.suppress off` (or YAML
 |---|---|
 | `set flood.suppress on` / `off` | master switch (`get flood.suppress`) |
 | `set flood.suppress.snr.hi <dB>` | `-30..30` (`get flood.suppress.snr.hi`) |
-| `set flood.suppress.snr.lo <dB>` | `-30..30` (`get flood.suppress.snr.lo`) |
+| `set flood.suppress.snr.lo <dB>` | `-30..30` (`get flood.suppress.snr.lo`); adaptive p25 fallback |
 | `set flood.suppress.delay.factor <n>` | `0..8` (`get flood.suppress.delay.factor`) |
-| `set flood.suppress.noise.floor <dBm>` | `-120..0` (`get flood.suppress.noise.floor`) |
+| `set flood.suppress.noise.margin <dB>` | `auto` or `0..40` (`get flood.suppress.noise.margin`) |
 | `set trace.tx.power <dBm>` | `-9..30` (`get trace.tx.power`) |
 
 ### Payload-class noise gate
 
 A repeater's retransmit **adds** airtime; on a congested channel every extra TX
 worsens the collision problem. The noise gate therefore applies a payload-class
-policy whenever the channel is noisy (`noise_floor >= flood_suppress_noise_floor`):
+policy whenever the channel is noisy. "Noisy" is **relative**: the measured noise
+floor is `>=` this site's slowly-tracked quiet **baseline** plus
+`flood_suppress_noise_margin` dB (default `AUTO` = 10 dB) — so no absolute-dBm
+guess is needed:
 
 | Class | Payload types | On a noisy channel |
 |---|---|---|
@@ -113,8 +118,9 @@ policy whenever the channel is noisy (`noise_floor >= flood_suppress_noise_floor
 | **Confidence-only** | `TRACE`, `CONTROL`, `GRP_TXT`, `GRP_DATA`, `PATH`, `ANON_REQ` | forwarded (only suppressed on a quiet channel) |
 | **Payload-critical** | `REQ`, `RESPONSE`, `TXT_MSG`, `ACK`, `MULTIPART` | never suppressed by the gate |
 
-The gate is fixed ON and not configurable; only the noise-floor threshold above
-is adjustable.
+The gate is fixed ON. The margin defaults to `AUTO` (the firmware derives the
+threshold from the baseline); an explicit `0..40` dB override only makes it more
+or less sensitive.
 
 `TRACE` and `CONTROL` are deliberately **not** in the cheap class: `TRACE` feeds the
 coverage graph this suppressor depends on, and `CONTROL` drives neighbour discovery, so
@@ -139,16 +145,18 @@ set. It is fixed ON and not configurable.
 
 ## Adaptive mode (self-tuning, zero-admin)
 
-With the master switch **on**, the threshold **C** and `snr.hi` are **derived from
-the repeater's neighbour table** (`simple_repeater`'s `neighbours[]`, seeded from
-zero-hop repeater adverts / node-discovery and kept fresh by overheard forwards),
-with a safe **static fallback**
-when no neighbour data is available. No per-topology tuning is required.
+With the master switch **on**, the threshold **C**, `snr.hi` **and `snr.lo`** are
+**derived from the repeater's neighbour table** (`simple_repeater`'s `neighbours[]`,
+seeded from zero-hop repeater adverts / node-discovery and kept fresh by overheard
+forwards), with safe **static fallbacks** when no neighbour data is available. No
+per-topology tuning is required. The noise-floor **baseline** (for the relative
+noise gate) is learned here too.
 
 `MyMesh::updateAdaptiveFloodParams()` runs throttled (~every 1 min) from `loop()`
 and caches the **effective** values; the consumption sites read
-`effectiveFloodSuppressC()` / `effectiveFloodSuppressSnrHi()`. The whole derivation
-is under `#if MAX_NEIGHBOURS` (the table is a build flag).
+`effectiveFloodSuppressC()` / `effectiveFloodSuppressSnrHi()` /
+`effectiveFloodSuppressSnrLo()`. C/hi/lo are derived under `#if MAX_NEIGHBOURS`
+(the table is a build flag); the baseline tracker runs every cycle regardless.
 
 **Derivation** (only **fresh** neighbours counted — `heard_timestamp` age ≤ 600 s,
 i.e. heard within the last 10 min):
@@ -167,7 +175,13 @@ identity, so seeding brand-new neighbours still needs an advert / node-discovery
 | Parameter | Derived from | Rule |
 |---|---|---|
 | `effective_c` | neighbour **density** `n` (fresh count) | `n < 3 → 0` (edge node — don't suppress) · `3–4 → 3` · `≥ 5 → 2` (dense core — aggressive) |
-| `effective_snr_hi` | link-SNR **p75** of fresh neighbours | `clamp(p75, snr.lo+4, snr.lo+12)`; needs ≥ 4 samples, else the configured `snr.hi` |
+| `effective_snr_lo` | link-SNR **p25** of fresh neighbours | near-membership threshold; `clamp(p25, -5, 15)`; needs ≥ 4 samples, else the configured `snr.lo` |
+| `effective_snr_hi` | link-SNR **p75** of fresh neighbours | `clamp(p75, eff.lo+4, eff.lo+12)`; needs ≥ 4 samples, else the configured `snr.hi` |
+
+`snr.lo` does **not** feed back into the density count `n` (which is by timestamp
+only), so widening/narrowing the near set cannot oscillate `c`. The **noise-floor
+baseline** (fast follow down, slow 1/16 approach up so a permanent rise eventually
+re-baselines) makes the noise gate deployment-independent.
 
 A 2-cycle debounce on `c` prevents flapping when the neighbour count fluctuates (at
 a 1-min recompute cadence an adopted change lands within ~2 min; the recompute cost
@@ -219,7 +233,7 @@ static fallback. The refresh is a hardware-only improvement.
 | File | Change |
 |---|---|
 | `src/helpers/FloodSuppression.h` | **New.** Per-hash ring: `{hash, weighted_count, first_snr, strongest_overheard, first_seen, suppressed, active}` + `find` / `touch` / `purge`. |
-| `examples/simple_repeater/MyMesh.h` | Helper include; `_flood_supp` + adaptive state (`_fs_eff_c`, `_fs_eff_hi`, `_fs_adaptive_active`, …); `cancelPendingFloodOutbound`, `updateAdaptiveFloodParams`, `effectiveFloodSuppressC/Hi`, `touchNeighbourByHash`; `sendNodeDiscoverReq(delay_millis)`. |
+| `examples/simple_repeater/MyMesh.h` | Helper include; `_flood_supp` + adaptive state (`_fs_eff_c`, `_fs_eff_hi`, `_fs_eff_lo`, `_fs_adaptive_active`, `_fs_floor_baseline`, …); `cancelPendingFloodOutbound`, `updateAdaptiveFloodParams`, `effectiveFloodSuppressC/Hi/Lo`, `touchNeighbourByHash`; `sendNodeDiscoverReq(delay_millis)`. |
 | `examples/simple_repeater/MyMesh.cpp` | `logRx` (count + SNR-bias + cancel + neighbour-liveness refresh via `touchNeighbourByHash`), `allowPacketForward` (gate), `cancelPendingFloodOutbound`, `touchNeighbourByHash` (refresh known neighbour from an overheard forward's last path hash + smoothed SNR), `getRetransmitDelay` (delay bias), `loop()` (purge + adaptive recompute @ 1 min), `updateAdaptiveFloodParams` + effective accessors + `FLOOD_SUPPRESS_FALLBACK_C`, `sendNodeDiscoverReq(delay)`, constructor defaults. Consumption reads *effective* values. |
 | `examples/simple_repeater/main.cpp` | Boot discovery: `sendNodeDiscoverReq(…)` gated on `flood_suppress`. |
 | `src/helpers/CommonCLI.h` / `CommonCLI.cpp` | `NodePrefs` fields + persisted read/write + defaults + `set/get flood.suppress*` CLI handlers. |

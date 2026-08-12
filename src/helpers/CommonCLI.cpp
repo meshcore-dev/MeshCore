@@ -107,7 +107,7 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {  // Legacy 
     file.read((uint8_t *)&_prefs->flood_suppress_snr_lo, sizeof(_prefs->flood_suppress_snr_lo));    // 297
     file.read((uint8_t *)&_prefs->flood_suppress_delay_x, sizeof(_prefs->flood_suppress_delay_x));  // 298
     file.read((uint8_t *)&_prefs->trace_tx_power_dbm, sizeof(_prefs->trace_tx_power_dbm));          // 299
-    file.read((uint8_t *)&_prefs->flood_suppress_noise_floor, sizeof(_prefs->flood_suppress_noise_floor)); // 300
+    file.read((uint8_t *)&_prefs->flood_suppress_noise_margin, sizeof(_prefs->flood_suppress_noise_margin)); // 300
     // next: 301
 
     // sanitise bad pref values
@@ -145,7 +145,8 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {  // Legacy 
     _prefs->flood_suppress_snr_lo = constrain(_prefs->flood_suppress_snr_lo, -30, 30);
     _prefs->flood_suppress_delay_x = constrain(_prefs->flood_suppress_delay_x, 0, 8);
     _prefs->trace_tx_power_dbm = constrain(_prefs->trace_tx_power_dbm, -9, 30);
-    _prefs->flood_suppress_noise_floor = constrain(_prefs->flood_suppress_noise_floor, -120, 0);
+    if (_prefs->flood_suppress_noise_margin != FLOOD_SUPPRESS_NOISE_MARGIN_AUTO)
+      _prefs->flood_suppress_noise_margin = constrain(_prefs->flood_suppress_noise_margin, FLOOD_SUPPRESS_NOISE_MARGIN_MIN, FLOOD_SUPPRESS_NOISE_MARGIN_MAX);
 
     file.close();
   }
@@ -517,10 +518,13 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     int n = atoi(&config[28]);
     if (n >= 0 && n <= 8) { _prefs->flood_suppress_delay_x = n; savePrefs(); strcpy(reply, "OK"); }
     else strcpy(reply, "Error, must be 0..8");
-  } else if (memcmp(config, "flood.suppress.noise.floor ", 27) == 0) {
-    int dbm = atoi(&config[27]);
-    if (dbm >= -120 && dbm <= 0) { _prefs->flood_suppress_noise_floor = dbm; savePrefs(); strcpy(reply, "OK"); }
-    else strcpy(reply, "Error, must be -120..0 dBm");
+  } else if (memcmp(config, "flood.suppress.noise.margin ", 28) == 0) {
+    if (memcmp(&config[28], "auto", 4) == 0) { _prefs->flood_suppress_noise_margin = FLOOD_SUPPRESS_NOISE_MARGIN_AUTO; savePrefs(); strcpy(reply, "OK"); }
+    else {
+      int db = atoi(&config[28]);
+      if (db >= FLOOD_SUPPRESS_NOISE_MARGIN_MIN && db <= FLOOD_SUPPRESS_NOISE_MARGIN_MAX) { _prefs->flood_suppress_noise_margin = db; savePrefs(); strcpy(reply, "OK"); }
+      else strcpy(reply, "Error, must be auto or 0..40 dB");
+    }
   } else if (memcmp(config, "trace.tx.power ", 15) == 0) {
     int db = atoi(&config[15]);
     if (db >= -9 && db <= 30) { _prefs->trace_tx_power_dbm = db; savePrefs(); strcpy(reply, "OK"); }
@@ -855,8 +859,11 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %d dB", (int) _prefs->flood_suppress_snr_hi);
   } else if (memcmp(config, "flood.suppress.snr.lo", 21) == 0) {
     sprintf(reply, "> %d dB", (int) _prefs->flood_suppress_snr_lo);
-  } else if (memcmp(config, "flood.suppress.noise.floor", 26) == 0) {
-    sprintf(reply, "> %d dBm", (int) _prefs->flood_suppress_noise_floor);
+  } else if (memcmp(config, "flood.suppress.noise.margin", 27) == 0) {
+    if (_prefs->flood_suppress_noise_margin == FLOOD_SUPPRESS_NOISE_MARGIN_AUTO)
+      sprintf(reply, "> auto (default %d dB)", FLOOD_SUPPRESS_NOISE_MARGIN_DEFAULT);
+    else
+      sprintf(reply, "> %d dB", (int) _prefs->flood_suppress_noise_margin);
   } else if (memcmp(config, "flood.suppress", 14) == 0) {
     sprintf(reply, "> %s", _prefs->flood_suppress ? "on" : "off");
     _callbacks->formatFloodSuppressRatioReply(reply + strlen(reply));
