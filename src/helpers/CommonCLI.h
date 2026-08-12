@@ -83,7 +83,7 @@ private:
       def(radio_cad_key, _parent->cad_enabled);
       def("int_thr", _parent->interference_threshold);
       def("rxgain", _parent->rx_boosted_gain);
-      def("fem_rxgain", _parent->rx_boosted_gain);
+      def("fem_rxgain", _parent->radio_fem_rxgain);
       def("tx", _parent->tx_power_dbm);
       def("af", _parent->airtime_factor);
       def("rxdelay", _parent->rx_delay_base);
