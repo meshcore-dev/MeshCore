@@ -21,7 +21,6 @@ void LoRaFEMControl::setSleepModeEnable(void)
 
 void LoRaFEMControl::setTxModeEnable(void)
 {
-    pinMode(P_LORA_KCT8103L_PA_CTX, OUTPUT);    // force pinMode before transmit as temporary workaround for https://github.com/meshcore-dev/MeshCore/issues/3151
     digitalWrite(P_LORA_KCT8103L_PA_CSD, HIGH);
     digitalWrite(P_LORA_KCT8103L_PA_CTX, HIGH);
 }
