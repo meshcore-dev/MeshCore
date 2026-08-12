@@ -10,6 +10,9 @@
 #define NOISE_FLOOR_SAMPLE_INTERVAL_MS  50   // min spacing between RSSI samples so a 64-sample block spans a real
                                              // ~3.2 s window, giving the median temporal interference rejection
                                              // instead of collapsing to a few ms of near-simultaneous readings
+#define NOISE_FLOOR_MAX_HELD_BLOCKS  3   // after this many consecutive held blocks the median is accepted, so a
+                                         // permanent floor rise can't keep it stuck low. Count-based: rides out load
+                                         // bursts, a true rise releases in a few blocks.
 #ifdef USE_CC310_HW_CRYPTO
 #include <Adafruit_nRFCrypto.h>
 #endif
@@ -29,6 +32,7 @@ protected:
   int16_t _floor_samples[NUM_NOISE_FLOOR_SAMPLES];
   bool _floor_block_ready;   // true once a full block has been reduced to a median (waits for trigger to restart)
   uint32_t _last_floor_sample_at;   // millis() of the last accepted RSSI sample (rate-limits block sampling)
+  uint8_t _held_block_count;   // consecutive held blocks since the last published noise-floor value
   uint8_t _preamble_sf;
 
   void idle();

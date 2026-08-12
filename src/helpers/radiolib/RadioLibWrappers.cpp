@@ -53,6 +53,7 @@ void RadioLibWrapper::begin() {
   _num_floor_samples = 0;
   _floor_block_ready = false;
   _last_floor_sample_at = 0;
+  _held_block_count = 0;
 }
 
 uint32_t RadioLibWrapper::getRngSeed() {
@@ -94,6 +95,7 @@ void RadioLibWrapper::resetAGC() {
   // window (margin = RSSI - 0) until the next block completes.
   _num_floor_samples = 0;
   _floor_block_ready = false;
+  _held_block_count = 0;   // contamination context is stale after an AFE reset
 }
 
 void RadioLibWrapper::loop() {
@@ -120,10 +122,28 @@ void RadioLibWrapper::loop() {
     // (inter-packet energy slips past the !isReceivingPacket() idle guard). Hold the old value so
     // the RSSI-margin LBT stays meaningful under load; near-stable/quieter blocks publish at once.
     // First block always publishes (_noise_floor=0 from begin()), so the hold binds only post-boot.
+    //
+    // Bounded: after NOISE_FLOOR_MAX_HELD_BLOCKS consecutive held blocks accept the median, else a real
+    // permanent rise is held forever (stuck-floor bug from the other direction). Count-based so the hold
+    // rides out load bursts (slow blocks) while a quiet rise releases in a few blocks.
     if (median > _noise_floor + NOISE_FLOOR_MAX_RISE_DB) {
-      MESH_DEBUG_PRINTLN("RadioLibWrapper: noise_floor held at %d (block median %d contaminated)",
-                         (int)_noise_floor, (int)median);
+      _held_block_count++;
+      if (_held_block_count >= NOISE_FLOOR_MAX_HELD_BLOCKS) {
+        _noise_floor = median;
+        if (_noise_floor < -120) {
+          _noise_floor = -120;    // clamp to lower bound of -120dBi
+        }
+        _held_block_count = 0;
+        #ifdef MESH_DEBUG_NOISE_FLOOR
+        MESH_DEBUG_PRINTLN("RadioLibWrapper: noise_floor = %d (accepted after %d held blocks, persistent rise)",
+                           (int)_noise_floor, NOISE_FLOOR_MAX_HELD_BLOCKS);
+        #endif
+      } else {
+        MESH_DEBUG_PRINTLN("RadioLibWrapper: noise_floor held at %d (block median %d contaminated, held %d/%d)",
+                           (int)_noise_floor, (int)median, _held_block_count, NOISE_FLOOR_MAX_HELD_BLOCKS);
+      }
     } else {
+      _held_block_count = 0;
       _noise_floor = median;
       if (_noise_floor < -120) {
         _noise_floor = -120;    // clamp to lower bound of -120dBi
