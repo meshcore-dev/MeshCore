@@ -58,7 +58,7 @@
 #define PIN_SPI_MISO            _PINNUM(0, 17) // (MISO)
 #define PIN_SPI_MOSI            _PINNUM(0, 15) // (MOSI)
 #define PIN_SPI_SCK             _PINNUM(0, 13) // (SCK)
-#define PIN_SPI_NSS             (-1)
+#define PIN_SPI_NSS             (0)
 
 ////////////////////////////////////////////////////////////////////////////////
 // QSPI FLASH
@@ -123,7 +123,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 // SPI1
 
-#define PIN_SPI1_MISO           (-1)            // Not used for Display
+#define PIN_SPI1_MISO           (0)            // Not used for Display, 0 maps to 0xff on this device which is NRFX_SPIM_PIN_NOT_USED
 #define PIN_SPI1_MOSI           _PINNUM(0, 20)
 #define PIN_SPI1_SCK            _PINNUM(0, 19)
 
@@ -135,7 +135,7 @@ extern const int SCK;
 ////////////////////////////////////////////////////////////////////////////////
 // Display
 
-// #define DISP_MISO               (-1)         // Not used for Display
+// #define DISP_MISO               (0)         // Not used for Display, 0 maps to 0xff on this device which is NRFX_SPIM_PIN_NOT_USED
 #define DISP_MOSI               _PINNUM(0, 20)
 #define DISP_SCLK               _PINNUM(0, 19)
 #define DISP_CS                 _PINNUM(0, 22)
@@ -143,7 +143,7 @@ extern const int SCK;
 #define DISP_RST                _PINNUM(0, 28)
 #define DISP_BUSY               _PINNUM(0, 3)
 #define DISP_POWER              _PINNUM(1, 12)
-// #define DISP_BACKLIGHT          (-1)         // Display has no backlight
+// #define DISP_BACKLIGHT          (0)         // Display has no backlight, 0 maps to 0xff on this device which is NRFX_SPIM_PIN_NOT_USED
 
 #define PIN_DISPLAY_CS          DISP_CS
 #define PIN_DISPLAY_DC          DISP_DC
