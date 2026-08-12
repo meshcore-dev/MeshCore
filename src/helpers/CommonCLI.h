@@ -79,8 +79,7 @@ private:
       def("bw", _parent->bw);
       def("sf", _parent->sf);
       def("cr", _parent->cr);
-      static const char radio_cad_key[] = {'c', 'a', 'd', '\0'}; // workaround for T096, don't touch without testing T096 repeater still transmit
-      def(radio_cad_key, _parent->cad_enabled);
+      def("cad", _parent->cad_enabled);
       def("int_thr", _parent->interference_threshold);
       def("rxgain", _parent->rx_boosted_gain);
       def("fem_rxgain", _parent->rx_boosted_gain);
