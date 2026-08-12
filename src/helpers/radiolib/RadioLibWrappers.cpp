@@ -52,6 +52,8 @@ void RadioLibWrapper::begin() {
   // start average out some samples
   _num_floor_samples = 0;
   _floor_block_ready = false;
+  _last_floor_sample_at = 0;
+  _held_block_count = 0;
 }
 
 uint32_t RadioLibWrapper::getRngSeed() {
@@ -93,16 +95,20 @@ void RadioLibWrapper::resetAGC() {
   // window (margin = RSSI - 0) until the next block completes.
   _num_floor_samples = 0;
   _floor_block_ready = false;
+  _held_block_count = 0;   // contamination context is stale after an AFE reset
 }
 
 void RadioLibWrapper::loop() {
   if (state == STATE_RX && _num_floor_samples < NUM_NOISE_FLOOR_SAMPLES) {
-    if (!isReceivingPacket()) {
-      // Accept every idle sample. The old "rssi < floor + threshold" filter was a one-way
-      // ratchet: it only ever accepted samples below the current floor, so the block average
-      // drifted downward to the -120 clamp and never recovered — leaving _noise_floor stuck
-      // low and the RSSI-margin LBT permanently over-sensitive.
+    uint32_t now = millis();
+    if (!isReceivingPacket() && now - _last_floor_sample_at >= NOISE_FLOOR_SAMPLE_INTERVAL_MS) {
+      // Accept every idle sample, spaced NOISE_FLOOR_SAMPLE_INTERVAL_MS apart so the block spans a real
+      // ~3.2 s window and the median rejects transient transmissions (not a few-ms snapshot). The old
+      // "rssi < floor + threshold" filter was a one-way ratchet: it only accepted samples below the
+      // current floor, so the block average drifted to the -120 clamp and never recovered — leaving
+      // _noise_floor stuck low and the RSSI-margin LBT permanently over-sensitive.
       _floor_samples[_num_floor_samples++] = (int16_t)getCurrentRSSI();
+      _last_floor_sample_at = now;
     }
   } else if (_num_floor_samples >= NUM_NOISE_FLOOR_SAMPLES && !_floor_block_ready) {
     // Block complete: reduce to the median. The median rejects transient interference
@@ -112,15 +118,43 @@ void RadioLibWrapper::loop() {
     sortInt16(_floor_samples, NUM_NOISE_FLOOR_SAMPLES);
     int16_t median = (int16_t)(((int32_t)_floor_samples[NUM_NOISE_FLOOR_SAMPLES / 2 - 1]
                               + (int32_t)_floor_samples[NUM_NOISE_FLOOR_SAMPLES / 2]) / 2);
-    _noise_floor = median;
-    if (_noise_floor < -120) {
-      _noise_floor = -120;    // clamp to lower bound of -120dBi
+    // One-sided hold: a median jumping far ABOVE the published floor is activity-contaminated
+    // (inter-packet energy slips past the !isReceivingPacket() idle guard). Hold the old value so
+    // the RSSI-margin LBT stays meaningful under load; near-stable/quieter blocks publish at once.
+    // First block always publishes (_noise_floor=0 from begin()), so the hold binds only post-boot.
+    //
+    // Bounded: after NOISE_FLOOR_MAX_HELD_BLOCKS consecutive held blocks accept the median, else a real
+    // permanent rise is held forever (stuck-floor bug from the other direction). Count-based so the hold
+    // rides out load bursts (slow blocks) while a quiet rise releases in a few blocks.
+    if (median > _noise_floor + NOISE_FLOOR_MAX_RISE_DB) {
+      _held_block_count++;
+      if (_held_block_count >= NOISE_FLOOR_MAX_HELD_BLOCKS) {
+        _noise_floor = median;
+        if (_noise_floor < -120) {
+          _noise_floor = -120;    // clamp to lower bound of -120dBi
+        }
+        _held_block_count = 0;
+        #ifdef MESH_DEBUG_NOISE_FLOOR
+        MESH_DEBUG_PRINTLN("RadioLibWrapper: noise_floor = %d (accepted after %d held blocks, persistent rise)",
+                           (int)_noise_floor, NOISE_FLOOR_MAX_HELD_BLOCKS);
+        #endif
+      } else {
+        #ifdef MESH_DEBUG_NOISE_FLOOR
+        MESH_DEBUG_PRINTLN("RadioLibWrapper: noise_floor held at %d (block median %d contaminated, held %d/%d)",
+                           (int)_noise_floor, (int)median, _held_block_count, NOISE_FLOOR_MAX_HELD_BLOCKS);
+        #endif
+      }
+    } else {
+      _held_block_count = 0;
+      _noise_floor = median;
+      if (_noise_floor < -120) {
+        _noise_floor = -120;    // clamp to lower bound of -120dBi
+      }
+      #ifdef MESH_DEBUG_NOISE_FLOOR
+      MESH_DEBUG_PRINTLN("RadioLibWrapper: noise_floor = %d (median)", (int)_noise_floor);
+      #endif
     }
     _floor_block_ready = true;
-
-    #ifdef MESH_DEBUG_NOISE_FLOOR
-    MESH_DEBUG_PRINTLN("RadioLibWrapper: noise_floor = %d (median)", (int)_noise_floor);
-    #endif
   }
 }
 
