@@ -1,6 +1,14 @@
 #include <gtest/gtest.h>
 #include "helpers/ConfigSerializer.h"
 
+class NativeFileSystem {
+public:
+    void mkdir(const char*) { }
+};
+#define FILESYSTEM NativeFileSystem
+#include "helpers/CommonCLI.h"
+#undef FILESYSTEM
+
 #define TEST_INT_S  "56"
 #define TEST_INT     56
 #define TEST_FLOAT_S  "-6.123"
@@ -21,6 +29,19 @@ public:
 class MockPrintStream : public Stream {
     int len = 0;
     uint8_t _buf[1024];
+
+    size_t printSigned(long long value) {
+        char text[24];
+        snprintf(text, sizeof(text), "%lld", value);
+        return Print::print(text);
+    }
+
+    size_t printUnsigned(unsigned long long value) {
+        char text[24];
+        snprintf(text, sizeof(text), "%llu", value);
+        return Print::print(text);
+    }
+
 public:
     size_t write(uint8_t b) override {
         if (len < sizeof(_buf)) {
@@ -30,17 +51,17 @@ public:
         return 0;
     }
 
-    size_t print(unsigned char b, int r) override { if (b == TEST_INT) return Print::print(TEST_INT_S); return 0; }
-    size_t print(int v, int r) override { if (v == TEST_INT) return Print::print(TEST_INT_S); return 0; }
-    size_t print(unsigned int v, int r) override { if (v == TEST_INT) return Print::print(TEST_INT_S); return 0; }
-    size_t print(long v, int r) override { if (v == TEST_INT) return Print::print(TEST_INT_S); return 0; }
-    size_t print(unsigned long v, int r) override { if (v == TEST_INT) return Print::print(TEST_INT_S); return 0; }
-    size_t print(long long v, int r) override { if (v == TEST_INT) return Print::print(TEST_INT_S); return 0; }
-    size_t print(unsigned long long v, int r) override { if (v == TEST_INT) return Print::print(TEST_INT_S); return 0; }
-    size_t print(double v, int p = 2) override { 
-        if (p == 6) return Print::print(TEST_DOUBLE_S);
-        if (p == 4) return Print::print(TEST_FLOAT_S);
-        return 0;
+    size_t print(unsigned char v, int r) override { return printUnsigned(v); }
+    size_t print(int v, int r) override { return printSigned(v); }
+    size_t print(unsigned int v, int r) override { return printUnsigned(v); }
+    size_t print(long v, int r) override { return printSigned(v); }
+    size_t print(unsigned long v, int r) override { return printUnsigned(v); }
+    size_t print(long long v, int r) override { return printSigned(v); }
+    size_t print(unsigned long long v, int r) override { return printUnsigned(v); }
+    size_t print(double v, int p = 2) override {
+        char text[32];
+        snprintf(text, sizeof(text), "%.*f", p, v);
+        return Print::print(text);
     }
 
     int getLength() const { return len; }
@@ -169,6 +190,28 @@ TEST(ConfigSerializer, LoadSerial_IgnoreUnknowns) {
     EXPECT_EQ(1, data.flags);   // flags should be unmodified
     bool match = strcmp("Scott", data.name) == 0;
     EXPECT_TRUE(match);
+}
+
+TEST(NodePrefs, FemGainSettingsRoundTrip) {
+    NodePrefs saved;
+    saved.radio_fem_rxgain = 0;
+    saved.radio_fem_txgain = 1;
+
+    MockPrintStream output;
+    ASSERT_TRUE(saved.saveSerial(output));
+
+    std::string serialised(reinterpret_cast<const char*>(output.getBytes()), output.getLength());
+    EXPECT_NE(std::string::npos, serialised.find("fem_rxgain:0"));
+    EXPECT_NE(std::string::npos, serialised.find("fem_txgain:1"));
+
+    MockInputStream input(serialised.c_str());
+    NodePrefs loaded;
+    loaded.radio_fem_rxgain = 1;
+    loaded.radio_fem_txgain = 0;
+
+    ASSERT_TRUE(loaded.loadSerial(input));
+    EXPECT_EQ(0, loaded.radio_fem_rxgain);
+    EXPECT_EQ(1, loaded.radio_fem_txgain);
 }
 
 
