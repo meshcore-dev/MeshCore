@@ -2,6 +2,7 @@
 //#include <Arduino.h>
 #if defined(ENABLE_OTA)
 #include "helpers/ota/OtaContext.h"   // OTA mesh-integration is centralized here so every role gets it
+#include "helpers/ota/OtaDebug.h"
 #include "helpers/ota/OtaProtocol.h"  // decode_adv -> the `ota neighbors` discovery table
 #include "helpers/ota/OtaSelf.h"      // ota_self_firmware -> auto-advertise our own image
 #ifndef OTA_ANNOUNCE_BOOT_MS
@@ -48,7 +49,11 @@ void Mesh::begin() {
   #ifdef MOTA_HW_ID
     my_hw = MOTA_HW_ID;                     // human-readable hardware tag (per-variant), for the apply hw gate
   #endif
+  OTA_DBG_MS("Mesh::begin: ota_ctx().begin (EndF identity scan)");
   ota::ota_ctx().begin(my_tid, Mesh::otaSendAdapter, this, my_hw);   // also sets the platform apply codec
+  OTA_DBG_MS("Mesh::begin: ota_ctx().begin done target=%08lX",
+             (unsigned long)ota::ota_ctx().manager.target());
+  ota::ota_serve_self_begin(ota::ota_ctx(), 0);   // start chunked self-serve during boot settle window
   ota::ota_ctx().manager.set_seeder_id(self_id.pub_key);      // node id (pubkey[0:4]) for advert seeder count
 #if defined(OTA_SUPERSEEDER)
   {
@@ -100,22 +105,37 @@ void Mesh::loop() {
 #endif
     _next_ota_tick = futureMillis(3000);
   }
+  {   // chunked self-serve: a few merkle blocks per loop() so RX/CLI stay responsive
+    ota::OtaContext& oc = ota::ota_ctx();
+    if (!oc.serving && ota::ota_serve_self_building()) {
+      ota::ota_serve_self_tick(oc);
+    }
+  }
   if (millisHasNowPassed(_next_ota_announce)) {   // auto-advertise so peers discover us (tiny beacon)
     ota::OtaContext& oc = ota::ota_ctx();
     bool in_burst = _ota_announce_count < OTA_ANNOUNCE_BURST;
     uint32_t mins = oc.manager.advert_mins();     // periodic cadence in minutes; 0 = disabled (boot burst only)
+    OTA_DBG_MS("ota announce timer: burst=%d count=%u serving=%d mins=%lu",
+               in_burst ? 1 : 0, (unsigned)_ota_announce_count, oc.serving ? 1 : 0, (unsigned long)mins);
     if (in_burst || mins != 0) {
-      // To be discoverable as a source of our OWN firmware, set up flash-backed self-serve once; then the
-      // beacon (announce) advertises our served set and peers can QUERY + fetch it.
-      if (!oc.serving) oc.serving = ota::ota_serve_self(oc, 0);
-      oc.manager.announce();
-      if (_ota_announce_count < 250) _ota_announce_count++;
+      if (!oc.serving && !ota::ota_serve_self_building()) {
+        ota::ota_serve_self_begin(oc, 0);
+      }
+      if (oc.serving) {
+        OTA_DBG_MS("ota announce: manager.announce");
+        oc.manager.announce();
+        OTA_DBG_MS("ota announce: done");
+        if (_ota_announce_count < 250) _ota_announce_count++;
+      } else {
+        OTA_DBG_MS("ota announce: deferred (self-serve building)");
+      }
     }
     // Re-arm: tight spacing during the boot burst; afterwards the fixed cadence (default 24h). When periodic
     // advert is disabled (0), re-check on a slow timer so a later `ota config advert <mins>` takes effect live.
     uint32_t gap = in_burst       ? OTA_ANNOUNCE_BURST_MS
                  : (mins != 0)    ? mins * 60000UL
                                   : OTA_ANNOUNCE_DISABLED_POLL_MS;
+    if ((in_burst || mins != 0) && !oc.serving) gap = 2000UL;
     _next_ota_announce = futureMillis(gap);
   }
   {   // auto-install (once per COMPLETE fetch): only signed images, and apply_fetched enforces trust

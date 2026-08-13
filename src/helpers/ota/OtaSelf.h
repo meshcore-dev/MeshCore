@@ -22,7 +22,10 @@ bool ota_self_read(uint32_t off, uint8_t* buf, uint32_t len);
 // flash as a full `.mota` (payload read on demand per block; only metadata held in RAM). Returns false
 // if no EndF / image too big / OOM. Device platforms only.
 struct OtaContext;
-bool ota_serve_self(OtaContext& c, uint32_t fw_version);   // target = this node's own (c.manager.target())
+bool ota_serve_self_begin(OtaContext& c, uint32_t fw_version);  // start chunked build (no-op if serving)
+bool ota_serve_self_tick(OtaContext& c);   // advance build; true when done (check c.serving)
+bool ota_serve_self_building();            // merkle build in progress
+bool ota_serve_self(OtaContext& c, uint32_t fw_version);        // blocking (CLI); target = own fw
 
 } // namespace ota
 } // namespace mesh
