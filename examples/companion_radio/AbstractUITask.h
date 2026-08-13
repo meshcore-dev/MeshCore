@@ -4,7 +4,7 @@
 #include <helpers/ui/DisplayDriver.h>
 #include <helpers/ui/UIScreen.h>
 #include <helpers/SensorManager.h>
-#include <helpers/BaseSerialInterface.h>
+#include <helpers/MultiSerialInterface.h>
 #include <Arduino.h>
 
 #ifdef PIN_BUZZER
@@ -25,10 +25,10 @@ enum class UIEventType {
 class AbstractUITask {
 protected:
   mesh::MainBoard* _board;
-  BaseSerialInterface* _serial;
+  MultiSerialInterface* _interfaceManager;
   bool _connected;
 
-  AbstractUITask(mesh::MainBoard* board, BaseSerialInterface* serial) : _board(board), _serial(serial) {
+  AbstractUITask(mesh::MainBoard* board, MultiSerialInterface* interfaceManager) : _board(board), _interfaceManager(interfaceManager) {
     _connected = false;
   }
 
@@ -36,9 +36,9 @@ public:
   void setHasConnection(bool connected) { _connected = connected; }
   bool hasConnection() const { return _connected; }
   uint16_t getBattMilliVolts() const { return _board->getBattMilliVolts(); }
-  bool isSerialEnabled() const { return _serial->isEnabled(); }
-  void enableSerial() { _serial->enable(); }
-  void disableSerial() { _serial->disable(); }
+  bool isBluetoothEnabled() const { return _interfaceManager->isBluetoothEnabled(); }
+  void enableBluetooth() { _interfaceManager->enableBluetooth(); }
+  void disableBluetooth() { _interfaceManager->disableBluetooth(); }
   virtual void msgRead(int msgcount) = 0;
   virtual void newMsg(uint8_t path_len, const char* from_name, const char* text, int msgcount) = 0;
   virtual void notify(UIEventType t = UIEventType::none) = 0;

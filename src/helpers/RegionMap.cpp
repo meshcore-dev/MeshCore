@@ -93,13 +93,15 @@ bool RegionMap::load(FILESYSTEM* _fs, const char* path) {
         while (num_regions < MAX_REGION_ENTRIES) {
           auto r = &regions[num_regions];
 
-          success = file.read((uint8_t *) &r->id, sizeof(r->id)) == sizeof(r->id);
+          int n = file.read((uint8_t *) &r->id, sizeof(r->id));
+          if (n == 0) break;  // clean EOF
+          success = (n == sizeof(r->id));
           success = success && file.read((uint8_t *) &r->parent, sizeof(r->parent)) == sizeof(r->parent);
           success = success && file.read((uint8_t *) r->name, sizeof(r->name)) == sizeof(r->name);
           success = success && file.read((uint8_t *) &r->flags, sizeof(r->flags)) == sizeof(r->flags);
           success = success && file.read(pad, sizeof(pad)) == sizeof(pad);
 
-          if (!success) break; // EOF
+          if (!success) break;  // partial read or corruption
 
           if (r->id >= next_id) {    // make sure next_id is valid
             next_id = r->id + 1;
@@ -108,7 +110,7 @@ bool RegionMap::load(FILESYSTEM* _fs, const char* path) {
         }
       }
       file.close();
-      return true;
+      return success;
     }
   }
   return false;  // failed
@@ -139,7 +141,7 @@ bool RegionMap::save(FILESYSTEM* _fs, const char* path) {
       }
     }
     file.close();
-    return true;
+    return success;
   }
   return false;  // failed
 }
