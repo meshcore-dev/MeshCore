@@ -36,6 +36,21 @@ public:
     return "Elecrow ThinkNode M6";
   }
 
+  bool isExternalPowered() override {
+    if (digitalRead(EXT_PWR_DETECT) == EXT_PWR_DETECT_VALUE ||
+        digitalRead(EXT_CHRG_DETECT) == EXT_CHRG_DETECT_VALUE) {
+      return true;
+    }
+    return NRF52Board::isExternalPowered();
+  }
+
+  bool isChargerActive() override {
+    // The charge-status line covers solar input; external USB input is also a
+    // charging source, although the board cannot report charge completion.
+    return digitalRead(EXT_CHRG_DETECT) == EXT_CHRG_DETECT_VALUE ||
+           digitalRead(EXT_PWR_DETECT) == EXT_PWR_DETECT_VALUE;
+  }
+
   void powerOff() override {
 
     // turn off all leds, sd_power_system_off will not do this for us
