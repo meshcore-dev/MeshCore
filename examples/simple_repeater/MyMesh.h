@@ -114,6 +114,26 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   uint8_t pending_sf;
   uint8_t pending_cr;
   int  matching_peer_indexes[MAX_CLIENTS];
+
+  struct PendingRemoteCli {
+    bool pending;
+    uint32_t sender_timestamp;
+    int client_idx;
+    uint8_t path_hash_size;
+    uint8_t out_path_len;
+    uint8_t out_path[MAX_PATH_SIZE];
+    char command[128];
+    bool has_last_reply;
+    uint32_t last_reply_ts;
+    int last_reply_client_idx;
+    char last_reply[128];
+  } _remote_cli;
+
+  void processPendingRemoteCli();
+  void sendRemoteCliReply(ClientInfo* client, const uint8_t* secret, uint32_t sender_timestamp,
+                          uint8_t path_hash_size, uint8_t out_path_len, const uint8_t* out_path,
+                          const char* reply);
+
 #if defined(WITH_RS232_BRIDGE)
   RS232Bridge bridge;
 #elif defined(WITH_ESPNOW_BRIDGE)

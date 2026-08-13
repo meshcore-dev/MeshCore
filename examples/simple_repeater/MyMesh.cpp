@@ -647,6 +647,63 @@ static bool isShare(const mesh::Packet *packet) {
   return false;
 }
 
+void MyMesh::sendRemoteCliReply(ClientInfo* client, const uint8_t* secret, uint32_t sender_timestamp,
+                                uint8_t path_hash_size, uint8_t out_path_len, const uint8_t* out_path,
+                                const char* reply) {
+  int text_len = strlen(reply);
+  if (text_len <= 0) return;
+
+  uint8_t temp[166];
+  uint32_t timestamp = getRTCClock()->getCurrentTimeUnique();
+  if (timestamp == sender_timestamp) {
+    timestamp++;
+  }
+  memcpy(temp, &timestamp, 4);
+  temp[4] = (TXT_TYPE_CLI_DATA << 2);
+  memcpy(&temp[5], reply, text_len + 1);
+
+  mesh::Packet* pkt = createDatagram(PAYLOAD_TYPE_TXT_MSG, client->id, secret, temp, 5 + text_len);
+  if (pkt) {
+    if (out_path_len == OUT_PATH_UNKNOWN) {
+      sendFloodReply(pkt, CLI_REPLY_DELAY_MILLIS, path_hash_size);
+    } else {
+      sendDirect(pkt, out_path, out_path_len, CLI_REPLY_DELAY_MILLIS);
+    }
+  }
+}
+
+void MyMesh::processPendingRemoteCli() {
+  if (!_remote_cli.pending) return;
+
+  PendingRemoteCli work = _remote_cli;
+  _remote_cli.pending = false;
+
+  if (work.client_idx < 0 || work.client_idx >= acl.getNumClients()) {
+    return;
+  }
+
+  auto client = acl.getClientByIdx(work.client_idx);
+
+  uint8_t temp[166];
+  char* reply = (char*)&temp[5];
+  reply[0] = 0;
+  handleCommand(work.sender_timestamp, work.command, reply);
+
+  if (reply[0]) {
+    StrHelper::strncpy(_remote_cli.last_reply, reply, sizeof(_remote_cli.last_reply));
+    _remote_cli.has_last_reply = true;
+    _remote_cli.last_reply_ts = work.sender_timestamp;
+    _remote_cli.last_reply_client_idx = work.client_idx;
+
+    if (client->out_path_len == OUT_PATH_UNKNOWN && work.out_path_len != OUT_PATH_UNKNOWN) {
+      client->out_path_len = mesh::Packet::copyPath(client->out_path, work.out_path, work.out_path_len);
+    }
+
+    sendRemoteCliReply(client, client->shared_secret, work.sender_timestamp, work.path_hash_size,
+                       work.out_path_len, work.out_path, reply);
+  }
+}
+
 void MyMesh::onAdvertRecv(mesh::Packet *packet, const mesh::Identity &id, uint32_t timestamp,
                           const uint8_t *app_data, size_t app_data_len) {
   mesh::Mesh::onAdvertRecv(packet, id, timestamp, app_data, app_data_len); // chain to super impl
@@ -730,32 +787,24 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
         }
       }
 
-      uint8_t temp[166];
       char *command = (char *)&data[5];
-      char *reply = (char *)&temp[5];
       if (is_retry) {
-        *reply = 0;
+        if (_remote_cli.has_last_reply
+            && _remote_cli.last_reply_ts == sender_timestamp
+            && _remote_cli.last_reply_client_idx == i) {
+          sendRemoteCliReply(client, secret, sender_timestamp, packet->getPathHashSize(),
+                             client->out_path_len, client->out_path, _remote_cli.last_reply);
+        }
       } else {
-        handleCommand(sender_timestamp, command, reply);
-      }
-      int text_len = strlen(reply);
-      if (text_len > 0) {
-        uint32_t timestamp = getRTCClock()->getCurrentTimeUnique();
-        if (timestamp == sender_timestamp) {
-          // WORKAROUND: the two timestamps need to be different, in the CLI view
-          timestamp++;
+        StrHelper::strncpy(_remote_cli.command, command, sizeof(_remote_cli.command));
+        _remote_cli.sender_timestamp = sender_timestamp;
+        _remote_cli.client_idx = i;
+        _remote_cli.path_hash_size = packet->getPathHashSize();
+        _remote_cli.out_path_len = client->out_path_len;
+        if (client->out_path_len != OUT_PATH_UNKNOWN) {
+          memcpy(_remote_cli.out_path, client->out_path, MAX_PATH_SIZE);
         }
-        memcpy(temp, &timestamp, 4);        // mostly an extra blob to help make packet_hash unique
-        temp[4] = (TXT_TYPE_CLI_DATA << 2); // NOTE: legacy was: TXT_TYPE_PLAIN
-
-        auto reply = createDatagram(PAYLOAD_TYPE_TXT_MSG, client->id, secret, temp, 5 + text_len);
-        if (reply) {
-          if (client->out_path_len == OUT_PATH_UNKNOWN) {
-            sendFloodReply(reply, CLI_REPLY_DELAY_MILLIS, packet->getPathHashSize());
-          } else {
-            sendDirect(reply, client->out_path, client->out_path_len, CLI_REPLY_DELAY_MILLIS);
-          }
-        }
+        _remote_cli.pending = true;
       }
     } else {
       MESH_DEBUG_PRINTLN("onPeerDataRecv: possible replay attack detected");
@@ -881,6 +930,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _logging = false;
   region_load_active = false;
   recv_pkt_region = NULL;
+  memset(&_remote_cli, 0, sizeof(_remote_cli));
 
 #if MAX_NEIGHBOURS
   memset(neighbours, 0, sizeof(neighbours));
@@ -1288,6 +1338,8 @@ void MyMesh::loop() {
 #ifdef WITH_BRIDGE
   bridge.loop();
 #endif
+
+  processPendingRemoteCli();
 
   mesh::Mesh::loop();
 
