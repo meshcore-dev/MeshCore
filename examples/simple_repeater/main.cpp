@@ -177,8 +177,15 @@ void loop() {
     if (userBtnDownAt == 0) {
       userBtnDownAt = millis();
     } else if ((unsigned long)(millis() - userBtnDownAt) >= USER_BTN_HOLD_OFF_MILLIS) {
-      Serial.println("Powering off...");
-      board.powerOff();  // does not return
+      if (!the_mesh.hasPendingWork()) {
+        board.powerOff();  // does not return
+      } else {
+        static bool notified = false;
+        if (!notified) {
+          Serial.println("Shutting down!");
+          notified = true;
+        }
+      }
     }
   } else {
     userBtnDownAt = 0;

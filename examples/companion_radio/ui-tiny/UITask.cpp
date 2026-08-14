@@ -369,7 +369,7 @@ public:
       display.setColor(UIColor::secondary_txt);
       display.setTextSize(1);
       if (_shutdown_init) {
-        display.drawTextCentered(display.width() / 2, 20, "hibernating...");
+        display.drawTextCentered(display.width() / 2, 20, "Shutting down...");
       } else {
         display.drawXbm((display.width() - 32) / 2, 8, power_icon, 32, 32);
         // display.drawTextCentered(display.width() / 2, 40 - 11, "hibernate:" PRESS_LABEL);
@@ -571,8 +571,7 @@ void UITask::shutdown(bool restart){
   if (restart) {
     _board->reboot();
   } else {
-    // Power off board including radio, display, GPS and components
-    _board->powerOff();
+    _wants_shutdown = true;
   }
 }
 

@@ -1334,5 +1334,5 @@ bool MyMesh::hasPendingWork() const {
 #if defined(WITH_BRIDGE)
   if (bridge.isRunning()) return true;  // bridge needs WiFi radio, can't sleep
 #endif
-  return _mgr->getOutboundTotal() > 0;
+  return _mgr->getOutboundTotal() > 0 || dirty_contacts_expiry != 0;
 }

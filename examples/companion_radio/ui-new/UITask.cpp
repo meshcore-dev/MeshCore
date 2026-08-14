@@ -426,7 +426,7 @@ public:
       display.setTextSize(1);
       if (_shutdown_init) {
         display.setColor(UIColor::warning_txt);
-        display.drawTextCentered(display.width() / 2, 34, "hibernating...");
+        display.drawTextCentered(display.width() / 2, 34, "Shutting down...");
       } else {
         display.setColor(UIColor::secondary_txt);
         display.drawXbm((display.width() - 32) / 2, 18, power_icon, 32, 32);
@@ -720,8 +720,14 @@ void UITask::shutdown(bool restart){
   if (restart) {
     _board->reboot();
   } else {
-    // Power off board including radio, display, GPS and components
-    _board->powerOff();
+    if (_display != NULL) {
+      _display->startFrame();
+      _display->setTextSize(1);
+      _display->setColor(UIColor::primary_txt);
+      _display->drawTextCentered(_display->width() / 2, 20, "Shutting down...");
+      _display->endFrame();
+    }
+    _wants_shutdown = true;
   }
 }
 
@@ -869,7 +875,7 @@ void UITask::loop() {
           _display->startFrame();
           _display->setTextSize(2);
           _display->setColor(UIColor::warning_txt);
-          _display->drawTextCentered(_display->width() / 2, 20, "Low Battery.");
+          _display->drawTextCentered(_display->width() / 2, 20, "Low battery!");
           _display->drawTextCentered(_display->width() / 2, 40, "Shutting Down!");
           _display->endFrame();
           if (_display->isEink() == false) { delay(3000); }
