@@ -156,13 +156,11 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   bool     _fs_adaptive_active;  // neighbour data available this cycle? (else static fallback)
   uint8_t  _fs_pending_c;        // debounce: candidate c awaiting a 2nd confirming cycle
   uint32_t _fs_next_recompute_ms;
-  int      _fs_floor_baseline;   // slow-tracked quiet noise floor (this site's baseline); <= -999 = not yet learned
   uint32_t _fs_seen;        // distinct floods heard (denominator of suppression ratio)
   uint32_t _fs_suppressed;  // floods whose rebroadcast was made redundant (numerator)
   // Observability breakdown of the suppression numerator (surfaced in `get flood.suppress`).
   uint32_t _fs_supp_graph;        // suppressed by the coverage-graph test
   uint32_t _fs_supp_snr_fallback; // suppressed by the SNR-repeat fallback
-  uint32_t _fs_noise_blocked;     // graph+client said suppress, but the noise gate vetoed
   // --- Active TRACE coverage measurement state (populates _nbr_links) ---
   struct PendingTrace {
     uint32_t tag;
@@ -218,8 +216,6 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   void purgeAttachedClients(uint32_t now);                        // evict stale clients (~24h)
   bool isKnownRepeaterHash1(uint8_t hash1) const;                 // does this 1-byte hash match a known repeater neighbour?
   void cancelPendingFloodOutbound(const uint8_t* hash);   // cancel our scheduled flood rebroadcast (if any)
-  uint8_t floodSuppressTier(const mesh::Packet* pkt) const;        // payload-class policy: 0=never, 1=confidence-only, 2=cheap-to-suppress
-  bool noiseGateAllowsSuppress(const mesh::Packet* pkt) const;     // channel-state gate (busy/noisy channel -> restrict to cheap classes)
   void updateAdaptiveFloodParams();                       // derive _fs_eff_c/_fs_eff_hi from neighbour table
   uint8_t effectiveFloodSuppressC() const;                // adaptive? _fs_eff_c : flood_suppress_c
   int8_t effectiveFloodSuppressSnrHi() const;             // adaptive? _fs_eff_hi : flood_suppress_snr_hi

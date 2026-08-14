@@ -20,15 +20,6 @@
 #define LOOP_DETECT_MODERATE  2
 #define LOOP_DETECT_STRICT    3
 
-// Noise-gate margin (flood suppression). The channel is "noisy" when the measured noise floor is
-// at least this many dB above THIS SITE's slowly-tracked quiet baseline (see MyMesh's baseline
-// tracker). Relative, so no expert absolute-dBm guess is needed. AUTO => firmware default; an
-// explicit 0..40 dB value overrides it (smaller = more sensitive / suppresses less).
-#define FLOOD_SUPPRESS_NOISE_MARGIN_AUTO     127   // int8_t sentinel: use FLOOD_SUPPRESS_NOISE_MARGIN_DEFAULT
-#define FLOOD_SUPPRESS_NOISE_MARGIN_DEFAULT  10    // dB above baseline (the auto margin)
-#define FLOOD_SUPPRESS_NOISE_MARGIN_MIN      0
-#define FLOOD_SUPPRESS_NOISE_MARGIN_MAX      40
-
 class NodePrefs : public ConfigSerializer {
 public:
   // in-memory backing data
@@ -86,9 +77,7 @@ public:
   int8_t  flood_suppress_snr_lo = 0;   // dB: overheard forward with SNR<this counts 0 (preserve edge)
   uint8_t flood_suppress_delay_x = 0;  // extra TX-delay multiplier for central flood relays
   int8_t  trace_tx_power_dbm = 0;      // TX power (dBm) used ONLY for coverage TRACE probes (lower = less disturbance)
-  // SNR-repeat fallback is fixed ON (not configurable). The noise gate's margin is configurable
-  // (AUTO = firmware default); see FLOOD_SUPPRESS_NOISE_MARGIN_* above.
-  int8_t  flood_suppress_noise_margin = FLOOD_SUPPRESS_NOISE_MARGIN_AUTO;  // dB above baseline (AUTO=default)
+  // SNR-repeat fallback is fixed ON (not configurable).
 
 private:
   class RadioPrefs : public ConfigSerializer {
@@ -172,7 +161,6 @@ private:
       def("fs_lo", _parent->flood_suppress_snr_lo);
       def("fs_dx", _parent->flood_suppress_delay_x);
       def("fs_tx", _parent->trace_tx_power_dbm);
-      def("fs_nm", _parent->flood_suppress_noise_margin);
     }
   public:
     RepeatPrefs(NodePrefs* parent) : _parent(parent) { }
