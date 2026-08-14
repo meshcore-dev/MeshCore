@@ -61,7 +61,13 @@ MultiSerialInterface interface_manager;
 #if defined(SERIAL_RX)
   #include <helpers/ArduinoSerialInterface.h>
   ArduinoSerialInterface hardware_serial_interface;
-  HardwareSerial companion_serial(1);
+  #if defined(NRF52_PLATFORM)
+    // nRF52 has no numbered-constructor HardwareSerial; Serial1 is the concrete UARTE0
+    // instance the core always defines. setPins() below moves it to the requested pads.
+    Uart& companion_serial = Serial1;
+  #else
+    HardwareSerial companion_serial(1);
+  #endif
 #endif
 
 // platform file system
