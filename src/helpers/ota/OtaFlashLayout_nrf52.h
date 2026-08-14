@@ -21,6 +21,11 @@ static const uint32_t MOTA_NRF52_INTERNALFS_START = 0x000ED000u; // primary Litt
 static const uint32_t MOTA_NRF52_FLASH_PAGE      = 4096u;
 static const uint8_t  GPREGRET_OTA_APPLY         = 0x6Au;        // distinct from DFU magics 0x57/0x4E/0xA8
 
+// GPREGRET occupancy (nRF52840, byte-identical with bootloader src/ota_layout.h):
+//   GPREGRET:  OTA apply 0x6A; Adafruit DFU 0x57/0x4E/0xA8/0xB1/0x6D/… — watchdog never writes here.
+//   GPREGRET2: shutdown ASCII (app), apply diag 0xB0–0xB8.
+// New magic → document in ota_layout.h first; never reuse.
+
 // Per-role staging ceiling (build flag). Default 0xD4000 = below ExtraFS (companion-safe). Repeater/
 // room-server envs set 0xED000 to reclaim the unused ExtraFS region on boards that never mount it.
 #ifndef MOTA_STAGE_CEILING
