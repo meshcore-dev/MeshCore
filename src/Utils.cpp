@@ -24,9 +24,7 @@ uint32_t RNG::nextInt(uint32_t _min, uint32_t _max) {
 void Utils::sha256(uint8_t *hash, size_t hash_len, const uint8_t* msg, int msg_len) {
 #ifdef USE_CC310_HW_CRYPTO
   static CRYS_HASH_Result_t result;
-  nRFCrypto.begin();
   CRYS_HASH(CRYS_HASH_SHA256_mode, (uint8_t*)msg, (size_t)msg_len, result);
-  nRFCrypto.end();
   memcpy(hash, result, hash_len);
 #else
   SHA256 sha;
@@ -39,12 +37,10 @@ void Utils::sha256(uint8_t *hash, size_t hash_len, const uint8_t* frag1, int fra
 #ifdef USE_CC310_HW_CRYPTO
   static CRYS_HASHUserContext_t ctx;
   static CRYS_HASH_Result_t result;
-  nRFCrypto.begin();
   CRYS_HASH_Init(&ctx, CRYS_HASH_SHA256_mode);
   CRYS_HASH_Update(&ctx, (uint8_t*)frag1, (size_t)frag1_len);
   CRYS_HASH_Update(&ctx, (uint8_t*)frag2, (size_t)frag2_len);
   CRYS_HASH_Finish(&ctx, result);
-  nRFCrypto.end();
   memcpy(hash, result, hash_len);
 #else
   SHA256 sha;
@@ -62,7 +58,6 @@ int Utils::decrypt(const uint8_t* shared_secret, uint8_t* dest, const uint8_t* s
   const uint8_t* sp = src;
   size_t dummy_out = 0;
 
-  nRFCrypto.begin();
   SaSi_AesInit(&ctx, SASI_AES_DECRYPT, SASI_AES_MODE_ECB, SASI_AES_PADDING_NONE);
   SaSi_AesSetKey(&ctx, SASI_AES_USER_KEY, &keyData, sizeof(keyData));
   while (sp - src < src_len) {
@@ -71,7 +66,6 @@ int Utils::decrypt(const uint8_t* shared_secret, uint8_t* dest, const uint8_t* s
   }
   SaSi_AesFinish(&ctx, 0, NULL, 0, NULL, &dummy_out);
   SaSi_AesFree(&ctx);
-  nRFCrypto.end();
   return sp - src;
 #else
   AES128 aes;
@@ -95,7 +89,6 @@ int Utils::encrypt(const uint8_t* shared_secret, uint8_t* dest, const uint8_t* s
   uint8_t* dp = dest;
   size_t dummy_out = 0;
 
-  nRFCrypto.begin();
   SaSi_AesInit(&ctx, SASI_AES_ENCRYPT, SASI_AES_MODE_ECB, SASI_AES_PADDING_NONE);
   SaSi_AesSetKey(&ctx, SASI_AES_USER_KEY, &keyData, sizeof(keyData));
   while (src_len >= 16) {
@@ -110,7 +103,6 @@ int Utils::encrypt(const uint8_t* shared_secret, uint8_t* dest, const uint8_t* s
   }
   SaSi_AesFinish(&ctx, 0, NULL, 0, NULL, &dummy_out);
   SaSi_AesFree(&ctx);
-  nRFCrypto.end();
   return dp - dest;
 #else
   AES128 aes;
@@ -138,11 +130,9 @@ int Utils::encryptThenMAC(const uint8_t* shared_secret, uint8_t* dest, const uin
 #ifdef USE_CC310_HW_CRYPTO
   static CRYS_HMACUserContext_t hmac_ctx;
   static CRYS_HASH_Result_t hmac_result;
-  nRFCrypto.begin();
   CRYS_HMAC_Init(&hmac_ctx, CRYS_HASH_SHA256_mode, (uint8_t*)shared_secret, PUB_KEY_SIZE);
   CRYS_HMAC_Update(&hmac_ctx, dest + CIPHER_MAC_SIZE, enc_len);
   CRYS_HMAC_Finish(&hmac_ctx, hmac_result);
-  nRFCrypto.end();
   memcpy(dest, hmac_result, CIPHER_MAC_SIZE);
 #else
   SHA256 sha;
@@ -162,11 +152,9 @@ int Utils::MACThenDecrypt(const uint8_t* shared_secret, uint8_t* dest, const uin
   {
     static CRYS_HMACUserContext_t hmac_ctx;
     static CRYS_HASH_Result_t hmac_result;
-    nRFCrypto.begin();
     CRYS_HMAC_Init(&hmac_ctx, CRYS_HASH_SHA256_mode, (uint8_t*)shared_secret, PUB_KEY_SIZE);
     CRYS_HMAC_Update(&hmac_ctx, (uint8_t*)(src + CIPHER_MAC_SIZE), src_len - CIPHER_MAC_SIZE);
     CRYS_HMAC_Finish(&hmac_ctx, hmac_result);
-    nRFCrypto.end();
     memcpy(hmac, hmac_result, CIPHER_MAC_SIZE);
   }
 #else
