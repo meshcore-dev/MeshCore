@@ -23,6 +23,7 @@
   #include "OtaBlInfo.h"            // read the bootloader capability marker before arming an apply
   #include "OtaByteIO.h"
   #include "flash/flash_nrf5x.h"  // Adafruit core internal-flash driver (has its own extern "C")
+  #include "helpers/NRF52Board.h"
   #include "nrf.h"
   #include "nrf_soc.h"
   #include "nrf_sdm.h"
@@ -435,6 +436,7 @@ bool ota_apply_commit() { return false; }
 bool ota_apply_detools_mota(const uint8_t*, uint32_t, const SignerAllowlist&, ApplyState& st, char* msg) { st = ApplyState(); strcpy(msg, "use ota_apply_mota_nrf52"); return false; }
 
 void ota_reboot_to_apply() {                   // public: set the apply magic + reset (does not return)
+  NRF52Board::feedWatchdogIfRunning();
   uint8_t sd_en = 0;
   sd_softdevice_is_enabled(&sd_en);
   if (sd_en) {                                 // POWER is SD-restricted while the SoftDevice runs
