@@ -59,10 +59,17 @@ inline bool ota_bootloader_can_apply(uint8_t format_ver, uint8_t codec_id) {
   return c.present && c.apply_abi >= format_ver && (c.codec_mask & (1u << codec_id)) != 0;
 }
 
-// True if this bootloader feeds a WDT left running across soft reset (safe to enable app WDT + mota apply).
+// True if this bootloader feeds a WDT left running across soft reset into mota apply / DFU / UF2.
 inline bool ota_bootloader_wdt_feed() {
   OtaBlCaps c = ota_bootloader_caps();
   return c.present && (c.features & MOTA_BL_FEAT_WDT_FEED) != 0;
+}
+
+// True when app WDT must stay off: mota-apply bootloader advertised but lacks WDT feed during apply.
+// Stock / non-mota bootloaders (no MOTABLDR marker) are not blocked.
+inline bool ota_bootloader_blocks_wdt() {
+  OtaBlCaps c = ota_bootloader_caps();
+  return c.present && (c.features & MOTA_BL_FEAT_WDT_FEED) == 0;
 }
 
 } // namespace ota
