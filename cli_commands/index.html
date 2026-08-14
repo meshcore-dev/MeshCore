@@ -751,6 +751,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#view-or-change-the-lora-fem-transmit-path-gain-state-on-supported-boards" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change the LoRa FEM transmit-path gain state on supported boards
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2371,6 +2382,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#view-or-change-the-lora-fem-transmit-path-gain-state-on-supported-boards" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or change the LoRa FEM transmit-path gain state on supported boards
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -3439,6 +3461,18 @@
 <p><strong>Notes:</strong>
 - This controls the external LoRa FEM receive-path LNA where the board supports it.
 - This is separate from <code>radio.rxgain</code>, which controls the radio chip receive gain mode.</p>
+<hr />
+<h4 id="view-or-change-the-lora-fem-transmit-path-gain-state-on-supported-boards">View or change the LoRa FEM transmit-path gain state on supported boards</h4>
+<p><strong>Usage:</strong>
+- <code>get radio.fem.txgain</code>
+- <code>set radio.fem.txgain &lt;state&gt;</code></p>
+<p><strong>Parameters:</strong>
+- <code>state</code>: <code>on</code>|<code>off</code></p>
+<p><strong>Notes:</strong>
+- This controls a software-selectable external LoRa FEM transmit gain where the board supports it.
+- On Station G3, remove the PA PL1 jumper to allow software control. <code>on</code> selects PA PL1 high/short and <code>off</code> selects PA PL1 low/open. The PA PL2 hardware jumper determines whether this switches between power levels 1/3 or 2/4.
+- Select an operating level and SX1262 transmit power that comply with local RF limits and the Station G3 power-supply requirements.
+- The setting is saved immediately, but on Station G3 the level is applied to the hardware at the start of the next transmit, so that the PA supply rail is never re-targeted while the PA is being driven. <code>get</code> reports the configured state, which may lead the hardware until the node next transmits.</p>
 <hr />
 <h3 id="system">System</h3>
 <h4 id="view-or-change-this-nodes-name">View or change this node's name</h4>
