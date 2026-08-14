@@ -13,7 +13,8 @@ void ArduinoSerialInterface::disable() {
   _isEnabled = false;
 }
 
-bool ArduinoSerialInterface::isConnected() const { 
+bool ArduinoSerialInterface::isConnected() const {
+  if (_conn_check) return _conn_check();
   return true;   // no way of knowing, so assume yes
 }
 
@@ -65,6 +66,7 @@ size_t ArduinoSerialInterface::checkRecvFrame(uint8_t dest[]) {
           if (_frame_len > MAX_FRAME_SIZE) _frame_len = MAX_FRAME_SIZE;    // truncate
           memcpy(dest, rx_buf, _frame_len);
           _state = RECV_STATE_IDLE;  // reset state, for next frame
+          _last_frame_ms = millis();   // a real client is talking to us
           return _frame_len;
         }
     }
