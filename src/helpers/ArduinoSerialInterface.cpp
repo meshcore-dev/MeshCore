@@ -19,6 +19,11 @@ bool ArduinoSerialInterface::isConnected() const {
 }
 
 bool ArduinoSerialInterface::isWriteBusy() const {
+  if (_flow_ctl && isConnected()) {
+    return const_cast<Stream*>(_serial)->availableForWrite() < (int)(MAX_FRAME_SIZE + 3);
+  }
+  // while nobody drains the port the TX buffer stays full, so never report
+  // busy in that case: it would stall the paced streams on all interfaces
   return false;
 }
 
@@ -26,6 +31,17 @@ size_t ArduinoSerialInterface::writeFrame(const uint8_t src[], size_t len) {
   if (len > MAX_FRAME_SIZE) {
     // frame is too big!
     return 0;
+  }
+  if (_flow_ctl) {
+    if (!isConnected()) {
+      return len;   // nobody is listening, drop instead of filling the TX buffer
+    }
+    if (_serial->availableForWrite() < (int)(len + 3)) {
+      // a short write would tear the length prefixed framing, and as there is
+      // neither a checksum nor a resync marker the receiver would stay out of
+      // sync forever - so drop the whole frame instead
+      return 0;
+    }
   }
 
   uint8_t hdr[3];

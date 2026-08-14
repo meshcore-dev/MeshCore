@@ -218,7 +218,14 @@ void setup() {
 // add usb interface
 #if defined(ENABLE_USB_INTERFACE)
   usb_serial_interface.begin(Serial);
+  // keep frames intact and pace the contact stream when the host is slow
+  usb_serial_interface.enableFlowControl(true);
 #if defined(ESP32) && defined(ARDUINO_USB_MODE) && ARDUINO_USB_MODE == 1
+  // a 256 byte TX buffer overflows during a contact sync, and write() blocks
+  // up to tx_timeout_ms per call against a stalled host (same reasoning as
+  // the kiss_modem tuning)
+  Serial.setTxBufferSize(4096);
+  Serial.setTxTimeoutMs(5);
   // The ESP32 USB-Serial-JTAG peripheral (HWCDC) has no DTR concept at all:
   // (bool)Serial only tells us the host has enumerated the device, which is
   // already true when the cable is plugged into a powered port. Fall back to

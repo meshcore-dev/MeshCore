@@ -10,6 +10,7 @@ public:
 
 private:
   bool _isEnabled;
+  bool _flow_ctl;
   uint8_t _state;
   uint16_t _frame_len;
   uint16_t rx_len;
@@ -19,7 +20,7 @@ private:
   uint8_t rx_buf[MAX_FRAME_SIZE];
 
 public:
-  ArduinoSerialInterface() { _isEnabled = false; _state = 0; _last_frame_ms = 0; _conn_check = NULL; }
+  ArduinoSerialInterface() { _isEnabled = false; _flow_ctl = false; _state = 0; _last_frame_ms = 0; _conn_check = NULL; }
 
   void begin(Stream& serial) {
     _serial = &serial;
@@ -35,6 +36,12 @@ public:
   // millis() of the last completely received frame, 0 if none since boot.
   // Useful as an activity-based connection check where no DTR state exists.
   uint32_t getLastFrameMillis() const { return _last_frame_ms; }
+
+  // Optional: only hand a frame to the stream when it fits into the TX buffer
+  // as a whole, and report busy while it does not, so bulk streams get paced.
+  // Only enable this for streams which really implement availableForWrite()
+  // (USB-CDC does, the Print default returns 0).
+  void enableFlowControl(bool enable) { _flow_ctl = enable; }
 
   // BaseSerialInterface methods
   void enable() override;
