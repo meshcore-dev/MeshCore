@@ -592,6 +592,7 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
   _node_prefs = node_prefs;
 
   if (_display != NULL) {
+    _display->applyTheme(_node_prefs->ui_theme);
     _display->turnOn();
   }
 
@@ -612,6 +613,14 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
   home = new HomeScreen(this, &rtc_clock, sensors, node_prefs);
   msg_preview = new MsgPreviewScreen(this, &rtc_clock);
   setCurrScreen(splash);
+}
+
+bool UITask::applyTheme(const char* theme) {
+  return _display != NULL ? _display->applyTheme(theme) : false;
+}
+
+int UITask::getThemeCount() {
+  return _display != NULL ? _display->getThemeCount() : 0;
 }
 
 void UITask::showAlert(const char* text, int duration_millis) {
