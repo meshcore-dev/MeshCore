@@ -157,6 +157,8 @@ void loop() {
     command[0] = 0;  // reset command buffer
   }
 
+  board.tick();        // Feed watchdog and perform board-specific tasks
+
 #ifdef ETHERNET_ENABLED
   ethernet_loop_maintain();
   if (ethernet_read_line(ethernet_command, sizeof(ethernet_command))) {
