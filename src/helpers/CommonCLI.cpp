@@ -498,8 +498,8 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
 #endif
     } else if (memcmp(command, "watchdog lockup", 15) == 0) {
 #if defined(NRF52_PLATFORM)
-      if (!mesh::ota::ota_bootloader_wdt_feed()) {
-        strcpy(reply, "error - bootloader lacks WDT feed (flash OTAFIX WDT BL first)");
+      if (mesh::ota::ota_bootloader_blocks_wdt()) {
+        strcpy(reply, "error - mota bootloader lacks WDT feed (flash WDT-capable BL first)");
       } else {
         NRF52Board* nb = static_cast<NRF52Board*>(_board);
         if (!nb->isWatchdogRunning()) {
@@ -544,8 +544,8 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
 #endif
     } else if (memcmp(command, "watchdog on", 11) == 0) {
 #if defined(NRF52_PLATFORM)
-      if (!mesh::ota::ota_bootloader_wdt_feed()) {
-        strcpy(reply, "error - bootloader lacks WDT feed (flash OTAFIX WDT BL first)");
+      if (mesh::ota::ota_bootloader_blocks_wdt()) {
+        strcpy(reply, "error - mota bootloader lacks WDT feed (flash WDT-capable BL first)");
       } else {
         _prefs->wdt_enabled = 1;
         savePrefs();
@@ -570,13 +570,12 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
     } else if (memcmp(command, "watchdog status", 15) == 0 || memcmp(command, "watchdog", 8) == 0) {
 #if defined(NRF52_PLATFORM)
       NRF52Board* nb = static_cast<NRF52Board*>(_board);
-      const bool bl_wdt = mesh::ota::ota_bootloader_wdt_feed();
       const char* en = _prefs->wdt_enabled ? "enabled" : "disabled";
       const char* run = nb->isWatchdogRunning() ? "running" : "not running";
       const char* last = nb->getResetReasonString(nb->getResetReason());
       uint8_t run_to = nb->getWatchdogRunningTimeoutSecs();
-      if (!bl_wdt) {
-        sprintf(reply, "%s, %s, blocked (bootloader lacks WDT feed), last reset: %s",
+      if (mesh::ota::ota_bootloader_blocks_wdt()) {
+        sprintf(reply, "%s, %s, blocked (mota BL lacks WDT feed), last reset: %s",
                 en, run, last);
       } else if (_prefs->wdt_enabled && !nb->isWatchdogRunning()) {
         sprintf(reply, "%s, %s, timeout %us (reboot to start), last reset: %s",

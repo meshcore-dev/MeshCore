@@ -1077,7 +1077,7 @@ void MyMesh::begin(FILESYSTEM *fs) {
 #if defined(NRF52_PLATFORM)
   {
     uint8_t wdt_to = 0;
-    if (_prefs.wdt_enabled && mesh::ota::ota_bootloader_wdt_feed()) {
+    if (_prefs.wdt_enabled && !mesh::ota::ota_bootloader_blocks_wdt()) {
       wdt_to = constrain(_prefs.wdt_timeout_secs, 1, 255);
     }
     static_cast<NRF52Board&>(board).initWatchdog(wdt_to);
