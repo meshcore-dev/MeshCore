@@ -376,19 +376,22 @@ void NRF52Board::powerOff() {
 }
 
 bool NRF52Board::getBootloaderVersion(char* out, size_t max_len) {
-    static const char BOOTLOADER_MARKER[] = "UF2 Bootloader ";
+    static const char* const markers[] = { "EnvyBoot ", "UF2 Bootloader ", nullptr };
     const uint8_t* flash = (const uint8_t*)0x000FB000; // earliest known info.txt location is 0xFB90B, latest is 0xFCC4B
 
-    for (uint32_t i = 0; i < 0x3000 - (sizeof(BOOTLOADER_MARKER) - 1); i++) {
-        if (memcmp(&flash[i], BOOTLOADER_MARKER, sizeof(BOOTLOADER_MARKER) - 1) == 0) {
-            const char* ver = (const char*)&flash[i + sizeof(BOOTLOADER_MARKER) - 1];
+    for (const char* const* mp = markers; *mp; mp++) {
+        const char* marker = *mp;
+        size_t marker_len = strlen(marker);
+        for (uint32_t i = 0; i + marker_len <= 0x3000; i++) {
+            if (memcmp(&flash[i], marker, marker_len) != 0) continue;
+            const char* ver = (const char*)&flash[i + marker_len];
             size_t len = 0;
             while (len < max_len - 1 && ver[len] != '\0' && ver[len] != ' ' && ver[len] != '\n' && ver[len] != '\r') {
                 out[len] = ver[len];
                 len++;
             }
             out[len] = '\0';
-            return len > 0; // bootloader string is non-empty
+            return len > 0;
         }
     }
     return false;
