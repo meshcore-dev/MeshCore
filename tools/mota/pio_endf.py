@@ -44,12 +44,13 @@ def _is_nrf52() -> bool:
 
 
 def _cppdef(name):                                # value of a -D<name>=<value> build flag, or None
+    val = None
     for d in env.get("CPPDEFINES", []):           # noqa: F821
         if isinstance(d, (list, tuple)) and len(d) > 1 and d[0] == name:
-            return str(d[1])
-        if d == name:
-            return ""
-    return None
+            val = str(d[1])
+        elif d == name:
+            val = ""
+    return val
 
 
 def _version_from_headers():
@@ -116,6 +117,8 @@ def _append_endf(source, target, env):           # raw .bin path (ESP32 / RP2040
     path = str(target[0])
     with open(path, "rb") as f:
         data = f.read()
+    if ml.has_endf(data):
+        data = data[:-ml.ENDF_LEN]
     ident = _firmware_ident()
     out, h8 = ml.ensure_endf(data, ident)
     if len(out) != len(data):
@@ -136,6 +139,8 @@ def _append_endf_hex(source, target, env):        # Intel-HEX path (nRF52: app f
         print("EndF: empty .hex, skipping"); return
     app_start, app_end = segs[0]                  # first (lowest) segment = the application image
     body = bytes(ih.tobinarray(start=app_start, size=app_end - app_start))
+    if ml.has_endf(body):
+        body = body[:-ml.ENDF_LEN]
     ident = _firmware_ident()
     out, h8 = ml.ensure_endf(body, ident)
     if len(out) == len(body):
