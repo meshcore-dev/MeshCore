@@ -23,29 +23,91 @@ static void disconnect_callback(uint16_t conn_handle, uint8_t reason) {
   MESH_DEBUG_PRINTLN("BLE client disconnected");
 }
 
-void NRF52Board::begin() {
-  startup_reason = BD_STARTUP_NORMAL;
-
-  #ifdef USE_CC310_HW_CRYPTO
-    // CC310 TRNG is higher quality and environment-independent vs radio RSSI noise.
-    nRFCrypto.begin();
-  #endif
-}
-
-#ifdef NRF52_POWER_MANAGEMENT
 #include "nrf.h"
 
-// Power Management global variables
-uint32_t g_nrf52_reset_reason = 0;     // Reset/Startup reason
-uint8_t g_nrf52_shutdown_reason = 0;   // Shutdown reason
+// Reset/shutdown capture — always compiled so watchdog status works without NRF52_POWER_MANAGEMENT
+uint32_t g_nrf52_reset_reason = 0;
+uint8_t g_nrf52_shutdown_reason = 0;
 
-// Early constructor - runs before SystemInit() clears the registers
-// Priority 101 ensures this runs before SystemInit (102) and before
-// any C++ static constructors (default 65535)
 static void __attribute__((constructor(101))) nrf52_early_reset_capture() {
   g_nrf52_reset_reason = NRF_POWER->RESETREAS;
   g_nrf52_shutdown_reason = NRF_POWER->GPREGRET2;
 }
+
+void NRF52Board::begin() {
+  startup_reason = BD_STARTUP_NORMAL;
+  reset_reason = g_nrf52_reset_reason;
+#ifndef NRF52_POWER_MANAGEMENT
+  NRF_POWER->RESETREAS = 0xFFFFFFFF;
+#endif
+
+  #ifdef USE_CC310_HW_CRYPTO
+    nRFCrypto.begin();
+  #endif
+}
+
+static const uint32_t WDT_FEED_MAGIC = 0x6E524635u;
+
+void NRF52Board::feedWatchdogIfRunning() {
+  if (NRF_WDT->RUNSTATUS) NRF_WDT->RR[0] = WDT_FEED_MAGIC;
+}
+
+bool NRF52Board::isWatchdogRunning() const {
+  return NRF_WDT->RUNSTATUS != 0;
+}
+
+uint8_t NRF52Board::getWatchdogRunningTimeoutSecs() const {
+  if (!isWatchdogRunning()) return 0;
+  uint32_t crv = NRF_WDT->CRV;
+  if (crv == 0) return 0;
+  uint32_t secs = (crv + 32767u) / 32768u;
+  return secs > 255u ? 255u : (uint8_t)secs;
+}
+
+void NRF52Board::initWatchdog(uint8_t timeout_secs) {
+  if (timeout_secs == 0) return;
+  _wdt_timeout_secs = timeout_secs;
+  if (NRF_WDT->RUNSTATUS) return;   // already counting (e.g. carried over from prior boot)
+  NRF_WDT->CRV = (uint32_t)timeout_secs * 32768u;
+  NRF_WDT->RREN = WDT_RREN_RR0_Enabled;
+  NRF_WDT->CONFIG = (WDT_CONFIG_SLEEP_Pause << WDT_CONFIG_SLEEP_Pos)
+                  | (WDT_CONFIG_HALT_Pause << WDT_CONFIG_HALT_Pos);
+  NRF_WDT->TASKS_START = 1;
+}
+
+void NRF52Board::requestLockup() {
+  _lockup_at = millis() + 500;
+}
+
+void NRF52Board::loop() {
+  feedWatchdogIfRunning();
+  if (_lockup_at != 0 && (int32_t)(millis() - _lockup_at) >= 0) {
+    Serial.flush();
+    while (1) {}
+  }
+}
+
+const char* NRF52Board::getResetReasonString(uint32_t reason) {
+  if (reason & POWER_RESETREAS_RESETPIN_Msk) return "Reset Pin";
+  if (reason & POWER_RESETREAS_DOG_Msk) return "Watchdog";
+  if (reason & POWER_RESETREAS_SREQ_Msk) return "Soft Reset";
+  if (reason & POWER_RESETREAS_LOCKUP_Msk) return "CPU Lockup";
+  #ifdef POWER_RESETREAS_LPCOMP_Msk
+    if (reason & POWER_RESETREAS_LPCOMP_Msk) return "Wake from LPCOMP";
+  #endif
+  #ifdef POWER_RESETREAS_VBUS_Msk
+    if (reason & POWER_RESETREAS_VBUS_Msk) return "Wake from VBUS";
+  #endif
+  #ifdef POWER_RESETREAS_OFF_Msk
+    if (reason & POWER_RESETREAS_OFF_Msk) return "Wake from GPIO";
+  #endif
+  #ifdef POWER_RESETREAS_DIF_Msk
+    if (reason & POWER_RESETREAS_DIF_Msk) return "Debug Interface";
+  #endif
+  return "Cold Boot";
+}
+
+#ifdef NRF52_POWER_MANAGEMENT
 
 void NRF52Board::initPowerMgr() {
   // Copy early-captured register values
@@ -74,26 +136,6 @@ void NRF52Board::initPowerMgr() {
     MESH_DEBUG_PRINTLN("PWRMGT: Reset = %s (0x%lX)",
       getResetReasonString(reset_reason), (unsigned long)reset_reason);
   }
-}
-
-const char* NRF52Board::getResetReasonString(uint32_t reason) {
-  if (reason & POWER_RESETREAS_RESETPIN_Msk) return "Reset Pin";
-  if (reason & POWER_RESETREAS_DOG_Msk) return "Watchdog";
-  if (reason & POWER_RESETREAS_SREQ_Msk) return "Soft Reset";
-  if (reason & POWER_RESETREAS_LOCKUP_Msk) return "CPU Lockup";
-  #ifdef POWER_RESETREAS_LPCOMP_Msk
-    if (reason & POWER_RESETREAS_LPCOMP_Msk) return "Wake from LPCOMP";
-  #endif
-  #ifdef POWER_RESETREAS_VBUS_Msk
-    if (reason & POWER_RESETREAS_VBUS_Msk) return "Wake from VBUS";
-  #endif
-  #ifdef POWER_RESETREAS_OFF_Msk
-    if (reason & POWER_RESETREAS_OFF_Msk) return "Wake from GPIO";
-  #endif
-  #ifdef POWER_RESETREAS_DIF_Msk
-    if (reason & POWER_RESETREAS_DIF_Msk) return "Debug Interface";
-  #endif
-  return "Cold Boot";
 }
 
 const char* NRF52Board::getShutdownReasonString(uint8_t reason) {

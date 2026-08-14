@@ -64,6 +64,7 @@ public:
   virtual uint8_t getStartupReason() const = 0;
   virtual bool getBootloaderVersion(char* version, size_t max_len) { return false; }
   virtual bool startOTAUpdate(const char* id, char reply[]) { return false; }   // not supported
+  virtual void loop() { /* no op */ }
   virtual bool setLoRaFemLnaEnabled(bool enable) { return false; }
   virtual bool canControlLoRaFemLna() const { return false; }
   virtual bool isLoRaFemLnaEnabled() const { return false; }

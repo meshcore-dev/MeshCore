@@ -32,9 +32,11 @@ class NRF52Board : public mesh::MainBoard {
 protected:
   uint8_t startup_reason;
   char *ota_name;
+  uint32_t reset_reason;              // RESETREAS captured at boot (before clear)
+  uint32_t _lockup_at = 0;            // millis deadline for deferred watchdog lockup test
+  uint8_t _wdt_timeout_secs = 0;      // configured/pref timeout (CRV frozen after start)
 
 #ifdef NRF52_POWER_MANAGEMENT
-  uint32_t reset_reason;              // RESETREAS register value
   uint8_t shutdown_reason;            // GPREGRET value (why we entered last SYSTEMOFF)
   uint16_t boot_voltage_mv;           // Battery voltage at boot (millivolts)
 
@@ -45,7 +47,7 @@ protected:
 #endif
 
 public:
-  NRF52Board(char *otaname) : ota_name(otaname) {}
+  NRF52Board(char *otaname) : ota_name(otaname), reset_reason(0) {}
   virtual void begin();
   virtual uint8_t getStartupReason() const override { return startup_reason; }
   virtual float getMCUTemperature() override;
@@ -55,13 +57,22 @@ public:
   virtual bool getBootloaderVersion(char* version, size_t max_len) override;
   virtual bool startOTAUpdate(const char *id, char reply[]) override;
   virtual void sleep(uint32_t secs) override;
+  virtual void loop() override;
   bool isExternalPowered() override;
+
+  void initWatchdog(uint8_t timeout_secs);
+  void requestLockup();
+  bool isWatchdogRunning() const;
+  uint8_t getWatchdogTimeoutSecs() const { return _wdt_timeout_secs; }
+  uint8_t getWatchdogRunningTimeoutSecs() const;
+  static void feedWatchdogIfRunning();
+
+  virtual uint32_t getResetReason() const override { return reset_reason; }
+  const char* getResetReasonString(uint32_t reason) override;
 
 #ifdef NRF52_POWER_MANAGEMENT
   uint16_t getBootVoltage() override { return boot_voltage_mv; }
-  virtual uint32_t getResetReason() const override { return reset_reason; }
   uint8_t getShutdownReason() const override { return shutdown_reason; }
-  const char* getResetReasonString(uint32_t reason) override;
   const char* getShutdownReasonString(uint8_t reason) override;
 #endif
 };

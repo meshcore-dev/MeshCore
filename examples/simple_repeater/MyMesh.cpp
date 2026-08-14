@@ -1,5 +1,8 @@
 #include "MyMesh.h"
 #include <algorithm>
+#if defined(NRF52_PLATFORM)
+#include "helpers/NRF52Board.h"
+#endif
 
 /* ------------------------------ Config -------------------------------- */
 
@@ -946,6 +949,15 @@ void MyMesh::begin(FILESYSTEM *fs) {
   // load persisted prefs
   _cli.loadPrefs(_fs);
   acl.load(_fs, self_id);
+#if defined(NRF52_PLATFORM)
+  {
+    uint8_t wdt_to = 0;
+    if (_prefs.wdt_enabled) {
+      wdt_to = constrain(_prefs.wdt_timeout_secs, 1, 255);
+    }
+    static_cast<NRF52Board&>(board).initWatchdog(wdt_to);
+  }
+#endif
   // TODO: key_store.begin();
   region_map.load(_fs);
 
