@@ -76,16 +76,6 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
   }
 
   if (pkt->isRouteDirect() && pkt->getPathHashCount() > 0) {
-    // check for 'early received' ACK
-    if (pkt->getPayloadType() == PAYLOAD_TYPE_ACK) {
-      int i = 0;
-      uint32_t ack_crc;
-      memcpy(&ack_crc, &pkt->payload[i], 4); i += 4;
-      if (i <= pkt->payload_len) {
-        onAckRecv(pkt, ack_crc);
-      }
-    }
-
     if (self_id.isHashMatch(pkt->path, pkt->getPathHashSize()) && allowPacketForward(pkt)) {
       if (pkt->getPayloadType() == PAYLOAD_TYPE_MULTIPART) {
         return forwardMultipartDirect(pkt);
@@ -106,7 +96,36 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
         return ACTION_RETRANSMIT_DELAYED(0, d);  // Routed traffic is HIGHEST priority 
       }
     }
-    return ACTION_RELEASE;   // this node is NOT the next hop (OR this packet has already been forwarded), so discard.
+
+    // check if we're the destination or can otherwise receive this packet early - before the full path has been consumed
+    bool can_early_receive = false;
+    switch (pkt->getPayloadType()) {
+      case PAYLOAD_TYPE_ACK: {
+        int i = 0;
+        uint32_t ack_crc;
+        memcpy(&ack_crc, &pkt->payload[i], 4); i += 4;
+        if (i <= pkt->payload_len) {
+          can_early_receive = true;
+        }
+        break;
+      }
+      
+      case PAYLOAD_TYPE_PATH:
+      case PAYLOAD_TYPE_REQ:
+      case PAYLOAD_TYPE_RESPONSE:
+      case PAYLOAD_TYPE_TXT_MSG:
+      case PAYLOAD_TYPE_ANON_REQ: {
+        // all of these payloads have the destination hash in the first byte
+        if (self_id.isHashMatch(pkt->payload, 1)) {
+          can_early_receive = true;
+        }
+        break;
+      }
+    }
+
+    if (!can_early_receive) {
+      return ACTION_RELEASE;   // this node is NOT the next hop (OR this packet has already been forwarded), so discard.
+    }
   }
 
   if (pkt->isRouteFlood() && filterRecvFloodPacket(pkt)) return ACTION_RELEASE;
