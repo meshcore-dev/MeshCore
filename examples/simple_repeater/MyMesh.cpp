@@ -1,5 +1,6 @@
 #include "MyMesh.h"
 #include <algorithm>
+#include <climits>
 
 /* ------------------------------ Config -------------------------------- */
 
@@ -85,6 +86,42 @@ void MyMesh::putNeighbour(const mesh::Identity &id, uint32_t timestamp, float sn
   neighbour->heard_timestamp = getRTCClock()->getCurrentTime();
   neighbour->snr = (int8_t)(snr * 4);
 #endif
+}
+
+int8_t MyMesh::findNeighbourSNR(const uint8_t* hash, uint8_t hash_size) {
+#if MAX_NEIGHBOURS
+  for (int i = 0; i < MAX_NEIGHBOURS; i++) {
+    if (neighbours[i].heard_timestamp != 0 && neighbours[i].id.isHashMatch(hash, hash_size)) {
+      return neighbours[i].snr;
+    }
+  }
+#endif
+  return INT8_MAX;
+}
+
+// Approximate SNR demod floor per SF (same as RadioLibWrappers.cpp)
+static const float cr_snr_thresholds[] = {
+  -7.5f,  // SF7
+  -10.0f, // SF8
+  -12.5f, // SF9
+  -15.0f, // SF10
+  -17.5f, // SF11
+  -20.0f  // SF12
+};
+
+uint8_t MyMesh::selectCodingRateForPeer(const uint8_t* hash, uint8_t hash_size) {
+  int8_t snr4 = findNeighbourSNR(hash, hash_size);
+  if (snr4 == INT8_MAX) return 0;  // unknown neighbor, use default
+
+  float snr = snr4 / 4.0f;
+  float threshold = (_prefs.sf >= 7 && _prefs.sf <= 12)
+    ? cr_snr_thresholds[_prefs.sf - 7] : -15.0f;
+  float margin = snr - threshold;
+
+  if (margin < 3.0f)  return 8;
+  if (margin < 6.0f)  return 7;
+  if (margin < 10.0f) return 6;
+  return 5;  // good margin, use lightest CR
 }
 
 uint8_t MyMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* secret, uint32_t sender_timestamp, const uint8_t* data, bool is_flood) {
@@ -545,12 +582,12 @@ int MyMesh::calcRxDelay(float score, uint32_t air_time) const {
 }
 
 uint32_t MyMesh::getRetransmitDelay(const mesh::Packet *packet) {
-  uint32_t t = (_radio->getEstAirtimeFor(packet->getPathByteLen() + packet->payload_len + 2) * _prefs.tx_delay_factor);
-  return getRNG()->nextInt(0, 5*t + 1);
+  uint32_t tx_airtime_ms = (estimateTxAirtimeFor(packet->getPathByteLen() + packet->payload_len + 2, packet->_tx_cr) * _prefs.tx_delay_factor);
+  return getRNG()->nextInt(0, 5 * tx_airtime_ms + 1);
 }
 uint32_t MyMesh::getDirectRetransmitDelay(const mesh::Packet *packet) {
-  uint32_t t = (_radio->getEstAirtimeFor(packet->getPathByteLen() + packet->payload_len + 2) * _prefs.direct_tx_delay_factor);
-  return getRNG()->nextInt(0, 5*t + 1);
+  uint32_t tx_airtime_ms = (estimateTxAirtimeFor(packet->getPathByteLen() + packet->payload_len + 2, packet->_tx_cr) * _prefs.direct_tx_delay_factor);
+  return getRNG()->nextInt(0, 5 * tx_airtime_ms + 1);
 }
 
 mesh::DispatcherAction MyMesh::onRecvPacket(mesh::Packet* pkt) {
@@ -977,6 +1014,7 @@ void MyMesh::begin(FILESYSTEM *fs) {
 
   radio_driver.setParams(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
   radio_driver.setTxPower(_prefs.tx_power_dbm);
+  setDefaultCR(_prefs.cr);
 
   radio_driver.setRxBoostedGainMode(_prefs.rx_boosted_gain);
   MESH_DEBUG_PRINTLN("RX Boosted Gain Mode: %s",
@@ -1308,12 +1346,14 @@ void MyMesh::loop() {
   if (set_radio_at && millisHasNowPassed(set_radio_at)) { // apply pending (temporary) radio params
     set_radio_at = 0;                                     // clear timer
     radio_driver.setParams(pending_freq, pending_bw, pending_sf, pending_cr);
+    setDefaultCR(pending_cr);
     MESH_DEBUG_PRINTLN("Temp radio params");
   }
 
   if (revert_radio_at && millisHasNowPassed(revert_radio_at)) { // revert radio params to orig
     revert_radio_at = 0;                                        // clear timer
     radio_driver.setParams(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
+    setDefaultCR(_prefs.cr);
     MESH_DEBUG_PRINTLN("Radio params restored");
   }
 

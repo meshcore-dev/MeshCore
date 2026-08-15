@@ -49,6 +49,7 @@ public:
   uint8_t path[MAX_PATH_SIZE];
   uint8_t payload[MAX_PACKET_PAYLOAD];
   int8_t _snr;
+  uint8_t _tx_cr;   // 0 = use node default, 5-8 = override CR for this TX (not serialized to wire)
 
   /**
    * \brief calculate the hash of payload + type
