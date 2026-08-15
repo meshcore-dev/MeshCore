@@ -56,6 +56,7 @@ public:
   virtual bool startOTAUpdate(const char *id, char reply[]) override;
   virtual void sleep(uint32_t secs) override;
   bool isExternalPowered() override;
+  void enterLightSleep(uint32_t secs, int pin_wake_btn = -1) { sleep(secs); }
 
 #ifdef NRF52_POWER_MANAGEMENT
   uint16_t getBootVoltage() override { return boot_voltage_mv; }

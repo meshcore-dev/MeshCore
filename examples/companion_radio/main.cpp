@@ -101,6 +101,11 @@ MyMesh the_mesh(radio_driver, fast_rng, rtc_clock, tables, store
    #endif
 );
 
+// Power saving timing variables
+unsigned long lastActive = 0;           // Last time there was activity
+unsigned long nextSleepInSecs = 120;    // Wait 2 minutes before first sleep
+const unsigned long WORK_TIME_SECS = 5; // Stay awake 5 seconds after wake/activity
+
 /* END GLOBAL OBJECTS */
 
 void halt() {
@@ -242,6 +247,9 @@ void setup() {
 #endif
 
   board.onBootComplete();
+
+  // Initialize power saving timer
+  lastActive = millis();
 }
 
 void loop() {
@@ -269,6 +277,35 @@ void loop() {
     WiFi.disconnect();
     WiFi.reconnect();
     last_wifi_reconnect_attempt = millis();
+  }
+#endif
+
+#if defined(BLE_PIN_CODE) && !defined(WIFI_SSID) && !defined(ETHERNET_ENABLED)
+  // Power saving when BLE is disabled
+  // Don't sleep if GPS is enabled - it needs continuous operation to maintain fix
+  // Note: Disabling BLE via UI actually turns off the radio to save power
+  if (!bluetooth_interface.isEnabled() && !the_mesh.getNodePrefs()->gps_enabled) {
+    // Check for pending work and update activity timer
+    if (the_mesh.hasPendingWork()) {
+      lastActive = millis();
+      if (nextSleepInSecs < 10) {
+        nextSleepInSecs += 5; // Extend work time by 5s if still busy
+      }
+    }
+
+    // Only sleep if enough time has passed since last activity
+    if (the_mesh.millisHasNowPassed(lastActive + (nextSleepInSecs * 1000))) {
+#ifdef PIN_USER_BTN
+      // Sleep for 30 minutes, wake on LoRa packet, timer, or button press
+      board.enterLightSleep(1800, PIN_USER_BTN);
+#else
+      // Sleep for 30 minutes, wake on LoRa packet or timer
+      board.enterLightSleep(1800);
+#endif
+      // Just woke up - reset timers
+      lastActive = millis();
+      nextSleepInSecs = WORK_TIME_SECS; // Stay awake for 5s after wake
+    }
   }
 #endif
 }
