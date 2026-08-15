@@ -61,7 +61,11 @@ void ClientACL::save(FILESYSTEM* fs, bool (*filter)(ClientInfo*)) {
 
     for (int i = 0; i < num_clients; i++) {
       auto c = &clients[i];
-      if (c->permissions == 0 || (filter && !filter(c))) continue;    // skip deleted entries, or by filter function
+      // Persist guest entries (permissions == 0) so their last_timestamp survives
+      // reboot — otherwise a captured guest packet can be replayed once after
+      // power cycle. The explicit-delete path in applyPermissions() removes the
+      // slot entirely, so any permissions==0 entry here is a real (guest) client.
+      if (filter && !filter(c)) continue;
 
       bool success = (file.write(c->id.pub_key, 32) == 32);
       success = success && (file.write((uint8_t *) &c->permissions, 1) == 1);
