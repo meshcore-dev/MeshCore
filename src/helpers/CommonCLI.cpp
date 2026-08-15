@@ -273,6 +273,8 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       sprintf(reply, "%s (Build: %s)", _callbacks->getFirmwareVer(), _callbacks->getBuildDate());
     } else if (memcmp(command, "board", 5) == 0) {
       sprintf(reply, "%s", _board->getManufacturerName());
+    } else if (memcmp(command, "sensors", 7) == 0) {
+      _sensors->formatActiveSensorsReply(reply);
     } else if (memcmp(command, "sensor get ", 11) == 0) {
       const char* key = command + 11;
       const char* val = _sensors->getSettingByKey(key);

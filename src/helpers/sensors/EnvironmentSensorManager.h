@@ -12,7 +12,9 @@ protected:
   // Sub-channel is 0 for all single-output sensors.
   struct ActiveSensor {
     void    (*query)(uint8_t channel, uint8_t sub_channel, CayenneLPP& telemetry);
-    uint8_t   sub_channel;
+    uint8_t     sub_channel;
+    const char* name;     // points into SENSOR_TABLE's static string, not owned
+    uint8_t     address;
   };
 
   ActiveSensor _active_sensors[MAX_ACTIVE_SENSORS];
@@ -50,4 +52,5 @@ public:
   const char* getSettingName(int i) const override;
   const char* getSettingValue(int i) const override;
   bool setSettingValue(const char* name, const char* value) override;
+  void formatActiveSensorsReply(char* reply) override;
 };

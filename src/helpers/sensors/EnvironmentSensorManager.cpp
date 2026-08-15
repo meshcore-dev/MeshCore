@@ -651,7 +651,7 @@ bool EnvironmentSensorManager::begin() {
     }
     MESH_DEBUG_PRINTLN("Found %s at address: %02X", def.name, def.address);
     for (uint8_t sub = 0; sub < n && _active_sensor_count < MAX_ACTIVE_SENSORS; sub++) {
-      _active_sensors[_active_sensor_count++] = { def.query, sub };
+      _active_sensors[_active_sensor_count++] = { def.query, sub, def.name, def.address };
     }
   }
 
@@ -681,6 +681,32 @@ bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, Cayen
   return true;
 }
 
+// ============================================================
+// formatActiveSensorsReply() — lists each detected sensor with
+// its assigned telemetry channel and I2C address, for the
+// "sensors" CLI command. Channel numbering mirrors the order
+// querySensors() assigns at runtime.
+// ============================================================
+
+void EnvironmentSensorManager::formatActiveSensorsReply(char* reply) {
+  if (_active_sensor_count == 0) {
+    strcpy(reply, "no sensors detected");
+    return;
+  }
+
+  char* dp = reply;
+  int i;
+  for (i = 0; i < _active_sensor_count && (dp - reply < 140); i++) {
+    uint8_t channel = TELEM_CHANNEL_SELF + 1 + i;
+    sprintf(dp, "ch%d: %s @ 0x%02X\n", channel, _active_sensors[i].name, _active_sensors[i].address);
+    dp = strchr(dp, 0);
+  }
+  if (i < _active_sensor_count) {
+    sprintf(dp, "... +%d more", _active_sensor_count - i);
+  } else {
+    *(dp - 1) = 0; // remove trailing newline
+  }
+}
 
 int EnvironmentSensorManager::getNumSettings() const {
   int settings = 0;
