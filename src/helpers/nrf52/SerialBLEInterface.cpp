@@ -22,6 +22,122 @@
 // RX drain buffer size for overflow protection
 #define BLE_RX_DRAIN_BUF_SIZE      32
 
+// Maximum BLE device name length that fits in a scan response AD element.
+// 31 (BLE_GAP_ADV_SET_DATA_SIZE_MAX) - 2 (AD length + type bytes) = 29
+#define BLE_NAME_MAX_LEN  29
+
+// Return the byte length of a UTF-8 character starting at s, where
+// remaining is the number of valid bytes from s onward.
+// Returns 1 for invalid/incomplete sequences to guarantee forward progress.
+static size_t utf8CharLen(const char* s, size_t remaining) {
+  uint8_t b = (uint8_t)s[0];
+  size_t expected;
+  if (b < 0x80)                    expected = 1;
+  else if ((b & 0xE0) == 0xC0)    expected = 2;
+  else if ((b & 0xF0) == 0xE0)    expected = 3;
+  else if ((b & 0xF8) == 0xF0)    expected = 4;
+  else                             return 1;  // continuation or invalid
+
+  if (expected > remaining) return 1;  // truncated sequence
+  for (size_t j = 1; j < expected; j++) {
+    if (((uint8_t)s[j] & 0xC0) != 0x80) return 1;  // missing continuation
+  }
+  return expected;
+}
+
+// Build a BLE device name from prefix + node name, middle-truncating with
+// ".." if the result would exceed BLE_NAME_MAX_LEN bytes.
+// Truncation is UTF-8 safe and preserves the beginning and end of the name.
+static void buildBLEName(char* dest, size_t dest_size,
+                         const char* prefix, const char* name)
+{
+  if (dest_size == 0) return;
+
+  size_t prefix_len = strlen(prefix);
+  size_t name_len = strlen(name);
+
+  // Clamp output limit to both dest_size and BLE_NAME_MAX_LEN
+  size_t max_out = dest_size - 1;
+  if (BLE_NAME_MAX_LEN < max_out) max_out = BLE_NAME_MAX_LEN;
+
+  // If prefix alone meets or exceeds the limit, truncate it and return
+  if (prefix_len >= max_out) {
+    memcpy(dest, prefix, max_out);
+    dest[max_out] = '\0';
+    return;
+  }
+
+  // Fast path: fits without truncation
+  if (prefix_len + name_len <= max_out) {
+    snprintf(dest, dest_size, "%s%s", prefix, name);
+    return;
+  }
+
+  size_t name_budget = max_out - prefix_len;
+  const char sep[] = "..";
+  const size_t sep_len = 2;
+
+  // If budget is too small for meaningful middle-truncation (need at least
+  // 1 char + sep + 1 char), just take the head
+  if (name_budget <= sep_len + 2) {
+    memcpy(dest, prefix, prefix_len);
+    size_t i = 0;
+    while (i < name_budget && i < name_len) {
+      size_t cl = utf8CharLen(name + i, name_len - i);
+      if (i + cl > name_budget) break;
+      i += cl;
+    }
+    memcpy(dest + prefix_len, name, i);
+    dest[prefix_len + i] = '\0';
+    return;
+  }
+
+  size_t content_budget = name_budget - sep_len;
+  size_t head_target = content_budget / 2;
+  size_t tail_target = content_budget - head_target;
+
+  // Walk forward: collect head (complete UTF-8 characters up to head_target bytes)
+  size_t head_len = 0;
+  {
+    size_t i = 0;
+    while (i < name_len) {
+      size_t cl = utf8CharLen(name + i, name_len - i);
+      if (i + cl > head_target) break;
+      i += cl;
+    }
+    head_len = i;
+  }
+
+  // Walk backward: collect tail (complete UTF-8 characters up to tail_target bytes)
+  size_t tail_start = name_len;
+  size_t tail_len = 0;
+  {
+    size_t i = name_len;
+    while (i > 0 && tail_len < tail_target) {
+      // Find start of previous UTF-8 character
+      size_t prev = i - 1;
+      while (prev > 0 && ((uint8_t)name[prev] & 0xC0) == 0x80)
+        prev--;
+      // If name[0] is itself a continuation byte, the sequence is malformed
+      if (prev == 0 && ((uint8_t)name[0] & 0xC0) == 0x80)
+        break;
+      size_t cl = i - prev;
+      if (tail_len + cl > tail_target) break;
+      tail_len += cl;
+      i = prev;
+    }
+    tail_start = name_len - tail_len;
+  }
+
+  // Assemble: prefix + head + ".." + tail
+  size_t pos = 0;
+  memcpy(dest + pos, prefix, prefix_len);          pos += prefix_len;
+  memcpy(dest + pos, name, head_len);              pos += head_len;
+  memcpy(dest + pos, sep, sep_len);                pos += sep_len;
+  memcpy(dest + pos, name + tail_start, tail_len); pos += tail_len;
+  dest[pos] = '\0';
+}
+
 static SerialBLEInterface* instance = nullptr;
 
 void SerialBLEInterface::onConnect(uint16_t connection_handle) {
@@ -133,8 +249,8 @@ void SerialBLEInterface::begin(const char* prefix, char* name, uint32_t pin_code
   // Bluefruit.autoConnLed(false);
   Bluefruit.configPrphBandwidth(BANDWIDTH_MAX);
   Bluefruit.begin();
- 
-  char dev_name[32+16];
+
+  // Resolve "@@MAC" now that the SoftDevice is active
   if (strcmp(name, "@@MAC") == 0) {
     ble_gap_addr_t addr;
     if (sd_ble_gap_addr_get(&addr) == NRF_SUCCESS) {
@@ -142,7 +258,11 @@ void SerialBLEInterface::begin(const char* prefix, char* name, uint32_t pin_code
           addr.addr[5], addr.addr[4], addr.addr[3], addr.addr[2], addr.addr[1], addr.addr[0]);
     }
   }
-  sprintf(dev_name, "%s%s", prefix, name);
+
+  // Build the BLE name with middle-truncation if needed to fit within the
+  // SoftDevice's default 31-byte GAP name limit and 29-byte scan response limit
+  char dev_name[32+16];
+  buildBLEName(dev_name, sizeof(dev_name), prefix, name);
 
   // Connection interval units: 1.25ms, supervision timeout units: 10ms
   ble_gap_conn_params_t ppcp_params;
