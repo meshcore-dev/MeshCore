@@ -1,0 +1,21 @@
+sample:
+  name: MeshCore minimal (loopback)
+  description: >
+    Brings up the MeshCore mesh engine on Zephyr with the Zephyr platform
+    helpers and a loopback radio. No external LoRa hardware required.
+
+common:
+  tags: meshcore lora mesh
+  integration_platforms:
+    - native_sim
+  harness: console
+  harness_config:
+    type: one_line
+    regex:
+      - "MeshCore minimal sample: mesh engine up"
+
+tests:
+  sample.meshcore.mesh_min:
+    platform_allow:
+      - native_sim
+      - qemu_cortex_m3

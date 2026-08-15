@@ -1,0 +1,15 @@
+# MeshCore Zephyr module descriptor.
+#
+# This turns the MeshCore repository into a Zephyr module. When the repo is
+# pulled in as a west project (see zephyr/README.md), Zephyr automatically
+# sources the Kconfig and CMakeLists.txt referenced below, so applications can
+# enable the library with `CONFIG_MESHCORE=y`.
+name: meshcore
+
+build:
+  # Directory (relative to the repo root) that holds the module's CMakeLists.txt.
+  cmake: zephyr
+  # Kconfig tree that exposes the MESHCORE_* options.
+  kconfig: zephyr/Kconfig
+  # NOTE: add a `settings:` block here (board_root / dts_root / soc_root) if and
+  # when MeshCore starts shipping Zephyr boards or SoC/DTS overlays.
