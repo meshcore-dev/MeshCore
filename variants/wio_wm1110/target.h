@@ -10,7 +10,7 @@
 
 extern WioWM1110Board board;
 extern WRAPPER_CLASS radio_driver;
-extern VolatileRTCClock rtc_clock;
+extern NRF52RTCClock rtc_clock;
 extern EnvironmentSensorManager sensors;
 
 bool radio_init();

@@ -8,7 +8,7 @@ RADIO_CLASS radio = new Module(P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BU
 
 WRAPPER_CLASS radio_driver(radio, board);
 
-VolatileRTCClock fallback_clock;
+NRF52RTCClock fallback_clock;
 AutoDiscoverRTCClock rtc_clock(fallback_clock);
 
 EnvironmentSensorManager sensors;

@@ -2,6 +2,10 @@
 #include "NRF52Board.h"
 #include <target.h>
 
+// Single definitions for noinit backup variables (declared extern in NRF52Board.h)
+uint32_t _noinit_backup_time __attribute__((section(".noinit")));
+uint32_t _noinit_backup_magic __attribute__((section(".noinit")));
+
 #include <bluefruit.h>
 #include <nrf_soc.h>
 
