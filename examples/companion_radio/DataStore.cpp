@@ -54,9 +54,6 @@ void DataStore::begin() {
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
   _ContactsChannelsTotalBlocks = _getContactsChannelsFS()->_getFS()->cfg->block_count;
   checkAdvBlobFile();
-  #if defined(EXTRAFS) || defined(QSPIFLASH)
-  migrateToSecondaryFS();
-  #endif
 #else
   // init 'blob store' support
   _fs->mkdir("/bl");
@@ -387,114 +384,6 @@ void DataStore::checkAdvBlobFile() {
       }
       file.close();
     }
-  }
-}
-
-void DataStore::migrateToSecondaryFS() {
-  // migrate old adv_blobs, contacts3 and channels2 files to secondary FS if they don't already exist
-  if (!_fsExtra->exists("/adv_blobs")) {
-    if (_fs->exists("/adv_blobs")) {
-    File oldAdvBlobs = openRead(_fs, "/adv_blobs");
-    File newAdvBlobs = openWrite(_fsExtra, "/adv_blobs");
-
-    if (oldAdvBlobs && newAdvBlobs) {
-      BlobRec rec;
-      size_t count = 0;
-
-      // Copy 20 BlobRecs from old to new
-      while (count < 20 && oldAdvBlobs.read((uint8_t *)&rec, sizeof(rec)) == sizeof(rec)) {
-        newAdvBlobs.seek(count * sizeof(BlobRec));
-        newAdvBlobs.write((uint8_t *)&rec, sizeof(rec));
-        count++;
-      }
-    }
-    if (oldAdvBlobs) oldAdvBlobs.close();
-    if (newAdvBlobs) newAdvBlobs.close();
-    _fs->remove("/adv_blobs");
-    }
-  }
-  if (!_fsExtra->exists("/contacts3")) {
-    if (_fs->exists("/contacts3")) {
-      File oldFile = openRead(_fs, "/contacts3");
-      File newFile = openWrite(_fsExtra, "/contacts3");
-
-      if (oldFile && newFile) {
-        uint8_t buf[64];
-        int n;
-        while ((n = oldFile.read(buf, sizeof(buf))) > 0) {
-          newFile.write(buf, n);
-        }
-      }
-      if (oldFile) oldFile.close();
-      if (newFile) newFile.close();
-      _fs->remove("/contacts3");
-    }
-  }
-  if (!_fsExtra->exists("/channels2")) {
-    if (_fs->exists("/channels2")) {
-      File oldFile = openRead(_fs, "/channels2");
-      File newFile = openWrite(_fsExtra, "/channels2");
-
-      if (oldFile && newFile) {
-        uint8_t buf[64];
-        int n;
-        while ((n = oldFile.read(buf, sizeof(buf))) > 0) {
-          newFile.write(buf, n);
-        }
-      }
-      if (oldFile) oldFile.close();
-      if (newFile) newFile.close();
-      _fs->remove("/channels2");
-    }
-  }
-  // cleanup nodes which have been testing the extra fs, copy _main.id and new_prefs back to primary
-  if (_fsExtra->exists("/_main.id")) {
-      if (_fs->exists("/_main.id")) {_fs->remove("/_main.id");}
-      File oldFile = openRead(_fsExtra, "/_main.id");
-      File newFile = openWrite(_fs, "/_main.id");
-
-      if (oldFile && newFile) {
-        uint8_t buf[64];
-        int n;
-        while ((n = oldFile.read(buf, sizeof(buf))) > 0) {
-          newFile.write(buf, n);
-        }
-      }
-      if (oldFile) oldFile.close();
-      if (newFile) newFile.close();
-      _fsExtra->remove("/_main.id");
-  }
-  if (_fsExtra->exists("/new_prefs")) {
-    if (_fs->exists("/new_prefs")) {_fs->remove("/new_prefs");}
-      File oldFile = openRead(_fsExtra, "/new_prefs");
-      File newFile = openWrite(_fs, "/new_prefs");
-
-      if (oldFile && newFile) {
-        uint8_t buf[64];
-        int n;
-        while ((n = oldFile.read(buf, sizeof(buf))) > 0) {
-          newFile.write(buf, n);
-        }
-      }
-      if (oldFile) oldFile.close();
-      if (newFile) newFile.close();
-      _fsExtra->remove("/new_prefs");
-  }
-  // remove files from where they should not be anymore
-  if (_fs->exists("/adv_blobs")) {
-    _fs->remove("/adv_blobs");
-  }
-  if (_fs->exists("/contacts3")) {
-    _fs->remove("/contacts3");
-  }
-  if (_fs->exists("/channels2")) {
-    _fs->remove("/channels2");
-  }
-  if (_fsExtra->exists("/_main.id")) {
-    _fsExtra->remove("/_main.id");
-  }
-  if (_fsExtra->exists("/new_prefs")) {
-    _fsExtra->remove("/new_prefs");
   }
 }
 
