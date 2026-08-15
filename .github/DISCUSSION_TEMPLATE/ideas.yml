@@ -1,0 +1,29 @@
+title: "[Idea]: "
+labels: ["enhancement"]
+body:
+  - type: input
+    id: hardware
+    attributes:
+      label: Hardware (if applicable)
+      description: Which hardware does this apply to? Leave blank if not hardware-specific.
+      placeholder: "e.g., T1000-E, Heltec LoRa32 v3, all ESP32 boards"
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe your idea
+      description: What would you like to see? What problem does it solve?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Have you considered any alternative solutions or workarounds?
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Any other context, mockups, or references.
