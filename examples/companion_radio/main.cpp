@@ -248,6 +248,12 @@ void loop() {
   the_mesh.loop();
   interface_manager.loop();
   sensors.loop();
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("Reconnecting to WiFi...");
+    WiFi.disconnect();
+    WiFi.reconnect();
+    delay(5000); // Give it time to reconnect
+  }
 #ifdef DISPLAY_CLASS
   ui_task.loop();
 #endif
