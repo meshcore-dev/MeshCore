@@ -160,6 +160,19 @@ static Adafruit_VL53L0X VL53L0X;
 static RAK12035_SoilMoisture RAK12035;
 #endif
 
+#if ENV_INCLUDE_RAK12047
+#ifndef TELEM_RAK12047_ADDRESS
+#define TELEM_RAK12047_ADDRESS  0x59
+#endif
+#include <SensirionI2CSgp40.h>
+#include <SensirionGasIndexAlgorithm.h>
+static SensirionI2CSgp40       sgp40;
+static GasIndexAlgorithmParams sgp40_voc_params;
+static int32_t                 sgp40_voc_index = 0;
+static bool                    sgp40_active    = false;
+static uint32_t                sgp40_last_ms   = 0;
+#endif
+
 #if ENV_INCLUDE_GPS && defined(RAK_BOARD) && !defined(RAK_WISMESH_TAG)
 #define RAK_WISBLOCK_GPS
 #endif
@@ -475,6 +488,21 @@ static void query_rak12035(uint8_t ch, uint8_t sub_ch, CayenneLPP& lpp) {
 }
 #endif
 
+#if ENV_INCLUDE_RAK12047
+static uint8_t init_rak12047(TwoWire* wire, uint8_t addr) {
+  sgp40.begin(*wire);
+  uint16_t serial[3];
+  if (sgp40.getSerialNumber(serial, 3) != 0) return 0;
+  GasIndexAlgorithm_init(&sgp40_voc_params, GasIndexAlgorithm_ALGORITHM_TYPE_VOC);
+  sgp40_active = true;
+  return 1;
+}
+static void query_rak12047(uint8_t ch, uint8_t, CayenneLPP& lpp) {
+  if (sgp40_voc_index > 0)
+    lpp.addGenericSensor(ch, (uint32_t)sgp40_voc_index);
+}
+#endif
+
 #if ENV_INCLUDE_BME680_BSEC
 static void bsec_load_state() {
   using namespace Adafruit_LittleFS_Namespace;
@@ -599,6 +627,9 @@ static const SensorDef SENSOR_TABLE[] = {
 #endif
 #if ENV_INCLUDE_RAK12035
   { TELEM_RAK12035_ADDRESS,"RAK12035",     init_rak12035, query_rak12035 },
+#endif
+#if ENV_INCLUDE_RAK12047
+  { TELEM_RAK12047_ADDRESS,"RAK12047/SGP40", init_rak12047, query_rak12047 },
 #endif
   { 0, nullptr, nullptr, nullptr }  // sentinel — keeps the array non-empty
 };
@@ -892,7 +923,7 @@ void EnvironmentSensorManager::stop_gps() {
 }
 #endif // ENV_INCLUDE_GPS
 
-#if ENV_INCLUDE_GPS || defined(ENV_INCLUDE_BME680_BSEC)
+#if ENV_INCLUDE_GPS || defined(ENV_INCLUDE_BME680_BSEC) || defined(ENV_INCLUDE_RAK12047)
 void EnvironmentSensorManager::loop() {
 
   #if ENV_INCLUDE_GPS
@@ -946,5 +977,16 @@ void EnvironmentSensorManager::loop() {
     }
   }
   #endif  // ENV_INCLUDE_BME680_BSEC
+
+  #if ENV_INCLUDE_RAK12047
+  if (sgp40_active && (millis() - sgp40_last_ms >= 1000)) {
+    uint16_t sraw;
+    if (sgp40.measureRawSignal(0x8000, 0x6666, sraw) == 0) {
+      GasIndexAlgorithm_process(&sgp40_voc_params, (int32_t)sraw, &sgp40_voc_index);
+    }
+    sgp40_last_ms = millis();
+  }
+  #endif  // ENV_INCLUDE_RAK12047
+
 }
 #endif // ENV_INCLUDE_GPS || ENV_INCLUDE_BME680_BSEC
