@@ -1,0 +1,117 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: en-US
+tone_instructions: |
+  Speak only in η = useful_joules / human_joules.
+  Enforce R=1.0 (coordination cost must be zero).
+  Absolute paths only. Never tilde. Never relative home paths.
+  Serve the lowest node. Offline-first. Structure beats scale.
+  Every change must raise α_A for the least capable node.
+  Reject anything that increases coordination cost or human joules without measured useful_joules return.
+
+reviews:
+  profile: assertive
+  high_level_summary: true
+  high_level_summary_in_walkthrough: true
+  sequence_diagrams: true
+  poem: false
+  request_changes_workflow: true
+  auto_review:
+    enabled: true
+    drafts: false
+    auto_incremental_review: true
+    base_branches: ["main", "master"]
+    ignore_title_keywords: ["WIP", "DO NOT MERGE", "draft"]
+  path_filters:
+    - "!**/*.lock"
+    - "!**/node_modules/**"
+    - "!**/__pycache__/**"
+    - "!**/.git/**"
+    - "!**/dist/**"
+    - "!**/build/**"
+  path_instructions:
+    - path: "**/*.{py,sh,c,cpp,h,hpp,md,json,yml,yaml}"
+      instructions: |
+        1. Absolute paths only under /data/data/com.termux/files/home/ or /sdcard/openroot/.
+        2. η language mandatory. Reject any code that cannot be measured in useful_joules.
+        3. R must remain 1.0. Any new coordination surface must be proven zero-cost.
+        4. Prefer single-file atomic functions (core_atomic style). Structure over abstraction.
+        5. Every ledger write must be measured physical or verified computational joules only.
+        6. Offline-first: no new external network dependency without a pure local fallback.
+        7. Serve lowest node: code must run on A15/Termux + 4 GB or less when possible.
+        8. Fractal: any new module must be a clean 6-unit or base-N sub-swarm that can recurse.
+    - path: "**/computational_flow/**"
+      instructions: |
+        Enforce Landauer floor awareness. Preserve synergy_mult key. Newton Chain postulates are immutable.
+    - path: "**/ledger/**"
+      instructions: |
+        Only measured joules. No speculation. Merkle + hash + real-time inference hedge required.
+    - path: "**/*rmh*","**/aerocement/**","**/black-locust*"
+      instructions: |
+        Physical yield first. EROI and ΔT numbers must be real measurements, never estimates.
+
+knowledge_base:
+  opt_out: false
+  web_search:
+    enabled: true
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - "**/AGENTS.md"
+      - "**/CLAUDE.md"
+      - "**/.cursorrules"
+      - "**/.github/copilot-instructions.md"
+      - "**/FOUNDATION*.md"
+      - "**/AGAPE*.md"
+      - "**/UNE*.md"
+      - "**/00_MASTER_CONSTITUTION.md"
+  learnings:
+    scope: global
+  automatic_repository_linking: false
+  linked_repositories:
+    - repository: "jesseray718/openroot"
+      instructions: "Root lattice. Physical infrastructure + computational swarm. η / R=1.0 source of truth. All other repos are spokes."
+    - repository: "jesseray718/une"
+      instructions: "Joule-native computational substrate, core_atomic, agape_engine, structure_enforcer, oracle, context_bridge."
+    - repository: "jesseray718/agape-une"
+      instructions: "Agape Coordination Theorem, fractal convergence, ACRE, Kingdom Engine."
+    - repository: "jesseray718/agape-primitives"
+      instructions: "Thermodynamic multi-agent primitives for local LLMs. Structure beats scale."
+    - repository: "jesseray718/agaperesonance"
+      instructions: "Resonance=1.0 zero-coordination math and measurement."
+    - repository: "jesseray718/fractallattice"
+      instructions: "Fractal swarm base-6 / base-N lattice construction."
+    - repository: "jesseray718/etaledger"
+      instructions: "η / thermodynamic + PoPW ledger."
+    - repository: "jesseray718/aerocement"
+      instructions: "AR-GFRC material system, drill-and-bucket, volumetric cascade."
+    - repository: "jesseray718/black-locust-rmh"
+      instructions: "Carbon-negative thermal cascade, 28 MJ/kg, EROI 1620:1 reference."
+    - repository: "jesseray718/openroot-spoke-template"
+      instructions: "Deployable spoke node template. New physical/compute nodes start here."
+    - repository: "jesseray718/und-protocol"
+      instructions: "Universal Native Descriptor, high-density symbolic protocol for offline edge LLMs + Newton Chain."
+    - repository: "jesseray718/agapenet"
+      instructions: "Self-organizing fractal networks based on agape + permaculture."
+    - repository: "jesseray718/agape-coordination"
+      instructions: "Love is the optimal algorithm for distributed computation."
+    - repository: "jesseray718/wisdom-scaffold"
+      instructions: "Ancient wisdom + modern computation for resilient self-healing systems."
+    - repository: "jesseray718/agape-ipfs"
+      instructions: "IPFS layer for offline-first knowledge distribution."
+    - repository: "jesseray718/jesseray718"
+      instructions: "Profile + live lattice map + AGAPE_OFFLINE_CORE."
+
+issue_enrichment:
+  planning:
+    enabled: true
+    auto_planning:
+      enabled: true
+      labels:
+        - "plan-me"
+        - "feature"
+        - "η"
+        - "R=1.0"
+        - "!no-plan"
+
+chat:
+  auto_reply: true
