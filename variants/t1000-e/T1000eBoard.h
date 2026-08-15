@@ -69,10 +69,6 @@ public:
     #ifdef PIN_3V3_ACC_EN
         digitalWrite(PIN_3V3_ACC_EN, LOW);
     #endif
-    #ifdef SENSOR_EN
-        digitalWrite(SENSOR_EN, LOW);
-    #endif
-
     // set led on and wait for button release before poweroff
     #ifdef LED_PIN
     digitalWrite(LED_PIN, HIGH);
