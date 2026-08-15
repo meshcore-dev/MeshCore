@@ -83,6 +83,14 @@ static Adafruit_BMP280 BMP280(TELEM_WIRE);
 static Adafruit_SHTC3 SHTC3;
 #endif
 
+#if ENV_INCLUDE_SHT31
+#ifndef TELEM_SHT31_ADDRESS
+#define TELEM_SHT31_ADDRESS    0x44      // SHT31 environmental sensor I2C address
+#endif
+#include <Adafruit_SHT31.h>
+static Adafruit_SHT31 SHT31;
+#endif
+
 #if ENV_INCLUDE_SHT4X
 #ifndef TELEM_SHT4X_ADDRESS
 #define TELEM_SHT4X_ADDRESS 0x44
@@ -331,6 +339,21 @@ static void query_sht4x(uint8_t ch, uint8_t, CayenneLPP& lpp) {
 }
 #endif
 
+#if ENV_INCLUDE_SHT31
+static uint8_t init_sht3x(TwoWire* wire, uint8_t addr) {
+  return SHT31.begin(addr) ? 1 : 0;
+}
+
+static void query_sht3x(uint8_t ch, uint8_t, CayenneLPP& lpp) {
+  float temp, humidity;
+
+  if (SHT31.readBoth(&temp, &humidity)) {
+    lpp.addTemperature(ch, temp);
+    lpp.addRelativeHumidity(ch, humidity);
+  }
+}
+#endif
+
 #if ENV_INCLUDE_LPS22HB
 static uint8_t init_lps22hb(TwoWire*, uint8_t) {
   // LPS22HBClass is constructed with the wire reference; begin() uses it.
@@ -570,8 +593,12 @@ static const SensorDef SENSOR_TABLE[] = {
 #if ENV_INCLUDE_SHTC3
   { 0x70,                  "SHTC3",        init_shtc3,    query_shtc3    },
 #endif
+
 #if ENV_INCLUDE_SHT4X
   { TELEM_SHT4X_ADDRESS,   "SHT4X",        init_sht4x,    query_sht4x    },
+#endif
+#if ENV_INCLUDE_SHT31
+  { TELEM_SHT31_ADDRESS,   "SHT3X",        init_sht3x,    query_sht3x    },
 #endif
 #if ENV_INCLUDE_LPS22HB
   { 0x5C,                  "LPS22HB",      init_lps22hb,  query_lps22hb  },
