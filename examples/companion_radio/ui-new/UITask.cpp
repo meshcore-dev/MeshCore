@@ -806,6 +806,38 @@ void UITask::loop() {
     next_backlight_btn_check = millis() + 300;
   }
 #endif
+#if defined(UI_HAS_TOUCH)
+  // touch nav: tap left/right/centre -> KEY_PREV/KEY_NEXT/KEY_ENTER, long press -> ENTER
+  {
+    static bool touch_was_down = false;
+    static int touch_down_x = 0, touch_down_y = 0;
+    static unsigned long touch_down_at = 0;
+    int tx = 0, ty = 0;
+    bool touch_now = (_display != NULL) && _display->getTouch(&tx, &ty);
+    if (touch_now && !touch_was_down) {          // touch start
+      touch_down_x = tx; touch_down_y = ty;
+      touch_down_at = millis();
+      touch_was_down = true;
+    } else if (!touch_now && touch_was_down) {   // touch release -> tap
+      touch_was_down = false;
+      unsigned long held = millis() - touch_down_at;
+      if (!_display->isOn()) {
+        c = checkDisplayOn(KEY_ENTER);           // first tap just wakes the screen
+      } else if (held >= 800) {
+        c = handleLongPress(KEY_ENTER);          // long press -> ENTER (CLI rescue in first 8s)
+      } else {
+        int w = _display->width();
+        if (touch_down_x < w / 3) {
+          c = checkDisplayOn(KEY_PREV);
+        } else if (touch_down_x > (2 * w) / 3) {
+          c = checkDisplayOn(KEY_NEXT);
+        } else {
+          c = checkDisplayOn(KEY_ENTER);
+        }
+      }
+    }
+  }
+#endif
 
   if (c != 0 && curr) {
     curr->handleInput(c);
