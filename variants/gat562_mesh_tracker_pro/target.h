@@ -16,6 +16,10 @@
   extern MomentaryButton joystick_left;
   extern MomentaryButton joystick_right;
   extern MomentaryButton back_btn;
+  #if defined(JOYSTICK_UP) && defined(JOYSTICK_DOWN)
+    extern MomentaryButton joystick_up;
+    extern MomentaryButton joystick_down;
+  #endif
 #endif
 
 extern GAT562MeshTrackerProBoard board;
