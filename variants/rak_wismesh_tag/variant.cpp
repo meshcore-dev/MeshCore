@@ -15,7 +15,7 @@ void initVariant() {
   digitalWrite(LED_BLUE, LOW);
   digitalWrite(LED_GREEN, LOW);
 
-  // GPS
-  pinMode(PIN_GPS_EN, OUTPUT);
-  digitalWrite(PIN_GPS_EN, HIGH);
+  // 3V3 peripheral power rail
+  pinMode(PIN_3V3_EN, OUTPUT);
+  digitalWrite(PIN_3V3_EN, HIGH);
 }

@@ -45,8 +45,8 @@ public:
         digitalWrite(BUZZER_EN, LOW);
     #endif
 
-    #ifdef PIN_GPS_EN
-        digitalWrite(PIN_GPS_EN, LOW);
+    #ifdef PIN_3V3_EN
+        digitalWrite(PIN_3V3_EN, LOW);
     #endif
 
     // set led on and wait for button release before poweroff

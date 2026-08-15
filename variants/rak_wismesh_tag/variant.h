@@ -14,12 +14,11 @@
 #define USE_LFXO    // 32.768 kHz crystal oscillator
 #define VARIANT_MCK (64000000ul)
 
-#define WIRE_INTERFACES_COUNT   (1)
-#define PIN_TXCO                (21)
 ////////////////////////////////////////////////////////////////////////////////
 // Power
 
 #define PIN_PWR_EN              (12)
+#define PIN_3V3_EN              (34)
 
 #define BATTERY_PIN             (5)
 #define ADC_MULTIPLIER          (1.73F)
@@ -111,7 +110,6 @@ extern const int SCK;
 #define PIN_GPS_RX              (PIN_SERIAL1_TX)
 #define PIN_GPS_TX              (PIN_SERIAL1_RX)
 #define PIN_GPS_PPS             (17)
-#define PIN_GPS_EN              (34)
 
 ///////////////////////////////////////////////////////////////////////////////
 // OTHER PINS
