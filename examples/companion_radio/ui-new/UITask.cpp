@@ -862,22 +862,28 @@ void UITask::loop() {
 
 #ifdef AUTO_SHUTDOWN_MILLIVOLTS
   if (millis() > next_batt_chck) {
-    uint16_t milliVolts = getBattMilliVolts();
-    if (milliVolts > 0 && milliVolts < AUTO_SHUTDOWN_MILLIVOLTS) {
-      if(!board.isExternalPowered()) {
-        if (_display != NULL) {
-          _display->startFrame();
-          _display->setTextSize(2);
-          _display->setColor(UIColor::warning_txt);
-          _display->drawTextCentered(_display->width() / 2, 20, "Low Battery.");
-          _display->drawTextCentered(_display->width() / 2, 40, "Shutting Down!");
-          _display->endFrame();
-          if (_display->isEink() == false) { delay(3000); }
+    uint32_t now = millis();
+    if (!_board->isBattReadSafe(now)) {
+      // TX just completed — voltage hasn't recovered yet; retry after settle window.
+      next_batt_chck = now + POST_TX_BATT_SETTLE_MS + 50;
+    } else {
+      uint16_t milliVolts = getBattMilliVolts();
+      if (milliVolts > 0 && milliVolts < AUTO_SHUTDOWN_MILLIVOLTS) {
+        if (!board.isExternalPowered()) {
+          if (_display != NULL) {
+            _display->startFrame();
+            _display->setTextSize(2);
+            _display->setColor(UIColor::warning_txt);
+            _display->drawTextCentered(_display->width() / 2, 20, "Low Battery.");
+            _display->drawTextCentered(_display->width() / 2, 40, "Shutting Down!");
+            _display->endFrame();
+            if (_display->isEink() == false) { delay(3000); }
+          }
+          shutdown();
         }
-        shutdown();
       }
+      next_batt_chck = millis() + 8000;
     }
-    next_batt_chck = millis() + 8000;
   }
 #endif
 }

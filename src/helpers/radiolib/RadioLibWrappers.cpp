@@ -161,6 +161,7 @@ uint32_t RadioLibWrapper::getEstAirtimeFor(int len_bytes) {
 }
 
 bool RadioLibWrapper::startSendRaw(const uint8_t* bytes, int len) {
+  _board->notifyTxStart();
   _board->onBeforeTransmit();
   int err = _radio->startTransmit((uint8_t *) bytes, len);
   if (err == RADIOLIB_ERR_NONE) {
@@ -170,6 +171,7 @@ bool RadioLibWrapper::startSendRaw(const uint8_t* bytes, int len) {
   MESH_DEBUG_PRINTLN("RadioLibWrapper: error: startTransmit(%d)", err);
   idle();   // trigger another startRecv()
   _board->onAfterTransmit();
+  _board->notifyTxComplete(millis());
   return false;
 }
 
@@ -185,6 +187,7 @@ bool RadioLibWrapper::isSendComplete() {
 void RadioLibWrapper::onSendFinished() {
   _radio->finishTransmit();
   _board->onAfterTransmit();
+  _board->notifyTxComplete(millis());
   state = STATE_IDLE;
 }
 
