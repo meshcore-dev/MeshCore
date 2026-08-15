@@ -3,12 +3,65 @@
 #include <stdint.h>
 #include <string.h>
 
+// MarqueeScroller: Handles text scrolling for small displays (e.g., 64x48 OLED)
+// Used by companion radio UI to display long messages that don't fit on screen
+struct MarqueeScroller {
+  int offset = 0;              // Current scroll offset in pixels
+  unsigned long next_time = 0; // Next scroll update time (millis)
+  bool paused = true;          // Scroll paused state
+
+  // Reset scroller to initial state
+  void reset() {
+    offset = 0;
+    next_time = 0;
+    paused = true;
+  }
+
+  // Update scroll position - call once per loop iteration
+  // Parameters:
+  //   textW - width of text in pixels
+  //   displayW - width of display in pixels
+  //   now - current time from millis()
+  //   speed_ms - milliseconds between scroll steps (default: 150ms)
+  //   pause_ms - milliseconds to pause before scrolling starts (default: 2000ms)
+  void update(int textW, int displayW, unsigned long now,
+              unsigned long speed_ms = 150, unsigned long pause_ms = 2000) {
+    int maxScroll = textW - displayW;
+    if (maxScroll <= 0) { offset = 0; return; }
+    if (now < next_time) return;
+    if (paused) {
+      paused = false;
+      next_time = now + pause_ms;
+    } else {
+      offset++;
+      if (offset >= maxScroll) {
+        offset = 0;
+        paused = true;
+      }
+      next_time = now + speed_ms;
+    }
+  }
+};
+
+// UIColor framework: Provides consistent color definitions across different display types
+// Each display driver defines its own UIColor values based on its color capabilities
+// For monochrome displays: 0 = BLACK, 1 = WHITE
+// For color displays: 16-bit RGB values
 using ColorVal = uint16_t;
 
 class UIColor {
 public:
-  // color definitions (by element _type_)
-  static ColorVal window_bkg, title_bkg, title_txt, primary_txt, secondary_txt, warning_txt, popup_bkg, popup_txt, corp_blue;
+  // UI element color definitions
+  // Each display driver implements these with appropriate values for its display
+  static ColorVal window_bkg;      // Background color for windows/panels
+  static ColorVal title_bkg;       // Background color for title bars
+  static ColorVal title_txt;       // Text color for titles
+  static ColorVal primary_txt;     // Primary text color (main content)
+  static ColorVal secondary_txt;   // Secondary text color (metadata, timestamps)
+  static ColorVal warning_txt;     // Warning/alert text color
+  static ColorVal popup_bkg;       // Background color for popups/dialogs
+  static ColorVal popup_txt;       // Text color for popups/dialogs
+  static ColorVal corp_blue;       // Corporate/brand color (blue)
 };
 
 class DisplayDriver {
@@ -16,8 +69,6 @@ class DisplayDriver {
 protected:
   DisplayDriver(int w, int h) { _w = w; _h = h; }
 public:
-  //enum Color { DARK=0, LIGHT, RED, GREEN, BLUE, YELLOW, ORANGE }; // on b/w screen, colors will be !=0 synonym of light
-
   int width() const { return _w; }
   int height() const { return _h; }
 
@@ -59,7 +110,7 @@ public:
       if (c >= 32 && c <= 126) {
         dest[j++] = c;  // ASCII printable
       } else if (c >= 0x80) {
-        dest[j++] = '\xDB';  // CP437 full block █
+        dest[j++] = '\xDB';  // CP437 full block �
         while (src[i+1] && (src[i+1] & 0xC0) == 0x80) 
           i++;  // skip UTF-8 continuation bytes
       }
