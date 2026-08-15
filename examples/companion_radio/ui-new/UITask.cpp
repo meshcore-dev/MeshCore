@@ -457,7 +457,7 @@ public:
       return true;
     }
     if (c == KEY_ENTER && _page == HomePage::ADVERT) {
-      _task->notify(UIEventType::ack);
+      _task->notify(UIEventType::advertSent);
       if (the_mesh.advert()) {
         _task->showAlert("Advert sent!", 1000);
       } else {
@@ -632,6 +632,9 @@ switch(t){
   case UIEventType::ack:
     buzzer.play("ack:d=32,o=8,b=120:c");
     break;
+  case UIEventType::advertSent:
+    buzzer.play("Advert:d=8,o=6,b=180:c,e,g,c7");
+    break;
   case UIEventType::roomMessage:
   case UIEventType::newContactMessage:
   case UIEventType::none:
@@ -645,6 +648,12 @@ switch(t){
   if (t != UIEventType::none) {
     vibration.trigger();
   }
+#endif
+}
+
+void UITask::notifyToggle(int count, bool enabled) {
+#if defined(PIN_BUZZER)
+  buzzer.playToggle(count, enabled);
 #endif
 }
 
@@ -937,11 +946,11 @@ void UITask::toggleGPS() {
         if (strcmp(_sensors->getSettingValue(i), "1") == 0) {
           _sensors->setSettingValue("gps", "0");
           _node_prefs->gps_enabled = 0;
-          notify(UIEventType::ack);
+          notifyToggle(4, false);
         } else {
           _sensors->setSettingValue("gps", "1");
           _node_prefs->gps_enabled = 1;
-          notify(UIEventType::ack);
+          notifyToggle(4, true);
         }
         the_mesh.savePrefs();
         showAlert(_node_prefs->gps_enabled ? "GPS: Enabled" : "GPS: Disabled", 800);
@@ -957,8 +966,11 @@ void UITask::toggleBuzzer() {
   #ifdef PIN_BUZZER
     if (buzzer.isQuiet()) {
       buzzer.quiet(false);
-      notify(UIEventType::ack);
+      notifyToggle(3, true);
     } else {
+      // play the off-tone before muting so the user hears the confirmation
+      notifyToggle(3, false);
+      while (buzzer.isPlaying()) buzzer.loop();
       buzzer.quiet(true);
     }
     _node_prefs->buzzer_quiet = buzzer.isQuiet();
