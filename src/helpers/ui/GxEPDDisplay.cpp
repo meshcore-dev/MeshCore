@@ -88,7 +88,7 @@ void GxEPDDisplay::turnOff() {
   display.fillScreen(GxEPD_WHITE);
   display.display(true);
   forceFullRefresh();
-  display.powerOff();
+  display.hibernate();
 }
 
 void GxEPDDisplay::clear() {
@@ -101,11 +101,15 @@ void GxEPDDisplay::startFrame(ColorVal bkg) {
   display.fillScreen(bkg);
   display.setTextColor(_curr_color = UIColor::primary_txt);
   display_crc.reset();
-  if (_cycles_before_full_refresh <= 0) {
+  if (_cycles_before_full_refresh != 0) {
     display.setPartialWindow(0, 0, display.width(), display.height());
   } else {
-    display.setFullWindow();
-    display.writeScreenBuffer(); 
+    // forces a full wipe of the screen ...
+    display.clearScreen(0xFF); // Clears microcontroller side RAM
+    display.writeScreenBuffer(0xFF); // Forces 0xFF (White) into the display controller's history registers
+    // we'll need a partial refresh after that (whatever crc value is)
+    last_display_crc_value = 0;
+    resetPartialRefreshCounter();
   }
 }
 
@@ -211,16 +215,10 @@ void GxEPDDisplay::endFrame() {
   if (_isOn == false) return;
   uint32_t crc = display_crc.finalize();
   if (crc != last_display_crc_value) {
-    if (_cycles_before_full_refresh == 0) {
-      display.display(false);
-      display.writeScreenBuffer();
-      resetPartialRefreshCounter();
-    } else {
-      display.display(true);
-      if (_cycles_before_full_refresh > 0) {
-        _cycles_before_full_refresh--;
-      }
+    display.display(true);
+    if (_cycles_before_full_refresh > 0) {
+      _cycles_before_full_refresh--;
     }
-    last_display_crc_value = crc;
   }
+  last_display_crc_value = crc;
 }
