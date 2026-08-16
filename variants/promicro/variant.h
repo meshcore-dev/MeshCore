@@ -7,9 +7,9 @@
  #pragma once
 
  #include "WVariant.h"
- 
+
  ////////////////////////////////////////////////////////////////////////////////
- // Low frequency clock source 
+ // Low frequency clock source
 
 #define VARIANT_MCK       (64000000ul)
 
@@ -79,4 +79,18 @@
 #define PIN_BUTTON1          (6)
 #define BUTTON_PIN           PIN_BUTTON1
 
+//////////////////////////////////////////////////////////////////////////////
+// LoRa
 
+#define P_LORA_NSS                (13)
+#define P_LORA_DIO_1              (11)
+#define P_LORA_RESET              (10)
+#define P_LORA_BUSY               (16)
+#define P_LORA_MISO               (15)
+#define P_LORA_SCLK               (12)
+#define P_LORA_MOSI               (14)
+#define SX126X_POWER_EN           (21)
+#define SX126X_RXEN               (2)
+#define SX126X_TXEN               (-1)
+#define SX126X_DIO2_AS_RF_SWITCH  true
+#define SX126X_DIO3_TCXO_VOLTAGE  (1.8f)
