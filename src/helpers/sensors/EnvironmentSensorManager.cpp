@@ -539,6 +539,8 @@ static void query_bme680_bsec(uint8_t ch, uint8_t, CayenneLPP& lpp) {
 // are compiled in. The sentinel at the end keeps the array
 // non-empty regardless of which sensors are enabled.
 //
+// Bosch BMP/BME SDO selects 0x76 or 0x77; probe both.
+//
 // Ordering here determines channel assignment at runtime:
 // the first detected+initialized sensor gets channel 2, the
 // next gets channel 3, and so on.
@@ -551,21 +553,27 @@ struct SensorDef {
   void      (*query)(uint8_t channel, uint8_t sub_channel, CayenneLPP& telemetry);
 };
 
+#define TELEM_BOSCH_ALT_ADDR(addr) ((uint8_t)((addr) == 0x76 ? 0x77 : 0x76))
+
 static const SensorDef SENSOR_TABLE[] = {
 #if ENV_INCLUDE_AHTX0
   { TELEM_AHTX_ADDRESS,    "AHT10/AHT20", init_ahtx0,    query_ahtx0    },
 #endif
 #ifdef ENV_INCLUDE_BME680
-  { TELEM_BME680_ADDRESS,  "BME680",       init_bme680,   query_bme680   },
+  { TELEM_BME680_ADDRESS,                       "BME680",       init_bme680,      query_bme680      },
+  { TELEM_BOSCH_ALT_ADDR(TELEM_BME680_ADDRESS), "BME680",       init_bme680,      query_bme680      },
 #endif
 #if ENV_INCLUDE_BME680_BSEC
-  { TELEM_BME680_ADDRESS,  "BME680+BSEC",   init_bme680_bsec, query_bme680_bsec },
+  { TELEM_BME680_ADDRESS,                       "BME680+BSEC",  init_bme680_bsec, query_bme680_bsec },
+  { TELEM_BOSCH_ALT_ADDR(TELEM_BME680_ADDRESS), "BME680+BSEC",  init_bme680_bsec, query_bme680_bsec },
 #endif
 #if ENV_INCLUDE_BME280
-  { TELEM_BME280_ADDRESS,  "BME280",       init_bme280,   query_bme280   },
+  { TELEM_BME280_ADDRESS,                       "BME280",       init_bme280,      query_bme280      },
+  { TELEM_BOSCH_ALT_ADDR(TELEM_BME280_ADDRESS), "BME280",       init_bme280,      query_bme280      },
 #endif
 #if ENV_INCLUDE_BMP280
-  { TELEM_BMP280_ADDRESS,  "BMP280",       init_bmp280,   query_bmp280   },
+  { TELEM_BMP280_ADDRESS,                       "BMP280",       init_bmp280,      query_bmp280      },
+  { TELEM_BOSCH_ALT_ADDR(TELEM_BMP280_ADDRESS), "BMP280",       init_bmp280,      query_bmp280      },
 #endif
 #if ENV_INCLUDE_SHTC3
   { 0x70,                  "SHTC3",        init_shtc3,    query_shtc3    },
@@ -602,6 +610,8 @@ static const SensorDef SENSOR_TABLE[] = {
 #endif
   { 0, nullptr, nullptr, nullptr }  // sentinel — keeps the array non-empty
 };
+
+#undef TELEM_BOSCH_ALT_ADDR
 
 static const size_t SENSOR_TABLE_SIZE = (sizeof(SENSOR_TABLE) / sizeof(SENSOR_TABLE[0])) - 1;
 
@@ -640,6 +650,12 @@ bool EnvironmentSensorManager::begin() {
   _active_sensor_count = 0;
   for (size_t i = 0; i < SENSOR_TABLE_SIZE && _active_sensor_count < MAX_ACTIVE_SENSORS; i++) {
     const SensorDef& def = SENSOR_TABLE[i];
+    // One static driver instance per type: an alternate address is a fallback, not a second device.
+    bool already_active = false;
+    for (int j = 0; j < _active_sensor_count; j++) {
+      if (_active_sensors[j].query == def.query) { already_active = true; break; }
+    }
+    if (already_active) continue;
     if (!detected[def.address]) {
       MESH_DEBUG_PRINTLN("%s not detected at I2C address %02X", def.name, def.address);
       continue;
