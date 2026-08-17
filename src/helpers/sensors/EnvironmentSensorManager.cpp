@@ -650,6 +650,7 @@ bool EnvironmentSensorManager::begin() {
       continue;
     }
     MESH_DEBUG_PRINTLN("Found %s at address: %02X", def.name, def.address);
+    detected[def.address] = false;  // consumed; later entries must not re-claim this device
     for (uint8_t sub = 0; sub < n && _active_sensor_count < MAX_ACTIVE_SENSORS; sub++) {
       _active_sensors[_active_sensor_count++] = { def.query, sub };
     }
