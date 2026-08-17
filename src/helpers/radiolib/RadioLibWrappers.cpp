@@ -49,14 +49,6 @@ uint32_t RadioLibWrapper::getRngSeed() {
 
 void RadioLibWrapper::setTxPower(int8_t dbm) {
 #if defined(USE_LR2021)
-  // On LR2021, setOutputPower() writes the PA config and TxParams, which are
-  // standby-only commands. recvRaw() keeps state == STATE_RX after readData on
-  // this platform ("LR2021 stays in Rx"), so - unlike the SX126x path, which
-  // falls back to STATE_IDLE and re-arms on the next recvRaw() - nothing calls
-  // startReceive() again by itself. Writing the PA config while listening could
-  // therefore leave the receiver down until the next reboot. Drop to standby
-  // first and let checkRecv() re-arm Rx, as resetAGC() and
-  // applySideDetectorConfig() already do.
   idle();
 #endif
   _radio->setOutputPower(dbm);
