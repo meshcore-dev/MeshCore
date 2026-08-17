@@ -50,7 +50,10 @@ public:
 #ifdef LED_PIN
     digitalWrite(LED_PIN, HIGH);
 #endif
-
+#ifdef NRF52_POWER_MANAGEMENT
+    initiateShutdown(SHUTDOWN_REASON_USER);
+#else
     NRF52Board::powerOff();
+#endif
   }
 };

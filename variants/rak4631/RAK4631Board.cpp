@@ -28,6 +28,9 @@ const PowerMgtConfig power_config = {
 void RAK4631Board::initiateShutdown(uint8_t reason) {
   // Disable LoRa module power before shutdown
   digitalWrite(SX126X_POWER_EN, LOW);
+  // RAK4631 has no buttons; clear DIO1 SENSE (set by RadioLib) so the
+  // floating pin doesn't trigger an immediate wakeup from SYSTEMOFF.
+  nrf_gpio_cfg_default(P_LORA_DIO_1);
 
   if (reason == SHUTDOWN_REASON_LOW_VOLTAGE ||
       reason == SHUTDOWN_REASON_BOOT_PROTECT) {
