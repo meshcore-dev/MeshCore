@@ -511,6 +511,10 @@ public:
   }
 };
 
+#ifndef UI_MSG_PREVIEW_SIZE
+  #define UI_MSG_PREVIEW_SIZE 78
+#endif
+
 class MsgPreviewScreen : public UIScreen {
   UITask* _task;
   mesh::RTCClock* _rtc;
@@ -518,7 +522,7 @@ class MsgPreviewScreen : public UIScreen {
   struct MsgEntry {
     uint32_t timestamp;
     char origin[62];
-    char msg[78];
+    char msg[UI_MSG_PREVIEW_SIZE];
   };
   #define MAX_UNREAD_MSGS   32
   int num_unread;
