@@ -15,6 +15,7 @@
 #include <helpers/IdentityStore.h>
 #include <RTClib.h>
 #include <target.h>
+#include <helpers/RadioFailIndicator.h>
 
 /* ---------------------------------- CONFIGURATION ------------------------------------- */
 
@@ -552,7 +553,7 @@ SimpleMeshTables tables;
 MyMesh the_mesh(radio_driver, fast_rng, rtc_clock, tables);
 
 void halt() {
-  while (1) ;
+  haltWithRadioFailure();
 }
 
 void setup() {

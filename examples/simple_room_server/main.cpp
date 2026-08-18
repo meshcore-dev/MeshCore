@@ -2,6 +2,7 @@
 #include <Mesh.h>
 
 #include "MyMesh.h"
+#include <helpers/RadioFailIndicator.h>
 
 #ifdef ETHERNET_ENABLED
   #define ETHERNET_CLI_BANNER "MeshCore Room Server CLI"
@@ -18,7 +19,7 @@ SimpleMeshTables tables;
 MyMesh the_mesh(board, radio_driver, *new ArduinoMillis(), fast_rng, rtc_clock, tables);
 
 void halt() {
-  while (1) ;
+  haltWithRadioFailure();
 }
 
 static char command[MAX_POST_TEXT_LEN+1];
@@ -37,15 +38,21 @@ void setup() {
 #endif
 
 #ifdef DISPLAY_CLASS
-  if (display.begin()) {
-    display.startFrame();
-    display.setCursor(0, 0);
-    display.print("Please wait...");
-    display.endFrame();
+  DisplayDriver* disp = display.begin() ? &display : NULL;
+  if (disp != NULL) {
+    disp->startFrame();
+    disp->setCursor(0, 0);
+    disp->print("Please wait...");
+    disp->endFrame();
   }
 #endif
 
-  if (!radio_init()) { halt(); }
+  if (!radio_init()) {
+  #ifdef DISPLAY_CLASS
+    showRadioErrorOnDisplay(disp);
+  #endif
+    halt();
+  }
 
   fast_rng.begin(radio_driver.getRngSeed());
 

@@ -1,4 +1,5 @@
 #include "SensorMesh.h"
+#include <helpers/RadioFailIndicator.h>
 
 #ifdef DISPLAY_CLASS
   #include "UITask.h"
@@ -47,7 +48,7 @@ SimpleMeshTables tables;
 MyMesh the_mesh(board, radio_driver, *new ArduinoMillis(), fast_rng, rtc_clock, tables);
 
 void halt() {
-  while (1) ;
+  haltWithRadioFailure();
 }
 
 static char command[160];
@@ -63,14 +64,20 @@ void setup() {
 #endif
 
 #ifdef DISPLAY_CLASS
-  if (display.begin()) {
-    display.startFrame();
-    display.print("Please wait...");
-    display.endFrame();
+  DisplayDriver* disp = display.begin() ? &display : NULL;
+  if (disp != NULL) {
+    disp->startFrame();
+    disp->print("Please wait...");
+    disp->endFrame();
   }
 #endif
 
-  if (!radio_init()) { halt(); }
+  if (!radio_init()) {
+  #ifdef DISPLAY_CLASS
+    showRadioErrorOnDisplay(disp);
+  #endif
+    halt();
+  }
 
   fast_rng.begin(radio_driver.getRngSeed());
 
