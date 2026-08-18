@@ -250,6 +250,23 @@ public:
   }
 #endif
 
+#if defined(WITH_BRIDGE)
+  bool getBridgeRxStats(char* dest, size_t dest_size) override {
+    bridge.getRxStats(dest, dest_size);
+    return true;
+  }
+
+  bool getBridgeTxStats(char* dest, size_t dest_size) override {
+    bridge.getTxStats(dest, dest_size);
+    return true;
+  }
+
+  bool resetBridgeStats() override {
+    bridge.resetStats();
+    return true;
+  }
+#endif
+
   // To check if there is pending work
   bool hasPendingWork() const;
 
