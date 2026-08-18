@@ -15,6 +15,7 @@
 #if ENV_INCLUDE_BME680_BSEC
 #ifndef TELEM_BME680_ADDRESS
 #define TELEM_BME680_ADDRESS 0x76
+#define TELEM_BME680_ADDRESS_2 0x77
 #endif
 #define TELEM_BME680_SEALEVELPRESSURE_HPA (1013.25)
 #include <bsec.h>
@@ -40,6 +41,7 @@ static uint32_t bsec_last_save_ms    = 0;
 #ifdef ENV_INCLUDE_BME680
 #ifndef TELEM_BME680_ADDRESS
 #define TELEM_BME680_ADDRESS 0x76
+#define TELEM_BME680_ADDRESS_2 0x77
 #endif
 #define TELEM_BME680_SEALEVELPRESSURE_HPA (1013.25)
 #include <Adafruit_BME680.h>
@@ -63,6 +65,7 @@ static Adafruit_AHTX0 AHTX0;
 #if ENV_INCLUDE_BME280
 #ifndef TELEM_BME280_ADDRESS
 #define TELEM_BME280_ADDRESS    0x76      // BME280 environmental sensor I2C address
+#define TELEM_BME280_ADDRESS_2  0x77
 #endif
 #define TELEM_BME280_SEALEVELPRESSURE_HPA (1013.25)    // Atmospheric pressure at sea level
 #include <Adafruit_BME280.h>
@@ -72,6 +75,7 @@ static Adafruit_BME280 BME280;
 #if ENV_INCLUDE_BMP280
 #ifndef TELEM_BMP280_ADDRESS
 #define TELEM_BMP280_ADDRESS    0x76      // BMP280 environmental sensor I2C address
+#define TELEM_BMP280_ADDRESS_2  0x77
 #endif
 #define TELEM_BMP280_SEALEVELPRESSURE_HPA (1013.25)    // Atmospheric pressure at sea level
 #include <Adafruit_BMP280.h>
@@ -557,15 +561,27 @@ static const SensorDef SENSOR_TABLE[] = {
 #endif
 #ifdef ENV_INCLUDE_BME680
   { TELEM_BME680_ADDRESS,  "BME680",       init_bme680,   query_bme680   },
+  #ifdef TELEM_BME680_ADDRESS_2
+  { TELEM_BME680_ADDRESS_2, "BME680",      init_bme680,   query_bme680   },
+  #endif
 #endif
 #if ENV_INCLUDE_BME680_BSEC
   { TELEM_BME680_ADDRESS,  "BME680+BSEC",   init_bme680_bsec, query_bme680_bsec },
+  #ifdef TELEM_BME680_ADDRESS_2
+    { TELEM_BME680_ADDRESS_2, "BME680+BSEC", init_bme680_bsec, query_bme680_bsec },
+  #endif
 #endif
 #if ENV_INCLUDE_BME280
   { TELEM_BME280_ADDRESS,  "BME280",       init_bme280,   query_bme280   },
+  #ifdef TELEM_BME280_ADDRESS_2
+  { TELEM_BME280_ADDRESS_2, "BME280",      init_bme280,   query_bme280   },
+  #endif
 #endif
 #if ENV_INCLUDE_BMP280
   { TELEM_BMP280_ADDRESS,  "BMP280",       init_bmp280,   query_bmp280   },
+  #ifdef TELEM_BMP280_ADDRESS_2
+  { TELEM_BMP280_ADDRESS_2, "BMP280",       init_bmp280,   query_bmp280   },
+  #endif
 #endif
 #if ENV_INCLUDE_SHTC3
   { 0x70,                  "SHTC3",        init_shtc3,    query_shtc3    },
