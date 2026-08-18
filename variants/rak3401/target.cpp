@@ -47,12 +47,20 @@ static void sleep_onboard_radio() {
   Module mod(ONBOARD_LORA_NSS, ONBOARD_LORA_DIO_1, ONBOARD_LORA_RESET, ONBOARD_LORA_BUSY, SPI);
   SX1262 onboard(&mod);
 
+  // BUSY is driven low in STDBY_RC and high while asleep, so it doubles as a
+  // non-invasive readback of what state we found the chip in and left it in.
+  pinMode(ONBOARD_LORA_BUSY, INPUT);
+  int busy_before = digitalRead(ONBOARD_LORA_BUSY);
+
   // begin() resets the chip and leaves it in standby. A TCXO calibration failure
   // still leaves SPI usable, so issue the sleep regardless of what it returns.
   int status = onboard.begin(434.0f, 125.0f, 9, 7, RADIOLIB_SX126X_SYNC_WORD_PRIVATE,
                              0, 8, ONBOARD_LORA_TCXO_VOLTAGE, false);
   int slept = onboard.sleep(false);         // cold sleep: config discarded, RTC off
-  MESH_DEBUG_PRINTLN("onboard SX1262: begin=%d sleep=%d", status, slept);
+  delay(2);
+  int busy_after = digitalRead(ONBOARD_LORA_BUSY);
+  MESH_DEBUG_PRINTLN("onboard SX1262: begin=%d sleep=%d busy %d->%d",
+                     status, slept, busy_before, busy_after);
 
   SPI.end();   // release SPIM3 so std_init() can repin it onto the RAK13302
 
