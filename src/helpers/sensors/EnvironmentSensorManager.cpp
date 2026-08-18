@@ -1,4 +1,5 @@
 #include "EnvironmentSensorManager.h"
+#include <helpers/ArduinoTimer.h>
 
 #include <Wire.h>
 
@@ -896,11 +897,11 @@ void EnvironmentSensorManager::stop_gps() {
 void EnvironmentSensorManager::loop() {
 
   #if ENV_INCLUDE_GPS
-  static unsigned long next_gps_update = 0;
+  static uint32_t next_gps_update = 0;
   if (gps_active) {
     _location->loop();
   }
-  if ((long)(millis() - next_gps_update) > 0) {
+  if (millisHasPassed(next_gps_update)) {
 
     if(gps_active){
     #ifdef RAK_WISBLOCK_GPS
