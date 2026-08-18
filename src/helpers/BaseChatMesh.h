@@ -9,8 +9,6 @@
 
 #include "ContactInfo.h"
 
-#define MAX_SEARCH_RESULTS   8
-
 #define MSG_SEND_FAILED       0
 #define MSG_SEND_SENT_FLOOD   1
 #define MSG_SEND_SENT_DIRECT  2
@@ -39,6 +37,18 @@ public:
 #endif
 
 #define MAX_ANON_CONTACTS  8
+
+// Must cover every possible contact, not just a small fixed sample: identity
+// hashes are truncated to PATH_HASH_SIZE (1 byte) on the wire for ANON_REQ/
+// REQ/RESPONSE matching (see Identity::isHashMatch()/copyHashTo()), so with
+// enough contacts, multiple can legitimately share the same hash. A fixed
+// cap smaller than the contact list size means searchPeersByHash() can stop
+// after collecting that many same-hash matches and never even look at a
+// later-added contact sharing that byte -- its replies then fail to decrypt
+// permanently, not intermittently, since decryption is tried against every
+// returned candidate's real shared secret (a wrong match simply fails to
+// authenticate, so there's no correctness reason to cap the search early).
+#define MAX_SEARCH_RESULTS   (MAX_CONTACTS+MAX_ANON_CONTACTS)
 
 #ifndef MAX_CONNECTIONS
   #define MAX_CONNECTIONS  16
