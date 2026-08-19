@@ -1511,7 +1511,7 @@ void MyMesh::handleCmdFrame(size_t len) {
 #endif
   } else if (cmd_frame[0] == CMD_SEND_RAW_DATA && len >= 6) {
     int i = 1;
-    int8_t path_len = cmd_frame[i++];
+    uint8_t path_len = cmd_frame[i++];
     if (path_len >= 0 && mesh::Packet::isValidPathLen(path_len)) {
       uint8_t path[MAX_PATH_SIZE];
       i += mesh::Packet::writePath(path, &cmd_frame[i], path_len);
