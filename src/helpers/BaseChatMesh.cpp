@@ -368,6 +368,12 @@ void BaseChatMesh::handleReturnPathRetry(const ContactInfo& contact, const uint8
 int BaseChatMesh::searchChannelsByHash(const uint8_t* hash, mesh::GroupChannel dest[], int max_matches) {
   int n = 0;
   for (int i = 0; i < MAX_GROUP_CHANNELS && n < max_matches; i++) {
+    // Skip empty/unconfigured slots. An empty slot has an all-zero secret and
+    // therefore matches null-key group traffic (a node transmitting with an
+    // unset PSK): the zero-key MAC validates against the empty slot and the
+    // foreign message is delivered as if it belonged to that channel. Any node
+    // with a free channel slot would otherwise act as a null-key sink.
+    if (channels[i].name[0] == 0) continue;
     if (channels[i].channel.hash[0] == hash[0]) {
       dest[n++] = channels[i].channel;
     }
