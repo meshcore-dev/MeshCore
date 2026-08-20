@@ -158,6 +158,21 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 ---
 
+## Prefs save errors
+
+Prefs, ACL, regions, and companion contact/channel blobs save with atomic write (temp file + rename). When a `set …` or `password …` save fails, replies are specific instead of a generic write failure:
+
+| Condition | Reply |
+|-----------|--------|
+| Partition critically full (≤2 free blocks on InternalFS) | `ERR no space left on device` |
+| LittleFS returned NOSPC | Same as above |
+| Other LFS error | `ERR prefs <stage> failed lfs=-NN` |
+| JSON serialize failure | `ERR prefs serialize failed` |
+
+Stages: `open`, `write`, `rename`, `serialize`, `nospc`.
+
+---
+
 ## Logging
 
 ### Begin capture of rx log to node storage
