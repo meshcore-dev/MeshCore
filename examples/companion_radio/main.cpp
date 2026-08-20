@@ -1,6 +1,7 @@
 #include <Arduino.h>   // needed for PlatformIO
 #include <Mesh.h>
 #include "MyMesh.h"
+#include <helpers/RadioFailIndicator.h>
 
 // Believe it or not, this std C function is busted on some platforms!
 static uint32_t _atoi(const char* sp) {
@@ -104,7 +105,7 @@ MyMesh the_mesh(radio_driver, fast_rng, rtc_clock, tables, store
 /* END GLOBAL OBJECTS */
 
 void halt() {
-  while (1) ;
+  haltWithRadioFailure();
 }
 
 /* WIFI RECONNECT TRACKERS */
@@ -134,7 +135,12 @@ void setup() {
   }
 #endif
 
-  if (!radio_init()) { halt(); }
+  if (!radio_init()) {
+  #ifdef DISPLAY_CLASS
+    showRadioErrorOnDisplay(disp);
+  #endif
+    halt();
+  }
 
   fast_rng.begin(radio_driver.getRngSeed());
 
