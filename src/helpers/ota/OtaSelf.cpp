@@ -1,4 +1,5 @@
 #include "OtaSelf.h"
+#include "OtaFormat.h"
 #include "FirmwareInfo.h"
 #include "OtaByteIO.h"
 #include "OtaDebug.h"
@@ -11,7 +12,7 @@
   #include "OtaFlashLayout_nrf52.h"
 #endif
 
-#if defined(ESP32_PLATFORM) || defined(NRF52_PLATFORM)
+#if OTA_SELF_SERVE && (defined(ESP32_PLATFORM) || defined(NRF52_PLATFORM))
   #include "OtaContext.h"     // serve our own fw from flash (cache leaves, read payload on demand)
   #include "MerkleTree.h"
   #include <SHA256.h>
@@ -95,7 +96,7 @@ bool ota_self_read(uint32_t off, uint8_t* buf, uint32_t len) {
 bool ota_self_read(uint32_t, uint8_t*, uint32_t) { return false; }
 #endif
 
-#if defined(ESP32_PLATFORM) || defined(NRF52_PLATFORM)
+#if OTA_SELF_SERVE && (defined(ESP32_PLATFORM) || defined(NRF52_PLATFORM))
 struct ServeSelfBuild {
   bool active = false;
   uint32_t image_size = 0;
