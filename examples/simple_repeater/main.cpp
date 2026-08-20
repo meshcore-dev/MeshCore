@@ -187,6 +187,9 @@ void loop() {
 
   the_mesh.loop();
   sensors.loop();
+#if defined(NRF52_PLATFORM)
+  board.loop();
+#endif
 #ifdef DISPLAY_CLASS
   ui_task.loop();
 #endif
