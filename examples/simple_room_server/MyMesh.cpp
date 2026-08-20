@@ -68,25 +68,34 @@ void MyMesh::storePost(const mesh::Identity &author, const char *postData) {
 
 void MyMesh::pushPostToClient(ClientInfo *client, PostInfo &post) {
   MESH_DEBUG_PRINTLN("room.post: pushPostToClient text=%s", post.text);
+  pushPostInternal(client, post.post_timestamp, post.author, post.text);
+}
+
+void MyMesh::pushTopicToClient(ClientInfo *client) {
+  pushPostInternal(client, topic_timestamp, self_id, topic);
+}
+
+void MyMesh::pushPostInternal(ClientInfo* client, uint32_t timestamp, const mesh::Identity& author,
+    const char* text) {
   int len = 0;
-  memcpy(&reply_data[len], &post.post_timestamp, 4);
+  memcpy(&reply_data[len], &timestamp, 4);
   len += 4; // this is a PAST timestamp... but should be accepted by client
 
   uint8_t attempt;
   getRNG()->random(&attempt, 1); // need this for re-tries, so packet hash (and ACK) will be different
   reply_data[len++] = (TXT_TYPE_SIGNED_PLAIN << 2) | (attempt & 3); // 'signed' plain text
 
-  // encode prefix of post.author.pub_key
-  memcpy(&reply_data[len], post.author.pub_key, 4);
+  // encode prefix of author.pub_key
+  memcpy(&reply_data[len], author.pub_key, 4);
   len += 4; // just first 4 bytes
 
-  int text_len = strlen(post.text);
-  memcpy(&reply_data[len], post.text, text_len);
+  int text_len = strlen(text);
+  memcpy(&reply_data[len], text, text_len);
   len += text_len;
 
   // calc expected ACK reply
   mesh::Utils::sha256((uint8_t *)&client->extra.room.pending_ack, 4, reply_data, len, client->id.pub_key, PUB_KEY_SIZE);
-  client->extra.room.push_post_timestamp = post.post_timestamp;
+  client->extra.room.push_post_timestamp = timestamp;
 
   auto reply = createDatagram(PAYLOAD_TYPE_TXT_MSG, client->id, client->shared_secret, reply_data, len);
   if (reply) {
@@ -688,6 +697,8 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   next_client_idx = 0;
   next_push = 0;
   memset(posts, 0, sizeof(posts));
+  memset(topic, 0, sizeof(topic));
+  topic_timestamp = 0;
   _num_posted = _num_post_pushes = 0;
 
   memset(default_scope.key, 0, sizeof(default_scope.key));
@@ -697,6 +708,7 @@ void MyMesh::begin(FILESYSTEM *fs) {
   mesh::Mesh::begin();
   _fs = fs;
   // load persisted prefs
+  loadRoomPrefs();
   _cli.loadPrefs(_fs);
 
   acl.load(_fs, self_id);
@@ -731,11 +743,54 @@ void MyMesh::begin(FILESYSTEM *fs) {
   updateAdvertTimer();
   updateFloodAdvertTimer();
 
+  if (strlen(topic) > 0) {
+    topic_timestamp = getRTCClock()->getCurrentTimeUnique();
+  }
+
   board.setAdcMultiplier(_prefs.adc_multiplier);
 
 #if ENV_INCLUDE_GPS == 1
   applyGpsPrefs();
 #endif
+}
+
+#define PREFS_FILE_PATH "/room_prefs"
+
+void MyMesh::loadRoomPrefs() {
+#if defined(RP2040_PLATFORM)
+  File file = _fs->open(PREFS_FILE_PATH, "r");
+#else
+  File file = _fs->open(PREFS_FILE_PATH);
+#endif
+  if (file) {
+    file.read((uint8_t *)&topic[0], sizeof(topic));                     // 0
+    topic[MAX_TOPIC_TEXT_LEN] = '\0';
+    // next: 151
+
+    file.close();
+  }
+}
+
+void MyMesh::saveRoomPrefs() {
+#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
+  _fs->remove(PREFS_FILE_PATH);
+  File file = _fs->open(PREFS_FILE_PATH, FILE_O_WRITE);
+#elif defined(RP2040_PLATFORM)
+  File file = _fs->open(PREFS_FILE_PATH, "w");
+#else
+  File file = _fs->open(PREFS_FILE_PATH, "w", true);
+#endif
+  if (file) {
+    file.write((uint8_t *)&topic[0], sizeof(topic));                    // 0
+    // next: 151
+
+    file.close();
+  }
+}
+
+void MyMesh::savePrefs() {
+  saveRoomPrefs();
+  _cli.savePrefs(_fs);
 }
 
 void MyMesh::sendFloodScoped(const TransportKey& scope, mesh::Packet* pkt, uint32_t delay_millis, uint8_t path_hash_size) {
@@ -934,10 +989,37 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
   while (*command == ' ')
     command++; // skip leading spaces
 
-  if (strlen(command) > 4 && command[2] == '|') { // optional prefix (for companion radio CLI)
+  int command_length = strlen(command);
+
+  if (command_length > 4 && command[2] == '|') { // optional prefix (for companion radio CLI)
     memcpy(reply, command, 3);                    // reflect the prefix back
     reply += 3;
     command += 3;
+    command_length -= 3;
+  }
+
+  // handle topic related commands
+  if (command_length >= 10 && memcmp(command, "set topic ", 10) == 0) {
+    char* new_topic = &command[10];
+    int len = strlen(new_topic);
+
+    if (len > MAX_TOPIC_TEXT_LEN) {
+      sprintf(reply, "Err - length (%d) > maximum (%d)", len, MAX_TOPIC_TEXT_LEN);
+      return;
+    }
+
+    strcpy(topic, new_topic);
+    topic_timestamp = getRTCClock()->getCurrentTimeUnique();
+
+    saveRoomPrefs();
+
+    sprintf(reply, "New topic set with length %d", len);
+
+    return;
+  } else if (command_length >= 9 && memcmp(command, "get topic", 9) == 0) {
+    sprintf(reply, "Topic: %s", topic);
+
+    return;
   }
 
   // handle ACL related commands
@@ -1012,18 +1094,26 @@ void MyMesh::loop() {
         client->extra.room.push_failures < 3) { // not already waiting for ACK, AND not evicted, AND retries not max
       MESH_DEBUG_PRINTLN("loop - checking for client %02X", (uint32_t)client->id.pub_key[0]);
       uint32_t now = getRTCClock()->getCurrentTime();
-      for (int k = 0, idx = next_post_idx; k < MAX_UNSYNCED_POSTS; k++) {
-        auto p = &posts[idx];
-        if (now >= p->post_timestamp + POST_SYNC_DELAY_SECS &&
-            p->post_timestamp > client->extra.room.sync_since // is new post for this Client?
-            && !p->author.matches(client->id)) {   // don't push posts to the author
-          // push this post to Client, then wait for ACK
-          pushPostToClient(client, *p);
-          did_push = true;
-          MESH_DEBUG_PRINTLN("loop - pushed to client %02X: %s", (uint32_t)client->id.pub_key[0], p->text);
-          break;
+
+      if (now >= topic_timestamp + POST_SYNC_DELAY_SECS && topic_timestamp > client->extra.room.sync_since) {
+        // client hasn't seen this topic; push it, then wait for ACK
+        pushTopicToClient(client);
+        did_push = true;
+        MESH_DEBUG_PRINTLN("loop - pushed to client %02X: %s", (uint32_t)client->id.pub_key[0], p->text);
+      } else {
+        for (int k = 0, idx = next_post_idx; k < MAX_UNSYNCED_POSTS; k++) {
+          auto p = &posts[idx];
+          if (now >= p->post_timestamp + POST_SYNC_DELAY_SECS &&
+              p->post_timestamp > client->extra.room.sync_since // is new post for this Client?
+              && !p->author.matches(client->id)) {   // don't push posts to the author
+            // push this post to Client, then wait for ACK
+            pushPostToClient(client, *p);
+            did_push = true;
+            MESH_DEBUG_PRINTLN("loop - pushed to client %02X: %s", (uint32_t)client->id.pub_key[0], p->text);
+            break;
+          }
+          idx = (idx + 1) % MAX_UNSYNCED_POSTS; // wrap to start of cyclic queue
         }
-        idx = (idx + 1) % MAX_UNSYNCED_POSTS; // wrap to start of cyclic queue
       }
     } else {
       MESH_DEBUG_PRINTLN("loop - skipping busy (or evicted) client %02X", (uint32_t)client->id.pub_key[0]);
