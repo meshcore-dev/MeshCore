@@ -152,6 +152,18 @@ void NRF52Board::enterSystemOff(uint8_t reason) {
     NRF_POWER->GPREGRET2 = reason;
   }
 
+  // Turn off the BLE connection LED before deep sleep. Bluefruit's autoConnLed
+  // (on by default) drives LED_CONN; nRF52 SYSTEMOFF only halts the core and
+  // leaves GPIO outputs latched in their last state, so the LED would otherwise
+  // stay lit through hibernation. Stop BLE re-driving the pin, then pull it low.
+  if (sd_enabled) {
+    Bluefruit.autoConnLed(false);   // stop BLE re-driving the LED
+    Bluefruit.Advertising.stop();   // stop advertising + its blink timer
+  }
+#if defined(LED_CONN) && (LED_CONN >= 0)
+  ledOff(LED_CONN);                 // polarity-aware (respects LED_STATE_ON)
+#endif
+
   // Flush serial buffers
   Serial.flush();
   delay(100);
