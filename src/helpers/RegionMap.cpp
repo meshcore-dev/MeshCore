@@ -1,5 +1,7 @@
 #include "RegionMap.h"
 #include <helpers/TxtDataHelpers.h>
+#include <helpers/ConfigSerializer.h>
+#include <helpers/IdentityStore.h>
 #include <SHA256.h>
 
 // helper class for region map exporter, we emulate Stream with a safe buffer writer.
@@ -58,15 +60,31 @@ static const char* skip_hash(const char* name) {
   return *name == '#' ? name + 1 : name;
 }
 
-static File openWrite(FILESYSTEM* _fs, const char* filename) {
-  #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
-    _fs->remove(filename);
-    return _fs->open(filename, FILE_O_WRITE);
-  #elif defined(RP2040_PLATFORM)
-    return _fs->open(filename, "w");
-  #else
-    return _fs->open(filename, "w", true);
-  #endif
+bool RegionMap::saveBodyWriter(File& file, void* ctx) {
+  return ((RegionMap*) ctx)->writeSaveBody(file);
+}
+
+bool RegionMap::writeSaveBody(File& file) const {
+  uint8_t pad[128];
+  memset(pad, 0, sizeof(pad));
+
+  bool success = file.write(pad, 3) == 3;
+  success = success && file.write((uint8_t*) &default_id, sizeof(default_id)) == sizeof(default_id);
+  success = success && file.write((uint8_t*) &home_id, sizeof(home_id)) == sizeof(home_id);
+  success = success && file.write((uint8_t*) &wildcard.flags, sizeof(wildcard.flags)) == sizeof(wildcard.flags);
+  success = success && file.write((uint8_t*) &next_id, sizeof(next_id)) == sizeof(next_id);
+  if (!success) return false;
+
+  for (int i = 0; i < num_regions; i++) {
+    auto r = &regions[i];
+    success = file.write((uint8_t*) &r->id, sizeof(r->id)) == sizeof(r->id);
+    success = success && file.write((uint8_t*) &r->parent, sizeof(r->parent)) == sizeof(r->parent);
+    success = success && file.write((uint8_t*) r->name, sizeof(r->name)) == sizeof(r->name);
+    success = success && file.write((uint8_t*) &r->flags, sizeof(r->flags)) == sizeof(r->flags);
+    success = success && file.write(pad, sizeof(pad)) == sizeof(pad);
+    if (!success) return false;
+  }
+  return true;
 }
 
 bool RegionMap::load(FILESYSTEM* _fs, const char* path) {
@@ -117,33 +135,10 @@ bool RegionMap::load(FILESYSTEM* _fs, const char* path) {
 }
 
 bool RegionMap::save(FILESYSTEM* _fs, const char* path) {
-  File file = openWrite(_fs, path ? path : "/regions2");
-  if (file) {
-    uint8_t pad[128];
-    memset(pad, 0, sizeof(pad));
-
-    bool success = file.write(pad, 3) == 3;  // reserved header
-    success = success && file.write((uint8_t *) &default_id, sizeof(default_id)) == sizeof(default_id);
-    success = success && file.write((uint8_t *) &home_id, sizeof(home_id)) == sizeof(home_id);
-    success = success && file.write((uint8_t *) &wildcard.flags, sizeof(wildcard.flags)) == sizeof(wildcard.flags);
-    success = success && file.write((uint8_t *) &next_id, sizeof(next_id)) == sizeof(next_id);
-
-    if (success) {
-      for (int i = 0; i < num_regions; i++) {
-        auto r = &regions[i];
-
-        success = file.write((uint8_t *) &r->id, sizeof(r->id)) == sizeof(r->id);
-        success = success && file.write((uint8_t *) &r->parent, sizeof(r->parent)) == sizeof(r->parent);
-        success = success && file.write((uint8_t *) r->name, sizeof(r->name)) == sizeof(r->name);
-        success = success && file.write((uint8_t *) &r->flags, sizeof(r->flags)) == sizeof(r->flags);
-        success = success && file.write(pad, sizeof(pad)) == sizeof(pad);
-        if (!success) break; // write failed
-      }
-    }
-    file.close();
-    return success;
-  }
-  return false;  // failed
+  const char* final_path = path ? path : "/regions2";
+  char tmp_path[32];
+  snprintf(tmp_path, sizeof(tmp_path), "/.%s.new", final_path + 1);
+  return writeFileAtomic(_fs, final_path, tmp_path, saveBodyWriter, this);
 }
 
 RegionEntry* RegionMap::putRegion(const char* name, uint16_t parent_id, uint16_t id) {
