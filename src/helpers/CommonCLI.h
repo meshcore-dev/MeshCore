@@ -236,6 +236,8 @@ public:
   virtual const char* getBuildDate() = 0;
   virtual const char* getRole() = 0;
   virtual bool formatFileSystem() = 0;
+  virtual FILESYSTEM* getFileSystem() { return nullptr; }
+  virtual bool remountFileSystem() { return true; }
   virtual void sendSelfAdvertisement(int delay_millis, bool flood) = 0;
   virtual void updateAdvertTimer() = 0;
   virtual void updateFloodAdvertTimer() = 0;
@@ -299,7 +301,8 @@ class CommonCLI {
   char tmp[PRV_KEY_SIZE*2 + 4];
 
   mesh::RTCClock* getRTCClock() { return _rtc; }
-  void savePrefs();
+  bool savePrefs();
+  bool persistPrefs(char* reply, const char* ok_msg);
   void loadPrefsInt(FILESYSTEM* _fs, const char* filename);
 #if defined(ENABLE_OTA)
   void syncOtaConfigFromPrefs();   // persisted OTA policy + signer allowlist -> running OtaContext
@@ -308,6 +311,19 @@ class CommonCLI {
   void handleRegionCmd(char* command, char* reply);
   void handleGetCmd(uint32_t sender_timestamp, char* command, char* reply);
   void handleSetCmd(uint32_t sender_timestamp, char* command, char* reply);
+  void handleDoctorFs(uint32_t sender_timestamp, const char* args, char* reply);
+  bool checkFileSystem(char* reply);
+  bool tryPrefsWrite(FILESYSTEM* fs, char* err_stage, size_t err_stage_len);
+  bool rebuildFileSystemFromRam(char* reply);
+  bool fixFileSystemFromRam(char* reply);
+  bool formatFileSystemFromRam(char* reply);
+  bool wipeFileSystem(char* reply);
+  bool dumpFileSystem(char* reply);
+  bool statFileSystem(char* reply);
+  bool listFileSystem(char* reply);
+  bool probeFileSystem(char* reply);
+  bool gcFileSystem(char* reply);
+  void formatPrefsSaveErr(char* reply);
 
 public:
   CommonCLI(mesh::MainBoard& board, mesh::RTCClock& rtc, SensorManager& sensors, RegionMap& region_map, ClientACL& acl, NodePrefs* prefs, CommonCLICallbacks* callbacks)

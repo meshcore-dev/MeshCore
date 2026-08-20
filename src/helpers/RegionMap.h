@@ -27,6 +27,8 @@ class RegionMap {
   RegionEntry regions[MAX_REGION_ENTRIES];
   RegionEntry wildcard;
 
+  bool writeSaveBody(File& file) const;
+  static bool saveBodyWriter(File& file, void* ctx);
   void printChildRegions(int indent, const RegionEntry* parent, Stream& out) const;
 
 public:
