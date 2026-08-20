@@ -1,4 +1,11 @@
 #include "ConfigSerializer.h"
+#include <stdlib.h>
+#include <string.h>
+#include "FsLastErr.h"
+
+#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
+  #include "littlefs/lfs.h"
+#endif
 
 static File openNewFile(FILESYSTEM* fs, const char* path) {
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
@@ -10,21 +17,58 @@ static File openNewFile(FILESYSTEM* fs, const char* path) {
 #endif
 }
 
-bool writeFileAtomic(FILESYSTEM* fs, const char* final_path, const char* tmp_path, FileWriteFn writer, void* ctx) {
+static void setAtomicErr(char* err_stage, size_t err_stage_len, const char* msg) {
+  if (err_stage && err_stage_len > 0) {
+    strncpy(err_stage, msg, err_stage_len - 1);
+    err_stage[err_stage_len - 1] = 0;
+  }
+}
+
+static void mapAtomicErr(char* err_stage, size_t err_stage_len, const char* fallback) {
+  fsLastErrStage(err_stage, err_stage_len, fsLastErrGet(), fallback);
+}
+
+bool writeFileAtomic(FILESYSTEM* fs, const char* final_path, const char* tmp_path, FileWriteFn writer, void* ctx,
+                     char* err_stage, size_t err_stage_len) {
   if (!fs || !final_path || !tmp_path || !writer) return false;
 
-  fs->remove(tmp_path);
-  File file = openNewFile(fs, tmp_path);
-  if (!file) return false;
+#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
+  if (fsIsCriticallyFull(fs)) {
+    setAtomicErr(err_stage, err_stage_len, "nospc");
+    return false;
+  }
+#endif
 
+  fsLastErrClear();
+  fs->remove(tmp_path);
+#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
+  if (fsLastErrGet() == LFS_ERR_NOENT) fsLastErrClear();
+#endif
+  File file = openNewFile(fs, tmp_path);
+  if (!file) {
+    mapAtomicErr(err_stage, err_stage_len, "open");
+#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
+    if (fsLastErrGet() == 0 && fsIsCriticallyFull(fs)) setAtomicErr(err_stage, err_stage_len, "nospc");
+#endif
+    return false;
+  }
   bool success = writer(file, ctx);
   file.close();
+  if (fsLastErrGet() != 0) success = false;
   if (!success) {
     fs->remove(tmp_path);
+    mapAtomicErr(err_stage, err_stage_len, "write");
+#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
+    if (fsLastErrGet() == 0 && fsIsCriticallyFull(fs)) setAtomicErr(err_stage, err_stage_len, "nospc");
+#endif
     return false;
   }
   if (!fs->rename(tmp_path, final_path)) {
     fs->remove(tmp_path);
+    mapAtomicErr(err_stage, err_stage_len, "rename");
+#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
+    if (fsLastErrGet() == 0 && fsIsCriticallyFull(fs)) setAtomicErr(err_stage, err_stage_len, "nospc");
+#endif
     return false;
   }
   return true;
@@ -38,9 +82,16 @@ static bool saveSerialWriter(File& file, void* ctx) {
   return ((SaveSerialCtx*) ctx)->obj->saveSerial(file);
 }
 
-bool saveConfigJsonAtomic(FILESYSTEM* fs, ConfigSerializer& obj, const char* final_path, const char* tmp_path) {
+bool saveConfigJsonAtomic(FILESYSTEM* fs, ConfigSerializer& obj, const char* final_path, const char* tmp_path,
+                          char* err_stage, size_t err_stage_len) {
   SaveSerialCtx ctx = {&obj};
-  return writeFileAtomic(fs, final_path, tmp_path, saveSerialWriter, &ctx);
+  if (!writeFileAtomic(fs, final_path, tmp_path, saveSerialWriter, &ctx, err_stage, err_stage_len)) {
+    if (err_stage && err_stage_len > 0 && strcmp(err_stage, "write") == 0 && fsLastErrGet() == 0) {
+      setAtomicErr(err_stage, err_stage_len, "serialize");
+    }
+    return false;
+  }
+  return true;
 }
 
 bool ConfigSerializer::saveSerial(Stream& s) {

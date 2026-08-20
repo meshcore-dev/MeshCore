@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include "CommonCLI.h"
+#include "FsLastErr.h"
 #include "TxtDataHelpers.h"
 #include "AdvertDataHelpers.h"
 #include "TxtDataHelpers.h"
@@ -140,17 +141,41 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {  // Legacy 
   }
 }
 
+static char s_last_prefs_save_stage[12];
+
 bool CommonCLI::savePrefs(FILESYSTEM* fs) {
-  return saveConfigJsonAtomic(fs, *_prefs, "/prefs.json", "/.prefs.json.new");
+  s_last_prefs_save_stage[0] = 0;
+  return saveConfigJsonAtomic(fs, *_prefs, "/prefs.json", "/.prefs.json.new",
+                              s_last_prefs_save_stage, sizeof(s_last_prefs_save_stage));
 }
 
 #define MIN_LOCAL_ADVERT_INTERVAL   60
 
-void CommonCLI::savePrefs() {
+void CommonCLI::formatPrefsSaveErr(char* reply) {
+  const char* stage = s_last_prefs_save_stage[0] ? s_last_prefs_save_stage : "write";
+  FILESYSTEM* fs = _callbacks->getFileSystem();
+  fsLastErrReplyForFs(reply, 160, fsLastErrGet(), stage, fs);
+}
+
+bool CommonCLI::savePrefs() {
   if (_prefs->advert_interval * 2 < MIN_LOCAL_ADVERT_INTERVAL) {
     _prefs->advert_interval = 0;  // turn it off, now that device has been manually configured
   }
+  FILESYSTEM* fs = _callbacks->getFileSystem();
+  if (fs) {
+    return savePrefs(fs);
+  }
   _callbacks->savePrefs();
+  return true;
+}
+
+bool CommonCLI::persistPrefs(char* reply, const char* ok_msg) {
+  if (savePrefs()) {
+    strcpy(reply, ok_msg);
+    return true;
+  }
+  formatPrefsSaveErr(reply);
+  return false;
 }
 
 uint8_t CommonCLI::buildAdvertData(uint8_t node_type, uint8_t* app_data) {
@@ -243,9 +268,12 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
     } else if (memcmp(command, "password ", 9) == 0) {
       // change admin password
       StrHelper::strncpy(_prefs->password, &command[9], sizeof(_prefs->password));
-      savePrefs();
-      sprintf(reply, "password now: ");
-      StrHelper::strncpy(&reply[14], _prefs->password, 160-15);   // echo back just to let admin know for sure!!
+      if (!savePrefs()) {
+        formatPrefsSaveErr(reply);
+      } else {
+        sprintf(reply, "password now: ");
+        StrHelper::strncpy(&reply[14], _prefs->password, 160-15);   // echo back just to let admin know for sure!!
+      }
     } else if (memcmp(command, "clear stats", 11) == 0) {
       _callbacks->clearStats();
       strcpy(reply, "(OK - stats reset)");
@@ -440,36 +468,37 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       strcpy(reply, "ERROR: dutycycle must be 1-100");
     } else {
       _prefs->airtime_factor = (100.0f / dc) - 1.0f;
-      savePrefs();
-      float actual = 100.0f / (_prefs->airtime_factor + 1.0f);
-      int a_int = (int)actual;
-      int a_frac = (int)((actual - a_int) * 10.0f + 0.5f);
-      sprintf(reply, "OK - %d.%d%%", a_int, a_frac);
+      if (!savePrefs()) {
+        formatPrefsSaveErr(reply);
+      } else {
+        float actual = 100.0f / (_prefs->airtime_factor + 1.0f);
+        int a_int = (int)actual;
+        int a_frac = (int)((actual - a_int) * 10.0f + 0.5f);
+        sprintf(reply, "OK - %d.%d%%", a_int, a_frac);
+      }
     }
   } else if (memcmp(config, "af ", 3) == 0) {
     _prefs->airtime_factor = atof(&config[3]);
-    savePrefs();
-    strcpy(reply, "OK");
+    persistPrefs(reply, "OK");
   } else if (memcmp(config, "int.thresh ", 11) == 0) {
     _prefs->interference_threshold = atoi(&config[11]);
-    savePrefs();
-    strcpy(reply, "OK");
+    persistPrefs(reply, "OK");
   } else if (memcmp(config, "cad ", 4) == 0) {
     _prefs->cad_enabled = memcmp(&config[4], "on", 2) == 0;
-    savePrefs();
-    strcpy(reply, "OK");
+    persistPrefs(reply, "OK");
   } else if (memcmp(config, "agc.reset.interval ", 19) == 0) {
     _prefs->agc_reset_interval = atoi(&config[19]) / 4;
-    savePrefs();
-    sprintf(reply, "OK - interval rounded to %d", ((uint32_t) _prefs->agc_reset_interval) * 4);
+    if (!savePrefs()) {
+      formatPrefsSaveErr(reply);
+    } else {
+      sprintf(reply, "OK - interval rounded to %d", ((uint32_t) _prefs->agc_reset_interval) * 4);
+    }
   } else if (memcmp(config, "multi.acks ", 11) == 0) {
     _prefs->multi_acks = atoi(&config[11]);
-    savePrefs();
-    strcpy(reply, "OK");
+    persistPrefs(reply, "OK");
   } else if (memcmp(config, "allow.read.only ", 16) == 0) {
     _prefs->allow_read_only = memcmp(&config[16], "on", 2) == 0;
-    savePrefs();
-    strcpy(reply, "OK");
+    persistPrefs(reply, "OK");
   } else if (memcmp(config, "flood.advert.interval ", 22) == 0) {
     int hours = _atoi(&config[22]);
     if ((hours > 0 && hours < 3) || (hours > 168)) {
@@ -477,8 +506,7 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     } else {
       _prefs->flood_advert_interval = (uint8_t)(hours);
       _callbacks->updateFloodAdvertTimer();
-      savePrefs();
-      strcpy(reply, "OK");
+      persistPrefs(reply, "OK");
     }
   } else if (memcmp(config, "advert.interval ", 16) == 0) {
     int mins = _atoi(&config[16]);
@@ -487,13 +515,11 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     } else {
       _prefs->advert_interval = (uint8_t)(mins / 2);
       _callbacks->updateAdvertTimer();
-      savePrefs();
-      strcpy(reply, "OK");
+      persistPrefs(reply, "OK");
     }
   } else if (memcmp(config, "guest.password ", 15) == 0) {
     StrHelper::strncpy(_prefs->guest_password, &config[15], sizeof(_prefs->guest_password));
-    savePrefs();
-    strcpy(reply, "OK");
+    persistPrefs(reply, "OK");
   } else if (memcmp(config, "prv.key ", 8) == 0) {
     uint8_t prv_key[PRV_KEY_SIZE];
     bool success = mesh::Utils::fromHex(prv_key, PRV_KEY_SIZE, &config[8]);
@@ -510,20 +536,19 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
   } else if (memcmp(config, "name ", 5) == 0) {
     if (isValidName(&config[5])) {
       StrHelper::strncpy(_prefs->node_name, &config[5], sizeof(_prefs->node_name));
-      savePrefs();
-      strcpy(reply, "OK");
+      persistPrefs(reply, "OK");
     } else {
       strcpy(reply, "Error, bad chars");
     }
   } else if (memcmp(config, "repeat ", 7) == 0) {
     _prefs->disable_fwd = memcmp(&config[7], "off", 3) == 0;
-    savePrefs();
-    strcpy(reply, _prefs->disable_fwd ? "OK - repeat is now OFF" : "OK - repeat is now ON");
+    persistPrefs(reply, _prefs->disable_fwd ? "OK - repeat is now OFF" : "OK - repeat is now ON");
   } else if (memcmp(config, "radio.rxgain ", 13) == 0) {
     bool enabled = memcmp(&config[13], "on", 2) == 0;
     _prefs->rx_boosted_gain = enabled;
-    savePrefs();
-    if (_callbacks->setRxBoostedGain(enabled)) {
+    if (!savePrefs()) {
+      formatPrefsSaveErr(reply);
+    } else if (_callbacks->setRxBoostedGain(enabled)) {
       strcpy(reply, "OK");
     } else {
       strcpy(reply, "Error: unsupported");
@@ -534,16 +559,14 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     } else if (memcmp(&config[17], "on", 2) == 0) {
       if (_board->setLoRaFemLnaEnabled(true)) {
         _prefs->radio_fem_rxgain = 1;
-        savePrefs();
-        strcpy(reply, "OK - LoRa FEM RX gain on");
+        persistPrefs(reply, "OK - LoRa FEM RX gain on");
       } else {
         strcpy(reply, "Error: failed to apply LoRa FEM RX gain");
       }
     } else if (memcmp(&config[17], "off", 3) == 0) {
       if (_board->setLoRaFemLnaEnabled(false)) {
         _prefs->radio_fem_rxgain = 0;
-        savePrefs();
-        strcpy(reply, "OK - LoRa FEM RX gain off");
+        persistPrefs(reply, "OK - LoRa FEM RX gain off");
       } else {
         strcpy(reply, "Error: failed to apply LoRa FEM RX gain");
       }
@@ -556,16 +579,14 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     } else if (memcmp(&config[17], "on", 2) == 0) {
       if (_board->setLoRaFemPaGainEnabled(true)) {
         _prefs->radio_fem_txgain = 1;
-        savePrefs();
-        strcpy(reply, "OK - LoRa FEM TX gain on");
+        persistPrefs(reply, "OK - LoRa FEM TX gain on");
       } else {
         strcpy(reply, "Error: failed to apply LoRa FEM TX gain");
       }
     } else if (memcmp(&config[17], "off", 3) == 0) {
       if (_board->setLoRaFemPaGainEnabled(false)) {
         _prefs->radio_fem_txgain = 0;
-        savePrefs();
-        strcpy(reply, "OK - LoRa FEM TX gain off");
+        persistPrefs(reply, "OK - LoRa FEM TX gain off");
       } else {
         strcpy(reply, "Error: failed to apply LoRa FEM TX gain");
       }
@@ -585,25 +606,21 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       _prefs->cr = cr;
       _prefs->freq = freq;
       _prefs->bw = bw;
-      _callbacks->savePrefs();
-      strcpy(reply, "OK - reboot to apply");
+      persistPrefs(reply, "OK - reboot to apply");
     } else {
       strcpy(reply, "Error, invalid radio params");
     }
   } else if (memcmp(config, "lat ", 4) == 0) {
     _prefs->node_lat = atof(&config[4]);
-    savePrefs();
-    strcpy(reply, "OK");
+    persistPrefs(reply, "OK");
   } else if (memcmp(config, "lon ", 4) == 0) {
     _prefs->node_lon = atof(&config[4]);
-    savePrefs();
-    strcpy(reply, "OK");
+    persistPrefs(reply, "OK");
   } else if (memcmp(config, "rxdelay ", 8) == 0) {
     float db = atof(&config[8]);
     if (db >= 0 && db <= 20.0f) {
       _prefs->rx_delay_base = db;
-      savePrefs();
-      strcpy(reply, "OK");
+      persistPrefs(reply, "OK");
     } else {
       strcpy(reply, "Error, must be 0-20");
     }
@@ -611,8 +628,7 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     float f = atof(&config[8]);
     if (f >= 0 && f <= 2.0f) {
       _prefs->tx_delay_factor = f;
-      savePrefs();
-      strcpy(reply, "OK");
+      persistPrefs(reply, "OK");
     } else {
       strcpy(reply, "Error, must be 0-2");
     }
@@ -620,8 +636,7 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     uint8_t m = atoi(&config[19]);
     if (m <= 64) {
       _prefs->flood_max_unscoped = m;
-      savePrefs();
-      strcpy(reply, "OK");
+      persistPrefs(reply, "OK");
     } else {
       strcpy(reply, "Error, max 64");
     } 
@@ -629,8 +644,7 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     uint8_t m = atoi(&config[17]);
     if (m <= 64) {
       _prefs->flood_max_advert = m;
-      savePrefs();
-      strcpy(reply, "OK");
+      persistPrefs(reply, "OK");
     } else {
       strcpy(reply, "Error, max 64");
     }
@@ -638,8 +652,7 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     uint8_t m = atoi(&config[10]);
     if (m <= 64) {
       _prefs->flood_max = m;
-      savePrefs();
-      strcpy(reply, "OK");
+      persistPrefs(reply, "OK");
     } else {
       strcpy(reply, "Error, max 64");
     }
@@ -647,8 +660,7 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     float f = atof(&config[15]);
     if (f >= 0 && f <= 2.0f) {
       _prefs->direct_tx_delay_factor = f;
-      savePrefs();
-      strcpy(reply, "OK");
+      persistPrefs(reply, "OK");
     } else {
       strcpy(reply, "Error, must be 0-2");
     }
@@ -660,15 +672,13 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       config++;
     }
     *dp = 0;
-    savePrefs();
-    strcpy(reply, "OK");
+    persistPrefs(reply, "OK");
   } else if (memcmp(config, "path.hash.mode ", 15) == 0) {
     config += 15;
     uint8_t mode = atoi(config);
     if (mode < 3) {
       _prefs->path_hash_mode = mode;
-      savePrefs();
-      strcpy(reply, "OK");
+      persistPrefs(reply, "OK");
     } else {
       strcpy(reply, "Error, must be 0,1, or 2");
     }
@@ -689,37 +699,35 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     }
     if (mode != 0xFF) {
       _prefs->loop_detect = mode;
-      savePrefs();
-      strcpy(reply, "OK");
+      persistPrefs(reply, "OK");
     }
   } else if (memcmp(config, "tx ", 3) == 0) {
     _prefs->tx_power_dbm = atoi(&config[3]);
-    savePrefs();
-    _callbacks->setTxPower(_prefs->tx_power_dbm);
-    strcpy(reply, "OK");
+    if (savePrefs()) {
+      _callbacks->setTxPower(_prefs->tx_power_dbm);
+      strcpy(reply, "OK");
+    } else {
+      formatPrefsSaveErr(reply);
+    }
   } else if (sender_timestamp == 0 && memcmp(config, "freq ", 5) == 0) {
     _prefs->freq = atof(&config[5]);
-    savePrefs();
-    strcpy(reply, "OK - reboot to apply");
+    persistPrefs(reply, "OK - reboot to apply");
 #ifdef WITH_BRIDGE
   } else if (memcmp(config, "bridge.enabled ", 15) == 0) {
     _prefs->bridge_enabled = memcmp(&config[15], "on", 2) == 0;
     _callbacks->setBridgeState(_prefs->bridge_enabled);
-    savePrefs();
-    strcpy(reply, "OK");
+    persistPrefs(reply, "OK");
   } else if (memcmp(config, "bridge.delay ", 13) == 0) {
     int delay = _atoi(&config[13]);
     if (delay >= 0 && delay <= 10000) {
       _prefs->bridge_delay = (uint16_t)delay;
-      savePrefs();
-      strcpy(reply, "OK");
+      persistPrefs(reply, "OK");
     } else {
       strcpy(reply, "Error: delay must be between 0-10000 ms");
     }
   } else if (memcmp(config, "bridge.source ", 14) == 0) {
     _prefs->bridge_pkt_src = memcmp(&config[14], "rx", 2) == 0;
-    savePrefs();
-    strcpy(reply, "OK");
+    persistPrefs(reply, "OK");
 #endif
 #ifdef WITH_RS232_BRIDGE
   } else if (memcmp(config, "bridge.baud ", 12) == 0) {
@@ -727,8 +735,7 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     if (baud >= 9600 && baud <= BRIDGE_MAX_BAUD) {
       _prefs->bridge_baud = (uint32_t)baud;
       _callbacks->restartBridge();
-      savePrefs();
-      strcpy(reply, "OK");
+      persistPrefs(reply, "OK");
     } else {
       sprintf(reply, "Error: baud rate must be between 9600-%d",BRIDGE_MAX_BAUD);
     }
@@ -739,22 +746,21 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     if (ch > 0 && ch < 15) {
       _prefs->bridge_channel = (uint8_t)ch;
       _callbacks->restartBridge();
-      savePrefs();
-      strcpy(reply, "OK");
+      persistPrefs(reply, "OK");
     } else {
       strcpy(reply, "Error: channel must be between 1-14");
     }
   } else if (memcmp(config, "bridge.secret ", 14) == 0) {
     StrHelper::strncpy(_prefs->bridge_secret, &config[14], sizeof(_prefs->bridge_secret));
     _callbacks->restartBridge();
-    savePrefs();
-    strcpy(reply, "OK");
+    persistPrefs(reply, "OK");
 #endif
   } else if (memcmp(config, "adc.multiplier ", 15) == 0) {
     _prefs->adc_multiplier = atof(&config[15]);
     if (_board->setAdcMultiplier(_prefs->adc_multiplier)) {
-      savePrefs();
-      if (_prefs->adc_multiplier == 0.0f) {
+      if (!savePrefs()) {
+        formatPrefsSaveErr(reply);
+      } else if (_prefs->adc_multiplier == 0.0f) {
         strcpy(reply, "OK - using default board multiplier");
       } else {
         sprintf(reply, "OK - multiplier set to %.3f", _prefs->adc_multiplier);
@@ -778,8 +784,11 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       sideDetSFs[num] = 0;
       if (_callbacks->configSideDetectors(sideDetSFs, num, _prefs->bw)) {
         for (int i = 0; i <= num; i++) _prefs->extra_sf[i] = sideDetSFs[i];
-        savePrefs();
-        sprintf(reply, "OK - extra SFs set");
+        if (savePrefs()) {
+          sprintf(reply, "OK - extra SFs set");
+        } else {
+          formatPrefsSaveErr(reply);
+        }
       } else {
         sprintf(reply, "Invalid extra SF config");
       }
@@ -1051,9 +1060,12 @@ void CommonCLI::handleRegionCmd(char* command, char* reply) {
     _callbacks->startRegionsLoad();
   } else if (n >= 2 && strcmp(parts[1], "save") == 0) {
     _prefs->discovery_mod_timestamp = getRTCClock()->getCurrentTime();   // this node is now 'modified' (for discovery info)
-    savePrefs();
-    bool success = _callbacks->saveRegions();
-    strcpy(reply, success ? "OK" : "Err - save failed");
+    if (!savePrefs()) {
+      formatPrefsSaveErr(reply);
+    } else {
+      bool success = _callbacks->saveRegions();
+      strcpy(reply, success ? "OK" : "Err - save failed");
+    }
   } else if (n >= 3 && strcmp(parts[1], "allowf") == 0) {
     auto region = _region_map->findByNamePrefix(parts[2]);
     if (region) {
