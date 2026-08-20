@@ -40,7 +40,10 @@ protected:
 
   bool checkBootVoltage(const PowerMgtConfig* config);
   void enterSystemOff(uint8_t reason);
-  void configureVoltageWake(uint8_t ain_channel, uint8_t refsel);
+  // Arm LPCOMP as a SYSTEMOFF wake source on the given analog channel.
+  // detect_down=false wakes on an upward crossing (voltage recovery);
+  // detect_down=true wakes on a downward crossing (e.g. an analog button press).
+  void configureVoltageWake(uint8_t ain_channel, uint8_t refsel, bool detect_down = false);
   virtual void initiateShutdown(uint8_t reason);
 #endif
 

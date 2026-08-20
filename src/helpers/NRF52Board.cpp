@@ -173,7 +173,7 @@ void NRF52Board::enterSystemOff(uint8_t reason) {
   NVIC_SystemReset();
 }
 
-void NRF52Board::configureVoltageWake(uint8_t ain_channel, uint8_t refsel) {
+void NRF52Board::configureVoltageWake(uint8_t ain_channel, uint8_t refsel, bool detect_down) {
   // LPCOMP is not managed by SoftDevice - direct register access required
   // Halt and disable before reconfiguration
   NRF_LPCOMP->TASKS_STOP = 1;
@@ -185,8 +185,10 @@ void NRF52Board::configureVoltageWake(uint8_t ain_channel, uint8_t refsel) {
   // Reference: REFSEL (0-6=1/8..7/8, 7=ARef, 8-15=1/16..15/16)
   NRF_LPCOMP->REFSEL = ((uint32_t)refsel << LPCOMP_REFSEL_REFSEL_Pos) & LPCOMP_REFSEL_REFSEL_Msk;
 
-  // Detect UP events (voltage rises above threshold for battery recovery)
-  NRF_LPCOMP->ANADETECT = LPCOMP_ANADETECT_ANADETECT_Up;
+  // Crossing direction: UP for voltage recovery (rises above threshold),
+  // DOWN for an analog button press (pin pulled below threshold).
+  NRF_LPCOMP->ANADETECT = detect_down ? LPCOMP_ANADETECT_ANADETECT_Down
+                                      : LPCOMP_ANADETECT_ANADETECT_Up;
 
   // Enable 50mV hysteresis for noise immunity
   NRF_LPCOMP->HYST = LPCOMP_HYST_HYST_Hyst50mV;
@@ -198,7 +200,7 @@ void NRF52Board::configureVoltageWake(uint8_t ain_channel, uint8_t refsel) {
   NRF_LPCOMP->EVENTS_CROSS = 0;
 
   NRF_LPCOMP->INTENCLR = 0xFFFFFFFF;
-  NRF_LPCOMP->INTENSET = LPCOMP_INTENSET_UP_Msk;
+  NRF_LPCOMP->INTENSET = detect_down ? LPCOMP_INTENSET_DOWN_Msk : LPCOMP_INTENSET_UP_Msk;
 
   // Enable LPCOMP
   NRF_LPCOMP->ENABLE = LPCOMP_ENABLE_ENABLE_Enabled;

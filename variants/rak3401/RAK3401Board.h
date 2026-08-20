@@ -20,6 +20,10 @@ public:
   RAK3401Board() : NRF52Board("RAK3401_OTA") {}
   void begin();
 
+#ifdef NRF52_POWER_MANAGEMENT
+  void powerOff() override { initiateShutdown(SHUTDOWN_REASON_USER); }
+#endif
+
   #define BATTERY_SAMPLES 8
 
   uint16_t getBattMilliVolts() override {
