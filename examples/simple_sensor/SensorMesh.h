@@ -62,6 +62,7 @@ public:
   void savePrefs() override { _cli.savePrefs(_fs); }
   bool formatFileSystem() override;
   FILESYSTEM* getFileSystem() override { return _fs; }
+  bool remountFileSystem() override;
   void sendSelfAdvertisement(int delay_millis, bool flood) override;
   void updateAdvertTimer() override;
   void updateFloodAdvertTimer() override;

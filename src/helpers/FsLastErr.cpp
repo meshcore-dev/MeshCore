@@ -51,25 +51,25 @@ void fsLastErrReply(char* reply, size_t reply_len, int err, const char* fallback
   const char* stage = (fallback_stage && fallback_stage[0]) ? fallback_stage : "write";
 
   if (fsErrIsNospc(err) || strcmp(stage, "nospc") == 0) {
-    snprintf(reply, reply_len, "ERR no space left on device");
+    snprintf(reply, reply_len, "ERR no space left on device (try: doctor gc)");
     return;
   }
 
   if (strcmp(stage, "serialize") == 0) {
     if (err != 0) {
-      snprintf(reply, reply_len, "ERR prefs serialize failed lfs=%d", err);
+      snprintf(reply, reply_len, "ERR prefs serialize failed lfs=%d (try: doctor gc)", err);
     } else {
-      snprintf(reply, reply_len, "ERR prefs serialize failed");
+      snprintf(reply, reply_len, "ERR prefs serialize failed (try: doctor gc)");
     }
     return;
   }
 
   if (err != 0) {
-    snprintf(reply, reply_len, "ERR prefs %s failed lfs=%d", stage, err);
+    snprintf(reply, reply_len, "ERR prefs %s failed lfs=%d (try: doctor gc)", stage, err);
     return;
   }
 
-  snprintf(reply, reply_len, "ERR prefs %s failed", stage);
+  snprintf(reply, reply_len, "ERR prefs %s failed (try: doctor gc)", stage);
 }
 
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
@@ -95,7 +95,7 @@ bool fsIsCriticallyFull(FILESYSTEM* fs) {
 void fsLastErrReplyForFs(char* reply, size_t reply_len, int err, const char* stage, FILESYSTEM* fs) {
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
   if (err == 0 && fs && fsIsCriticallyFull(fs)) {
-    snprintf(reply, reply_len, "ERR no space left on device");
+    snprintf(reply, reply_len, "ERR no space left on device (try: doctor gc)");
     return;
   }
 #else

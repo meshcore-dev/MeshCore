@@ -7,6 +7,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 - [Operational](#operational)
 - [Neighbors](#neighbors-repeater-only)
 - [Statistics](#statistics)
+- [Doctor](#doctor)
 - [Logging](#logging)
 - [Information](#info)
 - [Configuration](#configuration)
@@ -158,18 +159,35 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 ---
 
-## Prefs save errors
+## Doctor
 
-Prefs, ACL, regions, and companion contact/channel blobs save with atomic write (temp file + rename). When a `set …` or `password …` save fails, replies are specific instead of a generic write failure:
+Admin diagnostics namespace. First commands target onboard filesystem health (InternalFS/SPIFFS); more subcommands may be added later.
 
-| Condition | Reply |
-|-----------|--------|
-| Partition critically full (≤2 free blocks on InternalFS) | `ERR no space left on device` |
-| LittleFS returned NOSPC | Same as above |
-| Other LFS error | `ERR prefs <stage> failed lfs=-NN` |
-| JSON serialize failure | `ERR prefs serialize failed` |
+Typical recovery when `set` commands fail with space errors:
 
-Stages: `open`, `write`, `rename`, `serialize`, `nospc`.
+```
+doctor stat
+doctor gc
+doctor check
+```
+
+| Command | Remote admin | Description |
+|---------|--------------|-------------|
+| `doctor stat` | No (USB) | Print partition free/block headroom (`FS_STAT` lines on serial) |
+| `doctor gc` | Yes | Remove common cruft (`/packet_log`, legacy prefs paths, doctor temp files) |
+| `doctor check` | Yes | Probe atomic prefs write (writes `/.doctor_prefs.json`, then removes it) |
+| `doctor ls` | No (USB) | Recursive file listing (`FS_LS` on serial) |
+| `doctor probe` | No (USB) | Write-size probe + prefs JSON write test (`FS_PROBE` on serial) |
+| `doctor dump` | No (USB) | Hex dump raw flash region backing InternalFS |
+
+**Reply examples:**
+
+- `OK gc removed 3 item(s)`
+- `OK prefs_writeable prefs=1 id=1 acl=0 regions=0`
+- `ERR no space left on device (try: doctor gc)`
+- `ERR prefs rename failed lfs=-28 (try: doctor gc)`
+
+Requires [#3253](https://github.com/meshcore-dev/MeshCore/pull/3253) (atomic prefs save + FS error replies). This PR adds `(try: doctor gc)` hints to those error messages.
 
 ---
 

@@ -202,6 +202,7 @@ public:
   virtual const char* getRole() = 0;
   virtual bool formatFileSystem() = 0;
   virtual FILESYSTEM* getFileSystem() { return nullptr; }
+  virtual bool remountFileSystem() { return true; }
   virtual void sendSelfAdvertisement(int delay_millis, bool flood) = 0;
   virtual void updateAdvertTimer() = 0;
   virtual void updateFloodAdvertTimer() = 0;
@@ -268,6 +269,15 @@ class CommonCLI {
   void handleRegionCmd(char* command, char* reply);
   void handleGetCmd(uint32_t sender_timestamp, char* command, char* reply);
   void handleSetCmd(uint32_t sender_timestamp, char* command, char* reply);
+  void handleDoctor(uint32_t sender_timestamp, const char* args, char* reply);
+  bool checkFileSystem(char* reply);
+  bool tryPrefsWrite(FILESYSTEM* fs, char* err_stage, size_t err_stage_len);
+  bool wipeFileSystem(char* reply);
+  bool dumpFileSystem(char* reply);
+  bool statFileSystem(char* reply);
+  bool listFileSystem(char* reply);
+  bool probeFileSystem(char* reply);
+  bool gcFileSystem(char* reply);
   void formatPrefsSaveErr(char* reply);
 
 public:
