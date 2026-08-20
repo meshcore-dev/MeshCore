@@ -36,7 +36,7 @@ static unsigned long userBtnDownAt = 0;
 #endif
 
 void setup() {
-  Serial.begin(115200);
+  MESH_CONSOLE_SERIAL.begin(115200);
   delay(1000);
 
   board.begin();
@@ -94,8 +94,8 @@ void setup() {
     store.save("_main", the_mesh.self_id);
   }
 
-  Serial.print("Repeater ID: ");
-  mesh::Utils::printHex(Serial, the_mesh.self_id.pub_key, PUB_KEY_SIZE); Serial.println();
+  MESH_CONSOLE_SERIAL.print("Repeater ID: ");
+  mesh::Utils::printHex(MESH_CONSOLE_SERIAL, the_mesh.self_id.pub_key, PUB_KEY_SIZE); MESH_CONSOLE_SERIAL.println();
 
   command[0] = 0;
 #ifdef ETHERNET_ENABLED
@@ -125,12 +125,12 @@ void setup() {
 void loop() {
   // Handle Serial CLI
   int len = strlen(command);
-  while (Serial.available() && len < sizeof(command)-1) {
-    char c = Serial.read();
+  while (MESH_CONSOLE_SERIAL.available() && len < sizeof(command)-1) {
+    char c = MESH_CONSOLE_SERIAL.read();
     if (c != '\n') {
       command[len++] = c;
       command[len] = 0;
-      Serial.print(c);
+      MESH_CONSOLE_SERIAL.print(c);
     }
     if (c == '\r') break;
   }
@@ -139,7 +139,7 @@ void loop() {
   }
 
   if (len > 0 && command[len - 1] == '\r') {  // received complete line
-    Serial.print('\n');
+    MESH_CONSOLE_SERIAL.print('\n');
     command[len - 1] = 0;  // replace newline with C string null terminator
     char reply[160];
     reply[0] = 0;
@@ -151,7 +151,7 @@ void loop() {
     the_mesh.handleCommand(0, command, reply);  // NOTE: there is no sender_timestamp via serial!
 #endif
     if (reply[0]) {
-      Serial.print("  -> "); Serial.println(reply);
+      MESH_CONSOLE_SERIAL.print("  -> "); MESH_CONSOLE_SERIAL.println(reply);
     }
 
     command[0] = 0;  // reset command buffer
@@ -177,7 +177,7 @@ void loop() {
     if (userBtnDownAt == 0) {
       userBtnDownAt = millis();
     } else if ((unsigned long)(millis() - userBtnDownAt) >= USER_BTN_HOLD_OFF_MILLIS) {
-      Serial.println("Powering off...");
+      MESH_CONSOLE_SERIAL.println("Powering off...");
       board.powerOff();  // does not return
     }
   } else {
