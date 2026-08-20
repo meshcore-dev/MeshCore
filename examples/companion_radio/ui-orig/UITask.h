@@ -36,6 +36,7 @@ class UITask : public AbstractUITask {
   int _msgcount;
   bool _need_refresh = true;
   bool _displayWasOn = false;  // Track display state before button press
+  bool _was_ext_powered = false;   // tracks USB/external power edge for wake-on-connect
   unsigned long ui_started_at;
 
   // Button handlers
