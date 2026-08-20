@@ -1,5 +1,6 @@
 #include "UITask.h"
 #include <Arduino.h>
+#include <helpers/FirmwareIdentity.h>
 #include <helpers/TxtDataHelpers.h>
 #include "../MyMesh.h"
 
@@ -52,14 +53,14 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
 
   // strip off dash and commit hash by changing dash to null terminator
   // e.g: v1.2.3-abcdef -> v1.2.3
-  char *version = strdup(FIRMWARE_VERSION);
+  char *version = strdup(mesh::firmware_version_string());
   char *dash = strchr(version, '-');
   if (dash) {
     *dash = 0;
   }
 
   // v1.2.3 (1 Jan 2025)
-  sprintf(_version_info, "%s (%s)", version, FIRMWARE_BUILD_DATE);
+  sprintf(_version_info, "%s (%s)", version, mesh::firmware_build_date_string());
 
 #ifdef PIN_BUZZER
   buzzer.begin();

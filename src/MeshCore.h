@@ -4,6 +4,8 @@
 #include <stddef.h>
 #include <math.h>
 
+#include "helpers/FirmwareIdentity.h"
+
 #define MAX_HASH_SIZE        8
 #define PUB_KEY_SIZE        32
 #define PRV_KEY_SIZE        64
@@ -77,15 +79,8 @@ public:
   virtual bool canControlLoRaFemLna() const { return false; }
   virtual bool isLoRaFemLnaEnabled() const { return false; }
 #if defined(ENABLE_OTA)
-  // 4-byte build-target discriminator for OTA-over-LoRa (docs/ota_protocol.md §9). Default is the
-  // MOTA_TARGET_ID build flag injected by build.sh; 0 when unset (e.g. a bare IDE build).
-  virtual uint32_t getOtaTargetId() const {
-  #ifdef MOTA_TARGET_ID
-    return (uint32_t)(MOTA_TARGET_ID);
-  #else
-    return 0;
-  #endif
-  }
+  // 4-byte build-target discriminator for OTA-over-LoRa (docs/ota_protocol.md §9).
+  virtual uint32_t getOtaTargetId() const { return firmware_mota_target_id(); }
   // Human-readable hardware tag (<=32 ASCII chars, e.g. "RAK4631") naming the hardware this firmware can
   // boot on. Same tag == bootable-compatible; the OTA applier refuses a `.mota` whose hw_id differs (brick-
   // safety). Defined per-variant via the MOTA_HW_ID build flag; "" when unset (then the check is skipped).

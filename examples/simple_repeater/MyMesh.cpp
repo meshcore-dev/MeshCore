@@ -374,7 +374,7 @@ int MyMesh::handleRequest(ClientInfo *sender, uint32_t sender_timestamp, uint8_t
       return reply_offset;
     }
   } else if (payload[0] == REQ_TYPE_GET_OWNER_INFO) {
-    sprintf((char *) &reply_data[4], "%s\n%s\n%s", FIRMWARE_VERSION, _prefs.node_name, _prefs.owner_info);
+    sprintf((char *) &reply_data[4], "%s\n%s\n%s", mesh::firmware_version_string(), _prefs.node_name, _prefs.owner_info);
     return 4 + strlen((char *) &reply_data[4]);
   }
   return 0; // unknown command

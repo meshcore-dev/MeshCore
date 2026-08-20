@@ -53,6 +53,21 @@ def _cppdef(name):                                # value of a -D<name>=<value> 
     return val
 
 
+def _version_from_firmware_identity():
+    import re
+    path = os.path.join(env["PROJECT_DIR"], "src", "helpers", "FirmwareIdentity.generated.cpp")  # noqa: F821
+    pat = re.compile(r'kFirmwareVersion\[\]\s*=\s*"([^"]+)"')
+    try:
+        with open(path, encoding="utf-8", errors="ignore") as f:
+            for line in f:
+                m = pat.search(line)
+                if m:
+                    return m.group(1)
+    except OSError:
+        pass
+    return ""
+
+
 def _version_from_headers():
     """FIRMWARE_VERSION is a header ``#define`` in the example (upstream MeshCore convention), not a -D, so
     _cppdef() can't see it and the EndF version would otherwise default to 0. Read it from the source WITHOUT
@@ -106,7 +121,9 @@ def _firmware_ident():
     target_id = ml.target_id_for_env(env["PIOENV"])           # noqa: F821
     hw_id = (_cppdef("MOTA_HW_ID") or "").replace("\\", "").strip().strip('"').strip("'")
     ver_s = (_cppdef("FIRMWARE_VERSION") or "").replace("\\", "").strip().strip('"').strip("'")
-    if not ver_s:                                             # not a -D -> read the header MeshCore ships
+    if not ver_s:
+        ver_s = _version_from_firmware_identity()
+    if not ver_s:                                             # legacy header fallback
         ver_s = _version_from_headers()
     m = re.search(r"(\d+)\.(\d+)(?:\.(\d+))?", ver_s)
     fw_version = ml.pack_version(f"{m.group(1)}.{m.group(2)}.{m.group(3) or 0}") if m else 0
