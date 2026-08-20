@@ -10,8 +10,7 @@ EnvyOS builds on [MeshCore CLI commands](./cli_commands.md) (companion tag **v1.
 
 ## Navigation
 
-- [Filesystem doctor](#filesystem-doctor)
-- [Filesystem garbage collection](#filesystem-garbage-collection)
+- [Doctor (filesystem)](#doctor-filesystem)
 - [Logging (serial mirror)](#logging-serial-mirror)
 - [Prefs save errors](#prefs-save-errors)
 - [Routing (next-hop retry)](#routing-next-hop-retry)
@@ -19,26 +18,33 @@ EnvyOS builds on [MeshCore CLI commands](./cli_commands.md) (companion tag **v1.
 
 ---
 
-## Filesystem doctor
+## Doctor (filesystem)
 
-Wedged **InternalFS** (nRF52/STM32) or full SPIFFS can make `set name`, `set radio`, ACL, and region saves fail silently or return generic errors. The `doctor` commands diagnose and recover without re-flashing when possible.
+Wedged **InternalFS** (nRF52/STM32) or full SPIFFS can make `set name`, `set radio`, ACL, and region saves fail silently or return generic errors.
 
-Typical workflow on a full partition:
+| Command | Remote admin | Role |
+|---------|--------------|------|
+| `doctor stat` | No (USB) | Partition headroom |
+| `doctor gc` | Yes | Remove common cruft |
+| `doctor check` | Yes | Prefs write probe |
+| `doctor ls` | No (USB) | Bench: recursive listing |
+| `doctor probe` | No (USB) | Bench: raw write sizing |
+| `doctor dump` | No (USB) | Bench: hex dump flash region |
+
+Typical recovery on a full partition:
 
 ```
-doctor fs stat
-doctor fs ls
+doctor stat
 doctor gc
-doctor fs stat
+doctor stat
+doctor check
 set name MyNode
 reboot
 ```
 
-If `doctor gc` cannot free enough space, use `doctor fs fix` (non-destructive attempt) or `doctor fs format` (wipes FS, rebuilds prefs/identity/ACL/regions from RAM).
+Wipe without rebuild-from-RAM: serial **`erase`** (formats FS; reboot required).
 
-### `doctor fs check`
-
-**Usage:** `doctor fs check`
+### `doctor check`
 
 Tests whether the current in-RAM prefs can be written atomically to flash (writes to `/.doctor_prefs.json`, then removes it). Does **not** change running prefs.
 
@@ -46,103 +52,15 @@ Tests whether the current in-RAM prefs can be written atomically to flash (write
 
 - `OK prefs_writeable prefs=1 id=1 acl=0 regions=0`
 - `ERR no space left on device (try: doctor gc)`
-- `ERR prefs write failed lfs=-28 (try: doctor fs fix)`
+- `ERR prefs write failed lfs=-28`
 
-Works over remote admin.
-
----
-
-### `doctor fs fix`
-
-**Usage:** `doctor fs fix`
-
-Tries a normal prefs save first. If that fails, **formats InternalFS and rebuilds** identity, prefs, ACL, and regions from RAM.
-
-**Reply examples:**
-
-- `OK prefs repaired`
-- `OK fs rebuilt from RAM`
-- `ERR format failed` / `ERR remount failed` / prefs error string (see [Prefs save errors](#prefs-save-errors))
-
-Works over remote admin.
-
----
-
-### `doctor fs format`
-
-**Usage:** `doctor fs format`
-
-Same rebuild path as `fix`, but always formats first. Destructive to flash contents not held in RAM.
-
-**Reply:** `OK fs formatted from RAM` or an error.
-
-Works over remote admin.
-
----
-
-### `doctor fs stat`
-
-**Usage:** `doctor fs stat`
+### `doctor stat`
 
 **Serial only.** Prints partition summary lines prefixed `FS_STAT` on serial, then a one-line summary reply.
 
-**Serial output (nRF52 InternalFS example):**
-
-```
-FS_STAT begin
-FS_STAT total 28672
-FS_STAT used~ 28544 free~ 128
-FS_STAT blocks 224 used 223 bsize 128
-FS_STAT file /prefs.json 0
-FS_STAT file /_main.id 96
-...
-FS_STAT end
-```
-
 **Reply:** `OK free~=128/28672 blk=223/224`
 
----
-
-### `doctor fs ls`
-
-**Usage:** `doctor fs ls`
-
-**Serial only.** Recursive listing; lines prefixed `FS_LS` on serial.
-
-**Reply:** `OK see serial FS_LS`
-
-Use to find large cruft (`packet_log`, legacy Meshtastic `prefs/`, `com_prefs`, etc.).
-
----
-
-### `doctor fs probe`
-
-**Usage:** `doctor fs probe`
-
-**Serial only.** Writes temporary probe files at increasing sizes (1 B through 4096 B), then runs the same prefs JSON write test as `check`. Lines prefixed `FS_PROBE` on serial.
-
-**Reply examples:**
-
-- `OK raw_max=512 prefs=ok`
-- `OK raw_max=128 fail>=256@write prefs=fail`
-
----
-
-### `doctor fs dump`
-
-**Usage:** `doctor fs dump`
-
-**Serial only.** Hex-dumps the raw flash region backing InternalFS (`FS_DUMP` lines). For deep corruption analysis; not needed for normal recovery.
-
-**Reply:** `OK dumped N bytes`
-
----
-
-## Filesystem garbage collection
-
 ### `doctor gc`
-
-**Usage:** `doctor gc`
 
 Removes reclaimable files that commonly fill InternalFS:
 
@@ -155,7 +73,17 @@ Removes reclaimable files that commonly fill InternalFS:
 
 **Reply:** `OK gc removed N item(s)`
 
-Works over remote admin. Run before `set …` when `doctor fs stat` shows the partition nearly full.
+### `doctor ls` (bench)
+
+**Serial only.** Recursive listing; lines prefixed `FS_LS` on serial. **Reply:** `OK see serial FS_LS`
+
+### `doctor probe` (bench)
+
+**Serial only.** Writes temporary probe files at increasing sizes, then runs the prefs JSON write test. Lines prefixed `FS_PROBE` on serial.
+
+### `doctor dump` (bench)
+
+**Serial only.** Hex-dumps the raw flash region backing InternalFS. **Reply:** `OK dumped N bytes`
 
 ---
 
@@ -182,8 +110,8 @@ When a `set …` or `password …` save fails, replies are specific instead of a
 |-----------|--------|
 | Partition critically full (≤2 free blocks on InternalFS) | `ERR no space left on device (try: doctor gc)` |
 | LittleFS returned NOSPC | Same as above |
-| Other LFS error | `ERR prefs <stage> failed lfs=-NN (try: doctor fs fix)` |
-| JSON serialize failure | `ERR prefs serialize failed (try: doctor fs fix)` |
+| Other LFS error | `ERR prefs <stage> failed lfs=-NN (try: doctor gc)` |
+| JSON serialize failure | `ERR prefs serialize failed (try: doctor gc)` |
 
 Stages: `open`, `write`, `rename`, `serialize`, `nospc`.
 
@@ -217,16 +145,31 @@ Use field slugs for production; debug twins for bench, OTA, and FS troubleshooti
 
 ---
 
+## Companion gap (deferred v0.3.0)
+
+Companions use the same **28 KB InternalFS** on nRF52840 but **do not expose `doctor` commands** (no `CommonCLI` on that path). WisMesh Tag BLE builds also omit `EXTRAFS=1`, so contacts/channels/blobs share InternalFS with prefs/identity. A full partition wedges clients the same way as repeaters (failed saves, lost data on reboot).
+
+**Deferred to v0.3.0** (see ota repo `docs/planned/v0.3.0.md`):
+
+- Enable `EXTRAFS=1` on WisMesh companion (match RAK4631: contacts on secondary volume).
+- Expose `doctor check` / `doctor gc` on companion (USB serial debug at minimum).
+- Align with multi-volume FS CLI naming work.
+
+v0.2.0 ships atomic saves and boot fsck on companion only.
+
+---
+
 ## Upstream notes
 
-See MeshEnvy `docs/upstream-prs.md` in the ota repo for PR tracking. Sensible upstream targets:
+See MeshEnvy `docs/good-upstream-contributor-policy.md` in the ota repo for GUCP tracking. Sensible upstream targets:
 
 | Change | Upstream? |
 |--------|-----------|
-| Atomic prefs save | **Yes** — `meshcore-dev/MeshCore` `dev` |
+| Atomic prefs save (tmp + rename) | **Yes** — `meshcore-dev/MeshCore` `dev` |
+| FS save error surfacing (`lfs=-NN`, NOSPC hint) | **Yes** — prerequisite for useful `doctor check` / `set` failures |
+| `doctor stat`, `doctor gc`, `doctor check` | **Yes** — flat CLI |
+| `doctor ls` / `probe` / `dump` | **No** — EnvyOS bench tooling |
+| Adafruit LFS `fsLastErr` hooks | **Maybe** — ship as part of error-surfacing PR or upstream equivalent |
 | `log tail` | **Yes** — PR open |
 | Next-hop retry | **Yes** — PR open |
-| `doctor fs check` (prefs write probe only) | **Maybe** — lighter subset without dump/probe/gc |
-| Full `doctor fs` + `doctor gc` | **EnvyOS-only** — bench/ops tooling |
-| Adafruit LFS `fsLastErr` hooks | **EnvyOS-only** — vendor fork patch |
 | Packet log size cap | **Yes** — recommended future MeshCore fix (not in v0.2.0) |

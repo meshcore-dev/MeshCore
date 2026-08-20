@@ -311,12 +311,9 @@ class CommonCLI {
   void handleRegionCmd(char* command, char* reply);
   void handleGetCmd(uint32_t sender_timestamp, char* command, char* reply);
   void handleSetCmd(uint32_t sender_timestamp, char* command, char* reply);
-  void handleDoctorFs(uint32_t sender_timestamp, const char* args, char* reply);
+  void handleDoctor(uint32_t sender_timestamp, const char* args, char* reply);
   bool checkFileSystem(char* reply);
   bool tryPrefsWrite(FILESYSTEM* fs, char* err_stage, size_t err_stage_len);
-  bool rebuildFileSystemFromRam(char* reply);
-  bool fixFileSystemFromRam(char* reply);
-  bool formatFileSystemFromRam(char* reply);
   bool wipeFileSystem(char* reply);
   bool dumpFileSystem(char* reply);
   bool statFileSystem(char* reply);
