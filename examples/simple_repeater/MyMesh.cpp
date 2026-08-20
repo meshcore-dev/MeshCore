@@ -198,6 +198,8 @@ uint8_t MyMesh::handleAnonClockReq(const mesh::Identity& sender, uint32_t sender
     reply_data[8] |= 0x01;  // is bridge, type UART
 #elif WITH_ESPNOW_BRIDGE
     reply_data[8] |= 0x03;  // is bridge, type ESP-NOW
+#elif WITH_NRF_BRIDGE
+    reply_data[8] |= 0x05;  // is bridge, type nRF 2.4GHz
 #endif
     if (_prefs.disable_fwd) {   // is this repeater currently disabled
       reply_data[8] |= 0x80;  // is disabled
@@ -870,6 +872,9 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
       , bridge(&_prefs, WITH_RS232_BRIDGE, _mgr, &rtc)
 #endif
 #if defined(WITH_ESPNOW_BRIDGE)
+      , bridge(&_prefs, _mgr, &rtc)
+#endif
+#if defined(WITH_NRF_BRIDGE)
       , bridge(&_prefs, _mgr, &rtc)
 #endif
 {

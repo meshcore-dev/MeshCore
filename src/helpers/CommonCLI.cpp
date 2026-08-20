@@ -207,6 +207,9 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
         strcpy(reply, "ERR: clock cannot go backwards");
       }
     } else if (memcmp(command, "start ota", 9) == 0) {
+      // OTA needs the radio the bridge is holding: the SoftDevice claims the nRF
+      // RADIO, and on ESP32 the update wants the Wi-Fi interface ESP-NOW is on.
+      _callbacks->setBridgeState(false);
       if (!_board->startOTAUpdate(_prefs->node_name, reply)) {
         strcpy(reply, "Error");
       }
@@ -746,7 +749,7 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       sprintf(reply, "Error: baud rate must be between 9600-%d",BRIDGE_MAX_BAUD);
     }
 #endif
-#ifdef WITH_ESPNOW_BRIDGE
+#if defined(WITH_ESPNOW_BRIDGE) || defined(WITH_NRF_BRIDGE)
   } else if (memcmp(config, "bridge.channel ", 15) == 0) {
     int ch = atoi(&config[15]);
     if (ch > 0 && ch < 15) {
@@ -910,6 +913,8 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
             "rs232"
 #elif WITH_ESPNOW_BRIDGE
             "espnow"
+#elif WITH_NRF_BRIDGE
+            "nrf"
 #else
             "none"
 #endif
@@ -926,7 +931,7 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
   } else if (memcmp(config, "bridge.baud", 11) == 0) {
     sprintf(reply, "> %d", (uint32_t)_prefs->bridge_baud);
 #endif
-#ifdef WITH_ESPNOW_BRIDGE
+#if defined(WITH_ESPNOW_BRIDGE) || defined(WITH_NRF_BRIDGE)
   } else if (memcmp(config, "bridge.channel", 14) == 0) {
     sprintf(reply, "> %d", (uint32_t)_prefs->bridge_channel);
   } else if (memcmp(config, "bridge.secret", 13) == 0) {
