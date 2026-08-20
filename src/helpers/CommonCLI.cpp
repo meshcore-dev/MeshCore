@@ -315,70 +315,10 @@ bool CommonCLI::checkFileSystem(char* reply) {
   } else if (fsIsCriticallyFull(fs)) {
     fsLastErrReplyForFs(reply, 160, fsLastErrGet(), stage, fs);
   } else {
-    sprintf(reply, "ERR prefs %s failed prefs=%d id=%d acl=%d regions=%d (try: doctor fs fix)",
+    sprintf(reply, "ERR prefs %s failed prefs=%d id=%d acl=%d regions=%d (try: doctor gc)",
             stage[0] ? stage : "write", prefs, id, acl, regions);
   }
   return prefs_write_ok;
-}
-
-bool CommonCLI::rebuildFileSystemFromRam(char* reply) {
-  FILESYSTEM* fs = _callbacks->getFileSystem();
-  if (!fs) {
-    strcpy(reply, "ERR unsupported");
-    return false;
-  }
-
-  repairFeedWatchdog();
-  if (!_callbacks->formatFileSystem()) {
-    strcpy(reply, "ERR format failed");
-    return false;
-  }
-  repairFeedWatchdog();
-  if (!_callbacks->remountFileSystem()) {
-    strcpy(reply, "ERR remount failed");
-    return false;
-  }
-
-  _callbacks->saveIdentity(_callbacks->getSelfId());
-  repairFeedWatchdog();
-  if (!savePrefs(fs)) {
-    formatPrefsSaveErr(reply);
-    return false;
-  }
-  repairFeedWatchdog();
-  _acl->save(fs);
-  repairFeedWatchdog();
-  if (!_region_map->save(fs)) {
-    strcpy(reply, "ERR regions write failed");
-    return false;
-  }
-
-  strcpy(reply, "OK fs rebuilt from RAM");
-  return true;
-}
-
-bool CommonCLI::fixFileSystemFromRam(char* reply) {
-  FILESYSTEM* fs = _callbacks->getFileSystem();
-  if (!fs) {
-    strcpy(reply, "ERR unsupported");
-    return false;
-  }
-
-  repairFeedWatchdog();
-  if (savePrefs(fs) && fs->exists("/prefs.json")) {
-    strcpy(reply, "OK prefs repaired");
-    return true;
-  }
-
-  return rebuildFileSystemFromRam(reply);
-}
-
-bool CommonCLI::formatFileSystemFromRam(char* reply) {
-  if (rebuildFileSystemFromRam(reply)) {
-    strcpy(reply, "OK fs formatted from RAM");
-    return true;
-  }
-  return false;
 }
 
 bool CommonCLI::wipeFileSystem(char* reply) {
@@ -868,17 +808,15 @@ bool CommonCLI::gcFileSystem(char* reply) {
   return true;
 }
 
-void CommonCLI::handleDoctorFs(uint32_t sender_timestamp, const char* args, char* reply) {
+void CommonCLI::handleDoctor(uint32_t sender_timestamp, const char* args, char* reply) {
   while (*args == ' ') args++;
 
   if (*args == 0) {
-    strcpy(reply, "usage: doctor fs check|fix|format|dump|stat|ls|probe");
+    strcpy(reply, "usage: doctor check|stat|ls|probe|dump|gc");
+  } else if (memcmp(args, "gc", 2) == 0 && (args[2] == 0 || args[2] == ' ')) {
+    gcFileSystem(reply);
   } else if (memcmp(args, "check", 5) == 0 && (args[5] == 0 || args[5] == ' ')) {
     checkFileSystem(reply);
-  } else if (memcmp(args, "fix", 3) == 0 && (args[3] == 0 || args[3] == ' ')) {
-    fixFileSystemFromRam(reply);
-  } else if (memcmp(args, "format", 6) == 0 && (args[6] == 0 || args[6] == ' ')) {
-    formatFileSystemFromRam(reply);
   } else if (memcmp(args, "dump", 4) == 0 && (args[4] == 0 || args[4] == ' ')) {
     if (sender_timestamp != 0) {
       strcpy(reply, "ERR dump requires USB");
@@ -906,7 +844,7 @@ void CommonCLI::handleDoctorFs(uint32_t sender_timestamp, const char* args, char
     }
 #endif
   } else {
-    strcpy(reply, "usage: doctor fs check|fix|format|dump|stat|ls|probe");
+    strcpy(reply, "usage: doctor check|stat|ls|probe|dump|gc");
   }
 }
 
@@ -1013,10 +951,8 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       handleGetCmd(sender_timestamp, command, reply);
     } else if (memcmp(command, "set ", 4) == 0) {
       handleSetCmd(sender_timestamp, command, reply);
-    } else if (memcmp(command, "doctor gc", 9) == 0 && (command[9] == 0 || command[9] == ' ')) {
-      gcFileSystem(reply);
-    } else if (memcmp(command, "doctor fs", 9) == 0 && (command[9] == 0 || command[9] == ' ')) {
-      handleDoctorFs(sender_timestamp, &command[9], reply);
+    } else if (memcmp(command, "doctor", 6) == 0 && (command[6] == 0 || command[6] == ' ')) {
+      handleDoctor(sender_timestamp, &command[6], reply);
     } else if (sender_timestamp == 0 && strcmp(command, "erase") == 0) {
       if (_callbacks->getFileSystem()) {
         wipeFileSystem(reply);

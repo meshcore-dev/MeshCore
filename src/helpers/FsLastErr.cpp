@@ -57,19 +57,19 @@ void fsLastErrReply(char* reply, size_t reply_len, int err, const char* fallback
 
   if (strcmp(stage, "serialize") == 0) {
     if (err != 0) {
-      snprintf(reply, reply_len, "ERR prefs serialize failed lfs=%d (try: doctor fs fix)", err);
+      snprintf(reply, reply_len, "ERR prefs serialize failed lfs=%d (try: doctor gc)", err);
     } else {
-      snprintf(reply, reply_len, "ERR prefs serialize failed (try: doctor fs fix)");
+      snprintf(reply, reply_len, "ERR prefs serialize failed (try: doctor gc)");
     }
     return;
   }
 
   if (err != 0) {
-    snprintf(reply, reply_len, "ERR prefs %s failed lfs=%d (try: doctor fs fix)", stage, err);
+    snprintf(reply, reply_len, "ERR prefs %s failed lfs=%d (try: doctor gc)", stage, err);
     return;
   }
 
-  snprintf(reply, reply_len, "ERR prefs %s failed (try: doctor fs fix)", stage);
+  snprintf(reply, reply_len, "ERR prefs %s failed (try: doctor gc)", stage);
 }
 
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
