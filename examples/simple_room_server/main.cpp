@@ -114,7 +114,7 @@ void loop() {
     Serial.print(c);
   }
   if (len == sizeof(command)-1) {  // command buffer full
-    command[sizeof(command)-1] = '\r';
+    command[sizeof(command)-2] = '\r';   // force-complete the line ([len-1] is tested below; [sizeof-1] would clobber the NUL and never match)
   }
 
   if (len > 0 && command[len - 1] == '\r') {  // received complete line
