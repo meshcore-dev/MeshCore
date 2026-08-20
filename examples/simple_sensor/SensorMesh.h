@@ -65,6 +65,7 @@ public:
   void updateAdvertTimer() override;
   void updateFloodAdvertTimer() override;
   void setLoggingOn(bool enable) override {  }
+  void setTailOn(bool enable) override { }
   void eraseLogFile() override { }
   void dumpLogFile() override { }
   void setTxPower(int8_t power_dbm) override;

@@ -205,6 +205,7 @@ public:
   virtual void updateAdvertTimer() = 0;
   virtual void updateFloodAdvertTimer() = 0;
   virtual void setLoggingOn(bool enable) = 0;
+  virtual void setTailOn(bool enable) = 0;
   virtual void eraseLogFile() = 0;
   virtual void dumpLogFile() = 0;
   virtual void setTxPower(int8_t power_dbm) = 0;

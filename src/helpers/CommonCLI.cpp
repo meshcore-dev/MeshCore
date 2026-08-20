@@ -422,6 +422,15 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       } else {
         strcpy(reply, "off");
       }
+    } else if (sender_timestamp == 0 && memcmp(command, "log tail on", 11) == 0
+               && (command[11] == 0 || command[11] == ' ')) {
+      _callbacks->setLoggingOn(true);
+      _callbacks->setTailOn(true);
+      strcpy(reply, "   tail on");
+    } else if (sender_timestamp == 0 && memcmp(command, "log tail off", 12) == 0
+               && (command[12] == 0 || command[12] == ' ')) {
+      _callbacks->setTailOn(false);
+      strcpy(reply, "   tail off");
     } else if (memcmp(command, "log start", 9) == 0) {
       _callbacks->setLoggingOn(true);
       strcpy(reply, "   logging on");
