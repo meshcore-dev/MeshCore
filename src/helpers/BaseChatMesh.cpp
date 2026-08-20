@@ -38,8 +38,8 @@ mesh::Packet* BaseChatMesh::createSelfAdvert(const char* name, double lat, doubl
   return createAdvert(self_id, app_data, app_data_len);
 }
 
-void BaseChatMesh::sendAckTo(const ContactInfo& dest, const uint8_t* ack_hash, uint8_t ack_len) {
-  if (dest.out_path_len == OUT_PATH_UNKNOWN) {
+void BaseChatMesh::sendAckTo(const ContactInfo& dest, const uint8_t* ack_hash, uint8_t ack_len, bool is_retry) {
+  if (dest.out_path_len == OUT_PATH_UNKNOWN || is_retry) {
     mesh::Packet* ack = createAck(ack_hash, ack_len);
     if (ack) sendFloodScoped(dest, ack, TXT_ACK_DELAY);
   } else {
@@ -230,6 +230,7 @@ void BaseChatMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender
     uint32_t timestamp;
     memcpy(&timestamp, data, 4);  // timestamp (by sender's RTC clock - which could be wrong)
     uint8_t flags = data[4] >> 2;   // message attempt number, and other flags
+    bool is_retry = (data[4] & 3) != 0;  // the send attempt: >0 means the sender is retransmitting,
 
     // len can be > original length, but 'text' will be padded with zeroes
     data[len] = 0; // need to make a C string again, with null terminator
@@ -251,7 +252,7 @@ void BaseChatMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender
                                                 PAYLOAD_TYPE_ACK, (uint8_t *) &ack_hash, 6);
         if (path) sendFloodScoped(from, path, TXT_ACK_DELAY);
       } else {
-        sendAckTo(from, ack_hash, 6);
+        sendAckTo(from, ack_hash, 6, is_retry);
       }
     } else if (flags == TXT_TYPE_CLI_DATA) {
       onCommandDataRecv(from, packet, timestamp, (const char *) &data[5]);  // let UI know
@@ -278,7 +279,7 @@ void BaseChatMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender
                                                 PAYLOAD_TYPE_ACK, (uint8_t *) &ack_hash, 4);
         if (path) sendFloodScoped(from, path, TXT_ACK_DELAY);
       } else {
-        sendAckTo(from, (uint8_t *) &ack_hash);
+        sendAckTo(from, (uint8_t *) &ack_hash, 4, is_retry);
       }
     } else {
       MESH_DEBUG_PRINTLN("onPeerDataRecv: unsupported message type: %u", (uint32_t) flags);
