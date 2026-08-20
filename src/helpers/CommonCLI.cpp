@@ -273,6 +273,19 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       sprintf(reply, "%s (Build: %s)", _callbacks->getFirmwareVer(), _callbacks->getBuildDate());
     } else if (memcmp(command, "board", 5) == 0) {
       sprintf(reply, "%s", _board->getManufacturerName());
+    } else if (strcmp(command, "power") == 0) {
+      const char* usb_state = _board->hasUsbPowerDetect()
+                                  ? (_board->isUsbPowered() ? "yes" : "no")
+                                  : "n/a";
+      const char* solar_state = _board->hasSolarChargerDetect()
+                                    ? (_board->isSolarChargerActive() ? "yes" : "no")
+                                    : "n/a";
+      snprintf(reply, 160, "batt:%u mV usb:%s solar_chg:%s ext:%s charger:%s",
+              (unsigned)_board->getBattMilliVolts(),
+              usb_state,
+              solar_state,
+              _board->isExternalPowered() ? "yes" : "no",
+              _board->isChargerActive() ? "yes" : "no");
     } else if (memcmp(command, "sensor get ", 11) == 0) {
       const char* key = command + 11;
       const char* val = _sensors->getSettingByKey(key);

@@ -15,6 +15,9 @@ void ThinkNodeM6Board::begin() {
   digitalWrite(P_LORA_TX_LED, LOW);
 #endif
 
+  pinMode(EXT_PWR_DETECT, INPUT);
+  pinMode(EXT_CHRG_DETECT, INPUT);
+
   delay(10); // give sx1262 some time to power up
 }
 

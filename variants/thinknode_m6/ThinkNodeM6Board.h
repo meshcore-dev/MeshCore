@@ -36,6 +36,35 @@ public:
     return "Elecrow ThinkNode M6";
   }
 
+  bool hasUsbPowerDetect() const override { return true; }
+
+  bool isUsbPowered() override {
+    // P0.13 is the dedicated USB / external power-detect line on the M6 PCB
+    // (same pin the Meshtastic M6 variant uses for USB detection).
+    return digitalRead(EXT_PWR_DETECT) == EXT_PWR_DETECT_VALUE;
+  }
+
+  bool hasSolarChargerDetect() const override { return true; }
+
+  bool isSolarChargerActive() override {
+    // P0.15 is the active-low solar-charger status line. It reports the
+    // charger's state, not photovoltaic voltage or current.
+    return digitalRead(EXT_CHRG_DETECT) == EXT_CHRG_DETECT_VALUE;
+  }
+
+  bool isExternalPowered() override {
+    if (isUsbPowered() || isSolarChargerActive()) {
+      return true;
+    }
+    return NRF52Board::isExternalPowered();
+  }
+
+  bool isChargerActive() override {
+    // Preserve a generic charging indication while also exposing both
+    // source-specific states (USB / solar) separately through the CLI.
+    return isSolarChargerActive() || isUsbPowered();
+  }
+
   void powerOff() override {
 
     // turn off all leds, sd_power_system_off will not do this for us
