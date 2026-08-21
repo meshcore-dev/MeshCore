@@ -7,13 +7,13 @@
 #define  PIN_VBAT_READ 17
 #define  ADC_MULTIPLIER   (1.815f) // dependent on voltage divider resistors. TODO: more accurate battery tracking
 
-class MMMPromicroBoard : public NRF52BoardDCDC {
+class MMMBoard : public NRF52BoardDCDC {
 protected:
   uint8_t btn_prev_state;
   float adc_mult = ADC_MULTIPLIER;
 
 public:
-  MMMPromicroBoard() : NRF52Board("ProMicro_OTA") {}
+  MMMBoard() : NRF52Board("MMM_OTA") {}
   void begin();
 
   #define BATTERY_SAMPLES 8
@@ -46,7 +46,7 @@ public:
   }
 
   const char* getManufacturerName() const override {
-    return "ProMicro DIY";
+    return MANUFACTURER_STRING;
   }
 
   int buttonStateChanged() {

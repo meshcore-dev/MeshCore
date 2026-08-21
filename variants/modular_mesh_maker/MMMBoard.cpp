@@ -1,9 +1,9 @@
 #include <Arduino.h>
 #include <Wire.h>
 
-#include "MMMPromicroBoard.h"
+#include "MMMBoard.h"
 
-void MMMPromicroBoard::begin() {
+void MMMBoard::begin() {
     NRF52Board::begin();
     btn_prev_state = HIGH;
 
