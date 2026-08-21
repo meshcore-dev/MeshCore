@@ -17,6 +17,13 @@ void OtaManager::begin(uint32_t my_target_id, OtaSend send, void* ctx) {
   for (uint8_t i = 0; i < 8; i++) _recent_blk[i] = NO_BLOCK;      // empty slot (never a real block index)
 }
 
+bool OtaManager::catalogIngestOk(uint32_t target) const {
+  if (_promiscuous) return true;
+  uint32_t want_tgt = _desired_target ? _desired_target : _target;
+  if (want_tgt != 0 && target != want_tgt) return false;
+  return true;
+}
+
 // ---------------- serve (multi-mota registry) ----------------
 //
 // A node offers a SET of mOTAs: its own firmware (view0) plus any external "folder" sources (OtaSource).
@@ -426,8 +433,20 @@ void OtaManager::sendQuery(const uint8_t* seeder, const uint8_t* digest, uint32_
   emit(b, encode_query(b, sizeof(b), q), true);     // FLOODED so neighbours overhear it and suppress
 }
 
-// User-initiated browse (`ota neighbors`): ask every known source now (no jitter — infrequent + explicit).
-void OtaManager::queryAll() { for (uint8_t i = 0; i < _n_src; i++) sendQuery(_sources[i].seeder, _sources[i].digest, 0); }
+// filter_target for catalog queries: promiscuous nodes (cache_seeder) ask for everything; normal nodes ask
+// only for their own target (or a manual cross-target `ota want`) so a source's 12-slot serve table isn't
+// wasted on unrelated boards when answering.
+uint32_t OtaManager::catalogQueryFilter() const {
+  if (_promiscuous) return 0;
+  if (_desired_target) return _desired_target;
+  return _target;
+}
+
+// User-initiated browse (`ota ls`): ask every known source now (no jitter — infrequent + explicit).
+void OtaManager::queryAll() {
+  uint32_t filt = catalogQueryFilter();
+  for (uint8_t i = 0; i < _n_src; i++) sendQuery(_sources[i].seeder, _sources[i].digest, filt);
+}
 
 // A catalog reply: record each mOTA (deduped by mid; distinct-source count for the UI), and if a row
 // matches our fetch interest (auto-fetch own-target, or a pending pull/want), begin fetching it.
@@ -437,7 +456,7 @@ void OtaManager::handleHave(const uint8_t* m, uint16_t n) {
   bool have_sid = (_seeder_id[0] | _seeder_id[1] | _seeder_id[2] | _seeder_id[3]) != 0;
   if (have_sid && memcmp(hv.seeder_id, _seeder_id, 4) == 0) return;   // our own catalog
   // PASSIVE: any overheard HAVE marks its source catalogued + cancels a pending query for it (storm
-  // suppression) — every node caches the rows below, even one that never queried.
+  // suppression). Catalog rows are filtered to our target (or `ota want` target); promiscuous nodes keep all.
   for (uint8_t i = 0; i < _n_src; i++)
     if (memcmp(_sources[i].seeder, hv.seeder_id, 4) == 0 && memcmp(_sources[i].digest, hv.set_digest, 4) == 0)
       _sources[i].have_catalog = true;
@@ -449,6 +468,10 @@ void OtaManager::handleHave(const uint8_t* m, uint16_t n) {
     uint32_t target = rd_u32le(row + 4), fwver = rd_u32le(row + 8);
     uint8_t codec = row[12], flags = row[13];
     uint32_t have_count = rd_u16le(row + 14);   // this source's progress
+    if (!catalogIngestOk(target)) {
+      if (wantRow(mid, target, codec, flags)) startFetch(mid, target);
+      continue;
+    }
     int slot = -1, lru = 0;                                           // upsert into the catalog (dedup by mid)
     for (int i = 0; i < _n_cat; i++) {
       if (memcmp(_catalog[i].mid, mid, 4) == 0) { slot = i; break; }
@@ -865,7 +888,7 @@ void OtaManager::loop() {
   // fire a scheduled catalog query once its jitter has elapsed (unless overhearing already suppressed it)
   if (_pq_active && (int32_t)(_now_ms - _pq_at) >= 0) {
     _pq_active = false;
-    sendQuery(_pq_seeder, _pq_digest, 0);    // unfiltered: one broadcast HAVE serves everyone
+    sendQuery(_pq_seeder, _pq_digest, catalogQueryFilter());
   }
   if (_fstate == WANT_MANIFEST) {
     // Retry GET_MANIFEST ONLY when a tick passed with no new fragment — re-bursting every tick would congest

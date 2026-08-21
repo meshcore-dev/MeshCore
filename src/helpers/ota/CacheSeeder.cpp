@@ -1,6 +1,6 @@
-#include "SuperSeeder.h"
+#include "CacheSeeder.h"
 
-#if defined(OTA_SUPERSEEDER)
+#if defined(OTA_SEEDER_CACHE)
 
 #include "OtaContext.h"
 #include "SeederAllowlist.h"
@@ -11,11 +11,11 @@
 namespace mesh {
 namespace ota {
 
-void SuperSeeder::begin(OtaContext& ctx) {
+void CacheSeeder::begin(OtaContext& ctx) {
   _ctx = &ctx;
   _mgr = &ctx.manager;
   _flash_store = &ctx.fetch_store;
-  _allow = &ctx.seeder_allow;
+  _allow = &ctx.cache_allow;
   _source.setAllowlist(_allow);
   _mounted = SeederFs::instance().mount();
   if (!_mounted) return;
@@ -26,19 +26,19 @@ void SuperSeeder::begin(OtaContext& ctx) {
   _active = true;
 }
 
-void SuperSeeder::refreshSource() {
+void CacheSeeder::refreshSource() {
   if (!_active || !_mgr) return;
   _source.refresh();
   _mgr->refresh_sources();
   _mgr->announce();
 }
 
-bool SuperSeeder::pickNext(uint8_t mid[4], uint32_t& target) {
+bool CacheSeeder::pickNext(uint8_t mid[4], uint32_t& target) {
   if (!_mgr || !_mounted || !_allow) return false;
   for (uint8_t i = 0; i < _mgr->catalogCount(); i++) {
     const OtaManager::CatRow* row = _mgr->catalogRow(i);
     if (!row) continue;
-    if (!ota_seeder_admit(*_allow, row->target_id, row->codec, row->flags)) continue;
+    if (!ota_cache_admit(*_allow, row->target_id, row->codec, row->flags)) continue;
     if (_source.hasMid(row->mid)) continue;
     if (_fail_cooldown_until && memcmp(_fail_mid, row->mid, 4) == 0) continue;
     memcpy(mid, row->mid, 4);
@@ -48,7 +48,7 @@ bool SuperSeeder::pickNext(uint8_t mid[4], uint32_t& target) {
   return false;
 }
 
-void SuperSeeder::finishCapture(bool ok) {
+void CacheSeeder::finishCapture(bool ok) {
   if (!_ctx || !_mgr) return;
   if (!ok) {
     uint8_t mid[4];
@@ -72,7 +72,7 @@ void SuperSeeder::finishCapture(bool ok) {
   }
 }
 
-void SuperSeeder::loop() {
+void CacheSeeder::loop() {
   if (!_active || !_ctx || !_mgr) return;
 
   if (_fail_cooldown_until && (int32_t)(millis() - _fail_cooldown_until) >= 0)

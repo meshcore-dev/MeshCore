@@ -55,13 +55,13 @@ void Mesh::begin() {
   OTA_DBG_MS("Mesh::begin: ota_ctx().begin done target=%08lX",
              (unsigned long)ota::ota_ctx().manager.target());
   ota::ota_ctx().manager.set_seeder_id(self_id.pub_key);      // node id (pubkey[0:4]) for advert seeder count
-#if defined(OTA_SUPERSEEDER)
+#if defined(OTA_SEEDER_CACHE)
   {
     char seedmsg[80];
-    ota::ota_ctx().attach_seeder(seedmsg, sizeof seedmsg);
+    ota::ota_ctx().attach_cache(seedmsg, sizeof seedmsg);
   }
 #endif
-  _next_ota_announce = futureMillis(OTA_ANNOUNCE_BOOT_MS);    // beacon if already serving (folder / superseeder)
+  _next_ota_announce = futureMillis(OTA_ANNOUNCE_BOOT_MS);    // beacon if already serving (folder / cache)
 #endif
 }
 
@@ -100,8 +100,8 @@ void Mesh::loop() {
     }
     ota::ota_ctx().manager.set_clock(_ms->getMillis());   // for discovery jitter/ages + the pending-query timer
     ota::ota_ctx().manager.loop();         // re-request still-missing OTA blocks + fire scheduled queries
-#if defined(OTA_SUPERSEEDER)
-    ota::ota_ctx().superseeder_loop();
+#if defined(OTA_SEEDER_CACHE)
+    ota::ota_ctx().cache_loop();
 #endif
     _next_ota_tick = futureMillis(3000);
   }
@@ -120,7 +120,7 @@ void Mesh::loop() {
     OTA_DBG_MS("ota announce timer: burst=%d count=%u serving=%d mins=%lu",
                in_burst ? 1 : 0, (unsigned)_ota_announce_count, oc.serving ? 1 : 0, (unsigned long)mins);
     if (in_burst || mins != 0) {
-      // Beacon only if we already have something to offer (folder, superseeder, or post-fetch re-seed).
+      // Beacon only if we already have something to offer (folder, cache, or post-fetch re-seed).
       if (oc.serving || oc.manager.servedCount() > 0) {
         OTA_DBG_MS("ota announce: manager.announce");
         oc.manager.announce();

@@ -33,7 +33,7 @@ struct QueryMsg {
 
 // ---- OTA_HAVE: the compact catalog (source -> mesh), FLOODED + tagged with set_digest so EVERY node
 // that overhears it caches the rows (passive, no query needed). Fragmented. ----
-// body: seeder_id(4) set_digest(4) frag_idx(1) frag_total(1) n_rows(1) rows[ mid(4) target(4) fwver(4) codec(1) flags(1) ]
+// body: seeder_id(4) set_digest(4) frag_idx(1) frag_total(1) n_rows(1) rows[ mid(4) target(4) fwver(4) codec(1) flags(1) have_count(2) ]
 struct HaveRow { uint8_t mid[4]; uint32_t target_id; uint32_t fw_version; uint8_t codec_id; uint8_t flags;
                  uint16_t have_count; };   // blocks the advertiser holds (== block_count if complete; less => partial source)
 struct HaveMsg {

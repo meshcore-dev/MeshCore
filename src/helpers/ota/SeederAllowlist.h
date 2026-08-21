@@ -1,6 +1,6 @@
 #pragma once
 
-#if defined(OTA_SUPERSEEDER)
+#if defined(OTA_SEEDER_CACHE)
 
 #include "OtaFormat.h"
 #include <stdint.h>
@@ -13,7 +13,7 @@ namespace ota {
 #define MAX_OTA_SEEDER_ALLOW 8
 #endif
 
-// Runtime target allowlist for the superseeder library.
+// Runtime target allowlist for the OTA cache seeder.
 //   allow-all (default): _filter == false
 //   filter mode:         _filter == true — only listed ids; empty list admits nothing
 // Deltas-only is always enforced separately via ota_seeder_is_delta().
@@ -72,8 +72,8 @@ inline bool ota_seeder_is_delta(uint8_t codec, uint8_t flags) {
   return codec == CODEC_DETOOLS_INPLACE || codec == CODEC_DETOOLS_SEQUENTIAL;
 }
 
-inline bool ota_seeder_admit(const SeederAllowlist& allow, uint32_t target_id,
-                             uint8_t codec, uint8_t flags) {
+inline bool ota_cache_admit(const SeederAllowlist& allow, uint32_t target_id,
+                            uint8_t codec, uint8_t flags) {
   return allow.admits(target_id) && ota_seeder_is_delta(codec, flags);
 }
 

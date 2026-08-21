@@ -88,13 +88,13 @@ void CommonCLI::syncOtaConfigFromPrefs() {
   c.allow.clear();
   for (uint8_t i = 0; i < _prefs->ota_signer_count && i < MAX_OTA_SIGNERS; i++)
     c.allow.add(_prefs->ota_signers[i]);
-#if defined(OTA_SUPERSEEDER)
-  if (_prefs->ota_seeder_allow_filter) {
-    c.seeder_allow.clear();  // filter mode, admit nothing until entries added
-    for (uint8_t i = 0; i < _prefs->ota_seeder_allow_count && i < 8; i++)
-      c.seeder_allow.add(_prefs->ota_seeder_allow[i]);
+#if defined(OTA_SEEDER_CACHE)
+  if (_prefs->ota_cache_allow_filter) {
+    c.cache_allow.clear();  // filter mode, admit nothing until entries added
+    for (uint8_t i = 0; i < _prefs->ota_cache_allow_count && i < 8; i++)
+      c.cache_allow.add(_prefs->ota_cache_allow[i]);
   } else {
-    c.seeder_allow.reset();  // admit all
+    c.cache_allow.reset();  // admit all
   }
 #endif
 }
@@ -173,13 +173,13 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {  // Legacy 
     _prefs->hop_retry_ms = 1500;
     file.read((uint8_t *)&_prefs->hop_retry, sizeof(_prefs->hop_retry));                         // 431
     file.read((uint8_t *)&_prefs->hop_retry_ms, sizeof(_prefs->hop_retry_ms));                   // 432
-    _prefs->ota_seeder_allow_count = 0;
-    _prefs->ota_seeder_allow_filter = 0;
-    memset(_prefs->ota_seeder_allow, 0, sizeof(_prefs->ota_seeder_allow));
-    file.read((uint8_t *)&_prefs->ota_seeder_allow_count, sizeof(_prefs->ota_seeder_allow_count)); // 434
-    file.read((uint8_t *)&_prefs->ota_seeder_allow_filter, sizeof(_prefs->ota_seeder_allow_filter)); // 435
+    _prefs->ota_cache_allow_count = 0;
+    _prefs->ota_cache_allow_filter = 0;
+    memset(_prefs->ota_cache_allow, 0, sizeof(_prefs->ota_cache_allow));
+    file.read((uint8_t *)&_prefs->ota_cache_allow_count, sizeof(_prefs->ota_cache_allow_count)); // 434
+    file.read((uint8_t *)&_prefs->ota_cache_allow_filter, sizeof(_prefs->ota_cache_allow_filter)); // 435
     file.read(pad, 2);                                                                              // 436
-    file.read((uint8_t *)_prefs->ota_seeder_allow, sizeof(_prefs->ota_seeder_allow));              // 438
+    file.read((uint8_t *)_prefs->ota_cache_allow, sizeof(_prefs->ota_cache_allow));              // 438
     // next: 470
 
     // sanitise bad pref values
@@ -221,8 +221,8 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {  // Legacy 
     if (_prefs->ota_advert_interval > 10080) _prefs->ota_advert_interval = 1440;
     if (_prefs->ota_max_hops > 8) _prefs->ota_max_hops = 3;
     if (_prefs->ota_signer_count > 4) _prefs->ota_signer_count = 0;
-    if (_prefs->ota_seeder_allow_count > 8) _prefs->ota_seeder_allow_count = 0;
-    if (_prefs->ota_seeder_allow_filter > 1) _prefs->ota_seeder_allow_filter = 0;
+    if (_prefs->ota_cache_allow_count > 8) _prefs->ota_cache_allow_count = 0;
+    if (_prefs->ota_cache_allow_filter > 1) _prefs->ota_cache_allow_filter = 0;
     _prefs->hop_retry = constrain(_prefs->hop_retry, 0, 5);
     if (_prefs->hop_retry_ms < 200) _prefs->hop_retry_ms = 200;
     if (_prefs->hop_retry_ms > 10000) _prefs->hop_retry_ms = 10000;
@@ -977,11 +977,11 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
         _prefs->ota_signer_count = c.allow.count();
         for (uint8_t i = 0; i < c.allow.count() && i < MAX_OTA_SIGNERS; i++)
           memcpy(_prefs->ota_signers[i], c.allow.get(i), 32);
-#if defined(OTA_SUPERSEEDER)
-        _prefs->ota_seeder_allow_filter = c.seeder_allow.filtering() ? 1 : 0;
-        _prefs->ota_seeder_allow_count = c.seeder_allow.count();
-        for (uint8_t i = 0; i < c.seeder_allow.count() && i < 8; i++)
-          _prefs->ota_seeder_allow[i] = c.seeder_allow.get(i);
+#if defined(OTA_SEEDER_CACHE)
+        _prefs->ota_cache_allow_filter = c.cache_allow.filtering() ? 1 : 0;
+        _prefs->ota_cache_allow_count = c.cache_allow.count();
+        for (uint8_t i = 0; i < c.cache_allow.count() && i < 8; i++)
+          _prefs->ota_cache_allow[i] = c.cache_allow.get(i);
 #endif
         if (!savePrefs()) {
           formatPrefsSaveErr(reply);

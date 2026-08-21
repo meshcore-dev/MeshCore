@@ -25,8 +25,8 @@
   // The console Serial is already begun by the example; a DEDICATED UART (override the stream) needs init,
   // so define OTA_FOLDER_SERIAL_BEGIN to have attach_folder() call .begin(baud) on it.
 #endif
-#if defined(OTA_SUPERSEEDER)
-  #include "SuperSeeder.h"
+#if defined(OTA_SEEDER_CACHE)
+  #include "CacheSeeder.h"
   #include "SeederAllowlist.h"
   #include "SeederFs.h"   // OTA_SEEDER_MEDIA
 #endif
@@ -157,10 +157,10 @@ struct OtaContext {
   uint32_t session_started_ms = 0;   // when the fetch session last left IDLE (for the age display)
   uint8_t  prev_fstate = OtaManager::IDLE;
   bool     folder_active = false;    // an external `.mota` folder is attached + being relayed
-#if defined(OTA_SUPERSEEDER)
-  SuperSeeder     superseeder;
-  SeederAllowlist seeder_allow;       // default admit-all; filter/clear/reset via CLI; persisted
-  bool            seeder_active = false;  // external FS mounted + serving deltas
+#if defined(OTA_SEEDER_CACHE)
+  CacheSeeder     cache_seeder;
+  SeederAllowlist cache_allow;       // default admit-all; filter/clear/reset via CLI; persisted
+  bool            cache_active = false;  // bulk storage mounted + serving deltas
 #endif
 
   // Attach/detach an external folder of `.mota` served by a host daemon over the seeder UART (the node
@@ -181,21 +181,21 @@ struct OtaContext {
 #endif
   void detach_folder() { manager.clear_sources(); folder_active = false; }
 
-#if defined(OTA_SUPERSEEDER)
-  bool attach_seeder(char* msg, size_t cap) {
-    superseeder.begin(*this);
-    if (!superseeder.mounted()) {
+#if defined(OTA_SEEDER_CACHE)
+  bool attach_cache(char* msg, size_t cap) {
+    cache_seeder.begin(*this);
+    if (!cache_seeder.mounted()) {
       snprintf(msg, cap, "ERR %s mount failed", OTA_SEEDER_MEDIA);
       return false;
     }
-    seeder_active = superseeder.active();
-    if (!seeder_active) { strncpy(msg, "ERR seeder source slot full", cap); return false; }
-    snprintf(msg, cap, "OK %s superseeder — deltas only, serving %u mOTA (own fw + %s)",
+    cache_active = cache_seeder.active();
+    if (!cache_active) { strncpy(msg, "ERR cache source slot full", cap); return false; }
+    snprintf(msg, cap, "OK %s cache — deltas only, serving %u mOTA (from %s)",
              OTA_SEEDER_MEDIA, (unsigned)manager.servedCount(), OTA_SEEDER_MEDIA);
     return true;
   }
-  void superseeder_loop() {
-    if (seeder_active) superseeder.loop();
+  void cache_loop() {
+    if (cache_active) cache_seeder.loop();
   }
 #endif
 

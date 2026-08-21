@@ -1,6 +1,6 @@
 #pragma once
 
-#if defined(OTA_SUPERSEEDER)
+#if defined(OTA_SEEDER_CACHE)
 
 #include "OtaStore.h"
 #include <string.h>

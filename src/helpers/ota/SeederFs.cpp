@@ -1,18 +1,18 @@
 #include "SeederFs.h"
 
-#if defined(OTA_SUPERSEEDER)
+#if defined(OTA_SEEDER_STORAGE)
 
 #include "Utils.h"
 #include <stdio.h>
 #include <string.h>
 
-#if defined(OTA_SUPERSEEDER_SD)
+#if defined(OTA_SEEDER_STORAGE_SD)
 #include <SdFat.h>
 #include <SPI.h>
 #ifndef OTA_SD_CS
 #define OTA_SD_CS SS
 #endif
-#elif defined(OTA_SUPERSEEDER_QSPI)
+#elif defined(OTA_SEEDER_STORAGE_QSPI)
 #include <CustomLFS_QSPIFlash.h>
 #endif
 
@@ -24,7 +24,7 @@ SeederFs& SeederFs::instance() {
   return fs;
 }
 
-#if defined(OTA_SUPERSEEDER_SD)
+#if defined(OTA_SEEDER_STORAGE_SD)
 
 static SdFat& sdRef() {
   static SdFat sd;
@@ -130,7 +130,7 @@ void SeederFs::forEachMota(MotasCb cb, void* ctx) const {
   dir.close();
 }
 
-#elif defined(OTA_SUPERSEEDER_QSPI)
+#elif defined(OTA_SEEDER_STORAGE_QSPI)
 
 bool SeederFs::mount() {
   if (_mounted) return true;

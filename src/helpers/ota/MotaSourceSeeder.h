@@ -1,6 +1,6 @@
 #pragma once
 
-#if defined(OTA_SUPERSEEDER)
+#if defined(OTA_SEEDER_STORAGE)
 
 #include "OtaSource.h"
 #include "SeederAllowlist.h"
