@@ -157,7 +157,7 @@ static Adafruit_VL53L0X VL53L0X;
 #define TELEM_RAK12035_ADDRESS 0x20      // RAK12035 Soil Moisture sensor I2C address
 #endif
 #include "RAK12035_SoilMoisture.h"
-static RAK12035_SoilMoisture RAK12035;
+static RAK12035_SoilMoisture RAK12035(TELEM_RAK12035_ADDRESS);
 #endif
 
 #if ENV_INCLUDE_GPS && defined(RAK_BOARD) && !defined(RAK_WISMESH_TAG)
@@ -446,10 +446,11 @@ static void query_bmp085(uint8_t ch, uint8_t, CayenneLPP& lpp) {
 #endif
 
 #if ENV_INCLUDE_RAK12035
-static uint8_t init_rak12035(TwoWire* wire, uint8_t addr) {
+static uint8_t init_rak12035(TwoWire* wire, uint8_t) {
   // RAK12035 requires setup() before begin().
   RAK12035.setup(*wire);
-  if (!RAK12035.begin(addr)) return 0;
+  // RAK12035 static instance was constructed with address.
+  if (!RAK12035.begin()) return 0;
 #ifdef ENABLE_RAK12035_CALIBRATION
   return 2;  // moisture channel + calibration channel
 #else
