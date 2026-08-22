@@ -2,6 +2,7 @@
 #include "target.h"
 #include <Arduino.h>
 #include <helpers/CommonCLI.h>
+#include <helpers/ArduinoHelpers.h>
 
 #ifndef USER_BTN_PRESSED
 #define USER_BTN_PRESSED LOW
@@ -55,7 +56,7 @@ void UITask::begin(NodePrefs* node_prefs, const char* build_date, const char* fi
 
 void UITask::renderCurrScreen() {
   char tmp[80];
-  if (millis() < _started_at + BOOT_SCREEN_MILLIS) { // boot screen
+  if (!millis_passed(_started_at + BOOT_SCREEN_MILLIS)) { // boot screen
     // meshcore logo
     _display->setColor(UIColor::corp_blue);
     int logoWidth = 128;
@@ -127,14 +128,14 @@ void UITask::loop() {
 #endif
 
   if (_display->isOn()) {
-    if (millis() >= _next_refresh) {
+    if (millis_passed(_next_refresh)) {
       _display->startFrame();
       renderCurrScreen();
       _display->endFrame();
 
       _next_refresh = millis() + 1000;   // refresh every second
     }
-    if (millis() > _auto_off) {
+    if (millis_passed(_auto_off)) {
       _display->turnOff();
     }
   }
