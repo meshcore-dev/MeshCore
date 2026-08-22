@@ -525,7 +525,7 @@ public:
 };
 
 #ifndef UI_MSG_PREVIEW_SIZE
-  #define UI_MSG_PREVIEW_SIZE 78
+  #define UI_MSG_PREVIEW_SIZE (MAX_TEXT_LEN + 1)
 #endif
 
 class MsgPreviewScreen : public UIScreen {
@@ -538,9 +538,14 @@ class MsgPreviewScreen : public UIScreen {
     char msg[UI_MSG_PREVIEW_SIZE];
   };
   #define MAX_UNREAD_MSGS   32
+  #define MSG_SCROLL_INTERVAL_MS   2500
   int num_unread;
   int head = MAX_UNREAD_MSGS - 1; // index of latest unread message
   MsgEntry unread[MAX_UNREAD_MSGS];
+  int msg_scroll_offset = 0;
+  unsigned long msg_last_scroll_ms = 0;
+  int msg_total_lines = 1;
+  int msg_visible_lines = 1;
 
 public:
   MsgPreviewScreen(UITask* task, mesh::RTCClock* rtc) : _task(task), _rtc(rtc) { num_unread = 0; }
@@ -548,6 +553,8 @@ public:
   void addPreview(uint8_t path_len, const char* from_name, const char* msg) {
     head = (head + 1) % MAX_UNREAD_MSGS;
     if (num_unread < MAX_UNREAD_MSGS) num_unread++;
+    msg_scroll_offset = 0;
+    msg_last_scroll_ms = millis();
 
     auto p = &unread[head];
     p->timestamp = _rtc->getCurrentTime();
@@ -592,7 +599,19 @@ public:
     display.setColor(UIColor::primary_txt);
     char filtered_msg[sizeof(p->msg)];
     display.translateUTF8ToBlocks(filtered_msg, p->msg, sizeof(filtered_msg));
-    display.printWordWrap(filtered_msg, display.width());
+
+    int visible_lines = 1;
+    int total_lines = display.printWordWrapScrolled(filtered_msg, display.width(),
+        display.height() - 25, msg_scroll_offset, &visible_lines);
+    msg_total_lines = total_lines;
+    msg_visible_lines = visible_lines;
+
+    unsigned long now = millis();
+    if (total_lines > visible_lines && now - msg_last_scroll_ms >= MSG_SCROLL_INTERVAL_MS) {
+      msg_last_scroll_ms = now;
+      msg_scroll_offset += visible_lines;  // page forward a full screen at a time
+      if (msg_scroll_offset >= total_lines) msg_scroll_offset = 0;  // loop back to the start
+    }
 
 #if AUTO_OFF_MILLIS==0 // probably e-ink
     return 10000; // 10 s
@@ -605,6 +624,8 @@ public:
     if (c == KEY_NEXT || c == KEY_RIGHT) {
       head = (head + MAX_UNREAD_MSGS - 1) % MAX_UNREAD_MSGS;
       num_unread--;
+      msg_scroll_offset = 0;
+      msg_last_scroll_ms = millis();
       if (num_unread == 0) {
         _task->gotoHomeScreen();
       }
@@ -613,6 +634,22 @@ public:
     if (c == KEY_ENTER) {
       num_unread = 0;  // clear unread queue
       _task->gotoHomeScreen();
+      return true;
+    }
+    if (c == KEY_DOWN || c == KEY_UP) {
+      if (msg_total_lines > msg_visible_lines) {
+        if (c == KEY_DOWN) {
+          msg_scroll_offset += msg_visible_lines;
+          if (msg_scroll_offset >= msg_total_lines) msg_scroll_offset = 0;
+        } else {
+          msg_scroll_offset -= msg_visible_lines;
+          if (msg_scroll_offset < 0) {
+            // wrap to the last page
+            msg_scroll_offset = ((msg_total_lines - 1) / msg_visible_lines) * msg_visible_lines;
+          }
+        }
+        msg_last_scroll_ms = millis();  // manual scroll resets the auto-scroll timer
+      }
       return true;
     }
     return false;
@@ -798,6 +835,18 @@ void UITask::loop() {
     c = checkDisplayOn(KEY_RIGHT);
   } else if (ev == BUTTON_EVENT_LONG_PRESS) {
     c = handleLongPress(KEY_RIGHT);
+  }
+  ev = joystick_up.check();
+  if (ev == BUTTON_EVENT_CLICK) {
+    c = checkDisplayOn(KEY_UP);
+  } else if (ev == BUTTON_EVENT_LONG_PRESS) {
+    c = handleLongPress(KEY_UP);
+  }
+  ev = joystick_down.check();
+  if (ev == BUTTON_EVENT_CLICK) {
+    c = checkDisplayOn(KEY_DOWN);
+  } else if (ev == BUTTON_EVENT_LONG_PRESS) {
+    c = handleLongPress(KEY_DOWN);
   }
   ev = back_btn.check();
   if (ev == BUTTON_EVENT_TRIPLE_CLICK) {
