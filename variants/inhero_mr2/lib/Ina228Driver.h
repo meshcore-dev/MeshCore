@@ -184,7 +184,7 @@ public:
 
   // Read battery voltage in mV directly via I2C, without requiring driver initialization —
   // for early boot use before the INA228 is initialized. Returns 0 if the read fails.
-  // Triggers a One-Shot ADC conversion; uses the high-precision 24-bit ADC (±0.1% accuracy).
+  // Triggers a One-Shot ADC conversion; uses the high-precision 20-bit ADC (±0.1% accuracy).
   static uint16_t readVBATDirect(TwoWire* wire = &Wire, uint8_t i2c_addr = INA228_I2C_ADDR_DEFAULT);
 
 private:

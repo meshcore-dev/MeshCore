@@ -873,7 +873,7 @@ bool BoardConfigContainer::loadMpptEnabled(bool& enabled) {
 }
 
 // Returns combined telemetry from INA228 (battery) and BQ25798 (solar + temperature).
-// Battery voltage/current come from the INA228 (24-bit ADC, ±0.1% accuracy);
+// Battery voltage/current come from the INA228 (20-bit ADC, ±0.1% accuracy);
 // solar data and battery temperature from the BQ25798 ADC.
 //
 // Temperature availability depends on power conditions:
@@ -1985,7 +1985,7 @@ void BoardConfigContainer::calculateRollingStats() {
 // INA228 Coulomb-counter measurements (charged/discharged/solar mAh).
 //
 // Data flow:
-//   1. INA228 hardware Coulomb counter measures charge flow continuously (24-bit ADC)
+//   1. INA228 hardware Coulomb counter measures charge flow continuously (20-bit ADC)
 //   2. updateHourlyStats() samples the counter every hour, storing per-hour deltas
 //      (charged_mah, discharged_mah, solar_mah) in the hours[168] ring buffer
 //   3. calculateRollingStats() sums the last 168 hours and divides by 7 to get
