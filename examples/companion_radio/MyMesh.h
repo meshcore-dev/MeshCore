@@ -30,6 +30,7 @@
 #include <helpers/ArduinoHelpers.h>
 #include <helpers/BaseSerialInterface.h>
 #include <helpers/IdentityStore.h>
+#include <helpers/MessageTimestampCache.h>
 #include <helpers/SimpleMeshTables.h>
 #include <helpers/StaticPoolPacketManager.h>
 #include <target.h>
@@ -61,6 +62,10 @@
 
 #ifndef OFFLINE_QUEUE_SIZE
 #define OFFLINE_QUEUE_SIZE 16
+#endif
+
+#ifndef ROOM_MESSAGE_TIMESTAMP_CACHE_SIZE
+#define ROOM_MESSAGE_TIMESTAMP_CACHE_SIZE 16
 #endif
 
 #ifndef BLE_NAME_PREFIX
@@ -253,6 +258,7 @@ private:
   #define EXPECTED_ACK_TABLE_SIZE 8
   AckTableEntry expected_ack_table[EXPECTED_ACK_TABLE_SIZE]; // circular table
   int next_ack_idx;
+  mesh::MessageTimestampCache<ROOM_MESSAGE_TIMESTAMP_CACHE_SIZE> room_message_timestamps;
 
   #define ADVERT_PATH_TABLE_SIZE   16
   AdvertPath advert_paths[ADVERT_PATH_TABLE_SIZE]; // circular table
