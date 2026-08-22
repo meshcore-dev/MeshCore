@@ -145,6 +145,8 @@ void loop() {
     command[0] = 0;  // reset command buffer
   }
 
+  board.tick();        // Feed watchdog and perform board-specific tasks
+
   the_mesh.loop();
   sensors.loop();
 #ifdef DISPLAY_CLASS
