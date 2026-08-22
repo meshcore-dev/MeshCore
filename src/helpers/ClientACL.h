@@ -4,11 +4,12 @@
 #include <Mesh.h>
 #include <helpers/IdentityStore.h>
 
-#define PERM_ACL_ROLE_MASK     3   // lower 2 bits
+#define PERM_ACL_ROLE_MASK     7   // lower 3 bits
 #define PERM_ACL_GUEST         0
 #define PERM_ACL_READ_ONLY     1
 #define PERM_ACL_READ_WRITE    2
 #define PERM_ACL_ADMIN         3
+#define PERM_ACL_REGION_MGR    4
 
 #define OUT_PATH_UNKNOWN  0xFF
 
@@ -31,6 +32,7 @@ struct ClientInfo {
   } extra;
   
   bool isAdmin() const { return (permissions & PERM_ACL_ROLE_MASK) == PERM_ACL_ADMIN; }
+  bool isRegionMgr() const { return (permissions & PERM_ACL_ROLE_MASK) == PERM_ACL_REGION_MGR; }
 };
 
 #ifndef MAX_CLIENTS
