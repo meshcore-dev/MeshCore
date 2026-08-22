@@ -1,5 +1,48 @@
 #include "ConfigSerializer.h"
 
+static File openNewFile(FILESYSTEM* fs, const char* path) {
+#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
+  return fs->open(path, FILE_O_WRITE);
+#elif defined(RP2040_PLATFORM)
+  return fs->open(path, "w");
+#else
+  return fs->open(path, "w", true);
+#endif
+}
+
+bool writeFileAtomic(FILESYSTEM* fs, const char* final_path, const char* tmp_path, FileWriteFn writer, void* ctx) {
+  if (!fs || !final_path || !tmp_path || !writer) return false;
+
+  fs->remove(tmp_path);
+  File file = openNewFile(fs, tmp_path);
+  if (!file) return false;
+
+  bool success = writer(file, ctx);
+  file.close();
+  if (!success) {
+    fs->remove(tmp_path);
+    return false;
+  }
+  if (!fs->rename(tmp_path, final_path)) {
+    fs->remove(tmp_path);
+    return false;
+  }
+  return true;
+}
+
+struct SaveSerialCtx {
+  ConfigSerializer* obj;
+};
+
+static bool saveSerialWriter(File& file, void* ctx) {
+  return ((SaveSerialCtx*) ctx)->obj->saveSerial(file);
+}
+
+bool saveConfigJsonAtomic(FILESYSTEM* fs, ConfigSerializer& obj, const char* final_path, const char* tmp_path) {
+  SaveSerialCtx ctx = {&obj};
+  return writeFileAtomic(fs, final_path, tmp_path, saveSerialWriter, &ctx);
+}
+
 bool ConfigSerializer::saveSerial(Stream& s) {
   Context context(&s, OP::WRITE);
   _context = &context;  // set the context for structure() call
