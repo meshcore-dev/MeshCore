@@ -45,5 +45,10 @@ void initVariant()
 
   pinMode(PIN_LED2, OUTPUT);
   ledOff(PIN_LED2);;
+
+#if defined(WITH_SEN0658_EN)
+  pinMode(WITH_SEN0658_EN, OUTPUT);
+  digitalWrite(WITH_SEN0658_EN, LOW);
+#endif
 }
 

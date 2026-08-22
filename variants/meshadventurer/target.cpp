@@ -50,7 +50,7 @@ void MASensorManager::stop_gps() {
   }
 }
 
-bool MASensorManager::begin() {
+bool MASensorManager::begin(FILESYSTEM* fs) {
   Serial1.setPins(PIN_GPS_RX, PIN_GPS_TX);
   Serial1.begin(9600);
   delay(500);
@@ -83,11 +83,11 @@ int MASensorManager::getNumSettings() const { return 1; }  // just one supported
 const char* MASensorManager::getSettingName(int i) const {
   return i == 0 ? "gps" : NULL;
 }
-const char* MASensorManager::getSettingValue(int i) const {
+int MASensorManager::getSettingValue(int i, char* buf, int bufLen) const {
   if(i == 0) {
-    return gps_active ? "1" : "0";
+    return snprintf(buf, bufLen, "%s", gps_active ? "1" : "0");
   }
-  return NULL;
+  return 0;
 }
 bool MASensorManager::setSettingValue(const char* name, const char* value) {
   if(strcmp(name, "gps") == 0) {

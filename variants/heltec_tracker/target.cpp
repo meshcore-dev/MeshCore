@@ -57,7 +57,7 @@ void HWTSensorManager::stop_gps() {
   }
 }
 
-bool HWTSensorManager::begin() {
+bool HWTSensorManager::begin(FILESYSTEM* fs) {
   // init GPS port
   Serial1.begin(115200, SERIAL_8N1, PIN_GPS_RX, PIN_GPS_TX);
   return true;
@@ -91,11 +91,11 @@ int HWTSensorManager::getNumSettings() const { return 1; }  // just one supporte
 const char* HWTSensorManager::getSettingName(int i) const {
   return i == 0 ? "gps" : NULL;
 }
-const char* HWTSensorManager::getSettingValue(int i) const {
+int HWTSensorManager::getSettingValue(int i, char* buf, int bufLen) const {
   if (i == 0) {
-    return gps_active ? "1" : "0";
+    return snprintf(buf, bufLen, "%s", gps_active ? "1" : "0");
   }
-  return NULL;
+  return 0;
 }
 bool HWTSensorManager::setSettingValue(const char* name, const char* value) {
   if (strcmp(name, "gps") == 0) {
