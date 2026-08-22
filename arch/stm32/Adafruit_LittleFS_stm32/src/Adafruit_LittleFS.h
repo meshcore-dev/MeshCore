@@ -91,10 +91,10 @@ class Adafruit_LittleFS
 
 #if !CFG_DEBUG
   #define VERIFY_LFS(...)       _GET_3RD_ARG(__VA_ARGS__, VERIFY_ERR_2ARGS, VERIFY_ERR_1ARGS)(__VA_ARGS__, NULL)
-  #define PRINT_LFS_ERR(_err)
+  #define PRINT_LFS_ERR(_err)   do { (void)(_err); } while(0)
 #else
   #define VERIFY_LFS(...)       _GET_3RD_ARG(__VA_ARGS__, VERIFY_ERR_2ARGS, VERIFY_ERR_1ARGS)(__VA_ARGS__, dbg_strerr_lfs)
-  #define PRINT_LFS_ERR(_err)   do { if (_err) { VERIFY_MESS((long int)_err, dbg_strerr_lfs); } } while(0) // LFS_ERR are of type int, VERIFY_MESS expects long_int
+  #define PRINT_LFS_ERR(_err)   do { if (_err) Serial.printf("%s: %d: lfs error = %s\r\n", __func__, __LINE__, dbg_strerr_lfs(_err)); } while(0)
 
   const char* dbg_strerr_lfs (int32_t err);
 #endif

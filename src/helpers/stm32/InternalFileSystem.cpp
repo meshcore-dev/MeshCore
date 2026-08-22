@@ -104,12 +104,15 @@ struct lfs_config _InternalFSConfig = {
     .prog_size = LFS_BLOCK_SIZE,
     .block_size = LFS_BLOCK_SIZE,
     .block_count = LFS_FLASH_TOTAL_SIZE / LFS_BLOCK_SIZE,
-    .lookahead = 128,
+    .block_cycles = 512,
+    .cache_size = LFS_BLOCK_SIZE,
+    .lookahead_size = 32,
+    .compact_thresh = 0,
 
+    // Buffers (set to NULL for dynamic allocation)
     .read_buffer = NULL,
     .prog_buffer = NULL,
-    .lookahead_buffer = NULL,
-    .file_buffer = NULL
+    .lookahead_buffer = NULL
 };
 
 InternalFileSystem InternalFS;
@@ -133,12 +136,21 @@ bool InternalFileSystem::begin(void)
   format_fs = false; // you can always use debugger to force formatting ;)
   #endif
   // failed to mount, erase all sector then format and mount again
-  if ( format_fs || !Adafruit_LittleFS::begin() )
+  if ( !Adafruit_LittleFS::begin() )
   {
+    // Mount failed, attempt to migrate from LFS1.x
+    if (lfs_migrate(&_lfs, &_InternalFSConfig) == LFS_ERR_OK) {
+      // Migration to LFS2 successful, try to remount
+      if (Adafruit_LittleFS::begin()) {
+        return true;
+      }
+    }
+    if ( format_fs ) {
     // lfs format
     this->format();
     // mount again if still failed, give up
     if ( !Adafruit_LittleFS::begin() ) return false;
+    }
   }
 
   return true;
