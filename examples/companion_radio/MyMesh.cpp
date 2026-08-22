@@ -2054,6 +2054,19 @@ void MyMesh::checkCLIRescueCmd() {
         _prefs.ble_pin = atoi(&config[4]);
         savePrefs();
         Serial.printf("  > pin is now %06d\n", _prefs.ble_pin);
+      } else if (memcmp(config, "theme ", 6) == 0) {
+        if (_ui != NULL && _ui->getThemeCount() > 0) {
+          if (_ui->applyTheme(&config[6])) {
+            strncpy(_prefs.ui_theme, &config[6], sizeof(_prefs.ui_theme) - 1);
+            _prefs.ui_theme[sizeof(_prefs.ui_theme) - 1] = 0;
+            savePrefs();
+            Serial.printf("  > theme is now %s\n", _prefs.ui_theme);
+          } else {
+            Serial.println("  Error: theme not found or not supported by this display");
+          }
+        } else {
+          Serial.println("  Error: this device has no theme-capable display");
+        }
       } else {
         Serial.printf("  Error: unknown config: %s\n", config);
       }
