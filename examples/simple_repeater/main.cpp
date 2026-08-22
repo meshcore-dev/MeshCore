@@ -145,10 +145,10 @@ void loop() {
     reply[0] = 0;
 #ifdef ETHERNET_ENABLED
     if (!ethernet_handle_command(command, reply)) {
-      the_mesh.handleCommand(0, command, reply);
+      the_mesh.handleCommand(0, NULL, command, reply);
     }
 #else
-    the_mesh.handleCommand(0, command, reply);  // NOTE: there is no sender_timestamp via serial!
+    the_mesh.handleCommand(0, NULL, command, reply);  // NOTE: there is no sender_timestamp via serial!
 #endif
     if (reply[0]) {
       Serial.print("  -> "); Serial.println(reply);
@@ -163,7 +163,7 @@ void loop() {
     char reply[160];
     reply[0] = 0;
     if (!ethernet_handle_command(ethernet_command, reply)) {
-      the_mesh.handleCommand(0, ethernet_command, reply);
+      the_mesh.handleCommand(0, NULL, ethernet_command, reply);
     }
     ethernet_send_reply(reply);
     ethernet_command[0] = 0;
