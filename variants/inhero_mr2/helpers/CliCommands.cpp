@@ -162,7 +162,7 @@ bool handleGet(BoardConfigContainer& cfg, const char* getCommand, char* reply, u
     else snprintf(ttlBuf, sizeof(ttlBuf), "N/A");
 
     snprintf(reply, maxlen,
-             "%+.0f/%+.0f/%+.0fmAh C:%.0f D:%.0f 3C:%.0f 3D:%.0f 7C:%.0f 7D:%.0f %s M:%.0f%% T:%s",
+             "%+.0f/%+.0f/%+.0fmAh C:%.0f D:%.0f 3C:%.0f 3D:%.0f 7C:%.0f 7D:%.0f %s M:%.0f%% BT:%s",
              last_24h_net, socStats->avg_3day_daily_net_mah, socStats->avg_7day_daily_net_mah,
              last_24h_charged, last_24h_discharged,
              socStats->avg_3day_daily_charged_mah, socStats->avg_3day_daily_discharged_mah,
