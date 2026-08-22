@@ -3,6 +3,18 @@
 #include <MeshCore.h>
 #include <Arduino.h>
 
+// RP2040 Specific Includes for Clock/Power
+#include "pico/stdlib.h"
+#include "hardware/vreg.h"
+#include "hardware/clocks.h"
+#include "hardware/pll.h"
+#include "hardware/structs/pll.h"
+#include "hardware/structs/clocks.h"
+
+// Pico Standard Pins
+#define PIN_SMPS_MODE 23
+#define PIN_VBUS_DET  24
+
 // built-ins
 #define  PIN_VBAT_READ    26
 #define  ADC_MULTIPLIER   (3.1 * 3.3 * 1000) // MT Uses 3.1
