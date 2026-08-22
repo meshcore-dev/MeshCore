@@ -27,6 +27,21 @@ static bool isValidName(const char *n) {
   return true;
 }
 
+static bool parseHexBytes(uint8_t* dest, size_t max_len, const char* hex, size_t* len_out) {
+  size_t hex_len = strlen(hex);
+  if (hex_len == 0 || (hex_len & 1)) return false;
+  if (hex_len / 2 > max_len) return false;
+
+  for (size_t i = 0; i < hex_len; i++) {
+    if (!mesh::Utils::isHexChar(hex[i])) return false;
+  }
+
+  size_t len = hex_len / 2;
+  if (!mesh::Utils::fromHex(dest, len, hex)) return false;
+  *len_out = len;
+  return true;
+}
+
 void CommonCLI::loadPrefs(FILESYSTEM* fs) {
   if (fs->exists("/prefs.json")) {
 #if defined(RP2040_PLATFORM)
@@ -259,6 +274,22 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       savePrefs();
       sprintf(reply, "password now: ");
       StrHelper::strncpy(&reply[14], _prefs->password, 160-15);   // echo back just to let admin know for sure!!
+    } else if (memcmp(command, "identity sign", 13) == 0 && (command[13] == 0 || command[13] == ' ')) {
+      const char* hex = &command[13];
+      while (*hex == ' ') hex++;
+
+      uint8_t data[64];
+      size_t data_len = 0;
+      if (*hex == 0) {
+        strcpy(reply, "Usage: identity sign <data_hex>");
+      } else if (!parseHexBytes(data, sizeof(data), hex, &data_len)) {
+        strcpy(reply, "Error: data must be 1-64 bytes hex");
+      } else {
+        uint8_t signature[SIGNATURE_SIZE];
+        _callbacks->getSelfId().sign(signature, data, data_len);
+        strcpy(reply, "> ");
+        mesh::Utils::toHex(&reply[2], signature, SIGNATURE_SIZE);
+      }
     } else if (memcmp(command, "clear stats", 11) == 0) {
       _callbacks->clearStats();
       strcpy(reply, "(OK - stats reset)");
