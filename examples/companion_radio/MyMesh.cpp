@@ -63,6 +63,8 @@
 #define CMD_GET_DEFAULT_FLOOD_SCOPE   64
 #define CMD_SEND_RAW_PACKET           65
 
+#define SYNC_FLAG_FRAGMENT_ACK        0x01
+
 // Stats sub-types for CMD_GET_STATS
 #define STATS_TYPE_CORE               0
 #define STATS_TYPE_RADIO              1
@@ -216,41 +218,242 @@ bool MyMesh::Frame::isChannelMsg() const {
          buf[0] == RESP_CODE_CHANNEL_DATA_RECV;
 }
 
-void MyMesh::addToOfflineQueue(const uint8_t frame[], int len) {
-  if (offline_queue_len >= OFFLINE_QUEUE_SIZE) {
+bool MyMesh::canSendFrameFragments() const {
+  // Frame fragments are opt-in by app protocol version. Older apps keep the
+  // exact single-frame companion protocol they already understand.
+  return app_target_ver >= APP_TARGET_VER_FRAME_FRAGMENTS;
+}
+
+bool MyMesh::makeRoomInOfflineQueue(int slots_needed) {
+  // Preserve the old queue policy: channel traffic is discardable first, while
+  // contact messages are kept unless there is no room after channel eviction.
+  while (offline_queue_len + slots_needed > OFFLINE_QUEUE_SIZE) {
     MESH_DEBUG_PRINTLN("WARN: offline_queue is full!");
-    int pos = 0;
+    // If the first queued item is being delivered as fragments, do not evict it
+    // mid-transfer. Try later channel messages first.
+    int pos = queued_fragment_id != 0 ? 1 : 0;
+    bool removed = false;
     while (pos < offline_queue_len) {
       if (offline_queue[pos].isChannelMsg()) {
         for (int i = pos; i < offline_queue_len - 1; i++) { // delete oldest channel msg from queue
           offline_queue[i] = offline_queue[i + 1];
         }
         MESH_DEBUG_PRINTLN("INFO: removed oldest channel message from queue.");
-        offline_queue[offline_queue_len - 1].len = len;
-        memcpy(offline_queue[offline_queue_len - 1].buf, frame, len);
-        return;
+        offline_queue_len--;
+        removed = true;
+        break;
       }
       pos++;
     }
-    MESH_DEBUG_PRINTLN("INFO: no channel messages to remove from queue.");
-  } else {
-    offline_queue[offline_queue_len].len = len;
-    memcpy(offline_queue[offline_queue_len].buf, frame, len);
-    offline_queue_len++;
+    if (!removed) {
+      MESH_DEBUG_PRINTLN("INFO: no channel messages to remove from queue.");
+      return false;
+    }
+  }
+  return true;
+}
+
+void MyMesh::removeTopOfflineQueue() {
+  // Centralized removal is used by both legacy whole-frame delivery and the
+  // v14 fragmented queue path after the last fragment has been ACKed.
+  if (offline_queue_len == 0) return;
+
+  offline_queue_len--;
+  for (int i = 0; i < offline_queue_len; i++) { // delete top item from queue
+    offline_queue[i] = offline_queue[i + 1];
   }
 }
 
-int MyMesh::getFromOfflineQueue(uint8_t frame[]) {
-  if (offline_queue_len > 0) {         // check offline queue
-    size_t len = offline_queue[0].len; // take from top of queue
-    memcpy(frame, offline_queue[0].buf, len);
+void MyMesh::resetQueuedFragmentState() {
+  // A queued fragmented frame is delivered one fragment per sync request. This
+  // state is reset when the frame is consumed, the app reconnects, or the app
+  // negotiates its protocol version again.
+  queued_fragment_id = 0;
+  queued_fragment_index = 0;
+  queued_fragment_ack_pending = false;
+}
 
-    offline_queue_len--;
-    for (int i = 0; i < offline_queue_len; i++) { // delete top item from queue
-      offline_queue[i] = offline_queue[i + 1];
-    }
-    return len;
+uint16_t MyMesh::allocFrameFragmentId() {
+  // queued_fragment_id uses 0 as "no queued fragment is active", so skip 0
+  // when the uint16_t fragment counter wraps.
+  if (next_fragment_id == 0) next_fragment_id = 1;
+  return next_fragment_id++;
+}
+
+static uint8_t getFrameFragmentCount(uint16_t len) {
+  // Each fragment carries a small wrapper plus a chunk of the original
+  // companion frame, so the chunk size is smaller than MAX_FRAME_SIZE.
+  return (len + FRAME_FRAGMENT_CHUNK_LEN - 1) / FRAME_FRAGMENT_CHUNK_LEN;
+}
+
+static uint8_t buildFrameFragment(uint8_t dest[], const uint8_t frame[], uint16_t len,
+                                  uint16_t fragment_id, uint8_t index) {
+  // PACKET_FRAME_FRAGMENT includes enough metadata for the app to reassemble
+  // the original companion frame before normal parsing.
+  uint16_t offset = index * FRAME_FRAGMENT_CHUNK_LEN;
+  uint16_t chunk_len = len - offset;
+  if (chunk_len > FRAME_FRAGMENT_CHUNK_LEN) chunk_len = FRAME_FRAGMENT_CHUNK_LEN;
+
+  uint8_t i = 0;
+  dest[i++] = PUSH_CODE_FRAME_FRAGMENT;
+  dest[i++] = (uint8_t)(fragment_id & 0xFF);
+  dest[i++] = (uint8_t)(fragment_id >> 8);
+  dest[i++] = index;
+  dest[i++] = getFrameFragmentCount(len);
+  dest[i++] = frame[0]; // original companion frame code, useful before reassembly completes
+  dest[i++] = (uint8_t)(len & 0xFF);
+  dest[i++] = (uint8_t)(len >> 8);
+  dest[i++] = (uint8_t)(offset & 0xFF);
+  dest[i++] = (uint8_t)(offset >> 8);
+  memcpy(&dest[i], &frame[offset], chunk_len);
+  i += chunk_len;
+  return i;
+}
+
+void MyMesh::addToOfflineQueue(const uint8_t frame[], uint16_t len) {
+  // Store the full logical companion frame. The delivery format is chosen when
+  // the app later polls the queue, after we know whether it supports v14.
+  if (len > MAX_COMPANION_LONG_FRAME_SIZE) {
+    MESH_DEBUG_PRINTLN("addToOfflineQueue: frame too big, len=%u", (unsigned)len);
+    return;
   }
+  if (!makeRoomInOfflineQueue(1)) return;
+
+  offline_queue[offline_queue_len].len = len;
+  memcpy(offline_queue[offline_queue_len].buf, frame, len);
+  offline_queue_len++;
+}
+
+void MyMesh::writeFrameMaybeFragmented(const uint8_t frame[], uint16_t len) {
+  // Direct writes remain the default. Fragmentation is only used for oversized
+  // live frames after the app has advertised support for the v14 wrapper.
+  if (!_serial || !_serial->isConnected()) return;
+  if (len <= MAX_FRAME_SIZE) {
+    // Keep the original wire format for frames that already fit.
+    _serial->writeFrame(frame, len);
+  } else if (canSendFrameFragments()) {
+    MESH_DEBUG_PRINTLN("writeFrameMaybeFragmented: fragmenting frame type=0x%02X len=%u limit=%u fragments=%u",
+                       frame[0], (unsigned)len, (unsigned)MAX_FRAME_SIZE,
+                       (unsigned)getFrameFragmentCount(len));
+    writeFrameFragments(frame, len);
+  } else {
+    MESH_DEBUG_PRINTLN("writeFrameMaybeFragmented: oversized frame without app support, len=%u", (unsigned)len);
+  }
+}
+
+void MyMesh::writeFrameFragments(const uint8_t frame[], uint16_t len) {
+  // Used for live push frames only. Queued frames are sent by
+  // getFromOfflineQueue(), one fragment per CMD_SYNC_NEXT_MESSAGE ACK cycle.
+  uint8_t fragment_count = getFrameFragmentCount(len);
+  if (fragment_count == 0) {
+    MESH_DEBUG_PRINTLN("writeFrameFragments: invalid fragment_count=%u", (unsigned)fragment_count);
+    return;
+  }
+
+  uint16_t fragment_id = allocFrameFragmentId();
+  for (uint8_t index = 0; index < fragment_count; index++) {
+    uint8_t frag[MAX_FRAME_SIZE];
+    uint8_t i = buildFrameFragment(frag, frame, len, fragment_id, index);
+
+    _serial->writeFrame(frag, i);
+  }
+}
+
+void MyMesh::writePacketPayloadFrameMaybeFragmented(mesh::Packet *packet, uint8_t push_code, uint8_t path_byte,
+                                                    const char *debug_name) {
+  // Raw/control payload pushes are not stored in the offline queue. For old
+  // apps they keep the old MAX_FRAME_SIZE limit; v14 apps may receive them as
+  // best-effort live fragments.
+  uint16_t frame_cap = canSendFrameFragments() ? MAX_COMPANION_LONG_FRAME_SIZE : MAX_FRAME_SIZE;
+  if (packet->payload_len + 4 > frame_cap) {
+    MESH_DEBUG_PRINTLN("%s(), payload_len too long: %d", debug_name, packet->payload_len);
+    return;
+  }
+  if (!_serial || !_serial->isConnected()) {
+    MESH_DEBUG_PRINTLN("%s(), data received while app offline", debug_name);
+    return;
+  }
+
+  uint8_t frame[MAX_COMPANION_LONG_FRAME_SIZE];
+  int i = 0;
+  frame[i++] = push_code;
+  frame[i++] = (int8_t)(_radio->getLastSNR() * 4);
+  frame[i++] = (int8_t)(_radio->getLastRSSI());
+  frame[i++] = path_byte;
+  memcpy(&frame[i], packet->payload, packet->payload_len);
+  i += packet->payload_len;
+
+  writeFrameMaybeFragmented(frame, i);
+}
+
+int MyMesh::getFromOfflineQueue(uint8_t frame[], bool has_fragment_ack, uint16_t ack_fragment_id,
+                                uint8_t ack_fragment_index) {
+  // Queued frames are delivered synchronously: the app asks for the next item,
+  // then ACKs each oversized fragment before the firmware advances.
+  while (offline_queue_len > 0) {
+    Frame& queued = offline_queue[0];
+    uint16_t len = queued.len; // take from top of queue
+    uint16_t out_len = len;
+
+    if (len <= MAX_FRAME_SIZE) {
+      // Small queued frames are still returned exactly as before.
+      resetQueuedFragmentState();
+      memcpy(frame, queued.buf, len);
+      removeTopOfflineQueue();
+      return out_len;
+    }
+
+    if (!canSendFrameFragments()) {
+      // Legacy clients cannot parse PACKET_FRAME_FRAGMENT. Keep the previous
+      // behavior for them by returning a truncated single companion frame.
+      resetQueuedFragmentState();
+      out_len = MAX_FRAME_SIZE;
+      memcpy(frame, queued.buf, out_len);
+      removeTopOfflineQueue();
+      return out_len;
+    }
+
+    uint8_t fragment_count = getFrameFragmentCount(len);
+    if (fragment_count == 0) {
+      MESH_DEBUG_PRINTLN("getFromOfflineQueue: invalid fragment_count=0");
+      resetQueuedFragmentState();
+      removeTopOfflineQueue();
+      continue;
+    }
+
+    if (queued_fragment_id == 0) {
+      queued_fragment_id = allocFrameFragmentId();
+      queued_fragment_index = 0;
+      queued_fragment_ack_pending = false;
+      MESH_DEBUG_PRINTLN("getFromOfflineQueue: fragmenting queued frame type=0x%02X len=%u limit=%u fragments=%u id=%u",
+                         queued.buf[0], (unsigned)len, (unsigned)MAX_FRAME_SIZE,
+                         (unsigned)fragment_count, (unsigned)queued_fragment_id);
+    }
+
+    if (queued_fragment_ack_pending) {
+      // Without a matching ACK, repeat the last fragment. This keeps fragment
+      // delivery reliable without changing the old one-byte sync command.
+      bool ack_matches = has_fragment_ack && ack_fragment_id == queued_fragment_id &&
+                         ack_fragment_index == queued_fragment_index;
+      if (ack_matches) {
+        queued_fragment_ack_pending = false;
+        if (queued_fragment_index + 1 >= fragment_count) {
+          resetQueuedFragmentState();
+          removeTopOfflineQueue();
+          has_fragment_ack = false; // ACK consumed; do not apply it to the next queued frame.
+          continue;
+        }
+        queued_fragment_index++;
+      } else {
+        MESH_DEBUG_PRINTLN("getFromOfflineQueue: fragment ACK missing or mismatched, repeating fragment");
+      }
+    }
+
+    out_len = buildFrameFragment(frame, queued.buf, len, queued_fragment_id, queued_fragment_index);
+    queued_fragment_ack_pending = true;
+    return out_len;
+  }
+
   return 0; // queue is empty
 }
 
@@ -284,15 +487,19 @@ uint8_t MyMesh::getExtraAckTransmitCount() const {
 }
 
 void MyMesh::logRxRaw(float snr, float rssi, const uint8_t raw[], int len) {
-  if (_serial->isConnected() && len + 3 <= MAX_FRAME_SIZE) {
+  // RF logs are live push frames. Keep the legacy size limit until the app has
+  // opted into frame fragmentation.
+  uint16_t frame_cap = canSendFrameFragments() ? MAX_COMPANION_LONG_FRAME_SIZE : MAX_FRAME_SIZE;
+  if (_serial->isConnected() && len + 3 <= frame_cap) {
+    uint8_t frame[MAX_COMPANION_LONG_FRAME_SIZE];
     int i = 0;
-    out_frame[i++] = PUSH_CODE_LOG_RX_DATA;
-    out_frame[i++] = (int8_t)(snr * 4);
-    out_frame[i++] = (int8_t)(rssi);
-    memcpy(&out_frame[i], raw, len);
+    frame[i++] = PUSH_CODE_LOG_RX_DATA;
+    frame[i++] = (int8_t)(snr * 4);
+    frame[i++] = (int8_t)(rssi);
+    memcpy(&frame[i], raw, len);
     i += len;
 
-    _serial->writeFrame(out_frame, i);
+    writeFrameMaybeFragmented(frame, i);
   }
 }
 
@@ -431,37 +638,42 @@ ContactInfo*  MyMesh::processAck(const uint8_t *data) {
 
 void MyMesh::queueMessage(const ContactInfo &from, uint8_t txt_type, mesh::Packet *pkt,
                           uint32_t sender_timestamp, const uint8_t *extra, int extra_len, const char *text) {
+  // Build and queue the complete companion message frame. It may exceed
+  // MAX_FRAME_SIZE; getFromOfflineQueue() will either fragment it for v14 apps
+  // or preserve the legacy truncated delivery for older apps.
+  uint8_t frame[MAX_COMPANION_LONG_FRAME_SIZE];
+  int frame_cap = MAX_COMPANION_LONG_FRAME_SIZE;
   int i = 0;
   if (app_target_ver >= 3) {
-    out_frame[i++] = RESP_CODE_CONTACT_MSG_RECV_V3;
-    out_frame[i++] = (int8_t)(pkt->getSNR() * 4);
-    out_frame[i++] = 0; // reserved1
-    out_frame[i++] = 0; // reserved2
+    frame[i++] = RESP_CODE_CONTACT_MSG_RECV_V3;
+    frame[i++] = (int8_t)(pkt->getSNR() * 4);
+    frame[i++] = 0; // reserved1
+    frame[i++] = 0; // reserved2
   } else {
-    out_frame[i++] = RESP_CODE_CONTACT_MSG_RECV;
+    frame[i++] = RESP_CODE_CONTACT_MSG_RECV;
   }
-  memcpy(&out_frame[i], from.id.pub_key, 6);
+  memcpy(&frame[i], from.id.pub_key, 6);
   i += 6; // just 6-byte prefix
-  uint8_t path_len = out_frame[i++] = pkt->isRouteFlood() ? pkt->path_len : 0xFF;
-  out_frame[i++] = txt_type;
-  memcpy(&out_frame[i], &sender_timestamp, 4);
+  uint8_t path_len = frame[i++] = pkt->isRouteFlood() ? pkt->path_len : 0xFF;
+  frame[i++] = txt_type;
+  memcpy(&frame[i], &sender_timestamp, 4);
   i += 4;
   if (extra_len > 0) {
-    memcpy(&out_frame[i], extra, extra_len);
+    memcpy(&frame[i], extra, extra_len);
     i += extra_len;
   }
   int tlen = strlen(text); // TODO: UTF-8 ??
-  if (i + tlen > MAX_FRAME_SIZE) {
-    tlen = MAX_FRAME_SIZE - i;
+  if (i + tlen > frame_cap) {
+    tlen = frame_cap - i;
   }
-  memcpy(&out_frame[i], text, tlen);
+  memcpy(&frame[i], text, tlen);
   i += tlen;
-  addToOfflineQueue(out_frame, i);
+  addToOfflineQueue(frame, i);
 
   if (_serial->isConnected()) {
-    uint8_t frame[1];
-    frame[0] = PUSH_CODE_MSG_WAITING; // send push 'tickle'
-    _serial->writeFrame(frame, 1);
+    uint8_t tickle_frame[1];
+    tickle_frame[0] = PUSH_CODE_MSG_WAITING; // send push 'tickle'
+    _serial->writeFrame(tickle_frame, 1);
   }
 
 #ifdef DISPLAY_CLASS
@@ -544,35 +756,39 @@ void MyMesh::onSignedMessageRecv(const ContactInfo &from, mesh::Packet *pkt, uin
 
 void MyMesh::onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packet *pkt, uint32_t timestamp,
                                   const char *text) {
+  // Channel messages follow the same queued-frame path as contact messages so
+  // the app capability decision can be made later, at sync time.
+  uint8_t frame[MAX_COMPANION_LONG_FRAME_SIZE];
+  int frame_cap = MAX_COMPANION_LONG_FRAME_SIZE;
   int i = 0;
   if (app_target_ver >= 3) {
-    out_frame[i++] = RESP_CODE_CHANNEL_MSG_RECV_V3;
-    out_frame[i++] = (int8_t)(pkt->getSNR() * 4);
-    out_frame[i++] = 0; // reserved1
-    out_frame[i++] = 0; // reserved2
+    frame[i++] = RESP_CODE_CHANNEL_MSG_RECV_V3;
+    frame[i++] = (int8_t)(pkt->getSNR() * 4);
+    frame[i++] = 0; // reserved1
+    frame[i++] = 0; // reserved2
   } else {
-    out_frame[i++] = RESP_CODE_CHANNEL_MSG_RECV;
+    frame[i++] = RESP_CODE_CHANNEL_MSG_RECV;
   }
 
   uint8_t channel_idx = findChannelIdx(channel);
-  out_frame[i++] = channel_idx;
-  uint8_t path_len = out_frame[i++] = pkt->isRouteFlood() ? pkt->path_len : 0xFF;
+  frame[i++] = channel_idx;
+  uint8_t path_len = frame[i++] = pkt->isRouteFlood() ? pkt->path_len : 0xFF;
 
-  out_frame[i++] = TXT_TYPE_PLAIN;
-  memcpy(&out_frame[i], &timestamp, 4);
+  frame[i++] = TXT_TYPE_PLAIN;
+  memcpy(&frame[i], &timestamp, 4);
   i += 4;
   int tlen = strlen(text); // TODO: UTF-8 ??
-  if (i + tlen > MAX_FRAME_SIZE) {
-    tlen = MAX_FRAME_SIZE - i;
+  if (i + tlen > frame_cap) {
+    tlen = frame_cap - i;
   }
-  memcpy(&out_frame[i], text, tlen);
+  memcpy(&frame[i], text, tlen);
   i += tlen;
-  addToOfflineQueue(out_frame, i);
+  addToOfflineQueue(frame, i);
 
   if (_serial->isConnected()) {
-    uint8_t frame[1];
-    frame[0] = PUSH_CODE_MSG_WAITING; // send push 'tickle'
-    _serial->writeFrame(frame, 1);
+    uint8_t tickle_frame[1];
+    tickle_frame[0] = PUSH_CODE_MSG_WAITING; // send push 'tickle'
+    _serial->writeFrame(tickle_frame, 1);
   } else {
 #ifdef DISPLAY_CLASS
     if (_ui) _ui->notify(UIEventType::channelMessage);
@@ -779,43 +995,15 @@ bool MyMesh::onContactPathRecv(ContactInfo& contact, uint8_t* in_path, uint8_t i
 }
 
 void MyMesh::onControlDataRecv(mesh::Packet *packet) {
-  if (packet->payload_len + 4 > sizeof(out_frame)) {
-    MESH_DEBUG_PRINTLN("onControlDataRecv(), payload_len too long: %d", packet->payload_len);
-    return;
-  }
-  int i = 0;
-  out_frame[i++] = PUSH_CODE_CONTROL_DATA;
-  out_frame[i++] = (int8_t)(_radio->getLastSNR() * 4);
-  out_frame[i++] = (int8_t)(_radio->getLastRSSI());
-  out_frame[i++] = packet->path_len;
-  memcpy(&out_frame[i], packet->payload, packet->payload_len);
-  i += packet->payload_len;
-
-  if (_serial->isConnected()) {
-    _serial->writeFrame(out_frame, i);
-  } else {
-    MESH_DEBUG_PRINTLN("onControlDataRecv(), data received while app offline");
-  }
+  // Control-data pushes share the same live-frame fragmentation helper as raw
+  // packet pushes; they are not queued or ACKed through CMD_SYNC_NEXT_MESSAGE.
+  writePacketPayloadFrameMaybeFragmented(packet, PUSH_CODE_CONTROL_DATA, packet->path_len, "onControlDataRecv");
 }
 
 void MyMesh::onRawDataRecv(mesh::Packet *packet) {
-  if (packet->payload_len + 4 > sizeof(out_frame)) {
-    MESH_DEBUG_PRINTLN("onRawDataRecv(), payload_len too long: %d", packet->payload_len);
-    return;
-  }
-  int i = 0;
-  out_frame[i++] = PUSH_CODE_RAW_DATA;
-  out_frame[i++] = (int8_t)(_radio->getLastSNR() * 4);
-  out_frame[i++] = (int8_t)(_radio->getLastRSSI());
-  out_frame[i++] = 0xFF; // reserved (possibly path_len in future)
-  memcpy(&out_frame[i], packet->payload, packet->payload_len);
-  i += packet->payload_len;
-
-  if (_serial->isConnected()) {
-    _serial->writeFrame(out_frame, i);
-  } else {
-    MESH_DEBUG_PRINTLN("onRawDataRecv(), data received while app offline");
-  }
+  // Raw-data pushes are best-effort live notifications. The helper preserves
+  // the old MAX_FRAME_SIZE behavior unless v14 fragmentation was negotiated.
+  writePacketPayloadFrameMaybeFragmented(packet, PUSH_CODE_RAW_DATA, 0xFF, "onRawDataRecv");
 }
 
 void MyMesh::onTraceRecv(mesh::Packet *packet, uint32_t tag, uint32_t auth_code, uint8_t flags,
@@ -867,6 +1055,8 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
   _cli_rescue = false;
   offline_queue_len = 0;
   app_target_ver = 0;
+  next_fragment_id = 1;
+  resetQueuedFragmentState();
   clearPendingReqs();
   next_ack_idx = 0;
   sign_data = NULL;
@@ -1016,12 +1206,17 @@ bool MyMesh::isValidClientRepeatFreq(uint32_t f) const {
 
 void MyMesh::startInterface(BaseSerialInterface &serial) {
   _serial = &serial;
+  // Fragment IDs and pending ACK state are scoped to a companion connection.
+  resetQueuedFragmentState();
   serial.enable();
 }
 
 void MyMesh::handleCmdFrame(size_t len) {
   if (cmd_frame[0] == CMD_DEVICE_QUERY && len >= 2) { // sent when app establishes connection
     app_target_ver = cmd_frame[1];                    // which version of protocol does app understand
+    // Re-negotiate the app capability boundary before sending any queued
+    // fragmented frames under the new target version.
+    resetQueuedFragmentState();
 
     int i = 0;
     out_frame[i++] = RESP_CODE_DEVICE_INFO;
@@ -1367,14 +1562,30 @@ void MyMesh::handleCmdFrame(size_t len) {
     }
   } else if (cmd_frame[0] == CMD_SYNC_NEXT_MESSAGE) {
     int out_len;
-    if ((out_len = getFromOfflineQueue(out_frame)) > 0) {
+    int prev_queue_len = offline_queue_len;
+    bool has_fragment_ack = false;
+    uint16_t ack_fragment_id = 0;
+    uint8_t ack_fragment_index = 0;
+    // v14 extends CMD_SYNC_NEXT_MESSAGE with optional ACK fields. The old
+    // one-byte command remains valid and simply does not advance a pending
+    // fragmented frame.
+    if (canSendFrameFragments() && len >= 5 && (cmd_frame[1] & SYNC_FLAG_FRAGMENT_ACK) != 0) {
+      ack_fragment_id = ((uint16_t)cmd_frame[2]) | (((uint16_t)cmd_frame[3]) << 8);
+      ack_fragment_index = cmd_frame[4];
+      has_fragment_ack = true;
+    }
+
+    if ((out_len = getFromOfflineQueue(out_frame, has_fragment_ack, ack_fragment_id, ack_fragment_index)) > 0) {
       _serial->writeFrame(out_frame, out_len);
 #ifdef DISPLAY_CLASS
-      if (_ui) _ui->msgRead(offline_queue_len);
+      if (_ui && offline_queue_len != prev_queue_len) _ui->msgRead(offline_queue_len);
 #endif
     } else {
       out_frame[0] = RESP_CODE_NO_MORE_MESSAGES;
       _serial->writeFrame(out_frame, 1);
+#ifdef DISPLAY_CLASS
+      if (_ui && offline_queue_len != prev_queue_len) _ui->msgRead(offline_queue_len);
+#endif
     }
   } else if (cmd_frame[0] == CMD_SET_RADIO_PARAMS) {
     int i = 1;
