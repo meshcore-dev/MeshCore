@@ -73,8 +73,10 @@ public:
   virtual bool isLoRaFemPaGainEnabled() const { return false; }
 
   // Power management interface (boards with power management override these)
+  virtual bool isPwrMgtInitialised() const { return false; }
   virtual bool isExternalPowered() { return false; }
   virtual uint16_t getBootVoltage() { return 0; }
+  virtual bool getWakeLpcompSupported() const { return false; }
   virtual uint32_t getResetReason() const { return 0; }
   virtual const char* getResetReasonString(uint32_t reason) { return "Not available"; }
   virtual uint8_t getShutdownReason() const { return 0; }
