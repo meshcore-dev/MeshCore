@@ -19,7 +19,6 @@ public:
     ((CustomLR1110 *)_radio)->setMaxPayloadMillis(pm.payloadMillis);
   }
 
-  void doResetAGC() override { lr11x0ResetAGC((LR11x0 *)_radio, ((CustomLR1110 *)_radio)->getFreqMHz()); }
   bool isReceivingPacket() override {
     return ((CustomLR1110 *)_radio)->isReceiving();
   }
@@ -50,4 +49,6 @@ public:
   bool getRxBoostedGainMode() const override {
     return ((CustomLR1110 *)_radio)->getRxBoostedGainMode();
   }
+
+  void doResetAGC() override { lr11x0ResetAGC((LR11x0 *)_radio, ((CustomLR1110 *)_radio)->getFreqMHz(), getRxBoostedGainMode()); }
 };

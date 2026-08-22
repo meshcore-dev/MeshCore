@@ -24,8 +24,21 @@ bool SH1106Display::begin()
 {
   // Wire must already be initialised by board.begin() before this is called.
   // Boards with non-standard SH1106 addresses should define DISPLAY_ADDRESS
-  // in their variant/platformio configuration.
-  return i2c_probe(Wire, DISPLAY_ADDRESS) && display.begin(DISPLAY_ADDRESS, true);
+  // in their variant/platformio configuration. The SA0 strap selects 0x3C or
+  // 0x3D and differs between revisions of the same board (e.g. T-Beam
+  // Supreme), so fall back to the other address of the pair.
+  uint8_t addr = 0;
+  if (i2c_probe(Wire, DISPLAY_ADDRESS)) {
+    addr = DISPLAY_ADDRESS;
+  } else if (i2c_probe(Wire, DISPLAY_ADDRESS ^ 1)) {
+    addr = DISPLAY_ADDRESS ^ 1;
+  }
+  // Run the Adafruit init even when no panel answered: it is what allocates
+  // the frame buffer and the I2C device. Skipping it leaves i2c_dev and
+  // spi_dev NULL, and UITask::begin() calls turnOn() regardless of our
+  // return value, which then dereferences the null spi_dev.
+  bool ok = display.begin(addr ? addr : DISPLAY_ADDRESS, true);
+  return addr != 0 && ok;
 }
 
 void SH1106Display::turnOn()
