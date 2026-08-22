@@ -816,7 +816,13 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
   } else if (memcmp(config, "int.thresh", 10) == 0) {
     sprintf(reply, "> %d", (uint32_t) _prefs->interference_threshold);
   } else if (memcmp(config, "cad", 3) == 0) {
-    sprintf(reply, "> %s", _prefs->cad_enabled ? "on" : "off");
+    uint8_t peak_offset, hits, count;
+    mesh::Radio* radio = _callbacks->getRadio();
+    if (_prefs->cad_enabled && radio != NULL && radio->getCADCalibState(peak_offset, hits, count)) {
+      sprintf(reply, "> on (detPeak +%d, ambient %d/%d)", (int)peak_offset, (int)hits, (int)count);
+    } else {
+      sprintf(reply, "> %s", _prefs->cad_enabled ? "on" : "off");
+    }
   } else if (memcmp(config, "agc.reset.interval", 18) == 0) {
     sprintf(reply, "> %d", ((uint32_t) _prefs->agc_reset_interval) * 4);
   } else if (memcmp(config, "multi.acks", 10) == 0) {

@@ -42,6 +42,12 @@ public:
   float getLastSNR() const override { return ((CustomLR1110 *)_radio)->getSNR(); }
 
   uint8_t getSpreadingFactor() const override { return ((CustomLR1110 *)_radio)->getSpreadingFactor(); }
+  uint8_t getCADDetPeakBase() const override {
+    // RadioLib LR11x0 default detPeak per SF5..12 (different scale than SX126x)
+    static const uint8_t detPeakValues[8] = { 48, 48, 50, 55, 55, 59, 61, 65 };
+    uint8_t sf = getSpreadingFactor();
+    return (sf >= 5 && sf <= 12) ? detPeakValues[sf - 5] : 0;
+  }
   
   bool setRxBoostedGainMode(bool en) override {
     return ((CustomLR1110 *)_radio)->setRxBoostedGainMode(en) == RADIOLIB_ERR_NONE;
