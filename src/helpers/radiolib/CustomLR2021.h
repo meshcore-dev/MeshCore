@@ -75,6 +75,54 @@ class CustomLR2021 : public LR2021 {
       return LR2021::startReceive(RADIOLIB_LR2021_RX_TIMEOUT_INF, RADIOLIB_IRQ_RX_DEFAULT_FLAGS | (1UL << RADIOLIB_LR2021_IRQ_PREAMBLE_DETECTED), RADIOLIB_IRQ_RX_DEFAULT_MASK, 0);
     }
 
+    // Read the received length ourselves, keeping the status word.
+    // A "get" on this family is two SPI transactions (LRxxxx::SPIcommand): send the
+    // opcode, then read the reply. SPItransferStream() waits 1 us before polling
+    // BUSY, so when BUSY has not risen yet the reply is read too early and the chip
+    // answers with its default [stat 2B][irq 4B] stream instead. RadioLib strips the
+    // status and hands the rest back as data, so getRxPktLength() returns irq[31:16]
+    // - exactly 4 with RX_DONE set. Setting the status width to 0 keeps both status
+    // bytes in our own buffer, the same trick LRxxxx::getIrqStatus uses.
+    int16_t readRxPktLenWithStatus(bool wait, uint8_t* stat, uint16_t* val) {
+      int16_t st = mod->SPIwriteStream(RADIOLIB_LR2021_CMD_GET_RX_PKT_LENGTH, NULL, 0, wait, false);
+      Module::BitWidth_t sw = mod->spiConfig.widths[RADIOLIB_MODULE_SPI_WIDTH_STATUS];
+      Module::BitWidth_t cw = mod->spiConfig.widths[RADIOLIB_MODULE_SPI_WIDTH_CMD];
+      mod->spiConfig.widths[RADIOLIB_MODULE_SPI_WIDTH_STATUS] = Module::BITS_0;
+      mod->spiConfig.widths[RADIOLIB_MODULE_SPI_WIDTH_CMD]    = Module::BITS_0;
+      uint8_t buff[4] = { 0 };
+      st = mod->SPIreadStream(RADIOLIB_LRXXXX_CMD_NOP, buff, sizeof(buff), wait, false);
+      mod->spiConfig.widths[RADIOLIB_MODULE_SPI_WIDTH_STATUS] = sw;
+      mod->spiConfig.widths[RADIOLIB_MODULE_SPI_WIDTH_CMD]    = cw;
+      if (stat) *stat = buff[0];
+      if (val)  *val  = ((uint16_t)buff[2] << 8) | (uint16_t)buff[3];
+      return st;
+    }
+
+    // Trust the length only when the chip says the reply is ours. The command status
+    // field of stat1 has four values and CMD_DAT means "successfully processed, data
+    // is being transmitted" - the only correct one for the read half of a get. A
+    // reply produced by the race reports CMD_OK instead, i.e. "nothing to collect",
+    // which is exactly the case where the status stream comes back. The Rx FIFO is
+    // still intact at this point (readData() runs later), so re-reading recovers the
+    // frame instead of losing it.
+    // Measured on hardware: with the BUSY wait skipped on purpose in the live RX
+    // path, 11 of 11 bogus reads reported CMD_OK and every frame was recovered; on
+    // genuine frames whose length happened to equal irq[31:16] the status correctly
+    // reported CMD_DAT. Judging by that value alone - as an earlier version did -
+    // therefore misfires on real frames, which is why the status decides here.
+    size_t getPacketLength(bool update = true) override {
+      uint8_t  stat = 0;
+      uint16_t val  = 0;
+      for (int i = 0; i < 3; i++) {
+        readRxPktLenWithStatus(true, &stat, &val);
+        if ((stat & 0x0E) == RADIOLIB_LRXXXX_STAT_1_CMD_DAT) return val;
+      }
+      // never end up worse than the plain library read
+      return LR2021::getPacketLength(update);
+    }
+
+
+
     bool isReceiving() {
       uint32_t irq = getIrqStatus();
       bool preamble = irq & RADIOLIB_LR2021_IRQ_PREAMBLE_DETECTED;  // bit 5
