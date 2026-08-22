@@ -133,6 +133,7 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {  // Legacy 
     // sanitise settings
     _prefs->rx_boosted_gain = constrain(_prefs->rx_boosted_gain, 0, 1); // boolean
     _prefs->radio_fem_rxgain = constrain(_prefs->radio_fem_rxgain, 0, 1); // boolean
+    _prefs->radio_fem_txgain = constrain(_prefs->radio_fem_txgain, 0, 1); // boolean
     _prefs->cad_enabled = constrain(_prefs->cad_enabled, 0, 1); // boolean
 
     file.close();
@@ -562,6 +563,28 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     } else {
       strcpy(reply, "Error: state must be on or off");
     }
+  } else if (memcmp(config, "radio.fem.txgain ", 17) == 0) {
+    if (!_board->canControlLoRaFemPaGain()) {
+      strcpy(reply, "Error: unsupported");
+    } else if (memcmp(&config[17], "on", 2) == 0) {
+      if (_board->setLoRaFemPaGainEnabled(true)) {
+        _prefs->radio_fem_txgain = 1;
+        savePrefs();
+        strcpy(reply, "OK - LoRa FEM TX gain on");
+      } else {
+        strcpy(reply, "Error: failed to apply LoRa FEM TX gain");
+      }
+    } else if (memcmp(&config[17], "off", 3) == 0) {
+      if (_board->setLoRaFemPaGainEnabled(false)) {
+        _prefs->radio_fem_txgain = 0;
+        savePrefs();
+        strcpy(reply, "OK - LoRa FEM TX gain off");
+      } else {
+        strcpy(reply, "Error: failed to apply LoRa FEM TX gain");
+      }
+    } else {
+      strcpy(reply, "Error: state must be on or off");
+    }
   } else if (memcmp(config, "radio ", 6) == 0) {
     strcpy(tmp, &config[6]);
     const char *parts[4];
@@ -826,6 +849,12 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
       strcpy(reply, "Error: unsupported");
     } else {
       sprintf(reply, "> %s", _board->isLoRaFemLnaEnabled() ? "on" : "off");
+    }
+  } else if (memcmp(config, "radio.fem.txgain", 16) == 0) {
+    if (!_board->canControlLoRaFemPaGain()) {
+      strcpy(reply, "Error: unsupported");
+    } else {
+      sprintf(reply, "> %s", _board->isLoRaFemPaGainEnabled() ? "on" : "off");
     }
   } else if (memcmp(config, "radio", 5) == 0) {
     char freq[16], bw[16];

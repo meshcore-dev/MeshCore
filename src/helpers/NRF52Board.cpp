@@ -5,6 +5,10 @@
 #include <bluefruit.h>
 #include <nrf_soc.h>
 
+#ifdef USE_CC310_HW_CRYPTO
+#include <Adafruit_nRFCrypto.h>
+#endif
+
 static BLEDfu bledfu;
 
 static void connect_callback(uint16_t conn_handle) {
@@ -21,6 +25,11 @@ static void disconnect_callback(uint16_t conn_handle, uint8_t reason) {
 
 void NRF52Board::begin() {
   startup_reason = BD_STARTUP_NORMAL;
+
+  #ifdef USE_CC310_HW_CRYPTO
+    // CC310 TRNG is higher quality and environment-independent vs radio RSSI noise.
+    nRFCrypto.begin();
+  #endif
 }
 
 #ifdef NRF52_POWER_MANAGEMENT
@@ -351,6 +360,10 @@ void NRF52Board::shutdownPeripherals() {
   if(sensors.getLocationProvider() != NULL) {
     sensors.getLocationProvider()->stop();
   }
+
+#ifdef USE_CC310_HW_CRYPTO
+    nRFCrypto.end();
+#endif
 
   // Flush serial buffers
   Serial.flush();

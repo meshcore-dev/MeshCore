@@ -22,6 +22,10 @@ public:
     ((CustomLR2021 *)_radio)->setCodingRate(cr);
     updatePreamble(sf);
     applySideDetectorConfig();
+    PacketMillis pm = calcMaxPacketMillis(sf, bw, cr, preambleLengthForSF(sf));
+    ((CustomLR2021 *)_radio)->setPreambleMillis(pm.preambleMillis);
+    ((CustomLR2021 *)_radio)->setMaxPayloadMillis(pm.payloadMillis);
+
   }
 
   bool configSideDetectors(const uint8_t* sideDetSFs, uint8_t num, float bw) override {

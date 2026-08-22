@@ -92,10 +92,10 @@ public:
 
   void random(uint8_t* dest, size_t sz) override {
 #ifdef USE_CC310_HW_CRYPTO
-    // CC310 TRNG is higher quality and environment-independent vs radio RSSI noise.
-    nRFCrypto.begin();
     nRFCrypto.Random.generate(dest, (uint16_t)sz);
-    nRFCrypto.end();
+    for (int i = 0; i < sz; i++) {
+      dest[i] ^= _radio->randomByte() ^ (::random(0, 256) & 0xFF); // combine with Radio's entropy
+    }
 #else
     for (int i = 0; i < sz; i++) {
       dest[i] = _radio->randomByte() ^ (::random(0, 256) & 0xFF);

@@ -33,6 +33,8 @@ public:
   uint32_t gps_interval = 0;     // GPS read interval in seconds
   uint8_t autoadd_config = 0;    // bitmask for auto-add contacts config
   uint8_t rx_boosted_gain = 0; // SX126x RX boosted gain mode (0=power saving, 1=boosted)
+  uint8_t radio_fem_rxgain = 0; // external LoRa FEM RX gain (LNA)
+  uint8_t radio_fem_txgain = 0; // external LoRa FEM TX gain (low by default)
   uint8_t _client_repeat = 0;  // DEPRECATED -> use repeat.disable_fwd
   uint8_t path_hash_mode = 0;    // which path mode to use when sending
   uint8_t autoadd_max_hops = 0;  // 0 = no limit, 1 = direct (0 hops), N = up to N-1 hops (max 64)
@@ -51,7 +53,12 @@ private:
       //def("cad", _parent->cad_enabled);
       //def("int_thr", _parent->interference_threshold);
       def("rxgain", _parent->rx_boosted_gain);
-      def("fem_rxgain", _parent->rx_boosted_gain);
+    #if 0
+      // NOTE: these cannot be set (yet) so don't load/save until we can.
+      //       also, fem_rxgain WAS mapped to wrong JSON property previously
+      def("fem_rxgain", _parent->radio_fem_rxgain);
+      def("fem_txgain", _parent->radio_fem_txgain);
+    #endif
       def("tx", _parent->tx_power_dbm);
       def("af", _parent->airtime_factor);
       def("rxdelay", _parent->rx_delay_base);

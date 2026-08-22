@@ -27,11 +27,9 @@ bool Identity::verify(const uint8_t* sig, const uint8_t* message, int msg_len) c
   // needs much less, around 600-700bytes. The CC310 workspace is static, faster,
   // should save power at scale as well.
   static CRYS_ECEDW_TempBuff_t cc310_tmp;
-  nRFCrypto.begin();
   CRYSError_t rc = CRYS_ECEDW_Verify((uint8_t*)sig, CRYS_ECEDW_SIGNATURE_BYTES,
                                      (uint8_t*)pub_key, CRYS_ECEDW_MOD_SIZE_IN_BYTES,
                                      (uint8_t*)message, (size_t)msg_len, &cc310_tmp);
-  nRFCrypto.end();
   return rc == CRYS_OK;
 #elif 0
   // NOTE:  memory corruption bug was found in this function!!
