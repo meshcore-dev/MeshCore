@@ -1,4 +1,5 @@
 #include <helpers/BaseChatMesh.h>
+#include <helpers/LoginTimeout.h>
 #include <Utils.h>
 
 #ifndef SERVER_RESPONSE_DELAY
@@ -603,7 +604,9 @@ int BaseChatMesh::sendLogin(const ContactInfo& recipient, const char* password, 
       return MSG_SEND_SENT_FLOOD;
     } else {
       sendDirect(pkt, recipient.out_path, recipient.out_path_len);
-      est_timeout = calcDirectTimeoutMillisFor(t, recipient.out_path_len);
+      const uint32_t direct_timeout = calcDirectTimeoutMillisFor(t, recipient.out_path_len);
+      est_timeout = mesh::selectDirectLoginTimeout(recipient.type == ADV_TYPE_REPEATER, direct_timeout,
+                                                   calcFloodTimeoutMillisFor(t));
       return MSG_SEND_SENT_DIRECT;
     }
   }
