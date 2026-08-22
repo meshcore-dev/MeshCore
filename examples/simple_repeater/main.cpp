@@ -122,7 +122,7 @@ void setup() {
   board.onBootComplete();
 }
 
-void loop() {
+static void __attribute__((noinline)) serviceCommandInterfaces() {
   // Handle Serial CLI
   int len = strlen(command);
   while (Serial.available() && len < sizeof(command)-1) {
@@ -169,6 +169,10 @@ void loop() {
     ethernet_command[0] = 0;
   }
 #endif
+}
+
+void loop() {
+  serviceCommandInterfaces();
 
 #if defined(PIN_USER_BTN) && defined(_SEEED_SENSECAP_SOLAR_H_) && !defined(DISPLAY_CLASS)
   // Hold the user button to power off the SenseCAP Solar repeater.
