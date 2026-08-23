@@ -20,3 +20,4 @@ platformio.local.ini
 src/helpers/FirmwareIdentity.generated.cpp
 
 __pycache__/
+build/
