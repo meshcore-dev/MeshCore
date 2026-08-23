@@ -1,0 +1,13 @@
+# EnvyOS OTA build targets — read by scripts/build-mota.sh
+#
+# Format:  slug  platformio_env  [description…]
+#   slug            output dir name under build/motas/<version>/<slug>/
+#   platformio_env  PlatformIO environment in this repo
+#
+# Add a line here to ship a new board/role; sync motatool src/targets.rs when the env set changes.
+# otafix BOARD= for envyos bootloader builds: envyos/scripts/targets-lib.sh reads this file via --targets-file.
+
+wismesh-tag-repeater   RAK_WisMesh_Tag_repeater              WisMesh Tag repeater (OTA bench seeder/DUT)
+rak4631-repeater-slim   RAK_4631_repeater_slim                RAK4631 slim repeater (no OLED/sensors/BLE)
+rak4631-superseeder     RAK_4631_superseeder                  RAK4631 slim + SD superseeder (field cache)
+wismesh-tag-client-ble  RAK_WisMesh_Tag_companion_radio_ble   WisMesh Tag companion (BLE)
