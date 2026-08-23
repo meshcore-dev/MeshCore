@@ -47,6 +47,24 @@ resolve_motatool() {
     command -v motatool
     return 0
   fi
+  local motatool_root ver cache bin
+  motatool_root="${MOTATOOL_ROOT:-${ENVYOS_ROOT:+$(cd "$ENVYOS_ROOT/../.." && pwd)/motatool}}"
+  if [[ -n "$motatool_root" && -f "${ENVYOS_ROOT:-}/ENVYOS_VERSIONS" ]]; then
+    ver="$(grep '^motatool=' "${ENVYOS_ROOT}/ENVYOS_VERSIONS" | head -1 | cut -d= -f2 | tr -d '[:space:]')"
+    if [[ -n "$ver" ]]; then
+      ver="v${ver#v}"
+      cache="$motatool_root/dist/$ver"
+      bin="$cache/motatool-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m)"
+      [[ -x "$bin" ]] && {
+        printf '%s\n' "$bin"
+        return 0
+      }
+    fi
+  fi
+  if [[ -n "$motatool_root" && -x "$motatool_root/target/release/motatool" ]]; then
+    printf '%s\n' "$motatool_root/target/release/motatool"
+    return 0
+  fi
   echo "error: motatool not on PATH (install from MeshEnvy/motatool releases or set MOTATOOL=)" >&2
   return 1
 }

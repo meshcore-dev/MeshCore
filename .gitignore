@@ -17,5 +17,6 @@ compile_commands.json
 .venv/
 venv/
 platformio.local.ini
+build/
 
 __pycache__/
