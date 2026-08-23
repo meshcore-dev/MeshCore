@@ -831,11 +831,15 @@ bool EnvironmentSensorManager::gpsIsAwake(uint8_t ioPin){
     }
   #endif
 
+  #ifndef RAK_3401
   //set initial waking state
   pinMode(ioPin,OUTPUT);
   digitalWrite(ioPin,LOW);
   delay(500);
   digitalWrite(ioPin,HIGH);
+  #endif
+
+  // give gps time to power up
   delay(500);
 
   //Try to init RAK12500 on I2C
@@ -871,7 +875,9 @@ bool EnvironmentSensorManager::gpsIsAwake(uint8_t ioPin){
     return true;
   }
 
+  #ifndef RAK_3401
   pinMode(ioPin, INPUT);
+  #endif
   MESH_DEBUG_PRINTLN("GPS did not init with this IO pin... try the next");
   return false;
 }
@@ -880,8 +886,10 @@ bool EnvironmentSensorManager::gpsIsAwake(uint8_t ioPin){
 void EnvironmentSensorManager::start_gps() {
   gps_active = true;
   #ifdef RAK_WISBLOCK_GPS
+    #ifndef RAK_3401
     pinMode(gpsResetPin, OUTPUT);
     digitalWrite(gpsResetPin, HIGH);
+    #endif
     return;
   #endif
 
@@ -896,8 +904,10 @@ void EnvironmentSensorManager::start_gps() {
 void EnvironmentSensorManager::stop_gps() {
   gps_active = false;
   #ifdef RAK_WISBLOCK_GPS
+    #ifndef RAK_3401 // rak3401 shouldn't turn off WB_IO2 as it powers the PA
     pinMode(gpsResetPin, OUTPUT);
     digitalWrite(gpsResetPin, LOW);
+    #endif
     return;
   #endif
 
