@@ -102,7 +102,9 @@ class HomeScreen : public UIScreen {
 #if UI_SENSORS_PAGE == 1
     SENSORS,
 #endif
+#ifndef UI_NO_HIBERNATE
     SHUTDOWN,
+#endif
     Count    // keep as last
   };
 
@@ -459,6 +461,7 @@ public:
       if (sensors_scroll) sensors_scroll_offset = (sensors_scroll_offset+1)%sensors_nb;
       else sensors_scroll_offset = 0;
 #endif
+#ifndef UI_NO_HIBERNATE
     } else if (_page == HomePage::SHUTDOWN) {
       display.setColor(UIColor::corp_blue);
       display.setTextSize(1);
@@ -470,6 +473,7 @@ public:
         display.drawXbm((display.width() - 32) / 2, 18, power_icon, 32, 32);
         display.drawTextCentered(display.width() / 2, 64 - 11, "hibernate:" PRESS_LABEL);
       }
+#endif
     }
     return 5000;   // next render after 5000 ms
   }
@@ -516,10 +520,12 @@ public:
       return true;
     }
 #endif
+#ifndef UI_NO_HIBERNATE
     if (c == KEY_ENTER && _page == HomePage::SHUTDOWN) {
       _shutdown_init = true;  // need to wait for button to be released
       return true;
     }
+#endif
     return false;
   }
 };
