@@ -45,6 +45,9 @@ public:
   uint8_t flood_max = 0;
   uint8_t flood_max_unscoped = 0;
   uint8_t flood_max_advert = 0;
+  uint8_t flood_max_request = 0;
+  uint8_t flood_max_anon_request = 0;
+  uint8_t flood_max_response = 0;
   uint8_t interference_threshold = 0;
   uint8_t agc_reset_interval = 0; // secs / 4
   // Bridge settings
@@ -148,6 +151,9 @@ private:
       def("f_max", _parent->flood_max);
       def("f_max_uns", _parent->flood_max_unscoped);
       def("f_max_adv", _parent->flood_max_advert);
+      def("f_max_req", _parent->flood_max_request);
+      def("f_max_anon_req", _parent->flood_max_anon_request);
+      def("f_max_resp", _parent->flood_max_response);
       def("loop", _parent->loop_detect);
     }
   public:
