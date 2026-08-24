@@ -14,10 +14,28 @@
   #include <helpers/ui/MomentaryButton.h>
 #endif
 
+// Wraps the stock environment sensor manager purely to drive the status LED.
+// Its loop() is already called every iteration by every example sketch, and it
+// is the only place holding the live GNSS state, so it is where the board gets
+// told whether to blink once (no fix) or twice (fix).
+#ifdef ENV_INCLUDE_GPS
+class ThinkNodeM6SensorManager : public EnvironmentSensorManager {
+public:
+  ThinkNodeM6SensorManager(LocationProvider& location) : EnvironmentSensorManager(location) { }
+  void loop() override;
+};
+#else
+class ThinkNodeM6SensorManager : public EnvironmentSensorManager {
+public:
+  ThinkNodeM6SensorManager() : EnvironmentSensorManager() { }
+  void loop() override;
+};
+#endif
+
 extern ThinkNodeM6Board board;
 extern WRAPPER_CLASS radio_driver;
 extern AutoDiscoverRTCClock rtc_clock;
-extern EnvironmentSensorManager sensors;
+extern ThinkNodeM6SensorManager sensors;
 
 #ifdef DISPLAY_CLASS
   extern DISPLAY_CLASS display;
