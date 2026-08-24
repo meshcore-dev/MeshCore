@@ -94,6 +94,11 @@ if(CONFIG_MESHCORE)
   )
   zephyr_compile_definitions(ED25519_NO_SEED=1)
 
+  # MeshCore's house platform macro, alongside NRF52_PLATFORM / ESP32 /
+  # RP2040_PLATFORM / STM32_PLATFORM. Global rather than library-scoped because
+  # application code includes headers that branch on it (IdentityStore.h).
+  zephyr_compile_definitions(ZEPHYR_PLATFORM=1)
+
   # ---- Arduino compatibility shim (Zephyr-backed) --------------------------
   if(CONFIG_MESHCORE_ARDUINO_COMPAT)
     zephyr_include_directories(${MC_ROOT}/ports/zephyr/include)
@@ -103,6 +108,21 @@ if(CONFIG_MESHCORE)
   # ---- Zephyr platform helpers (clocks, RNG, board) ------------------------
   if(CONFIG_MESHCORE_ZEPHYR_HELPERS)
     zephyr_library_sources(${MC_ROOT}/ports/zephyr/MeshCoreZephyr.cpp)
+  endif()
+
+  # ---- Persistent storage (identity, prefs) --------------------------------
+  # MeshCore selects its filesystem type by platform macro rather than through an
+  # interface (src/helpers/IdentityStore.h), so the shim below has to be visible
+  # wherever that header is included -- including application code.
+  if(CONFIG_MESHCORE_STORAGE)
+    zephyr_library_sources(
+      ${MC_ROOT}/ports/zephyr/ZephyrFS.cpp
+      ${MC_ROOT}/src/helpers/IdentityStore.cpp
+    )
+    # zephyr/fs/littlefs.h pulls in lfs.h, whose include path Zephyr exposes only
+    # through the LITTLEFS interface target (zephyr/modules/littlefs/CMakeLists.txt)
+    # rather than globally.
+    zephyr_library_link_libraries(LITTLEFS)
   endif()
 
   # ---- LoRa RF parameters --> compile definitions --------------------------

@@ -41,6 +41,26 @@ config MESHCORE_ZEPHYR_HELPERS
 	  let an application bring up the mesh core without any Arduino board
 	  package.
 
+config MESHCORE_STORAGE
+	bool "Persistent storage (identity, prefs) on LittleFS"
+	default y
+	depends on MESHCORE_ARDUINO_COMPAT
+	select FLASH
+	select FLASH_MAP
+	select FILE_SYSTEM
+	select FILE_SYSTEM_LITTLEFS
+	# fs_mkfs(), used by LittleFileSystem::format(), which backs MeshCore's
+	# "erase filesystem" admin command (examples/simple_repeater/MyMesh.cpp:1020).
+	select FILE_SYSTEM_MKFS
+	help
+	  Build the LittleFS-backed filesystem shim (ports/zephyr/ZephyrFS.cpp)
+	  and IdentityStore, so a node keeps the same public key and
+	  configuration across reboots. Requires the board to define a
+	  `storage_partition` fixed partition.
+
+	  Turn this off for a library-only build with a volatile in-RAM
+	  identity, or on a board with no flash partition to spare.
+
 menu "LoRa RF parameters"
 
 config MESHCORE_LORA_FREQ

@@ -16,11 +16,16 @@ ports/zephyr/
   include/Arduino.h     # tiny Arduino shim (millis/delay/random/Serial) on Zephyr
   include/Stream.h      # Print/Stream surface used by the core
   include/MeshCoreZephyr.h   # mesh::Clock/RNG/RTC/Board bound to Zephyr APIs
+  include/ZephyrFS.h    # LittleFS-backed filesystem shim (identity, prefs)
   arduino_compat.cpp    # shim implementation
   MeshCoreZephyr.cpp    # platform-binding implementation
+  ZephyrFS.cpp          # filesystem implementation
 arch/zephyr/Crypto/     # vendored rweather/Crypto subset (see its README)
 samples/zephyr/
   mesh_min/             # buildable loopback sample (no radio HW needed)
+tests/zephyr/
+  crypto_vectors/       # known-answer crypto tests (interop guard)
+  identity_store/       # identity persistence across remount
 ```
 
 ## How the module is wired up
@@ -34,7 +39,11 @@ CMake glue only compiles anything when `CONFIG_MESHCORE=y`, and it builds:
 - the **crypto** it depends on — the vendored `arch/zephyr/Crypto` subset and
   `lib/ed25519` — always;
 - the **Arduino shim** (`CONFIG_MESHCORE_ARDUINO_COMPAT`, default y);
-- the **Zephyr platform helpers** (`CONFIG_MESHCORE_ZEPHYR_HELPERS`, default y).
+- the **Zephyr platform helpers** (`CONFIG_MESHCORE_ZEPHYR_HELPERS`, default y);
+- **persistent storage** — the LittleFS shim and `IdentityStore`
+  (`CONFIG_MESHCORE_STORAGE`, default y). Requires the board to declare a
+  `storage_partition`; set it to `n` for a library-only build with a volatile
+  in-RAM identity, as `samples/zephyr/mesh_min` does.
 
 MeshCore is exposed as a `zephyr_interface_library_named(meshcore)`, so its
 include paths and the LoRa RF parameters (`MESHCORE_LORA_FREQ/BW/SF/CR/TX_POWER`,
@@ -141,9 +150,12 @@ The PlatformIO tree already ships several roles under `examples/`
    node; `SPI_DT_SPEC_GET(DT_ALIAS(lora0), ...)` and the reset/busy/dio1
    `GPIO_DT_SPEC_GET`s still resolve.
 
-4. **Storage / identity.** The Arduino examples persist identity via a
-   filesystem (`InternalFS`/LittleFS). On Zephyr use the `settings` subsystem or
-   an `fs`/LittleFS partition and adapt `IdentityStore`.
+4. **Storage / identity.** Already handled: with `CONFIG_MESHCORE_STORAGE=y` the
+   shim in `ports/zephyr/ZephyrFS.cpp` mounts LittleFS on the board's
+   `storage_partition` and `IdentityStore` works unchanged. Construct it the same
+   way the Arduino examples do — `IdentityStore store(InternalFS, "")` — and call
+   `InternalFS.begin()` at startup. Paths stay MeshCore-style ("/prefs.json"); the
+   shim prefixes the mount point internally.
 
 5. **Register with CI.** `sample.yaml` makes Twister pick the sample up; add the
    boards it should build for under `platform_allow`.
@@ -155,7 +167,9 @@ Working in this baseline:
 - Module discovery, Kconfig, CMake glue.
 - Core mesh engine + real crypto (AES-128, SHA-256, Ed25519) + Arduino shim +
   Zephyr clock/RNG/RTC/board compile and run.
-- Loopback sample builds and passes under Twister on `native_sim`.
+- Persistent identity and config on LittleFS, so a node keeps its public key
+  across reboots.
+- Loopback sample and both test suites pass under Twister on `native_sim`.
 
 **Radio strategy.** MeshCore does *not* use RadioLib on Zephyr. RadioLib only ever
 supplied ~25 chip primitives (`startReceive`, `getIrqFlags`, `readRegister`,
@@ -169,7 +183,8 @@ a public raw-LoRa API upstream is the longer-term goal.
 
 Still TODO (each is an independent, well-scoped step):
 
-- Persistent identity/config storage (settings/LittleFS) so `IdentityStore` works.
+- `examples/companion_radio/DataStore.cpp` — 27 more filesystem call sites, to be
+  widened along with the companion sample.
 - Extract the chip-agnostic radio policy layer out of
   `src/helpers/radiolib/RadioLibWrappers.{h,cpp}` so the Arduino and Zephyr
   backends share one implementation — required for a Zephyr node to interoperate

@@ -8,6 +8,11 @@
   #define FILESYSTEM  Adafruit_LittleFS
 
   using namespace Adafruit_LittleFS_Namespace;
+#elif defined(ZEPHYR_PLATFORM)
+  #include <ZephyrFS.h>
+  #define FILESYSTEM  mc_zephyr_fs::LittleFileSystem
+
+  using namespace mc_zephyr_fs;
 #endif
 #include <Identity.h>
 
