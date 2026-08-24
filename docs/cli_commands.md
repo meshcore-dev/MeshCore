@@ -1139,6 +1139,34 @@ region save
 
 ---
 
+#### View the bridge frame counters
+**Usage:**
+- `get bridge.rxstats`
+- `get bridge.txstats`
+- `bridge.stats reset`
+
+Counts every way a frame can be lost, so a message-count mismatch between two
+bridged nodes can be attributed rather than guessed at. Compare the sending
+node's TX count against the receiving node's `RX in` to separate loss on the
+link from local drops.
+
+Common RX fields: `in` frames received, `ok` queued to the mesh, `dup` already
+seen, `nopar` not a valid mesh packet, `pool` packet pool was empty (frame
+retried, not lost), `qfull` lost because the main loop was not draining fast
+enough, `hwm` deepest the receive queue has been.
+
+**ESP-NOW** adds `bad` (wrong magic/checksum, usually another network's secret)
+on RX, and on TX reports `ok` frames the radio confirmed, `dup` already bridged,
+`big` too large for an ESP-NOW frame, `rty` retransmissions, `ref` radio refused
+the frame, `tmo` send callback never arrived, `fail` abandoned after every
+attempt, `qfull` transmit queue full, `hwm` transmit queue depth.
+
+**RS232** adds `crc` (checksum failures), `len` (bad length field) and `noise`
+(bytes skipped while hunting for a frame header) on RX, which together indicate
+a marginal cable or a baud-rate mismatch. Its TX side reports `dup` and `big`.
+
+---
+
 #### View the bootloader version (nRF52 only)
 **Usage:** `get bootloader.ver`
 

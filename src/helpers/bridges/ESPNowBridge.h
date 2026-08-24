@@ -3,6 +3,9 @@
 #include "MeshCore.h"
 #include "esp_now.h"
 #include "helpers/bridges/BridgeBase.h"
+#include "helpers/bridges/BridgeCodec.h"
+#include "helpers/bridges/BridgeFrameQueue.h"
+#include "helpers/bridges/BridgeTxQueue.h"
 
 #ifdef WITH_ESPNOW_BRIDGE
 
@@ -19,16 +22,20 @@
  * - Duplicate packet detection using SimpleMeshTables tracking
  * - Maximum packet size of 250 bytes (ESP-NOW limitation)
  *
- * Packet Structure:
+ * Packet Structure (see BridgeCodec):
  * [2 bytes] Magic Header - Used to identify ESPNowBridge packets
- * [2 bytes] Fletcher-16 checksum of encrypted payload (calculated over payload only)
+ * [2 bytes] Fletcher-16 checksum of the payload, encrypted
  * [246 bytes max] Encrypted payload containing the mesh packet
  *
- * The Fletcher-16 checksum is used to validate packet integrity and detect
- * corrupted or tampered packets. It's calculated over the encrypted payload
- * and provides a simple but effective way to verify packets are both
- * uncorrupted and from the same network (since the checksum is calculated
- * after encryption).
+ * Threading:
+ * ESP-NOW invokes its callbacks on the Wi-Fi task, not the Arduino loop task.
+ * The packet pool, inbound queue and seen-packet table have no locking, so the
+ * callbacks touch none of them: recv_cb() copies the frame into _rx_frames and
+ * send_cb() bumps a counter. All mesh work happens on the main task, in loop()
+ * and in sendPacket(), which the mesh calls from logRx()/logTx().
+ *
+ * Every way a frame can be lost has a counter behind `get bridge.rxstats` and
+ * `get bridge.txstats`, so nothing is dropped silently.
  *
  * Configuration:
  * - Define WITH_ESPNOW_BRIDGE to enable this bridge
@@ -39,10 +46,19 @@
  * _prefs->bridge_secret values. Packets encrypted with a different key will
  * fail the checksum validation and be discarded.
  */
-class ESPNowBridge : public BridgeBase {
+class ESPNowBridge : public BridgeBase, public BridgeFrameSender {
 private:
   static ESPNowBridge *_instance;
-  static void recv_cb(const uint8_t *mac, const uint8_t *data, int32_t len);
+
+  // ESP-IDF 5 (Arduino core 3.x, as used by the C6 variants) passes a richer
+  // info struct to the receive callback.
+#if defined(ESP_IDF_VERSION_MAJOR) && ESP_IDF_VERSION_MAJOR >= 5
+  static void recv_cb(const esp_now_recv_info_t *info, const uint8_t *data, int len);
+#else
+  // int, not int32_t: esp_now_recv_cb_t spells the length `int`, and on the
+  // RISC-V targets int32_t is `long int`, so int32_t here fails to convert.
+  static void recv_cb(const uint8_t *mac, const uint8_t *data, int len);
+#endif
   static void send_cb(const uint8_t *mac, esp_now_send_status_t status);
 
   /**
@@ -58,48 +74,42 @@ private:
    */
   static const size_t MAX_ESPNOW_PACKET_SIZE = 250;
 
-  /**
-   * Size constants for packet parsing
-   */
-  static const size_t MAX_PAYLOAD_SIZE = MAX_ESPNOW_PACKET_SIZE - (BRIDGE_MAGIC_SIZE + BRIDGE_CHECKSUM_SIZE);
+  /** Largest mesh packet blob that still fits an ESP-NOW frame once framed. */
+  static const size_t MAX_PAYLOAD_SIZE = MAX_ESPNOW_PACKET_SIZE - BridgeCodec::FRAME_OVERHEAD;
 
-  /** Buffer for receiving ESP-NOW packets */
-  uint8_t _rx_buffer[MAX_ESPNOW_PACKET_SIZE];
+  /** Frames buffered in each direction. */
+  static const uint8_t RX_QUEUE_DEPTH = 8;
+  static const uint8_t TX_QUEUE_DEPTH = 8;
 
-  /** Current position in receive buffer */
-  size_t _rx_buffer_pos;
+  /** Received frames turned into mesh packets per loop() call. */
+  static const uint8_t RX_DRAIN_PER_LOOP = 4;
 
-  /**
-   * Performs XOR encryption/decryption of data
-   * Used to isolate different mesh networks
-   *
-   * Uses _prefs->bridge_secret as the key in a simple XOR operation.
-   * The same operation is used for both encryption and decryption.
-   * While not cryptographically secure, it provides basic network isolation.
-   *
-   * @param data Pointer to data to encrypt/decrypt
-   * @param len Length of data in bytes
-   */
-  void xorCrypt(uint8_t *data, size_t len);
+  /** Transmissions tried per frame before it is abandoned. */
+  static const uint8_t TX_MAX_ATTEMPTS = 3;
 
-  /**
-   * ESP-NOW receive callback
-   * Called by ESP-NOW when a packet is received
-   *
-   * @param mac Source MAC address
-   * @param data Received data
-   * @param len Length of received data
-   */
-  void onDataRecv(const uint8_t *mac, const uint8_t *data, int32_t len);
+  /** How long to wait for the ESP-NOW send callback before assuming it is lost. */
+  static const uint32_t TX_ACK_TIMEOUT_MS = 250;
+
+  /** Pause between transmission attempts. */
+  static const uint32_t TX_RETRY_DELAY_MS = 20;
+
+  /** Frames handed over by the Wi-Fi task, drained by loop() on the main task. */
+  BridgeFrameQueue _rx_frames;
+
+  /** Outbound frames, paced one at a time and retried when the radio refuses. */
+  BridgeTxQueue _tx_frames;
 
   /**
-   * ESP-NOW send callback
-   * Called by ESP-NOW after a transmission attempt
-   *
-   * @param mac_addr Destination MAC address
-   * @param status Transmission status
+   * Decrypted payload handed to the mesh. A member rather than a local so that
+   * unwrapFrame() can return it; loop() holds the encrypted frame at the same
+   * time, so this costs no more than the two stack buffers it replaces.
    */
-  void onDataSent(const uint8_t *mac_addr, esp_now_send_status_t status);
+  uint8_t _rx_blob[MAX_PAYLOAD_SIZE];
+
+  uint32_t _rx_invalid;  ///< failed magic or checksum: foreign network, or corrupt
+
+  /** Decrypts a received frame; see BridgeBase::unwrapFrame(). */
+  const uint8_t *unwrapFrame(const uint8_t *frame, size_t frame_len, size_t &blob_len) override;
 
 public:
   /**
@@ -114,7 +124,7 @@ public:
   /**
    * Initializes the ESP-NOW bridge
    *
-   * - Configures WiFi in station mode
+   * - Configures WiFi in station mode with power save disabled
    * - Initializes ESP-NOW protocol
    * - Registers callbacks
    * - Sets up broadcast peer
@@ -133,7 +143,9 @@ public:
 
   /**
    * Main loop handler
-   * ESP-NOW is callback-based, so this is currently empty
+   *
+   * Drains received frames into the mesh and drives the transmit queue. Must be
+   * called regularly; nothing else moves packets through the bridge.
    */
   void loop() override;
 
@@ -147,11 +159,27 @@ public:
 
   /**
    * Called when a packet needs to be transmitted via ESP-NOW
-   * Encrypts and broadcasts the packet if not seen before
+   * Frames and queues the packet if not seen before
    *
    * @param packet The mesh packet to transmit
    */
   void sendPacket(mesh::Packet *packet) override;
+
+  /** Hands one frame to ESP-NOW. Called by the transmit queue. */
+  bool sendFrame(const uint8_t *frame, size_t len) override;
+
+  /**
+   * @brief Writes the receive-side counters into @p dest.
+   *
+   * Comparing TX on one node against RX on another shows where frames go missing.
+   */
+  void getRxStats(char *dest, size_t dest_size) const;
+
+  /** @brief Writes the transmit-side counters into @p dest. */
+  void getTxStats(char *dest, size_t dest_size) const;
+
+  /** Zeroes every counter, so a measurement can start from a known point. */
+  void resetStats();
 };
 
 #endif
