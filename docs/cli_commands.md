@@ -7,6 +7,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 - [Operational](#operational)
 - [Neighbors](#neighbors-repeater-only)
 - [Statistics](#statistics)
+- [Doctor](#doctor)
 - [Logging](#logging)
 - [Information](#info)
 - [Configuration](#configuration)
@@ -155,6 +156,38 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 **Usage:** `stats-packets`
 
 **Serial Only:** Yes
+
+---
+
+## Doctor
+
+Admin diagnostics namespace. First commands target onboard filesystem health (InternalFS/SPIFFS); more subcommands may be added later.
+
+Typical recovery when `set` commands fail with space errors:
+
+```
+doctor stat
+doctor gc
+doctor check
+```
+
+| Command | Remote admin | Description |
+|---------|--------------|-------------|
+| `doctor stat` | No (USB) | Print partition free/block headroom (`FS_STAT` lines on serial) |
+| `doctor gc` | Yes | Remove common cruft (`/packet_log`, legacy prefs paths, doctor temp files) |
+| `doctor check` | Yes | Probe atomic prefs write (writes `/.doctor_prefs.json`, then removes it) |
+| `doctor ls` | No (USB) | Recursive file listing (`FS_LS` on serial) |
+| `doctor probe` | No (USB) | Write-size probe + prefs JSON write test (`FS_PROBE` on serial) |
+| `doctor dump` | No (USB) | Hex dump raw flash region backing InternalFS |
+
+**Reply examples:**
+
+- `OK gc removed 3 item(s)`
+- `OK prefs_writeable prefs=1 id=1 acl=0 regions=0`
+- `ERR no space left on device (try: doctor gc)`
+- `ERR prefs rename failed lfs=-28 (try: doctor gc)`
+
+Requires [#3253](https://github.com/meshcore-dev/MeshCore/pull/3253) (atomic prefs save + FS error replies). This PR adds `(try: doctor gc)` hints to those error messages.
 
 ---
 

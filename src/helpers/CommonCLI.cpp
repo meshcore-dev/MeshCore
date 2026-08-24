@@ -1,9 +1,22 @@
 #include <Arduino.h>
 #include "CommonCLI.h"
+#include "ConfigSerializer.h"
+#include "FsLastErr.h"
 #include "TxtDataHelpers.h"
 #include "AdvertDataHelpers.h"
 #include "TxtDataHelpers.h"
 #include <RTClib.h>
+#include <stdarg.h>
+#if defined(NRF52_PLATFORM)
+  #include "flash/flash_nrf5x.h"
+#elif defined(STM32_PLATFORM)
+  #include "InternalFileSystem.h"
+#elif defined(ESP32)
+  #include <SPIFFS.h>
+#endif
+
+static void repairFeedWatchdog() { }
+
 
 #ifndef BRIDGE_MAX_BAUD
 #define BRIDGE_MAX_BAUD 115200
@@ -140,30 +153,618 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {  // Legacy 
   }
 }
 
+static char s_last_prefs_save_stage[12];
+
 bool CommonCLI::savePrefs(FILESYSTEM* fs) {
-#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
-  fs->remove("/prefs.json");
-  File file = fs->open("/prefs.json", FILE_O_WRITE);
-#elif defined(RP2040_PLATFORM)
-  File file = fs->open("/prefs.json", "w");
-#else
-  File file = fs->open("/prefs.json", "w", true);
-#endif
-  if (file) {
-    bool success = _prefs->saveSerial(file);
-    file.close();
-    return success;
-  }
-  return false;
+  s_last_prefs_save_stage[0] = 0;
+  return saveConfigJsonAtomic(fs, *_prefs, "/prefs.json", "/.prefs.json.new",
+                              s_last_prefs_save_stage, sizeof(s_last_prefs_save_stage));
 }
 
 #define MIN_LOCAL_ADVERT_INTERVAL   60
 
-void CommonCLI::savePrefs() {
+void CommonCLI::formatPrefsSaveErr(char* reply) {
+  const char* stage = s_last_prefs_save_stage[0] ? s_last_prefs_save_stage : "write";
+  FILESYSTEM* fs = _callbacks->getFileSystem();
+  fsLastErrReplyForFs(reply, 160, fsLastErrGet(), stage, fs);
+}
+
+static bool fsHasIdentity(FILESYSTEM* fs) {
+#if defined(ESP32) || defined(RP2040_PLATFORM)
+  return fs->exists("/identity/_main.id");
+#else
+  return fs->exists("/_main.id");
+#endif
+}
+
+bool CommonCLI::savePrefs() {
   if (_prefs->advert_interval * 2 < MIN_LOCAL_ADVERT_INTERVAL) {
     _prefs->advert_interval = 0;  // turn it off, now that device has been manually configured
   }
+  FILESYSTEM* fs = _callbacks->getFileSystem();
+  if (fs) {
+    return savePrefs(fs);
+  }
   _callbacks->savePrefs();
+  return true;
+}
+
+bool CommonCLI::persistPrefs(char* reply, const char* ok_msg) {
+  if (savePrefs()) {
+    strcpy(reply, ok_msg);
+    return true;
+  }
+  formatPrefsSaveErr(reply);
+  return false;
+}
+
+bool CommonCLI::tryPrefsWrite(FILESYSTEM* fs, char* err_stage, size_t err_stage_len) {
+  static const char* path = "/.doctor_prefs.json";
+  static const char* tmp = "/.doctor_prefs.json.new";
+  repairFeedWatchdog();
+  fs->remove(path);
+  bool success = saveConfigJsonAtomic(fs, *_prefs, path, tmp, err_stage, err_stage_len);
+  fs->remove(path);
+  fs->remove(tmp);
+  repairFeedWatchdog();
+  return success;
+}
+
+bool CommonCLI::checkFileSystem(char* reply) {
+  FILESYSTEM* fs = _callbacks->getFileSystem();
+  if (!fs) {
+    strcpy(reply, "ERR unsupported");
+    return false;
+  }
+
+  bool prefs = fs->exists("/prefs.json");
+  bool id = fsHasIdentity(fs);
+  bool acl = fs->exists("/s_contacts");
+  bool regions = fs->exists("/regions2");
+
+  char stage[12];
+  stage[0] = 0;
+  bool prefs_write_ok = tryPrefsWrite(fs, stage, sizeof(stage));
+  if (prefs_write_ok) {
+    sprintf(reply, "OK prefs_writeable prefs=%d id=%d acl=%d regions=%d", prefs, id, acl, regions);
+  } else if (strcmp(stage, "nospc") == 0) {
+    fsLastErrReplyForFs(reply, 160, fsLastErrGet(), stage, fs);
+#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
+  } else if (fsIsCriticallyFull(fs)) {
+    fsLastErrReplyForFs(reply, 160, fsLastErrGet(), stage, fs);
+#endif
+  } else {
+    sprintf(reply, "ERR prefs %s failed prefs=%d id=%d acl=%d regions=%d (try: doctor gc)",
+            stage[0] ? stage : "write", prefs, id, acl, regions);
+  }
+  return prefs_write_ok;
+}
+
+bool CommonCLI::wipeFileSystem(char* reply) {
+  repairFeedWatchdog();
+  if (!_callbacks->formatFileSystem()) {
+    strcpy(reply, "ERR format failed");
+    return false;
+  }
+  repairFeedWatchdog();
+  if (!_callbacks->remountFileSystem()) {
+    strcpy(reply, "ERR remount failed");
+    return false;
+  }
+  strcpy(reply, "OK wiped (reboot required)");
+  return true;
+}
+
+#if defined(NRF52_PLATFORM)
+static bool doctorFsFlashRegion(uint32_t* addr, uint32_t* size) {
+#ifdef NRF52840_XXAA
+  *addr = 0xED000;
+#else
+  *addr = 0x6D000;
+#endif
+  *size = 7u * FLASH_NRF52_PAGE_SIZE;
+  return true;
+}
+#elif defined(STM32_PLATFORM)
+static bool doctorFsFlashRegion(uint32_t* addr, uint32_t* size) {
+  *addr = LFS_FLASH_ADDR_BASE;
+  *size = LFS_FLASH_TOTAL_SIZE;
+  return true;
+}
+#else
+static bool doctorFsFlashRegion(uint32_t* addr, uint32_t* size) {
+  (void) addr;
+  (void) size;
+  return false;
+}
+#endif
+
+static void doctorFsLine(const char* fmt, ...) {
+  char buf[160];
+  va_list args;
+  va_start(args, fmt);
+  int n = vsnprintf(buf, sizeof(buf), fmt, args);
+  va_end(args);
+  if (n <= 0) return;
+  if (n >= (int) sizeof(buf)) n = sizeof(buf) - 1;
+  Serial.write((const uint8_t*) buf, n);
+  Serial.print("\r\n");
+  Serial.flush();
+}
+
+static void doctorFsPrintHexLine(uint32_t addr, const uint8_t* data, size_t len) {
+  char buf[80];
+  int pos = snprintf(buf, sizeof(buf), "FS_DUMP %06X:", addr & 0xFFFFFF);
+  for (size_t i = 0; i < len && pos > 0 && pos < (int) sizeof(buf) - 4; i++) {
+    pos += snprintf(buf + pos, sizeof(buf) - pos, " %02X", data[i]);
+  }
+  doctorFsLine("%s", buf);
+}
+
+bool CommonCLI::dumpFileSystem(char* reply) {
+  uint32_t base = 0;
+  uint32_t size = 0;
+  if (!doctorFsFlashRegion(&base, &size)) {
+    strcpy(reply, "ERR dump unsupported on this platform");
+    return false;
+  }
+
+  uint8_t buf[16];
+  doctorFsLine("FS_DUMP begin addr=0x%X size=%u", base, size);
+  for (uint32_t off = 0; off < size; off += sizeof(buf)) {
+    repairFeedWatchdog();
+    uint32_t chunk = size - off;
+    if (chunk > sizeof(buf)) chunk = sizeof(buf);
+#if defined(NRF52_PLATFORM)
+    if (flash_nrf5x_read(buf, base + off, chunk) <= 0) {
+      doctorFsLine("FS_DUMP abort read failed");
+      sprintf(reply, "ERR read failed at 0x%X", base + off);
+      return false;
+    }
+#else
+    memcpy(buf, (void*) (base + off), chunk);
+#endif
+    doctorFsPrintHexLine(base + off, buf, chunk);
+  }
+  doctorFsLine("FS_DUMP end");
+  sprintf(reply, "OK dumped %u bytes", size);
+  return true;
+}
+
+#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
+
+static int doctorFsCountBlock(void* p, lfs_block_t block) {
+  (void) block;
+  lfs_size_t* count = (lfs_size_t*) p;
+  (*count)++;
+  return 0;
+}
+
+static lfs_ssize_t doctorFsUsedBlocks(lfs_t* lfs) {
+  lfs_size_t count = 0;
+  if (lfs_traverse(lfs, doctorFsCountBlock, &count) != 0) return -1;
+  return (lfs_ssize_t) count;
+}
+
+static void doctorFsStatPath(lfs_t* lfs, const char* path) {
+  struct lfs_info info;
+  if (lfs_stat(lfs, path, &info) == 0) {
+    doctorFsLine("FS_STAT file %s %u", path, (unsigned) info.size);
+  } else {
+    doctorFsLine("FS_STAT file %s missing", path);
+  }
+}
+
+static void doctorFsListLfs(lfs_t* lfs, const char* path, int depth) {
+  lfs_dir_t dir;
+  if (lfs_dir_open(lfs, &dir, path) < 0) {
+    doctorFsLine("FS_LS err open %s", path);
+    return;
+  }
+
+  struct lfs_info info;
+  while (true) {
+    int res = lfs_dir_read(lfs, &dir, &info);
+    if (res <= 0) break;
+    if (info.name[0] == '.' && (info.name[1] == 0 || (info.name[1] == '.' && info.name[2] == 0))) continue;
+
+    char indent[12];
+    int spaces = depth * 2;
+    if (spaces > (int) sizeof(indent) - 1) spaces = sizeof(indent) - 1;
+    memset(indent, ' ', spaces);
+    indent[spaces] = 0;
+
+    if (info.type == LFS_TYPE_DIR) {
+      doctorFsLine("FS_LS %s[dir] %s/", indent, info.name);
+      char sub[48];
+      if (strcmp(path, "/") == 0) {
+        snprintf(sub, sizeof(sub), "/%s", info.name);
+      } else {
+        snprintf(sub, sizeof(sub), "%s/%s", path, info.name);
+      }
+      doctorFsListLfs(lfs, sub, depth + 1);
+    } else {
+      doctorFsLine("FS_LS %s[file] %s %u", indent, info.name, (unsigned) info.size);
+    }
+    repairFeedWatchdog();
+  }
+  lfs_dir_close(lfs, &dir);
+}
+
+static File doctorFsOpenWrite(FILESYSTEM* fs, const char* path) {
+  return fs->open(path, FILE_O_WRITE);
+}
+
+static bool doctorFsProbeRaw(FILESYSTEM* fs, uint16_t size, char* stage, unsigned long* dt_ms) {
+  static const char* final = "/.doctor_probe";
+  static const char* tmp = "/.doctor_probe.new";
+  unsigned long t0 = millis();
+
+  fs->remove(final);
+  fs->remove(tmp);
+
+  File file = doctorFsOpenWrite(fs, tmp);
+  if (!file) {
+    strcpy(stage, "open");
+    *dt_ms = millis() - t0;
+    return false;
+  }
+
+  uint8_t buf[64];
+  memset(buf, 0xA5, sizeof(buf));
+  uint16_t left = size;
+  while (left > 0) {
+    uint16_t chunk = left > sizeof(buf) ? sizeof(buf) : left;
+    if (file.write(buf, chunk) != chunk) {
+      file.close();
+      fs->remove(tmp);
+      strcpy(stage, "write");
+      *dt_ms = millis() - t0;
+      return false;
+    }
+    left -= chunk;
+    repairFeedWatchdog();
+  }
+  file.close();
+
+  if (!fs->rename(tmp, final)) {
+    fs->remove(tmp);
+    strcpy(stage, "rename");
+    *dt_ms = millis() - t0;
+    return false;
+  }
+  fs->remove(final);
+  stage[0] = 0;
+  *dt_ms = millis() - t0;
+  return true;
+}
+
+#elif defined(ESP32)
+
+static File doctorFsOpenWrite(FILESYSTEM* fs, const char* path) {
+  return fs->open(path, "w", true);
+}
+
+static bool doctorFsProbeRaw(FILESYSTEM* fs, uint16_t size, char* stage, unsigned long* dt_ms) {
+  static const char* final = "/.doctor_probe";
+  static const char* tmp = "/.doctor_probe.new";
+  unsigned long t0 = millis();
+
+  fs->remove(final);
+  fs->remove(tmp);
+
+  File file = doctorFsOpenWrite(fs, tmp);
+  if (!file) {
+    strcpy(stage, "open");
+    *dt_ms = millis() - t0;
+    return false;
+  }
+
+  uint8_t buf[64];
+  memset(buf, 0xA5, sizeof(buf));
+  uint16_t left = size;
+  while (left > 0) {
+    uint16_t chunk = left > sizeof(buf) ? sizeof(buf) : left;
+    if (file.write(buf, chunk) != chunk) {
+      file.close();
+      fs->remove(tmp);
+      strcpy(stage, "write");
+      *dt_ms = millis() - t0;
+      return false;
+    }
+    left -= chunk;
+  }
+  file.close();
+
+  if (!fs->rename(tmp, final)) {
+    fs->remove(tmp);
+    strcpy(stage, "rename");
+    *dt_ms = millis() - t0;
+    return false;
+  }
+  fs->remove(final);
+  stage[0] = 0;
+  *dt_ms = millis() - t0;
+  return true;
+}
+
+#elif defined(RP2040_PLATFORM)
+
+static File doctorFsOpenWrite(FILESYSTEM* fs, const char* path) {
+  return fs->open(path, "w");
+}
+
+static bool doctorFsProbeRaw(FILESYSTEM* fs, uint16_t size, char* stage, unsigned long* dt_ms) {
+  static const char* final = "/.doctor_probe";
+  static const char* tmp = "/.doctor_probe.new";
+  unsigned long t0 = millis();
+
+  fs->remove(final);
+  fs->remove(tmp);
+
+  File file = doctorFsOpenWrite(fs, tmp);
+  if (!file) {
+    strcpy(stage, "open");
+    *dt_ms = millis() - t0;
+    return false;
+  }
+
+  uint8_t buf[64];
+  memset(buf, 0xA5, sizeof(buf));
+  uint16_t left = size;
+  while (left > 0) {
+    uint16_t chunk = left > sizeof(buf) ? sizeof(buf) : left;
+    if (file.write(buf, chunk) != chunk) {
+      file.close();
+      fs->remove(tmp);
+      strcpy(stage, "write");
+      *dt_ms = millis() - t0;
+      return false;
+    }
+    left -= chunk;
+  }
+  file.close();
+
+  if (!fs->rename(tmp, final)) {
+    fs->remove(tmp);
+    strcpy(stage, "rename");
+    *dt_ms = millis() - t0;
+    return false;
+  }
+  fs->remove(final);
+  stage[0] = 0;
+  *dt_ms = millis() - t0;
+  return true;
+}
+
+#endif
+
+#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM) || defined(ESP32) || defined(RP2040_PLATFORM)
+
+static void doctorFsListGeneric(FILESYSTEM* fs) {
+  File root = fs->open("/");
+  if (!root) {
+    doctorFsLine("FS_LS err open /");
+    return;
+  }
+  File file = root.openNextFile();
+  while (file) {
+    if (file.isDirectory()) {
+      doctorFsLine("FS_LS [dir] %s/", file.name());
+    } else {
+      doctorFsLine("FS_LS [file] %s %d", file.name(), file.size());
+    }
+    repairFeedWatchdog();
+    file = root.openNextFile();
+  }
+  root.close();
+}
+
+bool CommonCLI::statFileSystem(char* reply) {
+  FILESYSTEM* fs = _callbacks->getFileSystem();
+  if (!fs) {
+    strcpy(reply, "ERR unsupported");
+    return false;
+  }
+
+  doctorFsLine("FS_STAT begin");
+#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
+  lfs_t* lfs = fs->_getFS();
+  const lfs_config* cfg = lfs->cfg;
+  lfs_ssize_t used_blocks = doctorFsUsedBlocks(lfs);
+  uint32_t block_count = cfg->block_count;
+  uint32_t block_size = cfg->block_size;
+  uint32_t total_bytes = block_count * block_size;
+  uint32_t used_bytes = used_blocks >= 0 ? (uint32_t) used_blocks * block_size : 0;
+  uint32_t free_bytes = used_blocks >= 0 && used_bytes <= total_bytes ? total_bytes - used_bytes : 0;
+
+  doctorFsLine("FS_STAT total %u", total_bytes);
+  doctorFsLine("FS_STAT used~ %u free~ %u", used_bytes, free_bytes);
+  doctorFsLine("FS_STAT blocks %u used %ld bsize %u", block_count, (long) used_blocks, block_size);
+  doctorFsStatPath(lfs, "/prefs.json");
+  doctorFsStatPath(lfs, "/_main.id");
+  doctorFsStatPath(lfs, "/s_contacts");
+  doctorFsStatPath(lfs, "/regions2");
+  sprintf(reply, "OK free~=%u/%u blk=%ld/%u", free_bytes, total_bytes, (long) used_blocks, block_count);
+#elif defined(ESP32)
+  uint32_t total_bytes = SPIFFS.totalBytes();
+  uint32_t used_bytes = SPIFFS.usedBytes();
+  uint32_t free_bytes = total_bytes - used_bytes;
+  doctorFsLine("FS_STAT total %u used %u free %u", total_bytes, used_bytes, free_bytes);
+  static const char* paths[] = {"/prefs.json", "/identity/_main.id", "/s_contacts", "/regions2", NULL};
+  for (int i = 0; paths[i]; i++) {
+    if (fs->exists(paths[i])) {
+      File f = fs->open(paths[i]);
+      doctorFsLine("FS_STAT file %s %d", paths[i], f ? (int) f.size() : -1);
+      if (f) f.close();
+    } else {
+      doctorFsLine("FS_STAT file %s missing", paths[i]);
+    }
+  }
+  sprintf(reply, "OK free=%u/%u", free_bytes, total_bytes);
+#elif defined(RP2040_PLATFORM)
+  FSInfo info;
+  fs->info(info);
+  doctorFsLine("FS_STAT total %u used %u free %u", info.totalBytes, info.usedBytes, info.totalBytes - info.usedBytes);
+  sprintf(reply, "OK free=%u/%u", info.totalBytes - info.usedBytes, info.totalBytes);
+#else
+  strcpy(reply, "OK");
+#endif
+  doctorFsLine("FS_STAT end");
+  return true;
+}
+
+bool CommonCLI::listFileSystem(char* reply) {
+  FILESYSTEM* fs = _callbacks->getFileSystem();
+  if (!fs) {
+    strcpy(reply, "ERR unsupported");
+    return false;
+  }
+
+  doctorFsLine("FS_LS begin /");
+#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
+  doctorFsListLfs(fs->_getFS(), "/", 0);
+#else
+  doctorFsListGeneric(fs);
+#endif
+  doctorFsLine("FS_LS end");
+  strcpy(reply, "OK see serial FS_LS");
+  return true;
+}
+
+bool CommonCLI::probeFileSystem(char* reply) {
+  FILESYSTEM* fs = _callbacks->getFileSystem();
+  if (!fs) {
+    strcpy(reply, "ERR unsupported");
+    return false;
+  }
+
+  static const uint16_t sizes[] = {
+    1, 2, 4, 8, 10, 16, 32, 64, 100, 128, 256, 512, 768, 1000, 1280, 1536,
+    1800, 2048, 2304, 2560, 2800, 3072, 3584, 4096
+  };
+
+  doctorFsLine("FS_PROBE begin raw");
+  uint16_t max_ok = 0;
+  uint16_t first_fail = 0;
+  char fail_stage[12];
+  fail_stage[0] = 0;
+
+  for (size_t i = 0; i < sizeof(sizes) / sizeof(sizes[0]); i++) {
+    char stage[12];
+    unsigned long dt = 0;
+    bool ok = doctorFsProbeRaw(fs, sizes[i], stage, &dt);
+    if (ok) {
+      doctorFsLine("FS_PROBE raw %u ok %lu", sizes[i], dt);
+      max_ok = sizes[i];
+    } else {
+      doctorFsLine("FS_PROBE raw %u fail %s %lu", sizes[i], stage, dt);
+      if (first_fail == 0) {
+        first_fail = sizes[i];
+        strncpy(fail_stage, stage, sizeof(fail_stage) - 1);
+        fail_stage[sizeof(fail_stage) - 1] = 0;
+      }
+    }
+    repairFeedWatchdog();
+  }
+
+  char prefs_stage[12];
+  prefs_stage[0] = 0;
+  unsigned long prefs_dt = millis();
+  bool prefs_ok = tryPrefsWrite(fs, prefs_stage, sizeof(prefs_stage));
+  prefs_dt = millis() - prefs_dt;
+  doctorFsLine("FS_PROBE prefs_json %s %s %lu",
+               prefs_ok ? "ok" : "fail", prefs_stage[0] ? prefs_stage : "-", prefs_dt);
+  doctorFsLine("FS_PROBE end");
+
+  if (first_fail == 0) {
+    sprintf(reply, "OK raw_max=%u prefs=%s", max_ok, prefs_ok ? "ok" : "fail");
+  } else {
+    sprintf(reply, "OK raw_max=%u fail>=%u@%s prefs=%s",
+            max_ok, first_fail, fail_stage[0] ? fail_stage : "?", prefs_ok ? "ok" : "fail");
+  }
+  return true;
+}
+
+#endif
+
+bool CommonCLI::gcFileSystem(char* reply) {
+  FILESYSTEM* fs = _callbacks->getFileSystem();
+  if (!fs) {
+    strcpy(reply, "ERR unsupported");
+    return false;
+  }
+
+  repairFeedWatchdog();
+  uint32_t removed = 0;
+
+  static const char* files[] = {
+    "/packet_log",
+    "/com_prefs",
+    "/.doctor_prefs.json",
+    "/.doctor_prefs.json.new",
+    "/.doctor_probe",
+    "/.doctor_probe.new",
+    NULL
+  };
+
+  for (int i = 0; files[i]; i++) {
+    if (fs->exists(files[i])) {
+      fs->remove(files[i]);
+      removed++;
+      repairFeedWatchdog();
+    }
+  }
+
+#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
+  if (fs->exists("/prefs")) {
+    fs->rmdir_r("/prefs");
+    removed++;
+  }
+#endif
+
+  sprintf(reply, "OK gc removed %u item(s)", removed);
+  return true;
+}
+
+void CommonCLI::handleDoctor(uint32_t sender_timestamp, const char* args, char* reply) {
+  while (*args == ' ') args++;
+
+  if (*args == 0) {
+    strcpy(reply, "usage: doctor check|stat|ls|probe|dump|gc");
+  } else if (memcmp(args, "gc", 2) == 0 && (args[2] == 0 || args[2] == ' ')) {
+    gcFileSystem(reply);
+  } else if (memcmp(args, "check", 5) == 0 && (args[5] == 0 || args[5] == ' ')) {
+    checkFileSystem(reply);
+  } else if (memcmp(args, "dump", 4) == 0 && (args[4] == 0 || args[4] == ' ')) {
+    if (sender_timestamp != 0) {
+      strcpy(reply, "ERR dump requires USB");
+    } else {
+      dumpFileSystem(reply);
+    }
+#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM) || defined(ESP32) || defined(RP2040_PLATFORM)
+  } else if (memcmp(args, "stat", 4) == 0 && (args[4] == 0 || args[4] == ' ')) {
+    if (sender_timestamp != 0) {
+      strcpy(reply, "ERR stat requires USB");
+    } else {
+      statFileSystem(reply);
+    }
+  } else if (memcmp(args, "ls", 2) == 0 && (args[2] == 0 || args[2] == ' ')) {
+    if (sender_timestamp != 0) {
+      strcpy(reply, "ERR ls requires USB");
+    } else {
+      listFileSystem(reply);
+    }
+  } else if (memcmp(args, "probe", 5) == 0 && (args[5] == 0 || args[5] == ' ')) {
+    if (sender_timestamp != 0) {
+      strcpy(reply, "ERR probe requires USB");
+    } else {
+      probeFileSystem(reply);
+    }
+#endif
+  } else {
+    strcpy(reply, "usage: doctor check|stat|ls|probe|dump|gc");
+  }
 }
 
 uint8_t CommonCLI::buildAdvertData(uint8_t node_type, uint8_t* app_data) {
@@ -256,9 +857,12 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
     } else if (memcmp(command, "password ", 9) == 0) {
       // change admin password
       StrHelper::strncpy(_prefs->password, &command[9], sizeof(_prefs->password));
-      savePrefs();
-      sprintf(reply, "password now: ");
-      StrHelper::strncpy(&reply[14], _prefs->password, 160-15);   // echo back just to let admin know for sure!!
+      if (!savePrefs()) {
+        formatPrefsSaveErr(reply);
+      } else {
+        sprintf(reply, "password now: ");
+        StrHelper::strncpy(&reply[14], _prefs->password, 160-15);   // echo back just to let admin know for sure!!
+      }
     } else if (memcmp(command, "clear stats", 11) == 0) {
       _callbacks->clearStats();
       strcpy(reply, "(OK - stats reset)");
@@ -266,9 +870,15 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       handleGetCmd(sender_timestamp, command, reply);
     } else if (memcmp(command, "set ", 4) == 0) {
       handleSetCmd(sender_timestamp, command, reply);
+    } else if (memcmp(command, "doctor", 6) == 0 && (command[6] == 0 || command[6] == ' ')) {
+      handleDoctor(sender_timestamp, &command[6], reply);
     } else if (sender_timestamp == 0 && strcmp(command, "erase") == 0) {
-      bool s = _callbacks->formatFileSystem();
-      sprintf(reply, "File system erase: %s", s ? "OK" : "Err");
+      if (_callbacks->getFileSystem()) {
+        wipeFileSystem(reply);
+      } else {
+        bool s = _callbacks->formatFileSystem();
+        sprintf(reply, "File system erase: %s", s ? "OK" : "Err");
+      }
     } else if (memcmp(command, "ver", 3) == 0) {
       sprintf(reply, "%s (Build: %s)", _callbacks->getFirmwareVer(), _callbacks->getBuildDate());
     } else if (memcmp(command, "board", 5) == 0) {
@@ -453,36 +1063,37 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       strcpy(reply, "ERROR: dutycycle must be 1-100");
     } else {
       _prefs->airtime_factor = (100.0f / dc) - 1.0f;
-      savePrefs();
-      float actual = 100.0f / (_prefs->airtime_factor + 1.0f);
-      int a_int = (int)actual;
-      int a_frac = (int)((actual - a_int) * 10.0f + 0.5f);
-      sprintf(reply, "OK - %d.%d%%", a_int, a_frac);
+      if (!savePrefs()) {
+        formatPrefsSaveErr(reply);
+      } else {
+        float actual = 100.0f / (_prefs->airtime_factor + 1.0f);
+        int a_int = (int)actual;
+        int a_frac = (int)((actual - a_int) * 10.0f + 0.5f);
+        sprintf(reply, "OK - %d.%d%%", a_int, a_frac);
+      }
     }
   } else if (memcmp(config, "af ", 3) == 0) {
     _prefs->airtime_factor = atof(&config[3]);
-    savePrefs();
-    strcpy(reply, "OK");
+    persistPrefs(reply, "OK");
   } else if (memcmp(config, "int.thresh ", 11) == 0) {
     _prefs->interference_threshold = atoi(&config[11]);
-    savePrefs();
-    strcpy(reply, "OK");
+    persistPrefs(reply, "OK");
   } else if (memcmp(config, "cad ", 4) == 0) {
     _prefs->cad_enabled = memcmp(&config[4], "on", 2) == 0;
-    savePrefs();
-    strcpy(reply, "OK");
+    persistPrefs(reply, "OK");
   } else if (memcmp(config, "agc.reset.interval ", 19) == 0) {
     _prefs->agc_reset_interval = atoi(&config[19]) / 4;
-    savePrefs();
-    sprintf(reply, "OK - interval rounded to %d", ((uint32_t) _prefs->agc_reset_interval) * 4);
+    if (!savePrefs()) {
+      formatPrefsSaveErr(reply);
+    } else {
+      sprintf(reply, "OK - interval rounded to %d", ((uint32_t) _prefs->agc_reset_interval) * 4);
+    }
   } else if (memcmp(config, "multi.acks ", 11) == 0) {
     _prefs->multi_acks = atoi(&config[11]);
-    savePrefs();
-    strcpy(reply, "OK");
+    persistPrefs(reply, "OK");
   } else if (memcmp(config, "allow.read.only ", 16) == 0) {
     _prefs->allow_read_only = memcmp(&config[16], "on", 2) == 0;
-    savePrefs();
-    strcpy(reply, "OK");
+    persistPrefs(reply, "OK");
   } else if (memcmp(config, "flood.advert.interval ", 22) == 0) {
     int hours = _atoi(&config[22]);
     if ((hours > 0 && hours < 3) || (hours > 168)) {
@@ -490,8 +1101,7 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     } else {
       _prefs->flood_advert_interval = (uint8_t)(hours);
       _callbacks->updateFloodAdvertTimer();
-      savePrefs();
-      strcpy(reply, "OK");
+      persistPrefs(reply, "OK");
     }
   } else if (memcmp(config, "advert.interval ", 16) == 0) {
     int mins = _atoi(&config[16]);
@@ -500,13 +1110,11 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     } else {
       _prefs->advert_interval = (uint8_t)(mins / 2);
       _callbacks->updateAdvertTimer();
-      savePrefs();
-      strcpy(reply, "OK");
+      persistPrefs(reply, "OK");
     }
   } else if (memcmp(config, "guest.password ", 15) == 0) {
     StrHelper::strncpy(_prefs->guest_password, &config[15], sizeof(_prefs->guest_password));
-    savePrefs();
-    strcpy(reply, "OK");
+    persistPrefs(reply, "OK");
   } else if (memcmp(config, "prv.key ", 8) == 0) {
     uint8_t prv_key[PRV_KEY_SIZE];
     bool success = mesh::Utils::fromHex(prv_key, PRV_KEY_SIZE, &config[8]);
@@ -523,20 +1131,19 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
   } else if (memcmp(config, "name ", 5) == 0) {
     if (isValidName(&config[5])) {
       StrHelper::strncpy(_prefs->node_name, &config[5], sizeof(_prefs->node_name));
-      savePrefs();
-      strcpy(reply, "OK");
+      persistPrefs(reply, "OK");
     } else {
       strcpy(reply, "Error, bad chars");
     }
   } else if (memcmp(config, "repeat ", 7) == 0) {
     _prefs->disable_fwd = memcmp(&config[7], "off", 3) == 0;
-    savePrefs();
-    strcpy(reply, _prefs->disable_fwd ? "OK - repeat is now OFF" : "OK - repeat is now ON");
+    persistPrefs(reply, _prefs->disable_fwd ? "OK - repeat is now OFF" : "OK - repeat is now ON");
   } else if (memcmp(config, "radio.rxgain ", 13) == 0) {
     bool enabled = memcmp(&config[13], "on", 2) == 0;
     _prefs->rx_boosted_gain = enabled;
-    savePrefs();
-    if (_callbacks->setRxBoostedGain(enabled)) {
+    if (!savePrefs()) {
+      formatPrefsSaveErr(reply);
+    } else if (_callbacks->setRxBoostedGain(enabled)) {
       strcpy(reply, "OK");
     } else {
       strcpy(reply, "Error: unsupported");
@@ -547,16 +1154,14 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     } else if (memcmp(&config[17], "on", 2) == 0) {
       if (_board->setLoRaFemLnaEnabled(true)) {
         _prefs->radio_fem_rxgain = 1;
-        savePrefs();
-        strcpy(reply, "OK - LoRa FEM RX gain on");
+        persistPrefs(reply, "OK - LoRa FEM RX gain on");
       } else {
         strcpy(reply, "Error: failed to apply LoRa FEM RX gain");
       }
     } else if (memcmp(&config[17], "off", 3) == 0) {
       if (_board->setLoRaFemLnaEnabled(false)) {
         _prefs->radio_fem_rxgain = 0;
-        savePrefs();
-        strcpy(reply, "OK - LoRa FEM RX gain off");
+        persistPrefs(reply, "OK - LoRa FEM RX gain off");
       } else {
         strcpy(reply, "Error: failed to apply LoRa FEM RX gain");
       }
@@ -569,16 +1174,14 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     } else if (memcmp(&config[17], "on", 2) == 0) {
       if (_board->setLoRaFemPaGainEnabled(true)) {
         _prefs->radio_fem_txgain = 1;
-        savePrefs();
-        strcpy(reply, "OK - LoRa FEM TX gain on");
+        persistPrefs(reply, "OK - LoRa FEM TX gain on");
       } else {
         strcpy(reply, "Error: failed to apply LoRa FEM TX gain");
       }
     } else if (memcmp(&config[17], "off", 3) == 0) {
       if (_board->setLoRaFemPaGainEnabled(false)) {
         _prefs->radio_fem_txgain = 0;
-        savePrefs();
-        strcpy(reply, "OK - LoRa FEM TX gain off");
+        persistPrefs(reply, "OK - LoRa FEM TX gain off");
       } else {
         strcpy(reply, "Error: failed to apply LoRa FEM TX gain");
       }
@@ -598,25 +1201,21 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       _prefs->cr = cr;
       _prefs->freq = freq;
       _prefs->bw = bw;
-      _callbacks->savePrefs();
-      strcpy(reply, "OK - reboot to apply");
+      persistPrefs(reply, "OK - reboot to apply");
     } else {
       strcpy(reply, "Error, invalid radio params");
     }
   } else if (memcmp(config, "lat ", 4) == 0) {
     _prefs->node_lat = atof(&config[4]);
-    savePrefs();
-    strcpy(reply, "OK");
+    persistPrefs(reply, "OK");
   } else if (memcmp(config, "lon ", 4) == 0) {
     _prefs->node_lon = atof(&config[4]);
-    savePrefs();
-    strcpy(reply, "OK");
+    persistPrefs(reply, "OK");
   } else if (memcmp(config, "rxdelay ", 8) == 0) {
     float db = atof(&config[8]);
     if (db >= 0 && db <= 20.0f) {
       _prefs->rx_delay_base = db;
-      savePrefs();
-      strcpy(reply, "OK");
+      persistPrefs(reply, "OK");
     } else {
       strcpy(reply, "Error, must be 0-20");
     }
@@ -624,8 +1223,7 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     float f = atof(&config[8]);
     if (f >= 0 && f <= 2.0f) {
       _prefs->tx_delay_factor = f;
-      savePrefs();
-      strcpy(reply, "OK");
+      persistPrefs(reply, "OK");
     } else {
       strcpy(reply, "Error, must be 0-2");
     }
@@ -633,8 +1231,7 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     uint8_t m = atoi(&config[19]);
     if (m <= 64) {
       _prefs->flood_max_unscoped = m;
-      savePrefs();
-      strcpy(reply, "OK");
+      persistPrefs(reply, "OK");
     } else {
       strcpy(reply, "Error, max 64");
     } 
@@ -642,8 +1239,7 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     uint8_t m = atoi(&config[17]);
     if (m <= 64) {
       _prefs->flood_max_advert = m;
-      savePrefs();
-      strcpy(reply, "OK");
+      persistPrefs(reply, "OK");
     } else {
       strcpy(reply, "Error, max 64");
     }
@@ -651,8 +1247,7 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     uint8_t m = atoi(&config[10]);
     if (m <= 64) {
       _prefs->flood_max = m;
-      savePrefs();
-      strcpy(reply, "OK");
+      persistPrefs(reply, "OK");
     } else {
       strcpy(reply, "Error, max 64");
     }
@@ -660,8 +1255,7 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     float f = atof(&config[15]);
     if (f >= 0 && f <= 2.0f) {
       _prefs->direct_tx_delay_factor = f;
-      savePrefs();
-      strcpy(reply, "OK");
+      persistPrefs(reply, "OK");
     } else {
       strcpy(reply, "Error, must be 0-2");
     }
@@ -673,15 +1267,13 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       config++;
     }
     *dp = 0;
-    savePrefs();
-    strcpy(reply, "OK");
+    persistPrefs(reply, "OK");
   } else if (memcmp(config, "path.hash.mode ", 15) == 0) {
     config += 15;
     uint8_t mode = atoi(config);
     if (mode < 3) {
       _prefs->path_hash_mode = mode;
-      savePrefs();
-      strcpy(reply, "OK");
+      persistPrefs(reply, "OK");
     } else {
       strcpy(reply, "Error, must be 0,1, or 2");
     }
@@ -702,37 +1294,35 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     }
     if (mode != 0xFF) {
       _prefs->loop_detect = mode;
-      savePrefs();
-      strcpy(reply, "OK");
+      persistPrefs(reply, "OK");
     }
   } else if (memcmp(config, "tx ", 3) == 0) {
     _prefs->tx_power_dbm = atoi(&config[3]);
-    savePrefs();
-    _callbacks->setTxPower(_prefs->tx_power_dbm);
-    strcpy(reply, "OK");
+    if (savePrefs()) {
+      _callbacks->setTxPower(_prefs->tx_power_dbm);
+      strcpy(reply, "OK");
+    } else {
+      formatPrefsSaveErr(reply);
+    }
   } else if (sender_timestamp == 0 && memcmp(config, "freq ", 5) == 0) {
     _prefs->freq = atof(&config[5]);
-    savePrefs();
-    strcpy(reply, "OK - reboot to apply");
+    persistPrefs(reply, "OK - reboot to apply");
 #ifdef WITH_BRIDGE
   } else if (memcmp(config, "bridge.enabled ", 15) == 0) {
     _prefs->bridge_enabled = memcmp(&config[15], "on", 2) == 0;
     _callbacks->setBridgeState(_prefs->bridge_enabled);
-    savePrefs();
-    strcpy(reply, "OK");
+    persistPrefs(reply, "OK");
   } else if (memcmp(config, "bridge.delay ", 13) == 0) {
     int delay = _atoi(&config[13]);
     if (delay >= 0 && delay <= 10000) {
       _prefs->bridge_delay = (uint16_t)delay;
-      savePrefs();
-      strcpy(reply, "OK");
+      persistPrefs(reply, "OK");
     } else {
       strcpy(reply, "Error: delay must be between 0-10000 ms");
     }
   } else if (memcmp(config, "bridge.source ", 14) == 0) {
     _prefs->bridge_pkt_src = memcmp(&config[14], "rx", 2) == 0;
-    savePrefs();
-    strcpy(reply, "OK");
+    persistPrefs(reply, "OK");
 #endif
 #ifdef WITH_RS232_BRIDGE
   } else if (memcmp(config, "bridge.baud ", 12) == 0) {
@@ -740,8 +1330,7 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     if (baud >= 9600 && baud <= BRIDGE_MAX_BAUD) {
       _prefs->bridge_baud = (uint32_t)baud;
       _callbacks->restartBridge();
-      savePrefs();
-      strcpy(reply, "OK");
+      persistPrefs(reply, "OK");
     } else {
       sprintf(reply, "Error: baud rate must be between 9600-%d",BRIDGE_MAX_BAUD);
     }
@@ -752,22 +1341,21 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     if (ch > 0 && ch < 15) {
       _prefs->bridge_channel = (uint8_t)ch;
       _callbacks->restartBridge();
-      savePrefs();
-      strcpy(reply, "OK");
+      persistPrefs(reply, "OK");
     } else {
       strcpy(reply, "Error: channel must be between 1-14");
     }
   } else if (memcmp(config, "bridge.secret ", 14) == 0) {
     StrHelper::strncpy(_prefs->bridge_secret, &config[14], sizeof(_prefs->bridge_secret));
     _callbacks->restartBridge();
-    savePrefs();
-    strcpy(reply, "OK");
+    persistPrefs(reply, "OK");
 #endif
   } else if (memcmp(config, "adc.multiplier ", 15) == 0) {
     _prefs->adc_multiplier = atof(&config[15]);
     if (_board->setAdcMultiplier(_prefs->adc_multiplier)) {
-      savePrefs();
-      if (_prefs->adc_multiplier == 0.0f) {
+      if (!savePrefs()) {
+        formatPrefsSaveErr(reply);
+      } else if (_prefs->adc_multiplier == 0.0f) {
         strcpy(reply, "OK - using default board multiplier");
       } else {
         sprintf(reply, "OK - multiplier set to %.3f", _prefs->adc_multiplier);
@@ -791,8 +1379,11 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       sideDetSFs[num] = 0;
       if (_callbacks->configSideDetectors(sideDetSFs, num, _prefs->bw)) {
         for (int i = 0; i <= num; i++) _prefs->extra_sf[i] = sideDetSFs[i];
-        savePrefs();
-        sprintf(reply, "OK - extra SFs set");
+        if (savePrefs()) {
+          sprintf(reply, "OK - extra SFs set");
+        } else {
+          formatPrefsSaveErr(reply);
+        }
       } else {
         sprintf(reply, "Invalid extra SF config");
       }
@@ -1064,9 +1655,12 @@ void CommonCLI::handleRegionCmd(char* command, char* reply) {
     _callbacks->startRegionsLoad();
   } else if (n >= 2 && strcmp(parts[1], "save") == 0) {
     _prefs->discovery_mod_timestamp = getRTCClock()->getCurrentTime();   // this node is now 'modified' (for discovery info)
-    savePrefs();
-    bool success = _callbacks->saveRegions();
-    strcpy(reply, success ? "OK" : "Err - save failed");
+    if (!savePrefs()) {
+      formatPrefsSaveErr(reply);
+    } else {
+      bool success = _callbacks->saveRegions();
+      strcpy(reply, success ? "OK" : "Err - save failed");
+    }
   } else if (n >= 3 && strcmp(parts[1], "allowf") == 0) {
     auto region = _region_map->findByNamePrefix(parts[2]);
     if (region) {

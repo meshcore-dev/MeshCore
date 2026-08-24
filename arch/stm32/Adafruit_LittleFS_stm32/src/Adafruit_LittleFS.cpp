@@ -25,6 +25,7 @@
 #include <Arduino.h>
 #include <string.h>
 #include "Adafruit_LittleFS.h"
+#include <helpers/FsLastErr.h>
 
 //#include <Adafruit_TinyUSB.h> // for Serial
 
@@ -193,6 +194,7 @@ bool Adafruit_LittleFS::remove (char const *filepath)
   _lockFS();
 
   int err = lfs_remove(&_lfs, filepath);
+  if (err != LFS_ERR_OK) fsLastErrSet(err);
   PRINT_LFS_ERR(err);
 
   _unlockFS();
@@ -205,6 +207,7 @@ bool Adafruit_LittleFS::rename (char const *oldfilepath, char const *newfilepath
   _lockFS();
 
   int err = lfs_rename(&_lfs, oldfilepath, newfilepath);
+  if (err != LFS_ERR_OK) fsLastErrSet(err);
   PRINT_LFS_ERR(err);
 
   _unlockFS();
@@ -217,6 +220,7 @@ bool Adafruit_LittleFS::rmdir (char const *filepath)
   _lockFS();
 
   int err = lfs_remove(&_lfs, filepath);
+  if (err != LFS_ERR_OK) fsLastErrSet(err);
   PRINT_LFS_ERR(err);
 
   _unlockFS();
@@ -235,6 +239,7 @@ bool Adafruit_LittleFS::rmdir_r (char const *filepath)
   _lockFS();
 
   int err = lfs_remove(&_lfs, filepath);
+  if (err != LFS_ERR_OK) fsLastErrSet(err);
   PRINT_LFS_ERR(err);
 
   _unlockFS();

@@ -25,6 +25,7 @@
 #include <Arduino.h>
 #include "Adafruit_LittleFS.h"
 #include "littlefs/lfs.h"
+#include <helpers/FsLastErr.h>
 
 //--------------------------------------------------------------------+
 // MACRO TYPEDEF CONSTANT ENUM DECLARATION
@@ -66,6 +67,7 @@ bool File::_open_file (char const *filepath, uint8_t mode)
     if ( rc )
     {
       // failed to open
+      fsLastErrSet(rc);
       PRINT_LFS_ERR(rc);
       // free memory
       free(_file);
@@ -92,6 +94,7 @@ bool File::_open_dir (char const *filepath)
   if ( rc )
   {
     // failed to open
+    fsLastErrSet(rc);
     PRINT_LFS_ERR(rc);
     // free memory
     free(_dir);
@@ -167,6 +170,7 @@ size_t File::write (uint8_t const *buf, size_t size)
     wrcount = lfs_file_write(_fs->_getFS(), _file, buf, size);
     if (wrcount < 0)
     {
+      fsLastErrSet((int) wrcount);
       wrcount = 0;
     }
   }
@@ -340,7 +344,8 @@ void File::_close(void)
     }
     else
     {
-      lfs_file_close(this->_fs->_getFS(), _file);
+      int rc = lfs_file_close(this->_fs->_getFS(), _file);
+      if (rc != 0) fsLastErrSet(rc);
       free(_file);
       _file = NULL;
     }
