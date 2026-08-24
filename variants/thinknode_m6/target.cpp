@@ -13,9 +13,19 @@ VolatileRTCClock fallback_clock;
 AutoDiscoverRTCClock rtc_clock(fallback_clock);
 #ifdef ENV_INCLUDE_GPS
 MicroNMEALocationProvider nmea = MicroNMEALocationProvider(Serial1, &rtc_clock);
-EnvironmentSensorManager sensors = EnvironmentSensorManager(nmea);
+ThinkNodeM6SensorManager sensors = ThinkNodeM6SensorManager(nmea);
+
+void ThinkNodeM6SensorManager::loop() {
+  EnvironmentSensorManager::loop();
+  board.updateStatusLed(gps_active && _location != NULL && _location->isValid());
+}
 #else
-EnvironmentSensorManager sensors = EnvironmentSensorManager();
+ThinkNodeM6SensorManager sensors = ThinkNodeM6SensorManager();
+
+void ThinkNodeM6SensorManager::loop() {
+  EnvironmentSensorManager::loop();
+  board.updateStatusLed(false);
+}
 #endif
 
 #ifdef DISPLAY_CLASS
