@@ -24,6 +24,21 @@ void ThinkNodeM6Board::begin() {
 }
 
 void ThinkNodeM6Board::onBootComplete() {
+  // Flash both LEDs together a few times. This is the one moment worth being
+  // loud about: it is how you confirm a freshly flashed node actually came up.
+  for (uint8_t i = 0; i < BOOT_FLASH_COUNT; i++) {
+    digitalWrite(PIN_LED_RED, LED_STATE_ON);
+#ifdef P_LORA_TX_LED
+    digitalWrite(P_LORA_TX_LED, HIGH);
+#endif
+    delay(BOOT_FLASH_ON_MS);
+    digitalWrite(PIN_LED_RED, !LED_STATE_ON);
+#ifdef P_LORA_TX_LED
+    digitalWrite(P_LORA_TX_LED, LOW);
+#endif
+    delay(BOOT_FLASH_OFF_MS);
+  }
+
   _booting = false;
   _status_cycle_start = millis();
   digitalWrite(PIN_LED_RED, !LED_STATE_ON);

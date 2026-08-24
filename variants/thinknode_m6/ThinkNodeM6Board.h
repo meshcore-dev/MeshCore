@@ -16,9 +16,18 @@
 // The M6 is a sealed outdoor box: a slow blink is the only way to tell a live
 // node from a dead one, and to see whether the GNSS has a fix, without opening
 // it up or attaching a laptop. Duty cycle is ~1% so it costs nothing on solar.
+// The LEDs sit on the bottom face of the enclosure next to the USB-C port, so
+// they are read at arm's length in daylight -- a blink has to be long enough to
+// actually catch the eye. 150ms is comfortably visible and still only ~3% duty.
 #define STATUS_LED_PERIOD_MS  5000   // one heartbeat every 5s
-#define STATUS_LED_ON_MS        40   // length of each blink
-#define STATUS_LED_GAP_MS      160   // dark gap between blinks of a double-blink
+#define STATUS_LED_ON_MS       150   // length of each blink
+#define STATUS_LED_GAP_MS      200   // dark gap between blinks of a double-blink
+
+// Unmistakable "firmware is alive" signature at the end of setup(), so a fresh
+// flash can be confirmed without a serial console.
+#define BOOT_FLASH_COUNT         3
+#define BOOT_FLASH_ON_MS       120
+#define BOOT_FLASH_OFF_MS      120
 
 class ThinkNodeM6Board : public NRF52BoardDCDC {
   bool _booting = true;
