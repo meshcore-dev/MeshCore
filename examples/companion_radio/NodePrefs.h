@@ -38,6 +38,7 @@ public:
   uint8_t _client_repeat = 0;  // DEPRECATED -> use repeat.disable_fwd
   uint8_t path_hash_mode = 0;    // which path mode to use when sending
   uint8_t autoadd_max_hops = 0;  // 0 = no limit, 1 = direct (0 hops), N = up to N-1 hops (max 64)
+  char ui_theme[16];              // UI theme, if supported by the display driver, e.g. "default" (light), "legacy" (dark)
   char default_scope_name[31];
   uint8_t default_scope_key[16];
 
@@ -115,6 +116,7 @@ private:
       def("tel_base", _parent->telemetry_mode_base);
       def("tel_loc", _parent->telemetry_mode_loc);
       def("tel_env", _parent->telemetry_mode_env);
+      def("theme", _parent->ui_theme, sizeof(_parent->ui_theme));
     }
   public:
     CompanionPrefs(NodePrefs* parent) : _parent(parent) { }
@@ -138,6 +140,7 @@ public:
     node_name[0] = 0;
     default_scope_name[0] = 0;
     memset(default_scope_key, 0, sizeof(default_scope_key));
+    strcpy(ui_theme, "default");
   }
   // new accessor methods
   bool isRepeatEn() const { return repeat.disable_fwd == 0; }

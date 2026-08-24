@@ -43,4 +43,6 @@ public:
   virtual void newMsg(uint8_t path_len, const char* from_name, const char* text, int msgcount) = 0;
   virtual void notify(UIEventType t = UIEventType::none) = 0;
   virtual void loop() = 0;
+  virtual bool applyTheme(const char* theme) { return false; }
+  virtual int getThemeCount() { return 0; }
 };
