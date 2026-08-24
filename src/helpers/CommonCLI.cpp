@@ -273,6 +273,11 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       sprintf(reply, "%s (Build: %s)", _callbacks->getFirmwareVer(), _callbacks->getBuildDate());
     } else if (memcmp(command, "board", 5) == 0) {
       sprintf(reply, "%s", _board->getManufacturerName());
+    } else if (memcmp(command, "batt", 4) == 0) {
+      // Live battery reading. Until now this was only reachable over the mesh
+      // via REQ_TYPE_GET_STATUS, so a headless node on the bench could not be
+      // checked without a second radio to ask it.
+      sprintf(reply, "> %u mV", _board->getBattMilliVolts());
     } else if (memcmp(command, "sensor get ", 11) == 0) {
       const char* key = command + 11;
       const char* val = _sensors->getSettingByKey(key);
