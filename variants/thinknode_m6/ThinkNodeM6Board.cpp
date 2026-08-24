@@ -1,4 +1,5 @@
 #include "ThinkNodeM6Board.h"
+
 #include <Arduino.h>
 
 #ifdef THINKNODE_M6
@@ -45,16 +46,16 @@ void ThinkNodeM6Board::onBootComplete() {
 }
 
 void ThinkNodeM6Board::updateStatusLed(bool gps_fix) {
-  if (_booting) return;  // still solid-on, boot hasn't finished
+  if (_booting) return; // still solid-on, boot hasn't finished
 
-  unsigned long phase = millis() - _status_cycle_start;  // wrap-safe
+  unsigned long phase = millis() - _status_cycle_start; // wrap-safe
   if (phase >= STATUS_LED_PERIOD_MS) {
     _status_cycle_start += STATUS_LED_PERIOD_MS;
     phase -= STATUS_LED_PERIOD_MS;
     // Latch the pattern once per cycle so a fix flapping mid-blink can't
     // produce a half-formed pulse.
     _status_blinks = gps_fix ? 2 : 1;
-    if (phase >= STATUS_LED_PERIOD_MS) {  // fell far behind (long sleep); resync
+    if (phase >= STATUS_LED_PERIOD_MS) { // fell far behind (long sleep); resync
       _status_cycle_start = millis();
       phase = 0;
     }
