@@ -331,19 +331,29 @@ int SensorMesh::getAGCResetInterval() const {
 }
 
 uint8_t SensorMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* secret, uint32_t sender_timestamp, const uint8_t* data, bool is_flood) {
-  ClientInfo* client;
+  ClientInfo* client = NULL;
   if (data[0] == 0) {   // blank password, just check if sender is in ACL
     client = acl.getClient(sender.pub_key, PUB_KEY_SIZE);
-    if (client == NULL) {
+  #if MESH_DEBUG
+    if (client == NULL) MESH_DEBUG_PRINTLN("Login, sender not in ACL");
+  #endif
+  }
+  if (client == NULL) {
+    // Determine the role this login grants. Admin needs the admin
+    // password; a matching guest password (if set) or the open
+    // allow_read_only switch grants READ_ONLY, which is enough to read
+    // telemetry (current + min/avg/max history). Mirrors the login
+    // cascade used by the repeater and room-server examples.
+    uint8_t perms;
+    if (strcmp((char *) data, _prefs.password) == 0) {  // valid admin password
+      perms = PERM_ACL_ADMIN;
+    } else if (_prefs.guest_password[0] != 0 && strcmp((char *) data, _prefs.guest_password) == 0) {
+      perms = PERM_ACL_READ_ONLY;   // matched the configured guest password
+    } else if (_prefs.allow_read_only) {
+      perms = PERM_ACL_READ_ONLY;   // open read-only telemetry for everyone
+    } else {
     #if MESH_DEBUG
-      MESH_DEBUG_PRINTLN("Login, sender not in ACL");
-    #endif
-      return 0;
-    }
-  } else {
-    if (strcmp((char *) data, _prefs.password) != 0) {  // check for valid admin password
-    #if MESH_DEBUG
-      MESH_DEBUG_PRINTLN("Invalid password: %s", &data[4]);
+      MESH_DEBUG_PRINTLN("Invalid password");
     #endif
       return 0;
     }
@@ -357,10 +367,12 @@ uint8_t SensorMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* 
     MESH_DEBUG_PRINTLN("Login success!");
     client->last_timestamp = sender_timestamp;
     client->last_activity = getRTCClock()->getCurrentTime();
-    client->permissions |= PERM_ACL_ADMIN;
+    client->permissions = (client->permissions & ~PERM_ACL_ROLE_MASK) | perms;
     memcpy(client->shared_secret, secret, PUB_KEY_SIZE);
 
-    dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY);
+    if (perms != PERM_ACL_READ_ONLY) {   // avoid an FS write per transient read-only viewer
+      dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY);
+    }
   }
 
   if (is_flood) {
