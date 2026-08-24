@@ -3,6 +3,7 @@
 #include "TxtDataHelpers.h"
 #include "AdvertDataHelpers.h"
 #include "TxtDataHelpers.h"
+#include "sensors/LPPDataHelpers.h"
 #include <RTClib.h>
 
 #ifndef BRIDGE_MAX_BAUD
@@ -25,6 +26,101 @@ static bool isValidName(const char *n) {
     n++;
   }
   return true;
+}
+
+// Human-readable label for a CayenneLPP data type, used by the
+// "telemetry" and "sensors" CLI commands.
+static const char* lppTypeName(uint8_t type) {
+  switch (type) {
+    case LPP_VOLTAGE:             return "Voltage";
+    case LPP_TEMPERATURE:         return "Temperature";
+    case LPP_RELATIVE_HUMIDITY:   return "Humidity";
+    case LPP_BAROMETRIC_PRESSURE: return "Pressure";
+    case LPP_CURRENT:             return "Current";
+    case LPP_POWER:               return "Power";
+    case LPP_ALTITUDE:            return "Altitude";
+    case LPP_LUMINOSITY:          return "Luminosity";
+    case LPP_CONCENTRATION:       return "Concentration";
+    case LPP_GPS:                 return "GPS";
+    default:                      return "Sensor";
+  }
+}
+
+// Decodes the scalar value for the LPP types that LPPReader exposes a
+// typed reader for, advancing the reader past the data. Returns false
+// (without advancing) for types with no scalar reader; the caller is
+// then responsible for skipData()/special handling (e.g. GPS).
+static bool readLppScalar(LPPReader& r, uint8_t type, float& v, const char*& unit) {
+  switch (type) {
+    case LPP_VOLTAGE:             r.readVoltage(v);          unit = "V";   return true;
+    case LPP_TEMPERATURE:         r.readTemperature(v);      unit = "C";   return true;
+    case LPP_RELATIVE_HUMIDITY:   r.readRelativeHumidity(v); unit = "%";   return true;
+    case LPP_BAROMETRIC_PRESSURE: r.readPressure(v);         unit = "hPa"; return true;
+    case LPP_CURRENT:             r.readCurrent(v);          unit = "A";   return true;
+    case LPP_POWER:               r.readPower(v);            unit = "W";   return true;
+    case LPP_ALTITUDE:            r.readAltitude(v);         unit = "m";   return true;
+    default:                      return false;  // no scalar reader; does not advance
+  }
+}
+
+// Queries current telemetry into a CayenneLPP buffer (battery voltage on
+// the SELF channel, plus everything querySensors() reports) and decodes
+// it to text. With include_values each line is "ch<N> <Type>=<value>";
+// otherwise it is an inventory of "ch<N> <Type>". Output is capped to the
+// reply buffer the same way "sensor list" is.
+static void formatTelemetry(mesh::MainBoard* board, SensorManager* sensors,
+                            char* reply, bool include_values) {
+  CayenneLPP lpp(200);
+  lpp.reset();
+  lpp.addVoltage(TELEM_CHANNEL_SELF, (float)board->getBattMilliVolts() / 1000.0f);
+  sensors->querySensors(0xFF, lpp);
+
+  // First pass: count entries for the "%d ..." header.
+  LPPReader counter(lpp.getBuffer(), lpp.getSize());
+  uint8_t ch, type;
+  int total = 0;
+  while (counter.readHeader(ch, type)) { counter.skipData(type); total++; }
+
+  if (total == 0) {
+    strcpy(reply, include_values ? "no telemetry" : "no sensors");
+    return;
+  }
+
+  char* dp = reply;
+  sprintf(dp, "%d %s\n", total, include_values ? "channels" : "sensors");
+  dp = strchr(dp, 0);
+
+  LPPReader reader(lpp.getBuffer(), lpp.getSize());
+  bool truncated = false;
+  while (reader.readHeader(ch, type)) {
+    if (dp - reply >= 134) { truncated = true; break; }   // no room for another line
+    const char* name = lppTypeName(type);
+    if (!include_values) {
+      sprintf(dp, "ch%u %s\n", (unsigned)ch, name);
+      reader.skipData(type);
+    } else {
+      float v; const char* unit;
+      if (readLppScalar(reader, type, v, unit)) {
+        sprintf(dp, "ch%u %s=%s%s\n", (unsigned)ch, name, StrHelper::ftoa(v), unit);
+      } else if (type == LPP_GPS) {
+        float lat, lon, alt;
+        reader.readGPS(lat, lon, alt);
+        char slat[16];
+        strcpy(slat, StrHelper::ftoa(lat));   // ftoa reuses a static buffer; copy before 2nd call
+        sprintf(dp, "ch%u GPS=%s,%s\n", (unsigned)ch, slat, StrHelper::ftoa(lon));
+      } else {
+        reader.skipData(type);                // unknown/undisplayable payload
+        sprintf(dp, "ch%u %s=?\n", (unsigned)ch, name);
+      }
+    }
+    dp = strchr(dp, 0);
+  }
+
+  if (truncated) {
+    sprintf(dp, "...");
+  } else if (dp > reply) {
+    *(dp - 1) = 0;   // strip trailing newline
+  }
 }
 
 void CommonCLI::loadPrefs(FILESYSTEM* fs) {
@@ -317,6 +413,10 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
           *(dp-1) = 0; // remove last CR
         }
       }
+    } else if (memcmp(command, "telemetry", 9) == 0) {
+      formatTelemetry(_board, _sensors, reply, true);
+    } else if (memcmp(command, "sensors", 7) == 0) {
+      formatTelemetry(_board, _sensors, reply, false);
     } else if (memcmp(command, "region", 6) == 0) {
       handleRegionCmd(command, reply);
 #if ENV_INCLUDE_GPS == 1
