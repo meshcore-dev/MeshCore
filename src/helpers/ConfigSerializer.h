@@ -66,3 +66,15 @@ public:
   bool loadSerial(Stream& s);
   bool saveSerial(Stream& s);
 };
+
+#include "IdentityStore.h"
+
+typedef bool (*FileWriteFn)(File& file, void* ctx);
+
+// Write to tmp_path via writer, then lfs_rename over final_path. Keeps the old file on failed writes.
+bool writeFileAtomic(FILESYSTEM* fs, const char* final_path, const char* tmp_path, FileWriteFn writer, void* ctx,
+                     char* err_stage = nullptr, size_t err_stage_len = 0);
+
+// Write JSON to tmp_path, then lfs_rename over final_path. Keeps the old file on failed writes.
+bool saveConfigJsonAtomic(FILESYSTEM* fs, ConfigSerializer& obj, const char* final_path, const char* tmp_path,
+                          char* err_stage = nullptr, size_t err_stage_len = 0);
