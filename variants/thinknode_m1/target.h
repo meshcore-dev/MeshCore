@@ -23,12 +23,12 @@ class ThinkNodeM1SensorManager : public SensorManager {
 public:
   ThinkNodeM1SensorManager(LocationProvider &location): _location(&location) { }
   LocationProvider* getLocationProvider() override { return _location; }
-  bool begin() override;
+  bool begin(FILESYSTEM* fs = nullptr) override;
   bool querySensors(uint8_t requester_permissions, CayenneLPP& telemetry) override;
   void loop() override;
   int getNumSettings() const override;
   const char* getSettingName(int i) const override;
-  const char* getSettingValue(int i) const override;
+  int getSettingValue(int i, char* buf, int bufLen) const override;
   bool setSettingValue(const char* name, const char* value) override;
 };
 

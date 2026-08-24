@@ -18,6 +18,11 @@ public:
   RAK4631Board() : NRF52Board("RAK4631_OTA") {}
   void begin();
 
+#ifdef WATCHDOG_TIMEOUT_SECS
+  void onBootComplete() override;
+  void resetWatchdog();
+#endif
+
   #define BATTERY_SAMPLES 8
 
   uint16_t getBattMilliVolts() override {

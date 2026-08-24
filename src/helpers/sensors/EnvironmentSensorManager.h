@@ -23,6 +23,8 @@ protected:
   bool     gps_active = false;
   uint32_t gps_update_interval_sec = 1;
 
+  FILESYSTEM* _fs = nullptr;  // for sensors to save their prefs
+
   #if ENV_INCLUDE_GPS
   LocationProvider* _location;
   void start_gps();
@@ -41,13 +43,14 @@ public:
   #else
   EnvironmentSensorManager(){};
   #endif
-  bool begin() override;
+  bool begin(FILESYSTEM* fs = nullptr) override;
+  bool hasPendingWork() override;
   bool querySensors(uint8_t requester_permissions, CayenneLPP& telemetry) override;
-  #if ENV_INCLUDE_GPS || defined(ENV_INCLUDE_BME680_BSEC)
+  #if ENV_INCLUDE_GPS || defined(ENV_INCLUDE_BME680_BSEC) || defined(ENV_INCLUDE_SEN0658)
   void loop() override;
   #endif
   int getNumSettings() const override;
   const char* getSettingName(int i) const override;
-  const char* getSettingValue(int i) const override;
+  int getSettingValue(int i, char* buf, int bufLen) const override;
   bool setSettingValue(const char* name, const char* value) override;
 };
