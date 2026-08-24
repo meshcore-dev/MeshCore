@@ -56,6 +56,8 @@ public:
   char bridge_secret[16]; // for XOR encryption of bridge packets (ESP-NOW only)
   // Power setting
   uint8_t powersaving_enabled = 0; // boolean
+  uint8_t wdt_enabled = 1;         // nRF52 hardware watchdog
+  uint8_t wdt_timeout_secs = 30;   // seconds (1..255)
   // Gps settings
   uint8_t gps_enabled = 0;
   uint32_t gps_interval = 0; // in seconds
@@ -134,6 +136,8 @@ private:
     void structure() override {
       def("adc_mult", _parent->adc_multiplier);
       def("pwr_sav_en", _parent->powersaving_enabled);
+      def("wdt_en", _parent->wdt_enabled);
+      def("wdt_timeout", _parent->wdt_timeout_secs);
     }
   public:
     PowerPrefs(NodePrefs* parent) : _parent(parent) { }

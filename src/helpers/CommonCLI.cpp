@@ -5,6 +5,10 @@
 #include "TxtDataHelpers.h"
 #include <RTClib.h>
 
+#if defined(NRF52_PLATFORM)
+  #include "helpers/NRF52Board.h"
+#endif
+
 #ifndef BRIDGE_MAX_BAUD
 #define BRIDGE_MAX_BAUD 115200
 #endif
@@ -126,6 +130,9 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {  // Legacy 
     _prefs->bridge_channel = constrain(_prefs->bridge_channel, 0, 14);
 
     _prefs->powersaving_enabled = constrain(_prefs->powersaving_enabled, 0, 1);
+    _prefs->wdt_enabled = constrain(_prefs->wdt_enabled, 0, 1);
+    if (_prefs->wdt_timeout_secs == 0) _prefs->wdt_timeout_secs = 30;
+    _prefs->wdt_timeout_secs = constrain(_prefs->wdt_timeout_secs, 1, 255);
 
     _prefs->gps_enabled = constrain(_prefs->gps_enabled, 0, 1);
     _prefs->advert_loc_policy = constrain(_prefs->advert_loc_policy, 0, 2);
@@ -397,6 +404,89 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       } else {
         strcpy(reply, "Can't find GPS");
       }
+#endif
+    } else if (memcmp(command, "watchdog lockup", 15) == 0) {
+#if defined(NRF52_PLATFORM)
+      NRF52Board* nb = static_cast<NRF52Board*>(_board);
+      if (!nb->isWatchdogRunning()) {
+        strcpy(reply, "error - watchdog not running");
+      } else {
+        strcpy(reply, "OK - locking loop");
+        nb->requestLockup();
+      }
+#else
+      strcpy(reply, "not supported on this platform");
+#endif
+    } else if (memcmp(command, "watchdog timeout ", 17) == 0) {
+#if defined(NRF52_PLATFORM)
+      uint32_t n = _atoi(&command[17]);
+      if (n < 1 || n > 255) {
+        strcpy(reply, "error - timeout must be 1..255 (use watchdog off to disable)");
+      } else {
+        _prefs->wdt_timeout_secs = (uint8_t)n;
+        savePrefs();
+        NRF52Board* nb = static_cast<NRF52Board*>(_board);
+        if (nb->isWatchdogRunning() && nb->getWatchdogRunningTimeoutSecs() != n) {
+          strcpy(reply, "OK - reboot to apply");
+        } else {
+          sprintf(reply, "OK - timeout %us", (unsigned)n);
+        }
+      }
+#else
+      strcpy(reply, "not supported on this platform");
+#endif
+    } else if (memcmp(command, "watchdog timeout", 16) == 0 && (command[16] == 0 || command[16] == ' ')) {
+#if defined(NRF52_PLATFORM)
+      NRF52Board* nb = static_cast<NRF52Board*>(_board);
+      uint8_t run_to = nb->getWatchdogRunningTimeoutSecs();
+      if (run_to) {
+        sprintf(reply, "pref %us, running %us", (unsigned)_prefs->wdt_timeout_secs, (unsigned)run_to);
+      } else {
+        sprintf(reply, "pref %us, not running", (unsigned)_prefs->wdt_timeout_secs);
+      }
+#else
+      strcpy(reply, "not supported on this platform");
+#endif
+    } else if (memcmp(command, "watchdog on", 11) == 0) {
+#if defined(NRF52_PLATFORM)
+      _prefs->wdt_enabled = 1;
+      savePrefs();
+      NRF52Board* nb = static_cast<NRF52Board*>(_board);
+      if (nb->isWatchdogRunning()) {
+        strcpy(reply, "OK - already running");
+      } else {
+        strcpy(reply, "OK - reboot to start");
+      }
+#else
+      strcpy(reply, "not supported on this platform");
+#endif
+    } else if (memcmp(command, "watchdog off", 12) == 0) {
+#if defined(NRF52_PLATFORM)
+      _prefs->wdt_enabled = 0;
+      savePrefs();
+      strcpy(reply, "OK - reboot to stop");
+#else
+      strcpy(reply, "not supported on this platform");
+#endif
+    } else if (memcmp(command, "watchdog status", 15) == 0 || memcmp(command, "watchdog", 8) == 0) {
+#if defined(NRF52_PLATFORM)
+      NRF52Board* nb = static_cast<NRF52Board*>(_board);
+      const char* en = _prefs->wdt_enabled ? "enabled" : "disabled";
+      const char* run = nb->isWatchdogRunning() ? "running" : "not running";
+      const char* last = nb->getResetReasonString(nb->getResetReason());
+      uint8_t run_to = nb->getWatchdogRunningTimeoutSecs();
+      if (_prefs->wdt_enabled && !nb->isWatchdogRunning()) {
+        sprintf(reply, "%s, %s, timeout %us (reboot to start), last reset: %s",
+                en, run, (unsigned)_prefs->wdt_timeout_secs, last);
+      } else if (!_prefs->wdt_enabled && nb->isWatchdogRunning()) {
+        sprintf(reply, "%s, %s, timeout %us (reboot to stop), last reset: %s",
+                en, run, (unsigned)(run_to ? run_to : _prefs->wdt_timeout_secs), last);
+      } else {
+        sprintf(reply, "%s, %s, timeout %us, last reset: %s",
+                en, run, (unsigned)(run_to ? run_to : _prefs->wdt_timeout_secs), last);
+      }
+#else
+      strcpy(reply, "not supported on this platform");
 #endif
     } else if (memcmp(command, "powersaving on", 14) == 0) {
 #if defined(NRF52_PLATFORM)
