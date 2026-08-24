@@ -28,6 +28,14 @@ public:
   }
 #endif
 
+#if defined(P_VIBRO_MOTOR)
+  void onMessageNotify() override {
+    digitalWrite(P_VIBRO_MOTOR, HIGH);
+    delay(300);
+    digitalWrite(P_VIBRO_MOTOR, LOW);
+  }
+#endif
+
   uint16_t getBattMilliVolts() override {
     int adcvalue = 0;
     analogReadResolution(12);
