@@ -1,0 +1,127 @@
+name: Bug Report
+description: Report a reproducible MeshCore bug
+title: "[BUG] "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Before submitting
+
+        Please search existing issues first:
+        https://github.com/meshcore-dev/MeshCore/issues
+
+        If your issue matches an existing one, please comment on the existing issue instead of creating a duplicate.
+
+        This repository is for MeshCore Community Firmware and Client App and Ripple Firmware.
+
+  - type: checkboxes
+    id: precheck
+    attributes:
+      label: Pre-flight checklist
+      options:
+        - label: I have searched existing issues and this is not a duplicate
+          required: true
+        - label: I understand this repository is for MeshCore Community Firmware and Client App and Ripple Firmware
+          required: true
+
+  - type: dropdown
+    id: bug_type
+    attributes:
+      label: Bug Type
+      description: Which part of MeshCore is affected?
+      options:
+        - Firmware - Community
+        - Firmware - Ripple
+        - Client - MeshCore App
+        - UI - TDeck / Ripple GUI
+        - CLI / Tooling
+        - Documentation
+        - Unsure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      description: MCU family, not board model.
+      options:
+        - Not platform specific
+        - ESP32
+        - nRF52
+        - Unsure
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: MeshCore Version
+      placeholder: "e.g. v1.14, release name, or commit hash"
+    validations:
+      required: true
+
+  - type: input
+    id: radio_settings
+    attributes:
+      label: Radio Settings
+      description: Frequency plan, bandwidth, spreading factor, coding rate, and region if relevant.
+      placeholder: "e.g. AU915 / 62.5kHz / SF9 / CR4/5"
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: Briefly describe the problem.
+      placeholder: "e.g. Repeater appears as Unknown in hop path"
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behaviour
+      description: What should have happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behaviour
+      description: What actually happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to Reproduce
+      description: Provide the clearest reproduction steps possible.
+      placeholder: |
+        1. Flash firmware version ...
+        2. Configure radio as ...
+        3. Send message via ...
+        4. Observe ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / Serial Output / Screenshots
+      description: Paste logs or attach screenshots where possible.
+      render: shell
+
+  - type: textarea
+    id: topology
+    attributes:
+      label: Network / Topology Context
+      description: Number of nodes, repeaters, hops, client used, and any relevant setup details.
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Anything else that may help triage the issue.
