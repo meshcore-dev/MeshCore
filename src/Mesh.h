@@ -166,8 +166,10 @@ protected:
   */
   virtual void onAckRecv(Packet* packet, uint32_t ack_crc) { }
 
+  // Initialiser order follows the member declaration order above (_rtc, _rng,
+  // _tables), which is the order they are actually constructed in.
   Mesh(Radio& radio, MillisecondClock& ms, RNG& rng, RTCClock& rtc, PacketManager& mgr, MeshTables& tables)
-    : Dispatcher(radio, ms, mgr), _rng(&rng), _rtc(&rtc), _tables(&tables)
+    : Dispatcher(radio, ms, mgr), _rtc(&rtc), _rng(&rng), _tables(&tables)
   {
   }
 

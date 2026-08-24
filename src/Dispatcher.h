@@ -138,8 +138,10 @@ protected:
   MillisecondClock* _ms;
   uint16_t _err_flags;
 
+  // Initialiser order follows the member declaration order above, which is the
+  // order they are actually constructed in; diverging trips -Wreorder.
   Dispatcher(Radio& radio, MillisecondClock& ms, PacketManager& mgr)
-    : _radio(&radio), _ms(&ms), _mgr(&mgr)
+    : _mgr(&mgr), _radio(&radio), _ms(&ms)
   {
     outbound = NULL;
     total_air_time = rx_air_time = 0;

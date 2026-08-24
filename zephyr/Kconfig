@@ -1,0 +1,102 @@
+# MeshCore Zephyr module Kconfig
+#
+# Sourced automatically by Zephyr's module machinery once the repo is a west
+# project. Everything lives under the MESHCORE menu.
+
+menuconfig MESHCORE
+	bool "MeshCore LoRa mesh library"
+	select CPP
+	select CPP_EXCEPTIONS if MESHCORE_CPP_EXCEPTIONS
+	select ENTROPY_GENERATOR if MESHCORE_ARDUINO_COMPAT
+	help
+	  Build and link the MeshCore mesh-networking engine into the
+	  application. This compiles the protocol core under src/ plus the
+	  optional support layers selected below.
+
+if MESHCORE
+
+config MESHCORE_CPP_EXCEPTIONS
+	bool "Enable C++ exceptions for MeshCore"
+	default n
+	help
+	  MeshCore itself does not require exceptions. Leave disabled unless an
+	  application component needs them.
+
+config MESHCORE_ARDUINO_COMPAT
+	bool "Build the bundled Arduino compatibility shim"
+	default y
+	help
+	  Provides the tiny Arduino surface the core relies on (millis(),
+	  delay(), random(), and a printk-backed `Serial`/`Stream`) implemented
+	  on top of the Zephyr kernel. Disable only if the application supplies
+	  its own Arduino-compatible layer (e.g. the Zephyr Arduino module).
+
+config MESHCORE_ZEPHYR_HELPERS
+	bool "Build the Zephyr platform helpers (clocks, RNG, board)"
+	default y
+	depends on MESHCORE_ARDUINO_COMPAT
+	help
+	  Concrete mesh::MillisecondClock / mesh::RTCClock / mesh::RNG /
+	  mesh::MainBoard implementations backed by Zephyr kernel APIs. These
+	  let an application bring up the mesh core without any Arduino board
+	  package.
+
+config MESHCORE_STORAGE
+	bool "Persistent storage (identity, prefs) on LittleFS"
+	default y
+	depends on MESHCORE_ARDUINO_COMPAT
+	select FLASH
+	select FLASH_MAP
+	select FILE_SYSTEM
+	select FILE_SYSTEM_LITTLEFS
+	# fs_mkfs(), used by LittleFileSystem::format(), which backs MeshCore's
+	# "erase filesystem" admin command (examples/simple_repeater/MyMesh.cpp:1020).
+	select FILE_SYSTEM_MKFS
+	help
+	  Build the LittleFS-backed filesystem shim (ports/zephyr/ZephyrFS.cpp)
+	  and IdentityStore, so a node keeps the same public key and
+	  configuration across reboots. Requires the board to define a
+	  `storage_partition` fixed partition.
+
+	  Turn this off for a library-only build with a volatile in-RAM
+	  identity, or on a board with no flash partition to spare.
+
+menu "LoRa RF parameters"
+
+config MESHCORE_LORA_FREQ
+	string "Centre frequency (MHz)"
+	default "869.618"
+	help
+	  Passed to the build as -DLORA_FREQ. String because Kconfig has no
+	  float type; the value is used verbatim in C++ (e.g. 869.618).
+
+config MESHCORE_LORA_BW
+	string "Bandwidth (kHz)"
+	default "62.5"
+
+config MESHCORE_LORA_SF
+	int "Spreading factor"
+	range 5 12
+	default 8
+
+config MESHCORE_LORA_CR
+	int "Coding rate denominator (4/x)"
+	range 5 8
+	default 5
+
+config MESHCORE_LORA_TX_POWER
+	int "TX power (dBm)"
+	default 20
+
+endmenu
+
+# NOTE: an application-role choice (repeater / room server / companion / sensor,
+# mirroring the PlatformIO examples/ folder) belongs here once the Zephyr build
+# can actually pull those example sources in. It is deliberately absent for now
+# rather than present and gating nothing.
+
+module = MESHCORE
+module-str = meshcore
+source "subsys/logging/Kconfig.template.log_config"
+
+endif # MESHCORE
