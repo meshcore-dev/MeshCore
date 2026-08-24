@@ -1117,7 +1117,7 @@ region save
 
 ---
 
-#### View or change the channel used for bridging (ESPNow only)
+#### View or change the channel used for bridging (wireless bridges only)
 **Usage:**
 - `get bridge.channel`
 - `set bridge.channel <channel>`
@@ -1127,13 +1127,13 @@ region save
 
 ---
 
-#### Set the ESP-Now secret
+#### Set the wireless bridge secret
 **Usage:** 
 - `get bridge.secret`
 - `set bridge.secret <secret>`
 
 **Parameters:**
-- `secret`: ESP-NOW bridge secret, up to 15 characters
+- `secret`: bridge secret, up to 15 characters
 
 **Default:** Varies by board
 
