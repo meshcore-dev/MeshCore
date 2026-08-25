@@ -36,6 +36,7 @@ void RadioLibWrapper::begin() {
 
   _noise_floor = 0;
   _threshold = 0;
+  _cad_enabled = false;
 
   // start average out some samples
   _num_floor_samples = 0;
@@ -104,6 +105,9 @@ void RadioLibWrapper::loop() {
 }
 
 void RadioLibWrapper::startRecv() {
+  #if defined(USE_LR2021)
+  _radio->standby(); // without this LR2021 can throw -706 when calling startReceive after hardware CAD when side detectors are enabled
+  #endif
   int err = _radio->startReceive();
   if (err == RADIOLIB_ERR_NONE) {
     state = STATE_RX;
@@ -132,7 +136,11 @@ int RadioLibWrapper::recvRaw(uint8_t* bytes, int sz) {
         n_recv++;
       }
     }
+    #if defined(USE_LR2021)
+    state = STATE_RX;     // LR2021 stays in Rx after readData, calling startReceive while still in Rx throws -706 errors
+    #else
     state = STATE_IDLE;   // need another startReceive()
+    #endif
   }
 
   if (state != STATE_RX) {
@@ -178,10 +186,26 @@ void RadioLibWrapper::onSendFinished() {
   state = STATE_IDLE;
 }
 
+int16_t RadioLibWrapper::performChannelScan() {
+  return _radio->scanChannel();
+}
+
 bool RadioLibWrapper::isChannelActive() {
-  return _threshold == 0 
-          ? false    // interference check is disabled
-          : getCurrentRSSI() > _noise_floor + _threshold;
+  // int.thresh: RSSI-based interference detection (relative to noise floor)
+  if (_threshold != 0 && getCurrentRSSI() > _noise_floor + _threshold) return true;
+
+  // cad: hardware channel activity detection
+  if (_cad_enabled) {
+    int16_t result = performChannelScan();
+    // scanChannel() triggers DIO interrupt (CAD done) which sets STATE_INT_READY
+    // via setFlag() ISR. Clear it before restarting RX so recvRaw() doesn't
+    // try to read a non-existent packet and count a spurious recv error.
+    state = STATE_IDLE;
+    startRecv();
+    if (result != RADIOLIB_CHANNEL_FREE) return true;
+  }
+
+  return false;
 }
 
 float RadioLibWrapper::getLastRSSI() const {
@@ -210,4 +234,22 @@ float RadioLibWrapper::packetScoreInt(float snr, int sf, int packet_len) {
   auto collision_penalty = 1 - (packet_len / 256.0);   // Assuming max packet of 256 bytes
 
   return max(0.0, min(1.0, success_rate_based_on_snr * collision_penalty));
+}
+
+PacketMillis RadioLibWrapper::calcMaxPacketMillis(uint8_t sf, float bw, uint8_t cr, uint8_t preambleSymbols) {
+  // based on RadioLib's calculateTimeOnAir()
+  uint32_t tsym_us = ((uint32_t)10000 << sf) / (bw * 10);
+  uint32_t sfCoeff1_x4 = (sf == 5 || sf == 6) ? 25 : 17; // 6.25 : 4.25, semtech magic numbers to account for sync word + sfd
+
+  // preamble + syncword + sfd + header
+  uint32_t preamble_us = (((preambleSymbols + 8) * 4 + sfCoeff1_x4) * tsym_us) / 4;
+  
+  // airtime for max packet at current radio settings
+  uint32_t total_us   = _radio->getTimeOnAir(MAX_TRANS_UNIT);
+  // airtime for payload only (no preamble, header or SOF)
+  uint32_t payload_us = total_us > preamble_us ? total_us - preamble_us : 4000 - preamble_us; // fallback to 4 secs at worst case
+  // rescale payload_us for max possible CR
+  if (cr >= 5 && cr < 8) { payload_us = (payload_us * 8) / cr; }
+
+  return PacketMillis {(preamble_us + 999) / 1000, (payload_us + 999) / 1000};
 }

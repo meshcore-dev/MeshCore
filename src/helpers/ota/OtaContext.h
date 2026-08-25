@@ -25,8 +25,10 @@
   // The console Serial is already begun by the example; a DEDICATED UART (override the stream) needs init,
   // so define OTA_FOLDER_SERIAL_BEGIN to have attach_folder() call .begin(baud) on it.
 #endif
-#if defined(OTA_SD_SEEDER)
+#if defined(OTA_SUPERSEEDER)
   #include "SuperSeeder.h"
+  #include "SeederAllowlist.h"
+  #include "SeederFs.h"   // OTA_SEEDER_MEDIA
 #endif
 
 // Per-device OTA singleton shared by the CLI (OtaCli) and the mesh adapter (the example's MyMesh).
@@ -155,9 +157,10 @@ struct OtaContext {
   uint32_t session_started_ms = 0;   // when the fetch session last left IDLE (for the age display)
   uint8_t  prev_fstate = OtaManager::IDLE;
   bool     folder_active = false;    // an external `.mota` folder is attached + being relayed
-#if defined(OTA_SD_SEEDER)
-  SuperSeeder superseeder;
-  bool        sd_active = false;     // SD superseeder mounted + serving
+#if defined(OTA_SUPERSEEDER)
+  SuperSeeder     superseeder;
+  SeederAllowlist seeder_allow;       // default admit-all; filter/clear/reset via CLI; persisted
+  bool            seeder_active = false;  // external FS mounted + serving deltas
 #endif
 
   // Attach/detach an external folder of `.mota` served by a host daemon over the seeder UART (the node
@@ -178,18 +181,21 @@ struct OtaContext {
 #endif
   void detach_folder() { manager.clear_sources(); folder_active = false; }
 
-#if defined(OTA_SD_SEEDER)
-  bool attach_sd(char* msg, size_t cap) {
+#if defined(OTA_SUPERSEEDER)
+  bool attach_seeder(char* msg, size_t cap) {
     superseeder.begin(*this);
-    if (!superseeder.mounted()) { strncpy(msg, "ERR SD mount failed", cap); return false; }
-    sd_active = superseeder.active();
-    if (!sd_active) { strncpy(msg, "ERR SD source slot full", cap); return false; }
-    snprintf(msg, cap, "OK SD superseeder — serving %u mOTA total (own fw + SD)",
-             (unsigned)manager.servedCount());
+    if (!superseeder.mounted()) {
+      snprintf(msg, cap, "ERR %s mount failed", OTA_SEEDER_MEDIA);
+      return false;
+    }
+    seeder_active = superseeder.active();
+    if (!seeder_active) { strncpy(msg, "ERR seeder source slot full", cap); return false; }
+    snprintf(msg, cap, "OK %s superseeder — deltas only, serving %u mOTA (own fw + %s)",
+             OTA_SEEDER_MEDIA, (unsigned)manager.servedCount(), OTA_SEEDER_MEDIA);
     return true;
   }
   void superseeder_loop() {
-    if (sd_active) superseeder.loop();
+    if (seeder_active) superseeder.loop();
   }
 #endif
 

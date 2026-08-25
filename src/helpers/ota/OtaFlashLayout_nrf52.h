@@ -13,7 +13,9 @@
 namespace mesh {
 namespace ota {
 
-static const uint32_t MOTA_NRF52_APP_BASE        = 0x00026000u;  // S140 end (== CODE_REGION_1_START)
+#ifndef MOTA_NRF52_APP_BASE
+#define MOTA_NRF52_APP_BASE 0x00026000u           // S140 v6 end (RAK4631, WisMesh Tag, …)
+#endif
 static const uint32_t MOTA_NRF52_EXTRAFS_START   = 0x000D4000u;  // companion ExtraFS (CustomLFS)
 static const uint32_t MOTA_NRF52_INTERNALFS_START = 0x000ED000u; // primary LittleFS (/com_prefs)
 static const uint32_t MOTA_NRF52_FLASH_PAGE      = 4096u;

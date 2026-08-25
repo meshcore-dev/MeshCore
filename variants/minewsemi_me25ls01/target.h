@@ -10,7 +10,7 @@
 #include <helpers/sensors/LocationProvider.h>
 #include <helpers/sensors/EnvironmentSensorManager.h>
 #ifdef DISPLAY_CLASS
-  #include "NullDisplayDriver.h"
+  #include <helpers/ui/NullDisplayDriver.h>
 #endif
 
 #ifdef DISPLAY_CLASS

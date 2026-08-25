@@ -18,6 +18,25 @@
   #define SCALE_Y  2.109375f   // 135 / 64
 #endif
 
+#ifdef DISPLAY_SCALE_X
+  #define SCALE_X DISPLAY_SCALE_X
+#endif
+
+#ifdef DISPLAY_SCALE_Y
+  #define SCALE_Y DISPLAY_SCALE_Y
+#endif
+
+// Color scheme
+ColorVal UIColor::window_bkg = OLEDDISPLAY_COLOR::BLACK;
+ColorVal UIColor::title_bkg = OLEDDISPLAY_COLOR::BLACK;
+ColorVal UIColor::title_txt = OLEDDISPLAY_COLOR::WHITE;
+ColorVal UIColor::primary_txt = OLEDDISPLAY_COLOR::WHITE;
+ColorVal UIColor::secondary_txt = OLEDDISPLAY_COLOR::WHITE;
+ColorVal UIColor::warning_txt = OLEDDISPLAY_COLOR::WHITE;
+ColorVal UIColor::popup_bkg = OLEDDISPLAY_COLOR::BLACK;
+ColorVal UIColor::popup_txt = OLEDDISPLAY_COLOR::WHITE;
+ColorVal UIColor::corp_blue = OLEDDISPLAY_COLOR::WHITE;
+
 bool ST7789Display::begin() {
   if(!_isOn) {
     pinMode(PIN_TFT_VDD_CTL, OUTPUT);
@@ -32,6 +51,9 @@ bool ST7789Display::begin() {
 
     display.init();
     display.landscapeScreen();
+    #ifdef DISPLAY_FLIP_VERTICALLY
+    display.flipScreenVertically();
+    #endif
     display.displayOn();
     setCursor(0,0);
 
@@ -49,6 +71,9 @@ void ST7789Display::turnOn() {
     // Re-initialize the display
     display.init();
     display.displayOn();
+    #ifdef DISPLAY_FLIP_VERTICALLY
+    display.flipScreenVertically();
+    #endif
     delay(20);
 
     // Now turn on the backlight
@@ -76,10 +101,9 @@ void ST7789Display::clear() {
   display.clear();
 }
 
-void ST7789Display::startFrame(Color bkg) {
-  display.clear();
-  _color = ST77XX_WHITE;
-  display.setRGB(_color);
+void ST7789Display::startFrame(ColorVal bkg) {
+  display.clear();  // TODO: use bkg
+  setColor(UIColor::primary_txt);
   display.setFont(ArialMT_Plain_16);
 }
 
@@ -96,38 +120,10 @@ void ST7789Display::setTextSize(int sz) {
   }
 }
 
-void ST7789Display::setColor(Color c) {
-  switch (c) {
-    case DisplayDriver::DARK :
-      _color = ST77XX_BLACK;
-      display.setColor(OLEDDISPLAY_COLOR::BLACK);
-      break;
-#if 0
-    case DisplayDriver::LIGHT : 
-      _color = ST77XX_WHITE;
-      break;
-    case DisplayDriver::RED : 
-      _color = ST77XX_RED;
-      break;
-    case DisplayDriver::GREEN : 
-      _color = ST77XX_GREEN;
-      break;
-    case DisplayDriver::BLUE : 
-      _color = ST77XX_BLUE;
-      break;
-    case DisplayDriver::YELLOW : 
-      _color = ST77XX_YELLOW;
-      break;
-    case DisplayDriver::ORANGE : 
-      _color = ST77XX_ORANGE;
-      break;
-#endif
-    default:
-      _color = ST77XX_WHITE;
-      display.setColor(OLEDDISPLAY_COLOR::WHITE);
-      break;
-  }
-  display.setRGB(_color);
+void ST7789Display::setColor(ColorVal c) {
+  _color = c;
+  display.setColor((OLEDDISPLAY_COLOR)_color);
+  display.setRGB(_color == OLEDDISPLAY_COLOR::WHITE ? ST77XX_WHITE : ST77XX_BLACK);
 }
 
 void ST7789Display::setCursor(int x, int y) {

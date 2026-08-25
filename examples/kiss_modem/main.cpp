@@ -20,6 +20,8 @@
 
 #define NOISE_FLOOR_CALIB_INTERVAL_MS 2000
 #define AGC_RESET_INTERVAL_MS 30000
+#define USB_TX_TIMEOUT_MS 50
+#define USB_TX_BUFFER_SIZE 1024
 
 StdRNG rng;
 mesh::LocalIdentity identity;
@@ -111,6 +113,10 @@ void setup() {
   uint32_t start = millis();
   while (!Serial && millis() - start < 3000) delay(10);
   delay(100);
+#if defined(ESP32) && ARDUINO_USB_MODE
+  Serial.setTxTimeoutMs(USB_TX_TIMEOUT_MS);
+  Serial.setTxBufferSize(USB_TX_BUFFER_SIZE);
+#endif
   modem = new KissModem(Serial, identity, rng, radio_driver, board, sensors);
 #endif
 
@@ -126,7 +132,7 @@ void setup() {
 void loop() {
   modem->loop();
 
-  if (!modem->isActuallyTransmitting()) {
+  if (!modem->isActuallyTransmitting() && !modem->isHostOutputBackedUp()) {
     if (!modem->isTxBusy()) {
       if ((uint32_t)(millis() - next_agc_reset_ms) >= AGC_RESET_INTERVAL_MS) {
         radio_driver.resetAGC();

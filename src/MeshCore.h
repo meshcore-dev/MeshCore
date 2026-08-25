@@ -73,6 +73,9 @@ public:
   virtual uint8_t getStartupReason() const = 0;
   virtual bool getBootloaderVersion(char* version, size_t max_len) { return false; }
   virtual bool startOTAUpdate(const char* id, char reply[]) { return false; }   // not supported
+  virtual bool setLoRaFemLnaEnabled(bool enable) { return false; }
+  virtual bool canControlLoRaFemLna() const { return false; }
+  virtual bool isLoRaFemLnaEnabled() const { return false; }
 #if defined(ENABLE_OTA)
   // 4-byte build-target discriminator for OTA-over-LoRa (docs/ota_protocol.md §9). Default is the
   // MOTA_TARGET_ID build flag injected by build.sh; 0 when unset (e.g. a bare IDE build).

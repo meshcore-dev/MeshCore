@@ -1,11 +1,14 @@
 #pragma once
 
 #include <RadioLib.h>
-
-#define SX126X_IRQ_HEADER_VALID                0b0000010000  //  4     4     valid LoRa header received
-#define SX126X_IRQ_PREAMBLE_DETECTED           0x04
+#include "MeshCore.h"
 
 class CustomSX1262 : public SX1262 {
+  uint32_t _preambleMillis = 66;
+  uint32_t _maxPayloadMillis = 3934;
+  uint32_t _activityAt = 0;
+  bool _headerSeen = false;
+
   public:
     CustomSX1262(Module *mod) : SX1262(mod) { }
 
@@ -27,6 +30,14 @@ class CustomSX1262 : public SX1262 {
       uint8_t cr = 5;
   #endif
 
+  #ifdef SX126X_USE_REGULATOR_LDO
+      constexpr bool useRegulatorLDO = SX126X_USE_REGULATOR_LDO;
+  #else
+      constexpr bool useRegulatorLDO = false;
+  #endif
+
+      MESH_DEBUG_PRINTLN("SX1262 regulator requested: %s", useRegulatorLDO ? "LDO" : "DC-DC");
+
   #if defined(P_LORA_SCLK)
     #ifdef NRF52_PLATFORM
       if (spi) { spi->setPins(P_LORA_MISO, P_LORA_SCLK, P_LORA_MOSI); spi->begin(); }
@@ -42,11 +53,12 @@ class CustomSX1262 : public SX1262 {
       if (spi) spi->begin(P_LORA_SCLK, P_LORA_MISO, P_LORA_MOSI);
     #endif
   #endif
-      int status = begin(LORA_FREQ, LORA_BW, LORA_SF, cr, RADIOLIB_SX126X_SYNC_WORD_PRIVATE, LORA_TX_POWER, 16, tcxo);
+      int status = begin(LORA_FREQ, LORA_BW, LORA_SF, cr, RADIOLIB_SX126X_SYNC_WORD_PRIVATE, LORA_TX_POWER, 16, tcxo, useRegulatorLDO);
       // if radio init fails with -707/-706, try again with tcxo voltage set to 0.0f
       if (status == RADIOLIB_ERR_SPI_CMD_FAILED || status == RADIOLIB_ERR_SPI_CMD_INVALID) {
+        MESH_DEBUG_PRINTLN("SX1262 init failed with error %d, retrying with TCXO at 0.0V", status);
         tcxo = 0.0f;
-        status = begin(LORA_FREQ, LORA_BW, LORA_SF, cr, RADIOLIB_SX126X_SYNC_WORD_PRIVATE, LORA_TX_POWER, 16, tcxo);
+        status = begin(LORA_FREQ, LORA_BW, LORA_SF, cr, RADIOLIB_SX126X_SYNC_WORD_PRIVATE, LORA_TX_POWER, 16, tcxo, useRegulatorLDO);
       }
       if (status != RADIOLIB_ERR_NONE) {
         Serial.print("ERROR: radio init failed: ");
@@ -83,13 +95,66 @@ class CustomSX1262 : public SX1262 {
     writeRegister(0x8B5, &r_data, 1);
   #endif
 
+      MESH_DEBUG_PRINTLN("SX1262 status=0x%02X device_errors=0x%04X", getStatus(), getDeviceErrors());
+
       return true;  // success
     }
 
+    int16_t startReceive() override {
+      // include the PREAMBLE_DETECTED irq bit in reported flags
+      return SX1262::startReceive(RADIOLIB_SX126X_RX_TIMEOUT_INF, RADIOLIB_IRQ_RX_DEFAULT_FLAGS | (1UL << RADIOLIB_IRQ_PREAMBLE_DETECTED), RADIOLIB_IRQ_RX_DEFAULT_MASK, 0);
+    }
+
     bool isReceiving() {
-      uint16_t irq = getIrqFlags();
-      bool detected = (irq & SX126X_IRQ_HEADER_VALID) || (irq & SX126X_IRQ_PREAMBLE_DETECTED);
-      return detected;
+      uint32_t irq = getIrqFlags();
+      bool preamble = irq & RADIOLIB_SX126X_IRQ_PREAMBLE_DETECTED; // bit 2
+      bool header   = irq & RADIOLIB_SX126X_IRQ_HEADER_VALID;      // bit 4
+      bool hdrErr   = irq & RADIOLIB_SX126X_IRQ_HEADER_ERR;        // bit 5
+      uint32_t now  = millis();
+      if (hdrErr) {
+        clearIrqFlags(RADIOLIB_SX126X_IRQ_PREAMBLE_DETECTED | RADIOLIB_SX126X_IRQ_HEADER_VALID | RADIOLIB_SX126X_IRQ_HEADER_ERR | RADIOLIB_SX126X_IRQ_SYNC_WORD_VALID);
+        _activityAt = 0;
+        _headerSeen = false;
+        return false;
+      }
+      if (!header && _headerSeen) {
+        // something cleared the header flag, reset our state.
+        _activityAt = 0; _headerSeen = false;
+        return false;
+      }
+
+      if (header) {
+        if (!_headerSeen) { _headerSeen = true; _activityAt = now; };
+        if (now - _activityAt > _maxPayloadMillis) {
+          MESH_DEBUG_PRINTLN("Clearing header IRQ after %ums", _maxPayloadMillis);
+          clearIrqFlags(RADIOLIB_SX126X_IRQ_PREAMBLE_DETECTED | RADIOLIB_SX126X_IRQ_HEADER_VALID | RADIOLIB_SX126X_IRQ_HEADER_ERR | RADIOLIB_SX126X_IRQ_SYNC_WORD_VALID);
+          _activityAt = 0; _headerSeen = false;
+          return false;
+        }
+        return true;
+      }
+      if (preamble) {
+        if (_activityAt == 0) _activityAt = now;
+        if (now - _activityAt > _preambleMillis) {
+          clearIrqFlags(RADIOLIB_SX126X_IRQ_PREAMBLE_DETECTED);
+          _activityAt = 0;
+          MESH_DEBUG_PRINTLN("Clearing preamble IRQ after %ums", _preambleMillis);
+
+          return false;
+        }
+        return true;
+      }
+      _activityAt = 0; _headerSeen = false;
+      return false;
+    }
+
+    void setPreambleMillis(uint32_t preambleMillis) {
+      _preambleMillis = preambleMillis;
+      MESH_DEBUG_PRINTLN("Set _preambleMillis=%u", _preambleMillis);
+    }
+    void setMaxPayloadMillis(uint32_t payloadMillis) {
+      _maxPayloadMillis = payloadMillis;
+      MESH_DEBUG_PRINTLN("Set _maxPayloadMillis=%u", _maxPayloadMillis);
     }
 
     bool getRxBoostedGainMode() {

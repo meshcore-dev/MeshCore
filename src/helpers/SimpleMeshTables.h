@@ -31,25 +31,29 @@ public:
   }
 #endif
 
-  bool hasSeen(const mesh::Packet* packet) override {
+  bool wasSeen(const mesh::Packet* packet) override {
     uint8_t hash[MAX_HASH_SIZE];
     packet->calculatePacketHash(hash);
 
     const uint8_t* sp = _hashes;
     for (int i = 0; i < MAX_PACKET_HASHES; i++, sp += MAX_HASH_SIZE) {
-      if (memcmp(hash, sp, MAX_HASH_SIZE) == 0) { 
+      if (memcmp(hash, sp, MAX_HASH_SIZE) == 0) {
         if (packet->isRouteDirect()) {
-          _direct_dups++;   // keep some stats
+          _direct_dups++;
         } else {
           _flood_dups++;
         }
         return true;
       }
     }
-
-    memcpy(&_hashes[_next_idx*MAX_HASH_SIZE], hash, MAX_HASH_SIZE);
-    _next_idx = (_next_idx + 1) % MAX_PACKET_HASHES;  // cyclic table
     return false;
+  }
+
+  void markSeen(const mesh::Packet* packet) override {
+    uint8_t hash[MAX_HASH_SIZE];
+    packet->calculatePacketHash(hash);
+    memcpy(&_hashes[_next_idx * MAX_HASH_SIZE], hash, MAX_HASH_SIZE);
+    _next_idx = (_next_idx + 1) % MAX_PACKET_HASHES;
   }
 
   void clear(const mesh::Packet* packet) override {
