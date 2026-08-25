@@ -1,6 +1,8 @@
 #include "ConfigSerializer.h"
 #include <stdlib.h>
 #include <string.h>
+
+#ifndef MESHCORE_NATIVE_TEST
 #include "FsLastErr.h"
 
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
@@ -93,6 +95,8 @@ bool saveConfigJsonAtomic(FILESYSTEM* fs, ConfigSerializer& obj, const char* fin
   }
   return true;
 }
+
+#endif  // !MESHCORE_NATIVE_TEST
 
 bool ConfigSerializer::saveSerial(Stream& s) {
   Context context(&s, OP::WRITE);
