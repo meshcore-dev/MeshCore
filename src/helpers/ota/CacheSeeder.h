@@ -1,6 +1,10 @@
 #pragma once
 
-#if defined(OTA_SUPERSEEDER)
+#if defined(OTA_SEEDER_CACHE)
+
+#if !defined(OTA_SEEDER_STORAGE)
+#error "OTA_SEEDER_CACHE is a role over bulk storage — pair it with an OTA_SEEDER_STORAGE backend (SD, QSPI, ...)"
+#endif
 
 #include <stdint.h>
 #include "OtaManager.h"
@@ -13,10 +17,10 @@ namespace ota {
 
 class OtaContext;
 
-// External-FS superseeder: promiscuous catalog discovery + capture *deltas*
+// OTA cache seeder: promiscuous catalog discovery + capture *deltas*
 // (optionally filtered by a runtime target allowlist; empty = all targets)
-// to SD or QSPI LittleFS. Full snapshots are never stored.
-class SuperSeeder {
+// to SeederFs (SD or onboard NOR). Full snapshots are never stored.
+class CacheSeeder {
 public:
   void begin(OtaContext& ctx);
   void loop();

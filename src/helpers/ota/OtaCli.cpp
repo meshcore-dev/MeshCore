@@ -111,7 +111,7 @@ bool handle_ota_command(const char* command, char* reply, mesh::MainBoard& board
   if (is_cmd(a, "help|?|h", &rest)) {
     snprintf(reply, 160,
       "OTA: status | stats=admin ids/hashes | ls=find updates | get <#>=download | install | cancel | "
-      "announce | self | folder | seed | config | key. Try `ota ls`.");
+      "announce | self | folder | cache | config | key. Try `ota ls`.");
 
   // ---- inventory dashboard: running fw (self), the one fetch session, serving state ----
   } else if (*a == 0 || is_cmd(a, "status|st", &rest)) {
@@ -140,8 +140,8 @@ bool handle_ota_command(const char* command, char* reply, mesh::MainBoard& board
     if (n < 146) n += snprintf(reply + n, 160 - n, " | bl:%s blrc:%02X",
                                c.bootloaderCaps().present ? "apply" : "NONE", ota_bootloader_last_rc());
 #endif
-#if defined(OTA_SUPERSEEDER)
-    if (n < 150) n += snprintf(reply + n, 160 - n, " | seed:%s", c.seeder_active ? "on" : "off");
+#if defined(OTA_SEEDER_CACHE)
+    if (n < 150) n += snprintf(reply + n, 160 - n, " | cache:%s", c.cache_active ? "on" : "off");
 #endif
 
   // ---- admin OTA stats: crypto identities (our fw's content-id + body_hash), serving set, live fetch,
@@ -297,7 +297,7 @@ bool handle_ota_command(const char* command, char* reply, mesh::MainBoard& board
     c.fetch_store.clear(); c.serving = false; c.serve_expected = 0; c.session_started_ms = 0;
     snprintf(reply, 160, "OK dropped session (was %c mid=%s); slot free for a new pull", fstate_char(fs), midhx);
 
-  // ---- broadcast beacon so peers discover our served motas (folder / superseeder / post-fetch re-seed).
+  // ---- broadcast beacon so peers discover our served motas (folder / cache / post-fetch re-seed).
   } else if (is_cmd(a, "announce|adv", &rest)) {
 #if OTA_SELF_SERVE
     if (!c.serving) c.serving = ota_serve_self(c, 0);
@@ -306,7 +306,7 @@ bool handle_ota_command(const char* command, char* reply, mesh::MainBoard& board
     if (c.serving || c.manager.servedCount() > 0)
       snprintf(reply, 160, "OK beacon sent (serving %u mota(s))", (unsigned)c.manager.servedCount());
     else
-      strcpy(reply, "OK beacon sent (nothing to serve — folder/superseeder/captured delta)");
+      strcpy(reply, "OK beacon sent (nothing to serve — folder/cache/captured delta)");
 
   // ---- running firmware identity (compare against a delta's base_hash) ----
   } else if (is_cmd(a, "self|id", &rest)) {
@@ -340,38 +340,38 @@ bool handle_ota_command(const char* command, char* reply, mesh::MainBoard& board
 
   // ---- external folder relay: advertise + serve `.mota` from a host daemon over the seeder UART, so the
   //      node hosts MANY images (any architecture) it doesn't hold in flash. Trustless (fetchers verify). --
-  } else if (is_cmd(a, "seed|sd", &rest)) {
-#if defined(OTA_SUPERSEEDER)
+  } else if (is_cmd(a, "cache|seed|sd", &rest)) {
+#if defined(OTA_SEEDER_CACHE)
     const char* p = rest;
     while (*p == ' ') p++;
-    // `ota seed allow …` — runtime target filter (empty = all targets). Persisted via NodePrefs.
+    // `ota cache allow …` — runtime target filter (empty = all targets). Persisted via NodePrefs.
     if (strncmp(p, "allow", 5) == 0 && (p[5] == 0 || p[5] == ' ')) {
       const char* ap = p + 5;
       while (*ap == ' ') ap++;
       if (*ap == 0 || strncmp(ap, "list", 4) == 0) {
-        if (c.seeder_allow.allowAll()) {
-          strcpy(reply, "seed allow: ALL targets (deltas only)");
-        } else if (c.seeder_allow.count() == 0) {
-          strcpy(reply, "seed allow: NONE (empty filter)");
+        if (c.cache_allow.allowAll()) {
+          strcpy(reply, "cache allow: ALL targets (deltas only)");
+        } else if (c.cache_allow.count() == 0) {
+          strcpy(reply, "cache allow: NONE (empty filter)");
         } else {
-          int n = snprintf(reply, 160, "seed allow (%u):", (unsigned)c.seeder_allow.count());
-          for (uint8_t i = 0; i < c.seeder_allow.count() && n < 140; i++) {
-            uint32_t tid = c.seeder_allow.get(i);
+          int n = snprintf(reply, 160, "cache allow (%u):", (unsigned)c.cache_allow.count());
+          for (uint8_t i = 0; i < c.cache_allow.count() && n < 140; i++) {
+            uint32_t tid = c.cache_allow.get(i);
             const char* env = ota_target_env_name(tid);
             if (env) n += snprintf(reply + n, 160 - n, " %s", env);
             else n += snprintf(reply + n, 160 - n, " %08X", (unsigned)tid);
           }
         }
       } else if (strncmp(ap, "clear", 5) == 0) {
-        c.seeder_allow.clear();
+        c.cache_allow.clear();
         c.config_dirty = true;
-        if (c.seeder_active) c.superseeder.refreshSource();
-        strcpy(reply, "OK seed allow cleared — NONE (saved)");
+        if (c.cache_active) c.cache_seeder.refreshSource();
+        strcpy(reply, "OK cache allow cleared — NONE (saved)");
       } else if (strncmp(ap, "reset", 5) == 0 || strncmp(ap, "defaults", 8) == 0) {
-        c.seeder_allow.reset();
+        c.cache_allow.reset();
         c.config_dirty = true;
-        if (c.seeder_active) c.superseeder.refreshSource();
-        strcpy(reply, "OK seed allow reset — ALL targets (saved)");
+        if (c.cache_active) c.cache_seeder.refreshSource();
+        strcpy(reply, "OK cache allow reset — ALL targets (saved)");
       } else if (strncmp(ap, "add ", 4) == 0 || strncmp(ap, "rm ", 3) == 0 || strncmp(ap, "remove ", 7) == 0) {
         bool is_add = strncmp(ap, "add ", 4) == 0;
         const char* tok = is_add ? ap + 4 : (ap[0] == 'r' && ap[1] == 'm' ? ap + 3 : ap + 7);
@@ -388,51 +388,51 @@ bool handle_ota_command(const char* command, char* reply, mesh::MainBoard& board
           if (end && end != tokbuf && *end == 0) tid = (uint32_t)v;
         }
         if (!tid) {
-          strcpy(reply, is_add ? "ERR usage: ota seed allow add <env|hex>"
-                               : "ERR usage: ota seed allow rm <env|hex>");
+          strcpy(reply, is_add ? "ERR usage: ota cache allow add <env|hex>"
+                               : "ERR usage: ota cache allow rm <env|hex>");
           return true;
         }
         if (is_add) {
-          if (!c.seeder_allow.add(tid)) { strcpy(reply, "ERR allowlist full (max 8)"); return true; }
+          if (!c.cache_allow.add(tid)) { strcpy(reply, "ERR allowlist full (max 8)"); return true; }
           c.config_dirty = true;
-          if (c.seeder_active) c.superseeder.refreshSource();
+          if (c.cache_active) c.cache_seeder.refreshSource();
           const char* env = ota_target_env_name(tid);
           snprintf(reply, 160, "OK allow +%s (saved)", env ? env : "target");
         } else {
-          if (!c.seeder_allow.remove(tid)) { strcpy(reply, "ERR not in allowlist"); return true; }
+          if (!c.cache_allow.remove(tid)) { strcpy(reply, "ERR not in allowlist"); return true; }
           c.config_dirty = true;
-          if (c.seeder_active) c.superseeder.refreshSource();
+          if (c.cache_active) c.cache_seeder.refreshSource();
           strcpy(reply, "OK removed (saved)");
         }
       } else {
-        strcpy(reply, "ERR usage: ota seed allow [list|add <env|hex>|rm <env|hex>|clear|reset]");
+        strcpy(reply, "ERR usage: ota cache allow [list|add <env|hex>|rm <env|hex>|clear|reset]");
       }
       return true;
     }
-    if (!c.seeder_active) {
-      snprintf(reply, 160, "ERR %s superseeder not active (mount failed at boot?)", OTA_SEEDER_MEDIA);
+    if (!c.cache_active) {
+      snprintf(reply, 160, "ERR %s cache not active (mount failed at boot?)", OTA_SEEDER_MEDIA);
       return true;
     }
     OtaManager::FetchState fs = c.manager.fetchState();
-    const char* pol = c.seeder_allow.allowAll() ? "all"
-                    : (c.seeder_allow.count() == 0 ? "none" : "filter");
-    if (c.superseeder.capturing() && fs != OtaManager::IDLE) {
+    const char* pol = c.cache_allow.allowAll() ? "all"
+                    : (c.cache_allow.count() == 0 ? "none" : "filter");
+    if (c.cache_seeder.capturing() && fs != OtaManager::IDLE) {
       char midhx[9]; mesh::Utils::toHex(midhx, c.manager.fetchManifestId(), 4);
       unsigned have = (unsigned)c.manager.blocksHave(), tot = (unsigned)c.manager.blocksTotal();
       unsigned pct = tot ? (unsigned)((uint64_t)have * 100 / tot) : 0;
-      snprintf(reply, 160, "%s superseeder | deltas/%s | files=%u %uK | capture %s %u/%u (%u%%) id=%s",
+      snprintf(reply, 160, "%s cache | deltas/%s | files=%u %uK | capture %s %u/%u (%u%%) id=%s",
                OTA_SEEDER_MEDIA, pol,
-               (unsigned)c.superseeder.fileCount(),
-               (unsigned)(c.superseeder.totalBytes() / 1024),
+               (unsigned)c.cache_seeder.fileCount(),
+               (unsigned)(c.cache_seeder.totalBytes() / 1024),
                state_short(fs), have, tot, pct, midhx);
     } else {
-      snprintf(reply, 160, "%s superseeder | deltas/%s | mounted | files=%u %uK | capture idle",
+      snprintf(reply, 160, "%s cache | deltas/%s | mounted | files=%u %uK | capture idle",
                OTA_SEEDER_MEDIA, pol,
-               (unsigned)c.superseeder.fileCount(),
-               (unsigned)(c.superseeder.totalBytes() / 1024));
+               (unsigned)c.cache_seeder.fileCount(),
+               (unsigned)(c.cache_seeder.totalBytes() / 1024));
     }
 #else
-    strcpy(reply, "ERR not built with OTA_SUPERSEEDER");
+    strcpy(reply, "ERR not built with OTA_SEEDER_CACHE");
 #endif
 
   } else if (is_cmd(a, "folder|fold", &rest)) {
@@ -556,7 +556,7 @@ static bool handle_dev(const char* d, char* reply, OtaContext& c) {
       sprintf(reply, "OK serving self fw mid=%s (%u B, flash-backed) — peers can pull it", midhx, (unsigned)img);
     } else strcpy(reply, "ERR serve self (no EndF / image too big / OOM)");
 #else
-    strcpy(reply, "ERR self-serve disabled (removed v0.3.0; use folder/superseeder deltas)");
+    strcpy(reply, "ERR self-serve disabled (removed v0.3.0; use folder/cache deltas)");
 #endif
   } else if (strncmp(d, "serve", 5) == 0) {
     c.serving = c.manager.serve(c.serve_buf, c.serve_expected);

@@ -81,10 +81,10 @@ public:
   uint8_t ota_max_hops = 3;           // OTA flood reach in hops; 0=direct only
   uint8_t hop_retry = 0;              // extra direct-path TX if next hop hop ACK missing (0=off)
   uint16_t hop_retry_ms = 1500;       // listen TTL before retry (ms)
-  // Superseeder target filter (persisted). filter=0 → admit all (default); filter=1 → only listed.
-  uint8_t ota_seeder_allow_count = 0;
-  uint8_t ota_seeder_allow_filter = 0;  // 0=all, 1=filter (empty filter admits nothing)
-  uint32_t ota_seeder_allow[8];         // target_ids (== MAX_OTA_SEEDER_ALLOW)
+  // OTA cache target filter (persisted). filter=0 → admit all (default); filter=1 → only listed.
+  uint8_t ota_cache_allow_count = 0;
+  uint8_t ota_cache_allow_filter = 0;  // 0=all, 1=filter (empty filter admits nothing)
+  uint32_t ota_cache_allow[8];         // target_ids (== MAX_OTA_SEEDER_ALLOW)
 
 private:
   class RadioPrefs : public ConfigSerializer {
@@ -184,9 +184,9 @@ private:
       def("max_hops", _parent->ota_max_hops);
       def("hop_retry", _parent->hop_retry);
       def("hop_retry_ms", _parent->hop_retry_ms);
-      def("seeder_cnt", _parent->ota_seeder_allow_count);
-      def("seeder_filter", _parent->ota_seeder_allow_filter);
-      def("seeder_allow", _parent->ota_seeder_allow, sizeof(_parent->ota_seeder_allow));
+      def("seeder_cnt", _parent->ota_cache_allow_count);
+      def("seeder_filter", _parent->ota_cache_allow_filter);
+      def("cache_allow", _parent->ota_cache_allow, sizeof(_parent->ota_cache_allow));
     }
   public:
     OtaPrefs(NodePrefs* parent) : _parent(parent) { }

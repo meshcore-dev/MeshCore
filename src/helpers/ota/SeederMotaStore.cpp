@@ -1,6 +1,6 @@
 #include "SeederMotaStore.h"
 
-#if defined(OTA_SUPERSEEDER)
+#if defined(OTA_SEEDER_CACHE)
 
 #include "OtaByteIO.h"
 #include "OtaFormat.h"

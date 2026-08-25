@@ -1,6 +1,6 @@
 #include "MotaSourceSeeder.h"
 
-#if defined(OTA_SUPERSEEDER)
+#if defined(OTA_SEEDER_STORAGE)
 
 #include "MotaContainer.h"
 #include "OtaByteIO.h"
@@ -45,7 +45,7 @@ void MotaSourceSeeder::refresh() {
   for (uint8_t i = 0; i < n && _count < MAX_FILES; i++) {
     MotaDesc d;
     if (!describePath(paths[i], d)) continue;
-    if (!ota_seeder_admit(allow, d.target_id, d.codec_id, d.flags)) continue;
+    if (!ota_cache_admit(allow, d.target_id, d.codec_id, d.flags)) continue;
     memcpy(_paths[_count], paths[i], sizeof _paths[_count]);
     _total_bytes += sizes[i] ? sizes[i] : d.total_size;
     _count++;

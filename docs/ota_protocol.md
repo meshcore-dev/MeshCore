@@ -8,6 +8,11 @@ where a section names a source file, that file is the authoritative reference fo
 > **Just want to update your node?** See the plain-language [OTA user guide](ota_user_guide.md) — this
 > document is the technical/wire specification.
 
+**Backward compatibility (since v0.1.0 field fleet):** the LoRa OTA wire format and on-air catalog row layout are
+**not greenfield**. OG devices remain in the field. New fields or row sizes require a coordinated
+protocol version and fleet rollout. v0.2.0 ships target-only catalog ingest with no wire change;
+planned v0.3.0 OTA work is tracked in `docs/planned/v0.3.0.md`.
+
 **Design goals**
 
 - Distribute firmware over LoRa as a **self-verifying, resumable, BitTorrent-style block transfer** that
@@ -340,12 +345,16 @@ OTA_HAVE   (flood):  seeder_id[4]  set_digest[4]  frag_idx(1) frag_total(1) n_ro
   HaveRow (16 bytes, OTA_HAVE_ROW_BYTES): mid[4] target_id(4) fw_version(4) codec_id(1) flags(1) have_count(2)
 ```
 
+Normal nodes (`ota ls`, jittered beacon queries, auto-fetch discovery) send **`filter_target = own target_id`**
+(or a manual `ota want` target) so sources filter `OTA_HAVE` rows before the 12-slot serve cap.
+**Promiscuous** nodes (OTA cache) send `filter_target = 0`. Unknown target (`0`) falls back to unfiltered.
+
 `have_count` is how many blocks the advertiser currently holds (`== block_count` for a full copy, less for a
 partial/in-progress source). It lets a fetcher see, per mid, **how many peers have it and at what progress**
 — so it knows the firmware is on multiple peers and can trust the swarm (§8.6) rather than depend on one.
 
 A node interested in a source's offering schedules a QUERY; the source replies with its full catalog as
-`OTA_HAVE` rows (fragmented if they exceed one packet — up to 12 rows per fragment). The heavy manifest is
+`OTA_HAVE` rows (fragmented if they exceed one packet — up to 10 rows per fragment). The heavy manifest is
 fetched per-mid only on commit (§8.3).
 
 ### 8.2 Anti-storm (mandatory at mesh scale)
@@ -353,8 +362,9 @@ fetched per-mid only on commit (§8.3).
 If 50 neighbours all queried a new beacon at once, the mesh would collapse. Mitigations (gossip/mDNS
 pattern), all in `OtaManager`:
 
-- **`OTA_HAVE` is flooded and digest-tagged.** EVERY node that overhears it caches the rows **passively**
-  (keyed by `{seeder, set_digest}`) — no query of its own needed.
+- **`OTA_HAVE` is flooded and digest-tagged.** Nodes that overhear it cache **filtered** catalog rows
+  (own/`ota want` target only; promiscuous cache nodes cache everything). Storm suppression still marks
+  `{seeder, set_digest}` from any HAVE.
 - **Jittered query:** a peer needing a catalog schedules its `OTA_QUERY` after a random delay
   `OTA_QUERY_MIN_MS (300) + rand(OTA_QUERY_SPREAD_MS (4000))`, derived from `id ⊕ digest ⊕ self`.
 - **Overhear suppression:** during the jitter window, overhearing *another* QUERY **or** a HAVE for the same
@@ -429,7 +439,7 @@ OTA_LEAVES:        manifest_id[4]  frag_idx(1)  frag_total(1)  bytes[]      # up
 |---|---|---|
 | `OTA_DATA` | 9 B (type+mid4+idx2+off2) | `OTA_FRAG_DATA = 160` → 7 frags per 1 KB block |
 | `OTA_MANIFEST` | 7 B | `OTA_MF_FRAG = 176` → signed manifest ≈ 2 frags |
-| `OTA_HAVE` | 12 B | 12 rows × 14 B per fragment |
+| `OTA_HAVE` | 12 B | 10 rows × 16 B per fragment |
 | `OTA_PROOF` | 8 B | up to ~44 sibling digests (≫ any real tree) |
 
 A served mota supports up to `OTA_MAX_BLOCK/4` leaves in the default 4 KB proof scratch (≤1024 blocks ≈ 1 MB
@@ -502,7 +512,7 @@ All serving stays reactive and lowest-priority, so seeding never competes with r
 
 ## 10. Multi-mota serve & the external "folder" relay
 
-A node serves a **set** of mOTAs: captured deltas (superseeder), an external folder relay, and motas re-seeded
+A node serves a **set** of mOTAs: captured deltas (cache seeder), an external folder relay, and motas re-seeded
 after a completed fetch. Flash-backed self-serve of the running firmware (`view0` / `ota_serve_self`) is
 **disabled v0.2.0** and scheduled for removal **v0.3.0**. To peers it simply "has N mOTAs"; the relay is
 trustless (fetchers verify everything). The serve side (`OtaManager`) keeps a lightweight registry of what
@@ -597,7 +607,7 @@ ota ls | neighbors | nbrs | updates | n   discovered updates (queries sources; r
 ota get | pull | download <#|mid8> fetch a chosen mOTA (manual; works regardless of autofetch)
 ota install | apply | applydelta   verify + approve + (ESP32) apply / (nRF52) reboot-to-bootloader
 ota cancel | drop | stop           drop the current fetch session (frees the slot; stops re-seeding)
-ota announce | adv                 send a discovery beacon now (folder / superseeder / captured motas; self-serve disabled v0.2.0, remove v0.3.0)
+ota announce | adv                 send a discovery beacon now (folder / cache / captured motas; self-serve disabled v0.2.0, remove v0.3.0)
 ota self | id                      print this firmware's EndF (body/image size, base_hash)
 ota folder | fold [on|off]         attach/detach an external .mota folder (host daemon) ; bare = list
 ota config | cfg | set [autofetch|autoinstall|checkpoint] ...   show/set persisted policy

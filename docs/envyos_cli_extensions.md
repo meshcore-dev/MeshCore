@@ -207,7 +207,7 @@ Documented in [CLI commands § Routing](./cli_commands.md#view-or-change-next-ho
 
 ## Bench debug builds
 
-EnvyOS `-debug` repeater/superseeder twins (e.g. `wismesh-tag-repeater-debug`) differ from field slugs:
+EnvyOS `-debug` repeater/cache twins (e.g. `wismesh-tag-repeater-debug`) differ from field slugs:
 
 - `ADMIN_DEBUG` / `OTA_DEBUG` enabled at boot
 - `log tail` available without extra flags

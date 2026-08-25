@@ -1,6 +1,6 @@
 #pragma once
 
-#if defined(OTA_SUPERSEEDER)
+#if defined(OTA_SEEDER_STORAGE)
 
 #include <stddef.h>
 #include <stdint.h>
@@ -9,18 +9,18 @@
 #define OTA_SEEDER_DIR "/motas"
 #endif
 
-#if defined(OTA_SUPERSEEDER_QSPI)
+#if defined(OTA_SEEDER_STORAGE_QSPI)
 #define OTA_SEEDER_MEDIA "NOR"
-#elif defined(OTA_SUPERSEEDER_SD)
+#elif defined(OTA_SEEDER_STORAGE_SD)
 #define OTA_SEEDER_MEDIA "SD"
 #else
-#error "OTA_SUPERSEEDER requires OTA_SUPERSEEDER_SD or OTA_SUPERSEEDER_QSPI"
+#error "OTA_SEEDER_STORAGE requires OTA_SEEDER_STORAGE_SD or OTA_SEEDER_STORAGE_QSPI"
 #endif
 
 namespace mesh {
 namespace ota {
 
-// External FS mount + path helpers for the superseeder library (SD or QSPI LittleFS).
+// Bulk storage mount + path helpers (SD card or onboard NOR/QSPI LittleFS).
 // File I/O is open-per-call so QSPI (Adafruit LittleFS single-open) can serve while capturing.
 class SeederFs {
 public:

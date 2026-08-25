@@ -6,6 +6,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions match
 
 ## [Unreleased]
 
+### Changed
+
+- OTA catalog queries (`ota ls`, jittered beacon fetch) send `filter_target = own target_id` so sources filter `OTA_HAVE` before the 12-slot serve cap.
+- OTA listener catalog (`ota ls` rows) ingests only rows for the node's target (or `ota want` target). No `OTA_HAVE` wire change (delta-base filtering deferred to v0.3.0).
+- OTA folder relay (`OTA_FOLDER_SERIAL`) bench-only on `RAK_WisMesh_Tag_repeater`; `MotaSourceSerial` excluded from field slim builds.
+- Build identity (`FIRMWARE_VERSION`, build date, MOTA target id) codegen into `FirmwareIdentity.generated.cpp` so release stamps no longer invalidate every translation unit via global `-D` flags.
+
 ### Added
 
 - Bench debug twins of each shipped target (`<slug>-debug`): log tail, OTA, and admin serial on boot; separate MOTA target id.
@@ -32,7 +39,7 @@ Targets EnvyOS distro **v0.2.0** (in progress — not yet on [GitHub Releases](h
 
 ### Added
 
-- SenseCAP P1-Pro NOR mini-superseeder (`sensecap-p1pro-superseeder`).
+- SenseCAP P1-Pro slim repeater (`sensecap-p1pro-repeater-slim`).
 - nRF52 repeater hardware WDT (30 s default, prefs + CLI); companions excluded.
 - `ver` stamp includes envycore SHA and UTC build date.
 

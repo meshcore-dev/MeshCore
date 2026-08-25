@@ -250,7 +250,7 @@ public:
   // when crossing repeaters. Default OTA_HOP_LIMIT_DEFAULT. Set via `ota config hops`.
   void set_max_hops(uint8_t h) { _max_hops = h; }
   uint8_t max_hops() const { return _max_hops; }
-  // Promiscuous catalog discovery: query every heard beacon (superseeder SD cache).
+  // Promiscuous catalog discovery: query every heard beacon (cache_seeder SD cache).
   void set_promiscuous(bool p) { _promiscuous = p; }
   bool promiscuous() const { return _promiscuous; }
   // Capture-to-serve: accept any codec when staging for re-seed (not self-apply).
@@ -301,6 +301,7 @@ private:
   void handleAdv(const uint8_t* m, uint16_t n);     // beacon -> sources table (+ query if interested)
   void handleQuery(const uint8_t* m, uint16_t n);   // serve: reply OTA_HAVE catalog
   void handleHave(const uint8_t* m, uint16_t n);    // peer: catalog rows (+ startFetch if a row matches)
+  bool catalogIngestOk(uint32_t target) const;
   void handleGetManifest(const uint8_t* m, uint16_t n);
   void handleManifest(const uint8_t* m, uint16_t n);
   void handleGetLeaves(const uint8_t* m, uint16_t n);    // serve: send the requested leaf fragments
@@ -333,6 +334,7 @@ private:
   void noteOverheardData(const uint8_t* m, uint16_t n);   // remember overheard DATA (serve de-dup)
   void sendQuery(const uint8_t* seeder, const uint8_t* digest, uint32_t filter_target);  // ask a source for its catalog
   void scheduleQuery(const uint8_t* seeder, const uint8_t* digest);   // jittered + suppressible
+  uint32_t catalogQueryFilter() const;   // OTA_QUERY filter_target: 0 = all; else own/wanted target
   void reDiscover() { for (uint8_t i = 0; i < _n_src; i++) _sources[i].have_catalog = false; _pq_active = false; }
   void setDigest(uint8_t out[4]) const;                   // sha2-256:4 over our served mids
   bool blockPresent(uint32_t i) const;

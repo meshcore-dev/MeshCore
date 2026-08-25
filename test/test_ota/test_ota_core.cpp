@@ -755,7 +755,8 @@ TEST(OtaTransfer, ClientRejectsWrongTarget) {
   client.set_autofetch(OtaManager::AUTOFETCH_ANY);   // tests exercise fetch-on-advert; policy default is OFF
   ASSERT_TRUE(server.serve(SIM_MOTA, SIM_MOTA_LEN));
   server.announce();
-  pump(client);   // catalogs the row but wantRow rejects it (wrong target) -> never fetches
+  pump(client);   // wrong-target row is not catalogued; wantRow rejects -> never fetches
+  EXPECT_EQ(client.catalogCount(), 0u);
   EXPECT_EQ(client.fetchState(), OtaManager::IDLE);   // never started
 }
 
@@ -772,9 +773,10 @@ TEST(OtaTransfer, ManualCrossTargetFetch) {
   client.set_autofetch(OtaManager::AUTOFETCH_ANY);   // tests exercise fetch-on-advert; policy default is OFF
   ASSERT_TRUE(server.serve(SIM_MOTA, SIM_MOTA_LEN));
 
-  // without the override: catalogs the row but won't fetch (wrong target)
+  // without the override: row is not catalogued (wrong target) and won't fetch
   server.announce();
   pump(client);
+  EXPECT_EQ(client.catalogCount(), 0u);
   EXPECT_EQ(client.fetchState(), OtaManager::IDLE);
 
   // with want(): deliberately fetch the different-target firmware to completion
@@ -844,14 +846,69 @@ TEST(OtaCatalog, DistinctSeederCountAndHaveCount) {
   OtaManager m; SendTo none{&m}; m.begin(SIM_TARGET_ID, sim_send, &none);
   uint8_t b[64]; uint8_t mid[4]={9,9,9,9};
   uint8_t s1[4]={1,0,0,0}, s2[4]={2,0,0,0};
-  m.on_message(b, make_have_row(b, sizeof b, mid, SIM_TARGET_ID, 0x01020300, CODEC_FULL, 0, s1, 5));
-  m.on_message(b, make_have_row(b, sizeof b, mid, SIM_TARGET_ID, 0x01020300, CODEC_FULL, 0, s1, 7));  // same seeder
+  m.on_message(b, make_have_row(b, sizeof b, mid, SIM_TARGET_ID, 0x01020300, CODEC_FULL, MFLAG_FULL, s1, 5));
+  m.on_message(b, make_have_row(b, sizeof b, mid, SIM_TARGET_ID, 0x01020300, CODEC_FULL, MFLAG_FULL, s1, 7));  // same seeder
   ASSERT_EQ(m.catalogCount(), 1);
   EXPECT_EQ(m.catalogRow(0)->n_seeders, 1);          // counted once despite two HAVEs
   EXPECT_EQ(m.catalogRow(0)->have_max, 7u);          // max progress seen
-  m.on_message(b, make_have_row(b, sizeof b, mid, SIM_TARGET_ID, 0x01020300, CODEC_FULL, 0, s2, 3));  // new seeder
+  m.on_message(b, make_have_row(b, sizeof b, mid, SIM_TARGET_ID, 0x01020300, CODEC_FULL, MFLAG_FULL, s2, 3));  // new seeder
   EXPECT_EQ(m.catalogRow(0)->n_seeders, 2);
   EXPECT_EQ(m.catalogRow(0)->have_max, 7u);          // still the max, not overwritten by the lower one
+  g_q.clear();
+}
+
+// Listener catalog keeps only rows for our target (or `ota want` target); cache seeders stay promiscuous.
+TEST(OtaCatalog, IngestFiltersWrongTarget) {
+  OtaManager m; SendTo none{&m}; m.begin(SIM_TARGET_ID, sim_send, &none);
+  uint8_t b[64]; uint8_t mid[4] = {1, 2, 3, 4};
+  uint8_t s1[4] = {9, 0, 0, 0};
+
+  m.on_message(b, make_have_row(b, sizeof b, mid, SIM_TARGET_ID ^ 1u, 0, CODEC_FULL, MFLAG_FULL, s1, 5));
+  EXPECT_EQ(m.catalogCount(), 0u);
+
+  m.on_message(b, make_have_row(b, sizeof b, mid, SIM_TARGET_ID, 0, CODEC_FULL, MFLAG_FULL, s1, 5));
+  EXPECT_EQ(m.catalogCount(), 1u);
+
+  OtaManager prom; SendTo none2{&prom}; prom.begin(SIM_TARGET_ID, sim_send, &none2);
+  prom.set_promiscuous(true);
+  uint8_t mid3[4] = {3, 3, 3, 3};
+  prom.on_message(b, make_have_row(b, sizeof b, mid3, SIM_TARGET_ID ^ 2u, 0, CODEC_FULL, MFLAG_FULL, s1, 1));
+  EXPECT_EQ(prom.catalogCount(), 1u);
+  g_q.clear();
+}
+
+// Catalog queries from normal nodes include filter_target so sources trim OTA_HAVE to the asker's target.
+TEST(OtaCatalog, QueryAllSendsOwnTargetFilter) {
+  g_q.clear();
+  OtaManager client;
+  SendTo sink{&client};
+  client.begin(SIM_TARGET_ID, sim_send, &sink);
+  uint8_t b[16];
+  AdvMsg adv{{0x01, 0x02, 0x03, 0x04}, 2, {0xAA, 0xBB, 0xCC, 0xDD}};
+  ASSERT_GT(encode_adv(b, sizeof b, adv), 0);
+  client.on_message(b, encode_adv(b, sizeof b, adv));
+  client.queryAll();
+  ASSERT_EQ(g_q.size(), 1u);
+  QueryMsg q;
+  ASSERT_TRUE(decode_query(g_q[0].bytes.data(), (uint16_t)g_q[0].bytes.size(), q));
+  EXPECT_EQ(q.filter_target, SIM_TARGET_ID);
+  g_q.clear();
+}
+
+TEST(OtaCatalog, PromiscuousQueryUnfiltered) {
+  g_q.clear();
+  OtaManager client;
+  SendTo sink{&client};
+  client.begin(SIM_TARGET_ID, sim_send, &sink);
+  client.set_promiscuous(true);
+  uint8_t b[16];
+  AdvMsg adv{{0x01, 0x02, 0x03, 0x04}, 2, {0xAA, 0xBB, 0xCC, 0xDD}};
+  client.on_message(b, encode_adv(b, sizeof b, adv));
+  client.queryAll();
+  ASSERT_EQ(g_q.size(), 1u);
+  QueryMsg q;
+  ASSERT_TRUE(decode_query(g_q[0].bytes.data(), (uint16_t)g_q[0].bytes.size(), q));
+  EXPECT_EQ(q.filter_target, 0u);
   g_q.clear();
 }
 
