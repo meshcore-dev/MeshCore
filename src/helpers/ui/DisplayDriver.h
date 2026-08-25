@@ -97,7 +97,11 @@ public:
     int str_len = strlen(temp_str);
     
     while (str_len > 0 && getTextWidth(temp_str) > max_width - ellipsis_width) {
-      temp_str[--str_len] = 0;
+      str_len--;
+      // step back over UTF-8 continuation bytes, so a multi-byte character is
+      // never cut in half (drivers that render UTF-8 directly would drop it)
+      while (str_len > 0 && ((unsigned char)temp_str[str_len] & 0xC0) == 0x80) str_len--;
+      temp_str[str_len] = 0;
     }
     strcat(temp_str, ellipsis);
     
