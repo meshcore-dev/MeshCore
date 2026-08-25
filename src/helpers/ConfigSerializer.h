@@ -67,6 +67,7 @@ public:
   bool saveSerial(Stream& s);
 };
 
+#ifndef MESHCORE_NATIVE_TEST
 #include "IdentityStore.h"
 
 typedef bool (*FileWriteFn)(File& file, void* ctx);
@@ -78,3 +79,4 @@ bool writeFileAtomic(FILESYSTEM* fs, const char* final_path, const char* tmp_pat
 // Write JSON to tmp_path, then lfs_rename over final_path. Keeps the old file on failed writes.
 bool saveConfigJsonAtomic(FILESYSTEM* fs, ConfigSerializer& obj, const char* final_path, const char* tmp_path,
                           char* err_stage = nullptr, size_t err_stage_len = 0);
+#endif
