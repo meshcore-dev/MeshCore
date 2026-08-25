@@ -297,12 +297,16 @@ bool handle_ota_command(const char* command, char* reply, mesh::MainBoard& board
     c.fetch_store.clear(); c.serving = false; c.serve_expected = 0; c.session_started_ms = 0;
     snprintf(reply, 160, "OK dropped session (was %c mid=%s); slot free for a new pull", fstate_char(fs), midhx);
 
-  // ---- broadcast our tiny beacon so peers discover us. If not already serving, set up flash-backed
-  //      self-serve first (so we're a real, fetchable source of our own running firmware). ----
+  // ---- broadcast beacon so peers discover our served motas (folder / superseeder / post-fetch re-seed).
   } else if (is_cmd(a, "announce|adv", &rest)) {
+#if OTA_SELF_SERVE
     if (!c.serving) c.serving = ota_serve_self(c, 0);
+#endif
     c.manager.announce();
-    sprintf(reply, "OK beacon sent (serving=%s)", c.serving ? "self fw" : "nothing");
+    if (c.serving || c.manager.servedCount() > 0)
+      snprintf(reply, 160, "OK beacon sent (serving %u mota(s))", (unsigned)c.manager.servedCount());
+    else
+      strcpy(reply, "OK beacon sent (nothing to serve — folder/superseeder/captured delta)");
 
   // ---- running firmware identity (compare against a delta's base_hash) ----
   } else if (is_cmd(a, "self|id", &rest)) {
@@ -435,7 +439,9 @@ bool handle_ota_command(const char* command, char* reply, mesh::MainBoard& board
     const char* p = rest;
     if (strncmp(p, "on", 2) == 0) {
 #if defined(OTA_FOLDER_SERIAL)
-      if (!c.serving) c.serving = ota_serve_self(c, 0);   // keep serving our own fw alongside the folder
+#if OTA_SELF_SERVE
+      if (!c.serving) c.serving = ota_serve_self(c, 0);
+#endif
       char m2[120]; c.attach_folder(m2, sizeof(m2)); c.manager.announce();
       strncpy(reply, m2, 159); reply[159] = 0;
 #else
@@ -443,7 +449,7 @@ bool handle_ota_command(const char* command, char* reply, mesh::MainBoard& board
 #endif
     } else if (strncmp(p, "off", 3) == 0) {
       c.detach_folder(); c.manager.announce();
-      strcpy(reply, "OK folder detached (still serving own fw)");
+      strcpy(reply, "OK folder detached");
     } else {                                              // status + list served entries (* = our own fw)
       int n = snprintf(reply, 159, "folder=%s serving=%u:", c.folder_active ? "on" : "off",
                        (unsigned)c.manager.servedCount());
@@ -540,7 +546,8 @@ static bool handle_dev(const char* d, char* reply, OtaContext& c) {
     else if (off + blen > c.serve_expected) strcpy(reply, "ERR off>size (stage first)");
     else { memcpy(c.serve_buf + off, tmp, blen); sprintf(reply, "OK %d@%u", blen, (unsigned)off); }
 
-  } else if (strncmp(d, "serve self", 10) == 0) {     // host our own running firmware, served from flash
+  } else if (strncmp(d, "serve self", 10) == 0) {
+#if OTA_SELF_SERVE
     if (ota_serve_self(c, 0)) {
       c.serving = true;
       char midhx[9]; mesh::Utils::toHex(midhx, c.serve_self_manifest + 20, 4);
@@ -548,6 +555,9 @@ static bool handle_dev(const char* d, char* reply, OtaContext& c) {
                    | ((uint32_t)c.serve_self_manifest[13] << 16) | ((uint32_t)c.serve_self_manifest[14] << 24);
       sprintf(reply, "OK serving self fw mid=%s (%u B, flash-backed) — peers can pull it", midhx, (unsigned)img);
     } else strcpy(reply, "ERR serve self (no EndF / image too big / OOM)");
+#else
+    strcpy(reply, "ERR self-serve disabled (removed v0.3.0; use folder/superseeder deltas)");
+#endif
   } else if (strncmp(d, "serve", 5) == 0) {
     c.serving = c.manager.serve(c.serve_buf, c.serve_expected);
     if (!c.serving) { strcpy(reply, "ERR serve (bad .mota)"); return true; }

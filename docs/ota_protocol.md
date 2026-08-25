@@ -502,11 +502,12 @@ All serving stays reactive and lowest-priority, so seeding never competes with r
 
 ## 10. Multi-mota serve & the external "folder" relay
 
-A node serves a **set** of mOTAs: its own firmware plus, optionally, an external folder of `.mota` files it
-relays without holding them in flash. To peers it simply "has N mOTAs"; the relay is trustless (fetchers
-verify everything). The serve side (`OtaManager`) keeps a lightweight registry of what it advertises and two
-resident "views": `view0` (its own firmware) and one on-demand view loaded from a source when a request
-targets an external mota. Every fetch message carries `manifest_id`, so dispatch is a registry lookup.
+A node serves a **set** of mOTAs: captured deltas (superseeder), an external folder relay, and motas re-seeded
+after a completed fetch. Flash-backed self-serve of the running firmware (`view0` / `ota_serve_self`) is
+**disabled v0.2.0** and scheduled for removal **v0.3.0**. To peers it simply "has N mOTAs"; the relay is
+trustless (fetchers verify everything). The serve side (`OtaManager`) keeps a lightweight registry of what
+it advertises and on-demand views loaded from a source when a request targets an external mota. Every fetch
+message carries `manifest_id`, so dispatch is a registry lookup.
 
 The same host-folder link is also a **pull destination** (the reverse direction): `ota pull <#> folder`
 fetches a `.mota` off the mesh and streams it onto the host as `<mid>.mota` via the seeder STORAGE ops
@@ -596,7 +597,7 @@ ota ls | neighbors | nbrs | updates | n   discovered updates (queries sources; r
 ota get | pull | download <#|mid8> fetch a chosen mOTA (manual; works regardless of autofetch)
 ota install | apply | applydelta   verify + approve + (ESP32) apply / (nRF52) reboot-to-bootloader
 ota cancel | drop | stop           drop the current fetch session (frees the slot; stops re-seeding)
-ota announce | adv                 serve self + send a beacon now
+ota announce | adv                 send a discovery beacon now (folder / superseeder / captured motas; self-serve disabled v0.2.0, remove v0.3.0)
 ota self | id                      print this firmware's EndF (body/image size, base_hash)
 ota folder | fold [on|off]         attach/detach an external .mota folder (host daemon) ; bare = list
 ota config | cfg | set [autofetch|autoinstall|checkpoint] ...   show/set persisted policy

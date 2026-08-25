@@ -126,8 +126,8 @@ build_firmware() {
   # get git commit sha
   COMMIT_HASH=$(git rev-parse --short HEAD)
 
-  # set firmware build date
-  FIRMWARE_BUILD_DATE=$(date '+%d-%b-%Y')
+  # set firmware build date (UTC stamp; matches envyos scripts/version.sh)
+  FIRMWARE_BUILD_DATE="$(LC_TIME=C date -u '+%d %b %Y' | sed 's/^0//') $(LC_TIME=C date -u '+%H:%M UTC')"
 
   # get FIRMWARE_VERSION, which should be provided by the environment
   if [ -z "$FIRMWARE_VERSION" ]; then

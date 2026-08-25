@@ -13,6 +13,40 @@ void merkle_combine(uint8_t out[4], const uint8_t* left, const uint8_t* right) {
   sha256_trunc2(out, 4, left, 4, right, 4);
 }
 
+void merkle_root_acc_init(MerkleRootAcc& acc) {
+  memset(acc.valid, 0, sizeof(acc.valid));
+}
+
+void merkle_root_acc_push(MerkleRootAcc& acc, const uint8_t leaf[4]) {
+  uint8_t cur[4];
+  memcpy(cur, leaf, 4);
+  uint32_t level = 0;
+  while (acc.valid[level]) {
+    merkle_combine(cur, acc.peaks[level], cur);
+    acc.valid[level] = false;
+    level++;
+  }
+  memcpy(acc.peaks[level], cur, 4);
+  acc.valid[level] = true;
+}
+
+static void merkle_root_bag(uint8_t out[4], const MerkleRootAcc& acc) {
+  int level = 0;
+  while (level < 32 && !acc.valid[level]) level++;
+  uint8_t acc_out[4];
+  memcpy(acc_out, acc.peaks[level], 4);
+  for (int l = level + 1; l < 32; l++) {
+    if (acc.valid[l]) merkle_combine(acc_out, acc.peaks[l], acc_out);
+  }
+  memcpy(out, acc_out, 4);
+}
+
+void merkle_root_acc_finish(uint8_t out[4], const MerkleRootAcc& acc, uint32_t count) {
+  if (count == 0) { memset(out, 0, 4); return; }
+  if (count == 1) { memcpy(out, acc.peaks[0], 4); return; }
+  merkle_root_bag(out, acc);
+}
+
 // Root via binary-counter / Merkle-Mountain-Range with right-to-left bagging.
 // Equivalent to the level-by-level "pair adjacent, promote lone last (left||right)" reduction
 // (verified against the reference implementation across many counts in the native tests).
@@ -20,31 +54,12 @@ void merkle_root(uint8_t out[4], const uint8_t* leaves, uint32_t count) {
   if (count == 0) { memset(out, 0, 4); return; }
   if (count == 1) { memcpy(out, leaves, 4); return; }
 
-  uint8_t peaks[32][4];
-  bool valid[32] = { false };
-
+  MerkleRootAcc acc;
+  merkle_root_acc_init(acc);
   for (uint32_t i = 0; i < count; i++) {
-    uint8_t cur[4];
-    memcpy(cur, leaves + (size_t)i * 4, 4);
-    uint32_t level = 0;
-    while (valid[level]) {                 // carry: combine with the pending peak at this level
-      merkle_combine(cur, peaks[level], cur);   // peak is earlier (left), cur is right
-      valid[level] = false;
-      level++;
-    }
-    memcpy(peaks[level], cur, 4);
-    valid[level] = true;
+    merkle_root_acc_push(acc, leaves + (size_t)i * 4);
   }
-
-  // bag peaks right-to-left: acc starts at the lowest set level (rightmost peak)
-  int level = 0;
-  while (level < 32 && !valid[level]) level++;
-  uint8_t acc[4];
-  memcpy(acc, peaks[level], 4);
-  for (int l = level + 1; l < 32; l++) {
-    if (valid[l]) merkle_combine(acc, peaks[l], acc);  // higher peak is left, acc is right
-  }
-  memcpy(out, acc, 4);
+  merkle_root_acc_finish(out, acc, count);
 }
 
 bool merkle_verify(const uint8_t* block, uint32_t block_len, uint32_t index,

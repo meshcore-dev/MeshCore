@@ -18,11 +18,12 @@ bool ota_self_firmware(SelfFwInfo& out);
 // esp_partition_read; nRF52: memory-mapped app region). false on unsupported platforms.
 bool ota_self_read(uint32_t off, uint8_t* buf, uint32_t len);
 
-// Compute (once) + cache our running firmware's manifest + merkle leaves in `c`, then serve it from
-// flash as a full `.mota` (payload read on demand per block; only metadata held in RAM). Returns false
-// if no EndF / image too big / OOM. Device platforms only.
+// Flash-backed full-image self-serve (gated by OTA_SELF_SERVE; disabled v0.2.0, remove v0.3.0).
 struct OtaContext;
-bool ota_serve_self(OtaContext& c, uint32_t fw_version);   // target = this node's own (c.manager.target())
+bool ota_serve_self_begin(OtaContext& c, uint32_t fw_version);
+bool ota_serve_self_tick(OtaContext& c);
+bool ota_serve_self_building();
+bool ota_serve_self(OtaContext& c, uint32_t fw_version);
 
 } // namespace ota
 } // namespace mesh

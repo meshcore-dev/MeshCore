@@ -90,5 +90,11 @@ enum OtaMsgType : uint8_t {
 static const uint16_t OTA_DEFAULT_BLOCK_SIZE = 1024;
 static const uint8_t  OTA_DEFAULT_HOP_LIMIT  = 3;
 
+// Flash-backed full-image self-serve (`ota announce` → ota_serve_self). Disabled v0.2.0; delete v0.3.0.
+// Fleet path: delta superseeders + origin USB/motatool for rare full images. Override: -D OTA_SELF_SERVE=1.
+#ifndef OTA_SELF_SERVE
+#define OTA_SELF_SERVE 0
+#endif
+
 } // namespace ota
 } // namespace mesh

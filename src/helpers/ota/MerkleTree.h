@@ -21,6 +21,16 @@ void merkle_leaf(uint8_t out[4], const uint8_t* block, uint32_t block_len);
 // parent of two 4-byte children
 void merkle_combine(uint8_t out[4], const uint8_t* left, const uint8_t* right);
 
+// Incremental root builder (MMR binary-counter peaks). Push one leaf at a time during a streaming
+// scan; finish once — avoids a second O(n) pass over cached leaves at serve-setup time.
+struct MerkleRootAcc {
+  uint8_t peaks[32][4];
+  bool valid[32];
+};
+void merkle_root_acc_init(MerkleRootAcc& acc);
+void merkle_root_acc_push(MerkleRootAcc& acc, const uint8_t leaf[4]);
+void merkle_root_acc_finish(uint8_t out[4], const MerkleRootAcc& acc, uint32_t count);
+
 // root over `count` contiguous 4-byte leaf digests (leaves[count*4]). count >= 1.
 void merkle_root(uint8_t out[4], const uint8_t* leaves, uint32_t count);
 
