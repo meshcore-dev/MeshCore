@@ -6,21 +6,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions match
 
 ## [Unreleased]
 
-### Changed
-
-- Build identity (`FIRMWARE_VERSION`, build date, MOTA target id) codegen into `FirmwareIdentity.generated.cpp` so release stamps no longer invalidate every translation unit via global `-D` flags.
-
 ### Added
 
 - Bench debug twins of each shipped target (`<slug>-debug`): log tail, OTA, and admin serial on boot; separate MOTA target id.
-- `doctor check|stat|ls|probe|dump|gc` for wedged InternalFS; `LFS_ERR_NOSPC` surfaces as `ERR no space left on device (try: doctor gc)`.
+- `doctor fs check|fix|format|dump|stat|ls|probe` and `doctor gc` for wedged InternalFS; `LFS_ERR_NOSPC` surfaces as `ERR no space left on device (try: doctor gc)`.
 - Atomic prefs save (`saveConfigJsonAtomic` / `writeFileAtomic`): prefs, ACL, regions, companion contacts/channels/blobs.
 - Fail-fast when InternalFS is critically full (avoids multi-second LittleFS alloc retries before NOSPC).
 - Docs: `docs/envyos_cli_extensions.md` (doctor, gc, prefs errors, debug twins).
 
 ### Changed
 
-- Flat `doctor` CLI (`check|stat|gc|ls|probe|dump`); removed `doctor fs` namespace and `fix`/`format` rebuild-from-RAM.
 - OTA self-serve disabled (`OTA_SELF_SERVE=0`); nodes no longer hash/serve their running firmware. **Remove self-serve code in v0.3.0.**
 - OTA self-serve merkle no longer starts at boot; repeaters stay quiet until `ota announce` / `ota folder on`.
 - Field `rak4631-repeater-slim` no longer enables log tail / OTA_DEBUG / ADMIN_DEBUG at boot (use the `-debug` twin).
