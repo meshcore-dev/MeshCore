@@ -147,11 +147,12 @@ build_firmware() {
   # and the device's MainBoard::getOtaTargetId()). Harmless when OTA is disabled.
   MOTA_TARGET_ID=$(python3 -c "import hashlib,sys;print('0x%08x'%int.from_bytes(hashlib.sha256(sys.argv[1].encode()).digest()[:4],'little'))" "$1" 2>/dev/null || echo "")
 
-  # add firmware version info to end of existing platformio build flags in environment vars
-  export PLATFORMIO_BUILD_FLAGS="${PLATFORMIO_BUILD_FLAGS} -DFIRMWARE_BUILD_DATE='\"${FIRMWARE_BUILD_DATE}\"' -DFIRMWARE_VERSION='\"${FIRMWARE_VERSION_STRING}\"'"
-  if [ -n "$MOTA_TARGET_ID" ]; then
-    export PLATFORMIO_BUILD_FLAGS="${PLATFORMIO_BUILD_FLAGS} -DMOTA_TARGET_ID=${MOTA_TARGET_ID}"
-  fi
+  python3 tools/mota/gen_firmware_identity.py \
+    --out src/helpers/FirmwareIdentity.generated.cpp \
+    --version "${FIRMWARE_VERSION}-${COMMIT_HASH}" \
+    --build-date "${FIRMWARE_BUILD_DATE}" \
+    --target-id "${MOTA_TARGET_ID}" \
+    --pio-env "$1"
 
   # disable debug flags if requested
   disable_debug_flags

@@ -42,10 +42,7 @@ uint8_t Mesh::getOtaHopLimit() const { return ota::ota_ctx().manager.max_hops();
 void Mesh::begin() {
   Dispatcher::begin();
 #if defined(ENABLE_OTA)
-  uint32_t my_tid = 0;
-  #ifdef MOTA_TARGET_ID
-    my_tid = (uint32_t)(MOTA_TARGET_ID);   // sha2-256:4(env name), injected by build.sh
-  #endif
+  uint32_t my_tid = firmware_mota_target_id();
   const char* my_hw = "";
   #ifdef MOTA_HW_ID
     my_hw = MOTA_HW_ID;                     // human-readable hardware tag (per-variant), for the apply hw gate

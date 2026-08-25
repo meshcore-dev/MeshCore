@@ -107,7 +107,7 @@ void setup() {
   the_mesh.begin(fs);
 
 #ifdef DISPLAY_CLASS
-  ui_task.begin(the_mesh.getNodePrefs(), FIRMWARE_BUILD_DATE, FIRMWARE_VERSION);
+  ui_task.begin(the_mesh.getNodePrefs(), mesh::firmware_build_date_string(), mesh::firmware_version_string());
 #endif
 
 #ifdef ETHERNET_ENABLED

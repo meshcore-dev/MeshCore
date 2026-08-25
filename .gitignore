@@ -17,6 +17,6 @@ compile_commands.json
 .venv/
 venv/
 platformio.local.ini
-build/
+src/helpers/FirmwareIdentity.generated.cpp
 
 __pycache__/

@@ -1027,11 +1027,11 @@ void MyMesh::handleCmdFrame(size_t len) {
     memcpy(&out_frame[i], &_prefs.ble_pin, 4);
     i += 4;
     memset(&out_frame[i], 0, 12);
-    strcpy((char *)&out_frame[i], FIRMWARE_BUILD_DATE);
+    strcpy((char *)&out_frame[i], mesh::firmware_build_date_string());
     i += 12;
     StrHelper::strzcpy((char *)&out_frame[i], board.getManufacturerName(), 40);
     i += 40;
-    StrHelper::strzcpy((char *)&out_frame[i], FIRMWARE_VERSION, 20);
+    StrHelper::strzcpy((char *)&out_frame[i], mesh::firmware_version_string(), 20);
     i += 20;
     out_frame[i++] = _prefs.isRepeatEn() ? 1 : 0;   // v9+
     out_frame[i++] = _prefs.path_hash_mode;  // v10+

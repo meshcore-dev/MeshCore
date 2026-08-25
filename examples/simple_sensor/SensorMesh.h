@@ -2,6 +2,7 @@
 
 #include <Arduino.h>   // needed for PlatformIO
 #include <Mesh.h>
+#include <helpers/FirmwareIdentity.h>
 
 #include "TimeSeriesData.h"
 
@@ -54,8 +55,8 @@ public:
   void handleCommand(uint32_t sender_timestamp, char* command, char* reply);
 
   // CommonCLI callbacks
-  const char* getFirmwareVer() override { return FIRMWARE_VERSION; }
-  const char* getBuildDate() override { return FIRMWARE_BUILD_DATE; }
+  const char* getFirmwareVer() override { return mesh::firmware_version_string(); }
+  const char* getBuildDate() override { return mesh::firmware_build_date_string(); }
   const char* getRole() override { return FIRMWARE_ROLE; }
   const char* getNodeName() { return _prefs.node_name; }
   NodePrefs* getNodePrefs() { return &_prefs; }

@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include <Mesh.h>
+#include <helpers/FirmwareIdentity.h>
 #include "AbstractUITask.h"
 
 /*------------ Frame Protocol --------------*/

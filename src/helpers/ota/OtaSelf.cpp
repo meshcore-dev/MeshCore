@@ -1,6 +1,7 @@
 #include "OtaSelf.h"
 #include "OtaFormat.h"
 #include "FirmwareInfo.h"
+#include "../FirmwareIdentity.h"
 #include "OtaByteIO.h"
 #include "OtaDebug.h"
 #include <string.h>
@@ -120,23 +121,6 @@ static bool self_read_cb(void* ctx, uint32_t off, uint8_t* buf, uint32_t len) {
   (void)ctx; return ota_self_read(off, buf, len);
 }
 
-static uint32_t parse_fw_version(const char* s) {
-  if (!s) return 0;
-  for (; *s; s++) {
-    if (*s < '0' || *s > '9') continue;
-    const char* p = s; uint32_t a = 0, b = 0, d = 0; int dots = 0;
-    uint32_t* cur = &a;
-    for (; *p; p++) {
-      if (*p >= '0' && *p <= '9') { *cur = *cur * 10 + (uint32_t)(*p - '0'); }
-      else if (*p == '.' && dots < 2) { dots++; cur = (dots == 1) ? &b : &d; }
-      else break;
-    }
-    if (dots >= 1) return FwVersion{ (uint8_t)a, (uint8_t)b, (uint8_t)d, 0 }.pack();
-    s = p - 1;
-  }
-  return 0;
-}
-
 static bool serve_self_finish(OtaContext& c, uint32_t fw_version) {
   const uint32_t image_size = s_build.image_size, bc = s_build.bc;
   const SelfFwInfo& fi = s_build.fi;
@@ -181,9 +165,7 @@ bool ota_serve_self_begin(OtaContext& c, uint32_t fw_version) {
   if (s_build.active) return true;
 
   OTA_DBG_MS("ota_serve_self: begin");
-#ifdef FIRMWARE_VERSION
-  if (fw_version == 0) fw_version = parse_fw_version(FIRMWARE_VERSION);
-#endif
+  if (fw_version == 0) fw_version = firmware_version_packed();
   SelfFwInfo fi;
   if (!ota_self_firmware(fi) || !fi.valid) {
     OTA_DBG_MS("ota_serve_self: EndF lookup failed");

@@ -1,4 +1,5 @@
 #include "UITask.h"
+#include <helpers/FirmwareIdentity.h>
 #include <helpers/TxtDataHelpers.h>
 #include "../MyMesh.h"
 #include "target.h"
@@ -40,7 +41,7 @@ public:
   SplashScreen(UITask* task) : _task(task) {
     // strip off dash and commit hash by changing dash to null terminator
     // e.g: v1.2.3-abcdef -> v1.2.3
-    const char *ver = FIRMWARE_VERSION;
+    const char *ver = mesh::firmware_version_string();
     const char *dash = strchr(ver, '-');
 
     int len = dash ? dash - ver : strlen(ver);
@@ -72,7 +73,7 @@ public:
 
     display.setColor(UIColor::secondary_txt);
     display.setTextSize(1);
-    display.drawTextCentered(display.width()/2, 48, FIRMWARE_BUILD_DATE);
+    display.drawTextCentered(display.width()/2, 48, mesh::firmware_build_date_string());
 
     return 1000;
   }
