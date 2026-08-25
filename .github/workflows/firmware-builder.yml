@@ -1,0 +1,90 @@
+name: Firmware Builder
+
+on:
+  workflow_call:
+    inputs:
+      firmware_type:
+        required: true
+        type: string
+      release_title_prefix:
+        required: true
+        type: string
+
+jobs:
+
+  generate-build-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      targets: ${{ steps.get-build-targets.outputs.targets }}
+    steps:
+
+      - name: Clone Repo
+        uses: actions/checkout@v6
+
+      - name: Setup Build Environment
+        uses: ./.github/actions/setup-build-environment
+
+      - name: Get Build Targets
+        id: get-build-targets
+        run: |
+          # get list of firmwares to build
+          TARGET_LIST=$(/usr/bin/env bash build.sh get-${{ inputs.firmware_type }}-firmwares-to-build)
+          
+          # convert targets separated by new line into a json array string
+          JSON_ARRAY=$(echo "$TARGET_LIST" | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          
+          # use json array as targets result
+          echo "targets=$JSON_ARRAY" >> $GITHUB_OUTPUT
+
+  build:
+    needs: generate-build-matrix
+    runs-on: ubuntu-latest
+    continue-on-error: true # don't fail entire build if one board fails to build
+    strategy:
+      matrix:
+        target: ${{ fromJson(needs.generate-build-matrix.outputs.targets) }}
+      fail-fast: false # don't cancel other builds if one board fails to build
+    steps:
+
+      - name: Clone Repo
+        uses: actions/checkout@v6
+
+      - name: Setup Build Environment
+        uses: ./.github/actions/setup-build-environment
+
+      - name: Build Firmware
+        env:
+          FIRMWARE_VERSION: ${{ env.GIT_TAG_VERSION }}
+        run: /usr/bin/env bash build.sh build-firmware ${{ matrix.target }}
+
+      - name: Upload Workflow Artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: "${{ matrix.target }}"
+          path: out
+
+  create-release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/') # only create release for tagged builds
+    steps:
+
+      - name: Clone Repo
+        uses: actions/checkout@v6
+
+      - name: Setup Build Environment
+        uses: ./.github/actions/setup-build-environment
+
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v8
+        with:
+          merge-multiple: true
+          path: out
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v3
+        with:
+          name: "${{ inputs.release_title_prefix }} ${{ env.GIT_TAG_VERSION }}"
+          body: ""
+          draft: true
+          files: out/*

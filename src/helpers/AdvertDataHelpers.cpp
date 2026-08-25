@@ -1,4 +1,5 @@
 #include <helpers/AdvertDataHelpers.h>
+#include <helpers/UTF8Helpers.h>
 
   uint8_t AdvertDataBuilder::encodeTo(uint8_t app_data[]) {
     app_data[0] = _type;
@@ -16,11 +17,12 @@
       app_data[0] |= ADV_FEAT2_MASK;
       memcpy(&app_data[i], &_extra2, 2); i += 2;
     }
-    if (_name && *_name != 0) { 
-      app_data[0] |= ADV_NAME_MASK;
-      const char* sp = _name;
-      while (*sp && i < MAX_ADVERT_DATA_SIZE) {
-        app_data[i++] = *sp++;
+    if (_name && *_name != 0) {
+      size_t name_len = mesh::validUtf8PrefixLength(_name, MAX_ADVERT_DATA_SIZE - i);
+      if (name_len > 0) {
+        app_data[0] |= ADV_NAME_MASK;
+        memcpy(&app_data[i], _name, name_len);
+        i += name_len;
       }
     }
     return i;
