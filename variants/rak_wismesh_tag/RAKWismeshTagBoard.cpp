@@ -77,6 +77,7 @@ void RAKWismeshTagBoard::onBootComplete() {
 }
 
 void RAKWismeshTagBoard::loop() {
+  NRF52Board::loop();
 #ifdef PIN_BUZZER
   if (buzzer.isPlaying()) {
     buzzer.loop();
