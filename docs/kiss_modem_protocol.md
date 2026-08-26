@@ -18,10 +18,10 @@ Standard KISS framing per the KA9Q/K3MC specification.
 | `0xDD` | TFESC | Escaped FESC (FESC + TFESC = 0xDB) |
 
 ```
-┌──────┬───────────┬──────────────┬──────┐
+┌──────┬───────────┬───────────────┬──────┐
 │ FEND │ Type Byte │ Data (escaped)│ FEND │
-│ 0xC0 │  1 byte   │ 0-510 bytes  │ 0xC0 │
-└──────┴───────────┴──────────────┴──────┘
+│ 0xC0 │  1 byte   │ 0-510 bytes   │ 0xC0 │
+└──────┴───────────┴───────────────┴──────┘
 ```
 
 ### Type Byte
