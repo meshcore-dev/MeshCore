@@ -49,7 +49,7 @@ void genericBuzzer::playToggle(int count, bool enabled) {
     const int max_notes = (int)(sizeof(notes) / sizeof(notes[0]));
     if (count < 1) count = 1;
     if (count > max_notes) count = max_notes;
-    A static buffer as the library can't play two melodies at once anyway.
+    // A static buffer as the library can't play two melodies at once anyway.
     static char melody[64];
     int n = snprintf(melody, sizeof(melody), "Tg:d=8,o=6,b=180:");
     for (int i = 0; i < count && n < (int)sizeof(melody); i++) {
