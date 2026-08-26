@@ -11,9 +11,26 @@
  * Arduino core exposes as the default `SPI` object on this board.
  *
  * NOTE: this board has no battery voltage divider, so getBattMilliVolts()
- * returns 0. Wiring a divider from VBAT to one of A0..A3 and defining
- * PIN_VBAT_READ / ADC_MULTIPLIER in the build flags will enable it.
+ * returns 0 and the node reports 0.00% battery. That is a hardware limit, not
+ * a firmware bug.
+ *
+ * A LiPo can reach 4.2V, so it must be divided before it can be read by the
+ * 3.3V ADC. Two 100k 1% resistors from BAT to A0 give a 2:1 divider:
+ *
+ *      BAT --+ -/\/\/\/\- --+
+ *                  100k     |
+ *                           +-- A0 (GPIO26)
+ *                           |
+ *      GND --+ -/\/\/\/\- --+
+ *                  100k
+ *
+ * then add to the env's build_flags:
+ *
+ *   -D PIN_VBAT_READ=26
+ *   -D ADC_MULTIPLIER='(2.0f * 3.3f * 1000)'
  */
+
+#define BATTERY_SAMPLES 8
 
 class FeatherRP2040RFMBoard : public mesh::MainBoard {
 protected:
