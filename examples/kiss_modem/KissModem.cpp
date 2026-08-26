@@ -22,6 +22,7 @@ KissModem::KissModem(Stream& serial, mesh::LocalIdentity& identity, mesh::RNG& r
   _getStatsCallback = nullptr;
   _config = {0, 0, 0, 0, 0};
   _signal_report_enabled = true;
+  resetOutputQueue();
 }
 
 void KissModem::begin() {
@@ -30,37 +31,168 @@ void KissModem::begin() {
   _rx_active = false;
   _has_pending_tx = false;
   _tx_state = TX_IDLE;
+  resetOutputQueue();
 }
 
-void KissModem::writeByte(uint8_t b) {
-  if (b == KISS_FEND) {
-    _serial.write(KISS_FESC);
-    _serial.write(KISS_TFEND);
-  } else if (b == KISS_FESC) {
-    _serial.write(KISS_FESC);
-    _serial.write(KISS_TFESC);
-  } else {
-    _serial.write(b);
+void KissModem::resetOutputQueue() {
+  _tx_frame_head = 0;
+  _tx_frame_tail = 0;
+  _tx_frame_count = 0;
+  _tx_busy_error_pending = false;
+  _tx_done_pending = false;
+  _tx_done_result = 0;
+}
+
+void KissModem::popTxFrame() {
+  _tx_frame_head = (uint8_t)((_tx_frame_head + 1) % KISS_TX_FRAME_QUEUE_DEPTH);
+  _tx_frame_count--;
+}
+
+uint16_t KissModem::appendEscapedByte(uint8_t* dest, uint16_t idx, uint16_t max_len, uint8_t b) {
+  if (b == KISS_FEND || b == KISS_FESC) {
+    if (idx + 2 > max_len) {
+      return 0;
+    }
+    dest[idx++] = KISS_FESC;
+    dest[idx++] = (b == KISS_FEND) ? KISS_TFEND : KISS_TFESC;
+    return idx;
   }
+  if (idx + 1 > max_len) {
+    return 0;
+  }
+  dest[idx++] = b;
+  return idx;
 }
 
-void KissModem::writeFrame(uint8_t type, const uint8_t* data, uint16_t len) {
-  _serial.write(KISS_FEND);
-  writeByte(type);
+uint16_t KissModem::encodeFrame(uint8_t type, const uint8_t* data, uint16_t len, uint8_t* dest, uint16_t max_len) {
+  if (max_len < KISS_FRAME_BOUNDARY_BYTES) {
+    return 0;
+  }
+
+  uint16_t idx = 0;
+  dest[idx++] = KISS_FEND;
+
+  idx = appendEscapedByte(dest, idx, max_len, type);
+  if (idx == 0) {
+    return 0;
+  }
+
   for (uint16_t i = 0; i < len; i++) {
-    writeByte(data[i]);
+    idx = appendEscapedByte(dest, idx, max_len, data[i]);
+    if (idx == 0) {
+      return 0;
+    }
   }
-  _serial.write(KISS_FEND);
+
+  if (idx + 1 > max_len) {
+    return 0;
+  }
+  dest[idx++] = KISS_FEND;
+  return idx;
 }
 
-void KissModem::writeHardwareFrame(uint8_t sub_cmd, const uint8_t* data, uint16_t len) {
-  _serial.write(KISS_FEND);
-  writeByte(KISS_CMD_SETHARDWARE);
-  writeByte(sub_cmd);
-  for (uint16_t i = 0; i < len; i++) {
-    writeByte(data[i]);
+bool KissModem::tryFlushFrames() {
+  while (_tx_frame_count > 0) {
+    const uint8_t idx = _tx_frame_head;
+    const uint16_t frame_len = _tx_frame_len[idx];
+    uint16_t written_len = _tx_frame_written[idx];
+
+    if (written_len >= frame_len) {
+      popTxFrame();
+      continue;
+    }
+
+    const int available = _serial.availableForWrite();
+    if (available <= 0) {
+      return false;
+    }
+
+    const uint16_t remaining = frame_len - written_len;
+    const uint16_t chunk_len = (available < (int)remaining) ? (uint16_t)available : remaining;
+    if (chunk_len == 0) {
+      return false;
+    }
+
+    size_t chunk_written = _serial.write(_tx_frame_buf[idx] + written_len, chunk_len);
+    if (chunk_written == 0) {
+      return false;
+    }
+
+    written_len += (uint16_t)chunk_written;
+    _tx_frame_written[idx] = written_len;
+
+    if (written_len < frame_len) {
+      return false;
+    }
+
+    popTxFrame();
   }
-  _serial.write(KISS_FEND);
+  return true;
+}
+
+bool KissModem::queueFrame(uint8_t type, const uint8_t* data, uint16_t len, bool mark_busy_error) {
+  if (_tx_frame_count >= KISS_TX_FRAME_QUEUE_DEPTH && !tryFlushFrames()) {
+    if (mark_busy_error) {
+      _tx_busy_error_pending = true;
+    }
+    return false;
+  }
+  const uint8_t idx = _tx_frame_tail;
+  uint16_t frame_len = encodeFrame(type, data, len, _tx_frame_buf[idx], sizeof(_tx_frame_buf[idx]));
+  if (frame_len == 0) {
+    return false;
+  }
+
+  _tx_frame_len[idx] = frame_len;
+  _tx_frame_written[idx] = 0;
+  _tx_frame_tail = (uint8_t)((_tx_frame_tail + 1) % KISS_TX_FRAME_QUEUE_DEPTH);
+  _tx_frame_count++;
+  tryFlushFrames();
+  return true;
+}
+
+bool KissModem::queuePendingBusyError() {
+  if (!_tx_busy_error_pending) {
+    return true;
+  }
+  const uint8_t err = HW_ERR_TX_BUSY;
+  if (!queueHardwareFrame(HW_RESP_ERROR, &err, 1, false)) {
+    return false;
+  }
+  _tx_busy_error_pending = false;
+  return true;
+}
+
+bool KissModem::queueHardwareFrame(uint8_t sub_cmd, const uint8_t* data, uint16_t len, bool mark_busy_error) {
+  if (len > KISS_MAX_FRAME_SIZE) {
+    return false;
+  }
+  _tx_hw_payload[0] = sub_cmd;
+  if (len > 0) {
+    memcpy(_tx_hw_payload + 1, data, len);
+  }
+  return queueFrame(KISS_CMD_SETHARDWARE, _tx_hw_payload, len + 1, mark_busy_error);
+}
+
+bool KissModem::queuePendingTxDone() {
+  if (!_tx_done_pending) {
+    return true;
+  }
+  if (!queueHardwareFrame(HW_RESP_TX_DONE, &_tx_done_result, 1, false)) {
+    return false;
+  }
+  _tx_done_pending = false;
+  return true;
+}
+
+void KissModem::setTxDonePending(uint8_t result) {
+  _tx_done_result = result;
+  _tx_done_pending = true;
+  _tx_state = TX_DONE_PENDING;
+}
+
+bool KissModem::writeHardwareFrame(uint8_t sub_cmd, const uint8_t* data, uint16_t len) {
+  return queueHardwareFrame(sub_cmd, data, len, true);
 }
 
 void KissModem::writeHardwareError(uint8_t error_code) {
@@ -68,6 +200,8 @@ void KissModem::writeHardwareError(uint8_t error_code) {
 }
 
 void KissModem::loop() {
+  tryFlushFrames();
+
   while (_serial.available()) {
     uint8_t b = _serial.read();
 
@@ -106,6 +240,8 @@ void KissModem::loop() {
   }
 
   processTx();
+  tryFlushFrames();
+  queuePendingBusyError();
 }
 
 void KissModem::processFrame() {
@@ -295,10 +431,7 @@ void KissModem::processTx() {
           _tx_timer = millis();
           _tx_state = TX_SENDING;
         } else {
-          uint8_t result = 0x00;
-          writeHardwareFrame(HW_RESP_TX_DONE, &result, 1);
-          _has_pending_tx = false;
-          _tx_state = TX_IDLE;
+          setTxDonePending(0x00);
         }
       }
       break;
@@ -306,14 +439,15 @@ void KissModem::processTx() {
     case TX_SENDING:
       if (_radio.isSendComplete()) {
         _radio.onSendFinished();
-        uint8_t result = 0x01;
-        writeHardwareFrame(HW_RESP_TX_DONE, &result, 1);
-        _has_pending_tx = false;
-        _tx_state = TX_IDLE;
+        setTxDonePending(0x01);
       } else if (millis() - _tx_timer >= _radio.getEstAirtimeFor(_pending_tx_len) * KISS_TX_TIMEOUT_FACTOR) {
         _radio.onSendFinished();
-        uint8_t result = 0x00;
-        writeHardwareFrame(HW_RESP_TX_DONE, &result, 1);
+        setTxDonePending(0x00);
+      }
+      break;
+
+    case TX_DONE_PENDING:
+      if (queuePendingTxDone()) {
         _has_pending_tx = false;
         _tx_state = TX_IDLE;
       }
@@ -322,8 +456,7 @@ void KissModem::processTx() {
 }
 
 void KissModem::onPacketReceived(int8_t snr, int8_t rssi, const uint8_t* packet, uint16_t len) {
-  writeFrame(KISS_CMD_DATA, packet, len);
-  if (_signal_report_enabled) {
+  if (queueFrame(KISS_CMD_DATA, packet, len) && _signal_report_enabled) {
     uint8_t meta[2] = { (uint8_t)snr, (uint8_t)rssi };
     writeHardwareFrame(HW_RESP_RX_META, meta, 2);
   }

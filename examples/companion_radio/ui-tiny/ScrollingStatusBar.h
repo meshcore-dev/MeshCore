@@ -104,7 +104,7 @@ public:
     if (_status[0] == 0) return;
 
     display.setTextSize(1);
-    display.setColor(DisplayDriver::GREEN);
+    display.setColor(UIColor::primary_txt);
 
     // if (_needs_redraw) {
     //   _text_width = display.getTextWidth(_status);

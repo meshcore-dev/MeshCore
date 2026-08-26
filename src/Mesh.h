@@ -15,8 +15,9 @@ public:
 */
 class MeshTables {
 public:
-  virtual bool hasSeen(const Packet* packet) = 0;
-  virtual void clear(const Packet* packet) = 0;   // remove this packet hash from table
+  virtual bool wasSeen(const Packet* packet) = 0;
+  virtual void markSeen(const Packet* packet) = 0;
+  virtual void clear(const Packet* packet) = 0;    // remove this packet hash from table
 };
 
 /**
@@ -100,7 +101,7 @@ protected:
    * \param  auth_code   a code to authenticate the packet
    * \param  flags       zero for now
    * \param  path_snrs   single byte SNR*4 for each hop in the path
-   * \param  path_hashes hashes if each repeater in the path
+   * \param  path_hashes hashes of each repeater in the path
    * \param  path_len    length of the path_snrs[] and path_hashes[] arrays
   */
   virtual void onTraceRecv(Packet* packet, uint32_t tag, uint32_t auth_code, uint8_t flags, const uint8_t* path_snrs, const uint8_t* path_hashes, uint8_t path_len) { }

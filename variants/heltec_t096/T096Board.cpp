@@ -112,15 +112,29 @@ void T096Board::variant_shutdown() {
 }
 
 void T096Board::powerOff() {
-#if ENV_INCLUDE_GPS == 1
-    pinMode(PIN_GPS_EN, OUTPUT);
-    digitalWrite(PIN_GPS_EN, !PIN_GPS_EN_ACTIVE);
-#endif
-    loRaFEMControl.setSleepModeEnable();
-    variant_shutdown();
-    sd_power_system_off();
+  loRaFEMControl.setSleepModeEnable();
+  nrf_gpio_cfg_default(PIN_GPS_EN); // 363uA down to 39uA
+  NRF52Board::powerOff();
 }
 
 const char* T096Board::getManufacturerName() const {
   return "Heltec T096";
+}
+
+bool T096Board::setLoRaFemLnaEnabled(bool enable) {
+  if (!loRaFEMControl.isLnaCanControl()) {
+    return false;
+  }
+
+  loRaFEMControl.setLNAEnable(enable);
+  loRaFEMControl.setRxModeEnable();
+  return true;
+}
+
+bool T096Board::canControlLoRaFemLna() const {
+  return loRaFEMControl.isLnaCanControl();
+}
+
+bool T096Board::isLoRaFemLnaEnabled() const {
+  return loRaFEMControl.isLNAEnabled();
 }
