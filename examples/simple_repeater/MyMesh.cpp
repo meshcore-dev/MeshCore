@@ -147,11 +147,10 @@ uint8_t MyMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* secr
 uint8_t MyMesh::handleAnonRegionsReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data) {
   if (anon_limiter.allow(rtc_clock.getCurrentTime())) {
     // request data has: {reply-path-len}{reply-path}
-    reply_path_len = *data & 63;
-    reply_path_hash_size = (*data >> 6) + 1;
-    data++;
+    reply_path_len = *data++;
+    if (!mesh::Packet::isValidPathLen(reply_path_len)) return 0;  // reject - bad encoding
 
-    memcpy(reply_path, data, ((uint8_t)reply_path_len) * reply_path_hash_size);
+    mesh::Packet::writePath(reply_path, data, reply_path_len);
     // data += (uint8_t)reply_path_len * reply_path_hash_size;
 
     memcpy(reply_data, &sender_timestamp, 4);   // prefix with sender_timestamp, like a tag
@@ -166,11 +165,10 @@ uint8_t MyMesh::handleAnonRegionsReq(const mesh::Identity& sender, uint32_t send
 uint8_t MyMesh::handleAnonOwnerReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data) {
   if (anon_limiter.allow(rtc_clock.getCurrentTime())) {
     // request data has: {reply-path-len}{reply-path}
-    reply_path_len = *data & 63;
-    reply_path_hash_size = (*data >> 6) + 1;
-    data++;
+    reply_path_len = *data++;
+    if (!mesh::Packet::isValidPathLen(reply_path_len)) return 0;  // reject - bad encoding
 
-    memcpy(reply_path, data, ((uint8_t)reply_path_len) * reply_path_hash_size);
+    mesh::Packet::writePath(reply_path, data, reply_path_len);
     // data += (uint8_t)reply_path_len * reply_path_hash_size;
 
     memcpy(reply_data, &sender_timestamp, 4);   // prefix with sender_timestamp, like a tag
@@ -186,11 +184,10 @@ uint8_t MyMesh::handleAnonOwnerReq(const mesh::Identity& sender, uint32_t sender
 uint8_t MyMesh::handleAnonClockReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data) {
   if (anon_limiter.allow(rtc_clock.getCurrentTime())) {
     // request data has: {reply-path-len}{reply-path}
-    reply_path_len = *data & 63;
-    reply_path_hash_size = (*data >> 6) + 1;
-    data++;
+    reply_path_len = *data++;
+    if (!mesh::Packet::isValidPathLen(reply_path_len)) return 0;  // reject - bad encoding
 
-    memcpy(reply_path, data, ((uint8_t)reply_path_len) * reply_path_hash_size);
+    mesh::Packet::writePath(reply_path, data, reply_path_len);
     // data += (uint8_t)reply_path_len * reply_path_hash_size;
 
     memcpy(reply_data, &sender_timestamp, 4);   // prefix with sender_timestamp, like a tag
@@ -414,24 +411,31 @@ bool MyMesh::isLooped(const mesh::Packet* packet, const uint8_t max_counters[]) 
 }
 
 void MyMesh::sendFloodReply(mesh::Packet* packet, unsigned long delay_millis, uint8_t path_hash_size) {
-  if (recv_pkt_region && !recv_pkt_region->isWildcard()) {  // if _request_ packet scope is known, send reply with same scope
-    TransportKey scope;
-    if (region_map.getTransportKeysFor(*recv_pkt_region, &scope, 1) > 0) {
-      sendFloodScoped(scope, packet, delay_millis, path_hash_size);
-    } else {
+  TransportKey req_scope;
+  bool is_wildcard = recv_pkt_region != NULL && recv_pkt_region->isWildcard();
+  bool req_scope_known = recv_pkt_region != NULL && !is_wildcard
+                      && region_map.getTransportKeysFor(*recv_pkt_region, &req_scope, 1) > 0;
+
+  switch (mesh::chooseReplyScope(req_scope_known, is_wildcard, !default_scope.isNull())) {
+    case mesh::REPLY_SCOPE_REQUEST:
+      sendFloodScoped(req_scope, packet, delay_millis, path_hash_size);   // reply with same scope as request
+      break;
+    case mesh::REPLY_SCOPE_DEFAULT:
+      // requester's scope is unknown: DIRECT request (no transport codes), or code matched no Region.
+      // un-scoped would be dropped at hop 0 by repeaters running flood.max.unscoped=0
+      sendFloodScoped(default_scope, packet, delay_millis, path_hash_size);
+      break;
+    case mesh::REPLY_SCOPE_NONE:
       sendFlood(packet, delay_millis, path_hash_size);  // send un-scoped
-    }
-  } else {
-    sendFlood(packet, delay_millis, path_hash_size);  // send un-scoped
+      break;
   }
 }
 
 bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
   if (_prefs.disable_fwd) return false;
-  if (packet->isRouteFlood()) {
-    if (packet->getPathHashCount() >= _prefs.flood_max) return false;
-    if (packet->getRouteType() == ROUTE_TYPE_FLOOD && packet->getPathHashCount() >= _prefs.flood_max_unscoped) return false;
-    if (packet->getPayloadType() == PAYLOAD_TYPE_ADVERT && packet->getPathHashCount() >= _prefs.flood_max_advert) return false;
+  if (packet->isRouteFlood()
+      && mesh::isFloodHopLimitExceeded(packet, _prefs.flood_max, _prefs.flood_max_unscoped, _prefs.flood_max_advert)) {
+    return false;
   }
   if (packet->isRouteFlood() && recv_pkt_region == NULL) {
     MESH_DEBUG_PRINTLN("allowPacketForward: unknown transport code, or wildcard not allowed for FLOOD packet");
@@ -549,8 +553,7 @@ uint32_t MyMesh::getDirectRetransmitDelay(const mesh::Packet *packet) {
   return getRNG()->nextInt(0, 5*t + 1);
 }
 
-bool MyMesh::filterRecvFloodPacket(mesh::Packet* pkt) {
-  // just try to determine region for packet (apply later in allowPacketForward())
+mesh::DispatcherAction MyMesh::onRecvPacket(mesh::Packet* pkt) {
   if (pkt->getRouteType() == ROUTE_TYPE_TRANSPORT_FLOOD) {
     recv_pkt_region = region_map.findMatch(pkt, REGION_DENY_FLOOD);
   } else if (pkt->getRouteType() == ROUTE_TYPE_FLOOD) {
@@ -562,8 +565,7 @@ bool MyMesh::filterRecvFloodPacket(mesh::Packet* pkt) {
   } else {
     recv_pkt_region = NULL;
   }
-  // do normal processing
-  return false;
+  return Mesh::onRecvPacket(pkt);
 }
 
 void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const mesh::Identity &sender,
@@ -576,7 +578,7 @@ void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const m
     data[len] = 0;  // ensure null terminator
     uint8_t reply_len;
 
-    reply_path_len = -1;
+    reply_path_len = 0xFF;
     if (data[4] == 0 || data[4] >= ' ') {   // is password, ie. a login request
       reply_len = handleLoginReq(sender, secret, timestamp, &data[4], packet->isRouteFlood());
     } else if (data[4] == ANON_REQ_TYPE_REGIONS && packet->isRouteDirect()) {
@@ -591,18 +593,29 @@ void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const m
 
     if (reply_len == 0) return;   // invalid request
 
-    if (packet->isRouteFlood()) {
+    // a DIRECT login can reply via the stored out_path, as onPeerDataRecv() does for REQ
+    ClientInfo* client = acl.getClient(sender.pub_key, PUB_KEY_SIZE);
+    bool have_out_path = client != NULL && client->out_path_len != OUT_PATH_UNKNOWN;
+
+    auto route = mesh::chooseReplyRoute(packet->isRouteFlood(), reply_path_len != 0xFF, have_out_path);
+
+    if (route == mesh::REPLY_ROUTE_PATH_RETURN) {
       // let this sender know path TO here, so they can use sendDirect(), and ALSO encode the response
       mesh::Packet* path = createPathReturn(sender, secret, packet->path, packet->path_len,
                                             PAYLOAD_TYPE_RESPONSE, reply_data, reply_len);
       if (path) sendFloodReply(path, SERVER_RESPONSE_DELAY, packet->getPathHashSize());
-    } else if (reply_path_len < 0) {
-      mesh::Packet* reply = createDatagram(PAYLOAD_TYPE_RESPONSE, sender, secret, reply_data, reply_len);
-      if (reply) sendFloodReply(reply, SERVER_RESPONSE_DELAY, packet->getPathHashSize());
+      return;
+    }
+
+    mesh::Packet* reply = createDatagram(PAYLOAD_TYPE_RESPONSE, sender, secret, reply_data, reply_len);
+    if (reply == NULL) return;
+
+    if (route == mesh::REPLY_ROUTE_DIRECT_SUPPLIED) {
+      sendDirect(reply, reply_path, reply_path_len, SERVER_RESPONSE_DELAY);
+    } else if (route == mesh::REPLY_ROUTE_DIRECT_OUT_PATH) {
+      sendDirect(reply, client->out_path, client->out_path_len, SERVER_RESPONSE_DELAY);
     } else {
-      mesh::Packet* reply = createDatagram(PAYLOAD_TYPE_RESPONSE, sender, secret, reply_data, reply_len);
-      uint8_t path_len = ((reply_path_hash_size - 1) << 6) | (reply_path_len & 63);
-      if (reply) sendDirect(reply, reply_path,  path_len, SERVER_RESPONSE_DELAY);
+      sendFloodReply(reply, SERVER_RESPONSE_DELAY, packet->getPathHashSize());
     }
   }
 }
@@ -867,13 +880,13 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   set_radio_at = revert_radio_at = 0;
   _logging = false;
   region_load_active = false;
+  recv_pkt_region = NULL;
 
 #if MAX_NEIGHBOURS
   memset(neighbours, 0, sizeof(neighbours));
 #endif
 
   // defaults
-  memset(&_prefs, 0, sizeof(_prefs));
   _prefs.airtime_factor = 1.0;
   _prefs.rx_delay_base = 0.0f;   // turn off by default, was 10.0;
   _prefs.tx_delay_factor = 0.5f; // was 0.25f
@@ -919,6 +932,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
 #endif
 #endif
   _prefs.radio_fem_rxgain = 1;
+  _prefs.radio_fem_txgain = 0;
 
   pending_discover_tag = 0;
   pending_discover_until = 0;
@@ -968,6 +982,7 @@ void MyMesh::begin(FILESYSTEM *fs) {
   MESH_DEBUG_PRINTLN("RX Boosted Gain Mode: %s",
                      radio_driver.getRxBoostedGainMode() ? "Enabled" : "Disabled");
   board.setLoRaFemLnaEnabled(_prefs.radio_fem_rxgain);
+  board.setLoRaFemPaGainEnabled(_prefs.radio_fem_txgain);
 
   updateAdvertTimer();
   updateFloodAdvertTimer();
@@ -1062,9 +1077,13 @@ void MyMesh::setTxPower(int8_t power_dbm) {
   radio_driver.setTxPower(power_dbm);
 }
 
-#if defined(USE_SX1262) || defined(USE_SX1268)
-void MyMesh::setRxBoostedGain(bool enable) {
-  radio_driver.setRxBoostedGainMode(enable);
+bool MyMesh::setRxBoostedGain(bool enable) {
+  return radio_driver.setRxBoostedGainMode(enable);
+}
+
+#if defined(USE_LR2021)
+bool MyMesh::configSideDetectors(const uint8_t sideDetSFs[], uint8_t num, float bw) {
+  return radio_driver.configSideDetectors(sideDetSFs, num, bw);
 }
 #endif
 

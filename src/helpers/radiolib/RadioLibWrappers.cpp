@@ -15,7 +15,7 @@ static volatile uint8_t state = STATE_IDLE;
 
 // this function is called when a complete packet
 // is transmitted by the module
-static 
+static
 #if defined(ESP8266) || defined(ESP32)
   ICACHE_RAM_ATTR
 #endif
@@ -100,11 +100,16 @@ void RadioLibWrapper::loop() {
     }
     _floor_sample_sum = 0;
 
+    #ifdef MESH_DEBUG_NOISE_FLOOR
     MESH_DEBUG_PRINTLN("RadioLibWrapper: noise_floor = %d", (int)_noise_floor);
+    #endif
   }
 }
 
 void RadioLibWrapper::startRecv() {
+  #if defined(USE_LR2021)
+  _radio->standby(); // without this LR2021 can throw -706 when calling startReceive after hardware CAD when side detectors are enabled
+  #endif
   int err = _radio->startReceive();
   if (err == RADIOLIB_ERR_NONE) {
     state = STATE_RX;
@@ -133,7 +138,11 @@ int RadioLibWrapper::recvRaw(uint8_t* bytes, int sz) {
         n_recv++;
       }
     }
+    #if defined(USE_LR2021)
+    state = STATE_RX;     // LR2021 stays in Rx after readData, calling startReceive while still in Rx throws -706 errors
+    #else
     state = STATE_IDLE;   // need another startReceive()
+    #endif
   }
 
   if (state != STATE_RX) {
@@ -217,14 +226,32 @@ static float snr_threshold[] = {
     -17.5,// SF11 needs at least -17.5 dB SNR
     -20   // SF12 needs at least -20 dB SNR
 };
-  
+
 float RadioLibWrapper::packetScoreInt(float snr, int sf, int packet_len) {
   if (sf < 7) return 0.0f;
-  
+
   if (snr < snr_threshold[sf - 7]) return 0.0f;    // Below threshold, no chance of success
 
   auto success_rate_based_on_snr = (snr - snr_threshold[sf - 7]) / 10.0;
   auto collision_penalty = 1 - (packet_len / 256.0);   // Assuming max packet of 256 bytes
 
   return max(0.0, min(1.0, success_rate_based_on_snr * collision_penalty));
+}
+
+PacketMillis RadioLibWrapper::calcMaxPacketMillis(uint8_t sf, float bw, uint8_t cr, uint8_t preambleSymbols) {
+  // based on RadioLib's calculateTimeOnAir()
+  uint32_t tsym_us = ((uint32_t)10000 << sf) / (bw * 10);
+  uint32_t sfCoeff1_x4 = (sf == 5 || sf == 6) ? 25 : 17; // 6.25 : 4.25, semtech magic numbers to account for sync word + sfd
+
+  // preamble + syncword + sfd + header
+  uint32_t preamble_us = (((preambleSymbols + 8) * 4 + sfCoeff1_x4) * tsym_us) / 4;
+
+  // airtime for max packet at current radio settings
+  uint32_t total_us   = _radio->getTimeOnAir(MAX_TRANS_UNIT);
+  // airtime for payload only (no preamble, header or SOF)
+  uint32_t payload_us = total_us > preamble_us ? total_us - preamble_us : 4000 - preamble_us; // fallback to 4 secs at worst case
+  // rescale payload_us for max possible CR
+  if (cr >= 5 && cr < 8) { payload_us = (payload_us * 8) / cr; }
+
+  return PacketMillis {(preamble_us + 999) / 1000, (payload_us + 999) / 1000};
 }

@@ -110,7 +110,7 @@ protected:
    * @brief Common packet handling for received packets
    *
    * Implements the standard pattern used by all bridges:
-   * - Check if packet was seen before using _seen_packets.hasSeen()
+   * - Check if packet was seen before using _seen_packets.wasSeen()
    * - Queue packet for mesh processing if not seen before
    * - Free packet if already seen to prevent duplicates
    *

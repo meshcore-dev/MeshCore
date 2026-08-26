@@ -83,6 +83,7 @@ A list of frequently-asked questions and answers for MeshCore
     - [7.5. Q: What is the format of a contact or channel QR code?](#75-q-what-is-the-format-of-a-contact-or-channel-qr-code)
     - [7.6. Q: How do I connect to the companion via Wi-Fi, e.g. using a Heltec V3?](#76-q-how-do-i-connect-to-the-companion-via-wi-fi-eg-using-a-heltec-v3)
     - [7.7. Q: I have a Station G2, or a Heltec V4, or an Ikoka Stick, or a radio with an EByte E22-900M30S or an EByte E22-900M33S module, what should their transmit power be set to?](#77-q-i-have-a-station-g2-or-a-heltec-v4-or-an-ikoka-stick-or-a-radio-with-an-ebyte-e22-900m30s-or-an-ebyte-e22-900m33s-module-what-should-their-transmit-power-be-set-to)
+    - [7.8. Q: How do I use Ethernet with a RAK4631?](#78-q-how-do-i-use-ethernet-with-a-rak4631)
 
 ## 1. Introduction
 
@@ -690,23 +691,28 @@ You can get the epoch time on <https://www.epochconverter.com> and use it to set
 ### 6.6. Q: My Heltec V3 keeps disconnecting from my smartphone. It can't hold a solid Bluetooth connection.
 **A:** Heltec V3 has a very small coil antenna on its PCB for Wi-Fi and Bluetooth connectivity. It has a very short range, only a few feet. It is possible to remove the coil antenna and replace it with a 31mm wire. The BT range is much improved with the modification.
 
-### 6.7. Q: My RAK/T1000-E/xiao_nRF52 device seems to be corrupted, how do I wipe it clean to start fresh?
-**A:**
+### 6.7. Q: My RAK/T1000-E/xiao_nRF52/... device seems to be corrupted, how do I wipe it clean to start fresh?
+**A: If you're able to connect to the device from your MeshCore app**
+1. Navigate to Gear icon(Settings) on the upper right corner
+2. Click on `Export Settings` button, choose `Select All` and Confirm. This will save your Node configuration
+3. Now choose `Factory Reset` option
+4. Confirm that you want to reset your device
+5. Go to Bluetooth System settings and remove pairing of the device, so you can connect again
+6. Connect your device in the app and enter the PIN
+7. Navigate to Gear icon(Settings) on the upper right corner
+8. Click on `Import Settings` and choose the file from 2., click on `Select All` and Confirm
+9. Find `Reboot` button on of the Settings list
 
-1. Connect USB-C cable to your device, per your device's instruction, get it to flash mode:
-    - For RAK, click the reset button **TWICE**
-    - For T1000-e, quickly disconnect and reconnect the magnetic side of the cable from the device **TWICE**
-    - For Heltec T114, click the reset button **TWICE** (the bottom button)
-    - For Xiao nRF52, click the reset button once. If that doesn't work, quickly double-click the reset button twice. If that doesn't work, disconnect the board from your PC and reconnect again ([seeed studio wiki](https://wiki.seeedstudio.com/XIAO_BLE/#access-the-swd-pins-for-debugging-and-reflashing-bootloader))
-2. A new folder will appear on your computer's desktop
-3. Download the `flash_erase*.uf2` file for your device on <https://flasher.meshcore.io>
-    - RAK WisBlock and Heltec T114: `Flash_erase-nRF32_softdevice_v6.uf2`
-    - Seeed Studio Xiao nRF52 WIO: `Flash_erase-nRF52_softdevice_v7.uf2`
-4. drag and drop the uf2 file for your device to the root of the new folder
-5. Wait for the copy to complete. You might get an error dialog, you can ignore it
-6. Go to <https://flasher.meshcore.io>, click `Console` and select the serial port for your connected device
-7. In the console, press enter. Your flash should now be erased
-8. You may now flash the latest MeshCore firmware onto your device
+**B: You're not able to connect to the App**
+1. Connect USB cable to your device
+2. Go to https://flasher.meshcore.io
+3. Search for your device in the list
+4. Choose `Companion Bluetooth`
+5. Press `Enter DFU mode` button, choose your USB device
+6. Press `Erase Flash` button, choose the device again and wait until it completes
+7. Press `Flash!` button and choose the USB device last time
+8. The device is erased and newest firmware is installed
+9. You might need to remove the pairing in Bluetooth System Settings in order to re-pair the app again.
 
 Separately, starting in firmware version 1.7.0, there is a CLI Rescue mode. If your device has a user button (e.g. some RAK, T114), you can activate the rescue mode by holding down the user button of the device within 8 seconds of boot. Then you can use the 'Console' on <https://flasher.meshcore.io>
 
@@ -715,9 +721,9 @@ Separately, starting in firmware version 1.7.0, there is a CLI Rescue mode. If y
 
 `NetworkError: Failed to execute 'open' on 'SerialPort': Failed to open serial port.`
 
-Allow the browser user on it:
+Allow user access on your USB port:
 
-`# setfacl -m u:YOUR_USER_HERE:rw /dev/ttyUSB0`
+`sudo setfacl -m u:$USER:rw /dev/ttyUSB0`
 
 ---
 
@@ -820,3 +826,29 @@ For companion radios, you can set these radios' transmit power in the smartphone
 | **Ikoka Stick E22-900M33S**                                                        | 2W Model                            | 9 dBm                | 2W                     | **DO NOT EXCEED** (Risk of burn out) [data sheet](https://www.cdebyte.com/pdf-down.aspx?id=4216) Refer to your local government's requirements |
 | **Heltec V4**                                                                      | Standard Output                     | 10 dBm               | 22 dBm (~0.15W)        |                                                                                                                                                |
 |                                                                                    | High Output                         | 22 dBm               | 28 dBm (~0.5W to 0.6W) |                                                                                                                                                |
+
+---
+
+### 7.8. Q: How do I use Ethernet with a RAK4631?
+ **A:**
+MeshCore supports Ethernet on RAK4631 boards using the [RAK13800](https://docs.rakwireless.com/product-categories/wisblock/rak13800/datasheet/) WisBlock Ethernet module (based on the W5100S chip).
+
+**Hardware required:**
+- RAK4631 WisBlock Core
+- RAK19007 or RAK19018 WisBlock Base Board (with an available IO slot)
+- RAK13800 WisBlock Ethernet module
+- Ethernet cable connected to a network with a DHCP server
+
+**Firmware:**
+Flash one of the Ethernet-enabled firmware variants:
+- `RAK_4631_repeater_ethernet` - Repeater with Ethernet CLI access
+- `RAK_4631_room_server_ethernet` - Room server with Ethernet CLI access
+- `RAK_4631_companion_radio_ethernet` - Companion radio over Ethernet (replaces BLE)
+
+**Connecting:**
+- The device obtains an IP address via DHCP automatically on boot.
+- For repeaters and room servers, connect to the device on TCP port 23 using any TCP client (e.g. `nc <ip> 23` or PuTTY in raw mode). This gives you the same CLI available over serial/USB.
+- For companion radio firmware, the Ethernet interface replaces BLE as the transport to companion apps. Connect on TCP port 5000 (same as the WiFi companion radio).
+- Use the `eth.status` CLI command to check connection status and see the assigned IP address.
+
+---

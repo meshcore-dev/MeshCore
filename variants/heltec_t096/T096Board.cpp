@@ -112,13 +112,9 @@ void T096Board::variant_shutdown() {
 }
 
 void T096Board::powerOff() {
-#if ENV_INCLUDE_GPS == 1
-    pinMode(PIN_GPS_EN, OUTPUT);
-    digitalWrite(PIN_GPS_EN, !PIN_GPS_EN_ACTIVE);
-#endif
-    loRaFEMControl.setSleepModeEnable();
-    variant_shutdown();
-    sd_power_system_off();
+  loRaFEMControl.setSleepModeEnable();
+  nrf_gpio_cfg_default(PIN_GPS_EN); // 363uA down to 39uA
+  NRF52Board::powerOff();
 }
 
 const char* T096Board::getManufacturerName() const {

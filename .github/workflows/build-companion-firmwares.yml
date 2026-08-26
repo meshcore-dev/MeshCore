@@ -10,33 +10,8 @@ on:
       - 'companion-*'
 
 jobs:
-
-  build:
-    runs-on: ubuntu-latest
-    steps:
-
-      - name: Clone Repo
-        uses: actions/checkout@v6
-
-      - name: Setup Build Environment
-        uses: ./.github/actions/setup-build-environment
-
-      - name: Build Firmwares
-        env:
-          FIRMWARE_VERSION: ${{ env.GIT_TAG_VERSION }}
-        run: /usr/bin/env bash build.sh build-companion-firmwares
-
-      - name: Upload Workflow Artifacts
-        uses: actions/upload-artifact@v7
-        with:
-          name: companion-firmwares
-          path: out
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v3
-        if: startsWith(github.ref, 'refs/tags/')
-        with:
-          name: Companion Firmware ${{ env.GIT_TAG_VERSION }}
-          body: ""
-          draft: true
-          files: out/*
+  build-companion-firmwares:
+    uses: ./.github/workflows/firmware-builder.yml
+    with:
+      firmware_type: 'companion'
+      release_title_prefix: 'Companion Firmware'

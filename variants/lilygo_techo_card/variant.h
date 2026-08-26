@@ -107,7 +107,7 @@
 #define  P_LORA_NSS                (11)  // P0.11
 #define  SX126X_RXEN               (33)  // P1.01
 #define  SX126X_TXEN               (27)  // P0.27
-#define  SX126X_DIO3_TCXO_VOLTAGE  (1.8f)
+#define  SX126X_DIO3_TCXO_VOLTAGE  (3.0f)
 
 
 ////////////////////////////////////////////////////////////////////////////////

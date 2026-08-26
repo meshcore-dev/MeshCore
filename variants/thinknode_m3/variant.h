@@ -32,7 +32,7 @@
 #define EXT_CHRG_DETECT         (32)            // P1.3
 #define EXT_PWR_DETECT          (31)             // P0.5
 
-#define PIN_VBAT_READ           (5) 
+#define PIN_VBAT_READ           (5)
 #define AREF_VOLTAGE            (2.4f)
 #define ADC_MULTIPLIER          (2.0)           //(1.75f)
 // 2.0 gives more coherent value, 4.2V when charged, needs tweaking
@@ -92,14 +92,15 @@
 // GPS
 
 #define HAS_GPS                     1
-#define PIN_GPS_RX                  (22)    
+#define PIN_GPS_RX                  (22)
 #define PIN_GPS_TX                  (20)
 
 #define PIN_GPS_POWER               (14)
 #define PIN_GPS_EN                  (21)            // STANDBY
 #define PIN_GPS_RESET               (25)            // REINIT
-#define GPS_RESET_ACTIVE            LOW
+#define GPS_POWER_ACTIVE            HIGH
 #define GPS_EN_ACTIVE               HIGH
+#define GPS_RESET                   (-1)
 #define GPS_BAUDRATE                9600
 
 ////////////////////////////////////////////////////////////////////////////////
