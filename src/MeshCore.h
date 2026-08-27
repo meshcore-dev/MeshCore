@@ -76,6 +76,10 @@ public:
   virtual const char* getShutdownReasonString(uint8_t reason) { return "Not available"; }
 
   virtual bool handleCommand(const char* command, uint32_t sender_timestamp, char* reply) { return false; }
+
+  // Called from the example main loops. Lets a board feed its watchdog and
+  // run periodic housekeeping. Default no-op.
+  virtual void loop() { /* no op */ }
 };
 
 /**
