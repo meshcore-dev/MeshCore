@@ -67,9 +67,9 @@ public:
 
   bool isAS923_1_JP() const override {
     float freq = getFreqMHz();
-    return (fabsf(freq - 920.800f) < 0.05f ||
-            fabsf(freq - 921.000f) < 0.05f ||
-            fabsf(freq - 921.200f) < 0.05f);
+    return (fabsf(freq - 921.000f) < 0.05f ||
+            fabsf(freq - 921.200f) < 0.05f ||
+            fabsf(freq - 921.400f) < 0.05f);
   }
 
   int getMaxTextLen() const override {
