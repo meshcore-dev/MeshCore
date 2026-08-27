@@ -15,6 +15,9 @@ public:
     ((CustomSTM32WLx *)_radio)->setBandwidth(bw);
     ((CustomSTM32WLx *)_radio)->setCodingRate(cr);
     updatePreamble(sf);
+    PacketMillis pm = calcMaxPacketMillis(sf, bw, cr, preambleLengthForSF(sf));
+    ((CustomSTM32WLx *)_radio)->setPreambleMillis(pm.preambleMillis);
+    ((CustomSTM32WLx *)_radio)->setMaxPayloadMillis(pm.payloadMillis);
   }
 
   bool isReceivingPacket() override { 
@@ -32,5 +35,5 @@ public:
   }
   uint8_t getSpreadingFactor() const override { return ((CustomSTM32WLx *)_radio)->spreadingFactor; }
 
-  void doResetAGC() override { sx126xResetAGC((SX126x *)_radio); }
+  void doResetAGC() override { sx126xResetAGC((SX126x *)_radio, getRxBoostedGainMode()); }
 };

@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include <MeshCore.h>
+#include <helpers/KeyValueStore.h>
 
 // LoRa radio module pins for Waveshare RP2040-LoRa-HF/LF
 // https://files.waveshare.com/wiki/RP2040-LoRa/Rp2040-lora-sch.pdf
@@ -31,6 +32,8 @@ protected:
 public:
   void begin();
   uint8_t getStartupReason() const override { return startup_reason; }
+
+  void attachDynamicPrefs(KeyValueStore* prefs) { }  // no-op
 
 #ifdef P_LORA_TX_LED
   void onBeforeTransmit() override { digitalWrite(P_LORA_TX_LED, HIGH); }

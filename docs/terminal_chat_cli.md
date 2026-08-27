@@ -63,7 +63,7 @@ Shows the device version and firmware build date.
 ```
 card
 ```
-Displays *your* 'business card', for other to manually _import_
+Displays *your* 'business card', for others to manually _import_
 
 ```
 import {card}

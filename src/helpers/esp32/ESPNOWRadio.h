@@ -38,7 +38,7 @@ public:
    * These two functions do nothing for ESP-NOW, but are needed for the
    * Radio interface.
    */
-  virtual void setRxBoostedGainMode(bool) { }
+  virtual bool setRxBoostedGainMode(bool) { }
   virtual bool getRxBoostedGainMode() const { return false; }
 
   uint32_t intID();

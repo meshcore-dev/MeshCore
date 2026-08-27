@@ -12,6 +12,12 @@ VolatileRTCClock fallback_clock;
 AutoDiscoverRTCClock rtc_clock(fallback_clock);
 SensorManager sensors;
 
+bool radio_init() {
+  rtc_clock.begin(Wire);
+  
+  return radio.std_init(&SPI1);
+}
+
 void radio_set_tx_power(int8_t dbm) {
   radio.setOutputPower(dbm);
 }
