@@ -13,10 +13,17 @@ namespace mesh {
  * \returns  true if the packet has exceeded a limit, and must not be forwarded
  */
 inline bool isFloodHopLimitExceeded(const Packet* packet, uint8_t flood_max,
-                                    uint8_t flood_max_unscoped, uint8_t flood_max_advert) {
+                                    uint8_t flood_max_unscoped, uint8_t flood_max_advert,
+                                    uint8_t flood_max_request, uint8_t flood_max_anon_request, 
+                                    uint8_t flood_max_response) {
   uint8_t hops = packet->getPathHashCount();
   if (hops >= flood_max) return true;
-  if (packet->getRouteType() == ROUTE_TYPE_FLOOD && hops >= flood_max_unscoped) return true;
+  if (packet->getRouteType() == ROUTE_TYPE_FLOOD) {
+    if (hops >= flood_max_unscoped) return true;
+    if (packet->getPayloadType() == PAYLOAD_TYPE_REQ && packet->getPathHashCount() >= flood_max_request) return true;
+    if (packet->getPayloadType() == PAYLOAD_TYPE_ANON_REQ && packet->getPathHashCount() >= flood_max_anon_request) return true;
+    if (packet->getPayloadType() == PAYLOAD_TYPE_RESPONSE && packet->getPathHashCount() >= flood_max_response) return true;
+  }
   if (packet->getPayloadType() == PAYLOAD_TYPE_ADVERT && hops >= flood_max_advert) return true;
   return false;
 }
