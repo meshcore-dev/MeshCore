@@ -215,6 +215,9 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 **Note:** Requires reboot to apply
 
+**Notes:** These settings control the setup of the radio parameters.Refer to the node's manual for the correct settings to use.
+**Setting a value too high or too low may violate the laws in your country.**
+
 ---
 
 #### View or change this node's transmit power
@@ -243,6 +246,9 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 - `sf`: Spreading factor (5-12)
 - `cr`: Coding rate (5-8)
 - `timeout_mins`: Duration in minutes (must be > 0)
+
+**Notes:** These settings control the setup of the radio parameters.Refer to the node's manual for the correct settings to use.
+**Setting a value too high or too low may violate the laws in your country.**
 
 **Note:** This is not saved to preferences and will clear on reboot
 
@@ -574,6 +580,9 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 - `set dutycycle 1` — 1% duty cycle (strictest EU requirement)
 
 > **Note:** Added in firmware v1.15.0
+
+**Notes:** Refer to the node's manual for the correct settings to use.
+**Setting a value too high may violate the laws in your country.**
 
 ---
 
