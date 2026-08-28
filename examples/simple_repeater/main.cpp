@@ -73,7 +73,18 @@ void setup() {
   fs = &InternalFS;
   IdentityStore store(InternalFS, "");
 #elif defined(ESP32)
-  SPIFFS.begin(true);
+  if (!SPIFFS.begin(true)) {
+    // format-on-mount-fail can itself fail on some boards/first-boots (blank flash).
+    // Retry with an explicit format before giving up, otherwise callers below will
+    // read/write against a non-mounted filesystem and get garbage back instead of
+    // clean failures (observed as SPIFFS mount errors followed by a boot crash-loop).
+    MESH_DEBUG_PRINTLN("SPIFFS mount failed, retrying with explicit format");
+    SPIFFS.format();
+    if (!SPIFFS.begin(true)) {
+      MESH_DEBUG_PRINTLN("SPIFFS mount failed after format, halting");
+      halt();
+    }
+  }
   fs = &SPIFFS;
   IdentityStore store(SPIFFS, "/identity");
 #elif defined(RP2040_PLATFORM)
