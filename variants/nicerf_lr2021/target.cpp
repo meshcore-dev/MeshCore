@@ -3,10 +3,11 @@
 
 NiceRFLR2021Board board;
 
-// On ESP32-C3, FSPI (SPI peripheral 0) is the only general-purpose SPI bus.
-// Using SPIClass(0) per maintainer suggestion. If this returns all-zeros on
-// your board, define USE_ESPIDF_HAL in platformio.ini to use the ESP-IDF SPI
-// HAL workaround (see EspIdfHal.h for details).
+// On ESP32-C3, FSPI (SPI peripheral 0) is the only general-purpose SPI bus,
+// so the default path uses static SPIClass(0) — the shared CustomLR2021
+// std_init(&spi) wires P_LORA_* pins itself. If SPIClass returns all-zeros
+// on your board, define USE_ESPIDF_HAL in platformio.ini to use the ESP-IDF
+// SPI HAL workaround (see src/helpers/radiolib/EspIdfHal.h for details).
 #ifdef USE_ESPIDF_HAL
 #include <helpers/radiolib/EspIdfHal.h>
 static EspIdfHal hal(P_LORA_SCLK, P_LORA_MISO, P_LORA_MOSI);
@@ -34,12 +35,13 @@ bool radio_init() {
   fallback_clock.begin();
   rtc_clock.begin(Wire);
 
-#ifndef USE_ESPIDF_HAL
-  spi.begin(P_LORA_SCLK, P_LORA_MISO, P_LORA_MOSI, P_LORA_NSS);
-#else
+#ifdef USE_ESPIDF_HAL
   hal.init();
-#endif
   return radio.std_init(NULL);
+#else
+  // std_init() calls spi->begin(P_LORA_SCLK, P_LORA_MISO, P_LORA_MOSI)
+  return radio.std_init(&spi);
+#endif
 }
 
 mesh::LocalIdentity radio_new_identity() {
