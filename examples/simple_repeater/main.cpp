@@ -30,9 +30,13 @@ static char ethernet_command[160];
 // For power saving
 unsigned long POWERSAVING_FIRSTSLEEP_SECS = 120; // The first sleep (if enabled) from boot
 
-#if defined(PIN_USER_BTN) && defined(_SEEED_SENSECAP_SOLAR_H_)
+#if defined(PIN_USER_BTN) && (defined(_SEEED_SENSECAP_SOLAR_H_) || defined(THINKNODE_M6))
 static unsigned long userBtnDownAt = 0;
+#if defined(THINKNODE_M6)
+#define USER_BTN_HOLD_OFF_MILLIS 5000   // matches Elecrow's stock firmware UX
+#else
 #define USER_BTN_HOLD_OFF_MILLIS 1500
+#endif
 #endif
 
 void setup() {
@@ -170,13 +174,22 @@ void loop() {
   }
 #endif
 
-#if defined(PIN_USER_BTN) && defined(_SEEED_SENSECAP_SOLAR_H_) && !defined(DISPLAY_CLASS)
-  // Hold the user button to power off the SenseCAP Solar repeater.
+#if defined(PIN_USER_BTN) && (defined(_SEEED_SENSECAP_SOLAR_H_) || defined(THINKNODE_M6)) && !defined(DISPLAY_CLASS)
+  // Hold the user button to power off the repeater.
   int btnState = digitalRead(PIN_USER_BTN);
   if (btnState == LOW) {
     if (userBtnDownAt == 0) {
       userBtnDownAt = millis();
     } else if ((unsigned long)(millis() - userBtnDownAt) >= USER_BTN_HOLD_OFF_MILLIS) {
+#if defined(THINKNODE_M6) && defined(PIN_LED_RED)
+      // blink the power LED a few times to confirm the hold was registered
+      for (int i = 0; i < 3; i++) {
+        digitalWrite(PIN_LED_RED, HIGH);
+        delay(150);
+        digitalWrite(PIN_LED_RED, LOW);
+        delay(150);
+      }
+#endif
       Serial.println("Powering off...");
       board.powerOff();  // does not return
     }
