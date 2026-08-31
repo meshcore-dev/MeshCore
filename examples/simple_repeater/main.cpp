@@ -102,7 +102,9 @@ void setup() {
   ethernet_command[0] = 0;
 #endif
 
+#ifndef DISABLE_ENV_SENSORS
   sensors.begin();
+#endif
 
   the_mesh.begin(fs);
 
@@ -186,7 +188,9 @@ void loop() {
 #endif
 
   the_mesh.loop();
+#ifndef DISABLE_ENV_SENSORS
   sensors.loop();
+#endif
 #ifdef DISPLAY_CLASS
   ui_task.loop();
 #endif
