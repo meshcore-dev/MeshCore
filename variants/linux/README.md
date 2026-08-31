@@ -78,7 +78,7 @@ sudo nano /etc/meshcored/meshcored.ini
 The config file has two roles:
 
 - **Hardware config** (always read on every startup): SPI device, GPIO pin numbers, LoRa radio parameters.
-- **First-run node defaults**: `advert_name`, `admin_password`, `lat`, `lon`. On the first boot these are saved to the node's persisted prefs (`com_prefs`). After that, use the serial CLI to change them (`set name`, `set password`, etc.), the INI values are no longer consulted for these fields.
+- **First-run node defaults**: `advert_name`, `admin_password`, `lat`, `lon`. On the first boot these are saved to the node's persisted prefs (`com_prefs`). After that, use the console CLI to change them (`set name`, `set password`, etc.; see [§5](#5-reconfiguring-after-first-run)), the INI values are no longer consulted for these fields.
 
 Key settings:
 
@@ -193,16 +193,47 @@ sudo journalctl -u meshcored -f
 > If you smoke-tested by running directly first, clear any stale state so the
 > service first-boots with the INI defaults: `sudo rm -rf /var/lib/meshcore/*`
 
+> For the local CLI console under systemd, uncomment
+> `console_path = /run/meshcored/console` in `/etc/meshcored/meshcored.ini`
+> (the unit's `RuntimeDirectory` provides `/run/meshcored`). See
+> [§5](#5-reconfiguring-after-first-run).
+
 ### 5. Reconfiguring after first run
 
-Node name, password, and location can be changed via the serial CLI after first boot:
+`meshcored` exposes a local CLI at the path set by `console_path` in
+`meshcored.ini`, kept separate from the logs (which go to stdout / journald).
+Under the systemd unit, uncomment `console_path = /run/meshcored/console` — the
+unit's `RuntimeDirectory` creates that directory, owned by the `meshcore` user.
+
+Connect with [`meshcore-cli`](https://github.com/fdlamotte/meshcore-cli):
+
+```sh
+sudo meshcore-cli -r -s /run/meshcored/console
+```
 
 ```
 set name <name>
 set password <password>
 set lat <lat>
 set lon <lon>
+set freq 910.525
+set sf 7
 ```
+
+> **Logs are separate from the console.** Debug logs (`MESH_DEBUG`, on in this
+> experimental build) go to stdout → journald, *not* to the console, so it shows
+> only your commands and their replies. Those commands/replies are also copied to
+> the log, so `journalctl -u meshcored -f` still records what was run.
+
+> **Security:** connecting to the console grants the privileged, *unauthenticated*
+> local CLI — it can change the radio, read the private key (`get prv.key`), erase
+> state, etc. The console is owner-only (mode `0600`), so keep the daemon's user
+> (`root`/`meshcore`) trusted. When `console_path` is unset (e.g. running
+> `meshcored` **directly**, not under systemd) it defaults to
+> `$XDG_RUNTIME_DIR/meshcore/console` (else `/tmp/meshcore-<uid>/console`).
+
+Logs stream to journald (`sudo journalctl -u meshcored -f`); the daemon
+line-buffers stdout itself, so no `stdbuf` wrapper is needed.
 
 There are two levels of reset:
 
@@ -223,7 +254,7 @@ sudo systemctl start meshcored
 
 > When running **directly** (not under systemd), `meshcored --fsdir /var/lib/meshcore --erase` is the equivalent one-shot full reset. Do **not** add `--erase` to the service unit: systemd re-runs `ExecStart` on every restart, so it would wipe the filesystem and regenerate the identity each time. (The firmware's own `reboot()` strips `--erase` to avoid self-wiping, but that protection does not extend to a systemd restart.)
 
-> **Note:** LoRa radio parameters (`lora_freq`, `lora_bw`, `lora_sf`, `lora_cr`, `lora_tx_power`) are also first-run defaults. After first boot they are saved in `com_prefs` and the INI values are no longer read for those fields. To apply a changed radio parameter, use the CLI (`set freq`, `set sf`, etc.) or reset prefs as above.
+> **Note:** LoRa radio parameters (`lora_freq`, `lora_bw`, `lora_sf`, `lora_cr`, `lora_tx_power`) are also first-run defaults. After first boot they are saved in `com_prefs` and the INI values are no longer read for those fields. To apply a changed radio parameter on a running node, use the console CLI (`set freq`, `set sf`, etc.; see [§5](#5-reconfiguring-after-first-run)) or reset prefs as above.
 
 ## Known Gaps / TODO
 

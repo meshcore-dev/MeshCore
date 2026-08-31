@@ -150,6 +150,7 @@ int LinuxConfig::load(const char *filename) {
 
     if (strcmp(key, "spidev") == 0)         spidev = safe_copy(value, 32);
     else if (strcmp(key, "lora_gpiochip") == 0) lora_gpiochip = safe_copy(value, 32);
+    else if (strcmp(key, "console_path") == 0) console_path = safe_copy(value, 108);
     else if (strcmp(key, "lora_freq") == 0) lora_freq = atof(value);
     else if (strcmp(key, "lora_bw") == 0)   lora_bw = atof(value);
     else if (strcmp(key, "lora_sf") == 0)   lora_sf = (uint8_t)atoi(value);

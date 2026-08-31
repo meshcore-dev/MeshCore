@@ -35,6 +35,11 @@ public:
   char* spidev = "/dev/spidev0.0";
   char* lora_gpiochip = "gpiochip0";
 
+  // Local CLI console path. Empty => a per-user default
+  // ($XDG_RUNTIME_DIR/meshcore/console, else /tmp/meshcore-<uid>/console).
+  // Connect with `meshcore-cli -r -s <path>`.
+  char* console_path = "";
+
   float lora_tcxo = 1.8f;
 
   char *advert_name = "Linux Repeater";

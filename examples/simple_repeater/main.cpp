@@ -18,6 +18,15 @@ SimpleMeshTables tables;
 
 MyMesh the_mesh(board, radio_driver, *new ArduinoMillis(), fast_rng, rtc_clock, tables);
 
+// CLI console stream. On Linux the interactive CLI runs over a Unix-domain
+// socket (so the socket carries only the CLI while Serial keeps the logs); on
+// MCU targets, and as the Linux fallback, it is just Serial.
+#if defined(ARDULINUX_PLATFORM) || defined(LINUX_PLATFORM)
+  #include <helpers/LinuxConsole.h>
+  static LinuxConsole linux_console;
+#endif
+static Stream* console = &Serial;
+
 void halt() {
   while (1) ;
 }
@@ -43,6 +52,19 @@ void setup() {
 
 #ifdef HAS_EXTERNAL_WATCHDOG
   external_watchdog.begin();
+#endif
+
+#if defined(ARDULINUX_PLATFORM) || defined(LINUX_PLATFORM)
+  // Bring up the local CLI console (config path, or a per-user default). Log
+  // which console is active so a failure (e.g. an unwritable configured path) is
+  // diagnosable rather than a silent no-CLI daemon; on failure the CLI stays on
+  // Serial (stdin/stdout).
+  if (linux_console.begin(board.config.console_path)) {
+    console = &linux_console;
+    Serial.print("CLI console on "); Serial.println(linux_console.path());
+  } else {
+    Serial.println("CLI console: unavailable (see stderr), using stdio");
+  }
 #endif
 
 #if defined(MESH_DEBUG) && defined(NRF52_PLATFORM)
@@ -131,12 +153,12 @@ void setup() {
 void loop() {
   // Handle Serial CLI
   int len = strlen(command);
-  while (Serial.available() && len < sizeof(command)-1) {
-    char c = Serial.read();
+  while (console->available() && len < sizeof(command)-1) {
+    char c = console->read();
     if (c != '\n') {
       command[len++] = c;
       command[len] = 0;
-      Serial.print(c);
+      console->print(c);
     }
     if (c == '\r') break;
   }
@@ -145,7 +167,7 @@ void loop() {
   }
 
   if (len > 0 && command[len - 1] == '\r') {  // received complete line
-    Serial.print('\n');
+    console->print('\n');
     command[len - 1] = 0;  // replace newline with C string null terminator
     char reply[160];
     reply[0] = 0;
@@ -157,7 +179,7 @@ void loop() {
     the_mesh.handleCommand(0, command, reply);  // NOTE: there is no sender_timestamp via serial!
 #endif
     if (reply[0]) {
-      Serial.print("  -> "); Serial.println(reply);
+      console->print("  -> "); console->println(reply);
     }
 
     command[0] = 0;  // reset command buffer
