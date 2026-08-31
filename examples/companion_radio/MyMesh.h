@@ -192,6 +192,11 @@ public:
     _prefs.clearDirty();
   }
 
+  // For a custom firmware's own self-originated sends (bot replies, on-device
+  // keyboard, etc.) -- mainline doesn't call these. See MyMesh.cpp.
+  void queueSentMessage(const ContactInfo &to, uint8_t txt_type, uint32_t timestamp, const char *text);
+  void queueSentChannelMessage(uint8_t channel_idx, uint32_t timestamp, const char *text);
+
 #if ENV_INCLUDE_GPS == 1
   void applyGpsPrefs() {
     sensors.setSettingValue("gps", _prefs.gps_enabled ? "1" : "0");
