@@ -209,5 +209,8 @@ void loop() {
       board.sleep(30); // Sleep. Wake up after a while or when receiving a LoRa packet
     }
 #endif
+  } else {
+    // Small delay to prevent busy loop on platforms without power saving
+    delay(1);
   }
 }

@@ -5,6 +5,7 @@
 #include <sys/time.h>
 #include <sys/stat.h>
 #include <errno.h>
+#include <unistd.h>
 #include <RadioLib.h>
 #include <helpers/KeyValueStore.h>
 
@@ -78,6 +79,14 @@ public:
   // linux target carries its runtime config in meshcored.ini instead, so this
   // is a no-op, matching ESP32Board/NRF52Board/STM32Board.
   void attachDynamicPrefs(KeyValueStore* prefs) { }
+
+  void sleep(uint32_t secs) override {
+    if (secs > 0) {
+      ::sleep(secs);
+    } else {
+      usleep(10000); // 10ms delay to prevent busy loop
+    }
+  }
 
   LinuxConfig config;
 };
