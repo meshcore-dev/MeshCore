@@ -6,6 +6,7 @@
 #include <sys/stat.h>
 #include <errno.h>
 #include <RadioLib.h>
+#include <helpers/KeyValueStore.h>
 
 class LinuxConfig {
 public:
@@ -72,6 +73,11 @@ public:
   void reboot() override {
     exit(0);
   }
+
+  // Upstream attaches variant-specific prefs to the 'custom' Json object; the
+  // linux target carries its runtime config in meshcored.ini instead, so this
+  // is a no-op, matching ESP32Board/NRF52Board/STM32Board.
+  void attachDynamicPrefs(KeyValueStore* prefs) { }
 
   LinuxConfig config;
 };
