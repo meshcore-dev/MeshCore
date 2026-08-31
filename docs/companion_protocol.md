@@ -433,6 +433,14 @@ Byte 0: 0x0A
 
 **Note**: Poll this command periodically to retrieve queued messages. The device may also send `PACKET_MESSAGES_WAITING` (0x83) as a notification when messages are available.
 
+**Important**: a host must advance its polling loop — issue the next
+`CMD_SYNC_NEXT_MESSAGE`, exactly as it would for a known type — on *any*
+response to this command, including packet types it does not recognize. New
+message-carrying packet types are added over time, and a host that only
+advances on the types it knows will stall on the first unknown one: the queue
+stops draining and the messages behind it stay undelivered until the next
+`PACKET_MESSAGES_WAITING`. Only `PACKET_NO_MORE_MSGS` (0x0A) ends the loop.
+
 ---
 
 ### 8. Get Battery and Storage
