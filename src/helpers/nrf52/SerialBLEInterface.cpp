@@ -129,6 +129,12 @@ void SerialBLEInterface::begin(const char* prefix, char* name, uint32_t pin_code
   char charpin[20];
   snprintf(charpin, sizeof(charpin), "%lu", (unsigned long)pin_code);
   
+  #ifdef DISABLE_BLE_LED  \\ use variant platformio.ini build_flags macro: -D DISABLE_BLE_LED
+    Bluefruit.autoConnLed(false);  \\ false removes the automatic control of the LED by the Bluefruit library
+  #else
+    Bluefruit.autoConnLed(true);  \\ true leaves the default automatic control of the LED by the Bluefruit library
+  #endif
+  
   // If we want to control BLE LED ourselves, uncomment this:
   // Bluefruit.autoConnLed(false);
   Bluefruit.configPrphBandwidth(BANDWIDTH_MAX);
