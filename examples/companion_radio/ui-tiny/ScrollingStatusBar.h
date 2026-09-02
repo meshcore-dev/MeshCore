@@ -1,6 +1,7 @@
 #pragma once
 
 #include <helpers/ui/DisplayDriver.h>
+#include <helpers/ArduinoTimer.h>
 
 
 #ifndef STATUS_BAR_SCROLL_MS
@@ -93,7 +94,7 @@ public:
   // Returns true if the status bar needs a redraw this frame.
   bool needsRedraw() {
     if (_text_width <= _display_width) return _needs_redraw;  // static, no scrolling
-    return millis() >= _next_scroll;
+    return millisHasPassed(_next_scroll);
   }
 
   // Render the status bar via DisplayDriver.
