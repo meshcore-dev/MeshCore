@@ -43,6 +43,7 @@ public:
   uint8_t cad_enabled = 0;
   char default_scope_name[31];
   uint8_t default_scope_key[16];
+  int8_t tz_offset = 0;
 
 private:
   class RadioPrefs : public CommonRadioPrefs {
@@ -150,6 +151,7 @@ private:
       def("tel_base", _parent->telemetry_mode_base);
       def("tel_loc", _parent->telemetry_mode_loc);
       def("tel_env", _parent->telemetry_mode_env);
+      def("tz_offset", _parent->tz_offset);
     }
   public:
     CompanionPrefs(NodePrefs* parent) : _parent(parent) { }

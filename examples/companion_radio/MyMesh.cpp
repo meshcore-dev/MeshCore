@@ -136,6 +136,10 @@
 #define ERR_CODE_FILE_IO_ERROR          5
 #define ERR_CODE_ILLEGAL_ARG            6
 
+// Copied from simple_repeater (could probably be shared)
+#define CTL_TYPE_NODE_DISCOVER_REQ      0x80
+#define CTL_TYPE_NODE_DISCOVER_RESP     0x90
+
 #define MAX_SIGN_DATA_LEN               (8 * 1024) // 8K
 
 // Auto-add config bitmask
@@ -404,6 +408,53 @@ int MyMesh::getRecentlyHeard(AdvertPath dest[], int max_num) {
   }
   return max_num;
 }
+
+#if defined(DISPLAY_CLASS) && !(defined(UI_NO_DISCOVER_SCREEN) && (UI_NO_DISCOVER_SCREEN + 0 != 0))
+int MyMesh::getDiscoveredNodes(DiscoveredNode nodes[], int max_num) {
+  if (max_num > DISCOVERED_NODES_TABLE_SIZE) max_num = DISCOVERED_NODES_TABLE_SIZE;
+  if (max_num > disc_nodes_count) max_num = disc_nodes_count;
+
+  for (int i = 0; i < max_num; i++) {
+    nodes[i] = discovered_nodes[i];
+  }
+  return max_num;
+}
+
+bool MyMesh::requestRepeatersDiscovery() {
+  uint8_t cmd_bytes[6];
+  cmd_bytes[0] = CTL_TYPE_NODE_DISCOVER_REQ | 1; // DISCOVER_REQ | prefix only
+  cmd_bytes[1] = 0xFF;     // Repeaters
+  getRNG()->random(&cmd_bytes[2], 4); // tag
+  disc_nodes_count = 0;
+  disc_node_req_tag = *((uint32_t*)&cmd_bytes[2]);
+  mesh::Packet* req = createControlData(cmd_bytes, sizeof(cmd_bytes));
+  if (req) {
+    sendZeroHop(req);
+    return true;
+  }
+  return false;
+}
+
+void MyMesh::checkControlDataForPendingDiscovery(uint8_t payload[], size_t p_len) {
+  if ((p_len < 12)
+      || (payload[0] & 0xF0 != CTL_TYPE_NODE_DISCOVER_RESP)
+      || (disc_nodes_count >= DISCOVERED_NODES_TABLE_SIZE)
+      || (memcmp(&payload[2], &disc_node_req_tag, 4))) {
+    return;
+  }
+  memcpy(&discovered_nodes[disc_nodes_count].pubkey_prefix, &payload[6], 8);
+  discovered_nodes[disc_nodes_count].type = payload[0] & 0xF;
+  discovered_nodes[disc_nodes_count].snr_out = ((int8_t)payload[1]) / 4.0;
+  discovered_nodes[disc_nodes_count].snr_in = _radio->getLastSNR();
+  ContactInfo* c = lookupContactByPubKey(&payload[6], 8);
+  if (c != NULL) {
+    strncpy(discovered_nodes[disc_nodes_count].name, c->name, 32);
+  } else {
+    discovered_nodes[disc_nodes_count].name[0] = 0;
+  }
+  disc_nodes_count ++;
+}
+#endif
 
 void MyMesh::onContactPathUpdated(const ContactInfo &contact) {
   out_frame[0] = PUSH_CODE_PATH_UPDATED;
@@ -796,6 +847,9 @@ void MyMesh::onControlDataRecv(mesh::Packet *packet) {
     MESH_DEBUG_PRINTLN("onControlDataRecv(), payload_len too long: %d", packet->payload_len);
     return;
   }
+#if defined(DISPLAY_CLASS) && !(defined(UI_NO_DISCOVER_SCREEN) && (UI_NO_DISCOVER_SCREEN + 0 != 0))
+  checkControlDataForPendingDiscovery(packet->payload, packet->payload_len);
+#endif
   int i = 0;
   out_frame[i++] = PUSH_CODE_CONTROL_DATA;
   out_frame[i++] = (int8_t)(_radio->getLastSNR() * 4);
@@ -2109,6 +2163,22 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
 
   if (strcmp(command, "ver") == 0) {
     sprintf(reply, "%s (Build: %s)", FIRMWARE_VERSION, FIRMWARE_BUILD_DATE);
+    return true;
+  }
+
+  if (strcmp(command, "get tz.offset") == 0) {
+    sprintf(reply, "> %d", _prefs.tz_offset);
+    return true;
+  }
+  if (memcmp(command, "set tz.offset ", 14) == 0) {
+    int8_t tz = atof(&command[14]);
+    if (tz < -12 || tz > 14) {
+      strcpy(reply, "Error, must be from -12 to +14");
+    } else {
+      _prefs.tz_offset = tz;
+      savePrefs();
+      strcpy(reply, "OK");
+    }
     return true;
   }
 
