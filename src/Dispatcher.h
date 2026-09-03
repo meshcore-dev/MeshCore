@@ -6,6 +6,16 @@
 #include <Utils.h>
 #include <string.h>
 
+// Default transmit duty cycle limit, as a percentage of the duty cycle window.
+// 10% is the ETSI EN 300 220-2 limit for the 869.4-869.65 MHz sub-band, which is where
+// the default LORA_FREQ lives. Override per build for regions without a duty cycle limit.
+#ifndef MAX_DUTY_CYCLE
+  #define MAX_DUTY_CYCLE  10
+#endif
+
+// Airtime budget factor equivalent of MAX_DUTY_CYCLE (see CommonCLI 'set dutycycle')
+#define DEFAULT_AIRTIME_FACTOR  ((100.0f / (MAX_DUTY_CYCLE)) - 1.0f)
+
 namespace mesh {
 
 /**

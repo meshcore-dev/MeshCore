@@ -32,7 +32,7 @@ void Dispatcher::begin() {
 }
 
 float Dispatcher::getAirtimeBudgetFactor() const {
-  return 1.0;
+  return DEFAULT_AIRTIME_FACTOR;
 }
 
 void Dispatcher::updateTxBudget() {

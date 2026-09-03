@@ -710,7 +710,7 @@ SensorMesh::SensorMesh(mesh::MainBoard& board, mesh::Radio& radio, mesh::Millise
   set_radio_at = revert_radio_at = 0;
 
   // defaults
-  _prefs.airtime_factor = 1.0;
+  _prefs.airtime_factor = DEFAULT_AIRTIME_FACTOR;
   _prefs.rx_delay_base =   0.0f;  // turn off by default, was 10.0;
   _prefs.tx_delay_factor = 0.5f;   // was 0.25f
   _prefs.direct_tx_delay_factor = 0.2f; // was zero

@@ -565,12 +565,14 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 **Parameters:**
 - `value`: Duty cycle percentage (1-100)
 
-**Default:** `50%` (equivalent to airtime factor 1.0)
+**Default:** `10%` (equivalent to airtime factor 9.0), the ETSI EN 300 220-2 limit for the
+869.4-869.65 MHz sub-band that the default frequency uses. Builds for regions without a duty
+cycle limit can override this with the `MAX_DUTY_CYCLE` build flag.
 
 **Examples:**
 - `set dutycycle 100` — no duty cycle limit
-- `set dutycycle 50` — 50% duty cycle (default)
-- `set dutycycle 10` — 10% duty cycle
+- `set dutycycle 50` — 50% duty cycle
+- `set dutycycle 10` — 10% duty cycle (default)
 - `set dutycycle 1` — 1% duty cycle (strictest EU requirement)
 
 > **Note:** Added in firmware v1.15.0
