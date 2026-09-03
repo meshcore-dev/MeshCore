@@ -1,11 +1,16 @@
 #include <Arduino.h>
 #include "DataStore.h"
 
+#include <helpers/MigrateContactsToChunks.h> // remove when we have migrated to chunked contacts
+
 #if defined(EXTRAFS) || defined(QSPIFLASH)
-  #define MAX_BLOBRECS 100
+  #define MAX_BLOBRECS 40
 #else
   #define MAX_BLOBRECS 20
 #endif
+
+#define CONTACTS_DEBOUNCE_MS   5000   // time to wait for additional changes before writing dirty contacts
+#define CONTACTS_MAX_DIRTY_MS 30000   // maximum time to wait before writing dirty contacts
 
 DataStore::DataStore(FILESYSTEM& fs, mesh::RTCClock& clock) : _fs(&fs), _fsExtra(nullptr), _clock(&clock),
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
@@ -21,7 +26,7 @@ DataStore::DataStore(FILESYSTEM& fs, mesh::RTCClock& clock) : _fs(&fs), _fsExtra
 #if defined(EXTRAFS) || defined(QSPIFLASH)
 DataStore::DataStore(FILESYSTEM& fs, FILESYSTEM& fsExtra, mesh::RTCClock& clock) : _fs(&fs), _fsExtra(&fsExtra), _clock(&clock),
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
-    identity_store(fs, "")
+    identity_store(fsExtra, "", fs)
 #elif defined(RP2040_PLATFORM)
     identity_store(fs, "/identity")
 #else
@@ -42,8 +47,20 @@ static File openWrite(FILESYSTEM* fs, const char* filename) {
 #endif
 }
 
+static bool renameFile(FILESYSTEM* fs, const char* oldname, const char* newname) {
+  // LittleFS supports atomic rename, but SPIFFS does not.
+  #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM) || defined(RP2040_PLATFORM)
+    return fs->rename(oldname, newname);
+  #else
+    if (fs->exists(newname)) {
+      fs->remove(newname);
+    }
+    return fs->rename(oldname, newname);
+  #endif
+}
+
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
-  static uint32_t _ContactsChannelsTotalBlocks = 0;
+  static uint32_t _storageFSTotalBlocks = 0;
 #endif
 
 void DataStore::begin() {
@@ -52,7 +69,7 @@ void DataStore::begin() {
 #endif
 
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
-  _ContactsChannelsTotalBlocks = _getContactsChannelsFS()->_getFS()->cfg->block_count;
+  _storageFSTotalBlocks = _getStorageFS()->_getFS()->cfg->block_count;
   checkAdvBlobFile();
   #if defined(EXTRAFS) || defined(QSPIFLASH)
   migrateToSecondaryFS();
@@ -70,9 +87,9 @@ void DataStore::begin() {
   #include <LittleFS.h>
 #elif defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
   #if defined(QSPIFLASH)
-    #include <CustomLFS_QSPIFlash.h>
+    #include <CustomLFS2_QSPIFlash.h>
   #elif defined(EXTRAFS)
-    #include <CustomLFS.h>
+    #include <CustomLFS2.h>
   #else 
     #include <InternalFileSystem.h>
   #endif
@@ -80,7 +97,7 @@ void DataStore::begin() {
 
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
 int _countLfsBlock(void *p, lfs_block_t block){
-      if (block > _ContactsChannelsTotalBlocks) {
+      if (block > _storageFSTotalBlocks) {
         MESH_DEBUG_PRINTLN("ERROR: Block %d exceeds filesystem bounds - CORRUPTION DETECTED!", block);
         return LFS_ERR_CORRUPT;  // return error to abort lfs_traverse() gracefully
     }
@@ -91,9 +108,10 @@ int _countLfsBlock(void *p, lfs_block_t block){
 
 lfs_ssize_t _getLfsUsedBlockCount(FILESYSTEM* fs) {
   lfs_size_t size = 0;
-  int err = lfs_traverse(fs->_getFS(), _countLfsBlock, &size);
+  int err = lfs_fs_traverse(fs->_getFS(), _countLfsBlock, &size);
   if (err) {
     MESH_DEBUG_PRINTLN("ERROR: lfs_traverse() error: %d", err);
+    lfs_fs_mkconsistent(fs->_getFS());
     return 0;
   }
   return size;
@@ -109,8 +127,8 @@ uint32_t DataStore::getStorageUsedKb() const {
   _fs->info(info);
   return info.usedBytes / 1024;
 #elif defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
-  const lfs_config* config = _getContactsChannelsFS()->_getFS()->cfg;
-  int usedBlockCount = _getLfsUsedBlockCount(_getContactsChannelsFS());
+  const lfs_config* config = _getStorageFS()->_getFS()->cfg;
+  int usedBlockCount = _getLfsUsedBlockCount(_getStorageFS());
   int usedBytes = config->block_size * usedBlockCount;
   return usedBytes / 1024;
 #else
@@ -127,7 +145,7 @@ uint32_t DataStore::getStorageTotalKb() const {
   _fs->info(info);
   return info.totalBytes / 1024;
 #elif defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
-  const lfs_config* config = _getContactsChannelsFS()->_getFS()->cfg;
+  const lfs_config* config = _getStorageFS()->_getFS()->cfg;
   int totalBytes = config->block_size * config->block_count;
   return totalBytes / 1024;
 #else
@@ -163,6 +181,44 @@ bool DataStore::removeFile(FILESYSTEM* fs, const char* filename) {
   return fs->remove(filename);
 }
 
+bool DataStore::relocateFile(FILESYSTEM* src, FILESYSTEM* dst, const char* filename) {
+  if (!src->exists(filename)) return false;
+
+  char tempfile[24];
+  snprintf(tempfile, sizeof(tempfile), "%s.tmp", filename);
+  File oldFile = openRead(src, filename);
+  File newFile = openWrite(dst, tempfile);
+  if (!oldFile || !newFile) {
+    if (oldFile) oldFile.close();
+    if (newFile) newFile.close();
+    return false;
+  }
+
+  bool ok = true;
+  uint8_t buf[64];
+  int n;
+  while ((n = oldFile.read(buf, sizeof(buf))) > 0) {
+    if (newFile.write(buf, n) != n) { ok = false; break; };
+  }
+  if (n < 0) ok = false;
+
+  oldFile.close();
+  newFile.close();
+
+  if (ok) {
+    ok = renameFile(dst, tempfile, filename);
+    if (ok) {
+      ok = src->remove(filename);
+    }
+    if (!ok) {
+      dst->remove(tempfile);
+    }
+  }
+  MESH_DEBUG_PRINTLN("Relocate %s: %s", filename, ok ? "success" : "failed");
+
+  return ok;
+}
+
 bool DataStore::formatFileSystem() {
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
   if (_fsExtra == nullptr) {
@@ -190,22 +246,22 @@ bool DataStore::saveMainIdentity(const mesh::LocalIdentity &identity) {
 }
 
 void DataStore::loadPrefs(NodePrefs& prefs) {
-  if (_fs->exists("/prefs.json")) {
-    File file = openRead(_fs, "/prefs.json");
+  if (_getStorageFS()->exists("/prefs.json")) {
+    File file = openRead(_getStorageFS(), "/prefs.json");
     if (file) {
       prefs.loadSerial(file);   // new Serial prefs
       file.close();
     }
-  } else if (_fs->exists("/new_prefs")) {
+  } else if (_getStorageFS()->exists("/new_prefs")) {
     loadPrefsInt("/new_prefs", prefs);
     if (savePrefs(prefs) ) {                // save to new format
-      //_fs->remove("/new_prefs"); // remove old
+      //_getStorageFS()->remove("/new_prefs"); // remove old
     }
   }
 }
 
 void DataStore::loadPrefsInt(const char *filename, NodePrefs& _prefs) {
-  File file = openRead(_fs, filename);
+  File file = openRead(_getStorageFS(), filename);
   if (file) {
     uint8_t pad[8];
 
@@ -247,81 +303,272 @@ void DataStore::loadPrefsInt(const char *filename, NodePrefs& _prefs) {
 }
 
 bool DataStore::savePrefs(NodePrefs& _prefs) {
-  File file = openWrite(_fs, "/prefs.json");
-  if (file) {
-    bool success = _prefs.saveSerial(file);
-    file.close();
-    return success;
-  }
-  return false;
+  constexpr char filename[] = "/prefs.json";
+  char tempname[sizeof(filename) + 4];
+  snprintf(tempname, sizeof(tempname), "%s.tmp", filename);
+
+  File file = openWrite(_getStorageFS(), tempname);
+  if (!file) return false;
+
+  bool writeOk = _prefs.saveSerial(file);
+  file.close();
+
+  return writeOk && renameFile(_getStorageFS(), tempname, filename);
 }
 
-void DataStore::loadContacts(DataStoreHost* host) {
-File file = openRead(_getContactsChannelsFS(), "/contacts3");
-    if (file) {
-      bool full = false;
-      while (!full) {
-        ContactInfo c;
-        uint8_t pub_key[32];
-        uint8_t unused;
+void DataStore::allocateChunkSlot(ContactInfo& contact)
+{
+    for (uint8_t chunk = 0; chunk < MAX_CHUNKS; chunk++) {
+        if (_chunk_free_slots[chunk] == 0) continue;
+        for (uint8_t slot = 0; slot < SLOTS_PER_CHUNK; slot++) {
+            if (_chunk_free_slots[chunk] & (1 << slot)) {
+              MESH_DEBUG_PRINTLN("allocateChunkSlot: chose slot, chunk %d slot %d", chunk, slot);
+                contact.chunk_index = chunk;
+                contact.slot_index = slot;
+                _chunk_free_slots[chunk] &= ~(1 << slot);
+                // _chunks_to_write |= (1 << chunk); // replaced by markContactDirty()
+                markContactDirty(contact);
+                MESH_DEBUG_PRINTLN("allocateChunkSlot: assigned chunk=%d slot=%d, free_slots=0x%08X", chunk, slot, _chunk_free_slots[chunk]);
+                return;
+            }
+        }
+    }
+    MESH_DEBUG_PRINTLN("allocateChunkSlot: no free slots available");
+}
 
-        bool success = (file.read(pub_key, 32) == 32);
-        success = success && (file.read((uint8_t *)&c.name, 32) == 32);
-        success = success && (file.read(&c.type, 1) == 1);
-        success = success && (file.read(&c.flags, 1) == 1);
-        success = success && (file.read(&unused, 1) == 1);
-        success = success && (file.read((uint8_t *)&c.sync_since, 4) == 4); // was 'reserved'
-        success = success && (file.read((uint8_t *)&c.out_path_len, 1) == 1);
-        success = success && (file.read((uint8_t *)&c.last_advert_timestamp, 4) == 4);
-        success = success && (file.read(c.out_path, 64) == 64);
-        success = success && (file.read((uint8_t *)&c.lastmod, 4) == 4);
-        success = success && (file.read((uint8_t *)&c.gps_lat, 4) == 4);
-        success = success && (file.read((uint8_t *)&c.gps_lon, 4) == 4);
+void DataStore::releaseChunkSlot(ContactInfo& contact)
+{
+    if (contact.chunk_index == 0xFF) {
+      MESH_DEBUG_PRINTLN("releaseChunkSlot: contact.chunk_index is already 0xFF, returning...");
+      return;
+    }
+    _chunk_free_slots[contact.chunk_index] |= (1 << contact.slot_index);
+    _chunks_to_write |= (1 << contact.chunk_index);
+    _contactsChanged = millis();
+    contact.chunk_index = 0xFF;
+    contact.slot_index = 0xFF;
+}
 
-        if (!success) break; // EOF
-
-        c.id = mesh::Identity(pub_key);
-        if (!host->onContactLoaded(c)) full = true;
-      }
-      file.close();
+void DataStore::markContactDirty(const ContactInfo& contact)
+{
+    if (contact.chunk_index != 0xFF) {
+        _chunks_to_write |= (1 << contact.chunk_index);
+        _contactsChanged = millis();
     }
 }
 
+bool DataStore::shouldSaveContacts(uint32_t now) {
+  if (_saving_contacts || _chunks_to_write == 0) {
+      if (_chunks_to_write == 0) {
+        _contacts_dirty_since = 0;
+        _contactsChanged = 0;
+      }
+      return false;
+  }
+
+  // contacts have changed, set dirty_since if needed
+  if (_contactsChanged != 0) {
+      if (_contacts_dirty_since == 0) _contacts_dirty_since = _contactsChanged;
+  }
+
+  if ((now - _contactsChanged) >= CONTACTS_DEBOUNCE_MS) return true;
+  if ((now - _contacts_dirty_since) >= CONTACTS_MAX_DIRTY_MS) return true;
+
+  return false;
+}
+
+
+void DataStore::loadContacts(DataStoreHost* host) {
+  _contactsChanged = 0;
+  _chunks_to_write = 0;
+  _contacts_dirty_since = 0;
+  _saving_contacts = false;
+
+  for (int i = 0; i < MAX_CHUNKS; i++) {
+      _chunk_free_slots[i] = 0x01FFFFFF;
+  }
+
+  const uint32_t chunkSize = sizeof(ChunkHeader) + (SLOTS_PER_CHUNK * CONTACT_RECORD_SIZE);
+  static uint8_t chunkBuf[chunkSize];
+
+  // check for monolithic contacts file on _fs and _fsExtra, migrate it to chunked format
+  if (_fs->exists("/contacts3")) {
+      if (migrateContactsFromFile(_fs, _getStorageFS(), chunkBuf)) _fs->remove("/contacts3");
+  } else if (_getStorageFS()->exists("/contacts3")) {
+      if (migrateContactsFromFile(_getStorageFS(), _getStorageFS(), chunkBuf)) _getStorageFS()->remove("/contacts3");
+  }
+
+
+  bool full = false;
+
+  for (uint8_t chunk_idx = 0; chunk_idx < MAX_CHUNKS && !full; chunk_idx++) {
+      char filename[20];
+      snprintf(filename, sizeof(filename), "/contacts3_%02d", chunk_idx);
+
+      File file = openRead(_getStorageFS(), filename);
+      if (!file) continue;
+
+      MESH_DEBUG_PRINTLN("loadContacts: reading contact chunk file %s", filename);
+      if (file.read(chunkBuf, chunkSize) != chunkSize) {
+          MESH_DEBUG_PRINTLN("Chunk %d: read failed, skipping", chunk_idx);
+          file.close();
+          continue;
+      }
+      file.close();
+
+      ChunkHeader* header = (ChunkHeader*)chunkBuf;
+      uint8_t* records = chunkBuf + sizeof(ChunkHeader);
+
+      // check header, skip if magic/version/chunk_index don't match
+      if (header->magic != CHUNK_MAGIC || header->version != CHUNK_VERSION || header->chunk_index != chunk_idx) {
+          MESH_DEBUG_PRINTLN("Chunk %d: invalid header, skipping", chunk_idx);
+          continue;
+      }
+
+      // sanity check before sha256, bail early if things are off
+      uint8_t actual_count = 0;
+      for (uint8_t i = 0; i < SLOTS_PER_CHUNK; i++) {
+          if (header->tombstones[i] == 0) actual_count++;
+      }
+      if (actual_count != header->valid_count) {
+          MESH_DEBUG_PRINTLN("Chunk %d: valid_count mismatch (%d != %d), skipping",
+                              chunk_idx, header->valid_count, actual_count);
+          continue;
+      }
+
+      // validate sha256 hash
+      uint8_t stored_hash[32];
+      memcpy(stored_hash, header->sha256, 32);
+      memset(header->sha256, 0, 32);
+      uint8_t calculated_hash[32];
+      mesh::Utils::sha256(calculated_hash, 32, chunkBuf, chunkSize);
+      if (memcmp(stored_hash, calculated_hash, 32) != 0) {
+          MESH_DEBUG_PRINTLN("Chunk %d: SHA256 validation failed, skipping", chunk_idx);
+          continue;
+      }
+
+      // load contacts from chunk
+      for (uint8_t slot_idx = 0; slot_idx < SLOTS_PER_CHUNK && !full; slot_idx++) {
+          if (header->tombstones[slot_idx] != 0) continue; // skip deleted or empty slots
+
+          uint8_t* rec = records + (slot_idx * CONTACT_RECORD_SIZE); // pointer to record in chunk buffer
+          ContactInfo c;
+          uint8_t pub_key[32];
+          int off = 0;
+
+          memcpy(pub_key, rec + off, 32);                    off += 32;
+          memcpy(c.name, rec + off, 32);                     off += 32;
+          c.type = rec[off++];                               // 1 byte
+          c.flags = rec[off++];                              // 1 byte
+          off++;                                             // skip, 1 byte unused
+          memcpy(&c.sync_since, rec + off, 4);               off += 4;  // was 'reserved'
+          c.out_path_len = rec[off++];                       // 1 byte
+          memcpy(&c.last_advert_timestamp, rec + off, 4);    off += 4;
+          memcpy(c.out_path, rec + off, 64);                 off += 64;
+          memcpy(&c.lastmod, rec + off, 4);                  off += 4;
+          memcpy(&c.gps_lat, rec + off, 4);                  off += 4;
+          memcpy(&c.gps_lon, rec + off, 4);                  off += 4;
+
+          c.id = mesh::Identity(pub_key);
+          c.shared_secret_valid = false;
+          c.chunk_index = chunk_idx;
+          c.slot_index = slot_idx;
+
+          if (host->onContactLoaded(c)) {
+              _chunk_free_slots[chunk_idx] &= ~(1 << slot_idx);
+          } else {
+              full = true;
+          }
+      }
+  }
+}
+
 void DataStore::saveContacts(DataStoreHost* host, bool (*filter)(const ContactInfo& c)) {
-  File file = openWrite(_getContactsChannelsFS(), "/contacts3");
-  if (file) {
+  if (_chunks_to_write == 0 || _saving_contacts) return;
+
+  _saving_contacts = true;
+  uint16_t chunks_snapshot = _chunks_to_write;
+  _chunks_to_write = 0;
+  _contacts_dirty_since = 0;
+
+  const uint32_t chunkSize = sizeof(ChunkHeader) + (SLOTS_PER_CHUNK * CONTACT_RECORD_SIZE);
+  static uint8_t chunkBuf[chunkSize];
+
+  for (uint8_t chunk_idx = 0; chunk_idx < MAX_CHUNKS; chunk_idx++) {
+    if (!(chunks_snapshot & (1 << chunk_idx))) continue;
+    MESH_DEBUG_PRINTLN("saveContacts(): chunk_idx=%d, chunks_snapshot=0x%04X", chunk_idx, chunks_snapshot);
+
+    memset(chunkBuf, 0, chunkSize);
+
+    ChunkHeader* header = (ChunkHeader*)chunkBuf;
+    header->magic = CHUNK_MAGIC;
+    header->version = CHUNK_VERSION;
+    header->chunk_index = chunk_idx;
+    header->valid_count = 0;
+    memset(header->tombstones, 1, SLOTS_PER_CHUNK);
+
+    uint8_t* records = chunkBuf + sizeof(ChunkHeader);
+
+    // Scan all contacts to find those in this chunk
     uint32_t idx = 0;
     ContactInfo c;
-    uint8_t unused = 0;
-
     while (host->getContactForSave(idx, c)) {
       if (filter && !filter(c)) {
         idx++;  // advance to next contact
         continue;
       }
-      bool success = (file.write(c.id.pub_key, 32) == 32);
-      success = success && (file.write((uint8_t *)&c.name, 32) == 32);
-      success = success && (file.write(&c.type, 1) == 1);
-      success = success && (file.write(&c.flags, 1) == 1);
-      success = success && (file.write(&unused, 1) == 1);
-      success = success && (file.write((uint8_t *)&c.sync_since, 4) == 4);
-      success = success && (file.write((uint8_t *)&c.out_path_len, 1) == 1);
-      success = success && (file.write((uint8_t *)&c.last_advert_timestamp, 4) == 4);
-      success = success && (file.write(c.out_path, 64) == 64);
-      success = success && (file.write((uint8_t *)&c.lastmod, 4) == 4);
-      success = success && (file.write((uint8_t *)&c.gps_lat, 4) == 4);
-      success = success && (file.write((uint8_t *)&c.gps_lon, 4) == 4);
+      if (c.chunk_index == chunk_idx) {
+        uint8_t* rec = records + (c.slot_index * CONTACT_RECORD_SIZE);
+        int off = 0;
+        uint8_t unused = 0;
 
-      if (!success) break; // write failed
+        memcpy(rec + off, c.id.pub_key, 32);                off += 32;
+        memcpy(rec + off, c.name, 32);                      off += 32;
+        rec[off++] = c.type;
+        rec[off++] = c.flags;
+        rec[off++] = unused;
+        memcpy(rec + off, &c.sync_since, 4);                off += 4;
+        rec[off++] = c.out_path_len;
+        memcpy(rec + off, &c.last_advert_timestamp, 4);     off += 4;
+        memcpy(rec + off, c.out_path, 64);                  off += 64;
+        memcpy(rec + off, &c.lastmod, 4);                   off += 4;
+        memcpy(rec + off, &c.gps_lat, 4);                   off += 4;
+        memcpy(rec + off, &c.gps_lon, 4);                   off += 4;
 
-      idx++;  // advance to next contact
+        header->tombstones[c.slot_index] = 0;
+        header->valid_count++;
+      }
+      idx++;
     }
-    file.close();
-  }
+
+    // SHA256
+    mesh::Utils::sha256(header->sha256, 32, chunkBuf, chunkSize);
+
+    // Atomic write
+    char filename[14];
+    char tempname[18];
+    snprintf(filename, sizeof(filename), "/contacts3_%02d", chunk_idx);
+    snprintf(tempname, sizeof(tempname), "/contacts3_%02d.tmp", chunk_idx);
+
+        MESH_DEBUG_PRINTLN("saveContacts: writing %s", tempname);
+        File file = openWrite(_getStorageFS(), tempname);
+        
+        if (file) {
+            bool ok = (file.write(chunkBuf, chunkSize) == chunkSize);
+            file.close();
+            if (ok) {
+                MESH_DEBUG_PRINTLN("saveContacts: renaming %s to %s", tempname, filename);
+                renameFile(_getStorageFS(), tempname, filename);
+            } else {
+                _getStorageFS()->remove(tempname);
+            }
+        }
+    }
+    _saving_contacts = false;
 }
 
 void DataStore::loadChannels(DataStoreHost* host) {
-    File file = openRead(_getContactsChannelsFS(), "/channels2");
+    File file = openRead(_getStorageFS(), "/channels2");
     if (file) {
       bool full = false;
       uint8_t channel_idx = 0;
@@ -346,7 +593,11 @@ void DataStore::loadChannels(DataStoreHost* host) {
 }
 
 void DataStore::saveChannels(DataStoreHost* host) {
-  File file = openWrite(_getContactsChannelsFS(), "/channels2");
+  char filename[11];
+  char tempname[15];
+  snprintf(filename, sizeof(filename), "/channels2");
+  snprintf(tempname, sizeof(tempname), "%s.tmp", filename);
+  File file = openWrite(_getStorageFS(), tempname);
   if (file) {
     uint8_t channel_idx = 0;
     ChannelDetails ch;
@@ -362,6 +613,7 @@ void DataStore::saveChannels(DataStoreHost* host) {
       channel_idx++;
     }
     file.close();
+    renameFile(_getStorageFS(), tempname, filename);
   }
 }
 
@@ -377,8 +629,8 @@ struct BlobRec {
 };
 
 void DataStore::checkAdvBlobFile() {
-  if (!_getContactsChannelsFS()->exists("/adv_blobs")) {
-    File file = openWrite(_getContactsChannelsFS(), "/adv_blobs");
+  if (!_getStorageFS()->exists("/adv_blobs")) {
+    File file = openWrite(_getStorageFS(), "/adv_blobs");
     if (file) {
       BlobRec zeroes;
       memset(&zeroes, 0, sizeof(zeroes));
@@ -391,7 +643,7 @@ void DataStore::checkAdvBlobFile() {
 }
 
 void DataStore::migrateToSecondaryFS() {
-  // migrate old adv_blobs, contacts3 and channels2 files to secondary FS if they don't already exist
+  // migrate old adv_blobs, contacts, channels, prefs files to secondary FS
   if (!_fsExtra->exists("/adv_blobs")) {
     if (_fs->exists("/adv_blobs")) {
     File oldAdvBlobs = openRead(_fs, "/adv_blobs");
@@ -414,92 +666,20 @@ void DataStore::migrateToSecondaryFS() {
     }
   }
   if (!_fsExtra->exists("/contacts3")) {
-    if (_fs->exists("/contacts3")) {
-      File oldFile = openRead(_fs, "/contacts3");
-      File newFile = openWrite(_fsExtra, "/contacts3");
-
-      if (oldFile && newFile) {
-        uint8_t buf[64];
-        int n;
-        while ((n = oldFile.read(buf, sizeof(buf))) > 0) {
-          newFile.write(buf, n);
-        }
-      }
-      if (oldFile) oldFile.close();
-      if (newFile) newFile.close();
-      _fs->remove("/contacts3");
-    }
+    if (_fs->exists("/contacts3")) relocateFile(_fs, _fsExtra, "/contacts3");
   }
   if (!_fsExtra->exists("/channels2")) {
-    if (_fs->exists("/channels2")) {
-      File oldFile = openRead(_fs, "/channels2");
-      File newFile = openWrite(_fsExtra, "/channels2");
-
-      if (oldFile && newFile) {
-        uint8_t buf[64];
-        int n;
-        while ((n = oldFile.read(buf, sizeof(buf))) > 0) {
-          newFile.write(buf, n);
-        }
-      }
-      if (oldFile) oldFile.close();
-      if (newFile) newFile.close();
-      _fs->remove("/channels2");
-    }
+    if (_fs->exists("/channels2")) relocateFile(_fs, _fsExtra, "/channels2");
   }
-  // cleanup nodes which have been testing the extra fs, copy _main.id and new_prefs back to primary
-  if (_fsExtra->exists("/_main.id")) {
-      if (_fs->exists("/_main.id")) {_fs->remove("/_main.id");}
-      File oldFile = openRead(_fsExtra, "/_main.id");
-      File newFile = openWrite(_fs, "/_main.id");
-
-      if (oldFile && newFile) {
-        uint8_t buf[64];
-        int n;
-        while ((n = oldFile.read(buf, sizeof(buf))) > 0) {
-          newFile.write(buf, n);
-        }
-      }
-      if (oldFile) oldFile.close();
-      if (newFile) newFile.close();
-      _fsExtra->remove("/_main.id");
-  }
-  if (_fsExtra->exists("/new_prefs")) {
-    if (_fs->exists("/new_prefs")) {_fs->remove("/new_prefs");}
-      File oldFile = openRead(_fsExtra, "/new_prefs");
-      File newFile = openWrite(_fs, "/new_prefs");
-
-      if (oldFile && newFile) {
-        uint8_t buf[64];
-        int n;
-        while ((n = oldFile.read(buf, sizeof(buf))) > 0) {
-          newFile.write(buf, n);
-        }
-      }
-      if (oldFile) oldFile.close();
-      if (newFile) newFile.close();
-      _fsExtra->remove("/new_prefs");
-  }
-  // remove files from where they should not be anymore
-  if (_fs->exists("/adv_blobs")) {
-    _fs->remove("/adv_blobs");
-  }
-  if (_fs->exists("/contacts3")) {
-    _fs->remove("/contacts3");
-  }
-  if (_fs->exists("/channels2")) {
-    _fs->remove("/channels2");
-  }
-  if (_fsExtra->exists("/_main.id")) {
-    _fsExtra->remove("/_main.id");
-  }
-  if (_fsExtra->exists("/new_prefs")) {
-    _fsExtra->remove("/new_prefs");
+  if (!_fsExtra->exists("/prefs.json")) {
+    if (_fs->exists("/prefs.json")) relocateFile(_fs, _fsExtra, "/prefs.json");
+    if (_fs->exists("/new_prefs")) relocateFile(_fs, _fsExtra, "/new_prefs");
+    if (_fs->exists("/node_prefs")) relocateFile(_fs, _fsExtra, "/node_prefs");
   }
 }
 
 uint8_t DataStore::getBlobByKey(const uint8_t key[], int key_len, uint8_t dest_buf[]) {
-  File file = openRead(_getContactsChannelsFS(), "/adv_blobs");
+  File file = openRead(_getStorageFS(), "/adv_blobs");
   uint8_t len = 0;  // 0 = not found
   if (file) {
     BlobRec tmp;
@@ -518,7 +698,7 @@ uint8_t DataStore::getBlobByKey(const uint8_t key[], int key_len, uint8_t dest_b
 bool DataStore::putBlobByKey(const uint8_t key[], int key_len, const uint8_t src_buf[], uint8_t len) {
   if (len < PUB_KEY_SIZE+4+SIGNATURE_SIZE || len > MAX_ADVERT_PKT_LEN) return false;
   checkAdvBlobFile();
-  File file = _getContactsChannelsFS()->open("/adv_blobs", FILE_O_WRITE);
+  File file = _getStorageFS()->open("/adv_blobs", FILE_O_WRITE);
   if (file) {
     uint32_t pos = 0, found_pos = 0;
     uint32_t min_timestamp = 0xFFFFFFFF;
