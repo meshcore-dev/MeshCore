@@ -81,6 +81,9 @@ public:
 
   float getTelemValue(uint8_t channel, uint8_t type);
 
+  void sendFloodScoped(const TransportKey& scope, mesh::Packet* pkt, uint32_t delay_millis, uint8_t path_hash_size);
+  void sendFloodReply(mesh::Packet* packet, unsigned long delay_millis, uint8_t path_hash_size);
+
 protected:
   // current telemetry data queries
   float getVoltage(uint8_t channel) { return getTelemValue(channel, LPP_VOLTAGE); }
@@ -122,6 +125,7 @@ protected:
   int getInterferenceThreshold() const override;
   bool getCADEnabled() const override;
   int getAGCResetInterval() const override;
+  mesh::DispatcherAction onRecvPacket(mesh::Packet* pkt) override;
   void onAnonDataRecv(mesh::Packet* packet, const uint8_t* secret, const mesh::Identity& sender, uint8_t* data, size_t len) override;
   int searchPeersByHash(const uint8_t* hash) override;
   void getPeerSharedSecret(uint8_t* dest_secret, int peer_idx) override;
@@ -129,6 +133,7 @@ protected:
   bool onPeerPathRecv(mesh::Packet* packet, int sender_idx, const uint8_t* secret, uint8_t* path, uint8_t path_len, uint8_t extra_type, uint8_t* extra, uint8_t extra_len) override;
   void onControlDataRecv(mesh::Packet* packet) override;
   void onAckRecv(mesh::Packet* packet, uint32_t ack_crc) override;
+
   virtual bool handleIncomingMsg(ClientInfo& from, uint32_t timestamp, uint8_t* data, uint8_t flags, size_t len);
   void sendAckTo(const ClientInfo& dest, uint32_t ack_hash, uint8_t path_hash_size=1);
 private:
@@ -142,6 +147,7 @@ private:
   CayenneLPP telemetry;
   TransportKeyStore key_store;
   RegionMap region_map;
+  RegionEntry* recv_pkt_region;
   TransportKey default_scope;
   uint32_t last_read_time;
   int matching_peer_indexes[MAX_SEARCH_RESULTS];

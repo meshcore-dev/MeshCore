@@ -1,4 +1,5 @@
 #include "SensorMesh.h"
+#include <helpers/RoutingPolicy.h>
 
 /* ------------------------------ Config -------------------------------- */
 
@@ -262,7 +263,7 @@ void SensorMesh::sendAlert(const ClientInfo* c, Trigger* t) {
       sendDirect(pkt, c->out_path, c->out_path_len);
     } else {
       unsigned long delay_millis = 0;
-      sendFlood(pkt, delay_millis, _prefs.path_hash_mode + 1);
+      sendFloodScoped(default_scope, pkt, delay_millis, _prefs.path_hash_mode + 1);
     }
   }
   t->send_expiry = futureMillis(ALERT_ACK_EXPIRY_MILLIS);
@@ -400,10 +401,11 @@ void SensorMesh::handleCommand(uint32_t sender_timestamp, char* command, char* r
     if (sp == NULL) {
       strcpy(reply, "Err - bad params");
     } else {
+      int hex_len = min(sp - hex, PUB_KEY_SIZE*2);
+      uint8_t pubkey[PUB_KEY_SIZE];
+
       *sp++ = 0;   // replace space with null terminator
 
-      uint8_t pubkey[PUB_KEY_SIZE];
-      int hex_len = min(sp - hex, PUB_KEY_SIZE*2);
       if (mesh::Utils::fromHex(pubkey, hex_len / 2, hex)) {
         uint8_t perms = atoi(sp);
         if (acl.applyPermissions(self_id, pubkey, hex_len / 2, perms)) {
@@ -451,6 +453,21 @@ void SensorMesh::handleCommand(uint32_t sender_timestamp, char* command, char* r
   }
 }
 
+mesh::DispatcherAction SensorMesh::onRecvPacket(mesh::Packet* pkt) {
+  if (pkt->getRouteType() == ROUTE_TYPE_TRANSPORT_FLOOD) {
+    recv_pkt_region = region_map.findMatch(pkt, REGION_DENY_FLOOD);
+  } else if (pkt->getRouteType() == ROUTE_TYPE_FLOOD) {
+    if (region_map.getWildcard().flags & REGION_DENY_FLOOD) {
+      recv_pkt_region = NULL;
+    } else {
+      recv_pkt_region =  &region_map.getWildcard();
+    }
+  } else {
+    recv_pkt_region = NULL;
+  }
+  return Mesh::onRecvPacket(pkt);
+}
+
 void SensorMesh::onAnonDataRecv(mesh::Packet* packet, const uint8_t* secret, const mesh::Identity& sender, uint8_t* data, size_t len) {
   if (packet->getPayloadType() == PAYLOAD_TYPE_ANON_REQ) {  // received an initial request by a possible admin client (unknown at this stage)
     uint32_t timestamp;
@@ -472,10 +489,10 @@ void SensorMesh::onAnonDataRecv(mesh::Packet* packet, const uint8_t* secret, con
       // let this sender know path TO here, so they can use sendDirect(), and ALSO encode the response
       mesh::Packet* path = createPathReturn(sender, secret, packet->path, packet->path_len,
                                             PAYLOAD_TYPE_RESPONSE, reply_data, reply_len);
-      if (path) sendFlood(path, SERVER_RESPONSE_DELAY, packet->getPathHashSize());
+      if (path) sendFloodReply(path, SERVER_RESPONSE_DELAY, packet->getPathHashSize());
     } else {
       mesh::Packet* reply = createDatagram(PAYLOAD_TYPE_RESPONSE, sender, secret, reply_data, reply_len);
-      if (reply) sendFlood(reply, SERVER_RESPONSE_DELAY, packet->getPathHashSize());
+      if (reply) sendFloodReply(reply, SERVER_RESPONSE_DELAY, packet->getPathHashSize());
     }
   }
 }
@@ -503,7 +520,7 @@ void SensorMesh::getPeerSharedSecret(uint8_t* dest_secret, int peer_idx) {
 void SensorMesh::sendAckTo(const ClientInfo& dest, uint32_t ack_hash, uint8_t path_hash_size) {
   if (dest.out_path_len == OUT_PATH_UNKNOWN) {
     mesh::Packet* ack = createAck(ack_hash);
-    if (ack) sendFlood(ack, TXT_ACK_DELAY, path_hash_size);
+    if (ack) sendFloodScoped(default_scope, ack, TXT_ACK_DELAY, path_hash_size);
   } else {
     uint32_t d = TXT_ACK_DELAY;
     if (getExtraAckTransmitCount() > 0) {
@@ -541,14 +558,14 @@ void SensorMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender_i
         // let this sender know path TO here, so they can use sendDirect(), and ALSO encode the response
         mesh::Packet* path = createPathReturn(from->id, secret, packet->path, packet->path_len,
                                               PAYLOAD_TYPE_RESPONSE, reply_data, reply_len);
-        if (path) sendFlood(path, SERVER_RESPONSE_DELAY, packet->getPathHashSize());
+        if (path) sendFloodReply(path, SERVER_RESPONSE_DELAY, packet->getPathHashSize());
       } else {
         mesh::Packet* reply = createDatagram(PAYLOAD_TYPE_RESPONSE, from->id, secret, reply_data, reply_len);
         if (reply) {
           if (from->out_path_len != OUT_PATH_UNKNOWN) {  // we have an out_path, so send DIRECT
             sendDirect(reply, from->out_path, from->out_path_len, SERVER_RESPONSE_DELAY);
           } else {
-            sendFlood(reply, SERVER_RESPONSE_DELAY, packet->getPathHashSize());
+            sendFloodReply(reply, SERVER_RESPONSE_DELAY, packet->getPathHashSize());
           }
         }
       }
@@ -571,7 +588,7 @@ void SensorMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender_i
             // let this sender know path TO here, so they can use sendDirect(), and ALSO encode the ACK
             mesh::Packet* path = createPathReturn(from->id, secret, packet->path, packet->path_len,
                                                   PAYLOAD_TYPE_ACK, (uint8_t *) &ack_hash, 4);
-            if (path) sendFlood(path, TXT_ACK_DELAY, packet->getPathHashSize());
+            if (path) sendFloodReply(path, TXT_ACK_DELAY, packet->getPathHashSize());
           } else {
             sendAckTo(*from, ack_hash, packet->getPathHashSize());
           }
@@ -601,7 +618,7 @@ void SensorMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender_i
           auto reply = createDatagram(PAYLOAD_TYPE_TXT_MSG, from->id, secret, temp, 5 + text_len);
           if (reply) {
             if (from->out_path_len == OUT_PATH_UNKNOWN) {
-              sendFlood(reply, CLI_REPLY_DELAY_MILLIS, packet->getPathHashSize());
+              sendFloodReply(reply, CLI_REPLY_DELAY_MILLIS, packet->getPathHashSize());
             } else {
               sendDirect(reply, from->out_path, from->out_path_len, CLI_REPLY_DELAY_MILLIS);
             }
@@ -708,6 +725,7 @@ SensorMesh::SensorMesh(mesh::MainBoard& board, mesh::Radio& radio, mesh::Millise
   last_read_time = 0;
   num_alert_tasks = 0;
   set_radio_at = revert_radio_at = 0;
+  recv_pkt_region = NULL;
 
   // defaults
   _prefs.airtime_factor = 1.0;
@@ -820,11 +838,43 @@ void SensorMesh::applyTempRadioParams(float freq, float bw, uint8_t sf, uint8_t 
   revert_radio_at = futureMillis(2000 + timeout_mins*60*1000);   // schedule when to revert radio params
 }
 
+void SensorMesh::sendFloodScoped(const TransportKey& scope, mesh::Packet* pkt, uint32_t delay_millis, uint8_t path_hash_size) {
+  if (scope.isNull()) {
+    sendFlood(pkt, delay_millis, path_hash_size);
+  } else {
+    uint16_t codes[2];
+    codes[0] = scope.calcTransportCode(pkt);
+    codes[1] = 0;  // REVISIT: set to 'home' Region, for sender/return region?
+    sendFlood(pkt, codes, delay_millis, path_hash_size);
+  }
+}
+
+void SensorMesh::sendFloodReply(mesh::Packet* packet, unsigned long delay_millis, uint8_t path_hash_size) {
+  TransportKey req_scope;
+  bool is_wildcard = recv_pkt_region != NULL && recv_pkt_region->isWildcard();
+  bool req_scope_known = recv_pkt_region != NULL && !is_wildcard
+                      && region_map.getTransportKeysFor(*recv_pkt_region, &req_scope, 1) > 0;
+
+  switch (mesh::chooseReplyScope(req_scope_known, is_wildcard, !default_scope.isNull())) {
+    case mesh::REPLY_SCOPE_REQUEST:
+      sendFloodScoped(req_scope, packet, delay_millis, path_hash_size);   // reply with same scope as request
+      break;
+    case mesh::REPLY_SCOPE_DEFAULT:
+      // requester's scope is unknown: DIRECT request (no transport codes), or code matched no Region.
+      // un-scoped would be dropped at hop 0 by repeaters running flood.max.unscoped=0
+      sendFloodScoped(default_scope, packet, delay_millis, path_hash_size);
+      break;
+    case mesh::REPLY_SCOPE_NONE:
+      sendFlood(packet, delay_millis, path_hash_size);   // send un-scoped
+      break;
+  }
+}
+
 void SensorMesh::sendSelfAdvertisement(int delay_millis, bool flood) {
   mesh::Packet* pkt = createSelfAdvert();
   if (pkt) {
     if (flood) {
-      sendFlood(pkt, delay_millis, _prefs.path_hash_mode + 1);
+      sendFloodScoped(default_scope, pkt, delay_millis, _prefs.path_hash_mode + 1);
     } else {
       sendZeroHop(pkt, delay_millis);
     }
@@ -902,7 +952,7 @@ void SensorMesh::loop() {
   if (next_flood_advert && millisHasNowPassed(next_flood_advert)) {
     mesh::Packet* pkt = createSelfAdvert();
     unsigned long delay_millis = 0;
-    if (pkt) sendFlood(pkt, delay_millis, _prefs.path_hash_mode + 1);
+    if (pkt) sendFloodScoped(default_scope, pkt, delay_millis, _prefs.path_hash_mode + 1);
 
     updateFloodAdvertTimer();   // schedule next flood advert
     updateAdvertTimer();   // also schedule local advert (so they don't overlap)
@@ -973,7 +1023,7 @@ void SensorMesh::loop() {
     }
   }
 
-  // is there are pending dirty contacts write needed?
+  // pending dirty contacts write needed?
   if (dirty_contacts_expiry && millisHasNowPassed(dirty_contacts_expiry)) {
     acl.save(_fs);
     dirty_contacts_expiry = 0;
