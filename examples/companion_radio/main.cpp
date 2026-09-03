@@ -262,6 +262,16 @@ void loop() {
 #endif
   }
 
+#ifdef DISPLAY_CLASS
+  if (ui_task.wantsShutdown() && !the_mesh.hasPendingWork()) {
+    display.turnOff();
+    the_mesh.onBeforeShutdown();
+    radio_driver.powerOff();
+    if (ui_task.isRestart()) board.reboot();
+    else board.powerOff();
+  }
+#endif
+
 #if defined(ESP32) && defined(WIFI_SSID)
   // Safely attempt to reconnect every 10 seconds if flagged
   if (wifi_needs_reconnect && (millis() - last_wifi_reconnect_attempt > 10000)) {

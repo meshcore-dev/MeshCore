@@ -826,8 +826,8 @@ void UITask::shutdown(bool restart){
     display.forceFullRefresh();
     display.clear();
     display.endFrame();
-    // Power off board including radio, display, GPS and components
-    _board->powerOff();
+    // Make sure pending work is done before we power off board including radio, display, GPS and components
+    _wants_shutdown = true;
   }
 }
 

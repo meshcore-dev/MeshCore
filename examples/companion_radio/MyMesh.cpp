@@ -2343,6 +2343,7 @@ void MyMesh::checkCLIRescueCmd() {
       }
 
     } else if (strcmp(cli_command, "reboot") == 0) {
+      onBeforeShutdown();
       board.reboot();  // doesn't return
     } else {
       Serial.println("  Error: unknown command");

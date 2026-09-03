@@ -189,6 +189,14 @@ public:
     _prefs.clearDirty();
   }
 
+  void onBeforeShutdown() {
+    if (dirty_contacts_expiry) {
+      saveContacts();
+      dirty_contacts_expiry = 0;
+    }
+    savePrefs();
+  }
+
 #if ENV_INCLUDE_GPS == 1
   void applyGpsPrefs() {
     sensors.setSettingValue("gps", _prefs.gps_enabled ? "1" : "0");

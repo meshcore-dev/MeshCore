@@ -192,6 +192,14 @@ public:
     _cli.savePrefs(_fs);
   }
 
+  void flushPending() {
+    if (dirty_contacts_expiry) {
+      acl.save(_fs);
+      dirty_contacts_expiry = 0;
+    }
+    savePrefs();
+  }
+
   void sendFloodScoped(const TransportKey& scope, mesh::Packet* pkt, uint32_t delay_millis, uint8_t path_hash_size);
 
   // CommonCLICallbacks
