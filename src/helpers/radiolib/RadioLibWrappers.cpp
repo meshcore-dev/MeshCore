@@ -54,6 +54,10 @@ void RadioLibWrapper::begin() {
   _floor_block_ready = false;
   _last_floor_sample_at = 0;
   _held_block_count = 0;
+
+  _last_rx_sync_check = millis();
+  _rx_desync_streak = 0;
+  n_rx_desync_events = n_rx_desync_fatals = 0;
 }
 
 uint32_t RadioLibWrapper::getRngSeed() {
@@ -158,6 +162,51 @@ void RadioLibWrapper::loop() {
       #endif
     }
     _floor_block_ready = true;
+  }
+
+  // --- RX-desync watchdog ---
+  // `state` is firmware-side truth. If the chip silently leaves RX (supply dip during
+  // TX, SPI glitch, front-end upset), the RAM copy still says STATE_RX, so recvRaw()
+  // never re-arms and the Dispatcher-side 8 s check — reading the same variable —
+  // stays quiet: the node goes deaf until reboot. (Visible symptom: the Current-RSSI
+  // register freezes at the last energy seen, pinning the noise floor high.)
+  // Here we ask the CHIP instead: verifyRxChipMode() reads its real operating mode.
+  // Radio types without an authoritative status register report true (watchdog off).
+  // Recovery: after RX_DESYNC_CONFIRM_TICKS bad polls, re-arm the receiver; if that
+  // doesn't take, escalate to a warm sleep (resets the modem state machine/AFE).
+  // A streak that survives both is counted fatal and surfaces as ERR_EVENT_RX_DESYNC.
+  if (state == STATE_RX) {
+    uint32_t now = millis();
+    if (now - _last_rx_sync_check >= RX_DESYNC_CHECK_INTERVAL_MS) {
+      _last_rx_sync_check = now;
+      if (!isReceivingPacket() && !verifyRxChipMode()) {
+        if (_rx_desync_streak == 0) {
+          n_rx_desync_events++;
+          MESH_DEBUG_PRINTLN("RadioLibWrapper: RX desync - chip reports mode != RX");
+        }
+        _rx_desync_streak++;
+        // samples taken while wedged read a frozen RSSI register: discard the block
+        _num_floor_samples = 0;
+        _floor_block_ready = false;
+        _held_block_count = 0;
+        if (_rx_desync_streak == RX_DESYNC_CONFIRM_TICKS) {
+          MESH_DEBUG_PRINTLN("RadioLibWrapper: RX desync confirmed - re-arming receiver");
+          idle();          // standby, then a fresh startReceive()
+          startRecv();
+        } else if (_rx_desync_streak > RX_DESYNC_CONFIRM_TICKS) {
+          if (_rx_desync_streak == RX_DESYNC_FATAL_STREAK) {
+            n_rx_desync_fatals++;
+            MESH_DEBUG_PRINTLN("RadioLibWrapper: RX desync survived AFE reset - radio damaged, reboot suggested");
+          }
+          // warm sleep resets the analog frontend and modem state machine;
+          // resetAGC() re-arms from STATE_IDLE via recvRaw() on the next pass
+          resetAGC();
+        }
+      } else if (_rx_desync_streak > 0) {
+        MESH_DEBUG_PRINTLN("RadioLibWrapper: RX desync resolved after %u ticks", _rx_desync_streak);
+        _rx_desync_streak = 0;
+      }
+    }
   }
 }
 
