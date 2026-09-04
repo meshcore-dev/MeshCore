@@ -193,6 +193,43 @@ static float findTelemValue(const uint8_t* buf, uint8_t size, uint8_t channel, u
   return 0.0f;   // not found
 }
 
+static uint8_t compileLPPSpec(char* txt, uint8_t* dest, size_t max_len) {
+  const char* parts[3];
+  int n = mesh::Utils::parseTextParts(txt, parts, 3, ',');
+  uint8_t len = 0;
+  for (int i = 0; i < n && len + 6 <= max_len; i++) {
+    const char* cp = strchr(parts[i], ':');
+    if (cp) {
+      uint8_t t;
+      float factor = 1.0f;
+      cp++;  // skip the ':'
+      char* ep = strchr(cp, 0) - 1;  // find LAST char
+      if (*ep == 'V') {   // Volts
+        t = LPP_VOLTAGE;
+      } else if (*ep == 'W') {   // Watts
+        t = LPP_POWER;
+      } else if (*ep == 'C') {  // Celcius
+        t = LPP_TEMPERATURE;
+      } else if (*ep == 'P') {  // Pascals
+        t = LPP_BAROMETRIC_PRESSURE;
+      } else if (*ep == 'A') {  // Amps
+        t = LPP_CURRENT;
+      } else if (*ep == 'm') {
+        t = LPP_DISTANCE; factor = 0.001f;
+      } else {
+        t = 0;
+      }
+
+      if (t) {
+        dest[len++] = atoi(parts[i]); // channel number
+        dest[len++] = t;  // LPP type
+        len += putFloat(&dest[len], atof(cp) * factor, getDataSize(t), getMultiplier(t), isSigned(t));
+      }
+    }
+  }
+  return len;
+}
+
 /* ------------------ end Cayenne LPP helpers ----------------------*/
 
 bool SensorMesh::telemHasChanged(const uint8_t* min_deltas, uint8_t min_deltas_len) {
@@ -453,7 +490,7 @@ uint8_t SensorMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* 
   return 13;  // reply length
 }
 
-void SensorMesh::handleCommand(uint32_t sender_timestamp, char* command, char* reply) {
+void SensorMesh::handleCommand(ClientInfo* from, uint32_t sender_timestamp, char* command, char* reply) {
   while (*command == ' ') command++;   // skip leading spaces
 
   if (strlen(command) > 4 && command[2] == '|') {  // optional prefix (for companion radio CLI)
@@ -502,6 +539,33 @@ void SensorMesh::handleCommand(uint32_t sender_timestamp, char* command, char* r
       Serial.printf("\n");
     }
     reply[0] = 0;
+  } else if (from != NULL && memcmp(command, "sub", 3) == 0 && (command[3] == ' ' || command[3] == 0)) {  // subscribe
+    uint8_t perms = from->isAdmin() ? 0xFF : from->permissions;
+    if ((perms & PERM_ACL_ROLE_MASK) >= PERM_ACL_READ_ONLY) {
+      RegionEntry* r;
+      if (recv_pkt_region && !recv_pkt_region->isWildcard()) {   // use request scope
+        r = recv_pkt_region;
+      } else {   // use default scope
+        r = region_map.getDefaultRegion();
+      }
+      if (command[3] == ' ') {
+        // compile params as LPP data, eg. "sub 1:0.2V"
+        from->extra.sensor.min_deltas_len = compileLPPSpec(&command[4], from->extra.sensor.min_deltas, sizeof(from->extra.sensor.min_deltas));
+      } else {
+        from->extra.sensor.min_deltas_len = 0;  // no minimums (telemetry just needs to CHANGE)
+      }
+      from->extra.sensor.scope_region_id = r ? r->id : 0;
+      if (from->extra.sensor.scope_region_id) {
+        strcpy(reply, "OK - subscribed");
+      } else {
+        strcpy(reply, "Err - region scope needed");
+      }
+    } else {
+      strcpy(reply, "Err - no permission");
+    }
+  } else if (from != NULL && strcmp(command, "unsub") == 0) {  // unsubscribe
+    from->extra.sensor.scope_region_id = 0;
+    strcpy(reply, "OK - unsubscribed");
   } else if (memcmp(command, "io ", 2) == 0) { // io {value}: write, io: read 
     if (command[2] == ' ') { // it's a write
       uint32_t val;
@@ -676,7 +740,7 @@ void SensorMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender_i
         uint8_t temp[166];
         char *command = (char *) &data[5];
         char *reply = (char *) &temp[5];
-        handleCommand(sender_timestamp, command, reply);
+        handleCommand(from, sender_timestamp, command, reply);
 
         int text_len = strlen(reply);
         if (text_len > 0) {
