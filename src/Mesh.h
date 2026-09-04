@@ -20,6 +20,22 @@ public:
   virtual void clear(const Packet* packet) = 0;    // remove this packet hash from table
 };
 
+#ifndef MAX_PENDING_NEXTHOP_CONFIRMS
+  #define MAX_PENDING_NEXTHOP_CONFIRMS  4   // max concurrent direct packets awaiting next-hop confirmation
+#endif
+
+/**
+ * \brief  Tracks a direct (path-routed) packet this node has repeated, while it waits to
+ *     overhear the next hop repeating it in turn (as implicit confirmation of receipt).
+*/
+struct PendingNextHopConfirm {
+  bool active;
+  uint8_t retries;
+  uint32_t deadline;      // millis() at which to retry (or give up if retries exhausted)
+  uint8_t hash[MAX_HASH_SIZE];
+  Packet pkt;             // copy of the packet as it was (re)transmitted, for resending
+};
+
 /**
  * \brief  The next layer in the basic Dispatcher task, Mesh recognises the particular Payload TYPES,
  *     and provides virtual methods for sub-classes on handling incoming, and also preparing outbound Packets.
@@ -28,11 +44,29 @@ class Mesh : public Dispatcher {
   RTCClock* _rtc;
   RNG* _rng;
   MeshTables* _tables;
+  PendingNextHopConfirm _pending_confirms[MAX_PENDING_NEXTHOP_CONFIRMS];
 
   void removeSelfFromPath(Packet* packet);
   void routeDirectRecvAcks(Packet* packet, uint32_t delay_millis);
   //void routeRecvAcks(Packet* packet, uint32_t delay_millis);
   DispatcherAction forwardMultipartDirect(Packet* pkt);
+
+  /**
+   * \brief  Start tracking 'pkt' (just repeated by this node) until the next hop is heard repeating it.
+   */
+  void registerNextHopConfirm(const Packet* pkt);
+
+  /**
+   * \brief  Check an incoming direct packet against the pending-confirm table, and mark any
+   *     match as confirmed (the next hop has repeated it, so no retry is needed).
+   */
+  void checkNextHopConfirm(const Packet* pkt);
+
+  /**
+   * \brief  Called each loop(), resends any pending packets whose confirm deadline has passed,
+   *     up to getNextHopMaxRetries() times, then drops them.
+   */
+  void processNextHopRetries();
 
 protected:
   DispatcherAction onRecvPacket(Packet* pkt) override;
@@ -70,6 +104,22 @@ protected:
    * \returns  number of extra (Direct) ACK transmissions wanted.
    */
   virtual uint8_t getExtraAckTransmitCount() const;
+
+  /**
+   * \returns  true if 'next-hop reliability' (listen-for-repeat retry) is enabled for repeated
+   *     direct packets. Default is enabled wherever allowPacketForward() also permits forwarding.
+   */
+  virtual bool getNextHopReliabilityEnabled() const { return true; }
+
+  /**
+   * \returns  max number of retries (resends) attempted, if no repeat from the next hop is heard.
+   */
+  virtual uint8_t getNextHopMaxRetries() const { return 3; }
+
+  /**
+   * \returns  number of milliseconds to wait for the next hop to repeat 'packet', before retrying.
+   */
+  virtual uint32_t getNextHopConfirmTimeout(const Packet* packet) const;
 
   /**
    * \brief  Perform search of local DB of peers/contacts.
@@ -169,6 +219,7 @@ protected:
   Mesh(Radio& radio, MillisecondClock& ms, RNG& rng, RTCClock& rtc, PacketManager& mgr, MeshTables& tables)
     : Dispatcher(radio, ms, mgr), _rng(&rng), _rtc(&rtc), _tables(&tables)
   {
+    memset(_pending_confirms, 0, sizeof(_pending_confirms));
   }
 
   MeshTables* getTables() const { return _tables; }
