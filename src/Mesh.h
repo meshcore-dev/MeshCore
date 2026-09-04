@@ -36,6 +36,7 @@ class Mesh : public Dispatcher {
 
 protected:
   DispatcherAction onRecvPacket(Packet* pkt) override;
+  void onPacketExpired(Packet* pkt) override;
 
   virtual uint32_t getCADFailRetryDelay() const override;
 
