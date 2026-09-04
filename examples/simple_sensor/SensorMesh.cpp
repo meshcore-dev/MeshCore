@@ -55,6 +55,8 @@
 #define REQ_TYPE_GET_TELEMETRY_DATA  0x03
 #define REQ_TYPE_GET_AVG_MIN_MAX     0x04
 #define REQ_TYPE_GET_ACCESS_LIST     0x05
+#define REQ_TYPE_SUBSCRIBE           0x10
+#define REQ_TYPE_UNSUBSCRIBE         0x11
 
 #define RESP_SERVER_LOGIN_OK      0   // response to ANON_REQ
 
@@ -73,6 +75,8 @@ static File openAppend(FILESYSTEM* _fs, const char* fname) {
     return _fs->open(fname, "a", true);
   #endif
 }
+
+/* --------------------- Cayenne LPP helpers ----------------------------*/
 
 static uint8_t getDataSize(uint8_t type) {
     switch (type) {
@@ -171,7 +175,53 @@ static uint8_t putFloat(uint8_t * dest, float value, uint8_t size, uint32_t mult
   return size;
 }
 
-uint8_t SensorMesh::handleRequest(uint8_t perms, uint32_t sender_timestamp, uint8_t req_type, uint8_t* payload, size_t payload_len) {
+static float findTelemValue(const uint8_t* buf, uint8_t size, uint8_t channel, uint8_t type) {
+  uint8_t i = 0;
+
+  while (i + 2 < size) {
+    // Get channel #
+    uint8_t ch = buf[i++];
+    // Get data type
+    uint8_t t = buf[i++];
+    uint8_t sz = getDataSize(t);
+
+    if (ch == channel && t == type) {
+      return getFloat(&buf[i], sz, getMultiplier(t), isSigned(t));
+    }
+    i += sz;  // skip
+  }
+  return 0.0f;   // not found
+}
+
+/* ------------------ end Cayenne LPP helpers ----------------------*/
+
+bool SensorMesh::telemHasChanged(const uint8_t* min_deltas, uint8_t min_deltas_len) {
+  if (telemetry.getSize() != prev_telem_size) return true;
+
+  auto buf = telemetry.getBuffer();
+  uint8_t size = telemetry.getSize();
+  uint8_t i = 0;
+
+  while (i + 2 < size) {
+    // Get channel #
+    uint8_t ch = buf[i++];
+    // Get data type
+    uint8_t t = buf[i++];
+    uint8_t sz = getDataSize(t);
+
+    float v = getFloat(&buf[i], sz, getMultiplier(t), isSigned(t));
+    float pv = getFloat(&prev_telem[i], sz, getMultiplier(t), isSigned(t));
+    float min_delta = findTelemValue(min_deltas, min_deltas_len, ch, t);
+    if (abs(v - pv) > min_delta) return true;   // Yes, has changed
+
+    i += sz;  // skip
+  }
+  return false;  // no changes
+}
+
+uint8_t SensorMesh::handleRequest(ClientInfo* from, uint32_t sender_timestamp, uint8_t req_type, uint8_t* payload, size_t payload_len) {
+  uint8_t perms = from->isAdmin() ? 0xFF : from->permissions;
+
   memcpy(reply_data, &sender_timestamp, 4);   // reflect sender_timestamp back in response packet (kind of like a 'tag')
 
   if (req_type == REQ_TYPE_GET_TELEMETRY_DATA) {  // allow all
@@ -234,6 +284,29 @@ uint8_t SensorMesh::handleRequest(uint8_t perms, uint32_t sender_timestamp, uint
       }
       return ofs;
     }
+  }
+  if (req_type == REQ_TYPE_SUBSCRIBE && payload_len >= 2 && (perms & PERM_ACL_ROLE_MASK) >= PERM_ACL_READ_ONLY) {
+    uint8_t  reserved = payload[0];
+    RegionEntry* r;
+    if (recv_pkt_region && !recv_pkt_region->isWildcard()) {   // use request scope
+      r = recv_pkt_region;
+    } else {   // use default scope
+      r = region_map.getDefaultRegion();
+    }
+    from->extra.sensor.scope_region_id = r ? r->id : 0;
+    from->extra.sensor.min_deltas_len = payload[1];
+    // NOTE: curr impl truncates LPP min_diffs spec  (re-do if better impl is needed)
+    memcpy(from->extra.sensor.min_deltas, &payload[2], min(sizeof(from->extra.sensor.min_deltas), (size_t)payload[1]));
+
+    getRNG()->random(&reply_data[4], 2);   // just some entropy for better packet-hash uniqueness
+    strcpy((char *)&reply_data[6], r ? r->name : "");  // reply with name of scope that will be used
+    return 6 + strlen((char *)&reply_data[6]);
+  }
+  if (req_type == REQ_TYPE_UNSUBSCRIBE && (perms & PERM_ACL_ROLE_MASK) >= PERM_ACL_READ_ONLY) {
+    from->extra.sensor.scope_region_id = 0;
+    reply_data[4] = 0;  // success
+    getRNG()->random(&reply_data[5], 3);   // just some entropy for better packet-hash uniqueness
+    return 8;
   }
   return 0;  // unknown command
 }
@@ -548,7 +621,7 @@ void SensorMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender_i
     memcpy(&timestamp, data, 4);
 
     if (timestamp > from->last_timestamp) {  // prevent replay attacks
-      uint8_t reply_len = handleRequest(from->isAdmin() ? 0xFF : from->permissions, timestamp, data[4], &data[5], len - 5);
+      uint8_t reply_len = handleRequest(from, timestamp, data[4], &data[5], len - 5);
       if (reply_len == 0) return;  // invalid command
 
       from->last_timestamp = timestamp;
@@ -726,6 +799,7 @@ SensorMesh::SensorMesh(mesh::MainBoard& board, mesh::Radio& radio, mesh::Millise
   num_alert_tasks = 0;
   set_radio_at = revert_radio_at = 0;
   recv_pkt_region = NULL;
+  prev_telem_size = 0;
 
   // defaults
   _prefs.airtime_factor = 1.0;
@@ -916,23 +990,7 @@ void SensorMesh::formatPacketStatsReply(char *reply) {
 }
 
 float SensorMesh::getTelemValue(uint8_t channel, uint8_t type) {
-  auto buf = telemetry.getBuffer();
-  uint8_t size = telemetry.getSize();
-  uint8_t i = 0;
-
-  while (i + 2 < size) {
-    // Get channel #
-    uint8_t ch = buf[i++];
-    // Get data type
-    uint8_t t = buf[i++];
-    uint8_t sz = getDataSize(t);
-
-    if (ch == channel && t == type) {
-      return getFloat(&buf[i], sz, getMultiplier(t), isSigned(t));
-    }
-    i += sz;  // skip
-  }
-  return 0.0f;   // not found
+  return findTelemValue(telemetry.getBuffer(), telemetry.getSize(), channel, type);
 }
 
 bool  SensorMesh::getGPS(uint8_t channel, float& lat, float& lon, float& alt) {
@@ -981,6 +1039,34 @@ void SensorMesh::loop() {
     telemetry.addVoltage(TELEM_CHANNEL_SELF, (float)board.getBattMilliVolts() / 1000.0f);
     // query other sensors -- target specific
     sensors.querySensors(0xFF, telemetry);  // allow all telemetry permissions
+
+    // compare with previous telemetry, check if any deltas are greater than subscriber minimums
+    for (int i = 0; i < acl.getNumClients(); i++) {
+      auto c = acl.getClientByIdx(i);
+      if (c->permissions == 0 || c->extra.sensor.scope_region_id == 0) continue;  // skip deleted entries, or Not subscribed to deltas
+      RegionEntry* r = region_map.findById(c->extra.sensor.scope_region_id);
+      if (r == NULL) continue;   // unknown region scope
+      if (telemHasChanged(c->extra.sensor.min_deltas, c->extra.sensor.min_deltas_len)) {
+        TransportKey scope;
+        if (region_map.getTransportKeysFor(*r, &scope, 1) > 0) {
+          uint8_t tlen = telemetry.getSize();
+          uint32_t timestamp = getRTCClock()->getCurrentTimeUnique();  // this will be an unknown 'tag' to the client
+          memcpy(reply_data, &timestamp, 4);
+          memcpy(&reply_data[4], telemetry.getBuffer(), tlen);
+
+          mesh::Packet* reply = createDatagram(PAYLOAD_TYPE_RESPONSE, c->id, c->shared_secret, reply_data, 4 + tlen);
+          if (reply) {
+            if (c->out_path_len != OUT_PATH_UNKNOWN) {  // we have an out_path, so send DIRECT
+              sendDirect(reply, c->out_path, c->out_path_len, 0);
+            } else {
+              sendFloodScoped(scope, reply, 0, _prefs.path_hash_mode + 1);
+            }
+          }
+        }
+      }
+    }
+    memcpy(prev_telem, telemetry.getBuffer(), telemetry.getSize());  // save snapshot for next compare cycle
+    prev_telem_size = telemetry.getSize();
 
     onSensorDataRead();
 

@@ -96,12 +96,12 @@ protected:
   bool  getGPS(uint8_t channel, float& lat, float& lon, float& alt);
 
   // alerts
-  enum AlertPriority { LOW_PRI_ALERT, HIGH_PRI_ALERT };
+  enum AlertPriority : uint8_t { LOW_PRI_ALERT, HIGH_PRI_ALERT };
 
   struct Trigger {
     uint32_t timestamp;
-    AlertPriority pri;
     uint32_t expected_acks[4];
+    AlertPriority pri;
     int8_t   curr_contact_idx;
     uint8_t  attempt;
     unsigned long send_expiry;
@@ -145,6 +145,8 @@ private:
   uint8_t reply_data[MAX_PACKET_PAYLOAD];
   unsigned long dirty_contacts_expiry;
   CayenneLPP telemetry;
+  uint8_t prev_telem_size;
+  uint8_t prev_telem[MAX_PACKET_PAYLOAD - 4];
   TransportKeyStore key_store;
   RegionMap region_map;
   RegionEntry* recv_pkt_region;
@@ -159,8 +161,9 @@ private:
   uint8_t pending_sf;
   uint8_t pending_cr;
 
+  bool telemHasChanged(const uint8_t* min_deltas, uint8_t min_deltas_len);
   uint8_t handleLoginReq(const mesh::Identity& sender, const uint8_t* secret, uint32_t sender_timestamp, const uint8_t* data, bool is_flood);
-  uint8_t handleRequest(uint8_t perms, uint32_t sender_timestamp, uint8_t req_type, uint8_t* payload, size_t payload_len);
+  uint8_t handleRequest(ClientInfo* from, uint32_t sender_timestamp, uint8_t req_type, uint8_t* payload, size_t payload_len);
   mesh::Packet* createSelfAdvert();
 
   void sendAlert(const ClientInfo* c, Trigger* t);
