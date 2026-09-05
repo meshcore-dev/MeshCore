@@ -36,6 +36,12 @@ MultiSerialInterface interface_manager;
   #ifndef TCP_PORT
     #define TCP_PORT 5000
   #endif
+  #ifndef WIFI_RETRY_INTERVAL
+    #define WIFI_RETRY_INTERVAL 30000   // millis between reconnect attempts
+  #endif
+  #ifndef WIFI_RETRY_TIMEOUT
+    #define WIFI_RETRY_TIMEOUT 5000     // RP2040: cap on how long one join may block loop()
+  #endif
   #if defined(ESP32) || defined(RP2040_PLATFORM)
     #include <helpers/wifi/SerialWifiInterface.h>
     SerialWifiInterface wifi_interface;
@@ -209,15 +215,23 @@ void setup() {
   });
 #endif
 
-  // stored credentials win over the build-time ones ('set wifi.ssid <x>' over USB serial)
+  // stored credentials win over the build-time ones ('set wifi.ssid <x>' over USB serial).
+  // they are taken as a pair, so 'set wifi.ssid' alone gives an open-network join, not a
+  // silent fallback to the build-time password of a different network.
   if (the_mesh.getNodePrefs()->wifi_ssid[0]) {
     wifi_ssid = the_mesh.getNodePrefs()->wifi_ssid;
     wifi_pwd = the_mesh.getNodePrefs()->wifi_pwd;
   }
+  if (wifi_pwd[0] == 0) wifi_pwd = NULL;   // NULL (not "") selects an open network
   WIFI_DEBUG_PRINTLN("connecting to %s", wifi_ssid);
 
 #if defined(RP2040_PLATFORM)
-  WiFi.beginNoBlock(wifi_ssid, wifi_pwd);   // begin() blocks for up to 2x its 15s timeout
+  // ponytail: the join itself blocks inside the core (CYW43::begin busy-waits for the
+  // association), so every attempt stalls the mesh loop. beginNoBlock() only skips the
+  // extra DHCP wait. Give the first connect a full window, then bound the retries below.
+  // Upgrade path if the stall ever matters: run WiFi on core1.
+  WiFi.beginNoBlock(wifi_ssid, wifi_pwd);
+  last_wifi_reconnect_attempt = millis();   // let DHCP finish before the poll can retry
 #else
   WiFi.begin(wifi_ssid, wifi_pwd);
 #endif
@@ -291,10 +305,12 @@ void loop() {
     }
   #endif
 
-  // Safely attempt to reconnect every 10 seconds if flagged
-  if (wifi_needs_reconnect && (millis() - last_wifi_reconnect_attempt > 10000)) {
+  // Safely attempt to reconnect if flagged. On RP2040 each attempt blocks the mesh loop
+  // for up to WIFI_RETRY_TIMEOUT, so retry less often and cap how long a join may stall.
+  if (wifi_needs_reconnect && (millis() - last_wifi_reconnect_attempt > WIFI_RETRY_INTERVAL)) {
     WIFI_DEBUG_PRINTLN("Attempting manual WiFi reconnect to %s (status %d)...", wifi_ssid, WiFi.status());
     #if defined(RP2040_PLATFORM)
+      WiFi.setTimeout(WIFI_RETRY_TIMEOUT);
       WiFi.beginNoBlock(wifi_ssid, wifi_pwd);   // no reconnect() on this platform
     #else
       WiFi.disconnect();

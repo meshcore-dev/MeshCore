@@ -2416,8 +2416,9 @@ void MyMesh::loop() {
     checkCLIRescueCmd();
   } else {
     checkSerialInterface();
-#if defined(WIFI_SSID) && !defined(ENABLE_USB_INTERFACE)
-    // headless WiFi build: USB serial isn't a companion transport, so use it for config
+#if defined(WIFI_SSID) && defined(RP2040_PLATFORM) && !defined(ENABLE_USB_INTERFACE)
+    // RP2040 WiFi builds are headless and have no way into the rescue CLI (that needs a
+    // display + long-press), so serve config commands on the otherwise unused USB serial
     checkCLIRescueCmd();
 #endif
   }
