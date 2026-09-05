@@ -188,6 +188,11 @@ public:
     return &_prefs;
   }
 
+  // Snapshot of live repeater stats (used by both the client status request and the UI)
+  void getStats(RepeaterStats& stats);
+  // Number of currently-known neighbours (non-empty entries in the neighbours table)
+  uint32_t getNumNeighbours() const;
+
   void savePrefs() override {
     _cli.savePrefs(_fs);
   }
