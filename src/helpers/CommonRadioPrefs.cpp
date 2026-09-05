@@ -1,4 +1,5 @@
 #include "CommonRadioPrefs.h"
+#include "DutyCycleLimits.h"
 #include "TxtDataHelpers.h"
 #include "Utils.h"
 #include "target.h"
@@ -63,28 +64,40 @@ bool CommonRadioPrefs::handleCommand(const char* command, uint32_t sender_timest
   }
 
   if (strcmp(command, "get af") == 0) {
-    sprintf(reply, "> %s", StrHelper::ftoa(getAirtimeFactor()));
+    float af = getEffectiveAirtimeFactor(isDutyCycleAuto(), getAirtimeFactor(), getFreq());
+    sprintf(reply, "> %s", StrHelper::ftoa(af));
     return true;
   }
   if (memcmp(command, "set af ", 7) == 0) {
     setAirtimeFactor(atof(&command[7]));
+    setDutyCycleAuto(0);   // an explicit factor takes over from the derived limit
     strcpy(reply, "OK");
     return true;
   }
 
   if (strcmp(command, "get dutycycle") == 0) {
-    float dc = 100.0f / (getAirtimeFactor() + 1.0f);
+    float af = getEffectiveAirtimeFactor(isDutyCycleAuto(), getAirtimeFactor(), getFreq());
+    float dc = 100.0f / (af + 1.0f);
     int dc_int = (int)dc;
     int dc_frac = (int)((dc - dc_int) * 10.0f + 0.5f);
-    sprintf(reply, "> %d.%d%%", dc_int, dc_frac);
+    sprintf(reply, "> %d.%d%% (%s)", dc_int, dc_frac, isDutyCycleAuto() ? "auto" : "manual");
     return true;
   }
   if (memcmp(command, "set dutycycle ", 14) == 0) {
+    if (strcmp(&command[14], "auto") == 0) {
+      setDutyCycleAuto(1);
+      float actual = getMaxDutyCyclePercent(getFreq());
+      int a_int = (int)actual;
+      int a_frac = (int)((actual - a_int) * 10.0f + 0.5f);
+      sprintf(reply, "OK - auto, %d.%d%%", a_int, a_frac);
+      return true;
+    }
     float dc = atof(&command[14]);
     if (dc < 1 || dc > 100) {
-      strcpy(reply, "ERROR: dutycycle must be 1-100");
+      strcpy(reply, "ERROR: dutycycle must be 1-100, or auto");
     } else {
-      setAirtimeFactor((100.0f / dc) - 1.0f);
+      setAirtimeFactor(dutyCycleToAirtimeFactor(dc));
+      setDutyCycleAuto(0);
       float actual = 100.0f / (getAirtimeFactor() + 1.0f);
       int a_int = (int)actual;
       int a_frac = (int)((actual - a_int) * 10.0f + 0.5f);

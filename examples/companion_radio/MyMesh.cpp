@@ -1,5 +1,7 @@
 #include "MyMesh.h"
 
+#include <helpers/DutyCycleLimits.h>
+
 #include <Arduino.h> // needed for PlatformIO
 #include <Mesh.h>
 
@@ -261,7 +263,7 @@ int MyMesh::getFromOfflineQueue(uint8_t frame[]) {
 }
 
 float MyMesh::getAirtimeBudgetFactor() const {
-  return _prefs.airtime_factor;
+  return getEffectiveAirtimeFactor(_prefs.dutycycle_auto, _prefs.airtime_factor, _prefs.freq);
 }
 
 int MyMesh::getInterferenceThreshold() const {
@@ -1513,10 +1515,12 @@ void MyMesh::handleCmdFrame(size_t len) {
     i += 4;
     _prefs.rx_delay_base = ((float)rx) / 1000.0f;
     _prefs.airtime_factor = ((float)af) / 1000.0f;
+    _prefs.dutycycle_auto = 0;   // an explicit airtime factor takes over from the derived limit
     savePrefs();
     writeOKFrame();
   } else if (cmd_frame[0] == CMD_GET_TUNING_PARAMS) {
-    uint32_t rx = _prefs.rx_delay_base * 1000, af = _prefs.airtime_factor * 1000;
+    uint32_t rx = _prefs.rx_delay_base * 1000;
+    uint32_t af = getEffectiveAirtimeFactor(_prefs.dutycycle_auto, _prefs.airtime_factor, _prefs.freq) * 1000;
     int i = 0;
     out_frame[i++] = RESP_CODE_TUNING_PARAMS;
     memcpy(&out_frame[i], &rx, 4); i += 4;
