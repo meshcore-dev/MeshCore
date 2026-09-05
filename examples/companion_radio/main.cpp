@@ -112,6 +112,7 @@ void halt() {
   unsigned long last_wifi_reconnect_attempt = 0;
   const char* wifi_ssid = WIFI_SSID;   // replaced by stored prefs, if set
   const char* wifi_pwd = WIFI_PWD;
+  bool wifi_was_connected = false;
 #endif
 
 void setup() {
@@ -215,7 +216,11 @@ void setup() {
   }
   WIFI_DEBUG_PRINTLN("connecting to %s", wifi_ssid);
 
+#if defined(RP2040_PLATFORM)
+  WiFi.beginNoBlock(wifi_ssid, wifi_pwd);   // begin() blocks for up to 2x its 15s timeout
+#else
   WiFi.begin(wifi_ssid, wifi_pwd);
+#endif
   wifi_interface.begin(TCP_PORT);
   interface_manager.addInterface(InterfaceType::WiFi, &wifi_interface);
 #endif
@@ -276,13 +281,21 @@ void loop() {
   // RP2040 has no WiFi event callbacks, so poll the link state instead
   #if defined(RP2040_PLATFORM)
     wifi_needs_reconnect = (WiFi.status() != WL_CONNECTED);
+    if (wifi_was_connected == wifi_needs_reconnect) {   // link state changed
+      wifi_was_connected = !wifi_needs_reconnect;
+      if (wifi_was_connected) {
+        WIFI_DEBUG_PRINTLN("connected, listening on %s:%d", WiFi.localIP().toString().c_str(), TCP_PORT);
+      } else {
+        WIFI_DEBUG_PRINTLN("link lost");
+      }
+    }
   #endif
 
   // Safely attempt to reconnect every 10 seconds if flagged
   if (wifi_needs_reconnect && (millis() - last_wifi_reconnect_attempt > 10000)) {
-    WIFI_DEBUG_PRINTLN("Attempting manual WiFi reconnect...");
+    WIFI_DEBUG_PRINTLN("Attempting manual WiFi reconnect to %s (status %d)...", wifi_ssid, WiFi.status());
     #if defined(RP2040_PLATFORM)
-      WiFi.begin(wifi_ssid, wifi_pwd);   // no reconnect() on this platform
+      WiFi.beginNoBlock(wifi_ssid, wifi_pwd);   // no reconnect() on this platform
     #else
       WiFi.disconnect();
       WiFi.reconnect();
