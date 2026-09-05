@@ -246,18 +246,22 @@ void MyMesh::addToOfflineQueue(const uint8_t frame[], int len) {
   }
 }
 
-int MyMesh::getFromOfflineQueue(uint8_t frame[]) {
+int MyMesh::peekOfflineQueue(uint8_t frame[]) {
   if (offline_queue_len > 0) {         // check offline queue
-    size_t len = offline_queue[0].len; // take from top of queue
+    size_t len = offline_queue[0].len; // copy from top of queue, but leave it there
     memcpy(frame, offline_queue[0].buf, len);
+    return len;
+  }
+  return 0; // queue is empty
+}
 
+void MyMesh::popOfflineQueue() {
+  if (offline_queue_len > 0) {
     offline_queue_len--;
     for (int i = 0; i < offline_queue_len; i++) { // delete top item from queue
       offline_queue[i] = offline_queue[i + 1];
     }
-    return len;
   }
-  return 0; // queue is empty
 }
 
 float MyMesh::getAirtimeBudgetFactor() const {
@@ -1449,11 +1453,18 @@ void MyMesh::handleCmdFrame(size_t len) {
     }
   } else if (cmd_frame[0] == CMD_SYNC_NEXT_MESSAGE) {
     int out_len;
-    if ((out_len = getFromOfflineQueue(out_frame)) > 0) {
-      _serial->writeFrame(out_frame, out_len);
+    if ((out_len = peekOfflineQueue(out_frame)) > 0) {
+      // The frame stays queued until a transport has taken it. A write that
+      // puts nothing on the wire (BLE/WiFi send queue full, serial link not
+      // accepting) used to lose the message for good; now the client simply
+      // asks again. writeFrame() returns 0 only in that case, see
+      // BaseSerialInterface, so any other result consumes the frame.
+      if (_serial->writeFrame(out_frame, out_len) != 0) {
+        popOfflineQueue();
 #ifdef DISPLAY_CLASS
-      if (_ui) _ui->msgRead(offline_queue_len);
+        if (_ui) _ui->msgRead(offline_queue_len);
 #endif
+      }
     } else {
       out_frame[0] = RESP_CODE_NO_MORE_MESSAGES;
       _serial->writeFrame(out_frame, 1);

@@ -210,7 +210,8 @@ private:
   void writeContactRespFrame(uint8_t code, const ContactInfo &contact);
   void updateContactFromFrame(ContactInfo &contact, uint32_t& last_mod, const uint8_t *frame, int len);
   void addToOfflineQueue(const uint8_t frame[], int len);
-  int getFromOfflineQueue(uint8_t frame[]);
+  int peekOfflineQueue(uint8_t frame[]);   // copies the oldest frame, leaves it queued
+  void popOfflineQueue();                   // discards the oldest frame
   int getBlobByKey(const uint8_t key[], int key_len, uint8_t dest_buf[]) override { 
     return _store->getBlobByKey(key, key_len, dest_buf);
   }
