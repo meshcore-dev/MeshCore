@@ -1,0 +1,16 @@
+# Wokwi config for the ESP32-S3 observer simulation (no hardware, no flashing).
+#
+# Build the sim firmware first (produces the merged flash image Wokwi needs):
+#   pio run -e Heltec_v3_repeater_observer_mqtt_sim -t mergebin
+#
+# Then start the simulation either way:
+#   - VS Code: install the "Wokwi Simulator" extension, open diagram.json, press play
+#   - CLI:     wokwi-cli .            (needs a free WOKWI_CLI_TOKEN)
+#
+# The firmware is seeded to auto-join the "Wokwi-GUEST" network, so it boots
+# straight into WiFi + MQTT. The LoRa radio is stubbed (SimRadio); mesh RX/TX is
+# not simulated. Drive the CLI over the serial monitor (get/set/start webconfig).
+[wokwi]
+version = 1
+firmware = ".pio/build/Heltec_v3_repeater_observer_mqtt_sim/firmware-merged.bin"
+elf = ".pio/build/Heltec_v3_repeater_observer_mqtt_sim/firmware.elf"

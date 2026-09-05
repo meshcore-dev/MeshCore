@@ -85,7 +85,8 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 ### Start an Over-The-Air (OTA) firmware update
 **Usage:**
-- `start ota`
+- `start ota` — serves the ElegantOTA web upload page on the station IP if joined to a Wi-Fi network, otherwise raises the `MeshCore-OTA` Wi-Fi hotspot.
+- `start ota ap` — always raises the `MeshCore-OTA` Wi-Fi hotspot, even when joined to a network. Use this when the network applies client isolation and the station IP isn't reachable.
 
 ---
 
@@ -116,9 +117,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 - `neighbor.remove <pubkey_prefix>`
 
 **Parameters:** 
-- `pubkey_prefix`: The public key of the node to remove from the neighbors list. This can be a short prefix or the full key. All neighbors matching the provided prefix will be removed.
-
-**Note:** You can remove all neighbors by sending a space character as the prefix. The space indicates an empty prefix, which matches all existing neighbors.
+- `pubkey_prefix`: The public key of the node to remove from the neighbors list
 
 ---
 
@@ -126,6 +125,21 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 **Usage:** 
 - `discover.neighbors`
+
+---
+
+### Discover neighbor scopes (MQTT observer, PSRAM only)
+
+Refreshes the zero-hop neighbor table, then queries each neighbor for its region
+scopes and publishes the assembled table to the MQTT `neighbors` topic once.
+
+**Usage:**
+- `discover.scopes`
+
+**Note:** Requires an MQTT observer build with the neighbors feature compiled in
+(all PSRAM boards, plus non-PSRAM boards built with `MQTT_NEIGHBORS_WITHOUT_PSRAM`).
+Elsewhere it replies `Err - neighbors not enabled in this build`. If a
+`discover.neighbors` refresh is already in flight, the scope pass is queued behind it.
 
 ---
 
@@ -634,6 +648,20 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 ---
 
+#### View or change the radio watchdog interval
+**Usage:**
+- `get radio.watchdog`
+- `set radio.watchdog <minutes>`
+
+**Parameters:**
+- `minutes`: `0` to disable, or `1-120` minutes
+
+**Default:** `5`
+
+**Note:** On quiet meshes, increasing this can reduce false recoveries when no traffic is expected.
+
+---
+
 #### Enable or disable Multi-Acks support
 **Usage:**
 - `get multi.acks`
@@ -828,6 +856,8 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 **Parameters:**
 - `name`: Region name
 - `parent_name`: Parent region name (optional, defaults to wildcard)
+
+**Note:** In firmware **v1.15.0** and later, `region put` enables flooding for that region by default (you do not need a separate `region allowf <name>` after each `put`). On **v1.14.0** and earlier, new regions may still require `region allowf` for flooding—see [`region allowf`](#allow-a-region).
 
 ---
 
@@ -1097,11 +1127,106 @@ region save
 - `set bridge.source <source>`
 
 **Parameters:**
-- `source`: 
+- `source`:
   - `logRx`: bridges received packets
   - `logTx`: bridges transmitted packets
 
 **Default:** `logTx`
+
+> **Note:** For MQTT bridges, use `mqtt.rx` and `mqtt.tx` instead of `bridge.source`. These provide independent per-direction control and support both RX and TX simultaneously. `bridge.source` still works as a convenience alias for MQTT (setting `bridge.source rx` sets `mqtt.rx on` + `mqtt.tx off`, and vice versa), but `mqtt.rx`/`mqtt.tx` are preferred.
+
+---
+
+#### View or change MQTT RX packet uplinking
+**Usage:**
+- `get mqtt.rx`
+- `set mqtt.rx <on|off>`
+
+**Parameters:**
+- `on`: uplink received (RX) packets to MQTT brokers
+- `off`: disable RX packet uplinking
+
+**Default:** `on`
+
+---
+
+#### View or change MQTT TX packet uplinking
+**Usage:**
+- `get mqtt.tx`
+- `set mqtt.tx <on|off|advert>`
+
+**Parameters:**
+- `on`: uplink all transmitted (TX) packets to MQTT brokers
+- `advert`: uplink only this node's own advert packets (self-originated advertisements only — forwarded adverts from other nodes are filtered out)
+- `off`: disable TX packet uplinking
+
+**Default:** `advert`
+
+> **Note:** `mqtt.rx` and `mqtt.tx` take effect immediately — no restart required. Both can be enabled simultaneously.
+
+---
+
+#### View or change periodic neighbors publishing (MQTT observer, PSRAM only)
+**Usage:**
+- `get mqtt.neighbors`
+- `set mqtt.neighbors <on|off>`
+
+**Parameters:**
+- `on`: periodically discover neighbor scopes and publish the neighbor table to the `neighbors` topic
+- `off`: disable periodic neighbors publishing
+
+**Default:** `off`
+
+> **Note:** Requires a build with the neighbors feature compiled in (all PSRAM
+> boards, plus non-PSRAM boards built with `MQTT_NEIGHBORS_WITHOUT_PSRAM`);
+> elsewhere this replies `Err - neighbors not enabled in this build`. Non-PSRAM
+> builds publish at most 20 neighbours per pass to bound internal-DRAM use, and
+> set `truncated` with the true `total_neighbors` when the table is larger.
+> The setting is read live by the mesh
+> loop — no restart required; enabling it triggers a discovery on the next pass.
+> While enabled, `get mqtt.status` gains a trailing `nbr: <next>/<last>` field
+> (time to next publish, and how the last publish went).
+
+---
+
+#### View or change the neighbors publish interval (MQTT observer, PSRAM only)
+**Usage:**
+- `get mqtt.neighbors.interval`
+- `set mqtt.neighbors.interval <hours>`
+
+**Parameters:**
+- `hours`: how often to publish the neighbor table (12–336, default 24)
+
+**Default:** `24` (hours)
+
+> **Note:** Out-of-range values are rejected (not clamped). Requires a PSRAM board.
+
+---
+
+#### View or change the NTP server (MQTT observer only)
+**Usage:**
+- `get mqtt.ntp`
+- `set mqtt.ntp <hostname>`
+- `set mqtt.ntp none`
+
+**Description:** Sets the primary NTP server used for clock sync (required for JWT MQTT auth). On `set`, the device attempts an immediate sync of the just-configured server (primary only, so a typo fails fast) when WiFi is connected and the MQTT bridge is running.
+
+**Fallbacks:** If the primary fails, the firmware tries `pool.ntp.org`, `time.google.com`, `time.cloudflare.com`, `time.aws.com`, and `time.nist.gov` in order (skipping duplicates).
+
+**Default:** `pool.ntp.org` (when unset or `none`)
+
+---
+
+#### Diagnose NTP server connectivity (MQTT observer only)
+**Usage:**
+- `get mqtt.ntp.diag`
+
+**Description:** Probes every configured NTP server (the custom primary, if set, plus the built-in fallbacks) and reports whether each responds. This is a pure connectivity diagnostic — it does **not** change the system clock.
+
+- **Serial console:** prints a detailed table with each server's reported UTC time (or `FAIL`).
+- **Over LoRa:** returns a compact `<server> ok|fail` list, one per line.
+
+Requires WiFi connected and the MQTT bridge running.
 
 ---
 

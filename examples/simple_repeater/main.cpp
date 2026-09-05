@@ -6,6 +6,7 @@
 #ifdef DISPLAY_CLASS
   #include "UITask.h"
   static UITask ui_task(board, display);
+  static bool display_ready = false;
 #endif
 
 #ifdef ETHERNET_ENABLED
@@ -52,7 +53,8 @@ void setup() {
 #endif
 
 #ifdef DISPLAY_CLASS
-  if (display.begin()) {
+  display_ready = display.begin();
+  if (display_ready) {
     display.startFrame();
     display.setCursor(0, 0);
     display.print("Please wait...");
@@ -94,6 +96,11 @@ void setup() {
     store.save("_main", the_mesh.self_id);
   }
 
+  // Print the running firmware version at boot so it's visible after an OTA
+  // reboot without having to issue `ver` manually.
+  Serial.print("Firmware: "); Serial.print(FIRMWARE_VERSION);
+  Serial.print(" (built "); Serial.print(FIRMWARE_BUILD_DATE); Serial.println(")");
+
   Serial.print("Repeater ID: ");
   mesh::Utils::printHex(Serial, the_mesh.self_id.pub_key, PUB_KEY_SIZE); Serial.println();
 
@@ -107,7 +114,9 @@ void setup() {
   the_mesh.begin(fs);
 
 #ifdef DISPLAY_CLASS
-  ui_task.begin(the_mesh.getNodePrefs(), FIRMWARE_BUILD_DATE, FIRMWARE_VERSION);
+  if (display_ready) {
+    ui_task.begin(the_mesh.getNodePrefs(), FIRMWARE_BUILD_DATE, FIRMWARE_VERSION);
+  }
 #endif
 
 #ifdef ETHERNET_ENABLED
@@ -188,7 +197,7 @@ void loop() {
   the_mesh.loop();
   sensors.loop();
 #ifdef DISPLAY_CLASS
-  ui_task.loop();
+  if (display_ready) ui_task.loop();
 #endif
   rtc_clock.tick();
 

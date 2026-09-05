@@ -7,6 +7,11 @@ MeshCore is a lightweight, portable C++ library that enables multi-hop packet ro
 MeshCore now supports a range of LoRa devices, allowing for easy flashing without the need to compile firmware manually. Users can flash a pre-built binary using tools like Adafruit ESPTool and interact with the network through a serial console.
 MeshCore provides the ability to create wireless mesh networks, similar to Meshtastic and Reticulum but with a focus on lightweight multi-hop packet routing for embedded projects. Unlike Meshtastic, which is tailored for casual LoRa communication, or Reticulum, which offers advanced networking, MeshCore balances simplicity with scalability, making it ideal for custom embedded solutions, where devices (nodes) can communicate over long distances by relaying messages through intermediate nodes. This is especially useful in off-grid, emergency, or tactical situations where traditional communication infrastructure is unavailable.
 
+> **MQTT Observer Setup** — Prebuilt observer firmware, docs, and a changelog are at
+> [observer.gessaman.com](https://observer.gessaman.com/). See the
+> [MQTT Implementation Guide](./MQTT_IMPLEMENTATION.md) for configuration, CLI commands, and
+> troubleshooting.
+
 ## ⚡ Key Features
 
 * Multi-Hop Packet Routing

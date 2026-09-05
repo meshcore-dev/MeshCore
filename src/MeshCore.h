@@ -24,15 +24,15 @@
 
 #if MESH_DEBUG && ARDUINO
   #include <Arduino.h>
-  #define MESH_DEBUG_PRINT(F, ...) Serial.printf("DEBUG: " F, ##__VA_ARGS__)
-  #define MESH_DEBUG_PRINTLN(F, ...) Serial.printf("DEBUG: " F "\n", ##__VA_ARGS__)
+  #define MESH_DEBUG_PRINT(F, ...) do { if (Serial.availableForWrite() > 0) { Serial.printf("DEBUG: " F, ##__VA_ARGS__); } } while(0)
+  #define MESH_DEBUG_PRINTLN(F, ...) do { if (Serial.availableForWrite() > 0) { Serial.printf("DEBUG: " F "\n", ##__VA_ARGS__); } } while(0)
 #else
   #define MESH_DEBUG_PRINT(...) {}
   #define MESH_DEBUG_PRINTLN(...) {}
 #endif
 
 #if BRIDGE_DEBUG && ARDUINO
-#define BRIDGE_DEBUG_PRINTLN(F, ...) Serial.printf("%s BRIDGE: " F, getLogDateTime(), ##__VA_ARGS__)
+#define BRIDGE_DEBUG_PRINTLN(F, ...) do { if (Serial.availableForWrite() > 0) { Serial.printf("%s BRIDGE: " F, getLogDateTime(), ##__VA_ARGS__); } } while(0)
 #else
 #define BRIDGE_DEBUG_PRINTLN(...) {}
 #endif
@@ -63,7 +63,14 @@ public:
   virtual void setGpio(uint32_t values) {}
   virtual uint8_t getStartupReason() const = 0;
   virtual bool getBootloaderVersion(char* version, size_t max_len) { return false; }
-  virtual bool startOTAUpdate(const char* id, char reply[]) { return false; }   // not supported
+  virtual bool startOTAUpdate(const char* id, char reply[], bool force_ap = false) { return false; }   // not supported
+  // Pull-based OTA: fetch the firmware build for this variant from a baked-in manifest and flash it.
+  // current_ver is the running firmware version string (used to skip if already up to date); when
+  // dry_run is true the build is only reported, not flashed. Observer (ESP32+WiFi) builds only.
+  virtual bool otaFromManifest(const char* current_ver, bool dry_run, char reply[]) { return false; }
+
+  // LoRa front-end-module LNA (RX gain) control. Only FEM-equipped boards override
+  // these; others report they can't control it. Driven by NodePrefs.radio_fem_rxgain.
   virtual bool setLoRaFemLnaEnabled(bool enable) { return false; }
   virtual bool canControlLoRaFemLna() const { return false; }
   virtual bool isLoRaFemLnaEnabled() const { return false; }

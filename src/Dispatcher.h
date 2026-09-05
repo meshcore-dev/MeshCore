@@ -61,6 +61,9 @@ public:
    */
   virtual void loop() { }
 
+  virtual void idle() { }
+  virtual void startRecv() { }
+
   virtual int getNoiseFloor() const { return 0; }
 
   virtual void triggerNoiseFloorCalibrate(int threshold) { }
@@ -68,6 +71,10 @@ public:
   virtual void setCADEnabled(bool enable) { }
 
   virtual void resetAGC() { }
+
+  virtual uint8_t getRadioState() const { return 0; }
+  virtual unsigned long getLastRecvMillis() const { return 0; }
+  virtual unsigned long getLastRadioInterruptMillis() const { return 0; }
 
   virtual bool isInRecvMode() const = 0;
 
@@ -78,6 +85,11 @@ public:
 
   virtual float getLastRSSI() const { return 0; }
   virtual float getLastSNR() const { return 0; }
+
+  /**
+   * \returns  number of receive errors (e.g. CRC failures) since last reset; 0 if not tracked.
+  */
+  virtual uint32_t getPacketsRecvErrors() const { return 0; }
 };
 
 /**
@@ -110,6 +122,11 @@ typedef uint32_t  DispatcherAction;
 #define ERR_EVENT_FULL              (1 << 0)
 #define ERR_EVENT_CAD_TIMEOUT       (1 << 1)
 #define ERR_EVENT_STARTRX_TIMEOUT   (1 << 2)
+#define ERR_EVENT_RADIO_WATCHDOG    (1 << 3)
+
+#ifndef RADIO_WATCHDOG_MS
+  #define RADIO_WATCHDOG_MS  300000   // 5 minutes
+#endif
 
 /**
  * \brief  The low-level task that manages detecting incoming Packets, and the queueing
@@ -118,6 +135,8 @@ typedef uint32_t  DispatcherAction;
 class Dispatcher {
   Packet* outbound;  // current outbound packet
   unsigned long outbound_expiry, outbound_start, total_air_time, rx_air_time;
+  unsigned long last_watchdog_recovery;
+  unsigned long last_radio_active_ms;   // updated on any TX or RX event; used by watchdog
   unsigned long next_tx_time;
   unsigned long cad_busy_start;
   unsigned long radio_nonrx_start;
@@ -152,6 +171,8 @@ protected:
     tx_budget_ms = 0;
     last_budget_update = 0;
     duty_cycle_window_ms = 3600000;
+    last_watchdog_recovery = 0;
+    last_radio_active_ms = 0;
   }
 
   virtual DispatcherAction onRecvPacket(Packet* pkt) = 0;
@@ -171,6 +192,9 @@ protected:
   virtual bool getCADEnabled() const { return false; }    // hardware CAD disabled by default
   virtual int getAGCResetInterval() const { return 0; }    // disabled by default
   virtual unsigned long getDutyCycleWindowMs() const { return 3600000; }
+#ifdef WITH_MQTT_BRIDGE
+  virtual uint32_t getRadioWatchdogMillis() const;  // observer-only radio recovery
+#endif
 
 public:
   void begin();
@@ -187,6 +211,9 @@ public:
   uint32_t getNumSentDirect() const { return n_sent_direct; }
   uint32_t getNumRecvFlood() const { return n_recv_flood; }
   uint32_t getNumRecvDirect() const { return n_recv_direct; }
+  uint16_t getErrFlags() const { return _err_flags; }  // Get error flags
+  bool hasOutbound() const { return outbound != NULL; }
+  bool isCurrentOutbound(const Packet* packet) const { return outbound == packet; }
   void resetStats() {
     n_sent_flood = n_sent_direct = n_recv_flood = n_recv_direct = 0;
     _err_flags = 0;

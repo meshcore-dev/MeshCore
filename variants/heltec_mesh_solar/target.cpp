@@ -11,7 +11,7 @@ WRAPPER_CLASS radio_driver(radio, board);
 
 VolatileRTCClock fallback_clock;
 AutoDiscoverRTCClock rtc_clock(fallback_clock);
-MicroNMEALocationProvider nmea = MicroNMEALocationProvider(Serial1, &rtc_clock);
+MicroNMEALocationProvider nmea = MicroNMEALocationProvider(Serial1);
 SolarSensorManager sensors = SolarSensorManager(nmea);
 SolarExternalWatchdog external_watchdog;
 

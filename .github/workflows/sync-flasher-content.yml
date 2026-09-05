@@ -1,0 +1,116 @@
+name: Sync Flasher Docs & Changelog
+
+# Pushes the observer docs and the regenerated changelog to the flasher site
+# WITHOUT rebuilding firmware. Companion to build-observer-firmwares.yml:
+#   - code changes        -> build-observer-firmwares.yml (builds + syncs everything)
+#   - doc / markdown edits -> this workflow (fast sync only, no firmware rebuild)
+# Keep the synced file list and trigger paths in step with the build workflow's
+# "Sync Docs into Flasher" step and with LOCAL_DOCS in flasher/docs.html.
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - observer-firmware
+    paths:
+      - '**.md'
+      - 'docs/**'
+      - 'scripts/gen_changelog.py'
+      # /webconfig frames the real portal page against a browser simulator, so
+      # the page itself is a synced doc asset like the .md files above.
+      - 'webui/index.html'
+
+# Own group: serialize doc syncs against each other only. Deliberately NOT shared
+# with build-observer-firmwares.yml — a shared group let one workflow cancel the
+# other's pending run (a mixed code+docs commit triggers both). Concurrent flasher
+# pushes are handled by the rebase-retry in "Commit & Push Flasher Content".
+concurrency:
+  group: flasher-docs-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone Repo
+        uses: actions/checkout@v4
+        with:
+          # full history so scripts/gen_changelog.py can read the branch commit log
+          fetch-depth: 0
+
+      - name: Checkout Flasher Repo
+        uses: actions/checkout@v4
+        with:
+          repository: agessaman/flasher.meshcore.io
+          token: ${{ secrets.FLASHER_DISPATCH_TOKEN }}
+          path: flasher
+
+      - name: Sync Docs into Flasher
+        run: |
+          # docs.html on the flasher site serves these raw .md files and renders
+          # them client-side; keep this list in sync with LOCAL_DOCS in
+          # flasher/docs.html and the build workflow's sync step.
+          for f in MQTT_IMPLEMENTATION.md MQTT_SNMP.md ALERTS.md; do
+            if [ -f "$f" ]; then
+              cp -f "$f" "flasher/$f"
+              echo "synced $f"
+            else
+              echo "WARNING: source doc $f not found" >&2
+            fi
+          done
+
+      - name: Sync the WebConfig Portal Page into Flasher
+        run: |
+          # flasher/webconfig.html embeds the REAL portal page in a device
+          # surround and runs it against lib/webconfig-sim.js, which intercepts
+          # fetch() so no device is needed. Syncing the page is what keeps that
+          # demo honest — the alternative is screenshots, which go stale without
+          # anyone noticing. The build script only injects a <script> tag; it
+          # refuses a page that already carries the simulator.
+          if [ -f webui/index.html ]; then
+            python3 flasher/scripts/build-webconfig-demo.py webui/index.html
+            echo "rebuilt flasher/webconfig-demo.html from webui/index.html"
+          else
+            echo "WARNING: webui/index.html not found; leaving the demo as-is" >&2
+          fi
+
+      - name: Generate Changelog
+        run: |
+          # Append-only and idempotent; preserves the hand-curated history and
+          # hash manifest already in flasher/CHANGELOG.md. changelog.html renders it.
+          python3 scripts/gen_changelog.py flasher/CHANGELOG.md
+
+      - name: Commit & Push Flasher Content
+        working-directory: flasher
+        run: |
+          if git diff --quiet; then
+            echo "No flasher changes to commit."
+            exit 0
+          fi
+          git config user.name "meshcore-bot"
+          git config user.email "noreply@gessaman.com"
+          git commit -am "Sync docs & changelog from MeshCore ${GITHUB_SHA::7}"
+          # build-observer-firmwares.yml can be pushing the same docs/changelog
+          # right now (a mixed code+docs commit triggers both), so a non-fast-forward
+          # is expected rather than fatal: rebase onto its commit and retry. If the
+          # rebase leaves nothing, git reports up-to-date and we exit clean.
+          br=$(git rev-parse --abbrev-ref HEAD)
+          for attempt in 1 2 3; do
+            if git push origin "HEAD:$br"; then
+              exit 0
+            fi
+            echo "push rejected (attempt $attempt); rebasing onto origin/$br"
+            git fetch origin "$br"
+            # --autostash so a dirty tree can never make the rebase refuse to run;
+            # nothing unstaged gets published either way.
+            git rebase --autostash "origin/$br" || {
+              git rebase --abort || true
+              echo "::error::flasher rebase conflicted; re-run this workflow to resync"
+              exit 1
+            }
+          done
+          echo "::error::could not push flasher changes after 3 attempts"
+          exit 1

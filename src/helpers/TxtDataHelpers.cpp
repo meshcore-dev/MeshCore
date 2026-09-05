@@ -1,4 +1,18 @@
 #include "TxtDataHelpers.h"
+#include <string.h>
+
+void StrHelper::stripSurroundingQuotes(char* str, size_t buf_sz) {
+  if (!str || buf_sz == 0) return;
+  size_t len = strlen(str);
+  if (len == 0) return;
+  if (str[0] == '"' || str[0] == '\'') {
+    memmove(str, str + 1, len);
+    len--;
+  }
+  if (len > 0 && (str[len - 1] == '"' || str[len - 1] == '\'')) {
+    str[len - 1] = '\0';
+  }
+}
 
 void StrHelper::strncpy(char* dest, const char* src, size_t buf_sz) {
   while (buf_sz > 1 && *src) {

@@ -25,30 +25,41 @@ bool SH1106Display::begin()
   // Wire must already be initialised by board.begin() before this is called.
   // Boards with non-standard SH1106 addresses should define DISPLAY_ADDRESS
   // in their variant/platformio configuration. The SA0 strap selects 0x3C or
-  // 0x3D and differs between revisions of the same board (e.g. T-Beam
-  // Supreme), so fall back to the other address of the pair.
+  // 0x3D and differs between revisions of the same board (e.g. T-Beam Supreme),
+  // so fall back to the other address of the pair, or to DISPLAY_ADDRESS_ALT
+  // when a variant names one explicitly.
+#ifdef DISPLAY_ADDRESS_ALT
+  const uint8_t alt_addr = DISPLAY_ADDRESS_ALT;
+#else
+  const uint8_t alt_addr = DISPLAY_ADDRESS ^ 1;
+#endif
   uint8_t addr = 0;
   if (i2c_probe(Wire, DISPLAY_ADDRESS)) {
     addr = DISPLAY_ADDRESS;
-  } else if (i2c_probe(Wire, DISPLAY_ADDRESS ^ 1)) {
-    addr = DISPLAY_ADDRESS ^ 1;
+  } else if (alt_addr != DISPLAY_ADDRESS && i2c_probe(Wire, alt_addr)) {
+    addr = alt_addr;
   }
-  // Run the Adafruit init even when no panel answered: it is what allocates
-  // the frame buffer and the I2C device. Skipping it leaves i2c_dev and
-  // spi_dev NULL, and UITask::begin() calls turnOn() regardless of our
-  // return value, which then dereferences the null spi_dev.
+  // Run the Adafruit init even when no panel answered: it is what allocates the
+  // frame buffer and the I2C device. Skipping it leaves i2c_dev and spi_dev
+  // NULL for any caller that draws without checking our return value.
   bool ok = display.begin(addr ? addr : DISPLAY_ADDRESS, true);
-  return addr != 0 && ok;
+  _initialized = (addr != 0) && ok;
+  return _initialized;
 }
 
 void SH1106Display::turnOn()
 {
+  if (!_initialized) return;
   display.oled_command(SH110X_DISPLAYON);
   _isOn = true;
 }
 
 void SH1106Display::turnOff()
 {
+  if (!_initialized) {
+    _isOn = false;
+    return;
+  }
   display.oled_command(SH110X_DISPLAYOFF);
   _isOn = false;
 }

@@ -1,0 +1,377 @@
+name: Build MQTT Observer Firmwares (BETA channel)
+
+permissions:
+  contents: write
+
+# Push-triggered on the dev line, mirroring build-observer-firmwares.yml.
+#
+# This is NOT the original design — dispatch-only was, so that publishing to real
+# nodes stayed an explicit act. That does not work in this repo: this fork's
+# default branch is `dev` (an upstream mirror that carries none of the observer
+# workflows), and GitHub only surfaces `workflow_dispatch` for workflows present
+# on the DEFAULT branch. A dispatch-only workflow here would never appear in the
+# Actions UI. Adding fork-specific workflows to `dev` would pollute the upstream
+# mirror and conflict on every upstream sync, so the push trigger is the correct
+# mechanism — the same one production already relies on.
+#
+# workflow_dispatch is kept as well: harmless now, and it starts working if the
+# default branch ever changes.
+#
+# Consequence to be aware of: every push to `observer-firmware-dev` publishes a
+# dev-channel build. That is defensible for a channel users opt into, but if you
+# want staging commits without publishing, work on a side branch and fast-forward
+# `observer-firmware-dev` when you intend to release.
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - observer-firmware-dev
+    # Same rationale as production: docs/CI-only changes do not alter binaries.
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'scripts/gen_changelog.py'
+      - '.github/**'
+      - '.gitignore'
+      - '.gitattributes'
+      - '.editorconfig'
+      - 'LICENSE'
+      - '.vscode/**'
+      - '.claude/**'
+      # Throwaway build worktrees never affect the binaries.
+      - '.build-wt-*'
+      - '.build-wt-*/**'
+
+# Own group: serialize beta builds against each other only. Concurrency groups are
+# repo-wide, not per-branch, so sharing one with the production workflows let an
+# in-flight beta build force a production build into the pending state, where the
+# next run queued into the group cancelled it outright. Concurrent flasher pushes
+# are instead made safe by the rebase-retry in "Commit & Push Beta Artifacts".
+concurrency:
+  group: observer-firmware-beta-build
+  cancel-in-progress: false
+
+env:
+  # MUST stay equal to the production channel's FIRMWARE_VERSION. The observer's
+  # OTA comparison treats a different base version as "always an update", so a
+  # distinct base here would make every beta node think it is permanently behind.
+  # Channels are separated by manifest URL, not by base version.
+  FIRMWARE_VERSION: v1.17.1
+
+  # Beta-only rolling release. A separate tag is required, not cosmetic: the
+  # publish step prunes all but the KEEP_BUILDS most recent build hashes within
+  # its tag, so sharing production's tag would make each channel delete the
+  # other's assets.
+  RELEASE_TAG: observer-mqtt-beta-latest
+
+  # The channel itself. Firmware fetches <OTA_MANIFEST_BASE>/<OTA_VARIANT>.json,
+  # so this URL is what keeps beta nodes on beta.
+  OTA_MANIFEST_BASE_URL: https://observer.gessaman.com/beta/v
+  # Marks the embedded version, e.g. v1.16.0.3-observer-beta-dev-abc1234, so `ver`
+  # (and the MQTT firmware_version / SNMP) identify BOTH the channel and its
+  # provenance: this channel is built from the upstream-dev-merged line, so "dev"
+  # is carried in the string rather than left to be inferred from the branch name.
+  # Does not affect OTA version parsing: ota_parseVersion() reads to the first '-'
+  # and ota_extractHash() takes the token after the last, so tags in between are
+  # transparent.
+  OTA_CHANNEL_TAG: beta-dev
+  # Marks the asset *filenames*, e.g. <env>-v1.16.0-dev-abc1234.bin, so a
+  # downloaded file identifies its channel at a glance. Lowercase letters only —
+  # the filename parsers (gen-slim ASSET_RE, the /releases Worker, flasher.js)
+  # accept exactly (?:-[a-z]+)? between version and hash.
+  FILENAME_CHANNEL_TAG: "-dev"
+
+  # Beta's own build counter, so the two channels' build numbers never interleave.
+  COUNTER_URL: https://observer.gessaman.com/observer-beta-build-counter.json
+  COUNTER_FILE: observer-beta-build-counter.json
+
+  # Where beta artifacts live in the flasher repo. MANIFEST_DIR must correspond to
+  # OTA_MANIFEST_BASE_URL's path, and STATIC_PATH must be a host/route serving the
+  # beta GitHub release (see cloudflare-worker).
+  MANIFEST_DIR: beta/v
+  STATIC_PATH: https://observer-fw-beta.gessaman.com
+
+jobs:
+
+  enumerate:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.split.outputs.matrix }}
+      build_number: ${{ steps.buildnum.outputs.n }}
+    steps:
+      - name: Clone Repo
+        uses: actions/checkout@v4
+
+      - name: Split observer envs into shards
+        id: split
+        shell: bash
+        run: |
+          SHARDS=14
+          ENVS=$(grep -rhoE '^\[env:[^]]*observer_mqtt\]' platformio.ini variants/*/platformio.ini \
+                 | sed -E 's/^\[env:(.*)\]$/\1/' | sort -u)
+          echo "Discovered envs:"; echo "$ENVS"
+          MATRIX=$(echo "$ENVS" | awk -v n="$SHARDS" '
+              { shard[NR % n] = shard[NR % n] " " $0 }
+              END { for (i = 0; i < n; i++) { sub(/^ /, "", shard[i]);
+                    printf "{\"idx\":%d,\"envs\":\"%s\"}\n", i, shard[i] } }' \
+              | jq -cs .)
+          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+
+      - name: Compute beta build number
+        id: buildnum
+        shell: bash
+        run: |
+          # Same scheme as production but off the BETA counter, so the channels
+          # increment independently.
+          CUR=$(curl -fsSL "$COUNTER_URL" 2>/dev/null || echo '{}')
+          PREV_BASE=$(echo "$CUR" | jq -r '.baseVersion // ""')
+          PREV_BUILD=$(echo "$CUR" | jq -r '.build // 0')
+          if [ "$PREV_BASE" = "$FIRMWARE_VERSION" ]; then
+            N=$((PREV_BUILD + 1))
+          else
+            N=1
+          fi
+          echo "Base $FIRMWARE_VERSION; previous beta build $PREV_BUILD (base $PREV_BASE) -> N=$N"
+          echo "n=$N" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: enumerate
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.enumerate.outputs.matrix) }}
+    steps:
+      - name: Clone Repo
+        uses: actions/checkout@v4
+
+      - name: Cache PlatformIO Toolchains
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio/packages
+            ~/.platformio/platforms
+          key: pio-toolchains-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
+          restore-keys: |
+            pio-toolchains-${{ runner.os }}-
+
+      - name: Setup Build Environment
+        uses: ./.github/actions/setup-build-environment
+
+      - name: Build Shard ${{ matrix.shard.idx }}
+        env:
+          FIRMWARE_BUILD_NUMBER: ${{ needs.enumerate.outputs.build_number }}
+          # OTA_MANIFEST_BASE_URL and OTA_CHANNEL_TAG (what actually make this a
+          # beta build) come from the workflow-level env: above, which every step
+          # inherits. Do NOT redeclare them as ${{ env.X }} here — that is a
+          # self-reference, and if it resolved empty it would blank the channel.
+        run: /usr/bin/env bash build.sh build-firmware ${{ matrix.shard.envs }}
+
+      - name: Verify beta channel is baked in
+        shell: bash
+        run: |
+          # Fail fast rather than publish firmware that would OTA itself onto the
+          # production channel. Checks one built binary actually carries the beta
+          # manifest URL and does NOT carry the production one.
+          BIN=$(find .pio/build -name firmware.elf | head -1)
+          if [ -z "$BIN" ]; then echo "no ELF found to verify" >&2; exit 1; fi
+          if ! strings "$BIN" | grep -qF "$OTA_MANIFEST_BASE_URL"; then
+            echo "ERROR: beta manifest base missing from $BIN" >&2; exit 1
+          fi
+          if strings "$BIN" | grep -qE 'https://observer\.gessaman\.com/v"?$'; then
+            echo "ERROR: production manifest base present in a beta build" >&2; exit 1
+          fi
+          echo "OK: $BIN carries $OTA_MANIFEST_BASE_URL"
+
+      - name: Upload Shard Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fw-${{ matrix.shard.idx }}
+          path: out
+          if-no-files-found: error
+
+  release:
+    needs: [enumerate, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone Repo
+        uses: actions/checkout@v4
+        # Shallow on purpose — see the production workflow: `git rev-parse --short`
+        # must produce the same abbreviation build.sh used for the asset filenames.
+
+      - name: Download All Shard Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Flatten into out/
+        run: |
+          mkdir -p out
+          find artifacts -type f -name '*.bin' -exec cp -f {} out/ \;
+          find artifacts -type f -name '*.partsig' -exec cp -f {} out/ \;
+          echo "Collected binaries:"; ls -1 out
+
+      - name: Compute Short SHA
+        id: sha
+        run: echo "short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Publish to Beta Rolling Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Retry wrapper for GitHub API calls. This job runs AFTER ~15 minutes of
+          # building across 14 runners, and every call below is an API write; with
+          # `bash -e`, a single transient 5xx throws all of that away. Observed
+          # 2026-07-19: `gh release create` got HTTP 503 during a GitHub incident
+          # and killed a run whose builds had all passed.
+          # `until` in a condition does not trip `-e`, so this is safe here.
+          gh_retry() {
+            local n=0 max=5 delay=10
+            until "$@"; do
+              n=$((n + 1))
+              if [ "$n" -ge "$max" ]; then
+                echo "::error::gh failed after $max attempts: $*" >&2
+                return 1
+              fi
+              echo "gh call failed (attempt $n/$max), retrying in ${delay}s: $*" >&2
+              sleep "$delay"
+              delay=$((delay * 2))
+            done
+          }
+
+          # Deliberately NOT retried: a plain "release does not exist" is the
+          # expected answer on the first run, and retrying it would just burn the
+          # backoff. A 5xx here instead makes us fall through to create, which is
+          # then tolerated below if the release actually did already exist.
+          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh_retry gh release create "$RELEASE_TAG" --prerelease \
+              --title "MQTT Observer Firmwares (BETA)" \
+              --notes "Rolling BETA build. Separate channel from observer-mqtt-latest; beta nodes only OTA within this channel." \
+            || gh release view "$RELEASE_TAG" >/dev/null 2>&1 \
+            || { echo "::error::could not create or confirm $RELEASE_TAG" >&2; exit 1; }
+          fi
+
+          gh_retry gh release upload "$RELEASE_TAG" $(find out -maxdepth 1 -type f ! -name '*.partsig') --clobber
+
+          # Keep the release body in sync with the repo's notes source, with the
+          # dev-channel warning prepended: the /releases feed serves the body as
+          # this channel's dropdown changelog. Non-fatal — stale notes beat a
+          # red build whose binaries are already live.
+          {
+            printf '%s' '<p><b>&#9888; DEV/BETA CHANNEL:</b> pre-release firmware. A node flashed from this channel keeps receiving OTA updates from this channel until re-flashed by cable.</p>'
+            cat firmware-notes.html
+          } > /tmp/beta-notes.html
+          gh_retry gh release edit "$RELEASE_TAG" --notes-file /tmp/beta-notes.html \
+            || echo "WARNING: release notes sync failed" >&2
+
+          # Pruning is housekeeping and runs AFTER the upload has succeeded. If the
+          # API is flaky here, skip it rather than fail the job — old assets simply
+          # linger until the next run, which is strictly better than reporting
+          # failure for a build whose binaries are already published.
+          KEEP_BUILDS=2
+          if ! asset_list=$(gh_retry gh release view "$RELEASE_TAG" --json assets \
+                              -q '.assets[] | "\(.createdAt) \(.name)"'); then
+            echo "::warning::could not list assets; skipping prune this run"
+            exit 0
+          fi
+          keep_hashes=$(printf '%s\n' "$asset_list" \
+            | sort -r \
+            | while read -r _ts name; do
+                printf '%s' "$name" | grep -oiE '[0-9a-f]{7,40}(-merged)?\.bin$' | grep -oiE '^[0-9a-f]{7,40}'
+              done \
+            | awk '!seen[$0]++' | head -n "$KEEP_BUILDS")
+          echo "Retaining build hashes:"; echo "$keep_hashes"
+          # Reuse asset_list rather than making a second API call (its lines are
+          # "<createdAt> <name>", so the name is field 2).
+          printf '%s\n' "$asset_list" | awk '{print $2}' \
+            | while read -r asset; do
+                ah=$(printf '%s' "$asset" | grep -oiE '[0-9a-f]{7,40}(-merged)?\.bin$' | grep -oiE '^[0-9a-f]{7,40}' || true)
+                if [ -n "$ah" ] && grep -qxF "$ah" <<<"$keep_hashes"; then
+                  continue
+                fi
+                gh release delete-asset "$RELEASE_TAG" "$asset" --yes || true
+              done
+
+      - name: Checkout Flasher Repo
+        uses: actions/checkout@v4
+        with:
+          repository: agessaman/flasher.meshcore.io
+          token: ${{ secrets.FLASHER_DISPATCH_TOKEN }}
+          path: flasher
+
+      - name: Generate Beta Manifests
+        env:
+          BUILD_NUMBER: ${{ needs.enumerate.outputs.build_number }}
+        run: |
+          # config-beta.json is no longer derived here: the flasher's Version
+          # dropdown is feed-driven (/releases on the firmware-proxy Worker
+          # lists both channels), so the beta channel needs no config of its
+          # own and this workflow's flasher commit touches only beta/v/ and the
+          # counter.
+          mkdir -p "flasher/$MANIFEST_DIR"
+          # Slim manifests come from the build output in out/ (the assets
+          # actually uploaded to the release), not from config-beta.json — see
+          # gen-slim-manifests.py's --bin-dir mode (flasher repo PR #1).
+          python3 flasher/scripts/gen-slim-manifests.py \
+            --bin-dir out \
+            --static-path "$STATIC_PATH" \
+            --out-dir "flasher/$MANIFEST_DIR" \
+            --base-version "$FIRMWARE_VERSION" \
+            --build "$BUILD_NUMBER" \
+            --partsig-dir out
+
+          printf '{\n  "baseVersion": "%s",\n  "build": %s\n}\n' \
+            "$FIRMWARE_VERSION" "$BUILD_NUMBER" > "flasher/$COUNTER_FILE"
+          echo "Beta build $FIRMWARE_VERSION.$BUILD_NUMBER"
+
+      - name: Verify beta manifests point at the beta channel
+        run: |
+          # Guards against a beta manifest handing out a production download URL.
+          SAMPLE=$(find "flasher/$MANIFEST_DIR" -name '*.json' | head -1)
+          echo "sample: $SAMPLE"; cat "$SAMPLE"
+          if ! grep -qF "$STATIC_PATH" "$SAMPLE"; then
+            echo "ERROR: beta manifest does not use $STATIC_PATH" >&2; exit 1
+          fi
+
+      # NOTE: production's "Generate Changelog" and "Sync Docs into Flasher" steps
+      # are deliberately omitted. Those rewrite site-wide content (CHANGELOG.md,
+      # MQTT_IMPLEMENTATION.md, ...) that the production channel owns; a beta build
+      # must not overwrite them.
+
+      - name: Commit & Push Beta Artifacts
+        working-directory: flasher
+        run: |
+          # Scoped add: beta only ever touches its own manifest dir and counter,
+          # so a stray edit elsewhere in the flasher checkout (in particular
+          # production's config.json) can never be published by this workflow.
+          git add -A "$MANIFEST_DIR" "$COUNTER_FILE"
+          if git diff --cached --quiet; then
+            echo "No beta changes to commit."
+            exit 0
+          fi
+          git config user.name "meshcore-bot"
+          git config user.email "noreply@gessaman.com"
+          git commit -m "Update BETA observer firmware to ${{ steps.sha.outputs.short }} (build ${FIRMWARE_VERSION}.${{ needs.enumerate.outputs.build_number }})"
+          # The production workflows can be pushing to the flasher repo right now
+          # (no shared concurrency group any more), so a non-fast-forward is expected
+          # rather than fatal: rebase onto their commit and retry. The scoped add
+          # above keeps this commit inside the beta paths, so a conflict with
+          # production's files is not possible.
+          br=$(git rev-parse --abbrev-ref HEAD)
+          for attempt in 1 2 3; do
+            if git push origin "HEAD:$br"; then
+              exit 0
+            fi
+            echo "push rejected (attempt $attempt); rebasing onto origin/$br"
+            git fetch origin "$br"
+            # --autostash: the scoped add above leaves unrelated edits in the
+            # checkout unstaged on purpose, and plain rebase refuses to run with a
+            # dirty tree. They stay unstaged, so they still never get published.
+            git rebase --autostash "origin/$br" || {
+              git rebase --abort || true
+              echo "::error::flasher rebase conflicted; re-run this workflow to republish"
+              exit 1
+            }
+          done
+          echo "::error::could not push beta changes after 3 attempts"
+          exit 1

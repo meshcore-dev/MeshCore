@@ -41,5 +41,5 @@ public:
   }
 #endif
 
-  bool startOTAUpdate(const char* id, char reply[]) override { return false; };
+  bool startOTAUpdate(const char* id, char reply[], bool force_ap = false) override { return false; };
 };

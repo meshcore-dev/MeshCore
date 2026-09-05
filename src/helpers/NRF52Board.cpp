@@ -402,7 +402,7 @@ bool NRF52Board::getBootloaderVersion(char* out, size_t max_len) {
     return false;
 }
 
-bool NRF52Board::startOTAUpdate(const char *id, char reply[]) {
+bool NRF52Board::startOTAUpdate(const char *id, char reply[], bool force_ap) {
   // Config the peripheral connection with maximum bandwidth
   // more SRAM required by SoftDevice
   // Note: All config***() function must be called before begin()

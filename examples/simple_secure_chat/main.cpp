@@ -281,7 +281,7 @@ public:
   {
     // defaults
     memset(&_prefs, 0, sizeof(_prefs));
-    _prefs.airtime_factor = 1.0;
+    _prefs.airtime_factor = 2.0;    // one third
     strcpy(_prefs.node_name, "NONAME");
     _prefs.freq = LORA_FREQ;
     _prefs.tx_power_dbm = LORA_TX_POWER;

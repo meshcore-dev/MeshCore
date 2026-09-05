@@ -258,11 +258,12 @@ float MyMesh::getAirtimeBudgetFactor() const {
   return _prefs.airtime_factor;
 }
 
-int MyMesh::getInterferenceThreshold() const {
-  return 0; // disabled for now, until currentRSSI() problem is resolved
-}
 bool MyMesh::getCADEnabled() const {
   return false; // hardware CAD before TX (disabled by default, until configurable)
+}
+
+int MyMesh::getInterferenceThreshold() const {
+  return 0; // disabled for now, until currentRSSI() problem is resolved
 }
 
 int MyMesh::calcRxDelay(float score, uint32_t air_time) const {
@@ -876,7 +877,7 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
   send_unscoped = false;
 
   // defaults
-  _prefs.airtime_factor = 1.0;
+  _prefs.airtime_factor = 1.0; // one half
   strcpy(_prefs.node_name, "NONAME");
   _prefs.freq = LORA_FREQ;
   _prefs.sf = LORA_SF;
@@ -980,6 +981,8 @@ void MyMesh::begin(bool has_display) {
   board.setLoRaFemPaGainEnabled(_prefs.radio_fem_txgain);
   MESH_DEBUG_PRINTLN("RX Boosted Gain Mode: %s",
                      radio_driver.getRxBoostedGainMode() ? "Enabled" : "Disabled");
+  // NOTE: no FEM LNA wiring here — companion has its own NodePrefs without
+  // radio_fem_rxgain, matching upstream (which also doesn't wire companion).
 }
 
 const char *MyMesh::getNodeName() {
@@ -1870,7 +1873,7 @@ void MyMesh::handleCmdFrame(size_t len) {
       out_frame[i++] = STATS_TYPE_CORE;
       uint16_t battery_mv = board.getBattMilliVolts();
       uint32_t uptime_secs = _ms->getMillis() / 1000;
-      uint8_t queue_len = (uint8_t)_mgr->getOutboundTotal();
+      uint8_t queue_len = (uint8_t)_mgr->getOutboundCount(0xFFFFFFFF);
       memcpy(&out_frame[i], &battery_mv, 2); i += 2;
       memcpy(&out_frame[i], &uptime_secs, 4); i += 4;
       memcpy(&out_frame[i], &_err_flags, 2); i += 2;

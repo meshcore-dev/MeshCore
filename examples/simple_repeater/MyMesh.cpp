@@ -1,5 +1,10 @@
 #include "MyMesh.h"
 #include <algorithm>
+#include <stdlib.h>  // for qsort()
+#include <helpers/RxReservePacketManager.h>
+#if defined(WITH_MQTT_NEIGHBORS)
+#include <helpers/MQTTConnectionPolicy.h>  // kSyncedClockEpoch
+#endif
 
 /* ------------------------------ Config -------------------------------- */
 
@@ -57,6 +62,12 @@
 #define ANON_REQ_TYPE_BASIC        0x03   // just remote clock
 
 #define CLI_REPLY_DELAY_MILLIS      600
+
+// Max time to flush the outbound queue (START alert + CLI reply) before the OTA
+// teardown blocks the loop until reboot. Best-effort: exits early once the queue
+// drains (immediate on a healthy node), caps the wait on a jammed/duty-limited
+// channel so an update is never stalled indefinitely.
+#define OTA_TX_DRAIN_TIMEOUT_MS     5000
 
 #define LAZY_CONTACTS_WRITE_DELAY    5000
 
@@ -144,6 +155,39 @@ uint8_t MyMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* secr
   return 13;  // reply length
 }
 
+// Comparison functions for qsort() - defined at file scope to avoid heap allocations
+static int cmp_neighbours_newest_to_oldest(const void* a, const void* b) {
+  const NeighbourInfo* na = *(const NeighbourInfo**)a;
+  const NeighbourInfo* nb = *(const NeighbourInfo**)b;
+  if (nb->heard_timestamp > na->heard_timestamp) return 1;
+  if (nb->heard_timestamp < na->heard_timestamp) return -1;
+  return 0;
+}
+
+static int cmp_neighbours_oldest_to_newest(const void* a, const void* b) {
+  const NeighbourInfo* na = *(const NeighbourInfo**)a;
+  const NeighbourInfo* nb = *(const NeighbourInfo**)b;
+  if (na->heard_timestamp > nb->heard_timestamp) return 1;
+  if (na->heard_timestamp < nb->heard_timestamp) return -1;
+  return 0;
+}
+
+static int cmp_neighbours_strongest_to_weakest(const void* a, const void* b) {
+  const NeighbourInfo* na = *(const NeighbourInfo**)a;
+  const NeighbourInfo* nb = *(const NeighbourInfo**)b;
+  if (nb->snr > na->snr) return 1;
+  if (nb->snr < na->snr) return -1;
+  return 0;
+}
+
+static int cmp_neighbours_weakest_to_strongest(const void* a, const void* b) {
+  const NeighbourInfo* na = *(const NeighbourInfo**)a;
+  const NeighbourInfo* nb = *(const NeighbourInfo**)b;
+  if (na->snr > nb->snr) return 1;
+  if (na->snr < nb->snr) return -1;
+  return 0;
+}
+
 uint8_t MyMesh::handleAnonRegionsReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data) {
   if (anon_limiter.allow(rtc_clock.getCurrentTime())) {
     // request data has: {reply-path-len}{reply-path}
@@ -216,7 +260,7 @@ int MyMesh::handleRequest(ClientInfo *sender, uint32_t sender_timestamp, uint8_t
   if (payload[0] == REQ_TYPE_GET_STATUS) {  // guests can also access this now
     RepeaterStats stats;
     stats.batt_milli_volts = board.getBattMilliVolts();
-    stats.curr_tx_queue_len = _mgr->getOutboundTotal();
+    stats.curr_tx_queue_len = _mgr->getOutboundCount(0xFFFFFFFF);
     stats.noise_floor = (int16_t)_radio->getNoiseFloor();
     stats.last_rssi = (int16_t)radio_driver.getLastRSSI();
     stats.n_packets_recv = radio_driver.getPacketsRecv();
@@ -296,45 +340,50 @@ int MyMesh::handleRequest(ClientInfo *sender, uint32_t sender_timestamp, uint8_t
         MESH_DEBUG_PRINTLN("REQ_TYPE_GET_NEIGHBOURS invalid pubkey_prefix_length=%d clamping to %d", pubkey_prefix_length, PUB_KEY_SIZE);
       }
 
-      // create copy of neighbours list, skipping empty entries so we can sort it separately from main list
+      // Early exit if no neighbours to avoid unnecessary processing
       int16_t neighbours_count = 0;
 #if MAX_NEIGHBOURS
       NeighbourInfo* sorted_neighbours[MAX_NEIGHBOURS];
+#endif
       for (int i = 0; i < MAX_NEIGHBOURS; i++) {
-        auto neighbour = &neighbours[i];
-        if (neighbour->heard_timestamp > 0) {
-          sorted_neighbours[neighbours_count] = neighbour;
+        if (neighbours[i].heard_timestamp > 0) {
           neighbours_count++;
         }
       }
+      
+      if (neighbours_count == 0) {
+        // No neighbours - return minimal response
+        memcpy(&reply_data[reply_offset], &neighbours_count, 2); reply_offset += 2;
+        uint16_t zero = 0;
+        memcpy(&reply_data[reply_offset], &zero, 2); reply_offset += 2; // results_count = 0
+        return reply_offset;
+      }
 
-      // sort neighbours based on order
+      // create copy of neighbours list, skipping empty entries so we can sort it separately from main list
+      int16_t sorted_idx = 0;
+      for (int i = 0; i < MAX_NEIGHBOURS; i++) {
+        auto neighbour = &neighbours[i];
+        if (neighbour->heard_timestamp > 0) {
+          sorted_neighbours[sorted_idx++] = neighbour;
+        }
+      }
+
+      // Sort neighbours based on order using qsort() - standard C library function
+      // qsort() doesn't allocate heap memory (uses stack-based recursion) and is O(n log n)
+      // This matches the pattern used elsewhere in the codebase (e.g., BaseChatMesh)
       if (order_by == 0) {
         // sort by newest to oldest
-        MESH_DEBUG_PRINTLN("REQ_TYPE_GET_NEIGHBOURS sorting newest to oldest");
-        std::sort(sorted_neighbours, sorted_neighbours + neighbours_count, [](const NeighbourInfo* a, const NeighbourInfo* b) {
-          return a->heard_timestamp > b->heard_timestamp; // desc
-        });
+        qsort(sorted_neighbours, neighbours_count, sizeof(NeighbourInfo*), cmp_neighbours_newest_to_oldest);
       } else if (order_by == 1) {
         // sort by oldest to newest
-        MESH_DEBUG_PRINTLN("REQ_TYPE_GET_NEIGHBOURS sorting oldest to newest");
-        std::sort(sorted_neighbours, sorted_neighbours + neighbours_count, [](const NeighbourInfo* a, const NeighbourInfo* b) {
-          return a->heard_timestamp < b->heard_timestamp; // asc
-        });
+        qsort(sorted_neighbours, neighbours_count, sizeof(NeighbourInfo*), cmp_neighbours_oldest_to_newest);
       } else if (order_by == 2) {
         // sort by strongest to weakest
-        MESH_DEBUG_PRINTLN("REQ_TYPE_GET_NEIGHBOURS sorting strongest to weakest");
-        std::sort(sorted_neighbours, sorted_neighbours + neighbours_count, [](const NeighbourInfo* a, const NeighbourInfo* b) {
-          return a->snr > b->snr; // desc
-        });
+        qsort(sorted_neighbours, neighbours_count, sizeof(NeighbourInfo*), cmp_neighbours_strongest_to_weakest);
       } else if (order_by == 3) {
         // sort by weakest to strongest
-        MESH_DEBUG_PRINTLN("REQ_TYPE_GET_NEIGHBOURS sorting weakest to strongest");
-        std::sort(sorted_neighbours, sorted_neighbours + neighbours_count, [](const NeighbourInfo* a, const NeighbourInfo* b) {
-          return a->snr < b->snr; // asc
-        });
+        qsort(sorted_neighbours, neighbours_count, sizeof(NeighbourInfo*), cmp_neighbours_weakest_to_strongest);
       }
-#endif
 
       // build results buffer
       int results_count = 0;
@@ -469,17 +518,30 @@ const char *MyMesh::getLogDateTime() {
 
 void MyMesh::logRxRaw(float snr, float rssi, const uint8_t raw[], int len) {
 #if MESH_PACKET_LOGGING
-  Serial.print(getLogDateTime());
-  Serial.print(" RAW: ");
-  mesh::Utils::printHex(Serial, raw, len);
-  Serial.println();
+  if (Serial.availableForWrite() > 0) {
+    Serial.print(getLogDateTime());
+    Serial.print(" RAW: ");
+    mesh::Utils::printHex(Serial, raw, len);
+    Serial.println();
+  }
+#endif
+
+#ifdef WITH_BRIDGE
+  if (_prefs.bridge_enabled) {
+    // Store raw radio data for MQTT messages
+    if (bridge) bridge->storeRawRadioData(raw, len, snr, rssi);
+  }
 #endif
 }
 
 void MyMesh::logRx(mesh::Packet *pkt, int len, float score) {
-#ifdef WITH_BRIDGE
+#ifdef WITH_MQTT_BRIDGE
+  // MQTT bridge: always feed RX packets — bridge decides based on mqtt.rx setting
+  if (bridge) bridge->onPacketReceived(pkt);
+#elif defined(WITH_BRIDGE)
+  // Non-MQTT bridge (ESP-NOW): use bridge.source setting
   if (_prefs.bridge_pkt_src == 1) {
-    bridge.sendPacket(pkt);
+    if (bridge) bridge->onPacketReceived(pkt);
   }
 #endif
 
@@ -503,9 +565,26 @@ void MyMesh::logRx(mesh::Packet *pkt, int len, float score) {
 }
 
 void MyMesh::logTx(mesh::Packet *pkt, int len) {
-#ifdef WITH_BRIDGE
+#if defined(WITH_MQTT_NEIGHBORS)
+  if (neighbor_discover_active && pkt == neighbor_discover_request
+      && neighbor_discover_next < neighbor_discover_count) {
+    NeighborDiscoverEntry& entry = neighbor_discover[neighbor_discover_next];
+    if (entry.status == ND_QUEUED) {
+      entry.status = ND_PENDING;
+      neighbor_discover_queried_count++;
+      neighbor_discover_request = NULL;
+      neighbor_discover_until = futureMillis(neighborDiscoverQueryTimeoutMs());
+    }
+  }
+#endif
+
+#ifdef WITH_MQTT_BRIDGE
+  // MQTT bridge: always feed TX packets — bridge decides based on mqtt.tx setting
+  if (bridge) bridge->sendPacket(pkt);
+#elif defined(WITH_BRIDGE)
+  // Non-MQTT bridge (ESP-NOW): use bridge.source setting
   if (_prefs.bridge_pkt_src == 0) {
-    bridge.sendPacket(pkt);
+    if (bridge) bridge->sendPacket(pkt);
   }
 #endif
 
@@ -528,6 +607,18 @@ void MyMesh::logTx(mesh::Packet *pkt, int len) {
 }
 
 void MyMesh::logTxFail(mesh::Packet *pkt, int len) {
+#if defined(WITH_MQTT_NEIGHBORS)
+  if (neighbor_discover_active && pkt == neighbor_discover_request
+      && neighbor_discover_next < neighbor_discover_count) {
+    NeighborDiscoverEntry& entry = neighbor_discover[neighbor_discover_next];
+    if (entry.status == ND_QUEUED) {
+      entry.status = ND_SEND_FAILED;
+      neighbor_discover_request = NULL;
+      neighbor_discover_until = 0;
+    }
+  }
+#endif
+
   if (_logging) {
     File f = openAppend(PACKET_LOG_FILE);
     if (f) {
@@ -622,7 +713,22 @@ void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const m
 
 int MyMesh::searchPeersByHash(const uint8_t *hash) {
   int n = 0;
-  for (int i = 0; i < acl.getNumClients(); i++) {
+#if defined(WITH_MQTT_NEIGHBORS)
+  // While a neighbor-scope discovery is active, overlay the heard neighbours
+  // that are NOT already ACL clients so their RESPONSE packets can be decoded.
+  // Overlay indices are offset by NEIGHBOR_DISCOVER_PEER_BASE to keep them
+  // distinct from real ACL indices.
+  if (neighbor_discover_active) {
+    for (int i = 0; i < neighbor_discover_count && n < MAX_CLIENTS; i++) {
+      auto& entry = neighbor_discover[i];
+      if (acl.getClient(entry.id.pub_key, PUB_KEY_SIZE) != nullptr) continue;
+      if (entry.heard_timestamp > 0 && entry.id.isHashMatch(hash)) {
+        matching_peer_indexes[n++] = NEIGHBOR_DISCOVER_PEER_BASE + i;
+      }
+    }
+  }
+#endif
+  for (int i = 0; i < acl.getNumClients() && n < MAX_CLIENTS; i++) {
     if (acl.getClientByIdx(i)->id.isHashMatch(hash)) {
       matching_peer_indexes[n++] = i; // store the INDEXES of matching contacts (for subsequent 'peer' methods)
     }
@@ -632,6 +738,16 @@ int MyMesh::searchPeersByHash(const uint8_t *hash) {
 
 void MyMesh::getPeerSharedSecret(uint8_t *dest_secret, int peer_idx) {
   int i = matching_peer_indexes[peer_idx];
+#if defined(WITH_MQTT_NEIGHBORS)
+  // Overlay entries have no precomputed shared secret; derive it on the fly.
+  if (neighbor_discover_active && i >= NEIGHBOR_DISCOVER_PEER_BASE) {
+    int oi = i - NEIGHBOR_DISCOVER_PEER_BASE;
+    if (oi >= 0 && oi < neighbor_discover_count) {
+      self_id.calcSharedSecret(dest_secret, neighbor_discover[oi].id);
+      return;
+    }
+  }
+#endif
   if (i >= 0 && i < acl.getNumClients()) {
     // lookup pre-calculated shared_secret
     memcpy(dest_secret, acl.getClientByIdx(i)->shared_secret, PUB_KEY_SIZE);
@@ -663,11 +779,34 @@ void MyMesh::onAdvertRecv(mesh::Packet *packet, const mesh::Identity &id, uint32
 void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, const uint8_t *secret,
                             uint8_t *data, size_t len) {
   int i = matching_peer_indexes[sender_idx];
+#if defined(WITH_MQTT_NEIGHBORS)
+  // Overlay response: a heard neighbour (not an ACL client) answering our
+  // anon-regions scope query. Consume it and stop — it is not a client packet.
+  if (neighbor_discover_active && i >= NEIGHBOR_DISCOVER_PEER_BASE) {
+    int oi = i - NEIGHBOR_DISCOVER_PEER_BASE;
+    if (type == PAYLOAD_TYPE_RESPONSE && oi >= 0 && oi < neighbor_discover_count) {
+      handleNeighborDiscoverResponse(oi, data, len);
+    }
+    return;
+  }
+#endif
   if (i < 0 || i >= acl.getNumClients()) { // get from our known_clients table (sender SHOULD already be known in this context)
     MESH_DEBUG_PRINTLN("onPeerDataRecv: invalid peer idx: %d", i);
     return;
   }
   ClientInfo* client = acl.getClientByIdx(i);
+#if defined(WITH_MQTT_NEIGHBORS)
+  // A neighbour that IS an ACL client resolves to a normal index above, so a
+  // scope-query response from it lands here — match it against the overlay.
+  if (neighbor_discover_active && type == PAYLOAD_TYPE_RESPONSE) {
+    for (int oi = 0; oi < neighbor_discover_count; oi++) {
+      if (client->id.matches(neighbor_discover[oi].id)
+          && handleNeighborDiscoverResponse(oi, data, len)) {
+        return;
+      }
+    }
+  }
+#endif
 
   if (type == PAYLOAD_TYPE_REQ) { // request (from a Known admin client!)
     uint32_t timestamp;
@@ -788,9 +927,7 @@ bool MyMesh::onPeerPathRecv(mesh::Packet *packet, int sender_idx, const uint8_t 
 
 void MyMesh::onControlDataRecv(mesh::Packet* packet) {
   uint8_t type = packet->payload[0] & 0xF0;    // just test upper 4 bits
-  if (type == CTL_TYPE_NODE_DISCOVER_REQ && packet->payload_len >= 6
-      && !_prefs.disable_fwd && discover_limiter.allow(rtc_clock.getCurrentTime())
-  ) {
+  if (type == CTL_TYPE_NODE_DISCOVER_REQ && packet->payload_len >= 6 && discover_limiter.allow(rtc_clock.getCurrentTime())) {
     int i = 1;
     uint8_t  filter = packet->payload[i++];
     uint32_t tag;
@@ -860,7 +997,7 @@ void MyMesh::sendNodeDiscoverReq() {
 
 MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondClock &ms, mesh::RNG &rng,
                mesh::RTCClock &rtc, mesh::MeshTables &tables)
-    : mesh::Mesh(radio, ms, rng, rtc, *new StaticPoolPacketManager(32), tables),
+    : mesh::Mesh(radio, ms, rng, rtc, *createObserverPacketManager(32), tables),
       region_map(key_store), temp_map(key_store),
       _cli(board, rtc, sensors, region_map, acl, &_prefs, this),
       telemetry(MAX_PACKET_PAYLOAD - 4),
@@ -868,9 +1005,10 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
       anon_limiter(4, 180)   // max 4 every 3 minutes
 #if defined(WITH_RS232_BRIDGE)
       , bridge(&_prefs, WITH_RS232_BRIDGE, _mgr, &rtc)
-#endif
-#if defined(WITH_ESPNOW_BRIDGE)
+#elif defined(WITH_ESPNOW_BRIDGE)
       , bridge(&_prefs, _mgr, &rtc)
+#elif defined(WITH_MQTT_BRIDGE)
+      , bridge(nullptr)
 #endif
 {
   last_millis = 0;
@@ -887,7 +1025,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
 #endif
 
   // defaults
-  _prefs.airtime_factor = 1.0;
+  _prefs.airtime_factor = 1.0;   // one half
   _prefs.rx_delay_base = 0.0f;   // turn off by default, was 10.0;
   _prefs.tx_delay_factor = 0.5f; // was 0.25f
   _prefs.direct_tx_delay_factor = 0.3f; // was 0.2
@@ -906,12 +1044,18 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.flood_max_unscoped = 64;
   _prefs.flood_max_advert = 8;
   _prefs.interference_threshold = 0; // disabled
-  _prefs.cad_enabled = 0;            // hardware CAD before TX (off by default; 'set cad on')
+#ifdef WITH_MQTT_BRIDGE
+  // TODO: Re-enable this observer default once AGC reset preserves runtime
+  // radio.rxgain, or earlier if disabling it causes receiver regressions.
+  // _prefs.agc_reset_interval = 7;  // 28 seconds (secs/4)
+#endif
+  // Observer defaults (radio_watchdog, alert.*, snmp.*) moved to applyMQTTDefaults()
+  // in MQTTDefaults.h — they live in /mqtt_prefs now, not NodePrefs.
 
   // bridge defaults
   _prefs.bridge_enabled = 1;    // enabled
   _prefs.bridge_delay   = 500;  // milliseconds
-  _prefs.bridge_pkt_src = 0;    // logTx
+  _prefs.bridge_pkt_src = 1;    // logRx (RX packets)
   _prefs.bridge_baud = 115200;  // baud rate
   _prefs.bridge_channel = 1;    // channel 1
 
@@ -922,6 +1066,8 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.gps_interval = 0;
   _prefs.advert_loc_policy = ADVERT_LOC_PREFS;
 
+  // MQTT/WiFi/timezone/radio_watchdog defaults live in /mqtt_prefs now (see applyMQTTDefaults).
+
   _prefs.adc_multiplier = 0.0f; // 0.0f means use default board multiplier
 
 #if defined(USE_SX1262) || defined(USE_SX1268)
@@ -931,11 +1077,30 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.rx_boosted_gain = 1; // enabled by default;
 #endif
 #endif
-  _prefs.radio_fem_rxgain = 1;
-  _prefs.radio_fem_txgain = 0;
+  _prefs.radio_fem_rxgain = 1;      // LoRa FEM RX gain on by default (FEM boards)
+  _prefs.radio_fem_txgain = 0;      // LoRa FEM TX gain off by default (FEM boards)
+  _prefs.cad_enabled = 0;           // hardware CAD before TX (off by default; 'set cad on')
 
   pending_discover_tag = 0;
   pending_discover_until = 0;
+
+#if defined(WITH_MQTT_NEIGHBORS)
+  neighbor_discover_count = 0;
+  neighbor_discover_next = 0;
+  neighbor_discover_publish_count = 0;
+  neighbor_discover_queried_count = 0;
+  neighbor_discover_json_size = 0;
+  neighbor_discover_truncated = false;
+  neighbor_discover_active = false;
+  neighbor_table_refresh_active = false;
+  neighbor_table_refresh_periodic = false;
+  neighbor_discover_until = 0;
+  neighbor_discover_request = NULL;
+  next_neighbors_publish = 0;
+  self_scopes_buf[0] = 0;
+  self_default_scope_buf[0] = 0;
+  neighbor_discover_origin[0] = 0;
+#endif
 
   memset(default_scope.key, 0, sizeof(default_scope.key));
 }
@@ -945,6 +1110,26 @@ void MyMesh::begin(FILESYSTEM *fs) {
   _fs = fs;
   // load persisted prefs
   _cli.loadPrefs(_fs);
+
+#ifdef SIM_WIFI_SSID
+  // Emulator builds (Wokwi) boot with fresh NVS every run. Seed WiFi so the
+  // observer auto-joins the simulator's network and brings the MQTT bridge up
+  // (WiFi is driven by the bridge task), instead of raising the setup AP that
+  // the emulator can't model. No-op for real firmware (flag never defined).
+  {
+    MQTTPrefs* obs = _cli.getObserverPrefs();
+    if (obs->wifi_ssid[0] == 0) {
+      strncpy(obs->wifi_ssid, SIM_WIFI_SSID, sizeof(obs->wifi_ssid) - 1);
+      obs->wifi_ssid[sizeof(obs->wifi_ssid) - 1] = 0;
+  #ifdef SIM_WIFI_PWD
+      strncpy(obs->wifi_password, SIM_WIFI_PWD, sizeof(obs->wifi_password) - 1);
+      obs->wifi_password[sizeof(obs->wifi_password) - 1] = 0;
+  #endif
+      _prefs.bridge_enabled = 1;   // WiFi comes up via the MQTT bridge task
+    }
+  }
+#endif
+
   acl.load(_fs, self_id);
   // TODO: key_store.begin();
   region_map.load(_fs);
@@ -971,7 +1156,60 @@ void MyMesh::begin(FILESYSTEM *fs) {
 
 #if defined(WITH_BRIDGE)
   if (_prefs.bridge_enabled) {
-    bridge.begin();
+#ifdef WITH_MQTT_BRIDGE
+    // Defer construction to avoid static init crashes on ESP32 classic
+    bridge = new MQTTBridge(&_prefs, _cli.getObserverPrefs(), _mgr, getRTCClock(), &self_id);
+#endif
+    if (bridge) {
+      // Set device public key for MQTT topics
+      char device_id[65];
+      mesh::LocalIdentity self_id = getSelfId();
+      mesh::Utils::toHex(device_id, self_id.pub_key, PUB_KEY_SIZE);
+      MESH_DEBUG_PRINTLN("Setting device ID: %s", device_id);
+      bridge->setDeviceID(device_id);
+
+      // Set firmware version
+      bridge->setFirmwareVersion(getFirmwareVer());
+
+      // Set board model
+      bridge->setBoardModel(_cli.getBoard()->getManufacturerName());
+
+      // Set build date
+      bridge->setBuildDate(getBuildDate());
+
+#ifdef WITH_MQTT_BRIDGE
+      // Set stats sources for automatic stats collection
+      bridge->setStatsSources(this, _radio, _cli.getBoard(), _ms);
+#ifdef WITH_SNMP
+      if (_cli.getObserverPrefs()->snmp_enabled) {
+        _snmp_agent.setNodeName(_prefs.node_name);
+        _snmp_agent.setFirmwareVersion(getFirmwareVer());
+        bridge->setSNMPAgent(&_snmp_agent);
+      }
+#endif
+#endif
+
+      bridge->begin();
+    }
+  }
+#endif
+
+  // Wire fault-alert reporter. begin() is safe regardless of bridge state.
+  // Passing `this` as the callbacks lets the reporter resolve a TransportKey
+  // scope (alert.region override, falling back to default_scope) so alert
+  // floods ride the same scope as adverts/channel messages.
+#ifdef WITH_MQTT_BRIDGE
+  _alerter.begin(&_prefs, _cli.getObserverPrefs(), this, this);
+  _alerter.setBridge(bridge);
+#endif
+
+#if defined(WITH_WEBCONFIG) && !defined(WEBCONFIG_NO_AUTO_AP)
+  // First-boot setup portal: raised only when no WiFi has ever been configured,
+  // so an OTA onto a deployed (configured) node can never open an AP.
+  if (_cli.getObserverPrefs()->wifi_ssid[0] == 0) {
+    char wc_reply[160];
+    startWebConfig(false, wc_reply);
+    Serial.println(wc_reply);
   }
 #endif
 
@@ -981,13 +1219,11 @@ void MyMesh::begin(FILESYSTEM *fs) {
   radio_driver.setRxBoostedGainMode(_prefs.rx_boosted_gain);
   MESH_DEBUG_PRINTLN("RX Boosted Gain Mode: %s",
                      radio_driver.getRxBoostedGainMode() ? "Enabled" : "Disabled");
-  board.setLoRaFemLnaEnabled(_prefs.radio_fem_rxgain);
+  board.setLoRaFemLnaEnabled(_prefs.radio_fem_rxgain);   // LoRa FEM LNA (FEM boards only)
   board.setLoRaFemPaGainEnabled(_prefs.radio_fem_txgain);
 
   updateAdvertTimer();
   updateFloodAdvertTimer();
-
-  board.setAdcMultiplier(_prefs.adc_multiplier);
 
 #if ENV_INCLUDE_GPS == 1
   applyGpsPrefs();
@@ -1003,6 +1239,27 @@ void MyMesh::sendFloodScoped(const TransportKey& scope, mesh::Packet* pkt, uint3
     codes[1] = 0;  // REVISIT: set to 'home' Region, for sender/return region?
     sendFlood(pkt, codes, delay_millis, path_hash_size);
   }
+}
+
+bool MyMesh::resolveAlertScope(TransportKey& dest) {
+  // Prefer an explicit alert.region override; look it up lazily via
+  // RegionMap so the operator can name a region that doesn't exist yet
+  // without polluting region_map state — we just silently fall through
+  // to default_scope on miss.
+#ifdef WITH_MQTT_BRIDGE
+  const char* alert_region = _cli.getObserverPrefs()->alert_region;
+  if (alert_region[0]) {
+    auto r = region_map.findByNamePrefix(alert_region);
+    if (r && region_map.getTransportKeysFor(*r, &dest, 1) > 0 && !dest.isNull()) {
+      return true;
+    }
+  }
+#endif
+  if (!default_scope.isNull()) {
+    dest = default_scope;
+    return true;
+  }
+  return false;
 }
 
 void MyMesh::applyTempRadioParams(float freq, float bw, uint8_t sf, uint8_t cr, int timeout_mins) {
@@ -1043,7 +1300,7 @@ void MyMesh::sendSelfAdvertisement(int delay_millis, bool flood) {
 
 void MyMesh::updateAdvertTimer() {
   if (_prefs.advert_interval > 0) { // schedule local advert timer
-    next_local_advert = futureMillis(((uint32_t)_prefs.advert_interval) * 2 * 60 * 1000);
+    next_local_advert = futureMillis((int)((uint32_t)_prefs.advert_interval * 2 * 60 * 1000));
   } else {
     next_local_advert = 0; // stop the timer
   }
@@ -1169,6 +1426,10 @@ void MyMesh::formatRadioStatsReply(char *reply) {
   StatsFormatHelper::formatRadioStats(reply, _radio, radio_driver, getTotalAirTime(), getReceiveAirTime());
 }
 
+void MyMesh::formatRadioDiagReply(char *reply) {
+  StatsFormatHelper::formatRadioDiag(reply, _radio, radio_driver, *_ms, _err_flags, hasOutbound());
+}
+
 void MyMesh::formatPacketStatsReply(char *reply) {
   StatsFormatHelper::formatPacketStats(reply, radio_driver, getNumSentFlood(), getNumSentDirect(), 
                                        getNumRecvFlood(), getNumRecvDirect());
@@ -1192,6 +1453,114 @@ void MyMesh::clearStats() {
   resetStats();
   ((SimpleMeshTables *)getTables())->resetStats();
 }
+
+#ifdef WITH_WEBCONFIG
+bool MyMesh::startWebConfig(bool force_ap, char* reply) {
+  if (_webconfig && (_webconfig->isRunning() || _webconfig->isStopping())) {
+    strcpy(reply, _webconfig->isStopping() ? "Err: webconfig still stopping, retry shortly"
+                                           : "Err: webconfig already running");
+    return true;
+  }
+  if (!_webconfig) {
+    _webconfig = new WebConfigServer(&_prefs, _cli.getObserverPrefs(), this,
+                                     self_id.pub_key, getFirmwareVer(), getBuildDate(), getRole(),
+                                     _cli.getBoard()->getManufacturerName());
+  }
+  if (force_ap) {
+    // The setup AP owns WiFi outright; refuse while the bridge holds the STA.
+    if (bridge && bridge->isRunning()) {
+      strcpy(reply, "Err: MQTT bridge is running - 'set bridge off' first");
+      return true;
+    }
+    _webconfig->startSetupMode(reply);
+  } else if (_cli.getObserverPrefs()->wifi_ssid[0] == 0) {
+    _webconfig->startSetupMode(reply);   // unconfigured: same portal as first boot
+  } else {
+    _webconfig->startLanMode(reply);     // reports "WiFi not connected" if down
+  }
+  return true;
+}
+
+bool MyMesh::stopWebConfig(char* reply) {
+  if (!_webconfig || !_webconfig->isRunning()) {
+    strcpy(reply, "Err: webconfig not running");
+    return true;
+  }
+  _webconfig->requestStop();
+  strcpy(reply, "OK - webconfig stopping");
+  return true;
+}
+
+void MyMesh::onConfigBatchEnd() {
+  _wc_batch_active = false;
+  if (_wc_restart_pending) {
+    // A full restart re-applies every slot config; drop the per-slot requests.
+    _wc_restart_pending = false;
+    _wc_slot_restart_mask = 0;
+    restartBridge();
+  } else if (_wc_slot_restart_mask) {
+    uint8_t mask = _wc_slot_restart_mask;
+    _wc_slot_restart_mask = 0;
+    for (int i = 0; i < RUNTIME_MQTT_SLOTS; i++) {
+      if (mask & (1u << i)) restartBridgeSlot(i);
+    }
+  }
+}
+
+// Stats snapshot for GET /api/stats. Runs on the loop task (from tick());
+// same sources as the REQ_TYPE_GET_STATUS reply and `get mqtt.stats`.
+void MyMesh::buildStatsJson(char* buf, size_t buf_size) {
+  char ip[20] = "";
+  int wifi_rssi = 0;
+  if (WiFi.status() == WL_CONNECTED) {
+    strncpy(ip, WiFi.localIP().toString().c_str(), sizeof(ip) - 1);
+    wifi_rssi = WiFi.RSSI();
+  } else if (_webconfig && _webconfig->mode() == WebConfigServer::MODE_SETUP) {
+    strncpy(ip, WiFi.softAPIP().toString().c_str(), sizeof(ip) - 1);
+  }
+  int pos = snprintf(buf, buf_size,
+      "{\"uptime_s\":%lu,\"batt_mv\":%u,"
+      "\"heap_free\":%lu,\"heap_min\":%lu,\"heap_max_alloc\":%lu,"
+      "\"noise\":%d,\"rssi\":%d,\"snr\":%.1f,"
+      "\"airtime_s\":%lu,\"rx_airtime_s\":%lu,"
+      "\"recv\":%lu,\"sent\":%lu,\"rx_err\":%lu,"
+      "\"sent_flood\":%lu,\"sent_direct\":%lu,\"recv_flood\":%lu,\"recv_direct\":%lu,"
+      "\"tx_queue\":%d,\"wifi_rssi\":%d,\"ip\":\"%s\",\"mqtt_queue\":%d,\"slots\":[",
+      (unsigned long)(uptime_millis / 1000), (unsigned)board.getBattMilliVolts(),
+      (unsigned long)ESP.getFreeHeap(), (unsigned long)ESP.getMinFreeHeap(),
+      (unsigned long)ESP.getMaxAllocHeap(),
+      (int)_radio->getNoiseFloor(), (int)radio_driver.getLastRSSI(),
+      radio_driver.getLastSNR(),
+      (unsigned long)(getTotalAirTime() / 1000), (unsigned long)(getReceiveAirTime() / 1000),
+      (unsigned long)radio_driver.getPacketsRecv(), (unsigned long)radio_driver.getPacketsSent(),
+      (unsigned long)radio_driver.getPacketsRecvErrors(),
+      (unsigned long)getNumSentFlood(), (unsigned long)getNumSentDirect(),
+      (unsigned long)getNumRecvFlood(), (unsigned long)getNumRecvDirect(),
+      (int)_mgr->getOutboundCount(0xFFFFFFFF), wifi_rssi, ip,
+      bridge ? bridge->getQueueSize() : 0);
+  if (pos < 0 || pos >= (int)buf_size - 3) return;  // truncated; snprintf terminated it
+  bool first = true;
+  for (int i = 0; i < RUNTIME_MQTT_SLOTS; i++) {
+    MQTTBridge::SlotStatusSnapshot s;
+    if (!MQTTBridge::getSlotStatusSnapshot(i, &s)) continue;
+    // "filt" is omitted for the all-types default, so the portal only has to
+    // render the exception and the JSON stays inside the stats buffer.
+    char filt[24];
+    filt[0] = '\0';
+    if (s.filter_mask != MQTTPacketFilter::kAllPacketTypes) {
+      snprintf(filt, sizeof(filt), ",\"filt\":%u", (unsigned)s.filter_mask);
+    }
+    int n = snprintf(buf + pos, buf_size - pos,
+                     "%s{\"n\":%d,\"name\":\"%s\",\"state\":\"%s\",\"ok\":%lu,\"err\":%lu%s}",
+                     first ? "" : ",", i + 1, s.name, s.state, s.publish_ok, s.publish_err,
+                     filt);
+    if (n < 0 || n >= (int)(buf_size - pos)) break;
+    pos += n;
+    first = false;
+  }
+  snprintf(buf + pos, buf_size - pos, "]}");
+}
+#endif
 
 void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply) {
   if (region_load_active) {
@@ -1279,17 +1648,49 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
       sendNodeDiscoverReq();
       strcpy(reply, "OK - Discover sent");
     }
+#if defined(WITH_MQTT_NEIGHBORS)
+  } else if (memcmp(command, "discover.scopes", 15) == 0) {
+    const char* sub = command + 15;
+    while (*sub == ' ') sub++;
+    if (*sub != 0) {
+      strcpy(reply, "Err - discover.scopes has no options");
+    } else if (pending_discover_tag != 0 &&
+               !millisHasNowPassed(pending_discover_until) &&
+               !neighbor_discover_active) {
+      // A zero-hop table refresh is already collecting; queue the scope pass
+      // behind it (as a manual, non-periodic request) rather than starting a
+      // second refresh.
+      if (!neighborDiscoverReady(reply)) {
+        // reply already set by neighborDiscoverReady
+      } else {
+        neighbor_table_refresh_active = true;
+        neighbor_table_refresh_periodic = false;
+        long remaining_ms = (long)(pending_discover_until - futureMillis(0));
+        unsigned remaining_secs = remaining_ms > 0
+          ? (unsigned)(((unsigned long)remaining_ms + 999UL) / 1000UL) : 0;
+        sprintf(reply, "OK - scopes queued (%us discovery remaining)", remaining_secs);
+        MESH_DEBUG_PRINTLN("Neighbor scopes queued behind active discovery (%us remaining)", remaining_secs);
+      }
+    } else if (!startNeighborDiscover(reply)) {
+      // reply already set by startNeighborDiscover
+    }
+#elif defined(WITH_MQTT_BRIDGE)
+  } else if (memcmp(command, "discover.scopes", 15) == 0) {
+    strcpy(reply, "Err - neighbors not enabled in this build");
+#endif
   } else{
     _cli.handleCommand(sender_timestamp, command, reply);  // common CLI commands
   }
 }
 
 void MyMesh::loop() {
-#ifdef WITH_BRIDGE
-  bridge.loop();
-#endif
-
+  // Check radio FIRST to ensure we don't miss incoming packets
+  // MQTT processing runs in a separate FreeRTOS task on Core 0, so we don't call bridge.loop() here
   mesh::Mesh::loop();
+
+#ifdef WITH_BRIDGE
+  // bridge.loop() is now handled by FreeRTOS task on Core 0 - no need to call it here
+#endif
 
   if (next_flood_advert && millisHasNowPassed(next_flood_advert)) {
     mesh::Packet *pkt = createSelfAdvert();
@@ -1317,6 +1718,51 @@ void MyMesh::loop() {
     MESH_DEBUG_PRINTLN("Radio params restored");
   }
 
+#if defined(WITH_MQTT_BRIDGE) && defined(OTA_MANIFEST_BASE)
+  if (_ota_update_at && millisHasNowPassed(_ota_update_at)) { // deferred `ota update`
+    _ota_update_at = 0;                                       // clear timer
+    // The "Beginning update..." reply has now gone out. Free the bridge for heap
+    // headroom, then flash: otaFromManifest reboots into the new image on success
+    // (so this never returns); on any abort (already up to date, partition change,
+    // download error) it returns and we resume the bridge.
+    Serial.println("OTA: starting update");
+    // Flush the START alert (and CLI reply) out the radio BEFORE teardown blocks
+    // the loop until reboot — otherwise a packet still queued here (busy /
+    // duty-limited channel) is lost when the flash spins the loop and reboots.
+    drainOutbound(OTA_TX_DRAIN_TIMEOUT_MS);
+    setBridgeState(false);
+    char ota_reply[160];
+    // OTA teardown barrier (Phase 5): only flash after a CLEAN MQTT shutdown.
+    // A timed-out/forced stop leaves mbedTLS/heap ownership uncertain — writing
+    // firmware then is the observed teardown heap-panic path — so abort and
+    // resume the bridge instead of flashing under uncertain ownership.
+    if (bridge && !bridge->canFlashAfterStop()) {
+      Serial.println("OTA: aborted, MQTT stop did not complete cleanly - resuming bridge");
+      otaAlert("OTA aborted: MQTT stop unclean, bridge resumed");
+      setBridgeState(true);
+    } else if (!_cli.getBoard()->otaFromManifest(getFirmwareVer(), false, ota_reply)) {
+      Serial.print("OTA: aborted, resuming bridge - "); Serial.println(ota_reply);
+      char ota_alert_msg[160];
+      snprintf(ota_alert_msg, sizeof(ota_alert_msg), "OTA aborted: %s", ota_reply);
+      otaAlert(ota_alert_msg);
+      setBridgeState(true);
+    }
+    // Success path: otaFromManifest() flashes and reboots into the new image
+    // (never returns), so there is no in-boot "success" alert — the START alert
+    // plus the node returning on the new version is the success signal.
+  }
+#endif
+
+#ifdef WITH_WEBCONFIG
+  if (_webconfig) {
+    _webconfig->tick(millis());
+    if (!_webconfig->isRunning() && !_webconfig->isStopping()) {
+      delete _webconfig;   // teardown finished (or start failed): reclaim the heap
+      _webconfig = NULL;
+    }
+  }
+#endif
+
   // is pending dirty contacts write needed?
   if (dirty_contacts_expiry && millisHasNowPassed(dirty_contacts_expiry)) {
     acl.save(_fs);
@@ -1327,12 +1773,553 @@ void MyMesh::loop() {
   uint32_t now = millis();
   uptime_millis += now - last_millis;
   last_millis = now;
+
+#ifdef WITH_MQTT_BRIDGE
+  _alerter.onLoop(now);
+#endif
+
+#if defined(WITH_MQTT_NEIGHBORS)
+  // Two-stage periodic neighbors publication:
+  //   stage 1 - zero-hop node-discover refreshes the neighbour table (60s window)
+  //   stage 2 - anon-regions scope query per neighbour (startNeighborDiscover)
+  // then the table JSON is published and the next cycle is rescheduled.
+  bool periodic_neighbors_enabled = _cli.getObserverPrefs()->mqtt_neighbors_enabled;
+  if (neighbor_discover_active) {
+    loopNeighborDiscover();
+  } else if (neighbor_table_refresh_active) {
+    if (neighbor_table_refresh_periodic && !periodic_neighbors_enabled) {
+      // periodic switched off mid-refresh -> cancel (leave pending_discover_tag alone)
+      neighbor_table_refresh_active = false;
+      neighbor_table_refresh_periodic = false;
+      next_neighbors_publish = 0;
+    } else if (pending_discover_tag == 0 || millisHasNowPassed(pending_discover_until)) {
+      // 60s zero-hop window done -> begin the per-neighbour scope queries
+      bool was_periodic = neighbor_table_refresh_periodic;
+      pending_discover_tag = 0;
+      neighbor_table_refresh_active = false;
+      neighbor_table_refresh_periodic = false;
+      char tmp_reply[80];
+      const char* origin_str = was_periodic ? "periodic" : "manual";
+      if (startNeighborDiscover(tmp_reply)) {
+        MESH_DEBUG_PRINTLN("MQTT %s %s", origin_str, tmp_reply);
+      } else {
+        if (periodic_neighbors_enabled) {
+          next_neighbors_publish = futureMillis(_cli.getObserverPrefs()->mqtt_neighbors_interval);
+        }
+        MESH_DEBUG_PRINTLN("MQTT %s neighbor scope discovery failed: %s", origin_str, tmp_reply);
+      }
+    }
+  } else if (periodic_neighbors_enabled && bridge && bridge->isRunning()) {
+    if (next_neighbors_publish == 0 ||
+        (next_neighbors_publish != 0 && millisHasNowPassed(next_neighbors_publish))) {
+      if (pending_discover_tag == 0 || millisHasNowPassed(pending_discover_until)) {
+        pending_discover_tag = 0;
+        sendNodeDiscoverReq();
+        MESH_DEBUG_PRINTLN("MQTT periodic neighbor table refresh started");
+      } else {
+        MESH_DEBUG_PRINTLN("MQTT periodic refresh joined active neighbor discovery");
+      }
+      neighbor_table_refresh_active = true;
+      neighbor_table_refresh_periodic = true;
+    }
+  }
+
+  // Report the schedule state back to the bridge for `get mqtt.status`.
+  if (bridge) {
+    if (neighbor_discover_active || neighbor_table_refresh_active) {
+      bridge->setNeighborsSchedule(MQTTBridge::NBR_ACTIVE, 0);
+    } else if (next_neighbors_publish == 0 || millisHasNowPassed(next_neighbors_publish)) {
+      bridge->setNeighborsSchedule(MQTTBridge::NBR_DUE, 0);
+    } else {
+      long remaining_ms = (long)(next_neighbors_publish - futureMillis(0));
+      uint32_t remaining_secs = remaining_ms > 0 ? (uint32_t)(remaining_ms / 1000) : 0;
+      bridge->setNeighborsSchedule(MQTTBridge::NBR_SCHEDULED, remaining_secs);
+    }
+  }
+#endif
+
+#ifdef WITH_SNMP
+  // Push radio stats to SNMP agent every 2 seconds
+  if (_snmp_agent.isRunning()) {
+    static unsigned long last_snmp_stats = 0;
+    if (now - last_snmp_stats >= 2000) {
+      last_snmp_stats = now;
+      _snmp_agent.updateRadioStats(
+        radio_driver.getPacketsRecv(), radio_driver.getPacketsSent(),
+        radio_driver.getPacketsRecvErrors(),
+        (int16_t)_radio->getNoiseFloor(),
+        (int16_t)radio_driver.getLastRSSI(),
+        (int16_t)(radio_driver.getLastSNR() * 4),
+        getNumSentFlood(), getNumSentDirect(),
+        getNumRecvFlood(), getNumRecvDirect(),
+        getTotalAirTime() / 1000, uptime_millis / 1000);
+    }
+  }
+#endif
 }
+
+#if defined(WITH_MQTT_NEIGHBORS)
+#include "helpers/MQTTMessageBuilder.h"
+#if defined(ESP_PLATFORM)
+#include <esp_heap_caps.h>
+#endif
+
+// This node's own non-flood scope names, same source the anon-regions server
+// reply uses. Empty string when the node has no scoped regions.
+void MyMesh::getLocalScopes(char* buf, size_t len) {
+  if (!buf || len == 0) return;
+  buf[0] = 0;
+  region_map.exportNamesTo(buf, (int)len, REGION_DENY_FLOOD);
+}
+
+// Client side of the anon-regions request (the server side is handleAnonRegionsReq).
+// Inner payload: {tag(4)}{ANON_REQ_TYPE_REGIONS}{0x00 = zero-hop reply path}.
+mesh::Packet* MyMesh::sendAnonRegionsReq(const mesh::Identity& target, uint32_t& tag) {
+  // RxReservePacketManager keeps a four-packet emergency floor. Preflight one
+  // extra free packet so its void queue API cannot silently shed this request.
+  if (_mgr->getFreeCount() < NEIGHBOR_DISCOVER_MIN_FREE_PACKETS) return NULL;
+
+  uint8_t secret[PUB_KEY_SIZE];
+  self_id.calcSharedSecret(secret, target);
+
+  tag = getRTCClock()->getCurrentTimeUnique();
+  uint8_t inner[6];
+  memcpy(inner, &tag, 4);
+  inner[4] = ANON_REQ_TYPE_REGIONS;
+  inner[5] = 0x00; // request a zero-hop reply path
+
+  mesh::Packet* pkt = createAnonDatagram(PAYLOAD_TYPE_ANON_REQ, self_id, target, secret, inner, sizeof(inner));
+  if (!pkt) return NULL;
+  sendDirect(pkt, NULL, 0, 0);
+  return pkt;
+}
+
+bool MyMesh::cancelNeighborDiscoverRequest() {
+  if (!neighbor_discover_request) return false;
+  for (int i = _mgr->getOutboundTotal() - 1; i >= 0; i--) {
+    if (_mgr->getOutboundByIdx(i) == neighbor_discover_request) {
+      mesh::Packet* pkt = _mgr->removeOutboundByIdx(i);
+      if (pkt) releasePacket(pkt);
+      neighbor_discover_request = NULL;
+      return true;
+    }
+  }
+  return false;
+}
+
+// This timer starts after the request finishes transmitting. Allow the server
+// delay, the responder's full CAD deferral window plus one maximum retry
+// overshoot, and airtime for one priority-0 packet ahead of the response plus
+// the response itself. The radio estimate scales with SF, bandwidth, coding
+// rate, and preamble.
+uint32_t MyMesh::neighborDiscoverQueryTimeoutMs() const {
+  uint32_t response_airtime = _radio->getEstAirtimeFor(MAX_PACKET_PAYLOAD + 2);
+  return SERVER_RESPONSE_DELAY + getCADFailMaxDuration() + 360UL
+    + response_airtime * 2UL;
+}
+
+void MyMesh::resetNeighborDiscoverJsonBudget() {
+  getLocalScopes(self_scopes_buf, sizeof(self_scopes_buf));
+  {
+    // No default region means this node floods unscoped, i.e. the wildcard.
+    RegionEntry* def = region_map.getDefaultRegion();
+    const char* def_name = (def && def->name[0]) ? def->name : "*";
+    if (*def_name == '#') def_name++;  // match how self.scopes renders names
+    strncpy(self_default_scope_buf, def_name, sizeof(self_default_scope_buf) - 1);
+    self_default_scope_buf[sizeof(self_default_scope_buf) - 1] = 0;
+  }
+  MQTTBridge::getEffectiveMqttOrigin(
+    &_prefs, _cli.getObserverPrefs(),
+    neighbor_discover_origin, sizeof(neighbor_discover_origin));
+
+  char self_pubkey_hex[65];
+  mesh::Utils::toHex(self_pubkey_hex, self_id.pub_key, PUB_KEY_SIZE);
+  char timestamp[40];
+  MQTTMessageBuilder::formatIsoTimestampForMqtt(
+    getRTCClock()->getCurrentTime(), 0, nullptr, timestamp, sizeof(timestamp));
+
+  neighbor_discover_publish_count = 0;
+  neighbor_discover_queried_count = 0;
+  neighbor_discover_truncated = false;
+  neighbor_discover_json_size = MQTTMessageBuilder::measureNeighborsMessageBase(
+    neighbor_discover_origin, self_pubkey_hex, timestamp, self_scopes_buf,
+    self_default_scope_buf, neighbor_discover_count);
+}
+
+// Account for one terminal result. The base measurement reserves maximum-width
+// progress metadata; UINT32_MAX likewise reserves the widest heard-age value.
+// If this result cannot fit, stop before transmitting another scope request.
+bool MyMesh::completeNeighborDiscoverEntry() {
+  NeighborDiscoverEntry& entry = neighbor_discover[neighbor_discover_next];
+  char pubkey_hex[65];
+  mesh::Utils::toHex(pubkey_hex, entry.id.pub_key, PUB_KEY_SIZE);
+
+  MQTTMessageBuilder::NeighborsMessageEntry measured = {
+    pubkey_hex,
+    entry.snr / 4.0f,
+    UINT32_MAX,
+    entry.scopes,
+    entry.status == ND_RESPONDED ? "responded"
+      : (entry.status == ND_SEND_FAILED ? "send_failed" : "timeout")
+  };
+  size_t added = MQTTMessageBuilder::measureNeighborsMessageEntry(measured);
+  if (neighbor_discover_publish_count > 0) added++;  // array comma
+
+  if (neighbor_discover_json_size + added >= MQTTBridge::NEIGHBORS_JSON_BUFFER_SIZE ||
+      neighbor_discover_publish_count >= MQTTBridge::NEIGHBORS_MAX_PUBLISH_ENTRIES) {
+    neighbor_discover_truncated = true;
+    finishNeighborDiscover();
+    return false;
+  }
+
+  neighbor_discover_json_size += added;
+  neighbor_discover_publish_count++;
+  neighbor_discover_next++;
+  return true;
+}
+
+// Match a RESPONSE against the pending overlay entry by tag; copy its scope
+// string (payload after the 8-byte {tag}{clock} header) into the entry.
+bool MyMesh::handleNeighborDiscoverResponse(int overlay_idx, const uint8_t* data, size_t len) {
+  if (overlay_idx < 0 || overlay_idx >= neighbor_discover_count) return false;
+  NeighborDiscoverEntry& entry = neighbor_discover[overlay_idx];
+  if (entry.status != ND_PENDING || len < 8) return false;
+
+  uint32_t tag;
+  memcpy(&tag, data, 4);
+  if (tag != entry.tag) return false;
+
+  size_t scope_len = len - 8;
+  if (scope_len >= sizeof(entry.scopes)) {
+    scope_len = sizeof(entry.scopes) - 1;
+  }
+  memcpy(entry.scopes, &data[8], scope_len);
+  entry.scopes[scope_len] = 0;
+  entry.status = ND_RESPONDED;
+  // A zero-hop reply is proof we heard this neighbour now, so re-stamp both the
+  // snapshot and the live table; a stamp taken before time sync heals here.
+  entry.heard_timestamp = getRTCClock()->getCurrentTime();
+  touchNeighbourHeard(entry.id, entry.heard_timestamp);
+  return true;
+}
+
+// Refresh a live neighbour's heard time only: a scope reply carries no advert
+// timestamp or SNR to update.
+void MyMesh::touchNeighbourHeard(const mesh::Identity& id, uint32_t heard_timestamp) {
+#if MAX_NEIGHBOURS
+  for (int i = 0; i < MAX_NEIGHBOURS; i++) {
+    if (id.matches(neighbours[i].id)) {
+      neighbours[i].heard_timestamp = heard_timestamp;
+      return;
+    }
+  }
+#endif
+}
+
+// A heard age is a wall-clock delta, so it only means something when both stamps
+// share a clock epoch. An entry heard before the clock was set holds the unset
+// default, which a synced clock turns into a ~2-year age; report those as
+// unknown instead. See UPSTREAM_BUGS.md for the monotonic fix.
+static bool neighborHeardAgeUsable(uint32_t heard_timestamp, uint32_t now_secs) {
+  if (heard_timestamp == 0 || now_secs < heard_timestamp) return false;
+  // Never synced: the stamp shares this clock's boot epoch, so the delta holds.
+  if (now_secs < MQTTConnectionPolicy::kSyncedClockEpoch) return true;
+  return heard_timestamp >= MQTTConnectionPolicy::kSyncedClockEpoch;
+}
+
+// Publish-ordering: usable ages first, then most recently heard, then stronger
+// SNR, then pubkey. The JSON builder drops the tail if the buffer fills, so the
+// head must be the most useful entries.
+static bool neighborPublishEntryComesBefore(
+    const MQTTMessageBuilder::NeighborsMessageEntry& lhs,
+    const MQTTMessageBuilder::NeighborsMessageEntry& rhs) {
+  if (lhs.heard_unknown != rhs.heard_unknown) {
+    return !lhs.heard_unknown;
+  }
+  if (lhs.heard_secs_ago != rhs.heard_secs_ago) {
+    return lhs.heard_secs_ago < rhs.heard_secs_ago;  // newer first
+  }
+  if (lhs.snr != rhs.snr) {
+    return lhs.snr > rhs.snr;  // stronger first when equally recent
+  }
+  return strcmp(lhs.pubkey_hex, rhs.pubkey_hex) < 0;
+}
+
+#if defined(ESP_PLATFORM)
+// Neighbors allocations prefer PSRAM where it exists and otherwise come from
+// internal DRAM, so MQTT_NEIGHBORS_WITHOUT_PSRAM boards can build the table too.
+#if defined(BOARD_HAS_PSRAM)
+static const uint32_t kNeighborsAllocCaps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
+#else
+static const uint32_t kNeighborsAllocCaps = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
+#endif
+
+static void* neighborsAlloc(size_t size) {
+  if (size == 0) return nullptr;
+  void* p = heap_caps_malloc(size, kNeighborsAllocCaps);
+#if defined(BOARD_HAS_PSRAM)
+  if (!p) p = heap_caps_malloc(size, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+#endif
+  return p;
+}
+
+static void neighborsFree(void* ptr) {
+  if (ptr) heap_caps_free(ptr);
+}
+
+// ArduinoJson v7 JsonDocument has no real capacity cap (DynamicJsonDocument(N)
+// is a no-op shim), so soft-cap peak pool growth to NEIGHBORS_DOC_POOL_BUDGET.
+// used only rises on allocate — conservative for this single-shot doc (overflow
+// path removes+breaks, so no further growth after free).
+struct NeighborsDocAllocator : ArduinoJson::Allocator {
+  size_t used = 0;
+  static const size_t kBudget = MQTTBridge::NEIGHBORS_DOC_POOL_BUDGET;
+
+  void* allocate(size_t size) override {
+    if (used >= kBudget || size > kBudget - used) return nullptr;
+    void* p = neighborsAlloc(size);
+    if (p) used += size;
+    return p;
+  }
+
+  void deallocate(void* ptr) override {
+    neighborsFree(ptr);
+  }
+
+  void* reallocate(void* ptr, size_t new_size) override {
+    size_t old_size = ptr ? heap_caps_get_allocated_size(ptr) : 0;
+    size_t next_used = (used >= old_size) ? (used - old_size) : 0;
+    if (next_used >= kBudget || new_size > kBudget - next_used) return nullptr;
+    void* p = heap_caps_realloc(ptr, new_size, kNeighborsAllocCaps);
+#if defined(BOARD_HAS_PSRAM)
+    if (!p) p = heap_caps_realloc(ptr, new_size, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+#endif
+    if (p) used = next_used + new_size;
+    return p;
+  }
+};
+#else
+static void* neighborsAlloc(size_t size) { return size ? malloc(size) : nullptr; }
+static void neighborsFree(void* ptr) { free(ptr); }
+#endif
+
+// Build the neighbors-table JSON and hand it to the bridge, then reschedule.
+void MyMesh::finishNeighborDiscover() {
+  char self_pubkey_hex[65];
+  mesh::Utils::toHex(self_pubkey_hex, self_id.pub_key, PUB_KEY_SIZE);
+
+  char timestamp[40];
+  MQTTMessageBuilder::formatIsoTimestampForMqtt(getRTCClock()->getCurrentTime(), 0, nullptr, timestamp, sizeof(timestamp));
+
+  // The entry table plus one hex string each reaches ~4.5 KB at MAX_NEIGHBOURS,
+  // which does not fit the mesh loop task's 8 KB stack, so both share a single
+  // heap block sized to this pass. Publishing is skipped if either alloc fails.
+  const int publish_count = neighbor_discover_publish_count;
+  const size_t hex_size = PUB_KEY_SIZE * 2 + 1;
+  const size_t entries_bytes =
+    sizeof(MQTTMessageBuilder::NeighborsMessageEntry) * publish_count;
+  void* scratch = neighborsAlloc(entries_bytes + hex_size * publish_count);
+  char* json_buf = (char*)neighborsAlloc(MQTTBridge::NEIGHBORS_JSON_BUFFER_SIZE);
+
+  if (json_buf && (scratch || publish_count == 0)) {
+    auto* entries = (MQTTMessageBuilder::NeighborsMessageEntry*)scratch;
+    char* pubkey_hex = (char*)scratch + entries_bytes;
+    uint32_t now_secs = getRTCClock()->getCurrentTime();
+
+    for (int i = 0; i < publish_count; i++) {
+      auto& entry = neighbor_discover[i];
+      char* hex = &pubkey_hex[i * hex_size];
+      mesh::Utils::toHex(hex, entry.id.pub_key, PUB_KEY_SIZE);
+      entries[i].pubkey_hex = hex;
+      entries[i].snr = entry.snr / 4.0f;
+      bool heard_known = neighborHeardAgeUsable(entry.heard_timestamp, now_secs);
+      entries[i].heard_unknown = !heard_known;
+      entries[i].heard_secs_ago = heard_known ? (now_secs - entry.heard_timestamp) : 0;
+      entries[i].scopes = entry.scopes;
+      switch (entry.status) {
+        case ND_RESPONDED:   entries[i].status = "responded"; break;
+        case ND_SEND_FAILED: entries[i].status = "send_failed"; break;
+        default:             entries[i].status = "timeout"; break;
+      }
+    }
+
+    // insertion sort: most useful first (JSON builder drops the tail on overflow)
+    for (int i = 1; i < publish_count; i++) {
+      MQTTMessageBuilder::NeighborsMessageEntry entry = entries[i];
+      int j = i;
+      while (j > 0 && neighborPublishEntryComesBefore(entry, entries[j - 1])) {
+        entries[j] = entries[j - 1];
+        j--;
+      }
+      entries[j] = entry;
+    }
+
+#if defined(ESP_PLATFORM)
+    NeighborsDocAllocator doc_alloc;
+    JsonDocument doc(&doc_alloc);
+#else
+    JsonDocument doc;
+#endif
+    int json_len = MQTTMessageBuilder::buildNeighborsMessage(
+      doc, neighbor_discover_origin, self_pubkey_hex, timestamp, self_scopes_buf,
+      self_default_scope_buf, entries, publish_count,
+      json_buf, MQTTBridge::NEIGHBORS_JSON_BUFFER_SIZE,
+      neighbor_discover_count, neighbor_discover_queried_count,
+      neighbor_discover_truncated);
+
+    if (json_len > 0 && bridge) {
+      bridge->requestPublishNeighbors(json_buf, (size_t)json_len);
+    }
+  }
+
+  neighborsFree(scratch);
+  neighborsFree(json_buf);
+
+  neighbor_discover_active = false;
+  neighbor_discover_count = 0;
+  neighbor_discover_next = 0;
+  neighbor_discover_publish_count = 0;
+  neighbor_discover_queried_count = 0;
+  neighbor_discover_json_size = 0;
+  neighbor_discover_truncated = false;
+  neighbor_discover_until = 0;
+  neighbor_discover_request = NULL;
+  if (_cli.getObserverPrefs()->mqtt_neighbors_enabled) {
+    next_neighbors_publish = futureMillis(_cli.getObserverPrefs()->mqtt_neighbors_interval);
+  }
+}
+
+// Advance the newest-first scope-query phase. Keep only one request in flight so
+// its responder gets a clear reply opportunity and the packet pool stays free.
+void MyMesh::loopNeighborDiscover() {
+  if (!neighbor_discover_active) return;
+
+  if (neighbor_discover_next >= neighbor_discover_count) {
+    finishNeighborDiscover();
+    return;
+  }
+
+  NeighborDiscoverEntry& entry = neighbor_discover[neighbor_discover_next];
+  if (entry.status == ND_QUEUED) {
+    if (!millisHasNowPassed(neighbor_discover_until)) return;
+    if (cancelNeighborDiscoverRequest()) {
+      entry.status = ND_SEND_FAILED;
+      completeNeighborDiscoverEntry();
+      return;
+    }
+    if (isCurrentOutbound(neighbor_discover_request)) {
+      neighbor_discover_until = futureMillis(neighborDiscoverQueryTimeoutMs());
+      return;
+    }
+    neighbor_discover_request = NULL;  // packet manager already shed it
+    entry.status = ND_SEND_FAILED;
+    completeNeighborDiscoverEntry();
+    return;
+  }
+  if (entry.status == ND_PENDING) {
+    if (!millisHasNowPassed(neighbor_discover_until)) return;
+    entry.status = ND_TIMEOUT;
+    completeNeighborDiscoverEntry();
+    return;
+  }
+  if (entry.status == ND_RESPONDED || entry.status == ND_SEND_FAILED
+      || entry.status == ND_TIMEOUT) {
+    completeNeighborDiscoverEntry();
+    return;
+  }
+  if (entry.status != ND_UNSENT) {
+    neighbor_discover_next++;
+    return;
+  }
+
+  uint32_t tag;
+  mesh::Packet* request = sendAnonRegionsReq(entry.id, tag);
+  if (request) {
+    entry.tag = tag;
+    entry.status = ND_QUEUED;
+    neighbor_discover_request = request;
+    neighbor_discover_until = futureMillis(NEIGHBOR_DISCOVER_QUEUE_TIMEOUT_MS);
+  } else {
+    entry.status = ND_SEND_FAILED;
+    completeNeighborDiscoverEntry();
+  }
+}
+
+// Shared precondition for starting a discovery: usable buffers + bridge running.
+// PSRAM builds size their neighbors buffers for PSRAM, so a board whose PSRAM
+// failed to init must not silently spend that much internal DRAM here.
+// MQTT_NEIGHBORS_WITHOUT_PSRAM builds are already sized for internal DRAM.
+bool MyMesh::neighborDiscoverReady(char* reply) {
+#if defined(ESP_PLATFORM) && defined(BOARD_HAS_PSRAM)
+  if (!psramFound()) { strcpy(reply, "Err - PSRAM not available"); return false; }
+#endif
+  if (!bridge || !bridge->isRunning()) { strcpy(reply, "Err - MQTT bridge not running"); return false; }
+  return true;
+}
+
+// Snapshot the neighbor table newest-first. loopNeighborDiscover() emits one
+// anon-regions query at a time so hidden responders do not reply as a burst.
+bool MyMesh::startNeighborDiscover(char* reply) {
+  if (neighbor_discover_active) {
+    strcpy(reply, "Err - neighbor discover already active");
+    return false;
+  }
+  if (!neighborDiscoverReady(reply)) {
+    return false;  // reply already set
+  }
+
+  neighbor_discover_count = 0;
+  for (int i = 0; i < MAX_NEIGHBOURS; i++) {
+    if (neighbours[i].heard_timestamp > 0) {
+      NeighborDiscoverEntry& entry = neighbor_discover[neighbor_discover_count];
+      entry.id = neighbours[i].id;
+      entry.heard_timestamp = neighbours[i].heard_timestamp;
+      entry.snr = neighbours[i].snr;
+      entry.scopes[0] = 0;
+      entry.tag = 0;
+      entry.status = ND_UNSENT;
+      neighbor_discover_count++;
+    }
+  }
+
+  // Query the freshest/strongest entries first; pubkey makes ties deterministic.
+  for (int i = 1; i < neighbor_discover_count; i++) {
+    NeighborDiscoverEntry entry = neighbor_discover[i];
+    int j = i;
+    while (j > 0) {
+      auto& rhs = neighbor_discover[j - 1];
+      bool before = entry.heard_timestamp > rhs.heard_timestamp
+        || (entry.heard_timestamp == rhs.heard_timestamp && entry.snr > rhs.snr)
+        || (entry.heard_timestamp == rhs.heard_timestamp && entry.snr == rhs.snr
+            && memcmp(entry.id.pub_key, rhs.id.pub_key, PUB_KEY_SIZE) < 0);
+      if (!before) break;
+      neighbor_discover[j] = neighbor_discover[j - 1];
+      j--;
+    }
+    neighbor_discover[j] = entry;
+  }
+
+  neighbor_discover_next = 0;
+  resetNeighborDiscoverJsonBudget();
+  neighbor_discover_active = true;
+  neighbor_discover_until = 0;
+  neighbor_discover_request = NULL;
+
+  if (neighbor_discover_count == 0) {
+    finishNeighborDiscover();
+    strcpy(reply, "OK - neighbor discover started (0 neighbors, self only)");
+  } else {
+    loopNeighborDiscover();  // queue the first request now
+    sprintf(reply, "OK - neighbor discover started (%u neighbors)", (unsigned)neighbor_discover_count);
+  }
+  return true;
+}
+#endif // WITH_MQTT_NEIGHBORS
 
 // To check if there is pending work
 bool MyMesh::hasPendingWork() const {
 #if defined(WITH_BRIDGE)
-  if (bridge.isRunning()) return true;  // bridge needs WiFi radio, can't sleep
+  if (bridge && bridge->isRunning()) return true;  // bridge needs WiFi radio, can't sleep
 #endif
-  return _mgr->getOutboundTotal() > 0;
+  return _mgr->getOutboundCount(0xFFFFFFFF) > 0;
 }

@@ -1,0 +1,13 @@
+{"sessionId":"debug-session","location":"MQTTBridge.cpp:505","message":"mqtt_loop_60s","hypothesisId":"H5","data":{"free":99968,"max_alloc":81908,"internal_free":99968,"spiram_free":2079119},"timestamp":60038}
+{"sessionId":"debug-session","location":"MQTTBridge.cpp:505","message":"mqtt_loop_60s","hypothesisId":"H5","data":{"free":186636,"max_alloc":81908,"internal_free":186636,"spiram_free":2079887},"timestamp":120040}
+{"sessionId":"debug-session","location":"MQTTBridge.cpp:505","message":"mqtt_loop_60s","hypothesisId":"H5","data":{"free":94328,"max_alloc":81908,"internal_free":94328,"spiram_free":2079119},"timestamp":180078}
+{"sessionId":"debug-session","location":"MQTTBridge.cpp:505","message":"mqtt_loop_60s","hypothesisId":"H5","data":{"free":99564,"max_alloc":81908,"internal_free":99564,"spiram_free":2079119},"timestamp":240093}
+{"sessionId":"debug-session","location":"MQTTBridge.cpp:505","message":"mqtt_loop_60s","hypothesisId":"H5","data":{"free":99564,"max_alloc":81908,"internal_free":99564,"spiram_free":2079119},"timestamp":300130}
+{"sessionId":"debug-session","location":"MQTTBridge.cpp:505","message":"mqtt_loop_60s","hypothesisId":"H5","data":{"free":203620,"max_alloc":81908,"internal_free":203620,"spiram_free":2079927},"timestamp":360131}
+{"sessionId":"debug-session","location":"MQTTBridge.cpp:505","message":"mqtt_loop_60s","hypothesisId":"H5","data":{"free":203620,"max_alloc":81908,"internal_free":203620,"spiram_free":2079927},"timestamp":420131}
+{"sessionId":"debug-session","location":"MQTTBridge.cpp:505","message":"mqtt_loop_60s","hypothesisId":"H5","data":{"free":99732,"max_alloc":81908,"internal_free":99732,"spiram_free":2079119},"timestamp":480150}
+{"sessionId":"debug-session","location":"MQTTBridge.cpp:505","message":"mqtt_loop_60s","hypothesisId":"H5","data":{"free":164132,"max_alloc":69620,"internal_free":164132,"spiram_free":2079119},"timestamp":540153}
+{"sessionId":"debug-session","location":"MQTTBridge.cpp:505","message":"mqtt_loop_60s","hypothesisId":"H5","data":{"free":90808,"max_alloc":79860,"internal_free":90808,"spiram_free":2079119},"timestamp":600166}
+{"sessionId":"debug-session","location":"MQTTBridge.cpp:505","message":"mqtt_loop_60s","hypothesisId":"H5","data":{"free":99676,"max_alloc":81908,"internal_free":99676,"spiram_free":2079119},"timestamp":660181}
+{"sessionId":"debug-session","location":"MQTTBridge.cpp:505","message":"mqtt_loop_60s","hypothesisId":"H5","data":{"free":99708,"max_alloc":81908,"internal_free":99708,"spiram_free":2079119},"timestamp":720195}
+{"sessionId":"debug-session","location":"MQTTBridge.cpp:505","message":"mqtt_loop_60s","hypothesisId":"H5","data":{"free":99720,"max_alloc":81908,"internal_free":99720,"spiram_free":2079119},"timestamp":780217}

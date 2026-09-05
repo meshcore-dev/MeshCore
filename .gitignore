@@ -1,5 +1,6 @@
 .direnv
 .pio
+.build-wt-*
 .vscode/.browse.c_cpp.db*
 .vscode/c_cpp_properties.json
 .vscode/launch.json
@@ -16,4 +17,18 @@ cmake-*
 compile_commands.json
 .venv/
 venv/
+# Script-generated cert bundles (see scripts/generate_cert_bundle.py)
+src/certs/x509_crt_bundle.bin
+src/helpers/esp32/WebConfigHtml.h
+ssl_certs/cacert.pem
 platformio.local.ini
+.cursor/*
+.claude/*
+.cursorrules
+# Worktrees checked out inside the repo. Committing one adds a stray gitlink
+# that makes every CI checkout warn "No url found for submodule path ... in
+# .gitmodules", and leaves `git status` permanently dirty so the next `git add
+# -A` re-commits it. .wt-* covers the hand-made ones; .build-wt-* the CI ones.
+.build-wt-*/
+.wt-*/
+scripts/__pycache__/*

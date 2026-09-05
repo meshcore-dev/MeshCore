@@ -1,0 +1,32 @@
+{
+  "name": "PsychicMqttClient",
+  "version": "0.2.4-meshcore.1",
+  "description": "Fully featured async MQTT client for ESP32 with support for SSL/TLS and MQTT over WS. Uses the ESP-IDF MQTT client library under the hood and adds a powerful and easy to use API on top of it. (MeshCore: fixed memory leak in connect())",
+  "keywords": "iot, home, automation, async, mqtt, client, esp32, mqttclient, mqtt-client",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/theelims/PsychicMqttClient.git"
+  },
+  "authors": {
+    "name": "elims",
+    "email": "elims@gmx.net",
+    "maintainer": true
+  },
+  "license": "MIT",
+  "frameworks": "arduino",
+  "platforms": "espressif32",
+  "headers": "PsychicMQTTClient.h",
+  "export": {
+    "include": [
+      "docs",
+      "examples",
+      "scripts",
+      "src",
+      "library.json",
+      "CHANGELOG.md",
+      "LICENSE",
+      "platformio.ini",
+      "README.md"
+    ]
+  }
+}

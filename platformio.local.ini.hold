@@ -1,0 +1,15 @@
+; Local-only override (gitignored) pointing the Heltec V3 observer env at a custom
+; framework whose mbedTLS archives were rebuilt with an asymmetric TLS record buffer:
+;   CONFIG_MBEDTLS_ASYMMETRIC_CONTENT_LEN=y
+;   CONFIG_MBEDTLS_SSL_IN_CONTENT_LEN=16384   (unchanged — a peer may send a 16 KiB record)
+;   CONFIG_MBEDTLS_SSL_OUT_CONTENT_LEN=4096   (was 16384)
+;
+; Expected: ~12 KiB less internal DRAM per TLS connection, ~24 KiB across two broker slots.
+; Built from the shipped sdkconfig verbatim plus those three lines, so the archives differ
+; only by this change. See docs/mbedtls-tls-footprint.md.
+;
+; Absolute path, hence local-only: not committable.
+
+[env:Heltec_v3_repeater_observer_mqtt]
+platform_packages =
+  framework-arduinoespressif32 @ file:///Users/adam/framework-arduinoespressif32-tlsfix

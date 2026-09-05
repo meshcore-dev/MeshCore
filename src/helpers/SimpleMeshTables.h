@@ -4,6 +4,16 @@
 
 #ifdef ESP32
   #include <FS.h>
+  // TFT_eSPI (pulled in by the tracker variants' display driver) defines
+  // FS_NO_GLOBALS, which suppresses FS.h's own `using fs::File`. Without this,
+  // File never reaches global scope and every TU that reaches FS.h through
+  // TFT_eSPI first fails with "'File' has not been declared" — here and in
+  // simple_repeater/MyMesh.h. Restore exactly what FS.h would have done.
+  // Cannot use fs::File explicitly instead: File is also the global type on the
+  // nRF52/RP2040 paths, which have no fs namespace.
+  #if defined(FS_NO_GLOBALS)
+    using fs::File;
+  #endif
 #endif
 
 #define MAX_PACKET_HASHES  (128+32)

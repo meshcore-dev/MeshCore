@@ -13,6 +13,11 @@
     #include <helpers/ui/SSD1306Display.h>
 #elif defined(HELTEC_LORA_V4_TFT)
     #include <helpers/ui/ST7789LCDDisplay.h>
+#else
+    // If DISPLAY_CLASS is defined but OLED/TFT flags aren't set,
+    // assume SSD1306Display (most common case)
+    // This handles cases where DISPLAY_CLASS is set directly in build flags
+    #include <helpers/ui/SSD1306Display.h>
 #endif
   #include <helpers/ui/MomentaryButton.h>
 #endif

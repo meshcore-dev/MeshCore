@@ -1,0 +1,335 @@
+name: Build MQTT Observer Firmwares
+
+permissions:
+  contents: write
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - observer-firmware
+    # Only rebuild firmware when something that affects the binaries changes.
+    # Docs, the changelog, the changelog generator, CI files, and repo-meta
+    # files do not change firmware output — docs/changelog are handled by
+    # sync-flasher-content.yml instead. NOTE: a push is skipped only if EVERY
+    # changed file matches a pattern below; one stray unlisted file (e.g. an
+    # earlier .gitignore edit) triggers a full build, so keep meta files listed.
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'scripts/gen_changelog.py'
+      - '.github/**'
+      - '.gitignore'
+      - '.gitattributes'
+      - '.editorconfig'
+      - 'LICENSE'
+      - '.vscode/**'
+      - '.claude/**'
+      # Throwaway build worktrees never affect the binaries.
+      - '.build-wt-*'
+      - '.build-wt-*/**'
+
+# Own group: serialize builds against each other only. Do NOT share this group
+# with sync-flasher-content.yml — a mixed code+docs commit triggers both, and a
+# run that is still pending when its sibling is queued gets cancelled, which
+# silently skipped the firmware build. Concurrent flasher pushes are instead made
+# safe by the rebase-retry in "Commit & Push Flasher Config".
+concurrency:
+  group: observer-firmware-build
+  cancel-in-progress: false
+
+env:
+  # Version embedded in firmware filenames; must match the version key in the
+  # flasher's config.json. Bump here when the observer version changes.
+  FIRMWARE_VERSION: v1.17.1
+  # Rolling release tag that hosts the latest observer binaries.
+  RELEASE_TAG: observer-mqtt-latest
+  # Download host serving RELEASE_TAG's assets (cloudflare-worker in the flasher
+  # repo). Baked into the slim OTA manifests' file URLs; must stay consistent
+  # with config.json's staticPath.
+  STATIC_PATH: https://observer-fw.gessaman.com
+
+jobs:
+
+  # Discover the *_observer_mqtt envs and split them into SHARDS groups so the
+  # build fans out across runners (pio builds envs sequentially within a job).
+  enumerate:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.split.outputs.matrix }}
+      build_number: ${{ steps.buildnum.outputs.n }}
+    steps:
+      - name: Clone Repo
+        uses: actions/checkout@v4
+
+      - name: Split observer envs into shards
+        id: split
+        shell: bash
+        run: |
+          SHARDS=14
+          ENVS=$(grep -rhoE '^\[env:[^]]*observer_mqtt\]' platformio.ini variants/*/platformio.ini \
+                 | sed -E 's/^\[env:(.*)\]$/\1/' | sort -u)
+          echo "Discovered envs:"; echo "$ENVS"
+          MATRIX=$(echo "$ENVS" | awk -v n="$SHARDS" '
+              { shard[NR % n] = shard[NR % n] " " $0 }
+              END { for (i = 0; i < n; i++) { sub(/^ /, "", shard[i]);
+                    printf "{\"idx\":%d,\"envs\":\"%s\"}\n", i, shard[i] } }' \
+              | jq -cs .)
+          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+
+      - name: Compute observer build number
+        id: buildnum
+        shell: bash
+        run: |
+          # Per-base published-build counter. N increments once per release and
+          # resets to 1 when FIRMWARE_VERSION (the MeshCore base version) changes.
+          # Read-only here (off the published counter); the release job is the sole
+          # writer and only writes on a successful build, so a failed build doesn't
+          # burn a number. First run / 404 -> empty -> N=1.
+          COUNTER_URL="https://observer.gessaman.com/observer-build-counter.json"
+          CUR=$(curl -fsSL "$COUNTER_URL" 2>/dev/null || echo '{}')
+          PREV_BASE=$(echo "$CUR" | jq -r '.baseVersion // ""')
+          PREV_BUILD=$(echo "$CUR" | jq -r '.build // 0')
+          if [ "$PREV_BASE" = "$FIRMWARE_VERSION" ]; then
+            N=$((PREV_BUILD + 1))
+          else
+            N=1
+          fi
+          echo "Base $FIRMWARE_VERSION; previous build $PREV_BUILD (base $PREV_BASE) -> N=$N"
+          echo "n=$N" >> "$GITHUB_OUTPUT"
+
+  # Build one shard (several envs) per runner. build.sh emits both the app
+  # .bin and the ESP32 -merged.bin into out/ for each env.
+  build:
+    needs: enumerate
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.enumerate.outputs.matrix) }}
+    steps:
+      - name: Clone Repo
+        uses: actions/checkout@v4
+
+      # Cache the installed PlatformIO platforms + toolchains (the espressif32
+      # toolchain + Arduino framework are pinned in platformio.ini, so they are
+      # identical across commits). This skips the multi-hundred-MB download AND
+      # re-extraction that otherwise happens on every fresh runner's first build.
+      # Note: compiled objects are not worth caching here because build.sh injects
+      # a changing -DFIRMWARE_VERSION/-DFIRMWARE_BUILD_DATE into the global build
+      # flags, which busts every object's compile-command checksum each build.
+      - name: Cache PlatformIO Toolchains
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio/packages
+            ~/.platformio/platforms
+          key: pio-toolchains-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
+          restore-keys: |
+            pio-toolchains-${{ runner.os }}-
+
+      - name: Setup Build Environment
+        uses: ./.github/actions/setup-build-environment
+
+      - name: Build Shard ${{ matrix.shard.idx }}
+        env:
+          # Stamp the per-base build number into the embedded version (v1.16.0.N).
+          FIRMWARE_BUILD_NUMBER: ${{ needs.enumerate.outputs.build_number }}
+        run: /usr/bin/env bash build.sh build-firmware ${{ matrix.shard.envs }}
+
+      - name: Upload Shard Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fw-${{ matrix.shard.idx }}
+          path: out
+          if-no-files-found: error
+
+  # Collect all shard outputs, publish the rolling release, then point the
+  # flasher at the new build by bumping the hash + notes in its config.json.
+  release:
+    needs: [enumerate, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone Repo
+        uses: actions/checkout@v4
+        # Intentionally shallow (default depth 1). "Compute Short SHA" below must
+        # run on the same shallow clone the build job used, because
+        # `git rev-parse --short` auto-extends its abbreviation as the object
+        # count grows (7 chars shallow, 8 chars with full history). build.sh names
+        # the firmware assets from a shallow clone, so a full-history release job
+        # would write an 8-char hash into config.json that no asset matches.
+        # History is deepened later, only for the changelog step.
+
+      - name: Download All Shard Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Flatten into out/
+        run: |
+          mkdir -p out
+          find artifacts -type f -name '*.bin' -exec cp -f {} out/ \;
+          # Per-env partition-table signatures (for the slim manifest's OTA gate).
+          find artifacts -type f -name '*.partsig' -exec cp -f {} out/ \;
+          echo "Collected binaries:"; ls -1 out
+
+      - name: Compute Short SHA
+        id: sha
+        run: echo "short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Publish to Rolling Release (tag pinned; assets replaced in place)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Create the release + tag once, then never move the tag again. Moving a
+          # rolling tag on every build causes "conflicting tag" errors in local
+          # clones (and a brief 404 window from delete/recreate).
+          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" --prerelease \
+              --title "MQTT Observer Firmwares" \
+              --notes "Rolling build of all *_observer_mqtt firmwares. The git short hash is embedded in each asset filename."
+          fi
+
+          # Upload this build, overwriting same-named assets. Exclude the .partsig
+          # files — those are consumed locally by the slim-manifest generator below,
+          # not published as release assets (and they'd break the hash-based prune).
+          gh release upload "$RELEASE_TAG" $(find out -maxdepth 1 -type f ! -name '*.partsig') --clobber
+
+          # Keep the release body in sync with the repo's notes source: the
+          # /releases feed serves it as the flasher dropdown's changelog
+          # (config.json no longer carries per-version notes). Non-fatal —
+          # stale notes beat a red build whose binaries are already live.
+          gh release edit "$RELEASE_TAG" --notes-file firmware-notes.html \
+            || echo "WARNING: release notes sync failed" >&2
+
+          # Prune old assets, but RETAIN the most recent KEEP_BUILDS build hashes
+          # (not just the current one). The flasher SPA reads config.json once at
+          # page load and the embedded git short-hash is what links it to assets;
+          # if we pruned down to only the current build, a tab opened during the
+          # previous build cycle would request an already-deleted binary and 404.
+          # Keeping the previous build covers that window.
+          # Pick the KEEP_BUILDS most-recent distinct build hashes: list assets as
+          # "<createdAt> <name>", sort newest-first (ISO timestamps sort lexically),
+          # pull the git short-hash out of each filename, de-dup preserving order.
+          KEEP_BUILDS=2
+          keep_hashes=$(gh release view "$RELEASE_TAG" --json assets \
+              -q '.assets[] | "\(.createdAt) \(.name)"' \
+            | sort -r \
+            | while read -r _ts name; do
+                printf '%s' "$name" | grep -oiE '[0-9a-f]{7,40}(-merged)?\.bin$' | grep -oiE '^[0-9a-f]{7,40}'
+              done \
+            | awk '!seen[$0]++' | head -n "$KEEP_BUILDS")
+          echo "Retaining build hashes:"; echo "$keep_hashes"
+          gh release view "$RELEASE_TAG" --json assets -q '.assets[].name' \
+            | while read -r asset; do
+                # `|| true`: a non-firmware asset (no embedded hash) makes grep exit
+                # non-zero, which under `bash -e` would abort the step. Empty ah then
+                # falls through to delete-asset, cleaning up any stray non-.bin asset.
+                ah=$(printf '%s' "$asset" | grep -oiE '[0-9a-f]{7,40}(-merged)?\.bin$' | grep -oiE '^[0-9a-f]{7,40}' || true)
+                if [ -n "$ah" ] && grep -qxF "$ah" <<<"$keep_hashes"; then
+                  continue
+                fi
+                gh release delete-asset "$RELEASE_TAG" "$asset" --yes || true
+              done
+
+      - name: Checkout Flasher Repo
+        uses: actions/checkout@v4
+        with:
+          repository: agessaman/flasher.meshcore.io
+          token: ${{ secrets.FLASHER_DISPATCH_TOKEN }}
+          path: flasher
+
+      # update-firmware.py is no longer called here: config.json's observer
+      # entries are github release defs (no embedded filenames to rewrite), the
+      # flasher's versions come from the Worker's /releases feed, and the
+      # changelog notes ride the release body (see the publish step).
+
+      - name: Generate Slim Per-Variant Manifests + Persist Build Counter
+        env:
+          BUILD_NUMBER: ${{ needs.enumerate.outputs.build_number }}
+        run: |
+          # Derive the slim per-variant manifests (flasher/v/<env>.json) that the
+          # firmware fetches for `ota check`/`ota update`, from the build output
+          # in out/ — the assets actually uploaded to the release — stamping this
+          # build's number. Then persist the counter so the next run increments
+          # from here.
+          python3 flasher/scripts/gen-slim-manifests.py \
+            --bin-dir out \
+            --static-path "$STATIC_PATH" \
+            --out-dir flasher/v \
+            --base-version "$FIRMWARE_VERSION" \
+            --build "$BUILD_NUMBER" \
+            --partsig-dir out
+          printf '{\n  "baseVersion": "%s",\n  "build": %s\n}\n' \
+            "$FIRMWARE_VERSION" "$BUILD_NUMBER" > flasher/observer-build-counter.json
+          echo "Build $FIRMWARE_VERSION.$BUILD_NUMBER"
+
+      - name: Unshallow for Changelog
+        run: |
+          # gen_changelog.py needs the full branch history; deepen only now, AFTER
+          # Compute Short SHA ran on the shallow clone (so its 7-char abbreviation
+          # matches build.sh's firmware filenames). Guarded so a non-shallow clone
+          # (e.g. a manual full checkout) doesn't error.
+          if [ "$(git rev-parse --is-shallow-repository)" = "true" ]; then
+            git fetch --unshallow --quiet
+          fi
+
+      - name: Generate Changelog
+        run: |
+          # Append any new branch commits to the flasher's CHANGELOG.md. This is
+          # append-only and idempotent: the hand-curated history and the hash
+          # manifest already in flasher/CHANGELOG.md are preserved, and only
+          # commits not yet listed are added. The flasher repo is the persistent
+          # store of changelog state across builds; this checkout's git history
+          # (fetch-depth: 0) is the source. changelog.html renders this file.
+          python3 scripts/gen_changelog.py flasher/CHANGELOG.md
+
+      - name: Sync Docs into Flasher
+        run: |
+          # docs.html on the flasher site serves these raw .md files and renders
+          # them client-side; keep this list in sync with LOCAL_DOCS in
+          # flasher/docs.html.
+          for f in MQTT_IMPLEMENTATION.md MQTT_SNMP.md ALERTS.md; do
+            if [ -f "$f" ]; then
+              cp -f "$f" "flasher/$f"
+              echo "synced $f"
+            else
+              echo "WARNING: source doc $f not found" >&2
+            fi
+          done
+
+      - name: Commit & Push Flasher Config
+        working-directory: flasher
+        run: |
+          # Stage everything: the slim manifests (v/*.json) and the build counter
+          # can be NEW files, which `commit -am` would miss — so add -A and check
+          # the staged diff. (config.json is no longer rewritten per build.)
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No flasher changes to commit."
+            exit 0
+          fi
+          git config user.name "meshcore-bot"
+          git config user.email "noreply@gessaman.com"
+          git commit -m "Update observer firmware to ${{ steps.sha.outputs.short }} (build ${FIRMWARE_VERSION}.${{ needs.enumerate.outputs.build_number }})"
+          # sync-flasher-content.yml can be pushing the same docs/changelog right
+          # now (a mixed code+docs commit triggers both), so a non-fast-forward is
+          # expected rather than fatal: rebase onto the sibling's commit and retry.
+          # If the rebase leaves nothing, git reports up-to-date and we exit clean.
+          br=$(git rev-parse --abbrev-ref HEAD)
+          for attempt in 1 2 3; do
+            if git push origin "HEAD:$br"; then
+              exit 0
+            fi
+            echo "push rejected (attempt $attempt); rebasing onto origin/$br"
+            git fetch origin "$br"
+            # --autostash so a dirty tree can never make the rebase refuse to run;
+            # nothing unstaged gets published either way.
+            git rebase --autostash "origin/$br" || {
+              git rebase --abort || true
+              echo "::error::flasher rebase conflicted; re-run this workflow to republish"
+              exit 1
+            }
+          done
+          echo "::error::could not push flasher changes after 3 attempts"
+          exit 1

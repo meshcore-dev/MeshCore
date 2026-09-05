@@ -1,0 +1,90 @@
+name: Check MQTT Preset Name Parity
+
+# Ensures observer-firmware and observer-firmware-dev share the same built-in
+# MQTT preset *names* (config details may differ). See scripts/check_mqtt_preset_parity.py.
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - observer-firmware
+      - observer-firmware-dev
+    paths:
+      - 'src/helpers/MQTTPresets.h'
+      - 'scripts/check_mqtt_preset_parity.py'
+      - '.github/workflows/check-mqtt-preset-parity.yml'
+  push:
+    branches:
+      - observer-firmware
+      - observer-firmware-dev
+    paths:
+      - 'src/helpers/MQTTPresets.h'
+      - 'scripts/check_mqtt_preset_parity.py'
+      - '.github/workflows/check-mqtt-preset-parity.yml'
+
+jobs:
+  parity:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone Repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch channel branches
+        run: |
+          git fetch --no-tags origin observer-firmware observer-firmware-dev
+
+      - name: Materialize presets from both channels
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.ref }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          PRESET_PATH=src/helpers/MQTTPresets.h
+          mkdir -p /tmp/preset-parity
+
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            # Ensure the PR head commit is reachable (merge checkout may not keep it).
+            git fetch --no-tags origin "$PR_HEAD_SHA"
+            # Proposed state of the PR's base channel vs current tip of the sibling.
+            git show "${PR_HEAD_SHA}:${PRESET_PATH}" > /tmp/preset-parity/pr-head.h
+            case "$PR_BASE" in
+              observer-firmware-dev)
+                cp /tmp/preset-parity/pr-head.h /tmp/preset-parity/dev.h
+                git show "origin/observer-firmware:${PRESET_PATH}" > /tmp/preset-parity/prod.h
+                ;;
+              observer-firmware)
+                git show "origin/observer-firmware-dev:${PRESET_PATH}" > /tmp/preset-parity/dev.h
+                cp /tmp/preset-parity/pr-head.h /tmp/preset-parity/prod.h
+                ;;
+              *)
+                echo "::error::unexpected PR base branch: $PR_BASE" >&2
+                exit 1
+                ;;
+            esac
+          else
+            # push / workflow_dispatch: compare current channel tips.
+            git show "origin/observer-firmware:${PRESET_PATH}" > /tmp/preset-parity/prod.h
+            git show "origin/observer-firmware-dev:${PRESET_PATH}" > /tmp/preset-parity/dev.h
+          fi
+
+          echo "=== production (observer-firmware) head preview ==="
+          head -n 5 /tmp/preset-parity/prod.h
+          echo "=== dev (observer-firmware-dev) head preview ==="
+          head -n 5 /tmp/preset-parity/dev.h
+
+      - name: Self-test checker
+        run: python3 scripts/check_mqtt_preset_parity.py --self-test
+
+      - name: Compare preset names
+        run: |
+          python3 scripts/check_mqtt_preset_parity.py \
+            /tmp/preset-parity/prod.h \
+            /tmp/preset-parity/dev.h \
+            --label-a observer-firmware \
+            --label-b observer-firmware-dev

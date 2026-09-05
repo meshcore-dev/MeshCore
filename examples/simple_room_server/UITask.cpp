@@ -6,6 +6,11 @@
 #define USER_BTN_PRESSED LOW
 #endif
 
+#ifdef WITH_MQTT_BRIDGE
+#include <WiFi.h>
+#include <helpers/esp32/WebConfigServer.h>   // defines WITH_WEBCONFIG on ESP32
+#endif
+
 #define AUTO_OFF_MILLIS      20000  // 20 seconds
 #define BOOT_SCREEN_MILLIS   4000   // 4 seconds
 
@@ -73,6 +78,43 @@ void UITask::renderCurrScreen() {
     _display->setCursor((_display->width() - typeWidth) / 2, 48);
     _display->print(node_type);
   } else {  // home screen
+#ifdef WITH_WEBCONFIG
+    if (WebConfigServer::isRebootPending()) {
+      // save confirmed on-device: show ground truth even if the browser
+      // lost its connection before the confirmation reached it
+      _display->setTextSize(1);
+      _display->setColor(UIColor::corp_blue);
+      _display->setCursor(0, 14);
+      _display->print("Config saved!");
+      _display->setColor(UIColor::primary_txt);
+      _display->setCursor(0, 30);
+      _display->print("Rebooting...");
+      return;
+    }
+    char wc_ssid[33], wc_ip[16];
+    if (WebConfigServer::getSetupInfo(wc_ssid, sizeof(wc_ssid), wc_ip, sizeof(wc_ip))) {
+      // setup portal active: show join instructions instead of the home screen
+      _display->setTextSize(1);
+      _display->setColor(UIColor::corp_blue);
+      _display->setCursor(0, 0);
+      _display->print("Observer WiFi Setup");
+
+      _display->setColor(UIColor::primary_txt);
+      _display->setCursor(0, 14);
+      _display->print("Join WiFi:");
+      _display->setColor(UIColor::warning_txt);
+      _display->setCursor(6, 24);
+      _display->print(wc_ssid);
+
+      _display->setColor(UIColor::primary_txt);
+      _display->setCursor(0, 40);
+      _display->print("Then browse to:");
+      _display->setColor(UIColor::warning_txt);
+      _display->setCursor(6, 50);
+      _display->print(wc_ip);
+      return;
+    }
+#endif
     // node name
     _display->setCursor(0, 0);
     _display->setTextSize(1);
@@ -88,6 +130,17 @@ void UITask::renderCurrScreen() {
     _display->setCursor(0, 30);
     sprintf(tmp, "BW: %03.2f CR: %d", _node_prefs->bw, _node_prefs->cr);
     _display->print(tmp);
+
+#ifdef WITH_MQTT_BRIDGE
+    // Display IP address for MQTT bridge devices
+    if (WiFi.status() == WL_CONNECTED) {
+      IPAddress ip = WiFi.localIP();
+      _display->setCursor(0, 40);
+      _display->setColor(UIColor::primary_txt);
+      snprintf(tmp, sizeof(tmp), "IP: %d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
+      _display->print(tmp);
+    }
+#endif
   }
 }
 
@@ -107,6 +160,15 @@ void UITask::loop() {
       _prevBtnState = btnState;
     }
     _next_read = millis() + 200;  // 5 reads per second
+  }
+#endif
+
+#ifdef WITH_WEBCONFIG
+  // While the setup portal is up there's no user button to wake the screen
+  // reliably - keep it on so the join instructions stay visible.
+  if (WebConfigServer::getSetupInfo(NULL, 0, NULL, 0)) {
+    if (!_display->isOn()) _display->turnOn();
+    _auto_off = millis() + AUTO_OFF_MILLIS;
   }
 #endif
 

@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "author": "MeshCore",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "board-esp32-s3-devkitc-1", "id": "esp", "top": 0, "left": 0, "attrs": {} },
+    { "type": "board-ssd1306", "id": "oled", "top": -110, "left": 90,
+      "attrs": { "i2cAddress": "0x3c" } }
+  ],
+  "connections": [
+    [ "esp:3V3", "oled:VCC", "red", [] ],
+    [ "esp:GND.1", "oled:GND", "black", [] ],
+    [ "esp:17", "oled:SDA", "green", [] ],
+    [ "esp:18", "oled:SCL", "yellow", [] ],
+    [ "esp:TX", "$serialMonitor:RX", "", [] ],
+    [ "esp:RX", "$serialMonitor:TX", "", [] ]
+  ]
+}

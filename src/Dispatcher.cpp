@@ -63,6 +63,12 @@ uint32_t Dispatcher::getCADFailMaxDuration() const {
   return 4000;   // 4 seconds
 }
 
+#ifdef WITH_MQTT_BRIDGE
+uint32_t Dispatcher::getRadioWatchdogMillis() const {
+  return RADIO_WATCHDOG_MS;
+}
+#endif
+
 void Dispatcher::loop() {
   if (millisHasNowPassed(next_floor_calib_time)) {
     _radio->triggerNoiseFloorCalibrate(getInterferenceThreshold());
@@ -82,6 +88,32 @@ void Dispatcher::loop() {
   if (!is_recv && _ms->getMillis() - radio_nonrx_start > 8000) {   // radio has not been in Rx mode for 8 seconds!
     _err_flags |= ERR_EVENT_STARTRX_TIMEOUT;
   }
+
+  // Radio watchdog: detect radio stuck in RX mode but not receiving any packets.
+  // Observer-only feature (gated behind WITH_MQTT_BRIDGE); configured via the
+  // MQTTPrefs radio_watchdog_minutes setting.
+#ifdef WITH_MQTT_BRIDGE
+  {
+    const uint32_t watchdog_ms = getRadioWatchdogMillis();
+    if (watchdog_ms > 0) {
+      unsigned long last_recv = _radio->getLastRecvMillis();
+      unsigned long last_irq  = _radio->getLastRadioInterruptMillis();
+      unsigned long last_active = (last_recv > last_irq ? last_recv : last_irq);
+      if (last_radio_active_ms > last_active) last_active = last_radio_active_ms;
+      if (is_recv && last_active > 0) {
+        unsigned long silent_ms = _ms->getMillis() - last_active;
+        unsigned long since_recovery = _ms->getMillis() - last_watchdog_recovery;
+        if (silent_ms > watchdog_ms && since_recovery > watchdog_ms) {
+          _err_flags |= ERR_EVENT_RADIO_WATCHDOG;
+          MESH_DEBUG_PRINTLN("Radio watchdog: silent %lu ms, state=%d, recovering", silent_ms, _radio->getRadioState());
+          _radio->idle();
+          _radio->startRecv();
+          last_watchdog_recovery = _ms->getMillis();
+        }
+      }
+    }
+  }
+#endif // WITH_MQTT_BRIDGE (radio watchdog)
 
   if (outbound) {  // waiting for outbound send to be completed
     if (_radio->isSendComplete()) {
@@ -106,6 +138,7 @@ void Dispatcher::loop() {
       }
 
       _radio->onSendFinished();
+      last_radio_active_ms = _ms->getMillis();  // TX success → radio is alive
       logTx(outbound, 2 + outbound->getPathByteLen() + outbound->payload_len);
       if (outbound->isRouteFlood()) {
         n_sent_flood++;

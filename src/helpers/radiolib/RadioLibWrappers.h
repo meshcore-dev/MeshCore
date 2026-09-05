@@ -20,16 +20,23 @@ protected:
   bool _cad_enabled;
   uint16_t _num_floor_samples;
   int32_t _floor_sample_sum;
+  unsigned long last_recv_millis;
+  unsigned long last_radio_interrupt_millis;  // updated on any ISR event, even CRC errors
   uint8_t _preamble_sf;
 
-  void idle();
-  void startRecv();
+  void idle() override;
+  void startRecv() override;
   float packetScoreInt(float snr, int sf, int packet_len);
   virtual bool isReceivingPacket() =0;
   virtual void doResetAGC();
 
 public:
-  RadioLibWrapper(PhysicalLayer& radio, mesh::MainBoard& board) : _radio(&radio), _board(&board), _preamble_sf(0) { n_recv = n_sent = 0; }
+  RadioLibWrapper(PhysicalLayer& radio, mesh::MainBoard& board) : _radio(&radio), _board(&board), _preamble_sf(0) {
+    n_recv = n_sent = n_recv_errors = 0;
+    last_recv_millis = 0;
+    last_radio_interrupt_millis = 0;
+    _cad_enabled = false;
+  }
 
   void begin() override;
   virtual void powerOff() { _radio->sleep(); }
@@ -66,9 +73,13 @@ public:
   void loop() override;
 
   uint32_t getPacketsRecv() const { return n_recv; }
-  uint32_t getPacketsRecvErrors() const { return n_recv_errors; }
+  uint32_t getPacketsRecvErrors() const override { return n_recv_errors; }
   uint32_t getPacketsSent() const { return n_sent; }
   void resetStats() { n_recv = n_sent = n_recv_errors = 0; }
+
+  uint8_t getRadioState() const override;
+  unsigned long getLastRecvMillis() const override { return last_recv_millis; }
+  unsigned long getLastRadioInterruptMillis() const override { return last_radio_interrupt_millis; }
 
   virtual float getLastRSSI() const override;
   virtual float getLastSNR() const override;

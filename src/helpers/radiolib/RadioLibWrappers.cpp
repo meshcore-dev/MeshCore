@@ -125,6 +125,7 @@ bool RadioLibWrapper::isInRecvMode() const {
 int RadioLibWrapper::recvRaw(uint8_t* bytes, int sz) {
   int len = 0;
   if (state & STATE_INT_READY) {
+    last_radio_interrupt_millis = millis();   // ISR fired → radio hardware is alive
     len = _radio->getPacketLength();
     if (len > 0) {
       if (len > sz) { len = sz; }
@@ -136,6 +137,7 @@ int RadioLibWrapper::recvRaw(uint8_t* bytes, int sz) {
       } else {
       //  Serial.print("  readData() -> "); Serial.println(len);
         n_recv++;
+        last_recv_millis = millis();
       }
     }
     #if defined(USE_LR2021)
@@ -208,6 +210,10 @@ bool RadioLibWrapper::isChannelActive() {
   }
 
   return false;
+}
+
+uint8_t RadioLibWrapper::getRadioState() const {
+  return state;
 }
 
 float RadioLibWrapper::getLastRSSI() const {

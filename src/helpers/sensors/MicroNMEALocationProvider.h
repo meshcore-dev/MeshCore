@@ -48,8 +48,6 @@ class MicroNMEALocationProvider : public LocationProvider {
     int _pin_en;
     unsigned long next_check = 0;
     long time_valid = 0;
-    unsigned long _last_time_sync = 0;
-    static const unsigned long TIME_SYNC_INTERVAL = 1800000; // Re-sync every 30 minutes
 
 public :
     MicroNMEALocationProvider(Stream& ser, mesh::RTCClock* clock = NULL, int pin_reset = GPS_RESET, int pin_en = GPS_EN,RefCountedDigitalPin* peripher_power=NULL) :
@@ -76,7 +74,7 @@ public :
     }
 
     void begin() override {
-        claim();
+        if (_peripher_power) _peripher_power->claim();
         if (_pin_en != -1) {
             digitalWrite(_pin_en, GPS_EN_ACTIVE);
         }
@@ -100,7 +98,7 @@ public :
         if (_pin_reset != -1) {
             digitalWrite(_pin_reset, GPS_RESET_ACTIVE);
         }
-        release();
+        if (_peripher_power) _peripher_power->release();
     }
 
     bool isEnabled() override {
@@ -147,15 +145,10 @@ public :
 
         if ((long)(millis() - next_check) > 0) {
             next_check = millis() + 1000;
-            // Re-enable time sync periodically when GPS has valid fix
-            if (!_time_sync_needed && _clock != NULL && (millis() - _last_time_sync) > TIME_SYNC_INTERVAL) {
-                _time_sync_needed = true;
-            }
             if (_time_sync_needed && time_valid > 2) {
                 if (_clock != NULL) {
                     _clock->setCurrentTime(getTimestamp());
                     _time_sync_needed = false;
-                    _last_time_sync = millis();
                 }
             }
             if (isValid()) {
