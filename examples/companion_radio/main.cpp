@@ -36,9 +36,8 @@ MultiSerialInterface interface_manager;
   #ifndef TCP_PORT
     #define TCP_PORT 5000
   #endif
-  #ifdef ESP32
-    // include esp32 wifi interface
-    #include <helpers/esp32/SerialWifiInterface.h>
+  #if defined(ESP32) || defined(RP2040_PLATFORM)
+    #include <helpers/wifi/SerialWifiInterface.h>
     SerialWifiInterface wifi_interface;
   #else
     #error "SerialWifiInterface is not defined for this platform"
@@ -108,7 +107,7 @@ void halt() {
 }
 
 /* WIFI RECONNECT TRACKERS */
-#if defined(ESP32) && defined(WIFI_SSID)
+#ifdef WIFI_SSID
   bool wifi_needs_reconnect = false;
   unsigned long last_wifi_reconnect_attempt = 0;
 #endif
@@ -192,6 +191,7 @@ void setup() {
 
 // add wifi interface
 #ifdef WIFI_SSID
+#if defined(ESP32)
   board.setInhibitSleep(true);   // prevent sleep when WiFi is active
   WiFi.setAutoReconnect(true);
 
@@ -204,6 +204,7 @@ void setup() {
           wifi_needs_reconnect = false;
       }
   });
+#endif
 
   WiFi.begin(WIFI_SSID, WIFI_PWD);
   wifi_interface.begin(TCP_PORT);
@@ -262,12 +263,21 @@ void loop() {
 #endif
   }
 
-#if defined(ESP32) && defined(WIFI_SSID)
+#ifdef WIFI_SSID
+  // RP2040 has no WiFi event callbacks, so poll the link state instead
+  #if defined(RP2040_PLATFORM)
+    wifi_needs_reconnect = (WiFi.status() != WL_CONNECTED);
+  #endif
+
   // Safely attempt to reconnect every 10 seconds if flagged
   if (wifi_needs_reconnect && (millis() - last_wifi_reconnect_attempt > 10000)) {
     WIFI_DEBUG_PRINTLN("Attempting manual WiFi reconnect...");
-    WiFi.disconnect();
-    WiFi.reconnect();
+    #if defined(RP2040_PLATFORM)
+      WiFi.begin(WIFI_SSID, WIFI_PWD);   // no reconnect() on this platform
+    #else
+      WiFi.disconnect();
+      WiFi.reconnect();
+    #endif
     last_wifi_reconnect_attempt = millis();
   }
 #endif
