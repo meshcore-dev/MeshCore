@@ -783,6 +783,10 @@ void Mesh::sendDirect(Packet* packet, const uint8_t* path, uint8_t path_len, uin
     } else {
       pri = 0;
     }
+
+    if (packet->getPathHashCount() > 0) {   // there's a next hop to listen for repeating this
+      registerNextHopConfirm(packet);
+    }
   }
   _tables->markSeen(packet); // mark this packet as already sent in case it is rebroadcast back to us
   sendPacket(packet, pri, delay_millis);
