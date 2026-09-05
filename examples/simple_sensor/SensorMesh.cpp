@@ -322,8 +322,10 @@ uint8_t SensorMesh::handleRequest(ClientInfo* from, uint32_t sender_timestamp, u
       return ofs;
     }
   }
-  if (req_type == REQ_TYPE_SUBSCRIBE && payload_len >= 2 && (perms & PERM_ACL_ROLE_MASK) >= PERM_ACL_READ_ONLY) {
-    uint8_t  reserved = payload[0];
+  if (req_type == REQ_TYPE_SUBSCRIBE && payload_len >= 4 && (perms & PERM_ACL_ROLE_MASK) >= PERM_ACL_READ_ONLY) {
+    uint16_t timeout_secs;
+    memcpy(&timeout_secs, &payload[0], 2);
+    uint8_t  reserved = payload[2];
     RegionEntry* r;
     if (recv_pkt_region && !recv_pkt_region->isWildcard()) {   // use request scope
       r = recv_pkt_region;
@@ -331,16 +333,19 @@ uint8_t SensorMesh::handleRequest(ClientInfo* from, uint32_t sender_timestamp, u
       r = region_map.getDefaultRegion();
     }
     from->extra.sensor.scope_region_id = r ? r->id : 0;
-    from->extra.sensor.min_deltas_len = payload[1];
+    from->extra.sensor.expiry_timestamp = r ? getRTCClock()->getCurrentTime() + timeout_secs : 0;
+    from->extra.sensor.min_deltas_len = payload[3];
     // NOTE: curr impl truncates LPP min_diffs spec  (re-do if better impl is needed)
-    memcpy(from->extra.sensor.min_deltas, &payload[2], min(sizeof(from->extra.sensor.min_deltas), (size_t)payload[1]));
+    memcpy(from->extra.sensor.min_deltas, &payload[4], min(sizeof(from->extra.sensor.min_deltas), (size_t)payload[3]));
 
-    getRNG()->random(&reply_data[4], 2);   // just some entropy for better packet-hash uniqueness
-    strcpy((char *)&reply_data[6], r ? r->name : "");  // reply with name of scope that will be used
-    return 6 + strlen((char *)&reply_data[6]);
+    memcpy(&reply_data[4], &from->extra.sensor.expiry_timestamp, 4);  // reply with actual expiry timestamp (or 0 for error)
+    strcpy((char *)&reply_data[8], r ? r->name : "");  // reply with name of scope that will be used
+    return 6 + strlen((char *)&reply_data[8]);
   }
   if (req_type == REQ_TYPE_UNSUBSCRIBE && (perms & PERM_ACL_ROLE_MASK) >= PERM_ACL_READ_ONLY) {
     from->extra.sensor.scope_region_id = 0;
+    from->extra.sensor.expiry_timestamp = 0;
+    // REVISIT: maybe return some stats, eg total number of telemetry pushes since SUBSCRIBE?
     reply_data[4] = 0;  // success
     getRNG()->random(&reply_data[5], 3);   // just some entropy for better packet-hash uniqueness
     return 8;
@@ -441,6 +446,25 @@ int SensorMesh::getAGCResetInterval() const {
   return ((int)_prefs.agc_reset_interval) * 4000;   // milliseconds
 }
 
+void SensorMesh::startRegionsLoad() {
+  temp_map.resetFrom(region_map);   // rebuild regions in a temp instance
+  memset(load_stack, 0, sizeof(load_stack));
+  load_stack[0] = &temp_map.getWildcard();
+  region_load_active = true;
+}
+
+bool SensorMesh::saveRegions() {
+  return region_map.save(_fs);
+}
+
+void SensorMesh::onDefaultRegionChanged(const RegionEntry* r) {
+  if (r) {
+    region_map.getTransportKeysFor(*r, &default_scope, 1);
+  } else {
+    memset(default_scope.key, 0, sizeof(default_scope.key));
+  }
+}
+
 uint8_t SensorMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* secret, uint32_t sender_timestamp, const uint8_t* data, bool is_flood) {
   ClientInfo* client;
   if (data[0] == 0) {   // blank password, just check if sender is in ACL
@@ -454,7 +478,7 @@ uint8_t SensorMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* 
   } else {
     if (strcmp((char *) data, _prefs.password) != 0) {  // check for valid admin password
     #if MESH_DEBUG
-      MESH_DEBUG_PRINTLN("Invalid password: %s", &data[4]);
+      MESH_DEBUG_PRINTLN("Invalid password: %s", &data[0]);
     #endif
       return 0;
     }
@@ -491,6 +515,40 @@ uint8_t SensorMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* 
 }
 
 void SensorMesh::handleCommand(ClientInfo* from, uint32_t sender_timestamp, char* command, char* reply) {
+  if (region_load_active) {
+    if (StrHelper::isBlank(command)) {  // empty/blank line, signal to terminate 'load' operation
+      region_map = temp_map;  // copy over the temp instance as new current map
+      region_load_active = false;
+
+      sprintf(reply, "OK - loaded %d regions", region_map.getCount());
+    } else {
+      char *np = command;
+      while (*np == ' ') np++;   // skip indent
+      int indent = np - command;
+
+      char *ep = np;
+      while (RegionMap::is_name_char(*ep)) ep++;
+      if (*ep) { *ep++ = 0; }  // set null terminator for end of name
+
+      while (*ep && *ep != 'F') ep++;  // look for (optional) flags
+
+      if (indent > 0 && indent < 8 && strlen(np) > 0) {
+        auto parent = load_stack[indent - 1];
+        if (parent) {
+          auto old = region_map.findByName(np);
+          auto nw = temp_map.putRegion(np, parent->id, old ? old->id : 0);  // carry-over the current ID (if name already exists)
+          if (nw) {
+            nw->flags = old ? old->flags : (*ep == 'F' ? 0 : REGION_DENY_FLOOD);   // carry-over flags from curr
+
+            load_stack[indent] = nw;  // keep pointers to parent regions, to resolve parent_id's
+          }
+        }
+      }
+      reply[0] = 0;
+    }
+    return;
+  }
+
   while (*command == ' ') command++;   // skip leading spaces
 
   if (strlen(command) > 4 && command[2] == '|') {  // optional prefix (for companion radio CLI)
@@ -548,15 +606,25 @@ void SensorMesh::handleCommand(ClientInfo* from, uint32_t sender_timestamp, char
       } else {   // use default scope
         r = region_map.getDefaultRegion();
       }
-      if (command[3] == ' ') {
-        // compile params as LPP data, eg. "sub 1:0.2V"
-        from->extra.sensor.min_deltas_len = compileLPPSpec(&command[4], from->extra.sensor.min_deltas, sizeof(from->extra.sensor.min_deltas));
-      } else {
-        from->extra.sensor.min_deltas_len = 0;  // no minimums (telemetry just needs to CHANGE)
+      // defaults:
+      from->extra.sensor.min_deltas_len = 0;  // no minimums (telemetry just needs to CHANGE)
+      uint16_t timeout_secs = 30*60;  // expires after 30 mins
+      if (command[3] == ' ') {   // eg. "sub 300 1:0.2V"
+        char* cp = &command[4];
+        while (*cp >= '0' && *cp <= '9') cp++;
+        if (cp > &command[4]) {
+          timeout_secs = atoi(&command[4]);
+          if (*cp == ' ') {
+            cp++;  // skip the space
+            from->extra.sensor.min_deltas_len = compileLPPSpec(cp, from->extra.sensor.min_deltas, sizeof(from->extra.sensor.min_deltas));
+          }
+        }
       }
       from->extra.sensor.scope_region_id = r ? r->id : 0;
-      if (from->extra.sensor.scope_region_id) {
-        strcpy(reply, "OK - subscribed");
+      from->extra.sensor.expiry_timestamp = r ? getRTCClock()->getCurrentTime() + timeout_secs : 0;
+      if (from->extra.sensor.expiry_timestamp) {
+        DateTime dt = DateTime(from->extra.sensor.expiry_timestamp);
+        sprintf(reply, "OK - sub expires: %02d:%02d (UTC)", dt.hour(), dt.minute());
       } else {
         strcpy(reply, "Err - region scope needed");
       }
@@ -853,7 +921,7 @@ void SensorMesh::onAckRecv(mesh::Packet* packet, uint32_t ack_crc) {
 
 SensorMesh::SensorMesh(mesh::MainBoard& board, mesh::Radio& radio, mesh::MillisecondClock& ms, mesh::RNG& rng, mesh::RTCClock& rtc, mesh::MeshTables& tables)
      : mesh::Mesh(radio, ms, rng, rtc, *new StaticPoolPacketManager(32), tables),
-      region_map(key_store),
+      region_map(key_store), temp_map(key_store),
       _cli(board, rtc, sensors, region_map, acl, &_prefs, this),
       telemetry(MAX_PACKET_PAYLOAD - 4)
 {
@@ -864,6 +932,7 @@ SensorMesh::SensorMesh(mesh::MainBoard& board, mesh::Radio& radio, mesh::Millise
   set_radio_at = revert_radio_at = 0;
   recv_pkt_region = NULL;
   prev_telem_size = 0;
+  region_load_active = false;
 
   // defaults
   _prefs.airtime_factor = 1.0;
@@ -1110,6 +1179,7 @@ void SensorMesh::loop() {
       if (c->permissions == 0 || c->extra.sensor.scope_region_id == 0) continue;  // skip deleted entries, or Not subscribed to deltas
       RegionEntry* r = region_map.findById(c->extra.sensor.scope_region_id);
       if (r == NULL) continue;   // unknown region scope
+      if (curr > c->extra.sensor.expiry_timestamp) continue;  // subscription now expired
       if (telemHasChanged(c->extra.sensor.min_deltas, c->extra.sensor.min_deltas_len)) {
         TransportKey scope;
         if (region_map.getTransportKeysFor(*r, &scope, 1) > 0) {

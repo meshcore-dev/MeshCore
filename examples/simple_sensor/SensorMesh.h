@@ -78,6 +78,9 @@ public:
   void saveIdentity(const mesh::LocalIdentity& new_id) override;
   void clearStats() override { }
   void applyTempRadioParams(float freq, float bw, uint8_t sf, uint8_t cr, int timeout_mins) override;
+  void startRegionsLoad() override;
+  bool saveRegions() override;
+  void onDefaultRegionChanged(const RegionEntry* r) override;
 
   float getTelemValue(uint8_t channel, uint8_t type);
 
@@ -148,8 +151,9 @@ private:
   uint8_t prev_telem_size;
   uint8_t prev_telem[MAX_PACKET_PAYLOAD - 4];
   TransportKeyStore key_store;
-  RegionMap region_map;
+  RegionMap region_map, temp_map;
   RegionEntry* recv_pkt_region;
+  RegionEntry* load_stack[8];
   TransportKey default_scope;
   uint32_t last_read_time;
   int matching_peer_indexes[MAX_SEARCH_RESULTS];
@@ -160,6 +164,7 @@ private:
   float pending_bw;
   uint8_t pending_sf;
   uint8_t pending_cr;
+  bool region_load_active;
 
   bool telemHasChanged(const uint8_t* min_deltas, uint8_t min_deltas_len);
   uint8_t handleLoginReq(const mesh::Identity& sender, const uint8_t* secret, uint32_t sender_timestamp, const uint8_t* data, bool is_flood);
