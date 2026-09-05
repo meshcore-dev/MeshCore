@@ -5,7 +5,7 @@
 // Full receiver reset for all SX126x-family chips (SX1262, SX1268, LLCC68, STM32WLx).
 // Warm sleep powers down analog, Calibrate(0x7F) refreshes ADC/PLL/image calibration,
 // then re-applies RX settings that calibration may reset.
-inline void sx126xResetAGC(SX126x* radio) {
+inline void sx126xResetAGC(SX126x* radio, bool rx_boost_gain) {
   radio->sleep(true);
   radio->standby(RADIOLIB_SX126X_STANDBY_RC, true);
 
@@ -26,7 +26,7 @@ inline void sx126xResetAGC(SX126x* radio) {
   radio->setDio2AsRfSwitch(SX126X_DIO2_AS_RF_SWITCH);
 #endif
 #ifdef SX126X_RX_BOOSTED_GAIN
-  radio->setRxBoostedGainMode(SX126X_RX_BOOSTED_GAIN);
+  radio->setRxBoostedGainMode(rx_boost_gain);
 #endif
 #ifdef SX126X_REGISTER_PATCH
   uint8_t r_data = 0;

@@ -2,6 +2,7 @@
 
 #include <MeshCore.h>
 #include <Arduino.h>
+#include <helpers/KeyValueStore.h>
 
 class STM32Board : public mesh::MainBoard {
 protected:
@@ -11,6 +12,8 @@ public:
   virtual void begin() {
     startup_reason = BD_STARTUP_NORMAL;
   }
+
+  void attachDynamicPrefs(KeyValueStore* prefs) { }  // no-op
 
   uint8_t getStartupReason() const override { return startup_reason; }
 

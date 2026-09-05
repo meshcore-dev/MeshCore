@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include "helpers/ConfigSerializer.h"
+#include "helpers/DynamicConfigSerializer.h"
 
 #define TEST_INT_S  "56"
 #define TEST_INT     56
@@ -21,6 +22,19 @@ public:
 class MockPrintStream : public Stream {
     int len = 0;
     uint8_t _buf[1024];
+
+    size_t printSigned(long long value) {
+        char text[24];
+        snprintf(text, sizeof(text), "%lld", value);
+        return Print::print(text);
+    }
+
+    size_t printUnsigned(unsigned long long value) {
+        char text[24];
+        snprintf(text, sizeof(text), "%llu", value);
+        return Print::print(text);
+    }
+
 public:
     size_t write(uint8_t b) override {
         if (len < sizeof(_buf)) {
@@ -30,17 +44,17 @@ public:
         return 0;
     }
 
-    size_t print(unsigned char b, int r) override { if (b == TEST_INT) return Print::print(TEST_INT_S); return 0; }
-    size_t print(int v, int r) override { if (v == TEST_INT) return Print::print(TEST_INT_S); return 0; }
-    size_t print(unsigned int v, int r) override { if (v == TEST_INT) return Print::print(TEST_INT_S); return 0; }
-    size_t print(long v, int r) override { if (v == TEST_INT) return Print::print(TEST_INT_S); return 0; }
-    size_t print(unsigned long v, int r) override { if (v == TEST_INT) return Print::print(TEST_INT_S); return 0; }
-    size_t print(long long v, int r) override { if (v == TEST_INT) return Print::print(TEST_INT_S); return 0; }
-    size_t print(unsigned long long v, int r) override { if (v == TEST_INT) return Print::print(TEST_INT_S); return 0; }
-    size_t print(double v, int p = 2) override { 
-        if (p == 6) return Print::print(TEST_DOUBLE_S);
-        if (p == 4) return Print::print(TEST_FLOAT_S);
-        return 0;
+    size_t print(unsigned char v, int r) override { return printUnsigned(v); }
+    size_t print(int v, int r) override { return printSigned(v); }
+    size_t print(unsigned int v, int r) override { return printUnsigned(v); }
+    size_t print(long v, int r) override { return printSigned(v); }
+    size_t print(unsigned long v, int r) override { return printUnsigned(v); }
+    size_t print(long long v, int r) override { return printSigned(v); }
+    size_t print(unsigned long long v, int r) override { return printUnsigned(v); }
+    size_t print(double v, int p = 2) override {
+        char text[32];
+        snprintf(text, sizeof(text), "%.*f", p, v);
+        return Print::print(text);
     }
 
     int getLength() const { return len; }
@@ -171,6 +185,90 @@ TEST(ConfigSerializer, LoadSerial_IgnoreUnknowns) {
     EXPECT_TRUE(match);
 }
 
+TEST(DynamicConfigSerializer, GetSet_Basic) {
+    DynamicConfigSerializer data;
+
+    bool s1 = data.setByKey("age", "11");
+    bool s2 = data.setByKey("name", "Scott");
+    EXPECT_TRUE(s1 && s2);
+
+    char tmp[32];
+    bool g1 = data.getByKey("age", tmp, 31);
+    EXPECT_TRUE(g1);
+    EXPECT_STREQ("11", tmp);
+
+    bool g2 = data.getByKey("name", tmp, 31);
+    EXPECT_TRUE(g2);
+    EXPECT_STREQ("Scott", tmp);
+}
+
+TEST(DynamicConfigSerializer, Set_Replaces) {
+    DynamicConfigSerializer data;
+
+    bool s1 = data.setByKey("age", "11");
+    bool s2 = data.setByKey("name", "Scott");
+    EXPECT_TRUE(s1 && s2);
+
+    bool s3 = data.setByKey("age", "333");
+    EXPECT_TRUE(s3);
+
+    char tmp[32];
+    bool g1 = data.getByKey("age", tmp, 31);
+    EXPECT_TRUE(g1);
+    EXPECT_STREQ("333", tmp);
+
+    bool g2 = data.getByKey("name", tmp, 31);
+    EXPECT_TRUE(g2);
+    EXPECT_STREQ("Scott", tmp);
+}
+
+TEST(DynamicConfigSerializer, GetUnknown_Fail) {
+    DynamicConfigSerializer data;
+
+    bool s1 = data.setByKey("age", "11");
+    EXPECT_TRUE(s1);
+
+    char tmp[32];
+    bool g2 = data.getByKey("name", tmp, 31);
+    EXPECT_FALSE(g2);
+}
+
+TEST(DynamicConfigSerializer, SaveCustom_Basic) {
+    MockPrintStream s;
+    DynamicConfigSerializer data;
+
+    bool s1 = data.setByKey("age", "11");
+    bool s2 = data.setByKey("name", "Scott");
+    EXPECT_TRUE(s1 && s2);
+
+    bool success = data.saveSerial(s);
+    EXPECT_TRUE(success);
+
+    auto l = s.getLength();
+    char tmp[128];
+    memcpy(tmp, s.getBytes(), l);
+    tmp[l] = 0;
+
+    const char* expect = "{age:\"11\",name:\"Scott\"}";
+    EXPECT_STREQ(expect, tmp);
+}
+
+TEST(DynamicConfigSerializer, LoadCustom_Basic) {
+    MockInputStream s("{age:\"" TEST_INT_S "\",name:\"Scott\"}");
+    DynamicConfigSerializer data;
+
+    bool success = data.loadSerial(s);
+    EXPECT_TRUE(success);
+
+    char tmp[32];
+    bool g1 = data.getByKey("age", tmp, 31);
+    EXPECT_TRUE(g1);
+    EXPECT_STREQ(TEST_INT_S, tmp);
+
+    bool g2 = data.getByKey("name", tmp, 31);
+    EXPECT_TRUE(g2);
+    EXPECT_STREQ("Scott", tmp);
+}
 
 // ── main ───────────────────────────────────────────────────────
 

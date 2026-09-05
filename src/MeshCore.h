@@ -64,9 +64,6 @@ public:
   virtual uint8_t getStartupReason() const = 0;
   virtual bool getBootloaderVersion(char* version, size_t max_len) { return false; }
   virtual bool startOTAUpdate(const char* id, char reply[]) { return false; }   // not supported
-  virtual bool setLoRaFemLnaEnabled(bool enable) { return false; }
-  virtual bool canControlLoRaFemLna() const { return false; }
-  virtual bool isLoRaFemLnaEnabled() const { return false; }
 
   // Power management interface (boards with power management override these)
   virtual bool isExternalPowered() { return false; }
@@ -75,6 +72,8 @@ public:
   virtual const char* getResetReasonString(uint32_t reason) { return "Not available"; }
   virtual uint8_t getShutdownReason() const { return 0; }
   virtual const char* getShutdownReasonString(uint8_t reason) { return "Not available"; }
+
+  virtual bool handleCommand(const char* command, uint32_t sender_timestamp, char* reply) { return false; }
 };
 
 /**

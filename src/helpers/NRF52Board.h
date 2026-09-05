@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include <MeshCore.h>
+#include <helpers/KeyValueStore.h>
 
 #if defined(NRF52_PLATFORM)
 
@@ -56,6 +57,8 @@ public:
   virtual bool startOTAUpdate(const char *id, char reply[]) override;
   virtual void sleep(uint32_t secs) override;
   bool isExternalPowered() override;
+
+  void attachDynamicPrefs(KeyValueStore* prefs) { }  // no-op
 
 #ifdef NRF52_POWER_MANAGEMENT
   uint16_t getBootVoltage() override { return boot_voltage_mv; }

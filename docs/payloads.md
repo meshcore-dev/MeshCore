@@ -171,8 +171,9 @@ txt_type
 | Value  | Description               | Message content                                                          |
 |--------|---------------------------|--------------------------------------------------------------------------|
 | `0x00` | plain text message        | the plain text of the message                                            |
-| `0x01` | CLI command               | the command text of the message                                          |
+| `0x01` | CLI data                  | CLI command OR reply text                                                |
 | `0x02` | signed plain text message | first four bytes is sender pubkey prefix, followed by plain text message |
+| `0x03` | CLI command               | (since v1.18+) CLI command text (explicit)        |
 
 ## Anonymous request
 
@@ -235,6 +236,9 @@ txt_type
 | ciphertext   | rest of payload | encrypted message, see below for details     |
 
 The plaintext contained in the ciphertext matches the format described in [plain text message](#plain-text-message). Specifically, it consists of a four byte timestamp, a flags byte, and the message. The flags byte will generally be `0x00` because it is a "plain text message". The message will be of the form `<sender name>: <message body>` (eg., `user123: I'm on my way`).
+
+The sender name is unverified message text. Group messages contain no sender
+signature, so any channel-key holder can choose any sender name.
 
 ## Group datagram
 
