@@ -561,19 +561,42 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 **Usage:**
 - `get dutycycle`
 - `set dutycycle <value>`
+- `set dutycycle auto`
 
 **Parameters:**
-- `value`: Duty cycle percentage (1-100)
+- `value`: Duty cycle percentage (1-100), or `auto` to follow the regulatory limit of the configured frequency
 
-**Default:** `50%` (equivalent to airtime factor 1.0)
+**Default:** `auto`
+
+In `auto` the limit comes from the sub-band the node is tuned to, and it is
+re-derived as soon as `set freq` or `set radio` changes that frequency. The
+table only covers the 863-870 MHz SRD band of ETSI EN 300 220-2; on any other
+frequency, including the US and ANZ channel plans, `auto` means no limit.
+
+| Sub-band (MHz) | Limit |
+| --- | --- |
+| 863.0 - 865.0 | 0.1% |
+| 865.0 - 868.0 | 1% |
+| 868.0 - 868.6 | 1% |
+| 868.7 - 869.2 | 0.1% |
+| 869.4 - 869.65 | 10% |
+| 869.7 - 870.0 | 1% |
+| gaps between the rows above | 0.1% |
+
+A frequency exactly on a boundary takes the lower of the two sub-bands.
+
+Setting an explicit percentage, or setting `af`, turns `auto` off and that
+value stays in force until `set dutycycle auto` restores it. `get dutycycle`
+reports which of the two is active.
 
 **Examples:**
+- `set dutycycle auto` — follow the sub-band of the configured frequency (default)
 - `set dutycycle 100` — no duty cycle limit
-- `set dutycycle 50` — 50% duty cycle (default)
+- `set dutycycle 50` — 50% duty cycle
 - `set dutycycle 10` — 10% duty cycle
-- `set dutycycle 1` — 1% duty cycle (strictest EU requirement)
+- `set dutycycle 1` — 1% duty cycle
 
-> **Note:** Added in firmware v1.15.0
+> **Note:** Added in firmware v1.15.0. `auto`, and the default changing from 50% to `auto`, are newer than v1.17.1.
 
 ---
 
@@ -592,7 +615,11 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
   - `af = 9` → ~10% duty
   You are responsible for choosing a value that is appropriate for your jurisdiction and channel plan (for example EU 868 Mhz 10% duty cycle regulation).
 
-**Default:** `1.0`
+  Setting `af` turns off `set dutycycle auto`. `get af` reports the factor that
+  is actually in force, so while `dutycycle` is on `auto` it reports the one
+  derived from the frequency rather than the stored value.
+
+**Default:** `1.0`, used only while `dutycycle` is not on `auto`
 
 ---
 
