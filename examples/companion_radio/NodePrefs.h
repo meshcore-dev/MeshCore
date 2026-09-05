@@ -44,6 +44,10 @@ public:
   char default_scope_name[31];
   uint8_t default_scope_key[16];
   int8_t tz_offset = 0;
+#ifdef WIFI_SSID
+  char wifi_ssid[33] = {0};   // if empty, the compile-time WIFI_SSID is used
+  char wifi_pwd[64] = {0};
+#endif
 
 private:
   class RadioPrefs : public CommonRadioPrefs {
@@ -160,6 +164,20 @@ private:
 
   DynamicConfigSerializer custom;
 
+#ifdef WIFI_SSID
+  class WiFiPrefs : public ConfigSerializer {
+    NodePrefs* _parent;
+  protected:
+    void structure() override {
+      def("ssid", _parent->wifi_ssid, sizeof(_parent->wifi_ssid));
+      def("pwd", _parent->wifi_pwd, sizeof(_parent->wifi_pwd));
+    }
+  public:
+    WiFiPrefs(NodePrefs* parent) : _parent(parent) { }
+  };
+  WiFiPrefs wifi;
+#endif
+
 protected:
   void structure() override {
     def("name", node_name, sizeof(node_name));
@@ -172,9 +190,16 @@ protected:
     def("repeat", repeat);
     def("comp", companion);
     def("custom", custom);
+#ifdef WIFI_SSID
+    def("wifi", wifi);
+#endif
   }
 public:
-  NodePrefs() : radio(this), gps(this), companion(this), custom(&radio) {
+  NodePrefs() : radio(this), gps(this), companion(this), custom(&radio)
+#ifdef WIFI_SSID
+    , wifi(this)
+#endif
+  {
     node_name[0] = 0;
     default_scope_name[0] = 0;
     memset(default_scope_key, 0, sizeof(default_scope_key));

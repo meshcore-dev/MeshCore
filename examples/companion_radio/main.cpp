@@ -110,6 +110,8 @@ void halt() {
 #ifdef WIFI_SSID
   bool wifi_needs_reconnect = false;
   unsigned long last_wifi_reconnect_attempt = 0;
+  const char* wifi_ssid = WIFI_SSID;   // replaced by stored prefs, if set
+  const char* wifi_pwd = WIFI_PWD;
 #endif
 
 void setup() {
@@ -206,7 +208,14 @@ void setup() {
   });
 #endif
 
-  WiFi.begin(WIFI_SSID, WIFI_PWD);
+  // stored credentials win over the build-time ones ('set wifi.ssid <x>' over USB serial)
+  if (the_mesh.getNodePrefs()->wifi_ssid[0]) {
+    wifi_ssid = the_mesh.getNodePrefs()->wifi_ssid;
+    wifi_pwd = the_mesh.getNodePrefs()->wifi_pwd;
+  }
+  WIFI_DEBUG_PRINTLN("connecting to %s", wifi_ssid);
+
+  WiFi.begin(wifi_ssid, wifi_pwd);
   wifi_interface.begin(TCP_PORT);
   interface_manager.addInterface(InterfaceType::WiFi, &wifi_interface);
 #endif
@@ -273,7 +282,7 @@ void loop() {
   if (wifi_needs_reconnect && (millis() - last_wifi_reconnect_attempt > 10000)) {
     WIFI_DEBUG_PRINTLN("Attempting manual WiFi reconnect...");
     #if defined(RP2040_PLATFORM)
-      WiFi.begin(WIFI_SSID, WIFI_PWD);   // no reconnect() on this platform
+      WiFi.begin(wifi_ssid, wifi_pwd);   // no reconnect() on this platform
     #else
       WiFi.disconnect();
       WiFi.reconnect();

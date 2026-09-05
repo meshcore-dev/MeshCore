@@ -932,6 +932,7 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
       _serial(NULL), telemetry(MAX_PACKET_PAYLOAD - 4), _store(&store), _ui(ui), _iter(0) {
   _iter_started = false;
   _cli_rescue = false;
+  cli_command[0] = 0;
   offline_queue_len = 0;
   app_target_ver = 0;
   clearPendingReqs();
@@ -2156,6 +2157,35 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
     return true;
   }
 
+#ifdef WIFI_SSID
+  // local console only: these are credentials, and remote admin has no business with them
+  if (sender_timestamp == 0) {
+    if (memcmp(command, "set wifi.ssid ", 14) == 0) {
+      StrHelper::strncpy(_prefs.wifi_ssid, &command[14], sizeof(_prefs.wifi_ssid));
+      savePrefs();
+      sprintf(reply, "> wifi.ssid is now %s (set wifi.pwd too, then reboot)", _prefs.wifi_ssid);
+      return true;
+    }
+    if (memcmp(command, "set wifi.pwd ", 13) == 0) {
+      StrHelper::strncpy(_prefs.wifi_pwd, &command[13], sizeof(_prefs.wifi_pwd));
+      savePrefs();
+      strcpy(reply, "> wifi.pwd updated (reboot to apply)");
+      return true;
+    }
+    if (strcmp(command, "set wifi.clear") == 0) {
+      _prefs.wifi_ssid[0] = 0;
+      _prefs.wifi_pwd[0] = 0;
+      savePrefs();
+      strcpy(reply, "> wifi config cleared, using build-time credentials (reboot to apply)");
+      return true;
+    }
+    if (strcmp(command, "get wifi.ssid") == 0) {   // no 'get wifi.pwd', by design
+      sprintf(reply, "> %s", _prefs.wifi_ssid[0] ? _prefs.wifi_ssid : "(build-time)");
+      return true;
+    }
+  }
+#endif
+
   if (strcmp(command, "board") == 0) {
     strcpy(reply, board.getManufacturerName());
     return true;
@@ -2386,6 +2416,10 @@ void MyMesh::loop() {
     checkCLIRescueCmd();
   } else {
     checkSerialInterface();
+#if defined(WIFI_SSID) && !defined(ENABLE_USB_INTERFACE)
+    // headless WiFi build: USB serial isn't a companion transport, so use it for config
+    checkCLIRescueCmd();
+#endif
   }
 
   // is there are pending dirty contacts write needed?
