@@ -865,6 +865,7 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
       _serial(NULL), telemetry(MAX_PACKET_PAYLOAD - 4), _store(&store), _ui(ui), _iter(0) {
   _iter_started = false;
   _cli_rescue = false;
+  cli_command[0] = 0;
   offline_queue_len = 0;
   app_target_ver = 0;
   clearPendingReqs();
@@ -2050,6 +2051,21 @@ void MyMesh::checkCLIRescueCmd() {
         _prefs.ble_pin = atoi(&config[4]);
         savePrefs();
         Serial.printf("  > pin is now %06d\n", _prefs.ble_pin);
+#ifdef WIFI_SSID
+      } else if (memcmp(config, "wifi.ssid ", 10) == 0) {
+        StrHelper::strncpy(_prefs.wifi_ssid, &config[10], sizeof(_prefs.wifi_ssid));
+        savePrefs();
+        Serial.printf("  > wifi.ssid is now %s (reboot to apply)\n", _prefs.wifi_ssid);
+      } else if (memcmp(config, "wifi.pwd ", 9) == 0) {
+        StrHelper::strncpy(_prefs.wifi_pwd, &config[9], sizeof(_prefs.wifi_pwd));
+        savePrefs();
+        Serial.println("  > wifi.pwd updated (reboot to apply)");
+      } else if (strcmp(config, "wifi.clear") == 0) {
+        _prefs.wifi_ssid[0] = 0;
+        _prefs.wifi_pwd[0] = 0;
+        savePrefs();
+        Serial.println("  > wifi config cleared, using build-time credentials (reboot to apply)");
+#endif
       } else {
         Serial.printf("  Error: unknown config: %s\n", config);
       }
@@ -2233,6 +2249,10 @@ void MyMesh::loop() {
     checkCLIRescueCmd();
   } else {
     checkSerialInterface();
+#if defined(WIFI_SSID) && !defined(ENABLE_USB_INTERFACE)
+    // headless WiFi build: USB serial isn't a companion transport, so use it for config
+    checkCLIRescueCmd();
+#endif
   }
 
   // is there are pending dirty contacts write needed?
