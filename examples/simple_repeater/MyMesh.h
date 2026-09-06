@@ -77,7 +77,7 @@ struct RepeaterStats {
   #define NEAR_NEIGHBOUR_COVERAGE_CAP  5    // max near neighbours M guarantees coverage for
 #endif
 #define TRACE_MEAS_HASH_SIZE           2    // bytes/hash in a coverage TRACE visit-list (2 avoids prefix collisions)
-#define TRACE_MEAS_TIMEOUT_MS          3000 // retry once, then give up, if a coverage TRACE does not return in time
+#define TRACE_MEAS_TIMEOUT_MS          8000 // retry once, then give up, if a coverage TRACE does not return in time (3 hops + relay delays + queueing behind floods at pri 5 -- 3s declared busy-net failures premature)
 #define TRACE_TX_POWER_RESTORE_MS      2000 // restore normal TX power this long after a measurement burst
 #define TRACE_PENDING_MAX              8    // in-flight coverage traces (<=4 pairs x 2 directions)
 // Part 3 -- unidirectional-link handling. M->N is never measured directly; it is inferred
@@ -167,6 +167,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
     uint8_t  b[TRACE_MEAS_HASH_SIZE];   // reached  hash prefix
     uint32_t sent_ms;
     uint8_t  retries;                    // 0 or 1 (single retry on timeout)
+    bool     hop1_seen;                  // we overheard a relaying this trace -> M->a works (hop attribution)
     bool     active;
   };
   PendingTrace _trace_pending[TRACE_PENDING_MAX] = {};
@@ -176,6 +177,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   unsigned long _trace_tx_revert_at = 0;   // restore TX power after a burst
   uint8_t       _meas_rr_offset = 0;       // round-robin start index into the flat directed-pair list (advanced per probe)
   uint32_t      _meas_sent = 0, _meas_returned = 0, _meas_edge = 0, _meas_timeout = 0, _meas_neg = 0;  // coverage-TRACE observability (surfaced in `near`)
+  uint32_t      _meas_reach_tmo = 0;   // 2nd-miss timeouts attributed to hop-1 (M->a) -- (a,b) left unknown (surfaced in `near` as rtmo)
   uint32_t      _meas_harvested = 0, _meas_harvest_neg = 0;  // Part 2: edges/negatives adopted from overheard neighbours' TRACES (surfaced in `near` as harv)
   uint32_t pending_discover_tag;
   unsigned long pending_discover_until;

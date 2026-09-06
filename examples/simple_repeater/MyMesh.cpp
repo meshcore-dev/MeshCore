@@ -391,15 +391,25 @@ void MyMesh::stepCoverageMeasurement() {
       if (tag) { _trace_pending[i].tag = tag; _trace_pending[i].sent_ms = now; _meas_sent++; }
       else _trace_pending[i].active = false;            // pair no longer resolvable -> drop
     } else {
-      _trace_pending[i].active = false;                 // second miss -> link does not exist (no edge)
-      _meas_timeout++;
-      _nbr_links.addNegative(_trace_pending[i].a, _trace_pending[i].b, TRACE_MEAS_HASH_SIZE, now);
-      _meas_neg++;                                      // cache no-edge so we don't re-probe every tick
+      _trace_pending[i].active = false;                 // second miss -> no edge recordable from THIS attempt
       // Part 3: the FIRST HOP a may be M-unreachable (M->a broken -> the trace never left M, so it
-      // timed out regardless of b). Bump a's consecutive-failure count; once it reaches the
-      // threshold without ever being confirmed, isExcludedFromProtection drops it from protection.
+      // timed out regardless of b). Hop attribution: if we overheard a's relay (hop1_seen), M->a
+      // works and the failure genuinely sits at a->b (or the return leg) -> record no-edge. If we
+      // never overheard it, the failure is probably M->a -> count a's reach failure but keep (a,b)
+      // UNKNOWN (poisoning it as no-edge would hide a possibly-good inter-neighbour link for the
+      // whole backoff window).
       int8_t ia = findNearNeighbour(_trace_pending[i].a, TRACE_MEAS_HASH_SIZE, getRTCClock()->getCurrentTime());
-      if (ia >= 0 && neighbours[ia].m_reach_timeouts < 255) neighbours[ia].m_reach_timeouts++;
+      _nbr_links.addNegative(_trace_pending[i].a, _trace_pending[i].b, TRACE_MEAS_HASH_SIZE, now);
+      _meas_neg++;                                      // cache no-edge so we don't re-probe every tick (the
+                                                        // negative gates RE-PROBING only -- never coverage
+                                                        // inference -- so caching an unattributable failure
+                                                        // is conservative and bounds re-probe traffic)
+      if (_trace_pending[i].hop1_seen) {
+        _meas_timeout++;                                // hop-1 worked -> genuine a->b / return-leg failure
+      } else {
+        _meas_reach_tmo++;                              // hop-1 unobserved -> also count M->a reach failure
+        if (ia >= 0 && neighbours[ia].m_reach_timeouts < 255) neighbours[ia].m_reach_timeouts++;
+      }
     }
   }
 
@@ -460,6 +470,7 @@ void MyMesh::stepCoverageMeasurement() {
     _meas_sent++;
     _trace_pending[slot].active = true;
     _trace_pending[slot].retries = 0;
+    _trace_pending[slot].hop1_seen = false;
     _trace_pending[slot].tag = tag;
     _trace_pending[slot].sent_ms = now;
     memcpy(_trace_pending[slot].a, ha, TRACE_MEAS_HASH_SIZE);
@@ -1049,6 +1060,41 @@ void MyMesh::logRx(mesh::Packet *pkt, int len, float score) {
   if (pkt->isRouteFlood()) {
     touchNeighbourByHash(pkt);
   }
+
+#if MAX_NEIGHBOURS
+  // --- Own-TRACE hop-1 observation (confirm-on-overhear) ---------------------
+  // When a relays OUR coverage trace toward b we usually decode that relay (a is near). That
+  // overhearing is DEFINITIVE evidence that M->a works (a decoded M's probe TX), so confirm a's
+  // reach immediately -- finer-grained than waiting for a full round trip -- and remember
+  // hop1_seen so a later 2nd-miss timeout is attributed to the a->b / return legs, not to M->a.
+  // Gates mirror the passive-harvest block below (TERMINATE flag, [a,b,initiator] visit list,
+  // >=1 appended SNR = a RELAYED leg, not our own TX); the terminator-is-self check makes a
+  // foreign trace's tag never match one of ours.
+  if (effectiveFloodSuppressC() > 0 && pkt->isRouteDirect()
+      && pkt->getPayloadType() == PAYLOAD_TYPE_TRACE
+      && pkt->payload_len >= 9 + 3 * TRACE_MEAS_HASH_SIZE) {
+    uint8_t tflags = pkt->payload[8];
+    uint8_t entry_sz = 1 << (tflags & 0x03);
+    if ((tflags & TRACE_FLAG_TERMINATE_AT_LAST) && entry_sz == TRACE_MEAS_HASH_SIZE
+        && (pkt->payload_len - 9) / entry_sz == 3
+        && pkt->getPathHashCount() >= 1
+        && self_id.isHashMatch(pkt->payload + 9 + 2 * entry_sz, entry_sz)) {   // our own trace
+      uint32_t tag;
+      memcpy(&tag, pkt->payload, 4);
+      for (uint8_t i = 0; i < TRACE_PENDING_MAX; i++) {
+        if (!_trace_pending[i].active || _trace_pending[i].tag != tag) continue;
+        _trace_pending[i].hop1_seen = true;
+        int8_t ia = findNearNeighbour(pkt->payload + 9, entry_sz, getRTCClock()->getCurrentTime());
+        if (ia >= 0) {
+          neighbours[ia].m_reach_confirmed = true;
+          neighbours[ia].m_reach_timeouts = 0;
+          neighbours[ia].m_reach_last_ok_ms = millis();
+        }
+        break;
+      }
+    }
+  }
+#endif
 
   // --- Attached-client learning -------------------------------------------
   // A count==0 packet (empty path) means M is the originator's FIRST hop, i.e. the
@@ -2118,9 +2164,11 @@ void MyMesh::formatNearReply(char *reply) {
   while (*dp) dp++;
 
   // coverage-TRACE health: sent=attempts, ret=round-trips that came back, edge=links
-  // recorded (ret with SNR>=snr_lo), tmo=pairs that timed out twice (no link), neg=pairs cached
-  // as no-edge (timeout or weak return) and skipped on a per-pair exponential backoff (capped
-  // ~10h; a transient failure retries within ~2 min, a permanent one ramps to ~10h). If sent>0
+  // recorded (ret with SNR>=snr_lo), tmo=pairs that timed out twice with hop-1 (M->a) overheard
+  // working (failure at a->b / return leg), rtmo=2nd-miss timeouts whose hop-1 was NEVER overheard
+  // (M->a suspect; a's reach count is bumped), neg=pairs cached as no-edge (any 2nd-miss timeout
+  // or weak return) and skipped on a per-pair exponential backoff (capped ~10h; a transient
+  // failure retries within ~2 min, a permanent one ramps to ~10h). If sent>0
   // but ret==0 the round trips never complete (loss/collisions); if ret>0 but edge==0 the
   // measured inter-neighbour links are below snr_lo; if sent==0 no top-N>=2 window yet.
   // harv=edges/negatives adopted from overheard neighbours' TRACES (Part 2); unr=near neighbours
@@ -2128,10 +2176,10 @@ void MyMesh::formatNearReply(char *reply) {
   uint8_t unr = 0;
   for (int i = 0; i < MAX_NEIGHBOURS; i++)
     if (isNearNeighbour(i, now) && isExcludedFromProtection(i, millis())) unr++;
-  sprintf(dp, "\nmeas sent=%lu ret=%lu edge=%lu tmo=%lu neg=%lu harv=%lu unr=%u",
+  sprintf(dp, "\nmeas sent=%lu ret=%lu edge=%lu tmo=%lu rtmo=%lu neg=%lu harv=%lu unr=%u",
           (unsigned long)_meas_sent, (unsigned long)_meas_returned,
-          (unsigned long)_meas_edge, (unsigned long)_meas_timeout, (unsigned long)_meas_neg,
-          (unsigned long)_meas_harvested, (unsigned)unr);
+          (unsigned long)_meas_edge, (unsigned long)_meas_timeout, (unsigned long)_meas_reach_tmo,
+          (unsigned long)_meas_neg, (unsigned long)_meas_harvested, (unsigned)unr);
   while (*dp) dp++;
 
   // 150-byte ceiling minus a worst-case entry (~26B: \n + ~ + 8hex + :secs:snr)
@@ -2172,6 +2220,7 @@ void MyMesh::clearStats() {
   _fs_suppressed = 0;
   _fs_supp_graph = _fs_supp_snr_fallback = 0;
   _meas_sent = _meas_returned = _meas_edge = _meas_timeout = _meas_neg = 0;
+  _meas_reach_tmo = 0;
   _meas_harvested = _meas_harvest_neg = 0;
 }
 
