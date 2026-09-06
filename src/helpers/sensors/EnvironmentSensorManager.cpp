@@ -160,7 +160,7 @@ static Adafruit_VL53L0X VL53L0X;
 static RAK12035_SoilMoisture RAK12035;
 #endif
 
-#if ENV_INCLUDE_GPS && defined(RAK_BOARD) && !defined(RAK_WISMESH_TAG)
+#if ENV_INCLUDE_GPS && defined(RAK_BOARD) && !defined(RAK_WISMESH_TAG) && !defined(RAK12501_L76K_GPS)
 #define RAK_WISBLOCK_GPS
 #endif
 
@@ -209,6 +209,95 @@ public:
 
 static RAK12500LocationProvider RAK12500_provider;
 #endif
+
+// RAK12501/L76K GPS helpers
+#if ENV_INCLUDE_GPS && defined(RAK12501_L76K_GPS)
+#ifndef RAK12501_L76K_NAV_MODE
+#define RAK12501_L76K_NAV_MODE 3
+#endif
+
+#ifndef RAK12501_GPS_DEFAULT_ENABLE
+#define RAK12501_GPS_DEFAULT_ENABLE 0
+#endif
+
+#ifndef RAK12501_L76K_BOOT_DELAY_MS
+#define RAK12501_L76K_BOOT_DELAY_MS 1000
+#endif
+
+static uint8_t rak12501_l76k_nav_mode =
+  (RAK12501_L76K_NAV_MODE <= 7) ? RAK12501_L76K_NAV_MODE : 3;
+
+static void rak12501SendNMEA(Stream& serial, const char* body) {
+  uint8_t checksum = 0;
+  for (const char* p = body; *p; ++p) {
+    checksum ^= (uint8_t)*p;
+  }
+
+  serial.print('$');
+  serial.print(body);
+  serial.print('*');
+  if (checksum < 0x10) {
+    serial.print('0');
+  }
+  serial.print(checksum, HEX);
+  serial.print("\r\n");
+}
+
+static void rak12501ApplyL76KNavMode() {
+  if (rak12501_l76k_nav_mode > 7) {
+    rak12501_l76k_nav_mode = 3;
+  }
+
+  char body[16];
+  snprintf(body, sizeof(body), "PCAS11,%u", rak12501_l76k_nav_mode);
+  rak12501SendNMEA(Serial1, body);
+}
+
+static int rak12501ParseL76KNavMode(const char* value) {
+  if (value == nullptr || *value == '\0') {
+    return -1;
+  }
+
+  // Verified Meshtastic behavior uses PCAS11,3 for vehicle mode.
+  if (strcmp(value, "vehicle") == 0 || strcmp(value, "Vehicle") == 0) {
+    return 3;
+  }
+
+  if (value[0] >= '0' && value[0] <= '7' && value[1] == '\0') {
+    return value[0] - '0';
+  }
+
+  return -1;
+}
+
+static bool rak12501SetL76KNavMode(uint8_t mode, bool send_now) {
+  if (mode > 7) {
+    return false;
+  }
+
+  rak12501_l76k_nav_mode = mode;
+  if (send_now) {
+    rak12501ApplyL76KNavMode();
+  }
+  return true;
+}
+
+static void rak12501ConfigureL76K() {
+  MESH_DEBUG_PRINTLN("Configuring RAK12501/L76K GPS with Meshtastic-style init");
+
+  // Meshtastic RAK3401/L76K style init:
+  //   GPS + GLONASS + BeiDou
+  //   RMC + GGA only
+  //   Vehicle mode by default
+  rak12501SendNMEA(Serial1, "PCAS04,7");
+  delay(250);
+  rak12501SendNMEA(Serial1, "PCAS03,1,0,0,0,1,0,0,0,0,0,,,0,0");
+  delay(250);
+  rak12501ApplyL76KNavMode();
+  delay(250);
+}
+#endif
+
 
 // ============================================================
 // I2C bus scanner
@@ -702,7 +791,13 @@ bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, Cayen
 int EnvironmentSensorManager::getNumSettings() const {
   int settings = 0;
   #if ENV_INCLUDE_GPS
-    if (gps_detected) settings++;  // only show GPS setting if GPS is detected
+    if (gps_detected) {
+      settings++;  // gps enable/disable in the app
+      settings++;  // gps_interval in seconds
+      #ifdef RAK12501_L76K_GPS
+      settings++;  // gps_vehicle_mode / L76K PCAS11 mode
+      #endif
+    }
   #endif
   return settings;
 }
@@ -713,16 +808,35 @@ const char* EnvironmentSensorManager::getSettingName(int i) const {
     if (gps_detected && i == settings++) {
       return "gps";
     }
+    if (gps_detected && i == settings++) {
+      return "gps_interval";
+    }
+    #ifdef RAK12501_L76K_GPS
+    if (gps_detected && i == settings++) {
+      return "gps_vehicle_mode";
+    }
+    #endif
   #endif
   return NULL;
 }
 
 const char* EnvironmentSensorManager::getSettingValue(int i) const {
+  static char value[16];
   int settings = 0;
   #if ENV_INCLUDE_GPS
     if (gps_detected && i == settings++) {
       return gps_active ? "1" : "0";
     }
+    if (gps_detected && i == settings++) {
+      snprintf(value, sizeof(value), "%lu", (unsigned long)gps_update_interval_sec);
+      return value;
+    }
+    #ifdef RAK12501_L76K_GPS
+    if (gps_detected && i == settings++) {
+      snprintf(value, sizeof(value), "%u", rak12501_l76k_nav_mode);
+      return value;
+    }
+    #endif
   #endif
   return NULL;
 }
@@ -737,11 +851,24 @@ bool EnvironmentSensorManager::setSettingValue(const char* name, const char* val
     }
     return true;
   }
-  if (strcmp(name, "gps_interval") == 0) {
+
+  if (gps_detected && strcmp(name, "gps_interval") == 0) {
     uint32_t interval_seconds = atoi(value);
     gps_update_interval_sec = interval_seconds > 0 ? interval_seconds : 1;
     return true;
   }
+
+  #ifdef RAK12501_L76K_GPS
+  if (gps_detected &&
+      (strcmp(name, "gps_vehicle_mode") == 0 || strcmp(name, "gps_nav_mode") == 0)) {
+    int mode = rak12501ParseL76KNavMode(value);
+    if (mode < 0) {
+      return false;
+    }
+
+    return rak12501SetL76KNavMode((uint8_t)mode, gps_active);
+  }
+  #endif
   #endif
   return false;  // not supported
 }
@@ -755,6 +882,26 @@ void EnvironmentSensorManager::initBasicGPS() {
   Serial1.begin(GPS_BAUD_RATE);
   #else
   Serial1.begin(9600);
+  #endif
+
+  #ifdef RAK12501_L76K_GPS
+  _location->begin();
+  _location->reset();
+
+  // RAK12501/L76K can take a moment before it will accept commands.
+  delay(RAK12501_L76K_BOOT_DELAY_MS);
+  rak12501ConfigureL76K();
+
+  gps_detected = true;
+
+  #if RAK12501_GPS_DEFAULT_ENABLE
+    gps_active = true;
+    return;
+  #else
+    _location->stop();
+    gps_active = false;  // app can enable later with custom setting gps=1
+    return;
+  #endif
   #endif
 
   // Try to detect if GPS is physically connected to determine if we should expose the setting
@@ -885,6 +1032,13 @@ bool EnvironmentSensorManager::gpsIsAwake(uint8_t ioPin){
 
 void EnvironmentSensorManager::start_gps() {
   gps_active = true;
+  #ifdef RAK12501_L76K_GPS
+    _location->begin();
+    _location->reset();
+    delay(RAK12501_L76K_BOOT_DELAY_MS);
+    rak12501ConfigureL76K();
+    return;
+  #endif
   #ifdef RAK_WISBLOCK_GPS
     #ifndef RAK_3401
     pinMode(gpsResetPin, OUTPUT);

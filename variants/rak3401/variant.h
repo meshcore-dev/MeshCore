@@ -180,20 +180,27 @@ static const uint8_t AREF = PIN_AREF;
 #define PIN_3V3_EN (34)
 #define WB_IO2 PIN_3V3_EN
 
-// RAK1910 GPS module
-// If using the wisblock GPS module and pluged into Port A on WisBlock base
-// IO1 is hooked to PPS (pin 12 on header) = gpio 17
-// IO2 is hooked to GPS RESET = gpio 34, but it can not be used to this because IO2 is ALSO used to control 3V3_S power (1 is on).
-// Therefore must be 1 to keep peripherals powered
-// Power is on the controllable 3V3_S rail
+// RAK12501 UART GNSS module
+// RAK12501 uses the Quectel L76K and speaks NMEA over UART.
+// Slot A/D UART mapping matches Meshtastic's RAK3401 1W variant:
+//   MCU RX = P0.15, MCU TX = P0.16
+//
+// MeshCore's current GPS helper calls Serial1.setPins(PIN_GPS_TX, PIN_GPS_RX).
+// Keep these definitions aligned with the existing MeshCore RAK4631 convention so
+// that call expands to setPins(MCU_RX, MCU_TX).
+//
+// IMPORTANT for RAK3401 + RAK13302 1W Booster:
+// WB_IO2 / PIN_3V3_EN also controls the RAK13302 5V boost rail for the SKY66122 PA.
+// Keep that rail HIGH during operation; do not use it as a GPS sleep/reset pin.
 #define PIN_GPS_PPS (17) // Pulse per second input from the GPS
 
 #define PIN_GPS_TX PIN_SERIAL1_RX
 #define PIN_GPS_RX PIN_SERIAL1_TX
 
 #define PIN_GPS_1PPS PIN_GPS_PPS
+#define PIN_GPS_EN -1
 #define GPS_BAUD_RATE 9600
-#define GPS_ADDRESS 0x42  //i2c address for GPS
+#define GPS_ADDRESS 0x42  // kept for compatibility; RAK12501/L76K uses UART NMEA here
 
 // Battery
 // The battery sense is hooked to pin A0 (5)
