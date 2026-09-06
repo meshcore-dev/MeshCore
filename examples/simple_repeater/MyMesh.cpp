@@ -369,7 +369,11 @@ void MyMesh::stepCoverageMeasurement() {
 #if MAX_NEIGHBOURS
   uint32_t now = millis();
 
-  // restore normal TX power once the burst window has elapsed
+  // restore normal TX power once the burst window has elapsed. NOTE: setTxPower is RADIO-GLOBAL --
+  // any flood queued behind a random TX delay that fires inside the burst window also goes out at
+  // the lowered power (skewing downstream SNR samples); with the default (trace power == node
+  // power) this whole window is dormant. Also: a >=3s retry fires after the 2s restore, so it
+  // would TX at a DIFFERENT power than its initial attempt -- another reason to keep the default.
   if (_trace_tx_revert_at && millisHasNowPassed(_trace_tx_revert_at)) {
     radio_driver.setTxPower(_prefs.tx_power_dbm);
     _trace_tx_revert_at = 0;
@@ -444,6 +448,8 @@ void MyMesh::stepCoverageMeasurement() {
     if (slot < 0) { stop = true; break; }
     if (!burst_started) {
       burst_started = true;
+      // Optional lower probe power (set trace.tx.power): applies to the WHOLE radio for the burst
+      // window, so floods TX'd in that window are weakened too. Default is node power (dormant).
       if (_prefs.trace_tx_power_dbm != _prefs.tx_power_dbm) {
         radio_driver.setTxPower(_prefs.trace_tx_power_dbm);
         _trace_tx_revert_at = futureMillis(TRACE_TX_POWER_RESTORE_MS);
@@ -1701,7 +1707,9 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.flood_suppress_snr_hi = 9;  // dB: strong overheard forward => counts double
   _prefs.flood_suppress_snr_lo = 0;  // dB: weak overheard forward => ignored (preserve edge)
   _prefs.flood_suppress_delay_x = 3; // extra TX-delay multiplier for central flood relays (wider cancel window)
-  _prefs.trace_tx_power_dbm = 10;    // TX power for coverage TRACE probes only (near links are strong; less disturbance)
+  _prefs.trace_tx_power_dbm = _prefs.tx_power_dbm;  // probe at node power by default: hop-1 M->a must measure the SAME link
+                                                     // the graph represents (floods/adverts go out at tx_power_dbm; probing
+                                                     // 12 dB weaker systematically fails hop-1 -> false no-edge + over-exclusion)
   // SNR-repeat fallback is fixed ON (not configurable).
 
   // bridge defaults

@@ -80,7 +80,7 @@ neighbour table (adaptive) with static fallbacks (see *Adaptive mode*).
 | `flood_suppress_snr_hi` | `int8_t` (dB) | `9` | Overheard forward with SNR `>=` this counts **double** (adaptive p75; configured value is the fallback). |
 | `flood_suppress_snr_lo` | `int8_t` (dB) | `0` | Near-membership threshold; overheard forward with SNR `<` this counts **0** (adaptive p25; configured value is the fallback). |
 | `flood_suppress_delay_x` | `uint8_t` | `3` | Extra TX-delay multiplier for central flood relays. |
-| `trace_tx_power_dbm` | `int8_t` (dBm) | `10` | TX power for coverage TRACE probes only (lower = less disturbance). |
+| `trace_tx_power_dbm` | `int8_t` (dBm) | node `tx_power_dbm` | TX power for coverage TRACE probes only. Defaults to node power: hop-1 M→a must measure the same link the graph represents (probing weaker systematically fails hop-1 → false no-edge records and over-exclusion). Lower it only to trade fidelity for less disturbance. **Units that ever ran a `set` command keep their persisted value** (pre-change default: 10). |
 
 The feature is **on by default**; `set flood.suppress off` (or YAML
 `flood_suppress: 0`) disables it completely.
