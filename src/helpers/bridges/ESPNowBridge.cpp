@@ -22,12 +22,17 @@ void ESPNowBridge::send_cb(const uint8_t *mac, esp_now_send_status_t status) {
 }
 
 ESPNowBridge::ESPNowBridge(NodePrefs *prefs, mesh::PacketManager *mgr, mesh::RTCClock *rtc)
-    : BridgeBase(prefs, mgr, rtc), _rx_buffer_pos(0) {
+    : BridgeBase(prefs, mgr, rtc), _rx_read_idx(0), _rx_write_idx(0), _rx_count(0), _rx_drop_count(0), _rx_lock(portMUX_INITIALIZER_UNLOCKED) {
   _instance = this;
 }
 
 void ESPNowBridge::begin() {
   BRIDGE_DEBUG_PRINTLN("Initializing...\n");
+
+  _rx_read_idx = 0;
+  _rx_write_idx = 0;
+  _rx_count = 0;
+  _rx_drop_count = 0;
 
   // Initialize WiFi in station mode
   WiFi.mode(WIFI_STA);
@@ -87,10 +92,19 @@ void ESPNowBridge::end() {
 
   // Update bridge state
   _initialized = false;
+
+  portENTER_CRITICAL(&_rx_lock);
+  _rx_read_idx = 0;
+  _rx_write_idx = 0;
+  _rx_count = 0;
+  portEXIT_CRITICAL(&_rx_lock);
 }
 
 void ESPNowBridge::loop() {
-  // Nothing to do here - ESP-NOW is callback based
+  PendingFrame frame;
+  while (popPendingFrame(frame)) {
+    processReceivedFrame(frame.buf, frame.len);
+  }
 }
 
 void ESPNowBridge::xorCrypt(uint8_t *data, size_t len) {
@@ -101,6 +115,12 @@ void ESPNowBridge::xorCrypt(uint8_t *data, size_t len) {
 }
 
 void ESPNowBridge::onDataRecv(const uint8_t *mac, const uint8_t *data, int32_t len) {
+  (void)mac;
+
+  if (_initialized == false) {
+    return;
+  }
+
   // Ignore packets that are too small to contain header + checksum
   if (len < (BRIDGE_MAGIC_SIZE + BRIDGE_CHECKSUM_SIZE)) {
     BRIDGE_DEBUG_PRINTLN("RX packet too small, len=%d\n", len);
@@ -110,6 +130,42 @@ void ESPNowBridge::onDataRecv(const uint8_t *mac, const uint8_t *data, int32_t l
   // Validate total packet size
   if (len > MAX_ESPNOW_PACKET_SIZE) {
     BRIDGE_DEBUG_PRINTLN("RX packet too large, len=%d\n", len);
+    return;
+  }
+
+  portENTER_CRITICAL(&_rx_lock);
+  if (_rx_count >= RX_QUEUE_SIZE) {
+    _rx_drop_count++;
+    portEXIT_CRITICAL(&_rx_lock);
+    BRIDGE_DEBUG_PRINTLN("RX queue full, dropping frame len=%d (drops=%lu)\n", len, (unsigned long)_rx_drop_count);
+    return;
+  }
+
+  PendingFrame &slot = _rx_queue[_rx_write_idx];
+  slot.len = len;
+  memcpy(slot.buf, data, len);
+  _rx_write_idx = (_rx_write_idx + 1) % RX_QUEUE_SIZE;
+  _rx_count++;
+  portEXIT_CRITICAL(&_rx_lock);
+}
+
+bool ESPNowBridge::popPendingFrame(PendingFrame &frame) {
+  bool have_frame = false;
+  portENTER_CRITICAL(&_rx_lock);
+  if (_rx_count > 0) {
+    frame = _rx_queue[_rx_read_idx];
+    _rx_read_idx = (_rx_read_idx + 1) % RX_QUEUE_SIZE;
+    _rx_count--;
+    have_frame = true;
+  }
+  portEXIT_CRITICAL(&_rx_lock);
+  return have_frame;
+}
+
+void ESPNowBridge::processReceivedFrame(const uint8_t *data, size_t len) {
+  // Ignore packets that are too small to contain header + checksum
+  if (len < (BRIDGE_MAGIC_SIZE + BRIDGE_CHECKSUM_SIZE)) {
+    BRIDGE_DEBUG_PRINTLN("RX packet too small, len=%d\n", (int)len);
     return;
   }
 

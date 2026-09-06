@@ -3,6 +3,8 @@
 #include "MeshCore.h"
 #include "esp_now.h"
 #include "helpers/bridges/BridgeBase.h"
+#include <freertos/FreeRTOS.h>
+#include <freertos/portmacro.h>
 
 #ifdef WITH_ESPNOW_BRIDGE
 
@@ -63,11 +65,18 @@ private:
    */
   static const size_t MAX_PAYLOAD_SIZE = MAX_ESPNOW_PACKET_SIZE - (BRIDGE_MAGIC_SIZE + BRIDGE_CHECKSUM_SIZE);
 
-  /** Buffer for receiving ESP-NOW packets */
-  uint8_t _rx_buffer[MAX_ESPNOW_PACKET_SIZE];
+  struct PendingFrame {
+    uint16_t len;
+    uint8_t buf[MAX_ESPNOW_PACKET_SIZE];
+  };
 
-  /** Current position in receive buffer */
-  size_t _rx_buffer_pos;
+  static const uint8_t RX_QUEUE_SIZE = 4;
+  PendingFrame _rx_queue[RX_QUEUE_SIZE];
+  uint8_t _rx_read_idx;
+  uint8_t _rx_write_idx;
+  uint8_t _rx_count;
+  uint32_t _rx_drop_count;
+  portMUX_TYPE _rx_lock;
 
   /**
    * Performs XOR encryption/decryption of data
@@ -91,6 +100,10 @@ private:
    * @param len Length of received data
    */
   void onDataRecv(const uint8_t *mac, const uint8_t *data, int32_t len);
+
+  void processReceivedFrame(const uint8_t *data, size_t len);
+
+  bool popPendingFrame(PendingFrame &frame);
 
   /**
    * ESP-NOW send callback
