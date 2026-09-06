@@ -24,19 +24,21 @@ public:
   #define MAX_PENDING_NEXTHOP_CONFIRMS  4   // max concurrent direct packets awaiting next-hop confirmation
 #endif
 
-#define NEXTHOP_CONFIRM_REPEAT  0   // confirmed by overhearing the next hop repeat this same packet
-#define NEXTHOP_CONFIRM_REPLY   1   // confirmed by seeing a correlated RESPONSE routed back through us
+#define NEXTHOP_CONFIRM_REPEAT    0   // confirmed by overhearing the next hop repeat this same packet
+#define NEXTHOP_CONFIRM_REPLY     1   // confirmed by seeing a correlated RESPONSE routed back through us
+#define NEXTHOP_CONFIRM_ACK_SEEN  2   // confirmed (heuristically) by overhearing any direct ACK routed back through us
 
 /**
  * \brief  Tracks a direct (path-routed) packet this node has repeated (or originated), while it
  *     waits for implicit confirmation of receipt -- either by overhearing the next hop repeat it
  *     (NEXTHOP_CONFIRM_REPEAT), or, when this is the last hop before the destination and there's
  *     no next hop to overhear, by seeing the correlated RESPONSE it provokes routed back through
- *     us (NEXTHOP_CONFIRM_REPLY).
+ *     us (NEXTHOP_CONFIRM_REPLY), or, for a TXT_MSG last hop, by overhearing any direct ACK routed
+ *     back through us (NEXTHOP_CONFIRM_ACK_SEEN -- approximate, since ACKs carry no correlatable id).
 */
 struct PendingNextHopConfirm {
   bool active;
-  uint8_t kind;           // NEXTHOP_CONFIRM_REPEAT or NEXTHOP_CONFIRM_REPLY
+  uint8_t kind;           // NEXTHOP_CONFIRM_REPEAT, NEXTHOP_CONFIRM_REPLY or NEXTHOP_CONFIRM_ACK_SEEN
   uint8_t retries;
   uint32_t deadline;      // millis() at which to retry (or give up if retries exhausted)
   uint8_t hash[MAX_HASH_SIZE];   // kind == NEXTHOP_CONFIRM_REPEAT: hash of the packet we're waiting to hear repeated
@@ -71,9 +73,17 @@ class Mesh : public Dispatcher {
   void registerLastHopReplyConfirm(const Packet* pkt);
 
   /**
+   * \brief  Start tracking 'pkt' (a TXT_MSG just delivered to its final destination, with no
+   *     further hop to overhear) until any direct ACK is seen routed back through this node.
+   *     Approximate: ACKs carry no id to correlate against a specific message.
+   */
+  void registerLastHopAckConfirm(const Packet* pkt);
+
+  /**
    * \brief  Check an incoming direct packet against the pending-confirm table, and mark any
-   *     match as confirmed -- either a next hop repeating a tracked packet, or a RESPONSE
-   *     correlated (by dest_hash) to a tracked last-hop REQ delivery.
+   *     match as confirmed -- either a next hop repeating a tracked packet, a RESPONSE
+   *     correlated (by dest_hash) to a tracked last-hop REQ delivery, or any ACK seen following
+   *     a tracked last-hop TXT_MSG delivery.
    */
   void checkNextHopConfirm(const Packet* pkt);
 
