@@ -116,6 +116,10 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
 
         if (pkt->getPathHashCount() > 0) {   // only worth tracking if there is a further hop to overhear
           registerNextHopConfirm(pkt);
+        } else if (pkt->getPayloadType() == PAYLOAD_TYPE_REQ) {
+          // last hop before the destination -- can't overhear a repeat, but a REQ provokes a
+          // correlated RESPONSE routed back through us, so use that as confirmation instead
+          registerLastHopReplyConfirm(pkt);
         }
 
         uint32_t d = getDirectRetransmitDelay(pkt);
@@ -364,6 +368,7 @@ void Mesh::registerNextHopConfirm(const Packet* pkt) {
     auto& e = _pending_confirms[i];
     if (!e.active) {
       e.active = true;
+      e.kind = NEXTHOP_CONFIRM_REPEAT;
       e.retries = 0;
       e.pkt = *pkt;   // keep a copy, so it can be resent unchanged if not confirmed
       pkt->calculatePacketHash(e.hash);
@@ -374,13 +379,40 @@ void Mesh::registerNextHopConfirm(const Packet* pkt) {
   MESH_DEBUG_PRINTLN("%s Mesh::registerNextHopConfirm(): pending table full, skipping reliability tracking", getLogDateTime());
 }
 
+void Mesh::registerLastHopReplyConfirm(const Packet* pkt) {
+  if (!getNextHopReliabilityEnabled() || getNextHopMaxRetries() == 0) return;
+  if (pkt->payload_len < 2) return;   // need at least [dest_hash, src_hash] to correlate a reply
+
+  for (int i = 0; i < MAX_PENDING_NEXTHOP_CONFIRMS; i++) {
+    auto& e = _pending_confirms[i];
+    if (!e.active) {
+      e.active = true;
+      e.kind = NEXTHOP_CONFIRM_REPLY;
+      e.retries = 0;
+      e.pkt = *pkt;   // keep a copy, so the REQ can be resent unchanged if not confirmed
+      e.expect_dest_hash = pkt->payload[1];   // this REQ's src_hash -> dest_hash we expect on the RESPONSE
+      e.deadline = futureMillis(getNextHopConfirmTimeout(pkt));
+      return;
+    }
+  }
+  MESH_DEBUG_PRINTLN("%s Mesh::registerLastHopReplyConfirm(): pending table full, skipping reliability tracking", getLogDateTime());
+}
+
 void Mesh::checkNextHopConfirm(const Packet* pkt) {
   uint8_t hash[MAX_HASH_SIZE];
   bool calculated = false;
+  bool is_response = (pkt->getPayloadType() == PAYLOAD_TYPE_RESPONSE && pkt->payload_len > 0);
 
   for (int i = 0; i < MAX_PENDING_NEXTHOP_CONFIRMS; i++) {
     auto& e = _pending_confirms[i];
     if (!e.active) continue;
+
+    if (e.kind == NEXTHOP_CONFIRM_REPLY) {
+      if (is_response && pkt->payload[0] == e.expect_dest_hash) {
+        e.active = false;   // correlated RESPONSE seen -- confirmed, no retry needed
+      }
+      continue;
+    }
 
     if (!calculated) {
       pkt->calculatePacketHash(hash);
@@ -786,6 +818,9 @@ void Mesh::sendDirect(Packet* packet, const uint8_t* path, uint8_t path_len, uin
 
     if (packet->getPathHashCount() > 0) {   // there's a next hop to listen for repeating this
       registerNextHopConfirm(packet);
+    } else if (packet->getPayloadType() == PAYLOAD_TYPE_REQ) {
+      // no next hop to overhear (zero-hop direct REQ) -- wait for the correlated RESPONSE instead
+      registerLastHopReplyConfirm(packet);
     }
   }
   _tables->markSeen(packet); // mark this packet as already sent in case it is rebroadcast back to us

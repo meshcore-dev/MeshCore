@@ -24,15 +24,23 @@ public:
   #define MAX_PENDING_NEXTHOP_CONFIRMS  4   // max concurrent direct packets awaiting next-hop confirmation
 #endif
 
+#define NEXTHOP_CONFIRM_REPEAT  0   // confirmed by overhearing the next hop repeat this same packet
+#define NEXTHOP_CONFIRM_REPLY   1   // confirmed by seeing a correlated RESPONSE routed back through us
+
 /**
- * \brief  Tracks a direct (path-routed) packet this node has repeated, while it waits to
- *     overhear the next hop repeating it in turn (as implicit confirmation of receipt).
+ * \brief  Tracks a direct (path-routed) packet this node has repeated (or originated), while it
+ *     waits for implicit confirmation of receipt -- either by overhearing the next hop repeat it
+ *     (NEXTHOP_CONFIRM_REPEAT), or, when this is the last hop before the destination and there's
+ *     no next hop to overhear, by seeing the correlated RESPONSE it provokes routed back through
+ *     us (NEXTHOP_CONFIRM_REPLY).
 */
 struct PendingNextHopConfirm {
   bool active;
+  uint8_t kind;           // NEXTHOP_CONFIRM_REPEAT or NEXTHOP_CONFIRM_REPLY
   uint8_t retries;
   uint32_t deadline;      // millis() at which to retry (or give up if retries exhausted)
-  uint8_t hash[MAX_HASH_SIZE];
+  uint8_t hash[MAX_HASH_SIZE];   // kind == NEXTHOP_CONFIRM_REPEAT: hash of the packet we're waiting to hear repeated
+  uint8_t expect_dest_hash;      // kind == NEXTHOP_CONFIRM_REPLY: dest_hash expected on the correlated RESPONSE
   Packet pkt;             // copy of the packet as it was (re)transmitted, for resending
 };
 
@@ -57,8 +65,15 @@ class Mesh : public Dispatcher {
   void registerNextHopConfirm(const Packet* pkt);
 
   /**
+   * \brief  Start tracking 'pkt' (a REQ just delivered to its final destination, with no further
+   *     hop to overhear) until a correlated RESPONSE is seen routed back through this node.
+   */
+  void registerLastHopReplyConfirm(const Packet* pkt);
+
+  /**
    * \brief  Check an incoming direct packet against the pending-confirm table, and mark any
-   *     match as confirmed (the next hop has repeated it, so no retry is needed).
+   *     match as confirmed -- either a next hop repeating a tracked packet, or a RESPONSE
+   *     correlated (by dest_hash) to a tracked last-hop REQ delivery.
    */
   void checkNextHopConfirm(const Packet* pkt);
 
