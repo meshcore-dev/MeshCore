@@ -43,7 +43,7 @@ public:
   #endif
   bool begin() override;
   bool querySensors(uint8_t requester_permissions, CayenneLPP& telemetry) override;
-  #if ENV_INCLUDE_GPS || defined(ENV_INCLUDE_BME680_BSEC)
+  #if ENV_INCLUDE_GPS || defined(ENV_INCLUDE_BME680_BSEC) || defined(ENV_INCLUDE_RAK12047)
   void loop() override;
   #endif
   int getNumSettings() const override;
