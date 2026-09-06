@@ -87,6 +87,7 @@ void MyMesh::putNeighbour(const mesh::Identity &id, uint32_t timestamp, float sn
     neighbour->m_reach_confirmed = false;
     neighbour->m_reach_timeouts = 0;
     neighbour->m_reach_last_ok_ms = 0;
+    neighbour->m_reach_last_fail_ms = 0;
   }
   // update neighbour info
   neighbour->id = id;
@@ -156,6 +157,25 @@ bool MyMesh::isExcludedFromProtection(int i, uint32_t now_ms) const {
                    (uint32_t)(now_ms - ni.m_reach_last_ok_ms) < M_REACH_RECONFIRM_MS;   // aging
   if (confirmed) return false;                                  // M->i known good -> protect
   return ni.m_reach_timeouts >= M_REACH_UNREACHABLE_TIMEOUTS;   // never confirmed (or aged) & failing
+#else
+  (void)i; (void)now_ms; return false;
+#endif
+}
+
+// May stepCoverageMeasurement probe a pair involving neighbours[i]? Reach-excluded endpoints are
+// skipped -- their hop-1 is doomed, so the probe burns up to 6 TX for an unattributable result --
+// EXCEPT once per re-test window, so a node whose link recovered (antenna fixed, node moved) is
+// re-admitted instead of being permanently locked out. The suppression decision itself reads
+// isExcludedFromProtection directly and is unaffected by this pacing.
+bool MyMesh::measProbeAllowed(int i, uint32_t now_ms) const {
+#if MAX_NEIGHBOURS
+  if (!isExcludedFromProtection(i, now_ms)) return true;
+#if SIM_BUILD
+  const uint32_t retest_ms = 180UL * 1000UL;   // sim-scaled like the measurement cadence (60s HW -> 10-15s sim)
+#else
+  const uint32_t retest_ms = M_REACH_RETEST_MS;
+#endif
+  return (uint32_t)(now_ms - neighbours[i].m_reach_last_fail_ms) >= retest_ms;
 #else
   (void)i; (void)now_ms; return false;
 #endif
@@ -408,7 +428,10 @@ void MyMesh::stepCoverageMeasurement() {
         _meas_timeout++;                                // hop-1 worked -> genuine a->b / return-leg failure
       } else {
         _meas_reach_tmo++;                              // hop-1 unobserved -> also count M->a reach failure
-        if (ia >= 0 && neighbours[ia].m_reach_timeouts < 255) neighbours[ia].m_reach_timeouts++;
+        if (ia >= 0) {
+          if (neighbours[ia].m_reach_timeouts < 255) neighbours[ia].m_reach_timeouts++;
+          neighbours[ia].m_reach_last_fail_ms = now;    // (re-test clock: while excluded, pairs re-probe at most per M_REACH_RETEST_MS)
+        }
       }
     }
   }
@@ -445,6 +468,10 @@ void MyMesh::stepCoverageMeasurement() {
     uint8_t x = p / (top_n - 1);
     uint8_t y = p % (top_n - 1);
     if (y >= x) y++;                                     // skip the x==y diagonal
+    // Skip pairs touching a reach-excluded endpoint (except on its periodic re-test): hop-1 is
+    // doomed and the result unattributable. Edges into/out of excluded nodes are never consumed
+    // by the suppression test (it skips excluded indices), so measuring them is pure airtime waste.
+    if (!measProbeAllowed(top[x], now) || !measProbeAllowed(top[y], now)) continue;
     neighbours[top[x]].id.copyHashTo(ha, TRACE_MEAS_HASH_SIZE);
     neighbours[top[y]].id.copyHashTo(hb, TRACE_MEAS_HASH_SIZE);
     if (_nbr_links.hasEdge(ha, hb, TRACE_MEAS_HASH_SIZE, now)) continue;        // measured & fresh (positive)

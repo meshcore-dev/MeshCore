@@ -86,6 +86,7 @@ struct RepeaterStats {
 // and dropped from the protection set (M owes coverage only to neighbours it can reach).
 #define M_REACH_UNREACHABLE_TIMEOUTS  2                  // consec first-hop-N timeouts -> M-unreachable
 #define M_REACH_RECONFIRM_MS          (24UL*3600UL*1000UL)  // re-test a confirmed link after this idle (antenna drift)
+#define M_REACH_RETEST_MS             (6UL*3600UL*1000UL)   // after this long excluded, a node's pairs are probed again (recovery path)
 
 struct NeighbourInfo {
   mesh::Identity id;
@@ -96,6 +97,7 @@ struct NeighbourInfo {
   bool     m_reach_confirmed;     // a [N,*] coverage trace has returned (M->N works)
   uint8_t  m_reach_timeouts;      // consecutive first-hop-N 2nd-miss timeouts since last confirm
   uint32_t m_reach_last_ok_ms;    // millis() of the last first-hop-N success (aging)
+  uint32_t m_reach_last_fail_ms;  // millis() of the last hop-1-unobserved 2nd-miss (re-test clock while excluded)
 };
 
 // A leaf CLIENT (companion/sensor/room-server) directly attached to this repeater
@@ -203,6 +205,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   void touchNeighbourByHash(const mesh::Packet* packet);  // refresh a KNOWN neighbour's liveness/SNR from an overheard forward
   bool isNearNeighbour(int i, uint32_t now) const;        // fresh (<=NEIGHBOUR_FRESH_S) and SNR>=snr_lo
   bool isExcludedFromProtection(int i, uint32_t now_ms) const;  // M cannot transmit-reach neighbours[i] -> not owed coverage
+  bool measProbeAllowed(int i, uint32_t now_ms) const;          // may we PROBE pairs involving neighbours[i]? (excluded: only on the periodic re-test)
   int8_t findNearNeighbour(const uint8_t* h, uint8_t hs, uint32_t now) const;  // index of near neighbour matching hash, else -1
   uint8_t topNearNeighbours(int8_t out[], uint8_t max_n, uint32_t now) const;  // fill out[] with up to max_n near-neighbour INDICES, strongest SNR first
   int8_t findInTopNear(const uint8_t* h, uint8_t hs, const int8_t* top, uint8_t top_n) const;  // index (into neighbours[]) of a top-N peer matching hash, else -1
