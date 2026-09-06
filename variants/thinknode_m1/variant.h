@@ -137,7 +137,12 @@ extern const int SCK;
 #define PIN_GPS_RX              (40)
 #define PIN_GPS_TX              (41)
 #define GPS_EN                  (34)
-#define PIN_GPS_RESET           (37)
+// NOTE: pin 37 is the LoRa radio power enable (SX126X_POWER_EN), NOT a GPS reset.
+// It must not be defined as PIN_GPS_RESET: the location provider drives the GPS
+// reset pin in begin()/stop(), so doing so would toggle the radio's power -- in
+// particular, turning GPS off would cut power to the LoRa radio. The M1 GPS has
+// no MCU-controlled reset line, so tell the provider there is none.
+#define GPS_RESET               (-1)
 #define PIN_GPS_PPS             (36)
 #define PIN_GPS_STANDBY         (34)
 #define PIN_GPS_SWITCH          (33)
