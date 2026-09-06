@@ -71,10 +71,10 @@ void initVariant()
   pinMode(EEPROM_POWER, OUTPUT);
   digitalWrite(EEPROM_POWER, HIGH);
 
-  pinMode(36, OUTPUT);
-  digitalWrite(36, HIGH);
-  pinMode(34, OUTPUT);
-  digitalWrite(34, HIGH);
+  pinMode(PIN_EN1, OUTPUT);
+  digitalWrite(PIN_EN1, HIGH);
+  pinMode(PIN_EN2, OUTPUT);
+  digitalWrite(PIN_EN2, HIGH);
 
   pinMode(LED_POWER, OUTPUT);
   digitalWrite(LED_POWER, HIGH);

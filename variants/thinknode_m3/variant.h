@@ -42,6 +42,8 @@
 #define EEPROM_POWER            (7)
 #define BAT_POWER               (17)
 #define PIN_PWR_EN              (16)
+#define PIN_EN1                 (36)            // P1.4, buzzer supply
+#define PIN_EN2                 (34)            // P1.2
 
 
 ////////////////////////////////////////////////////////////////////////////////
