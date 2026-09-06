@@ -231,6 +231,79 @@ int8_t MyMesh::findInTopNear(const uint8_t* h, uint8_t hs, const int8_t* top, ui
   return -1;
 }
 
+// Sticky MEASUREMENT-only top set: hysteresis over topNearNeighbours. The measurement scheduler
+// re-selects its target set every cadence tick; a pure per-tick SNR re-rank churns membership on
+// EMA wobble (a ~1 dB swap re-opens up to 8 directed pairs that then re-probe from scratch).
+// Members stay until they leave the near set (or their slot is recycled to another identity --
+// guarded by re-validating the stored hash), free slots fill immediately from the current
+// ranking, and a full set swaps its WEAKEST member only for a clearly stronger challenger
+// (>= MEAS_TOP_HYST_X4). The suppression decision keeps raw topNearNeighbours -- this only
+// affects WHICH pairs get probed.
+uint8_t MyMesh::coverageTopNeighbours(int8_t out[], uint32_t now) {
+#if MAX_NEIGHBOURS
+  int8_t cur[NEAR_NEIGHBOUR_COVERAGE_CAP];
+  uint8_t cur_n = topNearNeighbours(cur, NEAR_NEIGHBOUR_COVERAGE_CAP, now);
+
+  // (1) validate members: drop stale ones (left the near set, or LRU slot recycled)
+  for (uint8_t k = 0; k < NEAR_NEIGHBOUR_COVERAGE_CAP; k++) {
+    if (!_meas_top[k].used) continue;
+    int8_t idx = _meas_top[k].idx;
+    bool ok = idx >= 0 && idx < MAX_NEIGHBOURS
+              && neighbours[idx].id.isHashMatch(_meas_top[k].hash, TRACE_MEAS_HASH_SIZE)
+              && isNearNeighbour(idx, now);
+    if (!ok) {                                    // slot identity changed? re-resolve by hash, else drop
+      idx = findNearNeighbour(_meas_top[k].hash, TRACE_MEAS_HASH_SIZE, now);
+      if (idx >= 0) { _meas_top[k].idx = idx; ok = true; }
+    }
+    if (!ok) _meas_top[k].used = false;
+  }
+
+  // (2) fill free slots from the current ranking (already SNR-desc; no duplicates)
+  for (uint8_t c = 0; c < cur_n; c++) {
+    bool present = false;
+    for (uint8_t k = 0; k < NEAR_NEIGHBOUR_COVERAGE_CAP && !present; k++)
+      if (_meas_top[k].used && _meas_top[k].idx == cur[c]) present = true;
+    if (present) continue;
+    for (uint8_t k = 0; k < NEAR_NEIGHBOUR_COVERAGE_CAP; k++) {
+      if (!_meas_top[k].used) {
+        _meas_top[k].used = true;
+        _meas_top[k].idx = cur[c];
+        neighbours[cur[c]].id.copyHashTo(_meas_top[k].hash, TRACE_MEAS_HASH_SIZE);
+        break;
+      }
+    }
+  }
+
+  // (3) full set: replace the weakest member only for a clearly stronger challenger. cur[] is
+  // SNR-desc, so the FIRST non-present challenger is the strongest one -- if it doesn't clear
+  // the bar, no later challenger will (break).
+  if (cur_n >= NEAR_NEIGHBOUR_COVERAGE_CAP) {
+    for (uint8_t c = 0; c < cur_n; c++) {
+      bool present = false;
+      for (uint8_t k = 0; k < NEAR_NEIGHBOUR_COVERAGE_CAP && !present; k++)
+        if (_meas_top[k].used && _meas_top[k].idx == cur[c]) present = true;
+      if (present) continue;
+      uint8_t weak = 0xFF; int8_t weak_snr = 127;
+      for (uint8_t k = 0; k < NEAR_NEIGHBOUR_COVERAGE_CAP; k++)
+        if (_meas_top[k].used && neighbours[_meas_top[k].idx].snr < weak_snr) { weak_snr = neighbours[_meas_top[k].idx].snr; weak = k; }
+      if (weak == 0xFF) break;
+      if (neighbours[cur[c]].snr > weak_snr + MEAS_TOP_HYST_X4) {
+        _meas_top[weak].idx = cur[c];
+        neighbours[cur[c]].id.copyHashTo(_meas_top[weak].hash, TRACE_MEAS_HASH_SIZE);
+      }
+      break;
+    }
+  }
+
+  uint8_t n = 0;
+  for (uint8_t k = 0; k < NEAR_NEIGHBOUR_COVERAGE_CAP; k++)
+    if (_meas_top[k].used) out[n++] = _meas_top[k].idx;
+  return n;
+#else
+  (void)out; (void)now; return 0;
+#endif
+}
+
 // True iff at least one top-N near neighbour exists AND every CURRENT top-N near
 // neighbour is recorded as covered in e. Only the capped strongest set is checked:
 // a rank-(cap+1) neighbour is not owed coverage (deliberate trade-off).
@@ -452,7 +525,7 @@ void MyMesh::stepCoverageMeasurement() {
   if (!millisHasNowPassed(_meas_jitter_until)) return;  // inter-burst backoff (de-conflicts simultaneous nodes)
 
   int8_t top[NEAR_NEIGHBOUR_COVERAGE_CAP];
-  uint8_t top_n = topNearNeighbours(top, NEAR_NEIGHBOUR_COVERAGE_CAP, getRTCClock()->getCurrentTime());
+  uint8_t top_n = coverageTopNeighbours(top, getRTCClock()->getCurrentTime());   // sticky (hysteresis) -- measurement only
   if (top_n < 2) return;
 
   // Enumerate the P = top_n*(top_n-1) directed pairs (x != y) as a flat list and scan from a rotating

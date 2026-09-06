@@ -87,6 +87,9 @@ struct RepeaterStats {
 #define M_REACH_UNREACHABLE_TIMEOUTS  2                  // consec first-hop-N timeouts -> M-unreachable
 #define M_REACH_RECONFIRM_MS          (24UL*3600UL*1000UL)  // re-test a confirmed link after this idle (antenna drift)
 #define M_REACH_RETEST_MS             (6UL*3600UL*1000UL)   // after this long excluded, a node's pairs are probed again (recovery path)
+#ifndef MEAS_TOP_HYST_X4
+  #define MEAS_TOP_HYST_X4  12   // 3 dB (x4 SNR units): a challenger must beat the weakest sticky-set member by this much to swap in
+#endif
 
 struct NeighbourInfo {
   mesh::Identity id;
@@ -178,6 +181,10 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   unsigned long _meas_jitter_until = 0;    // inter-burst jitter backoff
   unsigned long _trace_tx_revert_at = 0;   // restore TX power after a burst
   uint8_t       _meas_rr_offset = 0;       // round-robin start index into the flat directed-pair list (advanced per probe)
+  // Sticky measurement top-set (hysteresis over topNearNeighbours; see coverageTopNeighbours).
+  // Hash-keyed so entries survive neighbours[] LRU reordering; indices re-validated each tick.
+  struct MeasTopPeer { uint8_t hash[TRACE_MEAS_HASH_SIZE]; int8_t idx; bool used; };
+  MeasTopPeer _meas_top[NEAR_NEIGHBOUR_COVERAGE_CAP] = {};
   uint32_t      _meas_sent = 0, _meas_returned = 0, _meas_edge = 0, _meas_timeout = 0, _meas_neg = 0;  // coverage-TRACE observability (surfaced in `near`)
   uint32_t      _meas_reach_tmo = 0;   // 2nd-miss timeouts attributed to hop-1 (M->a) -- (a,b) left unknown (surfaced in `near` as rtmo)
   uint32_t      _meas_harvested = 0, _meas_harvest_neg = 0;  // Part 2: edges/negatives adopted from overheard neighbours' TRACES (surfaced in `near` as harv)
@@ -208,6 +215,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   bool measProbeAllowed(int i, uint32_t now_ms) const;          // may we PROBE pairs involving neighbours[i]? (excluded: only on the periodic re-test)
   int8_t findNearNeighbour(const uint8_t* h, uint8_t hs, uint32_t now) const;  // index of near neighbour matching hash, else -1
   uint8_t topNearNeighbours(int8_t out[], uint8_t max_n, uint32_t now) const;  // fill out[] with up to max_n near-neighbour INDICES, strongest SNR first
+  uint8_t coverageTopNeighbours(int8_t out[], uint32_t now);  // STICKY measurement-only top set (hysteresis over topNearNeighbours; suppression keeps the raw ranking)
   int8_t findInTopNear(const uint8_t* h, uint8_t hs, const int8_t* top, uint8_t top_n) const;  // index (into neighbours[]) of a top-N peer matching hash, else -1
   bool allNearNeighboursCovered(const FloodSuppressionEntry& e, uint32_t now) const;  // >=1 top-N near && every one in e.covered
   bool nearReaches(int from_i, int to_j, uint8_t hs) const;  // fresh DIRECTED reach edge: neighbours[from_i] reaches neighbours[to_j] (to_j heard from_i). Freshness is millis-based (TTL is in ms).
