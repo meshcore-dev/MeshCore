@@ -150,7 +150,7 @@ meas sent=<N> ret=<N> edge=<N> tmo=<N>
 ```
 
 - **Header:** the active `snr.lo` cutoff, the coverage cap (only the strongest `cap` peers are owed coverage / actively TRACE-measured), and `n` = current near count.
-- **`meas` line:** coverage-TRACE health — `sent` = probe attempts, `ret` = round-trips that returned to this node, `edge` = reach links recorded (returned with SNR `>= snr.lo`), `tmo` = pairs that timed out twice (no link). Reading it: `sent>0 ret=0` ⇒ round trips not completing (loss, collisions, or the first probe hop not reaching a marginal near neighbour — see `trace.tx.power`); `ret>0 edge=0` ⇒ inter-neighbour links exist but are below `snr.lo`; `sent=0` ⇒ no `>= 2` near-neighbour window yet (or `flood.suppress off`).
+- **`meas` line:** coverage-TRACE health — `sent` = probe attempts, `ret` = round-trips that returned to this node, `edge` = reach links recorded (returned with SNR `>= snr.lo`), `tmo` = pairs that timed out twice with hop-1 overheard working (no link), `rtmo` = 2nd-miss timeouts whose hop-1 was never overheard (M→a suspect). Reading it: `sent>0 ret=0` ⇒ round trips not completing (loss, collisions, or the first probe hop not reaching a marginal near neighbour); `ret>0 edge=0` ⇒ inter-neighbour links exist but are below `snr.lo`; `sent=0` ⇒ no `>= 2` near-neighbour window yet (or `flood.suppress off`).
 - **Per-peer lines:** `<HASH>:<secs_ago>:<snr>` where `snr` is `×4` (divide by 4 for dB), same encoding as `neighbors`. Peers beyond the cap are prefixed `~` (near but **not** owed coverage). `-none-` if empty.
 
 ---
@@ -834,17 +834,11 @@ would relay centrally (heard at SNR `>= snr.hi`). Widening the random delay wind
 redundant rebroadcast more time to be observed and cancelled before it goes out. `0`
 disables the widening.
 
-**Coverage-probe TX power:**
-- `get trace.tx.power` / `set trace.tx.power <dBm>`
+Coverage TRACE probes TX at the node's normal TX power (`set tx.power`); there is no
+separate probe-power knob — the probe's first hop must measure the same link the reach
+graph represents.
 
-**Parameters:** `dBm` = `-9..30` — TX power used **only** for the coverage TRACE probes
-(the reach-graph measurement), restored to normal afterwards. Near links are strong, so
-the default lowers power to reduce disturbance. If `reach` stays empty on hardware despite
-near neighbours being present, raise this to the normal TX power (e.g. `set trace.tx.power 20`)
-so the probe's first hop reaches marginal near neighbours — see the tuning notes in
-[`README-flood-suppression.md`](README-flood-suppression.md).
-
-**Defaults:** `flood.suppress` = `on` · `flood.suppress.snr.hi` = `9` · `flood.suppress.snr.lo` = `0` · `flood.suppress.delay.factor` = `2` · `trace.tx.power` = `10`
+**Defaults:** `flood.suppress` = `on` · `flood.suppress.snr.hi` = `9` · `flood.suppress.snr.lo` = `0` · `flood.suppress.delay.factor` = `2`
 
 **Note:** _Experimental feature_ on branch `feature/flood-suppression-coverage` — still being tuned and measured on hardware.
 

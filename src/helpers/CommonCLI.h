@@ -85,7 +85,6 @@ public:
   int8_t  flood_suppress_snr_hi = 0;   // dB: overheard forward with SNR>=this counts double (central/redundant)
   int8_t  flood_suppress_snr_lo = 0;   // dB: overheard forward with SNR<this counts 0 (preserve edge)
   uint8_t flood_suppress_delay_x = 0;  // extra TX-delay multiplier for central flood relays
-  int8_t  trace_tx_power_dbm = 0;      // TX power (dBm) used ONLY for coverage TRACE probes (lower = less disturbance)
   // SNR-repeat fallback is fixed ON (not configurable).
 
   // Public-key prefix filters. Blacklist: drop ADVERT/ANON_REQ from matching senders
@@ -234,7 +233,6 @@ private:
       def("fs_hi", _parent->flood_suppress_snr_hi);
       def("fs_lo", _parent->flood_suppress_snr_lo);
       def("fs_dx", _parent->flood_suppress_delay_x);
-      def("fs_tx", _parent->trace_tx_power_dbm);
     }
   public:
     RepeatPrefs(NodePrefs* parent) : _parent(parent) { }

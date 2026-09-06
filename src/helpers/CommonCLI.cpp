@@ -106,7 +106,7 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {  // Legacy 
     file.read((uint8_t *)&_prefs->flood_suppress_snr_hi, sizeof(_prefs->flood_suppress_snr_hi));    // 296
     file.read((uint8_t *)&_prefs->flood_suppress_snr_lo, sizeof(_prefs->flood_suppress_snr_lo));    // 297
     file.read((uint8_t *)&_prefs->flood_suppress_delay_x, sizeof(_prefs->flood_suppress_delay_x));  // 298
-    file.read((uint8_t *)&_prefs->trace_tx_power_dbm, sizeof(_prefs->trace_tx_power_dbm));          // 299
+    // 299 was trace_tx_power_dbm (removed -- coverage TRACE probes TX at node tx_power_dbm)
     // next: 300
 
     // sanitise bad pref values
@@ -144,7 +144,6 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {  // Legacy 
     _prefs->flood_suppress_snr_hi = constrain(_prefs->flood_suppress_snr_hi, -30, 30);
     _prefs->flood_suppress_snr_lo = constrain(_prefs->flood_suppress_snr_lo, -30, 30);
     _prefs->flood_suppress_delay_x = constrain(_prefs->flood_suppress_delay_x, 0, 8);
-    _prefs->trace_tx_power_dbm = constrain(_prefs->trace_tx_power_dbm, -9, 30);
 
     file.close();
   }
@@ -507,10 +506,6 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     int n = atoi(&config[28]);
     if (n >= 0 && n <= 8) { _prefs->flood_suppress_delay_x = n; savePrefs(); strcpy(reply, "OK"); }
     else strcpy(reply, "Error, must be 0..8");
-  } else if (memcmp(config, "trace.tx.power ", 15) == 0) {
-    int db = atoi(&config[15]);
-    if (db >= -9 && db <= 30) { _prefs->trace_tx_power_dbm = db; savePrefs(); strcpy(reply, "OK"); }
-    else strcpy(reply, "Error, must be -9..30 dB");
   } else if (memcmp(config, "allow.read.only ", 16) == 0) {
     _prefs->allow_read_only = memcmp(&config[16], "on", 2) == 0;
     savePrefs();
@@ -781,8 +776,6 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     } else {
       strcpy(reply, "> strict");
     }
-  } else if (memcmp(config, "trace.tx.power", 14) == 0) {
-    sprintf(reply, "> %d dB", (int) _prefs->trace_tx_power_dbm);
   } else if (memcmp(config, "public.key", 10) == 0) {
     strcpy(reply, "> ");
     mesh::Utils::toHex(&reply[2], _callbacks->getSelfId().pub_key, PUB_KEY_SIZE);

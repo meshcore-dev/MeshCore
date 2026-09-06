@@ -521,21 +521,11 @@ void MyMesh::onTraceRecv(mesh::Packet* /*packet*/, uint32_t tag, uint32_t /*auth
 // retry; (2) every ~60s (~10-15s in sim) find top-N coverage peers whose directed
 // edges are missing/expired and probe them with [a,b,self] traces. Bounded by
 // TRACE_PENDING_MAX in flight; jittered so simultaneously-booted nodes don't all
-// probe at once. TX power is lowered for the burst window (near links are strong)
-// and restored afterwards.
+// probe at once. Probes TX at the node's normal tx_power_dbm: hop-1 M->a must
+// measure the SAME link the graph represents.
 void MyMesh::stepCoverageMeasurement() {
 #if MAX_NEIGHBOURS
   uint32_t now = millis();
-
-  // restore normal TX power once the burst window has elapsed. NOTE: setTxPower is RADIO-GLOBAL --
-  // any flood queued behind a random TX delay that fires inside the burst window also goes out at
-  // the lowered power (skewing downstream SNR samples); with the default (trace power == node
-  // power) this whole window is dormant. Also: a >=3s retry fires after the 2s restore, so it
-  // would TX at a DIFFERENT power than its initial attempt -- another reason to keep the default.
-  if (_trace_tx_revert_at && millisHasNowPassed(_trace_tx_revert_at)) {
-    radio_driver.setTxPower(_prefs.tx_power_dbm);
-    _trace_tx_revert_at = 0;
-  }
 
   // (1) timeout / single-retry sweep
   for (uint8_t i = 0; i < TRACE_PENDING_MAX; i++) {
@@ -621,15 +611,7 @@ void MyMesh::stepCoverageMeasurement() {
     int8_t slot = -1;                                                               // free pending slot?
     for (uint8_t i = 0; i < TRACE_PENDING_MAX; i++) if (!_trace_pending[i].active) { slot = (int8_t)i; break; }
     if (slot < 0) { stop = true; break; }
-    if (!burst_started) {
-      burst_started = true;
-      // Optional lower probe power (set trace.tx.power): applies to the WHOLE radio for the burst
-      // window, so floods TX'd in that window are weakened too. Default is node power (dormant).
-      if (_prefs.trace_tx_power_dbm != _prefs.tx_power_dbm) {
-        radio_driver.setTxPower(_prefs.trace_tx_power_dbm);
-        _trace_tx_revert_at = futureMillis(TRACE_TX_POWER_RESTORE_MS);
-      }
-    }
+    if (!burst_started) burst_started = true;
     uint32_t tag = sendCoverageTrace(neighbours[top[x]].id, neighbours[top[y]].id);
     if (!tag) { stop = true; break; }                                       // pool full -> wait
     _meas_sent++;
@@ -1919,9 +1901,6 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.flood_suppress_snr_hi = 9;  // dB: strong overheard forward => counts double
   _prefs.flood_suppress_snr_lo = 0;  // dB: weak overheard forward => ignored (preserve edge)
   _prefs.flood_suppress_delay_x = 3; // extra TX-delay multiplier for central flood relays (wider cancel window)
-  _prefs.trace_tx_power_dbm = _prefs.tx_power_dbm;  // probe at node power by default: hop-1 M->a must measure the SAME link
-                                                     // the graph represents (floods/adverts go out at tx_power_dbm; probing
-                                                     // 12 dB weaker systematically fails hop-1 -> false no-edge + over-exclusion)
   // SNR-repeat fallback is fixed ON (not configurable).
 
   // bridge defaults

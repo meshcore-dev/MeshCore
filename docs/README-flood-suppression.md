@@ -92,11 +92,11 @@ observations (refreshes, not distinct edges).
 
 ## Configuration
 
-There is **one master switch** and four tuning parameters. The threshold **C**,
+There is **one master switch** and three tuning parameters. The threshold **C**,
 `snr.hi` and `snr.lo` are **not user-configurable** — they are derived from the
 neighbour table (adaptive) with static fallbacks (see *Adaptive mode*).
 
-`NodePrefs` fields (`src/helpers/CommonCLI.h`), persisted at file bytes 295–299
+`NodePrefs` fields (`src/helpers/CommonCLI.h`), persisted at file bytes 295–298
 (`src/helpers/CommonCLI.cpp`):
 
 | Field | Type | Default | Meaning |
@@ -105,7 +105,10 @@ neighbour table (adaptive) with static fallbacks (see *Adaptive mode*).
 | `flood_suppress_snr_hi` | `int8_t` (dB) | `9` | Overheard forward with SNR `>=` this counts **double** (adaptive p75; configured value is the fallback). |
 | `flood_suppress_snr_lo` | `int8_t` (dB) | `0` | Near-membership threshold; overheard forward with SNR `<` this counts **0** (adaptive p25; configured value is the fallback). |
 | `flood_suppress_delay_x` | `uint8_t` | `3` | Extra TX-delay multiplier for central flood relays. |
-| `trace_tx_power_dbm` | `int8_t` (dBm) | node `tx_power_dbm` | TX power for coverage TRACE probes only. Defaults to node power: hop-1 M→a must measure the same link the graph represents (probing weaker systematically fails hop-1 → false no-edge records and over-exclusion). Lower it only to trade fidelity for less disturbance. **Units that ever ran a `set` command keep their persisted value** (pre-change default: 10). |
+
+Coverage TRACE probes TX at the node's normal `tx_power_dbm` (no separate knob): the
+probe's hop-1 M→a must measure the same link the graph represents — probing weaker
+systematically fails hop-1 and records false no-edges / over-excludes reach.
 
 The feature is **on by default**; `set flood.suppress off` (or YAML
 `flood_suppress: 0`) disables it completely.
@@ -122,7 +125,6 @@ The feature is **on by default**; `set flood.suppress off` (or YAML
 | `set flood.suppress.snr.hi <dB>` | `-30..30` (`get flood.suppress.snr.hi`) |
 | `set flood.suppress.snr.lo <dB>` | `-30..30` (`get flood.suppress.snr.lo`); adaptive p25 fallback |
 | `set flood.suppress.delay.factor <n>` | `0..8` (`get flood.suppress.delay.factor`) |
-| `set trace.tx.power <dBm>` | `-9..30` (`get trace.tx.power`) |
 
 ### Channel-state policy: deliberately none
 

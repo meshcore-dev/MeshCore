@@ -78,7 +78,6 @@ struct RepeaterStats {
 #endif
 #define TRACE_MEAS_HASH_SIZE           2    // bytes/hash in a coverage TRACE visit-list (2 avoids prefix collisions)
 #define TRACE_MEAS_TIMEOUT_MS          8000 // retry once, then give up, if a coverage TRACE does not return in time (3 hops + relay delays + queueing behind floods at pri 5 -- 3s declared busy-net failures premature)
-#define TRACE_TX_POWER_RESTORE_MS      2000 // restore normal TX power this long after a measurement burst
 #define TRACE_PENDING_MAX              8    // in-flight coverage traces (<=4 pairs x 2 directions)
 // Part 3 -- unidirectional-link handling. M->N is never measured directly; it is inferred
 // from coverage-TRACE first-hop outcomes: a [N,*] trace returns iff M's TX reached N. After
@@ -179,7 +178,6 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   uint32_t      _trace_tag_next = 1;   // 0 reserved as sendCoverageTrace() failure sentinel
   unsigned long _next_meas_check_ms = 0;   // cadenced diff/expiry check
   unsigned long _meas_jitter_until = 0;    // inter-burst jitter backoff
-  unsigned long _trace_tx_revert_at = 0;   // restore TX power after a burst
   uint8_t       _meas_rr_offset = 0;       // round-robin start index into the flat directed-pair list (advanced per probe)
   // Sticky measurement top-set (hysteresis over topNearNeighbours; see coverageTopNeighbours).
   // Hash-keyed so entries survive neighbours[] LRU reordering; indices re-validated each tick.
