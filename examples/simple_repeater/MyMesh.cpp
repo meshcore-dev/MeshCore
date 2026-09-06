@@ -541,7 +541,7 @@ void MyMesh::logTxFail(mesh::Packet *pkt, int len) {
 
 int MyMesh::calcRxDelay(float score, uint32_t air_time) const {
   if (_prefs.rx_delay_base <= 0.0f) return 0;
-  return (int)((pow(_prefs.rx_delay_base, 0.85f - score) - 1.0) * air_time);
+  return (int)((powf(_prefs.rx_delay_base, 0.85f - score) - 1.0f) * air_time);
 }
 
 uint32_t MyMesh::getRetransmitDelay(const mesh::Packet *packet) {
