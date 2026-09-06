@@ -188,6 +188,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   uint32_t      _meas_sent = 0, _meas_returned = 0, _meas_edge = 0, _meas_timeout = 0, _meas_neg = 0;  // coverage-TRACE observability (surfaced in `near`)
   uint32_t      _meas_reach_tmo = 0;   // 2nd-miss timeouts attributed to hop-1 (M->a) -- (a,b) left unknown (surfaced in `near` as rtmo)
   uint32_t      _meas_harvested = 0, _meas_harvest_neg = 0;  // Part 2: edges/negatives adopted from overheard neighbours' TRACES (surfaced in `near` as harv)
+  uint32_t      _meas_passive = 0;   // passive flood-path edge observations (refresh count, not distinct edges; surfaced in `near` as pasv)
   uint32_t pending_discover_tag;
   unsigned long pending_discover_until;
   bool region_load_active;
@@ -210,10 +211,12 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
 
   void putNeighbour(const mesh::Identity& id, uint32_t timestamp, float snr);
   void touchNeighbourByHash(const mesh::Packet* packet);  // refresh a KNOWN neighbour's liveness/SNR from an overheard forward
+  void learnPassivePathEdges(const mesh::Packet* pkt);    // adopt presence-only a->b edges from consecutive NEAR hops of an overheard flood path
   bool isNearNeighbour(int i, uint32_t now) const;        // fresh (<=NEIGHBOUR_FRESH_S) and SNR>=snr_lo
   bool isExcludedFromProtection(int i, uint32_t now_ms) const;  // M cannot transmit-reach neighbours[i] -> not owed coverage
   bool measProbeAllowed(int i, uint32_t now_ms) const;          // may we PROBE pairs involving neighbours[i]? (excluded: only on the periodic re-test)
   int8_t findNearNeighbour(const uint8_t* h, uint8_t hs, uint32_t now) const;  // index of near neighbour matching hash, else -1
+  int8_t findUniqueNearNeighbour(const uint8_t* h, uint8_t hs, uint32_t now) const;  // as above, but -1 unless EXACTLY ONE near neighbour shares the prefix (collision-safe resolution)
   uint8_t topNearNeighbours(int8_t out[], uint8_t max_n, uint32_t now) const;  // fill out[] with up to max_n near-neighbour INDICES, strongest SNR first
   uint8_t coverageTopNeighbours(int8_t out[], uint32_t now);  // STICKY measurement-only top set (hysteresis over topNearNeighbours; suppression keeps the raw ranking)
   int8_t findInTopNear(const uint8_t* h, uint8_t hs, const int8_t* top, uint8_t top_n) const;  // index (into neighbours[]) of a top-N peer matching hash, else -1

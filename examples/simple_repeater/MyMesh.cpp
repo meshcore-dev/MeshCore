@@ -129,6 +129,49 @@ void MyMesh::touchNeighbourByHash(const mesh::Packet* packet) {
 #endif
 }
 
+// Passive flood-path edge learning. When M overhears a FLOOD relay, the last path entries are
+// consecutive forwarders [..., a, b]: b appended its hash only after DECODING a's forward, so b
+// heard a -- directed edge a->b, learned at ZERO extra airtime. Runs from logRx for EVERY
+// overheard copy (pre-dedup), so ongoing traffic keeps such edges refreshed. Presence-only (no
+// SNR in flood paths; decode-qualified) -> shorter TTL in the link table, upgradable to a
+// measured edge by a TRACE refresh (addEdge's passive flag).
+//
+// Scope limits, by construction:
+// - The ORIGINATOR's hash is never in a path (sendFlood starts empty; only relays append), so
+//   this observes relay->relay pairs only.
+// - Both endpoints must resolve to M's NEAR neighbours (M, a, b form a triangle). In sparse or
+//   line-of-mast topologies almost no such pair exists -> this stays quiet and the active TRACE
+//   prober does the work; in busy meshes (the field case: 36k floods heard on one tester) it
+//   populates the graph from real traffic, and the scheduler's existing hasEdge skip then keeps
+//   the active prober off those pairs by itself.
+// - Narrow flood paths (path_hash_mode 0 -> 1-byte hashes) are resolved via
+//   findUniqueNearNeighbour: an ambiguous prefix (two near neighbours sharing it) is refused
+//   rather than mis-resolved, since a wrong edge would PERSIST here (logRx's per-flood
+//   forwarded[] approximation dies with its flood entry; this table does not).
+void MyMesh::learnPassivePathEdges(const mesh::Packet* pkt) {
+#if MAX_NEIGHBOURS
+  uint8_t hs = pkt->getPathHashSize();
+  uint8_t count = pkt->getPathHashCount();
+  if (count < 2) return;
+  uint32_t now = getRTCClock()->getCurrentTime();
+  const uint8_t* p = pkt->path;
+  int8_t prev = -1;
+  uint8_t hprev[TRACE_MEAS_HASH_SIZE], hcur[TRACE_MEAS_HASH_SIZE];
+  for (uint8_t k = 0; k < count; k++) {
+    int8_t idx = findUniqueNearNeighbour(p, hs, now);
+    if (idx >= 0 && prev >= 0 && prev != idx
+        && memcmp(neighbours[prev].id.pub_key, neighbours[idx].id.pub_key, TRACE_MEAS_HASH_SIZE) != 0) {
+      neighbours[prev].id.copyHashTo(hprev, TRACE_MEAS_HASH_SIZE);
+      neighbours[idx].id.copyHashTo(hcur, TRACE_MEAS_HASH_SIZE);
+      _nbr_links.addEdge(hprev, hcur, TRACE_MEAS_HASH_SIZE, millis(), /*passive=*/true);
+      _meas_passive++;
+    }
+    prev = idx;   // a non-near hop breaks the chain: its successor proves nothing about OUR neighbours
+    p += hs;
+  }
+#endif
+}
+
 // Is neighbours[i] a "near" coverage peer? fresh (<= NEIGHBOUR_FRESH_S) and link
 // SNR >= effective snr_lo (adaptive p25). Distant/weak neighbours are edge nodes,
 // excluded (same intent as the old SNR-weighting weight-0).
@@ -192,6 +235,28 @@ int8_t MyMesh::findNearNeighbour(const uint8_t* h, uint8_t hs, uint32_t now) con
   }
 #endif
   return -1;
+}
+
+// Like findNearNeighbour, but resolves ONLY if the prefix is UNAMBIGUOUS among the near set
+// (exactly one near neighbour shares it; two sharing it -> -1). Used by passive flood-path
+// learning, where a mis-resolution would persistently record a WRONG edge (unlike logRx's
+// per-flood forwarded[] approximation, which dies with its flood entry). With 2-byte TRACE
+// hashes ambiguity is rare; with 1-byte flood paths (path_hash_mode 0) it is common enough
+// to matter -- those paths are usable precisely because ambiguous prefixes are refused.
+int8_t MyMesh::findUniqueNearNeighbour(const uint8_t* h, uint8_t hs, uint32_t now) const {
+#if MAX_NEIGHBOURS
+  int8_t found = -1;
+  for (int i = 0; i < MAX_NEIGHBOURS; i++) {
+    if (!isNearNeighbour(i, now)) continue;
+    if (neighbours[i].id.isHashMatch(h, hs)) {
+      if (found >= 0) return -1;   // ambiguous prefix -> refuse to resolve
+      found = (int8_t)i;
+    }
+  }
+  return found;
+#else
+  (void)h; (void)hs; (void)now; return -1;
+#endif
 }
 
 // Fill out[] with up to max_n near-neighbour INDICES, strongest SNR first (stable on
@@ -1159,6 +1224,7 @@ void MyMesh::logRx(mesh::Packet *pkt, int len, float score) {
   // table no longer goes entirely stale between adverts.
   if (pkt->isRouteFlood()) {
     touchNeighbourByHash(pkt);
+    if (effectiveFloodSuppressC() > 0) learnPassivePathEdges(pkt);   // free presence-only edges from relay paths
   }
 
 #if MAX_NEIGHBOURS
@@ -2271,15 +2337,17 @@ void MyMesh::formatNearReply(char *reply) {
   // failure retries within ~2 min, a permanent one ramps to ~10h). If sent>0
   // but ret==0 the round trips never complete (loss/collisions); if ret>0 but edge==0 the
   // measured inter-neighbour links are below snr_lo; if sent==0 no top-N>=2 window yet.
-  // harv=edges/negatives adopted from overheard neighbours' TRACES (Part 2); unr=near neighbours
+  // harv=edges/negatives adopted from overheard neighbours' TRACES (Part 2); pasv=passive
+  // flood-path edge observations (refresh count, not distinct edges); unr=near neighbours
   // M cannot transmit-reach and so excludes from the protection set (Part 3).
   uint8_t unr = 0;
   for (int i = 0; i < MAX_NEIGHBOURS; i++)
     if (isNearNeighbour(i, now) && isExcludedFromProtection(i, millis())) unr++;
-  sprintf(dp, "\nmeas sent=%lu ret=%lu edge=%lu tmo=%lu rtmo=%lu neg=%lu harv=%lu unr=%u",
+  sprintf(dp, "\nmeas sent=%lu ret=%lu edge=%lu tmo=%lu rtmo=%lu neg=%lu harv=%lu pasv=%lu unr=%u",
           (unsigned long)_meas_sent, (unsigned long)_meas_returned,
           (unsigned long)_meas_edge, (unsigned long)_meas_timeout, (unsigned long)_meas_reach_tmo,
-          (unsigned long)_meas_neg, (unsigned long)_meas_harvested, (unsigned)unr);
+          (unsigned long)_meas_neg, (unsigned long)_meas_harvested, (unsigned long)_meas_passive,
+          (unsigned)unr);
   while (*dp) dp++;
 
   // 150-byte ceiling minus a worst-case entry (~26B: \n + ~ + 8hex + :secs:snr)
@@ -2322,6 +2390,7 @@ void MyMesh::clearStats() {
   _meas_sent = _meas_returned = _meas_edge = _meas_timeout = _meas_neg = 0;
   _meas_reach_tmo = 0;
   _meas_harvested = _meas_harvest_neg = 0;
+  _meas_passive = 0;
 }
 
 void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply) {

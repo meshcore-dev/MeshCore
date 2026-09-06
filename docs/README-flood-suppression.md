@@ -63,6 +63,31 @@ after their own RX delay. This makes the cancellation deadline
 `own_TX_fire_time` instead of `own_TX_fire_time − neighbour_calcRxDelay`, i.e.
 cancels reliably land before the redundant TX goes out.
 
+### Passive flood-path edges (complement to TRACE measurement)
+
+The reach graph is populated **primarily** by active TRACE measurement, but
+`MyMesh::learnPassivePathEdges` (run from `logRx` for every overheard flood)
+adds a zero-airtime complement: a flood relay path ending `[..., a, b]` proves
+that **b decoded a's forward** — b appended its hash only after decoding — so
+the directed edge `a → b` is recorded. Such edges are *presence-only*
+(decode-qualified, no SNR value), carry a shorter refresh-required TTL
+(~30 min, `NEIGHBOUR_LINK_PASSIVE_TTL_MILLIS`) and a `passive` flag; a TRACE
+measurement of the same pair upgrades the entry to a full-TTL measured edge.
+A passively-observed decode also clears a stale "no edge" record (the same
+safety valve as a measured edge).
+
+Scope limits, by construction: the originator's hash is never in a flood path
+(only relays append), so only **relay→relay** pairs are observable; both
+endpoints must resolve to M's **near** neighbours (M, a, b form a triangle);
+and resolution is **uniqueness-checked** (`findUniqueNearNeighbour`) — a path
+prefix shared by two near neighbours (common with 1-byte flood paths,
+`path_hash_mode 0`) is refused rather than mis-resolved, since a wrong edge
+would persist in this table. In sparse/mast topologies this channel stays
+quiet and the active prober does the work; in busy meshes it populates and
+refreshes the graph from real traffic, and the prober's `hasEdge` skip then
+leaves those pairs alone. The `near` counter `pasv=` counts passive
+observations (refreshes, not distinct edges).
+
 ---
 
 ## Configuration
