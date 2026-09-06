@@ -44,11 +44,12 @@
 // re-probe it every cadence tick.  The re-probe backoff is PER PAIR and EXPONENTIAL:
 // the first failure waits BASE (~2 min) -- so a transient cause (a momentarily-silent
 // forwarder, a brief collision) heals on the next probe -- and each CONSECUTIVE failure
-// doubles the wait, capped at MAX (~10 h).  A permanently-absent pair therefore ramps
-// 2,4,8,... min up to one re-probe per ~10 h (the same steady state as a flat 10 h TTL,
-// but without the 10 h blind spot for transients), while a good link that recovers is
-// cleared immediately by addEdge() (a positive edge supersedes the record).  This cache
-// is consulted ONLY to gate re-probing; coverage inference reads POSITIVE edges
+// quadruples the wait, capped at MAX (~24 h).  A permanently-absent pair therefore ramps
+// 2,8,32 min, ~2 h, ~8.5 h up to one re-probe per ~24 h (the same steady state as a flat
+// 24 h TTL, but without the 24 h blind spot for transients), while a good link that
+// recovers is cleared immediately by addEdge() -- a measured OR passively-observed
+// positive edge supersedes the record, which is what makes the long cap safe.  This
+// cache is consulted ONLY to gate re-probing; coverage inference reads POSITIVE edges
 // exclusively (absence is never treated as coverage).
 
 #ifndef NEIGHBOUR_LINK_TABLE_SIZE
@@ -67,13 +68,13 @@
   #define NEIGHBOUR_LINK_NEG_HASH_SIZE  2    // TRACE coverage hashes are 2 bytes; negatives are stored exact-width
 #endif
 #ifndef NEIGHBOUR_LINK_NEG_TABLE_SIZE
-  #define NEIGHBOUR_LINK_NEG_TABLE_SIZE  32  // ~20 directed pairs among 5 near neighbours + churn headroom
+  #define NEIGHBOUR_LINK_NEG_TABLE_SIZE  64  // 20 directed pairs among 5 near neighbours + sticky-set churn + passive-harvest negatives; small enough that LRU eviction of a still-ramping entry is rare
 #endif
 #ifndef NEIGHBOUR_LINK_NEG_BACKOFF_BASE_MILLIS
   #define NEIGHBOUR_LINK_NEG_BACKOFF_BASE_MILLIS  (2UL * 60UL * 1000UL)            // first backoff after a fresh "no edge" probe (~2 min); a transient cause (a momentarily-silent forwarder, a brief collision) heals on the next probe
 #endif
 #ifndef NEIGHBOUR_LINK_NEG_BACKOFF_MAX_MILLIS
-  #define NEIGHBOUR_LINK_NEG_BACKOFF_MAX_MILLIS   (10UL * 60UL * 60UL * 1000UL)    // cap: each consecutive failure doubles the wait up to ~10 h, so a permanently-absent pair settles to one re-probe per ~10 h (same steady state as a flat 10 h TTL) while a transient one recovers in minutes
+  #define NEIGHBOUR_LINK_NEG_BACKOFF_MAX_MILLIS   (24UL * 60UL * 60UL * 1000UL)    // cap: a permanently-absent pair settles to one re-probe per ~24 h. Field data showed absent pairs dominating probe volume (neg=806 vs edge=51); a passive edge (flood-path) or a measured edge clears the record on recovery, so a long cap is safe.
 #endif
 
 class NeighbourLinkTable {
@@ -185,11 +186,13 @@ public:
     for (int i = 0; i < NEIGHBOUR_LINK_NEG_TABLE_SIZE; i++) {
       NegLink& n = _neg[i];
       if (n.active && _same(n.src, src, NEIGHBOUR_LINK_NEG_HASH_SIZE) && _same(n.dst, dst, NEIGHBOUR_LINK_NEG_HASH_SIZE)) {
-        // Re-probed and failed AGAIN -> looks permanent: double the backoff (capped at
-        // MAX), so a persistently-absent pair is retried ever more rarely. A transient
-        // failure never reaches this branch twice -- it is cleared by addEdge() on success.
+        // Re-probed and failed AGAIN -> looks permanent: quadruple the backoff (capped at
+        // MAX), so a persistently-absent pair ramps to once-a-day within a handful of failures
+        // (field data: absent pairs dominated probe volume, neg=806 vs edge=51). A transient
+        // failure never reaches this branch twice -- it is cleared by addEdge() on success,
+        // including passively-learned flood-path edges.
         if (n.backoff_ms == 0) n.backoff_ms = NEIGHBOUR_LINK_NEG_BACKOFF_BASE_MILLIS;
-        n.backoff_ms *= 2;
+        n.backoff_ms *= 4;
         if (n.backoff_ms > NEIGHBOUR_LINK_NEG_BACKOFF_MAX_MILLIS) n.backoff_ms = NEIGHBOUR_LINK_NEG_BACKOFF_MAX_MILLIS;
         n.last_seen_ms = now;          // restart the (now longer) backoff window
         return;

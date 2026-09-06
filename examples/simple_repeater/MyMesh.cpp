@@ -495,7 +495,7 @@ void MyMesh::onTraceRecv(mesh::Packet* /*packet*/, uint32_t tag, uint32_t /*auth
       _meas_edge++;                                    // ...and the a->b link was strong enough to record
     } else {
       // Returned but weak: the a->b link exists yet cannot carry coverage. Cache as no-edge so it
-      // is not re-probed every tick; it retries on a per-pair exponential backoff (capped ~10h).
+      // is not re-probed every tick; it retries on a per-pair exponential backoff (capped ~24h).
       _nbr_links.addNegative(path_hashes, path_hashes + entry_sz, entry_sz, millis());
       _meas_neg++;
     }
@@ -613,7 +613,7 @@ void MyMesh::stepCoverageMeasurement() {
     neighbours[top[x]].id.copyHashTo(ha, TRACE_MEAS_HASH_SIZE);
     neighbours[top[y]].id.copyHashTo(hb, TRACE_MEAS_HASH_SIZE);
     if (_nbr_links.hasEdge(ha, hb, TRACE_MEAS_HASH_SIZE, now)) continue;        // measured & fresh (positive)
-    if (_nbr_links.hasNegative(ha, hb, TRACE_MEAS_HASH_SIZE, now)) continue;    // probed, no edge -> backoff (~10h)
+    if (_nbr_links.hasNegative(ha, hb, TRACE_MEAS_HASH_SIZE, now)) continue;    // probed, no edge -> backoff (~24h)
     bool inflight = false;                                                          // already probing this direction?
     for (uint8_t i = 0; i < TRACE_PENDING_MAX && !inflight; i++)
       if (_trace_pending[i].active && memcmp(_trace_pending[i].a, ha, TRACE_MEAS_HASH_SIZE) == 0 && memcmp(_trace_pending[i].b, hb, TRACE_MEAS_HASH_SIZE) == 0) inflight = true;
@@ -2333,8 +2333,8 @@ void MyMesh::formatNearReply(char *reply) {
   // recorded (ret with SNR>=snr_lo), tmo=pairs that timed out twice with hop-1 (M->a) overheard
   // working (failure at a->b / return leg), rtmo=2nd-miss timeouts whose hop-1 was NEVER overheard
   // (M->a suspect; a's reach count is bumped), neg=pairs cached as no-edge (any 2nd-miss timeout
-  // or weak return) and skipped on a per-pair exponential backoff (capped ~10h; a transient
-  // failure retries within ~2 min, a permanent one ramps to ~10h). If sent>0
+  // or weak return) and skipped on a per-pair exponential backoff (capped ~24h; a transient
+  // failure retries within ~2 min, a permanent one ramps to ~24h). If sent>0
   // but ret==0 the round trips never complete (loss/collisions); if ret>0 but edge==0 the
   // measured inter-neighbour links are below snr_lo; if sent==0 no top-N>=2 window yet.
   // harv=edges/negatives adopted from overheard neighbours' TRACES (Part 2); pasv=passive
@@ -2493,7 +2493,7 @@ void MyMesh::loop() {
 
   _flood_supp.purge(millis());   // evict stale flood-suppression entries
   _nbr_links.purge(millis());    // evict stale inter-neighbour reach edges (~36h TTL)
-  _nbr_links.purgeNegative(millis());  // evict expired no-edge cache entries (~10h TTL)
+  _nbr_links.purgeNegative(millis());  // evict expired no-edge cache entries (~24h TTL)
   purgeAttachedClients(getRTCClock()->getCurrentTime());  // evict stale attached-client entries (~24h)
 
   stepCoverageMeasurement();     // actively probe (TRACE) coverage among top-N near neighbours
