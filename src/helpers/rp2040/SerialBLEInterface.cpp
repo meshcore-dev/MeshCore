@@ -1,3 +1,5 @@
+// only built when the env enables the core BLE stack (build_as_lib.py globs this dir)
+#ifdef PIO_FRAMEWORK_ARDUINO_ENABLE_BLUETOOTH
 #include "SerialBLEInterface.h"
 #include <BluetoothLock.h>
 #include <stdio.h>
@@ -196,3 +198,4 @@ size_t SerialBLEInterface::checkRecvFrame(uint8_t dest[]) {
   BLE_DEBUG_PRINTLN("readBytes: sz=%u, hdr=%u", (unsigned)len, dest[0]);
   return len;
 }
+#endif

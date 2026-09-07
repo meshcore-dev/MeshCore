@@ -2158,7 +2158,8 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
   }
 
 #ifdef WIFI_SSID
-  // local console only: these are credentials, and remote admin has no business with them
+  // not accepted from the remote mesh CLI (timestamp != 0): these are credentials. The app
+  // over USB/BLE/WiFi and the serial console (timestamp 0) may set them.
   if (sender_timestamp == 0) {
     if (memcmp(command, "set wifi.ssid ", 14) == 0) {
       StrHelper::strncpy(_prefs.wifi_ssid, &command[14], sizeof(_prefs.wifi_ssid));

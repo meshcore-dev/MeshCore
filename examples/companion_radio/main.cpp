@@ -41,7 +41,11 @@ MultiSerialInterface interface_manager;
     #define TCP_PORT 5000
   #endif
   #ifndef WIFI_RETRY_INTERVAL
-    #define WIFI_RETRY_INTERVAL 30000   // millis between reconnect attempts
+    #if defined(RP2040_PLATFORM)
+      #define WIFI_RETRY_INTERVAL 30000   // each attempt blocks loop(), so retry less often
+    #else
+      #define WIFI_RETRY_INTERVAL 10000   // millis between reconnect attempts
+    #endif
   #endif
   #ifndef WIFI_RETRY_TIMEOUT
     #define WIFI_RETRY_TIMEOUT 5000     // RP2040: cap on how long one join may block loop()
@@ -120,8 +124,8 @@ void halt() {
 #ifdef WIFI_SSID
   bool wifi_needs_reconnect = false;
   unsigned long last_wifi_reconnect_attempt = 0;
-  const char* wifi_ssid = WIFI_SSID;   // replaced by stored prefs, if set
-  const char* wifi_pwd = WIFI_PWD;
+  char wifi_ssid[33] = WIFI_SSID;   // replaced by stored prefs at boot, if set
+  char wifi_pwd[64] = WIFI_PWD;
   bool wifi_was_connected = false;
 #endif
 
@@ -220,13 +224,14 @@ void setup() {
 #endif
 
   // stored credentials win over the build-time ones ('set wifi.ssid <x>' over USB serial).
-  // they are taken as a pair, so 'set wifi.ssid' alone gives an open-network join, not a
-  // silent fallback to the build-time password of a different network.
+  // they are taken as a pair, so 'set wifi.ssid' alone gives an empty password, not a
+  // silent fallback to the build-time password of a different network. Copied out of prefs
+  // so 'set wifi.*' edits only take effect on reboot, as their replies promise.
+  // (No NULL-for-open-network: the RP2040 core does strlen() on the password unguarded.)
   if (the_mesh.getNodePrefs()->wifi_ssid[0]) {
-    wifi_ssid = the_mesh.getNodePrefs()->wifi_ssid;
-    wifi_pwd = the_mesh.getNodePrefs()->wifi_pwd;
+    strcpy(wifi_ssid, the_mesh.getNodePrefs()->wifi_ssid);
+    strcpy(wifi_pwd, the_mesh.getNodePrefs()->wifi_pwd);
   }
-  if (wifi_pwd[0] == 0) wifi_pwd = NULL;   // NULL (not "") selects an open network
   WIFI_DEBUG_PRINTLN("connecting to %s", wifi_ssid);
 
 #if defined(RP2040_PLATFORM)
