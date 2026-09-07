@@ -2187,6 +2187,16 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
       sprintf(reply, "> %s", _prefs.wifi_ssid[0] ? _prefs.wifi_ssid : WIFI_SSID);
       return true;
     }
+    if (memcmp(command, "set wifi.enabled ", 17) == 0) {
+      _prefs.wifi_enabled = atoi(&command[17]) ? 1 : 0;
+      savePrefs();
+      sprintf(reply, "> wifi.enabled is now %d (reboot to apply)", _prefs.wifi_enabled);
+      return true;
+    }
+    if (strcmp(command, "get wifi.enabled") == 0) {
+      sprintf(reply, "> %d", _prefs.wifi_enabled);
+      return true;
+    }
     if (strcmp(command, "get wifi.status") == 0) {
       strcpy(reply, WiFi.status() == WL_CONNECTED ? "> connected" : "> disconnected");
       return true;

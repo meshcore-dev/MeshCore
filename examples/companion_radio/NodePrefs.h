@@ -47,6 +47,7 @@ public:
 #ifdef WIFI_SSID
   char wifi_ssid[33] = {0};   // if empty, the compile-time WIFI_SSID is used
   char wifi_pwd[64] = {0};
+  uint8_t wifi_enabled = 1;   // 0 = never bring up WiFi (credentials may still be baked in)
 #endif
 
 private:
@@ -171,6 +172,7 @@ private:
     void structure() override {
       def("ssid", _parent->wifi_ssid, sizeof(_parent->wifi_ssid));
       def("pwd", _parent->wifi_pwd, sizeof(_parent->wifi_pwd));
+      def("enabled", _parent->wifi_enabled);
     }
   public:
     WiFiPrefs(NodePrefs* parent) : _parent(parent) { }
