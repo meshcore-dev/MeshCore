@@ -26,6 +26,10 @@ MultiSerialInterface interface_manager;
     // include nrf52 bluetooth interface
     #include <helpers/nrf52/SerialBLEInterface.h>
     SerialBLEInterface bluetooth_interface;
+  #elif defined(RP2040_PLATFORM)
+    // include rp2040 (Pico W / CYW43) bluetooth interface
+    #include <helpers/rp2040/SerialBLEInterface.h>
+    SerialBLEInterface bluetooth_interface;
   #else
     #error "SerialBLEInterface is not defined for this platform"
   #endif
