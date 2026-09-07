@@ -30,6 +30,11 @@
 #define LPP_SWITCH 142              // 1 byte, 0/1
 #define LPP_POLYLINE 240            // 1 byte size, 1 byte delta factor, 3 byte lon/lat 0.0001° * factor, n (size-8) bytes deltas
 
+// Placeholder types for wind/rain telemetry, pending meshcore-dev/MeshCore#3368.
+#define LPP_WIND_SPEED 250          // 2 bytes, 1 m/s, unsigned (placeholder)
+#define LPP_WIND_GUST 251           // 2 bytes, 1 m/s, unsigned (placeholder)
+#define LPP_RAIN 252                // 2 bytes, 1 mm, unsigned (placeholder)
+
 // Multipliers
 #define LPP_DIGITAL_INPUT_MULT 1
 #define LPP_DIGITAL_OUTPUT_MULT 1
@@ -58,6 +63,10 @@
 #define LPP_SWITCH_MULT 1
 #define LPP_CONCENTRATION_MULT 1
 #define LPP_COLOUR_MULT 1
+// For review: Are the units defined in CayenneLPP?
+#define LPP_WIND_SPEED_MULT 1
+#define LPP_WIND_GUST_MULT 1
+#define LPP_RAIN_MULT 1
 
 #define LPP_ERROR_OK 0
 #define LPP_ERROR_OVERFLOW 1
@@ -165,6 +174,9 @@ public:
       case LPP_CURRENT:
       case LPP_DIRECTION:
       case LPP_POWER:
+      case LPP_WIND_SPEED:
+      case LPP_WIND_GUST:
+      case LPP_RAIN:
         _pos += 2; break;
       default:
         _pos++;
@@ -214,6 +226,46 @@ public:
       _buf[_len++] = alti >> 16;
       _buf[_len++] = alti >> 8;
       _buf[_len++] = alti;
+      return true;
+    }
+    return false;
+  }
+
+  bool writeDirection(uint8_t channel, uint16_t degrees) {
+    if (_len + 4 <= _max_len) {
+      _buf[_len++] = channel;
+      _buf[_len++] = LPP_DIRECTION;
+      write(degrees);
+      return true;
+    }
+    return false;
+  }
+
+  bool writeWindSpeed(uint8_t channel, uint16_t speed) {
+    if (_len + 4 <= _max_len) {
+      _buf[_len++] = channel;
+      _buf[_len++] = LPP_WIND_SPEED;
+      write(speed);
+      return true;
+    }
+    return false;
+  }
+
+  bool writeWindGust(uint8_t channel, uint16_t gust) {
+    if (_len + 4 <= _max_len) {
+      _buf[_len++] = channel;
+      _buf[_len++] = LPP_WIND_GUST;
+      write(gust);
+      return true;
+    }
+    return false;
+  }
+
+  bool writeRain(uint8_t channel, uint16_t tip_count) {
+    if (_len + 4 <= _max_len) {
+      _buf[_len++] = channel;
+      _buf[_len++] = LPP_RAIN;
+      write(tip_count);
       return true;
     }
     return false;

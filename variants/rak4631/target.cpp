@@ -32,6 +32,10 @@ AutoDiscoverRTCClock rtc_clock(fallback_clock);
   EnvironmentSensorManager sensors;
 #endif
 
+#if ENV_INCLUDE_WIND
+  WindSensor wind_sensor;
+#endif
+
 bool radio_init() {
   rtc_clock.begin(Wire);
   return radio.std_init(&SPI);

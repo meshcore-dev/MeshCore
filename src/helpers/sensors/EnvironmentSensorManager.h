@@ -43,6 +43,8 @@ public:
   #endif
   bool begin() override;
   bool querySensors(uint8_t requester_permissions, CayenneLPP& telemetry) override;
+  // Channel one past the last one querySensors() assigned to avoid collision with dynamically allocated channels.
+  uint8_t getNextAvailableChannel() const { return next_available_channel; }
   #if ENV_INCLUDE_GPS || defined(ENV_INCLUDE_BME680_BSEC)
   void loop() override;
   #endif
