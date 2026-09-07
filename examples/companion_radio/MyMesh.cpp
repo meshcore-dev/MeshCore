@@ -2181,7 +2181,7 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
       return true;
     }
     if (strcmp(command, "get wifi.ssid") == 0) {   // no 'get wifi.pwd', by design
-      sprintf(reply, "> %s", _prefs.wifi_ssid[0] ? _prefs.wifi_ssid : "(build-time)");
+      sprintf(reply, "> %s", _prefs.wifi_ssid[0] ? _prefs.wifi_ssid : WIFI_SSID);
       return true;
     }
   }
