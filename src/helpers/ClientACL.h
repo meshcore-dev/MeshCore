@@ -30,6 +30,7 @@ struct ClientInfo {
     } room;
     struct {
       uint32_t expiry_timestamp;  // epoch seconds
+      uint32_t push_tag;
       uint16_t scope_region_id;  // scope to use when sending telemetry to this client/subscriber
       uint8_t  min_deltas_len;
       uint8_t  min_deltas[14];  // LPP encoded
