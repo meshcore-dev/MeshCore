@@ -79,7 +79,7 @@ bool CommonRadioPrefs::handleCommand(const char* command, uint32_t sender_timest
   }
 
   if (strcmp(command, "get af") == 0) {
-    sprintf(reply, "> %s", StrHelper::ftoa(getAirtimeFactor()));
+    sprintf(reply, "> %s", StrHelper::ftoa3(getAirtimeFactor()));
     return true;
   }
   if (memcmp(command, "set af ", 7) == 0) {
@@ -162,7 +162,7 @@ bool CommonRadioPrefs::handleCommand(const char* command, uint32_t sender_timest
   }
 
   if (strcmp(command, "get rxdelay") == 0) {
-    sprintf(reply, "> %s", StrHelper::ftoa(getRxDelay()));
+    sprintf(reply, "> %s", StrHelper::ftoa3(getRxDelay()));
     return true;
   }
   if (memcmp(command, "set rxdelay ", 12) == 0) {
@@ -215,7 +215,7 @@ bool CommonRadioPrefs::handleCommand(const char* command, uint32_t sender_timest
   }
 
   if (strcmp(command, "get txdelay") == 0) {
-    sprintf(reply, "> %s", StrHelper::ftoa(getFloodTxDelay()));
+    sprintf(reply, "> %s", StrHelper::ftoa3(getFloodTxDelay()));
     return true;
   }
   if (memcmp(command, "set txdelay ", 12) == 0) {
@@ -230,7 +230,7 @@ bool CommonRadioPrefs::handleCommand(const char* command, uint32_t sender_timest
   }
 
   if (strcmp(command, "get direct.txdelay") == 0) {
-    sprintf(reply, "> %s", StrHelper::ftoa(getDirectTxDelay()));
+    sprintf(reply, "> %s", StrHelper::ftoa3(getDirectTxDelay()));
     return true;
   }
   if (memcmp(command, "set direct.txdelay ", 19) == 0) {
