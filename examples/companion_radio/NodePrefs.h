@@ -47,7 +47,7 @@ public:
 #ifdef WIFI_SSID
   char wifi_ssid[33] = {0};   // if empty, the compile-time WIFI_SSID is used
   char wifi_pwd[64] = {0};
-  uint8_t wifi_enabled = 1;   // 0 = never bring up WiFi (credentials may still be baked in)
+  uint8_t wifi_enabled = 0;   // off until 'set wifi.enabled 1' (credentials may still be baked in)
 #endif
 
 private:
