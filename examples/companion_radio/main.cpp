@@ -218,8 +218,8 @@ void setup() {
     strcpy(wifi_ssid, the_mesh.getNodePrefs()->wifi_ssid);
     strcpy(wifi_pwd, the_mesh.getNodePrefs()->wifi_pwd);
   }
-  // 'set wifi.enabled 0' or a build with blank credentials leaves the radio off entirely
-  wifi_enabled = the_mesh.getNodePrefs()->wifi_enabled && wifi_ssid[0];
+  // 'set wifi.enabled 0', or no SSID from either prefs or the build, leaves the radio off entirely
+  wifi_enabled = the_mesh.getNodePrefs()->wifiEnabled();
   if (wifi_enabled) {
 #if defined(ESP32)
     board.setInhibitSleep(true);   // prevent sleep when WiFi is active

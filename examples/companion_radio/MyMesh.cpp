@@ -2184,17 +2184,22 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
       return true;
     }
     if (strcmp(command, "get wifi.ssid") == 0) {   // no 'get wifi.pwd', by design
-      sprintf(reply, "> %s", _prefs.wifi_ssid[0] ? _prefs.wifi_ssid : WIFI_SSID);
+      sprintf(reply, "> %s", _prefs.wifiSSID()[0] ? _prefs.wifiSSID() : "(not set)");
       return true;
     }
     if (memcmp(command, "set wifi.enabled ", 17) == 0) {
-      _prefs.wifi_enabled = atoi(&command[17]) ? 1 : 0;
+      uint8_t en = atoi(&command[17]) ? 1 : 0;
+      if (en && !_prefs.wifiSSID()[0]) {
+        strcpy(reply, "> set wifi.ssid first");
+        return true;
+      }
+      _prefs.wifi_enabled = en;
       savePrefs();
-      sprintf(reply, "> wifi.enabled is now %d (reboot to apply)", _prefs.wifi_enabled);
+      sprintf(reply, "> wifi.enabled is now %d (reboot to apply)", en);
       return true;
     }
     if (strcmp(command, "get wifi.enabled") == 0) {
-      sprintf(reply, "> %d", _prefs.wifi_enabled);
+      sprintf(reply, "> %d", _prefs.wifiEnabled() ? 1 : 0);
       return true;
     }
     if (strcmp(command, "get wifi.status") == 0) {

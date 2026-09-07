@@ -47,7 +47,12 @@ public:
 #ifdef WIFI_SSID
   char wifi_ssid[33] = {0};   // if empty, the compile-time WIFI_SSID is used
   char wifi_pwd[64] = {0};
-  uint8_t wifi_enabled = 0;   // off until 'set wifi.enabled 1' (credentials may still be baked in)
+  uint8_t wifi_enabled = 2;   // 0 = off, 1 = on, 2 = never set (treated as on)
+
+  // effective SSID: stored prefs win over the build-time one
+  const char* wifiSSID() const { return wifi_ssid[0] ? wifi_ssid : WIFI_SSID; }
+  // WiFi runs only when there is an SSID and it hasn't been explicitly turned off
+  bool wifiEnabled() const { return wifiSSID()[0] && wifi_enabled != 0; }
 #endif
 
 private:
