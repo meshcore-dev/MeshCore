@@ -1,6 +1,9 @@
 #include "MyMesh.h"
 
 #include <Arduino.h> // needed for PlatformIO
+#ifdef WIFI_SSID
+#include <WiFi.h>
+#endif
 #include <Mesh.h>
 
 #define CMD_APP_START                 1
@@ -2182,6 +2185,18 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
     }
     if (strcmp(command, "get wifi.ssid") == 0) {   // no 'get wifi.pwd', by design
       sprintf(reply, "> %s", _prefs.wifi_ssid[0] ? _prefs.wifi_ssid : WIFI_SSID);
+      return true;
+    }
+    if (strcmp(command, "get wifi.status") == 0) {
+      strcpy(reply, WiFi.status() == WL_CONNECTED ? "> connected" : "> disconnected");
+      return true;
+    }
+    if (strcmp(command, "get wifi.ip") == 0) {
+      if (WiFi.status() == WL_CONNECTED) {
+        sprintf(reply, "> %s", WiFi.localIP().toString().c_str());
+      } else {
+        strcpy(reply, "> (not connected)");
+      }
       return true;
     }
   }
