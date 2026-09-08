@@ -1,0 +1,19 @@
+{
+  "name": "Crypto",
+  "version": "0.4.0",
+  "description": "Minimal subset of rweather/arduinolibs Crypto library (AES128 + SHA256 only)",
+  "authors": [
+    {
+      "name": "Rhys Weatherley",
+      "email": "rhys.weatherley@gmail.com",
+      "url": "https://rweather.github.io/arduinolibs/crypto.html"
+    }
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rweather/arduinolibs.git"
+  },
+  "license": "MIT",
+  "frameworks": ["arduino"],
+  "platforms": ["*"]
+}
