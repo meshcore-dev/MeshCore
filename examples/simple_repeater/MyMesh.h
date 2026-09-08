@@ -84,6 +84,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   uint64_t uptime_millis;
   unsigned long next_local_advert, next_flood_advert;
   bool _logging;
+  bool _tailing;
   NodePrefs _prefs;
   ClientACL  acl;
   CommonCLI _cli;
@@ -126,6 +127,9 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
 
   File openAppend(const char* fname);
   bool isLooped(const mesh::Packet* packet, const uint8_t max_counters[]);
+  void mirrorPacketLogRxToSerial(mesh::Packet* pkt, int len, float score);
+  void mirrorPacketLogTxToSerial(mesh::Packet* pkt, int len);
+  void mirrorPacketLogTxFailToSerial(mesh::Packet* pkt, int len);
 
 protected:
   float getAirtimeBudgetFactor() const override {
@@ -202,6 +206,8 @@ public:
   void updateFloodAdvertTimer() override;
 
   void setLoggingOn(bool enable) override { _logging = enable; }
+
+  void setTailOn(bool enable) override { _tailing = enable; }
 
   void eraseLogFile() override {
     _fs->remove(PACKET_LOG_FILE);

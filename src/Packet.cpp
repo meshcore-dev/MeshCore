@@ -1,8 +1,48 @@
 #include "Packet.h"
+#include <stdio.h>
 #include <string.h>
 #include <SHA256.h>
 
 namespace mesh {
+
+namespace {
+
+struct PayloadTypeName { uint8_t type; const char* name; };
+
+static const PayloadTypeName PAYLOAD_TYPE_NAMES[] = {
+  { PAYLOAD_TYPE_REQ, "PAYLOAD_TYPE_REQ" },
+  { PAYLOAD_TYPE_RESPONSE, "PAYLOAD_TYPE_RESPONSE" },
+  { PAYLOAD_TYPE_TXT_MSG, "PAYLOAD_TYPE_TXT_MSG" },
+  { PAYLOAD_TYPE_ACK, "PAYLOAD_TYPE_ACK" },
+  { PAYLOAD_TYPE_ADVERT, "PAYLOAD_TYPE_ADVERT" },
+  { PAYLOAD_TYPE_GRP_TXT, "PAYLOAD_TYPE_GRP_TXT" },
+  { PAYLOAD_TYPE_GRP_DATA, "PAYLOAD_TYPE_GRP_DATA" },
+  { PAYLOAD_TYPE_ANON_REQ, "PAYLOAD_TYPE_ANON_REQ" },
+  { PAYLOAD_TYPE_PATH, "PAYLOAD_TYPE_PATH" },
+  { PAYLOAD_TYPE_TRACE, "PAYLOAD_TYPE_TRACE" },
+  { PAYLOAD_TYPE_MULTIPART, "PAYLOAD_TYPE_MULTIPART" },
+  { PAYLOAD_TYPE_CONTROL, "PAYLOAD_TYPE_CONTROL" },
+  { PAYLOAD_TYPE_OTA, "PAYLOAD_TYPE_OTA" },
+  { PAYLOAD_TYPE_RAW_CUSTOM, "PAYLOAD_TYPE_RAW_CUSTOM" },
+};
+
+} // namespace
+
+const char* payloadTypeName(uint8_t type) {
+  for (unsigned i = 0; i < sizeof(PAYLOAD_TYPE_NAMES) / sizeof(PAYLOAD_TYPE_NAMES[0]); i++) {
+    if (PAYLOAD_TYPE_NAMES[i].type == type) return PAYLOAD_TYPE_NAMES[i].name;
+  }
+  return nullptr;
+}
+
+void formatPayloadType(uint8_t type, char* buf, size_t cap) {
+  const char* name = payloadTypeName(type);
+  if (name) {
+    snprintf(buf, cap, "%s (0x%02X)", name, type);
+  } else {
+    snprintf(buf, cap, "UNKNOWN (0x%02X)", type);
+  }
+}
 
 Packet::Packet() {
   header = 0;
