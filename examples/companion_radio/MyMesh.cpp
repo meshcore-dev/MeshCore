@@ -2181,7 +2181,7 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
     return true;
   }
   if (strcmp(command, "get wifi.ssid") == 0) {   // no 'get wifi.pwd', by design
-    sprintf(reply, "> %s", _prefs.wifiSSID()[0] ? _prefs.wifiSSID() : "(not set)");
+    sprintf(reply, "> %s", _prefs.getWifiSSID()[0] ? _prefs.getWifiSSID() : "(not set)");
     return true;
   }
   if (memcmp(command, "set wifi.enabled ", 17) == 0) {
@@ -2191,7 +2191,7 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
     return true;
   }
   if (strcmp(command, "get wifi.enabled") == 0) {
-    sprintf(reply, "> %d", _prefs.wifiEnabled() ? 1 : 0);
+    sprintf(reply, "> %d", _prefs.wifi_enabled);
     return true;
   }
   if (strcmp(command, "get wifi.status") == 0) {
