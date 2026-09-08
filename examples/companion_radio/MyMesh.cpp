@@ -2188,14 +2188,9 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
       return true;
     }
     if (memcmp(command, "set wifi.enabled ", 17) == 0) {
-      uint8_t en = atoi(&command[17]) ? 1 : 0;
-      if (en && !_prefs.wifiSSID()[0]) {
-        strcpy(reply, "> set wifi.ssid first");
-        return true;
-      }
-      _prefs.wifi_enabled = en;
+      _prefs.wifi_enabled = atoi(&command[17]) ? 1 : 0;
       savePrefs();
-      sprintf(reply, "> wifi.enabled is now %d (reboot to apply)", en);
+      sprintf(reply, "> wifi.enabled is now %d (reboot to apply)", _prefs.wifi_enabled);
       return true;
     }
     if (strcmp(command, "get wifi.enabled") == 0) {
