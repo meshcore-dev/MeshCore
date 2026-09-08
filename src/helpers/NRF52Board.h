@@ -57,6 +57,7 @@ public:
   virtual bool startOTAUpdate(const char *id, char reply[]) override;
   virtual void sleep(uint32_t secs) override;
   bool isExternalPowered() override;
+  void enterLightSleep(uint32_t secs, int pin_wake_btn = -1) { sleep(secs); }
 
   void attachDynamicPrefs(KeyValueStore* prefs) { }  // no-op
 
