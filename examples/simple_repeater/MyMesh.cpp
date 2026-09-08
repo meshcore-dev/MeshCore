@@ -1175,6 +1175,12 @@ void MyMesh::formatPacketStatsReply(char *reply) {
                                        getNumRecvFlood(), getNumRecvDirect());
 }
 
+void MyMesh::formatExtPowerStatsReply(char *reply) {
+  if (!sensors.formatExtPowerStats(reply)) {
+    strcpy(reply, "{\"err\":\"No external power monitoring board detected\"}");
+  }
+}
+
 void MyMesh::saveIdentity(const mesh::LocalIdentity &new_id) {
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
   IdentityStore store(*_fs, "");
