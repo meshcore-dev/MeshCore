@@ -469,10 +469,10 @@ const char *MyMesh::getLogDateTime() {
 
 void MyMesh::logRxRaw(float snr, float rssi, const uint8_t raw[], int len) {
 #if MESH_PACKET_LOGGING
-  Serial.print(getLogDateTime());
-  Serial.print(" RAW: ");
-  mesh::Utils::printHex(Serial, raw, len);
-  Serial.println();
+  MESH_CONSOLE_SERIAL.print(getLogDateTime());
+  MESH_CONSOLE_SERIAL.print(" RAW: ");
+  mesh::Utils::printHex(MESH_CONSOLE_SERIAL, raw, len);
+  MESH_CONSOLE_SERIAL.println();
 #endif
 }
 
@@ -1068,7 +1068,7 @@ void MyMesh::dumpLogFile() {
     while (f.available()) {
       int c = f.read();
       if (c < 0) break;
-      Serial.print((char)c);
+      MESH_CONSOLE_SERIAL.print((char)c);
     }
     f.close();
   }
@@ -1261,14 +1261,14 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
       }
     }
   } else if (sender_timestamp == 0 && strcmp(command, "get acl") == 0) {
-    Serial.println("ACL:");
+    MESH_CONSOLE_SERIAL.println("ACL:");
     for (int i = 0; i < acl.getNumClients(); i++) {
       auto c = acl.getClientByIdx(i);
       if (c->permissions == 0) continue;  // skip deleted (or guest) entries
 
-      Serial.printf("%02X ", c->permissions);
-      mesh::Utils::printHex(Serial, c->id.pub_key, PUB_KEY_SIZE);
-      Serial.printf("\n");
+      MESH_CONSOLE_SERIAL.printf("%02X ", c->permissions);
+      mesh::Utils::printHex(MESH_CONSOLE_SERIAL, c->id.pub_key, PUB_KEY_SIZE);
+      MESH_CONSOLE_SERIAL.printf("\n");
     }
     reply[0] = 0;
   } else if (memcmp(command, "discover.neighbors", 18) == 0) {

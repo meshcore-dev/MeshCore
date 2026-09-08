@@ -27,7 +27,7 @@ static char ethernet_command[MAX_POST_TEXT_LEN+1];
 #endif
 
 void setup() {
-  Serial.begin(115200);
+  MESH_CONSOLE_SERIAL.begin(115200);
   delay(1000);
 
   board.begin();
@@ -75,8 +75,8 @@ void setup() {
     store.save("_main", the_mesh.self_id);
   }
 
-  Serial.print("Room ID: ");
-  mesh::Utils::printHex(Serial, the_mesh.self_id.pub_key, PUB_KEY_SIZE); Serial.println();
+  MESH_CONSOLE_SERIAL.print("Room ID: ");
+  mesh::Utils::printHex(MESH_CONSOLE_SERIAL, the_mesh.self_id.pub_key, PUB_KEY_SIZE); MESH_CONSOLE_SERIAL.println();
 
   command[0] = 0;
 #ifdef ETHERNET_ENABLED
@@ -105,13 +105,13 @@ void setup() {
 
 void loop() {
   int len = strlen(command);
-  while (Serial.available() && len < sizeof(command)-1) {
-    char c = Serial.read();
+  while (MESH_CONSOLE_SERIAL.available() && len < sizeof(command)-1) {
+    char c = MESH_CONSOLE_SERIAL.read();
     if (c != '\n') {
       command[len++] = c;
       command[len] = 0;
     }
-    Serial.print(c);
+    MESH_CONSOLE_SERIAL.print(c);
   }
   if (len == sizeof(command)-1) {  // command buffer full
     command[sizeof(command)-1] = '\r';
@@ -129,7 +129,7 @@ void loop() {
     the_mesh.handleCommand(0, command, reply);  // NOTE: there is no sender_timestamp via serial!
 #endif
     if (reply[0]) {
-      Serial.print("  -> "); Serial.println(reply);
+      MESH_CONSOLE_SERIAL.print("  -> "); MESH_CONSOLE_SERIAL.println(reply);
     }
 
     command[0] = 0;  // reset command buffer
