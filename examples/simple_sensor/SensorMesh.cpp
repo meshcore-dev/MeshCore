@@ -1,5 +1,6 @@
 #include "SensorMesh.h"
 #include <helpers/RoutingPolicy.h>
+#include <helpers/sensors/LPPDataHelpers.h>
 
 /* ------------------------------ Config -------------------------------- */
 
@@ -80,103 +81,6 @@ static File openAppend(FILESYSTEM* _fs, const char* fname) {
 
 /* --------------------- Cayenne LPP helpers ----------------------------*/
 
-static uint8_t getDataSize(uint8_t type) {
-    switch (type) {
-      case LPP_GPS:
-        return 9;
-      case LPP_POLYLINE:
-        return 8;  // TODO: this is MINIMIUM
-      case LPP_GYROMETER:
-      case LPP_ACCELEROMETER:
-        return 6;
-      case LPP_GENERIC_SENSOR:
-      case LPP_FREQUENCY:
-      case LPP_DISTANCE:
-      case LPP_ENERGY:
-      case LPP_UNIXTIME:
-        return 4;
-      case LPP_COLOUR:
-        return 3;
-      case LPP_ANALOG_INPUT:
-      case LPP_ANALOG_OUTPUT:
-      case LPP_LUMINOSITY:
-      case LPP_TEMPERATURE:
-      case LPP_CONCENTRATION:
-      case LPP_BAROMETRIC_PRESSURE:
-      case LPP_RELATIVE_HUMIDITY:
-      case LPP_ALTITUDE:
-      case LPP_VOLTAGE:
-      case LPP_CURRENT:
-      case LPP_DIRECTION:
-      case LPP_POWER:
-        return 2;
-    }
-    return 1;
-}
-
-static uint32_t getMultiplier(uint8_t type) {
-    switch (type) {
-      case LPP_CURRENT:
-      case LPP_DISTANCE:
-      case LPP_ENERGY:
-        return 1000;
-      case LPP_VOLTAGE:
-      case LPP_ANALOG_INPUT:
-      case LPP_ANALOG_OUTPUT:
-        return 100;
-      case LPP_TEMPERATURE:
-      case LPP_BAROMETRIC_PRESSURE:
-      case LPP_RELATIVE_HUMIDITY:
-        return 10;
-    }
-    return 1;
-}
-
-static bool isSigned(uint8_t type) {
-  return type == LPP_ALTITUDE || type == LPP_TEMPERATURE || type == LPP_GYROMETER ||
-      type == LPP_ANALOG_INPUT || type == LPP_ANALOG_OUTPUT || type == LPP_GPS || type == LPP_ACCELEROMETER;
-}
-
-static float getFloat(const uint8_t * buffer, uint8_t size, uint32_t multiplier, bool is_signed) {
-  uint32_t value = 0;
-  for (uint8_t i = 0; i < size; i++) {
-    value = (value << 8) + buffer[i];
-  }
-
-  int sign = 1;
-  if (is_signed) {
-    uint32_t bit = 1ul << ((size * 8) - 1);
-    if ((value & bit) == bit) {
-      value = (bit << 1) - value;
-      sign = -1;
-    }
-  }
-  return sign * ((float) value / multiplier);
-}
-
-static uint8_t putFloat(uint8_t * dest, float value, uint8_t size, uint32_t multiplier, bool is_signed) {
-  // check sign
-  bool sign = value < 0;
-  if (sign) value = -value;
-
-  // get value to store
-  uint32_t v = value * multiplier;
-
-  // format an uint32_t as if it was an int32_t
-  if (is_signed & sign) {
-    uint32_t mask = (1 << (size * 8)) - 1;
-    v = v & mask;
-    if (sign) v = mask - v + 1;
-  }
-
-  // add bytes (MSB first)
-  for (uint8_t i=1; i<=size; i++) {
-    dest[size - i] = (v & 0xFF);
-    v >>= 8;
-  }
-  return size;
-}
-
 static float findTelemValue(const uint8_t* buf, uint8_t size, uint8_t channel, uint8_t type) {
   uint8_t i = 0;
 
@@ -185,10 +89,10 @@ static float findTelemValue(const uint8_t* buf, uint8_t size, uint8_t channel, u
     uint8_t ch = buf[i++];
     // Get data type
     uint8_t t = buf[i++];
-    uint8_t sz = getDataSize(t);
+    uint8_t sz = LPPData::getDataSize(t);
 
     if (ch == channel && t == type) {
-      return getFloat(&buf[i], sz, getMultiplier(t), isSigned(t));
+      return LPPData::getFloat(&buf[i], sz, LPPData::getMultiplier(t), LPPData::isSigned(t));
     }
     i += sz;  // skip
   }
@@ -209,10 +113,10 @@ bool SensorMesh::telemHasChanged(const uint8_t* min_deltas, uint8_t min_deltas_l
     uint8_t ch = buf[i++];
     // Get data type
     uint8_t t = buf[i++];
-    uint8_t sz = getDataSize(t);
+    uint8_t sz = LPPData::getDataSize(t);
 
-    float v = getFloat(&buf[i], sz, getMultiplier(t), isSigned(t));
-    float pv = getFloat(&prev_telem[i], sz, getMultiplier(t), isSigned(t));
+    float v = LPPData::getFloat(&buf[i], sz, LPPData::getMultiplier(t), LPPData::isSigned(t));
+    float pv = LPPData::getFloat(&prev_telem[i], sz, LPPData::getMultiplier(t), LPPData::isSigned(t));
     float min_delta = findTelemValue(min_deltas, min_deltas_len, ch, t);
     if (abs(v - pv) > min_delta) return true;   // Yes, has changed
 
@@ -268,12 +172,12 @@ uint8_t SensorMesh::handleRequest(ClientInfo* from, uint32_t sender_timestamp, u
       auto d = &data[i];
       reply_data[ofs++] = d->_channel;
       reply_data[ofs++] = d->_lpp_type;
-      uint8_t sz = getDataSize(d->_lpp_type);
-      uint32_t mult = getMultiplier(d->_lpp_type);
-      bool is_signed = isSigned(d->_lpp_type);
-      ofs += putFloat(&reply_data[ofs], d->_min, sz, mult, is_signed);
-      ofs += putFloat(&reply_data[ofs], d->_max, sz, mult, is_signed);
-      ofs += putFloat(&reply_data[ofs], d->_avg, sz, mult, is_signed);
+      uint8_t sz = LPPData::getDataSize(d->_lpp_type);
+      uint32_t mult = LPPData::getMultiplier(d->_lpp_type);
+      bool is_signed = LPPData::isSigned(d->_lpp_type);
+      ofs += LPPData::putFloat(&reply_data[ofs], d->_min, sz, mult, is_signed);
+      ofs += LPPData::putFloat(&reply_data[ofs], d->_max, sz, mult, is_signed);
+      ofs += LPPData::putFloat(&reply_data[ofs], d->_avg, sz, mult, is_signed);
     }
     return ofs;
   }
@@ -317,9 +221,9 @@ uint8_t SensorMesh::handleRequest(ClientInfo* from, uint32_t sender_timestamp, u
     from->extra.sensor.push_tag = 0;
     from->extra.sensor.expiry_timestamp = 0;
     // REVISIT: maybe return some stats, eg total number of telemetry pushes since SUBSCRIBE?
-    reply_data[4] = 0;  // success
-    getRNG()->random(&reply_data[5], 3);   // just some entropy for better packet-hash uniqueness
-    return 8;
+    memset(&reply_data[4], 0, 8);  // success
+    getRNG()->random(&reply_data[12], 2);   // just some entropy for better packet-hash uniqueness
+    return 12 + 2;
   }
   return 0;  // unknown command
 }
