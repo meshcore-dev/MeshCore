@@ -209,11 +209,7 @@ void setup() {
 
 // add wifi interface
 #ifdef WIFI_SSID
-  // stored credentials win over the build-time ones ('set wifi.ssid <x>' over USB serial).
-  // they are taken as a pair, so 'set wifi.ssid' alone gives an empty password, not a
-  // silent fallback to the build-time password of a different network. Copied out of prefs
-  // so 'set wifi.*' edits only take effect on reboot, as their replies promise.
-  // (No NULL-for-open-network: the RP2040 core does strlen() on the password unguarded.)
+  // use wifi ssid and password from prefs if ssid is not empty, otherwise use the build flag defaults
   if (the_mesh.getNodePrefs()->wifi_ssid[0]) {
     strcpy(wifi_ssid, the_mesh.getNodePrefs()->wifi_ssid);
     strcpy(wifi_pwd, the_mesh.getNodePrefs()->wifi_pwd);
@@ -239,10 +235,9 @@ void setup() {
     WIFI_DEBUG_PRINTLN("connecting to %s", wifi_ssid);
 
 #if defined(RP2040_PLATFORM)
-    // ponytail: the join itself blocks inside the core (CYW43::begin busy-waits for the
+    // the join itself blocks inside the core (CYW43::begin busy-waits for the
     // association), so every attempt stalls the mesh loop. beginNoBlock() only skips the
     // extra DHCP wait. Give the first connect a full window, then bound the retries below.
-    // Upgrade path if the stall ever matters: run WiFi on core1.
     WiFi.beginNoBlock(wifi_ssid, wifi_pwd);
     last_wifi_reconnect_attempt = millis();   // let DHCP finish before the poll can retry
 #else
