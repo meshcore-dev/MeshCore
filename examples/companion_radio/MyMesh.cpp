@@ -2161,54 +2161,50 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
   }
 
 #ifdef WIFI_SSID
-  // not accepted from the remote mesh CLI (timestamp != 0): these are credentials. The app
-  // over USB/BLE/WiFi and the serial console (timestamp 0) may set them.
-  if (sender_timestamp == 0) {
-    if (memcmp(command, "set wifi.ssid ", 14) == 0) {
-      StrHelper::strncpy(_prefs.wifi_ssid, &command[14], sizeof(_prefs.wifi_ssid));
-      savePrefs();
-      sprintf(reply, "> wifi.ssid is now %s (set wifi.pwd too, then reboot)", _prefs.wifi_ssid);
-      return true;
+  if (memcmp(command, "set wifi.ssid ", 14) == 0) {
+    StrHelper::strncpy(_prefs.wifi_ssid, &command[14], sizeof(_prefs.wifi_ssid));
+    savePrefs();
+    sprintf(reply, "> wifi.ssid is now %s (set wifi.pwd too, then reboot)", _prefs.wifi_ssid);
+    return true;
+  }
+  if (memcmp(command, "set wifi.pwd ", 13) == 0) {
+    StrHelper::strncpy(_prefs.wifi_pwd, &command[13], sizeof(_prefs.wifi_pwd));
+    savePrefs();
+    strcpy(reply, "> wifi.pwd updated (reboot to apply)");
+    return true;
+  }
+  if (strcmp(command, "set wifi.clear") == 0) {
+    _prefs.wifi_ssid[0] = 0;
+    _prefs.wifi_pwd[0] = 0;
+    savePrefs();
+    strcpy(reply, "> wifi config cleared (reboot to apply)");
+    return true;
+  }
+  if (strcmp(command, "get wifi.ssid") == 0) {   // no 'get wifi.pwd', by design
+    sprintf(reply, "> %s", _prefs.wifiSSID()[0] ? _prefs.wifiSSID() : "(not set)");
+    return true;
+  }
+  if (memcmp(command, "set wifi.enabled ", 17) == 0) {
+    _prefs.wifi_enabled = atoi(&command[17]) ? 1 : 0;
+    savePrefs();
+    sprintf(reply, "> wifi.enabled is now %d (reboot to apply)", _prefs.wifi_enabled);
+    return true;
+  }
+  if (strcmp(command, "get wifi.enabled") == 0) {
+    sprintf(reply, "> %d", _prefs.wifiEnabled() ? 1 : 0);
+    return true;
+  }
+  if (strcmp(command, "get wifi.status") == 0) {
+    strcpy(reply, WiFi.status() == WL_CONNECTED ? "> connected" : "> disconnected");
+    return true;
+  }
+  if (strcmp(command, "get wifi.ip") == 0) {
+    if (WiFi.status() == WL_CONNECTED) {
+      sprintf(reply, "> %s", WiFi.localIP().toString().c_str());
+    } else {
+      strcpy(reply, "> (not connected)");
     }
-    if (memcmp(command, "set wifi.pwd ", 13) == 0) {
-      StrHelper::strncpy(_prefs.wifi_pwd, &command[13], sizeof(_prefs.wifi_pwd));
-      savePrefs();
-      strcpy(reply, "> wifi.pwd updated (reboot to apply)");
-      return true;
-    }
-    if (strcmp(command, "set wifi.clear") == 0) {
-      _prefs.wifi_ssid[0] = 0;
-      _prefs.wifi_pwd[0] = 0;
-      savePrefs();
-      strcpy(reply, "> wifi config cleared (reboot to apply)");
-      return true;
-    }
-    if (strcmp(command, "get wifi.ssid") == 0) {   // no 'get wifi.pwd', by design
-      sprintf(reply, "> %s", _prefs.wifiSSID()[0] ? _prefs.wifiSSID() : "(not set)");
-      return true;
-    }
-    if (memcmp(command, "set wifi.enabled ", 17) == 0) {
-      _prefs.wifi_enabled = atoi(&command[17]) ? 1 : 0;
-      savePrefs();
-      sprintf(reply, "> wifi.enabled is now %d (reboot to apply)", _prefs.wifi_enabled);
-      return true;
-    }
-    if (strcmp(command, "get wifi.enabled") == 0) {
-      sprintf(reply, "> %d", _prefs.wifiEnabled() ? 1 : 0);
-      return true;
-    }
-    if (strcmp(command, "get wifi.status") == 0) {
-      strcpy(reply, WiFi.status() == WL_CONNECTED ? "> connected" : "> disconnected");
-      return true;
-    }
-    if (strcmp(command, "get wifi.ip") == 0) {
-      if (WiFi.status() == WL_CONNECTED) {
-        sprintf(reply, "> %s", WiFi.localIP().toString().c_str());
-      } else {
-        strcpy(reply, "> (not connected)");
-      }
-      return true;
-    }
+    return true;
   }
 #endif
 
