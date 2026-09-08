@@ -44,7 +44,10 @@ public:
   char default_scope_name[31];
   uint8_t default_scope_key[16];
   int8_t tz_offset = 0;
-#ifdef WIFI_SSID
+#ifdef ENABLE_WIFI_INTERFACE
+  #ifndef WIFI_SSID
+    #define WIFI_SSID ""
+  #endif
   char wifi_ssid[33] = {0};   // if empty, the compile-time WIFI_SSID is used
   char wifi_pwd[64] = {0};
   uint8_t wifi_enabled = 1; // enabled by default to allow wifi only builds to work. wifi won't be started if ssid is empty
@@ -167,7 +170,7 @@ private:
 
   DynamicConfigSerializer custom;
 
-#ifdef WIFI_SSID
+#ifdef ENABLE_WIFI_INTERFACE
   class WiFiPrefs : public ConfigSerializer {
     NodePrefs* _parent;
   protected:
@@ -194,13 +197,13 @@ protected:
     def("repeat", repeat);
     def("comp", companion);
     def("custom", custom);
-#ifdef WIFI_SSID
+#ifdef ENABLE_WIFI_INTERFACE
     def("wifi", wifi);
 #endif
   }
 public:
   NodePrefs() : radio(this), gps(this), companion(this), custom(&radio)
-#ifdef WIFI_SSID
+#ifdef ENABLE_WIFI_INTERFACE
     , wifi(this)
 #endif
   {

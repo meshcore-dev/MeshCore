@@ -1,7 +1,7 @@
 #include "MyMesh.h"
 
 #include <Arduino.h> // needed for PlatformIO
-#ifdef WIFI_SSID
+#ifdef ENABLE_WIFI_INTERFACE
 #include <WiFi.h>
 #endif
 #include <Mesh.h>
@@ -2160,7 +2160,7 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
     return true;
   }
 
-#ifdef WIFI_SSID
+#ifdef ENABLE_WIFI_INTERFACE
   if (memcmp(command, "set wifi.ssid ", 14) == 0) {
     StrHelper::strncpy(_prefs.wifi_ssid, &command[14], sizeof(_prefs.wifi_ssid));
     savePrefs();
@@ -2438,7 +2438,7 @@ void MyMesh::loop() {
     checkCLIRescueCmd();
   } else {
     checkSerialInterface();
-#if defined(WIFI_SSID) && defined(RP2040_PLATFORM) && !defined(ENABLE_USB_INTERFACE)
+#if defined(ENABLE_WIFI_INTERFACE) && defined(RP2040_PLATFORM) && !defined(ENABLE_USB_INTERFACE)
     // RP2040 WiFi builds are headless and have no way into the rescue CLI (that needs a
     // display + long-press), so serve config commands on the otherwise unused USB serial
     checkCLIRescueCmd();

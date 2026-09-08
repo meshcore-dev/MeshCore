@@ -36,7 +36,13 @@ MultiSerialInterface interface_manager;
 #endif
 
 // include wifi interface
-#ifdef WIFI_SSID
+#ifdef ENABLE_WIFI_INTERFACE
+  #ifndef WIFI_SSID
+    #define WIFI_SSID ""
+  #endif
+  #ifndef WIFI_PWD
+    #define WIFI_PWD ""
+  #endif
   #ifndef TCP_PORT
     #define TCP_PORT 5000
   #endif
@@ -121,7 +127,7 @@ void halt() {
 }
 
 /* WIFI RECONNECT TRACKERS */
-#ifdef WIFI_SSID
+#ifdef ENABLE_WIFI_INTERFACE
   bool wifi_needs_reconnect = false;
   unsigned long last_wifi_reconnect_attempt = 0;
   char wifi_ssid[33] = WIFI_SSID;   // replaced by stored prefs at boot, if set
@@ -208,7 +214,7 @@ void setup() {
 #endif
 
 // add wifi interface
-#ifdef WIFI_SSID
+#ifdef ENABLE_WIFI_INTERFACE
   // use wifi ssid and password from prefs if ssid is not empty, otherwise use the build flag defaults
   if (the_mesh.getNodePrefs()->wifi_ssid[0]) {
     strcpy(wifi_ssid, the_mesh.getNodePrefs()->wifi_ssid);
@@ -302,7 +308,7 @@ void loop() {
 #endif
   }
 
-#ifdef WIFI_SSID
+#ifdef ENABLE_WIFI_INTERFACE
   if (wifi_enabled) {
     // RP2040 has no WiFi event callbacks, so poll the link state instead
   #if defined(RP2040_PLATFORM)
