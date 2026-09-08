@@ -15,12 +15,12 @@
  *                             +-- D1
  *                             |
  *        GND --+ -/\/\/\/\- --+
- *              |    100k
+ *              |    200k
  *    BAT- -----+
  */
 #define PIN_VBAT_READ     2 // D1
 #define BATTERY_SAMPLES   8
-#define ADC_MULTIPLIER    (3.0f * 3.3f * 1000)
+#define ADC_MULTIPLIER    (7.46f * 1000)
 
 class XiaoS3WIOBoard : public ESP32Board {
 public:
