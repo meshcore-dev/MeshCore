@@ -44,6 +44,7 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
   _display = display;
   _sensors = sensors;
   _auto_off = millis() + AUTO_OFF_MILLIS;
+  _was_ext_powered = board.isExternalPowered();   // don't fire wake-on-connect if booted while powered
   clearMsgPreview();
   _node_prefs = node_prefs;
   if (_display != NULL) {
@@ -449,6 +450,18 @@ void UITask::loop() {
 #ifdef PIN_BUZZER
   if (buzzer.isPlaying())  buzzer.loop();
 #endif
+
+  // Wake the display when external (USB) power is newly connected, as if a
+  // button was pressed. Only acts when the screen is currently off, so an
+  // already-lit display is left untouched (it still auto-offs unless
+  // KEEP_DISPLAY_ON_USB).
+  bool ext_powered = board.isExternalPowered();
+  if (ext_powered && !_was_ext_powered && _display != NULL && !_display->isOn()) {
+    _display->turnOn();
+    _auto_off = millis() + AUTO_OFF_MILLIS;
+    _need_refresh = true;
+  }
+  _was_ext_powered = ext_powered;
 
   if (_display != NULL && _display->isOn()) {
     static bool _firstBoot = true;

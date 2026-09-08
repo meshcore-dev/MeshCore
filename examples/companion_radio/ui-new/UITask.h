@@ -38,6 +38,7 @@ class UITask : public AbstractUITask {
   int _msgcount;
   unsigned long ui_started_at, next_batt_chck;
   int next_backlight_btn_check = 0;
+  bool _was_ext_powered = false;   // tracks USB/external power edge for wake-on-connect
 #ifdef PIN_STATUS_LED
   int led_state = 0;
   int next_led_change = 0;
