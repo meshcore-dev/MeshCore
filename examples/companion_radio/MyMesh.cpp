@@ -2180,7 +2180,7 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
       _prefs.wifi_ssid[0] = 0;
       _prefs.wifi_pwd[0] = 0;
       savePrefs();
-      strcpy(reply, "> wifi config cleared, using build-time credentials (reboot to apply)");
+      strcpy(reply, "> wifi config cleared (reboot to apply)");
       return true;
     }
     if (strcmp(command, "get wifi.ssid") == 0) {   // no 'get wifi.pwd', by design
