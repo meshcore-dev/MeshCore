@@ -2,6 +2,7 @@
 #include <Mesh.h>
 
 #include "MyMesh.h"
+#include <helpers/RadioFailIndicator.h>
 
 #ifdef DISPLAY_CLASS
   #include "UITask.h"
@@ -19,7 +20,7 @@ SimpleMeshTables tables;
 MyMesh the_mesh(board, radio_driver, *new ArduinoMillis(), fast_rng, rtc_clock, tables);
 
 void halt() {
-  while (1) ;
+  haltWithRadioFailure();
 }
 
 static char command[160];
@@ -52,16 +53,20 @@ void setup() {
 #endif
 
 #ifdef DISPLAY_CLASS
-  if (display.begin()) {
-    display.startFrame();
-    display.setCursor(0, 0);
-    display.print("Please wait...");
-    display.endFrame();
+  DisplayDriver* disp = display.begin() ? &display : NULL;
+  if (disp != NULL) {
+    disp->startFrame();
+    disp->setCursor(0, 0);
+    disp->print("Please wait...");
+    disp->endFrame();
   }
 #endif
 
   if (!radio_init()) {
     MESH_DEBUG_PRINTLN("Radio init failed!");
+  #ifdef DISPLAY_CLASS
+    showRadioErrorOnDisplay(disp);
+  #endif
     halt();
   }
 
