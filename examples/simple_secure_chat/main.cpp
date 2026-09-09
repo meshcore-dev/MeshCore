@@ -597,6 +597,7 @@ void setup() {
 }
 
 void loop() {
+  board.loop();
   the_mesh.loop();
   rtc_clock.tick();
 #ifdef HAS_EXTERNAL_WATCHDOG
