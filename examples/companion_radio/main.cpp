@@ -67,7 +67,69 @@ MultiSerialInterface interface_manager;
 // include usb interface
 #if defined(ENABLE_USB_INTERFACE)
   #include <helpers/ArduinoSerialInterface.h>
+  #if defined(ESP32) && defined(ARDUINO_USB_CDC_ON_BOOT) && ARDUINO_USB_CDC_ON_BOOT \
+      && !(defined(ARDUINO_USB_MODE) && ARDUINO_USB_MODE == 1)
+    #include <tusb.h>    // tud_cdc_n_get_line_state(): real DTR, see setup()
+  #endif
   ArduinoSerialInterface usb_serial_interface;
+  #ifndef USB_CLIENT_IDLE_TIMEOUT
+    // how long a USB client is still considered present after its last frame,
+    // for targets which cannot report DTR (see setConnectedCheck below)
+    #define USB_CLIENT_IDLE_TIMEOUT   (10*60*1000UL)
+  #endif
+  #if defined(ESP32) && defined(ARDUINO_USB_MODE) && ARDUINO_USB_MODE == 1 \
+      && defined(ARDUINO_USB_CDC_ON_BOOT) && ARDUINO_USB_CDC_ON_BOOT
+  // Debounced link state: the HWCDC indication drops out on isolated missed
+  // SOF ticks, and acting on a single false sample retires a live session.
+  //
+  // Confirmation is measured over OBSERVED down samples, not as time since the
+  // link was last seen up. Those differ whenever nobody looked in between: a
+  // synchronous flash save can block for longer than the whole window, and
+  // "last seen up is old" would then make the very first false sample count as
+  // a sustained loss. So: start confirming at the first observed down sample,
+  // cancel on any observed up, and start over after a sampling gap that is
+  // itself longer than the window.
+  #define USB_LINK_DOWN_CONFIRM_MS  500
+  static bool usb_link_down_pending = false;
+  static uint32_t usb_link_down_since = 0;
+  static uint32_t usb_link_last_sample_ms = 0;
+  static bool usb_link_sampled = false;
+  static bool usb_link_up() {
+    uint32_t now = millis();
+    bool sampled_before = usb_link_sampled;
+    uint32_t since_sample = now - usb_link_last_sample_ms;
+    usb_link_last_sample_ms = now; usb_link_sampled = true;
+
+    if ((bool)Serial) { usb_link_down_pending = false; return true; }
+
+    // no usable observation history -> this down sample is the first one
+    if (!sampled_before || since_sample > USB_LINK_DOWN_CONFIRM_MS) {
+      usb_link_down_pending = true; usb_link_down_since = now;
+      return true;
+    }
+    if (!usb_link_down_pending) { usb_link_down_pending = true; usb_link_down_since = now; }
+
+    // A frame that completed AFTER the suspicion started proves the link is
+    // alive, whatever the SOF flag says: on resume the RX path can deliver
+    // before the SOF tick publishes recovery, and retiring then would erase
+    // activity newer than the doubt and drop the reply with it.
+    uint32_t last = usb_serial_interface.getLastFrameMillis();
+    if (last != 0 && (int32_t)(last - usb_link_down_since) >= 0) {
+      usb_link_down_pending = false;
+      return true;
+    }
+    if ((now - usb_link_down_since) <= USB_LINK_DOWN_CONFIRM_MS) return true;
+
+    // Confirmed. Retire the activity mark HERE, not from the outer loop: any
+    // caller may be the one that confirms it, and a link that returns before
+    // the loop looks again would otherwise cancel the pending loss and leave
+    // the next session inheriting eligibility it never earned.
+    if (usb_serial_interface.getLastFrameMillis() != 0) {
+      usb_serial_interface.resetActivity();
+    }
+    return false;
+  }
+  #endif
 #endif
 
 // include ethernet interface
@@ -137,6 +199,14 @@ void halt() {
 #endif
 
 void setup() {
+#if defined(ENABLE_USB_INTERFACE) && defined(ESP32) \
+    && defined(ARDUINO_USB_MODE) && ARDUINO_USB_MODE == 1 \
+    && defined(ARDUINO_USB_CDC_ON_BOOT) && ARDUINO_USB_CDC_ON_BOOT
+  // BEFORE begin(): setTxBufferSize() frees the old ring without masking the
+  // HWCDC interrupt, so resizing a live buffer can hand a TX-empty ISR freed
+  // memory. While the ISR is still inactive the same call is harmless.
+  Serial.setTxBufferSize(4096);
+#endif
   Serial.begin(115200);
   board.begin();
 
@@ -259,6 +329,56 @@ void setup() {
 // add usb interface
 #if defined(ENABLE_USB_INTERFACE)
   usb_serial_interface.begin(Serial);
+  // NOTE: flow control is enabled per transport below, NOT unconditionally.
+  // It must only run on native CDC links whose TX buffer can hold a whole
+  // frame; on a UART-backed Serial (no CDC-on-boot) it would pace and drop
+  // against a buffer whose size the sketch may change, while isConnected()
+  // there has no link state to go by and always answers "connected".
+#if defined(ESP32) && defined(ARDUINO_USB_MODE) && ARDUINO_USB_MODE == 1 \
+    && defined(ARDUINO_USB_CDC_ON_BOOT) && ARDUINO_USB_CDC_ON_BOOT
+  // ESP32 USB-Serial-JTAG (HWCDC): has NO DTR concept -- (bool)Serial is true
+  // as soon as the host has merely enumerated the device (SOF/IN-EMPTY), and
+  // write() blocks up to 100ms per call against a stalled host with only a
+  // 256 byte TX buffer. Bigger buffer + short timeout + activity-based
+  // connection detection (a real client must have sent a frame recently).
+  // whole-frame writes + pacing of the contact sync stream: prevents torn
+  // frames / blocking writes when the host stalls or nothing drains the port
+  usb_serial_interface.enableFlowControl(true);
+  Serial.setTxTimeoutMs(5);   // buffer was sized before begin(), see setup()
+  usb_serial_interface.setConnectedCheck([]() {
+    uint32_t last = usb_serial_interface.getLastFrameMillis();
+    return usb_link_up() && last != 0 && (millis() - last) < USB_CLIENT_IDLE_TIMEOUT;
+  });
+  // Push notifications must survive a client that only listens: the ten minute
+  // window above exists to stop a merely enumerated port (a charger) from
+  // looking connected, and once a real frame has arrived that question is
+  // settled. resetActivity() clears _last_frame_ms on link-down, so this does
+  // not resurrect a ghost session.
+  usb_serial_interface.setEstablishedCheck([]() {
+    return usb_link_up() && usb_serial_interface.getLastFrameMillis() != 0;
+  });
+#elif defined(ESP32) && defined(ARDUINO_USB_CDC_ON_BOOT) && ARDUINO_USB_CDC_ON_BOOT
+  // ESP32 USB-OTG (TinyUSB CDC): USBCDC::operator bool() is NOT a DTR test --
+  // it only turns true once the host asserts DTR *and* RTS. Clients that leave
+  // RTS low on purpose (the usual way to keep the auto-reset circuit on these
+  // boards quiet) can exchange data perfectly well, and would have every reply
+  // silently dropped. Ask TinyUSB for the line state instead: bit 0 is DTR.
+  // Queried live rather than latched from the line-state event, because USB is
+  // up before setup() runs -- a host that asserts DTR before we could register
+  // a handler would never be seen, and USBCDC suppresses duplicate events.
+  usb_serial_interface.enableFlowControl(true);
+  usb_serial_interface.setConnectedCheck([]() {
+    return (tud_cdc_n_get_line_state(0) & 1) != 0;   // bit 0 = DTR
+  });
+#elif defined(NRF52_PLATFORM) || defined(RP2040_PLATFORM)
+  // TinyUSB-CDC: (bool)Serial reflects real DTR (host has the port open); a
+  // false "always connected" would hide the BLE pairing PIN on the display
+  // and suppress new-message notifications.
+  // (classic ESP32 with a UART bridge keeps the old assume-connected behaviour
+  //  AND stays without flow control -- see the note above)
+  usb_serial_interface.enableFlowControl(true);
+  usb_serial_interface.setConnectedCheck([]() { return (bool)Serial; });
+#endif
   interface_manager.addInterface(InterfaceType::USB, &usb_serial_interface);
 #endif
 
@@ -291,6 +411,22 @@ void setup() {
 }
 
 void loop() {
+#if defined(ENABLE_USB_INTERFACE) && defined(ESP32) \
+    && defined(ARDUINO_USB_MODE) && ARDUINO_USB_MODE == 1 \
+    && defined(ARDUINO_USB_CDC_ON_BOOT) && ARDUINO_USB_CDC_ON_BOOT
+  // HWCDC: client activity must not survive the USB session it happened in.
+  // (bool)Serial goes true on mere enumeration, so without this a re-plug
+  // within the 10min activity window counts as "client connected" before the
+  // new session has sent a single frame -- mirrored traffic then fills the TX
+  // Poll the link so a loss is noticed even when nothing else asks: the
+  // retirement itself happens inside usb_link_up(), at the moment the loss is
+  // confirmed. Nothing is drained and the parser is not touched. Deliberate
+  // trade-off: a host SUSPEND reads as link-down too (SOF loss is
+  // indistinguishable from an unplug without DTR), so after a resume the
+  // client sends one frame before paced mirroring restarts -- notifications
+  // are unaffected, they use the session predicate.
+  (void)usb_link_up();
+#endif
   the_mesh.loop();
   interface_manager.loop();
   sensors.loop();

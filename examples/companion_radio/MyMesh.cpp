@@ -293,7 +293,7 @@ uint8_t MyMesh::getExtraAckTransmitCount() const {
 }
 
 void MyMesh::logRxRaw(float snr, float rssi, const uint8_t raw[], int len) {
-  if (_serial->isConnected() && len + 3 <= MAX_FRAME_SIZE) {
+  if (_serial->isSessionEstablished() && len + 3 <= MAX_FRAME_SIZE) {
     int i = 0;
     out_frame[i++] = PUSH_CODE_LOG_RX_DATA;
     out_frame[i++] = (int8_t)(snr * 4);
@@ -345,7 +345,7 @@ uint8_t MyMesh::getAutoAddMaxHops() const {
 
 void MyMesh::onContactOverwrite(const uint8_t* pub_key) {
     _store->deleteBlobByKey(pub_key, PUB_KEY_SIZE); // delete from storage
-  if (_serial->isConnected()) {
+  if (_serial->isSessionEstablished()) {
     out_frame[0] = PUSH_CODE_CONTACT_DELETED;
     memcpy(&out_frame[1], pub_key, PUB_KEY_SIZE);
     _serial->writeFrame(out_frame, 1 + PUB_KEY_SIZE);
@@ -353,14 +353,14 @@ void MyMesh::onContactOverwrite(const uint8_t* pub_key) {
 }
 
 void MyMesh::onContactsFull() {
-  if (_serial->isConnected()) {
+  if (_serial->isSessionEstablished()) {
     out_frame[0] = PUSH_CODE_CONTACTS_FULL;
     _serial->writeFrame(out_frame, 1);
   }
 }
 
 void MyMesh::onDiscoveredContact(ContactInfo &contact, bool is_new, uint8_t path_len, const uint8_t* path) {
-  if (_serial->isConnected()) {
+  if (_serial->isSessionEstablished()) {
     if (is_new) {
       writeContactRespFrame(PUSH_CODE_NEW_ADVERT, contact);
     } else {
@@ -514,7 +514,7 @@ void MyMesh::queueMessage(const ContactInfo &from, uint8_t txt_type, mesh::Packe
   i += tlen;
   addToOfflineQueue(out_frame, i);
 
-  if (_serial->isConnected()) {
+  if (_serial->isSessionEstablished()) {   // an idle listener still gets the tickle
     uint8_t frame[1];
     frame[0] = PUSH_CODE_MSG_WAITING; // send push 'tickle'
     _serial->writeFrame(frame, 1);
@@ -525,7 +525,7 @@ void MyMesh::queueMessage(const ContactInfo &from, uint8_t txt_type, mesh::Packe
   bool should_display = txt_type == TXT_TYPE_PLAIN || txt_type == TXT_TYPE_SIGNED_PLAIN;
   if (should_display && _ui) {
     _ui->newMsg(path_len, from.name, text, offline_queue_len);
-    if (!_serial->isConnected()) {
+    if (!_serial->isSessionEstablished()) {   // an idle listener gets the push instead
       _ui->notify(UIEventType::contactMessage);
     }
   }
@@ -636,7 +636,7 @@ void MyMesh::onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packe
   i += tlen;
   addToOfflineQueue(out_frame, i);
 
-  if (_serial->isConnected()) {
+  if (_serial->isSessionEstablished()) {   // an idle listener still gets the tickle
     uint8_t frame[1];
     frame[0] = PUSH_CODE_MSG_WAITING; // send push 'tickle'
     _serial->writeFrame(frame, 1);
@@ -684,7 +684,7 @@ void MyMesh::onChannelDataRecv(const mesh::GroupChannel &channel, mesh::Packet *
   }
   addToOfflineQueue(out_frame, i);
 
-  if (_serial->isConnected()) {
+  if (_serial->isSessionEstablished()) {   // an idle listener still gets the tickle
     uint8_t frame[1];
     frame[0] = PUSH_CODE_MSG_WAITING; // send push 'tickle'
     _serial->writeFrame(frame, 1);
@@ -861,7 +861,7 @@ void MyMesh::onControlDataRecv(mesh::Packet *packet) {
   memcpy(&out_frame[i], packet->payload, packet->payload_len);
   i += packet->payload_len;
 
-  if (_serial->isConnected()) {
+  if (_serial->isSessionEstablished()) {
     _serial->writeFrame(out_frame, i);
   } else {
     MESH_DEBUG_PRINTLN("onControlDataRecv(), data received while app offline");
@@ -881,7 +881,7 @@ void MyMesh::onRawDataRecv(mesh::Packet *packet) {
   memcpy(&out_frame[i], packet->payload, packet->payload_len);
   i += packet->payload_len;
 
-  if (_serial->isConnected()) {
+  if (_serial->isSessionEstablished()) {
     _serial->writeFrame(out_frame, i);
   } else {
     MESH_DEBUG_PRINTLN("onRawDataRecv(), data received while app offline");
@@ -911,7 +911,7 @@ void MyMesh::onTraceRecv(mesh::Packet *packet, uint32_t tag, uint32_t auth_code,
   i += path_len >> path_sz;
   out_frame[i++] = (int8_t)(packet->getSNR() * 4); // extra/final SNR (to this node)
 
-  if (_serial->isConnected()) {
+  if (_serial->isSessionEstablished()) {
     _serial->writeFrame(out_frame, i);
   } else {
     MESH_DEBUG_PRINTLN("onTraceRecv(), data received while app offline");
@@ -2456,6 +2456,11 @@ void MyMesh::loop() {
   }
 
 #ifdef DISPLAY_CLASS
+  // Recent activity, deliberately: this flag also gates PIN visibility in all
+  // three UIs, and that ten minute recovery is the point of this change -- a
+  // client that merely holds the port open must not hide the pairing PIN
+  // forever. The cost is that an attached but idle client sees message-driven
+  // screen wakes again after ten minutes; recorded as a known limit.
   if (_ui) _ui->setHasConnection(_serial->isConnected());
 #endif
 }
