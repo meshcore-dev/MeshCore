@@ -51,6 +51,17 @@ class MicroNMEALocationProvider : public LocationProvider {
     unsigned long _last_time_sync = 0;
     static const unsigned long TIME_SYNC_INTERVAL = 1800000; // Re-sync every 30 minutes
 
+#ifdef GPS_L76K
+    void configureL76K() {
+        // Reapply the constellation mode at each provider start instead of
+        // assuming it survives a receiver power cycle.
+        // Mode 7 enables GPS + BeiDou + GLONASS.
+        delay(250);
+        MicroNMEA::sendSentence(*_gps_serial, "$PCAS04,7");
+        delay(250);
+    }
+#endif
+
 public :
     MicroNMEALocationProvider(Stream& ser, mesh::RTCClock* clock = NULL, int pin_reset = GPS_RESET, int pin_en = GPS_EN,RefCountedDigitalPin* peripher_power=NULL) :
     nmea(_nmeaBuffer, sizeof(_nmeaBuffer)), _clock(clock), _gps_serial(&ser), _peripher_power(peripher_power), _pin_reset(pin_reset), _pin_en(pin_en) {
@@ -91,6 +102,11 @@ public :
             delay(10);
             digitalWrite(_pin_reset, !GPS_RESET_ACTIVE);
         }
+#ifdef GPS_L76K
+        // EnvironmentSensorManager calls reset() immediately after begin().
+        // Configure only after that reset so the setting is not discarded.
+        configureL76K();
+#endif
     }
 
     void stop() override {
