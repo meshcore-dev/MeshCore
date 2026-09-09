@@ -1,4 +1,5 @@
 #include "AutoDiscoverRTCClock.h"
+#include "RTCValidity.h"
 #include "RTClib.h"
 #include <Melopero_RV3028.h>
 #include "RTC_RX8130CE.h"
@@ -30,6 +31,10 @@ void AutoDiscoverRTCClock::begin(TwoWire& wire) {
   #if !defined(DISABLE_DS3231_PROBE)
   if (i2c_probe(wire, DS3231_ADDRESS)) {
     ds3231_success = rtc_3231.begin(&wire);
+    if (ds3231_success && mesh::seedRTCIfLostPower(rtc_3231.lostPower(), _fallback->getCurrentTime(),
+                                                   [](uint32_t time) { rtc_3231.adjust(DateTime(time)); })) {
+      MESH_DEBUG_PRINTLN("DS3231: Lost power, initialized from fallback clock");
+    }
   }
   #endif
 
@@ -44,6 +49,10 @@ void AutoDiscoverRTCClock::begin(TwoWire& wire) {
   if (i2c_probe(wire, PCF8563_ADDRESS)) {
     MESH_DEBUG_PRINTLN("PCF8563: Found");
     rtc_8563_success = rtc_8563.begin(&wire);
+    if (rtc_8563_success && mesh::seedRTCIfLostPower(rtc_8563.lostPower(), _fallback->getCurrentTime(),
+                                                     [](uint32_t time) { rtc_8563.adjust(DateTime(time)); })) {
+      MESH_DEBUG_PRINTLN("PCF8563: Lost power, initialized from fallback clock");
+    }
   }
 
   if (i2c_probe(wire, RX8130CE_ADDRESS)) {
