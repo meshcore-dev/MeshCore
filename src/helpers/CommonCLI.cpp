@@ -102,7 +102,12 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {  // Legacy 
     file.read((uint8_t *)&_prefs->flood_max_advert, sizeof(_prefs->flood_max_advert));             // 292
     file.read((uint8_t *)&_prefs->radio_fem_rxgain, sizeof(_prefs->radio_fem_rxgain));             // 293
     file.read((uint8_t *)&_prefs->cad_enabled, sizeof(_prefs->cad_enabled));                       // 294
-    // next: 295
+    file.read((uint8_t *)&_prefs->flood_suppress, sizeof(_prefs->flood_suppress));                  // 295
+    file.read((uint8_t *)&_prefs->flood_suppress_snr_hi, sizeof(_prefs->flood_suppress_snr_hi));    // 296
+    file.read((uint8_t *)&_prefs->flood_suppress_snr_lo, sizeof(_prefs->flood_suppress_snr_lo));    // 297
+    file.read((uint8_t *)&_prefs->flood_suppress_delay_x, sizeof(_prefs->flood_suppress_delay_x));  // 298
+    // 299 was trace_tx_power_dbm (removed -- coverage TRACE probes TX at node tx_power_dbm)
+    // next: 300
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -135,6 +140,10 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {  // Legacy 
     _prefs->radio_fem_rxgain = constrain(_prefs->radio_fem_rxgain, 0, 1); // boolean
     _prefs->radio_fem_txgain = constrain(_prefs->radio_fem_txgain, 0, 1); // boolean
     _prefs->cad_enabled = constrain(_prefs->cad_enabled, 0, 1); // boolean
+    _prefs->flood_suppress = constrain(_prefs->flood_suppress, 0, 1); // boolean (master switch)
+    _prefs->flood_suppress_snr_hi = constrain(_prefs->flood_suppress_snr_hi, -30, 30);
+    _prefs->flood_suppress_snr_lo = constrain(_prefs->flood_suppress_snr_lo, -30, 30);
+    _prefs->flood_suppress_delay_x = constrain(_prefs->flood_suppress_delay_x, 0, 8);
 
     file.close();
   }
@@ -249,6 +258,29 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       } else {
         strcpy(reply, "ERR: bad pubkey");
       }
+    } else if (memcmp(command, "clients", 7) == 0) {
+      _callbacks->formatClientsReply(reply);
+    } else if (memcmp(command, "reach", 5) == 0) {
+      const char* hex = &command[5];
+      while (*hex == ' ') hex++;                       // skip spaces after the verb
+      if (*hex == 0) {
+        strcpy(reply, "reach HASH");
+      } else {
+        int hex_len = min((int)strlen(hex), MAX_HASH_SIZE * 2);
+        int hash_len = hex_len / 2;
+        uint8_t hash[MAX_HASH_SIZE];
+        if (hash_len > 0 && mesh::Utils::fromHex(hash, hash_len, hex)) {
+          _callbacks->formatReachReply(reply, hash, hash_len);
+        } else {
+          strcpy(reply, "ERR: bad hash");
+        }
+      }
+    } else if (memcmp(command, "near", 4) == 0) {
+      _callbacks->formatNearReply(reply);
+    } else if (memcmp(command, "blacklist", 9) == 0 && (command[9] == 0 || command[9] == ' ')) {
+      handleKeyFilterCmd(_prefs->blacklist_keys, &_prefs->blacklist_count, command + 9, true, reply);
+    } else if (memcmp(command, "whitelist", 9) == 0 && (command[9] == 0 || command[9] == ' ')) {
+      handleKeyFilterCmd(_prefs->whitelist_keys, &_prefs->whitelist_count, command + 9, false, reply);
     } else if (memcmp(command, "tempradio ", 10) == 0) {
       strcpy(tmp, &command[10]);
       const char *parts[5];
@@ -458,8 +490,23 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
 
 void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* reply) {
   const char* config = &command[4];
-
-  if (memcmp(config, "allow.read.only ", 16) == 0) {
+  if (memcmp(config, "flood.suppress ", 15) == 0) {
+    _prefs->flood_suppress = memcmp(&config[15], "on", 2) == 0;
+    savePrefs();
+    strcpy(reply, "OK");
+  } else if (memcmp(config, "flood.suppress.snr.hi ", 22) == 0) {
+    int db = atoi(&config[22]);
+    if (db >= -30 && db <= 30) { _prefs->flood_suppress_snr_hi = db; savePrefs(); strcpy(reply, "OK"); }
+    else strcpy(reply, "Error, must be -30..30 dB");
+  } else if (memcmp(config, "flood.suppress.snr.lo ", 22) == 0) {
+    int db = atoi(&config[22]);
+    if (db >= -30 && db <= 30) { _prefs->flood_suppress_snr_lo = db; savePrefs(); strcpy(reply, "OK"); }
+    else strcpy(reply, "Error, must be -30..30 dB");
+  } else if (memcmp(config, "flood.suppress.delay.factor ", 28) == 0) {
+    int n = atoi(&config[28]);
+    if (n >= 0 && n <= 8) { _prefs->flood_suppress_delay_x = n; savePrefs(); strcpy(reply, "OK"); }
+    else strcpy(reply, "Error, must be 0..8");
+  } else if (memcmp(config, "allow.read.only ", 16) == 0) {
     _prefs->allow_read_only = memcmp(&config[16], "on", 2) == 0;
     savePrefs();
     strcpy(reply, "OK");
@@ -673,7 +720,16 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
 
 void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* reply) {
   const char* config = &command[4];
-  if (memcmp(config, "allow.read.only", 15) == 0) {
+  if (memcmp(config, "flood.suppress.delay.factor", 27) == 0) {
+    sprintf(reply, "> %d", (uint32_t) _prefs->flood_suppress_delay_x);
+  } else if (memcmp(config, "flood.suppress.snr.hi", 21) == 0) {
+    sprintf(reply, "> %d dB", (int) _prefs->flood_suppress_snr_hi);
+  } else if (memcmp(config, "flood.suppress.snr.lo", 21) == 0) {
+    sprintf(reply, "> %d dB", (int) _prefs->flood_suppress_snr_lo);
+  } else if (memcmp(config, "flood.suppress", 14) == 0) {
+    sprintf(reply, "> %s", _prefs->flood_suppress ? "on" : "off");
+    _callbacks->formatFloodSuppressRatioReply(reply + strlen(reply));
+  } else if (memcmp(config, "allow.read.only", 15) == 0) {
     sprintf(reply, "> %s", _prefs->allow_read_only ? "on" : "off");
   } else if (memcmp(config, "flood.advert.interval", 21) == 0) {
     sprintf(reply, "> %d", ((uint32_t) _prefs->flood_advert_interval));
@@ -996,5 +1052,93 @@ void CommonCLI::handleRegionCmd(char* command, char* reply) {
     }
   } else {
     strcpy(reply, "Err - ??");
+  }
+}
+
+// `blacklist [add|del|remove] <8-hex-prefix>` / `whitelist ...` (no args = list).
+// Entries are fixed 4-byte pubkey prefixes (8 hex chars, same convention as the
+// `neighbors`/`clients` output). Adding to the blacklist also lets the role purge
+// learned per-node state via onBlacklistEntryAdded.
+void CommonCLI::handleKeyFilterCmd(uint8_t keys[][4], uint8_t* count, const char* args, bool is_blacklist, char* reply) {
+  const char* name = is_blacklist ? "blacklist" : "whitelist";
+  while (*args == ' ') args++;
+
+  if (*args == 0) {   // list entries
+    int n = *count > MAX_KEY_FILTERS ? MAX_KEY_FILTERS : *count;
+    if (n == 0) {
+      strcpy(reply, "-none-");
+      return;
+    }
+    char* dp = reply;
+    dp += sprintf(dp, "n=%d ", n);
+    for (int i = 0; i < n; i++) {
+      if (dp - reply > 140) { strcpy(dp, "..."); return; }   // stay inside the 160-byte reply buffer
+      if (i > 0) *dp++ = ',';
+      mesh::Utils::toHex(dp, keys[i], 4);
+      dp += 8;
+    }
+    *dp = 0;
+    return;
+  }
+
+  const char* verb = args;
+  const char* sp = strchr(args, ' ');
+  int verb_len = (sp != NULL) ? sp - verb : strlen(verb);
+  bool is_add = (verb_len == 3 && memcmp(verb, "add", 3) == 0);
+  bool is_del = (verb_len == 3 && memcmp(verb, "del", 3) == 0)
+             || (verb_len == 6 && memcmp(verb, "remove", 6) == 0);
+  if (!is_add && !is_del) {
+    sprintf(reply, "Err - usage: %s [add|del] <8-hex-prefix>", name);
+    return;
+  }
+
+  const char* hex = (sp != NULL) ? sp + 1 : verb + verb_len;
+  while (*hex == ' ') hex++;
+  if (strlen(hex) != 8) {
+    strcpy(reply, "Err - key must be an 8-hex-char prefix");
+    return;
+  }
+  for (int i = 0; i < 8; i++) {
+    if (!mesh::Utils::isHexChar(hex[i])) {
+      strcpy(reply, "Err - bad key");
+      return;
+    }
+  }
+  uint8_t key[4];
+  if (!mesh::Utils::fromHex(key, 4, hex)) {   // length already validated; defensive
+    strcpy(reply, "Err - bad key");
+    return;
+  }
+
+  int n = *count > MAX_KEY_FILTERS ? MAX_KEY_FILTERS : *count;
+  int found = -1;
+  for (int i = 0; i < n; i++) {
+    if (memcmp(keys[i], key, 4) == 0) { found = i; break; }
+  }
+
+  if (is_add) {
+    if (found >= 0) {
+      strcpy(reply, "Err - already listed");
+    } else if (n >= MAX_KEY_FILTERS) {
+      sprintf(reply, "Err - full (%d)", MAX_KEY_FILTERS);
+    } else {
+      memcpy(keys[n], key, 4);
+      *count = n + 1;
+      savePrefs();
+      if (is_blacklist) _callbacks->onBlacklistEntryAdded(key);
+      strcpy(reply, "OK");
+    }
+  } else {
+    if (found < 0) {
+      strcpy(reply, "Err - not found");
+    } else {
+      // compact the tail down over the removed entry
+      for (int i = found; i < n - 1; i++) {
+        memcpy(keys[i], keys[i + 1], 4);
+      }
+      *count = n - 1;
+      savePrefs();
+      strcpy(reply, "OK");
+    }
   }
 }

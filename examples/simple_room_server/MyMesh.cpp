@@ -307,6 +307,17 @@ bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
 }
 
 mesh::DispatcherAction MyMesh::onRecvPacket(mesh::Packet* pkt) {
+  // Pubkey blacklist: drop at receive, i.e. before dedup (wasSeen), Ed25519 verify,
+  // forwarding and contact learning. ADVERT + ANON_REQ only -- the only payload
+  // types carrying the full sender pubkey in clear (ADVERT payload[0..31], ANON_REQ
+  // payload[1..32]); all other types expose just 1-byte hashes pre-crypto.
+  if (_prefs.blacklist_count > 0) {
+    uint8_t pt = pkt->getPayloadType();
+    const uint8_t* key4 = NULL;
+    if (pt == PAYLOAD_TYPE_ADVERT && pkt->payload_len >= 4) key4 = pkt->payload;
+    else if (pt == PAYLOAD_TYPE_ANON_REQ && pkt->payload_len >= 5) key4 = pkt->payload + 1;
+    if (key4 != NULL && _prefs.keyInBlacklist(key4)) return ACTION_RELEASE;
+  }
   if (pkt->getRouteType() == ROUTE_TYPE_TRANSPORT_FLOOD) {
     recv_pkt_region = region_map.findMatch(pkt, REGION_DENY_FLOOD);
   } else if (pkt->getRouteType() == ROUTE_TYPE_FLOOD) {
