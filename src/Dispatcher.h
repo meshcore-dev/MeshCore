@@ -67,6 +67,8 @@ public:
 
   virtual void setCADEnabled(bool enable) { }
 
+  virtual void setRssiLbtParams(bool enabled, int8_t thr_dbm, uint16_t sense_ms, uint16_t pause_ms) { }
+
   virtual void resetAGC() { }
 
   virtual bool isInRecvMode() const = 0;
