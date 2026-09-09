@@ -270,6 +270,24 @@ int MyMesh::getInterferenceThreshold() const {
 bool MyMesh::getCADEnabled() const {
   return _prefs.cad_enabled;
 }
+bool MyMesh::getRssiLbtEnabled() const {
+  return _prefs.rssi_lbt_enabled;
+}
+int8_t MyMesh::getRssiLbtThrDbm() const {
+  return _prefs.rssi_lbt_thr_dbm;
+}
+uint16_t MyMesh::getRssiLbtSenseMs() const {
+  return _prefs.rssi_lbt_sense_ms;
+}
+uint16_t MyMesh::getRssiLbtMaxwaitMs() const {
+  return _prefs.rssi_lbt_maxwait_ms;
+}
+uint16_t MyMesh::getRssiLbtTxmaxMs() const {
+  return _prefs.rssi_lbt_txmax_ms;
+}
+uint16_t MyMesh::getRssiLbtPauseMs() const {
+  return _prefs.rssi_lbt_pause_ms;
+}
 
 int MyMesh::calcRxDelay(float score, uint32_t air_time) const {
   if (_prefs.rx_delay_base <= 0.0f) return 0;

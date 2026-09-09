@@ -113,6 +113,45 @@ bool CommonRadioPrefs::handleCommand(const char* command, uint32_t sender_timest
     return true;
   }
 
+  if (strcmp(command, "get rssi.lbt") == 0) {
+    sprintf(reply, "> %s", isRssiLbtEnabled() ? "on" : "off");
+    return true;
+  }
+  if (memcmp(command, "set rssi.lbt ", 13) == 0) {
+    setRssiLbtEnabled(memcmp(&command[13], "on", 2) == 0);
+    strcpy(reply, "OK");
+    return true;
+  }
+
+  if (strcmp(command, "get rssi.lbt.params") == 0) {
+    sprintf(reply, "> %d,%d,%d,%d,%d", (int32_t) getRssiLbtThrDbm(), (uint32_t) getRssiLbtSenseMs(),
+            (uint32_t) getRssiLbtMaxwaitMs(), (uint32_t) getRssiLbtTxmaxMs(), (uint32_t) getRssiLbtPauseMs());
+    return true;
+  }
+  if (memcmp(command, "set rssi.lbt.params ", 20) == 0) {
+    char tmp[132];
+    strcpy(tmp, &command[20]);
+    const char *parts[5];
+    int num = mesh::Utils::parseTextParts(tmp, parts, 5);
+    int32_t thr     = num > 0 ? atol(parts[0]) : 1;    // out of range, so a short command is rejected below
+    int32_t sense   = num > 1 ? atol(parts[1]) : -1;
+    int32_t maxwait = num > 2 ? atol(parts[2]) : -1;
+    int32_t txmax   = num > 3 ? atol(parts[3]) : -1;
+    int32_t pause   = num > 4 ? atol(parts[4]) : -1;
+    if (thr >= -128 && thr <= 0 && sense >= 0 && sense <= 65535 && maxwait >= 0 && maxwait <= 65535
+        && txmax >= 0 && txmax <= 65535 && pause >= 0 && pause <= 65535) {
+      setRssiLbtThrDbm((int8_t) thr);
+      setRssiLbtSenseMs((uint16_t) sense);
+      setRssiLbtMaxwaitMs((uint16_t) maxwait);
+      setRssiLbtTxmaxMs((uint16_t) txmax);
+      setRssiLbtPauseMs((uint16_t) pause);
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error, invalid rssi.lbt params");
+    }
+    return true;
+  }
+
   if (strcmp(command, "get radio.rxgain") == 0) {
     sprintf(reply, "> %s", getRxGain() != 0 ? "on" : "off");
     return true;
