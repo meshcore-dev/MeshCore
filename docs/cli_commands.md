@@ -613,12 +613,48 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 - `get cad`
 - `set cad <on|off>`
 
-**Description:** When enabled, the radio performs a hardware Channel Activity Detection scan before transmitting and defers if the channel is busy. Runs independently of `int.thresh` — either, both, or none may be active.
+**Description:** When enabled, the radio performs a hardware Channel Activity Detection scan before transmitting and defers if the channel is busy. Runs independently of `int.thresh` and `rssi.lbt` — any combination may be active.
 
 **Parameters:**
 - `on|off`: Enable or disable hardware CAD
 
 **Default:** `off`
+
+---
+
+#### Enable or disable RSSI listen-before-talk
+**Usage:**
+- `get rssi.lbt`
+- `set rssi.lbt <on|off>`
+
+**Description:** When enabled, the radio samples RSSI continuously for a short window before transmitting and defers if any sample exceeds an absolute threshold. Unlike `cad`, which detects a LoRa preamble, this is energy detection and so is independent of whatever modulation is on air; unlike `int.thresh`, the threshold is absolute rather than relative to the tracked noise floor.
+
+Runs independently of `cad` and `int.thresh` — any combination may be active. When both `cad` and `rssi.lbt` are enabled, the stricter of CAD's fixed 4000ms wait and the `rssi.lbt` `maxwait_ms` applies.
+
+While this is `off`, every value in `rssi.lbt.params` is ignored and the node transmits exactly as it would with this feature absent.
+
+**Parameters:**
+- `on|off`: Enable or disable RSSI listen-before-talk
+
+**Default:** `off`
+
+---
+
+#### View or change the RSSI listen-before-talk parameters
+**Usage:**
+- `get rssi.lbt.params`
+- `set rssi.lbt.params <thr_dBm>,<sense_ms>,<maxwait_ms>,<txmax_ms>,<pause_ms>`
+
+**Description:** All five values are set together and reported together, in the same order, so the output of `get rssi.lbt.params` can be pasted straight back into `set rssi.lbt.params`. None of them have any effect while `rssi.lbt` is `off`.
+
+**Parameters:**
+- `thr_dBm`: Absolute RSSI threshold, `-128`-`0`. A sample above this marks the channel busy.
+- `sense_ms`: How long to sample RSSI for, `0`-`65535`. `0` takes a single instantaneous reading.
+- `maxwait_ms`: How long a busy channel may hold off a pending transmit before it is sent anyway, `0`-`65535`. `0` means unlimited — the transmit is never forced.
+- `txmax_ms`: Maximum airtime of a single transmit, `0`-`65535`. A packet whose estimated airtime exceeds this is dropped rather than sent. `0` means unlimited.
+- `pause_ms`: Quiet period enforced after each transmit, `0`-`65535`.
+
+**Default:** `-80,5,0,4000,50`
 
 ---
 
