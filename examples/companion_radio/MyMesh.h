@@ -119,6 +119,7 @@ public:
 
 protected:
   float getAirtimeBudgetFactor() const override;
+  uint32_t estimateTxAirtimeFor(int len_bytes, uint8_t tx_cr=0) const override;
   int getInterferenceThreshold() const override;
   bool getCADEnabled() const override;
   int getAGCResetInterval() const override {

@@ -15,9 +15,9 @@ bool Mesh::allowPacketForward(const mesh::Packet* packet) {
   return false;  // by default, Transport NOT enabled
 }
 uint32_t Mesh::getRetransmitDelay(const mesh::Packet* packet) { 
-  uint32_t t = (_radio->getEstAirtimeFor(packet->getRawLength()) * 52 / 50) / 2;
+  uint32_t tx_airtime_ms = (estimateTxAirtimeFor(packet->getRawLength(), packet->_tx_cr) * 52 / 50) / 2;
 
-  return _rng->nextInt(0, 5)*t;
+  return _rng->nextInt(0, 5) * tx_airtime_ms;
 }
 uint32_t Mesh::getDirectRetransmitDelay(const Packet* packet) {
   return 0;  // by default, no delay
@@ -101,9 +101,10 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
       if (!_tables->wasSeen(pkt)) {
         _tables->markSeen(pkt);
         removeSelfFromPath(pkt);
+        pkt->_tx_cr = selectCodingRateForPeer(pkt->path, pkt->getPathHashSize());
 
         uint32_t d = getDirectRetransmitDelay(pkt);
-        return ACTION_RETRANSMIT_DELAYED(0, d);  // Routed traffic is HIGHEST priority 
+        return ACTION_RETRANSMIT_DELAYED(0, d);  // Routed traffic is HIGHEST priority
       }
     }
     return ACTION_RELEASE;   // this node is NOT the next hop (OR this packet has already been forwarded), so discard.
@@ -704,6 +705,9 @@ void Mesh::sendDirect(Packet* packet, const uint8_t* path, uint8_t path_len, uin
     pri = 5;   // maybe make this configurable
   } else {
     packet->path_len = Packet::copyPath(packet->path, path, path_len);
+    if (packet->_tx_cr == 0 && packet->getPathHashCount() > 0) {
+      packet->_tx_cr = selectCodingRateForPeer(packet->path, packet->getPathHashSize());
+    }
     if (packet->getPayloadType() == PAYLOAD_TYPE_PATH) {
       pri = 1;   // slightly less priority
     } else {
