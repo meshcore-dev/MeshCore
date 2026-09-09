@@ -1,0 +1,25 @@
+# meshcored.ini - Waveshare SX1262 LoRa HAT on Raspberry Pi 3/4/5
+# GPIO numbering is BCM (the number after "GPIO", e.g. GPIO16 = 16).
+
+# Hardware config (read on every startup):
+spidev = /dev/spidev0.0
+# lora_gpiochip = gpiochip0   # Pi 3/4/Zero 2W default; Pi 5 may need gpiochip4 or pinctrl-rp1
+lora_irq_pin = 16
+lora_reset_pin = 18
+lora_nss_pin = 21
+lora_busy_pin = 20
+lora_freq = 869.618
+lora_bw = 62.5
+lora_sf = 8
+lora_cr = 8
+lora_tcxo = 1.8
+lora_tx_power = 22
+# DIO2 drives the TX/RX RF switch on the Waveshare Core1262
+dio2_as_rf_switch = 1
+
+# First-run node defaults (ignored after first boot; use CLI to change):
+advert_name = Waveshare Linux Repeater
+admin_password = changeme
+lat = 0.0
+lon = 0.0
+

@@ -12,6 +12,8 @@
 #elif defined(ESP32)
   #include <SPIFFS.h>
   using File = fs::File;
+#elif defined(ARDULINUX_PLATFORM)
+  #include <ArduLinuxFS.h>
 #endif
 
 #ifdef WITH_RS232_BRIDGE

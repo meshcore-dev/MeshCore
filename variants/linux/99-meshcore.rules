@@ -1,0 +1,5 @@
+# udev rules for meshcored
+# Grant the meshcore group access to SPI and GPIO devices.
+
+SUBSYSTEM=="spidev", GROUP="meshcore", MODE="0660"
+KERNEL=="gpiochip*", GROUP="meshcore", MODE="0660"
