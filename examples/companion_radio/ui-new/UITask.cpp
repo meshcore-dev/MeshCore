@@ -3,12 +3,8 @@
 #include "../MyMesh.h"
 #include "target.h"
 #include <time.h>
-#ifdef WIFI_SSID
+#ifdef ENABLE_WIFI_INTERFACE
   #include <WiFi.h>
-#endif
-
-#ifndef UI_TZ_OFFSET
-  #define UI_TZ_OFFSET 0
 #endif
 
 #ifndef AUTO_OFF_MILLIS
@@ -24,6 +20,7 @@
 
 #define LONG_PRESS_MILLIS   1200
 
+// Used both for recent adverts and discovered nodes
 #ifndef UI_RECENT_LIST_SIZE
   #define UI_RECENT_LIST_SIZE 4
 #endif
@@ -102,6 +99,9 @@ class HomeScreen : public UIScreen {
 #if UI_SENSORS_PAGE == 1
     SENSORS,
 #endif
+#if !(defined(UI_NO_DISCOVER_SCREEN) && (UI_NO_DISCOVER_SCREEN + 0 != 0))
+    DISCOVERY,
+#endif
 #ifndef UI_NO_HIBERNATE
     SHUTDOWN,
 #endif
@@ -115,7 +115,11 @@ class HomeScreen : public UIScreen {
   uint8_t _page;
   bool _shutdown_init;
   AdvertPath recent[UI_RECENT_LIST_SIZE];
-
+#if !(defined(UI_NO_DISCOVER_SCREEN) && (UI_NO_DISCOVER_SCREEN + 0 != 0))
+  DiscoveredNode discovered[UI_RECENT_LIST_SIZE];
+  uint32_t discovery_req_time = 0;
+  bool discovery_disp_names = true; // by default desplay names if available (removes SNR_O)
+#endif
 
   void renderBatteryIndicator(DisplayDriver& display, uint16_t batteryMilliVolts) {
     // Convert millivolts to percentage
@@ -248,8 +252,7 @@ public:
       #ifdef UI_SHOW_CLOCK
       display.setTextSize(3);
       uint32_t now = _rtc->getCurrentTime();
-      int8_t tz = UI_TZ_OFFSET; // for now draw time from Santo Domingo ...
-      now += (int32_t)tz * 3600;
+      now += (int32_t)_node_prefs->tz_offset * 3600;
       DateTime dt (now);
       sprintf(tmp, "%02d:%02d", dt.hour(), dt.minute());
       display.drawTextCentered(display.width() / 2, 60, tmp);
@@ -257,7 +260,7 @@ public:
       sprintf(tmp, "%02d/%02d/%d", dt.day(), dt.month(), dt.year());
       display.drawTextCentered(display.width() / 2, 80, tmp);
       #endif
-      #ifdef WIFI_SSID
+      #ifdef ENABLE_WIFI_INTERFACE
         IPAddress ip = WiFi.localIP();
         snprintf(tmp, sizeof(tmp), "IP: %d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
         display.setTextSize(1);
@@ -461,6 +464,40 @@ public:
       if (sensors_scroll) sensors_scroll_offset = (sensors_scroll_offset+1)%sensors_nb;
       else sensors_scroll_offset = 0;
 #endif
+#if !(defined(UI_NO_DISCOVER_SCREEN) && (UI_NO_DISCOVER_SCREEN + 0 != 0))
+    } else if (_page == HomePage::DISCOVERY) {
+      int count = the_mesh.getDiscoveredNodes(discovered, UI_RECENT_LIST_SIZE);
+      display.setColor(UIColor::primary_txt);
+      int y = 20;
+      for (int i = 0; i < count; i++, y += 11) {
+        char name[32];
+        auto a = &discovered[i];
+        if ((a->name[0] == 0) || !discovery_disp_names) {
+          mesh::Utils::toHex(name, a->pubkey_prefix, 4);
+        } else {
+          strncpy(name, a->name, 32);
+        }
+        char filtered_name[sizeof(name)];
+        char snr_s[12];
+        if (strlen(name) <= 8) { // display snr_o
+          sprintf(snr_s, "%02.1f>%02.1f", a->snr_out, a->snr_in);
+        } else {
+          sprintf(snr_s, "%02.1f", a->snr_in);
+        }
+        int snr_width = display.getTextWidth(snr_s);
+        int max_name_width = display.width() - snr_width - 1;
+        display.translateUTF8ToBlocks(filtered_name, name, sizeof(filtered_name));
+        display.drawTextEllipsized(0, y, max_name_width, filtered_name);
+        display.setCursor(display.width() - snr_width - 1, y);
+        display.print(snr_s);
+      }
+      if (millis() < discovery_req_time + 5000) {
+        return 1000; // more frequent updates just after req
+      } else if (count < UI_RECENT_LIST_SIZE -1) { // show only 5 sec after last disc
+        y = 10 + 11 * UI_RECENT_LIST_SIZE;
+        display.drawTextCentered(display.width() / 2, y, "discover: " PRESS_LABEL);
+      }
+#endif
 #ifndef UI_NO_HIBERNATE
     } else if (_page == HomePage::SHUTDOWN) {
       display.setColor(UIColor::corp_blue);
@@ -488,6 +525,11 @@ public:
       if (_page == HomePage::RECENT) {
         _task->showAlert("Recent adverts", 800);
       }
+#if !(defined(UI_NO_DISCOVER_SCREEN) && (UI_NO_DISCOVER_SCREEN + 0 != 0))
+      if (_page == HomePage::DISCOVERY) {
+        _task->showAlert("Repeater disc", 800);
+      }
+#endif
       return true;
     }
     if (c == KEY_ENTER && _page == HomePage::BLUETOOTH) {
@@ -517,6 +559,19 @@ public:
     if (c == KEY_ENTER && _page == HomePage::SENSORS) {
       _task->toggleGPS();
       next_sensors_refresh=0;
+      return true;
+    }
+#endif
+#if !(defined(UI_NO_DISCOVER_SCREEN) && (UI_NO_DISCOVER_SCREEN + 0 != 0))
+    if (c == KEY_ENTER && _page == HomePage::DISCOVERY) {
+      if (millis() > discovery_req_time + 5000) { // rate limiter
+        the_mesh.requestRepeatersDiscovery();
+        discovery_req_time = millis();
+      }
+      return true;
+    }
+    if (c == KEY_SELECT && _page == HomePage::DISCOVERY) {
+      discovery_disp_names = !discovery_disp_names;
       return true;
     }
 #endif
