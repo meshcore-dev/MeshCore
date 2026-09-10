@@ -51,7 +51,7 @@ class SerialEthernetInterface : public BaseSerialInterface {
     void disable() override;
     bool isEnabled() const override { return _isEnabled; }
 
-    bool isConnected() const override;
+    bool isConnected() const override = 0;
     bool isWriteBusy() const override;
 
     size_t writeFrame(const uint8_t src[], size_t len) override;
