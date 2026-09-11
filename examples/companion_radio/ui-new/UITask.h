@@ -95,6 +95,7 @@ public:
   void msgRead(int msgcount) override;
   void newMsg(uint8_t path_len, const char* from_name, const char* text, int msgcount) override;
   void notify(UIEventType t = UIEventType::none) override;
+  void notifyToggle(int count, bool enabled) override;
   void loop() override;
 
   void shutdown(bool restart = false);
