@@ -1351,7 +1351,7 @@ void MyMesh::handleCmdFrame(size_t len) {
         memcpy(&default_scope.key, _prefs.default_scope_key, sizeof(default_scope.key));
         sendFloodScoped(default_scope, pkt, delay_millis);
       } else {
-        sendZeroHop(pkt);
+        sendZeroHop(pkt, (uint32_t)0, _prefs.path_hash_mode + 1);
       }
       writeOKFrame();
     } else {
@@ -2060,7 +2060,7 @@ void MyMesh::handleCmdFrame(size_t len) {
   } else if (cmd_frame[0] == CMD_SEND_CONTROL_DATA && len >= 2 && (cmd_frame[1] & 0x80) != 0) {
     auto resp = createControlData(&cmd_frame[1], len - 1);
     if (resp) {
-      sendZeroHop(resp);
+      sendZeroHop(resp, (uint32_t)0, _prefs.path_hash_mode + 1);
       writeOKFrame();
     } else {
       writeErrFrame(ERR_CODE_TABLE_FULL);
@@ -2476,7 +2476,7 @@ bool MyMesh::advert() {
     pkt = createSelfAdvert(_prefs.node_name, sensors.node_lat, sensors.node_lon);
   }
   if (pkt) {
-    sendZeroHop(pkt);
+    sendZeroHop(pkt, (uint32_t)0, _prefs.path_hash_mode + 1);
     return true;
   } else {
     return false;

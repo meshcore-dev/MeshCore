@@ -811,7 +811,7 @@ void MyMesh::onControlDataRecv(mesh::Packet* packet) {
       memcpy(&data[6], self_id.pub_key, PUB_KEY_SIZE);
       auto resp = createControlData(data, prefix_only ? 6 + 8 : 6 + PUB_KEY_SIZE);
       if (resp) {
-        sendZeroHop(resp, getRetransmitDelay(resp)*4);  // apply random delay (widened x4), as multiple nodes can respond to this
+        sendZeroHop(resp, getRetransmitDelay(resp)*4, _prefs.path_hash_mode + 1);  // apply random delay (widened x4), as multiple nodes can respond to this
       }
     }
   } else if (type == CTL_TYPE_NODE_DISCOVER_RESP && packet->payload_len >= 6) {
@@ -854,7 +854,7 @@ void MyMesh::sendNodeDiscoverReq() {
 
   auto pkt = createControlData(data, sizeof(data));
   if (pkt) {
-    sendZeroHop(pkt);
+    sendZeroHop(pkt, (uint32_t)0, _prefs.path_hash_mode + 1);
   }
 }
 
@@ -1035,7 +1035,7 @@ void MyMesh::sendSelfAdvertisement(int delay_millis, bool flood) {
     if (flood) {
       sendFloodScoped(default_scope, pkt, delay_millis, _prefs.path_hash_mode + 1);
     } else {
-      sendZeroHop(pkt, delay_millis);
+      sendZeroHop(pkt, delay_millis, _prefs.path_hash_mode + 1);
     }
   } else {
     MESH_DEBUG_PRINTLN("ERROR: unable to create advertisement packet!");
@@ -1301,7 +1301,7 @@ void MyMesh::loop() {
     updateAdvertTimer();      // also schedule local advert (so they don't overlap)
   } else if (next_local_advert && millisHasNowPassed(next_local_advert)) {
     mesh::Packet *pkt = createSelfAdvert();
-    if (pkt) sendZeroHop(pkt);
+    if (pkt) sendZeroHop(pkt, (uint32_t)0, _prefs.path_hash_mode + 1);
 
     updateAdvertTimer(); // schedule next local advert
   }
