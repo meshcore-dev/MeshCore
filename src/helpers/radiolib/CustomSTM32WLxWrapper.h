@@ -34,6 +34,7 @@ public:
     return packetScoreInt(snr, sf, packet_len);
   }
   uint8_t getSpreadingFactor() const override { return ((CustomSTM32WLx *)_radio)->spreadingFactor; }
+  uint8_t getCADDetPeakBase() const override { return getSpreadingFactor() + 13; }  // Semtech DS.SX1261-2 recommended detPeak
 
   void doResetAGC() override { sx126xResetAGC((SX126x *)_radio, getRxBoostedGainMode()); }
 };
