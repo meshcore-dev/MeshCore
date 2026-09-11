@@ -206,7 +206,7 @@ Byte 1: 0x03
 **Command Format**:
 ```
 Byte 0: 0x1F
-Byte 1: Channel Index (0-7)
+Byte 1: Channel Index (0 .. max_channels-1)
 ```
 
 **Example** (get channel 1):
@@ -225,7 +225,7 @@ Byte 1: Channel Index (0-7)
 **Command Format**:
 ```
 Byte 0: 0x20
-Byte 1: Channel Index (0-7)
+Byte 1: Channel Index (0 .. max_channels-1)
 Bytes 2-33: Channel Name (32 bytes, UTF-8, null-padded)
 Bytes 34-49: Secret (16 bytes)
 ```
@@ -233,8 +233,12 @@ Bytes 34-49: Secret (16 bytes)
 **Total Length**: 50 bytes
 
 **Channel Index**:
-- Index 0: Reserved for public channels (no secret)
-- Indices 1-7: Available for private channels
+- Valid range is `0` to `max_channels - 1`. Read `max_channels` from byte 3 of
+  the `PACKET_DEVICE_INFO` response; do not assume 8. Builds ship with
+  `MAX_GROUP_CHANNELS` set to 1, 8 or 40 depending on the board.
+- Index 0: pre-populated by the firmware with the built-in "Public" channel.
+  It can be overwritten like any other slot.
+- An out-of-range index is rejected with `PACKET_ERROR` / `ERR_CODE_NOT_FOUND`.
 
 **Channel Name**:
 - UTF-8 encoded
@@ -242,8 +246,18 @@ Bytes 34-49: Secret (16 bytes)
 - Padded with null bytes (0x00) if shorter
 
 **Secret Field** (16 bytes):
-- For **private channels**: 16-byte secret
-- For **public channels**: All zeros (0x00)
+- Always a real 16-byte key; the firmware derives the channel hash from
+  `SHA256(secret)` (`BaseChatMesh.cpp:936-942`). There is no "no secret" form.
+- Do **not** write an all-zero secret. `SHA256` over 16 zero bytes is a fixed,
+  globally identical value, so a zero-secret channel is a well-known channel
+  with an all-zero AES key that any node can read — not a private one. The
+  firmware skips *unnamed* slots when matching inbound group traffic for
+  exactly this reason (`BaseChatMesh.cpp:392-401`), but a slot that has been
+  given a name and a zero secret is not skipped, and will absorb null-key
+  group traffic from any node on the mesh.
+- The built-in public channel uses the well-known key
+  `izOH6cXN6mrJ5e26oRXNcg==` (base64), i.e.
+  `8b3387e9c5cdea6ac9e5edbaa115cd72` in hex.
 
 **Example** (create channel "YourChannelName" at index 1 with secret):
 ```
@@ -265,7 +279,7 @@ Bytes 34-49: Secret (16 bytes)
 ```
 Byte 0: 0x03
 Byte 1: 0x00
-Byte 2: Channel Index (0-7)
+Byte 2: Channel Index (0 .. max_channels-1)
 Bytes 3-6: Timestamp (32-bit little-endian Unix timestamp, seconds)
 Bytes 7+: Message Text (UTF-8, variable length)
 ```
@@ -288,7 +302,7 @@ Bytes 7+: Message Text (UTF-8, variable length)
 **Command Format**:
 ```
 Byte 0:                         0x3E
-Byte 1:                         Channel Index (0-7)
+Byte 1:                         Channel Index (0 .. max_channels-1)
 Byte 2:                         Path Length (0xFF = flood, otherwise actual path length)
 Bytes 3 .. 2+path_len:          Path (omitted when path_len == 0xFF)
 Next 2 bytes (little-endian):   Data Type (`data_type`, uint16)
@@ -306,13 +320,23 @@ Remaining bytes:                Binary payload (variable length)
 - Values `0x0001`–`0xFFFE` are available for registered application/community namespaces. See the [Registered data_type values](#registered-data_type-values) table below.
 
 **Limits**:
-- Maximum payload length is `MAX_CHANNEL_DATA_LENGTH = MAX_FRAME_SIZE - 9 = 163` bytes.
-- Larger payloads are rejected with `PACKET_ERROR` (`ERR_CODE_ILLEGAL_ARG`).
+- Maximum payload length is **165** bytes — `MAX_GROUP_DATA_LENGTH =
+  MAX_PACKET_PAYLOAD - CIPHER_BLOCK_SIZE - 3` (`src/MeshCore.h:21`). This is the
+  radio-side limit and the one clients should enforce.
+- Two different bounds are checked, and they do not agree. The host-frame check
+  uses the larger `MAX_CHANNEL_DATA_LENGTH = MAX_FRAME_SIZE - 9 = 167`
+  (`companion_radio/MyMesh.cpp:1265`); the radio-side check uses 165
+  (`BaseChatMesh.cpp:544`).
+- Payloads **above 167** are rejected with `ERR_CODE_ILLEGAL_ARG` (6).
+- Payloads of **166 or 167** pass the frame check, then fail the radio-side
+  check and return `ERR_CODE_TABLE_FULL` (3). Despite that code's usual
+  meaning, such a send can never succeed — do not retry it. Keep payloads at
+  165 bytes or fewer and this case cannot arise.
 
 **Response**: `PACKET_OK` (0x00) on success, or `PACKET_ERROR` (0x01) with one of:
 - `ERR_CODE_NOT_FOUND` (2) — unknown `channel_idx`
-- `ERR_CODE_ILLEGAL_ARG` (6) — invalid `path_len`, reserved `data_type` (`0x0000`), or payload larger than `MAX_CHANNEL_DATA_LENGTH`
-- `ERR_CODE_TABLE_FULL` (3) — outbound send queue is full; retry later
+- `ERR_CODE_ILLEGAL_ARG` (6) — invalid `path_len`, reserved `data_type` (`0x0000`), or payload larger than `MAX_CHANNEL_DATA_LENGTH` (167)
+- `ERR_CODE_TABLE_FULL` (3) — outbound send queue is full (retry later), **or** a payload of 166-167 bytes that exceeds the radio-side limit (permanent; see Limits above)
 
 **Inbound datagrams** are delivered to the host via `RESP_CODE_CHANNEL_DATA_RECV` (0x1B); see [Receive Channel Data Datagram](#receive-channel-data-datagram).
 
@@ -341,7 +365,7 @@ Inbound group datagrams (radio-level `PAYLOAD_TYPE_GRP_DATA`, 0x06) are forwarde
 Byte 0:                 0x1B (packet type)
 Byte 1:                 SNR (signed int8, scaled ×4 — divide by 4.0 to recover dB)
 Bytes 2-3:              Reserved (clients MUST ignore)
-Byte 4:                 Channel Index (0-7)
+Byte 4:                 Channel Index (0 .. max_channels-1)
 Byte 5:                 Path Length (actual path length when flooded, otherwise 0xFF for direct)
 Bytes 6-7:              Data Type (uint16 little-endian)
 Byte 8:                 Data Length
@@ -550,7 +574,7 @@ def parse_contact_message(data):
 **Standard Format** (`PACKET_CHANNEL_MSG_RECV`, 0x08):
 ```
 Byte 0: 0x08 (packet type)
-Byte 1: Channel Index (0-7)
+Byte 1: Channel Index (0 .. max_channels-1)
 Byte 2: Path Length
 Byte 3: Text Type
 Bytes 4-7: Timestamp (32-bit little-endian)
@@ -562,7 +586,7 @@ Bytes 8+: Message Text (UTF-8)
 Byte 0: 0x11 (packet type)
 Byte 1: SNR (signed byte, multiplied by 4)
 Bytes 2-3: Reserved
-Byte 4: Channel Index (0-7)
+Byte 4: Channel Index (0 .. max_channels-1)
 Byte 5: Path Length
 Byte 6: Text Type
 Bytes 7-10: Timestamp (32-bit little-endian)
