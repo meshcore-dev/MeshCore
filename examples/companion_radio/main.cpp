@@ -148,12 +148,14 @@ void setup() {
   DisplayDriver* disp = NULL;
   if (display.begin()) {
     disp = &display;
+#ifndef UI_LVGL   // LVGL UI shows its own splash; skip the text banner
     disp->startFrame();
   #ifdef ST7789
     disp->setTextSize(2);
   #endif
     disp->drawTextCentered(disp->width() / 2, 28, "Loading...");
     disp->endFrame();
+#endif
   }
 #endif
 

@@ -41,6 +41,12 @@ public:
   void disableBluetooth() { _interfaceManager->disableBluetooth(); }
   virtual void msgRead(int msgcount) = 0;
   virtual void newMsg(uint8_t path_len, const char* from_name, const char* text, int msgcount) = 0;
+  virtual void msgAck(uint32_t ack_crc) { }   // delivery ACK received (any origin)
+  virtual void msgEchoHeard() { }   // our last sent message heard being retransmitted
+  virtual void loginResult(const uint8_t* pub_key, bool success) { }   // repeater/room login outcome
+  virtual void statusResponse(const uint8_t* pub_key, const uint8_t* data, int len) { }   // REQ_TYPE_GET_STATUS reply
+  virtual void cliResponse(const char* from_name, const char* text) { }   // repeater CLI reply text
+  virtual void traceResponse(uint32_t tag, const uint8_t* path_hashes, const uint8_t* path_snrs, uint8_t hop_count, int8_t final_snr) { }   // TRACE round trip returned
   virtual void notify(UIEventType t = UIEventType::none) = 0;
   virtual void loop() = 0;
 };
