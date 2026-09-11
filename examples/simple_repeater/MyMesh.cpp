@@ -249,6 +249,11 @@ int MyMesh::handleRequest(ClientInfo *sender, uint32_t sender_timestamp, uint8_t
     }
     sensors.querySensors(perm_mask, telemetry);
 
+    // board specific telemetry -- target specific
+    if (perm_mask & TELEM_PERM_ENVIRONMENT) {
+      board.queryBoardTelemetry(telemetry);
+    }
+
 	// This default temperature will be overridden by external sensors (if any)
     float temperature = board.getMCUTemperature();
     if(!isnan(temperature)) { // Supported boards with built-in temperature sensor. ESP32-C3 may return NAN

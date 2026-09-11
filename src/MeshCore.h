@@ -37,6 +37,8 @@
 #define BRIDGE_DEBUG_PRINTLN(...) {}
 #endif
 
+class CayenneLPP;
+
 namespace mesh {
 
 #define  BD_STARTUP_NORMAL     0  // getStartupReason() codes
@@ -74,6 +76,13 @@ public:
   virtual const char* getShutdownReasonString(uint8_t reason) { return "Not available"; }
 
   virtual bool handleCommand(const char* command, uint32_t sender_timestamp, char* reply) { return false; }
+
+  // Called from the example main loops. Lets a board feed its watchdog and
+  // run periodic housekeeping. Default no-op.
+  virtual void tick() { /* no op */ }
+
+  // Lets a board contribute its own telemetry channels. Default no-op.
+  virtual bool queryBoardTelemetry(CayenneLPP& telemetry) { return false; }
 };
 
 /**
