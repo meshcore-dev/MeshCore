@@ -38,6 +38,14 @@ int Mesh::searchChannelsByHash(const uint8_t* hash, GroupChannel channels[], int
   return 0;  // not found
 }
 
+void Mesh::onPacketExpired(Packet* pkt) {
+  // Packet was dropped from the TX queue (e.g. after sitting past the max age due
+  // to duty-cycle exhaustion). Clear it from the dedup table so that if a fresh
+  // copy arrives later (still being relayed via another path) it gets another
+  // chance to be forwarded, rather than being suppressed.
+  if (_tables) _tables->clear(pkt);
+}
+
 DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
   if (pkt->isRouteDirect() && pkt->getPayloadType() == PAYLOAD_TYPE_TRACE) {
     if (pkt->path_len < MAX_PATH_SIZE) {
