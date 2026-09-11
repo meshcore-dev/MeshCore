@@ -32,8 +32,13 @@ size_t ArduinoSerialInterface::writeFrame(const uint8_t src[], size_t len) {
   hdr[1] = (len & 0xFF);  // LSB
   hdr[2] = (len >> 8);    // MSB
 
-  _serial->write(hdr, 3);
-  return _serial->write(src, len);
+  // See BaseSerialInterface::writeFrame(): 0 only when nothing went out, so
+  // the caller may retry; a torn frame counts as taken because a retry would
+  // only hand the receiver another header as payload.
+  size_t n = _serial->write(hdr, 3);
+  if (n == 0) return 0;
+  if (n == 3) _serial->write(src, len);
+  return len;
 }
 
 size_t ArduinoSerialInterface::checkRecvFrame(uint8_t dest[]) {
