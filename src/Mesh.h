@@ -31,6 +31,7 @@ class Mesh : public Dispatcher {
 
   void removeSelfFromPath(Packet* packet);
   void routeDirectRecvAcks(Packet* packet, uint32_t delay_millis);
+  void cancelPendingFinalHopResend();  // drop a queued final-hop resend when the destination's ACK transits back
   //void routeRecvAcks(Packet* packet, uint32_t delay_millis);
   DispatcherAction forwardMultipartDirect(Packet* pkt);
 
@@ -59,12 +60,12 @@ protected:
   /**
    * \returns  number of milliseconds delay to apply to retransmitting the given packet.
    */
-  virtual uint32_t getRetransmitDelay(const Packet* packet);
+  virtual uint32_t getRetransmitDelay(const Packet* packet) override;
 
   /**
    * \returns  number of milliseconds delay to apply to retransmitting the given packet, for DIRECT mode.
    */
-  virtual uint32_t getDirectRetransmitDelay(const Packet* packet);
+  virtual uint32_t getDirectRetransmitDelay(const Packet* packet) override;
 
   /**
    * \returns  number of extra (Direct) ACK transmissions wanted.

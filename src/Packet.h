@@ -49,12 +49,29 @@ public:
   uint8_t path[MAX_PATH_SIZE];
   uint8_t payload[MAX_PACKET_PAYLOAD];
   int8_t _snr;
+  uint8_t hash[MAX_HASH_SIZE];
+  mutable char hash_hex[MAX_HASH_SIZE * 2 + 1];
+  uint8_t sending_attempts;
+  bool final_hop_ack_resend;  // runtime-only: set when this node forwards the final relay hop
+                              // of an ACK-producing direct packet (e.g. TXT_MSG). Allows exactly
+                              // one ACK-cancellable resend from resendPacket(); not wire-serialized.
 
   /**
    * \brief calculate the hash of payload + type
-   * \param  dest_hash   destination to store the hash (must be MAX_HASH_SIZE bytes)
+   * \return  hash pointer
    */
-  void calculatePacketHash(uint8_t* dest_hash) const;
+  uint8_t *calculatePacketHash() const;
+
+  /**
+   * \brief Check if this received packet is a downstream forwarding of the
+   *        supplied outbound packet, so that a pending retransmit can be cancelled.
+   *        For TRACE packets the payload and SNR path prefix are compared,
+   *        because TRACE changes path_len (and thus its hash) at every hop.
+   *        For all other types the cached packet hash is compared.
+   */
+  bool isRetryMatch(const Packet* outbound) const;
+
+  const char* getHashHex() const;
 
   /**
    * \returns  one of ROUTE_ values

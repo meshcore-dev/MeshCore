@@ -3,6 +3,27 @@
 #include <Mesh.h>
 #include <RadioLib.h>
 
+#define NUM_NOISE_FLOOR_SAMPLES  64   // RSSI samples reduced to a median per noise-floor calibration block
+
+#define NOISE_FLOOR_MAX_RISE_DB  15   // block median jumping this far ABOVE the published floor is treated as
+                                      // activity-contaminated and held, so the RSSI-margin LBT keeps a meaningful
+                                      // (idle) reference while the channel is occupied
+#define NOISE_FLOOR_SAMPLE_INTERVAL_MS  50   // min spacing between RSSI samples so a 64-sample block spans a real
+                                             // ~3.2 s window, giving the median temporal interference rejection
+                                             // instead of collapsing to a few ms of near-simultaneous readings
+#define NOISE_FLOOR_MAX_HELD_BLOCKS  3   // after this many consecutive held blocks the median is accepted, so a
+                                         // permanent floor rise can't keep it stuck low. Count-based: rides out load
+                                         // bursts, a true rise releases in a few blocks.
+
+// RX-desync watchdog: the `state` variable is firmware-side truth. If the chip silently
+// leaves RX (supply dip during TX, SPI glitch, front-end upset) the RAM copy still says
+// STATE_RX, so recvRaw() never re-arms and the Dispatcher-side check (reading the same
+// variable) stays quiet — the node goes deaf until reboot, and the Current-RSSI register
+// freezes at the last energy seen (the "noise floor pinned high" symptom).
+#define RX_DESYNC_CHECK_INTERVAL_MS  10000   // cadence of the chip-mode verification poll
+#define RX_DESYNC_CONFIRM_TICKS      2       // consecutive bad polls before recovery starts (debounces one misread,
+                                             // e.g. the first GetStatus that wakes the chip from warm sleep)
+#define RX_DESYNC_FATAL_STREAK       5       // streak that survived sleep-level recovery — flag via ERR_EVENT_RX_DESYNC
 #ifdef USE_CC310_HW_CRYPTO
 #include <Adafruit_nRFCrypto.h>
 #endif
@@ -16,11 +37,18 @@ protected:
   PhysicalLayer* _radio;
   mesh::MainBoard* _board;
   uint32_t n_recv, n_sent, n_recv_errors;
+  uint16_t n_rx_desync_events;    // desync episodes detected (recovery was attempted for each)
+  uint16_t n_rx_desync_fatals;    // episodes that survived sleep-level recovery (reboot needed)
   int16_t _noise_floor, _threshold;
   bool _cad_enabled;
   uint16_t _num_floor_samples;
-  int32_t _floor_sample_sum;
+  int16_t _floor_samples[NUM_NOISE_FLOOR_SAMPLES];
+  bool _floor_block_ready;   // true once a full block has been reduced to a median (waits for trigger to restart)
+  uint32_t _last_floor_sample_at;   // millis() of the last accepted RSSI sample (rate-limits block sampling)
+  uint8_t _held_block_count;   // consecutive held blocks since the last published noise-floor value
   uint8_t _preamble_sf;
+  uint32_t _last_rx_sync_check;   // millis() of the last chip-mode verification (RX-desync watchdog)
+  uint8_t _rx_desync_streak;      // consecutive verifications that found the chip out of RX (0 = healthy)
 
   void idle();
   void startRecv();
@@ -69,6 +97,14 @@ public:
   uint32_t getPacketsRecvErrors() const { return n_recv_errors; }
   uint32_t getPacketsSent() const { return n_sent; }
   void resetStats() { n_recv = n_sent = n_recv_errors = 0; }
+
+  // RX-desync watchdog. verifyRxChipMode() reads the chip's real operating mode;
+  // base assumes RX (no authoritative status register on every radio type).
+  // Override in radio-specific wrappers that can check (SX126x GetStatus).
+  virtual bool verifyRxChipMode() { return true; }
+  bool isRxDamaged() const override { return _rx_desync_streak >= RX_DESYNC_FATAL_STREAK; }
+  uint16_t getRxDesyncEvents() const { return n_rx_desync_events; }
+  uint16_t getRxDesyncFatals() const { return n_rx_desync_fatals; }
 
   virtual float getLastRSSI() const override;
   virtual float getLastSNR() const override;
