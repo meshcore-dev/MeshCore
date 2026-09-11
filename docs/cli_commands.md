@@ -543,6 +543,37 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 ---
 
+#### View or set the reply path override for the current remote client
+**Usage:**
+- `get outpath`
+- `get outpath path`
+- `set outpath <hop1_hex,hop2_hex,...>`
+- `set outpath path`
+- `set outpath direct`
+- `set outpath clear`
+- `set outpath flood`
+
+**Parameters:**
+- `hopN_hex`: Hop hash, `2`, `4`, or `6` hex characters. All hops must use the same width.
+
+**Notes:**
+- These commands require remote client context (they target the caller's ACL entry).
+- `get outpath path` reports the reciprocal `PAYLOAD_TYPE_PATH` received after
+  the caller's latest flood login without changing the selected output route.
+  Because that packet is asynchronous, an immediate query can report
+  `> path pending`; retry shortly. The observation window expires after one
+  minute, and the captured login path is not automatically selected.
+- `set outpath path` copies that observed path to the selected output route. It
+  returns an error if no path has been received since the caller's latest login.
+- The path hash size is inferred from the hop hash width.
+- A configured hop list replaces the stored direct reply route used for that caller.
+- `direct` sets a zero-hop direct route for a caller reachable without repeaters.
+- `clear` forgets the current direct path, replies `> outpath cleared`, and
+  allows normal path discovery to repopulate it.
+- `flood` forces replies to use flood packets until the client logs in again.
+
+---
+
 #### [Experimental] View or change the processing delay for received traffic
 **Usage:**
 - `get rxdelay`
