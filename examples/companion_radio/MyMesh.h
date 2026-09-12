@@ -121,6 +121,12 @@ protected:
   float getAirtimeBudgetFactor() const override;
   int getInterferenceThreshold() const override;
   bool getCADEnabled() const override;
+  bool getRssiLbtEnabled() const override;
+  int8_t getRssiLbtThrDbm() const override;
+  uint16_t getRssiLbtSenseMs() const override;
+  uint16_t getRssiLbtMaxwaitMs() const override;
+  uint16_t getRssiLbtTxmaxMs() const override;
+  uint16_t getRssiLbtPauseMs() const override;
   int getAGCResetInterval() const override {
     return ((int)_prefs.agc_reset_interval) * 4000;   // milliseconds
   }
