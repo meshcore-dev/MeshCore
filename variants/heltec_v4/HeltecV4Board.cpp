@@ -41,18 +41,19 @@ void HeltecV4Board::begin() {
   }
 
   uint16_t HeltecV4Board::getBattMilliVolts()  {
-    analogReadResolution(10);
+    analogReadResolution(12);
+    analogSetPinAttenuation(PIN_VBAT_READ, ADC_2_5db);  // divider puts pin at 0.61-0.86V so this attenuation should cover it with some room to spare
     digitalWrite(PIN_ADC_CTRL, HIGH);
     delay(10);
-    uint32_t raw = 0;
+    uint32_t raw_mv = 0;
     for (int i = 0; i < 8; i++) {
-      raw += analogRead(PIN_VBAT_READ);
+      raw_mv += analogReadMilliVolts(PIN_VBAT_READ);
     }
-    raw = raw / 8;
+    raw_mv /= 8;
 
     digitalWrite(PIN_ADC_CTRL, LOW);
 
-    return (adc_mult * (3.3 / 1024.0) * raw) * 1000;
+    return adc_mult * raw_mv;
   }
 
   const char* HeltecV4Board::getManufacturerName() const {
