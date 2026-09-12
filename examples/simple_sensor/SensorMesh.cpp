@@ -81,7 +81,7 @@ static File openAppend(FILESYSTEM* _fs, const char* fname) {
 
 /* --------------------- Cayenne LPP helpers ----------------------------*/
 
-static float findTelemValue(const uint8_t* buf, uint8_t size, uint8_t channel, uint8_t type) {
+static float findTelemValue(const uint8_t* buf, uint8_t size, uint8_t channel, uint8_t type, float def_value) {
   uint8_t i = 0;
 
   while (i + 2 < size) {
@@ -96,7 +96,7 @@ static float findTelemValue(const uint8_t* buf, uint8_t size, uint8_t channel, u
     }
     i += sz;  // skip
   }
-  return 0.0f;   // not found
+  return def_value;   // not found
 }
 
 /* ------------------ end Cayenne LPP helpers ----------------------*/
@@ -117,12 +117,14 @@ bool SensorMesh::telemHasChanged(const uint8_t* min_deltas, uint8_t min_deltas_l
 
     float v = LPPData::getFloat(&buf[i], sz, LPPData::getMultiplier(t), LPPData::isSigned(t));
     float pv = LPPData::getFloat(&prev_telem[i], sz, LPPData::getMultiplier(t), LPPData::isSigned(t));
-    float min_delta = findTelemValue(min_deltas, min_deltas_len, ch, t);
+    float min_delta = min_deltas_len > 0
+            ? findTelemValue(min_deltas, min_deltas_len, ch, t, 1.0e+16f)  // default is just something BIG
+            : 0.0f;  // for ANY change
     if (abs(v - pv) > min_delta) return true;   // Yes, has changed
 
     i += sz;  // skip
   }
-  return false;  // no changes
+  return false;  // no changes (OR none of the -specified- telemetry values changed by min_delta)
 }
 
 uint8_t SensorMesh::handleRequest(ClientInfo* from, uint32_t sender_timestamp, uint8_t req_type, uint8_t* payload, size_t payload_len) {
@@ -961,7 +963,7 @@ void SensorMesh::formatPacketStatsReply(char *reply) {
 }
 
 float SensorMesh::getTelemValue(uint8_t channel, uint8_t type) {
-  return findTelemValue(telemetry.getBuffer(), telemetry.getSize(), channel, type);
+  return findTelemValue(telemetry.getBuffer(), telemetry.getSize(), channel, type, 0.0f);
 }
 
 bool  SensorMesh::getGPS(uint8_t channel, float& lat, float& lon, float& alt) {
