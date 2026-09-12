@@ -2,6 +2,10 @@
 #include "target.h"
 #include <helpers/ArduinoHelpers.h>
 
+#ifdef WITH_W5100S_POE
+  #include "W5100SPoE.h"
+#endif
+
 RAK4631Board board;
 
 #ifndef PIN_USER_BTN

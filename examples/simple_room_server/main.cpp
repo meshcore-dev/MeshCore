@@ -28,7 +28,14 @@ static char ethernet_command[MAX_POST_TEXT_LEN+1];
 
 void setup() {
   Serial.begin(115200);
+#ifdef WITH_W5100S_POE
+  // PoE cold-start: get to board.begin() (which activates the W5100S load)
+  // ASAP, before the RAK19018/Silvertel converter folds back. Skip the 1 s
+  // serial-settle delay — there is no operator on the serial port on PoE.
+  delay(20);
+#else
   delay(1000);
+#endif
 
   board.begin();
 

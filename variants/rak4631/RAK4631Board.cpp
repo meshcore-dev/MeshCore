@@ -16,13 +16,24 @@ static void __attribute__((constructor(102))) rak4631_early_poe_power() {
 }
 #endif
 
+#ifdef WITH_W5100S_POE
+  #include "W5100SPoE.h"
+#endif
+
 #ifdef NRF52_POWER_MANAGEMENT
-// Static configuration for power management
-// Values set in variant.h defines
 const PowerMgtConfig power_config = {
   .lpcomp_ain_channel = PWRMGT_LPCOMP_AIN,
-  .lpcomp_refsel = PWRMGT_LPCOMP_REFSEL,
-  .voltage_bootlock = PWRMGT_VOLTAGE_BOOTLOCK
+  .lpcomp_refsel     = PWRMGT_LPCOMP_REFSEL,
+  // WITH_W5100S_POE = PoE operation without a battery.
+  // isExternalPowered() only detects USB VBUS, not PoE power.
+  // Without this exception checkBootVoltage() reads the floating
+  // battery ADC pin (no battery) and triggers the protection
+  // shutdown -> SYSTEMOFF loop -> red LED flicker.
+#ifdef WITH_W5100S_POE
+  .voltage_bootlock  = 0
+#else
+  .voltage_bootlock  = PWRMGT_VOLTAGE_BOOTLOCK
+#endif
 };
 
 void RAK4631Board::initiateShutdown(uint8_t reason) {
@@ -64,4 +75,19 @@ void RAK4631Board::begin() {
 #endif
   digitalWrite(SX126X_POWER_EN, HIGH);
   delay(10);   // give sx1262 some time to power up
+
+#ifdef WITH_W5100S_POE
+  uint8_t w5100s_ver = w5100s_poe_init();
+  (void)w5100s_ver;
+  #ifdef MESH_DEBUG
+    // Wait for USB-CDC to re-enumerate so this line isn't eaten during the
+    // reconnect, then print it repeatedly to be sure it is seen. Debug only —
+    // the PoE production build skips this and boots fast.
+    delay(3000);
+    for (int i = 0; i < 5; i++) {
+      MESH_DEBUG_PRINTLN(">>> W5100S VERSIONR = 0x%02X (expect 0x51) <<<", w5100s_ver);
+      delay(200);
+    }
+  #endif
+#endif
 }
