@@ -9,6 +9,7 @@ void Mesh::begin() {
 
 void Mesh::loop() {
   Dispatcher::loop();
+  processNextHopRetries();
 }
 
 bool Mesh::allowPacketForward(const mesh::Packet* packet) { 
@@ -30,6 +31,12 @@ uint32_t Mesh::getCADFailRetryDelay() const {
   return _rng->nextInt(1, 4)*120;
 }
 
+uint32_t Mesh::getNextHopConfirmTimeout(const Packet* packet) const {
+  // allow for the next hop's own (possibly randomised) forwarding delay, its airtime to repeat, plus margin
+  uint32_t airtime = _radio->getEstAirtimeFor(packet->getRawLength());
+  return airtime * 3 + 2000;
+}
+
 int Mesh::searchPeersByHash(const uint8_t* hash) {
   return 0;  // not found
 }
@@ -39,6 +46,11 @@ int Mesh::searchChannelsByHash(const uint8_t* hash, GroupChannel channels[], int
 }
 
 DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
+  if (pkt->isRouteDirect()) {
+    // any overheard direct packet may be the next hop repeating one of ours -- check before anything else
+    checkNextHopConfirm(pkt);
+  }
+
   if (pkt->isRouteDirect() && pkt->getPayloadType() == PAYLOAD_TYPE_TRACE) {
     if (pkt->path_len < MAX_PATH_SIZE) {
       uint8_t i = 0;
@@ -101,6 +113,17 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
       if (!_tables->wasSeen(pkt)) {
         _tables->markSeen(pkt);
         removeSelfFromPath(pkt);
+
+        if (pkt->getPathHashCount() > 0) {   // only worth tracking if there is a further hop to overhear
+          registerNextHopConfirm(pkt);
+        } else if (pkt->getPayloadType() == PAYLOAD_TYPE_REQ) {
+          // last hop before the destination -- can't overhear a repeat, but a REQ provokes a
+          // correlated RESPONSE routed back through us, so use that as confirmation instead
+          registerLastHopReplyConfirm(pkt);
+        } else if (pkt->getPayloadType() == PAYLOAD_TYPE_TXT_MSG) {
+          // same, but a TXT_MSG provokes an ACK instead (no id to correlate exactly)
+          registerLastHopAckConfirm(pkt);
+        }
 
         uint32_t d = getDirectRetransmitDelay(pkt);
         return ACTION_RETRANSMIT_DELAYED(0, d);  // Routed traffic is HIGHEST priority 
@@ -338,6 +361,119 @@ void Mesh::removeSelfFromPath(Packet* pkt) {
   uint8_t sz = pkt->getPathHashSize();
   for (int k = 0; k < pkt->getPathHashCount()*sz; k += sz) {  // shuffle path by 1 'entry'
     memcpy(&pkt->path[k], &pkt->path[k + sz], sz);
+  }
+}
+
+void Mesh::registerNextHopConfirm(const Packet* pkt) {
+  if (!getNextHopReliabilityEnabled() || getNextHopMaxRetries() == 0) return;
+
+  for (int i = 0; i < MAX_PENDING_NEXTHOP_CONFIRMS; i++) {
+    auto& e = _pending_confirms[i];
+    if (!e.active) {
+      e.active = true;
+      e.kind = NEXTHOP_CONFIRM_REPEAT;
+      e.retries = 0;
+      e.pkt = *pkt;   // keep a copy, so it can be resent unchanged if not confirmed
+      pkt->calculatePacketHash(e.hash);
+      e.deadline = futureMillis(getNextHopConfirmTimeout(pkt));
+      return;
+    }
+  }
+  MESH_DEBUG_PRINTLN("%s Mesh::registerNextHopConfirm(): pending table full, skipping reliability tracking", getLogDateTime());
+}
+
+void Mesh::registerLastHopReplyConfirm(const Packet* pkt) {
+  if (!getNextHopReliabilityEnabled() || getNextHopMaxRetries() == 0) return;
+  if (pkt->payload_len < 2) return;   // need at least [dest_hash, src_hash] to correlate a reply
+
+  for (int i = 0; i < MAX_PENDING_NEXTHOP_CONFIRMS; i++) {
+    auto& e = _pending_confirms[i];
+    if (!e.active) {
+      e.active = true;
+      e.kind = NEXTHOP_CONFIRM_REPLY;
+      e.retries = 0;
+      e.pkt = *pkt;   // keep a copy, so the REQ can be resent unchanged if not confirmed
+      e.expect_dest_hash = pkt->payload[1];   // this REQ's src_hash -> dest_hash we expect on the RESPONSE
+      e.deadline = futureMillis(getNextHopConfirmTimeout(pkt));
+      return;
+    }
+  }
+  MESH_DEBUG_PRINTLN("%s Mesh::registerLastHopReplyConfirm(): pending table full, skipping reliability tracking", getLogDateTime());
+}
+
+void Mesh::registerLastHopAckConfirm(const Packet* pkt) {
+  if (!getNextHopReliabilityEnabled() || getNextHopMaxRetries() == 0) return;
+
+  for (int i = 0; i < MAX_PENDING_NEXTHOP_CONFIRMS; i++) {
+    auto& e = _pending_confirms[i];
+    if (!e.active) {
+      e.active = true;
+      e.kind = NEXTHOP_CONFIRM_ACK_SEEN;
+      e.retries = 0;
+      e.pkt = *pkt;   // keep a copy, so the TXT_MSG can be resent unchanged if not confirmed
+      e.deadline = futureMillis(getNextHopConfirmTimeout(pkt));
+      return;
+    }
+  }
+  MESH_DEBUG_PRINTLN("%s Mesh::registerLastHopAckConfirm(): pending table full, skipping reliability tracking", getLogDateTime());
+}
+
+void Mesh::checkNextHopConfirm(const Packet* pkt) {
+  uint8_t hash[MAX_HASH_SIZE];
+  bool calculated = false;
+  bool is_response = (pkt->getPayloadType() == PAYLOAD_TYPE_RESPONSE && pkt->payload_len > 0);
+  bool is_ack = (pkt->getPayloadType() == PAYLOAD_TYPE_ACK);
+  bool ack_consumed = false;   // only let one overheard ACK confirm one pending entry
+
+  for (int i = 0; i < MAX_PENDING_NEXTHOP_CONFIRMS; i++) {
+    auto& e = _pending_confirms[i];
+    if (!e.active) continue;
+
+    if (e.kind == NEXTHOP_CONFIRM_REPLY) {
+      if (is_response && pkt->payload[0] == e.expect_dest_hash) {
+        e.active = false;   // correlated RESPONSE seen -- confirmed, no retry needed
+      }
+      continue;
+    }
+
+    if (e.kind == NEXTHOP_CONFIRM_ACK_SEEN) {
+      if (is_ack && !ack_consumed) {
+        e.active = false;   // approximate: some direct ACK was overheard -- treat as confirmed
+        ack_consumed = true;
+      }
+      continue;
+    }
+
+    if (!calculated) {
+      pkt->calculatePacketHash(hash);
+      calculated = true;
+    }
+    if (memcmp(hash, e.hash, MAX_HASH_SIZE) == 0) {
+      e.active = false;   // next hop has repeated it -- confirmed, no retry needed
+    }
+  }
+}
+
+void Mesh::processNextHopRetries() {
+  for (int i = 0; i < MAX_PENDING_NEXTHOP_CONFIRMS; i++) {
+    auto& e = _pending_confirms[i];
+    if (!e.active || !millisHasNowPassed(e.deadline)) continue;
+
+    if (e.retries >= getNextHopMaxRetries()) {
+      MESH_DEBUG_PRINTLN("%s Mesh::processNextHopRetries(): giving up, no confirm heard after %d retries", getLogDateTime(), (uint32_t)e.retries);
+      e.active = false;
+      continue;
+    }
+
+    Packet* retry_pkt = obtainNewPacket();
+    if (retry_pkt == NULL) {
+      e.deadline = futureMillis(100);   // packet pool busy, back off briefly and try again
+      continue;
+    }
+    *retry_pkt = e.pkt;
+    e.retries++;
+    e.deadline = futureMillis(getNextHopConfirmTimeout(&e.pkt));
+    sendPacket(retry_pkt, 0);   // resend immediately, same priority as a fresh direct forward
   }
 }
 
@@ -708,6 +844,16 @@ void Mesh::sendDirect(Packet* packet, const uint8_t* path, uint8_t path_len, uin
       pri = 1;   // slightly less priority
     } else {
       pri = 0;
+    }
+
+    if (packet->getPathHashCount() > 0) {   // there's a next hop to listen for repeating this
+      registerNextHopConfirm(packet);
+    } else if (packet->getPayloadType() == PAYLOAD_TYPE_REQ) {
+      // no next hop to overhear (zero-hop direct REQ) -- wait for the correlated RESPONSE instead
+      registerLastHopReplyConfirm(packet);
+    } else if (packet->getPayloadType() == PAYLOAD_TYPE_TXT_MSG) {
+      // same, but a TXT_MSG provokes an ACK instead (no id to correlate exactly)
+      registerLastHopAckConfirm(packet);
     }
   }
   _tables->markSeen(packet); // mark this packet as already sent in case it is rebroadcast back to us
