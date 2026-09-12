@@ -194,6 +194,19 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 ---
 
+### Show the current battery voltage
+**Usage:** `batt`
+
+**Notes:**
+- Reports the board's raw battery reading in millivolts, e.g. `> 4051 mV`.
+- Reads the same value the node reports over the mesh in its repeater stats, so
+  a headless node can be checked locally over USB without a second radio to
+  query it.
+- On a node running from USB this reflects the charging voltage rather than the
+  battery's resting state.
+
+---
+
 ## Configuration
 
 ### Radio
