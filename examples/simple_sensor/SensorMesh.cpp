@@ -102,29 +102,24 @@ static float findTelemValue(const uint8_t* buf, uint8_t size, uint8_t channel, u
 /* ------------------ end Cayenne LPP helpers ----------------------*/
 
 bool SensorMesh::telemHasChanged(const uint8_t* min_deltas, uint8_t min_deltas_len) {
-  if (telemetry.getSize() != prev_telem_size) return true;
-
   auto buf = telemetry.getBuffer();
   uint8_t size = telemetry.getSize();
   uint8_t i = 0;
 
-  while (i + 2 < size) {
-    // Get channel #
-    uint8_t ch = buf[i++];
-    // Get data type
-    uint8_t t = buf[i++];
+  while (i + 2 < min_deltas_len) {
+    uint8_t ch = min_deltas[i++];    // Get channel #
+    uint8_t t = min_deltas[i++];     // Get data type
     uint8_t sz = LPPData::getDataSize(t);
 
-    float v = LPPData::getFloat(&buf[i], sz, LPPData::getMultiplier(t), LPPData::isSigned(t));
-    float pv = LPPData::getFloat(&prev_telem[i], sz, LPPData::getMultiplier(t), LPPData::isSigned(t));
-    float min_delta = min_deltas_len > 0
-            ? findTelemValue(min_deltas, min_deltas_len, ch, t, 1.0e+16f)  // default is just something BIG
-            : 0.0f;  // for ANY change
+    float min_delta = LPPData::getFloat(&min_deltas[i], sz, LPPData::getMultiplier(t), LPPData::isSigned(t));
+
+    float v = findTelemValue(buf, size, ch, t, 0.0f);
+    float pv = findTelemValue(prev_telem, prev_telem_size, ch, t, 0.0f);
     if (abs(v - pv) > min_delta) return true;   // Yes, has changed
 
     i += sz;  // skip
   }
-  return false;  // no changes (OR none of the -specified- telemetry values changed by min_delta)
+  return false;  // none of the -specified- telemetry values changed by min_delta
 }
 
 uint8_t SensorMesh::handleRequest(ClientInfo* from, uint32_t sender_timestamp, uint8_t req_type, uint8_t* payload, size_t payload_len) {
@@ -202,26 +197,34 @@ uint8_t SensorMesh::handleRequest(ClientInfo* from, uint32_t sender_timestamp, u
     uint16_t timeout_secs;
     memcpy(&timeout_secs, &payload[4], 2);
     uint8_t  reserved = payload[6];
+    uint8_t  min_deltas_len = payload[7];
     RegionEntry* r;
     if (recv_pkt_region && !recv_pkt_region->isWildcard()) {   // use request scope
       r = recv_pkt_region;
     } else {   // use default scope
       r = region_map.getDefaultRegion();
     }
-    from->extra.sensor.scope_region_id = r ? r->id : 0;
-    from->extra.sensor.expiry_timestamp = r ? getRTCClock()->getCurrentTime() + timeout_secs : 0;
-    from->extra.sensor.min_deltas_len = min(sizeof(from->extra.sensor.min_deltas), (size_t)payload[7]);
-    // NOTE: curr impl truncates LPP min_diffs spec  (re-do if better impl is needed)
-    memcpy(from->extra.sensor.min_deltas, &payload[8], from->extra.sensor.min_deltas_len);
-
-    memcpy(&reply_data[4], &from->extra.sensor.expiry_timestamp, 4);  // reply with actual expiry timestamp (or 0 for error)
-    strcpy((char *)&reply_data[8], r ? r->name : "");  // reply with name of scope that will be used
-    return 8 + strlen((char *)&reply_data[8]);
+    uint8_t reply_len;
+    if (r && min_deltas_len >= 3 && min_deltas_len <= sizeof(from->extra.sensor.min_deltas)) {
+      from->extra.sensor.scope_region_id = r->id;
+      from->extra.sensor.expiry_timestamp = getRTCClock()->getCurrentTime() + timeout_secs;
+      from->extra.sensor.min_deltas_len = min_deltas_len;
+      memcpy(from->extra.sensor.min_deltas, &payload[8], min_deltas_len);
+      // reply with actual expiry timestamp
+      memcpy(&reply_data[4], &from->extra.sensor.expiry_timestamp, 4);
+      strcpy((char *)&reply_data[8], r ? r->name : "");  // reply with name of scope that will be used
+      reply_len = 8 + strlen((char *)&reply_data[8]);
+    } else {
+      memset(&reply_data[4], 0, 4);  // expiry timestamp (0 for error)
+      reply_len = 8;
+    }
+    return reply_len;
   }
   if (req_type == REQ_TYPE_UNSUBSCRIBE && (perms & PERM_ACL_ROLE_MASK) >= PERM_ACL_READ_ONLY) {
     from->extra.sensor.scope_region_id = 0;
     from->extra.sensor.push_tag = 0;
     from->extra.sensor.expiry_timestamp = 0;
+    from->extra.sensor.min_deltas_len = 0;
     // REVISIT: maybe return some stats, eg total number of telemetry pushes since SUBSCRIBE?
     memset(&reply_data[4], 0, 8);  // success
     getRNG()->random(&reply_data[12], 2);   // just some entropy for better packet-hash uniqueness
@@ -1021,7 +1024,7 @@ void SensorMesh::loop() {
     // compare with previous telemetry, check if any deltas are greater than subscriber minimums
     for (int i = 0; i < acl.getNumClients(); i++) {
       auto c = acl.getClientByIdx(i);
-      if (c->permissions == 0 || c->extra.sensor.scope_region_id == 0) continue;  // skip deleted entries, or Not subscribed to deltas
+      if (c->permissions == 0 || c->extra.sensor.scope_region_id == 0 || c->extra.sensor.min_deltas_len == 0) continue;  // skip deleted entries, or Not subscribed to deltas
       RegionEntry* r = region_map.findById(c->extra.sensor.scope_region_id);
       if (r == NULL) continue;   // unknown region scope
       if (curr > c->extra.sensor.expiry_timestamp) continue;  // subscription now expired
