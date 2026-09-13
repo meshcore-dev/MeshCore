@@ -40,20 +40,17 @@
 class MicroNMEALocationProvider : public LocationProvider {
     char _nmeaBuffer[100];
     MicroNMEA nmea;
-    mesh::RTCClock* _clock;
     Stream* _gps_serial;
     RefCountedDigitalPin* _peripher_power;
     int8_t _claims = 0;
     int _pin_reset;
     int _pin_en;
     unsigned long next_check = 0;
-    long time_valid = 0;
-    unsigned long _last_time_sync = 0;
     static const unsigned long TIME_SYNC_INTERVAL = 1800000; // Re-sync every 30 minutes
 
 public :
     MicroNMEALocationProvider(Stream& ser, mesh::RTCClock* clock = NULL, int pin_reset = GPS_RESET, int pin_en = GPS_EN,RefCountedDigitalPin* peripher_power=NULL) :
-    nmea(_nmeaBuffer, sizeof(_nmeaBuffer)), _clock(clock), _gps_serial(&ser), _peripher_power(peripher_power), _pin_reset(pin_reset), _pin_en(pin_en) {
+    LocationProvider(clock), nmea(_nmeaBuffer, sizeof(_nmeaBuffer)), _gps_serial(&ser), _peripher_power(peripher_power), _pin_reset(pin_reset), _pin_en(pin_en) {
         if (_pin_reset != -1) {
             pinMode(_pin_reset, OUTPUT);
             digitalWrite(_pin_reset, GPS_RESET_ACTIVE);
@@ -73,6 +70,14 @@ public :
         if (_claims == 0) return; // avoid negative _claims
         _claims--;
         if (_peripher_power) _peripher_power->release();
+    }
+
+    void configure() override {
+        // Attempt to use proprietary NMEA sentences to configure GPS
+        // Unsupported sentences will be ignored
+        
+        // Quectel L76K
+        sendSentence("$PCAS04,7"); // Set constellation - GPS + BeiDou + GLONASS
     }
 
     void begin() override {
@@ -143,24 +148,14 @@ public :
             nmea.process(c);
         }
 
-        if (!isValid()) time_valid = 0;
-
         if ((long)(millis() - next_check) > 0) {
             next_check = millis() + 1000;
             // Re-enable time sync periodically when GPS has valid fix
             if (!_time_sync_needed && _clock != NULL && (millis() - _last_time_sync) > TIME_SYNC_INTERVAL) {
                 _time_sync_needed = true;
             }
-            if (_time_sync_needed && time_valid > 2) {
-                if (_clock != NULL) {
-                    _clock->setCurrentTime(getTimestamp());
-                    _time_sync_needed = false;
-                    _last_time_sync = millis();
-                }
-            }
-            if (isValid()) {
-                time_valid ++;
-            }
         }
+
+        _syncTimeIfNeeded();
     }
 };

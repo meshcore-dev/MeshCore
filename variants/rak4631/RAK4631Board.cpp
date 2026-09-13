@@ -29,6 +29,9 @@ void RAK4631Board::initiateShutdown(uint8_t reason) {
   // Disable LoRa module power before shutdown
   digitalWrite(SX126X_POWER_EN, LOW);
 
+  // Disable 3V3 switched peripherals and 5V boost
+  digitalWrite(PIN_3V3_EN, LOW);
+
   if (reason == SHUTDOWN_REASON_LOW_VOLTAGE ||
       reason == SHUTDOWN_REASON_BOOT_PROTECT) {
     configureVoltageWake(power_config.lpcomp_ain_channel, power_config.lpcomp_refsel);
@@ -55,6 +58,12 @@ void RAK4631Board::begin() {
 #endif
 
   Wire.begin();
+
+  // PIN_3V3_EN (WB_IO2, P0.34) controls the 3V3_S switched peripheral rail
+  // AND the 5V boost regulator (U5) on the RAK13302 that powers the SKY66122 PA.
+  // Must stay HIGH during radio operation — do not toggle for power saving.
+  pinMode(PIN_3V3_EN, OUTPUT);
+  digitalWrite(PIN_3V3_EN, HIGH);
 
   pinMode(SX126X_POWER_EN, OUTPUT);
 #ifdef NRF52_POWER_MANAGEMENT

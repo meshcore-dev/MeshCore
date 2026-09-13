@@ -38,26 +38,44 @@ extern "C"
 {
 #endif // __cplusplus
 
-	/*
+/*
  * WisBlock Base GPIO definitions
  */
-	static const uint8_t WB_IO1 = 17;	   // SLOT_A SLOT_B
-	static const uint8_t WB_IO2 = 34;	   // SLOT_A SLOT_B
-	static const uint8_t WB_IO3 = 21;	   // SLOT_C
-	static const uint8_t WB_IO4 = 4;	   // SLOT_C
-	static const uint8_t WB_IO5 = 9;	   // SLOT_D
-	static const uint8_t WB_IO6 = 10;	   // SLOT_D
-	static const uint8_t WB_SW1 = 33;	   // IO_SLOT
-	static const uint8_t WB_A0 = 5;		   // IO_SLOT
-	static const uint8_t WB_A1 = 31;	   // IO_SLOT
-	static const uint8_t WB_I2C1_SDA = 13; // SENSOR_SLOT IO_SLOT
-	static const uint8_t WB_I2C1_SCL = 14; // SENSOR_SLOT IO_SLOT
-	static const uint8_t WB_I2C2_SDA = 24; // IO_SLOT
-	static const uint8_t WB_I2C2_SCL = 25; // IO_SLOT
-	static const uint8_t WB_SPI_CS = 26;   // IO_SLOT
-	static const uint8_t WB_SPI_CLK = 3;   // IO_SLOT
-	static const uint8_t WB_SPI_MISO = 29; // IO_SLOT
-	static const uint8_t WB_SPI_MOSI = 30; // IO_SLOT
+#define PIN_WB_IO1 (17)			// SLOT_A P.12 / SLOT_B P.10
+#define PIN_WB_IO2 (34)			// SLOT_A P.10 / SLOT_B P.12
+#define PIN_WB_IO3 (21)			// SLOT_C P.12
+#define PIN_WB_IO4 (4)			// SLOT_C P.10
+#define PIN_WB_IO5 (9)			// SLOT_D P.12
+#define PIN_WB_IO6 (10)			// SLOT_D P.10
+#define PIN_WB_SW1 (33)			// IO_SLOT
+#define PIN_WB_A0 (5)			// IO_SLOT
+#define PIN_WB_A1 (31)			// IO_SLOT
+#define PIN_WB_I2C1_SDA (13)	// SENSOR_SLOT IO_SLOT
+#define PIN_WB_I2C1_SCL (14)	// SENSOR_SLOT IO_SLOT
+#define PIN_WB_I2C2_SDA (24)	// IO_SLOT
+#define PIN_WB_I2C2_SCL (25)	// IO_SLOT
+#define PIN_WB_SPI_CS (26)		// IO_SLOT
+#define PIN_WB_SPI_CLK (3)		// IO_SLOT
+#define PIN_WB_SPI_MISO (29)	// IO_SLOT
+#define PIN_WB_SPI_MOSI (30)	// IO_SLOT
+
+	static const uint8_t WB_IO1 = PIN_WB_IO1;
+	static const uint8_t WB_IO2 = PIN_WB_IO2;
+	static const uint8_t WB_IO3 = PIN_WB_IO3;
+	static const uint8_t WB_IO4 = PIN_WB_IO4;
+	static const uint8_t WB_IO5 = PIN_WB_IO5;
+	static const uint8_t WB_IO6 = PIN_WB_IO6;
+	static const uint8_t WB_SW1 = PIN_WB_SW1;
+	static const uint8_t WB_A0 = PIN_WB_A0;
+	static const uint8_t WB_A1 = PIN_WB_A1;
+	static const uint8_t WB_I2C1_SDA = PIN_WB_I2C1_SDA;
+	static const uint8_t WB_I2C1_SCL = PIN_WB_I2C1_SCL;
+	static const uint8_t WB_I2C2_SDA = PIN_WB_I2C2_SDA;
+	static const uint8_t WB_I2C2_SCL = PIN_WB_I2C2_SCL;
+	static const uint8_t WB_SPI_CS = PIN_WB_SPI_CS;
+	static const uint8_t WB_SPI_CLK = PIN_WB_SPI_CLK;
+	static const uint8_t WB_SPI_MISO = PIN_WB_SPI_MISO;
+	static const uint8_t WB_SPI_MOSI = PIN_WB_SPI_MOSI;
 
 // Number of pins defined in PinDescription array
 #define PINS_COUNT (48)
@@ -212,8 +230,7 @@ extern "C"
 #define GPS_THREAD_INTERVAL     50
 #define PIN_GPS_TX              PIN_SERIAL1_RX
 #define PIN_GPS_RX              PIN_SERIAL1_TX
-#define PIN_GPS_EN              (33)
-#define PIN_GPS_PPS             (17)
+#define PIN_GPS_EN              PIN_WB_IO2
 
 #ifdef __cplusplus
 }
