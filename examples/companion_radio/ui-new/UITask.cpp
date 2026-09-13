@@ -3,7 +3,7 @@
 #include "../MyMesh.h"
 #include "target.h"
 #include <time.h>
-#ifdef WIFI_SSID
+#ifdef ENABLE_WIFI_INTERFACE
   #include <WiFi.h>
 #endif
 
@@ -260,7 +260,7 @@ public:
       sprintf(tmp, "%02d/%02d/%d", dt.day(), dt.month(), dt.year());
       display.drawTextCentered(display.width() / 2, 80, tmp);
       #endif
-      #ifdef WIFI_SSID
+      #ifdef ENABLE_WIFI_INTERFACE
         IPAddress ip = WiFi.localIP();
         snprintf(tmp, sizeof(tmp), "IP: %d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
         display.setTextSize(1);
