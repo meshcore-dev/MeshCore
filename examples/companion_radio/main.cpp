@@ -291,6 +291,7 @@ void setup() {
 }
 
 void loop() {
+  board.loop();
   the_mesh.loop();
   interface_manager.loop();
   sensors.loop();
