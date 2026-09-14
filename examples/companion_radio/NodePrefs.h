@@ -43,6 +43,12 @@ public:
   uint8_t path_hash_mode = 0;    // which path mode to use when sending
   uint8_t autoadd_max_hops = 0;  // 0 = no limit, 1 = direct (0 hops), N = up to N-1 hops (max 64)
   uint8_t cad_enabled = 0;
+  uint8_t rssi_lbt_enabled = 0;    // RSSI listen-before-talk (boolean)
+  int8_t rssi_lbt_thr_dbm = -80;   // absolute RSSI threshold, above which the channel counts as busy
+  uint16_t rssi_lbt_sense_ms = 5;  // how long to sample RSSI for
+  uint16_t rssi_lbt_maxwait_ms = 0;   // max time to wait out a busy channel before forcing TX (0 = unlimited)
+  uint16_t rssi_lbt_txmax_ms = 4000;  // max airtime of a single TX (0 = unlimited)
+  uint16_t rssi_lbt_pause_ms = 50;    // quiet period after each TX
   uint8_t interference_threshold = 0;
   uint8_t agc_reset_interval = 0;  // secs / 4
   char default_scope_name[31];
@@ -69,6 +75,12 @@ private:
       def("sf", _parent->sf);
       def("cr", _parent->cr);
       def("cad", _parent->cad_enabled);
+      def("lbt_en", _parent->rssi_lbt_enabled);
+      def("lbt_thr", _parent->rssi_lbt_thr_dbm);
+      def("lbt_sense", _parent->rssi_lbt_sense_ms);
+      def("lbt_maxwait", _parent->rssi_lbt_maxwait_ms);
+      def("lbt_txmax", _parent->rssi_lbt_txmax_ms);
+      def("lbt_pause", _parent->rssi_lbt_pause_ms);
       def("int_thr", _parent->interference_threshold);
       def("rxgain", _parent->rx_boosted_gain);
       def("fem_rxgain", _parent->radio_fem_rxgain);   // fem_rxgain WAS mapped to wrong JSON property previously
@@ -98,6 +110,18 @@ private:
     void setAirtimeFactor(float af) override { _parent->airtime_factor = af; markDirty(); }
     bool isCadEnabled() const override { return _parent->cad_enabled; }
     void setCadEnabled(bool en) override { _parent->cad_enabled = en; markDirty(); }
+    bool isRssiLbtEnabled() const override { return _parent->rssi_lbt_enabled; }
+    void setRssiLbtEnabled(bool en) override { _parent->rssi_lbt_enabled = en; markDirty(); }
+    int8_t getRssiLbtThrDbm() const override { return _parent->rssi_lbt_thr_dbm; }
+    void setRssiLbtThrDbm(int8_t dbm) override { _parent->rssi_lbt_thr_dbm = dbm; markDirty(); }
+    uint16_t getRssiLbtSenseMs() const override { return _parent->rssi_lbt_sense_ms; }
+    void setRssiLbtSenseMs(uint16_t ms) override { _parent->rssi_lbt_sense_ms = ms; markDirty(); }
+    uint16_t getRssiLbtMaxwaitMs() const override { return _parent->rssi_lbt_maxwait_ms; }
+    void setRssiLbtMaxwaitMs(uint16_t ms) override { _parent->rssi_lbt_maxwait_ms = ms; markDirty(); }
+    uint16_t getRssiLbtTxmaxMs() const override { return _parent->rssi_lbt_txmax_ms; }
+    void setRssiLbtTxmaxMs(uint16_t ms) override { _parent->rssi_lbt_txmax_ms = ms; markDirty(); }
+    uint16_t getRssiLbtPauseMs() const override { return _parent->rssi_lbt_pause_ms; }
+    void setRssiLbtPauseMs(uint16_t ms) override { _parent->rssi_lbt_pause_ms = ms; markDirty(); }
     uint8_t getIntThresh() const override { return _parent->interference_threshold; }
     void setIntThresh(uint8_t t) override { _parent->interference_threshold = t; markDirty(); }
     uint8_t getRxGain() const override { return _parent->rx_boosted_gain; }

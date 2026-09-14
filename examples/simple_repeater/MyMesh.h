@@ -150,6 +150,24 @@ protected:
   bool getCADEnabled() const override {
     return _prefs.cad_enabled;
   }
+  bool getRssiLbtEnabled() const override {
+    return _prefs.rssi_lbt_enabled;
+  }
+  int8_t getRssiLbtThrDbm() const override {
+    return _prefs.rssi_lbt_thr_dbm;
+  }
+  uint16_t getRssiLbtSenseMs() const override {
+    return _prefs.rssi_lbt_sense_ms;
+  }
+  uint16_t getRssiLbtMaxwaitMs() const override {
+    return _prefs.rssi_lbt_maxwait_ms;
+  }
+  uint16_t getRssiLbtTxmaxMs() const override {
+    return _prefs.rssi_lbt_txmax_ms;
+  }
+  uint16_t getRssiLbtPauseMs() const override {
+    return _prefs.rssi_lbt_pause_ms;
+  }
   int getAGCResetInterval() const override {
     return ((int)_prefs.agc_reset_interval) * 4000;   // milliseconds
   }
