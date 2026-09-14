@@ -487,6 +487,21 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     StrHelper::strncpy(_prefs->guest_password, &config[15], sizeof(_prefs->guest_password));
     savePrefs();
     strcpy(reply, "OK");
+  } else if (memcmp(config, "guest.enviroment ", 17) == 0) {
+    const char* value = &config[17];
+    uint8_t mode;
+    if (strcmp(value, "normal") == 0) {
+      _prefs->guest_environment = GUEST_ENVIRONMENT_NORMAL;
+    } else if (strcmp(value, "gps") == 0) {
+      _prefs->guest_environment = GUEST_ENVIRONMENT_GPS;
+    } else if (strcmp(value, "all") == 0) {
+      _prefs->guest_environment = GUEST_ENVIRONMENT_ALL;
+    } else {
+      strcpy(reply, "Error: expected normal, gps or all");
+      return;
+    }
+    savePrefs();
+    strcpy(reply, "OK");
   } else if (memcmp(config, "prv.key ", 8) == 0) {
     uint8_t prv_key[PRV_KEY_SIZE];
     bool success = mesh::Utils::fromHex(prv_key, PRV_KEY_SIZE, &config[8]);
@@ -681,6 +696,14 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     sprintf(reply, "> %d", ((uint32_t) _prefs->advert_interval) * 2);
   } else if (memcmp(config, "guest.password", 14) == 0) {
     sprintf(reply, "> %s", _prefs->guest_password);
+  } else if (memcmp(config, "guest.enviroment", 16) == 0) {
+    const char* mode = "normal";
+    if (_prefs->guest_environment == GUEST_ENVIRONMENT_GPS) {
+      mode = "gps";
+    } else if (_prefs->guest_environment == GUEST_ENVIRONMENT_ALL) {
+      mode = "all";
+    }
+    sprintf(reply, "> %s", mode);
   } else if (sender_timestamp == 0 && memcmp(config, "prv.key", 7) == 0) {  // from serial command line only
     uint8_t prv_key[PRV_KEY_SIZE];
     int len = _callbacks->getSelfId().writeTo(prv_key, PRV_KEY_SIZE);

@@ -152,9 +152,27 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 ---
 
 ### Packet stats - Packet counters: Received, Sent
-**Usage:** `stats-packets`
+**Usage:** `stats-packets <mode>`
 
 **Serial Only:** Yes
+
+### View or change guest telemetry access
+**Usage:**
+- `get guest.enviroment`
+- `set guest.enviroment <mode>`
+
+**Parameters:**
+- `mode`: `normal`, `gps` or `all`
+  - `normal`: guests can see battery level and CPU temperature
+  - `gps`: guests can also see the node's GPS position
+  - `all`: guests can see all available telemetry
+
+**Default:** `normal`
+
+**Notes:**
+- The setting applies only to telemetry returned to guest clients.
+- It does not change the node's position in advertisements.
+- The spelling `enviroment` is part of the CLI command for compatibility.
 
 ---
 
