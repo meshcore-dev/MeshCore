@@ -21,7 +21,7 @@ void ESPNowBridge::send_cb(const uint8_t *mac, esp_now_send_status_t status) {
   }
 }
 
-ESPNowBridge::ESPNowBridge(NodePrefs *prefs, mesh::PacketManager *mgr, mesh::RTCClock *rtc)
+ESPNowBridge::ESPNowBridge(BridgePrefs *prefs, mesh::PacketManager *mgr, mesh::RTCClock *rtc)
     : BridgeBase(prefs, mgr, rtc), _rx_buffer_pos(0) {
   _instance = this;
 }
