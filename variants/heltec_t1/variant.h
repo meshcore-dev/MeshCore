@@ -131,8 +131,8 @@
 #define GPS_EN_ACTIVE           LOW
 #define PIN_GPS_EN_ACTIVE       LOW
 #define PIN_GPS_PPS             (32 + 9)
-#define GPS_TX_PIN              (0 + 8)
-#define GPS_RX_PIN              (0 + 7)
+#define GPS_RX_PIN              (0 + 8)
+#define GPS_TX_PIN              (0 + 7)
 #define PIN_GPS_TX              GPS_TX_PIN
 #define PIN_GPS_RX              GPS_RX_PIN
 
