@@ -109,7 +109,7 @@ public:
    * @param mgr PacketManager for allocating and queuing packets
    * @param rtc RTCClock for timestamping debug messages
    */
-  ESPNowBridge(NodePrefs *prefs, mesh::PacketManager *mgr, mesh::RTCClock *rtc);
+  ESPNowBridge(BridgePrefs *prefs, mesh::PacketManager *mgr, mesh::RTCClock *rtc);
 
   /**
    * Initializes the ESP-NOW bridge

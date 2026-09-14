@@ -305,6 +305,24 @@ void MyMesh::logRxRaw(float snr, float rssi, const uint8_t raw[], int len) {
   }
 }
 
+#if defined(WITH_BRIDGE)
+// The companion never overrode these hooks, so a companion could not mirror mesh
+// traffic onto a second transport the way a repeater can. Which direction is
+// mirrored is the same setting the repeater uses: bridge_pkt_src 0 = what this
+// node transmits, 1 = what it receives.
+void MyMesh::logRx(mesh::Packet* packet, int len, float score) {
+  if (_prefs.bridge_pkt_src == 1) {
+    bridge.sendPacket(packet);
+  }
+}
+
+void MyMesh::logTx(mesh::Packet* packet, int len) {
+  if (_prefs.bridge_pkt_src == 0) {
+    bridge.sendPacket(packet);
+  }
+}
+#endif
+
 bool MyMesh::isAutoAddEnabled() const {
   return (_prefs.manual_add_contacts & 1) == 0;
 }
@@ -932,7 +950,11 @@ void MyMesh::onSendTimeout() {}
 
 MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMeshTables &tables, DataStore& store, AbstractUITask* ui)
     : BaseChatMesh(radio, *new ArduinoMillis(), rng, rtc, *new StaticPoolPacketManager(16), tables),
-      _serial(NULL), telemetry(MAX_PACKET_PAYLOAD - 4), _store(&store), _ui(ui), _iter(0) {
+      _serial(NULL), telemetry(MAX_PACKET_PAYLOAD - 4), _store(&store), _ui(ui), _iter(0)
+#if defined(WITH_BRIDGE)
+      , bridge(&_prefs, _mgr, &rtc)
+#endif
+      {
   _iter_started = false;
   _cli_rescue = false;
   cli_command[0] = 0;
@@ -2444,6 +2466,10 @@ void MyMesh::checkSerialInterface() {
 }
 
 void MyMesh::loop() {
+#if defined(WITH_BRIDGE)
+  bridge.loop();
+#endif
+
   BaseChatMesh::loop();
 
   if (_cli_rescue) {
@@ -2485,5 +2511,10 @@ bool MyMesh::advert() {
 
 // To check if there is pending work
 bool MyMesh::hasPendingWork() const {
+#if defined(WITH_BRIDGE)
+  // The bridge holds the 2.4 GHz radio and its queue, so a node running one
+  // cannot be considered idle. Same rule the repeater applies.
+  if (bridge.isRunning()) return true;
+#endif
   return _mgr->getOutboundTotal() > 0 || dirty_contacts_expiry != 0;
 }
