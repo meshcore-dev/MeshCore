@@ -18,6 +18,27 @@ Thanks for considering contributing to this project!
 
 ### 3. Submitting Code Changes (Pull Requests)
 
+#### Pull Request Template
+```
+<Short Description>
+
+*What is the Problem?*
+
+*What is the Solution?*
+
+*What testing 
+
+*Is you change compaitble with nodes that don't have it?*
+
+*Checklist:*
+[ ] Is your PR < 100 lines?
+[ ] Has your PR been reviewed by at least two community members.
+[ ] Have you reviewed at least 5 other community member PRs?
+[ ] Have you built and flashed at least two other community member PRs?
+```
+
+
+
 #### Small fixes (typos, comments, examples, small bug fixes)
 → Just open a pull request — no prior issue needed
 
