@@ -101,25 +101,43 @@ static float findTelemValue(const uint8_t* buf, uint8_t size, uint8_t channel, u
 
 /* ------------------ end Cayenne LPP helpers ----------------------*/
 
-bool SensorMesh::telemHasChanged(const uint8_t* min_deltas, uint8_t min_deltas_len) {
+bool SensorMesh::telemHasChanged(ClientInfo* c) {
   auto buf = telemetry.getBuffer();
   uint8_t size = telemetry.getSize();
   uint8_t i = 0;
+  bool changed = false;
 
-  while (i + 2 < min_deltas_len) {
-    uint8_t ch = min_deltas[i++];    // Get channel #
-    uint8_t t = min_deltas[i++];     // Get data type
+  while (i + 2 < c->extra.sensor.min_deltas_len) {
+    uint8_t ch = c->extra.sensor.min_deltas[i];    // Get channel #
+    uint8_t t = c->extra.sensor.min_deltas[i + 1];     // Get data type
     uint8_t sz = LPPData::getDataSize(t);
 
-    float min_delta = LPPData::getFloat(&min_deltas[i], sz, LPPData::getMultiplier(t), LPPData::isSigned(t));
+    float min_delta = LPPData::getFloat(&c->extra.sensor.min_deltas[i + 2], sz, LPPData::getMultiplier(t), LPPData::isSigned(t));
+    float pv = LPPData::getFloat(&c->extra.sensor.prev_telem[i + 2], sz, LPPData::getMultiplier(t), LPPData::isSigned(t));
 
     float v = findTelemValue(buf, size, ch, t, 0.0f);
-    float pv = findTelemValue(prev_telem, prev_telem_size, ch, t, 0.0f);
-    if (abs(v - pv) > min_delta) return true;   // Yes, has changed
+    if (abs(v - pv) > min_delta) changed = true;   // Yes, has changed
 
-    i += sz;  // skip
+    i += 2 + sz;  // skip
   }
-  return false;  // none of the -specified- telemetry values changed by min_delta
+  if (changed) {
+    // take snapshot of all _monitored_ telem values, for next cycle
+    i = 0;
+    while (i + 2 < c->extra.sensor.min_deltas_len) {
+      uint8_t ch = c->extra.sensor.min_deltas[i];    // Get channel #
+      uint8_t t = c->extra.sensor.min_deltas[i + 1];     // Get data type
+      uint8_t sz = LPPData::getDataSize(t);
+
+      c->extra.sensor.prev_telem[i] = ch;
+      c->extra.sensor.prev_telem[i + 1] = t;
+
+      float v = findTelemValue(buf, size, ch, t, 0.0f);
+      LPPData::putFloat(&c->extra.sensor.prev_telem[i + 2], v, sz, LPPData::getMultiplier(t), LPPData::isSigned(t));
+
+      i += 2 + sz;  // skip
+    }
+  }
+  return changed;
 }
 
 uint8_t SensorMesh::handleRequest(ClientInfo* from, uint32_t sender_timestamp, uint8_t req_type, uint8_t* payload, size_t payload_len) {
@@ -774,7 +792,6 @@ SensorMesh::SensorMesh(mesh::MainBoard& board, mesh::Radio& radio, mesh::Millise
   num_alert_tasks = 0;
   set_radio_at = revert_radio_at = 0;
   recv_pkt_region = NULL;
-  prev_telem_size = 0;
   region_load_active = false;
 
   // defaults
@@ -1028,7 +1045,7 @@ void SensorMesh::loop() {
       RegionEntry* r = region_map.findById(c->extra.sensor.scope_region_id);
       if (r == NULL) continue;   // unknown region scope
       if (curr > c->extra.sensor.expiry_timestamp) continue;  // subscription now expired
-      if (telemHasChanged(c->extra.sensor.min_deltas, c->extra.sensor.min_deltas_len)) {
+      if (telemHasChanged(c)) {
         TransportKey scope;
         if (region_map.getTransportKeysFor(*r, &scope, 1) > 0) {
           uint8_t tlen = telemetry.getSize();
@@ -1048,8 +1065,6 @@ void SensorMesh::loop() {
         }
       }
     }
-    memcpy(prev_telem, telemetry.getBuffer(), telemetry.getSize());  // save snapshot for next compare cycle
-    prev_telem_size = telemetry.getSize();
 
     onSensorDataRead();
 

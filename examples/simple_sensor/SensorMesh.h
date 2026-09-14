@@ -148,8 +148,6 @@ private:
   uint8_t reply_data[MAX_PACKET_PAYLOAD];
   unsigned long dirty_contacts_expiry;
   CayenneLPP telemetry;
-  uint8_t prev_telem_size;
-  uint8_t prev_telem[MAX_PACKET_PAYLOAD - 4];
   TransportKeyStore key_store;
   RegionMap region_map, temp_map;
   RegionEntry* recv_pkt_region;
@@ -166,7 +164,7 @@ private:
   uint8_t pending_cr;
   bool region_load_active;
 
-  bool telemHasChanged(const uint8_t* min_deltas, uint8_t min_deltas_len);
+  bool telemHasChanged(ClientInfo* c);
   uint8_t handleLoginReq(const mesh::Identity& sender, const uint8_t* secret, uint32_t sender_timestamp, const uint8_t* data, bool is_flood);
   uint8_t handleRequest(ClientInfo* from, uint32_t sender_timestamp, uint8_t req_type, uint8_t* payload, size_t payload_len);
   mesh::Packet* createSelfAdvert();
