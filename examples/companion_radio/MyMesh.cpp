@@ -292,7 +292,33 @@ uint8_t MyMesh::getExtraAckTransmitCount() const {
   return _prefs.multi_acks;
 }
 
+static uint32_t fnv1aHash(const uint8_t* data, int len) {
+  uint32_t h = 2166136261u;
+  for (int i = 0; i < len; i++) {
+    h ^= data[i];
+    h *= 16777619u;
+  }
+  return h;
+}
+
+void MyMesh::logTx(mesh::Packet* packet, int len) {
+  // remember the payload signature of outgoing text so the UI can count
+  // repeaters echoing it (payload bytes survive retransmission unchanged)
+  uint8_t t = packet->getPayloadType();
+  if (_ui != NULL && (t == PAYLOAD_TYPE_TXT_MSG || t == PAYLOAD_TYPE_GRP_TXT) && packet->payload_len > 0) {
+    echo_hash = fnv1aHash(packet->payload, packet->payload_len);
+    echo_len = packet->payload_len;
+    echo_time = millis();
+  }
+}
+
 void MyMesh::logRxRaw(float snr, float rssi, const uint8_t raw[], int len) {
+  // the payload sits at the tail of the frame; a match on the last echo_len
+  // bytes means a neighbor just retransmitted our message
+  if (_ui != NULL && echo_len > 0 && len > (int) echo_len && millis() - echo_time < 60000) {
+    if (fnv1aHash(&raw[len - echo_len], echo_len) == echo_hash) _ui->msgEchoHeard();
+  }
+
   if (_serial->isConnected() && len + 3 <= MAX_FRAME_SIZE) {
     int i = 0;
     out_frame[i++] = PUSH_CODE_LOG_RX_DATA;
@@ -468,6 +494,13 @@ void MyMesh::onContactPathUpdated(const ContactInfo &contact) {
 }
 
 ContactInfo*  MyMesh::processAck(const uint8_t *data) {
+#ifdef DISPLAY_CLASS
+  if (_ui) {   // let on-device UI match acks for messages it originated
+    uint32_t ack_crc;
+    memcpy(&ack_crc, data, 4);
+    _ui->msgAck(ack_crc);
+  }
+#endif
   // see if matches any in a table
   for (int i = 0; i < EXPECTED_ACK_TABLE_SIZE; i++) {
     if (memcmp(data, &expected_ack_table[i].ack, 4) == 0) { // got an ACK from recipient
@@ -528,6 +561,8 @@ void MyMesh::queueMessage(const ContactInfo &from, uint8_t txt_type, mesh::Packe
     if (!_serial->isConnected()) {
       _ui->notify(UIEventType::contactMessage);
     }
+  } else if (txt_type == TXT_TYPE_CLI_DATA && _ui) {
+    _ui->cliResponse(from.name, text);   // for UIs with a repeater terminal
   }
 #endif
 }
@@ -740,6 +775,35 @@ uint8_t MyMesh::onContactRequest(const ContactInfo &contact, uint32_t sender_tim
   return 0; // unknown
 }
 
+int MyMesh::uiLogin(const ContactInfo &recipient, const char *password) {
+  uint32_t est_timeout;
+  int result = sendLogin(recipient, password, est_timeout);
+  if (result != MSG_SEND_FAILED) {
+    clearPendingReqs();
+    memcpy(&pending_login, recipient.id.pub_key, 4); // match this to onContactResponse()
+  }
+  return result;
+}
+
+int MyMesh::uiRequestStatus(const ContactInfo &recipient) {
+  uint32_t tag, est_timeout;
+  int result = sendRequest(recipient, REQ_TYPE_GET_STATUS, tag, est_timeout);
+  if (result != MSG_SEND_FAILED) {
+    clearPendingReqs();
+    memcpy(&pending_status, recipient.id.pub_key, 4); // match this to onContactResponse()
+  }
+  return result;
+}
+
+int MyMesh::uiTracePath(const uint8_t *path, uint8_t path_len, uint32_t tag) {
+  auto pkt = createTrace(tag, 0, 0);   // flags = 0: one-byte path hashes
+  if (pkt == NULL) return 0;
+  sendDirect(pkt, path, path_len);
+
+  uint32_t t = _radio->getEstAirtimeFor(pkt->payload_len + pkt->path_len + 2);
+  return (int) calcDirectTimeoutMillisFor(t, path_len);
+}
+
 void MyMesh::onContactResponse(const ContactInfo &contact, const uint8_t *data, uint8_t len) {
   uint32_t tag;
   memcpy(&tag, data, 4);
@@ -747,6 +811,13 @@ void MyMesh::onContactResponse(const ContactInfo &contact, const uint8_t *data, 
   if (pending_login && memcmp(&pending_login, contact.id.pub_key, 4) == 0) { // check for login response
     // yes, is response to pending sendLogin()
     pending_login = 0;
+
+#ifdef DISPLAY_CLASS
+    if (_ui) {
+      bool login_ok = (memcmp(&data[4], "OK", 2) == 0) || data[4] == RESP_SERVER_LOGIN_OK;
+      _ui->loginResult(contact.id.pub_key, login_ok);
+    }
+#endif
 
     int i = 0;
     if (memcmp(&data[4], "OK", 2) == 0) { // legacy Repeater login OK response
@@ -780,6 +851,10 @@ void MyMesh::onContactResponse(const ContactInfo &contact, const uint8_t *data, 
                                                                  // FUTURE: tag == pending_status
   ) {
     pending_status = 0;
+
+#ifdef DISPLAY_CLASS
+    if (_ui) _ui->statusResponse(contact.id.pub_key, &data[4], len - 4);
+#endif
 
     int i = 0;
     out_frame[i++] = PUSH_CODE_STATUS_RESPONSE;
@@ -891,6 +966,9 @@ void MyMesh::onRawDataRecv(mesh::Packet *packet) {
 void MyMesh::onTraceRecv(mesh::Packet *packet, uint32_t tag, uint32_t auth_code, uint8_t flags,
                          const uint8_t *path_snrs, const uint8_t *path_hashes, uint8_t path_len) {
   uint8_t path_sz = flags & 0x03;  // NEW v1.11+
+  if (_ui != NULL) {   // on-device trace UI (matches by tag)
+    _ui->traceResponse(tag, path_hashes, path_snrs, (uint8_t)(path_len >> path_sz), (int8_t)(packet->getSNR() * 4));
+  }
   if (12 + path_len + (path_len >> path_sz) + 1 > sizeof(out_frame)) {
     MESH_DEBUG_PRINTLN("onTraceRecv(), path_len is too long: %d", (uint32_t)path_len);
     return;
@@ -2466,6 +2544,20 @@ void MyMesh::loop() {
 #ifdef DISPLAY_CLASS
   if (_ui) _ui->setHasConnection(_serial->isConnected());
 #endif
+}
+
+bool MyMesh::advertFlood() {
+  mesh::Packet* pkt;
+  if (_prefs.advert_loc_policy == ADVERT_LOC_NONE) {
+    pkt = createSelfAdvert(_prefs.node_name);
+  } else {
+    pkt = createSelfAdvert(_prefs.node_name, sensors.node_lat, sensors.node_lon);
+  }
+  if (pkt == NULL) return false;
+  TransportKey default_scope;
+  memcpy(&default_scope.key, _prefs.default_scope_key, sizeof(default_scope.key));
+  sendFloodScoped(default_scope, pkt, 0);
+  return true;
 }
 
 bool MyMesh::advert() {
