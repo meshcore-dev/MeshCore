@@ -47,6 +47,7 @@ public:
   uint8_t agc_reset_interval = 0;  // secs / 4
   char default_scope_name[31];
   uint8_t default_scope_key[16];
+  uint8_t max_resend_attempts; // 0 = disabled, 1-3, default 2 (repeated sending)
   int8_t tz_offset = 0;
 #ifdef ENABLE_WIFI_INTERFACE
   #ifndef WIFI_SSID
@@ -196,6 +197,7 @@ protected:
     //def("f_adv_int", flood_advert_interval);
     def("lat", node_lat);
     def("lon", node_lon);
+    def("max_resend", max_resend_attempts);  // repeated sending (feature)
     def("radio", radio);
     def("gps", gps);
     def("repeat", repeat);

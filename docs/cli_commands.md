@@ -515,6 +515,18 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 ---
 
+#### View or change the maximum direct-route resend attempts
+**Usage:**
+- `get max.resend`
+- `set max.resend <value>`
+
+**Parameters:**
+- `value`: Maximum number of resend attempts for direct-routed packets (0–3). `0` disables resending entirely.
+
+**Default:** `2`
+
+---
+
 #### View or change the retransmit delay factor for flood traffic
 **Usage:**
 - `get txdelay`

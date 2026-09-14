@@ -37,6 +37,11 @@ public:
 
   void doResetAGC() override { sx126xResetAGC((SX126x *)_radio); }
 
+  // RX-desync watchdog probe: GetStatus byte, bits 6:4 = chip mode (0x5 = RX).
+  bool verifyRxChipMode() override {
+    return ((((CustomLLCC68 *)_radio)->getStatus() >> 4) & 0x07) == 0x05;
+  }
+
   bool setRxBoostedGainMode(bool en) override {
     return ((CustomLLCC68 *)_radio)->setRxBoostedGainMode(en) == RADIOLIB_ERR_NONE;
   }

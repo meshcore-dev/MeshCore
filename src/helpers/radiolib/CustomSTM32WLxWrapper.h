@@ -36,4 +36,9 @@ public:
   uint8_t getSpreadingFactor() const override { return ((CustomSTM32WLx *)_radio)->spreadingFactor; }
 
   void doResetAGC() override { sx126xResetAGC((SX126x *)_radio, getRxBoostedGainMode()); }
+
+  // RX-desync watchdog probe: GetStatus byte, bits 6:4 = chip mode (0x5 = RX).
+  bool verifyRxChipMode() override {
+    return ((((CustomSTM32WLx *)_radio)->getStatus() >> 4) & 0x07) == 0x05;
+  }
 };
