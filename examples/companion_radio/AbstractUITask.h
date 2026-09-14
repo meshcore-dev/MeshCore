@@ -19,7 +19,8 @@ enum class UIEventType {
     channelMessage,
     roomMessage,
     newContactMessage,
-    ack
+    ack,
+    advertSent
 };
 
 class AbstractUITask {
@@ -42,5 +43,6 @@ public:
   virtual void msgRead(int msgcount) = 0;
   virtual void newMsg(uint8_t path_len, const char* from_name, const char* text, int msgcount) = 0;
   virtual void notify(UIEventType t = UIEventType::none) = 0;
+  virtual void notifyToggle(int count, bool enabled) {}
   virtual void loop() = 0;
 };

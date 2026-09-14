@@ -115,6 +115,9 @@ switch(t){
   case UIEventType::ack:
     buzzer.play("ack:d=32,o=8,b=120:c");
     break;
+  case UIEventType::advertSent:
+    buzzer.play("Advert:d=8,o=6,b=180:c,e,g,c7");
+    break;
   case UIEventType::roomMessage:
   case UIEventType::newContactMessage:
   case UIEventType::none:
@@ -124,6 +127,12 @@ switch(t){
 #endif
 //  Serial.print("DBG:  Alert user -> ");
 //  Serial.println((int) t);
+}
+
+void UITask::notifyToggle(int count, bool enabled) {
+#if defined(PIN_BUZZER)
+  buzzer.playToggle(count, enabled);
+#endif
 }
 
 void UITask::msgRead(int msgcount) {
@@ -514,7 +523,7 @@ void UITask::handleButtonDoublePress() {
   MESH_DEBUG_PRINTLN("UITask: double press triggered, sending advert");
   // ADVERT
   #ifdef PIN_BUZZER
-      notify(UIEventType::ack);
+      notify(UIEventType::advertSent);
   #endif
   if (the_mesh.advert()) {
     MESH_DEBUG_PRINTLN("Advert sent!");
@@ -550,9 +559,12 @@ void UITask::handleButtonTriplePress() {
 #elif defined(PIN_BUZZER)
     if (buzzer.isQuiet()) {
       buzzer.quiet(false);
-      notify(UIEventType::ack);
+      notifyToggle(3, true);
       sprintf(_alert, "Buzzer: ON");
     } else {
+      // play the off-tone before muting so the user hears the confirmation
+      notifyToggle(3, false);
+      while (buzzer.isPlaying()) buzzer.loop();
       buzzer.quiet(true);
       sprintf(_alert, "Buzzer: OFF");
     }
@@ -571,11 +583,11 @@ void UITask::handleButtonQuadruplePress() {
       if (strcmp(_sensors->getSettingName(i), "gps") == 0) {
         if (strcmp(_sensors->getSettingValue(i), "1") == 0) {
           _sensors->setSettingValue("gps", "0");
-          notify(UIEventType::ack);
+          notifyToggle(4, false);
           sprintf(_alert, "GPS: Disabled");
         } else {
           _sensors->setSettingValue("gps", "1");
-          notify(UIEventType::ack);
+          notifyToggle(4, true);
           sprintf(_alert, "GPS: Enabled");
         }
         break;
