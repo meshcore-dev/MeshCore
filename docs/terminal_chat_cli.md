@@ -28,14 +28,16 @@ set lon {longitude}
 Sets your advertisement map longitude. (decimal degrees)
 
 ```
-set dutycycle {percent}
-```
-Sets the transmit duty cycle limit (1-100%). Example: `set dutycycle 10` for 10%.
-
-```
 set af {air-time-factor}
 ```
-Sets the transmit air-time-factor. Deprecated — use `set dutycycle` instead.
+Sets the transmit air-time-factor.
+
+> **Note:** `set dutycycle` is *not* available in Terminal Chat. Every other
+> firmware — Repeater, Room Server, Sensor and Companion Radio — routes its
+> `set`/`get` commands through the shared radio prefs handler and does support
+> it (see [CLI Commands](./cli_commands.md)). Terminal Chat is the sole
+> exception: it has its own inline `set` handler covering only the six options
+> listed above.
 
 
 ```
@@ -99,3 +101,8 @@ Resets the path to current recipient, for new path discovery.
 public {text}
 ```
 Sends the text message to the built-in 'public' group channel
+
+```
+help
+```
+Lists the available commands.
