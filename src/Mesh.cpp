@@ -714,24 +714,38 @@ void Mesh::sendDirect(Packet* packet, const uint8_t* path, uint8_t path_len, uin
   sendPacket(packet, pri, delay_millis);
 }
 
-void Mesh::sendZeroHop(Packet* packet, uint32_t delay_millis) {
+void Mesh::sendZeroHop(Packet* packet, uint32_t delay_millis, uint8_t path_hash_size) {
+  if (path_hash_size == 0 || path_hash_size > 3) {
+    MESH_DEBUG_PRINTLN("%s Mesh::sendZeroHop(): invalid path_hash_size", getLogDateTime());
+    return;
+  }
+
   packet->header &= ~PH_ROUTE_MASK;
   packet->header |= ROUTE_TYPE_DIRECT;
 
-  packet->path_len = 0;  // path_len of zero means Zero Hop
+  // Zero hop = zero path segments, but the path hash size still has to be
+  // written: it lives in the upper 2 bits of the same byte, so the previous
+  // `path_len = 0` cleared it as well and every zero hop packet went out
+  // declaring a 1-byte path hash regardless of the node's path.hash.mode.
+  packet->setPathHashSizeAndCount(path_hash_size, 0);
 
   _tables->markSeen(packet); // mark this packet as already sent in case it is rebroadcast back to us
 
   sendPacket(packet, 0, delay_millis);
 }
 
-void Mesh::sendZeroHop(Packet* packet, uint16_t* transport_codes, uint32_t delay_millis) {
+void Mesh::sendZeroHop(Packet* packet, uint16_t* transport_codes, uint32_t delay_millis, uint8_t path_hash_size) {
+  if (path_hash_size == 0 || path_hash_size > 3) {
+    MESH_DEBUG_PRINTLN("%s Mesh::sendZeroHop(): invalid path_hash_size", getLogDateTime());
+    return;
+  }
+
   packet->header &= ~PH_ROUTE_MASK;
   packet->header |= ROUTE_TYPE_TRANSPORT_DIRECT;
   packet->transport_codes[0] = transport_codes[0];
   packet->transport_codes[1] = transport_codes[1];
 
-  packet->path_len = 0;  // path_len of zero means Zero Hop
+  packet->setPathHashSizeAndCount(path_hash_size, 0);   // see note in the overload above
 
   _tables->markSeen(packet); // mark this packet as already sent in case it is rebroadcast back to us
 
