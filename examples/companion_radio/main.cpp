@@ -2,6 +2,77 @@
 #include <Mesh.h>
 #include "MyMesh.h"
 
+#if defined(SHN_INCLUDE_MPU6050) && SHN_INCLUDE_MPU6050
+#if !defined(ESP32) || !defined(HELTEC_LORA_V4_OLED)
+#error "This MPU6050 configuration requires the Heltec V4 OLED ESP32 target"
+#endif
+#include <Wire.h>
+#include <Adafruit_MPU6050.h>
+
+#if defined(ENV_PIN_SDA) && defined(ENV_PIN_SCL) && ENV_PIN_SDA && ENV_PIN_SCL
+#if ENV_PIN_SDA != SHN_MPU_SDA || ENV_PIN_SCL != SHN_MPU_SCL
+#error "MPU6050 and environment sensors must use the same Wire1 pins"
+#endif
+#endif
+
+static Adafruit_MPU6050 motion_sensor;
+static bool motion_sensor_ready = false;
+static uint32_t motion_last_sample = 0;
+static sensors_event_t motion_acceleration;
+static sensors_event_t motion_gyro;
+static sensors_event_t motion_temperature;
+
+static void onMotionSample(const sensors_event_t& acceleration,
+                           const sensors_event_t& gyro,
+                           const sensors_event_t& temperature) {
+  // Add your application logic here. Acceleration is in m/s^2,
+  // angular velocity is in rad/s, and temperature is in Celsius.
+  // Keep processing brief; do not delay or print to the companion USB stream.
+  (void) acceleration;
+  (void) gyro;
+  (void) temperature;
+}
+
+static void beginMotionSensor() {
+  // sensors.begin() has already initialized Wire1 when ENV_PIN_* are set.
+#if !(defined(ENV_PIN_SDA) && defined(ENV_PIN_SCL) && ENV_PIN_SDA && ENV_PIN_SCL)
+  if (!Wire1.begin(SHN_MPU_SDA, SHN_MPU_SCL, 100000)) {
+    return;
+  }
+#endif
+  Wire1.setTimeOut(20);
+  Wire1.beginTransmission(SHN_MPU_ADDRESS);
+  if (Wire1.endTransmission() != 0) {
+    return;  // Missing sensor must not prevent companion startup.
+  }
+  motion_sensor_ready = motion_sensor.begin(SHN_MPU_ADDRESS, &Wire1);
+  if (!motion_sensor_ready) {
+    return;
+  }
+  motion_sensor.setAccelerometerRange(MPU6050_RANGE_4_G);
+  motion_sensor.setGyroRange(MPU6050_RANGE_500_DEG);
+  motion_sensor.setFilterBandwidth(MPU6050_BAND_21_HZ);
+  motion_last_sample = millis();
+}
+
+static void pollMotionSensor() {
+  if (!motion_sensor_ready) {
+    return;
+  }
+  const uint32_t now = millis();
+  if (uint32_t(now - motion_last_sample) < SHN_MPU_SAMPLE_MS) {
+    return;
+  }
+  motion_last_sample = now;
+  if (motion_sensor.getEvent(&motion_acceleration, &motion_gyro,
+                            &motion_temperature)) {
+    onMotionSample(motion_acceleration, motion_gyro, motion_temperature);
+  }
+}
+#endif
+
+
+
 // Believe it or not, this std C function is busted on some platforms!
 static uint32_t _atoi(const char* sp) {
   uint32_t n = 0;
@@ -232,6 +303,9 @@ void setup() {
 
   the_mesh.startInterface(interface_manager);
   sensors.begin();
+#if defined(SHN_INCLUDE_MPU6050) && SHN_INCLUDE_MPU6050
+  beginMotionSensor();
+#endif
 
 #if ENV_INCLUDE_GPS == 1
   the_mesh.applyGpsPrefs();
@@ -248,6 +322,9 @@ void loop() {
   the_mesh.loop();
   interface_manager.loop();
   sensors.loop();
+#if defined(SHN_INCLUDE_MPU6050) && SHN_INCLUDE_MPU6050
+  pollMotionSensor();
+#endif
 #ifdef DISPLAY_CLASS
   ui_task.loop();
 #endif
@@ -272,3 +349,4 @@ void loop() {
   }
 #endif
 }
+
