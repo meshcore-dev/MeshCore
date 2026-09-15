@@ -228,12 +228,13 @@ uint8_t SensorMesh::handleRequest(ClientInfo* from, uint32_t sender_timestamp, u
       from->extra.sensor.expiry_timestamp = getRTCClock()->getCurrentTime() + timeout_secs;
       from->extra.sensor.min_deltas_len = min_deltas_len;
       memcpy(from->extra.sensor.min_deltas, &payload[8], min_deltas_len);
-      // reply with actual expiry timestamp
-      memcpy(&reply_data[4], &from->extra.sensor.expiry_timestamp, 4);
+      // reply with actual expiry seconds (we could modify/impose restriction)
+      memcpy(&reply_data[4], &timeout_secs, 2);
+      memset(&reply_data[6], 0, 2);  // reserved
       strcpy((char *)&reply_data[8], r ? r->name : "");  // reply with name of scope that will be used
       reply_len = 8 + strlen((char *)&reply_data[8]);
     } else {
-      memset(&reply_data[4], 0, 4);  // expiry timestamp (0 for error)
+      memset(&reply_data[4], 0, 4);  // expiry secs (0 for error)
       reply_len = 8;
     }
     return reply_len;
