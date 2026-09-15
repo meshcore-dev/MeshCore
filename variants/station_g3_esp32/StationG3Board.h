@@ -6,6 +6,12 @@
 #include "LoRaFEMControl.h"
 
 class StationG3Board : public ESP32Board {
+  KeyValueStore* _prefs = NULL;
+
+  bool setLoRaFemLnaEnabled(bool enable);
+  bool isLoRaFemLnaEnabled() const;
+  bool setLoRaFemPaGainEnabled(bool enable);
+  bool isLoRaFemPaGainEnabled() const;
 public:
   LoRaFEMControl loRaFEMControl;
 
@@ -25,6 +31,10 @@ public:
     }
   }
 
+  void attachDynamicPrefs(KeyValueStore* prefs);
+
+  bool handleCommand(const char* command, uint32_t sender_timestamp, char* reply) override;
+
   void setPrimaryLNAEnable(bool enabled) {
     loRaFEMControl.setLNAEnable(enabled);
   }
@@ -42,13 +52,6 @@ public:
     ESP32Board::onAfterTransmit();
     loRaFEMControl.setRxModeEnable();
   }
-
-  bool setLoRaFemLnaEnabled(bool enable) override;
-  bool canControlLoRaFemLna() const override;
-  bool isLoRaFemLnaEnabled() const override;
-  bool setLoRaFemPaGainEnabled(bool enable) override;
-  bool canControlLoRaFemPaGain() const override;
-  bool isLoRaFemPaGainEnabled() const override;
 
   void powerOff() override;
 

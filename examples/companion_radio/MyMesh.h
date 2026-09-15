@@ -5,7 +5,7 @@
 #include "AbstractUITask.h"
 
 /*------------ Frame Protocol --------------*/
-#define FIRMWARE_VER_CODE 13
+#define FIRMWARE_VER_CODE 14
 
 #ifndef FIRMWARE_BUILD_DATE
 #define FIRMWARE_BUILD_DATE "14 Aug 2026"
@@ -84,6 +84,16 @@ struct AdvertPath {
   uint8_t path[MAX_PATH_SIZE];
 };
 
+#if defined(DISPLAY_CLASS) && !(defined(UI_NO_DISCOVER_SCREEN) && (UI_NO_DISCOVER_SCREEN + 0 != 0))
+struct DiscoveredNode {
+  uint8_t pubkey_prefix[9];
+  float snr_in;
+  float snr_out;
+  char name[32];
+  uint8_t type;
+};
+#endif
+
 class MyMesh : public BaseChatMesh, public DataStoreHost {
 public:
   MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMeshTables &tables, DataStore& store, AbstractUITask* ui=NULL);
@@ -102,10 +112,18 @@ public:
 
   int  getRecentlyHeard(AdvertPath dest[], int max_num);
 
+#if defined(DISPLAY_CLASS) && !(defined(UI_NO_DISCOVER_SCREEN) && (UI_NO_DISCOVER_SCREEN + 0 != 0))
+  bool requestRepeatersDiscovery();
+  int getDiscoveredNodes(DiscoveredNode nodes[], int max_num);
+#endif
+
 protected:
   float getAirtimeBudgetFactor() const override;
   int getInterferenceThreshold() const override;
   bool getCADEnabled() const override;
+  int getAGCResetInterval() const override {
+    return ((int)_prefs.agc_reset_interval) * 4000;   // milliseconds
+  }
   int calcRxDelay(float score, uint32_t air_time) const override;
   uint32_t getRetransmitDelay(const mesh::Packet *packet) override;
   uint32_t getDirectRetransmitDelay(const mesh::Packet *packet) override;
@@ -135,6 +153,8 @@ protected:
                      const char *text) override;
   void onCommandDataRecv(const ContactInfo &from, mesh::Packet *pkt, uint32_t sender_timestamp,
                          const char *text) override;
+  void onCLICommandRecv(const ContactInfo &from, mesh::Packet *pkt, uint32_t sender_timestamp,
+                         const char *text, char* reply) override;
   void onSignedMessageRecv(const ContactInfo &from, mesh::Packet *pkt, uint32_t sender_timestamp,
                            const uint8_t *sender_prefix, const char *text) override;
   void onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packet *pkt, uint32_t timestamp,
@@ -169,6 +189,7 @@ public:
     _prefs.node_lat = sensors.node_lat;
     _prefs.node_lon = sensors.node_lon;
     _store->savePrefs(_prefs);
+    _prefs.clearDirty();
   }
 
 #if ENV_INCLUDE_GPS == 1
@@ -201,6 +222,7 @@ private:
   }
 
   void checkCLIRescueCmd();
+  bool handleCommand(const char* text, uint32_t sender_timestamp, char* reply);
   void checkSerialInterface();
   bool isValidClientRepeatFreq(uint32_t f) const;
 
@@ -225,6 +247,7 @@ private:
   bool _cli_rescue;
   bool send_unscoped;   // force un-scoped flood (instead of using send_scope)
   char cli_command[80];
+  char reply_buf[166];
   uint8_t app_target_ver;
   uint8_t *sign_data;
   uint32_t sign_data_len;
@@ -256,6 +279,19 @@ private:
 
   #define ADVERT_PATH_TABLE_SIZE   16
   AdvertPath advert_paths[ADVERT_PATH_TABLE_SIZE]; // circular table
+
+#if defined(DISPLAY_CLASS) && !(defined(UI_NO_DISCOVER_SCREEN) && (UI_NO_DISCOVER_SCREEN + 0 != 0))
+  #ifdef UI_RECENT_LIST_SIZE
+    #define DISCOVERED_NODES_TABLE_SIZE UI_RECENT_LIST_SIZE
+  #else
+    #define DISCOVERED_NODES_TABLE_SIZE 4
+  #endif
+  DiscoveredNode discovered_nodes[DISCOVERED_NODES_TABLE_SIZE]; // not circular, latest discovered nodes are not kept
+  uint32_t disc_node_req_tag = 0;
+  uint32_t disc_nodes_count = 0;
+
+  void checkControlDataForPendingDiscovery(uint8_t payload[], size_t p_len);
+#endif
 };
 
 extern MyMesh the_mesh;

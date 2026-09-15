@@ -171,8 +171,9 @@ txt_type
 | Value  | Description               | Message content                                                          |
 |--------|---------------------------|--------------------------------------------------------------------------|
 | `0x00` | plain text message        | the plain text of the message                                            |
-| `0x01` | CLI command               | the command text of the message                                          |
+| `0x01` | CLI data                  | CLI command OR reply text                                                |
 | `0x02` | signed plain text message | first four bytes is sender pubkey prefix, followed by plain text message |
+| `0x03` | CLI command               | (since v1.18+) CLI command text (explicit)        |
 
 ## Anonymous request
 

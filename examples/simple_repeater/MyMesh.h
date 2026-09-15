@@ -59,10 +59,6 @@ struct RepeaterStats {
   uint32_t n_recv_errors;
 };
 
-#ifndef MAX_CLIENTS
-  #define MAX_CLIENTS           32
-#endif
-
 struct NeighbourInfo {
   mesh::Identity id;
   uint32_t advert_timestamp;
