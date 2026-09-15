@@ -67,6 +67,14 @@ public:
 
   virtual void setCADEnabled(bool enable) { }
 
+  /**
+   * \brief  query CAD auto-calibration state.
+   * \param  peak_offset  current detPeak offset above the radio's default
+   * \param  hits/count   ambient CAD detections in the last evaluated probe window
+   * \returns false if this radio doesn't support CAD detPeak tuning.
+  */
+  virtual bool getCADCalibState(uint8_t& peak_offset, uint8_t& hits, uint8_t& count) const { return false; }
+
   virtual void resetAGC() { }
 
   virtual bool isInRecvMode() const = 0;
