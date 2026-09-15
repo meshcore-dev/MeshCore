@@ -323,6 +323,9 @@ uint32_t SensorMesh::getDirectRetransmitDelay(const mesh::Packet* packet) {
 int SensorMesh::getInterferenceThreshold() const {
   return _prefs.interference_threshold;
 }
+bool SensorMesh::getCADEnabled() const {
+  return _prefs.cad_enabled;
+}
 int SensorMesh::getAGCResetInterval() const {
   return ((int)_prefs.agc_reset_interval) * 4000;   // milliseconds
 }
@@ -573,7 +576,7 @@ void SensorMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender_i
             sendAckTo(*from, ack_hash, packet->getPathHashSize());
           }
         }
-      } else if (flags == TXT_TYPE_CLI_DATA) {  
+      } else if (flags == TXT_TYPE_CLI_DATA || flags == TXT_TYPE_CLI_COMMAND) {
         from->last_timestamp = sender_timestamp;
         from->last_activity = getRTCClock()->getCurrentTime();
 
@@ -707,7 +710,6 @@ SensorMesh::SensorMesh(mesh::MainBoard& board, mesh::Radio& radio, mesh::Millise
   set_radio_at = revert_radio_at = 0;
 
   // defaults
-  memset(&_prefs, 0, sizeof(_prefs));
   _prefs.airtime_factor = 1.0;
   _prefs.rx_delay_base =   0.0f;  // turn off by default, was 10.0;
   _prefs.tx_delay_factor = 0.5f;   // was 0.25f
@@ -726,11 +728,14 @@ SensorMesh::SensorMesh(mesh::MainBoard& board, mesh::Radio& radio, mesh::Millise
   _prefs.disable_fwd = true;
   _prefs.flood_max = 64;
   _prefs.interference_threshold = 0;  // disabled
+  _prefs.cad_enabled = 0;             // hardware CAD before TX (off by default; 'set cad on')
 
   // GPS defaults
   _prefs.gps_enabled = 0;
   _prefs.gps_interval = 0;
   _prefs.advert_loc_policy = ADVERT_LOC_PREFS;
+  _prefs.radio_fem_rxgain = 1;
+  _prefs.radio_fem_txgain = 0;
 
   memset(default_scope.key, 0, sizeof(default_scope.key));
 }
@@ -764,8 +769,10 @@ void SensorMesh::begin(FILESYSTEM* fs) {
     }
   }
 
-  radio_set_params(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
-  radio_set_tx_power(_prefs.tx_power_dbm);
+  radio_driver.setParams(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
+  radio_driver.setTxPower(_prefs.tx_power_dbm);
+
+  board.attachDynamicPrefs(_prefs.getCustom());
 
   updateAdvertTimer();
   updateFloodAdvertTimer();
@@ -842,7 +849,7 @@ void SensorMesh::updateFloodAdvertTimer() {
 }
 
 void SensorMesh::setTxPower(int8_t power_dbm) {
-  radio_set_tx_power(power_dbm);
+  radio_driver.setTxPower(power_dbm);
 }
 
 void SensorMesh::formatStatsReply(char *reply) {
@@ -908,13 +915,13 @@ void SensorMesh::loop() {
 
   if (set_radio_at && millisHasNowPassed(set_radio_at)) {   // apply pending (temporary) radio params
     set_radio_at = 0;  // clear timer
-    radio_set_params(pending_freq, pending_bw, pending_sf, pending_cr);
+    radio_driver.setParams(pending_freq, pending_bw, pending_sf, pending_cr);
     MESH_DEBUG_PRINTLN("Temp radio params");
   }
 
   if (revert_radio_at && millisHasNowPassed(revert_radio_at)) {   // revert radio params to orig
     revert_radio_at = 0;  // clear timer
-    radio_set_params(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
+    radio_driver.setParams(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
     MESH_DEBUG_PRINTLN("Radio params restored");
   }
 

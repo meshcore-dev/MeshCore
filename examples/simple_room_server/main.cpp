@@ -3,6 +3,11 @@
 
 #include "MyMesh.h"
 
+#ifdef ETHERNET_ENABLED
+  #define ETHERNET_CLI_BANNER "MeshCore Room Server CLI"
+  #include <helpers/nrf52/EthernetCLI.h>
+#endif
+
 #ifdef DISPLAY_CLASS
   #include "UITask.h"
   static UITask ui_task(display);
@@ -17,12 +22,19 @@ void halt() {
 }
 
 static char command[MAX_POST_TEXT_LEN+1];
+#ifdef ETHERNET_ENABLED
+static char ethernet_command[MAX_POST_TEXT_LEN+1];
+#endif
 
 void setup() {
   Serial.begin(115200);
   delay(1000);
 
   board.begin();
+
+#ifdef HAS_EXTERNAL_WATCHDOG
+  external_watchdog.begin();
+#endif
 
 #ifdef DISPLAY_CLASS
   if (display.begin()) {
@@ -35,7 +47,7 @@ void setup() {
 
   if (!radio_init()) { halt(); }
 
-  fast_rng.begin(radio_get_rng_seed());
+  fast_rng.begin(radio_driver.getRngSeed());
 
   FILESYSTEM* fs;
 #if defined(NRF52_PLATFORM)
@@ -67,6 +79,9 @@ void setup() {
   mesh::Utils::printHex(Serial, the_mesh.self_id.pub_key, PUB_KEY_SIZE); Serial.println();
 
   command[0] = 0;
+#ifdef ETHERNET_ENABLED
+  ethernet_command[0] = 0;
+#endif
 
   sensors.begin();
 
@@ -76,14 +91,27 @@ void setup() {
   ui_task.begin(the_mesh.getNodePrefs(), FIRMWARE_BUILD_DATE, FIRMWARE_VERSION);
 #endif
 
+#ifdef ETHERNET_ENABLED
+  ethernet_start_task();
+#endif
+
   // send out initial zero hop Advertisement to the mesh
 #if ENABLE_ADVERT_ON_BOOT == 1
   the_mesh.sendSelfAdvertisement(16000, false);
 #endif
+
+  board.onBootComplete();
 }
 
 void loop() {
   int len = strlen(command);
+  // `command` must stay NUL-terminated within its bounds. If it ever isn't,
+  // strlen() above can return >= sizeof(command) and the loop below would then
+  // index past the buffer, so clamp defensively.
+  if (len >= (int)sizeof(command)) {
+    command[0] = 0;
+    len = 0;
+  }
   while (Serial.available() && len < sizeof(command)-1) {
     char c = Serial.read();
     if (c != '\n') {
@@ -92,14 +120,22 @@ void loop() {
     }
     Serial.print(c);
   }
-  if (len == sizeof(command)-1) {  // command buffer full
-    command[sizeof(command)-1] = '\r';
+  if (len == sizeof(command)-1) {  // buffer full: treat as a completed line
+    command[sizeof(command)-2] = '\r';  // place end-of-line marker inside the buffer
+    command[sizeof(command)-1] = 0;     // keep the buffer NUL-terminated
   }
 
   if (len > 0 && command[len - 1] == '\r') {  // received complete line
     command[len - 1] = 0;  // replace newline with C string null terminator
     char reply[160];
+    reply[0] = 0;
+#ifdef ETHERNET_ENABLED
+    if (!ethernet_handle_command(command, reply)) {
+      the_mesh.handleCommand(0, command, reply);
+    }
+#else
     the_mesh.handleCommand(0, command, reply);  // NOTE: there is no sender_timestamp via serial!
+#endif
     if (reply[0]) {
       Serial.print("  -> "); Serial.println(reply);
     }
@@ -107,10 +143,26 @@ void loop() {
     command[0] = 0;  // reset command buffer
   }
 
+#ifdef ETHERNET_ENABLED
+  ethernet_loop_maintain();
+  if (ethernet_read_line(ethernet_command, sizeof(ethernet_command))) {
+    char reply[160];
+    reply[0] = 0;
+    if (!ethernet_handle_command(ethernet_command, reply)) {
+      the_mesh.handleCommand(0, ethernet_command, reply);
+    }
+    ethernet_send_reply(reply);
+    ethernet_command[0] = 0;
+  }
+#endif
+
   the_mesh.loop();
   sensors.loop();
 #ifdef DISPLAY_CLASS
   ui_task.loop();
 #endif
   rtc_clock.tick();
+#ifdef HAS_EXTERNAL_WATCHDOG
+  external_watchdog.loop();
+#endif
 }

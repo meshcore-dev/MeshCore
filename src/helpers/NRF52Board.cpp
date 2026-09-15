@@ -1,8 +1,13 @@
 #if defined(NRF52_PLATFORM)
 #include "NRF52Board.h"
+#include <target.h>
 
 #include <bluefruit.h>
 #include <nrf_soc.h>
+
+#ifdef USE_CC310_HW_CRYPTO
+#include <Adafruit_nRFCrypto.h>
+#endif
 
 static BLEDfu bledfu;
 
@@ -20,6 +25,11 @@ static void disconnect_callback(uint16_t conn_handle, uint8_t reason) {
 
 void NRF52Board::begin() {
   startup_reason = BD_STARTUP_NORMAL;
+
+  #ifdef USE_CC310_HW_CRYPTO
+    // CC310 TRNG is higher quality and environment-independent vs radio RSSI noise.
+    nRFCrypto.begin();
+  #endif
 }
 
 #ifdef NRF52_POWER_MANAGEMENT
@@ -37,7 +47,8 @@ static void __attribute__((constructor(101))) nrf52_early_reset_capture() {
   g_nrf52_shutdown_reason = NRF_POWER->GPREGRET2;
 }
 
-void NRF52Board::initPowerMgr() {
+void NRF52Board::pwrmgtInit() {
+  if (pwrmgt_initialised) return;
   // Copy early-captured register values
   reset_reason = g_nrf52_reset_reason;
   shutdown_reason = g_nrf52_shutdown_reason;
@@ -64,20 +75,7 @@ void NRF52Board::initPowerMgr() {
     MESH_DEBUG_PRINTLN("PWRMGT: Reset = %s (0x%lX)",
       getResetReasonString(reset_reason), (unsigned long)reset_reason);
   }
-}
-
-bool NRF52Board::isExternalPowered() {
-  // Check if SoftDevice is enabled before using its API
-  uint8_t sd_enabled = 0;
-  sd_softdevice_is_enabled(&sd_enabled);
-
-  if (sd_enabled) {
-    uint32_t usb_status;
-    sd_power_usbregstatus_get(&usb_status);
-    return (usb_status & POWER_USBREGSTATUS_VBUSDETECT_Msk) != 0;
-  } else {
-    return (NRF_POWER->USBREGSTATUS & POWER_USBREGSTATUS_VBUSDETECT_Msk) != 0;
-  }
+  pwrmgt_initialised = true;
 }
 
 const char* NRF52Board::getResetReasonString(uint32_t reason) {
@@ -102,6 +100,7 @@ const char* NRF52Board::getResetReasonString(uint32_t reason) {
 
 const char* NRF52Board::getShutdownReasonString(uint8_t reason) {
   switch (reason) {
+    case SHUTDOWN_REASON_NONE:         return "None";
     case SHUTDOWN_REASON_LOW_VOLTAGE:  return "Low Voltage";
     case SHUTDOWN_REASON_USER:         return "User Request";
     case SHUTDOWN_REASON_BOOT_PROTECT: return "Boot Protection";
@@ -110,7 +109,7 @@ const char* NRF52Board::getShutdownReasonString(uint8_t reason) {
 }
 
 bool NRF52Board::checkBootVoltage(const PowerMgtConfig* config) {
-  initPowerMgr();
+  pwrmgtInit();
 
   // Read boot voltage
   boot_voltage_mv = getBattMilliVolts();
@@ -177,23 +176,29 @@ void NRF52Board::enterSystemOff(uint8_t reason) {
   NVIC_SystemReset();
 }
 
-void NRF52Board::configureVoltageWake(uint8_t ain_channel, uint8_t refsel) {
+void NRF52Board::configureVoltageWake(uint8_t ain_channel, uint8_t lpcomp_refsel) {
+  pwrmgtWakeArmVbus();
+  if (!isPwrMgtInitialised()) {
+    MESH_DEBUG_PRINTLN("PWRMGT: LPCOMP wake not armed. Reason: Power Management not initialised");
+    return;
+  }
+  if (!getWakeLpcompSupported()) {
+    MESH_DEBUG_PRINTLN("PWRMGT: LPCOMP wake not armed. Reason: LPCOMP unsupported on variant");
+    return;
+  }
   // LPCOMP is not managed by SoftDevice - direct register access required
   // Halt and disable before reconfiguration
   NRF_LPCOMP->TASKS_STOP = 1;
   NRF_LPCOMP->ENABLE = LPCOMP_ENABLE_ENABLE_Disabled;
 
   // Select analog input (AIN0-7 maps to PSEL 0-7)
-  NRF_LPCOMP->PSEL = ((uint32_t)ain_channel << LPCOMP_PSEL_PSEL_Pos) & LPCOMP_PSEL_PSEL_Msk;
+  NRF_LPCOMP->PSEL = ((uint32_t)PWRMGT_LPCOMP_AIN << LPCOMP_PSEL_PSEL_Pos) & LPCOMP_PSEL_PSEL_Msk;
 
   // Reference: REFSEL (0-6=1/8..7/8, 7=ARef, 8-15=1/16..15/16)
-  NRF_LPCOMP->REFSEL = ((uint32_t)refsel << LPCOMP_REFSEL_REFSEL_Pos) & LPCOMP_REFSEL_REFSEL_Msk;
+  NRF_LPCOMP->REFSEL = ((uint32_t)lpcomp_refsel << LPCOMP_REFSEL_REFSEL_Pos) & LPCOMP_REFSEL_REFSEL_Msk;
 
   // Detect UP events (voltage rises above threshold for battery recovery)
   NRF_LPCOMP->ANADETECT = LPCOMP_ANADETECT_ANADETECT_Up;
-
-  // Enable 50mV hysteresis for noise immunity
-  NRF_LPCOMP->HYST = LPCOMP_HYST_HYST_Hyst50mV;
 
   // Clear stale events/interrupts before enabling wake
   NRF_LPCOMP->EVENTS_READY = 0;
@@ -208,23 +213,22 @@ void NRF52Board::configureVoltageWake(uint8_t ain_channel, uint8_t refsel) {
   NRF_LPCOMP->ENABLE = LPCOMP_ENABLE_ENABLE_Enabled;
   NRF_LPCOMP->TASKS_START = 1;
 
-  // Wait for comparator to settle before entering SYSTEMOFF
+  // Wait for comparator to settle
   for (uint8_t i = 0; i < 20 && !NRF_LPCOMP->EVENTS_READY; i++) {
     delayMicroseconds(50);
   }
 
-  if (refsel == 7) {
-    MESH_DEBUG_PRINTLN("PWRMGT: LPCOMP wake configured (AIN%d, ref=ARef)", ain_channel);
-  } else if (refsel <= 6) {
-    MESH_DEBUG_PRINTLN("PWRMGT: LPCOMP wake configured (AIN%d, ref=%d/8 VDD)",
-      ain_channel, refsel + 1);
+  if (lpcomp_refsel == 7) {
+    MESH_DEBUG_PRINTLN("PWRMGT: LPCOMP wake armed (AIN%d, ref=ARef)", PWRMGT_LPCOMP_AIN);
+  } else if (lpcomp_refsel <= 6) {
+    MESH_DEBUG_PRINTLN("PWRMGT: LPCOMP wake armed (AIN%d, ref=%d/8 VDD)", PWRMGT_LPCOMP_AIN, lpcomp_refsel + 1);
   } else {
-    uint8_t ref_num = (uint8_t)((refsel - 8) * 2 + 1);
-    MESH_DEBUG_PRINTLN("PWRMGT: LPCOMP wake configured (AIN%d, ref=%d/16 VDD)",
-      ain_channel, ref_num);
+    uint8_t ref_num = (uint8_t)((lpcomp_refsel - 8) * 2 + 1);
+    MESH_DEBUG_PRINTLN("PWRMGT: LPCOMP wake armed (AIN%d, ref=%d/16 VDD)", PWRMGT_LPCOMP_AIN, ref_num);
   }
+}
 
-  // Configure VBUS (USB power) wake alongside LPCOMP
+void NRF52Board::pwrmgtWakeArmVbus() {
   uint8_t sd_enabled = 0;
   sd_softdevice_is_enabled(&sd_enabled);
   if (sd_enabled) {
@@ -233,8 +237,7 @@ void NRF52Board::configureVoltageWake(uint8_t ain_channel, uint8_t refsel) {
     NRF_POWER->EVENTS_USBDETECTED = 0;
     NRF_POWER->INTENSET = POWER_INTENSET_USBDETECTED_Msk;
   }
-
-  MESH_DEBUG_PRINTLN("PWRMGT: VBUS wake configured");
+  MESH_DEBUG_PRINTLN("PWRMGT: VBUS wake armed");
 }
 #endif
 
@@ -248,6 +251,20 @@ void NRF52BoardDCDC::begin() {
     sd_power_dcdc_mode_set(NRF_POWER_DCDC_ENABLE);
   } else {
     NRF_POWER->DCDCEN = 1;
+  }
+}
+
+bool NRF52Board::isExternalPowered() {
+  // Check if SoftDevice is enabled before using its API
+  uint8_t sd_enabled = 0;
+  sd_softdevice_is_enabled(&sd_enabled);
+
+  if (sd_enabled) {
+    uint32_t usb_status;
+    sd_power_usbregstatus_get(&usb_status);
+    return (usb_status & POWER_USBREGSTATUS_VBUSDETECT_Msk) != 0;
+  } else {
+    return (NRF_POWER->USBREGSTATUS & POWER_USBREGSTATUS_VBUSDETECT_Msk) != 0;
   }
 }
 
@@ -279,22 +296,98 @@ void NRF52Board::sleep(uint32_t secs) {
 
 // Temperature from NRF52 MCU
 float NRF52Board::getMCUTemperature() {
-  NRF_TEMP->TASKS_START = 1; // Start temperature measurement
-
-  long startTime = millis();  
-  while (NRF_TEMP->EVENTS_DATARDY == 0) { // Wait for completion. Should complete in 50us
-    if(millis() - startTime > 5) {  // To wait 5ms just in case
-      NRF_TEMP->TASKS_STOP = 1;
+  uint8_t sd_enabled = 0;
+  sd_softdevice_is_enabled(&sd_enabled);
+  if (sd_enabled) {
+    uint32_t err_code;
+    int32_t temp;
+    err_code = sd_temp_get(&temp);
+    if (err_code == NRF_SUCCESS) {
+      return (float)temp * 0.25f;
+    } else {
       return NAN;
     }
+  } else {
+    NRF_TEMP->TASKS_START = 1; // Start temperature measurement
+
+    long startTime = millis();
+    while (NRF_TEMP->EVENTS_DATARDY == 0) { // Wait for completion. Should complete in 50us
+      if(millis() - startTime > 5) {  // To wait 5ms just in case
+        NRF_TEMP->TASKS_STOP = 1;
+        return NAN;
+      }
+    }
   }
-  
+
   NRF_TEMP->EVENTS_DATARDY = 0; // Clear event flag
 
   int32_t temp = NRF_TEMP->TEMP; // In 0.25 *C units
   NRF_TEMP->TASKS_STOP = 1;
 
   return temp * 0.25f; // Convert to *C
+}
+
+void NRF52Board::shutdownPeripherals() {
+  // Power off the display if any
+#ifdef DISPLAY_CLASS
+  if (display.isOn()) {
+    display.turnOff();
+  }
+#endif
+  // Prep LoRa radio for power down
+  #ifdef P_LORA_RESET
+    digitalWrite(P_LORA_RESET, HIGH);  // preload OUT latch so pinMode can't glitch NRESET low
+    pinMode(P_LORA_RESET, OUTPUT);
+    digitalWrite(P_LORA_RESET, LOW);   // deliberate hardware reset (datasheet: >=100us)
+    delayMicroseconds(200);
+    digitalWrite(P_LORA_RESET, HIGH);
+  #endif
+  #if defined(P_LORA_SCLK) && defined(P_LORA_MISO) && defined(P_LORA_MOSI)
+    SPI.setPins(P_LORA_MISO, P_LORA_SCLK, P_LORA_MOSI);
+    SPI.begin(); // SPI may not be started on some shutdown paths, need it to shut down radio
+  #endif
+  #ifdef P_LORA_BUSY
+    pinMode(P_LORA_BUSY, INPUT);
+    uint32_t started_at = millis();
+    while (digitalRead(P_LORA_BUSY) && millis() - started_at < 10) {} //wait for radio to be ready
+  #endif
+  #ifdef P_LORA_NSS
+    pinMode(P_LORA_NSS, OUTPUT);
+    digitalWrite(P_LORA_NSS, HIGH);
+  #endif
+  // Power off LoRa
+  radio_driver.powerOff();
+
+  // Keep LoRa inactive during deepsleep
+  #ifdef P_LORA_NSS
+    digitalWrite(P_LORA_NSS, HIGH);
+  #endif
+
+  // Power off GPS if any
+  if(sensors.getLocationProvider() != NULL) {
+    sensors.getLocationProvider()->stop();
+  }
+
+#ifdef USE_CC310_HW_CRYPTO
+    nRFCrypto.end();
+#endif
+
+  // Flush serial buffers
+  Serial.flush();
+  delay(100);
+}
+
+void NRF52Board::powerOff() {
+  shutdownPeripherals();
+
+  // Enter SYSTEMOFF
+  uint8_t sd_enabled = 0;
+  sd_softdevice_is_enabled(&sd_enabled);
+  if (sd_enabled) { // SoftDevice is enabled
+    sd_power_system_off();
+  } else { // SoftDevice is not enable
+    NRF_POWER->SYSTEMOFF = POWER_SYSTEMOFF_SYSTEMOFF_Enter;
+  }
 }
 
 bool NRF52Board::getBootloaderVersion(char* out, size_t max_len) {
@@ -323,7 +416,8 @@ bool NRF52Board::startOTAUpdate(const char *id, char reply[]) {
   Bluefruit.configPrphBandwidth(BANDWIDTH_MAX);
   Bluefruit.configPrphConn(92, BLE_GAP_EVENT_LENGTH_MIN, 16, 16);
 
-  Bluefruit.begin(1, 0);
+  if (!Bluefruit.begin(1, 0)) return false;
+
   // Set max power. Accepted values are: -40, -30, -20, -16, -12, -8, -4, 0, 4
   Bluefruit.setTxPower(4);
   // Set the BLE device name

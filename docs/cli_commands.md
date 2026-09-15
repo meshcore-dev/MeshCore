@@ -19,6 +19,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
   - [GPS](#gps-when-gps-support-is-compiled-in)
   - [Sensors](#sensors-when-sensor-support-is-compiled-in)
   - [Bridge](#bridge-when-bridge-support-is-compiled-in)
+  - [Ethernet](#ethernet-when-ethernet-support-is-compiled-in)
 
 ---
 
@@ -28,11 +29,24 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 **Usage:** 
 - `reboot`
 
+**Note:** No reply is sent.
+
+---
+
+### Power-off the node
+**Usage:**
+- `poweroff`, or
+- `shutdown`
+
+**Note:** No reply is sent.
+
 ---
 
 ### Reset the clock and reboot
 **Usage:**
 - `clkreboot`
+
+**Note:** No reply is sent.
 
 ---
 
@@ -197,7 +211,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 **Set by build flag:** `LORA_FREQ`, `LORA_BW`, `LORA_SF`, `LORA_CR`
 
-**Default:** `869.525,250,11,5`
+**Default:** `869.618,62.5,8,5`
 
 **Note:** Requires reboot to apply
 
@@ -216,20 +230,6 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 **Default:** Varies by board
 
 **Notes:** This setting only controls the power level of the LoRa chip. Some nodes have an additional power amplifier stage which increases the total output. Refer to the node's manual for the correct setting to use. **Setting a value too high may violate the laws in your country.**
-
----
-
-#### View or change the boosted receive gain mode
-**Usage:**
-- `get radio.rxgain`
-- `set radio.rxgain <state>`
-
-**Parameters:**
-- `state`: `on`|`off`
-
-**Default:** `off`
-
-**Note:** Only available on SX1262 and SX1268 based boards.
 
 ---
 
@@ -256,14 +256,14 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 **Parameters:**
 - `frequency`: Frequency in MHz
 
-**Default:** `869.525`
+**Default:** `869.618`
 
 **Note:** Requires reboot to apply
 **Serial Only:** `set freq <frequency>`
 
 ---
 
-#### View or change this node's rx boosted gain mode (SX12xx only, v1.14.1+)
+#### View or change this node's rx boosted gain mode (SX12xx and LR1110, v1.14.1+)
 **Usage:**
 - `get radio.rxgain`
 - `set radio.rxgain <state>`
@@ -274,6 +274,36 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 **Default:** `on`
 
 **Temporary Note:** If you upgraded from an older version to 1.14.1 without erasing flash, this setting is `off` because of [#2118](https://github.com/meshcore-dev/MeshCore/issues/2118)
+
+---
+
+#### View or change the LoRa FEM receive-path gain state on supported boards
+**Usage:**
+- `get radio.fem.rxgain`
+- `set radio.fem.rxgain <state>`
+
+**Parameters:**
+- `state`: `on`|`off`
+
+**Notes:**
+- This controls the external LoRa FEM receive-path LNA where the board supports it.
+- This is separate from `radio.rxgain`, which controls the radio chip receive gain mode.
+
+---
+
+#### View or change the LoRa FEM transmit-path gain state on supported boards
+**Usage:**
+- `get radio.fem.txgain`
+- `set radio.fem.txgain <state>`
+
+**Parameters:**
+- `state`: `on`|`off`
+
+**Notes:**
+- This controls a software-selectable external LoRa FEM transmit gain where the board supports it.
+- On Station G3, remove the PA PL1 jumper to allow software control. `on` selects PA PL1 high/short and `off` selects PA PL1 low/open. The PA PL2 hardware jumper determines whether this switches between power levels 1/3 or 2/4.
+- Select an operating level and SX1262 transmit power that comply with local RF limits and the Station G3 power-supply requirements.
+- The setting is saved immediately, but on Station G3 the level is applied to the hardware at the start of the next transmit, so that the PA supply rail is never re-targeted while the PA is being driven. `get` reports the configured state, which may lead the hardware until the node next transmits.
 
 ---
 
@@ -291,7 +321,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 **Default:** Varies by board
 
-**Note:** Max length varies. If a location is set, the max length is 24 bytes; 32 otherwise. Emoji and unicode characters may take more than one byte.
+**Note:** Advertised names can use up to 23 bytes when location is included and 31 bytes otherwise. Emoji and Unicode characters may take more than one byte. Names that exceed the available advert space are truncated at a valid UTF-8 code point boundary.
 
 ---
 
@@ -382,7 +412,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 **Note:** `|` characters are translated to newlines
 
-**Note:** Requires firmware 1.12.+
+**Note:** Requires firmware 1.12+
 
 ---
 
@@ -405,6 +435,11 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 ---
 
+#### View this node's firmware version
+**Usage:** `ver`
+
+---
+
 #### View this node's configured role
 **Usage:** `get role`
 
@@ -420,7 +455,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 - `on`: enable power saving
 - `off`: disable power saving
 
-**Default:** `on`
+**Default:** `off`
 
 **Note:** When enabled, device enters sleep mode between radio transmissions
 
@@ -456,7 +491,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 **Note:** the 'path.hash.mode' sets the low-level ID/hash encoding size used when the repeater adverts. This setting has no impact on what packet ID/hash size this repeater forwards, all sizes should be forwarded on firmware >= 1.14. This feature was added in firmware 1.14
 
-**Temporary Note:** adverts with ID/hash sizes of 2 or 3 bytes may have limited flood propogation in your network while this feature is new as v1.13.0 firmware and older will drop packets with multibyte path ID/hashes as only 1-byte hashes are suppored. Consider your install base of firmware >=1.14 has reached a criticality for effective network flooding before implementing higher ID/hash sizes. 
+**Temporary Note:** adverts with ID/hash sizes of 2 or 3 bytes may have limited flood propagation in your network while this feature is new as v1.13.0 firmware and older will drop packets with multibyte path ID/hashes as only 1-byte hashes are supported. Consider your install base of firmware >=1.14 has reached a criticality for effective network flooding before implementing higher ID/hash sizes. 
 
 ---
 
@@ -474,7 +509,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
   
 **Default:** `off`
 
-**Note:** When it is enabled, repeaters will now reject flood packets which look like they are in a loop. This has been happening recently in some meshes when there is just a single 'bad' repeater firmware out there (prob some forked or custom firmware). If the payload is messed with, then forwarded, the same packet ends up causing a packet storm, repeated up to the max 64 hops. This feature was added in firmware 1.14
+**Note:** When it is enabled, repeaters will now reject flood packets which look like they are in a loop. This has been happening recently in some meshes when there is just a single 'bad' repeater firmware out there (probably some forked or custom firmware). If the payload is messed with, then forwarded, the same packet ends up causing a packet storm, repeated up to the max 64 hops. This feature was added in firmware 1.14
 
 **Example:** If preference is `loop.detect minimal`, and a 1-byte path size packet is received, the repeater will see if its own ID/hash is already in the path. If it's already encoded 4 times, it will reject the packet.  If the packet uses 2-byte path size, and repeater's own ID/hash is already encoded 2 times, it rejects. If the packet uses 3-byte path size, and the repeater's own ID/hash is already encoded 1 time, it rejects. 
 
@@ -490,6 +525,8 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 **Default:** `0.5`
 
+**Note:** When multiple nearby repeaters all hear the same flood packet, each waits a random amount of time before retransmitting to avoid simultaneous collisions. This factor scales the size of that random window. Higher values reduce collision risk at the cost of added latency. `0` disables the window entirely.
+
 ---
 
 #### View or change the retransmit delay factor for direct traffic
@@ -500,7 +537,9 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 **Parameters:**
 - `value`: Direct transmit delay factor (0-2)
 
-**Default:** `0.2`
+**Default:** `0.3` (Repeater) - `0.2` (Room Server, Sensor)
+
+**Note:** Same collision-avoidance random window as `txdelay`, but applied to direct (non-flood, routed) traffic. The default is lower because direct packets are addressed to a specific next hop, so far fewer nodes compete to retransmit them.
 
 ---
 
@@ -513,6 +552,8 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 - `value`: Receive delay base (0-20)
 
 **Default:** `0.0`
+
+**Note:** When enabled, repeaters that received a flood packet with a weak signal are held in a delay queue before processing, while those that received it with a strong signal process it immediately. This gives strong-signal paths forwarding priority. By the time weak-signal nodes process their copy, the packet may have already propagated and will be suppressed as a duplicate, reducing redundant retransmissions.
 
 ---
 
@@ -567,6 +608,20 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 ---
 
+#### Enable or disable hardware Channel Activity Detection (CAD)
+**Usage:**
+- `get cad`
+- `set cad <on|off>`
+
+**Description:** When enabled, the radio performs a hardware Channel Activity Detection scan before transmitting and defers if the channel is busy. Runs independently of `int.thresh` — either, both, or none may be active.
+
+**Parameters:**
+- `on|off`: Enable or disable hardware CAD
+
+**Default:** `off`
+
+---
+
 #### View or change the AGC Reset Interval
 **Usage:**
 - `get agc.reset.interval`
@@ -599,7 +654,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 **Parameters:**
 - `hours`: Interval in hours (3-168)
 
-**Default:** `12` (Repeater) - `0` (Sensor)
+**Default:** `47` (Repeater, Room Server) - `0`, disabled (Sensor)
 
 ---
 
@@ -611,7 +666,12 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 **Parameters:**
 - `minutes`: Interval in minutes rounded down to the nearest multiple of 2 (61 becomes 60) (60-240)
 
-**Default:** `0`
+**Default:** `2` on a factory-fresh node, then `0` (disabled) once configured.
+
+**Note:** A new install ships with a 2 minute zero-hop advert interval. Saving
+any setting resets an interval below the 60 minute minimum to `0`, on the
+assumption that the node has now been deliberately configured. To keep zero-hop
+adverts running, set an explicit value in the 60-240 range.
 
 ---
 
@@ -624,6 +684,32 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 - `value`: Maximum flood hop count (0-64)
 
 **Default:** `64`
+
+---
+
+#### Limit the number of hops for an unscoped flood message
+**Usage:**
+- `get flood.max.unscoped`
+- `set flood.max.unscoped <value>`
+
+**Parameters:**
+- `value`: Maximum flood hop count (0-64) for a packet without a scope (no region set)
+
+**Default:** `64` - (`0xFF` indicates it hasn't been set, will track flood.max until it is.)
+
+**Note:** An alternative to `region denyf *`, setting `flood.max.unscoped` to a lower value such as `3` would allow for local unscoped messages to propagate, while preventing noisy neighbors from flooding a local region.
+
+---
+
+#### Limit the number of hops for an advert flood message
+**Usage:**
+- `get flood.max.advert`
+- `set flood.max.advert <value>`
+
+**Parameters:**
+- `value`: Maximum flood hop count (0-64) for an advert packet
+
+**Default:** `8`
 
 ---
 
@@ -750,6 +836,47 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 ---
 
+#### Define region hierarchy (single line)
+**Usage:**
+- `region def <token> [<token> ...]`
+
+**Parameters (tokens):** Space-separated. A logical **cursor** starts at the wildcard `*`.
+
+- **`name`** — Create `name` as a child of the current cursor (equivalent to `region put name` with the cursor as parent). Cursor moves to `name`.
+- **`name|jump`** *(or `name,jump`)* — Create `name` as a child of the current cursor, then move the cursor to `jump` (must already exist on the node, or have been created earlier in this command). `jump` is **not** the parent of `name`; use this form to pop back up and start another branch.
+
+**Behavior:** Each created region defaults to flood-allowed (same as `region put`). The reply is the resulting region tree (same format as bare `region`); review it before running `region save` to persist. On error, the reply is `Err - ...` and any regions placed before the failure remain on the node, just like a partial chain of `region put`.
+
+**Existing regions:** `region def` does not clear the existing tree — if a name already exists, its parent is updated to the current cursor; otherwise a new region is created. To start from scratch, `region remove` the unwanted regions first.
+
+**Limits:** Repeater serial accepts one line up to **160 characters**. For larger trees, split across multiple `region def` commands; the cursor resets to `*` between commands, so lead the next command with `child|ancestor` to reposition. Each token splits at most once on `|` — `region def a|b|c|d` is not a flat-list shorthand; see the flat-list example below.
+
+**Example — linear chain** (each token becomes a child of the previous):
+```
+region def a b c d e
+region save
+```
+
+**Example — branched tree** (equivalent to `region put a`, `region put b a`, `region put c b`, `region put d c`, `region put e b`, `region put f e`):
+```
+region def a b c d|b e f
+region save
+```
+
+**Example — error and partial state:**
+```
+region def a b c|nope d
+```
+The reply is `Err - unknown jump: nope`. `a`, `b`, and `c` were placed before the failure; `d` was not. Run `region` to inspect, then re-run with a corrected jump or repair with `region remove` / `region put`.
+
+**Example — flat list** (each region a child of `*`). Use `|*` after each token to pop the cursor back to the root before the next token:
+```
+region def a|* b|* c|* d|* e|* f
+region save
+```
+
+---
+
 #### Remove a region
 **Usage:** 
 - `region remove <name>`
@@ -770,7 +897,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 **Parameters:**
 - `filter`: `allowed`|`denied`
 
-**Note:** Requires firmware 1.12.+
+**Note:** Requires firmware 1.12+
 
 ---
 
@@ -927,7 +1054,7 @@ region save
 
 ---
 
-#### View or change thevalue of a sensor
+#### View or change the value of a sensor
 **Usage:** 
 - `sensor get <key>`
 - `sensor set <key> <value>`
@@ -1045,5 +1172,27 @@ region save
 **Usage:** `get pwrmgt.bootmv`
 
 **Note:** Returns an error on boards without power management support.
+
+---
+
+### Ethernet (when Ethernet support is compiled in)
+
+Ethernet support is available on RAK4631 boards with a RAK13800 (W5100S) Ethernet module. Use the `_ethernet` firmware variants (e.g. `RAK_4631_repeater_ethernet`) to enable this feature.
+
+---
+
+#### View Ethernet connection status
+**Usage:**
+- `eth.status`
+
+**Output:**
+- `ETH: <ip>:<port>` when connected (e.g. `ETH: 192.168.1.50:23`)
+- `ETH: not connected` when Ethernet is not active
+
+**Notes:**
+- Available on repeater and room server firmware only. Companion radio ethernet firmware does not expose a CLI.
+- The Ethernet interface obtains an IP address via DHCP automatically on boot.
+- A TCP server listens on port 23 (default) for CLI connections.
+- Connect with any TCP client (e.g. `nc`, PuTTY) to access the same CLI available over serial.
 
 ---

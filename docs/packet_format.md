@@ -67,13 +67,13 @@ This is the protocol level packet structure used in MeshCore firmware v1.12.0
 
 ### Packet Format
 
-| Field           | Size (bytes)                     | Description                                              |
-|-----------------|----------------------------------|----------------------------------------------------------|
-| header          | 1                                | Contains routing type, payload type, and payload version |
-| transport_codes | 4 (optional)                     | 2x 16-bit transport codes (if ROUTE_TYPE_TRANSPORT_*)    |
-| path_length     | 1                                | Encodes path hash size in bits 6-7 and hop count in bits 0-5 |
+| Field           | Size (bytes)                     | Description                                                     |
+|-----------------|----------------------------------|-----------------------------------------------------------------|
+| header          | 1                                | Contains routing type, payload type, and payload version        |
+| transport_codes | 4 (optional)                     | 2x 16-bit transport codes (if ROUTE_TYPE_TRANSPORT_*)           |
+| path_length     | 1                                | Encodes path hash size in bits 6-7 and hop count in bits 0-5    |
 | path            | up to 64 (`MAX_PATH_SIZE`)       | Stores `hop_count * hash_size` bytes of path data if applicable |
-| payload         | up to 184 (`MAX_PACKET_PAYLOAD`) | Data for the provided Payload Type                       |
+| payload         | up to 184 (`MAX_PACKET_PAYLOAD`) | Data for the provided Payload Type                              |
 
 > NOTE: see the [Payloads](./payloads.md) documentation for more information about the content of specific payload types.
 
@@ -100,19 +100,19 @@ Bit 0 means the lowest bit (1s place)
 
 `path_length` is not a raw byte count. It packs both hash size and hop count:
 
-| Bits | Field | Meaning |
-|------|-------|---------|
-| 0-5  | Hop Count | Number of path hashes (`0-63`) |
-| 6-7  | Hash Size Code | Stored as `hash_size - 1` |
+| Bits | Field          | Meaning                        |
+|------|----------------|--------------------------------|
+| 0-5  | Hop Count      | Number of path hashes (`0-63`) |
+| 6-7  | Hash Size Code | Stored as `hash_size - 1`      |
 
 Hash size codes:
 
-| Bits 6-7 | Hash Size | Notes |
-|----------|-----------|-------|
-| `0b00` | 1 byte | Legacy / default mode |
-| `0b01` | 2 bytes | Supported in current firmware |
-| `0b10` | 3 bytes | Supported in current firmware |
-| `0b11` | 4 bytes | Reserved / invalid |
+| Bits 6-7 | Hash Size | Notes                         |
+|----------|-----------|-------------------------------|
+| `0b00`   | 1 byte    | Legacy / default mode         |
+| `0b01`   | 2 bytes   | Supported in current firmware |
+| `0b10`   | 3 bytes   | Supported in current firmware |
+| `0b11`   | 4 bytes   | Reserved / invalid            |
 
 Examples:
 

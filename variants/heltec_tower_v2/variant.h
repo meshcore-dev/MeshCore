@@ -1,0 +1,108 @@
+#pragma once
+
+#include "WVariant.h"
+
+#define USE_LFXO
+#define VARIANT_MCK (64000000ul)
+
+#define PINS_COUNT        (48)
+#define NUM_DIGITAL_PINS  (48)
+#define NUM_ANALOG_INPUTS (1)
+#define NUM_ANALOG_OUTPUTS (0)
+
+#define WIRE_INTERFACES_COUNT (1)
+#define PIN_WIRE_SDA (0 + 30)
+#define PIN_WIRE_SCL (0 + 5)
+#define PIN_BOARD_SDA PIN_WIRE_SDA
+#define PIN_BOARD_SCL PIN_WIRE_SCL
+
+#define SPI_INTERFACES_COUNT (1)
+#define PIN_SPI_MISO (0 + 23)
+#define PIN_SPI_MOSI (0 + 22)
+#define PIN_SPI_SCK  (0 + 19)
+#define PIN_SPI_NSS  LORA_CS
+
+#define LED_BUILTIN (32 + 15)
+#define PIN_LED     LED_BUILTIN
+#define LED_RED     (-1)
+#define LED_GREEN   (-1)
+#define LED_BLUE    (-1)
+#define LED_PIN     (-1)
+#define P_LORA_TX_LED LED_BUILTIN
+#define LED_STATE_ON LOW
+
+#define PIN_BUTTON1  (32 + 10)
+#define BUTTON_PIN   PIN_BUTTON1
+#define PIN_USER_BTN BUTTON_PIN
+
+#define USE_SX1262
+#define SX126X_CS    (0 + 24)
+#define LORA_CS      SX126X_CS
+#define SX126X_DIO1  (0 + 20)
+#define SX126X_BUSY  (0 + 17)
+#define SX126X_RESET (0 + 25)
+#define SX126X_DIO2_AS_RF_SWITCH
+#define SX126X_DIO3_TCXO_VOLTAGE 1.8
+
+#define P_LORA_NSS   LORA_CS
+#define P_LORA_DIO_1 SX126X_DIO1
+#define P_LORA_BUSY  SX126X_BUSY
+#define P_LORA_RESET SX126X_RESET
+#define P_LORA_MISO  PIN_SPI_MISO
+#define P_LORA_MOSI  PIN_SPI_MOSI
+#define P_LORA_SCLK  PIN_SPI_SCK
+
+#define USE_KCT8103L_PA_ONLY
+#define LORA_KCT8103L_EN      (0 + 15)
+#define LORA_KCT8103L_TX_RX   (0 + 16)
+#define LORA_PA_POWER         LORA_KCT8103L_EN
+#define RF_PA_DETECT_PIN      (0 + 13)
+#define RF_PA_HIGH_POWER_VALUE HIGH
+
+#define GPS_L76K
+#define GPS_RESET_MODE LOW
+#define PIN_GPS_RESET (32 + 6)
+#define PIN_GPS_RESET_ACTIVE GPS_RESET_MODE
+#define PIN_GPS_EN (0 + 7)
+#define PIN_GPS_EN_ACTIVE LOW
+#define GPS_EN_ACTIVE PIN_GPS_EN_ACTIVE
+#define PIN_GPS_STANDBY (32 + 2)
+#define PIN_GPS_PPS (32 + 4)
+#define GPS_BAUD_RATE 9600
+
+// Upstream names are from the GPS perspective. MeshCore's PIN_GPS_TX is the
+// CPU RX pin because EnvironmentSensorManager passes it as Serial1 RX.
+#define GPS_TX_PIN (32 + 7)
+#define GPS_RX_PIN (32 + 5)
+#define PIN_GPS_TX GPS_RX_PIN
+#define PIN_GPS_RX GPS_TX_PIN
+
+#define PIN_SERIAL1_RX PIN_GPS_TX
+#define PIN_SERIAL1_TX PIN_GPS_RX
+#define PIN_SERIAL2_RX (-1)
+#define PIN_SERIAL2_TX (-1)
+
+#define HAS_EXTERNAL_WATCHDOG
+#define EXTERNAL_WATCHDOG_DONE_PIN (0 + 9)
+#define EXTERNAL_WATCHDOG_WAKE_PIN (0 + 10)
+#define EXTERNAL_WATCHDOG_FEED_INTERVAL_MS (8 * 60 * 1000)
+
+#define SERIAL_PRINT_PORT 0
+
+#define PIN_BAT_CTL (0 + 21)
+#define ADC_CTRL PIN_BAT_CTL
+#define ADC_CTRL_ENABLED HIGH
+#define BATTERY_PIN (0 + 4)
+#define PIN_VBAT_READ BATTERY_PIN
+#define ADC_RESOLUTION 14
+#define BATTERY_SENSE_RESOLUTION_BITS 12
+#define BATTERY_SENSE_RESOLUTION 4096.0
+#define AREF_VOLTAGE 3.0
+#define VBAT_AR_INTERNAL AR_INTERNAL_3_0
+#define ADC_MULTIPLIER (4.916F)
+#define MV_LSB (3000.0F / 4096.0F)
+
+#define NRF52_POWER_MANAGEMENT
+#define PWRMGT_VOLTAGE_BOOTLOCK 3100
+#define PWRMGT_LPCOMP_AIN 2
+#define PWRMGT_LPCOMP_REFSEL 1

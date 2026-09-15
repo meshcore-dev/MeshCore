@@ -80,16 +80,18 @@ void initVariant()
   digitalWrite(LED_POWER, HIGH);
 
   pinMode(PIN_LED_BLUE, OUTPUT);
+  digitalWrite(PIN_LED_BLUE, !LED_STATE_ON);
   pinMode(PIN_LED_GREEN, OUTPUT);
+  digitalWrite(PIN_LED_GREEN, !LED_STATE_ON);
   pinMode(PIN_LED_RED, OUTPUT);
+  digitalWrite(PIN_LED_RED, !LED_STATE_ON);
 
   pinMode(BUTTON_PIN, INPUT_PULLUP);
 
   pinMode(PIN_GPS_POWER, OUTPUT);
   pinMode(PIN_GPS_EN, OUTPUT);
-  pinMode(PIN_GPS_RESET, OUTPUT);
 
   // Power on gps but in standby
-  digitalWrite(PIN_GPS_EN, LOW);
-  digitalWrite(PIN_GPS_POWER, HIGH);
+  digitalWrite(PIN_GPS_EN, !GPS_EN_ACTIVE);
+  digitalWrite(PIN_GPS_POWER, GPS_POWER_ACTIVE);
 }

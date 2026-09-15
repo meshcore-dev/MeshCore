@@ -1,0 +1,32 @@
+name: 'Run Stale Bot'
+on:
+  schedule:
+    - cron: '30 1 * * *' # daily at 1:30am
+  workflow_dispatch: {}
+
+permissions:
+  actions: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  close-issues:
+    # only run on main repo, not forks
+    if: github.repository == 'meshcore-dev/MeshCore'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Close Stale Issues
+        uses: actions/stale@v10
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          # auto close issues
+          days-before-issue-stale: 60
+          days-before-issue-close: 7
+          exempt-issue-labels: "keep-open"
+          stale-issue-label: "stale"
+          stale-issue-message: "This issue is stale because it has been open for 60 days with no activity. Remove the stale label or add a comment if this issue is still relevant, otherwise this issue will automatically close in 7 days."
+          close-issue-message: "This issue was closed because it has been inactive for 7 days since being marked as stale."
+          # don't auto close prs
+          days-before-pr-stale: -1
+          days-before-pr-close: -1
+          

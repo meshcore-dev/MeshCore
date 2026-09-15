@@ -15,12 +15,12 @@ jobs:
     steps:
 
       - name: Checkout Repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
-          ruby-version: 3.x
+          python-version: '3.13'
 
       - name: Build
         run: |
@@ -28,7 +28,7 @@ jobs:
           mkdocs build
 
       - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
+        uses: peaceiris/actions-gh-pages@v4.1.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           cname: docs.meshcore.io

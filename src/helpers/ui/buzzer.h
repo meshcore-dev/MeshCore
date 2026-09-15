@@ -5,7 +5,7 @@
 
 /* class abstracts underlying RTTTL library 
 
-    Just a simple imlementation to start.  At the moment use same
+    Just a simple implementation to start.  At the moment use same
     melody for message and discovery
     Suggest enum type for different sounds
     - on message
