@@ -445,7 +445,9 @@ uint16_t Ina228Driver::readRegister16(uint8_t reg) {
 int32_t Ina228Driver::readRegister24(uint8_t reg) {
   Wire.beginTransmission(_i2c_addr);
   Wire.write(reg);
-  Wire.endTransmission(false);
+  if (Wire.endTransmission(false) != 0) {
+    return 0;  // Register selection failed; do not read from a stale register pointer.
+  }
 
   Wire.requestFrom(_i2c_addr, (uint8_t)3);
   if (Wire.available() < 3) {

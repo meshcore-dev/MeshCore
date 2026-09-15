@@ -260,7 +260,7 @@ public:
   bool applyJeitaIgnore();             // re-derive for the current chemistry
 
   // INA228 ALERT on P1.02 (Rev 1.1)
-  void armLowVoltageAlert();
+  void armLowVoltageAlert(BatteryType type);
   static void disarmLowVoltageAlert();
   static void lowVoltageAlertISR();
 
@@ -280,10 +280,12 @@ private:
   static Ina228Driver* ina228DriverInstance;
   static TaskHandle_t heartbeatTaskHandle;
   static volatile bool lowVoltageAlertFired;  // INA228 ALERT fired, checked in tickPeriodic
+  static uint16_t lowVoltageSleepMv;  // Active threshold; 0 when disarmed
 
   // Tick scheduling (millis-based, overflow-safe)
   uint32_t lastMpptMs = 0;
   uint32_t lastSocMs = 0;
+  uint32_t lastLowVoltageMs = 0;
   uint32_t lastHourlyMs = 0;       // Last updateHourlyStats() execution
   bool tickInitialized = false;    // First-call init flag for MPPT stats
 

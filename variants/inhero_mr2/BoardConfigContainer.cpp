@@ -59,6 +59,7 @@ BqDriver* BoardConfigContainer::bqDriverInstance = nullptr;
 Ina228Driver* BoardConfigContainer::ina228DriverInstance = nullptr;
 TaskHandle_t BoardConfigContainer::heartbeatTaskHandle = NULL;
 volatile bool BoardConfigContainer::lowVoltageAlertFired = false;
+uint16_t BoardConfigContainer::lowVoltageSleepMv = 0;
 MpptStatistics BoardConfigContainer::mpptStats = {};
 BatterySOCStats BoardConfigContainer::socStats = {};
 BoardConfigContainer::BatteryType BoardConfigContainer::cachedBatteryType = BAT_UNKNOWN;
@@ -628,7 +629,7 @@ bool BoardConfigContainer::begin() {
       // Arm INA228 low-voltage alert for this battery chemistry
       // Rev 1.1: Always active when battery type is configured (no CLI toggle)
       // ISR on ALERT pin → volatile flag → tickPeriodic() → System Sleep with GPIO latch
-      armLowVoltageAlert();
+      armLowVoltageAlert(getBatteryType());
 
       // NOTE: Low-voltage recovery SOC=0% is handled in InheroMr2Board::begin()
       // (after setLowVoltageRecovery()), not here, because lowVoltageRecovery isn't set yet.
@@ -1223,7 +1224,8 @@ bool BoardConfigContainer::setBatteryType(BatteryType type) {
 
   // === CRITICAL: Update INA228 low-voltage alert threshold when battery type changes ===
   if (ina228DriverInstance) {
-    armLowVoltageAlert();
+    // Preferences still contain the previous chemistry until the write below.
+    armLowVoltageAlert(type);
     delay(10);
   }
 
@@ -1752,42 +1754,47 @@ float BoardConfigContainer::readBmeTemperature() {
 
 // Arm INA228 BUVL alert at the chemistry's lowv_sleep_mv threshold.
 // Fires → ISR → flag → tickPeriodic() → System Sleep. BAT_UNKNOWN = disabled.
-void BoardConfigContainer::armLowVoltageAlert() {
+void BoardConfigContainer::armLowVoltageAlert(BatteryType bat_type) {
+  disarmLowVoltageAlert();
   if (!ina228DriverInstance) {
     return;
   }
 
-  BatteryType bat_type = getBatteryType();
   const BatteryProperties* props = getBatteryProperties(bat_type);
   uint16_t sleep_mv = props ? props->lowv_sleep_mv : 0;
 
   if (bat_type == BAT_UNKNOWN || sleep_mv == 0) {
-    // No battery configured — disarm alert
-    ina228DriverInstance->setUnderVoltageAlert(0);
-    ina228DriverInstance->enableAlert(false, false, false);
     MESH_DEBUG_PRINTLN("INA228 Low-V Alert: DISABLED (BAT_UNKNOWN)");
     return;
   }
 
+  // Keep the software check active even if configuring the hardware alert fails.
+  lowVoltageSleepMv = sleep_mv;
+  lastLowVoltageMs = millis();
   bool buvl_ok = ina228DriverInstance->setUnderVoltageAlert(sleep_mv);
   ina228DriverInstance->enableAlert(true, false, true);  // active-LOW, LATCHED
 
   // Attach ISR on ALERT pin (active-LOW, falling edge)
   pinMode(INA_ALERT_PIN, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(INA_ALERT_PIN), lowVoltageAlertISR, FALLING);
+  // A latched alert may already be LOW before the falling-edge ISR is attached.
+  if (digitalRead(INA_ALERT_PIN) == LOW) {
+    lowVoltageAlertFired = true;
+  }
 
   MESH_DEBUG_PRINTLN("INA228 Low-V Alert: ARMED @ %dmV (BUVL write %s)", sleep_mv, buvl_ok ? "OK" : "FAILED");
 }
 
 void BoardConfigContainer::disarmLowVoltageAlert() {
+  detachInterrupt(digitalPinToInterrupt(INA_ALERT_PIN));
+  lowVoltageAlertFired = false;
+  lowVoltageSleepMv = 0;
   if (!ina228DriverInstance) {
     return;
   }
 
-  detachInterrupt(digitalPinToInterrupt(INA_ALERT_PIN));
   ina228DriverInstance->setUnderVoltageAlert(0);
   ina228DriverInstance->enableAlert(false, false, false);
-  lowVoltageAlertFired = false;
   MESH_DEBUG_PRINTLN("INA228 Low-V Alert: DISARMED");
 }
 
@@ -2139,7 +2146,7 @@ void BoardConfigContainer::calculateTTL() {
 
 // Called from InheroMr2Board::tick() — dispatches all periodic I2C work with
 // millis()-based scheduling in the main loop context.
-// Also checks the ISR-set lowVoltageAlertFired flag for immediate shutdown.
+// Checks the INA228 alert and polls voltage as a fallback if the interrupt is missed.
 void BoardConfigContainer::tickPeriodic() {
   // First-call init: clear MPPT stats
   if (!tickInitialized) {
@@ -2147,7 +2154,26 @@ void BoardConfigContainer::tickPeriodic() {
     tickInitialized = true;
   }
 
-  // Check low-voltage alert flag (set by INA228 ALERT ISR)
+  uint32_t now = millis();
+
+  if (lowVoltageSleepMv != 0 && ina228DriverInstance) {
+    if (digitalRead(INA_ALERT_PIN) == LOW) {
+      lowVoltageAlertFired = true;
+    }
+
+    // Use the INA228's averaged voltage, independent of SOC and CLI requests.
+    if (!lowVoltageAlertFired && now - lastLowVoltageMs >= 1000UL) {
+      lastLowVoltageMs = now;
+      uint16_t vbat_mv = ina228DriverInstance->readVoltage_mV();
+      // A failed I2C read returns 0; it is not a valid battery voltage sample.
+      if (vbat_mv > 0 && vbat_mv < lowVoltageSleepMv) {
+        MESH_DEBUG_PRINTLN("PWRMGT: VBAT %dmV below %dmV (voltage fallback)", vbat_mv, lowVoltageSleepMv);
+        lowVoltageAlertFired = true;
+      }
+    }
+  }
+
+  // Check low-voltage alert flag (set by ISR, pin level, or voltage fallback)
   if (lowVoltageAlertFired) {
     MESH_DEBUG_PRINTLN("PWRMGT: Low-voltage alert fired - initiating System Sleep");
     blinkRed(1, 100, 100, leds_enabled);
@@ -2157,8 +2183,6 @@ void BoardConfigContainer::tickPeriodic() {
     board.initiateShutdown(SHUTDOWN_REASON_LOW_VOLTAGE);
     // Never returns
   }
-
-  uint32_t now = millis();
 
   // Every ~60s: MPPT cycle (solar charging control)
   if (now - lastMpptMs >= SOLAR_MPPT_INTERVAL_MS) {
