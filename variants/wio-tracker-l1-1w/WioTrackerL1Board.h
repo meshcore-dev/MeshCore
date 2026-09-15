@@ -8,10 +8,16 @@ class WioTrackerL1Board : public NRF52BoardDCDC {
 protected:
   uint8_t btn_prev_state;
   bool _is_pa_enabled = false;
+  KeyValueStore* _prefs = NULL;
+
+  bool setLoRaFemPaGainEnabled(bool enable);
+  bool isLoRaFemPaGainEnabled() const { return _is_pa_enabled; }
 
 public:
   WioTrackerL1Board() : NRF52Board("WioTrackerL1 OTA") {}
   void begin();
+  void attachDynamicPrefs(KeyValueStore* prefs);
+  bool handleCommand(const char* command, uint32_t sender_timestamp, char* reply) override;
 
 #if defined(P_LORA_TX_LED)
   void onBeforeTransmit() override {
@@ -34,10 +40,6 @@ public:
   const char* getManufacturerName() const override {
     return "Seeed Wio Tracker L1";
   }
-
-  bool canControlLoRaFemPaGain() const override { return true; }
-  bool setLoRaFemPaGainEnabled(bool enable) override;
-  bool isLoRaFemPaGainEnabled() const override { return _is_pa_enabled; }
 
   void powerOff() override {
     setLoRaFemPaGainEnabled(false);   // turn Off PA
