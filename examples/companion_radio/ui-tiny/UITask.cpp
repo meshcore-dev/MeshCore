@@ -503,16 +503,14 @@ switch(t){
 }
 
 
-void UITask::msgRead(int msgcount) {
+void UITask::onQueueSizeChanged(int msgcount) {
   _msgcount = msgcount;
   if (msgcount == 0) {
     gotoHomeScreen();
   }
 }
 
-void UITask::newMsg(uint8_t path_len, const char* from_name, const char* text, int msgcount) {
-  _msgcount = msgcount;
-
+void UITask::onMessageRecv(uint8_t path_len, const char* from_name, const char* text) {
   if (_display != NULL) {
     if (!_display->isOn() && !hasConnection()) {
       _display->turnOn();
@@ -521,6 +519,30 @@ void UITask::newMsg(uint8_t path_len, const char* from_name, const char* text, i
     _auto_off = millis() + AUTO_OFF_MILLIS;  // extend the auto-off timer
     _next_refresh = 100;  // trigger refresh
     }
+  }
+  if (!hasConnection()) {
+    notify(UIEventType::contactMessage);
+  }
+}
+
+void UITask::onChannelMsgRecv(ChannelDetails& channel_details, uint8_t path_len, const char* text) {
+  if (_display != NULL) {
+    if (!_display->isOn() && !hasConnection()) {
+      _display->turnOn();
+    }
+    if (_display->isOn()) {
+    _auto_off = millis() + AUTO_OFF_MILLIS;  // extend the auto-off timer
+    _next_refresh = 100;  // trigger refresh
+    }
+  }
+  if (!hasConnection()) {
+    notify(UIEventType::channelMessage);
+  }
+}
+
+void UITask::onDiscoveredContact(ContactInfo &contact, bool is_new, uint8_t path_len, const uint8_t* path) {
+  if (!hasConnection()) {
+    notify(UIEventType::newContactMessage);
   }
 }
 

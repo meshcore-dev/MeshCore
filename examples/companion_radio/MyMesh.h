@@ -2,7 +2,6 @@
 
 #include <Arduino.h>
 #include <Mesh.h>
-#include "AbstractUITask.h"
 
 /*------------ Frame Protocol --------------*/
 #define FIRMWARE_VER_CODE 14
@@ -96,10 +95,19 @@ struct DiscoveredNode {
 
 class MyMesh : public BaseChatMesh, public DataStoreHost {
 public:
-  MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMeshTables &tables, DataStore& store, AbstractUITask* ui=NULL);
+  class Listener {
+    public:
+      virtual void onMessageRecv(uint8_t path_len, const char* from_name, const char* text) = 0;
+      virtual void onChannelMsgRecv(ChannelDetails& channel_details, uint8_t path_len, const char* text) = 0;
+      virtual void onQueueSizeChanged(int msgcount) = 0;
+      virtual void onDiscoveredContact(ContactInfo &contact, bool is_new, uint8_t path_len, const uint8_t* path) = 0;
+  };
+
+  MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMeshTables &tables, DataStore& store);
 
   void begin(bool has_display);
   void startInterface(BaseSerialInterface &serial);
+  void setListener(Listener* listener) { _listener = listener; }
 
   const char *getNodeName();
   NodePrefs *getNodePrefs();
@@ -237,7 +245,7 @@ private:
   uint32_t pending_telemetry, pending_discovery;   // pending _TELEMETRY_REQ
   uint32_t pending_req;   // pending _BINARY_REQ
   BaseSerialInterface *_serial;
-  AbstractUITask* _ui;
+  Listener* _listener;
 
   ContactsIterator _iter;
   uint32_t _iter_filter_since;

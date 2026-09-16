@@ -126,7 +126,7 @@ switch(t){
 //  Serial.println((int) t);
 }
 
-void UITask::msgRead(int msgcount) {
+void UITask::onQueueSizeChanged(int msgcount) {
   _msgcount = msgcount;
   if (msgcount == 0) {
     clearMsgPreview();
@@ -139,9 +139,7 @@ void UITask::clearMsgPreview() {
   _need_refresh = true;
 }
 
-void UITask::newMsg(uint8_t path_len, const char* from_name, const char* text, int msgcount) {
-  _msgcount = msgcount;
-
+void UITask::onMessageRecv(uint8_t path_len, const char* from_name, const char* text) {
 #ifdef HAS_DRV2605
   vibration.trigger();   // vibrate even while the app is connected (honors quiet + cooldown)
 #endif
@@ -158,9 +156,44 @@ void UITask::newMsg(uint8_t path_len, const char* from_name, const char* text, i
       _display->turnOn();
     }
     if (_display->isOn()) {
-    _auto_off = millis() + AUTO_OFF_MILLIS;  // extend the auto-off timer
-    _need_refresh = true;
+      _auto_off = millis() + AUTO_OFF_MILLIS;  // extend the auto-off timer
+      _need_refresh = true;
     }
+  }
+  if (!hasConnection()) {
+    notify(UIEventType::contactMessage);
+  }
+}
+
+void UITask::onChannelMsgRecv(ChannelDetails& channel_details, uint8_t path_len, const char* text) {
+#ifdef HAS_DRV2605
+  vibration.trigger();   // vibrate even while the app is connected (honors quiet + cooldown)
+#endif
+
+  if (path_len == 0xFF) {
+    sprintf(_origin, "(F) %s", channel_details.name);
+  } else {
+    sprintf(_origin, "(%d) %s", (uint32_t) path_len, channel_details.name);
+  }
+  StrHelper::strncpy(_msg, text, sizeof(_msg));
+
+  if (_display != NULL) {
+    if (!_display->isOn() && !hasConnection()) {
+      _display->turnOn();
+    }
+    if (_display->isOn()) {
+      _auto_off = millis() + AUTO_OFF_MILLIS;  // extend the auto-off timer
+      _need_refresh = true;
+    }
+  }
+  if (!hasConnection()) {
+    notify(UIEventType::channelMessage);
+  }
+}
+
+void UITask::onDiscoveredContact(ContactInfo &contact, bool is_new, uint8_t path_len, const uint8_t* path) {
+  if (!hasConnection()) {
+    notify(UIEventType::newContactMessage);
   }
 }
 
@@ -262,7 +295,7 @@ void UITask::renderCurrScreen() {
     _display->print(tmp);
 
     // BT pin
-    if (!_connected && the_mesh.getBLEPin() != 0) {
+    if (!hasConnection() && the_mesh.getBLEPin() != 0) {
       _display->setColor(UIColor::warning_txt);
       _display->setTextSize(2);
       _display->setCursor(0, 43);

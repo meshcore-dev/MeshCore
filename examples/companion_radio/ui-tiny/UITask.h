@@ -98,10 +98,13 @@ public:
   bool getGPSState();
   void toggleGPS();
 
+  // MyMesh::Listener
+  void onMessageRecv(uint8_t path_len, const char* from_name, const char* text) override;
+  void onChannelMsgRecv(ChannelDetails& channel_details, uint8_t path_len, const char* text) override;
+  void onQueueSizeChanged(int offline_queue_size) override;
+  void onDiscoveredContact(ContactInfo &contact, bool is_new, uint8_t path_len, const uint8_t* path) override;
 
   // from AbstractUITask
-  void msgRead(int msgcount) override;
-  void newMsg(uint8_t path_len, const char* from_name, const char* text, int msgcount) override;
   void notify(UIEventType t = UIEventType::none) override;
   void loop() override;
 

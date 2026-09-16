@@ -751,17 +751,7 @@ switch(t){
 #endif
 }
 
-
-void UITask::msgRead(int msgcount) {
-  _msgcount = msgcount;
-  if (msgcount == 0) {
-    gotoHomeScreen();
-  }
-}
-
-void UITask::newMsg(uint8_t path_len, const char* from_name, const char* text, int msgcount) {
-  _msgcount = msgcount;
-
+void UITask::onMessageRecv(uint8_t path_len, const char* from_name, const char* text) {
   ((MsgPreviewScreen *) msg_preview)->addPreview(path_len, from_name, text);
   setCurrScreen(msg_preview);
 
@@ -773,6 +763,42 @@ void UITask::newMsg(uint8_t path_len, const char* from_name, const char* text, i
     _auto_off = millis() + AUTO_OFF_MILLIS;  // extend the auto-off timer
     _next_refresh = 100;  // trigger refresh
     }
+  }
+
+  if (!hasConnection()) {
+    notify(UIEventType::contactMessage);
+  }
+}
+
+void UITask::onChannelMsgRecv(ChannelDetails& channel_details, uint8_t path_len, const char* text) {
+  ((MsgPreviewScreen *) msg_preview)->addPreview(path_len, channel_details.name, text);
+  setCurrScreen(msg_preview);
+
+  if (_display != NULL) {
+    if (!_display->isOn() && !hasConnection()) {
+      _display->turnOn();
+    }
+    if (_display->isOn()) {
+    _auto_off = millis() + AUTO_OFF_MILLIS;  // extend the auto-off timer
+    _next_refresh = 100;  // trigger refresh
+    }
+  }
+
+  if (!hasConnection()) {
+    notify(UIEventType::channelMessage);
+  }
+}
+
+void UITask::onQueueSizeChanged(int msgcount) {
+  _msgcount = msgcount;
+  if (msgcount == 0) {
+    gotoHomeScreen();
+  }
+}
+
+void UITask::onDiscoveredContact(ContactInfo &contact, bool is_new, uint8_t path_len, const uint8_t* path) {
+  if (!hasConnection()) {
+    notify(UIEventType::newContactMessage);
   }
 }
 
