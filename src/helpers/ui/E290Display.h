@@ -17,6 +17,8 @@ class E290Display : public DisplayDriver {
   CRC32 display_crc;
   uint32_t last_display_crc_value = 0;
   uint16_t _color;
+  uint16_t _updatesSinceFullRefresh = 0;
+  static const uint16_t FULL_REFRESH_INTERVAL = 30; // Partial refreshes accumulate ghosting; periodically do a full refresh to clear it
 
 public:
   E290Display(RefCountedDigitalPin* periph_power = NULL) : DisplayDriver(296, 128), _periph_power(periph_power) {}
