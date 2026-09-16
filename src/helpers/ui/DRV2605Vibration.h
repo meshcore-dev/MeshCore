@@ -2,7 +2,6 @@
 
 #ifdef HAS_DRV2605
 
-#include <Arduino.h>
 #include <Adafruit_DRV2605.h>
 
 /*

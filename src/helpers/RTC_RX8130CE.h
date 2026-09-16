@@ -1,7 +1,8 @@
 #ifndef __RTC_RX8130CE_H__
 #define __RTC_RX8130CE_H__
 
-#include <Arduino.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <Wire.h>
 #include <time.h>
 #include "RTClib.h"
