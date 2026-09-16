@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Arduino.h>
+#include <stdint.h>
 
 enum class RotaryInputEvent : uint8_t {
   None,

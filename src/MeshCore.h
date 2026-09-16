@@ -22,17 +22,28 @@
 #define MAX_PATH_SIZE        64
 #define MAX_TRANS_UNIT      255
 
-#if MESH_DEBUG && ARDUINO
-  #include <Arduino.h>
-  #define MESH_DEBUG_PRINT(F, ...) Serial.printf("DEBUG: " F, ##__VA_ARGS__)
-  #define MESH_DEBUG_PRINTLN(F, ...) Serial.printf("DEBUG: " F "\n", ##__VA_ARGS__)
+// Single seam for all of MeshCore's diagnostic output. Platform ports define
+// MESHCORE_LOG_PRINTF to whatever their console is; on Arduino it is Serial.
+#ifndef MESHCORE_LOG_PRINTF
+  #ifdef ARDUINO
+    #include <Arduino.h>
+    #define MESHCORE_LOG_PRINTF(F, ...) Serial.printf(F, ##__VA_ARGS__)
+  #else
+    #include <stdio.h>
+    #define MESHCORE_LOG_PRINTF(F, ...) printf(F, ##__VA_ARGS__)
+  #endif
+#endif
+
+#if MESH_DEBUG
+  #define MESH_DEBUG_PRINT(F, ...) MESHCORE_LOG_PRINTF("DEBUG: " F, ##__VA_ARGS__)
+  #define MESH_DEBUG_PRINTLN(F, ...) MESHCORE_LOG_PRINTF("DEBUG: " F "\n", ##__VA_ARGS__)
 #else
   #define MESH_DEBUG_PRINT(...) {}
   #define MESH_DEBUG_PRINTLN(...) {}
 #endif
 
-#if BRIDGE_DEBUG && ARDUINO
-#define BRIDGE_DEBUG_PRINTLN(F, ...) Serial.printf("%s BRIDGE: " F, getLogDateTime(), ##__VA_ARGS__)
+#if BRIDGE_DEBUG
+#define BRIDGE_DEBUG_PRINTLN(F, ...) MESHCORE_LOG_PRINTF("%s BRIDGE: " F, getLogDateTime(), ##__VA_ARGS__)
 #else
 #define BRIDGE_DEBUG_PRINTLN(...) {}
 #endif

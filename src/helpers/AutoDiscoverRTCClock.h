@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Mesh.h>
-#include <Arduino.h>
+#include <stdint.h>
 #include <Wire.h>
 
 class AutoDiscoverRTCClock : public mesh::RTCClock {

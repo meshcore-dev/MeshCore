@@ -1,5 +1,4 @@
 #include "Mesh.h"
-//#include <Arduino.h>
 
 namespace mesh {
 
