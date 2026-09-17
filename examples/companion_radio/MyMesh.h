@@ -75,6 +75,10 @@
 #define REQ_TYPE_KEEP_ALIVE             0x02
 #define REQ_TYPE_GET_TELEMETRY_DATA     0x03
 
+// Copied from simple_repeater
+#define CTL_TYPE_NODE_DISCOVER_REQ      0x80
+#define CTL_TYPE_NODE_DISCOVER_RESP     0x90
+
 struct AdvertPath {
   uint8_t pubkey_prefix[7];
   uint8_t path_len;
@@ -83,24 +87,15 @@ struct AdvertPath {
   uint8_t path[MAX_PATH_SIZE];
 };
 
-#if defined(DISPLAY_CLASS) && !(defined(UI_NO_DISCOVER_SCREEN) && (UI_NO_DISCOVER_SCREEN + 0 != 0))
-struct DiscoveredNode {
-  uint8_t pubkey_prefix[9];
-  float snr_in;
-  float snr_out;
-  char name[32];
-  uint8_t type;
-};
-#endif
-
 class MyMesh : public BaseChatMesh, public DataStoreHost {
 public:
   class Listener {
     public:
-      virtual void onMessageRecv(uint8_t path_len, const char* from_name, const char* text) = 0;
+      virtual void onMessageRecv(const ContactInfo &from, uint8_t txt_type, uint32_t sender_timestamp, uint8_t path_len, const char* text) = 0;
       virtual void onChannelMsgRecv(ChannelDetails& channel_details, uint8_t path_len, const char* text) = 0;
       virtual void onQueueSizeChanged(int msgcount) = 0;
       virtual void onDiscoveredContact(ContactInfo &contact, bool is_new, uint8_t path_len, const uint8_t* path) = 0;
+      virtual void onControlDataRecv(const mesh::Packet* packet) = 0;
   };
 
   MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMeshTables &tables, DataStore& store);
@@ -119,11 +114,6 @@ public:
   void enterCLIRescue();
 
   int  getRecentlyHeard(AdvertPath dest[], int max_num);
-
-#if defined(DISPLAY_CLASS) && !(defined(UI_NO_DISCOVER_SCREEN) && (UI_NO_DISCOVER_SCREEN + 0 != 0))
-  bool requestRepeatersDiscovery();
-  int getDiscoveredNodes(DiscoveredNode nodes[], int max_num);
-#endif
 
 protected:
   float getAirtimeBudgetFactor() const override;
@@ -287,19 +277,6 @@ private:
 
   #define ADVERT_PATH_TABLE_SIZE   16
   AdvertPath advert_paths[ADVERT_PATH_TABLE_SIZE]; // circular table
-
-#if defined(DISPLAY_CLASS) && !(defined(UI_NO_DISCOVER_SCREEN) && (UI_NO_DISCOVER_SCREEN + 0 != 0))
-  #ifdef UI_RECENT_LIST_SIZE
-    #define DISCOVERED_NODES_TABLE_SIZE UI_RECENT_LIST_SIZE
-  #else
-    #define DISCOVERED_NODES_TABLE_SIZE 4
-  #endif
-  DiscoveredNode discovered_nodes[DISCOVERED_NODES_TABLE_SIZE]; // not circular, latest discovered nodes are not kept
-  uint32_t disc_node_req_tag = 0;
-  uint32_t disc_nodes_count = 0;
-
-  void checkControlDataForPendingDiscovery(uint8_t payload[], size_t p_len);
-#endif
 };
 
 extern MyMesh the_mesh;

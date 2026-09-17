@@ -22,6 +22,26 @@
 #include "../AbstractUITask.h"
 #include "../NodePrefs.h"
 
+#ifndef UI_DISCOVER_SCREEN
+  #define UI_DISCOVER_SCREEN  1
+#endif
+
+#if UI_DISCOVER_SCREEN
+  #ifdef UI_RECENT_LIST_SIZE
+    #define DISCOVERED_NODES_TABLE_SIZE UI_RECENT_LIST_SIZE
+  #else
+    #define DISCOVERED_NODES_TABLE_SIZE 4
+  #endif
+
+struct DiscoveredNode {
+  float snr_in;
+  float snr_out;
+  uint8_t pubkey_prefix[9];
+  uint8_t type;
+  char name[32];
+};
+#endif
+
 class UITask : public AbstractUITask {
   DisplayDriver* _display;
   SensorManager* _sensors;
@@ -91,10 +111,11 @@ public:
   void toggleGPS();
 
   // MyMesh::Listener
-  void onMessageRecv(uint8_t path_len, const char* from_name, const char* text) override;
+  void onMessageRecv(const ContactInfo &from, uint8_t txt_type, uint32_t sender_timestamp, uint8_t path_len, const char* text) override;
   void onChannelMsgRecv(ChannelDetails& channel_details, uint8_t path_len, const char* text) override;
   void onQueueSizeChanged(int offline_queue_size) override;
   void onDiscoveredContact(ContactInfo &contact, bool is_new, uint8_t path_len, const uint8_t* path) override;
+  void onControlDataRecv(const mesh::Packet* packet) override;
 
   // from AbstractUITask
   void notify(UIEventType t = UIEventType::none) override;

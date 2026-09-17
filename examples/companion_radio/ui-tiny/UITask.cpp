@@ -510,7 +510,10 @@ void UITask::onQueueSizeChanged(int msgcount) {
   }
 }
 
-void UITask::onMessageRecv(uint8_t path_len, const char* from_name, const char* text) {
+void UITask::onMessageRecv(const ContactInfo &from, uint8_t txt_type, uint32_t sender_timestamp, uint8_t path_len, const char* text) {
+  // we only want to show text messages on display, not cli data
+  if (!(txt_type == TXT_TYPE_PLAIN || txt_type == TXT_TYPE_SIGNED_PLAIN)) return;
+
   if (_display != NULL) {
     if (!_display->isOn() && !hasConnection()) {
       _display->turnOn();
@@ -544,6 +547,9 @@ void UITask::onDiscoveredContact(ContactInfo &contact, bool is_new, uint8_t path
   if (!hasConnection()) {
     notify(UIEventType::newContactMessage);
   }
+}
+
+void UITask::onControlDataRecv(const mesh::Packet* packet) {
 }
 
 void UITask::userLedHandler() {

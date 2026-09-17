@@ -139,15 +139,18 @@ void UITask::clearMsgPreview() {
   _need_refresh = true;
 }
 
-void UITask::onMessageRecv(uint8_t path_len, const char* from_name, const char* text) {
+void UITask::onMessageRecv(const ContactInfo &from, uint8_t txt_type, uint32_t sender_timestamp, uint8_t path_len, const char* text) {
+  // we only want to show text messages on display, not cli data
+  if (!(txt_type == TXT_TYPE_PLAIN || txt_type == TXT_TYPE_SIGNED_PLAIN)) return;
+
 #ifdef HAS_DRV2605
   vibration.trigger();   // vibrate even while the app is connected (honors quiet + cooldown)
 #endif
 
   if (path_len == 0xFF) {
-    sprintf(_origin, "(F) %s", from_name);
+    sprintf(_origin, "(F) %s", from.name);
   } else {
-    sprintf(_origin, "(%d) %s", (uint32_t) path_len, from_name);
+    sprintf(_origin, "(%d) %s", (uint32_t) path_len, from.name);
   }
   StrHelper::strncpy(_msg, text, sizeof(_msg));
 
@@ -195,6 +198,9 @@ void UITask::onDiscoveredContact(ContactInfo &contact, bool is_new, uint8_t path
   if (!hasConnection()) {
     notify(UIEventType::newContactMessage);
   }
+}
+
+void UITask::onControlDataRecv(const mesh::Packet* packet) {
 }
 
 void UITask::renderBatteryIndicator(uint16_t batteryMilliVolts) {
