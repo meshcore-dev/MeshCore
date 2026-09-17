@@ -911,7 +911,7 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
 #endif
 }
 
-void MyMesh::begin(bool has_display) {
+void MyMesh::begin() {
   BaseChatMesh::begin();
 
   if (!_store->loadMainIdentity(self_id)) {
@@ -963,24 +963,7 @@ void MyMesh::begin(bool has_display) {
   _prefs.gps_enabled = constrain(_prefs.gps_enabled, 0, 1);  // Ensure boolean 0 or 1
   _prefs.gps_interval = constrain(_prefs.gps_interval, 0, 86400);  // Max 24 hours
 
-#ifdef BLE_PIN_CODE // 123456 by default
-  if (_prefs.ble_pin == 0) {
-#ifdef DISPLAY_CLASS
-    if (has_display && BLE_PIN_CODE == 123456) {
-      StdRNG rng;
-      _active_ble_pin = rng.nextInt(100000, 999999); // random pin each session
-    } else {
-      _active_ble_pin = BLE_PIN_CODE; // otherwise static pin
-    }
-#else
-    _active_ble_pin = BLE_PIN_CODE; // otherwise static pin
-#endif
-  } else {
-    _active_ble_pin = _prefs.ble_pin;
-  }
-#else
-  _active_ble_pin = 0;
-#endif
+  _active_ble_pin = _prefs.ble_pin;
 
   resetContacts();
   _store->loadContacts(this);
@@ -1006,6 +989,9 @@ NodePrefs *MyMesh::getNodePrefs() {
 }
 uint32_t MyMesh::getBLEPin() {
   return _active_ble_pin;
+}
+void MyMesh::setBLEPin(uint32_t active_pin) {
+  _active_ble_pin = active_pin;
 }
 
 struct FreqRange {

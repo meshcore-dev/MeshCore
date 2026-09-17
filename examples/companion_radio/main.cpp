@@ -172,35 +172,36 @@ void setup() {
   #endif
   #endif
   store.begin();
-  the_mesh.begin(
-    #ifdef DISPLAY_CLASS
-        disp != NULL
-    #else
-        false
-    #endif
-  );
+  the_mesh.begin();
 #elif defined(RP2040_PLATFORM)
   LittleFS.begin();
   store.begin();
-  the_mesh.begin(
-    #ifdef DISPLAY_CLASS
-        disp != NULL
-    #else
-        false
-    #endif
-  );
+  the_mesh.begin();
 #elif defined(ESP32)
   SPIFFS.begin(true);
   store.begin();
-  the_mesh.begin(
-    #ifdef DISPLAY_CLASS
-        disp != NULL
-    #else
-        false
-    #endif
-  );
+  the_mesh.begin();
 #else
   #error "need to define filesystem"
+#endif
+
+#ifdef BLE_PIN_CODE // 123456 by default
+  if (the_mesh.getNodePrefs()->ble_pin == 0) {
+#ifdef DISPLAY_CLASS
+    if (disp != NULL && BLE_PIN_CODE == 123456) {
+      StdRNG rng;
+      the_mesh.setBLEPin(rng.nextInt(100000, 999999)); // random pin each session
+    } else {
+      the_mesh.setBLEPin(BLE_PIN_CODE); // otherwise static pin
+    }
+#else
+    the_mesh.setBLEPin(BLE_PIN_CODE); // otherwise static pin
+#endif
+  } else {
+    the_mesh.setBLEPin(the_mesh.getNodePrefs()->ble_pin);
+  }
+#else
+  the_mesh.setBLEPin(0);
 #endif
 
 // add bluetooth interface

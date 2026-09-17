@@ -100,13 +100,14 @@ public:
 
   MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMeshTables &tables, DataStore& store);
 
-  void begin(bool has_display);
+  void begin();
   void startInterface(BaseSerialInterface &serial);
   void setListener(Listener* listener) { _listener = listener; }
 
   const char *getNodeName();
   NodePrefs *getNodePrefs();
   uint32_t getBLEPin();
+  void setBLEPin(uint32_t active_pin);
 
   void loop();
   void handleCmdFrame(size_t len);
