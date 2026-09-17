@@ -528,7 +528,7 @@ void UITask::onMessageRecv(const ContactInfo &from, uint8_t txt_type, uint32_t s
   }
 }
 
-void UITask::onChannelMsgRecv(ChannelDetails& channel_details, uint8_t path_len, const char* text) {
+void UITask::onChannelMessageRecv(ChannelDetails& channel_details, uint8_t path_len, const char* text) {
   if (_display != NULL) {
     if (!_display->isOn() && !hasConnection()) {
       _display->turnOn();
@@ -547,9 +547,6 @@ void UITask::onDiscoveredContact(ContactInfo &contact, bool is_new, uint8_t path
   if (!hasConnection()) {
     notify(UIEventType::newContactMessage);
   }
-}
-
-void UITask::onControlDataRecv(const mesh::Packet* packet) {
 }
 
 void UITask::userLedHandler() {

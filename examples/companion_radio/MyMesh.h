@@ -92,10 +92,19 @@ public:
   class Listener {
     public:
       virtual void onMessageRecv(const ContactInfo &from, uint8_t txt_type, uint32_t sender_timestamp, uint8_t path_len, const char* text) = 0;
-      virtual void onChannelMsgRecv(ChannelDetails& channel_details, uint8_t path_len, const char* text) = 0;
+      virtual void onChannelMessageRecv(ChannelDetails& channel_details, uint8_t path_len, const char* text) = 0;
       virtual void onQueueSizeChanged(int msgcount) = 0;
-      virtual void onDiscoveredContact(ContactInfo &contact, bool is_new, uint8_t path_len, const uint8_t* path) = 0;
-      virtual void onControlDataRecv(const mesh::Packet* packet) = 0;
+      virtual void onDiscoveredContact(ContactInfo &contact, bool is_new, uint8_t path_len, const uint8_t* path) { }
+      virtual void onControlDataRecv(const mesh::Packet* packet) { }
+      virtual void onChannelDataRecv(const mesh::GroupChannel &channel, mesh::Packet *pkt, uint16_t data_type,
+                                     const uint8_t *data, size_t data_len) { }
+      virtual void onACKRecv(uint32_t ack_crc) { }
+      virtual uint8_t onUnhandledRequest(const ContactInfo &contact, uint32_t sender_timestamp, const uint8_t *data,
+                                         uint8_t len, uint8_t *reply) { return 0; /* unknown request type */ }
+      virtual void onUnhandledResponse(const ContactInfo &from, uint32_t tag, const uint8_t* data, uint8_t len) { }
+      virtual void onTraceRecv(mesh::Packet *packet, uint32_t tag, uint32_t auth_code, uint8_t flags,
+                               const uint8_t *path_snrs, const uint8_t *path_hashes, uint8_t path_len) { }
+      virtual void onRawDataRecv(mesh::Packet *packet) { }
   };
 
   MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMeshTables &tables, DataStore& store);

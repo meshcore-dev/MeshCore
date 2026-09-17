@@ -415,6 +415,11 @@ void MyMesh::onContactPathUpdated(const ContactInfo &contact) {
 }
 
 ContactInfo*  MyMesh::processAck(const uint8_t *data) {
+  if (_listener) {
+    uint32_t ack_crc;
+    memcpy(&ack_crc, data, 4);
+    _listener->onACKRecv(ack_crc);
+  }
   // see if matches any in a table
   for (int i = 0; i < EXPECTED_ACK_TABLE_SIZE; i++) {
     if (memcmp(data, &expected_ack_table[i].ack, 4) == 0) { // got an ACK from recipient
@@ -588,7 +593,7 @@ void MyMesh::onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packe
     if (!getChannel(channel_idx, channel_details)) {
       strcpy(channel_details.name, "Unknown");
     }
-    _listener->onChannelMsgRecv(channel_details, path_len, text);
+    _listener->onChannelMessageRecv(channel_details, path_len, text);
     _listener->onQueueSizeChanged(offline_queue_len);
   }
 }
@@ -625,6 +630,9 @@ void MyMesh::onChannelDataRecv(const mesh::GroupChannel &channel, mesh::Packet *
     uint8_t frame[1];
     frame[0] = PUSH_CODE_MSG_WAITING; // send push 'tickle'
     _serial->writeFrame(frame, 1);
+  }
+  if (_listener) {
+    _listener->onChannelDataRecv(channel, pkt, data_type, data, data_len);
   }
 }
 
@@ -673,6 +681,8 @@ uint8_t MyMesh::onContactRequest(const ContactInfo &contact, uint32_t sender_tim
       memcpy(&reply[4], telemetry.getBuffer(), tlen);
       return 4 + tlen;
     }
+  } else if (_listener) {
+    return _listener->onUnhandledRequest(contact, sender_timestamp, data, len, reply);
   }
   return 0; // unknown
 }
@@ -748,6 +758,8 @@ void MyMesh::onContactResponse(const ContactInfo &contact, const uint8_t *data, 
     memcpy(&out_frame[i], &data[4], len - 4);
     i += (len - 4);
     _serial->writeFrame(out_frame, i);
+  } else if (_listener && len > 4) {
+    _listener->onUnhandledResponse(contact, tag, &data[4], len - 4);
   }
 }
 
@@ -822,6 +834,9 @@ void MyMesh::onRawDataRecv(mesh::Packet *packet) {
   } else {
     MESH_DEBUG_PRINTLN("onRawDataRecv(), data received while app offline");
   }
+  if (_listener) {
+    _listener->onRawDataRecv(packet);
+  }
 }
 
 void MyMesh::onTraceRecv(mesh::Packet *packet, uint32_t tag, uint32_t auth_code, uint8_t flags,
@@ -851,6 +866,9 @@ void MyMesh::onTraceRecv(mesh::Packet *packet, uint32_t tag, uint32_t auth_code,
     _serial->writeFrame(out_frame, i);
   } else {
     MESH_DEBUG_PRINTLN("onTraceRecv(), data received while app offline");
+  }
+  if (_listener) {
+    _listener->onTraceRecv(packet, tag, auth_code, flags, path_snrs, path_hashes, path_len);
   }
 }
 

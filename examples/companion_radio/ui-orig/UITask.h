@@ -72,10 +72,9 @@ public:
 
   // MyMesh::Listener
   void onMessageRecv(const ContactInfo &from, uint8_t txt_type, uint32_t sender_timestamp, uint8_t path_len, const char* text) override;
-  void onChannelMsgRecv(ChannelDetails& channel_details, uint8_t path_len, const char* text) override;
+  void onChannelMessageRecv(ChannelDetails& channel_details, uint8_t path_len, const char* text) override;
   void onQueueSizeChanged(int offline_queue_size) override;
   void onDiscoveredContact(ContactInfo &contact, bool is_new, uint8_t path_len, const uint8_t* path) override;
-  void onControlDataRecv(const mesh::Packet* packet) override;
 
   // from AbstractUITask
   void notify(UIEventType t = UIEventType::none) override;

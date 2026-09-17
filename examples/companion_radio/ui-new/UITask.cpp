@@ -808,7 +808,7 @@ void UITask::onMessageRecv(const ContactInfo &from, uint8_t txt_type, uint32_t s
   }
 }
 
-void UITask::onChannelMsgRecv(ChannelDetails& channel_details, uint8_t path_len, const char* text) {
+void UITask::onChannelMessageRecv(ChannelDetails& channel_details, uint8_t path_len, const char* text) {
   ((MsgPreviewScreen *) msg_preview)->addPreview(path_len, channel_details.name, text);
   setCurrScreen(msg_preview);
 
