@@ -4,14 +4,20 @@
 #include <Arduino.h>
 #include <helpers/NRF52Board.h>
 #include <helpers/RefCountedDigitalPin.h>
+#include <helpers/KeyValueStore.h>
 #include "LoRaFEMControl.h"
 
 class T096Board : public NRF52BoardDCDC {
+  KeyValueStore* _prefs = NULL;
+
 protected:
 #ifdef NRF52_POWER_MANAGEMENT
   void initiateShutdown(uint8_t reason) override;
 #endif
   void variant_shutdown();
+
+  bool setLoRaFemLnaEnabled(bool enable);
+  bool isLoRaFemLnaEnabled() const;
 
 public:
   RefCountedDigitalPin periph_power;
@@ -19,13 +25,12 @@ public:
 
   T096Board() :periph_power(PIN_VEXT_EN,PIN_VEXT_EN_ACTIVE), NRF52Board("T096_OTA") {}
   void begin();
+  void attachDynamicPrefs(KeyValueStore* prefs);
+  bool handleCommand(const char* command, uint32_t sender_timestamp, char* reply) override;
 
   void onBeforeTransmit(void) override;
   void onAfterTransmit(void) override;
   uint16_t getBattMilliVolts() override;
   const char* getManufacturerName() const override ;
   void powerOff() override;
-  bool setLoRaFemLnaEnabled(bool enable) override;
-  bool canControlLoRaFemLna() const override;
-  bool isLoRaFemLnaEnabled() const override;
 };

@@ -3,7 +3,7 @@
 #define RADIOLIB_STATIC_ONLY 1
 #include <RadioLib.h>
 #include <helpers/radiolib/RadioLibWrappers.h>
-#include <helpers/MeshadventurerBoard.h>
+#include <MeshadventurerBoard.h>
 #include <helpers/radiolib/CustomSX1262Wrapper.h>
 #include <helpers/radiolib/CustomSX1268Wrapper.h>
 #include <helpers/AutoDiscoverRTCClock.h>
@@ -44,4 +44,3 @@ extern MASensorManager sensors;
 
 bool radio_init();
 mesh::LocalIdentity radio_new_identity();
-
