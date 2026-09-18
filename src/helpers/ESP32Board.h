@@ -18,9 +18,7 @@
 #include <helpers/KeyValueStore.h>
 
 #if ARDUINO_USB_CDC_ON_BOOT && !ARDUINO_USB_MODE
-// tud_mounted() for isExternalPowered() on boards using TinyUSB (USBCDC)
-// instead of the native HWCDC, see below.
-#include "esp32-hal-tinyusb.h"
+#include "esp32-hal-tinyusb.h"  // for tud_mounted(), used below
 #endif
 
 class ESP32Board : public mesh::MainBoard {
@@ -174,38 +172,17 @@ public:
   }
 
 #if ARDUINO_USB_CDC_ON_BOOT
-  // MeshCore.h's own default is `return false;` and no ESP32 board in
-  // this codebase overrode it before this (confirmed by grep, unlike
-  // NRF52Board which has a real VBUS-detect register; no ESP32-S3
-  // equivalent register exists).
-  // NOTE: (bool)Serial was tried first and is WRONG on both USB paths
-  // below: both HWCDC::isCDC_Connected() and USBCDC::operator bool()
-  // only report true once an actual terminal has dialogued with the port
-  // (CDC TX/RX traffic, or DTR/RTS respectively), so they stay stuck
-  // false across a plain esp_restart() with no monitor attached, even
-  // while USB is genuinely powered (confirmed on real V4.3 hardware:
-  // icon vanished after WiFi-toggle reboots, only returned after a manual
-  // RST where a tool happened to be talking to the port). Two different
-  // ESP32-S3 boards in this codebase use two different USB stacks
-  // (see ARDUINO_USB_MODE in their board .json), each needing its own
-  // traffic-independent, PHY/bus-level "is a host actually there" check.
  #if ARDUINO_USB_MODE
-  // Native USB-Serial-JTAG peripheral (HWCDC), e.g. Heltec V4.3.
-  // isPlugged() is public/static, purely SOF-frame-based (USB PHY level),
-  // tracked from early boot via usb_serial_jtag_conn_status_init().
+  // Native USB-Serial-JTAG (HWCDC), e.g. Heltec V4.3.
   bool isExternalPowered() override {
     return Serial.isPlugged();
   }
  #else
-  // External USB-OTG PHY via TinyUSB (USBCDC), e.g. Wireless Tracker V2.
-  // tud_mounted() reflects real bus enumeration, independent of DTR/RTS.
+  // External USB-OTG via TinyUSB (USBCDC), e.g. Wireless Tracker V2.
   bool isExternalPowered() override {
     return tud_mounted();
   }
  #endif
-  // Common limitation either way: a "dumb" charger with no data lines
-  // generates no SOF traffic and never enumerates, so it won't be seen
-  // as external power; only an active USB host (PC, OTG phone) will.
 #endif
 
   // https://docs.espressif.com/projects/esp-idf/en/v4.4.7/esp32/api-reference/system/system.html
