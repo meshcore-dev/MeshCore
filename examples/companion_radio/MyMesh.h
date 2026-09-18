@@ -67,6 +67,15 @@
 #define BLE_NAME_PREFIX "MeshCore-"
 #endif
 
+// A CMD_GET_CONTACTS response is streamed one frame per loop() pass, while the
+// packet callbacks push frames at any time in between. Pushes are held until the
+// response ends so a client reading it never sees a push in the middle; this is
+// the most that can be held at once, and a full buffer drops the push the same
+// way a full serial send queue does.
+#ifndef MAX_DEFERRED_PUSHES
+#define MAX_DEFERRED_PUSHES 8
+#endif
+
 #include <helpers/BaseChatMesh.h>
 #include <helpers/TransportKeyStore.h>
 
@@ -210,7 +219,8 @@ private:
   void writeOKFrame();
   void writeErrFrame(uint8_t err_code);
   void writeDisabledFrame();
-  void writeContactRespFrame(uint8_t code, const ContactInfo &contact);
+  void writeContactRespFrame(uint8_t code, const ContactInfo &contact, bool push = false);
+  size_t writePushFrame(const uint8_t src[], size_t len);
   void updateContactFromFrame(ContactInfo &contact, uint32_t& last_mod, const uint8_t *frame, int len);
   void addToOfflineQueue(const uint8_t frame[], int len);
   int getFromOfflineQueue(uint8_t frame[]);
@@ -244,6 +254,9 @@ private:
   uint32_t _most_recent_lastmod;
   uint32_t _active_ble_pin;
   bool _iter_started;
+  uint8_t _deferred_push[MAX_DEFERRED_PUSHES][MAX_FRAME_SIZE];
+  uint8_t _deferred_push_len[MAX_DEFERRED_PUSHES];
+  uint8_t _deferred_push_count;
   bool _cli_rescue;
   bool send_unscoped;   // force un-scoped flood (instead of using send_scope)
   char cli_command[80];
