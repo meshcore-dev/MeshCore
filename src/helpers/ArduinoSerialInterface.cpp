@@ -13,11 +13,46 @@ void ArduinoSerialInterface::disable() {
   _isEnabled = false;
 }
 
-bool ArduinoSerialInterface::isConnected() const { 
+bool ArduinoSerialInterface::isConnected() const {
+  if (_conn_check) return _conn_check();
   return true;   // no way of knowing, so assume yes
 }
 
+bool ArduinoSerialInterface::isSessionEstablished() const {
+  if (_estab_check) return _estab_check();
+  return isConnected();
+}
+
+void ArduinoSerialInterface::resetActivity() {
+  // ONLY the activity timestamp. The parser is deliberately left alone: a new
+  // session must prove itself with a fresh frame, but resetting the framing
+  // state mid-stream makes the remainder of an interrupted transfer be scanned
+  // as headers, and binary payload then reads as real commands. Letting the
+  // in-flight frame absorb the continuation is what this parser has always
+  // done, and it recovers on its own.
+  _last_frame_ms = 0;
+}
+
 bool ArduinoSerialInterface::isWriteBusy() const {
+  if (_flow_ctl) {
+    // never report busy while no client is attached: with nothing draining
+    // the port the TX buffer sits permanently full (ESP32 HWCDC keeps the
+    // ring filled with discarded frames) and a busy=true here would starve
+    // the paced bulk streams (contact sync) on ALL other interfaces forever
+    if (!isConnected()) return false;
+    int avail = const_cast<Stream*>(_serial)->availableForWrite();
+    if (avail > _max_afw) _max_afw = avail;
+    if (_max_afw < (int)(MAX_FRAME_SIZE + 3)) {
+      // this stream's TX buffer can never hold a max-size frame (classic ESP32
+      // UART FIFO 128, TinyUSB CDC 64, STM32 serial ring 63): pacing against
+      // MAX_FRAME_SIZE would report busy forever and starve the paced bulk
+      // streams -> fall back to unpaced (possibly blocking) writes instead
+      return false;
+    }
+    // pace bulk streams (contact sync) so a slow/stalled host can't force
+    // blocking writes or torn frames
+    return avail < (int)(MAX_FRAME_SIZE + 3);
+  }
   return false;
 }
 
@@ -25,6 +60,25 @@ size_t ArduinoSerialInterface::writeFrame(const uint8_t src[], size_t len) {
   if (len > MAX_FRAME_SIZE) {
     // frame is too big!
     return 0;
+  }
+  if (_flow_ctl) {
+    if (!isSessionEstablished()) {
+      // nobody ever talked to us on this port: drop silently instead of
+      // clogging the TX buffer with frames no one will ever read.
+      // (an established but idle client still gets its frames -- the
+      // whole-frame check below keeps that bounded and non-blocking)
+      return len;
+    }
+    int avail = _serial->availableForWrite();
+    if (avail > _max_afw) _max_afw = avail;
+    if (_max_afw >= (int)(MAX_FRAME_SIZE + 3) && avail < (int)(len + 3)) {
+      // drop the frame as a whole: a short write would tear the length-prefixed
+      // framing and permanently desync the receiver.
+      // (only on streams whose buffer has proven it can hold a max-size frame;
+      // small-buffer transports write through and block like they always did
+      // before flow control existed)
+      return 0;
+    }
   }
 
   uint8_t hdr[3];
@@ -41,6 +95,7 @@ size_t ArduinoSerialInterface::checkRecvFrame(uint8_t dest[]) {
     int c = _serial->read();
     if (c < 0) break;
 
+
     switch (_state) {
       case RECV_STATE_IDLE:
         if (c == '<') {
@@ -54,6 +109,12 @@ size_t ArduinoSerialInterface::checkRecvFrame(uint8_t dest[]) {
       case RECV_STATE_LEN1_FOUND:
         _frame_len |= ((uint16_t)c) << 8;   // MSB
         rx_len = 0;
+        // Any declared length is accepted and truncated on delivery, as this
+        // parser has always done -- clients rely on it, and how far they
+        // overshoot is not ours to bound (the Python client encodes the whole
+        // string, so a channel message of multibyte characters runs to several
+        // hundred bytes). A corrupt length costs exactly what it costs the
+        // base: its declared bytes are counted down, then the parser resyncs.
         _state = _frame_len > 0 ? RECV_STATE_LEN2_FOUND : RECV_STATE_IDLE;
         break;
       default:
@@ -65,6 +126,7 @@ size_t ArduinoSerialInterface::checkRecvFrame(uint8_t dest[]) {
           if (_frame_len > MAX_FRAME_SIZE) _frame_len = MAX_FRAME_SIZE;    // truncate
           memcpy(dest, rx_buf, _frame_len);
           _state = RECV_STATE_IDLE;  // reset state, for next frame
+          _last_frame_ms = millis(); // proof that a real client is talking to us
           return _frame_len;
         }
     }
