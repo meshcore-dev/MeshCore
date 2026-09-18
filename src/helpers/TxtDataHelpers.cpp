@@ -27,8 +27,9 @@ bool StrHelper::isBlank(const char* str) {
 }
 
 #include <Arduino.h>
+#include <stdio.h>
 
-union int32_Float_t 
+union int32_Float_t
 {
   int32_t Long;
   float Float;
@@ -100,11 +101,9 @@ static void _ftoa(float f, char *p, int *status)
       *p++ = '-';
   if (int_part == 0)
     *p++ = '0';
-  else 
+  else
   {
-    ltoa(int_part, p, 10);
-    while (*p)
-      p++;
+    p += snprintf(p, 11, "%ld", (long)int_part);
   }
   *p++ = '.';
   if (frac_part == 0)
