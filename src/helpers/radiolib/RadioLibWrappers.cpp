@@ -24,6 +24,10 @@ void setFlag(void) {
   state |= STATE_INT_READY;
 }
 
+bool RadioLibWrapper::isIRQPending() const {
+  return (state & STATE_INT_READY) != 0;
+}
+
 void RadioLibWrapper::begin() {
   _radio->setPacketReceivedAction(setFlag);  // this is also SentComplete interrupt
   _preamble_sf = getSpreadingFactor();
@@ -31,6 +35,7 @@ void RadioLibWrapper::begin() {
   state = STATE_IDLE;
 
   if (_board->getStartupReason() == BD_STARTUP_RX_PACKET) {  // received a LoRa packet (while in deep sleep)
+    state = STATE_RX;
     setFlag(); // LoRa packet is already received
   }
 
@@ -73,7 +78,7 @@ void RadioLibWrapper::doResetAGC() {
 
 void RadioLibWrapper::resetAGC() {
   // make sure we're not mid-receive of packet!
-  if ((state & STATE_INT_READY) != 0 || isReceivingPacket()) return;
+  if (isIRQPending() || isReceivingPacket()) return;
 
   doResetAGC();
   state = STATE_IDLE;   // trigger a startReceive()
@@ -89,7 +94,7 @@ void RadioLibWrapper::resetAGC() {
 
 void RadioLibWrapper::loop() {
   if (state == STATE_RX && _num_floor_samples < NUM_NOISE_FLOOR_SAMPLES) {
-    if (!isReceivingPacket()) {
+    if (!isIRQPending() && !isReceivingPacket()) {
       int rssi = getCurrentRSSI();
       if (rssi < _noise_floor + SAMPLING_THRESHOLD) {  // only consider samples below current floor + sampling THRESHOLD
         _num_floor_samples++;
@@ -127,7 +132,7 @@ bool RadioLibWrapper::isInRecvMode() const {
 
 int RadioLibWrapper::recvRaw(uint8_t* bytes, int sz) {
   int len = 0;
-  if (state & STATE_INT_READY) {
+  if (isRecvIRQPending()) {
     len = _radio->getPacketLength();
     if (len > 0) {
       if (len > sz) { len = sz; }
@@ -177,7 +182,7 @@ bool RadioLibWrapper::startSendRaw(const uint8_t* bytes, int len) {
 }
 
 bool RadioLibWrapper::isSendComplete() {
-  if (state & STATE_INT_READY) {
+  if ((state & ~STATE_INT_READY) == STATE_TX_WAIT && isIRQPending()) {
     state = STATE_IDLE;
     n_sent++;
     return true;
