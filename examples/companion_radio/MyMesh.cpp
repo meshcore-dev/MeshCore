@@ -2242,6 +2242,16 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
     return true;
   }
 
+  if (strcmp(command, "reboot") == 0) {
+    // This dispatcher (reached via CMD_RUN_CLI_COMMAND, used by BLE/WiFi/
+    // USB companion clients) had no "reboot" branch -- CMD_REBOOT (a
+    // separate binary opcode) and checkCLIRescueCmd()'s own special case
+    // both bypass handleCommand() entirely, so this gap was never noticed
+    // on those paths. No reply attempted, board.reboot() doesn't return.
+    board.reboot();  // doesn't return
+    return true;
+  }
+
   return false;  // not handled
 }
 
