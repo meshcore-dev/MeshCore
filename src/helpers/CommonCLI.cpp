@@ -393,17 +393,35 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
     } else if (memcmp(command, "gps", 3) == 0) {
       LocationProvider * l = _sensors->getLocationProvider();
       if (l != NULL) {
-        bool enabled = l->isEnabled(); // is EN pin on ?
-        bool fix = l->isValid();       // has fix ?
-        int sats = l->satellitesCount();
-        bool active = !strcmp(_sensors->getSettingByKey("gps"), "1");
-        if (enabled) {
-          sprintf(reply, "on, %s, %s, %d sats",
-            active?"active":"deactivated",
-            fix?"fix":"no fix",
-            sats);
+        // isEnabled() reports the GPS enable pin. A provider whose board has
+        // no usable enable pin returns a constant true, so it is not a
+        // statement that the receiver is running: `active` is. Leading with it
+        // produced replies like "on, deactivated, no fix, 0 sats".
+        //
+        // "No usable enable pin" covers both spellings: PIN_GPS_EN defined as
+        // -1, and PIN_GPS_EN left undefined, which MicroNMEALocationProvider's
+        // GPS_EN fallback also resolves to -1.
+        // A GPS-enabled build always has a provider, since _location is set in
+        // the sensor manager's constructor, so l != NULL does not mean a
+        // receiver was found. The "gps" setting is only published once one is
+        // detected, so its absence is what tells us, and getSettingByKey()
+        // returns NULL in that case.
+        const char* gps_setting = _sensors->getSettingByKey("gps");
+        if (gps_setting == NULL) {
+          strcpy(reply, "not detected");
         } else {
-          strcpy(reply, "off");
+          bool enabled = l->isEnabled(); // is EN pin on ?
+          bool fix = l->isValid();       // has fix ?
+          int sats = l->satellitesCount();
+          bool active = strcmp(gps_setting, "1") == 0;
+          if (enabled) {
+            sprintf(reply, "%s, %s, %d sats",
+              active?"active":"deactivated",
+              fix?"fix":"no fix",
+              sats);
+          } else {
+            strcpy(reply, "off (enable pin low)");
+          }
         }
       } else {
         strcpy(reply, "Can't find GPS");
