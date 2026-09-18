@@ -408,7 +408,7 @@ void UITask::userLedHandler() {
         statusLedWrite(255, 0, 0);      // red: battery low
       } else if (_msgcount > 0) {
         statusLedWrite(255, 90, 0);     // amber: unread messages
-      } else if (_connected) {
+      } else if (hasConnection()) {
         statusLedWrite(0, 0, 255);      // blue: app connected
       } else {
         statusLedWrite(0, 255, 0);      // green: heartbeat
