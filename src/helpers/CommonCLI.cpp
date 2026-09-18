@@ -19,6 +19,43 @@ static uint32_t _atoi(const char* sp) {
   return n;
 }
 
+// Smallest reply buffer any caller hands handleCommand(). The serial CLI passes a char[160]
+// (examples/simple_repeater/main.cpp) and remote admin passes 161, the tail of a uint8_t[166] at
+// offset 5 (MyMesh.cpp). Every wrapper that reaches here -- simple_repeater, simple_room_server
+// and simple_sensor -- first reflects an optional 3-byte "xx|" companion-radio prefix back into
+// the reply and advances the pointer past it, so what this function receives can be 3 bytes
+// shorter than either. The paging loop below has to bound itself against the smallest of those,
+// because it can see neither the buffer nor whether a prefix was consumed.
+#define CLI_REPLY_MAX  157
+
+// Bytes held back for a "... next:N" continuation marker: 9 for the text, up to 10 for the index
+// and 1 for the terminator. A page that fills the buffer without room for its own marker cannot
+// be resumed.
+#define CLI_MARKER_RESERVE  20
+
+// Parses a paging `start` argument into a bounded index.
+//
+// _atoi() returns uint32_t, and assigning a large value straight to an int wraps negative: a start
+// of 4294967295 becomes -1, which begins a listing loop below the first index and reaches the
+// accessors with a negative index. Clamping to total instead makes an out-of-range start answer
+// through the ordinary "nothing more to list" path.
+//
+// The clamp is applied while parsing rather than to _atoi()'s result, because _atoi() wraps its
+// own uint32_t on a long enough digit string: 4294967296 comes back as 0, which would list from
+// the first index instead of answering that there is nothing there.
+static int parseStartIndex(const char* sp, int total) {
+  if (total <= 0) return 0;
+  uint32_t limit = (uint32_t) total;
+  uint32_t value = 0;
+  while (*sp >= '0' && *sp <= '9') {
+    uint32_t digit = (uint32_t)(*sp++ - '0');
+    // value * 10 + digit > limit, written so that neither side can overflow.
+    if (value > limit / 10 || (value == limit / 10 && digit > limit % 10)) return total;
+    value = value * 10 + digit;
+  }
+  return (int) value;
+}
+
 static bool isValidName(const char *n) {
   while (*n) {
     if (*n == '[' || *n == ']' || *n == '\\' || *n == ':' || *n == ',' || *n == '?' || *n == '*') return false;
@@ -305,27 +342,45 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       }
     } else if (memcmp(command, "sensor list", 11) == 0) {
       char* dp = reply;
+      const char* lim = reply + CLI_REPLY_MAX;
       int start = 0;
       int end = _sensors->getNumSettings();
       if (strlen(command) > 11) {
-        start = _atoi(command+12);
+        start = parseStartIndex(command+12, end);
       }
       if (start >= end) {
         strcpy(reply, "no custom var");
       } else {
-        sprintf(dp, "%d vars\n", end);
+        snprintf(dp, (size_t)(lim - dp), "%d vars\n", end);
         dp = strchr(dp, 0);
         int i;
-        for (i = start; i < end && (dp-reply < 134); i++) {
-          sprintf(dp, "%s=%s\n",
-            _sensors->getSettingName(i),
-            _sensors->getSettingValue(i));
+        for (i = start; i < end; i++) {
+          const char* name = _sensors->getSettingName(i);
+          const char* value = _sensors->getSettingValue(i);
+          if (name == NULL || value == NULL) {
+            // Out of range for this manager, so there is nothing further to list. Stopping here
+            // keeps a NULL out of %s, where it is undefined behaviour rather than "(null)" on the
+            // C libraries these targets link against.
+            end = i;
+            break;
+          }
+          size_t space = (size_t)(lim - dp);
+          // A row with further rows behind it has to leave room for the continuation marker, so a
+          // page is never emitted without the marker that makes it resumable -- including the
+          // first row of a page, which is written truncated into what is left rather than skipped.
+          size_t avail = (i + 1 < end && space > CLI_MARKER_RESERVE) ? space - CLI_MARKER_RESERVE
+                                                                     : space;
+          size_t row_len = strlen(name) + strlen(value) + 2;  // "name" "=" "value" "\n"
+          // Stop before a row that does not fit, but never on the first row of a page: that emits
+          // "... next:<start>" and never advances.
+          if (row_len >= avail && i > start) break;
+          snprintf(dp, avail, "%s=%s\n", name, value);
           dp = strchr(dp, 0);
         }
         if (i < end) {
-          sprintf(dp, "... next:%d", i);
-        } else {
-          *(dp-1) = 0; // remove last CR
+          snprintf(dp, (size_t)(lim - dp), "... next:%d", i);
+        } else if (dp > reply && *(dp-1) == '\n') {
+          *(dp-1) = 0; // remove the row terminator, which a truncated final row does not carry
         }
       }
     } else if (memcmp(command, "region", 6) == 0) {
