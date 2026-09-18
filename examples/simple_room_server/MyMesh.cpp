@@ -799,7 +799,7 @@ void MyMesh::sendSelfAdvertisement(int delay_millis, bool flood) {
     if (flood) {
       sendFloodScoped(default_scope, pkt, delay_millis, _prefs.path_hash_mode + 1);
     } else {
-      sendZeroHop(pkt, delay_millis);
+      sendZeroHop(pkt, delay_millis, _prefs.path_hash_mode + 1);
     }
   } else {
     MESH_DEBUG_PRINTLN("ERROR: unable to create advertisement packet!");
@@ -1047,7 +1047,7 @@ void MyMesh::loop() {
     updateAdvertTimer();      // also schedule local advert (so they don't overlap)
   } else if (next_local_advert && millisHasNowPassed(next_local_advert)) {
     mesh::Packet *pkt = createSelfAdvert();
-    if (pkt) sendZeroHop(pkt);
+    if (pkt) sendZeroHop(pkt, (uint32_t)0, _prefs.path_hash_mode + 1);
 
     updateAdvertTimer(); // schedule next local advert
   }
