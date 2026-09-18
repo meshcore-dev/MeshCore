@@ -431,6 +431,20 @@ void MyMesh::sendFloodReply(mesh::Packet* packet, unsigned long delay_millis, ui
   }
 }
 
+void MyMesh::sendClientReplyWithFallbackScope(ClientInfo* client, mesh::Packet* packet,
+                                              unsigned long delay_millis, uint8_t path_hash_size,
+                                              const TransportKey* fallback_scope) {
+  if (packet == NULL) return;
+
+  if (client != NULL && client->out_path_len != OUT_PATH_UNKNOWN) {
+    sendDirect(packet, client->out_path, client->out_path_len, delay_millis);
+  } else if (fallback_scope != NULL) {
+    sendFloodScoped(*fallback_scope, packet, delay_millis, path_hash_size);
+  } else {
+    sendFlood(packet, delay_millis, path_hash_size);
+  }
+}
+
 bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
   if (_prefs.disable_fwd) return false;
   if (packet->isRouteFlood()
@@ -730,30 +744,27 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
         }
       }
 
-      uint8_t temp[166];
       char *command = (char *)&data[5];
-      char *reply = (char *)&temp[5];
-      if (is_retry) {
-        *reply = 0;
-      } else {
-        handleCommand(sender_timestamp, command, reply);
-      }
-      int text_len = strlen(reply);
-      if (text_len > 0) {
-        uint32_t timestamp = getRTCClock()->getCurrentTimeUnique();
-        if (timestamp == sender_timestamp) {
-          // WORKAROUND: the two timestamps need to be different, in the CLI view
-          timestamp++;
-        }
-        memcpy(temp, &timestamp, 4);        // mostly an extra blob to help make packet_hash unique
-        temp[4] = (TXT_TYPE_CLI_DATA << 2); // NOTE: legacy was: TXT_TYPE_PLAIN
-
-        auto reply = createDatagram(PAYLOAD_TYPE_TXT_MSG, client->id, secret, temp, 5 + text_len);
-        if (reply) {
-          if (client->out_path_len == OUT_PATH_UNKNOWN) {
-            sendFloodReply(reply, CLI_REPLY_DELAY_MILLIS, packet->getPathHashSize());
+      if (!is_retry) {
+        TransportKey reply_scope;
+        const bool reply_scoped =
+            recv_pkt_region != NULL && !recv_pkt_region->isWildcard()
+            && region_map.getTransportKeysFor(*recv_pkt_region, &reply_scope, 1) > 0;
+        size_t command_len = strlen(command);
+        if (!deferred_cli_command.enqueue(i, sender_timestamp, packet->getPathHashSize(),
+                                          secret, command, command_len)) {
+          const char* error = deferred_cli_command.pending
+              ? "Err - another remote command is still running"
+              : "Err - remote command is too long";
+          sendRemoteCliReply(client, secret, packet->getPathHashSize(),
+                             sender_timestamp, error,
+                             reply_scoped ? &reply_scope : NULL);
+        } else {
+          deferred_cli_reply_scoped = reply_scoped;
+          if (reply_scoped) {
+            deferred_cli_reply_scope = reply_scope;
           } else {
-            sendDirect(reply, client->out_path, client->out_path_len, CLI_REPLY_DELAY_MILLIS);
+            memset(deferred_cli_reply_scope.key, 0, sizeof(deferred_cli_reply_scope.key));
           }
         }
       }
@@ -761,6 +772,59 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
       MESH_DEBUG_PRINTLN("onPeerDataRecv: possible replay attack detected");
     }
   }
+}
+
+void MyMesh::sendRemoteCliReply(ClientInfo* client, const uint8_t* secret,
+                                uint8_t path_hash_size, uint32_t sender_timestamp,
+                                const char* reply, const TransportKey* fallback_scope) {
+  if (client == NULL || secret == NULL || reply == NULL || reply[0] == 0) return;
+
+  size_t text_len = strlen(reply);
+  const size_t max_text_len =
+      MAX_PACKET_PAYLOAD - CIPHER_MAC_SIZE - (CIPHER_BLOCK_SIZE - 1) - 5;
+  if (text_len > max_text_len) text_len = max_text_len;
+
+  uint32_t timestamp = getRTCClock()->getCurrentTimeUnique();
+  if (timestamp == sender_timestamp) {
+    // The two timestamps need to differ in the remote CLI view.
+    timestamp++;
+  }
+  memcpy(reply_data, &timestamp, sizeof(timestamp));
+  reply_data[4] = (TXT_TYPE_CLI_DATA << 2);
+  if (reply != (const char*)&reply_data[5]) {
+    memmove(&reply_data[5], reply, text_len);
+  }
+
+  mesh::Packet* packet = createDatagram(PAYLOAD_TYPE_TXT_MSG, client->id, secret,
+                                        reply_data, 5 + text_len);
+  sendClientReplyWithFallbackScope(client, packet, CLI_REPLY_DELAY_MILLIS,
+                                   path_hash_size, fallback_scope);
+}
+
+void __attribute__((noinline)) MyMesh::processDeferredCliCommand() {
+  if (!deferred_cli_command.pending) return;
+
+  const int client_index = deferred_cli_command.client_index;
+  if (client_index < 0 || client_index >= acl.getNumClients()) {
+    MESH_DEBUG_PRINTLN("processDeferredCliCommand: invalid client idx: %d", client_index);
+    deferred_cli_command.clear();
+    deferred_cli_reply_scoped = false;
+    memset(deferred_cli_reply_scope.key, 0, sizeof(deferred_cli_reply_scope.key));
+    return;
+  }
+
+  ClientInfo* client = acl.getClientByIdx(client_index);
+  char* reply = (char*)&reply_data[5];
+  reply[0] = 0;
+  handleCommand(deferred_cli_command.sender_timestamp,
+                deferred_cli_command.command, reply);
+  sendRemoteCliReply(client, deferred_cli_command.secret,
+                     deferred_cli_command.path_hash_size,
+                     deferred_cli_command.sender_timestamp, reply,
+                     deferred_cli_reply_scoped ? &deferred_cli_reply_scope : NULL);
+  deferred_cli_command.clear();
+  deferred_cli_reply_scoped = false;
+  memset(deferred_cli_reply_scope.key, 0, sizeof(deferred_cli_reply_scope.key));
 }
 
 bool MyMesh::onPeerPathRecv(mesh::Packet *packet, int sender_idx, const uint8_t *secret, uint8_t *path,
@@ -876,6 +940,11 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   last_millis = 0;
   uptime_millis = 0;
   next_local_advert = next_flood_advert = 0;
+  deferred_cli_reply_scoped = false;
+  memset(deferred_cli_reply_scope.key, 0, sizeof(deferred_cli_reply_scope.key));
+  pending_self_advert_delay = 0;
+  pending_self_advert = false;
+  pending_self_advert_flood = false;
   dirty_contacts_expiry = 0;
   set_radio_at = revert_radio_at = 0;
   _logging = false;
@@ -1030,6 +1099,14 @@ bool MyMesh::formatFileSystem() {
 }
 
 void MyMesh::sendSelfAdvertisement(int delay_millis, bool flood) {
+  // CommonCLI can invoke this while handling an encrypted remote-admin packet.
+  // Defer Ed25519 signing until the command and receive call stacks unwind.
+  pending_self_advert_delay = delay_millis > 0 ? (uint32_t)delay_millis : 0;
+  pending_self_advert_flood = flood;
+  pending_self_advert = true;
+}
+
+void MyMesh::sendSelfAdvertisementNow(uint32_t delay_millis, bool flood) {
   mesh::Packet *pkt = createSelfAdvert();
   if (pkt) {
     if (flood) {
@@ -1291,6 +1368,17 @@ void MyMesh::loop() {
 #endif
 
   mesh::Mesh::loop();
+  processDeferredCliCommand();
+  servicePostMeshLoop();
+}
+
+void __attribute__((noinline)) MyMesh::servicePostMeshLoop() {
+  if (pending_self_advert) {
+    const uint32_t delay_millis = pending_self_advert_delay;
+    const bool flood = pending_self_advert_flood;
+    pending_self_advert = false;
+    sendSelfAdvertisementNow(delay_millis, flood);
+  }
 
   if (next_flood_advert && millisHasNowPassed(next_flood_advert)) {
     mesh::Packet *pkt = createSelfAdvert();
@@ -1332,6 +1420,7 @@ void MyMesh::loop() {
 
 // To check if there is pending work
 bool MyMesh::hasPendingWork() const {
+  if (deferred_cli_command.pending || pending_self_advert) return true;
 #if defined(WITH_BRIDGE)
   if (bridge.isRunning()) return true;  // bridge needs WiFi radio, can't sleep
 #endif
