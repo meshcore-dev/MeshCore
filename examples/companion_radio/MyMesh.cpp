@@ -2209,7 +2209,7 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
     return true;
   }
   if (strcmp(command, "get wifi.enabled") == 0) {
-    sprintf(reply, "> %d", _prefs.wifi_enabled);
+    sprintf(reply, "> %s", _prefs.wifi_enabled ? "on" : "off");
     return true;
   }
   if (strcmp(command, "get wifi.status") == 0) {
