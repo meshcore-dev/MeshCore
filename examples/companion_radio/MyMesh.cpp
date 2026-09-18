@@ -2199,7 +2199,10 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
     return true;
   }
   if (strcmp(command, "get wifi.enabled") == 0) {
-    sprintf(reply, "> %d", _prefs.wifi_enabled);
+    // Harmonised with "on"/"off", the convention already used everywhere
+    // else in this codebase for boolean gets (radio.rxgain,
+    // radio.fem.rxgain) -- bare "1"/"0" here was the one outlier.
+    sprintf(reply, "> %s", _prefs.wifi_enabled ? "on" : "off");
     return true;
   }
   if (strcmp(command, "get wifi.status") == 0) {
