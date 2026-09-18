@@ -1,4 +1,5 @@
 #include "MyMesh.h"
+#include <helpers/ClientPathObservation.h>
 #include <algorithm>
 
 /* ------------------------------ Config -------------------------------- */
@@ -42,6 +43,8 @@
 #endif
 
 #define FIRMWARE_VER_LEVEL       2
+
+static constexpr uint32_t LOGIN_PATH_OBSERVATION_TIMEOUT_MS = 60000UL;
 
 #define REQ_TYPE_GET_STATUS         0x01 // same as _GET_STATS
 #define REQ_TYPE_KEEP_ALIVE         0x02
@@ -131,6 +134,9 @@ uint8_t MyMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* secr
   if (is_flood) {
     client->out_path_len = OUT_PATH_UNKNOWN;  // need to rediscover out_path
   }
+  // A flood login arms observation only after its PATH reply is successfully
+  // queued below. Clear any result from an earlier login in either case.
+  mesh::clearObservedClientPath(*client, OUT_PATH_UNKNOWN);
 
   uint32_t now = getRTCClock()->getCurrentTimeUnique();
   memcpy(reply_data, &now, 4);   // response packets always prefixed with timestamp
@@ -410,11 +416,12 @@ bool MyMesh::isLooped(const mesh::Packet* packet, const uint8_t max_counters[]) 
   return n >= max_counters[hash_size];
 }
 
-void MyMesh::sendFloodReply(mesh::Packet* packet, unsigned long delay_millis, uint8_t path_hash_size) {
+bool MyMesh::sendFloodReply(mesh::Packet* packet, unsigned long delay_millis, uint8_t path_hash_size) {
   TransportKey req_scope;
   bool is_wildcard = recv_pkt_region != NULL && recv_pkt_region->isWildcard();
   bool req_scope_known = recv_pkt_region != NULL && !is_wildcard
                       && region_map.getTransportKeysFor(*recv_pkt_region, &req_scope, 1) > 0;
+  const int queued_before = _mgr->getOutboundTotal();
 
   switch (mesh::chooseReplyScope(req_scope_known, is_wildcard, !default_scope.isNull())) {
     case mesh::REPLY_SCOPE_REQUEST:
@@ -429,6 +436,10 @@ void MyMesh::sendFloodReply(mesh::Packet* packet, unsigned long delay_millis, ui
       sendFlood(packet, delay_millis, path_hash_size);  // send un-scoped
       break;
   }
+  // This older branch's send APIs return void. Queue handling is synchronous,
+  // so a count increase confirms that the packet was accepted rather than
+  // released because the queue was full or the packet was invalid.
+  return _mgr->getOutboundTotal() > queued_before;
 }
 
 bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
@@ -603,7 +614,15 @@ void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const m
       // let this sender know path TO here, so they can use sendDirect(), and ALSO encode the response
       mesh::Packet* path = createPathReturn(sender, secret, packet->path, packet->path_len,
                                             PAYLOAD_TYPE_RESPONSE, reply_data, reply_len);
-      if (path) sendFloodReply(path, SERVER_RESPONSE_DELAY, packet->getPathHashSize());
+      if (path) {
+        const bool login_path_sent = sendFloodReply(
+            path, SERVER_RESPONSE_DELAY, packet->getPathHashSize());
+        if (client != NULL && login_path_sent) {
+          mesh::beginObservedClientPath(
+              *client, OUT_PATH_UNKNOWN,
+              futureMillis(LOGIN_PATH_OBSERVATION_TIMEOUT_MS));
+        }
+      }
       return;
     }
 
@@ -689,7 +708,7 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
         mesh::Packet *reply =
             createDatagram(PAYLOAD_TYPE_RESPONSE, client->id, secret, reply_data, reply_len);
         if (reply) {
-          if (client->out_path_len != OUT_PATH_UNKNOWN) { // we have an out_path, so send DIRECT
+          if (mesh::Packet::isValidPathLen(client->out_path_len)) { // we have an out_path, so send DIRECT
             sendDirect(reply, client->out_path, client->out_path_len, SERVER_RESPONSE_DELAY);
           } else {
             sendFloodReply(reply, SERVER_RESPONSE_DELAY, packet->getPathHashSize());
@@ -722,10 +741,10 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
 
         mesh::Packet *ack = createAck(ack_hash);
         if (ack) {
-          if (client->out_path_len == OUT_PATH_UNKNOWN) {
-            sendFloodReply(ack, TXT_ACK_DELAY, packet->getPathHashSize());
-          } else {
+          if (mesh::Packet::isValidPathLen(client->out_path_len)) {
             sendDirect(ack, client->out_path, client->out_path_len, TXT_ACK_DELAY);
+          } else {
+            sendFloodReply(ack, TXT_ACK_DELAY, packet->getPathHashSize());
           }
         }
       }
@@ -736,7 +755,7 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
       if (is_retry) {
         *reply = 0;
       } else {
-        handleCommand(sender_timestamp, command, reply);
+        handleCommand(sender_timestamp, client, command, reply);
       }
       int text_len = strlen(reply);
       if (text_len > 0) {
@@ -750,10 +769,10 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
 
         auto reply = createDatagram(PAYLOAD_TYPE_TXT_MSG, client->id, secret, temp, 5 + text_len);
         if (reply) {
-          if (client->out_path_len == OUT_PATH_UNKNOWN) {
-            sendFloodReply(reply, CLI_REPLY_DELAY_MILLIS, packet->getPathHashSize());
-          } else {
+          if (mesh::Packet::isValidPathLen(client->out_path_len)) {
             sendDirect(reply, client->out_path, client->out_path_len, CLI_REPLY_DELAY_MILLIS);
+          } else {
+            sendFloodReply(reply, CLI_REPLY_DELAY_MILLIS, packet->getPathHashSize());
           }
         }
       }
@@ -772,8 +791,19 @@ bool MyMesh::onPeerPathRecv(mesh::Packet *packet, int sender_idx, const uint8_t 
     MESH_DEBUG_PRINTLN("PATH to client, path_len=%d", (uint32_t)path_len);
     auto client = acl.getClientByIdx(i);
 
+    // A flood login's reciprocal PATH is direct and has no embedded payload
+    // (decoded as the reserved 0x0F extra type). Retain that one independently
+    // so it can be inspected or explicitly selected by the outpath CLI.
+    const bool captured_login_path = packet->isRouteDirect()
+        && extra_type == 0x0F
+        && mesh::captureObservedClientPath(
+            *client, path, path_len, futureMillis(0));
+
     // store a copy of path, for sendDirect()
-    client->out_path_len = mesh::Packet::copyPath(client->out_path, path, path_len);
+    if (!captured_login_path
+        && client->out_path_len != OUT_PATH_FORCE_FLOOD) {
+      client->out_path_len = mesh::Packet::copyPath(client->out_path, path, path_len);
+    }
     client->last_activity = getRTCClock()->getCurrentTime();
   } else {
     MESH_DEBUG_PRINTLN("onPeerPathRecv: invalid peer idx: %d", i);
@@ -1194,7 +1224,108 @@ void MyMesh::clearStats() {
   ((SimpleMeshTables *)getTables())->resetStats();
 }
 
-void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply) {
+static char* trimSpaces(char* s) {
+  while (*s == ' ') s++;
+  char* end = s + strlen(s);
+  while (end > s && end[-1] == ' ') end--;
+  *end = 0;
+  return s;
+}
+
+static bool parsePathCommand(char* raw, uint8_t* out_path, uint8_t& out_path_len, const char*& err) {
+  if (raw == NULL || out_path == NULL) {
+    err = "Err - bad params";
+    return false;
+  }
+
+  char* spec = trimSpaces(raw);
+  if (*spec == 0) {
+    err = "Err - missing path";
+    return false;
+  }
+  if (strcmp(spec, "clear") == 0 || strcmp(spec, "-") == 0 || strcmp(spec, "none") == 0) {
+    out_path_len = OUT_PATH_UNKNOWN;
+    return true;
+  }
+  if (strcmp(spec, "flood") == 0) {
+    out_path_len = OUT_PATH_FORCE_FLOOD;
+    return true;
+  }
+  if (strcmp(spec, "direct") == 0) {
+    out_path_len = 0;
+    return true;
+  }
+
+  uint8_t hash_size = 0;
+  uint8_t hop_count = 0;
+  char* token = spec;
+  while (token && *token) {
+    char* comma = strchr(token, ',');
+    if (comma) *comma = 0;
+    token = trimSpaces(token);
+
+    int hex_len = strlen(token);
+    if (!(hex_len == 2 || hex_len == 4 || hex_len == 6)) {
+      err = "Err - bad params";
+      return false;
+    }
+
+    uint8_t hop_hash_size = (uint8_t)(hex_len / 2);
+    if (hash_size == 0) {
+      hash_size = hop_hash_size;
+    } else if (hash_size != hop_hash_size) {
+      err = "Err - bad params";
+      return false;
+    }
+
+    if (hop_count >= 63 || (hop_count + 1) * hash_size > MAX_PATH_SIZE) {
+      err = "Err - bad params";
+      return false;
+    }
+    if (!mesh::Utils::fromHex(&out_path[hop_count * hash_size], hash_size, token)) {
+      err = "Err - bad hex";
+      return false;
+    }
+
+    hop_count++;
+    token = comma ? comma + 1 : NULL;
+  }
+
+  if (hash_size == 0 || hop_count == 0) {
+    err = "Err - missing path";
+    return false;
+  }
+  out_path_len = ((hash_size - 1) << 6) | (hop_count & 63);
+  return true;
+}
+
+static void formatPathReply(const uint8_t* path, uint8_t path_len, char* out, size_t out_len) {
+  if (path_len == OUT_PATH_FORCE_FLOOD) {
+    snprintf(out, out_len, "> flood");
+    return;
+  }
+  if (path_len == OUT_PATH_UNKNOWN) {
+    snprintf(out, out_len, "> unknown");
+    return;
+  }
+  if (!mesh::Packet::isValidPathLen(path_len)) {
+    snprintf(out, out_len, "> invalid");
+    return;
+  }
+  if ((path_len & 63) == 0) {
+    snprintf(out, out_len, "> direct");
+    return;
+  }
+
+  uint8_t hash_size = (path_len >> 6) + 1;
+  uint8_t hop_count = path_len & 63;
+  uint8_t byte_len = hop_count * hash_size;
+  char hex[(MAX_PATH_SIZE * 2) + 1];
+  mesh::Utils::toHex(hex, path, byte_len);
+  snprintf(out, out_len, "> hs=%u hops=%u hex=%s", (uint32_t)hash_size, (uint32_t)hop_count, hex);
+}
+
+void MyMesh::handleCommand(uint32_t sender_timestamp, ClientInfo* sender, char *command, char *reply) {
   if (region_load_active) {
     if (StrHelper::isBlank(command)) {  // empty/blank line, signal to terminate 'load' operation
       region_map = temp_map;  // copy over the temp instance as new current map
@@ -1271,6 +1402,61 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
       Serial.printf("\n");
     }
     reply[0] = 0;
+  } else if (strcmp(command, "get outpath") == 0
+          || strcmp(command, "get outpath path") == 0
+          || strcmp(command, "set outpath") == 0
+          || strncmp(command, "set outpath ", 12) == 0) {
+    bool is_get = strncmp(command, "get ", 4) == 0;
+    bool use_observed_path = strcmp(command, "get outpath path") == 0
+                          || strcmp(command, "set outpath path") == 0;
+    if (sender == NULL) {
+      strcpy(reply, "Err - command needs remote client context");
+    } else if (is_get) {
+      if (use_observed_path) {
+        if (mesh::isObservedClientPathPending(*sender, futureMillis(0))) {
+          strcpy(reply, "> path pending");
+        } else {
+          formatPathReply(sender->observed_path, sender->observed_path_len, reply, 160);
+        }
+      } else {
+        formatPathReply(sender->out_path, sender->out_path_len, reply, 160);
+      }
+    } else {
+      if (use_observed_path) {
+        if (mesh::isObservedClientPathPending(*sender, futureMillis(0))) {
+          strcpy(reply, "Err - path pending");
+        } else if (!mesh::promoteObservedClientPath(*sender)) {
+          strcpy(reply, "Err - no path received");
+        } else {
+          dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY);
+          formatPathReply(sender->out_path, sender->out_path_len, reply, 160);
+        }
+        return;
+      }
+
+      char* spec = command + 11;  // length of "set outpath"
+      if (*spec == ' ') spec++;
+
+      uint8_t path[MAX_PATH_SIZE];
+      uint8_t path_len = OUT_PATH_UNKNOWN;
+      const char* err = NULL;
+      if (!parsePathCommand(spec, path, path_len, err)) {
+        strcpy(reply, err ? err : "Err - invalid path");
+      } else {
+        if (path_len == OUT_PATH_UNKNOWN || path_len == OUT_PATH_FORCE_FLOOD) {
+          memset(sender->out_path, 0, sizeof(sender->out_path));
+          sender->out_path_len = path_len;
+        } else {
+          sender->out_path_len = mesh::Packet::copyPath(sender->out_path, path, path_len);
+        }
+        dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY);
+        if (path_len == OUT_PATH_UNKNOWN) {
+          strcpy(reply, "> outpath cleared");
+        } else {
+          formatPathReply(sender->out_path, sender->out_path_len, reply, 160);
+        }
+      }
+    }
   } else if (memcmp(command, "discover.neighbors", 18) == 0) {
     const char* sub = command + 18;
     while (*sub == ' ') sub++;
