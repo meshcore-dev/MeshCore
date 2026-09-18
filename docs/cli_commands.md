@@ -248,6 +248,30 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 ---
 
+#### Try a setting with automatic revert
+**Usage:**
+- `try <secs> <set-args>`
+- `try reboot <secs> <set-args>`
+- `get try`
+
+**Parameters:**
+- `secs`: Trial duration in seconds (1–604800, max 7 days)
+- `set-args`: Same arguments as `set` (e.g. `radio.rxgain off`) or `powersaving on|off`
+- `reboot`: Optional keyword before `secs`. On timeout, restore the snapshotted value and reboot (~2 s later)
+
+**Examples:**
+- `try 3600 radio.rxgain off`
+- `try reboot 3600 radio 915.0,250,11,5`
+- `set radio.rxgain off` commits the trial before timeout (cancels revert)
+
+**Notes:**
+- Up to **4** concurrent trials (`/try.json` on flash). Survives reboot; timer uses RTC `expires_at`.
+- Denied keys: `prv.key`, `password`, `guest.password`, `name`, `lat`, `lon`.
+- `set radio` / `set freq` inherit **reboot armed** on revert (reply says so). Apply still needs a manual reboot.
+- Reply forms: `OK - try Ns (reverts unless set)` or `… reboot armed` (+ `; reboot to apply` when applicable).
+
+---
+
 #### View or change this node's frequency
 **Usage:**
 - `get freq`

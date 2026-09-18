@@ -28,6 +28,7 @@ static bool isValidName(const char *n) {
 }
 
 void CommonCLI::loadPrefs(FILESYSTEM* fs) {
+  _fs = fs;
   if (fs->exists("/prefs.json")) {
 #if defined(RP2040_PLATFORM)
     File file = fs->open("/prefs.json", "r");
@@ -44,6 +45,7 @@ void CommonCLI::loadPrefs(FILESYSTEM* fs) {
   //    fs->remove("/com_prefs");  // remove old
     }
   }
+  loadTrySlots();
 }
 
 void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {  // Legacy prefs loader
@@ -273,10 +275,13 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
     } else if (memcmp(command, "clear stats", 11) == 0) {
       _callbacks->clearStats();
       strcpy(reply, "(OK - stats reset)");
+    } else if (memcmp(command, "try ", 4) == 0) {
+      handleTryCmd(sender_timestamp, &command[4], reply);
     } else if (memcmp(command, "get ", 4) == 0) {
       handleGetCmd(sender_timestamp, command, reply);
     } else if (memcmp(command, "set ", 4) == 0) {
       handleSetCmd(sender_timestamp, command, reply);
+      tryOnSetCommitted(&command[4], reply);
     } else if (sender_timestamp == 0 && strcmp(command, "erase") == 0) {
       bool s = _callbacks->formatFileSystem();
       sprintf(reply, "File system erase: %s", s ? "OK" : "Err");
@@ -423,10 +428,12 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
 #else
       strcpy(reply, "Board not supported");
 #endif
+      tryOnSetCommitted("powersaving on", reply);
     } else if (memcmp(command, "powersaving off", 15) == 0) {
       _prefs->powersaving_enabled = 0;
       savePrefs();
       strcpy(reply, "off");
+      tryOnSetCommitted("powersaving off", reply);
     } else if (memcmp(command, "powersaving", 11) == 0) {
       if (_prefs->powersaving_enabled) {
         strcpy(reply, "on");
@@ -673,6 +680,10 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
 
 void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* reply) {
   const char* config = &command[4];
+  if (memcmp(config, "try", 3) == 0 && (config[3] == 0 || config[3] == ' ')) {
+    handleGetTry(reply);
+    return;
+  }
   if (memcmp(config, "allow.read.only", 15) == 0) {
     sprintf(reply, "> %s", _prefs->allow_read_only ? "on" : "off");
   } else if (memcmp(config, "flood.advert.interval", 21) == 0) {
@@ -996,5 +1007,407 @@ void CommonCLI::handleRegionCmd(char* command, char* reply) {
     }
   } else {
     strcpy(reply, "Err - ??");
+  }
+}
+
+// ---------------- try (confirm-or-revert prefs) ----------------
+
+static bool tryJsonNeedsEscape(char c) {
+  return c == '"' || c == '\\';
+}
+
+static void tryJsonWriteStr(File& file, const char* s) {
+  file.print('"');
+  while (*s) {
+    char c = *s++;
+    if (tryJsonNeedsEscape(c)) file.print('\\');
+    file.print(c);
+  }
+  file.print('"');
+}
+
+bool CommonCLI::tryReplyIsOk(const char* reply) {
+  return reply && (memcmp(reply, "OK", 2) == 0 || memcmp(reply, "on -", 4) == 0 || memcmp(reply, "off", 3) == 0);
+}
+
+bool CommonCLI::tryReplyNeedsRebootApply(const char* reply) {
+  return reply && strstr(reply, "reboot to apply") != nullptr;
+}
+
+bool CommonCLI::tryIsDeniedKey(const char* key) const {
+  static const char* denied[] = {
+    "prv.key", "password", "guest.password", "name", "lat", "lon", nullptr
+  };
+  for (int i = 0; denied[i]; i++) {
+    if (strcmp(key, denied[i]) == 0) return true;
+  }
+  return false;
+}
+
+bool CommonCLI::tryExtractKey(const char* args, char* key, size_t key_len) const {
+  if (memcmp(args, "powersaving", 11) == 0 && (args[11] == 0 || args[11] == ' ')) {
+    StrHelper::strncpy(key, "powersaving", key_len);
+    return true;
+  }
+  const char* sp = strchr(args, ' ');
+  size_t len = sp ? (size_t)(sp - args) : strlen(args);
+  if (len == 0 || len >= key_len) return false;
+  memcpy(key, args, len);
+  key[len] = 0;
+  return true;
+}
+
+bool CommonCLI::trySplitKeyValue(const char* args, char* key, char* value, size_t val_len) const {
+  if (!tryExtractKey(args, key, 32)) return false;
+  if (strcmp(key, "powersaving") == 0) {
+    const char* p = args + 11;
+    while (*p == ' ') p++;
+    StrHelper::strncpy(value, (*p) ? p : "on", val_len);
+    return true;
+  }
+  const char* sp = strchr(args, ' ');
+  if (!sp) {
+    value[0] = 0;
+    return true;
+  }
+  while (*sp == ' ') sp++;
+  StrHelper::strncpy(value, sp, val_len);
+  return true;
+}
+
+int CommonCLI::tryFindSlot(const char* key) const {
+  for (int i = 0; i < TRY_MAX_SLOTS; i++) {
+    if (_try_slots[i].active() && strcmp(_try_slots[i].key, key) == 0) return i;
+  }
+  return -1;
+}
+
+int CommonCLI::tryFreeSlot() const {
+  for (int i = 0; i < TRY_MAX_SLOTS; i++) {
+    if (!_try_slots[i].active()) return i;
+  }
+  return -1;
+}
+
+void CommonCLI::tryCancelSlotForKey(const char* key) {
+  int idx = tryFindSlot(key);
+  if (idx < 0) return;
+  _try_slots[idx].clear();
+  saveTrySlots();
+}
+
+void CommonCLI::tryOnSetCommitted(const char* set_config, char* reply) {
+  if (!tryReplyIsOk(reply)) return;
+  char key[32];
+  if (!tryExtractKey(set_config, key, sizeof(key))) return;
+  tryCancelSlotForKey(key);
+}
+
+bool CommonCLI::trySnapshotValue(uint32_t sender_timestamp, const char* key, char* revert, size_t revert_len) {
+  if (strcmp(key, "powersaving") == 0) {
+    StrHelper::strncpy(revert, _prefs->powersaving_enabled ? "on" : "off", revert_len);
+    return true;
+  }
+  char getcmd[64];
+  snprintf(getcmd, sizeof(getcmd), "get %s", key);
+  char snap[160];
+  handleGetCmd(sender_timestamp, getcmd, snap);
+  if (memcmp(snap, "> ", 2) == 0) {
+    StrHelper::strncpy(revert, snap + 2, revert_len);
+    return true;
+  }
+  if (snap[0] == '?' || memcmp(snap, "Error", 5) == 0 || memcmp(snap, "unknown", 7) == 0) {
+    return false;
+  }
+  StrHelper::strncpy(revert, snap, revert_len);
+  return revert[0] != 0;
+}
+
+void CommonCLI::tryApplyArgs(uint32_t sender_timestamp, const char* args, char* reply) {
+  if (memcmp(args, "powersaving on", 14) == 0 && (args[14] == 0 || args[14] == ' ')) {
+#if defined(NRF52_PLATFORM)
+    _prefs->powersaving_enabled = 1;
+    savePrefs();
+    strcpy(reply, "on - Immediate effect");
+#elif defined(ESP32) && !defined(WITH_BRIDGE)
+    _prefs->powersaving_enabled = 1;
+    savePrefs();
+    strcpy(reply, "on - After 2 minutes");
+#elif defined(WITH_BRIDGE)
+    strcpy(reply, "Bridge not supported");
+#else
+    strcpy(reply, "Board not supported");
+#endif
+    return;
+  }
+  if (memcmp(args, "powersaving off", 15) == 0 && (args[15] == 0 || args[15] == ' ')) {
+    _prefs->powersaving_enabled = 0;
+    savePrefs();
+    strcpy(reply, "off");
+    return;
+  }
+  char buf[120];
+  snprintf(buf, sizeof(buf), "set %s", args);
+  handleSetCmd(sender_timestamp, buf, reply);
+}
+
+void CommonCLI::tryRevertSlot(TrySlot& slot, char* reply) {
+  if (strcmp(slot.key, "powersaving") == 0) {
+    if (strcmp(slot.revert, "on") == 0) {
+      tryApplyArgs(0, "powersaving on", reply);
+    } else {
+      tryApplyArgs(0, "powersaving off", reply);
+    }
+    return;
+  }
+  char buf[96];
+  snprintf(buf, sizeof(buf), "%s %s", slot.key, slot.revert);
+  tryApplyArgs(0, buf, reply);
+}
+
+void CommonCLI::tryFormatOkReply(char* reply, uint32_t secs, bool reboot_armed, bool apply_reboot) const {
+  if (reboot_armed && apply_reboot) {
+    sprintf(reply, "OK - try %us (reverts unless set, reboot armed; reboot to apply)", (unsigned)secs);
+  } else if (reboot_armed) {
+    sprintf(reply, "OK - try %us (reverts unless set, reboot armed)", (unsigned)secs);
+  } else {
+    sprintf(reply, "OK - try %us (reverts unless set)", (unsigned)secs);
+  }
+}
+
+void CommonCLI::tryNormalizeExpires(TrySlot& slot) {
+  uint32_t now = getRTCClock()->getCurrentTime();
+  if (now + slot.secs < slot.expires_at) {
+    slot.expires_at = now + slot.secs;
+  }
+}
+
+static bool tryJsonExtractStr(const char* obj, const char* label, char* out, size_t out_len) {
+  char pat[24];
+  snprintf(pat, sizeof(pat), "\"%s\":\"", label);
+  const char* p = strstr(obj, pat);
+  if (!p) return false;
+  p += strlen(pat);
+  size_t i = 0;
+  while (*p && *p != '"' && i + 1 < out_len) {
+    if (*p == '\\' && p[1]) p++;
+    out[i++] = *p++;
+  }
+  out[i] = 0;
+  return i > 0;
+}
+
+static bool tryJsonExtractU32(const char* obj, const char* label, uint32_t* out) {
+  char pat[24];
+  snprintf(pat, sizeof(pat), "\"%s\":", label);
+  const char* p = strstr(obj, pat);
+  if (!p) return false;
+  p += strlen(pat);
+  *out = _atoi(p);
+  return true;
+}
+
+void CommonCLI::loadTrySlots() {
+  for (int i = 0; i < TRY_MAX_SLOTS; i++) _try_slots[i].clear();
+  if (_fs == nullptr || !_fs->exists("/try.json")) return;
+
+#if defined(RP2040_PLATFORM)
+  File file = _fs->open("/try.json", "r");
+#else
+  File file = _fs->open("/try.json");
+#endif
+  if (!file) return;
+
+  char buf[512];
+  int len = 0;
+  while (file.available() && len < (int)sizeof(buf) - 1) {
+    buf[len++] = (char)file.read();
+  }
+  buf[len] = 0;
+  file.close();
+
+  int slot_idx = 0;
+  char* scan = buf;
+  while (slot_idx < TRY_MAX_SLOTS) {
+    char* obj = strchr(scan, '{');
+    if (!obj) break;
+    char* obj_end = strchr(obj + 1, '}');
+    if (!obj_end) break;
+    char saved = obj_end[1];
+    obj_end[1] = 0;
+
+    TrySlot& s = _try_slots[slot_idx];
+    s.clear();
+    if (tryJsonExtractStr(obj, "key", s.key, sizeof(s.key))) {
+      tryJsonExtractStr(obj, "revert", s.revert, sizeof(s.revert));
+      tryJsonExtractStr(obj, "trial", s.trial, sizeof(s.trial));
+      tryJsonExtractU32(obj, "secs", &s.secs);
+      tryJsonExtractU32(obj, "expires_at", &s.expires_at);
+      uint32_t rb = 0;
+      if (tryJsonExtractU32(obj, "reboot", &rb)) s.reboot = (uint8_t)rb;
+      if (tryJsonExtractU32(obj, "apply_reboot", &rb)) s.apply_reboot = (uint8_t)rb;
+      tryNormalizeExpires(s);
+      slot_idx++;
+    }
+
+    obj_end[1] = saved;
+    scan = obj_end + 1;
+  }
+}
+
+bool CommonCLI::saveTrySlots() {
+  if (_fs == nullptr) return false;
+#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
+  _fs->remove("/try.json");
+  File file = _fs->open("/try.json", FILE_O_WRITE);
+#elif defined(RP2040_PLATFORM)
+  File file = _fs->open("/try.json", "w");
+#else
+  File file = _fs->open("/try.json", "w", true);
+#endif
+  if (!file) return false;
+
+  file.print("{\"slots\":[");
+  bool first = true;
+  for (int i = 0; i < TRY_MAX_SLOTS; i++) {
+    TrySlot& s = _try_slots[i];
+    if (!s.active()) continue;
+    if (!first) file.print(',');
+    first = false;
+    file.print('{');
+    file.print("\"key\":");
+    tryJsonWriteStr(file, s.key);
+    file.print(",\"revert\":");
+    tryJsonWriteStr(file, s.revert);
+    file.print(",\"trial\":");
+    tryJsonWriteStr(file, s.trial);
+    file.printf(",\"secs\":%u,\"expires_at\":%u,\"reboot\":%u,\"apply_reboot\":%u",
+                (unsigned)s.secs, (unsigned)s.expires_at, (unsigned)s.reboot, (unsigned)s.apply_reboot);
+    file.print('}');
+  }
+  file.print("]}");
+  file.close();
+  return true;
+}
+
+void CommonCLI::handleGetTry(char* reply) {
+  reply[0] = 0;
+  char* dp = reply;
+  int remaining = 160;
+  uint32_t now = getRTCClock()->getCurrentTime();
+  bool any = false;
+
+  for (int i = 0; i < TRY_MAX_SLOTS; i++) {
+    TrySlot& s = _try_slots[i];
+    if (!s.active()) continue;
+    any = true;
+    uint32_t left = (s.expires_at > now) ? (s.expires_at - now) : 0;
+    int n = snprintf(dp, remaining, "%s%s %s %us%s",
+                     (dp == reply) ? "" : "\n",
+                     s.key, s.trial, (unsigned)left, s.reboot ? " reboot" : "");
+    if (n <= 0 || n >= remaining) break;
+    dp += n;
+    remaining -= n;
+  }
+  if (!any) strcpy(reply, "(none)");
+}
+
+void CommonCLI::handleTryCmd(uint32_t sender_timestamp, char* args, char* reply) {
+  bool reboot_kw = false;
+  if (memcmp(args, "reboot ", 7) == 0) {
+    reboot_kw = true;
+    args += 7;
+  }
+  while (*args == ' ') args++;
+
+  char* sp = args;
+  while (*sp >= '0' && *sp <= '9') sp++;
+  if (sp == args || *sp != ' ') {
+    strcpy(reply, "Error: usage try [reboot] <secs> <set-args>");
+    return;
+  }
+  uint32_t secs = _atoi(args);
+  if (secs == 0 || secs > TRY_MAX_SECS) {
+    strcpy(reply, "Error: secs must be 1-604800");
+    return;
+  }
+  while (*sp == ' ') sp++;
+  if (*sp == 0) {
+    strcpy(reply, "Error: missing set-args");
+    return;
+  }
+
+  char key[32];
+  char trial[48];
+  if (!trySplitKeyValue(sp, key, trial, sizeof(trial))) {
+    strcpy(reply, "Error: bad try args");
+    return;
+  }
+  if (tryIsDeniedKey(key)) {
+    strcpy(reply, "Error: try not allowed for this key");
+    return;
+  }
+
+  char revert[48];
+  if (!trySnapshotValue(sender_timestamp, key, revert, sizeof(revert))) {
+    strcpy(reply, "Error: cannot snapshot current value");
+    return;
+  }
+
+  char apply_reply[160];
+  tryApplyArgs(sender_timestamp, sp, apply_reply);
+  if (!tryReplyIsOk(apply_reply)) {
+    StrHelper::strncpy(reply, apply_reply, 160);
+    return;
+  }
+
+  bool apply_reboot = tryReplyNeedsRebootApply(apply_reply);
+  bool reboot_armed = reboot_kw || apply_reboot;
+
+  int idx = tryFindSlot(key);
+  if (idx < 0) {
+    idx = tryFreeSlot();
+    if (idx < 0) {
+      strcpy(reply, "Error: try slots full");
+      return;
+    }
+    StrHelper::strncpy(_try_slots[idx].key, key, sizeof(_try_slots[idx].key));
+    StrHelper::strncpy(_try_slots[idx].revert, revert, sizeof(_try_slots[idx].revert));
+  }
+
+  TrySlot& slot = _try_slots[idx];
+  slot.secs = secs;
+  slot.expires_at = getRTCClock()->getCurrentTime() + secs;
+  slot.reboot = reboot_armed ? 1 : 0;
+  slot.apply_reboot = apply_reboot ? 1 : 0;
+  StrHelper::strncpy(slot.trial, trial, sizeof(slot.trial));
+
+  saveTrySlots();
+  tryFormatOkReply(reply, secs, reboot_armed, apply_reboot);
+}
+
+void CommonCLI::tryProcessExpired() {
+  uint32_t now = getRTCClock()->getCurrentTime();
+  for (int i = 0; i < TRY_MAX_SLOTS; i++) {
+    TrySlot& slot = _try_slots[i];
+    if (!slot.active()) continue;
+    if (now < slot.expires_at) continue;
+
+    char revert_reply[160];
+    bool do_reboot = slot.reboot != 0;
+    tryRevertSlot(slot, revert_reply);
+    slot.clear();
+    saveTrySlots();
+    if (do_reboot) {
+      _try_reboot_at = millis() + TRY_REBOOT_DELAY_MS;
+    }
+  }
+}
+
+void CommonCLI::loop() {
+  tryProcessExpired();
+  if (_try_reboot_at != 0 && (long)(millis() - _try_reboot_at) >= 0) {
+    _try_reboot_at = 0;
+    _board->reboot();
   }
 }
