@@ -17,6 +17,10 @@
 #include <driver/rtc_io.h>
 #include <helpers/KeyValueStore.h>
 
+#if ARDUINO_USB_CDC_ON_BOOT && !ARDUINO_USB_MODE
+#include "esp32-hal-tinyusb.h"  // for tud_mounted(), used below
+#endif
+
 class ESP32Board : public mesh::MainBoard {
 protected:
   uint8_t startup_reason;
@@ -166,6 +170,20 @@ public:
   uint32_t getResetReason() const override {
     return esp_reset_reason();
   }
+
+#if ARDUINO_USB_CDC_ON_BOOT
+ #if ARDUINO_USB_MODE
+  // Native USB-Serial-JTAG (HWCDC), e.g. Heltec V4.3.
+  bool isExternalPowered() override {
+    return Serial.isPlugged();
+  }
+ #else
+  // External USB-OTG via TinyUSB (USBCDC), e.g. Wireless Tracker V2.
+  bool isExternalPowered() override {
+    return tud_mounted();
+  }
+ #endif
+#endif
 
   // https://docs.espressif.com/projects/esp-idf/en/v4.4.7/esp32/api-reference/system/system.html
   const char* getResetReasonString(uint32_t reason) {
