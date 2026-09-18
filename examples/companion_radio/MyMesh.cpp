@@ -2146,6 +2146,16 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
     return true;
   }
 
+  if (strcmp(command, "reboot") == 0) {
+    board.reboot(); // doesn't return
+    return true;
+  }
+
+  if (strcmp(command, "poweroff") == 0 || strcmp(command, "shutdown") == 0) {
+    board.powerOff(); // doesn't return
+    return true;
+  }
+
   if (memcmp(command, "set name ", 9) == 0) {
     if (AdvertDataParser::isValidName(&command[9])) {
       StrHelper::strncpy(_prefs.node_name, &command[9], sizeof(_prefs.node_name));
