@@ -108,9 +108,15 @@ extern "C"
 // Set to 0 to disable boot protection
 #define PWRMGT_VOLTAGE_BOOTLOCK 3300   // Won't boot below this voltage (mV)
 // LPCOMP wake configuration (voltage recovery from SYSTEMOFF)
-// AIN3 = P0.05 = PIN_A0 / PIN_VBAT_READ
-#define PWRMGT_LPCOMP_AIN 3
-#define PWRMGT_LPCOMP_REFSEL 4  // 5/8 VDD (~3.13-3.44V)
+// Defaults to AIN3 = P0.05 = PIN_A0 = the default PIN_VBAT_READ. Boards that
+// sense VBAT elsewhere (e.g. a RAK19007 fed from J11 AIN1 = P0.03) can override
+// this; keep it on the same pin as PIN_VBAT_READ.
+#ifndef PWRMGT_LPCOMP_AIN
+  #define PWRMGT_LPCOMP_AIN 3
+#endif
+#ifndef PWRMGT_LPCOMP_REFSEL
+  #define PWRMGT_LPCOMP_REFSEL 4  // 5/8 VDD (~3.13-3.44V)
+#endif
 
 // Other pins
 #define PIN_AREF (2)
