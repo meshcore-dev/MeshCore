@@ -326,6 +326,24 @@ int SensorMesh::getInterferenceThreshold() const {
 bool SensorMesh::getCADEnabled() const {
   return _prefs.cad_enabled;
 }
+bool SensorMesh::getRssiLbtEnabled() const {
+  return _prefs.rssi_lbt_enabled;
+}
+int8_t SensorMesh::getRssiLbtThrDbm() const {
+  return _prefs.rssi_lbt_thr_dbm;
+}
+uint16_t SensorMesh::getRssiLbtSenseMs() const {
+  return _prefs.rssi_lbt_sense_ms;
+}
+uint16_t SensorMesh::getRssiLbtMaxwaitMs() const {
+  return _prefs.rssi_lbt_maxwait_ms;
+}
+uint16_t SensorMesh::getRssiLbtTxmaxMs() const {
+  return _prefs.rssi_lbt_txmax_ms;
+}
+uint16_t SensorMesh::getRssiLbtPauseMs() const {
+  return _prefs.rssi_lbt_pause_ms;
+}
 int SensorMesh::getAGCResetInterval() const {
   return ((int)_prefs.agc_reset_interval) * 4000;   // milliseconds
 }
