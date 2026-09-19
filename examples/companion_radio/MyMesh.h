@@ -108,6 +108,8 @@ public:
   void loop();
   void handleCmdFrame(size_t len);
   bool advert();
+  bool advertFlood();   // same advert, flood-routed (phone app "flood advert")
+  const mesh::LocalIdentity& selfId() const { return self_id; }
   void enterCLIRescue();
 
   int  getRecentlyHeard(AdvertPath dest[], int max_num);
@@ -116,6 +118,17 @@ public:
   bool requestRepeatersDiscovery();
   int getDiscoveredNodes(DiscoveredNode nodes[], int max_num);
 #endif
+
+  // on-device UI login to repeater/room server (registers for the response
+  // like the phone CMD_SEND_LOGIN path does)
+  int  uiLogin(const ContactInfo& recipient, const char* password);
+  int  uiRequestStatus(const ContactInfo& recipient);
+  int  uiTracePath(const uint8_t* path, uint8_t path_len, uint32_t tag);
+
+  // used by the on-device UI as well as the phone command handlers
+  void saveChannels() { _store->saveChannels(this); }
+  void saveContacts();
+  bool isValidClientRepeatFreq(uint32_t f) const;
 
 protected:
   float getAirtimeBudgetFactor() const override;
@@ -136,6 +149,7 @@ protected:
   void sendFloodScoped(const mesh::GroupChannel& channel, mesh::Packet* pkt, uint32_t delay_millis=0) override;
 
   void logRxRaw(float snr, float rssi, const uint8_t raw[], int len) override;
+  void logTx(mesh::Packet* packet, int len) override;
   bool isAutoAddEnabled() const override;
   bool shouldAutoAddContactType(uint8_t type) const override;
   bool shouldOverwriteWhenFull() const override;
@@ -224,11 +238,8 @@ private:
   void checkCLIRescueCmd();
   bool handleCommand(const char* text, uint32_t sender_timestamp, char* reply);
   void checkSerialInterface();
-  bool isValidClientRepeatFreq(uint32_t f) const;
 
   // helpers, short-cuts
-  void saveChannels() { _store->saveChannels(this); }
-  void saveContacts();
 
   DataStore* _store;
   NodePrefs _prefs;
@@ -254,6 +265,11 @@ private:
   unsigned long dirty_contacts_expiry;
 
   TransportKey send_scope;
+
+  // signature of the last transmitted text message, for UI echo detection
+  uint32_t echo_hash = 0;
+  uint16_t echo_len = 0;
+  unsigned long echo_time = 0;
 
   uint8_t cmd_frame[MAX_FRAME_SIZE + 1];
   uint8_t out_frame[MAX_FRAME_SIZE + 1];
