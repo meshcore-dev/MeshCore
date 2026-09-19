@@ -48,6 +48,13 @@
   #define WITH_BRIDGE
 #endif
 
+// How long a bridge holds an ESP-NOW-received packet before the mesh processes
+// it. Same default as the repeater; build with -D BRIDGE_DELAY_MS=0 to measure
+// the lane without that buffer.
+#ifndef BRIDGE_DELAY_MS
+  #define BRIDGE_DELAY_MS 500
+#endif
+
 /* ---------------------------------- CONFIGURATION ------------------------------------- */
 
 #ifndef LORA_FREQ

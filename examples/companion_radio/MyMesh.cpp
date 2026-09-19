@@ -984,6 +984,16 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
   _prefs.radio_fem_txgain = 0;
   //_prefs.rx_delay_base = 10.0f;  enable once new algo fixed
   _prefs.setRepeatEn(false);
+#if defined(WITH_BRIDGE)
+  // Bridge defaults, the same shape the repeater sets. bridge_secret must be
+  // non-empty: xorCrypt() takes a modulo over strlen(secret).
+  _prefs.bridge_enabled = 1;    // enabled
+  _prefs.bridge_delay = BRIDGE_DELAY_MS;
+  _prefs.bridge_pkt_src = 0;    // logTx
+  _prefs.bridge_baud = 115200;  // unused by ESP-NOW, kept consistent
+  _prefs.bridge_channel = 1;    // channel 1
+  StrHelper::strncpy(_prefs.bridge_secret, "LVSITANOS", sizeof(_prefs.bridge_secret));
+#endif
 #if defined(USE_SX1262) || defined(USE_SX1268)
 #ifdef SX126X_RX_BOOSTED_GAIN
   _prefs.rx_boosted_gain = SX126X_RX_BOOSTED_GAIN;
@@ -1076,6 +1086,13 @@ void MyMesh::begin(bool has_display) {
 
   board.attachDynamicPrefs(_prefs.getCustom());
 
+#if defined(WITH_BRIDGE)
+  // The bridge has to be started here: logRx/logTx only mirror once ESP-NOW is
+  // up, and an unstarted bridge silently drops every packet it is handed.
+  if (_prefs.bridge_enabled) {
+    bridge.begin();
+  }
+#endif
   MESH_DEBUG_PRINTLN("RX Boosted Gain Mode: %s",
                      radio_driver.getRxBoostedGainMode() ? "Enabled" : "Disabled");
 }
