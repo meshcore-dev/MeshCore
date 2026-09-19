@@ -159,7 +159,8 @@ protected:
   void logRxRaw(float snr, float rssi, const uint8_t raw[], int len) override;
 #if defined(WITH_BRIDGE)
   void logRx(mesh::Packet* packet, int len, float score) override;
-  void logTx(mesh::Packet* packet, int len) override;
+  bool claimOutboundPacket(mesh::Packet* packet) override;
+  void onInboundPacketProcessed(mesh::Packet* packet) override;
 #endif
   bool isAutoAddEnabled() const override;
   bool shouldAutoAddContactType(uint8_t type) const override;

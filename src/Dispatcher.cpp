@@ -259,6 +259,8 @@ void Dispatcher::checkRecv() {
 }
 
 void Dispatcher::processRecvPacket(Packet* pkt) {
+  onInboundPacketProcessed(pkt);
+
   DispatcherAction action = onRecvPacket(pkt);
   if (action == ACTION_RELEASE) {
     _mgr->free(pkt);
@@ -306,6 +308,16 @@ void Dispatcher::checkSend() {
 
   outbound = _mgr->getNextOutbound(_ms->getMillis());
   if (outbound) {
+    // An alternate transport (a bridge) may carry this packet without the radio
+    // ever transmitting it: no airtime, no duty-cycle spend, and the radio's own
+    // counters stay flat - which is what makes "the fast lane was really used"
+    // an observation rather than an inference.
+    if (claimOutboundPacket(outbound)) {
+      releasePacket(outbound);
+      outbound = NULL;
+      return;
+    }
+
     int len = 0;
     uint8_t raw[MAX_TRANS_UNIT];
 

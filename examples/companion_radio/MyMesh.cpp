@@ -71,6 +71,10 @@
 #define STATS_TYPE_CORE               0
 #define STATS_TYPE_RADIO              1
 #define STATS_TYPE_PACKETS             2
+// A sub-type of its own, not more fields on the frames above: an app that does
+// not know it never asks for it, and one that does gets counters for the bridge
+// a companion radio can be running (see AbstractBridge::writeStats).
+#define STATS_TYPE_BRIDGE             3
 
 #define RESP_CODE_OK                  0
 #define RESP_CODE_ERR                 1
@@ -316,10 +320,16 @@ void MyMesh::logRx(mesh::Packet* packet, int len, float score) {
   }
 }
 
-void MyMesh::logTx(mesh::Packet* packet, int len) {
-  if (_prefs.bridge_pkt_src == 0) {
-    bridge.sendPacket(packet);
-  }
+bool MyMesh::claimOutboundPacket(mesh::Packet* packet) {
+  // Asked once per packet, immediately before the radio would transmit it: the
+  // bridge answers true only when it has put the packet on its own medium and the
+  // radio must skip it. Returning false leaves the radio as the transport of
+  // record - the bridge may still have mirrored the packet, before the airtime.
+  return bridge.claimOutboundPacket(packet);
+}
+
+void MyMesh::onInboundPacketProcessed(mesh::Packet* packet) {
+  bridge.onInboundPacketProcessed(packet);
 }
 #endif
 
@@ -1087,9 +1097,14 @@ void MyMesh::begin(bool has_display) {
   board.attachDynamicPrefs(_prefs.getCustom());
 
 #if defined(WITH_BRIDGE)
-  // The bridge has to be started here: logRx/logTx only mirror once ESP-NOW is
-  // up, and an unstarted bridge silently drops every packet it is handed.
+  // The bridge has to be started here: the mirror and the lane selection only run
+  // once ESP-NOW is up, and an unstarted bridge silently drops every packet it is
+  // handed.
   if (_prefs.bridge_enabled) {
+    // The lane's peers are told this node's mesh hash, so they can decide whether
+    // a packet they are about to transmit can skip the radio. Set before begin(),
+    // which announces immediately.
+    bridge.setSelfHash(self_id.pub_key[0]);
     bridge.begin();
   }
 #endif
@@ -2043,6 +2058,16 @@ void MyMesh::handleCmdFrame(size_t len) {
       memcpy(&out_frame[i], &n_recv_direct, 4); i += 4;
       memcpy(&out_frame[i], &n_recv_errors, 4); i += 4;
       _serial->writeFrame(out_frame, i);
+    } else if (stats_type == STATS_TYPE_BRIDGE) {
+#if defined(WITH_BRIDGE)
+      int i = 0;
+      out_frame[i++] = RESP_CODE_STATS;
+      out_frame[i++] = STATS_TYPE_BRIDGE;
+      i += bridge.writeStats(&out_frame[i], sizeof(out_frame) - i);
+      _serial->writeFrame(out_frame, i);
+#else
+      writeErrFrame(ERR_CODE_ILLEGAL_ARG); // no bridge in this build
+#endif
     } else {
       writeErrFrame(ERR_CODE_ILLEGAL_ARG); // invalid stats sub-type
     }
