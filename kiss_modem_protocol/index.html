@@ -1391,10 +1391,10 @@
 </tr>
 </tbody>
 </table>
-<pre><code>┌──────┬───────────┬──────────────┬──────┐
-│ FEND │ Type Byte │ Data (escaped)│ FEND │
-│ 0xC0 │  1 byte   │ 0-510 bytes  │ 0xC0 │
-└──────┴───────────┴──────────────┴──────┘
+<pre><code>┌──────┬───────────┬────────────────┬──────┐
+│ FEND │ Type Byte │ Data (escaped) │ FEND │
+│ 0xC0 │  1 byte   │ 0-510 bytes    │ 0xC0 │
+└──────┴───────────┴────────────────┴──────┘
 </code></pre>
 <h3 id="type-byte">Type Byte</h3>
 <p>The type byte is split into two nibbles:</p>
@@ -1517,10 +1517,10 @@
 <h2 id="sethardware-extensions-0x06">SetHardware Extensions (0x06)</h2>
 <p>MeshCore-specific functionality uses the standard KISS SetHardware command. The first byte of SetHardware data is a sub-command. Standard KISS clients ignore these frames.</p>
 <h3 id="frame-format_1">Frame Format</h3>
-<pre><code>┌──────┬──────┬─────────────┬──────────────┬──────┐
-│ FEND │ 0x06 │ Sub-command  │ Data (escaped)│ FEND │
-│ 0xC0 │      │   1 byte    │   variable   │ 0xC0 │
-└──────┴──────┴─────────────┴──────────────┴──────┘
+<pre><code>┌──────┬──────┬─────────────┬────────────────┬──────┐
+│ FEND │ 0x06 │ Sub-command │ Data (escaped) │ FEND │
+│ 0xC0 │      │   1 byte    │   variable     │ 0xC0 │
+└──────┴──────┴─────────────┴────────────────┴──────┘
 </code></pre>
 <h3 id="request-sub-commands-host-to-tnc">Request Sub-commands (Host to TNC)</h3>
 <table>
