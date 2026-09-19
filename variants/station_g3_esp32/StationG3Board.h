@@ -53,7 +53,7 @@ public:
     loRaFEMControl.setRxModeEnable();
   }
 
-  void powerOff() override;
+  void shutdownPeripherals() override;
 
   uint16_t getBattMilliVolts() override {
     return 0;

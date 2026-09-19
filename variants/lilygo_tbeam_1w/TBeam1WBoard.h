@@ -1,8 +1,6 @@
 #pragma once
 
 #include <Arduino.h>
-#include <freertos/FreeRTOS.h>
-#include <freertos/task.h>
 #include <helpers/ESP32Board.h>
 #include "variant.h"
 
@@ -70,7 +68,7 @@ public:
   void onAfterTransmit() override;
   uint16_t getBattMilliVolts() override;
   const char* getManufacturerName() const override;
-  void powerOff() override;
+  void shutdownPeripherals() override;
 
   void setFanEnabled(bool enabled);
   bool isFanEnabled() const;

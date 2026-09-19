@@ -30,8 +30,7 @@ public:
 
   void onBeforeTransmit(void) override;
   void onAfterTransmit(void) override;
-  void enterDeepSleep(uint32_t secs, int pin_wake_btn = -1);
-  void powerOff() override;
+  void shutdownPeripherals() override;
   uint16_t getBattMilliVolts() override;
   bool setAdcMultiplier(float multiplier) override {
     if (multiplier == 0.0f) {
