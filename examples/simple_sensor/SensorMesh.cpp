@@ -1,3 +1,4 @@
+#include <helpers/sensors/LPPDataHelpers.h>
 #include "SensorMesh.h"
 
 /* ------------------------------ Config -------------------------------- */
@@ -102,6 +103,9 @@ static uint8_t getDataSize(uint8_t type) {
       case LPP_CURRENT:
       case LPP_DIRECTION:
       case LPP_POWER:
+      case LPP_WIND_SPEED:
+      case LPP_WIND_GUST:
+      case LPP_RAIN:
         return 2;
     }
     return 1;
@@ -184,6 +188,16 @@ uint8_t SensorMesh::handleRequest(uint8_t perms, uint32_t sender_timestamp, uint
 
     uint8_t tlen = telemetry.getSize();
     memcpy(&reply_data[4], telemetry.getBuffer(), tlen);
+
+#if ENV_INCLUDE_WIND
+    // Use LPPWriter since CayenneLPP has no add*() for the placeholder wind/rain types
+    if ((0xFF & perm_mask) & TELEM_PERM_ENVIRONMENT) {
+      LPPWriter wind_writer(&reply_data[4 + tlen], sizeof(reply_data) - 4 - tlen);
+      wind_sensor.query(sensors.getNextAvailableChannel(), wind_writer);
+      tlen += wind_writer.length();
+    }
+#endif
+
     return 4 + tlen;  // reply_len
   }
   if (req_type == REQ_TYPE_GET_AVG_MIN_MAX && (perms & PERM_ACL_ROLE_MASK) >= PERM_ACL_READ_ONLY) {
