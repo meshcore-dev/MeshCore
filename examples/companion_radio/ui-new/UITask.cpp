@@ -786,10 +786,11 @@ switch(t){
 #endif
 }
 
-void UITask::onMessageRecv(const ContactInfo &from, uint8_t txt_type, uint32_t sender_timestamp, uint8_t path_len, const char* text) {
+void UITask::onMessageRecv(mesh::Packet *pkt, const ContactInfo &from, uint8_t txt_type, uint32_t sender_timestamp, const char* text) {
   // we only want to show text messages on display, not cli data
   if (!(txt_type == TXT_TYPE_PLAIN || txt_type == TXT_TYPE_SIGNED_PLAIN)) return;
 
+  uint8_t path_len = pkt->isRouteFlood() ? pkt->path_len : 0xFF;
   ((MsgPreviewScreen *) msg_preview)->addPreview(path_len, from.name, text);
   setCurrScreen(msg_preview);
 
@@ -808,7 +809,8 @@ void UITask::onMessageRecv(const ContactInfo &from, uint8_t txt_type, uint32_t s
   }
 }
 
-void UITask::onChannelMessageRecv(ChannelDetails& channel_details, uint8_t path_len, const char* text) {
+void UITask::onChannelMessageRecv(mesh::Packet *pkt, ChannelDetails& channel_details, const char* text) {
+  uint8_t path_len = pkt->isRouteFlood() ? pkt->path_len : 0xFF;
   ((MsgPreviewScreen *) msg_preview)->addPreview(path_len, channel_details.name, text);
   setCurrScreen(msg_preview);
 
@@ -842,7 +844,7 @@ void UITask::onDiscoveredContact(ContactInfo &contact, bool is_new, uint8_t path
 
 void UITask::onControlDataRecv(const mesh::Packet* packet) {
 #if UI_DISCOVER_SCREEN
-  if (packet->payload_len >= 12 && (packet->payload[0] & 0xF0) == CTL_TYPE_NODE_DISCOVER_RESP) {
+  if (packet->payload_len >= 14 && (packet->payload[0] & 0xF0) == CTL_TYPE_NODE_DISCOVER_RESP) {
     ((HomeScreen *) home)->handleDiscoverResponse(packet);
   }
 #endif

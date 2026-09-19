@@ -473,7 +473,7 @@ void MyMesh::queueMessage(const ContactInfo &from, uint8_t txt_type, mesh::Packe
   }
 
   if (_listener) {
-    _listener->onMessageRecv(from, txt_type, sender_timestamp, path_len, text);
+    _listener->onMessageRecv(pkt, from, txt_type, sender_timestamp, text);
     _listener->onQueueSizeChanged(offline_queue_len);
   }
 }
@@ -593,7 +593,7 @@ void MyMesh::onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packe
     if (!getChannel(channel_idx, channel_details)) {
       strcpy(channel_details.name, "Unknown");
     }
-    _listener->onChannelMessageRecv(channel_details, path_len, text);
+    _listener->onChannelMessageRecv(pkt, channel_details, text);
     _listener->onQueueSizeChanged(offline_queue_len);
   }
 }
@@ -632,7 +632,7 @@ void MyMesh::onChannelDataRecv(const mesh::GroupChannel &channel, mesh::Packet *
     _serial->writeFrame(frame, 1);
   }
   if (_listener) {
-    _listener->onChannelDataRecv(channel, pkt, data_type, data, data_len);
+    _listener->onChannelDataRecv(pkt, channel, data_type, data, data_len);
   }
 }
 

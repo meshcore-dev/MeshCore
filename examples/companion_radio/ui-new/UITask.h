@@ -22,6 +22,10 @@
 #include "../AbstractUITask.h"
 #include "../NodePrefs.h"
 
+#ifdef UI_NO_DISCOVER_SCREEN
+  #error "UI_NO_DISCOVER_SCREEN is obsolete - use -D UI_DISCOVER_SCREEN=0 instead"
+#endif
+
 #ifndef UI_DISCOVER_SCREEN
   #define UI_DISCOVER_SCREEN  1
 #endif
@@ -111,11 +115,11 @@ public:
   void toggleGPS();
 
   // MyMesh::Listener
-  void onMessageRecv(const ContactInfo &from, uint8_t txt_type, uint32_t sender_timestamp, uint8_t path_len, const char* text) override;
-  void onChannelMessageRecv(ChannelDetails& channel_details, uint8_t path_len, const char* text) override;
+  void onMessageRecv(mesh::Packet *pkt, const ContactInfo &from, uint8_t txt_type, uint32_t sender_timestamp, const char* text) override;
+  void onChannelMessageRecv(mesh::Packet *pkt, ChannelDetails& channel_details, const char* text) override;
   void onQueueSizeChanged(int offline_queue_size) override;
   void onDiscoveredContact(ContactInfo &contact, bool is_new, uint8_t path_len, const uint8_t* path) override;
-  void onControlDataRecv(const mesh::Packet* packet) override;
+  void onControlDataRecv(const mesh::Packet* pkt) override;
 
   // from AbstractUITask
   void notify(UIEventType t = UIEventType::none) override;
