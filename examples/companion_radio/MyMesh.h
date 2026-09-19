@@ -34,6 +34,27 @@
 #include <helpers/StaticPoolPacketManager.h>
 #include <target.h>
 
+// A companion can be a bridge too. The repeater has always been able to mirror
+// mesh packets onto a second transport (RS232, or ESP-NOW for a fast local
+// lane); a companion could not, so a host-connected node could never be the
+// cheap end of a high-speed link. The hooks below are the same ones the repeater
+// uses - logRx/logTx are virtual on Dispatcher, the companion simply never
+// overrode them.
+#if defined(WITH_RS232_BRIDGE)
+  #include "helpers/bridges/RS232Bridge.h"
+  #define WITH_BRIDGE
+#elif defined(WITH_ESPNOW_BRIDGE)
+  #include "helpers/bridges/ESPNowBridge.h"
+  #define WITH_BRIDGE
+#endif
+
+// How long a bridge holds an ESP-NOW-received packet before the mesh processes
+// it. Same default as the repeater; build with -D BRIDGE_DELAY_MS=0 to measure
+// the lane without that buffer.
+#ifndef BRIDGE_DELAY_MS
+  #define BRIDGE_DELAY_MS 500
+#endif
+
 /* ---------------------------------- CONFIGURATION ------------------------------------- */
 
 #ifndef LORA_FREQ
@@ -136,6 +157,11 @@ protected:
   void sendFloodScoped(const mesh::GroupChannel& channel, mesh::Packet* pkt, uint32_t delay_millis=0) override;
 
   void logRxRaw(float snr, float rssi, const uint8_t raw[], int len) override;
+#if defined(WITH_BRIDGE)
+  void logRx(mesh::Packet* packet, int len, float score) override;
+  bool claimOutboundPacket(mesh::Packet* packet) override;
+  void onInboundPacketProcessed(mesh::Packet* packet) override;
+#endif
   bool isAutoAddEnabled() const override;
   bool shouldAutoAddContactType(uint8_t type) const override;
   bool shouldOverwriteWhenFull() const override;
@@ -232,6 +258,11 @@ private:
 
   DataStore* _store;
   NodePrefs _prefs;
+#if defined(WITH_RS232_BRIDGE)
+  RS232Bridge bridge;
+#elif defined(WITH_ESPNOW_BRIDGE)
+  ESPNowBridge bridge;
+#endif
   uint32_t pending_login;
   uint32_t pending_status;
   uint32_t pending_telemetry, pending_discovery;   // pending _TELEMETRY_REQ

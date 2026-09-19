@@ -4,7 +4,7 @@
 
 #ifdef WITH_RS232_BRIDGE
 
-RS232Bridge::RS232Bridge(NodePrefs *prefs, Stream &serial, mesh::PacketManager *mgr, mesh::RTCClock *rtc)
+RS232Bridge::RS232Bridge(BridgePrefs *prefs, Stream &serial, mesh::PacketManager *mgr, mesh::RTCClock *rtc)
     : BridgeBase(prefs, mgr, rtc), _serial(&serial) {}
 
 void RS232Bridge::begin() {

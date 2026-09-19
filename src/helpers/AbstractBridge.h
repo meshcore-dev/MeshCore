@@ -43,4 +43,35 @@ public:
    * @param packet The packet that was received.
    */
   virtual void onPacketReceived(mesh::Packet* packet) = 0;
+
+  /**
+   * @brief Offers an outbound packet to the bridge, immediately before the radio
+   *        would transmit it. A bridge that can reach the packet's destination
+   *        over its own medium sends it there and answers true, so the radio
+   *        never pays airtime for a packet the local lane already carried.
+   *
+   *        A bridge that answers false may still mirror the packet (so a nearby
+   *        peer gets a fast copy) - the radio remains the transport of record.
+   *
+   * @param packet The packet about to be handed to the radio.
+   * @returns true if the bridge has sent the packet and the radio must not.
+   */
+  virtual bool claimOutboundPacket(mesh::Packet* packet) { return false; }
+
+  /**
+   * @brief Called when a packet this bridge injected has been processed by the
+   *        mesh. Lets the bridge report the injected path's real latency.
+   *
+   * @param packet The packet that was processed.
+   */
+  virtual void onInboundPacketProcessed(mesh::Packet* packet) { }
+
+  /**
+   * @brief Writes this bridge's counters in the host's bridge-stats frame.
+   *
+   * @param dest Destination buffer, after the stats response header.
+   * @param max_len Number of bytes available at dest.
+   * @returns Number of bytes written, or 0 if this bridge keeps no counters.
+   */
+  virtual size_t writeStats(uint8_t* dest, size_t max_len) { return 0; }
 };
