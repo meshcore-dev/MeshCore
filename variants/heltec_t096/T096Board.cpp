@@ -111,10 +111,11 @@ void T096Board::variant_shutdown() {
     nrf_gpio_cfg_default(PIN_GPS_TX);
 }
 
-void T096Board::powerOff() {
+void T096Board::shutdownPeripherals() {
+  NRF52Board::shutdownPeripherals();
+
   loRaFEMControl.setSleepModeEnable();
   nrf_gpio_cfg_default(PIN_GPS_EN); // 363uA down to 39uA
-  NRF52Board::powerOff();
 }
 
 const char* T096Board::getManufacturerName() const {

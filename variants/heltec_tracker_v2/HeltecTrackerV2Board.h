@@ -23,7 +23,7 @@ public:
 
   void onBeforeTransmit(void) override;
   void onAfterTransmit(void) override;
-  void powerOff() override;
+  void shutdownPeripherals() override;
   uint16_t getBattMilliVolts() override;
   const char* getManufacturerName() const override ;
 

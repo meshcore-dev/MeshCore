@@ -37,7 +37,9 @@ public:
     return "Seeed SenseCap Solar";
   }
 
-  void powerOff() override {
+  void shutdownPeripherals() override {
+    NRF52Board::shutdownPeripherals();
+
     digitalWrite(LED_WHITE, LOW);
     digitalWrite(LED_BLUE, LOW);
 
@@ -50,6 +52,10 @@ public:
     // Keep pull-up enabled in system-off so the wake line doesn't float low.
     nrf_gpio_cfg_sense_input(digitalPinToInterrupt(g_ADigitalPinMap[PIN_BUTTON1]), NRF_GPIO_PIN_PULLUP, NRF_GPIO_PIN_SENSE_LOW);
 #endif
+  }
+
+  void powerOff() override {
+    shutdownPeripherals();
 
 #ifdef NRF52_POWER_MANAGEMENT
     initiateShutdown(SHUTDOWN_REASON_USER);

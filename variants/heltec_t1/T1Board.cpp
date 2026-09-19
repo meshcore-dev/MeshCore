@@ -97,9 +97,10 @@ void T1Board::variant_shutdown() {
   digitalWrite(PIN_BAT_CTL, !ADC_CTRL_ENABLED);
 }
 
-void T1Board::powerOff() {
+void T1Board::shutdownPeripherals() {
+  NRF52Board::shutdownPeripherals();
+
   variant_shutdown();
-  NRF52Board::powerOff();
 }
 
 const char* T1Board::getManufacturerName() const {

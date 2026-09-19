@@ -35,12 +35,12 @@ void HeltecTrackerV2Board::begin() {
     loRaFEMControl.setRxModeEnable();
   }
 
-  void HeltecTrackerV2Board::powerOff() {
+  void HeltecTrackerV2Board::shutdownPeripherals() {
+    ESP32Board::shutdownPeripherals();
+
     // Turn off PA
     digitalWrite(P_LORA_PA_POWER, LOW);
     rtc_gpio_hold_en((gpio_num_t)P_LORA_PA_POWER);
-
-    ESP32Board::powerOff();
   }
 
   uint16_t HeltecTrackerV2Board::getBattMilliVolts()  {
@@ -118,4 +118,4 @@ bool HeltecTrackerV2Board::handleCommand(const char* command, uint32_t sender_ti
   }
 
   return false; // not handled
-}
+  }
