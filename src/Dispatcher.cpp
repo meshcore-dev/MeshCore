@@ -63,6 +63,28 @@ uint32_t Dispatcher::getCADFailMaxDuration() const {
   return 4000;   // 4 seconds
 }
 
+uint32_t Dispatcher::estimateTxAirtimeFor(int len_bytes, uint8_t tx_cr) const {
+  (void)tx_cr;
+  return _radio->getEstAirtimeFor(len_bytes);
+}
+
+// Matches the standard LoRa time-on-air equation for the configured modem settings.
+uint32_t Dispatcher::estimateLoRaAirtimeFor(int len_bytes, uint8_t sf, float bw_khz, uint8_t cr) const {
+  bool ldro_enabled = (((float)(1UL << sf)) / bw_khz) > 16.0f;
+  float low_data_rate_optimize = ldro_enabled ? 1.0f : 0.0f;
+  float implicit_header = 0.0f;
+  float crc_enabled = 1.0f;
+  // Preamble length is SF-dependent (RadioLibWrapper::preambleLengthForSF): 32 symbols for
+  // SF<=8, else 16. Hardcoding 16 under-counts airtime by 16 symbols on SF7/SF8 (the default
+  // is SF8), which would skew retransmit delays and the TX-expiry watchdog.
+  float preamble_symbols = (sf <= 8) ? 32.0f : 16.0f;
+  float payload_symbols = 8.0f + fmaxf(ceilf((8.0f * (float)len_bytes - 4.0f * (float)sf + 28.0f + 16.0f * crc_enabled - 20.0f * implicit_header) /
+                                             (4.0f * (float)sf - 8.0f * low_data_rate_optimize)) * (float)cr, 0.0f);
+  float total_symbols = preamble_symbols + payload_symbols + 4.25f;
+  float symbol_length_ms = ((float)(uint32_t(1) << sf) / bw_khz);
+  return (uint32_t)ceilf(symbol_length_ms * total_symbols);
+}
+
 void Dispatcher::loop() {
   if (millisHasNowPassed(next_floor_calib_time)) {
     _radio->triggerNoiseFloorCalibrate(getInterferenceThreshold());
@@ -106,6 +128,9 @@ void Dispatcher::loop() {
       }
 
       _radio->onSendFinished();
+      if (outbound->_tx_cr != 0 && outbound->_tx_cr != _default_cr) {
+        _radio->setCodingRate(_default_cr);
+      }
       logTx(outbound, 2 + outbound->getPathByteLen() + outbound->payload_len);
       if (outbound->isRouteFlood()) {
         n_sent_flood++;
@@ -118,6 +143,9 @@ void Dispatcher::loop() {
       MESH_DEBUG_PRINTLN("%s Dispatcher::loop(): WARNING: outbound packed send timed out!", getLogDateTime());
 
       _radio->onSendFinished();
+      if (outbound->_tx_cr != 0 && outbound->_tx_cr != _default_cr) {
+        _radio->setCodingRate(_default_cr);
+      }
       logTxFail(outbound, 2 + outbound->getPathByteLen() + outbound->payload_len);
 
       releasePacket(outbound);  // return to pool
@@ -204,6 +232,7 @@ void Dispatcher::checkRecv() {
       } else {
         if (tryParsePacket(pkt, raw, len)) {
           pkt->_snr = _radio->getLastSNR() * 4.0f;
+          pkt->_tx_cr = 0;   // pool slots are reused without zeroing; clear stale CR override so flood/non-direct retransmits use the default CR
           score = _radio->packetScore(_radio->getLastSNR(), len);
           air_time = _radio->getEstAirtimeFor(len);
           rx_air_time += air_time;
@@ -324,14 +353,20 @@ void Dispatcher::checkSend() {
     } else {
       memcpy(&raw[len], outbound->payload, outbound->payload_len); len += outbound->payload_len;
 
-      uint32_t max_airtime = _radio->getEstAirtimeFor(len)*3/2;
+      if (outbound->_tx_cr != 0 && outbound->_tx_cr != _default_cr) {
+        _radio->setCodingRate(outbound->_tx_cr);
+      }
+      uint32_t max_airtime = estimateTxAirtimeFor(len, outbound->_tx_cr) * 3 / 2;
       outbound_start = _ms->getMillis();
       bool success = _radio->startSendRaw(raw, len);
       if (!success) {
         MESH_DEBUG_PRINTLN("%s Dispatcher::loop(): ERROR: send start failed!", getLogDateTime());
+        if (outbound->_tx_cr != 0 && outbound->_tx_cr != _default_cr) {
+          _radio->setCodingRate(_default_cr);
+        }
 
         logTxFail(outbound, outbound->getRawLength());
-  
+
         releasePacket(outbound);  // return to pool
         outbound = NULL;
         return;
@@ -360,6 +395,7 @@ Packet* Dispatcher::obtainNewPacket() {
   } else {
     pkt->payload_len = pkt->path_len = 0;
     pkt->_snr = 0;
+    pkt->_tx_cr = 0;
   }
   return pkt;
 }
