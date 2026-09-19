@@ -267,6 +267,10 @@ float MyMesh::getAirtimeBudgetFactor() const {
   return _prefs.airtime_factor;
 }
 
+float MyMesh::getForwardAirtimeBudgetFactor() const {
+  return _prefs.fwd_airtime_factor;
+}
+
 int MyMesh::getInterferenceThreshold() const {
   return _prefs.interference_threshold;
 }
@@ -1019,6 +1023,7 @@ void MyMesh::begin(bool has_display) {
   _prefs.tx_delay_factor = constrain(_prefs.tx_delay_factor, 0, 2.0f);
   _prefs.direct_tx_delay_factor = constrain(_prefs.direct_tx_delay_factor, 0, 2.0f);
   _prefs.airtime_factor = constrain(_prefs.airtime_factor, 0, 9.0f);
+  _prefs.fwd_airtime_factor = constrain(_prefs.fwd_airtime_factor, 0, 9.0f);
   _prefs.freq = constrain(_prefs.freq, 150.0f, 2500.0f);
   _prefs.bw = constrain(_prefs.bw, 7.8f, 500.0f);
   _prefs.sf = constrain(_prefs.sf, 5, 12);
