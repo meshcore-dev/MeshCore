@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Ask a Question
+    url: https://github.com/meshcore-dev/MeshCore/discussions/categories/q-a
+    about: Use GitHub Discussions for questions and support.
+  - name: Feature Request / Idea
+    url: https://github.com/meshcore-dev/MeshCore/discussions/categories/ideas
+    about: Suggest features and improvements in Discussions.
+  - name: Discord Community
+    url: https://discord.gg/BMwCtwHj5V
+    about: Join the Discord for real-time help and chat.
