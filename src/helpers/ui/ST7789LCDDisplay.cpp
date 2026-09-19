@@ -34,6 +34,33 @@ ColorVal UIColor::popup_bkg = ST77XX_CYAN;
 ColorVal UIColor::popup_txt = ST77XX_BLACK;
 ColorVal UIColor::corp_blue = 0x001A;
 
+bool ST7789LCDDisplay::applyTheme(const char* theme) {
+  if (strcmp(theme, "legacy") == 0) {
+    UIColor::window_bkg = ST77XX_BLACK;
+    UIColor::title_bkg = ST77XX_BLACK;
+    UIColor::title_txt = ST77XX_GREEN;
+    UIColor::primary_txt = ST77XX_GREEN;
+    UIColor::secondary_txt = ST77XX_YELLOW;
+    UIColor::warning_txt = ST77XX_RED;
+    UIColor::popup_bkg = ST77XX_BLACK;
+    UIColor::popup_txt = ST77XX_WHITE;
+    UIColor::corp_blue = ST77XX_BLUE;
+    return true;
+  } else if (strcmp(theme, "default") == 0) {
+    UIColor::window_bkg = ST77XX_WHITE;
+    UIColor::title_bkg = ST77XX_BLUE;
+    UIColor::title_txt = ST77XX_WHITE;
+    UIColor::primary_txt = ST77XX_BLACK;
+    UIColor::secondary_txt = (18 << 11) | (36 << 5) | 18;
+    UIColor::warning_txt = ST77XX_ORANGE;
+    UIColor::popup_bkg = ST77XX_CYAN;
+    UIColor::popup_txt = ST77XX_BLACK;
+    UIColor::corp_blue = 0x001A;
+    return true;
+  }
+  return false;
+}
+
 bool ST7789LCDDisplay::begin() {
   if (!_isOn) {
     if (_peripher_power) _peripher_power->claim();
