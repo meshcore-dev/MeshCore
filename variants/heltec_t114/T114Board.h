@@ -46,11 +46,11 @@ public:
     return "Heltec T114";
   }
 
-  void powerOff() override {
+  void shutdownPeripherals() override {
+    NRF52Board::shutdownPeripherals();
+
 #ifdef LED_PIN
     digitalWrite(LED_PIN, HIGH);
 #endif
-
-    NRF52Board::powerOff();
   }
 };

@@ -43,7 +43,9 @@ public:
 
   const char *getManufacturerName() const override { return "Nano G2 Ultra"; }
 
-  void powerOff() override {
+  void shutdownPeripherals() override {
+    NRF52Board::shutdownPeripherals();
+
     // put GPS chip to sleep
     digitalWrite(PIN_GPS_STANDBY, LOW);
     // TODO: unset buzzer to prevent notification circuit activating on hibernate
@@ -51,7 +53,5 @@ public:
 
     nrf_gpio_cfg_sense_input(digitalPinToInterrupt(PIN_USER_BTN), NRF_GPIO_PIN_NOPULL,
                              NRF_GPIO_PIN_SENSE_LOW);
-
-    NRF52Board::powerOff();
   }
 };

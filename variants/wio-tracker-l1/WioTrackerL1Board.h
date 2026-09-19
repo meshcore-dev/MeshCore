@@ -33,8 +33,4 @@ public:
   const char* getManufacturerName() const override {
     return "Seeed Wio Tracker L1";
   }
-
-  void powerOff() override {
-    NRF52Board::powerOff();
-  }
 };

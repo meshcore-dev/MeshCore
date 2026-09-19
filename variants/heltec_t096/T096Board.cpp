@@ -111,10 +111,11 @@ void T096Board::variant_shutdown() {
     nrf_gpio_cfg_default(PIN_GPS_TX);
 }
 
-void T096Board::powerOff() {
+void T096Board::shutdownPeripherals() {
+  NRF52Board::shutdownPeripherals();
+
   loRaFEMControl.setSleepModeEnable();
   nrf_gpio_cfg_default(PIN_GPS_EN); // 363uA down to 39uA
-  NRF52Board::powerOff();
 }
 
 const char* T096Board::getManufacturerName() const {
@@ -122,6 +123,10 @@ const char* T096Board::getManufacturerName() const {
 }
 
 bool T096Board::setLoRaFemLnaEnabled(bool enable) {
+#if defined(RADIO_FEM_RXGAIN) && (RADIO_FEM_RXGAIN == 0)
+  enable = false;
+#endif
+
   if (!loRaFEMControl.isLnaCanControl()) {
     return false;
   }
@@ -131,50 +136,10 @@ bool T096Board::setLoRaFemLnaEnabled(bool enable) {
   return true;
 }
 
+bool T096Board::canControlLoRaFemLna() const {
+  return loRaFEMControl.isLnaCanControl();
+}
+
 bool T096Board::isLoRaFemLnaEnabled() const {
   return loRaFEMControl.isLNAEnabled();
-}
-
-void T096Board::attachDynamicPrefs(KeyValueStore* prefs) {
-  _prefs = prefs;
-
-  char radio_fem_rxgain[8] = { 0 };
-  _prefs->getByKey("fem_rxgain", radio_fem_rxgain, 7);  // get initial values
-
-  setLoRaFemLnaEnabled(strcmp(radio_fem_rxgain, "1") == 0);
-}
-
-bool T096Board::handleCommand(const char* command, uint32_t sender_timestamp, char* reply) {
-  if (strcmp(command, "get radio.fem.rxgain") == 0) {
-    if (!loRaFEMControl.isLnaCanControl()) {
-      strcpy(reply, "Error: unsupported");
-    } else {
-      sprintf(reply, "> %s", isLoRaFemLnaEnabled() ? "on" : "off");
-    }
-    return true;
-  }
-  if (memcmp(command, "set radio.fem.rxgain ", 21) == 0) {
-    if (!loRaFEMControl.isLnaCanControl()) {
-      strcpy(reply, "Error: unsupported");
-    } else if (memcmp(&command[21], "on", 2) == 0) {
-      if (setLoRaFemLnaEnabled(true)) {
-        _prefs->setByKey("fem_rxgain", "1");
-        strcpy(reply, "OK - LoRa FEM RX gain on");
-      } else {
-        strcpy(reply, "Error: failed to apply LoRa FEM RX gain");
-      }
-    } else if (memcmp(&command[21], "off", 3) == 0) {
-      if (setLoRaFemLnaEnabled(false)) {
-        _prefs->setByKey("fem_rxgain", "0");
-        strcpy(reply, "OK - LoRa FEM RX gain off");
-      } else {
-        strcpy(reply, "Error: failed to apply LoRa FEM RX gain");
-      }
-    } else {
-      strcpy(reply, "Error: state must be on or off");
-    }
-    return true;
-  }
-
-  return false; // not handled
 }

@@ -88,7 +88,9 @@ const char* HeltecTowerV2Board::getManufacturerName() const {
   return "Heltec Tower V2";
 }
 
-void HeltecTowerV2Board::powerOff() {
+void HeltecTowerV2Board::shutdownPeripherals() {
+  NRF52Board::shutdownPeripherals();
+  
   pinMode(PIN_GPS_EN, OUTPUT);
   digitalWrite(PIN_GPS_EN, !PIN_GPS_EN_ACTIVE);
   pinMode(PIN_GPS_STANDBY, OUTPUT);
@@ -99,5 +101,4 @@ void HeltecTowerV2Board::powerOff() {
   pinMode(PIN_BAT_CTL, OUTPUT);
   digitalWrite(PIN_BAT_CTL, LOW);
   variant_shutdown();
-  sd_power_system_off();
 }

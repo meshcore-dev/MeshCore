@@ -20,6 +20,8 @@ public:
 
 #ifdef NRF52_POWER_MANAGEMENT
   void powerOff() override {
+    shutdownPeripherals();
+
     initiateShutdown(SHUTDOWN_REASON_USER);
   }
 #endif
