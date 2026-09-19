@@ -3,6 +3,7 @@
 #include <helpers/ConfigSerializer.h>
 #include <helpers/CommonRadioPrefs.h>
 #include <helpers/DynamicConfigSerializer.h>
+#include <helpers/bridges/BridgePrefs.h>
 
 #define TELEM_MODE_DENY            0
 #define TELEM_MODE_ALLOW_FLAGS     1     // use contact.flags
@@ -11,7 +12,7 @@
 #define ADVERT_LOC_NONE       0
 #define ADVERT_LOC_SHARE      1
 
-class NodePrefs : public ConfigSerializer {  // persisted to file
+class NodePrefs : public ConfigSerializer, public BridgePrefs {  // persisted to file
 public:
   float airtime_factor = 0;
   char node_name[32];
@@ -166,6 +167,15 @@ private:
       def("tel_loc", _parent->telemetry_mode_loc);
       def("tel_env", _parent->telemetry_mode_env);
       def("tz_offset", _parent->tz_offset);
+      // Bridge settings, so a companion can be a bridge (see WITH_BRIDGE). The
+      // defaults come from BridgePrefs; these keys only persist what the user
+      // changes, so an existing config file keeps working untouched.
+      def("br_en", _parent->bridge_enabled);
+      def("br_delay", _parent->bridge_delay);
+      def("br_src", _parent->bridge_pkt_src);
+      def("br_baud", _parent->bridge_baud);
+      def("br_ch", _parent->bridge_channel);
+      def("br_secret", _parent->bridge_secret, sizeof(_parent->bridge_secret));
     }
   public:
     CompanionPrefs(NodePrefs* parent) : _parent(parent) { }

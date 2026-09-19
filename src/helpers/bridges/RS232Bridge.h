@@ -54,7 +54,7 @@ public:
    * @param mgr PacketManager for allocating and queuing packets
    * @param rtc RTCClock for timestamping debug messages
    */
-  RS232Bridge(NodePrefs *prefs, Stream &serial, mesh::PacketManager *mgr, mesh::RTCClock *rtc);
+  RS232Bridge(BridgePrefs *prefs, Stream &serial, mesh::PacketManager *mgr, mesh::RTCClock *rtc);
 
   /**
    * Initializes the RS232 bridge

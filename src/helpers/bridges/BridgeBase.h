@@ -1,7 +1,7 @@
 #pragma once
 
 #include "helpers/AbstractBridge.h"
-#include "helpers/CommonCLI.h"
+#include "helpers/bridges/BridgePrefs.h"
 #include "helpers/SimpleMeshTables.h"
 
 #include <RTClib.h>
@@ -53,14 +53,14 @@ protected:
   /** Tracks bridge state */
   bool _initialized = false;
 
+  /** Bridge settings, from whichever NodePrefs this build actually has. */
+  BridgePrefs *_prefs;
+
   /** Packet manager for allocating and queuing mesh packets */
   mesh::PacketManager *_mgr;
 
   /** RTC clock for timestamping debug messages */
   mesh::RTCClock *_rtc;
-
-  /** Node preferences for configuration settings */
-  NodePrefs *_prefs;
 
   /** Tracks seen packets to prevent loops in broadcast communications */
   SimpleMeshTables _seen_packets;
@@ -68,11 +68,11 @@ protected:
   /**
    * @brief Constructs a BridgeBase instance
    *
-   * @param prefs Node preferences for configuration settings
+   * @param prefs Bridge settings
    * @param mgr PacketManager for allocating and queuing packets
    * @param rtc RTCClock for timestamping debug messages
    */
-  BridgeBase(NodePrefs *prefs, mesh::PacketManager *mgr, mesh::RTCClock *rtc)
+  BridgeBase(BridgePrefs *prefs, mesh::PacketManager *mgr, mesh::RTCClock *rtc)
       : _prefs(prefs), _mgr(mgr), _rtc(rtc) {}
 
   /**

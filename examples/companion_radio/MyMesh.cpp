@@ -305,6 +305,24 @@ void MyMesh::logRxRaw(float snr, float rssi, const uint8_t raw[], int len) {
   }
 }
 
+#if defined(WITH_BRIDGE)
+// The companion never overrode these hooks, so a companion could not mirror mesh
+// traffic onto a second transport the way a repeater can. Which direction is
+// mirrored is the same setting the repeater uses: bridge_pkt_src 0 = what this
+// node transmits, 1 = what it receives.
+void MyMesh::logRx(mesh::Packet* packet, int len, float score) {
+  if (_prefs.bridge_pkt_src == 1) {
+    bridge.sendPacket(packet);
+  }
+}
+
+void MyMesh::logTx(mesh::Packet* packet, int len) {
+  if (_prefs.bridge_pkt_src == 0) {
+    bridge.sendPacket(packet);
+  }
+}
+#endif
+
 bool MyMesh::isAutoAddEnabled() const {
   return (_prefs.manual_add_contacts & 1) == 0;
 }
@@ -932,7 +950,11 @@ void MyMesh::onSendTimeout() {}
 
 MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMeshTables &tables, DataStore& store, AbstractUITask* ui)
     : BaseChatMesh(radio, *new ArduinoMillis(), rng, rtc, *new StaticPoolPacketManager(16), tables),
-      _serial(NULL), telemetry(MAX_PACKET_PAYLOAD - 4), _store(&store), _ui(ui), _iter(0) {
+      _serial(NULL), telemetry(MAX_PACKET_PAYLOAD - 4), _store(&store), _ui(ui), _iter(0)
+#if defined(WITH_BRIDGE)
+      , bridge(&_prefs, _mgr, &rtc)
+#endif
+      {
   _iter_started = false;
   _cli_rescue = false;
   cli_command[0] = 0;
@@ -966,6 +988,16 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
 #endif
   //_prefs.rx_delay_base = 10.0f;  enable once new algo fixed
   _prefs.setRepeatEn(false);
+#if defined(WITH_BRIDGE)
+  // Bridge defaults, the same shape the repeater sets. bridge_secret must be
+  // non-empty: xorCrypt() takes a modulo over strlen(secret).
+  _prefs.bridge_enabled = 1;    // enabled
+  _prefs.bridge_delay = BRIDGE_DELAY_MS;
+  _prefs.bridge_pkt_src = 0;    // logTx
+  _prefs.bridge_baud = 115200;  // unused by ESP-NOW, kept consistent
+  _prefs.bridge_channel = 1;    // channel 1
+  StrHelper::strncpy(_prefs.bridge_secret, "LVSITANOS", sizeof(_prefs.bridge_secret));
+#endif
 #if defined(USE_SX1262) || defined(USE_SX1268)
 #ifdef SX126X_RX_BOOSTED_GAIN
   _prefs.rx_boosted_gain = SX126X_RX_BOOSTED_GAIN;
@@ -1058,6 +1090,13 @@ void MyMesh::begin(bool has_display) {
 
   board.attachDynamicPrefs(_prefs.getCustom());
 
+#if defined(WITH_BRIDGE)
+  // The bridge has to be started here: logRx/logTx only mirror once ESP-NOW is
+  // up, and an unstarted bridge silently drops every packet it is handed.
+  if (_prefs.bridge_enabled) {
+    bridge.begin();
+  }
+#endif
   MESH_DEBUG_PRINTLN("RX Boosted Gain Mode: %s",
                      radio_driver.getRxBoostedGainMode() ? "Enabled" : "Disabled");
 }
@@ -2458,6 +2497,10 @@ void MyMesh::checkSerialInterface() {
 }
 
 void MyMesh::loop() {
+#if defined(WITH_BRIDGE)
+  bridge.loop();
+#endif
+
   BaseChatMesh::loop();
 
   if (_cli_rescue) {
@@ -2499,5 +2542,10 @@ bool MyMesh::advert() {
 
 // To check if there is pending work
 bool MyMesh::hasPendingWork() const {
+#if defined(WITH_BRIDGE)
+  // The bridge holds the 2.4 GHz radio and its queue, so a node running one
+  // cannot be considered idle. Same rule the repeater applies.
+  if (bridge.isRunning()) return true;
+#endif
   return _mgr->getOutboundTotal() > 0 || dirty_contacts_expiry != 0;
 }
