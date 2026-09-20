@@ -563,6 +563,9 @@ static const SensorDef SENSOR_TABLE[] = {
 #endif
 #if ENV_INCLUDE_BME280
   { TELEM_BME280_ADDRESS,  "BME280",       init_bme280,   query_bme280   },
+#if TELEM_BME280_ADDRESS != 0x77
+  { 0x77,                  "BME280@77",    init_bme280,   query_bme280   },
+#endif
 #endif
 #if ENV_INCLUDE_BMP280
   { TELEM_BMP280_ADDRESS,  "BMP280",       init_bmp280,   query_bmp280   },
