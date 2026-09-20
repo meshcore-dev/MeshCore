@@ -1,0 +1,85 @@
+name: Feature Request
+description: Suggest a MeshCore improvement or new capability
+title: "[FEATURE] "
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Before submitting
+
+        Please search existing issues first:
+        https://github.com/meshcore-dev/MeshCore/issues
+
+        If a similar feature request already exists, please comment on the existing issue instead of creating a duplicate.
+
+        This repository is for MeshCore Community Firmware and Client App and Ripple Firmware 
+
+  - type: checkboxes
+    id: precheck
+    attributes:
+      label: Pre-flight checklist
+      options:
+        - label: I have searched existing issues and feature requests
+          required: true
+        - label: I understand this repository is for MeshCore Community Firmware and Client App and Ripple Firmware
+          required: true
+
+  - type: dropdown
+    id: feature_type
+    attributes:
+      label: Feature Type
+      description: Which part of MeshCore would this feature affect?
+      options:
+        - Firmware - Community
+        - Firmware - Ripple
+        - Client - MeshCore App
+        - UI - TDeck / Ripple GUI
+        - CLI / Tooling
+        - New Hardware Support
+        - Protocol / Routing
+        - Documentation
+        - Unsure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Target Platform
+      description: MCU family, if relevant.
+      options:
+        - Not platform specific
+        - ESP32
+        - nRF52
+        - Unsure
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / Use Case
+      description: What problem does this feature solve?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed_solution
+    attributes:
+      label: Proposed Solution
+      description: Describe the behaviour or change you would like.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Any other approaches or workarounds?
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Links, diagrams, examples, screenshots, or related issues.
