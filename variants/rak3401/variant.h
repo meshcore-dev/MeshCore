@@ -180,20 +180,20 @@ static const uint8_t AREF = PIN_AREF;
 #define PIN_3V3_EN (34)
 #define WB_IO2 PIN_3V3_EN
 
-// RAK1910 GPS module
-// If using the wisblock GPS module and pluged into Port A on WisBlock base
-// IO1 is hooked to PPS (pin 12 on header) = gpio 17
-// IO2 is hooked to GPS RESET = gpio 34, but it can not be used to this because IO2 is ALSO used to control 3V3_S power (1 is on).
-// Therefore must be 1 to keep peripherals powered
-// Power is on the controllable 3V3_S rail
+// RAK12501 UART GNSS module
+// RAK12501 uses the Quectel L76K and speaks NMEA over UART.
+// The RAK3401 1W Booster keeps WB_IO2 high for the shared peripheral/PA rail,
+// so GPS power saving must not toggle PIN_3V3_EN as a GPS-only enable pin.
+//
+// EnvironmentSensorManager currently calls Serial1.setPins(PIN_GPS_TX, PIN_GPS_RX).
+// Keep these definitions aligned with the existing MeshCore RAK4631 convention so
+// that call expands to setPins(MCU_RX, MCU_TX).
 #define PIN_GPS_PPS (17) // Pulse per second input from the GPS
-
-#define PIN_GPS_RX PIN_SERIAL1_RX
-#define PIN_GPS_TX PIN_SERIAL1_TX
-
+#define PIN_GPS_TX PIN_SERIAL1_RX
+#define PIN_GPS_RX PIN_SERIAL1_TX
 #define PIN_GPS_1PPS PIN_GPS_PPS
 #define GPS_BAUD_RATE 9600
-#define GPS_ADDRESS 0x42  //i2c address for GPS
+#define GPS_ADDRESS 0x42  // kept for compatibility; RAK12501/L76K uses UART NMEA here
 
 // Battery
 // The battery sense is hooked to pin A0 (5)
