@@ -1,7 +1,7 @@
 #pragma once
 
 #include "helpers/AbstractBridge.h"
-#include "helpers/CommonCLI.h"
+#include "helpers/bridges/BridgePrefs.h"
 #include "helpers/SimpleMeshTables.h"
 
 #include <RTClib.h>
@@ -53,14 +53,19 @@ protected:
   /** Tracks bridge state */
   bool _initialized = false;
 
+  /** Counters for the injected path: handed to the mesh, or dropped here */
+  uint32_t _injected = 0;
+  uint32_t _dropped_dup = 0;
+  uint32_t _dropped_uninit = 0;
+
+  /** Bridge settings, from whichever NodePrefs this build actually has. */
+  BridgePrefs *_prefs;
+
   /** Packet manager for allocating and queuing mesh packets */
   mesh::PacketManager *_mgr;
 
   /** RTC clock for timestamping debug messages */
   mesh::RTCClock *_rtc;
-
-  /** Node preferences for configuration settings */
-  NodePrefs *_prefs;
 
   /** Tracks seen packets to prevent loops in broadcast communications */
   SimpleMeshTables _seen_packets;
@@ -68,11 +73,11 @@ protected:
   /**
    * @brief Constructs a BridgeBase instance
    *
-   * @param prefs Node preferences for configuration settings
+   * @param prefs Bridge settings
    * @param mgr PacketManager for allocating and queuing packets
    * @param rtc RTCClock for timestamping debug messages
    */
-  BridgeBase(NodePrefs *prefs, mesh::PacketManager *mgr, mesh::RTCClock *rtc)
+  BridgeBase(BridgePrefs *prefs, mesh::PacketManager *mgr, mesh::RTCClock *rtc)
       : _prefs(prefs), _mgr(mgr), _rtc(rtc) {}
 
   /**
@@ -95,6 +100,22 @@ protected:
    * @return Calculated Fletcher-16 checksum
    */
   static uint16_t fletcher16(const uint8_t *data, size_t len);
+
+  /**
+   * @brief  How long a packet received over the bridge is held before the mesh
+   *     processes it.
+   *
+   * The configured bridge_delay is right for traffic that also arrives over the
+   * radio: it lets the radio's copy land first, so the bridge's copy is dropped
+   * as a duplicate instead of provoking a second reaction (a flood retransmit, or
+   * a second copy of a message). A bridge that knows the packet will not also
+   * arrive over the radio - a unicast delivery on a local lane - returns 0,
+   * because holding it is pure latency.
+   *
+   * @param packet The packet that arrived over the bridge.
+   * @returns Delay in milliseconds before the packet is handed to the mesh.
+   */
+  virtual uint32_t getInjectDelayMs(const mesh::Packet* packet) { return _prefs->bridge_delay; }
 
   /**
    * @brief Validate received checksum against calculated checksum

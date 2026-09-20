@@ -29,6 +29,10 @@ jobs:
           - Heltec_v3_companion_radio_ble
           - Heltec_v3_repeater
           - Heltec_v3_room_server
+          # ESP32-S3 companion with the ESP-NOW bridge: the only entry here that
+          # compiles src/helpers/bridges - without it a change to a bridge, or to
+          # the prefs both NodePrefs classes share, is not built by this check.
+          - heltec_v4_companion_radio_usb_bridge_espnow
           # nRF52
           - RAK_4631_companion_radio_ble
           - RAK_4631_companion_radio_ethernet

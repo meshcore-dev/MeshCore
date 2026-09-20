@@ -163,6 +163,25 @@ protected:
   virtual void logTxFail(Packet* packet, int len) { }
   virtual const char* getLogDateTime() { return ""; }
 
+  /**
+   * \brief  Gives a sub-class a chance to send an outbound packet over a different
+   *     transport instead of the radio, immediately before the radio would be
+   *     started. Used by bridges: a nearby peer can be reached over the bridge's
+   *     own medium (eg. ESP-NOW) without paying the radio's airtime for it.
+   * \returns  true if the packet has been sent elsewhere and MUST NOT be
+   *     transmitted on the radio. No radio airtime is accounted for it, and the
+   *     radio's own sent-counters deliberately do not move.
+   */
+  virtual bool claimOutboundPacket(Packet* packet) { return false; }
+
+  /**
+   * \brief  Called for every packet that is about to be dispatched to the
+   *     on..Recv() methods, whichever transport delivered it (the radio, or a
+   *     bridge that injected it). A bridge uses this to close the loop on its own
+   *     injected packets and measure the injected path.
+   */
+  virtual void onInboundPacketProcessed(Packet* packet) { }
+
   virtual float getAirtimeBudgetFactor() const;
   virtual int calcRxDelay(float score, uint32_t air_time) const;
   virtual uint32_t getCADFailRetryDelay() const;

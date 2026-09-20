@@ -46,6 +46,66 @@ private:
   static void send_cb(const uint8_t *mac, esp_now_send_status_t status);
 
   /**
+   * Control frame magic, deliberately different from BRIDGE_PACKET_MAGIC.
+   *
+   * A presence announcement says "this node has a bridge, on this medium, right
+   * now" - it is what makes "peer known ESP-NOW-reachable" an observation rather
+   * than a guess, because no mesh packet type carries a source hash for every
+   * kind of traffic (an ACK, for instance, carries only its CRC). Other
+   * implementations of this bridge see a frame with an unknown magic and discard
+   * it, so the lane stays interoperable with the upstream ESP-NOW bridges.
+   */
+  static constexpr uint16_t BRIDGE_ANNOUNCE_MAGIC = 0xC03F;
+
+  /** How often a running bridge announces itself, and how long a peer is trusted. */
+  static constexpr uint32_t BRIDGE_ANNOUNCE_INTERVAL_MS = 5000;
+  static constexpr uint32_t BRIDGE_PEER_TTL_MS = 30000;
+
+  /** Bridge peers remembered for transport selection. */
+  static constexpr size_t MAX_BRIDGE_PEERS = 8;
+
+  /** Injected packets whose round trip through the mesh is still being measured. */
+  static constexpr size_t INFLIGHT_SLOTS = 8;
+
+  struct PeerEntry {
+    uint8_t mac[ESP_NOW_ETH_ALEN];
+    uint8_t hash;            // mesh hash (first byte of the peer's public key)
+    uint32_t last_seen;      // millis() of the last frame from this peer
+    bool used;
+  };
+
+  struct InflightEntry {
+    uint8_t hash[MAX_HASH_SIZE];
+    uint32_t received;       // millis() when the frame arrived over ESP-NOW
+    bool used;
+  };
+
+  /**
+   * Counters for the host's bridge-stats frame. Every entry answers a question the
+   * last measurement could only infer: did the packet really skip the radio, did
+   * the packet arrive over this lane, and how much of the latency is the bridge's.
+   */
+  struct Counters {
+    uint32_t tx;                 // data frames handed to esp_now_send()
+    uint32_t tx_announce;        // presence announcements handed to esp_now_send()
+    uint32_t tx_failed;          // esp_now_send() refused the frame outright
+    uint32_t tx_done;            // send-callback: frame left the radio
+    uint32_t tx_error;           // send-callback: ESP-NOW reported a failure
+    uint32_t rx;                 // valid bridge frames received
+    uint32_t rx_announce;        // presence announcements received
+    uint32_t rx_bad;             // frames dropped: magic, size or checksum
+    uint32_t dropped_nospace;    // no free packet in the pool
+    uint32_t fastlane_tx;        // sent on ESP-NOW only: the radio was skipped
+    uint32_t mirror_tx;          // mirrored before the radio transmit
+    uint32_t fastlane_miss;      // unicast that could NOT use the lane (peer unknown)
+    uint32_t rx_to_queue_max_ms; // bridge's own receive-path cost, worst case
+    uint32_t rx_to_queue_last_ms;
+    uint32_t inject_to_process_max_ms;   // arrival -> processed by the mesh
+    uint32_t inject_to_process_last_ms;
+    uint32_t inject_delay_last_ms;       // hold the last injected packet got
+  };
+
+  /**
    * ESP-NOW Protocol Structure:
    * - ESP-NOW header: 20 bytes (handled by ESP-NOW protocol)
    * - ESP-NOW payload: 250 bytes maximum
@@ -68,6 +128,62 @@ private:
 
   /** Current position in receive buffer */
   size_t _rx_buffer_pos;
+
+  /** This node's own mesh hash, so an announcement can carry it. */
+  uint8_t _self_hash;
+  bool _have_self_hash;
+  uint32_t _last_announce;
+
+  /** Peers heard on this lane recently enough to send to without the radio. */
+  PeerEntry _peers[MAX_BRIDGE_PEERS];
+
+  /** Bridge-received packets whose processing time is still being measured. */
+  InflightEntry _inflight[INFLIGHT_SLOTS];
+  uint8_t _inflight_next;
+
+  Counters _counters;
+
+  /**
+   * Records a peer as reachable over this lane, refreshing it if already known.
+   */
+  void notePeer(const uint8_t *mac, uint8_t hash, uint32_t now);
+
+  /**
+   * Learns the sender of a mesh packet that crossed this lane in one hop.
+   *
+   * A directly routed data packet with no hops came from the node whose hash it
+   * carries as its source, so it is evidence - independent of the announcements -
+   * that this peer is on the lane right now.
+   */
+  void notePeerFromPacket(const uint8_t *mac, const mesh::Packet *packet, uint32_t now);
+
+  /**
+   * Handles a peer's presence announcement.
+   */
+  void handleAnnounce(const uint8_t *mac, const uint8_t *data, int32_t len, uint32_t now);
+
+  /**
+   * @returns true if the mesh hash was heard on this lane within the TTL.
+   */
+  bool peerReachable(uint8_t hash, uint32_t now);
+
+  /**
+   * Sends this node's presence announcement, so peers can select this lane.
+   */
+  void sendAnnounce(uint32_t now);
+
+  /**
+   * Builds and sends one bridge frame: magic header, checksum, encrypted payload.
+   * Shared by packets and announcements, which differ only in magic and payload.
+   */
+  void sendFrame(uint16_t magic, const uint8_t *payload, size_t payload_len, bool is_announce);
+
+  /**
+   * Remembers an injected packet so its processing time can be measured, and
+   * closes the measurement when the mesh hands the packet to its handlers.
+   */
+  void recordInflight(const mesh::Packet *packet, uint32_t now);
+  void completeInflight(const mesh::Packet *packet, uint32_t now);
 
   /**
    * Performs XOR encryption/decryption of data
@@ -109,7 +225,7 @@ public:
    * @param mgr PacketManager for allocating and queuing packets
    * @param rtc RTCClock for timestamping debug messages
    */
-  ESPNowBridge(NodePrefs *prefs, mesh::PacketManager *mgr, mesh::RTCClock *rtc);
+  ESPNowBridge(BridgePrefs *prefs, mesh::PacketManager *mgr, mesh::RTCClock *rtc);
 
   /**
    * Initializes the ESP-NOW bridge
@@ -136,6 +252,44 @@ public:
    * ESP-NOW is callback-based, so this is currently empty
    */
   void loop() override;
+
+  /**
+   * Sets this node's mesh hash, so peers can be told this lane exists.
+   * Called by the owning mesh once its identity is known.
+   */
+  void setSelfHash(uint8_t hash) { _self_hash = hash; _have_self_hash = true; }
+
+  /**
+   * Offers an outbound packet to the local lane, before the radio transmits it.
+   *
+   * A packet the mesh already routes directly to a peer that has announced
+   * itself on this lane needs no radio airtime: it travels over ESP-NOW only, and
+   * the radio's counters stay flat. Everything else keeps the radio as the
+   * transport of record and is mirrored instead, so a nearby peer still gets a
+   * copy before the airtime is paid.
+   *
+   * @param packet The packet the dispatcher is about to transmit.
+   * @returns true if the packet went out over ESP-NOW and the radio must skip it.
+   */
+  bool claimOutboundPacket(mesh::Packet *packet) override;
+
+  /**
+   * Called when a packet this bridge injected is processed by the mesh.
+   */
+  void onInboundPacketProcessed(mesh::Packet *packet) override;
+
+  /**
+   * Writes the bridge counters for the host's bridge-stats frame.
+   */
+  size_t writeStats(uint8_t *dest, size_t max_len) override;
+
+  /**
+   * A unicast packet that arrives on this lane and is not forwarded (a direct
+   * route with no hops) is not held: no radio copy is coming, and the hold is
+   * pure latency in the fast path. Broadcast/flood traffic keeps the configured
+   * delay, so the radio's copy still wins the race and no extra reaction follows.
+   */
+  uint32_t getInjectDelayMs(const mesh::Packet *packet) override;
 
   /**
    * Called when a packet is received via ESP-NOW

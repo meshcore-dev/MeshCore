@@ -35,15 +35,19 @@ void BridgeBase::handleReceivedPacket(mesh::Packet *packet) {
   // Guard against uninitialized state
   if (_initialized == false) {
     BRIDGE_DEBUG_PRINTLN("RX packet received before initialization\n");
+    _dropped_uninit++;
     _mgr->free(packet);
     return;
   }
 
   if (!_seen_packets.wasSeen(packet)) {
     _seen_packets.markSeen(packet);
-    // bridge_delay provides a buffer to prevent immediate processing conflicts in the mesh network.
-    _mgr->queueInbound(packet, millis() + _prefs->bridge_delay);
+    // bridge_delay provides a buffer to prevent immediate processing conflicts in
+    // the mesh network, for traffic that is also arriving over the radio.
+    _mgr->queueInbound(packet, millis() + getInjectDelayMs(packet));
+    _injected++;
   } else {
+    _dropped_dup++;
     _mgr->free(packet);
   }
 }
