@@ -3,7 +3,7 @@
 #define RADIOLIB_STATIC_ONLY 1
 #include <RadioLib.h>
 #include <helpers/radiolib/RadioLibWrappers.h>
-#include "muzi_baseBoard.h"
+#include "MuziBaseBoard.h"
 #if defined(USE_LR1121)
   #include <helpers/radiolib/CustomLR1121Wrapper.h>
 #elif defined(USE_SX1262)
@@ -19,7 +19,7 @@
 #include <helpers/ui/MomentaryButton.h>
 
 
-#ifdef muzi_base_superIO
+#ifdef MUZI_BASE_SUPERIO
   #include <helpers/ui/SH1107Display.h>
   extern DISPLAY_CLASS display;
   extern MomentaryButton user_btn;
@@ -32,7 +32,7 @@
   extern MomentaryButton user_btn;
 #endif
 
-extern muzi_baseBoard board;
+extern MuziBaseBoard board;
 extern WRAPPER_CLASS radio_driver;
 extern AutoDiscoverRTCClock rtc_clock;
 

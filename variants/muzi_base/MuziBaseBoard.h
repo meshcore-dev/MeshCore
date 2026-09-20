@@ -15,14 +15,14 @@
   #define MUZI_BASE_MFR_NAME  "Muzi Base Duo"
 #endif
 
-class muzi_baseBoard : public NRF52BoardDCDC {
+class MuziBaseBoard : public NRF52BoardDCDC {
 protected:
 #ifdef NRF52_POWER_MANAGEMENT
   void initiateShutdown(uint8_t reason) override;
 #endif
 
 public:
-  muzi_baseBoard() : NRF52Board(MUZI_BASE_OTA_NAME) {}
+  MuziBaseBoard() : NRF52Board(MUZI_BASE_OTA_NAME) {}
   void begin();
 
   #define BATTERY_SAMPLES 8

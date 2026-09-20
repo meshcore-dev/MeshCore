@@ -60,31 +60,3 @@ const uint32_t g_ADigitalPinMap[PINS_COUNT + 1] =
     46,
     47,
 };
-
-void initVariant()
-{
-  // All pins output HIGH by default.
-  // https://github.com/Seeed-Studio/Adafruit_nRF52_Arduino/blob/fab7d30a997a1dfeef9d1d59bfb549adda73815a/cores/nRF5/wiring.c#L65-L69
-
-  pinMode(PIN_VBAT_READ, INPUT);
-  pinMode(PIN_BATTERY_CHARGING, INPUT);
-  pinMode(PIN_CHARGER_FAULT, INPUT);
-  pinMode(PIN_BUTTON1, INPUT);
-  pinMode(PIN_BUTTON2, INPUT);
-  pinMode(PIN_BUTTON3, INPUT);
-  pinMode(PIN_BUTTON4, INPUT);
-  pinMode(PIN_BUTTON5, INPUT);
-  pinMode(PIN_BUTTON6, INPUT);
-  pinMode(LED_PIN, OUTPUT);
-  pinMode(LED_BLUE, OUTPUT);
-  digitalWrite(LED_PIN, LOW);
-  digitalWrite(LED_BLUE, LOW);
-  pinMode(BUZZER_PIN, OUTPUT);
-  digitalWrite(BUZZER_PIN, LOW); // turn off buzzer at start. don't leave it high.
-  // gps power is driven by the sensor manager (mode switch). off to start.
-  pinMode(PIN_GPS_EN, OUTPUT);
-  digitalWrite(PIN_GPS_EN, LOW);
-
-  pinMode(SCREEN_12V_ENABLE, OUTPUT);
-  digitalWrite(SCREEN_12V_ENABLE, LOW); // disable 12V power for SH1107 display for now.
-}

@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #include <Wire.h>
 
-#include "muzi_baseBoard.h"
+#include "MuziBaseBoard.h"
 
 #ifdef NRF52_POWER_MANAGEMENT
 const PowerMgtConfig power_config = {
@@ -10,7 +10,7 @@ const PowerMgtConfig power_config = {
   .voltage_bootlock = PWRMGT_VOLTAGE_BOOTLOCK
 };
 
-void muzi_baseBoard::initiateShutdown(uint8_t reason) {
+void MuziBaseBoard::initiateShutdown(uint8_t reason) {
   // Disable LoRa module power before shutdown
   if (reason == SHUTDOWN_REASON_LOW_VOLTAGE ||
       reason == SHUTDOWN_REASON_BOOT_PROTECT) {
@@ -21,14 +21,26 @@ void muzi_baseBoard::initiateShutdown(uint8_t reason) {
 }
 #endif // NRF52_POWER_MANAGEMENT
 
-void muzi_baseBoard::begin() {
+void MuziBaseBoard::begin() {
   NRF52BoardDCDC::begin();
   pinMode(PIN_VBAT_READ, INPUT);
-#ifdef muzi_base_superIO
+  pinMode(PIN_BATTERY_CHARGING, INPUT);
+  pinMode(PIN_CHARGER_FAULT, INPUT);
+  pinMode(LED_PIN, OUTPUT);
+  digitalWrite(LED_PIN, LOW);
+  // output latches default to HIGH, so pull these low right after enabling
+  pinMode(BUZZER_PIN, OUTPUT);
+  digitalWrite(BUZZER_PIN, LOW);
+  // gps power is driven by the sensor manager (mode switch). off to start.
+  pinMode(PIN_GPS_EN, OUTPUT);
+  digitalWrite(PIN_GPS_EN, LOW);
   // 12V rail is only needed for the superIO display
   pinMode(SCREEN_12V_ENABLE, OUTPUT);
+#ifdef MUZI_BASE_SUPERIO
   digitalWrite(SCREEN_12V_ENABLE, HIGH); // Enable 12V power for SH1107 display
   delay(250);
+#else
+  digitalWrite(SCREEN_12V_ENABLE, LOW);
 #endif
   Wire.begin();
   // delay(1000); // wait for display to initialize. otherwise it doesn't come up on boot.
