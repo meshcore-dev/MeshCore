@@ -2196,7 +2196,7 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
     const char* value = &command[17];
     _prefs.wifi_enabled = (strcmp(value, "on") == 0 || atoi(value)) ? 1 : 0;
     savePrefs();
-    sprintf(reply, "> wifi.enabled is now %d (reboot to apply)", _prefs.wifi_enabled);
+    sprintf(reply, "> wifi.enabled is now %s (reboot to apply)", _prefs.wifi_enabled ? "on" : "off");
     return true;
   }
   if (strcmp(command, "get wifi.enabled") == 0) {
