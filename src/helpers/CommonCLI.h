@@ -8,6 +8,7 @@
 #include <helpers/ConfigSerializer.h>
 #include <helpers/CommonRadioPrefs.h>
 #include <helpers/DynamicConfigSerializer.h>
+#include <helpers/bridges/BridgePrefs.h>
 
 #if defined(WITH_RS232_BRIDGE) || defined(WITH_ESPNOW_BRIDGE)
 #define WITH_BRIDGE
@@ -22,7 +23,7 @@
 #define LOOP_DETECT_MODERATE  2
 #define LOOP_DETECT_STRICT    3
 
-class NodePrefs : public ConfigSerializer {
+class NodePrefs : public ConfigSerializer, public BridgePrefs {
 public:
   // in-memory backing data
   float airtime_factor = 0;
@@ -49,13 +50,9 @@ public:
   uint8_t flood_max_advert = 0;
   uint8_t interference_threshold = 0;
   uint8_t agc_reset_interval = 0; // secs / 4
-  // Bridge settings
-  uint8_t bridge_enabled = 0; // boolean
-  uint16_t bridge_delay = 0;  // milliseconds (default 500 ms)
-  uint8_t bridge_pkt_src = 0; // 0 = logTx, 1 = logRx (default logTx)
-  uint32_t bridge_baud = 0;   // 9600, 19200, 38400, 57600, 115200 (default 115200)
-  uint8_t bridge_channel = 0; // 1-14 (ESP-NOW only)
-  char bridge_secret[16]; // for XOR encryption of bridge packets (ESP-NOW only)
+  // Bridge settings (bridge_enabled, bridge_delay, bridge_pkt_src,
+  // bridge_baud, bridge_channel, bridge_secret) come from BridgePrefs, so the
+  // bridge implementations do not have to know which NodePrefs this is.
   // Power setting
   uint8_t powersaving_enabled = 0; // boolean
   // Gps settings
