@@ -2191,6 +2191,10 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
     strcpy(reply, "> wifi.pwd updated (reboot to apply)");
     return true;
   }
+  if (strcmp(command, "get wifi.pwd") == 0) {
+    sprintf(reply, "> %s", _prefs.wifi_pwd);
+    return true;
+  }
   if (strcmp(command, "set wifi.clear") == 0) {
     _prefs.wifi_ssid[0] = 0;
     _prefs.wifi_pwd[0] = 0;
@@ -2198,7 +2202,7 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
     strcpy(reply, "> wifi config cleared (reboot to apply)");
     return true;
   }
-  if (strcmp(command, "get wifi.ssid") == 0) {   // no 'get wifi.pwd', by design
+  if (strcmp(command, "get wifi.ssid") == 0) {
     sprintf(reply, "> %s", _prefs.getWifiSSID()[0] ? _prefs.getWifiSSID() : "(not set)");
     return true;
   }
