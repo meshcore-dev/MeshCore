@@ -8,6 +8,7 @@
 #ifndef BRIDGE_MAX_BAUD
 #define BRIDGE_MAX_BAUD 115200
 #endif
+#include <WiFi.h>
 
 // Believe it or not, this std C function is busted on some platforms!
 static uint32_t _atoi(const char* sp) {
@@ -980,6 +981,12 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     } 
     if (tmp == reply) {
       sprintf(reply, "No extra SF configured");
+    }
+  } else if (memcmp(config, "wifi.status", 11) == 0) {
+    if (WiFi.isConnected()) {
+      sprintf(reply, "Connected to %s, IP: %s", WiFi.SSID().c_str(), WiFi.localIP().toString().c_str());
+    } else {
+      sprintf(reply, "Not connected");
     }
   } else {
     sprintf(reply, "??: %s", config);
