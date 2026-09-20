@@ -88,7 +88,7 @@
 
 #define PIN_BUTTON1             (4)
 #define BUTTON_PIN              PIN_BUTTON1
-#define USER_BTN_PRESSED        HIGH
+#define USER_BTN_PRESSED        LOW
 
 ////////////////////////////////////////////////////////////////////////////////
 // GPS

@@ -47,6 +47,16 @@ public:
     // shutdown common peripherals
     NRF52Board::shutdownPeripherals();
 
+    #ifdef LED_STATUS
+    digitalWrite(LED_STATUS, HIGH);
+    #endif
+    #ifdef BUTTON_PIN
+    while(!digitalRead(BUTTON_PIN));
+    #endif
+    #ifdef LED_STATUS
+    digitalWrite(LED_STATUS, LOW);
+    #endif
+
     digitalWrite(LED_BAT1, LOW);
     digitalWrite(LED_BAT2, LOW);
     digitalWrite(LED_BAT3, LOW);
@@ -57,5 +67,9 @@ public:
     digitalWrite(PIN_PWR_EN, LOW);
     digitalWrite(I2C_POWER, !I2C_POWER_ACTIVE);
     digitalWrite(PIN_GPS_POWER, !GPS_POWER_ACTIVE);
+
+    #ifdef BUTTON_PIN
+    nrf_gpio_cfg_sense_input(BUTTON_PIN, NRF_GPIO_PIN_NOPULL, NRF_GPIO_PIN_SENSE_LOW);
+    #endif
   }
 };
