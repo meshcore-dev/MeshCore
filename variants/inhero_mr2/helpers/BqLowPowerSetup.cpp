@@ -6,6 +6,7 @@
 
 #include <Arduino.h>
 #include <Wire.h>
+#include <MeshCore.h>
 
 #include "../InheroMr2Board.h"
 #include "../lib/BqDriver.h"
@@ -13,6 +14,76 @@
 namespace inhero {
 
 static constexpr uint8_t INA228_ADDR = 0x40;
+
+namespace {
+bool readBq(uint8_t reg, uint8_t* data, uint8_t count = 1) {
+  Wire.beginTransmission(BQ25798_I2C_ADDR);
+  Wire.write(reg);
+  if (Wire.endTransmission(false) != 0) return false;
+  if (Wire.requestFrom((uint8_t)BQ25798_I2C_ADDR, count) != count) {
+    while (Wire.available()) Wire.read();
+    return false;
+  }
+  for (uint8_t i = 0; i < count; ++i) data[i] = Wire.read();
+  return true;
+}
+
+bool writeBq(uint8_t reg, uint8_t value) {
+  Wire.beginTransmission(BQ25798_I2C_ADDR);
+  Wire.write(reg);
+  Wire.write(value);
+  return Wire.endTransmission() == 0;
+}
+}
+
+void maintainSolarDuringLowVoltageWake(bool mpptEnabled) {
+  // The caller already checked charge_enable and restored the CE output.
+  if (!mpptEnabled) return;
+
+  // At deep discharge the charger may be unpowered. Never use failed reads
+  // as status or ADC data, and never initialise/reset its retained settings.
+  Wire.beginTransmission(BQ25798_I2C_ADDR);
+  if (Wire.endTransmission() != 0) {
+    MESH_DEBUG_PRINTLN("LV-Wake: BQ unavailable, skipping solar maintenance");
+    return;
+  }
+
+  // Do not require an ADC conversion: low VBAT + HIZ can prevent it from
+  // starting. Source qualification itself rejects missing/weak input power.
+  uint8_t status;
+  if (!readBq(0x1B, &status)) return;
+  if (!(status & 0x08)) {
+    uint8_t control;
+    if (!readBq(BQ25798_REG_CHARGER_CONTROL_0, &control)) return;
+    if (!writeBq(BQ25798_REG_CHARGER_CONTROL_0, control | 0x04)) return;
+    delay(50);
+    // Retry clearing HIZ on transient bus errors so charging can resume.
+    bool cleared = false;
+    for (int retry = 0; retry < 3; ++retry) {
+      if (readBq(BQ25798_REG_CHARGER_CONTROL_0, &control) &&
+          writeBq(BQ25798_REG_CHARGER_CONTROL_0, control & ~0x04)) {
+        cleared = true;
+        break;
+      }
+      delay(10);
+    }
+    if (!cleared) return;
+    MESH_DEBUG_PRINTLN("LV-Wake: PG=0, toggled HIZ");
+    uint32_t start = millis();
+    do {
+      delay(20);
+      if (!readBq(0x1B, &status)) return;
+      if (status & 0x08) break;
+    } while (millis() - start < 1000);
+  }
+  if (!(status & 0x08)) return;
+  uint8_t mppt;
+  if (readBq(0x15, &mppt) && !(mppt & 0x01)) {
+    // Below VSYSMIN the BQ may immediately reset EN_MPPT. Verify before logging.
+    if (writeBq(0x15, mppt | 0x01) && readBq(0x15, &mppt) && (mppt & 0x01))
+      MESH_DEBUG_PRINTLN("LV-Wake: MPPT re-enabled");
+  }
+}
 
 void prepareIcsForSystemOff() {
   // INA228 -> shutdown mode (~3.5uA vs ~350uA continuous).

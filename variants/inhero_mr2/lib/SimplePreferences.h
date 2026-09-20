@@ -106,4 +106,11 @@ public:
     String path = getFilePath(key);
     return InternalFS.exists(path.c_str());
   }
+
+  bool remove(const char* key) {
+    if (!_started) return false;
+    String path = getFilePath(key);
+    if (!InternalFS.exists(path.c_str())) return true;
+    return InternalFS.remove(path.c_str());
+  }
 };

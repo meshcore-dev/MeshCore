@@ -24,9 +24,9 @@ AutoDiscoverRTCClock rtc_clock(fallback_clock);
 #if ENV_INCLUDE_GPS
   #include <helpers/sensors/MicroNMEALocationProvider.h>
   MicroNMEALocationProvider nmea = MicroNMEALocationProvider(Serial1);
-  EnvironmentSensorManager sensors = EnvironmentSensorManager(nmea);
+  InheroMr2SensorManager sensors(nmea);
 #else
-  EnvironmentSensorManager sensors;
+  InheroMr2SensorManager sensors;
 #endif
 
 bool radio_init() {

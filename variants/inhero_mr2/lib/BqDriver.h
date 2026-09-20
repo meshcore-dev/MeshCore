@@ -30,6 +30,7 @@ typedef struct {
   uint16_t voltage; // Solar voltage in mV
   int16_t current;  // Solar current in mA (approximate, see note above)
   int32_t power;    // Solar power in mW
+  bool valid;       // Fresh ADC conversion and successful U/I reads
   bool mppt;        // MPPT enabled status
 } SolarData;
 
@@ -181,7 +182,7 @@ public:
 
   // Read solar + temperature telemetry via BQ25798 ADC.
   // vbat_mv: battery voltage from INA228 in mV, used to decide if the TS channel
-  // can be enabled (requires VBAT >= 3.2V without VBUS, per datasheet 9.3.16).
+  // can be enabled (requires VBAT > 3.2V without VBUS, per SLUSDV2B 9.3.10).
   // Pass 0 if unknown (assumes sufficient voltage).
   const Telemetry* getTelemetryData(uint16_t vbat_mv = 0);
 
@@ -198,6 +199,7 @@ public:
   // Non-static register access methods (use instance I2C config)
   bool writeReg(uint8_t reg, uint8_t val);
   uint8_t readReg(uint8_t reg);
+  bool readReg(uint8_t reg, uint8_t& val);
 
   // Low-level BQ25798 housekeeping via raw TwoWire. These are safe to call
   // before begin() — used on the low-voltage wake path where the driver
@@ -224,6 +226,7 @@ protected:
   Adafruit_I2CDevice* ih_i2c_dev = nullptr; // Dedicated I2C device for NTC access
 
 private:
+  bool prepareADCInput();
   bool startADCOneShot(bool ts_enabled = true);
   bool setADCEnabled(bool enabled);
   int16_t getIBUS();

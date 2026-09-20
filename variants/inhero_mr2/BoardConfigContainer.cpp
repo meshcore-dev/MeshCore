@@ -20,9 +20,7 @@
 #include "helpers/Watchdog.h"
 #include <nrf_soc.h>  // For NRF_POWER (GPREGRET2)
 
-#if ENV_INCLUDE_BME280
 #include <Adafruit_BME280.h>
-#endif
 
 // rtc_clock is defined in target.cpp
 extern AutoDiscoverRTCClock rtc_clock;
@@ -76,17 +74,16 @@ uint32_t BoardConfigContainer::lastTempUpdateMs = 0;  // 0 = never updated
 
 // PG-Stuck recovery: timestamp of last HIZ toggle (0 = never)
 static uint32_t lastPgStuckToggleTime = 0;
+static uint32_t lastPgStuckAttemptTime = 0;
+static bool pgStuckRecoveryAttempted = false;
 #define PG_STUCK_COOLDOWN_MS (5 * 60 * 1000)  // 5 minutes between toggles
 
 void BoardConfigContainer::setupWatchdog() { inhero::setupWatchdog(leds_enabled); }
 void BoardConfigContainer::feedWatchdog()  { inhero::feedWatchdog(); }
 void BoardConfigContainer::disableWatchdog() { inhero::disableWatchdog(); }
 
-// Re-enables MPPT if BQ25798 disabled it (e.g., during !PG state).
-// BQ25798 does not persist MPPT=1 and automatically sets MPPT=0 when PG=0;
-// this restores MPPT=1 when PG returns to 1.
-// Only runs when PowerGood=1 to avoid false positives; exception: PG-stuck
-// recovery toggles HIZ when VBUS is present but PG=0.
+// Retry source qualification at !PG without relying on ADC availability.
+// With PG set, restore configured MPPT if the charger disabled it.
 void BoardConfigContainer::checkAndFixSolarLogic() {
   if (!bqDriverInstance) return;
 
@@ -96,16 +93,21 @@ void BoardConfigContainer::checkAndFixSolarLogic() {
 
   if (!mpptEnabled) {
     // MPPT disabled in config - only disable if currently enabled (avoid unnecessary writes)
-    uint8_t mpptVal = bqDriverInstance->readReg(0x15);
-    if ((mpptVal & 0x01) != 0) {
-      bqDriverInstance->writeReg(0x15, mpptVal & ~0x01);
+    uint8_t mpptVal;
+    if (bqDriverInstance->readReg(0x15, mpptVal) && (mpptVal & 0x01) &&
+        bqDriverInstance->writeReg(0x15, mpptVal & ~0x01)) {
       MESH_DEBUG_PRINTLN("MPPT disabled via config");
     }
     return;
   }
 
-  // Check if PowerGood is currently set
-  bool powerGood = bqDriverInstance->getChargerStatusPowerGood();
+  const BatteryProperties* props = getBatteryProperties(cachedBatteryType);
+  if (!props || !props->charge_enable) return;
+
+  // A missing/unpowered BQ must not be mistaken for PG=0.
+  uint8_t status;
+  if (!bqDriverInstance->readReg(0x1B, status)) return;
+  bool powerGood = (status & 0x08) != 0;
 
   if (!powerGood) {
     // PG-Stuck recovery: Panel may be connected but BQ didn't qualify it.
@@ -113,26 +115,36 @@ void BoardConfigContainer::checkAndFixSolarLogic() {
     // Toggling HIZ forces a new input source qualification cycle (per datasheet).
     // Cooldown: max once per 5 minutes to prevent excessive toggling
     uint32_t now = millis();
-    if (lastPgStuckToggleTime != 0 && (now - lastPgStuckToggleTime) < PG_STUCK_COOLDOWN_MS) {
+    if (pgStuckRecoveryAttempted && (now - lastPgStuckAttemptTime) < PG_STUCK_COOLDOWN_MS) {
       return;
     }
+    lastPgStuckAttemptTime = now;
+    pgStuckRecoveryAttempted = true;
 
-    uint16_t vbus_mv = bqDriverInstance->getVBUS();
-    if (vbus_mv >= PG_STUCK_VBUS_THRESHOLD_MV) {
-      bqDriverInstance->setHIZMode(true);
-      delay(50);  // BQ needs time to enter HIZ and reset input detection
-      bqDriverInstance->setHIZMode(false);
-      lastPgStuckToggleTime = now;
-      MESH_DEBUG_PRINTLN("PG-Stuck recovery: VBUS=%dmV but PG=0, toggled HIZ", vbus_mv);
+    // Low VBAT + HIZ can leave ADC unavailable. Let the BQ qualify the
+    // source itself, including at night or with a weak panel.
+    uint8_t control;
+    if (!bqDriverInstance->readReg(BQ25798_REG_CHARGER_CONTROL_0, control)) return;
+    if (!bqDriverInstance->writeReg(BQ25798_REG_CHARGER_CONTROL_0, control | 0x04)) return;
+    delay(50);
+    for (int retry = 0; retry < 3; ++retry) {
+      // Re-read to preserve any control bits changed by the charger.
+      if (bqDriverInstance->readReg(BQ25798_REG_CHARGER_CONTROL_0, control) &&
+          bqDriverInstance->writeReg(BQ25798_REG_CHARGER_CONTROL_0, control & ~0x04)) {
+        lastPgStuckToggleTime = now;
+        MESH_DEBUG_PRINTLN("PG recovery: PG=0, toggled HIZ");
+        break;
+      }
+      delay(10);
     }
     return;
   }
 
   // Re-enable MPPT when PGOOD=1
-  uint8_t mpptVal = bqDriverInstance->readReg(0x15);
-
-  if ((mpptVal & 0x01) == 0) {
-    bqDriverInstance->writeReg(0x15, mpptVal | 0x01);
+  uint8_t mpptVal;
+  if (bqDriverInstance->readReg(0x15, mpptVal) && !(mpptVal & 0x01) &&
+      bqDriverInstance->writeReg(0x15, mpptVal | 0x01) &&
+      bqDriverInstance->readReg(0x15, mpptVal) && (mpptVal & 0x01)) {
     MESH_DEBUG_PRINTLN("MPPT re-enabled via register");
   }
 }
@@ -874,6 +886,50 @@ bool BoardConfigContainer::loadMpptEnabled(bool& enabled) {
   return false;
 }
 
+bool BoardConfigContainer::loadStationAltitude(float& altitude_m) const {
+  SimplePreferences prefs;
+  prefs.begin(PREFS_NAMESPACE);
+
+  char buffer[24];
+  if (prefs.getString(ALTITUDEKEY, buffer, sizeof(buffer), "") == 0) {
+    return false;
+  }
+
+  char* end = nullptr;
+  const float value = strtof(buffer, &end);
+  if (end == buffer || *end != '\0' || !isfinite(value) ||
+      value < MIN_STATION_ALTITUDE_M || value > MAX_STATION_ALTITUDE_M) {
+    return false;
+  }
+
+  altitude_m = value;
+  return true;
+}
+
+bool BoardConfigContainer::getStationAltitude(float& altitude_m) const {
+  return loadStationAltitude(altitude_m);
+}
+
+bool BoardConfigContainer::setStationAltitude(float altitude_m) {
+  if (!isfinite(altitude_m) || altitude_m < MIN_STATION_ALTITUDE_M ||
+      altitude_m > MAX_STATION_ALTITUDE_M) {
+    return false;
+  }
+
+  char buffer[24];
+  snprintf(buffer, sizeof(buffer), "%.1f", altitude_m);
+
+  SimplePreferences prefs;
+  prefs.begin(PREFS_NAMESPACE);
+  return prefs.putString(ALTITUDEKEY, buffer) > 0;
+}
+
+bool BoardConfigContainer::clearStationAltitude() {
+  SimplePreferences prefs;
+  prefs.begin(PREFS_NAMESPACE);
+  return prefs.remove(ALTITUDEKEY);
+}
+
 // Returns combined telemetry from INA228 (battery) and BQ25798 (solar + temperature).
 // Battery voltage/current come from the INA228 (20-bit ADC, ±0.1% accuracy);
 // solar data and battery temperature from the BQ25798 ADC.
@@ -1150,7 +1206,8 @@ bool BoardConfigContainer::applyJeitaIgnore() {
 }
 
 // Derives the effective JEITA override and programs the BQ:
-//   chemistry needs no JEITA (LTO, Na-ion, UNKNOWN) → forced on
+//   chemistry runs without JEITA (LTO, Na-ion, UNKNOWN) → forced on; for
+//   Na-ion the cell datasheet sets the charge window, the board does not
 //   otherwise → user wish AND 0.05C gate
 // TS_IGNORE stops the BQ's temperature regulation permanently — deliberately
 // including SYSTEMOFF sleep. Turning the override off restores the stored
@@ -1727,7 +1784,6 @@ float BoardConfigContainer::performTcCalibration(float* bme_temp_out) {
 
 // Read BME280 temperature directly via I2C (temporary instance, no core code changes)
 float BoardConfigContainer::readBmeTemperature() {
-#if ENV_INCLUDE_BME280
   Adafruit_BME280 bme;
   if (!bme.begin(0x76, &Wire)) {
     MESH_DEBUG_PRINTLN("TC Cal: BME280 not found at 0x76");
@@ -1746,10 +1802,6 @@ float BoardConfigContainer::readBmeTemperature() {
   float temp = bme.readTemperature();
   MESH_DEBUG_PRINTLN("TC Cal: BME280 reads %.2f C", temp);
   return temp;
-#else
-  MESH_DEBUG_PRINTLN("TC Cal: BME280 not compiled in (ENV_INCLUDE_BME280=0)");
-  return -999.0f;
-#endif
 }
 
 // Arm INA228 BUVL alert at the chemistry's lowv_sleep_mv threshold.

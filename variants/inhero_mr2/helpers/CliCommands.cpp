@@ -106,8 +106,10 @@ bool appendBoardTelemetry(BoardConfigContainer& cfg, CayenneLPP& telemetry) {
   }
 
   // Solar: VSOL[V], ISOL[A], MPPT_7D[%]
-  telemetry.addVoltage(solarChannel, telemetryData->solar.voltage / 1000.0f);
-  telemetry.addCurrent(solarChannel, telemetryData->solar.current / 1000.0f);
+  if (telemetryData->solar.valid) {
+    telemetry.addVoltage(solarChannel, telemetryData->solar.voltage / 1000.0f);
+    telemetry.addCurrent(solarChannel, telemetryData->solar.current / 1000.0f);
+  }
   telemetry.addPercentage(solarChannel, cfg.getMpptEnabledPercentage7Day());
 
   return true;
@@ -137,6 +139,14 @@ bool handleGet(BoardConfigContainer& cfg, const char* getCommand, char* reply, u
     return true;
   } else if (strcmp(cmd, "mppt") == 0) {
     snprintf(reply, maxlen, "MPPT=%s", cfg.getMPPTEnabled() ? "1" : "0");
+    return true;
+  } else if (strcmp(cmd, "altitude") == 0) {
+    float altitude_m = 0.0f;
+    if (cfg.getStationAltitude(altitude_m)) {
+      snprintf(reply, maxlen, "%.1f m", altitude_m);
+    } else {
+      snprintf(reply, maxlen, "N/A (station pressure)");
+    }
     return true;
   } else if (strcmp(cmd, "stats") == 0) {
     const BatterySOCStats* socStats = cfg.getSOCStats();
@@ -222,6 +232,13 @@ bool handleGet(BoardConfigContainer& cfg, const char* getCommand, char* reply, u
     else if (sol_current <= 100)  snprintf(sol_current_str, sizeof(sol_current_str), "~%dmA", (int)sol_current);
     else                          snprintf(sol_current_str, sizeof(sol_current_str), "%dmA", (int)sol_current);
 
+    char solar_str[32];
+    if (telemetry->solar.valid) {
+      snprintf(solar_str, sizeof(solar_str), "%.2fV/%s", telemetry->solar.voltage / 1000.0f, sol_current_str);
+    } else {
+      snprintf(solar_str, sizeof(solar_str), "N/A");
+    }
+
     char temp_str[8];
     if (telemetry->battery.temperature <= -100.0f) {
       snprintf(temp_str, sizeof(temp_str), "N/A");
@@ -237,18 +254,18 @@ bool handleGet(BoardConfigContainer& cfg, const char* getCommand, char* reply, u
         float derated_soc = soc - trapped_pct;
         if (derated_soc < 0.0f) derated_soc = 0.0f;
         if (derated_soc > 100.0f) derated_soc = 100.0f;
-        snprintf(reply, maxlen, "B:%.2fV/%s/%s SOC:%.1f%% (%.0f%%) S:%.2fV/%s",
+        snprintf(reply, maxlen, "B:%.2fV/%s/%s SOC:%.1f%% (%.0f%%) S:%s",
                  telemetry->battery.voltage / 1000.0f, bat_current_str, temp_str,
-                 soc, derated_soc, telemetry->solar.voltage / 1000.0f, sol_current_str);
+                 soc, derated_soc, solar_str);
       } else {
-        snprintf(reply, maxlen, "B:%.2fV/%s/%s SOC:%.1f%% S:%.2fV/%s",
+        snprintf(reply, maxlen, "B:%.2fV/%s/%s SOC:%.1f%% S:%s",
                  telemetry->battery.voltage / 1000.0f, bat_current_str, temp_str,
-                 soc, telemetry->solar.voltage / 1000.0f, sol_current_str);
+                 soc, solar_str);
       }
     } else {
-      snprintf(reply, maxlen, "B:%.2fV/%s/%s SOC:N/A S:%.2fV/%s",
+      snprintf(reply, maxlen, "B:%.2fV/%s/%s SOC:N/A S:%s",
                telemetry->battery.voltage / 1000.0f, bat_current_str, temp_str,
-               telemetry->solar.voltage / 1000.0f, sol_current_str);
+               solar_str);
     }
     return true;
   } else if (strcmp(cmd, "conf") == 0) {
@@ -306,7 +323,7 @@ bool handleGet(BoardConfigContainer& cfg, const char* getCommand, char* reply, u
   }
 
   snprintf(reply, maxlen,
-           "Err: bat|fmax|imax|mppt|telem|stats|cinfo|conf|tccal|leds|batcap|jeitaignore");
+           "Err: bat|fmax|imax|mppt|altitude|telem|stats|cinfo|conf|tccal|leds|batcap|jeitaignore");
   return true;
 }
 
@@ -390,6 +407,26 @@ const char* handleSet(BoardConfigContainer& cfg, const char* setCommand) {
       return ret;
     }
     return "Err: Try true|false or 1|0";
+  } else if (strncmp(setCommand, "altitude ", 9) == 0) {
+    const char* value = BoardConfigContainer::trim(const_cast<char*>(&setCommand[9]));
+    if (strcmp(value, "clear") == 0) {
+      if (!cfg.clearStationAltitude()) {
+        return "Err: Failed to clear altitude";
+      }
+      return "Altitude cleared (BME280 reports station pressure)";
+    }
+    char* end = nullptr;
+    const float altitude_m = strtof(value, &end);
+    if (end == value || *end != '\0' || !isfinite(altitude_m) ||
+        altitude_m < BoardConfigContainer::MIN_STATION_ALTITUDE_M ||
+        altitude_m > BoardConfigContainer::MAX_STATION_ALTITUDE_M) {
+      return "Err: Try -500 to 9000 m";
+    }
+    if (!cfg.setStationAltitude(altitude_m)) {
+      return "Err: Failed to store altitude";
+    }
+    snprintf(ret, sizeof(ret), "Altitude set to %.1f m (BME280 pressure is now QNH)", altitude_m);
+    return ret;
   } else if (strncmp(setCommand, "batcap ", 7) == 0) {
     const char* value = BoardConfigContainer::trim(const_cast<char*>(&setCommand[7]));
     float capacity_mah = atof(value);
@@ -485,7 +522,7 @@ const char* handleSet(BoardConfigContainer& cfg, const char* setCommand) {
     return ret;
   }
 
-  snprintf(ret, sizeof(ret), "Err: bat|imax|fmax|mppt|batcap|tccal|leds|soc|jeitaignore");
+  snprintf(ret, sizeof(ret), "Err: bat|imax|fmax|mppt|altitude|batcap|tccal|leds|soc|jeitaignore");
   return ret;
 }
 

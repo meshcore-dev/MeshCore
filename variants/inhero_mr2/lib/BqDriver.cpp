@@ -68,7 +68,7 @@ bq25798_charging_status BqDriver::getChargingStatus() {
 
 // Reads solar and temperature telemetry via BQ25798 ADC one-shot
 //
-// BQ25798 ADC Operating Conditions (Datasheet SLUSE22, Section 9.3.16):
+// BQ25798 ADC Operating Conditions (SLUSDV2B 9.3.10 / SLUSDV2C 7.3.10):
 //   "The ADC is allowed to operate if either VBUS > 3.4V or VBAT > 2.9V is valid.
 //    At battery only condition, if the TS_ADC channel is enabled, the ADC only
 //    works when battery voltage is higher than 3.2V, otherwise, the ADC works
@@ -84,20 +84,24 @@ bq25798_charging_status BqDriver::getChargingStatus() {
 //   1. If VBAT < 3.2V: disable TS channel to lower threshold to 2.9V
 //      → Solar data (VBUS/IBUS) still readable, temperature returns N/A
 //   2. If VBAT < 2.9V and no VBUS: ADC times out, all values zero/N/A
-//   3. Only channels actually used on MR2 are enabled (IBUS, VBUS, TS)
-//      — unused channels (IBAT, VBAT, VSYS, TDIE, D+, D-, VAC1, VAC2)
-//      are disabled to prevent ADC_EN from hanging on unconnected pins.
+//   3. Only channels used on MR2 are enabled (IBUS, VBUS, TDIE, optional TS).
+//      Other channels are disabled to avoid unnecessary conversion time.
 //
 // ADC_EN auto-clear behavior:
 //   In one-shot mode, ADC_EN resets to 0 only when ALL enabled channels
-//   have completed conversion. If any channel cannot complete (e.g. floating
-//   input), ADC_EN stays 1 indefinitely. This is why unused channels MUST
-//   be disabled via registers 0x2F/0x30.
+//   have completed conversion. However, a rejected or interrupted conversion
+//   can also leave ADC_EN=0 without fresh data. Require ADC_DONE_FLAG as well.
 //
 // vbat_mv: battery voltage in mV from INA228 (0 = unknown, assume sufficient).
 // Returns pointer to internal Telemetry struct (valid until next call).
 const Telemetry* BqDriver::getTelemetryData(uint16_t vbat_mv) {
   telemetryData = { 0 };
+  telemetryData.battery.temperature = -888.0f;
+  if (!ih_i2c_dev) return &telemetryData;
+
+  Adafruit_BusIO_Register inputStatus(ih_i2c_dev, BQ25798_REG_CHARGER_STATUS_0);
+  uint8_t input;
+  if (!inputStatus.read(&input, 1)) return &telemetryData;
 
   // The TS channel runs regardless of chemistry. A missing NTC then decodes
   // through the RT2-only pole to a bogus ≈-46°C that slips past the open-pin
@@ -111,23 +115,33 @@ const Telemetry* BqDriver::getTelemetryData(uint16_t vbat_mv) {
   // channel would stall the whole conversion, costing the solar readings too,
   // so it is switched off there.
   bool ts_enabled = true;
-  if (vbat_mv > 0 && vbat_mv < 3200 && !this->getChargerStatusPowerGood()) {
+  if (vbat_mv > 0 && vbat_mv < 3200 && !(input & 0x08)) {
     ts_enabled = false;  // Disable TS → ADC threshold drops to 2.9V
   }
 
   bool success = this->startADCOneShot(ts_enabled);
 
   if (!success) {
+    setADCEnabled(false);
     return &telemetryData;
   }
 
-  // Poll ADC_EN bit until it auto-clears (conversion complete) or timeout.
-  // Channels: IBUS + VBUS (+ TS if enabled) → ~48-72ms typical.
+  // ADC_EN=0 alone does not prove that a conversion happened (e.g. low supply).
+  // Require a fresh ADC_DONE_FLAG, cleared before this one-shot was started.
+  // Channels: IBUS + VBUS + TDIE (+ TS if enabled) → ~72-96ms typical.
   const uint32_t ADC_TIMEOUT_MS = 250;
   uint32_t start = millis();
   bool conversion_done = false;
+  bool doneSeen = false;
+  Adafruit_BusIO_Register adc_flags(ih_i2c_dev, 0x24);
+  Adafruit_BusIO_Register adc_control(ih_i2c_dev, BQ25798_REG_ADC_CONTROL);
   while ((millis() - start) < ADC_TIMEOUT_MS) {
-    if (!this->getADCEnabled()) {
+    uint8_t control = 0, flags = 0;
+    if (!adc_control.read(&control, 1) || !adc_flags.read(&flags, 1)) {
+      break;
+    }
+    doneSeen = doneSeen || (flags & 0x20);
+    if (!(control & 0x80) && doneSeen) {
       conversion_done = true;
       break;
     }
@@ -139,8 +153,14 @@ const Telemetry* BqDriver::getTelemetryData(uint16_t vbat_mv) {
   }
 
   if (conversion_done) {
-    telemetryData.solar.voltage = getVBUS();
-    telemetryData.solar.current = getIBUS();
+    Adafruit_BusIO_Register vbus(ih_i2c_dev, BQ25798_REG_VBUS_ADC, 2, MSBFIRST);
+    Adafruit_BusIO_Register ibus(ih_i2c_dev, BQ25798_REG_IBUS_ADC, 2, MSBFIRST);
+    uint16_t voltage = 0, current = 0;
+    if (vbus.read(&voltage) && ibus.read(&current)) {
+      telemetryData.solar.voltage = voltage;
+      telemetryData.solar.current = (int16_t)current;
+      telemetryData.solar.valid = true;
+    }
     if (telemetryData.solar.current < 0) {
       telemetryData.solar.current = 0;
     }
@@ -406,7 +426,7 @@ bool BqDriver::setTsIgnore(bool ignore) {
 //     Bit 4: VBAT  → disabled (INA228 measures battery voltage)
 //     Bit 3: VSYS  → disabled (not used)
 //     Bit 2: TS    → ENABLED or disabled depending on VBAT level
-//     Bit 1: TDIE  → disabled (not used)
+//     Bit 1: TDIE  → ENABLED (charger die temperature)
 //     Bit 0: reserved
 //
 //   Reg 0x30 (ADC_FUNCTION_DISABLE_1): all disabled on MR2
@@ -415,13 +435,30 @@ bool BqDriver::setTsIgnore(bool ignore) {
 //     Bit 5: VAC2 → disabled (not routed on PCB)
 //     Bit 4: VAC1 → disabled (not routed on PCB)
 //
-// Why only needed channels: ADC_EN only auto-clears when ALL enabled channels
-// complete. Enabling unconnected channels (D+, D-, VAC) causes ADC_EN to hang
-// indefinitely, requiring a timeout and forced disable.
+// Unused channels stay disabled to reduce conversion time. Supply availability
+// still limits ADC operation; channel masks cannot compensate for an invalid supply.
 //
-// ts_enabled: true = enable TS channel (requires VBAT >= 3.2V per datasheet).
-// Returns true if the I2C writes succeeded.
+// Release the input before a one-shot, without changing charge enable.
+bool BqDriver::prepareADCInput() {
+  if (!ih_i2c_dev) return false;
+  Adafruit_BusIO_Register charger(ih_i2c_dev, BQ25798_REG_CHARGER_CONTROL_0);
+  uint8_t control;
+  if (!charger.read(&control, 1)) return false;
+  if (control & 0x04) {
+    // Preserve EN_CHG and all other settings; CE is controlled by board config.
+    if (!charger.write(control & ~0x04)) return false;
+  }
+  return true;
+}
+
+// ts_enabled: true = enable TS (requires VBAT > 3.2V in battery-only operation).
+// Success confirms setup/start register accesses, not conversion completion.
 bool BqDriver::startADCOneShot(bool ts_enabled) {
+  // Stop any previous conversion, then discard its read-to-clear done flag.
+  if (!setADCEnabled(false)) return false;
+  Adafruit_BusIO_Register adc_flags(ih_i2c_dev, 0x24);
+  uint8_t flags;
+  if (!adc_flags.read(&flags, 1)) return false;
   Adafruit_BusIO_Register disable_reg_0 = Adafruit_BusIO_Register(ih_i2c_dev, 0x2F);
   Adafruit_BusIO_Register disable_reg_1 = Adafruit_BusIO_Register(ih_i2c_dev, 0x30);
 
@@ -436,9 +473,17 @@ bool BqDriver::startADCOneShot(bool ts_enabled) {
   // Reg 0x30: Disable all — D+(7), D-(6), VAC2(5), VAC1(4) not connected on MR2
   if (!disable_reg_1.write(0xF0)) { return false; }
 
+  uint8_t mask0, mask1;
+  if (!disable_reg_0.read(&mask0, 1) || !disable_reg_1.read(&mask1, 1)) return false;
+  if (mask0 != disable0 || mask1 != 0xF0) return false;
+
   Adafruit_BusIO_Register adc_ctrl_reg = Adafruit_BusIO_Register(ih_i2c_dev, BQ25798_REG_ADC_CONTROL);
-  bool ok = adc_ctrl_reg.write(0xC0);
-  return ok;
+  // Release HIZ only after setup, immediately before ADC_EN. Waiting here can
+  // let source qualification reassert HIZ before our conversion even starts.
+  if (!prepareADCInput()) return false;
+  uint8_t control;
+  if (!adc_ctrl_reg.write(0xC0) || !adc_ctrl_reg.read(&control, 1)) return false;
+  return true;
 }
 
 // ADC Control register (0x2E) implementations
@@ -451,9 +496,9 @@ bool BqDriver::getADCEnabled() {
 
 bool BqDriver::setADCEnabled(bool enabled) {
   Adafruit_BusIO_Register adc_ctrl_reg = Adafruit_BusIO_Register(ih_i2c_dev, BQ25798_REG_ADC_CONTROL);
-  Adafruit_BusIO_RegisterBits adc_en_bits = Adafruit_BusIO_RegisterBits(&adc_ctrl_reg, 1, 7);
-  bool ok = adc_en_bits.write((uint8_t)enabled);
-  return ok;
+  uint8_t control;
+  if (!adc_ctrl_reg.read(&control, 1)) return false;
+  return adc_ctrl_reg.write(enabled ? (control | 0x80) : (control & ~0x80));
 }
 
 // ADC Reading implementations
@@ -547,13 +592,13 @@ bool BqDriver::writeReg(uint8_t reg, uint8_t val) {
 }
 
 uint8_t BqDriver::readReg(uint8_t reg) {
-  if (!ih_i2c_dev) return 0;
-  
-  uint8_t buffer[1] = {reg};
-  if (!ih_i2c_dev->write_then_read(buffer, 1, buffer, 1)) {
-    return 0;
-  }
-  return buffer[0];
+  uint8_t value = 0;
+  return readReg(reg, value) ? value : 0;
+}
+
+bool BqDriver::readReg(uint8_t reg, uint8_t& val) {
+  if (!ih_i2c_dev) return false;
+  return ih_i2c_dev->write_then_read(&reg, 1, &val, 1);
 }
 
 // Static, raw-Wire helpers — safe pre-begin().
