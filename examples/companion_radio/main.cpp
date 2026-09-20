@@ -21,11 +21,11 @@ MultiSerialInterface interface_manager;
   #ifdef ESP32
     // include esp32 bluetooth interface
     #include <helpers/esp32/SerialBLEInterface.h>
-    SerialBLEInterface bluetooth_interface;
+    SerialBLEInterface* bluetooth_interface = nullptr;
   #elif defined(NRF52_PLATFORM)
     // include nrf52 bluetooth interface
     #include <helpers/nrf52/SerialBLEInterface.h>
-    SerialBLEInterface bluetooth_interface;
+    SerialBLEInterface* bluetooth_interface = nullptr;
   #else
     #error "SerialBLEInterface is not defined for this platform"
   #endif
@@ -186,8 +186,9 @@ void setup() {
 
 // add bluetooth interface
 #if defined(BLE_PIN_CODE)
-  bluetooth_interface.begin(BLE_NAME_PREFIX, the_mesh.getNodePrefs()->node_name, the_mesh.getBLEPin());
-  interface_manager.addInterface(InterfaceType::Bluetooth, &bluetooth_interface);
+  bluetooth_interface = new SerialBLEInterface();
+  bluetooth_interface->begin(BLE_NAME_PREFIX, the_mesh.getNodePrefs()->node_name, the_mesh.getBLEPin());
+  interface_manager.addInterface(InterfaceType::Bluetooth, bluetooth_interface);
 #endif
 
 // add wifi interface
