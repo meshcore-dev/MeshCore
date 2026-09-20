@@ -28,6 +28,10 @@ bool StrHelper::isBlank(const char* str) {
 
 #include <Arduino.h>
 #include <stdio.h>
+#if __has_include(<api/itoa.h>)
+// https://github.com/stm32duino/Arduino_Core_STM32/issues/3084
+#include <api/itoa.h>
+#endif
 
 union int32_Float_t
 {
@@ -103,7 +107,9 @@ static void _ftoa(float f, char *p, int *status)
     *p++ = '0';
   else
   {
-    p += snprintf(p, 11, "%ld", (long)int_part);
+    ltoa(int_part, p, 10);
+    while (*p)
+      p++;
   }
   *p++ = '.';
   if (frac_part == 0)
