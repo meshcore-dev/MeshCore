@@ -163,18 +163,23 @@ public:
       return 0;
     }
 
-    // write frame to all enabled interfaces
-    bool allSuccessful = true;
+    // write frame to all enabled interfaces. It counts as delivered once ANY
+    // of them took it (see BaseSerialInterface::writeFrame): an interface that
+    // is enabled but has nobody attached (BLE advertising, an idle port) fails
+    // its write, and must not veto the delivery to the client that asked -- a
+    // caller that keeps a frame until it is delivered would otherwise resend
+    // it forever.
+    bool delivered = false;
     for(auto iface : _interfaces){
       if(iface.instance && iface.instance->isEnabled()){
-        if(iface.instance->writeFrame(src, len) != len){
-          allSuccessful = false;
+        if(iface.instance->writeFrame(src, len) == len){
+          delivered = true;
         }
       }
     }
 
-    // report success if all writes completed successfully
-    return allSuccessful ? len : 0; 
+    // report success if at least one interface delivered the frame
+    return delivered ? len : 0; 
   }
 
   size_t checkRecvFrame(uint8_t dest[]) override {
