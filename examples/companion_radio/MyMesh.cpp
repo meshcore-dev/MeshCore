@@ -172,7 +172,7 @@ void MyMesh::writeDisabledFrame() {
   _serial->writeFrame(buf, 1);
 }
 
-void MyMesh::writeContactRespFrame(uint8_t code, const ContactInfo &contact) {
+void MyMesh::writeContactRespFrame(uint8_t code, const ContactInfo &contact, bool push) {
   int i = 0;
   out_frame[i++] = code;
   memcpy(&out_frame[i], contact.id.pub_key, PUB_KEY_SIZE);
@@ -192,7 +192,36 @@ void MyMesh::writeContactRespFrame(uint8_t code, const ContactInfo &contact) {
   i += 4;
   memcpy(&out_frame[i], &contact.lastmod, 4);
   i += 4;
-  _serial->writeFrame(out_frame, i);
+  if (push) {
+    writePushFrame(out_frame, i);
+  } else {
+    _serial->writeFrame(out_frame, i);
+  }
+}
+
+// Push frames are written from the packet callbacks, which run in the same
+// loop() as the CMD_GET_CONTACTS iterator that streams its response one frame
+// per pass. Writing a push straight through would put it between
+// RESP_CODE_CONTACTS_START and RESP_CODE_END_OF_CONTACTS, where a client reading
+// the response has no way to tell it from a corrupt reply (and, for
+// CONTACT_DELETED / CONTACTS_FULL, it describes a table change that invalidates
+// what is being read). Hold them and send them once the response has ended.
+size_t MyMesh::writePushFrame(const uint8_t src[], size_t len) {
+  // Once anything is held, keep holding until the queue drains, so pushes are
+  // delivered in the order they were raised.
+  if (!_iter_started && _deferred_push_count == 0) {
+    return _serial->writeFrame(src, len);
+  }
+  if (len > MAX_FRAME_SIZE) {
+    return 0;
+  }
+  if (_deferred_push_count >= MAX_DEFERRED_PUSHES) {
+    return 0;   // bounded: same outcome as a full serial send queue
+  }
+  memcpy(_deferred_push[_deferred_push_count], src, len);
+  _deferred_push_len[_deferred_push_count] = (uint8_t) len;
+  _deferred_push_count++;
+  return len;
 }
 
 void MyMesh::updateContactFromFrame(ContactInfo &contact, uint32_t& last_mod, const uint8_t *frame, int len) {
@@ -301,7 +330,7 @@ void MyMesh::logRxRaw(float snr, float rssi, const uint8_t raw[], int len) {
     memcpy(&out_frame[i], raw, len);
     i += len;
 
-    _serial->writeFrame(out_frame, i);
+    writePushFrame(out_frame, i);
   }
 }
 
@@ -348,25 +377,25 @@ void MyMesh::onContactOverwrite(const uint8_t* pub_key) {
   if (_serial->isConnected()) {
     out_frame[0] = PUSH_CODE_CONTACT_DELETED;
     memcpy(&out_frame[1], pub_key, PUB_KEY_SIZE);
-    _serial->writeFrame(out_frame, 1 + PUB_KEY_SIZE);
+    writePushFrame(out_frame, 1 + PUB_KEY_SIZE);
   }
 }
 
 void MyMesh::onContactsFull() {
   if (_serial->isConnected()) {
     out_frame[0] = PUSH_CODE_CONTACTS_FULL;
-    _serial->writeFrame(out_frame, 1);
+    writePushFrame(out_frame, 1);
   }
 }
 
 void MyMesh::onDiscoveredContact(ContactInfo &contact, bool is_new, uint8_t path_len, const uint8_t* path) {
   if (_serial->isConnected()) {
     if (is_new) {
-      writeContactRespFrame(PUSH_CODE_NEW_ADVERT, contact);
+      writeContactRespFrame(PUSH_CODE_NEW_ADVERT, contact, true);
     } else {
       out_frame[0] = PUSH_CODE_ADVERT;
       memcpy(&out_frame[1], contact.id.pub_key, PUB_KEY_SIZE);
-      _serial->writeFrame(out_frame, 1 + PUB_KEY_SIZE);
+      writePushFrame(out_frame, 1 + PUB_KEY_SIZE);
     }
   } else {
 #ifdef DISPLAY_CLASS
@@ -462,7 +491,7 @@ void MyMesh::checkControlDataForPendingDiscovery(uint8_t payload[], size_t p_len
 void MyMesh::onContactPathUpdated(const ContactInfo &contact) {
   out_frame[0] = PUSH_CODE_PATH_UPDATED;
   memcpy(&out_frame[1], contact.id.pub_key, PUB_KEY_SIZE);
-  _serial->writeFrame(out_frame, 1 + PUB_KEY_SIZE); // NOTE: app may not be connected
+  writePushFrame(out_frame, 1 + PUB_KEY_SIZE); // NOTE: app may not be connected
 
   dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY);
 }
@@ -475,7 +504,7 @@ ContactInfo*  MyMesh::processAck(const uint8_t *data) {
       memcpy(&out_frame[1], data, 4);
       uint32_t trip_time = _ms->getMillis() - expected_ack_table[i].msg_sent;
       memcpy(&out_frame[5], &trip_time, 4);
-      _serial->writeFrame(out_frame, 9);
+      writePushFrame(out_frame, 9);
 
       // NOTE: the same ACK can be received multiple times!
       expected_ack_table[i].ack = 0; // clear expected hash, now that we have received ACK
@@ -517,7 +546,7 @@ void MyMesh::queueMessage(const ContactInfo &from, uint8_t txt_type, mesh::Packe
   if (_serial->isConnected()) {
     uint8_t frame[1];
     frame[0] = PUSH_CODE_MSG_WAITING; // send push 'tickle'
-    _serial->writeFrame(frame, 1);
+    writePushFrame(frame, 1);
   }
 
 #ifdef DISPLAY_CLASS
@@ -639,7 +668,7 @@ void MyMesh::onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packe
   if (_serial->isConnected()) {
     uint8_t frame[1];
     frame[0] = PUSH_CODE_MSG_WAITING; // send push 'tickle'
-    _serial->writeFrame(frame, 1);
+    writePushFrame(frame, 1);
   } else {
 #ifdef DISPLAY_CLASS
     if (_ui) _ui->notify(UIEventType::channelMessage);
@@ -687,7 +716,7 @@ void MyMesh::onChannelDataRecv(const mesh::GroupChannel &channel, mesh::Packet *
   if (_serial->isConnected()) {
     uint8_t frame[1];
     frame[0] = PUSH_CODE_MSG_WAITING; // send push 'tickle'
-    _serial->writeFrame(frame, 1);
+    writePushFrame(frame, 1);
   }
 }
 
@@ -773,7 +802,7 @@ void MyMesh::onContactResponse(const ContactInfo &contact, const uint8_t *data, 
       memcpy(&out_frame[i], contact.id.pub_key, 6);
       i += 6; // pub_key_prefix
     }
-    _serial->writeFrame(out_frame, i);
+    writePushFrame(out_frame, i);
   } else if (len > 4 && // check for status response
              pending_status &&
              memcmp(&pending_status, contact.id.pub_key, 4) == 0 // legacy matching scheme
@@ -788,7 +817,7 @@ void MyMesh::onContactResponse(const ContactInfo &contact, const uint8_t *data, 
     i += 6; // pub_key_prefix
     memcpy(&out_frame[i], &data[4], len - 4);
     i += (len - 4);
-    _serial->writeFrame(out_frame, i);
+    writePushFrame(out_frame, i);
   } else if (len > 4 && tag == pending_telemetry) {  // check for matching response tag
     pending_telemetry = 0;
 
@@ -799,7 +828,7 @@ void MyMesh::onContactResponse(const ContactInfo &contact, const uint8_t *data, 
     i += 6; // pub_key_prefix
     memcpy(&out_frame[i], &data[4], len - 4);
     i += (len - 4);
-    _serial->writeFrame(out_frame, i);
+    writePushFrame(out_frame, i);
   } else if (len > 4 && tag == pending_req) {  // check for matching response tag
     pending_req = 0;
 
@@ -810,7 +839,7 @@ void MyMesh::onContactResponse(const ContactInfo &contact, const uint8_t *data, 
     i += 4;
     memcpy(&out_frame[i], &data[4], len - 4);
     i += (len - 4);
-    _serial->writeFrame(out_frame, i);
+    writePushFrame(out_frame, i);
   }
 }
 
@@ -836,7 +865,7 @@ bool MyMesh::onContactPathRecv(ContactInfo& contact, uint8_t* in_path, uint8_t i
         i += mesh::Packet::writePath(&out_frame[i], in_path, in_path_len);
         // NOTE: telemetry data in 'extra' is discarded at present
 
-        _serial->writeFrame(out_frame, i);
+        writePushFrame(out_frame, i);
       }
       return false;  // DON'T send reciprocal path!
     }
@@ -862,7 +891,7 @@ void MyMesh::onControlDataRecv(mesh::Packet *packet) {
   i += packet->payload_len;
 
   if (_serial->isConnected()) {
-    _serial->writeFrame(out_frame, i);
+    writePushFrame(out_frame, i);
   } else {
     MESH_DEBUG_PRINTLN("onControlDataRecv(), data received while app offline");
   }
@@ -882,7 +911,7 @@ void MyMesh::onRawDataRecv(mesh::Packet *packet) {
   i += packet->payload_len;
 
   if (_serial->isConnected()) {
-    _serial->writeFrame(out_frame, i);
+    writePushFrame(out_frame, i);
   } else {
     MESH_DEBUG_PRINTLN("onRawDataRecv(), data received while app offline");
   }
@@ -912,7 +941,7 @@ void MyMesh::onTraceRecv(mesh::Packet *packet, uint32_t tag, uint32_t auth_code,
   out_frame[i++] = (int8_t)(packet->getSNR() * 4); // extra/final SNR (to this node)
 
   if (_serial->isConnected()) {
-    _serial->writeFrame(out_frame, i);
+    writePushFrame(out_frame, i);
   } else {
     MESH_DEBUG_PRINTLN("onTraceRecv(), data received while app offline");
   }
@@ -934,6 +963,7 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
     : BaseChatMesh(radio, *new ArduinoMillis(), rng, rtc, *new StaticPoolPacketManager(16), tables),
       _serial(NULL), telemetry(MAX_PACKET_PAYLOAD - 4), _store(&store), _ui(ui), _iter(0) {
   _iter_started = false;
+  _deferred_push_count = 0;
   _cli_rescue = false;
   cli_command[0] = 0;
   offline_queue_len = 0;
@@ -2455,6 +2485,15 @@ void MyMesh::checkSerialInterface() {
              4); // include the most recent lastmod, so app can update their 'since'
       _serial->writeFrame(out_frame, 5);
       _iter_started = false;
+    }
+  } else if (_deferred_push_count > 0 && !_serial->isWriteBusy()) {
+    // The response has ended, so the held pushes can go out now, in the order
+    // they were raised. One per pass keeps the same pacing as the response.
+    _serial->writeFrame(_deferred_push[0], _deferred_push_len[0]);
+    _deferred_push_count--;
+    for (int i = 0; i < _deferred_push_count; i++) {
+      memcpy(_deferred_push[i], _deferred_push[i + 1], _deferred_push_len[i + 1]);
+      _deferred_push_len[i] = _deferred_push_len[i + 1];
     }
   //} else if (!_serial->isWriteBusy()) {
   //  checkConnections();    // TODO - deprecate the 'Connections' stuff
