@@ -678,7 +678,7 @@ uint16_t OLEDDisplay::drawStringMaxWidth(int16_t xMove, int16_t yMove, uint16_t 
   uint16_t drawStringResult = 1; // later tested for 0 == error, so initialize to 1
 
   for (uint16_t i = 0; i < length; i++) {
-    char c = (this->fontTableLookupFunction)(text[i]);
+    uint8_t c = (this->fontTableLookupFunction)(text[i]);
     if (c == 0)
       continue;
     strWidth += pgm_read_byte(fontData + JUMPTABLE_START + (c - firstChar) * JUMPTABLE_BYTES + JUMPTABLE_WIDTH);
@@ -737,7 +737,7 @@ uint16_t OLEDDisplay::getStringWidth(const char* text, uint16_t length, bool utf
   uint16_t maxWidth = 0;
 
   for (uint16_t i = 0; i < length; i++) {
-    char c = text[i];
+    uint8_t c = text[i];
     if (utf8) {
       c = (this->fontTableLookupFunction)(c);
       if (c == 0)
