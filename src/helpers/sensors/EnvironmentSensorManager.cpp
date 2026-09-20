@@ -243,6 +243,7 @@ static void scanI2CBus(TwoWire* wire, bool found[128]) {
 static uint8_t init_ahtx0(TwoWire* wire, uint8_t addr) {
   return AHTX0.begin(wire, 0, addr) ? 1 : 0;
 }
+
 static void query_ahtx0(uint8_t ch, uint8_t, CayenneLPP& lpp) {
   sensors_event_t humidity, temp;
   AHTX0.getEvent(&humidity, &temp);
@@ -256,6 +257,7 @@ static uint8_t init_bme680(TwoWire*, uint8_t addr) {
   // Wire was set in the static constructor; begin() takes address only.
   return BME680.begin(addr) ? 1 : 0;
 }
+
 static void query_bme680(uint8_t ch, uint8_t, CayenneLPP& lpp) {
   if (BME680.performReading()) {
     lpp.addTemperature(ch, BME680.temperature);
@@ -279,6 +281,7 @@ static uint8_t init_bme280(TwoWire* wire, uint8_t addr) {
                      Adafruit_BME280::STANDBY_MS_1000);
   return 1;
 }
+
 static void query_bme280(uint8_t ch, uint8_t, CayenneLPP& lpp) {
   if (BME280.takeForcedMeasurement()) {
     lpp.addTemperature(ch, BME280.readTemperature());
@@ -294,6 +297,7 @@ static uint8_t init_bmp280(TwoWire*, uint8_t addr) {
   // BMP280 static instance was constructed with TELEM_WIRE; begin() uses it.
   return BMP280.begin(addr) ? 1 : 0;
 }
+
 static void query_bmp280(uint8_t ch, uint8_t, CayenneLPP& lpp) {
   lpp.addTemperature(ch, BMP280.readTemperature());
   lpp.addBarometricPressure(ch, BMP280.readPressure() / 100);
@@ -306,6 +310,7 @@ static uint8_t init_shtc3(TwoWire* wire, uint8_t) {
   // Adafruit_SHTC3::begin() does not accept an address (fixed at 0x70).
   return SHTC3.begin(wire) ? 1 : 0;
 }
+
 static void query_shtc3(uint8_t ch, uint8_t, CayenneLPP& lpp) {
   sensors_event_t humidity, temp;
   SHTC3.getEvent(&humidity, &temp);
@@ -322,6 +327,7 @@ static uint8_t init_sht4x(TwoWire* wire, uint8_t addr) {
   uint32_t serial = 0;
   return (SHT4X.serialNumber(serial) == 0) ? 1 : 0;
 }
+
 static void query_sht4x(uint8_t ch, uint8_t, CayenneLPP& lpp) {
   float temperature, humidity;
   if (SHT4X.measureLowestPrecision(temperature, humidity) == 0) {
@@ -336,6 +342,7 @@ static uint8_t init_lps22hb(TwoWire*, uint8_t) {
   // LPS22HBClass is constructed with the wire reference; begin() uses it.
   return LPS22HB.begin() ? 1 : 0;
 }
+
 static void query_lps22hb(uint8_t ch, uint8_t, CayenneLPP& lpp) {
   lpp.addTemperature(ch, LPS22HB.readTemperature());
   lpp.addBarometricPressure(ch, LPS22HB.readPressure() * 10); // convert kPa to hPa
@@ -355,6 +362,7 @@ static uint8_t init_ina3221(TwoWire* wire, uint8_t addr) {
   }
   return enabled > 0 ? enabled : 1;
 }
+
 static void query_ina3221(uint8_t ch, uint8_t sub_ch, CayenneLPP& lpp) {
   // sub_ch is the index of the nth enabled hardware channel.
   uint8_t seen = 0;
@@ -379,6 +387,7 @@ static uint8_t init_ina219(TwoWire* wire, uint8_t) {
   // INA219 static instance was constructed with the address; begin() uses it.
   return INA219.begin(wire) ? 1 : 0;
 }
+
 static void query_ina219(uint8_t ch, uint8_t, CayenneLPP& lpp) {
   lpp.addVoltage(ch, INA219.getBusVoltage_V());
   lpp.addCurrent(ch, INA219.getCurrent_mA() / 1000.0f);
@@ -390,6 +399,7 @@ static void query_ina219(uint8_t ch, uint8_t, CayenneLPP& lpp) {
 static uint8_t init_ina260(TwoWire* wire, uint8_t addr) {
   return INA260.begin(addr, wire) ? 1 : 0;
 }
+
 static void query_ina260(uint8_t ch, uint8_t, CayenneLPP& lpp) {
   lpp.addVoltage(ch, INA260.readBusVoltage() / 1000.0f);
   lpp.addCurrent(ch, INA260.readCurrent() / 1000.0f);
@@ -398,12 +408,22 @@ static void query_ina260(uint8_t ch, uint8_t, CayenneLPP& lpp) {
 #endif
 
 #if ENV_INCLUDE_INA226
+// Documented in the robtillaart INA226 header as the expected getDieID() value.
+#define INA226_EXPECTED_DIE_ID  0x2260
+
 static uint8_t init_ina226(TwoWire*, uint8_t) {
   // INA226 static instance was constructed with address and wire.
-  if (!INA226.begin()) return 0;
+  if (!INA226.begin())
+    return 0;
+
+  // begin() doesn't check chip ID
+  if (INA226.getDieID() != INA226_EXPECTED_DIE_ID)
+    return 0;
+
   INA226.setMaxCurrentShunt(TELEM_INA226_MAX_AMP, TELEM_INA226_SHUNT_VALUE);
   return 1;
 }
+
 static void query_ina226(uint8_t ch, uint8_t, CayenneLPP& lpp) {
   lpp.addVoltage(ch, INA226.getBusVoltage());
   lpp.addCurrent(ch, INA226.getCurrent_mA() / 1000.0f);
@@ -415,6 +435,7 @@ static void query_ina226(uint8_t ch, uint8_t, CayenneLPP& lpp) {
 static uint8_t init_mlx90614(TwoWire* wire, uint8_t addr) {
   return MLX90614.begin(addr, wire) ? 2 : 0;  // 2 channels: object temp, ambient temp
 }
+
 static void query_mlx90614(uint8_t ch, uint8_t sub_ch, CayenneLPP& lpp) {
   if (sub_ch == 0)
     lpp.addTemperature(ch, MLX90614.readObjectTempC());
@@ -427,6 +448,7 @@ static void query_mlx90614(uint8_t ch, uint8_t sub_ch, CayenneLPP& lpp) {
 static uint8_t init_vl53l0x(TwoWire* wire, uint8_t addr) {
   return VL53L0X.begin(addr, false, wire) ? 1 : 0;
 }
+
 static void query_vl53l0x(uint8_t ch, uint8_t, CayenneLPP& lpp) {
   VL53L0X_RangingMeasurementData_t measure;
   VL53L0X.rangingTest(&measure, false);
@@ -438,6 +460,7 @@ static void query_vl53l0x(uint8_t ch, uint8_t, CayenneLPP& lpp) {
 static uint8_t init_bmp085(TwoWire* wire, uint8_t) {
   return BMP085.begin(0, wire) ? 1 : 0;  // mode 0 = ULTRALOWPOWER
 }
+
 static void query_bmp085(uint8_t ch, uint8_t, CayenneLPP& lpp) {
   lpp.addTemperature(ch, BMP085.readTemperature());
   lpp.addBarometricPressure(ch, BMP085.readPressure() / 100);
@@ -456,6 +479,7 @@ static uint8_t init_rak12035(TwoWire* wire, uint8_t addr) {
   return 1;
 #endif
 }
+
 static void query_rak12035(uint8_t ch, uint8_t sub_ch, CayenneLPP& lpp) {
   if (sub_ch == 0) {
     lpp.addTemperature(ch, RAK12035.get_sensor_temperature());
@@ -499,7 +523,8 @@ static void bsec_save_state() {
 
 static uint8_t init_bme680_bsec(TwoWire* wire, uint8_t addr) {
   bsec_iaq.begin(addr, *wire);
-  if (bsec_iaq.bsecStatus != BSEC_OK) return 0;
+  // bme68xStatus needs to be checked, it's set if the sensor doesn't report the expected ID
+  if (bsec_iaq.bsecStatus != BSEC_OK || bsec_iaq.bme68xStatus != BME68X_OK) return 0;
 
   bsec_iaq.setConfig(bsec_config_iaq);
   if (bsec_iaq.bsecStatus != BSEC_OK) return 0;
@@ -680,7 +705,6 @@ bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, Cayen
 
   return true;
 }
-
 
 int EnvironmentSensorManager::getNumSettings() const {
   int settings = 0;
