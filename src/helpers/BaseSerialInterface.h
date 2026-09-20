@@ -14,6 +14,13 @@ public:
   virtual bool isEnabled() const = 0;
 
   virtual bool isConnected() const = 0;
+
+  // Notification eligibility, as opposed to isConnected()'s "a client is
+  // actively talking to us". Defaults to isConnected(); transports whose
+  // isConnected() additionally demands RECENT traffic (USB-CDC without DTR)
+  // override it, so a client that only listens keeps getting push frames.
+  virtual bool isSessionEstablished() const { return isConnected(); }
+
   virtual void loop() {};
 
   virtual bool isWriteBusy() const = 0;

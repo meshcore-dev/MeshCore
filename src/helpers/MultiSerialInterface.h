@@ -114,6 +114,21 @@ public:
     return _enabled; 
   }
 
+  bool isSessionEstablished() const override {
+    // mirrors isConnected(), but asks each interface for its own session
+    // eligibility -- a transport whose isConnected() demands RECENT traffic
+    // (USB-CDC without DTR) would otherwise silence push notifications here
+    if(!_enabled){
+      return false;
+    }
+    for(auto iface : _interfaces){
+      if(iface.instance && iface.instance->isSessionEstablished()) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   bool isConnected() const override {
     // not connected when disabled
     if(!_enabled){
