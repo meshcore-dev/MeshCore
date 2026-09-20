@@ -1,6 +1,8 @@
 #pragma once
 
-#include <Arduino.h>   // needed for PlatformIO
+#include <stddef.h>
+#include <stdint.h>
+#include <string.h>
 #include <Mesh.h>
 #include <helpers/AdvertDataHelpers.h>
 #include <helpers/TxtDataHelpers.h>

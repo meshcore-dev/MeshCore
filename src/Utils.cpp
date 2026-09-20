@@ -9,9 +9,6 @@
 #include "nrf_cc310/include/ssi_aes.h"
 #endif
 
-#ifdef ARDUINO
-  #include <Arduino.h>
-#endif
 
 namespace mesh {
 

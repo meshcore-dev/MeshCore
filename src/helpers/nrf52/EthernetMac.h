@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Arduino.h>
+#include <stdint.h>
 
 static inline void generateEthernetMac(uint8_t mac[6]) {
   uint32_t device_id = NRF_FICR->DEVICEID[0];

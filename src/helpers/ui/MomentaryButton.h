@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Arduino.h>
+#include <stdint.h>
 
 #define BUTTON_EVENT_NONE        0
 #define BUTTON_EVENT_CLICK       1
