@@ -48,6 +48,11 @@ void T114Board::begin() {
   digitalWrite(P_LORA_TX_LED, HIGH);
 #endif
 
+#ifdef P_VIBRO_MOTOR
+  pinMode(P_VIBRO_MOTOR, OUTPUT);
+  digitalWrite(P_VIBRO_MOTOR, LOW);
+#endif
+
   pinMode(SX126X_POWER_EN, OUTPUT);
 #ifdef NRF52_POWER_MANAGEMENT
   // Boot voltage protection check (may not return if voltage too low)

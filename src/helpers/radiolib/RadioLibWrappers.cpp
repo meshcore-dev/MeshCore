@@ -128,6 +128,7 @@ int RadioLibWrapper::recvRaw(uint8_t* bytes, int sz) {
     len = _radio->getPacketLength();
     if (len > 0) {
       if (len > sz) { len = sz; }
+      _board->onBeforeReceive();
       int err = _radio->readData(bytes, len);
       if (err != RADIOLIB_ERR_NONE) {
         MESH_DEBUG_PRINTLN("RadioLibWrapper: error: readData(%d)", err);
@@ -137,6 +138,7 @@ int RadioLibWrapper::recvRaw(uint8_t* bytes, int sz) {
       //  Serial.print("  readData() -> "); Serial.println(len);
         n_recv++;
       }
+      _board->onAfterReceive();
     }
     #if defined(USE_LR2021)
     state = STATE_RX;     // LR2021 stays in Rx after readData, calling startReceive while still in Rx throws -706 errors

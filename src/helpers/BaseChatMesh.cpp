@@ -236,6 +236,7 @@ void BaseChatMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender
 
     if (flags == TXT_TYPE_PLAIN) {
       from.lastmod = getRTCClock()->getCurrentTime(); // update last heard time
+      onTextMessageNotification();
       onMessageRecv(from, packet, timestamp, (const char *) &data[5]);  // let UI know
 
       int text_len = strlen((char *)&data[5]);
@@ -267,6 +268,7 @@ void BaseChatMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender
         from.sync_since = timestamp;
       }
       from.lastmod = getRTCClock()->getCurrentTime(); // update last heard time
+      onTextMessageNotification();
       onSignedMessageRecv(from, packet, timestamp, &data[5], (const char *) &data[9]);  // let UI know
 
       uint32_t ack_hash;    // calc truncated hash of the message timestamp + text + OUR pub_key, to prove to sender that we got it
@@ -396,6 +398,7 @@ void BaseChatMesh::onGroupDataRecv(mesh::Packet* packet, uint8_t type, const mes
     data[len] = 0; // need to make a C string again, with null terminator
 
     // notify UI  of this new message
+    onTextMessageNotification();
     onChannelMessageRecv(channel, packet, timestamp, (const char *) &data[5]);  // let UI know
   } else if (type == PAYLOAD_TYPE_GRP_DATA) {
     if (len < 3) {
