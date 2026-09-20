@@ -12,6 +12,7 @@
   #define ETHERNET_CLI_BANNER "MeshCore Repeater CLI"
   #include <helpers/nrf52/EthernetCLI.h>
 #endif
+#include <WiFi.h>
 
 StdRNG fast_rng;
 SimpleMeshTables tables;
@@ -33,6 +34,15 @@ unsigned long POWERSAVING_FIRSTSLEEP_SECS = 120; // The first sleep (if enabled)
 #if defined(PIN_USER_BTN) && defined(_SEEED_SENSECAP_SOLAR_H_)
 static unsigned long userBtnDownAt = 0;
 #define USER_BTN_HOLD_OFF_MILLIS 1500
+#endif
+
+#define WIFI_SSID "kram-vlan"
+#define WIFI_PWD  "being no bother 123"
+
+/* WIFI RECONNECT TRACKERS */
+#if defined(ESP32) && defined(WIFI_SSID)
+bool wifi_needs_reconnect = false;
+unsigned long last_wifi_reconnect_attempt = 0;
 #endif
 
 void setup() {
@@ -112,6 +122,28 @@ void setup() {
 
 #ifdef ETHERNET_ENABLED
   ethernet_start_task();
+#endif
+
+// add wifi interface
+#ifdef WIFI_SSID
+  board.setInhibitSleep(true); // prevent sleep when WiFi is active
+  WiFi.setAutoReconnect(true);
+
+  WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info) {
+    if (event == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) {
+      Serial.printf("WiFi disconnected. Flagging for reconnect...\r\n");
+      //WIFI_DEBUG_PRINTLN("WiFi disconnected. Flagging for reconnect...");
+      wifi_needs_reconnect = true;
+    } else if (event == ARDUINO_EVENT_WIFI_STA_GOT_IP) {
+      Serial.printf("WiFi connected successfully, IP = %s\r\n", WiFi.localIP().toString().c_str());
+      //WIFI_DEBUG_PRINTLN("WiFi connected successfully!");
+      wifi_needs_reconnect = false;
+    }
+  });
+
+  WiFi.begin(WIFI_SSID, WIFI_PWD);
+  //wifi_interface.begin(TCP_PORT);
+  //interface_manager.addInterface(InterfaceType::WiFi, &wifi_interface);
 #endif
 
   // send out initial zero hop Advertisement to the mesh
