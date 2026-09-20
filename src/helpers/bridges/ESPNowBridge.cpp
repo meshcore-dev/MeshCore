@@ -27,6 +27,15 @@ ESPNowBridge::ESPNowBridge(NodePrefs *prefs, mesh::PacketManager *mgr, mesh::RTC
 }
 
 void ESPNowBridge::begin() {
+  // Refuse to start with the published-in-source default secret, or an empty one.
+  // The repeating-key XOR used by xorCrypt() is already weak; combined with the
+  // default secret "LVSITANOS" it is no protection at all. Operator must set a
+  // non-default bridge_secret via CLI before this bridge will run.
+  if (_prefs->bridge_secret[0] == 0 || strcmp(_prefs->bridge_secret, "LVSITANOS") == 0) {
+    BRIDGE_DEBUG_PRINTLN("ESPNowBridge: refusing to start with default/empty bridge_secret\n");
+    return;
+  }
+
   BRIDGE_DEBUG_PRINTLN("Initializing...\n");
 
   // Initialize WiFi in station mode
