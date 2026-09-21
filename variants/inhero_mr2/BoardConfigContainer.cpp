@@ -559,6 +559,41 @@ void BoardConfigContainer::getBqDiagnostics(char* buffer, uint32_t bufferSize) {
            ts_str, flags, en_chg, en_hiz, iindpm_mA, f0, f1, s0, s1, s2, s3, s4, ntc1);
 }
 
+// Read-only MPPT acceptance snapshot. cfg is the stored wish, hw is EN_MPPT.
+// VSYS_MIN reports VSYS_STAT; it does not by itself prove active LDO charging.
+void BoardConfigContainer::getMpptDiagnostics(char* buffer, uint32_t bufferSize) {
+  if (!buffer || bufferSize == 0) return;
+  if (!bqInitialized) {
+    snprintf(buffer, bufferSize, "BQ not init");
+    return;
+  }
+
+  // VSYSMIN, VREG hi/lo, ICHG hi/lo, VINDPM, CELL, MPPT, STATUS_0/3.
+  const uint8_t regs[] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x0A, 0x15, 0x1B, 0x1E};
+  uint8_t raw[sizeof(regs)];
+  for (unsigned i = 0; i < sizeof(regs); ++i) {
+    if (!bq.readReg(regs[i], raw[i])) {
+      snprintf(buffer, bufferSize, "Err: BQ read %02X", static_cast<unsigned>(regs[i]));
+      return;
+    }
+  }
+
+  const unsigned vsysmin_mV = 2500U + (raw[0] & 0x3F) * 250U;
+  const unsigned vreg_mV = (((raw[1] << 8) | raw[2]) & 0x07FF) * 10U;
+  const unsigned ichg_mA = (((raw[3] << 8) | raw[4]) & 0x01FF) * 10U;
+  const unsigned vindpm_mV = raw[5] * 100U;
+  const unsigned cells = ((raw[6] >> 6) & 0x03) + 1U;
+  const unsigned mppt = raw[7] & 0x01;
+  const unsigned pg = (raw[8] >> 3) & 0x01;
+  const unsigned vsys_min = (raw[9] >> 4) & 0x01;
+
+  // At most 95 characters, including maximum encodings, for the 100-byte CLI buffer.
+  snprintf(buffer, bufferSize,
+           "MPPT:cfg=%u/hw=%u VSYSMIN:%umV VINDPM:%umV VSYS_MIN:%u PG:%u CELL:%uS ICHG:%umA VREG:%umV",
+           static_cast<unsigned>(getMPPTEnabled()), mppt, vsysmin_mV, vindpm_mV,
+           vsys_min, pg, cells, ichg_mA, vreg_mV);
+}
+
 // Initializes battery manager, preferences, and background tasks
 bool BoardConfigContainer::begin() {
   // Initialize LEDs early for boot sequence visualization
@@ -1031,9 +1066,11 @@ bool BoardConfigContainer::configureBaseBQ() {
   bq.setVOCrate(BQ25798_VOC_RATE_2MIN);
   bq.setVOCpercent(BQ25798_VOC_PCT_81_25); // 81.25% matches Vmp/Voc of typical crystalline Si panels (~80-83%)
   bq.setAutoDPinsDetection(false);
-  bq.setMPPTenable(true);
+  // CELL programming below resets VSYSMIN. Enable MPPT only after the final
+  // chemistry settings are restored, and only if requested in preferences.
+  bq.setMPPTenable(false);
 
-  bq.setMinSystemV(2.75);  // 2.75V = next valid step above 2.7V (250mV steps: 2.5, 2.75, 3.0...)
+  bq.setMinSystemV(BQ_MIN_SYSTEM_V);
   bq.setStatPinEnable(leds_enabled);  // Configure STAT LED based on user preference
   bq.setTsCool(BQ25798_TS_COOL_5C);
   bq.setTsWarm(BQ25798_TS_WARM_55C);  // 37.7% REGN → ~52°C with Inhero divider (default 45°C was ~42°C)
@@ -1103,15 +1140,19 @@ bool BoardConfigContainer::configureChemistry(BatteryType type) {
   // VSYSMIN=7V and the BATFET burns (VSYS - VBAT) × ICHG linearly during
   // charging (LTO at 4.9V/0.93A: ~2W → BQ rides its thermal limit), and the
   // configured imax silently falls back to the 1A default on every boot.
-  bq.setMinSystemV(2.75);
+  bq.setMinSystemV(BQ_MIN_SYSTEM_V);
   bq.setChargeLimitA(getMaxChargeCurrent_mA() / 1000.0f);
 
-  // Derive the JEITA override LAST, once ICHG holds the configured imax again.
+  // Derive the JEITA override once ICHG holds the configured imax again.
   // Deriving it earlier leaves a window in which the temperature guard is off
   // while setCellCount() has just reset ICHG to the 1A POR default — and an I2C
   // failure inside that window would freeze the board in exactly that state.
   // configureBaseBQ() clears TS_IGNORE, so the hardware guard rules until here.
   applyJeitaIgnore(props);
+
+  // Below VSYSMIN the BQ rejects EN_MPPT; above it, apply the configured wish
+  // now instead of waiting for the next 60-second solar-maintenance cycle.
+  bq.setMPPTenable(getMPPTEnabled());
 
   return true;
 }

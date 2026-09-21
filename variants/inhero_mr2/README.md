@@ -9,6 +9,10 @@ Supports Li-ion, LiFePO4, LTO and Na-ion battery profiles, solar-input recovery
 and RTC wakeup after low-voltage sleep. An optional installation altitude
 (`set board.altitude <metres>`) enables QNH pressure telemetry from the BME280.
 
+The charger uses a 2.50 V minimum system voltage and reapplies the MPPT preference
+after restoring the battery profile. `get board.mpptdiag` reports the requested
+and actual MPPT state, voltage/current settings and minimum-system status.
+
 Build environments:
 
 ```bash

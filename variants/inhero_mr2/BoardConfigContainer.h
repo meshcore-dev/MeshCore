@@ -155,6 +155,9 @@ public:
   static constexpr FrostChargeBehaviour DEFAULT_FROST_BEHAVIOUR = NO_CHARGE;
   static constexpr uint16_t DEFAULT_MAX_CHARGE_CURRENT_MA = 200;
   static constexpr bool DEFAULT_MPPT_ENABLED = false;
+  // REG00[5:0] = 0: allow MPPT above the Na-ion 2.50V sleep threshold.
+  // Keep below VBAT to avoid minimum-system regulation and linear BATFET loss.
+  static constexpr float BQ_MIN_SYSTEM_V = 2.50f;
   static constexpr float MIN_STATION_ALTITUDE_M = -500.0f;
   static constexpr float MAX_STATION_ALTITUDE_M = 9000.0f;
 
@@ -221,6 +224,7 @@ public:
   const char* getChargeCurrentAsStr();
   void getChargerInfo(char* buffer, uint32_t bufferSize);
   void getBqDiagnostics(char* buffer, uint32_t bufferSize);
+  void getMpptDiagnostics(char* buffer, uint32_t bufferSize);
 
   // "INA:OK BQ:OK RTC:OK BME:OK". RTC probe writes/reads user-RAM to catch
   // zombie chips that ACK but don't persist.

@@ -188,6 +188,11 @@ bool handleGet(BoardConfigContainer& cfg, const char* getCommand, char* reply, u
     cfg.getBqDiagnostics(diagBuffer, sizeof(diagBuffer));
     snprintf(reply, maxlen, "%s", diagBuffer);
     return true;
+  } else if (strcmp(cmd, "mpptdiag") == 0) {
+    char diagBuffer[100];
+    cfg.getMpptDiagnostics(diagBuffer, sizeof(diagBuffer));
+    snprintf(reply, maxlen, "%s", diagBuffer);
+    return true;
   } else if (strcmp(cmd, "selftest") == 0) {
     char stBuffer[64];
     cfg.getSelfTest(stBuffer, sizeof(stBuffer));
