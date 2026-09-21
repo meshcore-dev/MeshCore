@@ -14,6 +14,9 @@ public:
     ((CustomLR1121 *)_radio)->setBandwidth(bw);
     ((CustomLR1121 *)_radio)->setCodingRate(cr);
     updatePreamble(sf);
+    PacketMillis pm = calcMaxPacketMillis(sf, bw, cr, preambleLengthForSF(sf));
+    ((CustomLR1121 *)_radio)->setPreambleMillis(pm.preambleMillis);
+    ((CustomLR1121 *)_radio)->setMaxPayloadMillis(pm.payloadMillis);
   }
 
   void doResetAGC() override { lr11x0ResetAGC((LR11x0 *)_radio, ((CustomLR1121 *)_radio)->getFreqMHz(), getRxBoostedGainMode()); }
