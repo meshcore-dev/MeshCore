@@ -1,4 +1,7 @@
 #include "WiFiHelper.h"
+
+#if defined(ESP32)
+
 #include <WiFi.h>
 
 static FILESYSTEM *_fs = nullptr;
@@ -89,3 +92,5 @@ void WiFiHelperClass::forget() {
 }
 
 WiFiClass WiFi;
+
+#endif

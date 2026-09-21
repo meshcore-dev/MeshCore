@@ -8,8 +8,11 @@
 #ifndef BRIDGE_MAX_BAUD
 #define BRIDGE_MAX_BAUD 115200
 #endif
+
+#if defined(ESP32)
 #include "WiFi.h"
 #include "WiFiHelper.h"
+#endif
 
 // Believe it or not, this std C function is busted on some platforms!
 static uint32_t _atoi(const char* sp) {
@@ -441,9 +444,11 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       _callbacks->formatRadioStatsReply(reply);
     } else if (sender_timestamp == 0 && memcmp(command, "stats-core", 10) == 0 && (command[10] == 0 || command[10] == ' ')) {
       _callbacks->formatStatsReply(reply);
+#if defined(ESP32)
     } else if (memcmp(command, "wifi forget", 9) == 0) {
       WiFiHelper.forget();
       strcpy(reply, "   WiFi credentials forgotten");
+#endif
     } else {
       strcpy(reply, "Unknown command");
     }
