@@ -15,7 +15,7 @@ protected:
   uint8_t bat_level_percent =0;
 
 public:
-  ThinkNodeM4Board() : NRF52Board("THINKNODE_M3_OTA"), battery_serial(&Serial2) {}
+  ThinkNodeM4Board() : NRF52Board("THINKNODE_M4_OTA"), battery_serial(&Serial2) {}
   void begin();
   uint16_t getBattMilliVolts() override;
 
