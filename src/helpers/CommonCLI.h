@@ -70,6 +70,9 @@ public:
   uint8_t loop_detect = 0;
   uint8_t cad_enabled = 0;      // hardware Channel Activity Detection before TX (boolean)
   uint8_t extra_sf[4];
+  // WiFi settings (ESP32 only)
+  char wifi_ssid[33];
+  char wifi_password[64];
 
 private:
   class RadioPrefs : public ConfigSerializer {
@@ -165,6 +168,20 @@ private:
     RoomPrefs(NodePrefs* parent) : _parent(parent) { }
   };
   RoomPrefs room;
+
+  /*
+  class WiFiPrefs : public ConfigSerializer {
+    NodePrefs* _parent;
+  protected:
+    void structure() override {
+      def("wifi_ssid", _parent->wifi_ssid, sizeof(_parent->wifi_ssid));
+      def("wifi_password", _parent->wifi_password, sizeof(_parent->wifi_password));
+    }
+  public:
+    WiFiPrefs(NodePrefs* parent) : _parent(parent) { }
+  };
+  WiFiPrefs wifi;
+  */
 
 protected:
   void structure() override {

@@ -103,7 +103,10 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {  // Legacy 
     file.read((uint8_t *)&_prefs->flood_max_advert, sizeof(_prefs->flood_max_advert));             // 292
     file.read((uint8_t *)&_prefs->radio_fem_rxgain, sizeof(_prefs->radio_fem_rxgain));             // 293
     file.read((uint8_t *)&_prefs->cad_enabled, sizeof(_prefs->cad_enabled));                       // 294
-    // next: 295
+    file.read((uint8_t *)&_prefs->extra_sf, sizeof(_prefs->extra_sf));                             // 298
+    file.read((uint8_t *)_prefs->wifi_ssid, sizeof(_prefs->wifi_ssid));
+    file.read((uint8_t *)_prefs->wifi_password, sizeof(_prefs->wifi_password));
+    // next: 299
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -799,6 +802,20 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       }
     }
   #endif
+  #if defined(ESP32)
+    } else if (memcmp(config, "wifi.ssid", 9) == 0) {
+      config += 9; // skip "wifi.ssid"
+      while (*config == ' ') config++; // skip any leading spaces
+      StrHelper::strncpy(_prefs->wifi_ssid, config, sizeof(_prefs->wifi_ssid));
+      savePrefs();
+      strcpy(reply, "OK");
+    } else if (memcmp(config, "wifi.password", 13) == 0) {
+      config += 13; // skip "wifi.password"
+      while (*config == ' ') config++; // skip any leading spaces
+      StrHelper::strncpy(_prefs->wifi_password, config, sizeof(_prefs->wifi_password));
+      savePrefs();
+      strcpy(reply, "OK");
+  #endif
   } else {
     strcpy(reply, "unknown config: ");
     StrHelper::strncpy(&reply[16], config, 160-17);
@@ -982,12 +999,26 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     if (tmp == reply) {
       sprintf(reply, "No extra SF configured");
     }
+#if defined(ESP32)
   } else if (memcmp(config, "wifi.status", 11) == 0) {
     if (WiFi.isConnected()) {
       sprintf(reply, "Connected to %s, IP: %s", WiFi.SSID().c_str(), WiFi.localIP().toString().c_str());
     } else {
       sprintf(reply, "Not connected");
     }
+  } else if (memcmp(config, "wifi.ssid", 11) == 0) {
+    if (_prefs->wifi_ssid[0] == '\0') {
+      sprintf(reply, "No SSID configured");
+    } else {
+      sprintf(reply, "SSID: %s", _prefs->wifi_ssid);
+    }
+  } else if (memcmp(config, "wifi.password", 14) == 0) {
+    if (_prefs->wifi_password[0] == '\0') {
+      sprintf(reply, "No WiFi password configured");
+    } else {
+      sprintf(reply, "Password: %s", _prefs->wifi_password);
+    }
+#endif
   } else {
     sprintf(reply, "??: %s", config);
   }

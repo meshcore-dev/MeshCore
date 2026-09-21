@@ -12,16 +12,20 @@
   #define ETHERNET_CLI_BANNER "MeshCore Repeater CLI"
   #include <helpers/nrf52/EthernetCLI.h>
 #endif
+
+#if defined(ESP32)
 #include <WiFi.h>
+#endif
 
-StdRNG fast_rng;
-SimpleMeshTables tables;
+  StdRNG fast_rng;
+  SimpleMeshTables tables;
 
-MyMesh the_mesh(board, radio_driver, *new ArduinoMillis(), fast_rng, rtc_clock, tables);
+  MyMesh the_mesh(board, radio_driver, *new ArduinoMillis(), fast_rng, rtc_clock, tables);
 
-void halt() {
-  while (1) ;
-}
+  void halt() {
+    while (1)
+      ;
+  }
 
 static char command[160];
 #ifdef ETHERNET_ENABLED
@@ -40,7 +44,7 @@ static unsigned long userBtnDownAt = 0;
 #define WIFI_PWD  "being no bother 123"
 
 /* WIFI RECONNECT TRACKERS */
-#if defined(ESP32) && defined(WIFI_SSID)
+#if defined(ESP32)
 bool wifi_needs_reconnect = false;
 unsigned long last_wifi_reconnect_attempt = 0;
 #endif
@@ -125,7 +129,7 @@ void setup() {
 #endif
 
 // add wifi interface
-#ifdef WIFI_SSID
+#if defined(ESP32) 
   board.setInhibitSleep(true); // prevent sleep when WiFi is active
   WiFi.setAutoReconnect(true);
 
