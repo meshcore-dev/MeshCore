@@ -20,6 +20,8 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
   - [Sensors](#sensors-when-sensor-support-is-compiled-in)
   - [Bridge](#bridge-when-bridge-support-is-compiled-in)
   - [Ethernet](#ethernet-when-ethernet-support-is-compiled-in)
+  - [WiFi](#for-repeaters-that-support-wifi)
+
 
 ---
 
@@ -1189,5 +1191,40 @@ Ethernet support is available on RAK4631 boards with a RAK13800 (W5100S) Etherne
 - The Ethernet interface obtains an IP address via DHCP automatically on boot.
 - A TCP server listens on port 23 (default) for CLI connections.
 - Connect with any TCP client (e.g. `nc`, PuTTY) to access the same CLI available over serial.
+
+---
+
+### WiFi (for repeaters that support WiFi)
+
+- WiFi is supported on Heltec v3 and v4 boards running repeater firmware only.
+- Unlike Ethernet, there is no TCP server listening for CLI connections.
+- WiFi provides IP connectivity for other features such as... WILL LINK TO RELATED FEATURES WHEN THEY'RE IMPLEMENTED.
+
+#### View WiFi connection status
+**Usage:**
+- `get wifi.status`
+
+**Output:**
+- Shows various pieces of information about the WiFi interface.
+
+#### Configure or view WiFi connection settings
+**Usage:**
+- `get wifi.ssid`, `set wifi.ssid <ssid>`, `get wifi.password`, `set wifi.ssid <password without quotes>`, 
+
+**Output:**
+- Gets or sets the WiFi SSID and password.
+
+**Notes:**
+- WiFi SSID and password are persisted to the filesystem and will survice reboots.
+- When booting up, assuming correct SSID and password, the repeater will connect to WiFi and obtain an IP address via DHCP.
+- Any current WiFi connection will be disconnected and a new connection attempt made whenever SSID or password are changed.
+
+#### Forget WiFi credentials
+**Usage:**
+- `forget wifi`
+
+**Output:**
+- Forgets the configured WiFi credentials and removes them from the filesystem.
+- Any current WiFi connection will be disconnected.
 
 ---
