@@ -103,10 +103,6 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {  // Legacy 
     file.read((uint8_t *)&_prefs->flood_max_advert, sizeof(_prefs->flood_max_advert));             // 292
     file.read((uint8_t *)&_prefs->radio_fem_rxgain, sizeof(_prefs->radio_fem_rxgain));             // 293
     file.read((uint8_t *)&_prefs->cad_enabled, sizeof(_prefs->cad_enabled));                       // 294
-    file.read((uint8_t *)&_prefs->extra_sf, sizeof(_prefs->extra_sf));                             // 298
-    file.read((uint8_t *)_prefs->wifi_ssid, sizeof(_prefs->wifi_ssid));
-    file.read((uint8_t *)_prefs->wifi_password, sizeof(_prefs->wifi_password));
-    // next: 299
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -806,14 +802,26 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     } else if (memcmp(config, "wifi.ssid", 9) == 0) {
       config += 9; // skip "wifi.ssid"
       while (*config == ' ') config++; // skip any leading spaces
-      StrHelper::strncpy(_prefs->wifi_ssid, config, sizeof(_prefs->wifi_ssid));
-      savePrefs();
+      //StrHelper::strncpy(_prefs->wifi_ssid, config, sizeof(_prefs->wifi_ssid));
+      //savePrefs();
+
+      // Stop WiFi to apply new SSID
+      WiFi.disconnect();
+      WiFi.begin(config, WiFi.psk());
+      WiFi.saveConfig();
+
       strcpy(reply, "OK");
     } else if (memcmp(config, "wifi.password", 13) == 0) {
       config += 13; // skip "wifi.password"
       while (*config == ' ') config++; // skip any leading spaces
-      StrHelper::strncpy(_prefs->wifi_password, config, sizeof(_prefs->wifi_password));
-      savePrefs();
+      //StrHelper::strncpy(_prefs->wifi_password, config, sizeof(_prefs->wifi_password));
+      //savePrefs();
+
+      // Stop WiFi to apply new password
+      WiFi.disconnect();
+      WiFi.begin(WiFi.SSID(), config);
+      WiFi.saveConfig();
+
       strcpy(reply, "OK");
   #endif
   } else {
@@ -1006,18 +1014,10 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     } else {
       sprintf(reply, "Not connected");
     }
-  } else if (memcmp(config, "wifi.ssid", 11) == 0) {
-    if (_prefs->wifi_ssid[0] == '\0') {
-      sprintf(reply, "No SSID configured");
-    } else {
-      sprintf(reply, "SSID: %s", _prefs->wifi_ssid);
-    }
+  } else if (memcmp(config, "wifi.ssid", 10) == 0) {
+    sprintf(reply, "SSID: %s", WiFi.SSID().c_str());
   } else if (memcmp(config, "wifi.password", 14) == 0) {
-    if (_prefs->wifi_password[0] == '\0') {
-      sprintf(reply, "No WiFi password configured");
-    } else {
-      sprintf(reply, "Password: %s", _prefs->wifi_password);
-    }
+    sprintf(reply, "Password: %s", WiFi.psk().c_str());
 #endif
   } else {
     sprintf(reply, "??: %s", config);
