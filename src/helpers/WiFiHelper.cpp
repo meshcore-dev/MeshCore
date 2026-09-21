@@ -75,6 +75,10 @@ bool WiFiHelperClass::load() {
   return false;
 }
 
+bool WiFiHelperClass::shouldInhibitSleep() {
+  return (_ssid[0] != '\0' && _passphrase[0] != '\0');
+}
+
 void WiFiHelperClass::forget() {
   WiFi.disconnect();
   _ssid[0] = '\0';

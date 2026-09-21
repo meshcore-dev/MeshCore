@@ -129,10 +129,9 @@ void setup() {
 #endif
 
 // add wifi interface
-#if defined(ESP32) 
-  board.setInhibitSleep(true); // prevent sleep when WiFi is active
+#if defined(ESP32)
+  board.setInhibitSleep(true); // Assume we need to inhibit sleep when WiFi is active
   WiFi.setAutoReconnect(true);
-
   WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info) {
     if (event == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) {
       Serial.printf("WiFi disconnected. Flagging for reconnect...\r\n");
@@ -142,9 +141,9 @@ void setup() {
       wifi_needs_reconnect = false;
     }
   });
-
   WiFiHelper.setFilesystem(fs);
   WiFiHelper.load();
+  board.setInhibitSleep(WiFiHelper.shouldInhibitSleep()); // Update sleep inhibition based on WiFi configuration
 #endif
 
   // send out initial zero hop Advertisement to the mesh

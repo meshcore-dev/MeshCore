@@ -24,6 +24,7 @@ public:
   char *getConfiguredPassphrase();
   bool save();
   bool load();
+  bool shouldInhibitSleep();
   void forget();
 };
 
