@@ -165,7 +165,9 @@ bool CommonRadioPrefs::handleCommand(const char* command, uint32_t sender_timest
     return true;
   }
   if (memcmp(command, "set agc.reset.interval ", 23) == 0) {
-    setAgcResetInt(atoi(&command[23]));
+    int secs = atoi(&command[23]);
+    secs = constrain(secs, 0, 255 * 4);
+    setAgcResetInt((uint16_t) secs);
     sprintf(reply, "OK - interval rounded to %d", (uint32_t) getAgcResetInt());
     return true;
   }
