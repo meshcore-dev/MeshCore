@@ -169,20 +169,6 @@ private:
   };
   RoomPrefs room;
 
-  /*
-  class WiFiPrefs : public ConfigSerializer {
-    NodePrefs* _parent;
-  protected:
-    void structure() override {
-      def("wifi_ssid", _parent->wifi_ssid, sizeof(_parent->wifi_ssid));
-      def("wifi_password", _parent->wifi_password, sizeof(_parent->wifi_password));
-    }
-  public:
-    WiFiPrefs(NodePrefs* parent) : _parent(parent) { }
-  };
-  WiFiPrefs wifi;
-  */
-
 protected:
   void structure() override {
     def("name", node_name, sizeof(node_name));
