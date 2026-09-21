@@ -2,7 +2,10 @@
 #include "target.h"
 #include <Arduino.h>
 #include <helpers/CommonCLI.h>
+
+#if defined(ESP32)
 #include <WiFi.h>
+#endif
 
 #ifndef USER_BTN_PRESSED
 #define USER_BTN_PRESSED LOW
@@ -108,6 +111,7 @@ void UITask::renderCurrScreen() {
     sprintf(tmp, "BW: %03.2f CR: %d", _node_prefs->bw, _node_prefs->cr);
     _display->print(tmp);
 
+#if defined(ESP32)
     // IP / cr
     if (WiFi.isConnected())
     {
@@ -115,6 +119,7 @@ void UITask::renderCurrScreen() {
       sprintf(tmp, "IP: %s", WiFi.localIP().toString().c_str());
       _display->print(tmp);
     }
+#endif
   }
 }
 
