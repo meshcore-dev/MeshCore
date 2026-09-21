@@ -14,7 +14,9 @@
 #endif
 
 #if defined(ESP32)
-#include <WiFi.h>
+#include "helpers/WiFiHelper.h"
+#include "WiFi.h"
+WiFiHelperClass WiFiHelper;
 #endif
 
   StdRNG fast_rng;
@@ -39,9 +41,6 @@ unsigned long POWERSAVING_FIRSTSLEEP_SECS = 120; // The first sleep (if enabled)
 static unsigned long userBtnDownAt = 0;
 #define USER_BTN_HOLD_OFF_MILLIS 1500
 #endif
-
-#define WIFI_SSID "kram-vlan"
-#define WIFI_PWD  "being no bother 123"
 
 /* WIFI RECONNECT TRACKERS */
 #if defined(ESP32)
@@ -98,6 +97,7 @@ void setup() {
 #else
   #error "need to define filesystem"
 #endif
+
   if (!store.load("_main", the_mesh.self_id)) {
     MESH_DEBUG_PRINTLN("Generating new keypair");
     the_mesh.self_id = radio_new_identity();   // create new random identity
@@ -136,18 +136,15 @@ void setup() {
   WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info) {
     if (event == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) {
       Serial.printf("WiFi disconnected. Flagging for reconnect...\r\n");
-      //WIFI_DEBUG_PRINTLN("WiFi disconnected. Flagging for reconnect...");
       wifi_needs_reconnect = true;
     } else if (event == ARDUINO_EVENT_WIFI_STA_GOT_IP) {
       Serial.printf("WiFi connected successfully, IP = %s\r\n", WiFi.localIP().toString().c_str());
-      //WIFI_DEBUG_PRINTLN("WiFi connected successfully!");
       wifi_needs_reconnect = false;
     }
   });
 
-  WiFi.begin(WIFI_SSID, WIFI_PWD);
-  //wifi_interface.begin(TCP_PORT);
-  //interface_manager.addInterface(InterfaceType::WiFi, &wifi_interface);
+  WiFiHelper.setFilesystem(fs);
+  WiFiHelper.load();
 #endif
 
   // send out initial zero hop Advertisement to the mesh

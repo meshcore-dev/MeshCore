@@ -8,7 +8,8 @@
 #ifndef BRIDGE_MAX_BAUD
 #define BRIDGE_MAX_BAUD 115200
 #endif
-#include <WiFi.h>
+#include "WiFi.h"
+#include "WiFiHelper.h"
 
 // Believe it or not, this std C function is busted on some platforms!
 static uint32_t _atoi(const char* sp) {
@@ -440,6 +441,9 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       _callbacks->formatRadioStatsReply(reply);
     } else if (sender_timestamp == 0 && memcmp(command, "stats-core", 10) == 0 && (command[10] == 0 || command[10] == ' ')) {
       _callbacks->formatStatsReply(reply);
+    } else if (memcmp(command, "wifi forget", 9) == 0) {
+      WiFiHelper.forget();
+      strcpy(reply, "   WiFi credentials forgotten");
     } else {
       strcpy(reply, "Unknown command");
     }
@@ -802,27 +806,21 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     } else if (memcmp(config, "wifi.ssid", 9) == 0) {
       config += 9; // skip "wifi.ssid"
       while (*config == ' ') config++; // skip any leading spaces
-      //StrHelper::strncpy(_prefs->wifi_ssid, config, sizeof(_prefs->wifi_ssid));
-      //savePrefs();
-
-      // Stop WiFi to apply new SSID
-      WiFi.disconnect();
-      WiFi.begin(config, WiFi.psk());
-      WiFi.saveConfig();
-
-      strcpy(reply, "OK");
+      WiFiHelper.updateSSID(config);
+      if (WiFiHelper.save()) {
+        sprintf(reply, "OK");
+      } else {
+        strcpy(reply, "Error: failed to save WiFi config");
+      }
     } else if (memcmp(config, "wifi.password", 13) == 0) {
       config += 13; // skip "wifi.password"
       while (*config == ' ') config++; // skip any leading spaces
-      //StrHelper::strncpy(_prefs->wifi_password, config, sizeof(_prefs->wifi_password));
-      //savePrefs();
-
-      // Stop WiFi to apply new password
-      WiFi.disconnect();
-      WiFi.begin(WiFi.SSID(), config);
-      WiFi.saveConfig();
-
-      strcpy(reply, "OK");
+      WiFiHelper.updatePassphrase(config);
+      if (WiFiHelper.save()) {
+        sprintf(reply, "OK");
+      } else {
+        strcpy(reply, "Error: failed to save WiFi config");
+      }
   #endif
   } else {
     strcpy(reply, "unknown config: ");
@@ -1015,9 +1013,9 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
       sprintf(reply, "Not connected");
     }
   } else if (memcmp(config, "wifi.ssid", 10) == 0) {
-    sprintf(reply, "SSID: %s", WiFi.SSID().c_str());
+    sprintf(reply, "SSID: %s", WiFiHelper.getConfiguredSSID());
   } else if (memcmp(config, "wifi.password", 14) == 0) {
-    sprintf(reply, "Password: %s", WiFi.psk().c_str());
+    sprintf(reply, "Password: %s", WiFiHelper.getConfiguredPassphrase());
 #endif
   } else {
     sprintf(reply, "??: %s", config);
