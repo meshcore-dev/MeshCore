@@ -460,7 +460,14 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
   const char* config = &command[4];
 
   if (memcmp(config, "allow.read.only ", 16) == 0) {
-    _prefs->allow_read_only = memcmp(&config[16], "on", 2) == 0;
+    if (strcmp(&config[16], "off") == 0) {
+      _prefs->allow_read_only = false;
+    } else if (strcmp(&config[16], "on") == 0) {
+      _prefs->allow_read_only = true;
+    } else {
+      strcpy(reply, "Error, on/off");
+      return;
+    }
     savePrefs();
     strcpy(reply, "OK");
   } else if (memcmp(config, "flood.advert.interval ", 22) == 0) {
@@ -509,7 +516,14 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       strcpy(reply, "Error, bad chars");
     }
   } else if (memcmp(config, "repeat ", 7) == 0) {
-    _prefs->disable_fwd = memcmp(&config[7], "off", 3) == 0;
+    if (strcmp(&config[7], "off") == 0) {
+      _prefs->disable_fwd = true;
+    } else if (strcmp(&config[7], "on") == 0) {
+      _prefs->disable_fwd = false;
+    } else {
+      strcpy(reply, "Error, on/off");
+      return;
+    }
     savePrefs();
     strcpy(reply, _prefs->disable_fwd ? "OK - repeat is now OFF" : "OK - repeat is now ON");
   } else if (memcmp(config, "lat ", 4) == 0) {
@@ -560,13 +574,13 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
   } else if (memcmp(config, "loop.detect ", 12) == 0) {
     config += 12;
     uint8_t mode;
-    if (memcmp(config, "off", 3) == 0) {
+    if (strcmp(config, "off") == 0) {
       mode = LOOP_DETECT_OFF;
-    } else if (memcmp(config, "minimal", 7) == 0) {
+    } else if (strcmp(config, "minimal") == 0) {
       mode = LOOP_DETECT_MINIMAL;
-    } else if (memcmp(config, "moderate", 8) == 0) {
+    } else if (strcmp(config, "moderate") == 0) {
       mode = LOOP_DETECT_MODERATE;
-    } else if (memcmp(config, "strict", 6) == 0) {
+    } else if (strcmp(config, "strict") == 0) {
       mode = LOOP_DETECT_STRICT;
     } else {
       mode = 0xFF;
@@ -583,7 +597,14 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     strcpy(reply, "OK - reboot to apply");
 #ifdef WITH_BRIDGE
   } else if (memcmp(config, "bridge.enabled ", 15) == 0) {
-    _prefs->bridge_enabled = memcmp(&config[15], "on", 2) == 0;
+    if (strcmp(&config[15], "off") == 0) {
+      _prefs->bridge_enabled = false;
+    } else if (strcmp(&config[15], "on") == 0) {
+      _prefs->bridge_enabled = true;
+    } else {
+      strcpy(reply, "Error, on/off");
+      return;
+    }
     _callbacks->setBridgeState(_prefs->bridge_enabled);
     savePrefs();
     strcpy(reply, "OK");
