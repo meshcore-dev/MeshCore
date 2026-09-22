@@ -5,10 +5,10 @@
  *                                                                      *
  * Ingo Fischer 11Nov2015                                               *
  * https://github.com/Apollon77/I2CSoilMoistureSensor                   *
- *                                                                      *    
+ *                                                                      *
  * Ken Privitt 8Feb2026                                                 *
  * Adapted for MeshCore Firmware Stack                                  *
- *                                                                      *                        
+ *                                                                      *
  * MIT license                                                          *
  *                                                                      *
  * This file contains a collection of routines to access the            *
@@ -31,7 +31,7 @@
  //
  // No hardware is touched in the constructor.
  // I2C communication is deferred until begin() is called. 
- //------------------------------------------------------------------------------
+ //-----------------------------------------------------------------------------
 
 RAK12035_SoilMoisture::RAK12035_SoilMoisture(uint8_t addr)
 {
@@ -39,9 +39,9 @@ RAK12035_SoilMoisture::RAK12035_SoilMoisture(uint8_t addr)
     _i2c = nullptr; // Bus not assigned yet; must be set in begin()
 }
 
-//------------------------------------------------------------------------------ 
+//------------------------------------------------------------------------------
 // setup() 
-//------------------------------------------------------------------------------ 
+//------------------------------------------------------------------------------
 // setup(TwoWire &i2c) 
 // 
 // Assigns the I2C bus that this driver instance will use. This allows the 
@@ -58,12 +58,12 @@ void RAK12035_SoilMoisture::setup(TwoWire &i2c)
     _i2c->begin();                // Initialize the bus to Wire or Wire1
 }
 
-//------------------------------------------------------------------------------ 
+//------------------------------------------------------------------------------
 // RAK12035 Soil Moisture begin() 
-//------------------------------------------------------------------------------ 
-// 
-// Performs initialization of the RAK12035 soil‑moisture sensor. This 
-// routine assumes that the application has already selected the I2C bus via 
+//------------------------------------------------------------------------------
+//
+// Performs initialization of the RAK12035 soil‑moisture sensor. This
+// routine assumes that the application has already selected the I2C bus via
 // setup() and that the bus has been initialized externally (Wire.begin()).
 // It uses the passed in I2C Address (default 0x20)
 //
@@ -81,23 +81,18 @@ void RAK12035_SoilMoisture::setup(TwoWire &i2c)
 //      File:    variants/rak4631 platformio.ini
 //      Section example: [env:RAK_4631_companion_radio_ble] 
 //      Enable Debug statements: -D MESH_DEBUG=1
-// 
+//
 //------------------------------------------------------------------------------
-bool RAK12035_SoilMoisture::begin(uint8_t addr)
+bool RAK12035_SoilMoisture::begin()
 {
-//    MESH_DEBUG_PRINTLN("begin() - Start of RAK12035 initialization");
-//    MESH_DEBUG_PRINTLN("begin() - RAK12035 passed in Address %02X", addr);
+   MESH_DEBUG_PRINTLN("begin() - Start of RAK12035 initialization");
+   MESH_DEBUG_PRINTLN("begin() - RAK12035 passed in Address %02X", _addr);
 
-// 1. Ensure setup() was called
+    // 1. Ensure setup() was called
     if (_i2c == nullptr) {
         MESH_DEBUG_PRINTLN("RAK12035 ERROR: I2C bus not set!");
         return false;
-}
-
-    uint16_t _dry_cal = 200;
-    uint16_t _wet_cal = 600;
-    uint8_t _version = 0;
-    uint8_t _addr;                   // The I2C address to be used (passed in parameter)
+    }
 
 /*------------------------------------------------------------------------------------------
  * Set Calibration values -  This is done with custom a firmware version
@@ -105,52 +100,52 @@ bool RAK12035_SoilMoisture::begin(uint8_t addr)
  *      USE the Build Flag: -D ENABLE_RAK12035_CALIBRATION = 1
  * OR
  *      Change the value to 1 in the RAK12035_SoilMoisture.h file
- * 
+ *
  * Calibration Procedure:
  * 1) Flash the Calibration version of the firmware.
  * 2) Leave the sensor dry, power up the device.
  * 3) After detecting the RAK12035 this firmware will display calibration data on Channel 3
- * 
+ *
  *      Frequency = Current Capacitance Value
  *      Temperature = Current Wet calibration value
  *      Power = Current Dry calibration value
- *  
+ *
  *  4) Click refresh several times.  This will take a capacitance reading and if it is
  *     greater than the current Dry value it will store it in the sensor
  *     The value will bounce a little as you click refresh, but it eventually settles down (a few clicks)
  *     the stored value will stabalize at it's Maximum value.
- * 
- * 5) Put the sensor in water.  
- * 
+ *
+ * 5) Put the sensor in water.
+ *
  * 6) Click refresh several times.  This will take a capacitance reading and if it is
  *     less than the current Wet value it will store it in the sensor
  *     The value will bounce a little as you click refresh, but it eventually settles down (a few clicks)
  *     the stored value will stabalize at it's Minimum value.
- * 
+ *
  * 7) The Sensor is now calibrated, turn off the device.
- * 
+ *
  * 8) Reflash the device with the non-Calibration Firmware, Data will be shown on Channel 2
- *                             
+ *
  *------------------------------------------------------------------------------------------
-*/ 
+*/
 
 #if ENABLE_RAK12035_CALIBRATION 
     uint16_t _wet = 2000;         // A high value the should be out of the normal Wet range
-     set_humidity_full(_wet);
+    set_humidity_full(_wet);
 
-   uint16_t _dry = 50;            // A low value the should be out of the normal Dry range
-   set_humidity_zero(_dry);
+    uint16_t _dry = 50;           // A low value the should be out of the normal Dry range
+    set_humidity_zero(_dry);
 #endif
 
  /*--------------------------------------------------------------------------------
-  * 
+  *
   *   Check if a sensor is present and return true if found, false if not present
   *
   *--------------------------------------------------------------------------------
   */
-       if (query_sensor()) {
-             MESH_DEBUG_PRINTLN("begin() - Sensor responded with valid version");
-             return true;
+    if (query_sensor()) {
+        MESH_DEBUG_PRINTLN("begin() - Sensor responded with valid version");
+        return true;
     }
     else {
         MESH_DEBUG_PRINTLN("begin() - Sensor version FAIL");
@@ -165,7 +160,7 @@ bool RAK12035_SoilMoisture::begin(uint8_t addr)
  * 
  *--------------------------------------------------------------------------------*/
 
-uint16_t RAK12035_SoilMoisture::get_sensor_capacitance()            //Command 01 - (r) 2 byte
+uint16_t RAK12035_SoilMoisture::get_sensor_capacitance()               // Command 01 - (r) 2 byte
 {
     uint8_t buf[2] = {0};
     if (!read_rak12035(SOILMOISTURESENSOR_GET_CAPACITANCE, buf, 2)) {
@@ -178,7 +173,7 @@ uint16_t RAK12035_SoilMoisture::get_sensor_capacitance()            //Command 01
 }
 
 
-uint8_t RAK12035_SoilMoisture::get_I2C_address()                     //Command 02 - (r) 1 byte
+uint8_t RAK12035_SoilMoisture::get_I2C_address()                       // Command 02 - (r) 1 byte
 {
     uint8_t addr = 0;
     if (!read_rak12035(SOILMOISTURESENSOR_GET_I2C_ADDR, &addr, 1)) {
@@ -190,7 +185,7 @@ uint8_t RAK12035_SoilMoisture::get_I2C_address()                     //Command 0
 }
 
 
-bool RAK12035_SoilMoisture::set_sensor_addr(uint8_t addr)           //Command 03 - (w) 1 byte
+bool RAK12035_SoilMoisture::set_sensor_addr(uint8_t addr)              // Command 03 - (w) 1 byte
 {
     if (!write_rak12035(SOILMOISTURESENSOR_SET_I2C_ADDR, &addr, 1)) {
         MESH_DEBUG_PRINTLN("Function 3: set_I2C_address() FAIL: Could not set new address %02X", addr);
@@ -201,13 +196,12 @@ bool RAK12035_SoilMoisture::set_sensor_addr(uint8_t addr)           //Command 03
 }
 
 
-uint8_t RAK12035_SoilMoisture::get_sensor_version()                 // Command 04 - 1 byte
+uint8_t RAK12035_SoilMoisture::get_sensor_version()                    // Command 04 - 1 byte
 {
     uint8_t v = 0;
 
-    read_rak12035(SOILMOISTURESENSOR_GET_VERSION, &v, 1);
     if (!read_rak12035(SOILMOISTURESENSOR_GET_VERSION, &v, 1)) {
-    MESH_DEBUG_PRINTLN("Function 4: get_sensor_version() FAIL: Bad data returned = %02X", v);
+        MESH_DEBUG_PRINTLN("Function 4: get_sensor_version() FAIL: Bad data returned = %02X", v);
         return v;
     }
     MESH_DEBUG_PRINTLN("Function 4: get_sensor_version() SUCCESS: Version = %02X", v);
@@ -215,7 +209,7 @@ uint8_t RAK12035_SoilMoisture::get_sensor_version()                 // Command 0
 }
 
 
-float RAK12035_SoilMoisture::get_sensor_temperature()               //Command 05 - (r) 2 bytes
+float RAK12035_SoilMoisture::get_sensor_temperature()                  // Command 05 - (r) 2 bytes
 {
     uint8_t buf[2] = {0};
     if (!read_rak12035(SOILMOISTURESENSOR_GET_TEMPERATURE, buf, 2)) {
@@ -230,7 +224,7 @@ float RAK12035_SoilMoisture::get_sensor_temperature()               //Command 05
 }
 
 
-bool RAK12035_SoilMoisture::sensor_sleep()                          //Command 06 - (w) 1 byte
+bool RAK12035_SoilMoisture::sensor_sleep()                             // Command 06 - (w) 1 byte
 {
     uint8_t tmp = 0;
     if (!write_rak12035(SOILMOISTURESENSOR_SET_SLEEP, &tmp, 1)) {
@@ -250,15 +244,14 @@ bool RAK12035_SoilMoisture::sensor_sleep()                          //Command 06
 }
 
 
-bool RAK12035_SoilMoisture::set_humidity_full(uint16_t full)           //Command 07 - (w) 2 bytes
+bool RAK12035_SoilMoisture::set_humidity_full(uint16_t full)           // Command 07 - (w) 2 bytes
 {
     uint8_t buf[2];
     buf[0] = (full >> 8) & 0xFF;   // High byte
     buf[1] = full & 0xFF;          // Low byte
 
     if (!write_rak12035(SOILMOISTURESENSOR_SET_WET_CAL, buf, 2)) {
-        MESH_DEBUG_PRINTLN("Function 7: set_humidity_full() FAIL: Could not set wet calibration value"
-        );
+        MESH_DEBUG_PRINTLN("Function 7: set_humidity_full() FAIL: Could not set wet calibration value");
         return false;
     }
     MESH_DEBUG_PRINTLN("Function 7: set_humidity_full() SUCCESS: New Full = %04X", full);
@@ -266,7 +259,7 @@ bool RAK12035_SoilMoisture::set_humidity_full(uint16_t full)           //Command
 }
 
 
-bool RAK12035_SoilMoisture::set_humidity_zero(uint16_t zero)          //Command 08 - (w) 2 bytes
+bool RAK12035_SoilMoisture::set_humidity_zero(uint16_t zero)           // Command 08 - (w) 2 bytes
 {
     uint8_t buf[2];
     buf[0] = (zero >> 8) & 0xFF;   // High byte
@@ -281,9 +274,9 @@ bool RAK12035_SoilMoisture::set_humidity_zero(uint16_t zero)          //Command 
 }
 
 
-uint8_t RAK12035_SoilMoisture::get_sensor_moisture()                    //Command 09 - (r) 1 byte
+uint8_t RAK12035_SoilMoisture::get_sensor_moisture()                   // Command 09 - (r) 1 byte
 {
-// Load calibration values from sensor 
+    // Load calibration values from sensor 
     _wet_cal = get_humidity_full();
     _dry_cal = get_humidity_zero();
 
@@ -327,7 +320,7 @@ uint8_t RAK12035_SoilMoisture::get_sensor_moisture()                    //Comman
 }
 
 
-uint8_t RAK12035_SoilMoisture::get_sensor_humid()                   //Command 09 - (r) 1 byte
+uint8_t RAK12035_SoilMoisture::get_sensor_humid()                      // Command 09 - (r) 1 byte
 {
     uint8_t moisture = 0;
 
@@ -340,7 +333,7 @@ uint8_t RAK12035_SoilMoisture::get_sensor_humid()                   //Command 09
 }
 
 
-uint16_t RAK12035_SoilMoisture::get_humidity_full()                 //Command 0A - (r) 2 bytes
+uint16_t RAK12035_SoilMoisture::get_humidity_full()                    // Command 0A - (r) 2 bytes
 {
     uint8_t buf[2] = {0};
 
@@ -356,7 +349,7 @@ uint16_t RAK12035_SoilMoisture::get_humidity_full()                 //Command 0A
 }
 
 
-uint16_t RAK12035_SoilMoisture::get_humidity_zero()                 //Command 0B - 2 bytes
+uint16_t RAK12035_SoilMoisture::get_humidity_zero()                    // Command 0B - 2 bytes
 {
     uint8_t buf[2] = {0};
 
@@ -390,16 +383,16 @@ bool RAK12035_SoilMoisture::getEvent(uint8_t *humidity, uint16_t *temp)
     uint8_t moist = get_sensor_moisture();
     if (moist == 0xFF)      //error indicator
         return false;
-    MESH_DEBUG_PRINTLN("getEvent() - Humidity = %d", moist);  
+    MESH_DEBUG_PRINTLN("getEvent() - Humidity = %d", moist);
     *humidity = moist;
 
     //Read temperature (degrees C)
     uint16_t t = get_sensor_temperature();
     if (t == 0XFFFF) // error indicator
-    return false;
+        return false;
     
-    *temp = t; 
-    MESH_DEBUG_PRINTLN("getEvent() - Temperature = %d", t);   
+    *temp = t;
+    MESH_DEBUG_PRINTLN("getEvent() - Temperature = %d", t);
     return true;
 }
 
@@ -412,36 +405,35 @@ bool RAK12035_SoilMoisture::getEvent(uint8_t *humidity, uint16_t *temp)
  * 
  * They are for a future sensor power management function.
  *------------------------------------------------------------------------------------------*/
-
 bool RAK12035_SoilMoisture::sensor_on()
 {
-    uint8_t data;
- // This has been commented out due to a pin name conflict with the Heltec v3
- // This will need to be resolved if this function is to be utilized in the future
-
+// This has been commented out due to a pin name conflict with the Heltec v3
+// This will need to be resolved if this function is to be utilized in the future
 /*
     pinMode(WB_IO2, OUTPUT);
-	digitalWrite(WB_IO2, HIGH);     //Turn on Sensor Power
+    digitalWrite(WB_IO2, HIGH);     // Turn on Sensor Power
 
-    pinMode(WB_IO4, OUTPUT);        //Set IO4 Pin to Output (connected to *reset on sensor)
-	digitalWrite(WB_IO4, LOW);      //*reset - Reset the Sensor
-	delay(1);                       //Wait for the minimum *reset, 1mS is longer than required minimum
-    digitalWrite(WB_IO4, HIGH);     //Deassert Reset
+    pinMode(WB_IO4, OUTPUT);        // Set IO4 Pin to Output (connected to *reset on sensor)
+    digitalWrite(WB_IO4, LOW);      // *reset - Reset the Sensor
+    delay(1);                       // Wait for the minimum *reset, 1mS is longer than required minimum
+    digitalWrite(WB_IO4, HIGH);     // Deassert Reset
 
-    delay(10);                     // Wait for the sensor code to complete initialization
+    delay(10);                      // Wait for the sensor code to complete initialization
 */
-	uint8_t v = 0;
+
     uint32_t timeout = millis();
-	while ((!query_sensor()))                    //Wait for sensor to respond to I2C commands, 
-	{                                            //indicating it is ready
-		if ((millis() - timeout) > 50){          //0.5 second timeout for sensor to respond
+    while ((!query_sensor()))                    //Wait for sensor to respond to I2C commands, 
+    {                                            //indicating it is ready
+        if ((millis() - timeout) > 500){         //0.5 second timeout for sensor to respond
             MESH_DEBUG_PRINTLN("reset() - Timeout, no response from I2C commands");
             return false;
         }
         else {
-			delay(10);                           //delay 10mS
+            delay(10);                           //delay 10mS
         }
     }
+
+    return true;
 }
 
 bool RAK12035_SoilMoisture::reset()
@@ -461,7 +453,6 @@ bool RAK12035_SoilMoisture::reset()
 
 // This has been commented out due to a pin name conflict with the Heltec v3
 // This will need to be resolved if this function is to be utilized in the future
-
 /*
     pinMode(WB_IO4, OUTPUT);        //Set IO4 Pin to Output (connected to *reset on sensor)
     MESH_DEBUG_PRINTLN("Assert *reset (Low) for 1 mS");
@@ -476,40 +467,42 @@ bool RAK12035_SoilMoisture::reset()
     MESH_DEBUG_PRINTLN("reset() - Timeout, Start Time: %d milliseconds", start_time);
 
     const uint32_t timeout_ms = 500;    // Wait for 0.5 seconds
-    uint32_t start = millis();
-    
+
     while (true) {
         if (query_sensor()) {
+            #ifdef MESH_DEBUG
             MESH_DEBUG_PRINTLN("reset() - First Pass, Sensor responded with valid version");
             uint32_t stop_time = millis();
             MESH_DEBUG_PRINTLN("reset() - Timeout, Stop Time: %d mS", stop_time);    
             MESH_DEBUG_PRINTLN("reset() - Timeout, Duration: %d mS", (stop_time - start_time));
-
-             return true;
+            #endif
+            return true;
         }
-            if (millis() - start > timeout_ms) {
-                MESH_DEBUG_PRINTLN("reset() - Timeout waiting for valid sensor version");
-                uint32_t stop_time = millis();
-                MESH_DEBUG_PRINTLN("reset() - Timeout, Stop Time: %d mS", stop_time);    
-                MESH_DEBUG_PRINTLN("reset() - Timeout, Duration: %d mS", (stop_time - start_time));
-                return false;
-         }
-            delay(100);
+        if (millis() - start_time > timeout_ms) {
+            #ifdef MESH_DEBUG
+            MESH_DEBUG_PRINTLN("reset() - Timeout waiting for valid sensor version");
+            uint32_t stop_time = millis();
+            MESH_DEBUG_PRINTLN("reset() - Timeout, Stop Time: %d mS", stop_time);    
+            MESH_DEBUG_PRINTLN("reset() - Timeout, Duration: %d mS", (stop_time - start_time));
+            #endif
+            return false;
+        }
+        delay(100);
     }
 }
 
- bool RAK12035_SoilMoisture::query_sensor()
+bool RAK12035_SoilMoisture::query_sensor()
 {
     uint8_t v = 0;
     v = get_sensor_version();
 
-   // Treat 0x00 and 0xFF as invalid / bootloader / garbage
+    // Treat 0x00 and 0xFF as invalid / bootloader / garbage
     if (v == 0x00 || v == 0xFF) {
         MESH_DEBUG_PRINTLN("query_sensor() FAIL: Version value invalid: %02X", v);
         return false;
     }
-        MESH_DEBUG_PRINTLN("query_sensor() SUCCESS: Sensor Present, Version = %02X", v);
-        return true;
+    MESH_DEBUG_PRINTLN("query_sensor() SUCCESS: Sensor Present, Version = %02X", v);
+    return true;
 }
 
 
