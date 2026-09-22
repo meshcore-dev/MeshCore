@@ -27,7 +27,7 @@ uint8_t Mesh::getExtraAckTransmitCount() const {
 }
 
 uint32_t Mesh::getCADFailRetryDelay() const {
-  return _rng->nextInt(1, 4)*120;
+  return _rng->nextInt(50, 501);
 }
 
 int Mesh::searchPeersByHash(const uint8_t* hash) {
