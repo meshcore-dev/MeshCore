@@ -69,6 +69,7 @@ void initVariant()
   pinMode(PIN_3V3_EN, OUTPUT);
   digitalWrite(PIN_3V3_EN, HIGH);
 
+  // Board power enables are configured once per boot, not in the GPS loop.
   pinMode(PIN_FLASH_EN, OUTPUT);
   digitalWrite(PIN_FLASH_EN, HIGH);
 
@@ -93,6 +94,7 @@ void initVariant()
   pinMode(GPS_EN, OUTPUT);
   digitalWrite(GPS_EN, LOW);
 
+  // Keep backup power through GPS-only sleep; powerOff() removes it on shutdown.
   pinMode(GPS_VRTC_EN, OUTPUT);
   digitalWrite(GPS_VRTC_EN, HIGH);
 
