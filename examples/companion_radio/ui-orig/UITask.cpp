@@ -1,5 +1,6 @@
 #include "UITask.h"
 #include <Arduino.h>
+#include <helpers/ArduinoTimer.h>
 #include <helpers/TxtDataHelpers.h>
 #include "../MyMesh.h"
 
@@ -494,7 +495,7 @@ void UITask::loop() {
       _need_refresh = true;
       _firstBoot = false;
     }
-    if (millis() >= _next_refresh && _need_refresh) {
+    if (millisHasPassed(_next_refresh) && _need_refresh) {
       _display->startFrame();
       renderCurrScreen();
       _display->endFrame();
@@ -510,7 +511,7 @@ void UITask::loop() {
       _auto_off = millis() + AUTO_OFF_MILLIS;
     }
 #endif
-    if (millis() > _auto_off) {
+    if (millisHasPassed(_auto_off)) {
       _display->turnOff();
     }
   }

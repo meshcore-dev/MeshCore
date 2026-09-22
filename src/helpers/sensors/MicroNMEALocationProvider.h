@@ -4,6 +4,7 @@
 #include <MicroNMEA.h>
 #include <RTClib.h>
 #include <helpers/RefCountedDigitalPin.h>
+#include <helpers/ArduinoTimer.h>
 
 #ifndef GPS_EN
     #ifdef PIN_GPS_EN
@@ -46,7 +47,7 @@ class MicroNMEALocationProvider : public LocationProvider {
     int8_t _claims = 0;
     int _pin_reset;
     int _pin_en;
-    unsigned long next_check = 0;
+    uint32_t next_check = 0;
     long time_valid = 0;
     unsigned long _last_time_sync = 0;
     static const unsigned long TIME_SYNC_INTERVAL = 1800000; // Re-sync every 30 minutes
@@ -145,7 +146,7 @@ public :
 
         if (!isValid()) time_valid = 0;
 
-        if ((long)(millis() - next_check) > 0) {
+        if (millisHasPassed(next_check)) {
             next_check = millis() + 1000;
             // Re-enable time sync periodically when GPS has valid fix
             if (!_time_sync_needed && _clock != NULL && (millis() - _last_time_sync) > TIME_SYNC_INTERVAL) {

@@ -2,6 +2,7 @@
 
 #include <Mesh.h>
 #include <Arduino.h>
+#include <helpers/ArduinoTimer.h>
 
 class VolatileRTCClock : public mesh::RTCClock {
   uint32_t base_time;
