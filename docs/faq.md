@@ -284,7 +284,7 @@ Best practice is when you set up a new repeater, choose a public key that is not
 
 The `<number>` unit is in seconds and is incremented by 4. `set agc.reset.interval 4` works well to cure deafness.
 
-This is a very low-cost operation. AGC reset is done by simply setting `state = STATE_IDLE;` in function `RadioLibWrapper::resetAGC()` in `RadioLibWrappers.cpp`
+This is a low-cost operation (a few milliseconds). The reset performs a warm sleep to power down the radio's analog frontend, recalibrates all blocks (ADC, PLL, image rejection, oscillators), and resets the noise floor tracking. See `RadioLibWrapper::resetAGC()` in `RadioLibWrappers.cpp`.
 
 
 ### 3.8. Q: How do I make my repeater an observer on the mesh?
