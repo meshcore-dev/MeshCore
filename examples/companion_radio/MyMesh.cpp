@@ -1,4 +1,5 @@
 #include "MyMesh.h"
+#include <helpers/RadioSettings.h>
 
 #include <Arduino.h> // needed for PlatformIO
 #include <Mesh.h>
@@ -889,13 +890,7 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
   _prefs.radio_fem_txgain = 0;
   //_prefs.rx_delay_base = 10.0f;  enable once new algo fixed
   _prefs.setRepeatEn(false);
-#if defined(USE_SX1262) || defined(USE_SX1268)
-#ifdef SX126X_RX_BOOSTED_GAIN
-  _prefs.rx_boosted_gain = SX126X_RX_BOOSTED_GAIN;
-#else
-  _prefs.rx_boosted_gain = 1; // enabled by default
-#endif
-#endif
+  _prefs.rx_boosted_gain = mesh::defaultRxBoostedGain();
 }
 
 void MyMesh::begin(bool has_display) {
@@ -975,9 +970,8 @@ void MyMesh::begin(bool has_display) {
 
   radio_driver.setParams(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
   radio_driver.setTxPower(_prefs.tx_power_dbm);
-  radio_driver.setRxBoostedGainMode(_prefs.rx_boosted_gain);
-  board.setLoRaFemLnaEnabled(_prefs.radio_fem_rxgain);
-  board.setLoRaFemPaGainEnabled(_prefs.radio_fem_txgain);
+  mesh::applyRadioGainSettings(radio_driver, board, _prefs.rx_boosted_gain,
+                               _prefs.radio_fem_rxgain, _prefs.radio_fem_txgain);
   MESH_DEBUG_PRINTLN("RX Boosted Gain Mode: %s",
                      radio_driver.getRxBoostedGainMode() ? "Enabled" : "Disabled");
 }
