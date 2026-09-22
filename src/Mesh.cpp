@@ -40,7 +40,7 @@ int Mesh::searchChannelsByHash(const uint8_t* hash, GroupChannel channels[], int
 
 DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
   if (pkt->isRouteDirect() && pkt->getPayloadType() == PAYLOAD_TYPE_TRACE) {
-    if (pkt->path_len < MAX_PATH_SIZE) {
+    if (pkt->path_len < MAX_PATH_SIZE && pkt->payload_len >= 9) {
       uint8_t i = 0;
       uint32_t trace_tag;
       memcpy(&trace_tag, &pkt->payload[i], 4); i += 4;
@@ -49,13 +49,17 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
       uint8_t flags = pkt->payload[i++];
       uint8_t path_sz = flags & 0x03;  // NEW v1.11+: lower 2 bits is path hash size
 
-      uint8_t len = pkt->payload_len - i;
+      if (i > pkt->payload_len) return ACTION_RELEASE;
+      uint16_t len = (uint16_t)pkt->payload_len - i;
       // path_len*entry_size can exceed 255 (path_len up to 63, entry_size up to 8);
       // a uint8_t offset would wrap and steer the isHashMatch() read to the wrong place.
       uint16_t offset = (uint16_t)pkt->path_len << path_sz;
+      uint16_t hash_bytes = (uint16_t)1 << path_sz;
       if (offset >= len) {   // TRACE has reached end of given path
-        onTraceRecv(pkt, trace_tag, auth_code, flags, pkt->path, &pkt->payload[i], len);
-      } else if (self_id.isHashMatch(&pkt->payload[i + offset], 1 << path_sz) && allowPacketForward(pkt) && !_tables->wasSeen(pkt)) {
+        onTraceRecv(pkt, trace_tag, auth_code, flags, pkt->path, &pkt->payload[i], (uint8_t)len);
+      } else if (offset + hash_bytes <= len && self_id.isHashMatch(&pkt->payload[i + offset], hash_bytes)
+                 && allowPacketForward(pkt) && !_tables->wasSeen(pkt)) {
+        if (pkt->path_len >= 63) return ACTION_RELEASE;  // SNR count must fit in path_len low 6 bits
         _tables->markSeen(pkt);
         // append SNR (Not hash!)
         pkt->path[pkt->path_len++] = (int8_t) (pkt->getSNR()*4);
@@ -67,7 +71,8 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
     return ACTION_RELEASE;
   }
 
-  if (pkt->isRouteDirect() && pkt->getPayloadType() == PAYLOAD_TYPE_CONTROL && (pkt->payload[0] & 0x80) != 0) {
+  if (pkt->isRouteDirect() && pkt->getPayloadType() == PAYLOAD_TYPE_CONTROL && pkt->payload_len >= 1
+      && (pkt->payload[0] & 0x80) != 0) {
     if (pkt->getPathHashCount() == 0) {
       onControlDataRecv(pkt);
     }
@@ -78,10 +83,9 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
   if (pkt->isRouteDirect() && pkt->getPathHashCount() > 0) {
     // check for 'early received' ACK
     if (pkt->getPayloadType() == PAYLOAD_TYPE_ACK) {
-      int i = 0;
-      uint32_t ack_crc;
-      memcpy(&ack_crc, &pkt->payload[i], 4); i += 4;
-      if (i <= pkt->payload_len) {
+      if (pkt->payload_len >= 4) {
+        uint32_t ack_crc;
+        memcpy(&ack_crc, pkt->payload, 4);
         onAckRecv(pkt, ack_crc);
       }
     }
@@ -115,15 +119,16 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
 
   switch (pkt->getPayloadType()) {
     case PAYLOAD_TYPE_ACK: {
-      int i = 0;
-      uint32_t ack_crc;
-      memcpy(&ack_crc, &pkt->payload[i], 4); i += 4;
-      if (i > pkt->payload_len) {
+      if (pkt->payload_len < 4) {
         MESH_DEBUG_PRINTLN("%s Mesh::onRecvPacket(): incomplete ACK packet", getLogDateTime());
-      } else if (!_tables->wasSeen(pkt)) {
-        _tables->markSeen(pkt);
-        onAckRecv(pkt, ack_crc);
-        action = routeRecvPacket(pkt);
+      } else {
+        uint32_t ack_crc;
+        memcpy(&ack_crc, pkt->payload, 4);
+        if (!_tables->wasSeen(pkt)) {
+          _tables->markSeen(pkt);
+          onAckRecv(pkt, ack_crc);
+          action = routeRecvPacket(pkt);
+        }
       }
       break;
     }
@@ -131,6 +136,10 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
     case PAYLOAD_TYPE_REQ:
     case PAYLOAD_TYPE_RESPONSE:
     case PAYLOAD_TYPE_TXT_MSG: {
+      if (pkt->payload_len < 2 + CIPHER_MAC_SIZE) {
+        MESH_DEBUG_PRINTLN("%s Mesh::onRecvPacket(): incomplete data packet", getLogDateTime());
+        break;
+      }
       int i = 0;
       uint8_t dest_hash = pkt->payload[i++];
       uint8_t src_hash = pkt->payload[i++];
@@ -159,6 +168,7 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
             if (len > 0) {  // success!
               if (pkt->getPayloadType() == PAYLOAD_TYPE_PATH) {
                 int k = 0;
+                if (len < 1) break;
                 uint8_t path_len = data[k++];
                 if (!Packet::isValidPathLen(path_len)) {
                   MESH_DEBUG_PRINTLN("%s PAYLOAD_TYPE_PATH, bad path_len: %u", getLogDateTime(), (uint32_t)path_len);
@@ -166,10 +176,15 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
                 }
                 uint8_t hash_size = (path_len >> 6) + 1;
                 uint8_t hash_count = path_len & 63;
-                uint8_t* path = &data[k]; k += hash_size*hash_count;
+                int path_bytes = (int)hash_size * (int)hash_count;
+                if (k + path_bytes + 1 > len) {
+                  MESH_DEBUG_PRINTLN("%s PAYLOAD_TYPE_PATH, truncated path", getLogDateTime());
+                  break;
+                }
+                uint8_t* path = &data[k]; k += path_bytes;
                 uint8_t extra_type = data[k++] & 0x0F;   // upper 4 bits reserved for future use
                 uint8_t* extra = &data[k];
-                uint8_t extra_len = len - k;   // remainder of packet (may be padded with zeroes!)
+                uint8_t extra_len = (uint8_t)(len - k);   // remainder of packet (may be padded with zeroes!)
                 if (onPeerPathRecv(pkt, j, secret, path, path_len, extra_type, extra, extra_len)) {
                   if (pkt->isRouteFlood()) {
                     // send a reciprocal return path to sender, but send DIRECTLY!
@@ -636,11 +651,13 @@ Packet* Mesh::createControlData(const uint8_t* data, size_t len) {
 
 void Mesh::sendFlood(Packet* packet, uint32_t delay_millis, uint8_t path_hash_size) {
   if (packet->getPayloadType() == PAYLOAD_TYPE_TRACE) {
-    MESH_DEBUG_PRINTLN("%s Mesh::sendFlood(): TRACE type not suspported", getLogDateTime());
+    MESH_DEBUG_PRINTLN("%s Mesh::sendFlood(): TRACE type not supported", getLogDateTime());
+    releasePacket(packet);
     return;
   }
   if (path_hash_size == 0 || path_hash_size > 3) {
     MESH_DEBUG_PRINTLN("%s Mesh::sendFlood(): invalid path_hash_size", getLogDateTime());
+    releasePacket(packet);
     return;
   }
 
@@ -663,11 +680,13 @@ void Mesh::sendFlood(Packet* packet, uint32_t delay_millis, uint8_t path_hash_si
 
 void Mesh::sendFlood(Packet* packet, uint16_t* transport_codes, uint32_t delay_millis, uint8_t path_hash_size) {
   if (packet->getPayloadType() == PAYLOAD_TYPE_TRACE) {
-    MESH_DEBUG_PRINTLN("%s Mesh::sendFlood(): TRACE type not suspported", getLogDateTime());
+    MESH_DEBUG_PRINTLN("%s Mesh::sendFlood(): TRACE type not supported", getLogDateTime());
+    releasePacket(packet);
     return;
   }
   if (path_hash_size == 0 || path_hash_size > 3) {
     MESH_DEBUG_PRINTLN("%s Mesh::sendFlood(): invalid path_hash_size", getLogDateTime());
+    releasePacket(packet);
     return;
   }
 
@@ -697,13 +716,23 @@ void Mesh::sendDirect(Packet* packet, const uint8_t* path, uint8_t path_len, uin
   uint8_t pri;
   if (packet->getPayloadType() == PAYLOAD_TYPE_TRACE) {   // TRACE packets are different
     // for TRACE packets, path is appended to end of PAYLOAD. (path is used for SNR's)
-    memcpy(&packet->payload[packet->payload_len], path, path_len);  // NOTE: path_len here can be > 64, and NOT in the new scheme
+    if ((size_t)packet->payload_len + path_len > MAX_PACKET_PAYLOAD) {
+      MESH_DEBUG_PRINTLN("%s Mesh::sendDirect(): TRACE payload overflow", getLogDateTime());
+      releasePacket(packet);
+      return;
+    }
+    memcpy(&packet->payload[packet->payload_len], path, path_len);
     packet->payload_len += path_len;
 
     packet->path_len = 0;
     pri = 5;   // maybe make this configurable
   } else {
     packet->path_len = Packet::copyPath(packet->path, path, path_len);
+    if ((path_len & 63) != 0 && packet->path_len == 0) {
+      MESH_DEBUG_PRINTLN("%s Mesh::sendDirect(): invalid path_len", getLogDateTime());
+      releasePacket(packet);
+      return;
+    }
     if (packet->getPayloadType() == PAYLOAD_TYPE_PATH) {
       pri = 1;   // slightly less priority
     } else {
