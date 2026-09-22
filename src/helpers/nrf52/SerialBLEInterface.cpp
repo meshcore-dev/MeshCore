@@ -128,9 +128,13 @@ void SerialBLEInterface::begin(const char* prefix, char* name, uint32_t pin_code
 
   char charpin[20];
   snprintf(charpin, sizeof(charpin), "%lu", (unsigned long)pin_code);
-  
-  // If we want to control BLE LED ourselves, uncomment this:
-  // Bluefruit.autoConnLed(false);
+
+#if defined(RAK_BOARD)
+  Bluefruit.autoConnLed(false);
+  #ifdef LED_BLUE
+    digitalWrite(LED_BLUE, 1 - LED_STATE_ON);
+  #endif
+#endif
   Bluefruit.configPrphBandwidth(BANDWIDTH_MAX);
   Bluefruit.begin();
  
@@ -252,6 +256,8 @@ void SerialBLEInterface::enable() {
   _isEnabled = true;
   clearBuffers();
   _last_health_check = millis();
+  _last_led_blink = 0;
+  _led_state = false;
 
   Bluefruit.Advertising.restartOnDisconnect(true);
   Bluefruit.Advertising.start(0);
@@ -265,6 +271,10 @@ void SerialBLEInterface::disconnect() {
 
 void SerialBLEInterface::disable() {
   _isEnabled = false;
+  _led_state = false;
+#if defined(RAK_BOARD) && defined(LED_BLUE) && LED_BLUE >= 0
+  digitalWrite(LED_BLUE, 1 - LED_STATE_ON);
+#endif
   BLE_DEBUG_PRINTLN("SerialBLEInterface: disable");
 
   Bluefruit.Advertising.restartOnDisconnect(false);
@@ -296,6 +306,20 @@ size_t SerialBLEInterface::writeFrame(const uint8_t src[], size_t len) {
 }
 
 size_t SerialBLEInterface::checkRecvFrame(uint8_t dest[]) {
+#if defined(RAK_BOARD) && defined(LED_BLUE) && LED_BLUE >= 0
+  if (_isEnabled && _conn_handle == BLE_CONN_HANDLE_INVALID) {
+    unsigned long t = millis();
+    if (t - _last_led_blink >= 500) {
+      _last_led_blink = t;
+      _led_state = !_led_state;
+      digitalWrite(LED_BLUE, _led_state ? LED_STATE_ON : (1 - LED_STATE_ON));
+    }
+  } else if (_led_state) {
+    _led_state = false;
+    digitalWrite(LED_BLUE, 1 - LED_STATE_ON);
+  }
+#endif
+
   if (send_queue_len > 0) {
     if (!isConnected()) {
       BLE_DEBUG_PRINTLN("writeBytes: connection invalid, clearing send queue");
