@@ -7,6 +7,7 @@
   #include <LittleFS.h>
 #elif defined(ESP32)
   #include <SPIFFS.h>
+  #include <helpers/esp32/SPIFFSMount.h>
 #endif
 
 #include <helpers/ArduinoHelpers.h>
@@ -587,7 +588,7 @@ void setup() {
   LittleFS.begin();
   the_mesh.begin(LittleFS);
 #elif defined(ESP32)
-  SPIFFS.begin(true);
+  mountSPIFFS();
   the_mesh.begin(SPIFFS);
 #else
   #error "need to define filesystem"
