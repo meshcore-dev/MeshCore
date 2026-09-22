@@ -1010,8 +1010,15 @@ region save
 **Default:** `off`
 
 **Note:** Output format:
-- `off` when the GPS hardware is disabled
-- `on, {active|deactivated}, {fix|no fix}, {sat count} sats` when the GPS hardware is enabled
+- `not detected` when no GPS receiver was found
+- `off (enable pin low)` when the GPS enable pin is present and low
+- `{active|deactivated}, {fix|no fix}, {sat count} sats` otherwise
+
+`active` reflects the `gps` setting, i.e. whether the receiver is being polled.
+A board with no GPS enable pin cannot report the power state, so the reply begins with
+`active`/`deactivated` rather than claiming the hardware is on. That covers boards
+which leave `PIN_GPS_EN` undefined as well as those defining it as `-1`; both end up
+with no usable enable pin.
 
 ---
 
