@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 #include "InheroMr2SensorManager.h"
+#include "helpers/BoardTelemetry.h"
 
 #include <Adafruit_BME280.h>
 #include <Wire.h>
@@ -62,6 +63,14 @@ bool InheroMr2SensorManager::begin() {
     break;  // One physical BME280; the second address is only a fallback.
   }
   return true;
+}
+
+bool InheroMr2SensorManager::querySensors(uint8_t requester_permissions, CayenneLPP& telemetry) {
+  const bool result = EnvironmentSensorManager::querySensors(requester_permissions, telemetry);
+  if (_board_config && (requester_permissions & TELEM_PERM_ENVIRONMENT)) {
+    inhero::appendBoardTelemetry(*_board_config, telemetry);
+  }
+  return result;
 }
 
 void InheroMr2SensorManager::setBme280StationAltitude(float altitude_m) {

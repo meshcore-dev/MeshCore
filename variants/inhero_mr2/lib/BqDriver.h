@@ -142,7 +142,7 @@ public:
 
   bool begin(uint8_t i2c_addr = BQ25798_DEFAULT_ADDR, TwoWire* wire = &Wire);
 
-  // Direct pass-through to parent — all I2C runs in tick() context (no concurrent access)
+  // Direct pass-through to parent — all I2C runs in loop() context (no concurrent access)
   bool setHIZMode(bool enable)        { return Adafruit_BQ25798::setHIZMode(enable); }
   bool setChargeEnable(bool enable)   { return Adafruit_BQ25798::setChargeEnable(enable); }
   bool getChargeEnable()              { return Adafruit_BQ25798::getChargeEnable(); }

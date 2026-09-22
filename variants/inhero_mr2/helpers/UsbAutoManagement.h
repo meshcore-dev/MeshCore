@@ -13,7 +13,7 @@ bool isUsbPowered();
 void enableUsb();
 void disableUsb();
 
-// Call from board tick(); enables/disables USB on VBUS edge.
+// Call from board loop(); enables/disables USB on VBUS edge.
 void serviceUsbAutoManagement();
 
 } // namespace inhero

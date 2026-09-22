@@ -819,7 +819,7 @@ bool BoardConfigContainer::begin() {
   }
 
   // MPPT, SOC updates, and voltage monitoring are handled in tickPeriodic()
-  // (called from InheroMr2Board::tick() — no FreeRTOS tasks doing I2C)
+  // (called from InheroMr2Board::loop() — no FreeRTOS tasks doing I2C)
 
   // Load battery capacity from preferences (or default based on chemistry)
   float cap_mah = 0.0f;
@@ -2237,7 +2237,7 @@ void BoardConfigContainer::calculateTTL() {
 
 // ===== Tick-based Periodic Dispatch =====
 
-// Called from InheroMr2Board::tick() — dispatches all periodic I2C work with
+// Called from InheroMr2Board::loop() — dispatches all periodic I2C work with
 // millis()-based scheduling in the main loop context.
 // Checks the INA228 alert and polls voltage as a fallback if the interrupt is missed.
 void BoardConfigContainer::tickPeriodic() {
