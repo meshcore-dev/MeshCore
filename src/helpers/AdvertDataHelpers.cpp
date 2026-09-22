@@ -28,10 +28,54 @@
     return i;
   }
 
+static uint32_t readUtf8(const char* text, size_t* advance) {
+  const uint8_t first = (uint8_t)text[0];
+  size_t sequence_length = 1;
+  uint32_t codepoint = first;
+  if (first >= 0xC2 && first <= 0xDF) {
+    sequence_length = 2;
+    codepoint = first & 0x1F;
+  } else if (first >= 0xE0 && first <= 0xEF) {
+    sequence_length = 3;
+    codepoint = first & 0x0F;
+  } else if (first >= 0xF0 && first <= 0xF4) {
+    sequence_length = 4;
+    codepoint = first & 0x07;
+  }
+  for (size_t i = 1; i < sequence_length; i++) {
+    codepoint = (codepoint << 6) | ((uint8_t)text[i] & 0x3F);
+  }
+  *advance = sequence_length;
+  return codepoint;
+}
+
 bool AdvertDataParser::isValidName(const char *n) {
-  while (*n) {
-    if (*n == '[' || *n == ']' || *n == '\\' || *n == ':' || *n == ',' || *n == '?' || *n == '*') return false;
-    n++;
+  // node_name and contact names are 32 bytes including the NUL. Rejecting a
+  // longer string here avoids storing a codepoint cut in half by strncpy.
+  if (n == nullptr) return false;
+  size_t len = strlen(n);
+  if (len == 0) return true;
+  if (len > 31) return false;
+  if (mesh::validUtf8PrefixLength(n, len) != len) return false;
+
+  const char* p = n;
+  while (*p) {
+    uint8_t c = (uint8_t)*p;
+    if (c < 0x20 || c == 0x7F) return false;
+    if (c < 0x80) {
+      // Prefs are stored as key:value|key:value. These bytes also break the
+      // web configurator when they land in that text or in markup.
+      if (c == '[' || c == ']' || c == '\\' || c == ':' || c == ',' || c == '?' ||
+          c == '*' || c == '|' || c == '<' || c == '>' || c == '"' || c == '\'' ||
+          c == '&' || c == '/') return false;
+      p++;
+      continue;
+    }
+    size_t advance = 1;
+    uint32_t cp = readUtf8(p, &advance);
+    // Letterlike symbols include U+2122 (™), which the configurator cannot load.
+    if (cp >= 0x2000 && cp <= 0x2BFF) return false;
+    p += advance;
   }
   return true;
 }
