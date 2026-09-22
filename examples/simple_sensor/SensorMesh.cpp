@@ -1,4 +1,5 @@
 #include "SensorMesh.h"
+#include <helpers/RadioSettings.h>
 
 /* ------------------------------ Config -------------------------------- */
 
@@ -734,6 +735,7 @@ SensorMesh::SensorMesh(mesh::MainBoard& board, mesh::Radio& radio, mesh::Millise
   _prefs.gps_enabled = 0;
   _prefs.gps_interval = 0;
   _prefs.advert_loc_policy = ADVERT_LOC_PREFS;
+  _prefs.rx_boosted_gain = mesh::defaultRxBoostedGain();
   _prefs.radio_fem_rxgain = 1;
   _prefs.radio_fem_txgain = 0;
 
@@ -771,8 +773,8 @@ void SensorMesh::begin(FILESYSTEM* fs) {
 
   radio_driver.setParams(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
   radio_driver.setTxPower(_prefs.tx_power_dbm);
-  board.setLoRaFemLnaEnabled(_prefs.radio_fem_rxgain);
-  board.setLoRaFemPaGainEnabled(_prefs.radio_fem_txgain);
+  mesh::applyRadioGainSettings(radio_driver, board, _prefs.rx_boosted_gain,
+                               _prefs.radio_fem_rxgain, _prefs.radio_fem_txgain);
 
   updateAdvertTimer();
   updateFloodAdvertTimer();
@@ -850,6 +852,10 @@ void SensorMesh::updateFloodAdvertTimer() {
 
 void SensorMesh::setTxPower(int8_t power_dbm) {
   radio_driver.setTxPower(power_dbm);
+}
+
+bool SensorMesh::setRxBoostedGain(bool enable) {
+  return radio_driver.setRxBoostedGainMode(enable);
 }
 
 void SensorMesh::formatStatsReply(char *reply) {
