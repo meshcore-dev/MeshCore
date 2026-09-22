@@ -325,6 +325,7 @@ void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const m
                             uint8_t *data, size_t len) {
   if (packet->getPayloadType() == PAYLOAD_TYPE_ANON_REQ) { // received an initial request by a possible admin
                                                            // client (unknown at this stage)
+    if (len < 9) return;
     uint32_t sender_timestamp, sender_sync_since;
     memcpy(&sender_timestamp, data, 4);
     memcpy(&sender_sync_since, &data[4], 4); // sender's "sync messags SINCE x" timestamp
@@ -344,15 +345,14 @@ void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const m
       uint8_t perm;
       if (strcmp((char *)&data[8], _prefs.password) == 0) { // check for valid admin password
         perm = PERM_ACL_ADMIN;
+      } else if (_prefs.guest_password[0] != 0 &&
+                 strcmp((char *)&data[8], _prefs.guest_password) == 0) {   // empty guest password is not a match
+        perm = PERM_ACL_READ_WRITE;
+      } else if (_prefs.allow_read_only) {
+        perm = PERM_ACL_GUEST;
       } else {
-        if (strcmp((char *)&data[8], _prefs.guest_password) == 0) {   // check the room/public password
-          perm = PERM_ACL_READ_WRITE;
-        } else if (_prefs.allow_read_only) {
-          perm = PERM_ACL_GUEST;
-        } else {
-          MESH_DEBUG_PRINTLN("Incorrect room password");
-          return; // no response. Client will timeout
-        }
+        MESH_DEBUG_PRINTLN("Incorrect room password");
+        return; // no response. Client will timeout
       }
 
       client = acl.putClient(sender, 0);  // add to known clients (if not already known)
@@ -362,17 +362,30 @@ void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const m
       }
 
       MESH_DEBUG_PRINTLN("Login success!");
+      uint8_t existing = client->permissions & PERM_ACL_ROLE_MASK;
+      if (existing > perm) perm = existing;  // never demote (e.g. admin logging in with guest password)
+
       client->last_timestamp = sender_timestamp;
       client->extra.room.sync_since = sender_sync_since;
       client->extra.room.pending_ack = 0;
       client->extra.room.push_failures = 0;
 
       client->last_activity = getRTCClock()->getCurrentTime();
-      client->permissions &= ~0x03;
+      client->permissions &= ~PERM_ACL_ROLE_MASK;
       client->permissions |= perm;
       memcpy(client->shared_secret, secret, PUB_KEY_SIZE);
 
       dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY);
+    } else {
+      if (sender_timestamp <= client->last_timestamp) {
+        MESH_DEBUG_PRINTLN("possible replay attack!");
+        return;
+      }
+      client->last_timestamp = sender_timestamp;
+      client->extra.room.sync_since = sender_sync_since;
+      client->extra.room.pending_ack = 0;
+      client->extra.room.push_failures = 0;
+      client->last_activity = getRTCClock()->getCurrentTime();
     }
 
     if (packet->isRouteFlood()) {
@@ -477,9 +490,9 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
           send_ack = false; // and no ACK...  user shoudn't be sending these
         }
       } else { // TXT_TYPE_PLAIN
-        if ((client->permissions & PERM_ACL_ROLE_MASK) == PERM_ACL_GUEST) {
+        if ((client->permissions & PERM_ACL_ROLE_MASK) < PERM_ACL_READ_WRITE) {
           temp[5] = 0;      // no reply
-          send_ack = false; // no ACK
+          send_ack = false; // no ACK; GUEST and READ_ONLY cannot post
         } else {
           if (!is_retry) {
             addPost(client, (const char *)&data[5]);
@@ -538,7 +551,7 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
   } else if (type == PAYLOAD_TYPE_REQ && len >= 5) {
     uint32_t sender_timestamp;
     memcpy(&sender_timestamp, data, 4); // timestamp (by sender's RTC clock - which could be wrong)
-    if (sender_timestamp < client->last_timestamp) { // prevent replay attacks
+    if (sender_timestamp <= client->last_timestamp) { // prevent replay attacks (equal timestamp is not a retry)
       MESH_DEBUG_PRINTLN("onPeerDataRecv: possible replay attack detected");
     } else {
       client->last_timestamp = sender_timestamp;

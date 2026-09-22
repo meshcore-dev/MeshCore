@@ -101,7 +101,8 @@ uint8_t MyMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* secr
     uint8_t perms;
     if (strcmp((char *)data, _prefs.password) == 0) { // check for valid admin password
       perms = PERM_ACL_ADMIN;
-    } else if (strcmp((char *)data, _prefs.guest_password) == 0) { // check guest password
+    } else if (_prefs.guest_password[0] != 0 &&
+               strcmp((char *)data, _prefs.guest_password) == 0) { // empty guest password is not a match
       perms = PERM_ACL_GUEST;
     } else {
 #if MESH_DEBUG
@@ -117,15 +118,24 @@ uint8_t MyMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* secr
     }
 
     MESH_DEBUG_PRINTLN("Login success!");
+    uint8_t existing = client->permissions & PERM_ACL_ROLE_MASK;
+    if (existing > perms) perms = existing;  // never demote
     client->last_timestamp = sender_timestamp;
     client->last_activity = getRTCClock()->getCurrentTime();
-    client->permissions &= ~0x03;
+    client->permissions &= ~PERM_ACL_ROLE_MASK;
     client->permissions |= perms;
     memcpy(client->shared_secret, secret, PUB_KEY_SIZE);
 
     if (perms != PERM_ACL_GUEST) {   // keep number of FS writes to a minimum
       dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY);
     }
+  } else {
+    if (sender_timestamp <= client->last_timestamp) {
+      MESH_DEBUG_PRINTLN("Possible login replay attack!");
+      return 0;
+    }
+    client->last_timestamp = sender_timestamp;
+    client->last_activity = getRTCClock()->getCurrentTime();
   }
 
   if (is_flood) {
