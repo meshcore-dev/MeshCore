@@ -84,6 +84,20 @@ TEST_F(X1GPS, RepeatedStartDoesNotInterruptExistingFix) {
   EXPECT_EQ(millis(), 103u);
 }
 
+TEST_F(X1GPS, SteadyStateLoopDoesNotRepeatEnableOrPowerWrites) {
+  gps.start();
+  events.clear();
+  for (int i = 0; i < 100; ++i) { delay(1000); gps.loop(); }
+  EXPECT_TRUE(events.empty());
+  EXPECT_TRUE(serial.commands.empty());
+  gps.shutdown();
+  events.clear();
+  const auto commands = serial.commands.size();
+  for (int i = 0; i < 100; ++i) { delay(1000); gps.loop(); }
+  EXPECT_TRUE(events.empty());
+  EXPECT_EQ(serial.commands.size(), commands);
+}
+
 TEST_F(X1GPS, SleepIsNonblockingAndKeepsPowerUntilAllCommandsFinish) {
   gps.start();
   const uint32_t start = millis();

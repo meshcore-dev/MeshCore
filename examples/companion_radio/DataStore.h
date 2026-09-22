@@ -36,7 +36,7 @@ public:
   void loadPrefs(NodePrefs& prefs);
   bool savePrefs(NodePrefs& prefs);
   void loadContacts(DataStoreHost* host);
-  void saveContacts(DataStoreHost* host, bool (*filter)(const ContactInfo& c) = NULL);
+  bool saveContacts(DataStoreHost* host, bool (*filter)(const ContactInfo& c) = NULL);
   void loadChannels(DataStoreHost* host);
   void saveChannels(DataStoreHost* host);
   void migrateToSecondaryFS();

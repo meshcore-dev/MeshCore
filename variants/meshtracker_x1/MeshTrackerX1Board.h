@@ -7,10 +7,12 @@
 class MeshTrackerX1Board : public NRF52BoardDCDC {
 protected:
   uint8_t btn_prev_state;
+  bool (*_prepareShutdown)() = nullptr;
 
 public:
   MeshTrackerX1Board() : NRF52Board("X1_OTA") {}
   void begin();
+  void setPrepareShutdown(bool (*callback)()) { _prepareShutdown = callback; }
 
   uint16_t getBattMilliVolts() override {
   #ifdef BATTERY_PIN
