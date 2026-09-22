@@ -32,15 +32,9 @@ public:
       _serial.read();
     }
 
-    pinMode(GPS_VRTC_EN, OUTPUT);
-    digitalWrite(GPS_VRTC_EN, HIGH);
-    pinMode(GPS_RESET, OUTPUT);
-    digitalWrite(GPS_RESET, LOW);  // active HIGH reset: preserve backup state
-    pinMode(GPS_SLEEP_INT, OUTPUT);
-    digitalWrite(GPS_SLEEP_INT, HIGH);
-    pinMode(GPS_RTC_INT, OUTPUT);
-    digitalWrite(GPS_RTC_INT, LOW);
-    pinMode(GPS_EN, OUTPUT);
+    // initVariant() has already enabled VRTC, released RESET and configured
+    // SLEEP_INT HIGH / RTC_INT LOW. Match the reference GPS power transition:
+    // change only EN and pulse RTC_INT; leave backup power and RESET alone.
     digitalWrite(GPS_EN, HIGH);
 
     delay(50);

@@ -6,13 +6,12 @@
 
 // Hardware boundary only; the production X1 sequencing code is tested below.
 namespace {
-constexpr int LOW = 0, HIGH = 1, OUTPUT = 1;
+constexpr int LOW = 0, HIGH = 1;
 constexpr int GPS_RESET = 8, GPS_RTC_INT = 29, GPS_SLEEP_INT = 30;
 constexpr int GPS_EN = 43, GPS_VRTC_EN = 45;
 struct PinEvent { int pin, value; uint32_t at; };
 std::array<int, 48> pins;
 std::vector<PinEvent> events;
-void pinMode(int, int) {}
 void digitalWrite(int pin, int value) {
   pins[pin] = value;
   events.push_back({pin, value, millis()});
@@ -42,6 +41,9 @@ protected:
   void SetUp() override {
     g_mock_millis = 0;
     pins.fill(LOW);
+    // Board startup configures these before the GPS controller runs.
+    pins[GPS_VRTC_EN] = HIGH;
+    pins[GPS_SLEEP_INT] = HIGH;
     events.clear();
   }
 };
@@ -57,15 +59,19 @@ TEST_F(X1GPS, WakeUsesRtcPulseWithoutHardwareResetAndDiscardsOldBytes) {
   EXPECT_EQ(pins[GPS_SLEEP_INT], HIGH);
   std::vector<PinEvent> pulse;
   for (const auto& event : events) {
-    if (event.pin == GPS_RESET) EXPECT_EQ(event.value, LOW);
+    EXPECT_TRUE(event.pin == GPS_EN || event.pin == GPS_RTC_INT);
     if (event.pin == GPS_RTC_INT) pulse.push_back(event);
   }
-  ASSERT_EQ(pulse.size(), 3u);
-  EXPECT_EQ(pulse[0].value, LOW);
-  EXPECT_EQ(pulse[1].value, HIGH);
-  EXPECT_EQ(pulse[1].at, 50u);
-  EXPECT_EQ(pulse[2].value, LOW);
-  EXPECT_EQ(pulse[2].at, 53u);
+  ASSERT_EQ(events.size(), 3u);
+  EXPECT_EQ(events[0].pin, GPS_EN);
+  EXPECT_EQ(events[0].value, HIGH);
+  EXPECT_EQ(events[0].at, 0u);
+  ASSERT_EQ(pulse.size(), 2u);
+  EXPECT_EQ(pulse[0].value, HIGH);
+  EXPECT_EQ(pulse[0].at, 50u);
+  EXPECT_EQ(pulse[1].value, LOW);
+  EXPECT_EQ(pulse[1].at, 53u);
+  EXPECT_EQ(pins[GPS_RESET], LOW);
 }
 
 TEST_F(X1GPS, RepeatedStartDoesNotInterruptExistingFix) {
@@ -164,6 +170,25 @@ TEST_F(X1GPS, DisabledGpsDoesNotSendCommandsOrWaitDuringShutdown) {
   EXPECT_EQ(millis(), 0u);
   EXPECT_TRUE(serial.commands.empty());
   EXPECT_TRUE(events.empty());
+  EXPECT_EQ(pins[GPS_VRTC_EN], HIGH);
+}
+
+TEST_F(X1GPS, ControllerShutdownAndWakePreserveBackupPowerAndReset) {
+  gps.start();
+  events.clear();
+  gps.shutdown();
+  EXPECT_EQ(serial.commands.size(), 25u);
+  EXPECT_EQ(pins[GPS_EN], LOW);
+  EXPECT_EQ(pins[GPS_VRTC_EN], HIGH);
+  EXPECT_EQ(pins[GPS_RESET], LOW);
+  EXPECT_TRUE(gps.start());
+  EXPECT_EQ(pins[GPS_EN], HIGH);
+  EXPECT_EQ(pins[GPS_VRTC_EN], HIGH);
+  for (const auto& event : events) {
+    EXPECT_NE(event.pin, GPS_VRTC_EN);
+    EXPECT_NE(event.pin, GPS_RESET);
+    EXPECT_NE(event.pin, GPS_SLEEP_INT);
+  }
 }
 }
 

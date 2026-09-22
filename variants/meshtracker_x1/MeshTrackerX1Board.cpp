@@ -42,17 +42,19 @@ void MeshTrackerX1Board::shutdownPeripherals() {
   nrf_gpio_cfg_default(digitalPinToPinName(GPS_RTC_INT));
   digitalWrite(GPS_RESET, LOW);
   digitalWrite(GPS_EN, LOW);
-  digitalWrite(GPS_VRTC_EN, LOW);
+  // Match the reference variant_shutdown(): keep GPS backup power enabled.
+  // initVariant() set GPS_VRTC_EN HIGH; do not toggle it at shutdown.
 
-  // Release I2C pull-ups before removing sensor/haptic power to avoid
-  // feeding unpowered peripherals through SDA/SCL.
+  // Release I2C pull-ups before disabling the haptic driver, avoiding
+  // feeding an unpowered peripheral through SDA/SCL.
   Wire.end();
   nrf_gpio_cfg_default(digitalPinToPinName(PIN_WIRE_SDA));
   nrf_gpio_cfg_default(digitalPinToPinName(PIN_WIRE_SCL));
   digitalWrite(PIN_DRV_EN, LOW);
   digitalWrite(PIN_BAT_ADC_EN, LOW);
   digitalWrite(PIN_RTC_EN, LOW);
-  digitalWrite(PIN_3V3_EN, LOW);
+  // The reference also retains the shared 3V3 enable during shutdown.
+  // Preserve that rail state along with VRTC instead of power-gating it here.
 
   noTone(BUZZER_PIN);
   digitalWrite(BUZZER_PIN, LOW);
