@@ -304,27 +304,50 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
         strcpy(reply, "can't find custom var");
       }
     } else if (memcmp(command, "sensor list", 11) == 0) {
+      const int reply_max = 160;
+      const int tail_reserve = 24;   // room for "\n... next:%d"
       char* dp = reply;
-      int start = 0;
       int end = _sensors->getNumSettings();
-      if (strlen(command) > 11) {
-        start = _atoi(command+12);
+      int start = 0;
+      bool bad_start = false;
+      if (command[11] == ' ') {
+        const char* arg = command + 12;
+        if (*arg == 0) {
+          bad_start = true;
+        } else {
+          for (const char* p = arg; *p; p++) {
+            if (*p < '0' || *p > '9') bad_start = true;
+          }
+          uint32_t parsed = _atoi(arg);
+          if (parsed > 100000u) bad_start = true;
+          start = (int)parsed;
+        }
+      } else if (command[11] != 0) {
+        bad_start = true;
       }
-      if (start >= end) {
+      if (bad_start || start < 0 || start > end) {
+        strcpy(reply, "Err - bad start");
+      } else if (start >= end) {
         strcpy(reply, "no custom var");
       } else {
-        sprintf(dp, "%d vars\n", end);
+        snprintf(dp, reply_max, "%d vars\n", end);
         dp = strchr(dp, 0);
         int i;
-        for (i = start; i < end && (dp-reply < 134); i++) {
-          sprintf(dp, "%s=%s\n",
+        for (i = start; i < end; i++) {
+          char line[96];
+          int wrote = snprintf(line, sizeof(line), "%s=%s\n",
             _sensors->getSettingName(i),
             _sensors->getSettingValue(i));
-          dp = strchr(dp, 0);
+          if (wrote < 0) break;
+          if (wrote >= (int)sizeof(line)) wrote = (int)sizeof(line) - 1;
+          if ((dp - reply) + wrote >= reply_max - tail_reserve) break;
+          memcpy(dp, line, wrote);
+          dp += wrote;
+          *dp = 0;
         }
         if (i < end) {
-          sprintf(dp, "... next:%d", i);
-        } else {
+          snprintf(dp, reply_max - (dp - reply), "... next:%d", i);
+        } else if (dp > reply) {
           *(dp-1) = 0; // remove last CR
         }
       }
