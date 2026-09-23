@@ -859,6 +859,24 @@ static bool processRegionDefSegment(RegionMap* map, char* tok, RegionEntry** cur
   return true;
 }
 
+static void writeRegionPage(RegionMap* map, int offset, char* reply) {
+  static char full[1200];
+  const int reply_max = 160;
+  size_t total = map->exportTo(full, sizeof(full));
+  bool cut = total + 1 >= sizeof(full);
+  if (offset < 0) offset = 0;
+  if ((size_t)offset > total) offset = (int)total;
+  int take = 0;
+  while (take < 140 && (size_t)(offset + take) < total) take++;
+  memcpy(reply, full + offset, take);
+  reply[take] = 0;
+  if ((size_t)(offset + take) < total) {
+    snprintf(reply + take, reply_max - take, "\n... next:%d", offset + take);
+  } else if (cut) {
+    snprintf(reply + take, reply_max - take, "\n... truncated");
+  }
+}
+
 void CommonCLI::handleRegionCmd(char* command, char* reply) {
   reply[0] = 0;
 
@@ -873,14 +891,20 @@ void CommonCLI::handleRegionCmd(char* command, char* reply) {
     for (char* tok; (tok = takeToken(&payload)) != nullptr; ) {
       if (!processRegionDefSegment(_region_map, tok, &cursor, reply)) return;
     }
-    _region_map->exportTo(reply, 160);
+    writeRegionPage(_region_map, 0, reply);
     return;
   }
 
   const char* parts[4];
   int n = mesh::Utils::parseTextParts(command, parts, 4, ' ');
   if (n == 1) {
-    _region_map->exportTo(reply, 160);
+    writeRegionPage(_region_map, 0, reply);
+  } else if (n >= 2 && strcmp(parts[1], "page") == 0) {
+    if (n < 3) {
+      strcpy(reply, "Err - region page <offset>");
+    } else {
+      writeRegionPage(_region_map, atoi(parts[2]), reply);
+    }
   } else if (n >= 2 && strcmp(parts[1], "load") == 0) {
     _callbacks->startRegionsLoad();
   } else if (n >= 2 && strcmp(parts[1], "save") == 0) {
@@ -990,7 +1014,20 @@ void CommonCLI::handleRegionCmd(char* command, char* reply) {
       return;
     }
     
-    int len = _region_map->exportNamesTo(reply, 160, mask, invert);
+    int start = 0;
+    if (n >= 4) {
+      const char* arg = parts[3];
+      bool digits = arg[0] != 0;
+      for (const char* p = arg; *p; p++) {
+        if (*p < '0' || *p > '9') digits = false;
+      }
+      if (!digits) {
+        strcpy(reply, "Err - bad start");
+        return;
+      }
+      start = atoi(arg);
+    }
+    int len = _region_map->exportNamesTo(reply, 160, mask, invert, start, true);
     if (len == 0) {
       strcpy(reply, "-none-");
     }

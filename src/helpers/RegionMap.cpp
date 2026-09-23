@@ -33,6 +33,7 @@ public:
   void flush() override {}
 
   size_t length() const { return _pos; }
+  bool full() const { return _max_len > 0 && (_pos + 1 >= _max_len); }
 
 private:
   char *_buf;
@@ -315,34 +316,50 @@ size_t RegionMap::exportTo(char *dest, size_t max_len) const {
   return bs.length();
 }
 
-int RegionMap::exportNamesTo(char *dest, int max_len, uint8_t mask, bool invert) {
+int RegionMap::exportNamesTo(char *dest, int max_len, uint8_t mask, bool invert, int start, bool report_next) {
+  if (!dest || max_len <= 0) return 0;
+  dest[0] = 0;
+  if (start < 0) start = 0;
   char *dp = dest;
-  
-  // Check wildcard region
+  int index = 0;
+  bool truncated = false;
+  const int tail_reserve = 18;   // "\n... next:%d"
+
+  auto appendName = [&](const char* name) {
+    if (index < start) {
+      index++;
+      return;
+    }
+    int len = strlen(name);
+    int used = (int)(dp - dest);
+    if (used + len + 1 + (report_next ? tail_reserve : 1) >= max_len) {
+      if (report_next && max_len - used > 0) {
+        snprintf(dp, max_len - used, "\n... next:%d", index);
+      }
+      truncated = true;
+      return;
+    }
+    memcpy(dp, name, len);
+    dp += len;
+    *dp++ = ',';
+    index++;
+  };
+
   bool wildcard_matches = invert ? (wildcard.flags & mask) : !(wildcard.flags & mask);
   if (wildcard_matches) {
-    *dp++ = '*';
-    *dp++ = ',';
+    appendName("*");
   }
 
-    for (int i = 0; i < num_regions; i++) {
+  for (int i = 0; i < num_regions && !truncated; i++) {
     auto region = &regions[i];
-    
-    // Check if region matches the filter criteria
     bool region_matches = invert ? (region->flags & mask) : !(region->flags & mask);
-    
     if (region_matches) {
-      int len = strlen(skip_hash(region->name));
-      if ((dp - dest) + len + 2 < max_len) {   // only append if name will fit
-        memcpy(dp, skip_hash(region->name), len);
-        dp += len;
-        *dp++ = ',';
-      }
+      appendName(skip_hash(region->name));
     }
   }
 
-  if (dp > dest) { dp--; }   // don't include trailing comma
-
-  *dp = 0;  // set null terminator
-  return dp - dest;   // return length
+  if (truncated && report_next) return (int)strlen(dest);
+  if (dp > dest && *(dp - 1) == ',') dp--;
+  *dp = 0;
+  return (int)(dp - dest);
 }
