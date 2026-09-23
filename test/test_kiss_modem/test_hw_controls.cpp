@@ -149,6 +149,29 @@ protected:
   }
 };
 
+bool g_rx_boost = false;
+bool g_rx_boost_set_ok = true;
+int g_rx_boost_sets = 0;
+bool fakeSetRxBoost(bool en) {
+  g_rx_boost_sets++;
+  if (!g_rx_boost_set_ok) return false;
+  g_rx_boost = en;
+  return true;
+}
+bool fakeGetRxBoost() { return g_rx_boost; }
+
+KissModem* g_poll_modem = nullptr;
+bool g_poll_has_packet = false;
+int g_polls = 0;
+void fakePollRx() {
+  g_polls++;
+  if (g_poll_has_packet && g_poll_modem) {
+    static constexpr uint8_t PKT[] = {0x55};
+    g_poll_has_packet = false;
+    g_poll_modem->onPacketReceived(4, -80, PKT, sizeof(PKT));
+  }
+}
+
 const std::vector<uint8_t> ERR_UNSUPPORTED = {HW_RESP_ERROR, HW_ERR_UNSUPPORTED};
 
 TEST_F(KissHwControlTest, VersionIsTwo) {
@@ -340,6 +363,95 @@ TEST_F(KissHwControlTest, ImmediateFemReplySurvivesHostBackpressure) {
   ASSERT_EQ(frames.size(), 1U);  // FemState, not TxBusy
   EXPECT_EQ(frames[0], (std::vector<uint8_t>{0x9F, 0x01, 0x01}));
   EXPECT_EQ(board.lna_sets, 1);
+}
+
+class KissRxBoostTest : public KissHwControlTest {
+protected:
+  KissRxBoostTest() {
+    g_rx_boost = true;
+    g_rx_boost_set_ok = true;
+    g_rx_boost_sets = 0;
+    modem.setRxBoostedGainCallbacks(fakeSetRxBoost, fakeGetRxBoost);
+    g_poll_modem = &modem;
+    g_poll_has_packet = false;
+    g_polls = 0;
+    modem.setPollRxCallback(fakePollRx);
+  }
+};
+
+TEST_F(KissHwControlTest, RxBoostedGainUnsupportedWithoutCallbacks) {
+  EXPECT_EQ(hw1({HW_CMD_GET_RX_BOOSTED_GAIN}), ERR_UNSUPPORTED);
+  EXPECT_EQ(hw1({HW_CMD_SET_RX_BOOSTED_GAIN, 1}), ERR_UNSUPPORTED);
+}
+
+TEST_F(KissRxBoostTest, CapabilityAdvertised) {
+  EXPECT_EQ(hw1({HW_CMD_GET_CAPABILITIES}), (std::vector<uint8_t>{0x9B, 0x09, 0x00, 0x00, 0x00}));
+}
+
+TEST_F(KissRxBoostTest, GetReportsCurrentState) {
+  EXPECT_EQ(hw1({HW_CMD_GET_RX_BOOSTED_GAIN}), (std::vector<uint8_t>{0xA1, 0x01}));
+}
+
+TEST_F(KissRxBoostTest, SetRepliesWithEffectiveState) {
+  EXPECT_EQ(hw1({HW_CMD_SET_RX_BOOSTED_GAIN, 0}), (std::vector<uint8_t>{0xA1, 0x00}));
+  EXPECT_FALSE(g_rx_boost);
+  EXPECT_EQ(hw1({HW_CMD_SET_RX_BOOSTED_GAIN, 0x7F}), (std::vector<uint8_t>{0xA1, 0x01}));
+  EXPECT_TRUE(g_rx_boost);
+}
+
+TEST_F(KissRxBoostTest, SetFailureRepliesWithUnchangedState) {
+  g_rx_boost_set_ok = false;
+  EXPECT_EQ(hw1({HW_CMD_SET_RX_BOOSTED_GAIN, 0}), (std::vector<uint8_t>{0xA1, 0x01}));
+  EXPECT_TRUE(g_rx_boost);
+}
+
+TEST_F(KissRxBoostTest, SetDuringTxIsRejectedWithoutTouchingRadio) {
+  startTxAndHold();
+  serial.takeHardwareFrames();
+  EXPECT_EQ(hw1({HW_CMD_SET_RX_BOOSTED_GAIN, 0}), (std::vector<uint8_t>{HW_RESP_ERROR, HW_ERR_TX_BUSY}));
+  EXPECT_EQ(g_rx_boost_sets, 0);
+  EXPECT_EQ(hw1({HW_CMD_GET_RX_BOOSTED_GAIN}), (std::vector<uint8_t>{0xA1, 0x01}));
+}
+
+TEST_F(KissRxBoostTest, SetShortPayloadIsInvalidLength) {
+  EXPECT_EQ(hw1({HW_CMD_SET_RX_BOOSTED_GAIN}), (std::vector<uint8_t>{HW_RESP_ERROR, HW_ERR_INVALID_LENGTH}));
+  EXPECT_EQ(g_rx_boost_sets, 0);
+}
+
+TEST_F(KissRxBoostTest, CompletedRxPacketIsDeliveredBeforeGainChange) {
+  g_poll_has_packet = true;
+  auto frames = hw({HW_CMD_SET_RX_BOOSTED_GAIN, 0});
+  EXPECT_EQ(g_polls, 1);
+  EXPECT_FALSE(g_rx_boost);
+  ASSERT_EQ(frames.size(), 2U);  // RxMeta for the drained packet, then the gain reply
+  EXPECT_EQ(frames[0][0], HW_RESP_RX_META);
+  EXPECT_EQ(frames[1], (std::vector<uint8_t>{0xA1, 0x00}));
+}
+
+TEST_F(KissRxBoostTest, NoRoomForReplyAfterDrainChangesNothing) {
+  serial.blocked = true;
+  g_poll_has_packet = true;  // data + meta fill both output slots
+  serial.pushRx({KISS_FEND, KISS_CMD_SETHARDWARE, HW_CMD_SET_RX_BOOSTED_GAIN, 0, KISS_FEND});
+  modem.loop();
+  EXPECT_EQ(g_rx_boost_sets, 0);
+  EXPECT_TRUE(g_rx_boost);
+
+  serial.blocked = false;
+  for (int i = 0; i < 5; i++) modem.loop();
+  auto frames = serial.takeHardwareFrames();
+  ASSERT_EQ(frames.size(), 2U);
+  EXPECT_EQ(frames[0][0], HW_RESP_RX_META);
+  EXPECT_EQ(frames[1], (std::vector<uint8_t>{HW_RESP_ERROR, HW_ERR_TX_BUSY}));
+}
+
+TEST_F(KissRxBoostTest, SetWhileHostOutputBackedUpIsRejected) {
+  serial.blocked = true;
+  static constexpr uint8_t PKT[] = {0x01};
+  modem.onPacketReceived(0, 0, PKT, sizeof(PKT));
+  serial.pushRx({KISS_FEND, KISS_CMD_SETHARDWARE, HW_CMD_SET_RX_BOOSTED_GAIN, 0, KISS_FEND});
+  modem.loop();
+  EXPECT_EQ(g_polls, 0);
+  EXPECT_EQ(g_rx_boost_sets, 0);
 }
 
 }  // namespace

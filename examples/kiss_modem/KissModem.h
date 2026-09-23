@@ -67,6 +67,8 @@
 #define HW_CMD_GET_AGC_RESET_INTERVAL 0x1D
 #define HW_CMD_SET_FEM_STATE     0x1E
 #define HW_CMD_GET_FEM_STATE     0x1F
+#define HW_CMD_SET_RX_BOOSTED_GAIN 0x20
+#define HW_CMD_GET_RX_BOOSTED_GAIN 0x21
 
 /* Response code = command code | 0x80.  Generic / unsolicited use 0xF0+. */
 #define HW_RESP(cmd)             ((cmd) | 0x80)
@@ -92,6 +94,7 @@
 #define HW_CAP_AGC_RESET         (1UL << 0)
 #define HW_CAP_FEM_RX_GAIN       (1UL << 1)
 #define HW_CAP_FEM_TX_GAIN       (1UL << 2)
+#define HW_CAP_RX_BOOSTED_GAIN   (1UL << 3)
 
 /* SetFemState / GetFemState mask bits */
 #define HW_FEM_RX_GAIN           (1 << 0)
@@ -107,6 +110,9 @@ typedef void (*SetRadioCallback)(float freq, float bw, uint8_t sf, uint8_t cr);
 typedef void (*SetTxPowerCallback)(uint8_t power);
 typedef float (*GetCurrentRssiCallback)();
 typedef void (*GetStatsCallback)(uint32_t* rx, uint32_t* tx, uint32_t* errors);
+typedef bool (*SetRxBoostedGainCallback)(bool enable);
+typedef bool (*GetRxBoostedGainCallback)();
+typedef void (*PollRxCallback)();
 
 struct RadioConfig {
   uint32_t freq_hz;
@@ -155,6 +161,9 @@ class KissModem {
   SetTxPowerCallback _setTxPowerCallback;
   GetCurrentRssiCallback _getCurrentRssiCallback;
   GetStatsCallback _getStatsCallback;
+  SetRxBoostedGainCallback _setRxBoostedGainCallback;
+  GetRxBoostedGainCallback _getRxBoostedGainCallback;
+  PollRxCallback _pollRxCallback;
 
   RadioConfig _config;
   bool _signal_report_enabled;
@@ -231,6 +240,8 @@ class KissModem {
   void handleGetAgcResetInterval();
   void handleSetFemState(const uint8_t* data, uint16_t len);
   void handleGetFemState();
+  void handleSetRxBoostedGain(const uint8_t* data, uint16_t len);
+  void handleGetRxBoostedGain();
 
 public:
   KissModem(Stream& serial, mesh::LocalIdentity& identity, mesh::RNG& rng,
@@ -243,6 +254,13 @@ public:
   void setTxPowerCallback(SetTxPowerCallback cb) { _setTxPowerCallback = cb; }
   void setGetCurrentRssiCallback(GetCurrentRssiCallback cb) { _getCurrentRssiCallback = cb; }
   void setGetStatsCallback(GetStatsCallback cb) { _getStatsCallback = cb; }
+  // Only register these when the radio supports boosted RX gain; they define the capability.
+  // Delivers any completed RX packet to the host; called before settings that restart the receiver.
+  void setPollRxCallback(PollRxCallback cb) { _pollRxCallback = cb; }
+  void setRxBoostedGainCallbacks(SetRxBoostedGainCallback set_cb, GetRxBoostedGainCallback get_cb) {
+    _setRxBoostedGainCallback = set_cb;
+    _getRxBoostedGainCallback = get_cb;
+  }
 
   void onPacketReceived(int8_t snr, int8_t rssi, const uint8_t* packet, uint16_t len);
   bool isTxBusy() const { return _tx_state != TX_IDLE; }

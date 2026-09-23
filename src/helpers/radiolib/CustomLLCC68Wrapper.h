@@ -37,6 +37,7 @@ public:
 
   void doResetAGC() override { sx126xResetAGC((SX126x *)_radio); }
 
+  bool supportsRxBoostedGain() const override { return true; }
   bool setRxBoostedGainMode(bool en) override {
     return ((CustomLLCC68 *)_radio)->setRxBoostedGainMode(en) == RADIOLIB_ERR_NONE;
   }

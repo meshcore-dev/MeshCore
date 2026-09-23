@@ -20,6 +20,9 @@ KissModem::KissModem(Stream& serial, mesh::LocalIdentity& identity, mesh::RNG& r
   _setTxPowerCallback = nullptr;
   _getCurrentRssiCallback = nullptr;
   _getStatsCallback = nullptr;
+  _setRxBoostedGainCallback = nullptr;
+  _getRxBoostedGainCallback = nullptr;
+  _pollRxCallback = nullptr;
   _config = {0, 0, 0, 0, 0};
   _signal_report_enabled = true;
   _agc_reset_interval_sec = KISS_AGC_RESET_DEFAULT_SEC;
@@ -422,6 +425,12 @@ void KissModem::handleHardwareCommand(uint8_t sub_cmd, const uint8_t* data, uint
     case HW_CMD_GET_FEM_STATE:
       handleGetFemState();
       break;
+    case HW_CMD_SET_RX_BOOSTED_GAIN:
+      handleSetRxBoostedGain(data, len);
+      break;
+    case HW_CMD_GET_RX_BOOSTED_GAIN:
+      handleGetRxBoostedGain();
+      break;
     default:
       writeHardwareError(HW_ERR_UNKNOWN_CMD);
       break;
@@ -778,6 +787,7 @@ void KissModem::handleGetCapabilities() {
   uint32_t caps = HW_CAP_AGC_RESET;
   if (_board.canControlLoRaFemLna()) caps |= HW_CAP_FEM_RX_GAIN;
   if (_board.canControlLoRaFemPaGain()) caps |= HW_CAP_FEM_TX_GAIN;
+  if (_setRxBoostedGainCallback && _getRxBoostedGainCallback) caps |= HW_CAP_RX_BOOSTED_GAIN;
   uint8_t buf[4] = { (uint8_t)caps, (uint8_t)(caps >> 8), (uint8_t)(caps >> 16), (uint8_t)(caps >> 24) };
   writeHardwareFrame(HW_RESP(HW_CMD_GET_CAPABILITIES), buf, 4);
 }
@@ -893,4 +903,39 @@ void KissModem::handleGetFemState() {
     return;
   }
   queueFemReply(true, true);
+}
+
+void KissModem::handleSetRxBoostedGain(const uint8_t* data, uint16_t len) {
+  if (len < 1) {
+    writeHardwareError(HW_ERR_INVALID_LENGTH);
+    return;
+  }
+  if (!_setRxBoostedGainCallback || !_getRxBoostedGainCallback) {
+    writeHardwareError(HW_ERR_UNSUPPORTED);
+    return;
+  }
+  // some drivers (LR2021) drop to standby to apply the gain, which would abort a TX and
+  // discard a completed RX packet; so never during TX, and only after draining RX
+  if (_tx_state == TX_SENDING || isHostOutputBackedUp()) {
+    writeHardwareError(HW_ERR_TX_BUSY);
+    return;
+  }
+  if (_pollRxCallback) _pollRxCallback();
+  tryFlushFrames();
+  if (_tx_frame_count >= KISS_TX_FRAME_QUEUE_DEPTH) {
+    writeHardwareError(HW_ERR_TX_BUSY);  // no room left for the reply; change nothing
+    return;
+  }
+  // always reply with the state read back, so a failed or partial write is never misreported
+  _setRxBoostedGainCallback(data[0] != 0x00);
+  handleGetRxBoostedGain();
+}
+
+void KissModem::handleGetRxBoostedGain() {
+  if (!_getRxBoostedGainCallback) {
+    writeHardwareError(HW_ERR_UNSUPPORTED);
+    return;
+  }
+  uint8_t val = _getRxBoostedGainCallback() ? 0x01 : 0x00;
+  writeHardwareFrame(HW_RESP(HW_CMD_GET_RX_BOOSTED_GAIN), &val, 1);
 }

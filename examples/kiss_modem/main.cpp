@@ -73,6 +73,24 @@ void onGetStats(uint32_t* rx, uint32_t* tx, uint32_t* errors) {
   *errors = radio_driver.getPacketsRecvErrors();
 }
 
+void pollRadioRx() {
+  uint8_t rx_buf[256];
+  int rx_len = radio_driver.recvRaw(rx_buf, sizeof(rx_buf));
+  if (rx_len > 0) {
+    int8_t snr = (int8_t)(radio_driver.getLastSNR() * 4);
+    int8_t rssi = (int8_t)radio_driver.getLastRSSI();
+    modem->onPacketReceived(snr, rssi, rx_buf, rx_len);
+  }
+}
+
+bool onSetRxBoostedGain(bool enable) {
+  return radio_driver.setRxBoostedGainMode(enable);
+}
+
+bool onGetRxBoostedGain() {
+  return radio_driver.getRxBoostedGainMode();
+}
+
 void setup() {
   board.begin();
 
@@ -125,6 +143,10 @@ void setup() {
   modem->setTxPowerCallback(onSetTxPower);
   modem->setGetCurrentRssiCallback(onGetCurrentRssi);
   modem->setGetStatsCallback(onGetStats);
+  modem->setPollRxCallback(pollRadioRx);
+  if (radio_driver.supportsRxBoostedGain()) {
+    modem->setRxBoostedGainCallbacks(onSetRxBoostedGain, onGetRxBoostedGain);
+  }
   modem->begin();
 
   board.onBootComplete();
@@ -134,13 +156,7 @@ void loop() {
   modem->loop();
 
   if (!modem->isActuallyTransmitting() && !modem->isHostOutputBackedUp()) {
-    uint8_t rx_buf[256];
-    int rx_len = radio_driver.recvRaw(rx_buf, sizeof(rx_buf));
-    if (rx_len > 0) {
-      int8_t snr = (int8_t)(radio_driver.getLastSNR() * 4);
-      int8_t rssi = (int8_t)radio_driver.getLastRSSI();
-      modem->onPacketReceived(snr, rssi, rx_buf, rx_len);
-    }
+    pollRadioRx();
   }
 
   board.loop();
