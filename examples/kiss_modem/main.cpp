@@ -113,7 +113,10 @@ void setup() {
   delay(100);
 #if defined(ESP32) && defined(ARDUINO_USB_CDC_ON_BOOT) && ARDUINO_USB_CDC_ON_BOOT
   Serial.setTxTimeoutMs(USB_TX_TIMEOUT_MS);
+#if defined(ARDUINO_USB_MODE) && ARDUINO_USB_MODE
+  // HWCDC only; TinyUSB's USBCDC TX buffer is fixed at build time
   Serial.setTxBufferSize(USB_TX_BUFFER_SIZE);
+#endif
 #endif
   modem = new KissModem(Serial, identity, rng, radio_driver, board, sensors);
 #endif
