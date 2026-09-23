@@ -843,7 +843,7 @@ bool EnvironmentSensorManager::gpsIsAwake(uint8_t ioPin){
   delay(500);
 
   //Try to init RAK12500 on I2C
-  if (ublox_GNSS.begin(Wire) == true){
+  if (ublox_GNSS.begin(Wire, TELEM_RAK12500_ADDRESS) == true){
     MESH_DEBUG_PRINTLN("RAK12500 GPS init correctly with pin %i",ioPin);
     ublox_GNSS.setI2COutput(COM_TYPE_UBX);
     ublox_GNSS.enableGNSS(true, SFE_UBLOX_GNSS_ID_GPS);
