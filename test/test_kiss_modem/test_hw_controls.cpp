@@ -13,8 +13,9 @@ public:
     for (uint8_t b : bytes) _rx.push(b);
   }
 
-  int availableForWrite() override { return 4096; }
+  int availableForWrite() override { return blocked ? 0 : 4096; }
   size_t write(const uint8_t* buffer, size_t size) override {
+    if (blocked) return 0;
     _writes.insert(_writes.end(), buffer, buffer + size);
     return size;
   }
@@ -48,6 +49,8 @@ public:
     _writes.clear();
     return frames;
   }
+
+  bool blocked = false;
 
 private:
   std::queue<uint8_t> _rx;
@@ -254,7 +257,7 @@ TEST_F(KissHwControlTest, FemShortPayloadIsInvalidLength) {
   EXPECT_EQ(hw1({HW_CMD_SET_FEM_STATE, HW_FEM_RX_GAIN}), (std::vector<uint8_t>{HW_RESP_ERROR, HW_ERR_INVALID_LENGTH}));
 }
 
-TEST_F(KissHwControlTest, FemSetDuringTxIsDeferredUntilTxCompletes) {
+TEST_F(KissHwControlTest, FemSetDuringTxIsDeferredUntilAfterTxDone) {
   board.has_lna = true;
   startTxAndHold();
   serial.takeHardwareFrames();
@@ -264,15 +267,79 @@ TEST_F(KissHwControlTest, FemSetDuringTxIsDeferredUntilTxCompletes) {
   EXPECT_EQ(hw1({HW_CMD_SET_FEM_STATE, HW_FEM_RX_GAIN, 0}), (std::vector<uint8_t>{HW_RESP_ERROR, HW_ERR_TX_BUSY}));
 
   radio.send_complete = true;
+  modem.loop();  // TX done -> TX_DONE_PENDING; FEM still held
+  modem.loop();  // TxDone queued -> idle; FEM applied
+  auto frames = serial.takeHardwareFrames();
+  ASSERT_EQ(frames.size(), 2U);
+  EXPECT_EQ(frames[0], (std::vector<uint8_t>{HW_RESP_TX_DONE, 0x01}));
+  EXPECT_EQ(frames[1], (std::vector<uint8_t>{0x9F, 0x01, 0x01}));
+  EXPECT_TRUE(board.lna);
+  EXPECT_EQ(board.lna_sets, 1);
+}
+
+TEST_F(KissHwControlTest, FemGetDuringDeferredSetIsAnsweredAfterSet) {
+  board.has_lna = true;
+  startTxAndHold();
+  serial.takeHardwareFrames();
+
+  EXPECT_TRUE(hw({HW_CMD_SET_FEM_STATE, HW_FEM_RX_GAIN, HW_FEM_RX_GAIN}).empty());
+  EXPECT_TRUE(hw({HW_CMD_GET_FEM_STATE}).empty());
+
+  radio.send_complete = true;
+  modem.loop();
   modem.loop();
   auto frames = serial.takeHardwareFrames();
-  ASSERT_EQ(frames.size(), 1U);
-  EXPECT_EQ(frames[0], (std::vector<uint8_t>{0x9F, 0x01, 0x01}));
-  EXPECT_TRUE(board.lna);
-  modem.loop();
-  frames = serial.takeHardwareFrames();
-  ASSERT_EQ(frames.size(), 1U);
+  ASSERT_EQ(frames.size(), 3U);
   EXPECT_EQ(frames[0], (std::vector<uint8_t>{HW_RESP_TX_DONE, 0x01}));
+  EXPECT_EQ(frames[1], (std::vector<uint8_t>{0x9F, 0x01, 0x01}));
+  EXPECT_EQ(frames[2], (std::vector<uint8_t>{0x9F, 0x01, 0x01}));
+}
+
+TEST_F(KissHwControlTest, DeferredFemRepliesSurviveHostBackpressure) {
+  board.has_lna = true;
+  hw({HW_CMD_SET_SIGNAL_REPORT, 0});  // one output frame per RX packet
+  startTxAndHold();
+  serial.takeHardwareFrames();
+  EXPECT_TRUE(hw({HW_CMD_SET_FEM_STATE, HW_FEM_RX_GAIN, HW_FEM_RX_GAIN}).empty());
+  EXPECT_TRUE(hw({HW_CMD_GET_FEM_STATE}).empty());
+
+  // with writes blocked: RX packet takes slot 1, TxDone slot 2, so the Set reply cannot be queued
+  serial.blocked = true;
+  static constexpr uint8_t PKT[] = {0x01};
+  modem.onPacketReceived(0, 0, PKT, sizeof(PKT));
+  radio.send_complete = true;
+  for (int i = 0; i < 5; i++) modem.loop();
+  EXPECT_TRUE(board.lna);  // applied once TxDone was queued, reply still held
+
+  serial.blocked = false;
+  for (int i = 0; i < 5; i++) modem.loop();
+  EXPECT_EQ(board.lna_sets, 1);
+
+  auto frames = serial.takeHardwareFrames();
+  ASSERT_EQ(frames.size(), 3U);
+  EXPECT_EQ(frames[0], (std::vector<uint8_t>{HW_RESP_TX_DONE, 0x01}));
+  EXPECT_EQ(frames[1], (std::vector<uint8_t>{0x9F, 0x01, 0x01}));
+  EXPECT_EQ(frames[2], (std::vector<uint8_t>{0x9F, 0x01, 0x01}));
+}
+
+TEST_F(KissHwControlTest, ImmediateFemReplySurvivesHostBackpressure) {
+  board.has_lna = true;
+  hw({HW_CMD_SET_SIGNAL_REPORT, 0});
+
+  serial.blocked = true;
+  static constexpr uint8_t PKT[] = {0x01};
+  modem.onPacketReceived(0, 0, PKT, sizeof(PKT));
+  modem.onPacketReceived(0, 0, PKT, sizeof(PKT));  // output queue now full
+  serial.pushRx({KISS_FEND, KISS_CMD_SETHARDWARE, HW_CMD_SET_FEM_STATE, HW_FEM_RX_GAIN, HW_FEM_RX_GAIN, KISS_FEND});
+  modem.loop();
+  EXPECT_TRUE(board.lna);
+
+  serial.blocked = false;
+  for (int i = 0; i < 5; i++) modem.loop();
+  auto frames = serial.takeHardwareFrames();
+  ASSERT_EQ(frames.size(), 1U);  // FemState, not TxBusy
+  EXPECT_EQ(frames[0], (std::vector<uint8_t>{0x9F, 0x01, 0x01}));
+  EXPECT_EQ(board.lna_sets, 1);
 }
 
 }  // namespace

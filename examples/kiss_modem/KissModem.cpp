@@ -27,6 +27,9 @@ KissModem::KissModem(Stream& serial, mesh::LocalIdentity& identity, mesh::RNG& r
   _fem_deferred = false;
   _fem_deferred_apply = 0;
   _fem_deferred_value = 0;
+  _fem_reply_pending = false;
+  _fem_reply_ok = false;
+  _fem_deferred_gets = 0;
   resetOutputQueue();
 }
 
@@ -37,6 +40,8 @@ void KissModem::begin() {
   _has_pending_tx = false;
   _tx_state = TX_IDLE;
   _fem_deferred = false;
+  _fem_reply_pending = false;
+  _fem_deferred_gets = 0;
   _next_agc_reset_ms = millis() + (uint32_t)_agc_reset_interval_sec * 1000;
   resetOutputQueue();
 }
@@ -811,12 +816,16 @@ uint8_t KissModem::femValueMask() const {
   return mask;
 }
 
-void KissModem::writeFemState() {
+bool KissModem::queueFemReply(bool ok, bool mark_busy_error) {
+  if (!ok) {
+    const uint8_t err = HW_ERR_UNSUPPORTED;
+    return queueHardwareFrame(HW_RESP_ERROR, &err, 1, mark_busy_error);
+  }
   uint8_t buf[2] = { femCapabilityMask(), femValueMask() };
-  writeHardwareFrame(HW_RESP(HW_CMD_GET_FEM_STATE), buf, 2);
+  return queueHardwareFrame(HW_RESP(HW_CMD_GET_FEM_STATE), buf, 2, mark_busy_error);
 }
 
-void KissModem::applyFemState(uint8_t apply_mask, uint8_t value_mask) {
+bool KissModem::applyFemState(uint8_t apply_mask, uint8_t value_mask) {
   bool ok = true;
   if (apply_mask & HW_FEM_RX_GAIN) {
     ok &= _board.setLoRaFemLnaEnabled((value_mask & HW_FEM_RX_GAIN) != 0);
@@ -824,17 +833,26 @@ void KissModem::applyFemState(uint8_t apply_mask, uint8_t value_mask) {
   if (apply_mask & HW_FEM_TX_GAIN) {
     ok &= _board.setLoRaFemPaGainEnabled((value_mask & HW_FEM_TX_GAIN) != 0);
   }
-  if (ok) {
-    writeFemState();
-  } else {
-    writeHardwareError(HW_ERR_UNSUPPORTED);
-  }
+  return ok;
 }
 
 void KissModem::processDeferredFem() {
-  if (!_fem_deferred || _tx_state == TX_SENDING) return;
-  _fem_deferred = false;
-  applyFemState(_fem_deferred_apply, _fem_deferred_value);
+  // wait for TxDone to be queued so the host sees the TX result before the FEM change
+  if (_fem_deferred && _tx_state != TX_SENDING && _tx_state != TX_DONE_PENDING) {
+    _fem_reply_ok = applyFemState(_fem_deferred_apply, _fem_deferred_value);
+    _fem_deferred = false;
+    _fem_reply_pending = true;
+  }
+  if (_fem_deferred) return;
+  // replies are retained until queued, and GetFemState replies stay behind the Set reply
+  if (_fem_reply_pending) {
+    if (!queueFemReply(_fem_reply_ok, false)) return;
+    _fem_reply_pending = false;
+  }
+  while (_fem_deferred_gets > 0) {
+    if (!queueFemReply(true, false)) return;
+    _fem_deferred_gets--;
+  }
 }
 
 void KissModem::handleSetFemState(const uint8_t* data, uint16_t len) {
@@ -849,20 +867,30 @@ void KissModem::handleSetFemState(const uint8_t* data, uint16_t len) {
     writeHardwareError(HW_ERR_UNSUPPORTED);
     return;
   }
-  if (_tx_state == TX_SENDING) {
+  if (isFemReplyQueued()) {
+    writeHardwareError(HW_ERR_TX_BUSY);
+    return;
+  }
+  if (_tx_state == TX_SENDING || _tx_state == TX_DONE_PENDING) {
     // board setters drive FEM pins directly; changing them mid-packet would corrupt the TX
-    if (_fem_deferred) {
-      writeHardwareError(HW_ERR_TX_BUSY);
-      return;
-    }
     _fem_deferred = true;
     _fem_deferred_apply = apply_mask;
     _fem_deferred_value = value_mask;
     return;
   }
-  applyFemState(apply_mask, value_mask);
+  _fem_reply_ok = applyFemState(apply_mask, value_mask);
+  _fem_reply_pending = true;
+  processDeferredFem();
 }
 
 void KissModem::handleGetFemState() {
-  writeFemState();
+  if (isFemReplyQueued()) {
+    if (_fem_deferred_gets == UINT8_MAX) {
+      writeHardwareError(HW_ERR_TX_BUSY);
+      return;
+    }
+    _fem_deferred_gets++;
+    return;
+  }
+  queueFemReply(true, true);
 }

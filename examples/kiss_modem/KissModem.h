@@ -163,6 +163,9 @@ class KissModem {
   bool _fem_deferred;
   uint8_t _fem_deferred_apply;
   uint8_t _fem_deferred_value;
+  bool _fem_reply_pending;
+  bool _fem_reply_ok;
+  uint8_t _fem_deferred_gets;
   uint8_t _tx_frame_buf[KISS_TX_FRAME_QUEUE_DEPTH][KISS_MAX_ENCODED_FRAME_SIZE];
   uint16_t _tx_frame_len[KISS_TX_FRAME_QUEUE_DEPTH];
   uint16_t _tx_frame_written[KISS_TX_FRAME_QUEUE_DEPTH];
@@ -192,8 +195,9 @@ class KissModem {
   void maybeResetAgc();
   uint8_t femCapabilityMask() const;
   uint8_t femValueMask() const;
-  void writeFemState();
-  void applyFemState(uint8_t apply_mask, uint8_t value_mask);
+  bool queueFemReply(bool ok, bool mark_busy_error);
+  bool applyFemState(uint8_t apply_mask, uint8_t value_mask);
+  bool isFemReplyQueued() const { return _fem_deferred || _fem_reply_pending || _fem_deferred_gets > 0; }
   void processDeferredFem();
 
   void handleGetIdentity();

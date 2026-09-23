@@ -279,7 +279,7 @@ FemState response data:
 
 Example: enable RX gain without changing TX gain: apply `0x01`, value `0x01`.
 
-If any bit in the apply mask is not in the board's capability mask (including reserved bits), the modem replies `Unsupported` and changes nothing. On success, SetFemState replies with the FemState response carrying the new state. A request received while a packet is on air is applied as soon as that transmission ends, and the FemState response is sent then; a second request during the same transmission returns `TxBusy`. Capabilities come from the board, so a board with a fixed, board-managed FEM (for example RAK3401) reports none.
+If any bit in the apply mask is not in the board's capability mask (including reserved bits), the modem replies `Unsupported` and changes nothing. On success, SetFemState replies with the FemState response carrying the new state. A SetFemState received while a packet is on air (before its TxDone is queued) is held and applied after TxDone, so its FemState response follows TxDone. While a SetFemState is held or its response is still waiting for output space, GetFemState responses are queued behind it in order, and a further SetFemState returns `TxBusy`. Capabilities come from the board, so a board with a fixed, board-managed FEM (for example RAK3401) reports none.
 
 The setting is not persisted; the board's power-on default applies after reboot.
 
