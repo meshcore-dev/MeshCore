@@ -1141,7 +1141,9 @@ bool BoardConfigContainer::configureChemistry(BatteryType type) {
   // charging (LTO at 4.9V/0.93A: ~2W → BQ rides its thermal limit), and the
   // configured imax silently falls back to the 1A default on every boot.
   bq.setMinSystemV(BQ_MIN_SYSTEM_V);
-  bq.setChargeLimitA(getMaxChargeCurrent_mA() / 1000.0f);
+  const uint16_t chargeCurrent_mA = getMaxChargeCurrent_mA();
+  bq.setChargeLimitA(chargeCurrent_mA / 1000.0f);
+  const bool prechargeConfigured = bq.setPrechargeLimitmA(chargeCurrent_mA);
 
   // Derive the JEITA override once ICHG holds the configured imax again.
   // Deriving it earlier leaves a window in which the temperature guard is off
@@ -1154,7 +1156,7 @@ bool BoardConfigContainer::configureChemistry(BatteryType type) {
   // now instead of waiting for the next 60-second solar-maintenance cycle.
   bq.setMPPTenable(getMPPTEnabled());
 
-  return true;
+  return prechargeConfigured;
 }
 
 // Gets current battery type from preferences
@@ -1371,6 +1373,7 @@ bool BoardConfigContainer::setMaxChargeCurrent_mA(uint16_t maxChrgI) {
   prefs.putInt(MAXCHARGECURRENTKEY, maxChrgI);
 
   bool ok = bq.setChargeLimitA(maxChrgI / 1000.0f);
+  const bool prechargeOk = bq.setPrechargeLimitmA(maxChrgI);
 
   // Readback verification — detect silent I2C failures
   float readback = bq.getChargeLimitA();
@@ -1385,7 +1388,7 @@ bool BoardConfigContainer::setMaxChargeCurrent_mA(uint16_t maxChrgI) {
   // Recalculate solar IINDPM — it depends on charge current
   updateSolarIINDPM();
 
-  return ok;
+  return ok && prechargeOk;
 }
 
 // Notify USB connection state change — adjusts IINDPM accordingly

@@ -196,6 +196,10 @@ public:
   bool getAutoIBATDIS();
   bool setAutoIBATDIS(bool enable);
 
+  // Match precharge to the configured charge current (40 mA register steps).
+  // Returns false if the register write or readback fails.
+  bool setPrechargeLimitmA(uint16_t current_mA);
+
   // Non-static register access methods (use instance I2C config)
   bool writeReg(uint8_t reg, uint8_t val);
   uint8_t readReg(uint8_t reg);

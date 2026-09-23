@@ -31,6 +31,7 @@ struct FakeBQ {
   double sysmin = 3.5;
   double vreg = 4.2;
   double ichg = 1.0;
+  int precharge_ma = 120;
   int cells = 1;
   int treg = 120;
   bool mppt = false;
@@ -58,6 +59,11 @@ struct FakeBQ {
   }
   void setChargeLimitV(float voltage) { vreg = voltage; record("VREG", voltage); }
   void setChargeLimitA(float amps) { ichg = amps; record("ICHG", amps); }
+  bool setPrechargeLimitmA(uint16_t ma) {
+    precharge_ma = static_cast<int>((ma / 40) * 40);
+    record("IPRECHG", precharge_ma);
+    return true;
+  }
   void setChargeEnable(bool enabled) { charging = enabled; record("CHARGE", enabled); }
   void setMPPTenable(bool enabled) {
     mppt = enabled && source_present && battery >= sysmin;
@@ -119,21 +125,26 @@ static void check_final(const BoardConfigContainer& board, int cells, double vre
   near(bq.sysmin, 2.5, "VSYSMIN must be 2.5 V after CELL reset");
   near(bq.vreg, vreg, "chemistry VREG must be restored after CELL reset");
   near(bq.ichg, ichg, "configured ICHG must be restored after CELL reset");
+  require(bq.precharge_ma == static_cast<int>(ichg * 1000 + 0.5) / 40 * 40,
+          "IPRECHG must follow ICHG in 40 mA steps");
   require(bq.cells == cells, "incorrect cell count");
   require(bq.treg == 60, "60 C thermal regulation must remain configured");
   require(bq.charging && ce_level == HIGH, "known chemistry should allow charging");
   require(!bq.linear(), "final configuration must leave BATFET outside linear region");
-  int cell = -1, minimum = -1, current = -1, jeita = -1, mppt = -1;
+  int cell = -1, minimum = -1, current = -1, precharge = -1, jeita = -1, mppt = -1;
   for (size_t i = 0; i < bq.events.size(); ++i) {
     const auto& event = bq.events[i];
     if (event.name == "CELL") cell = static_cast<int>(i);
     if (event.name == "VSYSMIN") minimum = static_cast<int>(i);
     if (event.name == "ICHG") current = static_cast<int>(i);
+    if (event.name == "IPRECHG") precharge = static_cast<int>(i);
     if (event.name == "JEITA") jeita = static_cast<int>(i);
     if (event.name == "MPPT" && event.value) mppt = static_cast<int>(i);
   }
   require(cell >= 0 && minimum > cell, "VSYSMIN must be written after last CELL write");
   require(current > cell && jeita > current, "ICHG must be restored before JEITA override");
+  require(precharge > current && jeita > precharge,
+          "IPRECHG must be restored after ICHG and before JEITA override");
   if (board.mppt_wish) {
     require(mppt > minimum && mppt > current, "MPPT must be requested after final register restoration");
     require(bq.mppt, "MPPT should be accepted with source and VBAT above VSYSMIN");

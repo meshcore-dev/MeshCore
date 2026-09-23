@@ -582,6 +582,20 @@ bool BqDriver::setAutoIBATDIS(bool enable) {
   return auto_ibatdis_bit.write(enable ? 1 : 0);
 }
 
+bool BqDriver::setPrechargeLimitmA(uint16_t current_mA) {
+  if (current_mA < 40 || current_mA > 2000) return false;
+
+  // IPRECHG is REG08[5:0] in 40 mA steps. Preserve VBAT_LOWV in [7:6]
+  // and round down so precharge never exceeds the configured ICHG limit.
+  const uint8_t steps = static_cast<uint8_t>(current_mA / 40);
+  uint8_t reg;
+  if (!readReg(BQ25798_REG_PRECHARGE_CONTROL, reg)) return false;
+  const uint8_t desired = (reg & 0xC0) | steps;
+  if (!writeReg(BQ25798_REG_PRECHARGE_CONTROL, desired)) return false;
+  return readReg(BQ25798_REG_PRECHARGE_CONTROL, reg) &&
+         (reg & 0x3F) == steps;
+}
+
 // Non-static register access methods (use instance I2C config)
 bool BqDriver::writeReg(uint8_t reg, uint8_t val) {
   if (!ih_i2c_dev) return false;

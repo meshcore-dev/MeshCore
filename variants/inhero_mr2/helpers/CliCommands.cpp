@@ -279,7 +279,9 @@ const char* handleSet(BoardConfigContainer& cfg, const char* setCommand) {
       // re-derived, and a state change is reported (same pattern as batcap).
       // The stored wish survives and re-arms once the gate passes again.
       bool wasActive = cfg.isJeitaIgnoreActive();
-      cfg.setMaxChargeCurrent_mA(ma);
+      if (!cfg.setMaxChargeCurrent_mA(ma)) {
+        return "Err: Charge current setup failed";
+      }
       cfg.applyJeitaIgnore();
       if (wasActive && !cfg.isJeitaIgnoreActive()) {
         snprintf(ret, sizeof(ret), "Max charge current set to %s; jeitaignore N/A, C>0.05",
