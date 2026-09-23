@@ -1,0 +1,278 @@
+#include <gtest/gtest.h>
+
+#include <queue>
+#include <vector>
+
+#include "KissModem.h"
+
+namespace {
+
+class RecordingStream : public Stream {
+public:
+  void pushRx(const std::vector<uint8_t>& bytes) {
+    for (uint8_t b : bytes) _rx.push(b);
+  }
+
+  int availableForWrite() override { return 4096; }
+  size_t write(const uint8_t* buffer, size_t size) override {
+    _writes.insert(_writes.end(), buffer, buffer + size);
+    return size;
+  }
+  size_t write(uint8_t b) override { return write(&b, 1); }
+  int available() override { return (int)_rx.size(); }
+  int read() override {
+    if (_rx.empty()) return -1;
+    int b = _rx.front();
+    _rx.pop();
+    return b;
+  }
+
+  // Decoded SetHardware payloads (sub-command + data), consumed on read.
+  std::vector<std::vector<uint8_t>> takeHardwareFrames() {
+    std::vector<std::vector<uint8_t>> frames;
+    std::vector<uint8_t> cur;
+    bool in_frame = false, esc = false;
+    for (uint8_t b : _writes) {
+      if (b == KISS_FEND) {
+        if (in_frame && cur.size() > 1 && cur[0] == KISS_CMD_SETHARDWARE) {
+          frames.emplace_back(cur.begin() + 1, cur.end());
+        }
+        cur.clear();
+        in_frame = true;
+        continue;
+      }
+      if (b == KISS_FESC) { esc = true; continue; }
+      if (esc) { b = (b == KISS_TFEND) ? KISS_FEND : KISS_FESC; esc = false; }
+      cur.push_back(b);
+    }
+    _writes.clear();
+    return frames;
+  }
+
+private:
+  std::queue<uint8_t> _rx;
+  std::vector<uint8_t> _writes;
+};
+
+class ZeroRNG : public mesh::RNG {
+public:
+  void random(uint8_t* dest, size_t sz) override { memset(dest, 0, sz); }
+};
+
+class AgcRadio : public mesh::Radio {
+public:
+  bool startSendRaw(const uint8_t*, uint16_t) override { return true; }
+  bool isSendComplete() override { return send_complete; }
+  void resetAGC() override { agc_resets++; }
+
+  bool send_complete = true;
+  int agc_resets = 0;
+};
+
+class FemBoard : public mesh::MainBoard {
+public:
+  const char* getManufacturerName() override { return "fem-board"; }
+
+  bool canControlLoRaFemLna() const override { return has_lna; }
+  bool setLoRaFemLnaEnabled(bool enable) override {
+    if (!has_lna) return false;
+    lna = enable;
+    lna_sets++;
+    return true;
+  }
+  bool isLoRaFemLnaEnabled() const override { return lna; }
+
+  bool canControlLoRaFemPaGain() const override { return has_pa; }
+  bool setLoRaFemPaGainEnabled(bool enable) override {
+    if (!has_pa) return false;
+    pa = enable;
+    pa_sets++;
+    return true;
+  }
+  bool isLoRaFemPaGainEnabled() const override { return pa; }
+
+  bool has_lna = false, has_pa = false;
+  bool lna = false, pa = false;
+  int lna_sets = 0, pa_sets = 0;
+};
+
+class NoSensors : public SensorManager {
+public:
+  bool querySensors(uint8_t, CayenneLPP&) override { return false; }
+};
+
+class KissHwControlTest : public ::testing::Test {
+protected:
+  RecordingStream serial;
+  mesh::LocalIdentity identity;
+  ZeroRNG rng;
+  AgcRadio radio;
+  FemBoard board;
+  NoSensors sensors;
+  KissModem modem;
+
+  KissHwControlTest() : modem(serial, identity, rng, radio, board, sensors) {
+    g_mock_millis = 1000;
+    modem.begin();
+  }
+
+  std::vector<std::vector<uint8_t>> hw(const std::vector<uint8_t>& payload) {
+    std::vector<uint8_t> frame = {KISS_FEND, KISS_CMD_SETHARDWARE};
+    frame.insert(frame.end(), payload.begin(), payload.end());
+    frame.push_back(KISS_FEND);
+    serial.pushRx(frame);
+    modem.loop();
+    return serial.takeHardwareFrames();
+  }
+
+  std::vector<uint8_t> hw1(const std::vector<uint8_t>& payload) {
+    auto frames = hw(payload);
+    EXPECT_EQ(frames.size(), 1U);
+    return frames.empty() ? std::vector<uint8_t>{} : frames[0];
+  }
+
+  void advance(uint32_t ms) {
+    g_mock_millis += ms;
+    modem.loop();
+  }
+
+  void startTxAndHold() {
+    radio.send_complete = false;
+    serial.pushRx({KISS_FEND, KISS_CMD_DATA, 0x42, KISS_FEND});
+    modem.loop();
+    modem.loop();
+    advance((uint32_t)KISS_DEFAULT_TXDELAY * 10);
+    ASSERT_TRUE(modem.isActuallyTransmitting());
+  }
+};
+
+const std::vector<uint8_t> ERR_UNSUPPORTED = {HW_RESP_ERROR, HW_ERR_UNSUPPORTED};
+
+TEST_F(KissHwControlTest, VersionIsTwo) {
+  EXPECT_EQ(hw1({HW_CMD_GET_VERSION}), (std::vector<uint8_t>{HW_RESP(HW_CMD_GET_VERSION), 2, 0}));
+}
+
+TEST_F(KissHwControlTest, CapabilitiesOnBareBoardAreAgcOnly) {
+  EXPECT_EQ(hw1({HW_CMD_GET_CAPABILITIES}), (std::vector<uint8_t>{0x9B, 0x01, 0x00, 0x00, 0x00}));
+}
+
+TEST_F(KissHwControlTest, CapabilitiesReflectBoardFem) {
+  board.has_lna = true;
+  EXPECT_EQ(hw1({HW_CMD_GET_CAPABILITIES}), (std::vector<uint8_t>{0x9B, 0x03, 0x00, 0x00, 0x00}));
+  board.has_pa = true;
+  EXPECT_EQ(hw1({HW_CMD_GET_CAPABILITIES}), (std::vector<uint8_t>{0x9B, 0x07, 0x00, 0x00, 0x00}));
+}
+
+TEST_F(KissHwControlTest, AgcIntervalDefaultsToThirtySeconds) {
+  EXPECT_EQ(hw1({HW_CMD_GET_AGC_RESET_INTERVAL}), (std::vector<uint8_t>{0x9D, 30, 0}));
+}
+
+TEST_F(KissHwControlTest, AgcIntervalSetReturnsEffectiveRoundedValue) {
+  EXPECT_EQ(hw1({HW_CMD_SET_AGC_RESET_INTERVAL, 10, 0}), (std::vector<uint8_t>{0x9D, 8, 0}));
+  EXPECT_EQ(hw1({HW_CMD_SET_AGC_RESET_INTERVAL, 4, 0}), (std::vector<uint8_t>{0x9D, 4, 0}));
+  EXPECT_EQ(hw1({HW_CMD_SET_AGC_RESET_INTERVAL, 0xFC, 0x03}), (std::vector<uint8_t>{0x9D, 0xFC, 0x03}));
+  EXPECT_EQ(hw1({HW_CMD_SET_AGC_RESET_INTERVAL, 0, 0}), (std::vector<uint8_t>{0x9D, 0, 0}));
+  EXPECT_EQ(hw1({HW_CMD_GET_AGC_RESET_INTERVAL}), (std::vector<uint8_t>{0x9D, 0, 0}));
+}
+
+TEST_F(KissHwControlTest, AgcIntervalRejectsOutOfRangeAndShortPayload) {
+  EXPECT_EQ(hw1({HW_CMD_SET_AGC_RESET_INTERVAL, 0xFD, 0x03}), (std::vector<uint8_t>{HW_RESP_ERROR, HW_ERR_INVALID_PARAM}));
+  EXPECT_EQ(hw1({HW_CMD_SET_AGC_RESET_INTERVAL, 4}), (std::vector<uint8_t>{HW_RESP_ERROR, HW_ERR_INVALID_LENGTH}));
+  EXPECT_EQ(hw1({HW_CMD_GET_AGC_RESET_INTERVAL}), (std::vector<uint8_t>{0x9D, 30, 0}));
+}
+
+TEST_F(KissHwControlTest, AgcResetsOnDefaultSchedule) {
+  advance(29999);
+  EXPECT_EQ(radio.agc_resets, 0);
+  advance(1);
+  EXPECT_EQ(radio.agc_resets, 1);
+  advance(29999);
+  EXPECT_EQ(radio.agc_resets, 1);
+  advance(1);
+  EXPECT_EQ(radio.agc_resets, 2);
+}
+
+TEST_F(KissHwControlTest, AgcZeroDisablesResets) {
+  hw({HW_CMD_SET_AGC_RESET_INTERVAL, 0, 0});
+  for (int i = 0; i < 10; i++) advance(60000);
+  EXPECT_EQ(radio.agc_resets, 0);
+}
+
+TEST_F(KissHwControlTest, AgcIntervalChangeRestartsDeadline) {
+  hw({HW_CMD_SET_AGC_RESET_INTERVAL, 0x2C, 0x01});  // 300 s
+  advance(100000);
+  hw({HW_CMD_SET_AGC_RESET_INTERVAL, 4, 0});
+  EXPECT_EQ(radio.agc_resets, 0);
+  advance(3999);
+  EXPECT_EQ(radio.agc_resets, 0);
+  advance(1);
+  EXPECT_EQ(radio.agc_resets, 1);
+}
+
+TEST_F(KissHwControlTest, AgcResetWaitsForTxToFinish) {
+  hw({HW_CMD_SET_AGC_RESET_INTERVAL, 4, 0});
+  startTxAndHold();
+  advance(10000);
+  EXPECT_EQ(radio.agc_resets, 0);
+  radio.send_complete = true;
+  modem.loop();  // TX done -> TX_DONE_PENDING
+  modem.loop();  // TxDone flushed -> idle, overdue reset runs
+  EXPECT_EQ(radio.agc_resets, 1);
+}
+
+TEST_F(KissHwControlTest, FemUnsupportedOnBareBoard) {
+  EXPECT_EQ(hw1({HW_CMD_GET_FEM_STATE}), (std::vector<uint8_t>{0x9F, 0x00, 0x00}));
+  EXPECT_EQ(hw1({HW_CMD_SET_FEM_STATE, HW_FEM_RX_GAIN, HW_FEM_RX_GAIN}), ERR_UNSUPPORTED);
+  EXPECT_EQ(hw1({HW_CMD_SET_FEM_STATE, HW_FEM_TX_GAIN, 0}), ERR_UNSUPPORTED);
+}
+
+TEST_F(KissHwControlTest, FemSetRxLeavesTxUntouched) {
+  board.has_lna = board.has_pa = true;
+  board.pa = true;
+  EXPECT_EQ(hw1({HW_CMD_SET_FEM_STATE, HW_FEM_RX_GAIN, HW_FEM_RX_GAIN}), (std::vector<uint8_t>{0x9F, 0x03, 0x03}));
+  EXPECT_TRUE(board.lna);
+  EXPECT_EQ(board.pa_sets, 0);
+
+  EXPECT_EQ(hw1({HW_CMD_SET_FEM_STATE, HW_FEM_TX_GAIN, 0}), (std::vector<uint8_t>{0x9F, 0x03, 0x01}));
+  EXPECT_FALSE(board.pa);
+  EXPECT_EQ(board.lna_sets, 1);
+}
+
+TEST_F(KissHwControlTest, FemPartialCapabilityRejectsWholeRequest) {
+  board.has_lna = true;
+  EXPECT_EQ(hw1({HW_CMD_SET_FEM_STATE, HW_FEM_RX_GAIN | HW_FEM_TX_GAIN, HW_FEM_RX_GAIN | HW_FEM_TX_GAIN}), ERR_UNSUPPORTED);
+  EXPECT_EQ(board.lna_sets, 0);
+  EXPECT_EQ(hw1({HW_CMD_GET_FEM_STATE}), (std::vector<uint8_t>{0x9F, 0x01, 0x00}));
+}
+
+TEST_F(KissHwControlTest, FemUnknownBitsAreUnsupported) {
+  board.has_lna = board.has_pa = true;
+  EXPECT_EQ(hw1({HW_CMD_SET_FEM_STATE, 0x04, 0x04}), ERR_UNSUPPORTED);
+}
+
+TEST_F(KissHwControlTest, FemShortPayloadIsInvalidLength) {
+  EXPECT_EQ(hw1({HW_CMD_SET_FEM_STATE, HW_FEM_RX_GAIN}), (std::vector<uint8_t>{HW_RESP_ERROR, HW_ERR_INVALID_LENGTH}));
+}
+
+TEST_F(KissHwControlTest, FemSetDuringTxIsDeferredUntilTxCompletes) {
+  board.has_lna = true;
+  startTxAndHold();
+  serial.takeHardwareFrames();
+
+  EXPECT_TRUE(hw({HW_CMD_SET_FEM_STATE, HW_FEM_RX_GAIN, HW_FEM_RX_GAIN}).empty());
+  EXPECT_EQ(board.lna_sets, 0);
+  EXPECT_EQ(hw1({HW_CMD_SET_FEM_STATE, HW_FEM_RX_GAIN, 0}), (std::vector<uint8_t>{HW_RESP_ERROR, HW_ERR_TX_BUSY}));
+
+  radio.send_complete = true;
+  modem.loop();
+  auto frames = serial.takeHardwareFrames();
+  ASSERT_EQ(frames.size(), 1U);
+  EXPECT_EQ(frames[0], (std::vector<uint8_t>{0x9F, 0x01, 0x01}));
+  EXPECT_TRUE(board.lna);
+  modem.loop();
+  frames = serial.takeHardwareFrames();
+  ASSERT_EQ(frames.size(), 1U);
+  EXPECT_EQ(frames[0], (std::vector<uint8_t>{HW_RESP_TX_DONE, 0x01}));
+}
+
+}  // namespace

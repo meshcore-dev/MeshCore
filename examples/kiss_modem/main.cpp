@@ -19,7 +19,6 @@
 #endif
 
 #define NOISE_FLOOR_CALIB_INTERVAL_MS 2000
-#define AGC_RESET_INTERVAL_MS 30000
 #define USB_TX_TIMEOUT_MS 50
 #define USB_TX_BUFFER_SIZE 1024
 
@@ -27,7 +26,6 @@ StdRNG rng;
 mesh::LocalIdentity identity;
 KissModem* modem;
 static uint32_t next_noise_floor_calib_ms = 0;
-static uint32_t next_agc_reset_ms = 0;
 
 void halt() {
   while (1) ;
@@ -133,13 +131,6 @@ void loop() {
   modem->loop();
 
   if (!modem->isActuallyTransmitting() && !modem->isHostOutputBackedUp()) {
-    if (!modem->isTxBusy()) {
-      if ((uint32_t)(millis() - next_agc_reset_ms) >= AGC_RESET_INTERVAL_MS) {
-        radio_driver.resetAGC();
-        next_agc_reset_ms = millis();
-      }
-    }
-
     uint8_t rx_buf[256];
     int rx_len = radio_driver.recvRaw(rx_buf, sizeof(rx_buf));
     if (rx_len > 0) {

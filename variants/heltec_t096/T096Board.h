@@ -16,9 +16,6 @@ protected:
 #endif
   void variant_shutdown();
 
-  bool setLoRaFemLnaEnabled(bool enable);
-  bool isLoRaFemLnaEnabled() const;
-
 public:
   RefCountedDigitalPin periph_power;
   LoRaFEMControl loRaFEMControl;
@@ -27,6 +24,9 @@ public:
   void begin();
   void attachDynamicPrefs(KeyValueStore* prefs);
   bool handleCommand(const char* command, uint32_t sender_timestamp, char* reply) override;
+  bool canControlLoRaFemLna() const override { return loRaFEMControl.isLnaCanControl(); }
+  bool setLoRaFemLnaEnabled(bool enable) override;
+  bool isLoRaFemLnaEnabled() const override;
 
   void onBeforeTransmit(void) override;
   void onAfterTransmit(void) override;

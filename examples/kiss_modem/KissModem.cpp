@@ -22,6 +22,11 @@ KissModem::KissModem(Stream& serial, mesh::LocalIdentity& identity, mesh::RNG& r
   _getStatsCallback = nullptr;
   _config = {0, 0, 0, 0, 0};
   _signal_report_enabled = true;
+  _agc_reset_interval_sec = KISS_AGC_RESET_DEFAULT_SEC;
+  _next_agc_reset_ms = 0;
+  _fem_deferred = false;
+  _fem_deferred_apply = 0;
+  _fem_deferred_value = 0;
   resetOutputQueue();
 }
 
@@ -31,6 +36,8 @@ void KissModem::begin() {
   _rx_active = false;
   _has_pending_tx = false;
   _tx_state = TX_IDLE;
+  _fem_deferred = false;
+  _next_agc_reset_ms = millis() + (uint32_t)_agc_reset_interval_sec * 1000;
   resetOutputQueue();
 }
 
@@ -240,8 +247,22 @@ void KissModem::loop() {
   }
 
   processTx();
+  processDeferredFem();
+  maybeResetAgc();
   tryFlushFrames();
   queuePendingBusyError();
+}
+
+void KissModem::maybeResetAgc() {
+  if (_agc_reset_interval_sec == 0) return;
+  // same guard as the RX path in main.cpp, so receive is restarted right after the reset
+  if (_tx_state != TX_IDLE || isHostOutputBackedUp()) return;
+
+  uint32_t now = millis();
+  if ((int32_t)(now - _next_agc_reset_ms) >= 0) {
+    _radio.resetAGC();
+    _next_agc_reset_ms = now + (uint32_t)_agc_reset_interval_sec * 1000;
+  }
 }
 
 void KissModem::processFrame() {
@@ -380,6 +401,21 @@ void KissModem::handleHardwareCommand(uint8_t sub_cmd, const uint8_t* data, uint
       break;
     case HW_CMD_GET_SIGNAL_REPORT:
       handleGetSignalReport();
+      break;
+    case HW_CMD_GET_CAPABILITIES:
+      handleGetCapabilities();
+      break;
+    case HW_CMD_SET_AGC_RESET_INTERVAL:
+      handleSetAgcResetInterval(data, len);
+      break;
+    case HW_CMD_GET_AGC_RESET_INTERVAL:
+      handleGetAgcResetInterval();
+      break;
+    case HW_CMD_SET_FEM_STATE:
+      handleSetFemState(data, len);
+      break;
+    case HW_CMD_GET_FEM_STATE:
+      handleGetFemState();
       break;
     default:
       writeHardwareError(HW_ERR_UNKNOWN_CMD);
@@ -731,4 +767,102 @@ void KissModem::handleSetSignalReport(const uint8_t* data, uint16_t len) {
 void KissModem::handleGetSignalReport() {
   uint8_t val = _signal_report_enabled ? 0x01 : 0x00;
   writeHardwareFrame(HW_RESP(HW_CMD_GET_SIGNAL_REPORT), &val, 1);
+}
+
+void KissModem::handleGetCapabilities() {
+  uint32_t caps = HW_CAP_AGC_RESET;
+  if (_board.canControlLoRaFemLna()) caps |= HW_CAP_FEM_RX_GAIN;
+  if (_board.canControlLoRaFemPaGain()) caps |= HW_CAP_FEM_TX_GAIN;
+  uint8_t buf[4] = { (uint8_t)caps, (uint8_t)(caps >> 8), (uint8_t)(caps >> 16), (uint8_t)(caps >> 24) };
+  writeHardwareFrame(HW_RESP(HW_CMD_GET_CAPABILITIES), buf, 4);
+}
+
+void KissModem::handleSetAgcResetInterval(const uint8_t* data, uint16_t len) {
+  if (len < 2) {
+    writeHardwareError(HW_ERR_INVALID_LENGTH);
+    return;
+  }
+  uint16_t secs = (uint16_t)(data[0] | (data[1] << 8));
+  if (secs > KISS_AGC_RESET_MAX_SEC) {
+    writeHardwareError(HW_ERR_INVALID_PARAM);
+    return;
+  }
+  _agc_reset_interval_sec = secs - (secs % KISS_AGC_RESET_STEP_SEC);
+  _next_agc_reset_ms = millis() + (uint32_t)_agc_reset_interval_sec * 1000;
+  handleGetAgcResetInterval();
+}
+
+void KissModem::handleGetAgcResetInterval() {
+  uint8_t buf[2] = { (uint8_t)_agc_reset_interval_sec, (uint8_t)(_agc_reset_interval_sec >> 8) };
+  writeHardwareFrame(HW_RESP(HW_CMD_GET_AGC_RESET_INTERVAL), buf, 2);
+}
+
+uint8_t KissModem::femCapabilityMask() const {
+  uint8_t mask = 0;
+  if (_board.canControlLoRaFemLna()) mask |= HW_FEM_RX_GAIN;
+  if (_board.canControlLoRaFemPaGain()) mask |= HW_FEM_TX_GAIN;
+  return mask;
+}
+
+uint8_t KissModem::femValueMask() const {
+  uint8_t mask = 0;
+  if (_board.canControlLoRaFemLna() && _board.isLoRaFemLnaEnabled()) mask |= HW_FEM_RX_GAIN;
+  if (_board.canControlLoRaFemPaGain() && _board.isLoRaFemPaGainEnabled()) mask |= HW_FEM_TX_GAIN;
+  return mask;
+}
+
+void KissModem::writeFemState() {
+  uint8_t buf[2] = { femCapabilityMask(), femValueMask() };
+  writeHardwareFrame(HW_RESP(HW_CMD_GET_FEM_STATE), buf, 2);
+}
+
+void KissModem::applyFemState(uint8_t apply_mask, uint8_t value_mask) {
+  bool ok = true;
+  if (apply_mask & HW_FEM_RX_GAIN) {
+    ok &= _board.setLoRaFemLnaEnabled((value_mask & HW_FEM_RX_GAIN) != 0);
+  }
+  if (apply_mask & HW_FEM_TX_GAIN) {
+    ok &= _board.setLoRaFemPaGainEnabled((value_mask & HW_FEM_TX_GAIN) != 0);
+  }
+  if (ok) {
+    writeFemState();
+  } else {
+    writeHardwareError(HW_ERR_UNSUPPORTED);
+  }
+}
+
+void KissModem::processDeferredFem() {
+  if (!_fem_deferred || _tx_state == TX_SENDING) return;
+  _fem_deferred = false;
+  applyFemState(_fem_deferred_apply, _fem_deferred_value);
+}
+
+void KissModem::handleSetFemState(const uint8_t* data, uint16_t len) {
+  if (len < 2) {
+    writeHardwareError(HW_ERR_INVALID_LENGTH);
+    return;
+  }
+  uint8_t apply_mask = data[0];
+  uint8_t value_mask = data[1];
+  // validate every requested bit before touching hardware so a request is all-or-nothing
+  if (apply_mask & ~femCapabilityMask()) {
+    writeHardwareError(HW_ERR_UNSUPPORTED);
+    return;
+  }
+  if (_tx_state == TX_SENDING) {
+    // board setters drive FEM pins directly; changing them mid-packet would corrupt the TX
+    if (_fem_deferred) {
+      writeHardwareError(HW_ERR_TX_BUSY);
+      return;
+    }
+    _fem_deferred = true;
+    _fem_deferred_apply = apply_mask;
+    _fem_deferred_value = value_mask;
+    return;
+  }
+  applyFemState(apply_mask, value_mask);
+}
+
+void KissModem::handleGetFemState() {
+  writeFemState();
 }
