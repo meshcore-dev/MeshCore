@@ -101,8 +101,7 @@ uint8_t MyMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* secr
     uint8_t perms;
     if (strcmp((char *)data, _prefs.password) == 0) { // check for valid admin password
       perms = PERM_ACL_ADMIN;
-    } else if (_prefs.guest_password[0] != 0 &&
-               strcmp((char *)data, _prefs.guest_password) == 0) { // empty guest password is not a match
+    } else if (strcmp((char *)data, _prefs.guest_password) == 0) { // check guest password
       perms = PERM_ACL_GUEST;
     } else {
 #if MESH_DEBUG
