@@ -128,6 +128,7 @@ public:
 
 protected:
   float getAirtimeBudgetFactor() const override;
+  float getForwardAirtimeBudgetFactor() const override;
   int getInterferenceThreshold() const override;
   bool getCADEnabled() const override;
   int getAGCResetInterval() const override {

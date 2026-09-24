@@ -27,12 +27,23 @@ void Dispatcher::begin() {
   tx_budget_ms = (unsigned long)(duty_cycle_window_ms * duty_cycle);
   last_budget_update = _ms->getMillis();
 
+  float fwd_factor = getForwardAirtimeBudgetFactor();
+  if (fwd_factor < 0.0f) {
+    fwd_factor = 0.0f;   // treat as no limit
+  }
+  float fwd_duty_cycle = 1.0f / (1.0f + fwd_factor);
+  _fwd_budget.begin(getDutyCycleWindowMs(), (uint32_t)(duty_cycle_window_ms * fwd_duty_cycle), _ms->getMillis(), AirtimeBudget::MAX_SLOTS);
+
   _radio->begin();
   prev_isrecv_mode = _radio->isInRecvMode();
 }
 
 float Dispatcher::getAirtimeBudgetFactor() const {
   return 1.0;
+}
+
+float Dispatcher::getForwardAirtimeBudgetFactor() const {
+  return 0;   // by default, no separate budget for forwarded traffic
 }
 
 void Dispatcher::updateTxBudget() {
@@ -88,6 +99,11 @@ void Dispatcher::loop() {
       long t = _ms->getMillis() - outbound_start;
       total_air_time += t;
       //Serial.print("  airtime="); Serial.println(t);
+
+      if (outbound->_forwarded) {   // airtime we spent relaying another node's traffic
+        fwd_air_time += t;
+        _fwd_budget.record(t, _ms->getMillis());
+      }
 
       updateTxBudget();
 
@@ -268,6 +284,14 @@ void Dispatcher::processRecvPacket(Packet* pkt) {
     uint8_t priority = (action >> 24) - 1;
     uint32_t _delay = action & 0xFFFFFF;
 
+    uint32_t air_time = _radio->getEstAirtimeFor(pkt->getRawLength());
+    if (!_fwd_budget.canSpend(air_time, _ms->getMillis())) {   // relay budget spent: don't queue it at all
+      n_fwd_dropped++;
+      MESH_DEBUG_PRINTLN("%s Dispatcher::processRecvPacket(): forward refused by relay airtime budget", getLogDateTime());
+      _mgr->free(pkt);
+      return;
+    }
+    pkt->_forwarded = true;
     _mgr->queueOutbound(pkt, priority, futureMillis(_delay));
   }
 }
@@ -373,6 +397,7 @@ void Dispatcher::sendPacket(Packet* packet, uint8_t priority, uint32_t delay_mil
     MESH_DEBUG_PRINTLN("%s Dispatcher::sendPacket(): ERROR: invalid packet... path_len=%d, payload_len=%d", getLogDateTime(), (uint32_t) packet->path_len, (uint32_t) packet->payload_len);
     _mgr->free(packet);
   } else {
+    packet->_forwarded = false;   // this node's own traffic, not a relay
     _mgr->queueOutbound(packet, priority, futureMillis(delay_millis));
   }
 }

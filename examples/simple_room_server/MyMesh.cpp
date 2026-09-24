@@ -888,7 +888,8 @@ void MyMesh::formatStatsReply(char *reply) {
 }
 
 void MyMesh::formatRadioStatsReply(char *reply) {
-  StatsFormatHelper::formatRadioStats(reply, _radio, radio_driver, getTotalAirTime(), getReceiveAirTime());
+  StatsFormatHelper::formatRadioStats(reply, _radio, radio_driver, getTotalAirTime(), getReceiveAirTime(),
+                                      getForwardAirTime(), getForwardBudgetUsed(), getForwardBudgetLimit(), getNumForwardDropped());
 }
 
 void MyMesh::formatPacketStatsReply(char *reply) {

@@ -26,6 +26,7 @@ class NodePrefs : public ConfigSerializer {
 public:
   // in-memory backing data
   float airtime_factor = 0;
+  float fwd_airtime_factor = 0;    // separate duty cycle limit for relayed traffic (0 = no separate limit)
   char node_name[32];
   double node_lat = 0, node_lon = 0;
   char password[16];
@@ -89,6 +90,7 @@ private:
       def("fem_txgain", _parent->radio_fem_txgain);
       def("tx", _parent->tx_power_dbm);
       def("af", _parent->airtime_factor);
+      def("fwd_af", _parent->fwd_airtime_factor);
       def("rxdelay", _parent->rx_delay_base);
       def("f_txdelay", _parent->tx_delay_factor);
       def("d_txdelay", _parent->direct_tx_delay_factor);
@@ -109,6 +111,8 @@ private:
     void setCodingRate(uint8_t cr) override { _parent->cr = cr; markDirty(); }
     float getAirtimeFactor() const override { return _parent->airtime_factor; }
     void setAirtimeFactor(float af) override { _parent->airtime_factor = af; markDirty(); }
+    float getForwardAirtimeFactor() const override { return _parent->fwd_airtime_factor; }
+    void setForwardAirtimeFactor(float af) override { _parent->fwd_airtime_factor = af; markDirty(); }
     bool isCadEnabled() const override { return _parent->cad_enabled; }
     void setCadEnabled(bool en) override { _parent->cad_enabled = en; markDirty(); }
     uint8_t getIntThresh() const override { return _parent->interference_threshold; }
