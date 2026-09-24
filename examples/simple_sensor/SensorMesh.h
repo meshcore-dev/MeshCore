@@ -43,7 +43,7 @@
 
 #define FIRMWARE_ROLE "sensor"
 
-#define MAX_SEARCH_RESULTS      8
+#define MAX_SEARCH_RESULTS     24
 #define MAX_CONCURRENT_ALERTS   4
 
 class SensorMesh : public mesh::Mesh, public CommonCLICallbacks {
