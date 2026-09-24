@@ -1,5 +1,6 @@
 #include "KissModem.h"
 #include <CayenneLPP.h>
+#include <stdio.h>
 
 KissModem::KissModem(Stream& serial, mesh::LocalIdentity& identity, mesh::RNG& rng,
                      mesh::Radio& radio, mesh::MainBoard& board, SensorManager& sensors)
@@ -31,7 +32,6 @@ KissModem::KissModem(Stream& serial, mesh::LocalIdentity& identity, mesh::RNG& r
   _fem_deferred_apply = 0;
   _fem_deferred_value = 0;
   _fem_reply_pending = false;
-  _fem_reply_ok = false;
   _fem_deferred_gets = 0;
   resetOutputQueue();
 }
@@ -785,8 +785,10 @@ void KissModem::handleGetSignalReport() {
 
 void KissModem::handleGetCapabilities() {
   uint32_t caps = HW_CAP_AGC_RESET;
-  if (_board.canControlLoRaFemLna()) caps |= HW_CAP_FEM_RX_GAIN;
-  if (_board.canControlLoRaFemPaGain()) caps |= HW_CAP_FEM_TX_GAIN;
+  uint8_t fem_caps, fem_values;
+  readFemState(&fem_caps, &fem_values);
+  if (fem_caps & HW_FEM_RX_GAIN) caps |= HW_CAP_FEM_RX_GAIN;
+  if (fem_caps & HW_FEM_TX_GAIN) caps |= HW_CAP_FEM_TX_GAIN;
   if (_setRxBoostedGainCallback && _getRxBoostedGainCallback) caps |= HW_CAP_RX_BOOSTED_GAIN;
   uint8_t buf[4] = { (uint8_t)caps, (uint8_t)(caps >> 8), (uint8_t)(caps >> 16), (uint8_t)(caps >> 24) };
   writeHardwareFrame(HW_RESP(HW_CMD_GET_CAPABILITIES), buf, 4);
@@ -812,55 +814,81 @@ void KissModem::handleGetAgcResetInterval() {
   writeHardwareFrame(HW_RESP(HW_CMD_GET_AGC_RESET_INTERVAL), buf, 2);
 }
 
-uint8_t KissModem::femCapabilityMask() const {
-  uint8_t mask = 0;
-  if (_board.canControlLoRaFemLna()) mask |= HW_FEM_RX_GAIN;
-  if (_board.canControlLoRaFemPaGain()) mask |= HW_FEM_TX_GAIN;
-  return mask;
+// FEM gain is reached through the board's own "radio.fem.*" CLI commands, the same ones users run.
+static const char* femGainName(uint8_t bit) {
+  return bit == HW_FEM_RX_GAIN ? "rxgain" : "txgain";
 }
 
-uint8_t KissModem::femValueMask() const {
-  uint8_t mask = 0;
-  if (_board.canControlLoRaFemLna() && _board.isLoRaFemLnaEnabled()) mask |= HW_FEM_RX_GAIN;
-  if (_board.canControlLoRaFemPaGain() && _board.isLoRaFemPaGainEnabled()) mask |= HW_FEM_TX_GAIN;
-  return mask;
-}
-
-bool KissModem::queueFemReply(bool ok, bool mark_busy_error) {
-  if (!ok) {
-    const uint8_t err = HW_ERR_UNSUPPORTED;
-    return queueHardwareFrame(HW_RESP_ERROR, &err, 1, mark_busy_error);
+// Anything but an exact "> on" / "> off" (not handled, "Error: ...", unexpected text) means unsupported.
+bool KissModem::queryFemGain(uint8_t bit, bool* enabled) {
+  char cmd[32];
+  char reply[KISS_BOARD_REPLY_SIZE] = { 0 };
+  snprintf(cmd, sizeof(cmd), "get radio.fem.%s", femGainName(bit));
+  if (!_board.handleCommand(cmd, 0, reply)) return false;
+  if (strcmp(reply, "> on") == 0) {
+    *enabled = true;
+  } else if (strcmp(reply, "> off") == 0) {
+    *enabled = false;
+  } else {
+    return false;
   }
-  uint8_t buf[2] = { femCapabilityMask(), femValueMask() };
+  return true;
+}
+
+// Success is judged by reading the state back, not by the wording of the set reply.
+bool KissModem::setFemGain(uint8_t bit, bool enable) {
+  char cmd[32];
+  char reply[KISS_BOARD_REPLY_SIZE] = { 0 };
+  snprintf(cmd, sizeof(cmd), "set radio.fem.%s %s", femGainName(bit), enable ? "on" : "off");
+  _board.handleCommand(cmd, 0, reply);
+  bool now;
+  return queryFemGain(bit, &now) && now == enable;
+}
+
+void KissModem::readFemState(uint8_t* caps, uint8_t* values) {
+  *caps = 0;
+  *values = 0;
+  const uint8_t bits[] = { HW_FEM_RX_GAIN, HW_FEM_TX_GAIN };
+  for (uint8_t bit : bits) {
+    bool enabled;
+    if (queryFemGain(bit, &enabled)) {
+      *caps |= bit;
+      if (enabled) *values |= bit;
+    }
+  }
+}
+
+bool KissModem::queueFemReply(bool mark_busy_error) {
+  uint8_t buf[2];
+  readFemState(&buf[0], &buf[1]);
   return queueHardwareFrame(HW_RESP(HW_CMD_GET_FEM_STATE), buf, 2, mark_busy_error);
 }
 
-bool KissModem::applyFemState(uint8_t apply_mask, uint8_t value_mask) {
-  bool ok = true;
+// The reply always carries the read-back state, so a bit that failed to apply shows its real value.
+void KissModem::applyFemState(uint8_t apply_mask, uint8_t value_mask) {
   if (apply_mask & HW_FEM_RX_GAIN) {
-    ok &= _board.setLoRaFemLnaEnabled((value_mask & HW_FEM_RX_GAIN) != 0);
+    setFemGain(HW_FEM_RX_GAIN, (value_mask & HW_FEM_RX_GAIN) != 0);
   }
   if (apply_mask & HW_FEM_TX_GAIN) {
-    ok &= _board.setLoRaFemPaGainEnabled((value_mask & HW_FEM_TX_GAIN) != 0);
+    setFemGain(HW_FEM_TX_GAIN, (value_mask & HW_FEM_TX_GAIN) != 0);
   }
-  return ok;
 }
 
 void KissModem::processDeferredFem() {
   // wait for TxDone to be queued so the host sees the TX result before the FEM change
   if (_fem_deferred && _tx_state != TX_SENDING && _tx_state != TX_DONE_PENDING) {
-    _fem_reply_ok = applyFemState(_fem_deferred_apply, _fem_deferred_value);
+    applyFemState(_fem_deferred_apply, _fem_deferred_value);
     _fem_deferred = false;
     _fem_reply_pending = true;
   }
   if (_fem_deferred) return;
   // replies are retained until queued, and GetFemState replies stay behind the Set reply
   if (_fem_reply_pending) {
-    if (!queueFemReply(_fem_reply_ok, false)) return;
+    if (!queueFemReply(false)) return;
     _fem_reply_pending = false;
   }
   while (_fem_deferred_gets > 0) {
-    if (!queueFemReply(true, false)) return;
+    if (!queueFemReply(false)) return;
     _fem_deferred_gets--;
   }
 }
@@ -873,7 +901,9 @@ void KissModem::handleSetFemState(const uint8_t* data, uint16_t len) {
   uint8_t apply_mask = data[0];
   uint8_t value_mask = data[1];
   // validate every requested bit before touching hardware so a request is all-or-nothing
-  if (apply_mask & ~femCapabilityMask()) {
+  uint8_t fem_caps, fem_values;
+  readFemState(&fem_caps, &fem_values);
+  if (apply_mask & ~fem_caps) {
     writeHardwareError(HW_ERR_UNSUPPORTED);
     return;
   }
@@ -888,7 +918,7 @@ void KissModem::handleSetFemState(const uint8_t* data, uint16_t len) {
     _fem_deferred_value = value_mask;
     return;
   }
-  _fem_reply_ok = applyFemState(apply_mask, value_mask);
+  applyFemState(apply_mask, value_mask);
   _fem_reply_pending = true;
   processDeferredFem();
 }
@@ -902,7 +932,7 @@ void KissModem::handleGetFemState() {
     _fem_deferred_gets++;
     return;
   }
-  queueFemReply(true, true);
+  queueFemReply(true);
 }
 
 void KissModem::handleSetRxBoostedGain(const uint8_t* data, uint16_t len) {

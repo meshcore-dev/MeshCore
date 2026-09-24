@@ -23,12 +23,7 @@ public:
   virtual float getMCUTemperature() { return 25.0f; }
   virtual const char* getManufacturerName() { return "mock-board"; }
   virtual void reboot() {}
-  virtual bool canControlLoRaFemLna() const { return false; }
-  virtual bool setLoRaFemLnaEnabled(bool) { return false; }
-  virtual bool isLoRaFemLnaEnabled() const { return false; }
-  virtual bool canControlLoRaFemPaGain() const { return false; }
-  virtual bool setLoRaFemPaGainEnabled(bool) { return false; }
-  virtual bool isLoRaFemPaGainEnabled() const { return false; }
+  virtual bool handleCommand(const char*, uint32_t, char*) { return false; }
 };
 
 }

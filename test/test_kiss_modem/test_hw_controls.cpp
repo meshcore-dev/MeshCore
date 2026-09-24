@@ -72,31 +72,50 @@ public:
   int agc_resets = 0;
 };
 
+// Implements FEM through the "radio.fem.*" CLI text, worded like the Heltec / Station G3 boards.
 class FemBoard : public mesh::MainBoard {
 public:
   const char* getManufacturerName() override { return "fem-board"; }
 
-  bool canControlLoRaFemLna() const override { return has_lna; }
-  bool setLoRaFemLnaEnabled(bool enable) override {
-    if (!has_lna) return false;
-    lna = enable;
-    lna_sets++;
-    return true;
+  bool handleCommand(const char* command, uint32_t, char* reply) override {
+    commands++;
+    if (handleGain(command, reply, "rxgain", has_lna, lna, lna_sets, lna_sticks)) return true;
+    if (handleGain(command, reply, "txgain", has_pa, pa, pa_sets, pa_sticks)) return true;
+    return false;
   }
-  bool isLoRaFemLnaEnabled() const override { return lna; }
-
-  bool canControlLoRaFemPaGain() const override { return has_pa; }
-  bool setLoRaFemPaGainEnabled(bool enable) override {
-    if (!has_pa) return false;
-    pa = enable;
-    pa_sets++;
-    return true;
-  }
-  bool isLoRaFemPaGainEnabled() const override { return pa; }
 
   bool has_lna = false, has_pa = false;
   bool lna = false, pa = false;
   int lna_sets = 0, pa_sets = 0;
+  bool lna_sticks = false, pa_sticks = false;  // set reports OK but the state does not change
+  bool unhandled = false;                       // board does not implement radio.fem.* at all
+  const char* odd_get_reply = nullptr;          // unexpected get wording
+  int commands = 0;
+
+private:
+  bool handleGain(const char* command, char* reply, const char* name, bool has, bool& state, int& sets, bool sticks) {
+    if (unhandled) return false;
+    char get_cmd[32], set_cmd[32];
+    snprintf(get_cmd, sizeof(get_cmd), "get radio.fem.%s", name);
+    snprintf(set_cmd, sizeof(set_cmd), "set radio.fem.%s ", name);
+    if (strcmp(command, get_cmd) == 0) {
+      if (!has) strcpy(reply, "Error: unsupported");
+      else if (odd_get_reply) strcpy(reply, odd_get_reply);
+      else sprintf(reply, "> %s", state ? "on" : "off");
+      return true;
+    }
+    if (strncmp(command, set_cmd, strlen(set_cmd)) == 0) {
+      if (!has) {
+        strcpy(reply, "Error: unsupported");
+      } else {
+        sets++;
+        if (!sticks) state = strcmp(command + strlen(set_cmd), "on") == 0;
+        strcpy(reply, "OK - LoRa FEM gain changed");
+      }
+      return true;
+    }
+    return false;
+  }
 };
 
 class NoSensors : public SensorManager {
@@ -274,6 +293,31 @@ TEST_F(KissHwControlTest, FemPartialCapabilityRejectsWholeRequest) {
 TEST_F(KissHwControlTest, FemUnknownBitsAreUnsupported) {
   board.has_lna = board.has_pa = true;
   EXPECT_EQ(hw1({HW_CMD_SET_FEM_STATE, 0x04, 0x04}), ERR_UNSUPPORTED);
+}
+
+TEST_F(KissHwControlTest, FemUnhandledCommandsMeanUnsupported) {
+  board.has_lna = board.has_pa = true;
+  board.unhandled = true;
+  EXPECT_EQ(hw1({HW_CMD_GET_FEM_STATE}), (std::vector<uint8_t>{0x9F, 0x00, 0x00}));
+  EXPECT_EQ(hw1({HW_CMD_GET_CAPABILITIES}), (std::vector<uint8_t>{0x9B, 0x01, 0x00, 0x00, 0x00}));
+  EXPECT_EQ(hw1({HW_CMD_SET_FEM_STATE, HW_FEM_RX_GAIN, HW_FEM_RX_GAIN}), ERR_UNSUPPORTED);
+}
+
+TEST_F(KissHwControlTest, FemUnexpectedGetWordingMeansUnsupported) {
+  board.has_lna = true;
+  board.odd_get_reply = "> enabled";
+  EXPECT_EQ(hw1({HW_CMD_GET_FEM_STATE}), (std::vector<uint8_t>{0x9F, 0x00, 0x00}));
+  EXPECT_EQ(hw1({HW_CMD_SET_FEM_STATE, HW_FEM_RX_GAIN, HW_FEM_RX_GAIN}), ERR_UNSUPPORTED);
+  EXPECT_EQ(board.lna_sets, 0);
+}
+
+TEST_F(KissHwControlTest, FemSetThatDoesNotTakeRepliesWithReadBackState) {
+  board.has_lna = board.has_pa = true;
+  board.lna_sticks = true;  // board says OK but LNA stays off
+  EXPECT_EQ(hw1({HW_CMD_SET_FEM_STATE, HW_FEM_RX_GAIN | HW_FEM_TX_GAIN, HW_FEM_RX_GAIN | HW_FEM_TX_GAIN}),
+            (std::vector<uint8_t>{0x9F, 0x03, 0x02}));
+  EXPECT_FALSE(board.lna);
+  EXPECT_TRUE(board.pa);
 }
 
 TEST_F(KissHwControlTest, FemShortPayloadIsInvalidLength) {

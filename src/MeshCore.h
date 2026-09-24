@@ -77,14 +77,6 @@ public:
 
   virtual bool handleCommand(const char* command, uint32_t sender_timestamp, char* reply) { return false; }
 
-  // External LoRa front-end (FEM) gain control. Boards without a controllable FEM keep these defaults.
-  virtual bool canControlLoRaFemLna() const { return false; }
-  virtual bool setLoRaFemLnaEnabled(bool enable) { return false; }
-  virtual bool isLoRaFemLnaEnabled() const { return false; }
-  virtual bool canControlLoRaFemPaGain() const { return false; }
-  virtual bool setLoRaFemPaGainEnabled(bool enable) { return false; }
-  virtual bool isLoRaFemPaGainEnabled() const { return false; }
-
   // Called from the example main loops. Lets a board feed its watchdog and
   // run periodic housekeeping. Default no-op.
   virtual void loop() { /* no op */ }

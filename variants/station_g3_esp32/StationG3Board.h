@@ -8,6 +8,10 @@
 class StationG3Board : public ESP32Board {
   KeyValueStore* _prefs = NULL;
 
+  bool setLoRaFemLnaEnabled(bool enable);
+  bool isLoRaFemLnaEnabled() const;
+  bool setLoRaFemPaGainEnabled(bool enable);
+  bool isLoRaFemPaGainEnabled() const;
 public:
   LoRaFEMControl loRaFEMControl;
 
@@ -30,12 +34,6 @@ public:
   void attachDynamicPrefs(KeyValueStore* prefs);
 
   bool handleCommand(const char* command, uint32_t sender_timestamp, char* reply) override;
-  bool canControlLoRaFemLna() const override { return loRaFEMControl.canControlLNA(); }
-  bool setLoRaFemLnaEnabled(bool enable) override;
-  bool isLoRaFemLnaEnabled() const override;
-  bool canControlLoRaFemPaGain() const override { return loRaFEMControl.canControlPAGain(); }
-  bool setLoRaFemPaGainEnabled(bool enable) override;
-  bool isLoRaFemPaGainEnabled() const override;
 
   void setPrimaryLNAEnable(bool enabled) {
     loRaFEMControl.setLNAEnable(enabled);

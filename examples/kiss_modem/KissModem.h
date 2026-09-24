@@ -100,6 +100,9 @@
 #define HW_FEM_RX_GAIN           (1 << 0)
 #define HW_FEM_TX_GAIN           (1 << 1)
 
+/* Matches the CLI reply buffer boards write into from handleCommand() */
+#define KISS_BOARD_REPLY_SIZE    160
+
 #define KISS_AGC_RESET_DEFAULT_SEC 30
 #define KISS_AGC_RESET_MAX_SEC     1020
 #define KISS_AGC_RESET_STEP_SEC    4
@@ -173,7 +176,6 @@ class KissModem {
   uint8_t _fem_deferred_apply;
   uint8_t _fem_deferred_value;
   bool _fem_reply_pending;
-  bool _fem_reply_ok;
   uint8_t _fem_deferred_gets;
   uint8_t _tx_frame_buf[KISS_TX_FRAME_QUEUE_DEPTH][KISS_MAX_ENCODED_FRAME_SIZE];
   uint16_t _tx_frame_len[KISS_TX_FRAME_QUEUE_DEPTH];
@@ -202,10 +204,11 @@ class KissModem {
   void handleHardwareCommand(uint8_t sub_cmd, const uint8_t* data, uint16_t len);
   void processTx();
   void maybeResetAgc();
-  uint8_t femCapabilityMask() const;
-  uint8_t femValueMask() const;
-  bool queueFemReply(bool ok, bool mark_busy_error);
-  bool applyFemState(uint8_t apply_mask, uint8_t value_mask);
+  bool queryFemGain(uint8_t bit, bool* enabled);
+  bool setFemGain(uint8_t bit, bool enable);
+  void readFemState(uint8_t* caps, uint8_t* values);
+  bool queueFemReply(bool mark_busy_error);
+  void applyFemState(uint8_t apply_mask, uint8_t value_mask);
   bool isFemReplyQueued() const { return _fem_deferred || _fem_reply_pending || _fem_deferred_gets > 0; }
   void processDeferredFem();
 
