@@ -143,7 +143,7 @@ void loop() {
     uint8_t rx_buf[256];
     int rx_len = radio_driver.recvRaw(rx_buf, sizeof(rx_buf));
     if (rx_len > 0) {
-      int8_t snr = (int8_t)(radio_driver.getLastSNR() * 4);
+      int8_t snr = mesh::Packet::snrFromDb(radio_driver.getLastSNR());
       int8_t rssi = (int8_t)radio_driver.getLastRSSI();
       modem->onPacketReceived(snr, rssi, rx_buf, rx_len);
     }

@@ -203,7 +203,7 @@ void Dispatcher::checkRecv() {
         MESH_DEBUG_PRINTLN("%s Dispatcher::checkRecv(): WARNING: received data, no unused packets available!", getLogDateTime());
       } else {
         if (tryParsePacket(pkt, raw, len)) {
-          pkt->_snr = _radio->getLastSNR() * 4.0f;
+          pkt->_snr = Packet::snrFromDb(_radio->getLastSNR());
           score = _radio->packetScore(_radio->getLastSNR(), len);
           air_time = _radio->getEstAirtimeFor(len);
           rx_air_time += air_time;

@@ -58,7 +58,7 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
       } else if (self_id.isHashMatch(&pkt->payload[i + offset], 1 << path_sz) && allowPacketForward(pkt) && !_tables->wasSeen(pkt)) {
         _tables->markSeen(pkt);
         // append SNR (Not hash!)
-        pkt->path[pkt->path_len++] = (int8_t) (pkt->getSNR()*4);
+        pkt->path[pkt->path_len++] = Packet::snrFromDb(pkt->getSNR());
 
         uint32_t d = getDirectRetransmitDelay(pkt);
         return ACTION_RETRANSMIT_DELAYED(5, d);  // schedule with priority 5 (for now), maybe make configurable?

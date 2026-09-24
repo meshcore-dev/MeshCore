@@ -41,6 +41,10 @@ namespace mesh {
 */
 class Packet {
 public:
+  static constexpr float SNR_SCALE = 4.0f;
+  static constexpr float snrToDb(int8_t quarter_db) { return static_cast<float>(quarter_db) / SNR_SCALE; }
+  static constexpr int8_t snrFromDb(float db) { return static_cast<int8_t>(db * SNR_SCALE); }
+
   Packet();
 
   uint8_t header;
@@ -48,7 +52,7 @@ public:
   uint16_t transport_codes[2];
   uint8_t path[MAX_PATH_SIZE];
   uint8_t payload[MAX_PACKET_PAYLOAD];
-  int8_t _snr;
+  int8_t _snr;  // Signed SNR in quarter-dB units.
 
   /**
    * \brief calculate the hash of payload + type
@@ -89,7 +93,7 @@ public:
   void markDoNotRetransmit() { header = 0xFF; }
   bool isMarkedDoNotRetransmit() const { return header == 0xFF; }
 
-  float getSNR() const { return ((float)_snr) / 4.0f; }
+  float getSNR() const { return Packet::snrToDb(_snr); }
 
   /**
    * \returns  the encoded/wire format length of this packet
@@ -110,5 +114,8 @@ public:
    */
   bool readFrom(const uint8_t src[], uint8_t len);
 };
+
+static_assert(Packet::snrToDb(-8) == -2.0f, "quarter-dB SNR decoding must preserve signed values");
+static_assert(Packet::snrFromDb(1.25f) == 5, "SNR encoding must use quarter-dB units");
 
 }

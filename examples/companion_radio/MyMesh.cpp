@@ -287,7 +287,7 @@ void MyMesh::logRxRaw(float snr, float rssi, const uint8_t raw[], int len) {
   if (_serial->isConnected() && len + 3 <= MAX_FRAME_SIZE) {
     int i = 0;
     out_frame[i++] = PUSH_CODE_LOG_RX_DATA;
-    out_frame[i++] = (int8_t)(snr * 4);
+    out_frame[i++] = mesh::Packet::snrFromDb(snr);
     out_frame[i++] = (int8_t)(rssi);
     memcpy(&out_frame[i], raw, len);
     i += len;
@@ -434,7 +434,7 @@ void MyMesh::queueMessage(const ContactInfo &from, uint8_t txt_type, mesh::Packe
   int i = 0;
   if (app_target_ver >= 3) {
     out_frame[i++] = RESP_CODE_CONTACT_MSG_RECV_V3;
-    out_frame[i++] = (int8_t)(pkt->getSNR() * 4);
+    out_frame[i++] = mesh::Packet::snrFromDb(pkt->getSNR());
     out_frame[i++] = 0; // reserved1
     out_frame[i++] = 0; // reserved2
   } else {
@@ -547,7 +547,7 @@ void MyMesh::onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packe
   int i = 0;
   if (app_target_ver >= 3) {
     out_frame[i++] = RESP_CODE_CHANNEL_MSG_RECV_V3;
-    out_frame[i++] = (int8_t)(pkt->getSNR() * 4);
+    out_frame[i++] = mesh::Packet::snrFromDb(pkt->getSNR());
     out_frame[i++] = 0; // reserved1
     out_frame[i++] = 0; // reserved2
   } else {
@@ -599,7 +599,7 @@ void MyMesh::onChannelDataRecv(const mesh::GroupChannel &channel, mesh::Packet *
 
   int i = 0;
   out_frame[i++] = RESP_CODE_CHANNEL_DATA_RECV;
-  out_frame[i++] = (int8_t)(pkt->getSNR() * 4);
+  out_frame[i++] = mesh::Packet::snrFromDb(pkt->getSNR());
   out_frame[i++] = 0; // reserved1
   out_frame[i++] = 0; // reserved2
 
@@ -785,7 +785,7 @@ void MyMesh::onControlDataRecv(mesh::Packet *packet) {
   }
   int i = 0;
   out_frame[i++] = PUSH_CODE_CONTROL_DATA;
-  out_frame[i++] = (int8_t)(_radio->getLastSNR() * 4);
+  out_frame[i++] = mesh::Packet::snrFromDb(_radio->getLastSNR());
   out_frame[i++] = (int8_t)(_radio->getLastRSSI());
   out_frame[i++] = packet->path_len;
   memcpy(&out_frame[i], packet->payload, packet->payload_len);
@@ -805,7 +805,7 @@ void MyMesh::onRawDataRecv(mesh::Packet *packet) {
   }
   int i = 0;
   out_frame[i++] = PUSH_CODE_RAW_DATA;
-  out_frame[i++] = (int8_t)(_radio->getLastSNR() * 4);
+  out_frame[i++] = mesh::Packet::snrFromDb(_radio->getLastSNR());
   out_frame[i++] = (int8_t)(_radio->getLastRSSI());
   out_frame[i++] = 0xFF; // reserved (possibly path_len in future)
   memcpy(&out_frame[i], packet->payload, packet->payload_len);
@@ -839,7 +839,7 @@ void MyMesh::onTraceRecv(mesh::Packet *packet, uint32_t tag, uint32_t auth_code,
 
   memcpy(&out_frame[i], path_snrs, path_len >> path_sz);
   i += path_len >> path_sz;
-  out_frame[i++] = (int8_t)(packet->getSNR() * 4); // extra/final SNR (to this node)
+  out_frame[i++] = mesh::Packet::snrFromDb(packet->getSNR()); // extra/final SNR (to this node)
 
   if (_serial->isConnected()) {
     _serial->writeFrame(out_frame, i);
@@ -1882,7 +1882,7 @@ void MyMesh::handleCmdFrame(size_t len) {
       out_frame[i++] = STATS_TYPE_RADIO;
       int16_t noise_floor = (int16_t)_radio->getNoiseFloor();
       int8_t last_rssi = (int8_t)radio_driver.getLastRSSI();
-      int8_t last_snr = (int8_t)(radio_driver.getLastSNR() * 4); // scaled by 4 for 0.25 dB precision
+      int8_t last_snr = mesh::Packet::snrFromDb(radio_driver.getLastSNR());
       uint32_t tx_air_secs = getTotalAirTime() / 1000;
       uint32_t rx_air_secs = getReceiveAirTime() / 1000;
       memcpy(&out_frame[i], &noise_floor, 2); i += 2;

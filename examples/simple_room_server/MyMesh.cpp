@@ -169,7 +169,7 @@ int MyMesh::handleRequest(ClientInfo *sender, uint32_t sender_timestamp, uint8_t
     stats.n_recv_flood = getNumRecvFlood();
     stats.n_recv_direct = getNumRecvDirect();
     stats.err_events = _err_flags;
-    stats.last_snr = (int16_t)(radio_driver.getLastSNR() * 4);
+    stats.last_snr = mesh::Packet::snrFromDb(radio_driver.getLastSNR());
     stats.n_direct_dups = ((SimpleMeshTables *)getTables())->getNumDirectDups();
     stats.n_flood_dups = ((SimpleMeshTables *)getTables())->getNumFloodDups();
     stats.n_posted = _num_posted;
