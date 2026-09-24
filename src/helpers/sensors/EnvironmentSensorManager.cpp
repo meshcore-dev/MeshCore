@@ -165,7 +165,10 @@ static RAK12035_SoilMoisture RAK12035;
 #endif
 
 #ifdef RAK_WISBLOCK_GPS
-static uint32_t gpsResetPin = 0;
+// The GPS enable pin, or -1 when the board has none. Signed, so the "no pin"
+// case is representable: it was uint32_t, which turned PIN_GPS_EN == -1 into
+// 4294967295 and left pinMode() to discard it as out of range.
+static int gpsResetPin = -1;
 static bool i2cGPSFlag = false;
 static bool serialGPSFlag = false;
 #ifndef TELEM_RAK12500_ADDRESS
@@ -865,7 +868,15 @@ bool EnvironmentSensorManager::gpsIsAwake(uint8_t ioPin){
   } else if (Serial1.available()) {
     MESH_DEBUG_PRINTLN("Serial GPS init correctly and is turned on");
 #ifdef PIN_GPS_EN
-    if(PIN_GPS_EN){
+    // A range test, not a truth test: PIN_GPS_EN is -1 on boards with no
+    // enable pin, which passed `if(PIN_GPS_EN)` and stored a bogus pin, and 0
+    // is a legitimate pin number that would have failed it.
+    //
+    // Note this deliberately does not fall back to ioPin the way the I2C
+    // branch above does. On RAK4631 the pin that woke the receiver is WB_IO2,
+    // the shared 3V3_S slot rail, so reusing it here would make stop_gps()
+    // power down every other module in the slots as well.
+    if (PIN_GPS_EN >= 0) {
       gpsResetPin = PIN_GPS_EN;
     }
 #endif
@@ -887,8 +898,12 @@ void EnvironmentSensorManager::start_gps() {
   gps_active = true;
   #ifdef RAK_WISBLOCK_GPS
     #ifndef RAK_3401
-    pinMode(gpsResetPin, OUTPUT);
-    digitalWrite(gpsResetPin, HIGH);
+    if (gpsResetPin >= 0) {
+      pinMode(gpsResetPin, OUTPUT);
+      digitalWrite(gpsResetPin, HIGH);
+    } else {
+      MESH_DEBUG_PRINTLN("GPS: no enable pin configured, power state unchanged");
+    }
     #endif
     return;
   #endif
@@ -905,8 +920,12 @@ void EnvironmentSensorManager::stop_gps() {
   gps_active = false;
   #ifdef RAK_WISBLOCK_GPS
     #ifndef RAK_3401 // rak3401 shouldn't turn off WB_IO2 as it powers the PA
-    pinMode(gpsResetPin, OUTPUT);
-    digitalWrite(gpsResetPin, LOW);
+    if (gpsResetPin >= 0) {
+      pinMode(gpsResetPin, OUTPUT);
+      digitalWrite(gpsResetPin, LOW);
+    } else {
+      MESH_DEBUG_PRINTLN("GPS: no enable pin configured, power state unchanged");
+    }
     #endif
     return;
   #endif
