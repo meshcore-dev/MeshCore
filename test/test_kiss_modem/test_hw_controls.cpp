@@ -208,8 +208,11 @@ TEST_F(KissHwControlTest, CapabilitiesReflectBoardFem) {
   EXPECT_EQ(hw1({HW_CMD_GET_CAPABILITIES}), (std::vector<uint8_t>{0x9B, 0x07, 0x00, 0x00, 0x00}));
 }
 
-TEST_F(KissHwControlTest, AgcIntervalDefaultsToThirtySeconds) {
-  EXPECT_EQ(hw1({HW_CMD_GET_AGC_RESET_INTERVAL}), (std::vector<uint8_t>{0x9D, 30, 0}));
+TEST_F(KissHwControlTest, AgcIntervalDefaultsToThirtyTwoSeconds) {
+  EXPECT_EQ(hw1({HW_CMD_GET_AGC_RESET_INTERVAL}), (std::vector<uint8_t>{0x9D, 32, 0}));
+  // the default must be restorable, i.e. a multiple of the 4 s step
+  EXPECT_EQ(hw1({HW_CMD_SET_AGC_RESET_INTERVAL, 4, 0}), (std::vector<uint8_t>{0x9D, 4, 0}));
+  EXPECT_EQ(hw1({HW_CMD_SET_AGC_RESET_INTERVAL, KISS_AGC_RESET_DEFAULT_SEC, 0}), (std::vector<uint8_t>{0x9D, KISS_AGC_RESET_DEFAULT_SEC, 0}));
 }
 
 TEST_F(KissHwControlTest, AgcIntervalSetReturnsEffectiveRoundedValue) {
@@ -223,15 +226,15 @@ TEST_F(KissHwControlTest, AgcIntervalSetReturnsEffectiveRoundedValue) {
 TEST_F(KissHwControlTest, AgcIntervalRejectsOutOfRangeAndShortPayload) {
   EXPECT_EQ(hw1({HW_CMD_SET_AGC_RESET_INTERVAL, 0xFD, 0x03}), (std::vector<uint8_t>{HW_RESP_ERROR, HW_ERR_INVALID_PARAM}));
   EXPECT_EQ(hw1({HW_CMD_SET_AGC_RESET_INTERVAL, 4}), (std::vector<uint8_t>{HW_RESP_ERROR, HW_ERR_INVALID_LENGTH}));
-  EXPECT_EQ(hw1({HW_CMD_GET_AGC_RESET_INTERVAL}), (std::vector<uint8_t>{0x9D, 30, 0}));
+  EXPECT_EQ(hw1({HW_CMD_GET_AGC_RESET_INTERVAL}), (std::vector<uint8_t>{0x9D, 32, 0}));
 }
 
 TEST_F(KissHwControlTest, AgcResetsOnDefaultSchedule) {
-  advance(29999);
+  advance(31999);
   EXPECT_EQ(radio.agc_resets, 0);
   advance(1);
   EXPECT_EQ(radio.agc_resets, 1);
-  advance(29999);
+  advance(31999);
   EXPECT_EQ(radio.agc_resets, 1);
   advance(1);
   EXPECT_EQ(radio.agc_resets, 2);

@@ -227,7 +227,7 @@ All values little-endian.
 |-------------|---------|-----------------------|
 | Noise floor | 2 bytes | int16_t, dBm (signed) |
 
-The modem recalibrates the noise floor every 2 seconds. AGC resets follow the configured AGC reset interval (default 30 seconds).
+The modem recalibrates the noise floor every 2 seconds. AGC resets follow the configured AGC reset interval (default 32 seconds).
 
 ### Capabilities (Capabilities response)
 
@@ -256,7 +256,7 @@ All values little-endian.
 
 The modem periodically resets the radio's AGC while idle (no transmission in progress and host output not backed up). The interval has 4-second resolution, matching the MeshCore `agc.reset.interval` setting: requested values are rounded down to a multiple of 4, so 1-3 disable the reset. Values above 1020 return `InvalidParam`. SetAgcResetInterval replies with the AgcResetInterval response carrying the effective value, and restarts the countdown from the time of the request.
 
-The default is 30 seconds. The setting is not persisted; hosts should re-send it after reconnecting or rebooting the modem.
+The default is 32 seconds (previously a fixed 30; changed so the default is a settable 4-second multiple). The setting is not persisted; hosts should re-send it after reconnecting or rebooting the modem.
 
 ### FEM State (SetFemState / FemState response)
 

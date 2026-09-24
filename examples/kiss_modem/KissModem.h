@@ -106,7 +106,7 @@
 /* FEM requests are answered strictly in arrival order; this many may wait (e.g. during a TX) */
 #define KISS_FEM_OP_QUEUE_DEPTH  4
 
-#define KISS_AGC_RESET_DEFAULT_SEC 30
+#define KISS_AGC_RESET_DEFAULT_SEC 32  // a multiple of the 4 s step, so hosts can set it back
 #define KISS_AGC_RESET_MAX_SEC     1020
 #define KISS_AGC_RESET_STEP_SEC    4
 
