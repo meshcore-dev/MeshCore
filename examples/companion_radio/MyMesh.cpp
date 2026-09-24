@@ -2116,6 +2116,23 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
     return true;
   }
 
+  if (strncmp(command, "set theme ", 10) == 0) {
+    const char* theme = &command[10];
+    if (_ui != NULL && _ui->getThemeCount() > 0) {
+      if (_ui->applyTheme(theme)) {
+        strncpy(_prefs.ui_theme, theme, sizeof(_prefs.ui_theme) - 1);
+        _prefs.ui_theme[sizeof(_prefs.ui_theme) - 1] = 0;
+        savePrefs();
+        sprintf(reply, "> theme is now %s", _prefs.ui_theme);
+      } else {
+        strcpy(reply, "Error: theme not found or not supported by this display");
+      }
+    } else {
+      strcpy(reply, "Error: this device has no theme-capable display");
+    }
+    return true;
+  }
+
 #ifdef ENABLE_WIFI_INTERFACE
   if (memcmp(command, "set wifi.ssid ", 14) == 0) {
     StrHelper::strncpy(_prefs.wifi_ssid, &command[14], sizeof(_prefs.wifi_ssid));

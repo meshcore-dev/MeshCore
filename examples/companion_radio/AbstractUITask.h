@@ -40,4 +40,6 @@ public:
 
   virtual void notify(UIEventType t = UIEventType::none) = 0;
   virtual void loop() = 0;
+  virtual bool applyTheme(const char* theme) { return false; }
+  virtual int getThemeCount() { return 0; }
 };
