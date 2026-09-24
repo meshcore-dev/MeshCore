@@ -28,11 +28,8 @@ KissModem::KissModem(Stream& serial, mesh::LocalIdentity& identity, mesh::RNG& r
   _signal_report_enabled = true;
   _agc_reset_interval_sec = KISS_AGC_RESET_DEFAULT_SEC;
   _next_agc_reset_ms = 0;
-  _fem_deferred = false;
-  _fem_deferred_apply = 0;
-  _fem_deferred_value = 0;
-  _fem_reply_pending = false;
-  _fem_deferred_gets = 0;
+  _fem_op_head = 0;
+  _fem_op_count = 0;
   resetOutputQueue();
 }
 
@@ -42,9 +39,8 @@ void KissModem::begin() {
   _rx_active = false;
   _has_pending_tx = false;
   _tx_state = TX_IDLE;
-  _fem_deferred = false;
-  _fem_reply_pending = false;
-  _fem_deferred_gets = 0;
+  _fem_op_head = 0;
+  _fem_op_count = 0;
   _next_agc_reset_ms = millis() + (uint32_t)_agc_reset_interval_sec * 1000;
   resetOutputQueue();
 }
@@ -255,7 +251,7 @@ void KissModem::loop() {
   }
 
   processTx();
-  processDeferredFem();
+  processFemOps();
   maybeResetAgc();
   tryFlushFrames();
   queuePendingBusyError();
@@ -858,10 +854,10 @@ void KissModem::readFemState(uint8_t* caps, uint8_t* values) {
   }
 }
 
-bool KissModem::queueFemReply(bool mark_busy_error) {
+bool KissModem::queueFemReply() {
   uint8_t buf[2];
   readFemState(&buf[0], &buf[1]);
-  return queueHardwareFrame(HW_RESP(HW_CMD_GET_FEM_STATE), buf, 2, mark_busy_error);
+  return queueHardwareFrame(HW_RESP(HW_CMD_GET_FEM_STATE), buf, 2, false);
 }
 
 // The reply always carries the read-back state, so a bit that failed to apply shows its real value.
@@ -874,65 +870,58 @@ void KissModem::applyFemState(uint8_t apply_mask, uint8_t value_mask) {
   }
 }
 
-void KissModem::processDeferredFem() {
-  // wait for TxDone to be queued so the host sees the TX result before the FEM change
-  if (_fem_deferred && _tx_state != TX_SENDING && _tx_state != TX_DONE_PENDING) {
-    applyFemState(_fem_deferred_apply, _fem_deferred_value);
-    _fem_deferred = false;
-    _fem_reply_pending = true;
+void KissModem::enqueueFemOp(FemOpKind kind, uint8_t apply_mask, uint8_t value_mask) {
+  if (_fem_op_count >= KISS_FEM_OP_QUEUE_DEPTH) {
+    writeHardwareError(HW_ERR_TX_BUSY);  // too many FEM requests waiting
+    return;
   }
-  if (_fem_deferred) return;
-  // replies are retained until queued, and GetFemState replies stay behind the Set reply
-  if (_fem_reply_pending) {
-    if (!queueFemReply(false)) return;
-    _fem_reply_pending = false;
-  }
-  while (_fem_deferred_gets > 0) {
-    if (!queueFemReply(false)) return;
-    _fem_deferred_gets--;
+  FemOp& op = _fem_ops[(_fem_op_head + _fem_op_count) % KISS_FEM_OP_QUEUE_DEPTH];
+  op.kind = kind;
+  op.apply_mask = apply_mask;
+  op.value_mask = value_mask;
+  op.applied = false;
+  _fem_op_count++;
+  processFemOps();
+}
+
+// Every FEM reply goes out in request order. A Set waits until TxDone is queued, since board
+// setters drive FEM pins directly; each reply is retained until there is room to queue it.
+void KissModem::processFemOps() {
+  while (_fem_op_count > 0) {
+    FemOp& op = _fem_ops[_fem_op_head];
+    if (op.kind == FEM_OP_ERROR) {
+      if (!queueHardwareFrame(HW_RESP_ERROR, &op.value_mask, 1, false)) return;
+    } else {
+      if (op.kind == FEM_OP_SET && !op.applied) {
+        if (_tx_state == TX_SENDING || _tx_state == TX_DONE_PENDING) return;
+        uint8_t caps, values;
+        readFemState(&caps, &values);
+        if (op.apply_mask & ~caps) {
+          // all-or-nothing: any bit the board cannot control rejects the whole request
+          op.kind = FEM_OP_ERROR;
+          op.value_mask = HW_ERR_UNSUPPORTED;
+          continue;
+        }
+        applyFemState(op.apply_mask, op.value_mask);
+        op.applied = true;
+      }
+      if (!queueFemReply()) return;
+    }
+    _fem_op_head = (uint8_t)((_fem_op_head + 1) % KISS_FEM_OP_QUEUE_DEPTH);
+    _fem_op_count--;
   }
 }
 
 void KissModem::handleSetFemState(const uint8_t* data, uint16_t len) {
   if (len < 2) {
-    writeHardwareError(HW_ERR_INVALID_LENGTH);
+    enqueueFemOp(FEM_OP_ERROR, 0, HW_ERR_INVALID_LENGTH);
     return;
   }
-  uint8_t apply_mask = data[0];
-  uint8_t value_mask = data[1];
-  // validate every requested bit before touching hardware so a request is all-or-nothing
-  uint8_t fem_caps, fem_values;
-  readFemState(&fem_caps, &fem_values);
-  if (apply_mask & ~fem_caps) {
-    writeHardwareError(HW_ERR_UNSUPPORTED);
-    return;
-  }
-  if (isFemReplyQueued()) {
-    writeHardwareError(HW_ERR_TX_BUSY);
-    return;
-  }
-  if (_tx_state == TX_SENDING || _tx_state == TX_DONE_PENDING) {
-    // board setters drive FEM pins directly; changing them mid-packet would corrupt the TX
-    _fem_deferred = true;
-    _fem_deferred_apply = apply_mask;
-    _fem_deferred_value = value_mask;
-    return;
-  }
-  applyFemState(apply_mask, value_mask);
-  _fem_reply_pending = true;
-  processDeferredFem();
+  enqueueFemOp(FEM_OP_SET, data[0], data[1]);
 }
 
 void KissModem::handleGetFemState() {
-  if (isFemReplyQueued()) {
-    if (_fem_deferred_gets == UINT8_MAX) {
-      writeHardwareError(HW_ERR_TX_BUSY);
-      return;
-    }
-    _fem_deferred_gets++;
-    return;
-  }
-  queueFemReply(true);
+  enqueueFemOp(FEM_OP_GET, 0, 0);
 }
 
 void KissModem::handleSetRxBoostedGain(const uint8_t* data, uint16_t len) {

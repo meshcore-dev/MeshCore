@@ -330,18 +330,60 @@ TEST_F(KissHwControlTest, FemSetDuringTxIsDeferredUntilAfterTxDone) {
   serial.takeHardwareFrames();
 
   EXPECT_TRUE(hw({HW_CMD_SET_FEM_STATE, HW_FEM_RX_GAIN, HW_FEM_RX_GAIN}).empty());
+  EXPECT_TRUE(hw({HW_CMD_SET_FEM_STATE, HW_FEM_RX_GAIN, 0}).empty());  // queued behind the first
   EXPECT_EQ(board.lna_sets, 0);
-  EXPECT_EQ(hw1({HW_CMD_SET_FEM_STATE, HW_FEM_RX_GAIN, 0}), (std::vector<uint8_t>{HW_RESP_ERROR, HW_ERR_TX_BUSY}));
 
   radio.send_complete = true;
   modem.loop();  // TX done -> TX_DONE_PENDING; FEM still held
-  modem.loop();  // TxDone queued -> idle; FEM applied
+  modem.loop();  // TxDone queued -> idle; FEM applied in order
+  for (int i = 0; i < 3; i++) modem.loop();
   auto frames = serial.takeHardwareFrames();
-  ASSERT_EQ(frames.size(), 2U);
+  ASSERT_EQ(frames.size(), 3U);
   EXPECT_EQ(frames[0], (std::vector<uint8_t>{HW_RESP_TX_DONE, 0x01}));
   EXPECT_EQ(frames[1], (std::vector<uint8_t>{0x9F, 0x01, 0x01}));
-  EXPECT_TRUE(board.lna);
+  EXPECT_EQ(frames[2], (std::vector<uint8_t>{0x9F, 0x01, 0x00}));
+  EXPECT_FALSE(board.lna);
+  EXPECT_EQ(board.lna_sets, 2);
+}
+
+TEST_F(KissHwControlTest, PipelinedFemRequestsAreAnsweredInArrivalOrder) {
+  board.has_lna = true;
+  startTxAndHold();
+  serial.takeHardwareFrames();
+
+  EXPECT_TRUE(hw({HW_CMD_SET_FEM_STATE, HW_FEM_RX_GAIN, HW_FEM_RX_GAIN}).empty());
+  EXPECT_TRUE(hw({HW_CMD_GET_FEM_STATE}).empty());
+  EXPECT_TRUE(hw({HW_CMD_SET_FEM_STATE, HW_FEM_TX_GAIN, HW_FEM_TX_GAIN}).empty());  // unsupported bit
+  EXPECT_TRUE(hw({HW_CMD_SET_FEM_STATE, HW_FEM_RX_GAIN}).empty());                  // short payload
+
+  radio.send_complete = true;
+  for (int i = 0; i < 6; i++) modem.loop();
+  auto frames = serial.takeHardwareFrames();
+  ASSERT_EQ(frames.size(), 5U);
+  EXPECT_EQ(frames[0], (std::vector<uint8_t>{HW_RESP_TX_DONE, 0x01}));
+  EXPECT_EQ(frames[1], (std::vector<uint8_t>{0x9F, 0x01, 0x01}));
+  EXPECT_EQ(frames[2], (std::vector<uint8_t>{0x9F, 0x01, 0x01}));
+  EXPECT_EQ(frames[3], ERR_UNSUPPORTED);
+  EXPECT_EQ(frames[4], (std::vector<uint8_t>{HW_RESP_ERROR, HW_ERR_INVALID_LENGTH}));
   EXPECT_EQ(board.lna_sets, 1);
+}
+
+TEST_F(KissHwControlTest, FemQueueOverflowRepliesTxBusyImmediately) {
+  board.has_lna = true;
+  startTxAndHold();
+  serial.takeHardwareFrames();
+  for (int i = 0; i < KISS_FEM_OP_QUEUE_DEPTH; i++) {
+    EXPECT_TRUE(hw({HW_CMD_SET_FEM_STATE, HW_FEM_RX_GAIN, HW_FEM_RX_GAIN}).empty());
+  }
+  EXPECT_EQ(hw1({HW_CMD_GET_FEM_STATE}), (std::vector<uint8_t>{HW_RESP_ERROR, HW_ERR_TX_BUSY}));
+  EXPECT_EQ(board.lna_sets, 0);
+}
+
+TEST_F(KissHwControlTest, FemGetWithNothingQueuedIsAnsweredDuringTx) {
+  board.has_lna = true;
+  startTxAndHold();
+  serial.takeHardwareFrames();
+  EXPECT_EQ(hw1({HW_CMD_GET_FEM_STATE}), (std::vector<uint8_t>{0x9F, 0x01, 0x00}));
 }
 
 TEST_F(KissHwControlTest, FemGetDuringDeferredSetIsAnsweredAfterSet) {

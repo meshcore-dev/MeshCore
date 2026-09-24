@@ -103,6 +103,9 @@
 /* Matches the CLI reply buffer boards write into from handleCommand() */
 #define KISS_BOARD_REPLY_SIZE    160
 
+/* FEM requests are answered strictly in arrival order; this many may wait (e.g. during a TX) */
+#define KISS_FEM_OP_QUEUE_DEPTH  4
+
 #define KISS_AGC_RESET_DEFAULT_SEC 30
 #define KISS_AGC_RESET_MAX_SEC     1020
 #define KISS_AGC_RESET_STEP_SEC    4
@@ -123,6 +126,19 @@ struct RadioConfig {
   uint8_t sf;
   uint8_t cr;
   uint8_t tx_power;
+};
+
+enum FemOpKind : uint8_t {
+  FEM_OP_SET,
+  FEM_OP_GET,
+  FEM_OP_ERROR
+};
+
+struct FemOp {
+  FemOpKind kind;
+  uint8_t apply_mask;  // FEM_OP_SET
+  uint8_t value_mask;  // FEM_OP_SET; error code for FEM_OP_ERROR
+  bool applied;        // FEM_OP_SET: hardware changed, reply still to be queued
 };
 
 enum TxState {
@@ -172,11 +188,9 @@ class KissModem {
   bool _signal_report_enabled;
   uint16_t _agc_reset_interval_sec;
   uint32_t _next_agc_reset_ms;
-  bool _fem_deferred;
-  uint8_t _fem_deferred_apply;
-  uint8_t _fem_deferred_value;
-  bool _fem_reply_pending;
-  uint8_t _fem_deferred_gets;
+  FemOp _fem_ops[KISS_FEM_OP_QUEUE_DEPTH];
+  uint8_t _fem_op_head;
+  uint8_t _fem_op_count;
   uint8_t _tx_frame_buf[KISS_TX_FRAME_QUEUE_DEPTH][KISS_MAX_ENCODED_FRAME_SIZE];
   uint16_t _tx_frame_len[KISS_TX_FRAME_QUEUE_DEPTH];
   uint16_t _tx_frame_written[KISS_TX_FRAME_QUEUE_DEPTH];
@@ -207,10 +221,10 @@ class KissModem {
   bool queryFemGain(uint8_t bit, bool* enabled);
   bool setFemGain(uint8_t bit, bool enable);
   void readFemState(uint8_t* caps, uint8_t* values);
-  bool queueFemReply(bool mark_busy_error);
+  bool queueFemReply();
   void applyFemState(uint8_t apply_mask, uint8_t value_mask);
-  bool isFemReplyQueued() const { return _fem_deferred || _fem_reply_pending || _fem_deferred_gets > 0; }
-  void processDeferredFem();
+  void enqueueFemOp(FemOpKind kind, uint8_t apply_mask, uint8_t value_mask);
+  void processFemOps();
 
   void handleGetIdentity();
   void handleGetRandom(const uint8_t* data, uint16_t len);
