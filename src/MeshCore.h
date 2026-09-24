@@ -64,21 +64,22 @@ public:
   virtual uint8_t getStartupReason() const = 0;
   virtual bool getBootloaderVersion(char* version, size_t max_len) { return false; }
   virtual bool startOTAUpdate(const char* id, char reply[]) { return false; }   // not supported
-  virtual bool setLoRaFemLnaEnabled(bool enable) { return false; }
-  virtual bool canControlLoRaFemLna() const { return false; }
-  virtual bool isLoRaFemLnaEnabled() const { return false; }
-  // Software-selectable external FEM transmit gain. This is not a PA power switch.
-  virtual bool setLoRaFemPaGainEnabled(bool enable) { return false; }
-  virtual bool canControlLoRaFemPaGain() const { return false; }
-  virtual bool isLoRaFemPaGainEnabled() const { return false; }
 
   // Power management interface (boards with power management override these)
+  virtual bool isPwrMgtInitialised() const { return false; }
   virtual bool isExternalPowered() { return false; }
   virtual uint16_t getBootVoltage() { return 0; }
+  virtual bool getWakeLpcompSupported() const { return false; }
   virtual uint32_t getResetReason() const { return 0; }
   virtual const char* getResetReasonString(uint32_t reason) { return "Not available"; }
   virtual uint8_t getShutdownReason() const { return 0; }
   virtual const char* getShutdownReasonString(uint8_t reason) { return "Not available"; }
+
+  virtual bool handleCommand(const char* command, uint32_t sender_timestamp, char* reply) { return false; }
+
+  // Called from the example main loops. Lets a board feed its watchdog and
+  // run periodic housekeeping. Default no-op.
+  virtual void loop() { /* no op */ }
 };
 
 /**

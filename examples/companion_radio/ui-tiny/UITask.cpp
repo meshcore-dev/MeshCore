@@ -4,7 +4,7 @@
 #include "target.h"
 #include "u8g2_icons.h"
 
-#ifdef WIFI_SSID
+#ifdef ENABLE_WIFI_INTERFACE
   #include <WiFi.h>
 #endif
 
@@ -173,7 +173,7 @@ public:
       display.setCursor(0, 19);
       display.print(tmp);
 
-      #ifdef WIFI_SSID
+      #ifdef ENABLE_WIFI_INTERFACE
         IPAddress ip = WiFi.localIP();
         snprintf(tmp, sizeof(tmp), "IP: %d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
         display.setTextSize(1);
@@ -512,15 +512,16 @@ void UITask::notifyToggle(int count, bool enabled) {
 }
 
 
-void UITask::msgRead(int msgcount) {
+void UITask::onQueueSizeChanged(int msgcount) {
   _msgcount = msgcount;
   if (msgcount == 0) {
     gotoHomeScreen();
   }
 }
 
-void UITask::newMsg(uint8_t path_len, const char* from_name, const char* text, int msgcount) {
-  _msgcount = msgcount;
+void UITask::onMessageRecv(mesh::Packet *pkt, const ContactInfo &from, uint8_t txt_type, uint32_t sender_timestamp, const char* text) {
+  // we only want to show text messages on display, not cli data
+  if (!(txt_type == TXT_TYPE_PLAIN || txt_type == TXT_TYPE_SIGNED_PLAIN)) return;
 
   if (_display != NULL) {
     if (!_display->isOn() && !hasConnection()) {
@@ -530,6 +531,30 @@ void UITask::newMsg(uint8_t path_len, const char* from_name, const char* text, i
     _auto_off = millis() + AUTO_OFF_MILLIS;  // extend the auto-off timer
     _next_refresh = 100;  // trigger refresh
     }
+  }
+  if (!hasConnection()) {
+    notify(UIEventType::contactMessage);
+  }
+}
+
+void UITask::onChannelMessageRecv(mesh::Packet *pkt, ChannelDetails& channel_details, const char* text) {
+  if (_display != NULL) {
+    if (!_display->isOn() && !hasConnection()) {
+      _display->turnOn();
+    }
+    if (_display->isOn()) {
+    _auto_off = millis() + AUTO_OFF_MILLIS;  // extend the auto-off timer
+    _next_refresh = 100;  // trigger refresh
+    }
+  }
+  if (!hasConnection()) {
+    notify(UIEventType::channelMessage);
+  }
+}
+
+void UITask::onDiscoveredContact(ContactInfo &contact, bool is_new, uint8_t path_len, const uint8_t* path) {
+  if (!hasConnection()) {
+    notify(UIEventType::newContactMessage);
   }
 }
 

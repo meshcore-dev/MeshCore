@@ -51,7 +51,7 @@ public:
   SensorMesh(mesh::MainBoard& board, mesh::Radio& radio, mesh::MillisecondClock& ms, mesh::RNG& rng, mesh::RTCClock& rtc, mesh::MeshTables& tables);
   void begin(FILESYSTEM* fs);
   void loop();
-  void handleCommand(uint32_t sender_timestamp, char* command, char* reply);
+  void handleCommand(ClientInfo* from, uint32_t sender_timestamp, char* command, char* reply);
 
   // CommonCLI callbacks
   const char* getFirmwareVer() override { return FIRMWARE_VERSION; }
@@ -78,8 +78,14 @@ public:
   void saveIdentity(const mesh::LocalIdentity& new_id) override;
   void clearStats() override { }
   void applyTempRadioParams(float freq, float bw, uint8_t sf, uint8_t cr, int timeout_mins) override;
+  void startRegionsLoad() override;
+  bool saveRegions() override;
+  void onDefaultRegionChanged(const RegionEntry* r) override;
 
   float getTelemValue(uint8_t channel, uint8_t type);
+
+  void sendFloodScoped(const TransportKey& scope, mesh::Packet* pkt, uint32_t delay_millis, uint8_t path_hash_size);
+  void sendFloodReply(mesh::Packet* packet, unsigned long delay_millis, uint8_t path_hash_size);
 
 protected:
   // current telemetry data queries
@@ -93,12 +99,12 @@ protected:
   bool  getGPS(uint8_t channel, float& lat, float& lon, float& alt);
 
   // alerts
-  enum AlertPriority { LOW_PRI_ALERT, HIGH_PRI_ALERT };
+  enum AlertPriority : uint8_t { LOW_PRI_ALERT, HIGH_PRI_ALERT };
 
   struct Trigger {
     uint32_t timestamp;
-    AlertPriority pri;
     uint32_t expected_acks[4];
+    AlertPriority pri;
     int8_t   curr_contact_idx;
     uint8_t  attempt;
     unsigned long send_expiry;
@@ -122,6 +128,7 @@ protected:
   int getInterferenceThreshold() const override;
   bool getCADEnabled() const override;
   int getAGCResetInterval() const override;
+  mesh::DispatcherAction onRecvPacket(mesh::Packet* pkt) override;
   void onAnonDataRecv(mesh::Packet* packet, const uint8_t* secret, const mesh::Identity& sender, uint8_t* data, size_t len) override;
   int searchPeersByHash(const uint8_t* hash) override;
   void getPeerSharedSecret(uint8_t* dest_secret, int peer_idx) override;
@@ -129,6 +136,7 @@ protected:
   bool onPeerPathRecv(mesh::Packet* packet, int sender_idx, const uint8_t* secret, uint8_t* path, uint8_t path_len, uint8_t extra_type, uint8_t* extra, uint8_t extra_len) override;
   void onControlDataRecv(mesh::Packet* packet) override;
   void onAckRecv(mesh::Packet* packet, uint32_t ack_crc) override;
+
   virtual bool handleIncomingMsg(ClientInfo& from, uint32_t timestamp, uint8_t* data, uint8_t flags, size_t len);
   void sendAckTo(const ClientInfo& dest, uint32_t ack_hash, uint8_t path_hash_size=1);
 private:
@@ -141,7 +149,9 @@ private:
   unsigned long dirty_contacts_expiry;
   CayenneLPP telemetry;
   TransportKeyStore key_store;
-  RegionMap region_map;
+  RegionMap region_map, temp_map;
+  RegionEntry* recv_pkt_region;
+  RegionEntry* load_stack[8];
   TransportKey default_scope;
   uint32_t last_read_time;
   int matching_peer_indexes[MAX_SEARCH_RESULTS];
@@ -152,9 +162,11 @@ private:
   float pending_bw;
   uint8_t pending_sf;
   uint8_t pending_cr;
+  bool region_load_active;
 
+  bool telemHasChanged(ClientInfo* c);
   uint8_t handleLoginReq(const mesh::Identity& sender, const uint8_t* secret, uint32_t sender_timestamp, const uint8_t* data, bool is_flood);
-  uint8_t handleRequest(uint8_t perms, uint32_t sender_timestamp, uint8_t req_type, uint8_t* payload, size_t payload_len);
+  uint8_t handleRequest(ClientInfo* from, uint32_t sender_timestamp, uint8_t req_type, uint8_t* payload, size_t payload_len);
   mesh::Packet* createSelfAdvert();
 
   void sendAlert(const ClientInfo* c, Trigger* t);
