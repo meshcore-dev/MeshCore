@@ -662,15 +662,12 @@ Both the Windows and Mac versions of the client app are fully unlocked and are f
 ### 5.16. Q: Are there any resources that compare MeshCore to other LoRa systems?
 **A:** Here is a list of MeshCore comparison resources:
 
-- MeshCore vs Meshtastic by austinmesh.org: <https://www.austinmesh.org/learn/meshcore-vs-meshtastic>
-
 - The Comms Channel on YouTube: <https://www.youtube.com/watch?v=guDoKGs02Us>
 - MeshCore Advantages by MCarper: <https://github.com/mikecarper/meshfirmware/blob/main/MeshCoreAdvantages.md>
 - MeshCore vs Meshtastic by austinmesh.org: <https://www.austinmesh.org/learn/meshcore-vs-meshtastic>
 
 ### 5.17. Q: What do the buzzer tones on my companion radio mean?
 
-Other events (incoming direct message, channel message, ack, advert sent) keep their own short fixed signatures.
 **A:** On companion-radio devices the buzzer plays distinct tones so you can tell actions apart by ear, which is especially useful on button-only devices like the T1000-E.
 
 Toggle confirmations follow a simple convention: **ascending pitch = enabled**, **descending pitch = disabled**, and the **number of notes matches the number of button presses** that triggered the action. So a triple-press to toggle the buzzer plays 3 notes (ascending on, descending off), a quadruple-press to toggle GPS plays 4 notes, and so on.
