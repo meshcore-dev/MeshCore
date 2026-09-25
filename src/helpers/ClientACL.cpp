@@ -1,14 +1,30 @@
 #include "ClientACL.h"
+#include "ConfigSerializer.h"
 
-static File openWrite(FILESYSTEM* _fs, const char* filename) {
-  #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
-    _fs->remove(filename);
-    return _fs->open(filename, FILE_O_WRITE);
-  #elif defined(RP2040_PLATFORM)
-    return _fs->open(filename, "w");
-  #else
-    return _fs->open(filename, "w", true);
-  #endif
+struct SaveAclCtx {
+  ClientACL* acl;
+  bool (*filter)(ClientInfo*);
+};
+
+static bool writeAclBody(File& file, void* ctx) {
+  SaveAclCtx* c = (SaveAclCtx*) ctx;
+  uint8_t unused[2];
+  memset(unused, 0, sizeof(unused));
+
+  for (int i = 0; i < c->acl->getNumClients(); i++) {
+    auto client = c->acl->getClientByIdx(i);
+    if (client->permissions == 0 || (c->filter && !c->filter(client))) continue;
+
+    bool success = (file.write(client->id.pub_key, 32) == 32);
+    success = success && (file.write((uint8_t*) &client->permissions, 1) == 1);
+    success = success && (file.write((uint8_t*) &client->extra.room.sync_since, 4) == 4);
+    success = success && (file.write(unused, 2) == 2);
+    success = success && (file.write((uint8_t*) &client->out_path_len, 1) == 1);
+    success = success && (file.write(client->out_path, 64) == 64);
+    success = success && (file.write(client->shared_secret, PUB_KEY_SIZE) == PUB_KEY_SIZE);
+    if (!success) return false;
+  }
+  return true;
 }
 
 void ClientACL::load(FILESYSTEM* fs, const mesh::LocalIdentity& self_id) {
@@ -54,27 +70,8 @@ void ClientACL::load(FILESYSTEM* fs, const mesh::LocalIdentity& self_id) {
 
 void ClientACL::save(FILESYSTEM* fs, bool (*filter)(ClientInfo*)) {
   _fs = fs;
-  File file = openWrite(_fs, "/s_contacts");
-  if (file) {
-    uint8_t unused[2];
-    memset(unused, 0, sizeof(unused));
-
-    for (int i = 0; i < num_clients; i++) {
-      auto c = &clients[i];
-      if (c->permissions == 0 || (filter && !filter(c))) continue;    // skip deleted entries, or by filter function
-
-      bool success = (file.write(c->id.pub_key, 32) == 32);
-      success = success && (file.write((uint8_t *) &c->permissions, 1) == 1);
-      success = success && (file.write((uint8_t *) &c->extra.room.sync_since, 4) == 4);
-      success = success && (file.write(unused, 2) == 2);
-      success = success && (file.write((uint8_t *)&c->out_path_len, 1) == 1);
-      success = success && (file.write(c->out_path, 64) == 64);
-      success = success && (file.write(c->shared_secret, PUB_KEY_SIZE) == PUB_KEY_SIZE);
-
-      if (!success) break; // write failed
-    }
-    file.close();
-  }
+  SaveAclCtx ctx = {this, filter};
+  writeFileAtomic(_fs, "/s_contacts", "/.s_contacts.new", writeAclBody, &ctx);
 }
 
 bool ClientACL::clear() {
