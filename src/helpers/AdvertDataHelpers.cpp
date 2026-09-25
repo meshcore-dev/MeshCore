@@ -1,5 +1,7 @@
 #include <helpers/AdvertDataHelpers.h>
 #include <helpers/UTF8Helpers.h>
+#include <stdio.h>
+#include <string.h>
 
   uint8_t AdvertDataBuilder::encodeTo(uint8_t app_data[]) {
     app_data[0] = _type;
@@ -39,33 +41,37 @@ bool AdvertDataParser::isValidName(const char *n) {
   AdvertDataParser::AdvertDataParser(const uint8_t app_data[], uint8_t app_data_len) {
     _name[0] = 0;
     _lat = _lon = 0;
-    _flags = app_data[0];
+    _flags = 0;
     _valid = false;
     _extra1 = _extra2 = 0;
-  
-    int i = 1;
+
+    if (app_data == nullptr || app_data_len == 0 || app_data_len > MAX_ADVERT_DATA_SIZE) return;
+
+    _flags = app_data[0];
+    size_t i = 1;
     if (_flags & ADV_LATLON_MASK) {
+      if (i + sizeof(_lat) + sizeof(_lon) > app_data_len) return;
       memcpy(&_lat, &app_data[i], 4); i += 4;
       memcpy(&_lon, &app_data[i], 4); i += 4;
     }
     if (_flags & ADV_FEAT1_MASK) {
+      if (i + sizeof(_extra1) > app_data_len) return;
       memcpy(&_extra1, &app_data[i], 2); i += 2;
     }
     if (_flags & ADV_FEAT2_MASK) {
+      if (i + sizeof(_extra2) > app_data_len) return;
       memcpy(&_extra2, &app_data[i], 2); i += 2;
     }
 
-    if (app_data_len >= i) {
-      int nlen = 0;
-      if (_flags & ADV_NAME_MASK) {
-        nlen = app_data_len - i;  // remainder of app_data
-      }
-      if (nlen > 0) {
-        memcpy(_name, &app_data[i], nlen);
-        _name[nlen] = 0;  // set null terminator
-      }
-      _valid = true;
+    size_t nlen = 0;
+    if (_flags & ADV_NAME_MASK) {
+      nlen = app_data_len - i;  // remainder of app_data
     }
+    if (nlen > 0) {
+      memcpy(_name, &app_data[i], nlen);
+      _name[nlen] = 0;  // set null terminator
+    }
+    _valid = true;
   }
 
 #include <Arduino.h>
