@@ -10,6 +10,10 @@
 #define SEED_SIZE           32
 #define SIGNATURE_SIZE      64
 #define MAX_ADVERT_DATA_SIZE  32
+
+#define MIN_ACK_PAYLOAD_SIZE  4
+#define MAX_ACK_PAYLOAD_SIZE  6
+
 #define CIPHER_KEY_SIZE     16
 #define CIPHER_BLOCK_SIZE   16
 
