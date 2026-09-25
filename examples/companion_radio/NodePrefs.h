@@ -46,7 +46,7 @@ public:
   uint8_t rssi_lbt_enabled = 0;    // RSSI listen-before-talk (boolean)
   int8_t rssi_lbt_thr_dbm = -80;   // absolute RSSI threshold, above which the channel counts as busy
   uint16_t rssi_lbt_sense_ms = 5;  // how long to sample RSSI for
-  uint16_t rssi_lbt_maxwait_ms = 0;   // max time to wait out a busy channel before forcing TX (0 = unlimited)
+  uint16_t rssi_lbt_maxwait_ms = 4000;   // max time to wait out a busy channel before dropping the packet (0 = unlimited)
   uint16_t rssi_lbt_txmax_ms = 4000;  // max airtime of a single TX (0 = unlimited)
   uint16_t rssi_lbt_pause_ms = 50;    // quiet period after each TX
   uint8_t interference_threshold = 0;

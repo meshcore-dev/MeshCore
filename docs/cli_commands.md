@@ -654,7 +654,7 @@ While this is `off`, every value in `rssi.lbt.params` is ignored and the node tr
 - `txmax_ms`: Maximum airtime of a single transmit, `0`-`65535`. A packet whose estimated airtime exceeds this is dropped rather than sent. `0` means unlimited.
 - `pause_ms`: Quiet period enforced after each transmit, `0`-`65535`.
 
-**Default:** `-80,5,0,4000,50`
+**Default:** `-80,5,4000,4000,50`
 
 ---
 
