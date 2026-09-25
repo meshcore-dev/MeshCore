@@ -1,0 +1,6 @@
+build/
+*.o
+*.a
+*.d
+*.csv
+routing_comparison.csv
