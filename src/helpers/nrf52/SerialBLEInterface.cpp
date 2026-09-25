@@ -18,6 +18,9 @@
 #define BLE_ADV_INTERVAL_MIN       32     // 20ms (units: 0.625ms)
 #define BLE_ADV_INTERVAL_MAX       244    // 152.5ms (units: 0.625ms)
 #define BLE_ADV_FAST_TIMEOUT       30     // seconds
+#ifndef DISABLE_BTHOME_BEACON
+#define BLE_ADV_INTERVAL_BEACON    8000   // 5000ms (units: 0.625ms)
+#endif
 
 // RX drain buffer size for overflow protection
 #define BLE_RX_DRAIN_BUF_SIZE      32
@@ -30,6 +33,15 @@ void SerialBLEInterface::onConnect(uint16_t connection_handle) {
     instance->_conn_handle = connection_handle;
     instance->_isDeviceConnected = false;
     instance->clearBuffers();
+
+#ifndef DISABLE_BTHOME_BEACON
+    // Keep broadcasting beacon data while connected
+    Bluefruit.Advertising.stop();
+    Bluefruit.Advertising.setType(BLE_GAP_ADV_TYPE_NONCONNECTABLE_SCANNABLE_UNDIRECTED);
+    Bluefruit.Advertising.setInterval(BLE_ADV_INTERVAL_BEACON, BLE_ADV_INTERVAL_BEACON);
+    Bluefruit.Advertising.start(0);
+    Bluefruit._stopConnLed();
+#endif
   }
 }
 
@@ -40,6 +52,14 @@ void SerialBLEInterface::onDisconnect(uint16_t connection_handle, uint8_t reason
       instance->_conn_handle = BLE_CONN_HANDLE_INVALID;
       instance->_isDeviceConnected = false;
       instance->clearBuffers();
+
+#ifndef DISABLE_BTHOME_BEACON
+      // Switch back to connectable advertising
+      Bluefruit.Advertising.stop();
+      Bluefruit.Advertising.setType(BLE_GAP_ADV_TYPE_CONNECTABLE_SCANNABLE_UNDIRECTED);
+      Bluefruit.Advertising.setInterval(BLE_ADV_INTERVAL_MIN, BLE_ADV_INTERVAL_MAX);
+      Bluefruit.Advertising.start(0);
+#endif
     }
   }
 }
@@ -181,24 +201,40 @@ void SerialBLEInterface::begin(const char* prefix, char* name, uint32_t pin_code
   bleuart.begin();
   bleuart.setRxCallback(onBleUartRX);
 
-
-
   // Register DFU on the main BLE stack so paired clients can discover it
   // without switching the device into a separate OTA-only BLE mode first.
   bledfu.setPermission(SECMODE_ENC_WITH_MITM, SECMODE_ENC_WITH_MITM);
   bledfu.begin();
 
   Bluefruit.Advertising.addFlags(BLE_GAP_ADV_FLAGS_LE_ONLY_GENERAL_DISC_MODE);
-  Bluefruit.Advertising.addTxPower();
   Bluefruit.Advertising.addService(bleuart);
 
+#ifndef DISABLE_BTHOME_BEACON
+  // BTHome v2 (UUID 0xFCD2, unencrypted, battery + voltage)
+  uint8_t bthome_init[8] = {
+    0xD2, 0xFC,        // UUID 0xFCD2
+    0x40,              // BTHome v2, unencrypted
+    0x01, 100,         // battery 100%
+    0x0C, 0x00, 0x00   // voltage 0 mV
+  };
+  Bluefruit.Advertising.addData(BLE_GAP_AD_TYPE_SERVICE_DATA, bthome_init, sizeof(bthome_init));
+
+  Bluefruit.ScanResponse.addName();
+  Bluefruit.ScanResponse.addTxPower();
+
+  Bluefruit.Advertising.setInterval(BLE_ADV_INTERVAL_MIN, BLE_ADV_INTERVAL_MAX);
+  Bluefruit.Advertising.setFastTimeout(BLE_ADV_FAST_TIMEOUT);
+
+  Bluefruit.Advertising.restartOnDisconnect(false);
+#else
+  Bluefruit.Advertising.addTxPower();
   Bluefruit.ScanResponse.addName();
 
   Bluefruit.Advertising.setInterval(BLE_ADV_INTERVAL_MIN, BLE_ADV_INTERVAL_MAX);
   Bluefruit.Advertising.setFastTimeout(BLE_ADV_FAST_TIMEOUT);
 
   Bluefruit.Advertising.restartOnDisconnect(true);
-
+#endif
 }
 
 void SerialBLEInterface::clearBuffers() {
@@ -253,7 +289,11 @@ void SerialBLEInterface::enable() {
   clearBuffers();
   _last_health_check = millis();
 
+#ifndef DISABLE_BTHOME_BEACON
+  Bluefruit.Advertising.restartOnDisconnect(false);
+#else
   Bluefruit.Advertising.restartOnDisconnect(true);
+#endif
   Bluefruit.Advertising.start(0);
 }
 
@@ -403,4 +443,46 @@ bool SerialBLEInterface::isConnected() const {
 
 bool SerialBLEInterface::isWriteBusy() const {
   return send_queue_len >= (FRAME_QUEUE_SIZE * 2 / 3);
+}
+
+void SerialBLEInterface::updateBattery(uint16_t millivolts) {
+#ifndef DISABLE_BTHOME_BEACON
+  _last_battery_mv = millivolts;
+#ifndef BATT_MIN_MILLIVOLTS
+  #define BATT_MIN_MILLIVOLTS 3000
+#endif
+#ifndef BATT_MAX_MILLIVOLTS
+  #define BATT_MAX_MILLIVOLTS 4200
+#endif
+  int pct = ((millivolts - BATT_MIN_MILLIVOLTS) * 100) / (BATT_MAX_MILLIVOLTS - BATT_MIN_MILLIVOLTS);
+  if (pct < 0) pct = 0;
+  if (pct > 100) pct = 100;
+  _last_battery_pct = (uint8_t)pct;
+
+  uint8_t* adv_raw = Bluefruit.Advertising.getData();
+  uint8_t adv_len = Bluefruit.Advertising.count();
+  for (uint8_t i = 0; i + 9 < adv_len; i++) {
+    if (adv_raw[i+1] == BLE_GAP_AD_TYPE_SERVICE_DATA &&
+        adv_raw[i+2] == 0xD2 && adv_raw[i+3] == 0xFC &&
+        adv_raw[i+4] == 0x40) {
+      adv_raw[i+6] = _last_battery_pct;
+      adv_raw[i+8] = (uint8_t)(millivolts & 0xFF);
+      adv_raw[i+9] = (uint8_t)((millivolts >> 8) & 0xFF);
+      break;
+    }
+  }
+
+  if (Bluefruit.Advertising.isRunning()) {
+    ble_gap_adv_data_t gap_adv;
+    memset(&gap_adv, 0, sizeof(gap_adv));
+    gap_adv.adv_data.p_data = Bluefruit.Advertising.getData();
+    gap_adv.adv_data.len = Bluefruit.Advertising.count();
+    gap_adv.scan_rsp_data.p_data = Bluefruit.ScanResponse.getData();
+    gap_adv.scan_rsp_data.len = Bluefruit.ScanResponse.count();
+    uint8_t hdl = 0;
+    sd_ble_gap_adv_set_configure(&hdl, &gap_adv, NULL);
+  }
+#else
+  (void)millivolts;
+#endif
 }

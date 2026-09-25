@@ -26,6 +26,9 @@ MultiSerialInterface interface_manager;
     // include nrf52 bluetooth interface
     #include <helpers/nrf52/SerialBLEInterface.h>
     SerialBLEInterface bluetooth_interface;
+    #ifndef BLE_BATT_UPDATE_INTERVAL
+      #define BLE_BATT_UPDATE_INTERVAL 60000
+    #endif
   #elif defined(RP2040_PLATFORM)
     // include rp2040 (Pico W / CYW43) bluetooth interface
     #include <helpers/rp2040/SerialBLEInterface.h>
@@ -208,6 +211,9 @@ void setup() {
 #if defined(BLE_PIN_CODE)
   bluetooth_interface.begin(BLE_NAME_PREFIX, the_mesh.getNodePrefs()->node_name, the_mesh.getBLEPin());
   interface_manager.addInterface(InterfaceType::Bluetooth, &bluetooth_interface);
+#if defined(NRF52_PLATFORM) && !defined(DISABLE_BTHOME_BEACON)
+  bluetooth_interface.updateBattery(board.getBattMilliVolts());
+#endif
 #endif
 
 // add wifi interface
@@ -300,6 +306,14 @@ void loop() {
   board.loop();
 #ifdef HAS_EXTERNAL_WATCHDOG
   external_watchdog.loop();
+#endif
+
+#if defined(BLE_PIN_CODE) && defined(NRF52_PLATFORM) && !defined(DISABLE_BTHOME_BEACON)
+  static unsigned long last_battery_update = 0;
+  if (last_battery_update == 0 || (millis() - last_battery_update >= BLE_BATT_UPDATE_INTERVAL)) {
+    last_battery_update = millis();
+    bluetooth_interface.updateBattery(board.getBattMilliVolts());
+  }
 #endif
 
   if (!the_mesh.hasPendingWork()) {

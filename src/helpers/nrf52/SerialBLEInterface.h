@@ -10,6 +10,8 @@
 class SerialBLEInterface : public BaseSerialInterface {
   BLEDfu bledfu;
   BLEUart bleuart;
+  uint8_t _last_battery_pct;
+  uint16_t _last_battery_mv;
   bool _isEnabled;
   bool _isDeviceConnected;
   uint16_t _conn_handle;
@@ -49,9 +51,15 @@ public:
     _conn_handle = BLE_CONN_HANDLE_INVALID;
     _last_health_check = 0;
     _last_retry_attempt = 0;
+    _last_battery_pct = 0xFF;
+    _last_battery_mv = 0;
     send_queue_len = 0;
     recv_queue_len = 0;
   }
+
+  void updateBattery(uint16_t millivolts);
+  uint8_t getBattery() const { return _last_battery_pct; }
+  uint16_t getBatteryMilliVolts() const { return _last_battery_mv; }
 
   /**
    * init the BLE interface.
