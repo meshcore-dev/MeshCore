@@ -20,7 +20,8 @@ enum class UIEventType {
     channelMessage,
     roomMessage,
     newContactMessage,
-    ack
+    ack,
+    advertSent
 };
 
 class AbstractUITask : public MyMesh::Listener {
@@ -39,5 +40,6 @@ public:
   void disableBluetooth() { _interfaceManager->disableBluetooth(); }
 
   virtual void notify(UIEventType t = UIEventType::none) = 0;
+  virtual void notifyToggle(int count, bool enabled) {}
   virtual void loop() = 0;
 };
