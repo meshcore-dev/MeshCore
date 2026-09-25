@@ -629,7 +629,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 **Description:** When enabled, the radio samples RSSI continuously for a short window before transmitting and defers if any sample exceeds an absolute threshold. Unlike `cad`, which detects a LoRa preamble, this is energy detection and so is independent of whatever modulation is on air; unlike `int.thresh`, the threshold is absolute rather than relative to the tracked noise floor.
 
-Runs independently of `cad` and `int.thresh` — any combination may be active. When both `cad` and `rssi.lbt` are enabled, the stricter of CAD's fixed 4000ms wait and the `rssi.lbt` `maxwait_ms` applies.
+Runs independently of `cad` and `int.thresh` — any combination may be active. When both `cad` and `rssi.lbt` are enabled, the stricter of CAD's fixed 4000ms wait and the `rssi.lbt` `maxwait_ms` applies. Whichever wait is used, expiry with `rssi.lbt` enabled drops the packet rather than forcing it onto a channel still sensed busy; with `rssi.lbt` disabled the transmit is still forced, as before.
 
 While this is `off`, every value in `rssi.lbt.params` is ignored and the node transmits exactly as it would with this feature absent.
 
@@ -650,7 +650,7 @@ While this is `off`, every value in `rssi.lbt.params` is ignored and the node tr
 **Parameters:**
 - `thr_dBm`: Absolute RSSI threshold, `-128`-`0`. A sample above this marks the channel busy.
 - `sense_ms`: How long to sample RSSI for, `0`-`65535`. `0` takes a single instantaneous reading.
-- `maxwait_ms`: How long a busy channel may hold off a pending transmit before it is sent anyway, `0`-`65535`. `0` means unlimited — the transmit is never forced.
+- `maxwait_ms`: How long a busy channel may hold off a pending transmit before it is dropped, `0`-`65535`. `0` is normalised to the largest representable duration (4294967295ms, ≈49.7 days) — effectively unlimited.
 - `txmax_ms`: Maximum airtime of a single transmit, `0`-`65535`. A packet whose estimated airtime exceeds this is dropped rather than sent. `0` means unlimited.
 - `pause_ms`: Quiet period enforced after each transmit, `0`-`65535`.
 

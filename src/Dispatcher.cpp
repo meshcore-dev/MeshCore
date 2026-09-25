@@ -308,6 +308,22 @@ void Dispatcher::checkSend() {
     if (_ms->getMillis() - cad_busy_start > getCADFailMaxDuration()) {
       _err_flags |= ERR_EVENT_CAD_TIMEOUT;
 
+      if (getRssiLbtEnabled()) {
+        // forcing a transmit into a channel still sensed busy at threshold-sense is exactly what
+        // rssi.lbt's absolute-threshold check exists to prevent -- drop the packet instead.
+        cad_busy_start = 0;  // reset busy state, so the next packet gets a fresh max-wait
+
+        Packet* pkt = _mgr->getNextOutbound(_ms->getMillis());
+        if (pkt) {
+          MESH_DEBUG_PRINTLN("%s Dispatcher::checkSend(): rssi.lbt max-wait exceeded, dropping packet, len=%d", getLogDateTime(), pkt->getRawLength());
+
+          logTxFail(pkt, pkt->getRawLength());
+
+          releasePacket(pkt);  // return to pool
+        }
+        return;
+      }
+
       MESH_DEBUG_PRINTLN("%s Dispatcher::checkSend(): CAD busy max duration reached!", getLogDateTime());
       // channel activity has gone on too long... (Radio might be in a bad state)
       // force the pending transmit below...
