@@ -124,8 +124,27 @@ public :
     long satellitesCount() override { return nmea.getNumSatellites(); }
     bool isValid() override { return nmea.isValid(); }
 
-    long getTimestamp() override { 
-        DateTime dt(nmea.getYear(), nmea.getMonth(),nmea.getDay(),nmea.getHour(),nmea.getMinute(),nmea.getSecond());
+    // Until a sentence carrying a date has been parsed, MicroNMEA::clear()
+    // leaves year/month/day at 0 and hour/minute/second at 99. Handing those
+    // to DateTime does not produce an obviously wrong value, it produces a
+    // plausible looking one: date2days(0,0,0) evaluates to -1, which wraps its
+    // uint16_t return to 65535, so unixtime() comes back as 2314303943, i.e.
+    // 3 May 2043. Report 0 instead, so a caller can tell there is no time yet.
+    uint32_t getTimestamp() override {
+        uint16_t year = nmea.getYear();
+        uint8_t month = nmea.getMonth();
+        uint8_t day = nmea.getDay();
+        uint8_t hour = nmea.getHour();
+        uint8_t minute = nmea.getMinute();
+        uint8_t second = nmea.getSecond();
+
+        if (year < 2000 || year > 2099) return 0;   // DateTime spans 2000..2099
+        if (month < 1 || month > 12) return 0;
+        if (day < 1 || day > 31) return 0;
+        if (hour > 23 || minute > 59 || second > 59) return 0;
+
+        DateTime dt(year, month, day, hour, minute, second);
+        if (!dt.isValid()) return 0;   // rejects impossible dates such as 31 February
         return dt.unixtime();
     } 
 
@@ -153,9 +172,14 @@ public :
             }
             if (_time_sync_needed && time_valid > 2) {
                 if (_clock != NULL) {
-                    _clock->setCurrentTime(getTimestamp());
-                    _time_sync_needed = false;
-                    _last_time_sync = millis();
+                    // Leave _time_sync_needed set if there is no time yet, so
+                    // the next pass retries rather than the sync being consumed.
+                    uint32_t timestamp = getTimestamp();
+                    if (timestamp != 0) {
+                        _clock->setCurrentTime(timestamp);
+                        _time_sync_needed = false;
+                        _last_time_sync = millis();
+                    }
                 }
             }
             if (isValid()) {

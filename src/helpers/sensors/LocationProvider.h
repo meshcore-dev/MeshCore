@@ -15,7 +15,11 @@ public:
     virtual long getAltitude() = 0;
     virtual long satellitesCount() = 0;
     virtual bool isValid() = 0;
-    virtual long getTimestamp() = 0;
+    // UTC seconds since the epoch, or 0 when no valid time is available.
+    // Callers must treat 0 as "no time" rather than as a timestamp.
+    // Unsigned to match mesh::RTCClock, and so times past 2038 stay
+    // representable on targets where long is 32 bit signed.
+    virtual uint32_t getTimestamp() = 0;
     virtual void sendSentence(const char * sentence);
     virtual void reset() = 0;
     virtual void begin() = 0;
