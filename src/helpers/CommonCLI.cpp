@@ -20,11 +20,7 @@ static uint32_t _atoi(const char* sp) {
 }
 
 static bool isValidName(const char *n) {
-  while (*n) {
-    if (*n == '[' || *n == ']' || *n == '\\' || *n == ':' || *n == ',' || *n == '?' || *n == '*') return false;
-    n++;
-  }
-  return true;
+  return AdvertDataParser::isValidName(n);
 }
 
 void CommonCLI::loadPrefs(FILESYSTEM* fs) {
