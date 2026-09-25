@@ -26,6 +26,9 @@ protected:
   void startRecv();
   float packetScoreInt(float snr, int sf, int packet_len);
   virtual bool isReceivingPacket() =0;
+  virtual bool isIRQPending() const;     // DIO1 completion flag; the base reads the ISR-latched bit
+  // Polling boards, which read DIO1 rather than latching it, override this to require RX state
+  virtual bool isRecvIRQPending() const { return isIRQPending(); }
   virtual void doResetAGC();
 
 public:

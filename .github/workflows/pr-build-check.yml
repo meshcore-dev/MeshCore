@@ -29,6 +29,11 @@ jobs:
           - Heltec_v3_companion_radio_ble
           - Heltec_v3_repeater
           - Heltec_v3_room_server
+          # SX1262 control/IRQ through an I2C expander
+          - meshnology_w10_companion_radio_ble
+          - meshnology_w10_companion_radio_usb
+          - meshnology_w10_repeater
+          - meshnology_w10_room_server
           # nRF52
           - RAK_4631_companion_radio_ble
           - RAK_4631_companion_radio_ethernet
