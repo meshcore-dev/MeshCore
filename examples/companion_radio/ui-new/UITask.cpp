@@ -80,7 +80,7 @@ public:
   }
 
   void poll() override {
-    if (millis() >= dismiss_after) {
+    if (millis_passed(dismiss_after)) {
       _task->gotoHomeScreen();
     }
   }
@@ -180,10 +180,11 @@ class HomeScreen : public UIScreen {
   int sensors_nb = 0;
   bool sensors_scroll = false;
   int sensors_scroll_offset = 0;
-  int next_sensors_refresh = 0;
+  unsigned long next_sensors_refresh = 0;
+
 
   void refresh_sensors() {
-    if (millis() > next_sensors_refresh) {
+    if (millis_passed(next_sensors_refresh)) {
       sensors_lpp.reset();
       sensors_nb = 0;
       sensors_lpp.addVoltage(TELEM_CHANNEL_SELF, (float)board.getBattMilliVolts() / 1000.0f);
@@ -852,8 +853,8 @@ void UITask::onControlDataRecv(const mesh::Packet* packet) {
 
 void UITask::userLedHandler() {
 #ifdef PIN_STATUS_LED
-  int cur_time = millis();
-  if (cur_time > next_led_change) {
+  unsigned long cur_time = millis();
+  if (millis_passed(next_led_change)) {
     if (led_state == 0) {
       led_state = 1;
       if (_msgcount > 0) {
@@ -988,7 +989,7 @@ void UITask::loop() {
   }
 #endif
 #if defined(BACKLIGHT_BTN)
-  if (millis() > next_backlight_btn_check) {
+  if (millis_passed(next_backlight_btn_check)) {
     bool touch_state = digitalRead(PIN_BUTTON2);
 #if defined(DISP_BACKLIGHT)
     digitalWrite(DISP_BACKLIGHT, !touch_state);
@@ -1014,10 +1015,10 @@ void UITask::loop() {
   if (curr) curr->poll();
 
   if (_display != NULL && _display->isOn()) {
-    if (millis() >= _next_refresh && curr) {
+    if (millis_passed(_next_refresh) && curr) {
       _display->startFrame();
       int delay_millis = curr->render(*_display);
-      if (millis() < _alert_expiry) {  // render alert popup
+      if (!millis_passed(_alert_expiry)) {  // render alert popup
         _display->setTextSize(1);
         int y = _display->height() / 3;
         int p = _display->height() / 32;
@@ -1042,7 +1043,7 @@ void UITask::loop() {
       _auto_off = millis() + AUTO_OFF_MILLIS;
     }
 #endif
-    if (millis() > _auto_off) {
+    if (millis_passed(_auto_off)) {
       _display->turnOff();
     }
 #endif
@@ -1053,7 +1054,7 @@ void UITask::loop() {
 #endif
 
 #ifdef AUTO_SHUTDOWN_MILLIVOLTS
-  if (millis() > next_batt_chck) {
+  if (millis_passed(next_batt_chck)) {
     uint16_t milliVolts = getBattMilliVolts();
     if (milliVolts > 0 && milliVolts < AUTO_SHUTDOWN_MILLIVOLTS) {
       if(!board.isExternalPowered()) {
