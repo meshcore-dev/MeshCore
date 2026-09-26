@@ -91,7 +91,9 @@ int _countLfsBlock(void *p, lfs_block_t block){
 
 lfs_ssize_t _getLfsUsedBlockCount(FILESYSTEM* fs) {
   lfs_size_t size = 0;
+  fs->_lockFS();
   int err = lfs_traverse(fs->_getFS(), _countLfsBlock, &size);
+  fs->_unlockFS();
   if (err) {
     MESH_DEBUG_PRINTLN("ERROR: lfs_traverse() error: %d", err);
     return 0;
