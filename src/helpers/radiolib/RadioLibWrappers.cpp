@@ -37,6 +37,10 @@ void RadioLibWrapper::begin() {
   _noise_floor = 0;
   _threshold = 0;
   _cad_enabled = false;
+  _rssi_lbt_enabled = false;
+  _rssi_lbt_thr_dbm = 0;
+  _rssi_lbt_sense_ms = 0;
+  _rssi_lbt_pause_ms = 0;
 
   // start average out some samples
   _num_floor_samples = 0;
@@ -189,6 +193,11 @@ void RadioLibWrapper::onSendFinished() {
   _radio->finishTransmit();
   _board->onAfterTransmit();
   state = STATE_IDLE;
+
+  // rssi.lbt: quiet period after every transmit
+  if (_rssi_lbt_enabled && _rssi_lbt_pause_ms > 0) {
+    delay(_rssi_lbt_pause_ms);
+  }
 }
 
 int16_t RadioLibWrapper::performChannelScan() {
@@ -198,6 +207,15 @@ int16_t RadioLibWrapper::performChannelScan() {
 bool RadioLibWrapper::isChannelActive() {
   // int.thresh: RSSI-based interference detection (relative to noise floor)
   if (_threshold != 0 && getCurrentRSSI() > _noise_floor + _threshold) return true;
+
+  // rssi.lbt: energy detection against an absolute threshold, sampled continuously
+  // over a sensing window. Unlike CAD this is independent of the modulation on air.
+  if (_rssi_lbt_enabled) {
+    uint32_t start = millis();
+    do {
+      if (getCurrentRSSI() > _rssi_lbt_thr_dbm) return true;
+    } while (millis() - start < _rssi_lbt_sense_ms);
+  }
 
   // cad: hardware channel activity detection
   if (_cad_enabled) {
