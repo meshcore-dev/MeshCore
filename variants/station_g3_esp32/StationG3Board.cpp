@@ -1,6 +1,8 @@
 #include "StationG3Board.h"
 
-void StationG3Board::powerOff() {
+void StationG3Board::shutdownPeripherals() {
+  ESP32Board::shutdownPeripherals();
+
   loRaFEMControl.setSleepModeEnable();
 #ifdef P_PA1_EN
   rtc_gpio_hold_en((gpio_num_t)P_PA1_EN);
@@ -9,8 +11,6 @@ void StationG3Board::powerOff() {
 #ifdef P_PRIMARY_LNA_EN
   rtc_gpio_hold_en((gpio_num_t)P_PRIMARY_LNA_EN);
 #endif
-
-  ESP32Board::powerOff();
 }
 
 bool StationG3Board::setLoRaFemLnaEnabled(bool enable) {

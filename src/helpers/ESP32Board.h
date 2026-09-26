@@ -26,7 +26,7 @@ protected:
 public:
   void begin() {
     // for future use, sub-classes SHOULD call this from their begin()
-    startup_reason = BD_STARTUP_NORMAL;    
+    startup_reason = BD_STARTUP_NORMAL;
 
   #ifdef ESP32_CPU_FREQ
     setCpuFrequencyMhz(ESP32_CPU_FREQ);
@@ -66,8 +66,9 @@ public:
     return raw / 4;
   }
 
+  virtual void shutdownPeripherals();
   virtual void powerOff() override;
-  void enterDeepSleep(uint32_t secs);
+  virtual void enterDeepSleep(uint32_t secs) override;
 
   uint32_t getIRQGpio() override {
     return P_LORA_DIO_1; // default for SX1262

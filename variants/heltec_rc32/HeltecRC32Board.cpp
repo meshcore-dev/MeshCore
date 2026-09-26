@@ -31,10 +31,6 @@ void HeltecRC32Board::begin() {
   }
 }
 
-void HeltecRC32Board::powerOff() {
-  enterDeepSleep(0);
-}
-
 void HeltecRC32Board::onBeforeTransmit() {
   digitalWrite(P_LORA_TX_LED, HIGH);
 }

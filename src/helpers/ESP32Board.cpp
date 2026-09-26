@@ -45,11 +45,7 @@ bool ESP32Board::startOTAUpdate(const char* id, char reply[]) {
 }
 #endif
 
-void ESP32Board::powerOff() {
-  enterDeepSleep(0); // Do not wakeup
-}
-
-void ESP32Board::enterDeepSleep(uint32_t secs) {
+void ESP32Board::shutdownPeripherals() {
   // Power off the display if any
 #ifdef DISPLAY_CLASS
   display.turnOff();
@@ -74,6 +70,14 @@ void ESP32Board::enterDeepSleep(uint32_t secs) {
   // Flush serial buffers
   Serial.flush();
   delay(100);
+}
+
+void ESP32Board::powerOff() {
+  enterDeepSleep(0); // Do not wakeup
+}
+
+void ESP32Board::enterDeepSleep(uint32_t secs) {
+  shutdownPeripherals();
 
   // Clear stale wakeup sources to avoid ghost wakeup
   // This is required when Power Management and automatic lightsleep are enabled

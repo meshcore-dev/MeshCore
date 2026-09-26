@@ -35,7 +35,9 @@ public:
     return "Seeed Xiao-nrf52";
   }
 
-  void powerOff() override {
+  void shutdownPeripherals() override {
+    NRF52Board::shutdownPeripherals();
+
     // set led on and wait for button release before poweroff
     digitalWrite(PIN_LED, LOW);
 #ifdef PIN_USER_BTN
@@ -49,8 +51,6 @@ public:
     // configure button press to wake up when in powered off state
     nrf_gpio_cfg_sense_input(digitalPinToInterrupt(g_ADigitalPinMap[PIN_USER_BTN]), NRF_GPIO_PIN_PULLUP, NRF_GPIO_PIN_SENSE_LOW);
 #endif
-
-    NRF52Board::powerOff();
   }
 };
 
