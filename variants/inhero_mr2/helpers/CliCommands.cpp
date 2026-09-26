@@ -1,0 +1,434 @@
+/*
+ * Copyright (c) 2026 Inhero GmbH
+ * SPDX-License-Identifier: MIT
+ */
+#include "CliCommands.h"
+
+#include "../BoardConfigContainer.h"
+
+#include <ctype.h>
+#include <math.h>
+#include <stdio.h>
+#include <string.h>
+
+namespace inhero {
+
+bool handleGet(BoardConfigContainer& cfg, const char* getCommand, char* reply, uint32_t maxlen) {
+  // Trim trailing whitespace from command
+  char trimmedCommand[100];
+  strncpy(trimmedCommand, getCommand, sizeof(trimmedCommand) - 1);
+  trimmedCommand[sizeof(trimmedCommand) - 1] = '\0';
+  char* cmd = BoardConfigContainer::trim(trimmedCommand);
+
+  if (strcmp(cmd, "bat") == 0) {
+    snprintf(reply, maxlen, "%s",
+             BoardConfigContainer::getBatteryTypeCommandString(cfg.getBatteryType()));
+    return true;
+  } else if (strcmp(cmd, "fmax") == 0) {
+    if (cfg.isJeitaIgnoreActive()) {
+      snprintf(reply, maxlen, "N/A");
+    } else {
+      snprintf(reply, maxlen, "%s",
+               BoardConfigContainer::getFrostChargeBehaviourCommandString(cfg.getFrostChargeBehaviour()));
+    }
+    return true;
+  } else if (strcmp(cmd, "imax") == 0) {
+    snprintf(reply, maxlen, "%s", cfg.getChargeCurrentAsStr());
+    return true;
+  } else if (strcmp(cmd, "mppt") == 0) {
+    snprintf(reply, maxlen, "MPPT=%s", cfg.getMPPTEnabled() ? "1" : "0");
+    return true;
+  } else if (strcmp(cmd, "altitude") == 0) {
+    float altitude_m = 0.0f;
+    if (cfg.getStationAltitude(altitude_m)) {
+      snprintf(reply, maxlen, "%.1f m", altitude_m);
+    } else {
+      snprintf(reply, maxlen, "N/A (station pressure)");
+    }
+    return true;
+  } else if (strcmp(cmd, "stats") == 0) {
+    const BatterySOCStats* socStats = cfg.getSOCStats();
+    if (!socStats) {
+      snprintf(reply, maxlen, "N/A M:%.0f%%", cfg.getMpptEnabledPercentage7Day());
+      return true;
+    }
+
+    // Rolling windows incl. current-hour accumulators (visible before first hour boundary)
+    float last_24h_net = socStats->last_24h_net_mah
+                       + socStats->current_hour_solar_mah
+                       - socStats->current_hour_discharged_mah;
+    float last_24h_charged = socStats->last_24h_charged_mah + socStats->current_hour_charged_mah;
+    float last_24h_discharged = socStats->last_24h_discharged_mah + socStats->current_hour_discharged_mah;
+    const char* status = socStats->living_on_battery ? "BAT" : "SOL";
+    uint16_t ttl = cfg.getTTL_Hours();
+    float mppt_pct = cfg.getMpptEnabledPercentage7Day();
+
+    char ttlBuf[16];
+    if (ttl >= 24) snprintf(ttlBuf, sizeof(ttlBuf), "%dd%dh", ttl / 24, ttl % 24);
+    else if (ttl > 0) snprintf(ttlBuf, sizeof(ttlBuf), "%dh", ttl);
+    else snprintf(ttlBuf, sizeof(ttlBuf), "N/A");
+
+    snprintf(reply, maxlen,
+             "%+.0f/%+.0f/%+.0fmAh C:%.0f D:%.0f 3C:%.0f 3D:%.0f 7C:%.0f 7D:%.0f %s M:%.0f%% BT:%s",
+             last_24h_net, socStats->avg_3day_daily_net_mah, socStats->avg_7day_daily_net_mah,
+             last_24h_charged, last_24h_discharged,
+             socStats->avg_3day_daily_charged_mah, socStats->avg_3day_daily_discharged_mah,
+             socStats->avg_7day_daily_charged_mah, socStats->avg_7day_daily_discharged_mah,
+             status, mppt_pct, ttlBuf);
+    return true;
+  } else if (strcmp(cmd, "cinfo") == 0) {
+    char infoBuffer[100];
+    cfg.getChargerInfo(infoBuffer, sizeof(infoBuffer));
+    snprintf(reply, maxlen, "%s", infoBuffer);
+    return true;
+  } else if (strcmp(cmd, "bqdiag") == 0) {
+    char diagBuffer[100];
+    cfg.getBqDiagnostics(diagBuffer, sizeof(diagBuffer));
+    snprintf(reply, maxlen, "%s", diagBuffer);
+    return true;
+  } else if (strcmp(cmd, "mpptdiag") == 0) {
+    char diagBuffer[100];
+    cfg.getMpptDiagnostics(diagBuffer, sizeof(diagBuffer));
+    snprintf(reply, maxlen, "%s", diagBuffer);
+    return true;
+  } else if (strcmp(cmd, "selftest") == 0) {
+    char stBuffer[64];
+    cfg.getSelfTest(stBuffer, sizeof(stBuffer));
+    snprintf(reply, maxlen, "%s", stBuffer);
+    return true;
+  } else if (strcmp(cmd, "socdebug") == 0) {
+    Ina228Driver* ina = cfg.getIna228Driver();
+    if (!ina) {
+      snprintf(reply, maxlen, "INA228 n/a");
+      return true;
+    }
+    const BatterySOCStats* s = cfg.getSOCStats();
+    uint16_t scal = ina->readShuntCalRegister();
+    float chg = ina->readCharge_mAh();
+    float cur = ina->readCurrent_mA_precise();
+    uint32_t rtc = BoardConfigContainer::getRTCTimestamp();
+    snprintf(reply, maxlen,
+             "S=%u I=%.1f C=%.1f hC%.1f hD%.1f n=%u t=%lu d=%.2f",
+             scal, cur, chg,
+             s->current_hour_charged_mah, s->current_hour_discharged_mah,
+             s->soc_update_count, (unsigned long)rtc, s->temp_derating_factor);
+    return true;
+  } else if (strcmp(cmd, "telem") == 0) {
+    const Telemetry* telemetry = cfg.getTelemetryData();
+    if (!telemetry) {
+      snprintf(reply, maxlen, "Err: Telemetry unavailable");
+      return true;
+    }
+
+    float precise_current_ma = telemetry->battery.current;
+    float soc = cfg.getStateOfCharge();
+    const BatterySOCStats* socStats = cfg.getSOCStats();
+
+    // INA228 returns signed: positive=charging, negative=discharging
+    char bat_current_str[16];
+    snprintf(bat_current_str, sizeof(bat_current_str), "%.1fmA", precise_current_ma);
+
+    char sol_current_str[16];
+    int16_t sol_current = telemetry->solar.current;
+    if (sol_current == 0)         snprintf(sol_current_str, sizeof(sol_current_str), "0mA");
+    else if (sol_current < 50)    snprintf(sol_current_str, sizeof(sol_current_str), "<50mA");
+    else if (sol_current <= 100)  snprintf(sol_current_str, sizeof(sol_current_str), "~%dmA", (int)sol_current);
+    else                          snprintf(sol_current_str, sizeof(sol_current_str), "%dmA", (int)sol_current);
+
+    char solar_str[32];
+    if (telemetry->solar.valid) {
+      snprintf(solar_str, sizeof(solar_str), "%.2fV/%s", telemetry->solar.voltage / 1000.0f, sol_current_str);
+    } else {
+      snprintf(solar_str, sizeof(solar_str), "N/A");
+    }
+
+    char temp_str[8];
+    if (telemetry->battery.temperature <= -100.0f) {
+      snprintf(temp_str, sizeof(temp_str), "N/A");
+    } else {
+      snprintf(temp_str, sizeof(temp_str), "%.0fC", telemetry->battery.temperature);
+    }
+
+    if (socStats && socStats->soc_valid) {
+      // Trapped Charge model: cold locks the bottom of the discharge curve.
+      // trapped% = (1 - f(T)) * 100, extractable% = max(0, SOC% - trapped%)
+      if (socStats->temp_derating_factor < 0.999f && socStats->temp_derating_factor > 0.0f) {
+        float trapped_pct = (1.0f - socStats->temp_derating_factor) * 100.0f;
+        float derated_soc = soc - trapped_pct;
+        if (derated_soc < 0.0f) derated_soc = 0.0f;
+        if (derated_soc > 100.0f) derated_soc = 100.0f;
+        snprintf(reply, maxlen, "B:%.2fV/%s/%s SOC:%.1f%% (%.0f%%) S:%s",
+                 telemetry->battery.voltage / 1000.0f, bat_current_str, temp_str,
+                 soc, derated_soc, solar_str);
+      } else {
+        snprintf(reply, maxlen, "B:%.2fV/%s/%s SOC:%.1f%% S:%s",
+                 telemetry->battery.voltage / 1000.0f, bat_current_str, temp_str,
+                 soc, solar_str);
+      }
+    } else {
+      snprintf(reply, maxlen, "B:%.2fV/%s/%s SOC:N/A S:%s",
+               telemetry->battery.voltage / 1000.0f, bat_current_str, temp_str,
+               solar_str);
+    }
+    return true;
+  } else if (strcmp(cmd, "conf") == 0) {
+    const char* batType = BoardConfigContainer::getBatteryTypeCommandString(cfg.getBatteryType());
+    const auto* confProps = BoardConfigContainer::getBatteryProperties(cfg.getBatteryType());
+    const char* frostBehaviour = cfg.isJeitaIgnoreActive()
+        ? "N/A"
+        : BoardConfigContainer::getFrostChargeBehaviourCommandString(cfg.getFrostChargeBehaviour());
+
+    if (cfg.getBatteryType() == BoardConfigContainer::BAT_UNKNOWN) {
+      snprintf(reply, maxlen, "B:%s (no battery, charging disabled)", batType);
+    } else {
+      float chargeVoltage = cfg.getMaxChargeVoltage();
+      float voltage0Soc =
+          BoardConfigContainer::getLowVoltageWakeThreshold(cfg.getBatteryType()) / 1000.0f;
+      const char* imax = cfg.getChargeCurrentAsStr();
+      bool mpptEnabled = cfg.getMPPTEnabled();
+      // J:1 appears only while the user override is on — for chemistries that
+      // run without JEITA anyway the line is unchanged.
+      const char* jeitaMark =
+          (confProps && confProps->needs_jeita && cfg.isJeitaIgnoreActive()) ? " J:1" : "";
+      snprintf(reply, maxlen, "B:%s F:%s M:%s I:%s Vco:%.2f V0:%.2f%s", batType, frostBehaviour,
+               mpptEnabled ? "1" : "0", imax, chargeVoltage, voltage0Soc, jeitaMark);
+    }
+    return true;
+  } else if (strcmp(cmd, "tccal") == 0) {
+    snprintf(reply, maxlen, "TC offset: %+.2f C (0.00=default)", cfg.getTcCalOffset());
+    return true;
+  } else if (strcmp(cmd, "leds") == 0) {
+    snprintf(reply, maxlen, "LEDs: %s (Heartbeat + BQ Stat)",
+             cfg.getLEDsEnabled() ? "ON" : "OFF");
+    return true;
+  } else if (strcmp(cmd, "batcap") == 0) {
+    float capacity_mah = cfg.getBatteryCapacity();
+    bool explicitly_set = cfg.isBatteryCapacitySet();
+    snprintf(reply, maxlen, "%.0f mAh (%s)", capacity_mah, explicitly_set ? "set" : "default");
+    return true;
+  } else if (strcmp(cmd, "jeitaignore") == 0) {
+    const auto* jiProps = BoardConfigContainer::getBatteryProperties(cfg.getBatteryType());
+    if (cfg.getBatteryType() == BoardConfigContainer::BAT_UNKNOWN) {
+      // No chemistry set means no charging at all, so the question has no answer yet.
+      snprintf(reply, maxlen, "N/A");
+    } else if (jiProps && !jiProps->needs_jeita) {
+      snprintf(reply, maxlen, "jeitaignore 1 (chemistry)");
+    } else if (cfg.isJeitaIgnoreActive()) {
+      snprintf(reply, maxlen, "jeitaignore 1");
+    } else if (cfg.getJeitaIgnoreWish()) {
+      // Wish is stored but the gate blocks it — name the blocker.
+      snprintf(reply, maxlen, "jeitaignore 1, N/A, %s",
+               cfg.isBatteryCapacitySet() ? "C>0.05" : "batcap not set");
+    } else {
+      snprintf(reply, maxlen, "jeitaignore 0");
+    }
+    return true;
+  }
+
+  snprintf(reply, maxlen,
+           "Err: bat|fmax|imax|mppt|altitude|telem|stats|cinfo|conf|tccal|leds|batcap|jeitaignore");
+  return true;
+}
+
+const char* handleSet(BoardConfigContainer& cfg, const char* setCommand) {
+  static char ret[100];
+  memset(ret, 0, sizeof(ret));
+
+  if (strncmp(setCommand, "bat ", 4) == 0) {
+    const char* value = BoardConfigContainer::trim(const_cast<char*>(&setCommand[4]));
+    BoardConfigContainer::BatteryType bt = BoardConfigContainer::getBatteryTypeFromCommandString(value);
+    if (bt != BoardConfigContainer::BatteryType::BAT_UNKNOWN || strcmp(value, "none") == 0) {
+      cfg.setBatteryType(bt);
+      snprintf(ret, sizeof(ret), "Bat set to %s",
+               BoardConfigContainer::getBatteryTypeCommandString(cfg.getBatteryType()));
+    } else {
+      snprintf(ret, sizeof(ret), "Err: Try one of: %s",
+               BoardConfigContainer::getAvailableBatOptions());
+    }
+    return ret;
+  } else if (strncmp(setCommand, "fmax ", 5) == 0) {
+    if (cfg.getBatteryType() == BoardConfigContainer::BAT_UNKNOWN) {
+      return "Err: Set board.bat first";
+    }
+    const auto* fmaxProps = BoardConfigContainer::getBatteryProperties(cfg.getBatteryType());
+    if (fmaxProps && !fmaxProps->needs_jeita) {
+      snprintf(ret, sizeof(ret), "Err: Fmax setting N/A for this chemistry (JEITA disabled)");
+      return ret;
+    }
+    if (cfg.isJeitaIgnoreActive()) {
+      snprintf(ret, sizeof(ret), "Err: Fmax N/A while jeitaignore is on");
+      return ret;
+    }
+    const char* value = BoardConfigContainer::trim(const_cast<char*>(&setCommand[5]));
+    BoardConfigContainer::FrostChargeBehaviour fcb =
+        BoardConfigContainer::getFrostChargeBehaviourFromCommandString(value);
+    if (fcb != BoardConfigContainer::FrostChargeBehaviour::REDUCE_UNKNOWN) {
+      cfg.setFrostChargeBehaviour(fcb);
+      snprintf(ret, sizeof(ret), "Fmax charge current set to %s of imax",
+               BoardConfigContainer::getFrostChargeBehaviourCommandString(cfg.getFrostChargeBehaviour()));
+    } else {
+      snprintf(ret, sizeof(ret), "Err: Try one of: %s",
+               BoardConfigContainer::getAvailableFrostChargeBehaviourOptions());
+    }
+    return ret;
+  } else if (strncmp(setCommand, "imax ", 5) == 0) {
+    const char* value = BoardConfigContainer::trim(const_cast<char*>(&setCommand[5]));
+    int ma = atoi(value);
+    if (ma >= 50 && ma <= 1500) {
+      // imax is a gate quantity — the write goes through, the override is
+      // re-derived, and a state change is reported (same pattern as batcap).
+      // The stored wish survives and re-arms once the gate passes again.
+      bool wasActive = cfg.isJeitaIgnoreActive();
+      if (!cfg.setMaxChargeCurrent_mA(ma)) {
+        return "Err: Charge current setup failed";
+      }
+      cfg.applyJeitaIgnore();
+      if (wasActive && !cfg.isJeitaIgnoreActive()) {
+        snprintf(ret, sizeof(ret), "Max charge current set to %s; jeitaignore N/A, C>0.05",
+                 cfg.getChargeCurrentAsStr());
+      } else if (!wasActive && cfg.isJeitaIgnoreActive()) {
+        snprintf(ret, sizeof(ret), "Max charge current set to %s; jeitaignore 1",
+                 cfg.getChargeCurrentAsStr());
+      } else {
+        snprintf(ret, sizeof(ret), "Max charge current set to %s", cfg.getChargeCurrentAsStr());
+      }
+      return ret;
+    }
+    return "Err: Try 50-1500";
+  } else if (strncmp(setCommand, "mppt ", 5) == 0) {
+    const char* value = BoardConfigContainer::trim(const_cast<char*>(&setCommand[5]));
+    char lowerValue[20];
+    strncpy(lowerValue, value, sizeof(lowerValue) - 1);
+    lowerValue[sizeof(lowerValue) - 1] = '\0';
+    for (char* p = lowerValue; *p; ++p) *p = tolower(*p);
+
+    if (strcmp(lowerValue, "true") == 0 || strcmp(lowerValue, "1") == 0) {
+      cfg.setMPPTEnable(true);
+      snprintf(ret, sizeof(ret), "MPPT enabled");
+      return ret;
+    } else if (strcmp(lowerValue, "false") == 0 || strcmp(lowerValue, "0") == 0) {
+      cfg.setMPPTEnable(false);
+      snprintf(ret, sizeof(ret), "MPPT disabled");
+      return ret;
+    }
+    return "Err: Try true|false or 1|0";
+  } else if (strncmp(setCommand, "altitude ", 9) == 0) {
+    const char* value = BoardConfigContainer::trim(const_cast<char*>(&setCommand[9]));
+    if (strcmp(value, "clear") == 0) {
+      if (!cfg.clearStationAltitude()) {
+        return "Err: Failed to clear altitude";
+      }
+      return "Altitude cleared (BME280 reports station pressure)";
+    }
+    char* end = nullptr;
+    const float altitude_m = strtof(value, &end);
+    if (end == value || *end != '\0' || !isfinite(altitude_m) ||
+        altitude_m < BoardConfigContainer::MIN_STATION_ALTITUDE_M ||
+        altitude_m > BoardConfigContainer::MAX_STATION_ALTITUDE_M) {
+      return "Err: Try -500 to 9000 m";
+    }
+    if (!cfg.setStationAltitude(altitude_m)) {
+      return "Err: Failed to store altitude";
+    }
+    snprintf(ret, sizeof(ret), "Altitude set to %.1f m (BME280 pressure is now QNH)", altitude_m);
+    return ret;
+  } else if (strncmp(setCommand, "batcap ", 7) == 0) {
+    const char* value = BoardConfigContainer::trim(const_cast<char*>(&setCommand[7]));
+    float capacity_mah = atof(value);
+    bool wasActive = cfg.isJeitaIgnoreActive();
+    if (cfg.setBatteryCapacity(capacity_mah)) {
+      // batcap is a gate quantity — re-derive and report a state change.
+      cfg.applyJeitaIgnore();
+      if (wasActive && !cfg.isJeitaIgnoreActive()) {
+        snprintf(ret, sizeof(ret), "Battery capacity set to %.0f mAh; jeitaignore N/A, C>0.05",
+                 capacity_mah);
+      } else if (!wasActive && cfg.isJeitaIgnoreActive()) {
+        snprintf(ret, sizeof(ret), "Battery capacity set to %.0f mAh; jeitaignore 1",
+                 capacity_mah);
+      } else {
+        snprintf(ret, sizeof(ret), "Battery capacity set to %.0f mAh", capacity_mah);
+      }
+    } else {
+      snprintf(ret, sizeof(ret), "Err: Invalid capacity (100-100000 mAh)");
+    }
+    return ret;
+  } else if (strncmp(setCommand, "tccal", 5) == 0) {
+    // `set board.tccal`        -> auto-read BME280 as reference
+    // `set board.tccal reset`  -> reset to 0.00
+    const char* rest = &setCommand[5];
+    if (*rest == ' ') rest++;
+    const char* value = BoardConfigContainer::trim(const_cast<char*>(rest));
+
+    if (strcmp(value, "reset") == 0 || strcmp(value, "RESET") == 0) {
+      if (cfg.setTcCalOffset(0.0f)) {
+        snprintf(ret, sizeof(ret), "TC calibration reset to 0.00 (default)");
+      } else {
+        snprintf(ret, sizeof(ret), "Err: Failed to reset TC calibration");
+      }
+      return ret;
+    }
+
+    float bme_avg = 0.0f;
+    float new_offset = cfg.performTcCalibration(&bme_avg);
+    if (new_offset > -900.0f) {
+      snprintf(ret, sizeof(ret), "TC auto-cal: BME=%.1f offset=%+.2f C", bme_avg, new_offset);
+    } else {
+      snprintf(ret, sizeof(ret), "Err: Auto-cal failed (BME280/NTC error?)");
+    }
+    return ret;
+  } else if (strncmp(setCommand, "leds ", 5) == 0) {
+    const char* value = BoardConfigContainer::trim(const_cast<char*>(&setCommand[5]));
+    bool enabled  = (strcmp(value, "1") == 0 || strcmp(value, "on") == 0 || strcmp(value, "ON") == 0);
+    bool disabled = (strcmp(value, "0") == 0 || strcmp(value, "off") == 0 || strcmp(value, "OFF") == 0);
+    if (enabled || disabled) {
+      cfg.setLEDsEnabled(enabled);
+      snprintf(ret, sizeof(ret), "LEDs %s (Heartbeat + BQ Stat)",
+               enabled ? "enabled" : "disabled");
+    } else {
+      snprintf(ret, sizeof(ret), "Err: Use 'on/1' or 'off/0'");
+    }
+    return ret;
+  } else if (strncmp(setCommand, "soc ", 4) == 0) {
+    const char* value = BoardConfigContainer::trim(const_cast<char*>(&setCommand[4]));
+    float soc_percent = atof(value);
+    if (BoardConfigContainer::setSOCManually(soc_percent)) {
+      snprintf(ret, sizeof(ret), "SOC set to %.1f%%", soc_percent);
+    } else {
+      snprintf(ret, sizeof(ret), "Err: Invalid SOC (0-100) or INA228 not ready");
+    }
+    return ret;
+  } else if (strncmp(setCommand, "jeitaignore ", 12) == 0) {
+    const char* value = BoardConfigContainer::trim(const_cast<char*>(&setCommand[12]));
+    bool on  = (strcmp(value, "1") == 0 || strcmp(value, "true") == 0);
+    bool off = (strcmp(value, "0") == 0 || strcmp(value, "false") == 0);
+    if (!on && !off) {
+      return "Err: Use 1|0";
+    }
+    if (cfg.getBatteryType() == BoardConfigContainer::BAT_UNKNOWN) {
+      return "Err: Set board.bat first";
+    }
+    const auto* jiProps = BoardConfigContainer::getBatteryProperties(cfg.getBatteryType());
+    if (jiProps && !jiProps->needs_jeita) {
+      return "Err: This chemistry runs without JEITA (always 1)";
+    }
+    if (!cfg.setJeitaIgnoreWish(on)) {
+      return "Err: Failed to store setting";
+    }
+    if (!on) {
+      snprintf(ret, sizeof(ret), "jeitaignore set to 0");
+    } else if (cfg.isJeitaIgnoreActive()) {
+      snprintf(ret, sizeof(ret), "jeitaignore set to 1");
+    } else {
+      // Wish stored, gate blocks it — name the blocker; re-arms on its own
+      // once imax/batcap pass.
+      snprintf(ret, sizeof(ret), "jeitaignore set to 1, N/A, %s",
+               cfg.isBatteryCapacitySet() ? "C>0.05" : "batcap not set");
+    }
+    return ret;
+  }
+
+  snprintf(ret, sizeof(ret), "Err: bat|imax|fmax|mppt|altitude|batcap|tccal|leds|soc|jeitaignore");
+  return ret;
+}
+
+} // namespace inhero
