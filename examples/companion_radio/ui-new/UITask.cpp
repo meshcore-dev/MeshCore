@@ -2,7 +2,8 @@
 #include <helpers/TxtDataHelpers.h>
 #include "../MyMesh.h"
 #include "target.h"
-#ifdef WIFI_SSID
+#include <time.h>
+#ifdef ENABLE_WIFI_INTERFACE
   #include <WiFi.h>
 #endif
 
@@ -19,11 +20,12 @@
 
 #define LONG_PRESS_MILLIS   1200
 
+// Used both for recent adverts and discovered nodes
 #ifndef UI_RECENT_LIST_SIZE
   #define UI_RECENT_LIST_SIZE 4
 #endif
 
-#if UI_HAS_JOYSTICK
+#if UI_HAS_JOYSTICK || UI_HAS_ROTARY_INPUT
   #define PRESS_LABEL "press Enter"
 #else
   #define PRESS_LABEL "long press"
@@ -97,7 +99,12 @@ class HomeScreen : public UIScreen {
 #if UI_SENSORS_PAGE == 1
     SENSORS,
 #endif
+#if UI_DISCOVER_SCREEN
+    DISCOVERY,
+#endif
+#ifndef UI_NO_HIBERNATE
     SHUTDOWN,
+#endif
     Count    // keep as last
   };
 
@@ -108,7 +115,13 @@ class HomeScreen : public UIScreen {
   uint8_t _page;
   bool _shutdown_init;
   AdvertPath recent[UI_RECENT_LIST_SIZE];
-
+#if UI_DISCOVER_SCREEN
+  DiscoveredNode discovered[DISCOVERED_NODES_TABLE_SIZE]; // not circular, latest discovered nodes are not kept
+  uint32_t disc_node_req_tag = 0;
+  uint32_t disc_nodes_count = 0;
+  uint32_t discovery_req_time = 0;
+  bool discovery_disp_names = true; // by default desplay names if available (removes SNR_O)
+#endif
 
   void renderBatteryIndicator(DisplayDriver& display, uint16_t batteryMilliVolts) {
     // Convert millivolts to percentage
@@ -141,11 +154,24 @@ class HomeScreen : public UIScreen {
     int fillWidth = (batteryPercentage * (iconWidth - 4)) / 100;
     display.fillRect(iconX + 2, iconY + 2, fillWidth, iconHeight - 4);
 
-    // show muted icon if buzzer is muted
+    // while charging, show a bolt (or a plug once full) just left of the battery,
+    // keeping the fill bar itself clean and uninterrupted
+    bool charging = board.isExternalPowered();
+    if (charging) {
+      // There's no charge-complete signal on most boards, so "full" is a high
+      // voltage band rather than an exact 100% (a real pack rarely reads 4.2V).
+      const int BATT_FULL_PCT = 95;
+      const uint8_t* symbol = (batteryPercentage >= BATT_FULL_PCT) ? plug_icon : charging_icon;
+      display.setColor(UIColor::title_txt);
+      display.drawXbm(iconX - 9, iconY + 1, symbol, 8, 8);
+    }
+
+    // show muted icon if buzzer is muted (shifted further left when the charging
+    // icon already occupies the slot immediately left of the battery)
 #ifdef PIN_BUZZER
     if (_task->isBuzzerQuiet()) {
       display.setColor(UIColor::warning_txt);
-      display.drawXbm(iconX - 9, iconY + 1, muted_icon, 8, 8);
+      display.drawXbm(iconX - (charging ? 18 : 9), iconY + 1, muted_icon, 8, 8);
     }
 #endif
   }
@@ -181,6 +207,40 @@ public:
   HomeScreen(UITask* task, mesh::RTCClock* rtc, SensorManager* sensors, NodePrefs* node_prefs)
      : _task(task), _rtc(rtc), _sensors(sensors), _node_prefs(node_prefs), _page(0),
        _shutdown_init(false), sensors_lpp(200) {  }
+
+#if UI_DISCOVER_SCREEN
+  bool sendDiscoverRequest() {
+    uint8_t cmd_bytes[6];
+    cmd_bytes[0] = CTL_TYPE_NODE_DISCOVER_REQ | 1; // DISCOVER_REQ | prefix only
+    cmd_bytes[1] = 0xFF;     // Repeaters
+    the_mesh.getRNG()->random((uint8_t *) &disc_node_req_tag, 4);  // generate random tag
+    memcpy(&cmd_bytes[2], &disc_node_req_tag, 4);
+    disc_nodes_count = 0;
+    mesh::Packet* req = the_mesh.createControlData(cmd_bytes, sizeof(cmd_bytes));
+    if (req) {
+      the_mesh.sendZeroHop(req);
+      discovery_req_time = millis();
+      return true;
+    }
+    return false;
+  }
+
+  void handleDiscoverResponse(const mesh::Packet* packet) {
+    if (disc_nodes_count < DISCOVERED_NODES_TABLE_SIZE && memcmp(&packet->payload[2], &disc_node_req_tag, 4) == 0) {
+      auto d = &discovered[disc_nodes_count++];
+      memcpy(d->pubkey_prefix, &packet->payload[6], 8);
+      d->type = packet->payload[0] & 0xF;
+      d->snr_out = ((int8_t)packet->payload[1]) / 4.0;
+      d->snr_in = radio_driver.getLastSNR();
+      ContactInfo* c = the_mesh.lookupContactByPubKey(&packet->payload[6], 8);
+      if (c != NULL) {
+        strncpy(d->name, c->name, 32);
+      } else {
+        d->name[0] = 0;
+      }
+    }
+  }
+#endif
 
   void poll() override {
     if (_shutdown_init && !_task->isButtonPressed()) {  // must wait for USR button to be released
@@ -224,8 +284,19 @@ public:
       display.setTextSize(2);
       sprintf(tmp, "MSG: %d", _task->getMsgCount());
       display.drawTextCentered(display.width() / 2, 22, tmp);
-
-      #ifdef WIFI_SSID
+      
+      #ifdef UI_SHOW_CLOCK
+      display.setTextSize(3);
+      uint32_t now = _rtc->getCurrentTime();
+      now += (int32_t)_node_prefs->tz_offset * 3600;
+      DateTime dt (now);
+      sprintf(tmp, "%02d:%02d", dt.hour(), dt.minute());
+      display.drawTextCentered(display.width() / 2, 60, tmp);
+      display.setTextSize(1);
+      sprintf(tmp, "%02d/%02d/%d", dt.day(), dt.month(), dt.year());
+      display.drawTextCentered(display.width() / 2, 80, tmp);
+      #endif
+      #ifdef ENABLE_WIFI_INTERFACE
         IPAddress ip = WiFi.localIP();
         snprintf(tmp, sizeof(tmp), "IP: %d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
         display.setTextSize(1);
@@ -234,13 +305,21 @@ public:
       if (_task->hasConnection()) {
         display.setColor(UIColor::warning_txt);
         display.setTextSize(1);
+        #ifdef UI_SHOW_CLOCK
+        display.drawTextCentered(display.width() / 2, 110, "< Connected >");
+        #else
         display.drawTextCentered(display.width() / 2, 43, "< Connected >");
-
+        #endif
       } else if (the_mesh.getBLEPin() != 0) { // BT pin
         display.setColor(UIColor::warning_txt);
-        display.setTextSize(2);
         sprintf(tmp, "Pin:%d", the_mesh.getBLEPin());
+        #ifdef UI_SHOW_CLOCK
+        display.setTextSize(1);
+        display.drawTextCentered(display.width() / 2, 110, tmp);
+        #else
+        display.setTextSize(2);
         display.drawTextCentered(display.width() / 2, 43, tmp);
+        #endif
       }
     } else if (_page == HomePage::RECENT) {
       the_mesh.getRecentlyHeard(recent, UI_RECENT_LIST_SIZE);
@@ -421,6 +500,41 @@ public:
       if (sensors_scroll) sensors_scroll_offset = (sensors_scroll_offset+1)%sensors_nb;
       else sensors_scroll_offset = 0;
 #endif
+#if UI_DISCOVER_SCREEN
+    } else if (_page == HomePage::DISCOVERY) {
+      int count = disc_nodes_count;
+      display.setColor(UIColor::primary_txt);
+      int y = 20;
+      for (int i = 0; i < count; i++, y += 11) {
+        char name[32];
+        auto a = &discovered[i];
+        if ((a->name[0] == 0) || !discovery_disp_names) {
+          mesh::Utils::toHex(name, a->pubkey_prefix, 4);
+        } else {
+          strncpy(name, a->name, 32);
+        }
+        char filtered_name[sizeof(name)];
+        char snr_s[12];
+        if (strlen(name) <= 8) { // display snr_o
+          sprintf(snr_s, "%02.1f>%02.1f", a->snr_out, a->snr_in);
+        } else {
+          sprintf(snr_s, "%02.1f", a->snr_in);
+        }
+        int snr_width = display.getTextWidth(snr_s);
+        int max_name_width = display.width() - snr_width - 1;
+        display.translateUTF8ToBlocks(filtered_name, name, sizeof(filtered_name));
+        display.drawTextEllipsized(0, y, max_name_width, filtered_name);
+        display.setCursor(display.width() - snr_width - 1, y);
+        display.print(snr_s);
+      }
+      if (millis() < discovery_req_time + 5000) {
+        return 1000; // more frequent updates just after req
+      } else if (count < DISCOVERED_NODES_TABLE_SIZE -1) { // show only 5 sec after last disc
+        y = 10 + 11 * DISCOVERED_NODES_TABLE_SIZE;
+        display.drawTextCentered(display.width() / 2, y, "discover: " PRESS_LABEL);
+      }
+#endif
+#ifndef UI_NO_HIBERNATE
     } else if (_page == HomePage::SHUTDOWN) {
       display.setColor(UIColor::corp_blue);
       display.setTextSize(1);
@@ -432,6 +546,7 @@ public:
         display.drawXbm((display.width() - 32) / 2, 18, power_icon, 32, 32);
         display.drawTextCentered(display.width() / 2, 64 - 11, "hibernate:" PRESS_LABEL);
       }
+#endif
     }
     return 5000;   // next render after 5000 ms
   }
@@ -446,6 +561,11 @@ public:
       if (_page == HomePage::RECENT) {
         _task->showAlert("Recent adverts", 800);
       }
+#if UI_DISCOVER_SCREEN
+      if (_page == HomePage::DISCOVERY) {
+        _task->showAlert("Repeater disc", 800);
+      }
+#endif
       return true;
     }
     if (c == KEY_ENTER && _page == HomePage::BLUETOOTH) {
@@ -478,13 +598,31 @@ public:
       return true;
     }
 #endif
+#if UI_DISCOVER_SCREEN
+    if (c == KEY_ENTER && _page == HomePage::DISCOVERY) {
+      if (millis() > discovery_req_time + 5000) { // rate limiter
+        sendDiscoverRequest();
+      }
+      return true;
+    }
+    if (c == KEY_SELECT && _page == HomePage::DISCOVERY) {
+      discovery_disp_names = !discovery_disp_names;
+      return true;
+    }
+#endif
+#ifndef UI_NO_HIBERNATE
     if (c == KEY_ENTER && _page == HomePage::SHUTDOWN) {
       _shutdown_init = true;  // need to wait for button to be released
       return true;
     }
+#endif
     return false;
   }
 };
+
+#ifndef UI_MSG_PREVIEW_SIZE
+  #define UI_MSG_PREVIEW_SIZE 78
+#endif
 
 class MsgPreviewScreen : public UIScreen {
   UITask* _task;
@@ -493,7 +631,7 @@ class MsgPreviewScreen : public UIScreen {
   struct MsgEntry {
     uint32_t timestamp;
     char origin[62];
-    char msg[78];
+    char msg[UI_MSG_PREVIEW_SIZE];
   };
   #define MAX_UNREAD_MSGS   32
   int num_unread;
@@ -648,18 +786,12 @@ switch(t){
 #endif
 }
 
+void UITask::onMessageRecv(mesh::Packet *pkt, const ContactInfo &from, uint8_t txt_type, uint32_t sender_timestamp, const char* text) {
+  // we only want to show text messages on display, not cli data
+  if (!(txt_type == TXT_TYPE_PLAIN || txt_type == TXT_TYPE_SIGNED_PLAIN)) return;
 
-void UITask::msgRead(int msgcount) {
-  _msgcount = msgcount;
-  if (msgcount == 0) {
-    gotoHomeScreen();
-  }
-}
-
-void UITask::newMsg(uint8_t path_len, const char* from_name, const char* text, int msgcount) {
-  _msgcount = msgcount;
-
-  ((MsgPreviewScreen *) msg_preview)->addPreview(path_len, from_name, text);
+  uint8_t path_len = pkt->isRouteFlood() ? pkt->path_len : 0xFF;
+  ((MsgPreviewScreen *) msg_preview)->addPreview(path_len, from.name, text);
   setCurrScreen(msg_preview);
 
   if (_display != NULL) {
@@ -671,6 +803,51 @@ void UITask::newMsg(uint8_t path_len, const char* from_name, const char* text, i
     _next_refresh = 100;  // trigger refresh
     }
   }
+
+  if (!hasConnection()) {
+    notify(UIEventType::contactMessage);
+  }
+}
+
+void UITask::onChannelMessageRecv(mesh::Packet *pkt, ChannelDetails& channel_details, const char* text) {
+  uint8_t path_len = pkt->isRouteFlood() ? pkt->path_len : 0xFF;
+  ((MsgPreviewScreen *) msg_preview)->addPreview(path_len, channel_details.name, text);
+  setCurrScreen(msg_preview);
+
+  if (_display != NULL) {
+    if (!_display->isOn() && !hasConnection()) {
+      _display->turnOn();
+    }
+    if (_display->isOn()) {
+    _auto_off = millis() + AUTO_OFF_MILLIS;  // extend the auto-off timer
+    _next_refresh = 100;  // trigger refresh
+    }
+  }
+
+  if (!hasConnection()) {
+    notify(UIEventType::channelMessage);
+  }
+}
+
+void UITask::onQueueSizeChanged(int msgcount) {
+  _msgcount = msgcount;
+  if (msgcount == 0) {
+    gotoHomeScreen();
+  }
+}
+
+void UITask::onDiscoveredContact(ContactInfo &contact, bool is_new, uint8_t path_len, const uint8_t* path) {
+  if (!hasConnection()) {
+    notify(UIEventType::newContactMessage);
+  }
+}
+
+void UITask::onControlDataRecv(const mesh::Packet* packet) {
+#if UI_DISCOVER_SCREEN
+  if (packet->payload_len >= 14 && (packet->payload[0] & 0xF0) == CTL_TYPE_NODE_DISCOVER_RESP) {
+    ((HomeScreen *) home)->handleDiscoverResponse(packet);
+  }
+#endif
 }
 
 void UITask::userLedHandler() {
@@ -720,6 +897,9 @@ void UITask::shutdown(bool restart){
   if (restart) {
     _board->reboot();
   } else {
+    display.forceFullRefresh();
+    display.clear();
+    display.endFrame();
     // Power off board including radio, display, GPS and components
     _board->powerOff();
   }
@@ -760,6 +940,17 @@ void UITask::loop() {
   }
 #elif defined(PIN_USER_BTN)
   int ev = user_btn.check();
+  #ifdef UI_HAS_NAV_INPUT
+  if (ev == BUTTON_EVENT_CLICK) {
+    c = checkDisplayOn(KEY_ENTER);
+  } else if (ev == BUTTON_EVENT_LONG_PRESS) {
+    display.turnOff();
+  } else if (ev == BUTTON_EVENT_DOUBLE_CLICK) {
+    c = handleDoubleClick(KEY_SELECT);
+  } else if (ev == BUTTON_EVENT_TRIPLE_CLICK) {
+    c = handleTripleClick(KEY_SELECT);
+  }
+  #else
   if (ev == BUTTON_EVENT_CLICK) {
     c = checkDisplayOn(KEY_NEXT);
   } else if (ev == BUTTON_EVENT_LONG_PRESS) {
@@ -769,6 +960,7 @@ void UITask::loop() {
   } else if (ev == BUTTON_EVENT_TRIPLE_CLICK) {
     c = handleTripleClick(KEY_SELECT);
   }
+  #endif  
 #endif
 #if defined(UI_HAS_ROTARY_INPUT)
   RotaryInputEvent rotaryEv = rotary_input.poll();

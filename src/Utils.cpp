@@ -203,6 +203,15 @@ bool Utils::isHexChar(char c) {
   return c == '0' || hexVal(c) > 0;
 }
 
+bool Utils::isZeroes(const uint8_t* buf, size_t len) {
+  while (len > 0) {
+    if (*buf != 0) return false;
+    buf++;
+    len--;
+  }
+  return true;
+}
+
 bool Utils::fromHex(uint8_t* dest, int dest_size, const char *src_hex) {
   int len = strlen(src_hex);
   if (len != dest_size*2) return false;  // incorrect length

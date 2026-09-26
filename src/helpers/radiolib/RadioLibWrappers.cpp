@@ -48,6 +48,9 @@ uint32_t RadioLibWrapper::getRngSeed() {
 }
 
 void RadioLibWrapper::setTxPower(int8_t dbm) {
+#if defined(USE_LR2021)
+  idle();
+#endif
   _radio->setOutputPower(dbm);
 }
 

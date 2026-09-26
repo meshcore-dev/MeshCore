@@ -17,6 +17,7 @@ public:
   void setLNAEnable(bool enabled);
   bool isLnaCanControl(void) { return true; }
   void setLnaCanControl(bool can_control) { }
+  bool isLNAEnabled(void) const { return lna_enabled; }
   LoRaFEMType getFEMType(void) const { return KCT8103L_PA; }
 
 private:

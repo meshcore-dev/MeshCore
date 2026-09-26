@@ -114,6 +114,7 @@ protected:
   virtual bool onContactPathRecv(ContactInfo& from, uint8_t* in_path, uint8_t in_path_len, uint8_t* out_path, uint8_t out_path_len, uint8_t extra_type, uint8_t* extra, uint8_t extra_len);
   virtual void onMessageRecv(const ContactInfo& contact, mesh::Packet* pkt, uint32_t sender_timestamp, const char *text) = 0;
   virtual void onCommandDataRecv(const ContactInfo& contact, mesh::Packet* pkt, uint32_t sender_timestamp, const char *text) = 0;
+  virtual void onCLICommandRecv(const ContactInfo& contact, mesh::Packet* pkt, uint32_t sender_timestamp, const char *text, char* reply) = 0;
   virtual void onSignedMessageRecv(const ContactInfo& contact, mesh::Packet* pkt, uint32_t sender_timestamp, const uint8_t *sender_prefix, const char *text) = 0;
   virtual uint32_t calcFloodTimeoutMillisFor(uint32_t pkt_airtime_millis) const = 0;
   virtual uint32_t calcDirectTimeoutMillisFor(uint32_t pkt_airtime_millis, uint8_t path_len) const = 0;
@@ -156,7 +157,7 @@ public:
   mesh::Packet* createSelfAdvert(const char* name);
   mesh::Packet* createSelfAdvert(const char* name, double lat, double lon);
   int  sendMessage(const ContactInfo& recipient, uint32_t timestamp, uint8_t attempt, const char* text, uint32_t& expected_ack, uint32_t& est_timeout);
-  int  sendCommandData(const ContactInfo& recipient, uint32_t timestamp, uint8_t attempt, const char* text, uint32_t& est_timeout);
+  int  sendCommandData(const ContactInfo& recipient, uint32_t timestamp, uint8_t attempt, uint8_t txt_type, const char* text, uint32_t& est_timeout);
   bool sendGroupMessage(uint32_t timestamp, mesh::GroupChannel& channel, const char* sender_name, const char* text, int text_len);
   bool sendGroupData(mesh::GroupChannel& channel, uint8_t* path, uint8_t path_len, uint16_t data_type, const uint8_t* data, int data_len);
   int  sendLogin(const ContactInfo& recipient, const char* password, uint32_t& est_timeout);

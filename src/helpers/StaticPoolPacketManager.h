@@ -14,7 +14,10 @@ public:
   bool add(mesh::Packet* packet, uint8_t priority, uint32_t scheduled_for);
   int count() const { return _num; }
   int countBefore(uint32_t now) const;
-  mesh::Packet* itemAt(int i) const { return _table[i]; }
+  mesh::Packet* itemAt(int i) const {
+    if (i < 0 || i >= _num) return NULL;
+    return _table[i];
+  }
   mesh::Packet* removeByIdx(int i);
 };
 

@@ -20,10 +20,12 @@ for item in menv.get("CPPDEFINES", []):
         src_filter.append("+<helpers/stm32/*>")
     elif item == "ESP32":
         src_filter.append("+<helpers/esp32/*>")
+        src_filter.append("+<helpers/wifi/*>")
     elif item == "NRF52_PLATFORM":
         src_filter.append("+<helpers/nrf52/*>")
     elif item == "RP2040_PLATFORM":
         src_filter.append("+<helpers/rp2040/*>")
+        src_filter.append("+<helpers/wifi/*>")
     
     # DISPLAY HANDLING
     elif isinstance(item, tuple) and item[0] == "DISPLAY_CLASS":

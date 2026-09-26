@@ -82,6 +82,8 @@ public:
   static int parseTextParts(char* text, const char* parts[], int max_num, char separator=',');
 
   static bool isHexChar(char c);
+
+  static bool isZeroes(const uint8_t* buf, size_t len);
 };
 
 }
