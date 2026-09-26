@@ -102,7 +102,7 @@ protected:
    * \param  flags       zero for now
    * \param  path_snrs   single byte SNR*4 for each hop in the path
    * \param  path_hashes hashes of each repeater in the path
-   * \param  path_len    length of the path_snrs[] and path_hashes[] arrays
+   * \param  path_len    byte length of path_hashes[]; SNR count is path_len >> (flags & 3)
   */
   virtual void onTraceRecv(Packet* packet, uint32_t tag, uint32_t auth_code, uint8_t flags, const uint8_t* path_snrs, const uint8_t* path_hashes, uint8_t path_len) { }
 

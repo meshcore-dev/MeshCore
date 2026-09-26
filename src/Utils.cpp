@@ -18,6 +18,7 @@ namespace mesh {
 uint32_t RNG::nextInt(uint32_t _min, uint32_t _max) {
   uint32_t num;
   random((uint8_t *) &num, sizeof(num));
+  if (_max <= _min) return _min;
   return (num % (_max - _min)) + _min;
 }
 
@@ -51,6 +52,7 @@ void Utils::sha256(uint8_t *hash, size_t hash_len, const uint8_t* frag1, int fra
 }
 
 int Utils::decrypt(const uint8_t* shared_secret, uint8_t* dest, const uint8_t* src, int src_len) {
+  if (src_len <= 0 || (src_len % CIPHER_BLOCK_SIZE) != 0) return 0;
 #ifdef USE_CC310_HW_CRYPTO
   static SaSiAesUserContext_t ctx;
   SaSiAesUserKeyData_t keyData = { (uint8_t*)shared_secret, CIPHER_KEY_SIZE };
@@ -146,6 +148,8 @@ int Utils::encryptThenMAC(const uint8_t* shared_secret, uint8_t* dest, const uin
 
 int Utils::MACThenDecrypt(const uint8_t* shared_secret, uint8_t* dest, const uint8_t* src, int src_len) {
   if (src_len <= CIPHER_MAC_SIZE) return 0;  // invalid src bytes
+  int cipher_len = src_len - CIPHER_MAC_SIZE;
+  if (cipher_len <= 0 || (cipher_len % CIPHER_BLOCK_SIZE) != 0) return 0;
 
   uint8_t hmac[CIPHER_MAC_SIZE];
 #ifdef USE_CC310_HW_CRYPTO
