@@ -72,8 +72,8 @@ MultiSerialInterface interface_manager;
     DataStore store(InternalFS, QSPIFlash, rtc_clock);
   #else
     #if defined(EXTRAFS)
-      #include <CustomLFS.h>
-      CustomLFS ExtraFS(0xD4000, 0x19000, 128);
+      #include "LockedLFS.h"
+      LockedLFS ExtraFS(0xD4000, 0x19000, 128);
       DataStore store(InternalFS, ExtraFS, rtc_clock);
     #else
       DataStore store(InternalFS, rtc_clock);
