@@ -29,6 +29,12 @@
 
 #define AREF_VOLTAGE            (3.0)
 
+// External power and charger status lines.
+#define EXT_PWR_DETECT          (13)
+#define EXT_PWR_DETECT_VALUE    HIGH
+#define EXT_CHRG_DETECT         (15)
+#define EXT_CHRG_DETECT_VALUE   LOW
+
 ////////////////////////////////////////////////////////////////////////////////
 // Number of pins
 
