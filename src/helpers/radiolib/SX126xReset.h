@@ -2,6 +2,30 @@
 
 #include <RadioLib.h>
 
+// Raw SX126x GetStatus read. RadioLib's SX126x::getStatus() passes numBytes = 0 to
+// SPIreadStream(), so the status byte is never copied out of the transfer buffer and the
+// function returns 0 unconditionally (same in RadioLib master) — the chip-mode bits read
+// as "not RX" on a perfectly healthy radio. The chip clocks its status byte on MISO
+// during the byte AFTER the opcode (RadioLib's own SX126x SPI config parses buffIn[1],
+// statusPos = 1), so a plain [GetStatus, NOP] transfer taking the second byte is the
+// correct read. Hardware-verified (agessaman, PR #2933 review): returns 0x52 (chip mode
+// RX) on a healthy receiver in 2874/2874 polls where the broken method returns 0x00.
+// Works for all SX126x-family chips (SX1262, SX1268, LLCC68, STM32WLx).
+//
+// TEMPORARY WORKAROUND, tracked upstream: RadioLib issue #1872, fixed by RadioLib PR
+// #1876 (verified on SX1262 hardware: getStatus() byte-identical to this helper in
+// 120/120 polls). Remove this helper and call SX126x::getStatus() directly once
+// MeshCore's RadioLib pin includes that fix.
+inline uint8_t sx126xGetStatus(SX126x* radio) {
+  uint8_t buf[2] = { RADIOLIB_SX126X_CMD_GET_STATUS, RADIOLIB_SX126X_CMD_NOP };
+  radio->mod->hal->spiBeginTransaction();
+  radio->mod->hal->digitalWrite(radio->mod->csPin, radio->mod->hal->GpioLevelLow);
+  radio->mod->hal->spiTransfer(buf, 2, buf);
+  radio->mod->hal->digitalWrite(radio->mod->csPin, radio->mod->hal->GpioLevelHigh);
+  radio->mod->hal->spiEndTransaction();
+  return buf[1];
+}
+
 // Full receiver reset for all SX126x-family chips (SX1262, SX1268, LLCC68, STM32WLx).
 // Warm sleep powers down analog, Calibrate(0x7F) refreshes ADC/PLL/image calibration,
 // then re-applies RX settings that calibration may reset.
