@@ -755,19 +755,22 @@ void UITask::loop() {
 #ifdef AUTO_SHUTDOWN_MILLIVOLTS
   if (millis() > next_batt_chck) {
     _cached_batt_mv = getBattMilliVolts();
-    if (_cached_batt_mv > 0 && _cached_batt_mv < AUTO_SHUTDOWN_MILLIVOLTS) {
-      if(!board.isExternalPowered()) {
+    if (_cached_batt_mv > 0 && _cached_batt_mv < AUTO_SHUTDOWN_MILLIVOLTS && !board.isExternalPowered()) {
+      _low_batt_count++;
+      if (_low_batt_count >= AUTO_SHUTDOWN_LOW_READINGS) {
         if (_display != NULL) {
-        _display->startFrame();
-        _display->setTextSize(2);
-        _display->drawTextCentered(_display->width() / 2, 6, "Low battery!");
-        _display->setTextSize(1);
-        _display->drawTextCentered(_display->width() / 2, 18, "Shutting down!");
-        _display->endFrame();
-        if (_display->isEink() == false) { delay(3000); }
+          _display->startFrame();
+          _display->setTextSize(2);
+          _display->drawTextCentered(_display->width() / 2, 6, "Low battery!");
+          _display->setTextSize(1);
+          _display->drawTextCentered(_display->width() / 2, 18, "Shutting down!");
+          _display->endFrame();
+          if (_display->isEink() == false) { delay(3000); }
         }
         shutdown();
       }
+    } else {
+      _low_batt_count = 0;
     }
     next_batt_chck = millis() + 8000;
   }
