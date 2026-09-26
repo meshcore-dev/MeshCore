@@ -13,14 +13,60 @@ class CustomLR1121 : public LR1121 {
   public:
     CustomLR1121(Module *mod) : LR1121(mod) { }
 
-    int16_t begin(float freq = 434.0, float bw = 125.0, uint8_t sf = 9, uint8_t cr = 7,
-                  uint8_t syncWord = RADIOLIB_LR11X0_LORA_SYNC_WORD_PRIVATE, int8_t power = 10,
-                  uint16_t preambleLength = 8, float tcxoVoltage = 1.6) {
-      int16_t state = LR1121::begin(freq, bw, sf, cr, syncWord, power, preambleLength,
-                                    tcxoVoltage);
-      // RadioLib begin() defaults to LDO; use the LR1121 DC/DC regulator.
-      if (state == RADIOLIB_ERR_NONE) state = setRegulatorDCDC();
-      return state;
+    bool std_init(SPIClass* spi = NULL)
+    {
+      
+  #ifdef LR11X0_DIO3_TCXO_VOLTAGE
+      float tcxo = LR11X0_DIO3_TCXO_VOLTAGE;
+  #else
+      float tcxo = 1.6f;
+  #endif
+
+  #ifdef LORA_CR
+      uint8_t cr = LORA_CR;
+  #else
+      uint8_t cr = 5;
+  #endif
+
+  #if defined(P_LORA_SCLK)
+    #ifdef NRF52_PLATFORM
+      if (spi) { spi->setPins(P_LORA_MISO, P_LORA_SCLK, P_LORA_MOSI); spi->begin(); }
+    #elif defined(RP2040_PLATFORM)
+      if (spi) {
+        spi->setMISO(P_LORA_MISO);
+        //spi->setCS(P_LORA_NSS); // Setting CS results in freeze
+        spi->setSCK(P_LORA_SCLK);
+        spi->setMOSI(P_LORA_MOSI);
+        spi->begin();
+      }
+    #else
+      if (spi) spi->begin(P_LORA_SCLK, P_LORA_MISO, P_LORA_MOSI);
+    #endif
+  #endif
+      int status = begin(LORA_FREQ, LORA_BW, LORA_SF, cr, RADIOLIB_LR11X0_LORA_SYNC_WORD_PRIVATE, LORA_TX_POWER, 16, tcxo);
+      // if radio init fails with -707/-706, try again with tcxo voltage set to 0.0f
+      if (status == RADIOLIB_ERR_SPI_CMD_FAILED || status == RADIOLIB_ERR_SPI_CMD_INVALID) {
+        tcxo = 0.0f;
+        status = begin(LORA_FREQ, LORA_BW, LORA_SF, cr, RADIOLIB_LR11X0_LORA_SYNC_WORD_PRIVATE, LORA_TX_POWER, 16, tcxo);
+      }
+      if (status != RADIOLIB_ERR_NONE) {
+        Serial.print("ERROR: radio init failed: ");
+        Serial.println(status);
+        return false;  // fail
+      }
+    
+      setCRC(2);
+      explicitHeader();
+
+    #ifdef RX_BOOSTED_GAIN
+      setRxBoostedGainMode(true);
+    #endif
+
+    #ifdef LR1121_USE_DCDC
+      setRegulatorDCDC();
+    #endif
+
+      return true;  // success
     }
 
     size_t getPacketLength(bool update) override {
