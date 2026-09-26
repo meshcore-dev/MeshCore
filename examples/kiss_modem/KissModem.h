@@ -62,6 +62,13 @@
 #define HW_CMD_REBOOT            0x18
 #define HW_CMD_SET_SIGNAL_REPORT 0x19
 #define HW_CMD_GET_SIGNAL_REPORT 0x1A
+#define HW_CMD_GET_CAPABILITIES  0x1B
+#define HW_CMD_SET_AGC_RESET_INTERVAL 0x1C
+#define HW_CMD_GET_AGC_RESET_INTERVAL 0x1D
+#define HW_CMD_SET_FEM_STATE     0x1E
+#define HW_CMD_GET_FEM_STATE     0x1F
+#define HW_CMD_SET_RX_BOOSTED_GAIN 0x20
+#define HW_CMD_GET_RX_BOOSTED_GAIN 0x21
 
 /* Response code = command code | 0x80.  Generic / unsolicited use 0xF0+. */
 #define HW_RESP(cmd)             ((cmd) | 0x80)
@@ -81,13 +88,37 @@
 #define HW_ERR_UNKNOWN_CMD       0x05
 #define HW_ERR_ENCRYPT_FAILED    0x06
 #define HW_ERR_TX_BUSY           0x07
+#define HW_ERR_UNSUPPORTED       0x08
 
-#define KISS_FIRMWARE_VERSION 1
+/* GetCapabilities feature bits */
+#define HW_CAP_AGC_RESET         (1UL << 0)
+#define HW_CAP_FEM_RX_GAIN       (1UL << 1)
+#define HW_CAP_FEM_TX_GAIN       (1UL << 2)
+#define HW_CAP_RX_BOOSTED_GAIN   (1UL << 3)
+
+/* SetFemState / GetFemState mask bits */
+#define HW_FEM_RX_GAIN           (1 << 0)
+#define HW_FEM_TX_GAIN           (1 << 1)
+
+/* Matches the CLI reply buffer boards write into from handleCommand() */
+#define KISS_BOARD_REPLY_SIZE    160
+
+/* FEM requests are answered strictly in arrival order; this many may wait (e.g. during a TX) */
+#define KISS_FEM_OP_QUEUE_DEPTH  4
+
+#define KISS_AGC_RESET_DEFAULT_SEC 32  // a multiple of the 4 s step, so hosts can set it back
+#define KISS_AGC_RESET_MAX_SEC     1020
+#define KISS_AGC_RESET_STEP_SEC    4
+
+#define KISS_FIRMWARE_VERSION 2
 
 typedef void (*SetRadioCallback)(float freq, float bw, uint8_t sf, uint8_t cr);
 typedef void (*SetTxPowerCallback)(uint8_t power);
 typedef float (*GetCurrentRssiCallback)();
 typedef void (*GetStatsCallback)(uint32_t* rx, uint32_t* tx, uint32_t* errors);
+typedef bool (*SetRxBoostedGainCallback)(bool enable);
+typedef bool (*GetRxBoostedGainCallback)();
+typedef void (*PollRxCallback)();
 
 struct RadioConfig {
   uint32_t freq_hz;
@@ -95,6 +126,19 @@ struct RadioConfig {
   uint8_t sf;
   uint8_t cr;
   uint8_t tx_power;
+};
+
+enum FemOpKind : uint8_t {
+  FEM_OP_SET,
+  FEM_OP_GET,
+  FEM_OP_ERROR
+};
+
+struct FemOp {
+  FemOpKind kind;
+  uint8_t apply_mask;  // FEM_OP_SET
+  uint8_t value_mask;  // FEM_OP_SET; error code for FEM_OP_ERROR
+  bool applied;        // FEM_OP_SET: hardware changed, reply still to be queued
 };
 
 enum TxState {
@@ -136,9 +180,17 @@ class KissModem {
   SetTxPowerCallback _setTxPowerCallback;
   GetCurrentRssiCallback _getCurrentRssiCallback;
   GetStatsCallback _getStatsCallback;
+  SetRxBoostedGainCallback _setRxBoostedGainCallback;
+  GetRxBoostedGainCallback _getRxBoostedGainCallback;
+  PollRxCallback _pollRxCallback;
 
   RadioConfig _config;
   bool _signal_report_enabled;
+  uint16_t _agc_reset_interval_sec;
+  uint32_t _next_agc_reset_ms;
+  FemOp _fem_ops[KISS_FEM_OP_QUEUE_DEPTH];
+  uint8_t _fem_op_head;
+  uint8_t _fem_op_count;
   uint8_t _tx_frame_buf[KISS_TX_FRAME_QUEUE_DEPTH][KISS_MAX_ENCODED_FRAME_SIZE];
   uint16_t _tx_frame_len[KISS_TX_FRAME_QUEUE_DEPTH];
   uint16_t _tx_frame_written[KISS_TX_FRAME_QUEUE_DEPTH];
@@ -165,6 +217,14 @@ class KissModem {
   void processFrame();
   void handleHardwareCommand(uint8_t sub_cmd, const uint8_t* data, uint16_t len);
   void processTx();
+  void maybeResetAgc();
+  bool queryFemGain(uint8_t bit, bool* enabled);
+  bool setFemGain(uint8_t bit, bool enable);
+  void readFemState(uint8_t* caps, uint8_t* values);
+  bool queueFemReply();
+  void applyFemState(uint8_t apply_mask, uint8_t value_mask);
+  void enqueueFemOp(FemOpKind kind, uint8_t apply_mask, uint8_t value_mask);
+  void processFemOps();
 
   void handleGetIdentity();
   void handleGetRandom(const uint8_t* data, uint16_t len);
@@ -192,6 +252,13 @@ class KissModem {
   void handleGetDeviceName();
   void handleSetSignalReport(const uint8_t* data, uint16_t len);
   void handleGetSignalReport();
+  void handleGetCapabilities();
+  void handleSetAgcResetInterval(const uint8_t* data, uint16_t len);
+  void handleGetAgcResetInterval();
+  void handleSetFemState(const uint8_t* data, uint16_t len);
+  void handleGetFemState();
+  void handleSetRxBoostedGain(const uint8_t* data, uint16_t len);
+  void handleGetRxBoostedGain();
 
 public:
   KissModem(Stream& serial, mesh::LocalIdentity& identity, mesh::RNG& rng,
@@ -204,6 +271,13 @@ public:
   void setTxPowerCallback(SetTxPowerCallback cb) { _setTxPowerCallback = cb; }
   void setGetCurrentRssiCallback(GetCurrentRssiCallback cb) { _getCurrentRssiCallback = cb; }
   void setGetStatsCallback(GetStatsCallback cb) { _getStatsCallback = cb; }
+  // Only register these when the radio supports boosted RX gain; they define the capability.
+  // Delivers any completed RX packet to the host; called before settings that restart the receiver.
+  void setPollRxCallback(PollRxCallback cb) { _pollRxCallback = cb; }
+  void setRxBoostedGainCallbacks(SetRxBoostedGainCallback set_cb, GetRxBoostedGainCallback get_cb) {
+    _setRxBoostedGainCallback = set_cb;
+    _getRxBoostedGainCallback = get_cb;
+  }
 
   void onPacketReceived(int8_t snr, int8_t rssi, const uint8_t* packet, uint16_t len);
   bool isTxBusy() const { return _tx_state != TX_IDLE; }

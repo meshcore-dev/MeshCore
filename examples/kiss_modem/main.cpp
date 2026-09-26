@@ -19,7 +19,6 @@
 #endif
 
 #define NOISE_FLOOR_CALIB_INTERVAL_MS 2000
-#define AGC_RESET_INTERVAL_MS 30000
 #define USB_TX_TIMEOUT_MS 50
 #define USB_TX_BUFFER_SIZE 1024
 
@@ -27,7 +26,6 @@ StdRNG rng;
 mesh::LocalIdentity identity;
 KissModem* modem;
 static uint32_t next_noise_floor_calib_ms = 0;
-static uint32_t next_agc_reset_ms = 0;
 
 void halt() {
   while (1) ;
@@ -75,6 +73,24 @@ void onGetStats(uint32_t* rx, uint32_t* tx, uint32_t* errors) {
   *errors = radio_driver.getPacketsRecvErrors();
 }
 
+void pollRadioRx() {
+  uint8_t rx_buf[256];
+  int rx_len = radio_driver.recvRaw(rx_buf, sizeof(rx_buf));
+  if (rx_len > 0) {
+    int8_t snr = (int8_t)(radio_driver.getLastSNR() * 4);
+    int8_t rssi = (int8_t)radio_driver.getLastRSSI();
+    modem->onPacketReceived(snr, rssi, rx_buf, rx_len);
+  }
+}
+
+bool onSetRxBoostedGain(bool enable) {
+  return radio_driver.setRxBoostedGainMode(enable);
+}
+
+bool onGetRxBoostedGain() {
+  return radio_driver.getRxBoostedGainMode();
+}
+
 void setup() {
   board.begin();
 
@@ -115,7 +131,10 @@ void setup() {
   delay(100);
 #if defined(ESP32) && defined(ARDUINO_USB_CDC_ON_BOOT) && ARDUINO_USB_CDC_ON_BOOT
   Serial.setTxTimeoutMs(USB_TX_TIMEOUT_MS);
+#if defined(ARDUINO_USB_MODE) && ARDUINO_USB_MODE
+  // HWCDC only; TinyUSB's USBCDC TX buffer is fixed at build time
   Serial.setTxBufferSize(USB_TX_BUFFER_SIZE);
+#endif
 #endif
   modem = new KissModem(Serial, identity, rng, radio_driver, board, sensors);
 #endif
@@ -124,6 +143,10 @@ void setup() {
   modem->setTxPowerCallback(onSetTxPower);
   modem->setGetCurrentRssiCallback(onGetCurrentRssi);
   modem->setGetStatsCallback(onGetStats);
+  modem->setPollRxCallback(pollRadioRx);
+  if (radio_driver.supportsRxBoostedGain()) {
+    modem->setRxBoostedGainCallbacks(onSetRxBoostedGain, onGetRxBoostedGain);
+  }
   modem->begin();
 
   board.onBootComplete();
@@ -133,20 +156,7 @@ void loop() {
   modem->loop();
 
   if (!modem->isActuallyTransmitting() && !modem->isHostOutputBackedUp()) {
-    if (!modem->isTxBusy()) {
-      if ((uint32_t)(millis() - next_agc_reset_ms) >= AGC_RESET_INTERVAL_MS) {
-        radio_driver.resetAGC();
-        next_agc_reset_ms = millis();
-      }
-    }
-
-    uint8_t rx_buf[256];
-    int rx_len = radio_driver.recvRaw(rx_buf, sizeof(rx_buf));
-    if (rx_len > 0) {
-      int8_t snr = (int8_t)(radio_driver.getLastSNR() * 4);
-      int8_t rssi = (int8_t)radio_driver.getLastRSSI();
-      modem->onPacketReceived(snr, rssi, rx_buf, rx_len);
-    }
+    pollRadioRx();
   }
 
   board.loop();

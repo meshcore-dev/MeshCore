@@ -118,10 +118,17 @@ MeshCore-specific functionality uses the standard KISS SetHardware command. The 
 | Reboot          | `0x18` | -                                        |
 | SetSignalReport | `0x19` | Enable (1): 0x00=disable, nonzero=enable |
 | GetSignalReport | `0x1A` | -                                        |
+| GetCapabilities | `0x1B` | -                                        |
+| SetAgcResetInterval | `0x1C` | Seconds (2): 0=disable, 0-1020       |
+| GetAgcResetInterval | `0x1D` | -                                    |
+| SetFemState     | `0x1E` | Apply mask (1) + Value mask (1)          |
+| GetFemState     | `0x1F` | -                                        |
+| SetRxBoostedGain | `0x20` | Enable (1): 0x00=disable, nonzero=enable |
+| GetRxBoostedGain | `0x21` | -                                       |
 
 ### Response Sub-commands (TNC to Host)
 
-Response codes use the high-bit convention: `response = command | 0x80`. Generic and unsolicited responses use the `0xF0`+ range.
+Response codes use the high-bit convention: `response = command | 0x80`. Generic and unsolicited responses use the `0xF0`+ range. Set commands that report state (SetSignalReport, SetAgcResetInterval, SetFemState, SetRxBoostedGain) reply with the matching Get response, so `0x9C`, `0x9E` and `0xA0` are never sent.
 
 | Sub-command  | Value  | Data                                    |
 |--------------|--------|-----------------------------------------|
@@ -147,6 +154,10 @@ Response codes use the high-bit convention: `response = command | 0x80`. Generic
 | DeviceName   | `0x96` | Name (variable, UTF-8)                  |
 | Pong         | `0x97` | -                                       |
 | SignalReport | `0x9A` | Status (1): 0x00=disabled, 0x01=enabled |
+| Capabilities | `0x9B` | Feature bits (4)                        |
+| AgcResetInterval | `0x9D` | Effective seconds (2)               |
+| FemState     | `0x9F` | Capability mask (1) + Value mask (1)    |
+| RxBoostedGain | `0xA1` | Status (1): 0x00=disabled, 0x01=enabled |
 | OK           | `0xF0` | -                                       |
 | Error        | `0xF1` | Error code (1)                          |
 | TxDone       | `0xF8` | Result (1): 0x00=failed, 0x01=success   |
@@ -163,6 +174,7 @@ Response codes use the high-bit convention: `response = command | 0x80`. Generic
 | UnknownCmd    | `0x05` | Unknown sub-command     |
 | EncryptFailed | `0x06` | Encryption failed       |
 | TxBusy        | `0x07` | Radio TX busy, or host output queue full |
+| Unsupported   | `0x08` | Command known, but not supported by this board |
 
 ### Unsolicited Events
 
@@ -215,7 +227,75 @@ All values little-endian.
 |-------------|---------|-----------------------|
 | Noise floor | 2 bytes | int16_t, dBm (signed) |
 
-The modem recalibrates the noise floor every 2 seconds with an AGC reset every 30 seconds.
+The modem recalibrates the noise floor every 2 seconds. AGC resets follow the configured AGC reset interval (default 32 seconds).
+
+### Capabilities (Capabilities response)
+
+All values little-endian. Hosts should probe capabilities rather than infer them from the firmware version: boards running the same version expose different hardware controls. Firmware older than version 2 answers GetCapabilities with `UnknownCmd`; treat that as no capabilities.
+
+| Field        | Size    | Description        |
+|--------------|---------|--------------------|
+| Feature bits | 4 bytes | uint32_t, see below |
+
+| Bit | Value  | Description                               |
+|-----|--------|-------------------------------------------|
+| 0   | `0x01` | AGC reset interval control (always set)   |
+| 1   | `0x02` | External FEM RX (LNA) gain control        |
+| 2   | `0x04` | External FEM TX (PA) gain control         |
+| 3   | `0x08` | Radio chip boosted RX gain control        |
+
+Remaining bits are reserved and sent as 0.
+
+### AGC Reset Interval (SetAgcResetInterval / AgcResetInterval response)
+
+All values little-endian.
+
+| Field   | Size    | Description                               |
+|---------|---------|-------------------------------------------|
+| Seconds | 2 bytes | uint16_t, 0 = disabled, maximum 1020      |
+
+The modem periodically resets the radio's AGC while idle (no transmission in progress and host output not backed up). The interval has 4-second resolution, matching the MeshCore `agc.reset.interval` setting: requested values are rounded down to a multiple of 4, so 1-3 disable the reset. Values above 1020 return `InvalidParam`. SetAgcResetInterval replies with the AgcResetInterval response carrying the effective value, and restarts the countdown from the time of the request.
+
+The default is 32 seconds (previously a fixed 30; changed so the default is a settable 4-second multiple). The setting is not persisted; hosts should re-send it after reconnecting or rebooting the modem.
+
+### FEM State (SetFemState / FemState response)
+
+Controls the board's external LoRa front-end module gain. This is separate from the radio chip's own RX boosted gain. TX/RX switching of the FEM is handled by the board and is not affected by these settings.
+
+| Bit | Value  | Description                     |
+|-----|--------|---------------------------------|
+| 0   | `0x01` | RX gain (LNA enabled)           |
+| 1   | `0x02` | TX gain (PA high gain enabled)  |
+
+SetFemState data:
+
+| Field      | Size   | Description                                    |
+|------------|--------|------------------------------------------------|
+| Apply mask | 1 byte | Bits to change; bits not set are left as-is   |
+| Value mask | 1 byte | New value for each bit in the apply mask       |
+
+FemState response data:
+
+| Field           | Size   | Description                                       |
+|-----------------|--------|---------------------------------------------------|
+| Capability mask | 1 byte | Bits this board can control                        |
+| Value mask      | 1 byte | Current state; always 0 for uncontrollable bits    |
+
+Example: enable RX gain without changing TX gain: apply `0x01`, value `0x01`.
+
+If any bit in the apply mask is not in the board's capability mask (including reserved bits), the modem replies `Unsupported` and changes nothing. Otherwise SetFemState replies with the FemState response carrying the state read back from the board; if a bit differs from the request, that change did not take effect. SetFemState and GetFemState requests, including their error replies, are answered strictly in the order received. A SetFemState received while a packet is on air (before its TxDone is queued) is held and applied after TxDone, so its reply follows TxDone, and FEM requests that arrive after it wait behind it. Up to 4 FEM requests can wait; beyond that the modem replies `TxBusy` immediately. Capabilities come from the board's own `get/set radio.fem.rxgain` and `radio.fem.txgain` CLI commands (see [cli_commands.md](./cli_commands.md)): a gain is controllable when the board answers `get` with `> on` or `> off`. Any board that implements those commands is supported without KISS changes, and a board with a fixed, board-managed FEM (for example RAK3401) reports none. Changes made over KISS are not saved to the board's preferences.
+
+The setting is not persisted; the board's power-on default applies after reboot.
+
+### RX Boosted Gain (SetRxBoostedGain / RxBoostedGain response)
+
+Controls the radio chip's own boosted RX gain mode (SX1262, SX1268, LLCC68, LR11x0, LR2021), the equivalent of the MeshCore `radio.rxgain` setting. This is independent of the external FEM RX gain controlled by SetFemState; a board can support either, both or neither.
+
+| Field  | Size   | Description                        |
+|--------|--------|------------------------------------|
+| Status | 1 byte | 0x00 = power-saving, 0x01 = boosted |
+
+SetRxBoostedGain always replies with the RxBoostedGain response carrying the effective state read back from the radio; if it differs from the requested value, the change did not take effect. Some radios must drop to standby to apply it, so the modem replies `TxBusy` and changes nothing while a packet is on air or host output is backed up; retry later. Before applying, any completed received packet is delivered to the host first. A packet still being received at that moment can be lost. Radios whose driver has no boosted RX gain control (for example SX127x and STM32WLx) do not set capability bit 3 and reply `Unsupported` to both commands. The power-on default is the build's `SX126X_RX_BOOSTED_GAIN` setting; the value is not persisted, and periodic AGC resets preserve it.
 
 ### Stats (Stats response)
 
