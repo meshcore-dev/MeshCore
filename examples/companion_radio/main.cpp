@@ -103,6 +103,7 @@ MultiSerialInterface interface_manager;
   DataStore store(LittleFS, rtc_clock);
 #elif defined(ESP32)
   #include <SPIFFS.h>
+  #include <helpers/esp32/SPIFFSMount.h>
   DataStore store(SPIFFS, rtc_clock);
 #endif
 
@@ -161,7 +162,9 @@ void setup() {
   InternalFS.begin();
   #if defined(QSPIFLASH)
     if (!QSPIFlash.begin()) {
-      // debug output might not be available at this point, might be too early. maybe should fall back to InternalFS here?
+      // CustomLFS_QSPIFlash::begin() still formats when its own mount fails.
+      // That wipe lives in the pinned CustomLFS library, not in this tree.
+      // A failed begin must not be treated as an empty contact store.
       MESH_DEBUG_PRINTLN("CustomLFS_QSPIFlash: failed to initialize");
     } else {
       MESH_DEBUG_PRINTLN("CustomLFS_QSPIFlash: initialized successfully");
@@ -178,7 +181,7 @@ void setup() {
   store.begin();
   the_mesh.begin();
 #elif defined(ESP32)
-  SPIFFS.begin(true);
+  mountSPIFFS();
   store.begin();
   the_mesh.begin();
 #else

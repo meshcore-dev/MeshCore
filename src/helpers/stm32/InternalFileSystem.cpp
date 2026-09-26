@@ -126,20 +126,11 @@ InternalFileSystem::InternalFileSystem(void)
 
 bool InternalFileSystem::begin(void)
 {
-  volatile bool format_fs;
-  #ifdef FORMAT_FS
-  format_fs = true;
-  #else
-  format_fs = false; // you can always use debugger to force formatting ;)
-  #endif
-  // failed to mount, erase all sector then format and mount again
-  if ( format_fs || !Adafruit_LittleFS::begin() )
-  {
-    // lfs format
-    this->format();
-    // mount again if still failed, give up
-    if ( !Adafruit_LittleFS::begin() ) return false;
-  }
-
+  // FORMAT_FS is an explicit rebuild-to-wipe. A failed mount is not: formatting
+  // here deletes contacts and prefs when the volume is only temporarily unreadable.
+#ifdef FORMAT_FS
+  this->format();
+#endif
+  if (!Adafruit_LittleFS::begin()) return false;
   return true;
 }
