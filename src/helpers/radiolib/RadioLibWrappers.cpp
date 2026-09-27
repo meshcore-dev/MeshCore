@@ -139,7 +139,8 @@ int RadioLibWrapper::recvRaw(uint8_t* bytes, int sz) {
       }
     }
     #if defined(USE_LR2021)
-    state = STATE_RX;     // LR2021 stays in Rx after readData, calling startReceive while still in Rx throws -706 errors
+    state = STATE_RX;     // LR2021 stays in Rx after readData, calling startReceive when not in standby throws -706 errors
+    _radio->clearIrqFlags(RADIOLIB_LR2021_IRQ_RX_DONE); // Ensure we never get stuck
     #else
     state = STATE_IDLE;   // need another startReceive()
     #endif
