@@ -2591,6 +2591,10 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
     sprintf(reply, "> %s", _prefs.one_key_dm_enabled == 1 ? "on" : "off");
     return true;
   }
+  if (strcmp(command, "get dm.held") == 0) {
+    sprintf(reply, "> %u", (unsigned)held_dm_count);
+    return true;
+  }
   if (memcmp(command, "set dm.one_key ", 15) == 0) {
     const char* value = &command[15];
     if (strcmp(value, "on") == 0 || strcmp(value, "off") == 0) {
@@ -2604,6 +2608,7 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
   }
 #else
   if (strcmp(command, "get dm.one_key") == 0 ||
+      strcmp(command, "get dm.held") == 0 ||
       strncmp(command, "set dm.one_key ", 15) == 0) {
     strcpy(reply, "Error: one-key DMs unsupported on this build");
     return true;

@@ -21,6 +21,38 @@ def method(source: str, signature: str) -> str:
 
 
 class SharedOneKeyQueueTest(unittest.TestCase):
+    def test_held_count_cli_reports_current_queue_length(self):
+        source = (ROOT / "examples/companion_radio/MyMesh.cpp").read_text()
+        getter = method(source, 'if (strcmp(command, "get dm.held") == 0)')
+        harness = f'''
+#include <cassert>
+#include <cstdio>
+#include <cstring>
+bool query(const char* command, char* reply, unsigned held_dm_count) {{
+{getter}
+  return false;
+}}
+int main() {{
+  char reply[16] = {{}};
+  assert(query("get dm.held", reply, 0));
+  assert(strcmp(reply, "> 0") == 0);
+  assert(query("get dm.held", reply, 15));
+  assert(strcmp(reply, "> 15") == 0);
+  assert(!query("get dm.one_key", reply, 15));
+}}
+'''
+        with tempfile.TemporaryDirectory(prefix="meshcore-held-dm-cli-") as temp:
+            path = Path(temp) / "held_dm_cli.cpp"
+            binary = Path(temp) / "held_dm_cli.exe"
+            path.write_text(harness)
+            built = subprocess.run(
+                ["c++", "-std=c++17", str(path), "-o", str(binary)],
+                text=True, capture_output=True,
+            )
+            self.assertEqual(built.returncode, 0, built.stderr)
+            result = subprocess.run([str(binary)], text=True, capture_output=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_256_slots_and_fifteen_held_dms(self):
         source = (ROOT / "examples/companion_radio/MyMesh.cpp").read_text()
         methods = "\n\n".join(method(source, signature) for signature in (

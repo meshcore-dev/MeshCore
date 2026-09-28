@@ -673,10 +673,13 @@ separate from advert auto-add. Neither mode accepts an invalid signature or
 overwrites an existing contact. Stock receivers still need to learn the sender
 key by advert or import before they can decrypt an ordinary DM. The first send
 uses an additional radio packet and its reported timeout includes the delay.
+`get dm.held` reports the current number of verified, decryptable DMs waiting
+for contact acceptance (0-15); it is read-only and does not expose message text.
 
 Flash-constrained STM32WL Companion builds omit one-key DM support to retain
-their existing filesystem boundary. On those builds, `get dm.one_key` and
-`set dm.one_key on|off` report `Error: one-key DMs unsupported on this build`.
+their existing filesystem boundary. On those builds, `get dm.one_key`,
+`set dm.one_key on|off`, and `get dm.held` report
+`Error: one-key DMs unsupported on this build`.
 Ordinary contact-based private messages are unaffected.
 
 For a two-radio hardware check, run `python3 tools/hil/one_key_dm.py --sender
