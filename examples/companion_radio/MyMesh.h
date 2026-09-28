@@ -58,6 +58,16 @@
 #define MAX_CONTACTS 100
 #endif
 
+// The small STM32WL Companion images cannot fit this feature without moving
+// their existing filesystem boundary.
+#ifndef MESH_ENABLE_ONE_KEY_DM
+#if defined(STM32_PLATFORM)
+#define MESH_ENABLE_ONE_KEY_DM 0
+#else
+#define MESH_ENABLE_ONE_KEY_DM 1
+#endif
+#endif
+
 #ifndef OFFLINE_QUEUE_SIZE
 #define OFFLINE_QUEUE_SIZE 16
 #endif
@@ -166,11 +176,13 @@ protected:
   void onDiscoveredContact(ContactInfo &contact, bool is_new, uint8_t path_len, const uint8_t* path) override;
   void onContactPathUpdated(const ContactInfo &contact) override;
   ContactInfo* processAck(const uint8_t *data) override;
+#if MESH_ENABLE_ONE_KEY_DM
   void onAnonDataRecv(mesh::Packet* packet, const uint8_t* secret,
                       const mesh::Identity& sender, uint8_t* data,
                       size_t len) override;
   bool onAddressedTextPacket(mesh::Packet* packet, uint8_t src_hash,
                              const uint8_t* mac_and_data, size_t len) override;
+#endif
   void queueMessage(const ContactInfo &from, uint8_t txt_type, mesh::Packet *pkt, uint32_t sender_timestamp,
                     const uint8_t *extra, int extra_len, const char *text);
 
@@ -304,6 +316,7 @@ private:
   };
   #define EXPECTED_ACK_TABLE_SIZE 8
   AckTableEntry expected_ack_table[EXPECTED_ACK_TABLE_SIZE]; // circular table
+#if MESH_ENABLE_ONE_KEY_DM
   // Bounded session state for introductions, ACKs, and explicit refusals.
   static constexpr uint8_t ONE_KEY_PEERS = 8;
   struct OneKeyPeerState {
@@ -320,8 +333,10 @@ private:
   void rememberOneKeyAck(const ContactInfo& contact);
   bool rememberOneKeyReject(const ContactInfo& contact, uint32_t tag);
   uint32_t sendOneKeyIntroduction(const ContactInfo& contact);
+#endif
   int next_ack_idx;
 
+#if MESH_ENABLE_ONE_KEY_DM
   static constexpr uint8_t MAX_HELD_ONE_KEY_DMS = 15;
   static constexpr uint8_t ONE_KEY_DM_ID_SIZE = 8;
   uint8_t verified_pending_keys[MAX_HELD_ONE_KEY_DMS][PUB_KEY_SIZE] = {};
@@ -351,6 +366,7 @@ private:
   void rememberDeliveredOneKeyDM(const uint8_t* pub_key,
                                  const uint8_t id[ONE_KEY_DM_ID_SIZE]);
   void releaseHeldOneKeyDMs();
+#endif
 
   #define ADVERT_PATH_TABLE_SIZE   16
   AdvertPath advert_paths[ADVERT_PATH_TABLE_SIZE]; // circular table

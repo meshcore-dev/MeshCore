@@ -202,7 +202,13 @@ void BaseChatMesh::onAdvertRecv(mesh::Packet* packet, const mesh::Identity& id, 
 
 int BaseChatMesh::searchPeersByHash(const uint8_t* hash) {
   int n = 0;
-  for (int i = 0; i < num_contacts && n < MAX_SEARCH_RESULTS; i++) {
+  // An accepted contact must take priority over a matching transient slot.
+  for (int i = MAX_ANON_CONTACTS; i < num_contacts && n < MAX_SEARCH_RESULTS; i++) {
+    if (contacts[i].id.isHashMatch(hash)) {
+      matching_peer_indexes[n++] = i;
+    }
+  }
+  for (int i = 0; i < MAX_ANON_CONTACTS && n < MAX_SEARCH_RESULTS; i++) {
     if (contacts[i].id.isHashMatch(hash)) {
       matching_peer_indexes[n++] = i;  // store the INDEXES of matching contacts (for subsequent 'peer' methods)
     }

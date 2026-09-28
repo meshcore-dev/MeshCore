@@ -674,6 +674,11 @@ overwrites an existing contact. Stock receivers still need to learn the sender
 key by advert or import before they can decrypt an ordinary DM. The first send
 uses an additional radio packet and its reported timeout includes the delay.
 
+Flash-constrained STM32WL Companion builds omit one-key DM support to retain
+their existing filesystem boundary. On those builds, `get dm.one_key` and
+`set dm.one_key on|off` report `Error: one-key DMs unsupported on this build`.
+Ordinary contact-based private messages are unaffected.
+
 For a two-radio hardware check, run `python3 tools/hil/one_key_dm.py --sender
 /dev/ttyACM0 --recipient /dev/ttyACM1 --reset-contact` with two nearby
 Companion radios on the same profile. The default test checks a pending advert,
