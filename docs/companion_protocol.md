@@ -632,18 +632,42 @@ For a private chat contact, `CMD_SEND_TXT_MSG` (`0x02`) remains unchanged.
 Before the first unconfirmed DM, Companion firmware sends a signed, encrypted
 [one-key introduction](payloads.md#companion-one-key-dm-introduction), then
 schedules the ordinary private text packet. The introduction repeats on an
-application retry. Once a DM is acknowledged, later first attempts omit the
-introduction until the sender reboots or its eight-peer ACK cache is replaced.
-The receiver verifies the sender's signature, saves a chat contact even when
-advert auto-add is off, and pushes `PUSH_CODE_NEW_ADVERT` before the message
-notification. Stock receivers need to learn the sender key by advert or import
-before they can decrypt the ordinary DM. The first send consumes an additional
-radio packet; the returned send timeout includes the scheduling delay.
+application retry unless the receiver has refused it. Once a DM is acknowledged,
+later first attempts omit the introduction until the sender reboots or its
+eight-peer session cache is replaced.
+
+`dm.one_key` is **off by default**, including when older preferences are loaded.
+With it off, the receiver verifies the introduction, emits a synthetic
+`PUSH_CODE_NEW_ADVERT` (`0x8A`) contact record for the app's advert list, and
+does not add a contact or decrypt the following DM. The user can add that
+record with the ordinary `CMD_ADD_UPDATE_CONTACT` (`0x09`) flow. It is an
+app-facing advert record, not a signed broadcast advert packet; it cannot be
+used with `CMD_IMPORT_CONTACT` (`0x12`). A signed, encrypted refusal also tells
+the sender to stop including introductions for that peer on retries. The sender
+emits `PUSH_CODE_ONE_KEY_DM_REJECTED` (`0x91`, followed by the recipient's full
+32-byte public key) for apps that want to show the refusal. The refusal cache is
+limited to eight peers and resets on reboot or eviction. If the user later adds
+the contact, an ordinary retry can be delivered and acknowledged.
+Temporary anonymous-request entries do not grant text-DM permission.
+The pending advert notification requires a connected app; it is not saved as a
+contact on the radio. Existing apps must handle `0x91` to show a visible
+refusal, although the sender firmware suppresses repeat introductions itself.
+
+Use `get dm.one_key` and `set dm.one_key on|off` in the Companion CLI (or send
+them through `CMD_RUN_CLI_COMMAND`, `0x42`). The saved preference is
+`comp.one_key_dm` (`0` or `1`). With the setting on, a verified unknown sender
+is accepted automatically and the first DM is delivered. This setting is
+separate from advert auto-add. Neither mode accepts an invalid signature or
+overwrites an existing contact. Stock receivers still need to learn the sender
+key by advert or import before they can decrypt an ordinary DM. The first send
+uses an additional radio packet and its reported timeout includes the delay.
 
 For a two-radio hardware check, run `python3 tools/hil/one_key_dm.py --sender
 /dev/ttyACM0 --recipient /dev/ttyACM1 --reset-contact` with two nearby
-Companion radios on the same profile. The test checks contact creation,
-message notification, and ACK without draining the recipient's message queue.
+Companion radios on the same profile. The default test checks a pending advert,
+refusal, manual contact addition, then message notification and ACK without
+draining the recipient's message queue. Add `--auto-accept` to test the opt-in
+automatic path (restart the sender after a refusal to clear its session cache).
 Add `--invalid-signature-first` to check signature rejection.
 
 ---

@@ -287,13 +287,21 @@ private:
   };
   #define EXPECTED_ACK_TABLE_SIZE 8
   AckTableEntry expected_ack_table[EXPECTED_ACK_TABLE_SIZE]; // circular table
-  // An ACK proves this peer can decrypt our ordinary private messages.
-  static constexpr uint8_t ONE_KEY_ACKED_PEERS = 8;
-  uint8_t one_key_acked_keys[ONE_KEY_ACKED_PEERS][PUB_KEY_SIZE] = {};
-  uint8_t one_key_acked_count = 0;
-  uint8_t one_key_acked_next = 0;
+  // Bounded session state for introductions, ACKs, and explicit refusals.
+  static constexpr uint8_t ONE_KEY_PEERS = 8;
+  struct OneKeyPeerState {
+    uint8_t pub_key[PUB_KEY_SIZE];
+    uint32_t intro_tag;
+    uint8_t status; // 0 = pending, 1 = acknowledged, 2 = rejected
+  };
+  OneKeyPeerState one_key_peers[ONE_KEY_PEERS] = {};
+  uint8_t one_key_peer_count = 0;
+  uint8_t one_key_peer_next = 0;
   bool hasOneKeyAck(const ContactInfo& contact) const;
+  bool hasOneKeyReject(const ContactInfo& contact) const;
+  void rememberOneKeyIntro(const ContactInfo& contact, uint32_t tag);
   void rememberOneKeyAck(const ContactInfo& contact);
+  bool rememberOneKeyReject(const ContactInfo& contact, uint32_t tag);
   uint32_t sendOneKeyIntroduction(const ContactInfo& contact);
   int next_ack_idx;
 

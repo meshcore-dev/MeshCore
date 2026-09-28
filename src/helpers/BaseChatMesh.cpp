@@ -228,6 +228,10 @@ void BaseChatMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender
 
   ContactInfo& from = contacts[i];
 
+  // Anonymous-request peers occupy transient contact slots. Those slots
+  // permit replies to the request, but must not turn into DM permissions.
+  if (type == PAYLOAD_TYPE_TXT_MSG && from.type == ADV_TYPE_NONE) return;
+
   if (type == PAYLOAD_TYPE_TXT_MSG && len > 5) {
     uint32_t sender_timestamp;
     memcpy(&sender_timestamp, data, 4);  // timestamp (by sender's RTC clock - which could be wrong)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise a private DM when only its sender knows the recipient's key.
+"""Exercise default-reject and opt-in one-key private DMs.
 
 This test changes the two radios' contact lists and transmits one LoRa DM.
 It leaves the recipient's offline message queue untouched. Use two nearby
@@ -119,17 +119,32 @@ class Link:
         frame = self.request(bytes([30]) + key, (1, 3))
         return frame if frame[0] == 3 else None
 
+    def cli(self, command: str) -> str:
+        frame = self.request(bytes([66]) + command.encode(), (29,))
+        return frame[1:].decode(errors="replace").strip()
+
 
 def run(sender_port: str, recipient_port: str, reset_contact: bool,
-        zero_hop: bool, invalid_signature_first: bool) -> dict:
+        zero_hop: bool, invalid_signature_first: bool,
+        auto_accept: bool = False) -> dict:
     sender = Link(sender_port)
     recipient = Link(recipient_port)
+    original_setting = None
     try:
         sender_key, sender_info = sender.start()
         recipient_key, recipient_info = recipient.start()
         radio_fields = ("frequency_khz", "bandwidth_hz", "spreading_factor", "coding_rate")
         if any(sender_info[field] != recipient_info[field] for field in radio_fields):
             raise RuntimeError("radios do not use the same frequency, bandwidth, SF, and CR")
+
+        original_setting = recipient.cli("get dm.one_key").removeprefix("> ")
+        if original_setting not in ("on", "off"):
+            raise RuntimeError(f"unknown one-key DM setting: {original_setting}")
+        requested_setting = "on" if auto_accept else "off"
+        if original_setting != requested_setting:
+            reply = recipient.cli(f"set dm.one_key {requested_setting}")
+            if f"dm.one_key is now {requested_setting}" not in reply:
+                raise RuntimeError(f"could not select one-key DM policy: {reply}")
 
         if recipient.contact(sender_key) is not None:
             if not reset_contact:
@@ -169,6 +184,9 @@ def run(sender_port: str, recipient_port: str, reset_contact: bool,
             time.sleep(2)
             if recipient.contact(sender_key) is not None:
                 raise AssertionError("invalid introduction created a contact")
+            if any(frame[0] == 0x8A and frame[1:33] == sender_key
+                   for frame in recipient.pushes):
+                raise AssertionError("invalid introduction created a pending advert")
 
         timestamp = int(time.time())
         text = f"one-key DM HIL {timestamp}".encode()
@@ -176,17 +194,55 @@ def run(sender_port: str, recipient_port: str, reset_contact: bool,
         sent = sender.request(message, (6,), seconds=20)
         expected_ack = sent[2:6]
         timeout_ms = struct.unpack("<I", sent[6:10])[0]
-        until = time.monotonic() + min(timeout_ms / 1000 + 5, 120)
+        # In the default-off case, observe the entire reported send window:
+        # the ordinary DM is queued after the introduction and may arrive
+        # later than the pending advert and refusal.
+        until = time.monotonic() + (timeout_ms / 1000 + 5 if not auto_accept
+                                    else min(timeout_ms / 1000 + 5, 120))
         while time.monotonic() < until:
             for link in (sender, recipient):
                 link.read(0.1)
-            confirmed = any(
-                frame[0] == 0x82 and frame[1:5] == expected_ack
-                for frame in sender.pushes
-            )
-            waiting = any(frame[0] == 0x83 for frame in recipient.pushes)
-            if confirmed and waiting:
-                break
+            if auto_accept:
+                confirmed = any(frame[0] == 0x82 and frame[1:5] == expected_ack
+                                for frame in sender.pushes)
+                waiting = any(frame[0] == 0x83 for frame in recipient.pushes)
+                if confirmed and waiting:
+                    break
+
+        advertised = next((frame for frame in recipient.pushes
+                           if frame[0] == 0x8A and frame[1:33] == sender_key), None)
+        rejected = any(frame[0] == 0x91 and frame[1:33] == recipient_key
+                       for frame in sender.pushes)
+        if not auto_accept:
+            if advertised is None or not rejected:
+                raise AssertionError("default-off policy did not advertise and refuse the introduction")
+            if recipient.contact(sender_key) is not None:
+                raise AssertionError("default-off policy saved an unknown sender")
+            if any(frame[0] == 0x83 for frame in recipient.pushes):
+                raise AssertionError("default-off policy delivered the one-sided DM")
+            if any(frame[0] == 0x82 and frame[1:5] == expected_ack
+                   for frame in sender.pushes):
+                raise AssertionError("default-off policy acknowledged the one-sided DM")
+
+            # The synthetic PUSH_CODE_NEW_ADVERT has the ordinary contact
+            # response body, so the app can accept it through its existing
+            # CMD_ADD_UPDATE_CONTACT path.
+            recipient.request(bytes([9]) + advertised[1:], (0,))
+            if recipient.contact(sender_key) is None:
+                raise AssertionError("manual acceptance did not add the sender")
+            retry = bytes([2, 0, 1]) + struct.pack("<I", timestamp) + recipient_key[:6] + text
+            sent = sender.request(retry, (6,), seconds=20)
+            expected_ack = sent[2:6]
+            timeout_ms = struct.unpack("<I", sent[6:10])[0]
+            until = time.monotonic() + min(timeout_ms / 1000 + 5, 120)
+            while time.monotonic() < until:
+                for link in (sender, recipient):
+                    link.read(0.1)
+                confirmed = any(frame[0] == 0x82 and frame[1:5] == expected_ack
+                                for frame in sender.pushes)
+                waiting = any(frame[0] == 0x83 for frame in recipient.pushes)
+                if confirmed and waiting:
+                    break
 
         confirmed = any(
             frame[0] == 0x82 and frame[1:5] == expected_ack for frame in sender.pushes
@@ -200,6 +256,9 @@ def run(sender_port: str, recipient_port: str, reset_contact: bool,
             "ack_confirmed": confirmed,
             "recipient_message_waiting": waiting,
             "recipient_learned_sender": learned,
+            "mode": "auto_accept" if auto_accept else "manual_accept_after_refusal",
+            "pending_advert_received": advertised is not None,
+            "sender_notified_of_refusal": rejected,
             "timeout_ms": timeout_ms,
         }
         if invalid_signature_first:
@@ -208,8 +267,12 @@ def run(sender_port: str, recipient_port: str, reset_contact: bool,
             raise AssertionError(json.dumps(result, sort_keys=True))
         return result
     finally:
-        sender.close()
-        recipient.close()
+        try:
+            if original_setting in ("on", "off"):
+                recipient.cli(f"set dm.one_key {original_setting}")
+        finally:
+            sender.close()
+            recipient.close()
 
 
 if __name__ == "__main__":
@@ -222,7 +285,10 @@ if __name__ == "__main__":
                         help="set a direct zero-hop path; use only when both radios are nearby")
     parser.add_argument("--invalid-signature-first", action="store_true",
                         help="verify an encrypted introduction with a bad signature is rejected")
+    parser.add_argument("--auto-accept", action="store_true",
+                        help="temporarily enable automatic acceptance of verified introductions")
     args = parser.parse_args()
     print(json.dumps(run(args.sender, args.recipient, args.reset_contact,
-                         args.zero_hop, args.invalid_signature_first),
+                         args.zero_hop, args.invalid_signature_first,
+                         args.auto_accept),
                      sort_keys=True))

@@ -236,12 +236,22 @@ without a broadcast advert. The ciphertext contains:
 
 The signed bytes are the recipient's full public key followed by the tag,
 marker, and NUL-terminated name. The recipient verifies that signature against
-the 32-byte sender key in the anonymous request header before creating a chat
-contact. A receiver that does not implement `DMK1` ignores the introduction;
-the following normal text packet still works when it already has the sender's
-key. The recipient's manual advert auto-add setting does not suppress a
-verified, addressed `DMK1` introduction. The sender's full public key remains
-visible in the radio packet header, as with other anonymous requests.
+the 32-byte sender key in the anonymous request header. By default it exposes
+the sender as a pending, app-facing advert without storing a contact. If
+`comp.one_key_dm` is enabled, it stores the sender as a chat contact. A receiver
+that does not implement `DMK1` ignores the introduction; the following normal
+text packet still works when it already has the sender's key. The sender's full
+public key remains visible in the radio packet header, as with other anonymous
+requests.
+
+When automatic acceptance is off, the recipient sends an encrypted
+`PAYLOAD_TYPE_RESPONSE` refusal to the sender. Its plaintext is the original
+four-byte introduction tag, ASCII `DMR1`, and a 64-byte Ed25519 signature.
+The signed bytes are the original sender's full public key followed by the tag
+and `DMR1`. The sender verifies the signature and matches the tag to its
+outstanding introduction before caching the refusal. It then omits `DMK1`
+on retries for that peer. A later ordinary DM can still succeed after the
+recipient manually adds the pending contact.
 
 ### Room server login
 
