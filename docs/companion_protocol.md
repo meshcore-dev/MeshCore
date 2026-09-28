@@ -628,6 +628,24 @@ Use the `SEND_CHANNEL_MESSAGE` command (see [Commands](#commands)).
 - Long messages should be split into chunks
 - Include a chunk indicator (e.g., "[1/3] message text")
 
+For a private chat contact, `CMD_SEND_TXT_MSG` (`0x02`) remains unchanged.
+Before the first unconfirmed DM, Companion firmware sends a signed, encrypted
+[one-key introduction](payloads.md#companion-one-key-dm-introduction), then
+schedules the ordinary private text packet. The introduction repeats on an
+application retry. Once a DM is acknowledged, later first attempts omit the
+introduction until the sender reboots or its eight-peer ACK cache is replaced.
+The receiver verifies the sender's signature, saves a chat contact even when
+advert auto-add is off, and pushes `PUSH_CODE_NEW_ADVERT` before the message
+notification. Stock receivers need to learn the sender key by advert or import
+before they can decrypt the ordinary DM. The first send consumes an additional
+radio packet; the returned send timeout includes the scheduling delay.
+
+For a two-radio hardware check, run `python3 tools/hil/one_key_dm.py --sender
+/dev/ttyACM0 --recipient /dev/ttyACM1 --reset-contact` with two nearby
+Companion radios on the same profile. The test checks contact creation,
+message notification, and ACK without draining the recipient's message queue.
+Add `--invalid-signature-first` to check signature rejection.
+
 ---
 
 ## Response Parsing

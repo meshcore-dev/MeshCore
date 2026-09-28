@@ -111,6 +111,10 @@
 #define DIRECT_SEND_PERHOP_EXTRA_MILLIS 250
 #define LAZY_CONTACTS_WRITE_DELAY       5000
 
+// An ANON_REQ already carries its sender's full public key. This marker
+// distinguishes a contact introduction from other anonymous requests.
+static constexpr uint8_t ONE_KEY_INTRO_MARKER[] = {'D', 'M', 'K', '1'};
+
 #define PUBLIC_GROUP_PSK                "izOH6cXN6mrJ5e26oRXNcg=="
 
 // these are _pushed_ to client app at any time
@@ -422,7 +426,8 @@ ContactInfo*  MyMesh::processAck(const uint8_t *data) {
   }
   // see if matches any in a table
   for (int i = 0; i < EXPECTED_ACK_TABLE_SIZE; i++) {
-    if (memcmp(data, &expected_ack_table[i].ack, 4) == 0) { // got an ACK from recipient
+    if (expected_ack_table[i].ack != 0 &&
+        memcmp(data, &expected_ack_table[i].ack, 4) == 0) { // got an ACK from recipient
       out_frame[0] = PUSH_CODE_SEND_CONFIRMED;
       memcpy(&out_frame[1], data, 4);
       uint32_t trip_time = _ms->getMillis() - expected_ack_table[i].msg_sent;
@@ -430,11 +435,111 @@ ContactInfo*  MyMesh::processAck(const uint8_t *data) {
       _serial->writeFrame(out_frame, 9);
 
       // NOTE: the same ACK can be received multiple times!
+      ContactInfo* contact = expected_ack_table[i].contact;
+      if (contact != NULL && contact->type == ADV_TYPE_CHAT) rememberOneKeyAck(*contact);
       expected_ack_table[i].ack = 0; // clear expected hash, now that we have received ACK
-      return expected_ack_table[i].contact;
+      return contact;
     }
   }
   return checkConnectionsAck(data);
+}
+
+bool MyMesh::hasOneKeyAck(const ContactInfo& contact) const {
+  for (uint8_t i = 0; i < one_key_acked_count; ++i) {
+    if (memcmp(one_key_acked_keys[i], contact.id.pub_key, PUB_KEY_SIZE) == 0) return true;
+  }
+  return false;
+}
+
+void MyMesh::rememberOneKeyAck(const ContactInfo& contact) {
+  if (hasOneKeyAck(contact)) return;
+  memcpy(one_key_acked_keys[one_key_acked_next], contact.id.pub_key, PUB_KEY_SIZE);
+  if (one_key_acked_count < ONE_KEY_ACKED_PEERS) ++one_key_acked_count;
+  one_key_acked_next = (one_key_acked_next + 1) % ONE_KEY_ACKED_PEERS;
+}
+
+uint32_t MyMesh::sendOneKeyIntroduction(const ContactInfo& contact) {
+  // Older Companion firmware ignores this packet. It does not alter the
+  // ordinary text packet that follows.
+  uint8_t body[4 + sizeof(ONE_KEY_INTRO_MARKER) + 32 + SIGNATURE_SIZE];
+  const uint32_t tag = getRTCClock()->getCurrentTimeUnique();
+  memcpy(body, &tag, sizeof(tag));
+  memcpy(body + 4, ONE_KEY_INTRO_MARKER, sizeof(ONE_KEY_INTRO_MARKER));
+  char fallback_name[20];
+  snprintf(fallback_name, sizeof(fallback_name), "Unknown %02X%02X%02X",
+           self_id.pub_key[0], self_id.pub_key[1], self_id.pub_key[2]);
+  const char* name = _prefs.node_name[0] ? _prefs.node_name : fallback_name;
+  const size_t name_len = strnlen(name, 31);
+  memcpy(body + 4 + sizeof(ONE_KEY_INTRO_MARKER), name, name_len);
+  body[4 + sizeof(ONE_KEY_INTRO_MARKER) + name_len] = 0;
+  const size_t signed_body_len = 4 + sizeof(ONE_KEY_INTRO_MARKER) + name_len + 1;
+  uint8_t signed_message[PUB_KEY_SIZE + 4 + sizeof(ONE_KEY_INTRO_MARKER) + 32];
+  memcpy(signed_message, contact.id.pub_key, PUB_KEY_SIZE);
+  memcpy(signed_message + PUB_KEY_SIZE, body, signed_body_len);
+  self_id.sign(body + signed_body_len, signed_message,
+               PUB_KEY_SIZE + signed_body_len);
+
+  mesh::Packet* intro = createAnonDatagram(
+      PAYLOAD_TYPE_ANON_REQ, self_id, contact.id,
+      contact.getSharedSecret(self_id), body,
+      signed_body_len + SIGNATURE_SIZE);
+  if (intro == NULL) return 0;
+  const uint32_t airtime = _radio->getEstAirtimeFor(intro->getRawLength());
+  uint32_t delay;
+  if (contact.out_path_len == OUT_PATH_UNKNOWN) {
+    delay = calcFloodTimeoutMillisFor(airtime) / 2;
+    sendFloodScoped(contact, intro);
+  } else {
+    const uint32_t hops = (contact.out_path_len & 63) + 1;
+    delay = (airtime * 3 + 500) * hops;
+    sendDirect(intro, contact.out_path, contact.out_path_len);
+  }
+  return delay;
+}
+
+void MyMesh::onAnonDataRecv(mesh::Packet* packet, const uint8_t* secret,
+                            const mesh::Identity& sender, uint8_t* data,
+                            size_t len) {
+  (void)secret;
+  if (packet->getPayloadType() != PAYLOAD_TYPE_ANON_REQ ||
+      len < 4 + sizeof(ONE_KEY_INTRO_MARKER) + 2 + SIGNATURE_SIZE ||
+      memcmp(data + 4, ONE_KEY_INTRO_MARKER,
+             sizeof(ONE_KEY_INTRO_MARKER)) != 0) return;
+
+  const char* name = reinterpret_cast<const char*>(data + 4 + sizeof(ONE_KEY_INTRO_MARKER));
+  size_t available = len - 4 - sizeof(ONE_KEY_INTRO_MARKER) - SIGNATURE_SIZE;
+  if (available > 32) available = 32;
+  const char* end = static_cast<const char*>(memchr(name, 0, available));
+  if (end == NULL || end == name || size_t(end - name) >= sizeof(ContactInfo::name)) return;
+  const size_t signed_body_len = 4 + sizeof(ONE_KEY_INTRO_MARKER) + size_t(end - name) + 1;
+  if (signed_body_len + SIGNATURE_SIZE > len) return;
+  uint8_t signed_message[PUB_KEY_SIZE + 4 + sizeof(ONE_KEY_INTRO_MARKER) + 32];
+  memcpy(signed_message, self_id.pub_key, PUB_KEY_SIZE);
+  memcpy(signed_message + PUB_KEY_SIZE, data, signed_body_len);
+  if (!sender.verify(data + signed_body_len, signed_message,
+                     PUB_KEY_SIZE + signed_body_len)) return;
+
+  ContactInfo* existing = lookupContactByPubKey(sender.pub_key, PUB_KEY_SIZE);
+  if (existing != NULL && existing->type != ADV_TYPE_NONE) return;
+
+  ContactInfo contact;
+  memset(&contact, 0, sizeof(contact));
+  memcpy(contact.id.pub_key, sender.pub_key, PUB_KEY_SIZE);
+  StrHelper::strncpy(contact.name, name, sizeof(contact.name));
+  contact.type = ADV_TYPE_CHAT;
+  contact.out_path_len = OUT_PATH_UNKNOWN;
+  contact.lastmod = getRTCClock()->getCurrentTime();
+  if (!addContact(contact)) {
+    onContactsFull();
+    return;
+  }
+  // An earlier anonymous request may have used a reserved transient slot.
+  // Clear it so lookup for the following text finds the durable contact.
+  if (existing != NULL) memset(existing, 0, sizeof(*existing));
+  ContactInfo* added = lookupContactByPubKey(sender.pub_key, PUB_KEY_SIZE);
+  if (added == NULL) return;
+  dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY);
+  onDiscoveredContact(*added, true, OUT_PATH_UNKNOWN, NULL);
 }
 
 void MyMesh::queueMessage(const ContactInfo &from, uint8_t txt_type, mesh::Packet *pkt,
@@ -1146,19 +1251,27 @@ void MyMesh::handleCmdFrame(size_t len) {
       text[tlen] = 0; // ensure null
       int result;
       uint32_t expected_ack;
+      uint32_t one_key_delay = 0;
       if (txt_type == TXT_TYPE_CLI_DATA || txt_type == TXT_TYPE_CLI_COMMAND) {
         msg_timestamp = getRTCClock()->getCurrentTimeUnique(); // Use node's RTC instead of app timestamp to avoid tripping replay protection
         result = sendCommandData(*recipient, msg_timestamp, attempt, txt_type, text, est_timeout);
         expected_ack = 0; // no Ack expected
       } else {
-        result = sendMessage(*recipient, msg_timestamp, attempt, text, expected_ack, est_timeout);
+        if (recipient->type == ADV_TYPE_CHAT &&
+            (attempt != 0 || !hasOneKeyAck(*recipient)) &&
+            tlen <= MAX_TEXT_LEN &&
+            (attempt <= 3 || tlen <= MAX_TEXT_LEN - 2)) {
+          one_key_delay = sendOneKeyIntroduction(*recipient);
+        }
+        result = sendMessage(*recipient, msg_timestamp, attempt, text, expected_ack,
+                             est_timeout, one_key_delay);
       }
       // TODO: add expected ACK to table
       if (result == MSG_SEND_FAILED) {
         writeErrFrame(ERR_CODE_TABLE_FULL);
       } else {
         if (expected_ack) {
-          expected_ack_table[next_ack_idx].msg_sent = _ms->getMillis(); // add to circular table
+          expected_ack_table[next_ack_idx].msg_sent = _ms->getMillis() + one_key_delay;
           expected_ack_table[next_ack_idx].ack = expected_ack;
           expected_ack_table[next_ack_idx].contact = recipient;
           next_ack_idx = (next_ack_idx + 1) % EXPECTED_ACK_TABLE_SIZE;

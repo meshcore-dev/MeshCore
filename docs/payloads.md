@@ -220,6 +220,29 @@ txt_type
 | cipher MAC       | 2               | MAC for encrypted data in next field      |
 | ciphertext       | rest of payload | encrypted message, see below for details  |
 
+### Companion one-key DM introduction
+
+A Companion may send this request immediately before a normal private text
+packet when it has not received an ACK from that chat contact, and on each
+application retry. It lets the recipient learn the sender's full public key
+without a broadcast advert. The ciphertext contains:
+
+| Field | Size (bytes) | Description |
+|---|---:|---|
+| tag | 4 | unique sender timestamp |
+| marker | 4 | ASCII `DMK1` |
+| name | 1-32 | sender name followed by NUL |
+| signature | 64 | Ed25519 signature by the sender |
+
+The signed bytes are the recipient's full public key followed by the tag,
+marker, and NUL-terminated name. The recipient verifies that signature against
+the 32-byte sender key in the anonymous request header before creating a chat
+contact. A receiver that does not implement `DMK1` ignores the introduction;
+the following normal text packet still works when it already has the sender's
+key. The recipient's manual advert auto-add setting does not suppress a
+verified, addressed `DMK1` introduction. The sender's full public key remains
+visible in the radio packet header, as with other anonymous requests.
+
 ### Room server login
 
 | Field          | Size (bytes)    | Description                                                                   |

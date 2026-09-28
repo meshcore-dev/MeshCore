@@ -155,6 +155,9 @@ protected:
   void onDiscoveredContact(ContactInfo &contact, bool is_new, uint8_t path_len, const uint8_t* path) override;
   void onContactPathUpdated(const ContactInfo &contact) override;
   ContactInfo* processAck(const uint8_t *data) override;
+  void onAnonDataRecv(mesh::Packet* packet, const uint8_t* secret,
+                      const mesh::Identity& sender, uint8_t* data,
+                      size_t len) override;
   void queueMessage(const ContactInfo &from, uint8_t txt_type, mesh::Packet *pkt, uint32_t sender_timestamp,
                     const uint8_t *extra, int extra_len, const char *text);
 
@@ -284,6 +287,14 @@ private:
   };
   #define EXPECTED_ACK_TABLE_SIZE 8
   AckTableEntry expected_ack_table[EXPECTED_ACK_TABLE_SIZE]; // circular table
+  // An ACK proves this peer can decrypt our ordinary private messages.
+  static constexpr uint8_t ONE_KEY_ACKED_PEERS = 8;
+  uint8_t one_key_acked_keys[ONE_KEY_ACKED_PEERS][PUB_KEY_SIZE] = {};
+  uint8_t one_key_acked_count = 0;
+  uint8_t one_key_acked_next = 0;
+  bool hasOneKeyAck(const ContactInfo& contact) const;
+  void rememberOneKeyAck(const ContactInfo& contact);
+  uint32_t sendOneKeyIntroduction(const ContactInfo& contact);
   int next_ack_idx;
 
   #define ADVERT_PATH_TABLE_SIZE   16
