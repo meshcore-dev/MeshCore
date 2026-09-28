@@ -227,8 +227,26 @@ bool MyMesh::Frame::isChannelMsg() const {
          buf[0] == RESP_CODE_CHANNEL_DATA_RECV;
 }
 
+#if ONE_KEY_DM_SHARED_OFFLINE_QUEUE
+MyMesh::Frame& MyMesh::heldDMFrameAt(uint8_t index) {
+  return offline_queue[OFFLINE_QUEUE_SIZE - 1 - index];
+}
+
+void MyMesh::removeHeldOneKeyDM(uint8_t index) {
+  for (uint8_t j = index + 1; j < held_dm_count; ++j) {
+    held_dms[j - 1] = held_dms[j];
+    heldDMFrameAt(j - 1) = heldDMFrameAt(j);
+  }
+  --held_dm_count;
+}
+#endif
+
 void MyMesh::addToOfflineQueue(const uint8_t frame[], int len) {
-  if (offline_queue_len >= OFFLINE_QUEUE_SIZE) {
+  int capacity = OFFLINE_QUEUE_SIZE;
+#if ONE_KEY_DM_SHARED_OFFLINE_QUEUE
+  capacity -= held_dm_count;
+#endif
+  if (offline_queue_len >= capacity) {
     MESH_DEBUG_PRINTLN("WARN: offline_queue is full!");
     int pos = 0;
     while (pos < offline_queue_len) {
@@ -691,6 +709,33 @@ bool MyMesh::onAddressedTextPacket(mesh::Packet* packet, uint8_t src_hash,
 
     // All retained messages have passed MAC/decryption and sender-key checks.
     // Keep one global FIFO of 15; the oldest decodable DM rolls off first.
+#if ONE_KEY_DM_SHARED_OFFLINE_QUEUE
+    if (held_dm_count == MAX_HELD_ONE_KEY_DMS) removeHeldOneKeyDM(0);
+    if (offline_queue_len + held_dm_count >= OFFLINE_QUEUE_SIZE) {
+      // Do not discard an unread private message to hold a new sender's DM.
+      int pos = 0;
+      while (pos < offline_queue_len && !offline_queue[pos].isChannelMsg()) ++pos;
+      if (pos == offline_queue_len) return false;
+      for (int j = pos; j < offline_queue_len - 1; ++j) {
+        offline_queue[j] = offline_queue[j + 1];
+      }
+      --offline_queue_len;
+      if (_listener) _listener->onQueueSizeChanged(offline_queue_len);
+    }
+    HeldOneKeyDM& entry = held_dms[held_dm_count];
+    memcpy(entry.sender_key, pub_key, PUB_KEY_SIZE);
+    memcpy(entry.id, id, ONE_KEY_DM_ID_SIZE);
+    Frame& held = heldDMFrameAt(held_dm_count++);
+    memcpy(held.buf, &timestamp, sizeof(timestamp));
+    mesh::Utils::sha256(&held.buf[4], 4, data, 5 + strlen(text),
+                        pub_key, PUB_KEY_SIZE);
+    held.buf[8] = packet->isRouteFlood() ? packet->path_len : 0xFF;
+    held.buf[9] = packet->_snr;
+    const uint8_t text_len = strlen(text);
+    held.buf[10] = text_len;
+    memcpy(&held.buf[11], text, text_len + 1);
+    held.len = 12 + text_len;
+#else
     if (held_dm_count == MAX_HELD_ONE_KEY_DMS) {
       for (uint8_t j = 1; j < held_dm_count; ++j) held_dms[j - 1] = held_dms[j];
       --held_dm_count;
@@ -699,6 +744,7 @@ bool MyMesh::onAddressedTextPacket(mesh::Packet* packet, uint8_t src_hash,
     memcpy(entry.sender_key, pub_key, PUB_KEY_SIZE);
     memcpy(entry.id, id, ONE_KEY_DM_ID_SIZE);
     entry.packet = *packet;
+#endif
     return true;
   }
   return false;
@@ -720,6 +766,38 @@ void MyMesh::releaseHeldOneKeyDMs() {
     HeldOneKeyDM& entry = held_dms[i];
     ContactInfo* contact = lookupContactByPubKey(entry.sender_key, PUB_KEY_SIZE);
     if (contact == NULL || contact->type == ADV_TYPE_NONE) { ++i; continue; }
+#if ONE_KEY_DM_SHARED_OFFLINE_QUEUE
+    Frame& held = heldDMFrameAt(i);
+    uint32_t timestamp;
+    memcpy(&timestamp, held.buf, sizeof(timestamp));
+    uint8_t ack_hash[4];
+    memcpy(ack_hash, &held.buf[4], sizeof(ack_hash));
+    const uint8_t path_len = held.buf[8];
+    const int8_t snr = static_cast<int8_t>(held.buf[9]);
+    const uint8_t text_len = held.buf[10];
+    char text[MAX_TEXT_LEN + 1];
+    if (held.len != 12 + text_len || text_len > MAX_TEXT_LEN ||
+        held.buf[11 + text_len] != 0) {
+      removeHeldOneKeyDM(i);
+      continue;
+    }
+    memcpy(text, &held.buf[11], text_len + 1);
+    uint8_t sender_key[PUB_KEY_SIZE];
+    uint8_t id[ONE_KEY_DM_ID_SIZE];
+    memcpy(sender_key, entry.sender_key, sizeof(sender_key));
+    memcpy(id, entry.id, sizeof(id));
+    // Releasing the held frame makes exactly one ordinary queue slot.
+    removeHeldOneKeyDM(i);
+    if (!wasDeliveredOneKeyDM(sender_key, id)) {
+      mesh::Packet packet;
+      packet.header = path_len == 0xFF ? ROUTE_TYPE_DIRECT : ROUTE_TYPE_FLOOD;
+      packet.path_len = path_len == 0xFF ? 0 : path_len;
+      packet._snr = snr;
+      onMessageRecv(*contact, &packet, timestamp, text);
+      rememberDeliveredOneKeyDM(sender_key, id);
+    }
+    sendAckTo(*contact, ack_hash, sizeof(ack_hash));
+#else
     if (offline_queue_len >= OFFLINE_QUEUE_SIZE) break;
 
     uint8_t data[MAX_PACKET_PAYLOAD + 1];
@@ -746,6 +824,7 @@ void MyMesh::releaseHeldOneKeyDMs() {
     }
     for (uint8_t j = i + 1; j < held_dm_count; ++j) held_dms[j - 1] = held_dms[j];
     --held_dm_count;
+#endif
   }
 }
 
@@ -841,8 +920,22 @@ void MyMesh::onMessageRecv(const ContactInfo &from, mesh::Packet *pkt, uint32_t 
   uint8_t id[ONE_KEY_DM_ID_SIZE];
   makeOneKeyDMId(id, sender_timestamp, text);
   if (wasDeliveredOneKeyDM(from.id.pub_key, id)) return;
+#if ONE_KEY_DM_SHARED_OFFLINE_QUEUE
+  bool replaced_held_dm = false;
+  for (uint8_t i = 0; i < held_dm_count; ++i) {
+    if (memcmp(held_dms[i].sender_key, from.id.pub_key, PUB_KEY_SIZE) == 0 &&
+        memcmp(held_dms[i].id, id, ONE_KEY_DM_ID_SIZE) == 0) {
+      removeHeldOneKeyDM(i);
+      replaced_held_dm = true;
+      break;
+    }
+  }
+#endif
   markConnectionActive(from); // in case this is from a server, and we have a connection
   queueMessage(from, TXT_TYPE_PLAIN, pkt, sender_timestamp, NULL, 0, text);
+#if ONE_KEY_DM_SHARED_OFFLINE_QUEUE
+  if (replaced_held_dm) rememberDeliveredOneKeyDM(from.id.pub_key, id);
+#endif
 }
 
 void MyMesh::onCommandDataRecv(const ContactInfo &from, mesh::Packet *pkt, uint32_t sender_timestamp, const char *text) {

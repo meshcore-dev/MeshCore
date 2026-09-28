@@ -62,12 +62,23 @@
 #define OFFLINE_QUEUE_SIZE 16
 #endif
 
+#if defined(NRF52_PLATFORM) && MAX_CONTACTS > 300 && OFFLINE_QUEUE_SIZE >= 256
+#define ONE_KEY_DM_SHARED_OFFLINE_QUEUE 1
+#else
+#define ONE_KEY_DM_SHARED_OFFLINE_QUEUE 0
+#endif
+
 #ifndef BLE_NAME_PREFIX
 #define BLE_NAME_PREFIX "MeshCore-"
 #endif
 
 #include <helpers/BaseChatMesh.h>
 #include <helpers/TransportKeyStore.h>
+
+#if ONE_KEY_DM_SHARED_OFFLINE_QUEUE
+static_assert(MAX_TEXT_LEN + 12 <= MAX_FRAME_SIZE,
+              "A held plain DM must fit in one offline frame");
+#endif
 
 /* -------------------------------------------------------------------------------------- */
 
@@ -279,6 +290,10 @@ private:
 
     bool isChannelMsg() const;
   };
+#if ONE_KEY_DM_SHARED_OFFLINE_QUEUE
+  Frame& heldDMFrameAt(uint8_t index);
+  void removeHeldOneKeyDM(uint8_t index);
+#endif
   int offline_queue_len;
   Frame offline_queue[OFFLINE_QUEUE_SIZE];
 
@@ -314,7 +329,9 @@ private:
   struct HeldOneKeyDM {
     uint8_t sender_key[PUB_KEY_SIZE];
     uint8_t id[ONE_KEY_DM_ID_SIZE];
+#if !ONE_KEY_DM_SHARED_OFFLINE_QUEUE
     mesh::Packet packet;
+#endif
   };
   HeldOneKeyDM held_dms[MAX_HELD_ONE_KEY_DMS];
   uint8_t held_dm_count = 0;

@@ -650,8 +650,13 @@ limited to eight peers and resets on reboot or eviction. If the user later adds
 the contact, already-received DMs can be delivered from the pending queue
 without the sender retransmitting them. The receiver holds up to **15 verified,
 decryptable text DMs** across pending senders in RAM. It drops the oldest held
-DM when a sixteenth arrives, ignores duplicate retries, and waits for space in
-the normal offline queue before releasing accepted DMs. Held DMs are lost on
+DM when a sixteenth arrives and ignores duplicate retries. High-contact nRF52
+builds with a 256-frame offline queue share that pool with held DMs: all 256
+slots are ordinary-message slots when none are held, and 241 are available
+when all 15 held slots are occupied. Held entries are hidden from app sync and
+become ordinary messages on acceptance without requiring an additional slot.
+Other builds wait for space in the normal offline queue before releasing an
+accepted DM. Held DMs are lost on
 radio reboot; packets that never reached the receiver still require a retry.
 Packets received before a valid `DMK1` introduction cannot enter this queue.
 Delivery after acceptance is acknowledged to the sender when possible.
