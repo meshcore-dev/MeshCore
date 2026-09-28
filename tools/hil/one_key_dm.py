@@ -230,10 +230,8 @@ def run(sender_port: str, recipient_port: str, reset_contact: bool,
             recipient.request(bytes([9]) + advertised[1:], (0,))
             if recipient.contact(sender_key) is None:
                 raise AssertionError("manual acceptance did not add the sender")
-            retry = bytes([2, 0, 1]) + struct.pack("<I", timestamp) + recipient_key[:6] + text
-            sent = sender.request(retry, (6,), seconds=20)
-            expected_ack = sent[2:6]
-            timeout_ms = struct.unpack("<I", sent[6:10])[0]
+            # No retry: the already-transmitted DM must emerge from the
+            # receiver's bounded pending queue after the contact is added.
             until = time.monotonic() + min(timeout_ms / 1000 + 5, 120)
             while time.monotonic() < until:
                 for link in (sender, recipient):
@@ -256,7 +254,7 @@ def run(sender_port: str, recipient_port: str, reset_contact: bool,
             "ack_confirmed": confirmed,
             "recipient_message_waiting": waiting,
             "recipient_learned_sender": learned,
-            "mode": "auto_accept" if auto_accept else "manual_accept_after_refusal",
+            "mode": "auto_accept" if auto_accept else "buffered_accept_after_refusal",
             "pending_advert_received": advertised is not None,
             "sender_notified_of_refusal": rejected,
             "timeout_ms": timeout_ms,

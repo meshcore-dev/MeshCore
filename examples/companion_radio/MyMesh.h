@@ -158,6 +158,8 @@ protected:
   void onAnonDataRecv(mesh::Packet* packet, const uint8_t* secret,
                       const mesh::Identity& sender, uint8_t* data,
                       size_t len) override;
+  bool onAddressedTextPacket(mesh::Packet* packet, uint8_t src_hash,
+                             const uint8_t* mac_and_data, size_t len) override;
   void queueMessage(const ContactInfo &from, uint8_t txt_type, mesh::Packet *pkt, uint32_t sender_timestamp,
                     const uint8_t *extra, int extra_len, const char *text);
 
@@ -304,6 +306,34 @@ private:
   bool rememberOneKeyReject(const ContactInfo& contact, uint32_t tag);
   uint32_t sendOneKeyIntroduction(const ContactInfo& contact);
   int next_ack_idx;
+
+  static constexpr uint8_t MAX_HELD_ONE_KEY_DMS = 15;
+  static constexpr uint8_t ONE_KEY_DM_ID_SIZE = 8;
+  uint8_t verified_pending_keys[MAX_HELD_ONE_KEY_DMS][PUB_KEY_SIZE] = {};
+  uint8_t verified_pending_count = 0;
+  struct HeldOneKeyDM {
+    uint8_t sender_key[PUB_KEY_SIZE];
+    uint8_t id[ONE_KEY_DM_ID_SIZE];
+    mesh::Packet packet;
+  };
+  HeldOneKeyDM held_dms[MAX_HELD_ONE_KEY_DMS];
+  uint8_t held_dm_count = 0;
+  struct DeliveredOneKeyDM {
+    uint8_t sender_key[PUB_KEY_SIZE];
+    uint8_t id[ONE_KEY_DM_ID_SIZE];
+  };
+  DeliveredOneKeyDM delivered_dms[MAX_HELD_ONE_KEY_DMS] = {};
+  uint8_t delivered_dm_count = 0;
+  uint8_t delivered_dm_next = 0;
+  void rememberVerifiedPendingSender(const uint8_t* pub_key);
+  void forgetVerifiedPendingSender(const uint8_t* pub_key);
+  static void makeOneKeyDMId(uint8_t id[ONE_KEY_DM_ID_SIZE], uint32_t timestamp,
+                             const char* text);
+  bool wasDeliveredOneKeyDM(const uint8_t* pub_key,
+                            const uint8_t id[ONE_KEY_DM_ID_SIZE]) const;
+  void rememberDeliveredOneKeyDM(const uint8_t* pub_key,
+                                 const uint8_t id[ONE_KEY_DM_ID_SIZE]);
+  void releaseHeldOneKeyDMs();
 
   #define ADVERT_PATH_TABLE_SIZE   16
   AdvertPath advert_paths[ADVERT_PATH_TABLE_SIZE]; // circular table

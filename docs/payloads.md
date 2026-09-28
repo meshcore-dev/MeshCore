@@ -237,8 +237,10 @@ without a broadcast advert. The ciphertext contains:
 The signed bytes are the recipient's full public key followed by the tag,
 marker, and NUL-terminated name. The recipient verifies that signature against
 the 32-byte sender key in the anonymous request header. By default it exposes
-the sender as a pending, app-facing advert without storing a contact. If
-`comp.one_key_dm` is enabled, it stores the sender as a chat contact. A receiver
+the sender as a pending, app-facing advert without storing a contact. Up to 15
+verified, decryptable text packets from pending senders can be held in RAM and
+delivered after the contact is added, oldest first. If `comp.one_key_dm` is
+enabled, it stores the sender as a chat contact. A receiver
 that does not implement `DMK1` ignores the introduction; the following normal
 text packet still works when it already has the sender's key. The sender's full
 public key remains visible in the radio packet header, as with other anonymous

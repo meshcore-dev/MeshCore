@@ -578,8 +578,9 @@ void MyMesh::onAnonDataRecv(mesh::Packet* packet, const uint8_t* secret,
   contact.out_path_len = OUT_PATH_UNKNOWN;
   contact.lastmod = getRTCClock()->getCurrentTime();
   if (_prefs.one_key_dm_enabled != 1) {
+    rememberVerifiedPendingSender(sender.pub_key);
     // Mirror the manual-advert flow: notify the app with a complete, addable
-    // contact record, but do not store it or decrypt the following DM. This is
+    // contact record, but do not store it or deliver the following DM. This is
     // a synthetic advert notification, not a forged signed radio advert.
     onDiscoveredContact(contact, true, packet->path_len, packet->path);
 
@@ -609,6 +610,143 @@ void MyMesh::onAnonDataRecv(mesh::Packet* packet, const uint8_t* secret,
   if (added == NULL) return;
   dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY);
   onDiscoveredContact(*added, true, OUT_PATH_UNKNOWN, NULL);
+}
+
+void MyMesh::rememberVerifiedPendingSender(const uint8_t* pub_key) {
+  for (uint8_t i = 0; i < verified_pending_count; ++i) {
+    if (memcmp(verified_pending_keys[i], pub_key, PUB_KEY_SIZE) == 0) return;
+  }
+  if (verified_pending_count == MAX_HELD_ONE_KEY_DMS) {
+    for (uint8_t i = 1; i < verified_pending_count; ++i) {
+      memcpy(verified_pending_keys[i - 1], verified_pending_keys[i], PUB_KEY_SIZE);
+    }
+    --verified_pending_count;
+  }
+  memcpy(verified_pending_keys[verified_pending_count++], pub_key, PUB_KEY_SIZE);
+}
+
+void MyMesh::forgetVerifiedPendingSender(const uint8_t* pub_key) {
+  for (uint8_t i = 0; i < verified_pending_count; ++i) {
+    if (memcmp(verified_pending_keys[i], pub_key, PUB_KEY_SIZE) == 0) {
+      for (uint8_t j = i + 1; j < verified_pending_count; ++j) {
+        memcpy(verified_pending_keys[j - 1], verified_pending_keys[j], PUB_KEY_SIZE);
+      }
+      --verified_pending_count;
+      return;
+    }
+  }
+}
+
+void MyMesh::makeOneKeyDMId(uint8_t id[ONE_KEY_DM_ID_SIZE], uint32_t timestamp,
+                            const char* text) {
+  mesh::Utils::sha256(id, ONE_KEY_DM_ID_SIZE,
+                      reinterpret_cast<const uint8_t*>(&timestamp), sizeof(timestamp),
+                      reinterpret_cast<const uint8_t*>(text), strlen(text));
+}
+
+bool MyMesh::wasDeliveredOneKeyDM(const uint8_t* pub_key,
+                                  const uint8_t id[ONE_KEY_DM_ID_SIZE]) const {
+  for (uint8_t i = 0; i < delivered_dm_count; ++i) {
+    if (memcmp(delivered_dms[i].sender_key, pub_key, PUB_KEY_SIZE) == 0 &&
+        memcmp(delivered_dms[i].id, id, ONE_KEY_DM_ID_SIZE) == 0) return true;
+  }
+  return false;
+}
+
+void MyMesh::rememberDeliveredOneKeyDM(const uint8_t* pub_key,
+                                       const uint8_t id[ONE_KEY_DM_ID_SIZE]) {
+  DeliveredOneKeyDM& entry = delivered_dms[delivered_dm_next];
+  memcpy(entry.sender_key, pub_key, PUB_KEY_SIZE);
+  memcpy(entry.id, id, ONE_KEY_DM_ID_SIZE);
+  if (delivered_dm_count < MAX_HELD_ONE_KEY_DMS) ++delivered_dm_count;
+  delivered_dm_next = (delivered_dm_next + 1) % MAX_HELD_ONE_KEY_DMS;
+}
+
+bool MyMesh::onAddressedTextPacket(mesh::Packet* packet, uint8_t src_hash,
+                                   const uint8_t* mac_and_data, size_t len) {
+  for (uint8_t i = 0; i < verified_pending_count; ++i) {
+    const uint8_t* pub_key = verified_pending_keys[i];
+    if (pub_key[0] != src_hash) continue;
+    ContactInfo* existing = lookupContactByPubKey(pub_key, PUB_KEY_SIZE);
+    if (existing != NULL && existing->type != ADV_TYPE_NONE) continue;
+
+    uint8_t secret[PUB_KEY_SIZE];
+    self_id.calcSharedSecret(secret, pub_key);
+    uint8_t data[MAX_PACKET_PAYLOAD + 1];
+    const int decoded_len = mesh::Utils::MACThenDecrypt(secret, data, mac_and_data, len);
+    if (decoded_len <= 5 || decoded_len > MAX_PACKET_PAYLOAD) continue;
+    data[decoded_len] = 0;
+    if ((data[4] >> 2) != TXT_TYPE_PLAIN) continue;
+    const char* text = reinterpret_cast<const char*>(&data[5]);
+    if (strlen(text) > MAX_TEXT_LEN) continue;
+
+    uint32_t timestamp;
+    memcpy(&timestamp, data, sizeof(timestamp));
+    uint8_t id[ONE_KEY_DM_ID_SIZE];
+    makeOneKeyDMId(id, timestamp, text);
+    for (uint8_t j = 0; j < held_dm_count; ++j) {
+      if (memcmp(held_dms[j].sender_key, pub_key, PUB_KEY_SIZE) == 0 &&
+          memcmp(held_dms[j].id, id, ONE_KEY_DM_ID_SIZE) == 0) return true;
+    }
+
+    // All retained messages have passed MAC/decryption and sender-key checks.
+    // Keep one global FIFO of 15; the oldest decodable DM rolls off first.
+    if (held_dm_count == MAX_HELD_ONE_KEY_DMS) {
+      for (uint8_t j = 1; j < held_dm_count; ++j) held_dms[j - 1] = held_dms[j];
+      --held_dm_count;
+    }
+    HeldOneKeyDM& entry = held_dms[held_dm_count++];
+    memcpy(entry.sender_key, pub_key, PUB_KEY_SIZE);
+    memcpy(entry.id, id, ONE_KEY_DM_ID_SIZE);
+    entry.packet = *packet;
+    return true;
+  }
+  return false;
+}
+
+void MyMesh::releaseHeldOneKeyDMs() {
+  for (uint8_t i = 0; i < verified_pending_count; ) {
+    ContactInfo* contact = lookupContactByPubKey(verified_pending_keys[i], PUB_KEY_SIZE);
+    if (contact != NULL && contact->type != ADV_TYPE_NONE) {
+      uint8_t key[PUB_KEY_SIZE];
+      memcpy(key, verified_pending_keys[i], PUB_KEY_SIZE);
+      forgetVerifiedPendingSender(key);
+    } else {
+      ++i;
+    }
+  }
+
+  for (uint8_t i = 0; i < held_dm_count; ) {
+    HeldOneKeyDM& entry = held_dms[i];
+    ContactInfo* contact = lookupContactByPubKey(entry.sender_key, PUB_KEY_SIZE);
+    if (contact == NULL || contact->type == ADV_TYPE_NONE) { ++i; continue; }
+    if (offline_queue_len >= OFFLINE_QUEUE_SIZE) break;
+
+    uint8_t data[MAX_PACKET_PAYLOAD + 1];
+    const int decoded_len = mesh::Utils::MACThenDecrypt(
+        contact->getSharedSecret(self_id), data, &entry.packet.payload[2],
+        entry.packet.payload_len - 2);
+    if (decoded_len > 5 && decoded_len <= MAX_PACKET_PAYLOAD) {
+      data[decoded_len] = 0;
+      if ((data[4] >> 2) == TXT_TYPE_PLAIN) {
+        const char* text = reinterpret_cast<const char*>(&data[5]);
+        uint32_t timestamp;
+        memcpy(&timestamp, data, sizeof(timestamp));
+        if (strlen(text) <= MAX_TEXT_LEN) {
+          if (!wasDeliveredOneKeyDM(entry.sender_key, entry.id)) {
+            onMessageRecv(*contact, &entry.packet, timestamp, text);
+            rememberDeliveredOneKeyDM(entry.sender_key, entry.id);
+          }
+          uint8_t ack_hash[4];
+          mesh::Utils::sha256(ack_hash, sizeof(ack_hash), data, 5 + strlen(text),
+                              contact->id.pub_key, PUB_KEY_SIZE);
+          sendAckTo(*contact, ack_hash, sizeof(ack_hash));
+        }
+      }
+    }
+    for (uint8_t j = i + 1; j < held_dm_count; ++j) held_dms[j - 1] = held_dms[j];
+    --held_dm_count;
+  }
 }
 
 void MyMesh::queueMessage(const ContactInfo &from, uint8_t txt_type, mesh::Packet *pkt,
@@ -700,6 +838,9 @@ void MyMesh::sendFloodScoped(const mesh::GroupChannel& channel, mesh::Packet* pk
 
 void MyMesh::onMessageRecv(const ContactInfo &from, mesh::Packet *pkt, uint32_t sender_timestamp,
                            const char *text) {
+  uint8_t id[ONE_KEY_DM_ID_SIZE];
+  makeOneKeyDMId(id, sender_timestamp, text);
+  if (wasDeliveredOneKeyDM(from.id.pub_key, id)) return;
   markConnectionActive(from); // in case this is from a server, and we have a connection
   queueMessage(from, TXT_TYPE_PLAIN, pkt, sender_timestamp, NULL, 0, text);
 }
@@ -1530,7 +1671,22 @@ void MyMesh::handleCmdFrame(size_t len) {
     uint8_t *pub_key = &cmd_frame[1];
     ContactInfo *recipient = lookupContactByPubKey(pub_key, PUB_KEY_SIZE);
     uint32_t last_mod = getRTCClock()->getCurrentTime();  // fallback value if not present in cmd_frame
-    if (recipient) {
+    if (recipient != NULL && recipient->type == ADV_TYPE_NONE) {
+      // A prior anonymous request can leave this key in a transient slot.
+      // Accepting an advert must create a durable contact, not merely change
+      // that slot's type (transient slots are omitted from saved contacts).
+      ContactInfo contact;
+      updateContactFromFrame(contact, last_mod, cmd_frame, len);
+      contact.lastmod = last_mod;
+      contact.sync_since = 0;
+      if (addContact(contact)) {
+        memset(recipient, 0, sizeof(*recipient));
+        dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY);
+        writeOKFrame();
+      } else {
+        writeErrFrame(ERR_CODE_TABLE_FULL);
+      }
+    } else if (recipient) {
       updateContactFromFrame(*recipient, last_mod, cmd_frame, len);
       recipient->lastmod = last_mod;
       dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY);
@@ -2642,6 +2798,10 @@ void MyMesh::loop() {
     checkCLIRescueCmd();
 #endif
   }
+
+  // Contact acceptance can arrive through the app or a signed advert. Hold
+  // accepted DMs until the ordinary offline queue has room to deliver them.
+  if (held_dm_count > 0 || verified_pending_count > 0) releaseHeldOneKeyDMs();
 
   // is there are pending dirty contacts write needed?
   if (dirty_contacts_expiry && millisHasNowPassed(dirty_contacts_expiry)) {
