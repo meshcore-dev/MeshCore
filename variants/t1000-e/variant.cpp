@@ -71,7 +71,7 @@ void initVariant()
   pinMode(LUX_SENSOR, INPUT);
   pinMode(EXT_CHRG_DETECT, INPUT);
   pinMode(EXT_PWR_DETECT, INPUT);
-  pinMode(GPS_RESETB, INPUT);
+  pinMode(GPS_RESETB, INPUT_PULLUP);
   pinMode(PIN_BUTTON1, INPUT);
 
   pinMode(PIN_3V3_EN, OUTPUT);
@@ -89,10 +89,10 @@ void initVariant()
   digitalWrite(PIN_3V3_ACC_EN, LOW);
   digitalWrite(BUZZER_EN, LOW);
   digitalWrite(SENSOR_EN, LOW);
-  digitalWrite(GPS_EN, LOW);
+  digitalWrite(GPS_EN, HIGH);
   digitalWrite(GPS_RESET, LOW);
-  digitalWrite(GPS_VRTC_EN, LOW);
-  digitalWrite(GPS_SLEEP_INT, HIGH);
+  digitalWrite(GPS_VRTC_EN, HIGH);
+  digitalWrite(GPS_SLEEP_INT, LOW);
   digitalWrite(GPS_RTC_INT, LOW);
   digitalWrite(LED_PIN, LOW);
 }
