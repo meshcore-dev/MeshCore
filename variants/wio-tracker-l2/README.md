@@ -26,18 +26,73 @@ pin map may change on production units).
 | Env | What it does |
 |-----|--------------|
 | `Wio_Tracker_L2_companion_radio_ble` | **Phone companion.** Standard display UI, MeshCore app over BLE (pairing PIN `123456`), on-screen Bluetooth toggle page. |
+| `Wio_Tracker_L2_standalone_lvgl` | **Standalone.** Full touch UI, Bluetooth compiled out (USB CLI only). |
 | `Wio_Tracker_L2_companion_radio_usb` | Standard display companion over USB-C serial. |
 | `Wio_Tracker_L2_repeater` | Standalone mesh repeater. |
 | `Wio_Tracker_L2_room_server` | Standalone room/BBS server. |
+
+## Touch UI (`ui-lvgl`)
+
+LVGL 9 interface for the standalone build - no phone involved:
+
+- **Chats**: direct messages and `#channels` with persisted history, delivery
+  states (sent / delivered / failed with tap-to-resend), quick replies, and a
+  live flood/direct/hops route indicator per contact.
+- **Contacts**: type filters, name/recency sort, detail view (last heard,
+  path, distance/bearing), manual path picker (up to eight hops), zero-hop
+  contact share, and path trace for repeaters. A trace is sent out along the
+  chosen hops and back through the same ones, so the reply is only received
+  when the first hop is within direct range.
+- **Repeater admin**: saved passwords, status dashboard with auto-refresh,
+  one-tap advert / clock sync / version / neighbors / reboot, full CLI.
+- **Map**: offline tiles from SD with pan/zoom, own position, tappable node
+  markers, day and night tile sets (sun/moon toggle).
+- **Settings**: radio presets + full parameter editor with repeat mode,
+  TX power, node name, timezone, brightness with auto-dim, screen timeout,
+  alert tone styles, 12/24 h clock, km/mi units, node backup/restore to SD,
+  factory reset.
+- First-boot wizard (region / name / timezone), notification banner,
+  unread badges, About screen with the node's public key.
+
+## Offline maps
+
+The map reads 256 px OSM raster tiles from a FAT32 card in the usual layout,
+so a tile folder prepared for any other mesh device works unchanged:
+
+```
+/maps/{z}/{x}/{y}.png
+```
+
+Nothing else is required. Copy that folder to the card root and the map
+renders it.
+
+Two optional extras this variant understands:
+
+- **Packed tiles.** `/maps/{z}/{x}.pak` holds one tile column per file:
+  `'TPK1' | u32 y_min | u32 y_max | u32 offsets[n+1] | PNG blobs`
+  (little-endian; equal offsets mark a missing tile). Loose tiles are read
+  when no pack covers a column, so the two can be mixed. Packing matters only
+  for very large sets: a few thousand pack files copy to a card in minutes,
+  where the equivalent millions of loose PNGs take many hours and waste most
+  of the card on cluster overhead.
+- **A night tile set** in `/maps_dark/`, same layout either way. The map's
+  sun/moon button swaps sets when one is present, and dims the day tiles when
+  it is not.
+
+Helper scripts live in `variants/wio-tracker-l2/tools/`: `tile_downloader.py`
+(fetch or render tiles), `tile_packer.py` (pack columns) and
+`tile_darkener.py` (derive a night set from the day set). None of them are
+needed if you already have a tile folder.
 
 ## Build & flash
 
 ```bash
 # from the MeshCore repo root
-pio run -e Wio_Tracker_L2_companion_radio_ble
+pio run -e Wio_Tracker_L2_companion_radio_ble    # phone companion
+pio run -e Wio_Tracker_L2_standalone_lvgl        # standalone touch UI
 
 # bootloader mode if needed: hold User/Boot, tap RST, release - then:
-pio run -e Wio_Tracker_L2_companion_radio_ble -t upload
+pio run -e Wio_Tracker_L2_standalone_lvgl -t upload
 ```
 
 The board enumerates as a native USB-CDC port (auto-reset via 1200-bps touch
