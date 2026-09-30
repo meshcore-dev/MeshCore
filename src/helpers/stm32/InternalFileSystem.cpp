@@ -22,7 +22,8 @@
  * THE SOFTWARE.
  */ 
     
-#include <Arduino.h>
+#include <stdint.h>
+#include <string.h>
 #include "InternalFileSystem.h"
 
 //--------------------------------------------------------------------+

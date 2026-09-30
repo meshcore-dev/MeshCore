@@ -1,3 +1,5 @@
+#include <stdio.h>
+#include <string.h>
 #include <helpers/AdvertDataHelpers.h>
 #include <helpers/UTF8Helpers.h>
 
@@ -60,7 +62,6 @@
     }
   }
 
-#include <Arduino.h>
 
 void AdvertTimeHelper::formatRelativeTimeDiff(char dest[], int32_t seconds_from_now, bool short_fmt) {
   const char *suffix;

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Arduino.h>
+#include <stdint.h>
 
 // LoRa radio module pins for Meshadventurer
 #define  P_LORA_DIO_1   33

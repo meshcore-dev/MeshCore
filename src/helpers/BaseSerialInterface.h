@@ -1,6 +1,7 @@
 #pragma once
 
-#include <Arduino.h>
+#include <stddef.h>
+#include <stdint.h>
 
 #define MAX_FRAME_SIZE  176   // +4 for transport codes (region scoping)
 

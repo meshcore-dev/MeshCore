@@ -1,6 +1,7 @@
 #pragma once
 
-#include <Arduino.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <MeshCore.h>
 
 #if defined(NRF52_PLATFORM)

@@ -1,6 +1,5 @@
 #pragma once
 
-#include <Arduino.h>
 #include <Mesh.h>
 
 struct ChannelDetails {

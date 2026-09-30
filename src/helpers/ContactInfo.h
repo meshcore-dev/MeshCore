@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Arduino.h>
+#include <stdint.h>
 #include <Mesh.h>
 
 #define OUT_PATH_UNKNOWN   0xFF

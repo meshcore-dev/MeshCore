@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Arduino.h>   // needed for PlatformIO
+#include <stdint.h>
 #include <Packet.h>
 #include <helpers/IdentityStore.h>
 

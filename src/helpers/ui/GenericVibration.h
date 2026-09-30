@@ -2,7 +2,6 @@
 
 #ifdef PIN_VIBRATION
 
-#include <Arduino.h>
 
 /*
  * Vibration motor control class

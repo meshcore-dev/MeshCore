@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <helpers/BaseChatMesh.h>
 #include <Utils.h>
 
