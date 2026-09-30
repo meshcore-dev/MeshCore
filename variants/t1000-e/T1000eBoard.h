@@ -11,6 +11,13 @@ protected:
 public:
   T1000eBoard() : NRF52Board("T1000E_OTA") {}
   void begin();
+  bool isExternalPowered() override {
+  #ifdef CHARGER_INSERT_DETECT
+    return digitalRead(CHARGER_INSERT_DETECT) == CHARGER_INSERT_ACTIVE || NRF52Board::isExternalPowered();
+  #else
+    return NRF52Board::isExternalPowered();
+  #endif
+  }
 
   uint16_t getBattMilliVolts() override {
   #ifdef BATTERY_PIN
