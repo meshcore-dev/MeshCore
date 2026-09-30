@@ -10,11 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://meshcore-dev.github.io/meshcore/terminal_chat_cli/">
+        <link rel="canonical" href="https://meshcore-dev.github.io/meshcore/radio_presets/">
       
       
-        <link rel="prev" href="../stats_binary_frames/">
+        <link rel="prev" href="../qr_codes/">
       
+      
+        <link rel="next" href="../stats_binary_frames/">
       
       
         
@@ -25,7 +27,7 @@
     
     
       
-        <title>Terminal Chat CLI - MeshCore Docs</title>
+        <title>Radio Presets - MeshCore Docs</title>
       
     
     
@@ -68,7 +70,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#terminal-chat-cli" class="md-skip">
+        <a href="#radio-presets" class="md-skip">
           Skip to content
         </a>
       
@@ -103,7 +105,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Terminal Chat CLI
+              Radio Presets
             
           </span>
         </div>
@@ -518,10 +520,37 @@
       
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../radio_presets/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Radio Presets
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -537,6 +566,37 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#json-response" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        JSON Response
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -572,19 +632,10 @@
       
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../terminal_chat_cli/" class="md-nav__link">
         
   
   
@@ -600,7 +651,6 @@
   
 
       </a>
-      
     </li>
   
 
@@ -625,6 +675,25 @@
     
   
   
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#json-response" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        JSON Response
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
 </nav>
                   </div>
                 </div>
@@ -640,7 +709,7 @@
 
 
   
-    <a href="https://github.com/meshcore-dev/meshcore/edit/main/docs/terminal_chat_cli.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+    <a href="https://github.com/meshcore-dev/meshcore/edit/main/docs/radio_presets.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
       
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
     </a>
@@ -648,65 +717,61 @@
   
 
 
-<h1 id="terminal-chat-cli">Terminal Chat CLI</h1>
-<p>Below are the commands you can enter into the Terminal Chat clients:</p>
-<pre><code>set freq {frequency}
+<h1 id="radio-presets">Radio Presets</h1>
+<p>The radio presets are currently stored on the MeshCore App API server.</p>
+<p>This allows us to update the presets without releasing new application updates.</p>
+<p>The presets can be fetched from <a href="https://api.meshcore.nz/api/v1/config">https://api.meshcore.nz/api/v1/config</a></p>
+<p>If you'd like a new radio preset to be added, this will need to be brought up for discussion in the <a href="https://meshcore.gg">MeshCore Discord</a> server, or via the <a href="https://github.com/meshcore-dev/MeshCore/issues">issues section</a> in our GitHub repo.</p>
+<p>Before a new preset will be considered for being added, local radio regulations must be researched by the person suggesting the preset, and investigation of the frequencies with an SDR is advised to ensure the least interference to provide a decent user experience.</p>
+<p>Once a preset is added, it's unlikely to be changed. Adding too many presets can lead to user frustration, as new users won't know which preset to select during setup.</p>
+<p>At this time, presets provided by the MeshCore App API are just suggestions, but you are free to configure any radio settings through the companion applications, provided they comply with local laws/regulations.</p>
+<blockquote>
+<p>Note: We are planning to implement deep linking such as meshcore:// URLs, and QR codes so local mesh networks can easily distribute their own settings, without relying on the internet, or all the companion applications to provide all the settings.</p>
+</blockquote>
+<h2 id="json-response">JSON Response</h2>
+<p>See the example JSON response below, which shows the expected format provided by the API server.</p>
+<p>Your application should be programmed to expect any of the JSON keys to be missing from the response, as the format could change at any time without any notification.</p>
+<p>Please configure an appropriate User Agent header string when sending your request to the server. We should be able to reach out to you if needed.</p>
+<blockquote>
+<p>Note: Some presets contain an optional <code>network_settings</code> section which defines the <code>path_hash_size</code> to use for this mesh network.</p>
+</blockquote>
+<pre><code class="language-json">{
+  &quot;config&quot;: {
+    &quot;suggested_radio_settings&quot;: {
+      &quot;info_message&quot;: &quot;These presets are suggested by the community.&quot;,
+      &quot;entries&quot;: [
+        {
+          &quot;title&quot;: &quot;Australia (Narrow)&quot;,
+          &quot;description&quot;: &quot;916.575MHz / SF7 / BW62.5 / CR7&quot;,
+          &quot;frequency&quot;: &quot;916.575&quot;,
+          &quot;spreading_factor&quot;: &quot;7&quot;,
+          &quot;bandwidth&quot;: &quot;62.5&quot;,
+          &quot;coding_rate&quot;: &quot;7&quot;
+        },
+        {
+          &quot;title&quot;: &quot;New Zealand (Narrow)&quot;,
+          &quot;description&quot;: &quot;917.375MHz / SF7 / BW62.5 / CR5 / 2B&quot;,
+          &quot;frequency&quot;: &quot;917.375&quot;,
+          &quot;spreading_factor&quot;: &quot;7&quot;,
+          &quot;bandwidth&quot;: &quot;62.5&quot;,
+          &quot;coding_rate&quot;: &quot;5&quot;,
+          &quot;network_settings&quot;: {
+            &quot;path_hash_size&quot;: 2
+          }
+        },
+        {
+          &quot;title&quot;: &quot;Portugal 868&quot;,
+          &quot;description&quot;: &quot;869.618MHz / SF7 / BW62.5 / CR6&quot;,
+          &quot;frequency&quot;: &quot;869.618&quot;,
+          &quot;spreading_factor&quot;: &quot;7&quot;,
+          &quot;bandwidth&quot;: &quot;62.5&quot;,
+          &quot;coding_rate&quot;: &quot;6&quot;
+        }
+      ]
+    }
+  }
+}
 </code></pre>
-<p>Set the LoRa frequency. Example:  set freq 915.8</p>
-<pre><code>set tx {tx-power-dbm}
-</code></pre>
-<p>Sets LoRa transmit power in dBm.</p>
-<pre><code>set name {name}
-</code></pre>
-<p>Sets your advertisement name.</p>
-<pre><code>set lat {latitude}
-</code></pre>
-<p>Sets your advertisement map latitude. (decimal degrees)</p>
-<pre><code>set lon {longitude}
-</code></pre>
-<p>Sets your advertisement map longitude. (decimal degrees)</p>
-<pre><code>set dutycycle {percent}
-</code></pre>
-<p>Sets the transmit duty cycle limit (1-100%). Example: <code>set dutycycle 10</code> for 10%.</p>
-<pre><code>set af {air-time-factor}
-</code></pre>
-<p>Sets the transmit air-time-factor. Deprecated — use <code>set dutycycle</code> instead.</p>
-<pre><code>time {epoch-secs}
-</code></pre>
-<p>Set the device clock using UNIX epoch seconds. Example:  time 1738242833</p>
-<pre><code>advert
-</code></pre>
-<p>Sends an advertisement packet</p>
-<pre><code>clock
-</code></pre>
-<p>Displays current time per device's clock.</p>
-<pre><code>ver
-</code></pre>
-<p>Shows the device version and firmware build date.</p>
-<pre><code>card
-</code></pre>
-<p>Displays <em>your</em> 'business card', for others to manually <em>import</em></p>
-<pre><code>import {card}
-</code></pre>
-<p>Imports the given card to your contacts.</p>
-<pre><code>list {n}
-</code></pre>
-<p>List all contacts by most recent. (optional {n}, is the last n by advertisement date)</p>
-<pre><code>to
-</code></pre>
-<p>Shows the name of current recipient contact. (for subsequent 'send' commands)</p>
-<pre><code>to {name-prefix}
-</code></pre>
-<p>Sets the recipient to the <em>first</em> matching contact (in 'list') by the name prefix. (ie. you don't have to type whole name)</p>
-<pre><code>send {text}
-</code></pre>
-<p>Sends the text message (as DM) to current recipient.</p>
-<pre><code>reset path
-</code></pre>
-<p>Resets the path to current recipient, for new path discovery.</p>
-<pre><code>public {text}
-</code></pre>
-<p>Sends the text message to the built-in 'public' group channel</p>
 
 
 
