@@ -10,6 +10,7 @@
 #endif
 
 #include <helpers/ArduinoHelpers.h>
+#include <helpers/RadioSettings.h>
 #include <helpers/StaticPoolPacketManager.h>
 #include <helpers/SimpleMeshTables.h>
 #include <helpers/IdentityStore.h>
@@ -583,6 +584,7 @@ void setup() {
 
   radio_driver.setParams(the_mesh.getFreqPref(), LORA_BW, LORA_SF, LORA_CR);
   radio_driver.setTxPower(the_mesh.getTxPowerPref());
+  mesh::applyDefaultRadioGainSettings(radio_driver, board);
 
   the_mesh.showWelcome();
 

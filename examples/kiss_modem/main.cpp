@@ -2,6 +2,7 @@
 #include <target.h>
 #include <helpers/ArduinoHelpers.h>
 #include <helpers/IdentityStore.h>
+#include <helpers/RadioSettings.h>
 #include "KissModem.h"
 
 #if defined(NRF52_PLATFORM)
@@ -83,6 +84,7 @@ void setup() {
   }
 
   radio_driver.begin();
+  mesh::applyDefaultRadioGainSettings(radio_driver, board);
 
   rng.begin(radio_driver.getRngSeed());
   loadOrCreateIdentity();
