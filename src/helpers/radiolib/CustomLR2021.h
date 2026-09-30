@@ -79,18 +79,10 @@ class CustomLR2021 : public LR2021 {
       uint32_t irq = getIrqStatus();
       bool preamble = irq & RADIOLIB_LR2021_IRQ_PREAMBLE_DETECTED;  // bit 5
       bool header   = irq & RADIOLIB_LR2021_IRQ_LORA_HEADER_VALID;  // bit 6
-      bool hdrErr   = irq & RADIOLIB_LR2021_IRQ_LORA_HDR_CRC_ERROR; // bit 9
       uint32_t now  = millis();
-      if (hdrErr) {
-        clearIrqFlags(RADIOLIB_LR2021_IRQ_PREAMBLE_DETECTED | RADIOLIB_LR2021_IRQ_LORA_HEADER_VALID | RADIOLIB_LR2021_IRQ_LORA_HDR_CRC_ERROR);
-        _activityAt = 0;
-        _headerSeen = false;
-        return false;
-      }
       if (!header && _headerSeen) {
         // something cleared the header flag, reset our state.
         _activityAt = 0; _headerSeen = false;
-        return false;
       }
 
       if (header) {
@@ -115,6 +107,17 @@ class CustomLR2021 : public LR2021 {
       }
       _activityAt = 0; _headerSeen = false;
       return false;
+    }
+
+    int16_t readData(uint8_t* data, size_t len) override {
+      uint16_t fifoLevel = 0;
+      getRxFifoLevel(&fifoLevel);
+      // If there's too few bytes it could be a ghost RX_DONE (0 bytes in buffer), late read with another whole packet in the buffer,
+      // late and we're mid writing the next packet to the fifo, or leftover data from last event clearing the buffer halfway through.
+      int16_t state = LR2021::readData(data, len);
+      RADIOLIB_ASSERT(state);
+      if (fifoLevel != len) { return RADIOLIB_ERR_PACKET_TOO_SHORT; }
+      return state;
     }
     
     void setPreambleMillis(uint32_t preambleMillis) {
