@@ -262,7 +262,7 @@ void UITask::renderCurrScreen() {
     _display->print(tmp);
 
     // BT pin
-    if (!_connected && the_mesh.getBLEPin() != 0) {
+    if (!_connected && the_mesh.getBLEPin() != 0 && _node_prefs->ble_pin == 0) {
       _display->setColor(UIColor::warning_txt);
       _display->setTextSize(2);
       _display->setCursor(0, 43);
