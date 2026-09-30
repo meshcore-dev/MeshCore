@@ -45,7 +45,10 @@
 #define SHUTDOWN_REASON_THERMAL      0x03
 #define GPREGRET2_LOW_VOLTAGE_SLEEP  0x04
 
+// Hardware test builds may override the interval; normal firmware wakes hourly.
+#ifndef LOW_VOLTAGE_SLEEP_MINUTES
 #define LOW_VOLTAGE_SLEEP_MINUTES    (60)
+#endif
 
 class InheroMr2Board : public NRF52BoardDCDC {
 public:
@@ -56,7 +59,8 @@ public:
   uint16_t getBattMilliVolts() override;
 
   void initiateShutdown(uint8_t reason);
-  void configureRTCWake(uint32_t minutes);
+  // Returns false unless the timer registers and released INT pin are verified.
+  bool configureRTCWake(uint32_t minutes);
   uint16_t getLowVoltageSleepThreshold();
   uint16_t getLowVoltageWakeThreshold();
 

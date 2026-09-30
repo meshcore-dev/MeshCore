@@ -260,16 +260,15 @@ public:
   float performTcCalibration(float* bme_temp_out = nullptr);
   static float readBmeTemperature();
 
-  // JEITA override (board.jeitaignore). The stored value is the USER WISH and
-  // only exists for needs_jeita chemistries; the effective state is derived on
-  // every chemistry apply: forced on when the chemistry needs no JEITA,
-  // otherwise wish AND 0.05C gate. The wish survives a failed gate — it
-  // re-arms as soon as imax/batcap pass again.
-  bool setJeitaIgnoreWish(bool on);    // store wish, re-derive, program the BQ
-  bool getJeitaIgnoreWish() const;     // stored wish (default false)
+  // Accepted user override; rejected requests are never stored or reactivated.
+  bool setJeitaIgnore(bool on);
+  bool getJeitaIgnoreEnabled() const;
   bool isJeitaIgnoreActive() const { return jeitaIgnoreActive; }
-  bool jeitaIgnoreGateOk() const;      // batcap user-set AND imax <= 0.05C
-  static float jeitaIgnoreLimit_mA(float capacity_mah) { return 0.05f * capacity_mah; }
+  bool jeitaIgnoreGateOk() const;      // batcap user-set AND imax < 0.05C
+  static bool isJeitaIgnoreCurrentAllowed(uint16_t imax_mA, float capacity_mah) {
+    return capacity_mah >= 100.0f && capacity_mah <= 100000.0f &&
+           static_cast<double>(imax_mA) * 20.0 < static_cast<double>(capacity_mah);
+  }
   bool applyJeitaIgnore();             // re-derive for the current chemistry
 
   // INA228 ALERT on P1.02 (Rev 1.1)
@@ -299,6 +298,8 @@ private:
   uint32_t lastMpptMs = 0;
   uint32_t lastSocMs = 0;
   uint32_t lastLowVoltageMs = 0;
+  uint32_t lastLowVoltageSleepAttemptMs = 0;
+  bool lowVoltageSleepRetryPending = false;  // RTC failure: retry at most once/minute
   uint32_t lastHourlyMs = 0;       // Last updateHourlyStats() execution
   bool tickInitialized = false;    // First-call init flag for MPPT stats
 
@@ -340,11 +341,11 @@ private:
   static constexpr const char* LEDSKEY = "leds_en";
   static constexpr const char* BATTERY_CAPACITY_KEY = "batCap";
   static constexpr const char* TCCAL_KEY = "tcCal";              // NTC temperature calibration offset
-  static constexpr const char* JEITAIGNKEY = "jeitaIgn";         // JEITA override user wish
+  static constexpr const char* JEITAIGNKEY = "jeitaIgn";         // accepted JEITA user override
   static constexpr const char* ALTITUDEKEY = "altitude";         // BME280 installation altitude (m)
 
   bool applyJeitaIgnore(const BatteryProperties* props);  // derive + program TS_IGNORE/ISETC/ISETH
-  bool loadJeitaIgnoreWish(bool& on) const;
+  bool loadJeitaIgnoreEnabled(bool& on) const;
   bool loadBatType(BatteryType& type) const;
   bool loadFrost(FrostChargeBehaviour& behaviour) const;
   bool loadMaxChrgI(uint16_t& maxCharge_mA) const;

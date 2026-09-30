@@ -13,6 +13,16 @@ The charger uses a 2.50 V minimum system voltage and reapplies the MPPT preferen
 after restoring the battery profile. `get board.mpptdiag` reports the requested
 and actual MPPT state, voltage/current settings and minimum-system status.
 
+Power-management optimizations combine averaged voltage monitoring, checked
+RTC wake scheduling and a one-hour recovery interval. RTC configuration is
+persisted for the MR2 supply arrangement without a separate backup battery.
+
+Changing the battery chemistry resets charging settings to 200 mA, MPPT off,
+frost charging off, no user-set capacity and no user JEITA override. Reapplying
+the same chemistry preserves settings. Enabling `board.jeitaignore` for a
+JEITA-controlled chemistry requires an explicit `board.batcap` and charge
+current strictly below 0.05C; rejected requests are not saved for later.
+
 Build environments:
 
 ```bash

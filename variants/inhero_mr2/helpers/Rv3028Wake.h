@@ -11,7 +11,9 @@ namespace inhero {
 // Configures the RV-3028-C7 periodic countdown timer to fire after `minutes`
 // at 1/60 Hz, single-shot, with TIE=1 so the INT pin asserts on expiry.
 // `minutes` is clamped to [1, 4095] (12-bit timer register).
-void configurePeriodicWake(uint16_t minutes);
+// Returns true only after the stopped state, preset and armed state are verified.
+// Performs one attempt; the caller must not enter System OFF on failure.
+bool configurePeriodicWake(uint16_t minutes);
 
 // Clears the RV-3028 Timer Flag (TF, status bit 3) without touching other bits.
 // Read-modify-write: required because System Sleep wake is a reset, so the

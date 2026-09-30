@@ -27,14 +27,14 @@ bool Ina228Driver::begin(float shunt_resistor_mohm) {
   
   // Configure ADC: Continuous mode, all channels, long conversion times, 256 samples averaging
   // - Long conversion times (VSHCT=4120µs, VBUSCT=2074µs) reduce noise for accurate SOC tracking
-  // - AVG_256 filters TX voltage peaks (prevents false UVLO triggers during transmit)
-  // - Trade-off: ~1s per measurement (excellent accuracy, acceptable for 1h SOC updates)
+  // - AVG_256 filters TX voltage peaks; enableAlert() also selects averaged alerts
+  // - One averaged update takes (2074 + 4120 + 540)us * 256 = ~1.72s
   uint16_t adc_config = (INA228_ADC_MODE_CONT_ALL << 12) |  // MODE: Continuous all = 0xF
                         (INA228_ADC_CT_2074us << 9)      |  // VBUSCT: 2074µs for voltage accuracy
                         (INA228_ADC_CT_4120us << 6)      |  // VSHCT: 4120µs for current/SOC accuracy
                         (INA228_ADC_CT_540us << 3)       |  // VTCT: 540µs (temp less critical)
                         (INA228_ADC_AVG_256 << 0);          // AVG: 256 samples
-  // Expected value: 0xFFCB
+  // Expected value: 0xFDE5
   
   // Write ADC_CONFIG with retry and verify
   // Sometimes the first write after readVBATDirect() fails
@@ -371,6 +371,12 @@ void Ina228Driver::enableAlert(bool enable_uvlo, bool active_high, bool latch_al
   // Note: BUSUL/BUSOL flags (bits 3-4) are READ-ONLY status flags, NOT enable bits.
   // Bus under-voltage comparison is enabled by setting BUVL register to non-zero.
   uint16_t diag_alrt = 0;
+
+  if (enable_uvlo) {
+    // AVG in ADC_CONFIG alone does not filter alerts. Compare the completed
+    // average to attenuate brief TX voltage dips before evaluating undervoltage.
+    diag_alrt |= INA228_DIAG_ALRT_SLOWALERT;
+  }
 
   if (latch_alert) {
     diag_alrt |= INA228_DIAG_ALRT_ALATCH;   // Latch mode: Alert stays active until DIAG_ALRT is read

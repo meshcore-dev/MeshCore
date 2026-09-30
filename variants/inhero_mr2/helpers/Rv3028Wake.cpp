@@ -10,8 +10,40 @@
 #include <Wire.h>
 
 namespace inhero {
+namespace {
 
-void configurePeriodicWake(uint16_t minutes) {
+bool writeRegister(uint8_t reg, uint8_t value) {
+  Wire.beginTransmission(RTC_I2C_ADDR);
+  bool queued = Wire.write(reg) == 1;
+  queued = (Wire.write(value) == 1) && queued;
+  return Wire.endTransmission() == 0 && queued;
+}
+
+bool readRegister(uint8_t reg, uint8_t& value) {
+  Wire.beginTransmission(RTC_I2C_ADDR);
+  bool queued = Wire.write(reg) == 1;
+  // STOP also terminates the transfer if queuing the register address failed.
+  if (Wire.endTransmission() != 0 || !queued) return false;
+  if (Wire.requestFrom((uint8_t)RTC_I2C_ADDR, (uint8_t)1) != 1 || Wire.available() != 1) {
+    while (Wire.available()) Wire.read();
+    return false;
+  }
+  value = Wire.read();
+  return true;
+}
+
+bool verifyRegister(uint8_t reg, uint8_t expected, uint8_t mask = 0xFF) {
+  uint8_t value;
+  return readRegister(reg, value) && (value & mask) == (expected & mask);
+}
+
+bool writeVerified(uint8_t reg, uint8_t value, uint8_t mask = 0xFF) {
+  return writeRegister(reg, value) && verifyRegister(reg, value, mask);
+}
+
+} // namespace
+
+bool configurePeriodicWake(uint16_t minutes) {
   uint16_t ticks = (minutes == 0) ? 1 : minutes;
   if (ticks > 4095) ticks = 4095;  // 12-bit register
 
@@ -19,42 +51,38 @@ void configurePeriodicWake(uint16_t minutes) {
                      static_cast<unsigned>(ticks));
 
   // Per RV-3028 manual section 4.8.2:
-  // Step 1: Stop Timer and clear flags
-  Wire.beginTransmission(RTC_I2C_ADDR);
-  Wire.write(RV3028_REG_CTRL1);
-  Wire.write(0x00); // TE=0, TD=00 (stop timer)
-  Wire.endTransmission();
-
-  Wire.beginTransmission(RTC_I2C_ADDR);
-  Wire.write(RV3028_REG_CTRL2);
-  Wire.write(0x00); // TIE=0
-  Wire.endTransmission();
-
-  Wire.beginTransmission(RTC_I2C_ADDR);
-  Wire.write(RV3028_REG_STATUS);
-  Wire.write(0x00); // Clear TF
-  Wire.endTransmission();
+  // Step 1: Stop Timer and clear flags. Verify the stopped state: if TE never
+  // goes LOW, writing TE=1 later would not reliably start a fresh countdown.
+  // Control 1 bit 6 is reserved; only TF is relevant in the status register.
+  if (!writeVerified(RV3028_REG_CTRL1, 0x00, 0xBF) ||
+      !writeVerified(RV3028_REG_CTRL2, 0x00) ||
+      !writeVerified(RV3028_REG_STATUS, 0x00, 0x08)) return false;
 
   // Step 2: Set Timer Value (ticks at 1/60 Hz)
   Wire.beginTransmission(RTC_I2C_ADDR);
-  Wire.write(RV3028_REG_TIMER_VALUE_0);
-  Wire.write(ticks & 0xFF);
-  Wire.write((ticks >> 8) & 0x0F);
-  Wire.endTransmission();
+  bool queued = Wire.write(RV3028_REG_TIMER_VALUE_0) == 1;
+  queued = (Wire.write(ticks & 0xFF) == 1) && queued;
+  queued = (Wire.write((ticks >> 8) & 0x0F) == 1) && queued;
+  if (Wire.endTransmission() != 0 || !queued ||
+      !verifyRegister(RV3028_REG_TIMER_VALUE_0, ticks & 0xFF) ||
+      !verifyRegister(RV3028_REG_TIMER_VALUE_1, (ticks >> 8) & 0x0F, 0x0F)) return false;
 
   // Step 3: Enable timer (1/60 Hz, single shot)
-  Wire.beginTransmission(RTC_I2C_ADDR);
-  Wire.write(RV3028_REG_CTRL1);
-  Wire.write(0x07); // TE=1, TD=11 (1/60 Hz), TRPT=0 (single shot)
-  Wire.endTransmission();
+  if (!writeRegister(RV3028_REG_CTRL1, 0x07)) return false;
 
   // Step 4: Enable timer interrupt
-  Wire.beginTransmission(RTC_I2C_ADDR);
-  Wire.write(RV3028_REG_CTRL2);
-  Wire.write(0x10); // TIE=1
-  Wire.endTransmission();
+  if (!writeRegister(RV3028_REG_CTRL2, 0x10)) return false;
+
+  // Verify the final state before allowing System OFF. Read the preset (0A/0B),
+  // not the live countdown (0C/0D), and reject a timer that already expired.
+  if (!verifyRegister(RV3028_REG_TIMER_VALUE_0, ticks & 0xFF) ||
+      !verifyRegister(RV3028_REG_TIMER_VALUE_1, (ticks >> 8) & 0x0F, 0x0F) ||
+      !verifyRegister(RV3028_REG_CTRL1, 0x07, 0xBF) ||
+      !verifyRegister(RV3028_REG_CTRL2, 0x10) ||
+      !verifyRegister(RV3028_REG_STATUS, 0x00, 0x08)) return false;
 
   MESH_DEBUG_PRINTLN("PWRMGT: RTC countdown configured (%u ticks at 1/60 Hz)", ticks);
+  return true;
 }
 
 void clearTimerFlag() {

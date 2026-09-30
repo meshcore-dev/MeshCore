@@ -20,6 +20,69 @@ static bool rtc_8130_success = false;
 #define PCF8563_ADDRESS  0x51
 #define RX8130CE_ADDRESS 0x32
 
+#if defined(INHERO_MR2)
+static bool configureMr2RtcBackup(TwoWire& wire) {
+  // The library's EEPROM helpers omit the command delays and I2C error checks.
+  auto read = [&wire](uint8_t reg, uint8_t& value) {
+    wire.beginTransmission(RV3028_ADDRESS);
+    wire.write(reg);
+    if (wire.endTransmission(false) != 0 ||
+        wire.requestFrom((uint8_t)RV3028_ADDRESS, (uint8_t)1) != 1) return false;
+    value = wire.read();
+    return true;
+  };
+  auto write = [&wire](uint8_t reg, uint8_t value) {
+    wire.beginTransmission(RV3028_ADDRESS);
+    wire.write(reg);
+    wire.write(value);
+    return wire.endTransmission() == 0;
+  };
+  auto waitReady = [&read]() {
+    const uint32_t start = millis();
+    do {
+      uint8_t status;
+      if (!read(0x0E, status)) return false;
+      if ((status & 0x80) == 0) return true; // EEbusy
+      delay(1);
+    } while ((uint32_t)(millis() - start) < 500);
+    return false;
+  };
+  auto startBackupRead = [&]() {
+    return write(0x25, 0x37) && write(0x27, 0x00) && write(0x27, 0x22);
+  };
+
+  uint8_t control1;
+  if (!read(0x0F, control1)) return false;
+  const bool ok = [&]() {
+    if (!write(0x0F, control1 | 0x08) || !waitReady()) return false; // EERD
+    if (!startBackupRead()) return false;
+    delay(1); // RV-3028 manual 4.6.7: wait before checking EEbusy after a read.
+    uint8_t stored;
+    if (!waitReady() || !read(0x26, stored)) return false;
+    // No backup battery: BSM=00, TCE=0, BSIE=0, FEDE=1. Keep EEOffset[0]/TCR.
+    const uint8_t desired = (stored & 0x83) | 0x10;
+    if (stored != desired) {
+      // Write only EEPROM byte 0x37, never issue an Update All command.
+      if (!write(0x25, 0x37) || !write(0x26, desired) ||
+          !write(0x27, 0x00) || !write(0x27, 0x21)) return false;
+      delay(10); // RV-3028 manual 4.6.7: wait before checking EEbusy after a write.
+      if (!waitReady() || !startBackupRead()) return false;
+      delay(1);
+      uint8_t verified;
+      if (!waitReady() || !read(0x26, verified) || verified != desired) return false;
+    }
+    // A single-byte EEPROM write does not update the active RAM mirror.
+    uint8_t active;
+    return write(0x37, desired) && read(0x37, active) && active == desired;
+  }();
+
+  // Re-enable automatic refresh on both success and failure, without recovery.
+  const bool released = write(0x0F, control1 & ~0x08);
+  uint8_t finalControl1;
+  return ok && released && read(0x0F, finalControl1) && (finalControl1 & 0x08) == 0;
+}
+#endif
+
 bool AutoDiscoverRTCClock::i2c_probe(TwoWire& wire, uint8_t addr) {
   wire.beginTransmission(addr);
   uint8_t error = wire.endTransmission();
@@ -36,9 +99,14 @@ void AutoDiscoverRTCClock::begin(TwoWire& wire) {
   if (i2c_probe(wire, RV3028_ADDRESS)) {
     rtc_rv3028.initI2C(wire);
     rtc_rv3028.writeToRegister(0x35, 0x00);
+#if defined(INHERO_MR2)
+    // MR2 has no backup battery: VDD and VBACKUP share the 3.3 V supply.
+    rv3028_success = configureMr2RtcBackup(wire);
+#else
     rtc_rv3028.writeToRegister(0x37, 0xB4); // Direct Switching Mode (DSM): when VDD < VBACKUP, switchover occurs from VDD to VBACKUP
-    rtc_rv3028.set24HourMode(); // Set the device to use the 24hour format (default) instead of the 12 hour format
     rv3028_success = true;
+#endif
+    rtc_rv3028.set24HourMode(); // Set the device to use the 24hour format (default) instead of the 12 hour format
   }
 
   if (i2c_probe(wire, PCF8563_ADDRESS)) {

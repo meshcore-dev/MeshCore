@@ -158,7 +158,8 @@ public:
   // Set bus over-voltage alert threshold in mV
   bool setOverVoltageAlert(uint16_t voltage_mv);
 
-  // Enable alert output on ALERT pin.
+  // Configure ALERT output. enable_uvlo selects averaged comparisons (SLOWALERT).
+  // BUVL must be set separately; setUnderVoltageAlert(0) disables UVLO comparison.
   // latch_alert: true to latch the alert until DIAG_ALRT is read.
   void enableAlert(bool enable_uvlo = true, bool active_high = false, bool latch_alert = false);
 

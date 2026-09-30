@@ -74,8 +74,9 @@ void InheroMr2Board::begin() {
 
     MESH_DEBUG_PRINTLN("LV-Wake: VBAT=%dmV, wake=%dmV", vbat_mv, wake_threshold);
 
-    if (vbat_mv == 0 || vbat_mv < wake_threshold) {
-      // Still too low or read failed — go back to sleep immediately.
+    if ((vbat_mv == 0 || vbat_mv < wake_threshold) &&
+        configureRTCWake(LOW_VOLTAGE_SLEEP_MINUTES)) {
+      // Only resleep after verifying the next wake, before shutting down any IC.
       // INA228 ADC needs shutdown (readVBATDirect left it in one-shot mode).
 
       bool chargeEnabled = restoreConfiguredChargeEnable();
@@ -91,7 +92,6 @@ void InheroMr2Board::begin() {
       // Both are needed: SetSleep puts it to Cold Sleep, NSS latch prevents re-wake.
       inhero::prepareRadioForSystemOff(false);
 
-      configureRTCWake(LOW_VOLTAGE_SLEEP_MINUTES);
       NRF_P0->LATCH = (1UL << RTC_INT_PIN);
       Wire.end();
 
@@ -105,10 +105,11 @@ void InheroMr2Board::begin() {
       while (1) __WFE();
     }
 
-    // Voltage recovered — close I2C and fall through to normal boot
+    // Voltage recovered, or wake setup failed: complete boot so the board remains
+    // serviceable and the main loop can retry low-voltage sleep with its WDT active.
     Wire.end();
 
-    // Recovery LED flash
+    // Normal boot LED flash
     pinMode(LED_BLUE, OUTPUT);
     for (int i = 0; i < 3; i++) {
       digitalWrite(LED_BLUE, HIGH);
@@ -119,7 +120,7 @@ void InheroMr2Board::begin() {
 
     NRF_POWER->GPREGRET2 = SHUTDOWN_REASON_NONE;
     // setLowVoltageRecovery + setSOCManually deferred to after boardConfig.begin()
-    MESH_DEBUG_PRINTLN("LV-Wake: Voltage recovered (%dmV >= %dmV) - normal boot", vbat_mv, wake_threshold);
+    MESH_DEBUG_PRINTLN("LV-Wake: Normal boot (VBAT=%dmV, wake=%dmV)", vbat_mv, wake_threshold);
   }
 
   // === Standard boot path (ColdBoot, recovery, or non-LV wake) ===
@@ -204,7 +205,8 @@ void InheroMr2Board::begin() {
         }
       }
       // ColdBoot with voltage below sleep threshold — first entry into LV sleep
-      else if (vbat_mv < sleep_threshold) {
+      else if (vbat_mv < sleep_threshold &&
+               configureRTCWake(LOW_VOLTAGE_SLEEP_MINUTES)) {
         MESH_DEBUG_PRINTLN("ColdBoot below sleep threshold (%dmV < %dmV)", vbat_mv, sleep_threshold);
         MESH_DEBUG_PRINTLN("Going to sleep for %d min to avoid motorboating", LOW_VOLTAGE_SLEEP_MINUTES);
 
@@ -275,7 +277,6 @@ void InheroMr2Board::begin() {
         Wire.write(0x00);  // Sleep mode
         Wire.endTransmission();
 
-        configureRTCWake(LOW_VOLTAGE_SLEEP_MINUTES);
         NRF_P0->LATCH = (1UL << RTC_INT_PIN);
 
         Wire.end();
@@ -286,6 +287,9 @@ void InheroMr2Board::begin() {
         NRF_POWER->SYSTEMOFF = 1;
         while (1) __WFE();
       }
+      else if (vbat_mv < sleep_threshold) {
+        MESH_DEBUG_PRINTLN("ColdBoot: RTC wake unavailable - continuing normal boot");
+      }
       // Normal ColdBoot — voltage OK
       else {
         MESH_DEBUG_PRINTLN("Normal ColdBoot - voltage OK (%dmV >= %dmV)", vbat_mv, sleep_threshold);
@@ -294,7 +298,7 @@ void InheroMr2Board::begin() {
   }
 
   // === Normal boot path: Initialize board hardware ===
-  // Only reached when voltage is OK (or unreadable) — resleep paths exit above.
+  // Also reached if RTC wake verification failed; keep normal operation available.
   // boardConfig.begin() initializes BQ25798, INA228, CE pin, alerts, LEDs, etc.
   MESH_DEBUG_PRINTLN("Initializing Rev 1.1 features (BQ25798, INA228, RTC, CE-FET)");
   boardConfig.begin();
@@ -475,6 +479,14 @@ uint16_t InheroMr2Board::getLowVoltageWakeThreshold() {
 void InheroMr2Board::initiateShutdown(uint8_t reason) {
   MESH_DEBUG_PRINTLN("PWRMGT: Initiating shutdown (reason=0x%02X)", reason);
 
+  // A failed wake setup must leave normal operation intact. Check before
+  // stopping tasks, putting the INA/radio to sleep, or storing a sleep marker.
+  if (reason == SHUTDOWN_REASON_LOW_VOLTAGE &&
+      !configureRTCWake(LOW_VOLTAGE_SLEEP_MINUTES)) {
+    MESH_DEBUG_PRINTLN("PWRMGT: RTC wake unavailable - low-voltage sleep aborted");
+    return;
+  }
+
   // 1. Stop background tasks to prevent filesystem corruption
   BoardConfigContainer::stopBackgroundTasks();
 
@@ -519,10 +531,7 @@ void InheroMr2Board::initiateShutdown(uint8_t reason) {
     Wire.endTransmission();
     MESH_DEBUG_PRINTLN("PWRMGT: BQ25798 ADC/INT + BME280 shut down");
 
-    // 6. Configure RTC to wake us up periodically for voltage check
-    configureRTCWake(LOW_VOLTAGE_SLEEP_MINUTES);
-
-    // 7. Clear GPIO LATCH for RTC INT pin.
+    // 7. Clear GPIO LATCH for RTC INT pin (timer was verified before shutdown).
     // If a previous RTC wake cycle set the LATCH (retained across System Sleep),
     // DETECT would fire immediately → instant wake → boot loop.
     NRF_P0->LATCH = (1UL << RTC_INT_PIN);
@@ -562,11 +571,24 @@ void InheroMr2Board::initiateShutdown(uint8_t reason) {
   while (1) __WFE();
 }
 
-void InheroMr2Board::configureRTCWake(uint32_t minutes) {
+bool InheroMr2Board::configureRTCWake(uint32_t minutes) {
   uint16_t ticks = static_cast<uint16_t>(
       minutes == 0 ? LOW_VOLTAGE_SLEEP_MINUTES
                    : (minutes > 4095 ? 4095 : minutes));
-  inhero::configurePeriodicWake(ticks);
+  for (uint8_t attempt = 0; attempt < 2; ++attempt) {
+    if (inhero::configurePeriodicWake(ticks) && digitalRead(RTC_INT_PIN) == HIGH) {
+      return true;
+    }
+    if (attempt == 0) {
+      // One bounded recovery/retry, using the existing board bus recovery.
+      Wire.end();
+      inhero::recoverI2cBus(PIN_BOARD_SDA, PIN_BOARD_SCL);
+      Wire.begin();
+      delay(10);
+    }
+  }
+  MESH_DEBUG_PRINTLN("PWRMGT: RTC wake verification failed");
+  return false;
 }
 
 void InheroMr2Board::rtcInterruptHandler() {
