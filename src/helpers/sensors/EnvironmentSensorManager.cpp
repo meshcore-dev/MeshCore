@@ -160,6 +160,14 @@ static Adafruit_VL53L0X VL53L0X;
 static RAK12035_SoilMoisture RAK12035;
 #endif
 
+#if ENV_INCLUDE_ONEWIRE
+#ifndef TELEM_ONEWIRE_PIN
+#error "ENV_INCLUDE_ONEWIRE requires TELEM_ONEWIRE_PIN to be defined in the board's build_flags"
+#endif
+#include "OneWireSensor.h"
+static OneWireSensor ONEWIRE(TELEM_ONEWIRE_PIN);
+#endif
+
 #if ENV_INCLUDE_GPS && defined(RAK_BOARD) && !defined(RAK_WISMESH_TAG)
 #define RAK_WISBLOCK_GPS
 #endif
@@ -475,6 +483,16 @@ static void query_rak12035(uint8_t ch, uint8_t sub_ch, CayenneLPP& lpp) {
 }
 #endif
 
+#if ENV_INCLUDE_ONEWIRE
+// 1-Wire has no I2C address and no init(wire, addr) entry — its
+// presence-pulse probe and bus enumeration both live in
+// OneWireSensor::begin(), called from the dedicated registration
+// pass in EnvironmentSensorManager::begin().
+static void query_onewire(uint8_t ch, uint8_t sub_ch, CayenneLPP& lpp) {
+  ONEWIRE.query(ch, sub_ch, lpp);
+}
+#endif
+
 #if ENV_INCLUDE_BME680_BSEC
 static void bsec_load_state() {
   using namespace Adafruit_LittleFS_Namespace;
@@ -654,6 +672,34 @@ bool EnvironmentSensorManager::begin() {
       _active_sensors[_active_sensor_count++] = { def.query, sub };
     }
   }
+
+  // ----------------------------------------------------------
+  // 1-Wire bus registration pass.
+  //
+  // Portability: any board enables 1-Wire by adding
+  //   -D ENV_INCLUDE_ONEWIRE=1
+  //   -D TELEM_ONEWIRE_PIN=<gpio>
+  // to its variant's build_flags. No source changes required.
+  //
+  // OneWireSensor::begin() issues a 1-Wire reset and checks for a
+  // presence pulse before touching DallasTemperature, mirroring the
+  // I2C ACK gate above. With no probe attached, it returns 0 and no
+  // entries are pushed — the same "never touch absent hardware"
+  // invariant applies here as on the I2C bus.
+  // ----------------------------------------------------------
+  #if ENV_INCLUDE_ONEWIRE
+  {
+    uint8_t found = ONEWIRE.begin();
+    if (found == 0) {
+      MESH_DEBUG_PRINTLN("1-Wire not detected on pin %d", (int)TELEM_ONEWIRE_PIN);
+    } else {
+      MESH_DEBUG_PRINTLN("Found %u 1-Wire temperature device(s) on pin %d", (unsigned)found, (int)TELEM_ONEWIRE_PIN);
+      for (uint8_t sub = 0; sub < found && _active_sensor_count < MAX_ACTIVE_SENSORS; sub++) {
+        _active_sensors[_active_sensor_count++] = { query_onewire, sub };
+      }
+    }
+  }
+  #endif
 
   return true;
 }
