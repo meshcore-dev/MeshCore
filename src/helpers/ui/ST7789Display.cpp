@@ -2,6 +2,15 @@
 
 #include "ST7789Display.h"
 
+#ifdef WITH_CYRILLIC_FONT
+  #include "CyrillicFont.h"
+  #define FONT_NORMAL  ArialMT_Plain_16_Cyr
+  #define FONT_LARGE   ArialMT_Plain_24_Cyr
+#else
+  #define FONT_NORMAL  ArialMT_Plain_16
+  #define FONT_LARGE   ArialMT_Plain_24
+#endif
+
 #ifndef X_OFFSET
 #define X_OFFSET 0  // No offset needed for landscape
 #endif
@@ -50,6 +59,9 @@ bool ST7789Display::begin() {
     digitalWrite(PIN_TFT_RST, HIGH);
 
     display.init();
+  #ifdef WITH_CYRILLIC_FONT
+    display.setFontTableLookupFunction(cyrillicFontLookup);
+  #endif
     display.landscapeScreen();
     #ifdef DISPLAY_FLIP_VERTICALLY
     display.flipScreenVertically();
@@ -104,19 +116,19 @@ void ST7789Display::clear() {
 void ST7789Display::startFrame(ColorVal bkg) {
   display.clear();  // TODO: use bkg
   setColor(UIColor::primary_txt);
-  display.setFont(ArialMT_Plain_16);
+  display.setFont(FONT_NORMAL);
 }
 
 void ST7789Display::setTextSize(int sz) {
   switch(sz) {
     case 1 :
-      display.setFont(ArialMT_Plain_16);
+      display.setFont(FONT_NORMAL);
       break;
     case 2 :
-      display.setFont(ArialMT_Plain_24);
+      display.setFont(FONT_LARGE);
       break;
     default:
-      display.setFont(ArialMT_Plain_16);
+      display.setFont(FONT_NORMAL);
   }
 }
 
@@ -138,6 +150,12 @@ void ST7789Display::print(const char* str) {
 void ST7789Display::printWordWrap(const char* str, int max_width) {
   display.drawStringMaxWidth(_x, _y, max_width*SCALE_X, str);
 }
+
+#ifdef WITH_CYRILLIC_FONT
+void ST7789Display::translateUTF8ToBlocks(char* dest, const char* src, size_t dest_size) {
+  cyrillicCopyUTF8(dest, src, dest_size);  // the Cyrillic font renders UTF-8 as-is
+}
+#endif
 
 void ST7789Display::fillRect(int x, int y, int w, int h) {
   display.fillRect(x*SCALE_X + X_OFFSET, y*SCALE_Y + Y_OFFSET, w*SCALE_X, h*SCALE_Y);
@@ -184,7 +202,9 @@ void ST7789Display::drawXbm(int x, int y, const uint8_t* bits, int w, int h) {
 }
 
 uint16_t ST7789Display::getTextWidth(const char* str) {
-  return display.getStringWidth(str) / SCALE_X;
+  // pass utf8=true so this matches what drawString() actually renders: both then
+  // run the text through the font table lookup rather than counting raw bytes
+  return display.getStringWidth(str, strlen(str), true) / SCALE_X;
 }
 
 void ST7789Display::endFrame() {

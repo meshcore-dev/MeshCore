@@ -33,6 +33,9 @@ public:
   void setCursor(int x, int y) override;
   void print(const char* str) override;
   void printWordWrap(const char* str, int max_width) override;
+#ifdef WITH_CYRILLIC_FONT
+  void translateUTF8ToBlocks(char* dest, const char* src, size_t dest_size) override;
+#endif
   void fillRect(int x, int y, int w, int h) override;
   void drawRect(int x, int y, int w, int h) override;
   void drawXbm(int x, int y, const uint8_t* bits, int w, int h) override;

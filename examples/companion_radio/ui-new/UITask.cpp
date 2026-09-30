@@ -490,10 +490,16 @@ class MsgPreviewScreen : public UIScreen {
   UITask* _task;
   mesh::RTCClock* _rtc;
 
+  // a text message is up to MAX_TEXT_LEN (160) bytes on the wire, so size the
+  // preview for that. A shorter buffer truncates by *bytes*, which cuts a
+  // Cyrillic (or any multi-byte UTF-8) message at half the character count a
+  // Latin one would show -- the 240px x 4 lines here fit a full 160-byte message.
+  #define MAX_MSG_PREVIEW_LEN  160
+
   struct MsgEntry {
     uint32_t timestamp;
     char origin[62];
-    char msg[78];
+    char msg[MAX_MSG_PREVIEW_LEN + 1];
   };
   #define MAX_UNREAD_MSGS   32
   int num_unread;
