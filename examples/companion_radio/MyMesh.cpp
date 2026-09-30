@@ -2017,8 +2017,16 @@ static bool save_filter(const ContactInfo& c) {
   return c.type != ADV_TYPE_NONE;   // don't save the transient/anon entries
 }
 
-void MyMesh::saveContacts() {
-  _store->saveContacts(this, save_filter);
+bool MyMesh::saveContacts() {
+  return _store->saveContacts(this, save_filter);
+}
+
+bool MyMesh::prepareForShutdown() {
+  if (dirty_contacts_expiry) {
+    if (!saveContacts()) return false;
+    dirty_contacts_expiry = 0;
+  }
+  return true;
 }
 
 void MyMesh::enterCLIRescue() {

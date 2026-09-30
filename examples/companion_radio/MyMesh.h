@@ -165,6 +165,7 @@ protected:
   }
 
 public:
+  bool prepareForShutdown();
   void savePrefs() {
     _prefs.node_lat = sensors.node_lat;
     _prefs.node_lon = sensors.node_lon;
@@ -206,7 +207,7 @@ private:
 
   // helpers, short-cuts
   void saveChannels() { _store->saveChannels(this); }
-  void saveContacts();
+  bool saveContacts();
 
   DataStore* _store;
   NodePrefs _prefs;

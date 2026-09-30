@@ -287,7 +287,7 @@ File file = openRead(_getContactsChannelsFS(), "/contacts3");
     }
 }
 
-void DataStore::saveContacts(DataStoreHost* host, bool (*filter)(const ContactInfo& c)) {
+bool DataStore::saveContacts(DataStoreHost* host, bool (*filter)(const ContactInfo& c)) {
   File file = openWrite(_getContactsChannelsFS(), "/contacts3");
   if (file) {
     uint32_t idx = 0;
@@ -312,12 +312,17 @@ void DataStore::saveContacts(DataStoreHost* host, bool (*filter)(const ContactIn
       success = success && (file.write((uint8_t *)&c.gps_lat, 4) == 4);
       success = success && (file.write((uint8_t *)&c.gps_lon, 4) == 4);
 
-      if (!success) break; // write failed
+      if (!success) {
+        file.close();
+        return false;
+      }
 
       idx++;  // advance to next contact
     }
     file.close();
+    return true;
   }
+  return false;
 }
 
 void DataStore::loadChannels(DataStoreHost* host) {

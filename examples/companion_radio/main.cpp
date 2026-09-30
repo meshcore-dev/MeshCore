@@ -242,6 +242,9 @@ void setup() {
 #endif
 
   board.onBootComplete();
+#ifdef MESH_TRACKER_X1
+  board.setPrepareShutdown([]() { return the_mesh.prepareForShutdown(); });
+#endif
 }
 
 void loop() {

@@ -4,6 +4,7 @@
 #include <RadioLib.h>
 #include <helpers/radiolib/RadioLibWrappers.h>
 #include "MeshTrackerX1Board.h"
+#include "MeshTrackerX1GPS.h"
 #include <helpers/radiolib/CustomLR2021Wrapper.h>
 #include <helpers/ArduinoHelpers.h>
 #include <helpers/SensorManager.h>
@@ -14,16 +15,16 @@
 #endif
 
 class MeshTrackerX1SensorManager: public SensorManager {
-  bool gps_active = false;
+  MeshTrackerX1GPS gps;
   bool baro_ok = false;
   Adafruit_SPA06_003 spa06;
   LocationProvider * _nmea;
 
   void start_gps();
   void sleep_gps();
-  void stop_gps();
 public:
-  MeshTrackerX1SensorManager(LocationProvider &nmea): _nmea(&nmea) { }
+  MeshTrackerX1SensorManager(LocationProvider &nmea): gps(Serial1), _nmea(&nmea) { }
+  void prepareForShutdown();
   bool begin() override;
   bool querySensors(uint8_t requester_permissions, CayenneLPP& telemetry) override;
   void loop() override;
