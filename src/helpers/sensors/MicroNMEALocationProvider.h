@@ -173,8 +173,29 @@ public :
         return dt.unixtime();
     } 
 
+    void drain() { while (_gps_serial->available()) _gps_serial->read(); }
+
+    const char* getSentence() const { return nmea.getSentence(); }
+
     void sendSentence(const char *sentence) override {
         nmea.sendSentence(*_gps_serial, sentence);
+    }
+
+    bool waitFor(const char* prefix, uint32_t timeout_ms) {
+        size_t plen = strlen(prefix);
+        uint32_t timeout = millis() + timeout_ms;
+        while ((int32_t)(millis() - timeout) < 0) {
+            if (_gps_serial->available()) {
+                char c = _gps_serial->read();
+                #ifdef GPS_NMEA_DEBUG
+                Serial.print(c);
+                #endif
+                if (nmea.process(c) && strncmp(nmea.getSentence(), prefix, plen) == 0) return true;
+            } else {
+                yield();
+            }
+        }
+        return false;
     }
 
     void loop() override {

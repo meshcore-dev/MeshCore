@@ -19,6 +19,8 @@ public:
     virtual bool isValid() = 0;
     virtual long getTimestamp() = 0;
     virtual void sendSentence(const char * sentence);
+    virtual bool waitFor(const char* prefix, uint32_t timeout_ms) { return false; }
+    virtual void drain() { }
     virtual void reset() = 0;
     virtual void begin() = 0;
     virtual void stop() = 0;
