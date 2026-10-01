@@ -29,6 +29,24 @@ public:
   virtual bool isCadEnabled() const = 0;
   virtual void setCadEnabled(bool en) = 0;
 
+  virtual bool isRssiLbtEnabled() const = 0;
+  virtual void setRssiLbtEnabled(bool en) = 0;
+
+  virtual int8_t getRssiLbtThrDbm() const = 0;
+  virtual void setRssiLbtThrDbm(int8_t dbm) = 0;
+
+  virtual uint16_t getRssiLbtSenseMs() const = 0;
+  virtual void setRssiLbtSenseMs(uint16_t ms) = 0;
+
+  virtual uint16_t getRssiLbtMaxwaitMs() const = 0;
+  virtual void setRssiLbtMaxwaitMs(uint16_t ms) = 0;
+
+  virtual uint16_t getRssiLbtTxmaxMs() const = 0;
+  virtual void setRssiLbtTxmaxMs(uint16_t ms) = 0;
+
+  virtual uint16_t getRssiLbtPauseMs() const = 0;
+  virtual void setRssiLbtPauseMs(uint16_t ms) = 0;
+
   virtual uint8_t getIntThresh() const = 0;
   virtual void setIntThresh(uint8_t t) = 0;
 
