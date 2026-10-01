@@ -39,8 +39,9 @@ class CustomLR1121 : public LR1121 {
     float getFreqMHz() const { return freqMHz; }
 
     int16_t setRxBoostedGainMode(bool en) {
-      _rx_boosted = en;
-      return LR1121::setRxBoostedGainMode(en);
+      int16_t status = LR1121::setRxBoostedGainMode(en);
+      if (status == RADIOLIB_ERR_NONE) _rx_boosted = en;
+      return status;
     }
 
     bool getRxBoostedGainMode() const { return _rx_boosted; }
