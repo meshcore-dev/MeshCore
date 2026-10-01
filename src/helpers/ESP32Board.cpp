@@ -83,6 +83,9 @@ void ESP32Board::enterDeepSleep(uint32_t secs) {
     esp_sleep_enable_timer_wakeup(secs * 1000000ULL);
   }
 
+  // Board-specific final preparation (e.g. cutting external power rails)
+  preDeepSleep();
+
   // Finally set ESP32 into deepsleep
   esp_deep_sleep_start(); // CPU halts here and never returns!
 }
