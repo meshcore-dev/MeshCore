@@ -50,14 +50,14 @@ class CustomSX1276 : public SX1276 {
       setCurrentLimit(SX127X_CURRENT_LIMIT);
   #endif
 
-  #if defined(SX176X_RXEN) || defined(SX176X_TXEN)
-    #ifndef SX176X_RXEN
-      #define SX176X_RXEN RADIOLIB_NC
+  #if defined(SX127X_RXEN) || defined(SX127X_TXEN)
+    #ifndef SX127X_RXEN
+      #define SX127X_RXEN RADIOLIB_NC
     #endif
-    #ifndef SX176X_TXEN
-      #define SX176X_TXEN RADIOLIB_NC
+    #ifndef SX127X_TXEN
+      #define SX127X_TXEN RADIOLIB_NC
     #endif
-      setRfSwitchPins(SX176X_RXEN, SX176X_TXEN);
+      setRfSwitchPins(SX127X_RXEN, SX127X_TXEN);
   #endif
 
       setCRC(1);

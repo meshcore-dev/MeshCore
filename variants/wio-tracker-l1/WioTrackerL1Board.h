@@ -35,6 +35,6 @@ public:
   }
 
   void powerOff() override {
-    sd_power_system_off();
+    NRF52Board::powerOff();
   }
 };

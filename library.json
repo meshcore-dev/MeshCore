@@ -4,7 +4,7 @@
     "dependencies": {
         "SPI": "*",
         "Wire": "*",
-        "jgromes/RadioLib": "^7.3.0",
+        "jgromes/RadioLib": "^7.6.0",
         "rweather/Crypto": "^0.4.0",
         "adafruit/RTClib": "^2.1.3",
         "melopero/Melopero RV3028": "^1.1.0",

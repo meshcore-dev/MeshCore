@@ -14,11 +14,18 @@
 
 #include "Button.h"
 
+#ifdef HAS_DRV2605
+  #include <helpers/ui/DRV2605Vibration.h>
+#endif
+
 class UITask : public AbstractUITask {
   DisplayDriver* _display;
   SensorManager* _sensors;
 #ifdef PIN_BUZZER
   genericBuzzer buzzer;
+#endif
+#ifdef HAS_DRV2605
+  DRV2605Vibration vibration;
 #endif
   unsigned long _next_refresh, _auto_off;
   NodePrefs* _node_prefs;
@@ -54,7 +61,7 @@ class UITask : public AbstractUITask {
  
 public:
 
-  UITask(mesh::MainBoard* board, BaseSerialInterface* serial) : AbstractUITask(board, serial), _display(NULL), _sensors(NULL) {
+  UITask(mesh::MainBoard* board, MultiSerialInterface* serial) : AbstractUITask(board, serial), _display(NULL), _sensors(NULL) {
       _next_refresh = 0;
       ui_started_at = 0;
   }
@@ -63,9 +70,13 @@ public:
   bool hasDisplay() const { return _display != NULL; }
   void clearMsgPreview();
 
+  // MyMesh::Listener
+  void onMessageRecv(mesh::Packet *pkt, const ContactInfo &from, uint8_t txt_type, uint32_t sender_timestamp, const char* text) override;
+  void onChannelMessageRecv(mesh::Packet *pkt, ChannelDetails& channel_details, const char* text) override;
+  void onQueueSizeChanged(int offline_queue_size) override;
+  void onDiscoveredContact(ContactInfo &contact, bool is_new, uint8_t path_len, const uint8_t* path) override;
+
   // from AbstractUITask
-  void msgRead(int msgcount) override;
-  void newMsg(uint8_t path_len, const char* from_name, const char* text, int msgcount) override;
   void notify(UIEventType t = UIEventType::none) override;
   void loop() override;
 

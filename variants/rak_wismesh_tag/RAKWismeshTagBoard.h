@@ -69,6 +69,6 @@ public:
     nrf_gpio_cfg_sense_input(digitalPinToInterrupt(BUTTON_PIN), NRF_GPIO_PIN_PULLUP, NRF_GPIO_PIN_SENSE_LOW);
     #endif
 
-    sd_power_system_off();
+    NRF52Board::powerOff();
   }
 };

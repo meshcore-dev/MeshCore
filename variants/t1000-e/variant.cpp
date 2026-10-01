@@ -55,7 +55,7 @@ const uint32_t g_ADigitalPinMap[PINS_COUNT + 1] =
   42, // P1.10, LORA_RESET
   43, // P1.11, GPS_EN
   44, // P1.12, GPS_SLEEP_INT
-  45, // P1.13
+  45, // P1.13, FLASH_ENABLE
   46, // P1.14, GPS_RESETB
   47, // P1.15, PIN_GPS_RESET
   255,  // NRFX_SPIM_PIN_NOT_USED
@@ -71,7 +71,7 @@ void initVariant()
   pinMode(LUX_SENSOR, INPUT);
   pinMode(EXT_CHRG_DETECT, INPUT);
   pinMode(EXT_PWR_DETECT, INPUT);
-  pinMode(GPS_RESETB, INPUT);
+  pinMode(GPS_RESETB, INPUT_PULLUP);
   pinMode(PIN_BUTTON1, INPUT);
 
   pinMode(PIN_3V3_EN, OUTPUT);
@@ -89,8 +89,8 @@ void initVariant()
   digitalWrite(BUZZER_EN, LOW);
   digitalWrite(GPS_EN, LOW);
   digitalWrite(GPS_RESET, LOW);
-  digitalWrite(GPS_VRTC_EN, LOW);
-  digitalWrite(GPS_SLEEP_INT, HIGH);
+  digitalWrite(GPS_VRTC_EN, HIGH);
+  digitalWrite(GPS_SLEEP_INT, LOW);
   digitalWrite(GPS_RTC_INT, LOW);
   digitalWrite(LED_PIN, LOW);
 }

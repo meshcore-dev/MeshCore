@@ -77,11 +77,21 @@
 #define BATTERY_SENSE_SAMPLES 30
 #define ADC_MULTIPLIER 3.0
 
-// NTC temperature sensor
+// NTC thermistor (Murata NCP18XH103F03RB, 10k, B25/50=3380K)
+// Divider: 3.3V -> NTC -> GPIO14 -> 10k pull-down -> GND (Vadc rises with temp)
 #define NTC_PIN 14
+#define NTC_B 3380.0f
+#define NTC_R25 10000.0f
+#define NTC_R_FIXED 10000.0f
+#define NTC_VCC_MV 3300.0f
 
-// Fan control
+// Fan control (GPIO41). NTC is PA-adjacent PCB temp, not die temp, so trip
+// well below the SX1262/ESP32 85C operating limit. Hardware testing confirmed
+// that this fan/MOSFET path is on/off; PWM below 100% does not spin the fan.
 #define FAN_CTRL_PIN 41
+#define FAN_TX_COOLDOWN_MS 15000
+#define FAN_DEFAULT_LO_C 30   // off below typical indoor idle (~86F)
+#define FAN_DEFAULT_HI_C 36   // on at ~97F PCB; still far below 85C chip ratings
 
 // PA Ramp Time - T-Beam 1W requires >800us stabilization (default is 200us)
 // Value 0x05 = RADIOLIB_SX126X_PA_RAMP_800U

@@ -1,0 +1,29 @@
+#pragma once
+
+#define RADIOLIB_STATIC_ONLY 1
+#include <RadioLib.h>
+#include <helpers/radiolib/RadioLibWrappers.h>
+#include <ThinkNodeM7Board.h>
+#include <helpers/radiolib/CustomLR1110Wrapper.h>
+#include <helpers/AutoDiscoverRTCClock.h>
+#include <helpers/SensorManager.h>
+#include <helpers/sensors/EnvironmentSensorManager.h>
+#include <helpers/sensors/LocationProvider.h>
+#ifdef DISPLAY_CLASS
+  #include "NullDisplayDriver.h"
+#endif
+
+extern ThinkNodeM7Board board;
+extern WRAPPER_CLASS radio_driver;
+extern AutoDiscoverRTCClock rtc_clock;
+extern EnvironmentSensorManager sensors;
+
+#ifdef DISPLAY_CLASS
+  extern NullDisplayDriver display;
+#endif
+
+bool radio_init();
+mesh::LocalIdentity radio_new_identity();
+
+
+ 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <stddef.h>
 #include <math.h>
 
 #define MAX_HASH_SIZE        8
@@ -17,6 +18,7 @@
 #define PATH_HASH_SIZE       1
 
 #define MAX_PACKET_PAYLOAD  184
+#define MAX_GROUP_DATA_LENGTH  (MAX_PACKET_PAYLOAD - CIPHER_BLOCK_SIZE - 3)
 #define MAX_PATH_SIZE        64
 #define MAX_TRANS_UNIT      255
 
@@ -51,6 +53,11 @@ public:
   virtual void onAfterTransmit() { }
   virtual void reboot() = 0;
   virtual void powerOff() { /* no op */ }
+  // Called by example setup() functions to signal that boot is complete.
+  // Boards may override to stop a boot-indicator LED sequence or similar.
+  // Default no-op: boards that don't care need not implement anything.
+  virtual void onBootComplete() { /* no op */ }
+  virtual uint32_t getIRQGpio() { return -1; } // not supported. Returns DIO1 (SX1262) and DIO0 (SX127x)
   virtual void sleep(uint32_t secs)  { /* no op */ }
   virtual uint32_t getGpio() { return 0; }
   virtual void setGpio(uint32_t values) {}
@@ -59,12 +66,30 @@ public:
   virtual bool startOTAUpdate(const char* id, char reply[]) { return false; }   // not supported
 
   // Power management interface (boards with power management override these)
+  virtual bool isPwrMgtInitialised() const { return false; }
   virtual bool isExternalPowered() { return false; }
+  // True while a board can identify an active battery-charging source.
+  virtual bool isChargerActive() { return false; }
+
+  // Optional, source-specific power detection. Boards that can distinguish a USB
+  // supply from a solar charger override these; defaults keep every other board
+  // unaffected (the generic CLI prints "n/a" when a capability is absent).
+  virtual bool hasUsbPowerDetect() const { return false; }
+  virtual bool isUsbPowered() { return false; }
+  virtual bool hasSolarChargerDetect() const { return false; }
+  virtual bool isSolarChargerActive() { return false; }
   virtual uint16_t getBootVoltage() { return 0; }
+  virtual bool getWakeLpcompSupported() const { return false; }
   virtual uint32_t getResetReason() const { return 0; }
   virtual const char* getResetReasonString(uint32_t reason) { return "Not available"; }
   virtual uint8_t getShutdownReason() const { return 0; }
   virtual const char* getShutdownReasonString(uint8_t reason) { return "Not available"; }
+
+  virtual bool handleCommand(const char* command, uint32_t sender_timestamp, char* reply) { return false; }
+
+  // Called from the example main loops. Lets a board feed its watchdog and
+  // run periodic housekeeping. Default no-op.
+  virtual void loop() { /* no op */ }
 };
 
 /**

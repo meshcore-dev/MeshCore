@@ -40,7 +40,6 @@ public:
     #endif
 
     // power off board
-    sd_power_system_off();
-
+    NRF52Board::powerOff();
   }
 };
