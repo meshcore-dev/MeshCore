@@ -107,7 +107,7 @@ for section, options in data:
         for key, value in options:
             if key == 'build_flags':
                 for flag in value:
-                    match = re.search(r'(ESP32_PLATFORM|NRF52_PLATFORM|STM32_PLATFORM|RP2040_PLATFORM)', flag)
+                    match = re.search(r'(ESP32_PLATFORM|NRF52_PLATFORM|NRF54_PLATFORM|STM32_PLATFORM|RP2040_PLATFORM)', flag)
                     if match:
                         print(match.group(1))
                         sys.exit(0)
@@ -166,6 +166,13 @@ build_firmware() {
   if [ "$ENV_PLATFORM" == "NRF52_PLATFORM" ]; then
     python3 bin/uf2conv/uf2conv.py .pio/build/$1/firmware.hex -c -o .pio/build/$1/firmware.uf2 -f 0xADA52840
     cp .pio/build/$1/firmware.uf2 out/${FIRMWARE_FILENAME}.uf2 2>/dev/null || true
+    cp .pio/build/$1/firmware.zip out/${FIRMWARE_FILENAME}.zip 2>/dev/null || true
+  fi
+
+  # for nrf54, copy the DFU .zip and the merged .hex to out folder
+  # (the merged .hex has the bootloader + SoftDevice + app, for SWD)
+  if [ "$ENV_PLATFORM" == "NRF54_PLATFORM" ]; then
+    cp .pio/build/$1/firmware-merged.hex out/${FIRMWARE_FILENAME}-merged.hex 2>/dev/null || true
     cp .pio/build/$1/firmware.zip out/${FIRMWARE_FILENAME}.zip 2>/dev/null || true
   fi
 

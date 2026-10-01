@@ -2,7 +2,11 @@
 #include <stdio.h>
 #include <string.h>
 #include "ble_gap.h"
+#ifndef NRF54_PLATFORM
 #include "ble_hci.h"
+#else
+#include <target.h>
+#endif
 
 // Magic numbers came from actual testing
 #define BLE_HEALTH_CHECK_INTERVAL  10000  // Advertising watchdog check every 10 seconds
@@ -24,12 +28,41 @@
 
 static SerialBLEInterface* instance = nullptr;
 
+#ifdef NRF54_PLATFORM
+#define BLE_BATT_UPDATE_INTERVAL   60000  // Battery Service level update every 60 seconds
+
+#ifndef BATT_MIN_MILLIVOLTS
+  #define BATT_MIN_MILLIVOLTS 3000
+#endif
+#ifndef BATT_MAX_MILLIVOLTS
+  #define BATT_MAX_MILLIVOLTS 4200
+#endif
+
+// the nRF54 core always has a Battery Service, which reads 100% unless it's kept up to date
+static BLEBas blebas;
+static unsigned long last_batt_update = 0;
+
+static void updateBatteryLevel() {
+  int mv = board.getBattMilliVolts();
+  int pct = (mv - BATT_MIN_MILLIVOLTS) * 100 / (BATT_MAX_MILLIVOLTS - BATT_MIN_MILLIVOLTS);
+  if (pct < 0) pct = 0;
+  if (pct > 100) pct = 100;
+  blebas.notify((uint8_t)pct);  // also sets the value when no one is subscribed
+}
+#endif
+
 void SerialBLEInterface::onConnect(uint16_t connection_handle) {
   BLE_DEBUG_PRINTLN("SerialBLEInterface: connected handle=0x%04X", connection_handle);
   if (instance) {
     instance->_conn_handle = connection_handle;
     instance->_isDeviceConnected = false;
     instance->clearBuffers();
+#ifdef NRF54_PLATFORM
+    // nRF54 rejects writes before pairing with "write not permitted" rather than
+    // "insufficient encryption", so phones won't start pairing themselves. Request it here.
+    BLEConnection* conn = Bluefruit.Connection(connection_handle);
+    if (conn) conn->requestPairing();
+#endif
   }
 }
 
@@ -53,6 +86,10 @@ void SerialBLEInterface::onSecured(uint16_t connection_handle) {
       // Connection interval units: 1.25ms, supervision timeout units: 10ms
       // Apple: "The product will not read or use the parameters in the Peripheral Preferred Connection Parameters characteristic."
       // So we explicitly set it here to make Android & Apple match
+#ifdef NRF54_PLATFORM
+      // on nRF54, setConnInterval() on an active connection sends a conn param update request
+      Bluefruit.Periph.setConnInterval(BLE_MIN_CONN_INTERVAL, BLE_MAX_CONN_INTERVAL);
+#else
       ble_gap_conn_params_t conn_params;
       conn_params.min_conn_interval = BLE_MIN_CONN_INTERVAL;
       conn_params.max_conn_interval = BLE_MAX_CONN_INTERVAL;
@@ -69,6 +106,7 @@ void SerialBLEInterface::onSecured(uint16_t connection_handle) {
       } else {
         BLE_DEBUG_PRINTLN("Failed to request connection parameter update: %lu", err_code);
       }
+#endif
     } else {
       BLE_DEBUG_PRINTLN("onSecured: ignoring stale/duplicate callback");
     }
@@ -98,6 +136,8 @@ void SerialBLEInterface::onPairingComplete(uint16_t connection_handle, uint8_t a
   }
 }
 
+// not needed on nRF54, its BLE stack answers conn param update requests itself
+#ifndef NRF54_PLATFORM
 void SerialBLEInterface::onBLEEvent(ble_evt_t* evt) {
   if (!instance) return;
   
@@ -122,6 +162,7 @@ void SerialBLEInterface::onBLEEvent(ble_evt_t* evt) {
     }
   }
 }
+#endif
 
 void SerialBLEInterface::begin(const char* prefix, char* name, uint32_t pin_code) {
   instance = this;
@@ -136,15 +177,26 @@ void SerialBLEInterface::begin(const char* prefix, char* name, uint32_t pin_code
  
   char dev_name[32+16];
   if (strcmp(name, "@@MAC") == 0) {
+#ifdef NRF54_PLATFORM
+    ble_gap_addr_t addr = Bluefruit.getAddr();
+    sprintf(name, "%02X%02X%02X%02X%02X%02X",    // modify (IN-OUT param)
+        addr.addr[5], addr.addr[4], addr.addr[3], addr.addr[2], addr.addr[1], addr.addr[0]);
+#else
     ble_gap_addr_t addr;
     if (sd_ble_gap_addr_get(&addr) == NRF_SUCCESS) {
       sprintf(name, "%02X%02X%02X%02X%02X%02X",    // modify (IN-OUT param)
           addr.addr[5], addr.addr[4], addr.addr[3], addr.addr[2], addr.addr[1], addr.addr[0]);
     }
+#endif
   }
   sprintf(dev_name, "%s%s", prefix, name);
 
   // Connection interval units: 1.25ms, supervision timeout units: 10ms
+#ifdef NRF54_PLATFORM
+  Bluefruit.Periph.setConnSlaveLatency(BLE_SLAVE_LATENCY);
+  Bluefruit.Periph.setConnSupervisionTimeout(BLE_CONN_SUP_TIMEOUT);
+  Bluefruit.Periph.setConnInterval(BLE_MIN_CONN_INTERVAL, BLE_MAX_CONN_INTERVAL);
+#else
   ble_gap_conn_params_t ppcp_params;
   ppcp_params.min_conn_interval = BLE_MIN_CONN_INTERVAL;
   ppcp_params.max_conn_interval = BLE_MAX_CONN_INTERVAL;
@@ -161,6 +213,7 @@ void SerialBLEInterface::begin(const char* prefix, char* name, uint32_t pin_code
   } else {
     BLE_DEBUG_PRINTLN("Failed to set PPCP: %lu", err_code);
   }
+#endif
   
   Bluefruit.setTxPower(BLE_TX_POWER);
   Bluefruit.setName(dev_name);
@@ -175,7 +228,9 @@ void SerialBLEInterface::begin(const char* prefix, char* name, uint32_t pin_code
   Bluefruit.Periph.setDisconnectCallback(onDisconnect);
   Bluefruit.Security.setSecuredCallback(onSecured);
 
+#ifndef NRF54_PLATFORM
   Bluefruit.setEventCallback(onBLEEvent);
+#endif
 
   bleuart.setPermission(SECMODE_ENC_WITH_MITM, SECMODE_ENC_WITH_MITM);
   bleuart.begin();
@@ -241,9 +296,13 @@ bool SerialBLEInterface::isValidConnection(uint16_t handle, bool requireWaitingF
 }
 
 bool SerialBLEInterface::isAdvertising() const {
+#ifdef NRF54_PLATFORM
+  return Bluefruit.Advertising.isRunning();
+#else
   ble_gap_addr_t adv_addr;
   uint32_t err_code = sd_ble_gap_adv_addr_get(0, &adv_addr);
   return (err_code == NRF_SUCCESS);
+#endif
 }
 
 void SerialBLEInterface::enable() {
@@ -259,7 +318,11 @@ void SerialBLEInterface::enable() {
 
 void SerialBLEInterface::disconnect() {
   if (_conn_handle != BLE_CONN_HANDLE_INVALID) {
+#ifdef NRF54_PLATFORM
+    Bluefruit.disconnect(_conn_handle);
+#else
     sd_ble_gap_disconnect(_conn_handle, BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
+#endif
   }
 }
 
@@ -343,6 +406,12 @@ size_t SerialBLEInterface::checkRecvFrame(uint8_t dest[]) {
   // Advertising watchdog: periodically check if advertising is running, restart if not
   // Only run when truly disconnected (no connection handle), not during connection establishment
   unsigned long now = millis();
+#ifdef NRF54_PLATFORM
+  if (_isEnabled && (last_batt_update == 0 || now - last_batt_update >= BLE_BATT_UPDATE_INTERVAL)) {
+    last_batt_update = now;
+    updateBatteryLevel();
+  }
+#endif
   if (_isEnabled && !isConnected() && _conn_handle == BLE_CONN_HANDLE_INVALID) {
     if (now - _last_health_check >= BLE_HEALTH_CHECK_INTERVAL) {
       _last_health_check = now;
