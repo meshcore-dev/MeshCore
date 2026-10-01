@@ -135,8 +135,6 @@ void SerialBLEInterface::begin(const char* prefix, char* name, uint32_t pin_code
     Bluefruit.autoConnLed(true);  // true leaves the default automatic control of the LED by the Bluefruit library
   #endif
   
-  // If we want to control BLE LED ourselves, uncomment this:
-  // Bluefruit.autoConnLed(false);
   Bluefruit.configPrphBandwidth(BANDWIDTH_MAX);
   Bluefruit.begin();
  
