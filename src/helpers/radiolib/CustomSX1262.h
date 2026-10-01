@@ -41,6 +41,8 @@ class CustomSX1262 : public SX1262 {
   #if defined(P_LORA_SCLK)
     #ifdef NRF52_PLATFORM
       if (spi) { spi->setPins(P_LORA_MISO, P_LORA_SCLK, P_LORA_MOSI); spi->begin(); }
+    #elif defined(NRF54_PLATFORM)
+      if (spi) { spi->setPins(P_LORA_SCLK, P_LORA_MISO, P_LORA_MOSI); spi->begin(); }
     #elif defined(RP2040_PLATFORM)
       if (spi) {
         spi->setMISO(P_LORA_MISO);
