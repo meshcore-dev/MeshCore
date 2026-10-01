@@ -7,6 +7,8 @@ on:
       - 'src/**'
       - 'examples/**'
       - 'variants/**'
+      - 'arch/**'
+      - 'boards/**'
       - 'platformio.ini'
       - '.github/workflows/pr-build-check.yml'
   push:
@@ -15,6 +17,8 @@ on:
       - 'src/**'
       - 'examples/**'
       - 'variants/**'
+      - 'arch/**'
+      - 'boards/**'
       - 'platformio.ini'
       - '.github/workflows/pr-build-check.yml'
 
@@ -40,6 +44,9 @@ jobs:
           - PicoW_repeater
           # STM32
           - wio-e5-mini_repeater
+          # nRF54L
+          - Xiao_nrf54lm20a_repeater
+          - Xiao_nrf54lm20a_companion_radio_ble
           # ESP32-C6
           - LilyGo_Tlora_C6_repeater_
           # LR1110 (nRF52)
