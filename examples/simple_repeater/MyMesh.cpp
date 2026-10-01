@@ -202,7 +202,7 @@ uint8_t MyMesh::handleAnonClockReq(const mesh::Identity& sender, uint32_t sender
     if (_prefs.disable_fwd) {   // is this repeater currently disabled
       reply_data[8] |= 0x80;  // is disabled
     }
-    // TODO:  add some kind of moving-window utilisation metric, so can query 'how busy' is this repeater
+    // relay utilisation (moving-window airtime spent forwarding) is reported by the 'stats-radio' CLI command
     return 9;   // reply length
   }
   return 0;
@@ -1167,7 +1167,8 @@ void MyMesh::formatStatsReply(char *reply) {
 }
 
 void MyMesh::formatRadioStatsReply(char *reply) {
-  StatsFormatHelper::formatRadioStats(reply, _radio, radio_driver, getTotalAirTime(), getReceiveAirTime());
+  StatsFormatHelper::formatRadioStats(reply, _radio, radio_driver, getTotalAirTime(), getReceiveAirTime(),
+                                      getForwardAirTime(), getForwardBudgetUsed(), getForwardBudgetLimit(), getNumForwardDropped());
 }
 
 void MyMesh::formatPacketStatsReply(char *reply) {

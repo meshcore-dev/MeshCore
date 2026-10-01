@@ -99,6 +99,27 @@ bool CommonRadioPrefs::handleCommand(const char* command, uint32_t sender_timest
     return true;
   }
 
+  if (strcmp(command, "get fwd.dutycycle") == 0) {
+    float dc = 100.0f / (getForwardAirtimeFactor() + 1.0f);
+    int dc_int = (int)dc;
+    int dc_frac = (int)((dc - dc_int) * 10.0f + 0.5f);
+    sprintf(reply, "> %d.%d%%", dc_int, dc_frac);
+    return true;
+  }
+  if (memcmp(command, "set fwd.dutycycle ", 18) == 0) {
+    float dc = atof(&command[18]);
+    if (dc < 1 || dc > 100) {
+      strcpy(reply, "ERROR: dutycycle must be 1-100");
+    } else {
+      setForwardAirtimeFactor((100.0f / dc) - 1.0f);
+      float actual = 100.0f / (getForwardAirtimeFactor() + 1.0f);
+      int a_int = (int)actual;
+      int a_frac = (int)((actual - a_int) * 10.0f + 0.5f);
+      sprintf(reply, "OK - %d.%d%%", a_int, a_frac);
+    }
+    return true;
+  }
+
   if (strcmp(command, "get int.thresh") == 0) {
     sprintf(reply, "> %d", (uint32_t) getIntThresh());
     return true;
