@@ -1050,7 +1050,10 @@ region save
 **Parameters:**
 - `start`: Optional starting index (defaults to 0)
 
-**Note:** Output format: `<var_name>=<value>\n`
+**Note:** When `start` is in range, the reply opens with a `<count> vars` line followed by
+`<var_name>=<value>` rows, and a listing too long for one reply ends with `... next:<index>` —
+pass that index as `start` to continue. When `start` is at or beyond `<count>`, including when the
+node has no settings at all, the entire reply is `no custom var` with no header.
 
 ---
 
