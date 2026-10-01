@@ -213,6 +213,7 @@ public:
   void removeNeighbor(const uint8_t* pubkey, int key_len) override;
   void formatStatsReply(char *reply) override;
   void formatRadioStatsReply(char *reply) override;
+  mesh::Radio* getRadio() override { return _radio; }
   void formatPacketStatsReply(char *reply) override;
   void startRegionsLoad() override;
   bool saveRegions() override;
