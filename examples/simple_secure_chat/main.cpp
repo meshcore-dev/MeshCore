@@ -158,13 +158,8 @@ class MyMesh : public BaseChatMesh, ContactVisitor {
   }
 
   void setClock(uint32_t timestamp) {
-    uint32_t curr = getRTCClock()->getCurrentTime();
-    if (timestamp > curr) {
-      getRTCClock()->setCurrentTime(timestamp);
-      Serial.println("   (OK - clock set!)");
-    } else {
-      Serial.println("   (ERR: clock cannot go backwards)");
-    }
+    getRTCClock()->setCurrentTime(timestamp);
+    Serial.println("   (OK - clock set!)");
   }
 
   void importCard(const char* command) {

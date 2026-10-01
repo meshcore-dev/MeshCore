@@ -3,6 +3,15 @@
 #include <Mesh.h>
 #include <Arduino.h>
 
+// Safe elapsed time calculation that handles clock corrections (when RTC is set backwards).
+// Returns 0 if recorded_timestamp is in the "future" relative to current_time.
+inline uint32_t safeElapsedSecs(uint32_t current_time, uint32_t recorded_timestamp) {
+  if (recorded_timestamp > current_time) {
+    return 0;  // Clock was corrected backwards; treat as "just now"
+  }
+  return current_time - recorded_timestamp;
+}
+
 class VolatileRTCClock : public mesh::RTCClock {
   uint32_t base_time;
   uint64_t accumulator;
