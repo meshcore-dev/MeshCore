@@ -51,6 +51,7 @@ void Utils::sha256(uint8_t *hash, size_t hash_len, const uint8_t* frag1, int fra
 }
 
 int Utils::decrypt(const uint8_t* shared_secret, uint8_t* dest, const uint8_t* src, int src_len) {
+  if (src_len <= 0 || src_len % CIPHER_BLOCK_SIZE != 0) return 0;
 #ifdef USE_CC310_HW_CRYPTO
   static SaSiAesUserContext_t ctx;
   SaSiAesUserKeyData_t keyData = { (uint8_t*)shared_secret, CIPHER_KEY_SIZE };
