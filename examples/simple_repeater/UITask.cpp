@@ -29,6 +29,8 @@ static const uint8_t meshcore_logo [] PROGMEM = {
     0xe3, 0xe3, 0x8f, 0xff, 0x1f, 0xfc, 0x3c, 0x0e, 0x1f, 0xf8, 0xff, 0xf8, 0x70, 0x3c, 0x7f, 0xf8, 
 };
 
+// Channel-health bars use DisplayDriver::drawHealthBar (shared row helper).
+
 void UITask::begin(NodePrefs* node_prefs, const char* build_date, const char* firmware_version) {
   _prevBtnState = HIGH;
   _auto_off = millis() + AUTO_OFF_MILLIS;
@@ -106,6 +108,23 @@ void UITask::renderCurrScreen() {
     _display->setCursor(0, 30);
     sprintf(tmp, "BW: %03.2f CR: %d", _node_prefs->bw, _node_prefs->cr);
     _display->print(tmp);
+
+    // channel-health bars (windowed, positive framing: full bar = good);
+    // radios that measure nothing render as no-data instead of a false
+    // "all healthy" bar
+    bool has_health = radio_driver.hasChannelHealth();
+    _display->drawHealthBar(38, "CH free", has_health ? 100 - radio_driver.getChannelUtilizationPct() : 0, 50, !has_health);
+    _display->drawHealthBar(47, "RX ready", has_health ? 100 - radio_driver.getRxDeafnessPct() : 0, 80, !has_health);
+
+    // RX quality: windowed good vs total packet decodes (~10 min window) as a
+    // uniform bar row like the two above; the underlying counts stay
+    // available via stats-radio. The fetch is sequenced separately from the
+    // draw call: passing rxq_pct by value AND by reference (getRxQualityPct)
+    // in one argument list is unsequenced read+write (undefined behavior) -
+    // the bar could receive the pre-call 0 instead of the measured value.
+    uint8_t rxq_pct = 0;
+    bool has_rxq = radio_driver.getRxQualityPct(rxq_pct);
+    _display->drawHealthBar(56, "RX quality", rxq_pct, 80, !has_rxq);
   }
 }
 
