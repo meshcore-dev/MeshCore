@@ -14,6 +14,10 @@
 #include "NodePrefs.h"
 #include "MyMesh.h"
 
+#ifndef AUTO_SHUTDOWN_LOW_READINGS
+  #define AUTO_SHUTDOWN_LOW_READINGS 3
+#endif
+
 enum class UIEventType {
     none,
     contactMessage,
