@@ -534,10 +534,16 @@ void UITask::handleButtonTriplePress() {
   mode = (mode + 1) & 3;
   _node_prefs->buzzer_quiet = (mode & 2) ? 1 : 0;
   _node_prefs->vibe_quiet = (mode & 1) ? 1 : 0;
-  buzzer.quiet(_node_prefs->buzzer_quiet);
+  bool was_quiet = buzzer.isQuiet();
   vibration.quiet(_node_prefs->vibe_quiet);
   // audible/tactile confirmation of the new mode (no screen on some boards)
-  if (!_node_prefs->buzzer_quiet) notify(UIEventType::ack);
+  if (!_node_prefs->buzzer_quiet) {
+    buzzer.turnOn();
+  } else if (!was_quiet) {
+    buzzer.turnOff();
+  } else {
+    buzzer.quiet(true);
+  }
   if (!_node_prefs->vibe_quiet) vibration.trigger(true);
   switch (mode) {
     case 0: sprintf(_alert, "Alerts: Buzz+Vibe"); break;
@@ -549,11 +555,10 @@ void UITask::handleButtonTriplePress() {
   _need_refresh = true;
 #elif defined(PIN_BUZZER)
     if (buzzer.isQuiet()) {
-      buzzer.quiet(false);
-      notify(UIEventType::ack);
+      buzzer.turnOn();
       sprintf(_alert, "Buzzer: ON");
     } else {
-      buzzer.quiet(true);
+      buzzer.turnOff();
       sprintf(_alert, "Buzzer: OFF");
     }
     _node_prefs->buzzer_quiet = buzzer.isQuiet();
