@@ -956,10 +956,9 @@ void UITask::toggleBuzzer() {
     // Toggle buzzer quiet mode
   #ifdef PIN_BUZZER
     if (buzzer.isQuiet()) {
-      buzzer.quiet(false);
-      notify(UIEventType::ack);
+      buzzer.turnOn();
     } else {
-      buzzer.quiet(true);
+      buzzer.turnOff();
     }
     _node_prefs->buzzer_quiet = buzzer.isQuiet();
     the_mesh.savePrefs();
