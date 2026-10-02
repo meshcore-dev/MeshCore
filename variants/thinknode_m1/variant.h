@@ -61,18 +61,21 @@
 ////////////////////////////////////////////////////////////////////////////////
 // Builtin LEDs
 
-#define LED_RED                 (38)
-#define LED_GREEN               (36)
-#define LED_BLUE                (14)
+#define LED_RED                 (36)
+#define LED_GREEN               (-1) // No green LED on this target
+#if defined(P_LORA_TX_LED) && P_LORA_TX_LED == 13
+  // When blue LED is used to indicate Lora TX,
+  // don't use it to indicate bluetooth connection state
+  #define LED_BLUE              (-1)
+#else
+  #define LED_BLUE              (13)
+#endif
 
-#define PIN_STATUS_LED          LED_GREEN
-#define LED_BUILTIN             LED_GREEN
+#define PIN_STATUS_LED          LED_RED
+#define LED_BUILTIN             LED_RED
 #define PIN_LED                 LED_BUILTIN
 #define LED_PIN                 LED_BUILTIN
-#define LED_STATE_ON            LOW
-
-#define PIN_NEOPIXEL            (14)
-#define NEOPIXEL_NUM            (2)
+#define LED_STATE_ON            HIGH
 
 ////////////////////////////////////////////////////////////////////////////////
 // Builtin buttons
@@ -81,7 +84,7 @@
 #define BUTTON_PIN              PIN_BUTTON1
 #define PIN_USER_BTN            BUTTON_PIN
 
-#define PIN_BUTTON2             (11)
+#define PIN_BUTTON2             (39)
 #define BUTTON_PIN2             PIN_BUTTON2
 
 #define EXTERNAL_FLASH_DEVICES MX25R1635F
@@ -101,7 +104,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 // SPI1
 
-#define PIN_SPI1_MISO           (38)
+#define PIN_SPI1_MISO           (-1) // Not connected on this target
 #define PIN_SPI1_MOSI           (29)
 #define PIN_SPI1_SCK            (31)
 
@@ -122,7 +125,7 @@ extern const int SCK;
 ////////////////////////////////////////////////////////////////////////////////
 // Display
 
-#define DISP_MISO               (38)
+#define DISP_MISO               (-1) // Not connected on this target
 #define DISP_MOSI               (29)
 #define DISP_SCLK               (31)
 #define DISP_CS                 (30)
@@ -136,8 +139,7 @@ extern const int SCK;
 
 #define PIN_GPS_RX              (40)
 #define PIN_GPS_TX              (41)
-#define GPS_EN                  (34)
+#define GPS_EN                  PIN_GPS_STANDBY // Datasheet lists only STANDBY
 #define PIN_GPS_RESET           (37)
-#define PIN_GPS_PPS             (36)
 #define PIN_GPS_STANDBY         (34)
 #define PIN_GPS_SWITCH          (33)
