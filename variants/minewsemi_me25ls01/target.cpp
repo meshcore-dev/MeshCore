@@ -6,7 +6,7 @@ MinewsemiME25LS01Board board;
 RADIO_CLASS radio = new Module(P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BUSY, SPI);
 WRAPPER_CLASS radio_driver(radio, board);
 
-VolatileRTCClock rtc_clock;
+NRF52RTCClock rtc_clock;
 extern EnvironmentSensorManager sensors;
 #if ENV_INCLUDE_GPS
   #include <helpers/sensors/MicroNMEALocationProvider.h>
