@@ -29,6 +29,16 @@
   #define ADVERT_LON 0.0
 #endif
 
+// GPS defaults for a NEW install. Boards with a permanently-fitted GNSS (and no
+// UI to switch it on) override these in their platformio.ini; every other board
+// keeps the historical "GPS off, advertise the configured coordinates" defaults.
+#ifndef GPS_ENABLED_DEFAULT
+  #define GPS_ENABLED_DEFAULT 0
+#endif
+#ifndef ADVERT_LOC_POLICY_DEFAULT
+  #define ADVERT_LOC_POLICY_DEFAULT ADVERT_LOC_PREFS
+#endif
+
 #ifndef ADMIN_PASSWORD
   #define ADMIN_PASSWORD "password"
 #endif
@@ -919,9 +929,9 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   StrHelper::strncpy(_prefs.bridge_secret, "LVSITANOS", sizeof(_prefs.bridge_secret));
 
   // GPS defaults
-  _prefs.gps_enabled = 0;
+  _prefs.gps_enabled = GPS_ENABLED_DEFAULT;
   _prefs.gps_interval = 0;
-  _prefs.advert_loc_policy = ADVERT_LOC_PREFS;
+  _prefs.advert_loc_policy = ADVERT_LOC_POLICY_DEFAULT;
 
   _prefs.adc_multiplier = 0.0f; // 0.0f means use default board multiplier
 
