@@ -22,6 +22,12 @@
 #define LOOP_DETECT_MODERATE  2
 #define LOOP_DETECT_STRICT    3
 
+// Public-key prefix filters (blacklist / whitelist). Entries are FIXED 4-byte pubkey
+// prefixes -- the same 8-hex-char prefix the `neighbors`/`clients` CLI displays.
+// MAX_KEY_FILTERS is a hard cap: the persisted hex blob (15*4*2 = 120 chars) must
+// stay under ConfigSerializer's quoted-token limit (CONFIG_MAX_TOKEN_LEN-1 = 127).
+#define MAX_KEY_FILTERS 15
+
 class NodePrefs : public ConfigSerializer {
 public:
   // in-memory backing data
@@ -72,6 +78,43 @@ public:
   uint8_t loop_detect = 0;
   uint8_t cad_enabled = 0;      // hardware Channel Activity Detection before TX (boolean)
   uint8_t extra_sf[4];
+  // Redundancy-aware FLOOD suppression (simple_repeater). One master switch + SNR/delay params.
+  // The threshold C is derived from the neighbour table (adaptive) with a static fallback
+  // when no neighbour data is available; it is not user-configurable.
+  uint8_t flood_suppress = 0;          // master switch (0=off, 1=on); feature default applied in MyMesh ctor
+  int8_t  flood_suppress_snr_hi = 0;   // dB: overheard forward with SNR>=this counts double (central/redundant)
+  int8_t  flood_suppress_snr_lo = 0;   // dB: overheard forward with SNR<this counts 0 (preserve edge)
+  uint8_t flood_suppress_delay_x = 0;  // extra TX-delay multiplier for central flood relays
+  // SNR-repeat fallback is fixed ON (not configurable).
+
+  // Public-key prefix filters. Blacklist: drop ADVERT/ANON_REQ from matching senders
+  // at receive (only those types carry the full sender pubkey in clear; data packets
+  // expose just 1-byte hashes). Whitelist: repeater never flood-suppresses traffic
+  // to/from a matching key, even if the node never checked in. Entries are 4-byte
+  // pubkey prefixes; blacklist takes precedence over whitelist.
+  uint8_t blacklist_keys[MAX_KEY_FILTERS][4] = {};
+  uint8_t blacklist_count = 0;
+  uint8_t whitelist_keys[MAX_KEY_FILTERS][4] = {};
+  uint8_t whitelist_count = 0;
+
+  // Match a 4-byte pubkey prefix (counts clamped defensively against corrupt prefs).
+  bool keyInBlacklist(const uint8_t* key4) const {
+    uint8_t n = blacklist_count > MAX_KEY_FILTERS ? MAX_KEY_FILTERS : blacklist_count;
+    for (int i = 0; i < n; i++) if (memcmp(blacklist_keys[i], key4, 4) == 0) return true;
+    return false;
+  }
+  bool keyInWhitelist(const uint8_t* key4) const {
+    uint8_t n = whitelist_count > MAX_KEY_FILTERS ? MAX_KEY_FILTERS : whitelist_count;
+    for (int i = 0; i < n; i++) if (memcmp(whitelist_keys[i], key4, 4) == 0) return true;
+    return false;
+  }
+  // 1-byte hash match (first byte of a whitelisted prefix == dest/src hash of an
+  // addressed packet). A false positive (1/256) only causes extra forwarding.
+  bool whitelistHash1Match(uint8_t hash1) const {
+    uint8_t n = whitelist_count > MAX_KEY_FILTERS ? MAX_KEY_FILTERS : whitelist_count;
+    for (int i = 0; i < n; i++) if (whitelist_keys[i][0] == hash1) return true;
+    return false;
+  }
 
 private:
   class RadioPrefs : public CommonRadioPrefs {
@@ -186,6 +229,10 @@ private:
       def("f_max_uns", _parent->flood_max_unscoped);
       def("f_max_adv", _parent->flood_max_advert);
       def("loop", _parent->loop_detect);
+      def("fs", _parent->flood_suppress);
+      def("fs_hi", _parent->flood_suppress_snr_hi);
+      def("fs_lo", _parent->flood_suppress_snr_lo);
+      def("fs_dx", _parent->flood_suppress_delay_x);
     }
   public:
     RepeatPrefs(NodePrefs* parent) : _parent(parent) { }
@@ -221,6 +268,10 @@ protected:
     def("repeat", repeat);
     def("room", room);
     def("power", power);
+    def("blacklist", blacklist_keys, sizeof(blacklist_keys));   // binary blob -> quoted hex
+    def("blacklist_n", blacklist_count);
+    def("whitelist", whitelist_keys, sizeof(whitelist_keys));   // binary blob -> quoted hex
+    def("whitelist_n", whitelist_count);
     def("custom", custom);
   }
 
@@ -258,9 +309,25 @@ public:
   virtual void removeNeighbor(const uint8_t* pubkey, int key_len) {
     // no op by default
   };
+  // A blacklist entry was just added (key4 = 4-byte pubkey prefix). Roles with learned
+  // per-node state (neighbour / attached-client tables) should purge matching entries.
+  virtual void onBlacklistEntryAdded(const uint8_t* key4) {
+    // no op by default
+  };
   virtual void formatStatsReply(char *reply) = 0;
   virtual void formatRadioStatsReply(char *reply) = 0;
   virtual void formatPacketStatsReply(char *reply) = 0;
+  // Appends the suppression-ratio suffix (", suppressed N/M (P%)") to the flood.suppress get-reply.
+  // Default is a no-op so non-repeater roles keep the plain "> on/off" reply.
+  virtual void formatFloodSuppressRatioReply(char *reply) { }
+  // List directly-attached leaf clients (client-aware suppression). Default no-op.
+  virtual void formatClientsReply(char *reply) { }
+  // Reach edges of one near repeater (directed inter-neighbour graph), looked up by
+  // a hash prefix. Default no-op. hash_len is the number of prefix bytes parsed.
+  virtual void formatReachReply(char *reply, const uint8_t* hash, uint8_t hash_len) { }
+  // Near coverage peers (fresh + SNR>=snr_lo), strongest first, with the active
+  // snr_lo threshold and the coverage cap. Default no-op.
+  virtual void formatNearReply(char *reply) { }
   virtual mesh::LocalIdentity& getSelfId() = 0;
   virtual void saveIdentity(const mesh::LocalIdentity& new_id) = 0;
   virtual void clearStats() = 0;
@@ -310,6 +377,7 @@ class CommonCLI {
   void loadPrefsInt(FILESYSTEM* _fs, const char* filename);
 
   void handleRegionCmd(char* command, char* reply);
+  void handleKeyFilterCmd(uint8_t keys[][4], uint8_t* count, const char* args, bool is_blacklist, char* reply);
   void handleGetCmd(uint32_t sender_timestamp, char* command, char* reply);
   void handleSetCmd(uint32_t sender_timestamp, char* command, char* reply);
 
