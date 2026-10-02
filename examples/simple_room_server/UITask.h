@@ -9,6 +9,7 @@ class UITask {
   int _prevBtnState;
   NodePrefs* _node_prefs;
   char _version_info[32];
+  unsigned long _started_at = 0;
 
   void renderCurrScreen();
 public:
