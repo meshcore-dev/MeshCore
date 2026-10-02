@@ -198,6 +198,8 @@ uint8_t MyMesh::handleAnonClockReq(const mesh::Identity& sender, uint32_t sender
     reply_data[8] |= 0x01;  // is bridge, type UART
 #elif WITH_ESPNOW_BRIDGE
     reply_data[8] |= 0x03;  // is bridge, type ESP-NOW
+#elif WITH_NRF52_WIRELESS_BRIDGE
+    reply_data[8] |= 0x05;  // is bridge, type nRF52 2.4GHz
 #endif
     if (_prefs.disable_fwd) {   // is this repeater currently disabled
       reply_data[8] |= 0x80;  // is disabled
@@ -869,7 +871,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
 #if defined(WITH_RS232_BRIDGE)
       , bridge(&_prefs, WITH_RS232_BRIDGE, _mgr, &rtc)
 #endif
-#if defined(WITH_ESPNOW_BRIDGE)
+#if defined(WITH_ESPNOW_BRIDGE) || defined(WITH_NRF52_WIRELESS_BRIDGE)
       , bridge(&_prefs, _mgr, &rtc)
 #endif
 {
@@ -915,6 +917,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.bridge_pkt_src = 0;    // logTx
   _prefs.bridge_baud = 115200;  // baud rate
   _prefs.bridge_channel = 1;    // channel 1
+  _prefs.bridge_tx_power = 4;   // dBm (nRF52 2.4GHz bridge only)
 
   StrHelper::strncpy(_prefs.bridge_secret, "LVSITANOS", sizeof(_prefs.bridge_secret));
 

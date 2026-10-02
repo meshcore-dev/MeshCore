@@ -24,6 +24,11 @@
 #define WITH_BRIDGE
 #endif
 
+#ifdef WITH_NRF52_WIRELESS_BRIDGE
+#include "helpers/bridges/NRF52RadioBridge.h"
+#define WITH_BRIDGE
+#endif
+
 #include <helpers/AdvertDataHelpers.h>
 #include <helpers/ArduinoHelpers.h>
 #include <helpers/ClientACL.h>
@@ -114,6 +119,8 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   RS232Bridge bridge;
 #elif defined(WITH_ESPNOW_BRIDGE)
   ESPNowBridge bridge;
+#elif defined(WITH_NRF52_WIRELESS_BRIDGE)
+  NRF52RadioBridge bridge;
 #endif
 
   void putNeighbour(const mesh::Identity& id, uint32_t timestamp, float snr);
