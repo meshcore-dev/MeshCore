@@ -46,6 +46,9 @@ jobs:
           - wio_wm1110_repeater
           # SX1276 (ESP32)
           - Tbeam_SX1276_repeater
+          # Seeed Wio Tracker L2 Pro (ESP32-S3, LovyanGFX display)
+          - Wio_Tracker_L2_companion_radio_ble
+          - Wio_Tracker_L2_standalone_lvgl
 
     steps:
       - name: Clone Repo
