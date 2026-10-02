@@ -2,6 +2,7 @@
 #include <target.h>
 #include <helpers/ArduinoHelpers.h>
 #include <helpers/IdentityStore.h>
+#include <helpers/RadioFailIndicator.h>
 #include "KissModem.h"
 
 #if defined(NRF52_PLATFORM)
@@ -30,7 +31,7 @@ static uint32_t next_noise_floor_calib_ms = 0;
 static uint32_t next_agc_reset_ms = 0;
 
 void halt() {
-  while (1) ;
+  haltWithRadioFailure();
 }
 
 void loadOrCreateIdentity() {
