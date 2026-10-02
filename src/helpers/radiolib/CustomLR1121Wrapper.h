@@ -9,9 +9,13 @@ public:
   CustomLR1121Wrapper(CustomLR1121& radio, mesh::MainBoard& board) : RadioLibWrapper(radio, board) { }
 
   void setParams(float freq, float bw, uint8_t sf, uint8_t cr) override {
+    // LR1121 supports regular bandwidths 62.5,125,250,500 KHz and SX128x compatible 203.125,406.25,812.5 KHz
+    // Legacy SX128x 2.4GHz bandwidths available only if frequency > 1000 MHz, 203.125,406.25,812.5 KHz
+    bool legacy_hf_bw_mode = (freq>1000) && ((fabsf(bw - 203.125f) <= 0.001f) || (fabsf(bw - 406.25f) <= 0.001f) || (fabsf(bw - 812.5f) <= 0.001f));
+
     ((CustomLR1121 *)_radio)->setFrequency(freq);
     ((CustomLR1121 *)_radio)->setSpreadingFactor(sf);
-    ((CustomLR1121 *)_radio)->setBandwidth(bw);
+    ((CustomLR1121 *)_radio)->setBandwidth(bw,legacy_hf_bw_mode);
     ((CustomLR1121 *)_radio)->setCodingRate(cr);
     updatePreamble(sf);
     PacketMillis pm = calcMaxPacketMillis(sf, bw, cr, preambleLengthForSF(sf));
