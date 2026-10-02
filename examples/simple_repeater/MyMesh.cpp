@@ -55,6 +55,7 @@
 #define ANON_REQ_TYPE_REGIONS      0x01
 #define ANON_REQ_TYPE_OWNER        0x02
 #define ANON_REQ_TYPE_BASIC        0x03   // just remote clock
+#define ANON_REQ_TYPE_CHANNEL_HISTORY 0x04   // pull recent public-channel packets, no login required
 
 #define CLI_REPLY_DELAY_MILLIS      600
 
@@ -376,6 +377,52 @@ int MyMesh::handleRequest(ClientInfo *sender, uint32_t sender_timestamp, uint8_t
   return 0; // unknown command
 }
 
+// Serve recent public-channel history to an ANONYMOUS requester (no login). Public
+// channel data isn't admin-only, and the cached packets are still channel-encrypted,
+// so a non-member who asks just receives ciphertext it can't read. Rate-limited via
+// the shared anon_limiter, like the other anonymous requests.
+uint8_t MyMesh::handleAnonChannelHistoryReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data, size_t len) {
+  if (anon_limiter.allow(rtc_clock.getCurrentTime())) {
+    // request data: {reply-path-len}{reply-path}[{params_len=6}{channel_hash}{since_ts(uint32)}{max_count}]
+    if (len < 1) return 0;
+    reply_path_len = *data & 63;
+    reply_path_hash_size = (*data >> 6) + 1;
+    data++;
+    uint8_t path_bytes = ((uint8_t)reply_path_len) * reply_path_hash_size;
+    if (1 + (size_t)path_bytes > len) return 0;   // truncated/invalid reply path
+    memcpy(reply_path, data, path_bytes);
+    data += path_bytes;                        // advance to the request params
+
+    // The params are OPTIONAL and self-describing. A stock client sends only a
+    // reply path, so we must not read params that aren't there -- and we cannot
+    // just compare lengths, because the ANON_REQ plaintext is zero-padded to the
+    // AES block size (Utils::encrypt), which makes `len` larger than what the
+    // sender actually wrote. A leading params length byte solves both: read out
+    // of the zero padding it is 0, which means "no params, use defaults".
+    uint8_t  want_hash = 0xFF;                 // 0xFF = any channel
+    uint32_t since_ts  = 0;                    // 0 = from the beginning
+    uint8_t  max_count = 0;                    // 0 = all that fit
+    size_t consumed = 1 + (size_t)path_bytes;
+    if (len > consumed && data[0] == CHANNEL_HISTORY_PARAMS_LEN
+                       && len >= consumed + 1 + CHANNEL_HISTORY_PARAMS_LEN) {
+      want_hash = data[1];
+      memcpy(&since_ts, &data[2], 4);
+      max_count = data[6];
+    }
+
+    // response: [0..3]=tag, [4]=record count, then packed records from serve():
+    //           { [0..3]=recv_ts, [4]=raw_len, raw[raw_len] } ... . Client pages by
+    //           re-requesting with since_ts = the newest recv_ts it received.
+    memcpy(reply_data, &sender_timestamp, 4);  // prefix with sender_timestamp, like a tag
+    uint8_t count = 0;
+    int written = channel_history.serve(want_hash, since_ts, max_count,
+                                        &reply_data[5], CHANNEL_HISTORY_MAX_REPLY - 5, count);
+    reply_data[4] = count;
+    return 5 + written;   // reply length
+  }
+  return 0;
+}
+
 mesh::Packet *MyMesh::createSelfAdvert() {
   uint8_t app_data[MAX_ADVERT_DATA_SIZE];
   uint8_t app_data_len = _cli.buildAdvertData(ADV_TYPE_REPEATER, app_data);
@@ -553,6 +600,17 @@ uint32_t MyMesh::getDirectRetransmitDelay(const mesh::Packet *packet) {
   return getRNG()->nextInt(0, 5*t + 1);
 }
 
+// Cache a public-channel broadcast so a client that was out of range can pull it
+// back later. The repeater holds no channel key, so the payload is stored (and
+// later replayed) still-encrypted; the requesting client decrypts it itself.
+void MyMesh::captureChannelPacket(const mesh::Packet* pkt) {
+  if (pkt->getPayloadType() != PAYLOAD_TYPE_GRP_TXT) return;   // public-channel text only
+  if (channel_history.capture(pkt->payload, pkt->payload_len, getRTCClock()->getCurrentTime())) {
+    MESH_DEBUG_PRINTLN("channel history: cached pkt (hash=%02X, len=%d)",
+                       (uint32_t)pkt->payload[0], (uint32_t)pkt->payload_len);
+  }
+}
+
 mesh::DispatcherAction MyMesh::onRecvPacket(mesh::Packet* pkt) {
   if (pkt->getRouteType() == ROUTE_TYPE_TRANSPORT_FLOOD) {
     recv_pkt_region = region_map.findMatch(pkt, REGION_DENY_FLOOD);
@@ -565,6 +623,9 @@ mesh::DispatcherAction MyMesh::onRecvPacket(mesh::Packet* pkt) {
   } else {
     recv_pkt_region = NULL;
   }
+  // capture public-channel broadcasts for store-and-forward history (content-deduped
+  // internally, so re-floods heard from multiple neighbours only cache once)
+  captureChannelPacket(pkt);
   return Mesh::onRecvPacket(pkt);
 }
 
@@ -587,6 +648,8 @@ void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const m
       reply_len = handleAnonOwnerReq(sender, timestamp, &data[5]);
     } else if (data[4] == ANON_REQ_TYPE_BASIC && packet->isRouteDirect()) {
       reply_len = handleAnonClockReq(sender, timestamp, &data[5]);
+    } else if (data[4] == ANON_REQ_TYPE_CHANNEL_HISTORY && packet->isRouteDirect()) {
+      reply_len = handleAnonChannelHistoryReq(sender, timestamp, &data[5], len > 5 ? len - 5 : 0);
     } else {
       reply_len = 0;  // unknown/invalid request type
     }
@@ -885,6 +948,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
 #if MAX_NEIGHBOURS
   memset(neighbours, 0, sizeof(neighbours));
 #endif
+  channel_history.clear();
 
   // defaults
   _prefs.airtime_factor = 1.0;
