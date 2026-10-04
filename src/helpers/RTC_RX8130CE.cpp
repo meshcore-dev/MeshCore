@@ -95,7 +95,7 @@ bool RTC_RX8130CE::setTime(struct tm *t) {
     buf[1] = bin2bcd(t->tm_sec) & 0x7F;
     buf[2] = bin2bcd(t->tm_min) & 0x7F;
     buf[3] = bin2bcd(t->tm_hour) & 0x3F;
-    buf[4] = bin2bcd(t->tm_wday) & 0x07;
+    buf[4] = 1 << t->tm_wday;  // one-hot, Sunday = 01h ... Saturday = 40h; gmtime() gives 0-6
     buf[5] = bin2bcd(t->tm_mday) & 0x3F;
     buf[6] = bin2bcd(t->tm_mon + 1) & 0x1F;
     buf[7] = bin2bcd((t->tm_year - 100));
@@ -141,7 +141,13 @@ bool RTC_RX8130CE::getTime(struct tm *t) {
     t->tm_sec =  bcd2bin(buff[0] & 0x7F);
     t->tm_min =  bcd2bin(buff[1] & 0x7F);
     t->tm_hour = bcd2bin(buff[2] & 0x3F);
-    t->tm_wday = bcd2bin(buff[3] & 0x07);
+    t->tm_wday = 0;  // the lowest set bit of the one-hot WEEK register; none reads as Sunday
+    for (int i = 0; i < 7; i++) {
+        if (buff[3] & (1 << i)) {
+            t->tm_wday = i;
+            break;
+        }
+    }
     t->tm_mday = bcd2bin(buff[4] & 0x3F);
     t->tm_mon =  bcd2bin(buff[5] & 0x1F) - 1;
     t->tm_year = bcd2bin(buff[6]) + 100;
