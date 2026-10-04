@@ -187,6 +187,9 @@ public:
   NodePrefs* getNodePrefs() {
     return &_prefs;
   }
+  bool isHiddenNode() const {
+    return _prefs.advert_interval == 0 && _prefs.flood_advert_interval == 0;
+  }
 
   void savePrefs() override {
     _cli.savePrefs(_fs);
