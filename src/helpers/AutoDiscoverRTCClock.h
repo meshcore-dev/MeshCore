@@ -11,6 +11,8 @@ class AutoDiscoverRTCClock : public mesh::RTCClock {
 public:
   AutoDiscoverRTCClock(mesh::RTCClock& fallback) : _fallback(&fallback) { }
 
+  // begin() stores an RV3028's backup switchover config in its EEPROM, and getCurrentTime()
+  // retries that a few times if it failed, so either can block briefly on the RTC
   void begin(TwoWire& wire);
   uint32_t getCurrentTime() override;
   void setCurrentTime(uint32_t time) override;
