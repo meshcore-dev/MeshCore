@@ -68,6 +68,48 @@ TEST(Asr650xFlashRecord, Behaves) {
   }
 }
 
+// version 2: the other companion settings the app can change (they used to be lost on reboot)
+TEST(Asr650xFlashRecord, Version2KeepsCompanionSettings) {
+  asr650x::PersistState a = sample(), b;
+  a.has_ext = true;
+  a.airtime_factor = 1.5f; a.rx_delay_base = 2.25f; a.tx_delay_factor = 0.5f; a.direct_tx_delay_factor = 0.25f;
+  a.multi_acks = 1; a.manual_add_contacts = 1; a.telemetry_modes = 0x26; a.advert_loc_policy = 1;
+  a.autoadd_config = 0x0E; a.autoadd_max_hops = 3; a.path_hash_mode = 2; a.tz_offset = -7;
+  a.cad_enabled = 1; a.interference_threshold = 14; a.agc_reset_interval = 5; a.rx_boosted_gain = 1;
+  uint8_t buf[asr650x::PERSIST_SIZE];
+  asr650x::persist_encode(a, buf);
+  ASSERT_TRUE(asr650x::persist_decode(buf, b));
+  EXPECT_TRUE(b.has_ext);
+  EXPECT_EQ(b.airtime_factor, 1.5f); EXPECT_EQ(b.rx_delay_base, 2.25f);
+  EXPECT_EQ(b.tx_delay_factor, 0.5f); EXPECT_EQ(b.direct_tx_delay_factor, 0.25f);
+  EXPECT_EQ(b.multi_acks, 1); EXPECT_EQ(b.manual_add_contacts, 1); EXPECT_EQ(b.telemetry_modes, 0x26);
+  EXPECT_EQ(b.advert_loc_policy, 1); EXPECT_EQ(b.autoadd_config, 0x0E); EXPECT_EQ(b.autoadd_max_hops, 3);
+  EXPECT_EQ(b.path_hash_mode, 2); EXPECT_EQ(b.tz_offset, -7); EXPECT_EQ(b.cad_enabled, 1);
+  EXPECT_EQ(b.interference_threshold, 14); EXPECT_EQ(b.agc_reset_interval, 5); EXPECT_EQ(b.rx_boosted_gain, 1);
+  EXPECT_EQ(b.freq, 921.5f);                       // version 1 fields unchanged
+  buf[176] ^= 0x01;                                // a corrupted settings byte is detected
+  EXPECT_FALSE(asr650x::persist_decode(buf, b));
+}
+
+// a record written by the first firmware (version 1, 160 bytes, CRC at 156) still loads; the new settings are absent
+TEST(Asr650xFlashRecord, Version1RecordStillLoads) {
+  asr650x::PersistState a = sample();
+  uint8_t v2[asr650x::PERSIST_SIZE];
+  asr650x::persist_encode(a, v2);
+  uint8_t v1[asr650x::PERSIST_SIZE];
+  memset(v1, 0xFF, sizeof(v1));                    // bytes after the old record: erased flash
+  memcpy(v1, v2, 156);
+  v1[4] = 1;
+  uint32_t crc = asr650x::crc32(v1, 156);
+  for (int i = 0; i < 4; i++) v1[156 + i] = (uint8_t)(crc >> (8 * i));
+  asr650x::PersistState b;
+  ASSERT_TRUE(asr650x::persist_decode(v1, b));
+  EXPECT_FALSE(b.has_ext);
+  EXPECT_TRUE(b.has_identity && b.has_prefs);
+  EXPECT_EQ(memcmp(b.prv, a.prv, 64), 0);
+  EXPECT_STREQ(b.node_name, "KTM-test");
+}
+
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
