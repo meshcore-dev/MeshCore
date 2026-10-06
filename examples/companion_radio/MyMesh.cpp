@@ -2088,6 +2088,11 @@ void MyMesh::enterCLIRescue() {
 }
 
 bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char* reply) {
+#ifdef DISABLE_COMPANION_CLI
+  // text CLI not built (flash): radio settings still work through CMD_SET_RADIO_PARAMS and friends
+  (void)command; (void)sender_timestamp; (void)reply;
+  return false;
+#else
   while (*command == ' ') command++; // skip leading spaces
 
   if (strlen(command) > 4 && command[2] == '|') { // optional prefix (for companion radio CLI)
@@ -2219,6 +2224,7 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
   }
 
   return false;  // not handled
+#endif
 }
 
 void MyMesh::checkCLIRescueCmd() {
