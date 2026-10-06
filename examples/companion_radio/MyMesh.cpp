@@ -1,4 +1,7 @@
 #include "MyMesh.h"
+#ifdef RX_DELAY_FAST_POW
+  #include <helpers/FastPow.h>
+#endif
 
 #include <Arduino.h> // needed for PlatformIO
 #ifdef ENABLE_WIFI_INTERFACE
@@ -272,7 +275,11 @@ bool MyMesh::getCADEnabled() const {
 
 int MyMesh::calcRxDelay(float score, uint32_t air_time) const {
   if (_prefs.rx_delay_base <= 0.0f) return 0;
+#ifdef RX_DELAY_FAST_POW
+  return (int)((fastPowf(_prefs.rx_delay_base, 0.85f - score) - 1.0f) * air_time);   // no libm pow() on small MCUs
+#else
   return (int)((pow(_prefs.rx_delay_base, 0.85f - score) - 1.0) * air_time);
+#endif
 }
 
 uint32_t MyMesh::getRetransmitDelay(const mesh::Packet *packet) {
