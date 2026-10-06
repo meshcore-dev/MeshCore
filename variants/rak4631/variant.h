@@ -106,11 +106,25 @@ extern "C"
 
 // Power management boot protection threshold (millivolts)
 // Set to 0 to disable boot protection
-#define PWRMGT_VOLTAGE_BOOTLOCK 3300   // Won't boot below this voltage (mV)
+#ifndef PWRMGT_VOLTAGE_BOOTLOCK
+  #define PWRMGT_VOLTAGE_BOOTLOCK 3300   // Won't boot below this voltage (mV)
+#endif
 // LPCOMP wake configuration (voltage recovery from SYSTEMOFF)
 // AIN3 = P0.05 = PIN_A0 / PIN_VBAT_READ
-#define PWRMGT_LPCOMP_AIN 3
-#define PWRMGT_LPCOMP_REFSEL 4  // 5/8 VDD (~3.13-3.44V)
+#ifndef PWRMGT_LPCOMP_AIN
+  #define PWRMGT_LPCOMP_AIN 3
+#endif
+// PWRMGT_LPCOMP_REFSEL sets the LPCOMP wake threshold as a fraction of VDD (3.3V rail).
+// Valid values are the nRF52840 LPCOMP REFSEL register codes (see the nRF52840 Product
+// Specification, LPCOMP chapter, and NRF52Board::configureVoltageWake):
+//   0-6  = 1/8, 2/8, ... 7/8 of VDD
+//   7    = external reference on the AREF pin
+//   8-15 = 1/16, 3/16, 5/16, ... 15/16 of VDD
+// Default 4 = 5/8 VDD = ~2.06V at the pin; through the base board's 1M/1.5M battery
+// divider (0.6 ratio) that is VBAT ~3.44V (~3.13V if the VDD rail is at 3.0V).
+#ifndef PWRMGT_LPCOMP_REFSEL
+  #define PWRMGT_LPCOMP_REFSEL 4
+#endif
 
 // Other pins
 #define PIN_AREF (2)
