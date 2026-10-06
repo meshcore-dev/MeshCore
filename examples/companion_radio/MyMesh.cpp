@@ -2078,9 +2078,13 @@ void MyMesh::saveContacts() {
 }
 
 void MyMesh::enterCLIRescue() {
+#ifndef DISABLE_CLI_RESCUE
   _cli_rescue = true;
   cli_command[0] = 0;
   Serial.println("========= CLI Rescue =========");
+#else
+  // rescue CLI disabled: it prints text on Serial and needs a filesystem
+#endif
 }
 
 bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char* reply) {
@@ -2218,6 +2222,7 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
 }
 
 void MyMesh::checkCLIRescueCmd() {
+#ifndef DISABLE_CLI_RESCUE
   int len = strlen(cli_command);
   // `cli_command` must stay NUL-terminated within its bounds. If it ever isn't,
   // strlen() above can return >= sizeof(cli_command) and the loop below would
@@ -2390,6 +2395,9 @@ void MyMesh::checkCLIRescueCmd() {
 
     cli_command[0] = 0;  // reset command buffer
   }
+#else
+  // rescue CLI disabled (see enterCLIRescue)
+#endif
 }
 
 void MyMesh::checkSerialInterface() {
