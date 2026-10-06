@@ -176,7 +176,7 @@ void MyMesh::writeContactRespFrame(uint8_t code, const ContactInfo &contact) {
   out_frame[i++] = contact.type;
   out_frame[i++] = contact.flags;
   out_frame[i++] = contact.out_path_len;
-  memcpy(&out_frame[i], contact.out_path, MAX_PATH_SIZE);
+  contactPathTo64(&out_frame[i], contact.out_path, contact.out_path_len);
   i += MAX_PATH_SIZE;
   StrHelper::strzcpy((char *)&out_frame[i], contact.name, 32);
   i += 32;
@@ -198,8 +198,8 @@ void MyMesh::updateContactFromFrame(ContactInfo &contact, uint32_t& last_mod, co
   i += PUB_KEY_SIZE;
   contact.type = frame[i++];
   contact.flags = frame[i++];
-  contact.out_path_len = frame[i++];
-  memcpy(contact.out_path, &frame[i], MAX_PATH_SIZE);
+  contact.out_path_len = contactPathFrom64(contact.out_path, &frame[i + 1], frame[i]);
+  i++;
   i += MAX_PATH_SIZE;
   memcpy(contact.name, &frame[i], 32);
   i += 32;
