@@ -384,6 +384,45 @@ Preconditions:
 */
 
 void ge_scalarmult_base(ge_p3 *h, const unsigned char *a) {
+#ifdef ED25519_SMALL_BASE_TABLE
+    /* Horner over radix-16 digits with the first table row only (4 doublings per digit).
+       Same recoding and the same constant-time select as below. */
+    signed char e[64];
+    signed char carry;
+    ge_p1p1 r;
+    ge_p2 s;
+    ge_precomp t;
+    int i;
+
+    for (i = 0; i < 32; ++i) {
+        e[2 * i + 0] = (a[i] >> 0) & 15;
+        e[2 * i + 1] = (a[i] >> 4) & 15;
+    }
+
+    /* each e[i] is between 0 and 15; e[63] is between 0 and 7 */
+    carry = 0;
+
+    for (i = 0; i < 63; ++i) {
+        e[i] += carry;
+        carry = e[i] + 8;
+        carry >>= 4;
+        e[i] -= carry << 4;
+    }
+
+    e[63] += carry;
+    /* each e[i] is between -8 and 8; a = sum e[i] * 16^i */
+    ge_p3_0(h);
+
+    for (i = 63; i >= 0; i--) {
+        ge_p3_dbl(&r, h);   ge_p1p1_to_p2(&s, &r);   /* 2h  */
+        ge_p2_dbl(&r, &s);  ge_p1p1_to_p2(&s, &r);   /* 4h  */
+        ge_p2_dbl(&r, &s);  ge_p1p1_to_p2(&s, &r);   /* 8h  */
+        ge_p2_dbl(&r, &s);  ge_p1p1_to_p3(h, &r);    /* 16h */
+        select(&t, 0, e[i]);
+        ge_madd(&r, h, &t);
+        ge_p1p1_to_p3(h, &r);
+    }
+#else
     signed char e[64];
     signed char carry;
     ge_p1p1 r;
@@ -431,6 +470,7 @@ void ge_scalarmult_base(ge_p3 *h, const unsigned char *a) {
         ge_madd(&r, h, &t);
         ge_p1p1_to_p3(h, &r);
     }
+#endif
 }
 
 

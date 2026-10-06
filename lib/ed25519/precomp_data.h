@@ -43,7 +43,12 @@ static const ge_precomp Bi[8] = {
 
 
 /* base[i][j] = (j+1)*256^i*B */
-static const ge_precomp base[32][8] = {
+#ifdef ED25519_SMALL_BASE_TABLE
+  #define ED25519_BASE_ROWS 1    /* 1B..8B only: ge_scalarmult_base() uses Horner (ge.c), saves ~30 KB */
+#else
+  #define ED25519_BASE_ROWS 32
+#endif
+static const ge_precomp base[ED25519_BASE_ROWS][8] = {
     {
         {
             { 25967493, -14356035, 29566456, 3660896, -12694345, 4014787, 27544626, -11754271, -6079156, 2047605 },
@@ -86,6 +91,7 @@ static const ge_precomp base[32][8] = {
             { 27431194, 8222322, 16448760, -3907995, -18707002, 11938355, -32961401, -2970515, 29551813, 10109425 },
         },
     },
+#ifndef ED25519_SMALL_BASE_TABLE
     {
         {
             { -13657040, -13155431, -31283750, 11777098, 21447386, 6519384, -2378284, -1627556, 10092783, -4764171 },
@@ -1388,4 +1394,5 @@ static const ge_precomp base[32][8] = {
             { -20430234, 14955537, -24126347, 8124619, -5369288, -5990470, 30468147, -13900640, 18423289, 4177476 },
         },
     },
+#endif
 };
