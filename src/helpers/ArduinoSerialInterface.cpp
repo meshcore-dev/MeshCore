@@ -38,8 +38,9 @@ size_t ArduinoSerialInterface::writeFrame(const uint8_t src[], size_t len) {
 
 size_t ArduinoSerialInterface::checkRecvFrame(uint8_t dest[]) {
 #ifdef SERIAL_FRAME_STRICT
-  // a frame that stalls mid-way (truncated by the sender) is abandoned instead of swallowing the next frame
-  if (_state != RECV_STATE_IDLE && (millis() - _last_byte_ms) > 100) _state = RECV_STATE_IDLE;
+  // a frame that stalls mid-way (truncated by the sender) is abandoned instead of swallowing the next frame;
+  // only when nothing is waiting: a busy main loop must not drop a frame whose bytes are already buffered
+  if (_state != RECV_STATE_IDLE && !_serial->available() && (millis() - _last_byte_ms) > 100) _state = RECV_STATE_IDLE;
 #endif
   while (_serial->available()) {
     int c = _serial->read();
