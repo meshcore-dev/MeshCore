@@ -8,6 +8,9 @@ class ArduinoSerialInterface : public BaseSerialInterface {
   uint8_t _state;
   uint16_t _frame_len;
   uint16_t rx_len;
+#ifdef SERIAL_FRAME_STRICT
+  unsigned long _last_byte_ms = 0;
+#endif
   Stream* _serial;
   uint8_t rx_buf[MAX_FRAME_SIZE];
 
