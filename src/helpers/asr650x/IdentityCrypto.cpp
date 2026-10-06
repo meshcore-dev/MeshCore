@@ -1,0 +1,45 @@
+#ifdef IDENTITY_CRYPTO_ON_BIG_STACK
+#define ASR650X_IDENTITY_CRYPTO_IMPL
+#include "IdentityCrypto.h"
+#include "BigStack.h"
+#define ED25519_NO_SEED 1
+#include <ed_25519.h>
+#include <Ed25519.h>
+
+namespace {
+struct Args {
+  unsigned char* o1;
+  const unsigned char *a, *b, *c;
+  size_t len;
+  bool ok;
+};
+void runKeypair(void* p) { Args* x = (Args*)p; ed25519_create_keypair(x->o1, (unsigned char*)x->a, x->b); }
+void runDerive(void* p) { Args* x = (Args*)p; ed25519_derive_pub(x->o1, x->a); }
+void runSign(void* p) { Args* x = (Args*)p; ed25519_sign(x->o1, x->a, x->len, x->b, x->c); }
+void runKeyex(void* p) { Args* x = (Args*)p; ed25519_key_exchange(x->o1, x->a, x->b); }
+void runVerify(void* p) { Args* x = (Args*)p; x->ok = Ed25519::verify(x->a, x->b, x->c, x->len); }
+}
+
+void asr650x_ed25519_create_keypair(unsigned char* pub, unsigned char* prv, const unsigned char* seed) {
+  Args a = { pub, prv, seed, 0, 0, false };
+  asr650x_call_on_big_stack(runKeypair, &a);
+}
+void asr650x_ed25519_derive_pub(unsigned char* pub, const unsigned char* prv) {
+  Args a = { pub, prv, 0, 0, 0, false };
+  asr650x_call_on_big_stack(runDerive, &a);
+}
+void asr650x_ed25519_sign(unsigned char* sig, const unsigned char* msg, size_t len,
+                          const unsigned char* pub, const unsigned char* prv) {
+  Args a = { sig, msg, pub, prv, len, false };
+  asr650x_call_on_big_stack(runSign, &a);
+}
+void asr650x_ed25519_key_exchange(unsigned char* secret, const unsigned char* pub, const unsigned char* prv) {
+  Args a = { secret, pub, prv, 0, 0, false };
+  asr650x_call_on_big_stack(runKeyex, &a);
+}
+bool asr650x_ed25519_verify(const unsigned char* sig, const unsigned char* pub, const unsigned char* msg, size_t len) {
+  Args a = { 0, sig, pub, msg, len, false };
+  asr650x_call_on_big_stack(runVerify, &a);
+  return a.ok;
+}
+#endif
