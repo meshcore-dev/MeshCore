@@ -2,6 +2,41 @@
 
 #include <Arduino.h>
 
+#ifdef CONFIG_SERIALIZER_NOOP
+// Boards that persist their prefs as a fixed binary record (no filesystem) build this no-op variant: same
+// interface, but def() does nothing and there is no text reader/writer (saves several KB of flash and RAM).
+class ConfigSerializer {
+  bool _dirty = false;
+
+protected:
+  ConfigSerializer() { }
+
+  void def(const char*, char*, size_t) { }
+  void def(const char*, void*, size_t) { }
+  void def(const char*, int32_t&) { }
+  void def(const char*, int16_t&) { }
+  void def(const char*, int8_t&) { }
+  void def(const char*, uint32_t&) { }
+  void def(const char*, uint16_t&) { }
+  void def(const char*, uint8_t&) { }
+  void def(const char*, float&) { }
+  void def(const char*, double&) { }
+  void def(const char*, bool&) { }
+  void def(const char*, ConfigSerializer&) { }
+
+  virtual void structure() = 0;
+
+  void markDirty() { _dirty = true; }
+
+public:
+  bool loadSerial(Stream&) { return false; }
+  bool saveSerial(Stream&) { return false; }
+
+  virtual bool isDirty() const { return _dirty; }
+  virtual void clearDirty() { _dirty = false; }
+};
+#else
+
 #ifndef CONFIG_MAX_DEPTH
   #define CONFIG_MAX_DEPTH   8
 #endif
@@ -74,3 +109,4 @@ public:
   virtual bool isDirty() const { return _dirty; }
   virtual void clearDirty() { _dirty = false; }
 };
+#endif  // CONFIG_SERIALIZER_NOOP
