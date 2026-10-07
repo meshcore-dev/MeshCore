@@ -1339,6 +1339,9 @@ void MyMesh::handleCmdFrame(size_t len) {
     if (recipient) {
       updateContactFromFrame(*recipient, last_mod, cmd_frame, len);
       recipient->lastmod = last_mod;
+#ifdef CONTACT_PIN_STORE
+      _store->pinContact(*recipient);   // contacts the app adds or edits survive a reboot (store-specific limit)
+#endif
       dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY);
       writeOKFrame();
     } else {
@@ -1347,6 +1350,9 @@ void MyMesh::handleCmdFrame(size_t len) {
       contact.lastmod = last_mod;
       contact.sync_since = 0;
       if (addContact(contact)) {
+#ifdef CONTACT_PIN_STORE
+        _store->pinContact(contact);
+#endif
         dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY);
         writeOKFrame();
       } else {
@@ -1358,6 +1364,9 @@ void MyMesh::handleCmdFrame(size_t len) {
     ContactInfo *recipient = lookupContactByPubKey(pub_key, PUB_KEY_SIZE);
     if (recipient && removeContact(*recipient)) {
       _store->deleteBlobByKey(pub_key, PUB_KEY_SIZE);
+#ifdef CONTACT_PIN_STORE
+      _store->unpinContact(pub_key);
+#endif
       dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY);
       writeOKFrame();
     } else {
