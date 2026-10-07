@@ -4,6 +4,9 @@
 #include "AdvertDataHelpers.h"
 #include "TxtDataHelpers.h"
 #include <RTClib.h>
+#ifdef WITH_NRF52_WIRELESS_BRIDGE
+#include "bridges/NRF52RadioBridge.h"
+#endif
 
 #ifndef BRIDGE_MAX_BAUD
 #define BRIDGE_MAX_BAUD 115200
@@ -218,6 +221,9 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
         strcpy(reply, "ERR: clock cannot go backwards");
       }
     } else if (memcmp(command, "start ota", 9) == 0) {
+#ifdef WITH_NRF52_WIRELESS_BRIDGE
+      _callbacks->setBridgeState(false);  // release RADIO before SoftDevice takes it over
+#endif
       if (!_board->startOTAUpdate(_prefs->node_name, reply)) {
         strcpy(reply, "Error");
       }
@@ -640,22 +646,40 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       sprintf(reply, "Error: baud rate must be between 9600-%d",BRIDGE_MAX_BAUD);
     }
 #endif
-#ifdef WITH_ESPNOW_BRIDGE
+#if defined(WITH_ESPNOW_BRIDGE) || defined(WITH_NRF52_WIRELESS_BRIDGE)
   } else if (memcmp(config, "bridge.channel ", 15) == 0) {
     int ch = atoi(&config[15]);
-    if (ch > 0 && ch < 15) {
+#ifdef WITH_NRF52_WIRELESS_BRIDGE
+    const int max_ch = NRF52RadioBridge::NUM_CHANNELS;
+#else
+    const int max_ch = 14;
+#endif
+    if (ch > 0 && ch <= max_ch) {
       _prefs->bridge_channel = (uint8_t)ch;
       _callbacks->restartBridge();
       savePrefs();
       strcpy(reply, "OK");
     } else {
-      strcpy(reply, "Error: channel must be between 1-14");
+      sprintf(reply, "Error: channel must be between 1-%d", max_ch);
     }
   } else if (memcmp(config, "bridge.secret ", 14) == 0) {
     StrHelper::strncpy(_prefs->bridge_secret, &config[14], sizeof(_prefs->bridge_secret));
     _callbacks->restartBridge();
     savePrefs();
     strcpy(reply, "OK");
+#endif
+#ifdef WITH_NRF52_WIRELESS_BRIDGE
+  } else if (memcmp(config, "bridge.txpower ", 15) == 0) {
+    int dbm = atoi(&config[15]);
+    if (dbm >= NRF52RadioBridge::MIN_TX_POWER && dbm <= NRF52RadioBridge::MAX_TX_POWER) {
+      _prefs->bridge_tx_power = (int8_t)dbm;
+      _callbacks->restartBridge();
+      savePrefs();
+      sprintf(reply, "OK - %d dBm", NRF52RadioBridge::supportedTxPower(_prefs->bridge_tx_power));
+    } else {
+      sprintf(reply, "Error: tx power must be between %d and %d dBm", NRF52RadioBridge::MIN_TX_POWER,
+              NRF52RadioBridge::MAX_TX_POWER);
+    }
 #endif
   } else if (memcmp(config, "adc.multiplier ", 15) == 0) {
     _prefs->adc_multiplier = atof(&config[15]);
@@ -758,6 +782,8 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
             "rs232"
 #elif WITH_ESPNOW_BRIDGE
             "espnow"
+#elif WITH_NRF52_WIRELESS_BRIDGE
+            "nrf52-wireless"
 #else
             "none"
 #endif
@@ -774,11 +800,15 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
   } else if (memcmp(config, "bridge.baud", 11) == 0) {
     sprintf(reply, "> %d", (uint32_t)_prefs->bridge_baud);
 #endif
-#ifdef WITH_ESPNOW_BRIDGE
+#if defined(WITH_ESPNOW_BRIDGE) || defined(WITH_NRF52_WIRELESS_BRIDGE)
   } else if (memcmp(config, "bridge.channel", 14) == 0) {
     sprintf(reply, "> %d", (uint32_t)_prefs->bridge_channel);
   } else if (memcmp(config, "bridge.secret", 13) == 0) {
     sprintf(reply, "> %s", _prefs->bridge_secret);
+#endif
+#ifdef WITH_NRF52_WIRELESS_BRIDGE
+  } else if (memcmp(config, "bridge.txpower", 14) == 0) {
+    sprintf(reply, "> %d", (int)NRF52RadioBridge::supportedTxPower(_prefs->bridge_tx_power));
 #endif
   } else if (memcmp(config, "bootloader.ver", 14) == 0) {
   #ifdef NRF52_PLATFORM
