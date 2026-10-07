@@ -63,6 +63,7 @@ void runPins(void *p) {
       ci.type = s.e[i].type;
       ci.flags = s.e[i].flags;
       ci.out_path_len = OUT_PATH_UNKNOWN; // the route is learnt again (flood first)
+      ci.lastmod = 1; // non-zero: GET_CONTACTS only lists contacts with lastmod > since (0)
       a->host->onContactLoaded(ci);
     }
     return;
