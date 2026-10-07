@@ -158,14 +158,14 @@ bool T096Board::handleCommand(const char* command, uint32_t sender_timestamp, ch
       strcpy(reply, "Error: unsupported");
     } else if (memcmp(&command[21], "on", 2) == 0) {
       if (setLoRaFemLnaEnabled(true)) {
-        _prefs->setByKey("fem_rxgain", "1");
+        if (_prefs) _prefs->setByKey("fem_rxgain", "1");
         strcpy(reply, "OK - LoRa FEM RX gain on");
       } else {
         strcpy(reply, "Error: failed to apply LoRa FEM RX gain");
       }
     } else if (memcmp(&command[21], "off", 3) == 0) {
       if (setLoRaFemLnaEnabled(false)) {
-        _prefs->setByKey("fem_rxgain", "0");
+        if (_prefs) _prefs->setByKey("fem_rxgain", "0");
         strcpy(reply, "OK - LoRa FEM RX gain off");
       } else {
         strcpy(reply, "Error: failed to apply LoRa FEM RX gain");
