@@ -160,6 +160,16 @@ static Adafruit_VL53L0X VL53L0X;
 static RAK12035_SoilMoisture RAK12035;
 #endif
 
+#if ENV_INCLUDE_DS18B20
+#ifndef TELEM_DS18B20_PIN
+#define TELEM_DS18B20_PIN 7       // OneWire data pin for DS18B20 temperature sensors
+#endif
+#include <OneWire.h>
+#include <DallasTemperature.h>
+static OneWire oneWire(TELEM_DS18B20_PIN);
+static DallasTemperature DS18B20(&oneWire);
+#endif
+
 #if ENV_INCLUDE_GPS && defined(RAK_BOARD) && !defined(RAK_WISMESH_TAG)
 #define RAK_WISBLOCK_GPS
 #endif
@@ -475,6 +485,20 @@ static void query_rak12035(uint8_t ch, uint8_t sub_ch, CayenneLPP& lpp) {
 }
 #endif
 
+#if ENV_INCLUDE_DS18B20
+// OneWire bus, not I2C: not in SENSOR_TABLE. Each device on the bus gets its own channel.
+static uint8_t init_ds18b20() {
+  DS18B20.begin();
+  return DS18B20.getDeviceCount();
+}
+static void query_ds18b20(uint8_t ch, uint8_t sub_ch, CayenneLPP& lpp) {
+  // Entries are queried in order, so one conversion request serves all devices.
+  if (sub_ch == 0) DS18B20.requestTemperatures();
+  float temp = DS18B20.getTempCByIndex(sub_ch);
+  if (temp != DEVICE_DISCONNECTED_C) lpp.addTemperature(ch, temp);
+}
+#endif
+
 #if ENV_INCLUDE_BME680_BSEC
 static void bsec_load_state() {
   using namespace Adafruit_LittleFS_Namespace;
@@ -671,6 +695,18 @@ bool EnvironmentSensorManager::begin() {
       _active_sensors[_active_sensor_count++] = { def.query, sub };
     }
   }
+
+  #if ENV_INCLUDE_DS18B20
+  uint8_t ds_count = init_ds18b20();
+  if (ds_count == 0) {
+    MESH_DEBUG_PRINTLN("DS18B20 not detected on OneWire pin %d", TELEM_DS18B20_PIN);
+  } else {
+    MESH_DEBUG_PRINTLN("Found %d DS18B20 on OneWire pin %d", ds_count, TELEM_DS18B20_PIN);
+    for (uint8_t sub = 0; sub < ds_count && _active_sensor_count < MAX_ACTIVE_SENSORS; sub++) {
+      _active_sensors[_active_sensor_count++] = { query_ds18b20, sub };
+    }
+  }
+  #endif
 
   return true;
 }
