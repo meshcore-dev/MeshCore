@@ -37,9 +37,17 @@ size_t ArduinoSerialInterface::writeFrame(const uint8_t src[], size_t len) {
 }
 
 size_t ArduinoSerialInterface::checkRecvFrame(uint8_t dest[]) {
+#ifdef SERIAL_FRAME_STRICT
+  // a frame that stalls mid-way (truncated by the sender) is abandoned instead of swallowing the next frame;
+  // only when nothing is waiting: a busy main loop must not drop a frame whose bytes are already buffered
+  if (_state != RECV_STATE_IDLE && !_serial->available() && (millis() - _last_byte_ms) > 100) _state = RECV_STATE_IDLE;
+#endif
   while (_serial->available()) {
     int c = _serial->read();
     if (c < 0) break;
+#ifdef SERIAL_FRAME_STRICT
+    _last_byte_ms = millis();
+#endif
 
     switch (_state) {
       case RECV_STATE_IDLE:
@@ -62,7 +70,11 @@ size_t ArduinoSerialInterface::checkRecvFrame(uint8_t dest[]) {
         }
         rx_len++;
         if (rx_len >= _frame_len) {  // received a complete frame?
+#ifdef SERIAL_FRAME_STRICT
+          if (_frame_len > MAX_FRAME_SIZE) { _state = RECV_STATE_IDLE; continue; }   // oversize: drop, do not execute
+#else
           if (_frame_len > MAX_FRAME_SIZE) _frame_len = MAX_FRAME_SIZE;    // truncate
+#endif
           memcpy(dest, rx_buf, _frame_len);
           _state = RECV_STATE_IDLE;  // reset state, for next frame
           return _frame_len;

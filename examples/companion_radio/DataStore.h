@@ -1,5 +1,9 @@
 #pragma once
 
+#if defined(ASR650X_PLATFORM)
+  #include "FlashDataStore.h"   // no filesystem: identity + prefs in two SFLASH rows, contacts in RAM
+#else
+
 #include <helpers/IdentityStore.h>
 #include <helpers/ContactInfo.h>
 #include <helpers/ChannelDetails.h>
@@ -53,3 +57,5 @@ public:
 private:
   FILESYSTEM* _getContactsChannelsFS() const { if (_fsExtra) return _fsExtra; return _fs;};
 };
+
+#endif

@@ -5,6 +5,9 @@
 #endif
 
 #include <math.h>
+#ifdef RX_DELAY_FAST_POW
+  #include <helpers/FastPow.h>
+#endif
 
 namespace mesh {
 
@@ -53,7 +56,11 @@ void Dispatcher::updateTxBudget() {
 }
 
 int Dispatcher::calcRxDelay(float score, uint32_t air_time) const {
+#ifdef RX_DELAY_FAST_POW
+  return (int) ((fastPow10f(0.85f - score) - 1.0f) * air_time);   // no libm pow()/double maths on small MCUs
+#else
   return (int) ((pow(10, 0.85f - score) - 1.0) * air_time);
+#endif
 }
 
 uint32_t Dispatcher::getCADFailRetryDelay() const {

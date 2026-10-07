@@ -1,4 +1,7 @@
 #include "MyMesh.h"
+#ifdef RX_DELAY_FAST_POW
+  #include <helpers/FastPow.h>
+#endif
 
 #include <Arduino.h> // needed for PlatformIO
 #ifdef ENABLE_WIFI_INTERFACE
@@ -176,7 +179,7 @@ void MyMesh::writeContactRespFrame(uint8_t code, const ContactInfo &contact) {
   out_frame[i++] = contact.type;
   out_frame[i++] = contact.flags;
   out_frame[i++] = contact.out_path_len;
-  memcpy(&out_frame[i], contact.out_path, MAX_PATH_SIZE);
+  contactPathTo64(&out_frame[i], contact.out_path, contact.out_path_len);
   i += MAX_PATH_SIZE;
   StrHelper::strzcpy((char *)&out_frame[i], contact.name, 32);
   i += 32;
@@ -198,8 +201,8 @@ void MyMesh::updateContactFromFrame(ContactInfo &contact, uint32_t& last_mod, co
   i += PUB_KEY_SIZE;
   contact.type = frame[i++];
   contact.flags = frame[i++];
-  contact.out_path_len = frame[i++];
-  memcpy(contact.out_path, &frame[i], MAX_PATH_SIZE);
+  contact.out_path_len = contactPathFrom64(contact.out_path, &frame[i + 1], frame[i]);
+  i++;
   i += MAX_PATH_SIZE;
   memcpy(contact.name, &frame[i], 32);
   i += 32;
@@ -272,7 +275,11 @@ bool MyMesh::getCADEnabled() const {
 
 int MyMesh::calcRxDelay(float score, uint32_t air_time) const {
   if (_prefs.rx_delay_base <= 0.0f) return 0;
+#ifdef RX_DELAY_FAST_POW
+  return (int)((fastPowf(_prefs.rx_delay_base, 0.85f - score) - 1.0f) * air_time);   // no libm pow() on small MCUs
+#else
   return (int)((pow(_prefs.rx_delay_base, 0.85f - score) - 1.0) * air_time);
+#endif
 }
 
 uint32_t MyMesh::getRetransmitDelay(const mesh::Packet *packet) {
@@ -898,7 +905,7 @@ uint32_t MyMesh::calcDirectTimeoutMillisFor(uint32_t pkt_airtime_millis, uint8_t
 void MyMesh::onSendTimeout() {}
 
 MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMeshTables &tables, DataStore& store)
-    : BaseChatMesh(radio, *new ArduinoMillis(), rng, rtc, *new StaticPoolPacketManager(16), tables),
+    : BaseChatMesh(radio, *new ArduinoMillis(), rng, rtc, *new StaticPoolPacketManager(COMPANION_PACKET_POOL_SIZE), tables),
       _serial(NULL), telemetry(MAX_PACKET_PAYLOAD - 4), _store(&store), _listener(NULL), _iter(0) {
   _iter_started = false;
   _cli_rescue = false;
@@ -1332,6 +1339,9 @@ void MyMesh::handleCmdFrame(size_t len) {
     if (recipient) {
       updateContactFromFrame(*recipient, last_mod, cmd_frame, len);
       recipient->lastmod = last_mod;
+#ifdef CONTACT_PIN_STORE
+      _store->pinContact(*recipient);   // contacts the app adds or edits survive a reboot (store-specific limit)
+#endif
       dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY);
       writeOKFrame();
     } else {
@@ -1340,6 +1350,9 @@ void MyMesh::handleCmdFrame(size_t len) {
       contact.lastmod = last_mod;
       contact.sync_since = 0;
       if (addContact(contact)) {
+#ifdef CONTACT_PIN_STORE
+        _store->pinContact(contact);
+#endif
         dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY);
         writeOKFrame();
       } else {
@@ -1351,6 +1364,9 @@ void MyMesh::handleCmdFrame(size_t len) {
     ContactInfo *recipient = lookupContactByPubKey(pub_key, PUB_KEY_SIZE);
     if (recipient && removeContact(*recipient)) {
       _store->deleteBlobByKey(pub_key, PUB_KEY_SIZE);
+#ifdef CONTACT_PIN_STORE
+      _store->unpinContact(pub_key);
+#endif
       dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY);
       writeOKFrame();
     } else {
@@ -2071,12 +2087,21 @@ void MyMesh::saveContacts() {
 }
 
 void MyMesh::enterCLIRescue() {
+#ifndef DISABLE_CLI_RESCUE
   _cli_rescue = true;
   cli_command[0] = 0;
   Serial.println("========= CLI Rescue =========");
+#else
+  // rescue CLI disabled: it prints text on Serial and needs a filesystem
+#endif
 }
 
 bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char* reply) {
+#ifdef DISABLE_COMPANION_CLI
+  // text CLI not built (flash): radio settings still work through CMD_SET_RADIO_PARAMS and friends
+  (void)command; (void)sender_timestamp; (void)reply;
+  return false;
+#else
   while (*command == ' ') command++; // skip leading spaces
 
   if (strlen(command) > 4 && command[2] == '|') { // optional prefix (for companion radio CLI)
@@ -2208,9 +2233,11 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
   }
 
   return false;  // not handled
+#endif
 }
 
 void MyMesh::checkCLIRescueCmd() {
+#ifndef DISABLE_CLI_RESCUE
   int len = strlen(cli_command);
   // `cli_command` must stay NUL-terminated within its bounds. If it ever isn't,
   // strlen() above can return >= sizeof(cli_command) and the loop below would
@@ -2383,6 +2410,9 @@ void MyMesh::checkCLIRescueCmd() {
 
     cli_command[0] = 0;  // reset command buffer
   }
+#else
+  // rescue CLI disabled (see enterCLIRescue)
+#endif
 }
 
 void MyMesh::checkSerialInterface() {
