@@ -27,7 +27,8 @@ void PicoWBoard::begin() {
 #endif
 
 #if defined(PIN_BOARD_SDA) && defined(PIN_BOARD_SCL)
-  Wire.setPins(PIN_BOARD_SDA, PIN_BOARD_SCL);
+  Wire.setSDA(PIN_BOARD_SDA);
+  Wire.setSCL(PIN_BOARD_SCL);
 #endif
 
   Wire.begin();
