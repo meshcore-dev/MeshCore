@@ -31,6 +31,14 @@ namespace mesh {
 //...
 #define PAYLOAD_TYPE_RAW_CUSTOM   0x0F    // custom packet as raw bytes, for applications with custom encryption, payloads, etc
 
+// TRACE 'flags' byte (payload[8]) bit masks. The lower 2 bits encode the path hash
+// size code (1 << code bytes per hash: 0->1, 1->2, 2->4, 3->8). Upper bits are flags:
+#define TRACE_FLAG_TERMINATE_AT_LAST  0x04   // deliver onTraceRecv AT the final visit-list entry
+                                             // (return-to-initiator), instead of at the bystander
+                                             // node that hears the final retransmit. Used by the
+                                             // coverage TRACE ([a,b,self]) so the initiator gets its
+                                             // own SNR vector back. Additive: legacy callers leave it 0.
+
 #define PAYLOAD_VER_1       0x00   // 1-byte src/dest hashes, 2-byte MAC
 #define PAYLOAD_VER_2       0x01   // FUTURE (eg. 2-byte hashes, 4-byte MAC ??)
 #define PAYLOAD_VER_3       0x02   // FUTURE
