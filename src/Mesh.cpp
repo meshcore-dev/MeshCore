@@ -158,12 +158,12 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
             int len = Utils::MACThenDecrypt(secret, data, macAndData, pkt->payload_len - i);
             if (len > 0) {  // success!
               if (pkt->getPayloadType() == PAYLOAD_TYPE_PATH) {
+                if (!Packet::isValidPathPlaintext(data, len)) {
+                  MESH_DEBUG_PRINTLN("%s PAYLOAD_TYPE_PATH, truncated path or missing extra type", getLogDateTime());
+                  break;
+                }
                 int k = 0;
                 uint8_t path_len = data[k++];
-                if (!Packet::isValidPathLen(path_len)) {
-                  MESH_DEBUG_PRINTLN("%s PAYLOAD_TYPE_PATH, bad path_len: %u", getLogDateTime(), (uint32_t)path_len);
-                  break;   // reject bad encoding
-                }
                 uint8_t hash_size = (path_len >> 6) + 1;
                 uint8_t hash_count = path_len & 63;
                 uint8_t* path = &data[k]; k += hash_size*hash_count;
@@ -558,6 +558,11 @@ Packet* Mesh::createGroupDatagram(uint8_t type, const GroupChannel& channel, con
 }
 
 Packet* Mesh::createAck(const uint8_t* ack, uint8_t len) {
+  if (ack == NULL || len < MIN_ACK_PAYLOAD_SIZE || len > MAX_ACK_PAYLOAD_SIZE ||
+      len > sizeof(Packet::payload)) {
+    return NULL;
+  }
+
   Packet* packet = obtainNewPacket();
   if (packet == NULL) {
     MESH_DEBUG_PRINTLN("%s Mesh::createAck(): error, packet pool empty", getLogDateTime());
@@ -572,6 +577,11 @@ Packet* Mesh::createAck(const uint8_t* ack, uint8_t len) {
 }
 
 Packet* Mesh::createMultiAck(const uint8_t* ack, uint8_t len, uint8_t remaining) {
+  if (ack == NULL || len < MIN_ACK_PAYLOAD_SIZE || len > MAX_ACK_PAYLOAD_SIZE ||
+      len > sizeof(Packet::payload) - 1) {
+    return NULL;
+  }
+
   Packet* packet = obtainNewPacket();
   if (packet == NULL) {
     MESH_DEBUG_PRINTLN("%s Mesh::createMultiAck(): error, packet pool empty", getLogDateTime());

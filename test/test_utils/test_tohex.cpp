@@ -51,6 +51,18 @@ TEST(UtilsToHex, NullTerminatesOnEmptyInput) {
     EXPECT_EQ('\0', output[0]);
 }
 
+TEST(UtilsDecrypt, RejectsEmptyAndPartialCiphertextBlocks) {
+    uint8_t key[CIPHER_KEY_SIZE] = {};
+    uint8_t input[CIPHER_BLOCK_SIZE] = {};
+    uint8_t output[CIPHER_BLOCK_SIZE] = {};
+
+    EXPECT_EQ(0, Utils::decrypt(key, output, input, 0));
+    EXPECT_EQ(0, Utils::decrypt(key, output, input, 1));
+    EXPECT_EQ(0, Utils::decrypt(key, output, input, CIPHER_BLOCK_SIZE - 1));
+    EXPECT_EQ(CIPHER_BLOCK_SIZE,
+              Utils::decrypt(key, output, input, CIPHER_BLOCK_SIZE));
+}
+
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
