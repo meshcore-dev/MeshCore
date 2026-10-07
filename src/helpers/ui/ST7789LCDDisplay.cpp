@@ -16,8 +16,12 @@
   #define DISPLAY_SCALE_Y 3.75f // 240 / 64
 #endif
 
-#define DISPLAY_WIDTH 240
-#define DISPLAY_HEIGHT 320
+#ifndef DISPLAY_WIDTH
+  #define DISPLAY_WIDTH 240
+#endif
+#ifndef DISPLAY_HEIGHT
+  #define DISPLAY_HEIGHT 320
+#endif
 
 bool ST7789LCDDisplay::i2c_probe(TwoWire& wire, uint8_t addr) {
   return true;
