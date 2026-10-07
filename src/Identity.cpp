@@ -36,7 +36,7 @@ bool Identity::verify(const uint8_t* sig, const uint8_t* message, int msg_len) c
                                      (uint8_t*)message, (size_t)msg_len, &cc310_tmp);
   return rc == CRYS_OK;
 #elif defined(IDENTITY_CRYPTO_ON_BIG_STACK)
-  return asr650x_ed25519_verify(sig, this->pub_key, message, msg_len);
+  return asr650xEd25519Verify(sig, this->pub_key, message, msg_len);
 #elif 0
   // NOTE:  memory corruption bug was found in this function!!
   return ed25519_verify(sig, message, msg_len, pub_key);

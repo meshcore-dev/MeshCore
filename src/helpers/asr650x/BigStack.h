@@ -3,8 +3,8 @@
 #include <stdint.h>
 
 // Runs memory-hungry crypto on a separate stack taken from the (mostly empty) heap, because the
-// linker script fixes the main stack at 2 KB (M0 report, R9).
-bool asr650x_bigstack_init(size_t bytes);
-bool asr650x_bigstack_ready();                       // false if the heap could not provide the stack
-size_t asr650x_bigstack_highwater();                 // bytes of the big stack ever used
-void asr650x_call_on_big_stack(void (*fn)(void*), void* ctx);
+// linker script fixes the main stack at 2 KB, and Ed25519 needs ~1.8 KB on its own.
+bool asr650xBigstackInit(size_t bytes);
+bool asr650xBigstackReady();       // false if the heap could not provide the stack
+size_t asr650xBigstackHighwater(); // bytes of the big stack ever used
+void asr650xCallOnBigStack(void (*fn)(void *), void *ctx);

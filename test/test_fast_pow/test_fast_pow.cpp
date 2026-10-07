@@ -1,6 +1,7 @@
+#include "helpers/FastPow.h"
+
 #include <gtest/gtest.h>
 #include <math.h>
-#include "helpers/FastPow.h"
 
 // calcRxDelay() uses 10^(0.85 - score); score is in [0, 1] in practice, the range below is wider on purpose
 TEST(FastPow10, WithinOnePercentOfPow) {
@@ -20,7 +21,7 @@ TEST(FastPow10, ExactAtIntegers) {
 
 // MyMesh::calcRxDelay() uses rx_delay_base^(0.85 - score) with a user-set base
 TEST(FastPow, AnyBaseWithinOnePercentOfPow) {
-  const float bases[] = {1.05f, 1.5f, 2.0f, 5.0f, 10.0f, 20.0f};
+  const float bases[] = { 1.05f, 1.5f, 2.0f, 5.0f, 10.0f, 20.0f };
   for (float b : bases) {
     for (int i = -200; i <= 200; i++) {
       float x = i / 100.0f;
@@ -29,7 +30,7 @@ TEST(FastPow, AnyBaseWithinOnePercentOfPow) {
   }
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv) {
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }

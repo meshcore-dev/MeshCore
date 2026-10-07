@@ -1,6 +1,7 @@
-#include <gtest/gtest.h>
-#include <cstdio>
 #include "helpers/asr650x/Button.h"
+
+#include <cstdio>
+#include <gtest/gtest.h>
 
 TEST(Asr650xButton, Behaves) {
   /* a clean press is reported once, after the debounce time, and not again while held */
@@ -8,12 +9,12 @@ TEST(Asr650xButton, Behaves) {
     asr650x::Button b;
     EXPECT_TRUE(!b.update(false, 0));
     EXPECT_TRUE(!b.update(true, 100));
-    EXPECT_TRUE(!b.update(true, 120));              // 20 ms: still bouncing
-    EXPECT_TRUE(b.update(true, 135));               // >= 30 ms held: reported
-    EXPECT_TRUE(!b.update(true, 500));              // held: no repeat
+    EXPECT_TRUE(!b.update(true, 120)); // 20 ms: still bouncing
+    EXPECT_TRUE(b.update(true, 135));  // >= 30 ms held: reported
+    EXPECT_TRUE(!b.update(true, 500)); // held: no repeat
     EXPECT_TRUE(!b.update(false, 600));
     EXPECT_TRUE(!b.update(true, 700));
-    EXPECT_TRUE(b.update(true, 731));               // second press needs the release in between
+    EXPECT_TRUE(b.update(true, 731)); // second press needs the release in between
   }
   /* contact bounce shorter than the debounce time never fires */
   {
@@ -31,7 +32,8 @@ TEST(Asr650xButton, Behaves) {
     EXPECT_TRUE(!b.update(true, 1001));
     EXPECT_TRUE(!b.update(true, 1030));
     EXPECT_TRUE(!b.update(true, 1049));
-    EXPECT_TRUE(!b.update(true, 1060));             // pin still LOW after the hold-off: not a new press, it must be released first
+    EXPECT_TRUE(!b.update(
+        true, 1060)); // pin still LOW after the hold-off: not a new press, it must be released first
     EXPECT_TRUE(!b.update(false, 1100));
     EXPECT_TRUE(!b.update(true, 1200));
     EXPECT_TRUE(b.update(true, 1235));
@@ -48,11 +50,11 @@ TEST(Asr650xButton, Behaves) {
   {
     asr650x::Button b;
     EXPECT_TRUE(!b.update(true, 0xFFFFFFF0u));
-    EXPECT_TRUE(b.update(true, 0x00000020u));       // 48 ms later across the wrap
+    EXPECT_TRUE(b.update(true, 0x00000020u)); // 48 ms later across the wrap
   }
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv) {
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }
