@@ -1,6 +1,5 @@
 #include "RegionMap.h"
 #include <helpers/TxtDataHelpers.h>
-#include <SHA256.h>
 
 // helper class for region map exporter, we emulate Stream with a safe buffer writer.
 

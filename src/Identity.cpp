@@ -2,7 +2,6 @@
 #include <string.h>
 #define ED25519_NO_SEED  1
 #include <ed_25519.h>
-#include <Ed25519.h>
 
 #ifdef USE_CC310_HW_CRYPTO
 #include <Adafruit_nRFCrypto.h>
@@ -31,11 +30,10 @@ bool Identity::verify(const uint8_t* sig, const uint8_t* message, int msg_len) c
                                      (uint8_t*)pub_key, CRYS_ECEDW_MOD_SIZE_IN_BYTES,
                                      (uint8_t*)message, (size_t)msg_len, &cc310_tmp);
   return rc == CRYS_OK;
-#elif 0
-  // NOTE:  memory corruption bug was found in this function!!
-  return ed25519_verify(sig, message, msg_len, pub_key);
 #else
-  return Ed25519::verify(sig, this->pub_key, message, msg_len);
+  // Serialization for ed25519_verify's non-reentrant static buffers lives in
+  // the library itself (ge_double_scalarmult_vartime in lib/ed25519/ge.c).
+  return ed25519_verify(sig, message, msg_len, pub_key);
 #endif
 }
 
