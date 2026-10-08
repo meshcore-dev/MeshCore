@@ -106,6 +106,7 @@ public:
 
   // from AbstractUITask
   void notify(UIEventType t = UIEventType::none) override;
+  void notifyToggle(int count, bool enabled) override;
   void loop() override;
 
   void shutdown(bool restart = false);
