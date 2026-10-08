@@ -46,4 +46,10 @@ public:
   }
 
   void doResetAGC() override { sx126xResetAGC((SX126x *)_radio, getRxBoostedGainMode()); }
+
+  // RX-desync watchdog probe: GetStatus byte, bits 6:4 = chip mode (0x5 = RX).
+  // Raw SPI read (see sx126xGetStatus) - RadioLib's getStatus() always returns 0.
+  bool verifyRxChipMode() override {
+    return ((sx126xGetStatus((SX126x *)_radio) >> 4) & 0x07) == 0x05;
+  }
 };
