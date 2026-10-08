@@ -94,6 +94,12 @@ protected:
   */
   virtual void onPeerDataRecv(Packet* packet, uint8_t type, int sender_idx, const uint8_t* secret, uint8_t* data, size_t len) { }
 
+  // Called for addressed text packets after contact lookup. Receivers can
+  // recognize and retain a packet from a verified, not-yet-added sender.
+  // Return true when the packet was handled and should not be retransmitted.
+  virtual bool onAddressedTextPacket(Packet* packet, uint8_t src_hash,
+                                     const uint8_t* mac_and_data, size_t len) { return false; }
+
   /**
    * \brief  A TRACE packet has been received. (and has reached the end of its given path)
    *         NOTE: this may have been initiated by another node.
