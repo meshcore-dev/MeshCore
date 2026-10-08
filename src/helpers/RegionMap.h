@@ -53,7 +53,7 @@ public:
   int getCount() const { return num_regions; }
   const RegionEntry* getByIdx(int i) const { return &regions[i]; }
   const RegionEntry* getRoot() const { return &wildcard; }
-  int exportNamesTo(char *dest, int max_len, uint8_t mask, bool invert = false);
+  int exportNamesTo(char *dest, int max_len, uint8_t mask, bool invert = false, int start = 0, bool report_next = false);
   int getTransportKeysFor(const RegionEntry& src, TransportKey dest[], int max_num);
 
   void    exportTo(Stream& out) const;
