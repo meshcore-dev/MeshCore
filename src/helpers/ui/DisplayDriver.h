@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <string.h>
+#include <stdio.h>
 
 using ColorVal = uint16_t;
 
@@ -50,6 +51,33 @@ public:
   virtual void drawTextLeftAlign(int x_anch, int y, const char* str) {
     setCursor(x_anch, y);
     print(str);
+  }
+
+  // Channel-health bar row (battery-indicator pattern): optional label at the
+  // left, then the "NN%" value right-aligned before a bar pinned to the
+  // display's right edge, so value and bar stay put while the value's width
+  // changes. Positive framing: a full bar is good; it turns warning-coloured
+  // below 'warn_below'. 'no_data' renders "--%" with an empty, dimmed bar -
+  // nothing measured yet, so no verdict.
+  void drawHealthBar(int y, const char* label, uint8_t pct, uint8_t warn_below, bool no_data = false) {
+    setTextSize(1);
+    if (label != NULL) {
+      setColor(UIColor::primary_txt);
+      setCursor(0, y);
+      print(label);
+    }
+    const int bar_w = 36;
+    int bar_x = width() - bar_w - 1;
+    setColor(no_data ? UIColor::secondary_txt : (pct < warn_below ? UIColor::warning_txt : UIColor::primary_txt));
+    drawRect(bar_x, y + 1, bar_w, 7);
+    if (!no_data) fillRect(bar_x + 1, y + 2, (pct * (bar_w - 2)) / 100, 5);
+    char val[8];
+    if (no_data) {
+      strcpy(val, "--%");
+    } else {
+      sprintf(val, "%u%%", (unsigned)pct);
+    }
+    drawTextRightAlign(bar_x - 3, y, val);
   }
   
   // convert UTF-8 characters to displayable block characters for compatibility

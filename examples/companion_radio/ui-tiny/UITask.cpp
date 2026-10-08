@@ -150,6 +150,8 @@ public:
     }
   }
 
+  // Channel-health bars use DisplayDriver::drawHealthBar (shared row helper).
+
   int render(DisplayDriver& display) override {
     char tmp[80];
 
@@ -236,6 +238,23 @@ public:
       display.print(tmp);
       sprintf(tmp, "TX%d", _node_prefs->tx_power_dbm);
       display.drawTextRightAlign(display.width(), 26, tmp);
+
+      // channel-health bars (windowed, positive framing: full bar = good);
+      // radios that measure nothing (e.g. ESP-NOW) render as no-data instead
+      // of a false "all healthy" bar
+      bool has_health = radio_driver.hasChannelHealth();
+      display.drawHealthBar(35, "CH free", has_health ? 100 - radio_driver.getChannelUtilizationPct() : 0, 50, !has_health);
+      display.drawHealthBar(44, "RX ready", has_health ? 100 - radio_driver.getRxDeafnessPct() : 0, 80, !has_health);
+
+      // RX quality: windowed good vs total packet decodes (~10 min window) as
+      // a uniform bar row like the two above; the underlying counts stay
+      // available via stats-radio. The fetch is sequenced separately from the
+      // draw call: passing rxq_pct by value AND by reference (getRxQualityPct)
+      // in one argument list is unsequenced read+write (undefined behavior) -
+      // the bar could receive the pre-call 0 instead of the measured value.
+      uint8_t rxq_pct = 0;
+      bool has_rxq = radio_driver.getRxQualityPct(rxq_pct);
+      display.drawHealthBar(53, "RX quality", rxq_pct, 80, !has_rxq);
 
     } else if (_page == HomePage::BLUETOOTH) {
       display.setColor(UIColor::corp_blue);
