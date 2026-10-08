@@ -18,6 +18,10 @@ protected:
   uint32_t n_recv, n_sent, n_recv_errors;
   int16_t _noise_floor, _threshold;
   bool _cad_enabled;
+  bool _rssi_lbt_enabled;
+  int8_t _rssi_lbt_thr_dbm;
+  uint16_t _rssi_lbt_sense_ms;
+  uint16_t _rssi_lbt_pause_ms;
   uint16_t _num_floor_samples;
   int32_t _floor_sample_sum;
   uint8_t _preamble_sf;
@@ -61,6 +65,12 @@ public:
   int getNoiseFloor() const override { return _noise_floor; }
   void triggerNoiseFloorCalibrate(int threshold) override;
   void setCADEnabled(bool enable) override { _cad_enabled = enable; }
+  void setRssiLbtParams(bool enabled, int8_t thr_dbm, uint16_t sense_ms, uint16_t pause_ms) override {
+    _rssi_lbt_enabled = enabled;
+    _rssi_lbt_thr_dbm = thr_dbm;
+    _rssi_lbt_sense_ms = sense_ms;
+    _rssi_lbt_pause_ms = pause_ms;
+  }
   void resetAGC() override;
 
   void loop() override;
