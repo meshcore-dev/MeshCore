@@ -323,7 +323,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       if (strlen(command) > 11) {
         start = _atoi(command+12);
       }
-      if (start >= end) {
+      if (start < 0 || start >= end) {  // _atoi() is unsigned: a start of 2^31 or more wraps negative
         strcpy(reply, "no custom var");
       } else {
         sprintf(dp, "%d vars\n", end);
