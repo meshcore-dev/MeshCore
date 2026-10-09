@@ -1055,8 +1055,9 @@ void UITask::loop() {
 #ifdef AUTO_SHUTDOWN_MILLIVOLTS
   if (millis() > next_batt_chck) {
     uint16_t milliVolts = getBattMilliVolts();
-    if (milliVolts > 0 && milliVolts < AUTO_SHUTDOWN_MILLIVOLTS) {
-      if(!board.isExternalPowered()) {
+    if (milliVolts > 0 && milliVolts < AUTO_SHUTDOWN_MILLIVOLTS && !board.isExternalPowered()) {
+      _low_batt_count++;
+      if (_low_batt_count >= AUTO_SHUTDOWN_LOW_READINGS) {
         if (_display != NULL) {
           _display->startFrame();
           _display->setTextSize(2);
@@ -1068,6 +1069,8 @@ void UITask::loop() {
         }
         shutdown();
       }
+    } else {
+      _low_batt_count = 0;
     }
     next_batt_chck = millis() + 8000;
   }
