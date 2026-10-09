@@ -36,13 +36,17 @@ void ThinkNodeM3Board::powerOff() {
   // the button is what powers the board back on, and SENSE is level triggered:
   // wait for the release, or the board wakes up as soon as it goes SYSTEMOFF
   uint32_t started_at = millis();
-  while (digitalRead(BUTTON_PIN) == LOW) {
-    if (millis() - started_at > 10000) {   // button held down for too long, or stuck:
+  uint32_t released_at = started_at;
+  while (millis() - released_at < 50) {  // require a continuously released button
+    uint32_t now = millis();
+    if (digitalRead(BUTTON_PIN) == LOW) {
+      released_at = now;
+    }
+    if (now - started_at > 10000) {   // button held down for too long, or stuck:
       reboot();                            // SYSTEMOFF would wake up right away anyway
     }
     delay(10);
   }
-  delay(50);   // debounce the release
   nrf_gpio_cfg_sense_input(g_ADigitalPinMap[BUTTON_PIN], NRF_GPIO_PIN_PULLUP, NRF_GPIO_PIN_SENSE_LOW);
 
   // power off board
