@@ -3,6 +3,9 @@
 #include <Mesh.h>
 #include <RadioLib.h>
 
+#ifdef USE_CC310_HW_CRYPTO
+#include <Adafruit_nRFCrypto.h>
+#endif
 struct PacketMillis {
   uint32_t preambleMillis;  // preamble-detect -> header-valid deadline
   uint32_t payloadMillis;   // header-valid   -> rx-done deadline
@@ -74,6 +77,8 @@ public:
 
   virtual bool setRxBoostedGainMode(bool) { return false; }
   virtual bool getRxBoostedGainMode() const { return false; }
+  
+  virtual bool configSideDetectors(const uint8_t sideDetSFs[], uint8_t num, float bw) { return false; }
 };
 
 /**
@@ -86,8 +91,15 @@ public:
   RadioNoiseListener(PhysicalLayer& radio): _radio(&radio) { }
 
   void random(uint8_t* dest, size_t sz) override {
+#ifdef USE_CC310_HW_CRYPTO
+    nRFCrypto.Random.generate(dest, (uint16_t)sz);
+    for (int i = 0; i < sz; i++) {
+      dest[i] ^= _radio->randomByte() ^ (::random(0, 256) & 0xFF); // combine with Radio's entropy
+    }
+#else
     for (int i = 0; i < sz; i++) {
       dest[i] = _radio->randomByte() ^ (::random(0, 256) & 0xFF);
     }
+#endif
   }
 };

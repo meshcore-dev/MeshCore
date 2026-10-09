@@ -104,7 +104,7 @@
 #define PIN_SPI_SCK             (32 + 8)
 #define PIN_SPI_NSS             LORA_CS
 
-#define PIN_SPI1_MISO           (-1)
+#define PIN_SPI1_MISO           (0)
 #define PIN_SPI1_MOSI           (0+17)
 #define PIN_SPI1_SCK            (0+20)
 

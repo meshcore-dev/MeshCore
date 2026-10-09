@@ -4,7 +4,6 @@
 MinewsemiME25LS01Board board;
 
 RADIO_CLASS radio = new Module(P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BUSY, SPI);
-
 WRAPPER_CLASS radio_driver(radio, board);
 
 VolatileRTCClock rtc_clock;
@@ -18,7 +17,8 @@ extern EnvironmentSensorManager sensors;
 #endif
 
 #ifdef DISPLAY_CLASS
-  NullDisplayDriver display;
+  DISPLAY_CLASS display;
+  MomentaryButton user_btn(PIN_USER_BTN, 1000, true);
 #endif
 
 #ifndef LORA_CR

@@ -58,7 +58,7 @@
 #define PIN_SPI_MISO            _PINNUM(0, 17) // (MISO)
 #define PIN_SPI_MOSI            _PINNUM(0, 15) // (MOSI)
 #define PIN_SPI_SCK             _PINNUM(0, 13) // (SCK)
-#define PIN_SPI_NSS             (-1)
+#define PIN_SPI_NSS             (0)
 
 ////////////////////////////////////////////////////////////////////////////////
 // QSPI FLASH
@@ -105,12 +105,14 @@
 #define LORA_CS                 _PINNUM(0, 11)
 #define SX126X_POWER_EN         _PINNUM(0, 30)
 #define SX126X_DIO1             _PINNUM(1, 8)
+#define SX126X_DIO2             _PINNUM(0, 5)
 #define SX126X_BUSY             _PINNUM(0, 14)
 #define SX126X_RESET            _PINNUM(0, 7)
 #define SX126X_RXEN             _PINNUM(1, 1)
 #define SX126X_TXEN             _PINNUM(0, 27)
 
 #define P_LORA_DIO_1            SX126X_DIO1
+#define P_LORA_DIO_2            SX126X_DIO2
 #define P_LORA_NSS              LORA_CS
 #define P_LORA_RESET            SX126X_RESET
 #define P_LORA_BUSY             SX126X_BUSY
@@ -121,7 +123,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 // SPI1
 
-#define PIN_SPI1_MISO           (-1)            // Not used for Display
+#define PIN_SPI1_MISO           (0)            // Not used for Display, 0 maps to 0xff on this device which is NRFX_SPIM_PIN_NOT_USED
 #define PIN_SPI1_MOSI           _PINNUM(0, 20)
 #define PIN_SPI1_SCK            _PINNUM(0, 19)
 
@@ -133,7 +135,7 @@ extern const int SCK;
 ////////////////////////////////////////////////////////////////////////////////
 // Display
 
-// #define DISP_MISO               (-1)         // Not used for Display
+// #define DISP_MISO               (0)         // Not used for Display, 0 maps to 0xff on this device which is NRFX_SPIM_PIN_NOT_USED
 #define DISP_MOSI               _PINNUM(0, 20)
 #define DISP_SCLK               _PINNUM(0, 19)
 #define DISP_CS                 _PINNUM(0, 22)
@@ -141,7 +143,7 @@ extern const int SCK;
 #define DISP_RST                _PINNUM(0, 28)
 #define DISP_BUSY               _PINNUM(0, 3)
 #define DISP_POWER              _PINNUM(1, 12)
-// #define DISP_BACKLIGHT          (-1)         // Display has no backlight
+// #define DISP_BACKLIGHT          (0)         // Display has no backlight, 0 maps to 0xff on this device which is NRFX_SPIM_PIN_NOT_USED
 
 #define PIN_DISPLAY_CS          DISP_CS
 #define PIN_DISPLAY_DC          DISP_DC
