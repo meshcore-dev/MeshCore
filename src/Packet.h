@@ -49,6 +49,7 @@ public:
   uint8_t path[MAX_PATH_SIZE];
   uint8_t payload[MAX_PACKET_PAYLOAD];
   int8_t _snr;
+  bool _forwarded;   // true when this packet is being re-transmitted for another node
 
   /**
    * \brief calculate the hash of payload + type

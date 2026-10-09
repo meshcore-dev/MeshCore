@@ -1,6 +1,7 @@
 #pragma once
 
 #include <MeshCore.h>
+#include <AirtimeBudget.h>
 #include <Identity.h>
 #include <Packet.h>
 #include <Utils.h>
@@ -128,6 +129,9 @@ class Dispatcher {
   unsigned long tx_budget_ms;
   unsigned long last_budget_update;
   unsigned long duty_cycle_window_ms;
+  AirtimeBudget _fwd_budget;      // rolling budget for airtime spent relaying
+  unsigned long fwd_air_time;     // total airtime spent relaying (stat)
+  uint32_t n_fwd_dropped;         // forwards refused by the relay budget (stat)
 
   void processRecvPacket(Packet* pkt);
   void updateTxBudget();
@@ -152,6 +156,8 @@ protected:
     tx_budget_ms = 0;
     last_budget_update = 0;
     duty_cycle_window_ms = 3600000;
+    fwd_air_time = 0;
+    n_fwd_dropped = 0;
   }
 
   virtual DispatcherAction onRecvPacket(Packet* pkt) = 0;
@@ -164,6 +170,7 @@ protected:
   virtual const char* getLogDateTime() { return ""; }
 
   virtual float getAirtimeBudgetFactor() const;
+  virtual float getForwardAirtimeBudgetFactor() const;
   virtual int calcRxDelay(float score, uint32_t air_time) const;
   virtual uint32_t getCADFailRetryDelay() const;
   virtual uint32_t getCADFailMaxDuration() const;
@@ -182,6 +189,11 @@ public:
 
   unsigned long getTotalAirTime() const { return total_air_time; }
   unsigned long getReceiveAirTime() const {return rx_air_time; }
+  unsigned long getForwardAirTime() const { return fwd_air_time; }
+  uint32_t getNumForwardDropped() const { return n_fwd_dropped; }
+  uint32_t getForwardBudgetUsed() { _fwd_budget.update(_ms->getMillis()); return _fwd_budget.getUsed(); }
+  uint32_t getForwardBudgetLimit() const { return _fwd_budget.getLimit(); }
+  uint32_t getForwardBudgetWindow() const { return _fwd_budget.getWindow(); }
   unsigned long getRemainingTxBudget() const { return tx_budget_ms; }
   uint32_t getNumSentFlood() const { return n_sent_flood; }
   uint32_t getNumSentDirect() const { return n_sent_direct; }
@@ -189,6 +201,7 @@ public:
   uint32_t getNumRecvDirect() const { return n_recv_direct; }
   void resetStats() {
     n_sent_flood = n_sent_direct = n_recv_flood = n_recv_direct = 0;
+    n_fwd_dropped = 0;
     _err_flags = 0;
   }
 
