@@ -13,7 +13,7 @@
       ["0x239A", "0x002A"],
       ["0x239A", "0x802A"]
     ],
-    "usb_product": "T1000-E-BOOT",
+    "usb_product": "MeshCore T1000-E",
     "mcu": "nrf52840",
     "variant": "Seeed_T1000-E",
     "bsp": {
