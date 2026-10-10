@@ -2,6 +2,9 @@
 #include <Mesh.h>
 
 #include "MyMesh.h"
+#if defined(ESP32)
+  #include <helpers/esp32/SPIFFSMount.h>
+#endif
 
 #ifdef ETHERNET_ENABLED
   #define ETHERNET_CLI_BANNER "MeshCore Room Server CLI"
@@ -60,7 +63,7 @@ void setup() {
   IdentityStore store(LittleFS, "/identity");
   store.begin();
 #elif defined(ESP32)
-  SPIFFS.begin(true);
+  mountSPIFFS();
   fs = &SPIFFS;
   IdentityStore store(SPIFFS, "/identity");
 #else
