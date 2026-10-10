@@ -111,4 +111,7 @@ public:
   bool readFrom(const uint8_t src[], uint8_t len);
 };
 
+const char* payloadTypeName(uint8_t type);
+void formatPayloadType(uint8_t type, char* buf, size_t cap);
+
 }
