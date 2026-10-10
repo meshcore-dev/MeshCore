@@ -11,6 +11,33 @@ ColorVal UIColor::popup_bkg =  0x07FF;  // CYAN
 ColorVal UIColor::popup_txt = 0x0000;
 ColorVal UIColor::corp_blue = 0x001A;
 
+bool LGFXDisplay::applyTheme(const char* theme) {
+  if (strcmp(theme, "legacy") == 0) {
+    UIColor::window_bkg = 0x0000;
+    UIColor::title_bkg = 0x0000;
+    UIColor::title_txt = 0x07E0;
+    UIColor::primary_txt = 0x07E0;
+    UIColor::secondary_txt = 0xFFE0;
+    UIColor::warning_txt = 0xF800;
+    UIColor::popup_bkg = 0x0000;
+    UIColor::popup_txt = 0xFFFF;
+    UIColor::corp_blue = 0x001F;
+    return true;
+  } else if (strcmp(theme, "default") == 0) {
+    UIColor::window_bkg = 0xFFFF;
+    UIColor::title_bkg = 0x001F;
+    UIColor::title_txt = 0xFFFF;
+    UIColor::primary_txt = 0x0000;
+    UIColor::secondary_txt = (18 << 11) | (36 << 5) | 18;
+    UIColor::warning_txt = 0xFD20;
+    UIColor::popup_bkg = 0x07FF;
+    UIColor::popup_txt = 0x0000;
+    UIColor::corp_blue = 0x001A;
+    return true;
+  }
+  return false;
+}
+
 bool LGFXDisplay::begin() {
   turnOn();
   display->init();
