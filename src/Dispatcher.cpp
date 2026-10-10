@@ -148,6 +148,7 @@ void Dispatcher::loop() {
 
 bool Dispatcher::tryParsePacket(Packet* pkt, const uint8_t* raw, int len) {
   int i = 0;
+  if (len < 2) return false;  // header + path_len
 
   pkt->header = raw[i++];
   if (pkt->getPayloadVer() > PAYLOAD_VER_1) {
@@ -156,10 +157,12 @@ bool Dispatcher::tryParsePacket(Packet* pkt, const uint8_t* raw, int len) {
   }
 
   if (pkt->hasTransportCodes()) {
+    if (i + 4 + 1 > len) return false;
     memcpy(&pkt->transport_codes[0], &raw[i], 2); i += 2;
     memcpy(&pkt->transport_codes[1], &raw[i], 2); i += 2;
   } else {
     pkt->transport_codes[0] = pkt->transport_codes[1] = 0;
+    if (i + 1 > len) return false;
   }
 
   pkt->path_len = raw[i++];
@@ -354,12 +357,14 @@ void Dispatcher::checkSend() {
 }
 
 Packet* Dispatcher::obtainNewPacket() {
-  auto pkt = _mgr->allocNew();  // TODO: zero out all fields
+  auto pkt = _mgr->allocNew();
   if (pkt == NULL) {
     _err_flags |= ERR_EVENT_FULL;
   } else {
+    pkt->header = 0;
     pkt->payload_len = pkt->path_len = 0;
     pkt->_snr = 0;
+    pkt->transport_codes[0] = pkt->transport_codes[1] = 0;
   }
   return pkt;
 }
