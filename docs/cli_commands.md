@@ -1048,7 +1048,9 @@ region save
 **Usage:** `sensor list [start]`
 
 **Parameters:**
-- `start`: Optional starting index (defaults to 0)
+- `start`: Optional starting index (defaults to 0). Must be a number from 0 through the setting count. A value past the end, or any other token, returns `Err - bad start`.
+
+**Note:** The reply is capped at 160 bytes. When another page remains, the reply ends with `... next:<index>`.
 
 **Note:** Output format: `<var_name>=<value>\n`
 
