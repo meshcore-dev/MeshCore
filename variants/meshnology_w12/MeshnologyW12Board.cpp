@@ -12,7 +12,7 @@ void MeshnologyW12Board::begin() {
     pinMode(P_LORA_HF_PA_POWER, OUTPUT);
     digitalWrite(P_LORA_HF_PA_POWER, LOW);   // PA_EN_G — disable the 2.4GHz FEM
 
-    delay(100); // give the GC1109 some time to start
+    delay(1); // give the GC1109 a ms to start, just like the heltec v4
 
     periph_power.begin();
     esp_reset_reason_t reason = esp_reset_reason();
@@ -24,6 +24,8 @@ void MeshnologyW12Board::begin() {
 
       rtc_gpio_hold_dis((gpio_num_t)P_LORA_NSS);
       rtc_gpio_deinit((gpio_num_t)P_LORA_DIO_1);
+      rtc_gpio_hold_dis((gpio_num_t)P_LORA_LF_PA_POWER);
+
     }
   }
 
@@ -41,6 +43,8 @@ void MeshnologyW12Board::begin() {
     // Make sure the DIO1 and NSS GPIOs are hold on required levels during deep sleep
     rtc_gpio_set_direction((gpio_num_t)P_LORA_DIO_1, RTC_GPIO_MODE_INPUT_ONLY);
     rtc_gpio_pulldown_en((gpio_num_t)P_LORA_DIO_1);
+
+    rtc_gpio_hold_en((gpio_num_t)P_LORA_LF_PA_POWER);
 
     rtc_gpio_hold_en((gpio_num_t)P_LORA_NSS);
 
