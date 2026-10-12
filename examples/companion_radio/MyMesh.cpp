@@ -1,7 +1,7 @@
 #include "MyMesh.h"
 
 #include <Arduino.h> // needed for PlatformIO
-#ifdef ENABLE_WIFI_INTERFACE
+#if defined(ENABLE_WIFI_INTERFACE) || (defined(ESP32) && !defined(DISABLE_WIFI_OTA))
 #include <WiFi.h>
 #endif
 #include <Mesh.h>
@@ -2096,6 +2096,24 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
     if (_prefs.isDirty()) { savePrefs(); }
     return true;
   }
+
+#if !defined(DISABLE_WIFI_OTA)
+  if (strcmp(command, "start ota") == 0) {
+#ifdef ESP32
+    // Leave the companion network without deleting saved WiFi credentials.
+    WiFi.setAutoReconnect(false);
+    WiFi.disconnect(true, false);
+    if (!WiFi.mode(WIFI_AP)) {
+      strcpy(reply, "Error: OTA WiFi failed to start");
+      return true;
+    }
+#endif
+    if (!board.startOTAUpdate(_prefs.node_name, reply)) {
+      strcpy(reply, "Error: OTA unavailable or failed to start");
+    }
+    return true;
+  }
+#endif
 
   if (strcmp(command, "reboot") == 0) {
     board.reboot(); // doesn't return
