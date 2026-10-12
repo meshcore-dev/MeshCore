@@ -2097,7 +2097,7 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
     return true;
   }
 
-#if !defined(DISABLE_WIFI_OTA)
+#if !defined(ESP32) || !defined(DISABLE_WIFI_OTA)
   if (strcmp(command, "start ota") == 0) {
 #ifdef ESP32
     // Leave the companion network without deleting saved WiFi credentials.
