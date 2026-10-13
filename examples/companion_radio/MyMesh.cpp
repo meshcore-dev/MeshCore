@@ -485,7 +485,12 @@ bool MyMesh::filterRecvFloodPacket(mesh::Packet* packet) {
 }
 
 bool MyMesh::allowPacketForward(const mesh::Packet* packet) {
-  return _prefs.isRepeatEn();
+  return isClientRepeatActive();
+}
+
+// prefs.json is shared with repeater firmware; check the applied freq since CLI "set radio" waits for reboot
+bool MyMesh::isClientRepeatActive() const {
+  return _prefs.isRepeatEn() && isValidClientRepeatFreq(_active_freq_khz);
 }
 
 void MyMesh::sendFloodScoped(const TransportKey& scope, mesh::Packet* pkt, uint32_t delay_millis) {
@@ -1003,6 +1008,7 @@ void MyMesh::begin() {
   _store->loadChannels(this);
 
   radio_driver.setParams(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
+  _active_freq_khz = (uint32_t)lroundf(_prefs.freq * 1000);
   radio_driver.setTxPower(_prefs.tx_power_dbm);
   radio_driver.setRxBoostedGainMode(_prefs.rx_boosted_gain);
 
@@ -1070,7 +1076,7 @@ void MyMesh::handleCmdFrame(size_t len) {
     i += 40;
     StrHelper::strzcpy((char *)&out_frame[i], FIRMWARE_VERSION, 20);
     i += 20;
-    out_frame[i++] = _prefs.isRepeatEn() ? 1 : 0;   // v9+
+    out_frame[i++] = isClientRepeatActive() ? 1 : 0;   // v9+
     out_frame[i++] = _prefs.path_hash_mode;  // v10+
     _serial->writeFrame(out_frame, i);
   } else if (cmd_frame[0] == CMD_APP_START &&
@@ -1448,6 +1454,7 @@ void MyMesh::handleCmdFrame(size_t len) {
       savePrefs();
 
       radio_driver.setParams(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
+      _active_freq_khz = freq;
       MESH_DEBUG_PRINTLN("OK: CMD_SET_RADIO_PARAMS: f=%d, bw=%d, sf=%d, cr=%d", freq, bw, (uint32_t)sf,
                          (uint32_t)cr);
 
