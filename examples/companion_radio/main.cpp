@@ -107,10 +107,13 @@ void halt() {
   while (1) ;
 }
 
-/* WIFI RECONNECT TRACKERS */
 #if defined(ESP32) && defined(WIFI_SSID)
+  /* WIFI RECONNECT TRACKERS */
   bool wifi_needs_reconnect = false;
   unsigned long last_wifi_reconnect_attempt = 0;
+  #ifdef NTP_HOST
+  #include "time.h"
+  #endif
 #endif
 
 void setup() {
@@ -195,6 +198,10 @@ void setup() {
   board.setInhibitSleep(true);   // prevent sleep when WiFi is active
   WiFi.setAutoReconnect(true);
 
+  #ifdef NTP_HOST
+  sntp_set_time_sync_notification_cb(ntpSyncCallback);
+  #endif
+
   WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info){
       if (event == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) {
           WIFI_DEBUG_PRINTLN("WiFi disconnected. Flagging for reconnect...");
@@ -202,6 +209,9 @@ void setup() {
       } else if (event == ARDUINO_EVENT_WIFI_STA_GOT_IP) {
           WIFI_DEBUG_PRINTLN("WiFi connected successfully!");
           wifi_needs_reconnect = false;
+          #ifdef NTP_HOST
+          configTzTime(POSIX_TZ, NTP_HOST);
+          #endif
       }
   });
 
