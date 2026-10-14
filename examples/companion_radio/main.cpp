@@ -113,6 +113,7 @@ void halt() {
   unsigned long last_wifi_reconnect_attempt = 0;
 
   #ifdef NTP_HOST
+  #include <esp_sntp.h>
   #include "time.h"
   void ntpSyncCallback(struct timeval *tv) {
     WIFI_DEBUG_PRINTLN("NTP synchronized successfully!");
