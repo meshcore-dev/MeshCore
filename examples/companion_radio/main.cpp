@@ -111,8 +111,12 @@ void halt() {
   /* WIFI RECONNECT TRACKERS */
   bool wifi_needs_reconnect = false;
   unsigned long last_wifi_reconnect_attempt = 0;
+
   #ifdef NTP_HOST
   #include "time.h"
+  void ntpSyncCallback(struct timeval *tv) {
+    WIFI_DEBUG_PRINTLN("NTP synchronized successfully!");
+  }
   #endif
 #endif
 
