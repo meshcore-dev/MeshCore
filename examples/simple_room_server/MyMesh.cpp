@@ -670,9 +670,9 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
 #endif
 
   // GPS defaults
-  _prefs.gps_enabled = 0;
+  _prefs.gps_enabled = GPS_ENABLED_DEFAULT;
   _prefs.gps_interval = 0;
-  _prefs.advert_loc_policy = ADVERT_LOC_PREFS;
+  _prefs.advert_loc_policy = ADVERT_LOC_POLICY_DEFAULT;
 
 #if defined(USE_SX1262) || defined(USE_SX1268)
 #ifdef SX126X_RX_BOOSTED_GAIN
