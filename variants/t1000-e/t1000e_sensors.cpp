@@ -51,7 +51,7 @@ static float get_heater_temperature(unsigned int vcc_volt, unsigned int ntc_volt
 }
 
 static int get_light_lv(unsigned int light_volt) {
-  float Vout = 0, Vin = 0, Rt = 0, temp = 0;
+  float Vout = 0;
   unsigned int light_level = 0;
 
   // Seeed's firmware maps the photocell reading to a 0-100 % range rather than lux.
