@@ -85,9 +85,12 @@ void SenseCapSolarBoard::setLedsEnabled(bool enable) {
 
 void SenseCapSolarBoard::loop() {
   NRF52BoardDCDC::loop();
-  if (!_leds_applied) {  // BLE starts after prefs load and takes the LED back, so apply on the first pass
-    _leds_applied = true;
-    if (_leds_off) setLedsEnabled(false);
+  if (_leds_off) {
+    if (!_leds_applied) {  // BLE starts after prefs load and takes the LED back, so stop it once here
+      _leds_applied = true;
+      Bluefruit.autoConnLed(false);
+    }
+    digitalWrite(LED_BLUE, LOW);  // a pending blink can still relight it, so hold it off
   }
 }
 
