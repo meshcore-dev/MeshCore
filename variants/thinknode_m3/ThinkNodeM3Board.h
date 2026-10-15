@@ -42,13 +42,6 @@ public:
     return 0;
   }
 
-  void powerOff() override {
-    // turn off all leds, sd_power_system_off will not do this for us
-    digitalWrite(PIN_LED_BLUE, !LED_STATE_ON);
-    digitalWrite(PIN_LED_GREEN, !LED_STATE_ON);
-    digitalWrite(PIN_LED_RED, !LED_STATE_ON);
-
-    // power off board
-    NRF52Board::powerOff();
-  }
+  void shutdownPeripherals() override;
+  void powerOff() override;
 };
