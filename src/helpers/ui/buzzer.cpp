@@ -34,6 +34,7 @@ bool genericBuzzer::isPlaying() {
 
 void genericBuzzer::loop() {
     if (!rtttl::done()) rtttl::play();
+    if (_pending_quiet && rtttl::done()) quiet(true);  // checked in same call: callers stop looping once done
 }
 
 void genericBuzzer::startup() {
@@ -44,7 +45,18 @@ void genericBuzzer::shutdown() {
     play(shutdown_song);
 }
 
+void genericBuzzer::turnOn() {
+    quiet(false);
+    play(on_song);
+}
+
+void genericBuzzer::turnOff() {
+    play(off_song);
+    _pending_quiet = true;
+}
+
 void genericBuzzer::quiet(bool buzzer_state) {
+    _pending_quiet = false;
     _is_quiet = buzzer_state;
 #ifdef PIN_BUZZER_EN
     if (_is_quiet) {
@@ -56,7 +68,7 @@ void genericBuzzer::quiet(bool buzzer_state) {
 }
 
 bool genericBuzzer::isQuiet() {
-    return _is_quiet;
+    return _is_quiet || _pending_quiet;
 }
 
 #endif  // ifdef PIN_BUZZER
