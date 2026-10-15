@@ -120,7 +120,7 @@ static Adafruit_INA219 INA219(TELEM_INA219_ADDRESS);
 
 #if ENV_INCLUDE_INA260
 #ifndef TELEM_INA260_ADDRESS
-#define TELEM_INA260_ADDRESS    0x41      // INA260 single channel current sensor I2C address
+#define TELEM_INA260_ADDRESS    0x40      // INA260 single channel current sensor I2C address (factory default: A0=GND, A1=GND)
 #endif
 #include <Adafruit_INA260.h>
 static Adafruit_INA260 INA260;
