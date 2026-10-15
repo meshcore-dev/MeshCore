@@ -19,7 +19,9 @@ SensorManager sensors;
 
 #ifdef DISPLAY_CLASS
 DISPLAY_CLASS display(&board.periph_power);
-MomentaryButton user_btn(PIN_USER_BTN, 1000, true);
+// pulldownup=true -> INPUT_PULLUP (active-low). The Custom button on GPIO21 has no
+// external pull, so it floats and won't register presses without the internal pull-up.
+MomentaryButton user_btn(PIN_USER_BTN, 1000, true, true);
 #endif
 
 bool radio_init() {
