@@ -21,6 +21,7 @@ class genericBuzzer
     public:
         void begin();  // set up buzzer port
         void play(const char *melody); // Generic play function
+        void playToggle(int count, bool enabled);  // play toggle tone
         void loop();  // loop driven-nonblocking
         void startup();  // play startup sound
         void shutdown();  // play shutdown sound
