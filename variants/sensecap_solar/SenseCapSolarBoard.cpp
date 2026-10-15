@@ -79,8 +79,12 @@ void SenseCapSolarBoard::attachDynamicPrefs(KeyValueStore* prefs) {
 
 void SenseCapSolarBoard::setLedsEnabled(bool enable) {
   _leds_off = !enable;
+#ifdef DISABLE_BLE_LED
+  digitalWrite(LED_BLUE, LOW);
+#else
   Bluefruit.autoConnLed(enable);
   digitalWrite(LED_BLUE, (enable && Bluefruit.connected() > 0) ? HIGH : LOW);
+#endif
 }
 
 void SenseCapSolarBoard::loop() {
