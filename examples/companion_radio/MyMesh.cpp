@@ -259,6 +259,24 @@ int MyMesh::getFromOfflineQueue(uint8_t frame[]) {
   return 0; // queue is empty
 }
 
+int MyMesh::peekOfflineQueue(uint8_t frame[]) {
+  if (offline_queue_len > 0) {
+    size_t len = offline_queue[0].len;
+    memcpy(frame, offline_queue[0].buf, len);
+    return len;
+  }
+  return 0;
+}
+
+void MyMesh::popOfflineQueue() {
+  if (offline_queue_len > 0) {
+    offline_queue_len--;
+    for (int i = 0; i < offline_queue_len; i++) {
+      offline_queue[i] = offline_queue[i + 1];
+    }
+  }
+}
+
 float MyMesh::getAirtimeBudgetFactor() const {
   return _prefs.airtime_factor;
 }
@@ -1414,9 +1432,11 @@ void MyMesh::handleCmdFrame(size_t len) {
     }
   } else if (cmd_frame[0] == CMD_SYNC_NEXT_MESSAGE) {
     int out_len;
-    if ((out_len = getFromOfflineQueue(out_frame)) > 0) {
-      _serial->writeFrame(out_frame, out_len);
-      if (_listener) _listener->onQueueSizeChanged(offline_queue_len);
+    if ((out_len = peekOfflineQueue(out_frame)) > 0) {
+      if (_serial->writeFrame(out_frame, out_len) >= out_len) {
+        popOfflineQueue();
+        if (_listener) _listener->onQueueSizeChanged(offline_queue_len);
+      }
     } else {
       out_frame[0] = RESP_CODE_NO_MORE_MESSAGES;
       _serial->writeFrame(out_frame, 1);
