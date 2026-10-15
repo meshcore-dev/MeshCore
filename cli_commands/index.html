@@ -3436,7 +3436,7 @@
 - <code>sf</code>: Spreading factor (5-12)
 - <code>cr</code>: Coding rate (5-8)</p>
 <p><strong>Set by build flag:</strong> <code>LORA_FREQ</code>, <code>LORA_BW</code>, <code>LORA_SF</code>, <code>LORA_CR</code></p>
-<p><strong>Default:</strong> <code>869.525,250,11,5</code></p>
+<p><strong>Default:</strong> <code>869.618,62.5,8,5</code></p>
 <p><strong>Note:</strong> Requires reboot to apply</p>
 <hr />
 <h4 id="view-or-change-this-nodes-transmit-power">View or change this node's transmit power</h4>
@@ -3466,7 +3466,7 @@
 - <code>set freq &lt;frequency&gt;</code></p>
 <p><strong>Parameters:</strong>
 - <code>frequency</code>: Frequency in MHz</p>
-<p><strong>Default:</strong> <code>869.525</code></p>
+<p><strong>Default:</strong> <code>869.618</code></p>
 <p><strong>Note:</strong> Requires reboot to apply
 <strong>Serial Only:</strong> <code>set freq &lt;frequency&gt;</code></p>
 <hr />
@@ -3651,7 +3651,7 @@
 - <code>set direct.txdelay &lt;value&gt;</code></p>
 <p><strong>Parameters:</strong>
 - <code>value</code>: Direct transmit delay factor (0-2)</p>
-<p><strong>Default:</strong> <code>0.2</code></p>
+<p><strong>Default:</strong> <code>0.3</code> (Repeater) - <code>0.2</code> (Room Server, Sensor)</p>
 <p><strong>Note:</strong> Same collision-avoidance random window as <code>txdelay</code>, but applied to direct (non-flood, routed) traffic. The default is lower because direct packets are addressed to a specific next hop, so far fewer nodes compete to retransmit them.</p>
 <hr />
 <h4 id="experimental-view-or-change-the-processing-delay-for-received-traffic">[Experimental] View or change the processing delay for received traffic</h4>
@@ -3717,7 +3717,7 @@
 - <code>get agc.reset.interval</code>
 - <code>set agc.reset.interval &lt;value&gt;</code></p>
 <p><strong>Parameters:</strong>
-- <code>value</code>: Interval in seconds rounded down to a multiple of 4 (17 becomes 16). 0 to disable.</p>
+- <code>value</code>: Interval in seconds, 0-1020, rounded down to a multiple of 4 (17 becomes 16). 0 to disable.</p>
 <p><strong>Default:</strong> <code>0.0</code></p>
 <hr />
 <h4 id="enable-or-disable-multi-acks-support">Enable or disable Multi-Acks support</h4>
@@ -3734,7 +3734,7 @@
 - <code>set flood.advert.interval &lt;hours&gt;</code></p>
 <p><strong>Parameters:</strong>
 - <code>hours</code>: Interval in hours (3-168)</p>
-<p><strong>Default:</strong> <code>12</code> (Repeater) - <code>0</code> (Sensor)</p>
+<p><strong>Default:</strong> <code>47</code> (Repeater, Room Server) - <code>0</code>, disabled (Sensor)</p>
 <hr />
 <h4 id="view-or-change-the-zero-hop-advert-interval">View or change the zero-hop advert interval</h4>
 <p><strong>Usage:</strong>
@@ -3742,7 +3742,11 @@
 - <code>set advert.interval &lt;minutes&gt;</code></p>
 <p><strong>Parameters:</strong>
 - <code>minutes</code>: Interval in minutes rounded down to the nearest multiple of 2 (61 becomes 60) (60-240)</p>
-<p><strong>Default:</strong> <code>0</code></p>
+<p><strong>Default:</strong> <code>2</code> on a factory-fresh node, then <code>0</code> (disabled) once configured.</p>
+<p><strong>Note:</strong> A new install ships with a 2 minute zero-hop advert interval. Saving
+any setting resets an interval below the 60 minute minimum to <code>0</code>, on the
+assumption that the node has now been deliberately configured. To keep zero-hop
+adverts running, set an explicit value in the 60-240 range.</p>
 <hr />
 <h4 id="limit-the-number-of-hops-for-a-flood-message">Limit the number of hops for a flood message</h4>
 <p><strong>Usage:</strong>

@@ -2023,7 +2023,7 @@ Byte 1: 0x03
 <p><strong>Purpose</strong>: Retrieve information about a specific channel.</p>
 <p><strong>Command Format</strong>:</p>
 <pre><code>Byte 0: 0x1F
-Byte 1: Channel Index (0-7)
+Byte 1: Channel Index (0 .. max_channels-1)
 </code></pre>
 <p><strong>Example</strong> (get channel 1):</p>
 <pre><code>1F 01
@@ -2034,21 +2034,35 @@ Byte 1: Channel Index (0-7)
 <p><strong>Purpose</strong>: Create or update a channel on the device.</p>
 <p><strong>Command Format</strong>:</p>
 <pre><code>Byte 0: 0x20
-Byte 1: Channel Index (0-7)
+Byte 1: Channel Index (0 .. max_channels-1)
 Bytes 2-33: Channel Name (32 bytes, UTF-8, null-padded)
 Bytes 34-49: Secret (16 bytes)
 </code></pre>
 <p><strong>Total Length</strong>: 50 bytes</p>
 <p><strong>Channel Index</strong>:
-- Index 0: Reserved for public channels (no secret)
-- Indices 1-7: Available for private channels</p>
+- Valid range is <code>0</code> to <code>max_channels - 1</code>. Read <code>max_channels</code> from byte 3 of
+  the <code>PACKET_DEVICE_INFO</code> response; do not assume 8. Builds ship with
+  <code>MAX_GROUP_CHANNELS</code> set to 1, 8 or 40 depending on the board.
+- Index 0: pre-populated by the firmware with the built-in "Public" channel.
+  It can be overwritten like any other slot.
+- An out-of-range index is rejected with <code>PACKET_ERROR</code> / <code>ERR_CODE_NOT_FOUND</code>.</p>
 <p><strong>Channel Name</strong>:
 - UTF-8 encoded
 - Maximum 32 bytes
 - Padded with null bytes (0x00) if shorter</p>
 <p><strong>Secret Field</strong> (16 bytes):
-- For <strong>private channels</strong>: 16-byte secret
-- For <strong>public channels</strong>: All zeros (0x00)</p>
+- Always a real 16-byte key; the firmware derives the channel hash from
+  <code>SHA256(secret)</code> (<code>BaseChatMesh.cpp:936-942</code>). There is no "no secret" form.
+- Do <strong>not</strong> write an all-zero secret. <code>SHA256</code> over 16 zero bytes is a fixed,
+  globally identical value, so a zero-secret channel is a well-known channel
+  with an all-zero AES key that any node can read — not a private one. The
+  firmware skips <em>unnamed</em> slots when matching inbound group traffic for
+  exactly this reason (<code>BaseChatMesh.cpp:392-401</code>), but a slot that has been
+  given a name and a zero secret is not skipped, and will absorb null-key
+  group traffic from any node on the mesh.
+- The built-in public channel uses the well-known key
+  <code>izOH6cXN6mrJ5e26oRXNcg==</code> (base64), i.e.
+  <code>8b3387e9c5cdea6ac9e5edbaa115cd72</code> in hex.</p>
 <p><strong>Example</strong> (create channel "YourChannelName" at index 1 with secret):</p>
 <pre><code>20 01 53 4D 53 00 00 ... (name padded to 32 bytes)
     [16 bytes of secret]
@@ -2061,7 +2075,7 @@ Bytes 34-49: Secret (16 bytes)
 <p><strong>Command Format</strong>:</p>
 <pre><code>Byte 0: 0x03
 Byte 1: 0x00
-Byte 2: Channel Index (0-7)
+Byte 2: Channel Index (0 .. max_channels-1)
 Bytes 3-6: Timestamp (32-bit little-endian Unix timestamp, seconds)
 Bytes 7+: Message Text (UTF-8, variable length)
 </code></pre>
@@ -2075,7 +2089,7 @@ Bytes 7+: Message Text (UTF-8, variable length)
 <p><strong>Purpose</strong>: Send a binary datagram to a channel. Unlike channel text messages, datagrams carry no built-in sender identity and no timestamp — applications needing either must encode them inside the binary payload.</p>
 <p><strong>Command Format</strong>:</p>
 <pre><code>Byte 0:                         0x3E
-Byte 1:                         Channel Index (0-7)
+Byte 1:                         Channel Index (0 .. max_channels-1)
 Byte 2:                         Path Length (0xFF = flood, otherwise actual path length)
 Bytes 3 .. 2+path_len:          Path (omitted when path_len == 0xFF)
 Next 2 bytes (little-endian):   Data Type (`data_type`, uint16)
@@ -2089,12 +2103,22 @@ Remaining bytes:                Binary payload (variable length)
 - <code>0xFFFF</code> (<code>DATA_TYPE_DEV</code>) is the developer namespace for experimenting and developing apps.
 - Values <code>0x0001</code>–<code>0xFFFE</code> are available for registered application/community namespaces. See the <a href="#registered-data_type-values">Registered data_type values</a> table below.</p>
 <p><strong>Limits</strong>:
-- Maximum payload length is <code>MAX_CHANNEL_DATA_LENGTH = MAX_FRAME_SIZE - 9 = 163</code> bytes.
-- Larger payloads are rejected with <code>PACKET_ERROR</code> (<code>ERR_CODE_ILLEGAL_ARG</code>).</p>
+- Maximum payload length is <strong>165</strong> bytes — <code>MAX_GROUP_DATA_LENGTH =
+  MAX_PACKET_PAYLOAD - CIPHER_BLOCK_SIZE - 3</code> (<code>src/MeshCore.h:21</code>). This is the
+  radio-side limit and the one clients should enforce.
+- Two different bounds are checked, and they do not agree. The host-frame check
+  uses the larger <code>MAX_CHANNEL_DATA_LENGTH = MAX_FRAME_SIZE - 9 = 167</code>
+  (<code>companion_radio/MyMesh.cpp:1265</code>); the radio-side check uses 165
+  (<code>BaseChatMesh.cpp:544</code>).
+- Payloads <strong>above 167</strong> are rejected with <code>ERR_CODE_ILLEGAL_ARG</code> (6).
+- Payloads of <strong>166 or 167</strong> pass the frame check, then fail the radio-side
+  check and return <code>ERR_CODE_TABLE_FULL</code> (3). Despite that code's usual
+  meaning, such a send can never succeed — do not retry it. Keep payloads at
+  165 bytes or fewer and this case cannot arise.</p>
 <p><strong>Response</strong>: <code>PACKET_OK</code> (0x00) on success, or <code>PACKET_ERROR</code> (0x01) with one of:
 - <code>ERR_CODE_NOT_FOUND</code> (2) — unknown <code>channel_idx</code>
-- <code>ERR_CODE_ILLEGAL_ARG</code> (6) — invalid <code>path_len</code>, reserved <code>data_type</code> (<code>0x0000</code>), or payload larger than <code>MAX_CHANNEL_DATA_LENGTH</code>
-- <code>ERR_CODE_TABLE_FULL</code> (3) — outbound send queue is full; retry later</p>
+- <code>ERR_CODE_ILLEGAL_ARG</code> (6) — invalid <code>path_len</code>, reserved <code>data_type</code> (<code>0x0000</code>), or payload larger than <code>MAX_CHANNEL_DATA_LENGTH</code> (167)
+- <code>ERR_CODE_TABLE_FULL</code> (3) — outbound send queue is full (retry later), <strong>or</strong> a payload of 166-167 bytes that exceeds the radio-side limit (permanent; see Limits above)</p>
 <p><strong>Inbound datagrams</strong> are delivered to the host via <code>RESP_CODE_CHANNEL_DATA_RECV</code> (0x1B); see <a href="#receive-channel-data-datagram">Receive Channel Data Datagram</a>.</p>
 <h4 id="registered-data_type-values">Registered <code>data_type</code> values</h4>
 <p><code>data_type</code> is an <strong>application identifier</strong>, not a payload-format identifier. Each registered value identifies an application that owns its own internal payload schemas. The firmware does not inspect payload contents — <code>data_type</code> is transported opaquely.</p>
@@ -2142,7 +2166,7 @@ Remaining bytes:                Binary payload (variable length)
 <pre><code>Byte 0:                 0x1B (packet type)
 Byte 1:                 SNR (signed int8, scaled ×4 — divide by 4.0 to recover dB)
 Bytes 2-3:              Reserved (clients MUST ignore)
-Byte 4:                 Channel Index (0-7)
+Byte 4:                 Channel Index (0 .. max_channels-1)
 Byte 5:                 Path Length (actual path length when flooded, otherwise 0xFF for direct)
 Bytes 6-7:              Data Type (uint16 little-endian)
 Byte 8:                 Data Length
@@ -2347,7 +2371,7 @@ Bytes 20+: Message Text (UTF-8)
 <h3 id="channel-message-format">Channel Message Format</h3>
 <p><strong>Standard Format</strong> (<code>PACKET_CHANNEL_MSG_RECV</code>, 0x08):</p>
 <pre><code>Byte 0: 0x08 (packet type)
-Byte 1: Channel Index (0-7)
+Byte 1: Channel Index (0 .. max_channels-1)
 Byte 2: Path Length
 Byte 3: Text Type
 Bytes 4-7: Timestamp (32-bit little-endian)
@@ -2357,7 +2381,7 @@ Bytes 8+: Message Text (UTF-8)
 <pre><code>Byte 0: 0x11 (packet type)
 Byte 1: SNR (signed byte, multiplied by 4)
 Bytes 2-3: Reserved
-Byte 4: Channel Index (0-7)
+Byte 4: Channel Index (0 .. max_channels-1)
 Byte 5: Path Length
 Byte 6: Text Type
 Bytes 7-10: Timestamp (32-bit little-endian)

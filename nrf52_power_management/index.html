@@ -1488,9 +1488,16 @@
 </tr>
 </tbody>
 </table>
-<p>On boards without power management enabled, all commands except <code>get pwrmgt.support</code> return:</p>
+<p>On boards without power management enabled, <code>get pwrmgt.source</code> and
+<code>get pwrmgt.bootmv</code> return:</p>
 <pre><code>ERROR: Power management not supported
 </code></pre>
+<p><code>get pwrmgt.support</code> returns <code>unsupported</code>. <code>get pwrmgt.bootreason</code> is not
+compiled out at all and answers on every board: <code>getResetReason()</code> and
+<code>getShutdownReason()</code> are virtuals on the base board class, so a board that
+does not override them reports <code>Not available</code> rather than an error. ESP32
+boards override the reset half with <code>esp_reset_reason()</code>, so they return a real
+reset reason and <code>Not available</code> for the shutdown reason.</p>
 <h2 id="debug-output">Debug Output</h2>
 <p>When <code>MESH_DEBUG=1</code> is enabled, the power management module outputs:</p>
 <pre><code>DEBUG: PWRMGT: Reset = Wake from LPCOMP (0x20000); Shutdown = Low Voltage (0x4C)

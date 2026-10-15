@@ -608,17 +608,6 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#get-telemetry-data" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Get telemetry data
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
   <a href="#get-telemetry" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -634,6 +623,28 @@
     <span class="md-ellipsis">
       
         Get Min/Max/Ave (Sensor nodes)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#subscribe-to-telemetry-push-sensor-nodes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Subscribe to Telemetry push - (Sensor nodes)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#unsubscribe-from-telemetry-push-sensor-nodes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Unsubscribe from Telemetry push - (Sensor nodes)
       
     </span>
   </a>
@@ -1071,17 +1082,6 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#get-telemetry-data" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Get telemetry data
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
   <a href="#get-telemetry" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1097,6 +1097,28 @@
     <span class="md-ellipsis">
       
         Get Min/Max/Ave (Sensor nodes)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#subscribe-to-telemetry-push-sensor-nodes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Subscribe to Telemetry push - (Sensor nodes)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#unsubscribe-from-telemetry-push-sensor-nodes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Unsubscribe from Telemetry push - (Sensor nodes)
       
     </span>
   </a>
@@ -1586,6 +1608,11 @@
 <td>sender time (unix timestamp)</td>
 </tr>
 <tr>
+<td>req type</td>
+<td>1</td>
+<td>request sub type</td>
+</tr>
+<tr>
 <td>request data</td>
 <td>rest of payload</td>
 <td>application-defined request payload body</td>
@@ -1610,7 +1637,37 @@
 <tr>
 <td><code>0x02</code></td>
 <td>keepalive</td>
-<td>keep-alive request used for maintained connections</td>
+<td>(deprecated)</td>
+</tr>
+<tr>
+<td><code>0x03</code></td>
+<td>get telemetry</td>
+<td>request node telemetry</td>
+</tr>
+<tr>
+<td><code>0x04</code></td>
+<td>get min/max/avg</td>
+<td>get sensor node stats on time series data</td>
+</tr>
+<tr>
+<td><code>0x05</code></td>
+<td>get acl</td>
+<td>node ACL query</td>
+</tr>
+<tr>
+<td><code>0x06</code></td>
+<td>get neighbors</td>
+<td>node neighbors query</td>
+</tr>
+<tr>
+<td><code>0x08</code></td>
+<td>subscribe</td>
+<td>subscribe to telemetry push</td>
+</tr>
+<tr>
+<td><code>0x09</code></td>
+<td>ubsubscribe</td>
+<td>unsubscribe from telemetry push</td>
 </tr>
 </tbody>
 </table>
@@ -1636,14 +1693,166 @@
 <li>Number posted (?)</li>
 <li>Number of post pushes (?)</li>
 </ul>
-<h4 id="get-telemetry-data">Get telemetry data</h4>
-<p>Not defined in <code>BaseChatMesh</code>. Sensor- and application-specific request payloads may be implemented by higher-level firmware.</p>
 <h4 id="get-telemetry">Get Telemetry</h4>
-<p>Not defined in <code>BaseChatMesh</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Size (bytes)</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>timestamp</td>
+<td>4</td>
+<td>sender time (unix timestamp)</td>
+</tr>
+<tr>
+<td>req type</td>
+<td>1</td>
+<td>0x03 (request sub type)</td>
+</tr>
+<tr>
+<td>permission mask</td>
+<td>1</td>
+<td>bitwise inverse mask to AND to permissions (0 = get ALL telem values)</td>
+</tr>
+</tbody>
+</table>
 <h4 id="get-minmaxave-sensor-nodes">Get Min/Max/Ave  (Sensor nodes)</h4>
-<p>Not defined in <code>BaseChatMesh</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Size (bytes)</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>timestamp</td>
+<td>4</td>
+<td>sender time (unix timestamp)</td>
+</tr>
+<tr>
+<td>req type</td>
+<td>1</td>
+<td>0x04 (request sub type)</td>
+</tr>
+<tr>
+<td>start</td>
+<td>4</td>
+<td>starting time, seconds ago</td>
+</tr>
+<tr>
+<td>end</td>
+<td>4</td>
+<td>ending time, seconds ago</td>
+</tr>
+<tr>
+<td>reserved</td>
+<td>2</td>
+<td>should be zeroes</td>
+</tr>
+</tbody>
+</table>
+<h4 id="subscribe-to-telemetry-push-sensor-nodes">Subscribe to Telemetry push - (Sensor nodes)</h4>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Size (bytes)</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>timestamp</td>
+<td>4</td>
+<td>sender time (unix timestamp)</td>
+</tr>
+<tr>
+<td>req type</td>
+<td>1</td>
+<td>0x08 (request sub type)</td>
+</tr>
+<tr>
+<td>push tag</td>
+<td>4</td>
+<td>32-bit tag to be used in telemetry push _REPLY payloads</td>
+</tr>
+<tr>
+<td>timeout secs</td>
+<td>2</td>
+<td>subscription timeout (seconds)</td>
+</tr>
+<tr>
+<td>reserved</td>
+<td>1</td>
+<td>should be zero</td>
+</tr>
+<tr>
+<td>min deltas len</td>
+<td>1</td>
+<td>byte length of LPP encoded min_deltas</td>
+</tr>
+<tr>
+<td>min deltas</td>
+<td>(variable)</td>
+<td>LPP encoded min_deltas</td>
+</tr>
+</tbody>
+</table>
+<h4 id="unsubscribe-from-telemetry-push-sensor-nodes">Unsubscribe from Telemetry push - (Sensor nodes)</h4>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Size (bytes)</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>timestamp</td>
+<td>4</td>
+<td>sender time (unix timestamp)</td>
+</tr>
+<tr>
+<td>req type</td>
+<td>1</td>
+<td>0x09 (request sub type)</td>
+</tr>
+</tbody>
+</table>
 <h4 id="get-access-list">Get Access List</h4>
-<p>Not defined in <code>BaseChatMesh</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Size (bytes)</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>timestamp</td>
+<td>4</td>
+<td>sender time (unix timestamp)</td>
+</tr>
+<tr>
+<td>req type</td>
+<td>1</td>
+<td>0x05 (request sub type)</td>
+</tr>
+<tr>
+<td>reserved</td>
+<td>2</td>
+<td>should be zeroes</td>
+</tr>
+</tbody>
+</table>
 <h4 id="get-neighbors">Get Neighbors</h4>
 <p>Not defined in <code>BaseChatMesh</code>.</p>
 <h4 id="get-owner-info">Get Owner Info</h4>
@@ -1710,13 +1919,18 @@
 </tr>
 <tr>
 <td><code>0x01</code></td>
-<td>CLI command</td>
-<td>the command text of the message</td>
+<td>CLI data</td>
+<td>CLI command OR reply text</td>
 </tr>
 <tr>
 <td><code>0x02</code></td>
 <td>signed plain text message</td>
 <td>first four bytes is sender pubkey prefix, followed by plain text message</td>
+</tr>
+<tr>
+<td><code>0x03</code></td>
+<td>CLI command</td>
+<td>(since v1.18+) CLI command text (explicit)</td>
 </tr>
 </tbody>
 </table>

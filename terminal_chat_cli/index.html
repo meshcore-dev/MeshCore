@@ -665,12 +665,17 @@
 <pre><code>set lon {longitude}
 </code></pre>
 <p>Sets your advertisement map longitude. (decimal degrees)</p>
-<pre><code>set dutycycle {percent}
-</code></pre>
-<p>Sets the transmit duty cycle limit (1-100%). Example: <code>set dutycycle 10</code> for 10%.</p>
 <pre><code>set af {air-time-factor}
 </code></pre>
-<p>Sets the transmit air-time-factor. Deprecated — use <code>set dutycycle</code> instead.</p>
+<p>Sets the transmit air-time-factor.</p>
+<blockquote>
+<p><strong>Note:</strong> <code>set dutycycle</code> is <em>not</em> available in Terminal Chat. Every other
+firmware — Repeater, Room Server, Sensor and Companion Radio — routes its
+<code>set</code>/<code>get</code> commands through the shared radio prefs handler and does support
+it (see <a href="../cli_commands/">CLI Commands</a>). Terminal Chat is the sole
+exception: it has its own inline <code>set</code> handler covering only the six options
+listed above.</p>
+</blockquote>
 <pre><code>time {epoch-secs}
 </code></pre>
 <p>Set the device clock using UNIX epoch seconds. Example:  time 1738242833</p>
@@ -707,6 +712,9 @@
 <pre><code>public {text}
 </code></pre>
 <p>Sends the text message to the built-in 'public' group channel</p>
+<pre><code>help
+</code></pre>
+<p>Lists the available commands.</p>
 
 
 

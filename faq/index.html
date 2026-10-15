@@ -2989,17 +2989,17 @@ sudo apt install python3-venv
 </code></pre>
 <p>Mac: python3 should be already installed.</p>
 <p>Then it should be the same for all platforms:</p>
-<pre><code>python3 -m venv meshcore
-cd meshcore &amp;&amp; source bin/activate
+<pre><code>python3 -m venv meshcore-venv
+cd meshcore-venv &amp;&amp; source bin/activate
 pip install -U platformio
-git clone https://github.com/ripplebiz/MeshCore.git
-cd MeshCore
+git clone https://github.com/meshcore-dev/meshcore.git
+cd meshcore
 </code></pre>
-<p>open platformio.ini and in <code>[arduino_base]</code> edit the <code>LORA_FREQ=867.5</code>
-save, then run:</p>
-<pre><code>pio run -e RAK_4631_Repeater
+<p>open platformio.ini and in <code>[arduino_base]</code> edit <code>LORA_FREQ</code> (it defaults to
+<code>869.618</code>) to the frequency for your region, save, then run:</p>
+<pre><code>pio run -e RAK_4631_repeater
 </code></pre>
-<p>then you'll find <code>firmware.zip</code> in <code>.pio/build/RAK_4631_Repeater</code></p>
+<p>then you'll find <code>firmware.zip</code> in <code>.pio/build/RAK_4631_repeater</code></p>
 <h3 id="510-q-are-there-other-meshcore-related-open-source-projects">5.10. Q: Are there other MeshCore related open source projects?</h3>
 <p><strong>A:</strong> <a href="https://liamcottle.net">Liam Cottle</a>'s MeshCore web client and MeshCore JavaScript library are open source under MIT license.</p>
 <p>Web client: <a href="https://github.com/liamcottle/meshcore-web">https://github.com/liamcottle/meshcore-web</a>
@@ -3030,7 +3030,7 @@ Below are the instructions to flash firmware onto a supported LoRa device using 
 <li>Download the firmware file from <a href="https://flasher.meshcore.io">https://flasher.meshcore.io</a>.<ul>
 <li>Go to the website in a browser and find the section that has the firmware you need.</li>
 <li>Click the Download button, right-click on the file you need, for example:<ul>
-<li><code>Heltec_V3_companion_radio_ble-v1.7.1-165fb33.bin</code><ul>
+<li><code>Heltec_v3_companion_radio_ble-v1.7.1-165fb33.bin</code><ul>
 <li>Non-merged bin keeps the existing Bluetooth pairing database.</li>
 </ul>
 </li>
