@@ -77,7 +77,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 // Builtin LEDs
 
-#define LED_BUILTIN             (35)
+// We set LED_BUILTIN to -1 to indicate the LED are not present.
+#define LED_BUILTIN             (-1)
 #define PIN_LED                 LED_BUILTIN
 #define LED_RED                 LED_BUILTIN
 #define LED_BLUE                (-1)            // No blue led, prevents Bluefruit flashing the green LED during advertising
