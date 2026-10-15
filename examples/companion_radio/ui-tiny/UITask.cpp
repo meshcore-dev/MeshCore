@@ -110,6 +110,8 @@ class HomeScreen : public UIScreen {
   NodePrefs* _node_prefs;
   uint8_t _page;
   bool _shutdown_init;
+  uint8_t _armed;          // 1 = bluetooth toggle, 2 = hibernate
+  uint32_t _armed_until;
   AdvertPath recent[UI_RECENT_LIST_SIZE];
 
   CayenneLPP sensors_lpp;
@@ -142,7 +144,21 @@ class HomeScreen : public UIScreen {
 public:
   HomeScreen(UITask* task, mesh::RTCClock* rtc, SensorManager* sensors, NodePrefs* node_prefs)
      : _task(task), _rtc(rtc), _sensors(sensors), _node_prefs(node_prefs), _page(0),
-       _shutdown_init(false), sensors_lpp(200) {  }
+       _shutdown_init(false), _armed(0), _armed_until(0), sensors_lpp(200) {  }
+
+  bool actionConfirmed(uint8_t which) {
+    if (_armed == which && (int32_t)(_armed_until - millis()) > 0) {
+      _armed = 0;
+      return true;
+    }
+    _armed = which;
+    _armed_until = millis() + 4000;
+    return false;
+  }
+
+  bool actionArmed(uint8_t which) const {
+    return _armed == which && (int32_t)(_armed_until - millis()) > 0;
+  }
 
   void poll() override {
     if (_shutdown_init && !_task->isButtonPressed()) {  // must wait for USR button to be released
@@ -243,7 +259,9 @@ public:
           _task->isBluetoothEnabled() ? bluetooth_on : bluetooth_off,
           32, 32);
       display.setTextSize(1);
-      // display.drawTextCentered(display.width() / 2, 40 - 11, "toggle: " PRESS_LABEL);
+      if (actionArmed(1)) {
+        display.drawTextCentered(display.width() / 2, 40 - 11, "confirm: " PRESS_LABEL);
+      }
     } else if (_page == HomePage::ADVERT) {
       display.setColor(UIColor::corp_blue);
       display.drawXbm((display.width() - 32) / 2, 8, advert_icon, 32, 32);
@@ -372,7 +390,9 @@ public:
         display.drawTextCentered(display.width() / 2, 20, "hibernating...");
       } else {
         display.drawXbm((display.width() - 32) / 2, 8, power_icon, 32, 32);
-        // display.drawTextCentered(display.width() / 2, 40 - 11, "hibernate:" PRESS_LABEL);
+        if (actionArmed(2)) {
+          display.drawTextCentered(display.width() / 2, 40 - 11, "confirm:" PRESS_LABEL);
+        }
       }
     }
     return 5000;   // next render after 5000 ms
@@ -381,9 +401,11 @@ public:
   bool handleInput(char c) override {
     if (c == KEY_LEFT || c == KEY_PREV) {
       _page = (_page + HomePage::Count - 1) % HomePage::Count;
+      _armed = 0;
       return true;
     }
     if (c == KEY_NEXT || c == KEY_RIGHT) {
+      _armed = 0;
       _page = (_page + 1) % HomePage::Count;
       if (_page == HomePage::RECENT) {
         _task->showAlert("Recent adverts", 800);
@@ -391,6 +413,7 @@ public:
       return true;
     }
     if (c == KEY_ENTER && _page == HomePage::BLUETOOTH) {
+      if (!actionConfirmed(1)) return true;
       if (_task->isBluetoothEnabled()) {  // toggle Bluetooth on/off
         _task->disableBluetooth();
       } else {
@@ -421,6 +444,7 @@ public:
     }
 #endif
     if (c == KEY_ENTER && _page == HomePage::SHUTDOWN) {
+      if (!actionConfirmed(2)) return true;
       _shutdown_init = true;  // need to wait for button to be released
       return true;
     }
