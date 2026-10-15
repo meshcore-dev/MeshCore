@@ -55,6 +55,29 @@ public:
   static int MACThenDecrypt(const uint8_t* shared_secret, uint8_t* dest, const uint8_t* src, int src_len);
 
   /**
+   * \brief  Encrypt with ChaChaPoly AEAD. Derives per-message key via HMAC-SHA256(shared_secret, nonce || dest_hash || src_hash).
+   *         Output: [nonce:2][ciphertext:src_len][tag:4]
+   * \returns  total output length (AEAD_NONCE_SIZE + src_len + AEAD_TAG_SIZE), or 0 on failure
+   */
+  static int aeadEncrypt(const uint8_t* shared_secret,
+                         uint8_t* dest,
+                         const uint8_t* src, int src_len,
+                         const uint8_t* assoc_data, int assoc_len,
+                         uint16_t nonce_counter,
+                         uint8_t dest_hash, uint8_t src_hash);
+
+  /**
+   * \brief  Decrypt with ChaChaPoly AEAD. Derives per-message key via HMAC-SHA256(shared_secret, nonce || dest_hash || src_hash).
+   *         Input: [nonce:2][ciphertext:M][tag:4]
+   * \returns  plaintext length, or 0 if tag verification fails
+   */
+  static int aeadDecrypt(const uint8_t* shared_secret,
+                         uint8_t* dest,
+                         const uint8_t* src, int src_len,
+                         const uint8_t* assoc_data, int assoc_len,
+                         uint8_t dest_hash, uint8_t src_hash);
+
+  /**
    * \brief  converts 'src' bytes with given length to Hex representation, and null terminates.
   */
   static void toHex(char* dest, const uint8_t* src, size_t len);
