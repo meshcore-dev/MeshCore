@@ -5,6 +5,8 @@
 #include <helpers/NRF52Board.h>
 
 class SenseCapSolarBoard : public NRF52BoardDCDC {
+  // P1_WHITE_LED_CUSTOM_V1_17_1
+  bool white_led_ota_active_ = false;
 protected:
 #ifdef NRF52_POWER_MANAGEMENT
   void initiateShutdown(uint8_t reason) override;
@@ -13,6 +15,11 @@ protected:
 public:
   SenseCapSolarBoard() : NRF52Board("SENSECAP_SOLAR_OTA") {}
   void begin();
+  bool startOTAUpdate(const char *id, char reply[]) override;
+  bool whiteLedOtaActive() const { return white_led_ota_active_; }
+  // P1_WHITE_LED_CUSTOM_V1_17_1: dimmed heartbeat via hardware PWM.
+  void whiteLedHeartbeatOn();   // start 1 kHz PWM at 10% duty on LED_WHITE
+  void whiteLedHeartbeatOff();  // stop/release PWM, hold LED_WHITE LOW
 
 #if defined(P_LORA_TX_LED)
   void onBeforeTransmit() override {

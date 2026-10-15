@@ -27,6 +27,33 @@ static char command[160];
 static char ethernet_command[160];
 #endif
 
+#if defined(LED_WHITE) && defined(_SEEED_SENSECAP_SOLAR_H_)
+// P1_WHITE_LED_CUSTOM_V1_17_1: 100-ms heartbeat, once every 5 seconds.
+// The pulse is dimmed to 10% by hardware PWM (SenseCapSolarBoard::
+// whiteLedHeartbeatOn/Off); during the 4900-ms off phase the PWM peripheral
+// is stopped/released and GPIO 11 is held LOW.
+// Timing: non-blocking millis() with wrap-safe unsigned arithmetic.
+static void updateWhiteStatusLed() {
+  static uint32_t lastPulseAt = millis();
+  static bool pulseActive = false;
+
+  // OTA LED is set in SenseCapSolarBoard::startOTAUpdate().
+  if (board.whiteLedOtaActive()) return;
+
+  const uint32_t now = millis();
+  const uint32_t elapsed = (uint32_t)(now - lastPulseAt);
+  if (pulseActive && elapsed >= 100U) {
+    board.whiteLedHeartbeatOff();   // stop PWM, pin LOW
+    pulseActive = false;
+  }
+  if (!pulseActive && elapsed >= 5000U) {
+    board.whiteLedHeartbeatOn();    // 1 kHz hardware PWM, 10% duty
+    pulseActive = true;
+    lastPulseAt = now;
+  }
+}
+#endif
+
 // For power saving
 unsigned long POWERSAVING_FIRSTSLEEP_SECS = 120; // The first sleep (if enabled) from boot
 
@@ -201,6 +228,9 @@ void loop() {
   ui_task.loop();
 #endif
   rtc_clock.tick();
+#if defined(LED_WHITE) && defined(_SEEED_SENSECAP_SOLAR_H_)
+  updateWhiteStatusLed();
+#endif
 
 #ifdef HAS_EXTERNAL_WATCHDOG
   external_watchdog.loop();
