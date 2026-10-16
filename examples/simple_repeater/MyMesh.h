@@ -160,6 +160,11 @@ protected:
 #if ENV_INCLUDE_GPS == 1
   void applyGpsPrefs() {
     sensors.setSettingValue("gps", _prefs.gps_enabled?"1":"0");
+    if (_prefs.gps_sleep_interval > 0) {
+      char interval_str[11];  //  4 294 967 295 (10 digits + null)
+      sprintf(interval_str, "%u", _prefs.gps_sleep_interval);
+      sensors.setSettingValue("gps_sleep_interval", interval_str);
+    }
   }
 #endif
 

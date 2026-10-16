@@ -2,6 +2,11 @@
 
 #include <Wire.h>
 
+// number of seconds to wait with the valid GPS fix before the GPS is powered down
+#define GPS_WAIT_SECONDS_WITH_VALID_FIX 10
+// how long to wait for the GPS fix before giving up
+#define GPS_TIMEOUT_SECONDS 600
+
 #if ENV_PIN_SDA && ENV_PIN_SCL
 #define TELEM_WIRE &Wire1  // Use Wire1 as the I2C bus for Environment Sensors
 #else
@@ -731,8 +736,10 @@ bool EnvironmentSensorManager::setSettingValue(const char* name, const char* val
   #if ENV_INCLUDE_GPS
   if (gps_detected && strcmp(name, "gps") == 0) {
     if (strcmp(value, "0") == 0) {
+      gps_enabled = false;
       stop_gps();
     } else {
+      gps_enabled = true;
       start_gps();
     }
     return true;
@@ -740,6 +747,11 @@ bool EnvironmentSensorManager::setSettingValue(const char* name, const char* val
   if (strcmp(name, "gps_interval") == 0) {
     uint32_t interval_seconds = atoi(value);
     gps_update_interval_sec = interval_seconds > 0 ? interval_seconds : 1;
+    return true;
+  }
+  if (strcmp(name, "gps_sleep_interval") == 0) {
+    gps_sleep_interval_sec = atoi(value);
+    next_gps_wakeup = 0;
     return true;
   }
   #endif
@@ -927,30 +939,54 @@ void EnvironmentSensorManager::stop_gps() {
 void EnvironmentSensorManager::loop() {
 
   #if ENV_INCLUDE_GPS
+  static bool valid_fix = false;
+  static unsigned long valid_fix_time = 0;
   static unsigned long next_gps_update = 0;
+
   if (gps_active) {
     _location->loop();
   }
-  if ((long)(millis() - next_gps_update) > 0) {
+  if (gps_enabled && gps_sleep_interval_sec > 0 && (long)(millis() - next_gps_wakeup) > 0) {
+    if (gps_active) {
+      if ((valid_fix && (long)(millis() - valid_fix_time) >= GPS_WAIT_SECONDS_WITH_VALID_FIX * 1000) || \
+           (long)(millis() - next_gps_wakeup) > GPS_TIMEOUT_SECONDS * 1000) {
+        next_gps_wakeup = millis() + (gps_sleep_interval_sec * 1000);
+        stop_gps();
+      } else {
+        if (_location->isValid()) {
+          if (!valid_fix) {
+            valid_fix_time = millis();
+            valid_fix = true;
+          }
+        } else {
+          valid_fix = false;
+        }
+      }
+    } else {
+      start_gps();
+      valid_fix = false;
+    }
+  }
 
+  if ((long)(millis() - next_gps_update) > 0) {
     if(gps_active){
-    #ifdef RAK_WISBLOCK_GPS
-    if ((i2cGPSFlag || serialGPSFlag) && _location->isValid()) {
-      node_lat = ((double)_location->getLatitude())/1000000.;
-      node_lon = ((double)_location->getLongitude())/1000000.;
-      MESH_DEBUG_PRINTLN("lat %f lon %f", node_lat, node_lon);
-      node_altitude = ((double)_location->getAltitude()) / 1000.0;
-      MESH_DEBUG_PRINTLN("lat %f lon %f alt %f", node_lat, node_lon, node_altitude);
-    }
-    #else
-    if (_location->isValid()) {
-      node_lat = ((double)_location->getLatitude())/1000000.;
-      node_lon = ((double)_location->getLongitude())/1000000.;
-      MESH_DEBUG_PRINTLN("lat %f lon %f", node_lat, node_lon);
-      node_altitude = ((double)_location->getAltitude()) / 1000.0;
-      MESH_DEBUG_PRINTLN("lat %f lon %f alt %f", node_lat, node_lon, node_altitude);
-    }
-    #endif
+      #ifdef RAK_WISBLOCK_GPS
+      if ((i2cGPSFlag || serialGPSFlag) && _location->isValid()) {
+        node_lat = ((double)_location->getLatitude())/1000000.;
+        node_lon = ((double)_location->getLongitude())/1000000.;
+        MESH_DEBUG_PRINTLN("lat %f lon %f", node_lat, node_lon);
+        node_altitude = ((double)_location->getAltitude()) / 1000.0;
+        MESH_DEBUG_PRINTLN("lat %f lon %f alt %f", node_lat, node_lon, node_altitude);
+      }
+      #else
+      if (_location->isValid()) {
+        node_lat = ((double)_location->getLatitude())/1000000.;
+        node_lon = ((double)_location->getLongitude())/1000000.;
+        MESH_DEBUG_PRINTLN("lat %f lon %f", node_lat, node_lon);
+        node_altitude = ((double)_location->getAltitude()) / 1000.0;
+        MESH_DEBUG_PRINTLN("lat %f lon %f alt %f", node_lat, node_lon, node_altitude);
+      }
+      #endif
     }
     next_gps_update = millis() + (gps_update_interval_sec * 1000);
   }

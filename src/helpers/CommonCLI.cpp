@@ -102,7 +102,8 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {  // Legacy 
     file.read((uint8_t *)&_prefs->flood_max_advert, sizeof(_prefs->flood_max_advert));             // 292
     file.read((uint8_t *)&_prefs->radio_fem_rxgain, sizeof(_prefs->radio_fem_rxgain));             // 293
     file.read((uint8_t *)&_prefs->cad_enabled, sizeof(_prefs->cad_enabled));                       // 294
-    // next: 295
+    file.read((uint8_t *)&_prefs->gps_sleep_interval, sizeof(_prefs->gps_sleep_interval));         // 295
+    // next: 299
 
     // sanitise bad pref values
     _prefs->rx_delay_base = constrain(_prefs->rx_delay_base, 0, 20.0f);
@@ -360,6 +361,15 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       } else {
         strcpy(reply, "gps toggle not found");
       }
+    } else if (memcmp(command, "gps sleep", 9) == 0) {
+      if (strlen(command) == 9) {
+        sprintf(reply, "%u", _prefs->gps_sleep_interval);
+      } else if (strlen(command) > 9) {
+        _sensors->setSettingValue("gps_sleep_interval", command + 10);
+        _prefs->gps_sleep_interval = _atoi(command + 10);
+        savePrefs();
+        strcpy(reply, "ok");
+      }
     } else if (memcmp(command, "gps sync", 8) == 0) {
       LocationProvider * l = _sensors->getLocationProvider();
       if (l != NULL) {
@@ -420,15 +430,18 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
     } else if (memcmp(command, "gps", 3) == 0) {
       LocationProvider * l = _sensors->getLocationProvider();
       if (l != NULL) {
-        bool enabled = l->isEnabled(); // is EN pin on ?
+        bool enabled = _prefs->gps_enabled;
         bool fix = l->isValid();       // has fix ?
         int sats = l->satellitesCount();
         bool active = !strcmp(_sensors->getSettingByKey("gps"), "1");
         if (enabled) {
-          sprintf(reply, "on, %s, %s, %d sats",
-            active?"active":"deactivated",
-            fix?"fix":"no fix",
-            sats);
+          if (active) {
+            sprintf(reply, "on, active, %s, %d sats",
+              fix?"fix":"no fix",
+              sats);
+          } else {
+            strcpy(reply, "on, deactivated");
+          }
         } else {
           strcpy(reply, "off");
         }
