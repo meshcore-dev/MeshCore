@@ -514,13 +514,21 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     StrHelper::strncpy(_prefs->guest_password, &config[15], sizeof(_prefs->guest_password));
     savePrefs();
     strcpy(reply, "OK");
-  } else if (memcmp(config, "prv.key ", 8) == 0) {
+  } else if (memcmp(config, "prv.key", 7) == 0 && (config[7] == 0 || config[7] == ' ')) {
+    const char* hex = &config[7];
+    while (*hex == ' ') hex++;
     uint8_t prv_key[PRV_KEY_SIZE];
-    bool success = mesh::Utils::fromHex(prv_key, PRV_KEY_SIZE, &config[8]);
-    // only allow rekey if key is valid
-    if (success && mesh::LocalIdentity::validatePrivateKey(prv_key)) {
-      mesh::LocalIdentity new_id;
-      new_id.readFrom(prv_key, PRV_KEY_SIZE);
+    bool success = true;
+    mesh::LocalIdentity new_id;
+    if (*hex == 0) {   // no key given, generate a new random one
+      new_id = _callbacks->generateIdentity();
+    } else {
+      success = mesh::Utils::fromHex(prv_key, PRV_KEY_SIZE, hex);
+      // only allow rekey if key is valid
+      success = success && mesh::LocalIdentity::validatePrivateKey(prv_key);
+      if (success) new_id.readFrom(prv_key, PRV_KEY_SIZE);
+    }
+    if (success) {
       _callbacks->saveIdentity(new_id);
       strcpy(reply, "OK, reboot to apply! New pubkey: ");
       mesh::Utils::toHex(&reply[33], new_id.pub_key, PUB_KEY_SIZE);
