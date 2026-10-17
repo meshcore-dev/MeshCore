@@ -1,6 +1,8 @@
 #include <Arduino.h>
 #include "target.h"
 #include <helpers/ArduinoHelpers.h>
+#include "OnboardRadioSleep.h"
+#include <nrf_gpio.h>
 
 RAK3401Board board;
 
@@ -32,49 +34,91 @@ AutoDiscoverRTCClock rtc_clock(fallback_clock);
   EnvironmentSensorManager sensors;
 #endif
 
-#ifdef RAK4631_ONBOARD_SX1262_SLEEP
-// With a RAK13302 fitted the RAK4631's own SX1262 never gets initialized, so it
-// sits in STDBY_RC drawing standby current for the life of the board. Firmware
-// cannot cut its supply -- P1.05 is the RF switch rail, not the radio's -- so
-// bring it up on its own pins just long enough to put it into cold sleep.
-static void sleep_onboard_radio() {
-  pinMode(ONBOARD_LORA_ANT_SW, OUTPUT);
-  digitalWrite(ONBOARD_LORA_ANT_SW, LOW);   // nothing downstream needs the RF switch
+namespace {
+class OnboardRadioIO {
+public:
+  void begin() {
+    digitalWrite(ONBOARD_LORA_NSS, HIGH);
+    pinMode(ONBOARD_LORA_NSS, OUTPUT);
+    digitalWrite(ONBOARD_LORA_RESET, HIGH);
+    pinMode(ONBOARD_LORA_RESET, OUTPUT);
+    digitalWrite(ONBOARD_LORA_ANT_SW, LOW);
+    pinMode(ONBOARD_LORA_ANT_SW, OUTPUT);
+    // BUSY is weakly pulled high during startup; never override it with a pull-down.
+    pinMode(ONBOARD_LORA_BUSY, INPUT_PULLUP);
+    SPI.setPins(ONBOARD_LORA_MISO, ONBOARD_LORA_SCLK, ONBOARD_LORA_MOSI);
+    SPI.begin();
+    pinMode(ONBOARD_LORA_MISO, INPUT_PULLDOWN);
+  }
 
-  SPI.setPins(ONBOARD_LORA_MISO, ONBOARD_LORA_SCLK, ONBOARD_LORA_MOSI);
-  SPI.begin();
+  void reset() {
+    digitalWrite(ONBOARD_LORA_RESET, LOW);
+    delay(1);
+    digitalWrite(ONBOARD_LORA_RESET, HIGH);
+    delay(5);
+  }
 
-  Module mod(ONBOARD_LORA_NSS, ONBOARD_LORA_DIO_1, ONBOARD_LORA_RESET, ONBOARD_LORA_BUSY, SPI);
-  SX1262 onboard(&mod);
+  bool waitBusy(bool high, uint32_t timeout) {
+    uint32_t start = millis();
+    while ((digitalRead(ONBOARD_LORA_BUSY) != LOW) != high) {
+      if (millis() - start >= timeout) return false;
+      delay(1);
+    }
+    return true;
+  }
 
-  // BUSY is driven low in STDBY_RC and high while asleep, so it doubles as a
-  // non-invasive readback of what state we found the chip in and left it in.
-  pinMode(ONBOARD_LORA_BUSY, INPUT);
-  int busy_before = digitalRead(ONBOARD_LORA_BUSY);
+  void readVersion(char* version) {
+    SPI.beginTransaction(SPISettings(2000000, MSBFIRST, SPI_MODE0));
+    digitalWrite(ONBOARD_LORA_NSS, LOW);
+    SPI.transfer(RADIOLIB_SX126X_CMD_READ_REGISTER);
+    SPI.transfer(RADIOLIB_SX126X_REG_VERSION_STRING >> 8);
+    SPI.transfer(RADIOLIB_SX126X_REG_VERSION_STRING & 0xFF);
+    SPI.transfer(0);
+    for (unsigned i = 0; i < 6; i++) version[i] = SPI.transfer(0);
+    digitalWrite(ONBOARD_LORA_NSS, HIGH);
+    SPI.endTransaction();
+  }
 
-  // begin() resets the chip and leaves it in standby. A TCXO calibration failure
-  // still leaves SPI usable, so issue the sleep regardless of what it returns.
-  int status = onboard.begin(434.0f, 125.0f, 9, 7, RADIOLIB_SX126X_SYNC_WORD_PRIVATE,
-                             0, 8, ONBOARD_LORA_TCXO_VOLTAGE, false);
-  int slept = onboard.sleep(false);         // cold sleep: config discarded, RTC off
-  delay(2);
-  int busy_after = digitalRead(ONBOARD_LORA_BUSY);
-  MESH_DEBUG_PRINTLN("onboard SX1262: begin=%d sleep=%d busy %d->%d",
-                     status, slept, busy_before, busy_after);
+  void releaseProbePulls() {
+    pinMode(ONBOARD_LORA_BUSY, INPUT);
+    pinMode(ONBOARD_LORA_MISO, INPUT);
+  }
 
-  SPI.end();   // release SPIM3 so std_init() can repin it onto the RAK13302
+  void sleep() {
+    SPI.beginTransaction(SPISettings(2000000, MSBFIRST, SPI_MODE0));
+    digitalWrite(ONBOARD_LORA_NSS, LOW);
+    SPI.transfer(RADIOLIB_SX126X_CMD_SET_SLEEP);
+    SPI.transfer(RADIOLIB_SX126X_SLEEP_START_COLD | RADIOLIB_SX126X_SLEEP_RTC_OFF);
+    digitalWrite(ONBOARD_LORA_NSS, HIGH);
+    SPI.endTransaction();
+    delay(1);
+  }
 
-  // The SX1262 wakes on an NSS falling edge, so keep NSS driven high from here on.
-  digitalWrite(ONBOARD_LORA_NSS, HIGH);
-  pinMode(ONBOARD_LORA_NSS, OUTPUT);
+  void end() {
+    SPI.end();
+    // INPUT leaves buffers enabled on floating pins; restore Nordic's disconnected default.
+    nrf_gpio_cfg_default(g_ADigitalPinMap[ONBOARD_LORA_SCLK]);
+    nrf_gpio_cfg_default(g_ADigitalPinMap[ONBOARD_LORA_MOSI]);
+    nrf_gpio_cfg_default(g_ADigitalPinMap[ONBOARD_LORA_MISO]);
+    nrf_gpio_cfg_default(g_ADigitalPinMap[ONBOARD_LORA_BUSY]);
+    // An NSS falling edge wakes the radio, so leave it driven high.
+    digitalWrite(ONBOARD_LORA_NSS, HIGH);
+  }
+};
 }
-#endif
 
 bool radio_init() {
   rtc_clock.begin(Wire);
-#ifdef RAK4631_ONBOARD_SX1262_SLEEP
-  sleep_onboard_radio();
-#endif
+  // Called once from setup, before SPI is started for the RAK13302.
+  OnboardRadioIO onboard;
+  const uint32_t started = millis();
+  // The SX1262 version register shares the "SX1261" prefix used by RadioLib.
+  const auto state = rak3401::sleepOnboardRadio(onboard, RADIOLIB_SX1262_CHIP_TYPE);
+  const char* outcome = state == rak3401::OnboardRadioState::Absent ? "absent" :
+                        state == rak3401::OnboardRadioState::Asleep ? "asleep" :
+                        state == rak3401::OnboardRadioState::BusyTimeout ? "busy-timeout" : "sleep-failed";
+  MESH_DEBUG_PRINTLN("onboard SX1262: %s elapsed=%lu ms", outcome,
+                    (unsigned long)(millis() - started));
   return radio.std_init(&SPI);
 }
 
