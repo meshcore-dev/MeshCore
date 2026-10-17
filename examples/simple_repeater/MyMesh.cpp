@@ -117,15 +117,24 @@ uint8_t MyMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* secr
     }
 
     MESH_DEBUG_PRINTLN("Login success!");
+    uint8_t existing = client->permissions & PERM_ACL_ROLE_MASK;
+    if (existing > perms) perms = existing;  // never demote
     client->last_timestamp = sender_timestamp;
     client->last_activity = getRTCClock()->getCurrentTime();
-    client->permissions &= ~0x03;
+    client->permissions &= ~PERM_ACL_ROLE_MASK;
     client->permissions |= perms;
     memcpy(client->shared_secret, secret, PUB_KEY_SIZE);
 
     if (perms != PERM_ACL_GUEST) {   // keep number of FS writes to a minimum
       dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY);
     }
+  } else {
+    if (sender_timestamp <= client->last_timestamp) {
+      MESH_DEBUG_PRINTLN("Possible login replay attack!");
+      return 0;
+    }
+    client->last_timestamp = sender_timestamp;
+    client->last_activity = getRTCClock()->getCurrentTime();
   }
 
   if (is_flood) {
