@@ -82,6 +82,11 @@ void Dispatcher::loop() {
   if (!is_recv && _ms->getMillis() - radio_nonrx_start > 8000) {   // radio has not been in Rx mode for 8 seconds!
     _err_flags |= ERR_EVENT_STARTRX_TIMEOUT;
   }
+  if (_radio->isRxDamaged()) {
+    // chip left RX behind the firmware's back and resisted the wrapper's recovery —
+    // the node is (still) deaf; a reboot restores it
+    _err_flags |= ERR_EVENT_RX_DESYNC;
+  }
 
   if (outbound) {  // waiting for outbound send to be completed
     if (_radio->isSendComplete()) {
