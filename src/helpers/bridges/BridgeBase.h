@@ -107,6 +107,19 @@ protected:
   bool validateChecksum(const uint8_t *data, size_t len, uint16_t received_checksum);
 
   /**
+   * @brief Performs XOR encryption/decryption of data using _prefs->bridge_secret
+   *
+   * Used by radio bridges (ESP-NOW, nRF52 2.4GHz) to isolate different mesh networks.
+   * The same operation is used for both encryption and decryption.
+   * While not cryptographically secure, it provides basic network isolation.
+   * An empty secret leaves the data unchanged.
+   *
+   * @param data Pointer to data to encrypt/decrypt
+   * @param len Length of data in bytes
+   */
+  void xorCrypt(uint8_t *data, size_t len);
+
+  /**
    * @brief Common packet handling for received packets
    *
    * Implements the standard pattern used by all bridges:
