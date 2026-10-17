@@ -114,11 +114,7 @@ MultiSerialInterface interface_manager;
 
 StdRNG fast_rng;
 SimpleMeshTables tables;
-MyMesh the_mesh(radio_driver, fast_rng, rtc_clock, tables, store
-   #ifdef DISPLAY_CLASS
-      , &ui_task
-   #endif
-);
+MyMesh the_mesh(radio_driver, fast_rng, rtc_clock, tables, store);
 
 /* END GLOBAL OBJECTS */
 
@@ -176,35 +172,36 @@ void setup() {
   #endif
   #endif
   store.begin();
-  the_mesh.begin(
-    #ifdef DISPLAY_CLASS
-        disp != NULL
-    #else
-        false
-    #endif
-  );
+  the_mesh.begin();
 #elif defined(RP2040_PLATFORM)
   LittleFS.begin();
   store.begin();
-  the_mesh.begin(
-    #ifdef DISPLAY_CLASS
-        disp != NULL
-    #else
-        false
-    #endif
-  );
+  the_mesh.begin();
 #elif defined(ESP32)
   SPIFFS.begin(true);
   store.begin();
-  the_mesh.begin(
-    #ifdef DISPLAY_CLASS
-        disp != NULL
-    #else
-        false
-    #endif
-  );
+  the_mesh.begin();
 #else
   #error "need to define filesystem"
+#endif
+
+#ifdef BLE_PIN_CODE // 123456 by default
+  if (the_mesh.getNodePrefs()->ble_pin == 0) {
+#ifdef DISPLAY_CLASS
+    if (disp != NULL && BLE_PIN_CODE == 123456) {
+      StdRNG rng;
+      the_mesh.setBLEPin(rng.nextInt(100000, 999999)); // random pin each session
+    } else {
+      the_mesh.setBLEPin(BLE_PIN_CODE); // otherwise static pin
+    }
+#else
+    the_mesh.setBLEPin(BLE_PIN_CODE); // otherwise static pin
+#endif
+  } else {
+    the_mesh.setBLEPin(the_mesh.getNodePrefs()->ble_pin);
+  }
+#else
+  the_mesh.setBLEPin(0);
 #endif
 
 // add bluetooth interface
@@ -229,7 +226,8 @@ void setup() {
 
     WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info){
         if (event == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) {
-            WIFI_DEBUG_PRINTLN("WiFi disconnected. Flagging for reconnect...");
+            WIFI_DEBUG_PRINTLN("WiFi disconnected (reason=%s). Flagging for reconnect...",
+              WiFi.disconnectReasonName((wifi_err_reason_t)info.wifi_sta_disconnected.reason));
             wifi_needs_reconnect = true;
         } else if (event == ARDUINO_EVENT_WIFI_STA_GOT_IP) {
             WIFI_DEBUG_PRINTLN("WiFi connected successfully!");
@@ -285,6 +283,7 @@ void setup() {
 
 #ifdef DISPLAY_CLASS
   ui_task.begin(disp, &sensors, the_mesh.getNodePrefs());  // still want to pass this in as dependency, as prefs might be moved
+  the_mesh.setListener(&ui_task);
 #endif
 
   board.onBootComplete();
@@ -298,6 +297,7 @@ void loop() {
   ui_task.loop();
 #endif
   rtc_clock.tick();
+  board.loop();
 #ifdef HAS_EXTERNAL_WATCHDOG
   external_watchdog.loop();
 #endif

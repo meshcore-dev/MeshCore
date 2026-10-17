@@ -41,8 +41,8 @@ public:
   virtual float getRxDelay() const = 0;
   virtual void setRxDelay(float d) = 0;
 
-  virtual uint8_t getAgcResetInt() const = 0;
-  virtual void setAgcResetInt(uint8_t secs) = 0;
+  virtual uint16_t getAgcResetInt() const = 0;
+  virtual void setAgcResetInt(uint16_t secs) = 0;
 
   virtual uint8_t getHashMode() const = 0;
   virtual void setHashMode(uint8_t m) = 0;

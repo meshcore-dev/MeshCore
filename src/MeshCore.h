@@ -68,6 +68,16 @@ public:
   // Power management interface (boards with power management override these)
   virtual bool isPwrMgtInitialised() const { return false; }
   virtual bool isExternalPowered() { return false; }
+  // True while a board can identify an active battery-charging source.
+  virtual bool isChargerActive() { return false; }
+
+  // Optional, source-specific power detection. Boards that can distinguish a USB
+  // supply from a solar charger override these; defaults keep every other board
+  // unaffected (the generic CLI prints "n/a" when a capability is absent).
+  virtual bool hasUsbPowerDetect() const { return false; }
+  virtual bool isUsbPowered() { return false; }
+  virtual bool hasSolarChargerDetect() const { return false; }
+  virtual bool isSolarChargerActive() { return false; }
   virtual uint16_t getBootVoltage() { return 0; }
   virtual bool getWakeLpcompSupported() const { return false; }
   virtual uint32_t getResetReason() const { return 0; }
@@ -76,6 +86,10 @@ public:
   virtual const char* getShutdownReasonString(uint8_t reason) { return "Not available"; }
 
   virtual bool handleCommand(const char* command, uint32_t sender_timestamp, char* reply) { return false; }
+
+  // Called from the example main loops. Lets a board feed its watchdog and
+  // run periodic housekeeping. Default no-op.
+  virtual void loop() { /* no op */ }
 };
 
 /**
