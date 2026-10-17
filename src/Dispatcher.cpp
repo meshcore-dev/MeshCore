@@ -20,7 +20,16 @@ void Dispatcher::begin() {
   n_sent_flood = n_sent_direct = 0;
   n_recv_flood = n_recv_direct = 0;
   _err_flags = 0;
-  radio_nonrx_start = _ms->getMillis();
+
+  unsigned long now = _ms->getMillis();
+  radio_nonrx_start = now;
+  // Initialize timers to "just passed" so millisHasNowPassed() returns true
+  // immediately. Using 0 breaks when millis is in the upper half of uint32
+  // range (near the 49-day wrap), because the signed comparison trick
+  // interprets 0 as a future timestamp.
+  next_tx_time = now;
+  next_floor_calib_time = now;
+  next_agc_reset_time = now;
 
   duty_cycle_window_ms = getDutyCycleWindowMs();
   float duty_cycle = 1.0f / (1.0f + getAirtimeBudgetFactor());
