@@ -121,7 +121,7 @@ public:
 
   void loop();
   void handleCmdFrame(size_t len);
-  bool advert();
+  bool advert(bool flood = false);
   void enterCLIRescue();
 
   int  getRecentlyHeard(AdvertPath dest[], int max_num);
@@ -215,6 +215,12 @@ public:
   // To check if there is pending work
   bool hasPendingWork() const;
 
+  bool isValidClientRepeatFreq(uint32_t f) const;
+
+  // helpers, short-cuts
+  void saveChannels() { _store->saveChannels(this); }
+  void saveContacts();
+
 private:
   void writeOKFrame();
   void writeErrFrame(uint8_t err_code);
@@ -233,11 +239,6 @@ private:
   void checkCLIRescueCmd();
   bool handleCommand(const char* text, uint32_t sender_timestamp, char* reply);
   void checkSerialInterface();
-  bool isValidClientRepeatFreq(uint32_t f) const;
-
-  // helpers, short-cuts
-  void saveChannels() { _store->saveChannels(this); }
-  void saveContacts();
 
   DataStore* _store;
   NodePrefs _prefs;
