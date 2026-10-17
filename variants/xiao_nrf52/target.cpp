@@ -19,7 +19,9 @@ AutoDiscoverRTCClock rtc_clock(fallback_clock);
 EnvironmentSensorManager sensors;
 
 bool radio_init() {
+#ifndef DISABLE_RTC_AUTODISCOVERY
   rtc_clock.begin(Wire);
+#endif
 
   return radio.std_init(&SPI);
 }
