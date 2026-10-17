@@ -50,7 +50,7 @@ void setup() {
   fast_rng.begin(radio_driver.getRngSeed());
 
   FILESYSTEM* fs;
-#if defined(NRF52_PLATFORM)
+#if defined(NRF52_PLATFORM) || defined(NRF54_PLATFORM)
   InternalFS.begin();
   fs = &InternalFS;
   IdentityStore store(InternalFS, "");
