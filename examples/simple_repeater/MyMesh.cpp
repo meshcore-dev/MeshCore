@@ -733,6 +733,14 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
       uint8_t temp[166];
       char *command = (char *)&data[5];
       char *reply = (char *)&temp[5];
+
+      // Commands such as `setperm ... 0` can compact the ACL array, invalidating `client`.
+      // Preserve everything needed to route the reply before dispatching the command.
+      mesh::Identity requester_id = client->id;
+      uint8_t requester_out_path_len = client->out_path_len;
+      uint8_t requester_out_path[MAX_PATH_SIZE];
+      memcpy(requester_out_path, client->out_path, MAX_PATH_SIZE);
+
       if (is_retry) {
         *reply = 0;
       } else {
@@ -748,12 +756,12 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
         memcpy(temp, &timestamp, 4);        // mostly an extra blob to help make packet_hash unique
         temp[4] = (TXT_TYPE_CLI_DATA << 2); // NOTE: legacy was: TXT_TYPE_PLAIN
 
-        auto reply = createDatagram(PAYLOAD_TYPE_TXT_MSG, client->id, secret, temp, 5 + text_len);
+        auto reply = createDatagram(PAYLOAD_TYPE_TXT_MSG, requester_id, secret, temp, 5 + text_len);
         if (reply) {
-          if (client->out_path_len == OUT_PATH_UNKNOWN) {
+          if (requester_out_path_len == OUT_PATH_UNKNOWN) {
             sendFloodReply(reply, CLI_REPLY_DELAY_MILLIS, packet->getPathHashSize());
           } else {
-            sendDirect(reply, client->out_path, client->out_path_len, CLI_REPLY_DELAY_MILLIS);
+            sendDirect(reply, requester_out_path, requester_out_path_len, CLI_REPLY_DELAY_MILLIS);
           }
         }
       }
