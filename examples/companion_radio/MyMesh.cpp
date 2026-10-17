@@ -2122,6 +2122,23 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
     return true;
   }
 
+#ifdef PIN_BUZZER
+  if (strcmp(command, "get buzzer") == 0) {
+    sprintf(reply, "> %s", _prefs.buzzer_quiet ? "off" : "on");
+    return true;
+  }
+  if (memcmp(command, "set buzzer ", 11) == 0) {
+    if (strcmp(&command[11], "on") == 0 || strcmp(&command[11], "off") == 0) {
+      _prefs.buzzer_quiet = strcmp(&command[11], "off") == 0;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: state must be on or off");
+    }
+    return true;
+  }
+#endif
+
   if (memcmp(command, "set pin ", 8) == 0) {
     _prefs.ble_pin = atoi(&command[8]);
     savePrefs();
