@@ -1,0 +1,31 @@
+#pragma once
+
+#define RADIOLIB_STATIC_ONLY 1
+//#include <RadioLib.h>
+#include <helpers/radiolib/RadioLibWrappers.h>
+#include <LilygoTBeamSX1276Board.h>
+#include <helpers/radiolib/CustomSX1276Wrapper.h>
+#include <helpers/AutoDiscoverRTCClock.h>
+#include <helpers/sensors/EnvironmentSensorManager.h>
+#ifdef DISPLAY_CLASS
+  #if DISPLAY_CLASS == SH1106Display
+    #include <helpers/ui/SH1106Display.h>
+  #endif
+  #if DISPLAY_CLASS == SSD1306Display
+    #include <helpers/ui/SSD1306Display.h>
+  #endif
+  #include <helpers/ui/MomentaryButton.h>
+#endif
+
+extern LilygoTBeamSX1276Board board;
+extern WRAPPER_CLASS radio_driver;
+extern AutoDiscoverRTCClock rtc_clock;
+extern EnvironmentSensorManager sensors;
+
+#ifdef DISPLAY_CLASS
+  extern DISPLAY_CLASS display;
+  extern MomentaryButton user_btn;
+#endif
+
+bool radio_init();
+mesh::LocalIdentity radio_new_identity();
