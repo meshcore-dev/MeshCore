@@ -39,6 +39,7 @@ Shutdown reason codes (stored in GPREGRET2):
 |-------------------------------------------|-------------|-------------|-----------|
 | Seeed Studio XIAO nRF52840 (`xiao_nrf52`) | Yes         | Yes         | Yes       |
 | RAK4631 (`rak4631`)                       | Yes         | Yes         | Yes       |
+| RAK3401 (`rak3401`)                       | Yes         | Yes         | Yes       |
 | Heltec T114 (`heltec_t114`)               | Yes         | Yes         | Yes       |
 | GAT562 Mesh Watch13                       | Yes         | Yes         | Yes       |
 | Promicro nRF52840                         | No          | No          | No        |
@@ -166,6 +167,32 @@ VBUS wake is enabled via the POWER peripheral USBDETECTED event whenever `config
 
 **Important**: For boards with a voltage divider on the battery sense pin, LPCOMP measures the divided voltage. Use:
 `VBAT_threshold ≈ (VDD * fraction) * divider_scale`, where `divider_scale = (Rtop + Rbottom) / Rbottom` (e.g., 2.0 for 1M/1M, 2.5 for 1.5M/1M, 3.0 for XIAO).
+
+### Build-Flag Overrides (RAK4631, RAK3401)
+
+On the `rak4631` and `rak3401` variants the battery sense and power management defines are `#ifndef`-guarded, so a PlatformIO environment can move battery sensing to another analog pin with build flags instead of editing the variant:
+
+| Define                    | Default                        | Meaning                                                                            |
+|---------------------------|--------------------------------|------------------------------------------------------------------------------------|
+| `PIN_VBAT_READ`           | `5` (P0.05 / AIN3)             | Pin read by `getBattMilliVolts()`; the default is the WisBlock base board divider  |
+| `ADC_MULTIPLIER`          | `(3 * 1.73 * 1.187 * 1000)`    | Reported millivolts at ADC full scale (3.6 V); `3600` reports the pin voltage as is |
+| `PWRMGT_VOLTAGE_BOOTLOCK` | `3300`                         | Boot lock threshold in reported millivolts; `0` disables boot protection           |
+| `PWRMGT_LPCOMP_AIN`       | `3`                            | LPCOMP wake channel; must be the AIN channel of `PIN_VBAT_READ`                    |
+| `PWRMGT_LPCOMP_REFSEL`    | `4`                            | LPCOMP wake threshold (see the table above)                                        |
+
+When moving `PIN_VBAT_READ`, move `PWRMGT_LPCOMP_AIN` with it: `configureVoltageWake()` selects the comparator input from `PWRMGT_LPCOMP_AIN`, so a stale value leaves LPCOMP watching the old pin.
+
+Example: `RAK_3401_repeater_voltaic` in `variants/rak3401/platformio.ini` reads a Voltaic V25/V50/V75 battery pack, which reports its charge on the USB-C SBU pins as 1/2 of its cell voltage, wired to the RAK19007 J11 header pin 1 (AIN1 = P0.31 = AIN7):
+
+```ini
+-D PIN_VBAT_READ=31              ; P0.31 = AIN7 = RAK19007 J11 pin 1
+-D ADC_MULTIPLIER=7200           ; SBU = 1/2 cell voltage -> report cell mV
+-D PWRMGT_VOLTAGE_BOOTLOCK=3400  ; boot lock below 3.4 V cell
+-D PWRMGT_LPCOMP_AIN=7           ; wake comparator on the SBU input
+-D PWRMGT_LPCOMP_REFSEL=12       ; 9/16 VDD ≈ 1.86 V at the pin ≈ 3.7 V cell
+```
+
+Because the SBU pin is a 1/2-scale source, the 1M/1M column of the reference table applies to it: REFSEL 12 wakes the node once the pack recovers to about 3.7 V cell.
 
 ### SoftDevice Compatibility
 
