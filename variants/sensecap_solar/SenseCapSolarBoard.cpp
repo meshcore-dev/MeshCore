@@ -2,6 +2,7 @@
 #include <Wire.h>
 
 #include "SenseCapSolarBoard.h"
+#include <bluefruit.h>
 
 #ifdef NRF52_POWER_MANAGEMENT
 const PowerMgtConfig power_config = {
@@ -66,4 +67,61 @@ void SenseCapSolarBoard::begin() {
 #endif
 
   delay(10);   // give sx1262 some time to power up
+}
+
+void SenseCapSolarBoard::attachDynamicPrefs(KeyValueStore* prefs) {
+  _prefs = prefs;
+  char val[8];
+  val[0] = 0;
+  _prefs->getByKey("leds", val, sizeof(val) - 1);
+  _leds_off = strcmp(val, "0") == 0;
+}
+
+void SenseCapSolarBoard::setLedsEnabled(bool enable) {
+  _leds_off = !enable;
+#ifdef DISABLE_BLE_LED
+  digitalWrite(LED_BLUE, LOW);
+#else
+  Bluefruit.autoConnLed(enable);
+  digitalWrite(LED_BLUE, (enable && Bluefruit.connected() > 0) ? HIGH : LOW);
+#endif
+}
+
+void SenseCapSolarBoard::loop() {
+  NRF52BoardDCDC::loop();
+  if (_leds_off) {
+    if (!_leds_applied) {  // BLE starts after prefs load and takes the LED back, so stop it once here
+      _leds_applied = true;
+      Bluefruit.autoConnLed(false);
+    }
+    digitalWrite(LED_BLUE, LOW);  // a pending blink can still relight it, so hold it off
+  }
+}
+
+bool SenseCapSolarBoard::handleCommand(const char* command, uint32_t sender_timestamp, char* reply) {
+  if (strcmp(command, "get leds") == 0) {
+    sprintf(reply, "> %s", _leds_off ? "off" : "on");
+    return true;
+  }
+  if (memcmp(command, "set leds ", 9) == 0) {
+    if (strcmp(&command[9], "on") == 0) {
+      if (_prefs && !_prefs->setByKey("leds", "1")) {
+        strcpy(reply, "Error: failed to save leds setting");
+      } else {
+        setLedsEnabled(true);
+        strcpy(reply, "OK - leds on");
+      }
+    } else if (strcmp(&command[9], "off") == 0) {
+      if (_prefs && !_prefs->setByKey("leds", "0")) {
+        strcpy(reply, "Error: failed to save leds setting");
+      } else {
+        setLedsEnabled(false);
+        strcpy(reply, "OK - leds off");
+      }
+    } else {
+      strcpy(reply, "Error: state must be on or off");
+    }
+    return true;
+  }
+  return false; // not handled
 }
