@@ -104,6 +104,8 @@ MultiSerialInterface interface_manager;
 #elif defined(ESP32)
   #include <SPIFFS.h>
   DataStore store(SPIFFS, rtc_clock);
+#elif defined(ASR650X_PLATFORM)
+  DataStore store;   // SFLASH rows, no filesystem
 #endif
 
 /* GLOBAL OBJECTS */
@@ -179,6 +181,9 @@ void setup() {
   the_mesh.begin();
 #elif defined(ESP32)
   SPIFFS.begin(true);
+  store.begin();
+  the_mesh.begin();
+#elif defined(ASR650X_PLATFORM)
   store.begin();
   the_mesh.begin();
 #else
