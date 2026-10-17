@@ -57,10 +57,25 @@ void BaseChatMesh::sendAckTo(const ContactInfo& dest, const uint8_t* ack_hash, u
   }
 }
 
+// Unix time of Jan 1 of (build year + 4). __DATE__ is "Mmm dd yyyy".
+static uint32_t maxPlausibleTime() {
+  const char* d = __DATE__;
+  int year = (d[7] - '0') * 1000 + (d[8] - '0') * 100 + (d[9] - '0') * 10 + (d[10] - '0') + 4;
+  uint32_t days = 0;
+  for (int y = 1970; y < year; y++) {
+    days += ((y % 4 == 0 && y % 100 != 0) || y % 400 == 0) ? 366 : 365;
+  }
+  return days * 86400UL;
+}
+
 void BaseChatMesh::bootstrapRTCfromContacts() {
+  // Ignore lastmod values implausibly far in the future (e.g. written while the
+  // clock was corrupted). Restoring one would lock the clock in the future,
+  // since CMD_SET_DEVICE_TIME can't move it backwards.
+  const uint32_t max_time = maxPlausibleTime();
   uint32_t latest = 0;
   for (int i = 0; i < num_contacts; i++) {
-    if (contacts[i].lastmod > latest) {
+    if (contacts[i].lastmod > latest && contacts[i].lastmod < max_time) {
       latest = contacts[i].lastmod;
     }
   }
