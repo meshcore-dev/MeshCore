@@ -107,9 +107,7 @@ public:
 };
 }
 
-bool radio_init() {
-  rtc_clock.begin(Wire);
-  // Called once from setup, before SPI is started for the RAK13302.
+rak3401::OnboardRadioState rak3401::sleepOnboardRadio() {
   OnboardRadioIO onboard;
   const uint32_t started = millis();
   // The SX1262 version register shares the "SX1261" prefix used by RadioLib.
@@ -119,6 +117,11 @@ bool radio_init() {
                         state == rak3401::OnboardRadioState::BusyTimeout ? "busy-timeout" : "sleep-failed";
   MESH_DEBUG_PRINTLN("onboard SX1262: %s elapsed=%lu ms", outcome,
                     (unsigned long)(millis() - started));
+  return state;
+}
+
+bool radio_init() {
+  rtc_clock.begin(Wire);
   return radio.std_init(&SPI);
 }
 

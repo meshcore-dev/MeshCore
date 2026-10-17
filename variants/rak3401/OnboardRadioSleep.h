@@ -6,6 +6,9 @@ namespace rak3401 {
 
 enum class OnboardRadioState { Absent, Asleep, BusyTimeout, SleepFailed };
 
+// Board startup only, before the primary radio starts SPI.
+OnboardRadioState sleepOnboardRadio();
+
 // IO owns the temporary SPI pin assignment; every outcome must release it.
 template <typename IO>
 OnboardRadioState sleepOnboardRadio(IO& io, const char* expectedVersion) {
