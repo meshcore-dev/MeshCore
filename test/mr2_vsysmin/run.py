@@ -93,8 +93,8 @@ def main():
             mutations = (
                 ("old-2.75V", declarations.replace("BQ_MIN_SYSTEM_V = 2.50f", "BQ_MIN_SYSTEM_V = 2.75f"), functions),
                 ("missing-post-CELL-restore", declarations,
-                 functions.replace("bq.setMinSystemV(BQ_MIN_SYSTEM_V);\n  bq.setChargeLimitA",
-                                   "bq.setChargeLimitA")),
+                 functions.replace("bq.setMinSystemV(BQ_MIN_SYSTEM_V);\n  const uint16_t chargeCurrent_mA",
+                                   "const uint16_t chargeCurrent_mA")),
                 ("missing-final-MPPT-enable", declarations,
                  functions.replace("bq.setMPPTenable(getMPPTEnabled());", "")),
             )
