@@ -28,6 +28,14 @@
     return i;
   }
 
+bool AdvertDataParser::isValidName(const char *n) {
+  while (*n) {
+    if (*n == '[' || *n == ']' || *n == '\\' || *n == ':' || *n == ',' || *n == '?' || *n == '*') return false;
+    n++;
+  }
+  return true;
+}
+
   AdvertDataParser::AdvertDataParser(const uint8_t app_data[], uint8_t app_data_len) {
     _name[0] = 0;
     _lat = _lon = 0;

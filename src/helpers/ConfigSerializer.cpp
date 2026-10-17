@@ -1,4 +1,5 @@
 #include "ConfigSerializer.h"
+#include <stdlib.h>   // atoi/atol/atof (Arduino.h pulls this in on-device, native builds do not)
 
 bool ConfigSerializer::saveSerial(Stream& s) {
   Context context(&s, OP::WRITE);
@@ -23,7 +24,9 @@ static bool is_whitespace(char c) {
   return c == ' ' || c == '\t' || c == '\r' || c == '\n';
 }
 static bool is_key_char(char c) {
-  return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '_';
+  // digits are allowed: keys like gr_1hop contain one, otherwise loadSerial
+  // fails at that key and prefs stop reloading after a reboot
+  return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_';
 }
 static bool is_value_char(char c) {
   return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || c == '-' || c == '.';
@@ -62,6 +65,7 @@ int ConfigSerializer::Context::readNext() {
     case EXPECT_COMMA_OR_KEY:
       if (c == ',') { rd_mode = EXPECT_KEY; return TOK_WHITESPACE; }
     case EXPECT_KEY:
+      if (rd_len == 0 && c == '}') { rd_mode = EXPECT_COMMA_OR_KEY_OR_CLOSE; return TOK_END_OBJ; }  // empty object, eg. 'custom:{}'
       if (rd_len > 0 && c == ':') { rd_buf[rd_len] = 0; rd_len = 0; rd_mode = EXPECT_VAL_OR_OBJ; return TOK_KEY; }
       if (rd_len == 0 && is_whitespace(c)) return TOK_WHITESPACE;
       if (rd_len < CONFIG_MAX_KEYLEN-1 && is_key_char(c)) { rd_buf[rd_len++] = c; return TOK_WHITESPACE; }
