@@ -577,6 +577,30 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 ---
 
+#### View or change the relay (forward) duty cycle limit
+**Usage:**
+- `get fwd.dutycycle`
+- `set fwd.dutycycle <value>`
+
+**Parameters:**
+- `value`: Duty cycle percentage (1-100) that this node may spend re-transmitting other
+  nodes' packets. Airtime spent forwarding is accounted over a rolling window, and once
+  the budget is spent further forwards are dropped (and counted) rather than delayed.
+  Traffic this node originates, including its own ACKs, is not charged to this budget.
+
+**Default:** `100%` (no separate limit; forwards are still bounded by the overall duty cycle)
+
+**Examples:**
+- `set fwd.dutycycle 100` — no separate relay limit
+- `set fwd.dutycycle 10` — relay at most 10% of each window
+- `set fwd.dutycycle 1` — relay at most 1% of each window (strictest EU requirement)
+
+> **Note:** Takes effect after reboot. `stats-radio` reports relay usage as
+> `fwd_air_secs` (total), `fwd_window_secs` / `fwd_limit_secs` (current window and cap)
+> and `fwd_dropped` (forwards refused).
+
+---
+
 #### View or change the airtime factor (duty cycle limit)
 > **Deprecated** as of firmware v1.15.0. Use [`get/set dutycycle`](#view-or-change-the-duty-cycle-limit) instead.
 
