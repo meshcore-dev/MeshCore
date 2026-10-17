@@ -12,6 +12,15 @@ namespace mesh {
 #define MIN_TX_BUDGET_RESERVE_MS   100    // min budget (ms) required before allowing next TX
 #define MIN_TX_BUDGET_AIRTIME_DIV  2      // require at least 1/N of estimated airtime as budget before TX
 
+// Drop an outbound packet that has sat in the TX queue longer than this
+// (e.g. due to duty-cycle exhaustion). Delivering a packet minutes/hours
+// after it was queued is harmful: time-sensitive payloads (ACK/REQ/RESPONSE)
+// are useless, and channel messages show up as if the user typed them long
+// ago. Must sit above the worst-case budget-refill wait (~10-20s at 10%).
+#ifndef MAX_PACKET_QUEUE_AGE_MS
+  #define MAX_PACKET_QUEUE_AGE_MS  60000  // 60 seconds
+#endif
+
 #ifndef NOISE_FLOOR_CALIB_INTERVAL
   #define NOISE_FLOOR_CALIB_INTERVAL   2000     // 2 seconds
 #endif
@@ -19,6 +28,7 @@ namespace mesh {
 void Dispatcher::begin() {
   n_sent_flood = n_sent_direct = 0;
   n_recv_flood = n_recv_direct = 0;
+  n_expired = 0;
   _err_flags = 0;
   radio_nonrx_start = _ms->getMillis();
 
@@ -89,6 +99,11 @@ void Dispatcher::loop() {
       total_air_time += t;
       //Serial.print("  airtime="); Serial.println(t);
 
+      MESH_DEBUG_PRINTLN("%s Dispatcher::loop(): TX complete (len=%d, airtime=%ld ms)",
+                         getLogDateTime(),
+                         2 + outbound->getPathByteLen() + outbound->payload_len,
+                         t);
+
       updateTxBudget();
 
       if (t > tx_budget_ms) {
@@ -143,6 +158,7 @@ void Dispatcher::loop() {
     }
   }
   checkRecv();
+  expireAgedOutbound();   // drop stale packets (frees pool slots before head-of-line)
   checkSend();
 }
 
@@ -268,6 +284,7 @@ void Dispatcher::processRecvPacket(Packet* pkt) {
     uint8_t priority = (action >> 24) - 1;
     uint32_t _delay = action & 0xFFFFFF;
 
+    pkt->queued_at = _ms->getMillis();
     _mgr->queueOutbound(pkt, priority, futureMillis(_delay));
   }
 }
@@ -305,6 +322,17 @@ void Dispatcher::checkSend() {
   cad_busy_start = 0;  // reset busy state
 
   outbound = _mgr->getNextOutbound(_ms->getMillis());
+  // Drop packets that have sat in the TX queue too long (e.g. due to duty-cycle
+  // exhaustion) before transmitting them stale.
+  while (outbound && (long)(_ms->getMillis() - outbound->queued_at) > (long)MAX_PACKET_QUEUE_AGE_MS) {
+    MESH_DEBUG_PRINTLN("%s Dispatcher::checkSend(): outbound packet expired in TX queue (age=%lu ms), dropping",
+                       getLogDateTime(), (unsigned long)(_ms->getMillis() - outbound->queued_at));
+    onPacketExpired(outbound);   // let sub-class clear dedup so a later copy gets another chance
+    n_expired++;
+    _err_flags |= ERR_EVENT_PKT_EXPIRED;
+    releasePacket(outbound);
+    outbound = _mgr->getNextOutbound(_ms->getMillis());
+  }
   if (outbound) {
     int len = 0;
     uint8_t raw[MAX_TRANS_UNIT];
@@ -368,11 +396,33 @@ void Dispatcher::releasePacket(Packet* packet) {
   _mgr->free(packet);
 }
 
+// Drop outbound packets that have sat in the TX queue beyond the max age.
+// Frees pool slots before head-of-line (reducing pool exhaustion and dedup
+// table rollover) and prevents stale packets from being transmitted.
+void Dispatcher::expireAgedOutbound() {
+  unsigned long now = _ms->getMillis();
+  int n = _mgr->getOutboundTotal();
+  for (int i = n - 1; i >= 0; i--) {   // iterate backwards so removal keeps indices valid
+    Packet* pkt = _mgr->getOutboundByIdx(i);
+    if (pkt == NULL) continue;
+    if ((long)(now - pkt->queued_at) > (long)MAX_PACKET_QUEUE_AGE_MS) {
+      MESH_DEBUG_PRINTLN("%s Dispatcher::expireAgedOutbound(): packet expired in TX queue (age=%lu ms), dropping",
+                         getLogDateTime(), (unsigned long)(now - pkt->queued_at));
+      _mgr->removeOutboundByIdx(i);   // remove from queue (returns the packet)
+      onPacketExpired(pkt);           // let sub-class clear dedup so a later copy gets another chance
+      n_expired++;
+      _err_flags |= ERR_EVENT_PKT_EXPIRED;
+      releasePacket(pkt);
+    }
+  }
+}
+
 void Dispatcher::sendPacket(Packet* packet, uint8_t priority, uint32_t delay_millis) {
   if (!Packet::isValidPathLen(packet->path_len) || packet->payload_len > MAX_PACKET_PAYLOAD) {
     MESH_DEBUG_PRINTLN("%s Dispatcher::sendPacket(): ERROR: invalid packet... path_len=%d, payload_len=%d", getLogDateTime(), (uint32_t) packet->path_len, (uint32_t) packet->payload_len);
     _mgr->free(packet);
   } else {
+    packet->queued_at = _ms->getMillis();
     _mgr->queueOutbound(packet, priority, futureMillis(delay_millis));
   }
 }
