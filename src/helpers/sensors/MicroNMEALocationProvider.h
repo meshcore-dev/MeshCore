@@ -113,6 +113,7 @@ public :
     }
 
     void begin() override {
+        nmea.clear();
         _begin_calls++;
         claim();
         if (_pin_en != -1) {

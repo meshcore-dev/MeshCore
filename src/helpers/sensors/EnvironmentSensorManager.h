@@ -22,8 +22,11 @@ protected:
   bool     gps_detected = false;
   bool     gps_active = false;
   uint32_t gps_update_interval_sec = 1;
+  uint32_t gps_sleep_interval_sec = 0;
 
   #if ENV_INCLUDE_GPS
+  bool     gps_enabled = false;
+  unsigned long next_gps_wakeup = 0;
   LocationProvider* _location;
   void start_gps();
   void stop_gps();
