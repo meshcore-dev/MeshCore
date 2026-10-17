@@ -6,6 +6,32 @@
 
 #include "../../examples/companion_radio/NodePrefs.h"
 
+bool CommonRadioPrefs::getByKey(const char* key, char* value, size_t max_len) {
+  if (strcmp(key, "fem_rxgain") == 0) {
+    snprintf(value, max_len, "%d", (uint32_t)getFEMRxGain());
+    return true;
+  }
+  if (strcmp(key, "fem_txgain") == 0) {
+    snprintf(value, max_len, "%d", (uint32_t)getFEMTxGain());
+    return true;
+  }
+  return false;
+}
+
+bool CommonRadioPrefs::setByKey(const char* key, const char* value) {
+  if (strcmp(key, "fem_rxgain") == 0) {
+    setFEMRxGain(atoi(value));
+    markDirty();
+    return true;
+  }
+  if (strcmp(key, "fem_txgain") == 0) {
+    setFEMTxGain(atoi(value));
+    markDirty();
+    return true;
+  }
+  return false;
+}
+
 class ReplayStream : public Stream {
   const char* _text;
   int _pos = 0;
@@ -76,6 +102,37 @@ TEST(CompanionNodePrefs, RxGainSettingsRoundTripIndependently) {
   EXPECT_EQ(1, loaded.radio_fem_txgain);
 }
 #endif
+
+TEST(CompanionNodePrefs, NegativeTxPowerPreservedAsSigned) {
+  NodePrefs prefs;
+  CommonRadioPrefs* radio = prefs.getRadioPrefs();
+
+  radio->setTxPower(-9);
+  EXPECT_EQ(-9, prefs.tx_power_dbm);
+  EXPECT_EQ(-9, radio->getTxPower());
+  EXPECT_EQ(-9, static_cast<int32_t>(radio->getTxPower()));
+
+  char reply[32];
+  snprintf(reply, sizeof(reply), "> %d", static_cast<int32_t>(radio->getTxPower()));
+  EXPECT_STREQ("> -9", reply);
+}
+
+TEST(CompanionNodePrefs, NegativeTxPowerRoundTripsSerial) {
+  NodePrefs saved;
+  saved.getRadioPrefs()->setTxPower(-9);
+
+  CaptureStream output;
+  ASSERT_TRUE(saved.saveSerial(output));
+  EXPECT_NE(std::string::npos, output.text().find("tx:-9"));
+
+  ReplayStream input("{radio:{tx:-9}}");
+  NodePrefs loaded;
+  loaded.tx_power_dbm = 22;
+
+  ASSERT_TRUE(loaded.loadSerial(input));
+  EXPECT_EQ(-9, loaded.tx_power_dbm);
+  EXPECT_EQ(-9, loaded.getRadioPrefs()->getTxPower());
+}
 
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
