@@ -60,6 +60,29 @@
 
 #define LAZY_CONTACTS_WRITE_DELAY    5000
 
+mesh::Packet* MyMesh::obtainPacketFor(ClientInfo& client, const uint8_t* out_path, uint8_t out_path_len) {
+  auto pkt = obtainNewPacket();
+  if (pkt) {
+    if (out_path_len == OUT_PATH_UNKNOWN) {
+      pkt->header |= ROUTE_TYPE_FLOOD;
+      // NOTE: final route type, transport codes, path_len is set later in sendFloodScoped()
+    } else {
+      uint8_t crypto_mode = client.direct_mode & 0x0F;
+      if (crypto_mode == CRYPTO_NEW_DIRECT) {
+        uint8_t dm_mode = client.direct_mode >> 4;   // upper 4 bits is which DM_MODE_* to use
+        pkt->header |= ROUTE_TYPE_TRANSPORT_DIRECT;
+        pkt->transport_codes[0] = (((uint16_t)dm_mode) << 14) | client.next_seq_no++;  // implicit, cursor = 0
+        pkt->transport_codes[1] = (client.curr_session_id & ~(3u << 14));
+        pkt->transport_codes[1] |= (CRYPTO_NEW_DIRECT << 14);
+      } else {
+        pkt->header |= ROUTE_TYPE_DIRECT;
+      }
+      pkt->path_len = mesh::Packet::copyPath(pkt->path, out_path, out_path_len);
+    }
+  }
+  return pkt;
+}
+
 void MyMesh::putNeighbour(const mesh::Identity &id, uint32_t timestamp, float snr) {
 #if MAX_NEIGHBOURS // check if neighbours enabled
   // find existing neighbour, else use least recently updated
@@ -123,6 +146,11 @@ uint8_t MyMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* secr
     client->permissions |= perms;
     memcpy(client->shared_secret, secret, PUB_KEY_SIZE);
 
+    // start new session
+    getRNG()->random((uint8_t *) &client->curr_session_id, sizeof(client->curr_session_id));
+    client->next_seq_no = 0;
+    client->direct_mode = CRYPTO_LEGACY;  // TODO: can Client send a new request param, indicating new-direct support?
+
     if (perms != PERM_ACL_GUEST) {   // keep number of FS writes to a minimum
       dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY);
     }
@@ -140,8 +168,9 @@ uint8_t MyMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* secr
   reply_data[7] = client->permissions;
   getRNG()->random(&reply_data[8], 4);   // random blob to help packet-hash uniqueness
   reply_data[12] = FIRMWARE_VER_LEVEL;  // New field
+  reply_data[13] = (1 << CRYPTO_NEW_DIRECT) | (1 << CRYPTO_LEGACY);  // New bitfield: which crypto-types supported
 
-  return 13;  // reply length
+  return 14;  // reply length
 }
 
 uint8_t MyMesh::handleAnonRegionsReq(const mesh::Identity& sender, uint32_t sender_timestamp, const uint8_t* data) {
@@ -431,6 +460,16 @@ void MyMesh::sendFloodReply(mesh::Packet* packet, unsigned long delay_millis, ui
   }
 }
 
+bool MyMesh::isHashNeighbor(const uint8_t* hash, uint8_t hash_size) {
+#if MAX_NEIGHBOURS
+  for (int i = 0; i < MAX_NEIGHBOURS; i++) {
+    auto n = &neighbours[i];
+    if (n->heard_timestamp > 0 && n->id.isHashMatch(hash, hash_size)) return true;
+  }
+#endif
+  return false;
+}
+
 bool MyMesh::allowPacketForward(const mesh::Packet *packet) {
   if (_prefs.disable_fwd) return false;
   if (packet->isRouteFlood()
@@ -569,7 +608,7 @@ mesh::DispatcherAction MyMesh::onRecvPacket(mesh::Packet* pkt) {
 }
 
 void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const mesh::Identity &sender,
-                            uint8_t *data, size_t len) {
+                            uint8_t *data, size_t len, uint8_t crypto_type) {
   if (packet->getPayloadType() == PAYLOAD_TYPE_ANON_REQ) { // received an initial request by a possible admin
                                                            // client (unknown at this stage)
     uint32_t timestamp;
@@ -595,9 +634,18 @@ void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const m
 
     // a DIRECT login can reply via the stored out_path, as onPeerDataRecv() does for REQ
     ClientInfo* client = acl.getClient(sender.pub_key, PUB_KEY_SIZE);
-    bool have_out_path = client != NULL && client->out_path_len != OUT_PATH_UNKNOWN;
+    if (client == NULL) {
+      MESH_DEBUG_PRINTLN("onAnonDataRecv: client ACL cannot find slot!");  // This shouldn't happen!
+      return;
+    }
 
-    auto route = mesh::chooseReplyRoute(packet->isRouteFlood(), reply_path_len != 0xFF, have_out_path);
+    if (crypto_type == CRYPTO_NEW_DIRECT) {
+      if (client->direct_mode == CRYPTO_LEGACY) {
+        client->direct_mode = (DM_MODE_SEQ_NORMAL << 4) | CRYPTO_NEW_DIRECT;   // have received from Client in new scheme, so they must support it
+      }
+    }
+
+    auto route = mesh::chooseReplyRoute(packet->isRouteFlood(), reply_path_len != 0xFF, client->out_path_len != OUT_PATH_UNKNOWN);
 
     if (route == mesh::REPLY_ROUTE_PATH_RETURN) {
       // let this sender know path TO here, so they can use sendDirect(), and ALSO encode the response
@@ -607,13 +655,17 @@ void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const m
       return;
     }
 
-    mesh::Packet* reply = createDatagram(PAYLOAD_TYPE_RESPONSE, sender, secret, reply_data, reply_len);
-    if (reply == NULL) return;
-
+    mesh::Packet* reply;
     if (route == mesh::REPLY_ROUTE_DIRECT_SUPPLIED) {
-      sendDirect(reply, reply_path, reply_path_len, SERVER_RESPONSE_DELAY);
-    } else if (route == mesh::REPLY_ROUTE_DIRECT_OUT_PATH) {
-      sendDirect(reply, client->out_path, client->out_path_len, SERVER_RESPONSE_DELAY);
+      reply = obtainPacketFor(*client, reply_path, reply_path_len);
+    } else {
+      reply = obtainPacketFor(*client, client->out_path, client->out_path_len);
+    }
+    if (reply == NULL) return;  // packet pool exhausted
+
+    encodeDatagram(reply, PAYLOAD_TYPE_RESPONSE, sender, secret, reply_data, reply_len);
+    if (reply->isRouteDirect()) {
+      send(reply, SERVER_RESPONSE_DELAY);
     } else {
       sendFloodReply(reply, SERVER_RESPONSE_DELAY, packet->getPathHashSize());
     }
@@ -661,13 +713,19 @@ void MyMesh::onAdvertRecv(mesh::Packet *packet, const mesh::Identity &id, uint32
 }
 
 void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, const uint8_t *secret,
-                            uint8_t *data, size_t len) {
+                            uint8_t *data, size_t len, uint8_t crypto_type) {
   int i = matching_peer_indexes[sender_idx];
   if (i < 0 || i >= acl.getNumClients()) { // get from our known_clients table (sender SHOULD already be known in this context)
     MESH_DEBUG_PRINTLN("onPeerDataRecv: invalid peer idx: %d", i);
     return;
   }
   ClientInfo* client = acl.getClientByIdx(i);
+
+  if (crypto_type == CRYPTO_NEW_DIRECT) {
+    if (client->direct_mode == CRYPTO_LEGACY) {
+      client->direct_mode = (DM_MODE_SEQ_NORMAL << 4) | CRYPTO_NEW_DIRECT;   // have received from Client in new scheme, so they must support it
+    }
+  }
 
   if (type == PAYLOAD_TYPE_REQ) { // request (from a Known admin client!)
     uint32_t timestamp;
@@ -686,11 +744,11 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
                                               PAYLOAD_TYPE_RESPONSE, reply_data, reply_len);
         if (path) sendFloodReply(path, SERVER_RESPONSE_DELAY, packet->getPathHashSize());
       } else {
-        mesh::Packet *reply =
-            createDatagram(PAYLOAD_TYPE_RESPONSE, client->id, secret, reply_data, reply_len);
+        auto reply = obtainPacketFor(*client, client->out_path, client->out_path_len);
         if (reply) {
-          if (client->out_path_len != OUT_PATH_UNKNOWN) { // we have an out_path, so send DIRECT
-            sendDirect(reply, client->out_path, client->out_path_len, SERVER_RESPONSE_DELAY);
+          encodeDatagram(reply, PAYLOAD_TYPE_RESPONSE, client->id, secret, reply_data, reply_len);
+          if (reply->isRouteDirect()) {
+            send(reply, SERVER_RESPONSE_DELAY);
           } else {
             sendFloodReply(reply, SERVER_RESPONSE_DELAY, packet->getPathHashSize());
           }
@@ -714,7 +772,7 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
       // len can be > original length, but 'text' will be padded with zeroes
       data[len] = 0; // need to make a C string again, with null terminator
 
-      if (flags == TXT_TYPE_PLAIN) { // for legacy CLI, send Acks
+      if (flags == TXT_TYPE_PLAIN) { // for legacy CLI, send Acks  <==== TODO, DEPRECATE?
         uint32_t ack_hash; // calc truncated hash of the message timestamp + text + sender pub_key, to prove
                            // to sender that we got it
         mesh::Utils::sha256((uint8_t *)&ack_hash, 4, data, 5 + strlen((char *)&data[5]), client->id.pub_key,
@@ -748,12 +806,13 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
         memcpy(temp, &timestamp, 4);        // mostly an extra blob to help make packet_hash unique
         temp[4] = (TXT_TYPE_CLI_DATA << 2); // NOTE: legacy was: TXT_TYPE_PLAIN
 
-        auto reply = createDatagram(PAYLOAD_TYPE_TXT_MSG, client->id, secret, temp, 5 + text_len);
+        auto reply = obtainPacketFor(*client, client->out_path, client->out_path_len);
         if (reply) {
-          if (client->out_path_len == OUT_PATH_UNKNOWN) {
-            sendFloodReply(reply, CLI_REPLY_DELAY_MILLIS, packet->getPathHashSize());
+          encodeDatagram(reply, PAYLOAD_TYPE_TXT_MSG, client->id, secret, temp, 5 + text_len); 
+          if (reply->isRouteDirect()) {
+            send(reply, CLI_REPLY_DELAY_MILLIS);
           } else {
-            sendDirect(reply, client->out_path, client->out_path_len, CLI_REPLY_DELAY_MILLIS);
+            sendFloodReply(reply, CLI_REPLY_DELAY_MILLIS, packet->getPathHashSize());
           }
         }
       }
@@ -764,13 +823,19 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
 }
 
 bool MyMesh::onPeerPathRecv(mesh::Packet *packet, int sender_idx, const uint8_t *secret, uint8_t *path,
-                            uint8_t path_len, uint8_t extra_type, uint8_t *extra, uint8_t extra_len) {
+                            uint8_t path_len, uint8_t extra_type, uint8_t *extra, uint8_t extra_len, uint8_t crypto_type) {
   // TODO: prevent replay attacks
   int i = matching_peer_indexes[sender_idx];
 
   if (i >= 0 && i < acl.getNumClients()) { // get from our known_clients table (sender SHOULD already be known in this context)
     MESH_DEBUG_PRINTLN("PATH to client, path_len=%d", (uint32_t)path_len);
     auto client = acl.getClientByIdx(i);
+
+    if (crypto_type == CRYPTO_NEW_DIRECT) {
+      if (client->direct_mode == CRYPTO_LEGACY) {
+        client->direct_mode = (DM_MODE_SEQ_NORMAL << 4) | CRYPTO_NEW_DIRECT;   // have received from Client in new scheme, so they must support it
+      }
+    }
 
     // store a copy of path, for sendDirect()
     client->out_path_len = mesh::Packet::copyPath(client->out_path, path, path_len);

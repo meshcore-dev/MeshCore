@@ -358,8 +358,10 @@ Packet* Dispatcher::obtainNewPacket() {
   if (pkt == NULL) {
     _err_flags |= ERR_EVENT_FULL;
   } else {
+    pkt->header = 0;
     pkt->payload_len = pkt->path_len = 0;
     pkt->_snr = 0;
+    pkt->transport_codes[0] = pkt->transport_codes[1] = 0;
   }
   return pkt;
 }

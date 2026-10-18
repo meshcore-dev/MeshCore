@@ -188,6 +188,12 @@ void MyMesh::writeContactRespFrame(uint8_t code, const ContactInfo &contact) {
   i += 4;
   memcpy(&out_frame[i], &contact.lastmod, 4);
   i += 4;
+  // new fields
+  out_frame[i++] = contact.direct_mode;
+  out_frame[i++] = contact.next_seq_no;
+  memcpy(&out_frame[i], &contact.curr_session_id, 2);
+  i += 2;
+
   _serial->writeFrame(out_frame, i);
 }
 
@@ -212,6 +218,12 @@ void MyMesh::updateContactFromFrame(ContactInfo &contact, uint32_t& last_mod, co
     i += 4;
     if (len >= i + 4) {
       memcpy(&last_mod, &frame[i], 4);
+      if (len >= i + 4) {
+        contact.direct_mode = frame[i++];
+        contact.next_seq_no = frame[i++];
+        memcpy(&contact.curr_session_id, &frame[i], 2);
+        i += 2;
+      }
     }
   }
 }
@@ -486,6 +498,29 @@ bool MyMesh::filterRecvFloodPacket(mesh::Packet* packet) {
 
 bool MyMesh::allowPacketForward(const mesh::Packet* packet) {
   return _prefs.isRepeatEn();
+}
+
+mesh::Packet* MyMesh::obtainPacketFor(ContactInfo& contact) {
+  auto pkt = obtainNewPacket();
+  if (pkt) {
+    if (contact.out_path_len == OUT_PATH_UNKNOWN) {
+      pkt->header |= ROUTE_TYPE_FLOOD;
+      // NOTE: final route type, transport codes, path_len is set later in sendFloodScoped()
+    } else {
+      uint8_t crypto_mode = contact.direct_mode & 0x0F;
+      if (crypto_mode == CRYPTO_NEW_DIRECT) {
+        uint8_t dm_mode = contact.direct_mode >> 4;   // upper 4 bits is which DM_MODE_* to use
+        pkt->header |= ROUTE_TYPE_TRANSPORT_DIRECT;
+        pkt->transport_codes[0] = (((uint16_t)dm_mode) << 14) | contact.next_seq_no++;  // implicit, cursor = 0
+        pkt->transport_codes[1] = (contact.curr_session_id & ~(3u << 14));
+        pkt->transport_codes[1] |= (CRYPTO_NEW_DIRECT << 14);
+      } else {
+        pkt->header |= ROUTE_TYPE_DIRECT;
+      }
+      pkt->path_len = mesh::Packet::copyPath(pkt->path, contact.out_path, contact.out_path_len);
+    }
+  }
+  return pkt;
 }
 
 void MyMesh::sendFloodScoped(const TransportKey& scope, mesh::Packet* pkt, uint32_t delay_millis) {

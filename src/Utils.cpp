@@ -174,6 +174,27 @@ int Utils::MACThenDecrypt(const uint8_t* shared_secret, uint8_t* dest, const uin
   return 0; // invalid HMAC
 }
 
+static void derive_key(uint8_t* derived_key, const uint8_t* key, int key_len, const uint8_t* iv, int iv_len) {
+  // TODO: look into HKDF
+  for (int i = 0; i < 32; i++) {
+    derived_key[i] = key[i % key_len] ^ iv[i % iv_len];
+  }
+}
+
+int Utils::encryptThenMAC(const uint8_t* shared_secret, const uint8_t* iv, int iv_len, uint8_t* dest, const uint8_t* src, int src_len) {
+  uint8_t derived[PUB_KEY_SIZE];
+  derive_key(derived, shared_secret, PUB_KEY_SIZE, iv, iv_len);
+
+  return Utils::encryptThenMAC(derived, dest, src, src_len);
+}
+
+int Utils::MACThenDecrypt(const uint8_t* shared_secret, const uint8_t* iv, int iv_len, uint8_t* dest, const uint8_t* src, int src_len) {
+  uint8_t derived[PUB_KEY_SIZE];
+  derive_key(derived, shared_secret, PUB_KEY_SIZE, iv, iv_len);
+
+  return Utils::MACThenDecrypt(derived, dest, src, src_len);
+}
+
 static const char hex_chars[] = "0123456789ABCDEF";
 
 void Utils::toHex(char* dest, const uint8_t* src, size_t len) {
