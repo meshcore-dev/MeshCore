@@ -15,6 +15,13 @@ public:
   virtual int16_t getNoiseFloor() { return -120; }
 };
 
+class RTCClock {
+public:
+  virtual ~RTCClock() = default;
+  virtual uint32_t getCurrentTime() = 0;
+  virtual void setCurrentTime(uint32_t time) = 0;
+};
+
 class MainBoard {
 public:
   virtual ~MainBoard() = default;
