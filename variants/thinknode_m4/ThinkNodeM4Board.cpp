@@ -4,14 +4,65 @@
 
 #include <bluefruit.h>
 
+#define BATT_GAUGE_TIMEOUT_MS  10000
+
 void ThinkNodeM4Board::begin() {
   NRF52Board::begin();
   btn_prev_state = HIGH;
+
+  pinMode(LED_BAT1, OUTPUT);
+  pinMode(LED_BAT2, OUTPUT);
+  pinMode(LED_BAT3, OUTPUT);
+  pinMode(LED_BAT4, OUTPUT);
+  clearBatteryGauge();
+
+  // power-on indication: 3 quick red flashes
+  pinMode(LED_PIN, OUTPUT);
+  for (int i = 0; i < 3; i++) {
+    digitalWrite(LED_PIN, LED_STATE_ON);
+    delay(100);
+    digitalWrite(LED_PIN, !LED_STATE_ON);
+    delay(100);
+  }
 
   Wire.begin();
   battery_serial->begin(4800);
 
   delay(10);   // give sx1262 some time to power up
+}
+
+void ThinkNodeM4Board::clearBatteryGauge() {
+  digitalWrite(LED_BAT1, LOW);
+  digitalWrite(LED_BAT2, LOW);
+  digitalWrite(LED_BAT3, LOW);
+  digitalWrite(LED_BAT4, LOW);
+}
+
+void ThinkNodeM4Board::showBatteryGauge() {
+  getBattMilliVolts();   // refresh bat_level_percent if a frame from the battery MCU is waiting
+  uint8_t pct = bat_level_percent;
+  digitalWrite(LED_BAT1, pct >= 1  ? HIGH : LOW);
+  digitalWrite(LED_BAT2, pct >= 25 ? HIGH : LOW);
+  digitalWrite(LED_BAT3, pct >= 50 ? HIGH : LOW);
+  digitalWrite(LED_BAT4, pct >= 75 ? HIGH : LOW);
+  gauge_on_since = millis();
+}
+
+void ThinkNodeM4Board::loop() {
+  NRF52BoardDCDC::loop();
+
+#ifdef BUTTON_PIN
+  uint8_t v = digitalRead(BUTTON_PIN);
+  if (v != gauge_btn_prev) {
+    gauge_btn_prev = v;
+    if (v == USER_BTN_PRESSED) showBatteryGauge();
+  }
+#endif
+
+  if (gauge_on_since && millis() - gauge_on_since >= BATT_GAUGE_TIMEOUT_MS) {
+    clearBatteryGauge();
+    gauge_on_since = 0;
+  }
 }
 
 uint16_t ThinkNodeM4Board::getBattMilliVolts() {
