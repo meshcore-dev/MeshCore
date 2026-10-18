@@ -18,6 +18,12 @@ public:
   R1NeoBoard() : NRF52Board("R1NEO_OTA") {}
   void begin();
 
+#ifdef NRF52_POWER_MANAGEMENT
+  void powerOff() override {
+    initiateShutdown(SHUTDOWN_REASON_USER);
+  }
+#endif
+
 #if defined(P_LORA_TX_LED)
   void onBeforeTransmit() override {
     digitalWrite(P_LORA_TX_LED, HIGH);   // turn TX LED on

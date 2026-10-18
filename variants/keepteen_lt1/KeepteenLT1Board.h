@@ -37,8 +37,4 @@ public:
     digitalWrite(P_LORA_TX_LED, LOW);   // turn TX LED off
   }
 #endif
-
-  void powerOff() override {
-    sd_power_system_off();
-  }
 };

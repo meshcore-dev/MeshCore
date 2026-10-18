@@ -9,6 +9,13 @@ protected:
 public:
   ESPNOWRadio() { n_recv = n_sent = n_recv_errors = 0; }
 
+  uint32_t getRngSeed();
+
+  void setParams(float freq, float bw, uint8_t sf, uint8_t cr) {
+    // no-op
+  }
+  void powerOff() { /* no-op */ }
+
   void init();
   int recvRaw(uint8_t* bytes, int sz) override;
   uint32_t getEstAirtimeFor(int len_bytes) override;
@@ -31,7 +38,7 @@ public:
    * These two functions do nothing for ESP-NOW, but are needed for the
    * Radio interface.
    */
-  virtual void setRxBoostedGainMode(bool) { }
+  virtual bool setRxBoostedGainMode(bool) { }
   virtual bool getRxBoostedGainMode() const { return false; }
 
   uint32_t intID();

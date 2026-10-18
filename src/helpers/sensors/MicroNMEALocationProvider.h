@@ -4,6 +4,7 @@
 #include <MicroNMEA.h>
 #include <RTClib.h>
 #include <helpers/RefCountedDigitalPin.h>
+#include <string.h>
 
 #ifndef GPS_EN
     #ifdef PIN_GPS_EN
@@ -13,8 +14,12 @@
     #endif
 #endif
 
-#ifndef PIN_GPS_EN_ACTIVE
-    #define PIN_GPS_EN_ACTIVE HIGH
+#ifndef GPS_EN_ACTIVE
+    #ifdef PIN_GPS_EN_ACTIVE
+        #define GPS_EN_ACTIVE PIN_GPS_EN_ACTIVE
+    #else
+        #define GPS_EN_ACTIVE HIGH
+    #endif
 #endif
 
 #ifndef GPS_RESET
@@ -25,11 +30,11 @@
     #endif
 #endif
 
-#ifndef GPS_RESET_FORCE
+#ifndef GPS_RESET_ACTIVE
     #ifdef PIN_GPS_RESET_ACTIVE
-        #define GPS_RESET_FORCE PIN_GPS_RESET_ACTIVE
+        #define GPS_RESET_ACTIVE PIN_GPS_RESET_ACTIVE
     #else
-        #define GPS_RESET_FORCE LOW
+        #define GPS_RESET_ACTIVE LOW
     #endif
 #endif
 
@@ -42,29 +47,63 @@ class MicroNMEALocationProvider : public LocationProvider {
     int8_t _claims = 0;
     int _pin_reset;
     int _pin_en;
-    long next_check = 0;
+    unsigned long next_check = 0;
     long time_valid = 0;
     unsigned long _last_time_sync = 0;
     static const unsigned long TIME_SYNC_INTERVAL = 1800000; // Re-sync every 30 minutes
 
+#ifdef GPS_L76K
+    void configureL76K() {
+        // Reapply the constellation mode at each provider start instead of
+        // assuming it survives a receiver power cycle.
+        // Mode 7 enables GPS + BeiDou + GLONASS.
+        delay(250);
+        MicroNMEA::sendSentence(*_gps_serial, "$PCAS04,7");
+        delay(250);
+    }
+#endif
+    // Observation-only diagnostics. These fields do not change GPS power,
+    // timing, reset behaviour, or parser input.
+    uint32_t _uart_bytes = 0;
+    uint32_t _nmea_checksum_ok = 0;
+    uint32_t _nmea_checksum_bad = 0;
+    uint32_t _begin_calls = 0;
+    uint32_t _stop_calls = 0;
+    unsigned long _last_uart_ms = 0;
+    unsigned long _last_nmea_ms = 0;
+    unsigned long _last_fix_ms = 0;
+    bool _uart_seen = false;
+    bool _nmea_seen = false;
+    bool _fix_seen = false;
+
+    static uint32_t ageMs(unsigned long timestamp) {
+        return (uint32_t)(millis() - timestamp);
+    }
+
+    static void formatAge(char* out, size_t out_size, bool seen, unsigned long timestamp) {
+        if (!seen) {
+            snprintf(out, out_size, "never");
+        } else {
+            snprintf(out, out_size, "%lu", (unsigned long)ageMs(timestamp));
+        }
+    }
+
 public :
     MicroNMEALocationProvider(Stream& ser, mesh::RTCClock* clock = NULL, int pin_reset = GPS_RESET, int pin_en = GPS_EN,RefCountedDigitalPin* peripher_power=NULL) :
-    _gps_serial(&ser), nmea(_nmeaBuffer, sizeof(_nmeaBuffer)), _pin_reset(pin_reset), _pin_en(pin_en), _clock(clock), _peripher_power(peripher_power) {
+    nmea(_nmeaBuffer, sizeof(_nmeaBuffer)), _clock(clock), _gps_serial(&ser), _peripher_power(peripher_power), _pin_reset(pin_reset), _pin_en(pin_en) {
         if (_pin_reset != -1) {
             pinMode(_pin_reset, OUTPUT);
-            digitalWrite(_pin_reset, GPS_RESET_FORCE);
+            digitalWrite(_pin_reset, GPS_RESET_ACTIVE);
         }
         if (_pin_en != -1) {
             pinMode(_pin_en, OUTPUT);
-            digitalWrite(_pin_en, LOW);
+            digitalWrite(_pin_en, !GPS_EN_ACTIVE);
         }
     }
 
     void claim() {
         _claims++;
-        if (_claims > 0) {
-            if (_peripher_power) _peripher_power->claim();
-        }
+        if (_peripher_power) _peripher_power->claim();
     }
 
     void release() {
@@ -74,29 +113,36 @@ public :
     }
 
     void begin() override {
+        _begin_calls++;
         claim();
         if (_pin_en != -1) {
-            digitalWrite(_pin_en, PIN_GPS_EN_ACTIVE);
+            digitalWrite(_pin_en, GPS_EN_ACTIVE);
         }
         if (_pin_reset != -1) {
-            digitalWrite(_pin_reset, !GPS_RESET_FORCE);
+            digitalWrite(_pin_reset, !GPS_RESET_ACTIVE);
         }
     }
 
     void reset() override {
         if (_pin_reset != -1) {
-            digitalWrite(_pin_reset, GPS_RESET_FORCE);
+            digitalWrite(_pin_reset, GPS_RESET_ACTIVE);
             delay(10);
-            digitalWrite(_pin_reset, !GPS_RESET_FORCE);
+            digitalWrite(_pin_reset, !GPS_RESET_ACTIVE);
         }
+#ifdef GPS_L76K
+        // EnvironmentSensorManager calls reset() immediately after begin().
+        // Configure only after that reset so the setting is not discarded.
+        configureL76K();
+#endif
     }
 
     void stop() override {
+        _stop_calls++;
         if (_pin_en != -1) {
-            digitalWrite(_pin_en, !PIN_GPS_EN_ACTIVE);
+            digitalWrite(_pin_en, !GPS_EN_ACTIVE);
         }
         if (_pin_reset != -1) {
-            digitalWrite(_pin_reset, GPS_RESET_FORCE);
+            digitalWrite(_pin_reset, GPS_RESET_ACTIVE);
         }
         release();
     }
@@ -105,7 +151,7 @@ public :
         // directly read the enable pin if present as gps can be
         // activated/deactivated outside of here ...
         if (_pin_en != -1) {
-            return digitalRead(_pin_en) == PIN_GPS_EN_ACTIVE;
+            return digitalRead(_pin_en) == GPS_EN_ACTIVE;
         } else {
             return true; // no enable so must be active
         }
@@ -127,23 +173,70 @@ public :
         return dt.unixtime();
     } 
 
+    void drain() { while (_gps_serial->available()) _gps_serial->read(); }
+
+    const char* getSentence() const { return nmea.getSentence(); }
+
     void sendSentence(const char *sentence) override {
         nmea.sendSentence(*_gps_serial, sentence);
+    }
+
+    bool waitFor(const char* prefix, uint32_t timeout_ms) {
+        size_t plen = strlen(prefix);
+        uint32_t timeout = millis() + timeout_ms;
+        while ((int32_t)(millis() - timeout) < 0) {
+            if (_gps_serial->available()) {
+                char c = _gps_serial->read();
+                #ifdef GPS_NMEA_DEBUG
+                Serial.print(c);
+                #endif
+                if (nmea.process(c) && strncmp(nmea.getSentence(), prefix, plen) == 0) return true;
+            } else {
+                yield();
+            }
+        }
+        return false;
     }
 
     void loop() override {
 
         while (_gps_serial->available()) {
             char c = _gps_serial->read();
+            _uart_bytes++;
+            _last_uart_ms = millis();
+            _uart_seen = true;
             #ifdef GPS_NMEA_DEBUG
             Serial.print(c);
             #endif
-            nmea.process(c);
+            bool parsed = nmea.process(c);
+
+            // MicroNMEA leaves the completed sentence in its buffer after the
+            // first line terminator. CRLF therefore counts once: CR observes the
+            // sentence, then LF clears the now-empty buffer.
+            if ((c == '\0' || c == '\r' || c == '\n') && nmea.getSentence()[0] != '\0') {
+                if (MicroNMEA::testChecksum(nmea.getSentence())) {
+                    _nmea_checksum_ok++;
+                    _last_nmea_ms = millis();
+                    _nmea_seen = true;
+
+                    // Refresh fix age only when a newly parsed GGA/RMC sentence
+                    // carries a valid fix. Other valid NMEA sentences must not
+                    // make an old position look fresh.
+                    const char* message_id = nmea.getMessageID();
+                    if (parsed && isValid() &&
+                        (strcmp(message_id, "GGA") == 0 || strcmp(message_id, "RMC") == 0)) {
+                        _last_fix_ms = millis();
+                        _fix_seen = true;
+                    }
+                } else {
+                    _nmea_checksum_bad++;
+                }
+            }
         }
 
         if (!isValid()) time_valid = 0;
 
-        if (millis() > next_check) {
+        if ((long)(millis() - next_check) > 0) {
             next_check = millis() + 1000;
             // Re-enable time sync periodically when GPS has valid fix
             if (!_time_sync_needed && _clock != NULL && (millis() - _last_time_sync) > TIME_SYNC_INTERVAL) {
@@ -160,5 +253,32 @@ public :
                 time_valid ++;
             }
         }
+    }
+
+    void formatDiagnostics(char* out, size_t out_size) override {
+        if (out_size == 0) return;
+
+        char uart_age[11];
+        char nmea_age[11];
+        char fix_age[11];
+        formatAge(uart_age, sizeof(uart_age), _uart_seen, _last_uart_ms);
+        formatAge(nmea_age, sizeof(nmea_age), _nmea_seen, _last_nmea_ms);
+        formatAge(fix_age, sizeof(fix_age), _fix_seen, _last_fix_ms);
+
+        // Compact enough for CommonCLI's 160-byte reply buffer, including the
+        // "req:" prefix added by CommonCLI.
+        snprintf(out, out_size,
+            "en:%u ub:%lu ua:%s ok:%lu bad:%lu na:%s sat:%ld fix:%u fa:%s bc:%lu sc:%lu",
+            isEnabled() ? 1U : 0U,
+            (unsigned long)_uart_bytes,
+            uart_age,
+            (unsigned long)_nmea_checksum_ok,
+            (unsigned long)_nmea_checksum_bad,
+            nmea_age,
+            satellitesCount(),
+            isValid() ? 1U : 0U,
+            fix_age,
+            (unsigned long)_begin_calls,
+            (unsigned long)_stop_calls);
     }
 };

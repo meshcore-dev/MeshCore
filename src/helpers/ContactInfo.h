@@ -26,6 +26,12 @@ struct ContactInfo {
     return shared_secret;
   }
 
+  bool isFav() const { return flags & 0x01; }
+  bool isTelemBaseAllowed() const { return flags & 0x02; }
+  bool isTelemLocAllowed() const { return flags & 0x04; }
+  bool isTelemEnvAllowed() const { return flags & 0x08; }
+  bool isRemoteCLIAllowed() const { return flags & 0x10; }
+
 private:
   mutable uint8_t shared_secret[PUB_KEY_SIZE];
 };

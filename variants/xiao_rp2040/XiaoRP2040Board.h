@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include <MeshCore.h>
+#include <helpers/KeyValueStore.h>
 
 /*
  * This board has no built-in way to read battery voltage.
@@ -29,6 +30,8 @@ protected:
 public:
   void begin();
   uint8_t getStartupReason() const override { return startup_reason; }
+
+  void attachDynamicPrefs(KeyValueStore* prefs) { }  // no-op
 
 #ifdef P_LORA_TX_LED
   void onBeforeTransmit() override { digitalWrite(P_LORA_TX_LED, HIGH); }

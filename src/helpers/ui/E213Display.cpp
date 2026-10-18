@@ -2,6 +2,17 @@
 
 #include "../../MeshCore.h"
 
+// Color scheme
+ColorVal UIColor::window_bkg = WHITE;
+ColorVal UIColor::title_bkg = WHITE;
+ColorVal UIColor::title_txt = BLACK;
+ColorVal UIColor::primary_txt = BLACK;
+ColorVal UIColor::secondary_txt = BLACK;
+ColorVal UIColor::warning_txt = BLACK;
+ColorVal UIColor::popup_bkg = WHITE;
+ColorVal UIColor::popup_txt = BLACK;
+ColorVal UIColor::corp_blue = BLACK;
+
 BaseDisplay* E213Display::detectEInk()
 {
     // Test 1: Logic of BUSY pin
@@ -108,16 +119,18 @@ void E213Display::clear() {
   display->clear();
 }
 
-void E213Display::startFrame(Color bkg) {
+void E213Display::startFrame(ColorVal bkg) {
   display_crc.reset();
 
   // Fill screen with white first to ensure clean background
   display->fillRect(0, 0, width(), height(), WHITE);
 
-  if (bkg == LIGHT) {
+  if (bkg == 0) {
     // Fill with black if light background requested (inverted for e-ink)
     display->fillRect(0, 0, width(), height(), BLACK);
   }
+  _color = UIColor::primary_txt;
+  display->setTextColor(_color);
 }
 
 void E213Display::setTextSize(int sz) {
@@ -126,9 +139,10 @@ void E213Display::setTextSize(int sz) {
     display->setTextSize(sz);
 }
 
-void E213Display::setColor(Color c) {
-  display_crc.update<Color>(c);
-  // implemented in individual display methods
+void E213Display::setColor(ColorVal c) {
+  _color = c;
+  display_crc.update<ColorVal>(c);
+  display->setTextColor(_color);
 }
 
 void E213Display::setCursor(int x, int y) {
@@ -147,7 +161,7 @@ void E213Display::fillRect(int x, int y, int w, int h) {
   display_crc.update<int>(y);
   display_crc.update<int>(w);
   display_crc.update<int>(h);
-    display->fillRect(x, y, w, h, BLACK);
+    display->fillRect(x, y, w, h, _color);
 }
 
 void E213Display::drawRect(int x, int y, int w, int h) {
@@ -155,7 +169,7 @@ void E213Display::drawRect(int x, int y, int w, int h) {
   display_crc.update<int>(y);
   display_crc.update<int>(w);
   display_crc.update<int>(h);
-    display->drawRect(x, y, w, h, BLACK);
+    display->drawRect(x, y, w, h, _color);
 }
 
 void E213Display::drawXbm(int x, int y, const uint8_t *bits, int w, int h) {
@@ -179,7 +193,7 @@ void E213Display::drawXbm(int x, int y, const uint8_t *bits, int w, int h) {
 
       // If the bit is set, draw the pixel
       if (bitSet) {
-          display->drawPixel(x + bx, y + by, BLACK);
+          display->drawPixel(x + bx, y + by, _color);
       }
     }
   }

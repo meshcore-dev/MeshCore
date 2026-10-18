@@ -103,10 +103,9 @@ void SerialBLEInterface::onMtuChanged(BLEServer* pServer, esp_ble_gatts_cb_param
 
 void SerialBLEInterface::onDisconnect(BLEServer* pServer) {
   BLE_DEBUG_PRINTLN("onDisconnect()");
+  deviceConnected = false;
   if (_isEnabled) {
     adv_restart_time = millis() + ADVERT_RESTART_DELAY;
-
-    // loop() will detect this on next loop, and set deviceConnected to false
   }
 }
 
@@ -118,16 +117,23 @@ void SerialBLEInterface::onWrite(BLECharacteristic* pCharacteristic, esp_ble_gat
 
   if (len > MAX_FRAME_SIZE) {
     BLE_DEBUG_PRINTLN("ERROR: onWrite(), frame too big, len=%d", len);
-  } else if (recv_queue_len >= FRAME_QUEUE_SIZE) {
-    BLE_DEBUG_PRINTLN("ERROR: onWrite(), recv_queue is full!");
   } else {
-    recv_queue[recv_queue_len].len = len;
-    memcpy(recv_queue[recv_queue_len].buf, rxValue, len);
-    recv_queue_len++;
+    Frame frame = {};
+    frame.len = len;
+    memcpy(frame.buf, rxValue, len);
+
+    if (xQueueSend(recv_queue, &frame, 0) != pdTRUE) {
+      BLE_DEBUG_PRINTLN("ERROR: onWrite(), recv_queue is full!");
+    }
   }
 }
 
 // ---------- public methods
+
+void SerialBLEInterface::clearBuffers() {
+  xQueueReset(recv_queue);
+  send_queue_len = 0;
+}
 
 void SerialBLEInterface::enable() { 
   if (_isEnabled) return;
@@ -202,20 +208,12 @@ size_t SerialBLEInterface::checkRecvFrame(uint8_t dest[]) {
     }
   }
 
-  if (recv_queue_len > 0) {   // check recv queue
-    size_t len = recv_queue[0].len;   // take from top of queue
-    memcpy(dest, recv_queue[0].buf, len);
-
-    BLE_DEBUG_PRINTLN("readBytes: sz=%d, hdr=%d", len, (uint32_t) dest[0]);
-
-    recv_queue_len--;
-    for (int i = 0; i < recv_queue_len; i++) {   // delete top item from queue
-      recv_queue[i] = recv_queue[i + 1];
-    }
-    return len;
+  Frame frame;
+  if (xQueueReceive(recv_queue, &frame, 0) == pdTRUE) {
+    memcpy(dest, frame.buf, frame.len);
+    BLE_DEBUG_PRINTLN("readBytes: sz=%d, hdr=%d", (uint32_t) frame.len, (uint32_t) dest[0]);
+    return frame.len;
   }
-
-  if (pServer->getConnectedCount() == 0)  deviceConnected = false;
 
   if (deviceConnected != oldDeviceConnected) {
     if (!deviceConnected) {    // disconnecting
