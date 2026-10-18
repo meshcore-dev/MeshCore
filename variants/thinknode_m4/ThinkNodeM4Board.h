@@ -14,9 +14,16 @@ protected:
   uint16_t bat_level_mv = 0;
   uint8_t bat_level_percent =0;
 
+  // battery gauge LEDs, shown on button press then auto-off
+  uint8_t gauge_btn_prev = HIGH;
+  uint32_t gauge_on_since = 0;
+  void showBatteryGauge();
+  void clearBatteryGauge();
+
 public:
   ThinkNodeM4Board() : NRF52Board("THINKNODE_M4_OTA"), battery_serial(&Serial2) {}
   void begin();
+  void loop() override;
   uint16_t getBattMilliVolts() override;
 
 #ifdef P_LORA_TX_LED

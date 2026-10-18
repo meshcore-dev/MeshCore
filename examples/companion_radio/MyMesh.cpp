@@ -2192,11 +2192,11 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
   }
 
   if (strcmp(command, "get tz.offset") == 0) {
-    sprintf(reply, "> %d", _prefs.tz_offset);
+    sprintf(reply, "> %.1f", _prefs.tz_offset);
     return true;
   }
   if (memcmp(command, "set tz.offset ", 14) == 0) {
-    int8_t tz = atof(&command[14]);
+    float tz = atof(&command[14]);
     if (tz < -12 || tz > 14) {
       strcpy(reply, "Error, must be from -12 to +14");
     } else {

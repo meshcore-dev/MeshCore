@@ -91,7 +91,9 @@ class HomeScreen : public UIScreen {
     FIRST,
     RECENT,
     RADIO,
+#ifdef BLE_PIN_CODE
     BLUETOOTH,
+#endif
     ADVERT,
 #if ENV_INCLUDE_GPS == 1
     GPS,
@@ -295,7 +297,7 @@ public:
       #ifdef UI_SHOW_CLOCK
       display.setTextSize(3);
       uint32_t now = _rtc->getCurrentTime();
-      now += (int32_t)_node_prefs->tz_offset * 3600;
+      now += (int32_t)(_node_prefs->tz_offset * 3600);
       DateTime dt (now);
       sprintf(tmp, "%02d:%02d", dt.hour(), dt.minute());
       display.drawTextCentered(display.width() / 2, 60, tmp);
@@ -372,6 +374,7 @@ public:
       display.setCursor(0, 53);
       sprintf(tmp, "Noise floor: %d", radio_driver.getNoiseFloor());
       display.print(tmp);
+#ifdef BLE_PIN_CODE
     } else if (_page == HomePage::BLUETOOTH) {
       display.setColor(UIColor::corp_blue);
       display.drawXbm((display.width() - 32) / 2, 18,
@@ -380,6 +383,7 @@ public:
       display.setColor(UIColor::secondary_txt);
       display.setTextSize(1);
       display.drawTextCentered(display.width() / 2, 64 - 11, "toggle: " PRESS_LABEL);
+#endif
     } else if (_page == HomePage::ADVERT) {
       display.setColor(UIColor::corp_blue);
       display.drawXbm((display.width() - 32) / 2, 18, advert_icon, 32, 32);
@@ -575,6 +579,7 @@ public:
 #endif
       return true;
     }
+#ifdef BLE_PIN_CODE
     if (c == KEY_ENTER && _page == HomePage::BLUETOOTH) {
       if (_task->isBluetoothEnabled()) {  // toggle Bluetooth on/off
         _task->disableBluetooth();
@@ -583,6 +588,7 @@ public:
       }
       return true;
     }
+#endif
     if (c == KEY_ENTER && _page == HomePage::ADVERT) {
       _task->notify(UIEventType::ack);
       if (the_mesh.advert()) {
