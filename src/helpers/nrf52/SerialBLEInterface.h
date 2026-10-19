@@ -15,11 +15,13 @@ class SerialBLEInterface : public BaseSerialInterface {
   uint16_t _conn_handle;
   unsigned long _last_health_check;
   unsigned long _last_retry_attempt;
+  volatile uint8_t _tx_in_flight;
 
   SerialBLEFrameQueue<BLE_FRAME_QUEUE_SIZE> send_queue;
   SerialBLEFrameQueue<BLE_FRAME_QUEUE_SIZE> recv_queue;
 
   void clearBuffers();
+  void trySendNextFrame();
   bool isValidConnection(uint16_t handle, bool requireWaitingForSecurity = false) const;
   bool isAdvertising() const;
   static void onConnect(uint16_t connection_handle);
@@ -37,6 +39,7 @@ public:
     _conn_handle = BLE_CONN_HANDLE_INVALID;
     _last_health_check = 0;
     _last_retry_attempt = 0;
+    _tx_in_flight = 0;
   }
 
   /**

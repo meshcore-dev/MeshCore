@@ -7,6 +7,7 @@
 // Magic numbers came from actual testing
 #define BLE_HEALTH_CHECK_INTERVAL  10000  // Advertising watchdog check every 10 seconds
 #define BLE_RETRY_THROTTLE_MS      250    // Throttle retries to 250ms when queue buildup detected
+#define BLE_HVN_TX_SLOTS           3      // notification queue size set by configPrphBandwidth(BANDWIDTH_MAX)
 
 // RX drain buffer size for overflow protection
 #define BLE_RX_DRAIN_BUF_SIZE      32
@@ -23,7 +24,8 @@ void SerialBLEInterface::onConnect(uint16_t connection_handle) {
     }
     instance->_conn_handle = connection_handle;
     instance->_isDeviceConnected = false;
-    instance->clearBuffers();
+    instance->_tx_in_flight = 0;
+    instance->bleuart.flush();
   }
 }
 
@@ -33,7 +35,7 @@ void SerialBLEInterface::onDisconnect(uint16_t connection_handle, uint8_t reason
     if (instance->_conn_handle == connection_handle) {
       instance->_conn_handle = BLE_CONN_HANDLE_INVALID;
       instance->_isDeviceConnected = false;
-      instance->clearBuffers();
+      instance->bleuart.flush();
       instance->_last_health_check = millis();
     }
   }
@@ -114,6 +116,33 @@ void SerialBLEInterface::onBLEEvent(ble_evt_t* evt) {
       }
     } else {
       BLE_DEBUG_PRINTLN("CONN_PARAM_UPDATE_REQUEST: ignoring stale callback for handle=0x%04X", conn_handle);
+    }
+  } else if (evt->header.evt_id == BLE_GATTS_EVT_HVN_TX_COMPLETE && evt->evt.gatts_evt.conn_handle == instance->_conn_handle) {
+    // plain read-modify-write is safe: the loop task can't preempt the BLE task
+    uint8_t done = evt->evt.gatts_evt.params.hvn_tx_complete.count, n = instance->_tx_in_flight;
+    instance->_tx_in_flight = done < n ? n - done : 0;
+  }
+}
+
+void SerialBLEInterface::trySendNextFrame() {
+  if (_last_retry_attempt > 0 && millis() - _last_retry_attempt < BLE_RETRY_THROTTLE_MS) return;
+
+  // only write into a free TX slot: otherwise bleuart.write() blocks the main loop for up to 100 ms
+  while (isConnected() && !send_queue.isEmpty() && _tx_in_flight < BLE_HVN_TX_SLOTS) {
+    const SerialBLEFrame& frame = send_queue.peek();
+    __atomic_add_fetch(&_tx_in_flight, 1, __ATOMIC_RELAXED);   // before write(): its TX_COMPLETE can arrive first
+    size_t written = bleuart.write(frame.buf, frame.len);
+    if (written == frame.len) {
+      BLE_DEBUG_PRINTLN("writeBytes: sz=%u, hdr=%u", (unsigned)frame.len, (unsigned)frame.buf[0]);
+      send_queue.pop();
+    } else if (written > 0) {
+      BLE_DEBUG_PRINTLN("writeBytes: partial write, sent=%u of %u, dropping corrupted frame", (unsigned)written, (unsigned)frame.len);
+      send_queue.pop();
+    } else {
+      __atomic_sub_fetch(&_tx_in_flight, 1, __ATOMIC_RELAXED);
+      BLE_DEBUG_PRINTLN("writeBytes failed (buffer full), keeping frame for retry");
+      _last_retry_attempt = millis();   // back off, eg. notifications not enabled yet
+      break;
     }
   }
 }
@@ -261,44 +290,18 @@ size_t SerialBLEInterface::writeFrame(const uint8_t src[], size_t len) {
       BLE_DEBUG_PRINTLN("writeFrame(), send_queue is full!");
       return 0;
     }
+    trySendNextFrame();
     return len;
   }
   return 0;
 }
 
 size_t SerialBLEInterface::checkRecvFrame(uint8_t dest[]) {
-  if (!send_queue.isEmpty()) {
-    if (!isConnected()) {
-      BLE_DEBUG_PRINTLN("writeBytes: connection invalid, clearing send queue");
-      send_queue.clear();
-    } else {
-      unsigned long now = millis();
-      bool throttle_active = (_last_retry_attempt > 0 && (now - _last_retry_attempt) < BLE_RETRY_THROTTLE_MS);
-
-      if (!throttle_active) {
-        const SerialBLEFrame& frame_to_send = send_queue.peek();
-
-        size_t written = bleuart.write(frame_to_send.buf, frame_to_send.len);
-        if (written == frame_to_send.len) {
-          BLE_DEBUG_PRINTLN("writeBytes: sz=%u, hdr=%u", (unsigned)frame_to_send.len, (unsigned)frame_to_send.buf[0]);
-          _last_retry_attempt = 0;
-          send_queue.pop();
-        } else if (written > 0) {
-          BLE_DEBUG_PRINTLN("writeBytes: partial write, sent=%u of %u, dropping corrupted frame", (unsigned)written, (unsigned)frame_to_send.len);
-          _last_retry_attempt = 0;
-          send_queue.pop();
-        } else {
-          if (!isConnected()) {
-            BLE_DEBUG_PRINTLN("writeBytes failed: connection lost, dropping frame");
-            _last_retry_attempt = 0;
-            send_queue.pop();
-          } else {
-            BLE_DEBUG_PRINTLN("writeBytes failed (buffer full), keeping frame for retry");
-            _last_retry_attempt = now;
-          }
-        }
-      }
-    }
+  if (!isConnected()) {
+    send_queue.clear();   // here rather than in the BLE callbacks, as only the consumer may clear
+    recv_queue.clear();
+  } else {
+    trySendNextFrame();   // frames that waited for a free TX slot
   }
   
   if (!recv_queue.isEmpty()) {
@@ -311,9 +314,9 @@ size_t SerialBLEInterface::checkRecvFrame(uint8_t dest[]) {
     return len;
   }
   
+  unsigned long now = millis();
   // Advertising watchdog: periodically check if advertising is running, restart if not
   // Only run when truly disconnected (no connection handle), not during connection establishment
-  unsigned long now = millis();
   if (_isEnabled && !isConnected() && _conn_handle == BLE_CONN_HANDLE_INVALID) {
     if (now - _last_health_check >= BLE_HEALTH_CHECK_INTERVAL) {
       _last_health_check = now;
