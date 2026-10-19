@@ -2,6 +2,8 @@
 #include "esp_mac.h"
 #include <nvs.h>
 
+extern "C" void ble_gatts_set_clt_cfg_perm_flags(uint8_t flags);   // NimBLE host, missing from its public headers
+
 #define ADVERT_CHECK_INTERVAL    1000   // millis
 #define BLE_RETRY_THROTTLE_MS    10     // back off when the stack is out of TX buffers
 
@@ -37,6 +39,10 @@ void SerialBLEInterface::begin(const char* prefix, char* name, uint32_t pin_code
   NimBLEDevice::setSecurityInitKey(BLE_SM_PAIR_KEY_DIST_ENC | BLE_SM_PAIR_KEY_DIST_ID);
   NimBLEDevice::setSecurityRespKey(BLE_SM_PAIR_KEY_DIST_ENC | BLE_SM_PAIR_KEY_DIST_ID);
 
+  // like Bluefruit on nRF52: subscribing needs an authenticated link, so the phone's first request is
+  // rejected with Insufficient Authentication and the phone starts pairing (Apple guidelines 11.10)
+  ble_gatts_set_clt_cfg_perm_flags(BLE_ATT_F_READ | BLE_ATT_F_WRITE | BLE_ATT_F_WRITE_ENC | BLE_ATT_F_WRITE_AUTHEN);
+
   pServer = NimBLEDevice::createServer();
   pServer->setCallbacks(this, false);
 
@@ -63,6 +69,7 @@ void SerialBLEInterface::begin(const char* prefix, char* name, uint32_t pin_code
 void SerialBLEInterface::onConnect(NimBLEServer* pServer, NimBLEConnInfo& connInfo) {
   BLE_DEBUG_PRINTLN("onConnect(), conn_handle=%d", connInfo.getConnHandle());
   _conn_handle = connInfo.getConnHandle();
+  pServer->setDataLen(_conn_handle, BLE_DLE_MAX_TX_OCTETS);   // before the MTU exchange (Apple guidelines 11.11)
   // don't rely on the phone to ask; once settled (even at 23) frames too big for it can be dropped
   auto done = [](uint16_t, const ble_gatt_error*, uint16_t, void* arg) { ((SerialBLEInterface*)arg)->_mtu_done = true; return 0; };
   if (ble_gattc_exchange_mtu(_conn_handle, done, this) != 0) _mtu_done = true;   // eg. the phone already did it
@@ -86,7 +93,6 @@ void SerialBLEInterface::onAuthenticationComplete(NimBLEConnInfo& connInfo) {
     _conn_handle = connInfo.getConnHandle();   // bonded peers can encrypt before onConnect() arrives
     deviceConnected = true;
     pServer->updateConnParams(_conn_handle, BLE_MIN_CONN_INTERVAL, BLE_MAX_CONN_INTERVAL, BLE_SLAVE_LATENCY, BLE_CONN_SUP_TIMEOUT);
-    pServer->setDataLen(_conn_handle, BLE_DLE_MAX_TX_OCTETS);
   } else {
     BLE_DEBUG_PRINTLN("onAuthenticationComplete() - failure");
     pServer->disconnect(connInfo);
