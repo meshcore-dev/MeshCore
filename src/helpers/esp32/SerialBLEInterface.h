@@ -1,70 +1,43 @@
 #pragma once
 
-#include "../BaseSerialInterface.h"
-#include <BLEDevice.h>
-#include <BLEServer.h>
-#include <BLEUtils.h>
-#include <BLE2902.h>
-#include <freertos/FreeRTOS.h>
-#include <freertos/queue.h>
+#include "../SerialBLECommon.h"
+#include <NimBLEDevice.h>
 
-class SerialBLEInterface : public BaseSerialInterface, BLESecurityCallbacks, BLEServerCallbacks, BLECharacteristicCallbacks {
-  BLEServer *pServer;
-  BLEService *pService;
-  BLECharacteristic * pTxCharacteristic;
+class SerialBLEInterface : public BaseSerialInterface, NimBLEServerCallbacks, NimBLECharacteristicCallbacks {
+  NimBLEServer *pServer;
+  NimBLECharacteristic *pTxCharacteristic;
   bool deviceConnected;
   bool oldDeviceConnected;
   bool _isEnabled;
-  uint16_t last_conn_id;
-  uint32_t _pin_code;
-  unsigned long _last_write;
-  unsigned long adv_restart_time;
+  uint16_t _conn_handle;
+  unsigned long _last_retry;
+  unsigned long _last_adv_check;
 
-  struct Frame {
-    uint8_t len;
-    uint8_t buf[MAX_FRAME_SIZE];
-  };
-
-  #define FRAME_QUEUE_SIZE  4
-  StaticQueue_t recv_queue_state;
-  uint8_t recv_queue_storage[FRAME_QUEUE_SIZE * sizeof(Frame)];
-  QueueHandle_t recv_queue;
-  int send_queue_len;
-  Frame send_queue[FRAME_QUEUE_SIZE];
+  SerialBLEFrameQueue<BLE_FRAME_QUEUE_SIZE> recv_queue;
+  SerialBLEFrameQueue<BLE_FRAME_QUEUE_SIZE> send_queue;
 
   void clearBuffers();
 
 protected:
-  // BLESecurityCallbacks methods
-  uint32_t onPassKeyRequest() override;
-  void onPassKeyNotify(uint32_t pass_key) override;
-  bool onConfirmPIN(uint32_t pass_key) override;
-  bool onSecurityRequest() override;
-  void onAuthenticationComplete(esp_ble_auth_cmpl_t cmpl) override;
+  // NimBLEServerCallbacks methods
+  void onConnect(NimBLEServer* pServer, NimBLEConnInfo& connInfo) override;
+  void onDisconnect(NimBLEServer* pServer, NimBLEConnInfo& connInfo, int reason) override;
+  void onMTUChange(uint16_t MTU, NimBLEConnInfo& connInfo) override;
+  void onAuthenticationComplete(NimBLEConnInfo& connInfo) override;
 
-  // BLEServerCallbacks methods
-  void onConnect(BLEServer* pServer) override;
-  void onConnect(BLEServer* pServer, esp_ble_gatts_cb_param_t *param) override;
-  void onMtuChanged(BLEServer* pServer, esp_ble_gatts_cb_param_t* param) override;
-  void onDisconnect(BLEServer* pServer) override;
-
-  // BLECharacteristicCallbacks methods
-  void onWrite(BLECharacteristic* pCharacteristic, esp_ble_gatts_cb_param_t* param) override;
+  // NimBLECharacteristicCallbacks methods
+  void onWrite(NimBLECharacteristic* pCharacteristic, NimBLEConnInfo& connInfo) override;
 
 public:
   SerialBLEInterface() {
     pServer = NULL;
-    pService = NULL;
+    pTxCharacteristic = NULL;
     deviceConnected = false;
     oldDeviceConnected = false;
-    adv_restart_time = 0;
     _isEnabled = false;
-    _last_write = 0;
-    last_conn_id = 0;
-    recv_queue = xQueueCreateStatic(
-      FRAME_QUEUE_SIZE, sizeof(Frame), recv_queue_storage, &recv_queue_state
-    );
-    send_queue_len = 0;
+    _last_retry = 0;
+    _last_adv_check = 0;
+    _conn_handle = BLE_HS_CONN_HANDLE_NONE;
   }
 
   /**
@@ -86,12 +59,3 @@ public:
   size_t writeFrame(const uint8_t src[], size_t len) override;
   size_t checkRecvFrame(uint8_t dest[]) override;
 };
-
-#if BLE_DEBUG_LOGGING && ARDUINO
-  #include <Arduino.h>
-  #define BLE_DEBUG_PRINT(F, ...) Serial.printf("BLE: " F, ##__VA_ARGS__)
-  #define BLE_DEBUG_PRINTLN(F, ...) Serial.printf("BLE: " F "\n", ##__VA_ARGS__)
-#else
-  #define BLE_DEBUG_PRINT(...) {}
-  #define BLE_DEBUG_PRINTLN(...) {}
-#endif
