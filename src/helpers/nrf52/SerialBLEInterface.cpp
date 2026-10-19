@@ -8,17 +8,6 @@
 #define BLE_HEALTH_CHECK_INTERVAL  10000  // Advertising watchdog check every 10 seconds
 #define BLE_RETRY_THROTTLE_MS      250    // Throttle retries to 250ms when queue buildup detected
 
-// Connection parameters (units: interval=1.25ms, timeout=10ms)
-#define BLE_MIN_CONN_INTERVAL      12     // 15ms
-#define BLE_MAX_CONN_INTERVAL      24     // 30ms
-#define BLE_SLAVE_LATENCY          4
-#define BLE_CONN_SUP_TIMEOUT       200    // 2000ms
-
-// Advertising parameters
-#define BLE_ADV_INTERVAL_MIN       32     // 20ms (units: 0.625ms)
-#define BLE_ADV_INTERVAL_MAX       244    // 152.5ms (units: 0.625ms)
-#define BLE_ADV_FAST_TIMEOUT       30     // seconds
-
 // RX drain buffer size for overflow protection
 #define BLE_RX_DRAIN_BUF_SIZE      32
 
@@ -27,6 +16,11 @@ static SerialBLEInterface* instance = nullptr;
 void SerialBLEInterface::onConnect(uint16_t connection_handle) {
   BLE_DEBUG_PRINTLN("SerialBLEInterface: connected handle=0x%04X", connection_handle);
   if (instance) {
+    if (Bluefruit.connected() > 1) {
+      BLE_DEBUG_PRINTLN("SerialBLEInterface: rejecting second connection");
+      sd_ble_gap_disconnect(connection_handle, BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
+      return;
+    }
     instance->_conn_handle = connection_handle;
     instance->_isDeviceConnected = false;
     instance->clearBuffers();
@@ -40,6 +34,7 @@ void SerialBLEInterface::onDisconnect(uint16_t connection_handle, uint8_t reason
       instance->_conn_handle = BLE_CONN_HANDLE_INVALID;
       instance->_isDeviceConnected = false;
       instance->clearBuffers();
+      instance->_last_health_check = millis();
     }
   }
 }
@@ -138,15 +133,10 @@ void SerialBLEInterface::begin(const char* prefix, char* name, uint32_t pin_code
   Bluefruit.configPrphBandwidth(BANDWIDTH_MAX);
   Bluefruit.begin();
  
+  ble_gap_addr_t addr = {};
+  sd_ble_gap_addr_get(&addr);
   char dev_name[32+16];
-  if (strcmp(name, "@@MAC") == 0) {
-    ble_gap_addr_t addr;
-    if (sd_ble_gap_addr_get(&addr) == NRF_SUCCESS) {
-      sprintf(name, "%02X%02X%02X%02X%02X%02X",    // modify (IN-OUT param)
-          addr.addr[5], addr.addr[4], addr.addr[3], addr.addr[2], addr.addr[1], addr.addr[0]);
-    }
-  }
-  sprintf(dev_name, "%s%s", prefix, name);
+  makeBLEName(dev_name, sizeof(dev_name), prefix, name, addr.addr, true);
 
   // Connection interval units: 1.25ms, supervision timeout units: 10ms
   ble_gap_conn_params_t ppcp_params;
@@ -206,28 +196,10 @@ void SerialBLEInterface::begin(const char* prefix, char* name, uint32_t pin_code
 }
 
 void SerialBLEInterface::clearBuffers() {
-  send_queue_len = 0;
-  recv_queue_len = 0;
+  send_queue.clear();
+  recv_queue.clear();
   _last_retry_attempt = 0;
   bleuart.flush();
-}
-
-void SerialBLEInterface::shiftSendQueueLeft() {
-  if (send_queue_len > 0) {
-    send_queue_len--;
-    for (uint8_t i = 0; i < send_queue_len; i++) {
-      send_queue[i] = send_queue[i + 1];
-    }
-  }
-}
-
-void SerialBLEInterface::shiftRecvQueueLeft() {
-  if (recv_queue_len > 0) {
-    recv_queue_len--;
-    for (uint8_t i = 0; i < recv_queue_len; i++) {
-      recv_queue[i] = recv_queue[i + 1];
-    }
-  }
 }
 
 bool SerialBLEInterface::isValidConnection(uint16_t handle, bool requireWaitingForSecurity) const {
@@ -285,46 +257,41 @@ size_t SerialBLEInterface::writeFrame(const uint8_t src[], size_t len) {
 
   bool connected = isConnected();
   if (connected && len > 0) {
-    if (send_queue_len >= FRAME_QUEUE_SIZE) {
+    if (!send_queue.push(src, len)) {
       BLE_DEBUG_PRINTLN("writeFrame(), send_queue is full!");
       return 0;
     }
-
-    send_queue[send_queue_len].len = len;
-    memcpy(send_queue[send_queue_len].buf, src, len);
-    send_queue_len++;
-    
     return len;
   }
   return 0;
 }
 
 size_t SerialBLEInterface::checkRecvFrame(uint8_t dest[]) {
-  if (send_queue_len > 0) {
+  if (!send_queue.isEmpty()) {
     if (!isConnected()) {
       BLE_DEBUG_PRINTLN("writeBytes: connection invalid, clearing send queue");
-      send_queue_len = 0;
+      send_queue.clear();
     } else {
       unsigned long now = millis();
       bool throttle_active = (_last_retry_attempt > 0 && (now - _last_retry_attempt) < BLE_RETRY_THROTTLE_MS);
 
       if (!throttle_active) {
-        Frame frame_to_send = send_queue[0];
+        const SerialBLEFrame& frame_to_send = send_queue.peek();
 
         size_t written = bleuart.write(frame_to_send.buf, frame_to_send.len);
         if (written == frame_to_send.len) {
           BLE_DEBUG_PRINTLN("writeBytes: sz=%u, hdr=%u", (unsigned)frame_to_send.len, (unsigned)frame_to_send.buf[0]);
           _last_retry_attempt = 0;
-          shiftSendQueueLeft();
+          send_queue.pop();
         } else if (written > 0) {
           BLE_DEBUG_PRINTLN("writeBytes: partial write, sent=%u of %u, dropping corrupted frame", (unsigned)written, (unsigned)frame_to_send.len);
           _last_retry_attempt = 0;
-          shiftSendQueueLeft();
+          send_queue.pop();
         } else {
           if (!isConnected()) {
             BLE_DEBUG_PRINTLN("writeBytes failed: connection lost, dropping frame");
             _last_retry_attempt = 0;
-            shiftSendQueueLeft();
+            send_queue.pop();
           } else {
             BLE_DEBUG_PRINTLN("writeBytes failed (buffer full), keeping frame for retry");
             _last_retry_attempt = now;
@@ -334,13 +301,13 @@ size_t SerialBLEInterface::checkRecvFrame(uint8_t dest[]) {
     }
   }
   
-  if (recv_queue_len > 0) {
-    size_t len = recv_queue[0].len;
-    memcpy(dest, recv_queue[0].buf, len);
+  if (!recv_queue.isEmpty()) {
+    size_t len = recv_queue.peek().len;
+    memcpy(dest, recv_queue.peek().buf, len);
     
     BLE_DEBUG_PRINTLN("readBytes: sz=%u, hdr=%u", (unsigned)len, (unsigned)dest[0]);
     
-    shiftRecvQueueLeft();
+    recv_queue.pop();
     return len;
   }
   
@@ -374,14 +341,6 @@ void SerialBLEInterface::onBleUartRX(uint16_t conn_handle) {
   }
   
   while (instance->bleuart.available() > 0) {
-    if (instance->recv_queue_len >= FRAME_QUEUE_SIZE) {
-      while (instance->bleuart.available() > 0) {
-        instance->bleuart.read();
-      }
-      BLE_DEBUG_PRINTLN("onBleUartRX: recv queue full, dropping data");
-      break;
-    }
-    
     int avail = instance->bleuart.available();
     
     if (avail > MAX_FRAME_SIZE) {
@@ -394,10 +353,11 @@ void SerialBLEInterface::onBleUartRX(uint16_t conn_handle) {
       continue;
     }
     
-    int read_len = avail;
-    instance->recv_queue[instance->recv_queue_len].len = read_len;
-    instance->bleuart.readBytes(instance->recv_queue[instance->recv_queue_len].buf, read_len);
-    instance->recv_queue_len++;
+    uint8_t buf[MAX_FRAME_SIZE];
+    int read_len = instance->bleuart.readBytes(buf, avail);
+    if (!instance->recv_queue.push(buf, read_len)) {
+      BLE_DEBUG_PRINTLN("onBleUartRX: recv queue full, dropping frame");
+    }
   }
 }
 
@@ -406,5 +366,5 @@ bool SerialBLEInterface::isConnected() const {
 }
 
 bool SerialBLEInterface::isWriteBusy() const {
-  return send_queue_len >= (FRAME_QUEUE_SIZE * 2 / 3);
+  return send_queue.used() >= (BLE_FRAME_QUEUE_SIZE * 2 / 3);
 }
