@@ -23,8 +23,6 @@ SerialBLEInterface::SerialBLEInterface()
 {
   _isEnabled = false;
   _tx_pending = false;
-  send_queue_len = 0;
-  recv_queue_len = 0;
   memset(&_can_send, 0, sizeof(_can_send));
   _rx.setCallbacks(this);
   addCharacteristic(&_rx);
@@ -38,13 +36,10 @@ void SerialBLEInterface::begin(const char* prefix, char* name, uint32_t pin_code
   // the full name goes in the scan response
   BLE.begin(prefix);
 
-  if (strcmp(name, "@@MAC") == 0) {
-    bd_addr_t a;
-    gap_local_bd_addr(a);
-    sprintf(name, "%02X%02X%02X%02X%02X%02X", a[0], a[1], a[2], a[3], a[4], a[5]);   // modify (IN-OUT param)
-  }
+  bd_addr_t a;
+  gap_local_bd_addr(a);
   char dev_name[32+16];
-  snprintf(dev_name, sizeof(dev_name), "%s%s", prefix, name);
+  makeBLEName(dev_name, sizeof(dev_name), prefix, name, a, false);
 
   BLE.server()->setName(dev_name);   // GAP device name characteristic
   BLE.server()->addService(this);
@@ -66,8 +61,8 @@ void SerialBLEInterface::begin(const char* prefix, char* name, uint32_t pin_code
 }
 
 void SerialBLEInterface::clearBuffers() {
-  send_queue_len = 0;
-  recv_queue_len = 0;
+  send_queue.clear();
+  recv_queue.clear();
   _tx_pending = false;   // a stale registration just fires into an empty queue; BTstack ignores double-adds
 }
 
@@ -88,13 +83,9 @@ void SerialBLEInterface::onWrite(BLECharacteristic* c) {
     BLE_DEBUG_PRINTLN("onWrite: bad frame len=%u", (unsigned)len);
     return;
   }
-  if (recv_queue_len >= FRAME_QUEUE_SIZE) {
+  if (!recv_queue.push(_rx.valueData(), len)) {
     BLE_DEBUG_PRINTLN("onWrite: recv queue full, dropping frame");
-    return;
   }
-  recv_queue[recv_queue_len].len = len;
-  memcpy(recv_queue[recv_queue_len].buf, _rx.valueData(), len);
-  recv_queue_len++;
 }
 
 // caller holds the BT lock (or is in the BT context)
@@ -111,14 +102,14 @@ void SerialBLEInterface::kickSend() {
 // BT context: one notification per can-send-now, re-arm while frames remain
 void SerialBLEInterface::sendNext() {
   _tx_pending = false;
-  if (send_queue_len == 0) return;
+  if (send_queue.isEmpty()) return;
   if (!isConnected()) {
     BLE_DEBUG_PRINTLN("sendNext: not connected, clearing send queue");
-    send_queue_len = 0;
+    send_queue.clear();
     return;
   }
   uint16_t h = _tx.conHandle();
-  Frame& f = send_queue[0];
+  const SerialBLEFrame& f = send_queue.peek();
   uint16_t mtu = att_server_get_mtu(h);
   if (f.len + 3 > mtu) {
     // att would silently truncate; drop instead (client must negotiate MTU >= MAX_FRAME_SIZE+3)
@@ -135,9 +126,8 @@ void SerialBLEInterface::sendNext() {
       BLE_DEBUG_PRINTLN("writeBytes: sz=%u, hdr=%u", f.len, f.buf[0]);
     }
   }
-  send_queue_len--;
-  memmove(&send_queue[0], &send_queue[1], send_queue_len * sizeof(Frame));
-  if (send_queue_len > 0) kickSend();
+  send_queue.pop();
+  if (!send_queue.isEmpty()) kickSend();
 }
 
 void SerialBLEInterface::enable() {
@@ -165,7 +155,7 @@ bool SerialBLEInterface::isConnected() const {
 }
 
 bool SerialBLEInterface::isWriteBusy() const {
-  return send_queue_len >= (FRAME_QUEUE_SIZE * 2 / 3);
+  return send_queue.used() >= (BLE_FRAME_QUEUE_SIZE * 2 / 3);
 }
 
 size_t SerialBLEInterface::writeFrame(const uint8_t src[], size_t len) {
@@ -176,25 +166,21 @@ size_t SerialBLEInterface::writeFrame(const uint8_t src[], size_t len) {
   if (!isConnected()) return 0;
 
   BluetoothLock lock;
-  if (send_queue_len >= FRAME_QUEUE_SIZE) {
+  if (!send_queue.push(src, len)) {
     BLE_DEBUG_PRINTLN("writeFrame(), send_queue is full!");
     return 0;
   }
-  send_queue[send_queue_len].len = len;
-  memcpy(send_queue[send_queue_len].buf, src, len);
-  send_queue_len++;
   kickSend();
   return len;
 }
 
 size_t SerialBLEInterface::checkRecvFrame(uint8_t dest[]) {
   BluetoothLock lock;
-  if (recv_queue_len == 0) return 0;
+  if (recv_queue.isEmpty()) return 0;
 
-  size_t len = recv_queue[0].len;
-  memcpy(dest, recv_queue[0].buf, len);
-  recv_queue_len--;
-  memmove(&recv_queue[0], &recv_queue[1], recv_queue_len * sizeof(Frame));
+  size_t len = recv_queue.peek().len;
+  memcpy(dest, recv_queue.peek().buf, len);
+  recv_queue.pop();
   BLE_DEBUG_PRINTLN("readBytes: sz=%u, hdr=%u", (unsigned)len, dest[0]);
   return len;
 }
