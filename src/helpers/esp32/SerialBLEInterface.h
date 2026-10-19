@@ -9,6 +9,8 @@ class SerialBLEInterface : public BaseSerialInterface, NimBLEServerCallbacks, Ni
   bool deviceConnected;
   bool oldDeviceConnected;
   bool _isEnabled;
+  bool _subscribed;
+  bool _mtu_done;
   uint16_t _conn_handle;
   unsigned long _last_retry;
   unsigned long _last_adv_check;
@@ -27,6 +29,7 @@ protected:
 
   // NimBLECharacteristicCallbacks methods
   void onWrite(NimBLECharacteristic* pCharacteristic, NimBLEConnInfo& connInfo) override;
+  void onSubscribe(NimBLECharacteristic* pCharacteristic, NimBLEConnInfo& connInfo, uint16_t subValue) override;
 
 public:
   SerialBLEInterface() {
@@ -35,6 +38,8 @@ public:
     deviceConnected = false;
     oldDeviceConnected = false;
     _isEnabled = false;
+    _subscribed = false;
+    _mtu_done = false;
     _last_retry = 0;
     _last_adv_check = 0;
     _conn_handle = BLE_HS_CONN_HANDLE_NONE;

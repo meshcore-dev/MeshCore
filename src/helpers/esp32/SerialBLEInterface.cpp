@@ -46,6 +46,7 @@ void SerialBLEInterface::begin(const char* prefix, char* name, uint32_t pin_code
   NimBLECharacteristic* pRxCharacteristic = pService->createCharacteristic(BLE_UART_RX_UUID,
       NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR | NIMBLE_PROPERTY::WRITE_ENC | NIMBLE_PROPERTY::WRITE_AUTHEN);
   pRxCharacteristic->setCallbacks(this);
+  pTxCharacteristic->setCallbacks(this);   // for onSubscribe()
 
   NimBLEAdvertising* pAdvertising = NimBLEDevice::getAdvertising();
   pAdvertising->addServiceUUID(BLE_UART_SERVICE_UUID);
@@ -62,12 +63,16 @@ void SerialBLEInterface::begin(const char* prefix, char* name, uint32_t pin_code
 void SerialBLEInterface::onConnect(NimBLEServer* pServer, NimBLEConnInfo& connInfo) {
   BLE_DEBUG_PRINTLN("onConnect(), conn_handle=%d", connInfo.getConnHandle());
   _conn_handle = connInfo.getConnHandle();
-  ble_gattc_exchange_mtu(_conn_handle, NULL, NULL);   // don't rely on the phone to ask
+  // don't rely on the phone to ask; once settled (even at 23) frames too big for it can be dropped
+  auto done = [](uint16_t, const ble_gatt_error*, uint16_t, void* arg) { ((SerialBLEInterface*)arg)->_mtu_done = true; return 0; };
+  if (ble_gattc_exchange_mtu(_conn_handle, done, this) != 0) _mtu_done = true;   // eg. the phone already did it
 }
 
 void SerialBLEInterface::onDisconnect(NimBLEServer* pServer, NimBLEConnInfo& connInfo, int reason) {
   BLE_DEBUG_PRINTLN("onDisconnect(), reason=0x%02X", reason);
   deviceConnected = false;
+  _subscribed = false;
+  _mtu_done = false;
   _conn_handle = BLE_HS_CONN_HANDLE_NONE;
 }
 
@@ -98,6 +103,11 @@ void SerialBLEInterface::onWrite(NimBLECharacteristic* pCharacteristic, NimBLECo
   } else if (!recv_queue.push(value.data(), value.size())) {
     BLE_DEBUG_PRINTLN("ERROR: onWrite(), recv_queue is full!");
   }
+}
+
+void SerialBLEInterface::onSubscribe(NimBLECharacteristic* pCharacteristic, NimBLEConnInfo& connInfo, uint16_t subValue) {
+  BLE_DEBUG_PRINTLN("onSubscribe(), subValue=%d", subValue);
+  _subscribed = subValue & 1;
 }
 
 // ---------- public methods
@@ -172,13 +182,14 @@ size_t SerialBLEInterface::checkRecvFrame(uint8_t dest[]) {
 
   unsigned long now = millis();
   if (!send_queue.isEmpty()   // first, check send queue
+    && _subscribed            // notify() to a conn handle skips the CCCD check
     && (_last_retry == 0 || now - _last_retry >= BLE_RETRY_THROTTLE_MS)
   ) {
     const SerialBLEFrame& frame = send_queue.peek();
     uint16_t mtu = pServer->getPeerMTU(_conn_handle);
 
     if (frame.len + 3 > mtu) {
-      if (mtu > BLE_ATT_MTU_DFLT) {   // else: MTU exchange not done yet, wait for it
+      if (_mtu_done) {   // else: MTU exchange not done yet, wait for it
         BLE_DEBUG_PRINTLN("writeBytes: sz=%d exceeds MTU, dropped", (uint32_t)frame.len);
         send_queue.pop();
       }
