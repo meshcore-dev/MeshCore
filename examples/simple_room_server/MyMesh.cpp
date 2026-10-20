@@ -983,6 +983,8 @@ void MyMesh::handleCommand(uint32_t sender_timestamp, char *command, char *reply
       addSystemPost(msg);
       snprintf(reply, MAX_POST_TEXT_LEN, "OK");
     }
+  } else if (memcmp(command, "set repeat on", 13) == 0) {
+    strcpy(reply, "ERR - repeat now deprecated");
   } else{
     _cli.handleCommand(sender_timestamp, command, reply);  // common CLI commands
   }

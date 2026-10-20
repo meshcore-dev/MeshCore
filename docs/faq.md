@@ -537,18 +537,18 @@ Mac: python3 should be already installed.
 
 Then it should be the same for all platforms:
 ```
-python3 -m venv meshcore
-cd meshcore && source bin/activate
+python3 -m venv meshcore-venv
+cd meshcore-venv && source bin/activate
 pip install -U platformio
-git clone https://github.com/ripplebiz/MeshCore.git
-cd MeshCore
+git clone https://github.com/meshcore-dev/meshcore.git
+cd meshcore
 ```
-open platformio.ini and in `[arduino_base]` edit the `LORA_FREQ=867.5`
-save, then run:
+open platformio.ini and in `[arduino_base]` edit `LORA_FREQ` (it defaults to
+`869.618`) to the frequency for your region, save, then run:
 ```
-pio run -e RAK_4631_Repeater
+pio run -e RAK_4631_repeater
 ```
-then you'll find `firmware.zip` in `.pio/build/RAK_4631_Repeater`
+then you'll find `firmware.zip` in `.pio/build/RAK_4631_repeater`
 
 ### 5.10. Q: Are there other MeshCore related open source projects?
 
@@ -592,7 +592,7 @@ For ESP-based devices (e.g. Heltec V3) you need:
 1. Download the firmware file from <https://flasher.meshcore.io>.
     - Go to the website in a browser and find the section that has the firmware you need.
     - Click the Download button, right-click on the file you need, for example:
-        - `Heltec_V3_companion_radio_ble-v1.7.1-165fb33.bin`
+        - `Heltec_v3_companion_radio_ble-v1.7.1-165fb33.bin`
             - Non-merged bin keeps the existing Bluetooth pairing database.
         - `Heltec_v3_companion_radio_usb-v1.7.1-165fb33-merged.bin`
             - Merged bin overwrites everything including the bootloader and existing Bluetooth pairing database, but keeps configurations.

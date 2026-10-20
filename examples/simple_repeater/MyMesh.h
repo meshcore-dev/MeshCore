@@ -67,11 +67,11 @@ struct NeighbourInfo {
 };
 
 #ifndef FIRMWARE_BUILD_DATE
-  #define FIRMWARE_BUILD_DATE   "14 Aug 2026"
+  #define FIRMWARE_BUILD_DATE   "15 Oct 2026"
 #endif
 
 #ifndef FIRMWARE_VERSION
-  #define FIRMWARE_VERSION   "v1.17.1"
+  #define FIRMWARE_VERSION   "v1.18.0"
 #endif
 
 #define FIRMWARE_ROLE "repeater"
@@ -186,6 +186,9 @@ public:
   const char* getNodeName() { return _prefs.node_name; }
   NodePrefs* getNodePrefs() {
     return &_prefs;
+  }
+  bool isHiddenNode() const {
+    return _prefs.advert_interval == 0 && _prefs.flood_advert_interval == 0;
   }
 
   void savePrefs() override {

@@ -122,6 +122,13 @@ void setup() {
 
 void loop() {
   int len = strlen(command);
+  // `command` must stay NUL-terminated within its bounds. If it ever isn't,
+  // strlen() above can return >= sizeof(command) and the loop below would then
+  // index past the buffer, so clamp defensively.
+  if (len >= (int)sizeof(command)) {
+    command[0] = 0;
+    len = 0;
+  }
   while (Serial.available() && len < sizeof(command)-1) {
     char c = Serial.read();
     if (c != '\n') {
@@ -130,20 +137,23 @@ void loop() {
     }
     Serial.print(c);
   }
-  if (len == sizeof(command)-1) {  // command buffer full
-    command[sizeof(command)-1] = '\r';
+  if (len == sizeof(command)-1) {  // buffer full: treat as a completed line
+    command[sizeof(command)-2] = '\r';  // place end-of-line marker inside the buffer
+    command[sizeof(command)-1] = 0;     // keep the buffer NUL-terminated
   }
 
   if (len > 0 && command[len - 1] == '\r') {  // received complete line
     command[len - 1] = 0;  // replace newline with C string null terminator
     char reply[160];
-    the_mesh.handleCommand(0, command, reply);  // NOTE: there is no sender_timestamp via serial!
+    the_mesh.handleCommand(NULL, 0, command, reply);  // NOTE: there is no sender_timestamp via serial!
     if (reply[0]) {
       Serial.print("  -> "); Serial.println(reply);
     }
 
     command[0] = 0;  // reset command buffer
   }
+
+  board.loop();   // let the board feed its watchdog, run periodic housekeeping
 
   the_mesh.loop();
   sensors.loop();
