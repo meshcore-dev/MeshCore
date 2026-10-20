@@ -31,7 +31,7 @@ class RadioProfileCLI : public ConfigSerializer {
   bool restoring_[2] = {};
   RadioProfileConfig saved_;
   uint16_t primary_preamble_ = 0;
-  uint8_t cross_ = 0;
+  uint8_t cross_ = uint8_t(RadioCrossMode::Off);
   CommonRadioPrefs* prefs_ = nullptr;
   Radio* radio_ = nullptr;
   RTCClock* rtc_ = nullptr;

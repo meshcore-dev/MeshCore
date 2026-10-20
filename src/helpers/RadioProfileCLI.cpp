@@ -100,8 +100,8 @@ void RadioProfileCLI::begin(CommonRadioPrefs& prefs, Radio& radio, RTCClock& clo
   if (primary_preamble_ && (primary_preamble_ < 8 || primary_preamble_ > RadioProfiles::MaxPreamble)) primary_preamble_ = 0;
   if (uint8_t(saved_.mode) > uint8_t(RadioProfileMode::RxTx)
       || (saved_.mode != RadioProfileMode::Off && !radio.validateProfile(saved_.params))) saved_ = {};
-  if (cross_ > uint8_t(RadioCrossMode::Off)) cross_ = 0;
-  radio.profiles()->cross = cross_ <= uint8_t(RadioCrossMode::Off) ? RadioCrossMode(cross_) : RadioCrossMode::Auto;
+  if (cross_ > uint8_t(RadioCrossMode::Off)) cross_ = uint8_t(RadioCrossMode::Off);
+  radio.profiles()->cross = RadioCrossMode(cross_);
   RadioProfileConfig primary; primary.params = savedPrimary(); primary.mode = RadioProfileMode::RxTx;
   queue(0, primary, false, false, uint32_t(millis()));
   if (uint8_t(saved_.mode) <= uint8_t(RadioProfileMode::RxTx)

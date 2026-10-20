@@ -61,7 +61,7 @@ class RadioProfiles {
   RadioProfileConfig secondary;
   bool primary_temporary = false;
   bool secondary_temporary = false;
-  RadioCrossMode cross = RadioCrossMode::Auto;
+  RadioCrossMode cross = RadioCrossMode::Off;
   uint32_t generation[2] = {1, 1};
   uint32_t switches = 0;
   uint32_t rx_packets[2] = {};

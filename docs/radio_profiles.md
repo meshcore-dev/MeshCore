@@ -20,7 +20,7 @@ Frequencies are MHz; bandwidths are kHz. The driver validates each tuple against
 
 Modes are `rx`, `rxtx` and `off`; `rx&tx` aliases `rxtx`. Bare `tempradio ...` remains supported. Temporary durations are 1â€“10080 minutes.
 
-`cross auto` permits crossover when both profiles are permanent or both are temporary. `on` always permits it; `off` keeps traffic on its originating profile. An RX-only profile never transmits. Replies follow receive affinity and crossover policy; queued packets from replaced sessions are discarded.
+Crossover defaults to `off`. `cross auto` permits crossover when both profiles are permanent or both are temporary. `on` always permits it; `off` keeps traffic on its originating profile. An RX-only profile never transmits. Replies follow receive affinity and crossover policy; queued packets from replaced sessions are discarded.
 
 ```text
 set radio2 915,125,8,5,rxtx
@@ -60,4 +60,4 @@ SX1262 and LR1110 switches reuse acknowledged RX settings and keep the oscillato
 
 Scanning and pending timers keep the MCU awake. One transceiver cannot receive both profiles simultaneously; acquisition still depends on peer preambles, traffic and application delays.
 
-Permanent settings use existing preferences JSON. Missing fields default to secondary off and automatic timing/crossover. Temporary settings and schedules disappear on reboot. Scheduled permanent settings are saved only after application.
+Permanent settings use existing preferences JSON. Missing fields default to secondary off, crossover off and automatic timing. Temporary settings and schedules disappear on reboot. Scheduled permanent settings are saved only after application.

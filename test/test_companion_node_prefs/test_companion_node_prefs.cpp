@@ -111,7 +111,7 @@ TEST(CompanionNodePrefs, RadioProfilesRoundTripInExistingPrefs) {
   EXPECT_NE(std::string::npos, output.text().find("cross:2"));
 }
 
-TEST(CompanionNodePrefs, LegacyPrefsDefaultToOneProfileAndAutomaticPreamble) {
+TEST(CompanionNodePrefs, LegacyPrefsDefaultToOneProfileNoCrossoverAndAutomaticPreamble) {
   NodePrefs prefs;
   ReplayStream input("{radio:{freq:869.525,bw:125,sf:8,cr:5}}");
   ASSERT_TRUE(prefs.loadSerial(input));
@@ -121,7 +121,7 @@ TEST(CompanionNodePrefs, LegacyPrefsDefaultToOneProfileAndAutomaticPreamble) {
   EXPECT_EQ(0, profiles.savedPrimary().preamble);
   CaptureStream output;
   ASSERT_TRUE(prefs.saveSerial(output));
-  EXPECT_NE(std::string::npos, output.text().find("cross:0"));
+  EXPECT_NE(std::string::npos, output.text().find("cross:2"));
 }
 
 int main(int argc, char** argv) {

@@ -60,6 +60,8 @@ public:
 int main(int argc,char**argv) {
   assert(argc==2);std::string name=argv[1]; Rig r;
   if(name=="parse") {
+    assert(r.cmd("get radio2.cross")=="> off");
+    assert(r.radio.state.cross==mesh::RadioCrossMode::Off&&!r.radio.state.canCross());
     const char* bad[]={"set radio2 915,125,8,5", "set radio2 nan,125,8,5,rx", "set radio2 1e3,125,8,5,rx",
       "set radio2 +915,125,8,5,rx", "set radio2 915,124,8,5,rx", "set radio2 915,125,256,5,rx",
       "set radio2 915,125,8,261,rx", "set radio2 915,125,8,5,both", "set radio2 915,125,8,5,rx,7",
@@ -132,7 +134,15 @@ int main(int argc,char**argv) {
     assert(radio.state.secondary.params.preamble==40&&radio.state.secondary.mode==mesh::RadioProfileMode::RxTx&&radio.state.cross==mesh::RadioCrossMode::Off);
     char reply[160];loaded.profileCLI().handle("get radio2at",reply);assert(!strcmp(reply,"> off"));loaded.profileCLI().handle("get tempradio",reply);assert(!strcmp(reply,"> off"));
     Prefs legacy;MemoryStream old("{freq:868.5,bw:125,sf:9,cr:5}");assert(legacy.loadSerial(old));mesh::Radio oldradio;legacy.profileCLI().begin(legacy,oldradio,rtc);legacy.profileCLI().loop();
-    assert(!oldradio.state.enabled()&&oldradio.state.primary.preamble==0&&oldradio.state.cross==mesh::RadioCrossMode::Auto);
+    assert(!oldradio.state.enabled()&&oldradio.state.primary.preamble==0&&oldradio.state.cross==mesh::RadioCrossMode::Off);
+    const char* saved_cross[]={"{profiles:{cross:0}}","{profiles:{cross:1}}","{profiles:{cross:2}}","{profiles:{cross:255}}","{profiles:{mode:0}}"};
+    for(unsigned value=0;value<5;++value) {
+      Prefs prefs;MemoryStream input(saved_cross[value]);assert(prefs.loadSerial(input));mesh::Radio restored;
+      prefs.profileCLI().begin(prefs,restored,rtc);
+      assert(restored.state.cross==(value<3?mesh::RadioCrossMode(value):mesh::RadioCrossMode::Off));
+      MemoryStream output;assert(prefs.saveSerial(output));
+      assert(output.text.find(value==0?"cross:0":value==1?"cross:1":"cross:2")!=std::string::npos);
+    }
     test_millis=UINT32_MAX-500;r.ok("set radio2.cross on");assert(r.cli.saveDue());assert(!r.cli.saveDue());
     test_millis+=1000;assert(r.cli.saveDue());r.prefs.clearDirty();assert(!r.cli.saveDue());
   } else if(name=="legacy") {
