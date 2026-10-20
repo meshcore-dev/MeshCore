@@ -7,12 +7,31 @@
 #include <Adafruit_ST7789.h>
 #include <helpers/RefCountedDigitalPin.h>
 
+#ifdef LILYGO_TDECK
+class TDeckCanvas;
+#endif
+
 class ST7789LCDDisplay : public DisplayDriver {
   #if defined(LILYGO_TDECK) || defined(HELTEC_LORA_V4_TFT) || defined(HELTEC_V4_R8_TFT)
     SPIClass displaySPI;
   #endif
   Adafruit_ST7789 display;
   bool _isOn;
+#ifdef LILYGO_TDECK
+  friend class TDeckCanvas;
+  TDeckCanvas* _canvas = nullptr;
+  bool _panel_ready = false;
+  bool _buffered_rendering = true;
+  bool _canvas_attempted = false;
+  bool _frame_active = false;
+  bool _render_callback_active = false;
+  void (*_render_yield)() = nullptr;
+  uint32_t _last_render_yield_us = 0;
+  bool prepareCanvas();
+  void serviceRender(bool force = false);
+  void flushCanvas(int x, int y, int w, int h);
+  void finishCanvasPrimitive(int x, int y, int w, int h);
+#endif
   uint16_t _color;
   RefCountedDigitalPin* _peripher_power;
 
@@ -42,6 +61,13 @@ public:
   }
 #endif
   bool begin();
+#ifdef LILYGO_TDECK
+  ~ST7789LCDDisplay();
+  void setBufferedRendering(bool enabled);
+  bool isBufferedRendering() const;
+  // Runs with TFT CS released. Only service the radio; do not re-enter the UI.
+  void setRenderYieldCallback(void (*callback)()) { _render_yield = callback; }
+#endif
 
   bool isOn() override { return _isOn; }
   void turnOn() override;

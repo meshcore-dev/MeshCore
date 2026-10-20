@@ -56,7 +56,7 @@ Overdue events apply in start order; equal starts apply permanent settings first
 
 Live changes wait at least two seconds and for queued transmissions to drain. Remote changes also require a successful transmission of their exact CLI response; this confirms local transmission, not delivery. Failed responses cancel the change (`reply_failed=1` in status). Expiry retires the old session before new transmissions and restores the radio when safe.
 
-SX1262 and LR1110 switches reuse acknowledged RX settings and keep the oscillator warm. TX, CAD, reset, sleep and errors revoke cached state.
+SX1262 and LR1110 switches reuse acknowledged RX settings and keep the oscillator warm. TX, CAD, reset, sleep and errors revoke cached state. T-Deck display transfers release SPI between bounded strips and service the radio; its framebuffer uses 150 KiB of PSRAM, with direct rendering as the allocation-failure fallback. The qualified T-Deck SPI setting is 8.888888 MHz.
 
 Scanning and pending timers keep the MCU awake. One transceiver cannot receive both profiles simultaneously; acquisition still depends on peer preambles, traffic and application delays.
 

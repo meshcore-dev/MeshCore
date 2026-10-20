@@ -1,11 +1,13 @@
 #include <Arduino.h>
 #include "target.h"
+#include <helpers/radiolib/ESP32BufferedRadioHal.h>
 
 TDeckBoard board;
 
 #if defined(P_LORA_SCLK)
   static SPIClass spi;
-  RADIO_CLASS radio = new Module(P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BUSY, spi);
+  static ESP32BufferedRadioHal radio_hal(spi);
+  RADIO_CLASS radio = new Module(&radio_hal, P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BUSY);
 #else
   RADIO_CLASS radio = new Module(P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BUSY);
 #endif
@@ -28,10 +30,18 @@ bool radio_init() {
   Wire.begin(18, 8);
 
 #if defined(P_LORA_SCLK)
-  return radio.std_init(&spi);
+  const bool ready = radio.std_init(&spi);
 #else
-  return radio.std_init();
+  const bool ready = radio.std_init();
 #endif
+#ifdef DISPLAY_CLASS
+  if (ready) {
+    display.setRenderYieldCallback([]() {
+      if (radio_driver.profiles()->enabled()) radio_driver.loop();
+    });
+  }
+#endif
+  return ready;
 }
 
 mesh::LocalIdentity radio_new_identity() {
