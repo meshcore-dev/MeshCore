@@ -48,6 +48,12 @@ For developers:
 
 The Simple Secure Chat example can be interacted with through the Serial Monitor in Visual Studio Code, or with a Serial USB Terminal on Android.
 
+Meshcore is also monitored and calaogued by:
+[![SWH](https://archive.softwareheritage.org/badge/origin/https://github.com/meshcore-dev/meshcore/)](https://archive.softwareheritage.org/browse/origin/?origin_url=https://github.com/meshcore-dev/meshcore)
+<a href="https://archive.softwareheritage.org/swh:1:dir:a14fa55ca3495c0a4ea8a52db26088b755199055;origin=https://github.com/meshcore-dev/meshcore;visit=swh:1:snp:1542b7c2b2a345f0e81811de644a0d051d60159a;anchor=swh:1:rev:1a7b3614a8439894714a58af55ab7f501e6bb928">
+  <img src="https://archive.softwareheritage.org/badge/swh:1:dir:a14fa55ca3495c0a4ea8a52db26088b755199055/" alt="Archived | swh:1:dir:a14fa55ca3495c0a4ea8a52db26088b755199055"/>
+</a>
+
 ## ⚡️ MeshCore Flasher
 
 We have prebuilt firmware ready to flash on supported devices.
