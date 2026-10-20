@@ -1003,6 +1003,7 @@ void MyMesh::begin() {
   _store->loadChannels(this);
 
   radio_driver.setParams(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
+  _prefs.getRadioPrefs()->profileCLI().begin(*_prefs.getRadioPrefs(), radio_driver, *getRTCClock(), this);
   radio_driver.setTxPower(_prefs.tx_power_dbm);
   radio_driver.setRxBoostedGainMode(_prefs.rx_boosted_gain);
 
@@ -1440,14 +1441,21 @@ void MyMesh::handleCmdFrame(size_t len) {
       writeErrFrame(ERR_CODE_ILLEGAL_ARG);
     } else if (freq >= 150000 && freq <= 2500000 && sf >= 5 && sf <= 12 && cr >= 5 && cr <= 8 && bw >= 7000 &&
         bw <= 500000) {
-      _prefs.sf = sf;
-      _prefs.cr = cr;
-      _prefs.freq = (float)freq / 1000.0;
-      _prefs.bw = (float)bw / 1000.0;
+      auto& profiles = _prefs.getRadioPrefs()->profileCLI();
+      mesh::RadioProfileParams params = profiles.savedPrimary();
+      params.freq = (float)freq / 1000.0f; params.bw = (float)bw / 1000.0f;
+      params.sf = sf; params.cr = cr;
+      if (radio_driver.profiles() && (profiles.awaitingReply() || hasPendingTransmissions()
+          || !radio_driver.validateProfile(params)
+          || radio_driver.trySetPrimaryParams(params) != mesh::RadioParamApplyResult::APPLIED)) {
+        writeErrFrame(ERR_CODE_ILLEGAL_ARG);
+        return;
+      }
+      if (!radio_driver.profiles()) radio_driver.setParams(params.freq, params.bw, params.sf, params.cr);
+      profiles.primaryChanged();
+      _prefs.sf = sf; _prefs.cr = cr; _prefs.freq = params.freq; _prefs.bw = params.bw;
       _prefs.setRepeatEn(repeat != 0);
       savePrefs();
-
-      radio_driver.setParams(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
       MESH_DEBUG_PRINTLN("OK: CMD_SET_RADIO_PARAMS: f=%d, bw=%d, sf=%d, cr=%d", freq, bw, (uint32_t)sf,
                          (uint32_t)cr);
 
@@ -2413,7 +2421,10 @@ void MyMesh::checkSerialInterface() {
 }
 
 void MyMesh::loop() {
+  auto& profiles = _prefs.getRadioPrefs()->profileCLI();
+  profiles.loop(!hasPendingTransmissions());
   BaseChatMesh::loop();
+  if (profiles.saveDue()) savePrefs();
 
   if (_cli_rescue) {
     checkCLIRescueCmd();
@@ -2450,5 +2461,7 @@ bool MyMesh::advert() {
 
 // To check if there is pending work
 bool MyMesh::hasPendingWork() const {
+  if ((radio_driver.profiles() && radio_driver.profiles()->enabled())
+      || _prefs.getRadioPrefs()->profileCLI().needsService()) return true;
   return _mgr->getOutboundTotal() > 0 || dirty_contacts_expiry != 0;
 }

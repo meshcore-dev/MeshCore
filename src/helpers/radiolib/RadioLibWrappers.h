@@ -2,6 +2,7 @@
 
 #include <Mesh.h>
 #include <RadioLib.h>
+#include <RadioProfiles.h>
 
 #ifdef USE_CC310_HW_CRYPTO
 #include <Adafruit_nRFCrypto.h>
@@ -23,13 +24,38 @@ protected:
   uint8_t _preamble_sf;
 
   void idle();
-  void startRecv();
+  bool startRecv();
+  virtual bool applyParams(float freq, float bw, uint8_t sf, uint8_t cr) = 0;
+  virtual bool isChipBusy() { return false; }
+  virtual uint32_t minimumAirtimeMillis() const { return 0; }
+  virtual void beginProfileRetune(bool) {}
+  virtual void endProfileRetune(bool) {}
+  virtual void setProfileStandbyWarm(bool) {}
+  uint8_t beginReconfigure();
+  mesh::RadioParamApplyResult tuneProfile(uint8_t profile);
+  void serviceProfiles();
+  void saveNoiseFloor(uint8_t profile);
+  void loadNoiseFloor(uint8_t profile);
+
+  mesh::RadioProfiles _profiles;
+  mesh::RadioProfileParams _physical_params;
+  uint8_t _state = 0, _active_profile = 0, _last_rx_profile = 0;
+  uint32_t _profile_generation = 1, _last_rx_generation = 1;
+  uint16_t _physical_preamble = 0;
+  bool _params_valid = false, _profile_refresh_required = false, _physical_dual = false;
+  uint32_t _profile_visit_stamp = 0;
+  uint32_t _profile_scan_generation[2] = {};
+  float _last_rssi = 0, _last_snr = 0;
+  int16_t _profile_noise_floor[2] = {};
+  uint16_t _profile_floor_samples[2] = {};
+  int32_t _profile_floor_sum[2] = {};
+
   float packetScoreInt(float snr, int sf, int packet_len);
   virtual bool isReceivingPacket() =0;
   virtual void doResetAGC();
 
 public:
-  RadioLibWrapper(PhysicalLayer& radio, mesh::MainBoard& board) : _radio(&radio), _board(&board), _preamble_sf(0) { n_recv = n_sent = 0; }
+  RadioLibWrapper(PhysicalLayer& radio, mesh::MainBoard& board) : _radio(&radio), _board(&board), _preamble_sf(0) { n_recv = n_sent = n_recv_errors = 0; }
 
   void begin() override;
   virtual void powerOff() { _radio->sleep(); }
@@ -47,15 +73,35 @@ public:
     return isChannelActive();
   }
 
-  virtual void setParams(float freq, float bw, uint8_t sf, uint8_t cr) = 0;
+  mesh::RadioProfiles* profiles() override { return &_profiles; }
+  const mesh::RadioProfiles* profiles() const override { return &_profiles; }
+  bool validateProfile(const mesh::RadioProfileParams& params) const override;
+  mesh::RadioParamApplyResult trySetPrimaryParams(const mesh::RadioProfileParams& params,
+      bool temporary = false, const uint32_t* timings = nullptr) override;
+  mesh::RadioParamApplyResult trySetParams(float freq, float bw, uint8_t sf, uint8_t cr,
+      const uint32_t* timings = nullptr);
+  bool setParams(float freq, float bw, uint8_t sf, uint8_t cr) {
+    return trySetParams(freq, bw, sf, cr) == mesh::RadioParamApplyResult::APPLIED;
+  }
+  mesh::RadioParamApplyResult prepareTransmitProfile(uint8_t profile) override;
+  uint32_t getProfileAirtime(uint8_t profile, int len_bytes, uint8_t cr = 0) override;
+  uint8_t receiveProfile() const override { return _last_rx_profile; }
+  uint32_t receiveProfileGeneration() const override { return _last_rx_generation; }
+  uint16_t profilePreamble(uint8_t profile) const override {
+    return _profiles.preamble(profile, preambleLengthForSF(_profiles.params(profile).sf));
+  }
   uint32_t getRngSeed();
   void setTxPower(int8_t dbm);
 
   virtual float getCurrentRSSI() =0;
   virtual uint8_t getSpreadingFactor() const { return LORA_SF; }
   static uint16_t preambleLengthForSF(uint8_t sf) { return sf <= 8 ? 32 : 16; }
-  void updatePreamble(uint8_t sf) { _preamble_sf = sf; _radio->setPreambleLength(preambleLengthForSF(sf)); }
-  PacketMillis calcMaxPacketMillis(uint8_t sf, float bw, uint8_t cr, uint8_t preambleSymbols);
+  bool updatePreamble(uint8_t sf) {
+    _preamble_sf = sf;
+    return _radio->setPreambleLength(_physical_preamble ? _physical_preamble : preambleLengthForSF(sf)) == RADIOLIB_ERR_NONE;
+  }
+  uint16_t currentPreambleLength() const { return _physical_preamble; }
+  PacketMillis calcMaxPacketMillis(uint8_t sf, float bw, uint8_t cr, uint16_t preambleSymbols);
   virtual int16_t performChannelScan();
 
   int getNoiseFloor() const override { return _noise_floor; }

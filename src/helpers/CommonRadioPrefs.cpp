@@ -29,6 +29,7 @@ bool CommonRadioPrefs::setByKey(const char* key, const char* value) {
 }
 
 bool CommonRadioPrefs::handleCommand(const char* command, uint32_t sender_timestamp, char* reply) {
+  if (_profiles.handle(command, reply, 160, sender_timestamp != 0)) return true;
   if (strcmp(command, "get radio") == 0) {
     char freq[16], bw[16];
     strcpy(freq, StrHelper::ftoa(getFreq()));

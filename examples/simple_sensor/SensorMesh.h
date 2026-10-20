@@ -50,6 +50,9 @@ class SensorMesh : public mesh::Mesh, public CommonCLICallbacks {
 public:
   SensorMesh(mesh::MainBoard& board, mesh::Radio& radio, mesh::MillisecondClock& ms, mesh::RNG& rng, mesh::RTCClock& rtc, mesh::MeshTables& tables);
   void begin(FILESYSTEM* fs);
+  void onTransmitResult(uint32_t token, bool success) override {
+    _prefs.getRadioPrefs()->profileCLI().onTransmitResult(token, success);
+  }
   void loop();
   void handleCommand(ClientInfo* from, uint32_t sender_timestamp, char* command, char* reply);
 
@@ -59,7 +62,7 @@ public:
   const char* getRole() override { return FIRMWARE_ROLE; }
   const char* getNodeName() { return _prefs.node_name; }
   NodePrefs* getNodePrefs() { return &_prefs; }
-  void savePrefs() override { _cli.savePrefs(_fs); }
+  void savePrefs() override { if (_cli.savePrefs(_fs)) _prefs.clearDirty(); }
   bool formatFileSystem() override;
   void sendSelfAdvertisement(int delay_millis, bool flood) override;
   void updateAdvertTimer() override;

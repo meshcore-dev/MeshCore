@@ -119,6 +119,12 @@ public:
   uint32_t getBLEPin();
   void setBLEPin(uint32_t active_pin);
 
+  void onTransmitResult(uint32_t token, bool success) override {
+    _prefs.getRadioPrefs()->profileCLI().onTransmitResult(token, success);
+  }
+  void onCLIReplyCreated(mesh::Packet* packet) override {
+    _prefs.getRadioPrefs()->profileCLI().attachReply(packet);
+  }
   void loop();
   void handleCmdFrame(size_t len);
   bool advert();
@@ -197,8 +203,7 @@ public:
   void savePrefs() {
     _prefs.node_lat = sensors.node_lat;
     _prefs.node_lon = sensors.node_lon;
-    _store->savePrefs(_prefs);
-    _prefs.clearDirty();
+    if (_store->savePrefs(_prefs)) _prefs.clearDirty();
   }
 
 #if ENV_INCLUDE_GPS == 1

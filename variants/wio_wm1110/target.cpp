@@ -1,10 +1,12 @@
 #include <Arduino.h>
 #include "target.h"
+#include <helpers/radiolib/Nrf52BufferedRadioHal.h>
 #include <helpers/ArduinoHelpers.h>
 
 WioWM1110Board board;
 
-RADIO_CLASS radio = new Module(P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BUSY, SPI);
+Nrf52BufferedRadioHal radioHal(SPI);
+RADIO_CLASS radio = new Module(&radioHal, P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BUSY);
 
 WRAPPER_CLASS radio_driver(radio, board);
 

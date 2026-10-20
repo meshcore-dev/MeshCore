@@ -1,15 +1,20 @@
 #pragma once
 #include "ConfigSerializer.h"
 #include "KeyValueStore.h"
+#include "RadioProfileCLI.h"
 
 class CommonRadioPrefs : public ConfigSerializer, public KeyValueStore {
   bool _is_dirty = false;
+  mesh::RadioProfileCLI _profiles;
 protected:
   CommonRadioPrefs() { }
+  void structure() override { def("profiles", _profiles); }
 public:
   void markDirty() { _is_dirty = true; }
-  void clearDirty() { _is_dirty = false; }
-  bool isDirty() const { return _is_dirty; }
+  void clearDirty() override { _is_dirty = false; _profiles.clearDirty(); }
+  bool isDirty() const override { return _is_dirty || _profiles.isDirty(); }
+  mesh::RadioProfileCLI& profileCLI() { return _profiles; }
+  const mesh::RadioProfileCLI& profileCLI() const { return _profiles; }
 
   virtual float getFreq() const = 0;
   virtual void setFreq(float f) = 0;

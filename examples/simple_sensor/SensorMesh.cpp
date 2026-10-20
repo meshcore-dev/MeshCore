@@ -683,6 +683,7 @@ void SensorMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender_i
           temp[4] = (TXT_TYPE_CLI_DATA << 2);
 
           auto reply = createDatagram(PAYLOAD_TYPE_TXT_MSG, from->id, secret, temp, 5 + text_len);
+          _prefs.getRadioPrefs()->profileCLI().attachReply(reply);
           if (reply) {
             if (from->out_path_len == OUT_PATH_UNKNOWN) {
               sendFloodReply(reply, CLI_REPLY_DELAY_MILLIS, packet->getPathHashSize());
@@ -856,6 +857,7 @@ void SensorMesh::begin(FILESYSTEM* fs) {
   }
 
   radio_driver.setParams(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
+  _prefs.getRadioPrefs()->profileCLI().begin(*_prefs.getRadioPrefs(), radio_driver, *getRTCClock(), this);
   radio_driver.setTxPower(_prefs.tx_power_dbm);
 
   board.attachDynamicPrefs(_prefs.getCustom());
@@ -999,7 +1001,10 @@ bool  SensorMesh::getGPS(uint8_t channel, float& lat, float& lon, float& alt) {
 }
 
 void SensorMesh::loop() {
+  auto& profiles = _prefs.getRadioPrefs()->profileCLI();
+  profiles.loop(!hasPendingTransmissions());
   mesh::Mesh::loop();
+  if (profiles.saveDue()) savePrefs();
 
   if (next_flood_advert && millisHasNowPassed(next_flood_advert)) {
     mesh::Packet* pkt = createSelfAdvert();
