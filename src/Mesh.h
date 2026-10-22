@@ -214,14 +214,16 @@ public:
 
   /**
    * \brief  send a locally-generated Packet to just neighbor nodes (zero hops)
+   * \param path_hash_size   width this node advertises in the path byte (1..3)
   */
-  void sendZeroHop(Packet* packet, uint32_t delay_millis=0);
+  void sendZeroHop(Packet* packet, uint32_t delay_millis=0, uint8_t path_hash_size=1);
 
   /**
    * \brief  send a locally-generated Packet to just neighbor nodes (zero hops), with specific transport codes
    * \param transport_codes   array of 2 codes to attach to packet
+   * \param path_hash_size    width this node advertises in the path byte (1..3)
   */
-  void sendZeroHop(Packet* packet, uint16_t* transport_codes, uint32_t delay_millis=0);
+  void sendZeroHop(Packet* packet, uint16_t* transport_codes, uint32_t delay_millis=0, uint8_t path_hash_size=1);
 
 };
 
