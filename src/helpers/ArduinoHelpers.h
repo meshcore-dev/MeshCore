@@ -24,6 +24,17 @@ public:
   unsigned long getMillis() override { return millis(); }
 };
 
+/**
+ * \brief  Wrap-safe millis deadline check, handling the 49-day millis() overflow.
+ * \param  target  The deadline timestamp obtained from millis() + delay.
+ * \returns true when the deadline has passed.
+ * \note   Use this instead of \c millis()>=target which fails near the 32-bit wrap.
+ *         Works via signed subtraction (2's complement).
+ */
+inline bool millis_passed(unsigned long target) {
+  return (long)(millis() - target) > 0;
+}
+
 class StdRNG : public mesh::RNG {
 public:
   void begin(long seed) { randomSeed(seed); }
