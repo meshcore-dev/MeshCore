@@ -226,7 +226,7 @@ public:
   static bool saveFilter(ClientInfo* client);
 
   void saveIdentity(const mesh::LocalIdentity& new_id) override;
-  mesh::LocalIdentity generateIdentity() override { return mesh::LocalIdentity(getRNG()); }
+  mesh::LocalIdentity generateIdentity() override { return radio_new_identity(); }
   void clearStats() override;
   void handleCommand(uint32_t sender_timestamp, char* command, char* reply);
   void loop();

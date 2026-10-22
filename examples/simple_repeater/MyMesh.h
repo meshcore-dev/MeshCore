@@ -224,7 +224,7 @@ public:
   mesh::LocalIdentity& getSelfId() override { return self_id; }
 
   void saveIdentity(const mesh::LocalIdentity& new_id) override;
-  mesh::LocalIdentity generateIdentity() override { return mesh::LocalIdentity(getRNG()); }
+  mesh::LocalIdentity generateIdentity() override { return radio_new_identity(); }
   void clearStats() override;
 
   void handleCommand(uint32_t sender_timestamp, char* command, char* reply);
