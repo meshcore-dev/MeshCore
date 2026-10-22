@@ -59,14 +59,28 @@ int Dispatcher::calcRxDelay(float score, uint32_t air_time) const {
 uint32_t Dispatcher::getCADFailRetryDelay() const {
   return 200;
 }
+// a max-wait of zero means 'unlimited', which is the strictest setting of all, so normalise it
+// to the largest representable duration before any comparison.
+static uint32_t normMaxWait(uint16_t ms) {
+  return ms == 0 ? 0xFFFFFFFFUL : (uint32_t) ms;
+}
+
 uint32_t Dispatcher::getCADFailMaxDuration() const {
-  return 4000;   // 4 seconds
+  // rssi.lbt is the only mechanism with a configurable max-wait; CAD's is the fixed upstream
+  // 4000ms. With rssi.lbt off this is byte-for-byte the original hard-coded behaviour. With
+  // both active, the stricter (longer) of the two wins -- CAD's fixed wait never gets to
+  // shorten a max-wait that rssi.lbt asked to be longer.
+  if (!getRssiLbtEnabled()) return 4000;   // 4 seconds, upstream default, untouched
+  uint32_t rssi = normMaxWait(getRssiLbtMaxwaitMs());
+  if (!getCADEnabled()) return rssi;
+  return rssi > 4000 ? rssi : 4000;
 }
 
 void Dispatcher::loop() {
   if (millisHasNowPassed(next_floor_calib_time)) {
     _radio->triggerNoiseFloorCalibrate(getInterferenceThreshold());
     _radio->setCADEnabled(getCADEnabled());
+    _radio->setRssiLbtParams(getRssiLbtEnabled(), getRssiLbtThrDbm(), getRssiLbtSenseMs(), getRssiLbtPauseMs());
     next_floor_calib_time = futureMillis(NOISE_FLOOR_CALIB_INTERVAL);
   }
   _radio->loop();
@@ -294,6 +308,22 @@ void Dispatcher::checkSend() {
     if (_ms->getMillis() - cad_busy_start > getCADFailMaxDuration()) {
       _err_flags |= ERR_EVENT_CAD_TIMEOUT;
 
+      if (getRssiLbtEnabled()) {
+        // forcing a transmit into a channel still sensed busy at threshold-sense is exactly what
+        // rssi.lbt's absolute-threshold check exists to prevent -- drop the packet instead.
+        cad_busy_start = 0;  // reset busy state, so the next packet gets a fresh max-wait
+
+        Packet* pkt = _mgr->getNextOutbound(_ms->getMillis());
+        if (pkt) {
+          MESH_DEBUG_PRINTLN("%s Dispatcher::checkSend(): rssi.lbt max-wait exceeded, dropping packet, len=%d", getLogDateTime(), pkt->getRawLength());
+
+          logTxFail(pkt, pkt->getRawLength());
+
+          releasePacket(pkt);  // return to pool
+        }
+        return;
+      }
+
       MESH_DEBUG_PRINTLN("%s Dispatcher::checkSend(): CAD busy max duration reached!", getLogDateTime());
       // channel activity has gone on too long... (Radio might be in a bad state)
       // force the pending transmit below...
@@ -323,6 +353,17 @@ void Dispatcher::checkSend() {
       outbound = NULL;
     } else {
       memcpy(&raw[len], outbound->payload, outbound->payload_len); len += outbound->payload_len;
+
+      uint16_t txmax = getRssiLbtTxmaxMs();
+      if (getRssiLbtEnabled() && txmax != 0 && _radio->getEstAirtimeFor(len) > txmax) {
+        MESH_DEBUG_PRINTLN("%s Dispatcher::checkSend(): packet airtime exceeds rssi.lbt txmax, dropping, len=%d", getLogDateTime(), len);
+
+        logTxFail(outbound, outbound->getRawLength());
+
+        releasePacket(outbound);  // return to pool
+        outbound = NULL;
+        return;
+      }
 
       uint32_t max_airtime = _radio->getEstAirtimeFor(len)*3/2;
       outbound_start = _ms->getMillis();
