@@ -10,6 +10,7 @@
   #include <LittleFS.h>
 #elif defined(ESP32)
   #include <SPIFFS.h>
+  #include <helpers/esp32/SPIFFSMount.h>
 #else
   #include <InternalFileSystem.h>
 #endif
@@ -38,7 +39,7 @@ void loadOrCreateIdentity() {
   InternalFS.begin();
   IdentityStore store(InternalFS, "");
 #elif defined(ESP32)
-  SPIFFS.begin(true);
+  mountSPIFFS();
   IdentityStore store(SPIFFS, "/identity");
 #elif defined(RP2040_PLATFORM)
   LittleFS.begin();
