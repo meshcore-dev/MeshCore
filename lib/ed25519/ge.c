@@ -1,5 +1,7 @@
 #include "ge.h"
 #include "precomp_data.h"
+#include <stdbool.h>
+#include <stdatomic.h>
 
 
 /*
@@ -64,14 +66,23 @@ and b = b[0]+256*b[1]+...+256^31 b[31].
 B is the Ed25519 base point (x,4/5) with x positive.
 */
 
+/* aslide/bslide/Ai below are static to keep them off the stack (avoids stack
+ * overflow on constrained MCUs), which makes this function non-reentrant.
+ * Serialize concurrent callers (e.g. multiple FreeRTOS tasks) with a portable
+ * C11 atomic_bool spinlock so the fix lives with the buffers it protects.
+ * (atomic_bool exchange, not atomic_flag: the latter needs __atomic_test_and_set,
+ * which the Cortex-M0+/RP2040 bare-metal runtime does not provide.) */
+static atomic_bool ge_dsmv_lock = false;
+
 void ge_double_scalarmult_vartime(ge_p2 *r, const unsigned char *a, const ge_p3 *A, const unsigned char *b) {
-    signed char aslide[256];
-    signed char bslide[256];
-    ge_cached Ai[8]; /* A,3A,5A,7A,9A,11A,13A,15A */
+    static signed char aslide[256];
+    static signed char bslide[256];
+    static ge_cached Ai[8]; /* A,3A,5A,7A,9A,11A,13A,15A */
     ge_p1p1 t;
     ge_p3 u;
     ge_p3 A2;
     int i;
+    while (atomic_exchange_explicit(&ge_dsmv_lock, true, memory_order_acquire)) { /* spin */ }
     slide(aslide, a);
     slide(bslide, b);
     ge_p3_to_cached(&Ai[0], A);
@@ -127,6 +138,7 @@ void ge_double_scalarmult_vartime(ge_p2 *r, const unsigned char *a, const ge_p3 
 
         ge_p1p1_to_p2(r, &t);
     }
+    atomic_store_explicit(&ge_dsmv_lock, false, memory_order_release);
 }
 
 
