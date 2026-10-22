@@ -2192,7 +2192,8 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
   }
 
   if (strcmp(command, "get tz.offset") == 0) {
-    sprintf(reply, "> %.1f", _prefs.tz_offset);
+    float q = _prefs.tz_offset * 4;
+    sprintf(reply, (q == (int)q && ((int)q & 1)) ? "> %.2f" : "> %.1f", _prefs.tz_offset);
     return true;
   }
   if (memcmp(command, "set tz.offset ", 14) == 0) {
