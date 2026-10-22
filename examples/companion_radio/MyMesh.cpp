@@ -2158,13 +2158,14 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
     return true;
   }
   if (memcmp(command, "set wifi.enabled ", 17) == 0) {
-    _prefs.wifi_enabled = atoi(&command[17]) ? 1 : 0;
+    const char* value = &command[17];
+    _prefs.wifi_enabled = (strcmp(value, "on") == 0 || atoi(value)) ? 1 : 0;
     savePrefs();
-    sprintf(reply, "> wifi.enabled is now %d (reboot to apply)", _prefs.wifi_enabled);
+    sprintf(reply, "> wifi.enabled is now %s (reboot to apply)", _prefs.wifi_enabled ? "on" : "off");
     return true;
   }
   if (strcmp(command, "get wifi.enabled") == 0) {
-    sprintf(reply, "> %d", _prefs.wifi_enabled);
+    sprintf(reply, "> %s", _prefs.wifi_enabled ? "on" : "off");
     return true;
   }
   if (strcmp(command, "get wifi.status") == 0) {
