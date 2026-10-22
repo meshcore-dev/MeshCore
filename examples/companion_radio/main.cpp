@@ -309,7 +309,12 @@ void loop() {
   }
 
 #ifdef ENABLE_WIFI_INTERFACE
+#if defined(ESP32) && !defined(DISABLE_WIFI_OTA)
+  // OTA uses AP-only mode; do not rejoin the companion network during updates.
+  if (wifi_enabled && (WiFi.getMode() & WIFI_STA)) {
+#else
   if (wifi_enabled) {
+#endif
     // RP2040 has no WiFi event callbacks, so poll the link state instead
   #if defined(RP2040_PLATFORM)
       wifi_needs_reconnect = (WiFi.status() != WL_CONNECTED);
