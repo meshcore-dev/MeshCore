@@ -20,6 +20,11 @@ EnvironmentSensorManager sensors;
 bool radio_init() {
     rtc_clock.begin(Wire);
   
+#ifdef P_LORA_EN
+    pinMode(P_LORA_EN, OUTPUT);
+    digitalWrite(P_LORA_EN, HIGH);
+#endif
+
     return radio.std_init(&SPI);
 }
 
