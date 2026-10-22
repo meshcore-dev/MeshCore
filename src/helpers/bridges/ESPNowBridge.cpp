@@ -9,7 +9,7 @@
 ESPNowBridge *ESPNowBridge::_instance = nullptr;
 
 // Static callback wrappers
-void ESPNowBridge::recv_cb(const uint8_t *mac, const uint8_t *data, int32_t len) {
+void ESPNowBridge::recv_cb(const uint8_t *mac, const uint8_t *data, int len) {
   if (_instance) {
     _instance->onDataRecv(mac, data, len);
   }
@@ -100,7 +100,7 @@ void ESPNowBridge::xorCrypt(uint8_t *data, size_t len) {
   }
 }
 
-void ESPNowBridge::onDataRecv(const uint8_t *mac, const uint8_t *data, int32_t len) {
+void ESPNowBridge::onDataRecv(const uint8_t *mac, const uint8_t *data, int len) {
   // Ignore packets that are too small to contain header + checksum
   if (len < (BRIDGE_MAGIC_SIZE + BRIDGE_CHECKSUM_SIZE)) {
     BRIDGE_DEBUG_PRINTLN("RX packet too small, len=%d\n", len);
