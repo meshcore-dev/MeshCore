@@ -1,0 +1,24 @@
+{
+  "name": "nrf54l",
+  "title": "nRF54L (lolren nrf54-arduino-core)",
+  "description": "Builds lolren's nrf54-arduino-core under PlatformIO, for the nRF54LM20A",
+  "version": "0.1.0",
+  "license": "MIT",
+  "frameworks": {
+    "arduino": {
+      "script": "builder/frameworks/arduino.py"
+    }
+  },
+  "packages": {
+    "toolchain-gccarmnoneeabi": {
+      "type": "toolchain",
+      "owner": "platformio",
+      "version": "~1.70201.0"
+    },
+    "tool-adafruit-nrfutil": {
+      "type": "uploader",
+      "owner": "platformio",
+      "version": "~1.503.0"
+    }
+  }
+}
