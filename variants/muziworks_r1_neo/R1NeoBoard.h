@@ -27,14 +27,14 @@ public:
 #if defined(P_LORA_TX_LED)
   void onBeforeTransmit() override {
     digitalWrite(P_LORA_TX_LED, HIGH);   // turn TX LED on
-    #if defined(LED_BLUE)
+    #if defined(LED_BLUE) && LED_BLUE >= 0
        // turn off that annoying blue LED before transmitting
        digitalWrite(LED_BLUE, LOW);
     #endif
   }
   void onAfterTransmit() override {
     digitalWrite(P_LORA_TX_LED, LOW);   // turn TX LED off
-    #if defined(LED_BLUE)
+    #if defined(LED_BLUE) && LED_BLUE >= 0
        // do it after transmitting too, just in case
        digitalWrite(LED_BLUE, LOW);
     #endif
