@@ -22,6 +22,10 @@
 #define LOOP_DETECT_MODERATE  2
 #define LOOP_DETECT_STRICT    3
 
+#define GUEST_ENVIRONMENT_NORMAL  0
+#define GUEST_ENVIRONMENT_GPS     1
+#define GUEST_ENVIRONMENT_ALL     2
+
 class NodePrefs : public ConfigSerializer {
 public:
   // in-memory backing data
@@ -42,6 +46,7 @@ public:
   uint8_t sf = 0;
   uint8_t cr = 0;
   uint8_t allow_read_only = 0;
+  uint8_t guest_environment = GUEST_ENVIRONMENT_NORMAL;
   uint8_t multi_acks = 0;
   float bw = 0;
   uint8_t flood_max = 0;
@@ -210,6 +215,7 @@ protected:
     def("name", node_name, sizeof(node_name));
     def("pass", password, sizeof(password));
     def("guest", guest_password, sizeof(guest_password));
+    def("guest_env", guest_environment);
     def("owner", owner_info, sizeof(owner_info));
     def("adv_int", advert_interval);
     def("f_adv_int", flood_advert_interval);
