@@ -1291,6 +1291,8 @@ void MyMesh::loop() {
   bridge.loop();
 #endif
 
+  _cli.loop();
+
   mesh::Mesh::loop();
 
   if (next_flood_advert && millisHasNowPassed(next_flood_advert)) {
