@@ -54,7 +54,7 @@ class CustomLR2021 : public LR2021 {
         Serial.println(status);
         return false;  // fail
       }
-    
+      if (status == RADIOLIB_ERR_NONE) status = setRegulatorDCDC(); // set DCDC regulator if init was successful    
       setCRC(2);
       explicitHeader();
 
