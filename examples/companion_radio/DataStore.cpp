@@ -80,7 +80,7 @@ void DataStore::begin() {
 
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
 int _countLfsBlock(void *p, lfs_block_t block){
-      if (block > _ContactsChannelsTotalBlocks) {
+      if (block >= _ContactsChannelsTotalBlocks) {
         MESH_DEBUG_PRINTLN("ERROR: Block %d exceeds filesystem bounds - CORRUPTION DETECTED!", block);
         return LFS_ERR_CORRUPT;  // return error to abort lfs_traverse() gracefully
     }
@@ -91,7 +91,9 @@ int _countLfsBlock(void *p, lfs_block_t block){
 
 lfs_ssize_t _getLfsUsedBlockCount(FILESYSTEM* fs) {
   lfs_size_t size = 0;
+  fs->_lockFS();
   int err = lfs_traverse(fs->_getFS(), _countLfsBlock, &size);
+  fs->_unlockFS();
   if (err) {
     MESH_DEBUG_PRINTLN("ERROR: lfs_traverse() error: %d", err);
     return 0;
