@@ -21,12 +21,13 @@ class ESP32Board : public mesh::MainBoard {
 protected:
   uint8_t startup_reason;
   bool inhibit_sleep = false;
+  uint32_t inhibit_sleep_until = 0;
   static inline portMUX_TYPE sleepMux = portMUX_INITIALIZER_UNLOCKED;
 
 public:
   void begin() {
     // for future use, sub-classes SHOULD call this from their begin()
-    startup_reason = BD_STARTUP_NORMAL;    
+    startup_reason = BD_STARTUP_NORMAL;
 
   #ifdef ESP32_CPU_FREQ
     setCpuFrequencyMhz(ESP32_CPU_FREQ);
@@ -75,13 +76,13 @@ public:
 
   void sleep(uint32_t secs) override {
     // Skip if not allow to sleep
-    if (inhibit_sleep) {
+    if (inhibit_sleep || (int32_t)(inhibit_sleep_until - millis()) > 0) {
       delay(1); // Give MCU to OTA to run
       return;
     }
 
     // Set GPIO wakeup
-    gpio_num_t wakeupPin = (gpio_num_t)getIRQGpio();    
+    gpio_num_t wakeupPin = (gpio_num_t)getIRQGpio();
 
     // Configure timer wakeup
     if (secs > 0) {
@@ -100,7 +101,10 @@ public:
 
     // Configure GPIO wakeup
     esp_sleep_enable_gpio_wakeup();
-    gpio_wakeup_enable((gpio_num_t)wakeupPin, GPIO_INTR_HIGH_LEVEL); // Wake up when receiving a LoRa packet
+    gpio_wakeup_enable(wakeupPin, GPIO_INTR_HIGH_LEVEL); // Wake up when receiving a LoRa packet
+#if defined(PIN_USER_BTN) && (PIN_USER_BTN >= 0)
+    gpio_wakeup_enable((gpio_num_t)PIN_USER_BTN, GPIO_INTR_LOW_LEVEL); // Wakeup when pressing button
+#endif
 
     // MCU enters light sleep
     esp_light_sleep_start();
@@ -108,6 +112,15 @@ public:
     // Avoid ISR flood during wakeup due to HIGH LEVEL interrupt
     gpio_wakeup_disable(wakeupPin);
     gpio_set_intr_type(wakeupPin, GPIO_INTR_POSEDGE);
+#if defined(PIN_USER_BTN) && (PIN_USER_BTN >= 0)
+    gpio_wakeup_disable((gpio_num_t)PIN_USER_BTN);
+    gpio_set_intr_type((gpio_num_t)PIN_USER_BTN, GPIO_INTR_POSEDGE);
+
+    // Check if waken up by PIN_USER_BTN
+    if (gpio_get_level((gpio_num_t)PIN_USER_BTN) == LOW) {
+        inhibit_sleep_until = millis() + 30000; // Do not sleep in the next 30s. Should be longer than OLED timeout
+    }
+#endif
 
     // Enable CPU interrupt servicing
     portEXIT_CRITICAL(&sleepMux);
