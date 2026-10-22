@@ -62,6 +62,10 @@
 #define OFFLINE_QUEUE_SIZE 16
 #endif
 
+#ifndef COMPANION_PACKET_POOL_SIZE
+#define COMPANION_PACKET_POOL_SIZE 16
+#endif
+
 #ifndef BLE_NAME_PREFIX
 #define BLE_NAME_PREFIX "MeshCore-"
 #endif
@@ -286,7 +290,9 @@ private:
   AckTableEntry expected_ack_table[EXPECTED_ACK_TABLE_SIZE]; // circular table
   int next_ack_idx;
 
-  #define ADVERT_PATH_TABLE_SIZE   16
+  #ifndef ADVERT_PATH_TABLE_SIZE
+    #define ADVERT_PATH_TABLE_SIZE   16
+  #endif
   AdvertPath advert_paths[ADVERT_PATH_TABLE_SIZE]; // circular table
 };
 

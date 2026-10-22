@@ -1,3 +1,4 @@
+#ifndef CONFIG_SERIALIZER_NOOP
 #include "ConfigSerializer.h"
 #include <stdlib.h>   // atoi/atol/atof (Arduino.h pulls this in on-device, native builds do not)
 
@@ -333,3 +334,4 @@ void ConfigSerializer::def(const char* key, ConfigSerializer& sub_obj) {
     }
   }
 }
+#endif  // CONFIG_SERIALIZER_NOOP
