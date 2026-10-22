@@ -491,7 +491,7 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
 
       uint32_t delay_millis;
       if (send_ack) {
-        if (client->out_path_len == OUT_PATH_UNKNOWN) {
+        if (client->out_path_len == OUT_PATH_UNKNOWN || is_retry) {
           mesh::Packet *ack = createAck(ack_hash);
           if (ack) sendFloodReply(ack, TXT_ACK_DELAY, packet->getPathHashSize());
           delay_millis = TXT_ACK_DELAY + REPLY_DELAY_MILLIS;
