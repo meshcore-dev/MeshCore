@@ -35,8 +35,8 @@ public:
   virtual uint8_t getRxGain() const = 0;
   virtual void setRxGain(uint8_t g) = 0;
 
-  virtual uint8_t getTxPower() const = 0;
-  virtual void setTxPower(uint8_t dbm) = 0;
+  virtual int8_t getTxPower() const = 0;
+  virtual void setTxPower(int8_t dbm) = 0;
 
   virtual float getRxDelay() const = 0;
   virtual void setRxDelay(float d) = 0;
