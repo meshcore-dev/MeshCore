@@ -25,7 +25,7 @@ protected:
   class Context {
     Stream* _f;
     OP _op;
-    uint8_t rd_len;
+    uint16_t rd_len;  // must hold CONFIG_MAX_TOKEN_LEN (build-flag override may exceed 255)
     uint8_t rd_mode;
     char pending;
     char rd_buf[CONFIG_MAX_TOKEN_LEN];
