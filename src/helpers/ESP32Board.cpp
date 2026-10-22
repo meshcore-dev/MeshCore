@@ -18,12 +18,14 @@ bool ESP32Board::startOTAUpdate(const char* id, char reply[]) {
   sprintf(reply, "Started: http://%s/update", WiFi.softAPIP().toString().c_str());
   MESH_DEBUG_PRINTLN("startOTAUpdate: %s", reply);
 
+  if (ota_server != nullptr) return true;
+
   static char id_buf[60];
   sprintf(id_buf, "%s (%s)", id, getManufacturerName());
   static char home_buf[90];
   sprintf(home_buf, "<H2>Hi! I am a MeshCore Repeater. ID: %s</H2>", id);
 
-  AsyncWebServer* server = new AsyncWebServer(80);
+  AsyncWebServer* server = ota_server = new AsyncWebServer(80);
 
   server->on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
     request->send(200, "text/html", home_buf);
@@ -41,6 +43,51 @@ bool ESP32Board::startOTAUpdate(const char* id, char reply[]) {
 
 #else
 bool ESP32Board::startOTAUpdate(const char* id, char reply[]) {
+  return false; // not supported
+}
+#endif
+
+AsyncWebServer* ESP32Board::ota_server = nullptr;
+
+#if defined(ENABLE_WIFI_INTERFACE) && !defined(DISABLE_WIFI_OTA)
+#include <WiFi.h>
+#include <AsyncTCP.h>
+#include <ESPAsyncWebServer.h>
+#include <AsyncElegantOTA.h>
+#include <SPIFFS.h>
+
+bool ESP32Board::startOTAUpdateIP(const char* id, char reply[]) {
+  IPAddress ip = WiFi.localIP();
+  if (WiFi.status() != WL_CONNECTED || ip == IPAddress()) {
+    return false;
+  }
+
+  inhibit_sleep = true;   // prevent sleep during OTA
+  sprintf(reply, "Started: http://%s/update", ip.toString().c_str());
+  if (ota_server != nullptr) return true;
+
+  static char id_buf[60];
+  sprintf(id_buf, "%s (%s)", id, getManufacturerName());
+  static char home_buf[90];
+  sprintf(home_buf, "<H2>Hi! I am a MeshCore Repeater. ID: %s</H2>", id);
+
+  AsyncWebServer* server = ota_server = new AsyncWebServer(80);
+
+  server->on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send(200, "text/html", home_buf);
+  });
+  server->on("/log", HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send(SPIFFS, "/packet_log", "text/plain");
+  });
+
+  AsyncElegantOTA.setID(id_buf);
+  AsyncElegantOTA.begin(server);    // Start ElegantOTA
+  server->begin();
+
+  return true;
+}
+#else
+bool ESP32Board::startOTAUpdateIP(const char* id, char reply[]) {
   return false; // not supported
 }
 #endif
