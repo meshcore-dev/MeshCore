@@ -42,8 +42,29 @@ namespace mesh {
 #define  BD_STARTUP_NORMAL     0  // getStartupReason() codes
 #define  BD_STARTUP_RX_PACKET  1
 
+// Milliseconds to wait after TX completes before trusting battery ADC readings.
+// LoRa TX causes a current spike that sags battery terminal voltage; on LiPo
+// cells below ~50% SoC the sag is large enough to cross shutdown/alert thresholds.
+#ifndef POST_TX_BATT_SETTLE_MS
+#define POST_TX_BATT_SETTLE_MS 250
+#endif
+
 class MainBoard {
+
+  bool     _tx_active           = false;
+  uint32_t _last_tx_complete_ms = 0;
+
 public:
+  // Called by the radio layer — not meant to be overridden.
+  void notifyTxStart()                   { _tx_active = true; }
+  void notifyTxComplete(uint32_t now_ms) { _tx_active = false; _last_tx_complete_ms = now_ms; }
+
+  // Returns true when it is safe to read the battery ADC (TX not in progress
+  // and enough time has elapsed since the last transmission for voltage to recover).
+  bool isBattReadSafe(uint32_t now_ms, uint32_t settle_ms = POST_TX_BATT_SETTLE_MS) const {
+    return !_tx_active && (now_ms - _last_tx_complete_ms >= settle_ms);
+  }
+
   virtual uint16_t getBattMilliVolts() = 0;
   virtual float getMCUTemperature() { return NAN; }
   virtual bool setAdcMultiplier(float multiplier) { return false; };
