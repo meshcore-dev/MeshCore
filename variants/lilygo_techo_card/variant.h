@@ -113,15 +113,18 @@
 ////////////////////////////////////////////////////////////////////////////////
 // GPS
 
-// NOTE: these pins are defined differently to how lilygo does them but they
-// seem to work properly for how EnvironmentSensorManager operates.
+// NOTE: these pins are named differently to how lilygo does them but they
+// work properly for how EnvironmentSensorManager operates. LilyGo's own
+// examples switch the GPS on/off by driving GPS_WAKE_UP and GPS_RF_EN together.
 // TODO: MAYBE? migrate to board based sensor manager / add GPS_WAKE_UP to ESM
+
+#define GPS_L76K                     // Quectel L76K: applies GPS+BDS+GLONASS config on start
 
 #define PIN_GPS_RX              (21) // GPS_UART_RX in lilygo pin defs
 #define PIN_GPS_TX              (19) // GPS_UART_TX in lilygo pin defs
 #define PIN_GPS_EN              (25) // GPS_WAKE_UP in lilygo pin defs
 #define PIN_GPS_RESET           (47) // GPS_EN      in lilygo pin defs
-#define PIN_GPS_STANDBY         (29) // GPS_RF_EN   in lilygo pin defs
+#define PIN_GPS_RF_EN           (29) // GPS_RF_EN   in lilygo pin defs (antenna LNA), follows GPS on/off
 #define PIN_GPS_PPS             (23) // GPS_1PPS    in lilygo pin defs
 
 // buzzer - enabled in platformio.ini so it can be easily turned off if not wanted.

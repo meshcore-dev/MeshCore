@@ -3,6 +3,7 @@
 #include <MeshCore.h>
 #include <Arduino.h>
 #include <helpers/NRF52Board.h>
+#include <helpers/RefCountedDigitalPin.h>
 #include <Adafruit_NeoPixel.h>
 
 // built-ins
@@ -17,7 +18,9 @@
 class TechoCardBoard : public NRF52BoardDCDC {
   bool _torchStatus = false;
 public:
-  TechoCardBoard() : NRF52Board("TECHO_OTA") {}
+  RefCountedDigitalPin gps_rf_power;  // GPS antenna LNA, claimed while the GPS is running
+
+  TechoCardBoard() : NRF52Board("TECHO_OTA"), gps_rf_power(PIN_GPS_RF_EN, HIGH) {}
   void begin();
   uint16_t getBattMilliVolts() override;
   void onBeforeTransmit(void) override;
