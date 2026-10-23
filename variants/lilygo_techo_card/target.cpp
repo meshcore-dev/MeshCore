@@ -13,7 +13,8 @@ VolatileRTCClock fallback_clock;
 AutoDiscoverRTCClock rtc_clock(fallback_clock);
 
 #ifdef ENV_INCLUDE_GPS
-NmeaGpsDriver gps_driver(Serial1);
+// GPS_RF_EN (antenna LNA) is claimed while the GPS runs and released when it stops
+NmeaGpsDriver gps_driver(Serial1, PIN_GPS_TX, PIN_GPS_RX, GPS_RESET, GPS_EN, &board.gps_rf_power);
 MicroNMEALocationProvider nmea(gps_driver, &rtc_clock);
 EnvironmentSensorManager sensors = EnvironmentSensorManager(nmea);
 #else
