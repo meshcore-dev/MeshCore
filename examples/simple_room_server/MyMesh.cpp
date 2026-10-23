@@ -725,6 +725,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
 #ifdef ROOM_PASSWORD
   StrHelper::strncpy(_prefs.guest_password, ROOM_PASSWORD, sizeof(_prefs.guest_password));
 #endif
+  _prefs.wide_snr_threshold = -8.0f;
 
   // GPS defaults
   _prefs.gps_enabled = 0;

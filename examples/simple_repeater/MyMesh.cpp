@@ -462,9 +462,10 @@ void MyMesh::sendFloodReply(mesh::Packet* packet, unsigned long delay_millis, ui
 
 bool MyMesh::isHashNeighbor(const uint8_t* hash, uint8_t hash_size) {
 #if MAX_NEIGHBOURS
+  int8_t snr_threshold = (int8_t)(_prefs.wide_snr_threshold * 4);
   for (int i = 0; i < MAX_NEIGHBOURS; i++) {
     auto n = &neighbours[i];
-    if (n->heard_timestamp > 0 && n->id.isHashMatch(hash, hash_size)) return true;
+    if (n->heard_timestamp > 0 && n->snr >= snr_threshold && n->id.isHashMatch(hash, hash_size)) return true;
   }
 #endif
   return false;
@@ -974,6 +975,7 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.interference_threshold = 0; // disabled
   _prefs.cad_enabled = 0;            // hardware CAD before TX (off by default; 'set cad on')
   _prefs.loop_detect = LOOP_DETECT_MINIMAL;
+  _prefs.wide_snr_threshold = -8.0f;
 
   // bridge defaults
   _prefs.bridge_enabled = 1;    // enabled
