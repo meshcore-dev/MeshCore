@@ -1,12 +1,19 @@
 #include <Arduino.h>
 #include <SPI.h>
+#if ENV_INCLUDE_INA219
+  #include <Wire.h>
+#endif
 #include "target.h"
 
 LilyGoT3STM32Board board;
 RADIO_CLASS radio = new STM32WLx_Module();
 WRAPPER_CLASS radio_driver(radio, board);
 VolatileRTCClock rtc_clock;
+#if ENV_INCLUDE_INA219
+EnvironmentSensorManager sensors;
+#else
 SensorManager sensors;
+#endif
 DISPLAY_CLASS display;
 // PH3 is also BOOT0: the board's button is active high with an external pull-down.
 MomentaryButton user_btn(PIN_USER_BTN, 1000, false);
@@ -23,6 +30,11 @@ static const Module::RfSwitchMode_t rfswitch_table[] = {
 
 void LilyGoT3STM32Board::begin() {
   STM32Board::begin();
+
+#if ENV_INCLUDE_INA219
+  // These builds remap Wire to PB7/PB8; PA9/PA10 are used by USART1.
+  Wire.begin();
+#endif
 
   // The SD card shares SPI1 with the OLED; keep it deselected.
   digitalWrite(PA4, HIGH);

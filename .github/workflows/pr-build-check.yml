@@ -42,6 +42,8 @@ jobs:
           - wio-e5-mini_repeater
           - LilyGo_T3_STM32_repeater
           - LilyGo_T3_STM32_companion_radio_usb
+          - LilyGo_T3_STM32_repeater_ina219
+          - LilyGo_T3_STM32_companion_radio_usb_ina219
           # ESP32-C6
           - LilyGo_Tlora_C6_repeater_
           # LR1110 (nRF52)

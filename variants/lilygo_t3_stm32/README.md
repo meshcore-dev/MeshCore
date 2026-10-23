@@ -15,6 +15,41 @@ The companion supports 100 contacts and eight channels. Radio settings inherit
 the repository defaults; select settings appropriate to the board's RF band.
 Existing saved preferences override build defaults.
 
+## Optional INA219 telemetry
+
+The INA219 builds use MeshCore's existing environment sensor driver to report
+voltage, current, and power. Build either role with:
+
+```sh
+pio run -e LilyGo_T3_STM32_repeater_ina219
+pio run -e LilyGo_T3_STM32_companion_radio_usb_ina219
+```
+
+Connect the sensor's logic supply to **3.3 V** and use a common ground:
+
+| INA219 connection | T3 STM32 connection |
+| --- | --- |
+| VCC / logic supply | 3.3 V |
+| GND | GND |
+| SDA | PB7 (JP2 pin 9) |
+| SCL | PB8 (JP2 pin 10) |
+
+PB7/PB8 are the alternate I2C1 pins exposed on the board headers. The default
+STM32 I2C pins, PA9/PA10, are reserved for USB serial. The OLED uses SPI.
+The sensor is detected at startup at address **0x40**; to use another address,
+override `TELEM_INA219_ADDRESS` in the build flags. An absent sensor produces no
+additional telemetry. The base builds do not initialize I2C or include the driver.
+
+The measurement terminals (VIN+ and VIN-) go in series with the positive supply
+of the circuit being measured; these are separate from the sensor's logic supply.
+See the [INA219 wiring guide](https://learn.adafruit.com/adafruit-ina219-current-sensor-breakout/wiring).
+USB power can bypass a sensor placed only in the battery lead.
+
+Readings use environment telemetry permissions. Existing telemetry encodes current
+in 1 mA steps and power in whole watts; it does not provide accumulated mAh or
+battery percentage. INA219 telemetry has been confirmed on hardware with the
+repeater build; the USB companion sensor build has been compile-tested only.
+
 ## Flash and connect
 
 Connect the USB serial port. Hold BOOT, press and release RST, then release BOOT:
@@ -63,4 +98,4 @@ pings timed out; long-term reliability has not been established. Higher transmit
 powers are outside the validated MVP setting.
 
 The repeater builds successfully; forwarding has not been hardware-tested.
-Battery telemetry, SD storage, and low-power optimization are not implemented.
+Built-in battery telemetry, SD storage, and low-power optimization are not implemented.
