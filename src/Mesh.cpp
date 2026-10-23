@@ -107,6 +107,16 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
             // RE-WRITE the mode bits, to indicate path was modified
             pkt->transport_codes[0] &= ~(3 << 14);  // clear the hi 2 bits
             pkt->transport_codes[0] |= ((uint16_t)DM_MODE_SEQ_WIDE_MODIFIED) << 14;
+            // WORKAROUND:  edge case where _next_ hash in the path is THIS node!
+            if (cursor + 1 < pkt->getPathHashCount()) {
+              auto next_hash = curr_hash + hash_size;
+              if (self_id.isHashMatch(next_hash, hash_size)) {
+                pkt->setPathHashCount(pkt->getPathHashCount() - 1);     // remove next_hash
+                for (uint8_t k = cursor*hash_size; k < pkt->getPathHashCount()*hash_size; k += hash_size) {  // shuffle path by 1 'entry'
+                  memcpy(&pkt->path[k], &pkt->path[k + hash_size], hash_size);
+                }
+              }
+            }
           } else {
             is_match = false;
           }
