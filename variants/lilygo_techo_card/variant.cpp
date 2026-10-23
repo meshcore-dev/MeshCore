@@ -34,9 +34,9 @@ void initVariant() {
   pinMode(SPEAKER_EN_2, OUTPUT);
   digitalWrite(SPEAKER_EN_2, LOW);
 
-  // gps
-  pinMode(PIN_GPS_STANDBY, OUTPUT);
-  digitalWrite(PIN_GPS_STANDBY, HIGH);
+  // gps - PIN_GPS_RF_EN (LNA) is switched by TechoCardBoard::gps_rf_power
+  pinMode(PIN_GPS_RF_EN, OUTPUT);
+  digitalWrite(PIN_GPS_RF_EN, LOW);
   pinMode(PIN_GPS_EN, OUTPUT);
   digitalWrite(PIN_GPS_EN, HIGH);
   pinMode(PIN_GPS_RESET, OUTPUT);
