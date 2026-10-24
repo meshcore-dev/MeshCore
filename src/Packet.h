@@ -85,6 +85,8 @@ public:
   static uint8_t copyPath(uint8_t* dest, const uint8_t* src, uint8_t path_len);  // returns path_len
   static size_t writePath(uint8_t* dest, const uint8_t* src, uint8_t path_len);  // returns byte length written
   static bool isValidPathLen(uint8_t path_len);
+  static bool hasCompletePath(const uint8_t* data, size_t len);
+  static bool isValidPathPlaintext(const uint8_t* data, size_t len);
 
   void markDoNotRetransmit() { header = 0xFF; }
   bool isMarkedDoNotRetransmit() const { return header == 0xFF; }
@@ -108,7 +110,7 @@ public:
    * \param  src  (IN) buffer containing blob
    * \param  len  the packet length (as returned by writeTo())
    */
-  bool readFrom(const uint8_t src[], uint8_t len);
+  bool readFrom(const uint8_t src[], size_t len);
 };
 
 }
