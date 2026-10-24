@@ -184,6 +184,10 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
               break;
             }
           }
+          if (pkt->getPayloadType() == PAYLOAD_TYPE_TXT_MSG &&
+              onAddressedTextPacket(pkt, src_hash, macAndData, pkt->payload_len - i)) {
+            found = true;
+          }
           if (found) {
             pkt->markDoNotRetransmit();  // packet was for this node, so don't retransmit
           } else {
