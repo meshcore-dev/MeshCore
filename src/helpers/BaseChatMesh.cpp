@@ -128,6 +128,7 @@ void BaseChatMesh::onAdvertRecv(mesh::Packet* packet, const mesh::Identity& id, 
 
   ContactInfo* from = NULL;
   for (int i = 0; i < num_contacts; i++) {
+    if (contacts[i].isEmptySlot()) continue;
     if (id.matches(contacts[i].id)) {  // is from one of our contacts
       from = &contacts[i];
       if (timestamp <= from->last_advert_timestamp) {  // check for replay attacks!!
@@ -203,6 +204,11 @@ void BaseChatMesh::onAdvertRecv(mesh::Packet* packet, const mesh::Identity& id, 
 int BaseChatMesh::searchPeersByHash(const uint8_t* hash) {
   int n = 0;
   for (int i = 0; i < num_contacts && n < MAX_SEARCH_RESULTS; i++) {
+    // Skip empty/unconfigured anon slots. An empty slot has an all-zero pub_key
+    // (an order-4 Edwards25519 point whose clamped X25519 key exchange yields an
+    // all-zero shared secret for any private key) and would otherwise match
+    // src_hash == 0x00 as a null-key peer sink while consuming search slots.
+    if (contacts[i].isEmptySlot()) continue;
     if (contacts[i].id.isHashMatch(hash)) {
       matching_peer_indexes[n++] = i;  // store the INDEXES of matching contacts (for subsequent 'peer' methods)
     }
@@ -871,6 +877,7 @@ ContactInfo* BaseChatMesh::searchContactsByPrefix(const char* name_prefix) {
   int len = strlen(name_prefix);
   for (int i = 0; i < num_contacts; i++) {
     auto c = &contacts[i];
+    if (c->isEmptySlot() || c->name[0] == 0) continue;
     if (memcmp(c->name, name_prefix, len) == 0) return c;
   }
   return NULL;  // not found
@@ -879,6 +886,7 @@ ContactInfo* BaseChatMesh::searchContactsByPrefix(const char* name_prefix) {
 ContactInfo* BaseChatMesh::lookupContactByPubKey(const uint8_t* pub_key, int prefix_len) {
   for (int i = 0; i < num_contacts; i++) {
     auto c = &contacts[i];
+    if (c->isEmptySlot()) continue;
     if (memcmp(c->id.pub_key, pub_key, prefix_len) == 0) return c;
   }
   return NULL;  // not found
@@ -896,7 +904,7 @@ bool BaseChatMesh::addContact(const ContactInfo& contact) {
 
 bool BaseChatMesh::removeContact(ContactInfo& contact) {
   int idx = 0;
-  while (idx < num_contacts && !contacts[idx].id.matches(contact.id)) {
+  while (idx < num_contacts && (contacts[idx].isEmptySlot() || !contacts[idx].id.matches(contact.id))) {
     idx++;
   }
   if (idx >= num_contacts) return false;   // not found
