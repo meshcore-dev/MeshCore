@@ -82,6 +82,10 @@ void GxEPDDisplay::turnOff() {
   expander.digitalWrite(EXP_PIN_BACKLIGHT, LOW);
 #endif
   _isOn = false;
+#ifdef EINK_KEEP_IMAGE_WHEN_OFF
+  // boards that auto-off the display (eg. M1) keep the last frame, just stop refreshing
+  return;
+#endif
   // do full refresh before powering off to clear screen
   // no full refresh needed at wakeup
   display.clearScreen(0xFF); // Clears microcontroller side RAM
