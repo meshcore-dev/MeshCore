@@ -604,6 +604,11 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       savePrefs();
       strcpy(reply, "OK");
     }
+  } else if (memcmp(config, "wide.snr.thresh ", 16) == 0) {
+    config += 16;
+    _prefs->wide_snr_threshold = atof(config);
+    savePrefs();
+    strcpy(reply, "OK");
   } else if (sender_timestamp == 0 && memcmp(config, "freq ", 5) == 0) {
     _prefs->freq = atof(&config[5]);
     savePrefs();
@@ -747,6 +752,8 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     } else {
       strcpy(reply, "> strict");
     }
+  } else if (memcmp(config, "wide.snr.thresh", 15) == 0) {
+    sprintf(reply, "> %.2f", _prefs->wide_snr_threshold);
   } else if (memcmp(config, "public.key", 10) == 0) {
     strcpy(reply, "> ");
     mesh::Utils::toHex(&reply[2], _callbacks->getSelfId().pub_key, PUB_KEY_SIZE);

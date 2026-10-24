@@ -16,6 +16,17 @@ namespace mesh {
 #define ROUTE_TYPE_DIRECT            0x02    // direct route, 'path' is supplied
 #define ROUTE_TYPE_TRANSPORT_DIRECT  0x03    // direct route + transport codes
 
+#define CRYPTO_LEGACY        0
+#define CRYPTO_NEW_DIRECT    1
+#define CRYPTO_RESERVED1     2
+#define CRYPTO_RESERVED2     3
+
+// new Transport_Direct encoding (upper 2 bits of transport_code[0])
+#define DM_MODE_SEQ_NORMAL         0   // normal path, sequenced 
+#define DM_MODE_SEQ_WIDE           1   // wide/fuzzy path, sequenced
+#define DM_MODE_SEQ_WIDE_MODIFIED  2   // wide/fuzzy path (modified along the way), sequenced
+#define DM_MODE_SEQ_LINK_ID        3   // fixed Link-Id, sequenced
+
 #define PAYLOAD_TYPE_REQ         0x00    // request (prefixed with dest/src hashes, MAC) (enc data: timestamp, blob)
 #define PAYLOAD_TYPE_RESPONSE    0x01    // response to REQ or ANON_REQ (prefixed with dest/src hashes, MAC) (enc data: timestamp, blob)
 #define PAYLOAD_TYPE_TXT_MSG     0x02    // a plain text message (prefixed with dest/src hashes, MAC) (enc data: timestamp, text)
@@ -81,6 +92,8 @@ public:
   uint8_t getPathByteLen() const { return getPathHashCount() * getPathHashSize(); }
   void setPathHashCount(uint8_t n) { path_len &= ~63; path_len |= n; }
   void setPathHashSizeAndCount(uint8_t sz, uint8_t n) { path_len = ((sz - 1) << 6) | (n & 63); }
+
+  bool isPathAtEnd() const;
 
   static uint8_t copyPath(uint8_t* dest, const uint8_t* src, uint8_t path_len);  // returns path_len
   static size_t writePath(uint8_t* dest, const uint8_t* src, uint8_t path_len);  // returns byte length written
