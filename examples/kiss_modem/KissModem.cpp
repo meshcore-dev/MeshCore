@@ -1,5 +1,6 @@
 #include "KissModem.h"
 #include <CayenneLPP.h>
+#include <stdio.h>
 
 KissModem::KissModem(Stream& serial, mesh::LocalIdentity& identity, mesh::RNG& rng,
                      mesh::Radio& radio, mesh::MainBoard& board, SensorManager& sensors)
@@ -20,8 +21,15 @@ KissModem::KissModem(Stream& serial, mesh::LocalIdentity& identity, mesh::RNG& r
   _setTxPowerCallback = nullptr;
   _getCurrentRssiCallback = nullptr;
   _getStatsCallback = nullptr;
+  _setRxBoostedGainCallback = nullptr;
+  _getRxBoostedGainCallback = nullptr;
+  _pollRxCallback = nullptr;
   _config = {0, 0, 0, 0, 0};
   _signal_report_enabled = true;
+  _agc_reset_interval_sec = KISS_AGC_RESET_DEFAULT_SEC;
+  _next_agc_reset_ms = 0;
+  _fem_op_head = 0;
+  _fem_op_count = 0;
   resetOutputQueue();
 }
 
@@ -31,6 +39,9 @@ void KissModem::begin() {
   _rx_active = false;
   _has_pending_tx = false;
   _tx_state = TX_IDLE;
+  _fem_op_head = 0;
+  _fem_op_count = 0;
+  _next_agc_reset_ms = millis() + (uint32_t)_agc_reset_interval_sec * 1000;
   resetOutputQueue();
 }
 
@@ -240,8 +251,22 @@ void KissModem::loop() {
   }
 
   processTx();
+  processFemOps();
+  maybeResetAgc();
   tryFlushFrames();
   queuePendingBusyError();
+}
+
+void KissModem::maybeResetAgc() {
+  if (_agc_reset_interval_sec == 0) return;
+  // same guard as the RX path in main.cpp, so receive is restarted right after the reset
+  if (_tx_state != TX_IDLE || isHostOutputBackedUp()) return;
+
+  uint32_t now = millis();
+  if ((int32_t)(now - _next_agc_reset_ms) >= 0) {
+    _radio.resetAGC();
+    _next_agc_reset_ms = now + (uint32_t)_agc_reset_interval_sec * 1000;
+  }
 }
 
 void KissModem::processFrame() {
@@ -380,6 +405,27 @@ void KissModem::handleHardwareCommand(uint8_t sub_cmd, const uint8_t* data, uint
       break;
     case HW_CMD_GET_SIGNAL_REPORT:
       handleGetSignalReport();
+      break;
+    case HW_CMD_GET_CAPABILITIES:
+      handleGetCapabilities();
+      break;
+    case HW_CMD_SET_AGC_RESET_INTERVAL:
+      handleSetAgcResetInterval(data, len);
+      break;
+    case HW_CMD_GET_AGC_RESET_INTERVAL:
+      handleGetAgcResetInterval();
+      break;
+    case HW_CMD_SET_FEM_STATE:
+      handleSetFemState(data, len);
+      break;
+    case HW_CMD_GET_FEM_STATE:
+      handleGetFemState();
+      break;
+    case HW_CMD_SET_RX_BOOSTED_GAIN:
+      handleSetRxBoostedGain(data, len);
+      break;
+    case HW_CMD_GET_RX_BOOSTED_GAIN:
+      handleGetRxBoostedGain();
       break;
     default:
       writeHardwareError(HW_ERR_UNKNOWN_CMD);
@@ -731,4 +777,184 @@ void KissModem::handleSetSignalReport(const uint8_t* data, uint16_t len) {
 void KissModem::handleGetSignalReport() {
   uint8_t val = _signal_report_enabled ? 0x01 : 0x00;
   writeHardwareFrame(HW_RESP(HW_CMD_GET_SIGNAL_REPORT), &val, 1);
+}
+
+void KissModem::handleGetCapabilities() {
+  uint32_t caps = HW_CAP_AGC_RESET;
+  uint8_t fem_caps, fem_values;
+  readFemState(&fem_caps, &fem_values);
+  if (fem_caps & HW_FEM_RX_GAIN) caps |= HW_CAP_FEM_RX_GAIN;
+  if (fem_caps & HW_FEM_TX_GAIN) caps |= HW_CAP_FEM_TX_GAIN;
+  if (_setRxBoostedGainCallback && _getRxBoostedGainCallback) caps |= HW_CAP_RX_BOOSTED_GAIN;
+  uint8_t buf[4] = { (uint8_t)caps, (uint8_t)(caps >> 8), (uint8_t)(caps >> 16), (uint8_t)(caps >> 24) };
+  writeHardwareFrame(HW_RESP(HW_CMD_GET_CAPABILITIES), buf, 4);
+}
+
+void KissModem::handleSetAgcResetInterval(const uint8_t* data, uint16_t len) {
+  if (len < 2) {
+    writeHardwareError(HW_ERR_INVALID_LENGTH);
+    return;
+  }
+  uint16_t secs = (uint16_t)(data[0] | (data[1] << 8));
+  if (secs > KISS_AGC_RESET_MAX_SEC) {
+    writeHardwareError(HW_ERR_INVALID_PARAM);
+    return;
+  }
+  _agc_reset_interval_sec = secs - (secs % KISS_AGC_RESET_STEP_SEC);
+  _next_agc_reset_ms = millis() + (uint32_t)_agc_reset_interval_sec * 1000;
+  handleGetAgcResetInterval();
+}
+
+void KissModem::handleGetAgcResetInterval() {
+  uint8_t buf[2] = { (uint8_t)_agc_reset_interval_sec, (uint8_t)(_agc_reset_interval_sec >> 8) };
+  writeHardwareFrame(HW_RESP(HW_CMD_GET_AGC_RESET_INTERVAL), buf, 2);
+}
+
+// FEM gain is reached through the board's own "radio.fem.*" CLI commands, the same ones users run.
+static const char* femGainName(uint8_t bit) {
+  return bit == HW_FEM_RX_GAIN ? "rxgain" : "txgain";
+}
+
+// Anything but an exact "> on" / "> off" (not handled, "Error: ...", unexpected text) means unsupported.
+bool KissModem::queryFemGain(uint8_t bit, bool* enabled) {
+  char cmd[32];
+  char reply[KISS_BOARD_REPLY_SIZE] = { 0 };
+  snprintf(cmd, sizeof(cmd), "get radio.fem.%s", femGainName(bit));
+  if (!_board.handleCommand(cmd, 0, reply)) return false;
+  if (strcmp(reply, "> on") == 0) {
+    *enabled = true;
+  } else if (strcmp(reply, "> off") == 0) {
+    *enabled = false;
+  } else {
+    return false;
+  }
+  return true;
+}
+
+// Success is judged by reading the state back, not by the wording of the set reply.
+bool KissModem::setFemGain(uint8_t bit, bool enable) {
+  char cmd[32];
+  char reply[KISS_BOARD_REPLY_SIZE] = { 0 };
+  snprintf(cmd, sizeof(cmd), "set radio.fem.%s %s", femGainName(bit), enable ? "on" : "off");
+  _board.handleCommand(cmd, 0, reply);
+  bool now;
+  return queryFemGain(bit, &now) && now == enable;
+}
+
+void KissModem::readFemState(uint8_t* caps, uint8_t* values) {
+  *caps = 0;
+  *values = 0;
+  const uint8_t bits[] = { HW_FEM_RX_GAIN, HW_FEM_TX_GAIN };
+  for (uint8_t bit : bits) {
+    bool enabled;
+    if (queryFemGain(bit, &enabled)) {
+      *caps |= bit;
+      if (enabled) *values |= bit;
+    }
+  }
+}
+
+bool KissModem::queueFemReply() {
+  uint8_t buf[2];
+  readFemState(&buf[0], &buf[1]);
+  return queueHardwareFrame(HW_RESP(HW_CMD_GET_FEM_STATE), buf, 2, false);
+}
+
+// The reply always carries the read-back state, so a bit that failed to apply shows its real value.
+void KissModem::applyFemState(uint8_t apply_mask, uint8_t value_mask) {
+  if (apply_mask & HW_FEM_RX_GAIN) {
+    setFemGain(HW_FEM_RX_GAIN, (value_mask & HW_FEM_RX_GAIN) != 0);
+  }
+  if (apply_mask & HW_FEM_TX_GAIN) {
+    setFemGain(HW_FEM_TX_GAIN, (value_mask & HW_FEM_TX_GAIN) != 0);
+  }
+}
+
+void KissModem::enqueueFemOp(FemOpKind kind, uint8_t apply_mask, uint8_t value_mask) {
+  if (_fem_op_count >= KISS_FEM_OP_QUEUE_DEPTH) {
+    writeHardwareError(HW_ERR_TX_BUSY);  // too many FEM requests waiting
+    return;
+  }
+  FemOp& op = _fem_ops[(_fem_op_head + _fem_op_count) % KISS_FEM_OP_QUEUE_DEPTH];
+  op.kind = kind;
+  op.apply_mask = apply_mask;
+  op.value_mask = value_mask;
+  op.applied = false;
+  _fem_op_count++;
+  processFemOps();
+}
+
+// Every FEM reply goes out in request order. A Set waits until TxDone is queued, since board
+// setters drive FEM pins directly; each reply is retained until there is room to queue it.
+void KissModem::processFemOps() {
+  while (_fem_op_count > 0) {
+    FemOp& op = _fem_ops[_fem_op_head];
+    if (op.kind == FEM_OP_ERROR) {
+      if (!queueHardwareFrame(HW_RESP_ERROR, &op.value_mask, 1, false)) return;
+    } else {
+      if (op.kind == FEM_OP_SET && !op.applied) {
+        if (_tx_state == TX_SENDING || _tx_state == TX_DONE_PENDING) return;
+        uint8_t caps, values;
+        readFemState(&caps, &values);
+        if (op.apply_mask & ~caps) {
+          // all-or-nothing: any bit the board cannot control rejects the whole request
+          op.kind = FEM_OP_ERROR;
+          op.value_mask = HW_ERR_UNSUPPORTED;
+          continue;
+        }
+        applyFemState(op.apply_mask, op.value_mask);
+        op.applied = true;
+      }
+      if (!queueFemReply()) return;
+    }
+    _fem_op_head = (uint8_t)((_fem_op_head + 1) % KISS_FEM_OP_QUEUE_DEPTH);
+    _fem_op_count--;
+  }
+}
+
+void KissModem::handleSetFemState(const uint8_t* data, uint16_t len) {
+  if (len < 2) {
+    enqueueFemOp(FEM_OP_ERROR, 0, HW_ERR_INVALID_LENGTH);
+    return;
+  }
+  enqueueFemOp(FEM_OP_SET, data[0], data[1]);
+}
+
+void KissModem::handleGetFemState() {
+  enqueueFemOp(FEM_OP_GET, 0, 0);
+}
+
+void KissModem::handleSetRxBoostedGain(const uint8_t* data, uint16_t len) {
+  if (len < 1) {
+    writeHardwareError(HW_ERR_INVALID_LENGTH);
+    return;
+  }
+  if (!_setRxBoostedGainCallback || !_getRxBoostedGainCallback) {
+    writeHardwareError(HW_ERR_UNSUPPORTED);
+    return;
+  }
+  // some drivers (LR2021) drop to standby to apply the gain, which would abort a TX and
+  // discard a completed RX packet; so never during TX, and only after draining RX
+  if (_tx_state == TX_SENDING || isHostOutputBackedUp()) {
+    writeHardwareError(HW_ERR_TX_BUSY);
+    return;
+  }
+  if (_pollRxCallback) _pollRxCallback();
+  tryFlushFrames();
+  if (_tx_frame_count >= KISS_TX_FRAME_QUEUE_DEPTH) {
+    writeHardwareError(HW_ERR_TX_BUSY);  // no room left for the reply; change nothing
+    return;
+  }
+  // always reply with the state read back, so a failed or partial write is never misreported
+  _setRxBoostedGainCallback(data[0] != 0x00);
+  handleGetRxBoostedGain();
+}
+
+void KissModem::handleGetRxBoostedGain() {
+  if (!_getRxBoostedGainCallback) {
+    writeHardwareError(HW_ERR_UNSUPPORTED);
+    return;
+  }
+  uint8_t val = _getRxBoostedGainCallback() ? 0x01 : 0x00;
+  writeHardwareFrame(HW_RESP(HW_CMD_GET_RX_BOOSTED_GAIN), &val, 1);
 }
