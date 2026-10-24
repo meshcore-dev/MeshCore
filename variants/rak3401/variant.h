@@ -175,6 +175,16 @@ static const uint8_t AREF = PIN_AREF;
 #define P_LORA_BUSY SX126X_BUSY
 #define P_LORA_RESET SX126X_RESET
 
+// Optional RAK4631 onboard radio; these internal pins are unused on RAK3401.
+#define ONBOARD_LORA_NSS    (42)  // P1.10
+#define ONBOARD_LORA_SCLK   (43)  // P1.11
+#define ONBOARD_LORA_MOSI   (44)  // P1.12
+#define ONBOARD_LORA_MISO   (45)  // P1.13
+#define ONBOARD_LORA_BUSY   (46)  // P1.14
+#define ONBOARD_LORA_DIO_1  (47)  // P1.15
+#define ONBOARD_LORA_RESET  (38)  // P1.06
+#define ONBOARD_LORA_ANT_SW (37)  // P1.05, powers the onboard RF switch
+
 // enables 3.3V periphery like GPS or IO Module
 // Do not toggle this for GPS power savings
 #define PIN_3V3_EN (34)
