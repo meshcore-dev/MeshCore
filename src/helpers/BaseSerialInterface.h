@@ -1,8 +1,7 @@
 #pragma once
 
 #include <Arduino.h>
-
-#define MAX_FRAME_SIZE  176   // +4 for transport codes (region scoping)
+#include <helpers/MessageLimits.h>
 
 class BaseSerialInterface {
 protected:

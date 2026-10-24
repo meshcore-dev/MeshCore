@@ -1,5 +1,6 @@
 #include "UITask.h"
 #include <helpers/TxtDataHelpers.h>
+#include <helpers/mcotxt/MCOtxtDisplay.h>
 #include "../MyMesh.h"
 #include "target.h"
 #include <time.h>
@@ -664,7 +665,7 @@ public:
     } else {
       sprintf(p->origin, "(%d) %s:", (uint32_t) path_len, from_name);
     }
-    StrHelper::strncpy(p->msg, msg, sizeof(p->msg));
+    mcotxt::copyDisplayPreview(p->msg, sizeof(p->msg), msg);
   }
 
   int render(DisplayDriver& display) override {
