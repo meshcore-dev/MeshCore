@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../BaseSerialInterface.h"
+#include "../SerialBLECommon.h"
 #include <BLE.h>
 #include <btstack.h>
 
@@ -15,13 +15,6 @@ class SerialBLEInterface : public BaseSerialInterface, BLEService, BLEServerCall
     bool notifyEnabled() const { return _notificationEnabled; }
   };
 
-  struct Frame {
-    uint8_t len;
-    uint8_t buf[MAX_FRAME_SIZE];
-  };
-
-  #define FRAME_QUEUE_SIZE  8
-
   Characteristic _rx;
   Characteristic _tx;
   bool _isEnabled;
@@ -29,10 +22,8 @@ class SerialBLEInterface : public BaseSerialInterface, BLEService, BLEServerCall
   btstack_context_callback_registration_t _can_send;
   uint8_t _scan_rsp[31];   // complete local name; BTstack keeps the pointer
 
-  uint8_t send_queue_len;
-  Frame send_queue[FRAME_QUEUE_SIZE];
-  uint8_t recv_queue_len;
-  Frame recv_queue[FRAME_QUEUE_SIZE];
+  SerialBLEFrameQueue<BLE_FRAME_QUEUE_SIZE> send_queue;
+  SerialBLEFrameQueue<BLE_FRAME_QUEUE_SIZE> recv_queue;
 
   void clearBuffers();
   void kickSend();
@@ -64,12 +55,3 @@ public:
   size_t writeFrame(const uint8_t src[], size_t len) override;
   size_t checkRecvFrame(uint8_t dest[]) override;
 };
-
-#if BLE_DEBUG_LOGGING && ARDUINO
-  #include <Arduino.h>
-  #define BLE_DEBUG_PRINT(F, ...) Serial.printf("BLE: " F, ##__VA_ARGS__)
-  #define BLE_DEBUG_PRINTLN(F, ...) Serial.printf("BLE: " F "\n", ##__VA_ARGS__)
-#else
-  #define BLE_DEBUG_PRINT(...) {}
-  #define BLE_DEBUG_PRINTLN(...) {}
-#endif
