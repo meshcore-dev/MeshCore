@@ -75,20 +75,27 @@ void GxEPDDisplay::turnOn() {
   }
 }
 
-void GxEPDDisplay::turnOff() {
+void GxEPDDisplay::powerOff() {
+  display.hibernate();
+}
+
+void GxEPDDisplay::turnOff() { // Only stops refresh
 #if defined(DISP_BACKLIGHT) && !defined(BACKLIGHT_BTN)
   digitalWrite(DISP_BACKLIGHT, LOW);
 #elif defined(EXP_PIN_BACKLIGHT) && !defined(BACKLIGHT_BTN)
   expander.digitalWrite(EXP_PIN_BACKLIGHT, LOW);
 #endif
   _isOn = false;
+  last_display_crc_value=0;
+}
+
+void GxEPDDisplay::blankScreen() {
   // do full refresh before powering off to clear screen
   // no full refresh needed at wakeup
   display.clearScreen(0xFF); // Clears microcontroller side RAM
   display.writeScreenBuffer(0xFF); // Forces 0xFF (White) into the display controller's history registers
   resetPartialRefreshCounter();
   last_display_crc_value=0;
-  display.hibernate();
 }
 
 void GxEPDDisplay::clear() {
