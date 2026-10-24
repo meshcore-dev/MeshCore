@@ -1,9 +1,11 @@
 #include <Arduino.h>
 #include "target.h"
+#include <helpers/radiolib/ESP32BufferedRadioHal.h>
 
 ThinkNodeM9Board board;
 
-RADIO_CLASS radio = new Module(P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BUSY, SPI);
+ESP32BufferedRadioHal radioHal(SPI, 16000000);
+RADIO_CLASS radio = new Module(&radioHal, P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BUSY);
 WRAPPER_CLASS radio_driver(radio, board);
 
 ESP32RTCClock fallback_clock;

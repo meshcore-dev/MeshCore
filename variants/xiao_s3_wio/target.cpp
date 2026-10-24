@@ -1,11 +1,13 @@
 #include <Arduino.h>
 #include "target.h"
+#include <helpers/radiolib/ESP32BufferedRadioHal.h>
 
 XiaoS3WIOBoard board;
 
 #if defined(P_LORA_SCLK)
   static SPIClass spi;
-  RADIO_CLASS radio = new Module(P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BUSY, spi);
+  static ESP32BufferedRadioHal radio_hal(spi);
+  RADIO_CLASS radio = new Module(&radio_hal, P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BUSY);
 #else
   RADIO_CLASS radio = new Module(P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BUSY);
 #endif

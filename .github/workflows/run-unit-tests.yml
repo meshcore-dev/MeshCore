@@ -22,6 +22,12 @@ jobs:
       - name: Run Unit Tests
         run: pio test -e native -e native_kiss_modem -vv
 
+      - name: Test Radio Profiles
+        run: python3 -B -m unittest discover -s test -p "test_radio*.py" -v
+
+      - name: Test T-Deck Display Cooperation
+        run: python3 -B -m unittest discover -s test -p "test_tdeck_display_cooperation.py" -v
+
       - name: Upload Test Results
         # Upload test results even if the test step failed.
         if: always()

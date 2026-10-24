@@ -192,7 +192,7 @@ public:
   }
 
   void savePrefs() override {
-    _cli.savePrefs(_fs);
+    if (_cli.savePrefs(_fs)) _prefs.clearDirty();
   }
 
   void sendFloodScoped(const TransportKey& scope, mesh::Packet* pkt, uint32_t delay_millis, uint8_t path_hash_size);
@@ -227,6 +227,9 @@ public:
   void clearStats() override;
 
   void handleCommand(uint32_t sender_timestamp, char* command, char* reply);
+  void onTransmitResult(uint32_t token, bool success) override {
+    _prefs.getRadioPrefs()->profileCLI().onTransmitResult(token, success);
+  }
   void loop();
 
 #if defined(WITH_BRIDGE)

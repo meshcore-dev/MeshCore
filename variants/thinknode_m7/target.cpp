@@ -1,11 +1,13 @@
 #include <Arduino.h>
 #include "target.h"
+#include <helpers/radiolib/ESP32BufferedRadioHal.h>
 #include <helpers/sensors/MicroNMEALocationProvider.h>
 
 ThinkNodeM7Board board;
 
 static SPIClass spi;
-RADIO_CLASS radio = new Module(P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BUSY, spi);
+ESP32BufferedRadioHal radioHal(spi, 16000000);
+RADIO_CLASS radio = new Module(&radioHal, P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BUSY);
 WRAPPER_CLASS radio_driver(radio, board);
 
 ESP32RTCClock fallback_clock;

@@ -198,6 +198,8 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 ### Radio
 
+See [Radio profiles](radio_profiles.md) for `radio2`, temporary profiles and one-slot timed changes on either profile.
+
 #### View or change this node's radio parameters
 **Usage:**
 - `get radio`
