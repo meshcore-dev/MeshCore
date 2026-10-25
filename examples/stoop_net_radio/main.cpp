@@ -207,7 +207,7 @@ void setup() {
 #endif
 
   configureInterfaces();
-
+  interface_manager.disable();
   sensors.begin();
 
 #if ENV_INCLUDE_GPS == 1

@@ -23,3 +23,8 @@ build_flags =
    ; -D CLIENT_WIFI_SSID='"<your wifi ssid>"'
    ; -D CLIENT_WIFI_PW='"<your wifi password>"'
    ; -D CLIENT_WIFI_URL='"<hostname, e.g. stoop-node>"'
+
+   ; Password required on the /admin page to enable/disable the node's
+   ; companion radio interfaces (BLE/USB/WiFi). Defaults to "password" if
+   ; left commented out.
+   ; -D ADMIN_PASSWORD='"<your admin password>"'

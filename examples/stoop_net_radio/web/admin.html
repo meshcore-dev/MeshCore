@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stoop Admin</title>
+<style>
+  :root{
+    --bg: #fbf3e7;
+    --card: #ffffff;
+    --ink: #2b2320;
+    --muted: #6b5f56;
+    --amber: #d98c2b;
+    --amber-dark: #b8701c;
+    --line: #ecdfc9;
+    --red: #c23b22;
+    --green: #3f7a3f;
+  }
+  *{ box-sizing: border-box; }
+  html, body{ margin:0; padding:0; }
+  body{
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.55;
+    padding: 24px 16px 60px;
+  }
+  .wrap{ max-width: 420px; margin: 0 auto; }
+  h1{ font-size: 1.7rem; margin: 0 0 4px; }
+  .tagline{ color: var(--muted); margin: 0 0 24px; }
+  .card{
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 20px;
+    box-shadow: 0 2px 10px rgba(60, 40, 10, 0.05);
+  }
+  label{ display:block; font-weight: 600; margin-bottom: 8px; }
+  input[type=password]{
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    font-size: 1rem;
+    background: var(--bg);
+    color: var(--ink);
+    margin-bottom: 16px;
+  }
+  input[type=password]:focus{ outline: 2px solid var(--amber); }
+  .buttons{ display: flex; gap: 10px; }
+  button{
+    flex: 1;
+    padding: 12px 18px;
+    border: none;
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 1rem;
+    cursor: pointer;
+    color: #fff;
+  }
+  button:disabled{ opacity: 0.6; cursor: default; }
+  #enableBtn{ background: var(--green); }
+  #enableBtn:active:not(:disabled){ background: #2f5e2f; }
+  #disableBtn{ background: var(--red); }
+  #disableBtn:active:not(:disabled){ background: #9a2e1a; }
+  .result{
+    margin-top: 16px;
+    font-size: 0.9rem;
+    min-height: 1.3em;
+  }
+  .result.ok{ color: var(--green); }
+  .result.err{ color: var(--red); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Admin</h1>
+  <p class="tagline">Enable or disable the node's companion radio interfaces.</p>
+
+  <div class="card">
+    <label for="password">Admin password</label>
+    <input type="password" id="password" autocomplete="current-password">
+
+    <div class="buttons">
+      <button id="enableBtn">Enable</button>
+      <button id="disableBtn">Disable</button>
+    </div>
+
+    <p class="result" id="result"></p>
+  </div>
+</div>
+
+<script>
+  const passwordInput = document.getElementById('password');
+  const resultEl = document.getElementById('result');
+  const enableBtn = document.getElementById('enableBtn');
+  const disableBtn = document.getElementById('disableBtn');
+
+  async function sendAction(action) {
+    enableBtn.disabled = true;
+    disableBtn.disabled = true;
+    resultEl.textContent = '';
+    resultEl.className = 'result';
+
+    try {
+      const res = await fetch('/api/admin', {
+        method: 'POST',
+        body: new URLSearchParams({ password: passwordInput.value, action })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        resultEl.textContent = data.enabled ? 'Interfaces enabled.' : 'Interfaces disabled.';
+        resultEl.className = 'result ok';
+      } else if (res.status === 403) {
+        resultEl.textContent = 'Incorrect password.';
+        resultEl.className = 'result err';
+      } else {
+        resultEl.textContent = 'Request failed.';
+        resultEl.className = 'result err';
+      }
+    } catch (e) {
+      resultEl.textContent = 'Request failed.';
+      resultEl.className = 'result err';
+    } finally {
+      enableBtn.disabled = false;
+      disableBtn.disabled = false;
+    }
+  }
+
+  enableBtn.addEventListener('click', () => sendAction('enable'));
+  disableBtn.addEventListener('click', () => sendAction('disable'));
+</script>
+</body>
+</html>

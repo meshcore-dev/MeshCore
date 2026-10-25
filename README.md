@@ -83,4 +83,4 @@ A user can connect to the WiFi hotspot and is taken to the main page by a captiv
 - want to add another node type as a weather station or other types of admin data that can be published to the network.
 
 ## AI Disclaimer
-(from @heidtn) The firmware has all been almost entirely written by hand, but I'm not very experienced with web dev so AI was mostly used for that and to get the bones of this README. Some of the FW is copied from reference sources. I've reviewed the JS parts myself, but they have been written by Claude. AI also checked the code for bugs or other issues.
+(from @heidtn) The firmware has all been almost entirely written by hand, but I'm not very experienced with web dev so AI was mostly used for that and to get the bones of this README. Some of the FW is copied from reference sources. I've reviewed the JS parts myself, but they have been written entirely by Claude. AI also checked the code for bugs or other issues and has written documenting comments including for the firmware. All AI generated code has been reviewed by a human.

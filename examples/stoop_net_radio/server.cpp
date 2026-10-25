@@ -4,12 +4,17 @@
 #ifdef ESP32
 
 #include <helpers/esp32/SerialWifiInterface.h> // WIFI_DEBUG_PRINTLN, pulls in WiFi.h
+#include <helpers/MultiSerialInterface.h>
 #include "MyMesh.h"
 #include "wifi_manager.h" // server, rate_limiter, wifiClientModeActive()
 #include <web_assets.h>
 
 #ifndef STOOP_NODE_NAME
 #define STOOP_NODE_NAME "stoop"
+#endif
+
+#ifndef ADMIN_PASSWORD
+#define ADMIN_PASSWORD "password"
 #endif
 
 // TODO(Heidt) unclear if there's a limit in the FW on username length,
@@ -27,6 +32,7 @@
 
 // defined in main.cpp
 extern MyMesh the_mesh;
+extern MultiSerialInterface interface_manager;
 
 // escape a string for safe embedding inside a JSON string literal
 static void appendJsonEscaped(String& out, const char* s) {
@@ -98,6 +104,36 @@ void configureServer() {
     WIFI_DEBUG_PRINTLN("Serving stoop.html");
     server.sendHeader("Content-Encoding", "gzip");
     server.send_P(200, "text/html", (const char*)STOOP_HTML_GZ, STOOP_HTML_GZ_LEN);
+  });
+  server.on("/admin", HTTP_GET, [](){
+    WIFI_DEBUG_PRINTLN("Serving admin.html");
+    server.sendHeader("Content-Encoding", "gzip");
+    server.send_P(200, "text/html", (const char*)ADMIN_HTML_GZ, ADMIN_HTML_GZ_LEN);
+  });
+
+  // enables/disables interface_manager (BLE/USB/WiFi companion interfaces)
+  // when given the correct ADMIN_PASSWORD
+  server.on("/api/admin", HTTP_POST, [](){
+    String password = server.arg("password");
+    String action = server.arg("action");
+    if (password != ADMIN_PASSWORD) {
+      server.send(403, "text/plain", "forbidden");
+      return;
+    }
+
+    if (action == "enable") {
+      interface_manager.enable();
+    } else if (action == "disable") {
+      interface_manager.disable();
+    } else {
+      server.send(400, "text/plain", "bad request");
+      return;
+    }
+
+    String json = "{\"enabled\":";
+    json += interface_manager.isEnabled() ? "true" : "false";
+    json += "}";
+    server.send(200, "application/json", json);
   });
 
   server.on("/api/stoop/max_message_bytes", HTTP_GET, [](){
