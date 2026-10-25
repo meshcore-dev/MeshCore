@@ -58,6 +58,24 @@ pio run -e stoop_dev
 
 To make the `stoop` channel private, copy `platformio.local.ini.template` to `platformio.local.ini` (already gitignored) and set your own channel key there.
 
+## Updating firmware over WiFi (OTA)
+
+Once a node is out in the field, you don't need to pull it to re-flash over USB. [ElegantOTA](https://github.com/ayushsharma82/ElegantOTA) serves an update page at `/update` on the same web server as the rest of the site.
+
+1. Build the firmware normally:
+
+   ```
+   pio run -e heltec_v4_stoop_radio
+   ```
+
+   This produces `.pio/build/heltec_v4_stoop_radio/firmware.bin` — that's the file to upload. Don't use the `*-merged.bin` from the `mergebin` target; that one bundles the bootloader and partition table too and is only for a first-time flash over USB.
+
+2. Connect to the node's WiFi (or its mDNS address if it's configured as a WiFi client) and go to `http://<node address>/update`.
+3. Log in with username `admin` and the node's `ADMIN_PASSWORD` (set in `platformio.local.ini`, the same password used on the `/admin` page to enable/disable the radio interfaces).
+4. Upload `firmware.bin`. The node reboots into the new firmware automatically once the upload finishes.
+
+This only replaces the application code — anything in the node's SPIFFS partition (mesh identity, channel config) survives the update. As noted above, this site has no TLS, so the upload and the admin password it's gated behind both travel in the clear like everything else here.
+
 ## Repo layout
 
 Stoop Net is a fork of MeshCore and stays mergeable with upstream on purpose. All Stoop Net-specific code lives under `examples/stoop_net_radio/`; shared MeshCore source under `src/` is not modified.
