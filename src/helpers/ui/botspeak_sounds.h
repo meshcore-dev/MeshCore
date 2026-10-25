@@ -141,6 +141,22 @@ static const BotSegment bot_low_battery[] = {
   BOT_SEG(1500,  700, 600,  4, 100),
 };
 
+static const BotSegment bot_yes[] = {
+  BOT_SEG(4100, 4100, 100,  0,   0),
+  BOT_REST(8),
+  BOT_SEG(4100, 4100,  32,  0,   0),
+  BOT_REST(12),
+  BOT_SEG(4100, 4100,  16,  0,   0),
+  BOT_REST(16),
+  BOT_SEG(4100, 4100,   8,  0,   0),
+};
+
+static const BotSegment bot_no[] = {
+  BOT_SEG(1300, 1000, 160, 60, 250),
+  BOT_REST(60),
+  BOT_SEG(1300, 1000, 160, 60, 250),
+};
+
 #define BOT_COUNT(a)  ((uint8_t)(sizeof(a) / sizeof((a)[0])))
 
 /* Words in a chat message that trigger a sound (case-insensitive, whole words). */
@@ -166,4 +182,8 @@ static const BotWord bot_words[] = {
   { "uh oh",       bot_uhoh,        BOT_COUNT(bot_uhoh) },
   { "uhoh",        bot_uhoh,        BOT_COUNT(bot_uhoh) },
   { "low battery", bot_low_battery, BOT_COUNT(bot_low_battery) },
+  { "yes",         bot_yes,           BOT_COUNT(bot_yes) },
+  { "y",           bot_yes,           BOT_COUNT(bot_yes) },
+  { "no",          bot_no,            BOT_COUNT(bot_no) },
+  { "n",           bot_no,            BOT_COUNT(bot_no) },
 };
