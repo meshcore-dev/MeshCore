@@ -2,6 +2,11 @@
 #include <Mesh.h>
 #include "MyMesh.h"
 
+#if defined(ENABLE_WIFI_INTERFACE) && defined(ENABLE_ESP_MDNS)
+#define HAS_ESP_MDNS
+#include <ESPmDNS.h>
+#endif
+
 // Believe it or not, this std C function is busted on some platforms!
 static uint32_t _atoi(const char* sp) {
   uint32_t n = 0;
@@ -264,6 +269,21 @@ void setup() {
 #if defined(ETHERNET_ENABLED)
   ethernet_interface.begin();
   interface_manager.addInterface(InterfaceType::Ethernet, &ethernet_interface);
+#endif
+
+#ifdef HAS_ESP_MDNS
+  String mdnsName = "meshcore_";
+  mdnsName += the_mesh.getNodeName();
+  if (!MDNS.begin(mdnsName.c_str())) {
+    WIFI_DEBUG_PRINTLN("mDNS failed to start!");
+  } else {
+    MDNS.addService("meshcore", "tcp", TCP_PORT);
+    MDNS.addServiceTxt("meshcore", "tcp", "firmware-version", FIRMWARE_VERSION);
+    String protocol; protocol+=FIRMWARE_VER_CODE;
+    MDNS.addServiceTxt("meshcore", "tcp", "protocol-version", protocol.c_str());
+    MDNS.addServiceTxt("meshcore", "tcp", "build-date", __DATE__);
+    MDNS.addServiceTxt("meshcore", "tcp", "build-time", __TIME__);
+  }
 #endif
 
 // add hardware serial interface
