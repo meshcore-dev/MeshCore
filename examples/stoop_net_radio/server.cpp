@@ -8,6 +8,7 @@
 #include "MyMesh.h"
 #include "wifi_manager.h" // server, rate_limiter, wifiClientModeActive()
 #include <web_assets.h>
+#include <ElegantOTA.h>
 
 #ifndef STOOP_NODE_NAME
 #define STOOP_NODE_NAME "stoop"
@@ -227,6 +228,7 @@ void configureServer() {
     server.send(302, "text/plain", "");
   });
 
+  ElegantOTA.begin(&server, "admin", ADMIN_PASSWORD);
   server.begin();
 }
 

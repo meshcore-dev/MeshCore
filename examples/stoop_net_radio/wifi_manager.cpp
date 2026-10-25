@@ -7,6 +7,7 @@
 #include <esp_wifi.h>
 #include <target.h> // board
 #include <helpers/esp32/SerialWifiInterface.h> // WIFI_DEBUG_PRINTLN, pulls in WiFi.h
+#include <ElegantOTA.h>
 #include "server.h"
 
 #if defined(CLIENT_WIFI_SSID)
@@ -159,6 +160,7 @@ void wifiManagerBegin(MultiSerialInterface& interface_manager, StdRNG& fast_rng)
 
 void wifiManagerLoop() {
   server.handleClient();
+  ElegantOTA.loop();
 
 #if defined(CLIENT_WIFI_SSID)
   if (!wifi_client_active) {
