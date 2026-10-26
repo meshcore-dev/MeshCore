@@ -33,6 +33,13 @@
 
 #include "icons.h"
 
+// GPS duty in its largest exact unit ("30s", "5m", "1h"), shared by the GPS page and its alerts
+static void formatGPSDuty(char* dest, uint32_t secs) {
+  if (secs % 3600 == 0) sprintf(dest, "%luh", (unsigned long)(secs / 3600));
+  else if (secs % 60 == 0) sprintf(dest, "%lum", (unsigned long)(secs / 60));
+  else sprintf(dest, "%lus", (unsigned long)secs);
+}
+
 class SplashScreen : public UIScreen {
   UITask* _task;
   unsigned long dismiss_after;
@@ -407,10 +414,8 @@ public:
       uint32_t duty = _task->getGPSDuty();
       if (gps_state && duty > 0) {
         if (nmea != NULL && !nmea->isEnabled()) strcpy(buf, "gps sleep");  // powered down between fixes
-        char* dp = strchr(buf, 0);
-        if (duty % 3600 == 0) sprintf(dp, " %luh", (unsigned long)(duty / 3600));
-        else if (duty % 60 == 0) sprintf(dp, " %lum", (unsigned long)(duty / 60));
-        else sprintf(dp, " %lus", (unsigned long)duty);
+        strcat(buf, " ");
+        formatGPSDuty(strchr(buf, 0), duty);
       }
       display.setColor(UIColor::primary_txt);
       display.drawTextLeftAlign(0, y, buf);
@@ -1209,7 +1214,8 @@ void UITask::cycleGPSMode() {
     if (presets[next] == 0) {
       showAlert("GPS: Always on", 800);
     } else {
-      sprintf(tmp, "GPS: %lum", (unsigned long)(presets[next] / 60));  // fits tmp up to "GPS: 60m"
+      strcpy(tmp, "GPS: ");
+      formatGPSDuty(&tmp[5], presets[next]);  // presets fit tmp ("GPS: 15m")
       showAlert(tmp, 800);
     }
   }

@@ -669,7 +669,7 @@ Both the Windows and Mac versions of the client app are fully unlocked and are f
 ### 5.17. Q: Can the GPS be powered down between fixes to save battery?
 **A:** Yes, on companion firmware for boards whose GPS has a power/enable pin. Set the custom variable `gps_duty` to the number of seconds to wait between fixes (`0` = always on, the default; max `86400`). While GPS is on, the companion powers the GPS up, waits for a fix, keeps it for 10 seconds (so the clock can sync), stores the position, powers the GPS down, and waits `gps_duty` seconds before the next fix. GPS stays "on" in the app the whole time, and adverts and telemetry use the last stored position.
 
-On devices with a screen, long-pressing on the GPS page steps through **off → on → every 1m → 5m → 15m → 60m → off**. The page shows `gps sleep` while the GPS is powered down.
+On devices with a screen, long-pressing on the GPS page steps through **off → on → every 1m → 5m → 15m → 1h → off**. The page shows the interval (`gps on 5m`), and `gps sleep 5m` while the GPS is powered down.
 
 ```
 meshcli -s /dev/ttyUSB0 set gps_duty 300
