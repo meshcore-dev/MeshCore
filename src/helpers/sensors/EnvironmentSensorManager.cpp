@@ -731,6 +731,14 @@ bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, Cayen
 // Values shown are the effective ones (override or board default). Changes take effect after reboot.
 static const char* const GPS_CFG_NAMES[] = { "gps_rx", "gps_tx", "gps_en", "gps_baud" };
 static const int GPS_CFG_COUNT = sizeof(GPS_CFG_NAMES) / sizeof(GPS_CFG_NAMES[0]);
+
+// Whole decimal number within [lo, hi]. Rejects empty or trailing text, so "abc" isn't read as 0
+// and out-of-range pins can't wrap when stored in int8_t.
+static bool parseGPSCfg(const char* s, long lo, long hi, long& out) {
+  char* end;
+  out = strtol(s, &end, 10);
+  return end != s && *end == 0 && out >= lo && out <= hi;
+}
 #endif
 
 int EnvironmentSensorManager::getNumSettings() const {
@@ -799,7 +807,8 @@ bool EnvironmentSensorManager::setSettingValue(const char* name, const char* val
   #if ENV_GPS_PIN_CONFIG
   if (gps_cfg_enabled) {
     if (strcmp(name, "gps_baud") == 0) {
-      uint32_t baud = atol(value);
+      long baud;
+      if (!parseGPSCfg(value, 0, 230400, baud)) return false;
       if (baud != 0 && baud != 4800 && baud != 9600 && baud != 19200 && baud != 38400 &&
           baud != 57600 && baud != 115200 && baud != 230400) {
         return false;
@@ -811,7 +820,8 @@ bool EnvironmentSensorManager::setSettingValue(const char* name, const char* val
                    : strcmp(name, "gps_tx") == 0 ? &gps_pin_tx
                    : strcmp(name, "gps_en") == 0 ? &gps_pin_en : NULL;
     if (target) {
-      int pin = atoi(value);
+      long pin;
+      if (!parseGPSCfg(value, -1, INT8_MAX, pin)) return false;
       int def = target == &gps_pin_rx ? GPS_DEFAULT_RX : target == &gps_pin_tx ? GPS_DEFAULT_TX : GPS_DEFAULT_EN;
       if (pin == def) pin = -1;  // the board default (or -1) means: follow the board default
       if (pin != -1) {
@@ -906,6 +916,7 @@ bool EnvironmentSensorManager::isGPSPinAllowed(int pin, bool output) const {
     if (pin == reserved[i]) return false;
   }
   #if defined(ESP32)
+    if (pin >= SOC_GPIO_PIN_COUNT) return false;  // GPIO_IS_VALID_* shift by pin unchecked
     if (!(output ? GPIO_IS_VALID_OUTPUT_GPIO(pin) : GPIO_IS_VALID_GPIO(pin))) return false;
     #if defined(CONFIG_IDF_TARGET_ESP32S3)
       if (pin >= 27 && pin <= 32) return false;   // SPI flash
