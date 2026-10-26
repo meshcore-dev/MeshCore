@@ -278,6 +278,7 @@ void setup() {
     WIFI_DEBUG_PRINTLN("mDNS failed to start!");
   } else {
     MDNS.addService("meshcore", "tcp", TCP_PORT);
+    MDNS.addServiceTxt("meshcore", "tcp", "node-name", the_mesh.getNodeName());
     MDNS.addServiceTxt("meshcore", "tcp", "firmware-version", FIRMWARE_VERSION);
     String protocol; protocol+=FIRMWARE_VER_CODE;
     MDNS.addServiceTxt("meshcore", "tcp", "protocol-version", protocol.c_str());
