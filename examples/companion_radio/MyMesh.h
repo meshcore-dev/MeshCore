@@ -209,9 +209,9 @@ public:
       sprintf(interval_str, "%u", _prefs.gps_interval);
       sensors.setSettingValue("gps_interval", interval_str);
     }
-    char duty_str[12];
-    sprintf(duty_str, "%u", _prefs.gps_duty);
-    sensors.setSettingValue("gps_duty", duty_str);
+#if ENV_GPS_DUTY_CYCLE
+    sensors.configureGPSDuty(_prefs.gps_duty);
+#endif
   }
 #endif
 

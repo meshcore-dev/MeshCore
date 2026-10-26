@@ -699,17 +699,13 @@ bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, Cayen
 }
 
 
-#if ENV_INCLUDE_GPS && !defined(RAK_WISBLOCK_GPS)
-  #define ENV_GPS_DUTY_CYCLE 1
-#endif
-
 int EnvironmentSensorManager::getNumSettings() const {
   int settings = 0;
   #if ENV_INCLUDE_GPS
     if (gps_detected) settings++;  // only show GPS setting if GPS is detected
   #endif
   #if ENV_GPS_DUTY_CYCLE
-    if (gps_detected) settings++;  // gps_duty
+    if (gps_detected && gps_duty_enabled) settings++;  // gps_duty
   #endif
   return settings;
 }
@@ -722,7 +718,7 @@ const char* EnvironmentSensorManager::getSettingName(int i) const {
     }
   #endif
   #if ENV_GPS_DUTY_CYCLE
-    if (gps_detected && i == settings++) {
+    if (gps_detected && gps_duty_enabled && i == settings++) {
       return "gps_duty";
     }
   #endif
@@ -737,7 +733,7 @@ const char* EnvironmentSensorManager::getSettingValue(int i) const {
     }
   #endif
   #if ENV_GPS_DUTY_CYCLE
-    if (gps_detected && i == settings++) {
+    if (gps_detected && gps_duty_enabled && i == settings++) {
       snprintf(gps_duty_val, sizeof(gps_duty_val), "%lu", (unsigned long)gps_duty_secs);
       return gps_duty_val;
     }
@@ -762,7 +758,7 @@ bool EnvironmentSensorManager::setSettingValue(const char* name, const char* val
   }
   #endif
   #if ENV_GPS_DUTY_CYCLE
-  if (gps_detected && strcmp(name, "gps_duty") == 0) {
+  if (gps_detected && gps_duty_enabled && strcmp(name, "gps_duty") == 0) {
     long secs = atol(value);
     if (secs < 0 || secs > 86400) return false;
     gps_duty_secs = secs;
@@ -994,6 +990,13 @@ void EnvironmentSensorManager::dutyCycleGPS() {
   _location->stop();
   gps_powered = false;
   gps_next_wake = millis() + gps_duty_secs * 1000UL;
+}
+
+void EnvironmentSensorManager::configureGPSDuty(uint32_t secs) {
+  gps_duty_enabled = true;
+  char buf[12];
+  snprintf(buf, sizeof(buf), "%lu", (unsigned long)secs);
+  setSettingValue("gps_duty", buf);
 }
 #endif
 
