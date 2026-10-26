@@ -763,6 +763,7 @@ const char* EnvironmentSensorManager::getSettingName(int i) const {
     if (gps_cfg_enabled && i >= settings && i < settings + GPS_CFG_COUNT) {
       return GPS_CFG_NAMES[i - settings];
     }
+    if (gps_cfg_enabled) settings += GPS_CFG_COUNT;  // keep the index right for settings listed after these
   #endif
   return NULL;
 }
@@ -784,6 +785,7 @@ const char* EnvironmentSensorManager::getSettingValue(int i) const {
       snprintf(gps_cfg_val[k], sizeof(gps_cfg_val[k]), "%ld", v);
       return gps_cfg_val[k];
     }
+    if (gps_cfg_enabled) settings += GPS_CFG_COUNT;
   #endif
   return NULL;
 }
