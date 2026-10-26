@@ -677,6 +677,7 @@ meshcli -s /dev/ttyUSB0 set gps_duty 300
 
 Notes:
 - If the GPS has no backup battery, every wake is a cold start (often 30-60 s outdoors). The GPS stays powered until it gets a fix, so with no sky view it stays on.
+- On boards where the firmware can't switch the GPS off (no enable pin or switched power), `gps_duty` saves no power. It only limits how often the position is updated.
 - Build flags: `GPS_DUTY_SETTLE_SECS` (default 10) and `GPS_DUTY_MAX_ON_SECS` (give up after N seconds without a fix, default 0 = wait for a fix).
 
 
