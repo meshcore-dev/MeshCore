@@ -1003,9 +1003,13 @@ void EnvironmentSensorManager::loop() {
   #if ENV_INCLUDE_GPS
   static unsigned long next_gps_update = 0;
   if (gps_active) {
-    _location->loop();
     #if ENV_GPS_DUTY_CYCLE
+    // While powered down the parser still holds the last fix. Running it would let the provider's
+    // periodic RTC sync set the clock back to that fix's time.
+    if (gps_duty_secs == 0 || gps_powered) _location->loop();
     if (gps_duty_secs > 0) dutyCycleGPS();
+    #else
+    _location->loop();
     #endif
   }
   if ((long)(millis() - next_gps_update) > 0) {
