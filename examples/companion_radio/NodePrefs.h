@@ -21,6 +21,7 @@ public:
   uint8_t cr = 0;
   uint8_t multi_acks = 0;
   uint8_t manual_add_contacts = 0;
+  uint8_t one_key_dm_enabled = 0; // unknown senders require an explicit contact import by default
   float bw = 0;
   int8_t tx_power_dbm = 0;
   uint8_t telemetry_mode_base = 0;
@@ -162,6 +163,7 @@ private:
       def("vibe_q", _parent->vibe_quiet);
       def("auto_add", _parent->autoadd_config);    // bitmask for auto-add contacts config
       def("man_add", _parent->manual_add_contacts);
+      def("one_key_dm", _parent->one_key_dm_enabled);
       def("tel_base", _parent->telemetry_mode_base);
       def("tel_loc", _parent->telemetry_mode_loc);
       def("tel_env", _parent->telemetry_mode_env);

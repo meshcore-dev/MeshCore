@@ -628,6 +628,69 @@ Use the `SEND_CHANNEL_MESSAGE` command (see [Commands](#commands)).
 - Long messages should be split into chunks
 - Include a chunk indicator (e.g., "[1/3] message text")
 
+For a private chat contact, `CMD_SEND_TXT_MSG` (`0x02`) remains unchanged.
+Before the first unconfirmed DM, Companion firmware sends a signed, encrypted
+[one-key introduction](payloads.md#companion-one-key-dm-introduction), then
+schedules the ordinary private text packet. The introduction repeats on an
+application retry unless the receiver has refused it. Once a DM is acknowledged,
+later first attempts omit the introduction until the sender reboots or its
+eight-peer session cache is replaced.
+
+`dm.one_key` is **off by default**, including when older preferences are loaded.
+With it off, the receiver verifies the introduction, emits a synthetic
+`PUSH_CODE_NEW_ADVERT` (`0x8A`) contact record for the app's advert list, and
+does not add a contact or deliver the following DM. The user can add that
+record with the ordinary `CMD_ADD_UPDATE_CONTACT` (`0x09`) flow. It is an
+app-facing advert record, not a signed broadcast advert packet; it cannot be
+used with `CMD_IMPORT_CONTACT` (`0x12`). A signed, encrypted refusal also tells
+the sender to stop including introductions for that peer on retries. The sender
+emits `PUSH_CODE_ONE_KEY_DM_REJECTED` (`0x91`, followed by the recipient's full
+32-byte public key) for apps that want to show the refusal. The refusal cache is
+limited to eight peers and resets on reboot or eviction. If the user later adds
+the contact, already-received DMs can be delivered from the pending queue
+without the sender retransmitting them. The receiver holds up to **15 verified,
+decryptable text DMs** across pending senders in RAM. It drops the oldest held
+DM when a sixteenth arrives and ignores duplicate retries. High-contact nRF52
+builds with a 256-frame offline queue share that pool with held DMs: all 256
+slots are ordinary-message slots when none are held, and 241 are available
+when all 15 held slots are occupied. Held entries are hidden from app sync and
+become ordinary messages on acceptance without requiring an additional slot.
+Other builds wait for space in the normal offline queue before releasing an
+accepted DM. Held DMs are lost on
+radio reboot; packets that never reached the receiver still require a retry.
+Packets received before a valid `DMK1` introduction cannot enter this queue.
+Delivery after acceptance is acknowledged to the sender when possible.
+Temporary anonymous-request entries do not grant text-DM permission.
+The pending advert notification requires a connected app; it is not saved as a
+contact on the radio. Existing apps must handle `0x91` to show a visible
+refusal, although the sender firmware suppresses repeat introductions itself.
+
+Use `get dm.one_key` and `set dm.one_key on|off` in the Companion CLI (or send
+them through `CMD_RUN_CLI_COMMAND`, `0x42`). The saved preference is
+`comp.one_key_dm` (`0` or `1`). With the setting on, a verified unknown sender
+is accepted automatically and the first DM is delivered. This setting is
+separate from advert auto-add. Neither mode accepts an invalid signature or
+overwrites an existing contact. Stock receivers still need to learn the sender
+key by advert or import before they can decrypt an ordinary DM. The first send
+uses an additional radio packet and its reported timeout includes the delay.
+`get dm.held` reports the current number of verified, decryptable DMs waiting
+for contact acceptance (0-15); it is read-only and does not expose message text.
+
+Flash-constrained STM32WL Companion builds omit one-key DM support to retain
+their existing filesystem boundary. On those builds, `get dm.one_key`,
+`set dm.one_key on|off`, and `get dm.held` report
+`Error: one-key DMs unsupported on this build`.
+Ordinary contact-based private messages are unaffected.
+
+For a two-radio hardware check, run `python3 tools/hil/one_key_dm.py --sender
+/dev/ttyACM0 --recipient /dev/ttyACM1 --reset-contact` with two nearby
+Companion radios on the same profile. The default test checks a pending advert,
+refusal, manual contact addition, then delivery and ACK of the original DM
+without a retry or draining the recipient's message queue. Add `--auto-accept`
+to test the opt-in automatic path (restart the sender after a refusal to clear
+its session cache).
+Add `--invalid-signature-first` to check signature rejection.
+
 ---
 
 ## Response Parsing
