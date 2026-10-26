@@ -699,10 +699,17 @@ bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, Cayen
 }
 
 
+#if ENV_INCLUDE_GPS && !defined(RAK_WISBLOCK_GPS)
+  #define ENV_GPS_DUTY_CYCLE 1
+#endif
+
 int EnvironmentSensorManager::getNumSettings() const {
   int settings = 0;
   #if ENV_INCLUDE_GPS
     if (gps_detected) settings++;  // only show GPS setting if GPS is detected
+  #endif
+  #if ENV_GPS_DUTY_CYCLE
+    if (gps_detected) settings++;  // gps_duty
   #endif
   return settings;
 }
@@ -714,6 +721,11 @@ const char* EnvironmentSensorManager::getSettingName(int i) const {
       return "gps";
     }
   #endif
+  #if ENV_GPS_DUTY_CYCLE
+    if (gps_detected && i == settings++) {
+      return "gps_duty";
+    }
+  #endif
   return NULL;
 }
 
@@ -722,6 +734,12 @@ const char* EnvironmentSensorManager::getSettingValue(int i) const {
   #if ENV_INCLUDE_GPS
     if (gps_detected && i == settings++) {
       return gps_active ? "1" : "0";
+    }
+  #endif
+  #if ENV_GPS_DUTY_CYCLE
+    if (gps_detected && i == settings++) {
+      snprintf(gps_duty_val, sizeof(gps_duty_val), "%lu", (unsigned long)gps_duty_secs);
+      return gps_duty_val;
     }
   #endif
   return NULL;
@@ -740,6 +758,15 @@ bool EnvironmentSensorManager::setSettingValue(const char* name, const char* val
   if (strcmp(name, "gps_interval") == 0) {
     uint32_t interval_seconds = atoi(value);
     gps_update_interval_sec = interval_seconds > 0 ? interval_seconds : 1;
+    return true;
+  }
+  #endif
+  #if ENV_GPS_DUTY_CYCLE
+  if (gps_detected && strcmp(name, "gps_duty") == 0) {
+    long secs = atol(value);
+    if (secs < 0 || secs > 86400) return false;
+    gps_duty_secs = secs;
+    if (gps_duty_secs == 0 && gps_active && !gps_powered) power_on_gps();  // back to always-on
     return true;
   }
   #endif
@@ -897,12 +924,22 @@ void EnvironmentSensorManager::start_gps() {
     return;
   #endif
 
-  _location->begin();
-  _location->reset();
+  power_on_gps();
 
 #ifndef PIN_GPS_EN
   MESH_DEBUG_PRINTLN("Start GPS is N/A on this board. Actual GPS state unchanged");
 #endif
+}
+
+void EnvironmentSensorManager::power_on_gps() {
+  _location->begin();
+  _location->reset();
+  if (gps_duty_secs > 0) {
+    _location->syncTime();  // also clears the parser, so duty cycling waits for a fresh fix
+  }
+  gps_powered = true;
+  gps_powered_at = millis();
+  gps_fix_since = 0;
 }
 
 void EnvironmentSensorManager::stop_gps() {
@@ -916,12 +953,49 @@ void EnvironmentSensorManager::stop_gps() {
   #endif
 
   _location->stop();
+  gps_powered = false;
 
   #ifndef PIN_GPS_EN
   MESH_DEBUG_PRINTLN("Stop GPS is N/A on this board. Actual GPS state unchanged");
   #endif
 }
 #endif // ENV_INCLUDE_GPS
+
+#if ENV_GPS_DUTY_CYCLE
+#ifndef GPS_DUTY_SETTLE_SECS
+  #define GPS_DUTY_SETTLE_SECS 10  // keep the fix this long before powering down (lets the RTC sync)
+#endif
+#ifndef GPS_DUTY_MAX_ON_SECS
+  #define GPS_DUTY_MAX_ON_SECS 0   // give up after this long without a fix, 0 = wait for a fix
+#endif
+
+void EnvironmentSensorManager::dutyCycleGPS() {
+  if (!gps_powered) {
+    if ((long)(millis() - gps_next_wake) >= 0) {
+      MESH_DEBUG_PRINTLN("GPS duty cycle: waking");
+      power_on_gps();
+    }
+    return;
+  }
+
+  bool give_up = GPS_DUTY_MAX_ON_SECS > 0 && (millis() - gps_powered_at) >= GPS_DUTY_MAX_ON_SECS * 1000UL;
+  if (_location->isValid()) {
+    if (gps_fix_since == 0) gps_fix_since = millis();
+    if ((millis() - gps_fix_since) < GPS_DUTY_SETTLE_SECS * 1000UL && !give_up) return;
+    node_lat = ((double)_location->getLatitude())/1000000.;
+    node_lon = ((double)_location->getLongitude())/1000000.;
+    node_altitude = ((double)_location->getAltitude()) / 1000.0;
+    MESH_DEBUG_PRINTLN("GPS duty cycle: fix lat %f lon %f, sleeping", node_lat, node_lon);
+  } else {
+    gps_fix_since = 0;
+    if (!give_up) return;
+    MESH_DEBUG_PRINTLN("GPS duty cycle: no fix, sleeping");
+  }
+  _location->stop();
+  gps_powered = false;
+  gps_next_wake = millis() + gps_duty_secs * 1000UL;
+}
+#endif
 
 #if ENV_INCLUDE_GPS || defined(ENV_INCLUDE_BME680_BSEC)
 void EnvironmentSensorManager::loop() {
@@ -930,6 +1004,9 @@ void EnvironmentSensorManager::loop() {
   static unsigned long next_gps_update = 0;
   if (gps_active) {
     _location->loop();
+    #if ENV_GPS_DUTY_CYCLE
+    if (gps_duty_secs > 0) dutyCycleGPS();
+    #endif
   }
   if ((long)(millis() - next_gps_update) > 0) {
 

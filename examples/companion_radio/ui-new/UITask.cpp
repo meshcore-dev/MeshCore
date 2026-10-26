@@ -404,6 +404,14 @@ public:
 #else
       strcpy(buf, gps_state ? "gps on" : "gps off");
 #endif
+      uint32_t duty = _task->getGPSDuty();
+      if (gps_state && duty > 0) {
+        if (nmea != NULL && !nmea->isEnabled()) strcpy(buf, "gps sleep");  // powered down between fixes
+        char* dp = strchr(buf, 0);
+        if (duty % 3600 == 0) sprintf(dp, " %luh", (unsigned long)(duty / 3600));
+        else if (duty % 60 == 0) sprintf(dp, " %lum", (unsigned long)(duty / 60));
+        else sprintf(dp, " %lus", (unsigned long)duty);
+      }
       display.setColor(UIColor::primary_txt);
       display.drawTextLeftAlign(0, y, buf);
       if (nmea == NULL) {
@@ -599,7 +607,7 @@ public:
     }
 #if ENV_INCLUDE_GPS == 1
     if (c == KEY_ENTER && _page == HomePage::GPS) {
-      _task->toggleGPS();
+      _task->cycleGPSMode();
       return true;
     }
 #endif
@@ -1157,6 +1165,57 @@ bool UITask::getGPSState() {
     }
   }
   return false;
+}
+
+uint32_t UITask::getGPSDuty() {
+  const char* v = _sensors != NULL ? _sensors->getSettingByKey("gps_duty") : NULL;
+  return v ? strtoul(v, NULL, 10) : 0;
+}
+
+// Steps through off -> always on -> power-cycled every 1m / 5m / 15m / 60m -> off
+void UITask::cycleGPSMode() {
+  static const uint32_t presets[] = { 0, 60, 300, 900, 3600 };  // duty secs while on, 0 = always on
+  const int n = sizeof(presets) / sizeof(presets[0]);
+  if (_sensors == NULL || _sensors->getSettingByKey("gps") == NULL) return;
+
+  bool on = getGPSState();
+  if (_sensors->getSettingByKey("gps_duty") == NULL) {  // no duty cycling on this board
+    toggleGPS();
+    return;
+  }
+  uint32_t duty = getGPSDuty();
+  int next;  // index into presets, or n = off
+  if (!on) {
+    next = 0;
+  } else {
+    int cur = 0;  // a custom duty from the app continues as if "always on"
+    for (int i = 0; i < n; i++) if (presets[i] == duty) cur = i;
+    next = cur + 1;
+  }
+
+  char tmp[12];
+  if (next >= n) {
+    _sensors->setSettingValue("gps", "0");
+    _node_prefs->gps_enabled = 0;
+    showAlert("GPS: Disabled", 800);
+  } else {
+    sprintf(tmp, "%lu", (unsigned long)presets[next]);
+    _sensors->setSettingValue("gps_duty", tmp);
+    _node_prefs->gps_duty = presets[next];
+    if (!on) {  // only start when off; start_gps() is not idempotent
+      _sensors->setSettingValue("gps", "1");
+      _node_prefs->gps_enabled = 1;
+    }
+    if (presets[next] == 0) {
+      showAlert("GPS: Always on", 800);
+    } else {
+      sprintf(tmp, "GPS: %lum", (unsigned long)(presets[next] / 60));  // fits tmp up to "GPS: 60m"
+      showAlert(tmp, 800);
+    }
+  }
+  notify(UIEventType::ack);
+  the_mesh.savePrefs();
+  _next_refresh = 0;
 }
 
 void UITask::toggleGPS() {

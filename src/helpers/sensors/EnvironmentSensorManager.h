@@ -25,6 +25,16 @@ protected:
 
   #if ENV_INCLUDE_GPS
   LocationProvider* _location;
+  // Duty cycling: with gps_duty_secs > 0, power the GPS down after each fix and wake it
+  // gps_duty_secs later. gps_active (the user setting) stays true while powered down.
+  uint32_t      gps_duty_secs = 0;
+  mutable char  gps_duty_val[12];
+  bool          gps_powered = false;
+  unsigned long gps_next_wake = 0;
+  unsigned long gps_powered_at = 0;
+  unsigned long gps_fix_since = 0;
+  void power_on_gps();
+  void dutyCycleGPS();
   void start_gps();
   void stop_gps();
   void initBasicGPS();
