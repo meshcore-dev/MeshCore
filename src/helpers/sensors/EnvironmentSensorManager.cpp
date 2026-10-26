@@ -806,6 +806,8 @@ void EnvironmentSensorManager::initBasicGPS() {
     MESH_DEBUG_PRINTLN("GPS detected");
     #ifdef PERSISTANT_GPS
       gps_active = true;
+      gps_powered = true;  // left on by begin() above
+      gps_powered_at = millis();
       return;
     #endif
   } else {
