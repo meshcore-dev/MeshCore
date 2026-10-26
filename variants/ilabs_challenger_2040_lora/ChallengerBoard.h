@@ -13,6 +13,8 @@ class ChallengerBoard : public mesh::MainBoard {
 protected:
   uint8_t startup_reason;
 
+  static int64_t onSleepAlarm(alarm_id_t, void*) { return 0; }  // wake only, don't repeat
+
 public:
   void begin();
   uint8_t getStartupReason() const override { return startup_reason; }
@@ -30,12 +32,13 @@ public:
 
   void reboot() override { rp2040.reboot(); }
 
-  // Light sleep for 'powersaving on': halt the core until an interrupt (LoRa DIO0, USB, or the timer alarm).
-  // Interrupts are masked around the DIO0 check so a packet arriving just before WFI still wakes it.
+  // Light sleep for 'powersaving on': halt the core until an interrupt
+  // (LoRa DIO0, USB, or the timer alarm). Interrupts are masked around the
+  // DIO0 check so a packet arriving just before WFI still wakes it.
   void sleep(uint32_t secs) override {
     alarm_id_t alarm = 0;
     if (secs > 0) {
-      alarm = add_alarm_in_ms(secs * 1000, [](alarm_id_t, void*) -> int64_t { return 0; }, NULL, true);
+      alarm = add_alarm_in_ms(secs * 1000, onSleepAlarm, NULL, true);
     }
 
     uint32_t irq_state = save_and_disable_interrupts();

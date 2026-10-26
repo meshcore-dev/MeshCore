@@ -18,7 +18,9 @@ bool radio_init() {
   pinMode(P_LORA_NSS, OUTPUT);
   digitalWrite(P_LORA_NSS, HIGH);
 
-  // std_init sets the SPI1 pins and begins the bus
+  // std_init sets the SPI1 pins and begins the bus (the Waveshare variant does
+  // that here and passes NULL). NSS stays a RadioLib-driven GPIO: don't give it
+  // to SPI1.setCS(), CustomSX1276 notes that freezes.
   return radio.std_init(&SPI1);
 }
 

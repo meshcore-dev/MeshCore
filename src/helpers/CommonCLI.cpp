@@ -441,6 +441,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       _prefs->powersaving_enabled = 1;
       savePrefs();
       strcpy(reply, "on - Immediate effect");
+// BOARD_LIGHT_SLEEP: set by variants that implement MainBoard::sleep()
 #elif (defined(ESP32) || defined(BOARD_LIGHT_SLEEP)) && !defined(WITH_BRIDGE)
       _prefs->powersaving_enabled = 1;
       savePrefs();
