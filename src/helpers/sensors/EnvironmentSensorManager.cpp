@@ -1,6 +1,12 @@
 #include "EnvironmentSensorManager.h"
 
 #include <Wire.h>
+#if ENV_GPS_PIN_CONFIG
+  #include <RadioLib.h>  // RADIOLIB_NC in variant pin defines
+  #ifdef ESP32
+    #include <driver/gpio.h>
+  #endif
+#endif
 
 #if ENV_PIN_SDA && ENV_PIN_SCL
 #define TELEM_WIRE &Wire1  // Use Wire1 as the I2C bus for Environment Sensors
@@ -699,10 +705,41 @@ bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, Cayen
 }
 
 
+#if ENV_GPS_PIN_CONFIG
+#ifdef PIN_GPS_RX
+  #define GPS_DEFAULT_RX PIN_GPS_RX
+#else
+  #define GPS_DEFAULT_RX -1
+#endif
+#ifdef PIN_GPS_TX
+  #define GPS_DEFAULT_TX PIN_GPS_TX
+#else
+  #define GPS_DEFAULT_TX -1
+#endif
+#ifdef PIN_GPS_EN
+  #define GPS_DEFAULT_EN PIN_GPS_EN
+#else
+  #define GPS_DEFAULT_EN -1
+#endif
+#ifdef GPS_BAUD_RATE
+  #define GPS_DEFAULT_BAUD GPS_BAUD_RATE
+#else
+  #define GPS_DEFAULT_BAUD 9600
+#endif
+
+// Listed even when no GPS was detected, so wrong pins can be fixed from the app.
+// Values shown are the effective ones (override or board default). Changes take effect after reboot.
+static const char* const GPS_CFG_NAMES[] = { "gps_rx", "gps_tx", "gps_en", "gps_baud" };
+static const int GPS_CFG_COUNT = sizeof(GPS_CFG_NAMES) / sizeof(GPS_CFG_NAMES[0]);
+#endif
+
 int EnvironmentSensorManager::getNumSettings() const {
   int settings = 0;
   #if ENV_INCLUDE_GPS
     if (gps_detected) settings++;  // only show GPS setting if GPS is detected
+  #endif
+  #if ENV_GPS_PIN_CONFIG
+    if (gps_cfg_enabled) settings += GPS_CFG_COUNT;
   #endif
   return settings;
 }
@@ -714,6 +751,11 @@ const char* EnvironmentSensorManager::getSettingName(int i) const {
       return "gps";
     }
   #endif
+  #if ENV_GPS_PIN_CONFIG
+    if (gps_cfg_enabled && i >= settings && i < settings + GPS_CFG_COUNT) {
+      return GPS_CFG_NAMES[i - settings];
+    }
+  #endif
   return NULL;
 }
 
@@ -722,6 +764,17 @@ const char* EnvironmentSensorManager::getSettingValue(int i) const {
   #if ENV_INCLUDE_GPS
     if (gps_detected && i == settings++) {
       return gps_active ? "1" : "0";
+    }
+  #endif
+  #if ENV_GPS_PIN_CONFIG
+    if (gps_cfg_enabled && i >= settings && i < settings + GPS_CFG_COUNT) {
+      int k = i - settings;
+      long v = k == 0 ? (gps_pin_rx != -1 ? gps_pin_rx : GPS_DEFAULT_RX)
+             : k == 1 ? (gps_pin_tx != -1 ? gps_pin_tx : GPS_DEFAULT_TX)
+             : k == 2 ? (gps_pin_en != -1 ? gps_pin_en : GPS_DEFAULT_EN)
+             : (long)(gps_baud != 0 ? gps_baud : GPS_DEFAULT_BAUD);
+      snprintf(gps_cfg_val[k], sizeof(gps_cfg_val[k]), "%ld", v);
+      return gps_cfg_val[k];
     }
   #endif
   return NULL;
@@ -743,19 +796,167 @@ bool EnvironmentSensorManager::setSettingValue(const char* name, const char* val
     return true;
   }
   #endif
+  #if ENV_GPS_PIN_CONFIG
+  if (gps_cfg_enabled) {
+    if (strcmp(name, "gps_baud") == 0) {
+      uint32_t baud = atol(value);
+      if (baud != 0 && baud != 4800 && baud != 9600 && baud != 19200 && baud != 38400 &&
+          baud != 57600 && baud != 115200 && baud != 230400) {
+        return false;
+      }
+      gps_baud = baud == GPS_DEFAULT_BAUD ? 0 : baud;
+      return true;
+    }
+    int8_t* target = strcmp(name, "gps_rx") == 0 ? &gps_pin_rx
+                   : strcmp(name, "gps_tx") == 0 ? &gps_pin_tx
+                   : strcmp(name, "gps_en") == 0 ? &gps_pin_en : NULL;
+    if (target) {
+      int pin = atoi(value);
+      int def = target == &gps_pin_rx ? GPS_DEFAULT_RX : target == &gps_pin_tx ? GPS_DEFAULT_TX : GPS_DEFAULT_EN;
+      if (pin == def) pin = -1;  // the board default (or -1) means: follow the board default
+      if (pin != -1) {
+        // MCU drives the GPS RX line and the enable pin; GPS TX is input-only on our side
+        if (!isGPSPinAllowed(pin, target != &gps_pin_tx)) return false;
+        // no sharing between overrides (defaults not checked, so lines can be swapped one at a time)
+        if (target != &gps_pin_rx && pin == gps_pin_rx) return false;
+        if (target != &gps_pin_tx && pin == gps_pin_tx) return false;
+        if (target != &gps_pin_en && pin == gps_pin_en) return false;
+      }
+      *target = pin;
+      return true;
+    }
+  }
+  #endif
   return false;  // not supported
 }
 
+#if ENV_GPS_PIN_CONFIG
+void EnvironmentSensorManager::configureGPS(int rx, int tx, int en, uint32_t baud) {
+  gps_cfg_enabled = true;
+  char buf[12];
+  // route through setSettingValue() so stored values get the same validation as app input
+  snprintf(buf, sizeof(buf), "%d", rx);
+  if (!setSettingValue("gps_rx", buf)) gps_pin_rx = -1;
+  snprintf(buf, sizeof(buf), "%d", tx);
+  if (!setSettingValue("gps_tx", buf)) gps_pin_tx = -1;
+  snprintf(buf, sizeof(buf), "%d", en);
+  if (!setSettingValue("gps_en", buf)) gps_pin_en = -1;
+  snprintf(buf, sizeof(buf), "%lu", (unsigned long)baud);
+  if (!setSettingValue("gps_baud", buf)) gps_baud = 0;
+}
+
+// Reject pins the board already uses, so a typo can't take out the radio, display or flash.
+bool EnvironmentSensorManager::isGPSPinAllowed(int pin, bool output) const {
+  if (pin < 0) return false;
+  static const int reserved[] = {
+  #ifdef P_LORA_NSS
+    P_LORA_NSS,
+  #endif
+  #ifdef P_LORA_DIO_1
+    P_LORA_DIO_1,
+  #endif
+  #ifdef P_LORA_RESET
+    P_LORA_RESET,
+  #endif
+  #ifdef P_LORA_BUSY
+    P_LORA_BUSY,
+  #endif
+  #ifdef P_LORA_SCLK
+    P_LORA_SCLK,
+  #endif
+  #ifdef P_LORA_MISO
+    P_LORA_MISO,
+  #endif
+  #ifdef P_LORA_MOSI
+    P_LORA_MOSI,
+  #endif
+  #ifdef P_LORA_TX_LED
+    P_LORA_TX_LED,
+  #endif
+  #ifdef PIN_BOARD_SDA
+    PIN_BOARD_SDA,
+  #endif
+  #ifdef PIN_BOARD_SCL
+    PIN_BOARD_SCL,
+  #endif
+  #ifdef ENV_PIN_SDA
+    ENV_PIN_SDA,
+  #endif
+  #ifdef ENV_PIN_SCL
+    ENV_PIN_SCL,
+  #endif
+  #ifdef PIN_USER_BTN
+    PIN_USER_BTN,
+  #endif
+  #ifdef PIN_VEXT_EN
+    PIN_VEXT_EN,
+  #endif
+  #ifdef PIN_BUZZER
+    PIN_BUZZER,
+  #endif
+  #ifdef SERIAL_RX
+    SERIAL_RX,
+  #endif
+  #ifdef SERIAL_TX
+    SERIAL_TX,
+  #endif
+    -1
+  };
+  for (size_t i = 0; i < sizeof(reserved) / sizeof(reserved[0]); i++) {
+    if (pin == reserved[i]) return false;
+  }
+  #if defined(ESP32)
+    if (!(output ? GPIO_IS_VALID_OUTPUT_GPIO(pin) : GPIO_IS_VALID_GPIO(pin))) return false;
+    #if defined(CONFIG_IDF_TARGET_ESP32S3)
+      if (pin >= 27 && pin <= 32) return false;   // SPI flash
+      #ifdef BOARD_HAS_PSRAM
+        if (pin == 26) return false;              // PSRAM CS
+      #endif
+      #if CONFIG_SPIRAM_MODE_OCT
+        if (pin >= 33 && pin <= 37) return false; // octal PSRAM
+      #endif
+      #if ARDUINO_USB_CDC_ON_BOOT
+        if (pin == 19 || pin == 20) return false; // native USB
+      #else
+        if (pin == 43 || pin == 44) return false; // UART0 (USB bridge)
+      #endif
+    #elif defined(CONFIG_IDF_TARGET_ESP32)
+      if (pin >= 6 && pin <= 11) return false;    // SPI flash
+      if (pin == 1 || pin == 3) return false;     // UART0 (USB bridge)
+    #endif
+  #elif defined(PINS_COUNT)
+    if (pin >= (int)PINS_COUNT) return false;
+  #endif
+  return true;
+}
+#endif
+
 #if ENV_INCLUDE_GPS
 void EnvironmentSensorManager::initBasicGPS() {
-
-  Serial1.setPins(PIN_GPS_TX, PIN_GPS_RX);
-
-  #ifdef GPS_BAUD_RATE
-  Serial1.begin(GPS_BAUD_RATE);
+  #ifdef PIN_GPS_RX
+  int pin_rx = PIN_GPS_RX;
   #else
-  Serial1.begin(9600);
+  int pin_rx = -1;
   #endif
+  #ifdef PIN_GPS_TX
+  int pin_tx = PIN_GPS_TX;
+  #else
+  int pin_tx = -1;
+  #endif
+  #ifdef GPS_BAUD_RATE
+  uint32_t baud = GPS_BAUD_RATE;
+  #else
+  uint32_t baud = 9600;
+  #endif
+  #if ENV_GPS_PIN_CONFIG
+  if (gps_pin_rx != -1) pin_rx = gps_pin_rx;
+  if (gps_pin_tx != -1) pin_tx = gps_pin_tx;
+  if (gps_baud != 0) baud = gps_baud;
+  if (gps_pin_en != -1) _location->setEnablePin(gps_pin_en);
+  #endif
+
+  Serial1.setPins(pin_tx, pin_rx);
+  Serial1.begin(baud);
 
   // Try to detect if GPS is physically connected to determine if we should expose the setting
   _location->begin();
