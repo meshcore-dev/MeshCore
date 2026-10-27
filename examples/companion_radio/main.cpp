@@ -132,6 +132,10 @@ void halt() {
   bool wifi_enabled = false;   // set at boot from prefs; false also when the effective SSID is blank
 #endif
 
+#ifdef DISPLAY_CLASS
+static void loopDuringDisplayRefresh();
+#endif
+
 void setup() {
   Serial.begin(115200);
   board.begin();
@@ -284,15 +288,34 @@ void setup() {
 #ifdef DISPLAY_CLASS
   ui_task.begin(disp, &sensors, the_mesh.getNodePrefs());  // still want to pass this in as dependency, as prefs might be moved
   the_mesh.setListener(&ui_task);
+  if (disp != NULL) disp->setBusyHook(loopDuringDisplayRefresh);
 #endif
 
   board.onBootComplete();
 }
 
-void loop() {
+// Work that must keep running even while the UI is blocked (e.g. by an e-ink refresh).
+// Called from loop() and from the display busy hook, so both always run the same set.
+static void loopCore() {
   the_mesh.loop();
   interface_manager.loop();
   sensors.loop();
+}
+
+#ifdef DISPLAY_CLASS
+// Runs from inside the e-ink busy wait, so radio/BLE/sensors keep going during a panel refresh.
+// Must not touch the display: UI listener callbacks only update state and schedule the next frame.
+static void loopDuringDisplayRefresh() {
+  static bool active = false;
+  if (active) return;
+  active = true;
+  loopCore();
+  active = false;
+}
+#endif
+
+void loop() {
+  loopCore();
 #ifdef DISPLAY_CLASS
   ui_task.loop();
 #endif
