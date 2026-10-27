@@ -15,20 +15,21 @@ class CustomLR2021Wrapper : public RadioLibWrapper {
 public:
   CustomLR2021Wrapper(CustomLR2021& radio, mesh::MainBoard& board) : RadioLibWrapper(radio, board) { }
 
-  void setParams(float freq, float bw, uint8_t sf, uint8_t cr) override {
-    ((CustomLR2021 *)_radio)->setFrequency(freq);
-    ((CustomLR2021 *)_radio)->setSpreadingFactor(sf);
-    ((CustomLR2021 *)_radio)->setBandwidth(bw);
-    ((CustomLR2021 *)_radio)->setCodingRate(cr);
-    updatePreamble(sf);
-    applySideDetectorConfig();
-    PacketMillis pm = calcMaxPacketMillis(sf, bw, cr, preambleLengthForSF(sf));
+  bool applyParams(float freq, float bw, uint8_t sf, uint8_t cr) override {
+    if (((CustomLR2021 *)_radio)->setFrequency(freq) != RADIOLIB_ERR_NONE) return false;
+    if (((CustomLR2021 *)_radio)->setSpreadingFactor(sf) != RADIOLIB_ERR_NONE) return false;
+    if (((CustomLR2021 *)_radio)->setBandwidth(bw) != RADIOLIB_ERR_NONE) return false;
+    if (((CustomLR2021 *)_radio)->setCodingRate(cr) != RADIOLIB_ERR_NONE) return false;
+    if (!updatePreamble(sf)) return false;
+    if (applySideDetectorConfig(bw) != RADIOLIB_ERR_NONE) return false;
+    PacketMillis pm = calcMaxPacketMillis(sf, bw, cr, currentPreambleLength());
     ((CustomLR2021 *)_radio)->setPreambleMillis(pm.preambleMillis);
     ((CustomLR2021 *)_radio)->setMaxPayloadMillis(pm.payloadMillis);
-
+    return true;
   }
 
   bool configSideDetectors(const uint8_t* sideDetSFs, uint8_t num, float bw) override {
+    if (_profiles.enabled() || num > 3 || (num && sideDetSFs == nullptr)) return false;
     LR2021LoRaSideDetector_t tmp[3];
     uint8_t sf = getSpreadingFactor();
 
@@ -62,10 +63,17 @@ public:
     return true;
   }
 
-  int16_t applySideDetectorConfig() {
-    int16_t status = ((CustomLR2021 *)_radio)->setSideDetector(_sideDet, _numSideDet);
-    RadioLibWrapper::idle(); // trigger startReceive()
-    return status;
+  int16_t applySideDetectorConfig(float bw) {
+    // Side detector SFs belong to the saved single-profile configuration.
+    // Suspend them while scanning profiles so a different SF/BW tuple cannot
+    // inherit incompatible detector settings. Restore them when scanning ends.
+    if (_profiles.enabled()) return ((CustomLR2021 *)_radio)->setSideDetector(nullptr, 0);
+    LR2021LoRaSideDetector_t detectors[3];
+    for (size_t i = 0; i < _numSideDet; ++i) {
+      detectors[i] = _sideDet[i];
+      detectors[i].ldro = calcTsym(detectors[i].sf, bw) >= 16.0f;
+    }
+    return ((CustomLR2021 *)_radio)->setSideDetector(_numSideDet ? detectors : nullptr, _numSideDet);
   }
 
   float calcTsym(uint8_t sf, float bw) {
@@ -85,11 +93,9 @@ public:
 
   void onSendFinished() override {
     RadioLibWrapper::onSendFinished();
-    _radio->setPreambleLength(preambleLengthForSF(getSpreadingFactor())); // overcomes weird issues with small and big pkts
+    _radio->setPreambleLength(currentPreambleLength()); // overcomes weird issues with small and big pkts
   }
 
-  float getLastRSSI() const override { return ((CustomLR2021 *)_radio)->getRSSI(); }
-  float getLastSNR() const override { return ((CustomLR2021 *)_radio)->getSNR(); }
 
   uint8_t getSpreadingFactor() const override { return ((CustomLR2021 *)_radio)->getSpreadingFactor(); }
   

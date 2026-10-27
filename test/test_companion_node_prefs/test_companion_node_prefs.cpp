@@ -6,6 +6,10 @@
 
 #include "../../examples/companion_radio/NodePrefs.h"
 
+// The native target tests serialization without the board-dependent CLI backend.
+bool CommonRadioPrefs::setByKey(const char*, const char*) { return false; }
+bool CommonRadioPrefs::getByKey(const char*, char*, size_t) { return false; }
+
 class ReplayStream : public Stream {
   const char* _text;
   int _pos = 0;
@@ -47,6 +51,12 @@ public:
   size_t print(long long value, int = DEC) override { return emit(value); }
   size_t print(unsigned long long value, int = DEC) override { return emit(value); }
 
+  size_t print(double value, int precision = 2) override {
+    char text[64];
+    int length = snprintf(text, sizeof(text), "%.*f", precision, value);
+    return write(reinterpret_cast<const uint8_t*>(text), length);
+  }
+
   const std::string& text() const { return _text; }
 };
 
@@ -76,6 +86,43 @@ TEST(CompanionNodePrefs, RxGainSettingsRoundTripIndependently) {
   EXPECT_EQ(1, loaded.radio_fem_txgain);
 }
 #endif
+
+TEST(CompanionNodePrefs, RadioProfilesRoundTripInExistingPrefs) {
+  NodePrefs saved;
+  ReplayStream input("{radio:{freq:915,bw:250,sf:7,cr:6,profiles:{freq:920,bw:125,sf:8,cr:5,preamble:40,mode:2,primary_pre:48,cross:2}}}");
+  ASSERT_TRUE(saved.loadSerial(input));
+  CaptureStream output;
+  ASSERT_TRUE(saved.saveSerial(output));
+  NodePrefs loaded;
+  ReplayStream replay(output.text().c_str());
+  ASSERT_TRUE(loaded.loadSerial(replay));
+  const auto& secondary = loaded.getRadioPrefs()->profileCLI().savedSecondary();
+  EXPECT_FLOAT_EQ(915, loaded.freq);
+  EXPECT_FLOAT_EQ(250, loaded.bw);
+  EXPECT_EQ(7, loaded.sf);
+  EXPECT_EQ(6, loaded.cr);
+  EXPECT_FLOAT_EQ(920, secondary.params.freq);
+  EXPECT_FLOAT_EQ(125, secondary.params.bw);
+  EXPECT_EQ(8, secondary.params.sf);
+  EXPECT_EQ(5, secondary.params.cr);
+  EXPECT_EQ(40, secondary.params.preamble);
+  EXPECT_EQ(mesh::RadioProfileMode::RxTx, secondary.mode);
+  EXPECT_EQ(48, loaded.getRadioPrefs()->profileCLI().savedPrimary().preamble);
+  EXPECT_NE(std::string::npos, output.text().find("cross:2"));
+}
+
+TEST(CompanionNodePrefs, LegacyPrefsDefaultToOneProfileNoCrossoverAndAutomaticPreamble) {
+  NodePrefs prefs;
+  ReplayStream input("{radio:{freq:869.525,bw:125,sf:8,cr:5}}");
+  ASSERT_TRUE(prefs.loadSerial(input));
+  const auto& profiles = prefs.getRadioPrefs()->profileCLI();
+  EXPECT_EQ(mesh::RadioProfileMode::Off, profiles.savedSecondary().mode);
+  EXPECT_EQ(0, profiles.savedSecondary().params.preamble);
+  EXPECT_EQ(0, profiles.savedPrimary().preamble);
+  CaptureStream output;
+  ASSERT_TRUE(prefs.saveSerial(output));
+  EXPECT_NE(std::string::npos, output.text().find("cross:2"));
+}
 
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);

@@ -524,6 +524,7 @@ void MyMesh::onPeerDataRecv(mesh::Packet *packet, uint8_t type, int sender_idx, 
         // PUB_KEY_SIZE);
 
         auto reply = createDatagram(PAYLOAD_TYPE_TXT_MSG, client->id, secret, temp, 5 + text_len);
+        _prefs.getRadioPrefs()->profileCLI().attachReply(reply);
         if (reply) {
           if (client->out_path_len == OUT_PATH_UNKNOWN) {
             sendFloodReply(reply, delay_millis + SERVER_RESPONSE_DELAY, packet->getPathHashSize());
@@ -723,6 +724,7 @@ void MyMesh::begin(FILESYSTEM *fs) {
   }
 
   radio_driver.setParams(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
+  _prefs.getRadioPrefs()->profileCLI().begin(*_prefs.getRadioPrefs(), radio_driver, *getRTCClock(), this);
   radio_driver.setTxPower(_prefs.tx_power_dbm);
   radio_driver.setRxBoostedGainMode(_prefs.rx_boosted_gain);
 
@@ -995,7 +997,10 @@ bool MyMesh::saveFilter(ClientInfo* client) {
 }
 
 void MyMesh::loop() {
+  auto& profiles = _prefs.getRadioPrefs()->profileCLI();
+  profiles.loop(!hasPendingTransmissions());
   mesh::Mesh::loop();
+  if (profiles.saveDue()) savePrefs();
 
   if (millisHasNowPassed(next_push) && acl.getNumClients() > 0) {
     // check for ACK timeouts

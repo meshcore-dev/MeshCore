@@ -1,12 +1,14 @@
 #include <Arduino.h>
 #include "t1000e_sensors.h"
 #include "target.h"
+#include <helpers/radiolib/Nrf52BufferedRadioHal.h>
 #include <helpers/sensors/MicroNMEALocationProvider.h>
 #include <helpers/sensors/AirohaSleep.h>
 
 T1000eBoard board;
 
-RADIO_CLASS radio = new Module(P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BUSY, SPI);
+Nrf52BufferedRadioHal radioHal(SPI);
+RADIO_CLASS radio = new Module(&radioHal, P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BUSY);
 
 WRAPPER_CLASS radio_driver(radio, board);
 

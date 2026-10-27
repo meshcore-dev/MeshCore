@@ -285,6 +285,7 @@ void BaseChatMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender
         temp[4] = (TXT_TYPE_CLI_DATA << 2);
 
         auto reply_pkt = createDatagram(PAYLOAD_TYPE_TXT_MSG, from.id, secret, temp, 5 + text_len);
+        onCLIReplyCreated(reply_pkt);
         if (reply_pkt) {
           if (from.out_path_len == OUT_PATH_UNKNOWN) {
             sendFloodScoped(from, reply_pkt, CLI_REPLY_DELAY_MILLIS);

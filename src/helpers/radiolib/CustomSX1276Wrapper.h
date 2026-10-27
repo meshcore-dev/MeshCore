@@ -11,12 +11,13 @@ class CustomSX1276Wrapper : public RadioLibWrapper {
 public:
   CustomSX1276Wrapper(CustomSX1276& radio, mesh::MainBoard& board) : RadioLibWrapper(radio, board) { }
 
-  void setParams(float freq, float bw, uint8_t sf, uint8_t cr) override {
-    ((CustomSX1276 *)_radio)->setFrequency(freq);
-    ((CustomSX1276 *)_radio)->setSpreadingFactor(sf);
-    ((CustomSX1276 *)_radio)->setBandwidth(bw);
-    ((CustomSX1276 *)_radio)->setCodingRate(cr);
-    updatePreamble(sf);
+  bool applyParams(float freq, float bw, uint8_t sf, uint8_t cr) override {
+    if (((CustomSX1276 *)_radio)->setFrequency(freq) != RADIOLIB_ERR_NONE) return false;
+    if (((CustomSX1276 *)_radio)->setSpreadingFactor(sf) != RADIOLIB_ERR_NONE) return false;
+    if (((CustomSX1276 *)_radio)->setBandwidth(bw) != RADIOLIB_ERR_NONE) return false;
+    if (((CustomSX1276 *)_radio)->setCodingRate(cr) != RADIOLIB_ERR_NONE) return false;
+    if (!updatePreamble(sf)) return false;
+    return true;
   }
 
   bool isReceivingPacket() override { 
@@ -25,8 +26,6 @@ public:
   float getCurrentRSSI() override {
     return ((CustomSX1276 *)_radio)->getRSSI(false);
   }
-  float getLastRSSI() const override { return ((CustomSX1276 *)_radio)->getRSSI(); }
-  float getLastSNR() const override { return ((CustomSX1276 *)_radio)->getSNR(); }
 
   float packetScore(float snr, int packet_len) override {
     int sf = ((CustomSX1276 *)_radio)->spreadingFactor;

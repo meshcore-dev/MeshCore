@@ -37,7 +37,7 @@ float Dispatcher::getAirtimeBudgetFactor() const {
 
 void Dispatcher::updateTxBudget() {
   unsigned long now = _ms->getMillis();
-  unsigned long elapsed = now - last_budget_update;
+  uint32_t elapsed = uint32_t(now) - uint32_t(last_budget_update);
 
   float duty_cycle = 1.0f / (1.0f + getAirtimeBudgetFactor());
   unsigned long max_budget = (unsigned long)(getDutyCycleWindowMs() * duty_cycle);
@@ -107,6 +107,11 @@ void Dispatcher::loop() {
 
       _radio->onSendFinished();
       logTx(outbound, 2 + outbound->getPathByteLen() + outbound->payload_len);
+      if (outbound->transmit_token) {
+        onTransmitResult(outbound->transmit_token, true);
+        outbound->transmit_token = 0;
+      }
+      if (auto* p = _radio->profiles()) ++p->tx_packets[outbound->radio_profile];
       if (outbound->isRouteFlood()) {
         n_sent_flood++;
       } else {
@@ -147,7 +152,13 @@ void Dispatcher::loop() {
 }
 
 bool Dispatcher::tryParsePacket(Packet* pkt, const uint8_t* raw, int len) {
+  if (len < 2) return false;
   int i = 0;
+
+  pkt->radio_profile = pkt->radio_origin = _radio->receiveProfile();
+  pkt->radio_generation = pkt->radio_origin_generation = _radio->receiveProfileGeneration();
+  pkt->radio_bound = false;
+  pkt->transmit_token = 0;
 
   pkt->header = raw[i++];
   if (pkt->getPayloadVer() > PAYLOAD_VER_1) {
@@ -203,12 +214,13 @@ void Dispatcher::checkRecv() {
         MESH_DEBUG_PRINTLN("%s Dispatcher::checkRecv(): WARNING: received data, no unused packets available!", getLogDateTime());
       } else {
         if (tryParsePacket(pkt, raw, len)) {
+          if (auto* p = _radio->profiles()) ++p->rx_packets[pkt->radio_profile];
           pkt->_snr = _radio->getLastSNR() * 4.0f;
           score = _radio->packetScore(_radio->getLastSNR(), len);
           air_time = _radio->getEstAirtimeFor(len);
           rx_air_time += air_time;
         } else {
-          _mgr->free(pkt);  // put back into pool
+          releasePacket(pkt);  // put back into pool
           pkt = NULL;
         }
       }
@@ -259,25 +271,44 @@ void Dispatcher::checkRecv() {
 }
 
 void Dispatcher::processRecvPacket(Packet* pkt) {
-  DispatcherAction action = onRecvPacket(pkt);
+  const auto* profiles = _radio->profiles();
+  if (profiles && (pkt->radio_profile > 1
+      || (pkt->radio_profile == 1 && !profiles->enabled())
+      || pkt->radio_generation != profiles->generation[pkt->radio_profile])) {
+    releasePacket(pkt);
+    return;
+  }
+  DispatcherAction action;
+  {
+    ReceiveProfileScope context(*this, pkt->radio_profile, pkt->radio_generation);
+    action = onRecvPacket(pkt);
+  }
   if (action == ACTION_RELEASE) {
-    _mgr->free(pkt);
+    releasePacket(pkt);
   } else if (action == ACTION_MANUAL_HOLD) {
     // sub-class is wanting to manually hold Packet instance, and call releasePacket() at appropriate time
   } else {   // ACTION_RETRANSMIT*
     uint8_t priority = (action >> 24) - 1;
     uint32_t _delay = action & 0xFFFFFF;
 
-    _mgr->queueOutbound(pkt, priority, futureMillis(_delay));
+    sendPacket(pkt, priority, _delay);
   }
 }
 
 void Dispatcher::checkSend() {
-  if (_mgr->getOutboundCount(_ms->getMillis()) == 0) return;
+  const uint32_t now = _ms->getMillis();
+  Packet* pending = _mgr->peekNextOutbound(now);
+  if (pending == nullptr) return;
+  if (!isPacketRadioCurrent(pending)) {
+    releasePacket(_mgr->getNextOutbound(now));
+    return;
+  }
   
   updateTxBudget();
   
-  uint32_t est_airtime = _radio->getEstAirtimeFor(MAX_TRANS_UNIT);
+  uint32_t est_airtime = _radio->profiles()
+      ? _radio->getProfileAirtime(pending->radio_profile, MAX_TRANS_UNIT)
+      : _radio->getEstAirtimeFor(MAX_TRANS_UNIT);
   if (tx_budget_ms < est_airtime / MIN_TX_BUDGET_AIRTIME_DIV) {
     float duty_cycle = 1.0f / (1.0f + getAirtimeBudgetFactor());
     unsigned long needed = est_airtime / MIN_TX_BUDGET_AIRTIME_DIV - tx_budget_ms;
@@ -286,23 +317,42 @@ void Dispatcher::checkSend() {
   }
   
   if (!millisHasNowPassed(next_tx_time)) return;
+  if (const auto* profiles = _radio->profiles()) {
+    const uint8_t profile = pending->radio_profile;
+    if (profile_cad_generation[profile] != profiles->generation[profile]) {
+      profile_cad_busy_active[profile] = false;
+      profile_cad_generation[profile] = profiles->generation[profile];
+    }
+  }
+  // Keep scanning while waiting for duty-cycle credit. Select the TX tuple
+  // only when this queue entry is eligible, and preserve a pending RX packet.
+  const auto prepared = _radio->prepareTransmitProfile(pending->radio_profile);
+  if (prepared == RadioParamApplyResult::BUSY) return;
+  if (prepared != RadioParamApplyResult::APPLIED) {
+    releasePacket(_mgr->getNextOutbound(now));
+    return;
+  }
   if (_radio->isReceiving()) {
-    if (cad_busy_start == 0) {
-      cad_busy_start = _ms->getMillis();   // record when CAD busy state started
+    const uint8_t profile = pending->radio_profile;
+    if (!profile_cad_busy_active[profile]) {
+      profile_cad_busy_active[profile] = true;
+      profile_cad_busy_start[profile] = now;
     }
 
-    if (_ms->getMillis() - cad_busy_start > getCADFailMaxDuration()) {
+    if (uint32_t(now - profile_cad_busy_start[profile]) > getCADFailMaxDuration()) {
       _err_flags |= ERR_EVENT_CAD_TIMEOUT;
 
       MESH_DEBUG_PRINTLN("%s Dispatcher::checkSend(): CAD busy max duration reached!", getLogDateTime());
       // channel activity has gone on too long... (Radio might be in a bad state)
       // force the pending transmit below...
     } else {
-      next_tx_time = futureMillis(getCADFailRetryDelay());
+      const uint32_t retry_at = futureMillis(getCADFailRetryDelay());
+      if (!isDualRadioActive() || !_mgr->deferOutbound(pending, retry_at)) next_tx_time = retry_at;
       return;
     }
   }
   cad_busy_start = 0;  // reset busy state
+  profile_cad_busy_active[pending->radio_profile] = false;
 
   outbound = _mgr->getNextOutbound(_ms->getMillis());
   if (outbound) {
@@ -319,7 +369,7 @@ void Dispatcher::checkSend() {
 
     if (len + outbound->payload_len > MAX_TRANS_UNIT) {
       MESH_DEBUG_PRINTLN("%s Dispatcher::checkSend(): FATAL: Invalid packet queued... too long, len=%d", getLogDateTime(), len + outbound->payload_len);
-      _mgr->free(outbound);
+      releasePacket(outbound);
       outbound = NULL;
     } else {
       memcpy(&raw[len], outbound->payload, outbound->payload_len); len += outbound->payload_len;
@@ -360,31 +410,84 @@ Packet* Dispatcher::obtainNewPacket() {
   } else {
     pkt->payload_len = pkt->path_len = 0;
     pkt->_snr = 0;
+    pkt->radio_profile = pkt->radio_origin = receive_context_active ? receive_context_profile : 0;
+    pkt->radio_generation = pkt->radio_origin_generation = receive_context_active ? receive_context_generation : 0;
+    pkt->radio_bound = false;
+    pkt->transmit_token = 0;
   }
   return pkt;
 }
 
 void Dispatcher::releasePacket(Packet* packet) {
+  if (packet && packet->transmit_token) {
+    onTransmitResult(packet->transmit_token, false);
+    packet->transmit_token = 0;
+  }
   _mgr->free(packet);
 }
 
 void Dispatcher::sendPacket(Packet* packet, uint8_t priority, uint32_t delay_millis) {
+  if (packet == nullptr) return;
   if (!Packet::isValidPathLen(packet->path_len) || packet->payload_len > MAX_PACKET_PAYLOAD) {
     MESH_DEBUG_PRINTLN("%s Dispatcher::sendPacket(): ERROR: invalid packet... path_len=%d, payload_len=%d", getLogDateTime(), (uint32_t) packet->path_len, (uint32_t) packet->payload_len);
-    _mgr->free(packet);
+    releasePacket(packet);
   } else {
-    _mgr->queueOutbound(packet, priority, futureMillis(delay_millis));
+    auto* profiles = _radio->profiles();
+    if (packet->radio_profile > 1 || (profiles && !packet->radio_bound
+        && packet->radio_generation
+        && packet->radio_generation != profiles->generation[packet->radio_profile])) {
+      releasePacket(packet);
+      return;
+    }
+    if (!profiles || packet->radio_bound) {
+      if (!isPacketRadioCurrent(packet) || !_mgr->queueOutbound(packet, priority, futureMillis(delay_millis)))
+        releasePacket(packet);
+      return;
+    }
+    const uint8_t origin = packet->radio_profile;
+    const uint8_t mask = profiles->transmitMask(origin);
+    if (!mask) { releasePacket(packet); return; }
+    packet->radio_origin = origin;
+    packet->radio_origin_generation = profiles->generation[origin];
+    if (!(mask & (1U << origin))) packet->radio_profile ^= 1;
+    packet->radio_generation = profiles->generation[packet->radio_profile];
+    packet->radio_bound = true;
+    if (!_mgr->queueOutbound(packet, priority, futureMillis(delay_millis))) {
+      releasePacket(packet);
+      return;
+    }
+    const uint8_t other = packet->radio_profile ^ 1;
+    if (mask & (1U << other)) {
+      Packet* copy = obtainNewPacket();
+      if (copy) {
+        *copy = *packet;
+        copy->radio_profile = other;
+        copy->radio_generation = profiles->generation[other];
+        if (!_mgr->queueOutbound(copy, priority, futureMillis(delay_millis))) releasePacket(copy);
+      }
+    }
   }
+}
+
+bool Dispatcher::isPacketRadioCurrent(const Packet* packet) const {
+  const auto* profiles = _radio->profiles();
+  if (!profiles || !packet->radio_bound) return packet->radio_profile == 0;
+  const uint8_t target = packet->radio_profile, origin = packet->radio_origin;
+  return target < 2 && origin < 2 && profiles->canTransmit(target)
+      && (origin == 0 || profiles->enabled())
+      && packet->radio_generation == profiles->generation[target]
+      && packet->radio_origin_generation == profiles->generation[origin]
+      && (target == origin || profiles->canCross());
 }
 
 // Utility function -- handles the case where millis() wraps around back to zero
 //   2's complement arithmetic will handle any unsigned subtraction up to HALF the word size (32-bits in this case)
 bool Dispatcher::millisHasNowPassed(unsigned long timestamp) const {
-  return (long)(_ms->getMillis() - timestamp) > 0;
+  return int32_t(uint32_t(_ms->getMillis()) - uint32_t(timestamp)) > 0;
 }
 
 unsigned long Dispatcher::futureMillis(int millis_from_now) const {
-  return _ms->getMillis() + millis_from_now;
+  return uint32_t(_ms->getMillis() + uint32_t(millis_from_now));
 }
 
 }
