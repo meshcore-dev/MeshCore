@@ -651,6 +651,8 @@ From here, reference repeater and room server command line commands in the MeshC
 
 As new MeshCore community projects become available on a weekly basis, we have stopped tracking them here in this FAQ. [samuk](https://github.com/samuk) maintains a very exhaustive list of MeshCore community project at <https://github.com/samuk/awesome-meshcore/blob/main/README.md>. samuk accepts PRs and merges them regularly.
 
+One recent example is [Faro](https://github.com/radek-sixi/sixi-tdeck-plus), a community companion firmware that adds an on-device LVGL touch/keyboard/trackball UI on top of unmodified MeshCore companion firmware for screen devices such as the LilyGO T-Deck Plus, while keeping BLE and Wi-Fi/TCP clients working.
+
 
 ### 5.15. Q: Are there client applications for Windows or Mac?
 **A:** Yes, the same iOS and Android client is also available for Windows and Mac. You can find them together with the Android APK here:
