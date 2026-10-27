@@ -218,6 +218,7 @@ void MyMesh::updateContactFromFrame(ContactInfo &contact, uint32_t& last_mod, co
     i += 4;
     if (len >= i + 4) {
       memcpy(&last_mod, &frame[i], 4);
+      i += 4;
       if (len >= i + 4) {
         contact.direct_mode = frame[i++];
         contact.next_seq_no = frame[i++];
