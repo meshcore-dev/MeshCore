@@ -27,7 +27,7 @@ uint8_t Mesh::getExtraAckTransmitCount() const {
 }
 
 uint32_t Mesh::getCADFailRetryDelay() const {
-  return _rng->nextInt(1, 4)*120;
+  return 120 + _rng->nextInt(0, 241);   // continuous 120..360ms, so nearby nodes don't retry in lock-step
 }
 
 int Mesh::searchPeersByHash(const uint8_t* hash) {
