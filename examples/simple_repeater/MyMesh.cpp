@@ -89,7 +89,7 @@ void MyMesh::putNeighbour(const mesh::Identity &id, uint32_t timestamp, float sn
 
 uint8_t MyMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* secret, uint32_t sender_timestamp, const uint8_t* data, bool is_flood) {
   ClientInfo* client = NULL;
-  if (data[0] == 0) {   // blank password, just check if sender is in ACL
+  if (strcmp((char *)data, _prefs.password) != 0) {  // admin pw bypasses ACL (allows upgrade)
     client = acl.getClient(sender.pub_key, PUB_KEY_SIZE);
     if (client == NULL) {
     #if MESH_DEBUG
