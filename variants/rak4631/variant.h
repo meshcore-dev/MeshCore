@@ -104,6 +104,7 @@ extern "C"
 	static const uint8_t A7 = PIN_A7;
 #define ADC_RESOLUTION 14
 
+#define NRF52_POWER_MANAGEMENT
 // Power management boot protection threshold (millivolts)
 // Set to 0 to disable boot protection
 #define PWRMGT_VOLTAGE_BOOTLOCK 3300   // Won't boot below this voltage (mV)
