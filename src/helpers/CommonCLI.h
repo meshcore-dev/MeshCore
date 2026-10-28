@@ -250,6 +250,12 @@ public:
   virtual void sendSelfAdvertisement(int delay_millis, bool flood) = 0;
   virtual void updateAdvertTimer() = 0;
   virtual void updateFloodAdvertTimer() = 0;
+
+  // Fired after a CLI command changes node identity or position ("set name",
+  // "set lat", "set lon", "gps setloc"), so the app can react to the change.
+  virtual void onNodeConfigChanged() {
+    // no op by default
+  }
   virtual void setLoggingOn(bool enable) = 0;
   virtual void eraseLogFile() = 0;
   virtual void dumpLogFile() = 0;
