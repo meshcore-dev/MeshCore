@@ -226,7 +226,7 @@ public:
   void saveIdentity(const mesh::LocalIdentity& new_id) override;
   void clearStats() override;
 
-  void handleCommand(uint32_t sender_timestamp, char* command, char* reply);
+  void handleCommand(ClientInfo* sender, char* command, char* reply);
   void loop();
 
 #if defined(WITH_BRIDGE)
