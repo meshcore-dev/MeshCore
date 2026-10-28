@@ -42,7 +42,8 @@ bool MuziBaseSensorManager::begin() {
 #if ENV_INCLUDE_GPS
   pinMode(PIN_GPS_SWITCH, INPUT);
   _last_gps_sw = digitalRead(PIN_GPS_SWITCH);   // initial gps state from the switch
-  if (_last_gps_sw == HIGH) start_gps(); else stop_gps();
+  if (_last_gps_sw == HIGH && !gps_active) start_gps();
+  if (_last_gps_sw == LOW && gps_active) stop_gps();
 #endif
   return ok;
 }
@@ -57,12 +58,13 @@ void MuziBaseSensorManager::loop() {
   }
 #if ENV_INCLUDE_GPS
   unsigned long now = millis();
-  if (now > _next_sw_check) {   // check the mode switch ~once a sec
+  if (int32_t(now - _next_sw_check) >= 0) {   // check the mode switch ~once a sec
     _next_sw_check = now + 1000;
     int sw = digitalRead(PIN_GPS_SWITCH);
     if (sw != _last_gps_sw) {
       _last_gps_sw = sw;
-      if (sw == HIGH) start_gps(); else stop_gps();
+      if (sw == HIGH && !gps_active) start_gps();
+      if (sw == LOW && gps_active) stop_gps();
     }
   }
 #endif
