@@ -47,8 +47,8 @@ void R1NeoBoard::begin() {
   // button is active high and passed through from I/O controller
   pinMode(PIN_USER_BTN, INPUT);
 
-  pinMode(PIN_BUZZER, OUTPUT);
-  digitalWrite(PIN_BUZZER, LOW);
+  pinMode(3, OUTPUT);  // buzzer drive pin (P0.03) - pull low to avoid power draw, beeper is disabled
+  digitalWrite(3, LOW);
 
   // battery pins
   pinMode(PIN_BAT_CHG, INPUT);
