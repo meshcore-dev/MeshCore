@@ -83,6 +83,8 @@
 
 #define MAX_POST_TEXT_LEN    (160-9)
 
+#define MAX_TOPIC_TEXT_LEN MAX_POST_TEXT_LEN
+
 struct PostInfo {
   mesh::Identity author;
   uint32_t post_timestamp;   // by OUR clock
@@ -108,6 +110,8 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   int next_client_idx;  // for round-robin polling
   int next_post_idx;
   PostInfo posts[MAX_UNSYNCED_POSTS];   // cyclic queue
+  char topic[MAX_TOPIC_TEXT_LEN + 1];
+  uint32_t topic_timestamp;   // by OUR clock
   CayenneLPP telemetry;
   RegionEntry* load_stack[8];
   RegionEntry* recv_pkt_region;
@@ -122,11 +126,17 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   void addPost(ClientInfo* client, const char* postData);
   void storePost(const mesh::Identity& author, const char* postData);
   void pushPostToClient(ClientInfo* client, PostInfo& post);
+  void pushTopicToClient(ClientInfo* client);
+  void pushPostInternal(ClientInfo* client, uint32_t timestamp, const mesh::Identity& author,
+      const char* text);
   uint8_t getUnsyncedCount(ClientInfo* client);
   bool processAck(const uint8_t *data);
   mesh::Packet* createSelfAdvert();
   File openAppend(const char* fname);
   int handleRequest(ClientInfo* sender, uint32_t sender_timestamp, uint8_t* payload, size_t payload_len);
+
+  void loadRoomPrefs();
+  void saveRoomPrefs();
 
 protected:
   float getAirtimeBudgetFactor() const override {
@@ -188,13 +198,10 @@ public:
     return &_prefs;
   }
 
-  void savePrefs() override {
-    _cli.savePrefs(_fs);
-  }
-
   void sendFloodScoped(const TransportKey& scope, mesh::Packet* pkt, uint32_t delay_millis, uint8_t path_hash_size);
 
   // CommonCLICallbacks
+  void savePrefs() override;
   void applyTempRadioParams(float freq, float bw, uint8_t sf, uint8_t cr, int timeout_mins) override;
   bool formatFileSystem() override;
   void sendSelfAdvertisement(int delay_millis, bool flood) override;
