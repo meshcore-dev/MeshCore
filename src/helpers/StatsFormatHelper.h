@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Mesh.h"
+#include <string.h>   // strlen (used by formatFloodSuppressRatio)
 
 class StatsFormatHelper {
 public:
@@ -51,5 +52,13 @@ public:
       n_recv_direct,
       driver.getPacketsRecvErrors()
     );
+  }
+
+  // Appends ", suppressed <n_suppressed>/<n_seen> (<pct>%)" to reply (which already holds the
+  // flood.suppress on/off state). Reports the share of distinct floods heard whose rebroadcast
+  // this node suppressed; pct is 0 when none were heard.
+  static void formatFloodSuppressRatio(char* reply, uint32_t n_suppressed, uint32_t n_seen) {
+    uint32_t pct = (n_seen > 0) ? (n_suppressed * 100U) / n_seen : 0;
+    sprintf(reply + strlen(reply), ", suppressed %u/%u (%u%%)", n_suppressed, n_seen, pct);
   }
 };
