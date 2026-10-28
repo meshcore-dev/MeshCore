@@ -12,7 +12,7 @@ void ThinkNodeM1Board::begin() {
 
 #ifdef P_LORA_TX_LED
   pinMode(P_LORA_TX_LED, OUTPUT);
-  digitalWrite(P_LORA_TX_LED, LOW);
+  digitalWrite(P_LORA_TX_LED, !LED_STATE_ON);
 #endif
 
   pinMode(SX126X_POWER_EN, OUTPUT);
