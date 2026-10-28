@@ -125,6 +125,8 @@ public:
   // from AbstractUITask
   void notify(UIEventType t = UIEventType::none) override;
   void loop() override;
+  bool applyTheme(const char* theme) override;
+  int getThemeCount() override;
 
   void shutdown(bool restart = false);
 };
