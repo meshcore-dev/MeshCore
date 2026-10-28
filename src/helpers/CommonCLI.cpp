@@ -141,20 +141,7 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {  // Legacy 
 }
 
 bool CommonCLI::savePrefs(FILESYSTEM* fs) {
-#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
-  fs->remove("/prefs.json");
-  File file = fs->open("/prefs.json", FILE_O_WRITE);
-#elif defined(RP2040_PLATFORM)
-  File file = fs->open("/prefs.json", "w");
-#else
-  File file = fs->open("/prefs.json", "w", true);
-#endif
-  if (file) {
-    bool success = _prefs->saveSerial(file);
-    file.close();
-    return success;
-  }
-  return false;
+  return saveConfigJsonAtomic(fs, *_prefs, "/prefs.json", "/.prefs.json.new");
 }
 
 #define MIN_LOCAL_ADVERT_INTERVAL   60
