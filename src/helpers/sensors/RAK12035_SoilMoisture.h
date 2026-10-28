@@ -46,7 +46,7 @@ public:
     RAK12035_SoilMoisture(uint8_t addr = RAK12035_I2C_ADDR_DEFAULT);
 
     void setup(TwoWire& i2c);
-    bool begin(uint8_t addr);
+    bool begin();
     bool getEvent(uint8_t *humidity, uint16_t *temperature);
    
     uint16_t get_sensor_capacitance();                      //Command 01 - (r) 2 byte
