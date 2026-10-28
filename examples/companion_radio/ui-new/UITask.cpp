@@ -766,6 +766,7 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
 void UITask::showAlert(const char* text, int duration_millis) {
   strcpy(_alert, text);
   _alert_expiry = millis() + duration_millis;
+  if (_alert_expiry == 0) _alert_expiry = 1;  // zero means no active alert
 }
 
 void UITask::notify(UIEventType t) {
@@ -811,7 +812,7 @@ void UITask::onMessageRecv(mesh::Packet *pkt, const ContactInfo &from, uint8_t t
     }
     if (_display->isOn()) {
     _auto_off = millis() + AUTO_OFF_MILLIS;  // extend the auto-off timer
-    _next_refresh = 100;  // trigger refresh
+    _next_refresh = 0;  // trigger refresh
     }
   }
 
@@ -831,7 +832,7 @@ void UITask::onChannelMessageRecv(mesh::Packet *pkt, ChannelDetails& channel_det
     }
     if (_display->isOn()) {
     _auto_off = millis() + AUTO_OFF_MILLIS;  // extend the auto-off timer
-    _next_refresh = 100;  // trigger refresh
+    _next_refresh = 0;  // trigger refresh
     }
   }
 
@@ -884,7 +885,7 @@ void UITask::userLedHandler() {
 
 void UITask::setCurrScreen(UIScreen* c) {
   curr = c;
-  _next_refresh = 100;
+  _next_refresh = 0;
 }
 
 /*
@@ -900,7 +901,7 @@ void UITask::shutdown(bool restart){
   */
   buzzer.shutdown();
   uint32_t buzzer_timer = millis(); // fail-safe shutdown
-  while (buzzer.isPlaying() && (millis() - 2500) < buzzer_timer)
+  while (buzzer.isPlaying() && uint32_t(millis() - buzzer_timer) < 2500)
     buzzer.loop();
 
   #endif // PIN_BUZZER
@@ -1035,7 +1036,7 @@ void UITask::loop() {
   if (c != 0 && curr) {
     curr->handleInput(c);
     _auto_off = millis() + AUTO_OFF_MILLIS;   // extend auto-off timer
-    _next_refresh = 100;  // trigger refresh
+    _next_refresh = 0;  // trigger refresh
   }
 
   userLedHandler();
@@ -1047,10 +1048,10 @@ void UITask::loop() {
   if (curr) curr->poll();
 
   if (_display != NULL && _display->isOn()) {
-    if (millis() >= _next_refresh && curr) {
+    if ((_next_refresh == 0 || int32_t(millis() - _next_refresh) >= 0) && curr) {
       _display->startFrame();
       int delay_millis = curr->render(*_display);
-      if (millis() < _alert_expiry) {  // render alert popup
+      if (_alert_expiry && int32_t(millis() - _alert_expiry) < 0) {  // render alert popup
         _display->setTextSize(1);
         int y = _display->height() / 3;
         int p = _display->height() / 32;
@@ -1062,6 +1063,7 @@ void UITask::loop() {
         _next_refresh = _alert_expiry;   // will need refresh when alert is dismissed
       } else {
         _next_refresh = millis() + delay_millis;
+        if (_next_refresh == 0) _next_refresh = 1;  // reserve zero for forced refresh
       }
       _display->endFrame();
     }
@@ -1075,7 +1077,7 @@ void UITask::loop() {
       _auto_off = millis() + AUTO_OFF_MILLIS;
     }
 #endif
-    if (millis() > _auto_off) {
+    if (int32_t(millis() - _auto_off) >= 0) {
         #ifdef EINK_SCREENOFF_BLANK
         if (curr != msg_preview) { // don't blank if messages are waiting
           _display->blankScreen();
