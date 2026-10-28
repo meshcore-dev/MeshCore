@@ -9,7 +9,7 @@ protected:
   uint8_t btn_prev_state;
 
 public:
-  WioTrackerL1Board() : NRF52Board("WioTrackerL1 OTA") {}
+  WioTrackerL1Board() : NRF52Board("WioTrackerL1_OTA") {}
   void begin();
 
 #if defined(P_LORA_TX_LED)
@@ -35,6 +35,6 @@ public:
   }
 
   void powerOff() override {
-    sd_power_system_off();
+    NRF52Board::powerOff();
   }
 };

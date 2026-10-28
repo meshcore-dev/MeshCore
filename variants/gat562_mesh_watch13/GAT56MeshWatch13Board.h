@@ -38,7 +38,7 @@ public:
     uint32_t button_pin = PIN_BUTTON1;
     nrf_gpio_cfg_input(button_pin, NRF_GPIO_PIN_PULLUP);
     nrf_gpio_cfg_sense_set(button_pin, NRF_GPIO_PIN_SENSE_LOW);
-    sd_power_system_off(); 
+    NRF52Board::powerOff();
   }
 
 };

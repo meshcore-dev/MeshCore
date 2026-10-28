@@ -4,7 +4,7 @@ runs:
   steps:
 
     - name: Init Cache
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: |
           ~/.cache/pip
@@ -12,9 +12,9 @@ runs:
         key: ${{ runner.os }}-pio
 
     - name: Install Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
-        python-version: '3.11'
+        python-version: '3.13'
 
     - name: Install PlatformIO
       shell: bash
@@ -25,5 +25,14 @@ runs:
     - name: Extract Version from Git Tag
       shell: bash
       run: |
-        GIT_TAG_NAME="${GITHUB_REF#refs/tags/}"
-        echo "GIT_TAG_VERSION=${GIT_TAG_NAME##*-}" >> $GITHUB_ENV
+        if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+          # triggered by a tag push (e.g: refs/tags/companion-v1.2.3)
+          GIT_TAG_NAME="${GITHUB_REF#refs/tags/}"
+          VERSION_STRING="${GIT_TAG_NAME##*-}"
+        else
+          # triggered by a workflow dispatch (e.g: refs/heads/main)
+          # strip "refs/heads/" prefix and replace any remaining "/" with "-" to protect file paths
+          BRANCH_NAME="${GITHUB_REF#refs/heads/}"
+          VERSION_STRING=$(echo "$BRANCH_NAME" | tr '/' '-')
+        fi
+        echo "GIT_TAG_VERSION=${VERSION_STRING}" >> $GITHUB_ENV

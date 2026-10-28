@@ -5,7 +5,6 @@
 
 void T1000eBoard::begin() {
   NRF52BoardDCDC::begin();
-  btn_prev_state = HIGH;
 
 #ifdef BUTTON_PIN
   pinMode(BATTERY_PIN, INPUT);

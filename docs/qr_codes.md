@@ -12,8 +12,10 @@ meshcore://channel/add?name=Public&secret=8b3387e9c5cdea6ac9e5edbaa115cd72
 
 **Parameters**:
 
-- `name`: Channel name (URL-encoded if needed)
+- `name`: Channel name (URL-encoded)
 - `secret`: 16-byte secret represented as 32 hex characters
+- `region_scope`: Region Scope (optional, URL-encoded if provided)
+    - Supported by MeshCore App v1.47.0+
 
 ## Add Contact
 

@@ -64,7 +64,7 @@ public:
   bool begin() override;
   bool querySensors(uint8_t requester_permissions, CayenneLPP &telemetry) override;
 
-#if ENV_INCLUDE_GPS || ENV_INCLUDE_BME680
+#if ENV_INCLUDE_GPS || ENV_INCLUDE_BME680 || defined(ENV_INCLUDE_BME680_BSEC)
   void loop() override;
 #endif
 

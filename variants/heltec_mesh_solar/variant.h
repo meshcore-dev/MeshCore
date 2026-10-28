@@ -34,8 +34,8 @@
 #define PIN_SERIAL1_RX          (37)
 #define PIN_SERIAL1_TX          (39)
 
-#define PIN_SERIAL2_RX          (9)
-#define PIN_SERIAL2_TX          (10)
+#define PIN_SERIAL2_RX          (-1)
+#define PIN_SERIAL2_TX          (-1)
 
 ////////////////////////////////////////////////////////////////////////////////
 // I2C pin definition

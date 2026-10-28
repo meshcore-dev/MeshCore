@@ -1,5 +1,16 @@
 #include "LGFXDisplay.h"
 
+// Color scheme
+ColorVal UIColor::window_bkg = 0xFFFF;
+ColorVal UIColor::title_bkg = 0x001F;
+ColorVal UIColor::title_txt = 0xFFFF;
+ColorVal UIColor::primary_txt = 0x0000;
+ColorVal UIColor::secondary_txt = (18 << 11) | (36 << 5) | 18;  // mid-gray
+ColorVal UIColor::warning_txt = 0xFD20;
+ColorVal UIColor::popup_bkg =  0x07FF;  // CYAN
+ColorVal UIColor::popup_txt = 0x0000;
+ColorVal UIColor::corp_blue = 0x001A;
+
 bool LGFXDisplay::begin() {
   turnOn();
   display->init();
@@ -35,45 +46,20 @@ void LGFXDisplay::clear() {
   buffer.clearDisplay();
 }
 
-void LGFXDisplay::startFrame(Color bkg) {
+void LGFXDisplay::startFrame(ColorVal bkg) {
 //  display->startWrite();
 //  display->getScanLine();
-  buffer.clearDisplay();
-  buffer.setTextColor(TFT_WHITE);
+  _color = bkg;
+  buffer.fillScreen(_color);
+  buffer.setTextColor(_color = UIColor::primary_txt);
 }
 
 void LGFXDisplay::setTextSize(int sz) {
   buffer.setTextSize(sz);
 }
 
-void LGFXDisplay::setColor(Color c) {
-  // _color = (c != 0) ? ILI9342_WHITE : ILI9342_BLACK;
-  switch (c) {
-    case DARK:
-      _color = TFT_BLACK;
-      break;
-    case LIGHT:
-      _color = TFT_WHITE;
-      break;
-    case RED:
-      _color = TFT_RED;
-      break;
-    case GREEN:
-      _color = TFT_GREEN;
-      break;
-    case BLUE:
-      _color = TFT_BLUE;
-      break;
-    case YELLOW:
-      _color = TFT_YELLOW;
-      break;
-    case ORANGE:
-      _color = TFT_ORANGE;
-      break;
-    default:
-      _color = TFT_WHITE;
-  }
-  buffer.setTextColor(_color);
+void LGFXDisplay::setColor(ColorVal c) {
+  buffer.setTextColor(_color = c);
 }
 
 void LGFXDisplay::setCursor(int x, int y) {

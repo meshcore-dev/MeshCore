@@ -2,21 +2,42 @@
 
 // Include board headers for power management
 #ifdef HELTEC_LORA_V3
-#include <helpers/RefCountedDigitalPin.h>
-// Forward declare to avoid circular dependency
-#ifndef HELTEC_V3_BOARD_CLASS_DEFINED
-class HeltecV3Board {
-public:
-  RefCountedDigitalPin periph_power;
-  HeltecV3Board() : periph_power(PIN_VEXT_EN) {}
-};
-#endif
+#include <../variants/heltec_v3/HeltecV3Board.h>
 #endif
 
 #if ENV_PIN_SDA && ENV_PIN_SCL
 #define TELEM_WIRE &Wire1 // Use Wire1 as the I2C bus for Environment Sensors
 #else
 #define TELEM_WIRE &Wire // Use default I2C bus for Environment Sensors
+#endif
+
+// ============================================================
+// Sensor library includes and static driver instances
+// ============================================================
+
+#if ENV_INCLUDE_BME680_BSEC
+#ifndef TELEM_BME680_ADDRESS
+#define TELEM_BME680_ADDRESS 0x76
+#endif
+#define TELEM_BME680_SEALEVELPRESSURE_HPA (1013.25)
+#include <bsec.h>
+#include <Adafruit_LittleFS.h>
+#include <InternalFileSystem.h>
+static const uint8_t bsec_config_iaq[] = {
+#include "config/generic_33v_3s_28d/bsec_iaq.txt" // 3.3v, LP, 28 day background calibration window
+};
+static Bsec     bsec_iaq;
+static float    bsec_temperature     = 0;
+static float    bsec_humidity        = 0;
+static float    bsec_pressure_hpa    = 0;
+static float    bsec_iaq_val         = 0;
+static uint8_t  bsec_accuracy        = 0;
+static bool     bsec_active          = false;
+static bool     bsec_data_ready      = false;
+static bool     bsec_first_save_done = false;
+static uint32_t bsec_last_save_ms    = 0;
+#define BSEC_STATE_FILE "/bsec_state.bin"
+#define BSEC_SAVE_INTERVAL_MS (8UL * 60 * 60 * 1000) // 8 hour state-save interval
 #endif
 
 #ifdef ENV_INCLUDE_BME680
@@ -93,7 +114,9 @@ static Adafruit_SHTC3 SHTC3;
 #endif
 
 #if ENV_INCLUDE_SHT4X
-#define TELEM_SHT4X_ADDRESS 0x44 // 0x44 - 0x46
+#ifndef TELEM_SHT4X_ADDRESS
+#define TELEM_SHT4X_ADDRESS 0x44
+#endif
 #include <SensirionI2cSht4x.h>
 static SensirionI2cSht4x SHT4X;
 #endif
@@ -105,7 +128,7 @@ LPS22HBClass LPS22HB(*TELEM_WIRE);
 
 #if ENV_INCLUDE_INA3221
 #ifndef TELEM_INA3221_ADDRESS
-#define TELEM_INA3221_ADDRESS   0x42      // INA3221 3 channel current sensor I2C address
+#define TELEM_INA3221_ADDRESS     0x42    // INA3221 3 channel current sensor I2C address
 #endif
 #ifndef TELEM_INA3221_SHUNT_VALUE
 #define TELEM_INA3221_SHUNT_VALUE 0.100 // most variants will have a 0.1 ohm shunts
@@ -118,19 +141,25 @@ static Adafruit_INA3221 INA3221;
 #endif
 
 #if ENV_INCLUDE_INA219
-#define TELEM_INA219_ADDRESS 0x40 // INA219 single channel current sensor I2C address
+#ifndef TELEM_INA219_ADDRESS
+#define TELEM_INA219_ADDRESS    0x40      // INA219 single channel current sensor I2C address
+#endif
 #include <Adafruit_INA219.h>
 static Adafruit_INA219 INA219(TELEM_INA219_ADDRESS);
 #endif
 
 #if ENV_INCLUDE_INA260
-#define TELEM_INA260_ADDRESS 0x41 // INA260 single channel current sensor I2C address
+#ifndef TELEM_INA260_ADDRESS
+#define TELEM_INA260_ADDRESS    0x41      // INA260 single channel current sensor I2C address
+#endif
 #include <Adafruit_INA260.h>
 static Adafruit_INA260 INA260;
 #endif
 
 #if ENV_INCLUDE_INA226
+#ifndef TELEM_INA226_ADDRESS
 #define TELEM_INA226_ADDRESS     0x44
+#endif
 #define TELEM_INA226_SHUNT_VALUE 0.100
 #define TELEM_INA226_MAX_AMP     0.8
 #include <INA226.h>
@@ -138,19 +167,25 @@ static INA226 INA226_sensor(TELEM_INA226_ADDRESS, TELEM_WIRE);
 #endif
 
 #if ENV_INCLUDE_MLX90614
-#define TELEM_MLX90614_ADDRESS 0x5A // MLX90614 IR temperature sensor I2C address
+#ifndef TELEM_MLX90614_ADDRESS
+#define TELEM_MLX90614_ADDRESS 0x5A      // MLX90614 IR temperature sensor I2C address
+#endif
 #include <Adafruit_MLX90614.h>
 static Adafruit_MLX90614 MLX90614;
 #endif
 
 #if ENV_INCLUDE_VL53L0X
-#define TELEM_VL53L0X_ADDRESS 0x29 // VL53L0X time-of-flight distance sensor I2C address
+#ifndef TELEM_VL53L0X_ADDRESS
+#define TELEM_VL53L0X_ADDRESS 0x29      // VL53L0X time-of-flight distance sensor I2C address
+#endif
 #include <Adafruit_VL53L0X.h>
 static Adafruit_VL53L0X VL53L0X;
 #endif
 
 #if ENV_INCLUDE_RAK12035
+#ifndef TELEM_RAK12035_ADDRESS
 #define TELEM_RAK12035_ADDRESS 0x20      // RAK12035 Soil Moisture sensor I2C address
+#endif
 #include "RAK12035_SoilMoisture.h"
 static RAK12035_SoilMoisture RAK12035;
 #endif
@@ -163,7 +198,9 @@ static RAK12035_SoilMoisture RAK12035;
 static uint32_t gpsResetPin = 0;
 static bool i2cGPSFlag = false;
 static bool serialGPSFlag = false;
-#define TELEM_RAK12500_ADDRESS 0x42 // RAK12500 Ublox GPS via i2c
+#ifndef TELEM_RAK12500_ADDRESS
+#define TELEM_RAK12500_ADDRESS   0x42     //RAK12500 Ublox GPS via i2c
+#endif
 #include <SparkFun_u-blox_GNSS_Arduino_Library.h>
 static SFE_UBLOX_GNSS ublox_GNSS;
 
@@ -204,6 +241,10 @@ public:
 static RAK12500LocationProvider RAK12500_provider;
 #endif
 
+// ============================================================
+// I2C helpers
+// ============================================================
+
 // I2C device scanner - checks if a device responds at the given address
 static bool i2c_device_exists(TwoWire *wire, uint8_t address) {
   wire->beginTransmission(address);
@@ -220,7 +261,6 @@ static uint8_t read_chip_id(TwoWire *wire, uint8_t address) {
     delay(20);
     return 0x00; // Communication failed
   }
-
   delay(10);
   wire->requestFrom(address, (uint8_t)1);
   if (wire->available()) {
@@ -235,60 +275,77 @@ static uint8_t read_chip_id(TwoWire *wire, uint8_t address) {
 // Get geoidal separation based on GPS coordinates
 // Simple lookup table for common regions - accuracy ~5m
 static float get_geoidal_separation(double lat, double lon) {
-  // Coarse regional estimates (latitude/longitude-based approximation)
-  // For more accuracy, use manual override with exact value for your location
-
   MESH_DEBUG_PRINTLN("Calculating geoidal separation for lat: %.6f, lon: %.6f", lat, lon);
 
   // North America
   if (lat >= 25 && lat <= 70 && lon >= -170 && lon <= -50) {
-    if (lat >= 50) return -10.0; // Northern Canada/Alaska
-    if (lat >= 35) return -25.0; // Northern US
-    return -15.0;                // Southern US/Mexico
+    if (lat >= 50) return -10.0;
+    if (lat >= 35) return -25.0;
+    return -15.0;
   }
-
   // Europe
   if (lat >= 35 && lat <= 72 && lon >= -10 && lon <= 45) {
-    if (lat >= 60) return 25.0; // Scandinavia
-    if (lat >= 50) return 45.0; // Netherlands, Germany, Poland
-    if (lat >= 45) return 48.0; // Central Europe
-    return 50.0;                // Southern Europe
+    if (lat >= 60) return 25.0;
+    if (lat >= 50) return 45.0;
+    if (lat >= 45) return 48.0;
+    return 50.0;
   }
-
   // Asia
   if (lat >= -10 && lat <= 75 && lon >= 45 && lon <= 180) {
-    if (lat >= 40) return -10.0; // Northern Asia/Russia
-    if (lat >= 20) return -5.0;  // Eastern Asia
-    return 0.0;                  // Southeast Asia
+    if (lat >= 40) return -10.0;
+    if (lat >= 20) return -5.0;
+    return 0.0;
   }
-
   // Australia/Oceania
   if (lat >= -50 && lat <= -10 && lon >= 110 && lon <= 180) {
     return 10.0;
   }
-
   // South America
   if (lat >= -60 && lat <= 15 && lon >= -85 && lon <= -30) {
-    if (lat >= 0) return 5.0;    // Northern South America
-    if (lat >= -30) return 15.0; // Central South America
-    return 0.0;                  // Southern South America
+    if (lat >= 0) return 5.0;
+    if (lat >= -30) return 15.0;
+    return 0.0;
   }
-
   // Africa
   if (lat >= -35 && lat <= 38 && lon >= -20 && lon <= 55) {
-    if (lat >= 20) return 0.0; // Northern Africa
-    if (lat >= 0) return 5.0;  // Equatorial Africa
-    return 20.0;               // Southern Africa
+    if (lat >= 20) return 0.0;
+    if (lat >= 0) return 5.0;
+    return 20.0;
   }
-
-  // Default fallback
   return 0.0;
 }
+
+#if ENV_INCLUDE_BME680_BSEC
+static void bsec_load_state() {
+  using namespace Adafruit_LittleFS_Namespace;
+  File f = InternalFS.open(BSEC_STATE_FILE, FILE_O_READ);
+  if (!f) return;
+  uint8_t state[BSEC_MAX_STATE_BLOB_SIZE];
+  f.read(state, BSEC_MAX_STATE_BLOB_SIZE);
+  f.close();
+  bsec_iaq.setState(state);
+}
+
+static void bsec_save_state() {
+  using namespace Adafruit_LittleFS_Namespace;
+  uint8_t state[BSEC_MAX_STATE_BLOB_SIZE];
+  bsec_iaq.getState(state);
+  InternalFS.remove(BSEC_STATE_FILE);
+  File f = InternalFS.open(BSEC_STATE_FILE, FILE_O_WRITE);
+  if (!f) return;
+  f.write(state, BSEC_MAX_STATE_BLOB_SIZE);
+  f.close();
+}
+#endif
+
+// ============================================================
+// begin()
+// ============================================================
 
 bool EnvironmentSensorManager::begin() {
 #if ENV_INCLUDE_GPS
 #ifdef RAK_WISBLOCK_GPS
-  rakGPSInit(); // probe base board/sockets for GPS
+  rakGPSInit();
 #else
   initBasicGPS();
 #endif
@@ -306,25 +363,19 @@ bool EnvironmentSensorManager::begin() {
 #endif
 
 #if ENV_INCLUDE_BME680
-  // Check chip ID to verify it's actually a BME680 (ID=0x61) not BME280 or BMP280
   if (i2c_device_exists(TELEM_WIRE, TELEM_BME680_ADDRESS)) {
     uint8_t chip_id = read_chip_id(TELEM_WIRE, TELEM_BME680_ADDRESS);
     MESH_DEBUG_PRINTLN("Chip ID at address %02X: 0x%02X", TELEM_BME680_ADDRESS, chip_id);
 
-    if (chip_id == 0x61) { // BME680 chip ID
+    if (chip_id == 0x61) {
       MESH_DEBUG_PRINTLN("Confirmed BME680 chip, initializing...");
       delay(100);
 
 #ifdef BME680_BSEC2_SUPPORTED
-      // Initialize with BSEC2 library for IAQ support
       if (BME680_BSEC.begin(TELEM_BME680_ADDRESS, *TELEM_WIRE)) {
         if (BME680_BSEC.status == BSEC_OK) {
           MESH_DEBUG_PRINTLN("BSEC2 sensor communication OK");
-
-          // Set custom BSEC configuration
           BME680_BSEC.setConfig(bsec_config);
-
-          // Define sensor outputs to subscribe to
           bsecSensor sensorList[] = { BSEC_OUTPUT_IAQ,
                                       BSEC_OUTPUT_RAW_TEMPERATURE,
                                       BSEC_OUTPUT_RAW_PRESSURE,
@@ -334,11 +385,8 @@ bool EnvironmentSensorManager::begin() {
                                       BSEC_OUTPUT_RUN_IN_STATUS,
                                       BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_TEMPERATURE,
                                       BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_HUMIDITY };
-
-          // Try LP (Low Power) mode first
           if (!BME680_BSEC.updateSubscription(sensorList, 9, BSEC_SAMPLE_RATE_LP)) {
             MESH_DEBUG_PRINTLN("BSEC LP mode failed, trying ULP mode...");
-            // Fall back to ULP (Ultra Low Power) mode
             if (!BME680_BSEC.updateSubscription(sensorList, 9, BSEC_SAMPLE_RATE_ULP)) {
               MESH_DEBUG_PRINTLN("BSEC ULP mode also failed!");
               BME680_initialized = false;
@@ -363,17 +411,13 @@ bool EnvironmentSensorManager::begin() {
         MESH_DEBUG_PRINTLN("BME680 BSEC failed to begin at address %02X", TELEM_BME680_ADDRESS);
       }
 #else
-      // Initialize with Adafruit library (no IAQ)
       if (BME680.begin(TELEM_BME680_ADDRESS)) {
         MESH_DEBUG_PRINTLN("Found BME680 at address: %02X (Adafruit library)", TELEM_BME680_ADDRESS);
-
-        // Configure BME680 oversampling and filter
         BME680.setTemperatureOversampling(BME680_OS_8X);
         BME680.setHumidityOversampling(BME680_OS_2X);
         BME680.setPressureOversampling(BME680_OS_4X);
         BME680.setIIRFilterSize(BME680_FILTER_SIZE_3);
-        BME680.setGasHeater(320, 150); // 320°C for 150 ms
-
+        BME680.setGasHeater(320, 150);
         BME680_initialized = true;
       } else {
         BME680_initialized = false;
@@ -390,8 +434,41 @@ bool EnvironmentSensorManager::begin() {
   }
 #endif
 
+
+#if ENV_INCLUDE_BME680_BSEC
+  if (i2c_device_exists(TELEM_WIRE, TELEM_BME680_ADDRESS)) {
+    bsec_iaq.begin(TELEM_BME680_ADDRESS, *TELEM_WIRE);
+    if (bsec_iaq.bsecStatus == BSEC_OK) {
+      bsec_iaq.setConfig(bsec_config_iaq);
+      if (bsec_iaq.bsecStatus == BSEC_OK) {
+        bsec_virtual_sensor_t outputs[] = {
+          BSEC_OUTPUT_IAQ,
+          BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_TEMPERATURE,
+          BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_HUMIDITY,
+          BSEC_OUTPUT_RAW_PRESSURE,
+          BSEC_OUTPUT_STABILIZATION_STATUS,
+          BSEC_OUTPUT_RUN_IN_STATUS,
+        };
+        bsec_iaq.updateSubscription(outputs, 6, BSEC_SAMPLE_RATE_LP);
+        if (bsec_iaq.bsecStatus == BSEC_OK) {
+          bsec_load_state();
+          bsec_active = true;
+          MESH_DEBUG_PRINTLN("Found BME680+BSEC at address: %02X", TELEM_BME680_ADDRESS);
+        } else {
+          MESH_DEBUG_PRINTLN("BME680+BSEC subscription failed, status: %d", bsec_iaq.bsecStatus);
+        }
+      } else {
+        MESH_DEBUG_PRINTLN("BME680+BSEC setConfig failed, status: %d", bsec_iaq.bsecStatus);
+      }
+    } else {
+      MESH_DEBUG_PRINTLN("BME680+BSEC begin failed, status: %d", bsec_iaq.bsecStatus);
+    }
+  } else {
+    MESH_DEBUG_PRINTLN("No I2C device found at address %02X (BME680+BSEC)", TELEM_BME680_ADDRESS);
+  }
+#endif
+
 #if ENV_INCLUDE_AHTX0
-  // Check if device exists before trying to initialize
   if (i2c_device_exists(TELEM_WIRE, TELEM_AHTX_ADDRESS)) {
     if (AHTX0.begin(TELEM_WIRE, 0, TELEM_AHTX_ADDRESS)) {
       MESH_DEBUG_PRINTLN("Found AHT10/AHT20 at address: %02X", TELEM_AHTX_ADDRESS);
@@ -407,19 +484,16 @@ bool EnvironmentSensorManager::begin() {
 #endif
 
 #if ENV_INCLUDE_BME280
-  // Check chip ID: BME280=0x60, skip if BME680 (0x61) or BMP280 (0x58)
   if (i2c_device_exists(TELEM_WIRE, TELEM_BME280_ADDRESS)) {
     uint8_t chip_id = read_chip_id(TELEM_WIRE, TELEM_BME280_ADDRESS);
-
-    if (chip_id == 0x60) { // BME280 chip ID
+    if (chip_id == 0x60) {
       if (BME280.begin(TELEM_BME280_ADDRESS, TELEM_WIRE)) {
         MESH_DEBUG_PRINTLN("Found BME280 at address: %02X (chip ID: 0x60)", TELEM_BME280_ADDRESS);
         MESH_DEBUG_PRINTLN("BME sensor ID: %02X", BME280.sensorID());
-        // Reduce self-heating: single-shot conversions, light oversampling, long standby.
         BME280.setSampling(Adafruit_BME280::MODE_FORCED,
-                           Adafruit_BME280::SAMPLING_X1, // temperature
-                           Adafruit_BME280::SAMPLING_X1, // pressure
-                           Adafruit_BME280::SAMPLING_X1, // humidity
+                           Adafruit_BME280::SAMPLING_X1,
+                           Adafruit_BME280::SAMPLING_X1,
+                           Adafruit_BME280::SAMPLING_X1,
                            Adafruit_BME280::FILTER_OFF, Adafruit_BME280::STANDBY_MS_1000);
         BME280_initialized = true;
       } else {
@@ -437,11 +511,9 @@ bool EnvironmentSensorManager::begin() {
 #endif
 
 #if ENV_INCLUDE_BMP280
-  // Check chip ID: BMP280=0x58, skip if BME680 (0x61) or BME280 (0x60)
   if (i2c_device_exists(TELEM_WIRE, TELEM_BMP280_ADDRESS)) {
     uint8_t chip_id = read_chip_id(TELEM_WIRE, TELEM_BMP280_ADDRESS);
-
-    if (chip_id == 0x58) { // BMP280 chip ID
+    if (chip_id == 0x58) {
       if (BMP280.begin(TELEM_BMP280_ADDRESS)) {
         MESH_DEBUG_PRINTLN("Found BMP280 at address: %02X (chip ID: 0x58)", TELEM_BMP280_ADDRESS);
         BMP280_initialized = true;
@@ -478,8 +550,7 @@ bool EnvironmentSensorManager::begin() {
   if (i2c_device_exists(TELEM_WIRE, TELEM_SHT4X_ADDRESS)) {
     SHT4X.begin(*TELEM_WIRE, TELEM_SHT4X_ADDRESS);
     uint32_t serialNumber = 0;
-    int16_t sht4x_error;
-    sht4x_error = SHT4X.serialNumber(serialNumber);
+    int16_t sht4x_error = SHT4X.serialNumber(serialNumber);
     if (sht4x_error == 0) {
       MESH_DEBUG_PRINTLN("Found SHT4X at address: %02X", TELEM_SHT4X_ADDRESS);
       SHT4X_initialized = true;
@@ -512,14 +583,10 @@ bool EnvironmentSensorManager::begin() {
   if (INA3221.begin(TELEM_INA3221_ADDRESS, TELEM_WIRE)) {
     MESH_DEBUG_PRINTLN("Found INA3221 at address: %02X", TELEM_INA3221_ADDRESS);
     MESH_DEBUG_PRINTLN("%04X %04X", INA3221.getDieID(), INA3221.getManufacturerID());
-
     for (int i = 0; i < 3; i++) {
       INA3221.setShuntResistance(i, TELEM_INA3221_SHUNT_VALUE);
     }
     INA3221_initialized = true;
-  } else {
-    INA3221_initialized = false;
-    MESH_DEBUG_PRINTLN("INA3221 was not found at I2C address %02X", TELEM_INA3221_ADDRESS);
   }
 #endif
 
@@ -600,12 +667,10 @@ bool EnvironmentSensorManager::begin() {
 #endif
 
 #if ENV_INCLUDE_BMP085
-  // Skip BMP085 if BME680 is using address 0x77
 #if ENV_INCLUDE_BME680 && (TELEM_BME680_ADDRESS == 0x77 || TELEM_BME680_ADDRESS == 0x76)
   BMP085_initialized = false;
   MESH_DEBUG_PRINTLN("Skipping BMP085 - BME680 is using address 0x77");
 #else
-  // First argument is  MODE (aka oversampling) choose ULTRALOWPOWER
   if (i2c_device_exists(TELEM_WIRE, 0x77)) {
     if (BMP085.begin(0, TELEM_WIRE)) {
       MESH_DEBUG_PRINTLN("Found sensor BMP085");
@@ -621,8 +686,8 @@ bool EnvironmentSensorManager::begin() {
 #endif
 #endif
 
-  #if ENV_INCLUDE_RAK12035
-    RAK12035.setup(*TELEM_WIRE);
+#if ENV_INCLUDE_RAK12035
+  RAK12035.setup(*TELEM_WIRE);
   if (RAK12035.begin(TELEM_RAK12035_ADDRESS)) {
     MESH_DEBUG_PRINTLN("Found sensor RAK12035 at address: %02X", TELEM_RAK12035_ADDRESS);
     RAK12035_initialized = true;
@@ -630,27 +695,27 @@ bool EnvironmentSensorManager::begin() {
     RAK12035_initialized = false;
     MESH_DEBUG_PRINTLN("RAK12035 was not found at I2C address %02X", TELEM_RAK12035_ADDRESS);
   }
-  #endif
+#endif
 
   return true;
 }
 
+// ============================================================
+// querySensors()
+// ============================================================
+
 bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, CayenneLPP &telemetry) {
   // I2C bus recovery voordat we sensors uitlezen
 #if ENV_PIN_SDA && ENV_PIN_SCL && defined(ESP32)
-  // ESP32 TwoWire heeft geen busy() methode, gebruik alternatieve check
   static uint32_t last_i2c_error_time = 0;
   static uint8_t consecutive_errors = 0;
 
-  // Als we recent veel I2C errors hadden, probeer recovery
   if (consecutive_errors > 3 && (millis() - last_i2c_error_time) < 5000) {
     MESH_DEBUG_PRINTLN("I2C instability detected, attempting recovery...");
-
     Wire1.end();
     delay(10);
     Wire1.begin(ENV_PIN_SDA, ENV_PIN_SCL, 100000);
     delay(50);
-
     consecutive_errors = 0;
     last_i2c_error_time = millis();
   }
@@ -658,13 +723,13 @@ bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, Cayen
 
   next_available_channel = TELEM_CHANNEL_SELF + 1;
 
+#if ENV_INCLUDE_GPS
   if (requester_permissions & TELEM_PERM_LOCATION && gps_active) {
     telemetry.addGPS(TELEM_CHANNEL_SELF, node_lat, node_lon,
-                     node_altitude -
-                         get_geoidal_separation(
-                             node_lat, node_lon)); // allow lat/lon via telemetry even if no GPS is detected
+                     node_altitude - get_geoidal_separation(node_lat, node_lon));
     telemetry.addAnalogOutput(TELEM_CHANNEL_SELF, _location->satellitesCount());
   }
+#endif
 
   if (requester_permissions & TELEM_PERM_ENVIRONMENT) {
 
@@ -679,15 +744,13 @@ bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, Cayen
 
 #if ENV_INCLUDE_BME680
     if (BME680_initialized) {
-      // Use cached data from loop()
       telemetry.addTemperature(next_available_channel, bme680_temperature);
       telemetry.addRelativeHumidity(next_available_channel, bme680_humidity);
       telemetry.addBarometricPressure(next_available_channel, bme680_pressure);
       telemetry.addAltitude(next_available_channel, bme680_altitude);
-      telemetry.addAnalogOutput(next_available_channel, bme680_gas_resistance);
-
+      telemetry.addGenericSensor(next_available_channel, bme680_gas_resistance);
 #ifdef BME680_BSEC2_SUPPORTED
-      telemetry.addGenericSensor(next_available_channel, bme680_iaq); // IAQ index 0-500
+      telemetry.addAnalogOutput(next_available_channel, bme680_iaq);
       telemetry.addPresence(next_available_channel, bme680_iaq_accuracy);
 #endif
       next_available_channel++;
@@ -696,16 +759,14 @@ bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, Cayen
 
 #if ENV_INCLUDE_BME280
     if (BME280_initialized) {
-      if (BME280.takeForcedMeasurement()) { // trigger a fresh reading in forced mode
+      if (BME280.takeForcedMeasurement()) {
         float temp_reading = BME280.readTemperature();
-        // Check if reading is valid (not NaN or unreasonable value)
         if (!isnan(temp_reading) && temp_reading > -40 && temp_reading < 85) {
           telemetry.addTemperature(TELEM_CHANNEL_SELF, temp_reading);
           telemetry.addRelativeHumidity(TELEM_CHANNEL_SELF, BME280.readHumidity());
           telemetry.addBarometricPressure(TELEM_CHANNEL_SELF, BME280.readPressure() / 100);
           telemetry.addAltitude(TELEM_CHANNEL_SELF, BME280.readAltitude(TELEM_BME280_SEALEVELPRESSURE_HPA));
         } else {
-          // Sensor not responding properly, mark as uninitialized
           BME280_initialized = false;
           MESH_DEBUG_PRINTLN("BME280 read failed, disabling sensor");
         }
@@ -725,7 +786,6 @@ bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, Cayen
     if (SHTC3_initialized) {
       sensors_event_t humidity, temp;
       SHTC3.getEvent(&humidity, &temp);
-
       telemetry.addTemperature(TELEM_CHANNEL_SELF, temp.temperature);
       telemetry.addRelativeHumidity(TELEM_CHANNEL_SELF, humidity.relative_humidity);
     }
@@ -734,8 +794,7 @@ bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, Cayen
 #if ENV_INCLUDE_SHT4X
     if (SHT4X_initialized) {
       float sht4x_humidity, sht4x_temperature;
-      int16_t sht4x_error;
-      sht4x_error = SHT4X.measureLowestPrecision(sht4x_temperature, sht4x_humidity);
+      int16_t sht4x_error = SHT4X.measureLowestPrecision(sht4x_temperature, sht4x_humidity);
       if (sht4x_error == 0) {
         telemetry.addTemperature(TELEM_CHANNEL_SELF, sht4x_temperature);
         telemetry.addRelativeHumidity(TELEM_CHANNEL_SELF, sht4x_humidity);
@@ -746,14 +805,13 @@ bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, Cayen
 #if ENV_INCLUDE_LPS22HB
     if (LPS22HB_initialized) {
       telemetry.addTemperature(TELEM_CHANNEL_SELF, LPS22HB.readTemperature());
-      telemetry.addBarometricPressure(TELEM_CHANNEL_SELF, LPS22HB.readPressure() * 10); // convert kPa to hPa
+      telemetry.addBarometricPressure(TELEM_CHANNEL_SELF, LPS22HB.readPressure() * 10);
     }
 #endif
 
 #if ENV_INCLUDE_INA3221
     if (INA3221_initialized) {
       for (int i = 0; i < TELEM_INA3221_NUM_CHANNELS; i++) {
-        // add only enabled INA3221 channels to telemetry
         if (INA3221.isChannelEnabled(i)) {
           float voltage = INA3221.getBusVoltage(i);
           float current = INA3221.getCurrentAmps(i);
@@ -803,11 +861,11 @@ bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, Cayen
 #if ENV_INCLUDE_VL53L0X
     if (VL53L0X_initialized) {
       VL53L0X_RangingMeasurementData_t measure;
-      VL53L0X.rangingTest(&measure, false); // pass in 'true' to get debug data
-      if (measure.RangeStatus != 4) {       // phase failures
-        telemetry.addDistance(TELEM_CHANNEL_SELF, measure.RangeMilliMeter / 1000.0f); // convert mm to m
+      VL53L0X.rangingTest(&measure, false);
+      if (measure.RangeStatus != 4) {
+        telemetry.addDistance(TELEM_CHANNEL_SELF, measure.RangeMilliMeter / 1000.0f);
       } else {
-        telemetry.addDistance(TELEM_CHANNEL_SELF, 0.0f); // no valid measurement
+        telemetry.addDistance(TELEM_CHANNEL_SELF, 0.0f);
       }
     }
 #endif
@@ -822,40 +880,26 @@ bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, Cayen
 
 #if ENV_INCLUDE_RAK12035
     if (RAK12035_initialized) {
-
-      // RAK12035 Telemetry is Channel 2
       telemetry.addTemperature(2, RAK12035.get_sensor_temperature());
       telemetry.addPercentage(2, RAK12035.get_sensor_moisture());
-
-      // RAK12035 CALIBRATION Telemetry is Channel 3, if enabled
       #ifdef ENABLE_RAK12035_CALIBRATION
-        // Calibration Data Screen is Channel 3
         float cap = RAK12035.get_sensor_capacitance();
         float _wet = RAK12035.get_humidity_full();
         float _dry = RAK12035.get_humidity_zero();
-
         telemetry.addFrequency(3, cap);
         telemetry.addTemperature(3, _wet);
         telemetry.addPower(3, _dry);
-
-        if (cap > _dry) {
-          RAK12035.set_humidity_zero(cap);
-        }
-
-        if (cap < _wet) {
-          RAK12035.set_humidity_full(cap);
-        }
-    #endif
+        if (cap > _dry) RAK12035.set_humidity_zero(cap);
+        if (cap < _wet) RAK12035.set_humidity_full(cap);
+      #endif
     }
 #endif
 
-
 #if ENV_PIN_SDA && ENV_PIN_SCL && defined(ESP32)
-// Reset error counter als alles goed ging
-consecutive_errors = 0;
+    consecutive_errors = 0;
 #endif
 
-}
+  }
 
   return true;
 }
@@ -863,7 +907,7 @@ consecutive_errors = 0;
 int EnvironmentSensorManager::getNumSettings() const {
   int settings = 0;
 #if ENV_INCLUDE_GPS
-  if (gps_detected) settings++; // only show GPS setting if GPS is detected
+  if (gps_detected) settings++;
 #endif
   return settings;
 }
@@ -907,17 +951,16 @@ bool EnvironmentSensorManager::setSettingValue(const char *name, const char *val
     if (interval_seconds > 0) {
       gps_update_interval_sec = interval_seconds;
     } else {
-      gps_update_interval_sec = 1; // Default to 1 second if 0
+      gps_update_interval_sec = 1;
     }
     return true;
   }
 #endif
-  return false; // not supported
+  return false;
 }
 
 #if ENV_INCLUDE_GPS
 void EnvironmentSensorManager::initBasicGPS() {
-  // Initialize serial port with correct pins
   MESH_DEBUG_PRINTLN("PIN_GPS_TX %d, PIN_GPS_RX %d", PIN_GPS_TX, PIN_GPS_RX);
 
 #ifdef GPS_BAUD_RATE
@@ -928,9 +971,8 @@ void EnvironmentSensorManager::initBasicGPS() {
   MESH_DEBUG_PRINTLN("GPS Serial initialized at 9600 baud");
 #endif
 
-  delay(1000); // Give GPS time to initialize
+  delay(1000);
 
-  // Try to detect if GPS is physically connected to determine if we should expose the setting
   _location->begin();
   _location->reset();
 
@@ -938,33 +980,37 @@ void EnvironmentSensorManager::initBasicGPS() {
   MESH_DEBUG_PRINTLN("No GPS wake/reset pin found for this board. Continuing on...");
 #endif
 
-  // On Heltec boards, assume GPS is present if we have a board pointer
-  // We can't power it on during init because board.begin() hasn't been called yet
+  // Give the GPS time to power up and emit its first NMEA sentence. Cold-start
+  // modules can take several seconds, so poll for up to ~5s instead of checking
+  // once after a fixed 1s delay -- returning as soon as any data appears, so
+  // fast modules add no boot delay.
 #ifdef ENV_SKIP_GPS_DETECT
   gps_detected = true;
   MESH_DEBUG_PRINTLN("GPS detection skipped (ENV_SKIP_GPS_DETECT)");
 #elif defined(HELTEC_LORA_V3)
+  // On Heltec boards, assume GPS is present if we have a board pointer
+  // We can't power it on during init because board.begin() hasn't been called yet
   gps_detected = (_board != nullptr);
   if (gps_detected) {
     MESH_DEBUG_PRINTLN("Heltec: GPS assumed present (board configured with GPS)");
     MESH_DEBUG_PRINTLN("GPS detection check: Serial1.available() = %d", Serial1.available());
-
   } else {
     MESH_DEBUG_PRINTLN("Heltec: No board reference, GPS not configured");
   }
 #else
-  // For non-Heltec boards, try to detect GPS by checking for data
-  delay(1000);
-  gps_detected = (Serial1.available() > 0);
+  // For non-Heltec boards, poll for GPS data for up to ~5s
+  gps_detected = false;
+  for (int i = 0; i < 20 && !gps_detected; i++) {
+    delay(250);
+    gps_detected = (Serial1.available() > 0);
+  }
   MESH_DEBUG_PRINTLN("GPS detection check: Serial1.available() = %d", Serial1.available());
 #endif
 
   if (gps_detected) {
     MESH_DEBUG_PRINTLN("GPS detected");
 #ifdef PERSISTANT_GPS
-    // Mark GPS for deferred power-on in persistent mode
-    // Actual power-on happens in loop() after board.begin() has been called
-    gps_active = false; // Not active yet - will be activated in loop()
+    gps_active = false;
     gps_needs_power_on = true;
     MESH_DEBUG_PRINTLN("GPS marked for persistent mode (deferred power-on in loop)");
     return;
@@ -974,11 +1020,9 @@ void EnvironmentSensorManager::initBasicGPS() {
   }
 
   _location->stop();
-  gps_active = false; // Set GPS visibility off until setting is changed
+  gps_active = false;
 }
 
-// gps code for rak might be moved to MicroNMEALoactionProvider
-// or make a new location provider ...
 #ifdef RAK_WISBLOCK_GPS
 void EnvironmentSensorManager::rakGPSInit() {
 
@@ -1008,22 +1052,31 @@ void EnvironmentSensorManager::rakGPSInit() {
     return;
   }
 
-#ifndef FORCE_GPS_ALIVE // for use with repeaters, until GPS toggle is implimented
-  // Now that GPS is found and set up, set to sleep for initial state
+#ifndef FORCE_GPS_ALIVE
   stop_gps();
 #endif
 }
 
 bool EnvironmentSensorManager::gpsIsAwake(uint8_t ioPin) {
 
+#if defined(ETHERNET_ENABLED) && defined(RAK_BOARD)
+  if (ioPin == WB_IO2) {
+    // WB_IO2 powers the Ethernet module on RAK baseboards.
+    return false;
+  }
+#endif
+
+#ifndef RAK_3401
   // set initial waking state
   pinMode(ioPin, OUTPUT);
   digitalWrite(ioPin, LOW);
   delay(500);
   digitalWrite(ioPin, HIGH);
+#endif
+
+  // give gps time to power up
   delay(500);
 
-  // Try to init RAK12500 on I2C
   if (ublox_GNSS.begin(Wire) == true) {
     MESH_DEBUG_PRINTLN("RAK12500 GPS init correctly with pin %i", ioPin);
     ublox_GNSS.setI2COutput(COM_TYPE_UBX);
@@ -1040,21 +1093,24 @@ bool EnvironmentSensorManager::gpsIsAwake(uint8_t ioPin) {
     i2cGPSFlag = true;
     gps_active = true;
     gps_detected = true;
-
     _location = &RAK12500_provider;
     return true;
   } else if (Serial1.available()) {
     MESH_DEBUG_PRINTLN("Serial GPS init correctly and is turned on");
+#ifdef PIN_GPS_EN
     if (PIN_GPS_EN) {
       gpsResetPin = PIN_GPS_EN;
     }
+#endif
     serialGPSFlag = true;
     gps_active = true;
     gps_detected = true;
     return true;
   }
-  
+
+#ifndef RAK_3401
   pinMode(ioPin, INPUT);
+#endif
   MESH_DEBUG_PRINTLN("GPS did not init with this IO pin... try the next");
   return false;
 }
@@ -1063,22 +1119,20 @@ bool EnvironmentSensorManager::gpsIsAwake(uint8_t ioPin) {
 void EnvironmentSensorManager::start_gps() {
   if (!gps_active) {
 #ifdef RAK_WISBLOCK_GPS
+    #ifndef RAK_3401
     pinMode(gpsResetPin, OUTPUT);
     digitalWrite(gpsResetPin, HIGH);
+    #endif
     gps_active = true;
     return;
 #endif
 
 #ifdef HELTEC_LORA_V3
-    // Heltec boards: manage peripheral power for GPS
     if (_board) {
       _board->periph_power.claim();
       MESH_DEBUG_PRINTLN("Heltec: Claimed peripheral power for GPS");
-      digitalWrite(PIN_GPS_EN, HIGH); // Wake GPS from standby
-
+      digitalWrite(PIN_GPS_EN, HIGH);
       delay(1000);
-
-      // Send configuration command to Heltec GPS modules
       Serial1.println("$CFGSYS,h35155*68");
       MESH_DEBUG_PRINTLN("Heltec: GPS configuration command sent");
       MESH_DEBUG_PRINTLN("Waiting for gps to power up");
@@ -1091,7 +1145,7 @@ void EnvironmentSensorManager::start_gps() {
     _location->reset();
 
 #ifndef PIN_GPS_EN
-  MESH_DEBUG_PRINTLN("Start GPS is N/A on this board. Actual GPS state unchanged");
+    MESH_DEBUG_PRINTLN("Start GPS is N/A on this board. Actual GPS state unchanged");
 #endif
   }
 }
@@ -1101,15 +1155,16 @@ void EnvironmentSensorManager::stop_gps() {
     gps_active = false;
 
 #ifdef RAK_WISBLOCK_GPS
+    #ifndef RAK_3401
     pinMode(gpsResetPin, OUTPUT);
     digitalWrite(gpsResetPin, LOW);
+    #endif
     return;
 #endif
 
     _location->stop();
 
 #ifdef HELTEC_LORA_V3
-    // Heltec boards: release peripheral power for GPS
     if (_board) {
       _board->periph_power.release();
       MESH_DEBUG_PRINTLN("Heltec: Released peripheral power for GPS");
@@ -1123,21 +1178,22 @@ void EnvironmentSensorManager::stop_gps() {
 }
 #endif
 
-#if ENV_INCLUDE_GPS || ENV_INCLUDE_BME680
+#if ENV_INCLUDE_GPS || ENV_INCLUDE_BME680 || defined(ENV_INCLUDE_BME680_BSEC)
 void EnvironmentSensorManager::loop() {
-  static long next_gps_update = 0;
 
 #if ENV_INCLUDE_GPS
   // Handle deferred GPS power-on for PERSISTANT_GPS mode
-  // This ensures board.begin() has been called before we use periph_power
   if (gps_needs_power_on && !gps_active) {
     MESH_DEBUG_PRINTLN("Activating GPS (deferred from init)...");
     start_gps();
     gps_needs_power_on = false;
   }
 
-  _location->loop();
+  if (gps_active) {
+    _location->loop();
+  }
 
+  static unsigned long next_gps_update = 0;
   if (millis() > next_gps_update) {
     if (gps_active) {
       static bool last_valid_state = false;
@@ -1145,7 +1201,6 @@ void EnvironmentSensorManager::loop() {
       bool currently_valid = _location->isValid();
       long current_sats = _location->satellitesCount();
 
-      // Log status changes or periodic updates (every 10 seconds when no fix)
       static unsigned long last_status_log = 0;
       bool should_log = (currently_valid != last_valid_state) || (current_sats != last_sat_count) ||
                         (!currently_valid && (millis() - last_status_log > 10000));
@@ -1191,20 +1246,17 @@ void EnvironmentSensorManager::loop() {
     }
     next_gps_update = millis() + (gps_update_interval_sec * 1000);
   }
-#endif
+#endif // ENV_INCLUDE_GPS
 
 #if ENV_INCLUDE_BME680
-  //  Periodically read BME680 sensor and cache the values
   unsigned long now = millis();
 
   if (BME680_initialized) {
 #ifdef BME680_BSEC2_SUPPORTED
     if (now - last_bme680_reading >= 3000 || last_bme680_reading == 0) {
-      // BSEC2: Call run() to get new data
       if (!BME680_BSEC.run()) {
         MESH_DEBUG_PRINTLN("BSEC run failed, status: %d", BME680_BSEC.status);
       } else {
-        // Get sensor data from BSEC
         bsecData temp_data = BME680_BSEC.getData(BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_TEMPERATURE);
         bsecData hum_data = BME680_BSEC.getData(BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_HUMIDITY);
         bsecData press_data = BME680_BSEC.getData(BSEC_OUTPUT_RAW_PRESSURE);
@@ -1214,36 +1266,28 @@ void EnvironmentSensorManager::loop() {
         if (temp_data.signal != 0 && press_data.signal != 0) {
           bme680_temperature = temp_data.signal;
           bme680_humidity = hum_data.signal;
-          bme680_pressure = press_data.signal / 100.0;      // Convert Pa to hPa
-          bme680_gas_resistance = gas_data.signal / 1000.0; // Convert Ohm to kOhm
+          bme680_pressure = press_data.signal / 100.0;
+          bme680_gas_resistance = gas_data.signal / 1000.0;
           bme680_iaq = iaq_data.signal;
           bme680_iaq_accuracy = iaq_data.accuracy;
-
-          // Calculate altitude from pressure + geoidal separation correction
-          bme680_altitude =
-              44330.0 * (1.0 - pow(bme680_pressure / TELEM_BME680_SEALEVELPRESSURE_HPA, 0.1903));
+          bme680_altitude = 44330.0 * (1.0 - pow(bme680_pressure / TELEM_BME680_SEALEVELPRESSURE_HPA, 0.1903));
           last_bme680_reading = now;
 
           MESH_DEBUG_PRINTLN("BME680 (BSEC2): Temp=%.2f°C, Hum=%.2f%%, Press=%.2f hPa, Alt=%.2fm "
-                             "Gas=%.0f kOhm, "
-                             "IAQ=%.2f, Acc=%d",
+                             "Gas=%.0f kOhm, IAQ=%.2f, Acc=%d",
                              bme680_temperature, bme680_humidity, bme680_pressure, bme680_altitude,
                              bme680_gas_resistance, bme680_iaq, (int)bme680_iaq_accuracy);
         }
       }
     }
 #else
-    // Adafruit library: Read periodically (every 3 seconds)
-
     if (now - last_bme680_reading >= 3000 || last_bme680_reading == 0) {
       BME680.begin();
       if (BME680.performReading()) {
         bme680_temperature = BME680.temperature;
         bme680_humidity = BME680.humidity;
-        bme680_pressure = BME680.pressure / 100; // Convert Pa to hPa
+        bme680_pressure = BME680.pressure / 100;
         bme680_gas_resistance = BME680.gas_resistance;
-
-        // Use library's altitude calculation + geoidal separation correction
         bme680_altitude = BME680.readAltitude(TELEM_BME680_SEALEVELPRESSURE_HPA);
         last_bme680_reading = now;
 
@@ -1256,6 +1300,29 @@ void EnvironmentSensorManager::loop() {
     }
 #endif
   }
-#endif
+#endif // ENV_INCLUDE_BME680
+
+#if ENV_INCLUDE_BME680_BSEC
+  if (bsec_active && bsec_iaq.run()) {
+    bsec_temperature  = bsec_iaq.temperature;
+    bsec_humidity     = bsec_iaq.humidity;
+    bsec_pressure_hpa = bsec_iaq.pressure / 100.0f;
+    bsec_iaq_val      = bsec_iaq.iaq;
+    bsec_accuracy     = bsec_iaq.iaqAccuracy;
+    bsec_data_ready   = true;
+
+    if (bsec_accuracy == 3) {
+      if (!bsec_first_save_done) {
+        bsec_save_state();
+        bsec_last_save_ms = millis();
+        bsec_first_save_done = true;
+      } else if ((millis() - bsec_last_save_ms) >= BSEC_SAVE_INTERVAL_MS) {
+        bsec_save_state();
+        bsec_last_save_ms = millis();
+      }
+    }
+  }
+#endif // ENV_INCLUDE_BME680_BSEC
+
 }
-#endif
+#endif // ENV_INCLUDE_GPS || ENV_INCLUDE_BME680 || ENV_INCLUDE_BME680_BSEC

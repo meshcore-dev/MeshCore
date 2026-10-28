@@ -4,8 +4,10 @@
 #include <stdint.h>
 
 #define TXT_TYPE_PLAIN          0      // a plain text message
-#define TXT_TYPE_CLI_DATA       1      // a CLI command
+#define TXT_TYPE_CLI_DATA       1      // a CLI command -or- reply
 #define TXT_TYPE_SIGNED_PLAIN   2      // plain text, signed by sender
+#define TXT_TYPE_CLI_COMMAND    3      // a CLI command (explictly)
+
 #define DATA_TYPE_RESERVED      0x0000 // reserved for future use
 #define DATA_TYPE_DEV           0xFFFF // developer namespace for experimenting with group/channel datagrams and building apps
 

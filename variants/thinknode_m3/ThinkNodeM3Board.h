@@ -11,19 +11,18 @@ protected:
 #if NRF52_POWER_MANAGEMENT
   void initiateShutdown(uint8_t reason) override;
 #endif
-  uint8_t btn_prev_state;
 
 public:
   ThinkNodeM3Board() : NRF52Board("THINKNODE_M3_OTA") {}
   void begin();
   uint16_t getBattMilliVolts() override;
 
-#if defined(P_LORA_TX_LED)
+#ifdef P_LORA_TX_LED
   void onBeforeTransmit() override {
-    digitalWrite(P_LORA_TX_LED, HIGH);   // turn TX LED on
+    digitalWrite(P_LORA_TX_LED, LED_STATE_ON);  // turn TX LED on
   }
   void onAfterTransmit() override {
-    digitalWrite(P_LORA_TX_LED, LOW);   // turn TX LED off
+    digitalWrite(P_LORA_TX_LED, !LED_STATE_ON); // turn TX LED off
   }
 #endif
 
@@ -31,24 +30,13 @@ public:
     return "Elecrow ThinkNode M3";
   }
 
-  int buttonStateChanged() {
-  #ifdef BUTTON_PIN
-    uint8_t v = digitalRead(BUTTON_PIN);
-    if (v != btn_prev_state) {
-      btn_prev_state = v;
-      return (v == LOW) ? 1 : -1;
-    }
-  #endif
-    return 0;
-  }
-
   void powerOff() override {
     // turn off all leds, sd_power_system_off will not do this for us
-    #ifdef P_LORA_TX_LED
-    digitalWrite(P_LORA_TX_LED, LOW);
-    #endif
+    digitalWrite(PIN_LED_BLUE, !LED_STATE_ON);
+    digitalWrite(PIN_LED_GREEN, !LED_STATE_ON);
+    digitalWrite(PIN_LED_RED, !LED_STATE_ON);
 
     // power off board
-    sd_power_system_off();
+    NRF52Board::powerOff();
   }
 };
