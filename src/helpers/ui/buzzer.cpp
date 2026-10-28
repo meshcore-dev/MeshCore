@@ -46,6 +46,10 @@ void genericBuzzer::shutdown() {
 
 void genericBuzzer::quiet(bool buzzer_state) {
     _is_quiet = buzzer_state;
+    if (_is_quiet) {
+      if (rtttl::isPlaying()) rtttl::stop();
+      digitalWrite(PIN_BUZZER, LOW);
+    }
 #ifdef PIN_BUZZER_EN
     if (_is_quiet) {
       digitalWrite(PIN_BUZZER_EN, LOW);
