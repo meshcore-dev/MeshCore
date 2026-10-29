@@ -485,6 +485,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
 
 void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* reply) {
   const char* config = &command[4];
+  while (*config == ' ') config++;
 
   if (memcmp(config, "allow.read.only ", 16) == 0) {
     _prefs->allow_read_only = memcmp(&config[16], "on", 2) == 0;
@@ -658,7 +659,9 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     strcpy(reply, "OK");
 #endif
   } else if (memcmp(config, "auto_reboot ", 12) == 0 || memcmp(config, "auto.reboot ", 12) == 0) {
-    int hours = _atoi(&config[12]);
+    const char* val = &config[12];
+    while (*val == ' ') val++;
+    int hours = _atoi(val);
     if (hours >= 0 && hours <= 720) {
       _prefs->auto_reboot_hours = (uint16_t)hours;
       savePrefs();
@@ -713,6 +716,7 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
 
 void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* reply) {
   const char* config = &command[4];
+  while (*config == ' ') config++;
   if (memcmp(config, "allow.read.only", 15) == 0) {
     sprintf(reply, "> %s", _prefs->allow_read_only ? "on" : "off");
   } else if (memcmp(config, "flood.advert.interval", 21) == 0) {

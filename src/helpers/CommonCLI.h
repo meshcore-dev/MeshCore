@@ -58,7 +58,7 @@ public:
   char bridge_secret[16]; // for XOR encryption of bridge packets (ESP-NOW only)
   // Power setting
   uint8_t powersaving_enabled = 0; // boolean
-  uint16_t auto_reboot_hours = 24; // hours between automatic reboots (0 = disabled)
+  uint16_t auto_reboot_hours = 0;  // hours between automatic reboots (0 = disabled)
   // Gps settings
   uint8_t gps_enabled = 0;
   uint32_t gps_interval = 0; // in seconds
