@@ -10,15 +10,15 @@ bool SH1106Display::i2c_probe(TwoWire &wire, uint8_t addr)
 }
 
 // Color scheme
-ColorVal UIColor::window_bkg = SH110X_BLACK;
-ColorVal UIColor::title_bkg = SH110X_BLACK;
-ColorVal UIColor::title_txt = SH110X_WHITE;
-ColorVal UIColor::primary_txt = SH110X_WHITE;
-ColorVal UIColor::secondary_txt = SH110X_WHITE;
-ColorVal UIColor::warning_txt = SH110X_WHITE;
-ColorVal UIColor::popup_bkg = SH110X_BLACK;
-ColorVal UIColor::popup_txt = SH110X_WHITE;
-ColorVal UIColor::corp_blue = SH110X_WHITE;
+__attribute__((weak)) ColorVal UIColor::window_bkg = SH110X_BLACK;
+__attribute__((weak)) ColorVal UIColor::title_bkg = SH110X_BLACK;
+__attribute__((weak)) ColorVal UIColor::title_txt = SH110X_WHITE;
+__attribute__((weak)) ColorVal UIColor::primary_txt = SH110X_WHITE;
+__attribute__((weak)) ColorVal UIColor::secondary_txt = SH110X_WHITE;
+__attribute__((weak)) ColorVal UIColor::warning_txt = SH110X_WHITE;
+__attribute__((weak)) ColorVal UIColor::popup_bkg = SH110X_BLACK;
+__attribute__((weak)) ColorVal UIColor::popup_txt = SH110X_WHITE;
+__attribute__((weak)) ColorVal UIColor::corp_blue = SH110X_WHITE;
 
 bool SH1106Display::begin()
 {

@@ -197,11 +197,10 @@ class HomeScreen : public UIScreen {
         sensors_nb ++;
       }
       sensors_scroll = sensors_nb > UI_RECENT_LIST_SIZE;
-#if AUTO_OFF_MILLIS > 0
-      next_sensors_refresh = millis() + 5000; // refresh sensor values every 5 sec
-#else
-      next_sensors_refresh = millis() + 60000; // refresh sensor values every 1 min
-#endif
+      if (display.isEink()) // preserve eink displays
+        next_sensors_refresh = millis() + 60000; // refresh sensor values every 1 min
+      else
+        next_sensors_refresh = millis() + 5000; // refresh sensor values every 5 sec
     }
   }
 
@@ -703,11 +702,7 @@ public:
     display.translateUTF8ToBlocks(filtered_msg, p->msg, sizeof(filtered_msg));
     display.printWordWrap(filtered_msg, display.width());
 
-#if AUTO_OFF_MILLIS==0 // probably e-ink
-    return 10000; // 10 s
-#else
-    return 1000;  // next render after 1000 ms
-#endif
+    return display.isEink() ? 10000 : 1000; // 10 s for eink
   }
 
   bool handleInput(char c) override {
@@ -738,6 +733,9 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
 #endif
 #if defined(PIN_USER_BTN_ANA)
   analog_btn.begin();
+#endif
+#if defined(BACKLIGHT_BTN)
+  backlight_btn.begin();
 #endif
 
   _node_prefs = node_prefs;
@@ -910,9 +908,11 @@ void UITask::shutdown(bool restart){
   if (restart) {
     _board->reboot();
   } else {
-    display.forceFullRefresh();
-    display.clear();
-    display.endFrame();
+    if (_display->isEink()) {
+      _display->blankScreen();
+      _display->turnOff();
+      _display->powerOff();
+    }
     // Power off board including radio, display, GPS and components
     _board->powerOff();
   }
@@ -957,7 +957,9 @@ void UITask::loop() {
   if (ev == BUTTON_EVENT_CLICK) {
     c = checkDisplayOn(KEY_ENTER);
   } else if (ev == BUTTON_EVENT_LONG_PRESS) {
+    display.blankScreen();
     display.turnOff();
+    display.powerOff();
   } else if (ev == BUTTON_EVENT_DOUBLE_CLICK) {
     c = handleDoubleClick(KEY_SELECT);
   } else if (ev == BUTTON_EVENT_TRIPLE_CLICK) {
@@ -1002,13 +1004,31 @@ void UITask::loop() {
 #endif
 #if defined(BACKLIGHT_BTN)
   if (millis() > next_backlight_btn_check) {
-    bool touch_state = digitalRead(PIN_BUTTON2);
+    if (backlight_btn.isPressed()) {
+      if (!_display->isOn()) {
+        _display->turnOn();
+        _next_refresh = 0;
+      }
+      _auto_off = millis() + AUTO_OFF_MILLIS;   // extend auto-off timer
+      backlight_btn_pressed_at = millis(); // still pressed
+    }
+    bool touch_state = (millis() - backlight_btn_pressed_at > 5000);
+      // Backlight button events
+    int bev = backlight_btn.check();
+    if (bev == BUTTON_EVENT_DOUBLE_CLICK) {
+      _display->forceFullRefresh();
+    } else if (bev == BUTTON_EVENT_TRIPLE_CLICK) {
+      _display->blankScreen();
+      _display->turnOff();
+      _display->powerOff();
+      backlight_btn_pressed_at = 0;
+    }
 #if defined(DISP_BACKLIGHT)
     digitalWrite(DISP_BACKLIGHT, !touch_state);
 #elif defined(EXP_PIN_BACKLIGHT)
     expander.digitalWrite(EXP_PIN_BACKLIGHT, !touch_state);
 #endif
-    next_backlight_btn_check = millis() + 300;
+    next_backlight_btn_check = millis() + 100;
   }
 #endif
 
@@ -1056,6 +1076,12 @@ void UITask::loop() {
     }
 #endif
     if (millis() > _auto_off) {
+        #ifdef EINK_SCREENOFF_BLANK
+        if (curr != msg_preview) { // don't blank if messages are waiting
+          _display->blankScreen();
+          _display->powerOff();
+        }
+        #endif
       _display->turnOff();
     }
 #endif

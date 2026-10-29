@@ -200,8 +200,11 @@ public:
   }
 };
 
-static RTC_NOINIT_ATTR uint32_t _rtc_backup_time;
-static RTC_NOINIT_ATTR uint32_t _rtc_backup_magic;
+// The time ESP32RTCClock restores after a reset, in RTC memory that a reset does
+// not clear. Defined once, in ESP32Board.cpp: the inline members below run in
+// every translation unit that uses them and must all see the same backup.
+extern uint32_t _rtc_backup_time;
+extern uint32_t _rtc_backup_magic;
 #define RTC_BACKUP_MAGIC  0xAA55CC33
 #define RTC_TIME_MIN      1772323200  // 1 Mar 2026
 

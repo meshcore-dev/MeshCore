@@ -26,6 +26,7 @@ EnvironmentSensorManager sensors = EnvironmentSensorManager();
 #ifdef DISPLAY_CLASS
   DISPLAY_CLASS display;
   MomentaryButton user_btn(PIN_USER_BTN, 1000, true);
+  MomentaryButton backlight_btn(BACKLIGHT_BTN, 1000, true);
 #endif
 
 bool radio_init() {
