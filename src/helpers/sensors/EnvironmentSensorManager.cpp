@@ -97,8 +97,11 @@ LPS22HBClass LPS22HB(*TELEM_WIRE);
 #endif
 
 #if ENV_INCLUDE_INA3221
-#ifndef TELEM_INA3221_ADDRESS
-#define TELEM_INA3221_ADDRESS     0x42    // INA3221 3 channel current sensor I2C address
+#ifdef TELEM_INA3221_ADDRESS
+  #define TELEM_INA3221_PROBE_ALL 0     // address pinned by the variant
+#else
+  #define TELEM_INA3221_ADDRESS   0x42  // INA3221 3 channel current sensor I2C address (A0 = SDA)
+  #define TELEM_INA3221_PROBE_ALL 1     // also try the other A0 straps: 0x40 (GND), 0x41 (VS), 0x43 (SCL)
 #endif
 #ifndef TELEM_INA3221_SHUNT_VALUE
 #define TELEM_INA3221_SHUNT_VALUE 0.100 // most variants will have a 0.1 ohm shunts
@@ -585,7 +588,14 @@ static const SensorDef SENSOR_TABLE[] = {
   { 0x5C,                  "LPS22HB",      init_lps22hb,  query_lps22hb  },
 #endif
 #if ENV_INCLUDE_INA3221
+  // Listed before INA219/INA260/INA226, which share 0x40-0x41. The INA3221 driver checks the
+  // manufacturer/die ID, so another chip at these addresses is left for its own driver.
   { TELEM_INA3221_ADDRESS, "INA3221",      init_ina3221,  query_ina3221  },
+#if TELEM_INA3221_PROBE_ALL
+  { 0x40,                  "INA3221",      init_ina3221,  query_ina3221  },
+  { 0x41,                  "INA3221",      init_ina3221,  query_ina3221  },
+  { 0x43,                  "INA3221",      init_ina3221,  query_ina3221  },
+#endif
 #endif
 #if ENV_INCLUDE_INA219
   { TELEM_INA219_ADDRESS,  "INA219",       init_ina219,   query_ina219   },
