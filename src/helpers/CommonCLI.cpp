@@ -657,6 +657,19 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     savePrefs();
     strcpy(reply, "OK");
 #endif
+  } else if (memcmp(config, "auto_reboot ", 12) == 0 || memcmp(config, "auto.reboot ", 12) == 0) {
+    int hours = _atoi(&config[12]);
+    if (hours >= 0 && hours <= 720) {
+      _prefs->auto_reboot_hours = (uint16_t)hours;
+      savePrefs();
+      if (hours == 0) {
+        strcpy(reply, "OK - auto_reboot disabled");
+      } else {
+        sprintf(reply, "OK - auto_reboot every %d hours", hours);
+      }
+    } else {
+      strcpy(reply, "Error: hours must be between 0-720");
+    }
   } else if (memcmp(config, "adc.multiplier ", 15) == 0) {
     _prefs->adc_multiplier = atof(&config[15]);
     if (_board->setAdcMultiplier(_prefs->adc_multiplier)) {
@@ -791,6 +804,12 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
   #else
       strcpy(reply, "Error: unsupported");
   #endif
+  } else if (memcmp(config, "auto_reboot", 11) == 0 || memcmp(config, "auto.reboot", 11) == 0) {
+    if (_prefs->auto_reboot_hours == 0) {
+      strcpy(reply, "> 0 (disabled)");
+    } else {
+      sprintf(reply, "> %u", (unsigned)_prefs->auto_reboot_hours);
+    }
   } else if (memcmp(config, "adc.multiplier", 14) == 0) {
     float adc_mult = _board->getAdcMultiplier();
     if (adc_mult == 0.0f) {

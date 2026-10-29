@@ -45,6 +45,48 @@ bool ESP32Board::startOTAUpdate(const char* id, char reply[]) {
 }
 #endif
 
+void ESP32Board::reboot() {
+#ifdef DISPLAY_CLASS
+  display.turnOff();
+#endif
+  radio_driver.powerOff();
+
+  if (sensors.getLocationProvider() != NULL) {
+    sensors.getLocationProvider()->stop();
+  }
+
+#if defined(P_LORA_PA_POWER) && P_LORA_PA_POWER >= 0
+  pinMode(P_LORA_PA_POWER, OUTPUT);
+  digitalWrite(P_LORA_PA_POWER, LOW);
+#endif
+
+#if defined(SX126X_RXEN) && SX126X_RXEN >= 0
+  pinMode(SX126X_RXEN, OUTPUT);
+  digitalWrite(SX126X_RXEN, LOW);
+#endif
+
+#if defined(P_LORA_RESET) && P_LORA_RESET >= 0
+  pinMode(P_LORA_RESET, OUTPUT);
+  digitalWrite(P_LORA_RESET, LOW);
+#endif
+
+#if defined(PIN_VEXT_EN) && PIN_VEXT_EN >= 0
+  pinMode(PIN_VEXT_EN, OUTPUT);
+  digitalWrite(PIN_VEXT_EN, !PIN_VEXT_EN_ACTIVE);
+#endif
+
+  Serial.flush();
+
+  // Hold radio & external power rails in reset/off state for 5 seconds
+  for (int i = 0; i < 50; i++) {
+    esp_task_wdt_reset();
+    delay(100);
+  }
+
+  rtc_clock.tick();
+  esp_restart();
+}
+
 void ESP32Board::powerOff() {
   enterDeepSleep(0); // Do not wakeup
 }

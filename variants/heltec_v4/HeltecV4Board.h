@@ -29,6 +29,7 @@ public:
 
   void onBeforeTransmit(void) override;
   void onAfterTransmit(void) override;
+  void reboot() override;
   void powerOff() override;
   uint16_t getBattMilliVolts() override;
   bool setAdcMultiplier(float multiplier) override {
