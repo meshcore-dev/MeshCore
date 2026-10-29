@@ -100,6 +100,9 @@ class HomeScreen : public UIScreen {
 #if UI_SENSORS_PAGE == 1
     SENSORS,
 #endif
+#ifdef PIN_BUZZER
+    BOT_SPEAK,
+#endif
     SHUTDOWN,
     Count    // keep as last
   };
@@ -365,6 +368,15 @@ public:
       if (sensors_scroll) sensors_scroll_offset = (sensors_scroll_offset+1)%sensors_nb;
       else sensors_scroll_offset = 0;
 #endif
+#ifdef PIN_BUZZER
+    } else if (_page == HomePage::BOT_SPEAK) {
+      display.setColor(UIColor::corp_blue);
+      display.setTextSize(1);
+      display.drawTextCentered(display.width() / 2, 12, "bot speak");
+      display.setColor(UIColor::primary_txt);
+      display.drawTextCentered(display.width() / 2, 28,
+          _task->isBotWithPhone() ? "with phone: on" : "with phone: off");
+#endif
     } else if (_page == HomePage::SHUTDOWN) {
       display.setColor(UIColor::secondary_txt);
       display.setTextSize(1);
@@ -417,6 +429,12 @@ public:
     if (c == KEY_ENTER && _page == HomePage::SENSORS) {
       _task->toggleGPS();
       next_sensors_refresh=0;
+      return true;
+    }
+#endif
+#ifdef PIN_BUZZER
+    if (c == KEY_ENTER && _page == HomePage::BOT_SPEAK) {
+      _task->toggleBotWithPhone();
       return true;
     }
 #endif
@@ -526,6 +544,11 @@ void UITask::onMessageRecv(mesh::Packet *pkt, const ContactInfo &from, uint8_t t
   if (!hasConnection()) {
     notify(UIEventType::contactMessage);
   }
+#ifdef PIN_BUZZER
+  if (!hasConnection() || _node_prefs->bot_with_phone) {
+    buzzer.playWords(text);  // replaces the notify tune if the message has bot speak words
+  }
+#endif
 }
 
 void UITask::onChannelMessageRecv(mesh::Packet *pkt, ChannelDetails& channel_details, const char* text) {
@@ -541,6 +564,12 @@ void UITask::onChannelMessageRecv(mesh::Packet *pkt, ChannelDetails& channel_det
   if (!hasConnection()) {
     notify(UIEventType::channelMessage);
   }
+#ifdef PIN_BUZZER
+  if (!hasConnection() || _node_prefs->bot_with_phone) {
+    const char* msg = strstr(text, ": ");  // skip "<sender>: " so sender names don't trigger sounds
+    buzzer.playWords(msg ? msg + 2 : text);
+  }
+#endif
 }
 
 void UITask::onDiscoveredContact(ContactInfo &contact, bool is_new, uint8_t path_len, const uint8_t* path) {
@@ -861,6 +890,16 @@ void UITask::toggleBuzzer() {
     _node_prefs->buzzer_quiet = buzzer.isQuiet();
     the_mesh.savePrefs();
     showAlert(buzzer.isQuiet() ? "Buzzer: OFF" : "Buzzer: ON", 800);
+    _next_refresh = 0;  // trigger refresh
+  #endif
+}
+
+void UITask::toggleBotWithPhone() {
+  #ifdef PIN_BUZZER
+    _node_prefs->bot_with_phone = !_node_prefs->bot_with_phone;
+    if (_node_prefs->bot_with_phone) buzzer.playWords("happy");
+    the_mesh.savePrefs();
+    showAlert(_node_prefs->bot_with_phone ? "Bot+phone: ON" : "Bot+phone: OFF", 800);
     _next_refresh = 0;  // trigger refresh
   #endif
 }
