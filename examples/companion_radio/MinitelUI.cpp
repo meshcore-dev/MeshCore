@@ -2,6 +2,7 @@
 
 #include "MinitelUI.h"
 #include "MyMesh.h"
+#include <time.h>
 #include <Minitel1B_Hard.h>   // keep last: defines many short macros (ESC, CR, SEP, ...)
 
 // Screen layout (rows 1..24, 40 columns)
@@ -17,6 +18,14 @@
 #define HINT_COLS      30   // hint text, then the byte counter
 #define MENU_ROW_FIRST 3
 #define MENU_ROWS      17
+#define MENU_ROW_ACTION_ZEROHOP  2    // just above the conversation list
+#define MENU_ROW_ACTION_FLOOD    20   // just below the conversation list
+#define MENU_ROW_STATUS          23   // feedback for the last action
+
+// reserved menu numbers for the two advert actions: well above any realistic
+// conversation count, so they can never collide with a real entry
+#define MENU_ACTION_ZEROHOP  900
+#define MENU_ACTION_FLOOD    901
 #define MAX_WRAP_LINES 10
 
 #define PROBE_RETRY_MILLIS    5000
@@ -24,8 +33,9 @@
 #define PING_INTERVAL_MILLIS  10000
 #define PING_REPLY_MILLIS     2000
 #define HEADER_REFRESH_MILLIS 60000
-#define SPLASH_MILLIS         6000
+#define SPLASH_MILLIS         30000
 #define ACK_MARGIN_MILLIS     2000
+#define MAX_AUTORESEND        3     // how many times to auto-resend an unconfirmed private message
 
 #ifndef MAX_GROUP_CHANNELS
   #define MAX_GROUP_CHANNELS  1
@@ -396,6 +406,10 @@ void MinitelUI::loop() {
     _next_ack_check = millis() + 1000;
   }
   if (_mode == MODE_SPLASH && !_full_dirty && reached(_splash_until)) {
+    _mode = needsPairing() ? MODE_PAIRING : MODE_CHAT;
+    _full_dirty = true;
+  }
+  if (_mode == MODE_PAIRING && _mesh.isBLEConnected()) {
     _mode = MODE_CHAT;
     _full_dirty = true;
   }
@@ -531,6 +545,10 @@ void MinitelUI::onKey(const KeyEvent& ev) {
   }
   switch (_mode) {
     case MODE_SPLASH:
+      _mode = needsPairing() ? MODE_PAIRING : MODE_CHAT;
+      _full_dirty = true;
+      break;
+    case MODE_PAIRING:
       _mode = MODE_CHAT;
       _full_dirty = true;
       break;
@@ -541,6 +559,10 @@ void MinitelUI::onKey(const KeyEvent& ev) {
       onMenuKey(ev);
       break;
   }
+}
+
+bool MinitelUI::needsPairing() const {
+  return _mesh.getBLEPin() != 0 && !_mesh.isBLEConnected();
 }
 
 void MinitelUI::onChatKey(const KeyEvent& ev) {
@@ -585,6 +607,7 @@ void MinitelUI::onChatKey(const KeyEvent& ev) {
       _mode = MODE_MENU;
       _menu_page = 0;
       _menu_num_len = 0;
+      _menu_status[0] = 0;
       _full_dirty = true;
       break;
   }
@@ -613,6 +636,16 @@ void MinitelUI::onMenuKey(const KeyEvent& ev) {
       break;
     case KEY_ENVOI: {
       int num = _menu_num_len > 0 ? atoi(_menu_num) : 0;
+      if (num == MENU_ACTION_ZEROHOP || num == MENU_ACTION_FLOOD) {
+        bool zerohop = (num == MENU_ACTION_ZEROHOP);
+        bool ok = zerohop ? _mesh.advert() : _mesh.advertFlood();
+        strcpy(_menu_status, ok
+          ? (zerohop ? "Annonce envoyée (voisins)." : "Annonce envoyée (tout le réseau).")
+          : "Échec de l'envoi de l'annonce.");
+        _menu_num_len = 0;
+        _full_dirty = true;
+        break;
+      }
       Conv conv;
       if (num >= 1 && num <= buildMenu(&conv, 1, num - 1)) {
         openConv(conv);
@@ -669,7 +702,7 @@ MinitelUI::Msg& MinitelUI::newMsg(const Conv& conv) {
 #define MSG_AT(n)  _msgs[(_msg_head - _msg_count + (n) + MINITEL_HISTORY) % MINITEL_HISTORY]
 
 void MinitelUI::onChannelMessage(uint8_t channel_idx, const char* sender, const char* text, int text_len,
-                                 uint8_t hops, int8_t snr4) {
+                                 uint8_t hops, int8_t snr4, uint32_t timestamp) {
   Conv conv = { CONV_CHANNEL, { channel_idx, 0, 0, 0 } };
 
   char raw[MINITEL_MSG_SLOT + 40];
@@ -686,13 +719,14 @@ void MinitelUI::onChannelMessage(uint8_t channel_idx, const char* sender, const 
   m.hops = hops;
   m.snr4 = snr4;
   m.bytes = len;
+  m.timestamp = timestamp ? timestamp : _mesh.getRTCClock()->getCurrentTime();
   if (sender) m.flags = MSG_OUT;   // our own message is never unread
   sanitize(m.text, sizeof(m.text), raw, len);
 
   if (sender == NULL && _mt && _state == ONLINE) _mt->bip();
 }
 
-void MinitelUI::onDirectMessage(const ContactInfo& from, const char* text, uint8_t hops, int8_t snr4) {
+void MinitelUI::onDirectMessage(const ContactInfo& from, const char* text, uint8_t hops, int8_t snr4, uint32_t timestamp) {
   Conv conv = { CONV_CONTACT };
   memcpy(conv.id, from.id.pub_key, 4);
 
@@ -703,12 +737,14 @@ void MinitelUI::onDirectMessage(const ContactInfo& from, const char* text, uint8
   m.hops = hops;
   m.snr4 = snr4;
   m.bytes = strlen(text);
+  m.timestamp = timestamp ? timestamp : _mesh.getRTCClock()->getCurrentTime();
   sanitize(m.text, sizeof(m.text), raw, strlen(raw));
 
   if (_mt && _state == ONLINE) _mt->bip();
 }
 
-void MinitelUI::onDirectSent(const ContactInfo& to, const char* text, uint32_t expected_ack, uint32_t est_timeout) {
+void MinitelUI::onDirectSent(const ContactInfo& to, const char* text, uint32_t expected_ack, uint32_t est_timeout,
+                              bool auto_resend) {
   Conv conv = { CONV_CONTACT };
   memcpy(conv.id, to.id.pub_key, 4);
 
@@ -729,9 +765,12 @@ void MinitelUI::onDirectSent(const ContactInfo& to, const char* text, uint32_t e
     m = &newMsg(conv);
     m->flags = MSG_OUT;
     m->bytes = strlen(text);
+    m->timestamp = _mesh.getRTCClock()->getCurrentTime();
     strcpy(m->text, clean);
   }
   m->flags &= ~MSG_TIMEOUT;
+  if (auto_resend) m->flags |= MSG_AUTORESEND; else m->flags &= ~MSG_AUTORESEND;
+  m->resend_count = 0;
   m->ack = expected_ack;
   m->ack_deadline = millis() + est_timeout + ACK_MARGIN_MILLIS;
   if (sameConv(conv, _conv)) _msgs_dirty = true;
@@ -751,10 +790,24 @@ void MinitelUI::onAck(uint32_t ack) {
 void MinitelUI::checkAckTimeouts() {
   for (int n = 0; n < _msg_count; n++) {
     Msg& m = MSG_AT(n);
-    if (m.ack && !(m.flags & (MSG_ACKED | MSG_TIMEOUT)) && reached(m.ack_deadline)) {
-      m.flags |= MSG_TIMEOUT;
-      if (sameConv(m.conv, _conv)) _msgs_dirty = true;
+    if (!(m.ack && !(m.flags & (MSG_ACKED | MSG_TIMEOUT)) && reached(m.ack_deadline))) continue;
+
+    bool resent = false;
+    if ((m.flags & MSG_AUTORESEND) && m.resend_count < MAX_AUTORESEND) {
+      int prefix_len = strlen(_mesh.getNodeName()) + 2;   // "<name>: " built in onDirectSent()
+      ContactInfo* contact = convContact(m.conv);
+      if (contact && (int)strlen(m.text) > prefix_len) {
+        uint32_t new_ack, new_timeout;
+        if (_mesh.sendDirectText(contact, &m.text[prefix_len], new_ack, new_timeout)) {
+          m.ack = new_ack;
+          m.ack_deadline = millis() + new_timeout + ACK_MARGIN_MILLIS;
+          m.resend_count++;
+          resent = true;
+        }
+      }
     }
+    if (!resent) m.flags |= MSG_TIMEOUT;
+    if (sameConv(m.conv, _conv)) _msgs_dirty = true;
   }
 }
 
@@ -799,8 +852,7 @@ void MinitelUI::openConv(const Conv& conv) {
     if (sameConv(m.conv, conv)) m.flags &= ~MSG_UNREAD;
   }
   _scroll = 0;
-  _input_len = _input_chars = 0;
-  _input[0] = _input_saved[0] = 0;
+  // the input in progress is kept as-is across a conversation switch (not cleared)
   _mode = MODE_CHAT;
   _full_dirty = true;
 }
@@ -883,7 +935,7 @@ void MinitelUI::sendInput() {
     ContactInfo* contact = convContact(_conv);
     uint32_t expected_ack = 0, est_timeout = 0;
     if (contact && _mesh.sendDirectText(contact, _input, expected_ack, est_timeout)) {
-      onDirectSent(*contact, _input, expected_ack, est_timeout);
+      onDirectSent(*contact, _input, expected_ack, est_timeout, true);
       sent = true;
     }
   }
@@ -908,6 +960,11 @@ int MinitelUI::composeMsg(const Msg& m, char* dest, int dest_size) {
     il += snprintf(&info[il], sizeof(info) - il, "%s", status);
   }
   if (_details) {
+    time_t t = (time_t)m.timestamp;
+    struct tm tmv;
+    gmtime_r(&t, &tmv);
+    il += snprintf(&info[il], sizeof(info) - il, "%s%02d:%02d", il ? ", " : "", tmv.tm_hour, tmv.tm_min);
+
     if (!(m.flags & MSG_OUT)) {
       if (m.hops == MINITEL_HOPS_DIRECT) {
         il += snprintf(&info[il], sizeof(info) - il, "%sroute directe", il ? ", " : "");
@@ -960,6 +1017,9 @@ void MinitelUI::renderAll() {
     case MODE_SPLASH:
       renderSplash();
       break;
+    case MODE_PAIRING:
+      renderPairing();
+      break;
     case MODE_CHAT:
       _mt->newScreen();
       _mt->cursor();
@@ -986,7 +1046,7 @@ void MinitelUI::renderSplash() {
   printCentered(6, "Messagerie LoRa sur Minitel");
 
   printCentered(9, "Une réalisation de");
-  printCentered(10, " capt_pierrot & Jonathan ", true);
+  printCentered(10, " Capt_Pierrot & Jonathan ", true);
 
   printCentered(13, "Basé sur :");
   printCentered(14, "MeshCore - github.com/meshcore-dev");
@@ -997,6 +1057,32 @@ void MinitelUI::renderSplash() {
   snprintf(line, sizeof(line), "Firmware %s - %s", FIRMWARE_VERSION, _mesh.getNodeName());
   printCentered(20, line);
   printCentered(23, "Appuyez sur une touche");
+}
+
+// Shown after the splash screen while no phone has connected over Bluetooth yet
+void MinitelUI::renderPairing() {
+  _mt->newScreen();
+  _mt->noCursor();
+  _mt->moveCursorXY(9, 3);
+  _mt->attributs(DOUBLE_GRANDEUR);
+  _mt->print("Bluetooth");
+  _mt->attributs(GRANDEUR_NORMALE);
+  printCentered(6, "En attente de l'application MeshCore");
+
+  char line[40];
+  printCentered(9, "Nom de l'appareil :");
+  snprintf(line, sizeof(line), "%s%s", BLE_NAME_PREFIX, _mesh.getNodeName());
+  printCentered(10, line, true);
+
+  printCentered(13, "Code d'appairage :");
+  snprintf(line, sizeof(line), "%06u", (unsigned)_mesh.getBLEPin());
+  printCentered(14, line, true);
+
+  printCentered(17, "Dans l'application, ajoutez cet");
+  printCentered(18, "appareil puis entrez ce code.");
+  printCentered(21, "L'écran passe à la conversation");
+  printCentered(22, "dès la connexion.");
+  printCentered(23, "Appuyez sur une touche pour l'ignorer");
 }
 
 void MinitelUI::renderHeader() {
@@ -1079,10 +1165,17 @@ void MinitelUI::renderHint() {
   renderCounter();
 }
 
-// bytes used / allowed for the message being typed
+// how many more characters can still be typed: the stricter of the screen-space
+// limit (INPUT_MAX_CHARS) and the on-air size limit (inputMaxBytes, where an
+// accent costs 2 bytes but only 1 character)
 void MinitelUI::renderCounter() {
+  int remaining = INPUT_MAX_CHARS - _input_chars;
+  int remaining_bytes = inputMaxBytes() - _input_len;
+  if (remaining_bytes < remaining) remaining = remaining_bytes;
+  if (remaining < 0) remaining = 0;
+
   char counter[16];
-  snprintf(counter, sizeof(counter), "%3d/%3d o ", _input_len, inputMaxBytes());
+  snprintf(counter, sizeof(counter), "Reste %3d ", remaining);
   _mt->moveCursorXY(HINT_COLS + 1, ROW_HINT);
   _mt->attributs(INVERSION_FOND);
   _mt->print(String(counter));
@@ -1164,6 +1257,10 @@ void MinitelUI::renderMenu() {
   _mt->attributs(INVERSION_FOND);
   _mt->print(String(line));
   _mt->attributs(FOND_NORMAL);
+
+  printAt(1, MENU_ROW_ACTION_ZEROHOP, " 900 Annonce : voisins (sans relais)");
+  printAt(1, MENU_ROW_ACTION_FLOOD, " 901 Annonce : tout le réseau (relayée)");
+  if (_menu_status[0]) printAt(1, MENU_ROW_STATUS, _menu_status);
 
   int first = _menu_page * MENU_ROWS;
   int shown = total - first < MENU_ROWS ? total - first : MENU_ROWS;

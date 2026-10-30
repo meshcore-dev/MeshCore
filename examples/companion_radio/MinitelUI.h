@@ -39,10 +39,14 @@ public:
 
   // hooks called by MyMesh
   // sender == NULL: text is already formatted as "name: msg"
+  // timestamp: sender's clock, epoch seconds, 0 = use this node's current time instead
   void onChannelMessage(uint8_t channel_idx, const char* sender, const char* text, int text_len,
-                        uint8_t hops = MINITEL_HOPS_LOCAL, int8_t snr4 = 0);
-  void onDirectMessage(const ContactInfo& from, const char* text, uint8_t hops, int8_t snr4);
-  void onDirectSent(const ContactInfo& to, const char* text, uint32_t expected_ack, uint32_t est_timeout);
+                        uint8_t hops = MINITEL_HOPS_LOCAL, int8_t snr4 = 0, uint32_t timestamp = 0);
+  void onDirectMessage(const ContactInfo& from, const char* text, uint8_t hops, int8_t snr4, uint32_t timestamp = 0);
+  // auto_resend: true only for messages typed on the Minitel itself, so we don't
+  // compete with the phone app's own independent retry logic for its own sends
+  void onDirectSent(const ContactInfo& to, const char* text, uint32_t expected_ack, uint32_t est_timeout,
+                    bool auto_resend = false);
   void onAck(uint32_t ack);
 
   // called from the UART event task
@@ -50,7 +54,7 @@ public:
 
 private:
   enum State { PROBE_WAIT, PROBE_QUERY, PROBE_SWITCH, ONLINE };
-  enum Mode { MODE_SPLASH, MODE_CHAT, MODE_MENU };
+  enum Mode { MODE_SPLASH, MODE_CHAT, MODE_MENU, MODE_PAIRING };
   enum RxState { RX_IDLE, RX_SEP, RX_SS2, RX_SS2_ACCENT, RX_ESC, RX_PRO2, RX_SKIP };
 
   enum ConvType : uint8_t { CONV_CHANNEL = 0, CONV_CONTACT = 1 };
@@ -59,13 +63,15 @@ private:
     uint8_t id[4];   // channel index, or contact public key prefix
   };
 
-  enum MsgFlags : uint8_t { MSG_UNREAD = 1, MSG_OUT = 2, MSG_ACKED = 4, MSG_TIMEOUT = 8 };
+  enum MsgFlags : uint8_t { MSG_UNREAD = 1, MSG_OUT = 2, MSG_ACKED = 4, MSG_TIMEOUT = 8, MSG_AUTORESEND = 16 };
   struct Msg {
     Conv conv;
     uint8_t hops;
     int8_t snr4;
     uint8_t flags;
     uint8_t bytes;                 // text size on air
+    uint8_t resend_count;          // how many times we've auto-resent this, so far
+    uint32_t timestamp;            // epoch seconds, sender's clock (or ours, for our own sends)
     uint32_t ack;                  // expected ACK of an outgoing private message
     unsigned long ack_deadline;
     char text[MINITEL_MSG_SLOT];   // sanitized "name: text"
@@ -105,7 +111,7 @@ private:
 
   Conv _conv;
   int _scroll = 0;        // lines scrolled back from the newest
-  bool _details = false;  // show hops / SNR / bytes
+  bool _details = false;  // show time / hops / SNR / bytes
 
   char _input[MINITEL_INPUT_SIZE];
   int _input_len = 0;
@@ -116,6 +122,7 @@ private:
   int _menu_pages = 1;
   char _menu_num[4];
   int _menu_num_len = 0;
+  char _menu_status[48] = "";   // feedback for the last menu action (e.g. an advert sent)
 
   bool _full_dirty = false;
   bool _msgs_dirty = false;
@@ -133,6 +140,7 @@ private:
   void onMenuKey(const KeyEvent& ev);
   void onSpeedReply(uint8_t code);
   void checkAckTimeouts();
+  bool needsPairing() const;
 
   Msg& newMsg(const Conv& conv);
   bool sameConv(const Conv& a, const Conv& b) const { return a.type == b.type && memcmp(a.id, b.id, 4) == 0; }
@@ -151,6 +159,7 @@ private:
   int countMsgLines();
   void renderAll();
   void renderSplash();
+  void renderPairing();
   void renderHeader();
   void renderMessages();
   void renderHint();
