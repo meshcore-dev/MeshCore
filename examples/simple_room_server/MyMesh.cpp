@@ -164,7 +164,7 @@ int MyMesh::handleRequest(ClientInfo *sender, uint32_t sender_timestamp, uint8_t
     stats.n_packets_recv = radio_driver.getPacketsRecv();
     stats.n_packets_sent = radio_driver.getPacketsSent();
     stats.total_air_time_secs = getTotalAirTime() / 1000;
-    stats.total_up_time_secs = uptime_millis / 1000;
+    stats.total_up_time_secs = uptime.getMillis() / 1000;
     stats.n_sent_flood = getNumSentFlood();
     stats.n_sent_direct = getNumSentDirect();
     stats.n_recv_flood = getNumRecvFlood();
@@ -635,8 +635,6 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
       _cli(board, rtc, sensors, region_map, acl, &_prefs, this),
       telemetry(MAX_PACKET_PAYLOAD - 4)
 {
-  last_millis = 0;
-  uptime_millis = 0;
   next_local_advert = next_flood_advert = 0;
   dirty_contacts_expiry = 0;
   _logging = false;
@@ -1076,7 +1074,5 @@ void MyMesh::loop() {
   // TODO: periodically check for OLD/inactive entries in known_clients[], and evict
 
   // update uptime
-  uint32_t now = millis();
-  uptime_millis += now - last_millis;
-  last_millis = now;
+  uptime.update();
 }
