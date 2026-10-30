@@ -25,7 +25,12 @@ bool SSD1306Display::begin() {
   #ifdef DISPLAY_ROTATION
   display.setRotation(DISPLAY_ROTATION);
   #endif
-  return display.begin(SSD1306_SWITCHCAPVCC, DISPLAY_ADDRESS, true, false) && i2c_probe(Wire, DISPLAY_ADDRESS);
+  bool success = display.begin(SSD1306_SWITCHCAPVCC, DISPLAY_ADDRESS, true, false);
+  #if defined(PIN_OLED_CS) && defined(PIN_OLED_DC)
+  return success;
+  #else
+  return success && i2c_probe(Wire, DISPLAY_ADDRESS);
+  #endif
 }
 
 void SSD1306Display::turnOn() {
