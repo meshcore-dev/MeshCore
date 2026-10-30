@@ -42,6 +42,28 @@ static File openWrite(FILESYSTEM* fs, const char* filename) {
 #endif
 }
 
+static constexpr const char* CONTACTS_FILE = "/contacts3";
+static constexpr const char* CONTACTS_TEMP_FILE = "/contacts3.tmp";
+static constexpr const char* CONTACTS_BACKUP_FILE = "/contacts3.bak";
+static constexpr uint32_t CONTACT_RECORD_SIZE = 152;
+
+static bool isValidContactsFile(FILESYSTEM* fs, const char* filename) {
+  if (!fs->exists(filename)) return false;
+
+#if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
+  File file = fs->open(filename, FILE_O_READ);
+#elif defined(RP2040_PLATFORM)
+  File file = fs->open(filename, "r");
+#else
+  File file = fs->open(filename, "r", false);
+#endif
+
+  if (!file) return false;
+  const bool valid = (file.size() % CONTACT_RECORD_SIZE) == 0;
+  file.close();
+  return valid;
+}
+
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
   static uint32_t _ContactsChannelsTotalBlocks = 0;
 #endif
@@ -257,40 +279,54 @@ bool DataStore::savePrefs(NodePrefs& _prefs) {
 }
 
 void DataStore::loadContacts(DataStoreHost* host) {
-File file = openRead(_getContactsChannelsFS(), "/contacts3");
-    if (file) {
-      bool full = false;
-      while (!full) {
-        ContactInfo c;
-        uint8_t pub_key[32];
-        uint8_t unused;
-
-        bool success = (file.read(pub_key, 32) == 32);
-        success = success && (file.read((uint8_t *)&c.name, 32) == 32);
-        success = success && (file.read(&c.type, 1) == 1);
-        success = success && (file.read(&c.flags, 1) == 1);
-        success = success && (file.read(&unused, 1) == 1);
-        success = success && (file.read((uint8_t *)&c.sync_since, 4) == 4); // was 'reserved'
-        success = success && (file.read((uint8_t *)&c.out_path_len, 1) == 1);
-        success = success && (file.read((uint8_t *)&c.last_advert_timestamp, 4) == 4);
-        success = success && (file.read(c.out_path, 64) == 64);
-        success = success && (file.read((uint8_t *)&c.lastmod, 4) == 4);
-        success = success && (file.read((uint8_t *)&c.gps_lat, 4) == 4);
-        success = success && (file.read((uint8_t *)&c.gps_lon, 4) == 4);
-
-        if (!success) break; // EOF
-
-        c.id = mesh::Identity(pub_key);
-        if (!host->onContactLoaded(c)) full = true;
-      }
-      file.close();
+  FILESYSTEM* fs = _getContactsChannelsFS();
+  const char* source = CONTACTS_FILE;
+  if (!isValidContactsFile(fs, source)) {
+    source = CONTACTS_BACKUP_FILE;
+    if (!isValidContactsFile(fs, source)) {
+      MESH_DEBUG_PRINTLN("Contacts database and backup are unavailable or invalid");
+      return;
     }
+    MESH_DEBUG_PRINTLN("Contacts primary invalid; loading backup");
+  }
+
+  File file = openRead(fs, source);
+  if (file) {
+    bool full = false;
+    while (!full) {
+      ContactInfo c;
+      uint8_t pub_key[32];
+      uint8_t unused;
+
+      bool success = (file.read(pub_key, 32) == 32);
+      success = success && (file.read((uint8_t *)&c.name, 32) == 32);
+      success = success && (file.read(&c.type, 1) == 1);
+      success = success && (file.read(&c.flags, 1) == 1);
+      success = success && (file.read(&unused, 1) == 1);
+      success = success && (file.read((uint8_t *)&c.sync_since, 4) == 4); // was 'reserved'
+      success = success && (file.read((uint8_t *)&c.out_path_len, 1) == 1);
+      success = success && (file.read((uint8_t *)&c.last_advert_timestamp, 4) == 4);
+      success = success && (file.read(c.out_path, 64) == 64);
+      success = success && (file.read((uint8_t *)&c.lastmod, 4) == 4);
+      success = success && (file.read((uint8_t *)&c.gps_lat, 4) == 4);
+      success = success && (file.read((uint8_t *)&c.gps_lon, 4) == 4);
+
+      if (!success) break; // EOF
+
+      c.id = mesh::Identity(pub_key);
+      if (!host->onContactLoaded(c)) full = true;
+    }
+    file.close();
+  }
 }
 
 void DataStore::saveContacts(DataStoreHost* host, bool (*filter)(const ContactInfo& c)) {
-  File file = openWrite(_getContactsChannelsFS(), "/contacts3");
+  FILESYSTEM* fs = _getContactsChannelsFS();
+  File file = openWrite(fs, CONTACTS_TEMP_FILE);
   if (file) {
     uint32_t idx = 0;
+    uint32_t saved = 0;
+    bool writeFailed = false;
     ContactInfo c;
     uint8_t unused = 0;
 
@@ -312,11 +348,50 @@ void DataStore::saveContacts(DataStoreHost* host, bool (*filter)(const ContactIn
       success = success && (file.write((uint8_t *)&c.gps_lat, 4) == 4);
       success = success && (file.write((uint8_t *)&c.gps_lon, 4) == 4);
 
-      if (!success) break; // write failed
+      if (!success) {
+        writeFailed = true;
+        break;
+      }
 
       idx++;  // advance to next contact
+      saved++;
     }
     file.close();
+
+    File staged = openRead(fs, CONTACTS_TEMP_FILE);
+    const bool stagedValid = !writeFailed && staged &&
+                             staged.size() == saved * CONTACT_RECORD_SIZE;
+    if (staged) staged.close();
+    if (!stagedValid) {
+      fs->remove(CONTACTS_TEMP_FILE);
+      MESH_DEBUG_PRINTLN("Contacts save aborted: staged file is incomplete");
+      return;
+    }
+
+    if (fs->exists(CONTACTS_FILE)) {
+      if (isValidContactsFile(fs, CONTACTS_FILE)) {
+        fs->remove(CONTACTS_BACKUP_FILE);
+        if (!fs->rename(CONTACTS_FILE, CONTACTS_BACKUP_FILE)) {
+          fs->remove(CONTACTS_TEMP_FILE);
+          MESH_DEBUG_PRINTLN("Contacts save aborted: could not preserve primary file");
+          return;
+        }
+      } else {
+        // Keep a valid backup instead of replacing it with a corrupt primary.
+        fs->remove(CONTACTS_FILE);
+      }
+    }
+
+    if (!fs->rename(CONTACTS_TEMP_FILE, CONTACTS_FILE)) {
+      if (!fs->exists(CONTACTS_FILE) && fs->exists(CONTACTS_BACKUP_FILE)) {
+        fs->rename(CONTACTS_BACKUP_FILE, CONTACTS_FILE);
+      }
+      fs->remove(CONTACTS_TEMP_FILE);
+      MESH_DEBUG_PRINTLN("Contacts save failed: previous database restored");
+      return;
+    }
+
+    MESH_DEBUG_PRINTLN("Saved %u contacts", saved);
   }
 }
 
