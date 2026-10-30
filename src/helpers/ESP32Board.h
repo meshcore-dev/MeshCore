@@ -17,10 +17,13 @@
 #include <driver/rtc_io.h>
 #include <helpers/KeyValueStore.h>
 
+class AsyncWebServer;
+
 class ESP32Board : public mesh::MainBoard {
 protected:
   uint8_t startup_reason;
   bool inhibit_sleep = false;
+  static AsyncWebServer* ota_server;
   static inline portMUX_TYPE sleepMux = portMUX_INITIALIZER_UNLOCKED;
 
 public:
@@ -158,6 +161,7 @@ public:
   }
 
   bool startOTAUpdate(const char* id, char reply[]) override;
+  bool startOTAUpdateIP(const char* id, char reply[]);
 
   void setInhibitSleep(bool inhibit) {
     inhibit_sleep = inhibit;

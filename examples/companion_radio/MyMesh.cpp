@@ -2186,6 +2186,15 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
     sprintf(reply, "> %d", _prefs.wifi_enabled);
     return true;
   }
+#if defined(ESP32) && !defined(DISABLE_WIFI_OTA)
+  if (strcmp(command, "start otaip") == 0) {
+    if (!board.startOTAUpdateIP(_prefs.node_name, reply)) {
+      strcpy(reply, "Error: WiFi is not connected or has no IP address");
+    }
+    return true;
+  }
+#endif
+
   if (strcmp(command, "get wifi.status") == 0) {
     strcpy(reply, WiFi.status() == WL_CONNECTED ? "> connected" : "> disconnected");
     return true;
