@@ -363,18 +363,24 @@ void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const m
       }
 
       MESH_DEBUG_PRINTLN("Login success!");
-      client->last_timestamp = sender_timestamp;
-      client->extra.room.sync_since = sender_sync_since;
-      client->extra.room.pending_ack = 0;
-      client->extra.room.push_failures = 0;
-
-      client->last_activity = getRTCClock()->getCurrentTime();
       client->permissions &= ~0x03;
       client->permissions |= perm;
       memcpy(client->shared_secret, secret, PUB_KEY_SIZE);
 
       dirty_contacts_expiry = futureMillis(LAZY_CONTACTS_WRITE_DELAY);
+    } else {
+      if (sender_timestamp <= client->last_timestamp) {
+        MESH_DEBUG_PRINTLN("possible replay attack!");
+        return;
+      }
+      MESH_DEBUG_PRINTLN("Login success!");
     }
+
+    client->last_timestamp = sender_timestamp;
+    client->extra.room.sync_since = sender_sync_since;
+    client->extra.room.pending_ack = 0;
+    client->extra.room.push_failures = 0;
+    client->last_activity = getRTCClock()->getCurrentTime();
 
     if (packet->isRouteFlood()) {
       client->out_path_len = OUT_PATH_UNKNOWN;  // need to rediscover out_path
