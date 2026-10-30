@@ -22,7 +22,7 @@ size_t Packet::writePath(uint8_t* dest, const uint8_t* src, uint8_t path_len) {
   uint8_t hash_size = (path_len >> 6) + 1;
   size_t len = hash_count*hash_size;
   if (len > MAX_PATH_SIZE) {
-    MESH_DEBUG_PRINTLN("Packet::copyPath, invalid path_len=%d", (uint32_t)path_len);
+    MESH_DEBUG_PRINTLN("Packet::writePath, invalid path_len=%d", (uint32_t)path_len);
     return 0;   // Error
   }
   memcpy(dest, src, len);
@@ -30,7 +30,9 @@ size_t Packet::writePath(uint8_t* dest, const uint8_t* src, uint8_t path_len) {
 }
 
 uint8_t Packet::copyPath(uint8_t* dest, const uint8_t* src, uint8_t path_len) {
-  writePath(dest, src, path_len);
+  if (writePath(dest, src, path_len) == 0 && (path_len & 63) != 0) {
+    return 0;   // Error: writePath failed for non-empty path
+  }
   return path_len;
 }
 
