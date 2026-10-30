@@ -179,7 +179,7 @@ class RAK12500LocationProvider : public LocationProvider {
   long _lng = 0;
   long _alt = 0;
   int _sats = 0;
-  long _epoch = 0;
+  uint32_t _epoch = 0;
   bool _fix = false;
 public:
   long getLatitude() override { return _lat; }
@@ -187,7 +187,7 @@ public:
   long getAltitude() override { return _alt; }
   long satellitesCount() override { return _sats; }
   bool isValid() override { return _fix; }
-  long getTimestamp() override { return _epoch; }
+  uint32_t getTimestamp() override { return _epoch; }
   void sendSentence(const char * sentence) override { }
   void reset() override { }
   void begin() override { }
