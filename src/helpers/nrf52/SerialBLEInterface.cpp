@@ -4,6 +4,10 @@
 #include "ble_gap.h"
 #include "ble_hci.h"
 
+#ifdef THINKNODE_M1
+  #include <m1_leds.h>   // 2026-08-21 评审 序号5：蓝牙配对指示灯
+#endif
+
 // Magic numbers came from actual testing
 #define BLE_HEALTH_CHECK_INTERVAL  10000  // Advertising watchdog check every 10 seconds
 #define BLE_RETRY_THROTTLE_MS      250    // Throttle retries to 250ms when queue buildup detected
@@ -31,6 +35,9 @@ void SerialBLEInterface::onConnect(uint16_t connection_handle) {
     instance->_isDeviceConnected = false;
     instance->clearBuffers();
   }
+#ifdef THINKNODE_M1
+  m1_leds_ble_pairing_started();   // 配对窗口开始：蓝灯 1Hz 闪烁，最多 30s
+#endif
 }
 
 void SerialBLEInterface::onDisconnect(uint16_t connection_handle, uint8_t reason) {
@@ -42,6 +49,9 @@ void SerialBLEInterface::onDisconnect(uint16_t connection_handle, uint8_t reason
       instance->clearBuffers();
     }
   }
+#ifdef THINKNODE_M1
+  m1_leds_ble_pairing_cancelled();
+#endif
 }
 
 void SerialBLEInterface::onSecured(uint16_t connection_handle) {
@@ -73,6 +83,9 @@ void SerialBLEInterface::onSecured(uint16_t connection_handle) {
       BLE_DEBUG_PRINTLN("onSecured: ignoring stale/duplicate callback");
     }
   }
+#ifdef THINKNODE_M1
+  m1_leds_ble_pairing_secured();   // 配对成功：蓝灯常亮 30s 后熄灭
+#endif
 }
 
 bool SerialBLEInterface::onPairingPasskey(uint16_t connection_handle, uint8_t const passkey[6], bool match_request) {

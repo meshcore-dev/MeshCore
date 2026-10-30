@@ -38,7 +38,13 @@ public:
   }
   uint8_t getSpreadingFactor() const override { return ((CustomSX1262 *)_radio)->spreadingFactor; }
   virtual void powerOff() override {
+#ifdef THINKNODE_M1
+    // Match Meshtastic 2.7.26: retain radio configuration in sleep.
+    // Board shutdown must leave NRESET and NSS high afterwards.
+    ((CustomSX1262 *)_radio)->sleep(true);
+#else
     ((CustomSX1262 *)_radio)->sleep(false);
+#endif
   }
 
   bool setRxBoostedGainMode(bool en) override {

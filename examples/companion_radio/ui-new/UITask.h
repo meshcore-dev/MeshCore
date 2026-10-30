@@ -3,6 +3,7 @@
 #include <MeshCore.h>
 #include <helpers/ui/DisplayDriver.h>
 #include <helpers/ui/UIScreen.h>
+#include <helpers/ui/ConsecutiveLowBattery.h>
 #include <helpers/SensorManager.h>
 #include <helpers/MultiSerialInterface.h>
 #include <Arduino.h>
@@ -63,6 +64,15 @@ class UITask : public AbstractUITask {
   unsigned long ui_started_at, next_batt_chck;
   unsigned long next_backlight_btn_check = 0;
   unsigned long _backlight_off = 0;
+  bool _func_btn_armed = false;
+  bool _hibernate_pending = false;  // hibernate requested; enter it once the key is released
+  unsigned long _hib_release_at = 0;  // start of the "key released and stable" window (0 = still held)
+  unsigned long _last_user_activity = 0;
+  ConsecutiveLowBattery _low_battery_monitor;
+  CriticalLowBatteryShutdown _critical_battery_monitor;
+  bool _critical_poweroff_pending = false;
+  uint32_t _poweroff_retry_at = 0;
+  bool _usb_was_present = false;
 #ifdef PIN_STATUS_LED
   int led_state = 0;
   int next_led_change = 0;
@@ -87,6 +97,9 @@ class UITask : public AbstractUITask {
   char handleTripleClick(char c);
 
   void setCurrScreen(UIScreen* c);
+  void pollHibernate();
+  void pollBattery();
+  bool pollCriticalPowerOff();
 
 public:
 
@@ -102,6 +115,7 @@ public:
   int  getMsgCount() const { return _msgcount; }
   bool hasDisplay() const { return _display != NULL; }
   bool isButtonPressed() const;
+  bool isAnyButtonPressed() const;   // 翻页键 或 功能键任一按住（实现放在 .cpp，那里能看到 func_btn）
 
   bool isBuzzerQuiet() { 
 #ifdef PIN_BUZZER
@@ -127,4 +141,8 @@ public:
   void loop() override;
 
   void shutdown(bool restart = false);
+
+  // 2026-08-21 评审 序号10：功能键长按 3s 进入休眠
+  void hibernate(const char* msg = "Hibernating...");
+  void enterHibernate();          // 真正进入休眠（等按键释放后调用）
 };
