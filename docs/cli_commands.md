@@ -69,6 +69,8 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 **Parameters:**
 - `epoch_seconds`: Unix epoch time
 
+**Note:** The clock only moves forward. To set it back (e.g. after the clock was pushed into the future by a spoofed GPS time) use `time force <epoch_seconds>`.
+
 ---
 
 ### Send a flood advert
