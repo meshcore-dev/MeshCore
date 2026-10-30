@@ -56,7 +56,7 @@ public:
 
 private:
   enum State { PROBE_WAIT, PROBE_QUERY, PROBE_SWITCH, ONLINE };
-  enum Mode { MODE_SPLASH, MODE_CHAT, MODE_MENU, MODE_PAIRING };
+  enum Mode { MODE_SPLASH, MODE_CHAT, MODE_MENU, MODE_PAIRING, MODE_TOOLS };
   enum RxState { RX_IDLE, RX_SEP, RX_SS2, RX_SS2_ACCENT, RX_ESC, RX_PRO2, RX_SKIP };
 
   enum ConvType : uint8_t { CONV_CHANNEL = 0, CONV_CONTACT = 1 };
@@ -99,8 +99,7 @@ private:
   unsigned long _next_header = 0;
   unsigned long _next_ack_check = 0;
   unsigned long _splash_until = 0;
-  unsigned long _idle_until = 0;
-  bool _blanked = false;  // screen saver: blanked after prolonged inactivity, any key wakes it
+  unsigned long _next_menu_refresh = 0;
   volatile bool _rx_error = false;
 
   RxState _rx = RX_IDLE;
@@ -144,6 +143,7 @@ private:
   void onKey(const KeyEvent& ev);
   void onChatKey(const KeyEvent& ev);
   void onMenuKey(const KeyEvent& ev);
+  void onToolsKey(const KeyEvent& ev);
   void onSpeedReply(uint8_t code);
   void checkAckTimeouts();
   bool needsPairing() const;
@@ -166,7 +166,6 @@ private:
   void renderAll();
   void renderSplash();
   void renderPairing();
-  void renderBlanked();
   void renderHeader();
   void renderMessages();
   void renderHint();
@@ -175,6 +174,7 @@ private:
   void placeCursor();
   int buildMenu(Conv* dest, int max_entries, int skip);
   void renderMenu();
+  void renderTools();
   void printAt(int col, int row, const char* text, bool inverse = false);
   void printCentered(int row, const char* text, bool inverse = false);
 };
