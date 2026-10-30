@@ -27,6 +27,9 @@ public:
   virtual void turnOn() = 0;
   virtual void turnOff() = 0;
   virtual void dim(bool on) {}   // lower the contrast/brightness, where supported (no-op otherwise)
+  // Makes turnOff() a no-op while true, so some other code's own auto-off timer
+  // (e.g. ui-new/UITask.cpp) can't fight whoever wants the display kept on.
+  virtual void keepAwake(bool on) {}
   virtual void clear() = 0;
   virtual void startFrame(ColorVal bkg = UIColor::window_bkg) = 0;
   virtual void setTextSize(int sz) = 0;

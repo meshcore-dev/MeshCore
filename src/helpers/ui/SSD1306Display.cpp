@@ -38,6 +38,7 @@ void SSD1306Display::turnOn() {
 }
 
 void SSD1306Display::turnOff() {
+  if (_keep_awake) return;   // something else wants the display kept on right now
   display.ssd1306_command(SSD1306_DISPLAYOFF);
   if (_isOn) {
     if (_peripher_power) {
@@ -52,9 +53,9 @@ void SSD1306Display::turnOff() {
 
 void SSD1306Display::dim(bool on) {
   display.ssd1306_command(SSD1306_SETCONTRAST);
-  // 0x30 is dim but clearly still lit; too low (e.g. 1) reads as "off" to the eye.
+  // 0x10 is dim but still clearly readable; too low (e.g. 1) reads as "off" to the eye.
   // 0xCF is the Adafruit_SSD1306 default contrast.
-  display.ssd1306_command(on ? 0x30 : 0xCF);
+  display.ssd1306_command(on ? 0x10 : 0xCF);
 }
 
 void SSD1306Display::clear() {

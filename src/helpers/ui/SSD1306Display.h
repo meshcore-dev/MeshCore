@@ -18,6 +18,7 @@
 class SSD1306Display : public DisplayDriver {
   Adafruit_SSD1306 display;
   bool _isOn;
+  bool _keep_awake = false;
   uint8_t _color;
   RefCountedDigitalPin* _peripher_power;
 
@@ -35,6 +36,7 @@ public:
   void turnOn() override;
   void turnOff() override;
   void dim(bool on) override;
+  void keepAwake(bool on) override { _keep_awake = on; }
   void clear() override;
   void startFrame(ColorVal bkg = UIColor::window_bkg) override;
   void setTextSize(int sz) override;

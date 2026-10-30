@@ -425,14 +425,6 @@ void MinitelUI::loop() {
     checkAckTimeouts();
     _next_ack_check = millis() + 1000;
   }
-  // Overrides the OLED's own auto-off timer (ui-new/UITask.cpp): that code runs
-  // its own turnOff() every loop() once idle, regardless of this toggle, so this
-  // has to run every loop() too (not just once a second) to actually win that
-  // fight instead of just flickering on for a fraction of a second each time.
-  if (_oled_always_on && _display && !_display->isOn()) {
-    _display->turnOn();
-    _display->dim(true);
-  }
 #ifdef MSG_LED_PIN
   if (_msg_led_until && reached(_msg_led_until)) {
     digitalWrite(MSG_LED_PIN, LOW);
@@ -752,7 +744,11 @@ void MinitelUI::onToolsKey(const KeyEvent& ev) {
           : "Échec de l'envoi de l'annonce.");
       } else if (num == 3 && _display) {
         _oled_always_on = !_oled_always_on;
-        if (_oled_always_on) _display->turnOn();   // wake/power it up before touching contrast
+        // keepAwake() first: makes the OLED driver's own turnOff() a no-op from
+        // now on, instead of racing against ui-new/UITask.cpp's auto-off timer
+        // every loop() (that fight was the cause of the flicker/artifacts).
+        _display->keepAwake(_oled_always_on);
+        if (_oled_always_on) _display->turnOn();
         _display->dim(_oled_always_on);
         strcpy(_menu_status, _oled_always_on
           ? "Écran OLED : toujours allumé (faible)."
