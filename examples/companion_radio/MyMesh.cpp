@@ -6,6 +6,10 @@
 #endif
 #include <Mesh.h>
 
+#ifdef MINITEL_RX
+  #include "MinitelUI.h"
+#endif
+
 #define CMD_APP_START                 1
 #define CMD_SEND_TXT_MSG              2
 #define CMD_SEND_CHANNEL_TXT_MSG      3
@@ -428,6 +432,9 @@ ContactInfo*  MyMesh::processAck(const uint8_t *data) {
       uint32_t trip_time = _ms->getMillis() - expected_ack_table[i].msg_sent;
       memcpy(&out_frame[5], &trip_time, 4);
       _serial->writeFrame(out_frame, 9);
+#ifdef MINITEL_RX
+      if (_minitel) _minitel->onAck(expected_ack_table[i].ack);
+#endif
 
       // NOTE: the same ACK can be received multiple times!
       expected_ack_table[i].ack = 0; // clear expected hash, now that we have received ACK
@@ -476,6 +483,12 @@ void MyMesh::queueMessage(const ContactInfo &from, uint8_t txt_type, mesh::Packe
     _listener->onMessageRecv(pkt, from, txt_type, sender_timestamp, text);
     _listener->onQueueSizeChanged(offline_queue_len);
   }
+#ifdef MINITEL_RX
+  if (_minitel && (txt_type == TXT_TYPE_PLAIN || txt_type == TXT_TYPE_SIGNED_PLAIN)) {
+    _minitel->onDirectMessage(from, text, pkt->isRouteFlood() ? pkt->getPathHashCount() : MINITEL_HOPS_DIRECT,
+                              (int8_t)(pkt->getSNR() * 4), sender_timestamp);
+  }
+#endif
 }
 
 bool MyMesh::filterRecvFloodPacket(mesh::Packet* packet) {
@@ -555,21 +568,20 @@ void MyMesh::onSignedMessageRecv(const ContactInfo &from, mesh::Packet *pkt, uin
   queueMessage(from, TXT_TYPE_SIGNED_PLAIN, pkt, sender_timestamp, sender_prefix, 4, text);
 }
 
-void MyMesh::onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packet *pkt, uint32_t timestamp,
+void MyMesh::queueChannelMsgFrame(uint8_t channel_idx, int8_t snr4, uint8_t path_len, uint32_t timestamp,
                                   const char *text) {
   int i = 0;
   if (app_target_ver >= 3) {
     out_frame[i++] = RESP_CODE_CHANNEL_MSG_RECV_V3;
-    out_frame[i++] = (int8_t)(pkt->getSNR() * 4);
+    out_frame[i++] = snr4;
     out_frame[i++] = 0; // reserved1
     out_frame[i++] = 0; // reserved2
   } else {
     out_frame[i++] = RESP_CODE_CHANNEL_MSG_RECV;
   }
 
-  uint8_t channel_idx = findChannelIdx(channel);
   out_frame[i++] = channel_idx;
-  uint8_t path_len = out_frame[i++] = pkt->isRouteFlood() ? pkt->path_len : 0xFF;
+  out_frame[i++] = path_len;
 
   out_frame[i++] = TXT_TYPE_PLAIN;
   memcpy(&out_frame[i], &timestamp, 4);
@@ -587,6 +599,16 @@ void MyMesh::onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packe
     frame[0] = PUSH_CODE_MSG_WAITING; // send push 'tickle'
     _serial->writeFrame(frame, 1);
   }
+}
+
+void MyMesh::onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packet *pkt, uint32_t timestamp,
+                                  const char *text) {
+  uint8_t channel_idx = findChannelIdx(channel);
+  uint8_t path_len = pkt->isRouteFlood() ? pkt->path_len : 0xFF;
+  queueChannelMsgFrame(channel_idx, (int8_t)(pkt->getSNR() * 4), path_len, timestamp, text);
+
+  if (!_serial->isConnected()) {
+  }
   if (_listener) {
     // Get the channel name from the channel index
     ChannelDetails channel_details;
@@ -596,7 +618,35 @@ void MyMesh::onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packe
     _listener->onChannelMessageRecv(pkt, channel_details, text);
     _listener->onQueueSizeChanged(offline_queue_len);
   }
+#ifdef MINITEL_RX
+  if (_minitel) {
+    _minitel->onChannelMessage(channel_idx, NULL, text, strlen(text),
+                               pkt->isRouteFlood() ? pkt->getPathHashCount() : MINITEL_HOPS_DIRECT,
+                               (int8_t)(pkt->getSNR() * 4), timestamp);
+  }
+#endif
 }
+
+#ifdef MINITEL_RX
+// Minitel: messages typed on the Minitel keyboard
+void MyMesh::pushChannelMsgToApp(uint8_t channel_idx, uint32_t timestamp, const char *text) {
+  queueChannelMsgFrame(channel_idx, 0, 0, timestamp, text);
+}
+
+bool MyMesh::sendDirectText(ContactInfo *recipient, const char *text, uint32_t &expected_ack, uint32_t &est_timeout) {
+  uint32_t timestamp = getRTCClock()->getCurrentTimeUnique();
+  int result = sendMessage(*recipient, timestamp, 0, text, expected_ack, est_timeout);
+  if (result == MSG_SEND_FAILED) return false;
+
+  if (expected_ack) {
+    expected_ack_table[next_ack_idx].msg_sent = _ms->getMillis(); // add to circular table
+    expected_ack_table[next_ack_idx].ack = expected_ack;
+    expected_ack_table[next_ack_idx].contact = recipient;
+    next_ack_idx = (next_ack_idx + 1) % EXPECTED_ACK_TABLE_SIZE;
+  }
+  return true;
+}
+#endif
 
 void MyMesh::onChannelDataRecv(const mesh::GroupChannel &channel, mesh::Packet *pkt, uint16_t data_type,
                                const uint8_t *data, size_t data_len) {
@@ -1024,6 +1074,12 @@ uint32_t MyMesh::getBLEPin() {
 void MyMesh::setBLEPin(uint32_t active_pin) {
   _active_ble_pin = active_pin;
 }
+float MyMesh::getLastRSSI() const {
+  return radio_driver.getLastRSSI();
+}
+float MyMesh::getLastSNR() const {
+  return radio_driver.getLastSNR();
+}
 
 struct FreqRange {
   uint32_t lower_freq, upper_freq;
@@ -1163,6 +1219,9 @@ void MyMesh::handleCmdFrame(size_t len) {
           expected_ack_table[next_ack_idx].contact = recipient;
           next_ack_idx = (next_ack_idx + 1) % EXPECTED_ACK_TABLE_SIZE;
         }
+#ifdef MINITEL_RX
+        if (_minitel && txt_type == TXT_TYPE_PLAIN) _minitel->onDirectSent(*recipient, text, expected_ack, est_timeout);
+#endif
 
         out_frame[0] = RESP_CODE_SENT;
         out_frame[1] = (result == MSG_SEND_SENT_FLOOD) ? 1 : 0;
@@ -1191,6 +1250,10 @@ void MyMesh::handleCmdFrame(size_t len) {
       bool success = getChannel(channel_idx, channel);
       if (success && sendGroupMessage(msg_timestamp, channel.channel, _prefs.node_name, text, len - i)) {
         writeOKFrame();
+#ifdef MINITEL_RX
+        if (_minitel) _minitel->onChannelMessage(channel_idx, _prefs.node_name, text, len - i,
+                                                  MINITEL_HOPS_LOCAL, 0, msg_timestamp);
+#endif
       } else {
         writeErrFrame(ERR_CODE_NOT_FOUND); // bad channel_idx
       }
@@ -2442,6 +2505,23 @@ bool MyMesh::advert() {
   }
   if (pkt) {
     sendZeroHop(pkt);
+    return true;
+  } else {
+    return false;
+  }
+}
+
+bool MyMesh::advertFlood() {
+  mesh::Packet* pkt;
+  if (_prefs.advert_loc_policy == ADVERT_LOC_NONE) {
+    pkt = createSelfAdvert(_prefs.node_name);
+  } else {
+    pkt = createSelfAdvert(_prefs.node_name, sensors.node_lat, sensors.node_lon);
+  }
+  if (pkt) {
+    TransportKey default_scope;
+    memcpy(&default_scope.key, _prefs.default_scope_key, sizeof(default_scope.key));
+    sendFloodScoped(default_scope, pkt, 0);
     return true;
   } else {
     return false;

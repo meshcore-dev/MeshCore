@@ -71,6 +71,10 @@
 
 /* -------------------------------------------------------------------------------------- */
 
+#ifdef MINITEL_RX
+class MinitelUI;
+#endif
+
 #define REQ_TYPE_GET_STATUS             0x01 // same as _GET_STATS
 #define REQ_TYPE_KEEP_ALIVE             0x02
 #define REQ_TYPE_GET_TELEMETRY_DATA     0x03
@@ -117,14 +121,24 @@ public:
   const char *getNodeName();
   NodePrefs *getNodePrefs();
   uint32_t getBLEPin();
+  bool isBLEConnected() const { return _serial->isConnected(); }
   void setBLEPin(uint32_t active_pin);
+  float getLastRSSI() const;
+  float getLastSNR() const;
 
   void loop();
   void handleCmdFrame(size_t len);
-  bool advert();
+  bool advert();        // zero-hop: reaches direct neighbours only
+  bool advertFlood();   // relayed by repeaters across the whole network
   void enterCLIRescue();
 
   int  getRecentlyHeard(AdvertPath dest[], int max_num);
+
+#ifdef MINITEL_RX
+  void setMinitel(MinitelUI* minitel) { _minitel = minitel; }
+  bool sendDirectText(ContactInfo* recipient, const char* text, uint32_t& expected_ack, uint32_t& est_timeout);
+  void pushChannelMsgToApp(uint8_t channel_idx, uint32_t timestamp, const char* text);
+#endif
 
 protected:
   float getAirtimeBudgetFactor() const override;
@@ -222,6 +236,7 @@ private:
   void writeContactRespFrame(uint8_t code, const ContactInfo &contact);
   void updateContactFromFrame(ContactInfo &contact, uint32_t& last_mod, const uint8_t *frame, int len);
   void addToOfflineQueue(const uint8_t frame[], int len);
+  void queueChannelMsgFrame(uint8_t channel_idx, int8_t snr4, uint8_t path_len, uint32_t timestamp, const char* text);
   int getFromOfflineQueue(uint8_t frame[]);
   int getBlobByKey(const uint8_t key[], int key_len, uint8_t dest_buf[]) override { 
     return _store->getBlobByKey(key, key_len, dest_buf);
@@ -247,6 +262,9 @@ private:
   uint32_t pending_req;   // pending _BINARY_REQ
   BaseSerialInterface *_serial;
   Listener* _listener;
+#ifdef MINITEL_RX
+  MinitelUI* _minitel = NULL;
+#endif
 
   ContactsIterator _iter;
   uint32_t _iter_filter_since;

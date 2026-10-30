@@ -116,6 +116,11 @@ StdRNG fast_rng;
 SimpleMeshTables tables;
 MyMesh the_mesh(radio_driver, fast_rng, rtc_clock, tables, store);
 
+#ifdef MINITEL_RX
+  #include "MinitelUI.h"
+  MinitelUI minitel(the_mesh, board);
+#endif
+
 /* END GLOBAL OBJECTS */
 
 void halt() {
@@ -132,8 +137,29 @@ void halt() {
   bool wifi_enabled = false;   // set at boot from prefs; false also when the effective SSID is blank
 #endif
 
+#ifdef MINITEL_DEBUG
+// Survives any reset that isn't a full power loss (brownout, watchdog, panic, software
+// reset all keep RTC memory) -- so the state just before a crash can still be read once
+// USB is reconnected afterwards, without needing a live monitor connected during the test
+// (which could itself mask a brownout by adding USB as a second power source).
+#define DBG_MAGIC 0xDEBAD9E1
+RTC_NOINIT_ATTR uint32_t _dbg_magic;
+RTC_NOINIT_ATTR uint32_t _dbg_last_heap_free;
+RTC_NOINIT_ATTR uint32_t _dbg_last_heap_min;
+RTC_NOINIT_ATTR uint32_t _dbg_last_uptime_secs;
+#endif
+
 void setup() {
   Serial.begin(115200);
+#ifdef MINITEL_DEBUG
+  delay(500);  // give the USB CDC / serial monitor time to attach after a reset
+  if (_dbg_magic == DBG_MAGIC) {
+    Serial.printf("[boot] previous session: heap_free=%u heap_min=%u uptime=%lus\n",
+                  _dbg_last_heap_free, _dbg_last_heap_min, (unsigned long)_dbg_last_uptime_secs);
+  }
+  Serial.printf("[boot] reset reason: %s\n", board.getResetReasonString(board.getResetReason()));
+  _dbg_magic = DBG_MAGIC;
+#endif
   board.begin();
 
 #ifdef HAS_EXTERNAL_WATCHDOG
@@ -286,15 +312,39 @@ void setup() {
   the_mesh.setListener(&ui_task);
 #endif
 
+#ifdef MINITEL_RX
+  minitel.begin();
+  the_mesh.setMinitel(&minitel);
+  #ifdef DISPLAY_CLASS
+    minitel.setDisplay(&display);
+  #endif
+#endif
+
   board.onBootComplete();
 }
 
+#ifdef MINITEL_DEBUG
+static unsigned long next_heap_log = 0;
+#endif
+
 void loop() {
+#ifdef MINITEL_DEBUG
+  if (millis() > next_heap_log) {
+    _dbg_last_heap_free = ESP.getFreeHeap();
+    _dbg_last_heap_min = ESP.getMinFreeHeap();
+    _dbg_last_uptime_secs = millis() / 1000;
+    Serial.printf("[heap] free=%u min_free=%u uptime=%lus\n", _dbg_last_heap_free, _dbg_last_heap_min, (unsigned long)_dbg_last_uptime_secs);
+    next_heap_log = millis() + 5000;
+  }
+#endif
   the_mesh.loop();
   interface_manager.loop();
   sensors.loop();
 #ifdef DISPLAY_CLASS
   ui_task.loop();
+#endif
+#ifdef MINITEL_RX
+  minitel.loop();
 #endif
   rtc_clock.tick();
   board.loop();
