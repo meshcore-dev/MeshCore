@@ -96,10 +96,9 @@ private:
   unsigned long _deadline = 0;
   unsigned long _next_ping = 0;
   bool _ping_pending = false;
-  unsigned long _next_header = 0;
   unsigned long _next_ack_check = 0;
   unsigned long _splash_until = 0;
-  unsigned long _next_menu_refresh = 0;
+  unsigned long _next_tools_refresh = 0;   // refreshes the "Autres fonctions" dashboard while it's on screen
   volatile bool _rx_error = false;
 
   RxState _rx = RX_IDLE;

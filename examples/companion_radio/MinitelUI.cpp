@@ -24,10 +24,19 @@
 // conversation count, so it can never collide with a real entry
 #define MENU_ACTION_TOOLS  900
 
-#define TOOLS_ROW_ZEROHOP  3
-#define TOOLS_ROW_FLOOD    4
-#define TOOLS_ROW_OLED     5
-#define TOOLS_ROW_STATUS   8
+// "Autres fonctions": info dashboard on top, settings/actions below
+#define TOOLS_ROW_INFO_TITLE      3
+#define TOOLS_ROW_BATT            4
+#define TOOLS_ROW_FREQ            5
+#define TOOLS_ROW_RADIO           6
+#define TOOLS_ROW_TXPOWER         7
+#define TOOLS_ROW_BLE             8
+#define TOOLS_ROW_SEPARATOR       10
+#define TOOLS_ROW_SETTINGS_TITLE  11
+#define TOOLS_ROW_ZEROHOP  13
+#define TOOLS_ROW_FLOOD    14
+#define TOOLS_ROW_OLED     15
+#define TOOLS_ROW_STATUS   17
 
 #define MAX_WRAP_LINES 10
 
@@ -35,8 +44,7 @@
 #define PROBE_REPLY_MILLIS    1000
 #define PING_INTERVAL_MILLIS  10000
 #define PING_REPLY_MILLIS     2000
-#define HEADER_REFRESH_MILLIS 10000
-#define MENU_REFRESH_MILLIS   10000  // how often the battery voltage in the SOMMAIRE header is refreshed
+#define TOOLS_REFRESH_MILLIS  10000  // how often the "Autres fonctions" dashboard (battery, etc.) is refreshed
 #define SPLASH_MILLIS         30000
 #define ACK_MARGIN_MILLIS     2000
 #define MAX_AUTORESEND        3     // how many times to auto-resend an unconfirmed private message
@@ -430,10 +438,6 @@ void MinitelUI::loop() {
     _next_ping = millis() + PING_INTERVAL_MILLIS;
   }
 
-  if (reached(_next_header)) {
-    _header_dirty = true;
-    _next_header = millis() + HEADER_REFRESH_MILLIS;
-  }
   if (reached(_next_ack_check)) {
     checkAckTimeouts();
     _next_ack_check = millis() + 1000;
@@ -452,9 +456,9 @@ void MinitelUI::loop() {
     _mode = MODE_CHAT;
     _full_dirty = true;
   }
-  if (_mode == MODE_MENU && !_full_dirty && reached(_next_menu_refresh)) {
-    _full_dirty = true;   // refresh the battery voltage in the SOMMAIRE header
-    _next_menu_refresh = millis() + MENU_REFRESH_MILLIS;
+  if (_mode == MODE_TOOLS && !_full_dirty && reached(_next_tools_refresh)) {
+    _full_dirty = true;   // refresh the dashboard (battery, etc.) in "Autres fonctions"
+    _next_tools_refresh = millis() + TOOLS_REFRESH_MILLIS;
   }
 
   // only draw when the TX queue has room for a whole update
@@ -654,7 +658,6 @@ void MinitelUI::onChatKey(const KeyEvent& ev) {
       _menu_page = 0;
       _menu_num_len = 0;
       _menu_status[0] = 0;
-      _next_menu_refresh = millis() + MENU_REFRESH_MILLIS;
       _full_dirty = true;
       break;
   }
@@ -687,6 +690,7 @@ void MinitelUI::onMenuKey(const KeyEvent& ev) {
         _mode = MODE_TOOLS;
         _menu_num_len = 0;
         _menu_status[0] = 0;
+        _next_tools_refresh = millis() + TOOLS_REFRESH_MILLIS;
         _full_dirty = true;
         break;
       }
@@ -1200,9 +1204,8 @@ void MinitelUI::renderHeader() {
 
   char right[32];
   int unread = countUnread(NULL);
-  int rl = 0;
-  if (unread > 0) rl = snprintf(right, sizeof(right), "%d non lu%s  ", unread, unread > 1 ? "s" : "");
-  snprintf(&right[rl], sizeof(right) - rl, "%.2fV ", _board.getBattMilliVolts() / 1000.0f);
+  right[0] = 0;
+  if (unread > 0) snprintf(right, sizeof(right), "%d non lu%s ", unread, unread > 1 ? "s" : "");
 
   char line[COLS * 3 + 4];
   line[0] = ' ';
@@ -1354,14 +1357,11 @@ void MinitelUI::renderMenu() {
   _mt->newScreen();
   _mt->cursor();
 
-  char right[16];
-  snprintf(right, sizeof(right), "%.2fV ", _board.getBattMilliVolts() / 1000.0f);
   char line[COLS * 3 + 4];
   line[0] = ' ';
   strcpy(&line[1], "SOMMAIRE - Conversations");
-  int len = truncateCols(line, COLS - strlen(right));
-  len = padCols(line, len, COLS - strlen(right), sizeof(line));
-  strcpy(&line[len], right);
+  int len = truncateCols(line, COLS);
+  len = padCols(line, len, COLS, sizeof(line));
   _mt->moveCursorXY(1, ROW_HEADER);
   _mt->attributs(INVERSION_FOND);
   _mt->print(String(line));
@@ -1402,12 +1402,42 @@ void MinitelUI::renderMenu() {
   _mt->print(String(_menu_num_len > 0 ? _menu_num : ""));
 }
 
-// "Autres fonctions" : annonces réseau + bascule OLED, hors de la liste des conversations.
+// "Autres fonctions" : tableau de bord (batterie, radio, Bluetooth) en haut,
+// annonces réseau + bascule OLED en bas, hors de la liste des conversations.
 void MinitelUI::renderTools() {
   _mt->newScreen();
   _mt->cursor();
 
   printAt(1, ROW_HEADER, " SOMMAIRE - Autres fonctions            ", true);
+
+  char line[COLS * 3 + 4];
+
+  strcpy(line, " Informations");
+  padCols(line, strlen(line), COLS, sizeof(line));
+  printAt(1, TOOLS_ROW_INFO_TITLE, line, true);
+
+  NodePrefs* prefs = _mesh.getNodePrefs();
+
+  snprintf(line, sizeof(line), "  Batterie       %.2fV", _board.getBattMilliVolts() / 1000.0f);
+  printAt(1, TOOLS_ROW_BATT, line);
+
+  snprintf(line, sizeof(line), "  Fréquence      %.3f MHz", prefs->freq);
+  printAt(1, TOOLS_ROW_FREQ, line);
+
+  snprintf(line, sizeof(line), "  Radio          SF%d  BW%.0fkHz  CR%d", prefs->sf, prefs->bw, prefs->cr);
+  printAt(1, TOOLS_ROW_RADIO, line);
+
+  snprintf(line, sizeof(line), "  Puissance TX   %d dBm", prefs->tx_power_dbm);
+  printAt(1, TOOLS_ROW_TXPOWER, line);
+
+  snprintf(line, sizeof(line), "  Téléphone BLE  %s", _mesh.isBLEConnected() ? "connecté" : "non connecté");
+  printAt(1, TOOLS_ROW_BLE, line);
+
+  _mt->hLine(1, TOOLS_ROW_SEPARATOR, COLS, CENTER);
+
+  strcpy(line, " Réglages");
+  padCols(line, strlen(line), COLS, sizeof(line));
+  printAt(1, TOOLS_ROW_SETTINGS_TITLE, line, true);
 
   printAt(1, TOOLS_ROW_ZEROHOP, "  1 Annonce : voisins (sans relais)");
   printAt(1, TOOLS_ROW_FLOOD,   "  2 Annonce : tout le réseau (relayée)");
