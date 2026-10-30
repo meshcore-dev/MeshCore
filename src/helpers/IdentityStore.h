@@ -1,5 +1,7 @@
 #pragma once
 
+#if !defined(ASR650X_PLATFORM)   // ASR650x boards have no filesystem (identity is kept in SFLASH rows)
+
 #if defined(ESP32) || defined(RP2040_PLATFORM)
   #include <FS.h>
   #define FILESYSTEM  fs::FS
@@ -24,3 +26,5 @@ public:
   bool save(const char *name, const mesh::LocalIdentity& id);
   bool save(const char *name, const mesh::LocalIdentity& id, const char display_name[]);
 };
+
+#endif  // !ASR650X_PLATFORM
