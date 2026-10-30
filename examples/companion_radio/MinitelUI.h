@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Arduino.h>
+#include <helpers/ui/DisplayDriver.h>
 
 // Minitel 1B terminal on a serial port: shows group channels and private conversations,
 // and lets the user type and send messages from the Minitel keyboard.
@@ -36,6 +37,7 @@ public:
 
   void begin();
   void loop();
+  void setDisplay(DisplayDriver* display) { _display = display; }
 
   // hooks called by MyMesh
   // sender == NULL: text is already formatted as "name: msg"
@@ -86,6 +88,8 @@ private:
   MyMesh& _mesh;
   mesh::MainBoard& _board;
   Minitel* _mt = NULL;
+  DisplayDriver* _display = NULL;
+  bool _oled_always_on = false;   // not persisted: resets to normal (auto-off) behaviour on reboot
 
   State _state = PROBE_WAIT;
   Mode _mode = MODE_SPLASH;
@@ -95,6 +99,8 @@ private:
   unsigned long _next_header = 0;
   unsigned long _next_ack_check = 0;
   unsigned long _splash_until = 0;
+  unsigned long _idle_until = 0;
+  bool _blanked = false;  // screen saver: blanked after prolonged inactivity, any key wakes it
   volatile bool _rx_error = false;
 
   RxState _rx = RX_IDLE;
@@ -160,6 +166,7 @@ private:
   void renderAll();
   void renderSplash();
   void renderPairing();
+  void renderBlanked();
   void renderHeader();
   void renderMessages();
   void renderHint();

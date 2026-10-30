@@ -26,6 +26,7 @@ public:
   virtual void forceFullRefresh() {} // next refresh will be full for eink
   virtual void turnOn() = 0;
   virtual void turnOff() = 0;
+  virtual void dim(bool on) {}   // lower the contrast/brightness, where supported (no-op otherwise)
   virtual void clear() = 0;
   virtual void startFrame(ColorVal bkg = UIColor::window_bkg) = 0;
   virtual void setTextSize(int sz) = 0;

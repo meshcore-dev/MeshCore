@@ -17,15 +17,17 @@
 #define INPUT_MAX_CHARS  (INPUT_ROWS*COLS - PROMPT_COLS - 1)   // never write the very last cell
 #define HINT_COLS      30   // hint text, then the byte counter
 #define MENU_ROW_FIRST 3
-#define MENU_ROWS      17
-#define MENU_ROW_ACTION_ZEROHOP  2    // just above the conversation list
-#define MENU_ROW_ACTION_FLOOD    20   // just below the conversation list
+#define MENU_ROWS      16
+#define MENU_ROW_ACTION_OLED     2    // just above the conversation list
+#define MENU_ROW_ACTION_ZEROHOP  19   // just below the conversation list
+#define MENU_ROW_ACTION_FLOOD    20   // right below MENU_ROW_ACTION_ZEROHOP
 #define MENU_ROW_STATUS          23   // feedback for the last action
 
-// reserved menu numbers for the two advert actions: well above any realistic
+// reserved menu numbers for the fixed actions: well above any realistic
 // conversation count, so they can never collide with a real entry
 #define MENU_ACTION_ZEROHOP  900
 #define MENU_ACTION_FLOOD    901
+#define MENU_ACTION_OLED     902
 #define MAX_WRAP_LINES 10
 
 #define PROBE_RETRY_MILLIS    5000
@@ -36,6 +38,7 @@
 #define SPLASH_MILLIS         30000
 #define ACK_MARGIN_MILLIS     2000
 #define MAX_AUTORESEND        3     // how many times to auto-resend an unconfirmed private message
+#define IDLE_BLANK_MILLIS     (5UL * 60 * 1000)  // blank the screen after this long without a keypress
 
 #ifndef MAX_GROUP_CHANNELS
   #define MAX_GROUP_CHANNELS  1
@@ -332,6 +335,8 @@ void MinitelUI::goOnline() {
   writeRaw(CMD_LOWERCASE, sizeof(CMD_LOWERCASE));
   _mode = MODE_SPLASH;
   _splash_until = millis() + SPLASH_MILLIS;
+  _idle_until = millis() + IDLE_BLANK_MILLIS;
+  _blanked = false;
   _full_dirty = true;
 }
 
@@ -404,6 +409,9 @@ void MinitelUI::loop() {
   if (reached(_next_ack_check)) {
     checkAckTimeouts();
     _next_ack_check = millis() + 1000;
+    // overrides the OLED's own auto-off timer (ui-new/UITask.cpp), which only
+    // resets on a physical button press and knows nothing about this toggle
+    if (_oled_always_on && _display && !_display->isOn()) _display->turnOn();
   }
   if (_mode == MODE_SPLASH && !_full_dirty && reached(_splash_until)) {
     _mode = needsPairing() ? MODE_PAIRING : MODE_CHAT;
@@ -413,12 +421,18 @@ void MinitelUI::loop() {
     _mode = MODE_CHAT;
     _full_dirty = true;
   }
+  if (!_blanked && _mode != MODE_SPLASH && reached(_idle_until)) {
+    _blanked = true;
+    _msgs_dirty = false;
+    _header_dirty = false;
+    _full_dirty = true;   // draws renderBlanked(), gated below like any other full redraw
+  }
 
   // only draw when the TX queue has room for a whole update
   int free_tx = mt_serial.queueFree();
   if (_full_dirty) {
     if (free_tx > 3000) renderAll();
-  } else if (_mode == MODE_CHAT) {
+  } else if (!_blanked && _mode == MODE_CHAT) {
     if (_msgs_dirty && free_tx > 2500) {
       renderMessages();
       renderHint();
@@ -539,6 +553,12 @@ void MinitelUI::handleByte(uint8_t b) {
 }
 
 void MinitelUI::onKey(const KeyEvent& ev) {
+  _idle_until = millis() + IDLE_BLANK_MILLIS;
+  if (_blanked) {
+    _blanked = false;
+    _full_dirty = true;   // this keypress only wakes the screen, nothing else
+    return;
+  }
   if (ev.key == KEY_REPETITION) {
     _full_dirty = true;
     return;
@@ -642,6 +662,19 @@ void MinitelUI::onMenuKey(const KeyEvent& ev) {
         strcpy(_menu_status, ok
           ? (zerohop ? "Annonce envoyée (voisins)." : "Annonce envoyée (tout le réseau).")
           : "Échec de l'envoi de l'annonce.");
+        _menu_num_len = 0;
+        _full_dirty = true;
+        break;
+      }
+      if (num == MENU_ACTION_OLED) {
+        _oled_always_on = !_oled_always_on;
+        if (_display) {
+          _display->dim(_oled_always_on);
+          if (_oled_always_on) _display->turnOn();
+        }
+        strcpy(_menu_status, _oled_always_on
+          ? "Écran OLED : toujours allumé (faible)."
+          : "Écran OLED : normal.");
         _menu_num_len = 0;
         _full_dirty = true;
         break;
@@ -1013,27 +1046,40 @@ void MinitelUI::printCentered(int row, const char* text, bool inverse) {
 }
 
 void MinitelUI::renderAll() {
-  switch (_mode) {
-    case MODE_SPLASH:
-      renderSplash();
-      break;
-    case MODE_PAIRING:
-      renderPairing();
-      break;
-    case MODE_CHAT:
-      _mt->newScreen();
-      _mt->cursor();
-      renderHeader();
-      renderMessages();
-      renderHint();
-      renderInput();
-      placeCursor();
-      break;
-    case MODE_MENU:
-      renderMenu();
-      break;
+  if (_blanked) {
+    renderBlanked();
+  } else {
+    switch (_mode) {
+      case MODE_SPLASH:
+        renderSplash();
+        break;
+      case MODE_PAIRING:
+        renderPairing();
+        break;
+      case MODE_CHAT:
+        _mt->newScreen();
+        _mt->cursor();
+        renderHeader();
+        renderMessages();
+        renderHint();
+        renderInput();
+        placeCursor();
+        break;
+      case MODE_MENU:
+        renderMenu();
+        break;
+    }
   }
   _full_dirty = _msgs_dirty = _header_dirty = false;
+}
+
+// Shown after a few minutes without a keypress, on any screen except the splash.
+// Any key wakes it up and redraws whatever was on screen before (see onKey()).
+void MinitelUI::renderBlanked() {
+  _mt->newScreen();
+  _mt->noCursor();
+  printCentered(12, "Mise en veille");
+  printCentered(13, "Appuyez sur une touche");
 }
 
 void MinitelUI::renderSplash() {
@@ -1063,7 +1109,7 @@ void MinitelUI::renderSplash() {
 void MinitelUI::renderPairing() {
   _mt->newScreen();
   _mt->noCursor();
-  _mt->moveCursorXY(9, 3);
+  _mt->moveCursorXY(10, 3);
   _mt->attributs(DOUBLE_GRANDEUR);
   _mt->print("Bluetooth");
   _mt->attributs(GRANDEUR_NORMALE);
@@ -1258,6 +1304,11 @@ void MinitelUI::renderMenu() {
   _mt->print(String(line));
   _mt->attributs(FOND_NORMAL);
 
+  if (_display) {
+    printAt(1, MENU_ROW_ACTION_OLED, _oled_always_on
+      ? " 902 Écran OLED : toujours allumé"
+      : " 902 Écran OLED : normal (économie)");
+  }
   printAt(1, MENU_ROW_ACTION_ZEROHOP, " 900 Annonce : voisins (sans relais)");
   printAt(1, MENU_ROW_ACTION_FLOOD, " 901 Annonce : tout le réseau (relayée)");
   if (_menu_status[0]) printAt(1, MENU_ROW_STATUS, _menu_status);

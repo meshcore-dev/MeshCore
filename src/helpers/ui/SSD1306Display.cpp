@@ -50,6 +50,11 @@ void SSD1306Display::turnOff() {
   }
 }
 
+void SSD1306Display::dim(bool on) {
+  display.ssd1306_command(SSD1306_SETCONTRAST);
+  display.ssd1306_command(on ? 1 : 0xCF);   // 0xCF is the Adafruit_SSD1306 default contrast
+}
+
 void SSD1306Display::clear() {
   display.clearDisplay();
   display.display();
