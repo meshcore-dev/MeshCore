@@ -78,6 +78,13 @@ static const uint8_t CMD_QUERY_SPEED[] = { MT_ESC, MT_PRO1, 0x74 };
 static const uint8_t CMD_SPEED_4800[]  = { MT_ESC, MT_PRO2, 0x6B, MT_SPEED_4800 };
 static const uint8_t CMD_ECHO_OFF[]    = { MT_ESC, MT_PRO3, 0x60, 0x5A, 0x51 };  // keyboard -> modem routing off
 static const uint8_t CMD_LOWERCASE[]   = { MT_ESC, MT_PRO2, 0x69, 0x45 };
+// Force the Minitel's internal routing ("aiguillage") toward our peripheral socket,
+// in case it's stuck on some other routing (eg. from fiddling with its own Fnct+T menu):
+// what comes in from the socket shows on screen, and keys typed go out to the socket.
+// Sent raw, no wait for an acknowledgement (same fire-and-forget style as CMD_ECHO_OFF):
+// a Minitel that's not listening wouldn't answer anyway, and this is harmless if already set.
+static const uint8_t CMD_ROUTE_SOCKET_TO_SCREEN[]   = { MT_ESC, MT_PRO3, 0x61, 0x58, 0x53 };
+static const uint8_t CMD_ROUTE_KEYBOARD_TO_SOCKET[] = { MT_ESC, MT_PRO3, 0x61, 0x5B, 0x51 };
 
 static bool reached(unsigned long t) { return (long)(millis() - t) >= 0; }
 
@@ -340,6 +347,8 @@ void MinitelUI::flashMsgLed() {
 // Step 1: maybe the Minitel is already at 4800 (ESP restarted, Minitel kept on)
 void MinitelUI::startProbe() {
   mt_serial.updateBaudRate(4800);
+  writeRaw(CMD_ROUTE_SOCKET_TO_SCREEN, sizeof(CMD_ROUTE_SOCKET_TO_SCREEN));
+  writeRaw(CMD_ROUTE_KEYBOARD_TO_SOCKET, sizeof(CMD_ROUTE_KEYBOARD_TO_SOCKET));
   writeRaw(CMD_QUERY_SPEED, sizeof(CMD_QUERY_SPEED));
   _state = PROBE_QUERY;
   _deadline = millis() + PROBE_REPLY_MILLIS;
@@ -392,6 +401,8 @@ void MinitelUI::loop() {
       if (reached(_deadline)) {
         // Step 2: Minitel just powered on (1200 bauds): ask it to switch to 4800
         mt_serial.updateBaudRate(1200);
+        writeRaw(CMD_ROUTE_SOCKET_TO_SCREEN, sizeof(CMD_ROUTE_SOCKET_TO_SCREEN));
+        writeRaw(CMD_ROUTE_KEYBOARD_TO_SOCKET, sizeof(CMD_ROUTE_KEYBOARD_TO_SOCKET));
         writeRaw(CMD_SPEED_4800, sizeof(CMD_SPEED_4800));
         mt_serial.flush();   // ~35ms, only while no Minitel answers
         mt_serial.updateBaudRate(4800);
