@@ -1,6 +1,9 @@
 #include "EnvironmentSensorManager.h"
 
 #include <Wire.h>
+#if ENV_INCLUDE_GPS && defined(GPS_GUARD)
+#include <RTClib.h>
+#endif
 
 #if ENV_PIN_SDA && ENV_PIN_SCL
 #define TELEM_WIRE &Wire1  // Use Wire1 as the I2C bus for Environment Sensors
@@ -684,7 +687,11 @@ bool EnvironmentSensorManager::begin() {
 bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, CayenneLPP& telemetry) {
   next_available_channel = TELEM_CHANNEL_SELF + 1;
 
-  if (requester_permissions & TELEM_PERM_LOCATION && gps_active) {
+  bool share_location = gps_active;
+  #if ENV_INCLUDE_GPS && defined(GPS_GUARD)
+  share_location = share_location && _have_trusted_fix;   // never report an unverified position
+  #endif
+  if (requester_permissions & TELEM_PERM_LOCATION && share_location) {
     telemetry.addGPS(TELEM_CHANNEL_SELF, node_lat, node_lon, node_altitude);
   }
 
@@ -693,36 +700,76 @@ bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, Cayen
       _active_sensors[i].query(next_available_channel, _active_sensors[i].sub_channel, telemetry);
       next_available_channel++;
     }
+    #if ENV_INCLUDE_GPS && defined(GPS_GUARD)
+    if (_time_alert) {   // GPS-vs-clock offset in hours on its own channel while the alert is active
+      telemetry.addAnalogInput(next_available_channel++, _time_disagree_offset / 3600.0f);
+    }
+    #endif
   }
 
   return true;
 }
 
+#if ENV_INCLUDE_GPS
+#ifdef GPS_GUARD
+static uint32_t gpsMinEpoch();
+static uint32_t gpsMaxEpoch();
+#endif
+
+static const char* const GPS_SETTING_NAMES[] = {
+  "gps",
+#ifdef GPS_GUARD
+  "gps_fence",    // metres from gps_ref, 0 = off
+  "gps_ref",      // reference position "lat,lon", 0,0 = none
+  "gps_guard",    // read-only status
+#endif
+};
+static const int GPS_SETTING_COUNT = sizeof(GPS_SETTING_NAMES) / sizeof(GPS_SETTING_NAMES[0]);
+#endif
 
 int EnvironmentSensorManager::getNumSettings() const {
   int settings = 0;
   #if ENV_INCLUDE_GPS
-    if (gps_detected) settings++;  // only show GPS setting if GPS is detected
+    if (gps_detected) settings += GPS_SETTING_COUNT;  // only show GPS settings if GPS is detected
   #endif
   return settings;
 }
 
 const char* EnvironmentSensorManager::getSettingName(int i) const {
-  int settings = 0;
   #if ENV_INCLUDE_GPS
-    if (gps_detected && i == settings++) {
-      return "gps";
+    if (gps_detected && i >= 0 && i < GPS_SETTING_COUNT) {
+      return GPS_SETTING_NAMES[i];
     }
   #endif
   return NULL;
 }
 
 const char* EnvironmentSensorManager::getSettingValue(int i) const {
-  int settings = 0;
   #if ENV_INCLUDE_GPS
-    if (gps_detected && i == settings++) {
+    const char* name = getSettingName(i);
+    if (name == NULL) return NULL;
+    if (strcmp(name, "gps") == 0) {
       return gps_active ? "1" : "0";
     }
+    #ifdef GPS_GUARD
+    if (strcmp(name, "gps_fence") == 0) {
+      snprintf(_setting_buf, sizeof(_setting_buf), "%lu", (unsigned long)_gps_fence_m);
+      return _setting_buf;
+    }
+    if (strcmp(name, "gps_ref") == 0) {
+      snprintf(_setting_buf, sizeof(_setting_buf), "%.5f,%.5f", _gps_ref_lat, _gps_ref_lon);
+      return _setting_buf;
+    }
+    if (strcmp(name, "gps_guard") == 0) {
+      if (_time_alert) {
+        snprintf(_setting_buf, sizeof(_setting_buf), "%s t:%s ALERT gps-clk %+lds %lum", _fix_status, _time_status,
+                 _time_disagree_offset, (unsigned long)((millis() - _time_disagree_since_ms) / 60000));
+      } else {
+        snprintf(_setting_buf, sizeof(_setting_buf), "%s t:%s", _fix_status, _time_status);
+      }
+      return _setting_buf;
+    }
+    #endif
   #endif
   return NULL;
 }
@@ -742,12 +789,54 @@ bool EnvironmentSensorManager::setSettingValue(const char* name, const char* val
     gps_update_interval_sec = interval_seconds > 0 ? interval_seconds : 1;
     return true;
   }
+  #ifdef GPS_GUARD
+  if (strcmp(name, "gps_fence") == 0) {
+    _gps_fence_m = atoi(value);
+    return true;
+  }
+  if (strcmp(name, "gps_ref") == 0) {
+    char* end;
+    double lat = strtod(value, &end);
+    if (*end != ',') return false;
+    double lon = strtod(end + 1, NULL);
+    if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return false;
+    _gps_ref_lat = lat;
+    _gps_ref_lon = lon;
+    return true;
+  }
+  if (strcmp(name, "gps_time_reset") == 0) {   // clock was set manually: drop the GPS drift anchor
+    _time_accepted = false;
+    _time_disagree = false;
+    _time_alert = false;
+    return true;
+  }
+  if (strcmp(name, "gps_time_accept") == 0) {  // operator confirms the alerted GPS time is right: apply it now
+    if (!_time_alert) return false;            // only resolves an active alert
+    if (!_have_trusted_fix || (millis() - _last_trusted_ms) > 5000) return false;
+    long offset;
+    if (!_location->getClockOffset(offset)) return false;
+    if (labs(offset - _time_disagree_offset) > GPS_GUARD_ALERT_TOLERANCE) return false;  // not the alerted offset
+    uint32_t gps_time = _location->getTimestamp();
+    if (gps_time < gpsMinEpoch() || gps_time > gpsMaxEpoch()) return false;
+    if (!_location->applyTimeNow()) return false;
+    _time_accepted = true;
+    _last_time_accept_ms = millis();
+    _time_disagree = false;
+    _time_alert = false;
+    snprintf(_time_status, sizeof(_time_status), "ok manual");
+    return true;
+  }
+  #endif
   #endif
   return false;  // not supported
 }
 
 #if ENV_INCLUDE_GPS
 void EnvironmentSensorManager::initBasicGPS() {
+
+  #ifdef GPS_GUARD
+  _location->setTimeGuard(timeGuardCallback, this);
+  #endif
 
   Serial1.setPins(PIN_GPS_TX, PIN_GPS_RX);
 
@@ -887,6 +976,160 @@ bool EnvironmentSensorManager::gpsIsAwake(uint8_t ioPin){
 }
 #endif
 
+#ifdef GPS_GUARD
+// Plausible GPS time window: not before this firmware was built, at most 10 years after.
+static uint32_t gpsMinEpoch() {
+  static const uint32_t min_epoch = DateTime(__DATE__, __TIME__).unixtime() - 86400;
+  return min_epoch;
+}
+static uint32_t gpsMaxEpoch() { return gpsMinEpoch() + 10UL * 365 * 86400; }
+
+static double gpsDistanceM(double lat1, double lon1, double lat2, double lon2) {
+  const double R = 6371000.0, D2R = 0.017453292519943295;
+  double dlat = (lat2 - lat1) * D2R, dlon = (lon2 - lon1) * D2R;
+  double a = sin(dlat / 2) * sin(dlat / 2) +
+             cos(lat1 * D2R) * cos(lat2 * D2R) * sin(dlon / 2) * sin(dlon / 2);
+  return 2 * R * atan2(sqrt(a), sqrt(1 - a));
+}
+
+// Called once per second while the GPS is powered: decides whether the current fix is trustworthy.
+void EnvironmentSensorManager::evaluateGpsFix() {
+  if (!_location->isValid()) {
+    _stable_count = 0;
+    snprintf(_fix_status, sizeof(_fix_status), "no fix %ldsat", _location->satellitesCount());
+    return;
+  }
+  double lat = ((double)_location->getLatitude()) / 1000000.;
+  double lon = ((double)_location->getLongitude()) / 1000000.;
+  long sats = _location->satellitesCount();
+  uint8_t hdop = _location->getHDOP();
+  unsigned long now = millis();
+
+  const char* why = NULL;
+  double dist = 0;
+  if (sats < GPS_GUARD_MIN_SATS) {
+    why = "sats";
+  } else if (hdop == 255 || hdop > GPS_GUARD_MAX_HDOP10) {
+    why = "hdop";
+  }
+  #if defined(GPS_GUARD_LAT_MIN) && defined(GPS_GUARD_LAT_MAX) && defined(GPS_GUARD_LON_MIN) && defined(GPS_GUARD_LON_MAX)
+  else if (lat < GPS_GUARD_LAT_MIN || lat > GPS_GUARD_LAT_MAX || lon < GPS_GUARD_LON_MIN || lon > GPS_GUARD_LON_MAX) {
+    why = "region";
+  }
+  #endif
+  else if (_gps_fence_m > 0 && (_gps_ref_lat != 0 || _gps_ref_lon != 0) &&
+           (dist = gpsDistanceM(_gps_ref_lat, _gps_ref_lon, lat, lon)) > _gps_fence_m) {
+    why = "fence";
+  } else if (_have_trusted_fix) {
+    dist = gpsDistanceM(_last_trusted_lat, _last_trusted_lon, lat, lon);
+    double secs = (now - _last_trusted_ms) / 1000.0;
+    if (secs < 1) secs = 1;
+    if (dist / secs > GPS_GUARD_MAX_SPEED_KMH / 3.6) why = "jump";
+  }
+
+  if (why) {
+    _stable_count = 0;
+    if (dist > 0) {
+      snprintf(_fix_status, sizeof(_fix_status), "rej %s %.1fkm", why, dist / 1000.0);
+    } else {
+      snprintf(_fix_status, sizeof(_fix_status), "rej %s", why);
+    }
+    MESH_DEBUG_PRINTLN("GPS fix rejected (%s): %f,%f sats=%ld hdop=%u", why, lat, lon, sats, hdop);
+    return;
+  }
+
+  // Require several consecutive, mutually consistent fixes.
+  if (_stable_count > 0 && gpsDistanceM(_cand_lat, _cand_lon, lat, lon) > GPS_GUARD_STABLE_M) {
+    _stable_count = 0;
+  }
+  _cand_lat = lat;
+  _cand_lon = lon;
+  if (_stable_count < 255) _stable_count++;
+  if (_stable_count < GPS_GUARD_STABLE_FIXES) {
+    snprintf(_fix_status, sizeof(_fix_status), "settle %u/%u", _stable_count, GPS_GUARD_STABLE_FIXES);
+    return;
+  }
+
+  node_lat = lat;
+  node_lon = lon;
+  node_altitude = ((double)_location->getAltitude()) / 1000.0;
+  if (!_have_trusted_fix) {
+    MESH_DEBUG_PRINTLN("GPS fix trusted: %f,%f sats=%ld hdop=%u", lat, lon, sats, hdop);
+  }
+  _have_trusted_fix = true;
+  _last_trusted_ms = now;
+  _last_trusted_lat = lat;
+  _last_trusted_lon = lon;
+  snprintf(_fix_status, sizeof(_fix_status), "ok %ldsat", sats);
+}
+
+// A trusted fix whose time keeps disagreeing with the clock by the same offset is either
+// a sustained spoof or a wrong clock; either way the operator should look at it.
+void EnvironmentSensorManager::trackTimeDisagreement(long offset) {
+  unsigned long now = millis();
+  if (!_time_disagree || labs(offset - _time_disagree_offset) > GPS_GUARD_ALERT_TOLERANCE) {
+    _time_disagree = true;
+    _time_disagree_offset = offset;
+    _time_disagree_since_ms = now;
+    _time_alert = false;
+    return;
+  }
+  if (!_time_alert && (now - _time_disagree_since_ms) >= GPS_GUARD_ALERT_MIN * 60000UL) {
+    _time_alert = true;
+    MESH_DEBUG_PRINTLN("GPS TIME ALERT: GPS differs from clock by %lds for %u min", offset, GPS_GUARD_ALERT_MIN);
+  }
+}
+
+bool EnvironmentSensorManager::timeGuardCallback(void* ctx, uint32_t gps_time, uint32_t clock_time) {
+  return ((EnvironmentSensorManager*)ctx)->checkGpsTime(gps_time, clock_time);
+}
+
+// GPS time is only written to the clock while a trusted fix is current, it is not
+// older than this firmware, and (once the clock is valid) it only nudges the clock.
+bool EnvironmentSensorManager::checkGpsTime(uint32_t gps_time, uint32_t clock_time) {
+  const uint32_t min_epoch = gpsMinEpoch();
+  const uint32_t max_epoch = gpsMaxEpoch();
+
+  const char* why = NULL;
+  long step = 0;
+  if (!_have_trusted_fix || (millis() - _last_trusted_ms) > 5000) {
+    why = "nofix";
+  } else if (gps_time < min_epoch || gps_time > max_epoch) {
+    why = "range";
+  } else if (clock_time >= min_epoch) {   // clock already holds a plausible time
+    step = (long)gps_time - (long)clock_time;
+    long limit = GPS_GUARD_TIME_MAX_STEP;
+    if (_time_accepted) {
+      // After the first accepted sync only allow corrections the size of real clock
+      // drift, so a spoofer cannot walk the clock away in many small steps.
+      uint32_t elapsed_s = (millis() - _last_time_accept_ms) / 1000;
+      limit = GPS_GUARD_TIME_DRIFT_BASE + (long)((uint64_t)elapsed_s * GPS_GUARD_TIME_DRIFT_PPM / 1000000UL);
+      if (limit > GPS_GUARD_TIME_MAX_STEP) limit = GPS_GUARD_TIME_MAX_STEP;
+    }
+    if (labs(step) > limit) why = "step";
+  }
+
+  if (why) {
+    if (step != 0) {
+      snprintf(_time_status, sizeof(_time_status), "rej %s %lds", why, step);
+      trackTimeDisagreement(step);
+    } else {
+      snprintf(_time_status, sizeof(_time_status), "rej %s", why);
+    }
+    return false;
+  }
+  snprintf(_time_status, sizeof(_time_status), "ok %+lds", (long)gps_time - (long)clock_time);
+  _time_disagree = false;
+  _time_alert = false;
+  // Every accepted sync anchors the drift budget (fail closed: no walking the clock in
+  // repeated MAX_STEP jumps). A wrongly anchored time is recovered with a manual clock
+  // set, which resets the anchor (gps_time_reset).
+  _time_accepted = true;
+  _last_time_accept_ms = millis();
+  return true;
+}
+#endif
+
 void EnvironmentSensorManager::start_gps() {
   gps_active = true;
   #ifdef RAK_WISBLOCK_GPS
@@ -942,6 +1185,8 @@ void EnvironmentSensorManager::loop() {
       node_altitude = ((double)_location->getAltitude()) / 1000.0;
       MESH_DEBUG_PRINTLN("lat %f lon %f alt %f", node_lat, node_lon, node_altitude);
     }
+    #elif defined(GPS_GUARD)
+    // position is updated by evaluateGpsFix() below, only from trusted fixes
     #else
     if (_location->isValid()) {
       node_lat = ((double)_location->getLatitude())/1000000.;
@@ -954,6 +1199,14 @@ void EnvironmentSensorManager::loop() {
     }
     next_gps_update = millis() + (gps_update_interval_sec * 1000);
   }
+
+  #if defined(GPS_GUARD) && !defined(RAK_WISBLOCK_GPS)
+  static unsigned long next_guard_check = 0;
+  if (gps_active && _location->isEnabled() && (long)(millis() - next_guard_check) > 0) {
+    next_guard_check = millis() + 1000;
+    evaluateGpsFix();
+  }
+  #endif
   #endif
   #if ENV_INCLUDE_BME680_BSEC
   if (bsec_active && bsec_iaq.run()) {

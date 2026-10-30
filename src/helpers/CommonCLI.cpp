@@ -10,6 +10,14 @@
 #endif
 
 // Believe it or not, this std C function is busted on some platforms!
+// Keeps the GPS anti-spoofing reference in sync with the configured node position
+// (ignored by sensor managers that do not support it).
+static void updateGpsReference(SensorManager* sensors, double lat, double lon) {
+  char ref[32];
+  snprintf(ref, sizeof(ref), "%.6f,%.6f", lat, lon);
+  sensors->setSettingValue("gps_ref", ref);
+}
+
 static uint32_t _atoi(const char* sp) {
   uint32_t n = 0;
   while (*sp && *sp >= '0' && *sp <= '9') {
@@ -211,6 +219,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       uint32_t curr = getRTCClock()->getCurrentTime();
       if (sender_timestamp > curr) {
         getRTCClock()->setCurrentTime(sender_timestamp + 1);
+        _sensors->setSettingValue("gps_time_reset", "1");  // manual clock set: reset GPS time anchor
         uint32_t now = getRTCClock()->getCurrentTime();
         DateTime dt = DateTime(now);
         sprintf(reply, "OK - clock set: %02d:%02d - %d/%d/%d UTC", dt.hour(), dt.minute(), dt.day(), dt.month(), dt.year());
@@ -230,6 +239,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       uint32_t curr = getRTCClock()->getCurrentTime();
       if (secs > curr) {
         getRTCClock()->setCurrentTime(secs);
+        _sensors->setSettingValue("gps_time_reset", "1");  // manual clock set: reset GPS time anchor
         uint32_t now = getRTCClock()->getCurrentTime();
         DateTime dt = DateTime(now);
         sprintf(reply, "OK - clock set: %02d:%02d - %d/%d/%d UTC", dt.hour(), dt.minute(), dt.day(), dt.month(), dt.year());
@@ -393,6 +403,7 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
     } else if (memcmp(command, "gps setloc", 10) == 0) {
       _prefs->node_lat = _sensors->node_lat;
       _prefs->node_lon = _sensors->node_lon;
+      updateGpsReference(_sensors, _prefs->node_lat, _prefs->node_lon);
       savePrefs();
       strcpy(reply, "ok");
     } else if (memcmp(command, "gps advert", 10) == 0) {
@@ -549,10 +560,12 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
     strcpy(reply, _prefs->disable_fwd ? "OK - repeat is now OFF" : "OK - repeat is now ON");
   } else if (memcmp(config, "lat ", 4) == 0) {
     _prefs->node_lat = atof(&config[4]);
+    updateGpsReference(_sensors, _prefs->node_lat, _prefs->node_lon);
     savePrefs();
     strcpy(reply, "OK");
   } else if (memcmp(config, "lon ", 4) == 0) {
     _prefs->node_lon = atof(&config[4]);
+    updateGpsReference(_sensors, _prefs->node_lat, _prefs->node_lon);
     savePrefs();
     strcpy(reply, "OK");
   } else if (memcmp(config, "flood.max.unscoped ", 19) == 0) {
