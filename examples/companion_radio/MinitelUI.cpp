@@ -30,13 +30,16 @@
 #define TOOLS_ROW_FREQ            5
 #define TOOLS_ROW_RADIO           6
 #define TOOLS_ROW_TXPOWER         7
-#define TOOLS_ROW_BLE             8
-#define TOOLS_ROW_SEPARATOR       10
-#define TOOLS_ROW_SETTINGS_TITLE  11
-#define TOOLS_ROW_ZEROHOP  13
-#define TOOLS_ROW_FLOOD    14
-#define TOOLS_ROW_OLED     15
-#define TOOLS_ROW_STATUS   17
+#define TOOLS_ROW_HEADER_SIZE     8   // path hash size (path_hash_mode + 1), in bytes
+#define TOOLS_ROW_SIGNAL          9   // last packet heard, from anyone: RSSI/SNR
+#define TOOLS_ROW_BLE             10
+#define TOOLS_ROW_BLE_PIN         11  // only shown while pairing is still needed
+#define TOOLS_ROW_SEPARATOR       13
+#define TOOLS_ROW_SETTINGS_TITLE  14
+#define TOOLS_ROW_ZEROHOP  16
+#define TOOLS_ROW_FLOOD    17
+#define TOOLS_ROW_OLED     18
+#define TOOLS_ROW_STATUS   20
 
 #define MAX_WRAP_LINES 10
 
@@ -44,7 +47,7 @@
 #define PROBE_REPLY_MILLIS    1000
 #define PING_INTERVAL_MILLIS  10000
 #define PING_REPLY_MILLIS     2000
-#define TOOLS_REFRESH_MILLIS  10000  // how often the "Autres fonctions" dashboard (battery, etc.) is refreshed
+#define TOOLS_REFRESH_MILLIS  30000  // how often the "Autres fonctions" dashboard (battery, etc.) is refreshed
 #define SPLASH_MILLIS         30000
 #define ACK_MARGIN_MILLIS     2000
 #define MAX_AUTORESEND        3     // how many times to auto-resend an unconfirmed private message
@@ -1430,8 +1433,19 @@ void MinitelUI::renderTools() {
   snprintf(line, sizeof(line), "  Puissance TX   %d dBm", prefs->tx_power_dbm);
   printAt(1, TOOLS_ROW_TXPOWER, line);
 
+  snprintf(line, sizeof(line), "  Taille entête  %d octet%s", prefs->path_hash_mode + 1, prefs->path_hash_mode + 1 > 1 ? "s" : "");
+  printAt(1, TOOLS_ROW_HEADER_SIZE, line);
+
+  snprintf(line, sizeof(line), "  Signal reçu    %d dBm  SNR %ddB", (int)_mesh.getLastRSSI(), (int)_mesh.getLastSNR());
+  printAt(1, TOOLS_ROW_SIGNAL, line);
+
   snprintf(line, sizeof(line), "  Téléphone BLE  %s", _mesh.isBLEConnected() ? "connecté" : "non connecté");
   printAt(1, TOOLS_ROW_BLE, line);
+
+  if (needsPairing()) {
+    snprintf(line, sizeof(line), "  Code Bluetooth %06u", (unsigned)_mesh.getBLEPin());
+    printAt(1, TOOLS_ROW_BLE_PIN, line);
+  }
 
   _mt->hLine(1, TOOLS_ROW_SEPARATOR, COLS, CENTER);
 
