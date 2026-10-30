@@ -23,4 +23,11 @@ public:
   bool load(const char *name, mesh::LocalIdentity& id, char display_name[], int max_name_sz);
   bool save(const char *name, const mesh::LocalIdentity& id);
   bool save(const char *name, const mesh::LocalIdentity& id, const char display_name[]);
+
+private:
+  // Reads back what save() just wrote and compares it. The comment above the
+  // definition in IdentityStore.cpp says why the return value of write() is
+  // not enough on its own.
+  bool verifySaved(const char *name, const mesh::LocalIdentity& id);
+  bool verifySaved(const char *name, const mesh::LocalIdentity& id, const uint8_t expected_name[32]);
 };

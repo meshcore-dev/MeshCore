@@ -125,7 +125,7 @@ void LocalIdentity::printTo(Stream& s) const {
   s.print("prv_key: "); Utils::printHex(s, prv_key, PRV_KEY_SIZE); s.println();
 }
 
-size_t LocalIdentity::writeTo(uint8_t* dest, size_t max_len) {
+size_t LocalIdentity::writeTo(uint8_t* dest, size_t max_len) const {
   if (max_len < PRV_KEY_SIZE) return 0;  // not big enough
 
   if (max_len < PRV_KEY_SIZE + PUB_KEY_SIZE) {  // only room for prv_key
