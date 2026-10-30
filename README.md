@@ -1,128 +1,98 @@
-## About MeshCore
+# MeshCore sur Minitel 1B
 
-MeshCore is a lightweight, portable C++ library that enables multi-hop packet routing for embedded projects using LoRa and other packet radios. It is designed for developers who want to create resilient, decentralized communication networks that work without the internet.
+Un **Minitel 1B** transformé en terminal de messagerie pour le réseau maillé **[MeshCore](https://github.com/meshcore-dev/MeshCore)**, grâce à une carte **LilyGo T3 V1.6.1** (ESP32 + SX1276).
 
-## 🔍 What is MeshCore?
+Réalisation : **Capt_Pierrot** et **Jonathan**.
 
-MeshCore now supports a range of LoRa devices, allowing for easy flashing without the need to compile firmware manually. Users can flash a pre-built binary using tools like Adafruit ESPTool and interact with the network through a serial console.
-MeshCore provides the ability to create wireless mesh networks, similar to Meshtastic and Reticulum but with a focus on lightweight multi-hop packet routing for embedded projects. Unlike Meshtastic, which is tailored for casual LoRa communication, or Reticulum, which offers advanced networking, MeshCore balances simplicity with scalability, making it ideal for custom embedded solutions, where devices (nodes) can communicate over long distances by relaying messages through intermediate nodes. This is especially useful in off-grid, emergency, or tactical situations where traditional communication infrastructure is unavailable.
+<p align="center">
+  <img src="docs/_assets/minitel_photo.png" alt="Minitel 1B avec la carte LilyGo et son montage sur breadboard posés sur le dessus">
+</p>
 
-## ⚡ Key Features
+## Qu'est-ce que c'est ?
 
-* Multi-Hop Packet Routing
-  * Devices can forward messages across multiple nodes, extending range beyond a single radio's reach.
-  * Supports up to a configurable number of hops to balance network efficiency and prevent excessive traffic.
-  * Nodes use fixed roles where "Companion" nodes are not repeating messages at all to prevent adverse routing paths from being used.
-* Supports LoRa Radios – Works with Heltec, RAK Wireless, and other LoRa-based hardware.
-* Decentralized & Resilient – No central server or internet required; the network is self-healing.
-* Low Power Consumption – Ideal for battery-powered or solar-powered devices.
-* Simple to Deploy – Pre-built example applications make it easy to get started.
+Ce dépôt est un fork de [MeshCore](https://github.com/meshcore-dev/MeshCore) qui ajoute un **environnement de compilation dédié** (`LilyGo_TLora_V2_1_1_6_companion_radio_ble_minitel`) pilotant un Minitel 1B via sa prise péri-informatique, en plus de toutes les fonctions habituelles du firmware « companion » (application mobile en Bluetooth, écran OLED de la carte). Rien n'est retiré à MeshCore : le Minitel vient s'ajouter comme une interface supplémentaire.
 
-## 🎯 What Can You Use MeshCore For?
+Nous ne sommes probablement pas les premiers à avoir eu cette idée : d'autres projets et bricolages utilisant du vieux matériel (dont des Minitel) comme interface pour MeshCore circulent déjà dans la communauté. En revanche, à notre connaissance, nous sommes parmi les premiers à publier le code source et les schémas correspondants.
 
-* Off-Grid Communication: Stay connected even in remote areas.
-* Emergency Response & Disaster Recovery: Set up instant networks where infrastructure is down.
-* Outdoor Activities: Hiking, camping, and adventure racing communication.
-* Tactical & Security Applications: Military, law enforcement, and private security use cases.
-* IoT & Sensor Networks: Collect data from remote sensors and relay it back to a central location.
+## Fonctionnalités
 
-## 🚀 How to Get Started
+- Affichage des **canaux** et des **messages privés**, avec accusés de réception et renvoi automatique.
+- **Écriture et envoi** de messages depuis le clavier du Minitel.
+- Détection automatique du Minitel (vitesse, allumage/extinction), sans jamais bloquer la radio.
+- Détails à la demande : nombre de sauts, qualité du signal, heure des messages.
+- Sous-menu **« Autres fonctions »** (numéro 900) : tableau de bord (batterie, réglages radio, qualité du dernier signal reçu, état Bluetooth), annonces réseau, bascule de l'écran OLED de la carte.
+- LED optionnelle à la réception d'un message (voir plus bas).
+- L'application mobile MeshCore continue de fonctionner normalement en parallèle.
 
-- Watch the [MeshCore QuickStart Playlist](https://www.youtube.com/watch?v=iaFltojJrAc&list=PLshzThxhw4O4WU_iZo3NmNZOv6KMrUuF9) by The Comms Channel
-- Watch the [MeshCore Technical Presentation](https://www.youtube.com/watch?v=OwmkVkZQTf4) by Liam Cottle.
-- Read through our [Frequently Asked Questions](./docs/faq.md) and [Documentation](https://docs.meshcore.io).
-- Flash the MeshCore firmware on a supported device.
-- Connect with a supported client.
+## Matériel nécessaire
 
-For developers:
+| Élément | Remarque |
+|---|---|
+| Carte **LilyGo T3 V1.6.1** (ESP32 + SX1276) | Vérifiez la fréquence de votre modèle (868 MHz pour l'Europe). |
+| Antenne LoRa adaptée | Toujours la brancher avant d'allumer la carte. |
+| Câble USB de données | Certains câbles ne font que la charge. |
+| **Minitel 1B** | Prise DIN 5 broches à l'arrière (« péri-informatique »). |
+| Fiche DIN mâle 5 broches 180° | Pour se brancher sur le Minitel. |
+| 1 transistor NPN **2N2222** | Voir § Câblage. |
+| Résistances **56 kΩ**, **10 kΩ**, **20 kΩ**, **100 Ω ×2** | Voir § Câblage. |
+| (Optionnel) 1 LED + résistance 330 Ω – 1 kΩ | Pour l'indicateur de réception, voir plus bas. |
+| (Optionnel) 1 régulateur **LDO** (sortie 5 V) | Pour alimenter la carte depuis le Minitel (DIN 5), voir § Câblage. |
+| Un téléphone avec l'application **MeshCore** | Android ou iOS. |
 
-- Install [PlatformIO](https://docs.platformio.org) in [Visual Studio Code](https://code.visualstudio.com).
-- Clone and open the MeshCore repository in Visual Studio Code.
-- See the example applications you can modify and run:
-  - [Companion Radio](./examples/companion_radio) - For use with an external chat app, over BLE, USB or Wi-Fi.
-  - [KISS Modem](./examples/kiss_modem) - Serial KISS protocol bridge for host applications. ([protocol docs](./docs/kiss_modem_protocol.md))
-  - [Simple Repeater](./examples/simple_repeater) - Extends network coverage by relaying messages.
-  - [Simple Room Server](./examples/simple_room_server) - A simple BBS server for shared Posts.
-  - [Simple Secure Chat](./examples/simple_secure_chat) - Secure terminal based text communication between devices.
-  - [Simple Sensor](./examples/simple_sensor) - Remote sensor node with telemetry and alerting.
+## Câblage
 
-The Simple Secure Chat example can be interacted with through the Serial Monitor in Visual Studio Code, or with a Serial USB Terminal on Android.
+<p align="center">
+  <img src="docs/_assets/minitel_wiring.png" alt="Schéma de câblage : pont diviseur 56k/100Ω côté réception, transistor NPN avec polarisation 10k/20k et résistance 100Ω côté émission" width="442">
+</p>
 
-## ⚡️ MeshCore Flasher
+| Broche DIN | Signal | À relier à |
+|---|---|---|
+| **1** | RX Minitel (entrée) | Collecteur de **Q1 (NPN 2N2222)**, via **100 Ω** |
+| — | — | Émetteur de Q1 → **GPIO 13** (TX) |
+| — | — | Base de Q1 → pont diviseur **10 kΩ vers 3,3 V** / **20 kΩ vers GND** |
+| **2** | GND | **GND** de la carte — masse commune indispensable |
+| **3** | TX Minitel (collecteur ouvert) | **GPIO 34**, via **100 Ω** — avec tirage **56 kΩ vers 3,3 V** |
+| 4 | — | Ne rien brancher |
+| 5 | +8,5 V | Optionnel, **uniquement via un régulateur LDO** (voir ci-dessous) |
 
-We have prebuilt firmware ready to flash on supported devices.
+- La carte peut être alimentée par l'**USB**, par sa **batterie**, ou par le **Minitel lui-même** via la broche DIN 5 (+8,5 V) : dans ce cas, passer **obligatoirement par un régulateur LDO** qui ramène cette tension à **5 V propres** avant de l'envoyer sur la broche 5 V de la carte — celle-ci génère ensuite son propre 3,3 V en interne, utilisé pour les ponts diviseurs. Ne **jamais** relier DIN 5 directement à la carte sans ce régulateur.
 
-- Launch https://meshcore.io/flasher
-- Select a supported device
-- Flash one of the firmware types:
-  - Companion, Repeater or Room Server
-- Once flashing is complete, you can connect with one of the MeshCore clients below.
+## LED optionnelle de réception
 
-## 📱 MeshCore Clients
+La carte fait déjà clignoter brièvement une LED à chaque **émission radio** (broche **GPIO 25**, réglage `P_LORA_TX_LED`). Ce firmware la fait aussi clignoter à la **réception** d'un message (canal ou privé) — rien à câbler pour en profiter.
 
-**Companion Firmware**
+Pour une LED supplémentaire, plus visible : **GPIO 25 → résistance (330 Ω – 1 kΩ) → anode de la LED → cathode → GND**, en parallèle de la LED déjà présente sur la carte. Pas besoin de rien désactiver ni dessouder.
 
-The companion firmware can be connected to via BLE, USB or Wi-Fi depending on the firmware type you flashed.
-
-- Web: https://app.meshcore.nz
-- Android: https://play.google.com/store/apps/details?id=com.liamcottle.meshcore.android
-- iOS: https://apps.apple.com/us/app/meshcore/id6742354151?platform=iphone
-- NodeJS: https://github.com/liamcottle/meshcore.js
-- Python: https://github.com/fdlamotte/meshcore-cli
-
-**Repeater and Room Server Firmware**
-
-The repeater and room server firmware can be set up via USB in the web config tool.
-
-- https://config.meshcore.io
-
-They can also be managed via LoRa in the mobile app by using the Remote Management feature.
-
-## 🛠 Hardware Compatibility
-
-MeshCore is designed for devices listed in the [MeshCore Flasher](https://meshcore.io/flasher)
-
-## 📜 License
-
-MeshCore is open-source software released under the MIT License. You are free to use, modify, and distribute it for personal and commercial projects.
-
-## Contributing
-
-Please submit PR's using 'dev' as the base branch!
-For minor changes just submit your PR and we'll try to review it, but for anything more 'impactful' please open an Issue first and start a discussion. It is better to sound out what it is you want to achieve first, and try to come to a consensus on what the best approach is, especially when it impacts the structure or architecture of this codebase.
-
-Here are some general principles you should try to adhere to:
-* Keep it simple. Please, don't think like a high-level lang programmer. Think embedded, and keep code concise, without any unnecessary layers.
-* No dynamic memory allocation, except during setup/begin functions.
-* Use the same brace and indenting style that's in the core source modules. (A .clang-format is probably going to be added soon, but please do NOT retroactively re-format existing code. This just creates unnecessary diffs that make finding problems harder)
-
-Help us prioritize! Please react with thumbs-up to issues/PRs you care about most. We look at reaction counts when planning work.
-
-### Running unit tests
-
-To run unit tests, run the following command:
+## Compiler et flasher
 
 ```bash
-pio test --environment native --verbose
+pio run -e LilyGo_TLora_V2_1_1_6_companion_radio_ble_minitel -t upload
 ```
 
-## Road-Map / To-Do
+Nécessite [PlatformIO](https://docs.platformio.org), par exemple via l'extension VS Code.
 
-There are a number of fairly major features in the pipeline, with no particular time-frames attached yet. In very rough chronological order:
-- [X] Companion radio: UI redesign
-- [X] Repeater + Room Server: add ACL's (like Sensor Node has)
-- [X] Standardise Bridge mode for repeaters
-- [ ] Repeater/Bridge: Standardise the Transport Codes for zoning/filtering
-- [X] Core + Repeater: enhanced zero-hop neighbour discovery
-- [ ] Core: round-trip manual path support
-- [ ] Companion + Apps: support for multiple sub-meshes (and 'off-grid' client repeat mode)
-- [ ] Core + Apps: support for LZW message compression
-- [ ] Core: dynamic CR (Coding Rate) for weak vs strong hops
-- [ ] Core: new framework for hosting multiple virtual nodes on one physical device
-- [ ] V2 protocol spec: discussion and consensus around V2 packet protocol, including path hashes, new encryption specs, etc
+## Licences
 
-## 📞 Get Support
+- **MeshCore** : [MIT](./license.txt), © Scott Powell / rippleradios.com et contributeurs.
+- **[Minitel1B_Hard](https://github.com/eserandour/Minitel1B_Hard)** (pilotage du Minitel) : [GPL v3](https://www.gnu.org/licenses/gpl-3.0.html), © Eric Sérandour.
 
-- Report bugs and request features on the [GitHub Issues](https://github.com/meshcore-dev/meshcore/issues) page.
-- Find additional guides and components on [my site](https://buymeacoffee.com/ripplebiz).
-- Join [MeshCore Discord](https://meshcore.gg) to chat with the developers and get help from the community.
+Texte complet : [LICENSE](./LICENSE) (GPL v3) et [license.txt](./license.txt) (MIT).
+
+## Crédits
+
+- **Capt_Pierrot** — l'idée originale de ce projet lui revient : c'est lui qui a eu l'envie de relier un Minitel à MeshCore, avant de chercher quelqu'un pour coder la partie firmware.
+- **Jonathan** — développement du firmware, avec l'assistance de **Claude** (Anthropic, modèles Opus/Sonnet).
+- [MeshCore](https://github.com/meshcore-dev/MeshCore) — le projet de réseau maillé sur lequel repose ce fork.
+- [Minitel1B_Hard](https://github.com/eserandour/Minitel1B_Hard) d'**Eric Sérandour** — la bibliothèque qui pilote le Minitel.
+
+  *Minitel1B_Hard fournit les primitives bas niveau pour communiquer avec le Minitel (affichage, lecture du clavier, changement de vitesse...). Tout ce qui constitue l'interface MeshCore elle-même — conversations, SOMMAIRE, menus, tableau de bord, etc. — a dû être écrit spécifiquement pour ce projet : ça ne fait pas partie de la bibliothèque d'origine, qui n'a pas vocation à fournir une application de messagerie.*
+
+---
+
+## À propos de MeshCore
+
+MeshCore est une bibliothèque C++ légère pour le routage de paquets multi-sauts sur LoRa, pensée pour des réseaux maillés décentralisés et résilients, fonctionnant sans infrastructure (zones blanches, secours, usage tactique...).
+
+- Documentation complète : https://docs.meshcore.io
+- Appli mobile : [Android](https://play.google.com/store/apps/details?id=com.liamcottle.meshcore.android) · [iOS](https://apps.apple.com/us/app/meshcore/id6742354151?platform=iphone) · [Web](https://app.meshcore.nz)
+- Dépôt d'origine et support : https://github.com/meshcore-dev/MeshCore
