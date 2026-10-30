@@ -6,10 +6,24 @@
 
 
 class LocationProvider {
+public:
+    // Optional veto on GPS time before it is written to the clock (e.g. anti-spoofing).
+    typedef bool (*TimeGuardFn)(void* ctx, uint32_t gps_time, uint32_t clock_time);
+
 protected:
     bool _time_sync_needed = true;
+    TimeGuardFn _time_guard = NULL;
+    void* _time_guard_ctx = NULL;
+
+    bool timeSyncAllowed(uint32_t gps_time, uint32_t clock_time) {
+        return _time_guard == NULL || _time_guard(_time_guard_ctx, gps_time, clock_time);
+    }
 
 public:
+    void setTimeGuard(TimeGuardFn fn, void* ctx) { _time_guard = fn; _time_guard_ctx = ctx; }
+    virtual uint8_t getHDOP() { return 255; }                    // in tenths, 255 = unknown
+    virtual bool getClockOffset(long& offset) { return false; }  // GPS time minus clock time
+    virtual bool applyTimeNow() { return false; }                // write GPS time to the clock, bypassing the guard
     virtual void syncTime() { _time_sync_needed = true; }
     virtual bool waitingTimeSync() { return _time_sync_needed; }
     virtual long getLatitude() = 0;
