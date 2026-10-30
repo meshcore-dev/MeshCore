@@ -14,12 +14,28 @@
 #define INPUT_ROWS     3
 #define PROMPT_COLS    2
 #define INPUT_MAX_CHARS  (INPUT_ROWS*COLS - PROMPT_COLS - 1)   // never write the very last cell
+#define HINT_COLS      30   // hint text, then the byte counter
+#define MENU_ROW_FIRST 3
+#define MENU_ROWS      17
+#define MAX_WRAP_LINES 10
 
-#define PROBE_RETRY_MILLIS   5000
-#define PROBE_REPLY_MILLIS   1000
-#define PING_INTERVAL_MILLIS 15000
-#define PING_REPLY_MILLIS    2000
+#define PROBE_RETRY_MILLIS    5000
+#define PROBE_REPLY_MILLIS    1000
+#define PING_INTERVAL_MILLIS  10000
+#define PING_REPLY_MILLIS     2000
 #define HEADER_REFRESH_MILLIS 60000
+#define SPLASH_MILLIS         6000
+#define ACK_MARGIN_MILLIS     2000
+
+#ifndef MAX_GROUP_CHANNELS
+  #define MAX_GROUP_CHANNELS  1
+#endif
+
+#ifdef MINITEL_DEBUG
+  #define MT_DEBUG(...)  Serial.printf(__VA_ARGS__)
+#else
+  #define MT_DEBUG(...)  {}
+#endif
 
 // Minitel protocol bytes (see 'Spécifications Techniques d'Utilisation du Minitel 1B')
 #define MT_ESC   0x1B
@@ -33,6 +49,7 @@
 #define MT_SPEED_4800  0x76
 
 // Function keys (byte following SEP)
+#define KEY_TEXT        0
 #define KEY_ENVOI       0x41
 #define KEY_RETOUR      0x42
 #define KEY_REPETITION  0x43
@@ -142,6 +159,39 @@ static int truncateCols(char* s, int max_cols) {
   return i;
 }
 
+// Pads sanitized text with spaces up to cols columns
+static int padCols(char* s, int len, int cols, int size) {
+  int n = countChars(s, len);
+  while (n < cols && len < size - 1) {
+    s[len++] = ' ';
+    n++;
+  }
+  s[len] = 0;
+  return len;
+}
+
+// Word-wraps sanitized text into lines of at most COLS columns
+static int wrapLines(const char* s, int len, int* offs, int* lens, int max_lines) {
+  int n = 0;
+  int start = 0;
+  do {
+    int i = start, cols = 0, last_space = -1;
+    while (i < len && cols < COLS) {
+      if (s[i] == ' ') last_space = i;
+      i += utf8Len(s[i]);
+      cols++;
+    }
+    int end = i;
+    if (i < len && s[i] != ' ' && last_space > start) end = last_space;   // break at the last space
+    offs[n] = start;
+    lens[n] = end - start;
+    n++;
+    start = end;
+    while (start < len && s[start] == ' ') start++;
+  } while (start < len && n < max_lines);
+  return n;
+}
+
 // Minitel keyboard accent sequences: SS2 <accent> <letter>
 static const char* composeAccent(uint8_t accent, uint8_t letter) {
   switch (accent) {
@@ -239,6 +289,13 @@ private:
 static MinitelSerial mt_serial(MINITEL_UART);
 
 void MinitelUI::begin() {
+  _conv.type = CONV_CHANNEL;
+  memset(_conv.id, 0, sizeof(_conv.id));
+  _conv.id[0] = MINITEL_CHANNEL_IDX;
+  _input[0] = _input_saved[0] = 0;
+
+  // parity / framing errors: noise on the line, or the Minitel is not at our speed
+  mt_serial.onReceiveError([this](hardwareSerial_error_t err) { onRxError(); });
   _mt = new Minitel(mt_serial, MINITEL_RX, MINITEL_TX);   // starts the port at 1200 bauds 7E1
   _state = PROBE_WAIT;
   _deadline = millis();
@@ -257,16 +314,24 @@ void MinitelUI::startProbe() {
 }
 
 void MinitelUI::goOnline() {
+  MT_DEBUG("[MT] online\n");
   _state = ONLINE;
   _ping_pending = false;
   _next_ping = millis() + PING_INTERVAL_MILLIS;
   writeRaw(CMD_ECHO_OFF, sizeof(CMD_ECHO_OFF));
   writeRaw(CMD_LOWERCASE, sizeof(CMD_LOWERCASE));
+  _mode = MODE_SPLASH;
+  _splash_until = millis() + SPLASH_MILLIS;
   _full_dirty = true;
 }
 
 void MinitelUI::goOffline() {
+  MT_DEBUG("[MT] offline\n");
   mt_serial.discard();   // pending screen data is useless now
+  // keys received since the last good link check may be garbage (Minitel restarted at 1200 bauds)
+  strcpy(_input, _input_saved);
+  _input_len = strlen(_input);
+  _input_chars = countChars(_input, _input_len);
   _state = PROBE_WAIT;
   _deadline = millis() + PROBE_RETRY_MILLIS;
 }
@@ -275,6 +340,7 @@ void MinitelUI::onSpeedReply(uint8_t code) {
   if (code != MT_SPEED_4800) return;
   if (_state == ONLINE) {
     _ping_pending = false;
+    strcpy(_input_saved, _input);
   } else {
     goOnline();
   }
@@ -284,9 +350,7 @@ void MinitelUI::loop() {
   if (_mt == NULL) return;
 
   mt_serial.pump();
-  while (mt_serial.available() > 0) {
-    handleByte(mt_serial.read() & 0x7F);
-  }
+  readInput();
 
   switch (_state) {
     case PROBE_WAIT:
@@ -327,41 +391,92 @@ void MinitelUI::loop() {
     _header_dirty = true;
     _next_header = millis() + HEADER_REFRESH_MILLIS;
   }
+  if (reached(_next_ack_check)) {
+    checkAckTimeouts();
+    _next_ack_check = millis() + 1000;
+  }
+  if (_mode == MODE_SPLASH && !_full_dirty && reached(_splash_until)) {
+    _mode = MODE_CHAT;
+    _full_dirty = true;
+  }
 
   // only draw when the TX queue has room for a whole update
   int free_tx = mt_serial.queueFree();
   if (_full_dirty) {
     if (free_tx > 3000) renderAll();
-  } else if (_msgs_dirty) {
-    if (free_tx > 2000) {
+  } else if (_mode == MODE_CHAT) {
+    if (_msgs_dirty && free_tx > 2500) {
       renderMessages();
       renderHint();
-      placeCursor();
       _msgs_dirty = false;
+      if (_header_dirty) renderHeader();
+      placeCursor();
+    } else if (_header_dirty && free_tx > 200) {
+      renderHeader();
+      placeCursor();
     }
-  } else if (_header_dirty && free_tx > 200) {
-    renderHeader();
-    placeCursor();
   }
   mt_serial.pump();
 }
 
 /* ------------------------------------------------------------------------------------ */
 
+void MinitelUI::readInput() {
+  uint8_t batch[64];
+  int n = 0;
+  while (n < (int)sizeof(batch) && mt_serial.available() > 0) {
+    batch[n++] = mt_serial.read() & 0x7F;
+  }
+  if (n == 0) return;
+
+  bool err = _rx_error;
+  _rx_error = false;
+  _num_events = 0;
+  for (int i = 0; i < n; i++) {
+    MT_DEBUG("%02X ", batch[i]);
+    handleByte(batch[i]);
+  }
+  MT_DEBUG(err ? "<- rx error\n" : "\n");
+  if (_state != ONLINE) return;
+
+  // A person types one key at a time: several characters in the same batch, or a line error,
+  // is noise (or a Minitel that restarted at another speed). Drop the keys and check the link now.
+  int typed = 0;
+  for (int i = 0; i < _num_events; i++) {
+    if (_events[i].key == KEY_TEXT) typed++;
+  }
+  if (err || typed > 1) {
+    MT_DEBUG("[MT] dropped %d key(s)\n", _num_events);
+    if (!_ping_pending) _next_ping = millis();
+    return;
+  }
+  for (int i = 0; i < _num_events; i++) onKey(_events[i]);
+}
+
+void MinitelUI::addEvent(uint8_t key, const char* text) {
+  if (_state != ONLINE || _num_events >= (int)(sizeof(_events) / sizeof(_events[0]))) return;
+  KeyEvent& ev = _events[_num_events++];
+  ev.key = key;
+  StrHelper::strncpy(ev.text, text ? text : "", sizeof(ev.text));
+}
+
 void MinitelUI::handleByte(uint8_t b) {
+  // resynchronise on a new sequence, whatever the current state
+  if (_rx != RX_PRO2 && _rx != RX_SKIP) {
+    if (b == MT_ESC) { _rx = RX_ESC; return; }
+    if (b == MT_SEP) { _rx = RX_SEP; return; }
+  }
   switch (_rx) {
     case RX_IDLE:
-      if (b == MT_SEP) _rx = RX_SEP;
-      else if (b == MT_SS2) _rx = RX_SS2;
-      else if (b == MT_ESC) _rx = RX_ESC;
-      else if (b >= 0x20 && b < 0x7F && _state == ONLINE) {
+      if (b == MT_SS2) _rx = RX_SS2;
+      else if (b >= 0x20 && b < 0x7F) {
         char s[2] = { (char)b, 0 };
-        typeText(s);
+        addEvent(KEY_TEXT, s);
       }
       break;
     case RX_SEP:
       _rx = RX_IDLE;
-      if (_state == ONLINE) onFunctionKey(b);
+      addEvent(b, NULL);
       break;
     case RX_SS2:
       if (b == 0x41 || b == 0x42 || b == 0x43 || b == 0x48 || b == 0x4B) {
@@ -370,7 +485,7 @@ void MinitelUI::handleByte(uint8_t b) {
       } else {
         _rx = RX_IDLE;
         const char* s = g2Char(b);
-        if (s && _state == ONLINE) typeText(s);
+        if (s) addEvent(KEY_TEXT, s);
       }
       break;
     case RX_SS2_ACCENT:
@@ -379,7 +494,7 @@ void MinitelUI::handleByte(uint8_t b) {
       } else {
         _rx = RX_IDLE;
         const char* s = composeAccent(_rx_accent, b);
-        if (s && _state == ONLINE) typeText(s);
+        if (s) addEvent(KEY_TEXT, s);
       }
       break;
     case RX_ESC:
@@ -409,8 +524,30 @@ void MinitelUI::handleByte(uint8_t b) {
   }
 }
 
-void MinitelUI::onFunctionKey(uint8_t key) {
-  switch (key) {
+void MinitelUI::onKey(const KeyEvent& ev) {
+  if (ev.key == KEY_REPETITION) {
+    _full_dirty = true;
+    return;
+  }
+  switch (_mode) {
+    case MODE_SPLASH:
+      _mode = MODE_CHAT;
+      _full_dirty = true;
+      break;
+    case MODE_CHAT:
+      onChatKey(ev);
+      break;
+    case MODE_MENU:
+      onMenuKey(ev);
+      break;
+  }
+}
+
+void MinitelUI::onChatKey(const KeyEvent& ev) {
+  switch (ev.key) {
+    case KEY_TEXT:
+      typeText(ev.text);
+      break;
     case KEY_ENVOI:
       sendInput();
       break;
@@ -418,30 +555,261 @@ void MinitelUI::onFunctionKey(uint8_t key) {
       backspace();
       break;
     case KEY_ANNULATION:
+      if (_input_len == 0) _mt->bip();
       clearInput();
       break;
-    case KEY_RETOUR:   // older messages
-      _scroll += MSG_ROWS - 1;
-      _msgs_dirty = true;
+    case KEY_RETOUR: {   // older messages
+      int max_scroll = countMsgLines() - MSG_ROWS;
+      if (_scroll >= max_scroll) {
+        _mt->bip();
+      } else {
+        _scroll += MSG_ROWS - 1;
+        _msgs_dirty = true;
+      }
       break;
-    case KEY_SUITE:    // newer messages
-      _scroll -= MSG_ROWS - 1;
-      if (_scroll < 0) _scroll = 0;
+    }
+    case KEY_SUITE:      // newer messages
+      if (_scroll == 0) {
+        _mt->bip();
+      } else {
+        _scroll -= MSG_ROWS - 1;
+        if (_scroll < 0) _scroll = 0;
+        _msgs_dirty = true;
+      }
+      break;
+    case KEY_GUIDE:
+      _details = !_details;
       _msgs_dirty = true;
       break;
     case KEY_SOMMAIRE:
-      _scroll = 0;
-      _msgs_dirty = true;
-      break;
-    case KEY_REPETITION:
-    case KEY_GUIDE:
+      _mode = MODE_MENU;
+      _menu_page = 0;
+      _menu_num_len = 0;
       _full_dirty = true;
       break;
   }
 }
 
+void MinitelUI::onMenuKey(const KeyEvent& ev) {
+  switch (ev.key) {
+    case KEY_TEXT:
+      if (ev.text[0] >= '0' && ev.text[0] <= '9' && _menu_num_len < 3) {
+        _menu_num[_menu_num_len++] = ev.text[0];
+        _menu_num[_menu_num_len] = 0;
+        _mt->print(String(ev.text));
+      } else {
+        _mt->bip();
+      }
+      break;
+    case KEY_CORRECTION:
+      if (_menu_num_len > 0) {
+        _menu_num[--_menu_num_len] = 0;
+        _mt->moveCursorLeft(1);
+        _mt->printChar(' ');
+        _mt->moveCursorLeft(1);
+      } else {
+        _mt->bip();
+      }
+      break;
+    case KEY_ENVOI: {
+      int num = _menu_num_len > 0 ? atoi(_menu_num) : 0;
+      Conv conv;
+      if (num >= 1 && num <= buildMenu(&conv, 1, num - 1)) {
+        openConv(conv);
+      } else {
+        _mt->bip();
+        _menu_num_len = 0;
+        _full_dirty = true;
+      }
+      break;
+    }
+    case KEY_SUITE:
+      if (_menu_page + 1 < _menu_pages) {
+        _menu_page++;
+        _full_dirty = true;
+      } else {
+        _mt->bip();
+      }
+      break;
+    case KEY_RETOUR:
+      if (_menu_page > 0) {
+        _menu_page--;
+        _full_dirty = true;
+      } else {
+        _mt->bip();
+      }
+      break;
+    case KEY_SOMMAIRE:
+    case KEY_ANNULATION:
+      _mode = MODE_CHAT;
+      _full_dirty = true;
+      break;
+  }
+}
+
+/* ------------------------------------------------------------------------------------ */
+
+MinitelUI::Msg& MinitelUI::newMsg(const Conv& conv) {
+  Msg& m = _msgs[_msg_head];
+  _msg_head = (_msg_head + 1) % MINITEL_HISTORY;
+  if (_msg_count < MINITEL_HISTORY) _msg_count++;
+  memset(&m, 0, sizeof(m));
+  m.conv = conv;
+  m.hops = MINITEL_HOPS_LOCAL;
+  if (!sameConv(conv, _conv)) {
+    m.flags = MSG_UNREAD;
+    _header_dirty = true;
+  }
+  if (_mode == MODE_MENU) _full_dirty = true;   // unread counters
+  _msgs_dirty = true;
+  return m;
+}
+
+// message n, from the oldest (0) to the newest (_msg_count - 1)
+#define MSG_AT(n)  _msgs[(_msg_head - _msg_count + (n) + MINITEL_HISTORY) % MINITEL_HISTORY]
+
+void MinitelUI::onChannelMessage(uint8_t channel_idx, const char* sender, const char* text, int text_len,
+                                 uint8_t hops, int8_t snr4) {
+  Conv conv = { CONV_CHANNEL, { channel_idx, 0, 0, 0 } };
+
+  char raw[MINITEL_MSG_SLOT + 40];
+  int len = 0;
+  if (sender) {
+    len = snprintf(raw, sizeof(raw), "%s: ", sender);
+  }
+  if (text_len > (int)sizeof(raw) - 1 - len) text_len = sizeof(raw) - 1 - len;
+  memcpy(&raw[len], text, text_len);
+  len += text_len;
+  raw[len] = 0;
+
+  Msg& m = newMsg(conv);
+  m.hops = hops;
+  m.snr4 = snr4;
+  m.bytes = len;
+  if (sender) m.flags = MSG_OUT;   // our own message is never unread
+  sanitize(m.text, sizeof(m.text), raw, len);
+
+  if (sender == NULL && _mt && _state == ONLINE) _mt->bip();
+}
+
+void MinitelUI::onDirectMessage(const ContactInfo& from, const char* text, uint8_t hops, int8_t snr4) {
+  Conv conv = { CONV_CONTACT };
+  memcpy(conv.id, from.id.pub_key, 4);
+
+  char raw[MINITEL_MSG_SLOT + 40];
+  snprintf(raw, sizeof(raw), "%s: %s", from.name, text);
+
+  Msg& m = newMsg(conv);
+  m.hops = hops;
+  m.snr4 = snr4;
+  m.bytes = strlen(text);
+  sanitize(m.text, sizeof(m.text), raw, strlen(raw));
+
+  if (_mt && _state == ONLINE) _mt->bip();
+}
+
+void MinitelUI::onDirectSent(const ContactInfo& to, const char* text, uint32_t expected_ack, uint32_t est_timeout) {
+  Conv conv = { CONV_CONTACT };
+  memcpy(conv.id, to.id.pub_key, 4);
+
+  char raw[MINITEL_MSG_SLOT + 40];
+  snprintf(raw, sizeof(raw), "%s: %s", _mesh.getNodeName(), text);
+  char clean[MINITEL_MSG_SLOT];
+  sanitize(clean, sizeof(clean), raw, strlen(raw));
+
+  // the app retries unconfirmed messages: update the existing line instead of adding one
+  Msg* m = NULL;
+  for (int n = _msg_count - 1; n >= 0 && m == NULL; n--) {
+    Msg& old = MSG_AT(n);
+    if (sameConv(old.conv, conv) && (old.flags & MSG_OUT) && !(old.flags & MSG_ACKED) && strcmp(old.text, clean) == 0) {
+      m = &old;
+    }
+  }
+  if (m == NULL) {
+    m = &newMsg(conv);
+    m->flags = MSG_OUT;
+    m->bytes = strlen(text);
+    strcpy(m->text, clean);
+  }
+  m->flags &= ~MSG_TIMEOUT;
+  m->ack = expected_ack;
+  m->ack_deadline = millis() + est_timeout + ACK_MARGIN_MILLIS;
+  if (sameConv(conv, _conv)) _msgs_dirty = true;
+}
+
+void MinitelUI::onAck(uint32_t ack) {
+  for (int n = 0; n < _msg_count; n++) {
+    Msg& m = MSG_AT(n);
+    if ((m.flags & MSG_OUT) && m.ack == ack) {
+      m.flags |= MSG_ACKED;
+      m.flags &= ~MSG_TIMEOUT;
+      if (sameConv(m.conv, _conv)) _msgs_dirty = true;
+    }
+  }
+}
+
+void MinitelUI::checkAckTimeouts() {
+  for (int n = 0; n < _msg_count; n++) {
+    Msg& m = MSG_AT(n);
+    if (m.ack && !(m.flags & (MSG_ACKED | MSG_TIMEOUT)) && reached(m.ack_deadline)) {
+      m.flags |= MSG_TIMEOUT;
+      if (sameConv(m.conv, _conv)) _msgs_dirty = true;
+    }
+  }
+}
+
+ContactInfo* MinitelUI::convContact(const Conv& conv) {
+  if (conv.type != CONV_CONTACT) return NULL;
+  return _mesh.lookupContactByPubKey(conv.id, 4);
+}
+
+bool MinitelUI::convName(const Conv& conv, char* dest, int dest_size) {
+  if (conv.type == CONV_CHANNEL) {
+    ChannelDetails ch;
+    if (_mesh.getChannel(conv.id[0], ch) && ch.name[0]) {
+      snprintf(dest, dest_size, "#%s", ch.name);
+      return true;
+    }
+    snprintf(dest, dest_size, "#%d", conv.id[0]);
+    return false;
+  }
+  ContactInfo* c = convContact(conv);
+  if (c) {
+    snprintf(dest, dest_size, "@%s", c->name);
+    return true;
+  }
+  snprintf(dest, dest_size, "@%02X%02X%02X%02X", conv.id[0], conv.id[1], conv.id[2], conv.id[3]);
+  return false;
+}
+
+// unread messages of one conversation, or of all of them (conv == NULL)
+int MinitelUI::countUnread(const Conv* conv) {
+  int n = 0;
+  for (int i = 0; i < _msg_count; i++) {
+    Msg& m = MSG_AT(i);
+    if ((m.flags & MSG_UNREAD) && (conv == NULL || sameConv(m.conv, *conv))) n++;
+  }
+  return n;
+}
+
+void MinitelUI::openConv(const Conv& conv) {
+  _conv = conv;
+  for (int i = 0; i < _msg_count; i++) {
+    Msg& m = MSG_AT(i);
+    if (sameConv(m.conv, conv)) m.flags &= ~MSG_UNREAD;
+  }
+  _scroll = 0;
+  _input_len = _input_chars = 0;
+  _input[0] = _input_saved[0] = 0;
+  _mode = MODE_CHAT;
+  _full_dirty = true;
+}
+
+/* ------------------------------------------------------------------------------------ */
+
 int MinitelUI::inputMaxBytes() {
-  int max_bytes = MAX_TEXT_LEN - strlen(_mesh.getNodeName()) - 2;   // sent as "<name>: <text>"
+  int max_bytes = MAX_TEXT_LEN;
+  if (_conv.type == CONV_CHANNEL) max_bytes -= strlen(_mesh.getNodeName()) + 2;   // sent as "<name>: <text>"
   if (max_bytes > MINITEL_INPUT_SIZE - 1) max_bytes = MINITEL_INPUT_SIZE - 1;
   return max_bytes;
 }
@@ -460,10 +828,15 @@ void MinitelUI::typeText(const char* utf8) {
 
   _mt->moveCursorXY(1 + pos % COLS, ROW_INPUT + pos / COLS);
   _mt->print(String(utf8));
+  renderCounter();
+  placeCursor();
 }
 
 void MinitelUI::backspace() {
-  if (_input_len == 0) return;
+  if (_input_len == 0) {
+    _mt->bip();
+    return;
+  }
   do {
     _input_len--;
   } while (_input_len > 0 && ((uint8_t)_input[_input_len] & 0xC0) == 0x80);
@@ -473,116 +846,177 @@ void MinitelUI::backspace() {
   int pos = PROMPT_COLS + _input_chars;
   _mt->moveCursorXY(1 + pos % COLS, ROW_INPUT + pos / COLS);
   _mt->printChar(' ');
-  _mt->moveCursorXY(1 + pos % COLS, ROW_INPUT + pos / COLS);
+  renderCounter();
+  placeCursor();
 }
 
 void MinitelUI::clearInput() {
   _input_len = _input_chars = 0;
-  _input[0] = 0;
-  if (_state == ONLINE) {
+  _input[0] = _input_saved[0] = 0;
+  if (_state == ONLINE && _mode == MODE_CHAT) {
     renderInput();
+    renderCounter();
     placeCursor();
   }
 }
 
 void MinitelUI::sendInput() {
-  if (_input_len == 0) return;
-
-  ChannelDetails ch;
-  uint32_t timestamp = _mesh.getRTCClock()->getCurrentTimeUnique();
-  if (!_mesh.getChannel(MINITEL_CHANNEL_IDX, ch)
-      || !_mesh.sendGroupMessage(timestamp, ch.channel, _mesh.getNodeName(), _input, _input_len)) {
+  if (_input_len == 0) {
     _mt->bip();
     return;
   }
-  onChannelMessage(MINITEL_CHANNEL_IDX, _mesh.getNodeName(), _input, _input_len);
+
+  bool sent = false;
+  if (_conv.type == CONV_CHANNEL) {
+    ChannelDetails ch;
+    uint32_t timestamp = _mesh.getRTCClock()->getCurrentTimeUnique();
+    if (_mesh.getChannel(_conv.id[0], ch)
+        && _mesh.sendGroupMessage(timestamp, ch.channel, _mesh.getNodeName(), _input, _input_len)) {
+      onChannelMessage(_conv.id[0], _mesh.getNodeName(), _input, _input_len);
+      // also show it in the companion app
+      char full[MAX_TEXT_LEN + 40];
+      snprintf(full, sizeof(full), "%s: %s", _mesh.getNodeName(), _input);
+      _mesh.pushChannelMsgToApp(_conv.id[0], timestamp, full);
+      sent = true;
+    }
+  } else {
+    ContactInfo* contact = convContact(_conv);
+    uint32_t expected_ack = 0, est_timeout = 0;
+    if (contact && _mesh.sendDirectText(contact, _input, expected_ack, est_timeout)) {
+      onDirectSent(*contact, _input, expected_ack, est_timeout);
+      sent = true;
+    }
+  }
+  if (!sent) {
+    _mt->bip();
+    return;
+  }
   _scroll = 0;
   clearInput();
 }
 
-void MinitelUI::onChannelMessage(uint8_t channel_idx, const char* sender, const char* text, int text_len) {
-  if (channel_idx != MINITEL_CHANNEL_IDX) return;
-
-  char raw[MINITEL_MSG_SLOT + 40];
-  int len = 0;
-  if (sender) {
-    len = snprintf(raw, sizeof(raw), "%s: ", sender);
-  }
-  if (text_len > (int)sizeof(raw) - 1 - len) text_len = sizeof(raw) - 1 - len;
-  memcpy(&raw[len], text, text_len);
-  len += text_len;
-  raw[len] = 0;
-
-  sanitize(_msgs[_msg_head], MINITEL_MSG_SLOT, raw, len);
-  _msg_head = (_msg_head + 1) % MINITEL_HISTORY;
-  if (_msg_count < MINITEL_HISTORY) _msg_count++;
-  _msgs_dirty = true;
-
-  if (sender == NULL && _mt && _state == ONLINE) _mt->bip();
-}
-
 /* ------------------------------------------------------------------------------------ */
 
-// Word-wraps all stored messages, oldest first
-int MinitelUI::buildLines(LineRef* lines, int max_lines) {
-  int n = 0;
-  for (int m = 0; m < _msg_count; m++) {
-    int idx = (_msg_head - _msg_count + m + MINITEL_HISTORY) % MINITEL_HISTORY;
-    const char* s = _msgs[idx];
-    int len = strlen(s);
-    int start = 0;
-    do {
-      int i = start, cols = 0, last_space = -1;
-      while (i < len && cols < COLS) {
-        if (s[i] == ' ') last_space = i;
-        i += utf8Len(s[i]);
-        cols++;
-      }
-      int end = i;
-      if (i < len && s[i] != ' ' && last_space > start) end = last_space;   // break at the last space
-      if (n >= max_lines) {   // keep the newest lines
-        memmove(&lines[0], &lines[1], (max_lines - 1) * sizeof(LineRef));
-        n--;
-      }
-      lines[n].msg = idx;
-      lines[n].off = start;
-      lines[n].len = end - start;
-      n++;
-      start = end;
-      while (start < len && s[start] == ' ') start++;
-    } while (start < len);
+// Text shown for a message: "name: text", with the delivery status and the details
+int MinitelUI::composeMsg(const Msg& m, char* dest, int dest_size) {
+  int len = snprintf(dest, dest_size, "%s", m.text);
+  char info[64];
+  int il = 0;
+  info[0] = 0;
+  if (m.ack) {
+    const char* status = (m.flags & MSG_ACKED) ? "reçu" : (m.flags & MSG_TIMEOUT) ? "non confirmé" : "...";
+    il += snprintf(&info[il], sizeof(info) - il, "%s", status);
   }
-  return n;
+  if (_details) {
+    if (!(m.flags & MSG_OUT)) {
+      if (m.hops == MINITEL_HOPS_DIRECT) {
+        il += snprintf(&info[il], sizeof(info) - il, "%sroute directe", il ? ", " : "");
+      } else {
+        il += snprintf(&info[il], sizeof(info) - il, "%s%d saut%s", il ? ", " : "", m.hops, m.hops > 1 ? "s" : "");
+      }
+      int snr = m.snr4 >= 0 ? (m.snr4 + 2) / 4 : (m.snr4 - 2) / 4;
+      il += snprintf(&info[il], sizeof(info) - il, ", SNR %d dB", snr);
+    }
+    il += snprintf(&info[il], sizeof(info) - il, "%s%d o", il ? ", " : "", m.bytes);
+  }
+  if (il > 0 && len < dest_size - 1) {
+    len += snprintf(&dest[len], dest_size - len, " [%s]", info);
+    if (len >= dest_size) len = dest_size - 1;
+  }
+  return len;
+}
+
+int MinitelUI::countMsgLines() {
+  char buf[MINITEL_MSG_SLOT + 64];
+  int offs[MAX_WRAP_LINES], lens[MAX_WRAP_LINES];
+  int total = 0;
+  for (int n = 0; n < _msg_count; n++) {
+    Msg& m = MSG_AT(n);
+    if (!sameConv(m.conv, _conv)) continue;
+    int len = composeMsg(m, buf, sizeof(buf));
+    total += wrapLines(buf, len, offs, lens, MAX_WRAP_LINES);
+  }
+  return total;
+}
+
+// attributes are set after positioning the cursor
+void MinitelUI::printAt(int col, int row, const char* text, bool inverse) {
+  _mt->moveCursorXY(col, row);
+  if (inverse) _mt->attributs(INVERSION_FOND);
+  _mt->print(String(text));
+  if (inverse) _mt->attributs(FOND_NORMAL);
+}
+
+void MinitelUI::printCentered(int row, const char* text, bool inverse) {
+  char line[COLS * 3];
+  sanitize(line, sizeof(line), text, strlen(text));
+  int len = truncateCols(line, COLS);
+  int col = 1 + (COLS - countChars(line, len)) / 2;
+  printAt(col, row, line, inverse);
 }
 
 void MinitelUI::renderAll() {
+  switch (_mode) {
+    case MODE_SPLASH:
+      renderSplash();
+      break;
+    case MODE_CHAT:
+      _mt->newScreen();
+      _mt->cursor();
+      renderHeader();
+      renderMessages();
+      renderHint();
+      renderInput();
+      placeCursor();
+      break;
+    case MODE_MENU:
+      renderMenu();
+      break;
+  }
+  _full_dirty = _msgs_dirty = _header_dirty = false;
+}
+
+void MinitelUI::renderSplash() {
   _mt->newScreen();
-  _mt->cursor();
-  renderHeader();
-  renderMessages();
-  renderHint();
-  renderInput();
-  placeCursor();
-  _full_dirty = _msgs_dirty = false;
+  _mt->noCursor();
+  _mt->moveCursorXY(13, 3);
+  _mt->attributs(DOUBLE_GRANDEUR);   // 8 letters, double width: 16 columns
+  _mt->print("MeshCore");
+  _mt->attributs(GRANDEUR_NORMALE);
+  printCentered(6, "Messagerie LoRa sur Minitel");
+
+  printCentered(9, "Une réalisation de");
+  printCentered(10, " capt_pierrot & Jonathan ", true);
+
+  printCentered(13, "Basé sur :");
+  printCentered(14, "MeshCore - github.com/meshcore-dev");
+  printCentered(16, "Minitel1B_Hard - Eric Sérandour");
+  printCentered(17, "github.com/eserandour/Minitel1B_Hard");
+
+  char line[80];
+  snprintf(line, sizeof(line), "Firmware %s - %s", FIRMWARE_VERSION, _mesh.getNodeName());
+  printCentered(20, line);
+  printCentered(23, "Appuyez sur une touche");
 }
 
 void MinitelUI::renderHeader() {
-  char chan_name[32] = "?";
-  ChannelDetails ch;
-  if (_mesh.getChannel(MINITEL_CHANNEL_IDX, ch)) {
-    StrHelper::strncpy(chan_name, ch.name, sizeof(chan_name));
-  }
-  char raw[80];
-  snprintf(raw, sizeof(raw), " #%s - %s", chan_name, _mesh.getNodeName());
-  char line[COLS * 3];
-  sanitize(line, sizeof(line), raw, strlen(raw));
-  int len = truncateCols(line, COLS - 7);
+  char raw[64];
+  convName(_conv, raw, sizeof(raw));
+  char name[COLS * 3];
+  sanitize(name, sizeof(name), raw, strlen(raw));
 
-  char batt[8];
-  snprintf(batt, sizeof(batt), "%.2fV ", _board.getBattMilliVolts() / 1000.0f);
-  int pad = COLS - countChars(line, len) - strlen(batt);
-  while (pad-- > 0) line[len++] = ' ';
-  strcpy(&line[len], batt);
+  char right[32];
+  int unread = countUnread(NULL);
+  int rl = 0;
+  if (unread > 0) rl = snprintf(right, sizeof(right), "%d non lu%s  ", unread, unread > 1 ? "s" : "");
+  snprintf(&right[rl], sizeof(right) - rl, "%.2fV ", _board.getBattMilliVolts() / 1000.0f);
+
+  char line[COLS * 3 + 4];
+  line[0] = ' ';
+  strcpy(&line[1], name);
+  int len = truncateCols(line, COLS - strlen(right) - 1);
+  len = padCols(line, len, COLS - strlen(right), sizeof(line));
+  strcpy(&line[len], right);
 
   _mt->moveCursorXY(1, ROW_HEADER);
   _mt->attributs(INVERSION_FOND);
@@ -592,35 +1026,66 @@ void MinitelUI::renderHeader() {
 }
 
 void MinitelUI::renderMessages() {
-  static LineRef lines[MINITEL_HISTORY * 6];
-  int n = buildLines(lines, sizeof(lines) / sizeof(lines[0]));
-
-  int max_scroll = n > MSG_ROWS ? n - MSG_ROWS : 0;
+  int total = countMsgLines();
+  int max_scroll = total > MSG_ROWS ? total - MSG_ROWS : 0;
   if (_scroll > max_scroll) _scroll = max_scroll;
-  int first = n - _scroll - MSG_ROWS;
 
-  char buf[MINITEL_MSG_SLOT];
-  for (int r = 0; r < MSG_ROWS; r++) {
-    _mt->moveCursorXY(1, ROW_MSG_FIRST + r);
-    _mt->clearLine();
-    int i = first + r;
-    if (i >= 0) {
-      memcpy(buf, &_msgs[lines[i].msg][lines[i].off], lines[i].len);
-      buf[lines[i].len] = 0;
-      _mt->print(String(buf));
+  char buf[MINITEL_MSG_SLOT + 64];
+  int offs[MAX_WRAP_LINES], lens[MAX_WRAP_LINES];
+  int row = ROW_MSG_FIRST + MSG_ROWS - 1;   // fill from the bottom
+  int skip = _scroll;
+  for (int n = _msg_count - 1; n >= 0 && row >= ROW_MSG_FIRST; n--) {
+    Msg& m = MSG_AT(n);
+    if (!sameConv(m.conv, _conv)) continue;
+    int len = composeMsg(m, buf, sizeof(buf));
+    int nl = wrapLines(buf, len, offs, lens, MAX_WRAP_LINES);
+    for (int li = nl - 1; li >= 0 && row >= ROW_MSG_FIRST; li--) {
+      if (skip > 0) {
+        skip--;
+        continue;
+      }
+      char* seg = &buf[offs[li]];
+      char saved = seg[lens[li]];
+      seg[lens[li]] = 0;
+      _mt->moveCursorXY(1, row);
+      _mt->clearLine();
+      _mt->print(String(seg));
+      seg[lens[li]] = saved;
+      row--;
     }
   }
+  while (row >= ROW_MSG_FIRST) {
+    _mt->moveCursorXY(1, row);
+    _mt->clearLine();
+    row--;
+  }
+  if (total == 0) printCentered(ROW_MSG_FIRST + MSG_ROWS / 2, "Aucun message pour l'instant");
 }
 
 void MinitelUI::renderHint() {
+  const char* hint;
+  if (_scroll > 0) hint = " Historique - SUITE:récents";
+  else if (_details) hint = " SOMMAIRE:menu GUIDE:masquer";
+  else hint = " SOMMAIRE:menu GUIDE:détails";
+
+  char line[HINT_COLS * 3];
+  StrHelper::strncpy(line, hint, sizeof(line));
+  padCols(line, strlen(line), HINT_COLS, sizeof(line));
+
   _mt->moveCursorXY(1, ROW_HINT);
-  _mt->clearLine();
   _mt->attributs(INVERSION_FOND);
-  if (_scroll > 0) {
-    _mt->print(" Historique  SUITE:recents SOMMAIRE:fin ");
-  } else {
-    _mt->print(" ENVOI:envoyer  RETOUR:historique       ");
-  }
+  _mt->print(String(line));
+  _mt->attributs(FOND_NORMAL);
+  renderCounter();
+}
+
+// bytes used / allowed for the message being typed
+void MinitelUI::renderCounter() {
+  char counter[16];
+  snprintf(counter, sizeof(counter), "%3d/%3d o ", _input_len, inputMaxBytes());
+  _mt->moveCursorXY(HINT_COLS + 1, ROW_HINT);
+  _mt->attributs(INVERSION_FOND);
+  _mt->print(String(counter));
   _mt->attributs(FOND_NORMAL);
 }
 
@@ -637,6 +1102,92 @@ void MinitelUI::renderInput() {
 void MinitelUI::placeCursor() {
   int pos = PROMPT_COLS + _input_chars;
   _mt->moveCursorXY(1 + pos % COLS, ROW_INPUT + pos / COLS);
+}
+
+/* ------------------------------------------------------------------------------------ */
+
+// Conversations: channels, then contacts with messages (most recent first), then the other contacts.
+// Fills dest with the entries skip .. skip+max_entries-1, returns the total number of entries.
+int MinitelUI::buildMenu(Conv* dest, int max_entries, int skip) {
+  int k = 0;
+  auto add = [&](const Conv& c) {
+    if (k >= skip && k < skip + max_entries) dest[k - skip] = c;
+    k++;
+  };
+
+  ChannelDetails ch;
+  for (int i = 0; i < MAX_GROUP_CHANNELS; i++) {
+    if (_mesh.getChannel(i, ch) && ch.name[0]) {
+      Conv c = { CONV_CHANNEL, { (uint8_t)i, 0, 0, 0 } };
+      add(c);
+    }
+  }
+  for (int n = _msg_count - 1; n >= 0; n--) {
+    Msg& m = MSG_AT(n);
+    if (m.conv.type != CONV_CONTACT || convContact(m.conv) == NULL) continue;
+    bool seen = false;
+    for (int j = _msg_count - 1; j > n && !seen; j--) seen = sameConv(MSG_AT(j).conv, m.conv);
+    if (!seen) add(m.conv);
+  }
+  ContactsIterator it = _mesh.startContactsIterator();
+  ContactInfo c;
+  while (it.hasNext(&_mesh, c)) {
+    if (c.type != ADV_TYPE_CHAT && c.type != ADV_TYPE_ROOM) continue;
+    Conv conv = { CONV_CONTACT };
+    memcpy(conv.id, c.id.pub_key, 4);
+    bool has_msgs = false;
+    for (int n = 0; n < _msg_count && !has_msgs; n++) has_msgs = sameConv(MSG_AT(n).conv, conv);
+    if (!has_msgs) add(conv);
+  }
+  return k;
+}
+
+void MinitelUI::renderMenu() {
+  Conv entries[MENU_ROWS];
+  int total = buildMenu(entries, MENU_ROWS, _menu_page * MENU_ROWS);
+  _menu_pages = total > 0 ? (total + MENU_ROWS - 1) / MENU_ROWS : 1;
+  if (_menu_page >= _menu_pages) {   // entries removed meanwhile
+    _menu_page = _menu_pages - 1;
+    buildMenu(entries, MENU_ROWS, _menu_page * MENU_ROWS);
+  }
+
+  _mt->newScreen();
+  _mt->cursor();
+
+  char line[COLS * 3 + 4];
+  snprintf(line, sizeof(line), " SOMMAIRE - Conversations");
+  int len = padCols(line, strlen(line), COLS - 10, sizeof(line));
+  snprintf(&line[len], sizeof(line) - len, "  page %d/%d", _menu_page + 1, _menu_pages);
+  len = truncateCols(line, COLS);
+  padCols(line, len, COLS, sizeof(line));
+  _mt->moveCursorXY(1, ROW_HEADER);
+  _mt->attributs(INVERSION_FOND);
+  _mt->print(String(line));
+  _mt->attributs(FOND_NORMAL);
+
+  int first = _menu_page * MENU_ROWS;
+  int shown = total - first < MENU_ROWS ? total - first : MENU_ROWS;
+  for (int r = 0; r < shown; r++) {
+    char raw[64];
+    convName(entries[r], raw, sizeof(raw));
+    char name[COLS * 3];
+    sanitize(name, sizeof(name), raw, strlen(raw));
+    truncateCols(name, 28);
+
+    int unread = countUnread(&entries[r]);
+    char count[12] = "";
+    if (unread > 0) snprintf(count, sizeof(count), "(%d)", unread);
+
+    snprintf(line, sizeof(line), "%3d %s", first + r + 1, name);
+    len = padCols(line, strlen(line), COLS - 1 - strlen(count), sizeof(line));
+    strcpy(&line[len], count);
+    printAt(1, MENU_ROW_FIRST + r, line, sameConv(entries[r], _conv));   // current one highlighted
+  }
+
+  printAt(1, 21, " Numéro puis ENVOI : ouvrir             ", true);
+  printAt(1, 22, " SUITE/RETOUR:pages  SOMMAIRE:sortir");
+  printAt(1, 24, "Numéro : ");
+  _mt->print(String(_menu_num_len > 0 ? _menu_num : ""));
 }
 
 #endif
