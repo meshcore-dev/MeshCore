@@ -102,7 +102,8 @@
 static TFT_eSPI lcd = TFT_eSPI(160, 80);
 static uint32_t curr_color;
 
-#if defined(HELTEC_LORA_V3) || defined(HELTEC_TRACKER_V2)
+#if defined(HELTEC_LORA_V3) || defined(HELTEC_TRACKER_V2) || defined(DFROBOT_LORAWAN_ESP32S3)
+  // ESP32-S3: HSPI is SPI3. The SX1262 uses FSPI (SPI2) so the two buses do not share a controller.
   static SPIClass tft_spi(HSPI);
   #define  _spi   (&tft_spi)
 #else
@@ -490,7 +491,7 @@ void ST7735Display::_resetAndInit() {
 
     // run init commands
     displayInit(Rcmd1);
-#if defined(HELTEC_TRACKER_V2) || defined(HELTEC_T096)
+#if defined(HELTEC_TRACKER_V2) || defined(HELTEC_T096) || defined(DFROBOT_LORAWAN_ESP32S3)
     displayInit(Rcmd2green160x80);
     //uint8_t madctl = ST77XX_MADCTL_MY | ST77XX_MADCTL_MV |ST7735_MADCTL_BGR;//Adjust color to BGR
     //display.sendCommand(ST77XX_MADCTL, &madctl, 1);
