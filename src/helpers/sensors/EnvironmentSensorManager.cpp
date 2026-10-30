@@ -720,7 +720,7 @@ static const char* const GPS_SETTING_NAMES[] = {
   "gps",
 #ifdef GPS_GUARD
   "gps_fence",    // metres from gps_ref, 0 = off
-  "gps_ref",      // reference position "lat,lon", 0,0 = none
+  "gps_ref",      // reference position "lat;lon", 0;0 = none
   "gps_guard",    // read-only status
 #endif
 };
@@ -757,15 +757,16 @@ const char* EnvironmentSensorManager::getSettingValue(int i) const {
       return _setting_buf;
     }
     if (strcmp(name, "gps_ref") == 0) {
-      snprintf(_setting_buf, sizeof(_setting_buf), "%.5f,%.5f", _gps_ref_lat, _gps_ref_lon);
+      // ";" not ",": companion custom vars are sent as "name:value,name:value"
+      snprintf(_setting_buf, sizeof(_setting_buf), "%.5f;%.5f", _gps_ref_lat, _gps_ref_lon);
       return _setting_buf;
     }
     if (strcmp(name, "gps_guard") == 0) {
       if (_time_alert) {
-        snprintf(_setting_buf, sizeof(_setting_buf), "%s t:%s ALERT gps-clk %+lds %lum", _fix_status, _time_status,
+        snprintf(_setting_buf, sizeof(_setting_buf), "%s time %s ALERT gps-clk %+lds %lum", _fix_status, _time_status,
                  _time_disagree_offset, (unsigned long)((millis() - _time_disagree_since_ms) / 60000));
       } else {
-        snprintf(_setting_buf, sizeof(_setting_buf), "%s t:%s", _fix_status, _time_status);
+        snprintf(_setting_buf, sizeof(_setting_buf), "%s time %s", _fix_status, _time_status);
       }
       return _setting_buf;
     }
@@ -797,7 +798,7 @@ bool EnvironmentSensorManager::setSettingValue(const char* name, const char* val
   if (strcmp(name, "gps_ref") == 0) {
     char* end;
     double lat = strtod(value, &end);
-    if (*end != ',') return false;
+    if (*end != ',' && *end != ';') return false;   // accept "lat,lon" and "lat;lon"
     double lon = strtod(end + 1, NULL);
     if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return false;
     _gps_ref_lat = lat;
