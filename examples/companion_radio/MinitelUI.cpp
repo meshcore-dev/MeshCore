@@ -408,9 +408,14 @@ void MinitelUI::loop() {
   if (reached(_next_ack_check)) {
     checkAckTimeouts();
     _next_ack_check = millis() + 1000;
-    // overrides the OLED's own auto-off timer (ui-new/UITask.cpp), which only
-    // resets on a physical button press and knows nothing about this toggle
-    if (_oled_always_on && _display && !_display->isOn()) _display->turnOn();
+  }
+  // Overrides the OLED's own auto-off timer (ui-new/UITask.cpp): that code runs
+  // its own turnOff() every loop() once idle, regardless of this toggle, so this
+  // has to run every loop() too (not just once a second) to actually win that
+  // fight instead of just flickering on for a fraction of a second each time.
+  if (_oled_always_on && _display && !_display->isOn()) {
+    _display->turnOn();
+    _display->dim(true);
   }
   if (_mode == MODE_SPLASH && !_full_dirty && reached(_splash_until)) {
     _mode = needsPairing() ? MODE_PAIRING : MODE_CHAT;
@@ -725,8 +730,8 @@ void MinitelUI::onToolsKey(const KeyEvent& ev) {
           : "Échec de l'envoi de l'annonce.");
       } else if (num == 3 && _display) {
         _oled_always_on = !_oled_always_on;
+        if (_oled_always_on) _display->turnOn();   // wake/power it up before touching contrast
         _display->dim(_oled_always_on);
-        if (_oled_always_on) _display->turnOn();
         strcpy(_menu_status, _oled_always_on
           ? "Écran OLED : toujours allumé (faible)."
           : "Écran OLED : normal.");
