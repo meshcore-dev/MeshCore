@@ -40,6 +40,7 @@
 #define SPLASH_MILLIS         30000
 #define ACK_MARGIN_MILLIS     2000
 #define MAX_AUTORESEND        3     // how many times to auto-resend an unconfirmed private message
+#define MSG_LED_MILLIS        150   // how long the optional message LED stays lit
 
 #ifndef MAX_GROUP_CHANNELS
   #define MAX_GROUP_CHANNELS  1
@@ -308,6 +309,11 @@ void MinitelUI::begin() {
   _conv.id[0] = MINITEL_CHANNEL_IDX;
   _input[0] = _input_saved[0] = 0;
 
+#ifdef MSG_LED_PIN
+  pinMode(MSG_LED_PIN, OUTPUT);
+  digitalWrite(MSG_LED_PIN, LOW);
+#endif
+
   // parity / framing errors: noise on the line, or the Minitel is not at our speed
   mt_serial.onReceiveError([this](hardwareSerial_error_t err) { onRxError(); });
   _mt = new Minitel(mt_serial, MINITEL_RX, MINITEL_TX);   // starts the port at 1200 bauds 7E1
@@ -317,6 +323,16 @@ void MinitelUI::begin() {
 
 void MinitelUI::writeRaw(const uint8_t* data, int len) {
   for (int i = 0; i < len; i++) _mt->writeByte(data[i]);
+}
+
+// Optional LED (GPIO32 by default, see MSG_LED_PIN): lit briefly on every
+// received message, same trigger as the Minitel's own bip(). No-op if the
+// board doesn't define MSG_LED_PIN (no LED wired up).
+void MinitelUI::flashMsgLed() {
+#ifdef MSG_LED_PIN
+  digitalWrite(MSG_LED_PIN, HIGH);
+  _msg_led_until = millis() + MSG_LED_MILLIS;
+#endif
 }
 
 // Step 1: maybe the Minitel is already at 4800 (ESP restarted, Minitel kept on)
@@ -417,6 +433,12 @@ void MinitelUI::loop() {
     _display->turnOn();
     _display->dim(true);
   }
+#ifdef MSG_LED_PIN
+  if (_msg_led_until && reached(_msg_led_until)) {
+    digitalWrite(MSG_LED_PIN, LOW);
+    _msg_led_until = 0;
+  }
+#endif
   if (_mode == MODE_SPLASH && !_full_dirty && reached(_splash_until)) {
     _mode = needsPairing() ? MODE_PAIRING : MODE_CHAT;
     _full_dirty = true;
@@ -795,6 +817,7 @@ void MinitelUI::onChannelMessage(uint8_t channel_idx, const char* sender, const 
   sanitize(m.text, sizeof(m.text), raw, len);
 
   if (sender == NULL && _mt && _state == ONLINE) _mt->bip();
+  if (sender == NULL) flashMsgLed();
 }
 
 void MinitelUI::onDirectMessage(const ContactInfo& from, const char* text, uint8_t hops, int8_t snr4, uint32_t timestamp) {
@@ -812,6 +835,7 @@ void MinitelUI::onDirectMessage(const ContactInfo& from, const char* text, uint8
   sanitize(m.text, sizeof(m.text), raw, strlen(raw));
 
   if (_mt && _state == ONLINE) _mt->bip();
+  flashMsgLed();
 }
 
 void MinitelUI::onDirectSent(const ContactInfo& to, const char* text, uint32_t expected_ack, uint32_t est_timeout,

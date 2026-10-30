@@ -133,6 +133,11 @@ private:
   bool _msgs_dirty = false;
   bool _header_dirty = false;
 
+#ifdef MSG_LED_PIN
+  unsigned long _msg_led_until = 0;   // 0 = off
+#endif
+  void flashMsgLed();
+
   void writeRaw(const uint8_t* data, int len);
   void startProbe();
   void goOnline();
