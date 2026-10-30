@@ -325,9 +325,11 @@ void MinitelUI::writeRaw(const uint8_t* data, int len) {
   for (int i = 0; i < len; i++) _mt->writeByte(data[i]);
 }
 
-// Optional LED (GPIO32 by default, see MSG_LED_PIN): lit briefly on every
-// received message, same trigger as the Minitel's own bip(). No-op if the
-// board doesn't define MSG_LED_PIN (no LED wired up).
+// Optional LED (reuses the radio's existing TX-indicator pin, see MSG_LED_PIN):
+// flashes briefly on every received message, same trigger as the Minitel's own
+// bip(). The same LED already flashes on every transmission too (unrelated,
+// existing code: ESP32Board::onBeforeTransmit/onAfterTransmit), so it now
+// indicates both directions. No-op if the board doesn't define MSG_LED_PIN.
 void MinitelUI::flashMsgLed() {
 #ifdef MSG_LED_PIN
   digitalWrite(MSG_LED_PIN, HIGH);
