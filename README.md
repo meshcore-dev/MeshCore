@@ -8,6 +8,10 @@ Réalisation : **Capt_Pierrot** et **Jonathan**.
   <img src="docs/_assets/minitel_photo.png" alt="Minitel 1B avec la carte LilyGo et son montage sur breadboard posés sur le dessus">
 </p>
 
+<p align="center">
+  <img src="docs/_assets/minitel_closeup.jpg" alt="Gros plan du montage sur breadboard (carte LilyGo et câblage) posé sur le Minitel" width="442">
+</p>
+
 ## Qu'est-ce que c'est ?
 
 Ce dépôt est un fork de [MeshCore](https://github.com/meshcore-dev/MeshCore) qui ajoute un **environnement de compilation dédié** (`LilyGo_TLora_V2_1_1_6_companion_radio_ble_minitel`) pilotant un Minitel 1B via sa prise péri-informatique, en plus de toutes les fonctions habituelles du firmware « companion » (application mobile en Bluetooth, écran OLED de la carte). Rien n'est retiré à MeshCore : le Minitel vient s'ajouter comme une interface supplémentaire.
