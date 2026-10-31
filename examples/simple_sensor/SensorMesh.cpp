@@ -101,6 +101,29 @@ static float findTelemValue(const uint8_t* buf, uint8_t size, uint8_t channel, u
 
 /* ------------------ end Cayenne LPP helpers ----------------------*/
 
+mesh::Packet* SensorMesh::obtainPacketFor(ClientInfo& client, const uint8_t* out_path, uint8_t out_path_len) {
+  auto pkt = obtainNewPacket();
+  if (pkt) {
+    if (out_path_len == OUT_PATH_UNKNOWN) {
+      pkt->header |= ROUTE_TYPE_FLOOD;
+      // NOTE: final route type, transport codes, path_len is set later in sendFloodScoped()
+    } else {
+      uint8_t crypto_mode = client.direct_mode & 0x0F;
+      if (crypto_mode == CRYPTO_NEW_DIRECT) {
+        uint8_t dm_mode = client.direct_mode >> 4;   // upper 4 bits is which DM_MODE_* to use
+        pkt->header |= ROUTE_TYPE_TRANSPORT_DIRECT;
+        pkt->transport_codes[0] = (((uint16_t)dm_mode) << 14) | client.next_seq_no++;  // implicit, cursor = 0
+        pkt->transport_codes[1] = (client.curr_session_id & ~(3u << 14));
+        pkt->transport_codes[1] |= (CRYPTO_NEW_DIRECT << 14);
+      } else {
+        pkt->header |= ROUTE_TYPE_DIRECT;
+      }
+      pkt->path_len = mesh::Packet::copyPath(pkt->path, out_path, out_path_len);
+    }
+  }
+  return pkt;
+}
+
 bool SensorMesh::telemHasChanged(ClientInfo* c) {
   auto buf = telemetry.getBuffer();
   uint8_t size = telemetry.getSize();
@@ -259,7 +282,7 @@ mesh::Packet* SensorMesh::createSelfAdvert() {
   return createAdvert(self_id, app_data, app_data_len);
 }
 
-void SensorMesh::sendAlert(const ClientInfo* c, Trigger* t) {
+void SensorMesh::sendAlert(ClientInfo* c, Trigger* t) {
   int text_len = strlen(t->text);
 
   uint8_t data[MAX_PACKET_PAYLOAD];
@@ -271,10 +294,11 @@ void SensorMesh::sendAlert(const ClientInfo* c, Trigger* t) {
   mesh::Utils::sha256((uint8_t *)&t->expected_acks[t->attempt], 4, data, 5 + text_len, self_id.pub_key, PUB_KEY_SIZE);
   t->attempt++;
 
-  auto pkt = createDatagram(PAYLOAD_TYPE_TXT_MSG, c->id, c->shared_secret, data, 5 + text_len);
+  auto pkt = obtainPacketFor(*c, c->out_path, c->out_path_len);
   if (pkt) {
-    if (c->out_path_len != OUT_PATH_UNKNOWN) {  // we have an out_path, so send DIRECT
-      sendDirect(pkt, c->out_path, c->out_path_len);
+    encodeDatagram(pkt, PAYLOAD_TYPE_TXT_MSG, c->id, c->shared_secret, data, 5 + text_len);
+    if (pkt->isRouteDirect()) {
+      send(pkt);
     } else {
       unsigned long delay_millis = 0;
       sendFloodScoped(default_scope, pkt, delay_millis, _prefs.path_hash_mode + 1);
@@ -409,8 +433,9 @@ uint8_t SensorMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* 
   reply_data[7] = client->permissions;
   getRNG()->random(&reply_data[8], 4);   // random blob to help packet-hash uniqueness
   reply_data[12] = FIRMWARE_VER_LEVEL;
+  reply_data[13] = (1 << CRYPTO_NEW_DIRECT) | (1 << CRYPTO_LEGACY);  // New bitfield: which crypto-types supported
 
-  return 13;  // reply length
+  return 14;  // reply length
 }
 
 void SensorMesh::handleCommand(ClientInfo* from, uint32_t sender_timestamp, char* command, char* reply) {
@@ -535,7 +560,7 @@ mesh::DispatcherAction SensorMesh::onRecvPacket(mesh::Packet* pkt) {
   return Mesh::onRecvPacket(pkt);
 }
 
-void SensorMesh::onAnonDataRecv(mesh::Packet* packet, const uint8_t* secret, const mesh::Identity& sender, uint8_t* data, size_t len) {
+void SensorMesh::onAnonDataRecv(mesh::Packet* packet, const uint8_t* secret, const mesh::Identity& sender, uint8_t* data, size_t len, uint8_t crypto_type) {
   if (packet->getPayloadType() == PAYLOAD_TYPE_ANON_REQ) {  // received an initial request by a possible admin client (unknown at this stage)
     uint32_t timestamp;
     memcpy(&timestamp, data, 4);
@@ -558,8 +583,24 @@ void SensorMesh::onAnonDataRecv(mesh::Packet* packet, const uint8_t* secret, con
                                             PAYLOAD_TYPE_RESPONSE, reply_data, reply_len);
       if (path) sendFloodReply(path, SERVER_RESPONSE_DELAY, packet->getPathHashSize());
     } else {
-      mesh::Packet* reply = createDatagram(PAYLOAD_TYPE_RESPONSE, sender, secret, reply_data, reply_len);
-      if (reply) sendFloodReply(reply, SERVER_RESPONSE_DELAY, packet->getPathHashSize());
+      auto client = acl.getClient(sender.pub_key, PUB_KEY_SIZE);
+      if (client == NULL) {
+        MESH_DEBUG_PRINTLN("onAnonDataRecv: client ACL cannot find slot!");  // This shouldn't happen!
+        return;
+      }
+      if (crypto_type == CRYPTO_NEW_DIRECT) {
+        client->direct_mode = (DM_MODE_SEQ_NORMAL << 4) | CRYPTO_NEW_DIRECT;   // have received from Client in new scheme, so they must support it
+      }
+
+      auto reply = obtainPacketFor(*client, client->out_path, client->out_path_len);
+      if (reply) {
+        encodeDatagram(reply, PAYLOAD_TYPE_RESPONSE, sender, secret, reply_data, reply_len);
+        if (reply->isRouteDirect()) {
+          send(reply, SERVER_RESPONSE_DELAY);
+        } else {
+          sendFloodReply(reply, SERVER_RESPONSE_DELAY, packet->getPathHashSize());
+        }
+      }
     }
   }
 }
@@ -584,24 +625,30 @@ void SensorMesh::getPeerSharedSecret(uint8_t* dest_secret, int peer_idx) {
   }
 }
 
-void SensorMesh::sendAckTo(const ClientInfo& dest, uint32_t ack_hash, uint8_t path_hash_size) {
+void SensorMesh::sendAckTo(ClientInfo& dest, uint32_t ack_hash, uint8_t path_hash_size) {
   if (dest.out_path_len == OUT_PATH_UNKNOWN) {
     mesh::Packet* ack = createAck(ack_hash);
     if (ack) sendFloodScoped(default_scope, ack, TXT_ACK_DELAY, path_hash_size);
   } else {
     uint32_t d = TXT_ACK_DELAY;
     if (getExtraAckTransmitCount() > 0) {
-      mesh::Packet* a1 = createMultiAck(ack_hash, 1);
-      if (a1) sendDirect(a1, dest.out_path, dest.out_path_len, d);
+      mesh::Packet* a1 = obtainPacketFor(dest, dest.out_path, dest.out_path_len);
+      if (a1) {
+        encodeMultiAck(a1, (uint8_t *) &ack_hash, 4, 1);
+        send(a1, d);
+      }
       d += 300;
     }
 
-    mesh::Packet* a2 = createAck(ack_hash);
-    if (a2) sendDirect(a2, dest.out_path, dest.out_path_len, d);
+    mesh::Packet* a2 = obtainPacketFor(dest, dest.out_path, dest.out_path_len);
+    if (a2) {
+      encodeAck(a2, (uint8_t *) &ack_hash, 4);
+      send(a2, d);
+    }
   }
 }
 
-void SensorMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender_idx, const uint8_t* secret, uint8_t* data, size_t len) {
+void SensorMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender_idx, const uint8_t* secret, uint8_t* data, size_t len, uint8_t crypto_type) {
   int i = matching_peer_indexes[sender_idx];
   if (i < 0 || i >= acl.getNumClients()) {
     MESH_DEBUG_PRINTLN("onPeerDataRecv: Invalid sender idx: %d", i);
@@ -609,6 +656,9 @@ void SensorMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender_i
   }
 
   ClientInfo* from = acl.getClientByIdx(i);
+  if (crypto_type == CRYPTO_NEW_DIRECT) {
+    from->direct_mode = (DM_MODE_SEQ_NORMAL << 4) | CRYPTO_NEW_DIRECT;   // have received from Client in new scheme, so they must support it
+  }
 
   if (type == PAYLOAD_TYPE_REQ) {  // request (from a known contact)
     uint32_t timestamp;
@@ -627,10 +677,11 @@ void SensorMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender_i
                                               PAYLOAD_TYPE_RESPONSE, reply_data, reply_len);
         if (path) sendFloodReply(path, SERVER_RESPONSE_DELAY, packet->getPathHashSize());
       } else {
-        mesh::Packet* reply = createDatagram(PAYLOAD_TYPE_RESPONSE, from->id, secret, reply_data, reply_len);
+        auto reply = obtainPacketFor(*from, from->out_path, from->out_path_len);
         if (reply) {
-          if (from->out_path_len != OUT_PATH_UNKNOWN) {  // we have an out_path, so send DIRECT
-            sendDirect(reply, from->out_path, from->out_path_len, SERVER_RESPONSE_DELAY);
+          encodeDatagram(reply, PAYLOAD_TYPE_RESPONSE, from->id, secret, reply_data, reply_len);
+          if (reply->isRouteDirect()) {
+            send(reply, SERVER_RESPONSE_DELAY);
           } else {
             sendFloodReply(reply, SERVER_RESPONSE_DELAY, packet->getPathHashSize());
           }
@@ -682,12 +733,13 @@ void SensorMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender_i
           memcpy(temp, &timestamp, 4);   // mostly an extra blob to help make packet_hash unique
           temp[4] = (TXT_TYPE_CLI_DATA << 2);
 
-          auto reply = createDatagram(PAYLOAD_TYPE_TXT_MSG, from->id, secret, temp, 5 + text_len);
+          auto reply = obtainPacketFor(*from, from->out_path, from->out_path_len);
           if (reply) {
-            if (from->out_path_len == OUT_PATH_UNKNOWN) {
-              sendFloodReply(reply, CLI_REPLY_DELAY_MILLIS, packet->getPathHashSize());
+            encodeDatagram(reply, PAYLOAD_TYPE_TXT_MSG, from->id, secret, temp, 5 + text_len);
+            if (reply->isRouteDirect()) {
+              send(reply, CLI_REPLY_DELAY_MILLIS);
             } else {
-              sendDirect(reply, from->out_path, from->out_path_len, CLI_REPLY_DELAY_MILLIS);
+              sendFloodReply(reply, CLI_REPLY_DELAY_MILLIS, packet->getPathHashSize());
             }
           }
         }
@@ -815,6 +867,7 @@ SensorMesh::SensorMesh(mesh::MainBoard& board, mesh::Radio& radio, mesh::Millise
   _prefs.flood_max = 64;
   _prefs.interference_threshold = 0;  // disabled
   _prefs.cad_enabled = 0;             // hardware CAD before TX (off by default; 'set cad on')
+  _prefs.wide_snr_threshold = -8.0f;
 
   // GPS defaults
   _prefs.gps_enabled = 0;
@@ -1055,10 +1108,11 @@ void SensorMesh::loop() {
           memcpy(&reply_data[4], &timestamp, 4);
           memcpy(&reply_data[8], telemetry.getBuffer(), tlen);
 
-          mesh::Packet* reply = createDatagram(PAYLOAD_TYPE_RESPONSE, c->id, c->shared_secret, reply_data, 8 + tlen);
+          auto reply = obtainPacketFor(*c, c->out_path, c->out_path_len);
           if (reply) {
-            if (c->out_path_len != OUT_PATH_UNKNOWN) {  // we have an out_path, so send DIRECT
-              sendDirect(reply, c->out_path, c->out_path_len, 0);
+            encodeDatagram(reply, PAYLOAD_TYPE_RESPONSE, c->id, c->shared_secret, reply_data, 8 + tlen);
+            if (reply->isRouteDirect()) {
+              send(reply);
             } else {
               sendFloodScoped(scope, reply, 0, _prefs.path_hash_mode + 1);
             }

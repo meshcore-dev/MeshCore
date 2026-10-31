@@ -119,6 +119,9 @@ protected:
   virtual int querySeriesData(uint32_t start_secs_ago, uint32_t end_secs_ago, MinMaxAvg dest[], int max_num) = 0;  // for app to implement
   virtual bool handleCustomCommand(uint32_t sender_timestamp, char* command, char* reply) { return false; }
 
+  // sets up an outgoing Packet with appropriate route_type, transport codes and path
+  mesh::Packet* obtainPacketFor(ClientInfo& client, const uint8_t* out_path, uint8_t out_path_len);
+
   // Mesh overrides
   float getAirtimeBudgetFactor() const override;
   bool allowPacketForward(const mesh::Packet* packet) override;
@@ -129,16 +132,16 @@ protected:
   bool getCADEnabled() const override;
   int getAGCResetInterval() const override;
   mesh::DispatcherAction onRecvPacket(mesh::Packet* pkt) override;
-  void onAnonDataRecv(mesh::Packet* packet, const uint8_t* secret, const mesh::Identity& sender, uint8_t* data, size_t len) override;
+  void onAnonDataRecv(mesh::Packet* packet, const uint8_t* secret, const mesh::Identity& sender, uint8_t* data, size_t len, uint8_t crypto_type) override;
   int searchPeersByHash(const uint8_t* hash) override;
   void getPeerSharedSecret(uint8_t* dest_secret, int peer_idx) override;
-  void onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender_idx, const uint8_t* secret, uint8_t* data, size_t len) override;
+  void onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender_idx, const uint8_t* secret, uint8_t* data, size_t len, uint8_t crypto_type) override;
   bool onPeerPathRecv(mesh::Packet* packet, int sender_idx, const uint8_t* secret, uint8_t* path, uint8_t path_len, uint8_t extra_type, uint8_t* extra, uint8_t extra_len) override;
   void onControlDataRecv(mesh::Packet* packet) override;
   void onAckRecv(mesh::Packet* packet, uint32_t ack_crc) override;
 
   virtual bool handleIncomingMsg(ClientInfo& from, uint32_t timestamp, uint8_t* data, uint8_t flags, size_t len);
-  void sendAckTo(const ClientInfo& dest, uint32_t ack_hash, uint8_t path_hash_size=1);
+  void sendAckTo(ClientInfo& dest, uint32_t ack_hash, uint8_t path_hash_size=1);
 private:
   FILESYSTEM* _fs;
   unsigned long next_local_advert, next_flood_advert;
@@ -169,7 +172,7 @@ private:
   uint8_t handleRequest(ClientInfo* from, uint32_t sender_timestamp, uint8_t req_type, uint8_t* payload, size_t payload_len);
   mesh::Packet* createSelfAdvert();
 
-  void sendAlert(const ClientInfo* c, Trigger* t);
+  void sendAlert(ClientInfo* c, Trigger* t);
 
   #if ENV_INCLUDE_GPS == 1
   void applyGpsPrefs() {

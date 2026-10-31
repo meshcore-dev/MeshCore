@@ -43,7 +43,7 @@ public:
   static int decrypt(const uint8_t* shared_secret, uint8_t* dest, const uint8_t* src, int src_len);
 
   /**
-   * \brief  encrypts bytes in src, then calculates MAC on ciphertext, inserting into leading bytes of 'dest'.
+   * \brief  encrypts bytes in src, then calculates MAC on ciphertext, inserting into leading bytes of 'dest'. (using ECB mode)
    * \returns  total length of bytes in 'dest' (MAC + ciphertext)
   */
   static int encryptThenMAC(const uint8_t* shared_secret, uint8_t* dest, const uint8_t* src, int src_len);
@@ -53,6 +53,18 @@ public:
    * \returns  zero if MAC is invalid or ciphertext is not block-aligned, otherwise the length of decrypted bytes in 'dest'
   */
   static int MACThenDecrypt(const uint8_t* shared_secret, uint8_t* dest, const uint8_t* src, int src_len);
+
+  /**
+   * \brief  encrypts bytes in src, then calculates auth/tag, inserting into leading 8 bytes of 'dest'. (using IV, and streaming mode)
+   * \returns  total length of bytes in 'dest' (tag + ciphertext)
+  */
+  static int encryptThenMAC(const uint8_t* shared_secret, const uint8_t* iv, int iv_len, uint8_t* dest, const uint8_t* src, int src_len);
+
+  /**
+   * \brief  decrypts bytes in src after the 8 byte auth/tag, then checks the 8 byte tag (using IV, and streaming mode).
+   * \returns  zero if tag is invalid, otherwise the length of decrypted bytes in 'dest'
+  */
+  static int MACThenDecrypt(const uint8_t* shared_secret, const uint8_t* iv, int iv_len, uint8_t* dest, const uint8_t* src, int src_len);
 
   /**
    * \brief  converts 'src' bytes with given length to Hex representation, and null terminates.

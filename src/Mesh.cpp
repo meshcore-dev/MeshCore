@@ -75,7 +75,7 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
     return ACTION_RELEASE;
   }
 
-  if (pkt->isRouteDirect() && pkt->getPathHashCount() > 0) {
+  if (pkt->isRouteDirect() && !pkt->isPathAtEnd()) {
     // check for 'early received' ACK
     if (pkt->getPayloadType() == PAYLOAD_TYPE_ACK) {
       int i = 0;
@@ -86,8 +86,56 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
       }
     }
 
-    if (self_id.isHashMatch(pkt->path, pkt->getPathHashSize()) && allowPacketForward(pkt)) {
-      uint32_t d = getDirectRetransmitDelay(pkt);
+    uint8_t hash_size = pkt->getPathHashSize();
+    bool is_match;
+    uint32_t d = getDirectRetransmitDelay(pkt);
+    if (pkt->getRouteType() == ROUTE_TYPE_TRANSPORT_DIRECT) {
+      uint8_t mode = pkt->transport_codes[0] >> 14;
+      uint8_t cursor = (pkt->transport_codes[0] >> 8) & 63;  // lower 6 bits only
+      if (mode == DM_MODE_SEQ_NORMAL) {
+        const uint8_t* curr_hash = &pkt->path[cursor * hash_size];
+        is_match = self_id.isHashMatch(curr_hash, hash_size);
+      } else if (mode == DM_MODE_SEQ_WIDE || mode == DM_MODE_SEQ_WIDE_MODIFIED) {
+        uint8_t* curr_hash = &pkt->path[cursor * hash_size];
+        if (self_id.isHashMatch(curr_hash, hash_size)) {
+          is_match = true;
+        } else {
+          if (isHashNeighbor(curr_hash, hash_size)) {
+            is_match = true;
+            // RE-WRITE curr hash with self_id, so dest can tell which path actually was taken
+            self_id.copyHashTo(curr_hash, hash_size);
+            // RE-WRITE the mode bits, to indicate path was modified
+            pkt->transport_codes[0] &= ~(3 << 14);  // clear the hi 2 bits
+            pkt->transport_codes[0] |= ((uint16_t)DM_MODE_SEQ_WIDE_MODIFIED) << 14;
+            // WORKAROUND:  edge case where _next_ hash in the path is THIS node!
+            if (cursor + 1 < pkt->getPathHashCount()) {
+              auto next_hash = curr_hash + hash_size;
+              if (self_id.isHashMatch(next_hash, hash_size)) {
+                pkt->setPathHashCount(pkt->getPathHashCount() - 1);     // remove next_hash
+                for (uint8_t k = cursor*hash_size; k < pkt->getPathHashCount()*hash_size; k += hash_size) {  // shuffle path by 1 'entry'
+                  memcpy(&pkt->path[k], &pkt->path[k + hash_size], hash_size);
+                }
+              }
+            }
+          } else {
+            is_match = false;
+          }
+        }
+        d = getRetransmitDelay(pkt);  // For WIDE mode, use flood retransmit delay factor
+      } else { // DM_MODE_SEQ_LINK_ID
+    #if 0
+        // TODO: allowPacketForward() should check if Link-Id is allowed
+        is_match = true;   // Note: cursor Not applied
+    #else
+        is_match = false;   // Not implemented
+    #endif
+      }
+    } else {
+      // original DIRECT mode (path array gets consumed, current hash is always at start of path array)
+      is_match = self_id.isHashMatch(pkt->path, hash_size);
+    }
+
+    if (is_match && allowPacketForward(pkt)) {
       if (pkt->getPayloadType() == PAYLOAD_TYPE_MULTIPART) {
         return forwardMultipartDirect(pkt, d);
       } else if (pkt->getPayloadType() == PAYLOAD_TYPE_ACK) {
@@ -155,7 +203,21 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
 
             // decrypt, checking MAC is valid
             uint8_t data[MAX_PACKET_PAYLOAD];
-            int len = Utils::MACThenDecrypt(secret, data, macAndData, pkt->payload_len - i);
+            int len;
+            uint8_t crypto_type;
+            if (pkt->getRouteType() == ROUTE_TYPE_TRANSPORT_DIRECT && (pkt->transport_codes[1] >> 14) == CRYPTO_NEW_DIRECT) {
+              uint8_t iv[3];
+              memcpy(iv, &pkt->transport_codes[1], 2);   // session-id
+              iv[2] = (pkt->transport_codes[0] & 0xFF);    // seq-no
+              len = Utils::MACThenDecrypt(secret, iv, 3, data, macAndData, pkt->payload_len - i);
+              crypto_type = CRYPTO_NEW_DIRECT;
+            } else if (!pkt->hasTransportCodes() || (pkt->transport_codes[1] >> 14) == CRYPTO_LEGACY) {
+              len = Utils::MACThenDecrypt(secret, data, macAndData, pkt->payload_len - i);
+              crypto_type = CRYPTO_LEGACY;
+            } else {
+              MESH_DEBUG_PRINTLN("%s unknown Crypto Type indicator: %u", getLogDateTime(), (uint32_t)(pkt->transport_codes[1] >> 14));
+              len = 0;  // failed to decode
+            }
             if (len > 0) {  // success!
               if (pkt->getPayloadType() == PAYLOAD_TYPE_PATH) {
                 int k = 0;
@@ -170,7 +232,7 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
                 uint8_t extra_type = data[k++] & 0x0F;   // upper 4 bits reserved for future use
                 uint8_t* extra = &data[k];
                 uint8_t extra_len = len - k;   // remainder of packet (may be padded with zeroes!)
-                if (onPeerPathRecv(pkt, j, secret, path, path_len, extra_type, extra, extra_len)) {
+                if (onPeerPathRecv(pkt, j, secret, path, path_len, extra_type, extra, extra_len, crypto_type)) {
                   if (pkt->isRouteFlood()) {
                     // send a reciprocal return path to sender, but send DIRECTLY!
                     mesh::Packet* rpath = createPathReturn(&src_hash, secret, pkt->path, pkt->path_len, 0, NULL, 0);
@@ -178,7 +240,7 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
                   }
                 }
               } else {
-                onPeerDataRecv(pkt, pkt->getPayloadType(), j, secret, data, len);
+                onPeerDataRecv(pkt, pkt->getPayloadType(), j, secret, data, len, crypto_type);
               }
               found = true;
               break;
@@ -212,9 +274,24 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
 
           // decrypt, checking MAC is valid
           uint8_t data[MAX_PACKET_PAYLOAD];
-          int len = Utils::MACThenDecrypt(secret, data, macAndData, pkt->payload_len - i);
+          uint8_t crypto_type;
+          int len;
+          if (pkt->getRouteType() == ROUTE_TYPE_TRANSPORT_DIRECT && (pkt->transport_codes[1] >> 14) == CRYPTO_NEW_DIRECT) {
+            uint8_t iv[3];
+            memcpy(iv, &pkt->transport_codes[1], 2);   // session-id / crypto-type
+            iv[2] = (pkt->transport_codes[0] & 0xFF);    // seq-no
+            len = Utils::MACThenDecrypt(secret, iv, 3, data, macAndData, pkt->payload_len - i);
+            crypto_type = CRYPTO_NEW_DIRECT;
+          } else if (!pkt->hasTransportCodes() || (pkt->transport_codes[1] >> 14) == CRYPTO_LEGACY) {
+            len = Utils::MACThenDecrypt(secret, data, macAndData, pkt->payload_len - i);
+            crypto_type = CRYPTO_LEGACY;
+          } else {
+            MESH_DEBUG_PRINTLN("%s unknown Crypto Type indicator: %u", getLogDateTime(), (uint32_t)(pkt->transport_codes[1] >> 14));
+            len = 0;  // failed to decode
+          }
+
           if (len > 0) {  // success!
-            onAnonDataRecv(pkt, secret, sender, data, len);
+            onAnonDataRecv(pkt, secret, sender, data, len, crypto_type);
             pkt->markDoNotRetransmit();
           }
         }
@@ -332,12 +409,20 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
 }
 
 void Mesh::removeSelfFromPath(Packet* pkt) {
-  // remove our hash from 'path'
-  pkt->setPathHashCount(pkt->getPathHashCount() - 1);  // decrement the count
+  if (pkt->getRouteType() == ROUTE_TYPE_TRANSPORT_DIRECT) {
+    // advance the cursor
+    uint8_t cursor = (pkt->transport_codes[0] >> 8) & 63;  // lower 6 bits only
+    cursor++;
+    pkt->transport_codes[0] &= ~(((uint16_t)63) << 8);  // clear the bits
+    pkt->transport_codes[0] |= (((uint16_t)cursor) << 8);   // set new cursor (lower 6 bits)
+  } else {
+    // remove our hash from 'path'
+    pkt->setPathHashCount(pkt->getPathHashCount() - 1);  // decrement the count
 
-  uint8_t sz = pkt->getPathHashSize();
-  for (int k = 0; k < pkt->getPathHashCount()*sz; k += sz) {  // shuffle path by 1 'entry'
-    memcpy(&pkt->path[k], &pkt->path[k + sz], sz);
+    uint8_t sz = pkt->getPathHashSize();
+    for (int k = 0; k < pkt->getPathHashCount()*sz; k += sz) {  // shuffle path by 1 'entry'
+      memcpy(&pkt->path[k], &pkt->path[k + sz], sz);
+    }
   }
 }
 
@@ -363,6 +448,8 @@ DispatcherAction Mesh::forwardMultipartDirect(Packet* pkt, uint32_t delay_millis
   if (type == PAYLOAD_TYPE_ACK && pkt->payload_len >= 5) {    // a multipart ACK
     Packet tmp;
     tmp.header = pkt->header;
+    tmp.transport_codes[0] = pkt->transport_codes[0];
+    tmp.transport_codes[1] = pkt->transport_codes[1];
     tmp.path_len = Packet::copyPath(tmp.path, pkt->path, pkt->path_len);
     tmp.payload_len = pkt->payload_len - 1;
     memcpy(tmp.payload, &pkt->payload[1], tmp.payload_len);
@@ -384,7 +471,9 @@ void Mesh::routeDirectRecvAcks(Packet* packet, uint32_t delay_millis) {
       if (a1) {
         a1->path_len = Packet::copyPath(a1->path, packet->path, packet->path_len);
         a1->header &= ~PH_ROUTE_MASK;
-        a1->header |= ROUTE_TYPE_DIRECT;
+        a1->header |= packet->hasTransportCodes() ? ROUTE_TYPE_TRANSPORT_DIRECT : ROUTE_TYPE_DIRECT;
+        a1->transport_codes[0] = packet->transport_codes[0];
+        a1->transport_codes[1] = packet->transport_codes[1];
         sendPacket(a1, 0, delay_millis);
         delay_millis += 300;
       }
@@ -395,7 +484,9 @@ void Mesh::routeDirectRecvAcks(Packet* packet, uint32_t delay_millis) {
     if (a2) {
       a2->path_len = Packet::copyPath(a2->path, packet->path, packet->path_len);
       a2->header &= ~PH_ROUTE_MASK;
-      a2->header |= ROUTE_TYPE_DIRECT;
+      a2->header |= packet->hasTransportCodes() ? ROUTE_TYPE_TRANSPORT_DIRECT : ROUTE_TYPE_DIRECT;
+      a2->transport_codes[0] = packet->transport_codes[0];
+      a2->transport_codes[1] = packet->transport_codes[1];
       sendPacket(a2, 0, delay_millis);
     }
   }
@@ -485,6 +576,35 @@ Packet* Mesh::createPathReturn(const uint8_t* dest_hash, const uint8_t* secret, 
   return packet;
 }
 
+void Mesh::encodeDatagram(Packet* packet, uint8_t type, const Identity& dest, const uint8_t* secret, const uint8_t* data, size_t data_len) {
+  if (!(type == PAYLOAD_TYPE_TXT_MSG || type == PAYLOAD_TYPE_REQ || type == PAYLOAD_TYPE_RESPONSE)) {
+    MESH_DEBUG_PRINTLN("%s Mesh::encodeDatagram(): error, invalid type: %u", getLogDateTime(), (uint32_t)type);
+    return;
+  }
+  if (data_len + CIPHER_MAC_SIZE + CIPHER_BLOCK_SIZE-1 > MAX_PACKET_PAYLOAD) {
+    MESH_DEBUG_PRINTLN("%s Mesh::encodeDatagram(): error, data_len too long: %u", getLogDateTime(), data_len);
+    return;
+  }
+  packet->header |= (type << PH_TYPE_SHIFT);  // ROUTE_TYPE_* should already be set!
+
+  int len = 0;
+  len += dest.copyHashTo(&packet->payload[len]);  // dest hash
+  len += self_id.copyHashTo(&packet->payload[len]);  // src hash
+
+  if (packet->getRouteType() == ROUTE_TYPE_TRANSPORT_DIRECT && (packet->transport_codes[1] >> 14) == CRYPTO_NEW_DIRECT) {
+    // new encryption
+    uint8_t iv[3];
+    memcpy(iv, &packet->transport_codes[1], 2);  // session-id
+    iv[2] = packet->transport_codes[0] & 0xFF;  // seq-no
+    len += Utils::encryptThenMAC(secret, iv, 3, &packet->payload[len], data, data_len);
+  } else {
+    // legacy encryption
+    len += Utils::encryptThenMAC(secret, &packet->payload[len], data, data_len);
+  }
+
+  packet->payload_len = len;
+}
+
 Packet* Mesh::createDatagram(uint8_t type, const Identity& dest, const uint8_t* secret, const uint8_t* data, size_t data_len) {
   if (type == PAYLOAD_TYPE_TXT_MSG || type == PAYLOAD_TYPE_REQ || type == PAYLOAD_TYPE_RESPONSE) {
     if (data_len + CIPHER_MAC_SIZE + CIPHER_BLOCK_SIZE-1 > MAX_PACKET_PAYLOAD) return NULL;
@@ -507,6 +627,39 @@ Packet* Mesh::createDatagram(uint8_t type, const Identity& dest, const uint8_t* 
   packet->payload_len = len;
 
   return packet;
+}
+
+void Mesh::encodeAnonDatagram(Packet* packet, uint8_t type, const LocalIdentity& sender, const Identity& dest, const uint8_t* secret, const uint8_t* data, size_t data_len) {
+  if (type != PAYLOAD_TYPE_ANON_REQ) {
+    MESH_DEBUG_PRINTLN("%s Mesh::encodeAnonDatagram(): error, invalid type %u", getLogDateTime(), (uint32_t)type);
+    return;
+  }
+  if (data_len + 1 + PUB_KEY_SIZE + CIPHER_BLOCK_SIZE-1 > MAX_PACKET_PAYLOAD) {
+    MESH_DEBUG_PRINTLN("%s Mesh::encodeAnonDatagram(): error, too long: %u", getLogDateTime(), data_len);
+    return;
+  }
+
+  packet->header |= (type << PH_TYPE_SHIFT);  // ROUTE_TYPE_* should already be set!
+
+  int len = 0;
+  if (type == PAYLOAD_TYPE_ANON_REQ) {
+    len += dest.copyHashTo(&packet->payload[len]);  // dest hash
+    memcpy(&packet->payload[len], sender.pub_key, PUB_KEY_SIZE); len += PUB_KEY_SIZE;  // sender pub_key
+  } else {
+    // FUTURE:
+  }
+  if (packet->getRouteType() == ROUTE_TYPE_TRANSPORT_DIRECT && (packet->transport_codes[1] >> 14) == CRYPTO_NEW_DIRECT) {
+    // new encryption
+    uint8_t iv[3];
+    memcpy(iv, &packet->transport_codes[1], 2);  // session-id
+    iv[2] = packet->transport_codes[0] & 0xFF;  // seq-no
+    len += Utils::encryptThenMAC(secret, iv, 3, &packet->payload[len], data, data_len);
+  } else {
+    // legacy encryption
+    len += Utils::encryptThenMAC(secret, &packet->payload[len], data, data_len);
+  }
+
+  packet->payload_len = len;
 }
 
 Packet* Mesh::createAnonDatagram(uint8_t type, const LocalIdentity& sender, const Identity& dest, const uint8_t* secret, const uint8_t* data, size_t data_len) {
@@ -584,6 +737,21 @@ Packet* Mesh::createMultiAck(const uint8_t* ack, uint8_t len, uint8_t remaining)
   packet->payload_len = 1 + len;
 
   return packet;
+}
+
+void Mesh::encodeAck(Packet* packet, const uint8_t* ack, uint8_t len) {
+  packet->header |= (PAYLOAD_TYPE_ACK << PH_TYPE_SHIFT);  // ROUTE_TYPE_* should already be set!
+
+  memcpy(packet->payload, ack, len);
+  packet->payload_len = len;
+}
+
+void Mesh::encodeMultiAck(Packet* packet, const uint8_t* ack, uint8_t len, uint8_t remaining) {
+  packet->header |= (PAYLOAD_TYPE_MULTIPART << PH_TYPE_SHIFT);  // ROUTE_TYPE_* should already be set!
+
+  packet->payload[0] = (remaining << 4) | PAYLOAD_TYPE_ACK;
+  memcpy(&packet->payload[1], ack, len);
+  packet->payload_len = 1 + len;
 }
 
 Packet* Mesh::createRawData(const uint8_t* data, size_t len) {
@@ -714,6 +882,30 @@ void Mesh::sendDirect(Packet* packet, const uint8_t* path, uint8_t path_len, uin
   sendPacket(packet, pri, delay_millis);
 }
 
+void Mesh::send(Packet* packet, uint32_t delay_millis) {
+  // packet header should already be set
+  // transport codes should already be set (optional)
+  // path/path_len should already be set (if direct)
+
+  uint8_t pri;
+  if (packet->getPayloadType() == PAYLOAD_TYPE_TRACE) {   // TRACE packets are different
+    // for TRACE packets, path is appended to end of PAYLOAD. (path is used for SNR's)
+    // TODO:  memcpy(&packet->payload[packet->payload_len], path, path_len);  // NOTE: path_len here can be > 64, and NOT in the new scheme
+    //   packet->payload_len += path_len;
+
+    packet->path_len = 0;
+    pri = 5;   // maybe make this configurable
+  } else {
+    if (packet->getPayloadType() == PAYLOAD_TYPE_PATH) {
+      pri = 1;   // slightly less priority
+    } else {
+      pri = 0;
+    }
+  }
+  _tables->markSeen(packet); // mark this packet as already sent in case it is rebroadcast back to us
+  sendPacket(packet, pri, delay_millis);
+}
+
 void Mesh::sendZeroHop(Packet* packet, uint32_t delay_millis) {
   packet->header &= ~PH_ROUTE_MASK;
   packet->header |= ROUTE_TYPE_DIRECT;
@@ -728,7 +920,7 @@ void Mesh::sendZeroHop(Packet* packet, uint32_t delay_millis) {
 void Mesh::sendZeroHop(Packet* packet, uint16_t* transport_codes, uint32_t delay_millis) {
   packet->header &= ~PH_ROUTE_MASK;
   packet->header |= ROUTE_TYPE_TRANSPORT_DIRECT;
-  packet->transport_codes[0] = transport_codes[0];
+  packet->transport_codes[0] = transport_codes[0];  // REVISIT: does this clash with new direct mode??
   packet->transport_codes[1] = transport_codes[1];
 
   packet->path_len = 0;  // path_len of zero means Zero Hop

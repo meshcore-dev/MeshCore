@@ -15,7 +15,10 @@
 struct ClientInfo {
   mesh::Identity id;
   uint8_t permissions;
+  uint8_t direct_mode;
   uint8_t out_path_len;
+  uint8_t next_seq_no;
+  uint16_t curr_session_id;
   uint8_t out_path[MAX_PATH_SIZE];
   uint8_t shared_secret[PUB_KEY_SIZE];
   uint32_t last_timestamp;   // by THEIR clock  (transient)

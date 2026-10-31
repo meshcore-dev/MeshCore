@@ -91,8 +91,9 @@ protected:
    * \param  sender_idx  index of peer, [0..n) where n is what searchPeersByHash() returned
    * \param  secret   the pre-calculated shared-secret (handy for sending response packet)
    * \param  data   decrypted data from payload
+   * \param  crypto_type  the crypto method that was used with this packet, one of CRYPTO_*
   */
-  virtual void onPeerDataRecv(Packet* packet, uint8_t type, int sender_idx, const uint8_t* secret, uint8_t* data, size_t len) { }
+  virtual void onPeerDataRecv(Packet* packet, uint8_t type, int sender_idx, const uint8_t* secret, uint8_t* data, size_t len, uint8_t crypto_type) { }
 
   /**
    * \brief  A TRACE packet has been received. (and has reached the end of its given path)
@@ -113,7 +114,7 @@ protected:
    * \param  secret   the pre-calculated shared-secret (handy for sending response packet)
    * \returns   true, if path was accepted and that reciprocal path should be sent
   */
-  virtual bool onPeerPathRecv(Packet* packet, int sender_idx, const uint8_t* secret, uint8_t* path, uint8_t path_len, uint8_t extra_type, uint8_t* extra, uint8_t extra_len) { return false; }
+  virtual bool onPeerPathRecv(Packet* packet, int sender_idx, const uint8_t* secret, uint8_t* path, uint8_t path_len, uint8_t extra_type, uint8_t* extra, uint8_t extra_len, uint8_t crypto_type) { return false; }
 
   /**
    * \brief  A new incoming Advertisement has been received.
@@ -126,14 +127,18 @@ protected:
    *         NOTE: these can be received multiple times (per sender/contents), via different routes
    * \param  secret  ECDH shared secret
    * \param  sender  public key provided by sender
+   * \param  data    decrypted data from payload
+   * \param  crypto_type  the crypto method that was used with this packet, one of CRYPTO_*
   */
-  virtual void onAnonDataRecv(Packet* packet, const uint8_t* secret, const Identity& sender, uint8_t* data, size_t len) { }
+  virtual void onAnonDataRecv(Packet* packet, const uint8_t* secret, const Identity& sender, uint8_t* data, size_t len, uint8_t crypto_type) { }
 
+#if 0 // ??
   /**
    * \brief  A path TO 'sender' has been received. (also with optional 'extra' data encoded)
    *         NOTE: these can be received multiple times (per sender), via different routes
   */
   virtual void onPathRecv(Packet* packet, Identity& sender, uint8_t* path, uint8_t path_len, uint8_t extra_type, uint8_t* extra, uint8_t extra_len) { }
+#endif
 
   /**
    * \brief  A control packet has been received.
@@ -166,6 +171,12 @@ protected:
   */
   virtual void onAckRecv(Packet* packet, uint32_t ack_crc) { }
 
+  /**
+   * \brief  Hook for sub-classes to test if hash is a neighbor.
+   * \returns  true, if given path hash is a direct neighbor of this node.
+   */
+  virtual bool isHashNeighbor(const uint8_t* hash, uint8_t hash_size) { return false; }
+
   Mesh(Radio& radio, MillisecondClock& ms, RNG& rng, RTCClock& rtc, PacketManager& mgr, MeshTables& tables)
     : Dispatcher(radio, ms, mgr), _rng(&rng), _rtc(&rtc), _tables(&tables)
   {
@@ -196,6 +207,11 @@ public:
   Packet* createTrace(uint32_t tag, uint32_t auth_code, uint8_t flags = 0);
   Packet* createControlData(const uint8_t* data, size_t len);
 
+  void encodeDatagram(Packet* pkt, uint8_t type, const Identity& dest, const uint8_t* secret, const uint8_t* data, size_t len);
+  void encodeAnonDatagram(Packet* pkt, uint8_t type, const LocalIdentity& sender, const Identity& dest, const uint8_t* secret, const uint8_t* data, size_t data_len);
+  void encodeAck(Packet* pkt, const uint8_t* ack, uint8_t len);
+  void encodeMultiAck(Packet* pkt, const uint8_t* ack, uint8_t len, uint8_t remaining);
+
   /**
    * \brief  send a locally-generated Packet with flood routing
   */
@@ -223,6 +239,10 @@ public:
   */
   void sendZeroHop(Packet* packet, uint16_t* transport_codes, uint32_t delay_millis=0);
 
+  /**
+   * \brief  send a locally-generated Packet. Headers, tranport_codes and path/path_len should Already Be Set!
+  */
+  void send(Packet* packet, uint32_t delay_millis=0);
 };
 
 }
