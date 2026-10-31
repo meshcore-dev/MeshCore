@@ -221,6 +221,7 @@ static void scanI2CBus(TwoWire* wire, bool found[128]) {
   for (uint8_t addr = 0x08; addr < 0x78; addr++) {
     wire->beginTransmission(addr);
     found[addr] = (wire->endTransmission() == 0);
+    if (found[addr]) MESH_DEBUG_PRINTLN("I2C device at %02X", addr);
   }
 }
 
