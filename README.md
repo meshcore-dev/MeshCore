@@ -16,6 +16,8 @@ Réalisation : **Capt_Pierrot** et **Jonathan**.
 
 Ce dépôt est un fork de [MeshCore](https://github.com/meshcore-dev/MeshCore) qui ajoute un **environnement de compilation dédié** (`LilyGo_TLora_V2_1_1_6_companion_radio_ble_minitel`) pilotant un Minitel 1B via sa prise péri-informatique, en plus de toutes les fonctions habituelles du firmware « companion » (application mobile en Bluetooth, écran OLED de la carte). Rien n'est retiré à MeshCore : le Minitel vient s'ajouter comme une interface supplémentaire.
 
+Le Minitel sert à **lire et envoyer des messages**, pas à configurer la carte : la majeure partie du paramétrage (réglages radio, canaux, contacts, nom du nœud...) continue de se faire depuis l'**application compagnon MeshCore** sur le téléphone, en Bluetooth.
+
 Nous ne sommes probablement pas les premiers à avoir eu cette idée : d'autres projets et bricolages utilisant du vieux matériel (dont des Minitel) comme interface pour MeshCore circulent déjà dans la communauté. En revanche, à notre connaissance, nous sommes parmi les premiers à publier le code source et les schémas correspondants.
 
 ## Fonctionnalités
