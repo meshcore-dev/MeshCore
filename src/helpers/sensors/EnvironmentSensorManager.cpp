@@ -97,8 +97,11 @@ LPS22HBClass LPS22HB(*TELEM_WIRE);
 #endif
 
 #if ENV_INCLUDE_INA3221
-#ifndef TELEM_INA3221_ADDRESS
-#define TELEM_INA3221_ADDRESS     0x42    // INA3221 3 channel current sensor I2C address
+#ifdef TELEM_INA3221_ADDRESS
+  #define TELEM_INA3221_PROBE_ALL 0     // address pinned by the variant
+#else
+  #define TELEM_INA3221_ADDRESS   0x42  // INA3221 3 channel current sensor I2C address (A0 = SDA)
+  #define TELEM_INA3221_PROBE_ALL 1     // also try the other A0 straps: 0x40 (GND), 0x41 (VS), 0x43 (SCL)
 #endif
 #ifndef TELEM_INA3221_SHUNT_VALUE
 #define TELEM_INA3221_SHUNT_VALUE 0.100 // most variants will have a 0.1 ohm shunts
@@ -106,8 +109,19 @@ LPS22HBClass LPS22HB(*TELEM_WIRE);
 #ifndef TELEM_INA3221_NUM_CHANNELS
 #define TELEM_INA3221_NUM_CHANNELS 3
 #endif
+// Optional per-channel shunt values (ohms); default to TELEM_INA3221_SHUNT_VALUE.
+#ifndef TELEM_INA3221_SHUNT_CH1
+#define TELEM_INA3221_SHUNT_CH1 TELEM_INA3221_SHUNT_VALUE
+#endif
+#ifndef TELEM_INA3221_SHUNT_CH2
+#define TELEM_INA3221_SHUNT_CH2 TELEM_INA3221_SHUNT_VALUE
+#endif
+#ifndef TELEM_INA3221_SHUNT_CH3
+#define TELEM_INA3221_SHUNT_CH3 TELEM_INA3221_SHUNT_VALUE
+#endif
 #include <Adafruit_INA3221.h>
 static Adafruit_INA3221 INA3221;
+static const float INA3221_SHUNTS[3] = { TELEM_INA3221_SHUNT_CH1, TELEM_INA3221_SHUNT_CH2, TELEM_INA3221_SHUNT_CH3 };
 #endif
 
 #if ENV_INCLUDE_INA219
@@ -346,7 +360,7 @@ static void query_lps22hb(uint8_t ch, uint8_t, CayenneLPP& lpp) {
 static uint8_t init_ina3221(TwoWire* wire, uint8_t addr) {
   if (!INA3221.begin(addr, wire)) return 0;
   for (int i = 0; i < TELEM_INA3221_NUM_CHANNELS; i++) {
-    INA3221.setShuntResistance(i, TELEM_INA3221_SHUNT_VALUE);
+    INA3221.setShuntResistance(i, INA3221_SHUNTS[i]);
   }
   // Each enabled hardware channel becomes its own telemetry channel.
   uint8_t enabled = 0;
@@ -585,7 +599,14 @@ static const SensorDef SENSOR_TABLE[] = {
   { 0x5C,                  "LPS22HB",      init_lps22hb,  query_lps22hb  },
 #endif
 #if ENV_INCLUDE_INA3221
+  // Listed before INA219/INA260/INA226, which share 0x40-0x41. The INA3221 driver checks the
+  // manufacturer/die ID, so another chip at these addresses is left for its own driver.
   { TELEM_INA3221_ADDRESS, "INA3221",      init_ina3221,  query_ina3221  },
+#if TELEM_INA3221_PROBE_ALL
+  { 0x40,                  "INA3221",      init_ina3221,  query_ina3221  },
+  { 0x41,                  "INA3221",      init_ina3221,  query_ina3221  },
+  { 0x43,                  "INA3221",      init_ina3221,  query_ina3221  },
+#endif
 #endif
 #if ENV_INCLUDE_INA219
   { TELEM_INA219_ADDRESS,  "INA219",       init_ina219,   query_ina219   },
