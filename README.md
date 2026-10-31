@@ -136,6 +136,11 @@ pio run -e LilyGo_TLora_V2_1_1_6_companion_radio_ble_minitel -t upload
 
 Nécessite [PlatformIO](https://docs.platformio.org), par exemple via l'extension VS Code.
 
+## Dépannage
+
+- **Des caractères aléatoires apparaissent dans la zone de saisie** : presque toujours le signe d'une alimentation insuffisante. Évitez un régulateur classique (type 7805) : préférez un **LDO**, avec un ou deux condensateurs de découplage en plus. Ça résout le problème dans l'immense majorité des cas.
+- **L'écran du Minitel reste bloqué sur son propre sommaire interne** (celui de sa mémoire, pas celui de MeshCore) : éteignez puis rallumez le Minitel. La carte redétecte automatiquement sa présence et reconfigure son routage vers la prise péri-informatique à chaque tentative — rien à faire côté carte.
+
 ## Licences
 
 - **MeshCore** : [MIT](./license.txt), © Scott Powell / rippleradios.com et contributeurs.
