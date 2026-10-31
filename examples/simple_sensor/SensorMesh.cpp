@@ -2,6 +2,8 @@
 #include <helpers/RoutingPolicy.h>
 #include <helpers/sensors/LPPDataHelpers.h>
 
+#include <helpers/DutyCycleLimits.h>
+
 /* ------------------------------ Config -------------------------------- */
 
 #ifndef LORA_FREQ
@@ -313,7 +315,7 @@ void SensorMesh::alertIf(bool condition, Trigger& t, AlertPriority pri, const ch
 }
 
 float SensorMesh::getAirtimeBudgetFactor() const {
-  return _prefs.airtime_factor;
+  return getEffectiveAirtimeFactor(_prefs.dutycycle_auto, _prefs.airtime_factor, _prefs.freq);
 }
 
 bool SensorMesh::allowPacketForward(const mesh::Packet* packet) {
