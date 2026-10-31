@@ -27,6 +27,26 @@ static SPIClass ETHERNET_SPI_PORT(NRF_SPIM1, PIN_SPI1_MISO, PIN_SPI1_SCK, PIN_SP
 
 #define ETHERNET_RETRY_INTERVAL_MS 30000
 
+#ifdef WITH_W5100S_POE
+  // Give the RAK19018 (Silvertel) PoE converter time to latch on the current
+  // the W5100S is already drawing (board.begin()'s early RST release +
+  // bit-bang soft-reset) before doing the *disruptive* Ethernet-library
+  // bring-up (another PHY soft-reset + blocking DHCP) — doing that
+  // immediately reliably collapsed the marginal PoE supply.
+  #ifndef ETH_POE_DEFER_MS
+    #define ETH_POE_DEFER_MS 6000
+  #endif
+  #ifndef ETH_STATIC_IP
+    #define ETH_STATIC_IP  192,168,1,50
+  #endif
+  #ifndef ETH_GATEWAY
+    #define ETH_GATEWAY    192,168,1,1
+  #endif
+  #ifndef ETH_SUBNET
+    #define ETH_SUBNET     255,255,255,0
+  #endif
+#endif
+
 static EthernetServer ethernet_server(ETHERNET_TCP_PORT);
 static EthernetClient ethernet_client;
 static volatile bool ethernet_running = false;
@@ -34,6 +54,10 @@ static volatile bool ethernet_running = false;
 // FreeRTOS task: handles hw init, DHCP, and retries in the background
 static void ethernet_task(void* param) {
   (void)param;
+
+#ifdef WITH_W5100S_POE
+  vTaskDelay(pdMS_TO_TICKS(ETH_POE_DEFER_MS));
+#endif
 
   Serial.println("ETH: Initializing hardware");
   // WB_IO2 (power enable) is already driven HIGH by early constructor
@@ -51,6 +75,22 @@ static void ethernet_task(void* param) {
   Serial.printf("ETH: MAC: %02X:%02X:%02X:%02X:%02X:%02X\n",
       mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 
+#ifdef WITH_W5100S_POE
+  // Bounded DHCP with a static-IP fallback, so the node stays reachable even
+  // without a DHCP server (no infinite retry — this build has no battery and
+  // must always come up somewhere).
+  Serial.println("ETH: Attempting DHCP...");
+  if (Ethernet.begin(mac, 10000, 2000) == 0) {
+    Serial.println("ETH: DHCP failed -> static IP fallback");
+    IPAddress ip(ETH_STATIC_IP), gw(ETH_GATEWAY), sn(ETH_SUBNET);
+    Ethernet.begin(mac, ip, gw, gw, sn);
+  }
+  IPAddress ip = Ethernet.localIP();
+  Serial.printf("ETH: IP: %u.%u.%u.%u\n", ip[0], ip[1], ip[2], ip[3]);
+  Serial.printf("ETH: Listening on TCP port %d\n", ETHERNET_TCP_PORT);
+  ethernet_server.begin();
+  ethernet_running = true;
+#else
   // Retry loop: keep trying until we get an IP
   while (!ethernet_running) {
     Serial.println("ETH: Attempting DHCP...");
@@ -75,8 +115,9 @@ static void ethernet_task(void* param) {
     ethernet_server.begin();
     ethernet_running = true;
   }
+#endif
 
-  // DHCP succeeded, task is done
+  // DHCP succeeded (or static fallback applied), task is done
   vTaskDelete(NULL);
 }
 
