@@ -28,6 +28,67 @@ Nous ne sommes probablement pas les premiers à avoir eu cette idée : d'autres 
 - LED optionnelle à la réception d'un message (voir plus bas).
 - L'application mobile MeshCore continue de fonctionner normalement en parallèle.
 
+## Aperçu des écrans
+
+**Écran de conversation**
+```
+┌────────────────────────────────────────┐
+│ #Public                        1 non lu │
+│Alice: Bonjour à tous !                 │
+│Bob: Salut Alice, tu es où ?            │
+│MonNoeud: Je teste mon Minitel sur le   │
+│réseau MeshCore                         │
+│...                                     │
+│ SOMMAIRE:menu GUIDE:détails  Reste 116 │
+│> Ceci est mon message en cours de fra_ │
+│                                        │
+│                                        │
+└────────────────────────────────────────┘
+```
+
+**SOMMAIRE (liste des conversations)**
+```
+┌────────────────────────────────────────┐
+│ SOMMAIRE - Conversations               │
+│  1 #Public                             │
+│  2 #Randos                          (2)│
+│  3 @Alice                           (1)│
+│  4 @Bob                                │
+│  5 @Relais-Salon                       │
+│ ...                                    │
+│ 900 Autres fonctions                   │
+│ Numéro puis ENVOI : ouvrir  page 1/3   │
+│ SUITE/RETOUR:pages  SOMMAIRE:sortir    │
+│                                        │
+│Numéro : 3_                             │
+└────────────────────────────────────────┘
+```
+
+**Autres fonctions (tableau de bord, numéro 900)**
+```
+┌────────────────────────────────────────┐
+│ SOMMAIRE - Autres fonctions            │
+│ Informations                           │
+│  Batterie       4.02V                  │
+│  Fréquence      869.525 MHz            │
+│  Radio          SF11  BW250kHz  CR5    │
+│  Puissance TX   20 dBm                 │
+│  Taille entête  1 octet                │
+│  Signal reçu    -92 dBm  SNR 7dB       │
+│  Téléphone BLE  connecté               │
+│────────────────────────────────────────│
+│ Réglages                               │
+│  1 Annonce : voisins (sans relais)     │
+│  2 Annonce : tout le réseau (relayée)  │
+│  3 Écran OLED : normal (économie)      │
+│                                        │
+│ Numéro puis ENVOI : choisir            │
+│ SOMMAIRE/ANNULATION : retour           │
+│                                        │
+│Numéro : 1_                             │
+└────────────────────────────────────────┘
+```
+
 ## Matériel nécessaire
 
 | Élément | Remarque |
