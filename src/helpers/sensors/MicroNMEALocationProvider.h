@@ -113,6 +113,13 @@ public :
     }
 
     void begin() override {
+#ifdef MUZI_BASE_SUPERIO
+        if (_claims > 0) return;
+        nmea.clear();
+        time_valid = 0;
+        _fix_seen = false;
+        drain();
+#endif
         _begin_calls++;
         claim();
         if (_pin_en != -1) {
@@ -137,6 +144,11 @@ public :
     }
 
     void stop() override {
+#ifdef MUZI_BASE_SUPERIO
+        nmea.clear();
+        time_valid = 0;
+        _fix_seen = false;
+#endif
         _stop_calls++;
         if (_pin_en != -1) {
             digitalWrite(_pin_en, !GPS_EN_ACTIVE);
