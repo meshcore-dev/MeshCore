@@ -428,9 +428,18 @@ Byte 0: 0x0A
 - `PACKET_CHANNEL_MSG_RECV` (0x08) or `PACKET_CHANNEL_MSG_RECV_V3` (0x11) for channel messages
 - `PACKET_CONTACT_MSG_RECV` (0x07) or `PACKET_CONTACT_MSG_RECV_V3` (0x10) for contact messages
 - `PACKET_CHANNEL_DATA_RECV` (0x1B) for channel data datagrams
+- `PACKET_CONTACT_MSG_SENT_V3` (0x1E) or `PACKET_CHANNEL_MSG_SENT_V3` (0x1F) for messages the device itself sent
 - `PACKET_NO_MORE_MSGS` (0x0A) if no messages available
 
 **Note**: Poll this command periodically to retrieve queued messages. The device may also send `PACKET_MESSAGES_WAITING` (0x83) as a notification when messages are available.
+
+**Important**: a host must advance its polling loop — issue the next
+`CMD_SYNC_NEXT_MESSAGE`, exactly as it would for a known type — on *any*
+response to this command, including packet types it does not recognize. New
+message-carrying packet types are added over time, and a host that only
+advances on the types it knows will stall on the first unknown one: the queue
+stops draining and the messages behind it stay undelivered until the next
+`PACKET_MESSAGES_WAITING`. Only `PACKET_NO_MORE_MSGS` (0x0A) ends the loop.
 
 ---
 
@@ -619,6 +628,45 @@ def parse_channel_message(data):
     }
 ```
 
+### Device-Sent Messages
+
+A message the device *sent* on its own (bot auto-reply, on-device keyboard
+input, etc.) rather than via a host-issued `SEND_TXT_MESSAGE` /
+`SEND_CHANNEL_MESSAGE`. Mainline firmware never emits these — they're for a
+custom firmware that self-originates messages, delivered through the same
+offline-queue / `PACKET_MESSAGES_WAITING` / `SYNC_NEXT_MESSAGE` pipe as any
+other message.
+
+Same byte layout as the RECV_V3 counterpart, except the pubkey field is the
+*recipient* (not sender), and the RECV_V3 SNR byte is reserved (no SNR for a
+local send). Requires `app_target_ver >= 3` — no pre-V3 shape exists.
+
+Text Type is limited to `TXT_TYPE_PLAIN` (0) or `TXT_TYPE_CLI_DATA` (1).
+`TXT_TYPE_SIGNED_PLAIN` is not emitted: it would need the 4-byte sender prefix
+that RECV_V3 carries, which is meaningless when the device is the sender.
+
+**Contact Message Sent** (`PACKET_CONTACT_MSG_SENT_V3`, 0x1E):
+```
+Byte 0: 0x1E (packet type)
+Bytes 1-3: Reserved
+Bytes 4-9: Recipient Public Key Prefix (6 bytes, hex)
+Byte 10: Path Length (always 0xFF — meaningless for a local send)
+Byte 11: Text Type
+Bytes 12-15: Timestamp (32-bit little-endian)
+Bytes 16+: Message Text (UTF-8)
+```
+
+**Channel Message Sent** (`PACKET_CHANNEL_MSG_SENT_V3`, 0x1F):
+```
+Byte 0: 0x1F (packet type)
+Bytes 1-3: Reserved
+Byte 4: Channel Index (0-7)
+Byte 5: Path Length (always 0xFF — meaningless for a local send)
+Byte 6: Text Type (always 0 / TXT_TYPE_PLAIN — a channel carries no CLI-data/signed-plain concept)
+Bytes 7-10: Timestamp (32-bit little-endian)
+Bytes 11+: Message Text (UTF-8)
+```
+
 ### Sending Messages
 
 Use the `SEND_CHANNEL_MESSAGE` command (see [Commands](#commands)).
@@ -662,6 +710,8 @@ Byte values are authoritative; names are aliases. When reading firmware source, 
 | 0x11  | PACKET_CHANNEL_MSG_RECV_V3 | Channel message (V3 with SNR) |
 | 0x12  | PACKET_CHANNEL_INFO        | Channel information           |
 | 0x1B  | PACKET_CHANNEL_DATA_RECV   | Channel data datagram         |
+| 0x1E  | PACKET_CONTACT_MSG_SENT_V3 | Contact message the device itself sent (see [Device-Sent Messages](#device-sent-messages)) |
+| 0x1F  | PACKET_CHANNEL_MSG_SENT_V3 | Channel message the device itself sent (see [Device-Sent Messages](#device-sent-messages)) |
 | 0x80  | PACKET_ADVERTISEMENT       | Advertisement packet          |
 | 0x82  | PACKET_ACK                 | Acknowledgment                |
 | 0x83  | PACKET_MESSAGES_WAITING    | Messages waiting notification |
