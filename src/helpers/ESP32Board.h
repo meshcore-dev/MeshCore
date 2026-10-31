@@ -14,6 +14,7 @@
 #include <Wire.h>
 #include "soc/rtc.h"
 #include "esp_system.h"
+#include <esp_task_wdt.h>
 #include <driver/rtc_io.h>
 #include <helpers/KeyValueStore.h>
 
@@ -49,7 +50,15 @@ public:
    #endif
   #else
     Wire.begin();
-  #endif    
+  #endif
+
+    // Enable 60-second hardware Task Watchdog Timer for unattended reliability
+    esp_task_wdt_init(60, true);
+    esp_task_wdt_add(NULL);
+  }
+
+  void loop() override {
+    esp_task_wdt_reset();
   }
 
   void attachDynamicPrefs(KeyValueStore* prefs) { }  // no-op
@@ -103,7 +112,9 @@ public:
     gpio_wakeup_enable((gpio_num_t)wakeupPin, GPIO_INTR_HIGH_LEVEL); // Wake up when receiving a LoRa packet
 
     // MCU enters light sleep
+    esp_task_wdt_reset();
     esp_light_sleep_start();
+    esp_task_wdt_reset();
 
     // Avoid ISR flood during wakeup due to HIGH LEVEL interrupt
     gpio_wakeup_disable(wakeupPin);
@@ -153,14 +164,16 @@ public:
     return "Generic ESP32";
   }
 
-  void reboot() override {
-    esp_restart();
-  }
+  void reboot() override;
 
   bool startOTAUpdate(const char* id, char reply[]) override;
 
   void setInhibitSleep(bool inhibit) {
     inhibit_sleep = inhibit;
+  }
+
+  bool isSleepInhibited() const {
+    return inhibit_sleep;
   }
 
   uint32_t getResetReason() const override {

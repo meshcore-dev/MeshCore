@@ -13,7 +13,7 @@ void LoRaFEMControl::init(void)
 
     esp_reset_reason_t reason = esp_reset_reason();
     if (reason != ESP_RST_DEEPSLEEP) {
-        delay(1);  // FEM startup time after cold power-on
+        delay(10);  // FEM startup time after cold power-on or scheduled power-cycle
     }
 
     // Auto-detect FEM type via shared GPIO2 default pull level.
