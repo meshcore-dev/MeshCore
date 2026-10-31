@@ -763,7 +763,7 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
 }
 
 void UITask::showAlert(const char* text, int duration_millis) {
-  strcpy(_alert, text);
+  StrHelper::strzcpy(_alert, text, sizeof(_alert));
   _alert_expiry = millis() + duration_millis;
 }
 
