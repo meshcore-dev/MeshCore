@@ -201,6 +201,13 @@ public:
     _prefs.clearDirty();
   }
 
+#if ENV_GPS_PIN_CONFIG
+  // must run before sensors.begin(), which opens the GPS UART
+  void applyGpsPinPrefs() {
+    sensors.configureGPS(_prefs.gps_pin_rx, _prefs.gps_pin_tx, _prefs.gps_pin_en, _prefs.gps_baud);
+  }
+#endif
+
 #if ENV_INCLUDE_GPS == 1
   void applyGpsPrefs() {
     sensors.setSettingValue("gps", _prefs.gps_enabled ? "1" : "0");

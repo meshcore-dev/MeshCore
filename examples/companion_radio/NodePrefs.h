@@ -35,6 +35,10 @@ public:
   uint8_t  vibe_quiet = 0;
   uint8_t  gps_enabled = 0;      // GPS enabled flag (0=disabled, 1=enabled)
   uint32_t gps_interval = 0;     // GPS read interval in seconds
+  int8_t   gps_pin_rx = -1;     // GPS pin overrides, -1 = variant default (applied at boot)
+  int8_t   gps_pin_tx = -1;
+  int8_t   gps_pin_en = -1;
+  uint32_t gps_baud = 0;         // 0 = variant default
   uint8_t autoadd_config = 0;    // bitmask for auto-add contacts config
   uint8_t rx_boosted_gain = 0; // SX126x RX boosted gain mode (0=power saving, 1=boosted)
   uint8_t radio_fem_rxgain = 0; // external LoRa FEM RX gain (LNA)
@@ -158,6 +162,10 @@ private:
       def("en", _parent->gps_enabled); // boolean
       def("int", _parent->gps_interval);   // interval in seconds
       def("adv_loc", _parent->advert_loc_policy);
+      def("pin_rx", _parent->gps_pin_rx);
+      def("pin_tx", _parent->gps_pin_tx);
+      def("pin_en", _parent->gps_pin_en);
+      def("baud", _parent->gps_baud);
     }
   public:
     GPSPrefs(NodePrefs* parent) : _parent(parent) { }

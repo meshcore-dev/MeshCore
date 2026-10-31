@@ -147,6 +147,18 @@ public :
         release();
     }
 
+    void setEnablePin(int pin) override {
+        if (pin == _pin_en) return;
+        if (_pin_en != -1) {
+            pinMode(_pin_en, INPUT);  // release the variant's default pin
+        }
+        _pin_en = pin;
+        if (_pin_en != -1) {
+            pinMode(_pin_en, OUTPUT);
+            digitalWrite(_pin_en, !GPS_EN_ACTIVE);
+        }
+    }
+
     bool isEnabled() override {
         // directly read the enable pin if present as gps can be
         // activated/deactivated outside of here ...
