@@ -109,4 +109,7 @@ public:
   }
   
   virtual void endFrame() = 0;
+  virtual void requestFullRefresh() {} // Optional e-paper ghosting cleanup.
+  virtual void requestFastRefresh() {} // User input takes priority over background updates.
+  virtual bool hasPendingRefresh() { return false; }
 };
