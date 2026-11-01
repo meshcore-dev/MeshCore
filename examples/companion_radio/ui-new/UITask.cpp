@@ -91,7 +91,9 @@ class HomeScreen : public UIScreen {
     FIRST,
     RECENT,
     RADIO,
+#ifdef BLE_PIN_CODE
     BLUETOOTH,
+#endif
     ADVERT,
 #if ENV_INCLUDE_GPS == 1
     GPS,
@@ -120,7 +122,6 @@ class HomeScreen : public UIScreen {
   uint32_t disc_node_req_tag = 0;
   uint32_t disc_nodes_count = 0;
   uint32_t discovery_req_time = 0;
-  bool discovery_disp_names = true; // by default desplay names if available (removes SNR_O)
 #endif
 
   void renderBatteryIndicator(DisplayDriver& display, uint16_t batteryMilliVolts) {
@@ -195,11 +196,10 @@ class HomeScreen : public UIScreen {
         sensors_nb ++;
       }
       sensors_scroll = sensors_nb > UI_RECENT_LIST_SIZE;
-#if AUTO_OFF_MILLIS > 0
-      next_sensors_refresh = millis() + 5000; // refresh sensor values every 5 sec
-#else
-      next_sensors_refresh = millis() + 60000; // refresh sensor values every 1 min
-#endif
+      if (display.isEink()) // preserve eink displays
+        next_sensors_refresh = millis() + 60000; // refresh sensor values every 1 min
+      else
+        next_sensors_refresh = millis() + 5000; // refresh sensor values every 5 sec
     }
   }
 
@@ -292,17 +292,17 @@ public:
       sprintf(tmp, "MSG: %d", _task->getMsgCount());
       display.drawTextCentered(display.width() / 2, 22, tmp);
       #endif
-      #ifdef UI_SHOW_CLOCK
-      display.setTextSize(3);
-      uint32_t now = _rtc->getCurrentTime();
-      now += (int32_t)_node_prefs->tz_offset * 3600;
-      DateTime dt (now);
-      sprintf(tmp, "%02d:%02d", dt.hour(), dt.minute());
-      display.drawTextCentered(display.width() / 2, 60, tmp);
-      display.setTextSize(1);
-      sprintf(tmp, "%02d/%02d/%d", dt.day(), dt.month(), dt.year());
-      display.drawTextCentered(display.width() / 2, 80, tmp);
-      #endif
+      if (_node_prefs->ui_show_clock) {
+        display.setTextSize(3);
+        uint32_t now = _rtc->getCurrentTime();
+        now += (int32_t)(_node_prefs->tz_offset * 3600);
+        DateTime dt (now);
+        sprintf(tmp, "%02d:%02d", dt.hour(), dt.minute());
+        display.drawTextCentered(display.width() / 2, 60, tmp);
+        display.setTextSize(1);
+        sprintf(tmp, "%02d/%02d/%d", dt.day(), dt.month(), dt.year());
+        display.drawTextCentered(display.width() / 2, 80, tmp);
+      }
       #ifdef ENABLE_WIFI_INTERFACE
         IPAddress ip = WiFi.localIP();
         snprintf(tmp, sizeof(tmp), "IP: %d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
@@ -312,21 +312,20 @@ public:
       if (_task->hasConnection()) {
         display.setColor(UIColor::warning_txt);
         display.setTextSize(1);
-        #ifdef UI_SHOW_CLOCK
-        display.drawTextCentered(display.width() / 2, 110, "< Connected >");
-        #else
-        display.drawTextCentered(display.width() / 2, 43, "< Connected >");
-        #endif
+        if (_node_prefs->ui_show_clock)
+          display.drawTextCentered(display.width() / 2, 110, "< Connected >");
+        else
+          display.drawTextCentered(display.width() / 2, 43, "< Connected >");
       } else if (the_mesh.getBLEPin() != 0) { // BT pin
         display.setColor(UIColor::warning_txt);
         sprintf(tmp, "Pin:%d", the_mesh.getBLEPin());
-        #ifdef UI_SHOW_CLOCK
-        display.setTextSize(1);
-        display.drawTextCentered(display.width() / 2, 110, tmp);
-        #else
-        display.setTextSize(2);
-        display.drawTextCentered(display.width() / 2, 43, tmp);
-        #endif
+        if (_node_prefs->ui_show_clock) {
+          display.setTextSize(1);
+          display.drawTextCentered(display.width() / 2, 110, tmp);
+        } else {
+          display.setTextSize(2);
+          display.drawTextCentered(display.width() / 2, 43, tmp);
+        }
       }
     } else if (_page == HomePage::RECENT) {
       the_mesh.getRecentlyHeard(recent, UI_RECENT_LIST_SIZE);
@@ -372,6 +371,7 @@ public:
       display.setCursor(0, 53);
       sprintf(tmp, "Noise floor: %d", radio_driver.getNoiseFloor());
       display.print(tmp);
+#ifdef BLE_PIN_CODE
     } else if (_page == HomePage::BLUETOOTH) {
       display.setColor(UIColor::corp_blue);
       display.drawXbm((display.width() - 32) / 2, 18,
@@ -380,6 +380,7 @@ public:
       display.setColor(UIColor::secondary_txt);
       display.setTextSize(1);
       display.drawTextCentered(display.width() / 2, 64 - 11, "toggle: " PRESS_LABEL);
+#endif
     } else if (_page == HomePage::ADVERT) {
       display.setColor(UIColor::corp_blue);
       display.drawXbm((display.width() - 32) / 2, 18, advert_icon, 32, 32);
@@ -515,7 +516,7 @@ public:
       for (int i = 0; i < count; i++, y += 11) {
         char name[32];
         auto a = &discovered[i];
-        if ((a->name[0] == 0) || !discovery_disp_names) {
+        if ((a->name[0] == 0) || !_node_prefs->ui_nd_name) {
           mesh::Utils::toHex(name, a->pubkey_prefix, 4);
         } else {
           strncpy(name, a->name, 32);
@@ -575,6 +576,7 @@ public:
 #endif
       return true;
     }
+#ifdef BLE_PIN_CODE
     if (c == KEY_ENTER && _page == HomePage::BLUETOOTH) {
       if (_task->isBluetoothEnabled()) {  // toggle Bluetooth on/off
         _task->disableBluetooth();
@@ -583,6 +585,7 @@ public:
       }
       return true;
     }
+#endif
     if (c == KEY_ENTER && _page == HomePage::ADVERT) {
       _task->notify(UIEventType::ack);
       if (the_mesh.advert()) {
@@ -613,7 +616,7 @@ public:
       return true;
     }
     if (c == KEY_SELECT && _page == HomePage::DISCOVERY) {
-      discovery_disp_names = !discovery_disp_names;
+      _node_prefs->ui_nd_name = !_node_prefs->ui_nd_name;
       return true;
     }
 #endif
@@ -697,11 +700,7 @@ public:
     display.translateUTF8ToBlocks(filtered_msg, p->msg, sizeof(filtered_msg));
     display.printWordWrap(filtered_msg, display.width());
 
-#if AUTO_OFF_MILLIS==0 // probably e-ink
-    return 10000; // 10 s
-#else
-    return 1000;  // next render after 1000 ms
-#endif
+    return display.isEink() ? 10000 : 1000; // 10 s for eink
   }
 
   bool handleInput(char c) override {
@@ -725,7 +724,6 @@ public:
 void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* node_prefs) {
   _display = display;
   _sensors = sensors;
-  _auto_off = millis() + AUTO_OFF_MILLIS;
 
 #if defined(PIN_USER_BTN)
   user_btn.begin();
@@ -733,11 +731,16 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
 #if defined(PIN_USER_BTN_ANA)
   analog_btn.begin();
 #endif
+#if defined(BACKLIGHT_BTN)
+  backlight_btn.begin();
+#endif
 
   _node_prefs = node_prefs;
+  _auto_off = millis() + _node_prefs->ui_auto_off_delay * 1000;
+  _backlight_off = millis() + _node_prefs->ui_backlight_delay * 1000;
 
   if (_display != NULL) {
-    _display->turnOn();
+    _display->turnOn(_node_prefs->ui_max_partial);
   }
 
 #ifdef PIN_BUZZER
@@ -803,11 +806,14 @@ void UITask::onMessageRecv(mesh::Packet *pkt, const ContactInfo &from, uint8_t t
 
   if (_display != NULL) {
     if (!_display->isOn() && !hasConnection()) {
-      _display->turnOn();
+      _display->turnOn(_node_prefs->ui_max_partial);
     }
     if (_display->isOn()) {
-    _auto_off = millis() + AUTO_OFF_MILLIS;  // extend the auto-off timer
-    _next_refresh = 100;  // trigger refresh
+      _auto_off = millis() + _node_prefs->ui_auto_off_delay * 1000;  // extend the auto-off timer
+      _next_refresh = 100;  // trigger refresh
+      if (_node_prefs->ui_backlight_on_msgs) {
+        _backlight_off = millis() + _node_prefs->ui_backlight_delay * 1000;
+      }
     }
   }
 
@@ -823,10 +829,10 @@ void UITask::onChannelMessageRecv(mesh::Packet *pkt, ChannelDetails& channel_det
 
   if (_display != NULL) {
     if (!_display->isOn() && !hasConnection()) {
-      _display->turnOn();
+      _display->turnOn(_node_prefs->ui_max_partial);
     }
     if (_display->isOn()) {
-    _auto_off = millis() + AUTO_OFF_MILLIS;  // extend the auto-off timer
+    _auto_off = millis() + _node_prefs->ui_auto_off_delay * 1000;  // extend the auto-off timer
     _next_refresh = 100;  // trigger refresh
     }
   }
@@ -904,9 +910,9 @@ void UITask::shutdown(bool restart){
   if (restart) {
     _board->reboot();
   } else {
-    display.forceFullRefresh();
-    display.clear();
-    display.endFrame();
+    if (_display->isEink()) {
+      _display->turnOff(true);
+    }
     // Power off board including radio, display, GPS and components
     _board->powerOff();
   }
@@ -951,7 +957,7 @@ void UITask::loop() {
   if (ev == BUTTON_EVENT_CLICK) {
     c = checkDisplayOn(KEY_ENTER);
   } else if (ev == BUTTON_EVENT_LONG_PRESS) {
-    display.turnOff();
+    display.turnOff(true);
   } else if (ev == BUTTON_EVENT_DOUBLE_CLICK) {
     c = handleDoubleClick(KEY_SELECT);
   } else if (ev == BUTTON_EVENT_TRIPLE_CLICK) {
@@ -971,11 +977,11 @@ void UITask::loop() {
 #endif
 #if defined(UI_HAS_ROTARY_INPUT)
   RotaryInputEvent rotaryEv = rotary_input.poll();
-  if (c == 0 && _display != NULL && _display->isOn()) {
+  if (c == 0 && _display != NULL) {
     if (rotaryEv == RotaryInputEvent::Next) {
-      c = KEY_NEXT;
+      c = checkDisplayOn(KEY_NEXT);
     } else if (rotaryEv == RotaryInputEvent::Prev) {
-      c = KEY_PREV;
+      c = checkDisplayOn(KEY_PREV);
     }
   }
 #endif
@@ -994,27 +1000,59 @@ void UITask::loop() {
     _analogue_pin_read_millis = millis();
   }
 #endif
+#if defined(DISP_BACKLIGHT) || defined(EXP_PIN_BACKLIGHT)
 #if defined(BACKLIGHT_BTN)
   if (millis() > next_backlight_btn_check) {
-    bool touch_state = digitalRead(PIN_BUTTON2);
-#if defined(DISP_BACKLIGHT)
-    digitalWrite(DISP_BACKLIGHT, !touch_state);
-#elif defined(EXP_PIN_BACKLIGHT)
-    expander.digitalWrite(EXP_PIN_BACKLIGHT, !touch_state);
-#endif
-    next_backlight_btn_check = millis() + 300;
+    if (backlight_btn.isPressed()) {
+      if (!_display->isOn()) {
+        _display->turnOn(_node_prefs->ui_max_partial);
+        _next_refresh = 0;
+      }
+      _auto_off = millis() + _node_prefs->ui_auto_off_delay * 1000;   // extend auto-off timer
+      _backlight_off = millis() + _node_prefs->ui_backlight_delay * 1000; // extend auto_off for backlight
+    }
+    next_backlight_btn_check = millis() + 100;
   }
+  int bev = backlight_btn.check();
+  if (bev == BUTTON_EVENT_DOUBLE_CLICK) {
+    _display->forceFullRefresh();
+  } else if (bev == BUTTON_EVENT_TRIPLE_CLICK) {
+    _display->turnOff(true);
+    _backlight_off = 0;
+  }
+#endif
+
+  bool backlight_state;
+  if (_node_prefs->ui_backlight_delay == -1) {
+    backlight_state = true;
+  } else if (_node_prefs->ui_backlight_delay < -1) {
+    backlight_state = false;
+  } else if (_node_prefs->ui_backlight_delay == 0) {
+    backlight_state = false;
+    #ifdef BACKLIGHT_BTN
+      backlight_state = backlight_btn.isPressed();
+    #endif
+  } else {
+    backlight_state = (millis() < _backlight_off);
+  }
+
+#if defined(DISP_BACKLIGHT)
+  digitalWrite(DISP_BACKLIGHT, backlight_state);
+#elif defined(EXP_PIN_BACKLIGHT)
+  expander.digitalWrite(EXP_PIN_BACKLIGHT, backlight_state);
+#endif
 #endif
 
   if (c != 0 && curr) {
     curr->handleInput(c);
-    _auto_off = millis() + AUTO_OFF_MILLIS;   // extend auto-off timer
+    _auto_off = millis() + _node_prefs->ui_auto_off_delay * 1000;   // extend auto-off timer
     _next_refresh = 100;  // trigger refresh
   }
 
   userLedHandler();
 
 #ifdef PIN_BUZZER
+  if (buzzer.isQuiet() != (bool)_node_prefs->buzzer_quiet) buzzer.quiet(_node_prefs->buzzer_quiet);
   if (buzzer.isPlaying())  buzzer.loop();
 #endif
 
@@ -1039,20 +1077,27 @@ void UITask::loop() {
       }
       _display->endFrame();
     }
-#if AUTO_OFF_MILLIS > 0
+    if (_node_prefs->ui_auto_off_delay > 0) {
 #ifdef KEEP_DISPLAY_ON_USB
-    // Opt-in: refresh the auto-off deadline while externally powered, so the
-    // timer counts from the moment external power is removed. Off by default
-    // because OLED panels burn in quickly; only enable for LCD targets or
-    // where the display is replaceable.
-    if (board.isExternalPowered()) {
-      _auto_off = millis() + AUTO_OFF_MILLIS;
-    }
+      // Opt-in: refresh the auto-off deadline while externally powered, so the
+      // timer counts from the moment external power is removed. Off by default
+      // because OLED panels burn in quickly; only enable for LCD targets or
+      // where the display is replaceable.
+      if (board.isExternalPowered()) {
+        _auto_off = millis() + _node_prefs->ui_auto_off_delay * 1000;
+      }
 #endif
-    if (millis() > _auto_off) {
-      _display->turnOff();
+      if (millis() > _auto_off) {
+        if (_node_prefs->ui_auto_off_blank &&
+              !(_node_prefs->ui_auto_off_keep_msgs 
+                          && curr == msg_preview)) { 
+            // don't blank if messages are waiting
+            _display->turnOff(true);
+        } else {
+          _display->turnOff();
+        }
+      }
     }
-#endif
   }
 
 #ifdef PIN_VIBRATION
@@ -1084,10 +1129,13 @@ void UITask::loop() {
 char UITask::checkDisplayOn(char c) {
   if (_display != NULL) {
     if (!_display->isOn()) {
-      _display->turnOn();   // turn display on and consume event
+      _display->turnOn(_node_prefs->ui_max_partial);   // turn display on and consume event
       c = 0;
     }
-    _auto_off = millis() + AUTO_OFF_MILLIS;   // extend auto-off timer
+    _auto_off = millis() + _node_prefs->ui_auto_off_delay * 1000;   // extend auto-off timer
+    if (_node_prefs->ui_backlight_on_keys) {
+      _backlight_off = millis() + _node_prefs->ui_backlight_delay * 1000;
+    }
     _next_refresh = 0;  // trigger refresh
   }
   return c;

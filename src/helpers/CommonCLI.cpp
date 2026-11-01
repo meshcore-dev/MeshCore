@@ -326,18 +326,26 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       if (start >= end) {
         strcpy(reply, "no custom var");
       } else {
+        const int reply_max = 160;    // callers pass a 160-byte reply buffer
+        const int next_reserve = 16;  // room for "... next:NNN"
         sprintf(dp, "%d vars\n", end);
         dp = strchr(dp, 0);
         int i;
-        for (i = start; i < end && (dp-reply < 134); i++) {
-          sprintf(dp, "%s=%s\n",
-            _sensors->getSettingName(i),
-            _sensors->getSettingValue(i));
+        for (i = start; i < end; i++) {
+          const char* name = _sensors->getSettingName(i);
+          const char* value = _sensors->getSettingValue(i);
+          if (name == NULL) name = "?";
+          if (value == NULL) value = "";
+          int room = reply_max - next_reserve - (int)(dp - reply);
+          int need = snprintf(NULL, 0, "%s=%s\n", name, value);
+          if (need >= room && i > start) break;   // continue on the next page
+          snprintf(dp, room, "%s=%s\n", name, value);   // a single oversized entry is truncated
           dp = strchr(dp, 0);
+          if (need >= room) { i++; break; }
         }
         if (i < end) {
-          sprintf(dp, "... next:%d", i);
-        } else {
+          snprintf(dp, reply_max - (int)(dp - reply), "... next:%d", i);
+        } else if (dp > reply && *(dp-1) == '\n') {
           *(dp-1) = 0; // remove last CR
         }
       }

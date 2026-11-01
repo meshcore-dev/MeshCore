@@ -16,15 +16,23 @@ public:
   CustomLR2021Wrapper(CustomLR2021& radio, mesh::MainBoard& board) : RadioLibWrapper(radio, board) { }
 
   void setParams(float freq, float bw, uint8_t sf, uint8_t cr) override {
-    ((CustomLR2021 *)_radio)->setFrequency(freq);
-    ((CustomLR2021 *)_radio)->setSpreadingFactor(sf);
-    ((CustomLR2021 *)_radio)->setBandwidth(bw);
-    ((CustomLR2021 *)_radio)->setCodingRate(cr);
+    auto r = (CustomLR2021 *)_radio;
+    // LR2021 only accepts RF/modulation config commands while in STANDBY mode.
+    // Re-configuring while in continuous RX gets silently rejected (-706),
+    // which broke hot frequency changes over BLE.
+    int16_t status = r->standby();
+    if (status != RADIOLIB_ERR_NONE) { MESH_DEBUG_PRINTLN("CustomLR2021Wrapper: standby() -> %d", status); }
+    if ((status = r->setFrequency(freq)) != RADIOLIB_ERR_NONE) { MESH_DEBUG_PRINTLN("CustomLR2021Wrapper: setFrequency() -> %d", status); }
+    if ((status = r->setSpreadingFactor(sf)) != RADIOLIB_ERR_NONE) { MESH_DEBUG_PRINTLN("CustomLR2021Wrapper: setSpreadingFactor() -> %d", status); }
+    if ((status = r->setBandwidth(bw)) != RADIOLIB_ERR_NONE) { MESH_DEBUG_PRINTLN("CustomLR2021Wrapper: setBandwidth() -> %d", status); }
+    if ((status = r->setCodingRate(cr)) != RADIOLIB_ERR_NONE) { MESH_DEBUG_PRINTLN("CustomLR2021Wrapper: setCodingRate() -> %d", status); }
     updatePreamble(sf);
-    applySideDetectorConfig();
+    // internal idle() sets STATE_IDLE, which triggers a startReceive() on the next loop
+    status = applySideDetectorConfig();
+    if (status != RADIOLIB_ERR_NONE) { MESH_DEBUG_PRINTLN("CustomLR2021Wrapper: applySideDetectorConfig() -> %d", status); }
     PacketMillis pm = calcMaxPacketMillis(sf, bw, cr, preambleLengthForSF(sf));
-    ((CustomLR2021 *)_radio)->setPreambleMillis(pm.preambleMillis);
-    ((CustomLR2021 *)_radio)->setMaxPayloadMillis(pm.payloadMillis);
+    r->setPreambleMillis(pm.preambleMillis);      // pure in-memory setters, no standby needed
+    r->setMaxPayloadMillis(pm.payloadMillis);
 
   }
 

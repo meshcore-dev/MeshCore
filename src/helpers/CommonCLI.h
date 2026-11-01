@@ -115,8 +115,8 @@ private:
     void setIntThresh(uint8_t t) override { _parent->interference_threshold = t; markDirty(); }
     uint8_t getRxGain() const override { return _parent->rx_boosted_gain; }
     void setRxGain(uint8_t g) override { _parent->rx_boosted_gain = g; markDirty(); }
-    uint8_t getTxPower() const override { return _parent->tx_power_dbm; }
-    void setTxPower(uint8_t dbm) override { _parent->tx_power_dbm = dbm; markDirty(); }
+    int8_t getTxPower() const override { return _parent->tx_power_dbm; }
+    void setTxPower(int8_t dbm) override { _parent->tx_power_dbm = dbm; markDirty(); }
     float getRxDelay() const override { return _parent->rx_delay_base; }
     void setRxDelay(float d) override { _parent->rx_delay_base = d; markDirty(); }
     uint16_t getAgcResetInt() const override { return _parent->agc_reset_interval * 4; }

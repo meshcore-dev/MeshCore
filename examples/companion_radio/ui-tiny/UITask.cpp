@@ -691,6 +691,7 @@ void UITask::loop() {
   userLedHandler();
 
 #ifdef PIN_BUZZER
+  if (buzzer.isQuiet() != (bool)_node_prefs->buzzer_quiet) buzzer.quiet(_node_prefs->buzzer_quiet);
   if (buzzer.isPlaying())  buzzer.loop();
 #endif
 

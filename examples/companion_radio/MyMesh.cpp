@@ -1175,7 +1175,9 @@ void MyMesh::handleCmdFrame(size_t len) {
                         ? ERR_CODE_NOT_FOUND
                         : ERR_CODE_UNSUPPORTED_CMD); // unknown recipient, or unsupported TXT_TYPE_*
     }
-  } else if (cmd_frame[0] == CMD_SEND_CHANNEL_TXT_MSG) { // send GroupChannel text msg
+  } else if (cmd_frame[0] == CMD_SEND_CHANNEL_TXT_MSG && len >= 7) { // send GroupChannel text msg
+    // 7 = code, txt_type, channel_idx and the 4 byte timestamp; the text may be empty.
+    // Without this the text length below is computed as len - 7 and turns negative.
     int i = 1;
     uint8_t txt_type = cmd_frame[i++]; // should be TXT_TYPE_PLAIN
     uint8_t channel_idx = cmd_frame[i++];
@@ -2122,6 +2124,23 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
     return true;
   }
 
+#ifdef PIN_BUZZER
+  if (strcmp(command, "get buzzer") == 0) {
+    sprintf(reply, "> %s", _prefs.buzzer_quiet ? "off" : "on");
+    return true;
+  }
+  if (memcmp(command, "set buzzer ", 11) == 0) {
+    if (strcmp(&command[11], "on") == 0 || strcmp(&command[11], "off") == 0) {
+      _prefs.buzzer_quiet = strcmp(&command[11], "off") == 0;
+      savePrefs();
+      strcpy(reply, "OK");
+    } else {
+      strcpy(reply, "Error: state must be on or off");
+    }
+    return true;
+  }
+#endif
+
   if (memcmp(command, "set pin ", 8) == 0) {
     _prefs.ble_pin = atoi(&command[8]);
     savePrefs();
@@ -2192,11 +2211,12 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
   }
 
   if (strcmp(command, "get tz.offset") == 0) {
-    sprintf(reply, "> %d", _prefs.tz_offset);
+    float q = _prefs.tz_offset * 4;
+    sprintf(reply, (q == (int)q && ((int)q & 1)) ? "> %.2f" : "> %.1f", _prefs.tz_offset);
     return true;
   }
   if (memcmp(command, "set tz.offset ", 14) == 0) {
-    int8_t tz = atof(&command[14]);
+    float tz = atof(&command[14]);
     if (tz < -12 || tz > 14) {
       strcpy(reply, "Error, must be from -12 to +14");
     } else {
@@ -2206,6 +2226,108 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
     }
     return true;
   }
+#ifdef DISPLAY_CLASS
+  if (memcmp(command, "set ui.show_clock", 17) == 0) {
+    _prefs.ui_show_clock = atoi(&command[17]) ? 1 : 0;
+    savePrefs();
+    sprintf(reply, "> now %d", _prefs.ui_show_clock);
+    return true;
+  }
+  if (memcmp(command, "set ui.auto_off_delay", 21) == 0) {
+    _prefs.ui_auto_off_delay = atoi(&command[21]);
+    savePrefs();
+    sprintf(reply, "> now %d seconds", _prefs.ui_auto_off_delay);
+    return true;
+  }
+  if (memcmp(command, "set ui.backlight_delay", 22) == 0) {
+    _prefs.ui_backlight_delay = atoi(&command[22]);
+    savePrefs();
+    if (_prefs.ui_backlight_delay >= 0)    
+      sprintf(reply, "> now %d seconds", _prefs.ui_backlight_delay);
+    else if (_prefs.ui_backlight_delay == -1)
+      sprintf(reply, "> now always on (-1)");
+    else
+      sprintf(reply, "> now disabled (<-1)");
+    return true;
+  }
+  if (memcmp(command, "set ui.backlight_on_keys", 24) == 0) {
+    _prefs.ui_backlight_on_keys = atoi(&command[24]);
+    savePrefs();
+    sprintf(reply, "> now %d", _prefs.ui_backlight_on_keys);
+    return true;
+  }
+  if (memcmp(command, "set ui.backlight_on_msgs", 24) == 0) {
+    _prefs.ui_backlight_on_msgs = atoi(&command[24]);
+    savePrefs();
+    sprintf(reply, "> now %d", _prefs.ui_backlight_on_msgs);
+    return true;
+  }
+  if (memcmp(command, "set ui.auto_off_blank", 21) == 0) {
+    _prefs.ui_auto_off_blank = atoi(&command[21]);
+    savePrefs();
+    sprintf(reply, "> now %d", _prefs.ui_auto_off_blank);
+    return true;
+  }
+  if (memcmp(command, "set ui.auto_off_keep_msgs", 25) == 0) {
+    _prefs.ui_auto_off_keep_msgs = atoi(&command[25]);
+    savePrefs();
+    sprintf(reply, "> now %d", _prefs.ui_auto_off_keep_msgs);
+    return true;
+  }
+  if (memcmp(command, "set ui.max_partial", 18) == 0) {
+    _prefs.ui_max_partial = atoi(&command[18]);
+    savePrefs();
+    sprintf(reply, "> now %d (applied at next screen wakeup)", _prefs.ui_max_partial);
+    return true;
+  }
+  if (memcmp(command, "set ui.nd_name", 14) == 0) {
+    _prefs.ui_nd_name = atoi(&command[14]);
+    savePrefs();
+    sprintf(reply, "> ui.nd_name is now %d", _prefs.ui_nd_name);
+    return true;
+  }
+  if (memcmp(command, "get ui.show_clock", 17) == 0) {
+    sprintf(reply, "> %d", _prefs.ui_show_clock);
+    return true;
+  }
+  if (memcmp(command, "get ui.auto_off_delay", 21) == 0) {
+    sprintf(reply, "> %d seconds", _prefs.ui_auto_off_delay);
+    return true;
+  }
+  if (memcmp(command, "get ui.backlight_delay", 22) == 0) {
+    if (_prefs.ui_backlight_delay >= 0)    
+      sprintf(reply, "> %d seconds", _prefs.ui_backlight_delay);
+    else if (_prefs.ui_backlight_delay == -1)
+      sprintf(reply, "> always on (-1)");
+    else
+      sprintf(reply, "> disabled (<-1)");
+    return true;
+  }
+  if (memcmp(command, "get ui.backlight_on_keys", 24) == 0) {
+    sprintf(reply, "> %d", _prefs.ui_backlight_on_keys);
+    return true;
+  }
+  if (memcmp(command, "get ui.backlight_on_msgs", 24) == 0) {
+    sprintf(reply, "> %d", _prefs.ui_backlight_on_msgs);
+    return true;
+  }
+  if (memcmp(command, "get ui.auto_off_blank", 21) == 0) {
+    sprintf(reply, "> %d", _prefs.ui_auto_off_blank);
+    return true;
+  }
+  if (memcmp(command, "get ui.auto_off_keep_msgs", 25) == 0) {
+    sprintf(reply, "> %d", _prefs.ui_auto_off_keep_msgs);
+    return true;
+  }
+  if (memcmp(command, "get ui.max_partial", 18) == 0) {
+    sprintf(reply, "> %d", _prefs.ui_max_partial);
+    return true;
+  }
+  if (memcmp(command, "get ui.nd_name", 14) == 0) {
+    sprintf(reply, "> %d", _prefs.ui_nd_name);
+    return true;
+  }
+#endif
 
   return false;  // not handled
 }
