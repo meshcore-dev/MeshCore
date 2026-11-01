@@ -657,7 +657,9 @@ void SensorMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender_i
 
   ClientInfo* from = acl.getClientByIdx(i);
   if (crypto_type == CRYPTO_NEW_DIRECT) {
-    from->direct_mode = (DM_MODE_SEQ_NORMAL << 4) | CRYPTO_NEW_DIRECT;   // have received from Client in new scheme, so they must support it
+    if (from->direct_mode == CRYPTO_LEGACY) {
+      from->direct_mode = (DM_MODE_SEQ_NORMAL << 4) | CRYPTO_NEW_DIRECT;   // have received from Client in new scheme, so they must support it
+    }
   }
 
   if (type == PAYLOAD_TYPE_REQ) {  // request (from a known contact)
@@ -794,7 +796,7 @@ void SensorMesh::onControlDataRecv(mesh::Packet* packet) {
   }
 }
 
-bool SensorMesh::onPeerPathRecv(mesh::Packet* packet, int sender_idx, const uint8_t* secret, uint8_t* path, uint8_t path_len, uint8_t extra_type, uint8_t* extra, uint8_t extra_len) {
+bool SensorMesh::onPeerPathRecv(mesh::Packet* packet, int sender_idx, const uint8_t* secret, uint8_t* path, uint8_t path_len, uint8_t extra_type, uint8_t* extra, uint8_t extra_len, uint8_t crypto_type) {
   int i = matching_peer_indexes[sender_idx];
   if (i < 0 || i >= acl.getNumClients()) {
     MESH_DEBUG_PRINTLN("onPeerPathRecv: Invalid sender idx: %d", i);
@@ -802,6 +804,11 @@ bool SensorMesh::onPeerPathRecv(mesh::Packet* packet, int sender_idx, const uint
   }
 
   ClientInfo* from = acl.getClientByIdx(i);
+  if (crypto_type == CRYPTO_NEW_DIRECT) {
+    if (from->direct_mode == CRYPTO_LEGACY) {
+      from->direct_mode = (DM_MODE_SEQ_NORMAL << 4) | CRYPTO_NEW_DIRECT;   // have received from Client in new scheme, so they must support it
+    }
+  }
 
   MESH_DEBUG_PRINTLN("PATH to contact, path_len=%d", (uint32_t) path_len);
   // NOTE: for this impl, we just replace the current 'out_path' regardless, whenever sender sends us a new out_path.

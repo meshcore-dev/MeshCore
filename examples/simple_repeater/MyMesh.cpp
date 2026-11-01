@@ -636,7 +636,11 @@ void MyMesh::onAnonDataRecv(mesh::Packet *packet, const uint8_t *secret, const m
     // a DIRECT login can reply via the stored out_path, as onPeerDataRecv() does for REQ
     ClientInfo* client = acl.getClient(sender.pub_key, PUB_KEY_SIZE);
     if (client == NULL) {
-      MESH_DEBUG_PRINTLN("onAnonDataRecv: client ACL cannot find slot!");  // This shouldn't happen!
+      // prob one of ANON_REQ_TYPE_REGIONS/_OWNER/_BASIC, and not in ACL
+      if (reply_path_len != 0xFF) {
+        mesh::Packet* reply = createDatagram(PAYLOAD_TYPE_RESPONSE, sender, secret, reply_data, reply_len);
+        if (reply) { sendDirect(reply, reply_path, reply_path_len, SERVER_RESPONSE_DELAY); }
+      }
       return;
     }
 

@@ -747,7 +747,7 @@ int  BaseChatMesh::sendRequest(ContactInfo& recipient, const uint8_t* req_data, 
     memcpy(temp, &tag, 4);   // mostly an extra blob to help make packet_hash unique
     memcpy(&temp[4], req_data, data_len);
 
-    auto pkt = obtainPacketFor(recipient);
+    pkt = obtainPacketFor(recipient);
     if (pkt == NULL) return MSG_SEND_FAILED;
 
     encodeDatagram(pkt, PAYLOAD_TYPE_REQ, recipient.id, recipient.getSharedSecret(self_id), temp, 4 + data_len);
@@ -766,7 +766,7 @@ int  BaseChatMesh::sendRequest(ContactInfo& recipient, uint8_t req_type, uint32_
     memset(&temp[5], 0, 4);  // reserved (possibly for 'since' param)
     getRNG()->random(&temp[9], 4);   // random blob to help make packet-hash unique
 
-    auto pkt = obtainPacketFor(recipient);
+    pkt = obtainPacketFor(recipient);
     if (pkt == NULL) return MSG_SEND_FAILED;
 
     encodeDatagram(pkt, PAYLOAD_TYPE_REQ, recipient.id, recipient.getSharedSecret(self_id), temp, sizeof(temp));
