@@ -6,6 +6,12 @@
 
 class SenseCapSolarBoard : public NRF52BoardDCDC {
 protected:
+  KeyValueStore* _prefs = NULL;
+  bool _leds_off = false;
+  bool _leds_applied = false;
+
+  void setLedsEnabled(bool enable);
+
 #ifdef NRF52_POWER_MANAGEMENT
   void initiateShutdown(uint8_t reason) override;
 #endif
@@ -13,10 +19,13 @@ protected:
 public:
   SenseCapSolarBoard() : NRF52Board("SENSECAP_SOLAR_OTA") {}
   void begin();
+  void attachDynamicPrefs(KeyValueStore* prefs);
+  bool handleCommand(const char* command, uint32_t sender_timestamp, char* reply) override;
+  void loop() override;
 
 #if defined(P_LORA_TX_LED)
   void onBeforeTransmit() override {
-    digitalWrite(P_LORA_TX_LED, HIGH);   // turn TX LED on
+    if (!_leds_off) digitalWrite(P_LORA_TX_LED, HIGH);   // turn TX LED on
   }
   void onAfterTransmit() override {
     digitalWrite(P_LORA_TX_LED, LOW);   // turn TX LED off
