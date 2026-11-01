@@ -18,7 +18,23 @@ AutoDiscoverRTCClock rtc_clock(fallback_clock);
 
 #ifdef ENV_INCLUDE_GPS
 MicroNMEALocationProvider nmea = MicroNMEALocationProvider(Serial1, &rtc_clock);
-EnvironmentSensorManager sensors = EnvironmentSensorManager(nmea);
+ThinknodeM5SensorManager sensors = ThinknodeM5SensorManager(nmea);
+
+void ThinknodeM5SensorManager::loop() {
+  if (millis() - last_switch_check > 1000) {
+    last_switch_check = millis();
+    int state = digitalRead(PIN_GPS_SWITCH);
+    if (state != last_switch_state) {
+      last_switch_state = state;
+      if (state == HIGH && !gps_active) {
+        start_gps();
+      } else if (state == LOW && gps_active) {
+        stop_gps();
+      }
+    }
+  }
+  EnvironmentSensorManager::loop();
+}
 #else
 EnvironmentSensorManager sensors = EnvironmentSensorManager();
 #endif
