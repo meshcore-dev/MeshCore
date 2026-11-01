@@ -9,7 +9,7 @@ protected:
   uint8_t btn_prev_state;
 
 public:
-  TImpulsePlusBoard() : NRF52Board("T-Impulse-Plus OTA") {}
+  TImpulsePlusBoard() : NRF52Board("T-Impulse-Plus_OTA") {}
   void begin();
 
 #if defined(P_LORA_TX_LED)
@@ -47,13 +47,11 @@ public:
     return "LilyGo T-Impulse-Plus";
   }
 
-  void powerOff() override {
+  void shutdownPeripherals() override {
+    // power off system
+    NRF52Board::shutdownPeripherals();
 
     // turn off 3.3v
     digitalWrite(RT9080_EN, LOW);
-
-    // power off system
-    sd_power_system_off();
-
   }
 };

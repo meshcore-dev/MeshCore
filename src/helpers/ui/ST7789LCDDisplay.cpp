@@ -1,5 +1,9 @@
 #include "ST7789LCDDisplay.h"
 
+#ifndef PIN_TFT_MISO
+  #define PIN_TFT_MISO -1
+#endif
+
 #ifndef DISPLAY_ROTATION
   #define DISPLAY_ROTATION 3
 #endif
@@ -19,6 +23,17 @@ bool ST7789LCDDisplay::i2c_probe(TwoWire& wire, uint8_t addr) {
   return true;
 }
 
+// Color scheme
+ColorVal UIColor::window_bkg = ST77XX_WHITE;
+ColorVal UIColor::title_bkg = ST77XX_BLUE;
+ColorVal UIColor::title_txt = ST77XX_WHITE;
+ColorVal UIColor::primary_txt = ST77XX_BLACK;
+ColorVal UIColor::secondary_txt = (18 << 11) | (36 << 5) | 18;  // mid-gray
+ColorVal UIColor::warning_txt = ST77XX_ORANGE;
+ColorVal UIColor::popup_bkg = ST77XX_CYAN;
+ColorVal UIColor::popup_txt = ST77XX_BLACK;
+ColorVal UIColor::corp_blue = 0x001A;
+
 bool ST7789LCDDisplay::begin() {
   if (!_isOn) {
     if (_peripher_power) _peripher_power->claim();
@@ -29,8 +44,8 @@ bool ST7789LCDDisplay::begin() {
     }
 
     // Im not sure if this is just a t-deck problem or not, if your display is slow try this.
-    #if defined(LILYGO_TDECK) || defined(HELTEC_LORA_V4_TFT)
-      displaySPI.begin(PIN_TFT_SCL, -1, PIN_TFT_SDA, PIN_TFT_CS);
+    #if defined(LILYGO_TDECK) || defined(HELTEC_LORA_V4_TFT) || defined(HELTEC_V4_R8_TFT)
+      displaySPI.begin(PIN_TFT_SCL, PIN_TFT_MISO, PIN_TFT_SDA, PIN_TFT_CS);
     #endif
 
     display.init(DISPLAY_WIDTH, DISPLAY_HEIGHT);
@@ -74,9 +89,9 @@ void ST7789LCDDisplay::clear() {
   display.fillScreen(ST77XX_BLACK);
 }
 
-void ST7789LCDDisplay::startFrame(Color bkg) {
-  display.fillScreen(ST77XX_BLACK);
-  display.setTextColor(ST77XX_WHITE);
+void ST7789LCDDisplay::startFrame(ColorVal bkg) {
+  display.fillScreen(bkg);
+  display.setTextColor(_color = UIColor::primary_txt);
   display.setTextSize(1 * DISPLAY_SCALE_X); // This one affects size of Please wait... message
   display.cp437(true); // Use full 256 char 'Code Page 437' font
 }
@@ -85,34 +100,8 @@ void ST7789LCDDisplay::setTextSize(int sz) {
   display.setTextSize(sz * DISPLAY_SCALE_X);
 }
 
-void ST7789LCDDisplay::setColor(Color c) {
-  switch (c) {
-    case DisplayDriver::DARK :
-      _color = ST77XX_BLACK;
-      break;
-    case DisplayDriver::LIGHT : 
-      _color = ST77XX_WHITE;
-      break;
-    case DisplayDriver::RED : 
-      _color = ST77XX_RED;
-      break;
-    case DisplayDriver::GREEN : 
-      _color = ST77XX_GREEN;
-      break;
-    case DisplayDriver::BLUE : 
-      _color = ST77XX_BLUE;
-      break;
-    case DisplayDriver::YELLOW : 
-      _color = ST77XX_YELLOW;
-      break;
-    case DisplayDriver::ORANGE : 
-      _color = ST77XX_ORANGE;
-      break;
-    default:
-      _color = ST77XX_WHITE;
-      break;
-  }
-  display.setTextColor(_color);
+void ST7789LCDDisplay::setColor(ColorVal c) {
+  display.setTextColor(_color = c);
 }
 
 void ST7789LCDDisplay::setCursor(int x, int y) {

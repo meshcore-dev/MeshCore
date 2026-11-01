@@ -19,6 +19,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
   - [GPS](#gps-when-gps-support-is-compiled-in)
   - [Sensors](#sensors-when-sensor-support-is-compiled-in)
   - [Bridge](#bridge-when-bridge-support-is-compiled-in)
+  - [Ethernet](#ethernet-when-ethernet-support-is-compiled-in)
 
 ---
 
@@ -28,11 +29,24 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 **Usage:** 
 - `reboot`
 
+**Note:** No reply is sent.
+
+---
+
+### Power-off the node
+**Usage:**
+- `poweroff`, or
+- `shutdown`
+
+**Note:** No reply is sent.
+
 ---
 
 ### Reset the clock and reboot
 **Usage:**
 - `clkreboot`
+
+**Note:** No reply is sent.
 
 ---
 
@@ -197,7 +211,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 **Set by build flag:** `LORA_FREQ`, `LORA_BW`, `LORA_SF`, `LORA_CR`
 
-**Default:** `869.525,250,11,5`
+**Default:** `869.618,62.5,8,5`
 
 **Note:** Requires reboot to apply
 
@@ -242,7 +256,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 **Parameters:**
 - `frequency`: Frequency in MHz
 
-**Default:** `869.525`
+**Default:** `869.618`
 
 **Note:** Requires reboot to apply
 **Serial Only:** `set freq <frequency>`
@@ -277,6 +291,22 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 ---
 
+#### View or change the LoRa FEM transmit-path gain state on supported boards
+**Usage:**
+- `get radio.fem.txgain`
+- `set radio.fem.txgain <state>`
+
+**Parameters:**
+- `state`: `on`|`off`
+
+**Notes:**
+- This controls a software-selectable external LoRa FEM transmit gain where the board supports it.
+- On Station G3, remove the PA PL1 jumper to allow software control. `on` selects PA PL1 high/short and `off` selects PA PL1 low/open. The PA PL2 hardware jumper determines whether this switches between power levels 1/3 or 2/4.
+- Select an operating level and SX1262 transmit power that comply with local RF limits and the Station G3 power-supply requirements.
+- The setting is saved immediately, but on Station G3 the level is applied to the hardware at the start of the next transmit, so that the PA supply rail is never re-targeted while the PA is being driven. `get` reports the configured state, which may lead the hardware until the node next transmits.
+
+---
+
 ### System
 
 #### View or change this node's name
@@ -291,7 +321,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 **Default:** Varies by board
 
-**Note:** Max length varies. If a location is set, the max length is 24 bytes; 32 otherwise. Emoji and unicode characters may take more than one byte.
+**Note:** Advertised names can use up to 23 bytes when location is included and 31 bytes otherwise. Emoji and Unicode characters may take more than one byte. Names that exceed the available advert space are truncated at a valid UTF-8 code point boundary.
 
 ---
 
@@ -507,7 +537,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 **Parameters:**
 - `value`: Direct transmit delay factor (0-2)
 
-**Default:** `0.2`
+**Default:** `0.3` (Repeater) - `0.2` (Room Server, Sensor)
 
 **Note:** Same collision-avoidance random window as `txdelay`, but applied to direct (non-flood, routed) traffic. The default is lower because direct packets are addressed to a specific next hop, so far fewer nodes compete to retransmit them.
 
@@ -598,7 +628,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 - `set agc.reset.interval <value>`
 
 **Parameters:**
-- `value`: Interval in seconds rounded down to a multiple of 4 (17 becomes 16). 0 to disable.
+- `value`: Interval in seconds, 0-1020, rounded down to a multiple of 4 (17 becomes 16). 0 to disable.
 
 **Default:** `0.0`
 
@@ -624,7 +654,7 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 **Parameters:**
 - `hours`: Interval in hours (3-168)
 
-**Default:** `12` (Repeater) - `0` (Sensor)
+**Default:** `47` (Repeater, Room Server) - `0`, disabled (Sensor)
 
 ---
 
@@ -636,7 +666,12 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 **Parameters:**
 - `minutes`: Interval in minutes rounded down to the nearest multiple of 2 (61 becomes 60) (60-240)
 
-**Default:** `0`
+**Default:** `2` on a factory-fresh node, then `0` (disabled) once configured.
+
+**Note:** A new install ships with a 2 minute zero-hop advert interval. Saving
+any setting resets an interval below the 60 minute minimum to `0`, on the
+assumption that the node has now been deliberately configured. To keep zero-hop
+adverts running, set an explicit value in the 60-240 range.
 
 ---
 
@@ -660,10 +695,21 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 **Parameters:**
 - `value`: Maximum flood hop count (0-64) for a packet without a scope (no region set)
 
-**Default:** `0xFF` - indicates it hasn't been set, will track flood.max until it is.
+**Default:** `64` - (`0xFF` indicates it hasn't been set, will track flood.max until it is.)
 
 **Note:** An alternative to `region denyf *`, setting `flood.max.unscoped` to a lower value such as `3` would allow for local unscoped messages to propagate, while preventing noisy neighbors from flooding a local region.
 
+---
+
+#### Limit the number of hops for an advert flood message
+**Usage:**
+- `get flood.max.advert`
+- `set flood.max.advert <value>`
+
+**Parameters:**
+- `value`: Maximum flood hop count (0-64) for an advert packet
+
+**Default:** `8`
 
 ---
 
@@ -1126,5 +1172,27 @@ region save
 **Usage:** `get pwrmgt.bootmv`
 
 **Note:** Returns an error on boards without power management support.
+
+---
+
+### Ethernet (when Ethernet support is compiled in)
+
+Ethernet support is available on RAK4631 boards with a RAK13800 (W5100S) Ethernet module. Use the `_ethernet` firmware variants (e.g. `RAK_4631_repeater_ethernet`) to enable this feature.
+
+---
+
+#### View Ethernet connection status
+**Usage:**
+- `eth.status`
+
+**Output:**
+- `ETH: <ip>:<port>` when connected (e.g. `ETH: 192.168.1.50:23`)
+- `ETH: not connected` when Ethernet is not active
+
+**Notes:**
+- Available on repeater and room server firmware only. Companion radio ethernet firmware does not expose a CLI.
+- The Ethernet interface obtains an IP address via DHCP automatically on boot.
+- A TCP server listens on port 23 (default) for CLI connections.
+- Connect with any TCP client (e.g. `nc`, PuTTY) to access the same CLI available over serial.
 
 ---

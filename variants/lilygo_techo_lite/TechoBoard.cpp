@@ -6,7 +6,7 @@
 #ifdef LILYGO_TECHO
 
 void TechoBoard::begin() {
-  NRF52Board::begin();
+  NRF52BoardDCDC::begin();
 
   // Configure battery measurement control BEFORE Wire.begin()
   // to ensure P0.02 is not claimed by another peripheral
