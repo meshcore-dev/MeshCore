@@ -15,8 +15,9 @@ public:
 */
 class MeshTables {
 public:
-  virtual bool hasSeen(const Packet* packet) = 0;
-  virtual void clear(const Packet* packet) = 0;   // remove this packet hash from table
+  virtual bool wasSeen(const Packet* packet) = 0;
+  virtual void markSeen(const Packet* packet) = 0;
+  virtual void clear(const Packet* packet) = 0;    // remove this packet hash from table
 };
 
 /**
@@ -31,7 +32,7 @@ class Mesh : public Dispatcher {
   void removeSelfFromPath(Packet* packet);
   void routeDirectRecvAcks(Packet* packet, uint32_t delay_millis);
   //void routeRecvAcks(Packet* packet, uint32_t delay_millis);
-  DispatcherAction forwardMultipartDirect(Packet* pkt);
+  DispatcherAction forwardMultipartDirect(Packet* pkt, uint32_t delay_millis);
 
 protected:
   DispatcherAction onRecvPacket(Packet* pkt) override;

@@ -8,7 +8,7 @@
 #include <helpers/ArduinoHelpers.h>
 #include <helpers/SensorManager.h>
 #ifdef DISPLAY_CLASS
-  #include "NullDisplayDriver.h"
+  #include <helpers/ui/NullDisplayDriver.h>
 #endif
 
 #include <BME280I2C.h>

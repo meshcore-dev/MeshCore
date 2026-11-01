@@ -14,8 +14,10 @@ class ST7789Display : public DisplayDriver {
 
   bool i2c_probe(TwoWire& wire, uint8_t addr);
 public:
-#ifdef HELTEC_VISION_MASTER_T190
+#if defined(HELTEC_VISION_MASTER_T190)
   ST7789Display() : DisplayDriver(128, 64), display(&SPI, PIN_TFT_RST, PIN_TFT_DC, PIN_TFT_CS, GEOMETRY_RAWMODE, 320, 170,PIN_TFT_SDA,-1,PIN_TFT_SCL) {_isOn = false;}
+#elif defined(THINKNODE_M9)
+  ST7789Display() : DisplayDriver(128, 64), display(&SPI, ST7789_RESET, ST7789_RS, ST7789_CS, GEOMETRY_RAWMODE, 320, 240, ST7789_SDA, ST7789_MISO, ST7789_SCK) {_isOn = false;}
 #else
   ST7789Display() : DisplayDriver(128, 64), display(&SPI1, PIN_TFT_RST, PIN_TFT_DC, PIN_TFT_CS, GEOMETRY_RAWMODE, 240, 135) {_isOn = false;}
 #endif
@@ -25,9 +27,9 @@ public:
   void turnOn() override;
   void turnOff() override;
   void clear() override;
-  void startFrame(Color bkg = DARK) override;
+  void startFrame(ColorVal bkg = UIColor::window_bkg) override;
   void setTextSize(int sz) override;
-  void setColor(Color c) override;
+  void setColor(ColorVal c) override;
   void setCursor(int x, int y) override;
   void print(const char* str) override;
   void printWordWrap(const char* str, int max_width) override;
