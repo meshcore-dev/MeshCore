@@ -56,7 +56,11 @@ public:
     }
 
     bool isValid() override {
-        return _driver.usesRak12500() ? _lastFix.valid : _nmea.isValid();
+        return _driver.usesRak12500() ? _driver.hasFix() : _nmea.isValid();
+    }
+
+    bool hasValidFix() override {
+        return _driver.usesRak12500() ? _lastFix.valid : _nmea.hasValidFix();
     }
 
     long getTimestamp() override {

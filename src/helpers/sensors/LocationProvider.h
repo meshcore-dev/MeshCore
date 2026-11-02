@@ -19,7 +19,8 @@ public:
     virtual long getLongitude() = 0;
     virtual long getAltitude() = 0;
     virtual long satellitesCount() = 0;
-    virtual bool isValid() = 0;
+    virtual bool isValid() = 0;                       // current fix is valid
+    virtual bool hasValidFix() { return isValid(); }  // a valid fix was obtained at some point (cached)
     virtual long getTimestamp() = 0;
     virtual void sendSentence(const char * sentence);
     virtual bool waitFor(const char* prefix, uint32_t timeout_ms) { return false; }

@@ -195,7 +195,8 @@ public:
     long satellitesCount() override {
         return nmea.isValid() ? nmea.getNumSatellites() : _lastFix.satellites;
     }
-    bool isValid() override { return nmea.isValid() || _lastFix.valid; }
+    bool isValid() override { return nmea.isValid(); }
+    bool hasValidFix() override { return nmea.isValid() || _lastFix.valid; }
     uint32_t getLastFixAge() const override {
         return _fix_seen ? ageMs(_last_fix_ms) / 1000UL : UINT32_MAX;
     }

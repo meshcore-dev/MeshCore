@@ -49,7 +49,7 @@ bool CommonGpsPrefs::handleCommand(const char* command, SensorManager& sensors, 
         }
       }
       char fix[32];
-      if (location->isValid()) {
+      if (location->hasValidFix()) {
         const uint32_t fixAge = location->getLastFixAge();
         if (fixAge == UINT32_MAX) {
           strcpy(fix, "fix");
@@ -73,7 +73,7 @@ bool CommonGpsPrefs::handleCommand(const char* command, SensorManager& sensors, 
     LocationProvider* location = sensors.getLocationProvider();
     if (location == nullptr) {
       strcpy(reply, "gps provider not found");
-    } else if (!location->isValid()) {
+    } else if (!location->hasValidFix()) {
       strcpy(reply, "no fix");
     } else {
       const long latitude = location->getLatitude();
