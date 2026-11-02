@@ -134,6 +134,14 @@ public:
         return _driver->isEnabled();
     }
 
+    bool hasHardwareEnableState() const override {
+        return _driver->hasHardwareEnableState();
+    }
+
+    bool isHardwareEnabled() const override {
+        return _driver->isHardwareEnabled();
+    }
+
     bool detect(uint32_t timeout_ms) override {
         return _driver->detect(timeout_ms);
     }

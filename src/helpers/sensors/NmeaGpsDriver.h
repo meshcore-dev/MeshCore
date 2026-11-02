@@ -49,6 +49,14 @@
     #define GPS_BAUD_RATE 9600
 #endif
 
+#ifndef PIN_GPS_SWITCH
+    #define PIN_GPS_SWITCH (-1)
+#endif
+
+#ifndef GPS_SWITCH_ACTIVE
+    #define GPS_SWITCH_ACTIVE HIGH
+#endif
+
 class NmeaGpsDriver : public GpsDriver {
     Stream* _stream = nullptr;
     HardwareSerial* _hardwareSerial = nullptr;
@@ -60,6 +68,8 @@ class NmeaGpsDriver : public GpsDriver {
     int _enableActive = HIGH;
     int _resetActive = LOW;
     uint32_t _baudRate = 9600;
+    int _hardwareEnablePin = -1;
+    int _hardwareEnableActive = HIGH;
     bool _started = false;
 
 public:
@@ -69,10 +79,13 @@ public:
                   int resetPin = GPS_RESET, int enablePin = GPS_EN,
                   RefCountedDigitalPin* peripheralPower = nullptr,
                   int enableActive = GPS_EN_ACTIVE, int resetActive = GPS_RESET_ACTIVE,
-                  uint32_t baudRate = GPS_BAUD_RATE)
+                  uint32_t baudRate = GPS_BAUD_RATE,
+                  int hardwareEnablePin = PIN_GPS_SWITCH,
+                  int hardwareEnableActive = GPS_SWITCH_ACTIVE)
         : _stream(&stream), _peripheralPower(peripheralPower), _txPin(txPin), _rxPin(rxPin),
           _resetPin(resetPin), _enablePin(enablePin), _enableActive(enableActive),
-          _resetActive(resetActive), _baudRate(baudRate) {
+          _resetActive(resetActive), _baudRate(baudRate),
+          _hardwareEnablePin(hardwareEnablePin), _hardwareEnableActive(hardwareEnableActive) {
         if (_resetPin != -1) {
             pinMode(_resetPin, OUTPUT);
             digitalWrite(_resetPin, _resetActive);
@@ -81,15 +94,21 @@ public:
             pinMode(_enablePin, OUTPUT);
             digitalWrite(_enablePin, !_enableActive);
         }
+        if (_hardwareEnablePin != -1) {
+            pinMode(_hardwareEnablePin, INPUT);
+        }
     }
 
     NmeaGpsDriver(HardwareSerial& serial, int txPin = PIN_GPS_TX, int rxPin = PIN_GPS_RX,
                   int resetPin = GPS_RESET, int enablePin = GPS_EN,
                   RefCountedDigitalPin* peripheralPower = nullptr,
                   int enableActive = GPS_EN_ACTIVE, int resetActive = GPS_RESET_ACTIVE,
-                  uint32_t baudRate = GPS_BAUD_RATE)
+                  uint32_t baudRate = GPS_BAUD_RATE,
+                  int hardwareEnablePin = PIN_GPS_SWITCH,
+                  int hardwareEnableActive = GPS_SWITCH_ACTIVE)
         : NmeaGpsDriver(static_cast<Stream&>(serial), txPin, rxPin, resetPin, enablePin,
-                        peripheralPower, enableActive, resetActive, baudRate) {
+                        peripheralPower, enableActive, resetActive, baudRate,
+                        hardwareEnablePin, hardwareEnableActive) {
         _hardwareSerial = &serial;
     }
 
@@ -137,6 +156,15 @@ public:
     bool isEnabled() const override {
         if (_enablePin == -1) return true;
         return digitalRead(_enablePin) == _enableActive;
+    }
+
+    bool hasHardwareEnableState() const override {
+        return _hardwareEnablePin != -1;
+    }
+
+    bool isHardwareEnabled() const override {
+        return _hardwareEnablePin == -1 ||
+            digitalRead(_hardwareEnablePin) == _hardwareEnableActive;
     }
 
     bool detect(uint32_t timeout_ms) override {

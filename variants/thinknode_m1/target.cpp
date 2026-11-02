@@ -2,6 +2,7 @@
 #include "target.h"
 #include <helpers/ArduinoHelpers.h>
 #include <helpers/sensors/MicroNMEALocationProvider.h>
+#include <helpers/sensors/NmeaGpsDriver.h>
 
 ThinkNodeM1Board board;
 
@@ -11,7 +12,8 @@ WRAPPER_CLASS radio_driver(radio, board);
 
 VolatileRTCClock fallback_clock;
 AutoDiscoverRTCClock rtc_clock(fallback_clock);
-MicroNMEALocationProvider nmea = MicroNMEALocationProvider(Serial1, &rtc_clock);
+NmeaGpsDriver gps_driver(Serial1);
+MicroNMEALocationProvider nmea = MicroNMEALocationProvider(gps_driver, &rtc_clock);
 ThinkNodeM1SensorManager sensors = ThinkNodeM1SensorManager(nmea);
 
 #ifdef DISPLAY_CLASS
@@ -45,20 +47,8 @@ void ThinkNodeM1SensorManager::stop_gps() {
 }
 
 bool ThinkNodeM1SensorManager::begin() {
-  Serial1.begin(9600);
-
-  // Initialize GPS switch pin
-  pinMode(PIN_GPS_SWITCH, INPUT);
-  last_gps_switch_state = digitalRead(PIN_GPS_SWITCH);
-
-  // Initialize GPS power pin
-  pinMode(GPS_EN, OUTPUT);
-
-  // Check initial switch state to determine if GPS should be active
-  if (last_gps_switch_state == HIGH) {  // Switch is HIGH when ON
-    start_gps();
-  }
-
+  gps_active = true;
+  _location->begin();
   return true;
 }
 
@@ -71,27 +61,6 @@ bool ThinkNodeM1SensorManager::querySensors(uint8_t requester_permissions, Cayen
 
 void ThinkNodeM1SensorManager::loop() {
   static long next_gps_update = 0;
-  static long last_switch_check = 0;
-
-  // Check GPS switch state every second
-  if (millis() - last_switch_check > 1000) {
-    bool current_switch_state = digitalRead(PIN_GPS_SWITCH);
-    
-    // Detect switch state change
-    if (current_switch_state != last_gps_switch_state) {
-      last_gps_switch_state = current_switch_state;
-      
-      if (current_switch_state == HIGH) {  // Switch is ON
-        MESH_DEBUG_PRINTLN("GPS switch ON");
-        start_gps();
-      } else {  // Switch is OFF
-        MESH_DEBUG_PRINTLN("GPS switch OFF");
-        stop_gps();
-      }
-    }
-    
-    last_switch_check = millis();
-  }
 
   if (!gps_active) {
     return;  // GPS is not active, skip further processing
@@ -136,4 +105,3 @@ bool ThinkNodeM1SensorManager::setSettingValue(const char* name, const char* val
   }
   return false;  // not supported
 }
-

@@ -15,7 +15,6 @@
 
 class ThinkNodeM1SensorManager : public SensorManager {
   bool gps_active = false;
-  bool last_gps_switch_state = false;
   LocationProvider* _location;
 
   void start_gps();
@@ -45,4 +44,3 @@ extern ThinkNodeM1SensorManager sensors;
 
 bool radio_init();
 mesh::LocalIdentity radio_new_identity();
-
