@@ -59,6 +59,30 @@ bool CommonGpsPrefs::handleCommand(const char* command, SensorManager& sensors, 
     }
     return true;
   }
+  if (strcmp(command, "gps fix") == 0) {
+    LocationProvider* location = sensors.getLocationProvider();
+    if (location == nullptr) {
+      strcpy(reply, "gps provider not found");
+    } else if (!location->isValid()) {
+      strcpy(reply, "no fix");
+    } else {
+      const long latitude = location->getLatitude();
+      const long longitude = location->getLongitude();
+      const uint32_t fixAge = location->getLastFixAge();
+      char age[24];
+      if (fixAge == UINT32_MAX) {
+        strcpy(age, "age unavailable");
+      } else {
+        snprintf(age, sizeof(age), "%lus ago", (unsigned long)fixAge);
+      }
+      snprintf(reply, 160, "%s%ld.%06ld, %s%ld.%06ld, %ldm, %s",
+               latitude < 0 ? "-" : "", labs(latitude) / 1000000L,
+               labs(latitude) % 1000000L,
+               longitude < 0 ? "-" : "", labs(longitude) / 1000000L,
+               labs(longitude) % 1000000L, location->getAltitude() / 1000L, age);
+    }
+    return true;
+  }
   if (memcmp(command, "gps on", 6) == 0) {
     if (!setGpsEnabled(sensors, true)) {
       strcpy(reply, "gps toggle not found");
