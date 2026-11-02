@@ -37,13 +37,49 @@ bool CommonGpsPrefs::handleCommand(const char* command, SensorManager& sensors, 
     }
     if (location == nullptr) {
       strcpy(reply, "gps provider not found");
-    } else if (location->isEnabled()) {
-      sprintf(reply, "on, %s, %s, %d sats, mode: %s",
-              isGpsEnabled() ? "active" : "deactivated",
-              location->isValid() ? "fix" : "no fix",
-              location->satellitesCount(), mode);
+    } else if (location->isGpsOn()) {
+      const char* activity = "active";
+      if (!location->isEnabled()) {
+        if (location->hasHardwareEnableState() && !location->isHardwareEnabled()) {
+          activity = "off(hw)";
+        } else if (getGpsPeriod() > 0) {
+          activity = "waiting";
+        } else {
+          activity = "inactive";
+        }
+      }
+      char fix[32];
+      if (location->hasValidFix()) {
+        snprintf(fix, sizeof(fix), "%ld sats %lus ago",
+                location->satellitesCount(), (unsigned long)location->getLastFixAge());
+      } else {
+        strcpy(fix, "no fix");
+      }
+      snprintf(reply, 160, "on, %s, %s, mode: %s", activity, fix, mode);
+    }
+    return true;
+  }
+  if (strcmp(command, "gps fix") == 0) {
+    LocationProvider* location = sensors.getLocationProvider();
+    if (location == nullptr) {
+      strcpy(reply, "gps provider not found");
+    } else if (!location->hasValidFix()) {
+      strcpy(reply, "no fix");
     } else {
-      snprintf(reply, 160, "off, mode: %s", mode);
+      const long latitude = location->getLatitude();
+      const long longitude = location->getLongitude();
+      const uint32_t fixAge = location->getLastFixAge();
+      char age[24];
+      if (fixAge == UINT32_MAX) {
+        strcpy(age, "age unavailable");
+      } else {
+        snprintf(age, sizeof(age), "%lus ago", (unsigned long)fixAge);
+      }
+      snprintf(reply, 160, "%s%ld.%06ld, %s%ld.%06ld, %ldm, %s",
+               latitude < 0 ? "-" : "", labs(latitude) / 1000000L,
+               labs(latitude) % 1000000L,
+               longitude < 0 ? "-" : "", labs(longitude) / 1000000L,
+               labs(longitude) % 1000000L, location->getAltitude() / 1000L, age);
     }
     return true;
   }

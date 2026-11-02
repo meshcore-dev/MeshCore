@@ -6,9 +6,22 @@
 
 
 class LocationProvider {
+public:
+    // Last valid fix, always filled in one go so readers get a consistent snapshot.
+    struct LastFix {
+        bool valid = false;
+        long latitude = 0;
+        long longitude = 0;
+        long altitude = 0;
+        long satellites = 0;
+        long timestamp = 0;
+        unsigned long acquiredAt = 0;   // millis() when the fix was stored
+    };
+
 protected:
     bool _time_sync_needed = true;
     bool _gpsOn = false;
+    LastFix _lastFix;
 
 public:
     virtual ~LocationProvider() = default;
@@ -19,7 +32,9 @@ public:
     virtual long getLongitude() = 0;
     virtual long getAltitude() = 0;
     virtual long satellitesCount() = 0;
-    virtual bool isValid() = 0;
+    virtual bool isValid() = 0;                       // current fix is valid
+    virtual bool hasValidFix() { return getLastFix().valid || isValid(); }  // a valid fix was obtained at some point
+    virtual LastFix getLastFix() const { return _lastFix; }  // snapshot of the last valid fix
     virtual long getTimestamp() = 0;
     virtual void sendSentence(const char * sentence);
     virtual bool waitFor(const char* prefix, uint32_t timeout_ms) { return false; }
@@ -28,6 +43,10 @@ public:
     virtual bool keepEnabledAfterDetection() const { return false; }
     virtual void setGpsPeriod(uint32_t seconds) { }
     virtual uint32_t getGpsPeriod() const { return 0; }
+    virtual uint32_t getLastFixAge() const { // in seconds, UINT32_MAX if never
+        const LastFix f = getLastFix();
+        return f.valid ? (uint32_t)(millis() - f.acquiredAt) / 1000UL : UINT32_MAX;
+    }
     virtual bool hasHardwareEnableState() const { return false; }
     virtual bool isHardwareEnabled() const { return true; }
     virtual bool isGpsOn() const { return _gpsOn; }

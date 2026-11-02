@@ -11,6 +11,18 @@ class RakLocationProvider : public LocationProvider {
     unsigned long _acquisitionStarted = 0;
     bool _acquiringPeriodically = false;
 
+    void saveRak12500Fix() {
+        LastFix fix;
+        fix.latitude = _driver.getLatitude();
+        fix.longitude = _driver.getLongitude();
+        fix.altitude = _driver.getAltitude();
+        fix.satellites = _driver.getSatellites();
+        fix.timestamp = _driver.getTimestamp();
+        fix.acquiredAt = millis();
+        fix.valid = true;
+        _lastFix = fix;
+    }
+
 public:
     RakLocationProvider(RakGpsDriver& driver, mesh::RTCClock* clock = nullptr)
         : _driver(driver), _nmea(driver.nmeaDriver(), clock) {}
@@ -21,27 +33,31 @@ public:
     }
 
     long getLatitude() override {
-        return _driver.usesRak12500() ? _driver.getLatitude() : _nmea.getLatitude();
+        return _driver.usesRak12500() ? _lastFix.latitude : _nmea.getLatitude();
     }
 
     long getLongitude() override {
-        return _driver.usesRak12500() ? _driver.getLongitude() : _nmea.getLongitude();
+        return _driver.usesRak12500() ? _lastFix.longitude : _nmea.getLongitude();
     }
 
     long getAltitude() override {
-        return _driver.usesRak12500() ? _driver.getAltitude() : _nmea.getAltitude();
+        return _driver.usesRak12500() ? _lastFix.altitude : _nmea.getAltitude();
     }
 
     long satellitesCount() override {
-        return _driver.usesRak12500() ? _driver.getSatellites() : _nmea.satellitesCount();
+        return _driver.usesRak12500() ? _lastFix.satellites : _nmea.satellitesCount();
     }
 
     bool isValid() override {
         return _driver.usesRak12500() ? _driver.hasFix() : _nmea.isValid();
     }
 
+    LastFix getLastFix() const override {
+        return _driver.usesRak12500() ? _lastFix : _nmea.getLastFix();
+    }
+
     long getTimestamp() override {
-        return _driver.usesRak12500() ? _driver.getTimestamp() : _nmea.getTimestamp();
+        return _driver.usesRak12500() ? _lastFix.timestamp : _nmea.getTimestamp();
     }
 
     void sendSentence(const char* sentence) override {
@@ -104,18 +120,24 @@ public:
 
     void loop() override {
         if (_driver.usesRak12500()) {
-            if (_gpsOn && _gpsPeriodSeconds > 0) {
-                if (!_acquiringPeriodically &&
-                    (long)(millis() - _nextAcquisition) >= 0) {
-                    _driver.begin();
-                    _acquiringPeriodically = true;
-                    _acquisitionStarted = millis();
+            if (_gpsOn) {
+                if (_gpsPeriodSeconds > 0) {
+                    if (!_acquiringPeriodically &&
+                        (long)(millis() - _nextAcquisition) >= 0) {
+                        _driver.begin();
+                        _acquiringPeriodically = true;
+                        _acquisitionStarted = millis();
+                    }
                 }
-                if (_acquiringPeriodically && isValid()) {
+
+                const bool hasCurrentFix = _driver.hasFix();
+                if (hasCurrentFix) saveRak12500Fix();
+
+                if (_gpsPeriodSeconds > 0 && _acquiringPeriodically && hasCurrentFix) {
                     _driver.stop();
                     _acquiringPeriodically = false;
                     _nextAcquisition = millis() + _gpsPeriodSeconds * 1000UL;
-                } else if (_acquiringPeriodically &&
+                } else if (_gpsPeriodSeconds > 0 && _acquiringPeriodically &&
                            (uint32_t)(millis() - _acquisitionStarted) >=
                                GPS_PERIODIC_ACQUISITION_TIMEOUT_MS) {
                     _driver.stop();

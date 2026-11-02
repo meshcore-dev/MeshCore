@@ -32,10 +32,8 @@ class MicroNMEALocationProvider : public LocationProvider {
     uint32_t _stop_calls = 0;
     unsigned long _last_uart_ms = 0;
     unsigned long _last_nmea_ms = 0;
-    unsigned long _last_fix_ms = 0;
     bool _uart_seen = false;
     bool _nmea_seen = false;
-    bool _fix_seen = false;
 
     static uint32_t ageMs(unsigned long timestamp) {
         return (uint32_t)(millis() - timestamp);
@@ -62,6 +60,18 @@ class MicroNMEALocationProvider : public LocationProvider {
         _driver->stop();
         _acquiringPeriodically = false;
         _nextAcquisition = millis() + _gpsPeriodSeconds * 1000UL;
+    }
+
+    void saveFix() {
+        LastFix fix;
+        fix.latitude = nmea.getLatitude();
+        fix.longitude = nmea.getLongitude();
+        nmea.getAltitude(fix.altitude);
+        fix.satellites = nmea.getNumSatellites();
+        fix.timestamp = getTimestamp();
+        fix.acquiredAt = millis();
+        fix.valid = true;
+        _lastFix = fix;
     }
 
     void updateTime() {
@@ -161,17 +171,25 @@ public:
         LocationProvider::syncTime();
     }
 
-    long getLatitude() override { return nmea.getLatitude(); }
-    long getLongitude() override { return nmea.getLongitude(); }
+    long getLatitude() override {
+        return nmea.isValid() ? nmea.getLatitude() : _lastFix.latitude;
+    }
+    long getLongitude() override {
+        return nmea.isValid() ? nmea.getLongitude() : _lastFix.longitude;
+    }
     long getAltitude() override {
+        if (!nmea.isValid()) return _lastFix.altitude;
         long alt = 0;
         nmea.getAltitude(alt);
         return alt;
     }
-    long satellitesCount() override { return nmea.getNumSatellites(); }
+    long satellitesCount() override {
+        return nmea.isValid() ? nmea.getNumSatellites() : _lastFix.satellites;
+    }
     bool isValid() override { return nmea.isValid(); }
 
     long getTimestamp() override {
+        if (!nmea.isValid()) return _lastFix.timestamp;
         DateTime dt(nmea.getYear(), nmea.getMonth(), nmea.getDay(),
                     nmea.getHour(), nmea.getMinute(), nmea.getSecond());
         return dt.unixtime();
@@ -228,10 +246,9 @@ public:
                     _nmea_seen = true;
 
                     const char* messageId = nmea.getMessageID();
-                    if (parsed && isValid() &&
+                    if (parsed && nmea.isValid() &&
                         (strcmp(messageId, "GGA") == 0 || strcmp(messageId, "RMC") == 0)) {
-                        _last_fix_ms = millis();
-                        _fix_seen = true;
+                        saveFix();
                         if (_acquiringPeriodically) finishPeriodicAcquisition();
                     }
                 } else {
@@ -256,7 +273,7 @@ public:
         char fix_age[11];
         formatAge(uart_age, sizeof(uart_age), _uart_seen, _last_uart_ms);
         formatAge(nmea_age, sizeof(nmea_age), _nmea_seen, _last_nmea_ms);
-        formatAge(fix_age, sizeof(fix_age), _fix_seen, _last_fix_ms);
+        formatAge(fix_age, sizeof(fix_age), _lastFix.valid, _lastFix.acquiredAt);
 
         snprintf(out, out_size,
             "en:%u ub:%lu ua:%s ok:%lu bad:%lu na:%s sat:%ld fix:%u fa:%s bc:%lu sc:%lu",
