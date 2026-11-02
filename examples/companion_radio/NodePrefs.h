@@ -31,6 +31,7 @@ public:
   float tx_delay_factor = 0;
   float direct_tx_delay_factor = 0;
   uint32_t ble_pin = 0;
+  char ble_name[32] = {0};
   uint8_t  advert_loc_policy = 0;
   uint8_t  buzzer_quiet = 0;
   uint8_t  vibe_quiet = 0;
@@ -216,6 +217,7 @@ private:
       def("defs_nm", _parent->default_scope_name, sizeof(_parent->default_scope_name));
       def("defs_key", (void *) _parent->default_scope_key, sizeof(_parent->default_scope_key));
       def("pin", _parent->ble_pin);
+      def("ble_name", _parent->ble_name, sizeof(_parent->ble_name));
       def("buzz_q", _parent->buzzer_quiet);
       def("vibe_q", _parent->vibe_quiet);
       def("auto_add", _parent->autoadd_config);    // bitmask for auto-add contacts config
