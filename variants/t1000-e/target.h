@@ -15,7 +15,6 @@
 class AirohaGpsDriver;
 
 class T1000SensorManager: public SensorManager {
-  bool gps_active = false;
   LocationProvider * _nmea;
   AirohaGpsDriver* _gps_driver;
 
