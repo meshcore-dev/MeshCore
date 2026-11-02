@@ -37,10 +37,22 @@ bool CommonGpsPrefs::handleCommand(const char* command, SensorManager& sensors, 
     }
     if (location == nullptr) {
       strcpy(reply, "gps provider not found");
-    } else if (location->isEnabled()) {
+    } else if (location->isGpsOn()) {
+      char fix[32];
+      if (location->isValid()) {
+        const uint32_t fixAge = location->getLastFixAge();
+        if (fixAge == UINT32_MAX) {
+          strcpy(fix, "fix");
+        } else {
+          snprintf(fix, sizeof(fix), "fix (%lus ago)",
+                   (unsigned long)fixAge);
+        }
+      } else {
+        strcpy(fix, "no fix");
+      }
       sprintf(reply, "on, %s, %s, %d sats, mode: %s",
-              isGpsEnabled() ? "active" : "deactivated",
-              location->isValid() ? "fix" : "no fix",
+              location->isEnabled() ? "active" : "sleeping",
+              fix,
               location->satellitesCount(), mode);
     } else {
       snprintf(reply, 160, "off, mode: %s", mode);

@@ -28,6 +28,7 @@ public:
     virtual bool keepEnabledAfterDetection() const { return false; }
     virtual void setGpsPeriod(uint32_t seconds) { }
     virtual uint32_t getGpsPeriod() const { return 0; }
+    virtual uint32_t getLastFixAge() const { return UINT32_MAX; } // in seconds
     virtual bool hasHardwareEnableState() const { return false; }
     virtual bool isHardwareEnabled() const { return true; }
     virtual bool isGpsOn() const { return _gpsOn; }

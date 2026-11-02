@@ -36,6 +36,14 @@ class MicroNMEALocationProvider : public LocationProvider {
     bool _uart_seen = false;
     bool _nmea_seen = false;
     bool _fix_seen = false;
+    struct {
+        bool valid = false;
+        long latitude = 0;
+        long longitude = 0;
+        long altitude = 0;
+        long satellites = 0;
+        long timestamp = 0;
+    } _lastFix;
 
     static uint32_t ageMs(unsigned long timestamp) {
         return (uint32_t)(millis() - timestamp);
@@ -62,6 +70,17 @@ class MicroNMEALocationProvider : public LocationProvider {
         _driver->stop();
         _acquiringPeriodically = false;
         _nextAcquisition = millis() + _gpsPeriodSeconds * 1000UL;
+    }
+
+    void saveFix() {
+        _lastFix.latitude = nmea.getLatitude();
+        _lastFix.longitude = nmea.getLongitude();
+        nmea.getAltitude(_lastFix.altitude);
+        _lastFix.satellites = nmea.getNumSatellites();
+        _lastFix.timestamp = getTimestamp();
+        _lastFix.valid = true;
+        _last_fix_ms = millis();
+        _fix_seen = true;
     }
 
     void updateTime() {
@@ -161,17 +180,28 @@ public:
         LocationProvider::syncTime();
     }
 
-    long getLatitude() override { return nmea.getLatitude(); }
-    long getLongitude() override { return nmea.getLongitude(); }
+    long getLatitude() override {
+        return nmea.isValid() ? nmea.getLatitude() : _lastFix.latitude;
+    }
+    long getLongitude() override {
+        return nmea.isValid() ? nmea.getLongitude() : _lastFix.longitude;
+    }
     long getAltitude() override {
+        if (!nmea.isValid()) return _lastFix.altitude;
         long alt = 0;
         nmea.getAltitude(alt);
         return alt;
     }
-    long satellitesCount() override { return nmea.getNumSatellites(); }
-    bool isValid() override { return nmea.isValid(); }
+    long satellitesCount() override {
+        return nmea.isValid() ? nmea.getNumSatellites() : _lastFix.satellites;
+    }
+    bool isValid() override { return nmea.isValid() || _lastFix.valid; }
+    uint32_t getLastFixAge() const override {
+        return _fix_seen ? ageMs(_last_fix_ms) / 1000UL : UINT32_MAX;
+    }
 
     long getTimestamp() override {
+        if (!nmea.isValid()) return _lastFix.timestamp;
         DateTime dt(nmea.getYear(), nmea.getMonth(), nmea.getDay(),
                     nmea.getHour(), nmea.getMinute(), nmea.getSecond());
         return dt.unixtime();
@@ -228,10 +258,9 @@ public:
                     _nmea_seen = true;
 
                     const char* messageId = nmea.getMessageID();
-                    if (parsed && isValid() &&
+                    if (parsed && nmea.isValid() &&
                         (strcmp(messageId, "GGA") == 0 || strcmp(messageId, "RMC") == 0)) {
-                        _last_fix_ms = millis();
-                        _fix_seen = true;
+                        saveFix();
                         if (_acquiringPeriodically) finishPeriodicAcquisition();
                     }
                 } else {
