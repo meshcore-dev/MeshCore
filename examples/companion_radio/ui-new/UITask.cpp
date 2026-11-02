@@ -392,16 +392,16 @@ public:
       char buf[50];
       int y = 18;
       bool gps_state = _task->getGPSState();
-#ifdef PIN_GPS_SWITCH
-      bool hw_gps_state = digitalRead(PIN_GPS_SWITCH);
+      bool hw_gps_state = nmea != NULL && nmea->isHardwareEnabled();
+      if (nmea != NULL && nmea->hasHardwareEnableState()) {
       if (gps_state != hw_gps_state) {
         strcpy(buf, gps_state ? "gps off(hw)" : "gps off(sw)");
       } else {
         strcpy(buf, gps_state ? "gps on" : "gps off");
       }
-#else
+      } else {
       strcpy(buf, gps_state ? "gps on" : "gps off");
-#endif
+      }
       display.setColor(UIColor::primary_txt);
       display.drawTextLeftAlign(0, y, buf);
       if (nmea == NULL) {

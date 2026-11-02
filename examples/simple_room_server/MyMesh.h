@@ -168,6 +168,9 @@ protected:
 
 #if ENV_INCLUDE_GPS == 1
   void applyGpsPrefs() {
+    char period[11];
+    snprintf(period, sizeof(period), "%lu", (unsigned long)_prefs.gps_period);
+    sensors.setSettingValue("gps_period", period);
     sensors.setSettingValue("gps", _prefs.gps_enabled?"1":"0");
   }
 #endif

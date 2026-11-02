@@ -8,8 +8,11 @@
 class LocationProvider {
 protected:
     bool _time_sync_needed = true;
+    bool _gpsOn = false;
 
 public:
+    virtual ~LocationProvider() = default;
+
     virtual void syncTime() { _time_sync_needed = true; }
     virtual bool waitingTimeSync() { return _time_sync_needed; }
     virtual long getLatitude() = 0;
@@ -21,6 +24,22 @@ public:
     virtual void sendSentence(const char * sentence);
     virtual bool waitFor(const char* prefix, uint32_t timeout_ms) { return false; }
     virtual void drain() { }
+    virtual bool detect(uint32_t timeout_ms) { return false; }
+    virtual bool keepEnabledAfterDetection() const { return false; }
+    virtual void setGpsPeriod(uint32_t seconds) { }
+    virtual uint32_t getGpsPeriod() const { return 0; }
+    virtual bool hasHardwareEnableState() const { return false; }
+    virtual bool isHardwareEnabled() const { return true; }
+    virtual bool isGpsOn() const { return _gpsOn; }
+    virtual void setGpsOn(bool on) {
+        _gpsOn = on;
+        if (on) {
+            begin();
+            reset();
+        } else {
+            stop();
+        }
+    }
     virtual void reset() = 0;
     virtual void begin() = 0;
     virtual void stop() = 0;

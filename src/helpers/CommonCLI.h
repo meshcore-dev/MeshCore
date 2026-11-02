@@ -61,6 +61,7 @@ public:
   // Gps settings
   uint8_t gps_enabled = 0;
   uint32_t gps_interval = 0; // in seconds
+  uint32_t gps_period = 0; // periodic acquisition interval in seconds
   uint8_t advert_loc_policy = 0;
   uint32_t discovery_mod_timestamp = 0;
   float adc_multiplier = 0;
@@ -158,6 +159,7 @@ private:
     void structure() override {
       def("en", _parent->gps_enabled); // boolean
       def("int", _parent->gps_interval);   // interval in seconds
+      def("period", _parent->gps_period);  // periodic acquisition interval in seconds
       def("adv_loc", _parent->advert_loc_policy);
     }
   public:
