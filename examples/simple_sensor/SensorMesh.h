@@ -173,10 +173,12 @@ private:
 
   #if ENV_INCLUDE_GPS == 1
   void applyGpsPrefs() {
-    char period[11];
-    snprintf(period, sizeof(period), "%lu", (unsigned long)_prefs.gps_period);
-    sensors.setSettingValue("gps_period", period);
-    sensors.setSettingValue("gps", _prefs.gps_enabled?"1":"0");
+    if (sensors.getSettingByKey("gps_interval") != nullptr) {
+      char interval[11];
+      snprintf(interval, sizeof(interval), "%lu", (unsigned long)_prefs.gps_interval);
+      sensors.setSettingValue("gps_interval", interval);
+    }
+    _prefs.getGpsPrefs()->apply(sensors);
   }
 #endif
 };
