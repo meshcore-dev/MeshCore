@@ -999,9 +999,16 @@ region save
 ---
 ### GPS (When GPS support is compiled in)
 
-#### View or change GPS state
+#### View GPS state
 **Usage:**
 - `gps`
+
+**Note:** Reports the requested state, current receiver activity, last-fix status, satellite count, and mode. In periodic mode, `sleeping` means the receiver is off between acquisitions; the last fix remains available.
+
+---
+
+#### Change GPS state
+**Usage:**
 - `gps <state>`
 
 **Parameters:**
@@ -1009,15 +1016,37 @@ region save
 
 **Default:** `off`
 
-**Note:** Output format:
-- `off` when the GPS hardware is disabled
-- `on, {active|deactivated}, {fix|no fix}, {sat count} sats` when the GPS hardware is enabled
+---
+
+#### View or change the GPS acquisition period
+**Usage:**
+- `gps period`
+- `gps period <seconds>`
+
+**Parameters:**
+- `seconds`: `0` for continuous tracking, or `1`-`86400` for periodic acquisition
+
+**Note:** A periodic acquisition stops after receiving a valid fix, then resumes after the configured period.
+
+---
+
+#### View the last GPS fix
+**Usage:**
+- `gps fix`
+
+**Note:** Returns the last valid latitude, longitude, altitude, and elapsed time since the fix. Returns `no fix` until a valid fix is received.
 
 ---
 
 #### Sync this node's clock with GPS time
 **Usage:** 
 - `gps sync`
+
+---
+
+#### View GPS diagnostics
+**Usage:**
+- `gps diag`
 
 ---
 
