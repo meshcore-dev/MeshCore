@@ -17,7 +17,20 @@ WRAPPER_CLASS radio_driver(radio, board);
 ESP32RTCClock fallback_clock;
 AutoDiscoverRTCClock rtc_clock(fallback_clock);
 // GPS_EN (GPIO35) drives N-ch MOSFET → P-ch high-side switch; GPS_RESET (GPIO36) active LOW
-MicroNMEALocationProvider nmea = MicroNMEALocationProvider(Serial1, &rtc_clock, GPS_RESET, GPS_EN, &board.periph_power);
+class HeltecTrackerGpsDriver : public NmeaGpsDriver {
+public:
+  HeltecTrackerGpsDriver()
+    : NmeaGpsDriver(Serial1, PIN_GPS_TX, PIN_GPS_RX, GPS_RESET, GPS_EN,
+                    &board.periph_power) {}
+
+  void begin() override {
+    NmeaGpsDriver::begin();
+    sendNmeaSentence("$CFGSYS,h35155*68");
+  }
+};
+
+HeltecTrackerGpsDriver gps_driver;
+MicroNMEALocationProvider nmea(gps_driver, &rtc_clock);
 HWTSensorManager sensors = HWTSensorManager(nmea);
 
 #ifdef DISPLAY_CLASS
@@ -43,18 +56,11 @@ mesh::LocalIdentity radio_new_identity() {
 }
 
 void HWTSensorManager::start_gps() {
-  if (!gps_active) {
-    _location->begin();  // Claims periph_power via RefCountedDigitalPin
-    gps_active = true;
-    Serial1.println("$CFGSYS,h35155*68");  // Configure GPS for all constellations
-  }
+  _location->setGpsOn(true);
 }
 
 void HWTSensorManager::stop_gps() {
-  if (gps_active) {
-    gps_active = false;
-    _location->stop();  // Releases periph_power via RefCountedDigitalPin
-  }
+  _location->setGpsOn(false);
 }
 
 bool HWTSensorManager::begin() {
@@ -76,7 +82,7 @@ void HWTSensorManager::loop() {
   _location->loop();
 
   if (millis() > next_gps_update) {
-    if (gps_active && _location->isValid()) {
+    if (_location->isEnabled() && _location->isValid()) {
       node_lat = ((double)_location->getLatitude())/1000000.;
       node_lon = ((double)_location->getLongitude())/1000000.;
       node_altitude = ((double)_location->getAltitude()) / 1000.0;
@@ -93,7 +99,7 @@ const char* HWTSensorManager::getSettingName(int i) const {
 }
 const char* HWTSensorManager::getSettingValue(int i) const {
   if (i == 0) {
-    return gps_active ? "1" : "0";
+    return _location->isGpsOn() ? "1" : "0";
   }
   return NULL;
 }

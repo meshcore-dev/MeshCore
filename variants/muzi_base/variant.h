@@ -162,6 +162,8 @@ static const uint8_t AREF = (PIN_AREF); // not used
 #define SWITCH_MODE1            (32+9)            // P1.09
 #define SWITCH_MODE2            (12)              // P0.12
 #define PIN_GPS_SWITCH          SWITCH_MODE2
+#define GPS_SWITCH_IS_HARDWARE  (0)
+#define GPS_SWITCH_TURNS_GPS_ON (1)
 
 ////////////////////////////////////////////////////////////////////////////////
 // Buzzer

@@ -2093,6 +2093,11 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
     return true;
   }
 
+  if (_prefs.getGpsPrefs()->handleCommand(command, sensors, reply)) {
+    if (_prefs.getGpsPrefs()->isDirty()) { savePrefs(); }
+    return true;
+  }
+
   // hook for variant-specific CLI processing
   if (board.handleCommand(command, sender_timestamp, reply)) {
     if (_prefs.isDirty()) { savePrefs(); }

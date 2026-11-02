@@ -650,7 +650,7 @@ bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, Cayen
 int EnvironmentSensorManager::getNumSettings() const {
   int settings = 0;
   #if ENV_INCLUDE_GPS
-    if (gps_detected) settings += 2;  // GPS enablement and periodic acquisition
+    if (gps_detected) settings += 1;  // GPS enablement
   #endif
   return settings;
 }
@@ -661,9 +661,6 @@ const char* EnvironmentSensorManager::getSettingName(int i) const {
     if (gps_detected && i == settings++) {
       return "gps";
     }
-    if (gps_detected && i == settings++) {
-      return "gps_period";
-    }
   #endif
   return NULL;
 }
@@ -673,12 +670,6 @@ const char* EnvironmentSensorManager::getSettingValue(int i) const {
   #if ENV_INCLUDE_GPS
     if (gps_detected && i == settings++) {
       return _location->isGpsOn() ? "1" : "0";
-    }
-    if (gps_detected && i == settings++) {
-      static char period[11];
-      snprintf(period, sizeof(period), "%lu",
-               (unsigned long)_location->getGpsPeriod());
-      return period;
     }
   #endif
   return NULL;
@@ -692,13 +683,6 @@ bool EnvironmentSensorManager::setSettingValue(const char* name, const char* val
     } else {
       start_gps();
     }
-    return true;
-  }
-  if (gps_detected && strcmp(name, "gps_period") == 0) {
-    char* end = nullptr;
-    unsigned long period = strtoul(value, &end, 10);
-    if (*value == '\0' || *end != '\0' || period > 86400) return false;
-    _location->setGpsPeriod((uint32_t)period);
     return true;
   }
   if (strcmp(name, "gps_interval") == 0) {

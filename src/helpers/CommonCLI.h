@@ -7,6 +7,7 @@
 #include <helpers/RegionMap.h>
 #include <helpers/ConfigSerializer.h>
 #include <helpers/CommonRadioPrefs.h>
+#include <helpers/CommonGpsPrefs.h>
 #include <helpers/DynamicConfigSerializer.h>
 
 #if defined(WITH_RS232_BRIDGE) || defined(WITH_ESPNOW_BRIDGE)
@@ -153,7 +154,7 @@ private:
   };
   BridgePrefs bridge;
 
-  class GPSPrefs : public ConfigSerializer {
+  class GPSPrefs : public CommonGpsPrefs {
     NodePrefs* _parent;
   protected:
     void structure() override {
@@ -164,6 +165,10 @@ private:
     }
   public:
     GPSPrefs(NodePrefs* parent) : _parent(parent) { }
+    bool isGpsEnabled() const override { return _parent->gps_enabled; }
+    void setGpsEnabled(bool enabled) override { _parent->gps_enabled = enabled; markDirty(); }
+    uint32_t getGpsPeriod() const override { return _parent->gps_period; }
+    void setGpsPeriod(uint32_t seconds) override { _parent->gps_period = seconds; markDirty(); }
   };
   GPSPrefs gps;
 
@@ -236,10 +241,11 @@ public:
   }
 
   CommonRadioPrefs* getRadioPrefs() { return &radio; }
+  CommonGpsPrefs* getGpsPrefs() { return &gps; }
   KeyValueStore* getCustom() { return &custom; }
 
-  bool isDirty() const override { return ConfigSerializer::isDirty() || radio.isDirty() || custom.isDirty(); }
-  void clearDirty() override { ConfigSerializer::clearDirty(); radio.clearDirty(); custom.clearDirty(); }
+  bool isDirty() const override { return ConfigSerializer::isDirty() || radio.isDirty() || gps.isDirty() || custom.isDirty(); }
+  void clearDirty() override { ConfigSerializer::clearDirty(); radio.clearDirty(); gps.clearDirty(); custom.clearDirty(); }
 };
 
 class CommonCLICallbacks {

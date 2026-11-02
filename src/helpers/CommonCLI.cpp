@@ -349,65 +349,11 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
           *(dp-1) = 0; // remove last CR
         }
       }
+    } else if (_prefs->getGpsPrefs()->handleCommand(command, *_sensors, reply)) {
+      if (_prefs->getGpsPrefs()->isDirty()) savePrefs();
     } else if (memcmp(command, "region", 6) == 0) {
       handleRegionCmd(command, reply);
 #if ENV_INCLUDE_GPS == 1
-    } else if (memcmp(command, "gps on", 6) == 0) {
-      if (_sensors->setSettingValue("gps", "1")) {
-        _prefs->gps_enabled = 1;
-        savePrefs();
-        strcpy(reply, "ok");
-      } else {
-        strcpy(reply, "gps toggle not found");
-      }
-    } else if (memcmp(command, "gps off", 7) == 0) {
-      if (_sensors->setSettingValue("gps", "0")) {
-        _prefs->gps_enabled = 0;
-        savePrefs();
-        strcpy(reply, "ok");
-      } else {
-        strcpy(reply, "gps toggle not found");
-      }
-    } else if (memcmp(command, "gps period ", 11) == 0) {
-      char* end = nullptr;
-      unsigned long period = strtoul(command + 11, &end, 10);
-      if (command[11] == '\0' || *end != '\0' || period > 86400) {
-        strcpy(reply, "gps period must be 0-86400 seconds");
-      } else {
-        char period_value[11];
-        snprintf(period_value, sizeof(period_value), "%lu", period);
-        if (_sensors->setSettingValue("gps_period", period_value) &&
-            _sensors->setSettingValue("gps", "1")) {
-          _prefs->gps_period = (uint32_t)period;
-          _prefs->gps_enabled = 1;
-          savePrefs();
-          strcpy(reply, "ok");
-        } else {
-          strcpy(reply, "gps provider not found");
-        }
-      }
-    } else if (memcmp(command, "gps sync", 8) == 0) {
-      LocationProvider * l = _sensors->getLocationProvider();
-      if (l != NULL) {
-        l->syncTime();
-        strcpy(reply, "ok");
-      } else {
-        strcpy(reply, "gps provider not found");
-      }
-    } else if (strcmp(command, "gps diag") == 0) {
-      LocationProvider * l = _sensors->getLocationProvider();
-      if (l != NULL) {
-        const char* setting = _sensors->getSettingByKey("gps");
-        bool requested = setting != NULL && strcmp(setting, "1") == 0;
-        int prefix_len = snprintf(reply, 160, "req:%u ", requested ? 1U : 0U);
-        if (prefix_len < 0 || prefix_len >= 160) {
-          reply[159] = 0;
-        } else {
-          l->formatDiagnostics(reply + prefix_len, 160 - prefix_len);
-        }
-      } else {
-        strcpy(reply, "gps provider not found");
-      }
     } else if (memcmp(command, "gps setloc", 10) == 0) {
       _prefs->node_lat = _sensors->node_lat;
       _prefs->node_lon = _sensors->node_lon;
@@ -442,24 +388,6 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
         strcpy(reply, "ok");
       } else {
         strcpy(reply, "error");
-      }
-    } else if (memcmp(command, "gps", 3) == 0) {
-      LocationProvider * l = _sensors->getLocationProvider();
-      if (l != NULL) {
-        bool enabled = l->isEnabled(); // is EN pin on ?
-        bool fix = l->isValid();       // has fix ?
-        int sats = l->satellitesCount();
-        bool active = !strcmp(_sensors->getSettingByKey("gps"), "1");
-        if (enabled) {
-          sprintf(reply, "on, %s, %s, %d sats",
-            active?"active":"deactivated",
-            fix?"fix":"no fix",
-            sats);
-        } else {
-          strcpy(reply, "off");
-        }
-      } else {
-        strcpy(reply, "Can't find GPS");
       }
 #endif
     } else if (memcmp(command, "powersaving on", 14) == 0) {

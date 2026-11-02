@@ -82,13 +82,11 @@ mesh::LocalIdentity radio_new_identity() {
 }
 
 void T1000SensorManager::start_gps() {
-  gps_active = true;
-  _nmea->begin();
+  _nmea->setGpsOn(true);
 }
 
 void T1000SensorManager::stop_gps() {
-  gps_active = false;
-  _nmea->stop();
+  _nmea->setGpsOn(false);
 }
 
 
@@ -115,7 +113,7 @@ void T1000SensorManager::loop() {
   _nmea->loop();
 
   if (millis() > next_gps_update) {
-    if (gps_active && _nmea->isValid()) {
+    if (_nmea->isEnabled() && _nmea->isValid()) {
       node_lat = ((double)_nmea->getLatitude())/1000000.;
       node_lon = ((double)_nmea->getLongitude())/1000000.;
       node_altitude = ((double)_nmea->getAltitude()) / 1000.0;
@@ -131,7 +129,7 @@ const char* T1000SensorManager::getSettingName(int i) const {
 }
 const char* T1000SensorManager::getSettingValue(int i) const {
   if (i == 0) {
-    return gps_active ? "1" : "0";
+    return _nmea->isGpsOn() ? "1" : "0";
   }
   return NULL;
 }
