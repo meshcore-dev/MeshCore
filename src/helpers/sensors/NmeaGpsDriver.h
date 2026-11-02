@@ -57,6 +57,14 @@
     #define GPS_SWITCH_ACTIVE HIGH
 #endif
 
+#ifndef GPS_SWITCH_IS_HARDWARE
+    #define GPS_SWITCH_IS_HARDWARE 1
+#endif
+
+#ifndef GPS_SWITCH_TURNS_GPS_ON
+    #define GPS_SWITCH_TURNS_GPS_ON 0
+#endif
+
 class NmeaGpsDriver : public GpsDriver {
     Stream* _stream = nullptr;
     HardwareSerial* _hardwareSerial = nullptr;
@@ -71,6 +79,39 @@ class NmeaGpsDriver : public GpsDriver {
     int _hardwareEnablePin = -1;
     int _hardwareEnableActive = HIGH;
     bool _started = false;
+#if !GPS_SWITCH_IS_HARDWARE
+    bool _requestedOn = false;
+    bool _switchStateKnown = false;
+    bool _lastSwitchEnabled = false;
+    unsigned long _nextSwitchPoll = 0;
+#endif
+
+    void startHardware() {
+        if (_stream == nullptr || _started) return;
+
+        if (_hardwareSerial != nullptr) {
+#ifdef ESP32_PLATFORM
+            _hardwareSerial->setPins(_txPin, _rxPin);
+#endif
+            _hardwareSerial->begin(_baudRate);
+        }
+
+        if (_peripheralPower != nullptr) _peripheralPower->claim();
+
+        if (_enablePin != -1) digitalWrite(_enablePin, _enableActive);
+        if (_resetPin != -1) digitalWrite(_resetPin, !_resetActive);
+        _started = true;
+    }
+
+    void stopHardware() {
+        if (!_started) return;
+
+        if (_enablePin != -1) digitalWrite(_enablePin, !_enableActive);
+        if (_resetPin != -1) digitalWrite(_resetPin, _resetActive);
+
+        if (_peripheralPower != nullptr) _peripheralPower->release();
+        _started = false;
+    }
 
 public:
     NmeaGpsDriver() = default;
@@ -113,23 +154,15 @@ public:
     }
 
     void begin() override {
-        if (_stream == nullptr || _started) return;
-
-        if (_hardwareSerial != nullptr) {
-#ifdef ESP32_PLATFORM
-            _hardwareSerial->setPins(_txPin, _rxPin);
+#if !GPS_SWITCH_IS_HARDWARE
+        _requestedOn = true;
+        if (!isHardwareEnabled()) return;
 #endif
-            _hardwareSerial->begin(_baudRate);
-        }
-
-        if (_peripheralPower != nullptr) _peripheralPower->claim();
-
-        if (_enablePin != -1) digitalWrite(_enablePin, _enableActive);
-        if (_resetPin != -1) digitalWrite(_resetPin, !_resetActive);
-        _started = true;
+        startHardware();
     }
 
     void reset() override {
+        if (!_started) return;
         if (_resetPin != -1) {
             digitalWrite(_resetPin, _resetActive);
             delay(10);
@@ -144,18 +177,14 @@ public:
     }
 
     void stop() override {
-        if (!_started) return;
-
-        if (_enablePin != -1) digitalWrite(_enablePin, !_enableActive);
-        if (_resetPin != -1) digitalWrite(_resetPin, _resetActive);
-
-        if (_peripheralPower != nullptr) _peripheralPower->release();
-        _started = false;
+#if !GPS_SWITCH_IS_HARDWARE
+        _requestedOn = false;
+#endif
+        stopHardware();
     }
 
     bool isEnabled() const override {
-        if (_enablePin == -1) return true;
-        return digitalRead(_enablePin) == _enableActive;
+        return _started && isHardwareEnabled();
     }
 
     bool hasHardwareEnableState() const override {
@@ -165,6 +194,30 @@ public:
     bool isHardwareEnabled() const override {
         return _hardwareEnablePin == -1 ||
             digitalRead(_hardwareEnablePin) == _hardwareEnableActive;
+    }
+
+    bool pollGpsSwitch() override {
+#if !GPS_SWITCH_IS_HARDWARE
+        if (_hardwareEnablePin == -1 ||
+            (long)(millis() - _nextSwitchPoll) < 0) return false;
+
+        _nextSwitchPoll = millis() + 1000;
+        const bool switchEnabled = isHardwareEnabled();
+        const bool enablesGps = GPS_SWITCH_TURNS_GPS_ON && _switchStateKnown &&
+            !_lastSwitchEnabled && switchEnabled;
+        _switchStateKnown = true;
+        _lastSwitchEnabled = switchEnabled;
+
+        if (enablesGps) _requestedOn = true;
+        if (_requestedOn && switchEnabled) {
+            startHardware();
+        } else {
+            stopHardware();
+        }
+        return enablesGps;
+#else
+        return false;
+#endif
     }
 
     bool detect(uint32_t timeout_ms) override {

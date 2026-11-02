@@ -104,7 +104,7 @@ public:
 
     void loop() override {
         if (_driver.usesRak12500()) {
-            if (_gpsPeriodSeconds > 0) {
+            if (_gpsOn && _gpsPeriodSeconds > 0) {
                 if (!_acquiringPeriodically &&
                     (long)(millis() - _nextAcquisition) >= 0) {
                     _driver.begin();

@@ -112,7 +112,7 @@ public:
     void begin() override {
         _begin_calls++;
         _driver->begin();
-        if (_gpsPeriodSeconds > 0) {
+        if (_gpsPeriodSeconds > 0 && _driver->isEnabled()) {
             nmea.clear();
             time_valid = 0;
             _acquiringPeriodically = true;
@@ -204,7 +204,9 @@ public:
     }
 
     void loop() override {
-        if (_gpsPeriodSeconds > 0 && !_acquiringPeriodically &&
+        if (_driver->pollGpsSwitch()) _gpsOn = true;
+
+        if (_gpsOn && _gpsPeriodSeconds > 0 && !_acquiringPeriodically &&
             (long)(millis() - _nextAcquisition) >= 0) {
             startPeriodicAcquisition();
         }

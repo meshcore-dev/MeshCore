@@ -33,22 +33,15 @@ mesh::LocalIdentity radio_new_identity() {
 }
 
 void ThinkNodeM1SensorManager::start_gps() {
-  if (!gps_active) {
-    gps_active = true;
-    _location->begin();
-  }
+  _location->setGpsOn(true);
 }
 
 void ThinkNodeM1SensorManager::stop_gps() {
-  if (gps_active) {
-    gps_active = false;
-    _location->stop();
-  }
+  _location->setGpsOn(false);
 }
 
 bool ThinkNodeM1SensorManager::begin() {
-  gps_active = true;
-  _location->begin();
+  start_gps();
   return true;
 }
 
@@ -62,14 +55,10 @@ bool ThinkNodeM1SensorManager::querySensors(uint8_t requester_permissions, Cayen
 void ThinkNodeM1SensorManager::loop() {
   static long next_gps_update = 0;
 
-  if (!gps_active) {
-    return;  // GPS is not active, skip further processing
-  }
-
   _location->loop();
 
   if (millis() > next_gps_update) {
-    if (_location->isValid()) {
+    if (_location->isEnabled() && _location->isValid()) {
       node_lat = ((double)_location->getLatitude())/1000000.;
       node_lon = ((double)_location->getLongitude())/1000000.;
       node_altitude = ((double)_location->getAltitude()) / 1000.0;
@@ -89,7 +78,7 @@ const char* ThinkNodeM1SensorManager::getSettingName(int i) const {
 
 const char* ThinkNodeM1SensorManager::getSettingValue(int i) const {
   if (i == 0) {
-    return gps_active ? "1" : "0";
+    return _location->isGpsOn() ? "1" : "0";
   }
   return NULL;
 }

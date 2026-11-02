@@ -8,6 +8,7 @@
 class LocationProvider {
 protected:
     bool _time_sync_needed = true;
+    bool _gpsOn = false;
 
 public:
     virtual ~LocationProvider() = default;
@@ -29,6 +30,16 @@ public:
     virtual uint32_t getGpsPeriod() const { return 0; }
     virtual bool hasHardwareEnableState() const { return false; }
     virtual bool isHardwareEnabled() const { return true; }
+    virtual bool isGpsOn() const { return _gpsOn; }
+    virtual void setGpsOn(bool on) {
+        _gpsOn = on;
+        if (on) {
+            begin();
+            reset();
+        } else {
+            stop();
+        }
+    }
     virtual void reset() = 0;
     virtual void begin() = 0;
     virtual void stop() = 0;

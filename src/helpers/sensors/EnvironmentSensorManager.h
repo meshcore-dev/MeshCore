@@ -20,7 +20,6 @@ protected:
   uint8_t      next_available_channel = TELEM_CHANNEL_SELF + 1;
 
   bool     gps_detected = false;
-  bool     gps_active = false;
   uint32_t gps_update_interval_sec = 1;
 
   #if ENV_INCLUDE_GPS

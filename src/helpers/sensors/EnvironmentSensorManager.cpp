@@ -630,9 +630,11 @@ bool EnvironmentSensorManager::begin() {
 bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, CayenneLPP& telemetry) {
   next_available_channel = TELEM_CHANNEL_SELF + 1;
 
-  if (requester_permissions & TELEM_PERM_LOCATION && gps_active) {
+  #if ENV_INCLUDE_GPS
+  if (requester_permissions & TELEM_PERM_LOCATION && _location->isEnabled()) {
     telemetry.addGPS(TELEM_CHANNEL_SELF, node_lat, node_lon, node_altitude);
   }
+  #endif
 
   if (requester_permissions & TELEM_PERM_ENVIRONMENT) {
     for (int i = 0; i < _active_sensor_count; i++) {
@@ -670,7 +672,7 @@ const char* EnvironmentSensorManager::getSettingValue(int i) const {
   int settings = 0;
   #if ENV_INCLUDE_GPS
     if (gps_detected && i == settings++) {
-      return gps_active ? "1" : "0";
+      return _location->isGpsOn() ? "1" : "0";
     }
     if (gps_detected && i == settings++) {
       static char period[11];
@@ -710,8 +712,7 @@ bool EnvironmentSensorManager::setSettingValue(const char* name, const char* val
 
 #if ENV_INCLUDE_GPS
 void EnvironmentSensorManager::initBasicGPS() {
-  _location->begin();
-  _location->reset();
+  start_gps();
 
   #ifndef PIN_GPS_EN
     MESH_DEBUG_PRINTLN("No GPS wake/reset pin found for this board. Continuing on...");
@@ -726,25 +727,20 @@ void EnvironmentSensorManager::initBasicGPS() {
   if (gps_detected) {
     MESH_DEBUG_PRINTLN("GPS detected");
     #if defined(PERSISTANT_GPS)
-      gps_active = true;
       return;
     #else
       if (_location->keepEnabledAfterDetection()) {
-        gps_active = true;
         return;
       }
     #endif
   } else {
     MESH_DEBUG_PRINTLN("No GPS detected");
   }
-  _location->stop();
-  gps_active = false; //Set GPS visibility off until setting is changed
+  stop_gps();
 }
 
 void EnvironmentSensorManager::start_gps() {
-  gps_active = true;
-  _location->begin();
-  _location->reset();
+  _location->setGpsOn(true);
 
 #ifndef PIN_GPS_EN
   MESH_DEBUG_PRINTLN("Start GPS is N/A on this board. Actual GPS state unchanged");
@@ -752,12 +748,11 @@ void EnvironmentSensorManager::start_gps() {
 }
 
 void EnvironmentSensorManager::stop_gps() {
-  gps_active = false;
-  _location->stop();
+  _location->setGpsOn(false);
 
-  #ifndef PIN_GPS_EN
+#ifndef PIN_GPS_EN
   MESH_DEBUG_PRINTLN("Stop GPS is N/A on this board. Actual GPS state unchanged");
-  #endif
+#endif
 }
 #endif // ENV_INCLUDE_GPS
 
@@ -766,19 +761,15 @@ void EnvironmentSensorManager::loop() {
 
   #if ENV_INCLUDE_GPS
   static unsigned long next_gps_update = 0;
-  if (gps_active) {
-    _location->loop();
-  }
+  _location->loop();
   if ((long)(millis() - next_gps_update) > 0) {
 
-    if(gps_active){
-    if (_location->isValid()) {
+    if (_location->isEnabled() && _location->isValid()) {
       node_lat = ((double)_location->getLatitude())/1000000.;
       node_lon = ((double)_location->getLongitude())/1000000.;
       MESH_DEBUG_PRINTLN("lat %f lon %f", node_lat, node_lon);
       node_altitude = ((double)_location->getAltitude()) / 1000.0;
       MESH_DEBUG_PRINTLN("lat %f lon %f alt %f", node_lat, node_lon, node_altitude);
-    }
     }
     next_gps_update = millis() + (gps_update_interval_sec * 1000);
   }
