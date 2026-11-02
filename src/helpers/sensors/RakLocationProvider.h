@@ -10,24 +10,17 @@ class RakLocationProvider : public LocationProvider {
     unsigned long _nextAcquisition = 0;
     unsigned long _acquisitionStarted = 0;
     bool _acquiringPeriodically = false;
-    struct {
-        bool valid = false;
-        long latitude = 0;
-        long longitude = 0;
-        long altitude = 0;
-        long satellites = 0;
-        long timestamp = 0;
-        unsigned long acquiredAt = 0;
-    } _lastFix;
 
     void saveRak12500Fix() {
-        _lastFix.latitude = _driver.getLatitude();
-        _lastFix.longitude = _driver.getLongitude();
-        _lastFix.altitude = _driver.getAltitude();
-        _lastFix.satellites = _driver.getSatellites();
-        _lastFix.timestamp = _driver.getTimestamp();
-        _lastFix.acquiredAt = millis();
-        _lastFix.valid = true;
+        LastFix fix;
+        fix.latitude = _driver.getLatitude();
+        fix.longitude = _driver.getLongitude();
+        fix.altitude = _driver.getAltitude();
+        fix.satellites = _driver.getSatellites();
+        fix.timestamp = _driver.getTimestamp();
+        fix.acquiredAt = millis();
+        fix.valid = true;
+        _lastFix = fix;
     }
 
 public:
@@ -59,17 +52,12 @@ public:
         return _driver.usesRak12500() ? _driver.hasFix() : _nmea.isValid();
     }
 
-    bool hasValidFix() override {
-        return _driver.usesRak12500() ? _lastFix.valid : _nmea.hasValidFix();
+    LastFix getLastFix() const override {
+        return _driver.usesRak12500() ? _lastFix : _nmea.getLastFix();
     }
 
     long getTimestamp() override {
         return _driver.usesRak12500() ? _lastFix.timestamp : _nmea.getTimestamp();
-    }
-
-    uint32_t getLastFixAge() const override {
-        if (!_driver.usesRak12500()) return _nmea.getLastFixAge();
-        return _lastFix.valid ? (uint32_t)(millis() - _lastFix.acquiredAt) / 1000UL : UINT32_MAX;
     }
 
     void sendSentence(const char* sentence) override {
