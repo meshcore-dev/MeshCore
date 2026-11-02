@@ -368,6 +368,24 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       } else {
         strcpy(reply, "gps toggle not found");
       }
+    } else if (memcmp(command, "gps period ", 11) == 0) {
+      char* end = nullptr;
+      unsigned long period = strtoul(command + 11, &end, 10);
+      if (command[11] == '\0' || *end != '\0' || period > 86400) {
+        strcpy(reply, "gps period must be 0-86400 seconds");
+      } else {
+        char period_value[11];
+        snprintf(period_value, sizeof(period_value), "%lu", period);
+        if (_sensors->setSettingValue("gps_period", period_value) &&
+            _sensors->setSettingValue("gps", "1")) {
+          _prefs->gps_period = (uint32_t)period;
+          _prefs->gps_enabled = 1;
+          savePrefs();
+          strcpy(reply, "ok");
+        } else {
+          strcpy(reply, "gps provider not found");
+        }
+      }
     } else if (memcmp(command, "gps sync", 8) == 0) {
       LocationProvider * l = _sensors->getLocationProvider();
       if (l != NULL) {

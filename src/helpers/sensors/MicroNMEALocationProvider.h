@@ -1,69 +1,30 @@
 #pragma once
 
+#include "NmeaGpsDriver.h"
 #include "LocationProvider.h"
 #include <MicroNMEA.h>
 #include <RTClib.h>
-#include <helpers/RefCountedDigitalPin.h>
 #include <string.h>
 
-#ifndef GPS_EN
-    #ifdef PIN_GPS_EN
-        #define GPS_EN PIN_GPS_EN
-    #else
-        #define GPS_EN (-1)
-    #endif
-#endif
-
-#ifndef GPS_EN_ACTIVE
-    #ifdef PIN_GPS_EN_ACTIVE
-        #define GPS_EN_ACTIVE PIN_GPS_EN_ACTIVE
-    #else
-        #define GPS_EN_ACTIVE HIGH
-    #endif
-#endif
-
-#ifndef GPS_RESET
-    #ifdef PIN_GPS_RESET
-        #define GPS_RESET PIN_GPS_RESET
-    #else
-        #define GPS_RESET (-1)
-    #endif
-#endif
-
-#ifndef GPS_RESET_ACTIVE
-    #ifdef PIN_GPS_RESET_ACTIVE
-        #define GPS_RESET_ACTIVE PIN_GPS_RESET_ACTIVE
-    #else
-        #define GPS_RESET_ACTIVE LOW
-    #endif
+#ifndef GPS_PERIODIC_ACQUISITION_TIMEOUT_MS
+    #define GPS_PERIODIC_ACQUISITION_TIMEOUT_MS 120000UL
 #endif
 
 class MicroNMEALocationProvider : public LocationProvider {
     char _nmeaBuffer[100];
     MicroNMEA nmea;
     mesh::RTCClock* _clock;
-    Stream* _gps_serial;
-    RefCountedDigitalPin* _peripher_power;
-    int8_t _claims = 0;
-    int _pin_reset;
-    int _pin_en;
+    NmeaGpsDriver* _driver;
+    bool _ownsDriver = false;
     unsigned long next_check = 0;
     long time_valid = 0;
     unsigned long _last_time_sync = 0;
-    static const unsigned long TIME_SYNC_INTERVAL = 1800000; // Re-sync every 30 minutes
+    uint32_t _gpsPeriodSeconds = 0;
+    unsigned long _nextAcquisition = 0;
+    unsigned long _acquisitionStarted = 0;
+    bool _acquiringPeriodically = false;
+    static const unsigned long TIME_SYNC_INTERVAL = 1800000;
 
-#ifdef GPS_L76K
-    void configureL76K() {
-        // Reapply the constellation mode at each provider start instead of
-        // assuming it survives a receiver power cycle.
-        // Mode 7 enables GPS + BeiDou + GLONASS.
-        delay(250);
-        MicroNMEA::sendSentence(*_gps_serial, "$PCAS04,7");
-        delay(250);
-    }
-#endif
-    // Observation-only diagnostics. These fields do not change GPS power,
-    // timing, reset behaviour, or parser input.
     uint32_t _uart_bytes = 0;
     uint32_t _nmea_checksum_ok = 0;
     uint32_t _nmea_checksum_bad = 0;
@@ -88,79 +49,113 @@ class MicroNMEALocationProvider : public LocationProvider {
         }
     }
 
-public :
-    MicroNMEALocationProvider(Stream& ser, mesh::RTCClock* clock = NULL, int pin_reset = GPS_RESET, int pin_en = GPS_EN,RefCountedDigitalPin* peripher_power=NULL) :
-    nmea(_nmeaBuffer, sizeof(_nmeaBuffer)), _clock(clock), _gps_serial(&ser), _peripher_power(peripher_power), _pin_reset(pin_reset), _pin_en(pin_en) {
-        if (_pin_reset != -1) {
-            pinMode(_pin_reset, OUTPUT);
-            digitalWrite(_pin_reset, GPS_RESET_ACTIVE);
-        }
-        if (_pin_en != -1) {
-            pinMode(_pin_en, OUTPUT);
-            digitalWrite(_pin_en, !GPS_EN_ACTIVE);
-        }
+    void startPeriodicAcquisition() {
+        nmea.clear();
+        time_valid = 0;
+        _driver->begin();
+        _driver->reset();
+        _acquiringPeriodically = true;
+        _acquisitionStarted = millis();
     }
 
-    void claim() {
-        _claims++;
-        if (_peripher_power) _peripher_power->claim();
+    void finishPeriodicAcquisition() {
+        _driver->stop();
+        _acquiringPeriodically = false;
+        _nextAcquisition = millis() + _gpsPeriodSeconds * 1000UL;
     }
 
-    void release() {
-        if (_claims == 0) return; // avoid negative _claims
-        _claims--;
-        if (_peripher_power) _peripher_power->release();
+    void updateTime() {
+        if (!isValid()) time_valid = 0;
+
+        if ((long)(millis() - next_check) <= 0) return;
+        next_check = millis() + 1000;
+
+        if (!_time_sync_needed && _clock != nullptr &&
+            (millis() - _last_time_sync) > TIME_SYNC_INTERVAL) {
+            _time_sync_needed = true;
+        }
+        if (_time_sync_needed && time_valid > 2 && _clock != nullptr) {
+            _clock->setCurrentTime(getTimestamp());
+            _time_sync_needed = false;
+            _last_time_sync = millis();
+        }
+        if (isValid()) time_valid++;
+    }
+
+public:
+    MicroNMEALocationProvider(NmeaGpsDriver& driver, mesh::RTCClock* clock = nullptr)
+        : nmea(_nmeaBuffer, sizeof(_nmeaBuffer)), _clock(clock), _driver(&driver) {}
+
+    // Temporary migration adapter for targets and downstream boards. New code
+    // should inject a GpsDriver; this constructor will be removed once targets
+    // have been migrated.
+    MicroNMEALocationProvider(HardwareSerial& serial, mesh::RTCClock* clock = nullptr,
+                              int pin_reset = GPS_RESET, int pin_en = GPS_EN,
+                              RefCountedDigitalPin* peripher_power = nullptr)
+        : nmea(_nmeaBuffer, sizeof(_nmeaBuffer)), _clock(clock),
+          _driver(new NmeaGpsDriver(serial, PIN_GPS_TX, PIN_GPS_RX, pin_reset, pin_en,
+                                    peripher_power)),
+          _ownsDriver(true) {}
+
+    MicroNMEALocationProvider(Stream& serial, mesh::RTCClock* clock = nullptr,
+                              int pin_reset = GPS_RESET, int pin_en = GPS_EN,
+                              RefCountedDigitalPin* peripher_power = nullptr)
+        : nmea(_nmeaBuffer, sizeof(_nmeaBuffer)), _clock(clock),
+          _driver(new NmeaGpsDriver(serial, PIN_GPS_TX, PIN_GPS_RX, pin_reset, pin_en,
+                                    peripher_power)),
+          _ownsDriver(true) {}
+
+    ~MicroNMEALocationProvider() override {
+        if (_ownsDriver) delete _driver;
     }
 
     void begin() override {
         _begin_calls++;
-        claim();
-        if (_pin_en != -1) {
-            digitalWrite(_pin_en, GPS_EN_ACTIVE);
-        }
-        if (_pin_reset != -1) {
-            digitalWrite(_pin_reset, !GPS_RESET_ACTIVE);
+        _driver->begin();
+        if (_gpsPeriodSeconds > 0) {
+            nmea.clear();
+            time_valid = 0;
+            _acquiringPeriodically = true;
+            _acquisitionStarted = millis();
         }
     }
 
     void reset() override {
-        if (_pin_reset != -1) {
-            digitalWrite(_pin_reset, GPS_RESET_ACTIVE);
-            delay(10);
-            digitalWrite(_pin_reset, !GPS_RESET_ACTIVE);
-        }
-#ifdef GPS_L76K
-        // EnvironmentSensorManager calls reset() immediately after begin().
-        // Configure only after that reset so the setting is not discarded.
-        configureL76K();
-#endif
+        _driver->reset();
     }
 
     void stop() override {
         _stop_calls++;
-        if (_pin_en != -1) {
-            digitalWrite(_pin_en, !GPS_EN_ACTIVE);
-        }
-        if (_pin_reset != -1) {
-            digitalWrite(_pin_reset, GPS_RESET_ACTIVE);
-        }
-        release();
+        _acquiringPeriodically = false;
+        _driver->stop();
     }
 
     bool isEnabled() override {
-        // directly read the enable pin if present as gps can be
-        // activated/deactivated outside of here ...
-        if (_pin_en != -1) {
-            return digitalRead(_pin_en) == GPS_EN_ACTIVE;
-        } else {
-            return true; // no enable so must be active
-        }
+        return _driver->isEnabled();
     }
 
-    void syncTime() override { nmea.clear(); LocationProvider::syncTime(); }
+    bool detect(uint32_t timeout_ms) override {
+        return _driver->detect(timeout_ms);
+    }
+
+    void setGpsPeriod(uint32_t seconds) override {
+        _gpsPeriodSeconds = seconds;
+        _nextAcquisition = millis();
+        _acquiringPeriodically = false;
+    }
+
+    uint32_t getGpsPeriod() const override {
+        return _gpsPeriodSeconds;
+    }
+
+    void syncTime() override {
+        nmea.clear();
+        LocationProvider::syncTime();
+    }
+
     long getLatitude() override { return nmea.getLatitude(); }
     long getLongitude() override { return nmea.getLongitude(); }
-    long getAltitude() override { 
+    long getAltitude() override {
         long alt = 0;
         nmea.getAltitude(alt);
         return alt;
@@ -168,29 +163,31 @@ public :
     long satellitesCount() override { return nmea.getNumSatellites(); }
     bool isValid() override { return nmea.isValid(); }
 
-    long getTimestamp() override { 
-        DateTime dt(nmea.getYear(), nmea.getMonth(),nmea.getDay(),nmea.getHour(),nmea.getMinute(),nmea.getSecond());
+    long getTimestamp() override {
+        DateTime dt(nmea.getYear(), nmea.getMonth(), nmea.getDay(),
+                    nmea.getHour(), nmea.getMinute(), nmea.getSecond());
         return dt.unixtime();
-    } 
-
-    void drain() { while (_gps_serial->available()) _gps_serial->read(); }
-
-    const char* getSentence() const { return nmea.getSentence(); }
-
-    void sendSentence(const char *sentence) override {
-        nmea.sendSentence(*_gps_serial, sentence);
     }
 
-    bool waitFor(const char* prefix, uint32_t timeout_ms) {
-        size_t plen = strlen(prefix);
-        uint32_t timeout = millis() + timeout_ms;
-        while ((int32_t)(millis() - timeout) < 0) {
-            if (_gps_serial->available()) {
-                char c = _gps_serial->read();
-                #ifdef GPS_NMEA_DEBUG
+    void drain() override { _driver->drain(); }
+    const char* getSentence() const { return nmea.getSentence(); }
+
+    void sendSentence(const char* sentence) override {
+        _driver->sendNmeaSentence(sentence);
+    }
+
+    bool waitFor(const char* prefix, uint32_t timeout_ms) override {
+        const size_t prefixLength = strlen(prefix);
+        const uint32_t deadline = millis() + timeout_ms;
+        while ((int32_t)(millis() - deadline) < 0) {
+            if (_driver->available() > 0) {
+                const char c = (char)_driver->read();
+#ifdef GPS_NMEA_DEBUG
                 Serial.print(c);
-                #endif
-                if (nmea.process(c) && strncmp(nmea.getSentence(), prefix, plen) == 0) return true;
+#endif
+                if (nmea.process(c) && strncmp(nmea.getSentence(), prefix, prefixLength) == 0) {
+                    return true;
+                }
             } else {
                 yield();
             }
@@ -199,34 +196,33 @@ public :
     }
 
     void loop() override {
+        if (_gpsPeriodSeconds > 0 && !_acquiringPeriodically &&
+            (long)(millis() - _nextAcquisition) >= 0) {
+            startPeriodicAcquisition();
+        }
 
-        while (_gps_serial->available()) {
-            char c = _gps_serial->read();
+        while (_driver->available() > 0) {
+            const char c = (char)_driver->read();
             _uart_bytes++;
             _last_uart_ms = millis();
             _uart_seen = true;
-            #ifdef GPS_NMEA_DEBUG
+#ifdef GPS_NMEA_DEBUG
             Serial.print(c);
-            #endif
-            bool parsed = nmea.process(c);
+#endif
+            const bool parsed = nmea.process(c);
 
-            // MicroNMEA leaves the completed sentence in its buffer after the
-            // first line terminator. CRLF therefore counts once: CR observes the
-            // sentence, then LF clears the now-empty buffer.
             if ((c == '\0' || c == '\r' || c == '\n') && nmea.getSentence()[0] != '\0') {
                 if (MicroNMEA::testChecksum(nmea.getSentence())) {
                     _nmea_checksum_ok++;
                     _last_nmea_ms = millis();
                     _nmea_seen = true;
 
-                    // Refresh fix age only when a newly parsed GGA/RMC sentence
-                    // carries a valid fix. Other valid NMEA sentences must not
-                    // make an old position look fresh.
-                    const char* message_id = nmea.getMessageID();
+                    const char* messageId = nmea.getMessageID();
                     if (parsed && isValid() &&
-                        (strcmp(message_id, "GGA") == 0 || strcmp(message_id, "RMC") == 0)) {
+                        (strcmp(messageId, "GGA") == 0 || strcmp(messageId, "RMC") == 0)) {
                         _last_fix_ms = millis();
                         _fix_seen = true;
+                        if (_acquiringPeriodically) finishPeriodicAcquisition();
                     }
                 } else {
                     _nmea_checksum_bad++;
@@ -234,25 +230,12 @@ public :
             }
         }
 
-        if (!isValid()) time_valid = 0;
-
-        if ((long)(millis() - next_check) > 0) {
-            next_check = millis() + 1000;
-            // Re-enable time sync periodically when GPS has valid fix
-            if (!_time_sync_needed && _clock != NULL && (millis() - _last_time_sync) > TIME_SYNC_INTERVAL) {
-                _time_sync_needed = true;
-            }
-            if (_time_sync_needed && time_valid > 2) {
-                if (_clock != NULL) {
-                    _clock->setCurrentTime(getTimestamp());
-                    _time_sync_needed = false;
-                    _last_time_sync = millis();
-                }
-            }
-            if (isValid()) {
-                time_valid ++;
-            }
+        if (_acquiringPeriodically &&
+            (uint32_t)(millis() - _acquisitionStarted) >= GPS_PERIODIC_ACQUISITION_TIMEOUT_MS) {
+            finishPeriodicAcquisition();
         }
+
+        updateTime();
     }
 
     void formatDiagnostics(char* out, size_t out_size) override {
@@ -265,8 +248,6 @@ public :
         formatAge(nmea_age, sizeof(nmea_age), _nmea_seen, _last_nmea_ms);
         formatAge(fix_age, sizeof(fix_age), _fix_seen, _last_fix_ms);
 
-        // Compact enough for CommonCLI's 160-byte reply buffer, including the
-        // "req:" prefix added by CommonCLI.
         snprintf(out, out_size,
             "en:%u ub:%lu ua:%s ok:%lu bad:%lu na:%s sat:%ld fix:%u fa:%s bc:%lu sc:%lu",
             isEnabled() ? 1U : 0U,
