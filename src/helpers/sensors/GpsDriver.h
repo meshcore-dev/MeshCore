@@ -9,7 +9,7 @@ public:
     virtual void begin() = 0;
     virtual void reset() = 0;
     virtual void stop() = 0;
-    virtual bool isEnabled() const = 0;
+    virtual bool isActive() const = 0;
     virtual bool hasHardwareEnableState() const { return false; }
     virtual bool isHardwareEnabled() const { return true; }
     // Returns true when the switch explicitly enables GPS in software.

@@ -122,7 +122,7 @@ public:
     void begin() override {
         _begin_calls++;
         _driver->begin();
-        if (_gpsPeriodSeconds > 0 && _driver->isEnabled()) {
+        if (_gpsPeriodSeconds > 0 && _driver->isActive()) {
             nmea.clear();
             time_valid = 0;
             _acquiringPeriodically = true;
@@ -140,8 +140,8 @@ public:
         _driver->stop();
     }
 
-    bool isEnabled() override {
-        return _driver->isEnabled();
+    bool isActive() override {
+        return _driver->isActive();
     }
 
     bool hasHardwareEnableState() const override {
@@ -278,7 +278,7 @@ public:
 
         snprintf(out, out_size,
             "en:%u ub:%lu ua:%s ok:%lu bad:%lu na:%s sat:%ld fix:%u fa:%s bc:%lu sc:%lu",
-            isEnabled() ? 1U : 0U,
+            isActive() ? 1U : 0U,
             (unsigned long)_uart_bytes,
             uart_age,
             (unsigned long)_nmea_checksum_ok,

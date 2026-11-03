@@ -183,7 +183,7 @@ public:
         stopHardware();
     }
 
-    bool isEnabled() const override {
+    bool isActive() const override {
         return _started && isHardwareEnabled();
     }
 

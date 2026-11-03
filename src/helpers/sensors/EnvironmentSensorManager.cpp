@@ -631,7 +631,7 @@ bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, Cayen
   next_available_channel = TELEM_CHANNEL_SELF + 1;
 
   #if ENV_INCLUDE_GPS
-  if (requester_permissions & TELEM_PERM_LOCATION && _location->isEnabled()) {
+  if (requester_permissions & TELEM_PERM_LOCATION && _location->isGpsOn()) {
     telemetry.addGPS(TELEM_CHANNEL_SELF, node_lat, node_lon, node_altitude);
   }
   #endif
@@ -748,7 +748,7 @@ void EnvironmentSensorManager::loop() {
   _location->loop();
   if ((long)(millis() - next_gps_update) > 0) {
 
-    if (_location->isEnabled() && _location->isValid()) {
+    if (_location->isGpsOn() && _location->hasValidFix()) {
       node_lat = ((double)_location->getLatitude())/1000000.;
       node_lon = ((double)_location->getLongitude())/1000000.;
       MESH_DEBUG_PRINTLN("lat %f lon %f", node_lat, node_lon);

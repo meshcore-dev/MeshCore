@@ -150,8 +150,8 @@ public:
         }
     }
 
-    bool isEnabled() override {
-        return _driver.isEnabled();
+    bool isActive() override {
+        return _driver.isActive();
     }
 
     void setGpsPeriod(uint32_t seconds) override {
@@ -162,5 +162,10 @@ public:
 
     uint32_t getGpsPeriod() const override {
         return _gpsPeriodSeconds;
+    }
+
+    void setGpsOn(bool on) override {
+        if (_driver.usesRak12500()) LocationProvider::setGpsOn(on);
+        else { _gpsOn = on; _nmea.setGpsOn(on); }
     }
 };
