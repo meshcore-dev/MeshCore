@@ -7,7 +7,16 @@
 #include <string.h>
 
 #ifndef GPS_PERIODIC_ACQUISITION_TIMEOUT_MS
-    #define GPS_PERIODIC_ACQUISITION_TIMEOUT_MS 120000UL
+    #define GPS_PERIODIC_ACQUISITION_TIMEOUT_MS 300000UL
+#endif
+
+// in periodic mode, keep reading after the first valid fix until enough satellites
+// are used or the settle time has elapsed
+#ifndef GPS_MIN_SATS_FOR_FIX
+    #define GPS_MIN_SATS_FOR_FIX 5
+#endif
+#ifndef GPS_FIX_SETTLE_MS
+    #define GPS_FIX_SETTLE_MS 10000UL
 #endif
 
 class MicroNMEALocationProvider : public LocationProvider {
@@ -22,6 +31,7 @@ class MicroNMEALocationProvider : public LocationProvider {
     uint32_t _gpsPeriodSeconds = 0;
     unsigned long _nextAcquisition = 0;
     unsigned long _acquisitionStarted = 0;
+    unsigned long _firstFixInWindow = 0;
     bool _acquiringPeriodically = false;
     static const unsigned long TIME_SYNC_INTERVAL = 1800000;
 
@@ -54,6 +64,7 @@ class MicroNMEALocationProvider : public LocationProvider {
         _driver->reset();
         _acquiringPeriodically = true;
         _acquisitionStarted = millis();
+        _firstFixInWindow = 0;
     }
 
     void finishPeriodicAcquisition() {
@@ -122,11 +133,12 @@ public:
     void begin() override {
         _begin_calls++;
         _driver->begin();
-        if (_gpsPeriodSeconds > 0 && _driver->isEnabled()) {
+        if (_gpsPeriodSeconds > 0 && _driver->isActive()) {
             nmea.clear();
             time_valid = 0;
             _acquiringPeriodically = true;
             _acquisitionStarted = millis();
+            _firstFixInWindow = 0;
         }
     }
 
@@ -140,8 +152,8 @@ public:
         _driver->stop();
     }
 
-    bool isEnabled() override {
-        return _driver->isEnabled();
+    bool isActive() override {
+        return _driver->isActive();
     }
 
     bool hasHardwareEnableState() const override {
@@ -249,7 +261,13 @@ public:
                     if (parsed && nmea.isValid() &&
                         (strcmp(messageId, "GGA") == 0 || strcmp(messageId, "RMC") == 0)) {
                         saveFix();
-                        if (_acquiringPeriodically) finishPeriodicAcquisition();
+                        if (_acquiringPeriodically) {
+                            if (_firstFixInWindow == 0) _firstFixInWindow = millis();
+                            if (nmea.getNumSatellites() >= GPS_MIN_SATS_FOR_FIX ||
+                                (uint32_t)(millis() - _firstFixInWindow) >= GPS_FIX_SETTLE_MS) {
+                                finishPeriodicAcquisition();
+                            }
+                        }
                     }
                 } else {
                     _nmea_checksum_bad++;
@@ -257,7 +275,8 @@ public:
             }
         }
 
-        if (_acquiringPeriodically &&
+        // no timeout until a first fix has been obtained (cold start can be long)
+        if (_acquiringPeriodically && _lastFix.valid &&
             (uint32_t)(millis() - _acquisitionStarted) >= GPS_PERIODIC_ACQUISITION_TIMEOUT_MS) {
             finishPeriodicAcquisition();
         }
@@ -277,7 +296,7 @@ public:
 
         snprintf(out, out_size,
             "en:%u ub:%lu ua:%s ok:%lu bad:%lu na:%s sat:%ld fix:%u fa:%s bc:%lu sc:%lu",
-            isEnabled() ? 1U : 0U,
+            isActive() ? 1U : 0U,
             (unsigned long)_uart_bytes,
             uart_age,
             (unsigned long)_nmea_checksum_ok,

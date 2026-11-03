@@ -77,7 +77,7 @@ public:
         NmeaGpsDriver::stop();
     }
 
-    bool isEnabled() const override {
+    bool isActive() const override {
         return digitalRead(GPS_EN) == HIGH;
     }
 };

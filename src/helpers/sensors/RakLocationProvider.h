@@ -137,7 +137,7 @@ public:
                     _driver.stop();
                     _acquiringPeriodically = false;
                     _nextAcquisition = millis() + _gpsPeriodSeconds * 1000UL;
-                } else if (_gpsPeriodSeconds > 0 && _acquiringPeriodically &&
+                } else if (_gpsPeriodSeconds > 0 && _acquiringPeriodically && _lastFix.valid &&
                            (uint32_t)(millis() - _acquisitionStarted) >=
                                GPS_PERIODIC_ACQUISITION_TIMEOUT_MS) {
                     _driver.stop();
@@ -150,8 +150,8 @@ public:
         }
     }
 
-    bool isEnabled() override {
-        return _driver.isEnabled();
+    bool isActive() override {
+        return _driver.isActive();
     }
 
     void setGpsPeriod(uint32_t seconds) override {
@@ -162,5 +162,10 @@ public:
 
     uint32_t getGpsPeriod() const override {
         return _gpsPeriodSeconds;
+    }
+
+    void setGpsOn(bool on) override {
+        if (_driver.usesRak12500()) LocationProvider::setGpsOn(on);
+        else { _gpsOn = on; _nmea.setGpsOn(on); }
     }
 };

@@ -77,8 +77,8 @@ public:
         _serialDriver.stop();
     }
 
-    bool isEnabled() const override {
-        return _usingRak12500 ? true : _serialDriver.isEnabled();
+    bool isActive() const override {
+        return _usingRak12500 ? true : _serialDriver.isActive();
     }
 
     bool detect(uint32_t) override {
