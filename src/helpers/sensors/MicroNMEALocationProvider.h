@@ -7,7 +7,7 @@
 #include <string.h>
 
 #ifndef GPS_PERIODIC_ACQUISITION_TIMEOUT_MS
-    #define GPS_PERIODIC_ACQUISITION_TIMEOUT_MS 120000UL
+    #define GPS_PERIODIC_ACQUISITION_TIMEOUT_MS 300000UL
 #endif
 
 class MicroNMEALocationProvider : public LocationProvider {
@@ -257,7 +257,8 @@ public:
             }
         }
 
-        if (_acquiringPeriodically &&
+        // no timeout until a first fix has been obtained (cold start can be long)
+        if (_acquiringPeriodically && _lastFix.valid &&
             (uint32_t)(millis() - _acquisitionStarted) >= GPS_PERIODIC_ACQUISITION_TIMEOUT_MS) {
             finishPeriodicAcquisition();
         }

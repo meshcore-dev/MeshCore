@@ -137,7 +137,7 @@ public:
                     _driver.stop();
                     _acquiringPeriodically = false;
                     _nextAcquisition = millis() + _gpsPeriodSeconds * 1000UL;
-                } else if (_gpsPeriodSeconds > 0 && _acquiringPeriodically &&
+                } else if (_gpsPeriodSeconds > 0 && _acquiringPeriodically && _lastFix.valid &&
                            (uint32_t)(millis() - _acquisitionStarted) >=
                                GPS_PERIODIC_ACQUISITION_TIMEOUT_MS) {
                     _driver.stop();
