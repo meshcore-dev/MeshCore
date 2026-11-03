@@ -37,6 +37,10 @@ class UITask : public AbstractUITask {
   bool _need_refresh = true;
   bool _displayWasOn = false;  // Track display state before button press
   unsigned long ui_started_at;
+#ifdef PIN_STATUS_LED_R
+  unsigned long _gps_led_until = 0;   // end of the GPS toggle LED confirmation, 0 = inactive
+  bool _gps_led_on = false;           // true = GPS was just enabled (green), false = disabled (red)
+#endif
 
   // Button handlers
 #ifdef PIN_USER_BTN
@@ -57,6 +61,7 @@ class UITask : public AbstractUITask {
   void handleButtonTriplePress();
   void handleButtonQuadruplePress();
   void handleButtonLongPress();
+  void gpsToggleFeedback(bool gps_on);
 
  
 public:
