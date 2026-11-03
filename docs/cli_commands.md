@@ -1003,7 +1003,7 @@ region save
 **Usage:**
 - `gps`
 
-**Note:** Reports the requested state, receiver activity, last-fix status, satellite count, and mode. In periodic mode, `waiting` means the receiver is off between acquisitions; the last fix remains available. `off(hw)` means a hardware GPS switch is off.
+**Note:** Reports the requested state, receiver activity, last-fix status (last fix gives number of sats and how long ago was the fix), and mode. In periodic mode, `waiting` means the receiver is off between acquisitions; the last fix remains available. `off(hw)` means a hardware GPS switch is off.
 
 ---
 

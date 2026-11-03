@@ -50,22 +50,12 @@ bool CommonGpsPrefs::handleCommand(const char* command, SensorManager& sensors, 
       }
       char fix[32];
       if (location->hasValidFix()) {
-        const uint32_t fixAge = location->getLastFixAge();
-        if (fixAge == UINT32_MAX) {
-          strcpy(fix, "fix");
-        } else {
-          snprintf(fix, sizeof(fix), "fix (%lus ago)",
-                   (unsigned long)fixAge);
-        }
+        snprintf(fix, sizeof(fix), "%ld sats %lus ago",
+                location->satellitesCount(), (unsigned long)location->getLastFixAge());
       } else {
         strcpy(fix, "no fix");
       }
-      sprintf(reply, "on, %s, %s, %d sats, mode: %s",
-              activity,
-              fix,
-              location->satellitesCount(), mode);
-    } else {
-      snprintf(reply, 160, "off, mode: %s", mode);
+      snprintf(reply, 160, "on, %s, %s, mode: %s", activity, fix, mode);
     }
     return true;
   }
