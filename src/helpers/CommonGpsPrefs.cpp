@@ -25,6 +25,17 @@ bool CommonGpsPrefs::apply(SensorManager& sensors) const {
   return true;
 }
 
+// single unit, rounded down: "45s", "12m", "3h"
+static void formatDuration(char* buf, size_t size, uint32_t seconds) {
+  if (seconds < 60) {
+    snprintf(buf, size, "%lus", (unsigned long)seconds);
+  } else if (seconds < 3600) {
+    snprintf(buf, size, "%lum", (unsigned long)(seconds / 60));
+  } else {
+    snprintf(buf, size, "%luh", (unsigned long)(seconds / 3600));
+  }
+}
+
 bool CommonGpsPrefs::handleCommand(const char* command, SensorManager& sensors, char* reply) {
   if (strcmp(command, "gps") == 0) {
     LocationProvider* location = sensors.getLocationProvider();
@@ -50,8 +61,9 @@ bool CommonGpsPrefs::handleCommand(const char* command, SensorManager& sensors, 
       }
       char fix[32];
       if (location->hasValidFix()) {
-        snprintf(fix, sizeof(fix), "%ld sats %lus ago",
-                location->satellitesCount(), (unsigned long)location->getLastFixAge());
+        char age[12];
+        formatDuration(age, sizeof(age), location->getLastFixAge());
+        snprintf(fix, sizeof(fix), "%ld sats %s ago", location->satellitesCount(), age);
       } else {
         strcpy(fix, "no fix");
       }
@@ -131,6 +143,22 @@ bool CommonGpsPrefs::handleCommand(const char* command, SensorManager& sensors, 
     } else {
       location->syncTime();
       strcpy(reply, "ok");
+    }
+    return true;
+  }
+  if (strcmp(command, "gps fix_stats") == 0) {
+    LocationProvider* location = sensors.getLocationProvider();
+    if (location == nullptr) {
+      strcpy(reply, "gps provider not found");
+    } else {
+      const LocationProvider::FixStats s = location->getFixStats();
+      char last[12] = "-", max[12] = "-";
+      if (s.maxTtffMs > 0) {
+        formatDuration(last, sizeof(last), (s.lastTtffMs + 500) / 1000);
+        formatDuration(max, sizeof(max), (s.maxTtffMs + 500) / 1000);
+      }
+      snprintf(reply, 160, "ttf:%s/%s ok:%lu miss:%lu", last, max,
+               (unsigned long)s.consecutiveFixes, (unsigned long)s.consecutiveMisses);
     }
     return true;
   }

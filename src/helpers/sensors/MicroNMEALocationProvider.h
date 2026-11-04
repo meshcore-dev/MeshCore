@@ -68,21 +68,30 @@ class MicroNMEALocationProvider : public LocationProvider {
     }
 
     void finishPeriodicAcquisition() {
+        if (_firstFixInWindow == 0) fixStatsMiss();
         _driver->stop();
         _acquiringPeriodically = false;
         _nextAcquisition = millis() + _gpsPeriodSeconds * 1000UL;
     }
 
-    void saveFix() {
+    bool saveFix() {
+        // only store a fix when the snapshot is coherent (sats > 0).
+        // Returns true if the fix was stored.
+        if (nmea.getNumSatellites() == 0) return false;
+
         LastFix fix;
         fix.latitude = nmea.getLatitude();
         fix.longitude = nmea.getLongitude();
-        nmea.getAltitude(fix.altitude);
+        // altitude comes from GGA only: keep the previous one if not available
+        if (!nmea.getAltitude(fix.altitude)) {
+            fix.altitude = _lastFix.valid ? _lastFix.altitude : 0;
+        }
         fix.satellites = nmea.getNumSatellites();
         fix.timestamp = getTimestamp();
         fix.acquiredAt = millis();
         fix.valid = true;
         _lastFix = fix;
+        return true;
     }
 
     void updateTime() {
@@ -132,7 +141,12 @@ public:
 
     void begin() override {
         _begin_calls++;
+        const bool wasActive = _driver->isActive();
         _driver->begin();
+        if (!wasActive) {
+            _acquisitionStarted = millis();
+            _firstFixInWindow = 0;
+        }
         if (_gpsPeriodSeconds > 0 && _driver->isActive()) {
             nmea.clear();
             time_valid = 0;
@@ -183,20 +197,22 @@ public:
         LocationProvider::syncTime();
     }
 
+    // Position, altitude and satellite count describe the last saved fix
+    // Before the first saved fix, fall back to the live parser state.
     long getLatitude() override {
-        return nmea.isValid() ? nmea.getLatitude() : _lastFix.latitude;
+        return _lastFix.valid ? _lastFix.latitude : nmea.getLatitude();
     }
     long getLongitude() override {
-        return nmea.isValid() ? nmea.getLongitude() : _lastFix.longitude;
+        return _lastFix.valid ? _lastFix.longitude : nmea.getLongitude();
     }
     long getAltitude() override {
-        if (!nmea.isValid()) return _lastFix.altitude;
+        if (_lastFix.valid) return _lastFix.altitude;
         long alt = 0;
         nmea.getAltitude(alt);
         return alt;
     }
     long satellitesCount() override {
-        return nmea.isValid() ? nmea.getNumSatellites() : _lastFix.satellites;
+        return _lastFix.valid ? _lastFix.satellites : nmea.getNumSatellites();
     }
     bool isValid() override { return nmea.isValid(); }
 
@@ -260,9 +276,12 @@ public:
                     const char* messageId = nmea.getMessageID();
                     if (parsed && nmea.isValid() &&
                         (strcmp(messageId, "GGA") == 0 || strcmp(messageId, "RMC") == 0)) {
-                        saveFix();
+                        if (!saveFix()) continue;  // incoherent snapshot
+                        if (_firstFixInWindow == 0) {
+                            _firstFixInWindow = millis();
+                            fixStatsFix((uint32_t)(_firstFixInWindow - _acquisitionStarted));
+                        }
                         if (_acquiringPeriodically) {
-                            if (_firstFixInWindow == 0) _firstFixInWindow = millis();
                             if (nmea.getNumSatellites() >= GPS_MIN_SATS_FOR_FIX ||
                                 (uint32_t)(millis() - _firstFixInWindow) >= GPS_FIX_SETTLE_MS) {
                                 finishPeriodicAcquisition();
