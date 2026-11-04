@@ -324,12 +324,12 @@ Radio parameters are common to all roles and handled by `CommonRadioPrefs`.
 **Usage:**
 - `get ble_name`
 - `set ble_name <name>`
-- `set ble_name_clear`
+- `set ble_name_default`
 
 **Parameters:**
 - `name`: New BLE name
 
-**Note:** If this is unset or cleared the node name will be used as the BLE name. These commands require a reboot to take effect.
+**Note:** By default the node name will be used as the BLE name. These commands require a reboot to take effect.
 
 ---
 
