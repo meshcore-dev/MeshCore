@@ -110,6 +110,7 @@ typedef uint32_t  DispatcherAction;
 #define ERR_EVENT_FULL              (1 << 0)
 #define ERR_EVENT_CAD_TIMEOUT       (1 << 1)
 #define ERR_EVENT_STARTRX_TIMEOUT   (1 << 2)
+#define ERR_EVENT_PKT_EXPIRED       (1 << 3)
 
 /**
  * \brief  The low-level task that manages detecting incoming Packets, and the queueing
@@ -125,12 +126,14 @@ class Dispatcher {
   bool  prev_isrecv_mode;
   uint32_t n_sent_flood, n_sent_direct;
   uint32_t n_recv_flood, n_recv_direct;
+  uint32_t n_expired;
   unsigned long tx_budget_ms;
   unsigned long last_budget_update;
   unsigned long duty_cycle_window_ms;
 
   void processRecvPacket(Packet* pkt);
   void updateTxBudget();
+  void expireAgedOutbound();
 
 protected:
   PacketManager* _mgr;
@@ -147,6 +150,7 @@ protected:
     cad_busy_start = 0;
     next_floor_calib_time = next_agc_reset_time = 0;
     _err_flags = 0;
+    n_expired = 0;
     radio_nonrx_start = 0;
     prev_isrecv_mode = true;
     tx_budget_ms = 0;
@@ -155,6 +159,13 @@ protected:
   }
 
   virtual DispatcherAction onRecvPacket(Packet* pkt) = 0;
+
+  /**
+   * \brief  Hook invoked when an outbound packet is dropped (e.g. because it
+   *         sat in the TX queue beyond the max age). Sub-classes can use this
+   *         to update dedup tables so a later copy gets another chance.
+   */
+  virtual void onPacketExpired(Packet* pkt) { }
 
   virtual void logRxRaw(float snr, float rssi, const uint8_t raw[], int len) { }   // custom hook
 
@@ -187,8 +198,10 @@ public:
   uint32_t getNumSentDirect() const { return n_sent_direct; }
   uint32_t getNumRecvFlood() const { return n_recv_flood; }
   uint32_t getNumRecvDirect() const { return n_recv_direct; }
+  uint32_t getNumExpired() const { return n_expired; }
   void resetStats() {
     n_sent_flood = n_sent_direct = n_recv_flood = n_recv_direct = 0;
+    n_expired = 0;
     _err_flags = 0;
   }
 
