@@ -166,7 +166,16 @@ public :
         return alt;
     }
     long satellitesCount() override { return nmea.getNumSatellites(); }
-    bool isValid() override { return nmea.isValid(); }
+    bool isValid() override {
+        // MicroNMEA can report a fix whose position fields did not parse, for
+        // example a checksum-valid sentence with a field missing. Do not call
+        // a position no receiver can report a fix.
+        if (!nmea.isValid()) return false;
+        const long lat = nmea.getLatitude();
+        const long lon = nmea.getLongitude();
+        return lat >= -90000000L && lat <= 90000000L
+            && lon >= -180000000L && lon <= 180000000L;
+    }
 
     long getTimestamp() override { 
         DateTime dt(nmea.getYear(), nmea.getMonth(),nmea.getDay(),nmea.getHour(),nmea.getMinute(),nmea.getSecond());
