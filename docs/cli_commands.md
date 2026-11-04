@@ -89,6 +89,17 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 
 ---
 
+### Start OTA on the current WiFi IP
+**Usage:**
+- `start otaip`
+
+Available on ESP32 companions built with `ENABLE_WIFI_INTERFACE` and WiFi OTA
+support. WiFi must already be connected and have an IP address. The command starts
+the OTA web server at the printed `http://<current-ip>/update` URL, preserving the
+existing WiFi connection. It does not create a hotspot or change WiFi settings.
+
+---
+
 ### Erase/Factory Reset
 **Usage:**
 - `erase`
