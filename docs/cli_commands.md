@@ -1122,25 +1122,41 @@ region save
 
 ---
 
-#### View or change the channel used for bridging (ESPNow only)
+#### View or change the channel used for bridging (ESP-NOW and nRF52 only)
 **Usage:**
 - `get bridge.channel`
 - `set bridge.channel <channel>`
 
 **Parameters:**
-- `channel`: Channel number (1-14)
+- `channel`:
+  - ESP-NOW: Wi-Fi channel number (1-14)
+  - nRF52: `1` = 2482 MHz (default), `2` = 2450 MHz, `3` = 2424 MHz. These sit in the gaps between Wi-Fi channels 1/6/11 and the BLE advertising channels
 
 ---
 
-#### Set the ESP-Now secret
+#### Set the ESP-NOW / nRF52 bridge secret
 **Usage:** 
 - `get bridge.secret`
 - `set bridge.secret <secret>`
 
 **Parameters:**
-- `secret`: ESP-NOW bridge secret, up to 15 characters
+- `secret`: bridge secret, up to 15 characters
 
 **Default:** Varies by board
+
+---
+
+#### View or change the transmit power of the bridge (nRF52 only)
+**Usage:**
+- `get bridge.txpower`
+- `set bridge.txpower <dbm>`
+
+**Parameters:**
+- `dbm`: Transmit power in dBm (-20 to 8 on nRF52840). Values between the radio's supported steps (8, 7, 6, 5, 4, 3, 2, 0, -4, -8, -12, -16, -20) are rounded down, and the reply shows the power actually used.
+
+**Default:** `4`
+
+**Note:** The nRF52 bridge (`bridge.type` = `nrf52-wireless`) uses its own 2.4GHz protocol (1Mbit GFSK) that mimics ESP-NOW. nRF52 and ESP-NOW bridges can't talk to each other, because the nRF52 radio can't transmit or receive Wi-Fi frames. The nRF52 bridge needs a 2.4GHz (BLE) antenna attached and can't run while BLE is active. Starting OTA stops the bridge.
 
 ---
 

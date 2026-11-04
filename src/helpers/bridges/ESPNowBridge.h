@@ -70,19 +70,6 @@ private:
   size_t _rx_buffer_pos;
 
   /**
-   * Performs XOR encryption/decryption of data
-   * Used to isolate different mesh networks
-   *
-   * Uses _prefs->bridge_secret as the key in a simple XOR operation.
-   * The same operation is used for both encryption and decryption.
-   * While not cryptographically secure, it provides basic network isolation.
-   *
-   * @param data Pointer to data to encrypt/decrypt
-   * @param len Length of data in bytes
-   */
-  void xorCrypt(uint8_t *data, size_t len);
-
-  /**
    * ESP-NOW receive callback
    * Called by ESP-NOW when a packet is received
    *

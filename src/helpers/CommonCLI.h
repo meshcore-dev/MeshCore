@@ -9,7 +9,7 @@
 #include <helpers/CommonRadioPrefs.h>
 #include <helpers/DynamicConfigSerializer.h>
 
-#if defined(WITH_RS232_BRIDGE) || defined(WITH_ESPNOW_BRIDGE)
+#if defined(WITH_RS232_BRIDGE) || defined(WITH_ESPNOW_BRIDGE) || defined(WITH_NRF52_WIRELESS_BRIDGE)
 #define WITH_BRIDGE
 #endif
 
@@ -56,6 +56,7 @@ public:
   uint32_t bridge_baud = 0;   // 9600, 19200, 38400, 57600, 115200 (default 115200)
   uint8_t bridge_channel = 0; // 1-14 (ESP-NOW only)
   char bridge_secret[16]; // for XOR encryption of bridge packets (ESP-NOW only)
+  int8_t bridge_tx_power = 0; // dBm (nRF52 2.4GHz bridge only)
   // Power setting
   uint8_t powersaving_enabled = 0; // boolean
   // Gps settings
@@ -146,6 +147,7 @@ private:
       def("baud", _parent->bridge_baud);   // 9600, 19200, 38400, 57600, 115200 (default 115200)
       def("ch", _parent->bridge_channel); // 1-14 (ESP-NOW only)
       def("secret", _parent->bridge_secret, sizeof(_parent->bridge_secret)); // for XOR encryption of bridge packets (ESP-NOW only)
+      def("txpwr", _parent->bridge_tx_power); // dBm (nRF52 2.4GHz bridge only)
     }
   public:
     BridgePrefs(NodePrefs* parent) : _parent(parent) { }
