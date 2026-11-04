@@ -64,8 +64,7 @@ void HWTSensorManager::stop_gps() {
 }
 
 bool HWTSensorManager::begin() {
-  // init GPS port
-  Serial1.begin(115200, SERIAL_8N1, PIN_GPS_RX, PIN_GPS_TX);
+  // the GPS UART (pins, baud rate) is now configured by gps_driver when the GPS is started
   return true;
 }
 
