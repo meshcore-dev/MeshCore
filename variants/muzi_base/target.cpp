@@ -71,10 +71,14 @@ void MuziBaseSensorManager::loop() {
 
 #ifdef DISPLAY_CLASS
   DISPLAY_CLASS display;
-  MomentaryButton user_btn(PIN_USER_BTN, 1000, true, false, false);
-  MomentaryButton joystick_left(JOYSTICK_LEFT, 1000, true, false, false);
-  MomentaryButton joystick_right(JOYSTICK_RIGHT, 1000, true, false, false);
-  MomentaryButton back_btn(PIN_BACK_BTN, 1000, true, false, true);
+  MomentaryButton user_btn(PIN_USER_BTN, 1000, true, true, false);
+  MomentaryButton joystick_left(JOYSTICK_LEFT, 1000, true, true, false);
+  MomentaryButton joystick_right(JOYSTICK_RIGHT, 1000, true, true, false);
+#ifdef MUZI_BASE_SUPERIO
+  MomentaryButton joystick_up(JOYSTICK_UP, 1000, true, true, false);
+  MomentaryButton joystick_down(JOYSTICK_DOWN, 1000, true, true, false);
+#endif
+  MomentaryButton back_btn(PIN_BACK_BTN, 1000, true, true, true);
 #endif
 
 #if defined(USE_LR1121)

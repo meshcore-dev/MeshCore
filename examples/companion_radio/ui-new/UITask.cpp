@@ -727,6 +727,13 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
 
 #if defined(PIN_USER_BTN)
   user_btn.begin();
+#ifdef MUZI_BASE_SUPERIO
+  joystick_left.begin();
+  joystick_right.begin();
+  joystick_up.begin();
+  joystick_down.begin();
+  back_btn.begin();
+#endif
 #endif
 #if defined(PIN_USER_BTN_ANA)
   analog_btn.begin();
@@ -947,6 +954,20 @@ void UITask::loop() {
   } else if (ev == BUTTON_EVENT_LONG_PRESS) {
     c = handleLongPress(KEY_RIGHT);
   }
+#ifdef MUZI_BASE_SUPERIO
+  ev = joystick_up.check();
+  if (ev == BUTTON_EVENT_CLICK) {
+    c = checkDisplayOn(KEY_PREV);
+  } else if (ev == BUTTON_EVENT_LONG_PRESS) {
+    c = handleLongPress(KEY_PREV);
+  }
+  ev = joystick_down.check();
+  if (ev == BUTTON_EVENT_CLICK) {
+    c = checkDisplayOn(KEY_NEXT);
+  } else if (ev == BUTTON_EVENT_LONG_PRESS) {
+    c = handleLongPress(KEY_NEXT);
+  }
+#endif
   ev = back_btn.check();
   if (ev == BUTTON_EVENT_TRIPLE_CLICK) {
     c = handleTripleClick(KEY_SELECT);
