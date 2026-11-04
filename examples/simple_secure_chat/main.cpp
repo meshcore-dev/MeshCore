@@ -449,7 +449,7 @@ public:
     } else if (strcmp(command, "advert") == 0) {
       auto pkt = createSelfAdvert(_prefs.node_name, _prefs.node_lat, _prefs.node_lon);
       if (pkt) {
-        sendZeroHop(pkt);
+        sendZeroHop(pkt);   // no path.hash.mode in this example, 1-byte default stands
         Serial.println("   (advert sent, zero hop).");
       } else {
         Serial.println("   ERR: unable to send");
