@@ -20,6 +20,7 @@ Adafruit_NeoPixel *Led[] =
 
 void TechoCardBoard::begin() {
     NRF52BoardDCDC::begin();
+    gps_rf_power.begin();  // LNA stays off until the GPS is started
     Wire.begin();
 
     for (uint8_t i = 0; i < sizeof(Led) / sizeof(Led[0]); i++)
