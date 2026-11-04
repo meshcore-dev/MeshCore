@@ -1,19 +1,10 @@
 #include "ClientACL.h"
-
-static File openWrite(FILESYSTEM* _fs, const char* filename) {
-  #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
-    _fs->remove(filename);
-    return _fs->open(filename, FILE_O_WRITE);
-  #elif defined(RP2040_PLATFORM)
-    return _fs->open(filename, "w");
-  #else
-    return _fs->open(filename, "w", true);
-  #endif
-}
+#include "AtomicFile.h"
 
 void ClientACL::load(FILESYSTEM* fs, const mesh::LocalIdentity& self_id) {
   _fs = fs;
   num_clients = 0;
+  AtomicFile::cleanup(_fs, "/s_contacts");
   if (_fs->exists("/s_contacts")) {
   #if defined(RP2040_PLATFORM)
     File file = _fs->open("/s_contacts", "r");
@@ -54,8 +45,7 @@ void ClientACL::load(FILESYSTEM* fs, const mesh::LocalIdentity& self_id) {
 
 void ClientACL::save(FILESYSTEM* fs, bool (*filter)(ClientInfo*)) {
   _fs = fs;
-  File file = openWrite(_fs, "/s_contacts");
-  if (file) {
+  AtomicFile::write(_fs, "/s_contacts", [&](File& file) {
     uint8_t unused[2];
     memset(unused, 0, sizeof(unused));
 
@@ -71,10 +61,10 @@ void ClientACL::save(FILESYSTEM* fs, bool (*filter)(ClientInfo*)) {
       success = success && (file.write(c->out_path, 64) == 64);
       success = success && (file.write(c->shared_secret, PUB_KEY_SIZE) == PUB_KEY_SIZE);
 
-      if (!success) break; // write failed
+      if (!success) return false; // write failed
     }
-    file.close();
-  }
+    return true;
+  });
 }
 
 bool ClientACL::clear() {
