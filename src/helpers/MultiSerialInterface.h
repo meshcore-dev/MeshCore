@@ -122,7 +122,7 @@ public:
     
     // check if any interface is connected
     for(auto iface : _interfaces){
-      if(iface.instance && iface.instance->isConnected()) {
+      if(iface.instance && iface.instance->isEnabled() && iface.instance->isConnected()) {
         return true;
       }
     }
