@@ -39,7 +39,17 @@
 #endif
 
 class MicroNMEALocationProvider : public LocationProvider {
-    char _nmeaBuffer[100];
+public:
+    // MicroNMEA never writes past the length it is given, but its fixed-width
+    // field skips can read a few bytes past the terminating NUL of a malformed
+    // sentence whose checksum still passes. The zeroed tail behind the length
+    // the library sees makes those reads land on NUL bytes, so the parser stops
+    // there instead of reading the members that follow the buffer.
+    static constexpr uint8_t NMEA_BUFFER_LEN = 100;
+    static constexpr size_t NMEA_BUFFER_GUARD = 16;
+
+private:
+    char _nmeaBuffer[NMEA_BUFFER_LEN + NMEA_BUFFER_GUARD] = {};
     MicroNMEA nmea;
     mesh::RTCClock* _clock;
     Stream* _gps_serial;
@@ -90,7 +100,7 @@ class MicroNMEALocationProvider : public LocationProvider {
 
 public :
     MicroNMEALocationProvider(Stream& ser, mesh::RTCClock* clock = NULL, int pin_reset = GPS_RESET, int pin_en = GPS_EN,RefCountedDigitalPin* peripher_power=NULL) :
-    nmea(_nmeaBuffer, sizeof(_nmeaBuffer)), _clock(clock), _gps_serial(&ser), _peripher_power(peripher_power), _pin_reset(pin_reset), _pin_en(pin_en) {
+    nmea(_nmeaBuffer, NMEA_BUFFER_LEN), _clock(clock), _gps_serial(&ser), _peripher_power(peripher_power), _pin_reset(pin_reset), _pin_en(pin_en) {
         if (_pin_reset != -1) {
             pinMode(_pin_reset, OUTPUT);
             digitalWrite(_pin_reset, GPS_RESET_ACTIVE);
