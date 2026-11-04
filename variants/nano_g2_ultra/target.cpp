@@ -62,14 +62,14 @@ bool NanoG2UltraSensorManager::querySensors(uint8_t requester_permissions, Cayen
 void NanoG2UltraSensorManager::loop() {
   static long next_gps_update = 0;
 
-  if (!_location->isEnabled()) {
+  if (!_location->isGpsOn()) {
     return; // GPS is not active, skip further processing
   }
 
   _location->loop();
 
   if (millis() > next_gps_update) {
-    if (_location->isEnabled() && _location->isValid()) {
+    if (_location->isGpsOn() && _location->hasValidFix()) {
       node_lat = ((double)_location->getLatitude()) / 1000000.;
       node_lon = ((double)_location->getLongitude()) / 1000000.;
       node_altitude = ((double)_location->getAltitude()) / 1000.0;

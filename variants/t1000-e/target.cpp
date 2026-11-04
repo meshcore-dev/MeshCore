@@ -113,7 +113,7 @@ void T1000SensorManager::loop() {
   _nmea->loop();
 
   if (millis() > next_gps_update) {
-    if (_nmea->isEnabled() && _nmea->isValid()) {
+    if (_nmea->isGpsOn() && _nmea->hasValidFix()) {
       node_lat = ((double)_nmea->getLatitude())/1000000.;
       node_lon = ((double)_nmea->getLongitude())/1000000.;
       node_altitude = ((double)_nmea->getAltitude()) / 1000.0;

@@ -86,6 +86,30 @@ public:
   }
 };
 
+#if ENV_INCLUDE_GPS == 1
+// exact period with the largest unit that divides it: "30s", "5m", "2h"
+static void formatGpsPeriod(char* buf, size_t size, uint32_t seconds) {
+  if (seconds % 3600 == 0) {
+    snprintf(buf, size, "%luh", (unsigned long)(seconds / 3600));
+  } else if (seconds % 60 == 0) {
+    snprintf(buf, size, "%lum", (unsigned long)(seconds / 60));
+  } else {
+    snprintf(buf, size, "%lus", (unsigned long)seconds);
+  }
+}
+
+// age of the last fix, rounded down to a single unit: "45s", "12m", "3h"
+static void formatFixAge(char* buf, size_t size, uint32_t seconds) {
+  if (seconds < 60) {
+    snprintf(buf, size, "%lus", (unsigned long)seconds);
+  } else if (seconds < 3600) {
+    snprintf(buf, size, "%lum", (unsigned long)(seconds / 60));
+  } else {
+    snprintf(buf, size, "%luh", (unsigned long)(seconds / 3600));
+  }
+}
+#endif
+
 class HomeScreen : public UIScreen {
   enum HomePage {
     FIRST,
@@ -393,14 +417,26 @@ public:
       int y = 18;
       bool gps_state = _task->getGPSState();
       bool hw_gps_state = nmea != NULL && nmea->isHardwareEnabled();
-      if (nmea != NULL && nmea->hasHardwareEnableState()) {
-      if (gps_state != hw_gps_state) {
-        strcpy(buf, gps_state ? "gps off(hw)" : "gps off(sw)");
-      } else {
-        strcpy(buf, gps_state ? "gps on" : "gps off");
+      uint32_t period = nmea != NULL ? nmea->getGpsPeriod() : 0;
+      char fix_buf[12] = "";
+      if (nmea != NULL) {
+        uint32_t fix_age = nmea->getLastFixAge();
+        if (fix_age == UINT32_MAX) {
+          strcpy(fix_buf, "no fix");
+        } else {
+          formatFixAge(fix_buf, sizeof(fix_buf), fix_age);
+        }
       }
+      if (nmea != NULL && nmea->hasHardwareEnableState() && gps_state != hw_gps_state) {
+        strcpy(buf, gps_state ? "gps off(hw)" : "gps off(sw)");
+      } else if (!gps_state) {
+        strcpy(buf, "gps off");
+      } else if (period == 0) {
+        strcpy(buf, "gps on");
       } else {
-      strcpy(buf, gps_state ? "gps on" : "gps off");
+        char per[12];
+        formatGpsPeriod(per, sizeof(per), period);
+        snprintf(buf, sizeof(buf), "%s (%s)", nmea != NULL && nmea->isActive() ? "active" : "sleep", per);
       }
       display.setColor(UIColor::primary_txt);
       display.drawTextLeftAlign(0, y, buf);
@@ -410,8 +446,7 @@ public:
         display.drawTextLeftAlign(0, y, "Can't access GPS");
       } else {
         display.setColor(UIColor::primary_txt);
-        strcpy(buf, nmea->isValid()?"fix":"no fix");
-        display.drawTextRightAlign(display.width()-1, y, buf);
+        display.drawTextRightAlign(display.width()-1, y, fix_buf);
         y = y + 12;
         display.setColor(UIColor::secondary_txt);
         display.drawTextLeftAlign(0, y, "sat");

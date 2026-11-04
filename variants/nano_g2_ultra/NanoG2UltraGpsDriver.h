@@ -10,7 +10,7 @@ public:
   }
 
   void begin() override {
-    if (isEnabled()) return;
+    if (isActive()) return;
 
     digitalWrite(PIN_GPS_STANDBY, HIGH);
     NmeaGpsDriver::begin();
