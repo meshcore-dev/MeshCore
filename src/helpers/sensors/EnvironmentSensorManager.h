@@ -4,6 +4,11 @@
 #include <helpers/SensorManager.h>
 #include <helpers/sensors/LocationProvider.h>
 
+// Not for RAK WisBlock GPS (same condition as RAK_WISBLOCK_GPS in the .cpp), which has its own power handling
+#if ENV_INCLUDE_GPS && !(defined(RAK_BOARD) && !defined(RAK_WISMESH_TAG))
+  #define ENV_GPS_DUTY_CYCLE 1
+#endif
+
 class EnvironmentSensorManager : public SensorManager {
 protected:
   static const int MAX_ACTIVE_SENSORS = 16;
@@ -25,6 +30,18 @@ protected:
 
   #if ENV_INCLUDE_GPS
   LocationProvider* _location;
+  // Duty cycling: with gps_duty_secs > 0, power the GPS down after each fix and wake it
+  // gps_duty_secs later. gps_active (the user setting) stays true while powered down.
+  // Only exposed as a setting once the app calls configureGPSDuty(), since it must persist it.
+  uint32_t      gps_duty_secs = 0;
+  bool          gps_duty_enabled = false;
+  mutable char  gps_duty_val[12];
+  bool          gps_powered = false;
+  unsigned long gps_next_wake = 0;
+  unsigned long gps_powered_at = 0;
+  unsigned long gps_fix_since = 0;
+  void power_on_gps();
+  void dutyCycleGPS();
   void start_gps();
   void stop_gps();
   void initBasicGPS();
@@ -39,6 +56,10 @@ public:
   EnvironmentSensorManager(LocationProvider &location): _location(&location){};
   LocationProvider* getLocationProvider() { return _location; }
   bool isGPSDetected() const override { return gps_detected; }
+  #if ENV_GPS_DUTY_CYCLE
+  // Call after begin(). Lists gps_duty and applies the saved value (invalid = always on).
+  void configureGPSDuty(uint32_t secs);
+  #endif
   #else
   EnvironmentSensorManager(){};
   #endif

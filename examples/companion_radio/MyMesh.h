@@ -209,6 +209,9 @@ public:
       sprintf(interval_str, "%u", _prefs.gps_interval);
       sensors.setSettingValue("gps_interval", interval_str);
     }
+#if ENV_GPS_DUTY_CYCLE
+    sensors.configureGPSDuty(_prefs.gps_duty);
+#endif
   }
 #endif
 

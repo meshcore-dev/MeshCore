@@ -993,6 +993,7 @@ void MyMesh::begin() {
   _prefs.tx_power_dbm = constrain(_prefs.tx_power_dbm, -9, MAX_LORA_TX_POWER);
   _prefs.gps_enabled = constrain(_prefs.gps_enabled, 0, 1);  // Ensure boolean 0 or 1
   _prefs.gps_interval = constrain(_prefs.gps_interval, 0, 86400);  // Max 24 hours
+  _prefs.gps_duty = constrain(_prefs.gps_duty, 0, 86400);
 
   _active_ble_pin = _prefs.ble_pin;
 
@@ -1882,6 +1883,9 @@ void MyMesh::handleCmdFrame(size_t len) {
         } else if (strcmp(sp, "gps_interval") == 0) {
           uint32_t interval_seconds = atoi(np);
           _prefs.gps_interval = constrain(interval_seconds, 0, 86400);
+          savePrefs();
+        } else if (strcmp(sp, "gps_duty") == 0) {
+          _prefs.gps_duty = atol(np);  // range checked by sensors
           savePrefs();
         }
         #endif
