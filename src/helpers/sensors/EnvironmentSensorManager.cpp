@@ -747,15 +747,66 @@ bool EnvironmentSensorManager::setSettingValue(const char* name, const char* val
 }
 
 #if ENV_INCLUDE_GPS
+#ifndef GPS_BAUD_RATE
+  #define GPS_DEFAULT_BAUD 9600
+#else
+  #define GPS_DEFAULT_BAUD GPS_BAUD_RATE
+#endif
+
+#ifdef GPS_BAUD_AUTODETECT
+// True if a complete NMEA sentence with a valid checksum arrives within timeout_ms.
+static bool gpsSeesValidNMEA(uint32_t timeout_ms) {
+  char line[100];
+  int len = -1;  // -1 = waiting for '$'
+  unsigned long start = millis();
+  while (millis() - start < timeout_ms) {
+    if (!Serial1.available()) { delay(2); continue; }
+    char c = Serial1.read();
+    if (c == '$') { len = 0; continue; }
+    if (len < 0) continue;
+    if (c == '\r' || c == '\n') {
+      line[len] = 0;
+      char* star = strchr(line, '*');
+      if (star && strlen(star) >= 3) {
+        uint8_t sum = 0;
+        for (char* p = line; p < star; p++) sum ^= (uint8_t)*p;
+        if (sum == (uint8_t)strtoul(star + 1, NULL, 16)) return true;
+      }
+      len = -1;
+    } else if (len < (int)sizeof(line) - 1) {
+      line[len++] = c;
+    } else {
+      len = -1;  // longer than any NMEA sentence: wrong baud rate
+    }
+  }
+  return false;
+}
+
+// Probes common GNSS baud rates, starting with the configured one, and leaves
+// Serial1 open at the first rate that yields valid NMEA. Falls back to the
+// configured rate if none does. Returns the detected rate, or 0.
+static uint32_t detectGPSBaud() {
+  static const uint32_t bauds[] = { GPS_DEFAULT_BAUD, 9600, 115200, 38400, 57600, 19200, 4800 };
+  for (size_t i = 0; i < sizeof(bauds) / sizeof(bauds[0]); i++) {
+    bool tried = false;
+    for (size_t j = 0; j < i; j++) tried |= (bauds[j] == bauds[i]);
+    if (tried) continue;
+    Serial1.end();
+    Serial1.begin(bauds[i]);
+    while (Serial1.available()) Serial1.read();
+    if (gpsSeesValidNMEA(2000)) return bauds[i];
+  }
+  Serial1.end();
+  Serial1.begin(GPS_DEFAULT_BAUD);
+  return 0;
+}
+#endif
+
 void EnvironmentSensorManager::initBasicGPS() {
 
   Serial1.setPins(PIN_GPS_TX, PIN_GPS_RX);
 
-  #ifdef GPS_BAUD_RATE
-  Serial1.begin(GPS_BAUD_RATE);
-  #else
-  Serial1.begin(9600);
-  #endif
+  Serial1.begin(GPS_DEFAULT_BAUD);
 
   // Try to detect if GPS is physically connected to determine if we should expose the setting
   _location->begin();
@@ -781,6 +832,16 @@ void EnvironmentSensorManager::initBasicGPS() {
 
   if (gps_detected) {
     MESH_DEBUG_PRINTLN("GPS detected");
+    #ifdef GPS_BAUD_AUTODETECT
+    // Bytes arriving does not mean the baud rate is right: at the wrong rate the
+    // parser only sees garbage and never gets a fix.
+    uint32_t baud = detectGPSBaud();
+    if (baud) {
+      MESH_DEBUG_PRINTLN("GPS baud rate: %lu", (unsigned long)baud);
+    } else {
+      MESH_DEBUG_PRINTLN("GPS baud rate not detected, using %lu", (unsigned long)GPS_DEFAULT_BAUD);
+    }
+    #endif
     #ifdef PERSISTANT_GPS
       gps_active = true;
       return;
