@@ -5,6 +5,14 @@
 #include <Arduino.h>
 #include <helpers/RefCountedDigitalPin.h>
 
+#ifndef UART_TYPE
+#ifdef NRF52_PLATFORM
+    #define UART_TYPE Uart
+#else
+    #define UART_TYPE HardwareSerial
+#endif
+#endif
+
 #ifndef PIN_GPS_TX
     #define PIN_GPS_TX (-1)
 #endif
@@ -46,7 +54,11 @@
 #endif
 
 #ifndef GPS_BAUD_RATE
-    #define GPS_BAUD_RATE 9600
+    #ifdef GPS_BAUDRATE
+        #define GPS_BAUD_RATE GPS_BAUDRATE
+    #else
+        #define GPS_BAUD_RATE 9600
+    #endif
 #endif
 
 #ifndef PIN_GPS_SWITCH
@@ -66,8 +78,8 @@
 #endif
 
 class NmeaGpsDriver : public GpsDriver {
-    Stream* _stream = nullptr;
-    HardwareSerial* _hardwareSerial = nullptr;
+    UART_TYPE* _hardwareSerial = nullptr;
+
     RefCountedDigitalPin* _peripheralPower = nullptr;
     int _txPin = -1;
     int _rxPin = -1;
@@ -87,12 +99,12 @@ class NmeaGpsDriver : public GpsDriver {
 #endif
 
     void startHardware() {
-        if (_stream == nullptr || _started) return;
+        if (_hardwareSerial == nullptr || _started) return;
 
         if (_hardwareSerial != nullptr) {
-#ifdef ESP32_PLATFORM
-            _hardwareSerial->setPins(_txPin, _rxPin);
-#endif
+            if (_txPin != -1 && _rxPin != -1) {
+                _hardwareSerial->setPins(_txPin, _rxPin);
+            }
             _hardwareSerial->begin(_baudRate);
         }
 
@@ -116,14 +128,14 @@ class NmeaGpsDriver : public GpsDriver {
 public:
     NmeaGpsDriver() = default;
 
-    NmeaGpsDriver(Stream& stream, int txPin = PIN_GPS_TX, int rxPin = PIN_GPS_RX,
+    NmeaGpsDriver(UART_TYPE& serial, int txPin = PIN_GPS_TX, int rxPin = PIN_GPS_RX,
                   int resetPin = GPS_RESET, int enablePin = GPS_EN,
                   RefCountedDigitalPin* peripheralPower = nullptr,
                   int enableActive = GPS_EN_ACTIVE, int resetActive = GPS_RESET_ACTIVE,
                   uint32_t baudRate = GPS_BAUD_RATE,
                   int hardwareEnablePin = PIN_GPS_SWITCH,
                   int hardwareEnableActive = GPS_SWITCH_ACTIVE)
-        : _stream(&stream), _peripheralPower(peripheralPower), _txPin(txPin), _rxPin(rxPin),
+        : _hardwareSerial(&serial), _peripheralPower(peripheralPower), _txPin(txPin), _rxPin(rxPin),
           _resetPin(resetPin), _enablePin(enablePin), _enableActive(enableActive),
           _resetActive(resetActive), _baudRate(baudRate),
           _hardwareEnablePin(hardwareEnablePin), _hardwareEnableActive(hardwareEnableActive) {
@@ -138,19 +150,6 @@ public:
         if (_hardwareEnablePin != -1) {
             pinMode(_hardwareEnablePin, INPUT);
         }
-    }
-
-    NmeaGpsDriver(HardwareSerial& serial, int txPin = PIN_GPS_TX, int rxPin = PIN_GPS_RX,
-                  int resetPin = GPS_RESET, int enablePin = GPS_EN,
-                  RefCountedDigitalPin* peripheralPower = nullptr,
-                  int enableActive = GPS_EN_ACTIVE, int resetActive = GPS_RESET_ACTIVE,
-                  uint32_t baudRate = GPS_BAUD_RATE,
-                  int hardwareEnablePin = PIN_GPS_SWITCH,
-                  int hardwareEnableActive = GPS_SWITCH_ACTIVE)
-        : NmeaGpsDriver(static_cast<Stream&>(serial), txPin, rxPin, resetPin, enablePin,
-                        peripheralPower, enableActive, resetActive, baudRate,
-                        hardwareEnablePin, hardwareEnableActive) {
-        _hardwareSerial = &serial;
     }
 
     void begin() override {
@@ -232,11 +231,11 @@ public:
     }
 
     int available() {
-        return _stream == nullptr ? 0 : _stream->available();
+        return _hardwareSerial == nullptr ? 0 : _hardwareSerial->available();
     }
 
     int read() {
-        return _stream == nullptr ? -1 : _stream->read();
+        return _hardwareSerial == nullptr ? -1 : _hardwareSerial->read();
     }
 
     void drain() {
@@ -244,19 +243,19 @@ public:
     }
 
     void sendNmeaSentence(const char* sentence) {
-        if (_stream == nullptr || sentence == nullptr || sentence[0] != '$') return;
+        if (_hardwareSerial == nullptr || sentence == nullptr || sentence[0] != '$') return;
 
         uint8_t checksum = 0;
         const char* p = sentence + 1;
         while (*p != '\0' && *p != '*') checksum ^= (uint8_t)*p++;
 
-        _stream->print(sentence);
+        _hardwareSerial->print(sentence);
         if (*p == '\0') {
             char checksumSuffix[6];
             snprintf(checksumSuffix, sizeof(checksumSuffix), "*%02X\r\n", checksum);
-            _stream->print(checksumSuffix);
+            _hardwareSerial->print(checksumSuffix);
         } else {
-            _stream->print("\r\n");
+            _hardwareSerial->print("\r\n");
         }
     }
 };

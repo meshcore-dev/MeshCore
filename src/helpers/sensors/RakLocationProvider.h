@@ -29,7 +29,7 @@ class RakLocationProvider : public LocationProvider {
 
 public:
     RakLocationProvider(RakI2cGpsDriver& driver, mesh::RTCClock* clock = nullptr,
-                        HardwareSerial& serial = Serial1)
+                        UART_TYPE& serial = Serial1)
         : _driver(driver), _nmeaDriver(serial), _nmea(_nmeaDriver, clock) {}
 
     void syncTime() override {

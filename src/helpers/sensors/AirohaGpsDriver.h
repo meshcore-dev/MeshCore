@@ -46,8 +46,8 @@ class AirohaGpsDriver : public NmeaGpsDriver {
     }
 
 public:
-    AirohaGpsDriver(HardwareSerial& serial)
-        : NmeaGpsDriver(serial, -1, -1, -1, -1, nullptr, HIGH, LOW, 115200) {}
+    AirohaGpsDriver(UART_TYPE& serial)
+        : NmeaGpsDriver(serial, -1, -1, -1, -1, nullptr, HIGH, LOW, GPS_BAUD_RATE) {} 
 
     void initialize() {
         NmeaGpsDriver::begin();
