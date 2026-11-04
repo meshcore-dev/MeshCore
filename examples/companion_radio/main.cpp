@@ -1,4 +1,8 @@
 #include <Arduino.h>   // needed for PlatformIO
+#if defined(NRF52_PLATFORM) && defined(M1_BOOT_SLEEP_TEST)
+  #include <nrf.h>
+  #include <nrf_sdm.h>
+#endif
 #include <Mesh.h>
 #include "MyMesh.h"
 
@@ -133,6 +137,32 @@ void halt() {
 #endif
 
 void setup() {
+#ifdef M1_BOOT_SLEEP_TEST
+  /* ★ 诊断构建：**什么都不初始化**，只装唤醒源就立刻进 SYSTEMOFF。
+     目的：把"MCU + 板子本身"与"我们应用的初始化流程"彻底分开。
+       · 若此时 ≈30 µA → 300 µA 是我们初始化（显示/电台/传感器/I²C…）留下的；
+       · 若仍 300 µA   → 与 App 无关，问题在板子/引导程序/SoftDevice 层。
+     注意：上一版这里写 `while(1){}` 空转会烧 10 mA，这一版改成 WFE 空闲。
+     进 OFF 后按翻页键（P1.10）单击可唤醒（会再次立刻睡下去）。 */
+  nrf_gpio_cfg_input(PIN_USER_BTN, NRF_GPIO_PIN_PULLUP);
+  nrf_gpio_cfg_sense_set(PIN_USER_BTN, NRF_GPIO_PIN_SENSE_LOW);
+  delay(500);
+  {
+    uint8_t sd_enabled = 0;
+    sd_softdevice_is_enabled(&sd_enabled);
+    if (sd_enabled) {
+      for (int i = 0; i < 5; i++) {
+        (void) sd_power_system_off();      // 成功就永不返回
+        delay(20);
+      }
+      (void) sd_softdevice_disable();
+      delay(10);
+    }
+    NRF_POWER->SYSTEMOFF = POWER_SYSTEMOFF_SYSTEMOFF_Enter;
+    __DSB();
+  }
+  while (1) { __WFE(); }                   // 万一没睡成，也别空转烧 mA
+#else
   Serial.begin(115200);
   board.begin();
 
@@ -287,6 +317,7 @@ void setup() {
 #endif
 
   board.onBootComplete();
+#endif  // M1_BOOT_SLEEP_TEST
 }
 
 void loop() {

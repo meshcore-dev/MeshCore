@@ -70,4 +70,6 @@ public:
   void drawSleepIcon();
   uint16_t getTextWidth(const char* str) override;
   void endFrame() override;
+  void requestFullRefresh() override { _force_full_refresh = true; }
+  bool hasPendingRefresh() override { return _force_full_refresh; }
 };

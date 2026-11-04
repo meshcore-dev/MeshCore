@@ -18,7 +18,8 @@ void initVariant() {
   digitalWrite(PIN_PWR_EN, HIGH);
 
   pinMode(PIN_BUTTON1, INPUT_PULLUP);
-  pinMode(PIN_BUTTON2, INPUT_PULLUP);
+  // P0.11 is GPS_INT on V2.0, not the function button (P1.07).
+  pinMode(PIN_BUTTON2, INPUT);
 
   pinMode(LED_RED, OUTPUT);
   pinMode(LED_GREEN, OUTPUT);
