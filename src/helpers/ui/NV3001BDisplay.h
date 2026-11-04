@@ -1,8 +1,23 @@
 #pragma once
 
 #include "DisplayDriver.h"
-#include <SPI.h>
 #include <helpers/RefCountedDigitalPin.h>
+
+#ifndef NV3001B_USE_SOFTWARE_SPI
+  #define NV3001B_USE_SOFTWARE_SPI 0
+#endif
+
+#ifndef NV3001B_USE_FAST_GPIO
+  #define NV3001B_USE_FAST_GPIO 0
+#endif
+
+#if NV3001B_USE_FAST_GPIO && !NV3001B_USE_SOFTWARE_SPI
+  #error "NV3001B_USE_FAST_GPIO requires NV3001B_USE_SOFTWARE_SPI"
+#endif
+
+#if !NV3001B_USE_SOFTWARE_SPI
+  #include <SPI.h>
+#endif
 
 #ifndef NV3001B_LOGICAL_WIDTH
   #define NV3001B_LOGICAL_WIDTH 128
@@ -20,12 +35,14 @@
   #define NV3001B_PANEL_HEIGHT 220
 #endif
 
-#ifndef NV3001B_SPI_HOST
+#if !NV3001B_USE_SOFTWARE_SPI && !defined(NV3001B_SPI_HOST)
   #define NV3001B_SPI_HOST HSPI
 #endif
 
 class NV3001BDisplay : public DisplayDriver {
+#if !NV3001B_USE_SOFTWARE_SPI
   SPIClass spi;
+#endif
   RefCountedDigitalPin* periph_power;
   bool is_on = false;
   uint16_t color = 0xffff;
@@ -33,6 +50,10 @@ class NV3001BDisplay : public DisplayDriver {
   int cursor_x = 0;
   int cursor_y = 0;
 
+  void beginTransport();
+  void beginTransfer();
+  void transferByte(uint8_t value);
+  void endTransfer();
   void writeCommand(uint8_t cmd);
   void writeBytes(const uint8_t* data, size_t len);
   void writeCommandData(uint8_t cmd, const uint8_t* data, size_t len);
@@ -44,7 +65,13 @@ class NV3001BDisplay : public DisplayDriver {
 
 public:
   NV3001BDisplay(RefCountedDigitalPin* power = nullptr) :
-      DisplayDriver(NV3001B_LOGICAL_WIDTH, NV3001B_LOGICAL_HEIGHT), spi(NV3001B_SPI_HOST), periph_power(power) { }
+      DisplayDriver(NV3001B_LOGICAL_WIDTH, NV3001B_LOGICAL_HEIGHT)
+#if !NV3001B_USE_SOFTWARE_SPI
+      ,
+      spi(NV3001B_SPI_HOST)
+#endif
+      ,
+      periph_power(power) { }
 
   bool begin();
   static const char* driverName() { return "NV3001B"; }
