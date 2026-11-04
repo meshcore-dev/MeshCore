@@ -91,8 +91,7 @@ struct PostInfo {
 
 class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
   FILESYSTEM* _fs;
-  uint32_t last_millis;
-  uint64_t uptime_millis;
+  MonotonicMillis uptime;
   unsigned long next_local_advert, next_flood_advert;
   bool _logging;
   bool region_load_active;
