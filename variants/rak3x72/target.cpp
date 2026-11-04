@@ -24,9 +24,11 @@ SensorManager sensors;
   #define LORA_CR      5
 #endif
 
+// Auto-detect the oscillator. begin() is given a TCXO voltage; RadioLib falls
+// back to the crystal if it fails to start, so one build runs on both the
+// crystal RAK3172 and the TCXO -T. A hard-coded 0 leaves the -T failing (-707).
 #ifndef STM32WL_TCXO_VOLTAGE
-  // TCXO set to 0 for RAK3172
-  #define STM32WL_TCXO_VOLTAGE 0
+  #define STM32WL_TCXO_VOLTAGE 1.8
 #endif
 
 #ifndef LORA_TX_POWER
