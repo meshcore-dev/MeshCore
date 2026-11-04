@@ -50,6 +50,18 @@ void MuziBaseSensorManager::loop() {
     _pwr_last_click = t;
     if (++_pwr_clicks >= USER_BTN_POWER_OFF_CLICKS) muziPowerOff();
   }
+#if ENV_INCLUDE_GPS
+  // the ATGM336H keeps its nmea output config across power cycles (backup
+  // supply), and other firmware may have turned every sentence off. re-enable
+  // GGA + RMC after each power-up, once the module has booted.
+  bool gps_on = _location->isActive();
+  if (gps_on && !_gps_was_active) _gps_cfg_at = millis() + 1000;
+  _gps_was_active = gps_on;
+  if (_gps_cfg_at && gps_on && (long)(millis() - _gps_cfg_at) > 0) {
+    _gps_cfg_at = 0;
+    _location->sendSentence("$PCAS03,1,0,0,0,1,0,0,0,0,0,,,0,0");
+  }
+#endif
   EnvironmentSensorManager::loop();
 }
 
