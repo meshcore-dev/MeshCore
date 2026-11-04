@@ -65,6 +65,7 @@ A list of frequently-asked questions and answers for MeshCore
     - [5.14. Q: Are there projects built around MeshCore?](#514-q-are-there-projects-built-around-meshcore)
     - [5.15. Q: Are there client applications for Windows or Mac?](#515-q-are-there-client-applications-for-windows-or-mac)
     - [5.16. Q: Are there any resources that compare MeshCore to other LoRa systems?](#516-q-are-there-any-resources-that-compare-meshcore-to-other-lora-systems)
+    - [5.17. Q: My external GPS is wired to different pins than the firmware expects. Do I need a custom build?](#517-q-my-external-gps-is-wired-to-different-pins-than-the-firmware-expects-do-i-need-a-custom-build)
 - [6. Troubleshooting](#6-troubleshooting)
     - [6.1. Q: My client says another client or a repeater or a room server was last seen many, many days ago.](#61-q-my-client-says-another-client-or-a-repeater-or-a-room-server-was-last-seen-many-many-days-ago)
     - [6.2. Q: A repeater or a client or a room server I expect to see on my discover list (on T-Deck) or contact list (on a smart device client) are not listed.](#62-q-a-repeater-or-a-client-or-a-room-server-i-expect-to-see-on-my-discover-list-on-t-deck-or-contact-list-on-a-smart-device-client-are-not-listed)
@@ -664,6 +665,25 @@ Both the Windows and Mac versions of the client app are fully unlocked and are f
 - The Comms Channel on YouTube: <https://www.youtube.com/watch?v=guDoKGs02Us>
 - MeshCore Advantages by MCarper: <https://github.com/mikecarper/meshfirmware/blob/main/MeshCoreAdvantages.md>
 - MeshCore vs Meshtastic by austinmesh.org: <https://www.austinmesh.org/learn/meshcore-vs-meshtastic>
+
+### 5.17. Q: My external GPS is wired to different pins than the firmware expects. Do I need a custom build?
+**A:** Not on companion firmware. The GPS pins and baud rate can be changed at runtime through these custom variables (in the app, or with `meshcore-cli`):
+
+| Variable   | Meaning                                                          | Default |
+|------------|------------------------------------------------------------------|---------|
+| `gps_tx`   | MCU pin connected to the GPS module's **TX** (MCU receives here)  | board's `PIN_GPS_TX` |
+| `gps_rx`   | MCU pin connected to the GPS module's **RX** (MCU transmits here) | board's `PIN_GPS_RX` |
+| `gps_en`   | MCU pin that powers/enables the GPS (driven high when GPS is on)  | board's `PIN_GPS_EN` (`-1` = none) |
+| `gps_baud` | GPS UART baud rate (4800, 9600, 19200, 38400, 57600, 115200, 230400) | board's `GPS_BAUD_RATE`, else 9600 |
+
+The variables always show the value in effect, so on a stock Heltec V3 they read `gps_rx:47`, `gps_tx:48`, `gps_en:26`, `gps_baud:9600`. Setting a variable to the board's built-in value (or to `-1`, or `0` for `gps_baud`) makes it follow the board default again. The values are saved and applied on the **next reboot**. They are listed even when no GPS was detected, so a wrong setting can always be fixed. Once the GPS is found, the usual `gps` on/off variable appears.
+
+Pins already used by the board (LoRa, display I2C, button, Vext, LED, and on ESP32 the flash/PSRAM and USB serial pins) are rejected. Pins the board definition doesn't declare can't be checked, so double-check your wiring. Not available on RAK WisBlock GPS boards, which detect the GPS socket automatically.
+
+Example for a Heltec V3 with the GPS on GPIO34 (TX) / GPIO33 (RX), powered from GPIO42:
+```
+meshcli -s /dev/ttyUSB0 set gps_tx 34 set gps_rx 33 set gps_en 42 set gps_baud 9600 reboot
+```
 
 
 ---

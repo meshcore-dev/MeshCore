@@ -4,6 +4,11 @@
 #include <helpers/SensorManager.h>
 #include <helpers/sensors/LocationProvider.h>
 
+// Not for RAK WisBlock GPS (same condition as RAK_WISBLOCK_GPS in the .cpp), which probes sockets instead
+#if ENV_INCLUDE_GPS && !(defined(RAK_BOARD) && !defined(RAK_WISMESH_TAG))
+  #define ENV_GPS_PIN_CONFIG 1
+#endif
+
 class EnvironmentSensorManager : public SensorManager {
 protected:
   static const int MAX_ACTIVE_SENSORS = 16;
@@ -25,6 +30,17 @@ protected:
 
   #if ENV_INCLUDE_GPS
   LocationProvider* _location;
+  #if ENV_GPS_PIN_CONFIG
+  // Runtime overrides of PIN_GPS_RX/TX/EN and GPS_BAUD_RATE (-1 / 0 = variant default).
+  // Only exposed as settings once the app calls configureGPS(), since it must persist them.
+  bool     gps_cfg_enabled = false;
+  int8_t   gps_pin_rx = -1;
+  int8_t   gps_pin_tx = -1;
+  int8_t   gps_pin_en = -1;
+  uint32_t gps_baud = 0;
+  mutable char gps_cfg_val[4][12];
+  bool isGPSPinAllowed(int pin, bool output) const;
+  #endif
   void start_gps();
   void stop_gps();
   void initBasicGPS();
@@ -39,6 +55,14 @@ public:
   EnvironmentSensorManager(LocationProvider &location): _location(&location){};
   LocationProvider* getLocationProvider() { return _location; }
   bool isGPSDetected() const override { return gps_detected; }
+  #if ENV_GPS_PIN_CONFIG
+  // Call before begin(). Invalid values fall back to the variant defaults.
+  void configureGPS(int rx, int tx, int en, uint32_t baud);
+  // Current overrides (-1 / 0 = board default), for persisting after a setting change.
+  void getGPSOverrides(int8_t& rx, int8_t& tx, int8_t& en, uint32_t& baud) const {
+    rx = gps_pin_rx; tx = gps_pin_tx; en = gps_pin_en; baud = gps_baud;
+  }
+  #endif
   #else
   EnvironmentSensorManager(){};
   #endif
