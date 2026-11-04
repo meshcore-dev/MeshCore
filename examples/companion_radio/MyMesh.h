@@ -53,6 +53,9 @@
 #ifndef MAX_LORA_TX_POWER
 #define MAX_LORA_TX_POWER LORA_TX_POWER
 #endif
+#ifndef MIN_LORA_TX_POWER
+#define MIN_LORA_TX_POWER -9
+#endif
 
 #ifndef MAX_CONTACTS
 #define MAX_CONTACTS 100
