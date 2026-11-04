@@ -1,16 +1,16 @@
 #pragma once
 
-#include "NmeaGpsDriver.h"
+#include "GpsDriver.h"
 
 #include <SparkFun_u-blox_GNSS_Arduino_Library.h>
 
-class RakGpsDriver : public GpsDriver {
-    NmeaGpsDriver _serialDriver;
+// Driver for the RAK12500 (u-blox, I2C). Serial NMEA modules are handled by NmeaGpsDriver.
+class RakI2cGpsDriver : public GpsDriver {
     TwoWire& _wire;
     SFE_UBLOX_GNSS _gnss;
     uint8_t _powerPin = 0;
-    bool _usingRak12500 = false;
     bool _detected = false;
+    bool _started = false;
 
     bool probeRak12500(uint8_t powerPin) {
 #if defined(ETHERNET_ENABLED) && defined(RAK_BOARD)
@@ -37,7 +37,6 @@ class RakGpsDriver : public GpsDriver {
             _gnss.setMeasurementRate(1000);
             _gnss.saveConfigSelective(VAL_CFG_SUBSEC_IOPORT);
             _powerPin = powerPin;
-            _usingRak12500 = true;
             return true;
         }
 
@@ -48,62 +47,47 @@ class RakGpsDriver : public GpsDriver {
     }
 
 public:
-    RakGpsDriver(HardwareSerial& serial = Serial1, TwoWire& wire = Wire)
-        : _serialDriver(serial), _wire(wire) {}
+    RakI2cGpsDriver(TwoWire& wire = Wire) : _wire(wire) {}
 
     void begin() override {
-        if (_usingRak12500) {
+        if (!_detected) return;
 #ifndef RAK_3401
-            pinMode(_powerPin, OUTPUT);
-            digitalWrite(_powerPin, HIGH);
+        pinMode(_powerPin, OUTPUT);
+        digitalWrite(_powerPin, HIGH);
 #endif
-            return;
-        }
-        _serialDriver.begin();
+        _started = true;
     }
 
-    void reset() override {
-        if (!_usingRak12500) _serialDriver.reset();
-    }
+    void reset() override {}
 
     void stop() override {
-        if (_usingRak12500) {
+        if (_detected) {
 #ifndef RAK_3401
             pinMode(_powerPin, OUTPUT);
             digitalWrite(_powerPin, LOW);
 #endif
-            return;
         }
-        _serialDriver.stop();
+        _started = false;
     }
 
     bool isActive() const override {
-        return _usingRak12500 ? true : _serialDriver.isActive();
+        return _started;
     }
 
+    // Probes the I2C module on the possible power pins; the module is left powered.
     bool detect(uint32_t) override {
         if (_detected) return true;
 
-        _serialDriver.begin();
         if (probeRak12500(WB_IO2) || probeRak12500(WB_IO4) || probeRak12500(WB_IO5)) {
             _detected = true;
-            return true;
+            _started = true;
         }
-
-        if (_serialDriver.detect(0)) {
-            _detected = true;
-            return true;
-        }
-
-        _serialDriver.stop();
-        return false;
+        return _detected;
     }
 
-    bool usesRak12500() const { return _usingRak12500; }
     bool isDetected() const { return _detected; }
-    NmeaGpsDriver& nmeaDriver() { return _serialDriver; }
 
-    bool hasFix() { return _usingRak12500 && _gnss.getGnssFixOk(8); }
+    bool hasFix() { return _started && _gnss.getGnssFixOk(8); }
     long getLatitude() { return _gnss.getLatitude(2) / 10; }
     long getLongitude() { return _gnss.getLongitude(2) / 10; }
     long getAltitude() { return _gnss.getAltitude(2); }

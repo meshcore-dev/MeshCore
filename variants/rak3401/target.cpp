@@ -26,7 +26,7 @@ AutoDiscoverRTCClock rtc_clock(fallback_clock);
 
 #if ENV_INCLUDE_GPS
   #include <helpers/sensors/RakLocationProvider.h>
-  RakGpsDriver gps_driver;
+  RakI2cGpsDriver gps_driver;
   RakLocationProvider location(gps_driver, &rtc_clock);
   EnvironmentSensorManager sensors(location);
 #else
