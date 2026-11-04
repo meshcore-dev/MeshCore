@@ -40,6 +40,7 @@ jobs:
           - PicoW_repeater
           # STM32
           - wio-e5-mini_repeater
+          - nucleo_wl55jc_repeater
           # ESP32-C6
           - LilyGo_Tlora_C6_repeater_
           # LR1110 (nRF52)
