@@ -4,6 +4,7 @@
 #include <Mesh.h>
 #include <RTClib.h>
 #include <target.h>
+#include <helpers/DutyCycleLimits.h>
 
 #if defined(NRF52_PLATFORM) || defined(STM32_PLATFORM)
   #include <InternalFileSystem.h>
@@ -129,7 +130,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
 
 protected:
   float getAirtimeBudgetFactor() const override {
-    return _prefs.airtime_factor;
+    return getEffectiveAirtimeFactor(_prefs.dutycycle_auto, _prefs.airtime_factor, _prefs.freq);
   }
 
   bool allowPacketForward(const mesh::Packet* packet) override;

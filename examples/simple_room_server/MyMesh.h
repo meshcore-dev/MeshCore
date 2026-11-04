@@ -2,6 +2,7 @@
 
 #include <Arduino.h>   // needed for PlatformIO
 #include <Mesh.h>
+#include <helpers/DutyCycleLimits.h>
 
 #if defined(NRF52_PLATFORM)
   #include <InternalFileSystem.h>
@@ -130,7 +131,7 @@ class MyMesh : public mesh::Mesh, public CommonCLICallbacks {
 
 protected:
   float getAirtimeBudgetFactor() const override {
-    return _prefs.airtime_factor;
+    return getEffectiveAirtimeFactor(_prefs.dutycycle_auto, _prefs.airtime_factor, _prefs.freq);
   }
 
   void logRxRaw(float snr, float rssi, const uint8_t raw[], int len) override;
