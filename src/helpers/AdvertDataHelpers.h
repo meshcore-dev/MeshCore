@@ -50,6 +50,8 @@ class AdvertDataParser {
 public:
   AdvertDataParser(const uint8_t app_data[], uint8_t app_data_len);
 
+  static bool isValidName(const char* name);
+
   bool isValid() const { return _valid; }
   uint8_t getType() const { return _flags & 0x0F; }
   uint16_t getFeat1() const { return _extra1; }

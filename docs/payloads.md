@@ -93,6 +93,7 @@ Returned path messages provide a description of the route a packet took from the
 | Field        | Size (bytes)    | Description                              |
 |--------------|-----------------|------------------------------------------|
 | timestamp    | 4               | sender time (unix timestamp)             |
+| req type     | 1               | request sub type                         |
 | request data | rest of payload | application-defined request payload body |
 
 For the common chat/server helpers in `BaseChatMesh`, the current request type values are:
@@ -100,7 +101,13 @@ For the common chat/server helpers in `BaseChatMesh`, the current request type v
 | Value  | Name      | Description                                        |
 |--------|-----------|----------------------------------------------------|
 | `0x01` | get stats | get stats of repeater or room server               |
-| `0x02` | keepalive | keep-alive request used for maintained connections |
+| `0x02` | keepalive | (deprecated)    |
+| `0x03` | get telemetry | request node telemetry    |
+| `0x04` | get min/max/avg | get sensor node stats on time series data    |
+| `0x05` | get acl   | node ACL query    |
+| `0x06` | get neighbors   | node neighbors query    |
+| `0x08` | subscribe   | subscribe to telemetry push    |
+| `0x09` | ubsubscribe   | unsubscribe from telemetry push    |
 
 #### Get stats
 
@@ -125,21 +132,50 @@ Gets information about the node, possibly including the following:
 * Number posted (?)
 * Number of post pushes (?)
 
-#### Get telemetry data
-
-Not defined in `BaseChatMesh`. Sensor- and application-specific request payloads may be implemented by higher-level firmware.
-
 #### Get Telemetry
 
-Not defined in `BaseChatMesh`.
+| Field          | Size (bytes) | Description                  |
+|----------------|--------------|------------------------------|
+| timestamp      | 4            | sender time (unix timestamp) |
+| req type       | 1            | 0x03 (request sub type)      |
+| permission mask  | 1          | bitwise inverse mask to AND to permissions (0 = get ALL telem values)   |
 
 #### Get Min/Max/Ave  (Sensor nodes)
 
-Not defined in `BaseChatMesh`.
+| Field          | Size (bytes) | Description                  |
+|----------------|--------------|------------------------------|
+| timestamp      | 4            | sender time (unix timestamp) |
+| req type       | 1            | 0x04 (request sub type)      |
+| start          | 4            | starting time, seconds ago   |
+| end            | 4            | ending time, seconds ago     |
+| reserved       | 2            | should be zeroes   |
+
+#### Subscribe to Telemetry push - (Sensor nodes)
+
+| Field          | Size (bytes) | Description                  |
+|----------------|--------------|------------------------------|
+| timestamp      | 4            | sender time (unix timestamp) |
+| req type       | 1            | 0x08 (request sub type)      |
+| push tag       | 4            | 32-bit tag to be used in telemetry push _REPLY payloads  |
+| timeout secs   | 2            | subscription timeout (seconds)   |
+| reserved       | 1            | should be zero   |
+| min deltas len | 1            | byte length of LPP encoded min_deltas   |
+| min deltas     | (variable)   | LPP encoded min_deltas   |
+
+#### Unsubscribe from Telemetry push - (Sensor nodes)
+
+| Field          | Size (bytes) | Description                  |
+|----------------|--------------|------------------------------|
+| timestamp      | 4            | sender time (unix timestamp) |
+| req type       | 1            | 0x09 (request sub type)      |
 
 #### Get Access List
 
-Not defined in `BaseChatMesh`.
+| Field          | Size (bytes) | Description                  |
+|----------------|--------------|------------------------------|
+| timestamp      | 4            | sender time (unix timestamp) |
+| req type       | 1            | 0x05 (request sub type)      |
+| reserved       | 2            | should be zeroes  |
 
 #### Get Neighbors
 
@@ -171,8 +207,9 @@ txt_type
 | Value  | Description               | Message content                                                          |
 |--------|---------------------------|--------------------------------------------------------------------------|
 | `0x00` | plain text message        | the plain text of the message                                            |
-| `0x01` | CLI command               | the command text of the message                                          |
+| `0x01` | CLI data                  | CLI command OR reply text                                                |
 | `0x02` | signed plain text message | first four bytes is sender pubkey prefix, followed by plain text message |
+| `0x03` | CLI command               | (since v1.18+) CLI command text (explicit)        |
 
 ## Anonymous request
 

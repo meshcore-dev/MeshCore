@@ -9,6 +9,12 @@
 #define USE_LFXO
 #define VARIANT_MCK (64000000ul)
 
+// This board has no external RTC chip -- the ICM-42607-P IMU sits at 0x68,
+// the same I2C address DS3231 probing checks, so without this the IMU gets
+// misidentified as a DS3231 and its unrelated registers get read/written
+// as if they were time/status registers, producing a bogus, unfixable clock.
+#define DISABLE_DS3231_PROBE
+
 ////////////////////////////////////////////////////////////////////////////////
 // Number of pins
 

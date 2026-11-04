@@ -120,7 +120,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 // Temp+Lux Sensor
 
-#define SENSOR_EN               (4)             // P0.4
 #define TEMP_SENSOR             (31)            // P0.31/AIN7
 #define LUX_SENSOR              (29)            // P0.29/AIN5
 

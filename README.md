@@ -123,6 +123,6 @@ There are a number of fairly major features in the pipeline, with no particular 
 
 ## 📞 Get Support
 
-- Report bugs and request features on the [GitHub Issues](https://github.com/ripplebiz/MeshCore/issues) page.
+- Report bugs and request features on the [GitHub Issues](https://github.com/meshcore-dev/meshcore/issues) page.
 - Find additional guides and components on [my site](https://buymeacoffee.com/ripplebiz).
 - Join [MeshCore Discord](https://meshcore.gg) to chat with the developers and get help from the community.

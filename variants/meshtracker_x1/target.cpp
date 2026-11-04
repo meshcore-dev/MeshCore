@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include "target.h"
 #include <helpers/sensors/MicroNMEALocationProvider.h>
+#include <helpers/sensors/AirohaSleep.h>
 
 MeshTrackerX1Board board;
 
@@ -27,46 +28,27 @@ mesh::LocalIdentity radio_new_identity() {
 
 void MeshTrackerX1SensorManager::start_gps() {
   gps_active = true;
-  // this init sequence comes from seeed examples and deals with all gps pins
-  pinMode(GPS_EN, OUTPUT);
   digitalWrite(GPS_EN, HIGH);
   delay(10);
-  pinMode(GPS_VRTC_EN, OUTPUT);
-  digitalWrite(GPS_VRTC_EN, HIGH);
-  delay(10);
-
-  pinMode(GPS_RESET, OUTPUT);
-  digitalWrite(GPS_RESET, HIGH);
-  delay(10);
-  digitalWrite(GPS_RESET, LOW);
-
-  pinMode(GPS_SLEEP_INT, OUTPUT);
-  digitalWrite(GPS_SLEEP_INT, HIGH);
-  pinMode(GPS_RTC_INT, OUTPUT);
-  digitalWrite(GPS_RTC_INT, LOW);
-}
-
-void MeshTrackerX1SensorManager::sleep_gps() {
-  gps_active = false;
-  digitalWrite(GPS_VRTC_EN, HIGH);   // keep RTC alive for faster fix on wake
-  digitalWrite(GPS_EN, LOW);
-  digitalWrite(GPS_RESET, LOW);
-  digitalWrite(GPS_SLEEP_INT, HIGH);
+  digitalWrite(GPS_RTC_INT, HIGH);
+  delay(5);
   digitalWrite(GPS_RTC_INT, LOW);
 }
 
 void MeshTrackerX1SensorManager::stop_gps() {
   gps_active = false;
-  digitalWrite(GPS_VRTC_EN, LOW);
+  digitalWrite(GPS_VRTC_EN, HIGH);   // keep GPS RTC alive for faster fix on wake
+  digitalWrite(GPS_RTC_INT, LOW);    // make sure this is LOW so we can pulse it to wake
+  airohaEnterSleep(_nmea);
   digitalWrite(GPS_EN, LOW);
-  digitalWrite(GPS_RESET, LOW);
-  digitalWrite(GPS_SLEEP_INT, HIGH);
-  digitalWrite(GPS_RTC_INT, LOW);
 }
 
 bool MeshTrackerX1SensorManager::begin() {
   // init GPS
   Serial1.begin(GPS_BAUD_RATE);
+  digitalWrite(GPS_RESET, HIGH);
+  delay(10);
+  digitalWrite(GPS_RESET, LOW);
 
   // init SPA06-003 barometer
   baro_ok = spa06.begin(SPA06_003_DEFAULT_ADDR, &Wire) || spa06.begin(0x76, &Wire);
@@ -122,7 +104,7 @@ const char* MeshTrackerX1SensorManager::getSettingValue(int i) const {
 bool MeshTrackerX1SensorManager::setSettingValue(const char* name, const char* value) {
   if (strcmp(name, "gps") == 0) {
     if (strcmp(value, "0") == 0) {
-      sleep_gps(); // sleep for faster fix !
+      stop_gps();
     } else {
       start_gps();
     }
