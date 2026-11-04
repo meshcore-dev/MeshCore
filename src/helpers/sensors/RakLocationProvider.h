@@ -1,11 +1,15 @@
 #pragma once
 
 #include "MicroNMEALocationProvider.h"
-#include "RakGpsDriver.h"
+#include "NmeaGpsDriver.h"
+#include "RakI2cGpsDriver.h"
 
 class RakLocationProvider : public LocationProvider {
-    RakGpsDriver& _driver;
+    RakI2cGpsDriver& _driver;       // RAK12500 (I2C)
+    NmeaGpsDriver _nmeaDriver;      // serial NMEA module
     MicroNMEALocationProvider _nmea;
+    bool _detected = false;
+    bool _useI2c = false;
     uint32_t _gpsPeriodSeconds = 0;
     unsigned long _nextAcquisition = 0;
     unsigned long _acquisitionStarted = 0;
@@ -24,73 +28,74 @@ class RakLocationProvider : public LocationProvider {
     }
 
 public:
-    RakLocationProvider(RakGpsDriver& driver, mesh::RTCClock* clock = nullptr)
-        : _driver(driver), _nmea(driver.nmeaDriver(), clock) {}
+    RakLocationProvider(RakI2cGpsDriver& driver, mesh::RTCClock* clock = nullptr,
+                        HardwareSerial& serial = Serial1)
+        : _driver(driver), _nmeaDriver(serial), _nmea(_nmeaDriver, clock) {}
 
     void syncTime() override {
         LocationProvider::syncTime();
-        if (!_driver.usesRak12500()) _nmea.syncTime();
+        if (!_useI2c) _nmea.syncTime();
     }
 
     long getLatitude() override {
-        return _driver.usesRak12500() ? _lastFix.latitude : _nmea.getLatitude();
+        return _useI2c ? _lastFix.latitude : _nmea.getLatitude();
     }
 
     long getLongitude() override {
-        return _driver.usesRak12500() ? _lastFix.longitude : _nmea.getLongitude();
+        return _useI2c ? _lastFix.longitude : _nmea.getLongitude();
     }
 
     long getAltitude() override {
-        return _driver.usesRak12500() ? _lastFix.altitude : _nmea.getAltitude();
+        return _useI2c ? _lastFix.altitude : _nmea.getAltitude();
     }
 
     long satellitesCount() override {
-        return _driver.usesRak12500() ? _lastFix.satellites : _nmea.satellitesCount();
+        return _useI2c ? _lastFix.satellites : _nmea.satellitesCount();
     }
 
     bool isValid() override {
-        return _driver.usesRak12500() ? _driver.hasFix() : _nmea.isValid();
+        return _useI2c ? _driver.hasFix() : _nmea.isValid();
     }
 
     LastFix getLastFix() const override {
-        return _driver.usesRak12500() ? _lastFix : _nmea.getLastFix();
+        return _useI2c ? _lastFix : _nmea.getLastFix();
     }
 
     long getTimestamp() override {
-        return _driver.usesRak12500() ? _lastFix.timestamp : _nmea.getTimestamp();
+        return _useI2c ? _lastFix.timestamp : _nmea.getTimestamp();
     }
 
     void sendSentence(const char* sentence) override {
-        if (!_driver.usesRak12500()) _nmea.sendSentence(sentence);
+        if (!_useI2c) _nmea.sendSentence(sentence);
     }
 
     bool waitFor(const char* prefix, uint32_t timeout_ms) override {
-        return _driver.usesRak12500() ? false : _nmea.waitFor(prefix, timeout_ms);
+        return _useI2c ? false : _nmea.waitFor(prefix, timeout_ms);
     }
 
     void drain() override {
-        if (!_driver.usesRak12500()) _nmea.drain();
+        if (!_useI2c) _nmea.drain();
     }
 
     void reset() override {
-        _driver.reset();
+        if (!_useI2c) _nmea.reset();
     }
 
     void begin() override {
-        if (_driver.isDetected() && _driver.usesRak12500()) {
+        if (_detected && _useI2c) {
             _driver.begin();
             _acquiringPeriodically = _gpsPeriodSeconds > 0;
             _acquisitionStarted = millis();
-        } else if (_driver.isDetected()) {
+        } else if (_detected) {
             _nmea.begin();
         } else {
-            _driver.begin();
+            _nmeaDriver.begin();
         }
     }
 
     void stop() override {
         _acquiringPeriodically = false;
-        if (_driver.usesRak12500()) {
+        if (_useI2c) {
             _driver.stop();
         } else {
             _nmea.stop();
@@ -98,9 +103,19 @@ public:
     }
 
     bool detect(uint32_t timeout_ms) override {
-        if (!_driver.detect(timeout_ms)) return false;
+        if (_detected) return true;
 
-        if (_driver.usesRak12500()) {
+        // the serial module is started first, then the I2C module is probed
+        _nmeaDriver.begin();
+        if (_driver.detect(timeout_ms)) {
+            _useI2c = true;
+        } else if (!_nmeaDriver.detect(0)) {
+            _nmeaDriver.stop();
+            return false;
+        }
+        _detected = true;
+
+        if (_useI2c) {
             _acquiringPeriodically = _gpsPeriodSeconds > 0;
             _acquisitionStarted = millis();
         } else {
@@ -119,7 +134,7 @@ public:
     }
 
     void loop() override {
-        if (_driver.usesRak12500()) {
+        if (_useI2c) {
             if (_gpsOn) {
                 if (_gpsPeriodSeconds > 0) {
                     if (!_acquiringPeriodically &&
@@ -151,13 +166,13 @@ public:
     }
 
     bool isActive() override {
-        return _driver.isActive();
+        return _useI2c ? _driver.isActive() : _nmea.isActive();
     }
 
     void setGpsPeriod(uint32_t seconds) override {
         _gpsPeriodSeconds = seconds;
         _nextAcquisition = millis();
-        if (!_driver.usesRak12500()) _nmea.setGpsPeriod(seconds);
+        if (!_useI2c) _nmea.setGpsPeriod(seconds);
     }
 
     uint32_t getGpsPeriod() const override {
@@ -165,7 +180,7 @@ public:
     }
 
     void setGpsOn(bool on) override {
-        if (_driver.usesRak12500()) LocationProvider::setGpsOn(on);
+        if (_useI2c) LocationProvider::setGpsOn(on);
         else { _gpsOn = on; _nmea.setGpsOn(on); }
     }
 };
