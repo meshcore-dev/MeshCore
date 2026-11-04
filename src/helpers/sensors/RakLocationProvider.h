@@ -57,6 +57,10 @@ public:
         return _useI2c ? _driver.hasFix() : _nmea.isValid();
     }
 
+    FixStats getFixStats() const override {
+        return _useI2c ? _fixStats : _nmea.getFixStats();
+    }
+
     LastFix getLastFix() const override {
         return _useI2c ? _lastFix : _nmea.getLastFix();
     }
@@ -146,7 +150,13 @@ public:
                 }
 
                 const bool hasCurrentFix = _driver.hasFix();
-                if (hasCurrentFix) saveRak12500Fix();
+                if (hasCurrentFix) {
+                    // first fix since the start
+                    if (!_lastFix.valid || (long)(_lastFix.acquiredAt - _acquisitionStarted) < 0) {
+                        fixStatsFix((uint32_t)(millis() - _acquisitionStarted));
+                    }
+                    saveRak12500Fix();
+                }
 
                 if (_gpsPeriodSeconds > 0 && _acquiringPeriodically && hasCurrentFix) {
                     _driver.stop();
@@ -155,6 +165,7 @@ public:
                 } else if (_gpsPeriodSeconds > 0 && _acquiringPeriodically && _lastFix.valid &&
                            (uint32_t)(millis() - _acquisitionStarted) >=
                                GPS_PERIODIC_ACQUISITION_TIMEOUT_MS) {
+                    fixStatsMiss();
                     _driver.stop();
                     _acquiringPeriodically = false;
                     _nextAcquisition = millis() + _gpsPeriodSeconds * 1000UL;

@@ -1044,6 +1044,14 @@ region save
 
 ---
 
+#### View GPS time to first fix statistics
+**Usage:**
+- `gps fix_stats`
+
+**Output:** `ttf:<last>/<max> ok:<n> miss:<n>`: last and maximum time between a start of the GPS and its first valid fix, then the last count of consecutive starts with a fix (`ok`) or without one (`miss`).
+
+---
+
 #### View GPS diagnostics
 **Usage:**
 - `gps diag`

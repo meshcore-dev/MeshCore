@@ -18,10 +18,29 @@ public:
         unsigned long acquiredAt = 0;   // millis() when the fix was stored
     };
 
+    struct FixStats {
+        uint32_t lastTtffMs = 0; //time to first fix in ms
+        uint32_t maxTtffMs = 0;
+        uint32_t consecutiveFixes = 0;
+        uint32_t consecutiveMisses = 0;
+    };
+
 protected:
     bool _time_sync_needed = true;
     bool _gpsOn = false;
     LastFix _lastFix;
+    FixStats _fixStats;
+
+    void fixStatsFix(uint32_t ttffMs) {
+        _fixStats.lastTtffMs = ttffMs;
+        if (ttffMs > _fixStats.maxTtffMs) _fixStats.maxTtffMs = ttffMs;
+        _fixStats.consecutiveFixes++;
+        _fixStats.consecutiveMisses = 0;
+    }
+    void fixStatsMiss() {
+        _fixStats.consecutiveMisses++;
+        _fixStats.consecutiveFixes = 0;
+    }
 
 public:
     virtual ~LocationProvider() = default;
@@ -35,6 +54,7 @@ public:
     virtual bool isValid() = 0;                       // current fix is valid
     virtual bool hasValidFix() { return getLastFix().valid || isValid(); }  // a valid fix was obtained at some point
     virtual LastFix getLastFix() const { return _lastFix; }  // snapshot of the last valid fix
+    virtual FixStats getFixStats() const { return _fixStats; }
     virtual long getTimestamp() = 0;
     virtual void sendSentence(const char * sentence);
     virtual bool waitFor(const char* prefix, uint32_t timeout_ms) { return false; }
