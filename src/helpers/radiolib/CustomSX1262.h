@@ -2,6 +2,7 @@
 
 #include <RadioLib.h>
 #include "MeshCore.h"
+#include "SX126xReset.h"
 
 class CustomSX1262 : public SX1262 {
   uint32_t _preambleMillis = 66;
@@ -95,7 +96,8 @@ class CustomSX1262 : public SX1262 {
     writeRegister(0x8B5, &r_data, 1);
   #endif
 
-      MESH_DEBUG_PRINTLN("SX1262 status=0x%02X device_errors=0x%04X", getStatus(), getDeviceErrors());
+      // raw SPI read: RadioLib's getStatus() always returns 0 (see sx126xGetStatus)
+      MESH_DEBUG_PRINTLN("SX1262 status=0x%02X device_errors=0x%04X", sx126xGetStatus((SX126x *)this), getDeviceErrors());
 
       return true;  // success
     }
