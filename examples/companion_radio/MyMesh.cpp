@@ -5,6 +5,7 @@
 #include <WiFi.h>
 #endif
 #include <Mesh.h>
+#include <helpers/mcotxt/MCOtxtDisplay.h>
 
 #define CMD_APP_START                 1
 #define CMD_SEND_TXT_MSG              2
@@ -227,6 +228,7 @@ void MyMesh::addToOfflineQueue(const uint8_t frame[], int len) {
     int pos = 0;
     while (pos < offline_queue_len) {
       if (offline_queue[pos].isChannelMsg()) {
+        if (pos == 0) mcotxt_delivery.resetMessage();  // evicted a partially delivered source
         for (int i = pos; i < offline_queue_len - 1; i++) { // delete oldest channel msg from queue
           offline_queue[i] = offline_queue[i + 1];
         }
@@ -246,15 +248,27 @@ void MyMesh::addToOfflineQueue(const uint8_t frame[], int len) {
 }
 
 int MyMesh::getFromOfflineQueue(uint8_t frame[]) {
-  if (offline_queue_len > 0) {         // check offline queue
-    size_t len = offline_queue[0].len; // take from top of queue
-    memcpy(frame, offline_queue[0].buf, len);
-
-    offline_queue_len--;
-    for (int i = 0; i < offline_queue_len; i++) { // delete top item from queue
-      offline_queue[i] = offline_queue[i + 1];
+  // The original pop-on-read removed the source after a single response. MCOtxt
+  // may need several SYNC requests (raw binary first, then decoded text parts),
+  // so retain the unchanged queue head until next() sets consume. Generated
+  // parts never occupy queue slots; ordinary/capable-app delivery still pops
+  // after one response. Loop past an exhausted binary source with no valid text
+  // so it cannot report NO_MORE_MESSAGES while another queue entry remains.
+  while (offline_queue_len > 0) {
+    bool consume;
+    const int len = mcotxt_delivery.next(offline_queue[0].buf, offline_queue[0].len,
+                                        app_target_ver, getRTCClock()->getCurrentTime(),
+                                        frame, consume);
+    if (consume) {
+      offline_queue_len--;
+      for (int i = 0; i < offline_queue_len; i++) {
+        offline_queue[i] = offline_queue[i + 1];
+      }
+      mcotxt_delivery.resetMessage();
     }
-    return len;
+    if (len > 0) return len;
+    // Binary was already returned but has no valid text to add. Continue to
+    // the next source instead of reporting an empty queue prematurely.
   }
   return 0; // queue is empty
 }
@@ -473,7 +487,11 @@ void MyMesh::queueMessage(const ContactInfo &from, uint8_t txt_type, mesh::Packe
   }
 
   if (_listener) {
-    _listener->onMessageRecv(pkt, from, txt_type, sender_timestamp, text);
+    // Decode only for the synchronous local preview. The queue above retains
+    // the original frame for whichever app connects later; never rewrite CLI.
+    const char* preview = (txt_type == TXT_TYPE_PLAIN || txt_type == TXT_TYPE_SIGNED_PLAIN)
+        ? mcotxt::displayText(text, false) : text;
+    _listener->onMessageRecv(pkt, from, txt_type, sender_timestamp, preview);
     _listener->onQueueSizeChanged(offline_queue_len);
   }
 }
@@ -593,7 +611,7 @@ void MyMesh::onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packe
     if (!getChannel(channel_idx, channel_details)) {
       strcpy(channel_details.name, "Unknown");
     }
-    _listener->onChannelMessageRecv(pkt, channel_details, text);
+    _listener->onChannelMessageRecv(pkt, channel_details, mcotxt::displayText(text, true));
     _listener->onQueueSizeChanged(offline_queue_len);
   }
 }
@@ -633,6 +651,17 @@ void MyMesh::onChannelDataRecv(const mesh::GroupChannel &channel, mesh::Packet *
   }
   if (_listener) {
     _listener->onChannelDataRecv(pkt, channel, data_type, data, data_len);
+    // A display cannot render the binary envelope. Feed one decoded preview to
+    // its existing channel-text handler, without creating extra queue entries.
+    const char* preview = mcotxt::displayBinary(data_type, data, data_len);
+    if (preview) {
+      ChannelDetails channel_details;
+      if (!getChannel(channel_idx, channel_details)) {
+        strcpy(channel_details.name, "Unknown");
+      }
+      _listener->onChannelMessageRecv(pkt, channel_details, preview);
+    }
+    _listener->onQueueSizeChanged(offline_queue_len);
   }
 }
 
@@ -1078,6 +1107,7 @@ void MyMesh::handleCmdFrame(size_t len) {
     //  cmd_frame[1..7]  reserved future
     char *app_name = (char *)&cmd_frame[8];
     cmd_frame[len] = 0; // make app_name null terminated
+    mcotxt_delivery.appStart(&cmd_frame[8], len - 8);
     MESH_DEBUG_PRINTLN("App %s connected", app_name);
 
     _iter_started = false; // stop any left-over ContactsIterator
@@ -1415,14 +1445,19 @@ void MyMesh::handleCmdFrame(size_t len) {
       writeErrFrame(ERR_CODE_ILLEGAL_ARG);
     }
   } else if (cmd_frame[0] == CMD_SYNC_NEXT_MESSAGE) {
+    const int previous_queue_len = offline_queue_len;
     int out_len;
     if ((out_len = getFromOfflineQueue(out_frame)) > 0) {
       _serial->writeFrame(out_frame, out_len);
-      if (_listener) _listener->onQueueSizeChanged(offline_queue_len);
     } else {
       out_frame[0] = RESP_CODE_NO_MORE_MESSAGES;
       _serial->writeFrame(out_frame, 1);
     }
+    // An exhausted/malformed binary head can be removed without a text frame.
+    // The display must still clear its unread count/preview when the queue drains.
+    // A poll of an already-empty queue must not reset the user's current UI screen.
+    if (_listener && (out_len > 0 || previous_queue_len != offline_queue_len))
+      _listener->onQueueSizeChanged(offline_queue_len);
   } else if (cmd_frame[0] == CMD_SET_RADIO_PARAMS) {
     int i = 1;
     uint32_t freq;

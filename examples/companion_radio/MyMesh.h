@@ -24,6 +24,7 @@
 
 #include "DataStore.h"
 #include "NodePrefs.h"
+#include "MCOtxtDelivery.h"
 
 #include <RTClib.h>
 #include <helpers/ArduinoHelpers.h>
@@ -91,6 +92,8 @@ class MyMesh : public BaseChatMesh, public DataStoreHost {
 public:
   class Listener {
     public:
+      // Text is a transient preview (possibly shared decoder scratch). Copy it
+      // during the callback; the companion queue keeps its original raw frame.
       virtual void onMessageRecv(mesh::Packet *pkt, const ContactInfo &from, uint8_t txt_type, uint32_t sender_timestamp, const char* text) = 0;
       virtual void onChannelMessageRecv(mesh::Packet *pkt, ChannelDetails& channel_details, const char* text) = 0;
       virtual void onQueueSizeChanged(int msgcount) = 0;
@@ -276,6 +279,7 @@ private:
   };
   int offline_queue_len;
   Frame offline_queue[OFFLINE_QUEUE_SIZE];
+  MCOtxtDelivery mcotxt_delivery;
 
   struct AckTableEntry {
     unsigned long msg_sent;
