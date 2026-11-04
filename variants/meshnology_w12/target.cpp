@@ -38,8 +38,8 @@ const uint32_t rfswitch_dios[] = {
 
 static const Module::RfSwitchMode_t rfswitch_table[] = {
   //                    DIO5   DIO6  DIO9  DIO10  DIO11
-  { LR2021::MODE_STBY,  { LOW,  LOW,  LOW,  LOW,  LOW  } },  // everything off
-  { LR2021::MODE_RX,    { LOW,  LOW,  LOW,  LOW,  HIGH } },  // rx_lf: GC1109 LNA
+  { LR2021::MODE_STBY,  { LOW,  LOW,  HIGH,  HIGH,  HIGH  } },  // keep GC1109 awake: allows full transmit power the whole time. 
+  { LR2021::MODE_RX,    { LOW,  LOW,  LOW,  HIGH,  HIGH } },  // rx_lf: GC1109 LNA 
   { LR2021::MODE_TX,    { LOW,  LOW,  HIGH, HIGH, HIGH } },  // tx_lf: GC1109 full PA
   { LR2021::MODE_RX_HF, { LOW,  HIGH, LOW,  LOW,  LOW  } },  // rx_hf: 2G4 LNA, GC1109 off
   { LR2021::MODE_TX_HF, { HIGH, LOW,  LOW,  LOW,  LOW  } },  // tx_hf: 2G4 PA,  GC1109 off
