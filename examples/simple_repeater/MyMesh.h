@@ -132,6 +132,10 @@ protected:
     return _prefs.airtime_factor;
   }
 
+  float getForwardAirtimeBudgetFactor() const override {
+    return _prefs.fwd_airtime_factor;
+  }
+
   bool allowPacketForward(const mesh::Packet* packet) override;
   const char* getLogDateTime() override;
   void logRxRaw(float snr, float rssi, const uint8_t raw[], int len) override;
