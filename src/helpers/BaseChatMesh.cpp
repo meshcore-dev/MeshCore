@@ -64,7 +64,7 @@ void BaseChatMesh::bootstrapRTCfromContacts() {
       latest = contacts[i].lastmod;
     }
   }
-  if (latest != 0) {
+  if (latest != 0 && latest >= getRTCClock()->getCurrentTime()) {
     getRTCClock()->setCurrentTime(latest + 1);
   }
 }
