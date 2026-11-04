@@ -64,8 +64,8 @@ bool MASensorManager::querySensors(uint8_t requester_permissions, CayenneLPP& te
 void MASensorManager::loop() {
   static long next_gps_update = 0;
   _location->loop();
-  if(millis() > next_gps_update && _location->isEnabled()) {
-    if(_location->isValid()) {
+  if(millis() > next_gps_update && _location->isGpsOn()) {
+    if(_location->hasValidFix()) {
       node_lat = ((double)_location->getLatitude()) / 1000000.;
       node_lon = ((double)_location->getLongitude()) / 1000000.;
       node_altitude = ((double)_location->getAltitude()) / 1000.0;
