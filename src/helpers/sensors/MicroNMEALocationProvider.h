@@ -166,6 +166,19 @@ public :
         return alt;
     }
     long satellitesCount() override { return nmea.getNumSatellites(); }
+    uint8_t getHDOP() override { return nmea.getHDOP(); }
+    bool getClockOffset(long& offset) override {
+        if (_clock == NULL || !isValid() || time_valid < 3) return false;
+        offset = (long)getTimestamp() - (long)_clock->getCurrentTime();
+        return true;
+    }
+    bool applyTimeNow() override {
+        if (_clock == NULL || !isValid() || time_valid < 3) return false;
+        _clock->setCurrentTime(getTimestamp());
+        _time_sync_needed = false;
+        _last_time_sync = millis();
+        return true;
+    }
     bool isValid() override { return nmea.isValid(); }
 
     long getTimestamp() override { 
@@ -243,8 +256,9 @@ public :
                 _time_sync_needed = true;
             }
             if (_time_sync_needed && time_valid > 2) {
-                if (_clock != NULL) {
-                    _clock->setCurrentTime(getTimestamp());
+                uint32_t gps_time = getTimestamp();
+                if (_clock != NULL && timeSyncAllowed(gps_time, _clock->getCurrentTime())) {
+                    _clock->setCurrentTime(gps_time);
                     _time_sync_needed = false;
                     _last_time_sync = millis();
                 }

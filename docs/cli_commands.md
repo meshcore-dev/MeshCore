@@ -69,6 +69,8 @@ This document provides an overview of CLI commands that can be sent to MeshCore 
 **Parameters:**
 - `epoch_seconds`: Unix epoch time
 
+**Note:** The clock only moves forward. To set it back (e.g. after the clock was pushed into the future by a spoofed GPS time) use `time force <epoch_seconds>`.
+
 ---
 
 ### Send a flood advert
@@ -1039,6 +1041,19 @@ region save
   - `prefs`: location stored in node's lat and lon settings
 
 **Default:** `prefs`
+
+---
+
+#### GPS anti-spoofing guard (When built with `GPS_GUARD`)
+With `GPS_GUARD`, a fix only updates the node position (and telemetry) after it passes plausibility checks: at least `GPS_GUARD_MIN_SATS` satellites, HDOP ≤ `GPS_GUARD_MAX_HDOP10`/10, inside the optional build-time region (`GPS_GUARD_LAT_MIN/MAX`, `GPS_GUARD_LON_MIN/MAX`), within `gps_fence` metres of the node's configured `lat`/`lon` (if set), no jump faster than `GPS_GUARD_MAX_SPEED_KMH`, and `GPS_GUARD_STABLE_FIXES` consistent fixes in a row.
+
+GPS time is written to the clock only while such a fix is current, never earlier than the firmware build date, and — once the clock is valid — only within `GPS_GUARD_TIME_MAX_STEP` seconds for the first sync and within clock drift (`GPS_GUARD_TIME_DRIFT_BASE` s + `GPS_GUARD_TIME_DRIFT_PPM`) afterwards. Setting the clock manually (`time`, `clock sync`) resets that anchor.
+
+**Sensor settings** (via `sensor get` / `sensor set`):
+- `gps_fence`: geofence radius in metres around `lat`/`lon` (`0` = off). Default `GPS_GUARD_FENCE_M` (1000).
+- `gps_ref`: reference position, shown as `lat;lon` (`lat,lon` is also accepted); follows `set lat`, `set lon` and `gps setloc`.
+- `gps_guard` (read-only): status, e.g. `ok 7sat time ok +1s`, `rej region time rej nofix`, or `... ALERT gps-clk +3600s 75m` when a trusted fix has disagreed with the clock by the same offset for `GPS_GUARD_ALERT_MIN` minutes.
+- `sensor set gps_time_accept 1`: while an alert is active, confirm that the GPS time is right and apply it to the clock.
 
 ---
 

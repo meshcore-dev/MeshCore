@@ -174,6 +174,9 @@ private:
   #if ENV_INCLUDE_GPS == 1
   void applyGpsPrefs() {
     sensors.setSettingValue("gps", _prefs.gps_enabled?"1":"0");
+    char ref[32];
+    snprintf(ref, sizeof(ref), "%.6f,%.6f", _prefs.node_lat, _prefs.node_lon);
+    sensors.setSettingValue("gps_ref", ref);   // anti-spoofing reference (ignored if unsupported)
   }
 #endif
 };
