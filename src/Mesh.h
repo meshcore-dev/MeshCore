@@ -162,8 +162,9 @@ protected:
    *         NOTE: the same payload can be received multiple times, via different routes
    * \param  type  one of: PAYLOAD_TYPE_GRP_TXT, PAYLOAD_TYPE_GRP_DATA
    * \param  channel  the matching GroupChannel
+   * \param  crypto_type  the crypto method that was used with this packet, one of CRYPTO_*
   */
-  virtual void onGroupDataRecv(Packet* packet, uint8_t type, const GroupChannel& channel, uint8_t* data, size_t len) { }
+  virtual void onGroupDataRecv(Packet* packet, uint8_t type, const GroupChannel& channel, uint8_t* data, size_t len, uint8_t crypto_type) { }
 
   /**
    * \brief  A simple ACK packet has been received.

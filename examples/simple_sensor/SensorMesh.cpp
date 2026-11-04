@@ -104,17 +104,24 @@ static float findTelemValue(const uint8_t* buf, uint8_t size, uint8_t channel, u
 mesh::Packet* SensorMesh::obtainPacketFor(ClientInfo& client, const uint8_t* out_path, uint8_t out_path_len) {
   auto pkt = obtainNewPacket();
   if (pkt) {
+    uint8_t crypto_mode = client.direct_mode & 0x0F;
     if (out_path_len == OUT_PATH_UNKNOWN) {
-      pkt->header |= ROUTE_TYPE_FLOOD;
-      // NOTE: final route type, transport codes, path_len is set later in sendFloodScoped()
+      if (crypto_mode == CRYPTO_NEW_V1) {
+        pkt->header |= ROUTE_TYPE_TRANSPORT_FLOOD;
+        // pkt->transport_codes[0]   scope set later
+        pkt->transport_codes[1] = (client.curr_session_id & ~(3u << 14));
+        pkt->transport_codes[1] |= (CRYPTO_NEW_V1 << 14);
+      } else {
+        pkt->header |= ROUTE_TYPE_FLOOD;
+        // NOTE: final route type, transport codes, path_len is set later in sendFloodScoped()
+      }
     } else {
-      uint8_t crypto_mode = client.direct_mode & 0x0F;
-      if (crypto_mode == CRYPTO_NEW_DIRECT) {
+      if (crypto_mode == CRYPTO_NEW_V1) {
         uint8_t dm_mode = client.direct_mode >> 4;   // upper 4 bits is which DM_MODE_* to use
         pkt->header |= ROUTE_TYPE_TRANSPORT_DIRECT;
         pkt->transport_codes[0] = (((uint16_t)dm_mode) << 14) | client.next_seq_no++;  // implicit, cursor = 0
         pkt->transport_codes[1] = (client.curr_session_id & ~(3u << 14));
-        pkt->transport_codes[1] |= (CRYPTO_NEW_DIRECT << 14);
+        pkt->transport_codes[1] |= (CRYPTO_NEW_V1 << 14);
       } else {
         pkt->header |= ROUTE_TYPE_DIRECT;
       }
@@ -433,7 +440,7 @@ uint8_t SensorMesh::handleLoginReq(const mesh::Identity& sender, const uint8_t* 
   reply_data[7] = client->permissions;
   getRNG()->random(&reply_data[8], 4);   // random blob to help packet-hash uniqueness
   reply_data[12] = FIRMWARE_VER_LEVEL;
-  reply_data[13] = (1 << CRYPTO_NEW_DIRECT) | (1 << CRYPTO_LEGACY);  // New bitfield: which crypto-types supported
+  reply_data[13] = (1 << CRYPTO_NEW_V1) | (1 << CRYPTO_LEGACY);  // New bitfield: which crypto-types supported
 
   return 14;  // reply length
 }
@@ -588,8 +595,10 @@ void SensorMesh::onAnonDataRecv(mesh::Packet* packet, const uint8_t* secret, con
         MESH_DEBUG_PRINTLN("onAnonDataRecv: client ACL cannot find slot!");  // This shouldn't happen!
         return;
       }
-      if (crypto_type == CRYPTO_NEW_DIRECT) {
-        client->direct_mode = (DM_MODE_SEQ_NORMAL << 4) | CRYPTO_NEW_DIRECT;   // have received from Client in new scheme, so they must support it
+      if (crypto_type == CRYPTO_NEW_V1) {
+        if (client->direct_mode == CRYPTO_LEGACY) {
+          client->direct_mode = (DM_MODE_SEQ_NORMAL << 4) | CRYPTO_NEW_V1;   // have received from Client in new scheme, so they must support it
+        }
       }
 
       auto reply = obtainPacketFor(*client, client->out_path, client->out_path_len);
@@ -656,9 +665,9 @@ void SensorMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender_i
   }
 
   ClientInfo* from = acl.getClientByIdx(i);
-  if (crypto_type == CRYPTO_NEW_DIRECT) {
+  if (crypto_type == CRYPTO_NEW_V1) {
     if (from->direct_mode == CRYPTO_LEGACY) {
-      from->direct_mode = (DM_MODE_SEQ_NORMAL << 4) | CRYPTO_NEW_DIRECT;   // have received from Client in new scheme, so they must support it
+      from->direct_mode = (DM_MODE_SEQ_NORMAL << 4) | CRYPTO_NEW_V1;   // have received from Client in new scheme, so they must support it
     }
   }
 
@@ -804,9 +813,9 @@ bool SensorMesh::onPeerPathRecv(mesh::Packet* packet, int sender_idx, const uint
   }
 
   ClientInfo* from = acl.getClientByIdx(i);
-  if (crypto_type == CRYPTO_NEW_DIRECT) {
+  if (crypto_type == CRYPTO_NEW_V1) {
     if (from->direct_mode == CRYPTO_LEGACY) {
-      from->direct_mode = (DM_MODE_SEQ_NORMAL << 4) | CRYPTO_NEW_DIRECT;   // have received from Client in new scheme, so they must support it
+      from->direct_mode = (DM_MODE_SEQ_NORMAL << 4) | CRYPTO_NEW_V1;   // have received from Client in new scheme, so they must support it
     }
   }
 
@@ -983,18 +992,29 @@ void SensorMesh::sendFloodReply(mesh::Packet* packet, unsigned long delay_millis
   bool req_scope_known = recv_pkt_region != NULL && !is_wildcard
                       && region_map.getTransportKeysFor(*recv_pkt_region, &req_scope, 1) > 0;
 
+  TransportKey* scope;
   switch (mesh::chooseReplyScope(req_scope_known, is_wildcard, !default_scope.isNull())) {
     case mesh::REPLY_SCOPE_REQUEST:
-      sendFloodScoped(req_scope, packet, delay_millis, path_hash_size);   // reply with same scope as request
+      scope = &req_scope;
       break;
     case mesh::REPLY_SCOPE_DEFAULT:
-      // requester's scope is unknown: DIRECT request (no transport codes), or code matched no Region.
-      // un-scoped would be dropped at hop 0 by repeaters running flood.max.unscoped=0
-      sendFloodScoped(default_scope, packet, delay_millis, path_hash_size);
+      scope = &default_scope;
       break;
-    case mesh::REPLY_SCOPE_NONE:
-      sendFlood(packet, delay_millis, path_hash_size);   // send un-scoped
+    default:  // mesh::REPLY_SCOPE_NONE:
+      scope = NULL;  // send un-scoped
       break;
+  }
+
+  if (packet->transport_codes[1] != 0) {   // has new CRYPTO_* encoding
+    packet->transport_codes[0] = (scope && !scope->isNull()) ? scope->calcTransportCode(packet) : 0;
+    packet->setPathHashSizeAndCount(path_hash_size, 0);
+    send(packet, delay_millis);
+  } else {
+    if (scope) {
+      sendFloodScoped(*scope, packet, delay_millis, path_hash_size);
+    } else {
+      sendFlood(packet, delay_millis, path_hash_size);  // send un-scoped
+    }
   }
 }
 

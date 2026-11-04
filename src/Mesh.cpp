@@ -205,12 +205,17 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
             uint8_t data[MAX_PACKET_PAYLOAD];
             int len;
             uint8_t crypto_type;
-            if (pkt->getRouteType() == ROUTE_TYPE_TRANSPORT_DIRECT && (pkt->transport_codes[1] >> 14) == CRYPTO_NEW_DIRECT) {
+            if (pkt->getRouteType() == ROUTE_TYPE_TRANSPORT_DIRECT && (pkt->transport_codes[1] >> 14) == CRYPTO_NEW_V1) {
               uint8_t iv[3];
               memcpy(iv, &pkt->transport_codes[1], 2);   // session-id
               iv[2] = (pkt->transport_codes[0] & 0xFF);    // seq-no
               len = Utils::MACThenDecrypt(secret, iv, 3, data, macAndData, pkt->payload_len - i);
-              crypto_type = CRYPTO_NEW_DIRECT;
+              crypto_type = CRYPTO_NEW_V1;
+            } else if (pkt->getRouteType() == ROUTE_TYPE_TRANSPORT_FLOOD && (pkt->transport_codes[1] >> 14) == CRYPTO_NEW_V1) {
+              uint8_t iv[2];
+              memcpy(iv, &pkt->transport_codes[1], 2);
+              len = Utils::MACThenDecrypt(secret, iv, 2, data, macAndData, pkt->payload_len - i);
+              crypto_type = CRYPTO_NEW_V1;
             } else if (!pkt->hasTransportCodes() || (pkt->transport_codes[1] >> 14) == CRYPTO_LEGACY) {
               len = Utils::MACThenDecrypt(secret, data, macAndData, pkt->payload_len - i);
               crypto_type = CRYPTO_LEGACY;
@@ -276,12 +281,17 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
           uint8_t data[MAX_PACKET_PAYLOAD];
           uint8_t crypto_type;
           int len;
-          if (pkt->getRouteType() == ROUTE_TYPE_TRANSPORT_DIRECT && (pkt->transport_codes[1] >> 14) == CRYPTO_NEW_DIRECT) {
+          if (pkt->getRouteType() == ROUTE_TYPE_TRANSPORT_DIRECT && (pkt->transport_codes[1] >> 14) == CRYPTO_NEW_V1) {
             uint8_t iv[3];
             memcpy(iv, &pkt->transport_codes[1], 2);   // session-id / crypto-type
             iv[2] = (pkt->transport_codes[0] & 0xFF);    // seq-no
             len = Utils::MACThenDecrypt(secret, iv, 3, data, macAndData, pkt->payload_len - i);
-            crypto_type = CRYPTO_NEW_DIRECT;
+            crypto_type = CRYPTO_NEW_V1;
+          } else if (pkt->getRouteType() == ROUTE_TYPE_TRANSPORT_FLOOD && (pkt->transport_codes[1] >> 14) == CRYPTO_NEW_V1) {
+            uint8_t iv[2];
+            memcpy(iv, &pkt->transport_codes[1], 2);
+            len = Utils::MACThenDecrypt(secret, iv, 2, data, macAndData, pkt->payload_len - i);
+            crypto_type = CRYPTO_NEW_V1;
           } else if (!pkt->hasTransportCodes() || (pkt->transport_codes[1] >> 14) == CRYPTO_LEGACY) {
             len = Utils::MACThenDecrypt(secret, data, macAndData, pkt->payload_len - i);
             crypto_type = CRYPTO_LEGACY;
@@ -316,9 +326,22 @@ DispatcherAction Mesh::onRecvPacket(Packet* pkt) {
         for (int j = 0; j < num; j++) {
           // decrypt, checking MAC is valid
           uint8_t data[MAX_PACKET_PAYLOAD];
-          int len = Utils::MACThenDecrypt(channels[j].secret, data, macAndData, pkt->payload_len - i);
+          uint8_t crypto_type;
+          int len;
+          if (pkt->getRouteType() == ROUTE_TYPE_TRANSPORT_FLOOD && (pkt->transport_codes[1] >> 14) == CRYPTO_NEW_V1) {
+            uint8_t iv[2];
+            memcpy(iv, &pkt->transport_codes[1], 2);
+            len = Utils::MACThenDecrypt(channels[j].secret, iv, 2, data, macAndData, pkt->payload_len - i);
+            crypto_type = CRYPTO_NEW_V1;
+          } else if (!pkt->hasTransportCodes() || (pkt->transport_codes[1] >> 14) == CRYPTO_LEGACY) {
+            len = Utils::MACThenDecrypt(channels[j].secret, data, macAndData, pkt->payload_len - i);
+            crypto_type = CRYPTO_LEGACY;
+          } else {
+            MESH_DEBUG_PRINTLN("%s unknown Crypto Type indicator: %u", getLogDateTime(), (uint32_t)(pkt->transport_codes[1] >> 14));
+            len = 0;  // failed to decode
+          }
           if (len > 0) {  // success!
-            onGroupDataRecv(pkt, pkt->getPayloadType(), channels[j], data, len);
+            onGroupDataRecv(pkt, pkt->getPayloadType(), channels[j], data, len, crypto_type);
             break;
           }
         }
@@ -591,12 +614,15 @@ void Mesh::encodeDatagram(Packet* packet, uint8_t type, const Identity& dest, co
   len += dest.copyHashTo(&packet->payload[len]);  // dest hash
   len += self_id.copyHashTo(&packet->payload[len]);  // src hash
 
-  if (packet->getRouteType() == ROUTE_TYPE_TRANSPORT_DIRECT && (packet->transport_codes[1] >> 14) == CRYPTO_NEW_DIRECT) {
-    // new encryption
-    uint8_t iv[3];
+  if (packet->getRouteType() == ROUTE_TYPE_TRANSPORT_DIRECT && (packet->transport_codes[1] >> 14) == CRYPTO_NEW_V1) {
+    uint8_t iv[3];  // new encryption
     memcpy(iv, &packet->transport_codes[1], 2);  // session-id
     iv[2] = packet->transport_codes[0] & 0xFF;  // seq-no
     len += Utils::encryptThenMAC(secret, iv, 3, &packet->payload[len], data, data_len);
+  } else if (packet->getRouteType() == ROUTE_TYPE_TRANSPORT_FLOOD && (packet->transport_codes[1] >> 14) == CRYPTO_NEW_V1) {
+    uint8_t iv[2];  // new encryption
+    memcpy(iv, &packet->transport_codes[1], 2);
+    len += Utils::encryptThenMAC(secret, iv, 2, &packet->payload[len], data, data_len);
   } else {
     // legacy encryption
     len += Utils::encryptThenMAC(secret, &packet->payload[len], data, data_len);
@@ -648,12 +674,15 @@ void Mesh::encodeAnonDatagram(Packet* packet, uint8_t type, const LocalIdentity&
   } else {
     // FUTURE:
   }
-  if (packet->getRouteType() == ROUTE_TYPE_TRANSPORT_DIRECT && (packet->transport_codes[1] >> 14) == CRYPTO_NEW_DIRECT) {
-    // new encryption
-    uint8_t iv[3];
+  if (packet->getRouteType() == ROUTE_TYPE_TRANSPORT_DIRECT && (packet->transport_codes[1] >> 14) == CRYPTO_NEW_V1) {
+    uint8_t iv[3];  // new encryption
     memcpy(iv, &packet->transport_codes[1], 2);  // session-id
     iv[2] = packet->transport_codes[0] & 0xFF;  // seq-no
     len += Utils::encryptThenMAC(secret, iv, 3, &packet->payload[len], data, data_len);
+  } else if (packet->getRouteType() == ROUTE_TYPE_TRANSPORT_FLOOD && (packet->transport_codes[1] >> 14) == CRYPTO_NEW_V1) {
+    uint8_t iv[2];  // new encryption
+    memcpy(iv, &packet->transport_codes[1], 2);
+    len += Utils::encryptThenMAC(secret, iv, 2, &packet->payload[len], data, data_len);
   } else {
     // legacy encryption
     len += Utils::encryptThenMAC(secret, &packet->payload[len], data, data_len);
@@ -885,7 +914,7 @@ void Mesh::sendDirect(Packet* packet, const uint8_t* path, uint8_t path_len, uin
 void Mesh::send(Packet* packet, uint32_t delay_millis) {
   // packet header should already be set
   // transport codes should already be set (optional)
-  // path/path_len should already be set (if direct)
+  // path/path_len should already be set
 
   uint8_t pri;
   if (packet->getPayloadType() == PAYLOAD_TYPE_TRACE) {   // TRACE packets are different
@@ -898,6 +927,8 @@ void Mesh::send(Packet* packet, uint32_t delay_millis) {
   } else {
     if (packet->getPayloadType() == PAYLOAD_TYPE_PATH) {
       pri = 1;   // slightly less priority
+    } else if (packet->isRouteFlood()) {
+      pri = 1;
     } else {
       pri = 0;
     }

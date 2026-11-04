@@ -504,17 +504,24 @@ bool MyMesh::allowPacketForward(const mesh::Packet* packet) {
 mesh::Packet* MyMesh::obtainPacketFor(ContactInfo& contact) {
   auto pkt = obtainNewPacket();
   if (pkt) {
+    uint8_t crypto_mode = contact.direct_mode & 0x0F;
     if (contact.out_path_len == OUT_PATH_UNKNOWN) {
-      pkt->header |= ROUTE_TYPE_FLOOD;
-      // NOTE: final route type, transport codes, path_len is set later in sendFloodScoped()
+      if (crypto_mode == CRYPTO_NEW_V1) {
+        pkt->header |= ROUTE_TYPE_TRANSPORT_FLOOD;
+        // pkt->transport_codes[0]   scope set later
+        pkt->transport_codes[1] = (contact.curr_session_id & ~(3u << 14));
+        pkt->transport_codes[1] |= (CRYPTO_NEW_V1 << 14);
+      } else {
+        pkt->header |= ROUTE_TYPE_FLOOD;
+        // NOTE: final route type, transport codes, path_len is set later in sendFloodScoped()
+      }
     } else {
-      uint8_t crypto_mode = contact.direct_mode & 0x0F;
-      if (crypto_mode == CRYPTO_NEW_DIRECT) {
+      if (crypto_mode == CRYPTO_NEW_V1) {
         uint8_t dm_mode = contact.direct_mode >> 4;   // upper 4 bits is which DM_MODE_* to use
         pkt->header |= ROUTE_TYPE_TRANSPORT_DIRECT;
         pkt->transport_codes[0] = (((uint16_t)dm_mode) << 14) | contact.next_seq_no++;  // implicit, cursor = 0
         pkt->transport_codes[1] = (contact.curr_session_id & ~(3u << 14));
-        pkt->transport_codes[1] |= (CRYPTO_NEW_DIRECT << 14);
+        pkt->transport_codes[1] |= (CRYPTO_NEW_V1 << 14);
       } else {
         pkt->header |= ROUTE_TYPE_DIRECT;
       }
@@ -537,26 +544,38 @@ void MyMesh::sendFloodScoped(const TransportKey& scope, mesh::Packet* pkt, uint3
 
 void MyMesh::sendFloodScoped(const ContactInfo& recipient, mesh::Packet* pkt, uint32_t delay_millis) {
   // TODO: dynamic send_scope, depending on recipient and current 'home' Region
-  if (send_unscoped) {
-    sendFlood(pkt, delay_millis, _prefs.path_hash_mode + 1);  // app has explicitly requested un-scoped
-  } else {
-    TransportKey default_scope;
-    memcpy(&default_scope.key, _prefs.default_scope_key, sizeof(default_scope.key));
+  TransportKey default_scope;
+  memcpy(&default_scope.key, _prefs.default_scope_key, sizeof(default_scope.key));
+  auto scope = send_scope.isNull() ? &default_scope : &send_scope;
 
-    auto scope = send_scope.isNull() ? &default_scope : &send_scope;
-    sendFloodScoped(*scope, pkt, delay_millis);
+  if (pkt->transport_codes[1] != 0) {   // has a new CRYPTO_* encoding
+    pkt->transport_codes[0] = send_unscoped ? 0 : (scope->isNull() ? 0 : scope->calcTransportCode(pkt));
+    pkt->setPathHashSizeAndCount(_prefs.path_hash_mode + 1, 0);
+    send(pkt, delay_millis);
+  } else {
+    if (send_unscoped) {
+      sendFlood(pkt, delay_millis, _prefs.path_hash_mode + 1);  // app has explicitly requested un-scoped
+    } else {
+      sendFloodScoped(*scope, pkt, delay_millis);
+    }
   }
 }
 void MyMesh::sendFloodScoped(const mesh::GroupChannel& channel, mesh::Packet* pkt, uint32_t delay_millis) {
   // TODO: have per-channel send_scope
-  if (send_unscoped) {
-    sendFlood(pkt, delay_millis, _prefs.path_hash_mode + 1);  // app has explicitly requested un-scoped
-  } else {
-    TransportKey default_scope;
-    memcpy(&default_scope.key, _prefs.default_scope_key, sizeof(default_scope.key));
+  TransportKey default_scope;
+  memcpy(&default_scope.key, _prefs.default_scope_key, sizeof(default_scope.key));
+  auto scope = send_scope.isNull() ? &default_scope : &send_scope;
 
-    auto scope = send_scope.isNull() ? &default_scope : &send_scope;
-    sendFloodScoped(*scope, pkt, delay_millis);
+  if (pkt->transport_codes[1] != 0) {   // has a new CRYPTO_* encoding
+    pkt->transport_codes[0] = send_unscoped ? 0 : (scope->isNull() ? 0 : scope->calcTransportCode(pkt));
+    pkt->setPathHashSizeAndCount(_prefs.path_hash_mode + 1, 0);
+    send(pkt, delay_millis);
+  } else {
+    if (send_unscoped) {
+      sendFlood(pkt, delay_millis, _prefs.path_hash_mode + 1);  // app has explicitly requested un-scoped
+    } else {
+      sendFloodScoped(*scope, pkt, delay_millis);
+    }
   }
 }
 

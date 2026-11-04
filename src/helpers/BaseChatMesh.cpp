@@ -26,6 +26,8 @@ mesh::Packet* BaseChatMesh::obtainPacketFor(ContactInfo& contact) {   // this is
 }
 
 void BaseChatMesh::updateLinkQualityStats(ContactInfo& from, mesh::Packet* packet) {
+  if (packet->getRouteType() != ROUTE_TYPE_TRANSPORT_DIRECT) return;
+
   uint16_t session_id = packet->transport_codes[1];
   uint8_t seq_no = (packet->transport_codes[0] & 0xFF);  // lower 8 bits
   // if (session_id == last_session_id) {
@@ -273,9 +275,9 @@ void BaseChatMesh::onPeerDataRecv(mesh::Packet* packet, uint8_t type, int sender
   }
 
   ContactInfo& from = contacts[i];
-  if (crypto_type == CRYPTO_NEW_DIRECT) {
+  if (crypto_type == CRYPTO_NEW_V1) {
     if (from.direct_mode == CRYPTO_LEGACY) {
-      from.direct_mode = (DM_MODE_SEQ_NORMAL << 4) | CRYPTO_NEW_DIRECT;   // have received from Contact in new scheme, so they must support it
+      from.direct_mode = (DM_MODE_SEQ_NORMAL << 4) | CRYPTO_NEW_V1;   // have received from Contact in new scheme, so they must support it
     }
     updateLinkQualityStats(from, packet);
   }
@@ -406,9 +408,9 @@ bool BaseChatMesh::onPeerPathRecv(mesh::Packet* packet, int sender_idx, const ui
   }
 
   ContactInfo& from = contacts[i];
-  if (crypto_type == CRYPTO_NEW_DIRECT) {
+  if (crypto_type == CRYPTO_NEW_V1) {
     if (from.direct_mode == CRYPTO_LEGACY) {
-      from.direct_mode = (DM_MODE_SEQ_NORMAL << 4) | CRYPTO_NEW_DIRECT;   // have received from Contact in new scheme, so they must support it
+      from.direct_mode = (DM_MODE_SEQ_NORMAL << 4) | CRYPTO_NEW_V1;   // have received from Contact in new scheme, so they must support it
     }
     updateLinkQualityStats(from, packet);
   }
@@ -475,7 +477,7 @@ int BaseChatMesh::searchChannelsByHash(const uint8_t* hash, mesh::GroupChannel d
 }
 #endif
 
-void BaseChatMesh::onGroupDataRecv(mesh::Packet* packet, uint8_t type, const mesh::GroupChannel& channel, uint8_t* data, size_t len) {
+void BaseChatMesh::onGroupDataRecv(mesh::Packet* packet, uint8_t type, const mesh::GroupChannel& channel, uint8_t* data, size_t len, uint8_t crypto_type) {
   if (type == PAYLOAD_TYPE_GRP_TXT) {
     if (len < 5) {
       MESH_DEBUG_PRINTLN("onGroupDataRecv: dropping short group text payload len=%d", (uint32_t)len);

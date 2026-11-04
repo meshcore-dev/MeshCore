@@ -149,7 +149,7 @@ protected:
 #ifdef MAX_GROUP_CHANNELS
   int searchChannelsByHash(const uint8_t* hash, mesh::GroupChannel channels[], int max_matches) override;
 #endif
-  void onGroupDataRecv(mesh::Packet* packet, uint8_t type, const mesh::GroupChannel& channel, uint8_t* data, size_t len) override;
+  void onGroupDataRecv(mesh::Packet* packet, uint8_t type, const mesh::GroupChannel& channel, uint8_t* data, size_t len, uint8_t crypto_type) override;
 
   // Connections
   bool startConnection(const ContactInfo& contact, uint16_t keep_alive_secs);

@@ -17,7 +17,7 @@ namespace mesh {
 #define ROUTE_TYPE_TRANSPORT_DIRECT  0x03    // direct route + transport codes
 
 #define CRYPTO_LEGACY        0
-#define CRYPTO_NEW_DIRECT    1
+#define CRYPTO_NEW_V1        1  // REVISIT:  need name?
 #define CRYPTO_RESERVED1     2
 #define CRYPTO_RESERVED2     3
 
