@@ -266,6 +266,7 @@ You can get the latitude and longitude from Google Maps by right-clicking the lo
 
 `get prv.key` to print a repeater's private key on the serial console
 `set prv.key <hex>` to set a repeater's private key on the serial console
+`set prv.key random` to generate a new random private key
 
 Reboot the repeater after `set prv.key <hex>` command for the new private key to take effect.
 
