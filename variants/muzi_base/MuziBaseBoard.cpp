@@ -25,7 +25,8 @@ void MuziBaseBoard::begin() {
   NRF52BoardDCDC::begin();
   pinMode(PIN_VBAT_READ, INPUT);
   pinMode(PIN_BATTERY_CHARGING, INPUT);
-  pinMode(PIN_CHARGER_FAULT, INPUT);
+  // BQ25185 STAT1 is open-drain and must not float while deasserted.
+  pinMode(PIN_CHARGER_FAULT, INPUT_PULLUP);
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(LED_PIN, LOW);
   // output latches default to HIGH, so pull these low right after enabling
