@@ -22,6 +22,23 @@
 #define LOOP_DETECT_MODERATE  2
 #define LOOP_DETECT_STRICT    3
 
+#define TRY_MAX_SLOTS       4
+#define TRY_MAX_SECS        (7U * 24U * 3600U)
+#define TRY_REBOOT_DELAY_MS 2000
+
+struct TrySlot {
+  char key[32];
+  char revert[48];
+  char trial[48];
+  uint32_t secs;
+  uint32_t expires_at;
+  uint8_t reboot;
+  uint8_t apply_reboot;
+
+  bool active() const { return key[0] != 0; }
+  void clear() { key[0] = 0; }
+};
+
 class NodePrefs : public ConfigSerializer {
 public:
   // in-memory backing data
@@ -303,6 +320,9 @@ class CommonCLI {
   SensorManager* _sensors;
   RegionMap* _region_map;
   ClientACL* _acl;
+  FILESYSTEM* _fs;
+  TrySlot _try_slots[TRY_MAX_SLOTS];
+  unsigned long _try_reboot_at;
   char tmp[PRV_KEY_SIZE*2 + 4];
 
   mesh::RTCClock* getRTCClock() { return _rtc; }
@@ -312,13 +332,36 @@ class CommonCLI {
   void handleRegionCmd(char* command, char* reply);
   void handleGetCmd(uint32_t sender_timestamp, char* command, char* reply);
   void handleSetCmd(uint32_t sender_timestamp, char* command, char* reply);
+  void handleTryCmd(uint32_t sender_timestamp, char* args, char* reply);
+  void handleGetTry(char* reply);
+  void loadTrySlots();
+  bool saveTrySlots();
+  void tryOnSetCommitted(const char* set_config, char* reply);
+  bool tryIsDeniedKey(const char* key) const;
+  bool tryExtractKey(const char* args, char* key, size_t key_len) const;
+  bool trySplitKeyValue(const char* args, char* key, char* value, size_t val_len) const;
+  bool trySnapshotValue(uint32_t sender_timestamp, const char* key, char* revert, size_t revert_len);
+  void tryApplyArgs(uint32_t sender_timestamp, const char* args, char* reply);
+  void tryRevertSlot(TrySlot& slot, char* reply);
+  int tryFindSlot(const char* key) const;
+  int tryFreeSlot() const;
+  void tryCancelSlotForKey(const char* key);
+  void tryNormalizeExpires(TrySlot& slot);
+  void tryProcessExpired();
+  void tryFormatOkReply(char* reply, uint32_t secs, bool reboot_armed, bool apply_reboot) const;
+  static bool tryReplyIsOk(const char* reply);
+  static bool tryReplyNeedsRebootApply(const char* reply);
 
 public:
   CommonCLI(mesh::MainBoard& board, mesh::RTCClock& rtc, SensorManager& sensors, RegionMap& region_map, ClientACL& acl, NodePrefs* prefs, CommonCLICallbacks* callbacks)
-      : _board(&board), _rtc(&rtc), _sensors(&sensors), _region_map(&region_map), _acl(&acl), _prefs(prefs), _callbacks(callbacks) { }
+      : _board(&board), _rtc(&rtc), _sensors(&sensors), _region_map(&region_map), _acl(&acl), _prefs(prefs), _callbacks(callbacks),
+        _fs(nullptr), _try_reboot_at(0) {
+    for (int i = 0; i < TRY_MAX_SLOTS; i++) _try_slots[i].clear();
+  }
 
   void loadPrefs(FILESYSTEM* _fs);
   bool savePrefs(FILESYSTEM* _fs);
   void handleCommand(uint32_t sender_timestamp, char* command, char* reply);
+  void loop();
   uint8_t buildAdvertData(uint8_t node_type, uint8_t* app_data);
 };
