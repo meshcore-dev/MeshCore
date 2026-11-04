@@ -204,12 +204,6 @@ void setup() {
   the_mesh.setBLEPin(0);
 #endif
 
-// add bluetooth interface
-#if defined(BLE_PIN_CODE)
-  bluetooth_interface.begin(BLE_NAME_PREFIX, the_mesh.getNodePrefs()->node_name, the_mesh.getBLEPin());
-  interface_manager.addInterface(InterfaceType::Bluetooth, &bluetooth_interface);
-#endif
-
 // add wifi interface
 #ifdef ENABLE_WIFI_INTERFACE
   // use wifi ssid and password from prefs if ssid is not empty, otherwise use the build flag defaults
@@ -219,11 +213,18 @@ void setup() {
   }
   // only start wifi if enabled and ssid is not empty
   wifi_enabled = the_mesh.getNodePrefs()->wifi_enabled;
-  if (wifi_enabled && wifi_ssid[0]) {
-#if defined(ESP32)
-    board.setInhibitSleep(true);   // prevent sleep when WiFi is active
+#endif
+#ifdef ENABLE_WIFI_INTERFACE
+  bool wifi_started_before_ble = false;
+#endif
+#if defined(ESP32) && defined(ENABLE_WIFI_INTERFACE) && defined(BLE_PIN_CODE)
+  // On ESP32-S3 with no PSRAM, the BLE controller takes the internal heap that
+  // Wi-Fi needs if it is started first. WiFi.begin() then returns without an
+  // error and the station never associates. Reserve the station before BLE.
+  if (wifi_enabled && wifi_ssid[0] && ESP.getPsramSize() == 0) {
+    board.setInhibitSleep(true);
+    WiFi.mode(WIFI_STA);
     WiFi.setAutoReconnect(true);
-
     WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info){
         if (event == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) {
             WIFI_DEBUG_PRINTLN("WiFi disconnected (reason=%s). Flagging for reconnect...",
@@ -234,19 +235,49 @@ void setup() {
             wifi_needs_reconnect = false;
         }
     });
+    WIFI_DEBUG_PRINTLN("connecting to %s", wifi_ssid);
+    WiFi.begin(wifi_ssid, wifi_pwd);
+    wifi_started_before_ble = true;
+  }
 #endif
 
-    WIFI_DEBUG_PRINTLN("connecting to %s", wifi_ssid);
+// add bluetooth interface
+#if defined(BLE_PIN_CODE)
+  bluetooth_interface.begin(BLE_NAME_PREFIX, the_mesh.getNodePrefs()->node_name, the_mesh.getBLEPin());
+  interface_manager.addInterface(InterfaceType::Bluetooth, &bluetooth_interface);
+#endif
+
+#ifdef ENABLE_WIFI_INTERFACE
+  if (wifi_enabled && wifi_ssid[0]) {
+    if (!wifi_started_before_ble) {
+#if defined(ESP32)
+      board.setInhibitSleep(true);   // prevent sleep when WiFi is active
+      WiFi.setAutoReconnect(true);
+
+      WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info){
+          if (event == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) {
+              WIFI_DEBUG_PRINTLN("WiFi disconnected (reason=%s). Flagging for reconnect...",
+                WiFi.disconnectReasonName((wifi_err_reason_t)info.wifi_sta_disconnected.reason));
+              wifi_needs_reconnect = true;
+          } else if (event == ARDUINO_EVENT_WIFI_STA_GOT_IP) {
+              WIFI_DEBUG_PRINTLN("WiFi connected successfully!");
+              wifi_needs_reconnect = false;
+          }
+      });
+#endif
+
+      WIFI_DEBUG_PRINTLN("connecting to %s", wifi_ssid);
 
 #if defined(RP2040_PLATFORM)
-    // the join itself blocks inside the core (CYW43::begin busy-waits for the
-    // association), so every attempt stalls the mesh loop. beginNoBlock() only skips the
-    // extra DHCP wait. Give the first connect a full window, then bound the retries below.
-    WiFi.beginNoBlock(wifi_ssid, wifi_pwd);
-    last_wifi_reconnect_attempt = millis();   // let DHCP finish before the poll can retry
+      // the join itself blocks inside the core (CYW43::begin busy-waits for the
+      // association), so every attempt stalls the mesh loop. beginNoBlock() only skips the
+      // extra DHCP wait. Give the first connect a full window, then bound the retries below.
+      WiFi.beginNoBlock(wifi_ssid, wifi_pwd);
+      last_wifi_reconnect_attempt = millis();   // let DHCP finish before the poll can retry
 #else
-    WiFi.begin(wifi_ssid, wifi_pwd);
+      WiFi.begin(wifi_ssid, wifi_pwd);
 #endif
+    }
     wifi_interface.begin(TCP_PORT);
     interface_manager.addInterface(InterfaceType::WiFi, &wifi_interface);
   } else {
