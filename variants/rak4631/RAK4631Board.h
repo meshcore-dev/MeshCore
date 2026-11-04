@@ -35,4 +35,10 @@ public:
   const char* getManufacturerName() const override {
     return "RAK 4631";
   }
+
+#ifdef NRF52_POWER_MANAGEMENT
+  void powerOff() override {
+    initiateShutdown(SHUTDOWN_REASON_USER);
+  }
+#endif
 };
